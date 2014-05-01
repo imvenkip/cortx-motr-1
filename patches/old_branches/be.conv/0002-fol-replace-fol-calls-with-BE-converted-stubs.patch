@@ -1,0 +1,320 @@
+From 5c145d2ed60c8b74adc85a90feea3de6f6b79eaa Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 16 Aug 2013 14:33:13 +0530
+Subject: [PATCH 2/7] fol: replace fol calls with BE-converted stubs
+
+---
+ fop/fom_generic.c        |  5 +++++
+ ioservice/ut/bulkio_ut.c | 22 +++++++++++++++++++---
+ ioservice/ut/cob_foms.c  | 14 +++++++++++++-
+ mdservice/ut/mdstore.c   |  5 +++++
+ mero/setup.c             |  5 +++++
+ reqh/ut/reqh_fom_ut.c    | 17 +++++++++++------
+ stob/ad.c                | 21 +++++++++++++++++++--
+ stob/ut/ad.c             |  7 ++++++-
+ ut/ut_rpc_machine.c      |  5 +++++
+ 9 files changed, 88 insertions(+), 13 deletions(-)
+
+diff --git a/fop/fom_generic.c b/fop/fom_generic.c
+index d93a0ea..03de8fd 100644
+--- a/fop/fom_generic.c
++++ b/fop/fom_generic.c
+@@ -664,7 +664,12 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
+ 	/* @todo an arbitrary number for now */
+ 	desc->rd_header.rh_refcount = 1;
+ 
++#if XXX_USE_DB5
+ 	return m0_fol_rec_add(fol, &fom->fo_tx.tx_dbtx, &fom->fo_tx.tx_fol_rec);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++	return m0_fol_rec_add(fol, &fom->fo_tx.tx_fol_rec, NULL, NULL);
++#endif
+ }
+ 
+ /** @} end of fom group */
+diff --git a/ioservice/ut/bulkio_ut.c b/ioservice/ut/bulkio_ut.c
+index 63b264a..ba3d57f 100644
+--- a/ioservice/ut/bulkio_ut.c
++++ b/ioservice/ut/bulkio_ut.c
+@@ -1297,12 +1297,17 @@ static void bulkio_server_write_fol_rec_verify(void)
+ 	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
+ 	M0_UT_ASSERT(result == 0);
+ 
++#if XXX_USE_DB5
+ 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+ 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
++#else
++	result = m0_fol_rec_lookup(reqh->rh_fol, reqh->rh_fol->f_lsn - 2,
++				   &dec_rec);
++#endif
+ 	M0_UT_ASSERT(result == 0);
+ 
+ 	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
+-	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
++	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
+ 		struct m0_fop_fol_rec_part *fp_part = dec_part->rp_data;
+ 
+ 		if (dec_part->rp_ops->rpo_type->rpt_index ==
+@@ -1358,12 +1363,17 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
+ 	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
+ 	M0_UT_ASSERT(result == 0);
+ 
++#if XXX_USE_DB5
+ 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+ 				   reqh->rh_fol->f_lsn - 2, &dec_rec);
++#else
++	result = m0_fol_rec_lookup(reqh->rh_fol, reqh->rh_fol->f_lsn - 2,
++				   &dec_rec);
++#endif
+ 	M0_UT_ASSERT(result == 0);
+ 
+ 	M0_UT_ASSERT(dec_rec.fr_desc.rd_header.rh_parts_nr == 2);
+-	m0_tl_for(m0_rec_part, &dec_rec.fr_fol_rec_parts, dec_part) {
++	m0_tl_for(m0_rec_part, &dec_rec.fr_parts, dec_part) {
+ 		if (dec_part->rp_ops->rpo_type->rpt_index ==
+ 		    m0_fop_fol_rec_part_type.rpt_index) {
+ 			struct m0_fop_fol_rec_part *fp_part;
+@@ -1378,9 +1388,15 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
+ 			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
+ 				     ftype->ft_ops->fto_redo != NULL);
+ 			result = ftype->ft_ops->fto_undo(fp_part, reqh->rh_fol);
+-		} else
++		} else {
++#if XXX_USE_DB5
+ 			result = dec_part->rp_ops->rpo_undo(dec_part,
+ 							    &dtx.tx_dbtx);
++#else
++			M0_IMPOSSIBLE("XXX Not implemented");
++			result = dec_part->rp_ops->rpo_undo(dec_part, NULL);
++#endif
++		}
+ 		M0_UT_ASSERT(result == 0);
+ 	} m0_tl_endfor;
+ 	m0_fol_lookup_rec_fini(&dec_rec);
+diff --git a/ioservice/ut/cob_foms.c b/ioservice/ut/cob_foms.c
+index 37081a5..0047b78 100644
+--- a/ioservice/ut/cob_foms.c
++++ b/ioservice/ut/cob_foms.c
+@@ -1176,7 +1176,7 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
+ 	int			  result = 0;
+ 
+ 	cob_cmn =  m0_cobfop_common_get(fop);
+-	m0_tl_for(m0_rec_part, &rec->fr_fol_rec_parts, dec_part) {
++	m0_tl_for(m0_rec_part, &rec->fr_parts, dec_part) {
+ 		if (dec_part->rp_ops->rpo_type->rpt_index ==
+ 		    m0_fop_fol_rec_part_type.rpt_index) {
+ 			struct m0_fop_cob_common   *cob_data;
+@@ -1236,13 +1236,25 @@ static void cobfoms_fol_verify(void)
+ 	result = m0_dtx_open(&dtx, reqh->rh_dbenv);
+ 	M0_UT_ASSERT(result == 0);
+ 
++#if XXX_USE_DB5
+ 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+ 				   reqh->rh_fol->f_lsn - 2, &dec_cc_rec);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++	result = m0_fol_rec_lookup(reqh->rh_fol, reqh->rh_fol->f_lsn - 2,
++				   &dec_cc_rec);
++#endif
+ 	M0_UT_ASSERT(result == 0);
+ 	M0_UT_ASSERT(dec_cc_rec.fr_desc.rd_header.rh_parts_nr == 1);
+ 
++#if XXX_USE_DB5
+ 	result = m0_fol_rec_lookup(reqh->rh_fol, &dtx.tx_dbtx,
+ 				   reqh->rh_fol->f_lsn - 1, &dec_cd_rec);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++	result = m0_fol_rec_lookup(reqh->rh_fol, reqh->rh_fol->f_lsn - 1,
++				   &dec_cd_rec);
++#endif
+ 	M0_UT_ASSERT(result == 0);
+ 	M0_UT_ASSERT(dec_cd_rec.fr_desc.rd_header.rh_parts_nr == 1);
+ 
+diff --git a/mdservice/ut/mdstore.c b/mdservice/ut/mdstore.c
+index d7bb6b2..20066ba 100644
+--- a/mdservice/ut/mdstore.c
++++ b/mdservice/ut/mdstore.c
+@@ -148,7 +148,12 @@ static void test_init(void)
+         rc = m0_dbenv_init(&db, db_name, 0);
+         M0_ASSERT(rc == 0);
+ 
++#if XXX_USE_DB5
+         rc = m0_fol_init(&fol, &db);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++        rc = m0_fol_init(&fol, NULL, NULL, NULL);
++#endif
+         M0_ASSERT(rc == 0);
+ 
+         rc = m0_mdstore_init(&md, &id, &db, 1);
+diff --git a/mero/setup.c b/mero/setup.c
+index e2acc21..0251e0e 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -1364,7 +1364,12 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
+ 		goto cleanup_addb_stob;
+ 	}
+ 
++#if XXX_USE_DB5
+ 	rc = m0_fol_init(&rctx->rc_fol, &rctx->rc_db);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++	rc = m0_fol_init(&rctx->rc_fol, NULL, NULL, NULL);
++#endif
+ 	if (rc != 0) {
+ 		M0_LOG(M0_ERROR, "m0_fol_init");
+ 		goto cleanup_mdstore;
+diff --git a/reqh/ut/reqh_fom_ut.c b/reqh/ut/reqh_fom_ut.c
+index 16a5332..5466c38 100644
+--- a/reqh/ut/reqh_fom_ut.c
++++ b/reqh/ut/reqh_fom_ut.c
+@@ -167,20 +167,25 @@ static int server_init(const char             *stob_path,
+ 		       struct m0_stob        **reqh_addb_stob,
+ 		       struct m0_stob_id      *rh_addb_stob_id)
+ {
+-        int                          rc;
++	int                          rc;
+ 	struct m0_rpc_machine       *rpc_machine = &srv_rpc_mach;
+ 	struct m0_db_tx              tx;
+-	uint32_t		     bufs_nr;
+-	uint32_t		     tms_nr;
++	uint32_t                     bufs_nr;
++	uint32_t                     tms_nr;
+ 	struct m0_reqh_service_type *stype;
+ 
+-        srv_cob_dom_id.id = 102;
++	srv_cob_dom_id.id = 102;
+ 
+-        /* Init the db */
+-        rc = m0_dbenv_init(&srv_db, srv_db_name, 0);
++	/* Init the db */
++	rc = m0_dbenv_init(&srv_db, srv_db_name, 0);
+ 	M0_UT_ASSERT(rc == 0);
+ 
++#if XXX_USE_DB5
+ 	rc = m0_fol_init(&srv_fol, &srv_db);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++	rc = m0_fol_init(&srv_fol, NULL, NULL, NULL);
++#endif
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/*
+diff --git a/stob/ad.c b/stob/ad.c
+index 6f44b25..0296c2c 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -17,14 +17,15 @@
+  * Original creation date: 08/24/2010
+  */
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
++#include "lib/trace.h"
++
+ #include <errno.h>
+ #include <string.h>                 /* memset */
+ 
+ #include "db/extmap.h"
+ #include "dtm/dtm.h"                /* m0_dtx */
+ #include "fol/fol.h"
+-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+-#include "lib/trace.h"
+ #include "lib/thread.h"             /* LAMBDA */
+ #include "lib/memory.h"
+ #include "lib/arith.h"              /* min_type, min3 */
+@@ -153,8 +154,13 @@ enum ad_stob_allocation_extent_type {
+ 	AET_HOLE
+ };
+ 
++#if XXX_USE_DB5
+ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+ 				    struct m0_db_tx	   *tx)
++#else
++static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
++				    struct m0_be_tx        *tx)
++#endif
+ {
+ 	struct ad_rec_part    *arp;
+ 	struct m0_stob_domain *dom;
+@@ -173,10 +179,19 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+ 	adom = domain2ad(dom);
+ 
+ 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
++#if XXX_USE_DB5
+ 		rc = m0_emap_lookup(&adom->ad_adata, tx,
+ 				    &old_data[i].ee_pre,
+ 				     old_data[i].ee_ext.e_start,
+ 				    &it) ?:
++#else
++		rc = m0_emap_lookup(&adom->ad_adata,
++				    (M0_IMPOSSIBLE("XXX Not implemented"),
++				     NULL),
++				    &old_data[i].ee_pre,
++				     old_data[i].ee_ext.e_start,
++				    &it) ?:
++#endif
+ 		     m0_emap_extent_update(&it, &old_data[i]);
+ 		m0_emap_close(&it);
+ 	}
+@@ -185,6 +200,7 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+ 
+ M0_FOL_REC_PART_TYPE_DECLARE(ad_rec_part, static, ad_rec_part_undo_redo_op,
+ 			     ad_rec_part_undo_redo_op);
++
+ /**
+    Implementation of m0_stob_type_op::sto_init().
+  */
+@@ -1417,6 +1433,7 @@ M0_INTERNAL void m0_ad_stobs_fini(void)
+ }
+ 
+ /** @} end group stobad */
++#undef M0_TRACE_SUBSYSTEM
+ 
+ /*
+  *  Local variables:
+diff --git a/stob/ut/ad.c b/stob/ut/ad.c
+index 0950918..26c9a92 100644
+--- a/stob/ut/ad.c
++++ b/stob/ut/ad.c
+@@ -381,7 +381,7 @@ static void test_ad_undo(void)
+ 
+ 	M0_ASSERT(memcmp(user_buf[0], read_bufs[0], buf_size) == 0);
+ 
+-	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_fol_rec_parts);
++	rpart = m0_rec_part_tlist_head(&tx.tx_fol_rec.fr_parts);
+ 	M0_ASSERT(rpart != NULL);
+ 
+ 	/* Write new data in stob */
+@@ -389,7 +389,12 @@ static void test_ad_undo(void)
+ 	test_write(1);
+ 
+ 	/* Do the undo operation. */
++#if XXX_USE_DB5
+ 	result = rpart->rp_ops->rpo_undo(rpart, &tx.tx_dbtx);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++	result = rpart->rp_ops->rpo_undo(rpart, NULL);
++#endif
+ 	M0_UT_ASSERT(result == 0);
+ 	m0_dtx_done(&tx);
+ 
+diff --git a/ut/ut_rpc_machine.c b/ut/ut_rpc_machine.c
+index 3c2d3b8..37a9855 100644
+--- a/ut/ut_rpc_machine.c
++++ b/ut/ut_rpc_machine.c
+@@ -63,7 +63,12 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
+ 	rc = m0_dbenv_init(&ctx->rmc_dbenv, ctx->rmc_dbname, 0);
+ 	M0_ASSERT(rc == 0);
+ 
++#if XXX_USE_DB5
+ 	rc = m0_fol_init(&ctx->rmc_fol, &ctx->rmc_dbenv);
++#else
++	M0_IMPOSSIBLE("XXX Not implemented");
++	rc = m0_fol_init(&ctx->rmc_fol, NULL, NULL, NULL);
++#endif
+ 	M0_ASSERT(rc == 0);
+ 
+ 	rc = m0_cob_domain_init(&ctx->rmc_cob_dom, &ctx->rmc_dbenv,
+-- 
+1.8.3.2
+

@@ -1,0 +1,55 @@
+From b6af4b7024263b6a433d627e5bfee934ea69631c Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 31 Mar 2013 21:43:25 +0300
+Subject: [PATCH 12/15] cob: trace oirec and nsrec insertions
+
+---
+ cob/cob.c | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 476426c..ee21ea9 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1133,7 +1133,7 @@ M0_INTERNAL int m0_cob_alloc_fkey(struct m0_cob_domain *dom,
+ 			 &oikey, sizeof oikey, NULL, 0);
+ 	rc = m0_db_cursor_get(&cursor, &pair);
+ 	if (rc == 0) {
+-		/* 
++		/*
+ 		 * Most probably got some {f_container2, ...} key,
+ 		 * where f_container2 > f_container...
+ 		 */
+@@ -1465,6 +1465,14 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
+ 			 m0_cob_nskey_size(nskey));
+ 
+ 	rc = m0_table_insert(tx, &pair);
++	M0_LOG(M0_DEBUG, "insert oirec [%llx:%llx]#%llu<-[%llx:%llx]/%.*s,"
++	       " rc=%d", (long long unsigned)oikey.cok_fid.f_container,
++	       (long long unsigned)oikey.cok_fid.f_key,
++	       (long long unsigned)oikey.cok_linkno,
++	       (long long unsigned)nskey->cnk_pfid.f_container,
++	       (long long unsigned)nskey->cnk_pfid.f_key,
++	       (int)m0_bitstring_len_get(&nskey->cnk_name),
++	       (char *)m0_bitstring_buf_get(&nskey->cnk_name), rc);
+ 	m0_db_pair_release(&pair);
+ 	m0_db_pair_fini(&pair);
+ 	if (rc != 0)
+@@ -1475,6 +1483,14 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
+ 			 nsrec, sizeof *nsrec);
+ 
+ 	rc = m0_table_insert(tx, &pair);
++	M0_LOG(M0_DEBUG, "insert nsrec [%llx:%llx]#%llu->[%llx:%llx]/%.*s,"
++	       " rc=%d", (long long unsigned)nsrec->cnr_fid.f_container,
++	       (long long unsigned)nsrec->cnr_fid.f_key,
++	       (long long unsigned)nsrec->cnr_linkno,
++	       (long long unsigned)nskey->cnk_pfid.f_container,
++	       (long long unsigned)nskey->cnk_pfid.f_key,
++	       (int)m0_bitstring_len_get(&nskey->cnk_name),
++	       (char *)m0_bitstring_buf_get(&nskey->cnk_name), rc);
+ 	m0_db_pair_release(&pair);
+ 	m0_db_pair_fini(&pair);
+ out:
+-- 
+1.8.3.2
+

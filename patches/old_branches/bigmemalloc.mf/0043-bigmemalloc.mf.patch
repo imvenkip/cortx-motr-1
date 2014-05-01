@@ -1,0 +1,126 @@
+From 2cf2fdcb7f520111cb228440a5eaafe5ac136c04 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Mon, 28 Oct 2013 12:00:54 +0530
+Subject: [PATCH 43/50] bigmemalloc.mf -Fixed few issues faced during UT.
+
+---
+ lib/varr.c | 29 ++++++++++++++++-------------
+ lib/varr.h |  8 ++++----
+ 2 files changed, 20 insertions(+), 17 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index 9acc46e..f199786 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -179,10 +179,12 @@ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+ 					unsigned long obj_nr_in_1_cont,
+ 					uint8_t obj_nr_shift)
+ {
++	uint64_t buff_nr;
+ 	M0_PRE(obj_nr_in_1_cont > 0);
+ 
+-	return safe_bitshift(nr, obj_nr_shift, >>) +
+-		(nr & (obj_nr_in_1_cont - 1)) == 0 ? 0 : 1;
++	buff_nr = safe_bitshift(nr, obj_nr_shift, >>);
++	buff_nr += (nr & (obj_nr_in_1_cont - 1)) == 0 ? 0 : 1;
++	return buff_nr;
+ }
+ 
+ /* All trees that hold objects will have same depth. This depth is a many to
+@@ -268,7 +270,7 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ 	pe->vp_idx	 = 0;
+ 	root		 = (void *)arr->va_tree;
+ 	/* Note that we will never dereference pe->vp_buf at depth == 0 outside
+-	 * the scope of this function*/
++	 * the scope of this function */
+ 	pe->vp_buf	 = (void *)&root;
+ 	pe->vp_width	 = 1;
+ 
+@@ -351,12 +353,14 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 		pe->vp_buf = buff_incr(cursor->vc_arr, d, pe->vp_buf,
+ 				       index_in_level - pe->vp_idx);
+ 		pe->vp_idx = index_in_level;
+-		while (d <= cursor->vc_depth) {
++		while (common_anct != cursor->vc_depth &&
++		       d < cursor->vc_depth) {
+ 			buf = pe->vp_buf;
++			++pe;
++			++d;
+ 			pe->vp_buf = *(void **)buf;
+ 			pe->vp_buf = buff_incr(cursor->vc_arr, d, pe->vp_buf,
+ 					       pe->vp_idx);
+-			++d;
+ 		}
+ 		cursor->vc_done = target_idx;
+ 		goto next;
+@@ -441,7 +445,8 @@ M0_INTERNAL uint32_t common_ancestor(const struct m0_varr *arr,
+ 		return arr->va_depth;
+ 	diff >>= arr->va_buf_shift - arr->va_obj_shift;
+ 	while (diff > 0 && level > 0) {
+-		diff >>= arr->va_bufptr_nr_shift;
++		diff >>= level == 2 ? M0_VA_TNODE_NR_SHIFT :
++			arr->va_bufptr_nr_shift;
+ 		--level;
+ 	}
+ 	return level;
+@@ -461,7 +466,7 @@ M0_INTERNAL uint32_t index_within_level(const struct m0_varr *arr,
+ 		(arr->va_depth - depth - 1) * arr->va_bufptr_nr_shift;
+ 	mask_bits = depth == arr->va_depth ?
+ 		arr->va_buf_shift - arr->va_obj_shift :
+-		arr->va_bufptr_nr_shift;
++		depth == 1 ? M0_VA_TNODE_NR_SHIFT : arr->va_bufptr_nr_shift;
+ 	target_idx  = safe_bitshift(target_idx, shift, >>);
+ 	target_idx &= last_nbits_set(mask_bits);
+ 	return target_idx;
+@@ -510,15 +515,15 @@ M0_INTERNAL uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+ 
+ 	/*return m0_pow(arr->va_bufsize / M0_VA_TNODEPTR_SIZE,
+ 	  arr->va_depth - level);*/
+-	return safe_bitshift((uint64_t)1, (arr->va_bufptr_nr_shift *
+-			     (arr->va_depth - level)), <<);
++	return level == arr->va_depth ? 0 :
++		safe_bitshift((uint64_t)1, (arr->va_bufptr_nr_shift *
++					    (arr->va_depth - level - 1)), <<);
+ }
+ 
+ M0_INTERNAL void *buff_incr(const struct m0_varr *arr, uint32_t depth,
+ 			    void *buff, uint32_t incr)
+ {
+ 	size_t   inc_unit;
+-	uint32_t i;
+ 
+ 	M0_PRE(arr != NULL && buff != NULL);
+ 
+@@ -526,9 +531,7 @@ M0_INTERNAL void *buff_incr(const struct m0_varr *arr, uint32_t depth,
+ 		inc_unit = arr->va_obj_size;
+ 	else
+ 		inc_unit = M0_VA_TNODEPTR_SIZE;
+-	for (i = 0; i < incr; ++i) {
+-		buff += inc_unit;
+-	}
++	buff += incr*inc_unit;
+ 	return buff;
+ }
+ 
+diff --git a/lib/varr.h b/lib/varr.h
+index 0e08b64..54bcafd 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -213,10 +213,10 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor, uint32_t inc)
+  * the range [start, end) */
+ #define m0_varr_iter(arr, type, idx, obj, start, end, inc)		\
+ 	({								\
+-	 uint64_t	       idx   = (start);				\
+-	 uint64_t	       end   = (end);				\
+-	 uint64_t	       __inc = (inc);				\
+-	 struct m0_varr	      *__arr = (arr);				\
++	 uint64_t	       idx     = (start);			\
++	 uint64_t	       __end   = (end);				\
++	 uint64_t	       __inc   = (inc);				\
++	 struct m0_varr	      *__arr   = (arr);				\
+ 	 type		      *obj;					\
+ 	 int		       rc;					\
+ 	 struct m0_varr_cursor cursor;					\
+-- 
+1.8.3.2
+

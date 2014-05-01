@@ -1,0 +1,108 @@
+From d22a395488c8d2fa21bf54e2fc3df2ce4b95181a Mon Sep 17 00:00:00 2001
+From: Andrew Perepechko <andrew_perepechko@xyratex.com>
+Date: Thu, 9 Jun 2011 21:18:37 +0400
+Subject: [PATCH 122/177] Revert "add transactioned md_store_path"
+
+This reverts commit 8865af2c2395dbb6699d87227e1ba3f12b21d336.
+---
+ mdstore/mdstore.c | 38 ++++++++------------------------------
+ mdstore/mdstore.h | 11 -----------
+ 2 files changed, 8 insertions(+), 41 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index bd5cd0a..40d2405 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -848,33 +848,8 @@ int c2_md_store_path(struct c2_md_store *md,
+                      struct c2_fid *fid,
+                      char **path)
+ {
+-        struct c2_db_tx tx;
+-        int rc;
+-
+-        rc = c2_db_tx_init(&tx, md->md_dom.cd_dbenv, 0);
+-        if (rc)
+-                return rc;
+-        rc = c2_md_store_path_tx(md, fid, path, &tx);
+-        if (rc)
+-                c2_db_tx_abort(&tx);
+-        else
+-                c2_db_tx_commit(&tx);
+-        return rc;
+-}
+-
+-/**
+-   Get path by @fid. Path @path is allocated by c2_alloc() on
+-   success and path is saved there. When it is not longer needed
+-   it may be freed with c2_free().
+-   
+-   Error code is returned on error or zero on success.
+- */
+-int c2_md_store_path_tx(struct c2_md_store *md,
+-                        struct c2_fid *fid,
+-                        char **path,
+-                        struct c2_db_tx *tx)
+-{
+         struct c2_cob   *cob;
++        struct c2_db_tx  tx;
+         int              rc;
+         
+         *path = c2_alloc(PATH_MAX);
+@@ -882,7 +857,9 @@ int c2_md_store_path_tx(struct c2_md_store *md,
+                 return -ENOMEM;
+ 
+ restart:
+-        rc = c2_md_store_locate(md, fid, &cob, C2_MD_LOCATE_STORED, tx);
++        c2_db_tx_init(&tx, md->md_dom.cd_dbenv, 0);
++
++        rc = c2_md_store_locate(md, fid, &cob, C2_MD_LOCATE_STORED, &tx);
+         if (rc)
+                 goto out;
+ 
+@@ -905,17 +882,18 @@ restart:
+                         break;
+                 }
+                 rc = c2_md_store_locate(md, &cob->co_nskey->cnk_pfid, 
+-                                        &cob, C2_MD_LOCATE_STORED, tx);
++                                        &cob, C2_MD_LOCATE_STORED, &tx);
+         }
+ out:
+         if (rc) {
+-                c2_db_tx_abort(tx);
+-                c2_db_tx_init(tx, md->md_dom.cd_dbenv, 0);
++                c2_db_tx_abort(&tx);
+                 if (rc == -EDEADLK) {
+                         memset(*path, 0, PATH_MAX);
+                         goto restart;
+                 }
+                 c2_free(*path);
++        } else {
++                c2_db_tx_commit(&tx);
+         }
+         return rc;
+ }
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index eed2b80..fc87af6 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -356,17 +356,6 @@ int c2_md_store_path(struct c2_md_store         *md,
+                      struct c2_fid              *fid,
+                      char                      **path);
+ 
+-/**
+-   Get path by @fid. Path @path is allocated by
+-   c2_alloc() on success and path is saved there.
+-   When it is not longer needed it may be freed
+-   with c2_free().
+- */
+-int c2_md_store_path_tx(struct c2_md_store         *md,
+-                        struct c2_fid              *fid,
+-                        char                      **path,
+-                        struct c2_db_tx             *tx);
+-
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+ 
+-- 
+1.8.3.2
+

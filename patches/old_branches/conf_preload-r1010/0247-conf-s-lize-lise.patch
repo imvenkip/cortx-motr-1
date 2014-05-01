@@ -1,0 +1,271 @@
+From 687ecf68c8d0f233f5962ab6ba8b5a4b9e332b66 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 16 Jul 2012 23:30:57 +0300
+Subject: [PATCH 247/311] conf: s/lize/lise/
+
+God save The Queen.
+
+LogD #462
+RB: r/865/diff/2/?file=23425#file23425line292
+---
+ conf/buf.h     |  2 +-
+ conf/confc.c   | 20 ++++++++++----------
+ conf/confc.h   | 24 ++++++++++++------------
+ conf/map.c     |  2 +-
+ conf/map.h     |  2 +-
+ conf/obj.h     |  4 ++--
+ conf/obj_ops.h |  2 +-
+ 7 files changed, 28 insertions(+), 28 deletions(-)
+
+diff --git a/conf/buf.h b/conf/buf.h
+index 46e7c92..11d46dc 100644
+--- a/conf/buf.h
++++ b/conf/buf.h
+@@ -28,7 +28,7 @@
+ #include "lib/misc.h"        /* strlen */
+ 
+ /*
+- * Initializers for struct c2_conf_buf.
++ * Initialisers for struct c2_conf_buf.
+  *
+  * c2_conf_buf is defined in onwire.ff, but C2_CONF_BUF_INIT() cannot
+  * be defined there --- fop/fop2c would skip such a definition.
+diff --git a/conf/confc.c b/conf/confc.c
+index 953bf68..7c89fc0 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -48,7 +48,7 @@
+  *
+  * A state machine is embedded into c2_confc_ctx structure as its @ref
+  * c2_confc_ctx::fc_mach "fc_mach" member.  c2_confc_ctx_init()
+- * initializes the state machine and sets its state to S_INITIAL.
++ * initialises the state machine and sets its state to S_INITIAL.
+  *
+  * @dot
+  * digraph confc_ctx_states {
+@@ -81,7 +81,7 @@
+  *
+  * @subsection confc-lspec-state-initial S_INITIAL
+  *
+- * Summary: c2_confc_ctx has just been initialized.
++ * Summary: c2_confc_ctx has just been initialised.
+  *
+  * c2_confc_open() populates c2_confc_ctx::fc_path array (path_store())
+  * and posts an AST to c2_confc::cc_group.
+@@ -213,7 +213,7 @@
+  *
+  * cache_add() performs the following operations:
+  *   -# c2_conf_obj_new() --- allocates configuration object and
+- *      initializes its fields;
++ *      initialises its fields;
+  *   -# c2_conf_obj_fill() --- fills new object with configuration data
+  *      contained in on-wire object descriptor (confx_object);
+  *   -# c2_conf_map_add() --- adds new entry to the cached objects
+@@ -529,7 +529,7 @@ static bool terminal_st_invariant(const struct c2_sm *mach); /* S_TERMINAL */
+ static const struct c2_sm_state_descr confc_ctx_states[S_NR] = {
+ 	[S_INITIAL] = {
+ 		.sd_flags     = C2_SDF_INITIAL,
+-		.sd_name      = "INITIAL",
++		.sd_name      = "S_INITIAL",
+ 		.sd_in        = NULL,
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = NULL,
+@@ -537,7 +537,7 @@ static const struct c2_sm_state_descr confc_ctx_states[S_NR] = {
+ 	},
+ 	[S_CHECK] = {
+ 		.sd_flags     = 0,
+-		.sd_name      = "CHECK",
++		.sd_name      = "S_CHECK",
+ 		.sd_in        = check_st_in,
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = check_st_invariant,
+@@ -546,7 +546,7 @@ static const struct c2_sm_state_descr confc_ctx_states[S_NR] = {
+ 	},
+ 	[S_WAIT_REPLY] = {
+ 		.sd_flags     = 0,
+-		.sd_name      = "WAIT_REPLY",
++		.sd_name      = "S_WAIT_REPLY",
+ 		.sd_in        = wait_reply_st_in,
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = NULL,
+@@ -554,7 +554,7 @@ static const struct c2_sm_state_descr confc_ctx_states[S_NR] = {
+ 	},
+ 	[S_WAIT_STATUS] = {
+ 		.sd_flags     = 0,
+-		.sd_name      = "WAIT_STATUS",
++		.sd_name      = "S_WAIT_STATUS",
+ 		.sd_in        = NULL
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = NULL,
+@@ -562,7 +562,7 @@ static const struct c2_sm_state_descr confc_ctx_states[S_NR] = {
+ 	},
+ 	[S_GROW_CACHE] = {
+ 		.sd_flags     = 0,
+-		.sd_name      = "GROW_CACHE",
++		.sd_name      = "S_GROW_CACHE",
+ 		.sd_in        = grow_cache_st_in,
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = NULL,
+@@ -570,7 +570,7 @@ static const struct c2_sm_state_descr confc_ctx_states[S_NR] = {
+ 	},
+ 	[S_FAILURE] = {
+ 		.sd_flags     = C2_SDF_FAILURE,
+-		.sd_name      = "FAILURE",
++		.sd_name      = "S_FAILURE",
+ 		.sd_in        = NULL,
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = failure_st_invariant,
+@@ -578,7 +578,7 @@ static const struct c2_sm_state_descr confc_ctx_states[S_NR] = {
+ 	},
+ 	[S_TERMINAL] = {
+ 		.sd_flags     = C2_SDF_TERMINAL,
+-		.sd_name      = "TERMINAL",
++		.sd_name      = "S_TERMINAL",
+ 		.sd_in        = NULL,
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = terminal_st_invariant,
+diff --git a/conf/confc.h b/conf/confc.h
+index 3afb231..bd3581e 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -67,13 +67,13 @@ struct c2_mutex;
+  * <hr> <!------------------------------------------------------------>
+  * @section confc-fspec-sub Subroutines
+  *
+- * - c2_confc_init() initializes configuration cache, creates a stub
++ * - c2_confc_init() initialises configuration cache, creates a stub
+  *   for the root object (c2_conf_profile).
+- * - c2_confc_fini() finalizes confc, destroys configuration cache.
++ * - c2_confc_fini() finalises confc, destroys configuration cache.
+  *
+- * - c2_confc_ctx_init() initializes context object, which will be
++ * - c2_confc_ctx_init() initialises context object, which will be
+  *   used by c2_confc_open() function.
+- * - c2_confc_ctx_fini() finalizes context object.
++ * - c2_confc_ctx_fini() finalises context object.
+  *
+  * - c2_confc_open() requests asynchronous opening of a configuration object.
+  * - c2_confc_open_sync() opens configuration object synchronously.
+@@ -92,7 +92,7 @@ struct c2_mutex;
+  * @subsection confc-fspec-sub-setup Initialization and termination
+  *
+  * Prior to accessing configuration, the application (aka
+- * configuration consumer) should initialize configuration client by
++ * configuration consumer) should initialise configuration client by
+  * calling c2_confc_init().
+  *
+  * A confc instance is associated with a state machine group
+@@ -129,7 +129,7 @@ struct c2_mutex;
+  * c2_confc_readdir_sync().
+  *
+  * c2_confc_open() and c2_confc_readdir() are asynchronous functions.
+- * Prior to calling them, the application should initialize a context
++ * Prior to calling them, the application should initialise a context
+  * object (c2_confc_ctx_init()) and register a clink with .sm_chan
+  * member of c2_confc_ctx::fc_mach.  When the configuration retrieval
+  * completes (c2_confc_ctx_is_completed)), c2_confc_ctx_result() can
+@@ -382,7 +382,7 @@ struct c2_confc {
+ 	 */
+ 	struct c2_conf_obj *cc_root;
+ 	/**
+-	 * Serializes configuration retrieval state machines
++	 * Serialises configuration retrieval state machines
+ 	 * (c2_confc_ctx::fc_mach).
+ 	 */
+ 	struct c2_sm_group *cc_group;
+@@ -418,9 +418,9 @@ struct c2_confc {
+ };
+ 
+ /**
+- * Initializes configuration client.
++ * Initialises configuration client.
+  *
+- * @param confc        A confc instance to be initialized.
++ * @param confc        A confc instance to be initialised.
+  * @param conf_source  End point address of configuration server (confd).
+  *                     If the value is prefixed with "local-conf:", it
+  *                     is a configuration string --- ASCII description
+@@ -434,7 +434,7 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 		  const char *profile, struct c2_sm_group *sm_group);
+ 
+ /**
+- * Finalizes configuration client. Destroys configuration cache,
++ * Finalises configuration client. Destroys configuration cache,
+  * freeing allocated memory.
+  *
+  * @pre  confc->cc_nr_ctx == 0
+@@ -497,8 +497,8 @@ struct c2_confc_ctx {
+ };
+ 
+ /**
+- * Initializes configuration retrieval context.
+- * @pre  confc is initialized
++ * Initialises configuration retrieval context.
++ * @pre  confc is initialised
+  */
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc);
+ 
+diff --git a/conf/map.c b/conf/map.c
+index bbf4501..f73a179 100644
+--- a/conf/map.c
++++ b/conf/map.c
+@@ -52,7 +52,7 @@ int c2_conf_map_init(struct c2_conf_map *map)
+ 
+ void c2_conf_map_fini(struct c2_conf_map *map)
+ {
+-	/* Finalize, free, and assign NULL to map->m_tbl and map->m_db. */
++	/* Finalise, free, and assign NULL to map->m_tbl and map->m_db. */
+ 	XXX;
+ }
+ 
+diff --git a/conf/map.h b/conf/map.h
+index c35042f..d8a8c3c 100644
+--- a/conf/map.h
++++ b/conf/map.h
+@@ -96,7 +96,7 @@ struct c2_conf_map_cursor {
+ };
+ 
+ /**
+- * Initializes a cursor, positioning it at the first element of the
++ * Initialises a cursor, positioning it at the first element of the
+  * mapping.
+  */
+ void c2_conf_map_cursor_init(struct c2_conf_map_cursor *cur,
+diff --git a/conf/obj.h b/conf/obj.h
+index e9048e6..b61c1d8 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -436,7 +436,7 @@ struct c2_conf_dircur {
+ };
+ 
+ /**
+- * Initializes directory cursor.
++ * Initialises directory cursor.
+  *
+  * Note, that c2_conf_dircur_init() does not increment reference
+  * counter of its second argument (dir). It is responsibility of
+@@ -449,7 +449,7 @@ struct c2_conf_dircur {
+ void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_obj *dir);
+ 
+ /**
+- * Finalizes directory cursor.
++ * Finalises directory cursor.
+  * Decrements reference counters of cur->dc_pin and cur->dc_dir.
+  *
+  * @pre   dir->co_nrefs > 0
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index aedcf02..bec5543 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -39,7 +39,7 @@
+  * @{
+  */
+ 
+-/** Allocates and initializes configuration object of given type. */
++/** Allocates and initialises configuration object of given type. */
+ struct c2_conf_obj *c2_conf_obj_new(enum c2_conf_objtype type,
+ 				    const struct c2_conf_buf *id);
+ 
+-- 
+1.8.3.2
+

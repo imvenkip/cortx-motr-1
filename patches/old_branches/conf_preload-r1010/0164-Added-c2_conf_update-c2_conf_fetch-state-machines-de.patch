@@ -1,0 +1,497 @@
+From 616ba73317cb43ff5d885823facdab2e63089105 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 11 May 2012 17:45:34 +0300
+Subject: [PATCH 164/311] Added c2_conf_update, c2_conf_fetch state machines
+ description; Added c2_confd_stat for configuration service statistics; Added
+ confd fetch, update, statistics reply and request FOP definitions.
+
+---
+ conf/conf_fom.c | 148 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/conf_fom.h |  59 +++++++++++++++++++++
+ conf/conf_fop.c | 158 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/conf_fop.h |  87 +++++++++++++++++++++++++++++++
+ 4 files changed, 452 insertions(+)
+ create mode 100644 conf/conf_fom.c
+ create mode 100644 conf/conf_fom.h
+ create mode 100644 conf/conf_fop.c
+ create mode 100644 conf/conf_fop.h
+
+diff --git a/conf/conf_fom.c b/conf/conf_fom.c
+new file mode 100644
+index 0000000..c20fece
+--- /dev/null
++++ b/conf/conf_fom.c
+@@ -0,0 +1,148 @@
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
++ * Original creation date: 05/05/2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#include <config.h>
++#endif
++
++#include "fop/fop.h"
++#include "fop/fop_format_def.h"
++#include "fop/fop_format.h"
++#include "conf_fom.h"
++#include "conf_fop.h"
++#include "onwire_u.h"
++#include "lib/errno.h"
++#include "lib/memory.h"
++#include "rpc/rpc2.h"
++
++/**
++ * Generic FOP/FOM functions
++ */
++static int fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
++{
++}
++
++static void fop_fom_fini(struct c2_fom *fom)
++{
++}
++
++size_t fom_locality(const struct c2_fom *fom)
++{
++	C2_PRE(fom != NULL);
++	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
++}
++
++
++/** <hr> <!----------------------------------------------------------------------!>
++ *  c2_conf_stat_resp FOM
++ */
++
++/**
++ * State function for c2_conf_stat_resp request
++ */
++int c2_fom_stat_state(struct c2_fom *fom)
++{
++}
++
++/** Generic ops object for c2_conf_stat_resp */
++struct c2_fom_ops c2_fom_stat_ops = {
++	.fo_fini = fop_fom_fini,
++	.fo_state = c2_fom_stat_state,
++	.fo_home_locality = fom_locality
++};
++
++/** FOM type specific functions for c2_conf_stat_resp FOP. */
++static const struct c2_fom_type_ops c2_fom_stat_type_ops = {
++	.fto_create = fop_fom_create
++};
++
++/** c2_conf_stat specific FOM type operations vector. */
++struct c2_fom_type c2_fom_stat_mopt = {
++        .ft_ops = &c2_fom_stat_type_ops,
++};
++
++/** <hr> <!----------------------------------------------------------------------!>
++ *  c2_conf_fetch_resp FOM
++ */
++
++/**
++ * State function for c2_conf_fetch_resp
++ */
++int c2_fom_fetch_state(struct c2_fom *fom)
++{
++}
++
++/** Generic ops object for c2_conf_fetch */
++struct c2_fom_ops c2_fom_fetch_ops = {
++	.fo_fini = fop_fom_fini,
++	.fo_state = c2_fom_fetch_state,
++	.fo_home_locality = fom_locality
++};
++
++/** FOM type specific functions for c2_conf_fetch FOP. */
++static const struct c2_fom_type_ops c2_fom_fetch_type_ops = {
++	.fto_create = fop_fom_create
++};
++
++/** c2_conf_fetch specific FOM type operations vector. */
++struct c2_fom_type c2_fom_fetch_mopt = {
++        .ft_ops = &c2_fom_fetch_type_ops,
++};
++
++/** <hr> <!----------------------------------------------------------------------!>
++ *  c2_conf_update FOM
++ */
++
++/**
++ * State function for c2_conf_update request
++ */
++int c2_fom_update_state(struct c2_fom *fom)
++{
++}
++
++/** Generic ops object for c2_conf_update */
++struct c2_fom_ops c2_fom_update_ops = {
++	.fo_fini = fop_fom_fini,
++	.fo_state = c2_fom_update_state,
++	.fo_home_locality = fom_locality
++};
++
++/** FOM type specific functions for c2_conf_update FOP. */
++static const struct c2_fom_type_ops c2_fom_update_type_ops = {
++	.fto_create = fop_fom_create
++};
++
++/** c2_conf_update specific FOM type operations vector. */
++struct c2_fom_type c2_fom_update_mopt = {
++        .ft_ops = &c2_fom_update_type_ops,
++};
++
++
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++
+diff --git a/conf/conf_fom.h b/conf/conf_fom.h
+new file mode 100644
+index 0000000..832f0a6
+--- /dev/null
++++ b/conf/conf_fom.h
+@@ -0,0 +1,59 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
++ * Original creation date: 05/05/2012
++ */
++
++#ifndef __COLIBRI_CONF_FOM_H__
++#define __COLIBRI_CONF_FOM_H__
++
++#include "conf_fop.h"
++
++/**
++ * State transition function for "c2_conf_fetch" FOP.
++ */
++int c2_fom_fetch_state(struct c2_fom *fom);
++size_t c2_fom_fetch_home_locality(const struct c2_fom *fom);
++void c2_fop_fetch_fom_fini(struct c2_fom *fom);
++
++/**
++ * State transition function for "c2_conf_update" FOP.
++ */
++int c2_fom_update_state(struct c2_fom *fom);
++size_t c2_fom_update_home_locality(const struct c2_fom *fom);
++void c2_fop_update_fom_fini(struct c2_fom *fom);
++
++/**
++ * State transition function for "c2_conf_stat" FOP.
++ */
++int c2_fom_stat_state(struct c2_fom *fom);
++size_t c2_fom_stat_home_locality(const struct c2_fom *fom);
++void c2_fop_stat_fom_fini(struct c2_fom *fom);
++
++/* __COLIBRI_CONF_FOM_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++
+diff --git a/conf/conf_fop.c b/conf/conf_fop.c
+new file mode 100644
+index 0000000..e0698ee
+--- /dev/null
++++ b/conf/conf_fop.c
+@@ -0,0 +1,158 @@
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
++ * Original creation date: 05/05/2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#include <config.h>
++#endif
++
++#include "lib/errno.h"
++#include "lib/memory.h"
++#include "fop/fom.h"
++#include "fop/fop.h"
++#include "fop/fop_format_def.h"
++#include "onwire_u.h"
++#include "fop/fop_iterator.h"
++#include "conf_fop.h"
++#include "conf_fom.h"
++#include "onwire.ff"
++#include "lib/errno.h"
++#include "rpc/rpc2.h"
++#include "fop/fop_item_type.h"
++#include "xcode/bufvec_xcode.h"
++
++/* Ops vector for fetch request. */
++const struct c2_fop_type_ops c2_conf_fetch_ops = {
++	.fto_fop_replied = NULL,
++	.fto_size_get = c2_xcode_fop_size_get,
++	.fto_io_coalesce = NULL,
++};
++
++/* Ops vector for fetch reply. */
++const struct c2_fop_type_ops c2_conf_fetch_resp_ops = {
++        .fto_fop_replied = NULL,
++        .fto_size_get = c2_xcode_fop_size_get,
++        .fto_io_coalesce = NULL,
++};
++
++/* Ops vector for update request. */
++const struct c2_fop_type_ops c2_conf_update_ops = {
++	.fto_fop_replied = NULL,
++	.fto_size_get = c2_xcode_fop_size_get,
++	.fto_io_coalesce = NULL,
++};
++
++/* Ops vector for update reply. */
++const struct c2_fop_type_ops c2_conf_update_resp_ops = {
++        .fto_fop_replied = NULL,
++        .fto_size_get = c2_xcode_fop_size_get,
++        .fto_io_coalesce = NULL,
++};
++
++/* Ops vector for statistics request. */
++const struct c2_fop_type_ops c2_conf_stat_ops = {
++	.fto_fop_replied = NULL,
++	.fto_size_get = c2_xcode_fop_size_get,
++	.fto_io_coalesce = NULL,
++};
++
++/* Ops vector for statistics reply. */
++const struct c2_fop_type_ops c2_conf_stat_resp_ops = {
++        .fto_fop_replied = NULL,
++        .fto_size_get = c2_xcode_fop_size_get,
++        .fto_io_coalesce = NULL,
++};
++
++/* Declaration of fetch FOPs */
++C2_FOP_TYPE_DECLARE(c2_conf_fetch, "fetch fop", &c2_conf_fetch_ops,
++		    C2_RPC_FETCH_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_conf_fetch_resp, "fetch fop reply", &c2_conf_fetch_resp_ops,
++		    C2_RPC_FETCH_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
++
++/* Declaration of update FOPs */
++C2_FOP_TYPE_DECLARE(c2_conf_update, "update fop", &c2_conf_update_ops,
++		    C2_RPC_UPDATE_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_conf_update_resp, "update fop reply", &c2_conf_update_resp_ops,
++		    C2_RPC_UPDATE_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
++
++/* Declaration of statistics FOPs */
++C2_FOP_TYPE_DECLARE(c2_conf_stat, "statistics fop", &c2_conf_stat_ops,
++		    C2_RPC_STAT_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_conf_stat_resp, "statistics fop reply", &c2_conf_stat_resp_ops,
++		    C2_RPC_STAT_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
++
++
++static struct c2_fop_type_format *fmts[] = {
++	&c2_conf_buf_tfmt,
++	&arr_u64_tfmt,
++	&arr_buf_tfmt,
++	&arr_pathcomp_tfmt,
++	&enconf_tfmt,
++	&c2_conf_pathcomp_tfmt,
++	&objval_tfmt
++};
++
++
++static struct c2_fop_type *fops[] = {
++        &c2_conf_fetch_fopt,
++        &c2_conf_fetch_resp_fopt,
++        &c2_conf_update_fopt,
++        &c2_conf_update_resp_fopt,
++        &c2_conf_stat_fopt,
++        &c2_conf_stat_resp_fopt
++};
++
++void c2_conf_fop_fini(void)
++{
++        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
++}
++
++extern struct c2_fom_type c2_fom_fetch_mopt;
++extern struct c2_fom_type c2_fom_update_mopt;
++extern struct c2_fom_type c2_fom_stat_mopt;
++
++
++int c2_conf_fop_init(void)
++{
++        int result;
++	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
++        result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
++
++	c2_conf_fetch_fopt.ft_fom_type = c2_fom_fetch_mopt;
++	c2_conf_update_fopt.ft_fom_type = c2_fom_update_mopt;
++	c2_conf_stat_fopt.ft_fom_type = c2_fom_stat_mopt;
++
++        return result;
++}
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/conf/conf_fop.h b/conf/conf_fop.h
+new file mode 100644
+index 0000000..1673670
+--- /dev/null
++++ b/conf/conf_fop.h
+@@ -0,0 +1,87 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
++ * Original creation date: 05/05/2012
++ */
++#ifndef __COLIBRI_CONF_FOP_H__
++#define __COLIBRI_CONF_FOP_H__
++
++#include "fop/fop.h"
++#include "rpc/rpc_opcodes.h"
++
++int c2_conf_fops_init(void);
++void c2_conf_fops_fini(void);
++
++/**
++ * Confd fetch reply and request FOP definitions.
++ */
++extern struct c2_fop_type_format c2_conf_fetch_tfmt;
++extern struct c2_fop_type_format c2_conf_fetch_resp_tfmt;
++
++extern struct c2_fop_type c2_conf_fetch_fopt;
++extern struct c2_fop_type c2_conf_fetch_resp_fopt;
++
++extern const struct c2_fop_type_ops c2_conf_fetch_ops;
++extern const struct c2_fop_type_ops c2_conf_fetch_resp_ops;
++
++extern const struct c2_rpc_item_type c2_rpc_item_type_fetch;
++extern const struct c2_rpc_item_type c2_rpc_item_type_fetch_resp;
++
++/**
++ * Confd update reply and request FOP definitions.
++ */
++extern struct c2_fop_type_format c2_conf_update_tfmt;
++extern struct c2_fop_type_format c2_conf_update_resp_tfmt;
++
++extern struct c2_fop_type c2_conf_update_fopt;
++extern struct c2_fop_type c2_conf_update_resp_fopt;
++
++extern const struct c2_fop_type_ops c2_conf_update_ops;
++extern const struct c2_fop_type_ops c2_conf_update_resp_ops;
++
++extern const struct c2_rpc_item_type c2_rpc_item_type_update;
++extern const struct c2_rpc_item_type c2_rpc_item_type_update_resp;
++
++/**
++ * Confd statistics reply and request FOP definitions.
++ */
++extern struct c2_fop_type_format c2_conf_stat_tfmt;
++extern struct c2_fop_type_format c2_conf_stat_resp_tfmt;
++
++extern struct c2_fop_type c2_conf_stat_fopt;
++extern struct c2_fop_type c2_conf_stat_resp_fopt;
++
++extern const struct c2_fop_type_ops c2_conf_stat_ops;
++extern const struct c2_fop_type_ops c2_conf_stat_resp_ops;
++
++extern const struct c2_rpc_item_type c2_rpc_item_type_stat;
++extern const struct c2_rpc_item_type c2_rpc_item_type_stat_resp;
++
++
++/* __COLIBRI_CONF_FOP_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++
+-- 
+1.8.3.2
+

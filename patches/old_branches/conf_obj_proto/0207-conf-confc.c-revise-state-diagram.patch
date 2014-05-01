@@ -1,0 +1,53 @@
+From fceb4f537ef9854df5668eb4a21e8d867db90093 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 22 Jun 2012 01:56:33 +0300
+Subject: [PATCH 207/370] conf/confc.c: revise state diagram
+
+Update labels of the arrows originating from S_CHECK.
+---
+ conf/confc.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index a4fc6b3..327022e 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -64,16 +64,17 @@
+  *     S_GROW_CACHE [label="{ grow_cache_st_in() }\nS_GROW_CACHE"];
+  *
+  *     S_INITIAL -> S_CHECK;
+- *     S_CHECK -> S_TERMINAL [label="all \"needed\" obj-s\nare cached"];
++ *     S_CHECK -> S_TERMINAL [label=
++ *   "path target is reached\nand it is C2_CS_READY"];
+  *     S_CHECK -> S_FAILURE [label="error"];
+  *     S_CHECK -> S_WAIT_REPLY [label=
+- *   "at least one\nof the \"needed\" obj-s\nis C2_CS_MISSING\n{ set status(es) to C2_CS_LOADING;\nsend request }"];
++ *   "C2_CS_MISSING object\nis reached\n{ set status to C2_CS_LOADING;\nsend request }"];
+  *     S_WAIT_REPLY -> S_FAILURE [label="timeout\nor\nrc != 0"];
+  *     S_WAIT_REPLY -> S_GROW_CACHE [label="response received,\nrc == 0"];
+  *     S_GROW_CACHE -> S_FAILURE [label="error"];
+  *     S_GROW_CACHE -> S_CHECK [label="done"];
+  *     S_CHECK -> S_WAIT_STATUS [label=
+- *   "no C2_CS_MISSING obj-s, but\nat least one is C2_CS_LOADING\n{ c2_clink_add(&obj->co_chan) }"];
++ *   "C2_CS_LOADING object\nis reached\n{ c2_clink_add(&obj->co_chan) }"];
+  *     S_WAIT_STATUS -> S_CHECK [label="\"status updated\" event"];
+  * }
+  * @enddot
+@@ -711,10 +712,10 @@ static void request_fill(struct c2_conf_ctx *ctx, const struct c2_conf_obj *org,
+  *
+  * @retval C2_CS_READY    Path target is reachable.
+  *
+- * @retval C2_CS_MISSING  At least one of the intermediate objects or
+- *                        the target itself is C2_CS_MISSING.
+- *                        path_walk() changes statuses of such objects
+- *                        to C2_CS_LOADING and fills ctx->fc_req.
++ * @retval C2_CS_MISSING  One of the intermediate objects or the target
++ *                        itself is C2_CS_MISSING.  path_walk()
++ *                        changes statuses of such objects to
++ *                        C2_CS_LOADING and fills ctx->fc_req.
+  *
+  * @retval C2_CS_LOADING  Neither path target nor missing objects can
+  *                        be reached because of C2_CS_LOADING object
+-- 
+1.8.3.2
+

@@ -1,0 +1,620 @@
+From f2870ab94bfb7c5e52ed69209a2d1ea3e464550c Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Fri, 28 Dec 2012 08:29:28 -0800
+Subject: [PATCH 22/94] Added region states for allocation, capturing and
+ freeing. Made respective changes
+
+---
+ be/be.h                 |   8 ++-
+ be/be_reg.c             | 160 +++++++++++++++++++++++++++++-------------------
+ be/be_tx.c              |  15 +++--
+ be/lib/be_helper.c      |  22 ++++---
+ be/lib/be_helper.h      |   6 +-
+ be/lib/be_kv_store.c    |  26 ++++----
+ be/lib/ut/be_kv_store.c |  23 ++++---
+ be/lib/ut/be_tlist.c    |   2 +-
+ be/ut/be.c              |  10 +++
+ 9 files changed, 166 insertions(+), 106 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index c5b8b18..8eeb7fd 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -589,8 +589,12 @@ enum m0_be_tx_state {
+ 
+ enum m0_be_reg_state {
+         M0_BEREG_INIT,
+-        M0_BEREG_INPROGRESS,
+-        M0_BEREG_SUCCEED,
++        M0_BEREG_ALLOCATING,
++        M0_BEREG_ALLOCATED,
++        M0_BEREG_CAPTURING,
++        M0_BEREG_CAPTURED,
++        M0_BEREG_FREEING,
++        M0_BEREG_FREED,
+         M0_BEREG_FAILED,
+         M0_BEREG_DONE
+ };
+diff --git a/be/be_reg.c b/be/be_reg.c
+index 0d3066a..ed3ad4b 100644
+--- a/be/be_reg.c
++++ b/be/be_reg.c
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 30 Nov 2012
+  */
+ 
+@@ -34,30 +34,68 @@ static const struct m0_sm_state_descr reg_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BEREG_INPROGRESS)      |
++                .sd_allowed   = (1 << M0_BEREG_ALLOCATING)      |
++                                (1 << M0_BEREG_FREEING)         |
+                                 (1 << M0_BEREG_FAILED)
+         },
+-        [M0_BEREG_INPROGRESS] = {
++        [M0_BEREG_ALLOCATING] = {
+                 .sd_flags     = 0,
+-                .sd_name      = "BE REG INPROGRESS",
++                .sd_name      = "BE REG ALLOCATING",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_ALLOCATED)       |
++                                (1 << M0_BEREG_FAILED)
++        },
++        [M0_BEREG_ALLOCATED] = {
++                .sd_flags     = 0,
++                .sd_name      = "BE REG ALLOCATED",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_CAPTURING)       |
++                                (1 << M0_BEREG_FREEING)         |
++                                (1 << M0_BEREG_FAILED)
++        },
++        [M0_BEREG_CAPTURING] = {
++                .sd_flags     = 0,
++                .sd_name      = "BE REG CAPTURING",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_CAPTURED)        |
++                                (1 << M0_BEREG_DONE)            |
++                                (1 << M0_BEREG_FAILED)
++        },
++        [M0_BEREG_CAPTURED] = {
++                .sd_flags     = 0,
++                .sd_name      = "BE REG CAPTURED",
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+                 .sd_allowed   = (1 << M0_BEREG_DONE)            |
+-                                (1 << M0_BEREG_SUCCEED)         |
+                                 (1 << M0_BEREG_FAILED)
+         },
+-        [M0_BEREG_SUCCEED] = {
++        [M0_BEREG_DONE] = {
+                 .sd_flags     = M0_SDF_FINAL,
+-                .sd_name      = "BE REG SUCCEED",
++                .sd_name      = "BE REG DONE",
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BEREG_DONE)
++                .sd_allowed   = (1 << M0_BEREG_FREEING)
+         },
+-        [M0_BEREG_DONE] = {
++        [M0_BEREG_FREEING] = {
++                .sd_flags     = 0,
++                .sd_name      = "BE REG FREEING",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_FREED)           |
++                                (1 << M0_BEREG_FAILED)
++        },
++        [M0_BEREG_FREED] = {
+                 .sd_flags     = M0_SDF_TERMINAL,
+-                .sd_name      = "BE REG DONE",
++                .sd_name      = "BE REG FREED",
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+@@ -69,7 +107,8 @@ static const struct m0_sm_state_descr reg_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BEREG_FAILED)
++                .sd_allowed   = (1 << M0_BEREG_FREEING)         |
++                                (1 << M0_BEREG_FAILED)
+         },
+ };
+ 
+@@ -108,7 +147,7 @@ M0_INTERNAL void m0_be_reg_init(struct m0_be_reg **reg_out, struct m0_be_tx *tx,
+         reg->br_seg = seg;
+ 
+         /* sm_group is taken from tx, but we can take it from seg also */
+-        reg->br_impl.sm_group = tx->bt_impl.sm_group;
++        reg->br_impl.sm_group = seg->bs_impl.sm_group;
+ 
+         reg->br_buf.b_nob = buf->b_nob;
+         reg->br_buf.logical_address = buf->logical_address;
+@@ -135,7 +174,7 @@ exit_error:
+  *
+  * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+  * @pre reg->br_buf.b_addr == NULL
+- * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_ALLOCATING, M0_BEREG_ALLOCATED,
+  *                                   M0_BEREG_FAILED))
+  */
+ 
+@@ -147,7 +186,7 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
+         /* Locking sm group before setting sm_state */
+         m0_sm_group_lock(reg->br_impl.sm_group);
+ 
+-        m0_sm_state_set(&(reg->br_sm), M0_BEREG_INPROGRESS);
++        m0_sm_state_set(&(reg->br_sm), M0_BEREG_ALLOCATING);
+ 
+         /* Unlock locked sm group */
+         m0_sm_group_unlock(reg->br_impl.sm_group);
+@@ -165,8 +204,9 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
+  *
+  * Freeing NULL is a no-op.
+  *
+- * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+- * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ * @pre M0_IN(reg->br_sm.sm_state, (M0_BEREG_INIT, M0_BEREG_ALLOCATED,
++ *                                  M0_BEREG_DONE, M0_BEREG_FAILED))
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_FREEING, M0_BEREG_FREED,
+  *                                   M0_BEREG_FAILED))
+  */
+ M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+@@ -218,25 +258,32 @@ M0_INTERNAL void m0_be_put(const struct m0_be_reg *reg)
+  * Captures a region in a transaction.
+  *
+  * @pre tx->bt_sm.sm_state == M0_BETX_OPEN
+- * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+- * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ * @pre M0_IN(reg->br_sm.sm_state, (M0_BEREG_INIT, M0_BEREG_ALLOCATED))
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_CAPTURING, M0_BEREG_CAPTURED,
+  *                                   M0_BEREG_FAILED))
+  */
+ M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
+ {
++        int grp_locked = 0;
++
+         /* Asserting on required pointers */
+         M0_ASSERT(reg != NULL);
+         M0_ASSERT(reg->br_tx != NULL);
+ 
+-        M0_PRE(reg->br_sm.sm_state == M0_BEREG_INIT);
++        //M0_PRE(reg->br_sm.sm_state == M0_BEREG_INIT);
++        M0_PRE(M0_IN(reg->br_sm.sm_state, (M0_BEREG_INIT, M0_BEREG_ALLOCATED)));
+ 
+-        /* Locking sm group before setting sm_state */
+-        m0_sm_group_lock(reg->br_impl.sm_group);
++        /* Locking sm group before setting sm_state if not locked */
++        if(!m0_mutex_is_locked(&(reg->br_impl.sm_group->s_lock))) {
++                grp_locked = 1;
++                m0_sm_group_lock(reg->br_impl.sm_group);
++        }
+ 
+-        m0_sm_state_set(&(reg->br_sm), M0_BEREG_INPROGRESS);
++        m0_sm_state_set(&(reg->br_sm), M0_BEREG_CAPTURING);
+ 
+-        /* Unlock locked sm group */
+-        m0_sm_group_unlock(reg->br_impl.sm_group);
++        /* Unlock locked sm group if locked locally */
++        if(grp_locked)
++                m0_sm_group_unlock(reg->br_impl.sm_group);
+ 
+         reg->br_sm_ast.sa_cb    = m0_be_reg_capture_cb;
+         reg->br_sm_ast.sa_datum = (void *)reg;
+@@ -244,30 +291,10 @@ M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
+         m0_be_reg_req_post(reg->br_impl.sm_group, &(reg->br_sm_ast));
+ 
+         return;
+-
+-        rvm_return_t ret;
+-
+-        ret = rvm_set_range(reg->br_tx->bt_impl.tx_id,
+-                            reg->br_buf.b_addr,
+-                            reg->br_buf.b_nob);
+-
+-        if (RVM_SUCCESS != ret) {
+-                /* Is it right to set reg->br_sm.sm_state to M0_BEREG_FAILED? */
+-                /* todo@ need to call function m0_sm_state_set() for same not
+-                 * set directly
+-                 */
+-                reg->br_sm.sm_state = M0_BEREG_FAILED;
+-                return;
+-        }
+-
+-        /* todo@ need to call function m0_sm_state_set() for same not
+-         * set directly
+-         */
+-        reg->br_sm.sm_state = M0_BEREG_INPROGRESS;
+ }
+ 
+ /**
+- * @pre reg->br_sm.sm_state != M0_BEREG_INPROGRESS
++ * @pre M0_IN(reg->br_sm.sm_state, (M0_BEREG_DONE, M0_BEREG_FAILED))
+  */
+ M0_INTERNAL void m0_be_reg_fini(struct m0_be_reg *reg)
+ {
+@@ -331,7 +358,7 @@ M0_INTERNAL void m0_be_alloc_cb(struct m0_sm_group *sm_group,
+         /* As heap always starts after segment header of size PAGE_SIZE */
+         toffset->u_lo += PAGE_SIZE;
+ 
+-        m0_sm_state_set(&(reg->br_sm), M0_BEREG_SUCCEED);
++        m0_sm_state_set(&(reg->br_sm), M0_BEREG_ALLOCATED);
+ 
+         return;
+ }
+@@ -372,7 +399,7 @@ M0_INTERNAL void m0_be_free_cb(struct m0_sm_group *sm_group,
+         reg->br_buf.logical_address.segid_offset.u_hi   = 0;
+         reg->br_buf.logical_address.segid_offset.u_lo   = 0;
+ 
+-        m0_sm_state_set(&(reg->br_sm), M0_BEREG_DONE);
++        m0_sm_state_set(&(reg->br_sm), M0_BEREG_FREED);
+ 
+ error_exit:
+         m0_sm_state_set(&(reg->br_sm), M0_BEREG_FAILED);
+@@ -389,6 +416,8 @@ M0_INTERNAL void m0_be_reg_capture_cb(struct m0_sm_group *sm_group,
+         struct m0_be_reg *reg;
+         rvm_return_t ret;
+         int result;
++        enum m0_be_reg_state reg_st = M0_BEREG_FAILED;
++        
+ 
+         /* Asserting on required pointers */
+         M0_ASSERT(sm_group != NULL);
+@@ -398,28 +427,33 @@ M0_INTERNAL void m0_be_reg_capture_cb(struct m0_sm_group *sm_group,
+ 
+         M0_ASSERT(reg != NULL);
+ 
+-        result = reg->br_tx_cbdata.m0_be_tx_pre_cb((void *)reg->br_tx);
+-
+-        /**
+-         * Do not perform rvm_set_range on current region if region capture is
+-         * failed for any previous region
+-         */
+-        if( result == M0_BETX_PREP_FAILED)
+-                goto reg_done_exit;
++        if(reg->br_tx_cbdata.datum) {
++                result = reg->br_tx_cbdata.m0_be_tx_pre_cb(
++                                        reg->br_tx_cbdata.datum);
++                /**
++                 * Do not perform rvm_set_range on current region if region 
++                 * capture is failed for any previous region
++                 */
++                if( result == M0_BETX_PREP_FAILED) {
++                        reg_st = M0_BEREG_DONE;
++                        goto reg_done_exit;
++                }
++         }
+ 
+         ret = rvm_set_range(reg->br_tx->bt_impl.tx_id,
+                             reg->br_buf.b_addr,
+                             reg->br_buf.b_nob);
+ 
+-        if (RVM_SUCCESS != ret)
+-                goto error_exit;
+-
+-        reg->br_tx_cbdata.m0_be_tx_post_cb((void *)reg->br_tx);
+-
+-error_exit:
+-        m0_sm_state_set(&(reg->br_sm), M0_BEREG_FAILED);
++        if(RVM_SUCCESS == ret)
++                reg_st = M0_BEREG_CAPTURED;
++                
++                
+ reg_done_exit:
+-        m0_sm_state_set(&(reg->br_sm), M0_BEREG_DONE);
++        m0_sm_state_set(&(reg->br_sm), reg_st);
++
++        if(reg->br_tx_cbdata.datum) {
++                reg->br_tx_cbdata.m0_be_tx_post_cb(reg->br_tx_cbdata.datum);
++        }
+ }
+ 
+ 
+diff --git a/be/be_tx.c b/be/be_tx.c
+index c250f6b..144dfe4 100644
+--- a/be/be_tx.c
++++ b/be/be_tx.c
+@@ -18,6 +18,7 @@
+  */
+ 
+ #include "be/be.h"
++#include <stdlib.h>
+ /**
+   @addtogroup be_transaction
+ 
+@@ -199,7 +200,8 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx)
+ 
+                 /* check reg_it->br_sm.sm_state for region state */
+ 
+-                if (reg_it->br_sm.sm_state != M0_BEREG_INIT) {
++                if (reg_it->br_sm.sm_state != M0_BEREG_INIT && 
++                    reg_it->br_sm.sm_state != M0_BEREG_ALLOCATED) {
+ 
+                         M0_TX_SM_STATE_SET(tx, M0_BETX_FAILED);
+                         /* TODO@ add error log message */
+@@ -501,13 +503,15 @@ M0_INTERNAL void m0_be_tx_set_capture_status(void * data)
+         struct m0_be_reg *reg_it;
+ 
+         bool failed_res = false;
+-        bool inprogress_res = false;
++        bool capturing_res = false;
++
++        printf("\nIn Function : %s", __FUNCTION__);
+ 
+         /* Iterate credit list to check the capture status for each region. */
+         m0_tlist_for(&m0_be_reg_tl, &(tx->bt_impl.bc_tl), reg_it) {
+                 /* check if region capture is in prorgess */
+-                if (reg_it->br_sm.sm_state == M0_BEREG_INPROGRESS) {
+-                        inprogress_res = true;
++                if (reg_it->br_sm.sm_state == M0_BEREG_CAPTURING) {
++                        capturing_res = true;
+                         break;
+                 }
+ 
+@@ -518,11 +522,12 @@ M0_INTERNAL void m0_be_tx_set_capture_status(void * data)
+ 
+         } m0_tlist_endfor;
+ 
+-        if(!inprogress_res) {
++        if(!capturing_res) {
+                 if(failed_res) {
+                         M0_TX_SM_STATE_SET(tx, M0_BETX_FAILED);
+                 }
+                 else {
++                        printf("\nMarking status M0_BETX_PREPARED\n");
+                         M0_TX_SM_STATE_SET(tx, M0_BETX_PREPARED);
+                 }
+         }
+diff --git a/be/lib/be_helper.c b/be/lib/be_helper.c
+index a0b5dda..33f473a 100644
+--- a/be/lib/be_helper.c
++++ b/be/lib/be_helper.c
+@@ -47,8 +47,9 @@ M0_INTERNAL void m0_ks_domain_lookup(struct m0_be_domain    *dom,
+ {
+         m0_be_domain_lookup(dom, segid, seg);
+ 
+-        M0_BE_WAIT((*seg)->bs_impl.sm_group, &((*seg)->bs_sm), M0_BESEG_ACTIVE,
+-                   M0_BESEG_FAILED);
++        M0_BE_WAIT((*seg)->bs_impl.sm_group, &((*seg)->bs_sm),
++                   (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED));
++
+ }
+ M0_EXPORTED(m0_ks_domain_lookup);
+ 
+@@ -70,13 +71,14 @@ M0_INTERNAL void *m0_ks_obj_malloc(struct m0_be_reg     *obj_reg,
+                        goto exit_failure; 
+ 
+                 m0_be_tx_init(tx, dom, 0);
+-                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_PREPARING,
+-                           M0_BETX_FAILED);
++                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, 
++                           (1 << M0_BETX_PREPARING) | (1 << M0_BETX_FAILED));
++
+        }
+ 
+         m0_be_alloc(obj_reg);
+-        M0_BE_WAIT(obj_reg->br_impl.sm_group, &obj_reg->br_sm, M0_BEREG_SUCCEED,
+-                   M0_BEREG_FAILED);
++        M0_BE_WAIT(obj_reg->br_impl.sm_group, &obj_reg->br_sm, 
++                   (1 << M0_BEREG_ALLOCATED) | (1 << M0_BEREG_FAILED));
+ 
+         m0_be_tx_add_cred(tx, obj_reg);
+         /* TODO : reg_capture */
+@@ -106,16 +108,16 @@ M0_EXPORTED(m0_ks_fini);
+ M0_INTERNAL void m0_ks_tx_prep(struct m0_be_tx *tx)
+ {
+         m0_be_tx_prep(tx);
+-        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_PREPARED,
+-                   M0_BETX_FAILED);
++        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, 
++                   (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED));
+ }
+ M0_EXPORTED(m0_ks_tx_prep);
+ 
+ M0_INTERNAL void m0_ks_tx_start(struct m0_be_tx *tx)
+ {
+         m0_be_tx_start(tx);
+-        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_OPEN,
+-                   M0_BETX_FAILED);
++        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, 
++                   (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED));
+ }
+ M0_EXPORTED(m0_ks_tx_prep_start);
+ /* @} end of be_helper group */
+diff --git a/be/lib/be_helper.h b/be/lib/be_helper.h
+index a0a1486..97b58a4 100644
+--- a/be/lib/be_helper.h
++++ b/be/lib/be_helper.h
+@@ -23,9 +23,9 @@
+ 
+ #include "be/be.h"
+ 
+-#define M0_BE_WAIT(sm_group, sm, state1, state2)                          \
+-        m0_sm_group_lock(sm_group);                                       \
+-        m0_sm_timedwait(sm, (1 << state1) | (1 << state2), M0_TIME_NEVER);\
++#define M0_BE_WAIT(sm_group, sm, allowed_states)                        \
++        m0_sm_group_lock(sm_group);                                     \
++        m0_sm_timedwait(sm, allowed_states, M0_TIME_NEVER);             \
+         m0_sm_group_unlock(sm_group);
+ 
+ /**
+diff --git a/be/lib/be_kv_store.c b/be/lib/be_kv_store.c
+index c5b226a..924a20d 100644
+--- a/be/lib/be_kv_store.c
++++ b/be/lib/be_kv_store.c
+@@ -164,8 +164,8 @@ M0_INTERNAL int m0_ks_delete(struct m0_kv_store  *handle,
+ 
+                 m0_be_tx_init(tx, handle->ks_dom, 0);
+ 
+-                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_PREPARING,
+-                           M0_BETX_FAILED);
++                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm,
++                           (1 << M0_BETX_PREPARING) | (1 << M0_BETX_FAILED));
+         }
+ 
+         /* Find the target node to be deleted */
+@@ -207,7 +207,7 @@ M0_INTERNAL int m0_ks_delete(struct m0_kv_store  *handle,
+                         m0_be_tx_done(tx);
+ 
+                         M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm,
+-                                   M0_BETX_DONE, M0_BETX_FAILED);
++                                   (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED));
+ 
+                         m0_be_tx_fini(tx);
+                         free(tx);
+@@ -319,8 +319,9 @@ M0_INTERNAL int m0_ks_insert(struct m0_kv_store  *handle,
+                 M0_ASSERT(tx != NULL);
+ 
+                 m0_be_tx_init(tx, handle->ks_dom, 0);
+-                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_PREPARING,
+-                           M0_BETX_FAILED);
++
++                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm,
++                           (1 << M0_BETX_PREPARING) | (1 << M0_BETX_FAILED));
+         }
+ 
+         /* Could be a new state */
+@@ -392,13 +393,14 @@ M0_INTERNAL int m0_ks_insert(struct m0_kv_store  *handle,
+                         ret_val = __add_at_tail_to_tlist(handle, new, tx);
+         }
+ 
+-       if (ins_tx == NULL) {
+-             m0_be_tx_done(tx);
+-             M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm,
+-                        M0_BETX_DONE, M0_BETX_FAILED);
+-             m0_be_tx_fini(tx);
+-             free(tx);
+-       }
++        if (ins_tx == NULL) {
++                m0_be_tx_done(tx);
++
++                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm,
++                           (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED));
++                m0_be_tx_fini(tx);
++                free(tx);
++        }
+ 
+         return ret_val;
+ 
+diff --git a/be/lib/ut/be_kv_store.c b/be/lib/ut/be_kv_store.c
+index fb621c3..28a3b0d 100644
+--- a/be/lib/ut/be_kv_store.c
++++ b/be/lib/ut/be_kv_store.c
+@@ -92,8 +92,9 @@ static struct m0_reference *insert(struct m0_kv_store_obj **obj,
+                 goto exit_failure;
+ 
+         m0_be_tx_init(tx, dom, 0);
+-        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_PREPARING,
+-                   M0_BETX_FAILED);
++
++        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm,
++                   (1 << M0_BETX_PREPARING) | (1 << M0_BETX_FAILED));
+ 
+         obj_buf.b_nob = sizeof(struct m0_kv_store_obj);
+         m0_be_reg_init(&obj_reg, tx, seg, &obj_buf);
+@@ -113,8 +114,8 @@ static struct m0_reference *insert(struct m0_kv_store_obj **obj,
+                 goto exit_failure;
+ 
+         m0_be_tx_done(tx);
+-        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_DONE,
+-                   M0_BETX_FAILED);
++        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm,
++                   (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED));
+         
+         m0_be_tx_fini(tx);
+ 
+@@ -138,8 +139,9 @@ static int delete(struct m0_reference *target)
+         int                   ret_val;
+ 
+         m0_be_tx_init(&tx, dom, 0);
+-        M0_BE_WAIT(tx.bt_impl.sm_group, &tx.bt_sm, M0_BETX_PREPARING,
+-                   M0_BETX_FAILED);
++
++        M0_BE_WAIT(tx.bt_impl.sm_group, &tx.bt_sm,
++                   (1 << M0_BETX_PREPARING) | (1 << M0_BETX_FAILED));
+ 
+         obj_buf.b_nob = sizeof(struct m0_kv_store_obj);
+         m0_be_reg_init(&obj_reg, &tx, seg, &obj_buf);
+@@ -152,8 +154,9 @@ static int delete(struct m0_reference *target)
+         if (ret_val != BE_KV_FAILURE) {
+                 m0_be_free(obj_reg);
+                 m0_be_tx_done(&tx);
+-                M0_BE_WAIT(tx.bt_impl.sm_group, &tx.bt_sm, M0_BETX_DONE,
+-                           M0_BETX_FAILED);
++
++                M0_BE_WAIT(tx.bt_impl.sm_group, &tx.bt_sm,
++                           (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED));
+ 
+                 ret_val = BE_KV_SUCCESS;
+         }
+@@ -180,8 +183,8 @@ int main() {
+         init();
+ 
+         m0_be_domain_lookup(dom, 1, &seg);
+-        M0_BE_WAIT(seg->bs_impl.sm_group, &(seg->bs_sm), M0_BESEG_ACTIVE,
+-                   M0_BESEG_FAILED);
++        M0_BE_WAIT(seg->bs_impl.sm_group, &(seg->bs_sm), 
++                   (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED));
+ 
+         M0_ASSERT(seg != NULL);
+ 
+diff --git a/be/lib/ut/be_tlist.c b/be/lib/ut/be_tlist.c
+index f4e3da8..ef2c536 100644
+--- a/be/lib/ut/be_tlist.c
++++ b/be/lib/ut/be_tlist.c
+@@ -108,7 +108,7 @@ void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+         m0_be_alloc(reg);
+         m0_sm_group_lock(reg->br_impl.sm_group);
+         m0_sm_timedwait(&reg->br_sm,
+-                       (1 << M0_BEREG_SUCCEED) | (1 << M0_BEREG_FAILED),
++                       (1 << M0_BEREG_ALLOCATED) | (1 << M0_BEREG_FAILED),
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(reg->br_impl.sm_group);
+ 
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 68ae5f0..77097c9 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -101,14 +101,24 @@ int main()
+ 
+         m0_be_buf_init(&buf, NULL, 1024, 0, 0, 0);
+         m0_be_reg_init(&reg, NULL, seg, &buf);
++        printf("sachin reg : %p reg_state[%d]\n", reg, reg->br_sm.sm_state);
+         m0_be_alloc(reg);
+ 
++        printf("\nWaiting for M0_BEREG_ALLOCATED\n");
++        m0_sm_group_lock(reg->br_impl.sm_group);
++        m0_sm_timedwait(&(reg->br_sm),
++                        (1 << M0_BEREG_ALLOCATED) | (1 << M0_BEREG_FAILED),
++                         M0_TIME_NEVER);
++
++        m0_sm_group_unlock(reg->br_impl.sm_group);
++
+         m0_be_tx_add_cred(&tx, reg);
+ 
+         printf("reg : %p reg_state[%d]\n", reg, reg->br_sm.sm_state);
+         m0_be_tx_prep(&tx);
+ 
+         m0_sm_group_lock(tx.bt_impl.sm_group);
++        printf("\nWaiting for transaction to be in prepared state \n");
+         m0_sm_timedwait(&tx.bt_sm,
+                         (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED),
+                         M0_TIME_NEVER);
+-- 
+1.8.3.2
+

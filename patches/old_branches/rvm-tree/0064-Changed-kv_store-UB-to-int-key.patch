@@ -1,0 +1,230 @@
+From 8192aca858b0e63577c445e8623cbfde09559028 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Tue, 12 Mar 2013 07:02:44 -0700
+Subject: [PATCH 64/94] Changed kv_store UB to int key
+
+---
+ be/ut/kv_store_ub.c | 93 +++++++++++++++++++++++++----------------------------
+ 1 file changed, 44 insertions(+), 49 deletions(-)
+
+diff --git a/be/ut/kv_store_ub.c b/be/ut/kv_store_ub.c
+index d4c43a4..8e5cc8d 100644
+--- a/be/ut/kv_store_ub.c
++++ b/be/ut/kv_store_ub.c
+@@ -30,12 +30,16 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+-#define MAX_KEY_SIZE 1050
++
++enum {
++	UB_ITER   = 1000,
++};
++
+ 
+ /** User defined structure. */
+ struct m0_kv_store_obj {
+-        char                    key[MAX_KEY_SIZE];
+-        int                     obj_val;
++        long int                key;
++        long int                obj_val;
+         struct m0_tlink         linkage;
+         uint64_t                magic;
+ };
+@@ -49,39 +53,45 @@ struct m0_tl_descr kv_list_descr = M0_TL_DESCR("kv_store_obj",
+ 
+ struct m0_be_domain        *kv_dom;
+ struct m0_be_seg           *kv_seg;
+-struct m0_kv_store_obj     *object[1024]   = {NULL};
+-struct m0_kv_store_obj     *ret_obj[1024]  = {NULL};
++struct m0_kv_store_obj     *object[UB_ITER]   = {NULL};
++struct m0_kv_store_obj     *ret_obj[UB_ITER]  = {NULL};
+ struct m0_be_kv_store      *handle         = NULL;
+ struct m0_be_kv_store_rvm  *handle_rvm     = NULL;
+ struct m0_sm_group         *sm_group;
+-struct m0_be_reference      ins_ref[1024];
++struct m0_be_reference      ins_ref[UB_ITER];
+ 
+ static const char          *stob_dir  = "./__be/o";
+ static const char          *stob_file = "0000000000000000.0000000000000001";
+ extern const char          *log_file;
+ char                        kv_cmd[1024];
+-char                        obj_name[MAX_KEY_SIZE]    = "a";
+-char                        search_name[MAX_KEY_SIZE] = "a";
+-int                         ref_i      = 0;
+-int                         find_index = 0;
++long int                    ref_i      = 0;
++long int                    find_index = 0;
++long int                    del_index = 0;
++long int                    val;
+ 
+ /** Key compare routine. */
+ int function_comp(void *key1, void *key2)
+ {
+-        struct m0_kv_store_obj *obj1;
+-        struct m0_kv_store_obj *obj2;
++        int ret_val = 1;
++
++        if (*(long int *)key1 == *(long int *)key2)
++                ret_val = 0;
++        else if (*(long int *)key1 < *(long int *)key2)
++                ret_val = -1;
+ 
+-        obj1 = (struct m0_kv_store_obj *)key1;
+-        obj2 = (struct m0_kv_store_obj *)key2;
+-        return strcmp(obj1->key, obj2->key);
++        return ret_val;
+ }
+ 
+ /** Match routine. */
+ int function_match(void *in_obj, void *key)
+ {
+         struct m0_kv_store_obj *obj;
+-        obj = (struct m0_kv_store_obj *)in_obj;
+-        return strcmp(obj->key, (char *)key);
++        long int                in_key;
++
++        obj     = (struct m0_kv_store_obj *)in_obj;
++        in_key  = *(long int *)key;
++
++        return (in_key == obj->key) ? 0 : 1;
+ }
+ 
+ static void ub_kv_insert()
+@@ -107,7 +117,7 @@ static void ub_kv_insert()
+         status = m0_be_ks_insert(handle, NULL, &ins_ref[ref_i], tx);
+         if (status == BE_KV_FAILURE || status == BE_KV_OUT_OF_DOMAIN ||
+             status == BE_KV_DUPLICATE) {
+-                M0_LOG(M0_FATAL, "Failed to insert object number %d", ref_i);
++                M0_LOG(M0_FATAL, "Failed to insert object number %ld", ref_i);
+                 goto exit;
+         }
+ 
+@@ -122,7 +132,7 @@ exit:
+         m0_free(tx);
+ }
+ 
+-static void *__find(char *key)
++static void *__find(long int *key)
+ {
+         return m0_be_ks_find(handle, NULL, key);
+ }
+@@ -180,36 +190,19 @@ static int __delete(struct m0_kv_store_obj *target)
+ 
+ static void ub_kv_find()
+ {
+-        ret_obj[find_index]  = (struct m0_kv_store_obj *)__find(search_name);
++        ret_obj[find_index]  = (struct m0_kv_store_obj *)__find(&find_index);
+         M0_ASSERT(ret_obj[find_index] != NULL);
+-
+-        strcat(search_name, "b");
+         find_index++;
+ }
+ 
+ void ub_kv_delete()
+ {
+         int32_t status;
+-        int     i;
+-        size_t  length;
+-        length = m0_tlist_length(&kv_list_descr,
+-                                 &handle->ks_handle_rvm->ksr_tlist);
+-
+-        for(i =0; i < length; i++) {
+-                status = __delete(ret_obj[i]);
+-                M0_ASSERT(status == BE_KV_SUCCESS);
+-        }
+-
+-        length = m0_tlist_length(&kv_list_descr,
+-                                 &handle->ks_handle_rvm->ksr_tlist);
+-
+-        M0_ASSERT(length == 0);
++        status = __delete(ret_obj[del_index]);
++        M0_ASSERT(status == BE_KV_SUCCESS);
++        del_index++;
+ }
+ 
+-enum {
+-	UB_ITER   = 1000,
+-};
+-
+ static void ub_init(void)
+ {
+         struct m0_be_tx         *tx;
+@@ -219,7 +212,6 @@ static void ub_init(void)
+         struct m0_sm_group      *sm_group;
+         bool                     ret_dom;
+         int                      rc;
+-        int                      val;
+ 
+         M0_LOG(M0_DEBUG,"KV Store Initialization");
+         sprintf(kv_cmd, "rm -rf %s", log_file);
+@@ -231,7 +223,7 @@ static void ub_init(void)
+         M0_ASSERT(rc == 0);
+ 
+         sprintf(kv_cmd,
+-                "dd if=/dev/zero of=%s/%s bs=1024 count=512000 2>/dev/null",
++                "dd if=/dev/zero of=%s/%s bs=1024 count=133120 2>/dev/null",
+                 stob_dir, stob_file);
+         rc = system(kv_cmd);
+         M0_ASSERT(rc == 0);
+@@ -267,8 +259,7 @@ static void ub_init(void)
+          * Allocate memory to the objects to be inserted and keep them ready
+          * for insertion
+          */
+-
+-        for(val = 0; val < 1000; val++) {
++        for(val = 0; val < UB_ITER; val++) {
+                 M0_ALLOC_PTR(tx);
+                 M0_ASSERT(tx != NULL);
+ 
+@@ -294,7 +285,7 @@ static void ub_init(void)
+ 
+                 if (object[val] == NULL) {
+                         M0_LOG(M0_FATAL,
+-                               "Failed to allocate memory to object number %d",
++                               "Failed to allocate memory to object number %ld",
+                                val);
+                 }
+ 
+@@ -304,7 +295,7 @@ static void ub_init(void)
+                 ins_ref[val] = *obj_ref;
+ 
+                 /* Make changes to object */
+-                strncpy(object[val]->key, obj_name, strlen(obj_name));
++                object[val]->key     = val;
+                 object[val]->obj_val = val;
+ 
+                 m0_be_tx_done(tx);
+@@ -316,14 +307,19 @@ static void ub_init(void)
+                 m0_free(tx);
+                 m0_free(obj_reg);
+                 m0_free(obj_buf);
+-                strcat(obj_name, "b");
+         }
+ 
+ }
+ 
+ static void ub_fini()
+ {
+-        int rc;
++        int    rc;
++        size_t length;
++
++        /* To ensure that deletion was successful */
++        length = m0_tlist_length(&kv_list_descr,
++                                 &handle->ks_handle_rvm->ksr_tlist);
++        M0_ASSERT(length == 0);
+ 
+         m0_be_ks_fini(handle, NULL, kv_seg);
+ 
+@@ -353,7 +349,6 @@ struct m0_ub_set m0_kvstore_ub = {
+ 		{ .ut_name = NULL }
+ 	}
+ };
+-
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+-- 
+1.8.3.2
+

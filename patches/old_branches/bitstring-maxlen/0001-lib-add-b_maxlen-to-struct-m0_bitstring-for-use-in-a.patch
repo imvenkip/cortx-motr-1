@@ -1,0 +1,189 @@
+From 3bfa61601763e26d5dfaf6df732361418a59b7b7 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 26 Feb 2013 14:25:13 +0200
+Subject: [PATCH] lib: add b_maxlen to struct m0_bitstring for use in asserts
+
+* lib/bitstring:
+  - add b_maxlen member to struct m0_bitstring (in #ifndef M0_NDEBUG
+    case only)
+  - modify m0_bitstring_alloc() to accept NULL "name" pointer,
+    and in such case allocate "len"-size buffer and set b_len to zero
+  - m0_bitstring_alloc(): initialize b_maxlen with actual size
+    of allocated buffer (in #ifndef M0_NDEBUG case only)
+  - m0_bitstring_len_set(): do not allow setting b_len to value
+    greater than b_maxlen (in #ifndef M0_NDEBUG case only)
+  - m0_bitstring_copy(): do not allow copying more data than
+    dst buffer may hold (in #ifndef M0_NDEBUG case only)
+  - add m0_bitstring_init() function which is useful for initializing
+    struct m0_bitstring in cases when it's not directly allocated,
+    but allocated as last memeber of another struct (nskey, eakey
+    etc)
+  - implement m0_bitstring_init() for #ifndef M0_NDEBUG case,
+    define it as macro which expands to m0_bitstring_copy() in
+    "no debug" case.
+* cob: use m0_bitstring_init() instead of m0_bitstring_copy()
+  to accomodate actual buffer size
+* m0t1fs,mds: use m0_bitstring_alloc(NULL, <bufsize>) instead
+  of m0_alloc()
+---
+ cob/cob.c                 |  8 ++++----
+ lib/bitstring.c           | 24 +++++++++++++++++++++++-
+ lib/bitstring.h           | 13 +++++++++++++
+ m0t1fs/linux_kernel/dir.c |  3 ++-
+ mdservice/md_foms.c       |  2 +-
+ 5 files changed, 43 insertions(+), 7 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 6cd77db..e2b38c5 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -117,7 +117,7 @@ M0_INTERNAL int m0_cob_nskey_make(struct m0_cob_nskey **keyh,
+ 	if (key == NULL)
+ 		return -ENOMEM;
+ 	key->cnk_pfid = *pfid;
+-	m0_bitstring_copy(&key->cnk_name, name, namelen);
++	m0_bitstring_init(&key->cnk_name, name, namelen, namelen);
+ 	*keyh = key;
+ 	return 0;
+ }
+@@ -150,7 +150,7 @@ M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
+ 	if (key == NULL)
+ 		return -ENOMEM;
+ 	key->cek_fid = *fid;
+-	m0_bitstring_copy(&key->cek_name, name, namelen);
++	m0_bitstring_init(&key->cek_name, name, namelen, namelen);
+ 	*keyh = key;
+ 	return 0;
+ }
+@@ -170,7 +170,7 @@ static int m0_cob_max_eakey_make(struct m0_cob_eakey **keyh,
+ 	if (key == NULL)
+ 		return -ENOMEM;
+ 	key->cek_fid = *fid;
+-	m0_bitstring_copy(&key->cek_name, name, namelen);
++	m0_bitstring_init(&key->cek_name, name, namelen, M0_COB_NAME_MAX);
+ 	*keyh = key;
+ 	return 0;
+ }
+@@ -275,7 +275,7 @@ static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
+ 	if (key == NULL)
+ 		return -ENOMEM;
+ 	key->cnk_pfid = *pfid;
+-	m0_bitstring_copy(&key->cnk_name, name, namelen);
++	m0_bitstring_init(&key->cnk_name, name, namelen, M0_COB_NAME_MAX);
+ 	*keyh = key;
+ 	return 0;
+ }
+diff --git a/lib/bitstring.c b/lib/bitstring.c
+index f14f55e..bfae210 100644
+--- a/lib/bitstring.c
++++ b/lib/bitstring.c
+@@ -40,6 +40,9 @@ M0_INTERNAL uint32_t m0_bitstring_len_get(const struct m0_bitstring *c)
+ 
+ M0_INTERNAL void m0_bitstring_len_set(struct m0_bitstring *c, uint32_t len)
+ {
++#ifndef M0_NDEBUG
++	M0_ASSERT(c != NULL && c->b_maxlen >= len);
++#endif
+         c->b_len = len;
+ }
+ 
+@@ -49,7 +52,13 @@ M0_INTERNAL struct m0_bitstring *m0_bitstring_alloc(const char *name,
+         struct m0_bitstring *c = m0_alloc(sizeof(*c) + len);
+         if (c == NULL)
+                 return NULL;
+-        m0_bitstring_copy(c, name, len);
++#ifndef M0_NDEBUG
++	c->b_maxlen = len;
++#endif
++	if (name != NULL)
++		m0_bitstring_copy(c, name, len);
++	else
++		c->b_len = 0;
+         return c;
+ }
+ 
+@@ -61,10 +70,23 @@ M0_INTERNAL void m0_bitstring_free(struct m0_bitstring *c)
+ M0_INTERNAL void m0_bitstring_copy(struct m0_bitstring *dst, const char *src,
+ 				   size_t count)
+ {
++#ifndef M0_NDEBUG
++	M0_ASSERT(dst != NULL && dst->b_maxlen >= count);
++#endif
+         memcpy(m0_bitstring_buf_get(dst), src, count);
+         m0_bitstring_len_set(dst, count);
+ }
+ 
++#ifndef M0_NDEBUG
++M0_INTERNAL void m0_bitstring_init(struct m0_bitstring *dst, const char *src,
++				   size_t count, size_t maxlen)
++{
++	M0_ASSERT(dst != NULL && count <= maxlen);
++	dst->b_maxlen = maxlen;
++	m0_bitstring_copy(dst, src, count);
++}
++#endif
++
+ /**
+    String-like compare: alphanumeric for the length of the shortest string.
+    Shorter strings precede longer strings.
+diff --git a/lib/bitstring.h b/lib/bitstring.h
+index 2358249..eba62e9 100644
+--- a/lib/bitstring.h
++++ b/lib/bitstring.h
+@@ -32,6 +32,9 @@
+ */
+ 
+ struct m0_bitstring {
++#ifndef M0_NDEBUG
++	uint32_t b_maxlen;
++#endif
+ 	uint32_t b_len;
+ 	char     b_data[0];
+ };
+@@ -65,6 +68,16 @@ M0_INTERNAL int m0_bitstring_cmp(const struct m0_bitstring *c1,
+ M0_INTERNAL void m0_bitstring_copy(struct m0_bitstring *dst,
+ 				   const char *src, size_t count);
+ 
++#ifndef M0_NDEBUG
++M0_INTERNAL void m0_bitstring_init(struct m0_bitstring *dst,
++				   const char *src, size_t count,
++				   size_t maxlen);
++#else
++#undef m0_bitstring_init
++#define m0_bitstring_init(dst, src, count, maxlen)\
++	m0_bitstring_copy(dst, src, count)
++#endif
++
+ /**
+  Alloc memory for a string of passed len and copy name to it.
+ */
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index 8173b1d..dcda31c 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -446,7 +446,8 @@ static int m0t1fs_opendir(struct inode *inode, struct file *file)
+ 	file->private_data = fd;
+ 
+ 	/** Setup readdir initial pos with "." and max possible namelen. */
+-	fd->fd_dirpos = m0_alloc(M0T1FS_SB(inode->i_sb)->csb_namelen);
++	fd->fd_dirpos = m0_bitstring_alloc(NULL,
++					   M0T1FS_SB(inode->i_sb)->csb_namelen);
+ 	if (fd->fd_dirpos == NULL) {
+ 		m0_free(fd);
+ 		return -ENOMEM;
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index a9994f2..45f7865 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -1180,7 +1180,7 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
+ 	}
+ 
+ 	M0_SET0(&rdpg);
+-	rdpg.r_pos = m0_alloc(M0_MD_MAX_NAME_LEN);
++	rdpg.r_pos = m0_bitstring_alloc(NULL, M0_MD_MAX_NAME_LEN);
+ 	if (rdpg.r_pos == NULL) {
+ 		m0_fom_block_leave(fom);
+ 		m0_cob_put(cob);
+-- 
+1.8.3.2
+

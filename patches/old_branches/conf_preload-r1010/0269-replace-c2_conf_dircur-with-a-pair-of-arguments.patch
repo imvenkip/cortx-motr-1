@@ -1,0 +1,902 @@
+From 9798264fa26695b0ed43395b3b4a34eff234651d Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 31 Jul 2012 02:08:56 +0300
+Subject: [PATCH 269/311] replace c2_conf_dircur with a pair of arguments
+
++ Change `recipe4' to demonstrate consuming of directory entries.
++ Change the signature of c2_conf_obj_ops::coo_readdir().
++ c2_conf__readdir_{pre,post}(): new functions.
++ Change the signatures of c2_confc_readdir{,_sync}().
++ c2_conf__obj_{get,put}(): new functions.
++ Close ->fc_result in c2_confc_ctx_fini().
+
+LogD #589
+RB: r/939/diff/1/?file=25262#file25262line412
+    r/939/diff/1/?file=25262#file25262line664
+---
+ conf/confc.c   |  24 +++---
+ conf/confc.h   | 246 ++++++++++++++++++++++++++++-----------------------------
+ conf/obj.c     |  52 +++++++++---
+ conf/obj.h     | 182 +++++++++++++++++++++++-------------------
+ conf/obj_ops.c |  29 +++++--
+ 5 files changed, 302 insertions(+), 231 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 735f893..52a2f7a 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -413,10 +413,12 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+ 	c2_clink_fini(&ctx->fc_clink);
+ 
+ 	group_lock(confc); /* needed for c2_sm_fini() */
+-
+-	/* Detach from c2_confc. */
+ 	confc_lock(confc);
+-	C2_CNT_DEC(confc->cc_nr_ctx);
++
++	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
++		c2_conf__obj_put(ctx->fc_result);
++	C2_CNT_DEC(confc->cc_nr_ctx); /* detach from c2_confc */
++
+ 	confc_unlock(confc);
+ 	ctx->fc_confc = NULL;
+ 
+@@ -513,9 +515,7 @@ void c2_confc_close(struct c2_conf_obj *obj)
+ {
+ 	if (obj != NULL) {
+ 		confc_lock(obj->co_confc);
+-		C2_CNT_DEC(obj->co_nrefs);
+-		if (obj->co_nrefs == 0)
+-			c2_chan_broadcast(&obj->co_chan);
++		c2_conf__obj_put(obj);
+ 		confc_unlock(obj->co_confc);
+ 	}
+ }
+@@ -524,13 +524,17 @@ void c2_confc_close(struct c2_conf_obj *obj)
+  * readdir
+  * ------------------------------------------------------------------ */
+ 
+-int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_dircur *cur)
++int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
++		     struct c2_conf_obj **pptr)
+ {
++	/*
++	 * XXX ctx->fc_confc should be locked before ->coo_readdir()
++	 * is called.
++	 */
+ 	XXX;
+ }
+ 
+-int c2_confc_readdir_sync(struct c2_conf_obj **result,
+-                          struct c2_conf_dircur *cur)
++int c2_confc_readdir_sync(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+ {
+ 	XXX;
+ }
+@@ -832,7 +836,7 @@ path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj, size_t ri)
+ 	switch (obj->co_status) {
+ 	case C2_CS_READY:
+ 		C2_ASSERT(XXX_is_eop(&ctx->fc_path[ri]));
+-		C2_CNT_INC(obj->co_nrefs);
++		c2_conf__obj_get(obj);
+ 		ctx->fc_result = obj;
+ 		return C2_CS_READY;
+ 
+diff --git a/conf/confc.h b/conf/confc.h
+index dc0ab56..2842678 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -86,8 +86,9 @@ struct c2_mutex;
+  * - c2_confc_ctx_result() is used to obtain the resulting
+  *   configuration object from c2_confc_ctx.
+  *
+- * - c2_confc_readdir() requests asynchronous retrieval of the next
+- *   directory entry.
++ * - c2_confc_readdir() gets next directory entry. If the entry is not
++ *   cached yet, c2_confc_readdir() initiates asynchronous retrieval
++ *   of configuration data.
+  * - c2_confc_readdir_sync() gets next directory entry synchronously.
+  *
+  * <!---------------------------------------------------------------->
+@@ -147,7 +148,7 @@ struct c2_mutex;
+  * the requested configuration object.
+  *
+  * A caller of c2_confc_open_sync() or c2_confc_readdir_sync() will be
+- * blocked while confc processes the request.
++ * blocked while confc is processing the request.
+  *
+  * All c2_confc_open*()ed configuration objects must be
+  * c2_confc_close()ed before c2_confc_fini() is called.
+@@ -243,33 +244,27 @@ struct c2_mutex;
+  *
+  * static int specific_service_process(enum c2_cfg_service_type tos)
+  * {
+- *         struct c2_conf_obj   *dir_obj;
+- *         struct c2_conf_obj   *svc_obj;
+- *         struct c2_conf_dircur cur;
+- *         int                   rc;
+- *
+- *         rc = c2_confc__open_sync(&dir_obj, g_confc->cc_root,
+- *                                  C2_CONF_BUF_INITS("filesystem"),
+- *                                  C2_CONF_BUF_INITS("services"));
++ *         struct c2_conf_obj *dir;
++ *         struct c2_conf_obj *entry;
++ *         int                 rc;
++ *
++ *         rc = c2_confc_open_sync(&dir, g_confc->cc_root,
++ *                                 C2_CONF_BUF_INITS("filesystem"),
++ *                                 C2_CONF_BUF_INITS("services"));
+  *         if (rc != 0)
+  *                 return rc;
+- *         c2_conf_dircur_init(&cur, dir_obj);
+  *
+- *         while ((rc = c2_confc_readdir_sync(&svc_obj, &cur)) > 0) {
++ *         for (entry = NULL; (rc = c2_confc_readdir_sync(dir, &entry)) > 0; ) {
+  *                 const struct c2_conf_service *svc =
+- *                         C2_CONF_CAST(svc_obj, c2_conf_service);
++ *                         C2_CONF_CAST(entry, c2_conf_service);
+  *
+  *                 if (svc->cs_type == tos) {
+  *                         // ... Use `svc' ...
+  *                 }
+- *
+- *                 // Explicit c2_confc_close(svc_obj) is not needed:
+- *                 // c2_confc_readdir_sync() and c2_conf_dircur_fini()
+- *                 // take care of closing svc_obj.
+  *         }
+  *
+- *         c2_conf_dircur_fini(&cur);
+- *         c2_confc_close(dir_obj);
++ *         c2_confc_close(entry);
++ *         c2_confc_close(dir);
+  *         return rc;
+  * }
+  * @endcode
+@@ -285,47 +280,42 @@ struct c2_mutex;
+  *
+  * static int node_devices_process(struct c2_conf_obj *node);
+  *
+- * // Accesses configuration data of devices used by specific service
+- * // on specific node.
++ * // Accesses configuration data of devices that are being used by
++ * // specific service on specific node.
+  * static int specific_devices_process(const struct c2_conf_buf *svc_id,
+  *                                     const struct c2_conf_buf *node_id)
+  * {
+- *         struct c2_conf_obj   *dir_obj;
+- *         struct c2_conf_dircur dir;
+- *         struct c2_conf_obj   *svc_obj;
+- *         int                   rc;
++ *         struct c2_conf_obj *dir;
++ *         struct c2_conf_obj *svc;
++ *         int                 rc;
+  *
+- *         rc = c2_confc_open_sync(&dir_obj, g_confc->cc_root,
++ *         rc = c2_confc_open_sync(&dir, g_confc->cc_root,
+  *                                 C2_CONF_BUF_INITS("filesystem"),
+  *                                 C2_CONF_BUF_INITS("services"));
+  *         if (rc != 0)
+  *                 return rc;
+- *         c2_conf_dircur_init(&dir, dir_obj);
+  *
+- *         // Note, that c2_confc_readdir_sync() and c2_conf_dircur_fini()
+- *         // take care of closing svc_obj.
++ *         for (svc = NULL; (rc = c2_confc_readdir_sync(dir, &svc)) > 0; ) {
++ *                 struct c2_conf_obj *node;
+  *
+- *         while ((rc = c2_confc_readdir_sync(&svc_obj, &dir)) > 0) {
+- *                 struct c2_conf_obj *node_obj;
+- *
+- *                 if (!c2_conf_buf_eq(svc_obj->co_id, svc_id))
++ *                 if (!c2_conf_buf_eq(svc->co_id, svc_id))
+  *                         // This is not the service we are looking for.
+  *                         continue;
+  *
+- *                 rc = c2_confc_open_sync(&node_obj, svc_obj,
++ *                 rc = c2_confc_open_sync(&node, svc,
+  *                                         C2_CONF_BUF_INITS("node"));
+  *                 if (rc == 0) {
+- *                         if (c2_conf_buf_eq(node_obj->co_id, node_id))
+- *                                 rc = node_devices_process(node_obj);
+- *                         c2_confc_close(node_obj);
++ *                         if (c2_conf_buf_eq(node->co_id, node_id))
++ *                                 rc = node_devices_process(node);
++ *                         c2_confc_close(node);
+  *                 }
+  *
+  *                 if (rc != 0)
+  *                         break;
+  *         }
+  *
+- *         c2_conf_dircur_fini(&dir);
+- *         c2_confc_close(dir_obj);
++ *         c2_confc_close(svc);
++ *         c2_confc_close(dir);
+  *         return rc;
+  * }
+  *
+@@ -339,47 +329,43 @@ struct c2_mutex;
+  *
+  * static int node_nics_process(struct c2_conf_obj *node)
+  * {
+- *         struct c2_conf_obj   *dir_obj;
+- *         struct c2_conf_dircur dir;
+- *         struct c2_conf_obj   *obj;
+- *         int                   rc;
++ *         struct c2_conf_obj *dir;
++ *         struct c2_conf_obj *entry;
++ *         int                 rc;
+  *
+- *         rc = c2_confc_open_sync(&dir_obj, node, C2_CONF_BUF_INITS("nics"));
++ *         rc = c2_confc_open_sync(&dir, node, C2_CONF_BUF_INITS("nics"));
+  *         if (rc != 0)
+  *                 return rc;
+- *         c2_conf_dircur_init(&dir, dir_obj);
+  *
+- *         while ((rc = c2_confc_readdir_sync(&obj, &dir)) > 0) {
++ *         for (entry = NULL; (rc = c2_confc_readdir_sync(dir, &entry)) > 0; ) {
+  *                 const struct c2_conf_nic *nic =
+- *                         C2_CONF_CAST(obj, c2_conf_nic);
++ *                         C2_CONF_CAST(entry, c2_conf_nic);
+  *                 // ... Use `nic' ...
+  *         }
+  *
+- *         c2_conf_dircur_fini(&dir);
+- *         c2_confc_close(dir_obj);
++ *         c2_confc_close(entry);
++ *         c2_confc_close(dir);
+  *         return rc;
+  * }
+  *
+  * static int node_sdevs_process(struct c2_conf_obj *node)
+  * {
+- *         struct c2_conf_obj   *dir_obj;
+- *         struct c2_conf_dircur dir;
+- *         struct c2_conf_obj   *obj;
+- *         int                   rc;
++ *         struct c2_conf_obj *dir;
++ *         struct c2_conf_obj *entry;
++ *         int                 rc;
+  *
+- *         rc = c2_confc_open_sync(&dir_obj, node, C2_CONF_BUF_INITS("sdevs"));
++ *         rc = c2_confc_open_sync(&dir, node, C2_CONF_BUF_INITS("sdevs"));
+  *         if (rc != 0)
+  *                 return rc;
+- *         c2_conf_dircur_init(&dir, dir_obj);
+  *
+- *         while ((rc = c2_confc_readdir_sync(&obj, &dir)) > 0) {
++ *         for (entry = NULL; (rc = c2_confc_readdir_sync(dir, &entry)) > 0; ) {
+  *                 const struct c2_conf_sdev *sdev =
+- *                         C2_CONF_CAST(obj, c2_conf_sdev);
++ *                         C2_CONF_CAST(entry, c2_conf_sdev);
+  *                 // ... Use `sdev' ...
+  *         }
+  *
+- *         c2_conf_dircur_fini(&dir);
+- *         c2_confc_close(dir_obj);
++ *         c2_confc_close(entry);
++ *         c2_confc_close(dir);
+  *         return rc;
+  * }
+  * @endcode
+@@ -402,27 +388,27 @@ struct c2_mutex;
+  * static void sm_waiter_init(struct sm_waiter *w, struct c2_confc *confc);
+  * static void sm_waiter_fini(struct sm_waiter *w);
+  *
+- * // Counts the number of entries in a given directory.
+- * static ssize_t dir_len(struct c2_conf_dir *dir)
++ * // Uses configuration data of every object in given directory.
++ * static int dir_entries_use(struct c2_conf_dir *dir,
++ *                            void (*use)(const struct c2_conf_obj *),
++ *                            bool (*stop_at)(const struct c2_conf_obj *))
+  * {
+- *         struct c2_conf_dircur     cur;
+- *         struct sm_waiter          w;
+- *         const struct c2_conf_obj *entry;
+- *         int                       rc;
+- *         ssize_t                   count = 0;
++ *         struct sm_waiter    w;
++ *         int                 rc;
++ *         struct c2_conf_obj *entry = NULL;
+  *
+- *         c2_conf_dircur_init(&cur, dir);
+  *         sm_waiter_init(&w, g_confc);
+  *
+- *         while ((rc = c2_confc_readdir(&w.w_ctx, &cur)) > 0) {
+- *                 if (rc == C2_CONFC_DIR_NEXT) {
+- *                         // An entry is available immediately.
+- *                         C2_CNT_INC(count);
+- *                         continue;
++ *         while ((rc = c2_confc_readdir(&w.w_ctx, dir, &entry)) > 0) {
++ *                 if (rc == C2_CONF_DIRNEXT) {
++ *                         // The entry is available immediately.
++ *                         use(entry);
++ *                         continue; // Note, that `entry' will be
++ *                                   // closed by c2_confc_readdir().
+  *                 }
+  *
+- *                 // Asynchronous case.
+- *                 C2_ASSERT(rc == C2_CONFC_DIR_WAIT);
++ *                 // Cache miss.
++ *                 C2_ASSERT(rc == C2_CONF_DIRMISS);
+  *                 while (!c2_confc_ctx_is_completed(&w.w_ctx))
+  *                         c2_chan_wait(&w.w_clink);
+  *
+@@ -434,16 +420,19 @@ struct c2_mutex;
+  *                 if (entry == NULL)
+  *                         break; // end of directory
+  *                 else
+- *                         C2_CNT_INC(count);
++ *                         use(entry);
++ *
++ *                 if (stop_at != NULL && stop_at(entry))
++ *                         break;
+  *
+  *                 // Re-initialise c2_confc_ctx.
+  *                 sm_waiter_fini(&w);
+  *                 sm_waiter_init(&w);
+  *         }
+  *
++ *         c2_confc_close(entry);
+  *         sm_waiter_fini(&w);
+- *         c2_conf_dircur_fini(&cur);
+- *         return rc ?: count;
++ *         return rc;
+  * }
+  * @endcode
+  *
+@@ -702,9 +691,6 @@ int c2__confc_open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
+  *
+  * c2_confc_close(NULL) is a noop.
+  *
+- * @note  The application must not c2_confc_close() the objects
+- *        obtained via c2_confc_readdir*().
+- *
+  * @pre  ergo(obj != NULL, obj->co_nrefs > 0)
+  */
+ void c2_confc_close(struct c2_conf_obj *obj);
+@@ -713,70 +699,80 @@ void c2_confc_close(struct c2_conf_obj *obj);
+  * readdir
+  * ------------------------------------------------------------------ */
+ 
+-/** Symbolic names for c2_confc_readdir() return values. */
+-enum c2_confc_retval {
+-	/** End of directory is reached; no waiting is needed. */
+-	C2_CONFC_DIREND = 0,
+-	/**
+-	 * The next directory is available immediately; no waiting is
+-	 * needed.
+-	 */
+-	C2_CONFC_DIRNEXT,
+-	/**
+-	 * Asynchronous retrieval of configuration has been initiated.
+-	 * The caller should wait.
+-	 */
+-	C2_CONFC_DIRWAIT
+-};
+-
+ /**
+  * Requests asynchronous retrieval of the next directory entry.
+  *
+- * Closes the configuration object returned by previous c2_confc_readdir*().
+- *
+- * @retval C2_CONFC_DIRWAIT  Asynchronous retrieval of configuration has been
+- *                           initiated.
+- * @retval C2_CONFC_DIRNEXT  The next directory entry is available immediately,
+- *                           no waiting is needed.
+- * @retval C2_CONFC_DIREND   End of directory is reached, no waiting is needed.
+- * @retval < 0               Error.
++ * @param      ctx   Fetch context.
++ * @param      dir   Directory.
++ * @param[in]  pptr  "Current" entry.
++ * @param[out] pptr  "Next" entry.
+  *
+  * Entries of a directory are usually present in the configuration
+  * cache.  In this common case c2_confc_readdir() can fulfil the
+- * request immediately. Return value C2_CONFC_DIREND or C2_CONFC_DIRNEXT
++ * request immediately. Return value C2_CONF_DIREND or C2_CONF_DIRNEXT
+  * let the caller know that it can proceed without waiting for
+  * ctx->fc_mach.sm_chan channel to be signaled.
+  *
+- * c2_confc_readdir() does not touch `ctx' argument if the returned
+- * value is C2_CONFC_DIREND or C2_CONFC_DIRNEXT. c2_confc_ctx can be
+- * re-used in this case.
++ * @retval C2_CONF_DIRMISS  Asynchronous retrieval of configuration has been
++ *                          initiated. The caller should wait.
++ * @retval C2_CONF_DIRNEXT  *pptr now points to the next directory entry.
++ *                          No waiting is needed.
++ * @retval C2_CONF_DIREND   End of directory is reached. No waiting is needed.
++ * @retval -Exxx            Error.
++ *
++ * c2_confc_readdir() closes configuration object referred to via
++ * `pptr' input parameter.
++ *
++ * c2_confc_readdir() pins the resulting object in case of
++ * C2_CONF_DIRNEXT.
+  *
+- * @note  The application must not c2_confc_close() a configuration
+- *        object retrieved by c2_confc_readdir().  The object will be
+- *        closed implicitly by subsequent c2_confc_readdir*() call or
+- *        by c2_conf_dircur_fini().
++ * c2_confc_readdir() does not touch `ctx' argument, if the returned
++ * value is C2_CONF_DIRNEXT or C2_CONF_DIREND. `ctx' can be re-used
++ * in this case.
+  *
+  * @see confc-fspec-recipe4
++ *
++ * @pre   ctx->fc_mach.sm_state == S_INITIAL
++ * @pre   c2_conf__readdir_pre(dir, *pptr)
++ *
++ * @post  c2_conf__readdir_post(retval, dir, *pptr)
++ * @post  ergo(C2_IN(retval, (C2_CONF_DIRNEXT, C2_CONF_DIREND)),
++ *             ctx->fc_mach.sm_state == S_INITIAL)
+  */
+-int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_dircur *cur);
++int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
++		     struct c2_conf_obj **pptr);
+ 
+ /**
+  * Gets next directory entry synchronously.
+  *
+- * Closes the configuration object returned by previous c2_confc_readdir*().
+- * Increments reference counter of the returned object.
++ * @param      dir   Directory.
++ * @param[in]  pptr  "Current" entry.
++ * @param[out] pptr  "Next" entry.
++ *
++ * @retval C2_CONF_DIRNEXT  *pptr now points to the next directory entry.
++ * @retval C2_CONF_DIREND   End of directory is reached.
++ * @retval -Exxx            Error.
+  *
+- * @retval C2_CONFC_DIRNEXT  *result now points to the next directory entry.
+- * @retval C2_CONFC_DIREND   End of directory is reached.
+- * @retval < 0               Error.
++ * c2_confc_readdir_sync() closes configuration object referred to via
++ * `pptr' input parameter.
++ *
++ * c2_confc_readdir_sync() pins the resulting object in case of
++ * C2_CONF_DIRNEXT.
++ *
++ * Example:
++ * @code
++ * struct c2_conf_obj *entry;
++ *
++ * for (entry = NULL; (rc = c2_confc_readdir_sync(dir, &entry)) > 0; )
++ *         use(entry);
++ *
++ * c2_confc_close(entry);
++ * @endcode
+  *
+- * @note  The application must not c2_confc_close() the resulting
+- *        configuration object.  The object will be closed implicitly
+- *        by subsequent c2_confc_readdir*() call or by
+- *        c2_conf_dircur_fini().
++ * @pre   c2_conf__readdir_pre(dir, *pptr)
++ * @post  c2_conf__readdir_post(retval, dir, *pptr)
+  */
+-int c2_confc_readdir_sync(struct c2_conf_obj **result,
+-			  struct c2_conf_dircur *cur);
++int c2_confc_readdir_sync(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+ 
+ /** @} confc_dfspec */
+ #endif /* __COLIBRI_CONF_CONFC_H__ */
+diff --git a/conf/obj.c b/conf/obj.c
+index 161f0bd..a375100 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -22,6 +22,8 @@
+ #  include <config.h>
+ #endif
+ #include "conf/obj.h"
++#include "lib/arith.h"  /* C2_CNT_INC, C2_CNT_DEC */
++#include "lib/cdefs.h"  /* ergo */
+ 
+ /**
+  * @page conf DLD of configuration caching
+@@ -204,7 +206,7 @@
+  *
+  * - @ref confc-lspec-state "States of a context state machine at confc side"
+  * - @ref confd-lspec-state "States of a FOM at confd side"
+- * - @ref conf-fspec-obj-status
++ * - @ref conf-fspec-obj-enum-status
+  * - @ref conf-fspec-obj-pinned
+  *
+  * <!---------------------------------------------------------------->
+@@ -432,19 +434,51 @@ struct c2_bob_type c2_conf_nic_bob = XXX;
+ struct c2_bob_type c2_conf_sdev_bob = XXX;
+ struct c2_bob_type c2_conf_partition_bob = XXX;
+ 
+-void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_obj *dir)
++void c2_conf__obj_get(struct c2_conf_obj *obj)
+ {
+-	C2_PRE(dir->co_type == C2_CO_DIR && dir->co_status == C2_CS_READY);
+-	C2_PRE(dir->co_nrefs > 0);
++	C2_PRE(obj->co_status == C2_CS_READY);
++	C2_CNT_INC(obj->co_nrefs);
++}
++
++void c2_conf__obj_put(struct c2_conf_obj *obj)
++{
++	C2_PRE(obj->co_status == C2_CS_READY);
++	C2_CNT_DEC(obj->co_nrefs);
++	if (obj->co_nrefs == 0)
++		c2_chan_broadcast(&obj->co_chan);
++}
++
++static bool obj_is_pinned(const struct c2_conf_obj *obj)
++{
++	return obj->co_status == C2_CS_READY && obj->co_nrefs > 0;
+ 
+-	C2_ASSERT(cur->dc_dir == NULL);
+-	cur->dc_dir = C2_CONF_CAST(dir, c2_conf_dir);
+-	C2_ASSERT(cur->dc_pin == NULL);
+ }
+ 
+-void c2_conf_dircur_fini(struct c2_conf_dircur *cur)
++static bool
++belongs(const struct c2_conf_obj *entry, const struct c2_conf_obj *dir)
++{
++	const struct c2_conf_dir *d = bob_of(dir, const struct c2_conf_dir,
++					     c2_conf_dir_cast_field,
++					     &c2_conf_dir_bob);
++	return d->cd_items_t == entry->co_type && entry->co_parent == dir;
++}
++
++bool c2_conf__readdir_pre(const struct c2_conf_obj *dir,
++			  const struct c2_conf_obj *entry)
++{
++	return dir->co_type == C2_CO_DIR && obj_is_pinned(dir) &&
++		ergo(entry != NULL,
++		     belongs(entry, dir) && obj_is_pinned(entry));
++}
++
++bool c2_conf__readdir_post(int retval, const struct c2_conf_obj *dir,
++			   const struct c2_conf_obj *entry)
+ {
+-	XXX;
++	if (retval == C2_CONF_DIRNEXT)
++		return entry != NULL &&
++			belongs(entry, dir) && obj_is_pinned(entry);
++	else
++		return entry == NULL;
+ }
+ 
+ /** @} conf_dlspec_obj */
+diff --git a/conf/obj.h b/conf/obj.h
+index b61c1d8..72a49ed 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -40,7 +40,8 @@
+  *
+  * - @ref conf-fspec-obj-data
+  * - @ref conf-fspec-obj-enum
+- * - @ref conf-fspec-obj-status
++ *   - @ref conf-fspec-obj-enum-status
++ * - @ref conf-fspec-obj-sub
+  * - @ref conf-fspec-obj-pinned
+  * - @ref conf-fspec-obj-private
+  *
+@@ -64,11 +65,7 @@
+  * Such common attributes are put together into c2_conf_obj structure,
+  * which is embedded into concrete configuration objects.
+  *
+- * Other data structures:
+- * - c2_conf_obj_ops --- object operations vector.
+- * - c2_conf_dircur --- directory cursor, used by
+- *   c2_conf_obj_ops::coo_readdir() to track position within a
+- *   directory.
++ * c2_conf_obj_ops is configuration object operations vector.
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section conf-fspec-obj-enum Enumerations
+@@ -77,8 +74,7 @@
+  *   concrete configuration objects.
+  * - c2_conf_status --- readiness of object's configuration data.
+  *
+- * <hr> <!------------------------------------------------------------>
+- * @section conf-fspec-obj-status Configuration Object Status
++ * @subsection conf-fspec-obj-enum-status Configuration Object Status
+  *
+  * A configuration object exists in one of three states:
+  *   - C2_CS_MISSING --- configuration data is absent and is not being
+@@ -106,13 +102,23 @@
+  * @enddot
+  *
+  * <hr> <!------------------------------------------------------------>
++ * @section conf-fspec-obj-sub Subroutines
++ *
++ * c2_conf__obj_get() and c2_conf__obj_put() are used by confc and
++ * confd implementations to manipulate reference counter of a
++ * configuration object.
++ *
++ * c2_conf__readdir_pre() and c2_conf__readdir_post() are pre- and
++ * postconditions for c2_conf_obj_ops::coo_readdir().
++ *
++ * <hr> <!------------------------------------------------------------>
+  * @section conf-fspec-obj-pinned Pinned Objects
+  *
+  * If object's reference counter -- c2_conf_obj::co_nrefs -- is
+  * non-zero, the object is said to be @em pinned. Stubs cannot be
+  * pinned, only C2_CS_READY objects can.  Object's reference counter
+- * is used by confc library and is not supposed to be accessed by the
+- * application.
++ * is used by confc and confd implementations and is not supposed to
++ * be accessed by a configuration consumer.
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section conf-fspec-obj-private Private Fields
+@@ -157,19 +163,6 @@ enum c2_conf_objtype {
+ 	C2_CO_NR
+ };
+ 
+-#define _DECLARE(type) \
+-struct type;           \
+-extern struct c2_bob_type type ## _bob
+-_DECLARE(c2_conf_dir);
+-_DECLARE(c2_conf_profile);
+-_DECLARE(c2_conf_filesystem);
+-_DECLARE(c2_conf_service);
+-_DECLARE(c2_conf_node);
+-_DECLARE(c2_conf_nic);
+-_DECLARE(c2_conf_sdev);
+-_DECLARE(c2_conf_partition);
+-#undef _DECLARE
+-
+ struct c2_conf_obj_ops;
+ struct c2_confc; /* defined in "conf/confc.h" */
+ 
+@@ -198,13 +191,15 @@ struct c2_conf_obj {
+ 	/**
+ 	 * Pointer to the parent object.
+ 	 *
+-	 * The value is NULL for objects that have several parents
++	 * The value is NULL for objects that may have several parents
+          * (e.g., c2_conf_node).
+ 	 */
+ 	struct c2_conf_obj           *co_parent;
+ 	/**
+ 	 * Reference counter.
+ 	 * The object is "pinned" if this value is non-zero.
++	 *
++	 * @see c2_conf__obj_get(), c2_conf__obj_put()
+ 	 */
+ 	uint64_t                      co_nrefs;
+ 	/**
+@@ -218,16 +213,30 @@ struct c2_conf_obj {
+ 	 */
+ 	struct c2_confc              *co_confc;
+ };
++
++/**
++ * Increments reference counter of given configuration object.
++ *
++ * @pre   obj->co_status == C2_CS_READY
++ * @post  obj->co_nrefs > 0
++ */
++void c2_conf__obj_get(struct c2_conf_obj *obj);
++
++/**
++ * Decrements reference counter of given configuration object.
++ *
++ * Broadcasts obj->co_chan if the object becomes unpinned (i.e., if
++ * the decremented counter reaches 0).
++ *
++ * @pre  obj->co_nrefs > 0 && obj->co_status == C2_CS_READY
++ */
++void c2_conf__obj_put(struct c2_conf_obj *obj);
+ 
+ /* ------------------------------------------------------------------
+  * Concrete configuration objects
+  * ------------------------------------------------------------------ */
+ 
+-/**
+- * Directory object --- container for configuration objects.
+- *
+- * @see c2_conf_dircur
+- */
++/** Directory object --- container for configuration objects. */
+ struct c2_conf_dir {
+ 	struct c2_conf_obj   cd_obj;
+ 	struct c2_tl         cd_items;
+@@ -350,6 +359,19 @@ struct c2_conf_partition {
+  * Cast
+  * ------------------------------------------------------------------ */
+ 
++#define _DECLARE(type) \
++struct type;           \
++extern struct c2_bob_type type ## _bob
++_DECLARE(c2_conf_dir);
++_DECLARE(c2_conf_profile);
++_DECLARE(c2_conf_filesystem);
++_DECLARE(c2_conf_service);
++_DECLARE(c2_conf_node);
++_DECLARE(c2_conf_nic);
++_DECLARE(c2_conf_sdev);
++_DECLARE(c2_conf_partition);
++#undef _DECLARE
++
+ #define c2_conf_dir_cast_field        cd_obj
+ #define c2_conf_profile_cast_field    cp_obj
+ #define c2_conf_filesystem_cast_field cf_obj
+@@ -364,6 +386,11 @@ struct c2_conf_partition {
+  *
+  * @param ptr    Pointer to c2_conf_obj member.
+  * @param type   Type of concrete configuration object (without `struct').
++ *
++ * Example:
++ * @code
++ * struct c2_conf_service *svc = C2_CONF_CAST(svc_obj, c2_conf_service);
++ * @endcode
+  */
+ #define C2_CONF_CAST(ptr, type) \
+ 	bob_of(ptr, struct type, type ## _cast_field, &type ## _bob)
+@@ -372,7 +399,18 @@ struct c2_conf_partition {
+  * Object operations vector
+  * ------------------------------------------------------------------ */
+ 
+-struct c2_conf_dircur;
++/** Symbolic names for c2_conf_obj_ops::coo_readdir() return values. */
++enum c2_conf_dirval {
++	/** End of directory is reached. */
++	C2_CONF_DIREND = 0,
++	/** The next directory entry is available immediately. */
++	C2_CONF_DIRNEXT,
++	/**
++	 * The next directory entry is missing from configuration
++	 * cache or is a stub.
++	 */
++	C2_CONF_DIRMISS
++};
+ 
+ /** Configuration object operations. */
+ struct c2_conf_obj_ops {
+@@ -392,70 +430,54 @@ struct c2_conf_obj_ops {
+ 			  const struct c2_conf_buf *name,
+ 			  struct c2_conf_obj **out);
+ 	/**
+-	 * Returns the next directory entry.
++	 * Gets next directory entry.
+ 	 *
+-	 * @retval 1    *result now points to the next directory entry.
+-	 * @retval 0    End of directory is reached.
+-	 * @retval < 0  Error.
++	 * @param      dir   Directory.
++	 * @param[in]  pptr  "Current" entry.
++	 * @param[out] pptr  "Next" entry.
+ 	 *
+-	 * @pre  cur->dc_dir->cd_obj.co_status == C2_CS_READY
++	 * @retval C2_CONF_DIRMISS  The next directory entry is missing from
++	 *                          configuration cache or is a stub.
++	 * @retval C2_CONF_DIRNEXT  *pptr now points to the next entry.
++	 * @retval C2_CONF_DIREND   End of directory is reached.
++	 * @retval -Exxx            Error.
++	 *
++	 * ->coo_readdir() puts (c2_conf__obj_put()) configuration
++	 * object referred to via `pptr' input parameter.
++	 *
++	 * ->coo_readdir() pins (c2_conf__obj_get()) the resulting
++	 * object in case of C2_CONF_DIRNEXT.
++	 *
++	 * @pre   c2_conf__readdir_pre(dir, *pptr)
++	 * @post  c2_conf__readdir_post(retval, dir, *pptr)
+ 	 */
+-	int (*coo_readdir)(struct c2_conf_obj **result,
+-			   struct c2_conf_dircur *cur);
++	int (*coo_readdir)(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+ };
+-
+-/* ------------------------------------------------------------------
+- * Directory cursor
+- * ------------------------------------------------------------------ */
+ 
+ /**
+- * Directory cursor.
+- *
+- * c2_conf_dircur is used to track position within a directory
+- * (c2_conf_dir).
+- *
+- * c2_conf_obj_ops::coo_readdir() unpins ->dc_pin, pins the "next"
+- * configuration object of the directory (pointed to by ->dc_dir), and
+- * sets ->dc_pin to the address of this object.
++ * Precondition for c2_conf_obj_ops::coo_readdir().
+  *
+- * If there are no more objects in the directory, the function sets
+- * ->dc_pin to NULL, and returns 0 (end-of-directory).
++ * @param dir     The 1st argument of ->coo_readdir().
++ * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
++ *                before the function is called (*pptr).
+  *
+- * The application can opt not to keep calling ->coo_readdir() until 0
+- * is returned. In this case non-NULL ->dc_pin will be unpinned by
+- * c2_conf_dircur_fini().
++ * @see c2_conf_obj_ops::coo_readdir()
+  */
+-struct c2_conf_dircur {
+-	/** The directory this cursor works upon. */
+-	struct c2_conf_dir *dc_dir;
+-	/**
+-	 * Configuration object that has been returned (and pinned)
+-	 * by previous ->coo_readdir() call.
+-	 */
+-	struct c2_conf_obj *dc_pin;
+-};
++bool c2_conf__readdir_pre(const struct c2_conf_obj *dir,
++			  const struct c2_conf_obj *entry);
+ 
+ /**
+- * Initialises directory cursor.
+- *
+- * Note, that c2_conf_dircur_init() does not increment reference
+- * counter of its second argument (dir). It is responsibility of
+- * application's programmer to ensure that the corresponding directory
+- * object is pinned till c2_conf_dircur_fini().
++ * Postcondition for c2_conf_obj_ops::coo_readdir().
+  *
+- * @pre  dir->co_objtype == C2_CO_DIR && dir->co_status == C2_CS_READY
+- * @pre  dir->co_nrefs > 0
+- */
+-void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_obj *dir);
+-
+-/**
+- * Finalises directory cursor.
+- * Decrements reference counters of cur->dc_pin and cur->dc_dir.
++ * @param retval  The value returned by ->coo_readdir().
++ * @param dir     The 1st argument of ->coo_readdir().
++ * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
++ *                after the function is called (*pptr).
+  *
+- * @pre   dir->co_nrefs > 0
+- * @post  dir->co_nrefs > 0
++ * @see c2_conf_obj_ops::coo_readdir()
+  */
+-void c2_conf_dircur_fini(struct c2_conf_dircur *cur);
++bool c2_conf__readdir_post(int retval, const struct c2_conf_obj *dir,
++			   const struct c2_conf_obj *entry);
+ 
+ /** @} conf_dfspec_obj */
+ #endif /* __COLIBRI_CONF_OBJ_H__ */
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 99ffa68..432c7d6 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -142,15 +142,30 @@ static int dir_lookup(struct c2_conf_obj *parent,
+ 	XXX;
+ }
+ 
+-static int dir_readdir(struct c2_conf_obj **result, struct c2_conf_dircur *cur)
++static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+ {
+ 	/*
+-	 * Decrement cur->dc_pin->co_nrefs; cur->dc_pin = NULL.
+-	 * Call c2_tlist_next().
+-	 * If retval of c2_tlist_next() is NULL, return 0 (end of directory).
+-	 * Otherwise, cur->dc_pin = retval; increment cur->dc_pin->co_nrefs.
+-	 * *result = cur->dc_pin.
+-	 * Return 1.
++	 * int ret;
++	 * C2_PRE(c2_conf__readdir_pre(dir, *pptr));
++	 *
++	 * if (*pptr != NULL) {
++	 *     c2_conf__obj_put(*pptr);
++	 *     *pptr = NULL;
++	 * }
++	 *
++	 * *pptr = c2_tlist_next();
++	 *
++	 * if (*pptr == NULL) {
++	 *     ret = C2_CONF_DIREND;
++	 * } else if ((*pptr)->co_status != C2_CS_READY) {
++	 *     ret = C2_CONF_DIRMISS;
++	 * } else {
++	 *     c2_conf__obj_get(*pptr);
++	 *     ret = C2_CONF_DIRNEXT;
++	 * }
++	 *
++	 * C2_POST(c2_conf__readdir_post(ret, dir, *pptr);
++	 * return ret;
+ 	 */
+ 	XXX;
+ }
+-- 
+1.8.3.2
+

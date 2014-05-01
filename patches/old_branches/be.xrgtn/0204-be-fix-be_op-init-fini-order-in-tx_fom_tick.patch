@@ -1,0 +1,40 @@
+From 434efde4d7896dfbe964915320995c9a49e767ca Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 21 Jun 2013 15:34:39 +0300
+Subject: [PATCH 204/228] be: fix be_op init/fini order in tx_fom_tick()
+
+---
+ be/tx_fom.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 54a4d6b..051fb25 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -174,6 +174,7 @@ static int tx_fom_tick(struct m0_fom *fom)
+ 			struct m0_be_seg   *seg = area[0].rd_reg.br_seg;
+ 			struct m0_be_op    *op = &f->tf_op;
+ 
++			m0_be_op_init(op);
+ 			m0_be_seg_write_simple(seg, op, area,
+ 					       tx->t_captured.tc_reg_nr);
+ 			return m0_be_op_tick_ret(op, fom, FS_PLACED);
+@@ -183,6 +184,7 @@ static int tx_fom_tick(struct m0_fom *fom)
+ #if !XXX_MOCK_IO
+ 		M0_ASSERT(m0_be_op_state(&fom_to_txm(fom)->tf_op) ==
+ 			  M0_BOS_SUCCESS);
++		m0_be_op_fini(&fom_to_txm(fom)->tf_op);
+ #endif
+ 		tx_state_set(tx, M0_BTS_PLACED);
+ 		m0_be_tx_free(tx);  /* free region buffers */
+@@ -253,7 +255,6 @@ tx_fom_create(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
+ 
+ 	engine->te_fom = fom;
+ 	txm->tf_engine = engine;
+-	m0_be_op_init(&txm->tf_op);
+ 
+ 	return fom;
+ }
+-- 
+1.8.3.2
+

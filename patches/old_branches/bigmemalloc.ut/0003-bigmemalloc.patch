@@ -1,0 +1,125 @@
+From 1c959a41357321a6960487ed7ae6a4a256e7f90a Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Fri, 5 Jul 2013 02:07:57 -0700
+Subject: [PATCH 03/61] bigmemalloc: - Removed commented code.
+
+---
+ lib/ut/genarray.c | 101 ++----------------------------------------------------
+ 1 file changed, 2 insertions(+), 99 deletions(-)
+
+diff --git a/lib/ut/genarray.c b/lib/ut/genarray.c
+index 1b0569e..eb4c916 100644
+--- a/lib/ut/genarray.c
++++ b/lib/ut/genarray.c
+@@ -189,106 +189,9 @@ void test_genarray(void)
+ 	for (id = 0; id < struct_nr; ++id)
+ 		M0_UT_ASSERT(address_tracker[id]->f_magic == FOO_MAGIC);
+ 
+-	//M0_UT_ASSERT(genarray_forall(&arr, fint, struct foo,
+-				     //fint->f_magic == FOO_MAGIC));
++	M0_UT_ASSERT(genarray_forall(&arr, fint, struct foo,
++				     fint->f_magic == FOO_MAGIC));
+ 
+- (({
+-    _Bool cond;
+-    uint64_t nr;
+-    uint64_t total = 0;
+-    unsigned long lev;
+-    unsigned long *addr;
+-    struct foo *fint;
+-    struct genarray *a = (&arr);
+-    lev = level_find(a->ga_len / genarray_obj_nr_in_page(a));
+-    addr = (unsigned long *)a->ga_levels[GA_LEVEL0];
+-    nr = genarray_obj_nr_in_ln(a, GA_LEVEL0);
+-    if (GA_LEVEL0 <= lev) {
+-      cond = ({
+-	       uint64_t id;
+-	       typeof(fint) fint;
+-	       fint = (typeof(fint))(addr);
+-	       for (id = 0; id < (nr); ++id, ++fint) {
+-	         if (!({ ({ fint->f_magic == FOO_MAGIC; }) ; }))
+-		   break;
+-	       }
+-	       id == (nr);
+-	      });
+-      if (cond)
+-	total += nr;
+-    }
+-    addr = (unsigned long *)a->ga_levels[GA_LEVEL1];
+-    nr = genarray_obj_nr_in_ln(a, GA_LEVEL1);
+-    if (cond && GA_LEVEL1 <= lev) {
+-      cond = ({
+-	uint64_t l = 0;
+-	uint64_t _t1 = 0;
+-	uint64_t _nr = 0;
+-	unsigned long *_l0 = (unsigned long *)*(addr);
+-	for (; l < ({ ((0) || (genarray_obj_nr_in_ln(a, GA_LEVEL0) > 0) ? (void)0 : m0_panic("genarray_obj_nr_in_ln(a, GA_LEVEL0) > 0", __func__, "lib/ut/bmem.c", 193)); nr / genarray_obj_nr_in_ln(a, GA_LEVEL0) + (nr % genarray_obj_nr_in_ln(a, GA_LEVEL0) == 0 ? 0 : 1); }); ++l, ++_l0) {
+-	  _nr = min64u(nr - _t1, genarray_obj_nr_in_ln(a, GA_LEVEL0));
+-	  if (!({
+-	     uint64_t id;
+-	     typeof(fint) fint;
+-	     fint = (typeof(fint))(_l0);
+-	     for (id = 0; id < (_nr); ++id, ++fint) {
+-	       if (!({ ({ fint->f_magic == FOO_MAGIC; }) ; }))
+-	         break;
+-	     }
+-	     id == (_nr);
+-	     }))
+-	    break;
+-	  _t1 += _nr;
+-	 }
+-	 _t1 == (nr);
+-    });
+-    if (cond)
+-	total += nr;
+-    }
+-    addr = (unsigned long *)a->ga_levels[GA_LEVEL2];
+-    nr = genarray_obj_nr_in_ln(a, GA_LEVEL2);
+-    if (cond && GA_LEVEL2 <= lev) {
+-	cond = ({
+-		uint64_t l = 0;
+-		uint64_t _nr = 0;
+-		uint64_t _t2 = 0;
+-		unsigned long *_l1 = (unsigned long *)*(addr);
+-		unsigned long *_l2;
+-		for (; l < ({ ((0) || (genarray_obj_nr_in_ln(a, GA_LEVEL1) > 0) ? (void)0 : m0_panic("genarray_obj_nr_in_ln(a, GA_LEVEL1) > 0", __func__, "lib/ut/bmem.c", 193)); nr / genarray_obj_nr_in_ln(a, GA_LEVEL1) + (nr % genarray_obj_nr_in_ln(a, GA_LEVEL1) == 0 ? 0 : 1); }); ++l, ++_l1) {
+-		  _nr = min64u(nr - _t2, genarray_obj_nr_in_ln(a, GA_LEVEL1));
+-		  _l2 = (unsigned long *)_l1;
+-		  if (!({
+-		     uint64_t l = 0;
+-		     uint64_t _t1 = 0;
+-		     uint64_t _nr = 0;
+-		     unsigned long *_l0 = (unsigned long *)*(_l2);
+-		     for (; l < ({ ((0) || (genarray_obj_nr_in_ln(a, GA_LEVEL0) > 0) ? (void)0 : m0_panic("genarray_obj_nr_in_ln(a, GA_LEVEL0) > 0", __func__, "lib/ut/bmem.c", 193)); _nr / genarray_obj_nr_in_ln(a, GA_LEVEL0) + (_nr % genarray_obj_nr_in_ln(a, GA_LEVEL0) == 0 ? 0 : 1); }); ++l, ++_l0) {
+-		       _nr = min64u(_nr - _t1, genarray_obj_nr_in_ln(a, GA_LEVEL0));
+-		       if (!({
+-			      uint64_t id;
+-			      typeof(fint) fint;
+-			      fint = (typeof(fint))(_l0);
+-			      for (id = 0; id < (_nr); ++id, ++fint) {
+-			        if (!({ ({ fint->f_magic == FOO_MAGIC; }) ; }))
+-				  break;
+-			      }
+-			      id == (_nr);
+-			    }))
+-		         break;
+-		     _t1 += _nr;
+-		     }
+-		     _t1 == (_nr);
+-		  }))
+-		    break;
+-		 _t2 += _nr;
+-		}
+-		_t2 == (nr);
+-	});
+-	if (cond)
+-		total += nr;
+-    }
+-    total == a->ga_len;
+- }));
+ 	for (id = struct_nr - 1; id != 0; --id) {
+ 		f = genarray_ele_get(&arr, struct foo, id);
+ 		M0_UT_ASSERT(f == address_tracker[id]);
+-- 
+1.8.3.2
+

@@ -1,0 +1,80 @@
+From 20a44cce9b19c597423a193e5cb20f05266c0ebe Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 21 Feb 2013 07:29:49 +0200
+Subject: [PATCH 74/79] used designated initializers instead of copy-paste
+
+---
+ net/test/ut/client_server.c | 43 ++++++++++++++++++++++++-------------------
+ 1 file changed, 24 insertions(+), 19 deletions(-)
+
+diff --git a/net/test/ut/client_server.c b/net/test/ut/client_server.c
+index eaabee3..d82cded 100644
+--- a/net/test/ut/client_server.c
++++ b/net/test/ut/client_server.c
+@@ -113,9 +113,11 @@ static void node_cfg_fill(struct m0_net_test_node_cfg *ncfg,
+ 			  char *addr_console,
+ 			  bool last_node)
+ {
+-	ncfg->ntnc_addr		= addr_cmd;
+-	ncfg->ntnc_addr_console = addr_console;
+-	ncfg->ntnc_send_timeout = timeout;
++	*ncfg = (struct m0_net_test_node_cfg) {
++		.ntnc_addr	   = addr_cmd,
++		.ntnc_addr_console = addr_console,
++		.ntnc_send_timeout = timeout,
++	};
+ 
+ 	strncat(addr_cmd_list, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX - 1);
+ 	strncat(addr_cmd_list, last_node ? "" : ",", 1);
+@@ -199,8 +201,25 @@ static void net_test_client_server(const char *nid,
+ 		m0_semaphore_down(&node_init_sem);
+ 	m0_semaphore_fini(&node_init_sem);
+ 	/* prepare console config */
+-	console_cfg->ntcc_addr_console4servers = addr_console4servers;
+-	console_cfg->ntcc_addr_console4clients = addr_console4clients;
++	*console_cfg = (struct m0_net_test_console_cfg) {
++		.ntcc_addr_console4servers = addr_console4servers,
++		.ntcc_addr_console4clients = addr_console4clients,
++		.ntcc_cmd_send_timeout	   = timeout,
++		.ntcc_cmd_recv_timeout	   = timeout,
++		.ntcc_buf_send_timeout	   = timeout,
++		.ntcc_buf_recv_timeout	   = timeout,
++		.ntcc_buf_bulk_timeout	   = timeout,
++		.ntcc_test_type		   = type,
++		.ntcc_msg_nr		   = msg_nr,
++		.ntcc_test_time_limit	   = M0_TIME_NEVER,
++		.ntcc_msg_size		   = msg_size,
++		.ntcc_bd_buf_nr_server	   = bd_buf_nr_server,
++		.ntcc_bd_buf_nr_client	   = bd_buf_nr_client,
++		.ntcc_bd_buf_size	   = bd_buf_size,
++		.ntcc_bd_nr_max		   = bd_nr_max,
++		.ntcc_concurrency_server   = concurrency_server,
++		.ntcc_concurrency_client   = concurrency_client,
++	};
+ 	LOGD("addr_console4servers = %s", addr_console4servers);
+ 	LOGD("addr_console4clients = %s", addr_console4clients);
+ 	LOGD("clients      = %s", (char *) clients);
+@@ -217,20 +236,6 @@ static void net_test_client_server(const char *nid,
+ 	rc = m0_net_test_slist_init(&console_cfg->ntcc_data_servers,
+ 				    servers_data, ',');
+ 	M0_UT_ASSERT(rc == 0);
+-	console_cfg->ntcc_cmd_send_timeout   = timeout;
+-	console_cfg->ntcc_cmd_recv_timeout   = timeout;
+-	console_cfg->ntcc_buf_send_timeout   = timeout;
+-	console_cfg->ntcc_buf_recv_timeout   = timeout;
+-	console_cfg->ntcc_buf_bulk_timeout   = timeout;
+-	console_cfg->ntcc_test_type	     = type;
+-	console_cfg->ntcc_msg_nr	     = msg_nr;
+-	console_cfg->ntcc_msg_size	     = msg_size;
+-	console_cfg->ntcc_bd_buf_nr_server   = bd_buf_nr_server;
+-	console_cfg->ntcc_bd_buf_nr_client   = bd_buf_nr_client;
+-	console_cfg->ntcc_bd_buf_size	     = bd_buf_size;
+-	console_cfg->ntcc_bd_nr_max	     = bd_nr_max;
+-	console_cfg->ntcc_concurrency_server = concurrency_server;
+-	console_cfg->ntcc_concurrency_client = concurrency_client;
+ 	/* initialize console */
+ 	rc = m0_net_test_console_init(console, console_cfg);
+ 	M0_UT_ASSERT(rc == 0);
+-- 
+1.8.3.2
+

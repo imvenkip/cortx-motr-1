@@ -1,0 +1,79 @@
+From 581e6c390677b66f7a08dde827b57c4f28cd9371 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 22 Jun 2011 09:31:39 -0600
+Subject: [PATCH 149/158] - added fop handled notification callback to nrs.
+
+---
+ nrs/nrs.c |  3 ++-
+ nrs/nrs.h | 11 ++++++++---
+ 2 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/nrs/nrs.c b/nrs/nrs.c
+index bbace76..a82cf2e 100644
+--- a/nrs/nrs.c
++++ b/nrs/nrs.c
+@@ -47,7 +47,7 @@ static const struct c2_addb_loc nrs_addb = {
+ };
+ 
+ int  c2_nrs_init(struct c2_nrs *nrs, struct c2_nrs_policy *pol, 
+-                 struct c2_reqh *reqh)
++                 c2_nrs_fhcb_t fhcb, struct c2_reqh *reqh)
+ {
+         int rc;
+         
+@@ -57,6 +57,7 @@ int  c2_nrs_init(struct c2_nrs *nrs, struct c2_nrs_policy *pol,
+         c2_queue_init(&nrs->s_queue);
+         nrs->s_shutdown = false;
+ 	nrs->s_reqh = reqh;
++	nrs->s_fhcb = fhcb;
+ 	nrs->s_pol = pol;
+ 
+         rc = C2_THREAD_INIT(&nrs->s_thread, struct c2_nrs *,
+diff --git a/nrs/nrs.h b/nrs/nrs.h
+index ed4dbff..c0ea73a 100644
+--- a/nrs/nrs.h
++++ b/nrs/nrs.h
+@@ -29,6 +29,7 @@
+ 
+ /* import */
+ struct c2_fop;
++struct c2_nrs;
+ struct c2_reqh;
+ struct c2_cond;
+ struct c2_mutex;
+@@ -36,6 +37,8 @@ struct c2_thread;
+ struct c2_queue;
+ struct c2_nrs_policy;
+ 
++typedef void (*c2_nrs_fhcb_t)(struct c2_nrs *, struct c2_fop *, int);
++
+ struct c2_nrs {
+         /** Scheduler request handler. */
+ 	struct c2_reqh       *s_reqh;
+@@ -51,6 +54,8 @@ struct c2_nrs {
+ 	struct c2_nrs_policy *s_pol;
+         /** The thread shutdown flag. */
+         bool                  s_shutdown;
++        /** Fop handled notify callback. */
++        c2_nrs_fhcb_t         s_fhcb;
+ };
+ 
+ struct c2_nrs_policy {
+@@ -61,11 +66,11 @@ struct c2_nrs_policy {
+ };
+ 
+ int  c2_nrs_init(struct c2_nrs *nrs, struct c2_nrs_policy *pol, 
+-                 struct c2_reqh *reqh);
++                 c2_nrs_fhcb_t fhcb, struct c2_reqh *reqh);
++void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop, 
++                    void *cookie);
+ void c2_nrs_fini(struct c2_nrs *nrs);
+ 
+-void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop, void *cookie);
+-
+ /** @} end of nrs group */
+ 
+ /* __COLIBRI_NRS_NRS_H__ */
+-- 
+1.8.3.2
+

@@ -1,0 +1,121 @@
+From 1e2ae1df84a33152fdb6cbae707a4ebc12e70ad2 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Wed, 26 Mar 2014 15:24:12 +0530
+Subject: [PATCH 2/5] conf-prealloc, - Remove stray commented statements. -
+ cleanup.
+
+---
+ conf/db.c     |  5 -----
+ xcode/xcode.c | 26 ++++++--------------------
+ 2 files changed, 6 insertions(+), 25 deletions(-)
+
+diff --git a/conf/db.c b/conf/db.c
+index a29d81e..21bc6a3 100644
+--- a/conf/db.c
++++ b/conf/db.c
+@@ -271,7 +271,6 @@ static int confdb_alloc(struct confx_allocator *alloc, struct m0_be_seg *seg,
+ 	M0_BE_OP_SYNC(__op,
+ 			m0_be_alloc(m0_be_seg_allocator(seg), tx, &__op,
+ 				&alloc->a_chunk, size));
+-	M0_ASSERT(alloc->a_chunk != NULL);
+ 	if (alloc->a_chunk == NULL)
+ 		return -ENOMEM;
+ 	alloc->a_total = size;
+@@ -424,10 +423,6 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg,
+ 
+ 	M0_ENTRY();
+ 
+-	/*
+-	 * FIXME: Does not free the internal be objects allocated during
+-	 *        confdb_create as part of xcode_dup operation.
+-	 */
+ 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
+ 	if (rc == 0)
+ 		rc = __confdb_free(btree, seg, tx);
+diff --git a/xcode/xcode.c b/xcode/xcode.c
+index f3320c1..89700e8 100644
+--- a/xcode/xcode.c
++++ b/xcode/xcode.c
+@@ -382,7 +382,7 @@ M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob)
+ 	return m0_alloc(nob);
+ }
+ 
+-/*
++
+ static void __xcode_free(struct m0_xcode_cursor *it)
+ {
+ 	struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(it);
+@@ -393,11 +393,9 @@ static void __xcode_free(struct m0_xcode_cursor *it)
+ 	if (top->s_datum != 0) {
+ 		m0_free((void *) top->s_datum);
+ 		top->s_datum = 0;
+-	}
+-	if (nob != 0)
++	} else if (nob != 0)
+ 		m0_free(*slot);
+ }
+-*/
+ 
+ /**
+  * Frees xcode object and its sub-objects.
+@@ -416,10 +414,9 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx)
+ {
+ 	struct m0_xcode_cursor *it;
+ 
+-	//m0_xcode_cursor_init(&it, obj);
+ 	it = &ctx->xcx_it;
+-	//if (ctx->xcx_free == NULL)
+-	//	ctx->xcx_free = __xcode_free;
++	if (ctx->xcx_free == NULL)
++		ctx->xcx_free = __xcode_free;
+ 	while (m0_xcode_next(it) > 0) {
+ 		struct m0_xcode_cursor_frame *top    = m0_xcode_cursor_top(it);
+ 		size_t                        nob    = 0;
+@@ -431,8 +428,7 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx)
+ 		if (top->s_flag == M0_XCODE_CURSOR_POST) {
+ 			slot = allocp(it, &nob);
+ 			if (top->s_datum != 0) {
+-				ctx->xcx_free == NULL ? m0_free((void *) top->s_datum) :
+-							ctx->xcx_free(it);
++				ctx->xcx_free(it);
+ 				top->s_datum = 0;
+ 			}
+ 			if (arrayp)
+@@ -442,9 +438,7 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx)
+ 				 */
+ 				prev->s_datum = (uint64_t)*slot;
+ 			else if (nob != 0)
+-				ctx->xcx_free == NULL ? m0_free(*slot) :
+-							ctx->xcx_free(it);
+-				//m0_free(*slot);
++				ctx->xcx_free(it);
+ 		} else if (top->s_flag == M0_XCODE_CURSOR_PRE) {
+ 			/*
+ 			 * Deal with partially constructed objects.
+@@ -469,11 +463,8 @@ M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
+ 	struct m0_xcode_cursor  *sit;
+ 	int                      result;
+ 
+-	//m0_xcode_cursor_init(&sit, src);
+-	//m0_xcode_cursor_init(&dit, dest);
+ 	dit = &dest->xcx_it;
+ 	sit = &src->xcx_it;
+-
+ 	M0_ASSERT(m0_xcode_cursor_top(dit)->s_obj.xo_type ==
+ 		  m0_xcode_cursor_top(sit)->s_obj.xo_type);
+ 
+@@ -510,11 +501,6 @@ M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
+ 		}
+ 	}
+ 
+-	//if (result >= 0) {
+-	//	result = 0;
+-	//	*dest = m0_xcode_cursor_top(dit)->s_obj;
+-	//}
+-
+ 	M0_POST(ergo(result == 0, m0_xcode_cmp(&dit->xcu_stack[0].s_obj,
+ 					       &sit->xcu_stack[0].s_obj) == 0));
+ 	return result;
+-- 
+1.8.3.2
+

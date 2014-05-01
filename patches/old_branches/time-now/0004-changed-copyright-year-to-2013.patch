@@ -1,0 +1,154 @@
+From a2a180ee5621190ecf743ca8bda5b6e10808a684 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 9 Apr 2013 03:42:41 +0300
+Subject: [PATCH 4/6] changed copyright year to 2013
+
+---
+ lib/linux_kernel/ktime.c   | 2 +-
+ lib/linux_kernel/ut/main.c | 2 +-
+ lib/time.h                 | 2 +-
+ lib/user_space/semaphore.c | 2 +-
+ lib/user_space/time.h      | 2 +-
+ lib/ut/chan.c              | 2 +-
+ lib/ut/main.c              | 2 +-
+ lib/ut/time.c              | 2 +-
+ lib/ut/timer.c             | 2 +-
+ rpc/formation2.c           | 2 +-
+ utils/ub_main.c            | 2 +-
+ 11 files changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/lib/linux_kernel/ktime.c b/lib/linux_kernel/ktime.c
+index ee9d727..116ca87 100644
+--- a/lib/linux_kernel/ktime.c
++++ b/lib/linux_kernel/ktime.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/linux_kernel/ut/main.c b/lib/linux_kernel/ut/main.c
+index cfd894c..1ad2c59 100644
+--- a/lib/linux_kernel/ut/main.c
++++ b/lib/linux_kernel/ut/main.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/time.h b/lib/time.h
+index 922fd2f..2923b2c 100644
+--- a/lib/time.h
++++ b/lib/time.h
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/user_space/semaphore.c b/lib/user_space/semaphore.c
+index e2abb57..59992c2 100644
+--- a/lib/user_space/semaphore.c
++++ b/lib/user_space/semaphore.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/user_space/time.h b/lib/user_space/time.h
+index 97e949d..c6e58c5 100644
+--- a/lib/user_space/time.h
++++ b/lib/user_space/time.h
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/ut/chan.c b/lib/ut/chan.c
+index 39e890b..0d5acad 100644
+--- a/lib/ut/chan.c
++++ b/lib/ut/chan.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/ut/main.c b/lib/ut/main.c
+index c0ff468..6a35059 100644
+--- a/lib/ut/main.c
++++ b/lib/ut/main.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/ut/time.c b/lib/ut/time.c
+index 95da1a4..df8d19d 100644
+--- a/lib/ut/time.c
++++ b/lib/ut/time.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/lib/ut/timer.c b/lib/ut/timer.c
+index b1577a2..a4771e8 100644
+--- a/lib/ut/timer.c
++++ b/lib/ut/timer.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/rpc/formation2.c b/rpc/formation2.c
+index afbbf5b..00741db 100644
+--- a/rpc/formation2.c
++++ b/rpc/formation2.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/utils/ub_main.c b/utils/ub_main.c
+index 3431729..62c9e5f 100644
+--- a/utils/ub_main.c
++++ b/utils/ub_main.c
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+-- 
+1.8.3.2
+

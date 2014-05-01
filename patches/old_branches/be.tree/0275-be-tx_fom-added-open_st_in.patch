@@ -1,0 +1,219 @@
+From 00361de287c0e8a3f9356c687ca2366e92254a90 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 4 Jul 2013 10:49:46 +0300
+Subject: [PATCH 275/290] be: tx_fom: added open_st_in().
+
+---
+ be/tx.c       | 27 ++++++++++++++++++++-------
+ be/tx.h       |  1 +
+ be/tx_fom.c   | 53 ++++++++++++++++++++++++++++++++++++++++++++++-------
+ be/tx_group.c | 10 ++++++++++
+ be/tx_group.h |  9 +++++++++
+ 5 files changed, 86 insertions(+), 14 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 3da8028..45439ba 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -533,17 +533,32 @@ static void tx_fail(struct m0_be_tx *tx, int err)
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+-#if 0 /* XXX <<<<<<<
+-       * Do not remove this section till 2013-Jul-05. Thank you.  --vvv */
++static void _txs_set_ready(struct m0_be_tx *tx)
++{
++	struct m0_be_tx_group *gr = tx->t_group;
++	int64_t txs_to_be_ready;
++
++	M0_PRE(!gr->tg_opened);
++
++	m0_ref_get(&gr->tg_ready_count);
++
++	txs_to_be_ready = m0_ref_read(&gr->tg_ready_count);
++	if (txs_to_be_ready == gr_tlist_length(&gr->tg_txs))
++		m0_fom_wakeup(gr->tg_fom);
++}
++
+ static void
+ _tx_state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
+ {
+-	enum m0_be_tx_state state = *(enum m0_be_tx_state *)ast->sa_datum;
++	enum m0_be_tx_state  state = *(enum m0_be_tx_state *)ast->sa_datum;
++	struct m0_be_tx     *tx = container_of(ast, struct m0_be_tx, t_ast);
++
+ 	M0_ENTRY("state=%u", state);
+ 	M0_PRE(IS_IN_ARRAY(state, tx_states));
+ 
+ 	/* XXX TODO: bob_of() */
+-	m0_be__tx_state_set(container_of(ast, struct m0_be_tx, t_ast), state);
++	m0_be__tx_state_set(tx, state);
++	_txs_set_ready(tx);
+ 	M0_LEAVE();
+ }
+ 
+@@ -571,8 +586,7 @@ m0_be__tx_state_post(struct m0_be_tx *tx, enum m0_be_tx_state state)
+ 	 * implementation should post an AST to tx's sm_group.
+ 	 */
+ 	M0_ENTRY("state=%u", state);
+-	M0_PRE(M0_IN(state, (M0_BTS_SUBMITTED, M0_BTS_LOGGED, M0_BTS_PLACED,
+-			     M0_BTS_STABLE)));
++	M0_PRE(M0_IN(state, (M0_BTS_CLOSED, M0_BTS_PLACED, M0_BTS_DONE)));
+ 
+ 	tx->t_ast.sa_cb    = _tx_state_set;
+ 	tx->t_ast.sa_datum = &tx->t_ast_datum;
+@@ -580,7 +594,6 @@ m0_be__tx_state_post(struct m0_be_tx *tx, enum m0_be_tx_state state)
+ 	m0_sm_ast_post(tx->t_sm.sm_grp, &tx->t_ast);
+ 	M0_LEAVE();
+ }
+-#endif /* XXX >>>>>>> */
+ 
+ static struct m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx)
+ {
+diff --git a/be/tx.h b/be/tx.h
+index 1439787..ddfb46e 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -409,6 +409,7 @@ struct m0_be_tx {
+ 	 * additional information to the call-backs.
+ 	 */
+ 	void                  *t_datum;
++	int                    t_ast_datum;
+ };
+ 
+ M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx);
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 6605a8a..84d9141 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -162,8 +162,10 @@ static struct m0_sm_conf _tx_group_conf = {
+  * ------------------------------------------------------------------ */
+ 
+ struct tx_group_fom {
++	/* this field has to be first in structure */
+ 	struct m0_fom           tgf_gen;
+ 	struct m0_be_tx_engine *tgf_engine;
++	struct m0_fom_timeout   tgf_timeout;
+ 	struct m0_be_op         tgf_op;
+ };
+ 
+@@ -292,17 +294,54 @@ static struct tx_group_fom *tx_group_fom(const struct m0_fom *fom)
+  * State transitions
+  * ------------------------------------------------------------------ */
+ 
++static bool add_if_has_space(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
++{
++	M0_PRE(m0_be__tx_state(tx) == M0_BTS_CLOSED);
++	return true;
++}
++
+ static int open_st_in(struct m0_sm *mach)
+ {
+-	M0_ENTRY();
+-	(void)sm_to_fom; /*XXX*/
++	struct tx_group_fom    *fom = tx_group_fom(sm_to_fom(mach));
++	struct m0_be_tx_engine *eng = fom->tgf_engine;
++	struct m0_be_tx_group  *gr  = &eng->te_group;
++	struct m0_be_tx        *tx;
++	bool			ready_to_close;
++	int                     rc;
++
++	M0_ENTRY("%d", gr->tg_opened);
++
++	if (!gr->tg_opened) {
++		if (gr_tlist_is_empty(&gr->tg_txs))
++			tx_group_open(eng, gr);
++		else { /* all txs are grouped */
++			M0_PRE(m0_tl_forall(gr, tx, &gr->tg_txs,
++					    m0_be__tx_state(tx)
++					    == M0_BTS_GROUPED));
++			m0_fom_phase_set(&fom->tgf_gen, TGS_LOGGING);
++			/*
++			 * here we have to run first portion of logio
++			 */
++		}
++	}
+ 
+-	/* XXX TODO: Send "Add itself to a tx_group" AST to all
+-	 * M0_BTS_CLOSED transactions of the tx_engine. */
+-	M0_IMPOSSIBLE("XXX Not implemented");
++	ready_to_close = m0_tl_forall(tx, tx, &eng->te_txs[M0_BTS_CLOSED],
++				      add_if_has_space(gr, tx));
++
++	if (ready_to_close) {
++		m0_tl_for(gr, &gr->tg_txs, tx) {
++			m0_be__tx_state_post(tx, M0_BTS_GROUPED);
++		} m0_tl_endfor;
++		tx_group_close(eng, gr);
++	} else {
++		/* arm timeout */
++		m0_fom_timeout_init(&fom->tgf_timeout);
++		rc = m0_fom_timeout_wait_on(&fom->tgf_timeout, &fom->tgf_gen,
++					    m0_time_from_now(1, 0)); /* 1 sec */
++		M0_ASSERT(rc == 0);
++	}
+ 
+-	M0_LEAVE();
+-	return -1;
++	M0_RETURN(0);
+ }
+ 
+ static int logging_st_in(struct m0_sm *mach)
+diff --git a/be/tx_group.c b/be/tx_group.c
+index cf2b29c..f6f21d8 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -128,6 +128,16 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
+ 	m0_fom_wakeup(eng->te_fom);
+ }
+ 
++M0_INTERNAL void tx_group_open(struct m0_be_tx_engine *eng,
++				struct m0_be_tx_group *gr)
++{
++	M0_PRE(gr_tlist_is_empty(&gr->tg_txs));
++	gr->tg_opened = true;
++
++	m0_ref_init(&gr->tg_ready_count, 0, NULL);
++	gr->tg_fom = eng->te_fom;
++}
++
+ /** @} end of be group */
+ 
+ /*
+diff --git a/be/tx_group.h b/be/tx_group.h
+index db9b69f..6a104e9 100644
+--- a/be/tx_group.h
++++ b/be/tx_group.h
+@@ -24,6 +24,7 @@
+ 
+ #include "be/tx_credit.h"	/* m0_be_tx_credit */
+ #include "lib/tlist.h"		/* m0_tl */
++#include "lib/refs.h"           /* m0_ref */
+ 
+ struct m0_be_tx_engine;
+ struct m0_be_tx;
+@@ -65,6 +66,12 @@ struct m0_be_tx_group {
+ 	struct m0_be_tx_credit  tg_used;
+ 	/** List of transactions in the group. */
+ 	struct m0_tl            tg_txs;
++
++	/** counter which counts ready transactions in the group */
++	struct m0_ref           tg_ready_count;
++
++	/** fom which processes current group */
++	struct m0_fom          *tg_fom;
+ };
+ 
+ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr);
+@@ -75,6 +82,8 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
+ 			      struct m0_be_tx *tx);
+ M0_INTERNAL void tx_group_close(struct m0_be_tx_engine *eng,
+ 				struct m0_be_tx_group *gr);
++M0_INTERNAL void tx_group_open(struct m0_be_tx_engine *eng,
++				struct m0_be_tx_group *gr);
+ 
+ M0_TL_DESCR_DECLARE(gr, M0_EXTERN);
+ M0_TL_DECLARE(gr, M0_INTERNAL, struct m0_be_tx);
+-- 
+1.8.3.2
+

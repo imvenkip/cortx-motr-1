@@ -1,0 +1,25 @@
+From 47e7388c61c9cd359f73161709f6457b1dea1bec Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 29 May 2013 13:47:57 +0300
+Subject: [PATCH 033/228] be: fix io count value in seg_io_prepare().
+
+---
+ be/seg.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index ea9ca66..2ca2143 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -42,7 +42,7 @@ struct be_seg_hdr {
+ 
+ static void seg_io_prepare(struct m0_be_seg *seg, struct m0_stob_io *io)
+ {
+-	static m0_bcount_t count[] = { 1 };
++	static m0_bcount_t count[] = { sizeof(struct be_seg_hdr) };
+ 
+ 	io->si_opcode = SIO_WRITE;
+ 	io->si_flags  = 0;
+-- 
+1.8.3.2
+

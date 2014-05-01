@@ -1,0 +1,170 @@
+From 1d867587589ab54369763430eae4464fd1e34ba7 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 21 Aug 2012 22:30:58 +0300
+Subject: [PATCH 323/370] conf: #include onwire.h instead of onwire_{k,u}.h
+
++ Slightly improve documentation of c2_conf_obj_fill() and confx_u.
+---
+ conf/buf.h      |  8 ++------
+ conf/conf_fom.c |  2 +-
+ conf/conf_fop.c |  2 +-
+ conf/confc.h    | 16 ++++++----------
+ conf/confd.h    |  2 +-
+ conf/obj.h      |  6 +-----
+ conf/obj_ops.h  |  9 +++++----
+ conf/onwire.h   |  9 +++++----
+ 8 files changed, 22 insertions(+), 32 deletions(-)
+
+diff --git a/conf/buf.h b/conf/buf.h
+index e891d5f..6141737 100644
+--- a/conf/buf.h
++++ b/conf/buf.h
+@@ -20,12 +20,8 @@
+ #ifndef __COLIBRI_CONF_BUF_H__
+ #define __COLIBRI_CONF_BUF_H__
+ 
+-#ifdef __KERNEL__
+-#  include "conf/onwire_k.h"
+-#else
+-#  include "conf/onwire_u.h" /* c2_conf_buf */
+-#endif
+-#include "lib/misc.h"        /* strlen */
++#include "conf/onwire.h" /* c2_conf_buf */
++#include "lib/misc.h"    /* strlen */
+ 
+ /*
+  * Initialisers for struct c2_conf_buf.
+diff --git a/conf/conf_fom.c b/conf/conf_fom.c
+index 2799d4e..8fa5533 100644
+--- a/conf/conf_fom.c
++++ b/conf/conf_fom.c
+@@ -26,7 +26,7 @@
+ #include "fop/fop_format.h"
+ #include "conf_fom.h"
+ #include "conf_fop.h"
+-#include "onwire_u.h"
++#include "onwire.h"
+ #include "lib/errno.h"
+ #include "lib/memory.h"
+ #include "rpc/rpc2.h"
+diff --git a/conf/conf_fop.c b/conf/conf_fop.c
+index 007b714..04853f5 100644
+--- a/conf/conf_fop.c
++++ b/conf/conf_fop.c
+@@ -26,7 +26,7 @@
+ #include "fop/fom.h"
+ #include "fop/fop.h"
+ #include "fop/fop_format_def.h"
+-#include "onwire_u.h"
++#include "onwire.h"
+ #include "fop/fop_iterator.h"
+ #include "conf_fop.h"
+ #include "conf_fom.h"
+diff --git a/conf/confc.h b/conf/confc.h
+index f9bd731..2c17152 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -20,16 +20,12 @@
+ #ifndef __COLIBRI_CONF_CONFC_H__
+ #define __COLIBRI_CONF_CONFC_H__
+ 
+-#ifdef __KERNEL__
+-#  include "conf/onwire_k.h"
+-#else
+-#  include "conf/onwire_u.h" /* c2_conf_buf, c2_conf_fetch */
+-#endif
+-#include "conf/reg.h"        /* c2_conf_reg */
+-#include "conf/buf.h"        /* C2_CONF_BUF_INIT0 */
+-#include "sm/sm.h"           /* c2_sm, c2_sm_ast */
+-#include "lib/mutex.h"       /* c2_mutex */
+-#include "fop/fop.h"         /* c2_fop */
++#include "conf/onwire.h" /* c2_conf_buf, c2_conf_fetch */
++#include "conf/reg.h"    /* c2_conf_reg */
++#include "conf/buf.h"    /* C2_CONF_BUF_INIT0 */
++#include "sm/sm.h"       /* c2_sm, c2_sm_ast */
++#include "lib/mutex.h"   /* c2_mutex */
++#include "fop/fop.h"     /* c2_fop */
+ 
+ struct c2_conf_obj;
+ 
+diff --git a/conf/confd.h b/conf/confd.h
+index 9a69aab..99dcf89 100644
+--- a/conf/confd.h
++++ b/conf/confd.h
+@@ -21,7 +21,7 @@
+ #ifndef __COLIBRI_CONF_CONFD_H__
+ #define __COLIBRI_CONF_CONFD_H__
+ 
+-#include "conf/onwire_u.h" /* c2_conf_fetch, c2_conf_fetch_resp */
++#include "conf/onwire.h" /* c2_conf_fetch, c2_conf_fetch_resp */
+ #include "conf/map.h"
+ #include "conf/conf_fop.h"
+ #include "reqh/reqh_service.h"
+diff --git a/conf/obj.h b/conf/obj.h
+index 887497c..a997350 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -20,11 +20,7 @@
+ #ifndef __COLIBRI_CONF_OBJ_H__
+ #define __COLIBRI_CONF_OBJ_H__
+ 
+-#ifdef __KERNEL__
+-#  include "conf/onwire_k.h"
+-#else
+-#  include "conf/onwire_u.h" /* c2_conf_buf */
+-#endif
++#include "conf/onwire.h" /* c2_conf_buf */
+ 
+ /* XXX @todo Move definitions from cfg/cfg.h to conf/schema.ff */
+ #include "cfg/cfg.h"   /* c2_cfg_service_type */
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index 1450f03..1485647 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -155,17 +155,18 @@ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+ /**
+  * Enriches a stub with configuration data.
+  *
+- * @param dest  Cached configuration object (stub) to be filled with
+- *              configuration data.
+- * @param src   On-wire object --- the source of configuration data.
++ * @param dest  A stub to be filled with configuration data.
++ * @param src   On-wire object, providing the configuration data.
+  * @param reg   Registry of cached configuration objects.
+  *
+  * @pre   c2_mutex_is_locked(&dest->co_confc->cc_lock)
+  * @pre   dest->co_status != C2_CS_READY
+  * @pre   dest->co_nrefs == 0
+  * @pre   dest->co_type == src->o_conf.u_type
+- * @pre   c2_conf_buf_eq(dest->co_id, src->o_id)
++ * @pre   c2_conf_buf_eq(&dest->co_id, &src->o_id)
+  *
++ * @post  dest->co_status == C2_CS_READY
++ * @post  c2_conf_obj_invariant(dest)
+  * @post  c2_mutex_is_locked(&dest->co_confc->cc_lock)
+  */
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+diff --git a/conf/onwire.h b/conf/onwire.h
+index c7c1c77..11dcb27 100644
+--- a/conf/onwire.h
++++ b/conf/onwire.h
+@@ -144,11 +144,12 @@ struct confx_partition {
+ 
+ struct confx_u {
+ 	uint32_t u_type; /* see c2_conf_objtype for values */
+-	/*
+-	 * Note that there is no confx_dir.  One-to-many relations are
+-	 * represented by arr_buf --- lists of identifiers.
+-	 */
+ 	union {
++		/*
++		 * Note that there is no such thing as `confx_dir'.
++		 * One-to-many relations are represented by a list of
++		 * identifiers --- `arr_buf'.
++		 */
+ 		struct confx_profile    u_profile;
+ 		struct confx_filesystem u_filesystem;
+ 		struct confx_service    u_service;
+-- 
+1.8.3.2
+

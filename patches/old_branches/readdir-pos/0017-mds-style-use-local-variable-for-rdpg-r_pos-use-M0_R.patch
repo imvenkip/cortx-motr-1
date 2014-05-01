@@ -1,0 +1,97 @@
+From 0f58460944deeb095e9d31a7bacc6cfc91c966dd Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 26 Feb 2013 16:53:22 +0200
+Subject: [PATCH 17/17] mds/style: use local variable for rdpg->r_pos, use
+ M0_RETURN(rc)
+
+---
+ mdstore/mdstore.c | 32 ++++++++++++++++----------------
+ 1 file changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 226d4eb..432ebd2 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -708,12 +708,14 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 	char                          *s_buf;
+ 	uint32_t                       s_len;
+ 	struct m0_bitstring            empty = {.b_len = 0};
++	struct m0_bitstring           *pos;
+ 
+ 	M0_ENTRY();
+ 	M0_ASSERT(cob != NULL && rdpg != NULL);
+ 
+-	s_buf = (char *)m0_bitstring_buf_get(rdpg->r_pos);
+-	s_len = m0_bitstring_len_get(rdpg->r_pos);
++	pos = rdpg->r_pos;
++	s_buf = (char *)m0_bitstring_buf_get(pos);
++	s_len = m0_bitstring_len_get(pos);
+ 
+ 	M0_LOG(M0_DEBUG,
+ 	       "Readdir on object [%lx:%lx] starting from \"%.*s\"",
+@@ -735,7 +737,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 		dot = 0;
+ 	}
+ 
+-	rc = m0_cob_iterator_init(cob, &it, dot ? &empty : rdpg->r_pos, tx);
++	rc = m0_cob_iterator_init(cob, &it, dot ? &empty : pos, tx);
+ 	if (rc != 0) {
+ 		M0_LOG(M0_DEBUG, "Iterator failed to position with %d", rc);
+ 		goto out;
+@@ -749,24 +751,23 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 	rc = m0_cob_iterator_get(&it);
+ 	while (rc == 0 || dot) {
+ 		if (dot == 1) {
+-			/* rdpg->r_pos already contains "." */
++			/* pos already contains "." */
+ 		} else if (dot == 2) {
+-			m0_bitstring_copy(rdpg->r_pos, "..", 2);
++			m0_bitstring_copy(pos, "..", 2);
+ 		} else {
+ 			s_buf = m0_bitstring_buf_get(&it.ci_key->cnk_name);
+ 			s_len = m0_bitstring_len_get(&it.ci_key->cnk_name);
+-			/* rdpg->r_pos was allocated with large buffer:
++			/* pos was allocated with large buffer:
+ 			 * rdpg.r_pos = m0_alloc(M0_MD_MAX_NAME_LEN) */
+-			m0_bitstring_copy(rdpg->r_pos, s_buf, s_len);
++			m0_bitstring_copy(pos, s_buf, s_len);
+ 		}
+ 
+-		reclen = m0_align(sizeof(*ent) +
+-				  m0_bitstring_len_get(rdpg->r_pos), 8);
++		reclen = m0_align(sizeof(*ent) + m0_bitstring_len_get(pos), 8);
+ 
+ 		if (nob >= reclen) {
+-			memcpy(ent->d_name, m0_bitstring_buf_get(rdpg->r_pos),
+-			       m0_bitstring_len_get(rdpg->r_pos));
+-			ent->d_namelen = m0_bitstring_len_get(rdpg->r_pos);
++			memcpy(ent->d_name, m0_bitstring_buf_get(pos),
++			       m0_bitstring_len_get(pos));
++			ent->d_namelen = m0_bitstring_len_get(pos);
+ 			ent->d_reclen = reclen;
+ 			M0_LOG(M0_DEBUG,
+ 			       "Readdir filled entry \"%.*s\" recsize %d",
+@@ -792,8 +793,8 @@ out_end:
+ 	m0_cob_iterator_fini(&it);
+ 	if (last != NULL) {
+ 		last->d_reclen = 0;  /* The last record indicator. */
+-		s_buf = (char *)m0_bitstring_buf_get(rdpg->r_pos);
+-		s_len = m0_bitstring_len_get(rdpg->r_pos);
++		s_buf = (char *)m0_bitstring_buf_get(pos);
++		s_len = m0_bitstring_len_get(pos);
+ 		rdpg->r_end = m0_bitstring_alloc(s_buf, s_len);
+ 		M0_LOG(M0_DEBUG, "%s entry: \"%.*s\"", rc ? "last" : "next",
+ 		       s_len, s_buf);
+@@ -803,8 +804,7 @@ out_end:
+ 		rc = ENOENT;
+ out:
+ 	MDSTORE_FUNC_FAIL(READDIR, rc);
+-	M0_LEAVE("rc: %d", rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
+-- 
+1.8.3.2
+

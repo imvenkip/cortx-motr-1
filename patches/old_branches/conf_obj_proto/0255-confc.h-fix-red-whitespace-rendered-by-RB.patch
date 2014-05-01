@@ -1,0 +1,133 @@
+From d22c9fe7887e2885e90983168848002116ab9a68 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 19 Jul 2012 15:02:19 +0300
+Subject: [PATCH 255/370] confc.h: fix "red whitespace" rendered by RB
+
+Replace tabs with spaces in @code..@endcode examples, so that
+ReviewBoard does not highlight them with red colour.
+---
+ conf/confc.h | 90 ++++++++++++++++++++++++++++++------------------------------
+ 1 file changed, 45 insertions(+), 45 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index d77c120..7665ee6 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -206,16 +206,16 @@ struct c2_mutex;
+  *
+  * static void sm_waiter_init(struct sm_waiter *w, struct c2_confc *confc)
+  * {
+- * 	c2_confc_ctx_init(&w->w_ctx, confc);
+- * 	c2_clink_init(&w->w_clink, sm_waiter_filter);
+- * 	c2_clink_add(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
++ *         c2_confc_ctx_init(&w->w_ctx, confc);
++ *         c2_clink_init(&w->w_clink, sm_waiter_filter);
++ *         c2_clink_add(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+  * }
+  *
+  * static void sm_waiter_fini(struct sm_waiter *w)
+  * {
+- * 	c2_clink_del(&w->w_clink);
+- * 	c2_clink_fini(&w->w_clink);
+- * 	c2_confc_ctx_fini(&w->w_ctx);
++ *         c2_clink_del(&w->w_clink);
++ *         c2_clink_fini(&w->w_clink);
++ *         c2_confc_ctx_fini(&w->w_ctx);
+  * }
+  * @endcode
+  *
+@@ -375,8 +375,8 @@ struct c2_mutex;
+  * struct c2_confc *g_confc = ...;
+  *
+  * struct sm_waiter {
+- * 	struct c2_confc_ctx w_ctx;
+- * 	struct c2_clink     w_clink;
++ *         struct c2_confc_ctx w_ctx;
++ *         struct c2_clink     w_clink;
+  * };
+  *
+  * // sm_waiter_*() functions are defined in one of the recipes above.
+@@ -387,43 +387,43 @@ struct c2_mutex;
+  * // Counts the number of entries in a given directory.
+  * static ssize_t dir_len(struct c2_conf_dir *dir)
+  * {
+- * 	struct c2_conf_dircur     cur;
+- * 	struct sm_waiter          w;
+- * 	const struct c2_conf_obj *entry;
+- * 	int                       rc;
+- * 	ssize_t                   count = 0;
+- *
+- * 	c2_conf_dircur_init(&cur, dir);
+- * 	sm_waiter_init(&w, g_confc);
+- *
+- * 	while (1) {
+- * 		rc = c2_confc_readdir(&w.w_ctx, &cur);
+- * 		if (rc == 2 || rc < 0) { // end of directory or an error
+- * 			break;
+- * 		} else if (rc == 1) {    // an entry is available immediately
+- * 			C2_CNT_INC(count);
+- * 			continue;
+- * 		} else {                 // asynchronous case
+- * 			C2_ASSERT(rc == 0);
+- * 			rc = sm_waiter_wait(&w);
+- * 			if (rc != 0)
+- * 				break; // error
+- *
+- * 			entry = c2_confc_ctx_result(&w.w_ctx);
+- * 			if (entry == NULL)
+- * 				break; // end of directory
+- * 			else
+- * 				C2_CNT_INC(count);
+- *
+- * 			// Re-initialise c2_confc_ctx.
+- * 			sm_waiter_fini(&w);
+- * 			sm_waiter_init(&w);
+- * 		}
+- * 	}
+- *
+- * 	sm_waiter_fini(&w);
+- * 	c2_conf_dircur_fini(&cur);
+- * 	return rc ?: count;
++ *         struct c2_conf_dircur     cur;
++ *         struct sm_waiter          w;
++ *         const struct c2_conf_obj *entry;
++ *         int                       rc;
++ *         ssize_t                   count = 0;
++ *
++ *         c2_conf_dircur_init(&cur, dir);
++ *         sm_waiter_init(&w, g_confc);
++ *
++ *         while (1) {
++ *                 rc = c2_confc_readdir(&w.w_ctx, &cur);
++ *                 if (rc == 2 || rc < 0) { // end of directory or an error
++ *                         break;
++ *                 } else if (rc == 1) {    // an entry is available immediately
++ *                         C2_CNT_INC(count);
++ *                         continue;
++ *                 } else {                 // asynchronous case
++ *                         C2_ASSERT(rc == 0);
++ *                         rc = sm_waiter_wait(&w);
++ *                         if (rc != 0)
++ *                                 break; // error
++ *
++ *                         entry = c2_confc_ctx_result(&w.w_ctx);
++ *                         if (entry == NULL)
++ *                                 break; // end of directory
++ *                         else
++ *                                 C2_CNT_INC(count);
++ *
++ *                         // Re-initialise c2_confc_ctx.
++ *                         sm_waiter_fini(&w);
++ *                         sm_waiter_init(&w);
++ *                 }
++ *         }
++ *
++ *         sm_waiter_fini(&w);
++ *         c2_conf_dircur_fini(&cur);
++ *         return rc ?: count;
+  * }
+  * @endcode
+  *
+-- 
+1.8.3.2
+

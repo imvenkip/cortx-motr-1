@@ -1,0 +1,214 @@
+From b435c2074af78233f5a34c6668d68ff6de25d7b8 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sat, 8 Jun 2013 00:08:29 +0800
+Subject: [PATCH 06/12] move poolmach client and server version check into
+ IO_PREPARE or COB_PREPARE phase. We will have more checkings in this phase.
+
+---
+ ioservice/cob_foms.c | 44 +++++++++++++--------------
+ ioservice/io_foms.c  | 85 +++++++++++++++++++++++++++-------------------------
+ 2 files changed, 67 insertions(+), 62 deletions(-)
+
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index 1d48606..4158d35 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -226,8 +226,6 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
+ 	struct m0_fop_cob_op_reply     *reply;
+ 	struct m0_poolmach             *poolmach;
+ 	struct m0_reqh                 *reqh;
+-	struct m0_pool_version_numbers *cliv;
+-	struct m0_pool_version_numbers  curr;
+ 	struct m0_fop_cob_common       *common;
+ 	bool                            fop_is_create;
+ 	const char                     *ops;
+@@ -243,34 +241,36 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
+ 
+ 	fop_is_create = fom->fo_fop->f_type == &m0_fop_cob_create_fopt;
+ 	common = m0_cobfop_common_get(fom->fo_fop);
++	reqh = m0_fom_reqh(fom);
++	poolmach = m0_ios_poolmach_get(reqh);
+ 	if (fop_is_create)
+ 		ops = "Create";
+ 	else
+ 		ops = "Delete";
+ 
+-	reqh = m0_fom_reqh(fom);
+-	poolmach = m0_ios_poolmach_get(reqh);
+-	m0_poolmach_current_version_get(poolmach, &curr);
+-	cliv = (struct m0_pool_version_numbers*)&common->c_version;
+-
+-	/* Check the client version and server version before any processing */
+-	if (m0_poolmach_version_before(cliv, &curr)) {
+-		rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+-		m0_fom_phase_move(fom,
+-				  M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
+-				  M0_FOPH_FAILURE);
+-		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
+-		m0_poolmach_version_dump(cliv);
+-		m0_poolmach_version_dump(&curr);
+-		m0_poolmach_event_list_dump(poolmach);
+-		m0_poolmach_device_state_dump(poolmach);
+-		goto pack;
+-	}
+-
+ 	switch (m0_fom_phase(fom)) {
+ 	case M0_FOPH_COB_OPS_PREPARE: {
++		struct m0_pool_version_numbers *cliv;
++		struct m0_pool_version_numbers  curr;
++
+ 		M0_LOG(M0_DEBUG, "Cob %s operation prepare", ops);
+-		rc = 0;
++		cliv = (struct m0_pool_version_numbers*)&common->c_version;
++		m0_poolmach_current_version_get(poolmach, &curr);
++
++		/* Check the client version and server version before any processing */
++		if (m0_poolmach_version_before(cliv, &curr)) {
++			rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
++			m0_fom_phase_move(fom,
++					  M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
++					  M0_FOPH_FAILURE);
++			M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
++			m0_poolmach_version_dump(cliv);
++			m0_poolmach_version_dump(&curr);
++			m0_poolmach_event_list_dump(poolmach);
++			m0_poolmach_device_state_dump(poolmach);
++			goto pack;
++		}
++
+ 		m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
+ 		goto out;
+ 	}
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index a72fda0..8c49947 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1056,10 +1056,44 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
+ 
+ static int io_prepare(struct m0_fom *fom)
+ {
++	struct m0_fop_cob_rw           *rwfop;
++	struct m0_poolmach             *poolmach;
++	struct m0_reqh                 *reqh;
++	struct m0_fop_cob_rw_reply     *rwrep;
++	struct m0_pool_version_numbers *cliv;
++	struct m0_pool_version_numbers  curr;
++
+ 	M0_LOG(M0_DEBUG, "Preparing %s IO",
+ 			 m0_is_read_fop(fom->fo_fop)? "Read": "Write");
++	reqh = m0_fom_reqh(fom);
++	poolmach = m0_ios_poolmach_get(reqh);
++	m0_poolmach_current_version_get(poolmach, &curr);
++	rwfop = io_rw_get(fom->fo_fop);
++	rwrep = io_rw_rep_get(fom->fo_rep_fop);
++	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
+ 
+-        return M0_FSO_AGAIN;
++	/*
++	 * Dumps the state of SNS repair with respect to global fid
++	 * from IO fop.
++	 * The IO request has already acquired file level lock on
++	 * given global fid.
++	 */
++	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
++							   reqh);
++
++	/* Check the client version and server version before any processing */
++	if (m0_poolmach_version_before(cliv, &curr)) {
++		m0_fom_phase_move(fom,
++				  M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
++				  M0_FOPH_FAILURE);
++		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
++
++		m0_poolmach_version_dump(cliv);
++		m0_poolmach_version_dump(&curr);
++		m0_poolmach_event_list_dump(poolmach);
++		m0_poolmach_device_state_dump(poolmach);
++	}
++	return M0_FSO_AGAIN;
+ }
+ /**
+  * Acquire network buffers.
+@@ -1639,17 +1673,14 @@ static int io_finish(struct m0_fom *fom)
+ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
+ {
+ 	int                                       rc = 0;
+-	struct m0_fop_cob_rw                     *rwfop;
+ 	struct m0_io_fom_cob_rw                  *fom_obj;
+ 	struct m0_io_fom_cob_rw_state_transition  st = { M0_FOPH_FAILURE, NULL,
+ 							 M0_FOPH_FAILURE,
+ 							 M0_FOPH_FAILURE};
+ 	struct m0_poolmach                       *poolmach;
+ 	struct m0_reqh                           *reqh;
++	struct m0_fop_cob_rw                     *rwfop;
+ 	struct m0_fop_cob_rw_reply               *rwrep;
+-	struct m0_pool_version_numbers           *cliv;
+-	struct m0_pool_version_numbers            curr;
+-
+ 
+ 	M0_PRE(fom != NULL);
+ 	M0_PRE(m0_is_io_fop(fom->fo_fop));
+@@ -1657,51 +1688,25 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
+ 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+ 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+ 
+-	/* first handle generic phase */
+-        if (m0_fom_phase(fom) < M0_FOPH_NR)
+-                return m0_fom_tick_generic(fom);
+-
+ 	reqh = m0_fom_reqh(fom);
+ 	poolmach = m0_ios_poolmach_get(reqh);
+-	m0_poolmach_current_version_get(poolmach, &curr);
+-	rwfop = io_rw_get(fom->fo_fop);
+-	cliv = (struct m0_pool_version_numbers*)(&rwfop->crw_version);
+-	rwrep = io_rw_rep_get(fom->fo_rep_fop);
+-
+-	/*
+-	 * Dumps the state of SNS repair with respect to global fid
+-	 * from IO fop.
+-	 * The IO request has already acquired file level lock on
+-	 * given global fid.
+-	 */
+-	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
+-							   reqh);
+-
+-	/* Check the client version and server version before any processing */
+-	if (m0_poolmach_version_before(cliv, &curr)) {
+-		rc = M0_FSO_AGAIN;
+-		m0_fom_phase_move(fom,
+-				  M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
+-				  M0_FOPH_FAILURE);
+-		M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
+ 
+-		m0_poolmach_version_dump(cliv);
+-		m0_poolmach_version_dump(&curr);
+-		m0_poolmach_event_list_dump(poolmach);
+-		m0_poolmach_device_state_dump(poolmach);
+-	} else {
++	/* first handle generic phase */
++        if (m0_fom_phase(fom) < M0_FOPH_NR)
++                return m0_fom_tick_generic(fom);
+ 
+-		st = m0_is_read_fop(fom->fo_fop) ?
+-			io_fom_read_st[m0_fom_phase(fom)] :
+-			io_fom_write_st[m0_fom_phase(fom)];
++	st = m0_is_read_fop(fom->fo_fop) ?
++		io_fom_read_st[m0_fom_phase(fom)] :
++		io_fom_write_st[m0_fom_phase(fom)];
+ 
+-		rc = (*st.fcrw_st_state_function)(fom);
+-	}
++	rc = (*st.fcrw_st_state_function)(fom);
+ 	M0_ASSERT(rc == M0_FSO_AGAIN || rc == M0_FSO_WAIT);
+ 
+ 	/* Set operation status in reply fop if FOM ends.*/
+         if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
+             m0_fom_phase(fom) == M0_FOPH_FAILURE) {
++		rwfop = io_rw_get(fom->fo_fop);
++		rwrep = io_rw_rep_get(fom->fo_rep_fop);
+ 		rwrep->rwr_rc    = m0_fom_rc(fom);
+ 		rwrep->rwr_count = fom_obj->fcrw_count;
+ 		m0_ios_poolmach_version_updates_pack(poolmach,
+-- 
+1.8.3.2
+

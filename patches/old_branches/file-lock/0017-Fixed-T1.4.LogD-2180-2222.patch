@@ -1,0 +1,72 @@
+From 603bd4449878a1bcdbd322bdebf215746ec0d237 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Fri, 19 Apr 2013 12:19:20 +0530
+Subject: [PATCH 17/25] Fixed T1.4.LogD#2180, #2222.
+
+---
+ rm/file.c | 27 ++++++++++++---------------
+ 1 file changed, 12 insertions(+), 15 deletions(-)
+
+diff --git a/rm/file.c b/rm/file.c
+index e3d773d..b93a3f1 100644
+--- a/rm/file.c
++++ b/rm/file.c
+@@ -352,21 +352,26 @@ static int file_lock_cr_copy(struct m0_rm_credit *dest,
+ static int file_lock_cr_diff(struct m0_rm_credit *this,
+ 			     const struct m0_rm_credit *c1)
+ {
++	int rc = 0;
+ 	M0_ASSERT(c1 != NULL);
+-	M0_ASSERT(this->cr_datum == c1->cr_datum);
+ 
+-	this->cr_datum -= c1->cr_datum;
+-	return 0;
++	/*
++	 * Make sure that there is no diff of a valid credit agaist
++	 * the empty credit.
++	 */
++	if (this->cr_datum == 0 && c1->cr_datum == RM_FILE_LOCK)
++		rc = -1;
++	else
++		this->cr_datum -= c1->cr_datum;
++	return rc;
+ }
+ 
+ static bool file_lock_cr_conflicts(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1)
+ {
+ 	M0_ASSERT(c1 != NULL);
+-	M0_ASSERT(this->cr_datum == RM_FILE_LOCK);
+-	M0_ASSERT(this->cr_datum == c1->cr_datum);
+ 
+-	return this->cr_datum == c1->cr_datum;
++	return this->cr_datum == RM_FILE_LOCK && this->cr_datum == c1->cr_datum;
+ }
+ 
+ static bool file_lock_cr_is_subset(const struct m0_rm_credit *this,
+@@ -381,21 +386,13 @@ static int file_lock_cr_encdec(struct m0_rm_credit *this,
+ {
+ 	struct m0_xcode_obj datumobj;
+ 	struct m0_xcode_ctx ctx;
+-	int		    rc;
+ 
+ 	M0_ENTRY();
+ 	M0_ASSERT(cur != NULL);
+ 
+ 	datumobj.xo_type = &M0_XT_U64;
+ 	datumobj.xo_ptr = (void *)&this->cr_datum;
+-	m0_xcode_ctx_init(&ctx, &datumobj);
+-	ctx.xcx_buf = *cur;
+-	ctx.xcx_alloc = m0_xcode_alloc;
+-	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&ctx) :
+-					m0_xcode_decode(&ctx);
+-	if (rc == 0 && what == M0_BUFVEC_DECODE)
+-		this->cr_datum = *(uint64_t *)m0_xcode_ctx_top(&ctx);
+-	M0_RETURN(rc);
++	M0_RETURN(m0_xcode_encdec(&ctx, &datumobj, cur, what));
+ }
+ 
+ static int file_lock_cr_encode(struct m0_rm_credit *this,
+-- 
+1.8.3.2
+

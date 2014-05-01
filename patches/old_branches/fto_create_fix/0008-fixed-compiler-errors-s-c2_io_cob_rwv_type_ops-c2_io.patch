@@ -1,0 +1,69 @@
+From 0a5354cc51c909a3a311e3670a331af279cb97ff Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 25 Mar 2012 02:30:37 +0200
+Subject: [PATCH 8/9] fixed compiler errors:
+ s/c2_io_cob_rwv_type_ops/c2_io_cob_rw_type_ops/
+
+---
+ ioservice/io_foms.c | 2 +-
+ ioservice/io_foms.h | 2 +-
+ ioservice/io_fops.c | 8 ++++----
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index a6a8843..2505781 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -637,7 +637,7 @@ const struct c2_fom_type_ops c2_io_cob_rw_type_ops = {
+ /**
+  * I/O FOM type operation.
+  */
+-static const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
++const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
+ 	.ft_ops = &c2_io_cob_rw_type_ops,
+ };
+ 
+diff --git a/ioservice/io_foms.h b/ioservice/io_foms.h
+index b149c25..8f1f83d 100644
+--- a/ioservice/io_foms.h
++++ b/ioservice/io_foms.h
+@@ -240,7 +240,7 @@ struct c2_io_fom_cob_rw_state_transition {
+         const char *fcrw_st_desc;
+ };
+ 
+-extern const struct c2_fom_type_ops c2_io_cob_rwv_type_ops;
++extern const struct c2_fom_type_ops c2_io_cob_rw_type_ops;
+ 
+ /** @} end of io_foms */
+ 
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index c5ae21e..0af175d 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -133,9 +133,9 @@ const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
+ 
+ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",
+ 			&io_fop_rwv_ops, C2_IOSERVICE_READV_OPCODE,
+-			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops
++			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops,
+ #ifndef __KERNEL__
+-			&c2_io_cob_rwv_type_ops);
++			&c2_io_cob_rw_type_ops);
+ #else
+ 			NULL);
+ #endif
+@@ -143,9 +143,9 @@ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",
+ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
+ 			&io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
+ 			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+-			&io_item_type_ops
++			&io_item_type_ops,
+ #ifndef __KERNEL__
+-			&c2_io_cob_rwv_type_ops);
++			&c2_io_cob_rw_type_ops);
+ #else
+ 			NULL);
+ #endif
+-- 
+1.8.3.2
+

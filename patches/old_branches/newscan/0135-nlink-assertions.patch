@@ -1,0 +1,50 @@
+From 57e6eb50f66605c5d70466fac82340f199cb45ad Mon Sep 17 00:00:00 2001
+From: Andrew Perepechko <andrew_perepechko@xyratex.com>
+Date: Thu, 16 Jun 2011 00:14:16 +0400
+Subject: [PATCH 135/158] nlink assertions
+
+---
+ cob/cob.c         | 3 +++
+ mdstore/mdstore.c | 4 +++-
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 5e792c5..37d2134 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -405,6 +405,7 @@ static int cob_ns_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
+         
+         if (rc == 0) {
+                 cob->co_valid |= CA_NSREC;
++                C2_ASSERT(cob->co_nsrec.cnr_nlink > 0);
+                 C2_POST(c2_fid_is_set(cob->co_fid));
+         }
+         return rc;
+@@ -975,6 +976,8 @@ int c2_cob_update(struct c2_cob         *cob,
+         C2_PRE(cob->co_valid & CA_NSKEY);
+ 
+         if (nsrec != NULL) {
++                C2_ASSERT(nsrec->cnr_nlink > 0);
++
+                 cob->co_nsrec = *nsrec;
+                 cob->co_valid |= CA_NSREC;
+         
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index e518c47..ff640af 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -462,8 +462,10 @@ int c2_md_store_setattr(struct c2_md_store      *md,
+                         nsrec->cnr_blocks = attr->ca_blocks;
+                 if (attr->ca_flags & C2_MD_BLKSIZE)
+                         nsrec->cnr_blksize = attr->ca_blksize;
+-                if (attr->ca_flags & C2_MD_NLINK)
++                if (attr->ca_flags & C2_MD_NLINK) {
++                        C2_ASSERT(nsrec->cnr_nlink > 0);
+                         nsrec->cnr_nlink = attr->ca_nlink;
++                }
+                 nsrec->cnr_version = attr->ca_version;
+         }
+ 
+-- 
+1.8.3.2
+

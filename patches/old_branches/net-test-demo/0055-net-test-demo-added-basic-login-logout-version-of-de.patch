@@ -1,0 +1,129 @@
+From 7eb84692fb45d072f2527e6495eb0774ea713269 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <xrgtn@yandex.ru>
+Date: Wed, 13 Feb 2013 12:52:34 +0200
+Subject: [PATCH 55/79] net-test/demo: added basic (login-logout) version of
+ demo.exp
+
+---
+ net/test/demo/demo.exp | 109 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 109 insertions(+)
+ create mode 100755 net/test/demo/demo.exp
+
+diff --git a/net/test/demo/demo.exp b/net/test/demo/demo.exp
+new file mode 100755
+index 0000000..4eb7293
+--- /dev/null
++++ b/net/test/demo/demo.exp
+@@ -0,0 +1,109 @@
++#!/usr/bin/env expect
++
++proc terminate {pid sid} {
++    exec kill -KILL $pid
++    wait -i $sid
++    close -i $sid
++}
++proc finish {pid sid} {
++    send -i $sid \x03  ;# ^C
++    expect -i $sid -timeout 2 eof {} -re {^([^\r\n]*)[#>$] $} {
++        send -i $sid exit\r  ;# got to shell prompt -- do exit
++        expect -i $sid -timeout 2 eof {} timeout {terminate $pid $sid}
++    } timeout {terminate $pid $sid}
++}
++
++proc tm_ok_or_bomb {pid sid tmout t0} {
++    set t [timestamp]
++    if {$t < $t0 || [expr $t - $t0] > $tmout} {
++        finish $pid $sid
++        error timeout
++    }
++}
++
++proc exec_cmd {pid sid cmd {tmout 10} {e 0}} {
++    send -i $sid $cmd\n
++    set r ""
++    set t0 [timestamp]
++    expect -i $sid -timeout $tmout -re {^([^\r\n]*\r*\n)} {
++        tm_ok_or_bomb $pid $sid $tmout $t0
++        append r $expect_out(1,string)
++        exp_continue
++    } -re {^(([^\r\n]*)[#>$] )$} {
++        # got shell prompt
++        if {"z$e" != "zwait_eof"} {return $r}
++        append r $expect_out(1,string)
++        exp_continue
++    } timeout {finish $pid $sid; error timeout
++    } eof {if {"z$e" == "zwait_eof"} {return $r} {error eof}}
++}
++
++# initialize a host and return spawn id of ssh
++proc init_host {addr {tmout 10}} {
++    set pid [spawn ssh $addr]
++    set sid $spawn_id
++    set t0 [timestamp]
++    expect -i $sid -timeout $tmout -re {^[^\r\n]*\r*\n} {
++        tm_ok_or_bomb $pid $sid $tmout $t0
++        exp_continue
++    } -re {^([^\r\n]*\(yes/no\)\?) ?$} {
++        tm_ok_or_bomb $pid $sid $tmout $t0
++        send -i $sid yes\r
++        exp_continue
++    } -re {^([^\r\n]*([Pp]assword:|\(yes/no\)\?)) ?$} {
++        set err $expect_out(1,string)
++        finish $pid $sid
++        error $err
++    } -re {^([^\r\n]*)[#>$] $} {
++        # got shell prompt
++        return [list $pid $sid]
++    } timeout {finish $pid $sid; error timeout
++    } eof {error eof}
++}
++
++proc init_hosts {shosts chosts} {
++    # create list of unique addresses:
++    set hosts ""
++    foreach h [concat $shosts $chosts] {
++        if {! [info exists u($h)]} {
++            set u($h) 1
++            lappend hosts $h
++        }
++    }
++    # now initialize them serially:
++    set ihosts ""
++    set ehosts ""
++    foreach h $hosts {
++        if {[catch {
++            set r [init_host $h]
++            set pid($h) [lindex $r 0]
++            set sid($h) [lindex $r 1]
++            lappend ihosts $h
++        } err]} {
++            # exception:
++            regsub {[ \t\r\n]*$} $err \n err
++            send_error "ERROR: $h: $err\n"
++            lappend ehosts $h
++        }
++    }
++    # execute "date" on initialized hosts and "exit":
++    foreach h $ihosts {
++        exec_cmd $pid($h) $sid($h) date 10
++        exec_cmd $pid($h) $sid($h) exit 10 wait_eof
++    }
++}
++
++proc usage {argv0} {
++    send_error "USAGE: $argv0 srv1\[,srv2...\] clnt1\[,clnt2...\]\n"
++    exit 1
++}
++proc main {argv0 argv} {
++    if {[llength $argv] != 2} {usage $argv0}
++    set shosts [split [lindex $argv 0] ,]
++    set chosts [split [lindex $argv 1] ,]
++    send_user "servers: $shosts\nclients: $chosts\n"
++    init_hosts $shosts $chosts
++}
++
++main $argv0 $argv
++# vi:set sw=4 et tw=72 ft=tcl:
+-- 
+1.8.3.2
+

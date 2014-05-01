@@ -1,0 +1,37 @@
+From 38e08fe23417775349b6f49798146c2a38c9b8cd Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 4 Apr 2013 11:57:00 +0800
+Subject: [PATCH 12/18] more comments
+
+---
+ ioservice/cob_foms.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index 5afec26..a9a74c4 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -237,9 +237,10 @@ static int cc_fom_tick(struct m0_fom *fom)
+ 	if (!m0_poolmach_version_equal(cliv, &curr) &&
+ 		(cliv->pvn_version[PVE_READ] < curr.pvn_version[PVE_READ] &&
+ 		 cliv->pvn_version[PVE_WRITE] < curr.pvn_version[PVE_WRITE])) {
++		/* poolmach failure vector needs to be synchronized in pool. */
++
+ 		rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+ 		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
+-		
+ 		m0_poolmach_event_list_dump(poolmach);
+ 		m0_poolmach_device_state_dump(poolmach);
+ 		goto out;
+@@ -460,7 +461,7 @@ static int cd_fom_tick(struct m0_fom *fom)
+ 		 cliv->pvn_version[PVE_WRITE] < curr.pvn_version[PVE_WRITE])) {
+ 		rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+ 		M0_LOG(M0_DEBUG, "VERSION MISMATCH!");
+-		
++
+ 		m0_poolmach_event_list_dump(poolmach);
+ 		m0_poolmach_device_state_dump(poolmach);
+ 		goto out;
+-- 
+1.8.3.2
+

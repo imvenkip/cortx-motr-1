@@ -1,0 +1,93 @@
+From a656b81a0dd8b3d74567da88bd1452e759064152 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 28 Feb 2014 13:00:15 +0530
+Subject: [PATCH 06/20]  Changes for FOP rate per locality.
+
+---
+ addb/addb_monitor.c    |  1 +
+ fop/fom.h              |  1 -
+ fop/fop_rate_monitor.c | 19 +++++++++++++------
+ 3 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index bebc454..8756f87 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -309,6 +309,7 @@ M0_INTERNAL void m0_addb_monitor_sum_rec_fini(struct m0_addb_sum_rec *sum_rec)
+ 
+ 	sum_rec->asr_rec.ss_id              = M0_STATS_ID_UNDEFINED;
+ 	sum_rec->asr_rec.ss_data.au64s_nr   = 0;
++	m0_free(sum_rec->asr_rec.ss_data.au64s_data);
+ 	sum_rec->asr_rec.ss_data.au64s_data = NULL;
+ 
+ 	m0_mutex_fini(&sum_rec->asr_mutex);
+diff --git a/fop/fom.h b/fop/fom.h
+index 287cb60..000918a 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -299,7 +299,6 @@ struct m0_fom_locality {
+ 
+ 	/** FOP rate counter. It is fop executed per sec. */
+ 	uint64_t                     fl_fop_rate_count;
+-	m0_time_t		     fl_fop_rate_next_update;
+ 	struct m0_timer		     fl_fop_rate_timer;
+ 	struct m0_addb_counter       fl_stat_fop_rate;
+ 
+diff --git a/fop/fop_rate_monitor.c b/fop/fop_rate_monitor.c
+index 2f6f96c..dc36467 100644
+--- a/fop/fop_rate_monitor.c
++++ b/fop/fop_rate_monitor.c
+@@ -56,10 +56,9 @@ fop_rate_monitor_sum_rec(const struct m0_addb_monitor *mon,
+ 	struct m0_fom_locality *fom_loc;
+ 
+ 	M0_PRE(reqh != NULL);
+-	fom_loc = &(reqh->rh_fom_dom.fd_localities[m0_locality_here()->lo_idx]);
++	fom_loc = container_of(mon, struct m0_fom_locality, fl_fop_rate_monitor);
+ 
+ 	sum_rec = m0_reqh_lockers_get(reqh, fom_loc->fl_fop_rate_monitor_key);
+-
+ 	M0_ASSERT(sum_rec != NULL);
+ 
+ 	return sum_rec;
+@@ -78,7 +77,6 @@ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+ 			         M0_ADDB_RECID_FOP_RATE_CNTR) == rec->ar_rid) {
+ 
+ 		sum_rec = monitor->am_ops->amo_sum_rec(monitor, reqh);
+-		M0_ASSERT(sum_rec != NULL);
+ 
+ 		m0_mutex_lock(&sum_rec->asr_mutex);
+ 		M0_ASSERT(sum_rec->asr_rec.ss_id ==
+@@ -111,6 +109,8 @@ int m0_fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 	uint32_t                fop_rate_monitor_key;
+ 	const size_t            fop_rate_stats_nr =
+ 				sizeof(fop_rate_stats_sum) / sizeof(uint64_t);
++	struct m0_fom_locality *loc;
++	uint64_t               *md;
+ 
+ 	M0_PRE(monitor != NULL && reqh != NULL);
+ 
+@@ -118,11 +118,18 @@ int m0_fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 	if (sum_rec == NULL)
+ 		M0_RETURN(-ENOMEM);
+ 
++	FOP_ALLOC_ARR(md, fop_rate_stats_nr, FOM_RATE_MON_INIT,
++		      &m0_fop_addb_ctx);
++	if (md == NULL)
++		M0_RETURN(-ENOMEM);
++
+ 	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
+-	fop_rate_stats_sum.ssr_loc_id = (uint64_t)(m0_locality_here()->lo_idx);
++	loc = container_of(monitor, struct m0_fom_locality,
++			   fl_fop_rate_monitor);
++        // @todo need current locality id
++	fop_rate_stats_sum.ssr_loc_id = loc->fl_dom->fd_localities_nr;
+ 	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,
+-				     (uint64_t *)&fop_rate_stats_sum,
+-				     fop_rate_stats_nr);
++				     md, fop_rate_stats_nr);
+ 
+ 	fop_rate_monitor_key = m0_reqh_lockers_allot();
+ 
+-- 
+1.8.3.2
+

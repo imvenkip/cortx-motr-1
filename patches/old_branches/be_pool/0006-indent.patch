@@ -1,0 +1,54 @@
+From 47a07d045959145f3baa51af4d36c880f2b3c23f Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 20 Dec 2013 17:03:52 +0800
+Subject: [PATCH 06/11] indent.
+
+---
+ pool/pool_store.c | 4 ++--
+ pool/ut/test_pm.c | 8 ++++----
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/pool/pool_store.c b/pool/pool_store.c
+index efe8d87..4391ca5 100644
+--- a/pool/pool_store.c
++++ b/pool/pool_store.c
+@@ -85,7 +85,7 @@ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach        *pm,
+ 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
+ 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
+ }
+-	
++
+ /**
+  * Store all pool machine state and events into db.
+  *
+@@ -131,7 +131,7 @@ static int m0_poolmach_load(struct m0_poolmach       *pm,
+ 			    uint32_t                  max_device_failures)
+ {
+ 	int rc = 0;
+-	
++
+ 	if (pm_state_on_disk->pst_nr_nodes != nr_nodes ||
+ 	    pm_state_on_disk->pst_nr_devices != nr_devices + 1 ||
+ 	    pm_state_on_disk->pst_max_node_failures != max_node_failures ||
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index bb9a163..419a1d1 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -37,10 +37,10 @@ enum {
+ 	PM_TEST_DEFAULT_MAX_NODE_FAILURE   = 1
+ };
+ 
+-static struct m0_sm_group	*sm_grp;
+-static struct m0_be_ut_backend	 ut_be;
+-static struct m0_be_ut_seg	 ut_seg;
+-static struct m0_be_seg		*be_seg;
++static struct m0_sm_group       *sm_grp;
++static struct m0_be_ut_backend   ut_be;
++static struct m0_be_ut_seg       ut_seg;
++static struct m0_be_seg         *be_seg;
+ 
+ /* import from pool/pool_store.c */
+ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
+-- 
+1.8.3.2
+

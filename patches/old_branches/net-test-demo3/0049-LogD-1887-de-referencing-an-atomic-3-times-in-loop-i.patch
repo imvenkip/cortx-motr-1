@@ -1,0 +1,52 @@
+From dbdb0e656547ef83e65c850e2bbd8417763c948a Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 22:26:43 +0200
+Subject: [PATCH 49/99] LogD 1887: de-referencing an atomic 3 times in loop
+ instead of 1
+
+---
+ net/test/node_bulk.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 6031004..5e3f46a 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1240,7 +1240,7 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 	struct m0_clink	tm_clink;
+ 	struct m0_chan	tm_chan;
+ 	bool		pending;
+-	bool		stopping;
++	bool		running;
+ 
+ 	M0_PRE(ctx != NULL);
+ 
+@@ -1255,9 +1255,9 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 	m0_chan_init(&tm_chan);
+ 	m0_clink_add(&tm_chan, &tm_clink);
+ 	/* main loop */
+-	stopping = false;
+-	while (!node_bulk_is_stopping(ctx) || !node_bulk_bufs_unused_all(ctx)) {
+-		if (!node_bulk_is_stopping(ctx)) {
++	running = true;
++	while (running || !node_bulk_bufs_unused_all(ctx)) {
++		if (running) {
+ 			if (ctx->nbc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
+ 				client_process_unused_bulk(ctx);
+ 				client_process_queued_bulk(ctx);
+@@ -1282,10 +1282,10 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 		/* wait for STOP command or buffer event */
+ 		if (!ctx->nbc_callback_executed)
+ 			m0_chan_wait(&ctx->nbc_stop_clink);
+-		if (node_bulk_is_stopping(ctx) && !stopping) {
++		if (running && node_bulk_is_stopping(ctx)) {
+ 			/* dequeue all queued network buffers */
+ 			node_bulk_buf_dequeue(ctx);
+-			stopping = true;
++			running = false;
+ 		}
+ 	}
+ 	/* transfer machine should't signal to tm_chan */
+-- 
+1.8.3.2
+

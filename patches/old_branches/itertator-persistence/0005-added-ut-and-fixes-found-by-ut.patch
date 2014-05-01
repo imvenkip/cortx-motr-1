@@ -1,0 +1,194 @@
+From 6864735b04baffc4c14bfdf508febd2e7ffc50c2 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 14 Oct 2013 12:33:13 +0800
+Subject: [PATCH 5/8] added ut and fixes found by ut.
+
+---
+ cm/sw.c    | 20 ++++++++++++-----
+ cm/ut/cm.c | 73 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ 2 files changed, 84 insertions(+), 9 deletions(-)
+
+diff --git a/cm/sw.c b/cm/sw.c
+index 311b087..fad70fe 100644
+--- a/cm/sw.c
++++ b/cm/sw.c
+@@ -149,8 +149,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm)
+ 	if (rc == 0)
+ 		return rc;
+ 
+-	/* Is group lock necessary? */
+-	/* m0_sm_group_lock(grp); */
++	m0_sm_group_lock(grp);
+ 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+ 	M0_BE_ALLOC_CREDIT_PTR(sw, seg, &cred);
+ 	m0_be_tx_prep(&tx, &cred);
+@@ -167,6 +166,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm)
+ 			M0_SET0(&id_lo);
+ 			M0_SET0(&id_hi);
+ 			m0_cm_sw_set(sw, &id_lo, &id_hi);
++			M0_LOG(M0_DEBUG, "allocated sw = %p", sw);
+ 		}
+ 		m0_be_tx_close_sync(&tx);
+ 	}
+@@ -176,7 +176,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm)
+ 	if (rc == 0)
+ 		rc = m0_be_seg_dict_insert(seg, grp, cm_sw_name, sw);
+ 
+-	/* m0_sm_group_unlock(grp); */
++	m0_sm_group_unlock(grp);
+ 	return rc;
+ }
+ 
+@@ -191,6 +191,7 @@ M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out)
+ 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
+ 	if (rc == 0)
+ 		m0_cm_sw_copy(out, sw);
++	M0_LOG(M0_DEBUG, "sw = %p", sw);
+ 	return rc;
+ }
+ 
+@@ -210,8 +211,10 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
+ 	if (rc != 0)
+ 		return rc;
+ 
++	M0_LOG(M0_DEBUG, "sw = %p", sw);
++	m0_sm_group_lock(grp);
+ 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+-	cred = M0_BE_TX_CREDIT_TYPE(sw);
++	cred = M0_BE_TX_CREDIT_TYPE(*sw);
+ 	m0_be_tx_prep(&tx, &cred);
+ 	rc = m0_be_tx_open_sync(&tx);
+ 
+@@ -223,6 +226,7 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
+ 
+ 	m0_be_tx_fini(&tx);
+ 
++	m0_sm_group_unlock(grp);
+ 	return rc;
+ }
+ 
+@@ -230,7 +234,7 @@ M0_INTERNAL int m0_cm_sw_store_finish(struct m0_cm *cm)
+ {
+ 	struct m0_be_seg      *seg    = cm->cm_service.rs_reqh->rh_beseg;
+ 	struct m0_sm_group    *grp    = m0_locality0_get()->lo_grp;
+-	struct m0_be_tx_credit cred;
++	struct m0_be_tx_credit cred   = M0_BE_TX_CREDIT_INIT(0, 0);
+ 	struct m0_be_tx        tx     = {};
+ 	struct m0_cm_sw       *sw;
+ 	char                   cm_sw_name[80];
+@@ -241,17 +245,23 @@ M0_INTERNAL int m0_cm_sw_store_finish(struct m0_cm *cm)
+ 	if (rc != 0)
+ 		return rc;
+ 
++	M0_LOG(M0_DEBUG, "sw = %p", sw);
++	m0_sm_group_lock(grp);
+ 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+ 	M0_BE_FREE_CREDIT_PTR(sw, seg, &cred);
+ 	m0_be_tx_prep(&tx, &cred);
+ 	rc = m0_be_tx_open_sync(&tx);
+ 
++	M0_LOG(M0_DEBUG, "tx open rc = %d", rc);
+ 	if (rc == 0) {
+ 		M0_BE_FREE_PTR_SYNC(sw, seg, &tx);
+ 		m0_be_tx_close_sync(&tx);
+ 	}
+ 
+ 	m0_be_tx_fini(&tx);
++	/* delete it from dict even if tx fails */
++	m0_be_seg_dict_delete(seg, grp, cm_sw_name);
++	m0_sm_group_unlock(grp);
+ 
+ 	return rc;
+ }
+diff --git a/cm/ut/cm.c b/cm/ut/cm.c
+index 3c8f7be..44fe896 100644
+--- a/cm/ut/cm.c
++++ b/cm/ut/cm.c
+@@ -223,15 +223,80 @@ static void cm_ag_ut(void)
+ 	cm_ut_service_cleanup();
+ }
+ 
++static void cm_sw_persistence_ut(void)
++{
++	struct m0_cm      *cm = &cm_ut[0].ut_cm;
++	struct m0_cm_sw    sw;
++	struct m0_cm_sw    out;
++	struct m0_cm_ag_id id_lo;
++	struct m0_cm_ag_id id_hi;
++	int                i;
++	int                rc;
++
++	cm_ut_service_alloc_init();
++
++	/* Internally calls m0_cm_setup(). */
++	rc = m0_reqh_service_start(cm_ut_service);
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_ios_poolmach_init(cm_ut_service);
++	M0_UT_ASSERT(rc == 0);
++
++	m0_cm_lock(cm);
++	m0_cm_state_set(cm, M0_CMS_READY);
++	m0_cm_unlock(cm);
++
++	rc = m0_cm_sw_store_init(cm);
++	M0_UT_ASSERT(rc == 0);
++	for(i = 0; i < 10; i++) {
++
++		M0_SET0(&id_lo);
++		M0_SET0(&id_hi);
++		ag_id_assign(&id_lo, i, i, i, i);
++		ag_id_assign(&id_hi, i + 1, i + 1, i + 1, i + 1);
++		m0_cm_sw_set(&sw, &id_lo, &id_hi);
++		rc = m0_cm_sw_store_update(cm, &sw);
++		M0_UT_ASSERT(rc == 0);
++		rc = m0_cm_sw_store_load(cm, &out);
++		M0_UT_ASSERT(rc == 0);
++		rc = m0_cm_ag_id_cmp(&sw.sw_lo, &out.sw_lo);
++		M0_UT_ASSERT(rc == 0);
++		rc = m0_cm_ag_id_cmp(&sw.sw_hi, &out.sw_hi);
++		M0_UT_ASSERT(rc == 0);
++	}
++	rc = m0_cm_sw_store_finish(cm);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_cm_sw_store_load(cm, &out);
++	M0_UT_ASSERT(rc != 0);
++	rc = m0_cm_sw_store_update(cm, &sw);
++	M0_UT_ASSERT(rc != 0);
++	rc = m0_cm_sw_store_init(cm);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_cm_sw_store_update(cm, &sw);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_cm_sw_store_load(cm, &out);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_cm_ag_id_cmp(&sw.sw_lo, &out.sw_lo);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_cm_ag_id_cmp(&sw.sw_hi, &out.sw_hi);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_cm_sw_store_finish(cm);
++	M0_UT_ASSERT(rc == 0);
++
++	m0_ios_poolmach_fini(cm_ut_service);
++	cm_ut_service_cleanup();
++}
++
+ const struct m0_test_suite cm_generic_ut = {
+         .ts_name = "cm-ut",
+         .ts_init = &cm_ut_init,
+         .ts_fini = &cm_ut_fini,
+         .ts_tests = {
+-                { "cm_setup_ut", cm_setup_ut },
+-		{ "cm_setup_failure_ut", cm_setup_failure_ut },
+-		{ "cm_init_failure_ut", cm_init_failure_ut },
+-		{ "cm_ag_ut", cm_ag_ut },
++		{ "cm_setup_ut",          cm_setup_ut          },
++		{ "cm_setup_failure_ut",  cm_setup_failure_ut  },
++		{ "cm_init_failure_ut",   cm_init_failure_ut   },
++		{ "cm_ag_ut",             cm_ag_ut             },
++		{ "cm_sw_persistence_ut", cm_sw_persistence_ut },
+ 		{ NULL, NULL }
+         }
+ };
+-- 
+1.8.3.2
+

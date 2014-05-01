@@ -1,0 +1,34 @@
+From acd57931be25ae5ce7fbf9d050ec173f77aaf892 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 10 Feb 2013 15:36:21 +0200
+Subject: [PATCH 19/25] mdstore/readdir: removed redundant string length
+
+---
+ mdstore/mdstore.c | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index d956917..871c5a2 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -660,14 +660,12 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 	M0_ASSERT(cob != NULL);
+ 
+ 	M0_LOG(M0_DEBUG,
+-	       "Readdir on object [%lx:%lx] starting from \"%.*s\" (len %d)",
++	       "Readdir on object [%lx:%lx] starting from \"%.*s\"",
+ 	       cob->co_fid->f_container, cob->co_fid->f_key,
+ 	       m0_bitstring_len_get(rdpg->r_pos),
+-	       (char *)m0_bitstring_buf_get(rdpg->r_pos),
+-	       m0_bitstring_len_get(rdpg->r_pos));
++	       (char *)m0_bitstring_buf_get(rdpg->r_pos));
+ 
+-	first = m0_bitstring_len_get(rdpg->r_pos) == 1 &&
+-		!strncmp(m0_bitstring_buf_get(rdpg->r_pos), ".", 1);
++	first = !strncmp(m0_bitstring_buf_get(rdpg->r_pos), ".", 2);
+ 	second = 0;
+ 
+ 	rc = m0_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
+-- 
+1.8.3.2
+

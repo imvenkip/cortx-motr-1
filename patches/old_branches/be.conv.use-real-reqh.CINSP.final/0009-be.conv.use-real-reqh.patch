@@ -1,0 +1,593 @@
+From ce5be2c9996edb4bc872cf59f9e60f8d5f71286f Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Fri, 7 Feb 2014 20:44:57 +0530
+Subject: [PATCH 9/9] be.conv.use-real-reqh, - code cleanup and
+ re-organization.
+
+---
+ balloc/ut/balloc.c         |  1 -
+ be/domain.c                |  2 +-
+ be/engine.c                |  3 +--
+ be/tx_group_fom.c          |  5 ++++-
+ be/tx_service.c            | 22 ++++++----------------
+ be/ut/helper.c             | 38 +++++++++++++++++++++++++++++++-------
+ be/ut/helper.h             |  8 ++++++--
+ cm/ut/cm.c                 |  1 -
+ cm/ut/cp.c                 |  1 -
+ conf/ut/db.c               |  1 -
+ dtm/ut/transmit.c          |  1 -
+ ioservice/ut/bulkio_ut.c   |  1 -
+ ioservice/ut/cob_foms.c    |  1 -
+ lib/time.c                 |  4 ++--
+ mero/setup.c               | 10 +++++-----
+ reqh/reqh.c                |  6 ++++++
+ sns/cm/repair/ut/cm.c      |  2 --
+ sns/cm/repair/ut/net.c     |  2 --
+ sns/cm/repair/ut/storage.c |  2 --
+ sns/cm/repair/ut/xform.c   |  2 --
+ ut/be.c                    | 32 +-------------------------------
+ ut/be.h                    |  7 -------
+ ut/ut_rpc_machine.c        |  7 ++-----
+ 23 files changed, 65 insertions(+), 94 deletions(-)
+
+diff --git a/balloc/ut/balloc.c b/balloc/ut/balloc.c
+index cf84ba7..a262341 100644
+--- a/balloc/ut/balloc.c
++++ b/balloc/ut/balloc.c
+@@ -280,7 +280,6 @@ void test_balloc()
+ 	int			 rc;
+ 
+ 	M0_SET0(&ut_be);
+-	M0_SET0(&ut_seg);
+ 	/* Init BE */
+ 	m0_be_ut_backend_init(&ut_be);
+ 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+diff --git a/be/domain.c b/be/domain.c
+index ef52848..b3ec165 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -44,7 +44,7 @@ M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+ 
+ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+ {
+-	//m0_be_engine_stop(&dom->bd_engine);
++	m0_be_engine_stop(&dom->bd_engine);
+ 	m0_be_engine_fini(&dom->bd_engine);
+ }
+ 
+diff --git a/be/engine.c b/be/engine.c
+index dc33af9..46019a9 100644
+--- a/be/engine.c
++++ b/be/engine.c
+@@ -139,7 +139,6 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
+ 		  (etx_tlist_fini(&en->eng_txs[i]), true));
+ 	for (i = 0; i < en->eng_group_nr; ++i) {
+ 		m0_be_tx_group_fini(&en->eng_group[i]);
+-		egr_tlist_del(&en->eng_group[i]);
+ 		egr_tlink_fini(&en->eng_group[i]);
+ 	}
+ 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
+@@ -403,7 +402,7 @@ static void be_engine_group_stop_nr(struct m0_be_engine *en, size_t nr)
+ 		be_engine_unlock(en);
+ 		m0_be_tx_group_stop(&en->eng_group[i]);
+ 		be_engine_lock(en);
+-//		egr_tlist_del(&en->eng_group[i]);
++		egr_tlist_del(&en->eng_group[i]);
+ 	}
+ }
+ 
+diff --git a/be/tx_group_fom.c b/be/tx_group_fom.c
+index 7800c13..4cde827 100644
+--- a/be/tx_group_fom.c
++++ b/be/tx_group_fom.c
+@@ -404,7 +404,10 @@ M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
+ M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
+ {
+ 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stop);
+-	if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH, TGS_STOPPING)))
++	/*
++	 * Wait iff FOM in not already in TGS_FINISH state.
++	 */
++	if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH)))
+ 		m0_semaphore_down(&gf->tgf_finish_sem);
+ }
+ 
+diff --git a/be/tx_service.c b/be/tx_service.c
+index b8ef51e..a1887c8 100644
+--- a/be/tx_service.c
++++ b/be/tx_service.c
+@@ -42,7 +42,6 @@
+ 
+ enum { M0_ADDB_CTXID_TX_SERVICE = 1800 };
+ 
+-struct m0_addb_ctx m0_tx_service_mod_addb_ctx;
+ M0_ADDB_CT(m0_addb_ct_tx_service, M0_ADDB_CTXID_TX_SERVICE, "hi", "low");
+ 
+ static void _addb_init(void)
+@@ -53,8 +52,8 @@ static void _addb_init(void)
+ 	act = m0_addb_ctx_type_lookup(M0_ADDB_CTXID_TX_SERVICE);
+ 	if (act == NULL) {
+ 		 m0_addb_ctx_type_register(&m0_addb_ct_tx_service);
+-		 //M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_tx_service_mod_addb_ctx,
+-		//		 &m0_addb_ct_tx_service, &m0_addb_proc_ctx);
++		 /*M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_tx_service_mod_addb_ctx,*/
++		 /*		 &m0_addb_ct_tx_service, &m0_addb_proc_ctx);*/
+ 	}
+ }
+ 
+@@ -93,16 +92,14 @@ M0_INTERNAL void m0_be_txs_unregister(void)
+ 	m0_reqh_service_type_unregister(&m0_be_txs_stype);
+ }
+ 
+-static void txs_prepare_to_stop(struct m0_reqh_service *service);
+ static int  txs_start(struct m0_reqh_service *service);
+ static void txs_stop(struct m0_reqh_service *service);
+ static void txs_fini(struct m0_reqh_service *service);
+ 
+ static const struct m0_reqh_service_ops txs_ops = {
+-	.rso_start           = txs_start,
+-	.rso_prepare_to_stop = txs_prepare_to_stop,
+-	.rso_stop            = txs_stop,
+-	.rso_fini            = txs_fini
++	.rso_start = txs_start,
++	.rso_stop  = txs_stop,
++	.rso_fini  = txs_fini
+ };
+ 
+ /** Allocates and initialises transaction service. */
+@@ -110,8 +107,7 @@ static int txs_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+ 			struct m0_reqh_context *rctx)
+ {
+-	//struct m0_be_domain *bdom;
+-	struct tx_service   *s;
++	struct tx_service *s;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(stype == &m0_be_txs_stype);
+@@ -127,11 +123,6 @@ static int txs_allocate(struct m0_reqh_service **service,
+ 	M0_RETURN(0);
+ }
+ 
+-static void txs_prepare_to_stop(struct m0_reqh_service *service)
+-{
+-	//m0_be_domain_fini(&ut_be->but_dom);
+-}
+-
+ /** Finalises and deallocates transaction service. */
+ static void txs_fini(struct m0_reqh_service *service)
+ {
+@@ -144,7 +135,6 @@ static void txs_fini(struct m0_reqh_service *service)
+ static int txs_start(struct m0_reqh_service *service)
+ {
+ 	M0_ENTRY();
+-	//_addb_init();
+ 	M0_RETURN(0);
+ }
+ 
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index e25aecd..e3d6489 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -252,7 +252,6 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+ {
+ 	int rc = 0;
+ 
+-	//M0_SET0(ut_be);
+ 	ut_be->but_sm_groups_unlocked = false;
+ 	if (cfg == NULL) {
+ 		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+@@ -295,7 +294,6 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
+ 	m0_forall(i, ut_be->but_sgt_size,
+ 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
+ 	m0_free(ut_be->but_sgt);
+-	m0_be_engine_stop(&ut_be->but_dom.bd_engine);
+ 	m0_be_domain_fini(&ut_be->but_dom);
+ 	m0_mutex_fini(&ut_be->but_sgt_lock);
+ 	if (be_ut_helper.buh_reqh_ref_cnt > 0)
+@@ -384,14 +382,14 @@ void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be)
+ 	m0_mutex_unlock(&ut_be->but_sgt_lock);
+ }
+ 
+-void be_ut_tx_lock_if(struct m0_sm_group *grp,
++static void be_ut_tx_lock_if(struct m0_sm_group *grp,
+ 		      struct m0_be_ut_backend *ut_be)
+ {
+ 	if (ut_be->but_sm_groups_unlocked)
+ 		m0_sm_group_lock(grp);
+ }
+ 
+-void be_ut_tx_unlock_if(struct m0_sm_group *grp,
++static void be_ut_tx_unlock_if(struct m0_sm_group *grp,
+ 			struct m0_be_ut_backend *ut_be)
+ {
+ 	if (ut_be->but_sm_groups_unlocked)
+@@ -557,13 +555,10 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
+ 	struct m0_be_tx_credit	credit = {};
+ 	struct m0_be_allocator *a;
+ 	struct m0_be_tx         tx;
+-	//struct m0_sm_group     *grp
+ 	int                     rc;
+ 
+ 	ut_seg->bus_allocator = m0_be_seg_allocator(&ut_seg->bus_seg);
+ 	a = ut_seg->bus_allocator;
+-        //grp = m0_be_ut_backend_sm_group_lookup(ut_be);
+-        //m0_sm_group_lock(grp);
+ 	if (ut_be != NULL) {
+ 		m0_be_ut_tx_init(&tx, ut_be);
+ 		be_ut_tx_lock_if(tx.t_sm.sm_grp, ut_be);
+@@ -696,6 +691,35 @@ M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
+ 	m0_buf_free(&tc->butc_seg_copy);
+ }
+ 
++static bool fom_domain_is_idle(const struct m0_fom_domain *dom)
++{
++	int  i;
++	bool result = false;
++
++	for (i = 0; i < dom->fd_localities_nr; ++i) {
++		if ((i == 0 && dom->fd_localities[i].fl_foms == 1) ||
++				dom->fd_localities[i].fl_foms == 0)
++			result = true;
++		else
++			return false;
++	}
++
++	return result;
++}
++
++M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh)
++{
++	struct m0_clink clink;
++
++	M0_PRE(reqh != NULL);
++	m0_clink_init(&clink, NULL);
++	m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
++	while (!fom_domain_is_idle(&reqh->rh_fom_dom))
++		m0_chan_timedwait((&clink), m0_time_from_now(2, 0));
++	m0_clink_del_lock(&clink);
++	m0_clink_fini(&clink);
++}
++
+ #undef M0_TRACE_SUBSYSTEM
+ 
+ /*
+diff --git a/be/ut/helper.h b/be/ut/helper.h
+index bcd1766..0db6205 100644
+--- a/be/ut/helper.h
++++ b/be/ut/helper.h
+@@ -83,8 +83,6 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
+ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
+ void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
+ void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
+-void m0_be_ut_backend_get(struct m0_be_ut_backend **ut_be,
+-                          struct m0_be_ut_seg **ut_seg);
+ 
+ /*
+  * tx capturing checker for UT.
+@@ -167,6 +165,12 @@ M0_INTERNAL int m0_be_ut__seg_dict_create(struct m0_be_seg   *seg,
+ M0_INTERNAL int m0_be_ut__seg_dict_destroy(struct m0_be_seg   *seg,
+ 					   struct m0_sm_group *grp);
+ 
++/**
++ * Blocks until all the FOMs are completed except the be tx_group_fom.
++ * @note This is a temporary solution and will be replaced by per service
++ * FOM completion notification mechanism.
++ */
++M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh);
+ 
+ #endif /* __MERO_BE_UT_HELPER_H__ */
+ 
+diff --git a/cm/ut/cm.c b/cm/ut/cm.c
+index 1185294..bf0ee57 100644
+--- a/cm/ut/cm.c
++++ b/cm/ut/cm.c
+@@ -23,7 +23,6 @@
+ #include "lib/finject.h"
+ #include "lib/memory.h"
+ #include "ut/ut.h"
+-#include "ut/be.h"
+ #include "lib/misc.h"
+ #include "lib/thread.h"
+ 
+diff --git a/cm/ut/cp.c b/cm/ut/cp.c
+index 6d0d8f8..b08c2ba 100644
+--- a/cm/ut/cp.c
++++ b/cm/ut/cp.c
+@@ -19,7 +19,6 @@
+  */
+ 
+ #include "ut/ut.h"
+-#include "ut/be.h"
+ #include "lib/memory.h"
+ #include "lib/misc.h"
+ #include "reqh/reqh.h"
+diff --git a/conf/ut/db.c b/conf/ut/db.c
+index 910e189..ef1eef5 100644
+--- a/conf/ut/db.c
++++ b/conf/ut/db.c
+@@ -27,7 +27,6 @@
+ #include "conf/ut/file_helpers.h"
+ #include "reqh/reqh.h"
+ #include "ut/ut.h"
+-#include "ut/be.h"
+ #include "be/ut/helper.h"
+ 
+ #define _CONFDB_PATH "_conf.db"
+diff --git a/dtm/ut/transmit.c b/dtm/ut/transmit.c
+index f8961fd..c2355b7 100644
+--- a/dtm/ut/transmit.c
++++ b/dtm/ut/transmit.c
+@@ -48,7 +48,6 @@
+ #include "dtm/fol.h"
+ #include "dtm/ltx.h"
+ #include "dtm/dtm.h"
+-#include "ut/be.h"
+ 
+ M0_INTERNAL void up_print(const struct m0_dtm_up *up);
+ M0_INTERNAL void op_print(const struct m0_dtm_op *op);
+diff --git a/ioservice/ut/bulkio_ut.c b/ioservice/ut/bulkio_ut.c
+index 86402fc..2819f52 100644
+--- a/ioservice/ut/bulkio_ut.c
++++ b/ioservice/ut/bulkio_ut.c
+@@ -26,7 +26,6 @@
+ #include "lib/finject.h"
+ #include "fol/lsn.h"
+ #include "ut/ut.h"
+-#include "ut/be.h"
+ #include "bulkio_common.h"
+ #include "net/lnet/lnet.h"
+ #include "rpc/rpclib.h"
+diff --git a/ioservice/ut/cob_foms.c b/ioservice/ut/cob_foms.c
+index 112b436..7fe3d4b 100644
+--- a/ioservice/ut/cob_foms.c
++++ b/ioservice/ut/cob_foms.c
+@@ -22,7 +22,6 @@
+ #include "lib/locality.h"
+ #include "lib/finject.h"
+ #include "ut/ut.h"
+-#include "ut/be.h"
+ #include "lib/memory.h"
+ #include "net/lnet/lnet.h"
+ #include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */
+diff --git a/lib/time.c b/lib/time.c
+index 9f558f5..bee927c 100644
+--- a/lib/time.c
++++ b/lib/time.c
+@@ -59,14 +59,14 @@ m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
+ 	m0_time_t res;
+ 	M0_PRE(M0_TIME_NEVER >= t1);
+ 	M0_PRE(t2 < M0_TIME_NEVER);
+-	//M0_PRE(t1 >= t2);
++	M0_PRE(t1 >= t2);
+ 
+ 	if (t1 == M0_TIME_NEVER)
+ 		res = M0_TIME_NEVER;
+ 	else
+ 		res = t1 - t2;
+ 
+-	//M0_POST(t1 >= res);
++	M0_POST(t1 >= res);
+ 	return res;
+ }
+ M0_EXPORTED(m0_time_sub);
+diff --git a/mero/setup.c b/mero/setup.c
+index 4a0801b..af618cb 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -52,6 +52,8 @@
+ #include "rpc/rpc_internal.h"
+ #include "addb/addb_monitor.h"
+ 
++#include "be/ut/helper.h"
++
+ /**
+    @addtogroup m0d
+    @{
+@@ -1522,10 +1524,8 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
+ 
+ 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
+ 		m0_reqh_shutdown(reqh);
+-	cs_storage_fini(&rctx->rc_stob);
+-	/* Stop m0_be_tx_group_fom */
+-	m0_be_engine_stop(&rctx->rc_db.d_i.d_ut_be.but_dom.bd_engine);
+-	m0_reqh_fom_domain_idle_wait(reqh);
++	//m0_reqh_fom_domain_idle_wait(reqh);
++	m0_ut_be_fom_domain_idle_wait(reqh);
+ 
+ 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
+ 	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
+@@ -1539,7 +1539,7 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
+ 	m0_reqh_dbenv_fini(reqh);
+ 	m0_mdstore_fini(&rctx->rc_mdstore);
+ 	cs_addb_storage_fini(&rctx->rc_addb_stob);
+-	//cs_storage_fini(&rctx->rc_stob);
++	cs_storage_fini(&rctx->rc_stob);
+ 	m0_dbenv_fini(&rctx->rc_db);
+ 	cs_rpc_machines_fini(reqh);
+ 	m0_reqh_fini(reqh);
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 52a6217..1b050a6 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -44,6 +44,8 @@
+ #include "layout/pdclust.h"
+ #include "mgmt/mgmt.h"
+ 
++#include "be/ut/helper.h"
++
+ /**
+    @addtogroup reqh
+    @{
+@@ -745,7 +747,11 @@ M0_INTERNAL void m0_reqh_mgmt_service_stop(struct m0_reqh *reqh)
+ 
+ 	if (service != NULL) {
+ 		m0_reqh_service_prepare_to_stop(service);
++#ifndef __KERNEL__
++		m0_ut_be_fom_domain_idle_wait(reqh);
++#else
+ 		m0_reqh_fom_domain_idle_wait(reqh); /* drain mgmt fops */
++#endif
+ 		m0_reqh_service_stop(service);
+ 		m0_reqh_service_fini(service);
+ 		reqh->rh_mgmt_svc = NULL;
+diff --git a/sns/cm/repair/ut/cm.c b/sns/cm/repair/ut/cm.c
+index 6ca8006..26cf38f 100644
+--- a/sns/cm/repair/ut/cm.c
++++ b/sns/cm/repair/ut/cm.c
+@@ -46,8 +46,6 @@
+ #include "sns/cm/cm.h"
+ #include "sns/cm/repair/ut/cp_common.h"
+ 
+-#include "cm/ut/common_service.h"
+-
+ enum {
+ 	ITER_UT_BUF_NR     = 1 << 8,
+ 	ITER_GOB_KEY_START = 4,
+diff --git a/sns/cm/repair/ut/net.c b/sns/cm/repair/ut/net.c
+index 1a51645..27ceec3 100644
+--- a/sns/cm/repair/ut/net.c
++++ b/sns/cm/repair/ut/net.c
+@@ -31,8 +31,6 @@
+ #include "reqh/reqh_service.h"
+ #include "cm/proxy.h"
+ #include "ut/ut_rpc_machine.h"
+-#include "ut/be.h"
+-#include "cm/ut/common_service.h"
+ #include <unistd.h>			/* usleep */
+ 
+ /* import from pool/pool_store.c */
+diff --git a/sns/cm/repair/ut/storage.c b/sns/cm/repair/ut/storage.c
+index 12eba89..588633b 100644
+--- a/sns/cm/repair/ut/storage.c
++++ b/sns/cm/repair/ut/storage.c
+@@ -26,12 +26,10 @@
+ #include "lib/trace.h"
+ #include "lib/misc.h"
+ #include "lib/locality.h"
+-#include "ut/be.h"
+ #include "reqh/reqh.h"
+ #include "mero/setup.h"
+ #include "net/net.h"
+ #include "sns/cm/repair/ut/cp_common.h"
+-#include "cm/ut/common_service.h"
+ 
+ struct m0_reqh_service          *service;
+ static struct m0_reqh           *reqh;
+diff --git a/sns/cm/repair/ut/xform.c b/sns/cm/repair/ut/xform.c
+index c491288..e7282ee 100644
+--- a/sns/cm/repair/ut/xform.c
++++ b/sns/cm/repair/ut/xform.c
+@@ -19,13 +19,11 @@
+  */
+ 
+ #include "lib/locality.h"
+-#include "ut/be.h"
+ #include "ioservice/io_service.h"
+ #include "ioservice/io_device.h"
+ #include "mero/setup.h"
+ #include "sns/cm/repair/xform.c"
+ #include "sns/cm/repair/ut/cp_common.h"
+-#include "cm/ut/common_service.h"
+ 
+ enum {
+ 	SEG_NR                  = 16,
+diff --git a/ut/be.c b/ut/be.c
+index 71efb28..c18b320 100644
+--- a/ut/be.c
++++ b/ut/be.c
+@@ -42,7 +42,7 @@ m0_ut_backend_init(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
+ M0_INTERNAL void
+ m0_ut_backend_fini(struct m0_be_ut_backend *be, struct m0_be_ut_seg *seg)
+ {
+-//	m0_be_ut_seg_allocator_fini(seg, be);
++	m0_be_ut_seg_allocator_fini(seg, be);
+ 	m0_be_ut_seg_fini(seg);
+ 	m0_be_ut_backend_fini(be);
+ }
+@@ -101,36 +101,6 @@ M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
+ 	m0_ut_be_tx_end(&tx);
+ }
+ 
+-static bool fom_domain_is_idle(const struct m0_fom_domain *dom)
+-{
+-	int  i;
+-	bool result = false;
+-
+-	for (i = 0; i < dom->fd_localities_nr; ++i) {
+-		if ((i == 0 && dom->fd_localities[i].fl_foms == 1) ||
+-			dom->fd_localities[i].fl_foms == 0)
+-			result = true;
+-		else
+-			return false;
+-	}
+-
+-	return result;
+-}
+-
+-M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh)
+-{
+-	struct m0_clink clink;
+-
+-	M0_PRE(reqh != NULL);
+-	m0_clink_init(&clink, NULL);
+-	m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
+-	while (!fom_domain_is_idle(&reqh->rh_fom_dom))
+-		m0_chan_timedwait((&clink), m0_time_from_now(2, 0));
+-	m0_clink_del_lock(&clink);
+-	m0_clink_fini(&clink);
+-}
+-
+-
+ /** @} end of be group */
+ 
+ /*
+diff --git a/ut/be.h b/ut/be.h
+index d15139d..c5d4ae9 100644
+--- a/ut/be.h
++++ b/ut/be.h
+@@ -69,13 +69,6 @@ M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
+ 			       struct m0_be_seg *seg,
+ 			       struct m0_be_ut_backend *ut_be);
+ 
+-/**
+- * Blocks until all the FOMs are completed except the be tx_group_fom.
+- * @note This is a temporary solution and will be replaced by per service
+- * FOM completion notification mechanism.
+- */
+-M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh);
+-
+ /** @} end of ut group */
+ #endif /* __MERO_UT_BE_H__ */
+ 
+diff --git a/ut/ut_rpc_machine.c b/ut/ut_rpc_machine.c
+index 3a033b4..da7ddf1 100644
+--- a/ut/ut_rpc_machine.c
++++ b/ut/ut_rpc_machine.c
+@@ -125,9 +125,11 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
+ 
+ 	if (m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_NORMAL)
+ 		m0_reqh_shutdown(&ctx->rmc_reqh);
++	m0_ut_be_fom_domain_idle_wait(&ctx->rmc_reqh);
+ 	m0_reqh_services_terminate(&ctx->rmc_reqh);
+ 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
+ 	m0_reqh_fol_destroy(&ctx->rmc_reqh);
++	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
+ 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
+ 	rc = m0_mdstore_destroy(&ctx->rmc_mdstore, grp);
+ 	M0_ASSERT(rc == 0);
+@@ -135,11 +137,6 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
+ 
+ 	rc = m0_be_ut__seg_dict_destroy(&ctx->rmc_ut_seg.bus_seg, grp);
+ 	M0_ASSERT(rc == 0);
+-	m0_be_ut_seg_allocator_fini(&ctx->rmc_ut_seg, &ctx->rmc_ut_be);
+-	m0_be_engine_stop(&ctx->rmc_ut_be.but_dom.bd_engine);
+-	m0_reqh_fom_domain_idle_wait(&ctx->rmc_reqh);
+-
+-	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
+ 	m0_ut_backend_fini(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
+ 
+ 	m0_reqh_fini(&ctx->rmc_reqh);
+-- 
+1.8.3.2
+

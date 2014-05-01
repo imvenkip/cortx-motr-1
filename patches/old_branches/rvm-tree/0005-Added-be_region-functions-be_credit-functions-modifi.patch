@@ -1,0 +1,1974 @@
+From ed1073e1d93dc930bc02ac21abd2d69ec5578ca7 Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Wed, 12 Dec 2012 04:51:38 -0800
+Subject: [PATCH 05/94] Added be_region functions, be_credit functions,
+ modification to be_tx functions and changes related to review #1136
+
+---
+ be/be.c          | 140 ++++++++++++++++++++++++-----
+ be/be.h          |  83 ++++++++++-------
+ be/be_domain.c   |  87 +++++++++---------
+ be/be_impl.h     |  17 ++--
+ be/be_rvm.c      |  11 ++-
+ be/be_rvm.h      |   2 +-
+ be/be_seg.c      | 236 ++++++++++++++++++++++++++-----------------------
+ be/be_seg.h      |   7 +-
+ be/be_tx.c       | 265 ++++++++++++++++++++++++++++++++++++++-----------------
+ be/be_tx.h       |  53 +++++++++++
+ be/lib/be_buf.h  |   6 +-
+ be/lib/be_list.h |   4 +-
+ be/ut/be.c       |  68 ++++++++------
+ 13 files changed, 643 insertions(+), 336 deletions(-)
+ create mode 100644 be/be_tx.h
+
+diff --git a/be/be.c b/be/be.c
+index f17cf32..598ba4d 100644
+--- a/be/be.c
++++ b/be/be.c
+@@ -27,8 +27,36 @@
+   */
+ 
+ /**
++ * @post reg->br_sm.sm_state == M0_BEREG_INIT
++ */
++void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
++                    struct m0_be_seg *seg, struct m0_be_buf *buf)
++{
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++        M0_ASSERT(seg != NULL);
++        M0_ASSERT(buf != NULL);
++
++        /* Initialise region structure with required values */
++        reg->br_tx  = tx;
++        reg->br_seg = seg;
++        reg->br_buf = *buf;
++
++        /* todo@ Locking sm_group is required before initializing sm */
++        /* todo@ Register the state machine of the region into sm_group */
++        /* todo@ unlock locked sm group */
++
++        /* todo@ need to call function m0_sm_state_set() for same not
++         * set directly
++         */
++        reg->br_sm.sm_state = M0_BEREG_INIT;
++
++        M0_POST(reg->br_sm.sm_state == M0_BEREG_INIT);
++}
++
++/**
+  * Allocates a region.
+- * Updates m0_reference of region that can be used to persist pointers 
++ * Updates m0_reference of region that can be used to persist pointers
+  *
+  * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+  * @pre reg->br_buf.b_addr == NULL
+@@ -39,34 +67,46 @@
+ void m0_be_alloc(struct m0_be_reg *reg)
+ {
+         int err;
+-
++        rvm_tid_t               *tid;
++        struct m0_uint128       *toffset;
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != reg);
++        M0_ASSERT(reg != NULL);
+ 
+-        /* 
++        /*
+          * Allocate memory from RDS Heap.
+          * Update br_buf to store virtual address.
+          */
+ 
+-        /* extern char *rds_malloc(unsigned long size, rvm_tid_t *tid, int *err); */
+-        reg->br_buf.b_addr = (void *)rds_malloc(reg->br_buf.b_nob, 
+-                                                     reg->br_tx->bt_impl.tx_id, &err);
++        tid = reg->br_tx->bt_impl.tx_id;
++
++        if (tid == NULL) {
++                /* todo@ need to call function m0_sm_state_set() for same not
++                 * set directly
++                 */
++                reg->br_sm.sm_state = M0_BEREG_FAILED;
+ 
+-        reg->br_buf.logical_address.segid_offset.u_hi   = 
+-                                reg->br_seg->bs_impl.segment_id;
++                return;
++        }
++
++        /* extern char *rds_malloc(unsigned long size,
++         *                         rvm_tid_t *tid,
++         *                         int *err);
++         */
++        reg->br_buf.b_addr = (void *)rds_malloc(reg->br_buf.b_nob,
++                                                tid, &err);
+ 
+-        reg->br_buf.logical_address.segid_offset.u_lo   = 
+-                                (reg->br_seg->bs_addr - reg->br_buf.b_addr);
++        toffset = &(reg->br_buf.logical_address.segid_offset);
+ 
++        toffset->u_hi = reg->br_seg->bs_impl.segment_id;
++        toffset->u_lo = (reg->br_seg->bs_addr - reg->br_buf.b_addr);
+ 
+-       if(reg->br_buf.logical_address.segid_offset.u_lo < 0)
+-                reg->br_buf.logical_address.segid_offset.u_lo = 
+-                        -(reg->br_buf.logical_address.segid_offset.u_lo);
++
++       if (toffset->u_lo < 0)
++                toffset->u_lo = -(toffset->u_lo);
+ 
+         /* As heap always starts after segment header of size PAGE_SIZE */
+-        reg->br_buf.logical_address.segid_offset.u_lo += PAGE_SIZE;
++        toffset->u_lo += PAGE_SIZE;
+ 
+-        return;
+ }
+ 
+ /**
+@@ -81,25 +121,29 @@ void m0_be_alloc(struct m0_be_reg *reg)
+ void m0_be_free(struct m0_be_reg *reg)
+ {
+         int err;
+-        int result;
+ 
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != reg);
++        M0_ASSERT(reg != NULL);
+ 
+-        /* 
++        /*
+          * Allocate memory from RDS Heap.
+          * Update br_buf to store virtual address.
+          */
+ 
+-        /* extern char *rds_malloc(unsigned long size, rvm_tid_t *tid, int *err); */
+-        result = rds_free((char *)reg->br_buf.b_addr, NULL, &err);
++        rds_free((char *)reg->br_buf.b_addr, NULL, &err);
+ 
++        if (err != SUCCESS) {
++                /* todo@ need to call function m0_sm_state_set() for same not
++                 * set directly
++                 */
++                reg->br_sm.sm_state = M0_BEREG_FAILED;
++                return;
++        }
+ 
+         reg->br_buf.b_addr                              = NULL;
+         reg->br_buf.logical_address.segid_offset.u_hi   = 0;
+         reg->br_buf.logical_address.segid_offset.u_lo   = 0;
+ 
+-        return;
+ }
+ 
+ /**
+@@ -111,7 +155,7 @@ void m0_be_free(struct m0_be_reg *reg)
+  * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+  * @pre reg->br_buf.b_addr != NULL
+  */
+-void m0_be_prefetch(const struct m0_be_reg *reg) 
++void m0_be_prefetch(const struct m0_be_reg *reg)
+ {
+ 
+         return;
+@@ -126,12 +170,60 @@ void m0_be_prefetch(const struct m0_be_reg *reg)
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_put(const struct m0_be_reg *reg) 
++void m0_be_put(const struct m0_be_reg *reg)
+ {
+ 
+         return;
+ }
+ 
++/**
++ * Captures a region in a transaction.
++ *
++ * @pre tx->bt_sm.sm_state == M0_BETX_OPEN
++ * @pre reg->br_sm.sm_state == M0_BEREG_INIT
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ *                                   M0_BEREG_FAILED))
++ */
++void m0_be_reg_capture(struct m0_be_reg *reg)
++{
++        rvm_return_t ret;
++
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++        M0_ASSERT(reg->br_tx != NULL);
++
++        ret = rvm_set_range(reg->br_tx->bt_impl.tx_id,
++                            reg->br_buf.b_addr,
++                            reg->br_buf.b_nob);
++
++        if (RVM_SUCCESS != ret) {
++                /* Is it right to set reg->br_sm.sm_state to M0_BEREG_FAILED? */
++                /* todo@ need to call function m0_sm_state_set() for same not
++                 * set directly
++                 */
++                reg->br_sm.sm_state = M0_BEREG_FAILED;
++                return;
++        }
++
++        /* todo@ need to call function m0_sm_state_set() for same not
++         * set directly
++         */
++        reg->br_sm.sm_state = M0_BEREG_INPROGRESS;
++}
++
++/**
++ * @pre reg->br_sm.sm_state != M0_BEREG_INPROGRESS
++ */
++void m0_be_reg_fini(struct m0_be_reg *reg)
++{
++
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++
++        /* todo@ M0_PRE(reg->br_sm.sm_state == M0_BEREG_INPROGRESS); */
++        /* todo@ Finalizing on state machine */
++}
++
+ /** @} end group be */
+ 
+ /*
+diff --git a/be/be.h b/be/be.h
+index a2af58d..26e1bed 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -180,7 +180,8 @@ struct m0_be_credit;
+ struct m0_be_reg;
+ 
+ /* import */
+-#include "lib/tlist.h"
++#include "be/lib/be_tlist.h"
++#include "be/lib/be_buf.h"
+ #include "sm/sm.h"
+ #include "lib/thread.h"
+ #include "addb/addb.h"
+@@ -196,10 +197,10 @@ struct m0_be_reg;
+ #include "be/be_impl.h"
+ 
+ #include "be/be_seg.h"
++#include "be/be_tx.h"
+ #include "be/be_rvm.h"
+-#include "be/lib/be_buf.h"
+ 
+-struct m0_buf;
++struct m0_be_buf;
+ 
+ /**
+  * Initialises the in-memory part of domain structure. This function does not
+@@ -208,14 +209,16 @@ struct m0_buf;
+  * @post dom->bd_data.bs_sm.sm_state == M0_BESEG_CLOSED
+  */
+ //void m0_be_domain_init  (struct m0_be_domain *dom, struct m0_stob *stob);
+-void m0_be_domain_init(struct m0_be_domain *dom, struct m0_stob *stob, struct m0_stob *log_stob);
++void m0_be_domain_init(struct m0_be_domain *dom,
++                       struct m0_stob *stob,
++                       struct m0_stob *log_stob);
+ 
+ /**
+  * Finalises the in-memory part of domain structure.
+  *
+  * @pre M0_IN(dom->bd_data.bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))
+  */
+-void m0_be_domain_fini  (struct m0_be_domain *dom);
++void m0_be_domain_fini(struct m0_be_domain *dom);
+ 
+ /**
+  * Initialises creation of a domain.
+@@ -242,8 +245,9 @@ void m0_be_domain_create(struct m0_be_domain **dom);
+ /* void m0_be_domain_lookup(struct m0_be_domain *dom, const char *name,
+                          struct m0_be_seg *out); */
+ 
+-void m0_be_domain_lookup(struct m0_be_domain *dom, const uint64_t segment_id,
+-                struct m0_be_seg **out);
++void m0_be_domain_lookup(struct m0_be_domain *dom,
++                         const uint64_t segment_id,
++                         struct m0_be_seg **out);
+ 
+ 
+ /**
+@@ -251,8 +255,8 @@ void m0_be_domain_lookup(struct m0_be_domain *dom, const uint64_t segment_id,
+  *
+  * @post seg->bs_sm.sm_state == M0_BESEG_CLOSED
+  */
+-void m0_be_seg_init  (struct m0_be_seg *seg, struct m0_be_domain *dom,
+-                      struct m0_sm_group *sm_group, uint64_t flags);
++void m0_be_seg_init(struct m0_be_seg *seg, struct m0_be_domain *dom,
++                    struct m0_sm_group *sm_group, uint64_t flags);
+ 
+ /**
+  * Initialises segment opening.
+@@ -262,12 +266,12 @@ void m0_be_seg_init  (struct m0_be_seg *seg, struct m0_be_domain *dom,
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_OPENING,
+  *                                   M0_BESEG_ACTIVE, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_open  (struct m0_be_seg *seg);
++void m0_be_seg_open(struct m0_be_seg *seg);
+ 
+ /**
+  * @pre M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_fini  (struct m0_be_seg *seg);
++void m0_be_seg_fini(struct m0_be_seg *seg);
+ 
+ /**
+  * Starts creation of a new segment in the domain.
+@@ -319,7 +323,7 @@ void m0_be_seg_fail(struct m0_be_seg *seg);
+  * @post reg->br_sm.sm_state == M0_BEREG_INIT
+  */
+ void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+-                    struct m0_be_seg *seg, struct m0_buf *buf);
++                    struct m0_be_seg *seg, struct m0_be_buf *buf);
+ 
+ /**
+  * @pre reg->br_sm.sm_state != M0_BEREG_INPROGRESS
+@@ -334,7 +338,8 @@ void m0_be_reg_fini(struct m0_be_reg *reg);
+  * @post tx->bt_dom == dom
+  */
+ void m0_be_tx_init(struct m0_be_tx *tx,
+-                      struct m0_be_domain *dom, uint64_t flags);
++                   struct m0_be_domain *dom,
++                   uint64_t flags);
+ 
+ /**
+  * Indicates that a transaction will use certain amount of resources.
+@@ -376,7 +381,7 @@ void m0_be_tx_fini(struct m0_be_tx *tx);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_tx_capture(struct m0_be_tx *tx, struct m0_be_reg *reg);
++void m0_be_reg_capture(struct m0_be_reg *reg);
+ 
+ 
+ /**
+@@ -398,7 +403,7 @@ void m0_be_alloc(struct m0_be_reg *reg);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_free    (struct m0_be_reg *reg);
++void m0_be_free(struct m0_be_reg *reg);
+ 
+ /**
+  * Pre-fetches a region.
+@@ -419,7 +424,7 @@ void m0_be_prefetch(const struct m0_be_reg *reg);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_get     (const struct m0_be_reg *reg);
++void m0_be_get(const struct m0_be_reg *reg);
+ 
+ /**
+  * Un-pins the region, pinned by m0_be_get().
+@@ -429,17 +434,17 @@ void m0_be_get     (const struct m0_be_reg *reg);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_put     (const struct m0_be_reg *reg);
++void m0_be_put(const struct m0_be_reg *reg);
+ 
+ /**
+  * A page in a segment.
+  */
+ struct m0_be_page {
+         /* Virtual address of be_page */
+-        void *bp_addr;
++        void            *bp_addr;
+ 
+-        uint64_t offset;
+-        uint64_t length;
++        uint64_t         offset;
++        uint64_t         length;
+ };
+ 
+ /**
+@@ -465,13 +470,13 @@ struct m0_be_seg {
+ 
+         /** Starting address in primary store. This field is valid in
+             M0_BESEG_ACTIVE state. */
+-        void    *bs_addr;
+-        
++        void                 *bs_addr;
++
+         /* be_page which stores mapped page info */
+         /* @todo - this stores single page, we need to maintain list
+-         * of mapped pages. 
++         * of mapped pages.
+          */
+-        struct m0_be_page bs_page;
++        struct m0_be_page     bs_page;
+ 
+         /** Addb context for this segment. */
+         struct m0_addb_ctx    bs_addb;
+@@ -499,17 +504,17 @@ struct m0_be_domain {
+  */
+ struct m0_be_tx {
+         /** State machine. @see enum m0_be_tx_state. */
+-        struct m0_sm         bt_sm;
++        struct m0_sm             bt_sm;
+         /** Domain of this transaction. */
+-        struct m0_be_domain  *bt_dom;
++        struct m0_be_domain     *bt_dom;
+         /** Linkage in the list of active transactions, m0_be_dom::bd_tx. */
+-        struct m0_tlink      bt_linkage;
++        struct m0_tlink          bt_linkage;
+ 
+         /* tlink magic field */
+-        uint64_t              bt_magic;
++        uint64_t                 bt_magic;
+ 
+         /** Implementation private fields. */
+-        struct m0_be_tx_impl bt_impl;
++        struct m0_be_tx_impl     bt_impl;
+ };
+ 
+ /**
+@@ -517,6 +522,9 @@ struct m0_be_tx {
+  */
+ struct m0_be_credit {
+         /** @todo add more stuff here. */
++
++        /** List of region in Transaction */
++        struct m0_tl    bc_tl;
+ };
+ 
+ /**
+@@ -530,6 +538,12 @@ struct m0_be_reg {
+         struct m0_be_seg *br_seg;
+         /** Extent in the segment. */
+         struct m0_be_buf  br_buf;
++
++        /** Linkage in the list of credit list, m0_be_credit::bc_tl */
++        struct m0_tlink   bc_linkage;
++
++        /* tlink magic field */
++        uint64_t          bc_magic;
+ };
+ 
+ enum m0_be_seg_state {
+@@ -573,17 +587,20 @@ struct m0_be_named_seg_hdr {
+ };
+ 
+ /* m0_tlist definition for segment list - m0_be_seg_tlist */
+-//M0_BE_TL_DESCR_DEFINE(m0_be_seg, "m0_be_seg", static, struct m0_be_seg, bs_linkage,
+ M0_TL_DESCR_DEFINE(m0_be_seg, "m0_be_seg", static, struct m0_be_seg, bs_linkage,
+-                bs_magic, 0xc2be5e9c2be5e9c2, 0x2c9e5eb2c9e5eb2c);
+-//M0_BE_TL_DEFINE(m0_be_seg, static, struct m0_be_seg);
++                   bs_magic, 0xc2be5e9c2be5e9c2, 0x2c9e5eb2c9e5eb2c);
+ M0_TL_DEFINE(m0_be_seg, static, struct m0_be_seg);
+ 
+ /* m0_tlist definition for active transaction list - m0_be_tx_tlist */
+ M0_TL_DESCR_DEFINE(m0_be_tx, "m0_be_tx", static, struct m0_be_tx, bt_linkage,
+-                bt_magic, 0xc2be7478c2be7478, 0x8747eb2c8747eb2c);
++                   bt_magic, 0xc2be7478c2be7478, 0x8747eb2c8747eb2c);
+ M0_TL_DEFINE(m0_be_tx, static, struct m0_be_tx);
+ 
++/* m0_tlist definition for credit list - m0_be_crd_tlist */
++M0_TL_DESCR_DEFINE(m0_be_reg, "m0_be_crd", static, struct m0_be_reg, bc_linkage,
++                   bc_magic, 0xc2be3248c1be3248, 0x8423eb1c8423eb2c);
++M0_TL_DEFINE(m0_be_reg, static, struct m0_be_reg);
++
+ /** @} end of be group */
+ 
+ /* __MERO_BE_BE_H__ */
+diff --git a/be/be_domain.c b/be/be_domain.c
+index 597162c..ddca66d 100644
+--- a/be/be_domain.c
++++ b/be/be_domain.c
+@@ -25,7 +25,7 @@
+   <b>Implementation of back-end domain on top of back-end segments </b>
+ 
+   A domain is a collection of named segments. A domain has a special segment
+-  called named segment which is used as a directory of other segments. A user 
++  called named segment which is used as a directory of other segments. A user
+   can add or remove segments to or from the domain and the back-end updates the
+   domain data accordingly.
+ 
+@@ -46,11 +46,10 @@ void m0_be_domain_create(struct m0_be_domain **out)
+         *out = NULL;
+ 
+         M0_ALLOC_PTR(dom);
+-        if(dom) {
++        if (dom != NULL) {
+                 *out = dom;
+         }
+ 
+-        return;
+ }
+ 
+ 
+@@ -60,21 +59,23 @@ void m0_be_domain_create(struct m0_be_domain **out)
+  *
+  * @post dom->bd_data.bs_sm.sm_state == M0_BESEG_CLOSED
+  */
+-void m0_be_domain_init(struct m0_be_domain *dom, struct m0_stob *stob, struct m0_stob *log_stob)
++void m0_be_domain_init(struct m0_be_domain *dom,
++                       struct m0_stob *stob,
++                       struct m0_stob *log_stob)
+ {
+ 
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != dom);
+-        M0_ASSERT(NULL != stob);
+-        M0_ASSERT(NULL != log_stob);
++        M0_ASSERT(dom != NULL);
++        M0_ASSERT(stob != NULL);
++        M0_ASSERT(log_stob != NULL);
+ 
+         /* Initialise domain structure with required values */
+         dom->bd_data.bs_stob    = stob;
+         dom->bd_impl.log_stob   = log_stob;
+ 
+-        /** 
++        /**
+          * @todo - Need to decide if m0_be_seg_init should be called
+-         * instead of M0_BESEG_CLOSED state assignment 
++         * instead of M0_BESEG_CLOSED state assignment
+          **/
+         dom->bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
+ 
+@@ -86,18 +87,20 @@ void m0_be_domain_init(struct m0_be_domain *dom, struct m0_stob *stob, struct m0
+ 
+         /* Initialize segment state machine */
+         M0_ALLOC_PTR(dom->bd_impl.th);
++
++        M0_ASSERT(dom->bd_impl.th != NULL);
++
+         m0_bs_sm_init(dom);
+ 
+-        /** 
+-         * initialize rvm 
++        /**
++         * initialize rvm
+          * @todo - this initialization is per backend domain for now
+-         * need to do it only once while initializing Mero instance.
++         * need to do it only once while initializing mero instance.
+          */
+         m0_be_rvm_init();
+ 
+         M0_POST(dom->bd_data.bs_sm.sm_state == M0_BESEG_CLOSED);
+ 
+-        return;
+ }
+ 
+ /**
+@@ -109,10 +112,13 @@ void m0_be_domain_init(struct m0_be_domain *dom, struct m0_stob *stob, struct m0
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_OPENING, M0_BESEG_ACTIVE,
+  *                                   M0_BESEG_FAILED))
+  */
+-void m0_be_domain_lookup(struct m0_be_domain *dom, const uint64_t segment_id,
+-                struct m0_be_seg **out)
++void m0_be_domain_lookup(struct m0_be_domain *dom,
++                         const uint64_t segment_id,
++                         struct m0_be_seg **out)
+ {
+         struct m0_be_seg *seg_it;
++        struct m0_stob *stob;
++
+ 
+         /* Asserting on required conditions */
+         M0_ASSERT(dom != NULL);
+@@ -124,60 +130,64 @@ void m0_be_domain_lookup(struct m0_be_domain *dom, const uint64_t segment_id,
+          * for which segment - Named or the segment which is looked up just now
+          */
+ 
+-        /** 
+-         * Iterate through segment tlist and check for requested segment_id 
++        /**
++         * Iterate through segment tlist and check for requested segment_id
+          * This assumes all the list is in memory.
+          */
+         m0_tlist_for(&m0_be_seg_tl, &(dom->bd_seg), seg_it) {
+-                if(segment_id == seg_it->bs_impl.segment_id) {
++                if (segment_id == seg_it->bs_impl.segment_id) {
+                         *out = seg_it;
+                         break;
+                 }
+         } m0_tlist_endfor;
+ 
+         /* This fills/adds segment into in-memory segment list on demand */
+-        if( NULL == *out) {
+-                /* @todo - Check into named segment list whether segment is created or not */
++        if (*out == NULL) {
++                /* @todo - Check into named segment list whether segment is
++                 * created or not
++                 */
+                 *out = NULL;
+                 /* Add segment into domain segment list */
+                 m0_be_seg_tlist_add(&(dom->bd_seg), *out);
+         }
+ 
+-        if( (*out) &&
+-            (M0_BESEG_CLOSED == (*out)->bs_sm.sm_state) ) {
++        if ( (*out != NULL)                              &&
++             (M0_BESEG_CLOSED == (*out)->bs_sm.sm_state) ) {
+                 m0_be_seg_open(*out);
+         }
+ 
+-        if(NULL == *out) {
++        if (*out == NULL) {
+                 /* If segment not created already then allocate, init, create */
+-                struct m0_stob *stob;
+-
+                 /* Allocate memory for the objects */
+-                /* @todo - This allocation could be blocking, may need to move 
+-                 * to state machine 
++                /* @todo - This allocation could be blocking, may need to move
++                 * to state machine
+                  */
++
++                /* todo@ error handling for object allocation */
+                 M0_ALLOC_PTR(*out);
+                 M0_ALLOC_PTR(stob);
+ 
+-                m0_be_seg_init(*out, dom, &(dom->bd_impl.sm_group), 0); /* Last 2 arguments - sm_grp and flags */
++                /* Last 2 arguments - sm_grp and flags */
++                m0_be_seg_init(*out, dom, &(dom->bd_impl.sm_group), 0);
+ 
+                 m0_be_seg_create(*out, NULL, stob);
+-                /* Last 3 arguments - transaction_ptr, auto_increment_segment_id, stob */ 
++                /* Last 3 arguments - transaction_ptr,
++                 *                    auto_increment_segment_id, stob
++                 */
+         }
+ 
+ 
+-        /* M0_POST(M0_IN((*out)->bs_sm.sm_state, (M0_BESEG_OPENING, M0_BESEG_ACTIVE,
+-                                        M0_BESEG_FAILED))); */
++        /* M0_POST(M0_IN((*out)->bs_sm.sm_state, (M0_BESEG_OPENING,
++ *                                                M0_BESEG_ACTIVE,
++                                                  M0_BESEG_FAILED) )); */
+         M0_POST( ((*out)->bs_sm.sm_state == M0_BESEG_OPENING) ||
+                  ((*out)->bs_sm.sm_state == M0_BESEG_ACTIVE)  ||
+                  ((*out)->bs_sm.sm_state == M0_BESEG_FAILED)  );
+-
+-        return;
+ }
+ 
+ /**
+  * Finalises the in-memory part of domain structure.
+- * 
++ *
+  * @pre M0_IN(dom->bd_data.bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))
+  */
+ void m0_be_domain_fini(struct m0_be_domain *dom)
+@@ -186,7 +196,6 @@ void m0_be_domain_fini(struct m0_be_domain *dom)
+         struct m0_be_tx          *tx_it;
+ 
+         /* Back-end Named segment should be in closed or init failed state */
+-        //M0_PRE(M0_IN(dom->bd_data.bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED)));
+         M0_PRE( (dom->bd_data.bs_sm.sm_state == M0_BESEG_CLOSED) ||
+                 (dom->bd_data.bs_sm.sm_state == M0_BESEG_FAILED) );
+ 
+@@ -202,9 +211,9 @@ void m0_be_domain_fini(struct m0_be_domain *dom)
+                 m0_be_seg_tlink_del_fini(seg_it);
+                 m0_be_seg_fini(seg_it);
+ 
+-                /** 
+-                 * Deallocated segment and stob as it is allocated in 
+-                 * m0_be_domain_lookup 
++                /**
++                 * Deallocated segment and stob as it is allocated in
++                 * m0_be_domain_lookup
+                  */
+                 m0_free(seg_it->bs_stob);
+                 m0_free(seg_it);
+@@ -224,8 +233,6 @@ void m0_be_domain_fini(struct m0_be_domain *dom)
+ 
+         /* Free allocated memory */
+         m0_free(dom);
+-
+-        return;
+ }
+ 
+ /** @} end group be_domain */
+diff --git a/be/be_impl.h b/be/be_impl.h
+index 3809afa..4d54561 100644
+--- a/be/be_impl.h
++++ b/be/be_impl.h
+@@ -37,9 +37,9 @@ struct m0_stob;
+  */
+ struct m0_be_domain_impl {
+         /** Stob which is used as log device for entire back-end domain. */
+-        struct m0_stob  *log_stob;
+-        struct m0_sm_group sm_group;
+-        struct m0_thread *th;
++        struct m0_stob         *log_stob;
++        struct m0_sm_group      sm_group;
++        struct m0_thread       *th;
+ };
+ 
+ /**
+@@ -47,19 +47,22 @@ struct m0_be_domain_impl {
+  */
+ struct m0_be_seg_impl {
+         /** Segment Id which is used to indentify segment uniquely. */
+-        uint64_t segment_id;
++        uint64_t                 segment_id;
+ 
+         /* Segment stob file path or device path  */
+-        char    path_name[MAXPATHLEN];
++        char                     path_name[MAXPATHLEN];
+ 
+-        struct m0_sm_group *sm_group;
++        struct m0_sm_group      *sm_group;
+ };
+ 
+ /**
+  * Backend transaction private implementation.
+  */
+ struct m0_be_tx_impl {
+-        rvm_tid_t *tx_id;
++        rvm_tid_t               *tx_id;
++
++        /* Credit list associated with this transaction */
++        struct m0_be_credit     *tx_bc;
+ };
+ 
+ /** @} end of be group */
+diff --git a/be/be_rvm.c b/be/be_rvm.c
+index bd9fb33..adff75d 100644
+--- a/be/be_rvm.c
++++ b/be/be_rvm.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -26,7 +26,7 @@
+ 
+ 
+ /**
+- * This function initialize rvm
++ * Initialize RVM
+  * @todo - most of the rvm options are hardcoded for now
+  */
+ void m0_be_rvm_init()
+@@ -36,6 +36,8 @@ void m0_be_rvm_init()
+ 
+         options = rvm_malloc_options();
+ 
++        M0_ASSERT(options != NULL);
++
+         options->flags |= RVM_ALL_OPTIMIZATIONS;
+         options->log_dev = LOG_FILE;
+         options->create_log_file = rvm_true;
+@@ -44,9 +46,10 @@ void m0_be_rvm_init()
+ 
+         retval = rvm_initialize(RVM_VERSION,options);
+ 
++        M0_ASSERT(retval == RVM_SUCCESS);
++
+         rvm_free_options(options);
+-        
+-        return;
++
+ };
+ 
+ /** @} end group be_rvm */
+diff --git a/be/be_rvm.h b/be/be_rvm.h
+index 60abca6..d63dc93 100644
+--- a/be/be_rvm.h
++++ b/be/be_rvm.h
+@@ -23,7 +23,7 @@
+ #define __MERO_BE_BE_RVM_H__
+ 
+ /**
+-  @defgroup be_rvm interface 
++  @defgroup be_rvm interface
+   @{
+   */
+ #define LOG_FILE  "/tmp/log_file"
+diff --git a/be/be_seg.c b/be/be_seg.c
+index adde168..cc1dc04 100644
+--- a/be/be_seg.c
++++ b/be/be_seg.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -26,18 +26,18 @@
+ 
+   A segment is a contiguous extent in primary store backed by persistent store.
+   Level 0 uses Mero storage objects (m0_stob) to access persistent store.
+-  At the level 0, the segment is just an array of bytes, uninterpreted by 
+-  back-end. Level 0 allows user to load a segment in primary store partially 
+-  or completely. User can query and modify the segment data. 
++  At the level 0, the segment is just an array of bytes, uninterpreted by
++  back-end. Level 0 allows user to load a segment in primary store partially
++  or completely. User can query and modify the segment data.
+   Updates to the segment are written back to the persistent store.
+-  
++
+   @{
+   */
+ 
+-/** 
++/**
+  * Static var used as to generate segment_id for newly created segments.
+  * New segment_id is generated auto_increment this veriable.
+- */ 
++ */
+ static int max_seg_id = 0;
+ 
+ /* State machine states for backend segment */
+@@ -157,8 +157,9 @@ static const struct m0_sm_conf seg_conf = {
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CREATING,
+  *                                   M0_BESEG_CREATED, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx, 
+-                struct m0_stob *stob)
++void m0_be_seg_create(struct m0_be_seg *seg,
++                      struct m0_be_tx *tx,
++                      struct m0_stob *stob)
+ {
+         M0_PRE(seg->bs_sm.sm_state == M0_BESEG_CLOSED);
+ 
+@@ -183,7 +184,6 @@ void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+         M0_POST( (seg->bs_sm.sm_state == M0_BESEG_CREATING) ||
+                  (seg->bs_sm.sm_state == M0_BESEG_CREATED)  ||
+                  (seg->bs_sm.sm_state == M0_BESEG_FAILED)   );
+-        return;
+ }
+ 
+ /**
+@@ -192,23 +192,25 @@ void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+  * @post seg->bs_sm.sm_state == M0_BESEG_CLOSED
+  * @todo - Need to understand use of  arguments - m0_sm_group and flags
+  */
+-void m0_be_seg_init(struct m0_be_seg *seg, struct m0_be_domain *dom,
+-                                      struct m0_sm_group *sm_group, uint64_t flags)
++void m0_be_seg_init(struct m0_be_seg *seg,
++                    struct m0_be_domain *dom,
++                    struct m0_sm_group *sm_group,
++                    uint64_t flags)
+ {
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != seg);
+-        M0_ASSERT(NULL != dom);
++        M0_ASSERT(seg != NULL);
++        M0_ASSERT(dom != NULL);
+ 
+         /* Initialise domain structure with required values */
+         seg->bs_dom = dom;
+         seg->bs_impl.sm_group = sm_group;
+ 
+         /**
+-         * Need to make it null because it is referenced into rvm callback to 
+-         * decide operation status 
++         * Need to make it null because it is referenced into rvm callback to
++         * decide operation status
+          */
+         seg->bs_page.bp_addr = NULL;
+-        
++
+         /* Locking sm_group is required before initializing sm */
+         m0_sm_group_lock(seg->bs_impl.sm_group);
+ 
+@@ -220,7 +222,6 @@ void m0_be_seg_init(struct m0_be_seg *seg, struct m0_be_domain *dom,
+         m0_sm_group_unlock(seg->bs_impl.sm_group);
+ 
+         M0_POST(seg->bs_sm.sm_state == M0_BESEG_CLOSED);
+-        return;
+ }
+ 
+ /**
+@@ -234,7 +235,7 @@ void m0_be_seg_init(struct m0_be_seg *seg, struct m0_be_domain *dom,
+ void m0_be_seg_open(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != seg);
++        M0_ASSERT(seg != NULL);
+ 
+         M0_PRE( (seg->bs_sm.sm_state == M0_BESEG_CREATED) ||
+                 (seg->bs_sm.sm_state == M0_BESEG_CLOSED)  );
+@@ -259,7 +260,7 @@ void m0_be_seg_open(struct m0_be_seg *seg)
+ 
+         /* M0_POST(M0_IN(seg->bs_sm.sm_state, (M0_BESEG_OPENING,
+                                     M0_BESEG_ACTIVE, M0_BESEG_FAILED))); */
+-        
++
+         M0_POST( (seg->bs_sm.sm_state == M0_BESEG_OPENING) ||
+                  (seg->bs_sm.sm_state == M0_BESEG_ACTIVE)  ||
+                  (seg->bs_sm.sm_state == M0_BESEG_FAILED)  );
+@@ -277,7 +278,7 @@ void m0_be_seg_open(struct m0_be_seg *seg)
+ void m0_be_seg_done(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != seg);
++        M0_ASSERT(seg != NULL);
+ 
+         M0_PRE(seg->bs_sm.sm_state == M0_BESEG_ACTIVE);
+ 
+@@ -291,14 +292,13 @@ void m0_be_seg_done(struct m0_be_seg *seg)
+ 
+         /* @todo - Start unmapping the segment */
+ 
+-        /* M0_POST(M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+-                                        M0_BESEG_CLOSING, M0_BESEG_FAILED))); */
++        /* M0_POST(M0_IN(seg->bs_sm.sm_state,
++         * (M0_BESEG_CLOSED, M0_BESEG_CLOSING, M0_BESEG_FAILED))); */
+ 
+         M0_POST( (seg->bs_sm.sm_state == M0_BESEG_CLOSING) ||
+                  (seg->bs_sm.sm_state == M0_BESEG_CLOSED)  ||
+                  (seg->bs_sm.sm_state == M0_BESEG_FAILED)  );
+ 
+-        return;
+ }
+ 
+ /**
+@@ -307,9 +307,10 @@ void m0_be_seg_done(struct m0_be_seg *seg)
+ void m0_be_seg_fini(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != seg);
++        M0_ASSERT(seg != NULL);
+ 
+-        /* M0_PRE(M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))); */
++        /* M0_PRE(M0_IN(seg->bs_sm.sm_state,
++         * (M0_BESEG_CLOSED, M0_BESEG_FAILED))); */
+         M0_PRE( (seg->bs_sm.sm_state == M0_BESEG_CLOSED) ||
+                 (seg->bs_sm.sm_state == M0_BESEG_FAILED) );
+ 
+@@ -319,7 +320,6 @@ void m0_be_seg_fini(struct m0_be_seg *seg)
+         /* Finalizing respective stob */
+         m0_stob_fini(seg->bs_stob);
+ 
+-        return;
+ }
+ 
+ /**
+@@ -332,11 +332,11 @@ void m0_be_seg_fini(struct m0_be_seg *seg)
+ void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ {
+         uint64_t segment_id;
+-        struct m0_be_domain *dom; 
++        struct m0_be_domain *dom;
+ 
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != seg);
+-        M0_ASSERT(NULL != tx);
++        M0_ASSERT(seg != NULL);
++        M0_ASSERT(tx != NULL);
+ 
+         M0_PRE(seg->bs_sm.sm_state == M0_BESEG_CLOSED);
+ 
+@@ -349,11 +349,12 @@ void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+         m0_sm_group_unlock(seg->bs_impl.sm_group);
+ 
+         /* Removing entry from in memory in segment list if present */
+-        if(m0_be_seg_tlink_is_in(seg))
++        /* todo@ Need some kind of log here if condition is false */
++        if (m0_be_seg_tlink_is_in(seg))
+                 m0_be_seg_tlink_del_fini(seg);
+ 
+         /**
+-         * The following veriables are needed to remove entry from named 
++         * The following veriables are needed to remove entry from named
+          * segment
+          */
+         segment_id = seg->bs_impl.segment_id;
+@@ -365,14 +366,13 @@ void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ 
+         /* @todo - remove entry from named segment transactionally */
+ 
+-        /* M0_POST(M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+-                                        M0_BESEG_DELETING, M0_BESEG_FAILED))); */
++        /* M0_POST(M0_IN(seg->bs_sm.sm_state,
++        * (M0_BESEG_CLOSED, M0_BESEG_DELETING, M0_BESEG_FAILED))); */
+ 
+         M0_POST( (seg->bs_sm.sm_state == M0_BESEG_CLOSED)   ||
+                  (seg->bs_sm.sm_state == M0_BESEG_DELETING) ||
+                  (seg->bs_sm.sm_state == M0_BESEG_FAILED)   );
+ 
+-        return;
+ }
+ 
+ /**
+@@ -385,8 +385,8 @@ void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ {
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != seg);
+-        M0_ASSERT(NULL != tx);
++        M0_ASSERT(seg != NULL);
++        M0_ASSERT(tx != NULL);
+ 
+         /* @todo - not clear idea about what to do in this at the moment */
+ 
+@@ -397,7 +397,6 @@ void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+                  (seg->bs_sm.sm_state == M0_BESEG_CHECKING) ||
+                  (seg->bs_sm.sm_state == M0_BESEG_FAILED)   );
+ 
+-        return;
+ }
+ 
+ /**
+@@ -408,7 +407,7 @@ void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ void m0_be_seg_fail(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != seg);
++        M0_ASSERT(seg != NULL);
+ 
+         /* Locking sm group before setting sm_state */
+         m0_sm_group_lock(seg->bs_impl.sm_group);
+@@ -425,47 +424,51 @@ void m0_be_seg_fail(struct m0_be_seg *seg)
+ 
+ 
+ /**
+- * Helper functions for segments 
++ * Helper functions for segments
+  */
+ 
+ /**
+  * Initializes segment state machine data structures
+  */
+-void m0_bs_sm_init(struct m0_be_domain  *dom) 
++void m0_bs_sm_init(struct m0_be_domain  *dom)
+ {
+         int result;
+ 
+         m0_sm_group_init(&(dom->bd_impl.sm_group));
+ 
+-        result = M0_THREAD_INIT(dom->bd_impl.th, struct m0_sm_group *,
+-                      NULL, &m0_bs_handler_thread, &(dom->bd_impl.sm_group), "Be Seg sm handler thread");
++        result = M0_THREAD_INIT(dom->bd_impl.th,
++                                struct m0_sm_group *,
++                                NULL,
++                                &m0_bs_handler_thread,
++                                &(dom->bd_impl.sm_group),
++                                "Be Seg sm handler thread");
+ 
+-        return;
+ }
+ 
+ /**
+  * Thread handler which listen's on channel for incomming requests
+  */
+-void m0_bs_handler_thread(struct m0_sm_group *sm_group) 
++void m0_bs_handler_thread(struct m0_sm_group *sm_group)
+ {
+         while(1) {
+                 /**
+                  * 1) Wait on  the channel
+                  * 2) Wake on new request -
+                  *      a) Lock the sm group
+-                 *      b) Call as ast callback for the request 
++                 *      b) Call as ast callback for the request
+                  *      c) Unlock sm group when done with the callback
+                  * 3) Go to step 1
+                  *
+-                 * @note - So no need to lock sm_group in callback as it is locked
+-                 *         before calling the callback.
++                 * @note - So no need to lock sm_group in callback as it is
++                 *         locked before calling the callback.
+                  */
+                 m0_chan_wait(&(sm_group->s_clink));
+                 m0_sm_group_lock(sm_group);
+                 m0_sm_asts_run(sm_group);
+                 m0_sm_group_unlock(sm_group);
++
++                /* todo@ loop exit condition */
+         }
+-        return;
+ }
+ 
+ /**
+@@ -473,10 +476,9 @@ void m0_bs_handler_thread(struct m0_sm_group *sm_group)
+  *
+  */
+ 
+-void m0_seg_req_post(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast) 
++void m0_seg_req_post(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+ {
+         m0_sm_ast_post(sm_group, sm_ast);
+-        return;
+ }
+ 
+ /**
+@@ -485,12 +487,13 @@ void m0_seg_req_post(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+  *
+  */
+ 
+-void m0_be_seg_create_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
++void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
++                         struct m0_sm_ast *sm_ast)
+ {
+         struct m0_be_seg *seg;
+ 
+-        M0_ASSERT(NULL != sm_group);
+-        M0_ASSERT(NULL != sm_ast);
++        M0_ASSERT(sm_group != NULL);
++        M0_ASSERT(sm_ast != NULL);
+ 
+         seg = (struct m0_be_seg *)sm_ast->sa_datum;
+ 
+@@ -498,28 +501,40 @@ void m0_be_seg_create_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+ 
+         /**
+         struct m0_be_named_seg_hdr *named_seg_hdr;
+-        named_seg_hdr = (struct m0_be_named_seg_hdr *)seg->bs_dom->bd_data.bs_addr;
+-        M0_ASSERT(NULL != named_seg_hdr); 
++        named_seg_hdr = (struct m0_be_named_seg_hdr *)
++                        seg->bs_dom->bd_data.bs_addr;
++        M0_ASSERT(NULL != named_seg_hdr);
+         seg->bs_impl.segment_id = named_seg_hdr->max_segment_index + 1;
+         */
+ 
+         /** @todo - this is temporary fix for segment_id.
+-         * We need to generate this by reading named segment as done above 
++         * We need to generate this by reading named segment as done above
+          */
+         seg->bs_impl.segment_id = ++max_seg_id;
+ 
+         /* Create linux stob */
+         /* @todo - Please revisit this when have better understanding of linux stob */
+-        struct  m0_stob_domain   *stob_dom;
+-        bool    stob_directio = true;
+-        struct  m0_stob_id stob_id = {{0, seg->bs_impl.segment_id}};
+-        int result;
+-
++        struct  m0_stob_domain          *stob_dom;
++        bool                             stob_directio = true;
++        struct  m0_stob_id               stob_id = {{0, seg->bs_impl.segment_id}};
++        int                              result;
++        struct linux_stob               *lstob;
++        struct linux_domain             *ldom;
++        int                              nbytes = 0;
++        int                              err;
++        unsigned long                    dev_length        = SEGMENT_SIZE;
++        unsigned long                    heap_length       = HEAP_SIZE;
++        char                            *start_Addr        = (char *)0xbebd000;
++        long                             rds_static_len    = RVM_ROUND_LENGTH_DOWN_TO_PAGE_SIZE(4096);
++        long                             nlist             = 16;
++        long                             chunk_size        = 64;
+         /* initialize stob type */
+         m0_stob_type_init(&m0_linux_stob_type);
+ 
+         /* @todo - stob path is hardcoded for now */
+-        result = m0_stob_domain_locate(&m0_linux_stob_type, "./__be", &stob_dom);
++        result = m0_stob_domain_locate(&m0_linux_stob_type,
++                                       "./__be",
++                                       &stob_dom);
+         M0_ASSERT(result == 0);
+ 
+         result = m0_linux_stob_setup(stob_dom, stob_directio);
+@@ -530,53 +545,43 @@ void m0_be_seg_create_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+         M0_ASSERT(seg->bs_stob->so_state == CSS_UNKNOWN);
+         result = m0_stob_create(seg->bs_stob, NULL);
+ 
+-        if(result < 0)
++        if (result < 0)
+                 goto error;
+ 
+-        struct linux_stob *lstob;
+-        struct linux_domain *ldom;
+-        int nbytes = 0;
+         lstob = stob2linux(seg->bs_stob);
+ 
+-        M0_ASSERT(NULL != lstob);
++        M0_ASSERT(lstob != NULL);
+ 
+         /* Get fle-path for segment stob */
+-        /* @note - can not use linux_stob_path as it is declared as static linux.[hc] */
++        /* @note - can not use linux_stob_path as it is declared as static in
++         *  linux.[hc] */
+ 
+ 	ldom = domain2linux(seg->bs_stob->so_domain);
+-	nbytes = snprintf(seg->bs_impl.path_name, ARRAY_SIZE(seg->bs_impl.path_name), "%s/o/%016lx.%016lx", ldom->sdl_path,
+-		       seg->bs_stob->so_id.si_bits.u_hi, seg->bs_stob->so_id.si_bits.u_lo);
+-
+-#if 0
+-        /* @note : ldom  = domain2linux(lstob->sl_stob->ca_stob.so_domain); */
+-        ldom  = domain2linux(seg->bs_stob->so_domain);
+-        nbytes = snprintf(seg->bs_impl.path_name, ARRAY_SIZE(seg->bs_impl.path_name), "%s/o/%016lx.%016lx", ldom->sdl_path,
+-                       lstob->sl_stob.so_id.si_bits.u_hi,
+-                       lstob->sl_stob.so_id.si_bits.u_lo);
+-#endif
+-
+-        if(nbytes < 0)
++	nbytes = snprintf(seg->bs_impl.path_name,
++                          ARRAY_SIZE(seg->bs_impl.path_name),
++                          "%s/o/%016lx.%016lx",
++                          ldom->sdl_path,
++		          seg->bs_stob->so_id.si_bits.u_hi,
++                          seg->bs_stob->so_id.si_bits.u_lo);
++
++        if (nbytes < 0)
+                 goto error;
+ 
+         /* @todo - need to handle rvm errors in callback */
+         /* create heap structure */
+-        /* result = rds_zap_heap(DevName, DevLength, startAddr, staticLength, heapLength, nlists, chunkSize, err); */
+-
+-        int err;
+-        unsigned long dev_length        = SEGMENT_SIZE;
+-        unsigned long heap_length       = HEAP_SIZE; 
+-        char *start_Addr        = (char *)0xbebd000;
+-        long rds_static_len     = RVM_ROUND_LENGTH_DOWN_TO_PAGE_SIZE(4096);
+-        long nlist      = 16;
+-        long chunk_size = 64;
+-
+-        result = rds_zap_heap(seg->bs_impl.path_name, 
+-                                RVM_LENGTH_TO_OFFSET(dev_length), 
+-                                start_Addr, 
+-                                rds_static_len, 
+-                                heap_length , nlist, chunk_size, &err);
+-
+-        if(result < 0)
++        /* result = rds_zap_heap(DevName, DevLength, startAddr, staticLength,
++         *                       heapLength, nlists, chunkSize, err); */
++
++        result = rds_zap_heap(seg->bs_impl.path_name,
++                              RVM_LENGTH_TO_OFFSET(dev_length),
++                              start_Addr,
++                              rds_static_len,
++                              heap_length,
++                              nlist,
++                              chunk_size,
++                              &err);
++
++        if (result < 0)
+                 goto error;
+ 
+         /* @todo - begin transaction */
+@@ -599,30 +604,34 @@ error:
+ 
+ void m0_be_seg_open_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+ {
+-        int nbytes;
+-        int result;
++        int                      nbytes;
++        int                      result;
+ 
+         struct linux_stob       *lstob;
+         struct linux_domain     *ldom;
+         struct m0_be_seg        *seg;
+ 
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != sm_group);
+-        M0_ASSERT(NULL != sm_ast);
++        M0_ASSERT(sm_group != NULL);
++        M0_ASSERT(sm_ast != NULL);
+ 
+         seg = (struct m0_be_seg *)sm_ast->sa_datum;
+ 
+         lstob = stob2linux(seg->bs_stob);
+ 
+-        M0_ASSERT(NULL != lstob);
+-        
++        M0_ASSERT(lstob != NULL);
++
+         /* Get fle-path for segment stob */
+         /* @note - can not use linux_stob_path as its declared as static */
+ 	ldom = domain2linux(seg->bs_stob->so_domain);
+-	nbytes = snprintf(seg->bs_impl.path_name, ARRAY_SIZE(seg->bs_impl.path_name), "%s/o/%016lx.%016lx", ldom->sdl_path,
+-		       seg->bs_stob->so_id.si_bits.u_hi, seg->bs_stob->so_id.si_bits.u_lo);
+-
+-        if(nbytes < 0)
++	nbytes = snprintf(seg->bs_impl.path_name,
++                          ARRAY_SIZE(seg->bs_impl.path_name),
++                          "%s/o/%016lx.%016lx",
++                          ldom->sdl_path,
++                          seg->bs_stob->so_id.si_bits.u_hi,
++                          seg->bs_stob->so_id.si_bits.u_lo);
++
++        if (nbytes < 0)
+                 goto error;
+ 
+         /* @todo - need to handle rvm errors in callback */
+@@ -635,9 +644,12 @@ void m0_be_seg_open_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+ 
+         printf("\ndata_file_path : %s\n", seg->bs_impl.path_name);
+ 
+-        result = rds_load_heap(seg->bs_impl.path_name, RVM_LENGTH_TO_OFFSET(dev_length), &static_addr, &err); 
++        result = rds_load_heap(seg->bs_impl.path_name,
++                               RVM_LENGTH_TO_OFFSET(dev_length),
++                               &static_addr,
++                               &err);
+ 
+-        if(result < 0)
++        if (result < 0)
+                 goto error;
+ 
+         printf("\nstatic_addr : %p\n", static_addr);
+@@ -645,7 +657,7 @@ void m0_be_seg_open_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+         seg->bs_addr = (void *)(static_addr);
+ 
+         m0_sm_state_set((&seg->bs_sm), M0_BESEG_ACTIVE);
+-        
++
+         return;
+ 
+ error:
+@@ -655,7 +667,7 @@ error:
+ }
+ 
+ /**
+- * The callback function which will be called by rvm upon completion of req 
++ * The callback function which will be called by rvm upon completion of req
+  * The function updates segment state.
+  *
+  * @post M0_POST(seg->bs_sm.sm_state, M0_IN(M0_BESEG_ACTIVE, M0_BESEG_FAILED))
+diff --git a/be/be_seg.h b/be/be_seg.h
+index 052b5e6..78caa8a 100644
+--- a/be/be_seg.h
++++ b/be/be_seg.h
+@@ -32,13 +32,12 @@
+ #include "be/be.h"
+ 
+ void m0_bs_sm_init(struct m0_be_domain  *dom);
+-
+ void m0_bs_handler_thread(struct m0_sm_group *sm_group);
+ 
+-void m0_seg_req_post(struct m0_sm_group *sm_grp, struct m0_sm_ast *sm_ast); 
+-
+-void m0_be_seg_create_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast);
++void m0_seg_req_post(struct m0_sm_group *sm_grp, struct m0_sm_ast *sm_ast);
+ 
++void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
++                         struct m0_sm_ast *sm_ast);
+ void m0_be_seg_open_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast);
+ 
+ #define HEAP_SIZE       (100*1024*1024)
+diff --git a/be/be_tx.c b/be/be_tx.c
+index 7eccf50..cf71465 100644
+--- a/be/be_tx.c
++++ b/be/be_tx.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Prashant Dhange <pdhange@xyratex.com>
++ * Original author: Prashant Dhange <prashant_dhange@xyratex.com>
+  * Original creation date: 03 Dec 2012
+  */
+ 
+@@ -51,8 +51,8 @@
+   */
+ 
+ /* State machine variable declarations  */
+-
+-static const struct m0_sm_state_descr trans_states[] = {
++/* todo@  State machine for transaction */
++static const struct m0_sm_state_descr tx_states[] = {
+         [M0_BETX_PREPARING] = {
+                 .sd_flags     = M0_SDF_INITIAL,
+                 .sd_name      = "SM init",
+@@ -69,8 +69,8 @@ static const struct m0_sm_state_descr trans_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_OPENING)  |
+-                                (1 << M0_BETX_OPEN)     |
++                .sd_allowed   = (1 << M0_BETX_OPENING)     |
++                                (1 << M0_BETX_OPEN)        |
+                                 (1 << M0_BETX_FAILED)
+ 
+         },
+@@ -80,7 +80,7 @@ static const struct m0_sm_state_descr trans_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_OPEN)  |
++                .sd_allowed   = (1 << M0_BETX_OPEN)        |
+                                 (1 << M0_BETX_FAILED)
+         },
+         [M0_BETX_DONE] = {
+@@ -89,10 +89,10 @@ static const struct m0_sm_state_descr trans_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_CLOSED)  |
++                .sd_allowed   = (1 << M0_BETX_CLOSED)      |
+                                 (1 << M0_BETX_COMMITTED)   |
+                                 (1 << M0_BETX_DONE)        |
+-                                (1 << M0_BETX_FAILED) 
++                                (1 << M0_BETX_FAILED)
+         },
+         [M0_BETX_CLOSED] = {
+                 .sd_flags     = 0,
+@@ -100,7 +100,7 @@ static const struct m0_sm_state_descr trans_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_CLOSED)   |
++                .sd_allowed   = (1 << M0_BETX_CLOSED)      |
+                                 (1 << M0_BETX_FAILED)
+         },
+         [M0_BETX_COMMITTED] = {
+@@ -109,15 +109,15 @@ static const struct m0_sm_state_descr trans_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_COMMITTED) |
++                .sd_allowed   = (1 << M0_BETX_COMMITTED)   |
+                                 (1 << M0_BETX_FAILED)
+         },
+ };
+ 
+-static const struct m0_sm_conf trans_conf = {
+-        .scf_name      = "Trans States",
+-        .scf_nr_states = ARRAY_SIZE(trans_states),
+-        .scf_state     = trans_states 
++static const struct m0_sm_conf tx_conf = {
++        .scf_name      = "Tx States",
++        .scf_nr_states = ARRAY_SIZE(tx_states),
++        .scf_state     = tx_states
+ };
+ 
+ /**
+@@ -127,31 +127,39 @@ static const struct m0_sm_conf trans_conf = {
+  * @post tx->bt_sm.sm_state == M0_BETX_PREPARING
+  * @post tx->bt_dom == dom
+  */
+-void m0_be_tx_init(struct m0_be_tx *tx,
++void m0_be_tx_init   (struct m0_be_tx *tx,
+                       struct m0_be_domain *dom, uint64_t flags)
+ {
++        rvm_return_t ret;
++        rvm_tid_t    *tid;
++
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != tx);
+-        M0_ASSERT(NULL != dom);
++        M0_ASSERT(tx != NULL);
++        M0_ASSERT(dom != NULL);
+ 
+         /* Initialise domain structure with required values */
+         tx->bt_dom = dom;
+ 
+-#if 0
+-        /* Locking sm_group is required before initializing sm */
+-        m0_sm_group_lock(&(tx->bt_dom->bd_impl.sm_group));
++        tid = rvm_malloc_tid();
++
++        if (tid == NULL) {
++               /* todo@ need to call m0_sm_state_set() to change state */
++                tx->bt_sm.sm_state = M0_BETX_FAILED;
++                return;
++        }
+ 
+-        m0_sm_init(&(tx->bt_sm), &trans_conf, M0_BETX_PREPARING, 
+-                        &(tx->bt_dom->bd_impl.sm_group), NULL);
++        tx->bt_impl.tx_id = tid;
+ 
+-        /* unlock locked sm group */
+-        m0_sm_group_unlock(&(tx->bt_dom->bd_impl.sm_group));
++        ret = rvm_begin_transaction(tx->bt_impl.tx_id, restore);
+ 
+-        /* @todo - Register the state machine of the transaction into sm_group */
++        if (RVM_SUCCESS != ret) {
++                /* todo@ need to call m0_sm_state_set() to change state */
++                tx->bt_sm.sm_state = M0_BETX_FAILED;
++                return;
++        }
+ 
+-        M0_POST(tx->bt_sm.sm_state == M0_BETX_PREPARING);
+-#endif
+-        return;
++        /* todo@ need to call m0_sm_state_set() to change state */
++        tx->bt_sm.sm_state = M0_BETX_PREPARING;
+ }
+ 
+ /**
+@@ -160,69 +168,108 @@ void m0_be_tx_init(struct m0_be_tx *tx,
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+  *
+  */
+-void m0_be_tx_prep(struct m0_be_tx *tx, struct m0_be_credit *cred)
++void m0_be_tx_prep   (struct m0_be_tx *tx, struct m0_be_credit *cred)
+ {
++        rvm_return_t ret;
++        struct m0_be_reg *reg_it;
++
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != tx);
+-        M0_ASSERT(NULL != cred);
+-       
+-        return; 
++        M0_ASSERT(tx != NULL);
++        M0_ASSERT(cred != NULL);
++
++        /* Is tx->bt_sm.sm_state in M0_BETX_PREPARING state */
++        M0_PRE(tx->bt_sm.sm_state == M0_BETX_PREPARING);
++
++        /* Assign cred to tx->bt_impl.tx_bc, required in m0_be_tx_done
++         * to mark regions from credit list for completion
++         */
++        tx->bt_impl.tx_bc = cred;
++
++        /* Iterate credit list of regions */
++        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++
++                /* check reg_it->br_sm.sm_state for region state */
++
++                if ( (reg_it->br_sm.sm_state != M0_BEREG_INIT) &&
++                     (reg_it->br_sm.sm_state != M0_BEREG_DONE) ) {
++                        ret = rvm_abort_transaction(tx->bt_impl.tx_id);
++
++                        /* todo@ need to call m0_sm_state_set() */
++                        tx->bt_sm.sm_state = M0_BETX_FAILED;
++                        return;
++                }
++
++        } m0_tlist_endfor;
++
++        m0_be_tx_prep_cb(tx, cred);
+ }
+ 
+ /**
+  * Starts a prepared transaction.
+- * 
++ *
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+  * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_OPENING, M0_BETX_OPEN,
+  *                                      M0_BETX_FAILED) )
+  */
+-void m0_be_tx_start(struct m0_be_tx *tx)
++void m0_be_tx_start  (struct m0_be_tx *tx)
+ {
+-       
+-        rvm_return_t ret;
+ 
+-        /* Asserting on required pointers */
+-        M0_ASSERT(NULL != tx);
+-        
+-        tx->bt_impl.tx_id = rvm_malloc_tid();
++        M0_ASSERT(tx != NULL);
+ 
+-        ret = rvm_begin_transaction(tx->bt_impl.tx_id, restore); 
++        /* Is tx->bt_sm.sm_state in M0_BETX_PREPARING state */
++        M0_PRE(tx->bt_sm.sm_state == M0_BETX_PREPARING);
+ 
+-        M0_ASSERT(ret == RVM_SUCCESS);
++        /* todo@ need to call function m0_sm_state_set() */
++        tx->bt_sm.sm_state = M0_BETX_OPEN;
+ 
+         /* Add this transaction to domain's active transaction list */
+         m0_be_tx_tlink_init(tx);
+ 
+         m0_be_tx_tlist_add(&tx->bt_dom->bd_tx, tx);
+-
+-        return;
+ }
+ 
+ /**
+  * Closes a transaction.
+- *          
++ *
+  * @pre tx->bt_sm.sm_state == M0_BETX_OPEN
+  * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_CLOSED, M0_BETX_COMMITTED,
+  *                                  M0_BETX_DONE, M0_BETX_FAILED))
+  */
+-void m0_be_tx_done(struct m0_be_tx *tx)
++void m0_be_tx_done   (struct m0_be_tx *tx)
+ {
+-        rvm_return_t ret;        
++        struct m0_be_credit *cred;
++        struct m0_be_reg *reg_it;
++        rvm_return_t ret;
+ 
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != tx);
+-        
+-        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush); 
+-
+-        M0_ASSERT(ret == RVM_SUCCESS);
+-
+-        /* Removing entry from in memory in active transaction list if present */
+-        if(m0_be_tx_tlink_is_in(tx))
+-                m0_be_tx_tlink_del_fini(tx);
+-
+-        rvm_free_tid(tx->bt_impl.tx_id);
+-
+-        return;
++        M0_ASSERT(tx != NULL);
++
++        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush);
++
++        if (RVM_SUCCESS != ret) {
++                /* todo@ need to call function m0_sm_state_set() */
++                tx->bt_sm.sm_state = M0_BETX_FAILED;
++                return;
++        }
++
++        /* set state of all the regions in the credit */
++        cred = tx->bt_impl.tx_bc;
++
++        if (cred == NULL) {
++                /* todo@ need to call function m0_sm_state_set() */
++                tx->bt_sm.sm_state = M0_BETX_FAILED;
++                return;
++        }
++        /* Iterate credit list of regions */
++        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++                /* Mark all regions for completion */
++                /* todo@ need to call function m0_sm_state_set() */
++                reg_it->br_sm.sm_state = M0_BEREG_DONE;
++
++        } m0_tlist_endfor;
++
++        /* todo@ need to call function m0_sm_state_set() */
++        tx->bt_sm.sm_state = M0_BETX_DONE;
+ }
+ 
+ /**
+@@ -230,37 +277,93 @@ void m0_be_tx_done(struct m0_be_tx *tx)
+  *
+  * @pre M0_IN(tx->bt_sm.sm_state, (M0_BETX_DONE, M0_BETX_FAILED))
+  */
+-void m0_be_tx_fini(struct m0_be_tx *tx)
+-{     
++void m0_be_tx_fini   (struct m0_be_tx *tx)
++{
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != tx);
++        M0_ASSERT(tx != NULL);
++
++        rvm_free_tid(tx->bt_impl.tx_id);
++
++        /* Remove entry from in memory active transaction list if present */
++        if (m0_be_tx_tlink_is_in(tx))
++                m0_be_tx_tlink_del_fini(tx);
++
+ }
+ 
+-/**
+- * Captures a region in a transaction.
+- *
+- * @pre tx->bt_sm.sm_state == M0_BETX_OPEN
+- * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+- * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+- *                                   M0_BEREG_FAILED))
++
++/*
++ *    m0_be_prep callback function
++ *    todo@ use  with bt_sm
+  */
+-void m0_be_tx_capture(struct m0_be_tx *tx, struct m0_be_reg *reg)
++
++void m0_be_tx_prep_cb(struct m0_be_tx *tx, struct m0_be_credit *cred)
+ {
+-        rvm_return_t ret;
++        struct m0_be_reg *reg_it;
++
++        /* Iterate credit list of regions */
++        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++                /* Assumption: reg_it->br_tx will be updated to tx */
++                reg_it->br_tx = tx;
++
++                /* check reg_it->br_sm.sm_state for region state */
++                if (reg_it->br_sm.sm_state == M0_BEREG_INIT) {
++                        m0_be_alloc(reg_it);
++                }
++
++                if (reg_it->br_sm.sm_state == M0_BEREG_DONE) {
++                        /* Capture region function which changes the region
++                         * state to InProgress */
++                        m0_be_reg_capture(reg_it);
++                }
+ 
++        } m0_tlist_endfor;
++}
++
++
++void m0_be_credit_init(struct m0_be_credit *cred)
++{
+         /* Asserting on required pointers */
+-        M0_ASSERT(NULL != tx);
+-        M0_ASSERT(NULL != reg);
+-       
+-        ret = rvm_set_range(tx->bt_impl.tx_id, reg->br_buf.b_addr, reg->br_buf.b_nob);
++        M0_ASSERT(cred != NULL);
++
++        /* Initialize cred->bc_tl list */
++        m0_be_reg_tlist_init(&(cred->bc_tl));
++}
++
++
++void m0_be_credit_add(struct m0_be_credit *cred, struct m0_be_reg *reg)
++{
++        /* Asserting on required pointers */
++        M0_ASSERT(cred != NULL);
++        M0_ASSERT(reg != NULL);
++
++        /* Add reg to credit list */
++        m0_be_reg_tlink_init(reg);
++
++        m0_be_reg_tlist_add(&(cred->bc_tl), reg);
++}
++
++
++void m0_be_credit_fini(struct m0_be_credit *cred)
++{
++        struct m0_be_reg *reg_it;
++
++        /* Asserting on required pointers */
++        M0_ASSERT(cred != NULL);
++
++        /* Removing entries from reg list if present */
++        /* Iterate credit list of regions */
++        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++                if (m0_be_reg_tlink_is_in(reg_it))
++                        m0_be_reg_tlink_del_fini(reg_it);
+ 
+-        M0_ASSERT(ret == RVM_SUCCESS);
++        } m0_tlist_endfor;
+ 
+-        return;
++        /* Finalise cred->bc_tl list */
++        m0_be_reg_tlist_fini(&(cred->bc_tl));
+ }
+ 
+ 
+-/** @} end group be_tx */
++/** @} end group be_trans */
+ 
+ /*
+  *  Local variables:
+diff --git a/be/be_tx.h b/be/be_tx.h
+new file mode 100644
+index 0000000..3d9d085
+--- /dev/null
++++ b/be/be_tx.h
+@@ -0,0 +1,53 @@
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original creation date: 26 Nov 2012
++ */
++
++#pragma once
++
++#ifndef __MERO_BE_BE_TX_H__
++#define __MERO_BE_BE_TX_H__
++
++/**
++  @defgroup be (Meta-data) back-end
++  @{
++  */
++
++#include <stdio.h>
++
++#include "be/be.h"
++
++void m0_be_credit_init(struct m0_be_credit *cred);
++void m0_be_credit_add(struct m0_be_credit *cred, struct m0_be_reg *reg);
++void m0_be_credit_fini(struct m0_be_credit *cred);
++
++void m0_be_tx_prep_cb(struct m0_be_tx *tx, struct m0_be_credit *cred);
++
++/** @} end of be group */
++
++/* __MERO_BE_BE_TX_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_buf.h b/be/lib/be_buf.h
+index 07bc9b8..8ed8c0b 100644
+--- a/be/lib/be_buf.h
++++ b/be/lib/be_buf.h
+@@ -31,11 +31,11 @@
+ 
+ /* Backend domain type buffer */
+ struct m0_be_buf {
+-        m0_bcount_t b_nob;
++        m0_bcount_t                      b_nob;
+         union {
+-                void       *b_addr;
++                void                    *b_addr;
+                 /* holds the m0_reference for the object */
+-                struct m0_reference logical_address;
++                struct m0_reference      logical_address;
+         };
+ };
+ 
+diff --git a/be/lib/be_list.h b/be/lib/be_list.h
+index 7a317f9..72578c4 100644
+--- a/be/lib/be_list.h
++++ b/be/lib/be_list.h
+@@ -34,8 +34,8 @@ struct m0_be_list_link;
+  */
+ struct m0_reference_ll {
+ 	union {
+-		struct m0_be_list_link *virtual_address;
+-	        struct m0_reference logical_address;
++		struct m0_be_list_link  *virtual_address;
++	        struct m0_reference      logical_address;
+ 	};
+ };
+ 
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 3924a05..e3cdb3e 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -20,7 +20,7 @@
+ /**
+  *              Be Domain UT
+  *
+- * The UT does not create Named Segment and thus named segment related 
++ * The UT does not create Named Segment and thus named segment related
+  * function is not completed for time being
+  */
+ 
+@@ -38,7 +38,14 @@ struct m0_be_domain dom;
+ struct m0_stob ns_stob, stob;
+ struct m0_stob log_stob;
+ 
+-int main() {
++int main()
++{
++        /** Be Domain Transaction */
++        struct m0_be_tx tx;
++        struct m0_be_credit cred;
++        struct m0_be_reg reg;
++        struct m0_be_buf buf;
++
+         /* Initializing domain */
+         printf("\n\tBackend UT\n");
+         m0_be_domain_init(&dom, &ns_stob, &log_stob);
+@@ -47,7 +54,7 @@ int main() {
+         m0_be_seg_init(&seg, &dom, &(dom.bd_impl.sm_group), 0);
+         printf("\nSegment is initialized\n");
+ 
+-        /** 
++        /**
+          * This is just done to work other part of the code.
+          * We are not dealing with named segment for this moment.
+          */
+@@ -60,12 +67,14 @@ int main() {
+         printf("\nWaiting for segment to be created\n");
+ 
+         m0_sm_group_lock(seg.bs_impl.sm_group);
+-        m0_sm_timedwait(&seg.bs_sm, (1 << M0_BESEG_CREATED)|(1 << M0_BESEG_FAILED), M0_TIME_NEVER);
++        m0_sm_timedwait(&seg.bs_sm,
++                        (1 << M0_BESEG_CREATED) | (1 << M0_BESEG_FAILED),
++                        M0_TIME_NEVER);
+         m0_sm_group_unlock(seg.bs_impl.sm_group);
+ 
+ 
+         /* If segment creation failed, then return with error */
+-        if(M0_BESEG_FAILED == seg.bs_sm.sm_state) {
++        if (M0_BESEG_FAILED == seg.bs_sm.sm_state) {
+                 printf("\nFailed to create segment \n");
+                 return -1;
+         }
+@@ -76,43 +85,52 @@ int main() {
+         printf("\nWaiting for segment to be active\n");
+ 
+         m0_sm_group_lock(seg.bs_impl.sm_group);
+-        m0_sm_timedwait(&seg.bs_sm, (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED), M0_TIME_NEVER);
++        m0_sm_timedwait(&seg.bs_sm,
++                        (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED),
++                        M0_TIME_NEVER);
+         m0_sm_group_unlock(seg.bs_impl.sm_group);
+-        
++
+         printf("\nSegment is opened\n");
+ 
+ 
+-        /** Be Domain Transaction */
+-        struct m0_be_tx tx;
++        /* Transaction list initialization */
++        m0_be_credit_init(&cred);
+ 
+         m0_be_tx_init(&tx, &dom, 0);
+ 
+-        m0_be_tx_start(&tx);
+-
+-        struct m0_be_reg reg;
++        m0_be_buf_init(&buf, NULL, 1024, 0, 0, 0);
++        m0_be_reg_init(&reg, &tx, &seg, &buf);
+ 
+-        reg.br_seg      = &seg;
+-        reg.br_tx       = &tx;
++        m0_be_credit_add(&cred, &reg);
+ 
+-        reg.br_sm.sm_state = M0_BEREG_INIT;
++        printf("reg : %p reg_state[%d]\n", &reg, reg.br_sm.sm_state);
++        m0_be_tx_prep(&tx, &cred);
+ 
+-        m0_be_buf_init(&(reg.br_buf), NULL, 1024, 0, 0, 0);
++        if(tx.bt_sm.sm_state == M0_BETX_FAILED) {
++                printf("Failed to prepare transaction with cred list \n");
++                return 0;
++        }
+ 
+-        m0_be_alloc(&reg);
+-        strcpy(reg.br_buf.logical_address.virtual_address, "CALSOFT");
+-        printf("\ndata : [%s]\n", (char *)reg.br_buf.logical_address.virtual_address);
++        m0_be_tx_start(&tx);
+ 
+-        printf("\nsegment_id : %ld segment_offset : %ld\n", reg.br_buf.logical_address.segid_offset.u_hi, reg.br_buf.logical_address.segid_offset.u_lo);
+-        printf("\nvirtual_addr : %p\n", reg.br_buf.logical_address.virtual_address);
++        strcpy(reg.br_buf.logical_address.virtual_address, "VIRTUAL WORLD");
++        printf("\ndata : [%s]\n",
++                        (char *)reg.br_buf.logical_address.virtual_address);
+ 
+-        m0_be_tx_capture(&tx, &reg);
++        printf("\nsegment_id : %ld segment_offset : %ld\n",
++                        reg.br_buf.logical_address.segid_offset.u_hi,
++                        reg.br_buf.logical_address.segid_offset.u_lo);
+ 
+-        strcpy(reg.br_buf.logical_address.virtual_address, "Xyratex --> MeRo");
++        printf("\nvirtual_addr : %p\n",
++                        reg.br_buf.logical_address.virtual_address);
+ 
++        strcpy(reg.br_buf.logical_address.virtual_address, "START --> END");
+         m0_be_tx_done(&tx);
+-        printf("\ndata : [%s]\n", (char *)reg.br_buf.logical_address.virtual_address);
++        printf("\ndata : [%s]\n",
++                        (char *)reg.br_buf.logical_address.virtual_address);
+ 
+         rvm_truncate();
++        m0_be_credit_fini(&cred);
+ 
+         /* m0_be_seg_fini(&seg); */
+ 
+-- 
+1.8.3.2
+

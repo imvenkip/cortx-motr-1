@@ -1,0 +1,182 @@
+From dbb86f4a35bec81576b88391ab7dda5f5585ff74 Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Mon, 19 Aug 2013 02:28:39 -0700
+Subject: [PATCH 13/15] bigmemalloc: - Fixed documentation and added demo code
+ to illustrate use of API.
+
+---
+ lib/ut/varr.c |  8 ++---
+ lib/varr.h    | 95 ++++++++++++++++++++++++++++-------------------------------
+ 2 files changed, 49 insertions(+), 54 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index d90d36d..77dfe01 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -92,12 +92,12 @@ void test_varr(void)
+ 	ele_nr_in_buff = M0_0VEC_ALIGN / sizeof(unsigned long);
+ 
+ 	for (id = 0; id < ELEMENT_NR; ++id) {
+-		val = varr_ele_get(&arr, unsigned long, id);
++		val = m0_varr_ele_get(&arr, unsigned long, id);
+ 		*val = id;
+ 	}
+ 
+ 	for (id = ELEMENT_NR - 1; id != 0; --id) {
+-		val = varr_ele_get(&arr, unsigned long, id);
++		val = m0_varr_ele_get(&arr, unsigned long, id);
+ 		M0_UT_ASSERT(*val == id);
+ 	}
+ 
+@@ -111,7 +111,7 @@ void test_varr(void)
+ 
+ 	for (cnt = 0, id = 0; id < struct_nr; ++id, ++cnt) {
+ 		M0_UT_ASSERT(cnt == id);
+-		f = varr_ele_get(&arr, struct foo, id);
++		f = m0_varr_ele_get(&arr, struct foo, id);
+ 		foo_init(f, id);
+ 		address_tracker[id] = f;
+ 	}
+@@ -120,7 +120,7 @@ void test_varr(void)
+ 		M0_UT_ASSERT(address_tracker[id]->f_magic == FOO_MAGIC);
+ 
+ 	for (id = struct_nr - 1; id != 0; --id) {
+-		f = varr_ele_get(&arr, struct foo, id);
++		f = m0_varr_ele_get(&arr, struct foo, id);
+ 		M0_UT_ASSERT(f == address_tracker[id]);
+ 		M0_UT_ASSERT(foo_check(f, id));
+ 	}
+diff --git a/lib/varr.h b/lib/varr.h
+index 455665e..6229dd2 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -20,65 +20,60 @@
+ 
+ #pragma once
+ 
+-#ifndef __MERO_LIB_LINUX_KERNEL_GEN_ARRAY_H__
+-#define __MERO_LIB_LINUX_KERNEL_GEN_ARRAY_H__
++#ifndef __MERO_LIB_VIRTUAL_ARRAY_H__
++#define __MERO_LIB_VIRTUAL_ARRAY_H__
+ 
+ #include "lib/vec.h"
+ 
+ /**
+- * Represents a virtual array which is meant to be used in kernel space.
+- * Typically, linux kernel page allocator does not guarantee allocation
+- * of contiguous pages since the address space could be fragmented.
+- *
+- * It is left to applications to work around this problem.
+- * There are 2 possible approaches to resolve this issue.
+- * - use vmalloc() instead of kmalloc() OR
+- * - use a virtual array by  maintaining set of pages
+- *   (contiguous/discontiguous) and doing the indexing manually.
+- *
+- * Often, using vmalloc() is expensive since process page tables have to be
+- * rearranged in order to to make the memory look like it is contiguous
+- * even if it is not.
+- * This can mess with processor TLB (translation lookaside buffer) cache
+- * which maintains the latest mapping of virtual to physical addresses,
+- * which adds to performance degradation.
+- *
+- * The second approach is to use a virtual array with a set of kernel pages
+- * (physical contiguity of pages does not matter) and using manual indexing
+- * to iterate over the set of pages.
+- *
+- * Advantages:
+- * - Fairly inexpensive as compared to vmalloc() since no page tables need
+- *   to be updated.
+- * - An indexing scheme desirable to application can be used.
+- * - Can do boundary checking (due to use of metadata about array)
+- *
+- * Disadvantages:
+- * - Existing code which assumes contiguous allocation can not be used as is.
+- * - New APIs have to be written to read/write from/to array.
+- * - Mimimum one page must be allocated since granularity of allocation is
+- *   a page.
+- *
+- * Here the virtual array approach is adopted since it's lightweight and
+- * flexible.
++ * A virtual array represents a data structure which can be used at places
++ * where big contiguous memory allocations are not possible.
++ *
++ * Big arrays or pointers holding big memory areas can simply be replaced
++ * by the virtual array which will provide interfaces to access (read + write)
++ * array members and to iterate over all elements.
++ *
++ * Using such structures can be especially helpful in kernel where contiguity
++ * of pages is not guaranteed.
++ * And any memory allocation growing beyond page size can essentially fail.
++ * Current implementation supports both user-space as well as kernel versions.
+  *
+  * The structure of virtual array is kept something similar to a block map
+  * from an on-disk inode which multiple indirections.
+  *
+- * The current implementation uses 2 levels of indirections as follows.
+- * - Maintains array of 3 pages where
+- *   - No indirection: First page is used as is, for memory worth
+- *     PAGE_CACHE_SIZE (total 4K).
++ * Using pointer arithmatic on virtual array is strongly discouraged since
++ * it does not guarantee contiguity of buffers.
++ *
++ * The virtual array uses a radix-tree like structure whose height is
++ * dependent on number of objects to be accommodated in the array.
++ *
++ * Consider an array consisting of OBJ_NR numbers of type unsigned long,
++ * with buffers worth M0_0VEC_ALIGN each.
++ *
++ * @code
++ *
++ * struct m0_varr varr;
++ *
++ * enum {
++ *         OBJ_NR = 10203040,
++ * };
++ *
++ * rc = m0_varr_init(&varr, OBJ_NR, sizeof(unsigned long), M0_0VEC_ALIGN);
+  *
+- *   - First indirection: Second page is used to store addresses of pages,
+- *     each of which will store PAGE_CACHE_SIZE worth of data (total 2M).
++ * for (id = 0; id < OBJ_NR; ++id) {
++ *         ptr = m0_varr_ele_get(&varr, unsigned long, id);
++ *         *ptr = id;
++ * }
+  *
+- *   - Second indirection: Third page is used to store pages, each of which
+- *     can hold data worth first indirection (total 1G).
++ * for (id = 0; id < OBJ_NR; ++id) {
++ *         ptr = m0_varr_ele_get(&varr, unsigned long, id);
++ *         M0_ASSERT(*ptr == id);
++ *         *ptr = id + 1;
++ * }
++ * 
++ * m0_varr_fini(&varr);
+  *
+- * In all, this implementation can allocate up to 262657 pages.
+- * For any allocation requests bigger than this number, an error code
+- * is returned.
++ * @endcode
+  */
+ 
+ struct m0_varr;
+@@ -198,7 +193,7 @@ M0_INTERNAL uint32_t level_find(const struct m0_varr *arr, uint64_t pg);
+ M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+ 				       uint64_t              index);
+ 
+-#define varr_ele_get(arr, type, index)				\
++#define m0_varr_ele_get(arr, type, index)			\
+ ({								\
+ 	type *__ptr;						\
+ 								\
+@@ -235,7 +230,7 @@ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
+ 
+ #define m0_varr_endfor } } })
+ 
+-#endif /* __MERO_LIB_LINUX_KERNEL_GEN_ARRAY_H__ */
++#endif /* __MERO_LIB_VIRTUAL_ARRAY_H__ */
+ 
+ /*
+  *  Local variables:
+-- 
+1.8.3.2
+

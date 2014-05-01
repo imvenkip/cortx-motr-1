@@ -1,0 +1,109 @@
+From 8e955e96a301dd4a976df78a5e8cb11484d41085 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 25 Jun 2013 15:07:46 +0300
+Subject: [PATCH 216/290] s/credit_{le,mod}/m0_be_credit_{le,mod}/g
+
+---
+ be/tx.c        | 14 +++++++-------
+ be/tx_credit.c | 14 +++++++-------
+ be/tx_credit.h |  8 ++++----
+ 3 files changed, 18 insertions(+), 18 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index fbd7816..c7cc7a0 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -278,7 +278,7 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 
+ 	M0_LOG(M0_DEBUG, "capture %p: [%p, %p)", new, new->rd_reg.br_addr,
+ 	       new->rd_reg.br_addr + new->rd_reg.br_size);
+-	credit_mod(&tx->t_captured, new, +1);
++	m0_be_tx_credit_mod(&tx->t_captured, new, +1);
+ 	/*
+ 	 * A transaction keeps a tree of captured regions in tx->t_tree. Key
+ 	 * comparison function in this address is tx_reg_cmp(), which pretends
+@@ -309,15 +309,15 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 			/* No intersection. */
+ 			memcpy(new->rd_buf,
+ 			       new->rd_reg.br_addr, new->rd_reg.br_size);
+-			credit_mod(&tx->t_used, new, +1);
+-			credit_mod(&tx->t_pos,  new, +1);
++			m0_be_tx_credit_mod(&tx->t_used, new, +1);
++			m0_be_tx_credit_mod(&tx->t_pos,  new, +1);
+ 			break;
+ 		}
+ 		tx_reg_ext(old, &eold);
+ 		tx_reg_ext(new, &enew);
+ 		if (m0_ext_is_partof(&enew, &eold)) {
+ 			/* New completely covers old. */
+-			credit_mod(&tx->t_used, old, -1);
++			m0_be_tx_credit_mod(&tx->t_used, old, -1);
+ 			tdelete(old, &tx->t_root, &tx_reg_cmp);
+ 			M0_SET0(old);
+ 		} else {
+@@ -548,9 +548,9 @@ M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)
+ 	return true || ( /* XXX DELETEME */
+ 		state < M0_BTS_NR &&
+ 		tx_tlist_contains(&tx_engine(tx)->te_txs[state], tx) &&
+-		credit_le(&tx->t_captured, &tx->t_prepared) &&
+-		credit_le(&tx->t_pos, &tx->t_captured) &&
+-		credit_le(&tx->t_used, &tx->t_pos) &&
++		m0_be_tx_credit_le(&tx->t_captured, &tx->t_prepared) &&
++		m0_be_tx_credit_le(&tx->t_pos, &tx->t_captured) &&
++		m0_be_tx_credit_le(&tx->t_used, &tx->t_pos) &&
+ 		(tx->t_lsn == 0) == (state < M0_BTS_GROUPED) &&
+ 		(tx->t_reg_area != NULL) == (state >= M0_BTS_ACTIVE) &&
+ 		(tx->t_reg_area == NULL) == (tx->t_reg_d_area == NULL) &&
+diff --git a/be/tx_credit.c b/be/tx_credit.c
+index 2e837c4..cb15f30 100644
+--- a/be/tx_credit.c
++++ b/be/tx_credit.c
+@@ -55,19 +55,19 @@ M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
+ 	m0_be_tx_credit_add(c, &c1_k);
+ }
+ 
+-M0_INTERNAL bool
+-credit_le(const struct m0_be_tx_credit *c0, const struct m0_be_tx_credit *c1)
++M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
++				    const struct m0_be_tx_credit *c1)
+ {
+-	return c0->tc_reg_nr <= c1->tc_reg_nr &&
+-		c0->tc_reg_size <= c1->tc_reg_size;
++	return c0->tc_reg_nr   <= c1->tc_reg_nr &&
++	       c0->tc_reg_size <= c1->tc_reg_size;
+ }
+ 
+-M0_INTERNAL void
+-credit_mod(struct m0_be_tx_credit *cr, const struct m0_be_reg_d *rd, int sgn)
++M0_INTERNAL void m0_be_tx_credit_mod(struct m0_be_tx_credit *cr,
++				     const struct m0_be_reg_d *rd, int sgn)
+ {
+ 	M0_PRE(M0_IN(sgn, (+1, -1)));
+ 
+-	cr->tc_reg_nr += sgn;
++	cr->tc_reg_nr	+= sgn;
+ 	cr->tc_reg_size += sgn * rd->rd_reg.br_size;
+ 
+ 	M0_ASSERT((int64_t)cr->tc_reg_nr >= 0);
+diff --git a/be/tx_credit.h b/be/tx_credit.h
+index a1024c8..0699b59 100644
+--- a/be/tx_credit.h
++++ b/be/tx_credit.h
+@@ -83,10 +83,10 @@ M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
+ 				     const struct m0_be_tx_credit *c1,
+ 				     m0_bcount_t k);
+ 
+-M0_INTERNAL bool credit_le(const struct m0_be_tx_credit *c0,
+-			   const struct m0_be_tx_credit *c1);
+-M0_INTERNAL void credit_mod(struct m0_be_tx_credit *cr,
+-			    const struct m0_be_reg_d *reg, int sgn);
++M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
++				    const struct m0_be_tx_credit *c1);
++M0_INTERNAL void m0_be_tx_credit_mod(struct m0_be_tx_credit *cr,
++				     const struct m0_be_reg_d *reg, int sgn);
+ 
+ #define M0_BE_TX_CREDIT_TYPE(type)		\
+ 	((struct m0_be_tx_credit) {		\
+-- 
+1.8.3.2
+

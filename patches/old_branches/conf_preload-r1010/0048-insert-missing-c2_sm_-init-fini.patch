@@ -1,0 +1,43 @@
+From e92d3a3a231f393bdd7a9a25acba551f8a867e43 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 9 Mar 2012 21:55:18 +0200
+Subject: [PATCH 048/311] insert missing c2_sm_{init,fini}()
+
++ don't #include "xcode/xcode.h" as it is not used by confc.c
+---
+ conf/confc.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index e3878c6..3a0d2b9 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -23,7 +23,6 @@
+ #endif
+ #include "conf/confc.h"
+ #include "conf/cache.h"  /* c2_conf_cache */
+-#include "xcode/xcode.h"
+ #include "lib/cdefs.h"   /* C2_EXPORTED, container_of, C2_HAS_TYPE, equi */
+ #include "lib/arith.h"   /* C2_CNT_INC, C2_CNT_DEC */
+ #include "lib/time.h"    /* C2_TIME_NEVER */
+@@ -193,6 +192,9 @@ static struct {
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx)
+ {
++	C2_PRE(confc_is_initiated());
++	c2_sm_init(&ctx->fc_mach, &confc_states_conf, S_INITIAL,
++		   g_confc.cache.cc_group, XXX /* *c2_addb_ctx */);
+ 	c2_chan_init(&ctx->fc_complete);
+ 	c2_clink_init(&ctx->fc_clink, on_unpinned);
+ 	C2_POST(ctx_invariant(ctx));
+@@ -204,6 +206,7 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+ 	C2_PRE(ctx_invariant(ctx));
+ 	c2_clink_fini(&ctx->fc_clink);
+ 	c2_chan_fini(&ctx->fc_complete);
++	c2_sm_fini(&ctx->fc_mach);
+ }
+ C2_EXPORTED(c2_confc_ctx_fini);
+ 
+-- 
+1.8.3.2
+

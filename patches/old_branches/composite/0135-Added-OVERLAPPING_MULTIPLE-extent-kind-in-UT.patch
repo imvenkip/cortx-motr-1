@@ -1,0 +1,177 @@
+From 413bbdb97aa1c202f9082b89386b9c7bce75deb0 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 14 May 2013 10:54:05 +0530
+Subject: [PATCH 135/172] Added OVERLAPPING_MULTIPLE extent kind in UT
+
+This required to change M0_COUNT_PARAMS2 and M0_IN macros such that they
+support 10 arguments against 9.
+---
+ layout/ut/composite.c | 25 +++++++++++++++++--------
+ layout/ut/composite.h | 12 ++++++------
+ lib/cdefs.h           |  6 +++---
+ lib/misc.h            |  1 +
+ 4 files changed, 27 insertions(+), 17 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 7d065b8..3c777a4 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1144,7 +1144,8 @@ int test_encode_decode_composite(uint64_t lid,
+ 
+ 	/* Build a layout object. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
+-					    is_contiguous_extents, !FAILURE_TEST,
++					    is_contiguous_extents,
++					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -1351,6 +1352,7 @@ static void extent_to_be_operated(const struct m0_composite_layout *cl,
+ 	M0_UT_ASSERT(M0_IN(extent_kind, (EXACT_EXISTING, NON_EXISTING,
+ 					 OVERLAPPING_LEFT, OVERLAPPING_RIGHT,
+ 					 OVERLAPPING_COMPLETE,
++					 OVERLAPPING_MULTIPLE,
+ 					 CONTAINED_WITHIN, WHOLE_OFFSET_SPACE,
+ 					 FIRST_HALF, SECOND_HALF)));
+ 	layer = layer_find(cl, layer_idx);
+@@ -1406,6 +1408,9 @@ static void extent_to_be_operated(const struct m0_composite_layout *cl,
+ 				ext->e_end = ext_idx_plus_oneth.e_end + 1;
+ 			}
+ 		}
++	} else if (extent_kind == OVERLAPPING_MULTIPLE) {
++		ext->e_start = ext_idxth.e_start - 1;
++		ext->e_end = ext_idx_plus_oneth.e_end + 1;
+ 	} else if (extent_kind == CONTAINED_WITHIN) {
+ 		if (is_contiguous_extents) {
+ 			ext->e_start = ext_idxth.e_start + 2;
+@@ -1461,7 +1466,8 @@ static int ext_op_pre(enum extent_operation eop,
+ 
+ 	/* Build a layout and add layers to it. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
+-					    is_contiguous_extents, !FAILURE_TEST,
++					    is_contiguous_extents,
++					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -1477,17 +1483,19 @@ static int ext_op_pre(enum extent_operation eop,
+ 		*offset_to_operate = ext_to_operate->e_start + 1;
+ 	else {
+ 		M0_UT_ASSERT(extent_kind == OVERLAPPING_RIGHT ||
++			     extent_kind == OVERLAPPING_MULTIPLE ||
+ 			     extent_kind == SECOND_HALF);
+ 		if (extent_kind == OVERLAPPING_RIGHT || is_contiguous_extents)
+ 			*offset_to_operate = ext_to_operate->e_end - 1;
+ 		else {
+-			M0_UT_ASSERT(extent_kind == SECOND_HALF);
++			M0_UT_ASSERT(extent_kind == SECOND_HALF ||
++				     extent_kind == OVERLAPPING_MULTIPLE);
+ 			M0_UT_ASSERT(!is_contiguous_extents);
+ 			if (extents_nr % 2 == 0)
+ 				*offset_to_operate =
+-					 ext_to_operate->e_start + 1;
++					 ext_to_operate->e_start;
+ 			else
+-				*offset_to_operate = ext_to_operate->e_end - 1;
++				*offset_to_operate = ext_to_operate->e_end - 2;
+ 		}
+ 	}
+ 
+@@ -2075,7 +2083,6 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	uint64_t lid;
+ 	int      rc;
+ 
+-	//todo Make ext_ops() accept state so that all extent_kinds can be tested for such failure
+ 	/*
+ 	 * Simulate extent validation error by trying to add an extent with
+ 	 * the M0_CLRES_FLATTENING state that overlaps with an existing extent
+@@ -2334,7 +2341,8 @@ int test_update_composite(uint64_t lid,
+ 
+ 	/* Build a layout object and add layers to it only in memory. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
+-					    is_contiguous_extents, !FAILURE_TEST,
++					    is_contiguous_extents,
++					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 	l1 = &cl->cl_base;
+@@ -2476,7 +2484,8 @@ int test_delete_composite(uint64_t lid,
+ 
+ 	/* Build a layout object, add layers to it, add it to the DB. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
+-					    is_contiguous_extents, !FAILURE_TEST,
++					    is_contiguous_extents,
++					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index d22806d..7e9969c 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -43,8 +43,8 @@
+  * OVERLAPPING_LEFT:		[ 2635249153387078802,  5270498306774157605)
+  * OVERLAPPING_RIGHT:		[ 5270498306774157603,  7905747460161236406)
+  * OVERLAPPING_COMPLETE:	[ 5270498306774157603,  7905747460161236407)
++ * OVERLAPPING_MULTIPLE:        [ 2635249153387078801,  7905747460161236407),
+  * CONTAINED_WITHIN:		[ 5270498306774157606,  7905747460161236404)
+- * OVERLAPPING_MULTIPLE: todo
+  * WHOLE_OFFSET_SPACE:          [                   0, 18446744073709551615)
+  * FIRST_HALF:                  [                   0,  9223372036854775807)
+  * SECOND_HALF                  [ 9223372036854775807, 18446744073709551615)
+@@ -55,11 +55,11 @@ enum kind_of_extent {
+ 	OVERLAPPING_LEFT      = 2,
+ 	OVERLAPPING_RIGHT     = 3,
+ 	OVERLAPPING_COMPLETE  = 4,
+-	CONTAINED_WITHIN      = 5,
+-	//todo Add OVERLAPPING_MULTIPLE
+-	WHOLE_OFFSET_SPACE    = 6,
+-	FIRST_HALF            = 7,
+-	SECOND_HALF           = 8,
++	OVERLAPPING_MULTIPLE  = 5,
++	CONTAINED_WITHIN      = 6,
++	WHOLE_OFFSET_SPACE    = 7,
++	FIRST_HALF            = 8,
++	SECOND_HALF           = 9,
+ 
+ 	KIND_OF_EXTENT_NR
+ };
+diff --git a/lib/cdefs.h b/lib/cdefs.h
+index 1b98680..611c5ab 100644
+--- a/lib/cdefs.h
++++ b/lib/cdefs.h
+@@ -89,7 +89,7 @@ M0_FIELD_IS(type, field, uint64_t) ?				\
+ 	 sizeof(char [M0_FIELD_IS(type, field, uint64_t) - 1])
+ 
+ /**
+- * Returns the number of parameters given to this variadic macro (up to 9
++ * Returns the number of parameters given to this variadic macro (up to 10
+  * parameters are supported)
+  * @note M0_COUNT_PARAMS() returns max(number_of_parameters - 1, 0)
+  *     e.g. M0_COUNT_PARAMS()        -> 0
+@@ -98,8 +98,8 @@ M0_FIELD_IS(type, field, uint64_t) ?				\
+  *          M0_COUNT_PARAMS(x, y, z) -> 2
+  */
+ #define M0_COUNT_PARAMS(...) \
+-	M0_COUNT_PARAMS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)
+-#define M0_COUNT_PARAMS2(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_, ...) _
++	M0_COUNT_PARAMS2(__VA_ARGS__, 10,9,8,7,6,5,4,3,2,1,0)
++#define M0_COUNT_PARAMS2(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_, ...) _
+ 
+ /**
+  * Concatenates two arguments to produce a single token.
+diff --git a/lib/misc.h b/lib/misc.h
+index 8cc6dec..2699a2a 100644
+--- a/lib/misc.h
++++ b/lib/misc.h
+@@ -117,6 +117,7 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
+ #define M0_IN_7(x, v, ...) ((x) == (v) || M0_IN_6(x, __VA_ARGS__))
+ #define M0_IN_8(x, v, ...) ((x) == (v) || M0_IN_7(x, __VA_ARGS__))
+ #define M0_IN_9(x, v, ...) ((x) == (v) || M0_IN_8(x, __VA_ARGS__))
++#define M0_IN_10(x, v, ...) ((x) == (v) || M0_IN_9(x, __VA_ARGS__))
+ 
+ /**
+    M0_BITS(...) returns bitmask of passed states.
+-- 
+1.8.3.2
+

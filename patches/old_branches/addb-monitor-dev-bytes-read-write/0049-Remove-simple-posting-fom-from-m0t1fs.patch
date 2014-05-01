@@ -1,0 +1,49 @@
+From 3dfee119b8cae7a90060a160f984387d58da904b Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Thu, 29 Aug 2013 15:35:30 +0530
+Subject: [PATCH 049/121] Remove simple posting fom from m0t1fs
+
+---
+ m0t1fs/linux_kernel/m0t1fs.c | 19 -------------------
+ 1 file changed, 19 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index fe1d741..94090b5 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -66,21 +66,6 @@ static void m0t1fs_reqh_services_stop(void);
+ 
+ struct m0_addb_ctx m0t1fs_addb_ctx;
+ 
+-
+-/**
+- * ADDB monitor summary posting fom
+- */
+-static struct m0t1fs_addb_monitor_pfom mam_pfom;
+-
+-static int m0t1fs_addb_monitor_pfom_tick(struct m0_fom *fom, void *data,
+-					 int *substate)
+-{
+-	/**
+-	 * @todo: Implement ADDB summary record posting logic.
+-	 */
+-	return -1;
+-}
+-
+ static struct file_system_type m0t1fs_fs_type = {
+ 	.owner        = THIS_MODULE,
+ 	.name         = "m0t1fs",
+@@ -154,10 +139,6 @@ M0_INTERNAL int m0t1fs_init(void)
+ 	if (rc != 0)
+ 		goto net_fini;
+ 
+-	M0_FOM_SIMPLE_POST(&mam_pfom.pf_fom, &m0t1fs_globals.g_reqh,
+-			   &m0t1fs_addb_monitor_pfom_tick,
+-			   &mam_pfom, 1);
+-
+ 	rc = m0t1fs_layout_init();
+ 	if (rc != 0)
+ 		goto rpc_fini;
+-- 
+1.8.3.2
+

@@ -1,0 +1,96 @@
+From 5fba5461093b9d2251a6cb2461c1fdb076f3b087 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 12 May 2011 04:37:38 -0600
+Subject: [PATCH 084/177] - kill not used md_store_add_name()
+
+---
+ mdstore/mdstore.c | 45 ++++-----------------------------------------
+ mdstore/mdstore.h |  9 ---------
+ 2 files changed, 4 insertions(+), 50 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index a672a38..f590020 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -164,22 +164,6 @@ int c2_md_store_create(struct c2_md_store       *md,
+         return rc;
+ }
+ 
+-int c2_md_store_add_name(struct c2_cob          *cob,
+-                         struct c2_fid          *pfid,
+-                         const char             *name,
+-                         int                     namelen,
+-                         struct c2_db_tx        *tx)
+-{
+-        struct c2_cob_nskey   *nskey;
+-        int                    rc;
+-        
+-        c2_cob_make_nskey(&nskey, pfid, name, namelen);
+-        rc = c2_cob_add_name(cob, nskey, tx);
+-        cob->co_nsrec.cnr_nlink++;
+-        c2_free(nskey);
+-        return rc;
+-}
+-
+ int c2_md_store_link(struct c2_md_store         *md, 
+                      struct c2_cob              *pcob,
+                      struct c2_cob              *cob, 
+@@ -249,31 +233,10 @@ int c2_md_store_unlink(struct c2_md_store       *md,
+ 
+         C2_PRE(cob->co_nsrec.cnr_nlink > 0);
+         
+-        if (S_ISDIR(cob->co_omgrec.cor_mode)) {
+-                /* 
+-                 * Kill ".." and "." first.
+-                 */
+-                c2_cob_make_nskey(&nskey, cob->co_fid, "..", 2);
+-                rc = c2_cob_del_name(pcob, nskey, &ctx->fc_tx->tx_dbtx);
+-                c2_free(nskey);
+-                if (rc)
+-                        goto out;
+-                pcob->co_nsrec.cnr_nlink--;
+-
+-                c2_cob_make_nskey(&nskey, cob->co_fid, ".", 1);
+-                rc = c2_cob_del_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
+-                c2_free(nskey);
+-                if (rc)
+-                        goto out;
+-                cob->co_nsrec.cnr_nlink--;
+-                
+-                /*
+-                 * No hardlinks on directories, nlink should be 1 now
+-                 * as we just killed "." and only one ref left - name
+-                 * itself.
+-                 */
+-                C2_ASSERT(cob->co_nsrec.cnr_nlink == 1);
+-        } else {
++        /*
++         * Check for hardlinks.
++         */
++        if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
+                 c2_cob_make_nskey(&nskey, pcob->co_fid, 
+                                   req->u_name.n_name,
+                                   req->u_name.n_count);
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 9e2fc55..8495602 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -318,15 +318,6 @@ int c2_md_store_alloc(struct c2_md_store *md,
+                       struct c2_fid *fid,
+                       struct c2_cob **cob);
+ 
+-/**
+-   Add one more name refering to @cob.
+-*/
+-int c2_md_store_add_name(struct c2_cob *cob, 
+-                         struct c2_fid *pfid,
+-                         const char *name, 
+-                         int namelen, 
+-                         struct c2_db_tx *tx);
+-
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,386 @@
+From fd11200501588506dbbc3b9a484a36d35294912d Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Mon, 13 Jan 2014 15:59:23 +0530
+Subject: [PATCH 1/9] be.conv.use-reql-reqh, - Use be-tx-service
+ infrastructure.
+
+---
+ addb/addb_ctxobj.c  |  4 +++-
+ be/engine.h         |  1 +
+ be/tx_group_fom.c   |  2 +-
+ be/tx_service.c     | 35 +++++++++++++++++++++++------------
+ be/ut/helper.c      | 11 +++++++++--
+ db/db.c             |  1 +
+ doc/addb-ids        |  2 ++
+ mero/setup.c        | 30 ++++++++++++++++++------------
+ reqh/reqh_service.c | 43 +++++++++++++++++++++++++++++++++++++++++--
+ 9 files changed, 99 insertions(+), 30 deletions(-)
+
+diff --git a/addb/addb_ctxobj.c b/addb/addb_ctxobj.c
+index 7cc0f90..9c50633 100644
+--- a/addb/addb_ctxobj.c
++++ b/addb/addb_ctxobj.c
+@@ -508,7 +508,9 @@ M0_INTERNAL void m0__addb_ctx_init(struct m0_addb_mc *mc,
+ 				   uint64_t fields[])
+ {
+ 	M0_PRE(!m0_addb_ctx_is_imported(parent));
+-	M0_PRE(addb_ctx_type_invariant(ct));
++	M0_LOG(M0_FATAL, "%p %u %p %p",
++		ct->act_name, ct->act_id, addb_ctx_type_lookup(ct->act_id), ct);
++	//M0_PRE(addb_ctx_type_invariant(ct));
+ 
+ 	/* construct the context object */
+ 	ctx->ac_type = ct;
+diff --git a/be/engine.h b/be/engine.h
+index 0f696cb..716cd68 100644
+--- a/be/engine.h
++++ b/be/engine.h
+@@ -65,6 +65,7 @@ struct m0_be_engine {
+ 	struct m0_be_engine_cfg	  *eng_cfg;
+ 	/** Protects all fields of this struct. */
+ 	struct m0_mutex		   eng_lock;
++	struct m0_reqh_service     eng_tx_service;
+ 	/**
+ 	 * Per-state lists of transaction. Each non-failed transaction is in one
+ 	 * of these lists.
+diff --git a/be/tx_group_fom.c b/be/tx_group_fom.c
+index 78da40b..735fea2 100644
+--- a/be/tx_group_fom.c
++++ b/be/tx_group_fom.c
+@@ -39,7 +39,7 @@
+  * @{
+  */
+ 
+-#define REQH_EMU 1
++#define REQH_EMU 0
+ 
+ #if REQH_EMU
+ #if 0
+diff --git a/be/tx_service.c b/be/tx_service.c
+index 912b6f9..8c6e9e7 100644
+--- a/be/tx_service.c
++++ b/be/tx_service.c
+@@ -40,8 +40,9 @@
+  * ADDB
+  * ------------------------------------------------------------------ */
+ 
+-enum { M0_ADDB_CTXID_TX_SERVICE = 1700 };
++enum { M0_ADDB_CTXID_TX_SERVICE = 1800 };
+ 
++struct m0_addb_ctx m0_tx_service_mod_addb_ctx;
+ M0_ADDB_CT(m0_addb_ct_tx_service, M0_ADDB_CTXID_TX_SERVICE, "hi", "low");
+ 
+ static void _addb_init(void)
+@@ -50,11 +51,12 @@ static void _addb_init(void)
+ 	/* static struct m0_addb_ctx tx_service_mod_ctx; */
+ 	/* XXX not thread-safe */
+ 	act = m0_addb_ctx_type_lookup(M0_ADDB_CTXID_TX_SERVICE);
+-	if (act == NULL)
+-		m0_addb_ctx_type_register(&m0_addb_ct_tx_service);
+-	/* M0_ADDB_CTX_INIT(&m0_addb_gmc, &tx_service_mod_ctx, */
+-	/* 		 &m0_addb_ct_tx_service, */
+-	/* 		 &m0_addb_proc_ctx); */
++	if (act == NULL) {
++		 M0_LOG(M0_FATAL, "addb_init");
++		 m0_addb_ctx_type_register(&m0_addb_ct_tx_service);
++		 //M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_tx_service_mod_addb_ctx,
++		//		 &m0_addb_ct_tx_service, &m0_addb_proc_ctx);
++	}
+ }
+ 
+ static void _addb_fini(void)
+@@ -92,14 +94,16 @@ M0_INTERNAL void m0_be_txs_unregister(void)
+ 	m0_reqh_service_type_unregister(&m0_be_txs_stype);
+ }
+ 
++static void txs_prepare_to_stop(struct m0_reqh_service *service);
+ static int  txs_start(struct m0_reqh_service *service);
+ static void txs_stop(struct m0_reqh_service *service);
+ static void txs_fini(struct m0_reqh_service *service);
+ 
+ static const struct m0_reqh_service_ops txs_ops = {
+-	.rso_start = txs_start,
+-	.rso_stop  = txs_stop,
+-	.rso_fini  = txs_fini
++	.rso_start           = txs_start,
++	.rso_prepare_to_stop = txs_prepare_to_stop,
++	.rso_stop            = txs_stop,
++	.rso_fini            = txs_fini
+ };
+ 
+ /** Allocates and initialises transaction service. */
+@@ -107,13 +111,14 @@ static int txs_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+ 			struct m0_reqh_context *rctx)
+ {
+-	struct tx_service *s;
++	struct m0_be_domain *bdom;
++	struct tx_service   *s;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(stype == &m0_be_txs_stype);
+ 
+-	M0_ALLOC_PTR(s);
+-	if (s == NULL)
++	M0_ALLOC_PTR(bdom);
++	if (bdom == NULL)
+ 		M0_RETURN(-ENOMEM);
+ 
+ 	*service = &s->ts_reqh;
+@@ -123,6 +128,11 @@ static int txs_allocate(struct m0_reqh_service **service,
+ 	M0_RETURN(0);
+ }
+ 
++static void txs_prepare_to_stop(struct m0_reqh_service *service)
++{
++	//m0_be_domain_fini(&ut_be->but_dom);
++}
++
+ /** Finalises and deallocates transaction service. */
+ static void txs_fini(struct m0_reqh_service *service)
+ {
+@@ -135,6 +145,7 @@ static void txs_fini(struct m0_reqh_service *service)
+ static int txs_start(struct m0_reqh_service *service)
+ {
+ 	M0_ENTRY();
++	//_addb_init();
+ 	M0_RETURN(0);
+ }
+ 
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 57433d4..960a8bb 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -42,7 +42,7 @@
+ 
+ #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
+ 
+-#define REQH_EMU 1
++#define REQH_EMU 0
+ 
+ enum {
+ 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
+@@ -261,6 +261,9 @@ static void m0_be_ut_sm_group_thread_fini(struct m0_be_ut_sm_group_thread *sgt)
+ 
+ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
+ {
++	struct m0_reqh *reqh = cfg->bc_engine.bec_group_fom_reqh;
++
++	M0_LOG(M0_FATAL, "reqh: %p", reqh);
+ 	*cfg = (struct m0_be_domain_cfg) {
+ 		.bc_engine = {
+ 			.bec_group_nr	    = 1,
+@@ -270,6 +273,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
+ 			.bec_group_tx_max   = 20,
+ 			.bec_log_replay	    = false,
+ 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
++			.bec_group_fom_reqh = reqh,
+ 		},
+ 	};
+ }
+@@ -279,8 +283,9 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+ {
+ 	int rc;
+ 
+-	M0_SET0(ut_be);
++	//M0_SET0(ut_be);
+ 	ut_be->but_sm_groups_unlocked = false;
++	M0_LOG(M0_FATAL, "reqh: %p", ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+ 	if (cfg == NULL) {
+ 		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+ 	} else {
+@@ -306,6 +311,7 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+ 	 */
+ 	ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
+ #endif
++	M0_LOG(M0_FATAL, "reqh: %p", ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+ 	m0_mutex_init(&ut_be->but_sgt_lock);
+ 	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
+ 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
+@@ -316,6 +322,7 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+ 
+ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
+ {
++	M0_LOG(M0_FATAL, "reqh: %p", ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
+ 	m0_be_ut_backend_init_cfg(ut_be, NULL);
+ }
+ 
+diff --git a/db/db.c b/db/db.c
+index daf6a9f..239abbe 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -215,6 +215,7 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
+ {
+ 	struct m0_dbenv_impl *di = &env->d_i;
+ 
++	M0_LOG(M0_FATAL, "reqh: %p", di->d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh);
+ 	di->d_dom = &di->d_ut_be.but_dom;
+ 	di->d_seg = &di->d_ut_seg.bus_seg;
+ 	m0_be_ut_backend_init(&di->d_ut_be);
+diff --git a/doc/addb-ids b/doc/addb-ids
+index 2cea18f..add594e 100644
+--- a/doc/addb-ids
++++ b/doc/addb-ids
+@@ -80,6 +80,8 @@ value          enum                    variable  name              file
+    1601 M0_ADDB_CTXID_RMS_SERV         m0_addb_ct_rms_serv
+ 1700-1799							   stats/stats_addb.h
+    1700 M0_ADDB_CTXID_STATS_SVC        m0_addb_ct_stats_svc
++1800-1899
++   1800 M0_ADDB_CTXID_BE_TX_SVC        m0_addb_ct_tx_service
+ 
+ ******************************************************************************
+ Record Type Identifiers
+diff --git a/mero/setup.c b/mero/setup.c
+index 35c8388..59a4064 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -1059,7 +1059,7 @@ static void cs_storage_fini(struct cs_stobs *stob)
+  */
+ static int
+ cs_service_init(const char *name, struct m0_reqh_context *rctx,
+-		struct m0_reqh *reqh, struct m0_uint128 *uuid)
++		struct m0_reqh *reqh, struct m0_uint128 *uuid, bool mgmt)
+ {
+ 	struct m0_reqh_service_type *stype;
+ 	struct m0_reqh_service      *service;
+@@ -1079,12 +1079,14 @@ cs_service_init(const char *name, struct m0_reqh_context *rctx,
+ 	m0_reqh_service_init(service, reqh, uuid);
+ 
+ 	/** @todo Remove the USE_MGMT_STARTUP macro later */
+-#define USE_MGMT_STARTUP 1
+-#if USE_MGMT_STARTUP
+-	rc = m0_mgmt_reqh_service_start(service);
+-#else
+-	rc = m0_reqh_service_start(service);
+-#endif
++//#define USE_MGMT_STARTUP 1
++//#if USE_MGMT_STARTUP
++	if (mgmt)
++		rc = m0_mgmt_reqh_service_start(service);
++//#else
++	else
++		rc = m0_reqh_service_start(service);
++//#endif
+ 	if (rc != 0)
+ 		m0_reqh_service_fini(service);
+ 
+@@ -1104,7 +1106,7 @@ static int reqh_services_init(struct m0_reqh_context *rctx)
+ 	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
+ 		name = rctx->rc_services[i];
+ 		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
+-				     &rctx->rc_service_uuids[i]);
++				     &rctx->rc_service_uuids[i], true);
+ 	}
+ #if USE_MGMT_STARTUP
+ 	/* Do not terminate on failure here as services start asynchronously. */
+@@ -1137,9 +1139,9 @@ static int cs_services_init(struct m0_mero *cctx)
+ 			break;
+ 		m0_reqh_start(&rctx->rc_reqh);
+ 		rc = cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
+-				     NULL) ?:
++				     NULL, true) ?:
+ 		     cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
+-				     NULL) ?:
++				     NULL, true) ?:
+ 			reqh_services_init(rctx);
+ 		m0_mgmt_reqh_services_start_wait(&rctx->rc_reqh);
+ 		/* return failure if any service has failed */
+@@ -1152,9 +1154,9 @@ static int cs_services_init(struct m0_mero *cctx)
+ #else
+ 		rc = m0_reqh_mgmt_service_start(&rctx->rc_reqh) ?:
+ 			cs_service_init("rpcservice", NULL, &rctx->rc_reqh,
+-					NULL) ?:
++					NULL, true) ?:
+ 			cs_service_init("simple fom service", NULL, &rctx->rc_reqh,
+-					NULL) ?:
++					NULL, true) ?:
+ 			reqh_services_init(rctx);
+ 		if (rc != 0)
+ 			break;
+@@ -1358,6 +1360,10 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
+ 	if (rc != 0)
+ 		goto out;
+ 
++	rc = cs_service_init("be-tx-service", rctx, &rctx->rc_reqh, NULL, false);
++	if (rc != 0)
++		goto reqh_fini;
++	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh = &rctx->rc_reqh;
+ 	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
+ 	if (rc != 0) {
+ 		M0_LOG(M0_ERROR, "m0_dbenv_init");
+diff --git a/reqh/reqh_service.c b/reqh/reqh_service.c
+index ee6c4a5..628c8a5 100644
+--- a/reqh/reqh_service.c
++++ b/reqh/reqh_service.c
+@@ -362,11 +362,47 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
+ 	m0_reqh_lockers_clear(reqh, key);
+ }
+ 
++static void reqh_rpc_svc_fini_and_free(struct m0_rpc_service *service)
++{
++	m0_rpc__service_fini(service);
++	service->svc_state = M0_RPC_SERVICE_STATE_UNDEFINED;
++}
++
++static const struct m0_rpc_service_ops reqh_rpc_svc_ops = {
++	.rso_fini_and_free = reqh_rpc_svc_fini_and_free,
++};
++
++static int
++reqh_rpc_svc_alloc_and_init(struct m0_rpc_service_type *service_type,
++			    const char                 *ep_addr,
++			    const struct m0_uint128    *uuid,
++			    struct m0_rpc_service     **out)
++{
++	int rc;
++
++	rc = m0_rpc__service_init(*out, service_type, ep_addr, uuid,
++				  &reqh_rpc_svc_ops);
++	(*out)->svc_state = M0_RPC_SERVICE_STATE_INITIALISED;
++	return rc;
++}
++
++static const struct m0_rpc_service_type_ops reqh_rpc_svct_ops = {
++	.rsto_alloc_and_init = reqh_rpc_svc_alloc_and_init,
++};
++
++M0_RPC_SERVICE_TYPE_DEFINE(static, reqh_rpc_svct, "Reqh service rpc svc",
++			   M0_REQH_SVC_RPC_SERVICE_TYPE, &reqh_rpc_svct_ops);
++
++
+ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
+ 				      struct m0_reqh         *reqh,
+ 				      struct m0_uint128      *uuid)
+ {
+ 	struct m0_addb_ctx_type *serv_addb_ct;
++	//struct m0_rpc_machine   *rmach;
++	const char              *ep;
++	struct m0_uint128        uuid1;
++	struct m0_rpc_service   *rpcsvc = &service->rs_rpc_svc;
+ 
+ 	M0_PRE(service != NULL && reqh != NULL &&
+ 		service->rs_sm.sm_state == M0_RST_INITIALISING);
+@@ -389,6 +425,10 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
+ 	m0_reqh_svc_tlink_init(service);
+ 	m0_mutex_init(&service->rs_mutex);
+ 	m0_chan_init(&service->rs_rev_conn_wait, &service->rs_mutex);
++	//rmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
++	//M0_ASSERT(rmach != NULL);
++	ep = "lnet:0@lo:12345:34:1";//m0_rpc_machine_ep(rmach);
++	m0_rpc_service_alloc_and_init(&reqh_rpc_svct, ep, &uuid1, &rpcsvc);
+ 	reqh_service_state_set(service, M0_RST_INITIALISED);
+ 
+ 	/** @todo: Need to pass the service uuid "hi" & "low"
+@@ -401,8 +441,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
+ 				 0, 0);
+ 	else /** This happens in UT, where no ADDB stob is specified */
+ 		M0_ADDB_CTX_INIT(&m0_addb_gmc, &service->rs_addb_ctx,
+-				 serv_addb_ct,
+-				 &reqh->rh_addb_ctx,
++				 serv_addb_ct, &reqh->rh_addb_ctx,
+ 				 0, 0);
+ 
+ 	M0_POST(m0_reqh_service_invariant(service));
+-- 
+1.8.3.2
+

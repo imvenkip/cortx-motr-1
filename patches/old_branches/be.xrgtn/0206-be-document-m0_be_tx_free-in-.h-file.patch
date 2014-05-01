@@ -1,0 +1,185 @@
+From 3c3868bb263da623444dff1c19885f8e41cff7ac Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 21 Jun 2013 16:02:38 +0300
+Subject: [PATCH 206/228] be: document m0_be_tx_free() in .h file
+
+---
+ be/tx.c | 67 +++++++++++++++++++++++++++++++----------------------------------
+ be/tx.h |  8 +++++++-
+ 2 files changed, 39 insertions(+), 36 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index fc42148..e284eff 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -40,6 +40,8 @@
+  * @{
+  */
+ 
++static bool tx_invariant(const struct m0_sm *mach);
++
+ M0_TL_DESCR_DEFINE(tx, "transactions", M0_INTERNAL, struct m0_be_tx,
+ 		   t_linkage, t_magic,
+ 		   M0_TRACE_TX_MAGIC,
+@@ -47,8 +49,6 @@ M0_TL_DESCR_DEFINE(tx, "transactions", M0_INTERNAL, struct m0_be_tx,
+ 
+ M0_TL_DEFINE(tx, M0_INTERNAL, struct m0_be_tx);
+ 
+-static bool tx_invariant(const struct m0_sm *mach);
+-
+ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
+ 	[M0_BTS_INIT] = {
+ 		.sd_flags     = M0_SDF_INITIAL,
+@@ -140,7 +140,7 @@ static const struct m0_sm_conf tx_sm_conf = {
+ };
+ 
+ static enum m0_be_tx_state tx_state    (const struct m0_be_tx *tx);
+-static struct m0_be_tx_engine *tx_engine   (const struct m0_be_tx *tx);
++static struct m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx);
+ 
+ static void        tx_open_tail        (struct m0_be_tx *tx);
+ static void        tx_fail             (struct m0_be_tx *tx, int err);
+@@ -180,8 +180,6 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 			       void (*filler)(struct m0_be_tx *tx,
+ 					      void *payload, void *datum))
+ {
+-	M0_PRE(tx != NULL);
+-
+ 	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_INIT, tx_grp);
+ 	tx->t_root       = NULL;
+ 	tx->t_id         = tid;
+@@ -207,6 +205,23 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ 	m0_sm_fini(&tx->t_sm);
+ }
+ 
++M0_INTERNAL void m0_be_tx_free(struct m0_be_tx *tx)
++{
++	void noop(void *nodep) {}
++
++	M0_PRE(m0_be__tx_invariant(tx));
++	M0_PRE(tx_state(tx) >= M0_BTS_PLACED);
++
++	tdestroy(tx->t_root, noop);
++	tx->t_root = NULL;
++
++	m0_free(tx->t_reg_area);
++	tx->t_reg_area = NULL;
++
++	m0_free(tx->t_reg_d_area);
++	tx->t_reg_d_area = NULL;
++}
++
+ M0_INTERNAL void
+ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
+ {
+@@ -214,7 +229,6 @@ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
+ 	M0_PRE(tx_state(tx) == M0_BTS_INIT);
+ 
+ 	m0_be_tx_credit_add(&tx->t_prepared, credit);
+-
+ #if 1  /* added XXX */
+ 	tx->t_payload_size = tx->t_prepared.tc_reg_size;
+ #endif
+@@ -254,26 +268,6 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+-/* Do nothing in tx_reg_free, free whole reg_area and reg_d_area in
+- * m0_be_tx_free() after t_root tree is detroyed. */
+-static void tx_reg_free(void *nodep)
+-{
+-}
+-
+-/* Free reg_area, reg_d_area and regions' tree (t_root). */
+-M0_INTERNAL void m0_be_tx_free(struct m0_be_tx *tx)
+-{
+-	M0_PRE(m0_be__tx_invariant(tx));
+-	M0_PRE(tx_state(tx) >= M0_BTS_PLACED);
+-
+-	tdestroy(tx->t_root, &tx_reg_free);
+-	tx->t_root = NULL;
+-	m0_free(tx->t_reg_area);
+-	tx->t_reg_area = NULL;
+-	m0_free(tx->t_reg_d_area);
+-	tx->t_reg_d_area = NULL;
+-}
+-
+ M0_INTERNAL void
+ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ {
+@@ -424,27 +418,30 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
+ 	M0_ASSERT(used <= prepared);
+ 	M0_ASSERT(eng->te_reserved + used >= prepared);
+ 
++	/* release prepared, but not not used space back into the log. */
+ 	eng->te_reserved -= prepared - used;
+ 
+ 	tx_engine_got_space(eng);
+ 
+-	M0_POST(m0_be__tx_engine_invariant(eng));
+-
+ 	/* XXX */
+ 	M0_LOG(M0_DEBUG, "wakeup");
+ 	m0_fom_wakeup(eng->te_fom);
+ 	M0_LOG(M0_DEBUG, "awaken");
+ 
++	M0_POST(m0_be__tx_engine_invariant(eng));
+ 	tx_engine_unlock(eng);
+ }
+ 
+ static m0_bcount_t tx_engine_free_space(const struct m0_be_tx_engine *te)
+ {
+ 	M0_PRE(m0_be__tx_engine_invariant(te));
+-	return tx_log_free_space(te); /*XXX*/
+-	/* return te->te_log.lg_size - */
+-	/* 	(te->te_inmem->t_lsn - te->te_start->t_lsn + */
+-	/* 	 te->te_reserved); */
++#if 1 /*XXX*/
++	return tx_log_free_space(te);
++#else /* Nikita's code */
++	return te->te_log.lg_size -
++		(te->te_inmem->t_lsn - te->te_start->t_lsn +
++		 te->te_reserved);
++#endif
+ }
+ 
+ static void tx_engine_got_space(struct m0_be_tx_engine *eng)
+@@ -462,9 +459,9 @@ static void tx_engine_got_closed(struct m0_be_tx_engine *eng,
+ 				 struct m0_be_tx *tx)
+ {
+ 	struct m0_be_tx_group *gr = &eng->te_group;
+-#if 0
+-	m0_bcount_t          used = tx_log_size(tx, &tx->t_used,
+-						gr_tlist_is_empty(&gr->tg_tx));
++#if 0 /* Nikita's code */
++	m0_bcount_t used = tx_log_size(tx, &tx->t_used,
++				       gr_tlist_is_empty(&gr->tg_tx));
+ 
+ 	M0_PRE(tx_state(tx) == M0_BTS_CLOSED);
+ 
+diff --git a/be/tx.h b/be/tx.h
+index 01781db..79e5203 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -484,11 +484,17 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 
+ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
+ 
++/**
++ * Frees reg_area, reg_d_area and regions' tree (t_root).
++ *
++ * XXX DELETEME? Do we really need this function?
++ */
++M0_INTERNAL void m0_be_tx_free(struct m0_be_tx *tx);
++
+ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
+ 			       const struct m0_be_tx_credit *credit);
+ 
+ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
+-M0_INTERNAL void m0_be_tx_free(struct m0_be_tx *tx);
+ 
+ M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
+ 				  const struct m0_be_reg *reg);
+-- 
+1.8.3.2
+

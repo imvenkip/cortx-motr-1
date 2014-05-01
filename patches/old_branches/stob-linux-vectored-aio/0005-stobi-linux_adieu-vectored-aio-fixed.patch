@@ -1,0 +1,176 @@
+From 3529bf46ed1bb1dacb968daf1c6fdecbdb83e583 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Mon, 16 Dec 2013 21:57:32 +0200
+Subject: [PATCH 5/7] stobi/linux_adieu: vectored aio fixed
+
+Non-contiguous stob chunks were not handled.
+---
+ lib/types.h        |  2 +-
+ stob/ad.c          | 12 +++++-------
+ stob/linux_adieu.c | 47 ++++++++++++++++++++++++++++++-----------------
+ 3 files changed, 36 insertions(+), 25 deletions(-)
+
+diff --git a/lib/types.h b/lib/types.h
+index b6d5b87..4e97d92 100644
+--- a/lib/types.h
++++ b/lib/types.h
+@@ -41,7 +41,7 @@ struct m0_uint128 {
+ #define U128D_F "%lu:%lu"
+ #define U128_P(x) (unsigned long)(x)->u_hi, (unsigned long)(x)->u_lo
+ 
+-#define EXT_F "[%lx, %lx)"
++#define EXT_F "[%lx,%lx)"
+ #define EXT_P(x) (unsigned long)(x)->e_start, (unsigned long)(x)->e_end
+ 
+ M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,
+diff --git a/stob/ad.c b/stob/ad.c
+index 429438c..86d3a7d 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -1004,13 +1004,11 @@ static int ad_read_launch(struct m0_stob_io *io, struct ad_domain *adom,
+ 				 m0_vec_cursor_step(dst),
+ 				 m0_be_emap_caret_step(car));
+ 
+-		M0_LOG(M0_DEBUG, "%2d: sz=0x%llx buf=%p off=0x%llx "
+-			"ext=[0x%llx, 0x%llx) val=0x%llx",
+-			idx, (unsigned long long)frag_size, buf,
+-			(unsigned long long)off,
+-			(unsigned long long)seg->ee_ext.e_start,
+-			(unsigned long long)seg->ee_ext.e_end,
+-			(unsigned long long)seg->ee_val);
++		M0_LOG(M0_DEBUG, "%2d: sz=%lx buf=%p off=%lx "
++			"ext="EXT_F" val=%lx",
++			idx, (unsigned long)frag_size, buf,
++			(unsigned long)off, EXT_P(&seg->ee_ext),
++			(unsigned long)seg->ee_val);
+ 		if (seg->ee_val == AET_NONE || seg->ee_val == AET_HOLE) {
+ 			/*
+ 			 * Read of a hole or unallocated space (beyond
+diff --git a/stob/linux_adieu.c b/stob/linux_adieu.c
+index 9b85078..80ffc3f 100644
+--- a/stob/linux_adieu.c
++++ b/stob/linux_adieu.c
+@@ -214,6 +214,7 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 	struct m0_vec_cursor  src;
+ 	struct m0_vec_cursor  dst;
+ 	uint32_t              frags = 0;
++	uint32_t              chunks; /* contiguous stob chunks */
+ 	m0_bcount_t           frag_size;
+ 	m0_bcount_t           total_size = 0;
+ 	int                   result = 0;
+@@ -227,6 +228,8 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
+ 	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
+ 
++	chunks = io->si_stob.iv_vec.v_nr;
++
+ 	m0_vec_cursor_init(&src, &io->si_user.ov_vec);
+ 	m0_vec_cursor_init(&dst, &io->si_stob.iv_vec);
+ 
+@@ -243,7 +246,8 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 	m0_vec_cursor_init(&src, &io->si_user.ov_vec);
+ 	m0_vec_cursor_init(&dst, &io->si_stob.iv_vec);
+ 
+-	lio->si_nr = frags / IOV_MAX + 1;
++	lio->si_nr = max_check(frags / IOV_MAX + 1, chunks);
++	M0_LOG(M0_DEBUG, "chunks=%d frags=%d si_nr=%d", chunks, frags, lio->si_nr);
+ 	m0_atomic64_set(&lio->si_done, 0);
+ 	m0_atomic64_set(&lio->si_bdone, 0);
+ 	M0_ALLOC_ARR(lio->si_qev, lio->si_nr);
+@@ -255,19 +259,18 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 	}
+ 
+ 	while (result == 0) {
+-		struct iocb *iocb;
+-
+-		M0_ASSERT(qev - lio->si_qev < lio->si_nr);
++		struct iocb *iocb = &qev->iq_iocb;
++		m0_bindex_t  off = io->si_stob.iv_index[dst.vc_seg] +
++				   dst.vc_offset;
++		m0_bindex_t  prev_off = ~0;
+ 
+ 		qev->iq_io = io;
+ 		m0_queue_link_init(&qev->iq_linkage);
+ 
+-		iocb = &qev->iq_iocb;
+ 		iocb->u.c.buf = iov;
+ 		iocb->aio_fildes = lstob->sl_fd;
+ 		iocb->u.c.nbytes = min32u(frags, IOV_MAX);
+-		iocb->u.c.offset =
+-			io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
++		iocb->u.c.offset = off << LINUX_DOM_BSHIFT(ldom);
+ 
+ 		switch (io->si_opcode) {
+ 		case SIO_READ:
+@@ -283,7 +286,16 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 		for (i = 0; i < iocb->u.c.nbytes; ++i) {
+ 			void        *buf;
+ 			m0_bindex_t  off;
+-			m0_bindex_t  old_off = ~0;
++
++			buf = io->si_user.ov_buf[src.vc_seg] + src.vc_offset;
++			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
++
++			M0_LOG(M0_DEBUG, "p_off=%lx off=%lx sz=%lx",
++				(unsigned long)prev_off, (unsigned long)off,
++				(unsigned long)frag_size);
++			if (prev_off != ~0 && prev_off + frag_size != off)
++				break;
++			prev_off = off;
+ 
+ 			frag_size = min_check(m0_vec_cursor_step(&src),
+ 					      m0_vec_cursor_step(&dst));
+@@ -294,12 +306,6 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 				break;
+ 			}
+ 
+-			buf = io->si_user.ov_buf[src.vc_seg] + src.vc_offset;
+-			off = io->si_stob.iv_index[dst.vc_seg] + dst.vc_offset;
+-			if (old_off != ~0)
+-				M0_ASSERT(old_off + frag_size == off);
+-			old_off = off;
+-
+ 			iov->iov_base = m0_stob_addr_open(buf,
+ 						LINUX_DOM_BSHIFT(ldom));
+ 			iov->iov_len  = frag_size << LINUX_DOM_BSHIFT(ldom);
+@@ -309,9 +315,13 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 			m0_vec_cursor_move(&dst, frag_size);
+ 			++iov;
+ 		}
+-		M0_LOG(M0_DEBUG, "frags=%d op=%d sz=%lu",
+-		       i, io->si_opcode, (unsigned long)total_size);
++		M0_LOG(M0_DEBUG, "["U128X_F"] %2d: frags=%d op=%d off=%lx sz=%lx",
++		       U128_P(&io->si_obj->so_id.si_bits),
++		       (int)(qev - lio->si_qev), i, io->si_opcode,
++		       (unsigned long)off, (unsigned long)total_size);
+ 		if (result == 0) {
++			iocb->u.c.nbytes = i;
++
+ 			ioq_queue_lock(ldom);
+ 			ioq_queue_put(ldom, qev);
+ 			ioq_queue_unlock(ldom);
+@@ -319,9 +329,12 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 			frags -= i;
+ 			if (frags == 0)
+ 				break;
++
+ 			++qev;
++			M0_ASSERT(qev - lio->si_qev < lio->si_nr);
+ 		}
+ 	}
++	lio->si_nr = ++qev - lio->si_qev;
+ 
+ 	if (result != 0)
+ 		linux_stob_io_release(lio);
+@@ -483,7 +496,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
+ 	if (done == lio->si_nr) {
+ 		m0_bcount_t bdone = m0_atomic64_get(&lio->si_bdone);
+ 
+-		M0_LOG(M0_DEBUG, "["U128X_F"] nr=%d bytes=%lu si_rc=%d",
++		M0_LOG(M0_DEBUG, "["U128X_F"] nr=%d sz=%lx si_rc=%d",
+ 		       U128_P(&io->si_obj->so_id.si_bits),
+ 		       done, (unsigned long)bdone, (int)io->si_rc);
+ 		M0_ASSERT(m0_forall(i, lio->si_nr,
+-- 
+1.8.3.2
+

@@ -1,0 +1,27 @@
+From f99fb9e1b1edee7bedc1041f1d34bb38a22dbfe7 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Mon, 2 Sep 2013 13:36:30 +0530
+Subject: [PATCH 092/159] Port addb service to kernel as well.
+
+---
+ addb/addb_monitor.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 6e3487c..8c945af 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -151,10 +151,6 @@
+ 
+ #include "addb/addb_monitor.h"
+ 
+-/**
+- * @todo: Start addb service in m0tl1fs(kernel) so that addb pfom
+- * can be made use of to post stats summary records periodically.
+- */
+ M0_TL_DESCR_DEFINE(addb_mon, "addb monitors list", M0_INTERNAL,
+ 		   struct m0_addb_monitor, am_linkage, am_magic,
+ 		   M0_ADDB_MONITOR_LIST_LINK_MAGIC,
+-- 
+1.8.3.2
+

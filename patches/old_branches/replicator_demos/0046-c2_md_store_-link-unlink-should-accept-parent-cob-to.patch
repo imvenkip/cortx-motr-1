@@ -1,0 +1,254 @@
+From 1f6f925e4f889166c743609530bb322fdac7e87c Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 7 Apr 2011 08:25:24 -0600
+Subject: [PATCH 46/91] - c2_md_store_{link|unlink}() should accept parent cob
+ too.
+
+---
+ mdservice/md_foms.c | 42 ++++++++++++++++++++++++++++++++----------
+ mdstore/mdstore.c   | 51 ++++++++++++++++++++++++++++++++++++++++++++++-----
+ mdstore/mdstore.h   |  2 ++
+ 3 files changed, 80 insertions(+), 15 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index e6b629e..24ff4c8 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -129,13 +129,15 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
+         struct c2_fop_cob        *body;
+         struct c2_site           *site;
+         struct c2_cob            *cob;
++        struct c2_cob            *pcob;
+         struct c2_fop_link       *req;
+         struct c2_fop_link_rep   *rep;
+         struct c2_fom_md         *fom_obj;
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_fid             fid;
++        struct c2_fid             tfid;
++        struct c2_fid             pfid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -155,18 +157,27 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
+         req = c2_fop_data(fop);
+         body = &req->l_body;
+ 
+-        c2_md_make_fid(&fid, &body->b_tfid);
+-
+-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
++        c2_md_make_fid(&pfid, &body->b_pfid);
++        rc = c2_md_store_locate(site->s_mdstore, &pfid, &pcob, 
+                                 C2_MD_STORE_LOCATE_STORE,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
++        c2_md_make_fid(&tfid, &body->b_tfid);
++        rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
++                                C2_MD_STORE_LOCATE_STORE,
++                                &ctx->fc_tx->tx_dbtx);
++        if (rc) {
++                c2_cob_put(pcob);
++                goto out;
++        }
++
+         rep = c2_fop_data(fop_rep);
+ 
+-        rc = c2_md_store_link(site->s_mdstore, cob, req, rep, ctx);
++        rc = c2_md_store_link(site->s_mdstore, pcob, cob, req, rep, ctx);
+         c2_cob_put(cob);
++        c2_cob_put(pcob);
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
+         return FSO_AGAIN;
+@@ -182,13 +193,15 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         struct c2_fop_cob        *body;
+         struct c2_site           *site;
+         struct c2_cob            *cob;
++        struct c2_cob            *pcob;
+         struct c2_fop_unlink     *req;
+         struct c2_fop_unlink_rep *rep;
+         struct c2_fom_md         *fom_obj;
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_fid             fid;
++        struct c2_fid             tfid;
++        struct c2_fid             pfid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -208,18 +221,27 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         req = c2_fop_data(fop);
+         body = &req->u_body;
+ 
+-        c2_md_make_fid(&fid, &body->b_tfid);
+-
+-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
++        c2_md_make_fid(&pfid, &body->b_pfid);
++        rc = c2_md_store_locate(site->s_mdstore, &pfid, &pcob, 
+                                 C2_MD_STORE_LOCATE_STORE,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
++        c2_md_make_fid(&tfid, &body->b_tfid);
++        rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
++                                C2_MD_STORE_LOCATE_STORE,
++                                &ctx->fc_tx->tx_dbtx);
++        if (rc) {
++                c2_cob_put(pcob);
++                goto out;
++        }
++
+         rep = c2_fop_data(fop_rep);
+ 
+-        rc = c2_md_store_unlink(site->s_mdstore, cob, req, rep, ctx);
++        rc = c2_md_store_unlink(site->s_mdstore, pcob, cob, req, rep, ctx);
+         c2_cob_put(cob);
++        c2_cob_put(pcob);
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
+         return FSO_AGAIN;
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 8a2d4f5..01671ed 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -172,6 +172,9 @@ int c2_md_store_create(struct c2_md_store *md,
+         time_t                 now;
+         int                    rc;
+ 
++        C2_ASSERT(pcob != NULL);
++        C2_ASSERT(cob != NULL);
++        
+         c2_md_store_make_nskey(&nskey, &pcob->co_fid, 
+                                req->c_name.n_name, 
+                                req->c_name.n_count);
+@@ -247,52 +250,76 @@ int c2_md_store_add_name(struct c2_cob *cob,
+ }
+ 
+ int c2_md_store_link(struct c2_md_store *md, 
++                     struct c2_cob *pcob,
+                      struct c2_cob *cob, 
+                      struct c2_fop_link *req, 
+                      struct c2_fop_link_rep *rep, 
+                      struct c2_fop_ctx *ctx)
+ {
+-        struct c2_fop_cob     *body = &req->l_body;
+         struct c2_cob_nskey   *nskey;
++        time_t                 now;
+         int                    rc;
+         
++        C2_ASSERT(pcob != NULL);
+         C2_ASSERT(cob != NULL);
+ 
+         /*
+          * Link @nskey to a file described with @cob
+          */        
+-        c2_md_make_nskey(&nskey, &body->b_pfid, &req->l_name);
++        c2_md_store_make_nskey(&nskey, &pcob->co_fid, 
++                               req->l_name.n_name,
++                               req->l_name.n_count);
+         rc = c2_cob_add_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
++        c2_free(nskey);
+         if (rc)
+                 goto out;
++
+         /*
+          * Update nlink in statdata and save it to storage. 
+          */
+         cob->co_nsrec.cnr_nlink++;
+         rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL,
+                            &ctx->fc_tx->tx_dbtx);
++        if (rc)
++                goto out;
++
++        /*
++         * Update mtime in parent.
++         */
++        pcob->co_nsrec.cnr_mtime = time(&now);
++                         
++        /*
++         * Update on-store cob so that updated number of links
++         * is saved.
++         */
++        rc = c2_cob_update(pcob, &pcob->co_nsrec,  NULL, NULL, 
++                           &ctx->fc_tx->tx_dbtx);
+ out:
+-        c2_free(nskey);
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_link", rc);
+         return rc;
+ }
+ 
+ int c2_md_store_unlink(struct c2_md_store *md, 
++                       struct c2_cob *pcob,
+                        struct c2_cob *cob,
+                        struct c2_fop_unlink *req, 
+                        struct c2_fop_unlink_rep *rep, 
+                        struct c2_fop_ctx *ctx)
+ {
+-        struct c2_fop_cob     *body = &req->u_body;
+         struct c2_cob         *ncob = NULL;
+         struct c2_cob_nskey   *nskey;
+         struct c2_cob_oikey    oikey;
+         struct c2_cob_nsrec    nsrec;
++        time_t                 now;
+         int                    rc;
+     
++        C2_ASSERT(pcob != NULL);
+         C2_ASSERT(cob != NULL);
+-        c2_md_make_nskey(&nskey, &body->b_pfid, &req->u_name);
++
++        c2_md_store_make_nskey(&nskey, &pcob->co_fid, 
++                               req->u_name.n_name,
++                               req->u_name.n_count);
+ 
+         /*
+          * Copy "working copy" of stat data.
+@@ -343,6 +370,20 @@ int c2_md_store_unlink(struct c2_md_store *md,
+          * Kill name whatever it was.
+          */
+         rc = c2_cob_del_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
++        if (rc)
++                goto out;
++
++        /*
++         * Update mtime in parent.
++         */
++        pcob->co_nsrec.cnr_mtime = time(&now);
++                         
++        /*
++         * Update on-store cob so that updated number of links
++         * is saved.
++         */
++        rc = c2_cob_update(pcob, &pcob->co_nsrec,  NULL, NULL, 
++                           &ctx->fc_tx->tx_dbtx);
+ out:
+         if (ncob)
+                 c2_cob_put(ncob);
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 1da171d..9fc34e0 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -54,6 +54,7 @@ void c2_md_store_fini(struct c2_md_store *md);
+    Error code is returned in error case or zero otherwise.
+ */
+ int c2_md_store_link(struct c2_md_store *md, 
++                     struct c2_cob *pcob, 
+                      struct c2_cob *cob, 
+                      struct c2_fop_link *req, 
+                      struct c2_fop_link_rep *rep, 
+@@ -67,6 +68,7 @@ int c2_md_store_link(struct c2_md_store *md,
+    Error code is returned in error case or zero otherwise.
+ */
+ int c2_md_store_unlink(struct c2_md_store *md, 
++                       struct c2_cob *pcob, 
+                        struct c2_cob *cob,
+                        struct c2_fop_unlink *req, 
+                        struct c2_fop_unlink_rep *rep, 
+-- 
+1.8.3.2
+

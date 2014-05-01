@@ -1,0 +1,46 @@
+From 414ff809d818766d7b7f6a0cae044aa03f1257c6 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 20 May 2013 11:13:48 +0800
+Subject: [PATCH 2/3] less verbose debug message
+
+---
+ mero/conf.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/mero/conf.c b/mero/conf.c
+index 6faf650..644ea9e 100644
+--- a/mero/conf.c
++++ b/mero/conf.c
+@@ -53,9 +53,9 @@ static void option_add(struct cs_args *args, const char *s)
+ static void options_dump(struct cs_args *args)
+ {
+ 	int i;
+-	M0_LOG(M0_FATAL, "Dumping args -------------------->>>>>>>>>>>>>");
++	M0_LOG(M0_DEBUG, "Dumping args -------------------->>>>>>>>>>>>>");
+ 	for (i = 0; i <= args->ca_argc; i++)
+-		M0_LOG(M0_FATAL, "%5d: %s", i, args->ca_argv[i]);
++		M0_LOG(M0_DEBUG, "%5d: %s", i, args->ca_argv[i]);
+ }
+ 
+ static void
+@@ -204,7 +204,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
+ 	M0_ENTRY();
+ 	M0_PRE(confd_addr != NULL && profile != NULL);
+ 
+-	M0_LOG(M0_FATAL, "confd_addr=%s profile=%s", confd_addr, profile);
++	M0_LOG(M0_DEBUG, "confd_addr=%s profile=%s", confd_addr, profile);
+ 
+ 	cctx.rcx_net_dom               = &client_net_dom;
+ 	cctx.rcx_local_addr            = client_ep;
+@@ -272,7 +272,7 @@ M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
+ 
+ 	M0_PRE(args != NULL && args->ca_argc == 0);
+ 
+-	M0_LOG(M0_FATAL, "argv0=%s genders=%s", argv0, genders);
++	M0_LOG(M0_DEBUG, "argv0=%s genders=%s", argv0, genders);
+ 
+ 	rc = m0_mgmt_conf_init(&conf, genders);
+ 	if (rc != 0)
+-- 
+1.8.3.2
+

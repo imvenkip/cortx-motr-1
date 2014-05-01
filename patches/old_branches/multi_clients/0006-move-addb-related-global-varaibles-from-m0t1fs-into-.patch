@@ -1,0 +1,136 @@
+From 626c7305cf059a7adaff7b8c293cc6e06f8e734a Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 25 Feb 2014 23:31:54 +0800
+Subject: [PATCH 06/26] move addb related global varaibles from m0t1fs into
+ superblock. Get this varaible from reqh.
+
+---
+ m0t1fs/linux_kernel/m0t1fs.h | 11 ++++-------
+ m0t1fs/linux_kernel/super.c  | 33 +++++++++++++++++++++++----------
+ 2 files changed, 27 insertions(+), 17 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 8bbf181..10fd283 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -424,13 +424,6 @@ extern char *local_addr;
+ extern uint32_t tm_recv_queue_min_len;
+ extern uint32_t max_rpc_msg_size;
+ 
+-struct m0t1fs_mon_addb_globals {
+-	struct m0_addb_monitor                  g_addb_mon_rw_io_size;
+-	uint32_t                                g_addb_mon_rw_io_size_key;
+-	struct m0t1fs_addb_mon_sum_data_io_size g_addb_mon_sum_data_rw_io_size;
+-};
+-extern struct m0t1fs_mon_addb_globals m0t1fs_mon_addb_globals;
+-
+ /** Anything that is global to m0t1fs module goes in this singleton structure.
+     There is only one, global, instance of this type. */
+ struct m0t1fs_globals {
+@@ -445,6 +438,10 @@ struct m0t1fs_globals {
+ 	struct m0_fol                           g_fol;
+ 	struct m0_net_buffer_pool               g_buffer_pool;
+ 	struct m0_layout_domain                 g_layout_dom;
++
++	struct m0_addb_monitor                  g_addb_mon_rw_io_size;
++	uint32_t                                g_addb_mon_rw_io_size_key;
++	struct m0t1fs_addb_mon_sum_data_io_size g_addb_mon_sum_data_rw_io_size;
+ };
+ 
+ /**
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 5aab127..960a7d6 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -1087,7 +1087,20 @@ pool_fini:
+ 	return rc;
+ }
+ 
+-struct m0t1fs_mon_addb_globals m0t1fs_mon_addb_globals;
++static struct m0t1fs_globals *reqh2globals(struct m0_reqh *reqh)
++{
++	return container_of(reqh, struct m0t1fs_globals, g_reqh);
++}
++
++static struct m0t1fs_sb *globals2sb(struct m0t1fs_globals *globals)
++{
++	return container_of(globals, struct m0t1fs_sb, csb_m0t1fs_globals);
++}
++
++struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
++{
++	return globals2sb(reqh2globals(reqh));
++}
+ 
+ static void m0t1fs_mon_rw_io_watch(const struct m0_addb_monitor *mon,
+ 				   const struct m0_addb_rec     *rec,
+@@ -1095,7 +1108,7 @@ static void m0t1fs_mon_rw_io_watch(const struct m0_addb_monitor *mon,
+ {
+ 	struct m0_addb_sum_rec                  *sum_rec;
+ 	struct m0t1fs_addb_mon_sum_data_io_size *sum_data =
+-				&m0t1fs_mon_addb_globals.g_addb_mon_sum_data_rw_io_size;
++				&reqh2globals(reqh)->g_addb_mon_sum_data_rw_io_size;
+ 
+ 	if (m0_addb_rec_rid_make(M0_ADDB_BRT_DP, M0T1FS_ADDB_RECID_IO_FINISH)
+ 	    == rec->ar_rid) {
+@@ -1125,7 +1138,7 @@ m0t1fs_mon_rw_io_sum_rec(const struct m0_addb_monitor *mon,
+ 
+ 	m0_rwlock_read_lock(&reqh->rh_rwlock);
+ 	sum_rec = m0_reqh_lockers_get(reqh,
+-			m0t1fs_mon_addb_globals.g_addb_mon_rw_io_size_key);
++			reqh2globals(reqh)->g_addb_mon_rw_io_size_key);
+ 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+ 
+ 	return sum_rec;
+@@ -1140,17 +1153,17 @@ static int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb)
+ {
+ 	struct m0_addb_sum_rec *sum_rec;
+ 	struct m0_reqh         *reqh = &csb->csb_m0t1fs_globals.g_reqh;
+-	uint32_t               *key = &m0t1fs_mon_addb_globals.g_addb_mon_rw_io_size_key;
++	uint32_t               *key = &csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size_key;
+ 	uint64_t               *sum_data =
+-		     (uint64_t *)&m0t1fs_mon_addb_globals.g_addb_mon_sum_data_rw_io_size;
++		     (uint64_t *)&csb->csb_m0t1fs_globals.g_addb_mon_sum_data_rw_io_size;
+ 	uint32_t                sum_rec_nr =
+-		     sizeof (m0t1fs_mon_addb_globals.g_addb_mon_sum_data_rw_io_size) /
++		     sizeof (csb->csb_m0t1fs_globals.g_addb_mon_sum_data_rw_io_size) /
+ 					     sizeof (uint64_t);
+ 	M0_ALLOC_PTR(sum_rec);
+ 	if (sum_rec == NULL)
+ 		M0_RETURN(-ENOMEM);
+ 
+-	m0_addb_monitor_init(&m0t1fs_mon_addb_globals.g_addb_mon_rw_io_size,
++	m0_addb_monitor_init(&csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size,
+ 			     &m0t1fs_addb_mon_rw_io_ops);
+ 
+ 	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_m0t1fs_mon_io_size,
+@@ -1162,7 +1175,7 @@ static int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb)
+ 	m0_reqh_lockers_set(reqh, *key, sum_rec);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 
+-	m0_addb_monitor_add(reqh, &m0t1fs_mon_addb_globals.g_addb_mon_rw_io_size);
++	m0_addb_monitor_add(reqh, &csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size);
+ 
+ 	return 0;
+ }
+@@ -1170,7 +1183,7 @@ static int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb)
+ static void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb)
+ {
+ 	struct m0_addb_sum_rec *sum_rec;
+-	struct m0_addb_monitor *mon = &m0t1fs_mon_addb_globals.g_addb_mon_rw_io_size;
++	struct m0_addb_monitor *mon = &csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size;
+ 	struct m0_reqh         *reqh = &csb->csb_m0t1fs_globals.g_reqh;
+ 
+ 	sum_rec = mon->am_ops->amo_sum_rec(mon, &csb->csb_m0t1fs_globals.g_reqh);
+@@ -1178,7 +1191,7 @@ static void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb)
+ 	m0_addb_monitor_del(reqh, mon);
+ 
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+-	m0_reqh_lockers_clear(reqh, m0t1fs_mon_addb_globals.g_addb_mon_rw_io_size_key);
++	m0_reqh_lockers_clear(reqh, csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size_key);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 	m0_addb_monitor_sum_rec_fini(sum_rec);
+ 	m0_free(sum_rec);
+-- 
+1.8.3.2
+

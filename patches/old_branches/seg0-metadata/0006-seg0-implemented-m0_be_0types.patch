@@ -1,0 +1,316 @@
+From 24e299c3de4c756c6980c37401721640fb6a7580 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 12 Feb 2014 14:35:57 +0200
+Subject: [PATCH 6/9] seg0: implemented m0_be_0types.
+
+---
+ be/domain.c       | 53 ++++++++++++++++++++++++++++++++++++---
+ be/domain.h       |  4 +++
+ be/seg.c          |  2 ++
+ be/seg.h          |  4 +++
+ be/seg0.c         | 74 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ be/seg0.h         |  9 ++++++-
+ mero/magic.h      |  6 +++++
+ mero/mero-pub.api |  3 +++
+ 8 files changed, 150 insertions(+), 5 deletions(-)
+
+diff --git a/be/domain.c b/be/domain.c
+index 92408a6..ef5aeac 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -19,6 +19,19 @@
+  */
+ 
+ #include "be/domain.h"
++#include "be/seg0.h"
++#include "be/seg.h"
++
++M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0type_list[]", M0_INTERNAL,
++			   struct m0_be_0type, b0_linkage, b0_magic,
++			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
++M0_TL_DEFINE(zt, M0_INTERNAL, struct m0_be_0type);
++
++M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_seg_list[]", M0_INTERNAL,
++			   struct m0_be_seg, bs_linkage, bs_magic,
++			   M0_BE_SEG_MAGIC, M0_BE_SEG_MAGIC);
++M0_TL_DEFINE(seg, M0_INTERNAL, struct m0_be_seg);
++
+ 
+ /**
+  * @addtogroup be
+@@ -26,6 +39,25 @@
+  * @{
+  */
+ 
++static int m0_be_domain__0types_init(struct m0_be_domain *dom)
++{
++	/* struct m0_buf      *opt; */
++	/* struct m0_be_0type *objtype; */
++
++	/* m0_tlist_for(&be_0type_list, &dom->bd_0types, objtype) { */
++	/* 	for (opt = segobj_opt_begin(dict, objtype); */
++	/* 	     opt != NULL && rc != 0; */
++	/* 	     opt = segobj_opt_next(dict, opt, objtype)) */
++	/* 		rc = be_obj_up(dom, opt); */
++	/* } m0_tlist_endfor; */
++
++	return 0;
++}
++
++static void m0_be_domain__0types_fini(struct m0_be_domain *dom)
++{
++}
++
+ M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+ 				  struct m0_be_domain_cfg *cfg)
+ {
+@@ -33,12 +65,22 @@ M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+ 	int		     rc;
+ 
+ 	dom->bd_cfg = *cfg;
++
++	zt_tlist_init(&dom->bd_0type_list);
++	seg_tlist_init(&dom->bd_seg_list);
++
++	rc = m0_be_domain__0types_init(dom);
++	if (rc != 0)
++		return rc;
++
+ 	rc = m0_be_engine_init(en, &dom->bd_cfg.bc_engine);
+-	if (rc == 0) {
+-		m0_be_engine_start(en);
+-		if (rc != 0)
+-			m0_be_engine_fini(en);
++	if (rc != 0) {
++		m0_be_domain__0types_fini(dom);
++		return rc;
+ 	}
++
++	m0_be_engine_start(en);
++
+ 	return rc;
+ }
+ 
+@@ -46,6 +88,9 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+ {
+ 	m0_be_engine_stop(&dom->bd_engine);
+ 	m0_be_engine_fini(&dom->bd_engine);
++	m0_be_domain__0types_fini(dom);
++	zt_tlist_fini(&dom->bd_0type_list);
++	seg_tlist_fini(&dom->bd_seg_list);
+ }
+ 
+ M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom)
+diff --git a/be/domain.h b/be/domain.h
+index 24bbe00..625ab31 100644
+--- a/be/domain.h
++++ b/be/domain.h
+@@ -24,6 +24,7 @@
+ #define __MERO_BE_DOMAIN_H__
+ 
+ #include "be/engine.h"
++#include "lib/tlist.h"
+ 
+ /**
+  * @defgroup be
+@@ -38,6 +39,9 @@ struct m0_be_domain_cfg {
+ struct m0_be_domain {
+ 	struct m0_be_domain_cfg	bd_cfg;
+ 	struct m0_be_engine	bd_engine;
++	struct m0_tl            bd_0type_list;
++	/** List of segments in this domain. First segment in which is seg0. */
++	struct m0_tl            bd_seg_list;
+ };
+ 
+ M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+diff --git a/be/seg.c b/be/seg.c
+index 144c991..09b880b 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -83,6 +83,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+ 		.bs_stob     = stob,
+ 		.bs_state    = M0_BSS_INIT,
+ 	};
++	seg_tlink_init(seg);
+ 	M0_LEAVE();
+ }
+ 
+@@ -90,6 +91,7 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+ {
+ 	M0_ENTRY("seg=%p", seg);
+ 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
++	seg_tlink_fini(seg);
+ 	M0_LEAVE();
+ }
+ 
+diff --git a/be/seg.h b/be/seg.h
+index b5265d6..31da93e 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -25,6 +25,7 @@
+ #include "be/alloc.h"		/* m0_be_allocator */
+ #include "be/seg_dict.h"	/* m0_be_seg_dict_init */	/* XXX */
+ 
++#include "lib/list.h"
+ #include "stob/stob.h"  /* m0_stob */
+ 
+ struct m0_be;
+@@ -66,8 +67,11 @@ struct m0_be_seg {
+ 	struct m0_be_allocator bs_allocator;
+ 	struct m0_be_domain   *bs_domain;
+ 	int                    bs_state;
++	uint64_t               bs_magic;
++	struct m0_tlink        bs_linkage;
+ };
+ 
++M0_TL_DECLARE(seg, M0_INTERNAL, struct m0_be_seg);
+ 
+ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+ 				struct m0_stob *stob,
+diff --git a/be/seg0.c b/be/seg0.c
+index a51e7ff..0d2a90c 100644
+--- a/be/seg0.c
++++ b/be/seg0.c
+@@ -18,8 +18,82 @@
+  * Original creation date: 11-Feb-2014
+  */
+ 
++#include "be/domain.h"
+ #include "be/seg0.h"
++#include "be/seg.h"
+ 
++#include "lib/mutex.h"
++#include "lib/buf.h"
++
++
++static bool be_0type_invarinat(const struct m0_be_0type *zt, bool registered)
++{
++	return ergo(registered, zt_tlink_is_in(zt)  &&
++				zt->b0_dom != NULL) &&
++		zt->b0_name != NULL &&
++		zt->b0_init != NULL &&
++		zt->b0_fini != NULL;
++}
++
++static bool dom_is_locked(const struct m0_be_domain *dom)
++{
++	return m0_mutex_is_locked(&dom->bd_engine.eng_lock);
++}
++
++static struct m0_be_seg *seg0_get(const struct m0_be_domain *dom)
++{
++	return seg_tlist_head(&dom->bd_seg_list);
++}
++
++static void keyname_format(const struct m0_be_0type *zt,
++			   const char *suffix, char *keyname)
++{
++	const char *prefix = "M0_BE:";
++
++	M0_PRE(strlen(prefix) + strlen(zt->b0_name) + strlen(suffix) <
++	       ARRAY_SIZE(keyname) - sizeof('\0'));
++
++	strcat(keyname, prefix);
++	strcat(keyname, zt->b0_name);
++	strcat(keyname, suffix);
++}
++
++void m0_be_0type_register(struct m0_be_domain *dom, struct m0_be_0type *zt)
++{
++	M0_PRE(be_0type_invarinat(zt, false));
++	M0_PRE(dom_is_locked(dom));
++
++	zt_tlink_init_at(zt, &dom->bd_0type_list);
++	zt->b0_dom = dom;
++}
++
++int m0_be_0type_add(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		    const char *suffix, const struct m0_buf *data)
++{
++	struct m0_be_seg *seg;
++	char              keyname[1024] = {}; /* XXX */
++
++	M0_PRE(dom_is_locked(zt->b0_dom));
++	M0_PRE(be_0type_invarinat(zt, true));
++
++	seg = seg0_get(zt->b0_dom);
++	keyname_format(zt, suffix, keyname);
++	return m0_be_seg_dict_insert(seg, tx, keyname, data->b_addr);
++}
++
++int m0_be_0type_del(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		    const char *suffix)
++{
++	struct m0_be_seg *seg;
++	char              keyname[1024] = {}; /* XXX */
++
++	M0_PRE(dom_is_locked(zt->b0_dom));
++	M0_PRE(be_0type_invarinat(zt, true));
++
++	seg = seg0_get(zt->b0_dom);
++	keyname_format(zt, suffix, keyname);
++	return m0_be_seg_dict_delete(seg, tx, keyname);
++}
+ 
+ /*
+  *  Local variables:
+diff --git a/be/seg0.h b/be/seg0.h
+index e53da76..df686c1 100644
+--- a/be/seg0.h
++++ b/be/seg0.h
+@@ -27,6 +27,7 @@
+ /* import */
+ struct m0_buf;
+ struct m0_be_tx;
++struct m0_be_domain;
+ 
+ /**
+  * @defgroup be
+@@ -63,9 +64,15 @@ struct m0_be_0type {
+ 			     const struct m0_buf *data);
+ 
+ 	/** linkage in a list of 0types into m0_be_domain. */
+-	struct m0_tlink b0_linkage;
++	struct m0_tlink      b0_linkage;
++	uint64_t             b0_magic;
++
++	/** domain which contains this 0type instance */
++	struct m0_be_domain *b0_dom;
+ };
+ 
++M0_TL_DECLARE(zt, M0_INTERNAL, struct m0_be_0type);
++
+ /**
+  * Registers new 0type.
+  */
+diff --git a/mero/magic.h b/mero/magic.h
+index 7adbdb8..e85adde 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -155,6 +155,12 @@ enum m0_magic_satchel {
+ 	/* be_alloc_chunk::bac_magic_free (edifice faded) */
+ 	M0_BE_ALLOC_FREE_LINK_MAGIC = 0xed1f1cefaded,
+ 
++	/* m0_be_tx::t_magic (badabooooooo) */
++	M0_BE_0TYPE_MAGIC = 0x33badab000000177,
++
++	/* m0_be_tx::t_magic (badabooooooo) */
++	M0_BE_SEG_MAGIC = 0x33badab000000177,
++
+ /* m0t1fs */
+ 	/* m0t1fs_sb::s_magic (cozie filesis) */
+ 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,
+diff --git a/mero/mero-pub.api b/mero/mero-pub.api
+index 5754a5f..b80ae49 100644
+--- a/mero/mero-pub.api
++++ b/mero/mero-pub.api
+@@ -146,3 +146,6 @@ m0_be_ut_stob_get_by_id
+ m0_be_ut_stob_put
+ m0_be_ut_tx_init
+ m0_dbenv_reset
++m0_be_0type_add
++m0_be_0type_del
++m0_be_0type_register
+-- 
+1.8.3.2
+

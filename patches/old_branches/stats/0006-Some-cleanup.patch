@@ -1,0 +1,325 @@
+From 4c352f48412ec8ebc880f5e1fa3a227bf0606797 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 19 Dec 2013 03:10:42 +0530
+Subject: [PATCH 06/50] - Some cleanup
+
+---
+ fop/fom.h                |   3 ++
+ fop/fom_generic.c        | 108 +++++++++++++++++++++++++----------------------
+ fop/ut/stats/stats_fom.c |   6 ---
+ ioservice/io_foms.c      |  58 ++++++++++++-------------
+ ioservice/ut/bulkio_ut.c |   2 -
+ sm/sm.c                  |   2 +-
+ 6 files changed, 89 insertions(+), 90 deletions(-)
+
+diff --git a/fop/fom.h b/fop/fom.h
+index c91d79d..0d87388 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -948,6 +948,9 @@ M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
+  */
+ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
+ 
++#define M0_FOM_PHASE_TRANS_NR(fom)                                      \
++	(FOM_PHASE_STATS_DATA_SZ((fom)->fo_type->ft_conf->scf_trans_nr))
++
+ #endif /* __MERO_FOP_FOM_H__ */
+ /** @} end of fom group */
+ 
+diff --git a/fop/fom_generic.c b/fop/fom_generic.c
+index 4f8e476..3c27955 100644
+--- a/fop/fom_generic.c
++++ b/fop/fom_generic.c
+@@ -660,65 +660,73 @@ static struct m0_sm_state_descr generic_phases[] = {
+ 
+ /* @todo Need alignment and proper cause */
+ static struct m0_sm_trans_descr generic_phases_trans[] = {
+-	{"Init",	M0_FOPH_INIT,	M0_FOPH_AUTHENTICATE},
+-	{"Init",	M0_FOPH_INIT,	M0_FOPH_FINISH},
+-	{"Init",	M0_FOPH_INIT,	M0_FOPH_SUCCESS},
+-	{"Init",	M0_FOPH_INIT,	M0_FOPH_FAILURE},
+-	{"Init",	M0_FOPH_INIT,	M0_FOPH_TYPE_SPECIFIC},
+-	{"fom_authen",	M0_FOPH_AUTHENTICATE, M0_FOPH_AUTHENTICATE_WAIT},
+-	{"fom_authen",	M0_FOPH_AUTHENTICATE, M0_FOPH_RESOURCE_LOCAL},
+-	{"fom_authen",	M0_FOPH_AUTHENTICATE, M0_FOPH_FAILURE},
+-	{"fom_authen_wait", M0_FOPH_AUTHENTICATE_WAIT, M0_FOPH_RESOURCE_LOCAL},
+-	{"fom_authen_wait", M0_FOPH_AUTHENTICATE_WAIT, M0_FOPH_FAILURE},
+-	{"fom_loc_resource", M0_FOPH_RESOURCE_LOCAL,
++	{"Initialised",	M0_FOPH_INIT,	M0_FOPH_AUTHENTICATE},
++	{"Initialised",	M0_FOPH_INIT,	M0_FOPH_FINISH},
++	{"Initialised",	M0_FOPH_INIT,	M0_FOPH_SUCCESS},
++	{"Init failed",	M0_FOPH_INIT,	M0_FOPH_FAILURE},
++	{"Initialised",	M0_FOPH_INIT,	M0_FOPH_TYPE_SPECIFIC},
++	{"FOM authentication initialised", M0_FOPH_AUTHENTICATE,
++					   M0_FOPH_AUTHENTICATE_WAIT},
++	{"FOM authentication initialised", M0_FOPH_AUTHENTICATE,
++					   M0_FOPH_RESOURCE_LOCAL},
++	{"FOM authentication failed",	M0_FOPH_AUTHENTICATE, M0_FOPH_FAILURE},
++	{"FOM authentication finished", M0_FOPH_AUTHENTICATE_WAIT,
++					M0_FOPH_RESOURCE_LOCAL},
++	{"FOM authentication failed", M0_FOPH_AUTHENTICATE_WAIT,
++				      M0_FOPH_FAILURE},
++	{"Identify local resource", M0_FOPH_RESOURCE_LOCAL,
+ 						M0_FOPH_RESOURCE_LOCAL_WAIT},
+-	{"fom_loc_resource", M0_FOPH_RESOURCE_LOCAL,
++	{"Local resource identified", M0_FOPH_RESOURCE_LOCAL,
+ 						M0_FOPH_RESOURCE_DISTRIBUTED},
+-	{"fom_loc_resource", M0_FOPH_RESOURCE_LOCAL,
++	{"Local resource identification failed", M0_FOPH_RESOURCE_LOCAL,
+ 						M0_FOPH_FAILURE},
+-	{"fom_loc_resource_wait", M0_FOPH_RESOURCE_LOCAL_WAIT,
++	{"Local resource identified", M0_FOPH_RESOURCE_LOCAL_WAIT,
+ 						M0_FOPH_RESOURCE_DISTRIBUTED},
+-	{"fom_loc_resource_wait", M0_FOPH_RESOURCE_LOCAL_WAIT,
++	{"Local resource identification failed", M0_FOPH_RESOURCE_LOCAL_WAIT,
+ 						     M0_FOPH_FAILURE},
+-	{"fom_dist_resource",	 M0_FOPH_RESOURCE_DISTRIBUTED,
+-					M0_FOPH_RESOURCE_DISTRIBUTED_WAIT},
+-	{"fom_dist_resource",	 M0_FOPH_RESOURCE_DISTRIBUTED,
+-					M0_FOPH_OBJECT_CHECK},
+-	{"fom_dist_resource",	 M0_FOPH_RESOURCE_DISTRIBUTED,
++	{"Identify distributed resource", M0_FOPH_RESOURCE_DISTRIBUTED,
++					  M0_FOPH_RESOURCE_DISTRIBUTED_WAIT},
++	{"Distributed resource identified", M0_FOPH_RESOURCE_DISTRIBUTED,
++					    M0_FOPH_OBJECT_CHECK},
++	{"Distributed resource identification failed",
++					M0_FOPH_RESOURCE_DISTRIBUTED,
+ 					M0_FOPH_FAILURE},
+-	{"fom_dist_resource_wait", M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
+-					M0_FOPH_OBJECT_CHECK},
+-	{"fom_dist_resource_wait", M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
++	{"Distributed resource identified", M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
++					    M0_FOPH_OBJECT_CHECK},
++	{"Distributed resource identification failed",
++					M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
+ 					M0_FOPH_FAILURE},
+-	{"fom_obj_check", M0_FOPH_OBJECT_CHECK, M0_FOPH_OBJECT_CHECK_WAIT},
+-	{"fom_obj_check", M0_FOPH_OBJECT_CHECK, M0_FOPH_AUTHORISATION},
+-	{"fom_obj_check", M0_FOPH_OBJECT_CHECK, M0_FOPH_FAILURE},
+-	{"fom_obj_check_wait", M0_FOPH_OBJECT_CHECK_WAIT,
++	{"Check for FS objects initiate", M0_FOPH_OBJECT_CHECK,
++				       M0_FOPH_OBJECT_CHECK_WAIT},
++	{"FS objects located", M0_FOPH_OBJECT_CHECK, M0_FOPH_AUTHORISATION},
++	{"Check for FS objects init failed", M0_FOPH_OBJECT_CHECK,
++					     M0_FOPH_FAILURE},
++	{"FS objects located", M0_FOPH_OBJECT_CHECK_WAIT,
+ 						M0_FOPH_AUTHORISATION},
+-	{"fom_obj_check_wait", M0_FOPH_OBJECT_CHECK_WAIT,
+-						M0_FOPH_FAILURE},
+-	{"fom_auth", M0_FOPH_AUTHORISATION, M0_FOPH_AUTHORISATION_WAIT},
+-	{"fom_auth", M0_FOPH_AUTHORISATION, M0_FOPH_TXN_INIT},
+-	{"fom_auth", M0_FOPH_AUTHORISATION, M0_FOPH_FAILURE},
+-	{"fom_auth_wait", M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_TXN_INIT},
+-	{"fom_auth_wait", M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_FAILURE},
+-	{"fom_tx_init", M0_FOPH_TXN_INIT, M0_FOPH_TXN_OPEN},
+-	{"fom_tx_open", M0_FOPH_TXN_OPEN, M0_FOPH_TXN_WAIT},
+-	{"fom_tx_wait", M0_FOPH_TXN_WAIT, M0_FOPH_FAILURE},
+-	{"fom_tx_wait", M0_FOPH_TXN_WAIT, M0_FOPH_TYPE_SPECIFIC},
+-	{"fom_success", M0_FOPH_SUCCESS, M0_FOPH_FOL_REC_ADD},
+-	{"fom_fol_rec_add", M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
+-	{"fom_txn_commit", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
+-	{"fom_queue_reply", M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
+-	{"fom_queue_reply", M0_FOPH_QUEUE_REPLY, M0_FOPH_FINISH},
+-	{"fom_queue_reply_wait", M0_FOPH_QUEUE_REPLY_WAIT,
+-						M0_FOPH_TXN_COMMIT_WAIT},
+-	{"fom_queue_reply_wait", M0_FOPH_QUEUE_REPLY_WAIT,
++	{"Check for FS object failed", M0_FOPH_OBJECT_CHECK_WAIT,
++				       M0_FOPH_FAILURE},
++	{"Authorisation initiate", M0_FOPH_AUTHORISATION,
++				   M0_FOPH_AUTHORISATION_WAIT},
++	{"Authorisation finish", M0_FOPH_AUTHORISATION, M0_FOPH_TXN_INIT},
++	{"Autorisation init failed", M0_FOPH_AUTHORISATION, M0_FOPH_FAILURE},
++	{"Authorisation finish", M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_TXN_INIT},
++	{"Authorisation failed", M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_FAILURE},
++	{"Transaction initialised", M0_FOPH_TXN_INIT, M0_FOPH_TXN_OPEN},
++	{"Wait for transaction open", M0_FOPH_TXN_OPEN, M0_FOPH_TXN_WAIT},
++	{"Transaction open failed", M0_FOPH_TXN_WAIT, M0_FOPH_FAILURE},
++	{"Transaction opened", M0_FOPH_TXN_WAIT, M0_FOPH_TYPE_SPECIFIC},
++	{"FOM successfully completed", M0_FOPH_SUCCESS, M0_FOPH_FOL_REC_ADD},
++	{"FOL record added", M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
++	{"Transaction commit init", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
++	{"Reply queue init", M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
++	{"Reply sent", M0_FOPH_QUEUE_REPLY, M0_FOPH_FINISH},
++	{"Reply sent and transaction commit wait", M0_FOPH_QUEUE_REPLY_WAIT,
++						   M0_FOPH_TXN_COMMIT_WAIT},
++	{"Reply sent", M0_FOPH_QUEUE_REPLY_WAIT,
+ 						M0_FOPH_FINISH},
+-	{"fom_txn_commit_wait", M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_FINISH},
+-	{"fom_timeout", M0_FOPH_TIMEOUT, M0_FOPH_FAILURE},
+-	{"fom_failure", M0_FOPH_FAILURE, M0_FOPH_TXN_COMMIT},
+-	/*{"SM finish", M0_FOPH_FINISH, 0},*/
++	{"Transaction commited", M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_FINISH},
++	{"FOM timed out", M0_FOPH_TIMEOUT, M0_FOPH_FAILURE},
++	{"FOM failed", M0_FOPH_FAILURE, M0_FOPH_TXN_COMMIT},
+ };
+ 
+ struct m0_sm_conf m0_generic_conf = {
+diff --git a/fop/ut/stats/stats_fom.c b/fop/ut/stats/stats_fom.c
+index b24b8d1..e591377 100644
+--- a/fop/ut/stats/stats_fom.c
++++ b/fop/ut/stats/stats_fom.c
+@@ -24,7 +24,6 @@
+ 
+ #include "fop/ut/stats/stats_fom.h"
+ 
+-
+ static struct m0_chan   chan;
+ static struct m0_mutex  mutex;
+ static struct m0_clink	clink;
+@@ -100,10 +99,6 @@ static size_t fom_stats_home_locality(const struct m0_fom *fom)
+ 
+ static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+ {
+-#undef FOM_PHASE_TRANS_NR
+-#define FOM_PHASE_TRANS_NR(fom)                 \
+-        (FOM_PHASE_STATS_DATA_SZ((fom)->fo_type->ft_conf->scf_trans_nr))
+-
+ 	struct fom_stats *fom_obj;
+ 	fom_obj = container_of(fom, struct fom_stats, fs_gen);
+ 
+@@ -116,7 +111,6 @@ static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+ 				&addb_rt_fom_phase_stats,
+ 				fom->fo_phase_stats_data,
+ 				fom->fo_phase_stats_data_size);
+-#undef FOM_PHASE_TRANS_NR
+ }
+ 
+ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 1ca4cfc..97f5e85 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -751,48 +751,50 @@ struct m0_sm_state_descr io_phases[] = {
+ 	},
+ };
+ 
++/**
++ * @todo Can be created programatically by iterating m0_sm_state_descr ???
++ */
+ struct m0_sm_trans_descr io_phases_trans[] = {
+-	{"IO Prepare", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
+-	{"IO Prepare", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_FAILURE},
+-	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++	{"IO Prepared", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
++	{"IO Prepare Failed", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_FAILURE},
++	{"Network buffer acquired", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+ 						M0_FOPH_IO_STOB_INIT},
+-	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++	{"Network buffer acquired", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+ 						M0_FOPH_IO_ZERO_COPY_INIT},
+-	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++	{"Network buffer not available", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+ 						M0_FOPH_IO_FOM_BUFFER_WAIT},
+-	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++	{"Network buffer acquire failure", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
+ 						M0_FOPH_FAILURE},
+-	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++	{"Network buffer acquired", M0_FOPH_IO_FOM_BUFFER_WAIT,
+ 						M0_FOPH_IO_STOB_INIT},
+-	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++	{"Network buffer acquired", M0_FOPH_IO_FOM_BUFFER_WAIT,
+ 						M0_FOPH_IO_ZERO_COPY_INIT},
+-	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++	{"Network buffer not available", M0_FOPH_IO_FOM_BUFFER_WAIT,
+ 						M0_FOPH_IO_FOM_BUFFER_WAIT},
+-	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++	{"Network buffer acquire failure", M0_FOPH_IO_FOM_BUFFER_WAIT,
+ 						M0_FOPH_FAILURE},
+-	{"STOB I/O launch", M0_FOPH_IO_STOB_INIT, M0_FOPH_IO_STOB_WAIT},
+-	{"STOB I/O launch", M0_FOPH_IO_STOB_INIT, M0_FOPH_FAILURE},
+-	{"STOB I/O finish",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_ZERO_COPY_INIT},
+-	{"STOB I/O finish",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_BUFFER_RELEASE},
+-	{"STOB I/O finish",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_FAILURE},
+-	{"Zero-copy initiate", M0_FOPH_IO_ZERO_COPY_INIT,
++	{"STOB I/O launched", M0_FOPH_IO_STOB_INIT, M0_FOPH_IO_STOB_WAIT},
++	{"STOB I/O launch failed", M0_FOPH_IO_STOB_INIT, M0_FOPH_FAILURE},
++	{"STOB I/O finished",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_ZERO_COPY_INIT},
++	{"STOB I/O finished",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_BUFFER_RELEASE},
++	{"STOB I/O failed",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_FAILURE},
++	{"Zero-copy initiated", M0_FOPH_IO_ZERO_COPY_INIT,
+ 						  M0_FOPH_IO_ZERO_COPY_WAIT},
+-	{"Zero-copy initiate", M0_FOPH_IO_ZERO_COPY_INIT,
++	{"Zero-copy initiate failed", M0_FOPH_IO_ZERO_COPY_INIT,
+ 						  M0_FOPH_FAILURE},
+-	{"Zero-copy finish", M0_FOPH_IO_ZERO_COPY_WAIT,
++	{"Zero-copy finished", M0_FOPH_IO_ZERO_COPY_WAIT,
+ 						  M0_FOPH_IO_BUFFER_RELEASE},
+-	{"Zero-copy finish", M0_FOPH_IO_ZERO_COPY_WAIT,
++	{"Zero-copy finished", M0_FOPH_IO_ZERO_COPY_WAIT,
+ 						  M0_FOPH_IO_STOB_INIT},
+-	{"Zero-copy finish", M0_FOPH_IO_ZERO_COPY_WAIT,
++	{"Zero-copy failed", M0_FOPH_IO_ZERO_COPY_WAIT,
+ 						  M0_FOPH_FAILURE},
+-	{"Network buffer release", M0_FOPH_IO_BUFFER_RELEASE,
++	{"Network buffer released", M0_FOPH_IO_BUFFER_RELEASE,
+ 						M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
+-	{"Network buffer release", M0_FOPH_IO_BUFFER_RELEASE,
++	{"Network buffer released", M0_FOPH_IO_BUFFER_RELEASE,
+ 						M0_FOPH_SUCCESS},
+ };
+ 
+ struct m0_sm_conf io_conf = {
+-	//.scf_magic     = M0_SM_CONF_MAGIC,
+ 	.scf_name      = "IO phases",
+ 	.scf_nr_states = ARRAY_SIZE(io_phases),
+ 	.scf_state     = io_phases,
+@@ -2081,10 +2083,6 @@ static size_t m0_io_fom_cob_rw_locality_get(const struct m0_fom *fom)
+ static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+ 				       struct m0_addb_mc *mc)
+ {
+-#undef FOM_PHASE_TRANS_NR
+-#define FOM_PHASE_TRANS_NR(fom)			\
+-	(FOM_PHASE_STATS_DATA_SZ((fom)->fo_type->ft_conf->scf_trans_nr))
+-
+         struct m0_fop_cob_rw *rwfop;
+ 
+ 	rwfop = io_rw_get(fom->fo_fop);
+@@ -2094,17 +2092,15 @@ static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+ 			 rwfop->crw_desc.id_nr, rwfop->crw_flags);
+ 	m0_fom_op_addb_ctx_import(fom, &rwfop->crw_addb_ctx_id);
+ 
+-	IOS_ALLOC_ARR(fom->fo_phase_stats_data, FOM_PHASE_TRANS_NR(fom),
++	IOS_ALLOC_ARR(fom->fo_phase_stats_data, M0_FOM_PHASE_TRANS_NR(fom),
+ 		      &m0_ios_addb_ctx, FOM_COB_RW_ADDB_INIT);
+ 	if (fom->fo_phase_stats_data != NULL) {
+-		fom->fo_phase_stats_data_size = FOM_PHASE_TRANS_NR(fom) * 8;
++		fom->fo_phase_stats_data_size = M0_FOM_PHASE_TRANS_NR(fom) * 8;
+ 		m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
+ 					&m0_addb_rt_ios_io_fom_phase_stats,
+ 					fom->fo_phase_stats_data,
+ 					fom->fo_phase_stats_data_size);
+ 	}
+-
+-#undef FOM_PHASE_TRANS_NR
+ }
+ 
+ /**
+diff --git a/ioservice/ut/bulkio_ut.c b/ioservice/ut/bulkio_ut.c
+index 5635c0b..b9483d7 100644
+--- a/ioservice/ut/bulkio_ut.c
++++ b/ioservice/ut/bulkio_ut.c
+@@ -1155,8 +1155,6 @@ static int io_fop_stob_create_fom_create(struct m0_fop  *fop,
+ 	int            rc;
+ 	struct m0_fom *fom;
+ 
+-//	m0_debugger_invoke();
+-
+ 	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
+         M0_UT_ASSERT(rc == 0);
+ 
+diff --git a/sm/sm.c b/sm/sm.c
+index b7d40f6..15192bc 100644
+--- a/sm/sm.c
++++ b/sm/sm.c
+@@ -661,7 +661,7 @@ M0_INTERNAL int m0_sm_conf_trans_extend(struct m0_sm_conf       *base,
+ 		trans_descr[i] = sub->scf_trans[j];
+ 
+ 	base->scf_trans_nr = trans_nr;
+-	base->scf_trans = trans_descr;
++	base->scf_trans    = trans_descr;
+ 
+ 	return 0;
+ }
+-- 
+1.8.3.2
+

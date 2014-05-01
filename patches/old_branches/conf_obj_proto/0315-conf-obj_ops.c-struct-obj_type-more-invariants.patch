@@ -1,0 +1,455 @@
+From 2461b62f585a4a705eca6a1281229aff207258c1 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 14 Aug 2012 23:12:56 +0300
+Subject: [PATCH 315/370] conf/obj_ops.c: struct obj_type; more invariants
+
+Introduce `struct obj_type', which contains information about
+configuration object type.  Make use of an array of such structures.
+
+obj_ops.h:
++ Rid c2_conf_obj_ops of ->coo_invariant().
+
+obj_ops.c:
++ Use `abbrev' parameter to shorten the macros.
++ {generic,concrete}_obj_invariant(): new functions.
++ Introduce generic_obj_init().
++ Implement c2_conf_obj_new().
++ Implement {dir,profile}_invariant().
+---
+ conf/obj_ops.c | 306 +++++++++++++++++++++++++++++++++++----------------------
+ conf/obj_ops.h |  23 ++---
+ 2 files changed, 196 insertions(+), 133 deletions(-)
+
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 559c707..3b5eaa3 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -23,11 +23,10 @@
+ #endif
+ #include "conf/obj_ops.h"
+ #include "conf/confc.h"   /* c2_confc */
+-#include "lib/cdefs.h"    /* ergo */
++#include "lib/cdefs.h"    /* ergo, C2_MAGIX_OFFSET, IS_IN_ARRAY */
+ #include "lib/arith.h"    /* C2_CNT_INC, C2_CNT_DEC */
+ #include "lib/misc.h"     /* C2_IN */
+-#include "lib/cdefs.h"    /* C2_MAGIX_OFFSET, IS_IN_ARRAY */
+-#include "lib/assert.h"   /* C2_IMPOSSIBLE */
++#include "lib/memory.h"   /* c2_alloc */
+ 
+ /**
+  * @defgroup conf_dlspec_objops Configuration Object Operations
+@@ -51,123 +50,189 @@ enum {
+ 	CONF_PARTITION_MAGIC  = 0x33bacca15a100f77
+ };
+ 
+-static bool dir_invariant(const void *ptr);
+-static bool profile_invariant(const void *ptr);
+-static bool filesystem_invariant(const void *ptr);
+-static bool service_invariant(const void *ptr);
+-static bool node_invariant(const void *ptr);
+-static bool nic_invariant(const void *ptr);
+-static bool sdev_invariant(const void *ptr);
+-static bool partition_invariant(const void *ptr);
+-
+-#define _BOB_DEFINE(type, magix, invariant)                         \
+-const struct c2_bob_type type ## _bob = {                           \
+-	.bt_name = #type,                                           \
+-	.bt_magix_offset =                                          \
+-		C2_MAGIX_OFFSET(struct type, type ## _cast_field) + \
+-		C2_MAGIX_OFFSET(struct c2_conf_obj, co_magix),      \
+-	.bt_magix = magix,                                          \
+-	.bt_check = invariant                                       \
++static bool dir_invariant(const void *bob);
++static bool profile_invariant(const void *bob);
++static bool filesystem_invariant(const void *bob);
++static bool service_invariant(const void *bob);
++static bool node_invariant(const void *bob);
++static bool nic_invariant(const void *bob);
++static bool sdev_invariant(const void *bob);
++static bool partition_invariant(const void *bob);
++
++static bool buf_is_valid(const struct c2_conf_buf *buf);
++static const struct c2_tl_descr *list_of(enum c2_conf_objtype *t);
++
++#define _BOB_DEFINE(abbrev, magix)                                           \
++const struct c2_bob_type c2_conf_ ## abbrev ## _bob = {                      \
++	.bt_name = "c2_conf_" #abbrev,                                       \
++	.bt_magix_offset =                                                   \
++		C2_MAGIX_OFFSET(struct c2_conf_ ## abbrev,                   \
++				c2_conf_ ## abbrev ## _cast_field.co_magix), \
++	.bt_magix = magix,                                                   \
++	.bt_check = abbrev ## _invariant                                     \
+ }
+ 
+-_BOB_DEFINE(c2_conf_dir,        CONF_DIR_MAGIC,        dir_invariant);
+-_BOB_DEFINE(c2_conf_profile,    CONF_PROFILE_MAGIC,    profile_invariant);
+-_BOB_DEFINE(c2_conf_filesystem, CONF_FILESYSTEM_MAGIC, filesystem_invariant);
+-_BOB_DEFINE(c2_conf_service,    CONF_SERVICE_MAGIC,    service_invariant);
+-_BOB_DEFINE(c2_conf_node,       CONF_NODE_MAGIC,       node_invariant);
+-_BOB_DEFINE(c2_conf_nic,        CONF_NIC_MAGIC,        nic_invariant);
+-_BOB_DEFINE(c2_conf_sdev,       CONF_SDEV_MAGIC,       sdev_invariant);
+-_BOB_DEFINE(c2_conf_partition,  CONF_PARTITION_MAGIC,  partition_invariant);
+-#unset _BOB_DEFINE
+-
+-static bool concrete_invariant(const struct c2_conf_obj *obj)
+-{
+-#define CHECK(ptr, type)                                                   \
+-	c2_bob_check(&type ## _bob, container_of((ptr), const struct type, \
+-						 type ## _cast_field))
+-
+-	switch (obj->co_type) {
+-	case C2_CO_DIR:        return CHECK(obj, c2_conf_dir);
+-	case C2_CO_PROFILE:    return CHECK(obj, c2_conf_profile);
+-	case C2_CO_FILESYSTEM: return CHECK(obj, c2_conf_filesystem);
+-	case C2_CO_SERVICE:    return CHECK(obj, c2_conf_service);
+-	case C2_CO_NODE:       return CHECK(obj, c2_conf_node);
+-	case C2_CO_NIC:        return CHECK(obj, c2_conf_nic);
+-	case C2_CO_SDEV:       return CHECK(obj, c2_conf_sdev);
+-	case C2_CO_PARTITION:  return CHECK(obj, c2_conf_partition);
+-	default:
+-		C2_IMPOSSIBLE("Invalid object type");
++_BOB_DEFINE(dir,        CONF_DIR_MAGIC);
++_BOB_DEFINE(profile,    CONF_PROFILE_MAGIC);
++_BOB_DEFINE(filesystem, CONF_FILESYSTEM_MAGIC);
++_BOB_DEFINE(service,    CONF_SERVICE_MAGIC);
++_BOB_DEFINE(node,       CONF_NODE_MAGIC);
++_BOB_DEFINE(nic,        CONF_NIC_MAGIC);
++_BOB_DEFINE(sdev,       CONF_SDEV_MAGIC);
++_BOB_DEFINE(partition,  CONF_PARTITION_MAGIC);
++#undef _BOB_DEFINE
++
++/** Configuration object type. */
++static const struct obj_type {
++	/** Size of object. */
++	size_t                    ot_size;
++	/** Offset of c2_conf_obj field. */
++	int                       ot_obj_offset;
++	/** Address of branded object type. */
++	const struct c2_bob_type *ot_bob;
++	/** Operations vector. */
++	struct c2_conf_obj_ops    ot_ops;
++} _obj_types[C2_CO_NR] = {
++#define _OBJ_TYPE_INIT(abbrev)                                                \
++	{                                                                     \
++		.ot_size       = sizeof(struct c2_conf_ ## abbrev),           \
++		.ot_obj_offset = offsetof(struct c2_conf_ ## abbrev,          \
++					  c2_conf_ ## abbrev ## _cast_field), \
++		.ot_bob        = &c2_conf_ ## abbrev ## _bob,                 \
++		.ot_ops        = { .coo_lookup  = abbrev ## _lookup }         \
+ 	}
+ 
+-	return false; /* never reached */
+-#undef CHECK
++	[C2_CO_DIR]        = _OBJ_TYPE_INIT(dir),
++	[C2_CO_PROFILE]    = _OBJ_TYPE_INIT(profile),
++	[C2_CO_FILESYSTEM] = _OBJ_TYPE_INIT(filesystem),
++	[C2_CO_SERVICE]    = _OBJ_TYPE_INIT(service),
++	[C2_CO_NODE]       = _OBJ_TYPE_INIT(node),
++	[C2_CO_NIC]        = _OBJ_TYPE_INIT(nic),
++	[C2_CO_SDEV]       = _OBJ_TYPE_INIT(sdev),
++	[C2_CO_PARTITION]  = _OBJ_TYPE_INIT(partition)
++#undef _OBJ_TYPE_INIT
++};
++
++static const struct obj_type *obj_type(enum c2_conf_objtype type)
++{
++	C2_PRE(IS_IN_ARRAY(type, concrete_types));
++	return &_obj_types[type];
+ }
+ 
+-bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
++static bool generic_obj_invariant(const struct c2_conf_obj *obj)
+ {
+-	return
+-		/* Check only generic fields. */
+-		obj->co_type < C2_CO_NR &&
+-		obj->co_id.cb_size > 0 && obj->co_id.cb_data != NULL &&
++	const struct obj_type *ot = obj_type(obj->co_type);
++
++	return obj->co_magix == ot->ot_bob->bt_magix &&
++		buf_is_valid(&obj->co_id) &&
+ 		C2_IN(obj->co_status,
+ 		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
+-		obj->co_ops != NULL &&
+-		/* Check concrete fields. */
+-		concrete_invariant(obj);
++		obj->co_ops == &ot->ot_ops;
++}
++
++/**
++ * c2_bob_check()s concrete (ambient) object given pointer to generic
++ * (embedded) object.
++ */
++static bool concrete_obj_invariant(const struct c2_conf_obj *obj)
++{
++	const struct obj_type *ot = obj_type(obj->co_type);
++
++	return c2_bob_check(ot->ot_bob, (const char *)obj - ot->ot_obj_offset);
+ }
+ 
+-const struct c2_tl_descr *list_of(enum c2_conf_objtype *t);
++bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
++{
++	return generic_obj_invariant(obj) && concrete_obj_invariant(obj);
++}
+ 
+-static bool dir_invariant(const void *ptr)
++static bool dir_invariant(const void *bob)
+ {
+ 	struct c2_conf_obj       *child;
+-	const struct c2_conf_dir *dir = ptr;
+-	const struct c2_tl_descr *td  = list_of(dir->cd_item_type);
++	const struct c2_conf_dir *self = bob;
++	const struct c2_conf_obj *parent = self->cd_obj.co_parent;
++	const struct c2_tl_descr *td = self->cd_obj.co_status == C2_CS_READY ?
++		list_of(self->cd_item_type) : NULL;
++
++	return parent != NULL && generic_obj_invariant(parent) &&
++		parent->co_status == C2_CS_READY &&
++		ergo(self->cd_obj.co_status == C2_CS_READY, td != NULL &&
++		     c2_tlist_forall(td, child, &self->cd_items,
++				     child->co_type == self->cd_item_type));
++}
+ 
+-	return dir->cd_obj.co_parent != NULL && dir->cd_item_type < C2_CO_NR &&
+-		td != NULL &&
+-		c2_tlist_forall(td, child, &dir->cd_items,
+-				child->co_type == dir->cd_item_type);
++static bool profile_invariant(const void *bob)
++{
++	const struct c2_conf_profile *self = bob;
++	const struct c2_conf_obj     *child = prof->cp_filesystem == NULL ?
++		NULL : &prof->cp_filesystem->cf_obj;
++
++	return self->cp_obj.co_parent == NULL /* topmost object */ &&
++		(child != NULL) == (self->cp_obj.co_status == C2_CS_READY) &&
++		ergo(child != NULL, generic_obj_invariant(child) &&
++		     child->co_parent == &self->cp_obj);
+ }
+ 
+ /* XXX
+  *
+- * {profile..partition}_invariant()
++ * {filesystem..partition}_invariant()
+  */
+ XXX;
+ 
+ /* ------------------------------------------------------------------
+- * c2_conf_obj_{get,put}()
++ * c2_conf_{new,match,fill}()
+  * ------------------------------------------------------------------ */
+ 
+-static bool confc_is_locked(const struct c2_confc *confc)
++static int generic_obj_init(struct c2_conf_obj *obj, enum c2_conf_objtype type,
++			    const struct c2_conf_buf *id)
+ {
+-	return c2_mutex_is_locked(&confc->cc_lock);
++	int                    rc;
++	const struct obj_type *ot = obj_type(type);
++
++	C2_PRE(buf_is_valid(id));
++
++	rc = c2_conf_buf_copy(&obj->co_id, id);
++	if (rc != 0)
++		return rc;
++
++	obj->co_type = type;
++	obj->co_magix = ot->ot_bob->bt_magix;
++	obj->co_status = C2_CS_MISSING;
++	obj->co_ops = &ot->ot_ops;
++	C2_ASSERT(obj->co_parent == NULL);
++	C2_ASSERT(obj->co_nrefs == 0);
++	c2_chan_init(&obj->co_chan);
++	/* TODO Assert that obj->co_linkage is zeroed. */
++	C2_ASSERT(obj->co_confc == NULL);
++
++	C2_POST(generic_obj_invariant(obj));
++	return 0;
+ }
+ 
+-void c2_conf_obj_get(struct c2_conf_obj *obj)
++struct c2_conf_obj *
++c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *id)
+ {
+-	C2_PRE(c2_conf_obj_invariant(obj));
+-	C2_PRE(obj->co_status == C2_CS_READY);
+-	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
+-
+-	C2_CNT_INC(obj->co_nrefs);
+-}
++	void                  *amb; /* concrete object being allocated */
++	struct c2_conf_obj    *obj; /* embedded c2_conf_obj */
++	int                    rc;
++	const struct obj_type *ot = obj_type(type);
+ 
+-void c2_conf_obj_put(struct c2_conf_obj *obj)
+-{
+-	C2_PRE(c2_conf_obj_invariant(obj));
+-	C2_PRE(obj->co_status == C2_CS_READY);
+-	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
++	amb = c2_alloc(ot->ot_size);
++	if (amb == NULL)
++		return NULL;
++	obj = amb + ot->ot_obj_offset;
+ 
+-	C2_CNT_DEC(obj->co_nrefs);
+-	if (obj->co_nrefs == 0)
+-		c2_chan_broadcast(&obj->co_chan);
++	rc = generic_obj_init(obj, type, id);
++	if (rc != 0) {
++		c2_bob_fini(ot->ot_bob, amb);
++		c2_free(amb);
++		return NULL;
++	}
++	/* Generic fields have been validated by generic_obj_init().
++	 * Concrete fields cannot be validated, because connections to
++	 * other objects of the DAG have not been established yet. */
++	return obj;
+ }
+-
+-/* ------------------------------------------------------------------
+- * c2_conf_{new,match,fill}()
+- * ------------------------------------------------------------------ */
+ 
+ /* static const struct { */
+ /* 	/\** */
+@@ -191,35 +256,6 @@ void c2_conf_obj_put(struct c2_conf_obj *obj)
+ /* 	[C2_CO_PARTITION]  = { .oo_equal = XXX } */
+ /* }; */
+ 
+-/** Allocate concrete object and return the address of its ->*_obj field. */
+-static struct c2_conf_obj *concrete_obj_alloc(enum c2_conf_objtype type)
+-{
+-	XXX;
+-}
+-
+-struct c2_conf_obj *
+-c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *id)
+-{
+-	int rc;
+-	struct c2_conf_obj *ret = concrete_obj_alloc(type);
+-
+-	if (ret == NULL)
+-		return NULL;
+-
+-	rc = c2_conf_buf_copy(&ret->co_id, id);
+-	if (rc != 0) {
+-		c2_free(ret);
+-		return NULL;
+-	}
+-
+-	ret->co_type = type;
+-	ret->co_magix = XXX;
+-	ret->co_status = C2_CS_MISSING;
+-	ret->co_ops = XXX;
+-	c2_chan_init(&ret->co_chan);
+-	return ret;
+-}
+-
+ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+ 		       const struct confx_object *onwire)
+ {
+@@ -379,7 +415,7 @@ C2_TL_DESCR_DEFINE(partitions_tl, "partition objs", static, struct c2_conf_obj,
+ C2_TL_DEFINE(partitions_tl, static, struct c2_conf_obj);
+ 
+ /** Returns descriptor of a list given type of its items. */
+-const struct c2_tl_descr *list_of(enum c2_conf_objtype *t)
++static const struct c2_tl_descr *list_of(enum c2_conf_objtype *t)
+ {
+ 	switch (t) {
+ 	case C2_CO_SERVICE:   return &services_tl;
+@@ -392,6 +428,35 @@ const struct c2_tl_descr *list_of(enum c2_conf_objtype *t)
+ }
+ 
+ /* ------------------------------------------------------------------
++ * c2_conf_obj_{get,put}()
++ * ------------------------------------------------------------------ */
++
++static bool confc_is_locked(const struct c2_confc *confc)
++{
++	return c2_mutex_is_locked(&confc->cc_lock);
++}
++
++void c2_conf_obj_get(struct c2_conf_obj *obj)
++{
++	C2_PRE(c2_conf_obj_invariant(obj));
++	C2_PRE(obj->co_status == C2_CS_READY);
++	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
++
++	C2_CNT_INC(obj->co_nrefs);
++}
++
++void c2_conf_obj_put(struct c2_conf_obj *obj)
++{
++	C2_PRE(c2_conf_obj_invariant(obj));
++	C2_PRE(obj->co_status == C2_CS_READY);
++	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
++
++	C2_CNT_DEC(obj->co_nrefs);
++	if (obj->co_nrefs == 0)
++		c2_chan_broadcast(&obj->co_chan);
++}
++
++/* ------------------------------------------------------------------
+  * misc.
+  * ------------------------------------------------------------------ */
+ 
+@@ -442,4 +507,9 @@ static bool readdir_post(int retval, const struct c2_conf_obj *dir,
+ 		 entry == NULL);
+ }
+ 
++static bool buf_is_valid(const struct c2_conf_buf *buf)
++{
++	return buf->cb_size > 0 && buf->cb_data != NULL;
++}
++
+ /** @} conf_dlspec_objops */
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index 0eb7df5..65d2abb 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -96,25 +96,14 @@ struct c2_conf_obj_ops {
+ 	 * object in case of C2_CONF_DIRNEXT.
+ 	 */
+ 	int (*coo_readdir)(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+-	/**
+-	 * Checks validity of given concrete object.
+-	 *
+-	 * ->coo_invariant() should only validate concrete fields of
+-	 * an object. Generic ones (i.e., the fields of c2_conf_obj)
+-	 * are validated by c2_conf_obj_invariant().
+-	 *
+-	 * ->coo_invariant() can be NULL; in this case only generic
+-	 * fields will be validated by c2_conf_obj_invariant().
+-	 *
+-	 * @see c2_conf_obj_invariant()
+-	 */
+-	bool (*coo_invariant)(const struct c2_conf_obj *obj);
+ };
+ 
+ /**
+  * Checks validity of given configuration object.
+  *
+- * @see  c2_conf_obj_ops::coo_invariant()
++ * c2_conf_obj_invariant() checks both generic and concrete fields of
++ * a configuration object.  I.e., not only c2_conf_obj is validated,
++ * but the ambient object (e.g., c2_conf_node) as well.
+  */
+ bool c2_conf_obj_invariant(const struct c2_conf_obj *obj);
+ 
+@@ -136,7 +125,11 @@ void c2_conf_obj_get(struct c2_conf_obj *obj);
+  */
+ void c2_conf_obj_put(struct c2_conf_obj *obj);
+ 
+-/** Allocates and initialises configuration object of given type. */
++/**
++ * Allocates and initialises configuration object of given type.
++ *
++ * Copies `id' into ->co_id of the resulted object.
++ */
+ struct c2_conf_obj *c2_conf_obj_new(enum c2_conf_objtype type,
+ 				    const struct c2_conf_buf *id);
+ 
+-- 
+1.8.3.2
+

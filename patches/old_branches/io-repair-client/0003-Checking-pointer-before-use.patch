@@ -1,0 +1,115 @@
+From 34cb9a28bfe70e5b1d85ab46ad8ba725c6df0dde Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 14 Dec 2012 19:08:19 +0800
+Subject: [PATCH 3/6] Checking pointer before use. Adding ADDB events for
+ failures. Aligning varaibles to others.
+
+---
+ m0t1fs/linux_kernel/file.c    | 21 +++++++++++++++------
+ m0t1fs/linux_kernel/ut/file.c | 34 +++++++++++++++++-----------------
+ 2 files changed, 32 insertions(+), 23 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 87c5f17..9e444ea 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -2417,7 +2417,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 	struct m0t1fs_sb           *csb;
+ 	enum m0_pool_nd_state       device_state;
+ 	uint32_t                    spare_slot;
+-	struct m0_pdclust_src_addr  src_spare = *src;
++	struct m0_pdclust_src_addr  spare;
+ 	int			    rc;
+ 
+ 	M0_ENTRY("nw_xfer_request %p", xfer);
+@@ -2428,6 +2428,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 	req  = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+ 	play = pdlayout_get(req);
+ 	play_instance = pdlayout_instance(layout_instance(req));
++	spare = *src;
+ 
+ 	m0_pdclust_instance_map(play_instance, src, tgt);
+ 	tfid	= target_fid(req, tgt);
+@@ -2440,21 +2441,29 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 	csb = file_to_sb(req->ir_file);
+ 	rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
+ 				      tfid.f_container, &device_state);
+-	if (rc)
++	if (rc != 0) {
++		M0_ADDB_ADD(&m0t1fs_addb, &io_addb_loc,
++			    io_request_failed, "Query device state fail",
++			    rc);
+ 		M0_RETURN(rc);
++	}
+ 
+ 	if (device_state == M0_PNDS_SNS_REPAIRED) {
+ 		rc = m0_poolmach_sns_repair_spare_query(csb->csb_pool.po_mach,
+ 							tfid.f_container,
+ 							&spare_slot);
+-		if (rc)
++		if (rc != 0) {
++			M0_ADDB_ADD(&m0t1fs_addb, &io_addb_loc,
++				    io_request_failed, "Query spare slot fail",
++				    rc);
+ 			M0_RETURN(rc);
+-		src_spare.sa_unit = layout_n(play) + layout_k(play) +spare_slot;
+-		m0_pdclust_instance_map(play_instance, &src_spare, tgt);
++		}
++		spare.sa_unit = layout_n(play) + layout_k(play) + spare_slot;
++		m0_pdclust_instance_map(play_instance, &spare, tgt);
+ 		tfid = target_fid(req, tgt);
+ 		M0_LOG(M0_DEBUG, "REPAIRED: [%llu:%llu] -> [%llu:%llu] @ tfid "
+ 				 "[%llu:%llu]",
+-				 src_spare.sa_group, src_spare.sa_unit,
++				 spare.sa_group, spare.sa_unit,
+ 				 tgt->ta_frame, tgt->ta_obj,
+ 				 tfid.f_container, tfid.f_key);
+ 	}
+diff --git a/m0t1fs/linux_kernel/ut/file.c b/m0t1fs/linux_kernel/ut/file.c
+index 1cc7dea..085c24e 100644
+--- a/m0t1fs/linux_kernel/ut/file.c
++++ b/m0t1fs/linux_kernel/ut/file.c
+@@ -672,23 +672,23 @@ static int file_io_ut_fini(void)
+ 
+ static void target_ioreq_test(void)
+ {
+-	struct target_ioreq   ti;
+-        struct io_request     req;
+-	uint64_t              size;
+-	struct m0_fid         cfid;
+-	struct m0_rpc_session session;
+-	struct m0_rpc_conn    conn;
+-	struct io_req_fop    *irfop;
+-	int		      cnt;
+-	int                   rc;
+-	void		     *aligned_buf;
+-	struct m0_net_domain *ndom;
+-	struct iovec          iovec_arr[IOVEC_NR];
+-	struct m0_indexvec   *ivec;
+-	struct pargrp_iomap  *map;
+-	uint32_t              row;
+-	uint32_t              col;
+-	struct data_buf      *buf;
++	struct target_ioreq        ti;
++	struct io_request          req;
++	uint64_t                   size;
++	struct m0_fid              cfid;
++	struct m0_rpc_session      session;
++	struct m0_rpc_conn         conn;
++	struct io_req_fop         *irfop;
++	int		           cnt;
++	int                        rc;
++	void		          *aligned_buf;
++	struct m0_net_domain      *ndom;
++	struct iovec               iovec_arr[IOVEC_NR];
++	struct m0_indexvec        *ivec;
++	struct pargrp_iomap       *map;
++	uint32_t                   row;
++	uint32_t                   col;
++	struct data_buf           *buf;
+ 	struct m0_pdclust_src_addr src;
+ 	struct m0_pdclust_tgt_addr tgt;
+ 
+-- 
+1.8.3.2
+

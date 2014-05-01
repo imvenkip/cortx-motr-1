@@ -1,0 +1,192 @@
+From 9f0bbe89bfd952d016c5e0b071e4c9728a1e0180 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 4 Jun 2013 15:08:11 +0300
+Subject: [PATCH 097/228] be: m0_emap_extent_update(),
+ m0_emap_obj_insert/delete() implemented
+
+---
+ db/extmap.c          | 92 +++++++++++++++++++++++++---------------------------
+ db/extmap_internal.h |  5 ++-
+ stob/ad.c            |  4 +--
+ 3 files changed, 50 insertions(+), 51 deletions(-)
+
+diff --git a/db/extmap.c b/db/extmap.c
+index 0fa05eb..9b17d12 100644
+--- a/db/extmap.c
++++ b/db/extmap.c
+@@ -110,10 +110,16 @@ M0_INTERNAL int m0_emap_init(struct m0_emap *map, struct m0_be_seg *db,
+ 	int rc;
+ 	struct m0_be_bnode *root;
+ 
+-	rc = m0_seg_dict_lookup(db, mapname, &root);
++	rc = m0_be_seg_dict_lookup(db, mapname, &root);
+ 	if (rc != 0) {
+ 		return rc;
+ 	}
++
++	map->em_key_buf.b_addr = &map->em_key;
++	map->em_val_buf.b_addr = &map->em_rec;
++	map->em_key_buf.b_nob = sizeof map->em_key;
++	map->em_val_buf.b_nob = sizeof map->em_rec;
++
+ 	return m0_be_btree_init(&map->em_mapping, db, &emap_ops, root);
+ }
+ 
+@@ -513,65 +519,50 @@ M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
+ 	return result;
+ }
+ 
+-M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+-				      struct m0_emap_seg *es)
++M0_INTERNAL void m0_emap_extent_update(struct m0_emap     *map,
++				       struct m0_be_tx    *tx,
++				       struct m0_be_op    *op,
++				 const struct m0_uint128  *prefix,
++				 const m0_bindex_t         offset,
++				 const struct m0_emap_seg *es)
+ {
+-	int result;
+-
+ 	M0_PRE(it != NULL);
+ 	M0_PRE(es != NULL);
+-	M0_PRE(m0_uint128_eq(&it->ec_seg.ee_pre, &es->ee_pre));
+-	M0_INVARIANT_EX(emap_invariant(it));
++	M0_PRE(m0_uint128_eq(prefix, &es->ee_pre));
+ 
+-	it->ec_seg = (struct m0_emap_seg) {
+-		.ee_ext = {
+-			.e_start = es->ee_ext.e_start,
+-			.e_end   = es->ee_ext.e_end
+-		},
+-		.ee_val = es->ee_val
+-	};
++	map->em_key.ek_prefix = *prefix;
++	map->em_key.ek_offset =  offset;
++	map->em_rec.er_start = es->ee_ext.e_start;
++	map->em_rec.er_value = es->ee_va;
+ 
+-	result = IT_DO_PACK(it, m0_db_cursor_set);
+-	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
+-	return result;
++	m0_be_btree_insert(&map->em_mapping, tx, op, &map->em_key_buf,
++						     &map->em_val_buf);
+ }
+ 
+-M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *map, struct m0_db_tx *tx,
+-				   const struct m0_uint128 *prefix,
+-				   uint64_t val)
++M0_INTERNAL void m0_emap_obj_insert(struct m0_emap    *map,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op,
++			      const struct m0_uint128 *prefix,
++				    uint64_t           val)
+ {
+-	struct m0_emap_cursor it;
+-	int                   result;
++	map->em_key.ek_prefix = *prefix;
++	map->em_key.ek_offset = M0_BCOUNT_MAX;
++	map->em_rec.er_start = 0;
++	map->em_rec.er_value = val;
++
++	m0_be_btree_insert(&map->em_mapping, tx, op, &map->em_key_buf,
++						     &map->em_val_buf);
+ 
+-	result = it_init(map, tx, prefix, 0, &it, M0_DB_CURSOR_RMW);
+-	if (result == 0) {
+-		it.ec_seg.ee_pre         = *prefix;
+-		it.ec_seg.ee_ext.e_start = 0;
+-		it.ec_seg.ee_ext.e_end   = M0_BINDEX_MAX + 1;
+-		it.ec_seg.ee_val         = val;
+-		it_pack(&it);
+-		result = m0_table_insert(tx, &it.ec_pair);
+-		M0_ASSERT_EX(ergo(result == 0, emap_invariant(&it)));
+-		m0_emap_close(&it);
+-	}
+-	return result;
+ }
+ 
+-M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *map, struct m0_db_tx *tx,
+-				   const struct m0_uint128 *prefix)
++M0_INTERNAL void m0_emap_obj_delete(struct m0_emap    *map,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op,
++			      const struct m0_uint128 *prefix)
+ {
+-	struct m0_emap_cursor it;
+-	int                   result;
+-
+-	result = m0_emap_lookup(map, tx, prefix, 0, &it);
+-	if (result == 0) {
+-		M0_ASSERT(m0_emap_ext_is_first(&it.ec_seg.ee_ext) &&
+-			  m0_emap_ext_is_last(&it.ec_seg.ee_ext));
+-		M0_INVARIANT_EX(emap_invariant(&it));
+-		result = m0_db_cursor_del(&it.ec_cursor);
+-		m0_emap_close(&it);
+-	}
+-	return result;
++	map->em_key.ek_prefix = *prefix;
++	map->em_key.ek_offset = 1;
++	m0_be_btree_delete(&map->em_mapping, tx, op, &map->em_key_buf);
+ }
+ 
+ static bool m0_emap_caret_invariant(const struct m0_emap_caret *car)
+@@ -626,6 +617,11 @@ M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car)
+ 	return car->ct_it->ec_seg.ee_ext.e_end - car->ct_index;
+ }
+ 
++M0_INTERNAL m0_be_op *m0_emap_be_op_get(struct m0_emap_cursor *it)
++{
++	return &it->ec_cursor.bc_op;
++}
++
+ /** @} end group extmap */
+ 
+ /*
+diff --git a/db/extmap_internal.h b/db/extmap_internal.h
+index 9d0f6a0..466b01f 100644
+--- a/db/extmap_internal.h
++++ b/db/extmap_internal.h
+@@ -45,6 +45,10 @@
+  */
+ struct m0_emap {
+ 	struct m0_be_btree   em_mapping;
++	struct m0_buf        em_key_buf;
++	struct m0_buf        em_val_buf;
++	struct m0_emap_key   em_key;
++	struct m0_emap_rec   em_rec;
+ };
+ 
+ /**
+@@ -99,7 +103,6 @@ struct m0_emap_cursor {
+ 	struct m0_emap_seg        ec_seg;
+ 	/** Data-base cursor. */
+ 	struct m0_be_btree_cursor ec_cursor;
+-	struct m0_db_pair         ec_pair;
+ 	struct m0_emap_key        ec_key;
+ 	struct m0_emap_rec        ec_rec;
+ 	struct m0_uint128         ec_prefix;
+diff --git a/stob/ad.c b/stob/ad.c
+index 090b0b3..6f44b25 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -167,7 +167,7 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+ 	M0_PRE(part != NULL);
+ 
+ 	arp = part->rp_data;
+-	old_data = &arp->arp_seg.ps_old_data[0];
++	old_data = arp->arp_seg.ps_old_data;
+ 
+ 	dom = m0_stob_domain_lookup(&m0_ad_stob_type, arp->arp_dom_id);
+ 	adom = domain2ad(dom);
+@@ -175,7 +175,7 @@ static int ad_rec_part_undo_redo_op(struct m0_fol_rec_part *part,
+ 	for (i = 0; rc == 0 && i < arp->arp_seg.ps_segments; ++i) {
+ 		rc = m0_emap_lookup(&adom->ad_adata, tx,
+ 				    &old_data[i].ee_pre,
+-				    old_data[i].ee_ext.e_start,
++				     old_data[i].ee_ext.e_start,
+ 				    &it) ?:
+ 		     m0_emap_extent_update(&it, &old_data[i]);
+ 		m0_emap_close(&it);
+-- 
+1.8.3.2
+

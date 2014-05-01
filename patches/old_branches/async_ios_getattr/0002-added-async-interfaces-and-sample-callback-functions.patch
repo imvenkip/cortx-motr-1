@@ -1,0 +1,206 @@
+From 6b5ae2144233b1c84d8c64c3a3be8248b26714b4 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 2 Aug 2013 14:08:38 +0800
+Subject: [PATCH 2/7] added async interfaces and sample callback functions to
+ getattr and getlayout.
+
+---
+ ioservice/io_service.c |   4 +-
+ ioservice/io_service.h |  12 +++++-
+ sns/cm/cm_utils.c      | 113 +++++++++++++++++++++++++++++++++++++++++++++++++
+ sns/cm/cm_utils.h      |  10 +++++
+ 4 files changed, 135 insertions(+), 4 deletions(-)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 7269c6d..22b13fc 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -918,7 +918,7 @@ static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
+ 			rc = rep_fop_cob->b_rc;
+ 	}
+ 
+-	cb_info->ci_cb(cb_info->ci_arg1, rc, &attr);
++	cb_info->ci_cb(cb_info, rc, &attr);
+ }
+ 
+ const struct m0_rpc_item_ops getattr_fop_rpc_item_ops = {
+@@ -1008,7 +1008,7 @@ static void getlayout_rpc_item_reply_cb(struct m0_rpc_item *item)
+ 		}
+ 	}
+ 
+-	cb_info->ci_cb(cb_info->ci_arg1, rc, l);
++	cb_info->ci_cb(cb_info, rc, l);
+ 	if (rc == 0)
+ 		m0_layout_put(l);
+ }
+diff --git a/ioservice/io_service.h b/ioservice/io_service.h
+index e060177..7e42ab4 100644
+--- a/ioservice/io_service.h
++++ b/ioservice/io_service.h
+@@ -140,8 +140,16 @@ struct m0_cm_callback_info {
+ 	 *  	   to use it later, it needs to be copied out, or get
+ 	 *  	   reference increased.
+ 	 */
+-	void (*ci_cb)(void *arg1, int rc, void *data);
+-	void *ci_arg1; /* caller provided */
++	void (*ci_cb)(struct m0_cm_callback_info *ci, int rc, void *data);
++	void *ci_arg; /* caller provided */
++
++	/** returned data stored here */
++	void *ci_out;
++
++	/** return value stored here */
++	int  *ci_rc;
++
++	/* for callee use only */
+ 	void *ci_p1;   /* saved param1 */
+ 	void *ci_p2;   /* saved param2 */
+ };
+diff --git a/sns/cm/cm_utils.c b/sns/cm/cm_utils.c
+index 7d30484..38c233c 100644
+--- a/sns/cm/cm_utils.c
++++ b/sns/cm/cm_utils.c
+@@ -354,6 +354,119 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
+         return rc;
+ }
+ 
++
++/** Callback for async getattr.
++ *
++ * This callback should tell the original cm the result and post event to ask it
++ * continue execution.
++ */
++static void getattr_callback(struct m0_cm_callback_info *ci, int rc, void *data)
++{
++	struct m0_cob_attr *out  = ci->ci_out;
++	struct m0_cm       *cm   = ci->ci_arg;
++	struct m0_cob_attr *attr = data;
++
++	*(ci->ci_rc) = rc;
++	if (rc == 0) {
++		/* getattr succeeded.
++		 * copy out the attr for later use.
++		 */
++		*out = *attr;
++	}
++	/* inform caller that the callback is done. E.g.: */
++	/* cm_contunie_run(cm); or m0_fom_wakeup(some_fom); */
++	(void)cm;
++}
++
++struct m0_cm_callback_info getattr_cb_info = {
++	.ci_cb = &getattr_callback,
++};
++
++/** getattr sync
++ *
++ * @retval 0, succeeded to sent out the request asynchronously.
++ *            Caller of this function should relinquish current execution,
++ *            i.e. return M0_FSO_WAIT to reqh.
++ * @retval non-zero, failure happened. No callback will be issued.
++ *            Caller should continue handling error case.
++ *
++ * XXX: maybe a pointer to the current fom is needed here as an argument.
++ *      So the callback can wake up the fom.
++ */
++M0_INTERNAL int
++m0_sns_cm_file_attr_fetch_async(struct m0_cm *cm,
++				struct m0_fid *gfid,
++				struct m0_cob_attr *out_attr,
++				int *out_rc)
++{
++	struct m0_reqh           *reqh = cm->cm_service.rs_reqh;
++	int                       rc;
++
++	M0_PRE(cm != NULL);
++	M0_PRE(gfid != NULL);
++	M0_PRE(out_attr != NULL);
++	M0_PRE(out_rc != NULL);
++	M0_PRE(m0_cm_is_locked(cm));
++
++	getattr_cb_info.ci_arg = cm;
++	getattr_cb_info.ci_out = out_attr;
++	getattr_cb_info.ci_rc  = out_rc;
++
++	rc = m0_ios_mds_getattr_async(reqh, gfid, &getattr_cb_info);
++	return rc;
++}
++
++static void layout_callback(struct m0_cm_callback_info *ci, int rc, void *data)
++{
++	struct m0_pdclust_layout  *pdl    = NULL;
++	struct m0_pdclust_layout **out    = ci->ci_out;
++	struct m0_cm              *cm     = ci->ci_arg;
++	struct m0_layout          *layout = data;
++
++	*(ci->ci_rc) = rc;
++	if (rc == 0) {
++		/* getlayout succeeded.
++		 * get a new ref on the returned ayout for later use.
++		 */
++		m0_layout_get(layout);
++		pdl = m0_layout_to_pdl(layout);
++		*out = pdl;
++	}
++	/* inform caller that the callback is done. e.g.: */
++	/* cm_contunie_run(cm); or m0_fom_wakeup(some_fom); */
++	(void)cm;
++}
++
++struct m0_cm_callback_info layout_cb_info = {
++	.ci_cb = &layout_callback,
++};
++
++/** getlayout async.
++ */
++M0_INTERNAL int
++m0_sns_cm_file_layout_fetch_async(struct m0_cm *cm,
++				  uint64_t lid,
++				  struct m0_pdclust_layout **out_layout,
++				  int *out_rc)
++{
++	struct m0_layout_domain  *ldom;
++	struct m0_reqh           *reqh = cm->cm_service.rs_reqh;
++	int                       rc;
++
++	M0_PRE(cm != NULL);
++	M0_PRE(out_layout != NULL);
++	M0_PRE(out_rc != NULL);
++	M0_PRE(m0_cm_is_locked(cm));
++
++	ldom = &reqh->rh_ldom;
++	layout_cb_info.ci_arg = cm;
++	layout_cb_info.ci_out = out_layout;
++	layout_cb_info.ci_rc  = out_rc;
++
++	rc = m0_ios_mds_layout_get_async(reqh, ldom, lid, &layout_cb_info);
++	return rc;
++}
++
+ M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
+ 					 struct m0_fid *cfid)
+ {
+diff --git a/sns/cm/cm_utils.h b/sns/cm/cm_utils.h
+index c73e411..73f1ff9 100644
+--- a/sns/cm/cm_utils.h
++++ b/sns/cm/cm_utils.h
+@@ -179,6 +179,16 @@ M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag);
+ M0_INTERNAL bool
+ m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag, int acc_idx);
+ 
++M0_INTERNAL int
++m0_sns_cm_file_attr_fetch_async(struct m0_cm *cm,
++				struct m0_fid *gfid,
++				struct m0_cob_attr *out_attr,
++				int *out_rc);
++M0_INTERNAL int
++m0_sns_cm_file_layout_fetch_async(struct m0_cm *cm,
++				  uint64_t lid,
++				  struct m0_pdclust_layout **out_layout,
++				  int *out_rc);
+ /** @} endgroup SNSCM */
+ 
+ /* __MERO_SNS_CM_UTILS_H__ */
+-- 
+1.8.3.2
+

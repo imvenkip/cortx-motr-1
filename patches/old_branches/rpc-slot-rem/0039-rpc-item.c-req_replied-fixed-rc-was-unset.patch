@@ -1,0 +1,41 @@
+From b1248743865e5be05d1c270a42edaa70f782270c Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 11 Feb 2014 16:27:20 +0200
+Subject: [PATCH 39/60] rpc/item.c: req_replied() fixed: rc was unset
+
+---
+ rpc/item.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/rpc/item.c b/rpc/item.c
+index 416a6cc..5bd60aa 100644
+--- a/rpc/item.c
++++ b/rpc/item.c
+@@ -825,7 +825,7 @@ static int item_reply_received(struct m0_rpc_item *reply,
+ 
+ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
+ {
+-	int rc;
++	int rc = 0;
+ 
+ 	M0_PRE(req != NULL && reply != NULL);
+ 
+@@ -835,6 +835,7 @@ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
+ 		 */
+ 		M0_LOG(M0_DEBUG, "rply rcvd, timedout req %p [%s/%u]",
+ 			req, item_kind(req), req->ri_type->rit_opcode);
++		rc = -EPROTO;
+ 	} else {
+ 		/*
+ 		 * This is valid reply case.
+@@ -876,7 +877,6 @@ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
+ 		default:
+ 			M0_ASSERT(false);
+ 		}
+-		rc = 0;
+ 	}
+ 	return rc;
+ }
+-- 
+1.8.3.2
+

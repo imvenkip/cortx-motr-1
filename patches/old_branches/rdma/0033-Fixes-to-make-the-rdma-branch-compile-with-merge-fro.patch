@@ -1,0 +1,352 @@
+From e88c71797472863155769a922ad183b97d9dc863 Mon Sep 17 00:00:00 2001
+From: Carl Braganza <Carl_Braganza@us.xyratex.com>
+Date: Wed, 2 Mar 2011 21:20:42 -0800
+Subject: [PATCH 33/34] Fixes to make the rdma branch compile with merge from
+ master.
+
+---
+ c2t1fs/c2t1fs.h                |  2 ++
+ colibri/Makefile.am            |  2 --
+ fop/fop.c                      |  7 +++----
+ fop/fop.h                      |  1 +
+ fop/fop_format.c               |  2 +-
+ lib/adt.h                      | 15 ---------------
+ lib/ut/memory.c                |  2 +-
+ net/ksunrpc/client.c           |  6 +++---
+ net/ksunrpc/ksunrpc.h          | 17 ++++++-----------
+ net/ksunrpc/kxdr.c             |  8 +-------
+ net/usunrpc/rfc5666/svc_rdma.c |  6 +++---
+ net/usunrpc/server.c           |  8 ++++----
+ net/usunrpc/uxdr.c             | 11 ++---------
+ stob/ut/server.c               |  3 ++-
+ 14 files changed, 29 insertions(+), 61 deletions(-)
+
+diff --git a/c2t1fs/c2t1fs.h b/c2t1fs/c2t1fs.h
+index 5733851..5ed229b 100644
+--- a/c2t1fs/c2t1fs.h
++++ b/c2t1fs/c2t1fs.h
+@@ -5,6 +5,7 @@
+ 
+ #include "lib/list.h"
+ #include "net/net.h"
++#include "net/ksunrpc/ksunrpc.h"
+ #include "config.h"
+ 
+ #define C2T1FS_DEBUG 1
+@@ -85,6 +86,7 @@ struct c2t1fs_sb_info {
+         struct c2_mutex csi_mutex;      /*< mutex to protect this sb */
+ 
+ 	struct c2_net_domain csi_net_domain;
++        struct ksunrpc_service_id csi_srvid;
+ };
+ 
+ struct c2t1fs_inode_info {
+diff --git a/colibri/Makefile.am b/colibri/Makefile.am
+index feeee15..88e279b 100644
+--- a/colibri/Makefile.am
++++ b/colibri/Makefile.am
+@@ -20,8 +20,6 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
+                             $(top_builddir)/net/libcolibri-net.la \
+                             $(top_builddir)/net/usunrpc/libcolibri-net-usunrpc.la \
+                             $(top_builddir)/net/usunrpc/rfc5666/libcolibri-rdma.la \
+-                            $(top_builddir)/fop/libcolibri-fop.la \
+-                            $(top_builddir)/reqh/libcolibri-reqh.la \
+                             $(top_builddir)/nrs/libcolibri-nrs.la \
+                             $(top_builddir)/pool/libcolibri-pool.la \
+                             $(top_builddir)/reqh/libcolibri-reqh.la \
+diff --git a/fop/fop.c b/fop/fop.c
+index 0e6e265..9e9ffbd 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -1,11 +1,11 @@
+ /* -*- C -*- */
+ 
+ #include "fop/fop.h"
++#include "fop/fop_iterator.h"
++#include "lib/memory.h"
+ 
+ #ifdef __KERNEL__
+ 
+-#include "lib/kdef.h"
+-
+ #define xdr_void      NULL
+ #define xdr_char      NULL
+ #define xdr_uint32_t  NULL
+@@ -13,7 +13,6 @@
+ #define c2_xdr_io_buf NULL
+ 
+ #else /* __KERNEL__ */
+-#include "lib/memory.h"
+ #include "net/usunrpc/usunrpc.h" /* for c2_xdr_io_buf */
+ #endif /* __KERNEL__ */
+ 
+@@ -259,7 +258,7 @@ struct c2_fop_field_type C2_FOP_TYPE_BULK = {
+ 	},
+ 	.fft_layout = &atom_bulk_memlayout
+ };
+-EXPORT_SYMBOL(C2_FOP_TYPE_BULK);
++C2_EXPORTED(C2_FOP_TYPE_BULK);
+ 
+ 
+ int c2_fops_init(void)
+diff --git a/fop/fop.h b/fop/fop.h
+index fcee07d..304661b 100644
+--- a/fop/fop.h
++++ b/fop/fop.h
+@@ -6,6 +6,7 @@
+ #include "lib/types.h"
+ #include "lib/cdefs.h"
+ #include "lib/list.h"
++#include "lib/misc.h"
+ #include "addb/addb.h"
+ #include "fol/fol.h"
+ #include "fop/fom.h"
+diff --git a/fop/fop_format.c b/fop/fop_format.c
+index 1d9851f..99e80fa 100644
+--- a/fop/fop_format.c
++++ b/fop/fop_format.c
+@@ -309,7 +309,7 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BULK_tfmt = {
+ 	.ftf_val   = FPF_BULK,
+ 	.ftf_child = { [0] = { .c_name = NULL } }
+ };
+-EXPORT_SYMBOL(C2_FOP_TYPE_FORMAT_BULK_tfmt);
++C2_EXPORTED(C2_FOP_TYPE_FORMAT_BULK_tfmt);
+ 
+ 
+ /** @} end of fop group */
+diff --git a/lib/adt.h b/lib/adt.h
+index e516563..58c0017 100644
+--- a/lib/adt.h
++++ b/lib/adt.h
+@@ -41,21 +41,6 @@ struct c2_dbuf {
+         char *buffer;
+ };
+ 
+-/**
+-  xdr function for c2_dbuf.
+-
+-  @param[in] xdrs - 
+-  @param[in] dbuf - the c2_dbuf will be encoded or decoded
+-  @param[in] xdr  - this is a callback function to encode/decode XDR stream;
+-                    for rdma, this function must be xdr_rdma_chunks;
+-                    otherwise NULL
+-
+-  @retval TRUE    - success
+-  @retval FALSE   - something wrong
+- */
+-bool_t   c2_xdr_dbuf   (XDRS *xdrs, struct c2_dbuf *dbuf,
+-                        bool_t (*xdr)(XDRS *, char *, int));
+-
+ /** @} end of adt group */
+ 
+ 
+diff --git a/lib/ut/memory.c b/lib/ut/memory.c
+index a4c384f..da8aa7d 100644
+--- a/lib/ut/memory.c
++++ b/lib/ut/memory.c
+@@ -70,7 +70,7 @@ static void ub_huge(int i)
+ 
+ static void ub_alloc_align(int i)
+ {
+-	ubx[i] = c2_alloc_align(i, 4096);
++	ubx[i] = c2_alloc_aligned(i, 4096);
+ }
+ 
+ #if 0
+diff --git a/net/ksunrpc/client.c b/net/ksunrpc/client.c
+index dbb24f9..4d626ae 100644
+--- a/net/ksunrpc/client.c
++++ b/net/ksunrpc/client.c
+@@ -123,9 +123,9 @@ static int ksunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
+ 	};
+ 
+ 	struct rpc_create_args args = {
+-		.protocol	= xsid->ssi_trans,
+-		.address	= (struct sockaddr *)xsid->ssi_sockaddr,
+-		.addrsize	= xsid->ssi_addrlen,
++		.protocol	= ksid->ssi_trans,
++		.address	= (struct sockaddr *)&ksid->ssi_sockaddr,
++		.addrsize	= ksid->ssi_addrlen,
+ 		.timeout	= &timeparms,
+ 		.servername	= ksid->ssi_host,
+ 		.program	= &c2t1_program,
+diff --git a/net/ksunrpc/ksunrpc.h b/net/ksunrpc/ksunrpc.h
+index 6aca9ef..ae0eb04 100644
+--- a/net/ksunrpc/ksunrpc.h
++++ b/net/ksunrpc/ksunrpc.h
+@@ -9,6 +9,10 @@
+ #include <linux/in.h>
+ #include <linux/sunrpc/sched.h> /* for rpc_call_ops */
+ #include <linux/sunrpc/clnt.h>
++#else
++enum xprt_transports {
++  XPRT_TRANSPORT_NR = 0
++};
+ #endif
+ 
+ struct c2_fop;
+@@ -26,19 +30,9 @@ struct ksunrpc_dom {
+ 	 */
+ };
+ 
+-/**
+-   SUNRPC service identifier.
+- */
+-struct ksunrpc_service_id {
+-	char                 *ssi_host;	    /**< server hostname */
+-	struct sockaddr_in   *ssi_sockaddr; /**< server ip_addr  */
+-	int 	              ssi_addrlen;  /**< addrlen, why need this? */
+-	uint16_t              ssi_port;     /**< server tcp port */
+-        enum xprt_transports  ssi_trans;    /**< server transport */
+-};
+-
+ struct c2_fop;
+ 
++#ifdef __KERNEL__
+ 
+ int ksunrpc_service_id_init(struct c2_service_id *sid, va_list varargs);
+ 
+@@ -78,6 +72,7 @@ struct ksunrpc_service_id {
+ 	uint16_t              ssi_port;     /**< server tcp port */
+ 	uint32_t              ssi_prog;     /**< server program number */
+ 	uint32_t              ssi_ver;      /**< server program version */
++        enum xprt_transports  ssi_trans;    /**< server transport */
+ };
+ 
+ /* __COLIBRI_NET_KSUNRPC_KSUNRPC_H__ */
+diff --git a/net/ksunrpc/kxdr.c b/net/ksunrpc/kxdr.c
+index f0de7ce..c129c7c 100644
+--- a/net/ksunrpc/kxdr.c
++++ b/net/ksunrpc/kxdr.c
+@@ -3,7 +3,7 @@
+ #include <linux/sunrpc/clnt.h>
+ 
+ #include "lib/cdefs.h"
+-#include "lib/kdef.h"
++#include "lib/memory.h"
+ #include "lib/vec.h"
+ #include "fop/fop.h"
+ #include "ksunrpc.h"
+@@ -348,12 +348,6 @@ static int kxdr_atom(struct kxdr_ctx *ctx, void *obj)
+ 		(ctx, obj);
+ }
+ 
+-static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
+-{
+-	*ctx->kc_nob += ctx->kc_type->fft_layout->fm_sizeof;
+-	return 0;
+-}
+-
+ static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] = 
+ {
+ 	[KENC] = {
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index bc375a1..ae1adce 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -282,8 +282,8 @@ static int svcrdma_handle_connection(struct svcrndzv_xprt *vxp,
+         }
+ 
+         xprt->rx_qp = cmid->qp;
+-        xprt->rx_credits = min_t(int, svcrdma_max_requests,
+-                                 attr.cap.max_recv_wr);
++        xprt->rx_credits = min_type(int, svcrdma_max_requests,
++				    attr.cap.max_recv_wr);
+         if ((rc = svcrdma_buffer_create(xprt)))
+                 goto out;
+ 
+@@ -707,7 +707,7 @@ static int rdma_bufdesc_alloc(struct svcrdma_xprt *xprt,
+ 
+         if (bufsize == 0)
+                 bufsize = xprt->rx_rndzv->vx_mms;
+-        C2_ALLOC_ALIGN(desc->rbd_buf, bufsize, alignment);
++        desc->rbd_buf = c2_alloc_aligned(bufsize, alignment);
+         if (desc->rbd_buf == NULL)
+                 return ENOMEM;
+ 
+diff --git a/net/usunrpc/server.c b/net/usunrpc/server.c
+index 21a85c9..c900bef 100644
+--- a/net/usunrpc/server.c
++++ b/net/usunrpc/server.c
+@@ -329,15 +329,15 @@ static int usunrpc_start_svctcp(struct c2_service *service,
+ 	C2_ASSERT(xservice->s_socket == -1);
+         xservice->s_socket = socket(AF_INET, SOCK_STREAM, 0);
+         if (xservice->s_socket == -1) {
+-		ADDB_ADD(service, usunrpc_addb_socket, errno);
++		ADDB_CALL(service, "socket", -errno);
+ 		return -errno;
+ 	}
+ 
+ 	i = 1;
+ 	if (setsockopt(xservice->s_socket, SOL_SOCKET, SO_REUSEADDR,
+ 		       &i, sizeof(i)) < 0) {
+-		ADDB_ADD(service, usunrpc_addb_reuseaddr, errno);
+ 		rc = -errno;
++		ADDB_CALL(service, "setsockopt", rc);
+                 goto out;
+ 	}
+ 
+@@ -345,15 +345,15 @@ static int usunrpc_start_svctcp(struct c2_service *service,
+         addr.sin_port = htons(xid->ssi_port);
+         if (bind(xservice->s_socket, 
+ 		 (struct sockaddr *)&addr, sizeof addr) == -1) {
+-		ADDB_ADD(service, usunrpc_addb_bind, errno);
+ 		rc = -errno;
++		ADDB_CALL(service, "bind", rc);
+ 		goto out;
+ 	}
+ 
+         xservice->s_transp = svctcp_create(xservice->s_socket, 0, 0);
+         if (xservice->s_transp == NULL) {
+                 rc = -errno ? : -ENOMEM;
+-                ADDB_ADD(service, usunrpc_addb_svctcp_create, rc);
++                ADDB_CALL(service, "svctcp_create", rc);
+                 goto out;
+         }
+ 
+diff --git a/net/usunrpc/uxdr.c b/net/usunrpc/uxdr.c
+index 32bea77..58210f1 100644
+--- a/net/usunrpc/uxdr.c
++++ b/net/usunrpc/uxdr.c
+@@ -123,13 +123,6 @@ static bool uxdr_typedef(const struct c2_fop_field_type *ftype,
+ 	return ftype_subxdr(ftype, xdrs, obj, 0);
+ }
+ 
+-static const xdrproc_t atom_xdr[FPF_NR] = {
+-	[FPF_VOID] = (xdrproc_t)&xdr_void,
+-	[FPF_BYTE] = NULL,
+-	[FPF_U32]  = (xdrproc_t)&xdr_uint32_t,
+-	[FPF_U64]  = (xdrproc_t)&xdr_uint64_t
+-};
+-
+ static bool uxdr_atom(const struct c2_fop_field_type *ftype,
+ 		      XDR *xdrs, void *obj)
+ {
+@@ -180,8 +173,8 @@ bool_t c2_xdr_io_buf(XDR *xdrs, void *obj)
+ 
+         switch(xdrs->x_op) {
+         case XDR_DECODE:
+-                dbuf->cib_value = c2_alloc_align(dbuf->cib_count,
+-                                                 dbuf->cib_align);
++                dbuf->cib_value = c2_alloc_aligned(dbuf->cib_count,
++						   dbuf->cib_align);
+                 if (dbuf->cib_value == NULL)
+                         return FALSE;
+         case XDR_ENCODE:
+diff --git a/stob/ut/server.c b/stob/ut/server.c
+index a406db8..10c2cc2 100644
+--- a/stob/ut/server.c
++++ b/stob/ut/server.c
+@@ -384,7 +384,8 @@ int main(int argc, char **argv)
+ 	char        opath[64];
+ 	char        dpath[64];
+ 	int         port;
+-        char       *trans = "tcp";
++        const char *trans = "tcp";
++        int         i;
+ 
+ 	struct c2_stob_domain  *bdom;
+ 	struct c2_stob_id       backid;
+-- 
+1.8.3.2
+

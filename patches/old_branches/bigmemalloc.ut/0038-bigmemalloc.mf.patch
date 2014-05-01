@@ -1,0 +1,767 @@
+From dba622e83470fe9d55e8b32a47d80da3f0c19341 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 11 Oct 2013 17:03:36 +0530
+Subject: [PATCH 38/61] bigmemalloc.mf
+
+-Rewrote pre-order and post-order traversals.
+-Renamed them as ALLOC and DEALLOC.
+-Code is ready for inspection barring few optimizations left.
+---
+ lib/varr.c         | 323 ++++++++++++++++++++++++++++++-----------------------
+ lib/varr.h         |  64 ++++++++---
+ lib/varr_private.h |  29 -----
+ 3 files changed, 235 insertions(+), 181 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index 49c6d60..9b37395 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -47,21 +47,21 @@ M0_INTERNAL const struct m0_bob_type varr_bobtype = {
+ 
+ M0_INTERNAL bool varr_invariant(const struct m0_varr *arr);
+ /* Constructs a tree to hold buffers. */
+-M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr,
+-				   uint64_t buff_nr);
++M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr);
+ /* Frees a tree holding buffers. */
+-M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr,
+-				      uint64_t buff_nr);
++M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr);
+ /* Evaluates the height of the tree based upon total number of
+  * buffers to be alocated. */
+ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr, uint64_t buff_nr);
++/* Returns log to the base two for the radix associated with a level. */
++M0_INTERNAL uint8_t log_radix(const struct m0_varr *arr, uint32_t level);
+ /* Returns total number of children for a node at given level in a tree. */
+ M0_INTERNAL uint32_t children_of_level(const struct m0_varr *arr,
+ 				       uint32_t level);
+ /* Updates the total number of leaf nodes touched upon by the cursor
+  * iterator. */
+ M0_INTERNAL void completed_leaves_update(struct m0_varr_cursor *cursor,
+-					     uint32_t inc);
++					 uint32_t depth, uint32_t inc);
+ /* Fetches address of an object with index 'index' within the array. Returns
+  * 'true' when address is present in the cache. Returns 'false' otherwise. */
+ M0_INTERNAL bool cache_fetch(const struct m0_varr *arr, uint64_t index,
+@@ -74,8 +74,8 @@ M0_INTERNAL void cache_update(struct m0_varr *arr, unsigned long *holder,
+ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr);
+ /* Computes number of buffers required at the leaf-level. */
+ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+-				      unsigned long obj_nr_in_1_cont,
+-				      uint8_t obj_nr_shift);
++					unsigned long obj_nr_in_1_cont,
++					uint8_t obj_nr_shift);
+ /* Computes the maximum possible leaf-level buffers beneath a given level. */
+ M0_INTERNAL uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+ 					       uint32_t level);
+@@ -87,11 +87,11 @@ M0_INTERNAL uint8_t nearest_power_of_two(size_t size);
+ /* Returns a 64-bit number whose last 'n' bits are set, and rest are zero. */
+ M0_INTERNAL uint64_t last_nbits_set(uint8_t n);
+ /* Increments buffer based upon its level in a tree */
+-M0_INTERNAL void * buff_incr(struct m0_varr *arr, uint32_t depth,
++M0_INTERNAL void * buff_incr(const struct m0_varr *arr, uint32_t depth,
+ 			     void *buff, uint32_t incr);
+-M0_INTERNAL uint32_t next_id_update(uint32_t inc,
+-				    uint32_t leaves_beneath_shift,
+-				    uint32_t next_idx)
++M0_INTERNAL uint32_t target_id_update(uint32_t inc,
++				      uint32_t leaves_beneath_shift,
++				      uint32_t target_idx);
+ /* Shifts a given number to left/right by taking into account sizeof(number) */
+ #define safe_bitshift(num, shift, operator)				     \
+ 	({								     \
+@@ -105,8 +105,7 @@ M0_INTERNAL uint32_t next_id_update(uint32_t inc,
+ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ 			     size_t bufsize)
+ {
+-	int      rc = 0;
+-	uint64_t buff_nr;
++	int rc = 0;
+ 
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE(nr > 0);
+@@ -123,7 +122,7 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ 	arr->va_bufsize		= safe_bitshift((size_t)1, arr->va_buf_shift,
+ 						<<);
+ 	arr->va_bufptr_nr_shift = arr->va_buf_shift -
+-		nearest_power_of_two(VA_TNODEPTR_SIZE);
++		nearest_power_of_two(M0_VA_TNODEPTR_SIZE);
+ 	arr->va_bufptr_nr       = safe_bitshift((uint64_t)1,
+ 						arr->va_bufptr_nr_shift, <<);
+ 
+@@ -137,14 +136,14 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ 
+ 	m0_varr_bob_init(arr);
+ 
+-	buff_nr = total_leaf_buffers(nr, varr_obj_nr_in_buff(arr),
+-				   arr->va_buf_shift - arr->va_obj_shift);
+-	arr->va_depth = depth_find(arr, buff_nr);
++	arr->va_buff_nr = total_leaf_buffers(nr, varr_obj_nr_in_buff(arr),
++			arr->va_buf_shift - arr->va_obj_shift);
++	arr->va_depth   = depth_find(arr, arr->va_buff_nr);
+ 	M0_ALLOC_PTR(arr->va_cache);
+ 	if (arr->va_cache == NULL)
+ 		rc = -ENOMEM;
+ 	if (rc == 0)
+-		rc = varr_buffers_alloc(arr, buff_nr);
++		rc = varr_buffers_alloc(arr);
+ 
+ 	if (rc != 0)
+ 		m0_varr_fini(arr);
+@@ -158,6 +157,8 @@ M0_INTERNAL uint8_t nearest_power_of_two(size_t size)
+ 	size_t  aligned_size  = 1;
+ 	uint8_t aligned_shift = 0;
+ 
++	M0_PRE(size > 0);
++
+ 	while (size > aligned_size) {
+ 		safe_bitshift(aligned_size, 1, <<);
+ 		++aligned_shift;
+@@ -173,8 +174,8 @@ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr)
+ }
+ 
+ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+-				      unsigned long obj_nr_in_1_cont,
+-				      uint8_t obj_nr_shift)
++					unsigned long obj_nr_in_1_cont,
++					uint8_t obj_nr_shift)
+ {
+ 	M0_PRE(obj_nr_in_1_cont > 0);
+ 
+@@ -188,47 +189,49 @@ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+  * objects can fit into a single leaf node of a tree. Then in order to store an
+  * array with k + 1 objects, instead of using a tree with depth 2, we use two
+  * trees each having depth one. Thus, if total number of available trees is
+- * VA_TNODE_NR then for *all* arrays with total objects less than or equal to
+- * k * VA_TNODE_NR, depth of trees holding object(s) will be one.
+- * When total objects in an array exceed k * VA_TNODE_NR, we increase
++ * M0_VA_TNODE_NR then for *all* arrays with total objects less than or equal to
++ * k * M0_VA_TNODE_NR, depth of trees holding object(s) will be one.
++ * When total objects in an array exceed k * M0_VA_TNODE_NR, we increase
+  * depth by one. If buf_size represents size of a buffer,
+  * ptr_size represents size of a pointer and obj_size represents size of an
+  * object, then following table summarizes mapping between total number of
+  * objects and depth of trees holding objects.
+  * @verbatim
+-  ___________________________________________________________________
+- | Max. number of objects                                  | Depth   |
+- |_________________________________________________________|_________|
+- | VA_TNODE_NR * (bufsize/obj_size)                        |   2     |
+- |_________________________________________________________|_________|
+- | VA_TNODE_NR * (buffsize/ptr_size)  * (buf_size/obj_size)|   3     |
+- |_________________________________________________________|_________|
+- | VA_TNODE_NR * (bufsize/ptr_size)^2 * (buf_size/obj_size)|   4     |
+- |_________________________________________________________|_________|
++  _______________________________________________________________________
++ | Max. number of objects                                     | Depth   |
++ |____________________________________________________________|_________|
++ | M0_VA_TNODE_NR * (bufsize/obj_size)                        |   2     |
++ |____________________________________________________________|_________|
++ | M0_VA_TNODE_NR * (buffsize/ptr_size)  * (buf_size/obj_size)|   3     |
++ |____________________________________________________________|_________|
++ | M0_VA_TNODE_NR * (bufsize/ptr_size)^2 * (buf_size/obj_size)|   4     |
++ |____________________________________________________________|_________|
+  * @endverbatim
+  */
+ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+-				uint64_t pg)
++				uint64_t total_leaves)
+ {
+ 	uint32_t level;
+ 
+ 	M0_PRE(arr != NULL);
+-	M0_PRE(pg > 0);
++	M0_PRE(total_leaves > 0);
+ 
+ 	for (level = 1;; ++level)
+-		if (pg <= safe_bitshift((uint32_t)1, arr->va_bufptr_nr_shift *
+-					(level - 1) + VA_TNODE_NR_SHIFT, <<))
++		if (total_leaves <= safe_bitshift((uint32_t)1,
++						  arr->va_bufptr_nr_shift *
++						  (level - 1) +
++						  M0_VA_TNODE_NR_SHIFT, <<))
+ 			break;
+ 	return level + 1;
+ }
+ 
+-M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr, uint64_t buf_nr)
++M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ {
+ 	struct m0_varr_cursor cursor;
+ 	int		      rc;
+ 	unsigned long	      holder;
+ 
+-	rc = m0_varr_cursor_init(&cursor, arr, 1, PRE_ORDER);
++	rc = m0_varr_cursor_init(&cursor, arr, 1, ALLOC);
+ 	if (rc != 0)
+ 		goto end;
+ 	do {
+@@ -241,7 +244,7 @@ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr, uint64_t buf_nr)
+ 	} while (m0_varr_cursor_next(&cursor));
+ end:
+ 	if (rc != 0)
+-		varr_buffers_dealloc(arr, buf_nr);
++		varr_buffers_dealloc(arr);
+ 	return rc;
+ }
+ 
+@@ -256,14 +259,14 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE(depth > 0 && depth <= arr->va_depth);
+ 
+-	cursor->vc_arr	      = (struct m0_varr *)arr;
+-	cursor->vc_trav	      = traversal;
+-	cursor->vc_depth      = 0;
+-	cursor->vc_done	      = 0;
+-	pe		      = &cursor->vc_path[0];
+-	pe->vp_idx	      = 0;
+-	pe->vp_buf	      = (void *)arr->va_tree;
+-	pe->vp_width	      = 1;
++	cursor->vc_arr	 = (struct m0_varr *)arr;
++	cursor->vc_trav	 = traversal;
++	cursor->vc_depth = 0;
++	cursor->vc_done	 = 0;
++	pe		 = &cursor->vc_path[0];
++	pe->vp_idx	 = 0;
++	pe->vp_buf	 = (void *)arr->va_tree;
++	pe->vp_width	 = 1;
+ 
+ 	while (cursor->vc_depth < depth) {
+ 		buf = pe->vp_buf;
+@@ -272,12 +275,11 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ 			++cursor->vc_depth;
+ 			pe->vp_buf   = (void *)(*buf);
+ 			pe->vp_idx   = 0;
+-			pe->vp_width = safe_bitshift((uint32_t)1,
+-						     log_radix(arr,
+-							       cursor->vc_depth),
+-						     <<)
+-		}
+-		else
++			pe->vp_width =
++				safe_bitshift((uint32_t)1,
++					      log_radix(arr, cursor->vc_depth),
++					      <<);
++		} else
+ 			return -EINVAL;
+ 	}
+ 	return 0;
+@@ -289,7 +291,7 @@ M0_INTERNAL uint8_t log_radix(const struct m0_varr *arr, uint32_t level)
+ 	M0_PRE(level <= arr->va_depth);
+ 
+ 	if (level <= 1)
+-		return level == 1 ? VA_TNODE_NR_SHIFT : 0;
++		return level == 1 ? M0_VA_TNODE_NR_SHIFT : 0;
+ 	else
+ 		return level == arr->va_depth ?
+ 			arr->va_buf_shift - arr->va_obj_shift :
+@@ -313,21 +315,24 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 	struct m0_varr_path_element *pe;
+ 	uint32_t		     d = cursor->vc_depth;
+ 	uint32_t		     leaves_beneath_shift;
+-	uint32_t		     next_idx;
++	uint32_t		     target_idx;
+ 
+ 	M0_PRE(cursor != NULL);
+-	M0_PRE(d < VA_DEPTH_MAX);
++	M0_PRE(d < M0_VA_DEPTH_MAX);
+ 	M0_PRE(ergo(cursor->vc_trav != ITERATE, inc == 1));
+ 
+ 	pe = &cursor->vc_path[d];
+-	next_idx = pe->vp_idx + inc;
++	target_idx = pe->vp_idx + inc;
+ 	switch (cursor->vc_trav) {
+ 	case ITERATE:
+ 		leaves_beneath_shift = 0;
++		/* Keep ascending till step required for target index is within
++		 * the reach of buffer at given level. */
+ 		while (d > 0 &&
+-		       !within_tree_width(cursor->arr,
++		       !within_tree_width((const struct m0_varr_cursor *)
++					  cursor->vc_arr, cursor->vc_depth,
+ 					  pe->vp_idx + inc)) {
+-			leaves_beneath_shift += log_radix(cursor->arr, d);
++			leaves_beneath_shift += log_radix(cursor->vc_arr, d);
+ 			if (d == cursor->vc_depth)
+ 				completed_leaves_update(cursor, d,
+ 							pe->vp_width -
+@@ -336,7 +341,7 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 				completed_leaves_update(cursor, d,
+ 							pe->vp_width -
+ 							pe->vp_idx - 1);
+-			inc = safe_bitshift(next_idx, leaves_beneath_shift,
++			inc = safe_bitshift(target_idx, leaves_beneath_shift,
+ 					    >>);
+ 			--d;
+ 			--pe;
+@@ -344,30 +349,32 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 
+ 		if (d > 0) {
+ 			while (d <= cursor->vc_depth) {
+-				inc     = safe_bitshift(next_idx,
+-							leaves_beneath_shift,
+-							>>);
+-				pe->vp_buf = buff_incr(cursor->arr, d,
++				inc = safe_bitshift(target_idx,
++						    leaves_beneath_shift, >>);
++				pe->vp_buf = buff_incr(cursor->vc_arr, d,
+ 						       pe->vp_buf, inc);
+ 				pe->vp_idx += inc;
+-				next_idx = next_id_update(inc,
+-							  leaves_beneath_shift,
+-							  next_idx);
++				target_idx =
++					target_id_update(inc,
++							 leaves_beneath_shift,
++							 target_idx);
+ 				if (d == cursor->vc_depth && inc > 0)
+-					completed_leaves_update(cursor, d, inc);
++					completed_leaves_update(cursor, d,
++								inc);
+ 				else {
+ 					/* To avoid unnecessary multiplication
+-					 * zero. */
++					 * with zero. */
+ 					if (inc > 1)
+ 						completed_leaves_update(cursor,
+-									d, inc -
++									d,
++									inc -
+ 									1);
+ 					buf = (unsigned long *)pe->vp_buf;
+ 					++pe;
+ 					pe->vp_buf = (void *)(*buf);
+ 					pe->vp_idx = 0;
+ 					leaves_beneath_shift -=
+-						log_radix(cursor->arr, d);
++						log_radix(cursor->vc_arr, d);
+ 				}
+ 				++d;
+ 			}
+@@ -375,54 +382,75 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 		} else
+ 			goto end;
+ 		break;
+-
+-	case PRE_ORDER:
+-		for (;d > 0 && !within_tree_width(cursor, d,
+-						  pe->vp_idx + 1);
+-		     --pe, --d) {
+-			if (d == cursor->vc_arr->va_depth - 1)
+-				completed_leaves_update(cursor, d, 1);
+-		}
+-
+-		if (d > 0) {
+-			/* Decide whether to descend or move horizontally. */
+-			if (d == cursor->vc_depth &&
+-			    d < cursor->vc_arr->va_depth - 1) {
+-				buf = (unsigned long *)pe->vp_buf;
+-				++pe;
+-				buf = (unsigned long *)*buf;
+-				pe->vp_buf = (void *)buf;
+-				pe->vp_idx = 0;
+-				++cursor->vc_depth;
+-			} else {
+-				++pe->vp_idx;
+-				++pe->vp_buf;
+-				cursor->vc_depth = d;
++	case ALLOC:
++		if (cursor->vc_done == cursor->vc_arr->va_buff_nr)
++			goto end;
++		if (cursor->vc_depth < cursor->vc_arr->va_depth - 1) {
++			buf = (unsigned long *)pe->vp_buf;
++			++pe;
++			++cursor->vc_depth;
++			pe->vp_buf = (void *)(*buf);
++			pe->vp_idx = 0;
++			pe->vp_width =
++				safe_bitshift((uint32_t)1,
++					      log_radix(cursor->vc_arr,
++						        cursor->vc_depth),
++					      <<);
++		} else {
++			while (!within_tree_width(cursor, cursor->vc_depth,
++						  pe->vp_idx + 1) &&
++			       cursor->vc_depth > 0) {
+ 				if (d == cursor->vc_arr->va_depth - 1)
+ 					completed_leaves_update(cursor, d, 1);
++				--pe;
++				--cursor->vc_depth;
+ 			}
++			if (cursor->vc_depth ==
++					cursor->vc_arr->va_depth - 1)
++				completed_leaves_update(cursor, d, 1);
++			++pe->vp_idx;
++			pe->vp_buf = buff_incr(cursor->vc_arr,
++					       cursor->vc_depth, pe->vp_buf,
++					       1);
++		}
++		if (cursor->vc_depth != 0)
+ 			goto next;
+-		} else
++		else
+ 			goto end;
+ 		break;
+-
+-	case POST_ORDER:
+-		for (;d > 0 && !within_tree_width(cursor, d,
+-						  pe->vp_idx + 1);
+-		     --pe, --d) {
+-			if (d == cursor->vc_arr->va_depth - 1)
+-				completed_leaves_update(cursor, d, 1);
+-		}
+-		if (d > 0) {
+-			if (d == cursor->vc_depth &&
+-			    within_tree_width(cursor, d, pe->vp_idx + 1)) {
+-				++pe->idx;
+-				pe->vp_buf = buf_incr(pe->vp_buf, 1);
++	case DEALLOC:
++		if (cursor->vc_depth == 0)
++			goto end;
++		if (within_tree_width(cursor, cursor->vc_depth,
++					pe->vp_idx + 1)) {
++			++pe->vp_idx;
++			pe->vp_buf = buff_incr(cursor->vc_arr,
++					       cursor->vc_depth,
++					       pe->vp_buf, 1);
++			if (cursor->vc_depth < cursor->vc_arr->va_depth -1) {
++				while (cursor->vc_depth <
++						cursor->vc_arr->va_depth - 1) {
++					buf = (unsigned long *)pe->vp_buf;
++					++pe;
++					++cursor->vc_depth;
++					pe->vp_buf = (void *)(*buf);
++					pe->vp_idx = 0;
++				}
+ 			} else
+-				cursor->vc_depth = d;
++				completed_leaves_update(cursor,
++							cursor->vc_depth, 1);
++		} else {
++			if (cursor->vc_depth == cursor->vc_arr->va_depth - 1)
++				completed_leaves_update(cursor,
++							cursor->vc_depth, 1);
++			--pe;
++			--cursor->vc_depth;
++		}
++		if (cursor->vc_depth != 0)
+ 			goto next;
+-		} else
++		else
+ 			goto end;
++
+ 		break;
+ 	}
+ next:
+@@ -434,24 +462,38 @@ end:
+ M0_INTERNAL bool within_tree_width(const struct m0_varr_cursor *cursor,
+ 				   uint32_t depth, uint32_t index)
+ {
+-
+ 	return index < cursor->vc_path[depth].vp_width &&
+-		cursor->vc_done < cursor->vc_arr->va_nr;
++		cursor->vc_done < (cursor->vc_trav == ITERATE ?
++			cursor->vc_arr->va_nr : cursor->vc_arr->va_buff_nr);
+ }
+ 
+ M0_INTERNAL void completed_leaves_update(struct m0_varr_cursor *cursor,
+ 					 uint32_t depth, uint32_t inc)
+ {
+ 	M0_PRE(cursor != NULL);
+-	if (depth == cursor->arr->va_depth)
+-		cursor->vc_done += inc;
+-	else
+-		cursor->vc_done += inc * varr_obj_nr_in_buff(cursor->vc_arr) *
+-			max_buff_nr_till_lev_n_pn(cursor->vc_arr, depth);
++	M0_PRE(ergo(cursor->vc_trav != ITERATE,
++		    depth < cursor->vc_arr->va_depth));
++
++	if (cursor->vc_trav == ITERATE) {
++		if (depth == cursor->vc_arr->va_depth)
++			cursor->vc_done += inc;
++		else
++			cursor->vc_done += inc *
++				varr_obj_nr_in_buff(cursor->vc_arr) *
++				max_buff_nr_till_lev_n_pn(cursor->vc_arr,
++							  depth);
++	} else {
++		if (depth == cursor->vc_arr->va_depth - 1)
++			cursor->vc_done += inc;
++		else
++			cursor->vc_done += inc *
++				max_buff_nr_till_lev_n_pn(cursor->vc_arr,
++							  depth);
++	}
+ }
+ 
+ /*
+- * Returns max possible number of buffers for only a single tree node,
++ * Returns max possible number of leaf-buffers for only a single tree node,
+  * that can fit till given level in virtual array.
+  * The acronym _pn in API name stands for "per node".
+  * Lower level number contains more buffers than higher level number.
+@@ -462,42 +504,45 @@ M0_INTERNAL uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+ {
+ 	M0_PRE(level <= arr->va_depth);
+ 
+-	/*return m0_pow(arr->va_bufsize / VA_TNODEPTR_SIZE,
++	/*return m0_pow(arr->va_bufsize / M0_VA_TNODEPTR_SIZE,
+ 	  arr->va_depth - level);*/
+ 	return safe_bitshift((uint64_t)1, (arr->va_bufptr_nr_shift *
+-					   (arr->va_depth - level)),
+-			     <<);
++			     (arr->va_depth - level)), <<);
+ }
+ 
+-M0_INTERNAL void *buff_incr(struct m0_varr *arr, uint32_t depth,
++M0_INTERNAL void *buff_incr(const struct m0_varr *arr, uint32_t depth,
+ 			    void *buff, uint32_t incr)
+ {
+-	uint32_t obj_size;
++	size_t   inc_unit;
++	uint32_t i;
+ 
+ 	M0_PRE(arr != NULL && buff != NULL);
+ 
+ 	if (depth == arr->va_depth)
+-		buff += arr->obj_size;
++		inc_unit = arr->va_obj_size;
+ 	else
+-		++buff;
++		inc_unit = M0_VA_TNODEPTR_SIZE;
++	for (i = 0; i < incr; ++i) {
++		buff += inc_unit;
++	}
+ 	return buff;
+ }
+ 
+-M0_INTERNAL uint32_t next_id_update(uint32_t inc,
+-				    uint32_t leaves_beneath_shift,
+-				    uint32_t next_idx)
++M0_INTERNAL uint32_t target_id_update(uint32_t inc,
++				      uint32_t leaves_beneath_shift,
++				      uint32_t target_idx)
+ {
+-	return next_idx - inc * safe_bitshift((uint32_t)1, leaves_beneath_shift,
+-					      <<);
++	return target_idx - inc * safe_bitshift((uint32_t)1,
++					        leaves_beneath_shift, <<);
+ }
+ 
+-M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr, uint64_t buf_nr)
++M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr)
+ {
+ 	struct m0_varr_cursor cursor;
+ 	int		      rc;
+ 	unsigned long	      holder;
+ 
+-	rc = m0_varr_cursor_init(&cursor, arr, arr->va_depth - 1, POST_ORDER);
++	rc = m0_varr_cursor_init(&cursor, arr, arr->va_depth - 1, DEALLOC);
+ 	M0_ASSERT(rc == 0);
+ 
+ 	do {
+@@ -514,10 +559,7 @@ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr)
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE_EX(varr_invariant(arr));
+ 
+-	varr_buffers_dealloc(arr, total_leaf_buffers(arr->va_nr,
+-						   varr_obj_nr_in_buff(arr),
+-						   arr->va_buf_shift -
+-						   arr->va_obj_shift));
++	varr_buffers_dealloc(arr);
+ 	m0_free(arr->va_cache);
+ 	m0_varr_bob_fini(arr);
+ 	arr->va_nr     = arr->va_bufsize = 0;
+@@ -564,9 +606,9 @@ M0_INTERNAL void *m0_varr_ele_get(struct m0_varr *arr, uint64_t index)
+ 	cache_update(arr, holder, index & (~obj_mask));
+ 	M0_POST_EX(varr_invariant(arr));
+ end:
+-	/* TODO*/
+ 	/* Adds to holder the index of required object within a buffer */
+-	return holder + (index & (varr_obj_nr_in_buff(arr) - 1));
++	return buff_incr(arr, arr->va_depth, holder,
++			(index & (varr_obj_nr_in_buff(arr) - 1)));
+ }
+ 
+ M0_INTERNAL bool cache_fetch(const struct m0_varr *arr, uint64_t index,
+@@ -603,6 +645,11 @@ M0_INTERNAL void cache_update(struct m0_varr *arr, unsigned long *holder,
+ 					      arr->va_nr - 1);
+ }
+ 
++M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr)
++{
++	M0_PRE(arr != NULL);
++	return arr->va_nr;
++}
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/lib/varr.h b/lib/varr.h
+index 417e022..1541f35 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -60,12 +60,12 @@
+  *
+  * rc = m0_varr_init(&varr, OBJ_NR, sizeof(unsigned long), M0_0VEC_ALIGN);
+  *
+- * for (id = 0; id < OBJ_NR; ++id) {
++ * for (id = 0; id < m0_varr_size(&varr); ++id) {
+  *         ptr = m0_varr_ele_get(&varr, id);
+  *         *ptr = id;
+  * }
+  *
+- * for (id = 0; id < OBJ_NR; ++id) {
++ * for (id = 0; id < m0_varr_size(&varr); ++id) {
+  *         ptr = m0_varr_ele_get(&varr, id);
+  *         M0_ASSERT(*ptr == id);
+  *         *ptr = id + 1;
+@@ -77,20 +77,53 @@
+  */
+ struct m0_varr;
+ 
++/* Cache that holds pointer to recently accessed buffer along with range of
++ * objects that reside in it.
++ */
+ enum {
+ 	/* Number of nodes which originate from root of radix tree. */
+-	VA_TNODE_NR	  = 64,
+-
++	M0_VA_TNODE_NR	  = 64,
+ 	/* Size of pointer to a tree node. */
+-	VA_TNODEPTR_SIZE  = sizeof(void *),
++	M0_VA_TNODEPTR_SIZE  = sizeof(void *),
++	/* Log (M0_VA_TNODE_NR) to base 2. */
++	M0_VA_TNODE_NR_SHIFT = 6,
++	/* Maximum allowable depth of a tree. */
++	M0_VA_DEPTH_MAX	  = 16,
++};
++
++struct m0_varr_cache {
++	unsigned long *vc_buff;
++	uint64_t       vc_first_index;
++	uint64_t       vc_last_index;
++};
+ 
+-	VA_TNODE_NR_SHIFT = 6,
+-	VA_DEPTH_MAX	  = 16,
++enum m0_varr_cursor_trav {
++	ITERATE,
++	ALLOC,
++	DEALLOC,
++};
++
++struct m0_varr_path_element {
++	uint32_t  vp_idx;
++	uint32_t  vp_width;
++	void	 *vp_buf;
++};
++
++struct m0_varr_cursor {
++	struct m0_varr		    *vc_arr;
++	uint32_t		     vc_depth;
++	uint64_t		     vc_done;
++	struct m0_varr_path_element  vc_path[M0_VA_DEPTH_MAX];
++	enum m0_varr_cursor_trav     vc_trav;
+ };
+ 
+ struct m0_varr {
+ 	/** Number of elements in array. */
+ 	uint64_t              va_nr;
++	/** Number of leaf-level buffers required to store m0_varr::va_nr
++	 * number of objects.
++	 */
++	uint64_t	      va_buff_nr;
+ 
+ 	/** Log of object-size to the base two. */
+ 	uint8_t               va_obj_shift;
+@@ -123,7 +156,7 @@ struct m0_varr {
+ 	 * Such arrangement provisions constant height radix tree which eases
+ 	 * up the lookups.
+ 	 */
+-	void                 *va_tree[VA_TNODE_NR];
++	void                 *va_tree[M0_VA_TNODE_NR];
+ 	/**
+ 	 * Holds address of buffer holding recently accessed object.
+ 	 */
+@@ -151,13 +184,16 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
+ 
+ /**
+- * Returns address of an object having index as 'index'. Updates the internal
+- * cache if required.
++ * Returns address of an object having index as 'index'. Updates an internal
++ * cache if required. Since concurrent access to the cache may result in
++ * spurious outcome, calls to m0_varr_ele_get() should be protected under a
++ * lock.
+  * @pre  arr != NULL && index < arr->va_nr.
+  * @post varr_invariant(arr).
+  */
+ M0_INTERNAL void *m0_varr_ele_get(struct m0_varr *arr, uint64_t index);
+ 
++M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr);
+ /* Iterates over an arbitrary arithmetic progression of indices over
+  * the range [start, end) */
+ #define m0_varr_iter(arr, type, idx, obj, start, end, inc)		\
+@@ -176,15 +212,15 @@ M0_INTERNAL void *m0_varr_ele_get(struct m0_varr *arr, uint64_t index);
+ 	 rc = m0_varr_cursor_init(&cursor, __arr,			\
+ 				  __arr->va_depth, ITERATE)		\
+ 	 M0_ASSERT(rc == 0);						\
+-	 m0_varr_cursor_move(&cursor, idx);			\
++	 m0_varr_cursor_move(&cursor, idx);				\
+ 	 for (obj = m0_varr_cursor_get(&cursor);idx < end;		\
+-	      idx += inc, m0_varr_cursor_move(&cursor, inc)) {		\
++	      idx += __inc, m0_varr_cursor_move(&cursor, __inc)) {	\
+ 
+ #define m0_varr_end_iter } } )
+ 
+ /** Iterates over whole virtual array. */
+-#define m0_varr_for(arr, type, obj)					\
+-	m0_varr_iter(arr, type, obj, 0, arr->va_nr, 1)
++#define m0_varr_for(arr, type, idx, obj)				\
++	m0_varr_iter(arr, type, idx, obj, 0, arr->va_nr, 1)
+ 
+ #define m0_varr_end_for m0_varr_end_iter
+ 
+diff --git a/lib/varr_private.h b/lib/varr_private.h
+index dbb0429..16b27f5 100644
+--- a/lib/varr_private.h
++++ b/lib/varr_private.h
+@@ -23,35 +23,6 @@
+ #ifndef __MERO_LIB_VIRTUAL_ARRAY_PRIVATE_H__
+ #define __MERO_LIB_VIRTUAL_ARRAY_PRIVATE_H__
+ 
+-enum m0_varr_cursor_trav {
+-	ITERATE,
+-	PRE_ORDER,
+-	POST_ORDER,
+-};
+-
+-struct m0_varr_path_element {
+-	uint32_t  vp_idx;
+-	uint32_t  vp_width;
+-	void	 *vp_buf;
+-};
+-
+-struct m0_varr_cursor {
+-	struct m0_varr		    *vc_arr;
+-	uint32_t		     vc_depth;
+-	uint64_t		     vc_done;
+-	struct m0_varr_path_element  vc_path[VA_DEPTH_MAX];
+-	enum m0_varr_cursor_trav     vc_trav;
+-};
+-
+-/* Cache that holds pointer to recently accessed buffer along with range of
+- * objects that reside in it.
+- */
+-struct m0_varr_cache {
+-	unsigned long *vc_buff;
+-	uint64_t       vc_first_index;
+-	uint64_t       vc_last_index;
+-};
+-
+ M0_EXTERN void *m0_varr_buf_alloc(size_t bufsize);
+ M0_EXTERN void  m0_varr_buf_free(void *buf, size_t bufsize);
+ M0_EXTERN bool  m0_varr_size_is_valid(const struct m0_varr *arr);
+-- 
+1.8.3.2
+

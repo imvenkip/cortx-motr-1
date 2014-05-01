@@ -1,0 +1,110 @@
+From fdb8d9ada11755636b959acd6e529c4bfb12141f Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 5 Apr 2012 17:24:33 +0530
+Subject: [PATCH 03/11] - minor fixes.
+
+---
+ addb/addb.h         |  7 +++++--
+ addb/ut/addb.c      |  7 +++++--
+ ioservice/io_foms.c | 24 ++++++++++++------------
+ 3 files changed, 22 insertions(+), 16 deletions(-)
+
+diff --git a/addb/addb.h b/addb/addb.h
+index 180ddb9..ab7b728 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -110,8 +110,11 @@ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
+  * @param msgbuf message buffer passed by caller to copy formated message.
+  * @param msglen length of message buffer.
+  * @param fmt formatted string representing custom made message.
+- * @return On success it returns actual formated message length, and negative
+- *         value returned on error.
++ * @return On success it returns actual formatted message length, and negative
++ *         value returned on error. Most of the cases it is not required to
++ *         to check return values by caller. But it's upto caller, if caller
++ *         wants to retry with new buffer to make sure that whole message
++ *         is written to addb.
+  */
+ int c2_addb_var_msg_add(struct c2_addb_ctx       *ctx,
+ 			const struct c2_addb_loc *loc,
+diff --git a/addb/ut/addb.c b/addb/ut/addb.c
+index b90cdea..2cbda27 100644
+--- a/addb/ut/addb.c
++++ b/addb/ut/addb.c
+@@ -15,7 +15,7 @@
+  * http://www.xyratex.com/contact
+  *
+  * Original author: Manish Honap <manish_honap@xyratex.com>
+- *                  Rajanikant Chirmade <rajanikant_chairmade@xyratex.com>
++ *                  Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+  * Original creation date: 01/27/2012
+  */
+ #ifndef __KERNEL__
+@@ -40,7 +40,9 @@ const struct c2_addb_loc c2_addb_ut_loc = {
+ 
+ static const char s_out_fname[] = "addb_ut_output_redirect";
+ 
+-#define ADDB_UT_VAR_MSG_SIZE 256
++enum {
++	ADDB_UT_VAR_MSG_SIZE = 256,
++};
+ 
+ #define MESSAGE_LENGTH sizeof("addb: ctx: ADDB-UT/0x8ff4fa0, loc: ADDB-UT, ev: \
+ 			      trace/trace, rc: 0 name: A test ADDB message for \
+@@ -93,6 +95,7 @@ static void test_addb_var_msg_add(void)
+ 
+ 	c2_addb_choose_default_level_console(AEL_WARN);
+ }
++
+ const struct c2_test_suite addb_ut = {
+         .ts_name  = "addb-ut",
+         .ts_init  = NULL,
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 62ebf39..8147fc0 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -923,21 +923,21 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom         *fom,
+ 
+ static int io_fom_cob_rw_indexvec_size(struct c2_fop *fop)
+ {
+-        int                      i,j;
+-        c2_bcount_t              size = 0;
+-        struct c2_fop_cob_rw    *rwfop;
++	int                      i,j;
++	c2_bcount_t              size = 0;
++	struct c2_fop_cob_rw    *rwfop;
+ 
+-        C2_PRE(fop != NULL);
++	C2_PRE(fop != NULL);
+ 
+-        rwfop = io_rw_get(fop);
++	rwfop = io_rw_get(fop);
+         for (i = 0; i < rwfop->crw_desc.id_nr; i++) {
+-        	struct c2_io_indexvec wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
+-        	for (j = 0; j < wire_ivec.ci_nr; j++) {
+-                	size += wire_ivec.ci_iosegs[j].ci_count;
+-        	}
+-        }
++		struct c2_io_indexvec wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
++		for (j = 0; j < wire_ivec.ci_nr; j++) {
++			size += wire_ivec.ci_iosegs[j].ci_count;
++		}
++	}
+ 
+-        return size;
++	return size;
+ }
+ 
+ /**
+@@ -1223,7 +1223,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+         return FSO_AGAIN;
+ }
+ 
+-/**
++/*
+  * Release network buffer.
+  * Return back network buffer to buffer pool.
+  * If acquired buffers are more than the remaining descriptors
+-- 
+1.8.3.2
+

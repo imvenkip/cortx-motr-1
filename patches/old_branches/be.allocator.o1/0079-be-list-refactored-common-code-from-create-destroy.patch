@@ -1,0 +1,70 @@
+From 29770c5a274d69fd6db5a7c3a1bb59f58f0f5031 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 16 Feb 2014 18:21:06 +0200
+Subject: [PATCH 79/96] be/list: refactored common code from {create,destroy}()
+
+---
+ be/list.c | 29 +++++++++++++++++------------
+ 1 file changed, 17 insertions(+), 12 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index 6820d28..506395a 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -349,36 +349,41 @@ M0_INTERNAL void m0_be_tlink_fini(void *obj, struct m0_be_list *list)
+ {
+ }
+ 
+-M0_INTERNAL void m0_be_tlink_create(void	      *obj,
++static void be_tlink_create_destroy(void	      *obj,
+ 				    struct m0_be_tx   *tx,
+ 				    struct m0_be_op   *op,
+-				    struct m0_be_list *list)
++				    struct m0_be_list *list,
++				    bool create)
+ {
+ 	struct m0_tlink *tlink = be_tlink_from_obj(obj, list);
+ 
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 
+-	m0_tlink_init(list->bl_descr, obj);
++	if (create)
++		m0_tlink_init(list->bl_descr, obj);
++	else
++		m0_tlink_fini(list->bl_descr, obj);
++
+ 	be_tlink_capture(tlink, list, tx);
+ 	be_tlink_capture_magic(tlink, list, tx);
+ 
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
++M0_INTERNAL void m0_be_tlink_create(void	      *obj,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op,
++				    struct m0_be_list *list)
++{
++	be_tlink_create_destroy(obj, tx, op, list, true);
++}
++
+ M0_INTERNAL void m0_be_tlink_destroy(void	      *obj,
+ 				     struct m0_be_tx   *tx,
+ 				     struct m0_be_op   *op,
+ 				     struct m0_be_list *list)
+ {
+-	struct m0_tlink *tlink = be_tlink_from_obj(obj, list);
+-
+-	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+-
+-	m0_tlink_fini(list->bl_descr, obj);
+-	be_tlink_capture(be_tlink_from_obj(obj, list), list, tx);
+-	be_tlink_capture_magic(tlink, list, tx);
+-
+-	m0_be_op_state_set(op, M0_BOS_SUCCESS);
++	be_tlink_create_destroy(obj, tx, op, list, false);
+ }
+ 
+ /** @} end of be group */
+-- 
+1.8.3.2
+

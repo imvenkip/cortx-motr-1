@@ -1,0 +1,63 @@
+From 67f9120b1ed5ca056843aa09fb13d6e353f8ae21 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 28 Oct 2013 10:25:44 +0200
+Subject: [PATCH 1/2] perf: added perf sample collection
+
+---
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 3e8e613..adc4fb5 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -91,6 +91,28 @@ unmount_and_clean()
+ 	done
+ }
+ 
++perf_sample_collect()
++{
++	prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
++	$stride_size=$1
++	$io_counts=$2
++	$io_size=$3
++
++	pids=$(__pids_pidof $prog_exec)
++	for pid in $pids; do
++		echo Collecting samples into perf_${pid}_${cmd}_${now}.dat
++		perf record -g -p $pid -o perf_${pid}_${stride_size}x${io_counts}x${io_size}.dat 2>&1 &
++	done
++
++	return 0
++}
++
++perf_sample_collected()
++{
++	killall -s INT perf
++	return 0
++}
++
+ bulkio_test()
+ {
+ 	local_input=$MERO_M0T1FS_TEST_DIR/file1.data
+@@ -112,6 +134,8 @@ bulkio_test()
+ 		return 1
+ 	fi
+ 
++	perf_sample_collect $stride_size $io_counts $io_size
++
+ 	echo "Writing data to m0t1fs file ..."
+ 	cmd="dd if=$local_input of=$m0t1fs_file bs=$io_size count=$io_counts"
+ 	echo $cmd
+@@ -158,6 +182,8 @@ bulkio_test()
+ 
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 
++	perf_sample_collected
++
+ 	return 0
+ }
+ 
+-- 
+1.8.3.2
+

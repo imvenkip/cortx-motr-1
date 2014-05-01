@@ -1,0 +1,153 @@
+From eedf8e2944483d91f6f5445ec03942b62306307c Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 13 Jul 2012 00:26:50 +0300
+Subject: [PATCH 238/370] replace confc_is_initialized() with updated
+ confc_invariant()
+
++ Add bob_check() calls to the invariants.
++ Fix bob_of() casts: there is no need to create temporary variables.
+
+LogD #399
+RB: r/865
+---
+ conf/confc.c | 51 ++++++++++++++++++++++-----------------------------
+ 1 file changed, 22 insertions(+), 29 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index eb56212..368d0b7 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -284,8 +284,8 @@ static bool confc_is_locked(const struct c2_confc *confc)
+  * c2_confc
+  * ------------------------------------------------------------------ */
+ 
+-static bool confc_is_initialized(const struct c2_confc *confc);
+ static int cache_preload(struct c2_confc *confc, const char *conf_str);
++static bool confc_invariant(const struct c2_confc *confc);
+ 
+ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 		  const char *profile, struct c2_sm_group *sm_group,
+@@ -295,7 +295,8 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 	 * int rc;
+ 	 * struct c2_conf_obj *root;
+ 	 *
+-	 * C2_PRE(!confc_is_initialized(confc));
++	 * C2_PRE(confc->cc_root == NULL && confc->cc_group == NULL &&
++	 *        confc->cc_lock == NULL);
+ 	 * C2_PRE(conf_source != NULL && *conf_source != 0);
+ 	 * C2_PRE(profile != NULL && *profile != 0);
+ 	 *
+@@ -323,7 +324,7 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 	 * c2_mutex_unlock(lock);
+ 	 * c2_mutex_unlock(&sm_group->s_lock);
+ 	 *
+-	 * C2_POST((rc == 0) == confc_is_initialized(confc));
++	 * C2_POST((rc == 0) == confc_invariant(confc));
+ 	 * return rc;
+ 	 */
+ 	XXX;
+@@ -332,7 +333,7 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ void c2_confc_fini(struct c2_confc *confc)
+ {
+ 	/*
+-	 * C2_PRE(confc_is_initialized(confc));
++	 * C2_PRE(confc_invariant(confc));
+ 	 * C2_PRE(confc->cc_nr_ctx == 0);
+ 	 *
+ 	 * c2_mutex_lock(group_lock(confc));
+@@ -350,25 +351,19 @@ void c2_confc_fini(struct c2_confc *confc)
+ 	 *
+ 	 * confc->cc_lock = NULL;
+ 	 * confc->cc_group = NULL;
+-	 * C2_POST(!confc_is_initialized(confc));
+ 	 */
+ 	XXX;
+ }
+ 
+-static bool confc_invariant(const struct c2_confc *confc)
+-{
+-	/* XXX add more checks */
+-	return (confc->cc_root == NULL) == (confc->cc_group == NULL) ==
+-		(confc->cc_lock == NULL);
+-}
+-
+ /* XXX TODO: .bt_check = confc_invariant */
+ static struct c2_bob_type c2_confc_bob = XXX;
+ 
+-static bool confc_is_initialized(const struct c2_confc *confc)
++C2_BOB_DEFINE(static, &c2_confc_bob, c2_confc);
++
++static bool confc_invariant(const struct c2_confc *confc)
+ {
+-	C2_PRE(confc_invariant(confc));
+-	return confc->cc_root != NULL;
++	return c2_confc_bob_check(confc) && confc->cc_root != NULL &&
++		confc->cc_group != NULL && confc->cc_lock != NULL;
+ }
+ 
+ /* ------------------------------------------------------------------
+@@ -378,17 +373,20 @@ static bool confc_is_initialized(const struct c2_confc *confc)
+ static void on_replied(struct c2_rpc_item *item);
+ static bool on_object_updated(struct c2_clink *link);
+ 
+-/* XXX TODO: .bt_check = ctx_invariant */
+-static struct c2_bob_type c2_confc_ctx_bob = XXX;
+-
+ /** States of c2_confc_ctx::fc_mach. */
+ enum confc_ctx_state { S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
+ 		       S_GROW_CACHE, S_FAILURE, S_TERMINAL, S_NR };
+ 
++/* XXX TODO: .bt_check = ctx_invariant */
++static struct c2_bob_type c2_confc_ctx_bob = XXX;
++
++C2_BOB_DEFINE(static, &c2_confc_ctx_bob, c2_confc_ctx);
++
+ static bool ctx_invariant(const struct c2_confc_ctx *ctx)
+ {
+ 	const struct c2_rpc_item *item = &ctx->fc_fop.f_item;
+-	return confc_is_initialized(ctx->fc_confc) &&
++
++	return c2_confc_ctx_bob_check(ctx) && confc_invariant(ctx->fc_confc) &&
+ 		item->ri_type == &request_item_type &&
+ 		item->ri_ops != NULL &&
+ 		item->ri_ops->rio_replied == on_replied &&
+@@ -398,7 +396,7 @@ static bool ctx_invariant(const struct c2_confc_ctx *ctx)
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
+ {
+-	C2_PRE(confc_is_initialized(confc));
++	C2_PRE(confc_invariant(confc));
+ 
+ 	c2_mutex_lock(group_lock(confc)); /* needed for c2_sm_init() */
+ 	c2_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
+@@ -857,23 +855,18 @@ path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj, size_t ri)
+ 
+ static struct c2_confc_ctx *mach_to_ctx(struct c2_sm *mach)
+ {
+-	struct c2_confc_ctx *ctx = bob_of(mach, struct c2_confc_ctx, fc_mach,
+-					  &c2_confc_ctx_bob);
+-	return ctx;
++	return bob_of(mach, struct c2_confc_ctx, fc_mach, &c2_confc_ctx_bob);
+ }
+ 
+ static const struct c2_confc_ctx *const_mach_to_ctx(const struct c2_sm *mach)
+ {
+-	const struct c2_confc_ctx *ctx = bob_of(mach, const struct c2_confc_ctx,
+-						fc_mach, &c2_confc_ctx_bob);
+-	return ctx;
++	return bob_of(mach, const struct c2_confc_ctx, fc_mach,
++		      &c2_confc_ctx_bob);
+ }
+ 
+ static struct c2_confc_ctx *ast_to_ctx(struct c2_sm_ast *ast)
+ {
+-	struct c2_confc_ctx *ctx = bob_of(ast, struct c2_confc_ctx, fc_ast,
+-					  &c2_confc_ctx_bob);
+-	return ctx;
++	return bob_of(ast, struct c2_confc_ctx, fc_ast, &c2_confc_ctx_bob);
+ }
+ 
+ /* ------------------------------------------------------------------
+-- 
+1.8.3.2
+

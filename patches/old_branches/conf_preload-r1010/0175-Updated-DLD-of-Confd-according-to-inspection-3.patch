@@ -1,0 +1,1039 @@
+From 72009fb643daaf8565bc28794875eaca8d8e5d21 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 14 May 2012 10:47:20 +0300
+Subject: [PATCH 175/311] Updated DLD of Confd according to inspection #3. RB:
+ r/765
+
+---
+ conf/conf_fop.h |  13 +-
+ conf/confd.c    | 419 +++++++++++++++++---------------------------------------
+ conf/confd.h    | 189 ++++++++++---------------
+ conf/onwire.ff  |  36 +++++
+ 4 files changed, 245 insertions(+), 412 deletions(-)
+
+diff --git a/conf/conf_fop.h b/conf/conf_fop.h
+index 1673670..3d5d7fb 100644
+--- a/conf/conf_fop.h
++++ b/conf/conf_fop.h
+@@ -23,10 +23,16 @@
+ #include "fop/fop.h"
+ #include "rpc/rpc_opcodes.h"
+ 
++/**
++ * @defgroup confd_fop_dfspec Configuration service FOP definitions
++ *
++ * @{
++ */
++
+ int c2_conf_fops_init(void);
+ void c2_conf_fops_fini(void);
+ 
+-/**
++/*
+  * Confd fetch reply and request FOP definitions.
+  */
+ extern struct c2_fop_type_format c2_conf_fetch_tfmt;
+@@ -41,7 +47,7 @@ extern const struct c2_fop_type_ops c2_conf_fetch_resp_ops;
+ extern const struct c2_rpc_item_type c2_rpc_item_type_fetch;
+ extern const struct c2_rpc_item_type c2_rpc_item_type_fetch_resp;
+ 
+-/**
++/*
+  * Confd update reply and request FOP definitions.
+  */
+ extern struct c2_fop_type_format c2_conf_update_tfmt;
+@@ -56,7 +62,7 @@ extern const struct c2_fop_type_ops c2_conf_update_resp_ops;
+ extern const struct c2_rpc_item_type c2_rpc_item_type_update;
+ extern const struct c2_rpc_item_type c2_rpc_item_type_update_resp;
+ 
+-/**
++/*
+  * Confd statistics reply and request FOP definitions.
+  */
+ extern struct c2_fop_type_format c2_conf_stat_tfmt;
+@@ -71,6 +77,7 @@ extern const struct c2_fop_type_ops c2_conf_stat_resp_ops;
+ extern const struct c2_rpc_item_type c2_rpc_item_type_stat;
+ extern const struct c2_rpc_item_type c2_rpc_item_type_stat_resp;
+ 
++/** @} confd_fop_dfspec */
+ 
+ /* __COLIBRI_CONF_FOP_H__ */
+ #endif
+diff --git a/conf/confd.c b/conf/confd.c
+index 8e111cd..2e1a4d9 100644
+--- a/conf/confd.c
++++ b/conf/confd.c
+@@ -28,7 +28,6 @@
+  * - @ref confd-depends
+  * - @ref confd-highlights
+  * - @ref confd-lspec
+- *	- @ref confd-lspec-comps
+  *	- @ref confd-lspec-state
+  *	- @ref confd-lspec-thread
+  *	- @ref confd-lspec-numa
+@@ -46,7 +45,8 @@
+  * - @ref fop <!-- fop/fop.h -->
+  * - @ref reqh <!-- reqh/reqh.h -->
+  * - @ref colibri_setup <!-- colibri/colibri_setup.h -->
+- * - @ref c2_reqh_service_type_{register/unregister} <!-- reqh/reqh_service.h -->
++ * - @ref c2_reqh_service_type_{register/unregister}() <!-- reqh/reqh_service.h -->
++ * - @ref c2_addb_ctx_{init/fini}() <!-- addb/addb.h -->
+  *
+  * Most reasonable functions, confd depends on, are listed above:
+  * - RPC layer:
+@@ -94,8 +94,8 @@
+  *   free internal structures of c2_confd and unregister FOPs
+  * - Confd service operation @ref c2_confd_service_fini() to
+  *   free Confd service instance.
+- * 
+- * Confd service is registered in `subsystem' data structure of 
++ *
++ * Confd service is registered in `subsystem' data structure of
+  * "colibri/init.c", the following lines have to be added:
+  * @code
+  * struct init_fini_call subsystem[] = {
+@@ -118,14 +118,14 @@
+  *   struct c2_db_cursor c_prof, c_serv, c_fs, c_nic, c_part, c_dev, c_node;
+  *   struct c2_db_pair p_prof, p_serv, p_fs, p_nic, p_part, p_dev, p_node;
+  *   int result;
+- *  
++ *
+  *   result = c2_dbenv_init(db, "configuration.db", 0);
+  *   C2_UT_ASSERT(result == 0);
+- *  
++ *
+  *   result = c2_db_tx_init(tx, db, 0);
+  *   C2_UT_ASSERT(result == 0);
+- *   
+- *   result = 
++ *
++ *   result =
+  *     c2_table_init(t_prof, db, "profiles", 0, &test_table_ops) ?:
+  *     c2_table_init(t_serv, db, "services", 0, &test_table_ops) ?:
+  *     c2_table_init(t_fs, db, "file_systems", 0, &test_table_ops) ?:
+@@ -133,9 +133,9 @@
+  *     c2_table_init(t_part, db, "storage_device_partitions", 0, &test_table_ops) ?:
+  *     c2_table_init(t_dev, db, "storage_devices", 0, &test_table_ops) ?:
+  *     c2_table_init(t_node, db, "nodes", 0, &test_table_ops);
+- *  
++ *
+  *   C2_ASSERT(result == 0);
+- *   
++ *
+  *   result =
+  *   c2_db_cursor_init(&c_prof, &t_prof, &tx, 0) ?:
+  *   c2_db_cursor_init(&c_serv, &t_serv, &tx, 0) ?:
+@@ -144,7 +144,7 @@
+  *   c2_db_cursor_init(&c_part, &t_part, &tx, 0) ?:
+  *   c2_db_cursor_init(&c_dev, &t_dev, &tx, 0) ?:
+  *   c2_db_cursor_init(&c_node, &t_node, &tx, 0);
+- * 
++ *
+  *   C2_ASSERT(result == 0);
+  *
+  *  /* load values from "profiles" table * /
+@@ -171,7 +171,7 @@
+  *     ... allocate and fill struct c2_conf_nic from p_nic
+  *     ... create DAG struct c2_conf_relation to node conf-objects ...
+  *  }
+- *  /* load values from "storage_devices" table * /  
++ *  /* load values from "storage_devices" table * /
+  *  while(c2_db_cursor_next(&c_dev, &p_dev) != -ENOENT) {
+  *     ... allocate and fill struct c2_conf_sdev from p_dev
+  *     ... create DAG struct c2_conf_relation to node conf-objects ...
+@@ -179,18 +179,11 @@
+  * }
+  * @endcode
+  *
+- * Initialization, termination and update of configuration db of
+- * confd, performed in c2_confd_start() and c2_confd_terminate() and
+- * c2_confd_update(), is trivial. The most of work, such as state
+- * transition, accessing to db and cache, request receiving, request
+- * replying, is done in reqh_confd_req_fom_state() handler called by
+- * request handler while processing c2_conf_fetch FOP FOM.
+- *
+- * reqh_confd_req_fom_state() - called by reqh to handle incoming
++ * c2_fom_fetch_state() - called by reqh to handle incoming
+  * confc requests. Implementation of this function processes all
+  * FOP-FOM specific and C2_CONFD_STATUS_* states:
+  * @code
+- * static int reqh_confd_req_fom_state(struct c2_fom *fom)
++ * static int c2_fom_fetch_state(struct c2_fom *fom)
+  *  {
+  *       checks if FOM should transition into a generic/standard
+  *       phase or FOP specific phase.
+@@ -203,38 +196,29 @@
+  *  }
+  * @endcode
+  *
+- * Typical state handler of c2_conf_fetch FOP FOM is presented below:
+- * @code
+- * if (fom->fo_phase == C2_CONFD_STATUS_...) {
+- *
+- *  ... Do some work according to the state:
++ * Request handler triggers user-defined functions to create FOMs for
++ * processed FOPs. User has to define FOM-initialization functions
++ * for each FOP treated as a request. To do so, the following
++ * structures and functions have to be defined:
+  *
+- *  1) in C2_CONFD_STATUS_INITIAL state check incoming path embedded in
+- *  c2_conf_fetch FOP, which is done by check_request() call.
+- *  2) in C2_CONFD_STATUS_SERIALIZE state prepare outgoing configuration
+- *  objects for sending with obj_serialize() call.
+- *  3) in C2_CONFD_STATUS_LOAD state load requested configuration objects to
+- *  cache if they are missing. obj_load() call does it.
+- *  4) in C2_CONFD_STATUS_WAIT state FOM may transit while loading multiple
+- *  configuration values. obj_wait() call prepares FOM for unblocking waiting.
+- *  5) in C2_CONFD_STATUS_FAILURE state failure_handle() is called to
+- *  prepare c2_conf_fetch_resp to be sent with appropriate error information.
+- *
+- * ... Check internal data structures of confd and make a decision with
+- *  state is next to be transited. This is done by next_state() function.
+- *
+- * ... Select set next state of FOM processing and define, whether
+- * current state has already processed, or reqh should pass into it again:
+- *
+- *  fom->fo_phase = next_state();
++ * @code
++ * static const struct c2_fom_type_ops c2_XYZ_type_ops = {
++ *	.fto_create = XYZ_fop_fom_create
++ * };
+  *
+- * ... Return FSO_WAIT to transit into the next state or FSO_AGAIN to
+- * remain in the same.
++ * struct c2_fom_type c2_fom_ping_mopt = {
++ *       .ft_ops = &c2_fom_fop_type_ops
++ * };
+  *
+- * }
++ * int XYZ_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
++ *   {
++ *    1) allocate fom;
++ *    2) c2_fom_init(fom, &c2_fom_ping_mopt, &c2_fom_ping_ops, fop, NULL);
++ *    3) *m = fom;
++ *  }
+  * @endcode
+  *
+- * The implementation of reqh_confd_req_fom_state() need the following
++ * The implementation of c2_fom_fetch_state() needs the following
+  * fuctions to be defined:
+  *
+  * - check_request() - checks incoming request and validates requested
+@@ -243,10 +227,6 @@
+  * - next_state() - transits confd states depending on the current
+  *   state and on the state of configuration objects.
+  *
+- * - obj_load() - loads requested configuration objects from cache or
+- *   configuration db, acquires c2_fom_block_{enter,leave}() to inform
+- *   reqh about potential I/O.
+- *
+  * - obj_serialize() - serializes given object to FOP.
+  *
+  * - obj_wait() - handles wait state of configuration request
+@@ -255,27 +235,18 @@
+  * - failure_handle() - handles occurred errors.
+  *
+  * <hr> <!------------------------------------------------------------>
+- * @section confd-lspec-comps Components Overview
+- *
+- * Confd is a Colibri service with a FOP-based interface to access
+- * configuration values stored in configuration db. Confd maintains a
+- * cache of configuration objects organized as a directed acyclic
+- * graph (DAG).  When confc requests a configuration object, cache is
+- * filled with corresponding values fetched from configuration db. If
+- * cache has already a requested object then configuration db is not
+- * accessed.  After c2_confd_init() call cache is empty.
+- *
+- * An access to configuration db is being performed by synchronous
+- * colibri db API @ref db. In future, to avoid synchronous I/O
+- * accessing to db may become asynchronous.
++ * @section confd-lspec-state State Specification
+  *
+- * Configuration cache of confd is implemented similarly to the cache
+- * of confc.  Configuration cache is described in @ref conf-lspec-comps.
++ * Confd has not a state machine, state processing is implemented on
++ * basis of FOM of c2_conf_fetch, c2_conf_update, c2_conf_stat FOPs.
++ * After corresponding FOM went through a list of FOM specific states
++ * it transited into C2_CONFD_STATUS_INITIAL state.
+  *
+- * <hr> <!------------------------------------------------------------>
+- * @section confd-lspec-state State Specification
++ * The number of state machine instances correspond to the number of
++ * FOPs being processed in confd.
+  *
+- *   digraph confd_serialize_states {
++ *  c2_conf_fetch FOM state transition diagram:
++ *  digraph confd_serialize_states {
+  * 	node [fontsize=9];
+  * 	edge [fontsize=9];
+  * 	STATUS_INITIAL [style=filled, fillcolor=lightgrey];
+@@ -283,24 +254,61 @@
+  * 	STATUS_WAIT;
+  * 	STATUS_TERMINATE [style=filled, fillcolor=lightgrey];
+  * 	STATUS_FAILURE [style=filled, fillcolor=lightgrey];
+- * 
++ *
+  * 	STATUS_INITIAL -> STATUS_SERIALIZE [label="c2_conf_fetch-FOP is arrived \n, next_state() == STATUS_SERIALIZE"];
+  * 	STATUS_SERIALIZE -> STATUS_WAIT [label="tryrdlock(c2_confd::c_accr::ca_rwlock) != 0 || \n c2_confd::c_accr::ca_writers > 0, \n next_state() == STATUS_WAIT"];
+- * 	STATUS_SERIALIZE -> STATUS_TERMINATE [label="serialisation is done"];
++ * 	STATUS_SERIALIZE -> STATUS_TERMINATE [label="serialization is done"];
+  * 	STATUS_SERIALIZE -> STATUS_FAILURE [label="failed to lookup object \n in cache or (next_state() < 0)"];
+  *  	STATUS_WAIT -> STATUS_SERIALIZE [label="tryrdlock(c2_confd::c_accr::ca_rwlock) == 0 && \n c2_confd::c_accr::ca_writers == 0, \n next_state()==STATUS_SERIALIZE"];
+  *  }
+  *
+  * - C2_CONFD_STATUS_INITIAL:
++ *   In this state, statistics values are being updated in c2_confd::c_stat.
++ *   Then next_state() is called and FOM is transited into C2_CONFD_STATUS_SERIALIZE.
++ *   FOM state handler should return FSO_WAIT.
+  *
+  * - C2_CONFD_STATUS_SERIALIZE:
++ *   Current design assumes that data is pre-loaded into configuration
++ *   cache. In current state, c2_confd::c_accr::ca_rwlock lock is
++ *   being obtained as a read lock. c2_confd::c_accr::ca_writers
++ *   corresponds to the number of update requests pending in the
++ *   system and if this variable is greater than zero or it's
++ *   impossible to obtain read lock on c2_confd::c_accr::ca_rwlock,
++ *   c2_conf_fetch FOM is being transited into C2_CONFD_STATUS_WAIT
++ *   with next_state() call.
++ *
++ *   Otherwise c2_conf_fetch_resp FOP is being prepared for sending by
++ *   locking c2_confd::c_accr::ca_rwlock, looking up requested path
++ *   in configuration cache and unlocking c2_confd::c_accr::ca_rwlock.
++ *   After that, c2_conf_fetch_resp FOP is sent with c2_rpc_reply_post().
++ *   next_state() transits FOM into C2_CONFD_STATUS_TERMINATE.
++ *
++ *   If incoming request consists of a path which is not in
++ *   configuration cache than c2_conf_fetch FOM is transited into
++ *   C2_CONFD_STATUS_FAILURE.
++ *
++ *   FOM state handler should return FSO_WAIT.
+  *
+  * - C2_CONFD_STATUS_WAIT:
++ *   In this state, c2_confd::c_accr::ca_rwlock is trying to be
++ *   obtained as a read lock. If it's obtained and there's no pending
++ *   update requests in the system (c2_confd::c_accr::ca_writers == 0) than
++ *   next_state() transits FOM back into C2_CONFD_STATUS_SERIALIZE. In this case
++ *   FOM state handler should return FSO_WAIT to perform the transition.
++ *   Otherwise FOM is being remained in current state, by returning FSO_AGAIN.
+  *
+  * - C2_CONFD_STATUS_TERMINATE:
++ *   In this state, statistics values are being updated in c2_confd::c_stat.
++ *   FOM state handler should return FSO_WAIT.
+  *
+  * - C2_CONFD_STATUS_FAILURE:
++ *   In this state, statistics values are being updated in
++ *   c2_confd::c_stat, ADDB records are being added.
++ *   c2_conf_fetch_resp FOP with an empty configuration objects
++ *   sequence and negative error code is sent with c2_rpc_reply_post().
++ *   FOM state handler should return FSO_WAIT.
+  *
++ *  c2_conf_update FOM state transition diagram:
+  *  digraph confd_udpate_states {
+  * 	node [fontsize=9];
+  * 	edge [fontsize=9];
+@@ -309,7 +317,7 @@
+  * 	STATUS_WAIT;
+  * 	STATUS_TERMINATE [style=filled, fillcolor=lightgrey];
+  * 	STATUS_FAILURE [style=filled, fillcolor=lightgrey];
+- * 
++ *
+  * 	STATUS_INITIAL -> STATUS_UPDATE [label="c2_conf_update-FOP is arrived \n, next_state() == STATUS_UPDATE"];
+  * 	STATUS_UPDATE -> STATUS_WAIT [label="trywrlock(c2_confd::c_accr::ca_rwlock) != 0, \n next_state() == STATUS_WAIT, \n c2_atomic64_inc(c2_confd::c_accr::ca_writers)"];
+  * 	STATUS_UPDATE -> STATUS_TERMINATE [label="update is done"];
+@@ -318,101 +326,43 @@
+  *  }
+  *
+  * - C2_CONFD_STATUS_INITIAL:
++ *   In this state, statistics values are being updated in c2_confd::c_stat.
++ *   Then next_state() is called and FOM is transited into C2_CONFD_STATUS_UPDATE.
++ *   FOM state handler should return FSO_WAIT.
+  *
+  * - C2_CONFD_STATUS_UPDATE:
++
++ *   In current state, c2_confd::c_accr::ca_rwlock lock is being
++ *   obtained as a write lock. If it's already locked, pending update
++ *   requests count c2_confd::c_accr::ca_writers should be
++ *   incremented. In this case, next_state() is called and FOM is
++ *   transited into C2_CONFD_STATUS_WAIT state.
+  *
+- * - C2_CONFD_STATUS_WAIT:
+- *
+- * - C2_CONFD_STATUS_TERMINATE:
+- *
+- * - C2_CONFD_STATUS_FAILURE:
+- *
+- * ###################### OLD VISION ########################################
+- * Confd state machine is implemented on basis of FOM of c2_conf_fetch
+- * FOP.  After corresponding FOM went through a list of FOM specific
+- * states it transited into C2_CONFD_STATUS_INITIAL state.
+- *
+- * Confd state transition diagram:
+- * @dot
+- * digraph confd_states {
+- *	node [fontsize=9];
+- *	edge [fontsize=9];
+- *	C2_CONFD_STATUS_INITIAL [style=filled, fillcolor=lightgrey];
+- *	C2_CONFD_STATUS_SERIALIZE;
+- *	C2_CONFD_STATUS_LOAD;
+- *	C2_CONFD_STATUS_WAIT;
+- *	C2_CONFD_STATUS_TERMINATE [style=filled, fillcolor=lightgrey];
+- *	C2_CONFD_STATUS_FAILURE [style=filled, fillcolor=lightgrey];
+- *
+- *	C2_CONFD_STATUS_INITIAL -> C2_CONFD_STATUS_SERIALIZE [label="configuration FOP arrived \n, next_state() == C2_CONFD_STATUS_SERIALIZE"];
+- *	C2_CONFD_STATUS_SERIALIZE -> C2_CONFD_STATUS_LOAD [label="c2_conf_obj::co_status == C2_CS_MISSING \n, next_state() == C2_CONFD_STATUS_LOAD"];
+- *	C2_CONFD_STATUS_SERIALIZE -> C2_CONFD_STATUS_WAIT [label="c2_conf_obj::co_status == C2_CS_LOADING \n, next_state() == C2_CONFD_STATUS_WAIT"];
+- *	C2_CONFD_STATUS_SERIALIZE -> C2_CONFD_STATUS_TERMINATE [label="serialisation is done"];
+- *	C2_CONFD_STATUS_SERIALIZE -> C2_CONFD_STATUS_FAILURE [label="failed to load object \n or (next_state() < 0)"];
+- *	C2_CONFD_STATUS_LOAD -> C2_CONFD_STATUS_FAILURE [label="db does not contain requested \n object or (next_state() < 0)"];
+- *	C2_CONFD_STATUS_LOAD -> C2_CONFD_STATUS_SERIALIZE [label="configuration object loaded, \n next_state()==C2_CONFD_STATUS_SERIALIZE}"];
+- *	C2_CONFD_STATUS_WAIT -> C2_CONFD_STATUS_SERIALIZE [label="c2_conf_obj::co_chan signalled, \n next_state()==C2_CONFD_STATUS_SERIALIZE"];
+- * }
+- * @enddot
+- *
+- * Incoming request state (FOM of c2_conf_fetch FOP) is processed in
+- * reqh_confd_req_fom_state().
+- *
+- * - After c2_confd_init() confd state machine (FOM) transits into
+- *   C2_CONFD_STATUS_INITIAL state.
+- *
+- * - C2_CONFD_STATUS_INITIAL:
+- *   When reqh_confd_req_fom_state() is called and FOP has valid
+- *   configuration request data, confd::c_root is being filled with a
+- *   DAG sent with a FOP. Then next_state() is called.  next_state()
+- *   checks if confd::c_root is valid and transits into
+- *   C2_CONFD_STATUS_SERIALIZE.
+- *
+- * - C2_CONFD_STATUS_SERIALIZE:
+- *   In this state confd::c_root is being examined. If DAG consists of
+- *   objects with co_status == C2_CS_READY then obj_serialize() is
+- *   called. This produces a FOP to send back to Confc. Here
+- *   c2_rpc_reply_post() is called to send a FOP. next_state() is
+- *   called and state transits to C2_CONFD_STATUS_INITIAL.  If DAG
+- *   consists of objects with co_status != C2_CS_READY and
+- *   confd::c_state != C2_CONFD_STATUS_LOAD then next_state() call
+- *   transits confd into C2_CONFD_STATUS_LOAD, otherwise into
+- *   C2_CONFD_STATUS_WAIT.  If obj_serialize() < 0 then transit into
+- *   C2_CONFD_STATUS_FAILURE.
+- *
+- * - C2_CONFD_STATUS_LOAD:
+- *   In this state objects in DAG and Confd cache are being filled
+- *   from configuration db.  State in all objects in DAG is set to
+- *   co_status == C2_CS_LOADING. Untill all objects in DAG aren't
+- *   loaded, Confd stays in this state.  As far as loading may take a
+- *   long time, before entering the state c2_fom_block_enter() is
+- *   called. When loading stage finished, reqh has to be informed with
+- *   c2_fom_block_leave().  next_state() call transits confd into
+- *   C2_CONFD_STATUS_SERIALIZE state.  c2_chan_broadcast() is called
+- *   on c2_conf_obj::co_chan to notify waiting threads.  If db does
+- *   not contain requested object then transit into
+- *   C2_CONFD_STATUS_FAILURE.
++ *   Otherwise configuration c2_confd::c_accr::ca_rwlock is being
++ *   locked as a write lock, cache is being updated with new
++ *   configuration values from c2_conf_update FOP and ca_rwlock is
++ *   being unlocked.  After that, c2_conf_update_resp FOP is sent with
++ *   c2_rpc_reply_post().  next_state() transits FOM into
++ *   C2_CONFD_STATUS_TERMINATE.
++ *   FOM state handler should return FSO_WAIT.
+  *
+  * - C2_CONFD_STATUS_WAIT:
+- *   In this state Confd creates a link on c2_conf_obj::co_chan and
+- *   waits on it with c2_chan_wait() until it's
+- *   signalled. next_state() call transits confd into
+- *   C2_CONFD_STATUS_SERIALIZE state. c2_fom_block_at() should be
+- *   called before c2_chan_wait() call. This may create an extra
+- *   processing thread in reqh.  next_state() call transits confd into
+- *   C2_CONFD_STATUS_SERIALIZE state.  If timeout occured then
+- *   transits into C2_CONFD_STATUS_FAILURE.
++ *   c2_confd_update FOM remains in current state until
++ *   c2_confd::c_accr::ca_rwlock is obtained for writing.
++ *   FOM state handler should return FSO_WAIT if lock is obtained and
++ *   FSO_AGAIN otherwise.
+  *
+  * - C2_CONFD_STATUS_TERMINATE:
+- *   Transits in this state when c2_confd_terminate() is called.
++ *   In this state, statistics values are being updated in c2_confd::c_stat.
++ *   FOM state handler should return FSO_WAIT.
+  *
+  * - C2_CONFD_STATUS_FAILURE:
+- *   In this state confd handles errors occured while processing of
+- *   incoming FOP request and calls next_state(). This transfers Confd
+- *   into intial state.  On any error an c2_conf_fetch_resp FOP will
+- *   contain an error code and an empty sequence of descriptors.
++ *   In this state, statistics values are being updated in
++ *   c2_confd::c_stat, ADDB records are being added.
++ *   c2_conf_update_resp FOP with an empty configuration objects
++ *   sequence and negative error code is sent with c2_rpc_reply_post().
++ *   FOM state handler should return FSO_WAIT.
+  *
+- * ######################/OLD VISION ########################################
+  * <hr> <!------------------------------------------------------------>
+  * @section confd-lspec-thread Threading and Concurrency Model
+  *
+@@ -422,7 +372,7 @@
+  * FOPs handling, state transitions, outgoing FOPs serialization,
+  * error handling is done in callbacks called by reqh-component.
+  *
+- * Configuration server relies on rehq component threading model and
++ * Configuration service relies on rehq component threading model and
+  * should not acquire any locks or be in any waiting states, except
+  * listed below. Request processing should be performed in an
+  * asynchronous-like manner. Only synchronous calls to configuration
+@@ -511,45 +461,36 @@
+  */
+ 
+ /**
+- * Configuration server states.
++ * Configuration service states.
+  */
+ enum c2_confd_status {
+ 	C2_CONFD_STATUS_INITIAL = FOPH_NR + 1,
+ 	C2_CONFD_STATUS_SERIALIZE,
++	C2_CONFD_STATUS_UPDATE,
+ 	C2_CONFD_STATUS_LOAD,
+ 	C2_CONFD_STATUS_WAIT,
+ 	C2_CONFD_STATUS_TERMINATE,
+ 	C2_CONFD_STATUS_FAILURE
+ };
+ 
+-/** Generic ops object for  */
+-struct c2_fom_ops c2_fom_confd_ops = {
+-	.fo_fini = c2_fop_confd_fom_fini,
+-	.fo_state = reqh_confd_req_fom_state,
+-	.fo_home_locality = c2_fom_confd_home_locality
+-};
+ 
+-static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
+-{
+-}
+-
+-/** FOM type specific functions for ping FOP. */
+-static const struct c2_fom_type_ops c2_fom_ping_type_ops = {
+-	.fto_create = ping_fop_fom_create
++/**
++ * Confd service addb context.
++ */
++static const struct c2_addb_ctx_type addb_confd = {
++	.act_name = "addb-confd"
+ };
+ 
+-/** Ping specific FOM type operations vector. */
+-struct c2_fom_type c2_fom_ping_mopt = {
+-        .ft_ops = &c2_fom_ping_type_ops,
++enum {
++	C2_ADDB_EVENT_CONFD_INFO,
++	C2_ADDB_EVENT_CONFD_WARN,
++	C2_ADDB_EVENT_CONFD_ERR
+ };
+ 
+-void c2_fop_confd_fom_fini(struct c2_fom *fom)
+-{
+-}
++C2_ADDB_EV_DEFINE(addb_confd, "addb-confd-info", C2_ADDB_EVENT_CONFD_INFO, C2_ADDB_INVAL);
++C2_ADDB_EV_DEFINE(addb_confd, "addb-confd-warn", C2_ADDB_EVENT_CONFD_WARN, C2_ADDB_INVAL);
++C2_ADDB_EV_DEFINE(addb_confd, "addb-confd-err", C2_ADDB_EVENT_CONFD_ERR, C2_ADDB_INVAL);
+ 
+-size_t c2_fom_confd_home_locality(const struct c2_fom *fom)
+-{
+-}
+ 
+ /**
+  * Confd service type operations.
+@@ -657,104 +598,10 @@ void c2_confd_service_unregister(void)
+ 	c2_confd_service_fop_fini();
+ }
+ 
+-
+-/**
+- * Handles incoming requests, called by reqh.
+- */
+-static int reqh_confd_req_fom_state(struct c2_fom *fom)
+-{
+-	/* fom state function would look something similar to this: */
+-        /* /\*  */
+-        /*    checks if FOM should transition into a generic/standard */
+-        /*    phase or FOP specific phase. */
+-        /* *\/ */
+-        /* if (fom->fo_phase < FOPH_NR) { */
+-        /*         result = c2_fom_state_generic(fom); */
+-        /* } else { */
+-	/* 	if (fom->fo_phase == C2_CONFD_STATUS_WAIT) { */
+-	/* 		... */
+-        /*               /\* For asynchronous FOM operation *\/ */
+-        /*                 c2_fom_block_at(fom, */
+-        /*                            &fom_obj->rh_ut_stio.si_wait); */
+-        /*                 result = next_state(confd, C2_CONFD_STATUS_WAIT); */
+-        /*              ... */
+-	/* 		if (result < 0 || result != C2_CONFD_STATUS_WAIT) { /\* current state *\/ */
+-        /*                     fom->fo_rc = result; */
+-        /*                     fom->fo_phase = C2_CONFD_STATUS_FAILURE */
+-        /*                 } else { */
+-        /*                     fom->fo_phase = */
+-	/* 			    result; /\*next state *\/ */
+-        /*                     return FSO_WAIT; */
+-        /*                 } */
+-
+-	/* 	} else if (fom->fo_phase == C2_CONFD_STATUS_LOAD) { */
+-        /*               /\* For synchronous FOM operation *\/ */
+-        /*                 c2_fom_block_enter(fom); */
+-	/* 		//...  */
+-	/* 		//load objects from db */
+-	/* 		obj_load(...); */
+-        /*                 c2_fom_block_leave(fom); */
+-
+-	/* 		//... */
+-	/* 		result = next_state(confd, C2_CONFD_STATUS_LOAD); */
+-	/* 		if (result < 0 || result != C2_CONFD_STATUS_WAIT) { /\* current state *\/ */
+-        /*                     fom->fo_rc = result; */
+-        /*                     fom->fo_phase = C2_CONFD_STATUS_FAILURE */
+-        /*                 } else { */
+-        /*                     fom->fo_phase = */
+-	/* 			    result; /\*next state *\/ */
+-        /*                     return FSO_WAIT; */
+-        /*                 } */
+-	/* 	} else if (...) /\*process other states *\/ */
+-	/* 	else */
+-	/* 	{ */
+-	/* 	} */
+-
+-	/* 	return 0; */
+-}
+-
+-/**
+- * Starts configuration server.
+- *
+- * @param confd		Configuration server instance.
+- * @param cdbpath	Path to db with configuration values.
+- *
+- * @pre c2_confd::c_accr::ca_cache is not initialized and
+- * c2_confd::c_db is not opened.
+- */
+-static int  c2_confd_start(struct c2_confd *confd, const char *cdbpath)
+-{
+-}
+-
+-/**
+- * Terminates configuration server.
+- * Destroys and deallocates all data structures.
+- *
+- * @param confd		Configuration server instance.
+- *
+- * @pre c2_confd_start() was called and retured success.
+- * @post c2_confd::c_accr::ca_cache is finalized and c2_confd::c_db is
+- * closed.
+- */
+-static void c2_confd_terminate(struct c2_confd *confd);
+-
+-
+-/**
+- * Dumps configuration cache entries into a file in format described in
+- * @ref conf-fspec-preload-string-grammar.
+- *
+- * @param confd		Configuration server instance.
+- * @param out		Path path of a text file to dump into.
+- *
+- * @pre c2_confd_start() was called and retured success.
+- */
+-static int c2_confd_cache_dump(struct c2_confd *confd, char *out);
+-
+-
+ /**
+  * Serialises given DAG into FOP-package.
+  *
+- * @param confd	configuration server instance.
++ * @param confd	configuration service instance.
+  * @param path path to the object/directory requested by confc.
+  * @param fout FOP, prepared to be sent as a reply with c2_rpc_reply_post().
+  *
+@@ -769,16 +616,8 @@ static int obj_serialize(struct c2_confd *confd,
+ 
+ /**
+  * Transits confd into the next state.
+- * This function checks confd::c_accr::ca_cache for the state of
+- * configuration objects loaded into it and returns the next state
+- * in which FOM should be transited to. It takes into account current
+- * state of FOM processing and the following states of configuration objects:
+- * - when C2_CS_MISSING - may transit FOM into C2_CONFD_STATUS_FAILURE.
+- * - when C2_CS_LOADING - may transit FOM into C2_CONFD_STATUS_{LOAD or WAIT}
+- *   depending on current st.
+- * - when C2_CS_READY - may transit FOM into the rest of `C2_CONFD_STATUS_'-states
+- *
+- * @param confd	configuration server instance.
++ *
++ * @param confd	configuration service instance.
+  * @param st current state of incoming FOP-request processing.
+  */
+ static int next_state(struct c2_confd *confd, enum c2_confd_status st)
+@@ -789,7 +628,7 @@ static int next_state(struct c2_confd *confd, enum c2_confd_status st)
+  * Loads confd::c_root of the DAG of configuration objects
+  * from configuration db, or confd::c_accr::ca_map cache if mapping exists.
+  *
+- * @param confd	configuration server instance.
++ * @param confd	configuration service instance.
+  */
+ static int obj_load(struct c2_confd *confd)
+ {
+@@ -799,7 +638,7 @@ static int obj_load(struct c2_confd *confd)
+  * Waits for every object, loaded into cache, c2_conf_obj::co_chan to
+  * be signalled.
+  *
+- * @param confd	configuration server instance.
++ * @param confd	configuration service instance.
+  */
+ static int obj_wait(struct c2_confd *confd)
+ {
+@@ -808,7 +647,7 @@ static int obj_wait(struct c2_confd *confd)
+ /**
+  * Called when confd transits to C2_CONFD_STATUS_FAILURE
+  *
+- * @param confd	configuration server instance.
++ * @param confd	configuration service instance.
+  */
+ static void failure_handle(struct c2_confd *confd)
+ {
+diff --git a/conf/confd.h b/conf/confd.h
+index a90c717..4042108 100644
+--- a/conf/confd.h
++++ b/conf/confd.h
+@@ -23,28 +23,28 @@
+ 
+ #include "conf/onwire_u.h" /* c2_conf_fetch, c2_conf_fetch_resp */
+ #include "conf/map.h"
++#include "conf/conf_fop.h"
+ #include "reqh/reqh_service.h"
+ #include "db/db.h"
+ #inclide "lib/atomic.h"
+ #inclide "lib/rwlock.h"
+ 
+ /**
+- * @page confd-fspec Configuration Server (confd)
++ * @page confd-fspec Configuration Service (confd)
+  *
+- * Configuration server library (confd) is designed to work as a part
+- * of user-space configuration server and provides a "FOP-based"
+- * interface for accessing Colibri configuration information stored
+- * in configuration db. Confd is run within the context of a request
+- * handler launched by the colibri_setup program.
++ * Configuration service library (confd) is designed to work as a part
++ * of user-space configuration service based on request handler logic
++ * and provides a "FOP-based" interface for accessing Colibri
++ * configuration information stored in configuration db. Confd is run
++ * within the context of a request handler launched by the
++ * colibri_setup program.
+  *
+- * Confd caches recently used configuration values fetched from
+- * configuration db in memory based data caches to speed up confc
+- * requests.
++ * Confd pre-loads configuration values fetched from configuration db
++ * in memory-based data cache to speed up confc requests.
+  *
+  * - @ref confd-fspec-data
+  * - @ref confd-fspec-sub
+  *   - @ref confd-fspec-sub-setup
+- *   - @ref confd-fspec-sub-use
+  * - @ref confd-fspec-cli
+  * - @ref confd-fspec-recipes
+  *   - @ref confd-fspec-ex1
+@@ -52,12 +52,12 @@
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section confd-fspec-data Data Structures
+- * - c2_confd_service --- represents configuration service instace
+- *   registered in request handler
++ * - c2_reqh_confd_service --- represents configuration service instace
++ *   registered in request handler.
+  *
+- * - c2_confd --- represents configuration server data, stores
++ * - c2_confd --- represents configuration service data, stores
+  *   structures to perform caching, accessing to configuration db,
+- *   request handling
++ *   request handling.
+  *
+  * - c2_confd_conf_accessor --- represents data structures related to
+  *   efficient configuration data access.
+@@ -69,23 +69,22 @@
+  * containing a "path" of a requested configuration value to be
+  * retrieved from the configuration db. Defining FOPs for
+  * configuration requests and replies requires the use of the RPC
+- * layer as a transport:
++ * layer as a transport. Services have to register c2_fop_types for
++ * each FOP they support. The following types have to be defined:
++ * - c2_fop_type_format - defines format registed in *.ff used in confd
++ * - c2_fom_type - defines FOM operation vector provided by user to
++ *   hadle operations such as initialization and state transitions of
++ *   FOM.
++ * - c2_fop_type_ops - defines FOP operation vector.
++ * - c2_rpc_item_type - defines RPC item type for given fop.
+  *
+- * - c2_conf_fetch FOP --- configuration request, originating from confc.
+- *
+- * - c2_conf_fetch_resp FOP --- confd's reply to c2_conf_fetch FOP.
++ * FOPs used in configuration service are defined in @ref confd_fop_dfspec .
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section confd-fspec-sub Subroutines
+  *
+- * - c2_confd_start() starts confd-server.
+- * - c2_confd_terminate() terminates started confd.
+- *
+- * - c2_confd_update() opens given configuration database,
+- *   cleans confd cache.
+- *
+- * - c2_confd_dump_cache() dumps configuration cache entries into a
+- *   file in plain odd format.
++ * - c2_confd_service_register()  - registers confd service in the system.
++ * - c2_confd_service_unregister() - unregisters confd service in the system.
+  *
+  * <!------------------------------------------------------------------>
+  * @subsection confd-fspec-sub-setup Initialization and termination
+@@ -96,8 +95,8 @@
+  * endpoint to which clients connect.
+  *
+  * To parametrize colibri_setup the following options are provided:
+- *  - Prefered network transport structure and the name of
+- *    RPC server used by confd;
++ *  - Prefered network transport structure and the name of RPC server
++ *    used by confd;
+  *  - Request handler context;
+  *  - Type of reqh storage;
+  *  - Database file used by reqh;
+@@ -105,12 +104,12 @@
+  *  - Network layer endpoint to which clients connect.
+  *
+  * To parametrize confd, user should provide the following arguments:
+- *  - path to configuration db, where configuration values are stored;
+- * Confd is initiated and put into operation by c2_confd_start() call.
++ *  - path to configuration db, where configuration values are stored.
+  *
+- * User is able to run confd by selecting `-c' and `-C' options in
+- * colibri_setup().  For this c2_cs_setup_env() has to run
+- * c2_confd_start() and pass corresponding arguments.
++ * Confd is initiated and put into operation by request handler logic,
++ * after colibri is started. Confd service should be registered in
++ * request handler with c2_confd_service_register() call, where it has
++ * to initialize own data structures and FOPs used for communication.
+  *
+  * Initial configuration database is created with @ref yaml2db
+  * utility. Confd assumes that:
+@@ -119,70 +118,24 @@
+  *  - Format of configuration db, represented in yaml can be found in @ref yaml2db.
+  *
+  * The following errors may occur while using the configuration db:
+- * @li Db is empty or is in unrecognized format.
++ * @li Db is empty or is in an unrecognized format.
+  * @li Db layout is different from that mentioned in <a href=https://docs.google.com/a/xyratex.com/document/d/1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/view>"High level design of Colibri’s configuration database schema"</a>
+  * @li Key is not found.
+  *
+- * In the first case, error occurs after db-API opens db generated by
+- * @ref yaml2db. This may happen while initialization process in
+- * c2_confd_start(). The corresponding error code is returned by
+- * c2_confd_start().  The second and the third case may occur while
+- * requesting (key, value) pairs from db. In such a case, internal
+- * state machine is transited into error processing state and
+- * c2_conf_fetch_resp FOP with data, treated as an error value is
+- * sent.
++ * While initialization process, confd has open configuration db and
++ * fill internal cache of configuration objects with their
++ * configuration values. Such process is called pre-loading. It load
++ * entire configuration db into memory-based structures. Pre-loading
++ * details can be found in @ref confd-lspec.
+  *
+- * Initialized confd may be eventually terminated by c2_confd_terminate().
++ * Initialized confd may be eventually terminated by c2_confd_service_unregister()
++ * in which confd has to deinitialize own data structures and FOPs.
+  *
+  * After a confd instance is started it manages configuration
+  * database, its own internal cache structures and incoming
+  * FOP-requests.
+  *
+- * @code
+- * #include "conf/confd.h"
+- *
+- * struct c2_confd confd;
+- *
+- * startup(...) {
+- *
+- *      struct c2_colibri colibri_ctx;
+- *	struct c2_confd *confd;
+- *	const char *conf_db  = "confd.db";
+- *	const char *rpc_db   = "confd_rpc.db";
+- *	const char *rpc_log  = "confd_rpc.log";
+- *	const char *rpc_stob = "confd_rpc.stob";
+- *	const char *srvname  = "confd-001";
+- *      const char *rpc_endpoint = "192.168.1.199:1234";
+- *
+- *	char *confd_av[] = {
+- *		"colibri", "-r", "-T", "AD", "-D", rpc_db,
+- *		"-S", rpc_stob, "-e", rpc_endpoint
+- *	};
+- *
+- *      int rc = c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(confd_av), confd_av);
+- *	rc = c2_confd_start(&confd, srvname, conf_db, &c2_net_bulk_sunrpc_xprt);
+- *	...
+- * }
+- *
+- * ... Process incoming FOPs ...
+- * ... Access configuration db ...
+- * ... Manage configuration cache ...
+- *
+- * shutdown(...) {
+- *     c2_confd_terminate(confd);
+- * }
+- * @endcode
+- *
+  * <!------------------------------------------------------------------>
+- * @subsection confd-fspec-sub-use Updating configuration values
+- *
+- * c2_confd_update() function is used to update configuration database
+- * while confd is running. Function flushes all caches populated by
+- * confd.
+- *
+- * c2_confd_dump_cache() function is used for debug purposes.
+- *
+- * <hr> <!------------------------------------------------------------->
+  * @section confd-fspec-cli Command Usage
+  *
+  * To configure confd from console, standard options described in
+@@ -199,36 +152,15 @@
+  *
+  * Client sends a c2_conf_fetch FOP request to confd;
+  *
+- * Configuration server processes confc requests in
+- * `c2_fom_ops::fo_state()' state function of c2_conf_fetch FOP request:
+- *
+- * @code
+- * int reqh_confd_req_fom_state(struct c2_fom *fom)
+- *  {
+- *	struct c2_fop			*fop;
+- *      struct c2_rpc_item              *item;
+- *      struct c2_fom_ping		*fom_obj;
+- *
+- *	fom_obj = container_of(fom, struct c2_conf_fetch, fp_gen);
+- *      fop = c2_fop_alloc(&c2_conf_fetch_rep_fopt, NULL);
+- *      C2_ASSERT(fop != NULL);
+- *
+- *	item = c2_fop_to_rpc_item(fop);
+- *	/ * send configuration request immediately avoiding rpc-formation  * /
+- *	item->ri_group = NULL;
+- *
+- *	/ * processes incoming request and prepares reply * /
+- *	incoming_fop_process(fom->fo_fop, item);
+- *
+- *      c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
+- *}
+- * @endcode
++ * Configuration service processes confc requests in
++ * `c2_fom_ops::fo_state()' state function of c2_conf_fetch FOP
++ * request and sends c2_conf_fetch_resp FOP back.
+  *
+  * @see @ref confd_dfspec "Detailed Functional Specification"
+  */
+ 
+ /**
+- * @defgroup confd_dfspec Configuration Server (confd)
++ * @defgroup confd_dfspec Configuration Service (confd)
+  * @brief Detailed Functional Specification.
+  *
+  * @see @ref conf, @ref confd-fspec "Functional Specification"
+@@ -236,11 +168,7 @@
+  * @{
+  */
+ 
+-/**
+- * Configuration data accessor.
+- * This object is used for reading configuration information from the
+- * cache or, in case of cache miss, from the configuration database.
+- */
++/** Configuration data accessor. */
+ struct c2_confd_conf_accessor {
+ 	/** Database path */
+ 	const char	       *ca_dbpath;
+@@ -259,17 +187,40 @@ struct c2_confd_conf_accessor {
+ 	struct c2_mutex		ca_lock;
+ };
+ 
+-/** Configuration server. */
++/** Configuration service statistics */
++struct c2_confd_stat {
++	/** Configuration cache entries count. */
++	uint32_t cs_cache_ent_cnt;
++	/** Processed configuration requests count of configuration service. */
++	uint32_t cs_req_cnt;
++	/** Processed update requests count of configuration service. */
++	uint32_t cs_upd_cnt;
++	/** Processed configuration requests per second. */
++	uint32_t cs_req_per_sec;
++	/** Processed update requests per second. */
++	uint32_t cs_upd_per_sec;
++	/** Maximum time, update request waits to be applied */
++	uint32_t cs_waiter_max;
++	/** An average time, update request waits to be applied */
++	uint32_t cs_waiter_avg;
++
++	/** Protects this structure from concurrent access */
++	struct c2_mutex	cs_lock;
++};
++
++/** Configuration service data. */
+ struct c2_confd {
+ 	struct c2_addb_ctx		c_addb;
+ 	struct c2_confd_conf_accessor  *c_accr;
++	struct c2_confd_stat		c_stat;
+ };
+ 
+ int c2_confd_service_register(void);
+ void c2_confd_service_unregister(void);
+ 
+ enum {
+-        C2_REQH_CONFD_SERVICE_MAGIC = 0x8379008470737f
++	/* magic for reqh services */
++        C2_REQH_CONFD_SERVICE_MAGIC = 0x7265716873766373
+ };
+ 
+ /**
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+index 8760a0b..61ed087 100644
+--- a/conf/onwire.ff
++++ b/conf/onwire.ff
+@@ -192,3 +192,39 @@ DEF(c2_conf_fetch_resp, RECORD,
+     _(fr_rc,   U32),
+     /** A sequence of configuration object descriptors. */
+     _(fr_data, enconf));
++
++/** Update request. */
++DEF(c2_conf_update, RECORD,
++    /** Configuration object the path originates from. */
++    _(f_origin, objid),
++    /** A sequence of configuration object descriptors. */
++    _(fr_data, enconf));
++
++/** Confd's response to c2_conf_update. */
++DEF(c2_conf_update_resp, RECORD,
++    /** Result of update request (-Exxx = failure, 0 = success). */
++    _(fr_rc,   U32));
++
++/** Statistics request. */
++DEF(c2_conf_stat, RECORD,
++    /** @TODO: Statistics request flags */
++    _(f_flags, U32));
++
++/** Confd's response to c2_conf_stat. */
++DEF(c2_conf_stat_resp, RECORD,
++    /** Configuration cache entries count. */
++    _(f_cache_ent_cnt, U32),
++    /** Processed configuration requests count of configuration service. */
++    _(f_req_cnt, U32),
++    /** Processed update requests count of configuration service. */
++    _(f_upd_cnt, U32),
++    /** Processed configuration requests per second. */
++    _(f_req_per_sec, U32),
++    /** Processed update requests per second. */
++    _(f_upd_per_sec, U32),
++    /** Maximum time, update request waits to be applied */
++    _(f_waiter_max, U32),
++    /** An average time, update request waits to be applied */
++    _(f_waiter_avg, U32),
++    /** Result of update request (-Exxx = failure, 0 = success). */
++    _(fr_rc,   U32));
+-- 
+1.8.3.2
+

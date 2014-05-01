@@ -1,0 +1,402 @@
+From 8d86b9724b25f33fe439330574ab3165e3ad8cd0 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Thu, 26 Sep 2013 11:34:42 +0530
+Subject: [PATCH 098/125] Code review fixes : - 1. Replace M0_LOG()s with
+ ADDB_POST() 2. BUG: monitor module constant, was not initialized, FIXED. 3.
+ BUG: Implementation of m0_addb_monitor_sum_rec_init(), was not done, FIXED.
+ 4. BUG: m0_addb_monitor_sum_rec_fini() stub was not present, FIXED. 5. Add
+ some relevant comments. 6. Monitor definition document in addb_monitor.h was
+ ambiguous & incomplete, FIXED. 7. Allocations of pointer *_ALLOC_PTR() done
+ using addb macros.
+
+---
+ addb/addb_monitor.c | 88 +++++++++++++++++++++++++++++++++++++++--------------
+ addb/addb_monitor.h | 75 ++++++++++++++++++++++++++++++++++-----------
+ stats/stats_addb.h  | 43 +++++++++++++-------------
+ 3 files changed, 144 insertions(+), 62 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 1714bba..90ea5ba 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -166,6 +166,8 @@ M0_TL_DESCR_DEFINE(addb_mon, "addb monitors list", M0_INTERNAL,
+ 
+ M0_TL_DEFINE(addb_mon, M0_INTERNAL, struct m0_addb_monitor);
+ 
++struct m0_addb_ctx m0_addb_monitors_mod_ctx;
++
+ #ifndef __KERNEL__
+ static int stats_svc_conn_establish(struct m0_reqh *reqh)
+ {
+@@ -187,27 +189,24 @@ static int stats_svc_conn_establish(struct m0_reqh *reqh)
+ 	stats_svc_ep = mero->cc_stats_svc_epx.ex_endpoint;
+ 
+ 	if (stats_svc_ep == NULL) {
+-		M0_LOG(M0_WARN, "Stats svc ep not provided");
++		STATS_ADDB_FUNCFAIL(0, SVC_CONN_ESTABLISH_1,
++				    &m0_addb_monitors_mod_ctx);
+ 		M0_RETURN(0);
+ 	}
+ 
+ 	m0_mutex_lock(&mon_ctx->amc_mutex);
+-	M0_ALLOC_PTR(mon_ctx->amc_stats_conn);
++	STATS_ALLOC_PTR(mon_ctx->amc_stats_conn, &m0_addb_monitors_mod_ctx,
++			SVC_CONN_ESTABLISH_2);
+ 	if (mon_ctx->amc_stats_conn == NULL) {
+-		/* @todo: Use ADDB recs */
+-		M0_LOG(M0_WARN, "Memory allocation failed for stats conn"
+-		       "object");
+ 		m0_mutex_unlock(&mon_ctx->amc_mutex);
+-		M0_RETURN(0);
++		M0_RETURN(-ENOMEM);
+ 	}
+-	M0_ALLOC_PTR(mon_ctx->amc_stats_session);
++	STATS_ALLOC_PTR(mon_ctx->amc_stats_session, &m0_addb_monitors_mod_ctx,
++			SVC_CONN_ESTABLISH_3);
+ 	if (mon_ctx->amc_stats_session == NULL) {
+-		/* @todo: Use ADDB recs */
+-		M0_LOG(M0_WARN, "Memory allocation failed for stats session"
+-		       "object");
+ 		m0_free(mon_ctx->amc_stats_conn);
+ 		m0_mutex_unlock(&mon_ctx->amc_mutex);
+-		M0_RETURN(0);
++		M0_RETURN(-ENOMEM);
+ 	}
+ 	rc = m0_rpc_client_connect(mon_ctx->amc_stats_conn,
+ 				   mon_ctx->amc_stats_session, rmach,
+@@ -215,12 +214,12 @@ static int stats_svc_conn_establish(struct m0_reqh *reqh)
+ 				   ADDB_STATS_MAX_RPCS_IN_FLIGHT,
+ 				   ADDB_STATS_MAX_RPC_SLOTS_NR);
+ 	if (rc != 0) {
+-		/* @todo: Use ADDB recs */
+-		M0_LOG(M0_WARN, "stats svc connection failed");
++		STATS_ADDB_FUNCFAIL(rc, SVC_CONN_ESTABLISH_3,
++				    &m0_addb_monitors_mod_ctx);
+ 		m0_free(mon_ctx->amc_stats_session);
+ 		m0_free(mon_ctx->amc_stats_conn);
+ 		m0_mutex_unlock(&mon_ctx->amc_mutex);
+-		M0_RETURN(0);
++		M0_RETURN(rc);
+ 	}
+ 	mon_ctx->amc_stats_ep = stats_svc_ep;
+ 	m0_mutex_unlock(&mon_ctx->amc_mutex);
+@@ -243,6 +242,7 @@ M0_INTERNAL void m0_addb_conf_process(struct m0_reqh *reqh,
+ 	if (mon_ctx->amc_stats_ep != NULL)
+ 		goto out;
+ 	else {
++		/** Only assign stats ep for the first mentioned conf object */
+ 		mon_ctx->amc_stats_ep      = ep;
+ 		mon_ctx->amc_stats_conn    = conn;
+ 		mon_ctx->amc_stats_session = session;
+@@ -254,7 +254,7 @@ out:
+ M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh,
+ 				      const char     *endpoint)
+ {
+-	int rc = 0;
++	int                            rc = 0;
+ 	struct m0_addb_monitoring_ctx *mon_ctx;
+ 
+ 	M0_PRE(reqh != NULL);
+@@ -270,7 +270,9 @@ M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh,
+ 	if (rc != 0)
+ 		M0_RETERR(rc, "Stats service connection estalish failed\n");
+ #endif
+-	m0_addb_ctx_type_register(&m0_addb_ct_stats_rec);
++	m0_addb_ctx_type_register(&m0_addb_ct_monitors_mod);
++	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_addb_monitors_mod_ctx,
++			&m0_addb_ct_monitors_mod, &m0_addb_proc_ctx);
+ 
+ 	return rc;
+ }
+@@ -295,7 +297,26 @@ M0_INTERNAL void m0_addb_monitor_sum_rec_init(struct m0_addb_sum_rec        *sum
+ 					      uint64_t                      *mon_data,
+ 					      size_t                         nr)
+ {
+-	/** @todo: need to implement */
++	M0_PRE(sum_rec != NULL && rtype != NULL && mon_data != NULL &&
++	       nr > 0);
++
++	m0_mutex_init(&sum_rec->asr_mutex);
++	sum_rec->asr_rec.ss_id              = rtype->art_id;
++	sum_rec->asr_rec.ss_data.au64s_nr   = nr;
++	sum_rec->asr_rec.ss_data.au64s_data = mon_data;
++}
++
++M0_INTERNAL void m0_addb_monitor_sum_rec_fini(struct m0_addb_sum_rec *sum_rec)
++{
++	M0_PRE(sum_rec != NULL);
++
++	m0_mutex_lock(&sum_rec->asr_mutex);
++	sum_rec->asr_rec.ss_id              = M0_STATS_ID_UNDEFINED;
++	sum_rec->asr_rec.ss_data.au64s_nr   = 0;
++	sum_rec->asr_rec.ss_data.au64s_data = NULL;
++	m0_mutex_unlock(&sum_rec->asr_mutex);
++
++	m0_mutex_fini(&sum_rec->asr_mutex);
+ }
+ 
+ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor)
+@@ -306,9 +327,10 @@ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor)
+ 	addb_mon_tlink_fini(monitor);
+ }
+ 
+-M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh         *reqh,
+-				     struct m0_addb_monitor *monitor)
++M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh               *reqh,
++				     struct m0_addb_monitor       *monitor)
+ {
++	M0_PRE(reqh != NULL);
+ 	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
+ 	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+@@ -336,6 +358,25 @@ M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh         *reqh,
+ 	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ }
+ 
++#ifndef __KERNEL__
++static void addb_stats_service_conn_fini(struct m0_addb_monitoring_ctx *mon_ctx)
++{
++	int rc;
++
++	rc = m0_rpc_session_destroy(mon_ctx->amc_stats_session, M0_TIME_NEVER);
++	if (rc != 0)
++		STATS_ADDB_FUNCFAIL(rc, SVC_CONN_FINI_1,
++				    &m0_addb_monitors_mod_ctx);
++	rc = m0_rpc_conn_destroy(mon_ctx->amc_stats_conn, M0_TIME_NEVER);
++	if (rc != 0)
++		STATS_ADDB_FUNCFAIL(rc, SVC_CONN_FINI_2,
++				    &m0_addb_monitors_mod_ctx);
++	mon_ctx->amc_stats_session = NULL;
++	mon_ctx->amc_stats_conn    = NULL;
++	mon_ctx->amc_stats_ep      = NULL;
++}
++#endif
++
+ M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh)
+ {
+ 	struct m0_addb_monitor *mon;
+@@ -345,11 +386,14 @@ M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh)
+ 		m0_addb_monitor_del(reqh, mon);
+ 		m0_addb_monitor_fini(mon);
+ 	} m0_tl_endfor;
+-	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 
++#ifndef __KERNEL__
++	addb_stats_service_conn_fini(&reqh->rh_addb_monitoring_ctx);
++#endif
+ 	addb_mon_tlist_fini(&reqh->rh_addb_monitoring_ctx.amc_list);
++	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
++
+ 	m0_mutex_fini(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+-	/** @todo: Close connection with stats service and do related cleanup */
+ }
+ 
+ #define SUM_SIZE(sum) (sum->asr_rec.ss_data.au64s_nr * sizeof(uint64_t))
+@@ -451,7 +495,7 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,
+ 	uint32_t                       scanned = 0;
+ 	uint32_t                       sent    = 0;
+ 	uint32_t                       result  = 0;
+-	struct m0_addb_ctx            *cv[] = {/*&m0_addb_ct_stats_rec,*/ NULL};
++	struct m0_addb_ctx            *cv[] = {&m0_addb_monitors_mod_ctx, NULL};
+ 
+ 	M0_PRE(reqh != NULL);
+ 
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 9e992f4..1219ec7 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -107,10 +107,18 @@
+ 	should be maintained while defining the structure).
+ 
+ 	// 4. Define monitor operation amo_sum_rec
+-	struct m0_add_sum_rec *xyz_amo_sum_rec(const struct m0_addb_monitor *mon,
++	struct m0_addb_sum_rec *xyz_amo_sum_rec(const struct m0_addb_monitor *mon,
+ 					       struct m0_reqh             *reqh)
+ 	{
+-		return m0_reqh_lockers_get(reqh, xyz_key);
++		struct m0_addb_sum_rec *sum_rec;
++
++		m0_rwlock_read_lock(&reqh->rh_rwlock);
++		sum_rec = m0_reqh_lockers_get(reqh, xyz_key);
++		m0_rwlock_read_unlock(&reqh->rh_rwlock);
++
++		M0_POST(sum_rec != NULL);
++
++		return sum_rec;
+ 	}
+ 
+ 	// 5. Define monitor operations amo_watch()
+@@ -118,7 +126,11 @@
+ 			   struct m0_addb_rec *rec, struct m0_reqh *reqh)
+ 	{
+ 		// for addb rec of type X
+-		struct m0_addb_sum_rec *xyz = reqh_lockers_get(reqh, xyz_key);
++		struct m0_addb_sum_rec *xyz;
++
++		m0_rwlock_read_lock(&reqh->rh_rwlock);
++		xyz = reqh_lockers_get(reqh, xyz_key);
++		m0_rwlock_read_unlock(&reqh->rh_rwlock);
+ 
+ 		// NOTE: Locking is optional, use only when monitor implementor
+ 		// specifically wants to synchronize access to summary data.
+@@ -137,36 +149,56 @@
+ 	// 7. Define monitor entry's init function
+ 	int xyz_ame_init(void)
+ 	{
+-		//1. Dynamically allocate monitor(optional)
+-		//2. Dynamically allocate instance of monitor specific data
+-		//   here struct xyz (optional)
+-		//3. Dynamically allocate instance of struct m0_addb_sum_rec
+-		//4. Initialize monitor
+-		//5. Initialize summary record (m0_addb_sum_rec)
+-		//6. Add monitor to mero system
++		//1. Define monitor.(as part of some module structure or
++		//   global variable)
++		//2. Define monitor specific data, in example defined as
++		//   'struct xyz' & key for it. (as part of some module
++		//   structure or global variable)
++		//3. Dynamically allocate instance of struct m0_addb_sum_rec.
++		//4. Initialize monitor.
++		//5. Initialize summary record (m0_addb_sum_rec) with monitor
++		//   specific data.
++		//6. Initialize monitor specific data's key.
++		//7. Store (lockers_set) this monitor specific data in reqh's
++		//   locker data structure.
++		//8. Add monitor to reqh's list of monitors for this node.
++
+ 		struct m0_addb_sum_rec *rec;
+ 		M0_ALLOC_PTR(rec);
+ 
+ 		m0_addb_monitor_init(&xyz_module_var.xms_mon, mon_ops);
+-
+ 		m0_addb_monitor_sum_rec_init(rec, &m0_addb_xyz,
+ 					     &xyz_module_var.xms_xyz,
+ 					     sizeof(xyz_module_var.xms_xyz));
++		xyz_module.xms_key = m0_reqh_lockers_allot();
++		m0_reqh_lockers_set(reqh, &xyz_module.xms_key, rec);
++
+ 		m0_addb_monitor_add(&xyz_module_var.xms_mon);
+ 	}
+ 
+ 	// 8. Define monitor entry's fini function
+ 	void xyz_ame_fini(void)
+ 	{
+-		//1. Remove monitor from mero system
+-		//2. Free summary record (m0_addb_sum_rec)
+-		//3. Finalize monitor
+-		//4. Free instance of monitor specific data (over here struct
+-		//   xyz instance) (optional)
+-		//5. Free monitor (optional)
++		//1. Delete monitor from reqh's list of monitors for this node.
++		//2. Remove (lockers_clear)  monitor specific data from reqh's
++		//   locker data structure (obviously do lockers_get before this
++		//   to get the pointer to m0_addb_sum_rec structure for following
++		//   steps, NOTE: shown in below code snippet).
++		//3. Finalize summary record (m0_addb_sum_rec).
++		//4. Free summary record (m0_addb_sum_rec).
++		//5. Finalize monitor.
++		//6. Free monitor specific data, key or monitor iff any of them
++		//   was dynamically allocated.
++
++		struct m0_addb_sum_rec *rec =
++			&xyz_module_var.xms_mon->am_ops->amo_sum_rec(reqh,
++								     xyz_module_var.xms_mon);
++		M0_PRE(rec != NULL);
+ 
+ 		m0_addb_monitor_del(&xyz_module_var.xms_mon);
+-		m0_free(&xyz_module_var.xms_mon->am_ops->amo_sum_rec);
++		m0_reqh_lockers_clear(reqh, &xyz_module_var.xms_key);
++		m0_addb_monitor_sum_rec_fini(rec);
++		m0_free(rec);
+ 		m0_addb_monitor_fini(&xyz_module_var.xms_mon);
+ 	}
+ 
+@@ -280,6 +312,13 @@ M0_INTERNAL void m0_addb_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
+ 				      const struct m0_addb_rec_type *rtype,
+ 				      uint64_t                      *mon_data,
+ 				      size_t                         nr);
++
++/**
++ * Fini m0_addb_sum_rec (Generic summary record structure)
++ * @param sum_rec ADDB summary record to fini
++ */
++M0_INTERNAL void m0_addb_monitor_sum_rec_fini(struct m0_addb_sum_rec *sum_rec);
++
+ /**
+  * Add a particular monitor with the ADDB monitoring sub-system
+  * @param reqh Request handler
+diff --git a/stats/stats_addb.h b/stats/stats_addb.h
+index f7a4efb..fa6238a 100644
+--- a/stats/stats_addb.h
++++ b/stats/stats_addb.h
+@@ -34,10 +34,10 @@
+  * Stats ADDB context types.
+  */
+ enum {
+-	M0_ADDB_CTXID_STATS_SVC		= 1700,
+-	M0_ADDB_CTXID_STATS_UPDATE_FOM	= 1701,
+-	M0_ADDB_CTXID_STATS_QUERY_FOM	= 1702,
+-	M0_ADDB_CTXID_STATS_REC         = 1703,
++	M0_ADDB_CTXID_STATS_SVC		   = 1700,
++	M0_ADDB_CTXID_STATS_UPDATE_FOM	   = 1701,
++	M0_ADDB_CTXID_STATS_QUERY_FOM	   = 1702,
++	M0_ADDB_CTXID_MONITORS_MOD         = 1703,
+ };
+ 
+ M0_ADDB_CT(m0_addb_ct_stats_svc, M0_ADDB_CTXID_STATS_SVC, "hi", "low");
+@@ -45,7 +45,7 @@ M0_ADDB_CT(m0_addb_ct_stats_update_fom, M0_ADDB_CTXID_STATS_UPDATE_FOM);
+ M0_ADDB_CT(m0_addb_ct_stats_query_fom, M0_ADDB_CTXID_STATS_QUERY_FOM);
+ 
+ 
+-M0_ADDB_CT(m0_addb_ct_stats_rec, M0_ADDB_CTXID_STATS_REC);
++M0_ADDB_CT(m0_addb_ct_monitors_mod, M0_ADDB_CTXID_MONITORS_MOD);
+ 
+ /*
+  * Stats ADDB posting locations.
+@@ -55,27 +55,26 @@ enum {
+ 	M0_STATS_SVC_ADDB_LOC_SERVICE_ALLOC = 1,
+ };
+ 
+-/**
+- *  @todo stuff These are stuffs and need to remove when actual stats defined.
+- *              These are added just to test stats utility.
+- *              This should be removed when actual Monitoring infra and
+- *              some monitors code come in.
++#define STATS_ADDB_FUNCFAIL(rc, loc, ctx)		             \
++M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_STATS_ADDB_LOC_##loc, rc, ctx)
++
++#define STATS_ALLOC_PTR(ptr, ctx, loc)			             \
++M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_STATS_ADDB_LOC_##loc, ctx)
++
++/*
++ ******************************************************************************
++ * Stats ADDB posting locations
++ ******************************************************************************
+  */
+ enum {
+-	M0_ADDB_RECID_STATS_FOP_RATE = 9900,
+-	M0_ADDB_RECID_STATS_READ_SIZE,
+-	M0_ADDB_RECID_STATS_DISK_STATS
++	M0_STATS_ADDB_LOC_SVC_CONN_ESTABLISH_1 = 10,
++	M0_STATS_ADDB_LOC_SVC_CONN_ESTABLISH_2 = 11,
++	M0_STATS_ADDB_LOC_SVC_CONN_ESTABLISH_3 = 12,
++	M0_STATS_ADDB_LOC_SVC_CONN_ESTABLISH_4 = 13,
++	M0_STATS_ADDB_LOC_SVC_CONN_FINI_1      = 20,
++	M0_STATS_ADDB_LOC_SVC_CONN_FINI_2      = 21,
+ };
+ 
+-M0_ADDB_RT_STATS(m0_addb_rt_stats_fop_rate, M0_ADDB_RECID_STATS_FOP_RATE,
+-	         "rate", "avg_turnaround_time_ns");
+-M0_ADDB_RT_STATS(m0_addb_rt_stats_read_size, M0_ADDB_RECID_STATS_READ_SIZE,
+-	         "avg_size");
+-M0_ADDB_RT_STATS(m0_addb_rt_stats_disk_stats, M0_ADDB_RECID_STATS_DISK_STATS,
+-	         "total", "free", "used");
+-
+-/** end stuff */
+-
+ /** @} */ /* end of stats */
+ 
+ #endif /* __MERO_STATS_ADDB_H_ */
+-- 
+1.8.3.2
+

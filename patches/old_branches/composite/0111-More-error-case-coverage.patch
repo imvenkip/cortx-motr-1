@@ -1,0 +1,431 @@
+From e4a6ac53e4ec5509c02fc6f42e2d9781cdefdeff Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 5 Apr 2013 11:26:05 +0530
+Subject: [PATCH 111/172] More error case coverage
+
+---
+ layout/composite.c    | 32 +++++++++++------
+ layout/ut/composite.c | 96 +++++++++++++++++++++++++++------------------------
+ layout/ut/composite.h | 18 ++++++++++
+ layout/ut/layout.c    |  4 +--
+ layout/ut/layout.h    |  5 ---
+ 5 files changed, 92 insertions(+), 63 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 722990e..a867e08 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -423,7 +423,7 @@ static int layer_inmem_add(struct m0_composite_layout *cl,
+ 			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ALLOC,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
+ 			       -ENOMEM);
+-		return -ENOMEM;
++		M0_RETURN(-ENOMEM);
+ 	}
+ 
+ 	layer->clr_cl         = &cl->cl_base;
+@@ -452,7 +452,7 @@ static int layer_inmem_add(struct m0_composite_layout *cl,
+ 	M0_POST(composite_invariant(cl));
+ 	M0_LEAVE("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+-	return 0;
++	M0_RETURN(0);
+ }
+ 
+ static void extlist_free(struct m0_tl *extlist)
+@@ -1243,7 +1243,7 @@ static int ext_inmem_add_internal(struct m0_composite_layer *layer,
+ 			       "failed to allocate composite extent",
+ 			       M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL,
+ 			       &l->l_addb_ctx, l->l_id, -ENOMEM);
+-		return -ENOMEM;
++		M0_RETURN(-ENOMEM);
+ 	}
+ 	lr_ext->cle_ext = *ext;
+ 	lr_ext->cle_state = ext_state;
+@@ -1261,7 +1261,7 @@ static int ext_inmem_add_internal(struct m0_composite_layer *layer,
+ 
+ 	if (layer != NULL)
+ 		M0_CNT_INC(layer->clr_extents_nr);
+-	return 0;
++	M0_RETURN(0);
+ }
+ 
+ /**
+@@ -2175,8 +2175,12 @@ static void delete_callback(struct m0_emap_seg *seg, void *data)
+ {
+ 	struct callback_data *cb_data = data;
+ 
++	M0_ENTRY("ext_start %llu, ext_end %llu",
++		 (unsigned long long)seg->ee_ext.e_start,
++		 (unsigned long long) seg->ee_ext.e_end);
+ 	if (cb_data->cb_inmem_list_update)
+ 		ext_inmem_delete(cb_data->cb_layer, &seg->ee_ext, seg->ee_val);
++	M0_LEAVE();
+ }
+ 
+ static void cut_left_callback(struct m0_emap_seg *seg, struct m0_ext *ext,
+@@ -2184,10 +2188,14 @@ static void cut_left_callback(struct m0_emap_seg *seg, struct m0_ext *ext,
+ {
+ 	struct callback_data *cb_data = data;
+ 
++	M0_ENTRY("ext_start %llu, ext_end %llu",
++		 (unsigned long long)seg->ee_ext.e_start,
++		 (unsigned long long)seg->ee_ext.e_end);
+ 	if (cb_data->cb_inmem_list_update)
+-		cb_data->cb_rc ?: ext_inmem_trim(cb_data->cb_layer, CUT_LEFT,
+-						 &seg->ee_ext, seg->ee_val,
+-						 ext);
++		cb_data->cb_rc = cb_data->cb_rc ?:
++				 ext_inmem_trim(cb_data->cb_layer, CUT_LEFT,
++						&seg->ee_ext, seg->ee_val, ext);
++	M0_LEAVE("rc %d", cb_data->cb_rc);
+ }
+ 
+ static void cut_right_callback(struct m0_emap_seg *seg, struct m0_ext *ext,
+@@ -2195,10 +2203,14 @@ static void cut_right_callback(struct m0_emap_seg *seg, struct m0_ext *ext,
+ {
+ 	struct callback_data *cb_data = data;
+ 
++	M0_ENTRY("ext_start %llu, ext_end %llu",
++		 (unsigned long long)seg->ee_ext.e_start,
++		 (unsigned long long)seg->ee_ext.e_end);
+ 	if (cb_data->cb_inmem_list_update)
+-		cb_data->cb_rc ?: ext_inmem_trim(cb_data->cb_layer, CUT_RIGHT,
+-						 &seg->ee_ext, seg->ee_val,
+-						 ext);
++		cb_data->cb_rc = cb_data->cb_rc ?:
++				 ext_inmem_trim(cb_data->cb_layer, CUT_RIGHT,
++						&seg->ee_ext, seg->ee_val, ext);
++	M0_LEAVE("rc %d", cb_data->cb_rc);
+ }
+ 
+ static int ext_indb_write_internal(struct m0_emap_cursor *it,
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 846b0d3..d5899e1 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -134,15 +134,10 @@ static void extentlist_build(struct m0_tl *extents,
+ 			     uint32_t extents_nr,
+ 			     bool if_contiguous_extents)
+ {
+-	m0_bindex_t                       start_offset;
+-	m0_bindex_t                       end_offset;
+ 	struct m0_composite_layer_extent *lr_ext;
+ 	m0_bindex_t                       delta;
+ 	uint32_t                          i;
+ 
+-	start_offset = 0;
+-	end_offset   = M0_BINDEX_MAX + 1;
+-
+ 	/* Initialise a m0_tl for storing the extents. */
+ 	m0_composite_layer_ext_tlist_init(extents);
+ 	M0_UT_ASSERT(m0_composite_layer_ext_tlist_is_empty(extents));
+@@ -150,14 +145,14 @@ static void extentlist_build(struct m0_tl *extents,
+ 	if (M0_FI_ENABLED("extents_nr_zero"))
+ 		return;
+ 
+-	delta = (end_offset - start_offset) / extents_nr;
++	delta = (END_OFFSET - START_OFFSET) / extents_nr;
+ 	for (i = 0; i < extents_nr; ++i) {
+ 		M0_ALLOC_PTR(lr_ext);
+ 		M0_UT_ASSERT(lr_ext != NULL);
+-		lr_ext->cle_ext.e_start = start_offset + i * delta;
++		lr_ext->cle_ext.e_start = START_OFFSET + i * delta;
+ 		if (i == extents_nr - 1)
+-			/* end_offset may not be exact multiple of delta. */
+-			lr_ext->cle_ext.e_end = end_offset;
++			/* END_OFFSET may not be exact multiple of delta. */
++			lr_ext->cle_ext.e_end = END_OFFSET;
+ 		else
+ 			lr_ext->cle_ext.e_end = lr_ext->cle_ext.e_start + delta;
+ 
+@@ -189,8 +184,6 @@ static void composite_layout_verify(struct m0_layout *l,
+ 				    uint32_t min_extents_nr,
+ 				    bool if_contiguous_extents)
+ {
+-	m0_bindex_t                       start_offset;
+-	m0_bindex_t                       end_offset;
+ 	bool                              inline_test;
+ 	uint64_t                          sublayout_id;
+ 	struct m0_composite_layout       *cl;
+@@ -206,9 +199,6 @@ static void composite_layout_verify(struct m0_layout *l,
+ 	uint32_t                          i;
+ 	uint32_t                          j;
+ 
+-	start_offset = 0;
+-	end_offset   = M0_BINDEX_MAX + 1;
+-
+ 	M0_UT_ASSERT(l != NULL);
+ 	M0_UT_ASSERT(l->l_type == &m0_composite_layout_type);
+ 
+@@ -241,13 +231,13 @@ static void composite_layout_verify(struct m0_layout *l,
+ 
+ 		/* Verify the extents. */
+ 		j = 0;
+-		delta = (end_offset - start_offset) / extents_nr;
++		delta = (END_OFFSET - START_OFFSET) / extents_nr;
+ 		m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+ 			M0_UT_ASSERT(lr_ext->cle_ext.e_start ==
+-				     start_offset + j * delta);
++				     START_OFFSET + j * delta);
+ 			M0_UT_ASSERT(lr_ext->cle_ext.e_end ==
+ 				     lr_ext->cle_ext.e_start + delta ||
+-				     lr_ext->cle_ext.e_end == end_offset);
++				     lr_ext->cle_ext.e_end == END_OFFSET);
+ 			if (if_contiguous_extents || j % 2 == 0)
+ 				M0_UT_ASSERT(lr_ext->cle_state ==
+ 					     M0_CLRES_VALID);
+@@ -600,8 +590,6 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 				       bool if_contiguous_extents,
+ 				       struct m0_bufvec_cursor *dcur)
+ {
+-	m0_bindex_t                    start_offset;
+-	m0_bindex_t                    end_offset;
+ 	m0_bcount_t                    nbytes;
+ 	uint64_t                       sublayout_id;
+ 	struct m0_layout              *sublayout;
+@@ -617,9 +605,6 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	M0_UT_ASSERT(dcur != NULL);
+ 	M0_UT_ASSERT(layers_nr > 0);
+ 
+-	start_offset = 0; //todo Define these as enums
+-	end_offset   = M0_BINDEX_MAX + 1;
+-
+ 	/* Build part of the buffer representing generic part of the layout. */
+ 	generic_buf_build(m0_composite_layout_type.lt_id, dcur);
+ 
+@@ -667,12 +652,12 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 		if (extents_nr == 0) /* Possible only in error condition. */
+ 			continue;
+ 
+-		delta = (end_offset - start_offset) / extents_nr;
++		delta = (END_OFFSET - START_OFFSET) / extents_nr;
+ 		//todo Assert everywhere applicable that extents_nr >= 2
+ 		for (j = 0; j < layer_header.clh_extents_nr; ++j) {
+-			ext.e_start = start_offset + j * delta;
++			ext.e_start = START_OFFSET + j * delta;
+ 			if (j == layer_header.clh_extents_nr - 1)
+-				ext.e_end = end_offset;
++				ext.e_end = END_OFFSET;
+ 			else
+ 				ext.e_end = ext.e_start + delta;
+ 			nbytes = m0_bufvec_cursor_copyto(dcur, &ext,
+@@ -767,8 +752,6 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 					bool if_contiguous_extents,
+ 					struct m0_bufvec_cursor *cur)
+ {
+-	m0_bindex_t                    start_offset;
+-	m0_bindex_t                    end_offset;
+ 	uint32_t                       lt_id;
+ 	struct composite_header       *cl_header;
+ 	struct composite_layer_header *layer_header;
+@@ -781,9 +764,6 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 
+ 	M0_UT_ASSERT(cur != NULL);
+ 
+-	start_offset = 0;
+-	end_offset   = M0_BINDEX_MAX + 1;
+-
+ 	/* Verify generic part of the layout buffer. */
+ 	lbuf_verify(cur, &lt_id);
+ 	M0_UT_ASSERT(lt_id == m0_composite_layout_type.lt_id);
+@@ -807,14 +787,14 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 		M0_UT_ASSERT(layer_header->clh_extents_nr == extents_nr);
+ 		M0_UT_ASSERT(m0_bufvec_cursor_step(cur) >=
+ 			     layer_header->clh_extents_nr * sizeof ext);
+-		delta = (end_offset - start_offset) / extents_nr;
++		delta = (END_OFFSET - START_OFFSET) / extents_nr;
+ 		for (j = 0; j < layer_header->clh_extents_nr; ++j) {
+ 			ext = m0_bufvec_cursor_addr(cur);
+ 			m0_bufvec_cursor_move(cur, sizeof *ext);
+ 			M0_UT_ASSERT(ext->e_start ==
+-				     start_offset + j * delta);
++				     START_OFFSET + j * delta);
+ 			if (j == layer_header->clh_extents_nr - 1)
+-				M0_UT_ASSERT(ext->e_end == end_offset);
++				M0_UT_ASSERT(ext->e_end == END_OFFSET);
+ 			else
+ 				M0_UT_ASSERT(ext->e_end ==
+ 					     ext->e_start + delta);
+@@ -1553,8 +1533,8 @@ static void extent_to_be_operated(const struct m0_composite_layout *cl,
+ 		ext->e_end = ext_idx_plus_oneth.e_end;
+ 	} else if (extent_kind == OVERLAPPING_COMPLETE) {
+ 		if (if_contiguous_extents) {
+-			ext->e_start = ext_idxth.e_start - 1; //todo 2
+-			ext->e_end = ext_idxth.e_end + 1;	//todo 2
++			ext->e_start = ext_idxth.e_start - 1;
++			ext->e_end = ext_idxth.e_end + 1;
+ 		} else {
+ 			if ((i - 1) % 2 == 0) {
+ 				ext->e_start = ext_idxth.e_start - 1;
+@@ -2234,40 +2214,51 @@ static int ext_ops(uint64_t base_lid,
+ 	return rc;
+ }
+ 
+-//todo Make sure to test the ext ops for the zeroth layer and for the layer in-between. Follwing tests for the top-most layer
++//todo Make sure to test the ext ops for the zeroth layer and for some layer in-between. Follwing tests for the top-most layer
+ void test_layer_ext_ops_composite(uint64_t base_lid,
+ 				  struct m0_layout_domain *domain)
+ {
+-	int rc;
++	uint32_t lid;
++	int      rc;
+ 
+-	//todo base_lid usage, make it consistent with the failure case
++	/*
++	 * Asserts of the following kind are placed to help during debugging to
++	 * quickly associate which the test o/p to the tests called from here.
++	 */
++	M0_UT_ASSERT(ergo(domain->ld_is_db_available, base_lid == 28001));
++	M0_UT_ASSERT(ergo(!domain->ld_is_db_available, base_lid == 16001));
+ 
+ 	/* Test cases for extent lookup. */
+-	rc = ext_ops(base_lid, domain, EXTENT_LOOKUP);
++	lid = base_lid;
++	rc = ext_ops(lid, domain, EXTENT_LOOKUP);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Test cases for extent addition. */
+-	rc = ext_ops(base_lid + 41, domain, EXTENT_ADD);
++	lid = base_lid + 41;
++	rc = ext_ops(lid, domain, EXTENT_ADD);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	//todo Add extent with the flattening state
+ 	//todo Cover other cases with the flattening state addition
+-	rc = test_ext_add(base_lid + 60, domain, 4, 6,
+-			  !CONTIGUOUS_EXTENTS, NON_EXISTING,
++	lid = base_lid + 60;
++	rc = test_ext_add(lid, domain, 4, 6, !CONTIGUOUS_EXTENTS, NON_EXISTING,
+ 			  M0_CLRES_FLATTENING, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Test cases for extent updation. */
+-	rc = ext_ops(base_lid + 81, domain, EXTENT_UPDATE);
++	lid = base_lid + 81;
++	rc = ext_ops(lid, domain, EXTENT_UPDATE);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	//todo Update extent to have the flattening state
+ 	//todo Make ext_ops() accept state and pass falttening state this time
+-	rc = ext_ops(base_lid + 121, domain, EXTENT_UPDATE);
++	lid = base_lid + 121;
++	rc = ext_ops(lid, domain, EXTENT_UPDATE);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Test cases for extent deletion. */
+-	rc = ext_ops(base_lid + 161, domain, EXTENT_DELETE);
++	lid = base_lid + 161;
++	rc = ext_ops(lid, domain, EXTENT_DELETE);
+ 	M0_UT_ASSERT(rc == 0);
+ }
+ 
+@@ -2277,6 +2268,9 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	uint64_t lid;
+ 	int      rc;
+ 
++	M0_UT_ASSERT(ergo(domain->ld_is_db_available, base_lid == 29000));
++	M0_UT_ASSERT(ergo(!domain->ld_is_db_available, base_lid == 17000));
++
+ 	/*
+ 	 * Simulate a situation that a valid extent with the given offset is
+ 	 * not found in the memory but is found in the DB.
+@@ -2342,6 +2336,16 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
+ 
+ 	/*
++	 * Simulate m0_emap_paste()'s callback facing error in the path of
++	 * adding an extent to some layer.
++	 */
++	lid = base_lid + 24;
++	m0_fi_enable_once("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++	rc = test_ext_add(lid, domain, 3, 6, CONTIGUOUS_EXTENTS,
++			  CONTAINED_WITHIN, M0_CLRES_VALID, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++
++	/*
+ 	 * Simulate extent validation error by trying to update an extent with
+ 	 * the M0_CLRES_FLATTENING state that at least partially overlaps with
+ 	 * two existing extents - one with the M0_CLRES_INVALID state and the
+@@ -2513,7 +2517,7 @@ int test_add_composite(uint64_t lid,
+ 		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+ 
+-	//todo Check if the following is req'd
++	//todo Check if the layout_destroy arg is req'd
+ 	if (layout_destroy) {
+ 		m0_layout_put(&cl->cl_base);
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index 40171f0..f9081a6 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -68,6 +68,24 @@ enum extent_operation {
+ 	EXTENT_DELETE
+ };
+ 
++enum {
++	/*
++	 * Extent list associated with a layer is built with contiguous valid
++	 * extents.
++	 */
++	CONTIGUOUS_EXTENTS     = true,
++	/* Failure injected for layer add op */
++        LAYER_ADD_FAILURE_TEST = true,
++	/* Failure injected for layer del op */
++        LAYER_DEL_FAILURE_TEST = true,
++	/* In a few exceptional error cases, layout may not be restored back. */
++	LAYOUTS_COMPARE        = true,
++	/* Start offset for the first extent from an extent map. */
++	START_OFFSET           = 0,
++	/* End offset for the last extent from an extent map. */
++	END_OFFSET             = M0_BINDEX_MAX + 1
++};
++ 
+ int test_build_composite(uint64_t lid,
+ 			 struct m0_layout_domain *domain,
+ 			 uint32_t min_extents_nr,
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index d43128b..2d65473 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1436,7 +1436,7 @@ static void test_layer_ext_ops_inmem_failure(void)
+ 
+ 	M0_UT_ASSERT(domain.ld_is_db_available == false);
+ 
+-	lid = 17001;
++	lid = 17000;
+ 	test_layer_ext_ops_composite_failure(lid, &domain);
+ }
+ 
+@@ -2420,7 +2420,7 @@ static void test_layer_ext_ops_indb_failure(void)
+ 
+ 	domain_ldb_available_set(&domain, true);
+ 
+-	lid = 29001;
++	lid = 29000;
+ 	test_layer_ext_ops_composite_failure(lid, &domain);
+ 
+ 	domain_ldb_available_set(&domain, false);
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index dc4cc43..af1b2bf 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -38,14 +38,9 @@ enum {
+ 	DUPLICATE_TEST           = true, /* Try to re-add a layout */
+ 	FAILURE_TEST             = true, /* Failure injected */
+ 	ADD_TO_DB                = true, /* Add layout/layer/ext to the DB */
+-	LAYER_ADD_FAILURE_TEST   = true, /* Failure injected for layer add op */
+-	LAYER_DEL_FAILURE_TEST   = true, /* Failure injected for layer del op */
+ 	LAYOUT_DESTROY           = true, /* Delete layout object */
+ 	UNIT_SIZE                = 4096, /* For pdclust layout type */
+ 	USER_COUNT_INCREMENTED   = true, /* For verification of user count */
+-	CONTIGUOUS_EXTENTS       = true, /* For extents of a sub-layout */
+-	LAYOUTS_COMPARE          = true  /* In a few exceptional error cases,
+-					  * layout may not be restored back. */
+ };
+ 
+ void domain_ldb_available_set(struct m0_layout_domain *domain, bool val);
+-- 
+1.8.3.2
+

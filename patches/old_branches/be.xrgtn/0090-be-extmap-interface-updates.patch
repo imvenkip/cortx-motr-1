@@ -1,0 +1,214 @@
+From 152e3193c34cc0bc619a6ef7838202e4ca42a08b Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Mon, 3 Jun 2013 17:04:08 +0300
+Subject: [PATCH 090/228] be: extmap interface updates
+
+---
+ db/extmap.h | 103 +++++++++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 70 insertions(+), 33 deletions(-)
+
+diff --git a/db/extmap.h b/db/extmap.h
+index e7eb56f..2d718c2 100644
+--- a/db/extmap.h
++++ b/db/extmap.h
+@@ -124,9 +124,12 @@ struct m0_emap_cursor;
+ 
+     @param db - data-base environment used for persistency and transactional
+     support.
++
++    @retval -ENOENT mapname is not found in the segment dictionary.
+  */
+-M0_INTERNAL int m0_emap_init(struct m0_emap *map, struct m0_be_seg *db,
+-			     const char *mapname);
++M0_INTERNAL int m0_emap_init(struct m0_emap   *map,
++			     struct m0_be_seg *db,
++		       const char             *mapname);
+ 
+ /** Release the resources associated with the collection. */
+ M0_INTERNAL void m0_emap_fini(struct m0_emap *map);
+@@ -140,8 +143,11 @@ M0_INTERNAL void m0_emap_fini(struct m0_emap *map);
+ 	   ([0, M0\_BINDEX\_MAX + 1), val)
+    @f]
+  */
+-M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *map, struct m0_be_tx *tx,
+-				const struct m0_uint128 *prefix, uint64_t val);
++M0_INTERNAL void m0_emap_obj_insert(struct m0_emap    *map,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op,
++			      const struct m0_uint128 *prefix,
++				    uint64_t           val);
+ 
+ /**
+    Remove a map with the given prefix from the collection.
+@@ -149,8 +155,10 @@ M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *map, struct m0_be_tx *tx,
+    @pre the map must be in initial state: consists of a single extent, covering
+    the whole name-space.
+  */
+-M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *map, struct m0_be_tx *tx,
+-				   const struct m0_uint128 *prefix);
++M0_INTERNAL void m0_emap_obj_delete(struct m0_emap    *map,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op,
++			      const struct m0_uint128 *prefix);
+ 
+ /** Extent map segment. */
+ struct m0_emap_seg {
+@@ -171,39 +179,50 @@ M0_INTERNAL bool m0_emap_ext_is_first(const struct m0_ext *ext);
+ /** Returns an extent at the current cursor position. */
+ M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor *it);
+ 
++/** Returns the pointer to m0_be_op of m0_emap_cursor it. */
++M0_INTERNAL m0_be_op *m0_emap_be_op_get(struct m0_emap_cursor *it);
++
+ /**
+-    Initialises extent map cursor to point to the segment containing given
+-    offset in a map with a given prefix in a given collection.
++   Initialises extent map cursor to point to the segment containing given
++   offset in a map with a given prefix in a given collection.
+ 
+-    All operations done through this cursor are executed in the context of given
+-    transaction.
++   All operations done through this cursor are executed in the context of given
++   transaction.
+ 
+-    @pre offset <= M0_BINDEX_MAX
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
+ 
+-    @retval -ESRCH no matching segment is found. The cursor is non-functional,
+-    but m0_emap_seg_get() contains information about the first segment of the
+-    next map (in prefix lexicographical order);
++   @pre offset <= M0_BINDEX_MAX
+ 
+-    @retval -ENOENT no matching segment is found and there is no map following
+-    requested one.
++   @retval -ESRCH no matching segment is found. The cursor is non-functional,
++   but m0_emap_seg_get() contains information about the first segment of the
++   next map (in prefix lexicographical order);
++
++   @retval -ENOENT no matching segment is found and there is no map following
++   requested one.
+  */
+-M0_INTERNAL int m0_emap_lookup(struct m0_emap *map, struct m0_be_tx *tx,
+-			       const struct m0_uint128 *prefix,
+-			       m0_bindex_t offset, struct m0_emap_cursor *it);
++M0_INTERNAL void m0_emap_lookup(struct m0_emap        *map,
++				struct m0_be_tx       *tx,
++			  const struct m0_uint128     *prefix,
++				m0_bindex_t            offset,
++				struct m0_emap_cursor *it);
+ 
+ /**
+    Move cursor to the next segment in its map.
+ 
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++
+    @pre !m0_emap_ext_is_last(m0_emap_seg_get(it))
+  */
+-M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *it);
++M0_INTERNAL void m0_emap_next(struct m0_emap_cursor *it);
+ 
+ /**
+    Move cursor to the previous segment in its map.
+ 
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++
+    @pre !m0_emap_ext_is_first(m0_emap_seg_get(it))
+  */
+-M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *it);
++M0_INTERNAL void m0_emap_prev(struct m0_emap_cursor *it);
+ 
+ /**
+    Split the segment the cursor is current positioned at into a collection of
+@@ -217,15 +236,19 @@ M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *it);
+    Empty segments from vec are skipped.  On successful completion, the cursor is
+    positioned on the last created segment.
+ 
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++
+    @pre m0_vec_count(&vec->ov_vec) == m0_ext_length(m0_emap_seg_get(it))
+  */
+-M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *it,
+-			      struct m0_indexvec *vec);
++M0_INTERNAL void m0_emap_split(struct m0_emap_cursor *it,
++			       struct m0_indexvec    *vec);
+ 
+ /**
+    Paste segment (ext, val) into the map, deleting or truncating overlapping
+    segments as necessary.
+ 
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++
+    @param del - this call-back is called when an existing segment is completely
+    covered by a new one and has to be deleted. The segment to be deleted is
+    supplied as the call-back argument;
+@@ -251,9 +274,11 @@ M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *it,
+    @note Call-backs are called in the order of cursor iteration, but this is not
+    a part of official function contract.
+  */
+-int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+-	void (*del)      (struct m0_emap_seg*),
+-	void (*cut_left) (struct m0_emap_seg*, struct m0_ext*, uint64_t),
++M0_INTERNAL void m0_emap_paste(struct m0_emap_cursor *it,
++			       struct m0_ext         *ext,
++			       uint64_t               val,
++	void (*del)(struct m0_emap_seg*),
++	void (*cut_left)(struct m0_emap_seg*, struct m0_ext*, uint64_t),
+ 	void (*cut_right)(struct m0_emap_seg*, struct m0_ext*, uint64_t));
+ 
+ /**
+@@ -263,19 +288,23 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+    Current segment's extent is shrunk by delta. If this would make it empty, the
+    current segment is deleted. The next segment is expanded by delta downwards.
+ 
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++
+    @pre !m0_emap_ext_is_last(m0_emap_seg_get(it))
+    @pre delta <= m0_ext_length(m0_emap_seg_get(it));
+  */
+-M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta);
++M0_INTERNAL void m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta);
+ 
+ /**
+-   Updates the segment the cursor is currently postioned at with the given
++   Updates the segment the cursor is currently positioned at with the given
+    segment having same prefix.
+ 
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++
+    @pre m0_uint128_eq(&it->ec_seg.ee_pre, &es->ee_pre) == true
+  */
+-M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+-				      struct m0_emap_seg *es);
++M0_INTERNAL void m0_emap_extent_update(struct m0_emap_cursor *it,
++				       struct m0_emap_seg    *es);
+ 
+ /**
+    Release the resources associated with the cursor.
+@@ -301,13 +330,21 @@ struct m0_emap_caret {
+ 	m0_bindex_t            ct_index;
+ };
+ 
+-M0_INTERNAL void m0_emap_caret_init(struct m0_emap_caret *car,
++M0_INTERNAL void m0_emap_caret_init(struct m0_emap_caret  *car,
+ 				    struct m0_emap_cursor *it,
+ 				    m0_bindex_t index);
++
+ M0_INTERNAL void m0_emap_caret_fini(struct m0_emap_caret *car);
+-M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car,
+-				   m0_bcount_t count);
+ 
++/**
++   Move the caret.
++
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++ */
++M0_INTERNAL void m0_emap_caret_move(struct m0_emap_caret *car,
++				    m0_bcount_t           count);
++
++/** Returns how far is the end of extent. */
+ M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car);
+ 
+ /** @} end group extmap */
+-- 
+1.8.3.2
+

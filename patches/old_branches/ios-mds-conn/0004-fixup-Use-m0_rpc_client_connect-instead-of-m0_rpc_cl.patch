@@ -1,0 +1,22 @@
+From 8de8b9d73db670f1013f4f981b0e106eade70dbb Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 9 Apr 2013 19:02:34 +0800
+Subject: [PATCH 04/10] fixup! Use m0_rpc_client_connect() instead of
+ m0_rpc_client_start(). Start ios to mds connection on-demand: on first use of
+ m0_ios_mds_conn_get(). This ios to mds connection will not establish in reqh
+ start.
+
+---
+ extra-libs/galois | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/extra-libs/galois b/extra-libs/galois
+index 3230956..10ccbd0 160000
+--- a/extra-libs/galois
++++ b/extra-libs/galois
+@@ -1 +1 @@
+-Subproject commit 32309568c1977a934d9aab96552392417ca9dd21
++Subproject commit 10ccbd0ca55db92909fda817ee1065d914736440
+-- 
+1.8.3.2
+

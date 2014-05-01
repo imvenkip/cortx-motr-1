@@ -1,0 +1,240 @@
+From 72db059115fcc235d6e62cda6c9e37d25cbd60c3 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Wed, 18 Dec 2013 16:45:51 +0530
+Subject: [PATCH 05/50]  - cob-fom ut failure fix.
+
+---
+ fop/ut/stats/stats_fom.c    | 25 +++++++++++++++++--------
+ ioservice/cob_foms.c        | 29 +----------------------------
+ ioservice/io_fops.c         | 11 ++++-------
+ ioservice/io_service.c      |  1 -
+ ioservice/io_service_addb.h | 15 ---------------
+ 5 files changed, 22 insertions(+), 59 deletions(-)
+
+diff --git a/fop/ut/stats/stats_fom.c b/fop/ut/stats/stats_fom.c
+index 1ef3632..b24b8d1 100644
+--- a/fop/ut/stats/stats_fom.c
++++ b/fop/ut/stats/stats_fom.c
+@@ -100,8 +100,23 @@ static size_t fom_stats_home_locality(const struct m0_fom *fom)
+ 
+ static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+ {
++#undef FOM_PHASE_TRANS_NR
++#define FOM_PHASE_TRANS_NR(fom)                 \
++        (FOM_PHASE_STATS_DATA_SZ((fom)->fo_type->ft_conf->scf_trans_nr))
++
++	struct fom_stats *fom_obj;
++	fom_obj = container_of(fom, struct fom_stats, fs_gen);
++
+ 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &fom->fo_addb_ctx, &m0_addb_ct_fop_mod,
+ 			 &m0_addb_proc_ctx);
++
++	fom->fo_phase_stats_data = fom_obj->fs_stats_data;
++        fom->fo_phase_stats_data_size = sizeof(fom_obj->fs_stats_data);
++	m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
++				&addb_rt_fom_phase_stats,
++				fom->fo_phase_stats_data,
++				fom->fo_phase_stats_data_size);
++#undef FOM_PHASE_TRANS_NR
+ }
+ 
+ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
+@@ -118,12 +133,6 @@ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
+ 	m0_fom_init(fom, &stats_fom_type, &fom_stats_ops, NULL, NULL,
+ 	            reqh, &ut_stats_service_type);
+ 
+-	m0_addb_sm_counter_init(&fom_obj->fs_phase_stats,
+-				&addb_rt_fom_phase_stats,
+-				fom_obj->fs_stats_data,
+-				sizeof(fom_obj->fs_stats_data));
+-	m0_fom_phase_stats_enable(fom, &fom_obj->fs_phase_stats);
+-
+ 	*m = fom;
+ 	return 0;
+ }
+@@ -138,7 +147,7 @@ static void fop_stats_fom_fini(struct m0_fom *fom)
+ 	sm = &fom->fo_sm_phase;
+ 
+ 	M0_UT_ASSERT(sm->sm_addb_stats != NULL);
+-	M0_UT_ASSERT(sm->sm_addb_stats == &fom_obj->fs_phase_stats);
++	M0_UT_ASSERT(sm->sm_addb_stats == &fom->fo_sm_phase_stats);
+ 
+ 	M0_UT_ASSERT(sm->sm_addb_stats->asc_data != NULL);
+ 	/* init -> run */
+@@ -152,7 +161,7 @@ static void fop_stats_fom_fini(struct m0_fom *fom)
+ 	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[2].acd_total >= 10);
+ 
+ 	m0_fom_fini(fom);
+-	m0_addb_sm_counter_fini(&fom_obj->fs_phase_stats);
++	m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
+ 	m0_free(fom_obj);
+ 
+ 	m0_chan_signal_lock(&chan);
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index 0435e25..41d7de6 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -82,22 +82,10 @@ struct m0_sm_state_descr cob_ops_phases[] = {
+ 	}
+ };
+ 
+-static struct m0_sm_trans_descr cob_fom_phase_trans[] = {
+-	{"COB Create/Delete Prepare", M0_FOPH_COB_OPS_PREPARE,
+-				      M0_FOPH_COB_OPS_CREATE_DELETE},
+-	{"COB Create/Delete Prepare", M0_FOPH_COB_OPS_PREPARE,
+-				      M0_FOPH_FAILURE},
+-	{"COB Create/Delete", M0_FOPH_COB_OPS_CREATE_DELETE, M0_FOPH_SUCCESS},
+-	{"COB Create/Delete", M0_FOPH_COB_OPS_CREATE_DELETE, M0_FOPH_FAILURE},
+-};
+-
+ struct m0_sm_conf cob_ops_conf = {
+-//	.scf_magic     = M0_SM_CONF_MAGIC,
+ 	.scf_name      = "COB create/delete phases",
+ 	.scf_nr_states = ARRAY_SIZE(cob_ops_phases),
+-	.scf_state     = cob_ops_phases,
+-	.scf_trans     = cob_fom_phase_trans,
+-	.scf_trans_nr  = ARRAY_SIZE(cob_fom_phase_trans),
++	.scf_state     = cob_ops_phases
+ };
+ 
+ /** Cob create fom ops. */
+@@ -620,10 +608,6 @@ static void cd_fom_fini(struct m0_fom *fom)
+ 
+ static void cd_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+ {
+-#undef FOM_PHASE_TRANS_NR
+-#define FOM_PHASE_TRANS_NR(fom)                 \
+-        (FOM_PHASE_STATS_DATA_SZ((fom)->fo_type->ft_conf->scf_trans_nr))
+-
+ 	struct m0_fom_cob_op *cfom;
+ 
+ 	cfom = cob_fom_get(fom);
+@@ -632,17 +616,6 @@ static void cd_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+ 			 &fom->fo_service->rs_addb_ctx,
+ 			 cfom->fco_gfid.f_container, cfom->fco_gfid.f_key,
+ 			 cfom->fco_cfid.f_container, cfom->fco_gfid.f_key);
+-
+-        IOS_ALLOC_ARR(fom->fo_phase_stats_data, FOM_PHASE_TRANS_NR(fom),
+-		      &m0_ios_addb_ctx, COB_FOM_ADDB_INIT);
+-	if (fom->fo_phase_stats_data != NULL) {
+-		fom->fo_phase_stats_data_size = FOM_PHASE_TRANS_NR(fom) * 8;
+-		m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
+-					&m0_addb_rt_ios_cob_fom_phase_stats,
+-					fom->fo_phase_stats_data,
+-					fom->fo_phase_stats_data_size);
+-	}
+-#undef FOM_PHASE_TRANS_NR
+ }
+ 
+ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index 8e4b541..e6400a7 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -221,16 +221,13 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 	 */
+ 	m0_xc_io_fops_init();
+ #ifndef __KERNEL__
+-//	m0_debugger_invoke();
+ 	m0_sm_conf_extend(m0_generic_conf.scf_state, io_phases,
+ 			  m0_generic_conf.scf_nr_states);
+ 	m0_sm_conf_extend(m0_generic_conf.scf_state, cob_ops_phases,
+ 			  m0_generic_conf.scf_nr_states);
+ 	/** @todo ignore error ??? */
+ 	m0_sm_conf_trans_extend(&io_conf, &m0_generic_conf);
+-	m0_sm_conf_trans_extend(p_cob_ops_conf, &m0_generic_conf);
+ 	m0_sm_conf_init(&io_conf);
+-	m0_sm_conf_init(p_cob_ops_conf);
+ #endif
+ 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
+ 			 .name      = "Read request",
+@@ -272,23 +269,23 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 				 .opcode    = M0_IOSERVICE_COB_CREATE_OPCODE,
+ 				 .xt        = m0_fop_cob_create_xc,
+ 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
++				 .fop_ops   = &io_fop_cd_ops,
+ #ifndef __KERNEL__
+ 				 .fom_ops   = &cob_fom_type_ops,
+ 				 .svc_type  = &m0_ios_type,
+-				 .sm        = p_cob_ops_conf,
+ #endif
+-				 .fop_ops   = &io_fop_cd_ops) ?:
++				 .sm        = p_cob_ops_conf) ?:
+ 		M0_FOP_TYPE_INIT(&m0_fop_cob_delete_fopt,
+ 				 .name      = "Cob delete request",
+ 				 .opcode    = M0_IOSERVICE_COB_DELETE_OPCODE,
+ 				 .xt        = m0_fop_cob_delete_xc,
+ 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
++				 .fop_ops   = &io_fop_cd_ops,
+ #ifndef __KERNEL__
+ 				 .fom_ops   = &cob_fom_type_ops,
+ 				 .svc_type  = &m0_ios_type,
+-				 .sm        = p_cob_ops_conf,
+ #endif
+-				 .fop_ops   = &io_fop_cd_ops) ?:
++				 .sm        = p_cob_ops_conf) ?:
+ 		M0_FOP_TYPE_INIT(&m0_fop_cob_op_reply_fopt,
+ 				 .name      = "Cob create or delete reply",
+ 				 .opcode    =  M0_IOSERVICE_COB_OP_REPLY_OPCODE,
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 13344b4..b2b48b9 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -206,7 +206,6 @@ M0_INTERNAL int m0_ios_register(void)
+ 	RT_REG(desc_io_finish);
+ 	RT_REG(buffer_pool_low);
+ 	RT_REG(io_fom_phase_stats);
+-	RT_REG(cob_fom_phase_stats);
+ #undef RT_REG
+ 
+ 	m0_addb_ctx_type_register(&m0_addb_ct_cob_create_fom);
+diff --git a/ioservice/io_service_addb.h b/ioservice/io_service_addb.h
+index 891d461..119d412 100644
+--- a/ioservice/io_service_addb.h
++++ b/ioservice/io_service_addb.h
+@@ -81,8 +81,6 @@ enum {
+ 	M0_ADDB_RECID_IOS_BUFFER_POOL_LOW,
+ 	/** IO fom phases statistic counters */
+ 	M0_ADDB_RECID_IOS_IO_FOM_PHASE_STATS,
+-	/** COB fom phases statistic couters */
+-	M0_ADDB_RECID_IOS_COB_FOM_PHASE_STATS,
+ };
+ 
+ /** @todo adjust IOS counter histogram buckets */
+@@ -177,7 +175,6 @@ enum {
+ 	M0_IOS_ADDB_LOC_ALIGN_BUFVEC_2,
+ 	M0_IOS_ADDB_LOC_COB_FOM_CREATE_1,
+ 	M0_IOS_ADDB_LOC_COB_FOM_CREATE_2,
+-	M0_IOS_ADDB_LOC_COB_FOM_ADDB_INIT,
+ 	M0_IOS_ADDB_LOC_CC_STOB_CREATE_CRED,
+ 	M0_IOS_ADDB_LOC_CC_STOB_CREATE_1,
+ 	M0_IOS_ADDB_LOC_CC_STOB_CREATE_2,
+@@ -202,7 +199,6 @@ enum {
+ };
+ 
+ extern struct m0_addb_ctx m0_ios_addb_ctx;
+-extern struct m0_sm_conf cob_ops_conf;
+ extern struct m0_sm_conf io_conf;
+ 
+ #ifdef FOM_PHASE_STATS_HIST_ARGS
+@@ -216,17 +212,6 @@ M0_ADDB_RT_SM_CNTR(m0_addb_rt_ios_io_fom_phase_stats,
+ 		   &io_conf);
+ #endif
+ 
+-#ifdef FOM_PHASE_STATS_HIST_ARGS
+-/** FOM state statistics counter */
+-M0_ADDB_RT_SM_CNTR(m0_addb_rt_ios_cob_fom_phase_stats,
+-		   M0_ADDB_RECID_IOS_COB_FOM_PHASE_STATS,
+-		   &io_conf, FOM_PHASE_STATS_HIST_ARGS);
+-#else
+-M0_ADDB_RT_SM_CNTR(m0_addb_rt_ios_cob_fom_phase_stats,
+-		   M0_ADDB_RECID_IOS_COB_FOM_PHASE_STATS,
+-		   &io_conf);
+-#endif
+-
+ /* Total time required and size for IO */
+ M0_ADDB_RT_DP(m0_addb_rt_ios_io_finish, M0_ADDB_RECID_IOS_IO_FINISH,
+ 	      "io_size" /* in bytes */, "time" /* in nsec */);
+-- 
+1.8.3.2
+

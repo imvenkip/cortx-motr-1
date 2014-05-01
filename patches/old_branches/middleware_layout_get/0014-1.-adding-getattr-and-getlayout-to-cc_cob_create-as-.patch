@@ -1,0 +1,173 @@
+From b4f4837ec488fb191ebebba491bc385d63b3f080 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 4 Mar 2013 22:04:56 +0800
+Subject: [PATCH 14/24] 1. adding getattr and getlayout to cc_cob_create() as
+ use case example. 2. m0_ios_mds_layout_get() sends fop with 0 deadline, and
+ check return value 3. change m0t1fs client rpc timeout to 30 seconds. 4. when
+ to stop mero servers, stop them in reverse order to startup, and with
+ mdservice as the last one.
+
+---
+ ioservice/cob_foms.c                        | 48 +++++++++++++++++++++++++++--
+ ioservice/io_service.c                      |  6 ++--
+ m0t1fs/linux_kernel/m0t1fs.h                |  2 +-
+ m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh | 24 ++++++++++++++-
+ reqh/reqh.c                                 |  1 +
+ 5 files changed, 72 insertions(+), 9 deletions(-)
+
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index 413c698..90deeff 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -38,6 +38,8 @@
+ #include "mero/setup.h"
+ #include "ioservice/io_service_addb.h"
+ #include "ioservice/io_service.h"
++#include "layout/pdclust.h"
++#include "layout/layout.h"
+ 
+ /* Forward Declarations. */
+ static int  cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
+@@ -353,12 +355,52 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
+                cc->fco_cfid.f_container, cc->fco_cfid.f_key, cc->fco_cob_idx);
+ 
+ if (0) {
++	/* This is the use case of getattr and getlayout from ioservice or
++	 * other services, e.g. cm */
+         struct m0_fid      gfid = cc->fco_gfid;
+         struct m0_cob_attr attr = { {0} };
+-        rc = m0_ios_mds_getattr(fom->fo_service->rs_reqh, &gfid, &attr);
+-        M0_LOG(M0_FATAL, "rc = %d lid = %lld", rc, (unsigned long long)attr.ca_lid);
+-}
++	struct m0_layout_domain dom;
++	struct m0_layout_domain *ldom = &dom;
++	int new;
++	struct m0_pdclust_layout *pdl = NULL;
++	struct m0_layout *layout = NULL;
++
++	M0_LOG(M0_FATAL, "getattr");
++	rc = m0_ios_mds_getattr(fom->fo_service->rs_reqh, &gfid, &attr);
++	M0_LOG(M0_FATAL, "rc = %d lid = %lld", rc, (unsigned long long)attr.ca_lid);
++	M0_ASSERT(rc == 0);
++	M0_ASSERT(attr.ca_valid | M0_COB_LID);
++
++	if (m0_pdclust_layout_type.lt_domain == NULL) {
++		rc = m0_layout_domain_init(ldom, fom->fo_service->rs_reqh->rh_dbenv);
++		M0_ASSERT(rc == 0);
++		rc = m0_layout_standard_types_register(ldom);
++		M0_ASSERT(rc == 0);
++		new  = 1;
++	} else {
++		ldom = m0_pdclust_layout_type.lt_domain;
++		new = 0;
++	}
+ 
++	M0_LOG(M0_FATAL, "getlayout new = %d", new);
++	rc = m0_ios_mds_layout_get(fom->fo_service->rs_reqh, ldom, attr.ca_lid, &layout);
++	M0_LOG(M0_FATAL, "getlayout rc = %d", rc);
++	if (rc == 0) {
++		pdl = m0_layout_to_pdl(layout);
++		M0_LOG(M0_FATAL, "pdl N=%d,K=%d,P=%d,unit_size=%llu",
++				 m0_pdclust_N(pdl),
++				 m0_pdclust_K(pdl),
++				 m0_pdclust_P(pdl),
++				 (unsigned long long)m0_pdclust_unit_size(pdl));
++
++		m0_layout_put(layout);
++	}
++
++	if (new) {
++		m0_layout_standard_types_unregister(ldom);
++		m0_layout_domain_fini(ldom);
++	}
++}
+ 
+ 	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
+ 	if (rc != 0) {
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index a19b04a..e1d8c32 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -768,9 +768,8 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+ 	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
+ 	layout->l_lid = lid;
+ 
+-	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL,
+-				m0_time_from_now(60, 0));
+-	if (rc != 0) {
++	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL, 0);
++	if (rc == 0) {
+ 		struct m0_bufvec               bv;
+ 		struct m0_bufvec_cursor        cur;
+ 		struct m0_layout              *l;
+@@ -779,7 +778,6 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+ 
+ 		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
+ 		layout_rep = m0_fop_data(rep);
+-		M0_LOG(M0_DEBUG, "layout rep->lr_rc = %d", layout_rep->lr_rc);
+ 
+ 		bv = (struct m0_bufvec)
+ 			M0_BUFVEC_INIT_BUF((void**)&layout_rep->lr_buf.b_addr,
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 3f5cb51..a23ed67 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -442,7 +442,7 @@ M0_INTERNAL void m0t1fs_fini(void);
+ const char *m0t1fs_param_node_uuid_get(void);
+ 
+ enum {
+-	M0T1FS_RPC_TIMEOUT              = 10, /* seconds */
++	M0T1FS_RPC_TIMEOUT              = 30, /* seconds */
+ 	M0T1FS_RPC_MAX_RETRIES          = 5,
+ 	M0T1FS_NR_SLOTS_PER_SESSION     = 10,
+ 	M0T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+index 4e7ad38..7858f5a 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+@@ -53,7 +53,29 @@ mero_service()
+ 	}
+ 
+ 	stop() {
+-		killproc $prog_exec
++
++		# shutdown services. mds should be stopped last, because
++		# other ioservices may have connections to mdservice.
++		pids=$(__pids_pidof $prog_exec)
++		echo === pids of services: $pids ===
++		echo "Shutting down services one by one. mdservice is the last."
++		delay=5
++		for pid in $pids; do
++		       echo ----- $pid stopping--------
++		       if checkpid $pid 2>&1; then
++			   # TERM first, then KILL if not dead
++			   kill -TERM $pid >/dev/null 2>&1
++			   usleep 100000
++			   if checkpid $pid && sleep 1 &&
++			      checkpid $pid && sleep $delay &&
++			      checkpid $pid ; then
++                                kill -KILL $pid >/dev/null 2>&1
++				usleep 100000
++			   fi
++		        fi
++		       echo ----- $pid stopped --------
++		done
++
+ 		unprepare
+ 	}
+ 
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 5a70af7..d74c1fc 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -233,6 +233,7 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+ 			mdservice = service;
+ 			continue;
+ 		}
++		/* skip rpcservice in first loop */
+ 		if ((strcmp(service->rs_type->rst_name, "rpcservice") == 0)) {
+ 			rpcservice = service;
+ 			continue;
+-- 
+1.8.3.2
+

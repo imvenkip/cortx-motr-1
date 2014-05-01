@@ -1,0 +1,161 @@
+From 021c4048ec4bc021097ebce8ff90483d7f53fc92 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Tue, 11 Mar 2014 16:35:07 +0530
+Subject: [PATCH 08/20]  - Changes to re-arm timer.
+
+---
+ fop/fom.c               | 43 +++++++++++++++++++++++++++++++++++++------
+ fop/fop_addb.h          |  3 +--
+ fop/fop_rate_monitor.c  |  4 +---
+ stats/util/stats_util.c |  4 +++-
+ 4 files changed, 42 insertions(+), 12 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 31da51d..a007ec1 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -172,6 +172,7 @@ M0_TL_DEFINE(wail, static, struct m0_fom);
+ static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
+                                  const struct m0_fom *fom);
+ static int loc_thr_create(struct m0_fom_locality *loc);
++static void loc_ast_rearm_timer(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+ 
+ /**
+  * Fom domain operations.
+@@ -775,9 +776,44 @@ static unsigned long fop_rate_timer_callback(unsigned long arg)
+ 
+ 	m0_addb_counter_update(&loc->fl_stat_fop_rate, loc->fl_fop_rate_count);
+ 	loc->fl_fop_rate_count = 0;
++	if (loc->fl_post_stats_ast.sa_next == NULL) {
++		loc->fl_post_stats_ast.sa_cb = loc_ast_rearm_timer;
++		m0_sm_ast_post(&loc->fl_group, &loc->fl_post_stats_ast);
++	}
++	return 0;
++}
++
++static int fom_loc_arm_timer(struct m0_fom_locality *loc)
++{
++	int              result;
++	m0_time_t        expire;
++	struct m0_timer *timer = &loc->fl_fop_rate_timer;
++
++	result = m0_timer_init(timer, M0_TIMER_SOFT, NULL,
++			       fop_rate_timer_callback, (unsigned long)loc);
++	if (result != 0)
++		return result;
++
++	expire = m0_time_from_now(M0_FOP_RATE_INTERVAL_SECOND, 0);
++	m0_timer_start(timer, expire);
++
+ 	return 0;
+ }
+ 
++static void loc_ast_rearm_timer(struct m0_sm_group *grp, struct m0_sm_ast *ast)
++{
++	struct m0_fom_locality *loc = container_of(ast, struct m0_fom_locality,
++						   fl_post_stats_ast);
++	int                     result;
++
++	m0_timer_stop(&loc->fl_fop_rate_timer);
++	m0_timer_fini(&loc->fl_fop_rate_timer);
++
++	result = fom_loc_arm_timer(loc);
++	if (result != 0)
++		M0_LOG(M0_WARN, "Failed to re-arm fop_rate timer.");
++}
++
+ /**
+  * Initialises a locality in fom domain.  Creates and adds threads to locality,
+  * every thread is confined to the cpus represented by the
+@@ -797,7 +833,6 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ {
+ 	int                result;
+ 	struct m0_addb_mc *addb_mc;
+-	m0_time_t          expire;
+ 
+ 	M0_PRE(loc != NULL);
+ 
+@@ -811,14 +846,10 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
+ 			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
+ 
+-	result = m0_timer_init(&loc->fl_fop_rate_timer, M0_TIMER_SOFT, NULL,
+-			       fop_rate_timer_callback, (unsigned long)loc);
++	result = fom_loc_arm_timer(loc);
+ 	if (result != 0)
+ 		goto err4;
+ 
+-	expire = m0_time_from_now(M0_FOP_RATE_INTERVAL_SECOND, 0);
+-	m0_timer_start(&loc->fl_fop_rate_timer, expire);
+-
+ 	result = m0_addb_counter_init(&loc->fl_stat_run_times,
+ 				      &m0_addb_rt_fl_run_times);
+ 	if (result != 0)
+diff --git a/fop/fop_addb.h b/fop/fop_addb.h
+index a7639bc..3755c08 100644
+--- a/fop/fop_addb.h
++++ b/fop/fop_addb.h
+@@ -138,8 +138,7 @@ M0_ADDB_RT_DP(m0_addb_rt_fl_runq_nr, M0_ADDB_RECID_FL_RUNQ_NR, "runq_nr");
+ /** Locality wait queue (list) length */
+ M0_ADDB_RT_DP(m0_addb_rt_fl_wail_nr, M0_ADDB_RECID_FL_WAIL_NR, "wail_nr");
+ /** ADDB summary record for fop rate stats */
+-M0_ADDB_RT_STATS(m0_addb_rt_fop_rate, M0_ADDB_RECID_FOP_RATE,
+-		 "locality", "fop_rate");
++M0_ADDB_RT_STATS(m0_addb_rt_fop_rate, M0_ADDB_RECID_FOP_RATE, "fop_rate");
+ 
+ /** @} end of fom group */
+ 
+diff --git a/fop/fop_rate_monitor.c b/fop/fop_rate_monitor.c
+index bd5c890..85cb684 100644
+--- a/fop/fop_rate_monitor.c
++++ b/fop/fop_rate_monitor.c
+@@ -44,7 +44,6 @@
+  * @{
+  */
+ static struct fop_rate_stats_sum_rec {
+-	uint64_t ssr_loc_id;
+ 	uint64_t ssr_fop_rate;
+ } fop_rate_stats_sum;
+ 
+@@ -128,8 +127,7 @@ int m0_fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
+ 	loc = container_of(monitor, struct m0_fom_locality,
+ 			   fl_fop_rate_monitor);
+-        // @todo need current locality id
+-	fop_rate_stats_sum.ssr_loc_id = loc->fl_dom->fd_localities_nr;
++
+ 	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,
+ 				     md, fop_rate_stats_nr);
+ 
+diff --git a/stats/util/stats_util.c b/stats/util/stats_util.c
+index 6d58fb5..affeab8 100644
+--- a/stats/util/stats_util.c
++++ b/stats/util/stats_util.c
+@@ -39,6 +39,7 @@
+ #include "mero/setup.h"
+ #include "lib/chan.h"
+ #include "lib/user_space/getopts.h"
++#include "module/instance.h" /* m0 */
+ 
+ enum {
+ 	STATS_MAX_COUNT     = 3,
+@@ -240,6 +241,7 @@ int main(int argc, char *argv[])
+ 	struct m0_addb_uint64_seq  *stats_ids  = NULL;
+ 	struct cs_endpoint_and_xprt epx;
+ 	FILE			   *fout;
++	static struct m0            instance;
+ 
+ 	r2 = M0_GETOPTS("m0stats", argc, argv,
+ 			M0_STRINGARG('R', "Stats service endpoint",
+@@ -308,7 +310,7 @@ int main(int argc, char *argv[])
+         sigaction(SIGQUIT, &sa, NULL);
+         sigaction(SIGPIPE, &sa, NULL);
+ 
+-	rc = m0_init(NULL);
++	rc = m0_init(&instance);
+ 	if (rc != 0) {
+ 		fprintf(stderr, "Failed to initialize library. rc = %d\n", rc);
+ 		return rc;
+-- 
+1.8.3.2
+

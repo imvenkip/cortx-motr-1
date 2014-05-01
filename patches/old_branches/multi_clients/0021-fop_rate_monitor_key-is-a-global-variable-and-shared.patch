@@ -1,0 +1,150 @@
+From 81abe2895adbbf28714999dec47f7338872db9ec Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 13 Mar 2014 23:18:05 +0800
+Subject: [PATCH 21/26] fop_rate_monitor_key is a global variable and shared by
+ all m0_reqh and mounts.
+
+---
+ fop/fom.c   | 17 ++++++-----------
+ fop/fom.h   |  2 --
+ fop/fop.c   |  3 +++
+ reqh/reqh.h |  2 +-
+ 4 files changed, 10 insertions(+), 14 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index c61403b..c1749f2 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -156,6 +156,7 @@ struct m0_loc_thread {
+ 	uint64_t                lt_magix;
+ };
+ 
++extern uint32_t  fop_rate_monitor_key;
+ static m0_time_t fop_rate_interval = M0_MKTIME(1, 0);
+ 
+ M0_TL_DESCR_DEFINE(thr, "fom thread", static, struct m0_loc_thread, lt_linkage,
+@@ -179,8 +180,6 @@ static void __fom_domain_fini(struct m0_fom_domain *dom);
+  * Fom domain operations.
+  * @todo Support fom timeout functionality.
+  */
+-#undef FOM_RATE_KEY
+-#define FOM_RATE_KEY(reqh)	(reqh->rh_fom_dom.fd_fop_rate_monitor_key)
+ 
+ static struct m0_fom_domain_ops m0_fom_dom_ops = {
+ 	.fdo_time_is_out = fom_wait_time_is_out
+@@ -199,7 +198,7 @@ fop_rate_monitor_sum_rec(const struct m0_addb_monitor *mon,
+ 	M0_PRE(reqh != NULL);
+ 
+ 	m0_rwlock_read_lock(&reqh->rh_rwlock);
+-	sum_rec = m0_reqh_lockers_get(reqh, FOM_RATE_KEY(reqh));
++	sum_rec = m0_reqh_lockers_get(reqh, fop_rate_monitor_key);
+ 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+ 
+ 	M0_ASSERT(sum_rec != NULL);
+@@ -251,7 +250,7 @@ const struct m0_addb_monitor_ops fop_rate_monitor_ops = {
+ 
+ static int fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 				 struct m0_addb_monitor *monitor,
+-				 uint32_t               *fop_rate_monitor_key)
++				 uint32_t               fop_rate_monitor_key)
+ {
+ #undef FOP_RATE_STATS_NR
+ #define FOP_RATE_STATS_NR (sizeof(fop_rate_stats_sum) / sizeof(uint64_t))
+@@ -269,10 +268,8 @@ static int fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 				     (uint64_t *)&fop_rate_stats_sum,
+ 				     FOP_RATE_STATS_NR);
+ 
+-	*fop_rate_monitor_key = m0_reqh_lockers_allot();
+-
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+-	m0_reqh_lockers_set(reqh, *fop_rate_monitor_key, sum_rec);
++	m0_reqh_lockers_set(reqh, fop_rate_monitor_key, sum_rec);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 
+ 	m0_addb_monitor_add(reqh, monitor);
+@@ -1056,10 +1053,9 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
+ 	}
+ 
+ 	m0_bitmap_fini(&onln_cpu_map);
+-	dom->fd_fop_rate_monitor_key = 0;
+ 	return fop_rate_monitor_init(dom->fd_reqh,
+ 				     &dom->fd_fop_rate_monitor,
+-				     &dom->fd_fop_rate_monitor_key);
++				     fop_rate_monitor_key);
+ }
+ 
+ static void __fom_domain_fini(struct m0_fom_domain *dom)
+@@ -1082,7 +1078,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
+ 	__fom_domain_fini(dom);
+ 	fop_rate_monitor_fini(dom->fd_reqh,
+ 			      &dom->fd_fop_rate_monitor,
+-			      dom->fd_fop_rate_monitor_key);
++			      fop_rate_monitor_key);
+ }
+ 
+ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
+@@ -1555,7 +1551,6 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
+ }
+ 
+ /** @} endgroup fom */
+-#undef FOM_RATE_KEY
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/fop/fom.h b/fop/fom.h
+index a422ee3..2c79a09 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -340,8 +340,6 @@ struct m0_fom_domain {
+ 	struct m0_reqh			*fd_reqh;
+ 	/** Addb context for fom */
+ 	struct m0_addb_ctx               fd_addb_ctx;
+-	/** fop rate monitor key */
+-	uint32_t			 fd_fop_rate_monitor_key;
+ 	/** fop rate monitor */
+ 	struct m0_addb_monitor           fd_fop_rate_monitor;
+ };
+diff --git a/fop/fop.c b/fop/fop.c
+index f241b2f..a78d37a 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -35,6 +35,7 @@
+ #include "fop/fop_xc.h"
+ #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
+ #include "addb/addb_monitor.h" /* stats register */
++#include "reqh/reqh.h"
+ 
+ /**
+    @addtogroup fop
+@@ -45,6 +46,7 @@
+ struct m0_addb_ctx     m0_fop_addb_ctx;
+ static struct m0_mutex fop_types_lock;
+ static struct m0_tl    fop_types_list;
++uint32_t               fop_rate_monitor_key;
+ 
+ M0_TL_DESCR_DEFINE(ft, "fop types", static, struct m0_fop_type,
+ 		   ft_linkage,	ft_magix,
+@@ -270,6 +272,7 @@ M0_INTERNAL int m0_fops_init(void)
+ 	m0_fop_fol_rec_part_type.rpt_ops = NULL;
+ 	M0_FOL_REC_PART_TYPE_INIT(m0_fop_fol_rec_part,
+ 				  "fop generic record part");
++	fop_rate_monitor_key = m0_reqh_lockers_allot();
+ 	return m0_fol_rec_part_type_register(&m0_fop_fol_rec_part_type);
+ }
+ 
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index 53f93f8..106a8b3 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -62,7 +62,7 @@ struct m0_net_xprt;
+ struct m0_rpc_machine;
+ struct m0_local_service_ops;
+ 
+-M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 1<<16);
++M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
+ 
+ /** Local reply consumer service (testing or replicator) */
+ struct m0_local_service {
+-- 
+1.8.3.2
+

@@ -1,0 +1,66 @@
+From 81de67b6c33b61adec14d3b1f295882c13d7882a Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 13 Aug 2012 21:42:47 +0300
+Subject: [PATCH 313/370] conf: use generic tlist instead of specialised ones
+
+Replace specialised tlinks (c2_conf_service::cs_filesystem_linkage, etc.)
+with a generic one.
+---
+ conf/obj.h | 20 --------------------
+ 1 file changed, 20 deletions(-)
+
+diff --git a/conf/obj.h b/conf/obj.h
+index 8752a90..887497c 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -262,11 +262,6 @@ struct c2_conf_service {
+ 	struct c2_conf_obj       cs_obj;
+ 	/** The node this service is hosted at. */
+ 	struct c2_conf_node     *cs_node;
+-	/**
+-	 * Linkage to ->cd_items of the c2_conf_dir hanging from
+-	 * c2_conf_filesystem::cf_services.
+-	 */
+-	struct c2_tlink          cs_filesystem_linkage;
+ /* configuration data (for the application) */
+ 	enum c2_cfg_service_type cs_type;
+ 	/**
+@@ -295,11 +290,6 @@ struct c2_conf_node {
+ /** Network interface controller. */
+ struct c2_conf_nic {
+ 	struct c2_conf_obj ni_obj;
+-	/**
+-	 * Linkage to ->cd_items of the c2_conf_dir hanging from
+-	 * c2_conf_node::cn_nics.
+-	 */
+-	struct c2_tlink    ni_linkage;
+ /* configuration data (for the application) */
+ 	uint32_t           ni_iface;
+ 	uint32_t           ni_mtu;
+@@ -312,11 +302,6 @@ struct c2_conf_nic {
+ struct c2_conf_sdev {
+ 	struct c2_conf_obj  sd_obj;
+ 	struct c2_conf_dir *sd_partitions;
+-	/**
+-	 * Linkage to ->cd_items of the c2_conf_dir hanging from
+-	 * c2_conf_node::cn_sdevs.
+-	 */
+-	struct c2_tlink     sd_linkage;
+ /* configuration data (for the application) */
+ 	uint32_t            sd_iface;
+ 	uint32_t            sd_media;
+@@ -329,11 +314,6 @@ struct c2_conf_sdev {
+ /** Storage device partition. */
+ struct c2_conf_partition {
+ 	struct c2_conf_obj pa_obj;
+-	/**
+-	 * Linkage to ->cd_items of the c2_conf_dir hanging from
+-	 * c2_conf_sdev::sd_partitions.
+-	 */
+-	struct c2_tlink    pa_linkage;
+ /* configuration data (for the application) */
+ 	uint64_t           pa_start;
+ 	uint64_t           pa_size;
+-- 
+1.8.3.2
+

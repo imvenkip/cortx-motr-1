@@ -1,0 +1,55 @@
+From 88716aa3d7e8a327d2f58edb9d83e1bf20536480 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Mon, 18 Nov 2013 17:46:51 +0530
+Subject: [PATCH 151/159]  - Increased reqh lockers size from 64 to 256.
+
+---
+ addb/addb_monitor.h | 4 ++--
+ fop/fop.c           | 2 +-
+ reqh/reqh.h         | 2 +-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 477fd7a..073b01c 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -221,8 +221,8 @@ M0_TL_DESCR_DECLARE(addb_mon, M0_EXTERN);
+ 
+ #define M0_ADDB_MONITOR_STATS_TYPE_REGISTER(stats_type, name)		\
+ do {									\
+-	stats_type.art_name = name;					\
+-	m0_addb_rec_type_register(&stats_type);				\
++	(stats_type)->art_name = name;					\
++	m0_addb_rec_type_register(stats_type);				\
+ } while(0)
+ 
+ struct m0_addb_sum_rec {
+diff --git a/fop/fop.c b/fop/fop.c
+index 343ac1b..ac9cc41 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -258,7 +258,7 @@ M0_INTERNAL int m0_fops_init(void)
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_wail_nr);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fop_rate_cntr);
+-        M0_ADDB_MONITOR_STATS_TYPE_REGISTER(m0_addb_rt_fop_rate, "fop_rate");
++        M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_fop_rate, "fop_rate");
+ 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
+ 			 &m0_addb_proc_ctx);
+ 	ft_tlist_init(&fop_types_list);
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index 7ded85e..106a8b3 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -62,7 +62,7 @@ struct m0_net_xprt;
+ struct m0_rpc_machine;
+ struct m0_local_service_ops;
+ 
+-M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 64);
++M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
+ 
+ /** Local reply consumer service (testing or replicator) */
+ struct m0_local_service {
+-- 
+1.8.3.2
+

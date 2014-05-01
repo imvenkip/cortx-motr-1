@@ -1,0 +1,72 @@
+From 57f4e974b17f09749c3ee8c3ff2a4b3e2717e283 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 22 Jun 2012 01:28:08 +0300
+Subject: [PATCH 206/370] confc.c: make sure fetch request doesn't start with a
+ dir
+
+If missing object is a directory, query its parent. Directory objects
+don't travel over the network.
+---
+ conf/confc.c | 11 ++++++++++-
+ conf/obj.c   |  6 ++++++
+ conf/obj.h   |  3 ++-
+ 3 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 63d09a4..a4fc6b3 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -787,8 +787,17 @@ path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj, size_t ri)
+ 		return C2_CS_READY;
+ 
+ 	case C2_CS_MISSING:
+-		request_fill(ctx, obj, ri);
+ 		obj->co_status = C2_CS_LOADING;
++		if (obj->co_type == C2_CO_DIR) {
++			/*
++			 * Directory objects don't travel over the
++			 * network.  Query the parent object.
++			 */
++			C2_ASSERT(obj->co_parent != NULL);
++			obj = obj->co_parent;
++			C2_CNT_DEC(ri);
++		}
++		request_fill(ctx, obj, ri);
+ 		return C2_CS_MISSING;
+ 
+ 	case C2_CS_LOADING:
+diff --git a/conf/obj.c b/conf/obj.c
+index 7becb78..6963c5f 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -377,7 +377,13 @@
+  * @{
+  */
+ 
++/* XXX TODO: .bt_check = conf_dir_invariant, where
++ * conf_dir_invariant() calls
++ *     C2_ASSERT(dir->cd_obj.co_parent != NULL);
++ * In other words, a directory always has a parent.
++ */
+ struct c2_bob_type c2_conf_dir_bob = XXX;
++
+ struct c2_bob_type c2_conf_profile_bob = XXX;
+ struct c2_bob_type c2_conf_filesystem_bob = XXX;
+ struct c2_bob_type c2_conf_service_bob = XXX;
+diff --git a/conf/obj.h b/conf/obj.h
+index b16cb2c..15d496a 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -202,7 +202,8 @@ struct c2_conf_obj {
+ 	enum c2_conf_status     co_status;
+ 	struct c2_conf_obj_ops *co_ops;
+ 	/**
+-	 * Pointer to parent object.
++	 * Pointer to the parent object.
++	 *
+ 	 * The value is NULL for objects that have several parents
+          * (e.g., c2_conf_node).
+ 	 */
+-- 
+1.8.3.2
+

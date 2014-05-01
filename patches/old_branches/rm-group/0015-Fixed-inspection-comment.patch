@@ -1,0 +1,37 @@
+From 349a153c8e87de2f813d0449c8d13350f207885c Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Mon, 2 Sep 2013 12:41:08 +0530
+Subject: [PATCH 15/24] Fixed inspection comment.
+
+---
+ rm/rm.h       | 1 -
+ rm/ut/group.c | 1 +
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rm/rm.h b/rm/rm.h
+index 6453a3f..6f831e4 100644
+--- a/rm/rm.h
++++ b/rm/rm.h
+@@ -235,7 +235,6 @@ enum {
+  */
+ enum m0_rm_group_id {
+ 	M0_RM_NO_GROUP  = 0,
+-	M0_RM_SNS_GROUP = 1,
+ };
+ 
+ /**
+diff --git a/rm/ut/group.c b/rm/ut/group.c
+index 0d60d28..c8c2f0b 100644
+--- a/rm/ut/group.c
++++ b/rm/ut/group.c
+@@ -30,6 +30,7 @@
+ /* Maximum test servers for this testcase */
+ static enum rm_server  test_servers_nr;
+ static struct m0_clink group_tests_clink[GROUP_TESTS_NR];
++static enum m0_rm_group_id M0_RM_SNS_GROUP = 1;
+ 
+ static void rmg_in_complete(struct m0_rm_incoming *in, int32_t rc)
+ {
+-- 
+1.8.3.2
+

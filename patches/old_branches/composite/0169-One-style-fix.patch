@@ -1,0 +1,25 @@
+From 884affcb1e9b0cbcc01bd115e95bbc8baaa2e514 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 7 Aug 2013 16:24:28 +0530
+Subject: [PATCH 169/172] One style fix
+
+---
+ layout/layout.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/layout/layout.c b/layout/layout.c
+index 82b36aa..78b16e2 100644
+--- a/layout/layout.c
++++ b/layout/layout.c
+@@ -152,7 +152,7 @@ static bool layout_invariant_internal(const struct m0_layout *l)
+ 		_0C(l->l_id > 0) &&
+ 		_0C(l->l_type != NULL) &&
+ 		_0C(l->l_dom->ld_type[l->l_type->lt_id] == l->l_type) &&
+-		_0C(m0_layout__domain_invariant(l->l_dom)) &&
++		m0_layout__domain_invariant(l->l_dom) &&
+ 		_0C(l->l_ops != NULL);
+ }
+ 
+-- 
+1.8.3.2
+

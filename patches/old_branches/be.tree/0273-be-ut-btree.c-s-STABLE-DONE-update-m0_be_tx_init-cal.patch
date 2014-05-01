@@ -1,0 +1,228 @@
+From d55b1170fd6f1bdf1dd78343f8b458a11cb0149a Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 3 Jul 2013 22:05:49 +0300
+Subject: [PATCH 273/290] be (ut/btree.c): s/STABLE/DONE/; update
+ m0_be_tx_init() calls
+
+- Use new `is_part_of_global_tx' parameter of m0_be_tx_init().
+- Remove unneeded #includes.
+---
+ be/ut/btree.c | 100 +++++++++++++++++++++++-----------------------------------
+ 1 file changed, 39 insertions(+), 61 deletions(-)
+
+diff --git a/be/ut/btree.c b/be/ut/btree.c
+index 0e063bb..1045b0b 100644
+--- a/be/ut/btree.c
++++ b/be/ut/btree.c
+@@ -17,19 +17,15 @@
+  * Original creation date: 04-Jun-2013
+  */
+ 
+-#include "ut/ut.h"
+-#include "be/tx.h"
+-#include "be/be.h"
+-#include "be/seg.h"
+ #include "be/btree.h"
+-#include "be/alloc.h"
++#include "lib/misc.h"    /* M0_IN */
++#include "lib/memory.h"  /* m0_alloc */
+ #include "be/ut/helper.h"
+-#include "lib/misc.h"
+-#include "lib/memory.h"
++#include "ut/ut.h"
+ 
+ static struct m0_be_ut_h  be_ut_btree_h;
+ static struct m0_sm_group grp;
+-static uint64_t		  tid = 1ULL;
++static uint64_t           tid = 1ULL;
+ 
+ 
+ static void seg_create(void)
+@@ -44,37 +40,25 @@ static void seg_destroy(void)
+ 	m0_be_ut_seg_close_destroy(&be_ut_btree_h);
+ }
+ 
+-static void persistent(const struct m0_be_tx *tx)
+-{
+-}
+-static void discarded(const struct m0_be_tx *tx)
+-{
+-}
++static void noop(const struct m0_be_tx *tx) {}
+ 
+-static void be_op_init(struct m0_be_op *op)
+-{/* XXX */
+-}
+-
+-static void be_init(struct m0_be *be)
+-{/* XXX */
+-}
+-
+-static void be_op_fini(struct m0_be_op *op)
+-{/* XXX */
+-}
+-
+-static void be_fini(struct m0_be *be)
+-{/* XXX */
+-}
++#if 1 /* XXX FIXME: What are these about?
++       * Shouldn't we use m0_backend_init() and m0_be_op_init()?
++       *  --vvv */
++static void be_init(struct m0_be *be) {}
++static void be_fini(struct m0_be *be) {}
++static void be_op_init(struct m0_be_op *op) {}
++static void be_op_fini(struct m0_be_op *op) {}
++#endif
+ 
+ static int tree_cmp(const void *key0, const void *key1)
+ {
+-        return strcmp(key0, key1);
++	return strcmp(key0, key1);
+ }
+ 
+ static m0_bcount_t tree_kv_size(const void *kv)
+ {
+-        return strlen(kv) + 1;
++	return strlen(kv) + 1;
+ }
+ 
+ static const struct m0_be_btree_kv_ops kv_ops = {
+@@ -95,8 +79,7 @@ void test_create(void)
+ 	be_init(&be);
+ 	be_op_init(&op);
+ 
+-	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL,
+-		      NULL);
++	m0_be_tx_init(&tx, tid++, &be, &grp, noop, noop, true, NULL, NULL);
+ 	m0_be_btree_init(&tree, &be_ut_btree_h.buh_seg, &kv_ops, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_CREATE, 1, &cred);
+ 
+@@ -106,7 +89,7 @@ void test_create(void)
+ 	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+ 						 M0_BOS_FAILURE)));
+ 	m0_be_tx_close(&tx);
+-	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_STABLE, M0_TIME_NEVER) == 0);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER) == 0);
+ }
+ 
+ void test_destroy(void)
+@@ -115,8 +98,7 @@ void test_destroy(void)
+ 	struct m0_be_tx        tx;
+ 	struct m0_be_tx_credit cred;
+ 
+-	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL,
+-		      NULL);
++	m0_be_tx_init(&tx, tid++, &be, &grp, noop, noop, true, NULL, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_DESTROY, 1, &cred);
+ 
+ 	m0_be_tx_prep(&tx, &cred);
+@@ -125,7 +107,7 @@ void test_destroy(void)
+ 	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+ 						 M0_BOS_FAILURE)));
+ 	m0_be_tx_close(&tx);
+-	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_STABLE, M0_TIME_NEVER) == 0);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER) == 0);
+ 
+ 	be_op_fini(&op);
+ 	be_fini(&be);
+@@ -148,10 +130,9 @@ void test_insert(void)
+ 	struct m0_buf           key;
+ 	struct m0_buf           val;
+ 	struct m0_be_allocator *alloc = &tree.bb_seg->bs_allocator;
+-	int			i;
++	int                     i;
+ 
+-	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL,
+-		      NULL);
++	m0_be_tx_init(&tx, tid++, &be, &grp, noop, noop, true, NULL, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_INSERT, INSERT_NR, &tree_cred);
+ 
+ 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, ALLOC_SIZE,
+@@ -189,7 +170,7 @@ void test_insert(void)
+ 	}
+ 
+ 	m0_be_tx_close(&tx);
+-	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_STABLE, M0_TIME_NEVER) == 0);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER) == 0);
+ }
+ 
+ void test_update(void)
+@@ -201,10 +182,9 @@ void test_update(void)
+ 	struct m0_buf           key;
+ 	struct m0_buf           val;
+ 	struct m0_be_allocator *alloc = &tree.bb_seg->bs_allocator;
+-	int			i;
++	int                     i;
+ 
+-	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL,
+-		      NULL);
++	m0_be_tx_init(&tx, tid++, &be, &grp, noop, noop, true, NULL, NULL);
+ 
+ 	m0_be_btree_credit(&tree, M0_BBO_UPDATE, UPDATE_NR, &tree_cred);
+ 
+@@ -236,19 +216,18 @@ void test_update(void)
+ 	}
+ 
+ 	m0_be_tx_close(&tx);
+-	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_STABLE, M0_TIME_NEVER) == 0);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER) == 0);
+ }
+ 
+ void test_delete(void)
+ {
+-	int                     i;
+-	struct m0_be_op         op;
+-	struct m0_be_tx         tx;
+-	struct m0_be_tx_credit  cred;
+-	struct m0_buf           key;
++	int                    i;
++	struct m0_be_op        op;
++	struct m0_be_tx        tx;
++	struct m0_be_tx_credit cred;
++	struct m0_buf          key;
+ 
+-	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL,
+-		      NULL);
++	m0_be_tx_init(&tx, tid++, &be, &grp, noop, noop, true, NULL, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_DELETE, DELETE_NR, &cred);
+ 	m0_be_tx_prep(&tx, &cred);
+ 	m0_be_tx_open(&tx);
+@@ -264,19 +243,18 @@ void test_delete(void)
+ 	}
+ 
+ 	m0_be_tx_close(&tx);
+-	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_STABLE, M0_TIME_NEVER) == 0);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER) == 0);
+ }
+ 
+ void test_lookup(void)
+ {
+-	struct m0_be_op         op;
+-	struct m0_be_tx         tx;
+-	struct m0_be_tx_credit  cred;
+-	struct m0_buf           key;
+-	struct m0_buf		val;
++	struct m0_be_op        op;
++	struct m0_be_tx        tx;
++	struct m0_be_tx_credit cred;
++	struct m0_buf          key;
++	struct m0_buf          val;
+ 
+-	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL,
+-		      NULL);
++	m0_be_tx_init(&tx, tid++, &be, &grp, noop, noop, true, NULL, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_LOOKUP, 1, &cred);
+ 	m0_be_tx_prep(&tx, &cred);
+ 	m0_be_tx_open(&tx);
+@@ -291,7 +269,7 @@ void test_lookup(void)
+ 	M0_UT_ASSERT(val.b_addr != NULL);
+ 
+ 	m0_be_tx_close(&tx);
+-	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_STABLE, M0_TIME_NEVER) == 0);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_BTS_DONE, M0_TIME_NEVER) == 0);
+ }
+ 
+ const struct m0_test_suite be_list_ut = {
+-- 
+1.8.3.2
+

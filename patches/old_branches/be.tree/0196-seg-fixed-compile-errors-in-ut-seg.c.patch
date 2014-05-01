@@ -1,0 +1,52 @@
+From 0cc5aafdec12c759980f75113bfee29bee508972 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 21 Jun 2013 01:21:24 +0300
+Subject: [PATCH 196/290] seg: fixed compile errors in ut/seg.c.
+
+---
+ be/ut/seg.c | 21 +++++++++------------
+ 1 file changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index 4f64833..f096aea 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -71,20 +71,17 @@ M0_INTERNAL void m0_be_ut_seg_open_close(void)
+ 
+ M0_INTERNAL void m0_be_ut_seg_write(void)
+ {
+-	struct m0_be_seg  seg;
+-	char             *addr;
+-	int               rc;
+-	int               i;
+-
+-	m0_be_ut_seg_create(&g_helper, &seg);
+-	seg_write(&seg);
+-	rc = m0_be_seg_destroy(&seg);
++	int rc;
++
++	m0_be_ut_seg_create(&be_ut_seg_h);
++	seg_write(&be_ut_seg_h.buh_seg);
++	rc = m0_be_seg_destroy(&be_ut_seg_h.buh_seg);
+ 	M0_UT_ASSERT(rc == 0);
+-	m0_be_ut_seg_finalize(&g_helper, &seg, false);
++	m0_be_ut_seg_finalize(&be_ut_seg_h, false);
+ 
+ 
+-	m0_be_ut_seg_initialize(&g_helper, &seg, true);
+-	rc = m0_be_seg_open(&seg);
++	m0_be_ut_seg_initialize(&be_ut_seg_h, true);
++	rc = m0_be_seg_open(&be_ut_seg_h.buh_seg);
+ 	M0_ASSERT(rc == 0);
+ 
+ /* XXX */
+@@ -97,5 +94,5 @@ M0_INTERNAL void m0_be_ut_seg_write(void)
+ /* 0x400000000118: 89 'Y' 90 'Z' 97 'a' 98 'b' 99 'c' 100 'd' 101 'e' 102 'f' */
+ 
+ 
+-	m0_be_ut_seg_close_destroy(&g_helper, &seg);
++	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
+ }
+-- 
+1.8.3.2
+

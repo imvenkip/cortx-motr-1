@@ -1,0 +1,373 @@
+From d8b7bf5ded2b3e4508d4e7699874a3bbe3da298a Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 20 Jun 2013 19:19:43 +0300
+Subject: [PATCH 189/228] be/seg: remove m0_be_seg_read()
+
+m0_be_seg_read() is not needed at the moment and it will be re-implemented
+later, so there is no point in keeping it.
+Original implementation can be retrieved by using `-S' option of git-log(1):
+    $ git log -S m0_be_seg_read -- be/seg.c
+
++ Remove unneeded #includes.
++ Fix whitespace.
+---
+ be/seg.c          | 109 +++++++++---------------------------------------------
+ be/seg.h          |   4 --
+ be/seg_internal.h |  26 ++++++-------
+ be/tx_fom.c       |  46 +++++++++++------------
+ be/ut/seg.c       |   6 +--
+ 5 files changed, 55 insertions(+), 136 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 35551cb..3eb2a8c 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -18,20 +18,14 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#include "be/be.h"
+ #include "be/seg.h"
+-
+-#include "lib/assert.h"
+-#include "lib/memory.h"      /* m0_alloc_aligned */
+-#include "lib/misc.h"        /* M0_IN */
+-#include "lib/errno.h"
+-#include "stob/stob.h"
+-
+-#include "be/seg_internal.h"
+-#include "be/tx_regmap.h"
+-
+-#include <search.h>          /* twalk */
+-#include <sys/mman.h>        /* mmap */
++#include "be/seg_internal.h"  /* m0_be_seg_hdr */
++#include "be/be.h"            /* m0_be_op */
++#include "lib/misc.h"         /* M0_IN */
++#include "lib/memory.h"       /* m0_alloc_aligned */
++#include "lib/errno.h"        /* ENOMEM */
++#include <sys/mman.h>         /* mmap */
++#include <search.h>           /* twalk */
+ 
+ /**
+  * @addtogroup be
+@@ -44,11 +38,11 @@
+ 
+ 
+ static int stob_io_single_write(void *buf, m0_bcount_t bufsize,
+-				struct m0_stob *stob,
+-				m0_bindex_t offs, uint32_t bshift)
++				struct m0_stob *stob, m0_bindex_t offs,
++				uint32_t bshift)
+ {
+-	m0_bcount_t       wrcnt[1];    /* sectors counts */
+-	m0_bindex_t       wroffs[1];   /* offsets */
++	m0_bcount_t       wrcnt[1];  /* sectors counts */
++	m0_bindex_t       wroffs[1]; /* offsets */
+ 	void             *bufpk[1];  /* "packed" addresses */
+ 	struct m0_stob_io io;
+ 	struct m0_clink   clink;
+@@ -216,73 +210,6 @@ static int stob_io_single_read(void *buf, m0_bcount_t bufsize,
+ 	return rc;
+ }
+ 
+-M0_INTERNAL int m0_be_seg_read(struct m0_be_seg *seg,
+-			       struct m0_be_op  *op,
+-			       struct m0_bufvec *bv)
+-{
+-	struct m0_stob_io  *io;
+-	struct m0_clink    *clink;
+-	struct m0_indexvec *iv;
+-	m0_bcount_t         i;
+-	int                 rc;
+-
+-	M0_PRE(m0_be__seg_invariant(seg) && op != NULL);
+-
+-	/* Set up op, clink and io structs for SEGIO reading. */
+-	op->bo_utype   = M0_BOP_SEGIO;
+-	clink          = &op->bo_u.u_segio.si_clink;
+-	io             = &op->bo_u.u_segio.si_stobio;
+-	m0_clink_init(clink, NULL);
+-	m0_stob_io_init(io);
+-	io->si_flags   = 0;
+-	io->si_opcode  = SIO_READ;
+-	io->si_user    = *bv;
+-	iv             = &io->si_stob;
+-	iv->iv_vec     = bv->ov_vec;
+-	/* XXX: iv_index needs to be allocated, but in case of -ENOMEM
+-	 * it's probably possible to do i/o in one-buf-at-a-time mode. */
+-	iv->iv_index   = m0_alloc((sizeof *(iv->iv_index)) * iv->iv_vec.v_nr);
+-	if (iv->iv_index == NULL) {
+-		op->bo_sm.sm_rc = -ENOMEM;
+-		m0_sm_state_set(&op->bo_sm, M0_BOS_FAILURE);
+-		return op->bo_sm.sm_rc;
+-	}
+-	/* Calculate iv indexes from addresses relative to seg->bs_addr. */
+-	for (i = 0; i < iv->iv_vec.v_nr; i++) {
+-		void *b0 = m0_stob_addr_open(bv->ov_buf[i], seg->bs_bshift);
+-		void *b1 = m0_stob_addr_open(bv->ov_buf[i] +
+-					     bv->ov_vec.v_count[i] - 1,
+-					     seg->bs_bshift);
+-		M0_ASSERT(m0_be_seg_contains(seg, b0) &&
+-			  m0_be_seg_contains(seg, b1));
+-		iv->iv_index[i] = (m0_bcount_t)
+-			m0_stob_addr_pack((void *)(b0 - seg->bs_addr),
+-					  seg->bs_bshift);
+-	}
+-	/* Add clink and start STOB i/o. */
+-	m0_clink_add_lock(&io->si_wait, clink);
+-	rc = m0_stob_io_launch(io, seg->bs_stob, NULL, NULL);
+-	if (rc != 0)
+-		goto fin;
+-	else
+-		m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+-
+-	/* XXX: STOB i/o is completed synchronously here. */
+-	m0_chan_wait(clink);
+-	rc = io->si_rc;
+-fin:
+-	m0_clink_del_lock(clink);
+-	m0_clink_fini(clink);
+-	m0_stob_io_fini(io);
+-	op->bo_sm.sm_rc = rc;
+-	if (rc == 0) {
+-		m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+-	} else {
+-		m0_sm_state_set(&op->bo_sm, M0_BOS_FAILURE);
+-	}
+-	return rc;
+-}
+-
+ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ {
+ 	int                   rc;
+@@ -362,9 +289,9 @@ static inline m0_bcount_t be_seg_blkno(const struct m0_be_seg *seg, void *addr)
+ 	return (addr - seg->bs_addr) >> seg->bs_bshift;
+ }
+ 
+-static void iovec_prepare(struct m0_be_seg *seg,
+-			  struct m0_be_reg_d *area, m0_bindex_t nr,
+-			  struct m0_indexvec *iv, struct m0_bufvec *bv)
++static void iovec_prepare(struct m0_be_seg *seg, struct m0_be_reg_d *area,
++			  m0_bindex_t nr, struct m0_indexvec *iv,
++			  struct m0_bufvec *bv)
+ {
+ 	int i;
+ 
+@@ -419,7 +346,7 @@ M0_INTERNAL void m0_be_seg_write_simple(struct m0_be_seg *seg,
+ 	M0_PRE(m0_be__seg_invariant(seg) && op != NULL);
+ 
+ 	/* Set up op, clink and io structs for SEGIO write. */
+-	op->bo_utype        = M0_BOP_SEGIO;
++	op->bo_utype = M0_BOP_SEGIO;
+ 	m0_clink_init(clink, &be_seg_stobio_cb);
+ 
+ 	m0_stob_io_init(io);
+@@ -435,9 +362,8 @@ M0_INTERNAL void m0_be_seg_write_simple(struct m0_be_seg *seg,
+ 	m0_be_op_state_set(op, rc == 0 ? M0_BOS_ACTIVE : M0_BOS_FAILURE);
+ }
+ 
+-M0_INTERNAL int m0_be_seg_write(struct m0_be_seg *seg,
+-				void *regd_tree,
+-				struct m0_be_op *op)
++M0_INTERNAL int
++m0_be_seg_write(struct m0_be_seg *seg, void *regd_tree, struct m0_be_op *op)
+ {
+ 	struct m0_stob_io  *io;
+ 	struct m0_clink    *clink;
+@@ -638,6 +564,7 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
+ }
+ 
+ /** @} end of be group */
++
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/be/seg.h b/be/seg.h
+index 42c9f72..c9fa911 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -98,10 +98,6 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name);
+ 
+ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
+ 
+-M0_INTERNAL int m0_be_seg_read(struct m0_be_seg *seg,
+-			       struct m0_be_op *op,
+-			       struct m0_bufvec *bv);
+-
+ M0_INTERNAL int m0_be_seg_write(struct m0_be_seg *seg,
+ 				void *regd_tree,
+ 				struct m0_be_op *op);
+diff --git a/be/seg_internal.h b/be/seg_internal.h
+index d5be833..e034aec 100644
+--- a/be/seg_internal.h
++++ b/be/seg_internal.h
+@@ -18,9 +18,7 @@
+  * Original creation date: 5-Jun-2013
+  */
+ 
+-
+ #pragma once
+-
+ #ifndef __MERO_BE_SEG_INTERNAL_H__
+ #define __MERO_BE_SEG_INTERNAL_H__
+ 
+@@ -33,10 +31,10 @@
+  */
+ 
+ enum {
+-	/** Dictionary entity name maximum string size */
++	/** Dictionary entity name maximum string size. */
+ 	M0_BE_SEG_DICT_MAXNAME = 80,
+-	/** Maximum number of entities in dictionary */
+-	M0_BE_SEG_DICT_SIZE = 32,
++	/** Maximum number of entities in dictionary. */
++	M0_BE_SEG_DICT_SIZE = 32
+ };
+ 
+ struct m0_be_seg_dict {
+@@ -44,23 +42,21 @@ struct m0_be_seg_dict {
+ 	void *bsd_ptr;
+ };
+ 
+-/* "On-disk" header for segment, stored in STOB at zero offset */
++/** "On-disk" header for segment, stored in STOB at zero offset */
+ struct m0_be_seg_hdr {
+-	void			     *bh_addr;  /* segment address in RAM */
+-	m0_bcount_t		      bh_size;  /* segment size */
++	void                         *bh_addr;  /**< Segment address in RAM. */
++	m0_bcount_t                   bh_size;  /**< Segment size. */
+ 	struct m0_be_allocator_header bh_alloc;
+-	/** Segment dictionary.
+-	 * XXX FIXME question from max: what does it contains? */
+-	struct m0_be_seg_dict	      bs_dict[M0_BE_SEG_DICT_SIZE];
++	/**
++	 * Segment dictionary.
++	 * XXX FIXME question from Max: what does it contain?
++	 */
++	struct m0_be_seg_dict         bs_dict[M0_BE_SEG_DICT_SIZE];
+ };
+ 
+-
+-
+ /** @} end of be group */
+-
+ #endif /* __MERO_BE_SEG_INTERNAL_H__ */
+ 
+-
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 1b65c25..16b17cd 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -18,36 +18,38 @@
+  * Original creation date: 17-Jun-2013
+  */
+ 
+-#undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+ 
+-#include "lib/cdefs.h"
+-#include "lib/errno.h"
+-#include "lib/memory.h"
+-#include "lib/misc.h"
+-#include "fop/fom.h"
+-#include "reqh/reqh.h"
+-#include "fop/fom_generic.h"
+-#include "be/tx_service.h"
+ #include "be/tx.h"
++#include "be/tx_service.h"
++#include "fop/fom.h"        /* m0_be_txs_stype */
++#include "lib/misc.h"       /* M0_BITS */
++#include "lib/memory.h"     /* m0_free */
++#include "reqh/reqh.h"      /* m0_reqh_state_get */
++#include "lib/errno.h"      /* ENOMEM */
++
++#define XXX_MOCK_IO 1
++#if XXX_MOCK_IO /* XXX <<<<<<< */
++#  include "lib/thread.h"
++#  include "lib/mutex.h"
++#  include "lib/chan.h"
++#  include <unistd.h>
+ 
+-#define FOM_IO_EMU 1
+-#if FOM_IO_EMU /* XXX */
+-#include "lib/thread.h"
+ static struct m0_thread g_thread;
+ static struct m0_chan   g_chan;
+ static struct m0_mutex  g_mutex;
+-static void g_handler(int xxx)
++
++static void g_handler(int ignore)
+ {
+ 	M0_LOG(M0_DEBUG, "io emulation started");
+-	sleep(10);
++	sleep(3);
+ 	m0_mutex_lock(&g_mutex);
+ 	m0_chan_signal(&g_chan);
+ 	m0_mutex_unlock(&g_mutex);
+ 	M0_LOG(M0_DEBUG, "io emulation ended");
+ }
+-#endif /* XXX */
++#endif /* XXX >>>>>>> */
+ 
+ /**
+  * @addtogroup be
+@@ -153,7 +155,7 @@ static int tx_fom_tick(struct m0_fom *fom)
+ 		break;
+ 
+ 	case FS_SUBMITTED_TO_SEG:
+-#if FOM_IO_EMU  /* XXX */
++#if XXX_MOCK_IO
+ 		m0_mutex_init(&g_mutex);
+ 		m0_chan_init(&g_chan, &g_mutex);
+ 
+@@ -165,8 +167,7 @@ static int tx_fom_tick(struct m0_fom *fom)
+ 
+ 		m0_fom_phase_set(fom, FS_PLACED);
+ 		return M0_FSO_WAIT;
+-
+-#else  /* XXX */
++#else
+ 		{
+ 			struct tx_fom      *f = fom_to_txm(fom);
+ 			struct m0_be_reg_d *area = tx->t_reg_d_area;
+@@ -177,12 +178,11 @@ static int tx_fom_tick(struct m0_fom *fom)
+ 					       tx->t_captured.tc_reg_nr);
+ 			return m0_be_op_tick_ret(op, fom, FS_PLACED);
+ 		}
+-#endif  /* XXX */
+-
++#endif
+ 	case FS_PLACED:
+-#if FOM_IO_EMU  /* XXX */
+-#else
+-		M0_ASSERT(m0_be_op_state(&fom_to_txm(fom)->tf_op) == M0_BOS_SUCCESS);
++#if !XXX_MOCK_IO
++		M0_ASSERT(m0_be_op_state(&fom_to_txm(fom)->tf_op) ==
++			  M0_BOS_SUCCESS);
+ #endif
+ 		tx_state_set(tx, M0_BTS_PLACED);
+ 		m0_be_tx_free(tx);  /* free region buffers */
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index 29fb058..5517f18 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -18,9 +18,9 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#include "be/seg.h"		/* m0_be_seg */
+-#include "ut/ut.h"		/* M0_UT_ASSERT */
+-#include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
++#include "be/seg.h"             /* m0_be_seg */
++#include "ut/ut.h"              /* M0_UT_ASSERT */
++#include "be/ut/helper.h"       /* m0_be_ut_seg_helper */
+ 
+ static struct m0_be_ut_seg_helper be_ut_seg_helper;
+ 
+-- 
+1.8.3.2
+

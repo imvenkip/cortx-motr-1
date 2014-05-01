@@ -1,0 +1,28 @@
+From 9358cc58344d6cadf3743356fd30c502fb153452 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 18:54:47 +0200
+Subject: [PATCH 30/99] LogD 1871: space-before-tab in indent
+
+---
+ net/test/linux_kernel/Makefile.in | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/test/linux_kernel/Makefile.in b/net/test/linux_kernel/Makefile.in
+index 410f912..7a84985 100644
+--- a/net/test/linux_kernel/Makefile.in
++++ b/net/test/linux_kernel/Makefile.in
+@@ -6,9 +6,9 @@ kernel_src	:= node_k.c
+ 
+ obj-m		:= $(NET_TEST).o
+ $(NET_TEST)-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
+-orig        	:= $(shared_src:%=../%)
++orig		:= $(shared_src:%=../%)
+ 
+-EXTRA_CFLAGS 	= -DHAVE_CONFIG_H -I@top_srcdir@ \
++EXTRA_CFLAGS	= -DHAVE_CONFIG_H -I@top_srcdir@ \
+ 		  @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
+ 
+ prepare:
+-- 
+1.8.3.2
+

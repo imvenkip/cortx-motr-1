@@ -1,0 +1,60 @@
+From 3c0bb9e7146fd52c4ec640d68533017be86edfc4 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 6 Feb 2014 13:39:00 +0530
+Subject: [PATCH 18/50]  - Removed new_trans
+
+---
+ ioservice/io_fops.c | 23 -----------------------
+ 1 file changed, 23 deletions(-)
+
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index 6b76104..fd6f2b4 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -181,10 +181,6 @@ const struct m0_fop_type_ops io_fop_cd_ops = {
+ 	.fto_redo = io_fol_cd_rec_part_redo,
+ };
+ 
+-#ifndef __KERNEL__
+-static struct m0_sm_trans_descr *new_trans;
+-#endif
+-
+ M0_INTERNAL void m0_ioservice_fop_fini(void)
+ {
+ 	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
+@@ -196,11 +192,6 @@ M0_INTERNAL void m0_ioservice_fop_fini(void)
+ 	m0_fop_type_fini(&m0_fop_cob_writev_fopt);
+ 	m0_fop_type_fini(&m0_fop_cob_readv_fopt);
+ 
+-#ifndef __KERNEL__
+-	if (new_trans != NULL)
+-		m0_free(new_trans);
+-#endif
+-
+ 	m0_xc_io_fops_fini();
+ 	m0_addb_ctx_fini(&m0_ios_addb_ctx);
+ }
+@@ -237,20 +228,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 			  m0_generic_conf.scf_nr_states);
+ 
+ 	new_nr = io_conf.scf_trans_nr + m0_generic_conf.scf_trans_nr;
+-#if 0
+-	M0_ALLOC_ARR(new_trans, new_nr);
+-	if (new_trans == NULL) {
+-		m0_xc_io_fops_fini();
+-		m0_addb_ctx_fini(&m0_ios_addb_ctx);
+-		return -ENOMEM;
+-	}
+-
+-	/* Restore original descriptions */
+-	for (i = 0; i < io_conf.scf_trans_nr; i++)
+-		new_trans[i] = io_conf.scf_trans[i];
+-
+-	io_conf.scf_trans    = new_trans;
+-#endif
+ 	m0_sm_conf_trans_extend(&m0_generic_conf, &io_conf, new_nr);
+ 
+ 	m0_sm_conf_init(&io_conf);
+-- 
+1.8.3.2
+

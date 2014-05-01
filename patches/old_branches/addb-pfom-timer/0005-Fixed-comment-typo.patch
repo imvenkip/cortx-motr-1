@@ -1,0 +1,25 @@
+From 12dbae72df89c3d86c8b9b741cc8d44e81f15262 Mon Sep 17 00:00:00 2001
+From: Carl Braganza <carl_braganza@xyratex.com>
+Date: Thu, 10 Jan 2013 20:40:50 -0800
+Subject: [PATCH 5/6] Fixed comment typo.
+
+---
+ reqh/reqh_service.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/reqh/reqh_service.h b/reqh/reqh_service.h
+index d0f38f0..6e96128 100644
+--- a/reqh/reqh_service.h
++++ b/reqh/reqh_service.h
+@@ -281,7 +281,7 @@ struct m0_reqh_service_ops {
+ 	   handler will block waiting for FOM termination, so any long
+ 	   lived service FOMs should notified that they should stop by this
+ 	   method.
+-	   The service will be in the M0_RST_STOPPING state when the method
++	   The service will be in the M0_RST_STARTED state when the method
+ 	   is invoked.
+ 	 */
+ 	void (*rso_prepare_to_stop)(struct m0_reqh_service *service);
+-- 
+1.8.3.2
+

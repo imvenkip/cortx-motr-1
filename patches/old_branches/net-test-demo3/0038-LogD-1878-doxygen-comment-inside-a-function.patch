@@ -1,0 +1,25 @@
+From 78d8b072ac6e28d85aecc2f3f28f2896e4a2b553 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 19:24:46 +0200
+Subject: [PATCH 38/99] LogD 1878: doxygen comment inside a function
+
+---
+ net/test/node_bulk.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 3f014ef..834fe94 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1398,7 +1398,7 @@ static int node_bulk_test_init_fini(struct node_bulk_ctx *ctx,
+ 	net_cfg.ntncfg_ep_max	     = icmd->ntci_ep.ntsl_nr,
+ 	net_cfg.ntncfg_timeouts	     = m0_net_test_network_timeouts_never();
+ 	net_cfg.ntncfg_sync	     = true;
+-	/** configure timeouts */
++	/* configure timeouts */
+ 	to_send  = icmd->ntci_buf_send_timeout;
+ 	to_bulk  = icmd->ntci_buf_bulk_timeout;
+ 	timeouts = &net_cfg.ntncfg_timeouts;
+-- 
+1.8.3.2
+

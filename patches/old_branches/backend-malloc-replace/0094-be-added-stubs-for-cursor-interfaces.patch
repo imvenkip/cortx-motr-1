@@ -1,0 +1,337 @@
+From e3100f36968cce0f4facdf6fbc739c741c014037 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 4 Jun 2013 11:24:25 +0300
+Subject: [PATCH 094/161] be: added stubs for cursor interfaces
+
+---
+ be/btree.c | 244 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ be/btree.h |  12 ++-
+ 2 files changed, 247 insertions(+), 9 deletions(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index c87e82b..4adf1de 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -27,6 +27,7 @@
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+ #include "lib/cdefs.h" /* M0_UNUSED */
++#include "lib/errno.h"
+ #include "lib/misc.h"  /* bcopy */
+ #include "be/btree.h"
+ #include "be/alloc.h"
+@@ -34,9 +35,21 @@
+ #include <math.h> /* pow */
+ 
+ 
+-/* XXX: make things compile */
++/* <XXX>: make things compile */
+ void m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ {}
++void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
++			 const struct m0_be_tx_credit *c1)
++{
++	c0->tc_reg_nr   += c1->tc_reg_nr;
++	c0->tc_reg_size += c1->tc_reg_size;
++}
++void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
++{
++	c->tc_reg_nr   *= k;
++	c->tc_reg_size *= k;
++}
++/* </XXX>: make things compile */
+ 
+ enum {
+ 	BTREE_ALLOC_SHIFT = 1,
+@@ -1019,7 +1032,7 @@ static void *btree_get_min_key(struct m0_be_btree *btree)
+ 	return node_pos.node->key_vals[node_pos.index]->key;
+ }
+ 
+-static void btree_pair_release(struct m0_be_btree *btree,
++M0_UNUSED static void btree_pair_release(struct m0_be_btree *btree,
+ 					 struct m0_be_tx *tx,
+ 					 struct bt_key_val *kv)
+ {
+@@ -1028,10 +1041,10 @@ static void btree_pair_release(struct m0_be_btree *btree,
+ 	MEM_FREE(tx, kv, sizeof(struct bt_key_val));
+ }
+ 
+-static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
+-					   struct m0_be_tx    *tx,
+-					   void *key, size_t key_size,
+-					   void *val, size_t val_size)
++M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
++						     struct m0_be_tx    *tx,
++						     void *key, size_t key_size,
++						     void *val, size_t val_size)
+ {
+ 	struct bt_key_val *kv;
+ 
+@@ -1336,6 +1349,225 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+ }
+ 
++
++/* ------------------------------------------------------------------
++ * Btree external inplace interfaces implementation
++ * ------------------------------------------------------------------ */
++
++M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *btree,
++					    struct m0_be_tx           *tx,
++					    struct m0_be_op           *op,
++					    const struct m0_buf       *key,
++					    struct m0_be_btree_anchor *anchor)
++{
++	struct bt_key_val *kv;
++
++	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++	M0_PRE(key->b_nob == btree->bb_ops->ko_ksize(key->b_addr));
++
++	op->bo_u.u_btree.t_anchor = anchor;
++	op->bo_u.u_btree.t_tree   = btree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_UPDATE;
++	op->bo_u.u_btree.t_tx     = tx;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_write_lock(&btree->bb_lock);
++
++	anchor->ba_write = true;
++	kv = btree_search(btree, key->b_addr);
++	if (kv != NULL) {
++		anchor->ba_value.b_addr = kv->val;
++		anchor->ba_value.b_nob = 0; /* this should be updated by the user */
++	}
++}
++
++M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
++					    struct m0_be_tx           *tx,
++					    struct m0_be_op           *op,
++					    const struct m0_buf       *key,
++					    struct m0_be_btree_anchor *anchor)
++{
++	struct bt_key_val kv;
++
++	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++	M0_PRE(key->b_nob == tree->bb_ops->ko_ksize(key->b_addr));
++
++	op->bo_u.u_btree.t_anchor = anchor;
++	op->bo_u.u_btree.t_tree   = tree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_INSERT;
++	op->bo_u.u_btree.t_tx     = tx;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_write_lock(&tree->bb_lock);
++
++	kv.key = key->b_addr;
++	kv.val = NULL; /* XXX: this may not work!! */
++	btree_insert_key(tree, tx, &kv);
++
++	anchor->ba_write = true;
++	anchor->ba_value.b_addr = kv.val;
++	anchor->ba_value.b_nob = 0; /* this should be update by the user */
++}
++
++M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
++					    struct m0_be_op           *op,
++					    const struct m0_buf       *key,
++					    struct m0_be_btree_anchor *anchor)
++{
++	struct bt_key_val *kv;
++
++	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++
++	op->bo_u.u_btree.t_anchor = anchor;
++	op->bo_u.u_btree.t_tree   = btree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = key;
++	op->bo_u.u_btree.t_op     = M0_BBO_LOOKUP;
++	op->bo_u.u_btree.t_tx     = NULL;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_read_lock(&btree->bb_lock);
++
++	anchor->ba_write = false;
++	kv = btree_search(btree, key->b_addr);
++	if (kv != NULL) {
++		anchor->ba_value.b_addr = kv->val;
++		anchor->ba_value.b_nob = btree->bb_ops->ko_dsize(kv->val);
++	}
++}
++
++M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
++				     struct m0_be_op                 *op,
++				     const struct m0_be_btree_anchor *anchor)
++{
++	anchor->ba_write ? m0_rwlock_read_unlock(&btree->bb_lock) :
++		m0_rwlock_write_unlock(&btree->bb_lock);
++
++	m0_sm_state_set(&op->bo_sm, anchor->ba_value.b_addr != NULL ?
++				    M0_BOS_SUCCESS : M0_BOS_FAILURE);
++}
++
++
++/* ------------------------------------------------------------------
++ * Btree cursor interfaces implementation
++ * ------------------------------------------------------------------ */
++
++static void iter_prepare(struct m0_be_bnode *node)
++{
++
++	int i = 0;
++	unsigned int current_level;
++	struct m0_be_bnode *head, *tail;
++	struct m0_be_bnode *child;
++
++	current_level = node->level;
++	head = node;
++	tail = node;
++
++	while (true) {
++		if (head == NULL)
++			break;
++		if (head->level < current_level)
++			current_level = head->level;
++		if (head->leaf == false) {
++			for (i = 0; i < head->nr_active + 1; i++) {
++				child = head->children[i];
++				tail->next = child;
++				tail = child;
++				child->next = NULL;
++			}
++		}
++		head = head->next;
++	}
++}
++
++/* XXX: needs revision */
++M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
++					 struct m0_be_btree *btree)
++{
++	iter_prepare(btree->bb_root);
++	cur->bc_tree = btree;
++
++	cur->bc_node = btree->bb_root;
++	while (cur->bc_node->next != NULL) {
++		cur->bc_node->next->prev = cur->bc_node;
++		cur->bc_node = cur->bc_node->next;
++	}
++
++	cur->bc_node->next = btree->bb_root;
++	btree->bb_root->prev = cur->bc_node;
++}
++
++M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)
++{
++}
++
++M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
++					const struct m0_buf *key)
++{
++	struct node_pos last = get_btree_node(cur->bc_tree, key->b_addr);
++	cur->bc_last_node = last.node;
++	cur->bc_last_pos = last.index;
++
++	if (cur->bc_last_node == NULL) {
++		/* return -ENOENT; */
++	}
++
++	cur->bc_pos = cur->bc_last_pos;
++	cur->bc_node = cur->bc_last_node;
++	/* *kv = cur->bc_node->bc_key_vals[cur->bc_pos]; return */
++}
++
++/* int btree_cur_next(struct btree_cursor *cur, struct bt_key_val **kv) */
++M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
++{
++	++cur->bc_pos;
++
++	if (cur->bc_pos >= cur->bc_node->nr_active) {
++		cur->bc_pos = 0;
++		cur->bc_node = cur->bc_node->next;
++	}
++
++	if (cur->bc_pos == cur->bc_last_pos &&
++	    cur->bc_node == cur->bc_last_node) {
++		/* return -ENOENT; */
++	}
++
++	/* *kv = cur->bc_node->bc_key_vals[cur->bc_pos]; return */
++}
++
++M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
++{
++	if (cur->bc_pos == 0) {
++		cur->bc_node = cur->bc_node->prev;
++		cur->bc_pos = cur->bc_node->nr_active - 1;
++	} else
++		--cur->bc_pos;
++
++	if (cur->bc_pos == cur->bc_last_pos &&
++	    cur->bc_node == cur->bc_last_node) {
++		/* return -ENOENT; */
++	}
++
++	/* *kv = cur->bc_node->key_vals[cur->bc_pos]; return */
++}
++
++
++/* M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor); */
++/* M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cursor, */
++/* 					   struct m0_buf *key, */
++/* 					   struct m0_buf *value); */
++
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end of be group */
+ 
+diff --git a/be/btree.h b/be/btree.h
+index 10788eb..d7e7617 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -247,7 +247,7 @@ struct m0_be_btree_anchor {
+  * Updates @value looked up by given @key in btree. Operation is asynchronous.
+  * User can either use existing @value buffer and copy inserted data there or
+  * allocate his own. The last assumes that both @value buffer and node buffer
+- * in which key is inserted has to be captured.
++ * in which key is inserted has to be captured prior to this call.
+  *
+  * @see m0_be_btree_insert, note0 - note2.
+  *
+@@ -301,6 +301,7 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
+  * regions with m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
+  */
+ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
++				     struct m0_be_op *op,
+ 				     const struct m0_be_btree_anchor *anchor);
+ 
+ 
+@@ -311,10 +312,15 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
+ /**
+  * Btree cursor.
+  *
+- * Cursor can be positioned with m0_be_btree_cursor_get() and moved with
+- * m0_be_btree_cursor_next(), m0_be_btree_cursor_prev().
++ * Read-only cursor can be positioned with m0_be_btree_cursor_get() and moved
++ * with m0_be_btree_cursor_next(), m0_be_btree_cursor_prev().
+  */
+ struct m0_be_btree_cursor {
++	struct m0_be_bnode *bc_node;
++	unsigned int        bc_pos;
++	struct m0_be_bnode *bc_last_node;
++	unsigned int        bc_last_pos;
++
+ 	struct m0_be_btree *bc_tree;
+ 	struct m0_be_op     bc_op;
+ };
+-- 
+1.8.3.2
+

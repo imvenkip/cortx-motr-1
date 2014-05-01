@@ -1,0 +1,874 @@
+From 308b2b3a35081c8bc937f26fcf7d6161b7f8c37f Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 10 May 2013 16:12:39 +0530
+Subject: [PATCH 133/157] Addition of the m0_layout_bufsize() API
+
+---
+ layout/composite.c         | 29 ++++++++++++++++---
+ layout/composite.h         |  9 ++++++
+ layout/layout.c            |  7 +++++
+ layout/layout.h            | 50 ++++++++++++++++++++++-----------
+ layout/layout_internal.h   | 21 +-------------
+ layout/linear_enum.c       |  7 +++++
+ layout/list_enum.c         | 21 ++++++++++----
+ layout/list_enum.h         | 11 ++++++++
+ layout/pdclust.c           | 16 ++++++++++-
+ layout/ut/composite.c      | 36 +++++++++++-------------
+ layout/ut/layout.c         | 28 +++++++++----------
+ layout/ut/layout_generic.c |  9 ++++--
+ layout/ut/pdclust.c        | 70 ++++++++++++++++++----------------------------
+ 13 files changed, 189 insertions(+), 125 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 6efa37e..0088b0c 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -168,6 +168,7 @@ static bool composite_invariant(const struct m0_composite_layout *cl)
+ 		m0_layout__invariant(&cl->cl_base) &&
+ 		_0C(cl->cl_layers_nr ==
+ 		    comp_layer_tlist_length(&cl->cl_layers)) &&
++		_0C(cl->cl_layers_nr <= M0_COMPOSITE_LAYERS_MAX) &&
+ 		m0_tl_forall(comp_layer, layer, &cl->cl_layers,
+ 			     _0C(layer->clr_cl == &cl->cl_base) &&
+ 			     _0C(layer->clr_idx == i++) &&
+@@ -511,6 +512,7 @@ M0_INTERNAL int m0_composite_layer_add(struct m0_composite_layout *cl,
+ 		 (unsigned long long)sublayout->l_id,
+ 		 (unsigned long)cl->cl_layers_nr);
+ 	m0_mutex_lock(&cl->cl_base.l_lock);
++	M0_PRE(cl->cl_layers_nr < M0_COMPOSITE_LAYERS_MAX);
+ 	rc = layer_inmem_add(cl, sublayout, &layer);
+ 	if (rc != 0) {
+ 		m0_layout__log("m0_composite_layer_add",
+@@ -904,7 +906,7 @@ static void layers_inbuf_write(const struct m0_composite_layout *cl,
+ 						 sizeof lr_header);
+ 		/* Write the associated extent list. */
+ 		M0_ASSERT(m0_bufvec_cursor_step(out) >=
+-			  layer->clr_extents_nr * sizeof lr_ext->cle_ext);
++			  layer->clr_extents_nr * sizeof buf_ext);
+ 		m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+ 			buf_ext.lbe_ext = lr_ext->cle_ext;
+ 			buf_ext.lbe_state = lr_ext->cle_state;
+@@ -1733,18 +1735,36 @@ static m0_bcount_t composite_recsize(const struct m0_layout *l)
+ 	cl = m0_layout_to_cl(l);
+ 	recsize = sizeof(struct m0_layout_rec) +
+ 		  sizeof(struct m0_layout_composite_rec) +
+-		  min_check((uint32_t)LDB_MAX_COMPOSITE_LAYERS,
+-			     cl->cl_layers_nr) * sizeof l->l_id;
++		  cl->cl_layers_nr * sizeof l->l_id;
+ 	M0_POST(recsize <= m0_layout_max_recsize(l->l_dom));
+ 	return recsize;
+ }
+ 
++/** Implementation of lo_bufsize() for COMPOSITE layout type. */
++static m0_bcount_t composite_bufsize(const struct m0_layout *l)
++{
++	struct m0_composite_layout *cl;
++	struct m0_composite_layer  *layer;
++	m0_bcount_t                 bufsize = 0;
++
++	cl = m0_layout_to_cl(l);
++	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		bufsize = bufsize +
++			  (layer->clr_extents_nr * sizeof(struct layer_buf_ext));
++	} m0_tl_endfor;
++
++	return sizeof(struct m0_layout_rec) +
++		sizeof(struct m0_layout_composite_rec) +
++		(cl->cl_layers_nr * (sizeof l->l_id +
++				    sizeof(struct layer_header))) + bufsize;
++}
++
+ /** Implementation of lto_max_recsize() for COMPOSITE layout type. */
+ static m0_bcount_t composite_max_recsize(struct m0_layout_domain *dom)
+ {
+ 	return sizeof(struct m0_layout_composite_rec) +
+ 		sizeof(struct m0_layout_composite_rec) +
+-		LDB_MAX_COMPOSITE_LAYERS * sizeof(uint64_t);
++		M0_COMPOSITE_LAYERS_MAX * sizeof(uint64_t);
+ }
+ 
+ /* DB related routines start here. */
+@@ -2410,6 +2430,7 @@ static const struct m0_layout_ops composite_ops = {
+ 	.lo_fini           = composite_fini,
+ 	.lo_delete         = composite_delete,
+ 	.lo_recsize        = composite_recsize,
++	.lo_bufsize        = composite_bufsize,
+ 	.lo_instance_build = composite_instance_build,
+ 	.lo_decode         = composite_decode,
+ 	.lo_encode         = composite_encode
+diff --git a/layout/composite.h b/layout/composite.h
+index cee55d2..16e9753 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -248,12 +248,21 @@ M0_INTERNAL int m0_composite_build(struct m0_layout_domain *dom,
+ 				   struct m0_layout *sublayout,
+ 				   struct m0_composite_layout **out);
+ 
++enum {
++	/**
++	 * Maximum limit on the number of layers those can be contained
++	 * by a composite layout.
++	 */
++	M0_COMPOSITE_LAYERS_MAX = 16
++};
++
+ /**
+  * Adds a layer to the composite layout.
+  *
+  * Multiple extents can be subsequently added to this layer, by explicitly
+  * using the API m0_composite_layer_ext_add().
+  *
++ * @pre cl->cl_layers_nr < M0_COMPOSITE_LAYERS_MAX
+  * @post A reference has been added to the sublayout.
+  *
+  * @note When this layer gets added to the DB version of the layout (through
+diff --git a/layout/layout.c b/layout/layout.c
+index 4b555ef..832da1a 100644
+--- a/layout/layout.c
++++ b/layout/layout.c
+@@ -1089,6 +1089,13 @@ M0_INTERNAL m0_bcount_t m0_layout_max_recsize(
+ 	return dom->ld_max_recsize;
+ }
+ 
++M0_INTERNAL m0_bcount_t m0_layout_bufsize(const struct m0_layout *l)
++{
++	M0_PRE(m0_layout__invariant(l));
++	M0_PRE(m0_mutex_is_locked(&l->l_lock));
++	return l->l_ops->lo_bufsize(l);
++}
++
+ M0_INTERNAL struct m0_striped_layout *m0_layout_to_striped(
+ 					const struct m0_layout *l)
+ {
+diff --git a/layout/layout.h b/layout/layout.h
+index 206d891..ffa7fd7 100644
+--- a/layout/layout.h
++++ b/layout/layout.h
+@@ -285,7 +285,7 @@ struct m0_layout_ops {
+ 	 * Returns size of the record stored in the "layouts" (primary) table,
+ 	 * for the specified layout. It includes the size required for
+ 	 * storing the generic data, the layout type specific data and the enum
+-	 * type specific data.
++	 * type specific data that is stored in the "layouts" table.
+ 	 *
+ 	 * @invariant l->l_ops->lo_recsize(l)
+ 	 *            <= l->l_type->lt_ops->lto_max_recsize(l->l_dom);
+@@ -293,6 +293,14 @@ struct m0_layout_ops {
+ 	m0_bcount_t (*lo_recsize)(const struct m0_layout *l);
+ 
+ 	/**
++	 * Returns size of the required buffer to serialize the layout into
++	 * that buffer. It includes the serialization of the generic data, the
++	 * layout type specific data and the enum type specific data that may
++	 * be stored in the primary and the auxilliary tables together.
++	 */
++	m0_bcount_t (*lo_bufsize)(const struct m0_layout *l);
++
++	/**
+ 	 * Allocates and builds a layout instance using the supplied layout.
+ 	 * Increments a reference on the supplied layout.
+ 	 */
+@@ -458,6 +466,12 @@ struct m0_layout_enum_ops {
+ 	m0_bcount_t (*leo_recsize)(struct m0_layout_enum *e);
+ 
+ 	/**
++	 * Returns size of the buffer for serialising the enum type specific
++	 * part of the layout, for the specified enumeration object.
++	 */
++	m0_bcount_t (*leo_bufsize)(struct m0_layout_enum *e);
++
++	/**
+ 	 * Finalises the enum object.
+ 	 *
+ 	 * Dual to enum type specific build procedure but not to be invoked
+@@ -811,10 +825,8 @@ M0_INTERNAL void m0_layout_user_count_dec(struct m0_layout *l);
+  *   returned by m0_layout_max_recsize().
+  * - In case m0_layout_decode() is called by some other caller, then the
+  *   buffer should be containing all the data belonging to the specific layout.
+- *   It may include data that spans over tables other than layouts as well. It
+- *   means its size may need to be even more than the one returned by
+- *   m0_layout_max_recsize(). For example, in case of LIST enumeration type,
+- *   the buffer needs to contain the data that is stored in the cob_lists table.
++ *   It may include data that spans over tables other than layouts as well.
++ *   It means the size shall be equal to what is returned by m0_layout_bufsize().
+  *
+  * @param op This enum parameter indicates what is the DB operation to be
+  * performed on the layout record. It could be LOOKUP if at all a DB operation.
+@@ -872,10 +884,9 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
+  *   by m0_layout_max_recsize().
+  * - In case m0_layout_encode() is called by some other caller, then the
+  *   buffer size should be large enough to contain all the data belonging to
+- *   the specific layout. It means the size required may even be more than
+- *   the one returned by m0_layout_max_recsize(). For example, in case of LIST
+- *   enumeration type, some data goes into table other than layouts, viz.
+- *   cob_lists table.
++ *   the specific layout that may be stored in the primary and auxilliary
++ *   tables together. It means the size shall be equal to what is returned
++ *   by m0_layout_bufsize().
+  *
+  * @pre
+  * - m0_layout__invariant(l)
+@@ -894,19 +905,26 @@ M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
+ /**
+  * Returns maximum possible size for a record in the layouts table (without
+  * considering the data in the tables other than layouts), from what is
+- * maintained in the m0_layout_domain object. @see m0_layout_decode() and
+- * m0_layout_encode() header documentation which suggest use of this API.
++ * maintained in the m0_layout_domain object.
++ *
++ * @see m0_layout_decode() and m0_layout_encode() header documentation which
++ * suggest use of this API.
+  */
+ M0_INTERNAL m0_bcount_t m0_layout_max_recsize(
+ 				const struct m0_layout_domain *dom);
+ 
+ /**
+- * @todo Addition of m0_layout_size() API and cleanup around recsize related
+- * APIs/functions. m0_layout_max_recsize() may not be required to be exposed
+- * once m0_layout_size() is added.
+- * This item will be cleared with the subsequent task to add
+- * 'the composite layout type support to getattr'.
++ * Returns size of the required buffer to serialize the layout into
++ * that buffer. It includes the serialization of the generic data, the
++ * layout type specific data and the enum type specific data that may
++ * be stored in the primary and the auxilliary tables together.
++ *
++ * @see m0_layout_decode() and m0_layout_encode() header documentation which
++ * suggest use of this API.
++ *
++ * @pre m0_mutex_is_locked(&l->l_lock)
+  */
++M0_INTERNAL m0_bcount_t m0_layout_bufsize(const struct m0_layout *l);
+ 
+ /** Returns m0_striped_layout object for the specified m0_layout object. */
+ M0_INTERNAL struct m0_striped_layout *m0_layout_to_striped(
+diff --git a/layout/layout_internal.h b/layout/layout_internal.h
+index a85cad1..a1ddb03 100644
+--- a/layout/layout_internal.h
++++ b/layout/layout_internal.h
+@@ -52,19 +52,6 @@ enum {
+ 	DEFAULT_DB_FLAG            = 0,
+ 
+ 	/**
+-	 * Maximum limit on the number of COB entries those can be stored
+-	 * inline into the layouts table, while rest of those are stored into
+-	 * the cob_lists table.
+-	 */
+-	LDB_MAX_INLINE_COB_ENTRIES = 20,
+-
+-	/**
+-	 * Maximum limit on the number of layers those can be contained
+-	 * by a composite layout.
+-	 */
+-	LDB_MAX_COMPOSITE_LAYERS   = 16,
+-
+-	/**
+ 	 * Simulation for m0_table_init() facing error in
+ 	 * m0_layout_domain_init().
+ 	 */
+@@ -140,13 +127,7 @@ enum {
+ 	 * Simulation for m0_emap_obj_delete() facing error e.g. while
+ 	 * deleting a layer from a composite type of a layout.
+ 	 */
+-	L_EMAP_OBJ_DEL_ERR         = -513,
+-
+-	/**
+-	 * Simulation of a valid ext not being found in memory so as to enforce
+-	 * ext lokup into the the DB.
+-	 */
+-	L_EXT_INMEM_LOOKUP_ERR     = -514
++	L_EMAP_OBJ_DEL_ERR         = -513
+ };
+ 
+ /** ADDB context for the layout module. */
+diff --git a/layout/linear_enum.c b/layout/linear_enum.c
+index 77e2ac9..92a22a2 100644
+--- a/layout/linear_enum.c
++++ b/layout/linear_enum.c
+@@ -316,10 +316,17 @@ static m0_bcount_t linear_recsize(struct m0_layout_enum *e)
+ 	return sizeof(struct m0_layout_linear_attr);
+ }
+ 
++/** Implementation of leo_bufsize() for linear enumeration type. */
++static m0_bcount_t linear_bufsize(struct m0_layout_enum *e)
++{
++	return sizeof(struct m0_layout_linear_attr);
++}
++
+ static const struct m0_layout_enum_ops linear_enum_ops = {
+ 	.leo_nr      = linear_nr,
+ 	.leo_get     = linear_get,
+ 	.leo_recsize = linear_recsize,
++	.leo_bufsize = linear_bufsize,
+ 	.leo_fini    = linear_fini,
+ 	.leo_delete  = linear_delete,
+ 	.leo_decode  = linear_decode,
+diff --git a/layout/list_enum.c b/layout/list_enum.c
+index b086586..7937cdb 100644
+--- a/layout/list_enum.c
++++ b/layout/list_enum.c
+@@ -313,7 +313,7 @@ static void list_unregister(struct m0_layout_domain *dom,
+ static m0_bcount_t list_max_recsize(void)
+ {
+ 	return sizeof(struct cob_entries_header) +
+-		LDB_MAX_INLINE_COB_ENTRIES *sizeof(struct m0_fid);
++		M0_LIST_INLINE_COB_ENTRIES_MAX * sizeof(struct m0_fid);
+ }
+ 
+ static int noninline_read(struct m0_fid *cob_list,
+@@ -434,7 +434,7 @@ static int list_decode(struct m0_layout_enum *e,
+ 	rc = 0;
+ 	num_inline = op == M0_LXO_BUFFER_OP ? ce_header->ceh_nr :
+ 		min_check(ce_header->ceh_nr,
+-			  (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
++			  (uint32_t)M0_LIST_INLINE_COB_ENTRIES_MAX);
+ 	M0_ASSERT(m0_bufvec_cursor_step(cur) >= num_inline * sizeof *cob_id);
+ 
+ 	M0_LOG(M0_DEBUG, "lid %llu, nr %lu, Start reading inline entries",
+@@ -614,7 +614,7 @@ static int list_encode(const struct m0_layout_enum *e,
+ 
+ 	num_inline = op == M0_LXO_BUFFER_OP ? list_enum->lle_nr :
+ 		min_check(list_enum->lle_nr,
+-			  (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
++			  (uint32_t)M0_LIST_INLINE_COB_ENTRIES_MAX);
+ 
+ 	M0_ASSERT(m0_bufvec_cursor_step(out) >= num_inline *
+ 					sizeof list_enum->lle_list_of_cobs[0]);
+@@ -690,18 +690,29 @@ static m0_bcount_t list_recsize(struct m0_layout_enum *e)
+ 	struct m0_layout_list_enum *list_enum;
+ 
+ 	M0_PRE(e != NULL);
+-
+ 	list_enum = enum_to_list_enum(e);
+ 	return sizeof(struct cob_entries_header) +
+-		min_check((uint32_t)LDB_MAX_INLINE_COB_ENTRIES,
++		min_check((uint32_t)M0_LIST_INLINE_COB_ENTRIES_MAX,
+ 			  list_enum->lle_nr) *
+ 		sizeof(struct m0_fid);
+ }
+ 
++/** Implementation of leo_bufsize() for list enumeration type. */
++static m0_bcount_t list_bufsize(struct m0_layout_enum *e)
++{
++	struct m0_layout_list_enum *list_enum;
++
++	M0_PRE(e != NULL);
++	list_enum = enum_to_list_enum(e);
++	return sizeof(struct cob_entries_header) +
++		list_enum->lle_nr * sizeof(struct m0_fid);
++}
++
+ static const struct m0_layout_enum_ops list_enum_ops = {
+ 	.leo_nr      = list_nr,
+ 	.leo_get     = list_get,
+ 	.leo_recsize = list_recsize,
++	.leo_bufsize = list_bufsize,
+ 	.leo_fini    = list_fini,
+ 	.leo_delete  = list_delete,
+ 	.leo_decode  = list_decode,
+diff --git a/layout/list_enum.h b/layout/list_enum.h
+index a494480..db58423 100644
+--- a/layout/list_enum.h
++++ b/layout/list_enum.h
+@@ -62,6 +62,15 @@ struct m0_layout_list_enum {
+ 	uint64_t                lle_magic;
+ };
+ 
++enum {
++	/**
++	 * Maximum limit on the number of COB entries those can be stored
++	 * inline into the layouts table, while rest of those are stored into
++	 * the cob_lists table.
++	 */
++	M0_LIST_INLINE_COB_ENTRIES_MAX = 20
++};
++
+ /**
+  * Allocates and builds list enumeration object.
+  *
+@@ -70,6 +79,8 @@ struct m0_layout_list_enum {
+  * be internally freed as a part of the enum object finalisation that
+  * happens through layout finalisation.
+  *
++ * @pre nr <= M0_LIST_INLINE_COB_ENTRIES_MAX
++ *
+  * @post ergo(rc == 0, list_invariant_internal(lin_enum))
+  *
+  * @note Enum object is not to be finalised explicitly by the user. It is
+diff --git a/layout/pdclust.c b/layout/pdclust.c
+index 19fcc9b..88e94a8 100644
+--- a/layout/pdclust.c
++++ b/layout/pdclust.c
+@@ -522,7 +522,7 @@ static m0_bcount_t pdclust_recsize(const struct m0_layout *l)
+ 	struct m0_layout_enum    *e;
+ 	m0_bcount_t               recsize;
+ 
+-	M0_PRE(l!= NULL);
++	M0_PRE(l != NULL);
+ 	stl = m0_layout_to_striped(l);
+ 	e = m0_striped_layout_to_enum(stl);
+ 	recsize = sizeof(struct m0_layout_rec) +
+@@ -532,6 +532,19 @@ static m0_bcount_t pdclust_recsize(const struct m0_layout *l)
+ 	return recsize;
+ }
+ 
++/** Implementation of lo_bufsize() for pdclust layout type. */
++static m0_bcount_t pdclust_bufsize(const struct m0_layout *l)
++{
++	struct m0_striped_layout *stl;
++	struct m0_layout_enum    *e;
++
++	M0_PRE(l != NULL);
++	stl = m0_layout_to_striped(l);
++	e = m0_striped_layout_to_enum(stl);
++	return sizeof(struct m0_layout_rec) +
++		sizeof(struct m0_layout_pdclust_rec) + e->le_ops->leo_bufsize(e);
++}
++
+ /**
+  * "Encoding" function: returns the number that a (row, column) element of a
+  * matrix with "width" columns has when elements are counted row by row. This
+@@ -875,6 +888,7 @@ static const struct m0_layout_ops pdclust_ops = {
+ 	.lo_fini           = pdclust_fini,
+ 	.lo_delete         = pdclust_delete,
+ 	.lo_recsize        = pdclust_recsize,
++	.lo_bufsize        = pdclust_bufsize,
+ 	.lo_instance_build = pdclust_instance_build,
+ 	.lo_decode         = pdclust_decode,
+ 	.lo_encode         = pdclust_encode
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 2094c23..221d9c5 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -673,7 +673,7 @@ int test_decode_composite(uint64_t lid,
+ 	int                      rc;
+ 
+ 	/* Build a layout buffer. */
+-	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes, &area);
++	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT, &num_bytes, &area);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+ 	composite_layout_buf_build(lid, domain, layers_nr, extents_nr,
+@@ -813,11 +813,13 @@ int test_encode_composite(uint64_t lid,
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+-	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes, &area);
++	m0_mutex_lock(&cl->cl_base.l_lock);
++	num_bytes = m0_layout_bufsize(&cl->cl_base);
++	area = m0_alloc(num_bytes);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
++	my_console_printf("\n num_bytes %llu", (unsigned long long)num_bytes);
+ 
+-	m0_mutex_lock(&cl->cl_base.l_lock);
+ 	rc = m0_layout_encode(&cl->cl_base, M0_LXO_BUFFER_OP, NULL, &cur);
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+ 	if (failure_test)
+@@ -932,10 +934,9 @@ int test_decode_encode_composite(uint64_t lid,
+ 	int                      rc;
+ 
+ 	/* Build a layout buffer. */
+-	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 4 /* todo */, &num_bytes, &area1);
++	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT, &num_bytes, &area1);
+ 	bv1 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area1, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur1, &bv1);
+-
+ 	composite_layout_buf_build(lid, domain, layers_nr, extents_nr,
+ 				   is_contiguous_extents, &cur1);
+ 
+@@ -960,11 +961,12 @@ int test_decode_encode_composite(uint64_t lid,
+ 	 * Encode the layout object produced by m0_layout_decode() into
+ 	 * another layout buffer.
+ 	 */
+-	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes, &area2);
++	m0_mutex_lock(&l->l_lock);
++	num_bytes = m0_layout_bufsize(l);
++	area2 = m0_alloc(num_bytes);
+ 	bv2 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area2, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur2, &bv2);
+ 
+-	m0_mutex_lock(&l->l_lock);
+ 	rc = m0_layout_encode(l, M0_LXO_BUFFER_OP, NULL, &cur2);
+ 	m0_mutex_unlock(&l->l_lock);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -1148,11 +1150,12 @@ int test_encode_decode_composite(uint64_t lid,
+ 	composite_layout_copy(&cl->cl_base, &l_copy);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+-	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes, &area);
++	m0_mutex_lock(&cl->cl_base.l_lock);
++	num_bytes = m0_layout_bufsize(&cl->cl_base);
++	area = m0_alloc(num_bytes);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+ 
+-	m0_mutex_lock(&cl->cl_base.l_lock);
+ 	rc = m0_layout_encode(&cl->cl_base, M0_LXO_BUFFER_OP, NULL, &cur);
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -1524,11 +1527,10 @@ static int ext_op_pre(enum extent_operation eop,
+ 	if (extent_kind == NON_EXISTING ||
+ 	    (extent_kind == OVERLAPPING_LEFT && !is_contiguous_extents)) {
+ 		M0_UT_ASSERT(rc_tmp == -ENOENT);
+-		if (eop == EXTENT_LOOKUP)
++		if (eop == EXTENT_LOOKUP) {
++			M0_ASSERT(failure_test);
+ 			rc = rc_tmp;
+-	} else if (failure_test && eop == EXTENT_LOOKUP) {
+-		M0_UT_ASSERT(rc_tmp == L_EXT_INMEM_LOOKUP_ERR);
+-		rc = rc_tmp;
++		}
+ 	} else {
+ 		M0_UT_ASSERT(rc_tmp == 0);
+ 		M0_UT_ASSERT(layer_id_lookup == (*cl)->cl_layers_nr - 1);
+@@ -2265,15 +2267,12 @@ int test_add_composite(uint64_t lid,
+ 		       bool duplicate_test,
+ 		       bool failure_test)
+ {
+-	m0_bcount_t                 num_bytes;
+-	void                       *area;
+ 	struct m0_composite_layout *cl;
+ 	int                         rc;
+ 
+ 	M0_UT_ASSERT(ergo(duplicate_test, !failure_test));
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 
+-	/* Build a layout object and add layers to it only in memory. */
++	/* Build a layout object and add layers to it. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+ 					    extents_nr,
+ 					    is_contiguous_extents,
+@@ -2281,6 +2280,7 @@ int test_add_composite(uint64_t lid,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
++	/* Add the layout to the DB. */
+ 	rc = layout_add(&cl->cl_base, failure_test);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_LOOKUP_ERR ||
+@@ -2303,8 +2303,6 @@ int test_add_composite(uint64_t lid,
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 	/* Delete the precreated sublayouts. */
+ 	sublayouts_delete(domain, lid, layers_nr);
+-
+-	m0_free(area);
+ 	return rc;
+ }
+ 
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 59fbfaf..4da1a97 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -443,7 +443,7 @@ static void test_build(void)
+ 	/*
+ 	 * Build a layout object with PDCLUST layout type, LIST enum type
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES and then destroy it.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX and then destroy it.
+ 	 */
+ 	lid = 1002;
+ 	rc = test_build_pdclust(lid, &domain,
+@@ -631,7 +631,7 @@ static void test_decode(void)
+ 	/*
+ 	 * Decode a layout object with PDCLUST layout type, LIST enum type
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES and then destroy it.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX and then destroy it.
+ 	 */
+ 	lid = 3002;
+ 	rc = test_decode_pdclust(lid, &domain,
+@@ -851,7 +851,7 @@ static void test_encode(void)
+ 	/*
+ 	 * Encode for PDCLUST layout type and LIST enumeration type,
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 */
+ 	lid = 5002;
+ 	rc = test_encode_pdclust(lid, &domain,
+@@ -939,7 +939,7 @@ static void test_decode_encode(void)
+ 	/*
+ 	 * Build a layout buffer representing a layout with PDCLUST layout type
+ 	 * and LIST enum type, with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 * Decode it into a layout object. Then encode that layout object again
+ 	 * into another layout buffer.
+ 	 * Then, compare the original layout buffer with the encoded layout
+@@ -1012,7 +1012,7 @@ static void test_encode_decode(void)
+ 	/*
+ 	 * Build a layout object with PDCLUST layout type and LIST enum type,
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 * Encode it into a layout buffer. Then decode that layout buffer again
+ 	 * into another layout object.
+ 	 * Then, compare the original layout object with the decoded layout
+@@ -1104,7 +1104,7 @@ static void test_enum_operations(void)
+ 	/*
+ 	 * Decode a layout with PDCLUST layout type, LIST enum type and
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 * And then verify its enum ops.
+ 	 */
+ 	lid = 10002;
+@@ -1189,7 +1189,7 @@ static void test_max_recsize(void)
+ 	max_size_calculated = sizeof(struct m0_layout_rec) +
+ 			      sizeof(struct m0_layout_pdclust_rec) +
+ 			      sizeof(struct cob_entries_header) +
+-			      LDB_MAX_INLINE_COB_ENTRIES *
++			      M0_LIST_INLINE_COB_ENTRIES_MAX *
+ 			      sizeof(struct m0_fid);;
+ 
+ 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
+@@ -1256,7 +1256,7 @@ static void test_recsize(void)
+ 	/*
+ 	 * lo_recsize() for PDCLUST layout type and LIST enumeration type,
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX
+ 	 */
+ 	lid = 11002;
+ 	rc = test_recsize_pdclust(lid, &domain,
+@@ -1302,7 +1302,7 @@ static void test_instance(void)
+ 	/*
+ 	 * Build a layout instance with a layout with PDCLUST layout type,
+ 	 * LIST enum type with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 */
+ 	lid = 12002;
+ 	rc = test_instance_pdclust(lid, &domain,
+@@ -1410,7 +1410,7 @@ static void test_layer_ext_ops(void)
+ 	test_layer_ext_ops_composite(lid, &domain);
+ 
+ 	lid = 16001 + 200;
+-	rc = test_ext_lookup_depth(lid, &domain, 25, 25);
++	rc = test_ext_lookup_depth(lid, &domain, 16, 25);
+ 	M0_UT_ASSERT(rc == -ENOENT);
+ }
+ 
+@@ -1450,7 +1450,7 @@ static void test_lookup(void)
+ 	/*
+ 	 * Add a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES. Then perform lookup for it.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX. Then perform lookup for it.
+ 	 */
+ 	lid = 18003;
+ 	rc = test_lookup_pdclust(lid, &domain,
+@@ -1738,7 +1738,7 @@ static void test_add(void)
+ 	/*
+ 	 * Add a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 */
+ 	lid = 20002;
+ 	rc = test_add_pdclust(lid, &domain,
+@@ -1896,7 +1896,7 @@ static void test_update(void)
+ 	/*
+ 	 * Update a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 */
+ 	lid = 22003;
+ 	rc = test_update_pdclust(lid, &domain, LIST_ENUM_ID, EXACT_INLINE,
+@@ -2019,7 +2019,7 @@ static void test_delete(void)
+ 	/*
+ 	 * Delete a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES.
++	 * M0_LIST_INLINE_COB_ENTRIES_MAX.
+ 	 */
+ 	lid = 24002;
+ 	rc = test_delete_pdclust(lid, &domain,
+diff --git a/layout/ut/layout_generic.c b/layout/ut/layout_generic.c
+index eb86b0a..be4a4e7 100644
+--- a/layout/ut/layout_generic.c
++++ b/layout/ut/layout_generic.c
+@@ -74,9 +74,12 @@ void generic_buf_build(uint32_t lt_id, struct m0_bufvec_cursor *dcur)
+ /**
+  * Allocates area with size returned by m0_layout_max_recsize() and with
+  * additional_bytes required if any.
+- * For example, additional_bytes are required for LIST enumeration type, and
+- * specifically when directly invoking 'm0_layout_encode() or
+- * m0_layout_decode()' (and not while invoking the layout DB APIs like
++ *
++ * For example, additional_bytes are required in UT when a buffer is to be
++ * built to be supplied to m0_layout_decode() while making use of either
++ * COMPOSITE layout type of LIST enumeration type.
++ *
++ * Additional_bytes are not required while invoking the layout DB APIs like
+  * m0_layout_add()).
+  */
+ void allocate_area(struct m0_layout_domain *domain,
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index dbc39ec..e632fcf 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -18,15 +18,15 @@
+  * Original creation date: 01/15/2013
+  */
+ 
+-#include "lib/ut.h"                   /* M0_UT_ASSERT() */
+-#include "lib/memory.h"               /* M0_ALLOC_PTR(), M0_ALLOC_ARR() */
+-#include "lib/vec.h"                  /* m0_bufvec_cursor */
++#include "lib/ut.h"                 /* M0_UT_ASSERT() */
++#include "lib/memory.h"             /* M0_ALLOC_PTR(), M0_ALLOC_ARR() */
++#include "lib/vec.h"                /* m0_bufvec_cursor */
+ #include "lib/errno.h"
+ #include "lib/finject.h"
+ 
+-#include "fid/fid.h"                  /* m0_fid_set() */
++#include "fid/fid.h"                /* m0_fid_set() */
+ #include "layout/layout.h"
+-#include "layout/layout_internal.h"   /* LDB_MAX_INLINE_COB_ENTRIES, *_ERR */
++#include "layout/layout_internal.h" /* M0_LIST_INLINE_COB_ENTRIES_MAX, *_ERR */
+ #include "layout/layout_db.h"
+ #include "layout/pdclust.h"
+ #include "layout/list_enum.h"
+@@ -233,8 +233,8 @@ void NKP_assign(uint32_t enum_id,
+ 		uint32_t *N, uint32_t *K, uint32_t *P)
+ {
+ 	M0_UT_ASSERT(ergo(enum_id == LIST_ENUM_ID,
+-			  list_nr_less < LDB_MAX_INLINE_COB_ENTRIES &&
+-			  list_nr_more > LDB_MAX_INLINE_COB_ENTRIES));
++			  list_nr_less < M0_LIST_INLINE_COB_ENTRIES_MAX &&
++			  list_nr_more > M0_LIST_INLINE_COB_ENTRIES_MAX));
+ 
+ 	if (enum_id == LIST_ENUM_ID) {
+ 		switch (inline_test) {
+@@ -242,7 +242,7 @@ void NKP_assign(uint32_t enum_id,
+ 			*P = list_nr_less;
+ 			break;
+ 		case EXACT_INLINE:
+-			*P = LDB_MAX_INLINE_COB_ENTRIES;
++			*P = M0_LIST_INLINE_COB_ENTRIES_MAX;
+ 			break;
+ 		case MORE_THAN_INLINE:
+ 			*P = list_nr_more;
+@@ -596,18 +596,14 @@ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+-	if (enum_id == LIST_ENUM_ID)
+-		allocate_area(domain, ADDITIONAL_BYTES_DEFAULT, &num_bytes,
+-			      &area);
+-	else
+-		allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes,
+-			      &area);
++	m0_mutex_lock(&pl->pl_base.sl_base.l_lock);
++	num_bytes = m0_layout_bufsize(&pl->pl_base.sl_base);
++	area = m0_alloc(num_bytes);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+ 
+-	m0_mutex_lock(&pl->pl_base.sl_base.l_lock);
+-	rc  = m0_layout_encode(&pl->pl_base.sl_base, M0_LXO_BUFFER_OP,
+-			       NULL, &cur);
++	rc = m0_layout_encode(&pl->pl_base.sl_base, M0_LXO_BUFFER_OP,
++			      NULL, &cur);
+ 	m0_mutex_unlock(&pl->pl_base.sl_base.l_lock);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+@@ -731,6 +727,7 @@ int test_decode_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	struct m0_bufvec         bv2;
+ 	struct m0_bufvec_cursor  cur2;
+ 	m0_bcount_t              num_bytes;
++	m0_bcount_t              num_bytes2;
+ 	uint32_t                 N;
+ 	uint32_t                 K;
+ 	uint32_t                 P;
+@@ -752,7 +749,7 @@ int test_decode_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	bv1 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area1, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur1, &bv1);
+ 	NKP_assign(enum_id, inline_test, 3, 103, 1510, &N, &K, &P);
+-	rc = pdclust_layout_buf_build(lid, LINEAR_ENUM_ID, N, K, P, &seed,
++	rc = pdclust_layout_buf_build(lid, enum_id, N, K, P, &seed,
+ 				      777, 888, &cur1);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -777,17 +774,12 @@ int test_decode_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	 * Encode the layout object produced by m0_layout_decode() into
+ 	 * another layout buffer.
+ 	 */
+-	if (enum_id == LIST_ENUM_ID)
+-		allocate_area(domain, ADDITIONAL_BYTES_DEFAULT, &num_bytes,
+-			      &area2);
+-	else
+-		allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes,
+-			      &area2);
+-
+-	bv2 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area2, &num_bytes);
++	m0_mutex_lock(&l->l_lock);
++	num_bytes2 = m0_layout_bufsize(l);
++	area2 = m0_alloc(num_bytes2);
++	bv2 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area2, &num_bytes2);
+ 	m0_bufvec_cursor_init(&cur2, &bv2);
+ 
+-	m0_mutex_lock(&l->l_lock);
+ 	rc = m0_layout_encode(l, M0_LXO_BUFFER_OP, NULL, &cur2);
+ 	m0_mutex_unlock(&l->l_lock);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -1002,16 +994,12 @@ int test_encode_decode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(l_copy != NULL);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+-	if (enum_id == LIST_ENUM_ID)
+-		allocate_area(domain, ADDITIONAL_BYTES_DEFAULT, &num_bytes,
+-			      &area);
+-	else
+-		allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes,
+-			      &area);
++	m0_mutex_lock(&pl->pl_base.sl_base.l_lock);
++	num_bytes = m0_layout_bufsize(&pl->pl_base.sl_base);
++	area = m0_alloc(num_bytes);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+ 
+-	m0_mutex_lock(&pl->pl_base.sl_base.l_lock);
+ 	rc = m0_layout_encode(&pl->pl_base.sl_base, M0_LXO_BUFFER_OP,
+ 			      NULL, &cur);
+ 	m0_mutex_unlock(&pl->pl_base.sl_base.l_lock);
+@@ -1163,12 +1151,12 @@ static void pdclust_recsize_verify(uint32_t enum_id,
+ 	if (enum_id == LIST_ENUM_ID) {
+ 		list_enum = container_of(pl->pl_base.sl_enum,
+ 					 struct m0_layout_list_enum, lle_base);
+-		if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)
++		if (list_enum->lle_nr < M0_LIST_INLINE_COB_ENTRIES_MAX)
+ 			recsize = sizeof(struct cob_entries_header) +
+ 				  list_enum->lle_nr * sizeof(struct m0_fid);
+ 		else
+ 			recsize = sizeof(struct cob_entries_header) +
+-				  LDB_MAX_INLINE_COB_ENTRIES *
++				  M0_LIST_INLINE_COB_ENTRIES_MAX *
+ 				  sizeof(struct m0_fid);
+ 	} else
+ 		recsize = sizeof(struct m0_layout_linear_attr);
+@@ -1401,16 +1389,12 @@ int test_lookup_pdclust_with_ghost_creation(uint64_t lid,
+ 	 * the ghost_data (g_data.cur) so that the ghost can be created at a
+ 	 * later point.
+ 	 */
+-	if (enum_id == LIST_ENUM_ID)
+-		allocate_area(domain, ADDITIONAL_BYTES_DEFAULT,
+-			      &num_bytes_for_encode, &area_for_encode);
+-	else
+-		allocate_area(domain, ADDITIONAL_BYTES_NONE,
+-			      &num_bytes_for_encode, &area_for_encode);
++	m0_mutex_lock(&l1->l_lock);
++	num_bytes_for_encode = m0_layout_bufsize(l1);
++	area_for_encode = m0_alloc(num_bytes_for_encode);
+ 	bv_for_encode = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area_for_encode,
+ 						&num_bytes_for_encode);
+ 	m0_bufvec_cursor_init(&cur_for_encode, &bv_for_encode);
+-	m0_mutex_lock(&l1->l_lock);
+ 	rc = m0_layout_encode(l1, M0_LXO_BUFFER_OP, NULL, &cur_for_encode);
+ 	m0_mutex_unlock(&l1->l_lock);
+ 	M0_UT_ASSERT(rc == 0);
+-- 
+1.8.3.2
+

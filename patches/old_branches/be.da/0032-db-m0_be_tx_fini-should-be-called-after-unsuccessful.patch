@@ -1,0 +1,29 @@
+From 9934f9183a84b4ce7e422b9f94bc49eb82a5d61c Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 21 Aug 2013 17:56:46 +0300
+Subject: [PATCH 32/34] db: m0_be_tx_fini() should be called after unsuccessful
+ m0_be_tx_open()
+
+---
+ db/db.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/db/db.c b/db/db.c
+index c93a383..40137c3 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -242,8 +242,10 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
+                       NULL, NULL);
+         m0_be_tx_prep(tx, &enough);
+ 	rc = m0_be_tx_open_sync(tx);
+-	if (rc != 0)
++	if (rc != 0) {
++		m0_be_tx_fini(tx);
+ 		m0_free(tx);
++	}
+ 
+ 	return rc;
+ }
+-- 
+1.8.3.2
+

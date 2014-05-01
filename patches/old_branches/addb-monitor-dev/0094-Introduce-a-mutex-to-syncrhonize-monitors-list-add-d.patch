@@ -1,0 +1,144 @@
+From d376916360ad76a48036e020b9da87affc1b2648 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Mon, 2 Sep 2013 19:14:18 +0530
+Subject: [PATCH 094/125] Introduce a mutex to syncrhonize monitors list
+ add/del & list traversal.
+
+---
+ addb/addb_monitor.c | 27 +++++++++++++++------------
+ addb/addb_monitor.h |  7 ++++++-
+ addb/addb_rec.c     |  2 ++
+ 3 files changed, 23 insertions(+), 13 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 7fcf343..fb20e06 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -167,6 +167,7 @@ M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh,
+ 	M0_PRE(endpoint != NULL);
+ 
+ 	addb_mon_tlist_init(&reqh->rh_addb_monitoring_ctx.amc_list);
++	m0_mutex_init(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	/*
+ 	 * @todo: Establish connection with stats service
+ 	 */
+@@ -209,26 +210,34 @@ M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh         *reqh,
+ {
+ 	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
++	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	addb_mon_tlist_add_tail(&reqh->rh_addb_monitoring_ctx.amc_list, monitor);
++	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ }
+ 
+-M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor)
++M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh         *reqh,
++				     struct m0_addb_monitor *monitor)
+ {
+ 	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
++	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	addb_mon_tlist_del(monitor);
++	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ }
+ 
+ M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh)
+ {
+ 	struct m0_addb_monitor *mon;
+ 
++	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	m0_tl_for(addb_mon, &reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+-		m0_addb_monitor_del(mon);
++		m0_addb_monitor_del(reqh, mon);
+ 		m0_addb_monitor_fini(mon);
+ 	} m0_tl_endfor;
++	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 
+ 	addb_mon_tlist_fini(&reqh->rh_addb_monitoring_ctx.amc_list);
++	m0_mutex_fini(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	/** @todo: Close connection with stats service and do related cleanup */
+ }
+ 
+@@ -269,6 +278,7 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh,
+ 	M0_PRE(reqh != NULL);
+ 
+ 	mon_list = &reqh->rh_addb_monitoring_ctx.amc_list;
++	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	while (scanned < SCANNED_LIMIT && sent < SENT_LIMIT) {
+ 		struct m0_addb_sum_rec      *sum;
+ 		struct m0_addb_sum_rec_fop  *fop;
+@@ -339,16 +349,9 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh,
+ 			fop_nr = 0;
+ 			++sent;
+ 		}
+-		sum_rec->asrw_id = sum->asr_rec.asrw_id;
+-		sum_rec->asrw_rec.au64s_nr =
+-			sum->asr_rec.asrw_rec.au64s_nr;
+-		memcpy(sum_rec->asrw_rec.au64s_data,
+-				sum->asr_rec.asrw_rec.au64s_data,
+-				SUM_SIZE(sum));
+-		sum->asr_dirty = false;
+-		m0_mutex_unlock(&sum->asr_mutex);
+-	}m0_tl_endfor;
+-
++	}
++	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
++	fom->pf_mon = mon;
+ 	/**
+ 	 * @todo: Post on global machine too.
+ 	 */
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index a4b036c..4cdba70 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -234,6 +234,8 @@ M0_INTERNAL bool m0_addb_monitor_invariant(struct m0_addb_monitor *mon);
+ struct m0_addb_monitoring_ctx {
+ 	/* List of active monitors */
+ 	struct m0_tl                       amc_list;
++	/* Mutex to protect amc_list */
++	struct m0_mutex                    amc_mutex;
+ 	/* Stats service endpoint */
+ 	struct cs_endpoint_and_xprt       *amc_ex;
+ 	struct m0_rpc_conn                 amc_stats_conn;
+@@ -275,6 +277,7 @@ M0_INTERNAL void m0_addb_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
+ 				      size_t                         nr);
+ /**
+  * Add a particular monitor with the ADDB monitoring sub-system
++ * @param reqh Request handler
+  * @param monitor ADDB monitor to register
+  */
+ M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh *reqh,
+@@ -282,9 +285,11 @@ M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh *reqh,
+ 
+ /**
+  * Delete a particular monitor from the ADDB monitoring sub-system
++ * @param reqh Request handler
+  * @param monitor ADDB monitor to unregister
+  */
+-M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor);
++M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh *reqh,
++		                     struct m0_addb_monitor *monitor);
+ 
+ /**
+  * Finalize monitor
+diff --git a/addb/addb_rec.c b/addb/addb_rec.c
+index 22247f3..82cce73 100644
+--- a/addb/addb_rec.c
++++ b/addb/addb_rec.c
+@@ -160,11 +160,13 @@ static void addb_rec_post(struct m0_addb_mc *mc,
+ 	 */
+ 	if (mc->am_reqh != NULL) {
+ 		/* Invoke all the monitor's filters */
++		m0_mutex_lock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 		m0_tl_for(addb_mon,
+ 			  &mc->am_reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+ 			M0_ASSERT(m0_addb_monitor_invariant(mon));
+ 			mon->am_ops->amo_watch(mon, rec, mc->am_reqh);
+ 		} m0_tl_endfor;
++		m0_mutex_unlock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	}
+ }
+ 
+-- 
+1.8.3.2
+

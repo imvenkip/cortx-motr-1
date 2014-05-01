@@ -1,0 +1,562 @@
+From 9ab10df38f55a151aa67e9d7e07017169c813cbe Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 13 Mar 2014 12:54:48 +0530
+Subject: [PATCH 10/20]  - Moved all members related to fop_rate from
+ fom_locality to lockers.
+
+---
+ fop/fom.c              | 104 ++++++--------------------
+ fop/fom.h              |   8 +-
+ fop/fop_rate_monitor.c | 196 ++++++++++++++++++++++++++++++++++++-------------
+ fop/fop_rate_monitor.h |  28 +++++--
+ 4 files changed, 190 insertions(+), 146 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index ecd353b..1b0ae65 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -172,7 +172,6 @@ M0_TL_DEFINE(wail, static, struct m0_fom);
+ static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
+                                  const struct m0_fom *fom);
+ static int loc_thr_create(struct m0_fom_locality *loc);
+-static void loc_ast_rearm_timer(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+ 
+ /**
+  * Fom domain operations.
+@@ -759,62 +758,14 @@ static void loc_fini(struct m0_fom_locality *loc)
+ 
+ 	m0_bitmap_fini(&loc->fl_processors);
+ 
+-	m0_fop_rate_monitor_fini(loc->fl_dom->fd_reqh,
+-				 &loc->fl_fop_rate_monitor,
+-				 loc->fl_fop_rate_monitor_key);
++	m0_fop_rate_monitor_fini(&loc->fl_fop_rate_monitor_key);
++	m0_reqh_lockers_clear(loc->fl_dom->fd_reqh,
++			      loc->fl_fop_rate_monitor_key);
+ 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+ 	m0_addb_counter_fini(&loc->fl_stat_run_times);
+-	m0_addb_counter_fini(&loc->fl_stat_fop_rate);
+-	m0_timer_stop(&loc->fl_fop_rate_timer);
+-	m0_timer_fini(&loc->fl_fop_rate_timer);
+ 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
+ }
+ 
+-static unsigned long fop_rate_timer_callback(unsigned long arg)
+-{
+-	struct m0_fom_locality *loc = (struct m0_fom_locality *)arg;
+-
+-	m0_addb_counter_update(&loc->fl_stat_fop_rate, loc->fl_fop_rate_count);
+-	loc->fl_fop_rate_count = 0;
+-	if (loc->fl_post_stats_ast.sa_next == NULL) {
+-		loc->fl_post_stats_ast.sa_cb = loc_ast_rearm_timer;
+-		m0_sm_ast_post(&loc->fl_group, &loc->fl_post_stats_ast);
+-	}
+-	return 0;
+-}
+-
+-static int fom_loc_arm_timer(struct m0_fom_locality *loc)
+-{
+-	int              result;
+-	m0_time_t        expire;
+-	struct m0_timer *timer = &loc->fl_fop_rate_timer;
+-
+-	result = m0_timer_init(timer, M0_TIMER_SOFT, NULL,
+-			       fop_rate_timer_callback, (unsigned long)loc);
+-	if (result != 0)
+-		return result;
+-
+-	expire = m0_time_from_now(M0_FOP_RATE_INTERVAL_SECOND, 0);
+-	m0_timer_start(timer, expire);
+-
+-	return 0;
+-}
+-
+-static void loc_ast_rearm_timer(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+-{
+-	struct m0_fom_locality *loc = container_of(ast, struct m0_fom_locality,
+-						   fl_post_stats_ast);
+-	int                     result;
+-
+-	M0_PRE(m0_locality_invariant(loc));
+-	m0_timer_stop(&loc->fl_fop_rate_timer);
+-	m0_timer_fini(&loc->fl_fop_rate_timer);
+-
+-	result = fom_loc_arm_timer(loc);
+-	if (result != 0)
+-		M0_LOG(M0_WARN, "Failed to re-arm fop_rate timer.");
+-}
+-
+ /**
+  * Initialises a locality in fom domain.  Creates and adds threads to locality,
+  * every thread is confined to the cpus represented by the
+@@ -847,33 +798,21 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
+ 			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
+ 
+-	result = fom_loc_arm_timer(loc);
+-	if (result != 0)
+-		goto err4;
+-
+ 	result = m0_addb_counter_init(&loc->fl_stat_run_times,
+ 				      &m0_addb_rt_fl_run_times);
+ 	if (result != 0)
+-		goto err3;
++		goto err2;
+ 
+ 	result = m0_addb_counter_init(&loc->fl_stat_sched_wait_times,
+ 				      &m0_addb_rt_fl_sched_wait_times);
+ 	if (result != 0)
+-		goto err2;
+-
+-	result = m0_addb_counter_init(&loc->fl_stat_fop_rate,
+-				      &m0_addb_rt_fop_rate_cntr);
+-	if (result != 0)
+ 		goto err1;
+ 
+-	loc->fl_fop_rate_monitor_key = 0;
+-	result = m0_fop_rate_monitor_init(loc->fl_dom->fd_reqh,
+-					  &loc->fl_fop_rate_monitor);
++	loc->fl_fop_rate_monitor_key = m0_reqh_lockers_allot();
++	result = m0_fop_rate_monitor_init(&loc->fl_fop_rate_monitor_key);
+ 	if (result < 0)
+ 		goto err0;
+ 
+-	loc->fl_fop_rate_monitor_key = result;
+-
+ 	runq_tlist_init(&loc->fl_runq);
+ 	loc->fl_runq_nr = 0;
+ 
+@@ -887,7 +826,6 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	m0_chan_init(&loc->fl_idle, &loc->fl_group.s_lock);
+ 
+ 	result = m0_bitmap_init(&loc->fl_processors, cpu_max);
+-
+ 	if (result == 0) {
+ 		int i;
+ 
+@@ -909,15 +847,10 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	return result;
+ 
+ err0:
+-	m0_addb_counter_fini(&loc->fl_stat_fop_rate);
+-err1:
+ 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+-err2:
++err1:
+ 	m0_addb_counter_fini(&loc->fl_stat_run_times);
+-err3:
+-	m0_timer_stop(&loc->fl_fop_rate_timer);
+-	m0_timer_fini(&loc->fl_fop_rate_timer);
+-err4:
++err2:
+ 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
+ 	return result;
+ }
+@@ -926,15 +859,19 @@ static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ {
+ 	struct m0_fom_locality *loc = container_of(ast, struct m0_fom_locality,
+ 						   fl_post_stats_ast);
++	struct m0_fop_rate_monitor *fop_rate_monitor;
+ 	struct m0_addb_ctx *cv[] = {&loc->fl_addb_ctx, NULL};
+ 	struct m0_addb_mc  *mc   = &loc->fl_dom->fd_reqh->rh_addb_mc;
+ 
++	fop_rate_monitor = m0_reqh_lockers_get(loc->fl_dom->fd_reqh,
++					       loc->fl_fop_rate_monitor_key); 
++
+ 	if (m0_addb_counter_nr(&loc->fl_stat_run_times) > 0)
+ 		M0_ADDB_POST_CNTR(mc, cv, &loc->fl_stat_run_times);
+ 	if (m0_addb_counter_nr(&loc->fl_stat_sched_wait_times) > 0)
+ 		M0_ADDB_POST_CNTR(mc, cv, &loc->fl_stat_sched_wait_times);
+-	if (m0_addb_counter_nr(&loc->fl_stat_fop_rate) > 0)
+-		M0_ADDB_POST_CNTR(mc, cv, &loc->fl_stat_fop_rate);
++	if (m0_addb_counter_nr(&fop_rate_monitor->frm_stat_fop_rate) > 0)
++		M0_ADDB_POST_CNTR(mc, cv, &fop_rate_monitor->frm_stat_fop_rate);
+ 
+ 	M0_ADDB_POST(mc, &m0_addb_rt_fl_runq_nr, cv, loc->fl_runq_nr);
+ 	M0_ADDB_POST(mc, &m0_addb_rt_fl_wail_nr, cv, loc->fl_wail_nr);
+@@ -1055,13 +992,14 @@ static void fop_fini(struct m0_fop *fop, bool local)
+ 
+ void m0_fom_fini(struct m0_fom *fom)
+ {
+-	struct m0_fom_locality *loc;
+-	struct m0_reqh         *reqh;
++	struct m0_fom_locality     *loc;
++	struct m0_reqh             *reqh;
++	struct m0_fop_rate_monitor *fop_rate_monitor;
+ 
+ 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_FINISH);
+ 	M0_PRE(fom->fo_pending == NULL);
+ 
+-	loc  = fom->fo_loc;
++	loc = fom->fo_loc;
+ 	reqh = loc->fl_dom->fd_reqh;
+ 	fom_state_set(fom, M0_FOS_FINISH);
+ 
+@@ -1091,7 +1029,11 @@ void m0_fom_fini(struct m0_fom *fom)
+ 	fop_fini(fom->fo_rep_fop, fom->fo_local);
+ 
+ 	M0_CNT_DEC(loc->fl_foms);
+-        M0_CNT_INC(loc->fl_fop_rate_count);
++
++	fop_rate_monitor = m0_reqh_lockers_get(loc->fl_dom->fd_reqh,
++					       loc->fl_fop_rate_monitor_key); 
++	if (fop_rate_monitor != NULL)
++        	M0_CNT_INC(fop_rate_monitor->frm_fop_rate_count);
+ 	if (loc->fl_foms == 0)
+ 		m0_chan_signal_lock(&reqh->rh_sd_signal);
+ }
+diff --git a/fop/fom.h b/fop/fom.h
+index 000918a..170c2d7 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -221,6 +221,7 @@ struct m0_fom_type_ops;
+ struct m0_fom;
+ struct m0_fom_ops;
+ struct m0_long_lock;
++struct m0_fop_rate_monitor;
+ 
+ /* defined in fom.c */
+ struct m0_loc_thread;
+@@ -297,15 +298,8 @@ struct m0_fom_locality {
+ 	 */
+ 	struct m0_addb_counter       fl_stat_sched_wait_times;
+ 
+-	/** FOP rate counter. It is fop executed per sec. */
+-	uint64_t                     fl_fop_rate_count;
+-	struct m0_timer		     fl_fop_rate_timer;
+-	struct m0_addb_counter       fl_stat_fop_rate;
+-
+ 	/** fop rate monitor key */
+ 	uint32_t		     fl_fop_rate_monitor_key;
+-	/** fop rate monitor */
+-	struct m0_addb_monitor       fl_fop_rate_monitor;
+ 
+ 	/** AST which triggers the posting of statistics */
+ 	struct m0_sm_ast             fl_post_stats_ast;
+diff --git a/fop/fop_rate_monitor.c b/fop/fop_rate_monitor.c
+index 85cb684..5d1c026 100644
+--- a/fop/fop_rate_monitor.c
++++ b/fop/fop_rate_monitor.c
+@@ -38,11 +38,16 @@
+ #include "fop/fop_addb.h"
+ #include "rpc/rpc_machine.h"
+ #include "addb/addb_monitor.h"
++#include "fop/fop_rate_monitor.h"
+ 
+ /**
+  * @addtogroup fom
+  * @{
+  */
++static
++int fop_rate_monitor_timer_arm(struct m0_fop_rate_monitor *fop_rate_monitor);
++static void fop_rate_monitor_timer_rearm(struct m0_sm_group *grp,
++					 struct m0_sm_ast *ast);
+ static struct fop_rate_stats_sum_rec {
+ 	uint64_t ssr_fop_rate;
+ } fop_rate_stats_sum;
+@@ -51,37 +56,35 @@ static struct m0_addb_sum_rec *
+ fop_rate_monitor_sum_rec(const struct m0_addb_monitor *mon,
+ 		         struct m0_reqh               *reqh)
+ {
+-	struct m0_addb_sum_rec *sum_rec;
+-	struct m0_fom_locality *fom_loc;
++	struct m0_fop_rate_monitor *fop_rate_monitor;
+ 
+-	M0_PRE(reqh != NULL);
+-	fom_loc = container_of(mon, struct m0_fom_locality, fl_fop_rate_monitor);
+-
+-	sum_rec = m0_reqh_lockers_get(reqh, fom_loc->fl_fop_rate_monitor_key);
+-	M0_ASSERT(sum_rec != NULL);
+-
+-	return sum_rec;
++	M0_PRE(mon != NULL && reqh != NULL);
++	fop_rate_monitor = container_of(mon, struct m0_fop_rate_monitor,
++					frm_monitor);
++	return (struct m0_addb_sum_rec *)fop_rate_monitor->frm_sum_rec;
+ }
+ 
+ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+ 				   const struct m0_addb_rec     *rec,
+ 				   struct m0_reqh               *reqh)
+ {
+-	struct m0_addb_sum_rec        *sum_rec;
++	struct m0_fop_rate_monitor    *fop_rate_monitor;
+ 	struct fop_rate_stats_sum_rec *f_rate;
+ 
+-	M0_PRE(reqh != NULL);
++	M0_PRE(monitor != NULL && reqh != NULL);
+ 
+ 	if (m0_addb_rec_rid_make(M0_ADDB_BRT_CNTR,
+ 			         M0_ADDB_RECID_FOP_RATE_CNTR) == rec->ar_rid) {
+ 
+-		sum_rec = monitor->am_ops->amo_sum_rec(monitor, reqh);
++		fop_rate_monitor = container_of(monitor,
++						struct m0_fop_rate_monitor,
++						frm_monitor);
+ 
+-		m0_mutex_lock(&sum_rec->asr_mutex);
+-		M0_ASSERT(sum_rec->asr_rec.ss_id ==
++		m0_mutex_lock(&fop_rate_monitor->frm_sum_rec->asr_mutex);
++		M0_ASSERT(fop_rate_monitor->frm_sum_rec->asr_rec.ss_id ==
+ 			  M0_ADDB_RECID_FOP_RATE);
+ 		f_rate = (struct fop_rate_stats_sum_rec *)
+-			 sum_rec->asr_rec.ss_data.au64s_data;
++			 fop_rate_monitor->frm_sum_rec->asr_rec.ss_data.au64s_data;
+ 		M0_ASSERT(f_rate != NULL);
+ 		/*
+ 		 * fop_rate is ADDB counter.
+@@ -90,8 +93,8 @@ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+ 		 */
+ 		f_rate->ssr_fop_rate =
+ 		rec->ar_data.au64s_data[2] / rec->ar_data.au64s_data[1];
+-		sum_rec->asr_dirty = true;
+-		m0_mutex_unlock(&sum_rec->asr_mutex);
++		fop_rate_monitor->frm_sum_rec->asr_dirty = true;
++		m0_mutex_unlock(&fop_rate_monitor->frm_sum_rec->asr_mutex);
+ 	}
+ }
+ 
+@@ -101,63 +104,154 @@ const struct m0_addb_monitor_ops fop_rate_monitor_ops = {
+ };
+ 
+ M0_INTERNAL
+-int m0_fop_rate_monitor_init(struct m0_reqh         *reqh,
+-			     struct m0_addb_monitor *monitor)
++int m0_fop_rate_monitor_init(uint32_t *fop_rate_monitor_key)
+ {
+-	struct m0_addb_sum_rec *sum_rec;
+-	uint32_t                fop_rate_monitor_key;
+-	const size_t            fop_rate_stats_nr =
+-				sizeof(fop_rate_stats_sum) / sizeof(uint64_t);
+-	struct m0_fom_locality *loc;
+-	uint64_t               *md;
++	struct m0_fop_rate_monitor *fop_rate_monitor;
++	struct m0_addb_sum_rec     *sum_rec;
++	const size_t                fop_rate_stats_nr =
++				    sizeof(fop_rate_stats_sum) /
++				    sizeof(uint64_t);
++	struct m0_fom_locality     *loc;
++	uint64_t                   *md;
++	int                         result;
+ 
+-	M0_PRE(monitor != NULL && reqh != NULL);
++	loc = container_of(fop_rate_monitor_key, struct m0_fom_locality,
++			   fl_fop_rate_monitor_key);
+ 
+-	FOP_ALLOC_PTR(sum_rec, FOM_RATE_MON_INIT, &m0_fop_addb_ctx);
+-	if (sum_rec == NULL)
++	FOP_ALLOC_PTR(fop_rate_monitor, FOM_RATE_MON_INIT, &m0_fop_addb_ctx);
++	if (fop_rate_monitor == NULL)
+ 		M0_RETURN(-ENOMEM);
+ 
++	FOP_ALLOC_PTR(sum_rec, FOM_RATE_MON_INIT, &m0_fop_addb_ctx);
++	if (sum_rec == NULL) {
++		result = -ENOMEM;
++		goto err3;
++	}
++
+ 	FOP_ALLOC_ARR(md, fop_rate_stats_nr, FOM_RATE_MON_INIT,
+ 		      &m0_fop_addb_ctx);
+ 	if (md == NULL) {
+-		m0_free(sum_rec);
+-		M0_RETURN(-ENOMEM);
++		result = -ENOMEM;
++		goto err2;
+ 	}
+ 
+-	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
+-	loc = container_of(monitor, struct m0_fom_locality,
+-			   fl_fop_rate_monitor);
++	result = m0_addb_counter_init(&fop_rate_monitor->frm_stat_fop_rate,
++				      &m0_addb_rt_fop_rate_cntr);
++	if (result != 0)
++		goto err1;
++
++	result = fop_rate_monitor_timer_arm(fop_rate_monitor);
++	if (result != 0)
++		goto err0;
+ 
+-	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,
+-				     md, fop_rate_stats_nr);
++	m0_addb_monitor_init(&fop_rate_monitor->frm_monitor,
++			     &fop_rate_monitor_ops);
+ 
+-	fop_rate_monitor_key = m0_reqh_lockers_allot();
++	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate, md,
++				     fop_rate_stats_nr);
++	fop_rate_monitor->frm_sum_rec = sum_rec;
++	fop_rate_monitor->frm_loc = loc;
+ 
+-	m0_reqh_lockers_set(reqh, fop_rate_monitor_key, sum_rec);
++	m0_reqh_lockers_set(loc->fl_dom->fd_reqh, *fop_rate_monitor_key,
++			    fop_rate_monitor);
+ 
+-	m0_addb_monitor_add(reqh, monitor);
+-	return fop_rate_monitor_key;
++	m0_addb_monitor_add(loc->fl_dom->fd_reqh,
++			    &fop_rate_monitor->frm_monitor);
++	return 0;
++
++err0:
++	m0_addb_counter_fini(&fop_rate_monitor->frm_stat_fop_rate);
++err1:
++	m0_free(md);
++err2:
++	m0_free(sum_rec);
++err3:
++	m0_free(fop_rate_monitor);
++	M0_RETURN(result);
+ }
+ 
+ M0_INTERNAL
+-void m0_fop_rate_monitor_fini(struct m0_reqh         *reqh,
+-			      struct m0_addb_monitor *monitor,
+-			      uint32_t                fop_rate_monitor_key)
++void m0_fop_rate_monitor_fini(uint32_t *fop_rate_monitor_key)
+ {
+-	struct m0_addb_sum_rec *sum_rec;
++	struct m0_fop_rate_monitor *fop_rate_monitor;
++	struct m0_fom_locality     *loc;
+ 
+-	M0_PRE(monitor != NULL && reqh != NULL);
++	loc = container_of(fop_rate_monitor_key, struct m0_fom_locality,
++			   fl_fop_rate_monitor_key);
+ 
+-	sum_rec = monitor->am_ops->amo_sum_rec(monitor, reqh);
+-	m0_addb_monitor_del(reqh, monitor);
++	fop_rate_monitor = m0_reqh_lockers_get(loc->fl_dom->fd_reqh,
++					       *fop_rate_monitor_key);
++	m0_addb_monitor_del(loc->fl_dom->fd_reqh,
++			    &fop_rate_monitor->frm_monitor);
++	m0_addb_monitor_fini(&fop_rate_monitor->frm_monitor);
++	m0_addb_counter_fini(&fop_rate_monitor->frm_stat_fop_rate);
++	m0_timer_stop(&fop_rate_monitor->frm_fop_rate_timer);
++	m0_timer_fini(&fop_rate_monitor->frm_fop_rate_timer);
+ 
+-	m0_reqh_lockers_clear(reqh, fop_rate_monitor_key);
++	m0_addb_monitor_sum_rec_fini(fop_rate_monitor->frm_sum_rec);
++	m0_free(fop_rate_monitor->frm_sum_rec->asr_rec.ss_data.au64s_data);
++	m0_free(fop_rate_monitor->frm_sum_rec);
++	m0_free(fop_rate_monitor);
++}
+ 
+-	m0_addb_monitor_sum_rec_fini(sum_rec);
+-	m0_free(sum_rec->asr_rec.ss_data.au64s_data);
+-	m0_free(sum_rec);
++static unsigned long fop_rate_monitor_timer_callback(unsigned long arg)
++{
++	struct m0_fop_rate_monitor *fr_mon = (struct m0_fop_rate_monitor *)arg;
+ 
+-	m0_addb_monitor_fini(monitor);
++	m0_addb_counter_update(&fr_mon->frm_stat_fop_rate,
++			       fr_mon->frm_fop_rate_count);
++	fr_mon->frm_fop_rate_count = 0;
++	if (fr_mon->frm_loc->fl_post_stats_ast.sa_next == NULL) {
++		fr_mon->frm_loc->fl_post_stats_ast.sa_cb =
++		fop_rate_monitor_timer_rearm;
++		m0_sm_ast_post(&fr_mon->frm_loc->fl_group,
++			       &fr_mon->frm_loc->fl_post_stats_ast);
++	}
++	return 0;
++}
++
++static
++int fop_rate_monitor_timer_arm(struct m0_fop_rate_monitor *fop_rate_monitor)
++{
++	int              result;
++	m0_time_t        expire;
++	struct m0_timer *timer = &fop_rate_monitor->frm_fop_rate_timer;
++
++	result = m0_timer_init(timer, M0_TIMER_SOFT, NULL,
++			       fop_rate_monitor_timer_callback,
++			       (unsigned long)fop_rate_monitor);
++	if (result != 0)
++		return result;
++
++	expire = m0_time_from_now(M0_FOP_RATE_INTERVAL_SECOND, 0);
++	m0_timer_start(timer, expire);
++
++	return 0;
++}
++
++static void fop_rate_monitor_timer_rearm(struct m0_sm_group *grp,
++					 struct m0_sm_ast *ast)
++{
++	struct m0_fom_locality *loc = container_of(ast, struct m0_fom_locality,
++						   fl_post_stats_ast);
++	int                     result;
++	struct m0_fop_rate_monitor *fop_rate_monitor;
++
++	M0_PRE(m0_locality_invariant(loc));
++
++	fop_rate_monitor = m0_reqh_lockers_get(loc->fl_dom->fd_reqh,
++					       loc->fl_fop_rate_monitor_key); 
++
++	if (fop_rate_monitor != NULL) {
++		m0_timer_stop(&fop_rate_monitor->frm_fop_rate_timer);
++		m0_timer_fini(&fop_rate_monitor->frm_fop_rate_timer);
++
++		result = fop_rate_monitor_timer_arm(fop_rate_monitor);
++		if (result != 0)
++			M0_LOG(M0_WARN, "Failed to re-arm fop_rate timer.");
++	} else {
++			M0_LOG(M0_WARN, "Failed to re-arm fop_rate timer.");
++	}
+ }
+ 
+ /** @} endgroup fom */
+diff --git a/fop/fop_rate_monitor.h b/fop/fop_rate_monitor.h
+index 96ab4e2..9bb4c50 100644
+--- a/fop/fop_rate_monitor.h
++++ b/fop/fop_rate_monitor.h
+@@ -34,7 +34,23 @@ enum {
+ 	M0_FOP_RATE_INTERVAL_SECOND = 1,
+ };
+ 
+-/*
++/**
++ * Monitor data.
++ */
++struct m0_fop_rate_monitor {
++	uint64_t                frm_magic;
++	uint64_t                frm_fop_rate_count;
++	struct m0_addb_sum_rec *frm_sum_rec;
++	struct m0_fom_locality *frm_loc;
++	/** Timer to calculate fop_rate */
++	struct m0_timer	        frm_fop_rate_timer;
++	/** FOP rate counter. It is fop executed per sec. */
++	struct m0_addb_counter  frm_stat_fop_rate;
++	/** fop rate monitor */
++	struct m0_addb_monitor  frm_monitor;
++};
++
++/**
+  * It initialise fop rate monitor.
+  * @param reqh pointer to request handler.
+  * @param monitor monitor object to intialise.
+@@ -42,18 +58,16 @@ enum {
+  * 	   -ENOMEM if failed to allocate summary record.
+  */
+ M0_INTERNAL
+-int m0_fop_rate_monitor_init(struct m0_reqh         *reqh,
+-			     struct m0_addb_monitor *monitor);
+-/*
++int m0_fop_rate_monitor_init(uint32_t *fop_rate_monitor);
++
++/**
+  * It finalise fop rate monitor.
+  * @param reqh pointer to request handler.
+  * @param monitor monitor object to finalise.
+  * @param fop_rate_monitor_key fop rate monitor key in request handler lockers.
+  */
+ M0_INTERNAL
+-void m0_fop_rate_monitor_fini(struct m0_reqh         *reqh,
+-			      struct m0_addb_monitor *monitor,
+-			      uint32_t                fop_rate_monitor_key);
++void m0_fop_rate_monitor_fini(uint32_t *fop_rate_monitor);
+ 
+ /** @} end of fop group */
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,47 @@
+From 6c340e2f0becda7c1b73363b93383d72891adea3 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Mon, 21 Oct 2013 17:35:03 +0300
+Subject: [PATCH 03/17] be/extmap: emap_paste() credit amended
+
+There is no need to account credit for
+btree_delete() separately for paste, as it
+is already accounted in credit for split
+which we use in credit calculation.
+---
+ be/extmap.c    | 6 ------
+ be/tx_regmap.c | 2 +-
+ 2 files changed, 1 insertion(+), 7 deletions(-)
+
+diff --git a/be/extmap.c b/be/extmap.c
+index 0327a1d..39a4c6e 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -647,12 +647,6 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
+ 		 * split from right sides - i.e. on 4 new segments in total.
+ 		 */
+ 		m0_be_emap_credit(map, M0_BEO_SPLIT, 4 * nr, accum);
+-		/*
+-		 * Sequential deletes in btree end up in one delete credit
+-		 * (according to Nikita).
+-		 */
+-		m0_be_btree_delete_credit(&map->em_mapping, nr,
+-			sizeof map->em_key, sizeof map->em_rec, accum);
+ 		break;
+ 	default:
+ 		M0_IMPOSSIBLE("invalid emap operation");
+diff --git a/be/tx_regmap.c b/be/tx_regmap.c
+index 90e2ea2..7d94e6a 100644
+--- a/be/tx_regmap.c
++++ b/be/tx_regmap.c
+@@ -532,7 +532,7 @@ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
+ 					const struct m0_be_reg_d *rd)
+ {
+ 	struct m0_be_tx_credit captured = ra->bra_captured;
+-	struct m0_be_tx_credit prepared = ra->bra_captured;
++	struct m0_be_tx_credit prepared = ra->bra_prepared;
+ 	m0_bcount_t	       reg_size = rd->rd_reg.br_size;
+ 
+ 	M0_PRE(m0_be_reg_area__invariant(ra));
+-- 
+1.8.3.2
+

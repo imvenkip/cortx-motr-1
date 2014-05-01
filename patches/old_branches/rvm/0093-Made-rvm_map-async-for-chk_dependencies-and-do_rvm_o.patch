@@ -1,0 +1,378 @@
+From b3d76d8e25d795df73b376ff3a5ff2958ac8c180 Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Wed, 22 May 2013 06:14:33 -0700
+Subject: [PATCH 093/121] Made rvm_map async for chk_dependencies and
+ do_rvm_options.
+
+---
+ rvm/rvm_map.c     | 250 ++++++++++++++++++++++++++++++++++--------------------
+ rvm/rvm_private.h |   7 +-
+ 2 files changed, 162 insertions(+), 95 deletions(-)
+
+diff --git a/rvm/rvm_map.c b/rvm/rvm_map.c
+index bc70608..1def371 100644
+--- a/rvm/rvm_map.c
++++ b/rvm/rvm_map.c
+@@ -930,7 +930,7 @@ void cd_wait_for_truncate_cb(cbinfo, status, msg)
+ 
+ 		if (x_region != NULL) {
+ 			cd_cbdata->cdc_x_region = x_region;
+-			cbinfo->bc_cb = cd_wait_for_truncate_cb;
++			/*cbinfo->bc_cb = cd_wait_for_truncate_cb;*/
+ 
+ 			(void)initiate_truncation(seg->log, 100);
+ 
+@@ -953,7 +953,7 @@ exit:
+ }
+ 
+ /* check mapping dependencies within segment */
+-static rvm_return_t chk_dependencies(seg,region,cbinfo)
++static rvm_return_t chk_dependencies(seg, region, cbinfo)
+     seg_t           	  *seg;
+     region_t        	  *region;
+     struct m0_be_cbinfo   *cbinfo;
+@@ -1128,9 +1128,9 @@ static void clean_up(seg_hdr,region,mem_region)
+         }
+ }
+ 
+-void rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+-		int status,
+-		m0_be_msg_type_t msg_type)
++void rm_map_data_cb(struct m0_be_cbinfo *cbinfo,
++		    int status,
++		    m0_be_msg_type_t msg_type)
+ {
+ 	rvm_region_t	*rvm_region;
+ 	rm_cbdata_t 	*rm_cbdata;
+@@ -1140,8 +1140,12 @@ void rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 
+         rvm_region = rm_cbdata->rmc_rvm_region;
+ 
+-	if (status != 0)
++	if (status != 0) {
+ 		rvm_region->length = 0;
++		clean_up(rm_cbdata->rmc_region, rm_cbdata->rmc_mem_region);
++		(void)BCOPY((char *)&rm_cbdata->rmc_save_rvm_region,
++			    (char *)rvm_region, sizeof(rvm_region_t));
++	}
+ 
+ 	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+@@ -1149,56 +1153,110 @@ void rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 	m0_free(rm_cbdata);
+ }
+ 
+-
+-/* rvm_map */
+-rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+-		     rvm_region_t  		*rvm_region,
+-		     rvm_options_t 		*rvm_options,
+-		     struct m0_be_cbinfo	*cbinfo)
++void rm_chk_dependencies_cb(struct m0_be_cbinfo *cbinfo, int status,
++			    m0_be_msg_type_t msg_type)
+ {
+-	seg_t       		*seg;              /* segment descriptor */
+-	region_t   		*region = NULL;    /* new region descriptor */
+-	mem_region_t		*mem_region= NULL; /* new region's tree node */
++	rm_cbdata_t 		*rm_cbdata;
+ 	void			*addr;
+-	rm_cbdata_t		*rm_cbdata;
+-	struct m0_be_cbinfo 	*rmc_cbinfo;
+-	rvm_region_t   	 	save_rvm_region;
+-	int		 	fd;		   /* For private mappings */
+-	rvm_return_t  	 	retval;
+-	int 		 	status 		= 0;
+-	m0_be_msg_type_t 	msg_type 	= M0_BE_SUCCESS;
+-	int 		 	region_saved 	= 0;
++	region_t   		*region = NULL;    /* new region descriptor */
++	rvm_region_t		*rvm_region;
++	rvm_options_t		*rvm_options;
++	mem_region_t		*mem_region;
+ 
+-	/* preliminary checks & saves */
+-	if (bad_init()) {
+-		status = -1;
+-		msg_type =  RVM_EINIT;
++	int		 	 fd;		   /* For private mappings */
++	rvm_return_t		 retval;
++
++	rm_cbdata = container_of(cbinfo, rm_cbdata_t, rmc_cbinfo);
++	rvm_region 	= rm_cbdata->rmc_rvm_region;
++	region 	   	= rm_cbdata->rmc_region;
++	rvm_options 	= rm_cbdata->rmc_rvm_options;
++	mem_region 	= rm_cbdata->rmc_mem_region;
++
++	if (status != 0)
+ 		goto exit;
+-	}
+-	if ((retval = bad_region(rvm_region)) != RVM_SUCCESS) {
+-		status = -1;
+-		msg_type = retval;
+-	}
+ 
+-	if (rvm_options != NULL)
+-		if ((retval = do_rvm_options(rvm_options)) != RVM_SUCCESS) {
++	/* complete region tree node */
++	mem_region->region = region;
++
++	/* Do the private map or get the data from the segment */
++	if (rvm_map_private) {
++		fd = open(rvm_region->data_dev, O_RDONLY | O_BINARY);
++		if ( fd < 0 ) {
++			status   = -1;
++			msg_type = RVM_EIO;
++			goto exit;
++		}
++		addr = mmap(rvm_region->vmaddr,
++			    rvm_region->length,
++			    PROT_READ | PROT_WRITE,
++			    MAP_FIXED | MAP_PRIVATE,
++			    fd,
++			    region->offset.low);
++		if (!rvm_region->vmaddr)
++			rvm_region->vmaddr = addr;
++
++		if (addr != rvm_region->vmaddr) {
++			status = -1;
++			msg_type = RVM_ENOT_MAPPED;
++			goto exit;
++		}
++		if (close(fd)) {
++			status 	 = -1;
++			msg_type = RVM_EIO;
++			goto exit;
++		}
++	}
++	else {
++		cbinfo->bc_cb = rm_map_data_cb;
++		retval = map_data(rvm_options, region, cbinfo);
++		if (retval != RVM_SUCCESS) {
+ 			status = -1;
+ 			msg_type = retval;
+ 			goto exit;
+ 		}
+-	if (default_log == NULL) {
+-		status 	 = -1;
+-		msg_type = RVM_ELOG;
+-		goto exit;
+ 	}
+-	(void)BCOPY((char *)rvm_region,(char *)&save_rvm_region,
++
++exit:
++	if(status != 0) {
++		clean_up(rm_cbdata->rmc_region, rm_cbdata->rmc_mem_region);
++		(void)BCOPY((char *)&rm_cbdata->rmc_save_rvm_region,
++			    (char *)rvm_region, sizeof(rvm_region_t));
++	}
++
++	if ((rvm_map_private || status != 0) && cbinfo->bc_pcbinfo != NULL &&
++				cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rm_cbdata);
++        }
++}
++
++void rm_do_rvm_options_cb(struct m0_be_cbinfo *cbinfo, int status,
++			  m0_be_msg_type_t msg_type)
++{
++	rm_cbdata_t 	*rm_cbdata;
++	seg_t       	*seg;              /* segment descriptor */
++	rvm_region_t	*rvm_region;
++	rvm_seg_hdr_t	*seg_hdr;
++
++	uint32_t	 region_saved = 0;
++	rvm_return_t	 retval;
++
++	rm_cbdata = container_of(cbinfo, rm_cbdata_t, rmc_cbinfo);
++
++	rvm_region = rm_cbdata->rmc_rvm_region;
++	seg_hdr    = rm_cbdata->rmc_seg_hdr;
++
++	if (status != 0)
++		goto exit;
++
++	(void)BCOPY((char *)rvm_region,(char *)&rm_cbdata->rmc_save_rvm_region,
+ 		    sizeof(rvm_region_t));
+ 
+ 	/* This is used to cleanup above saved region */
+ 	region_saved = 1;
+ 
+ 	/* find or build segment */
+-	seg = seg_lookup(rvm_region->data_dev,&retval);
++	seg = seg_lookup(rvm_region->data_dev, &retval);
+ 	if (retval != RVM_SUCCESS) {
+ 		status 	 = -1;
+ 		msg_type = retval;
+@@ -1206,7 +1264,7 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 	}
+ 	if (seg == NULL) {
+ 		/* must build a new segment */
+-		if ((seg=build_seg(rvm_region,default_log,&retval)) == NULL) {
++		if ((seg=build_seg(rvm_region, default_log, &retval)) == NULL) {
+ 			status = -1;
+ 			msg_type = M0_BE_INTERNAL;
+ 			goto exit;
+@@ -1223,85 +1281,89 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 	}
+ 
+ 	/* check for vm overlap with existing mappings & build descriptors */
+-	retval = establish_range(seg_hdr, rvm_region,&region, &mem_region,seg);
++	retval = establish_range(seg_hdr, rvm_region, &rm_cbdata->rmc_region,
++				 &rm_cbdata->rmc_mem_region, seg);
+ 	if (retval != RVM_SUCCESS) {
+ 		status 	 = -1;
+ 		msg_type = retval;
+ 		goto exit;
+ 	}
+ 
+-	/* check for overlap with existing mappings in segment, check
+-	for truncation dependencies, and enter region in map_list */
+-	if ((retval = chk_dependencies(seg, region)) != RVM_SUCCESS) {
++	retval = chk_dependencies(seg, rm_cbdata->rmc_region, cbinfo);
++	if (retval != RVM_SUCCESS) {
+ 		status 	 = -1;
+ 		msg_type = retval;
+ 		goto exit;
+ 	}
++exit:
++	if(region_saved) {
++		clean_up(rm_cbdata->rmc_region, rm_cbdata->rmc_mem_region);
++		(void)BCOPY((char *)&rm_cbdata->rmc_save_rvm_region,
++			    (char *)rvm_region, sizeof(rvm_region_t));
++	}
+ 
+-	/* complete region tree node */
+-	mem_region->region = region;
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rm_cbdata);
++        }
++}
+ 
+-	/* Do the private map or get the data from the segment */
+-	if (rvm_map_private) {
+-		fd = open(rvm_region->data_dev, O_RDONLY | O_BINARY);
+-		if ( fd < 0 ) {
+-			status   = -1;
+-			msg_type = RVM_EIO;
+-			goto exit;
+-		}
+-		addr = mmap(rvm_region->vmaddr,
+-			    rvm_region->length,
+-			    PROT_READ | PROT_WRITE,
+-			    MAP_FIXED | MAP_PRIVATE,
+-			    fd,
+-			    region->offset.low);
+-		if (!rvm_region->vmaddr)
+-			rvm_region->vmaddr = addr;
++/* rvm_map */
++rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
++		     rvm_region_t  		*rvm_region,
++		     rvm_options_t 		*rvm_options,
++		     struct m0_be_cbinfo	*cbinfo)
++{
++	rm_cbdata_t		*rm_cbdata;
++	struct m0_be_cbinfo 	*rmc_cbinfo;
++	rvm_return_t  	 	retval;
++	int 		 	status 		= 0;
++	m0_be_msg_type_t 	msg_type 	= M0_BE_SUCCESS;
+ 
+-		if (addr != rvm_region->vmaddr) {
+-			status = -1;
+-			msg_type = RVM_ENOT_MAPPED;
+-			goto exit;
+-		}
+-		if (close(fd)) {
+-			status 	 = -1;
+-			msg_type = RVM_EIO;
+-			goto exit;
+-		}
+-	}
+-	else {
+-		/* get the data from the segment */
+-		M0_ALLOC_PTR(rm_cbdata);
+-		M0_ASSERT(rm_cbdata != NULL);
++	M0_ALLOC_PTR(rm_cbdata);
++	M0_ASSERT(rm_cbdata != NULL);
+ 
+-		rmc_cbinfo = &rm_cbdata->rmc_cbinfo;
++	rm_cbdata->rmc_rvm_region 	= rvm_region;
++	rm_cbdata->rmc_rvm_options 	= rvm_options;
++	rm_cbdata->rmc_seg_hdr 	  	= seg_hdr;
+ 
+-		rmc_cbinfo->bc_cb 	= rvm_map_cb;
+-		rmc_cbinfo->bc_pcbinfo 	= cbinfo;
+-		rmc_cbinfo->bc_hq 	= cbinfo->bc_hq;
+-		rmc_cbinfo->bc_sm_group = cbinfo->bc_sm_group;
++	rmc_cbinfo = &rm_cbdata->rmc_cbinfo;
+ 
+-		rm_cbdata->rmc_rvm_region = rvm_region;
++	rmc_cbinfo->bc_pcbinfo 	= cbinfo;
++	rmc_cbinfo->bc_hq 	= cbinfo->bc_hq;
++	rmc_cbinfo->bc_sm_group = cbinfo->bc_sm_group;
+ 
+-		retval = map_data(rvm_options, region, rmc_cbinfo);
++	/* preliminary checks & saves */
++	if (bad_init()) {
++		status = -1;
++		msg_type =  RVM_EINIT;
++		goto exit;
++	}
++	if ((retval = bad_region(rvm_region)) != RVM_SUCCESS) {
++		status = -1;
++		msg_type = retval;
++		goto exit;
++	}
++
++	if (rvm_options != NULL) {
++		rmc_cbinfo->bc_cb = rm_do_rvm_options_cb;
++		retval = do_rvm_options(rvm_options, rmc_cbinfo);
+ 
+ 		if (retval != RVM_SUCCESS) {
+ 			status = -1;
+ 			msg_type = retval;
+-			goto exit;
+ 		}
++		goto exit;
+ 	}
+ 
+-exit:
+-	if (region_saved) {
+-		clean_up(region, mem_region);
+-		(void)BCOPY((char *)&save_rvm_region, (char *)rvm_region,
+-			    sizeof(rvm_region_t));
+-	}
++	rm_do_rvm_options_cb(rmc_cbinfo, status, msg_type);
+ 
+-	if (rvm_map_private || (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+-				cbinfo->bc_pcbinfo->bc_cb != NULL)) {
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rm_cbdata);
+         }
+ 
+ 	return status;
+diff --git a/rvm/rvm_private.h b/rvm/rvm_private.h
+index e6c7c22..af8dc76 100644
+--- a/rvm/rvm_private.h
++++ b/rvm/rvm_private.h
+@@ -1787,7 +1787,12 @@ typedef struct rvm_cbdata {
+ typedef	struct rm_cbdata {
+ 	struct m0_be_cbinfo	 rmc_cbinfo;
+ 	rvm_region_t 		*rmc_rvm_region;
+-}rm_cbdata_t;
++	region_t 		*rmc_region;
++	mem_region_t 		*rmc_mem_region;
++	rvm_options_t		*rmc_rvm_options;
++	rvm_seg_hdr_t         	*rmc_seg_hdr;
++	rvm_region_t        	 rmc_save_rvm_region;
++} rm_cbdata_t;
+ 
+ /* read_stob_cbdata */
+ typedef	struct read_stob_cbdata {
+-- 
+1.8.3.2
+

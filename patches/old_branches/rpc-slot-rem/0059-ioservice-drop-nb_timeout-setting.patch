@@ -1,0 +1,26 @@
+From fa80cf05bcbfa7486250125179f6c1e4da33ff10 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 26 Feb 2014 12:36:29 +0200
+Subject: [PATCH 59/60] ioservice: drop nb_timeout setting
+
+---
+ ioservice/io_foms.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index a320755..4df8775 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1458,9 +1458,6 @@ static int zero_copy_initiate(struct m0_fom *fom)
+                  *         count to original since buffers are reused by other
+                  *         I/O requests.
+                  */
+-
+-		nb->nb_timeout = m0_time_from_now(
+-				    M0_RPC_ITEM_RESEND_INTERVAL / 2 ?: 1, 0);
+ 		rc = rc ?: m0_rpc_bulk_buf_add(rbulk, segs_nr, dom,
+ 					       nb, &rb_buf);
+                 if (rc != 0) {
+-- 
+1.8.3.2
+

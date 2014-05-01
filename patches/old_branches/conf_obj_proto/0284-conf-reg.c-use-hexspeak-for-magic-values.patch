@@ -1,0 +1,41 @@
+From 0c6c66bed53f6fc44b515ee400569e1daec6238f Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 8 Aug 2012 14:04:21 +0300
+Subject: [PATCH 284/370] conf/reg.c: use hexspeak for magic values
+
++ Add c2_conf_reg's magic values to doc/magix.
+
+LogD #695
+---
+ conf/reg.c | 4 ++--
+ doc/magix  | 2 ++
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/conf/reg.c b/conf/reg.c
+index 9ff8634..f77573b 100644
+--- a/conf/reg.c
++++ b/conf/reg.c
+@@ -51,8 +51,8 @@ struct objptr {
+ };
+ 
+ enum {
+-	CONF_REG_MAGIC = 0x7265676973747279, /* registry */
+-	OBJPTR_MAGIC   = 0x636f6e666f626a70  /* confobjp */
++	CONF_REG_MAGIC = 0xb0b51edca1ab005e,
++	OBJPTR_MAGIC   = 0xad0bec0dd1e5c01a
+ };
+ 
+ C2_TL_DESCR_DEFINE(reg, "registered c2_conf_obj-s", static, struct objptr,
+diff --git a/doc/magix b/doc/magix
+index b44ff7b..1bb422d 100755
+--- a/doc/magix
++++ b/doc/magix
+@@ -38,3 +38,5 @@ c2_long_lock_link    lll_magix               b055b1e55edf01d5 boss blessed folds
+ c2_long_lock         l_magix                 0b055b1e55edba55 boss blessed bass
+ c2_fom_thread        lt_magix                fa151f1ab1ec0b01 falsifiable COBOL
+ thr_tl               td_head_magic           dec1a551f1edcade declassified cade
++c2_conf_reg          r_magic                 b0b51edca1ab005e bobsled calaboose
++objptr               p_magic                 ad0bec0dd1e5c01a adobe coddles cola
+-- 
+1.8.3.2
+

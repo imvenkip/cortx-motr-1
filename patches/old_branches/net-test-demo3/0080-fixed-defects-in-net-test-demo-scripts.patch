@@ -1,0 +1,171 @@
+From 85a9b9ab67d11243dd9bf4271a00ddb4181a04e2 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 21 Feb 2013 21:55:25 -0800
+Subject: [PATCH 80/99] fixed defects in net-test demo scripts
+
+---
+ net/test/demo/demo-config.sh.in |  2 +-
+ net/test/demo/demo-test-run.sh  | 21 +++++++++++----------
+ net/test/demo/demo.sh           | 20 ++++++++++----------
+ 3 files changed, 22 insertions(+), 21 deletions(-)
+
+diff --git a/net/test/demo/demo-config.sh.in b/net/test/demo/demo-config.sh.in
+index aebbc1f..2a0e02e 100644
+--- a/net/test/demo/demo-config.sh.in
++++ b/net/test/demo/demo-config.sh.in
+@@ -1,7 +1,7 @@
+ #!/bin/bash
+ 
+ # Kernel module -  test node
+-MOD_NODE=@ABS_SRCDIR@/net/test/linux_kernel/m0nettest.ko
++MOD_NODE=@ABS_SRCDIR@/net/test/linux_kernel/m0nettestd.ko
+ # Userspace program - test node
+ CMD_NODE=@ABS_SRCDIR@/net/test/user_space/m0nettestd
+ # Userspace program - test console
+diff --git a/net/test/demo/demo-test-run.sh b/net/test/demo/demo-test-run.sh
+index 9328a26..8f38cec 100755
+--- a/net/test/demo/demo-test-run.sh
++++ b/net/test/demo/demo-test-run.sh
+@@ -8,8 +8,10 @@ CONSOLE_SSH=
+ CONSOLE_CMD=
+ 
+ SSH="ssh"
++RMMOD="rmmod -w"
++
+ INIT_TIME_S=3
+-STOP_TIME_S=5
++STOP_TIME_S=1
+ 
+ DIR_SCRIPT=${0%/*}
+ TOP_SCRDIR="$DIR_SCRIPT/../../.."
+@@ -36,6 +38,7 @@ main()
+ 		node_set $NODES_NR "ssh" "$node_ssh"
+ 		node_set $NODES_NR "space" "$node_space"
+ 		node_set $NODES_NR "cmd" "$node_cmd"
++		((NODES_NR++)) || true
+ 	done
+ 	host_pre "$CONSOLE_SSH"
+ 	for_each_node node_host_pre
+@@ -100,16 +103,15 @@ host_pre()
+ 	local ssh_credentials="$1"
+ 	ssh_sudo "$ssh_credentials" modprobe lnet
+ 	ssh_sudo "$ssh_credentials" lctl network up
+-	ssh_sudo "$ssh_credentials" modprobe "$MOD_GALOIS"
+-	ssh_sudo "$ssh_credentials" modprobe "$MOD_M0MERO" "$PARAMS_M0MERO"
++	ssh_sudo "$ssh_credentials" insmod "$MOD_GALOIS"
++	ssh_sudo "$ssh_credentials" insmod "$MOD_M0MERO" "$PARAMS_M0MERO"
+ }
+ 
+ host_post()
+ {
+ 	local ssh_credentials="$1"
+-	ssh_sudo "$ssh_credentials" rmmod m0mero
+-	ssh_sudo "$ssh_credentials" rmmod galois
+-	ssh_sudo "$ssh_credentials" rmmod lnet
++	ssh_sudo "$ssh_credentials" $RMMOD m0mero
++	ssh_sudo "$ssh_credentials" $RMMOD galois
+ }
+ 
+ node_host_pre()
+@@ -126,21 +128,20 @@ node_kernel_pre()
+ {
+ 	local ssh_credentials="$(node_get $1 ssh)"
+ 	local module="$(node_get $1 cmd)"
+-	ssh_sudo "$ssh_credentials" modprobe "$module"
++	ssh_sudo "$ssh_credentials" insmod "$module"
+ }
+ 
+ node_kernel_post()
+ {
+ 	local ssh_credentials="$(node_get $1 ssh)"
+-	local module="$(node_get $1 cmd | awk '{print \$1}')"
+-	ssh_sudo "$ssh_credentials" rmmmod "$module"
++	ssh_sudo "$ssh_credentials" $RMMOD m0nettestd
+ }
+ 
+ node_user_pre()
+ {
+ 	local ssh_credentials="$(node_get $1 ssh)"
+ 	local cmd="$(node_get $1 cmd)"
+-	ssh_sudo "$ssh_credentials" "$cmd"
++	ssh_sudo "$ssh_credentials" "$cmd" &
+ }
+ 
+ node_user_post()
+diff --git a/net/test/demo/demo.sh b/net/test/demo/demo.sh
+index b4f0533..de23999 100755
+--- a/net/test/demo/demo.sh
++++ b/net/test/demo/demo.sh
+@@ -15,7 +15,7 @@ TMID_START=3000
+ # Maximum number of test nodes (for demo)
+ NODES_NR_MAX=64
+ # Time limit for one test, seconds
+-TEST_RUN_TIME=10
++TEST_RUN_TIME=5
+ # Message number limit for one test
+ # Test will be finished if MSG_NR messages sent/received or time limit reached
+ MSG_NR=10000000
+@@ -27,8 +27,8 @@ BD_NR_MAX=16384
+ 
+ # LNET Network Type. First NID from `lctl network list_nids' with
+ # $NET_TYPE network type are used for testing.
+-# NET_TYPE=o2ib
+-NET_TYPE=tcp
++NET_TYPE=o2ib
++# NET_TYPE=tcp
+ # NET_TYPE=lo
+ LNET_PID=12345
+ LNET_PORTAL=42
+@@ -54,8 +54,8 @@ BD_BUF_NR_SERVER=
+ # 262144 524288 1048576"
+ # CONCURRENCY_CLIENT_LIST="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 18 20 22 24 \
+ # 26 28 30 32 40 48 56 64 80 96 112 128 160 192 224 256"
+-MSG_SIZE_LIST="65536 1048576"
+-CONCURRENCY_CLIENT_LIST="8 16"
++MSG_SIZE_LIST="512 16384 131072 1048576"
++CONCURRENCY_CLIENT_LIST="1 4 16 256"
+ MEASUREMENT_LIST="Bandwidth RTT MPS"
+ M_TYPE_LIST="min max avg stddev"
+ declare -a MSG_SIZE_ARR=(${MSG_SIZE_LIST// / })
+@@ -66,7 +66,7 @@ declare -a DIR_NAME_ARR=
+ declare -A MSG_SIZE_REVERSE
+ 
+ # Used by script
+-DIR_SCRIPT=${0%/*}
++DIR_SCRIPT="$(readlink -f ${0%/*})"
+ DIR_SETUP="$DIR_SCRIPT/setup"
+ DIR_DATA="$DIR_SCRIPT/data"
+ DIR_RESULT="$DIR_SCRIPT/result"
+@@ -99,8 +99,7 @@ ECHO_N="echo -n"
+ RM="rm -rf"
+ # Tested with v4.6.1
+ # devvm has v4.2.6 - it will not work
+-GNUPLOT="/work/tmp/gnuplot-4.6.1/src/gnuplot"
+-# GNUPLOT="gnuplot"
++GNUPLOT="gnuplot"
+ 
+ main()
+ {
+@@ -266,9 +265,9 @@ node_configure()
+ 	fi
+ 	node_set $index "endpoint_console" "$endpoint_console"
+ 	node_set $index "cmdline_user" \
+-		"$CMD_NODE -a $endpoint_console -c $endpoint_cmd"
++		"$CMD_NODE -a $endpoint_cmd -c $endpoint_console"
+ 	node_set $index "cmdline_kernel" \
+-	  "$MOD_NODE console_addr=$endpoint_console node_addr=$endpoint_cmd"
++	  "$MOD_NODE addr_console=$endpoint_console addr=$endpoint_cmd"
+ }
+ 
+ console_configure1()
+@@ -443,6 +442,7 @@ console_cmdline_complement()
+ 	$ECHO_N "-s $msg_size "
+ 	$ECHO_N "-E $CONCURRENCY_SERVER "
+ 	$ECHO_N "-e $CONCURRENCY_CLIENT "
++	$ECHO_N "-p "
+ 	if [ "$test_type" == "bulk" ]; then
+ 		BD_BUF_NR_CLIENT=$(expr $concurrency "*" 4)
+ 		BD_BUF_NR_SERVER=$(expr $concurrency "*" 4)
+-- 
+1.8.3.2
+

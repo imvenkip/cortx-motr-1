@@ -1,0 +1,177 @@
+From bf34dd1e17fe21a9c6582990e2c5360fc07c6bb8 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 26 Sep 2013 05:18:30 +0300
+Subject: [PATCH 5/5] be/kernel: removed kernel module build dependencies on
+ userspace be/
+
+---
+ be/linux_kernel/stubs.c   |   9 ++--
+ be/linux_kernel/stubs.h   | 107 ++++++++++++++++++++++++++++++++++++++++++++++
+ db/linux_kernel/db_impl.h |   2 +
+ fol/fol.h                 |   1 +
+ 4 files changed, 114 insertions(+), 5 deletions(-)
+ create mode 100644 be/linux_kernel/stubs.h
+
+diff --git a/be/linux_kernel/stubs.c b/be/linux_kernel/stubs.c
+index 03e0de6..3348b40 100644
+--- a/be/linux_kernel/stubs.c
++++ b/be/linux_kernel/stubs.c
+@@ -17,13 +17,12 @@
+  * Original creation date: 13-Sep-2013
+  */
+ 
++#include "be/linux_kernel/stubs.h"
++
+ #include "lib/memory.h" /* m0_alloc() */
+-#include "be/op.h"  /* m0_be_op_state */
+-#include "be/tx.h"  /* m0_be_tx_state */
+ 
+-struct m0_be_btree;
+-struct m0_be_btree_kv_ops;
+-struct m0_be_btree_cursor;
++BE_STRUCT_DUMMY(btree_cursor);
++BE_STRUCT_DUMMY(btree_kv_ops);
+ 
+ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
+ 			      struct m0_be_tx *tx, struct m0_be_op *op,
+diff --git a/be/linux_kernel/stubs.h b/be/linux_kernel/stubs.h
+new file mode 100644
+index 0000000..acc4902
+--- /dev/null
++++ b/be/linux_kernel/stubs.h
+@@ -0,0 +1,107 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <max_medved@xyratex.com>
++ * Original creation date: 26-Sep-2013
++ */
++
++#pragma once
++
++#ifndef __MERO_BE_LINUX_KERNEL_STUBS_H__
++#define __MERO_BE_LINUX_KERNEL_STUBS_H__
++
++#include "sm/sm.h"
++
++#include "be/tx_credit.h"
++#include "be/op.h"
++
++#define BE_STRUCT_DUMMY(name)	\
++struct m0_be_##name {		\
++}
++
++#define __MERO_BE_OP_H__
++#define __MERO_BE_TX_REGMAP_H__
++#define __MERO_BE_ALLOC_H__
++#define __MERO_BE_SEG_H__
++#define __MERO_BE_DOMAIN_H__
++#define __MERO_BE_UT_HELPER_H__
++BE_STRUCT_DUMMY(reg);
++BE_STRUCT_DUMMY(reg_area);
++#include "be/tx.h"
++
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++BE_STRUCT_DUMMY(ut_seg);
++BE_STRUCT_DUMMY(ut_backend);
++BE_STRUCT_DUMMY(domain);
++BE_STRUCT_DUMMY(allocator);
++
++struct m0_be_seg {
++	struct m0_be_domain *bs_domain;
++};
++
++M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
++			      struct m0_be_tx *tx, struct m0_be_op *op,
++			      m0_bcount_t size, unsigned shift);
++
++M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
++			    struct m0_be_tx *tx, struct m0_be_op *op,
++			    void *ptr);
++
++
++M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
++
++M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op);
++
++M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op);
++
++M0_INTERNAL enum m0_be_tx_state m0_be_tx_state(const struct m0_be_tx *tx);
++
++M0_INTERNAL void m0_be_op_state_set(struct m0_be_op *op,
++				    enum m0_be_op_state state);
++
++M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
++				      const char *name, void **out);
++
++M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
++				      struct m0_sm_group *grp,
++				      const char *name, void *value);
++
++M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
++				      struct m0_sm_group *grp,
++				      const char *name);
++
++
++/** @} end of be group */
++#endif /* __MERO_BE_LINUX_KERNEL_STUBS_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/db/linux_kernel/db_impl.h b/db/linux_kernel/db_impl.h
+index 32114ff..dde7e57 100644
+--- a/db/linux_kernel/db_impl.h
++++ b/db/linux_kernel/db_impl.h
+@@ -26,6 +26,8 @@
+ #include "lib/tlist.h"
+ #include "lib/mutex.h"
+ 
++#include "be/linux_kernel/stubs.h" /* XXX temporary solution for kernel build */
++
+ /**
+    @addtogroup db Data-base interfaces.
+ 
+diff --git a/fol/fol.h b/fol/fol.h
+index 26198c3..aeed293 100644
+--- a/fol/fol.h
++++ b/fol/fol.h
+@@ -95,6 +95,7 @@ struct m0_fol_rec_desc;
+ struct m0_fol_rec;
+ 
+ /* import */
++#include "db/db.h"	    /* XXX temporary solution for kernel build */
+ #include "lib/types.h"      /* uint64_t */
+ #include "lib/arith.h"      /* M0_IS_8ALIGNED */
+ #include "lib/mutex.h"
+-- 
+1.8.3.2
+

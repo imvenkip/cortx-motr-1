@@ -1,0 +1,440 @@
+From 91a40a85cca431ac97851e0f0d9758d88c425ff7 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Wed, 10 Apr 2013 15:06:02 +0530
+Subject: [PATCH 12/25] Fixed T1.4.LogD#2175 ... #2181.
+
+---
+ rm/file.c        | 142 ++++++++++++++++++++++++++++++++++---------------------
+ rm/file.h        |  25 ++++++----
+ rm/rm.c          |   4 +-
+ rm/rm.h          |   6 +--
+ rm/rm_internal.h |   4 ++
+ rm/ut/filelock.c |   8 ++--
+ rm/ut/rings.c    |   2 +-
+ 7 files changed, 121 insertions(+), 70 deletions(-)
+
+diff --git a/rm/file.c b/rm/file.c
+index daea00d..103bf12 100644
+--- a/rm/file.c
++++ b/rm/file.c
+@@ -21,6 +21,9 @@
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
+ 
++#include "fid/fid_xc.h"
++#include "rpc/rpc_helpers.h"
++#include "xcode/xcode.h"
+ #include "rm/file.h"
+ 
+ /**
+@@ -63,12 +66,6 @@
+    - @b R.rm-file-lock.RM The distributed file lock shall use RM
+    (resource manager) to implement the interfaces.
+ 
+-   <hr>
+-   @section FileLockDLD-depends Dependencies
+-
+-   The distributed file lock depends on resource manager.
+-
+-   <hr>
+    @section FileLockDLD-lspec Logical Specification
+ 
+    - @ref FileLockDLD-lspec-comps
+@@ -82,11 +79,6 @@
+    - resource ops
+    - resource credit ops
+ 
+-   @subsection FileLockDLD-lspec-numa NUMA optimizations
+-
+-   This component helps the threads to do a cluster-wide synchronization.
+-   Distributed file lock by itself has no specific NUMA optimizations.
+-
+    <hr>
+    @section FileLockDLD-conformance Conformance
+ 
+@@ -96,11 +88,6 @@
+    <hr>
+    @section FileLockDLD-ut Unit Tests
+ 
+-   The unit test setup will be as follows:
+-   a) two resource manger servers
+-   OR
+-   b) two resource manager server and resource manager service
+-
+    Following scenarios will be tested:
+    @test
+    1) Lock usage when no other thread is using the lock
+@@ -115,7 +102,7 @@
+    - wait mode: gets the lock when the other thread releases the lock
+ 
+    @test
+-   4) lib/ut/thread.c like test
++   4) lib/ut/mutex.c like test
+    - A set of arbitrary thread perform lock, unlock operations.
+    Verify the number of operations match the expected result.
+ 
+@@ -184,7 +171,7 @@ static bool file_lock_cr_conflicts(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1);
+ static bool file_lock_cr_is_subset(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1);
+-static int file_lock_cr_encode(const struct m0_rm_credit *this,
++static int file_lock_cr_encode(struct m0_rm_credit *this,
+ 			       struct m0_bufvec_cursor *cur);
+ static int file_lock_cr_decode(struct m0_rm_credit *this,
+ 			       struct m0_bufvec_cursor *cur);
+@@ -235,8 +222,30 @@ static bool file_lock_equal(const struct m0_rm_resource *resource0,
+ 	file0 = container_of(resource0, struct m0_file, fi_res);
+ 	file1 = container_of(resource1, struct m0_file, fi_res);
+ 
+-	return file0->fi_fid.f_container == file1->fi_fid.f_container &&
+-	       file0->fi_fid.f_key == file1->fi_fid.f_key;
++	return m0_fid_eq(&file0->fi_fid, &file1->fi_fid);
++}
++
++static int file_lock_encdec(struct m0_file *file,
++			    struct m0_bufvec_cursor *cur,
++			    enum m0_bufvec_what what)
++{
++	struct m0_xcode_obj fidobj;
++	struct m0_xcode_ctx ctx;
++	int		    rc;
++
++	M0_ENTRY();
++	M0_ASSERT(cur != NULL);
++
++	fidobj.xo_type = m0_fid_xc;
++	fidobj.xo_ptr = (void *)&file->fi_fid;
++	m0_xcode_ctx_init(&ctx, &fidobj);
++	ctx.xcx_buf = *cur;
++	ctx.xcx_alloc = m0_xcode_alloc;
++	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&ctx) :
++					m0_xcode_decode(&ctx);
++	if (rc == 0 && what == M0_BUFVEC_DECODE)
++		file->fi_fid = *(struct m0_fid *)m0_xcode_ctx_top(&ctx);
++	M0_RETURN(rc);
+ }
+ 
+ /** Encode file_lock - ready to send over the wire */
+@@ -244,17 +253,14 @@ static int file_lock_encode(struct m0_bufvec_cursor *cur,
+ 			    const struct m0_rm_resource *resource)
+ {
+ 	struct m0_file *fl;
+-	m0_bcount_t     len;
+-	m0_bcount_t     cnt;
++	int             rc;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(resource != NULL);
+ 
+ 	fl = container_of(resource, struct m0_file, fi_res);
+-	len = sizeof fl->fi_fid;
+-	cnt = m0_bufvec_cursor_copyto(cur, (void *)&fl->fi_fid, len);
+-
+-	M0_RETURN(cnt == len ? 0 : -EINVAL);
++	rc = file_lock_encdec(fl, cur, M0_BUFVEC_ENCODE);
++	M0_RETURN(rc);
+ }
+ 
+ /** Decode file_lock - from the wire */
+@@ -262,9 +268,7 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
+ 			    struct m0_rm_resource **resource)
+ {
+ 	struct m0_file *fl;
+-	m0_bcount_t     len;
+-	m0_bcount_t     cnt;
+-	int             rc = 0;
++	int             rc;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(resource != NULL);
+@@ -273,9 +277,8 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
+ 	if (fl == NULL)
+ 		M0_RETURN(-ENOMEM);
+ 
+-	len = sizeof fl->fi_fid;
+-	cnt = m0_bufvec_cursor_copyfrom(cur, &fl->fi_fid, len);
+-	if (cnt == len) {
++	rc = file_lock_encdec(fl, cur, M0_BUFVEC_DECODE);
++	if (rc == 0) {
+ 		fl->fi_res.r_ops = &file_lock_ops;
+ 		/*
+ 		 * Other resource parameters are initialised by
+@@ -320,7 +323,14 @@ static bool file_lock_cr_intersects(const struct m0_rm_credit *this,
+ 
+ static m0_bcount_t file_lock_cr_len(const struct m0_rm_credit *c0)
+ {
+-	return (m0_bcount_t) sizeof(uint64_t);
++	struct m0_xcode_obj datumobj;
++	struct m0_xcode_ctx ctx;
++
++	M0_ASSERT(c0 != NULL);
++	datumobj.xo_type = &M0_XT_U64;
++	datumobj.xo_ptr = (void *)&c0->cr_datum;
++	m0_xcode_ctx_init(&ctx, &datumobj);
++	return m0_xcode_length(&ctx);
+ }
+ 
+ static int file_lock_cr_join(struct m0_rm_credit *this,
+@@ -344,7 +354,6 @@ static int file_lock_cr_copy(struct m0_rm_credit *dest,
+ 	dest->cr_datum = this->cr_datum;
+ 	dest->cr_owner = this->cr_owner;
+ 	dest->cr_ops = this->cr_ops;
+-
+ 	return 0;
+ }
+ 
+@@ -361,6 +370,10 @@ static int file_lock_cr_diff(struct m0_rm_credit *this,
+ static bool file_lock_cr_conflicts(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1)
+ {
++	M0_ASSERT(c1 != NULL);
++	M0_ASSERT(this->cr_datum == RM_FILE_LOCK);
++	M0_ASSERT(this->cr_datum == c1->cr_datum);
++
+ 	return this->cr_datum == c1->cr_datum;
+ }
+ 
+@@ -370,28 +383,39 @@ static bool file_lock_cr_is_subset(const struct m0_rm_credit *this,
+ 	return true;
+ }
+ 
+-static int file_lock_cr_encode(const struct m0_rm_credit *this,
+-			      struct m0_bufvec_cursor *cur)
++static int file_lock_cr_encdec(struct m0_rm_credit *this,
++			       struct m0_bufvec_cursor *cur,
++			       enum m0_bufvec_what what)
+ {
+-	m0_bcount_t len;
+-	m0_bcount_t cnt;
++	struct m0_xcode_obj datumobj;
++	struct m0_xcode_ctx ctx;
++	int		    rc;
+ 
+ 	M0_ENTRY();
+-	len = sizeof this->cr_datum;
+-	cnt = m0_bufvec_cursor_copyto(cur, (void *)&this->cr_datum, len);
+-	M0_RETURN(cnt == len ? 0 : -EINVAL);
++	M0_ASSERT(cur != NULL);
++
++	datumobj.xo_type = &M0_XT_U64;
++	datumobj.xo_ptr = (void *)&this->cr_datum;
++	m0_xcode_ctx_init(&ctx, &datumobj);
++	ctx.xcx_buf = *cur;
++	ctx.xcx_alloc = m0_xcode_alloc;
++	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&ctx) :
++					m0_xcode_decode(&ctx);
++	if (rc == 0 && what == M0_BUFVEC_DECODE)
++		this->cr_datum = *(uint64_t *)m0_xcode_ctx_top(&ctx);
++	M0_RETURN(rc);
+ }
+ 
+-static int file_lock_cr_decode(struct m0_rm_credit *this,
++static int file_lock_cr_encode(struct m0_rm_credit *this,
+ 			       struct m0_bufvec_cursor *cur)
+ {
+-	m0_bcount_t len;
+-	m0_bcount_t cnt;
++	return file_lock_cr_encdec(this, cur, M0_BUFVEC_ENCODE);
++}
+ 
+-	M0_ENTRY();
+-	len = sizeof this->cr_datum;
+-	cnt = m0_bufvec_cursor_copyfrom(cur, &this->cr_datum, len);
+-	M0_RETURN(cnt == len ? 0 : -EINVAL);
++static int file_lock_cr_decode(struct m0_rm_credit *this,
++			       struct m0_bufvec_cursor *cur)
++{
++	return file_lock_cr_encdec(this, cur, M0_BUFVEC_DECODE);
+ }
+ 
+ static void file_lock_cr_free(struct m0_rm_credit *this)
+@@ -405,14 +429,26 @@ static void file_lock_cr_free(struct m0_rm_credit *this)
+  * @addtogroup FileLock
+  * @{
+  */
+-M0_INTERNAL void m0_file_res_ops_set(struct m0_file *file)
++M0_INTERNAL void m0_file_init(struct m0_file *file,
++			      const struct m0_fid *fid,
++			      struct m0_rm_domain *dom)
+ {
+-	file->fi_res.r_ops = &file_lock_ops;;
++	file->fi_res.r_ops = &file_lock_ops;
++	m0_fid_set(&file->fi_fid, fid->f_container, fid->f_key);
++	m0_rm_resource_add(dom->rd_types[M0_RM_FLOCK_RT], &file->fi_res);
+ }
+-M0_EXPORTED(m0_file_owner_init);
++M0_EXPORTED(m0_file_init);
++
++M0_INTERNAL void m0_file_fini(struct m0_file *file)
++{
++	m0_fid_set(&file->fi_fid, 0, 0);
++	m0_rm_resource_del(&file->fi_res);
++	file->fi_res.r_ops = NULL;
++}
++M0_EXPORTED(m0_file_fini);
+ 
+-M0_INTERNAL void m0_file_owner_init(struct m0_file *file,
+-				    struct m0_rm_owner *owner,
++M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner *owner,
++				    struct m0_file *file,
+ 				    struct m0_rm_remote *creditor)
+ {
+ 	m0_rm_owner_init(owner, &file->fi_res, creditor);
+diff --git a/rm/file.h b/rm/file.h
+index 5fa69a0..76e9b11 100644
+--- a/rm/file.h
++++ b/rm/file.h
+@@ -83,12 +83,21 @@ struct m0_file {
+ 	struct m0_rm_resource fi_res;
+ };
+ 
+-enum m0_file_credit {
+-	RM_FILE_LOCK = 1
+-};
++/**
++ * Initialises a file-lock resource.
++ *
++ * @param file - a resource
++ * @param fid - fid for the file-lock
++ * @param dom - RM domain
++ */
++M0_INTERNAL void m0_file_init(struct m0_file *file,
++			      const struct m0_fid *fid,
++			      struct m0_rm_domain *dom);
+ 
+-/* Helper function - Sets the resource op vector */
+-M0_INTERNAL void m0_file_res_ops_set(struct m0_file *file);
++/**
++ * Finalises the file-lock resource.
++ */
++M0_INTERNAL void m0_file_fini(struct m0_file *file);
+ 
+ /**
+  * Initialises owner for a file-lock resource.
+@@ -97,8 +106,8 @@ M0_INTERNAL void m0_file_res_ops_set(struct m0_file *file);
+  * @param owner - Owner for file
+  * @param creditor - Creditor for this owner
+  */
+-M0_INTERNAL void m0_file_owner_init(struct m0_file *file,
+-				    struct m0_rm_owner *owner,
++M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner *owner,
++				    struct m0_file *file,
+ 				    struct m0_rm_remote *creditor);
+ 
+ /**
+@@ -107,7 +116,7 @@ M0_INTERNAL void m0_file_owner_init(struct m0_file *file,
+ M0_INTERNAL void m0_file_owner_fini(struct m0_rm_owner *owner);
+ 
+ /**
+- * Asynchronously sends a distributed file lock request. A caller can
++ * Initiates acquiring a distributed file lock request. A caller can
+  * decide to wait, if necessary.
+  */
+ M0_INTERNAL void m0_file_lock(struct m0_rm_owner *owner,
+diff --git a/rm/rm.c b/rm/rm.c
+index 8a3790d..7b6c5b3 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -2423,8 +2423,8 @@ static bool credit_is_empty(const struct m0_rm_credit *credit)
+ 	return credit->cr_datum == 0;
+ }
+ 
+-M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
+-				   struct m0_buf *buf)
++M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
++				    struct m0_buf *buf)
+ {
+ 	struct m0_bufvec	datum_buf;
+ 	struct m0_bufvec_cursor cursor;
+diff --git a/rm/rm.h b/rm/rm.h
+index 7479c1f..ebfa044 100644
+--- a/rm/rm.h
++++ b/rm/rm.h
+@@ -445,7 +445,7 @@ struct m0_rm_credit_ops {
+ 	/**
+ 	 * Serialises a credit of a resource into a buffer.
+ 	 */
+-	int  (*cro_encode)(const struct m0_rm_credit *_this,
++	int  (*cro_encode)(struct m0_rm_credit *_this,
+ 			   struct m0_bufvec_cursor *cur);
+ 	/**
+ 	 * De-serialises the credit of a resource from a buffer.
+@@ -1706,8 +1706,8 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in);
+ /**
+  * Allocates suitably sized buffer and encode it into that buffer.
+  */
+-M0_INTERNAL int m0_rm_credit_encode(const struct m0_rm_credit *credit,
+-				   struct m0_buf *buf);
++M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
++				    struct m0_buf *buf);
+ 
+ /**
+  * Decodes a credit from its serialised presentation.
+diff --git a/rm/rm_internal.h b/rm/rm_internal.h
+index 506deca..fec165f 100644
+--- a/rm/rm_internal.h
++++ b/rm/rm_internal.h
+@@ -29,6 +29,10 @@ enum {
+ 	RM_CREDIT_TIMEOUT = 60
+ };
+ 
++enum m0_file_credit {
++	RM_FILE_LOCK = 1
++};
++
+ /**
+  * Created as a result of remote request which is either BORROW or REVOKE
+  * (and CANCEL in future).
+diff --git a/rm/ut/filelock.c b/rm/ut/filelock.c
+index b59049b..f826c09 100644
+--- a/rm/ut/filelock.c
++++ b/rm/ut/filelock.c
+@@ -25,6 +25,7 @@
+ #include "lib/ut.h"
+ #include "fop/fom_generic.h"
+ #include "fop/fom_generic.h"
++#include "fid/fid.h"
+ 
+ #include "rm/rm.h"
+ #include "rm/rm_internal.h"
+@@ -111,11 +112,12 @@ static void fl_client_rtype_unset(struct rm_ut_data *_this)
+ static void fl_res_set(struct rm_ut_data *_this)
+ {
+ 	struct m0_file *flock;
++	struct m0_fid   fid;
+ 
+ 	M0_ALLOC_PTR(flock);
+ 	M0_UT_ASSERT(flock != NULL);
+-	m0_file_res_ops_set(flock);
+-	m0_rm_resource_add(_this->rd_rt, &flock->fi_res);
++	m0_fid_set(&fid, 1, 0);
++	m0_file_init(flock, &fid, &_this->rd_dom);
+ 	_this->rd_res = &flock->fi_res;
+ }
+ 
+@@ -123,8 +125,8 @@ static void fl_res_unset(struct rm_ut_data *_this)
+ {
+ 	struct m0_file *flock;
+ 
+-	m0_rm_resource_del(_this->rd_res);
+ 	flock = container_of(_this->rd_res, struct m0_file, fi_res);
++	m0_file_fini(flock);
+ 	m0_free(flock);
+ 	_this->rd_res = NULL;
+ }
+diff --git a/rm/ut/rings.c b/rm/ut/rings.c
+index 54c2712..e15b808 100644
+--- a/rm/ut/rings.c
++++ b/rm/ut/rings.c
+@@ -175,7 +175,7 @@ static void rings_credit_free(struct m0_rm_credit *credit)
+ 	credit->cr_datum = 0;
+ }
+ 
+-static int rings_credit_encode(const struct m0_rm_credit *credit,
++static int rings_credit_encode(struct m0_rm_credit *credit,
+ 			       struct m0_bufvec_cursor *cur)
+ {
+ 	m0_bufvec_cursor_copyto(cur, (void *)&credit->cr_datum,
+-- 
+1.8.3.2
+

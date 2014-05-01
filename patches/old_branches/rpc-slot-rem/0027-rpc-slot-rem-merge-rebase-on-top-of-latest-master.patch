@@ -1,0 +1,116 @@
+From 978e5d2372766d8c2f3c21d0fa5f8c3f01b3302d Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Sun, 7 Jul 2013 22:59:51 +0400
+Subject: [PATCH 27/60] rpc-slot-rem: merge (rebase on top of) latest master.
+
+---
+ reqh/ut/reqh_fom_ut.c  |  1 -
+ rpc/packet.c           | 10 +++++-----
+ rpc/session_internal.h | 35 +++++++++++++++++++++++++++++++++++
+ 3 files changed, 40 insertions(+), 6 deletions(-)
+
+diff --git a/reqh/ut/reqh_fom_ut.c b/reqh/ut/reqh_fom_ut.c
+index 5bfbf18..c59180c 100644
+--- a/reqh/ut/reqh_fom_ut.c
++++ b/reqh/ut/reqh_fom_ut.c
+@@ -169,7 +169,6 @@ static int server_init(const char             *stob_path,
+ {
+         int                          rc;
+ 	struct m0_rpc_machine       *rpc_machine = &srv_rpc_mach;
+-	struct m0_db_tx              tx;
+ 	uint32_t		     bufs_nr;
+ 	uint32_t		     tms_nr;
+ 	struct m0_reqh_service_type *stype;
+diff --git a/rpc/packet.c b/rpc/packet.c
+index 783c217..a911f6b 100644
+--- a/rpc/packet.c
++++ b/rpc/packet.c
+@@ -280,10 +280,10 @@ static int packet_header_decode(struct m0_bufvec_cursor            *cursor,
+ static int item_encode(struct m0_rpc_item       *item,
+ 		       struct m0_bufvec_cursor  *cursor)
+ {
+-	struct m0_rpc_item_onwire_header ioh;
+-	int                              rc;
+-	struct m0_ha_domain             *ha_dom;
+-	uint64_t                         epoch = M0_HA_EPOCH_NONE;
++	struct m0_rpc_item_header1 ioh;
++	int                        rc;
++	struct m0_ha_domain       *ha_dom;
++	uint64_t                   epoch = M0_HA_EPOCH_NONE;
+ 
+ 	M0_ENTRY("item: %p cursor: %p", item, cursor);
+ 	M0_PRE(item != NULL && cursor != NULL);
+@@ -302,7 +302,7 @@ static int item_encode(struct m0_rpc_item       *item,
+ 	}
+ 
+ 	M0_LOG(M0_DEBUG, "ha_epoch: %lu", (unsigned long)epoch);
+-	ioh = (struct m0_rpc_item_onwire_header){
++	ioh = (struct m0_rpc_item_header1){
+ 		.ioh_opcode = item->ri_type->rit_opcode,
+ 		.ioh_ha_epoch  = epoch,
+ 		.ioh_magic  = M0_RPC_ITEM_MAGIC,
+diff --git a/rpc/session_internal.h b/rpc/session_internal.h
+index 7d8d4b9..e1b0261 100644
+--- a/rpc/session_internal.h
++++ b/rpc/session_internal.h
+@@ -41,6 +41,8 @@ enum {
+ 	/** Range of valid session ids */
+ 	SESSION_ID_MIN           = SESSION_ID_0 + 1,
+ 	SESSION_ID_MAX           = SESSION_ID_INVALID - 1,
++	SLOT_ID_INVALID          = UINT32_MAX,
++	SESSION_COB_MAX_NAME_LEN = 40,
+ };
+ 
+ /**
+@@ -48,6 +50,29 @@ enum {
+  */
+ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session);
+ 
++/**
++   Holds a session in BUSY state.
++   Every call to m0_rpc_session_hold_busy() must accompany
++   call to m0_rpc_session_release()
++
++   @pre M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
++				       M0_RPC_SESSION_BUSY))
++   @pre m0_rpc_machine_is_locked(session_machine(session))
++   @post session_state(session) == M0_RPC_SESSION_BUSY
++ */
++M0_INTERNAL void m0_rpc_session_hold_busy(struct m0_rpc_session *session);
++
++/**
++   Decrements hold count. Moves session to IDLE state if it becomes idle.
++
++   @pre session_state(session) == M0_RPC_SESSION_BUSY
++   @pre session->s_hold_cnt > 0
++   @pre m0_rpc_machine_is_locked(session_machine(session))
++   @post ergo(m0_rpc_session_is_idle(session),
++	      session_state(session) == M0_RPC_SESSION_IDLE)
++ */
++M0_INTERNAL void m0_rpc_session_release(struct m0_rpc_session *session);
++
+ M0_INTERNAL void session_state_set(struct m0_rpc_session *session, int state);
+ M0_INTERNAL int session_state(const struct m0_rpc_session *session);
+ 
+@@ -82,8 +107,18 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
+ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
+ 							 *req);
+ 
++/**
++   For all slots belonging to @session,
++     if slot is in m0_rpc_machine::rm_ready_slots list,
++     then remove it from the list.
++ */
++M0_INTERNAL void m0_rpc_session_del_slots_from_ready_list(struct m0_rpc_session
++							  *session);
++
+ M0_INTERNAL bool m0_rpc_session_is_idle(const struct m0_rpc_session *session);
+ 
++M0_INTERNAL bool m0_rpc_session_bind_item(struct m0_rpc_item *item);
++
+ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item);
+ 
+ M0_INTERNAL void m0_rpc_session_mod_nr_active_items(struct m0_rpc_session
+-- 
+1.8.3.2
+

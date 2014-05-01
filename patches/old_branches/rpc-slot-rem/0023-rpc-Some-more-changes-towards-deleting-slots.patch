@@ -1,0 +1,491 @@
+From def9362bcf11ac8ddea58cd77072d2801d0b18f6 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Fri, 24 May 2013 15:13:46 +0530
+Subject: [PATCH 23/60] rpc: Some more changes towards deleting slots.
+
+---
+ fop/fop_item_type.c |   4 +-
+ rpc/item.c          | 134 ++++------------------------------------------------
+ rpc/item.h          |   4 +-
+ rpc/rpc_helpers.h   |   8 ++--
+ rpc/rpc_onwire.c    |  75 ++++++++++++++---------------
+ 5 files changed, 52 insertions(+), 173 deletions(-)
+
+diff --git a/fop/fop_item_type.c b/fop/fop_item_type.c
+index b3d70ff..2c97ca1 100644
+--- a/fop/fop_item_type.c
++++ b/fop/fop_item_type.c
+@@ -22,7 +22,7 @@
+ #include "lib/memory.h"
+ #include "fop/fop.h"
+ #include "fop/fop_item_type.h"
+-#include "rpc/rpc_helpers.h"   /* m0_rpc_slot_refs_encdec */
++#include "rpc/rpc_helpers.h"   /* m0_rpc_item_header2_encdec */
+ 
+ M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item)
+ {
+@@ -98,7 +98,7 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
+ 	M0_PRE(cur != NULL);
+ 
+ 	/* Currently MAX slot references in sessions is 1. */
+-	return m0_rpc_slot_refs_encdec(cur, item->ri_slot_refs, 1, what) ?:
++	return m0_rpc_item_header2_encdec(cur, &item->ri_header, 1, what) ?:
+ 		m0_fop_encdec(m0_rpc_item_to_fop(item), cur, what);
+ }
+ 
+diff --git a/rpc/item.c b/rpc/item.c
+index c18c768..7481960 100644
+--- a/rpc/item.c
++++ b/rpc/item.c
+@@ -55,12 +55,6 @@ M0_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct m0_rpc_item_type,
+ 
+ M0_TL_DEFINE(rit, static, struct m0_rpc_item_type);
+ 
+-static const struct m0_rpc_onwire_slot_ref invalid_slot_ref = {
+-	.osr_slot_id    = SLOT_ID_INVALID,
+-	.osr_sender_id  = SENDER_ID_INVALID,
+-	.osr_session_id = SESSION_ID_INVALID,
+-};
+-
+ /** Global rpc item types list. */
+ static struct m0_tl        rpc_item_types_list;
+ static struct m0_rwlock    rpc_item_types_lock;
+@@ -85,10 +79,10 @@ M0_INTERNAL m0_bcount_t m0_rpc_item_onwire_header_size;
+ 
+ M0_INTERNAL int m0_rpc_item_module_init(void)
+ {
+-	struct m0_rpc_item_onwire_header head;
+-	struct m0_xcode_ctx              head_xc;
+-	struct m0_rpc_onwire_slot_ref    slotr;
+-	struct m0_xcode_ctx              slotr_xc;
++	struct m0_rpc_item_header1 h1;
++	struct m0_xcode_ctx        h1_xc;
++	struct m0_rpc_item_header2 h2;
++	struct m0_xcode_ctx        h2_xc;
+ 
+ 	M0_ENTRY();
+ 
+@@ -101,10 +95,10 @@ M0_INTERNAL int m0_rpc_item_module_init(void)
+ 	m0_rwlock_init(&rpc_item_types_lock);
+ 	rit_tlist_init(&rpc_item_types_list);
+ 
+-	m0_xcode_ctx_init(&head_xc, &ITEM_XCODE_OBJ(&head));
+-	m0_xcode_ctx_init(&slotr_xc, &SLOT_REF_XCODE_OBJ(&slotr));
+-	m0_rpc_item_onwire_header_size = m0_xcode_length(&head_xc) +
+-		m0_xcode_length(&slotr_xc);
++	m0_xcode_ctx_init(&h1_xc, &ITEM_XCODE_OBJ(&h1));
++	m0_xcode_ctx_init(&h2_xc, &SLOT_REF_XCODE_OBJ(&h2));
++	m0_rpc_item_onwire_header_size = m0_xcode_length(&h1_xc) +
++		m0_xcode_length(&h2_xc);
+ 
+ 	M0_RETURN(0);
+ }
+@@ -189,11 +183,6 @@ static struct m0_sm_state_descr outgoing_item_states[] = {
+ 				      M0_RPC_ITEM_FAILED,
+ 				      M0_RPC_ITEM_UNINITIALISED),
+ 	},
+-	[M0_RPC_ITEM_WAITING_IN_STREAM] = {
+-		.sd_name    = "WAITING_IN_STREAM",
+-		.sd_allowed = M0_BITS(M0_RPC_ITEM_ENQUEUED,
+-				      M0_RPC_ITEM_URGENT),
+-	},
+ 	[M0_RPC_ITEM_ENQUEUED] = {
+ 		.sd_name    = "ENQUEUED",
+ 		.sd_allowed = M0_BITS(M0_RPC_ITEM_SENDING,
+@@ -301,7 +290,6 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
+ 	req    = m0_rpc_item_is_request(item);
+ 	rply   = m0_rpc_item_is_reply(item);
+ 	oneway = m0_rpc_item_is_oneway(item);
+-	bound  = m0_rpc_item_is_bound(item);
+ 
+ 	return  item->ri_magic == M0_RPC_ITEM_MAGIC &&
+ 		item->ri_prio >= M0_RPC_ITEM_PRIO_MIN &&
+@@ -312,12 +300,6 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
+ 		equi(req || rply, item->ri_session != NULL) &&
+ 
+ 		equi(state == M0_RPC_ITEM_FAILED, item->ri_error != 0) &&
+-		equi(state == M0_RPC_ITEM_FAILED,
+-		     M0_IN(item->ri_stage, (RPC_ITEM_STAGE_FAILED,
+-					    RPC_ITEM_STAGE_TIMEDOUT))) &&
+-
+-		equi(req && item->ri_error == -ETIMEDOUT,
+-		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT) &&
+ 
+ 		ergo(item->ri_reply != NULL,
+ 			req &&
+@@ -325,33 +307,12 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
+ 				      M0_RPC_ITEM_WAITING_FOR_REPLY,
+ 				      M0_RPC_ITEM_REPLIED))) &&
+ 
+-		ergo(M0_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
+-					    RPC_ITEM_STAGE_PAST_VOLATILE)),
+-		     item->ri_reply != NULL) &&
+-
+-		ergo(M0_IN(item->ri_stage, (RPC_ITEM_STAGE_FUTURE,
+-					    RPC_ITEM_STAGE_FAILED,
+-					    RPC_ITEM_STAGE_TIMEDOUT)),
+-		     item->ri_reply == NULL) &&
+-
+ 		equi(itemq_tlink_is_in(item), state == M0_RPC_ITEM_ENQUEUED) &&
+-
+ 		equi(item->ri_itemq != NULL,  state == M0_RPC_ITEM_ENQUEUED) &&
+ 
+ 		equi(packet_item_tlink_is_in(item),
+-		     state == M0_RPC_ITEM_SENDING) &&
++		     state == M0_RPC_ITEM_SENDING);
+ 
+-		ergo(M0_IN(state, (M0_RPC_ITEM_SENDING,
+-				   M0_RPC_ITEM_SENT,
+-				   M0_RPC_ITEM_WAITING_FOR_REPLY)),
+-			ergo(req || rply, bound) &&
+-			ergo(req,
+-			     item->ri_stage <= RPC_ITEM_STAGE_IN_PROGRESS)) &&
+-
+-		ergo(state == M0_RPC_ITEM_REPLIED,
+-			req && bound &&
+-			item->ri_reply != NULL &&
+-			item->ri_stage <= RPC_ITEM_STAGE_PAST_VOLATILE);
+ }
+ 
+ M0_INTERNAL const char *item_state_name(const struct m0_rpc_item *item)
+@@ -359,23 +320,6 @@ M0_INTERNAL const char *item_state_name(const struct m0_rpc_item *item)
+ 	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
+ }
+ 
+-M0_INTERNAL bool item_is_active(const struct m0_rpc_item *item)
+-{
+-	return M0_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
+-				      RPC_ITEM_STAGE_FUTURE));
+-}
+-M0_INTERNAL struct m0_verno *item_verno(struct m0_rpc_item *item, int idx)
+-{
+-	M0_PRE(idx < MAX_SLOT_REF);
+-	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
+-}
+-
+-M0_INTERNAL uint64_t item_xid(struct m0_rpc_item *item, int idx)
+-{
+-	M0_PRE(idx < MAX_SLOT_REF);
+-	return item->ri_slot_refs[idx].sr_ow.osr_xid;
+-}
+-
+ M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item)
+ {
+ 	return  m0_rpc_item_is_request(item) ? "REQUEST" :
+@@ -400,11 +344,6 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
+ 	item->ri_resend_interval = m0_time(1, 0);
+ 	item->ri_nr_sent_max     = ~(uint64_t)0;
+ 
+-	sref = &item->ri_slot_refs[0];
+-	sref->sr_ow = invalid_slot_ref;
+-
+-	slot_item_tlink_init(item);
+-        m0_list_link_init(&item->ri_unbound_link);
+ 	packet_item_tlink_init(item);
+ 	itemq_tlink_init(item);
+         rpcitem_tlink_init(item);
+@@ -418,8 +357,6 @@ M0_EXPORTED(m0_rpc_item_init);
+ 
+ void m0_rpc_item_fini(struct m0_rpc_item *item)
+ {
+-	struct m0_rpc_slot_ref *sref = &item->ri_slot_refs[0];
+-
+ 	M0_ENTRY("item: %p", item);
+ 
+ 	m0_sm_timer_fini(&item->ri_timer);
+@@ -428,9 +365,6 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
+ 	if (item->ri_sm.sm_state > M0_RPC_ITEM_UNINITIALISED)
+ 		m0_rpc_item_sm_fini(item);
+ 
+-	sref->sr_ow = invalid_slot_ref;
+-	slot_item_tlink_fini(item);
+-        m0_list_link_fini(&item->ri_unbound_link);
+ 	itemq_tlink_fini(item);
+ 	packet_item_tlink_fini(item);
+ 	rpcitem_tlink_fini(item);
+@@ -502,38 +436,6 @@ M0_INTERNAL bool m0_rpc_item_is_oneway(const struct m0_rpc_item *item)
+ 	return (item->ri_type->rit_flags & M0_RPC_ITEM_TYPE_ONEWAY) != 0;
+ }
+ 
+-M0_INTERNAL bool m0_rpc_item_is_bound(const struct m0_rpc_item *item)
+-{
+-	M0_PRE(item != NULL);
+-
+-	return item->ri_slot_refs[0].sr_slot != NULL;
+-}
+-
+-M0_INTERNAL bool m0_rpc_item_is_unbound(const struct m0_rpc_item *item)
+-{
+-	return !m0_rpc_item_is_bound(item) && !m0_rpc_item_is_oneway(item);
+-}
+-
+-M0_INTERNAL void m0_rpc_item_set_stage(struct m0_rpc_item *item,
+-				       enum m0_rpc_item_stage stage)
+-{
+-	bool                   was_active;
+-	struct m0_rpc_session *session = item->ri_session;
+-
+-	M0_PRE(m0_rpc_session_invariant(session));
+-
+-	was_active = item_is_active(item);
+-	M0_ASSERT(ergo(was_active && m0_rpc_item_is_bound(item),
+-		       session_state(session) == M0_RPC_SESSION_BUSY));
+-
+-	item->ri_stage = stage;
+-	if (m0_rpc_item_is_bound(item))
+-		m0_rpc_session_mod_nr_active_items(session,
+-					   item_is_active(item) - was_active);
+-
+-	M0_POST(m0_rpc_session_invariant(session));
+-}
+-
+ M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
+ 				     enum m0_rpc_item_dir dir)
+ {
+@@ -577,18 +479,6 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
+ 	M0_ENTRY("FAILED: item: %p error %d", item, rc);
+ 
+ 	item->ri_rmachine->rm_stats.rs_nr_failed_items++;
+-	/*
+-	 * Request and Reply items take hold on session until
+-	 * they are SENT/FAILED.
+-	 * See: m0_rpc__post_locked(), m0_rpc_reply_post()
+-	 *      m0_rpc_item_send()
+-	 */
+-	if (M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_ENQUEUED,
+-					 M0_RPC_ITEM_URGENT,
+-					 M0_RPC_ITEM_SENDING)) &&
+-	   (m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item)))
+-		m0_rpc_session_release(item->ri_session);
+-
+ 	item->ri_error = rc;
+ 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
+ 	m0_rpc_item_stop_timer(item);
+@@ -774,7 +664,6 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
+ 	M0_PRE(ergo(m0_rpc_item_is_request(item),
+ 		    M0_IN(state, (M0_RPC_ITEM_INITIALISED,
+ 				  M0_RPC_ITEM_WAITING_FOR_REPLY,
+-				  M0_RPC_ITEM_WAITING_IN_STREAM,
+ 				  M0_RPC_ITEM_REPLIED,
+ 				  M0_RPC_ITEM_FAILED))) &&
+ 	       ergo(m0_rpc_item_is_reply(item),
+@@ -795,11 +684,6 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
+ 		}
+ 	}
+ 	item->ri_nr_sent++;
+-	/*
+-	 * This hold will be released when the item is SENT or FAILED.
+-	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
+-	 */
+-	m0_rpc_session_hold_busy(item->ri_session);
+ 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
+ 	M0_LEAVE();
+ }
+diff --git a/rpc/item.h b/rpc/item.h
+index 8c210a5..13242cc 100644
+--- a/rpc/item.h
++++ b/rpc/item.h
+@@ -30,7 +30,7 @@
+ #include "lib/list.h"
+ #include "lib/time.h"
+ #include "sm/sm.h"                 /* m0_sm */
+-#include "rpc/rpc_onwire.h"        /* m0_rpc_onwire_slot_ref */
++#include "rpc/rpc_onwire.h"        /* m0_rpc_item_header2 */
+ 
+ /**
+    @addtogroup rpc
+@@ -169,7 +169,7 @@ struct m0_rpc_item {
+ 	    "pending" until the request item moves to SENT state.
+ 	 */
+ 	struct m0_rpc_item              *ri_pending_reply;
+-	struct m0_rpc_item_header        ri_header;
++	struct m0_rpc_item_header2       ri_header;
+ 	/** Item size in bytes. header + payload.
+ 	    Set during first call to m0_rpc_item_size() on this item.
+ 	 */
+diff --git a/rpc/rpc_helpers.h b/rpc/rpc_helpers.h
+index a2dc10a..6fab7b1 100644
+--- a/rpc/rpc_helpers.h
++++ b/rpc/rpc_helpers.h
+@@ -25,16 +25,16 @@
+ 
+ #include "lib/vec.h"  /* m0_bufvec_what */
+ 
+-struct m0_rpc_item_header;
++struct m0_rpc_item_header2;
+ 
+ /**
+  * @addtogroup rpc
+  * @{
+  */
+ 
+-M0_INTERNAL int m0_rpc_item_header_encdec(struct m0_bufvec_cursor   *cur,
+-					  struct m0_rpc_item_header *ih,
+-					  enum m0_bufvec_what what);
++M0_INTERNAL int m0_rpc_item_header2_encdec(struct m0_bufvec_cursor   *cur,
++					   struct m0_rpc_item_header2 *ih,
++					   enum m0_bufvec_what what);
+ 
+ /** @} */
+ 
+diff --git a/rpc/rpc_onwire.c b/rpc/rpc_onwire.c
+index 7b5ac43..a044a8f 100644
+--- a/rpc/rpc_onwire.c
++++ b/rpc/rpc_onwire.c
+@@ -24,7 +24,7 @@
+ #include "lib/errno.h"
+ #include "rpc/rpc_onwire.h"
+ #include "rpc/rpc_onwire_xc.h"
+-#include "rpc/item.h"          /* m0_rpc_slot_ref */
++#include "rpc/item.h"          /* m0_rpc_item_header2 */
+ #include "rpc/rpc_helpers.h"
+ #include "xcode/xcode.h"       /* M0_XCODE_OBJ */
+ 
+@@ -33,20 +33,20 @@
+  * @{
+  */
+ 
+-#define ITEM_HEAD_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
+-#define SLOT_REF_XCODE_OBJ(ptr)  M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
++#define HEADER1_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_header1_xc, ptr)
++#define HEADER2_XCODE_OBJ(ptr)  M0_XCODE_OBJ(m0_rpc_item_header2_xc, ptr)
+ 
+-M0_INTERNAL int m0_rpc_item_header_encode(struct m0_rpc_item_onwire_header *ioh,
+-					  struct m0_bufvec_cursor *cur)
++M0_INTERNAL int m0_rpc_item_header1_encode(struct m0_rpc_item_header1 *ih,
++					   struct m0_bufvec_cursor *cur)
+ {
+ 	struct m0_xcode_ctx ctx;
+ 	int                 rc;
+ 
+-	M0_ENTRY("item header: %p", ioh);
++	M0_ENTRY("item header: %p", ih);
+ 	M0_PRE(cur != NULL);
+-	M0_PRE(ioh != NULL);
++	M0_PRE(ih != NULL);
+ 
+-	m0_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(ioh));
++	m0_xcode_ctx_init(&ctx, &HEADER1_XCODE_OBJ(ih));
+ 	ctx.xcx_buf   = *cur;
+ 	rc = m0_xcode_encode(&ctx);
+ 	if (rc == 0)
+@@ -54,89 +54,84 @@ M0_INTERNAL int m0_rpc_item_header_encode(struct m0_rpc_item_onwire_header *ioh,
+ 	M0_RETURN(rc);
+ }
+ 
+-M0_INTERNAL int m0_rpc_item_header_decode(struct m0_bufvec_cursor *cur,
+-					  struct m0_rpc_item_onwire_header *ioh)
++M0_INTERNAL int m0_rpc_item_header1_decode(struct m0_bufvec_cursor *cur,
++					   struct m0_rpc_item_header1 *ih)
+ {
+ 	struct m0_xcode_ctx ctx;
+ 	int                 rc;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(cur != NULL);
+-	M0_PRE(ioh != NULL);
++	M0_PRE(ih != NULL);
+ 
+-	m0_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(NULL));
++	m0_xcode_ctx_init(&ctx, &HEADER1_XCODE_OBJ(NULL));
+ 	ctx.xcx_buf   = *cur;
+ 	ctx.xcx_alloc = m0_xcode_alloc;
+ 	rc = m0_xcode_decode(&ctx);
+ 	if (rc == 0) {
+-		struct m0_rpc_item_onwire_header *ioh_decoded;
++		struct m0_rpc_item_header1 *ih_decoded;
+ 
+-		ioh_decoded = m0_xcode_ctx_top(&ctx);
+-		*ioh = *ioh_decoded;
+-		m0_xcode_free(&ITEM_HEAD_XCODE_OBJ(ioh_decoded));
++		ih_decoded = m0_xcode_ctx_top(&ctx);
++		*ih = *ih_decoded;
++		m0_xcode_free(&HEADER1_XCODE_OBJ(ih_decoded));
+ 		*cur = ctx.xcx_buf;
+ 	}
+ 	M0_RETURN(rc);
+ }
+ 
+-static int slot_ref_encode(struct m0_rpc_onwire_slot_ref *osr,
+-			   struct m0_bufvec_cursor       *cur)
++static int header2_encode(struct m0_rpc_item_header2 *h2,
++			  struct m0_bufvec_cursor    *cur)
+ 
+ {
+ 	struct m0_xcode_ctx ctx;
+ 	int                 rc;
+ 
+ 	M0_ENTRY();
+-	m0_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(osr));
++	m0_xcode_ctx_init(&ctx, &HEADER2_XCODE_OBJ(h2));
+ 	ctx.xcx_buf = *cur;
+ 	rc = m0_xcode_encode(&ctx);
+ 	*cur = ctx.xcx_buf;
+ 	M0_RETURN(rc);
+ }
+ 
+-static int slot_ref_decode(struct m0_bufvec_cursor       *cur,
+-			   struct m0_rpc_onwire_slot_ref *osr)
++static int header2_decode(struct m0_bufvec_cursor    *cur,
++			  struct m0_rpc_item_header2 *h2)
+ {
+ 	struct m0_xcode_ctx ctx;
+ 	int                 rc;
+ 
+ 	M0_ENTRY();
+-	m0_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(NULL));
++	m0_xcode_ctx_init(&ctx, &HEADER2_XCODE_OBJ(NULL));
+ 	ctx.xcx_buf   = *cur;
+ 	ctx.xcx_alloc = m0_xcode_alloc;
+ 	rc = m0_xcode_decode(&ctx);
+ 	if (rc == 0) {
+-		struct m0_rpc_onwire_slot_ref *osr_top = m0_xcode_ctx_top(&ctx);
+-		*osr = *osr_top;
+-		m0_xcode_free(&SLOT_REF_XCODE_OBJ(osr_top));
++		struct m0_rpc_item_header2 *h2_top = m0_xcode_ctx_top(&ctx);
++		*h2 = *h2_top;
++		m0_xcode_free(&HEADER2_XCODE_OBJ(h2_top));
+ 	}
+ 	*cur = ctx.xcx_buf;
+ 	M0_RETURN(rc);
+ }
+ 
+-M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
+-					struct m0_rpc_slot_ref *slot_refs,
+-					int nr_slot_refs,
+-					enum m0_bufvec_what what)
++M0_INTERNAL int m0_rpc_item_header2_encdec(struct m0_bufvec_cursor    *cur,
++					   struct m0_rpc_item_header2 *h2,
++					   enum m0_bufvec_what         what)
+ {
+-	int i;
+-	int rc = 0;
++	int rc;
+ 
+ 	M0_ENTRY();
+-	M0_PRE(slot_refs != NULL);
++	M0_PRE(h2 != NULL);
+ 	M0_PRE(cur != NULL);
+ 
+-	for (i = 0; i < nr_slot_refs; ++i) {
+-		struct m0_rpc_onwire_slot_ref *x = &slot_refs[i].sr_ow;
+-		rc = what == M0_BUFVEC_ENCODE ?
+-			slot_ref_encode(x, cur) : slot_ref_decode(cur, x);
+-		if (rc != 0)
+-			break;
+-	}
++	rc = what == M0_BUFVEC_ENCODE ? header2_encode(x, cur) :
++					header2_decode(cur, x);
++	if (rc != 0)
++		break;
++
+ 	M0_RETURN(rc);
+ }
+ 
+-#undef SLOT_REF_XCODE_OBJ
+ #undef M0_TRACE_SUBSYSTEM
+ 
+ /** @} */
+-- 
+1.8.3.2
+

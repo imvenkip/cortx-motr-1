@@ -1,0 +1,25 @@
+From 57181c4c694d0c8b611786a146e27781fa29a747 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 10:08:27 +0200
+Subject: [PATCH 39/58] LogD 1515: c2_net_test_node_bulk_init() wasn't called
+ in c2_net_test_init()
+
+---
+ net/test/initfini.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/test/initfini.c b/net/test/initfini.c
+index ef21004..453ff6d 100644
+--- a/net/test/initfini.c
++++ b/net/test/initfini.c
+@@ -46,6 +46,7 @@ static const struct init_fini if_list[] = {
+ 	.if_fini = c2_net_test_ ## name ## _fini, \
+ }
+ 	NET_TEST_MODULE(network),
++	NET_TEST_MODULE(node_bulk),
+ #undef NET_TEST_MODULE
+ };
+ 
+-- 
+1.8.3.2
+

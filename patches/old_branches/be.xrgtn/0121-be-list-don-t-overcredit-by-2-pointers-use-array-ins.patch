@@ -1,0 +1,69 @@
+From 6da9e879ed16dddd0273f0320fb6a7c09fc544eb Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 6 Jun 2013 19:52:11 +0300
+Subject: [PATCH 121/228] be/list: don't overcredit by 2 pointers, use array
+ instead of switch
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+---
+ be/list.c | 29 ++++++++++++-----------------
+ be/list.h |  1 +
+ 2 files changed, 13 insertions(+), 17 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index e26a4b1..89af98f 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -127,25 +127,20 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 				   struct m0_be_tx_credit *accum)
+ {
+ 	struct m0_be_tx_credit k;
++	/* Number of pointers affected. */
++	static const m0_bcount_t npointers[M0_BLO_NR] = {
++		[M0_BLO_INSERT] = 4, /* l->ll_next/h->l_head,
++				      * self->{ll_prev,ll_nextright},
++				      * r->ll_prev/h->l_tail */
++		[M0_BLO_DELETE] = 4, /* the same */
++		[M0_BLO_MOVE]   = 6, /* the same plus new neighbours'
++				      * ll_next/l_head and ll_prev/l_tail. */
++	};
++
+ 	M0_PRE(list != NULL && list->bl_descr != NULL);
++	M0_PRE(IS_IN_ARRAY(optype, npointers));
+ 
+-	/* Count each ll_next/ll_prev/l_head/l_tail pointer as separate
+-	 * region. */
+-	switch (optype) {
+-	case M0_BLO_INSERT:
+-	case M0_BLO_DELETE:
+-	default:
+-		/* left->ll_next, self->ll_prev, self->ll_next,
+-		 * right->ll_prev and possibly l_head and l_tail */
+-		k.tc_reg_nr = 6;
+-		break;
+-	case M0_BLO_MOVE:
+-		/* oldleft->ll_next, self->ll_prev, self->ll_next,
+-		 * oldright->ll_prev, newleft->ll_next, newright->ll_prev,
+-		 * and possibly l_head and l_tail */
+-		k.tc_reg_nr = 8;
+-		break;
+-	}
++	k.tc_reg_nr   = npointers[optype];
+ 	k.tc_reg_size = k.tc_reg_nr * sizeof(void *);
+ 	m0_be_tx_credit_add(accum, &k);
+ }
+diff --git a/be/list.h b/be/list.h
+index 2930332..0a67625 100644
+--- a/be/list.h
++++ b/be/list.h
+@@ -76,6 +76,7 @@ enum m0_be_list_op {
+ 	M0_BLO_DELETE,
+ 	M0_BLO_MOVE
+ };
++#define M0_BLO_NR 3
+ 
+ /**
+  * Calculates the credit needed to perform `nr' list operations of type
+-- 
+1.8.3.2
+

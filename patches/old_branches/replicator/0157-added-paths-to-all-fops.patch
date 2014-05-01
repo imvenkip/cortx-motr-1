@@ -1,0 +1,325 @@
+From 074bba4f5421ce366f8a144b251e4e9260cde484 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Sun, 10 Jul 2011 16:06:23 -0600
+Subject: [PATCH 157/177] - added paths to all fops.
+
+---
+ mdservice/md_fops.c  | 60 ++++++++++++++++++++++++++++++++++++++++++++--------
+ mdservice/md_fops.ff | 16 +++++++++++---
+ mdstore/ut/lustre.c  | 48 +++++++++++++++++++++++++++++++++++++----
+ 3 files changed, 108 insertions(+), 16 deletions(-)
+
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 15eb232..17cd973 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -40,22 +40,36 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
+ 	case C2_FOP_CREATE:
+ 	        len += ((struct c2_fop_create *)data)->c_name.s_len;
+ 		len += ((struct c2_fop_create *)data)->c_target.s_len;
++		len += ((struct c2_fop_create *)data)->c_path.s_len;
+ 		break;
+ 	case C2_FOP_LINK:
+ 	        len += ((struct c2_fop_link *)data)->l_name.s_len;
++	        len += ((struct c2_fop_link *)data)->l_path.s_len;
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        len += ((struct c2_fop_unlink *)data)->u_name.s_len;
++	        len += ((struct c2_fop_unlink *)data)->u_path.s_len;
+ 		break;
+ 	case C2_FOP_RENAME:
+ 	        len += ((struct c2_fop_rename *)data)->r_sname.s_len;
+ 		len += ((struct c2_fop_rename *)data)->r_tname.s_len;
++	        len += ((struct c2_fop_rename *)data)->r_spath.s_len;
++		len += ((struct c2_fop_rename *)data)->r_tpath.s_len;
+                 break;
+ 	case C2_FOP_SETATTR:
++		len += ((struct c2_fop_setattr *)data)->s_path.s_len;
++	        break;
+ 	case C2_FOP_GETATTR:
++		len += ((struct c2_fop_getattr *)data)->g_path.s_len;
++	        break;
+ 	case C2_FOP_OPEN:
++		len += ((struct c2_fop_open *)data)->o_path.s_len;
++	        break;
+ 	case C2_FOP_CLOSE:
++		len += ((struct c2_fop_close *)data)->c_path.s_len;
++	        break;
+ 	case C2_FOP_READDIR:
++		len += ((struct c2_fop_readdir *)data)->r_path.s_len;
+ 	        break;
+         default:
+                 break;
+@@ -85,22 +99,36 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
+ 	case C2_FOP_CREATE:
+ 	        copy(&ptr, &((struct c2_fop_create *)data)->c_name);
+ 	        copy(&ptr, &((struct c2_fop_create *)data)->c_target);
++	        copy(&ptr, &((struct c2_fop_create *)data)->c_path);
+ 		break;
+ 	case C2_FOP_LINK:
+ 	        copy(&ptr, &((struct c2_fop_link *)data)->l_name);
++	        copy(&ptr, &((struct c2_fop_link *)data)->l_path);
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        copy(&ptr, &((struct c2_fop_unlink *)data)->u_name);
++	        copy(&ptr, &((struct c2_fop_unlink *)data)->u_path);
+ 	        break;
+ 	case C2_FOP_RENAME:
+ 	        copy(&ptr, &((struct c2_fop_rename *)data)->r_sname);
+ 		copy(&ptr, &((struct c2_fop_rename *)data)->r_tname);
++	        copy(&ptr, &((struct c2_fop_rename *)data)->r_spath);
++		copy(&ptr, &((struct c2_fop_rename *)data)->r_tpath);
+ 		break;
+ 	case C2_FOP_SETATTR:
++	        copy(&ptr, &((struct c2_fop_setattr *)data)->s_path);
++	        break;
+ 	case C2_FOP_GETATTR:
++	        copy(&ptr, &((struct c2_fop_getattr *)data)->g_path);
++	        break;
+ 	case C2_FOP_OPEN:
++	        copy(&ptr, &((struct c2_fop_open *)data)->o_path);
++	        break;
+ 	case C2_FOP_CLOSE:
++	        copy(&ptr, &((struct c2_fop_close *)data)->c_path);
++	        break;
+ 	case C2_FOP_READDIR:
++	        copy(&ptr, &((struct c2_fop_readdir *)data)->r_path);
+ 	        break;
+ 	default:
+ 	        break;
+@@ -127,25 +155,39 @@ static int c2_md_fol_open(const struct c2_fol_rec_type *type,
+ 	        ptr = (char *)((struct c2_fop_create *)data + 1);
+ 		map(&ptr, &((struct c2_fop_create *)data)->c_name);
+ 		map(&ptr, &((struct c2_fop_create *)data)->c_target);
++		map(&ptr, &((struct c2_fop_create *)data)->c_path);
+ 		break;
+ 	case C2_FOP_LINK:
+ 	        ptr = (char *)((struct c2_fop_link *)data + 1);
+ 		map(&ptr, &((struct c2_fop_link *)data)->l_name);
++		map(&ptr, &((struct c2_fop_link *)data)->l_path);
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        ptr = (char *)((struct c2_fop_unlink *)data + 1);
+ 		map(&ptr, &((struct c2_fop_unlink *)data)->u_name);
++		map(&ptr, &((struct c2_fop_unlink *)data)->u_path);
+ 		break;
+ 	case C2_FOP_RENAME:
+ 	        ptr = (char *)((struct c2_fop_rename *)data + 1);
+ 		map(&ptr, &((struct c2_fop_rename *)data)->r_sname);
+ 		map(&ptr, &((struct c2_fop_rename *)data)->r_tname);
++		map(&ptr, &((struct c2_fop_rename *)data)->r_spath);
++		map(&ptr, &((struct c2_fop_rename *)data)->r_tpath);
+ 		break;
+ 	case C2_FOP_SETATTR:
++		map(&ptr, &((struct c2_fop_setattr *)data)->s_path);
++		break;
+ 	case C2_FOP_GETATTR:
++		map(&ptr, &((struct c2_fop_getattr *)data)->g_path);
++		break;
+ 	case C2_FOP_OPEN:
++		map(&ptr, &((struct c2_fop_open *)data)->o_path);
++		break;
+ 	case C2_FOP_CLOSE:
++		map(&ptr, &((struct c2_fop_close *)data)->c_path);
++		break;
+ 	case C2_FOP_READDIR:
++		map(&ptr, &((struct c2_fop_readdir *)data)->r_path);
+ 		break;
+         default:
+                 break;
+@@ -175,23 +217,23 @@ static struct c2_fop_type_ops c2_md_rep_ops = {
+ };
+ 
+ /** Request fops. */
+-C2_FOP_TYPE_DECLARE(c2_fop_create,  "Create",
++C2_FOP_TYPE_DECLARE(c2_fop_create,  "Create request",
+                     C2_FOP_CREATE,  &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_link,    "Hardlink",
++C2_FOP_TYPE_DECLARE(c2_fop_link,    "Hardlink request",
+                     C2_FOP_LINK,    &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_unlink,  "Unlink",
++C2_FOP_TYPE_DECLARE(c2_fop_unlink,  "Unlink request",
+                     C2_FOP_UNLINK,  &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_open,    "Open",
++C2_FOP_TYPE_DECLARE(c2_fop_open,    "Open request",
+                     C2_FOP_OPEN,    &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_close,   "Close",
++C2_FOP_TYPE_DECLARE(c2_fop_close,   "Close request",
+                     C2_FOP_CLOSE,   &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_setattr, "Setattr",
++C2_FOP_TYPE_DECLARE(c2_fop_setattr, "Setattr request",
+                     C2_FOP_SETATTR, &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_getattr, "Getattr",   
++C2_FOP_TYPE_DECLARE(c2_fop_getattr, "Getattr request",   
+                     C2_FOP_GETATTR, &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_rename,  "Rename",
++C2_FOP_TYPE_DECLARE(c2_fop_rename,  "Rename request",
+                     C2_FOP_RENAME,  &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_readdir, "Readdir",
++C2_FOP_TYPE_DECLARE(c2_fop_readdir, "Readdir request",
+                     C2_FOP_READDIR, &c2_md_req_ops);
+ 
+ /** Reply fops. */
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 95aa54f..c7a25f2 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -61,6 +61,7 @@ DEF(c2_fop_cob, RECORD,
+ DEF(c2_fop_create, RECORD,
+     _(c_body,   c2_fop_cob),
+     _(c_target, c2_fop_str), /**< target for symlink case */
++    _(c_path,   c2_fop_str),
+     _(c_name,   c2_fop_str));
+ 
+ DEF(c2_fop_create_rep, RECORD,
+@@ -68,6 +69,7 @@ DEF(c2_fop_create_rep, RECORD,
+ 
+ DEF(c2_fop_link, RECORD,
+     _(l_body, c2_fop_cob),
++    _(l_path, c2_fop_str),
+     _(l_name, c2_fop_str));
+ 
+ DEF(c2_fop_link_rep, RECORD,
+@@ -75,6 +77,7 @@ DEF(c2_fop_link_rep, RECORD,
+ 
+ DEF(c2_fop_unlink, RECORD,
+     _(u_body, c2_fop_cob),
++    _(u_path, c2_fop_str),
+     _(u_name, c2_fop_str));
+ 
+ DEF(c2_fop_unlink_rep, RECORD,
+@@ -83,6 +86,8 @@ DEF(c2_fop_unlink_rep, RECORD,
+ DEF(c2_fop_rename, RECORD,
+     _(r_sbody, c2_fop_cob),
+     _(r_tbody, c2_fop_cob),
++    _(r_spath, c2_fop_str),
++    _(r_tpath, c2_fop_str),
+     _(r_sname, c2_fop_str),
+     _(r_tname, c2_fop_str));
+ 
+@@ -90,31 +95,36 @@ DEF(c2_fop_rename_rep, RECORD,
+     _(r_body, c2_fop_cob));
+ 
+ DEF(c2_fop_open, RECORD,
++    _(o_path, c2_fop_str),
+     _(o_body, c2_fop_cob));
+ 
+ DEF(c2_fop_open_rep, RECORD,
+     _(o_body, c2_fop_cob));
+ 
+ DEF(c2_fop_close, RECORD,
+-    _(c_body, c2_fop_cob));
++    _(c_body, c2_fop_cob),
++    _(c_path, c2_fop_str));
+ 
+ DEF(c2_fop_close_rep, RECORD,
+     _(c_body, c2_fop_cob));
+ 
+ DEF(c2_fop_setattr, RECORD,
+-    _(s_body, c2_fop_cob));
++    _(s_body, c2_fop_cob),
++    _(s_path, c2_fop_str));
+ 
+ DEF(c2_fop_setattr_rep, RECORD,
+     _(s_body, c2_fop_cob));
+ 
+ DEF(c2_fop_getattr, RECORD,
+-    _(g_body, c2_fop_cob));
++    _(g_body, c2_fop_cob),
++    _(g_path, c2_fop_str));
+ 
+ DEF(c2_fop_getattr_rep, RECORD,
+     _(g_body, c2_fop_cob));
+ 
+ DEF(c2_fop_readdir, RECORD,
+     _(r_body, c2_fop_cob),
++    _(r_path, c2_fop_str),
+     _(r_pos,  c2_fop_str));
+ 
+ DEF(c2_fop_buf, SEQUENCE,
+diff --git a/mdstore/ut/lustre.c b/mdstore/ut/lustre.c
+index 25fc934..8c4a434 100644
+--- a/mdstore/ut/lustre.c
++++ b/mdstore/ut/lustre.c
+@@ -281,10 +281,15 @@ int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data)
+ 
+ void c2_md_lustre_fop_free(struct c2_fop *fop)
+ {
+-        struct c2_fop_create *create;
+-        struct c2_fop_unlink *unlink;
+-        struct c2_fop_rename *rename;
+-        struct c2_fop_link   *link;
++        struct c2_fop_create    *create;
++        struct c2_fop_unlink    *unlink;
++        struct c2_fop_rename    *rename;
++        struct c2_fop_link      *link;
++        struct c2_fop_setattr   *setattr;
++        struct c2_fop_getattr   *getattr;
++        struct c2_fop_open      *open;
++        struct c2_fop_close     *close;
++        struct c2_fop_readdir   *readdir;
+ 
+         switch (fop->f_type->ft_code) {
+         case C2_FOP_CREATE:
+@@ -293,16 +298,22 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
+                         c2_free(create->c_name.s_buf);
+                 if (create->c_target.s_len != 0)
+                         c2_free(create->c_target.s_buf);
++                if (create->c_path.s_len != 0)
++                        c2_free(create->c_path.s_buf);
+                 break;
+         case C2_FOP_LINK:
+                 link = c2_fop_data(fop);
+                 if (link->l_name.s_len != 0)
+                         c2_free(link->l_name.s_buf);
++                if (link->l_path.s_len != 0)
++                        c2_free(link->l_path.s_buf);
+                 break;
+         case C2_FOP_UNLINK:
+                 unlink = c2_fop_data(fop);
+                 if (unlink->u_name.s_len != 0)
+                         c2_free(unlink->u_name.s_buf);
++                if (unlink->u_path.s_len != 0)
++                        c2_free(unlink->u_path.s_buf);
+                 break;
+         case C2_FOP_RENAME:
+                 rename = c2_fop_data(fop);
+@@ -310,6 +321,35 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
+                         c2_free(rename->r_sname.s_buf);
+                 if (rename->r_tname.s_len != 0)
+                         c2_free(rename->r_tname.s_buf);
++                if (rename->r_spath.s_len != 0)
++                        c2_free(rename->r_spath.s_buf);
++                if (rename->r_tpath.s_len != 0)
++                        c2_free(rename->r_tpath.s_buf);
++                break;
++        case C2_FOP_SETATTR:
++                setattr = c2_fop_data(fop);
++                if (setattr->s_path.s_len != 0)
++                        c2_free(setattr->s_path.s_buf);
++                break;
++        case C2_FOP_GETATTR:
++                getattr = c2_fop_data(fop);
++                if (getattr->g_path.s_len != 0)
++                        c2_free(getattr->g_path.s_buf);
++                break;
++        case C2_FOP_OPEN:
++                open = c2_fop_data(fop);
++                if (open->o_path.s_len != 0)
++                        c2_free(open->o_path.s_buf);
++                break;
++        case C2_FOP_CLOSE:
++                close = c2_fop_data(fop);
++                if (close->c_path.s_len != 0)
++                        c2_free(close->c_path.s_buf);
++                break;
++        case C2_FOP_READDIR:
++                readdir = c2_fop_data(fop);
++                if (readdir->r_path.s_len != 0)
++                        c2_free(readdir->r_path.s_buf);
+                 break;
+         default:
+                 break;
+-- 
+1.8.3.2
+

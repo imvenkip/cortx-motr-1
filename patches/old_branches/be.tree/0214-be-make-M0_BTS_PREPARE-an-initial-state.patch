@@ -1,0 +1,111 @@
+From 94f881392cffbfd939959fb1cd2f43c133df0d35 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 25 Jun 2013 13:32:43 +0300
+Subject: [PATCH 214/290] be: make M0_BTS_PREPARE an initial state
+
++ Let m0_be_tx_prep() be called several times (this behaviour is specified
+  in the DLD).
+---
+ be/btree.h |  2 +-
+ be/tx.c    | 21 +++++----------------
+ be/tx.h    |  7 ++-----
+ 3 files changed, 8 insertions(+), 22 deletions(-)
+
+diff --git a/be/btree.h b/be/btree.h
+index d5ad616..cbf92ac 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -162,7 +162,7 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
+  * then page where requested memory regions of the tree is loaded from the disk
+  * into the mmaped segment.
+  *
+- * Note2: When tx::bt_sm state transits from M0_BTS_INIT into M0_BTS_PLACED
++ * Note2: When tx::bt_sm state transits from M0_BTS_PREPARE to M0_BTS_PLACED
+  * or M0_BTS_STABLE then data passed to the function in @key and @value become
+  * persistent.
+  *
+diff --git a/be/tx.c b/be/tx.c
+index 774c4b6..05d3c9c 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -50,16 +50,8 @@ M0_TL_DESCR_DEFINE(tx, "transactions", M0_INTERNAL, struct m0_be_tx,
+ M0_TL_DEFINE(tx, M0_INTERNAL, struct m0_be_tx);
+ 
+ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
+-	[M0_BTS_INIT] = {
+-		.sd_flags     = M0_SDF_INITIAL,
+-		.sd_name      = "M0_BTS_INIT",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_PREPARE)
+-	},
+ 	[M0_BTS_PREPARE] = {
+-		.sd_flags     = 0,
++		.sd_flags     = M0_SDF_INITIAL,
+ 		.sd_name      = "M0_BTS_PREPARE",
+ 		.sd_in        = NULL,
+ 		.sd_ex        = NULL,
+@@ -180,7 +172,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 			       void (*filler)(struct m0_be_tx *tx,
+ 					      void *payload))
+ {
+-	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_INIT, tx_grp);
++	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_PREPARE, tx_grp);
+ 	tx->t_root       = NULL;
+ 	tx->t_id         = tid;
+ 	tx->t_be         = be;
+@@ -191,7 +183,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 	m0_be_tx_credit_init(&tx->t_captured);
+ 	m0_be_tx_credit_init(&tx->t_used);
+ 	m0_be_tx_credit_init(&tx->t_pos);
+-	tx_tlink_init_at(tx, &tx_engine(tx)->te_txs[M0_BTS_INIT]);
++	tx_tlink_init_at(tx, &tx_engine(tx)->te_txs[M0_BTS_PREPARE]);
+ 	gr_tlink_init(tx);
+ 
+ 	M0_POST(m0_be__tx_invariant(tx));
+@@ -226,13 +218,10 @@ M0_INTERNAL void
+ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
+ {
+ 	M0_PRE(m0_be__tx_invariant(tx));
+-	M0_PRE(tx_state(tx) == M0_BTS_INIT);
++	M0_PRE(tx_state(tx) == M0_BTS_PREPARE);
+ 
+ 	m0_be_tx_credit_add(&tx->t_prepared, credit);
+-#if 1  /* added XXX */
+ 	tx->t_payload_size = tx->t_prepared.tc_reg_size;
+-#endif
+-	tx_state_set(tx, M0_BTS_PREPARE);
+ 
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+@@ -554,7 +543,7 @@ M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)
+ {
+ 	enum m0_be_tx_state state = tx_state(tx);
+ 
+-	return true || ( /* XXX: and this */
++	return true || ( /* XXX DELETEME */
+ 		state < M0_BTS_NR &&
+ 		tx_tlist_contains(&tx_engine(tx)->te_txs[state], tx) &&
+ 		credit_le(&tx->t_captured, &tx->t_prepared) &&
+diff --git a/be/tx.h b/be/tx.h
+index 90ffe3f..d0de2f7 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -227,11 +227,8 @@ enum m0_be_tx_state {
+ 	 */
+ 	M0_BTS_FAILED,
+ 	/**
+-	 * Initial state after m0_be_tx_init().
+-	 */
+-	M0_BTS_INIT,
+-	/**
+-	 * State in which transaction is being prepared to opening.
++	 * State in which transaction is being prepared to opening; initial
++	 * state after m0_be_tx_init().
+ 	 *
+ 	 * In this state, m0_be_tx_prep() calls should be made to reserve
+ 	 * internal resources for the future captures. It is allowed to prepare
+-- 
+1.8.3.2
+

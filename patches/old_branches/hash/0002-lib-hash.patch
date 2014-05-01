@@ -1,0 +1,96 @@
+From 4e9ef557dcd1514e47a70bf72e8db59a07df52a1 Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Thu, 30 May 2013 03:09:04 -0700
+Subject: [PATCH 02/10] lib:hash - Fixed some trailing whitespaces.
+
+---
+ lib/hash.c                    |  2 +-
+ lib/hash.h                    | 14 +++++++-------
+ lib/ut/hash.c                 |  2 +-
+ m0t1fs/linux_kernel/ut/file.c |  2 +-
+ 4 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/lib/hash.c b/lib/hash.c
+index 0531ac1..83d8de2 100644
+--- a/lib/hash.c
++++ b/lib/hash.c
+@@ -87,7 +87,7 @@ static bool hashlist_invariant(const struct m0_hashlist *hlist)
+ }
+ 
+ M0_INTERNAL int m0_hashlist_init(struct m0_hashlist       *hlist,
+-		   		  uint64_t (*hfunc)
++				 uint64_t (*hfunc)
+ 				 (const struct m0_hashlist *hlist,
+ 				  uint64_t                  key),
+ 				 uint64_t                  bucket_nr,
+diff --git a/lib/hash.h b/lib/hash.h
+index 8c07165..565adb9 100644
+--- a/lib/hash.h
++++ b/lib/hash.h
+@@ -93,7 +93,7 @@
+  *   m0_hashlist_init(&bar->b_foohash, hash_func, bucket_nr,
+  *                    offsetof(struct foo, f_key, &foohash_tl);
+  *
+- * Now, foo objects can be added/removed to/from bar::b_foohash using 
++ * Now, foo objects can be added/removed to/from bar::b_foohash using
+  * APIs like m0_hashlist_add() and m0_hashlist_del().
+  *
+  * Also, lookup through hash can be done using API like m0_hashlist_lookup().
+@@ -270,14 +270,14 @@ M0_INTERNAL uint64_t m0_hashlist_length(const struct m0_hashlist *hlist);
+ #define m0_hashlist_forall(name, var, hlist, ...)			    \
+ ({									    \
+ 	uint64_t cnt;							    \
+-	typeof (hlist) hl = (hlist);				 	    \
++	typeof (hlist) hl = (hlist);					    \
+  									    \
+- 	for (cnt = 0; cnt < hl->hl_bucket_nr; ++cnt)	{		    \
+-		if (hl->hl_buckets[cnt] != NULL && 			    \
++	for (cnt = 0; cnt < hl->hl_bucket_nr; ++cnt)	{		    \
++		if (hl->hl_buckets[cnt] != NULL &&			    \
+ 		    (!(m0_hashbucket_forall(name, var, hl->hl_buckets[cnt], \
+ 					 ({ __VA_ARGS__ ; })))))	    \
+- 			break;					 	    \
+- 	}								    \
++			break;					 	    \
++	}								    \
+ 	cnt == hl->hl_bucket_nr;					    \
+ })
+ 
+@@ -291,7 +291,7 @@ M0_INTERNAL uint64_t m0_hashlist_length(const struct m0_hashlist *hlist);
+ 	uint64_t __cnt;							    \
+ 	typeof (hlist) hl = (hlist);					    \
+ 									    \
+- 	for (__cnt = 0; __cnt < hl->hl_bucket_nr; ++__cnt) {		    \
++	for (__cnt = 0; __cnt < hl->hl_bucket_nr; ++__cnt) {		    \
+ 		if (hl->hl_buckets[__cnt] != NULL) {			    \
+ 			m0_tl_for(name, &hl->hl_buckets[__cnt]->hb_objects, \
+ 				  var)
+diff --git a/lib/ut/hash.c b/lib/ut/hash.c
+index 3edf35c..e3fead7 100644
+--- a/lib/ut/hash.c
++++ b/lib/ut/hash.c
+@@ -21,7 +21,7 @@
+ #include "lib/bob.h"	/* m0_bob_type */
+ #include "lib/hash.h"   /* m0_hashlist */
+ #include "lib/errno.h"  /* Include appropriate errno.h header. */
+-#include "ut/ut.h"  	/* M0_UT_ASSERT() */
++#include "ut/ut.h"	/* M0_UT_ASSERT() */
+ 
+ struct bar {
+ 	/* Holds BAR_MAGIC. */
+diff --git a/m0t1fs/linux_kernel/ut/file.c b/m0t1fs/linux_kernel/ut/file.c
+index 602eba3..b16c90b 100644
+--- a/m0t1fs/linux_kernel/ut/file.c
++++ b/m0t1fs/linux_kernel/ut/file.c
+@@ -900,7 +900,7 @@ static void dgmode_readio_test(void)
+ 	ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
+ 	ioreq_sm_state_set(req, IRS_READING);
+ 	ti = m0_hashlist_lookup(&req->ir_nwxfer.nxr_tioreqs_hash, 1);
+-	
++
+ 	/*
+ 	 * Fake data structure members so that UT passes through
+ 	 * PRE checks unhurt.
+-- 
+1.8.3.2
+

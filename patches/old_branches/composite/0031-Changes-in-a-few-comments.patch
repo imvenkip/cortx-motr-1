@@ -1,0 +1,147 @@
+From 8e45268c39eb8ddd773f9ce2fccafe35fd72ef1d Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 14 Dec 2012 10:28:04 +0530
+Subject: [PATCH 031/172] Changes in a few comments.
+
+---
+ layout/composite.h | 51 +++++++++++++++++++++------------------------------
+ 1 file changed, 21 insertions(+), 30 deletions(-)
+
+diff --git a/layout/composite.h b/layout/composite.h
+index 90986eb..16b4170 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -24,7 +24,7 @@
+ #define __COLIBRI_LAYOUT_COMPOSITE_H__
+ 
+ /**
+- * @defgroup composite Composite Layout.
++ * @defgroup composite Composite Layout Type.
+  *
+  * Composite layout is made up of multiple layers.
+  *
+@@ -67,18 +67,15 @@ struct c2_composite_layout {
+ 	/** Super class. */
+ 	struct c2_layout  cl_base;
+ 
+-	/**
+-	 * Number of layers that is number of sub-layouts in this composite
+-	 * layout.
+-	 */
++	/** Number of layers in this composite layout. */
+ 	uint32_t          cl_layers_nr;
+ 
+-	/**
+-	 * List of layers (struct c2_composite_layer) owned by
+-	 * this composite layout.
+-	 */
++	/** List of the layers (struct c2_composite_layer). */
+ 	struct c2_tl     *cl_layers;
+ 
++	/**
++	 * Magic number set while c2_composite_layout object is initialised.
++	 */
+ 	uint64_t          cl_magic;
+ };
+ 
+@@ -91,7 +88,8 @@ struct c2_composite_layer {
+ 	 * Index of this layer into its owner composite layout.
+ 	 *
+ 	 * @note Since 'a layer once added to a composite layout' never gets
+-	 * deleted, index of any layer is a monotonically increasing number per
++	 * deleted until the time the composite layout is deleted from the DB,
++	 * index of any layer is a monotonically increasing number per
+ 	 * composite layout and is assigned using
+ 	 * c2_composite_layout::cl_layers_nr which is incremented per layer
+ 	 * getting added.
+@@ -101,17 +99,14 @@ struct c2_composite_layer {
+ 	/** Number of extents in this layer. */
+ 	uint32_t          clr_extents_nr;
+ 
+-	/**
+-	 * List of extents (struct c2_composite_layer_extent) owned by this
+-	 * layer.
+-	 */
++	/** List of the extents (struct c2_composite_layer_extent). */
+ 	struct c2_tl     *clr_extents;
+ 
+ 	/** Magic number set while c2_composite_layer object is initialised. */
+ 	uint64_t          clr_magic;
+ 
+ 	/**
+-	 * Linkage used for maintaining list of the layers owned by a
++	 * Linkage used for maintaining a list of the layers owned by a
+ 	 * particular composite layout.
+ 	 */
+ 	struct c2_tlink   clr_list_linkage;
+@@ -136,7 +131,7 @@ enum c2_composite_layer_ext_state {
+ 	 *   layer 'that has a single extent [X, C2_BINDEX_MAX + 1) with
+ 	 *   C2_CLRES_VALID state, associated with it'.
+ 	 *
+-	 * This relates to the implemtation of the extent map that by default
++	 * This relates to the implementation of the c2_emap that by default
+ 	 * has the name-space from 0 to C2_BINDEX_MAX.
+ 	 *
+ 	 * Extents with this state are not stored in the in-memory list of the
+@@ -145,8 +140,9 @@ enum c2_composite_layer_ext_state {
+ 	C2_CLRES_INVALID,
+ 
+ 	/**
+-	 * Normal extent associated with a particular layer. All extents with
+-	 * this value belong to the layer they are associated with.
++	 * This value is used to tag a normal extent associated with a
++	 * particular layer. All extents with this value belong to the layer
++	 * they are associated with.
+ 	 *
+ 	 * Any extent added using c2_composite_layer_ext_add(), gets added
+ 	 * with C2_CLRES_VALID as its default state.
+@@ -164,14 +160,6 @@ enum c2_composite_layer_ext_state {
+ /**
+  * Extent that is part of 'a layer of a composite layout'. Any layer except
+  * the zeroth one contains list of such extents.
+- *
+- * Some extents with the state C2_CLRES_INVALID exist in the DB version of
+- * the extents list. This relates to the implemtation of the extent map that
+- * by default has the name-space from 0 to C2_BINDEX_MAX.
+- *
+- * Such extents with the state C2_CLRES_INVALID are not stored in the in-memory
+- * version of the extents list.
+- *
+  */
+ struct c2_composite_layer_extent {
+ 	/** Extent being represented. */
+@@ -187,7 +175,7 @@ struct c2_composite_layer_extent {
+ 	uint64_t                          cle_magic;
+ 
+ 	/**
+-	 * Linkage used for maintaining list of the extents owned by a
++	 * Linkage used for maintaining a list of the extents owned by a
+ 	 * particular layer.
+ 	 */
+ 	struct c2_tlink                   cle_list_linkage;
+@@ -199,7 +187,7 @@ C2_TL_DECLARE(c2_layer_extent, extern, struct c2_composite_layer_extent);
+ /**
+  * Allocates and builds a layout object with the composite layout type,
+  * by setting its initial ref count to 1. It contains zeroth layer by
+- * default that points to the supplied old layout and it contains no extents.
++ * default that 'points to the supplied old layout and contains no extents'.
+  *
+  * Multiple layers can be subsequently added to this layout, by explicitly
+  * using the API c2_composite_layer_add().
+@@ -255,8 +243,11 @@ int c2_composite_layer_ext_lookup(const struct c2_composite_layout *cl,
+  * Adds an extent to the specified layer of the specified composite layout,
+  * by right away updating the extents list in the DB.
+  *
+- * @todo The extents is added with the C2_CLRES_VALID state. Do we need to
+- * support adding the extents with any specific extent state?
++ * @todo The extent is necessarily added with the C2_CLRES_VALID state. Do we
++ * need to support adding the extents with any specific extent state? The
++ * imagination is that any valid extent would start its lifecycle with the
++ * C2_CLRES_VALID state and then would change its state to something else if
++ * required, for example to C2_CLRES_FLATTENING and then to C2_CLRES_INVALID.
+  */
+ int c2_composite_layer_ext_add(struct c2_composite_layout *cl,
+ 			       uint32_t layer_idx,
+-- 
+1.8.3.2
+

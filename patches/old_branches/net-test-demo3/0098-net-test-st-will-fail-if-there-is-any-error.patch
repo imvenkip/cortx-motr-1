@@ -1,0 +1,121 @@
+From 5db50c7eb5331e0d810b4c91c312702b5dff368f Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 8 Mar 2013 01:40:19 +0200
+Subject: [PATCH 98/99] net-test st will fail if there is any error
+
+---
+ net/test/st/run-1x1.sh      | 38 +++++++++++++++++++++++++-------------
+ net/test/st/st-config.sh.in |  4 ++++
+ net/test/st/st.sh           |  1 +
+ 3 files changed, 30 insertions(+), 13 deletions(-)
+
+diff --git a/net/test/st/run-1x1.sh b/net/test/st/run-1x1.sh
+index 0b16bdd..e5c3a9a 100644
+--- a/net/test/st/run-1x1.sh
++++ b/net/test/st/run-1x1.sh
+@@ -1,4 +1,5 @@
+ #!/bin/sh
++set -eu
+ # set -eux
+ # export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+ 
+@@ -15,21 +16,33 @@ if [ "$(id -u)" -ne 0 ]; then
+     exit 1
+ fi
+ 
+-node_start()
++node_start_addr()
+ {
+ 	local role=$1
+-	local addr
+-	local addr_console
++	local addr="$2"
++	local addr_console="$3"
++	local pid_role="$4"
+ 
+-	[ "$role" == "client" ] && addr=$ADDR_CMD_CLIENT
+-	[ "$role" == "client" ] && addr_console=$ADDR_CONSOLE4CLIENTS
+-	[ "$role" == "server" ] && addr=$ADDR_CMD_SERVER
+-	[ "$role" == "server" ] && addr_console=$ADDR_CONSOLE4SERVERS
+ 	if [ "$role" == "$KERNEL_ROLE" ]; then
+ 		insmod "$MOD_M0NETTESTD" addr=$addr addr_console=$addr_console
+ 	else
+ 		"$CMD_M0NETTESTD" -a "$addr" -c "$addr_console" &
+-		PID_SERVER=$!
++		eval PID_$4=$!
++	fi
++}
++
++node_start()
++{
++	local role=$1
++	local addr
++	local addr_console
++
++	if [ "$role" == "client" ]; then
++		node_start_addr $role "$ADDR_CMD_CLIENT" \
++			"$ADDR_CONSOLE4CLIENTS" CLIENT
++	elif [ "$role" == "server" ]; then
++		node_start_addr $role "$ADDR_CMD_SERVER" \
++			"$ADDR_CONSOLE4SERVERS" SERVER
+ 	fi
+ }
+ 
+@@ -45,7 +58,6 @@ node_stop()
+ eval_kill_pid() {
+ 	eval pid=\${$1-xxx}
+ 	if [ "$pid" != "xxx" -a -f /proc/$pid/exe ]; then
+-		echo killing $pid
+ 		KILL_PID+="$pid "
+ 	fi
+ }
+@@ -61,9 +73,7 @@ unload_all() {
+ 		kill $pid > /dev/null 2>&1 || true
+ 		wait $pid > /dev/null 2>&1 || true
+ 	done
+-	# for m0_net in kernel (to stop transfer machine etc.)
+-	# added because m0mero.ko will not be rmmod'ed between the tests
+-	sleep 1
++	sleep $NET_CLEANUP_TIMEOUT
+ }
+ trap unload_all EXIT
+ 
+@@ -102,7 +112,9 @@ fi
+ 		 -e "$CONCURRENCY_CLIENT" \
+ 		 $VERBOSE \
+ 		 $PARSABLE \
+-		 $BULK_PARAMETERS
++		 $BULK_PARAMETERS &
++PID_CONSOLE=$!
++wait $PID_CONSOLE
+ 
+ # The same time for fini
+ sleep $NODE_INIT_DELAY
+diff --git a/net/test/st/st-config.sh.in b/net/test/st/st-config.sh.in
+index 975986a..70d2951 100644
+--- a/net/test/st/st-config.sh.in
++++ b/net/test/st/st-config.sh.in
+@@ -14,6 +14,10 @@ ST_COMMON=@ABS_SRCDIR@/m0t1fs/linux_kernel/st/common.sh
+ # Timeout is used here because there is no way to check for node readiness
+ NODE_INIT_DELAY=3
+ 
++# Timeout for m0_net in kernel (to stop transfer machine etc.)
++# added because m0mero.ko will not be rmmod'ed between the tests
++NET_CLEANUP_TIMEOUT=2
++
+ # Set to empty string to disable verbose output
+ VERBOSE=
+ # VERBOSE="-v"
+diff --git a/net/test/st/st.sh b/net/test/st/st.sh
+index b415902..d532196 100755
+--- a/net/test/st/st.sh
++++ b/net/test/st/st.sh
+@@ -1,4 +1,5 @@
+ #!/bin/sh
++set -eu
+ 
+ # Next lines are useful for ST scripts debugging
+ # set -eux
+-- 
+1.8.3.2
+

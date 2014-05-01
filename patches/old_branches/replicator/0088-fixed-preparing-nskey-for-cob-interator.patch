@@ -1,0 +1,34 @@
+From 6326ce6b43bb5a2e2780de815b3a179b1d4983c0 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 16 May 2011 04:06:15 -0600
+Subject: [PATCH 088/177] - fixed preparing nskey for cob interator.
+
+---
+ cob/cob.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index b6a6571..004d02a 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -80,10 +80,13 @@ static void cob_make_nskey_max(struct c2_cob_nskey **keyh,
+                                const char *name, 
+                                int namelen)
+ {
+-        static char max_name_placeholder[NAME_MAX];
+-        strncpy(max_name_placeholder, name, namelen);
+-        return c2_cob_make_nskey(keyh, pfid, max_name_placeholder, 
+-                                 sizeof(max_name_placeholder));
++        struct c2_cob_nskey *key;
++
++        key = c2_alloc(sizeof(*key) + NAME_MAX);
++        key->cnk_pfid = *pfid;
++        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
++        c2_bitstring_len_set(&key->cnk_name, namelen);
++        *keyh = key;
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

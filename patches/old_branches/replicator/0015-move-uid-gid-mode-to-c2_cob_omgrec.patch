@@ -1,0 +1,233 @@
+From 9eb00107246c7693f0aefcdd33e51f2b2fbca244 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 25 Feb 2011 06:24:34 -0700
+Subject: [PATCH 015/177] - move uid/gid/mode to c2_cob_omgrec; - implemented
+ basic sanity check for rename operation (an analogy to is_subdir());
+
+---
+ cob/cob.h         | 57 +++++++++++++++++++++++++++----------------------------
+ mdstore/mdstore.c | 54 ++++++++++++++++++++++++++++++++++++++++++++++++++--
+ mdstore/mdstore.h |  2 ++
+ 3 files changed, 82 insertions(+), 31 deletions(-)
+
+diff --git a/cob/cob.h b/cob/cob.h
+index 6aa5991..993e0f8 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -105,16 +105,6 @@ struct c2_cob_nsrec {
+         uint32_t          cnr_nlink;   /**< number of hard links. */
+         uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
+ 
+-        /** 
+-           @todo: these are to be migrated to another struct as 
+-           described by metadata scheme.
+-        */
+-#if 0
+-        uint32_t          cnr_mode;    /**< protection. */
+-        uint32_t          cnr_uid;     /**< user ID of owner. */
+-        uint32_t          cnr_gid;     /**< group ID of owner. */
+-#endif
+-
+         uint32_t          cnr_rdev;    /**< device ID (if special file). */
+         uint64_t          cnr_size;    /**< total size, in bytes. */
+         uint32_t          cnr_blksize; /**< blocksize for filesystem I/O. */
+@@ -130,20 +120,17 @@ struct c2_cob_oikey {
+         uint32_t          cok_linkno;  /**< hardlink ordinal index */
+ };
+ 
+-/** The oi table record is a struct c2_cob_nskey */
+-
+-
+-/** Fileattr_basic table
+-    key is stobid
++/** 
++   Fileattr_basic table key is stobid
+ 
+-    @note version change at every ns manipulation and data write.
+-    If version and mtime/ctime both change frequently, at the same time,
+-    it is arguable better to put version info in the namespace table instead
+-    of fileattr_basic table so that there is only 1 table write.
++   @note version change at every ns manipulation and data write.
++   If version and mtime/ctime both change frequently, at the same time,
++   it is arguable better to put version info in the namespace table instead
++   of fileattr_basic table so that there is only 1 table write.
+ 
+-    The reasoning behind the current design is that name-space table should be
+-    as compact as possible to reduce lookup footprint. Also, readdir benefits
+-    from smaller name-space entries.
++   The reasoning behind the current design is that name-space table should be
++   as compact as possible to reduce lookup footprint. Also, readdir benefits
++   from smaller name-space entries.
+  */
+ struct c2_cob_fabrec {
+         struct c2_verno   cfb_version; /**< version from last fop */
+@@ -152,6 +139,11 @@ struct c2_cob_fabrec {
+         /* add ACL, layout_ref, any other md not needed for stat(2) */
+ };
+ 
++struct c2_cob_omgrec {
++        uint32_t          cor_mode;    /**< protection. */
++        uint32_t          cor_uid;     /**< user ID of owner. */
++        uint32_t          cor_gid;     /**< group ID of owner. */
++};
+ 
+ /**
+    In-memory representation of a component object.
+@@ -183,7 +175,7 @@ struct c2_cob_fabrec {
+ 
+    <b>Concurrency control</b>
+    co_guard is used to protect agaist manipulation of data inside a
+-   c2_cob (currently usused as there are no manipulation methods yet).
++   c2_cob (currently not used as there are no manipulation methods yet).
+ 
+    <b>Liveness</b>
+    A c2-cob may be freed when the reference count drops to 0
+@@ -207,14 +199,16 @@ struct c2_cob {
+ 
+ #define co_stobid co_nsrec.cnr_stobid
+ 
+-/** cob flags and valid attributes */
++/** 
++   Cob flags and valid attributes 
++*/
+ enum ca_valid {
+         CA_NSKEY      = (1 << 0),
+         CA_NSKEY_FREE = (1 << 1),  /**< cob responsible for dealloc of nskey */
+         CA_NSKEY_DB   = (1 << 2),  /**< db responsible for dealloc of nskey */
+         CA_NSREC      = (1 << 3),
+         CA_FABREC     = (1 << 4),
+-        CA_OMG        = (1 << 5),
++        CA_OMGREC     = (1 << 5),
+         CA_LAYOUT     = (1 << 6),
+ };
+ 
+@@ -226,8 +220,11 @@ enum ca_valid {
+ 
+    @see c2_cob_locate
+  */
+-int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
+-                  uint64_t need, struct c2_cob **out, struct c2_db_tx *tx);
++int c2_cob_lookup(struct c2_cob_domain *dom, 
++                  struct c2_cob_nskey  *nskey,
++                  uint64_t              need, 
++                  struct c2_cob       **out, 
++                  struct c2_db_tx      *tx);
+ 
+ /**
+    Locate by stob id
+@@ -239,8 +236,10 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
+ 
+     @see c2_cob_lookup
+  */
+-int c2_cob_locate(struct c2_cob_domain *dom, const struct c2_stob_id *id,
+-                  struct c2_cob **out, struct c2_db_tx *tx);
++int c2_cob_locate(struct c2_cob_domain    *dom, 
++                  const struct c2_stob_id *id,
++                  struct c2_cob          **out, 
++                  struct c2_db_tx         *tx);
+ 
+ /**
+    Create a new cob and add it to the namespace.
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 4d98891..32045e3 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -20,6 +20,13 @@
+ 
+ #include "mdstore.h"
+ 
++static const struct c2_stob_id C2_MD_ROOTID = {
++        .si_bits = {
++                .u_hi = 1024, 
++                .u_lo = 1
++        }
++};
++
+ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+                      struct c2_dbenv *db)
+ {
+@@ -27,6 +34,9 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+         
+         C2_SET0(md);
+         rc = c2_cob_domain_init(&md->md_cob, db, id);
++        if (rc)
++                return rc;
++        md->md_rootid = C2_MD_ROOTID;
+         return rc;
+ }
+ 
+@@ -249,10 +259,50 @@ static int c2_md_store_check_sanity(struct c2_md_store *md,
+                                     struct c2_fop_rename *rename,
+                                     struct c2_fop_ctx *ctx)
+ {
++        struct c2_stob_id   tgtid;
++        struct c2_stob_id   srcid;
++        struct c2_cob      *tgt;
++        int                 rc = 0;
++
+         /*
+-         * @todo: is_subdir() like checks should be here.
++         * Get src id for comparisons.
+          */
+-        return 0;
++        fid2stobid(&srcid, &rename->r_sbody.b_tfid);
++
++        /*
++         * Let's lookup for target starting point.
++         */
++        fid2stobid(&tgtid, &rename->r_tbody.b_tfid);
++        
++        /*
++         * Going up from the target starting point until root is
++         * reached.
++         */
++        do {
++                /* Is root reached? */
++                if (c2_stob_id_eq(&md->md_rootid, &tgtid))
++                        return 0;
++                
++                /*
++                 * Let's lookup for a target cob.
++                 */
++                rc = c2_cob_locate(&md->md_cob, &tgtid, &tgt, ctx->ft_tx);
++                if (rc)
++                        return rc;
++                /*
++                 * Compare current tgt parent stobid with the src id.
++                 * If we found the same id then source is paent of tgt,
++                 * which means sanity did not pass.
++                 */
++                if (c2_stob_id_eq(&tgt->co_nskey->cnk_pfid, &srcid)) {
++                        c2_cob_put(tgt);
++                        return -EINVAL;
++                }
++                tgtid = tgt->co_nskey->cnk_pfid;
++                c2_cob_put(tgt);
++        } while (1);
++
++        return rc;
+ }
+ 
+ int c2_md_store_rename(struct c2_md_store *md, struct c2_fop *fop,
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index c7d78fb..15249a7 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -5,12 +5,14 @@
+ 
+ struct c2_cob_domain_id;
+ struct c2_cob_domain;
++struct c2_stob_id;
+ struct c2_fop_ctx;
+ struct c2_dbenv;
+ struct c2_fop;
+ 
+ struct c2_md_store {
+         struct c2_cob_domain  md_cob;
++        struct c2_stob_id     md_rootid;
+ };
+ 
+ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+-- 
+1.8.3.2
+

@@ -1,0 +1,117 @@
+From 038d76524036d92838f7929dbc2ddf575a8892d0 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 6 Mar 2013 18:10:30 +0800
+Subject: [PATCH 19/24] more debug messages for conf. adding more arguments for
+ "m0t1fs/linux_kernel/st/st" reqh test case.
+
+---
+ conf/confc.c                | 2 ++
+ m0t1fs/linux_kernel/st/st   | 4 ++--
+ m0t1fs/linux_kernel/super.c | 2 ++
+ mero/conf.c                 | 2 ++
+ reqh/reqh.c                 | 3 +++
+ rpc/session_utils.c         | 1 +
+ 6 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index b7afa12..30c0a6b 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -445,6 +445,8 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
+ 	M0_PRE(not_empty(confd_addr) || not_empty(local_conf));
+ 	M0_PRE(ergo(not_empty(confd_addr), rpc_mach != NULL));
+ 
++	M0_LOG(M0_DEBUG, "confd=%s lconf=%s", confd_addr, local_conf);
++
+ 	m0_mutex_init(&confc->cc_lock);
+ 	confc_lock(confc);
+ 	rc = confc_cache_create(confc, profile, local_conf);
+diff --git a/m0t1fs/linux_kernel/st/st b/m0t1fs/linux_kernel/st/st
+index 50908b4..afcabc1 100755
+--- a/m0t1fs/linux_kernel/st/st
++++ b/m0t1fs/linux_kernel/st/st
+@@ -116,7 +116,7 @@ services_start() {
+ 
+   ("prof-ac", {1| ("fs-1")}),
+   ("fs-1", {2| ((11, 22),
+-                [8: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs"],
++                [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs", "-A", "addb-stobs", "-w", "3"],
+                 [1: "ios-1"])}),
+   ("ios-1", {3| (2, [1: "lnet:$IOS1_ENDPOINT"], "node-1")}),
+   ("node-1", {4| (163840, 0, 0, 16, 0, [0], [0])})]
+@@ -224,7 +224,7 @@ usage() {
+ 
+ ## Keep the audience engaged.
+ ## XXX TODO: Measure and report elapsed time a la CUnit.
+-say() { echo "$@"; }
++say() { echo "$@" | tee -a $SANDBOX_DIR/m0d.log; }
+ 
+ ## -------------------------------------------------------------------
+ ## main()
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 1a28e21..c615fe7 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -392,6 +392,7 @@ static int fs_params_parse(struct fs_params *dest, const char **src)
+ 		goto end;
+ 
+ 	for (rc = 0; rc == 0 && *src != NULL; ++src) {
++		M0_LOG(M0_DEBUG, "conf fs src=%s", *src);
+ 		/* match_token() doesn't change the string pointed to
+ 		 * by its first argument.  We don't want to remove
+ 		 * `const' from m0_conf_filesystem::cf_params only
+@@ -555,6 +556,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
+ 			++*nr_ios;
+ 
+ 		for (pstr = svc->cs_endpoints; *pstr != NULL; ++pstr) {
++			M0_LOG(M0_DEBUG, "svc type=%d, ep=%s", svc->cs_type, *pstr);
+ 			rc = connect_to_service(*pstr, svc->cs_type, csb);
+ 			if (rc != 0)
+ 				goto out;
+diff --git a/mero/conf.c b/mero/conf.c
+index 44fca46..30f23a0 100644
+--- a/mero/conf.c
++++ b/mero/conf.c
+@@ -194,6 +194,8 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
+ 	M0_ENTRY();
+ 	M0_PRE(confd_addr != NULL && profile != NULL);
+ 
++	M0_LOG(M0_DEBUG, "confd_addr=%s profile=%s", confd_addr, profile);
++
+ 	cctx.rcx_net_dom               = &client_net_dom;
+ 	cctx.rcx_local_addr            = client_ep;
+ 	cctx.rcx_remote_addr           = server_ep;
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index d74c1fc..3784773 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -23,6 +23,8 @@
+ #define M0_ADDB_CT_CREATE_DEFINITION
+ #include "reqh/reqh_addb.h"
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
++#include "lib/trace.h"
+ #include "lib/errno.h"
+ #include "lib/assert.h"
+ #include "lib/memory.h"
+@@ -298,6 +300,7 @@ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)
+ 	return reqh->rh_fom_dom.fd_localities_nr;
+ }
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /** @} endgroup reqh */
+ 
+ /*
+diff --git a/rpc/session_utils.c b/rpc/session_utils.c
+index 3646d64..22fff9e 100644
+--- a/rpc/session_utils.c
++++ b/rpc/session_utils.c
+@@ -278,4 +278,5 @@ M0_INTERNAL void m0_rpc_item_dispatch(struct m0_rpc_item *item)
+ 	M0_LEAVE();
+ }
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /** @} */
+-- 
+1.8.3.2
+

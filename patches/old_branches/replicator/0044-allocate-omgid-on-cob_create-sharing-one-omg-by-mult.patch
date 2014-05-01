@@ -1,0 +1,204 @@
+From 07ed2036d173793b234759b64d43572b1dba22b1 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 7 Apr 2011 06:41:28 -0600
+Subject: [PATCH 044/177] - allocate omgid on cob_create (sharing one omg by
+ multiple cobs is not yet there); - fixed bug in reqh that prevented
+ transactions from commit even for successul fop handling; - use
+ c2_dbenv_sync() temporary after commit to make sure that data will reach the
+ store; - cleanups.
+
+---
+ cob/cob.c            | 34 ++++++++++++++++++++++++++++++----
+ mdstore/mdstore.c    |  2 +-
+ reqh/reqh.c          |  6 ++++--
+ utils/mkfs.colibri.c | 51 ++++++++++++++++++++++++++++++++++++++-------------
+ 4 files changed, 73 insertions(+), 20 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 2c43160..e72e818 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -530,6 +530,7 @@ int c2_cob_create(struct c2_cob        *cob,
+         struct c2_db_pair    pair;
+         struct c2_cob_omgkey omgkey;
+         struct c2_cob_oikey  oikey;
++        struct c2_db_cursor  cursor;
+ 	int                  rc;
+ 
+         C2_PRE(cob != NULL);
+@@ -540,6 +541,31 @@ int c2_cob_create(struct c2_cob        *cob,
+ 	C2_PRE(c2_fid_is_set(&nsrec->cnr_fid));
+         C2_PRE(c2_fid_is_set(&nskey->cnk_pfid));
+ 
++        /*
++         * Allocate omgid using last allocated number + 1.
++         * Find terminator record and do prev() out of it.
++         */
++        omgkey.cok_omgid = ~0ULL;
++        
++        c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
++			 &omgkey, sizeof omgkey,
++			 &cob->co_omgrec, sizeof cob->co_omgrec);
++
++        rc = c2_db_cursor_init(&cursor, 
++                               &cob->co_dom->cd_fileattr_omg, tx);
++        if (rc)
++                return rc;
++
++        c2_db_cursor_get(&cursor, &pair);
++        c2_db_cursor_prev(&cursor, &pair);
++        c2_db_pair_release(&pair);
++        c2_db_cursor_fini(&cursor);
++
++        /*
++         * Bump last allocated omgid.
++         */
++        nsrec->cnr_omgid = ++omgkey.cok_omgid;
++
+         cob->co_nskey = nskey;
+         cob->co_valid |= CA_NSKEY;
+ 
+@@ -550,7 +576,7 @@ int c2_cob_create(struct c2_cob        *cob,
+                 cob->co_valid |= CA_NSKEY_FREE;
+ 
+         /* 
+-         * Now let's update stat data _before_ calling link. 
++         * Now let's update stat data _before_ calling add_name(). 
+          */
+         cob->co_nsrec = *nsrec;
+         cob->co_valid |= CA_NSREC;
+@@ -775,13 +801,13 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         /*
+          * Linkno for new name is number of links in statdata - 1
+          */
+-        nsrec.cnr_linkno = cob->co_nsrec.cnr_nlink;
+-        oikey.cok_fid = cob->co_nsrec.cnr_fid;
++        nsrec.cnr_linkno = nsrec.cnr_nlink;
++        oikey.cok_fid = nsrec.cnr_fid;
+ 
+         /* 
+          * Use _old_ nlink value for the key in object index.
+          */
+-        oikey.cok_linkno = cob->co_nsrec.cnr_nlink;
++        oikey.cok_linkno = nsrec.cnr_nlink;
+ 
+         /*
+          * Add new name to object index table. Table insert should fail
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 358c51b..9a8a4a8 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -172,7 +172,7 @@ int c2_md_store_create(struct c2_md_store *md,
+         struct c2_cob_omgrec   omgrec;
+         time_t                 now;
+         int                    rc;
+-        
++
+         c2_md_make_nskey(&nskey, &body->b_pfid, &req->c_name);
+         c2_md_make_fid(&nsrec.cnr_fid, &body->b_tfid);
+ 
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 326f131..a67aba9 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -92,10 +92,12 @@ out_fini:
+         if (fom->fo_ops->fo_fini)
+                 fom->fo_ops->fo_fini(fom);
+ out:
+-        if (result)
++        if (result < 0) {
+                 c2_db_tx_abort(&tx.tx_dbtx);
+-        else 
++        } else {
+                 c2_db_tx_commit(&tx.tx_dbtx);
++                c2_dbenv_sync(reqh->rh_site->s_mdstore->md_dom.cd_dbenv);
++        }
+         
+         return result;
+ }
+diff --git a/utils/mkfs.colibri.c b/utils/mkfs.colibri.c
+index 32fc2b1..6cd2299 100644
+--- a/utils/mkfs.colibri.c
++++ b/utils/mkfs.colibri.c
+@@ -71,7 +71,9 @@ int main(int argc, char *argv[])
+         struct c2_cob_nskey   *nskey;
+         struct c2_cob_nsrec    nsrec;
+         struct c2_cob_fabrec   fabrec;
++        struct c2_cob_omgkey   omgkey;
+         struct c2_cob_omgrec   omgrec;
++        struct c2_db_pair      pair;
+         struct c2_db_tx        tx;
+         struct c2_cob         *cob;
+         time_t                 now;
+@@ -118,23 +120,23 @@ int main(int argc, char *argv[])
+ 
+         c2_md_store_make_nskey(&nskey, &C2_MD_ROOT_FID, "ROOT", 4);
+ 
++        /*
++         * Zero omgid is for root directory.
++         */        
++        nsrec.cnr_omgid = 0;
+         nsrec.cnr_fid = C2_MD_ROOT_FID;
++
++        /*
++         * c2_md_store_create_attr() will take care of correct nlink,
++         * we just need to set it to zero here.
++         */
+         nsrec.cnr_nlink = 0;
+-        nsrec.cnr_ino = 1024;
++        nsrec.cnr_ino = 1;
+         nsrec.u.cnr_rdev = 0;
+         nsrec.u.cnr_size = 4096;
+         nsrec.cnr_blksize = 4096;
+         nsrec.cnr_blocks = 16;
+-
+-        time(&now);
+-        nsrec.cnr_atime = now;
+-        nsrec.cnr_mtime = now;
+-        nsrec.cnr_ctime = now;
+-
+-        /*
+-         * @todo: allocate omg.
+-         */        
+-        nsrec.cnr_omgid = 0;
++        nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = time(&now);
+ 
+         C2_SET0(&fabrec);
+ 
+@@ -154,8 +156,31 @@ int main(int argc, char *argv[])
+ 
+         c2_db_tx_init(&tx, &db, 0);
+         
+-        rc = c2_md_store_create_attr(&md, cob, nskey, &nsrec, &fabrec, 
+-                                     &omgrec, &tx);
++        rc = c2_md_store_create_attr(&md, cob, nskey, &nsrec, 
++                                     &fabrec, &omgrec, &tx);
++
++        /*
++         * Create terminator omgid record with id == ~0.
++         */
++        omgkey.cok_omgid = ~0ULL;
++        
++        /*
++         * Zero out terminator omrec, we don't need its 
++         * fields.
++         */
++        C2_SET0(&omgrec);
++        
++        /* 
++         * Add to fileattr-omg table. 
++         */
++        c2_db_pair_setup(&pair, &md.md_dom.cd_fileattr_omg,
++			 &omgkey, sizeof omgkey,
++			 &omgrec, sizeof omgrec);
++
++        rc = c2_table_insert(&tx, &pair);
++        c2_db_pair_release(&pair);
++	c2_db_pair_fini(&pair);
++
+         if (rc)
+                 c2_db_tx_abort(&tx);
+         else
+-- 
+1.8.3.2
+

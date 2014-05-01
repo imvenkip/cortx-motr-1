@@ -1,0 +1,55 @@
+From 53d0f7f769a9d7a503a555a04d455e9e86ef370c Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 13 Feb 2013 17:37:13 +0200
+Subject: [PATCH 58/79] net-test/demo: added cmdline options support and -t
+ option
+
+---
+ net/test/demo/demo.exp | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/net/test/demo/demo.exp b/net/test/demo/demo.exp
+index 4dee554..b0c7fef 100755
+--- a/net/test/demo/demo.exp
++++ b/net/test/demo/demo.exp
+@@ -65,7 +65,8 @@ proc init_host {addr {tmout 10}} {
+     } eof {error eof}
+ }
+ 
+-proc init_hosts {shosts chosts} {
++proc init_hosts {shosts chosts ntopts_al} {
++    array set ntopts $ntopts_al
+     # create list of unique addresses:
+     set hosts ""
+     foreach h [concat $shosts $chosts] {
+@@ -98,8 +99,9 @@ proc init_hosts {shosts chosts} {
+         }
+         set r [exec_cmd $pid($h) $sid($h) "sudo lctl list_nids" 10]
+         foreach l [split $r \n] {
+-            if {[regexp {([0-9.]+)@([a-z0-9_]+)} $l a addr typ]} {
+-                lappend nids($h) [list $addr $typ]
++            if {[regexp {([0-9.]+)@([a-z0-9_]+)} $l a addr typ]
++            && [info exists ntopts(t)] && "z$typ" == "z$ntopts(t)"} {
++                lappend nids($h) $addr
+             }
+         }
+         if {! [info exists nids($h)]} {error "no NIDs found on $h"}
+@@ -112,11 +114,14 @@ proc usage {argv0} {
+     exit 1
+ }
+ proc main {argv0 argv} {
++    package require cmdline
++    array set ntopts [::cmdline::getoptions argv {
++        {t.arg    "tcp"    "network type (tcp, o2ib)"}}]
+     if {[llength $argv] != 2} {usage $argv0}
+     set shosts [split [lindex $argv 0] ,]
+     set chosts [split [lindex $argv 1] ,]
+     send_user "servers: $shosts\nclients: $chosts\n"
+-    init_hosts $shosts $chosts
++    init_hosts $shosts $chosts [array get ntopts]
+ }
+ 
+ main $argv0 $argv
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From 00a874bf6ee7c703fb7176f1b7bac0f834f295dd Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 28 Mar 2014 18:23:11 +0530
+Subject: [PATCH 17/20]   - Revert back reqh lockers size.
+
+---
+ reqh/reqh.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index bcc57aa..106a8b3 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -62,7 +62,7 @@ struct m0_net_xprt;
+ struct m0_rpc_machine;
+ struct m0_local_service_ops;
+ 
+-M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 512);
++M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
+ 
+ /** Local reply consumer service (testing or replicator) */
+ struct m0_local_service {
+-- 
+1.8.3.2
+

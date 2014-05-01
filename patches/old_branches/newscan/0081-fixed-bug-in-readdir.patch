@@ -1,0 +1,41 @@
+From bffd78e089e6b64bdf7c637c4a914e334eaf90d8 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 12 May 2011 02:48:19 -0600
+Subject: [PATCH 081/158] - fixed bug in readdir
+
+---
+ cob/cob.c         | 4 +++-
+ mdstore/mdstore.c | 2 +-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 8f73958..932e861 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -661,7 +661,9 @@ int c2_cob_iterator_next(struct c2_cob_iterator *it)
+         int rc;
+ 
+         rc = c2_db_cursor_next(&it->ci_cursor, &it->ci_pair);
+-        if (rc)
++        if (rc == -ENOENT)
++                return 1;
++        else if (rc)
+                 return rc;
+ 
+         if (!c2_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index fb06a0f..9b89a96 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -741,7 +741,7 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+         int                            count;
+         int                            rc;
+         
+-        C2_ASSERT(cob != NULL);        
++        C2_ASSERT(cob != NULL);
+ 
+         rc = c2_cob_iterator_init(cob, &it, 
+                                   req->r_pos.n_name, 
+-- 
+1.8.3.2
+

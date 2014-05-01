@@ -1,0 +1,25 @@
+From 9a5a932c68c8d58abc13c96af1a48836de20de2e Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 25 Feb 2014 16:18:47 +0200
+Subject: [PATCH 91/96] be/fl: translated assumtion into invariant
+
+---
+ be/fl.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/be/fl.h b/be/fl.h
+index 0ce438e..8bff518 100644
+--- a/be/fl.h
++++ b/be/fl.h
+@@ -39,6 +39,8 @@ enum {
+ 					      M0_BE_FL_NR * M0_BE_FL_STEP */
+ };
+ 
++M0_BASSERT(M0_BE_FL_STEP * M0_BE_FL_NR < M0_BCOUNT_MAX);
++
+ /** m0_be_fl operation. @see m0_be_fl_credit() */
+ enum m0_be_fl_op {
+ 	M0_BFL_CREATE,
+-- 
+1.8.3.2
+

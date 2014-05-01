@@ -1,0 +1,89 @@
+From ecc5f6e8ab37a802bfe86f56b148a202bcf33d69 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 26 Jun 2013 14:55:20 +0300
+Subject: [PATCH 230/290] be/reg_area: additional check for credits (prepared
+ and total)
+
+---
+ be/tx_regmap.c | 19 ++++++++++++++++---
+ be/tx_regmap.h |  1 +
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/be/tx_regmap.c b/be/tx_regmap.c
+index f309c34..c2a1674 100644
+--- a/be/tx_regmap.c
++++ b/be/tx_regmap.c
+@@ -424,8 +424,9 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
+ {
+ 	int rc;
+ 
+-	ra->bra_prepared  = *prepared;
+ 	ra->bra_area_used = 0;
++	ra->bra_prepared  = *prepared;
++	m0_be_tx_credit_init(&ra->bra_captured);
+ 
+ 	M0_ALLOC_ARR(ra->bra_area, ra->bra_prepared.tc_reg_size);
+ 	if (ra->bra_area == NULL) {
+@@ -451,7 +452,8 @@ M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
+ {
+ 	return m0_be_regmap__invariant(&ra->bra_map) &&
+ 	       ra->bra_area != NULL &&
+-	       ra->bra_area_used <= ra->bra_prepared.tc_reg_size;
++	       ra->bra_area_used <= ra->bra_prepared.tc_reg_size &&
++	       m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared);
+ }
+ 
+ M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
+@@ -505,7 +507,7 @@ static void be_reg_area_cpy_cb(void *data,
+ 	m0_bcount_t rd_offset;
+ 
+ 	M0_PRE(m0_be_reg_d__invariant(rd));
+-	M0_PRE((char *) rd->rd_reg.br_addr > (char *) super->rd_reg.br_addr);
++	M0_PRE(be_reg_d_is_partof(super, rd));
+ 
+ 	rd_offset = (char *) rd->rd_reg.br_addr -
+ 		    (char *) super->rd_reg.br_addr;
+@@ -530,17 +532,28 @@ static struct m0_be_regmap_callbacks be_reg_area_cb = {
+ M0_INTERNAL void m0_be_reg_area_capture(struct m0_be_reg_area *ra,
+ 					const struct m0_be_reg_d *rd)
+ {
++	M0_PRE(m0_be_reg_area__invariant(ra));
+ 	M0_PRE(m0_be_reg_d__invariant(rd));
++
++	m0_be_tx_credit_add(&ra->bra_captured,
++			    &M0_BE_TX_CREDIT(1, rd->rd_reg.br_size));
++	M0_ASSERT(m0_be_tx_credit_le(&ra->bra_captured, &ra->bra_prepared));
+ 	m0_be_regmap_add(&ra->bra_map, rd);
++
+ 	M0_POST(m0_be_reg_d__invariant(rd));
++	M0_POST(m0_be_reg_area__invariant(ra));
+ }
+ 
+ M0_INTERNAL void m0_be_reg_area_uncapture(struct m0_be_reg_area *ra,
+ 					  const struct m0_be_reg_d *rd)
+ {
++	M0_PRE(m0_be_reg_area__invariant(ra));
+ 	M0_PRE(m0_be_reg_d__invariant(rd));
++
+ 	m0_be_regmap_del(&ra->bra_map, rd);
++
+ 	M0_POST(m0_be_reg_d__invariant(rd));
++	M0_POST(m0_be_reg_area__invariant(ra));
+ }
+ 
+ /** @} end of be group */
+diff --git a/be/tx_regmap.h b/be/tx_regmap.h
+index 0296ff3..cda3973 100644
+--- a/be/tx_regmap.h
++++ b/be/tx_regmap.h
+@@ -167,6 +167,7 @@ struct m0_be_reg_area {
+ 	char		      *bra_area;
+ 	m0_bcount_t	       bra_area_used;
+ 	struct m0_be_tx_credit bra_prepared;
++	struct m0_be_tx_credit bra_captured;
+ };
+ 
+ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
+-- 
+1.8.3.2
+

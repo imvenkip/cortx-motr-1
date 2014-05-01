@@ -1,0 +1,562 @@
+From 19aef1158fda3d8c7f920e3c2b4b78322d77bdff Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Thu, 6 Jun 2013 13:28:00 +0300
+Subject: [PATCH 113/290] be: extmap: merge, split, paste routines updated
+
+---
+ db/extmap.c          | 300 +++++++++++++++++++++++++++++----------------------
+ db/extmap.h          |  49 ++++-----
+ db/extmap_internal.h |   2 +
+ 3 files changed, 201 insertions(+), 150 deletions(-)
+
+diff --git a/db/extmap.c b/db/extmap.c
+index 9b17d12..508cd6e 100644
+--- a/db/extmap.c
++++ b/db/extmap.c
+@@ -161,6 +161,8 @@ static void it_open(struct m0_emap_cursor *it)
+ 	const struct m0_emap_rec *rec = &it->ec_rec;
+ 	struct m0_emap_seg       *ext = &it->ec_seg;
+ 
++	m0_be_btree_cursor_kv_get(&it->ec_cursor, &it->ec_keybuf,
++						  &it->ec_recbuf);
+ 	ext->ee_pre         = key->ek_prefix;
+ 	ext->ee_ext.e_start = rec->er_start;
+ 	ext->ee_ext.e_end   = key->ek_offset;
+@@ -194,44 +196,52 @@ static bool it_prefix_ok(const struct m0_emap_cursor *it)
+ 	(*(func))(&__it->ec_cursor, &__it->ec_pair);	\
+ })
+ 
+-static int it_init(struct m0_emap *map, struct m0_db_tx *tx,
++static void it_init(struct m0_emap *map, struct m0_db_tx *tx,
+ 		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		   struct m0_emap_cursor *it, uint32_t flags)
+ {
+-	m0_db_pair_setup(&it->ec_pair, &map->em_mapping,
+-			 &it->ec_key, sizeof it->ec_key,
+-			 &it->ec_rec, sizeof it->ec_rec);
++	it->ec_keybuf.b_addr = &it->ec_key;
++	it->ec_recbuf.b_addr = &it->ec_rec;
++	it->ec_keybuf.b_nob  = sizeof it->ec_key;
++	it->ec_recbuf.b_nob  = sizeof it->ec_rec;
+ 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
+ 	it->ec_key.ek_offset = offset + 1;
+ 	it->ec_map           = map;
+-	return m0_db_cursor_init(&it->ec_cursor, &map->em_mapping, tx, flags);
++	m0_be_btree_cursor_init(&it->ec_cursor, &map->em_mapping);
+ }
+ 
+ static void emap_close(struct m0_emap_cursor *it)
+ {
+-	m0_db_cursor_fini(&it->ec_cursor);
+-	m0_db_pair_fini(&it->ec_pair);
++	m0_be_btree_cursor_fini(&it->ec_cursor);
+ }
+ 
+-static int emap_lookup(struct m0_emap *map, struct m0_db_tx *tx,
++static void emap_lookup(struct m0_emap *map, struct m0_db_tx *tx,
+ 		       const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		       struct m0_emap_cursor *it)
+ {
+ 	int result;
+ 
+-	result = it_init(map, tx, prefix, offset, it, 0);
+-	if (result == 0) {
+-		result = IT_DO_OPEN(it, &m0_db_cursor_get);
+-		if (result != 0)
+-			emap_close(it);
++	it_init(map, tx, prefix, offset, it, 0);
++	m0_be_btree_cursor_get(&it->ec_cursor, &it->ec_keybuf);
++	result = m0_emap_be_op_get(it)->bo_sm.sm_rc;
++	if (result != 0) {
++		emap_close(it);
++		return;
+ 	}
++	it_open(it);
+ 	M0_POST(ergo(result == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
+-	return result;
+ }
+ 
+-static int emap_next(struct m0_emap_cursor *it)
++static void emap_next(struct m0_emap_cursor *it)
++{
++	m0_be_btree_cursor_next(&it->ec_cursor);
++	it_open(it);
++}
++
++static void emap_prev(struct m0_emap_cursor *it)
+ {
+-	return IT_DO_OPEN(it, &m0_db_cursor_next);
++	m0_be_btree_cursor_prev(&it->ec_cursor);
++	it_open(it);
+ }
+ 
+ #if 0
+@@ -289,90 +299,187 @@ static bool emap_invariant(struct m0_emap_cursor *it)
+ }
+ #endif
+ 
+-int m0_emap_lookup(struct m0_emap *map, struct m0_db_tx *tx,
+-		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+-		   struct m0_emap_cursor *it)
++M0_INTERNAL void m0_emap_lookup(struct m0_emap        *map,
++				struct m0_be_tx       *tx,
++			  const struct m0_uint128     *prefix,
++				m0_bindex_t            offset,
++				struct m0_emap_cursor *it)
+ {
+-	int result;
+-
+ 	M0_PRE(offset <= M0_BINDEX_MAX);
+ 
+-	result = emap_lookup(map, tx, prefix, offset, it);
++	emap_lookup(map, tx, prefix, offset, it);
+ 	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
+-	return result;
+ }
+ 
+-M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *it)
++M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *it)
++{
++	M0_INVARIANT_EX(emap_invariant(it));
++	emap_close(it);
++}
++
++M0_INTERNAL void m0_emap_next(struct m0_emap_cursor *it)
+ {
+ 	M0_PRE(!m0_emap_ext_is_last(&it->ec_seg.ee_ext));
+ 	M0_INVARIANT_EX(emap_invariant(it));
+ 
+-	return emap_next(it);
++	emap_next(it);
+ }
+ 
+-M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *it)
++M0_INTERNAL void m0_emap_prev(struct m0_emap_cursor *it)
+ {
+ 	M0_PRE(!m0_emap_ext_is_first(&it->ec_seg.ee_ext));
+ 	M0_INVARIANT_EX(emap_invariant(it));
+ 
+-	return IT_DO_OPEN(it, &m0_db_cursor_prev);
++	emap_prev(it);
+ }
+ 
+-M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *it)
++M0_INTERNAL void m0_emap_extent_update(struct m0_emap_cursor *it,
++				       struct m0_be_tx       *tx,
++				       struct m0_be_op       *op,
++				 const struct m0_emap_seg    *es)
+ {
++	M0_PRE(it != NULL);
++	M0_PRE(es != NULL);
++	M0_PRE(m0_uint128_eq(&it->ec_seg.ee_pre, &es->ee_pre));
++	M0_PRE(it->ec_seg.ee_ext.e_end == es->ee_ext.e_end);
++
++	it->ec_seg.ee_ext.e_start = es->ee_ext.e_start;
++	it->ec_seg.ee_val = es->ee_val;
++
++	m0_be_btree_update(&map->em_mapping, tx, op, &it->ec_keybuf,
++						     &it->ec_recbuf);
++}
++
++M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
++{
++	int result;
++	struct m0_be_op *op = m0_emap_be_op_get(it);
++
++	M0_PRE(!m0_emap_ext_is_last(&it->ec_seg.ee_ext));
++	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
+ 	M0_INVARIANT_EX(emap_invariant(it));
+-	emap_close(it);
++
++	m0_be_btree_delete(&it->ec_map->em_mapping, tx, op, &it->ec_keybuf);
++	result = op->bo_sm.sm_rc;
++	if (result != 0)
++		return result;
++	if (m0_ext_length(&it->ec_seg.ee_ext) < delta) {
++		it->ec_seg.ee_ext.e_end -= delta;
++		it_pack(it);
++		m0_be_btree_insert(&it->ec_map->em_mapping, tx, op,
++							&it->ec_keybuf);
++		result = op->bo_sm.sm_rc;
++		if (result != 0)
++			return result;
++	}
++
++	emap_next(it);
++	result = op->bo_sm.sm_rc;
++	if (result != 0)
++		return result;
++
++	it->ec_seg.ee_ext.e_start -= delta;
++	m0_emap_extent_update(it, tx, op, &it->ec_seg);
++	result = op->bo_sm.sm_rc;
++
++	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
++	return result;
+ }
+ 
+-M0_INTERNAL int emap_split_internal(struct m0_emap_cursor *it,
+-				    struct m0_indexvec *vec, m0_bindex_t scan)
++static int emap_split(struct m0_emap_cursor *it,
++		      struct m0_be_tx       *tx,
++		      struct m0_indexvec    *vec, m0_bindex_t scan)
+ {
+-	uint32_t    i;
+-	int         result;
+-	m0_bcount_t count;
++	uint32_t      i;
++	int           result;
++	m0_bcount_t   count;
++	struct m0_emap_key save_key;
++	struct m0_be_op *op = m0_emap_be_op_get(it);
+ 
+-	result = m0_db_cursor_del(&it->ec_cursor);
+-	if (result == 0) {
+-		for (result = 0, i = 0; i < vec->iv_vec.v_nr; ++i) {
+-			count = vec->iv_vec.v_count[i];
+-			if (count != 0) {
+-				it->ec_seg.ee_ext.e_start = scan;
+-				it->ec_seg.ee_ext.e_end   = scan = scan + count;
+-				it->ec_seg.ee_val         = vec->iv_index[i];
+-				result = IT_DO_PACK(it, m0_db_cursor_add);
+-				if (result != 0)
+-					break;
+-			}
+-		}
++	m0_be_btree_delete(&it->ec_map->em_mapping, tx, op, &it->ec_keybuf);
++	result = op->bo_sm.sm_rc;
++	if (result != 0)
++		return result;
++	/*
++	 * Now, by the same key we might move the cursor
++	 * to the next segment.
++	 */
++	m0_be_btree_cursor_get(&it->ec_cursor, &it->ec_keybuf);
++	result = op->bo_sm.sm_rc;
++	if (result != 0)
++		return result;
++	it_open(it);
++
++	/* Insert below will invalidate the cursor. */
++	if (vec->iv_vec.v_nr > 0)
++		save_key = it->ec_key;
++
++	for (i = 0; i < vec->iv_vec.v_nr; ++i) {
++		count = vec->iv_vec.v_count[i];
++		if (count == 0)
++			continue;
++		it->ec_seg.ee_ext.e_start = scan;
++		it->ec_seg.ee_ext.e_end   = scan + count;
++		it->ec_seg.ee_val         = vec->iv_index[i];
++		it_pack(it);
++		m0_be_btree_insert(&it->ec_map->em_mapping, tx, op,
++							&it->ec_keybuf,
++							&it->ec_valbuf);
++		result = op->bo_sm.sm_rc;
++		if (result != 0)
++			break;
++		scan += count;
+ 	}
++
++	if (vec->iv_vec.v_nr > 0) {
++		/* Re-initialize cursor */
++		m0_be_btree_cursor_get(&it->ec_cursor, &save_key);
++		result = op->bo_sm.sm_rc;
++		if (result != 0)
++			return result;
++		it_open(it);
++	}
++
+ 	return result;
+ }
+ 
+ M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *it,
+-			      struct m0_indexvec *vec)
++			      struct m0_be_tx       *tx,
++			      struct m0_indexvec    *vec)
+ {
+ 	int result;
+ 
+ 	M0_PRE(m0_vec_count(&vec->iv_vec) == m0_ext_length(&it->ec_seg.ee_ext));
+ 	M0_INVARIANT_EX(emap_invariant(it));
+ 
+-	result = emap_split_internal(it, vec, it->ec_seg.ee_ext.e_start);
++	result = emap_split(it, vec, it->ec_seg.ee_ext.e_start);
+ 	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
+ 	return result;
+ }
+ 
+-int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+-		  void (*del)(struct m0_emap_seg *),
+-		  void (*cut_left)(struct m0_emap_seg *, struct m0_ext *,
+-				   uint64_t),
+-		  void (*cut_right)(struct m0_emap_seg *, struct m0_ext *,
+-				    uint64_t))
++M0_INTERNAL void m0_emap_paste(struct m0_emap_cursor *it,
++			       struct m0_be_tx       *tx,
++			       const struct m0_ext   *ext0,
++			       const uint64_t         val,
++	void (*del)(struct m0_emap_seg*),
++	void (*cut_left)(struct m0_emap_seg*, struct m0_ext*, uint64_t),
++	void (*cut_right)(struct m0_emap_seg*, struct m0_ext*, uint64_t))
+ {
+ 	int                    result   = 0;
+-	uint64_t               val_orig;
+ 	struct m0_emap_seg    *seg      = &it->ec_seg;
+ 	struct m0_ext         *chunk    = &seg->ee_ext;
+-	const struct m0_ext    ext0     = *ext;
++	struct m0_ext          ext      = *ext0;
++	struct m0_ext          clip;
++	m0_bcount_t            length[3];
++	m0_bindex_t            bstart[3] = { 0 };
++	m0_bcount_t            consumed;
++	struct m0_indexvec     vec = {
++		.iv_vec = {
++			.v_nr    = ARRAY_SIZE(length),
++			.v_count = length
++		},
++		.iv_index = bstart
++	};
+ 
+ 	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
+ 	M0_INVARIANT_EX(emap_invariant(it));
+@@ -385,7 +492,7 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+ 	 * parts. Generally, some of these parts can be empty.
+ 	 *
+ 	 * Cutting and deleting segments is handled uniformly by
+-	 * emap_split_internal(), thanks to the latter skipping empty segments.
++	 * emap_split(), thanks to the latter skipping empty segments.
+ 	 *
+ 	 * Note that the _whole_ new segment is inserted on the last iteration
+ 	 * of the loop below (see length[1] assignment), thus violating the map
+@@ -393,21 +500,8 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+ 	 * time).
+ 	 */
+ 
+-	while (!m0_ext_is_empty(ext)) {
+-		m0_bcount_t        length[3];
+-		m0_bindex_t        bstart[3] = { 0 };
+-		m0_bcount_t        consumed;
+-		struct m0_ext      clip;
+-		struct m0_indexvec vec = {
+-			.iv_vec = {
+-				.v_nr    = 3,
+-				.v_count = length
+-			},
+-			.iv_index = bstart
+-		};
+-
++	for (;;) {
+ 		m0_ext_intersection(ext, chunk, &clip);
+-		M0_ASSERT(clip.e_start == ext->e_start);
+ 		consumed = m0_ext_length(&clip);
+ 		M0_ASSERT(consumed > 0);
+ 
+@@ -417,6 +511,7 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+ 
+ 		bstart[1] = val;
+ 		val_orig  = seg->ee_val;
++
+ 		if (length[0] > 0) {
+ 			cut_left(seg, &clip, val_orig);
+ 			bstart[0] = seg->ee_val;
+@@ -428,21 +523,19 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+ 		if (length[0] == 0 && length[2] == 0)
+ 			del(seg);
+ 
+-		result = emap_split_internal(it, &vec, length[0] > 0 ?
++		result = emap_split(it, tx, &vec, length[0] > 0 ?
+ 					     chunk->e_start : ext0.e_start);
+ 		if (result != 0)
+ 			break;
+ 
+ 		ext->e_start += consumed;
+ 		M0_ASSERT(ext->e_start <= ext->e_end);
++		if (m0_ext_is_empty(ext))
++			break;
+ 
+-		if (!m0_ext_is_empty(ext)) {
+-			M0_ASSERT(!m0_emap_ext_is_last(&seg->ee_ext));
+-			result = emap_next(it);
+-			if (result != 0)
+-				break;
+-		}
++		M0_ASSERT(!m0_emap_ext_is_last(&seg->ee_ext));
+ 	}
++
+ 	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
+ 	return result;
+ 
+@@ -470,7 +563,7 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+ 	 *
+ 	 *   map: [0, 1024) *[1024, 2048) [2048, ...)
+ 	 *
+-	 * - that is, the call to emap_split_internal():
++	 * - that is, the call to emap_split():
+ 	 *
+ 	 *   - deleted [0, 512) (as expected),
+ 	 *   - inserted [0, 1024) (as expected),
+@@ -488,57 +581,12 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+ 	 *
+ 	 *         Thou shalt wit thine abstraction levels.
+ 	 *
+-	 * In the present case, emap_split_internal() operates on the level of
++	 * In the present case, emap_split() operates on the level of
+ 	 * records and keys which turns out to be subtly different from the
+ 	 * level of segments and maps.
+ 	 */
+ }
+ 
+-M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta)
+-{
+-	int result;
+-
+-	M0_PRE(!m0_emap_ext_is_last(&it->ec_seg.ee_ext));
+-	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
+-	M0_INVARIANT_EX(emap_invariant(it));
+-
+-	if (it->ec_seg.ee_ext.e_end == delta) {
+-		result = m0_db_cursor_del(&it->ec_cursor);
+-	} else {
+-		it->ec_seg.ee_ext.e_end -= delta;
+-		result = IT_DO_PACK(it, &m0_db_cursor_set);
+-	}
+-	if (result == 0) {
+-		result = emap_next(it);
+-		if (result == 0) {
+-			it->ec_seg.ee_ext.e_start -= delta;
+-			result = IT_DO_PACK(it, &m0_db_cursor_set);
+-		}
+-	}
+-	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
+-	return result;
+-}
+-
+-M0_INTERNAL void m0_emap_extent_update(struct m0_emap     *map,
+-				       struct m0_be_tx    *tx,
+-				       struct m0_be_op    *op,
+-				 const struct m0_uint128  *prefix,
+-				 const m0_bindex_t         offset,
+-				 const struct m0_emap_seg *es)
+-{
+-	M0_PRE(it != NULL);
+-	M0_PRE(es != NULL);
+-	M0_PRE(m0_uint128_eq(prefix, &es->ee_pre));
+-
+-	map->em_key.ek_prefix = *prefix;
+-	map->em_key.ek_offset =  offset;
+-	map->em_rec.er_start = es->ee_ext.e_start;
+-	map->em_rec.er_value = es->ee_va;
+-
+-	m0_be_btree_insert(&map->em_mapping, tx, op, &map->em_key_buf,
+-						     &map->em_val_buf);
+-}
+-
+ M0_INTERNAL void m0_emap_obj_insert(struct m0_emap    *map,
+ 				    struct m0_be_tx   *tx,
+ 				    struct m0_be_op   *op,
+diff --git a/db/extmap.h b/db/extmap.h
+index ad5b556..7e635d8 100644
+--- a/db/extmap.h
++++ b/db/extmap.h
+@@ -225,9 +225,25 @@ M0_INTERNAL void m0_emap_next(struct m0_emap_cursor *it);
+ M0_INTERNAL void m0_emap_prev(struct m0_emap_cursor *it);
+ 
+ /**
++   Merge a part of the segment the cursor is currently positioned at with the
++   next segment in the map.
++
++   Current segment's extent is shrunk by delta. If this would make it empty, the
++   current segment is deleted. The next segment is expanded by delta downwards.
++
++   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
++
++   @pre !m0_emap_ext_is_last(m0_emap_seg_get(it))
++   @pre delta <= m0_ext_length(m0_emap_seg_get(it));
++ */
++M0_INTERNAL void m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta);
++
++/**
+    Split the segment the cursor is current positioned at into a collection of
+    segments given by the vector.
+ 
++   Iterator is moved to the next segment after original one automatically.
++
+    @param vec - a vector describing the collection of
+    segments. vec->ov_vec.v_count[] array contains lengths of the extents and
+    vec->ov_index[] array contains values associated with the corresponding
+@@ -258,10 +274,10 @@ M0_INTERNAL void m0_emap_split(struct m0_emap_cursor *it,
+    segment remains in the map. m0_ext call-back argument is the extent being cut
+    from the existing segment. The last argument is the value associated with the
+    existing segment. The call-back must set seg->ee_val to the new value
+-   associated with the remaining left part of the call-back;
++   associated with the remaining left part of the segment;
+ 
+    @param cut_right - similar to cut_left, this call-back is called when some
+-   non-empty part of an existing segment survives the paste operation.
++   non-empty right part of an existing segment survives the paste operation.
+ 
+    @note It is possible that both left and right cut call-backs are called
+    against the same segment (in the case where new segment fits completely into
+@@ -275,6 +291,7 @@ M0_INTERNAL void m0_emap_split(struct m0_emap_cursor *it,
+    a part of official function contract.
+  */
+ M0_INTERNAL void m0_emap_paste(struct m0_emap_cursor *it,
++			       struct m0_be_tx       *tx,
+ 			       struct m0_ext         *ext,
+ 			       uint64_t               val,
+ 	void (*del)(struct m0_emap_seg*),
+@@ -282,31 +299,15 @@ M0_INTERNAL void m0_emap_paste(struct m0_emap_cursor *it,
+ 	void (*cut_right)(struct m0_emap_seg*, struct m0_ext*, uint64_t));
+ 
+ /**
+-   Merge a part of the segment the cursor is currently positioned at with the
+-   next segment in the map.
+-
+-   Current segment's extent is shrunk by delta. If this would make it empty, the
+-   current segment is deleted. The next segment is expanded by delta downwards.
+-
+-   Asynchronous operation, get status via m0_emap_be_op_get(it)->bo_sm.sm_rc.
+-
+-   @pre !m0_emap_ext_is_last(m0_emap_seg_get(it))
+-   @pre delta <= m0_ext_length(m0_emap_seg_get(it));
+- */
+-M0_INTERNAL void m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta);
+-
+-/**
+-   Updates the segment at the specified prefix and offset with the given
++   Updates the segment at the current cursor with the given
+    segment having same prefix.
+ 
+-   @pre m0_uint128_eq(prefix, &es->ee_pre) == true
++   @pre m0_uint128_eq(&it->ec_seg.ee_pre, &es->ee_pre) == true
+  */
+-M0_INTERNAL void m0_emap_extent_update(struct m0_emap     *map,
+-				       struct m0_be_tx    *tx,
+-				       struct m0_be_op    *op,
+-				 const struct m0_uint128  *prefix,
+-				 const m0_bindex_t         offset,
+-				 const struct m0_emap_seg *es);
++M0_INTERNAL void m0_emap_extent_update(struct m0_emap_cursor *it,
++				       struct m0_be_tx       *tx,
++				       struct m0_be_op       *op,
++				 const struct m0_emap_seg    *es);
+ 
+ /**
+    Release the resources associated with the cursor.
+diff --git a/db/extmap_internal.h b/db/extmap_internal.h
+index 466b01f..11f30bf 100644
+--- a/db/extmap_internal.h
++++ b/db/extmap_internal.h
+@@ -105,6 +105,8 @@ struct m0_emap_cursor {
+ 	struct m0_be_btree_cursor ec_cursor;
+ 	struct m0_emap_key        ec_key;
+ 	struct m0_emap_rec        ec_rec;
++	struct m0_buf             ec_keybuf;
++	struct m0_buf             ec_recbuf;
+ 	struct m0_uint128         ec_prefix;
+ };
+ 
+-- 
+1.8.3.2
+

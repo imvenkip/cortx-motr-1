@@ -1,0 +1,65 @@
+From a21589e61183d8512d185880ff9d1496e75e7edf Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 10 Mar 2013 19:05:19 +0200
+Subject: [PATCH 11/24] rpc_ping: fix the dialog message
+
+quit_dialog(): Since read() expects _any_ character, pressing `Enter'
+is sufficient for the program to quit. `Enter' is more user-friendly
+than Ctrl-D, because it requires only one key press.
+
++ m0_rpc_slot_item_apply(): Add default - impossible - cases to
+  `switch' statements.
+---
+ rpc/it/rpc_ping.c | 2 +-
+ rpc/slot.c        | 8 ++++++--
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/rpc/it/rpc_ping.c b/rpc/it/rpc_ping.c
+index b6e24ae..35b09c6 100644
+--- a/rpc/it/rpc_ping.c
++++ b/rpc/it/rpc_ping.c
+@@ -394,7 +394,7 @@ static void quit_dialog(void)
+ 	char ch;
+ 
+ 	printf("\n########################################\n");
+-	printf("\n\nType ^D to terminate\n\n");
++	printf("\n\nPress Enter to terminate\n\n");
+ 	printf("\n########################################\n");
+ 	read(0, &ch, sizeof ch);
+ }
+diff --git a/rpc/slot.c b/rpc/slot.c
+index 63a44b9..7b2c84c 100644
+--- a/rpc/slot.c
++++ b/rpc/slot.c
+@@ -490,8 +490,8 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
+ 	M0_ASSERT(m0_rpc_slot_invariant(slot));
+ 	M0_PRE(m0_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
+ 
+-	redoable = m0_verno_is_redoable(&slot->sl_verno,
+-					item_verno(item, 0), false);
++	redoable = m0_verno_is_redoable(&slot->sl_verno, item_verno(item, 0),
++					false);
+ 	switch (redoable) {
+ 	case 0:
+ 		__slot_item_add(slot, item, true);
+@@ -534,6 +534,8 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
+ 		case RPC_ITEM_STAGE_TIMEDOUT:
+ 		case RPC_ITEM_STAGE_FAILED:
+ 			M0_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
++		default:
++			M0_IMPOSSIBLE("Invalid value of m0_rpc_item::ri_stage");
+ 		}
+ 		/*
+ 		 * Irrespective of any of above cases, we're going to
+@@ -544,6 +546,8 @@ M0_INTERNAL int m0_rpc_slot_item_apply(struct m0_rpc_slot *slot,
+ 	case -EAGAIN:
+ 		m0_rpc_slot_misordered_item_received(slot, item);
+ 		break;
++	default:
++		M0_IMPOSSIBLE("Impossible happened");
+ 	}
+ 	M0_ASSERT(m0_rpc_slot_invariant(slot));
+ 	M0_RETURN(rc);
+-- 
+1.8.3.2
+

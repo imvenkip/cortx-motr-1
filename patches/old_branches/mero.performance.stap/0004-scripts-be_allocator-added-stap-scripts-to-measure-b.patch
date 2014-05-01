@@ -1,0 +1,74 @@
+From b30f862db09f74dc88a8c6245164e1d77c465229 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 27 Nov 2013 05:10:19 +0200
+Subject: [PATCH 04/13] scripts/be_allocator: added stap scripts to measure be
+ alloc()/free() time
+
+---
+ scripts/be_allocator.sh  |  6 ++++++
+ scripts/be_allocator.stp | 40 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 46 insertions(+)
+ create mode 100755 scripts/be_allocator.sh
+ create mode 100644 scripts/be_allocator.stp
+
+diff --git a/scripts/be_allocator.sh b/scripts/be_allocator.sh
+new file mode 100755
+index 0000000..ba36870
+--- /dev/null
++++ b/scripts/be_allocator.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++
++# BINARY="$1"
++BINARY="utils/.libs/lt-ut"
++stap -vv -d "$BINARY" --ldd -DMAXTRACE=10 -DSTP_NO_OVERLOAD -DMAXSKIPPED=1000000 -DMAXERRORS=1000 \
++    ./scripts/be_allocator.stp "$BINARY" 0 0
+diff --git a/scripts/be_allocator.stp b/scripts/be_allocator.stp
+new file mode 100644
+index 0000000..d4f3b4b
+--- /dev/null
++++ b/scripts/be_allocator.stp
+@@ -0,0 +1,40 @@
++#!/usr/bin/env stap
++
++global func_time
++global func_time_avg
++
++probe	process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_alloc_aligned"),
++	process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_free_aligned")
++{
++	func_time[tid(), ppfunc()] = gettimeofday_ns()
++}
++
++probe	process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_alloc_aligned").return,
++	process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_free_aligned").return
++{
++	time_elapsed = gettimeofday_ns() - func_time[tid(), ppfunc()]
++	delete func_time[tid(), ppfunc()]
++	func_time_avg[ppfunc()] <<< time_elapsed
++	// printf("%s %s %s %d\n", m0_timestamp(), ppfunc(), $$parms, time_elapsed)
++}
++
++probe begin
++{
++	printf("begin\n");
++}
++
++probe end
++{
++	foreach (ftime in func_time_avg) {
++		printf("timing histogram for %s, ns\n", ftime)
++		print(@hist_log(func_time_avg[ftime]))
++	}
++	printf("end\n");
++}
++
++function m0_timestamp:string()
++{
++	time = gettimeofday_ns();
++	one_billion = 1000000000;
++	return sprintf("%d.%09d", time / one_billion, time % one_billion);
++}
+-- 
+1.8.3.2
+

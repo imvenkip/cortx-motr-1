@@ -1,0 +1,942 @@
+From 9fdec87cbb4eb46547d4150b5d3623088d983ef5 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 5 Aug 2012 23:34:50 +0300
+Subject: [PATCH 282/370] conf/reg.[hc]: implement "registry" component
+
+Rename c2_conf_map to c2_conf_reg.
+Rename the source files: map.* -> reg.*.
+
+Implement the registry component (c2_conf_reg*) and its UT.
+---
+ conf/confc.c        |  28 +++++------
+ conf/confc.h        |   4 +-
+ conf/map.c          | 101 ----------------------------------------
+ conf/map.h          | 114 ---------------------------------------------
+ conf/obj.c          |  20 ++++----
+ conf/obj_ops.c      |   2 +-
+ conf/obj_ops.h      |   2 +-
+ conf/reg.c          | 116 ++++++++++++++++++++++++++++++++++++++++++++++
+ conf/reg.h          | 103 +++++++++++++++++++++++++++++++++++++++++
+ conf/ut/Makefile.am |   2 +-
+ conf/ut/map.c       | 130 ----------------------------------------------------
+ conf/ut/reg.c       |  71 ++++++++++++++++++++++++++++
+ 12 files changed, 319 insertions(+), 374 deletions(-)
+ delete mode 100644 conf/map.c
+ delete mode 100644 conf/map.h
+ create mode 100644 conf/reg.c
+ create mode 100644 conf/reg.h
+ delete mode 100644 conf/ut/map.c
+ create mode 100644 conf/ut/reg.c
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 5f89db7..ca7bd00 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -205,7 +205,7 @@
+  *   -#
+  *      Tries to find an object with the same identity (type and id)
+  *      in the registry of cached objects (c2_confc::cc_registry),
+- *      using c2_conf_map_lookup().
++ *      using c2_conf_reg_lookup().
+  *   -#
+  *      If cached object is found, it is "enriched" (see
+  *      object_enrich() below).  Otherwise new object is added to the
+@@ -216,7 +216,7 @@
+  *      initialises its fields;
+  *   -# c2_conf_obj_fill() --- fills new object with configuration data
+  *      contained in on-wire object descriptor (confx_object);
+- *   -# c2_conf_map_add() --- adds new entry to the cached objects
++ *   -# c2_conf_reg_add() --- adds new entry to the cached objects
+  *      registry.
+  *
+  * object_enrich() compares cached object with the descriptor received
+@@ -294,8 +294,8 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 	 *     return -ENOMEM;
+ 	 * root->co_confc = confc;
+ 	 *
+-	 * c2_conf_map_init(&confc->cc_registry);
+-	 * c2_conf_map_add(&confc->cc_registry, root);
++	 * c2_conf_reg_init(&confc->cc_registry);
++	 * c2_conf_reg_add(&confc->cc_registry, root);
+ 	 * confc->cc_root = root;
+ 	 *
+ 	 * confc->cc_group = sm_group;
+@@ -320,11 +320,7 @@ void c2_confc_fini(struct c2_confc *confc)
+ 	 * if (confc->cc_rpc.rcx_remote_addr != NULL)
+ 	 *     confd_disconnect(&confc->cc_rpc);
+ 	 *
+-	 * for (obj in confc->cc_registry) {
+-	 *     C2_ASSERT(obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING);
+-	 *     c2_free(obj);
+-	 * }
+-	 * c2_confc_map_fini(&confc->cc_registry);
++	 * c2_confc_reg_fini(&confc->cc_registry);
+ 	 * confc->cc_root = NULL;
+ 	 *
+ 	 * confc->cc_group = NULL;
+@@ -635,7 +631,7 @@ static struct c2_confc_ctx *mach_to_ctx(struct c2_sm *mach);
+ static const struct c2_confc_ctx *const_mach_to_ctx(const struct c2_sm *mach);
+ static void ast_fail(struct c2_sm_ast *ast, int32_t rc);
+ static int
+-cache_grow(struct c2_conf_map *cache, const struct c2_conf_fetch_resp *resp);
++cache_grow(struct c2_conf_reg *cache, const struct c2_conf_fetch_resp *resp);
+ static bool group_is_locked(const struct c2_confc *confc);
+ static bool confc_is_locked(const struct c2_confc *confc);
+ 
+@@ -946,7 +942,7 @@ static int cache_preload(struct c2_confc *confc, const char *conf_str)
+ 	XXX;
+ }
+ 
+-static inline struct c2_confc *registry_to_confc(struct c2_conf_map *reg)
++static inline struct c2_confc *registry_to_confc(struct c2_conf_reg *reg)
+ {
+ 	return bob_of(reg, struct c2_confc, cc_registry, &c2_confc_bob);
+ }
+@@ -958,7 +954,7 @@ static inline struct c2_confc *registry_to_confc(struct c2_conf_map *reg)
+  * @param reg     Registry of cached configuration objects.
+  * @param onwire  Configuration object as received from confd.
+  */
+-static int cache_add(struct c2_conf_map *reg, const struct confx_object *onwire)
++static int cache_add(struct c2_conf_reg *reg, const struct confx_object *onwire)
+ {
+ 	/*
+ 	 * int                 ret;
+@@ -973,7 +969,7 @@ static int cache_add(struct c2_conf_map *reg, const struct confx_object *onwire)
+ 	 * obj->co_confc = confc;
+ 	 *
+ 	 * ret = c2_conf_obj_fill(obj, onwire, reg);
+-	 * ret = ret ?: c2_conf_map_add(reg, obj);
++	 * ret = ret ?: c2_conf_reg_add(reg, obj);
+ 	 *
+ 	 * if (ret != 0)
+ 	 *     c2_free(obj);
+@@ -984,7 +980,7 @@ static int cache_add(struct c2_conf_map *reg, const struct confx_object *onwire)
+ 
+ static int object_enrich(struct c2_conf_obj *dest,
+ 			 const struct confx_object *src,
+-			 struct c2_conf_map *reg)
++			 struct c2_conf_reg *reg)
+ {
+ 	/*
+ 	 * int ret;
+@@ -1016,7 +1012,7 @@ static int object_enrich(struct c2_conf_obj *dest,
+  * @pre  resp->fr_rc == 0
+  */
+ static int
+-cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
++cache_grow(struct c2_conf_reg *reg, const struct c2_conf_fetch_resp *resp)
+ {
+ 	/*
+ 	 * int                  ret;
+@@ -1037,7 +1033,7 @@ cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
+ 	 *         break;
+ 	 *     }
+ 	 *
+-	 *     cached = c2_conf_map_lookup(reg, &onwire->o_id,
++	 *     cached = c2_conf_reg_lookup(reg, &onwire->o_id,
+ 	 *                                 onwire->o_conf.u_type);
+ 	 *     if (cached == NULL)
+ 	 *         ret = cache_add(reg, onwire);
+diff --git a/conf/confc.h b/conf/confc.h
+index fd207d3..6e23cbf 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -26,7 +26,7 @@
+ #  include "conf/onwire_u.h" /* c2_conf_buf, c2_conf_fetch */
+ #endif
+ #include "conf/obj.h"
+-#include "conf/map.h"        /* c2_conf_map */
++#include "conf/reg.h"        /* c2_conf_reg */
+ #include "conf/buf.h"        /* C2_CONF_BUF_INIT0 */
+ #include "sm/sm.h"           /* c2_sm, c2_sm_ast */
+ #include "fop/fop.h"         /* c2_fop */
+@@ -455,7 +455,7 @@ struct c2_mutex;
+ /** Configuration client. */
+ struct c2_confc {
+ 	/** Registry of cached configuration objects. */
+-	struct c2_conf_map       cc_registry;
++	struct c2_conf_reg       cc_registry;
+ 	/**
+ 	 * Root of the DAG of configuration objects.
+ 	 *
+diff --git a/conf/map.c b/conf/map.c
+deleted file mode 100644
+index d80bec8..0000000
+--- a/conf/map.c
++++ /dev/null
+@@ -1,101 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+- * Original creation date: 11-Mar-2012
+- */
+-
+-#ifdef HAVE_CONFIG_H
+-#  include "config.h"
+-#endif
+-#include "conf/map.h"
+-#include "db/db.h"
+-#ifdef __KERNEL__
+-#  include "conf/onwire_k.h"
+-#else
+-#  include "conf/onwire_u.h" /* c2_conf_buf */
+-#endif
+-
+-/**
+- * @defgroup conf_dlspec_map Registry of Cached Configuration Objects
+- *
+- * @see @ref conf, @ref conf-lspec
+- *
+- * @{
+- */
+-
+-int c2_conf_map_init(struct c2_conf_map *map)
+-{
+-	/*
+-	 * Create an in-memory database, set map->m_db.
+-	 *
+-	 * Set DB_AUTO_COMMIT flag (see
+-	 * http://docs.oracle.com/cd/E17076_02/html/gsg_txn/C/autocommit.html).
+-	 *
+-	 * Create empty table (map->m_tbl).
+-	 *
+-	 * See also `Writing In-Memory Berkeley DB Applications'
+-	 * [http://docs.oracle.com/cd/E17076_02/html/articles/inmemory/C/index.html].
+-	 */
+-	XXX;
+-}
+-
+-void c2_conf_map_fini(struct c2_conf_map *map)
+-{
+-	/* Finalise, free, and assign NULL to map->m_tbl and map->m_db. */
+-	XXX;
+-}
+-
+-int c2_conf_map_add(struct c2_conf_map *map, const struct c2_conf_obj *obj)
+-{
+-	/*
+-	 * Verify the precondition.
+-	 * c2_table_insert() new pair into map->m_tbl.
+-	 */
+-	XXX;
+-}
+-
+-struct c2_conf_obj *c2_conf_map_lookup(const struct c2_conf_map *map,
+-				       enum c2_conf_objtype type,
+-				       const struct c2_conf_buf *id)
+-{
+-	/*
+-	 * Try to find an address, associated with a given {type, id}
+-	 * pair, in map->m_tbl.
+-	 *
+-	 * Verify the postcondition.
+-	 */
+-	XXX;
+-}
+-
+-void c2_conf_map_cursor_init(struct c2_conf_map_cursor *cur,
+-			     const struct c2_conf_map *map)
+-{
+-	XXX;
+-}
+-
+-void c2_conf_map_cursor_fini(struct c2_conf_map_cursor *cur)
+-{
+-	XXX;
+-}
+-
+-struct c2_conf_obj *c2_conf_map_next(struct c2_conf_map_cursor *cur)
+-{
+-	XXX;
+-}
+-
+-
+-/** @} conf_dlspec_map */
+diff --git a/conf/map.h b/conf/map.h
+deleted file mode 100644
+index cee9269..0000000
+--- a/conf/map.h
++++ /dev/null
+@@ -1,114 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+- * Original creation date: 04-Mar-2012
+- */
+-#ifndef __COLIBRI_CONF_MAP_H__
+-#define __COLIBRI_CONF_MAP_H__
+-
+-#include "conf/obj.h" /* c2_conf_objtype */
+-
+-/**
+- * @page conf-fspec-map Registry of Cached Configuration Objects
+- *
+- * Object identity-to-address mapping, also known as a registry of
+- * cached configuration objects, is an in-memory database that
+- * associates object identities -- {type, id} pairs -- with memory
+- * addresses of these objects.  A confc or confd module maintaining
+- * configuration cache creates such a registry and uses it to ensure
+- * uniqueness of configuration objects stored in this cache.
+- *
+- * The implementation is based on in-memory Berkeley database, which
+- * is created and manipulated via Colibri database interfaces
+- * ("db/db.h").
+- *
+- * A registry is represented by c2_conf_map structure. Registry
+- * entries can be iterated over using c2_conf_map_cursor.
+- *
+- * @see @ref conf_dfspec_map "Detailed Functional Specification"
+- */
+-
+-/**
+- * @defgroup conf_dfspec_map Registry of Cached Configuration Objects
+- * @brief Detailed Functional Specification.
+- *
+- * @see @ref conf, @ref conf-fspec-map "Functional Specification"
+- *
+- * @{
+- */
+-
+-struct c2_dbenv;
+-struct c2_table;
+-struct c2_conf_buf;
+-
+-/** Object identity-to-address mapping. */
+-struct c2_conf_map {
+-	struct c2_dbenv *m_db;  /*< DB environment. */
+-	struct c2_table *m_tbl; /*< DB table (the registry itself). */
+-};
+-
+-/**
+- * Constructs empty mapping.
+- *
+- * @pre  map->m_db == NULL
+- */
+-int c2_conf_map_init(struct c2_conf_map *map);
+-
+-void c2_conf_map_fini(struct c2_conf_map *map);
+-
+-/**
+- * Adds new entry to the mapping.
+- *
+- * @pre  There is no entry for given object in the mapping.
+- */
+-int c2_conf_map_add(struct c2_conf_map *map, const struct c2_conf_obj *obj);
+-
+-/**
+- * Searches for an object given its type and id.
+- *
+- * Returns NULL if the object is not found.
+- *
+- * @post ergo(retval != NULL,
+- *            retval->co_type == type && c2_conf_buf_eq(retval->co_id, id))
+- */
+-struct c2_conf_obj *c2_conf_map_lookup(const struct c2_conf_map *map,
+-				       enum c2_conf_objtype type,
+-				       const struct c2_conf_buf *id);
+-
+-/** Cursor, which is used to iterate over entries of a mapping. */
+-struct c2_conf_map_cursor {
+-	const struct c2_conf_map *mc_map;
+-	struct c2_db_cursor      *mc_cur;
+-};
+-
+-/**
+- * Initialises a cursor, positioning it at the first element of the
+- * mapping.
+- */
+-void c2_conf_map_cursor_init(struct c2_conf_map_cursor *cur,
+-			     const struct c2_conf_map *map);
+-
+-void c2_conf_map_cursor_fini(struct c2_conf_map_cursor *cur);
+-
+-/**
+- * Returns the next element of a mapping. Returns NULL if there are no
+- * more elements.
+- */
+-struct c2_conf_obj *c2_conf_map_next(struct c2_conf_map_cursor *cur);
+-
+-/** @} conf_dfspec_map */
+-#endif /* __COLIBRI_CONF_MAP_H__ */
+diff --git a/conf/obj.c b/conf/obj.c
+index 5c56949..b0bcf65 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -134,7 +134,7 @@
+  *
+  * - Colibri database library ("db/db.h") should provide a user-space
+  *   interface for creating in-memory databases. This interface will
+- *   be used by confd and user-space confc; see @ref conf-fspec-map.
++ *   be used by confd and user-space confc; see @ref conf-fspec-reg.
+  *
+  *   See also `Writing In-Memory Berkeley DB Applications'
+  *   [http://docs.oracle.com/cd/E17076_02/html/articles/inmemory/C/index.html].
+@@ -160,6 +160,10 @@
+  *
+  *   @see @ref conf-fspec-obj-private
+  *
++ * - The registry of cached configuration objects (c2_conf_reg) is
++ *   queried infrequently; it makes sense to base its implementation
++ *   on linked list data structure.
++ *
+  * <hr> <!------------------------------------------------------------>
+  * @section conf-fspec Functional Specification
+  *
+@@ -167,7 +171,7 @@
+  * - @subpage confc-fspec
+  * - @subpage conf-fspec-preload
+  * - @subpage conf-fspec-objops
+- * - @subpage conf-fspec-map
++ * - @subpage conf-fspec-reg
+  * - @subpage confd-fspec
+  *
+  * <hr> <!------------------------------------------------------------>
+@@ -177,7 +181,7 @@
+  * - @ref conf_dlspec_obj
+  * - @subpage confc-lspec
+  * - @ref conf_dlspec_objops
+- * - @ref conf_dlspec_map
++ * - @ref conf_dlspec_reg
+  * - @subpage confd-lspec-page
+  * - @ref conf-lspec-state
+  * - @ref conf-lspec-thread
+@@ -188,9 +192,9 @@
+  * Every instance of confc library and confd service maintains a cache
+  * of configuration data.  Configuration cache is represented by 1) a
+  * set of dynamically allocated configuration objects, joined together
+- * by relations into a directed acyclic graph (DAG), and 2) an
+- * in-memory database -- registry -- that maps object identities to
+- * memory addresses of these objects.
++ * by relations into a directed acyclic graph (DAG), and 2) a registry
++ * of cached objects, that maps object identities to memory addresses
++ * of these objects.
+  *
+  * Configuration cache can be pre-loaded from an ASCII string. See
+  * @ref conf-fspec-preload.
+@@ -239,7 +243,7 @@
+  *   pinned when the cache is being destroyed.
+  * - @b i.conf.cache.unique-objects
+  *   Uniqueness of configuration object identities is achieved by
+- *   using a registry of cached objects (c2_conf_map).
++ *   using a registry of cached objects (c2_conf_reg).
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section conf-ut Unit Tests
+@@ -251,7 +255,7 @@
+  *
+  * @subsection conf-ut-common Infrastructure Test Suite
+  *
+- *     @test c2_conf_map operations will be tested.
++ *     @test c2_conf_reg operations will be tested.
+  *
+  *     @test Path operations will be tested. This includes checking
+  *           validity of various paths, testing success and failure of
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index e31ce3b..a0bce43 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -99,7 +99,7 @@ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+ }
+ 
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+-		     struct c2_conf_map *reg)
++		     struct c2_conf_reg *reg)
+ {
+ 	/*
+ 	 * C2_PRE(...);
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index bec5543..b79f0c4 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -67,7 +67,7 @@ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+  * @post  c2_mutex_is_locked(&dest->co_confc->cc_lock)
+  */
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+-		     struct c2_conf_map *reg);
++		     struct c2_conf_reg *reg);
+ 
+ /** @} conf_dfspec_objops */
+ #endif /* __COLIBRI_CONF_OBJOPS_H__ */
+diff --git a/conf/reg.c b/conf/reg.c
+new file mode 100644
+index 0000000..9ff8634
+--- /dev/null
++++ b/conf/reg.c
+@@ -0,0 +1,116 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 11-Mar-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/reg.h"
++#ifdef __KERNEL__
++#  include "conf/onwire_k.h"
++#else
++#  include "conf/onwire_u.h" /* c2_conf_buf */
++#endif
++#include "lib/memory.h"      /* C2_ALLOC_PTR */
++
++/**
++ * @defgroup conf_dlspec_reg Registry of Cached Configuration Objects
++ *
++ * The implementation of a registry is based on linked list data structure.
++ * (Rationale: a registry is not expected to be queried frequently.)
++ *
++ * @see @ref conf, @ref conf-lspec
++ *
++ * @{
++ */
++
++/** Register entry. */
++struct objptr {
++	/** Payload --- a pointer to configuration object. */
++	struct c2_conf_obj *p_obj;
++	/** Linkage to c2_conf_reg::r_ptrs list. */
++	struct c2_tlink     p_linkage;
++	/** Magic value. */
++	uint64_t            p_magic;
++};
++
++enum {
++	CONF_REG_MAGIC = 0x7265676973747279, /* registry */
++	OBJPTR_MAGIC   = 0x636f6e666f626a70  /* confobjp */
++};
++
++C2_TL_DESCR_DEFINE(reg, "registered c2_conf_obj-s", static, struct objptr,
++		   p_linkage, p_magic, OBJPTR_MAGIC, CONF_REG_MAGIC);
++C2_TL_DEFINE(reg, static, struct objptr);
++
++int c2_conf_reg_init(struct c2_conf_reg *reg)
++{
++	reg_tlist_init(&reg->r_ptrs);
++}
++
++void c2_conf_reg_fini(struct c2_conf_reg *reg)
++{
++	struct objptr      *p;
++	struct c2_conf_obj *obj;
++
++	c2_tlist_for(&reg_tl, &reg->r_ptrs, p) {
++		obj = p->p_obj;
++		C2_ASSERT(obj->co_nrefs == 0 &&
++			  obj->co_statur != C2_CS_LOADING);
++		c2_free(obj);
++
++		reg_tlist_del(p);
++		reg_tlink_fini(p);
++	} c2_tlist_endfor;
++
++	reg_tlist_fini(&reg->r_ptrs);
++}
++
++int c2_conf_reg_add(struct c2_conf_reg *reg, struct c2_conf_obj *obj)
++{
++	struct objptr *p;
++	C2_PRE(c2_conf_reg_lookup(reg, obj->co_type, obj->co_id) == NULL);
++
++	C2_ALLOC_PTR(p);
++	if (p == NULL)
++		return -ENOMEM;
++
++	p->p_obj = obj;
++	reg_tlink_init(p);
++	reg_tlist_add(&reg->r_ptrs, p);
++
++	return 0;
++}
++
++struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg *reg,
++				       enum c2_conf_objtype type,
++				       const struct c2_conf_buf *id)
++{
++	struct objptr *p;
++
++	c2_tlist_for(&reg_tl, &reg->r_ptrs, p) {
++		if (p->p_obj->co_type == type &&
++		    c2_conf_buf_eq(p->p_obj->co_id, id))
++			return p->p_obj;
++	} c2_tlist_endfor;
++
++	return NULL;
++}
++
++/** @} conf_dlspec_reg */
+diff --git a/conf/reg.h b/conf/reg.h
+new file mode 100644
+index 0000000..496ee74
+--- /dev/null
++++ b/conf/reg.h
+@@ -0,0 +1,103 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 04-Mar-2012
++ */
++#ifndef __COLIBRI_CONF_REG_H__
++#define __COLIBRI_CONF_REG_H__
++
++#include "conf/obj.h"  /* c2_conf_objtype */
++#include "lib/tlist.h"
++
++/**
++ * @page conf-fspec-reg Registry of Cached Configuration Objects
++ *
++ * A registry of cached configuration objects, represented by
++ * c2_conf_reg structure, serves two goals:
++ *
++ * 1) it ensures uniqueness of configuration objects in the cache:
++ *    after an object is added to the registry, an attempt to add
++ *    another object with the same identity will fail;
++ *
++ * 2) it simplifies erasing of configuration cache: configuration
++ *    objects that have been added to the registry are freed by its
++ *    destructor, so that a configuration module (confc or confd) does
++ *    not need to perform traversal of DAG of configuration objects,
++ *    the implementation of which can be rather complicated.
++ *
++ * @section conf-fspec-reg-data Data structures
++ *
++ * - c2_conf_reg --- a registry of cached configuration objects.
++ *
++ * @section conf-fspec-reg-sub Subroutines
++ *
++ * - c2_conf_reg_init() initialises a registry.
++ * - c2_conf_reg_fini() finalises a registry, freeing all of the
++ *   registered configuration objects.
++ *
++ * - c2_conf_reg_add() registers new configuration object.
++ * - c2_conf_reg_lookup() returns the address of registered
++ *   configuration object given its identity.
++ *
++ * @see @ref conf_dfspec_reg "Detailed Functional Specification"
++ */
++
++/**
++ * @defgroup conf_dfspec_reg Registry of Cached Configuration Objects
++ * @brief Detailed Functional Specification.
++ *
++ * @see @ref conf, @ref conf-fspec-reg "Functional Specification"
++ *
++ * @{
++ */
++
++/** Registry of cached configuration objects. */
++struct c2_conf_reg {
++	struct c2_tl r_ptrs;  /*< List of pointers to the objects. */
++	uint64_t     r_magic; /*< Magic value. */
++};
++
++/** Initialises a registry. */
++int c2_conf_reg_init(struct c2_conf_reg *reg);
++
++/**
++ * Finalises a registry, freeing all the registered configuration objects.
++ *
++ * @pre  None of the registered objects is being used by the application
++ *       (->co_nrefs > 0) or is C2_CS_LOADING.
++ */
++void c2_conf_reg_fini(struct c2_conf_reg *reg);
++
++/**
++ * Registers new configuration object.
++ *
++ * @pre  No object with obj's identity is registered in reg.
++ */
++int c2_conf_reg_add(struct c2_conf_reg *reg, struct c2_conf_obj *obj);
++
++/**
++ * Searches for a configuration object given its identity (type and
++ * identifier).
++ *
++ * Returns NULL if there is no such object in the registry.
++ */
++struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg *reg,
++				       enum c2_conf_objtype type,
++				       const struct c2_conf_buf *id);
++
++/** @} conf_dfspec_reg */
++#endif /* __COLIBRI_CONF_REG_H__ */
+diff --git a/conf/ut/Makefile.am b/conf/ut/Makefile.am
+index d63bcbf..e1b96b2 100644
+--- a/conf/ut/Makefile.am
++++ b/conf/ut/Makefile.am
+@@ -1,2 +1,2 @@
+ noinst_LTLIBRARIES    = libconf-ut.la
+-libconf_ut_la_SOURCES = map.c
++libconf_ut_la_SOURCES = reg.c
+diff --git a/conf/ut/map.c b/conf/ut/map.c
+deleted file mode 100644
+index 2c19e9d..0000000
+--- a/conf/ut/map.c
++++ /dev/null
+@@ -1,130 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+- * Original creation date: 26-Jul-2012
+- */
+-
+-#ifdef HAVE_CONFIG_H
+-#  include "config.h"
+-#endif
+-#if 0  /* XXX <<<<<<< */
+-#include "conf/map.c"
+-#endif /* XXX >>>>>>> */
+-#include "lib/ut.h"
+-
+-#if 1  /* XXX <<<<<<< */
+-#include <db.h>
+-#endif /* XXX >>>>>>> */
+-
+-#if 0 /*XXX*/
+-static void test_add_lookup(void)
+-{
+-	struct c2_conf_map       map;
+-	struct c2_conf_obj      *p;
+-	int                      rc;
+-	const struct c2_conf_obj a =
+-		{ .co_type = C2_CO_DIR, .co_id = C2_CONF_BUF_STR("dir") };
+-	const struct c2_conf_obj b = {
+-		.co_type = C2_CO_SDEV,
+-		.co_id   = C2_CONF_BUF_INIT(4, "ni\0c") /* not a C string */
+-	};
+-
+-	rc = c2_conf_map_init(&map);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	p = c2_conf_map_lookup(&map, a.co_type, &a.co_id);
+-	C2_UT_ASSERT(p == NULL);
+-
+-	rc = c2_conf_map_add(&map, &a);
+-	C2_UT_ASSERT(rc == 0);
+-	p = c2_conf_map_lookup(&map, a.co_type, &a.co_id);
+-	C2_UT_ASSERT(p == &a);
+-
+-	p = c2_conf_map_lookup(&map, b.co_type, &b.co_id);
+-	C2_UT_ASSERT(p == NULL);
+-
+-	rc = c2_conf_map_add(&map, &b);
+-	C2_UT_ASSERT(rc == 0);
+-	p = c2_conf_map_lookup(&map, b.co_type, &b.co_id);
+-	C2_UT_ASSERT(p == &b);
+-
+-	c2_conf_map_fini(&map);
+-}
+-#endif /*XXX*/
+-
+-static void test_XXX_db5(void)
+-{
+-	enum { MEGA = 1024 * 1024 };
+-	DB_ENV       *env;
+-	DB           *db;
+-	DB_MPOOLFILE *mpf;
+-	int           rc;
+-
+-	rc = db_env_create(&env, 0);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	/* Make DB's cache size big enough. */
+-	rc = env->set_cachesize(env, 0, 10 * MEGA, 1);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	/* Keep transaction logs in memory. */
+-	rc = env->log_set_config(env, DB_LOG_IN_MEMORY, 1);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	/* Make sure that in-memory log is large enough that no
+-	 * transaction will ever span the entire buffer. */
+-	rc = env->set_lg_bsize(env, 10 * MEGA);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	/* Pass NULL as home directory (2nd arg) and use DB_PRIVATE
+-	 * flag for in-memory databases. */
+-	rc = env->open(env, NULL, DB_CREATE | DB_INIT_LOCK | DB_INIT_LOG |
+-		       DB_INIT_TXN | DB_INIT_MPOOL | DB_PRIVATE, 0);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	rc = db_create(&db, env, 0);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	/* Do not create temporary files on disk, even if the database
+-	 * expands to fill the entire cache. */
+-	mpf = db->get_mpf(db);
+-	rc = mpf->set_flags(mpf, DB_MPOOL_NOFILE, 1);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	/* Do not specify file name (3rd arg). */
+-	rc = db->open(db, NULL, NULL, "confc-registry", DB_BTREE,
+-		      DB_CREATE | DB_AUTO_COMMIT, 0);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	rc = db->close(db, 0);
+-	C2_UT_ASSERT(rc == 0);
+-
+-	rc = env->close(env, 0);
+-	C2_UT_ASSERT(rc == 0);
+-}
+-
+-const struct c2_test_suite conf_map_ut = {
+-	.ts_name  = "conf-map-ut",
+-	.ts_init  = NULL,
+-	.ts_fini  = NULL,
+-	.ts_tests = {
+-		/* { "conf-map-add-lookup", test_add_lookup }, */
+-		{ "plain Berkeley DB API", test_XXX_db5 },
+-		{ NULL, NULL }
+-	}
+-};
+-C2_EXPORTED(conf_map_ut);
+diff --git a/conf/ut/reg.c b/conf/ut/reg.c
+new file mode 100644
+index 0000000..6554405
+--- /dev/null
++++ b/conf/ut/reg.c
+@@ -0,0 +1,71 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 26-Jul-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/reg.c"
++#include "lib/ut.h"
++
++static void test_add_lookup(void)
++{
++	struct c2_conf_reg       reg;
++	struct c2_conf_obj      *p;
++	int                      rc;
++	const struct c2_conf_obj a = {
++		.co_type = C2_CO_DIR,
++		.co_id   = C2_CONF_BUF_STR("dir") };
++	const struct c2_conf_obj b = {
++		.co_type = C2_CO_SDEV,
++		.co_id   = C2_CONF_BUF_INIT(4, "ni\0c") /* not a C string */
++	};
++
++	rc = c2_conf_reg_init(&reg);
++	C2_UT_ASSERT(rc == 0);
++
++	p = c2_conf_reg_lookup(&reg, a.co_type, &a.co_id);
++	C2_UT_ASSERT(p == NULL);
++
++	rc = c2_conf_reg_add(&reg, &a);
++	C2_UT_ASSERT(rc == 0);
++	p = c2_conf_reg_lookup(&reg, a.co_type, &a.co_id);
++	C2_UT_ASSERT(p == &a);
++
++	p = c2_conf_reg_lookup(&reg, b.co_type, &b.co_id);
++	C2_UT_ASSERT(p == NULL);
++
++	rc = c2_conf_reg_add(&reg, &b);
++	C2_UT_ASSERT(rc == 0);
++	p = c2_conf_reg_lookup(&reg, b.co_type, &b.co_id);
++	C2_UT_ASSERT(p == &b);
++
++	c2_conf_reg_fini(&reg);
++}
++
++const struct c2_test_suite conf_reg_ut = {
++	.ts_name  = "conf-reg-ut",
++	.ts_init  = NULL,
++	.ts_fini  = NULL,
++	.ts_tests = {
++		{ "conf-reg-add-lookup", test_add_lookup },
++		{ NULL, NULL }
++	}
++};
++C2_EXPORTED(conf_reg_ut);
+-- 
+1.8.3.2
+

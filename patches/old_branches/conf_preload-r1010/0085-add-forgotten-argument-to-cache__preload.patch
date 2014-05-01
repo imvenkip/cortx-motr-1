@@ -1,0 +1,246 @@
+From 8db6224d35c4956d8c1fea625684a07177cfc596 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 21 Mar 2012 22:35:26 +0200
+Subject: [PATCH 085/311] add forgotten argument to cache__preload()
+
+`cache__preload' will be deleted as soon as confd is implemented.
+Double underscore in the name emphasises the transient nature of
+this function.
+
++ Improve the ordering of functions.
+---
+ conf/confc.c | 182 +++++++++++++++++++++++++++++------------------------------
+ 1 file changed, 91 insertions(+), 91 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 2f7741e..613689a 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -351,38 +351,6 @@
+  * @{
+  */
+ 
+-void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *client)
+-{
+-	C2_PRE(confc_is_initialised(confc));
+-	ctx->fc_client = confc;
+-	c2_sm_init(&ctx->fc_mach, &confc_states_conf, S_INITIAL,
+-		   confc->cc_group, XXX /* *c2_addb_ctx */);
+-	c2_chan_init(&ctx->fc_complete);
+-	c2_clink_init(&ctx->fc_clink, on_unpinned);
+-	C2_POST(ctx_invariant(ctx));
+-}
+-
+-void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+-{
+-	C2_PRE(ctx_invariant(ctx));
+-	c2_clink_fini(&ctx->fc_clink);
+-	c2_chan_fini(&ctx->fc_complete);
+-	c2_sm_fini(&ctx->fc_mach);
+-	ctx->fc_client = NULL;
+-}
+-
+-static enum c2_conf_status
+-list_status(const struct c2_tl_descr *descr, const struct c2_tl *list)
+-{
+-	/*
+-	 * - If all of the objects are LOADING => return LOADING.
+-	 * - If MISSING objects are found => change their statuses to
+-	 *   LOADING and return MISSING.
+-	 * - Otherwise (all objects are READY) return READY.
+-	 */
+-	XXX;
+-}
+-
+ static inline struct c2_mutex * group_lock(struct c2_confc_ctx *ctx)
+ {
+ 	return &ctx->fc_client->cc_group->s_lock;
+@@ -522,70 +490,12 @@ end:
+ 	return ret;
+ }
+ 
+-/**
+- * Adds new objects, contained in confd's response, to the
+- * configuration cache.
+- *
+- * @pre  resp->fr_rc == 0
+- */
+-static int cache_grow(struct c2_conf_map *cache,
+-		      const struct c2_conf_fetch_resp *resp)
+-{
+-	/*
+-	 * struct confx_object *fetched;
+-	 * struct c2_conf_obj  *cached;
+-	 * int                  rc;
+-	 *
+-	 * C2_PRE(resp->fr_rc == 0);
+-	 *
+-	 * for (fetched in resp->fr_data) {
+-	 *     if (fetched->o_key.cb_size == 0 ||
+-	 *         fetched->o_key.cb_data == NULL) {
+-	 *         c2_addb(report bogus data);
+-	 *         return -Exxx;
+-	 *     }
+-	 *
+-	 *     cached = c2_conf_map_lookup(cache, &fetched->o_key,
+-	 *                                 fetched->o_val.ov_type);
+-	 *     if (cached == NULL)
+-	 *         rc = cache_add(cache, fetched);
+-	 *     else
+-	 *         rc = object_enrich(cached, fetched, cache);
+-	 *
+-	 *     if (rc != 0)
+-	 *         break;
+-	 * }
+-	 *
+-	 * return rc;
+-	 */
+-	XXX;
+-}
+-
+ static bool confc_is_initialised(const struct c2_confc *client)
+ {
+ 	C2_PRE(equi(client->cc_root, client->cc_group));
+ 	return client->cc_root != NULL;
+ }
+ 
+-static int cache_preload(const char *conf_str)
+-{
+-	/*
+-	 * // 4096 bytes (kernel module option) / 64 = 64 bytes (per object)
+-	 * struct confx_object objs[64];
+-	 * int rc;
+-	 * int i;
+-	 *
+-	 * rc = c2_conf__parse(conf_str, objs, ARRAY_SIZE(objs));
+-	 * for (i = rc - 1; i >= 0; --i) {
+-	 *     rc = cache_add(objs + i);
+-	 *     if (rc != 0)
+-	 *         break;
+-	 * }
+-	 * return rc;
+-	 */
+-	XXX;
+-}
+-
+ int c2_confc_init(struct c2_confc *client, const char *confd_addr,
+ 		  const char *profile, struct c2_sm_group *sm_group)
+ {
+@@ -610,7 +520,7 @@ int c2_confc_init(struct c2_confc *client, const char *confd_addr,
+ 	 * c2_conf_map_add(&client->cc_registry, root);
+ 	 * client->cc_root = root;
+ 	 *
+-	 * cache_preload(confd_addr);
++	 * cache__preload(&client->cc_registry, confd_addr);
+ 	 *
+ 	 * C2_POST(equi(rc == 0, confc_is_initialised(client)));
+ 	 * c2_mutex_unlock(&client->cc_lock);
+@@ -1017,10 +927,88 @@ static int object_enrich(struct c2_conf_obj *dest,
+ 	XXX;
+ }
+ 
++/**
++ * Adds new objects, contained in confd's response, to the
++ * configuration cache.
++ *
++ * @pre  resp->fr_rc == 0
++ */
++static int
++cache_grow(struct c2_conf_map *cache, const struct c2_conf_fetch_resp *resp)
++{
++	/*
++	 * struct confx_object *fetched;
++	 * struct c2_conf_obj  *cached;
++	 * int                  rc;
++	 *
++	 * C2_PRE(resp->fr_rc == 0);
++	 *
++	 * for (fetched in resp->fr_data) {
++	 *     if (fetched->o_key.cb_size == 0 ||
++	 *         fetched->o_key.cb_data == NULL) {
++	 *         c2_addb(report bogus data);
++	 *         return -Exxx;
++	 *     }
++	 *
++	 *     cached = c2_conf_map_lookup(cache, &fetched->o_key,
++	 *                                 fetched->o_val.ov_type);
++	 *     if (cached == NULL)
++	 *         rc = cache_add(cache, fetched);
++	 *     else
++	 *         rc = object_enrich(cached, fetched, cache);
++	 *
++	 *     if (rc != 0)
++	 *         break;
++	 * }
++	 *
++	 * return rc;
++	 */
++	XXX;
++}
++
++static int cache__preload(struct c2_conf_map *cache, const char *conf_str)
++{
++	/*
++	 * // 4096 bytes (kernel module option) / 64 = 64 bytes (per object)
++	 * struct confx_object objs[64];
++	 * int rc;
++	 * int i;
++	 *
++	 * rc = c2_conf__parse(conf_str, objs, ARRAY_SIZE(objs));
++	 * for (i = rc - 1; i >= 0; --i) {
++	 *     rc = cache_add(cache, objs + i);
++	 *     if (rc != 0)
++	 *         break;
++	 * }
++	 * return rc;
++	 */
++	XXX;
++}
++
+ /* ------------------------------------------------------------------
+  * misc
+  * ------------------------------------------------------------------ */
+ 
++void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *client)
++{
++	C2_PRE(confc_is_initialised(confc));
++	ctx->fc_client = confc;
++	c2_sm_init(&ctx->fc_mach, &confc_states_conf, S_INITIAL,
++		   confc->cc_group, XXX /* *c2_addb_ctx */);
++	c2_chan_init(&ctx->fc_complete);
++	c2_clink_init(&ctx->fc_clink, on_unpinned);
++	C2_POST(ctx_invariant(ctx));
++}
++
++void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
++{
++	C2_PRE(ctx_invariant(ctx));
++	c2_clink_fini(&ctx->fc_clink);
++	c2_chan_fini(&ctx->fc_complete);
++	c2_sm_fini(&ctx->fc_mach);
++	ctx->fc_client = NULL;
++}
++
+ static bool ctx_invariant(struct c2_confc_ctx *ctx)
+ {
+ 	const struct c2_rpc_item *item = &ctx->fc_fop.f_item;
+@@ -1031,4 +1019,16 @@ static bool ctx_invariant(struct c2_confc_ctx *ctx)
+ 		c2_fop_data(ctx->fc_fop) == &ctx->fc_req;
+ }
+ 
++static enum c2_conf_status
++list_status(const struct c2_tl_descr *descr, const struct c2_tl *list)
++{
++	/*
++	 * - If all of the objects are LOADING => return LOADING.
++	 * - If MISSING objects are found => change their statuses to
++	 *   LOADING and return MISSING.
++	 * - Otherwise (all objects are READY) return READY.
++	 */
++	XXX;
++}
++
+ /** @} confc_dlspec */
+-- 
+1.8.3.2
+

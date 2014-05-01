@@ -1,0 +1,44 @@
+From e00203e7b878fdc99aca23400fb6822fee32a7a2 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Tue, 3 Sep 2013 12:16:15 +0530
+Subject: [PATCH 18/24] Fixed Jira:MERO-2. Will put similar fix in master.
+
+---
+ rm/ut/file.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/rm/ut/file.c b/rm/ut/file.c
+index 53a82f7..69975bd 100644
+--- a/rm/ut/file.c
++++ b/rm/ut/file.c
+@@ -215,6 +215,8 @@ void test_verify(enum flock_tests test_id)
+ {
+ 	struct m0_rm_owner *clnt = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+ 	struct m0_rm_owner *srv  = rm_ctx[SERVER_2].rc_test_data.rd_owner;
++	struct m0_sm_group *smgrp;
++	bool                validation_lock = false;
+ 
+ 	switch(test_id) {
+ 	case LOCK_ON_CLIENT_TEST:
+@@ -230,11 +232,18 @@ void test_verify(enum flock_tests test_id)
+ 		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&clnt->ro_borrowed));
+ 		break;
+ 	case DISTRIBUTED_LOCK_TEST:
++		smgrp = owner_grp(srv);
++		if (!m0_mutex_is_locked(&smgrp->s_lock)) {
++			validation_lock = true;
++			m0_rm_owner_lock(srv);
++		}
+ 		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&srv->ro_sublet) ||
+ 			     !m0_rm_ur_tlist_is_empty(
+                                 &srv->ro_owned[OWOS_CACHED]) ||
+ 			     !m0_rm_ur_tlist_is_empty(
+                                 &srv->ro_owned[OWOS_HELD]));
++		if (validation_lock)
++			m0_rm_owner_unlock(srv);
+ 		break;
+ 	default:
+ 		break;
+-- 
+1.8.3.2
+

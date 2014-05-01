@@ -1,0 +1,29 @@
+From 90c21520cd61923d27352fe19f6a31c9657f7eb0 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 14 Mar 2014 16:55:25 +0530
+Subject: [PATCH 12/20]  - minor re-org for fom_locality member.
+
+---
+ fop/fom.h | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/fop/fom.h b/fop/fom.h
+index 9af8d40..ba90d07 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -304,9 +304,10 @@ struct m0_fom_locality {
+ 	/** AST which triggers the posting of statistics */
+ 	struct m0_sm_ast             fl_post_stats_ast;
+ 
+-	/** Something for memory, see set_mempolicy(2). */
+-
++	/** locker to store data pointers. */
+ 	struct m0_fom_locality_lockers fl_locker;
++
++	/** Something for memory, see set_mempolicy(2). */
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

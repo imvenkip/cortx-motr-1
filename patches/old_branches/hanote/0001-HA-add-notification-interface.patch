@@ -1,0 +1,164 @@
+From 806712e2a3b3ef28fe24f67e5b4f67e0d3cb46f6 Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Mon, 20 May 2013 14:04:20 +0400
+Subject: [PATCH 1/2] HA: add notification interface.
+
+---
+ ha/note.h | 145 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 145 insertions(+)
+ create mode 100644 ha/note.h
+
+diff --git a/ha/note.h b/ha/note.h
+new file mode 100644
+index 0000000..b8fafce
+--- /dev/null
++++ b/ha/note.h
+@@ -0,0 +1,145 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
++ * Original creation date: 10-May-2013
++ */
++
++
++#pragma once
++
++#ifndef __MERO___HA_NOTE_H__
++#define __MERO___HA_NOTE_H__
++
++
++/**
++ * @defgroup ha
++ *
++ * @{
++ */
++
++/* import */
++#include "lib/types.h"
++#include "xcode/xcode_attr.h"
++
++/* export */
++struct m0_ha_note;
++struct m0_ha_nvec;
++
++/**
++ * Enumeration of possible object states.
++ */
++enum m0_ha_obj_state {
++	/** Object can be used normally. */
++	M0_NC_ACTIVE,
++	/**
++	 * Object failed and cannot service requests. HA will notify Mero when
++	 * the object is available again.
++	 */
++	M0_NC_FAILED,
++	/**
++	 * Object experienced a temporary failure. Mero should resume using the
++	 * object after an implementation defined timeout.
++	 */
++	M0_NC_TRANSIENT,
++	/**
++	 * Object is in degraded mode. The meaning of this state is object type
++	 * dependent.
++	 */
++	M0_NC_DEGRADED,
++	/**
++	 * Object is recovering from a failure. Object type specific protocol is
++	 * used to tell users when the object has recovered.
++	 */
++	M0_NC_RECOVERING,
++	/**
++	 * Object is removed from the active service by an administrator.
++	 */
++	M0_NC_OFFLINE,
++	/**
++	 * Object is ex-communicated from the chur^H^H^Hluster. Don't talk to
++	 * it.
++	 */
++	M0_NC_ANATHEMISED,
++
++	M0_NC_NR
++};
++
++/**
++ * Note describes (changed) object state.
++ */
++struct m0_ha_note {
++	/** Object identifier. */
++	struct m0_uint128 no_id;
++	/**
++	 * Index in the "delegation chain" for the object.
++	 *
++	 * Consider the following examples:
++	 *
++	 * - delegation chain of a service consists of the service itself and
++	 *   its fail-over partners. The service is used only when depth is
++	 *   0. Otherwise, depth-th fail-over partner is used.
++	 *
++	 * - delegation chain of a pool consists of the sequence of pools that
++         *   is used in case of successive NBA events. That is, in normal
++         *   situation, the head of the sequence (the pool itself) is used,
++         *   after first NBA event, CADR pool is used, then CADDR, etc.
++	 *
++	 * Delegation chain always start with the object itself.
++	 *
++	 * By increasing the depth of an object, HA tells Mero to switch to the
++	 * "alternative" access path.
++	 */
++	uint32_t          no_depth;
++	/** Object type, taken from enum m0_conf_objtype. */
++	uint8_t           no_otype;
++	/** State, from enum m0_ha_obj_state. */
++	uint8_t           no_state;
++} M0_XCA_RECORD;
++
++/**
++ * "Note vector" describes changes in system state.
++ */
++struct m0_ha_nvec {
++	uint32_t           nv_nr;
++	struct m0_ha_note *nv_note;
++} M0_XCA_SEQUENCE;
++
++/**
++ *
++ */
++M0_INTERNAL int m0_ha_query(struct m0_confc *confc,
++			    struct m0_ha_note *note, struct m0_chan *chan);
++M0_INTERNAL void m0_ha_note_accept(struct m0_confc *confc,
++				   const struct m0_ha_nvec *nvec);
++
++/** @} end of ha group */
++
++#endif /* __MERO___HA_NOTE_H__ */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+-- 
+1.8.3.2
+

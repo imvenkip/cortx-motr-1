@@ -1,0 +1,33 @@
+From 2098da83b5af524d7c225353dd7fbdbabcbbc897 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 12 Jan 2011 07:10:43 -0700
+Subject: [PATCH 002/177] - memset is replaced with C2_SET0
+
+---
+ nrs/nrs.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/nrs/nrs.c b/nrs/nrs.c
+index f33a3d0..81946cd 100644
+--- a/nrs/nrs.c
++++ b/nrs/nrs.c
+@@ -8,6 +8,7 @@
+ #include "lib/queue.h"
+ #include "lib/memory.h"
+ #include "lib/cond.h"
++#include "lib/misc.h"
+ #include "addb/addb.h"
+ #include "reqh/reqh.h"
+ #include "fop/fop.h"
+@@ -33,7 +34,7 @@ int  c2_nrs_init(struct c2_nrs *nrs, struct c2_nrs_policy *pol,
+ {
+         int rc;
+         
+-        memset(nrs, 0, sizeof(*nrs));        
++        C2_SET0(nrs);        
+         c2_mutex_init(&nrs->n_guard);
+ 	c2_cond_init(&nrs->n_gotwork);
+         c2_queue_init(&nrs->n_queue);
+-- 
+1.8.3.2
+

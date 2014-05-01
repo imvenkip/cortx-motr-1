@@ -1,0 +1,119 @@
+From 7dcf3e33ea000cbd7c311d0b93cfacc765eb6d69 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Fri, 26 Apr 2013 12:59:28 +0530
+Subject: [PATCH 3/5] rpc: Remove m0_rpc_sender_uuid. Use m0_uint128.
+
+---
+ rpc/conn_internal.h |  8 --------
+ rpc/rpc_onwire.h    | 29 +++++++++--------------------
+ rpc/session_utils.c | 11 -----------
+ 3 files changed, 9 insertions(+), 39 deletions(-)
+
+diff --git a/rpc/conn_internal.h b/rpc/conn_internal.h
+index b34eac2..94373ad 100644
+--- a/rpc/conn_internal.h
++++ b/rpc/conn_internal.h
+@@ -75,14 +75,6 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_conn_session0(const struct m0_rpc_conn
+ 
+ M0_INTERNAL void m0_rpc_conn_fini_locked(struct m0_rpc_conn *conn);
+ 
+-M0_INTERNAL void m0_rpc_sender_uuid_get(struct m0_rpc_sender_uuid *u);
+-
+-/**
+-   3WAY comparison function for UUID
+- */
+-M0_INTERNAL int m0_rpc_sender_uuid_cmp(const struct m0_rpc_sender_uuid *u1,
+-				       const struct m0_rpc_sender_uuid *u2);
+-
+ /**
+    Lookup for a cob that represents rpc connection with given @sender_id.
+ 
+diff --git a/rpc/rpc_onwire.h b/rpc/rpc_onwire.h
+index 31881b1..45a5c18 100644
+--- a/rpc/rpc_onwire.h
++++ b/rpc/rpc_onwire.h
+@@ -38,31 +38,20 @@ enum {
+ 	M0_RPC_VERSION_1 = 1,
+ };
+ 
+-/**
+-   Requirements:
+-   * UUID must change whenever a storage-less client re-boots.
+-   * for a client with persistent state (e.g., a disk) uuid
+-     must survive reboots.
+-*/
+-struct m0_rpc_sender_uuid {
+-	/** XXX Temporary */
+-	uint64_t su_uuid;
+-} M0_XCA_RECORD;
+-
+ struct m0_rpc_onwire_slot_ref {
+-	struct m0_uint128          osr_uuid;
+-	uint64_t                   osr_sender_id;
+-	uint64_t                   osr_session_id;
++	struct m0_uint128 osr_uuid;
++	uint64_t          osr_sender_id;
++	uint64_t          osr_session_id;
+ 
+ 	/** Numeric id of slot. Used when encoding and decoding rpc item to
+ 	    and from wire-format
+ 	 */
+-	uint32_t                   osr_slot_id;
++	uint32_t          osr_slot_id;
+ 
+ 	/** If slot has verno matching sr_verno, then only the item can be
+ 	    APPLIED to the slot
+ 	 */
+-	struct m0_verno            osr_verno;
++	struct m0_verno   osr_verno;
+ 	/**
+ 	 * @todo These are temporary fields; there is no need to duplicate
+ 	 * this information with each and every reply. In the future, special
+@@ -71,18 +60,18 @@ struct m0_rpc_onwire_slot_ref {
+ 	/** In each reply item, receiver reports to sender, verno of item
+ 	    whose effects have reached persistent storage, using this field
+ 	 */
+-	struct m0_verno            osr_last_persistent_verno;
++	struct m0_verno   osr_last_persistent_verno;
+ 
+ 	/** Inform the sender about current slot version */
+-	struct m0_verno            osr_last_seen_verno;
++	struct m0_verno   osr_last_seen_verno;
+ 
+ 	/** An identifier that uniquely identifies item within
+ 	    slot->item_list.
+         */
+-	uint64_t                   osr_xid;
++	uint64_t          osr_xid;
+ 
+ 	/** Generation number of slot */
+-	uint64_t                   osr_slot_gen;
++	uint64_t          osr_slot_gen;
+ } M0_XCA_RECORD;
+ 
+ struct m0_rpc_packet_onwire_header {
+diff --git a/rpc/session_utils.c b/rpc/session_utils.c
+index bc410d9..a6bde17 100644
+--- a/rpc/session_utils.c
++++ b/rpc/session_utils.c
+@@ -54,17 +54,6 @@ M0_INTERNAL void m0_rpc_session_module_fini(void)
+         m0_rpc_session_fop_fini();
+ }
+ 
+-M0_INTERNAL void m0_rpc_sender_uuid_get(struct m0_rpc_sender_uuid *u)
+-{
+-	u->su_uuid = m0_uuid_generate();
+-}
+-
+-M0_INTERNAL int m0_rpc_sender_uuid_cmp(const struct m0_rpc_sender_uuid *u1,
+-				       const struct m0_rpc_sender_uuid *u2)
+-{
+-	return M0_3WAY(u1->su_uuid, u2->su_uuid);
+-}
+-
+ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item,
+ 				    struct m0_rpc_slot *slot);
+ /**
+-- 
+1.8.3.2
+

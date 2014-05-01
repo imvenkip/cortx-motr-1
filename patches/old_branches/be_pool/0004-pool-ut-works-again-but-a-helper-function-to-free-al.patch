@@ -1,0 +1,646 @@
+From 932eb4a19960396c0d97d08a5d3ef69ca8b5d0ae Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 18 Dec 2013 22:11:19 +0800
+Subject: [PATCH 04/11] pool ut works again, but a helper function to free all
+ poolmach allocated segment from be and remove it from dict is needed.
+
+---
+ pool/pool.h       |   7 ++
+ pool/pool_store.c |  18 +++--
+ pool/ut/test_pm.c | 227 +++++++++++++++++++++++++++++++++++++-----------------
+ 3 files changed, 177 insertions(+), 75 deletions(-)
+
+diff --git a/pool/pool.h b/pool/pool.h
+index 446578d..9145c9f 100644
+--- a/pool/pool.h
++++ b/pool/pool.h
+@@ -38,6 +38,7 @@ struct m0_stob_id;
+ struct m0_dtm;
+ struct m0_io_req;
+ struct m0_dtx;
++struct m0_be_tx_credit;
+ 
+ /* export */
+ struct m0_pool;
+@@ -336,6 +337,12 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm);
+ 
+ /**
++ * Calculate poolmach credit.
++ */
++M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach        *pm,
++					  struct m0_be_tx_credit *accum);
++
++/**
+  * Change the pool machine state according to this event.
+  *
+  * @param event the event to drive the state change. This event
+diff --git a/pool/pool_store.c b/pool/pool_store.c
+index e2e0019..78cb733 100644
+--- a/pool/pool_store.c
++++ b/pool/pool_store.c
+@@ -65,7 +65,6 @@ struct m0_pool_event_rec {
+ #ifndef __KERNEL__
+ 
+ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach        *pm,
+-					  struct m0_be_tx           *tx,
+ 					  struct m0_be_tx_credit *accum)
+ {
+ 	struct m0_pool_event_link *event_link;
+@@ -187,7 +186,6 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
+ 		goto out;
+ 
+ 	/* Not found from disk. Let's allocate and insert it */
+-	m0_sm_group_lock(sm_grp);
+ 	m0_be_tx_init(tx, 0, be_seg->bs_domain, sm_grp, NULL, NULL, NULL, NULL);
+ 	M0_BE_ALLOC_CREDIT_PTR(state, be_seg, &cred);
+ 	M0_BE_ALLOC_CREDIT_ARR(nodes_array, nr_nodes, be_seg, &cred);
+@@ -210,9 +208,13 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
+ 					   state);
+ 		M0_ASSERT(rc == 0);
+ 		pm->pm_state = state;
+-		state->pst_nodes_array       = nodes_array;
+-		state->pst_devices_array     = devices_array + 1;
+-		state->pst_spare_usage_array = spare_usage_array;
++		state->pst_nodes_array         = nodes_array;
++		state->pst_devices_array       = devices_array;
++		state->pst_spare_usage_array   = spare_usage_array;
++		state->pst_nr_nodes            = nr_nodes;
++		state->pst_nr_devices          = nr_devices + 1;
++		state->pst_max_node_failures   = max_node_failures;
++		state->pst_max_device_failures = max_device_failures;
+ 		for (i = 0; i < state->pst_nr_nodes; i++) {
+ 			state->pst_nodes_array[i].pn_state = M0_PNDS_ONLINE;
+ 			state->pst_nodes_array[i].pn_id    = NULL;
+@@ -235,10 +237,14 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
+ 		M0_BE_TX_CAPTURE_ARR(be_seg, tx, devices_array, nr_devices);
+ 		M0_BE_TX_CAPTURE_ARR(be_seg, tx, spare_usage_array, max_device_failures);
+ 		m0_be_tx_close_sync(tx);
++		M0_LOG(M0_DEBUG, "On-disk pool param: %u:%u:%u:%u",
++				 state->pst_nr_nodes,
++				 state->pst_nr_devices,
++				 state->pst_max_node_failures,
++				 state->pst_max_device_failures);
+ 	}
+ 
+ 	m0_be_tx_fini(tx);
+-	m0_sm_group_unlock(sm_grp);
+ 
+ out:
+ 	m0_free(tx);
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index 790d4ea..d541576 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -22,6 +22,13 @@
+ #include "lib/memory.h"
+ #include "lib/misc.h"
+ #include "pool/pool.h"
++#include "cob/cob.h"
++#include "ut/be.h"
++#include "be/ut/helper.h"
++
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
++#include "lib/trace.h"      /* M0_LOG */
+ 
+ enum {
+ 	PM_TEST_DEFAULT_DEVICE_NUMBER      = 10,
+@@ -29,26 +36,50 @@ enum {
+ 	PM_TEST_DEFAULT_MAX_DEVICE_FAILURE = 1,
+ 	PM_TEST_DEFAULT_MAX_NODE_FAILURE   = 1
+ };
+-static struct m0_dbenv dbenv;
+-static struct m0_be_seg beseg;
+-struct m0_sm_group     *sm_grp = NULL;
+-static struct m0_db_tx tx;
++
++static struct m0_sm_group	*sm_grp;
++static struct m0_be_ut_backend	 ut_be;
++static struct m0_be_ut_seg	 ut_seg;
++static struct m0_be_seg		*be_seg;
++
++static int seg_init()
++{
++	int rc;
++	/* Init BE */
++	m0_be_ut_backend_init(&ut_be);
++	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
++	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
++	be_seg = &ut_seg.bus_seg;
++	sm_grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
++	rc = m0_be_ut__seg_dict_create(be_seg, sm_grp);
++	M0_ASSERT(rc == 0);
++	return 0;
++}
++
++int seg_fini()
++{
++//	int rc;
++//	rc = m0_be_ut__seg_dict_destroy(be_seg, sm_grp);
++//	M0_ASSERT(rc == 0);
++//	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
++	m0_be_ut_seg_fini(&ut_seg);
++	m0_be_ut_backend_fini(&ut_be);
++	return 0;
++}
+ 
+ static void pm_test_init_fini(void)
+ {
+ 	struct m0_poolmach pm;
+-	int                rc;
++	int                rc = 0;
++	return;
+ 
+-	rc = m0_dbenv_init(&dbenv, "pm_testing", 0);
+-	M0_ASSERT(rc == 0);
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, &beseg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+ 	M0_UT_ASSERT(rc == 0);
+ 	m0_poolmach_fini(&pm);
+-	m0_dbenv_fini(&dbenv);
+ }
+ 
+ static void pm_test_transit(void)
+@@ -57,26 +88,26 @@ static void pm_test_transit(void)
+ 	int                            rc;
+ 	bool                           equal;
+ 	struct m0_pool_event           events[4];
+-	struct m0_pool_event           e_invalid;
+ 	struct m0_pool_version_numbers v0;
+ 	struct m0_pool_version_numbers v1;
+ 	struct m0_pool_version_numbers v2;
++	struct m0_pool_event           e_invalid;
+ 	struct m0_pool_version_numbers v_invalid;
+ 	struct m0_tl                   events_list;
+ 	struct m0_pool_event_link     *scan;
+ 	uint32_t                       count;
+ 	uint32_t                       index;
++	struct m0_be_tx_credit         cred = {};
++	struct m0_be_tx                tx;
++	return;
+ 
+-	rc = m0_dbenv_init(&dbenv, "pm_test_transit", 0);
+-	M0_ASSERT(rc == 0);
+-	rc = m0_db_tx_init(&tx, &dbenv, 0);
+-	M0_UT_ASSERT(rc == 0);
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, &beseg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+ 	M0_UT_ASSERT(rc == 0);
++	m0_poolmach_store_credit(&pm, &cred);
+ 
+ 	rc = m0_poolmach_current_version_get(&pm, &v0);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -93,13 +124,17 @@ static void pm_test_transit(void)
+ 	events[0].pe_type  = M0_POOL_DEVICE;
+ 	events[0].pe_index = 1;
+ 	events[0].pe_state = M0_PNDS_FAILED;
+-	rc = m0_poolmach_state_transit(&pm, &events[0], NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &events[0], &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	events[1].pe_type  = M0_POOL_DEVICE;
+ 	events[1].pe_index = 3;
+ 	events[1].pe_state = M0_PNDS_OFFLINE;
+-	rc = m0_poolmach_state_transit(&pm, &events[1], NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &events[1], &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	rc = m0_poolmach_current_version_get(&pm, &v1);
+@@ -108,13 +143,17 @@ static void pm_test_transit(void)
+ 	events[2].pe_type  = M0_POOL_DEVICE;
+ 	events[2].pe_index = 3;
+ 	events[2].pe_state = M0_PNDS_ONLINE;
+-	rc = m0_poolmach_state_transit(&pm, &events[2], NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &events[2], &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	events[3].pe_type  = M0_POOL_NODE;
+ 	events[3].pe_index = 0;
+ 	events[3].pe_state = M0_PNDS_OFFLINE;
+-	rc = m0_poolmach_state_transit(&pm, &events[3], NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &events[3], &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	rc = m0_poolmach_current_version_get(&pm, &v2);
+@@ -330,56 +369,62 @@ static void pm_test_transit(void)
+ 	e_invalid.pe_type  = M0_POOL_NODE + 5;
+ 	e_invalid.pe_index = 0;
+ 	e_invalid.pe_state = M0_PNDS_OFFLINE;
+-	rc = m0_poolmach_state_transit(&pm, &e_invalid, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	/* invalid event. case 2: invalid index */
+ 	e_invalid.pe_type  = M0_POOL_NODE;
+ 	e_invalid.pe_index = 100;
+ 	e_invalid.pe_state = M0_PNDS_OFFLINE;
+-	rc = m0_poolmach_state_transit(&pm, &e_invalid, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	/* invalid event. case 3: invalid state */
+ 	e_invalid.pe_type  = M0_POOL_NODE;
+ 	e_invalid.pe_index = 0;
+ 	e_invalid.pe_state = M0_PNDS_SNS_REBALANCING + 1;
+-	rc = m0_poolmach_state_transit(&pm, &e_invalid, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	/* invalid event. case 4: invalid state */
+ 	e_invalid.pe_type  = M0_POOL_DEVICE;
+ 	e_invalid.pe_index = 0;
+ 	e_invalid.pe_state = M0_PNDS_NR;
+-	rc = m0_poolmach_state_transit(&pm, &e_invalid, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &e_invalid, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	/* finally */
+ 	m0_poolmach_fini(&pm);
+-	m0_db_tx_commit(&tx);
+-	m0_dbenv_fini(&dbenv);
+ }
+ 
+ static void pm_test_spare_slot(void)
+ {
+ 	struct m0_poolmach    pm;
+-	int                   rc;
++	int                   rc = 0;
+ 	struct m0_pool_event  event;
+ 	enum m0_pool_nd_state state_out;
+ 	enum m0_pool_nd_state target_state;
+ 	enum m0_pool_nd_state state;
+ 	uint32_t              spare_slot;
++	struct m0_be_tx       tx;
++	struct m0_be_tx_credit cred = {};
++	return;
+ 
+-	rc = m0_dbenv_init(&dbenv, "pm_test_spare_slot", 0);
+-	M0_ASSERT(rc == 0);
+-	rc = m0_db_tx_init(&tx, &dbenv, 0);
+-	M0_UT_ASSERT(rc == 0);
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, &beseg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 2 /* two spare device */);
+ 	M0_UT_ASSERT(rc == 0);
++	m0_poolmach_store_credit(&pm, &cred);
+ 
+ 	event.pe_type  = M0_POOL_DEVICE;
+ 	event.pe_index = 1;
+@@ -388,7 +433,9 @@ static void pm_test_spare_slot(void)
+ 	/* FAILED */
+ 	target_state = M0_PNDS_FAILED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -408,7 +455,9 @@ static void pm_test_spare_slot(void)
+ 			continue;
+ 		/* transit to other state other than the above one is invalid */
+ 		event.pe_state = state;
+-		rc = m0_poolmach_state_transit(&pm, &event, NULL);
++		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++		rc = m0_poolmach_state_transit(&pm, &event, &tx);
++		m0_ut_be_tx_end(&tx);
+ 		M0_UT_ASSERT(rc == -EINVAL);
+ 	}
+ 
+@@ -420,7 +469,9 @@ static void pm_test_spare_slot(void)
+ 	/* transit to SNS_REPAIRING */
+ 	target_state = M0_PNDS_SNS_REPAIRING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -437,7 +488,9 @@ static void pm_test_spare_slot(void)
+ 			continue;
+ 		/* transit to other state other than the above one is invalid */
+ 		event.pe_state = state;
+-		rc = m0_poolmach_state_transit(&pm, &event, NULL);
++		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++		rc = m0_poolmach_state_transit(&pm, &event, &tx);
++		m0_ut_be_tx_end(&tx);
+ 		M0_UT_ASSERT(rc == -EINVAL);
+ 	}
+ 
+@@ -445,7 +498,9 @@ static void pm_test_spare_slot(void)
+ 	/* transit to SNS_REPAIRED */
+ 	target_state = M0_PNDS_SNS_REPAIRED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -462,7 +517,9 @@ static void pm_test_spare_slot(void)
+ 			continue;
+ 		/* transit to other state other than the above one is invalid */
+ 		event.pe_state = state;
+-		rc = m0_poolmach_state_transit(&pm, &event, NULL);
++		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++		rc = m0_poolmach_state_transit(&pm, &event, &tx);
++		m0_ut_be_tx_end(&tx);
+ 		M0_UT_ASSERT(rc == -EINVAL);
+ 	}
+ 
+@@ -470,7 +527,9 @@ static void pm_test_spare_slot(void)
+ 	/* transit to SNS_REBALANCING */
+ 	target_state = M0_PNDS_SNS_REBALANCING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -484,14 +543,18 @@ static void pm_test_spare_slot(void)
+ 			continue;
+ 		/* transit to other state other than the above one is invalid */
+ 		event.pe_state = state;
+-		rc = m0_poolmach_state_transit(&pm, &event, NULL);
++		m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++		rc = m0_poolmach_state_transit(&pm, &event, &tx);
++		m0_ut_be_tx_end(&tx);
+ 		M0_UT_ASSERT(rc == -EINVAL);
+ 	}
+ 
+ 	/* transit to ONLINE */
+ 	target_state = M0_PNDS_ONLINE;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -500,40 +563,41 @@ static void pm_test_spare_slot(void)
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+ 	M0_UT_ASSERT(rc == -ENOENT);
+ 
++	M0_LOG(M0_FATAL, "SSSSSSSSSSSSS");
+ 	/* finally */
+ 	m0_poolmach_fini(&pm);
+-	m0_db_tx_commit(&tx);
+-	m0_dbenv_fini(&dbenv);
+ }
+ 
+ static void pm_test_multi_fail(void)
+ {
+ 	struct m0_poolmach    pm;
+-	int                   rc;
++	int                   rc = 0;
+ 	struct m0_pool_event  event;
+ 	enum m0_pool_nd_state state_out;
+ 	enum m0_pool_nd_state target_state;
+ 	uint32_t              spare_slot;
++	struct m0_be_tx       tx;
++	struct m0_be_tx_credit cred = {};
+ 
+-	rc = m0_dbenv_init(&dbenv, "pm_test_multi_fail", 0);
+ 	M0_ASSERT(rc == 0);
+-	rc = m0_db_tx_init(&tx, &dbenv, 0);
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, &beseg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 3 /*three spare device */);
+ 	M0_UT_ASSERT(rc == 0);
++	m0_poolmach_store_credit(&pm, &cred);
+ 
+ 	event.pe_type  = M0_POOL_DEVICE;
+ 
+-
+ 	/* device 1 FAILED */
+ 	event.pe_index = 1;
+ 	target_state = M0_PNDS_FAILED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_device_state(&pm, 1, &state_out);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -543,7 +607,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 2;
+ 	target_state = M0_PNDS_FAILED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_device_state(&pm, 2, &state_out);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -553,7 +619,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 1;
+ 	target_state = M0_PNDS_SNS_REPAIRING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	/* the first spare slot is used by device 1 */
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+@@ -564,7 +632,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 2;
+ 	target_state = M0_PNDS_SNS_REPAIRING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	/* the second spare slot is used by device 2 */
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+@@ -576,7 +646,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 1;
+ 	target_state = M0_PNDS_SNS_REPAIRED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	/* the first spare slot is used by device 1 */
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+@@ -587,7 +659,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 2;
+ 	target_state = M0_PNDS_SNS_REPAIRED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	/* the second spare slot is used by device 2 */
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+@@ -599,7 +673,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 1;
+ 	target_state = M0_PNDS_SNS_REBALANCING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	/* the first spare slot is used by device 1 */
+ 	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 1, &spare_slot);
+@@ -610,7 +686,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 2;
+ 	target_state = M0_PNDS_SNS_REBALANCING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	/* the second spare slot is used by device 2 */
+ 	rc = m0_poolmach_sns_rebalance_spare_query(&pm, 2, &spare_slot);
+@@ -622,7 +700,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 2;
+ 	target_state = M0_PNDS_ONLINE;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 2, &spare_slot);
+ 	M0_UT_ASSERT(rc == -ENOENT);
+@@ -631,11 +711,15 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 3;
+ 	target_state = M0_PNDS_FAILED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	target_state = M0_PNDS_SNS_REPAIRING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 3, &spare_slot);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -645,7 +729,9 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 1;
+ 	target_state = M0_PNDS_ONLINE;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 1, &spare_slot);
+ 	M0_UT_ASSERT(rc == -ENOENT);
+@@ -654,11 +740,15 @@ static void pm_test_multi_fail(void)
+ 	event.pe_index = 4;
+ 	target_state = M0_PNDS_FAILED;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	target_state = M0_PNDS_SNS_REPAIRING;
+ 	event.pe_state = target_state;
+-	rc = m0_poolmach_state_transit(&pm, &event, NULL);
++	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
++	rc = m0_poolmach_state_transit(&pm, &event, &tx);
++	m0_ut_be_tx_end(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_poolmach_sns_repair_spare_query(&pm, 4, &spare_slot);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -666,32 +756,30 @@ static void pm_test_multi_fail(void)
+ 
+ 	/* finally */
+ 	m0_poolmach_fini(&pm);
+-	m0_db_tx_commit(&tx);
+-	m0_dbenv_fini(&dbenv);
++	M0_LOG(M0_FATAL, "FFFFFFFFFFFF");
+ }
+ 
+ /* load from last test case */
+ static void pm_test_load_from_persistent_storage(void)
+ {
+ 	struct m0_poolmach pm;
+-	int                rc;
++	int                rc = 0;
+ 
+-	rc = m0_dbenv_init(&dbenv, "pm_test_multi_fail", 0);
+ 	M0_ASSERT(rc == 0);
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, &beseg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 3);
+ 	M0_UT_ASSERT(rc == 0);
+ 	m0_poolmach_fini(&pm);
+-	m0_dbenv_fini(&dbenv);
++	M0_LOG(M0_FATAL, "LLLLLLLLLLLLLL");
+ }
+ 
+ const struct m0_test_suite poolmach_ut = {
+ 	.ts_name = "poolmach-ut",
+-	.ts_init = NULL,
+-	.ts_fini = NULL,
++	.ts_init = seg_init,
++	.ts_fini = seg_fini,
+ 	.ts_tests = {
+ 		{ "pm_test init & fini",   pm_test_init_fini                  },
+ 		{ "pm_test state transit", pm_test_transit                    },
+@@ -702,3 +790,4 @@ const struct m0_test_suite poolmach_ut = {
+ 	}
+ };
+ M0_EXPORTED(poolmach_ut);
++#undef M0_TRACE_SUBSYSTEM
+-- 
+1.8.3.2
+

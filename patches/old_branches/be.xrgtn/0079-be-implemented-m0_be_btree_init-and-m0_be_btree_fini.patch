@@ -1,0 +1,122 @@
+From 76b364f0c1891a0d9a3851520e06729e8d5d3188 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 31 May 2013 13:42:50 +0300
+Subject: [PATCH 079/228] be: implemented m0_be_btree_init() and
+ m0_be_btree_fini().
+
+---
+ be/btree.c | 24 +++++++++++++++++++++++-
+ be/btree.h | 28 +++++++++++++++++++++++++---
+ 2 files changed, 48 insertions(+), 4 deletions(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index 73e740d..814da3c 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -25,17 +25,36 @@
+  */
+ 
+ #include "be/btree.h"
++#include "be/alloc.h"
+ #include "be/seg.h"
+ 
++enum {
++	BTREE_ALLOC_SHIFT = 1,
++	BTREE_FAN_OUT	  = 5
++};
++
++struct m0_be_bnode {
++};
++
++/* M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
++				 struct m0_be_tx *tx, */
++/* 			         m0_bcount_t size, unsigned shift); */
++
++/* M0_INTERNAL void m0_be_free(struct m0_be_allocator *a, */
++/* 			    struct m0_be_tx *tx, void *ptr); */
++
+ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
+ 				  struct m0_be_seg   *seg,
++				  const struct m0_be_btree_kv_ops *ops,
+ 				  struct m0_be_bnode *root)
+ {
++	M0_PRE(ops != NULL);
+ 	M0_PRE(ergo(root != NULL, seg->bs_addr <= (void*) root &&
+ 		    (void*) root < seg->bs_addr + seg->bs_size));
+ 
+ 	m0_rwlock_init(&tree->bb_lock);
+-	tree->bb_root = root;
++	tree->bb_root		= root;
++	tree->bb_ops		= ops;
+ }
+ 
+ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
+@@ -47,6 +66,9 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
+ 				    struct m0_be_tx *tx,
+ 				    struct m0_be_op *op)
+ {
++	/* Make sure we called m0_be_btree_init() */
++	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++
+ 
+ }
+ 
+diff --git a/be/btree.h b/be/btree.h
+index 036f317..53e5e04 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -34,12 +34,16 @@
+ #include "be/be.h"
+ 
+ struct m0_be_tx;
++struct m0_be_bnode;
+ struct m0_be_tx_credit;
++struct m0_be_btree_kv_ops;
++
+ 
+ struct m0_be_btree {
+-	struct m0_rwlock    bb_lock;
+-	struct m0_be_seg   *bb_seg;
+-	struct m0_be_bnode *bb_root;
++	struct m0_rwlock                 bb_lock;
++	struct m0_be_seg                *bb_seg;
++	struct m0_be_bnode              *bb_root;
++	const struct m0_be_btree_kv_ops *bb_ops;
+ };
+ 
+ enum m0_be_btree_op {
+@@ -50,13 +54,31 @@ enum m0_be_btree_op {
+ 	M0_BBO_UPDATE
+ };
+ 
++/**
++ * Operations user has to define for the keys and values sored in the tree.
++ */
++struct m0_be_btree_kv_ops {
++	/** Returns the key size */
++        unsigned int  (*ko_ksize)   (void *key);
++	/** Returns the data size */
++        unsigned int  (*ko_dsize)   (void *data);
++	/** @return 1 if key0 > key1, -1 if key0 < key2, 0 if key0 == key2 */
++        int           (*ko_compare) (void *key0, void *key1);
++};
++
+ 
+ /* ------------------------------------------------------------------
+  * Btree construction interface
+  * ------------------------------------------------------------------ */
+ 
++/**
++ * Initalises internal structures of @tree and sets its root node to @root.
++ * @root has to point on data lying inside @seg mapping.
++ * In case when root == NULL, following m0_be_btree_create() sets tree root.
++ */
+ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
+ 				  struct m0_be_seg   *seg,
++				  const struct m0_be_btree_kv_ops *ops,
+ 				  struct m0_be_bnode *root);
+ 
+ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree);
+-- 
+1.8.3.2
+

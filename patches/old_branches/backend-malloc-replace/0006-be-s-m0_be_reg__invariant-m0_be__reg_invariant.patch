@@ -1,0 +1,69 @@
+From 45d15bc97dfb3786d832a541a3eff60e4c5c1992 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 29 May 2013 11:57:05 +0300
+Subject: [PATCH 006/161] be: s/m0_be_reg__invariant/m0_be__reg_invariant/
+
+---
+ be/seg.c | 10 ++++++----
+ be/seg.h |  2 +-
+ 2 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index b594fc9..9034018 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -19,6 +19,8 @@
+  */
+ 
+ #include "be/seg.h"
++#include "lib/assert.h"
++#include "lib/cdefs.h"  /* NULL */
+ 
+ /**
+  * @addtogroup be
+@@ -40,7 +42,7 @@ void m0_be_seg_fini(struct m0_be_seg *seg)
+ 	m0_be_allocator_fini(&seg->bs_allocator);
+ }
+ 
+-bool m0_be_reg__invariant(const struct m0_be_reg *reg)
++bool m0_be__reg_invariant(const struct m0_be_reg *reg)
+ {
+ 	return reg != NULL &&
+ 	       reg->br_seg != NULL &&
+@@ -50,17 +52,17 @@ bool m0_be_reg__invariant(const struct m0_be_reg *reg)
+ 
+ void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op)
+ {
+-	M0_PRE(m0_be_reg__invariant(reg));
++	M0_PRE(m0_be__reg_invariant(reg));
+ }
+ 
+ void m0_be_reg_get_fast(const struct m0_be_seg *reg)
+ {
+-	M0_PRE(m0_be_reg__invariant(reg));
++	M0_PRE(m0_be__reg_invariant(reg));
+ }
+ 
+ void m0_be_reg_put(const struct m0_be_reg *reg)
+ {
+-	M0_PRE(m0_be_reg__invariant(reg));
++	M0_PRE(m0_be__reg_invariant(reg));
+ }
+ 
+ /** @} end of be group */
+diff --git a/be/seg.h b/be/seg.h
+index 78020b7..143162b 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -78,7 +78,7 @@ void m0_be_reg_get_fast(const struct m0_be_seg *reg);
+ 
+ void m0_be_reg_put(const struct m0_be_reg *reg);
+ 
+-bool m0_be_reg__invariant(const struct m0_be_reg *reg);
++bool m0_be__reg_invariant(const struct m0_be_reg *reg);
+ 
+ /** @} end of be group */
+ #endif /* __MERO_BE_SEG_H__ */
+-- 
+1.8.3.2
+

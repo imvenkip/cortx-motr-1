@@ -1,0 +1,289 @@
+From f7c60b6931f6139326af43b6635000848e326f51 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Thu, 23 May 2013 00:40:35 -0700
+Subject: [PATCH 098/121] Fixed few bugs in log_tid, flush_log and
+ wait_for_truncation.
+
+---
+ rvm/rds_zap.c       |  1 +
+ rvm/rvm_createseg.c |  2 ++
+ rvm/rvm_io.c        |  2 +-
+ rvm/rvm_logflush.c  | 44 ++++++++++++++++++++++++++++++++++++--------
+ rvm/rvm_logrecovr.c |  9 +++++----
+ rvm/rvm_trans.c     |  4 ++++
+ 6 files changed, 49 insertions(+), 13 deletions(-)
+
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index b017086..70bd53b 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -232,6 +232,7 @@ int rds_zap_heap(dev_name, dev_length, start_addr, static_length, heap_length,
+ 	rvm_seg_hdr_t         	*seg_hdr;
+ 	struct m0_be_cbinfo   	*cbinfo;
+ {
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 	rzh_cbdata_t 		*rzh_cbdata;
+ 	struct m0_be_cbinfo 	*rzhc_cbinfo;
+ 	int			 status = 0;
+diff --git a/rvm/rvm_createseg.c b/rvm/rvm_createseg.c
+index 0a90032..5d6801a 100644
+--- a/rvm/rvm_createseg.c
++++ b/rvm/rvm_createseg.c
+@@ -36,6 +36,7 @@ void rcs_rvm_end_transaction_cb(struct m0_be_cbinfo *cbinfo,
+ 	rvm_seg_hdr_t	*seg_hdr;
+ 	rvm_region_t	*region;
+ 	rvm_tid_t	*tid;
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 
+ 	rcs_cbdata = container_of(cbinfo, rcs_cbdata_t, rcsc_cbinfo);
+@@ -85,6 +86,7 @@ void rcs_rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 	rvm_region_def_t	*region_defs;
+ 	rvm_length_t 		 nregions;
+ 
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	rcs_cbdata = container_of(cbinfo, rcs_cbdata_t, rcsc_cbinfo);
+ 	M0_ASSERT(rcs_cbdata != NULL);
+diff --git a/rvm/rvm_io.c b/rvm/rvm_io.c
+index 155cabe..7cf734e 100644
+--- a/rvm/rvm_io.c
++++ b/rvm/rvm_io.c
+@@ -386,7 +386,7 @@ uint32_t launch_stob_io(opcode, io_nr, io_count, io_offset, io_addr, stob)
+     struct m0_clink         clink;
+     uint32_t                rc;
+     uint64_t                nr;
+-
++	printf("\n ERROROROROR __function %s\n", __FUNCTION__);
+     m0_stob_io_init(&io);
+ 
+     io.si_opcode              = opcode;
+diff --git a/rvm/rvm_logflush.c b/rvm/rvm_logflush.c
+index 0612707..2efdf32 100644
+--- a/rvm/rvm_logflush.c
++++ b/rvm/rvm_logflush.c
+@@ -121,6 +121,7 @@ void wl_gather_write_dev_cb(cbinfo, be_status, msg)
+ 	log	      = lfs_cbdata->lfsc_log;
+ 	wrap	      = &log->log_wrap;
+ 
++		printf("\n function %s\n", __FUNCTION__);
+ 
+ 	#ifdef RVM_LOG_TAIL_SHADOW
+ 	/*
+@@ -161,6 +162,7 @@ static rvm_return_t write_log_wrap(log, cbinfo)
+ 	int		 	be_status = 0;
+ 	m0_be_msg_type_t 	msg 	  = M0_BE_SUCCESS;
+ 
++		printf("\n function %s\n", __FUNCTION__);
+ 	M0_ALLOC_PTR(lfs_cbdata);
+         if (lfs_cbdata == NULL) {
+                 be_status = -1;
+@@ -544,6 +546,7 @@ void wtid_write_log_wrap(cbinfo, status, msg_type)
+ 	rvm_return_t	 retval;
+ 
+ 
++		printf("\n function %s\n", __FUNCTION__);
+ 	if (status != 0)
+ 		goto exit;
+ 
+@@ -610,6 +613,8 @@ static rvm_return_t write_tid(int_tid_t *tid, struct m0_be_cbinfo *cbinfo)
+ 	int		     be_status = 0;
+ 	m0_be_msg_type_t     msg_type  = M0_BE_SUCCESS;
+ 
++	printf("\n function %s\n", __FUNCTION__);
++
+ 	M0_ALLOC_PTR(rtx_data);
+ 	M0_ASSERT(rtx_data != NULL);
+ 	/* check that transactions are logged in commit order */
+@@ -792,6 +797,7 @@ void ls_wait_for_space_cb(cbinfo, be_status, msg)
+ 	rvm_offset_t	*special_size;
+ 	rvm_return_t	 retval;
+ 	rvm_offset_t     log_free;        /* size calculation temp */
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	if (be_status != 0)
+ 		goto exit;
+@@ -917,6 +923,7 @@ static rvm_return_t wait_for_space(log_t 		*log,
+ 	int 			 status = 0;
+ 	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
+ 	rvm_return_t     	 retval = RVM_SUCCESS;
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	/* see if enough space for current record */
+ 	*did_wait = rvm_false;
+@@ -968,6 +975,7 @@ static rvm_return_t log_special(log_t *log, log_special_t *special,
+ 	rvm_return_t         retval;          /* return value */
+ 	int		     be_status = 0;
+ 	m0_be_msg_type_t     msg = M0_BE_SUCCESS;
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	M0_ALLOC_PTR(lfs_cbdata);
+         if (lfs_cbdata == NULL) {
+@@ -1021,6 +1029,7 @@ void fls_log_special_cb(cbinfo, be_status, msg)
+ 	log_t		*log;
+ 	log_special_t	*special;
+ 	rvm_return_t	 retval;
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	if (be_status != 0)
+ 		goto exit;
+@@ -1043,7 +1052,10 @@ void fls_log_special_cb(cbinfo, be_status, msg)
+ 
+ 	cbinfo->bc_cb = fls_log_special_cb;
+ 	/* flush this special request */
+-	if ((retval = log_special(log, special, cbinfo)) != RVM_SUCCESS)
++	if ((retval = log_special(log, special, cbinfo)) != RVM_SUCCESS) {
++		be_status = -1;
++		msg 	  = retval;
++	}
+ exit:
+ 	/* If special is NULL or some error occured post parent. */
+ 	if ((be_status != 0 || special == NULL) && cbinfo->bc_pcbinfo != NULL &&
+@@ -1064,6 +1076,7 @@ rvm_return_t flush_log_special(log, cbinfo)
+ 	rvm_return_t      	 retval    = RVM_SUCCESS;
+ 	int		  	 be_status = 0;
+ 	m0_be_msg_type_t  	 msg 	   = M0_BE_SUCCESS;
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+         M0_ALLOC_PTR(lfs_cbdata);
+         if (lfs_cbdata == NULL) {
+@@ -1164,6 +1177,7 @@ void lt_wait_for_space_cb(struct m0_be_cbinfo *cbinfo,
+ 	{
+ 		cbinfo->bc_cb = lt_write_tid_cb;
+ 
++		printf("\n function %s\n", __FUNCTION__);
+ 		/* transfer tid to log device */
+ 		if ((retval = write_tid(lt_cbdata->ltc_tid, cbinfo)) != RVM_SUCCESS) {
+ 			status   = -1;
+@@ -1229,11 +1243,12 @@ static rvm_return_t log_tid(log_t *log,
+ 			    struct m0_be_cbinfo *cbinfo)
+ {
+ 	rvm_return_t    	 retval;             /* return value */
+-	int			 status;
++	int			 status = 0;
+ 	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
+ 
+ 	lt_cbdata_t		*lt_cbdata;
+ 	struct m0_be_cbinfo	*ltc_cbinfo;
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	M0_ALLOC_PTR(lt_cbdata);
+ 	M0_ASSERT(lt_cbdata != 0);
+@@ -1280,6 +1295,7 @@ void fl_log_tid_cb(struct m0_be_cbinfo *cbinfo,
+ 	struct timeval   	 end_time;
+ 	long             	 kretval;
+ 	rvm_return_t     	 retval = RVM_SUCCESS;
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	fl_cbdata = container_of(cbinfo, fl_cbdata_t, flc_cbinfo);
+ 	log 	  = fl_cbdata->flc_log;
+@@ -1303,7 +1319,12 @@ void fl_log_tid_cb(struct m0_be_cbinfo *cbinfo,
+ 		break_sw = (rvm_bool_t)TID(FLUSH_MARK);
+ 		retval 	 = log_tid(log, tid, cbinfo);
+ 
+-		if ((retval != RVM_SUCCESS) || break_sw) {
++		if (break_sw) {
++			done_looping = rvm_true;
++			goto exit;
++		}
++
++		if (retval != RVM_SUCCESS) {
+ 			status   = -1;
+ 			msg_type = retval;
+ 		}
+@@ -1351,11 +1372,12 @@ rvm_return_t flush_log(log,count,cbinfo)
+ 	long             	 kretval;
+ 	rvm_return_t     	 retval = RVM_SUCCESS;
+ 	rvm_bool_t		 done_looping = rvm_false;
+-	int 			 status;
++	int 			 status = 0;
+ 	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
+ 
+ 	M0_ALLOC_PTR(fl_cbdata);
+ 	M0_ASSERT(fl_cbdata != NULL);
++	printf("\nfunction : %s\n", __FUNCTION__);
+ 
+ 	RW_CRITICAL(log->flush_lock, w,
+ 	{
+@@ -1393,9 +1415,15 @@ rvm_return_t flush_log(log,count,cbinfo)
+ 		m0_be_cbinfo_copy_helper(cbinfo, flc_cbinfo, fl_log_tid_cb);
+ 
+ 		break_sw = (rvm_bool_t)TID(FLUSH_MARK);
++
+ 		retval 	 = log_tid(log, tid, flc_cbinfo);
+ 
+-		if ((retval != RVM_SUCCESS) || break_sw) {
++		if (break_sw) {
++			done_looping = rvm_true;
++			goto exit;
++		}
++
++		if (retval != RVM_SUCCESS) {
+ 			status   = -1;
+ 			msg_type = retval;
+ 		}
+@@ -1428,9 +1456,9 @@ exit:;
+ 	}
+ 
+ status_exit:
+-	if ((done_looping || status != 0) && cbinfo->bc_pcbinfo != NULL &&
+-	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+-		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++	if ((done_looping || status != 0) && cbinfo != NULL &&
++	    cbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo, status, msg_type);
+ 		m0_free(fl_cbdata);
+ 	}
+ 
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index 5b22901..8f69e84 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -3456,7 +3456,7 @@ rvm_return_t log_recover(log, count, is_daemon, flag, cbinfo)
+         }); /* end truncation lock crit sec */
+         exit_log_recover:
+                 if (be_status != 0  && cbinfo->bc_pcbinfo != NULL &&
+-                        cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                         m0_be_handler_post(cbinfo->bc_pcbinfo,
+ 		                           be_status, msg);
+ 			m0_free(lrc_cbdata);
+@@ -3630,9 +3630,10 @@ exit_crit_sec:;
+ 	if (force_trunc) {
+ 		retval   = log_recover(log, &log->status.tot_sync_truncation,
+ 				     rvm_false, RVM_SYNC_TRUNCATE, cbinfo);
+-
+-		status   = -1;
+-		msg_type = retval;
++		if (retval != RVM_SUCCESS) {
++			status   = -1;
++			msg_type = retval;
++		}
+ 	}
+ 
+         if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+diff --git a/rvm/rvm_trans.c b/rvm/rvm_trans.c
+index ea480f9..724ea3b 100644
+--- a/rvm/rvm_trans.c
++++ b/rvm/rvm_trans.c
+@@ -846,6 +846,8 @@ static rvm_return_t queue_tid(int_tid_t *tid, struct m0_be_cbinfo *cbinfo)
+ 	int			 status = 0;
+ 	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
+ 
++	printf("\nfunction : %s\n", __FUNCTION__);
++
+ 	/* make sure transaction not too large for log */
+ 	if ((retval = nv_io_size(tid,&tid->log_size)) != RVM_SUCCESS) {
+ 		status = -1;
+@@ -1006,6 +1008,8 @@ rvm_return_t rvm_end_transaction(rvm_tid_t *rvm_tid, rvm_mode_t mode,
+ 	m0_be_msg_type_t msg_type = M0_BE_SUCCESS;
+ 	rvm_bool_t	 null_tid = rvm_false;
+ 
++	printf("\nfunction : %s\n", __FUNCTION__);
++
+ 	/* basic entry checks */
+ 	if (bad_init()) {
+ 		status = -1;
+-- 
+1.8.3.2
+

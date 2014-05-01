@@ -1,0 +1,295 @@
+From e86fb66716bcbf75b967cca66657bfcdcf83df0e Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 18 Apr 2013 19:49:53 +0300
+Subject: [PATCH 86/94] Update tree w.r.t. generic key comparator function
+ ->compare().
+
+---
+ be/tree.c  | 81 ++++++++++++++++++++++++++++++++++++++------------------------
+ be/tree.h  |  3 ++-
+ be/ut/be.c | 26 +++++++++-----------
+ 3 files changed, 63 insertions(+), 47 deletions(-)
+
+diff --git a/be/tree.c b/be/tree.c
+index c86f378..a534117 100644
+--- a/be/tree.c
++++ b/be/tree.c
+@@ -14,7 +14,11 @@
+ 
+ #define KV_SIZE(btree)	      (2*btree->order * sizeof(struct bt_key_val *) - 1)
+ #define CHILDREN_SIZE(btree)  (2*btree->order * sizeof(struct bt_node *))
+-#define PRINT(...) M0_LOG(M0_DEBUG, __VA_ARGS__);
++#define PRINT(...) M0_LOG(M0_DEBUG, __VA_ARGS__)
++
++#define KEY_LT(key0, key1) (btree->compare(key0, key1) == -1)
++#define KEY_GT(key0, key1) (btree->compare(key0, key1) ==  1)
++#define KEY_EQ(key0, key1) (btree->compare(key0, key1) ==  0)
+ 
+ enum position_t { left = -1, right = 1 };
+ 
+@@ -235,8 +239,7 @@ static void btree_insert_nonfull(struct btree *btree,
+ 				 struct bt_node *parent_node,
+ 				 struct bt_key_val *key_val)
+ {
+-
+-	unsigned int key = btree->value(key_val->key);
++	void *key = key_val->key;
+ 	int i;
+ 	int rc;
+ 	struct bt_node *child;
+@@ -244,7 +247,7 @@ static void btree_insert_nonfull(struct btree *btree,
+ 
+  insert:i = node->nr_active - 1;
+ 	if (node->leaf) {
+-		while (i >= 0 && key < btree->value(node->key_vals[i]->key)) {
++		while (i >= 0 && KEY_LT(key, node->key_vals[i]->key)) {
+ 			node->key_vals[i + 1] = node->key_vals[i];
+ 			i--;
+ 		}
+@@ -255,7 +258,7 @@ static void btree_insert_nonfull(struct btree *btree,
+ 		rc = node_update(node, btree, tx);
+ 		M0_ASSERT(rc == 0);
+ 	} else {
+-		while (i >= 0 && key < btree->value(node->key_vals[i]->key)) {
++		while (i >= 0 && KEY_LT(key, node->key_vals[i]->key)) {
+ 			i--;
+ 		}
+ 		i++;
+@@ -263,8 +266,7 @@ static void btree_insert_nonfull(struct btree *btree,
+ 
+ 		if (child->nr_active == 2 * btree->order - 1) {
+ 			btree_split_child(btree, tx, node, i, child);
+-			if (btree->value(key_val->key) >
+-			    btree->value(node->key_vals[i]->key)) {
++			if (KEY_GT(key_val->key, node->key_vals[i]->key)) {
+ 				i++;
+ 			}
+ 		}
+@@ -634,7 +636,7 @@ M0_INTERNAL int btree_delete_key(struct btree *btree,
+ 	struct node_pos sub_node_pos;
+ 	struct node_pos node_pos;
+ 	struct bt_key_val *key_val, *new_key_val;
+-	unsigned int kv = btree->value(key);
++	void *kv = key;
+ 
+ 	node = subtree;
+ 	parent = NULL;
+@@ -648,15 +650,14 @@ M0_INTERNAL int btree_delete_key(struct btree *btree,
+ 		// Fix the index of the key greater than or equal
+ 		// to the key that we would like to search
+ 
+-		while (i < node->nr_active && kv >
+-		       btree->value(node->key_vals[i]->key)) {
++		while (i < node->nr_active &&
++		       KEY_GT(kv, node->key_vals[i]->key)) {
+ 			i++;
+ 		}
+ 		index = i;
+ 
+ 		// If we find such key break
+-		if (i < node->nr_active
+-		    && kv == btree->value(node->key_vals[i]->key)) {
++		if (i < node->nr_active && KEY_EQ(kv, node->key_vals[i]->key)) {
+ 			break;
+ 		}
+ 		if (node->leaf)
+@@ -698,15 +699,13 @@ M0_INTERNAL int btree_delete_key(struct btree *btree,
+ 				move_key(btree, tx, parent, i, right);
+ 			} else
+ 			// Left sibling has (t - 1) keys
+-			if (lsibling
+-				    && (lsibling->nr_active ==
+-						btree->order - 1)) {
++			if (lsibling  &&
++			    (lsibling->nr_active == btree->order - 1)) {
+ 				node = merge_siblings(btree, tx, parent, i, left);
+ 			} else
+ 			// Right sibling has (t - 1) keys
+-			if (rsibling
+-				    && (rsibling->nr_active ==
+-						btree->order - 1)) {
++			if (rsibling &&
++			    (rsibling->nr_active ==btree->order - 1)) {
+ 				node = merge_siblings(btree, tx, parent, i, right);
+ 			}
+ 		}
+@@ -846,7 +845,7 @@ M0_INTERNAL int btree_delete_key(struct btree *btree,
+ struct node_pos get_btree_node(struct btree *btree, void *key)
+ {
+ 	struct node_pos kp = { .node = NULL };
+-	unsigned int key_val = btree->value(key);
++	void *key_val = key;
+ 	struct bt_node *node;
+ 	unsigned int i = 0;
+ 
+@@ -857,14 +856,14 @@ struct node_pos get_btree_node(struct btree *btree, void *key)
+ 		// Fix the index of the key greater than or equal
+ 		// to the key that we would like to search
+ 
+-		while (i < node->nr_active && key_val >
+-		       btree->value(node->key_vals[i]->key)) {
++		while (i < node->nr_active &&
++		       KEY_GT(key_val, node->key_vals[i]->key)) {
+ 			i++;
+ 		}
+ 
+ 		// If we find such key return the key-value pair
+ 		if (i < node->nr_active &&
+-		    key_val == btree->value(node->key_vals[i]->key)) {
++		    KEY_EQ(key_val, node->key_vals[i]->key)) {
+ 			kp.node = node;
+ 			kp.index = i;
+ 			return kp;
+@@ -1019,27 +1018,47 @@ M0_INTERNAL struct bt_key_val *btree_pair_setup(struct btree *btree,
+ 	return kv;
+ }
+ 
++#include <ctype.h>
++static bool is_kv_string(void *kv, size_t len)
++{
++	size_t i;
++	char  *s = (char *)kv;
++
++	if (len == 0 || s[len - 1] != '\0')
++		return false;
++
++	for (i = 0; i < len - 1; ++i)
++		if (!isprint(s[i]))
++			return false;
++
++	return true;
++}
++
+ /**
+  *	Used to print the keys of the bt_node
+  *	@param node The node whose keys are to be printed
+  *	@return none
+  */
+-
+ static void print_single_node(struct btree *btree, struct bt_node *node)
+ {
+-
+ 	int i = 0;
+ 
+-	PRINT(" { ");
++	PRINT("{");
+ 	while (i < node->nr_active) {
+-		/** XXX: remove value from here */
+-		PRINT("key: %d, val: %d, level: %d",
+-		      btree->value(node->key_vals[i]->key),
+-		      *(int*)node->key_vals[i]->val,
+-		      node->level);
++		void *key = node->key_vals[i]->key;
++		void *val = node->key_vals[i]->val;
++
++		if (is_kv_string(key, btree->key_size(key)) &&
++		    is_kv_string(val, btree->data_size(val)))
++			PRINT("key: %s, val: %s, level: %d",
++			      (char *)key, (char *)val, node->level);
++		else
++			PRINT("key: %p, val: %p, level: %d",
++			      key, val, node->level);
++
+ 		i++;
+ 	}
+-	PRINT("} (0x%p,%d) ", node, node->leaf);
++	PRINT("} (%p,%d) ", node, node->leaf);
+ }
+ 
+ /**
+diff --git a/be/tree.h b/be/tree.h
+index 6919747..79b917a 100644
+--- a/be/tree.h
++++ b/be/tree.h
+@@ -36,9 +36,10 @@ struct bt_node {
+ struct btree {
+ 	unsigned int    order;			// B-Tree order
+ 	struct bt_node *root;			// Root of the B-Tree
+-	unsigned int  (*value)    (void *key);	// Generate uint value for the key
+         unsigned int  (*key_size) (void *key);  // Return the key size
+         unsigned int  (*data_size)(void *data); // Return the data size
++	int           (*compare)  (void *key0,  // 1 if v0 > v1, -1 if v0 < v2,
++				   void *key1); // 0 if v0 == v2
+ 
+ 	const struct btree_tx_ops *ops;	        // Operations made on transactions
+ };
+diff --git a/be/ut/be.c b/be/ut/be.c
+index f2c73ab..01da8a0 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -219,17 +219,16 @@ static void test_be_transaction()
+ 
+ #include "be/tree.h"
+ #include "be/pool.h"
+-#include "be/handle_store.h"
+ 
+ enum {
+ 	TREE_FAN_OUT = 5,
+ 	TREE_KV_NR   = 20*TREE_FAN_OUT /* 20 nodes is enough for the test */
+ };
+ 
+-/* Generate uint value for the key. XXX: Umka, should it be unique??? */
+-static uint32_t tree_value(void *key)
++/* Generic comparator */
++static int tree_cmp(void *key0, void *key1)
+ {
+-	return *(uint32_t*)key;
++	return M0_3WAY(*(uint32_t*)key0, *(uint32_t*)key1);
+ }
+ 
+ /* Return the key size */
+@@ -246,27 +245,24 @@ static uint32_t tree_data_size(void *data)
+ 
+ static void* p_alloc(struct btree_tx_impl *tx, size_t size)
+ {
+-	struct m0_be_tx_pool pool = (struct m0_be_tx_pool) {
+-		.tp_tx  = tx, .tp_seg = seg
+-	};
++	struct m0_be_tx_pool pool =
++		(struct m0_be_tx_pool) { .tp_tx  = tx, .tp_seg = seg };
+ 
+ 	return m0_be_tx_pool_alloc(&pool, size);
+ }
+ 
+ static int p_free(struct btree_tx_impl *tx, void *p, size_t size)
+ {
+-	struct m0_be_tx_pool pool = (struct m0_be_tx_pool) {
+-		.tp_tx  = tx, .tp_seg = seg
+-	};
++	struct m0_be_tx_pool pool =
++		(struct m0_be_tx_pool) { .tp_tx  = tx, .tp_seg = seg };
+ 
+ 	return m0_be_tx_pool_free(&pool, p, size);
+ }
+ 
+ static int p_update (struct btree_tx_impl *tx, void *p, size_t size)
+ {
+-	struct m0_be_tx_pool pool = (struct m0_be_tx_pool) {
+-		.tp_tx  = tx, .tp_seg = seg
+-	};
++	struct m0_be_tx_pool pool =
++		(struct m0_be_tx_pool) { .tp_tx  = tx, .tp_seg = seg };
+ 
+ 	return m0_be_tx_pool_update(&pool, p, size);
+ }
+@@ -329,7 +325,7 @@ M0_UNUSED static void test_be_tree_create(void)
+ 	tree = btree_create(TREE_FAN_OUT, tx, &tops);
+ 	M0_UT_ASSERT(tree != NULL);
+ 
+-	tree->value     = tree_value;
++	tree->compare   = tree_cmp;
+ 	tree->key_size  = tree_key_size;
+ 	tree->data_size = tree_data_size;
+ 
+@@ -410,7 +406,7 @@ M0_UNUSED static void test_be_tree_load(void)
+ 	 * To those who did forget to do the following a painfull debug session
+ 	 * is guaranteed... Restored segment contains rubbish at that place.
+ 	 */
+-	(*tree)->value     = tree_value;
++	(*tree)->compare   = tree_cmp;
+ 	(*tree)->key_size  = tree_key_size;
+ 	(*tree)->data_size = tree_data_size;
+ 	(*tree)->ops       = &tops;
+-- 
+1.8.3.2
+

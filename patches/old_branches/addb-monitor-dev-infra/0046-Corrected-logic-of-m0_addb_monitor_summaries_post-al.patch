@@ -1,0 +1,162 @@
+From 43d9e680d66ac111b347f6b210854d86160a0bb2 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Tue, 3 Sep 2013 17:13:31 +0530
+Subject: [PATCH 046/107] Corrected logic of m0_addb_monitor_summaries_post(),
+ also removed not needed variable
+
+---
+ addb/addb_monitor.c | 80 +++++++++++++++++++++++++++++------------------------
+ 1 file changed, 44 insertions(+), 36 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 15b9f13..02b5488 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -219,9 +219,19 @@ M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh         *reqh,
+ M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh         *reqh,
+ 				     struct m0_addb_monitor *monitor)
+ {
++	struct m0_reqh_service *svc;
++	struct addb_svc        *addb_svc;
++
+ 	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
++	svc = m0_reqh_service_find(&m0_addb_svc_type, reqh);
++	M0_ASSERT(svc != NULL);
++	addb_svc = bob_of(svc, struct addb_svc, as_reqhs, &addb_svc_bob);
++
+ 	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
++	if (addb_svc->as_pfom.pf_mon == monitor) {
++		addb_svc->as_pfom.pf_mon = NULL;
++	}
+ 	addb_mon_tlist_del(monitor);
+ 	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ }
+@@ -262,19 +272,32 @@ enum {
+ 	SENT_LIMIT = 3
+ };
+ 
++static void addb_mon_fop_free(struct m0_addb_sum_rec_fop *fop, uint32_t fop_nr)
++{
++	M0_PRE(fop != NULL);
++
++	if (fop->asrf_recs != NULL) {
++		int i;
++
++		for (i = 0; i < fop_nr; ++i)
++			m0_free(fop->asrf_recs[i].asrw_rec.au64s_data);
++		m0_free(fop->asrf_recs);
++	}
++	m0_free(fop);
++}
++
+ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh,
+ 					      struct addb_post_fom *fom)
+ {
+-	struct m0_tl           *mon_list;
++	struct m0_tl                *mon_list;
+ 	/* Continue scanning from the place we left last time */
+-	struct m0_addb_monitor *mon    = fom->pf_mon;
+-	uint32_t                mon_unprocessed_nr = fom->pf_mon_unprocessed_nr;
+-	uint32_t                fop_nr = 0;
+-	uint32_t                used    = 0;
+-	uint32_t                scanned = 0;
+-	uint32_t                sent    = 0;
+-	uint32_t                result  = 0;
+-	int                     i;
++	struct m0_addb_monitor      *mon    = fom->pf_mon;
++	struct m0_addb_sum_rec_fop  *fop =  NULL;
++	uint32_t                     fop_nr =  0;
++	uint32_t                     used    = 0;
++	uint32_t                     scanned = 0;
++	uint32_t                     sent    = 0;
++	uint32_t                     result  = 0;
+ 
+ 	M0_PRE(reqh != NULL);
+ 
+@@ -282,19 +305,15 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh,
+ 	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	while (scanned < SCANNED_LIMIT && sent < SENT_LIMIT) {
+ 		struct m0_addb_sum_rec      *sum;
+-		struct m0_addb_sum_rec_fop  *fop;
+ 		struct m0_addb_sum_rec_wire *rec;
+ 		void                        *data;
+ 
+-		if (scanned == 0)
+-			fop = NULL;
+ 		/* end of list reached, wrap around or the list is empty */
+ 		if (mon == NULL) {
+ 			mon = addb_mon_tlist_head(mon_list);
+-			/* Reset the unprocessed mon count to list length */
+-			fom->pf_mon_unprocessed_nr =
+-				addb_mon_tlist_length(mon_list);
+ 			if (mon == NULL ||
++			/* if the entire list was scanned and not a single
++			 * dirty record found, stop. */
+ 			    (scanned > 0 && fop == NULL))
+ 				break;
+ 		}
+@@ -303,28 +322,16 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh,
+ 		mon = addb_mon_tlist_next(mon_list, mon);
+ 		if (sum == NULL || !sum->asr_dirty)
+ 			continue;
++		++fop_nr;
+ 		if (fop == NULL) {
+-			fop_nr = min32u(mon_unprocessed_nr, BATCH);
+ 			M0_ALLOC_PTR(fop);
+ 			if (fop != NULL)
+-				M0_ALLOC_ARR(fop->asrf_recs, fop_nr);
++				M0_ALLOC_ARR(fop->asrf_recs, BATCH);
+ 		}
+ 		data = m0_alloc(SUM_SIZE(sum));
+ 		if (fop == NULL || fop->asrf_recs == NULL || data == NULL) {
+ 			result = -ENOMEM;
+-			if (data == NULL) {
+-				i = scanned % fop_nr;
+-				while (--i >= 0)
+-					m0_free(fop->asrf_recs[i].asrw_rec.au64s_data);
+-			}
+-			m0_free(fop->asrf_recs);
+-			m0_free(fop);
+-			/**
+-			 * During next run of posting summaries
+-			 * scan through the monitor whose
+-			 * summary record couldnt be sent.
+-			 */
+-			mon = addb_mon_tlist_prev(mon_list, mon);
++			addb_mon_fop_free(fop, fop_nr);
+ 			break;
+ 		}
+ 		rec = &fop->asrf_recs[used++];
+@@ -336,21 +343,22 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh,
+ 		       sum->asr_rec.asrw_rec.au64s_data, SUM_SIZE(sum));
+ 		sum->asr_dirty = false;
+ 		m0_mutex_unlock(&sum->asr_mutex);
+-		if (used == fop_nr) {
++		if (used == BATCH) {
++			fop->asrf_nr = BATCH;
+ 			/**
+ 			 * @todo: Implement send_fop(fop).
+ 			 * @todo: Finalize the fop after its sent through
+ 			 * the network.
+ 			 */
+-			used = 0;
+-			fop  = NULL;
+-			fom->pf_mon_unprocessed_nr =
+-				       addb_mon_tlist_length(mon_list) - fop_nr;
+-			M0_ASSERT(fom->pf_mon_unprocessed_nr >= 0);
++			used   = 0;
++			fop    = NULL;
+ 			fop_nr = 0;
+ 			++sent;
+ 		}
+ 	}
++	if (fop != NULL) {
++		/** @todo: Send fop. */
++	}
+ 	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	fom->pf_mon = mon;
+ 	/**
+-- 
+1.8.3.2
+

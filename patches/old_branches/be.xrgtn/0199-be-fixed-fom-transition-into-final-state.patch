@@ -1,0 +1,38 @@
+From 77f5274723ebbbd2efc796dbe53c9e16ce8f5594 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 21 Jun 2013 11:01:47 +0300
+Subject: [PATCH 199/228] be: fixed fom transition into final state.
+
+---
+ be/tx_fom.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 11e8a82..686dd21 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -187,15 +187,17 @@ static int tx_fom_tick(struct m0_fom *fom)
+ 		tx_state_set(tx, M0_BTS_PLACED);
+ 		m0_be_tx_free(tx);  /* free region buffers */
+ 		m0_fom_phase_set(fom, FS_STABLE);
+-		gr_tlist_del(tx);
+-		tx_tlist_del(tx);
+-		return M0_FSO_WAIT;
++		return M0_FSO_AGAIN;
+ 
+ 	case FS_STABLE:
+ 		tx_state_set(tx, M0_BTS_STABLE);
+-		/* m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH); */
++		gr_tlist_del(tx);
++		tx_tlist_del(tx);
++
++		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+ 		return M0_FSO_WAIT;
+ 
++	case FS_FINISHED:
+ 	case FS_FAILED:
+ 	default:
+ 		M0_IMPOSSIBLE("XXX Just for now it's not possible...");
+-- 
+1.8.3.2
+

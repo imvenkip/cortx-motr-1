@@ -1,0 +1,329 @@
+From 757df4c2c6bc3288008dc5e8268768595dea0a7e Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Wed, 27 Nov 2013 17:52:55 +0530
+Subject: [PATCH 56/61] bigmemalloc.ut -test_iterate() has been renamed as
+ test_iterations(). -A new macro named test_iterate() has been introduced.
+ -The macro test_iterate() works for all data types present in  enum
+ data_types.
+
+---
+ lib/ut/varr.c | 227 ++++++++++++++++++++++++++++++++++++++++------------------
+ 1 file changed, 157 insertions(+), 70 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index 6e719b3..d075bd3 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -22,6 +22,7 @@
+ #include "lib/memory.h"
+ #include "lib/misc.h"		/* M0SET0() */
+ #include "lib/arith.h"		/* m0_rnd() */
++#include "lib/ub.h"
+ #include "ut/ut.h"
+ #include "lib/varr.h"
+ #include "lib/varr_private.h"   /* varr_cache */
+@@ -45,6 +46,7 @@ enum misc_params {
+ 	BUFF_SIZE       = 32,
+ 	BUFF_SHIFT      = 5,
+ 	DT_POWTWO_SHIFT = 4,
++	DT_ATOMIC_SHIFT = 3,
+ 	MAX_OBJ_NR      = 26000,
+ 	MAX_DEPTH	= 11,
+ 	//MAX_BUFFERS	= 22369536, 
+@@ -69,6 +71,7 @@ struct non_po2 {
+ 
+ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+ 	   sizeof (struct non_po2) > M0_BITS(BUFF_SHIFT - 1));
++
+ /* Shifts a given number to left/right by taking into account sizeof(number) */
+ #define safe_bitshift(num, shift, operator)				     \
+ 	({								     \
+@@ -79,21 +82,62 @@ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+ 	 __num operator __shift;					     \
+ 	 })
+ 
++#define test_iterate(varr, ele, dt, depth)				      \
++({									      \
++	 struct m0_varr *__varr_ = (varr);				      \
++	 typeof(ele)     __ele;						      \
++	 uint32_t	 __depth = (depth);				      \
++	 uint64_t	 __buff_nr;					      \
++	 uint64_t	 __nr;						      \
++	 uint32_t	 __d;						      \
++	 int		 __rc;						      \
++	 uint64_t	 __step;					      \
++									      \
++	 M0_UT_ASSERT(size_get(dt) == sizeof __ele);			      \
++	 for (__buff_nr = M0_VA_TNODE_NR;				      \
++	      __d <= __depth; __buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE),   \
++	      ++__d) {							      \
++		__nr = array_len_compute(__buff_nr, dt);		      \
++		M0_SET0(__varr_);					      \
++		__rc = m0_varr_init(__varr_, __nr, size_get(dt), BUFF_SIZE);  \
++		M0_UT_ASSERT(__rc == 0);				      \
++		test_tree_sanity(__varr_, __d);			              \
++		m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,	              \
++		 m0_varr_size(__varr_), 1) {			              \
++			obj_init((void*)obj, i, dt);			      \
++		} m0_varr_end_iter;					      \
++		m0_varr_for (__varr_, typeof(__ele), i, obj) {		      \
++			obj_sanity_check(obj, i, dt);			      \
++		} m0_varr_end_for;					      \
++		for (__step = 2; __step <= MAX_OBJ_NR; ++__step) {	      \
++			m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,	      \
++				     m0_varr_size(__varr_), __step) {	      \
++				obj_sanity_check((void *)obj, i, dt);	      \
++			 } m0_varr_end_iter;				      \
++		 }							      \
++		 m0_varr_fini(__varr_);					      \
++	 }								      \
++})
++static void obj_init(void *obj, uint64_t data, enum data_types dt);
++static void obj_sanity_check(void *obj, uint64_t data, enum data_types dt);
+ static size_t size_get(enum data_types dt);
+ static void test_init(void);
+-static void test_obj_size(void);
++static void test_size(void);
+ static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth);
+ static void test_depth(void);
+ static void test_cache(void);
+-static void test_iterate(void);
++static void test_iterations(void);
+ static uint16_t int_summation(uint8_t n);
++uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt);
++uint32_t shift_get(enum data_types dt);
++
+ void test_varr(void)
+ {
+ 	test_init();
+-	test_obj_size();
++	test_size();
+ 	test_depth();
+ 	test_cache();
+-	test_iterate();
++	test_iterations();
+ }
+ 
+ static void test_init(void)
+@@ -109,13 +153,10 @@ static void test_init(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	m0_varr_fini(&varr);
+ 
+-	/* Test error injection. */
++	/* Test fault injection. */
+ 	seed = m0_time_now();
+ 	while (!!(n % 2))
+ 		n = m0_rnd(MAX_BUFFERS, &seed);
+-#ifndef __KERNEL__
+-	printf("\nn = %lu", n);
+-#endif
+ 	m0_fi_enable_off_n_on_m("varr_buffers_alloc", "varr_alloc", n, 2);
+ 	M0_SET0(&varr);
+ 	rc = m0_varr_init(&varr, MAX_OBJ_NR, size_get(DT_POWTWO),
+@@ -125,7 +166,7 @@ static void test_init(void)
+ 	m0_fi_disable("varr_buffers_alloc", "varr_alloc");
+ }
+ 
+-static void test_obj_size(void)
++static void test_size(void)
+ {
+ 	struct m0_varr  varr;
+ 	int		rc;
+@@ -187,13 +228,16 @@ static void test_depth(void)
+ 	M0_SET0(&varr);
+ 
+ /*
++ * Following expression has been used to compute the maximum allowable tree
++ * depth under given constraints. The expression can easily be derived by
++ * computing total number of buffers in a tree.
+ 	max_depth = log(SYSTEM_MEMORY *
+ 			(BUFF_SIZE - M0_VA_TNODEPTR_SIZE)/
+ 			(BUFF_SIZE * M0_VA_TNODEPTR_SIZE*M0_VA_TNODE_NR) + 1))/
+ 		log (BUFF_SIZE/M0_VA_TNODEPTR_SIZE) + 1;
+ */
+ 
+-	for (buff_nr = M0_VA_TNODE_NR; depth <= 11;
++	for (buff_nr = M0_VA_TNODE_NR; depth <= MAX_DEPTH;
+ 	     buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE), ++depth) {
+ 		nr = buff_nr * (safe_bitshift((uint64_t)1,
+ 					      BUFF_SHIFT - DT_POWTWO_SHIFT,
+@@ -228,73 +272,116 @@ static void test_cache(void)
+ 	m0_varr_fini(&varr);
+ }
+ 
+-static void test_iterate(void)
++static void test_iterations(void)
+ {
+ 	struct m0_varr varr;
+-	uint64_t       nr;
+-	int	       rc;
+-	uint8_t	       j;
+-	uint64_t       buff_nr;
+-	uint32_t       depth = 2;
+-	uint64_t       step;
+-	void	      *arr_ele;
++	struct po2     obj_po2;
++	struct non_po2 obj_non_po2;
+ 
+-	for (buff_nr = M0_VA_TNODE_NR;
+-	     depth <= 8; buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE),
+-	     ++depth) {
+-		nr = buff_nr * (safe_bitshift((uint64_t)1,  BUFF_SHIFT -
+-				DT_POWTWO_SHIFT, <<));
+-		M0_SET0(&varr);
+-		rc = m0_varr_init(&varr, nr, size_get(DT_POWTWO), BUFF_SIZE);
+-		M0_UT_ASSERT(rc == 0);
+-		test_tree_sanity(&varr, depth);
+-		m0_varr_iter(&varr, struct po2, i, obj, 0, varr.va_nr, 1) {
+-			obj->p_x = i;
+-			obj->p_y = i;
+-		} m0_varr_end_iter;
+-		m0_varr_for (&varr, struct po2, i, obj) {
+-			arr_ele = m0_varr_ele_get(&varr, i);
+-			M0_UT_ASSERT(arr_ele == obj);
+-			M0_UT_ASSERT(obj->p_x == obj->p_y && obj->p_x == i);
+-		} m0_varr_end_for;
+-		if (depth == 8) {
+-			for (step = 2; step <= MAX_OBJ_NR; ++step) {
+-				m0_varr_iter(&varr, struct po2, i, obj, 0,
+-					     varr.va_nr, step) {
+-					arr_ele = m0_varr_ele_get(&varr, i);
+-					M0_UT_ASSERT(arr_ele == obj);
+-					M0_UT_ASSERT(obj->p_x == obj->p_y &&
+-						     obj->p_x == i);
+-				} m0_varr_end_iter;
+-			}
++	test_iterate(&varr, obj_po2, DT_POWTWO, 8);
++	test_iterate(&varr, obj_non_po2, DT_NON_POWTWO, 8);
++}
++
++static uint16_t int_summation(uint8_t n)
++{
++	return n * (n + 1) / 2;
++}
++
++static void test_iterate_ub(void)
++{
++	struct po2     obj_po2;
++	struct m0_varr varr;
++
++	test_iterate(&varr, obj_po2, DT_POWTWO, MAX_DEPTH);
++}
++
++uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt)
++{
++	uint32_t shift = shift_get(dt);
++
++	return buff_nr * safe_bitshift((uint64_t)1, BUFF_SHIFT - shift, <<);
++}
++
++uint32_t shift_get(enum data_types dt)
++{
++	switch (dt) {
++	case DT_ATOMIC:
++		return DT_ATOMIC_SHIFT;
++	case DT_POWTWO:
++		return DT_POWTWO;
++	case DT_NON_POWTWO:
++		return DT_NON_POWTWO;
++	}
++	return 0;
++}
++
++static void obj_init(void *obj, uint64_t data, enum data_types dt)
++{
++	int	        i;
++	struct po2     *obj_po2;
++	struct non_po2 *obj_non_po2;
++
++	M0_UT_ASSERT(data != 0);
++	switch (dt) {
++	case DT_ATOMIC:
++		*(uint64_t *)obj = data;
++		break;
++	case DT_POWTWO:
++		obj_po2 = (struct po2 *)obj;
++		obj_po2->p_x = data;
++		obj_po2->p_y = data;
++		break;
++	case DT_NON_POWTWO:
++		obj_non_po2 = (struct non_po2 *)obj;
++		for (i = 0; i < ARRAY_SIZE(((struct non_po2 *)obj)->np_arr);
++		     ++i) {
++			obj_non_po2->np_arr[i]  = data * i;
++			obj_non_po2->np_chksum += data * i;
+ 		}
+-		m0_varr_fini(&varr);
++		break;
++	}
++}
+ 
+-		nr = buff_nr;
+-		M0_SET0(&varr);
+-		rc = m0_varr_init(&varr, nr, size_get(DT_NON_POWTWO),
+-				  BUFF_SIZE);
+-		M0_UT_ASSERT(rc == 0);
+-		test_tree_sanity(&varr, depth);
+-		m0_varr_iter (&varr, struct non_po2, i, obj, 0, varr.va_nr, 1) {
+-			obj->np_chksum = 0;
+-			for (j = 0; j < ARRAY_SIZE(obj->np_arr); ++j) {
+-				obj->np_arr[j] = j;
+-				obj->np_chksum += obj->np_arr[j];
+-			}
+-		} m0_varr_end_iter;
+-		m0_varr_for (&varr, struct non_po2, i, obj) {
+-			arr_ele = m0_varr_ele_get(&varr, i);
+-			M0_UT_ASSERT(arr_ele == obj);
+-			M0_UT_ASSERT(((struct non_po2 *)arr_ele)->np_chksum ==
+-				     int_summation(ARRAY_SIZE(obj->np_arr) -
+-							      1));
+-		} m0_varr_end_for;
+-		m0_varr_fini(&varr);
++static void obj_sanity_check(void *obj, uint64_t data, enum data_types dt)
++{
++	struct po2     obj_po2;
++	struct non_po2 obj_non_po2;
++
++	switch (dt) {
++	case DT_ATOMIC:
++		M0_UT_ASSERT( *(uint64_t *)obj == data);
++		break;
++	case DT_POWTWO:
++		obj_po2 = *(struct po2 *)obj;
++		M0_UT_ASSERT(obj_po2.p_x == data);
++		M0_UT_ASSERT(obj_po2.p_y == data);
++		break;
++	case DT_NON_POWTWO:
++		obj_non_po2 = *(struct non_po2 *)obj;
++		M0_UT_ASSERT(obj_non_po2.np_chksum ==
++			     data *
++			     int_summation(ARRAY_SIZE(obj_non_po2.np_arr) -
++						      1));
+ 	}
+ }
+ 
+-static uint16_t int_summation(uint8_t n)
++static void varr_ub(int i)
+ {
+-	return n * (n + 1) / 2;
++	test_iterate_ub();
+ }
++
++enum {
++	UB_ITER = 1,
++};
++
++struct m0_ub_set m0_varr_ub = {
++	.us_name = "varr-ub",
++	.us_init = NULL,
++	.us_fini = NULL,
++	.us_run  = {
++		{ .ub_name = "varr",
++		  .ub_iter = UB_ITER,
++		  .ub_round = varr_ub },
++		{.ub_name = NULL }
++	}
++};
+-- 
+1.8.3.2
+

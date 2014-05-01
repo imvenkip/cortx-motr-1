@@ -1,0 +1,673 @@
+From 3522079afd1b4f4ac2bfdc4a22c9cff5b4b84ebd Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Tue, 20 Aug 2013 16:25:54 +0530
+Subject: [PATCH 069/121] Addressed Nikitas review comments
+
+---
+ addb/addb_monitor.c          | 160 +++++++++++++++----------------------------
+ addb/addb_monitor.h          |  87 ++++++++---------------
+ addb/addb_pfom.c             |   2 +-
+ addb/addb_rec.c              |   4 +-
+ addb/addb_svc.c              |  11 ---
+ m0t1fs/linux_kernel/m0t1fs.c |   9 +--
+ reqh/reqh.c                  |  34 +++++----
+ 7 files changed, 108 insertions(+), 199 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 58d0c93..9ea314b 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -44,8 +44,7 @@
+    <hr>
+    @section ADDB-MON-INFRA-DLD-ovw Overview
+    This design describes the ADDB monitoring infrastructure along with posting
+-   of addb summary records to stats service & addb service(if from client else
+-   on sinks them to addb stobs on server).
++   of addb summary records to stats service.
+ 
+    <hr>
+    @section ADDB-MON-INFRA-DLD-def Definitions
+@@ -87,7 +86,7 @@
+    use of a simple fom on the client. This simple fom has the same states &
+    state transitions as of the addb pfom.
+ 
+-
++   @verbatim
+ 		Global ADDB monitors list
+              ____    ____    ____          ____
+ 	    |mon1|->|mon2|->|mon3|-... -> |monn|
+@@ -102,6 +101,8 @@
+ 	    .
+ 	addb_rec_n
+ 
++   @endverbatim
++
+ 	Periodically running fom will send all the addb summary records for
+ 	all the monitors to the stats service & post the summary data as addb
+ 	summary records on the globally available addb machine.
+@@ -152,8 +153,6 @@
+ 
+ #include "addb/addb_monitor.h"
+ 
+-struct m0_addb_monitor_global_ctx monitor_global_ctx;
+-
+ M0_TL_DESCR_DEFINE(addb_mon, "addb monitors list", M0_INTERNAL,
+ 		   struct m0_addb_monitor, am_linkage, am_magic,
+ 		   M0_ADDB_MONITOR_LIST_LINK_MAGIC,
+@@ -168,49 +167,24 @@ struct addb_monitor_entry {
+ 	bool         status;
+ };
+ 
+-/**
+- * List of all monitor entries
+- * @todo: Only monitor entry's status "ON/OFF" should come from conf
+- */
+-struct addb_monitor_entry monitors[] = {
+-	{ NULL, NULL, NULL, false}
+-};
+-
+-M0_INTERNAL int m0_addb_monitor_subsys_init(const struct m0_reqh *reqh,
+-					    const char           *endpoint)
++M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh,
++				      const char     *endpoint)
+ {
+ 	int rc = 0;
+-	int i;
+ 
+ 	M0_PRE(reqh != NULL);
+ 	M0_PRE(endpoint != NULL);
+ 
+-	addb_mon_tlist_init(&monitor_global_ctx.amgc_list);
+-
+-	monitor_global_ctx.amgc_reqh = reqh;
+-
++	addb_mon_tlist_init(&reqh->rh_addb_monitoring_ctx.amc_list);
+ 	/*
+ 	 * @todo: Establish connection with stats service
+ 	 */
+-
+-	for (i = 0; i < ARRAY_SIZE(monitors); ++i) {
+-		if (monitors[i].status == true)
+-			rc = monitors[i].ame_init();
+-			if (rc != 0)
+-				goto fail;
+-	}
+-
+-fail:
+-	while (--i >= 0)
+-		if (monitors[i].ame_fini != NULL)
+-			monitors[i].ame_fini();
+-
+ 	return rc;
+ }
+ 
+ M0_INTERNAL bool m0_addb_monitor_invariant(struct m0_addb_monitor *mon)
+ {
+-	return (mon != NULL && mon->am_ops != NULL);
++	return mon != NULL && mon->am_ops != NULL;
+ }
+ 
+ M0_INTERNAL void m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
+@@ -220,15 +194,13 @@ M0_INTERNAL void m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
+ 	M0_PRE(mon_ops != NULL);
+ 
+ 	monitor->am_ops = mon_ops;
+-
+ 	addb_mon_tlink_init(monitor);
+-
+ }
+ 
+-M0_INTERNAL void m0_addb_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
+-				      const struct m0_addb_rec_type *rtype,
+-				      uint64_t                      *mon_data,
+-				      size_t                         nr)
++M0_INTERNAL void m0_addb_monitor_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
++					      const struct m0_addb_rec_type *rtype,
++					      uint64_t                      *mon_data,
++					      size_t                         nr)
+ {
+ 	/** @todo: need to implement */
+ }
+@@ -241,11 +213,12 @@ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor)
+ 	addb_mon_tlink_fini(monitor);
+ }
+ 
+-M0_INTERNAL void m0_addb_monitor_add(struct m0_addb_monitor *monitor)
++M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh         *reqh,
++				     struct m0_addb_monitor *monitor)
+ {
+ 	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
+-	addb_mon_tlist_add_tail(&monitor_global_ctx.amgc_list, monitor);
++	addb_mon_tlist_add_tail(&reqh->rh_addb_monitoring_ctx.amc_list, monitor);
+ }
+ 
+ M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor)
+@@ -255,44 +228,39 @@ M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor)
+ 	addb_mon_tlist_del(monitor);
+ }
+ 
+-M0_INTERNAL void m0_addb_monitor_subsys_fini(void)
++M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh)
+ {
+ 	struct m0_addb_monitor *mon;
+ 
+-	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
++	m0_tl_for(addb_mon, &reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+ 		m0_addb_monitor_del(mon);
+ 		m0_addb_monitor_fini(mon);
+ 	} m0_tl_endfor;
+ 
+-	addb_mon_tlist_fini(&monitor_global_ctx.amgc_list);
++	addb_mon_tlist_fini(&reqh->rh_addb_monitoring_ctx.amc_list);
+ 	/** @todo: Close connection with stats service and do related cleanup */
+-	monitor_global_ctx.amgc_reqh = NULL;
+ }
+ 
+ #define SUM_SIZE(sum) (sum->asr_rec.asrw_rec.au64s_nr * sizeof(uint64_t))
+ 
+-M0_INTERNAL int m0_addb_monitor_post_summaries(void)
++enum {
++	BATCH = 1024
++};
++
++M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh)
+ {
+-	const struct m0_addb_monitor *mon;
+-	const struct m0_reqh         *reqh = monitor_global_ctx.amgc_reqh;
+-	uint16_t		      dirtied_mon_cnt = 0;
++	struct m0_addb_monitor       *mon;
+ 	struct m0_addb_sum_rec_fop   *sum_recs_fop;
++	uint32_t		      dirtied_mon_cnt = 0;
+ 	int                           i = 0;
+ 	int                           rc = 0;
+-	uint32_t                      fop_len = 0;
+-
+-	M0_ALLOC_PTR(sum_recs_fop);
+-
+-	if (sum_recs_fop == NULL) {
+-		rc = -ENOMEM;
+-		M0_RETURN(rc);
+-	}
++	uint32_t                      fop_mon_cnt = 0;
+ 
+-	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
++	m0_tl_for(addb_mon, &reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+ 		if (mon->am_ops->amo_sum_rec != NULL) {
+ 			struct m0_addb_sum_rec *sum = mon->am_ops->amo_sum_rec(mon,
+ 						                      reqh);
+-			if (sum->asr_dirty == true)
++			if (sum->asr_dirty)
+ 				++dirtied_mon_cnt;
+ 		}
+ 	} m0_tl_endfor;
+@@ -300,62 +268,43 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 	if (dirtied_mon_cnt == 0)
+ 		M0_RETURN(rc);
+ 
+-	M0_ALLOC_ARR(sum_recs_fop->asrf_recs, dirtied_mon_cnt);
+-
+-	fop_len += sizeof(sum_recs_fop->asrf_recs[0]) * dirtied_mon_cnt;
+-
+-	if (sum_recs_fop->asrf_recs == NULL) {
+-		rc = -ENOMEM;
+-		M0_RETURN(rc);
+-	}
++	do {
++		M0_ALLOC_PTR(sum_recs_fop);
++		if (sum_recs_fop == NULL) {
++			rc = -ENOMEM;
++			M0_RETURN(rc);
++		}
++		fop_mon_cnt = min32u(dirtied_mon_cnt, BATCH);
++		M0_ALLOC_ARR(sum_recs_fop->asrf_recs, fop_mon_cnt);
++		if (sum_recs_fop->asrf_recs == NULL) {
++			rc = -ENOMEM;
++			M0_RETURN(rc);
++		}
+ 
+-	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
+-		if (mon->am_ops->amo_sum_rec != NULL) {
++		for( i = 0; i < fop_mon_cnt; ++i) {
+ 			struct m0_addb_sum_rec_wire  *sum_rec;
+ 			struct m0_addb_sum_rec       *sum =
+ 				mon->am_ops->amo_sum_rec(mon, reqh);
+ 
+-			m0_mutex_lock(&sum->asr_mutex);
+-			if (sum->asr_dirty == true) {
+-				/**
+-				 * @note: There can be a case wherein, when
+-				 * we compute dirtied_mon_cnt value by first
+-				 * mon list traversal and when we reach here,
+-				 * no of addb sum recs which are dirty can be
+-				 * more than dirtied_mon_cnt, but we have
+-				 * allocated space for only dirtied_mon_cnt
+-				 * pointers of m0_addb_sum_rec, hence we break
+-				 * here. The m0_addb_sum_recs which are dirtied
+-				 * in this small window, would be sent during
+-				 * next periodic call to this function.
+-				 */
+-				if (i == dirtied_mon_cnt) {
+-					m0_mutex_unlock(&sum->asr_mutex);
+-					break;
+-				}
+-
+-				sum_rec = &(sum_recs_fop->asrf_recs[i++]);
+-
+-				/**
+-				 * @todo: Need to check this with max fop
+-				 * size that can be sent and take action
+-				 * accordingly.
+-				 */
+-				fop_len += SUM_SIZE(sum);
++			mon = addb_mon_tlist_head(&reqh->rh_addb_monitoring_ctx.amc_list);
++			addb_mon_tlist_move_tail(&reqh->rh_addb_monitoring_ctx.amc_list,
++						 mon);
++			if (mon->am_ops->amo_sum_rec == NULL)
++				continue;
+ 
++			m0_mutex_lock(&sum->asr_mutex);
++			if (sum->asr_dirty) {
++				sum_rec = &sum_recs_fop->asrf_recs[i++];
+ 				sum_rec->asrw_rec.au64s_data =
+ 					m0_alloc(SUM_SIZE(sum));
+ 
+-
+ 				if (sum_rec->asrw_rec.au64s_data == NULL) {
+ 					rc = -ENOMEM;
+ 					goto mem_fail;
+ 				}
+-
+ 				sum_rec->asrw_id = sum->asr_rec.asrw_id;
+ 				sum_rec->asrw_rec.au64s_nr =
+ 					sum->asr_rec.asrw_rec.au64s_nr;
+-
+ 				memcpy(sum_rec->asrw_rec.au64s_data,
+ 				       sum->asr_rec.asrw_rec.au64s_data,
+ 				       SUM_SIZE(sum));
+@@ -363,22 +312,25 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 			sum->asr_dirty = false;
+ 			m0_mutex_unlock(&sum->asr_mutex);
+ 		}
+-	} m0_tl_endfor;
+ 
+ 	/**
+ 	 * @todo: Send this on-wire fop data by creating and sending a fop
+ 	 * to stats service.
+ 	 */
+-
++		for (i = 0; i < fop_mon_cnt; ++i)
++			m0_free(sum_recs_fop->asrf_recs[i].asrw_rec.au64s_data);
++		m0_free(sum_recs_fop->asrf_recs);
++		m0_free(sum_recs_fop);
++		dirtied_mon_cnt -= fop_mon_cnt;
++	} while (dirtied_mon_cnt > 0);
+ 	/**
+ 	 * @todo: Post on global machine too.
+ 	 */
+ 	M0_RETURN(rc);
+ 
+ mem_fail:
+-	while ( --i >= 0)
++	while (--i >= 0)
+ 		m0_free(sum_recs_fop->asrf_recs[i].asrw_rec.au64s_data);
+-
+ 	m0_free(sum_recs_fop->asrf_recs);
+ 	m0_free(sum_recs_fop);
+ 
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 38eb6ec..1fca29f 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -26,7 +26,7 @@
+ #include "addb/addb.h"
+ #include "lib/vec.h"
+ #include "lib/bitmap.h"
+-#include "reqh/reqh.h"
++#include "rpc/session.h"
+ 
+ /**
+    @page ADDB-MON-INFRA-DLD-fspec Functional Specification
+@@ -44,7 +44,7 @@
+ 
+    The following data structures are involved in an ADDB monitoring
+    infrastructure:
+-   - m0_addb_monitor_global_ctx
++   - m0_addb_monitoring_ctx
+    - m0_addb_monitor
+    - m0_addb_sum_rec
+ 
+@@ -52,11 +52,11 @@
+    @section ADDB-DLD-fspec-sub Subroutines and Macros
+ 
+    Interfaces needed for ADDB monitoring infrastructure
+-   - m0_addb_monitor_subsys_init()
++   - m0_addb_monitors_init()
+    - m0_addb_monitor_add()
+    - m0_addb_monitor_del()
+-   - m0_addb_monitor_subsys_fini()
+-   - m0_addb_monitor_post_summaries()
++   - m0_addb_monitors_fini()
++   - m0_addb_monitor_summaries_post()
+ 
+    <hr>
+    @section ADDB-DLD-fspec-usecases Recipes
+@@ -70,11 +70,13 @@
+    @code
+ 	// 1. Add monitor to the structure that is to be monitored
+ 	//    or dynamically allocate them as mentioned in step 7.
++	//    Define key field to locate m0_addb_sum_rec for this monitor.
+ 	struct m0_xyz_module_struct {
+ 		.
+ 		.
+ 		.
+ 		struct m0_addb_monitor xms_mon;
++		uint32_t               xms_key;
+ 	};
+ 
+ 	Lets consider we have a variable available to access an instance
+@@ -104,16 +106,9 @@
+ 	the meaning to the ADDB summary record type defined in 2 (serial order
+ 	should be maintained while defining the structure).
+ 
+-	// 4. Define key to locate m0_addb_sum_rec for this monitor.
+-
+-	// This can be either global or can be embedded in module specific
+-	// top level structure. For eg. can be as a sibling along with
+-	// m0_addb_monitor.
+-	uint32_t xyz_key;
+-
+ 	// 4. Define monitor operation amo_sum_rec
+-	struct m0_add_sum_rec * xyz_amo_sum_rec(const struct m0_addb_monitor *mon,
+-						const struct m0_reqh *reqh)
++	struct m0_add_sum_rec *xyz_amo_sum_rec(const struct m0_addb_monitor *mon,
++					       struct m0_reqh             *reqh)
+ 	{
+ 		return m0_reqh_lockers_get(reqh, xyz_key);
+ 	}
+@@ -129,7 +124,7 @@
+ 		// specifically wants to synchronize access to summary data.
+ 		m0_mutex_lock(&xyz->asr_mutex);
+ 		// update data
+-		// set the dirty flag
++		xyz->asr_dirty = true;
+ 		m0_mutex_unlock(&xyz->asr_mutex);
+ 	}
+ 
+@@ -175,31 +170,21 @@
+ 		m0_addb_monitor_fini(&xyz_module_var.xms_mon);
+ 	}
+ 
+-	// 9. Add these monitor entry's init/fini to monitor entry's array.
+-	struct addb_monitor_entry monitors[] = {
+-		.
+-		.
+-		.
+-		{ xyz_ame_init, xyz_ame_fini, "xyz_mon", true },
+-		.
+-		.
+-		.
+-	};
+-
+    @endcode
+ */
+ 
+ #include "addb/addb_monitor_wire.h"
+ #include "rpc/conn.h"
+ 
++struct m0_reqh;
+ struct m0_addb_monitor;
+ 
+ M0_TL_DESCR_DECLARE(addb_mon, M0_EXTERN);
+ 
+ struct m0_addb_sum_rec {
+ 	/**
+-	 * If this is updated then asr_dirty: true
+-	 * asr_dirty:false on sending this summary record to stats service
++	 * This flag is true iff the record contains data still
++	 * not sent to the stats service. 
+ 	 */
+ 	bool                         asr_dirty;
+ 	/** This lock serializes access to this structure */
+@@ -214,12 +199,7 @@ struct m0_addb_sum_rec {
+ 
+ struct m0_addb_monitor_ops {
+ 	/**
+-	 * Any processing specific to monitor is done here
+-	 * includes, updates to the m0_addb_sum_rec.
+-	 *
+-	 * NOTE: This update to m0_addb_sum_rec requires
+-	 * m0_addb_sum_rec::asr_mutex lock to be held only iff
+-	 * monitor implementor wants to synchronize access to it.
++	 * This method is called on each addb record. 
+ 	 */
+ 	void                    (*amo_watch) (const struct m0_addb_monitor *mon,
+ 					      const struct m0_addb_rec     *rec,
+@@ -231,8 +211,8 @@ struct m0_addb_monitor_ops {
+ 
+ struct m0_addb_monitor {
+ 	/**
+-	 * Linkage to global monitors list in
+-	 * m0_addb_monitor_global_ctx:amgc_list
++	 * Linkage to monitors list per reqh
++	 * reqh::m0_addb_monitoring_ctx::amc_list
+ 	 */
+ 	struct m0_tlink                   am_linkage;
+ 	/** ADDB monitor operations vector */
+@@ -246,24 +226,17 @@ struct m0_addb_monitor {
+  */
+ M0_INTERNAL bool m0_addb_monitor_invariant(struct m0_addb_monitor *mon);
+ 
+-struct stats_conn {
+-	struct m0_rpc_conn    sc_conn;
+-	struct m0_rpc_session sc_session;
+-	bool                  sc_connected;
+-};
+-
+ /**
+  * Monitoring sub-system collective information
+  * object.
+  */
+-struct m0_addb_monitor_global_ctx {
++struct m0_addb_monitoring_ctx {
+ 	/* List of active monitors */
+-	struct m0_tl                       amgc_list;
++	struct m0_tl                       amc_list;
+ 	/* Stats service endpoint */
+-	struct cs_endpoint_and_xprt       *amgc_ex;
+-	/* Stats service connection related thing */
+-	struct stats_conn                  amgc_stats_conn;
+-	const struct m0_reqh              *amgc_reqh;
++	struct cs_endpoint_and_xprt       *amc_ex;
++	struct m0_rpc_conn                 amc_stats_conn;
++	struct m0_rpc_session              amc_stats_session;
+ };
+ 
+ /**
+@@ -272,12 +245,10 @@ struct m0_addb_monitor_global_ctx {
+  * @param endpoint endpoint where stats service runs
+  * @pre reqh != NULL
+  * @pre endpoint != NULL
+- * @post m0_addb_monitor_global_ctx:amgc_list initialized
+- * @post m0_addb_monitor_global_ctx:amgc_ex != NULL
+- * @todo: Replace substring "subsys" with some other appropriate name
++ * @post reqh::rh_addb_monitoring_ctx:amg_list initialized
+  */
+-M0_INTERNAL int m0_addb_monitor_subsys_init(const struct m0_reqh *reqh,
+-					    const char           *endpoint);
++M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh,
++				      const char     *endpoint);
+ 
+ /**
+  * Initialize ADDB monitor
+@@ -305,7 +276,8 @@ M0_INTERNAL void m0_addb_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
+  * Add a particular monitor with the ADDB monitoring sub-system
+  * @param monitor ADDB monitor to register
+  */
+-M0_INTERNAL void m0_addb_monitor_add(struct m0_addb_monitor *monitor);
++M0_INTERNAL void m0_addb_monitor_add(struct m0_reqh *reqh,
++				     struct m0_addb_monitor *monitor);
+ 
+ /**
+  * Delete a particular monitor from the ADDB monitoring sub-system
+@@ -315,21 +287,20 @@ M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor);
+ 
+ /**
+  * Finalize monitor
+- * @param  monitro ADDB monitor to finalize
++ * @param  monitor ADDB monitor to finalize
+  */
+ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor);
+ 
+ /**
+  * Cleanup the ADDB monitoring sub-system
+- * @todo: Replace substring "subsys" with some other appropriate name
+  */
+-M0_INTERNAL void m0_addb_monitor_subsys_fini(void);
++M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh);
+ 
+ /**
+  * This sends all the dirtied addb summary records for the added monitors
+  * to the stats service as a fop.
+  */
+-M0_INTERNAL int m0_addb_monitor_post_summaries(void);
++M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh);
+ 
+ #endif /* __MERO_ADDB_ADDB_MONITOR_H__ */
+ 
+diff --git a/addb/addb_pfom.c b/addb/addb_pfom.c
+index 2b67f4b..60c50a2 100644
+--- a/addb/addb_pfom.c
++++ b/addb/addb_pfom.c
+@@ -250,7 +250,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
+ 		M0_LOG(M0_DEBUG, "post");
+ 		m0_reqh_stats_post_addb(reqh);
+ 
+-		err = m0_addb_monitor_post_summaries();
++		err = m0_addb_monitor_summaries_post(svc->as_reqhs.rs_reqh);
+ 
+ 		/**
+ 		 * In case of summaries posting failure, just log error.
+diff --git a/addb/addb_rec.c b/addb/addb_rec.c
+index 0cf8b3d..d79504e 100644
+--- a/addb/addb_rec.c
++++ b/addb/addb_rec.c
+@@ -153,9 +153,9 @@ static void addb_rec_post(struct m0_addb_mc *mc,
+ 	mc->am_evmgr->evm_post(mc, rec);
+ 
+ 	/* Invoke all the monitor's filters */
+-	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
++	m0_tl_for(addb_mon, &mc->am_reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+ 		M0_ASSERT(m0_addb_monitor_invariant(mon));
+-		mon->am_ops->amo_watch(mon, rec, monitor_global_ctx.amgc_reqh);
++		mon->am_ops->amo_watch(mon, rec, mc->am_reqh);
+ 	} m0_tl_endfor;
+ }
+ 
+diff --git a/addb/addb_svc.c b/addb/addb_svc.c
+index d94809b..9c4af4b 100644
+--- a/addb/addb_svc.c
++++ b/addb/addb_svc.c
+@@ -98,21 +98,10 @@ static bool addb_svc_invariant(const struct addb_svc *svc)
+ static int addb_svc_rso_start(struct m0_reqh_service *service)
+ {
+ 	struct addb_svc *svc;
+-	int              rc;
+ 
+ 	M0_LOG(M0_DEBUG, "starting");
+ 	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+ 
+-	/* @todo: Pass correct stats service endpoint */
+-	rc = m0_addb_monitor_subsys_init(service->rs_reqh,
+-					 "REPLACE-ME");
+-	/**
+-	 * On monitoring subsystem initialization failure, we just
+-	 * log and not terminate the addb service.
+-	 */
+-	if (rc != 0)
+-		M0_LOG(M0_ERROR, "addb monitoring subsystem initialization");
+-
+ 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
+ 	if (addb_svc_start_pfom)
+ 		addb_pfom_start(svc);
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index ff0da0c..c1e2e9e 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -154,18 +154,13 @@ M0_INTERNAL int m0t1fs_init(void)
+ 	if (rc != 0)
+ 		goto net_fini;
+ 
+-	/* @todo: Need to give proper stats service endpoint */
+-	rc = m0_addb_monitor_subsys_init(&m0t1fs_globals.g_reqh, "REPLACE-ME");
+-	if (rc != 0)
+-		goto rpc_fini;
+-
+ 	M0_FOM_SIMPLE_POST(&mam_pfom.pf_fom, &m0t1fs_globals.g_reqh,
+ 			   &m0t1fs_addb_monitor_pfom_tick,
+ 			   &mam_pfom, 1);
+ 
+ 	rc = m0t1fs_layout_init();
+ 	if (rc != 0)
+-		goto mon_fini;
++		goto rpc_fini;
+ 
+ 	rc = register_filesystem(&m0t1fs_fs_type);
+ 	if (rc != 0)
+@@ -176,8 +171,6 @@ M0_INTERNAL int m0t1fs_init(void)
+ 
+ layout_fini:
+ 	m0t1fs_layout_fini();
+-mon_fini:
+-	m0_addb_monitor_subsys_fini();
+ rpc_fini:
+ 	m0t1fs_rpc_fini();
+ net_fini:
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index c49f2fe..031eedb 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -194,21 +194,25 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
+ 		m0_bcount_t addb_stob_size = addb_stob_seg_size * 1000;
+ 		m0_time_t   addb_stob_timeout = M0_MKTIME(300, 0); /* 5 mins */
+ 
+-		result = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
+-						reqh,
+-						reqh_args->rhia_addb_stob,
+-						addb_stob_seg_size,
+-						addb_stob_size,
+-						addb_stob_timeout);
+-		if (result != 0) {
+-			m0_layout_standard_types_unregister(&reqh->rh_ldom);
+-			m0_layout_domain_fini(&reqh->rh_ldom);
+-			return result;
+-		}
+-
+-	/* for UT specifically */
+-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
+-			 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
++		rc = m0_addb_mc_configure_stob_sink(&reqh->rh_addb_mc,
++						    reqh,
++						    reqh_args->rhia_addb_stob,
++						    addb_stob_seg_size,
++						    addb_stob_size,
++						    addb_stob_timeout);
++		if (rc != 0)
++			goto layout_types_unreg;
++
++		m0_addb_mc_configure_pt_evmgr(&reqh->rh_addb_mc);
++		if (!m0_addb_mc_is_fully_configured(&m0_addb_gmc))
++			m0_addb_mc_dup(&reqh->rh_addb_mc, &m0_addb_gmc);
++		M0_ADDB_CTX_INIT(&reqh->rh_addb_mc, &reqh->rh_addb_ctx,
++				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
++#endif
++	} else { /* for UT specifically */
++		M0_ADDB_CTX_INIT(&m0_addb_gmc, &reqh->rh_addb_ctx,
++				 &m0_addb_ct_reqh_mod, &m0_addb_proc_ctx);
++	}
+ 
+ 	reqh->rh_fom_dom.fd_reqh = reqh;
+ 	rc = m0_fom_domain_init(&reqh->rh_fom_dom);
+-- 
+1.8.3.2
+

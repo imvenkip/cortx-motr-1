@@ -1,0 +1,69 @@
+From 4b0e9a68d9fd7950342e28337e9a48bf51b92649 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 25 Feb 2014 16:30:12 +0200
+Subject: [PATCH 92/96] be/fl: documented
+
+---
+ be/fl.c | 46 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 46 insertions(+)
+
+diff --git a/be/fl.c b/be/fl.c
+index 295b812..7826347 100644
+--- a/be/fl.c
++++ b/be/fl.c
+@@ -33,6 +33,52 @@
+ /**
+  * @addtogroup be
+  *
++ * m0_be_fl maintains persistent lists of all free allocator chunks.
++ *
++ * There is 3 operations with free lists:
++ * - m0_be_fl_add() adds chunk to free lists;
++ * - m0_be_fl_del() deletes chunk from free lists;
++ * - m0_be_fl_pick() picks chunk from free lists with size
++ *   at least as requested.
++ *
++ * Algorithm.
++ * - size range [0, M0_BCOUNT_MAX] is divided into subranges;
++ * - for each subrange doubly-linked LRU list is maintained;
++ * - pick() implementation
++ *   - find what range the requested size is in, select corresponding list;
++ *   - if size is in [0, M0_BE_FL_NR * M0_BE_FL_STEP) then select first item
++ *     from the list;
++ *   - otherwise scan the list to find first suitable chunk.
++ *
++ * Time and I/O complexity.
++ * - m0_be_fl_add() and m0_be_fl_del() have O(1) time and I/O complexity;
++ * - m0_be_fl_pick() has different complexity depending on size requested:
++ *   - for size requested < (M0_BE_FL_NR * M0_BE_FL_STEP) time and I/O
++ *     complexity is O(1);
++ *   - for size requested >= (M0_BE_FL_NR * M0_BE_FL_STEP) time and I/O
++ *     complexity is O(N), where N is total number of free chunks with
++ *     size from this range.
++ *
++ * Limitations.
++ * - m0_be_fl doesn't take chunks memory aligntment into account.
++ * - m0_be_fl doesn't take chunks address into account.
++ * - M0_BE_FL_STEP, M0_BE_FL_NR and M0_BE_FL_PICK_SCAN_LIMIT are
++ *   compile-time constans.
++ *
++ * Known issues.
++ * - m0_be_op should be used for non-blocking interface. It is not used now.
++ * - M0_BE_OP_SYNC() is used for m0_be_list operations.
++ * - m0_be_fl doesn't have true O(1) time and I/O complexity for size range
++ *   [0, M0_BCOUNT_MAX].
++ *
++ * Future improvement directions.
++ * - It is possible to get O(1) time complexity for any size. To do this
++ *   m0_be_fl needs to have m0_be_fl_size for size range [2^n, 2^(n+1) - 1] for
++ *   sizes >= (M0_BE_FL_NR * M0_BE_FL_STEP).
++ *   the future.
++ * - It is possible to use memory-only LRU cache for chunks. It can help with
++ *   large amount of alocations/deallocations.
++ *
+  * @{
+  */
+ 
+-- 
+1.8.3.2
+

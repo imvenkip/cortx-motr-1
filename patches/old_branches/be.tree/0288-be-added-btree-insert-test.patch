@@ -1,0 +1,828 @@
+From 07bbfdd4578e9708c7729680421428cf5c683a06 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 5 Jul 2013 20:39:02 +0300
+Subject: [PATCH 288/290] be: added btree insert test.
+
+---
+ be/btree.c      | 193 +++++++++++++++++++++++++++++++++++++++++---------------
+ be/btree.h      |   5 ++
+ be/seg.c        |   1 +
+ be/tx.c         |   3 +-
+ be/ut/btree.c   |   2 +-
+ be/ut/helper.c  |   4 +-
+ be/ut/tx.c      | 173 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ stob/stob.c     |   8 ++-
+ utils/ut_main.c |   2 +
+ 9 files changed, 333 insertions(+), 58 deletions(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index 41ea2af..5302df5 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -38,7 +38,7 @@
+ /* btree constants */
+ enum {
+ 	BTREE_FAN_OUT     = 5,
+-	BTREE_ALLOC_SHIFT = 1,
++	BTREE_ALLOC_SHIFT = 0,
+ 
+ 	KV_NR             = 2 * BTREE_FAN_OUT - 1,
+ 	KV_SIZE           = KV_NR * sizeof(struct bt_key_val *),
+@@ -67,22 +67,15 @@ struct node_pos {
+ 	unsigned int	    p_index;
+ };
+ 
+-static inline void *mem_alloc(const struct m0_be_btree *btree,
+-			      struct m0_be_tx *tx, m0_bcount_t size)
+-{
+-	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;
+-	struct m0_be_op		op; /* XXX */
+-
+-	return m0_be_alloc(alloc, tx, &op, size, BTREE_ALLOC_SHIFT);
+-}
+-
+ static inline void mem_free(const struct m0_be_btree *btree,
+ 			    struct m0_be_tx *tx, void *ptr, m0_bcount_t size)
+ {
+ 	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;
+ 	struct m0_be_op		op; /* XXX */
+ 
++	m0_be_op_init(&op);
+ 	m0_be_free(alloc, tx, &op, ptr);
++	m0_be_op_fini(&op);
+ }
+ 
+ /* XXX: check if region structure itself needed outside m0_be_tx_capture() */
+@@ -92,6 +85,21 @@ static inline void mem_update(const struct m0_be_btree *btree,
+ 	m0_be_tx_capture(tx, &M0_BE_REG(btree->bb_seg, size, ptr));
+ }
+ 
++static inline void *mem_alloc(const struct m0_be_btree *btree,
++			      struct m0_be_tx *tx, m0_bcount_t size)
++{
++	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;
++	struct m0_be_op		op; /* XXX */
++	void *p;
++
++	m0_be_op_init(&op);
++	p = m0_be_alloc(alloc, tx, &op, size, BTREE_ALLOC_SHIFT);
++	memset(p, 0, size);
++	mem_update(btree, tx, p, size);
++	m0_be_op_fini(&op);
++	return p;
++}
++
+ static inline int key_lt(const struct m0_be_btree *btree,
+ 			 const void *key0, const void *key1)
+ {
+@@ -208,7 +216,7 @@ static bool btree_node_invariant(const struct m0_be_btree *btree,
+ 
+ static inline bool btree_invariant(const struct m0_be_btree *btree)
+ {
+-	return btree_node_invariant(btree, btree->bb_root, true, 0);
++	return true || btree_node_invariant(btree, btree->bb_root, true, 0);
+ }
+ 
+ static void node_update(struct m0_be_bnode       *node,
+@@ -403,7 +411,8 @@ static void btree_insert_key(struct m0_be_btree *btree,
+ 		btree_insert_nonfull(btree, tx, new_root, key_val);
+ 
+ 		/* Update tree structure itself */
+-		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
++		/* XXX not needed right now */
++		/* mem_update(btree, tx, btree, sizeof(struct m0_be_btree)); */
+ 	} else
+ 		btree_insert_nonfull(btree, tx, rnode, key_val);
+ 
+@@ -1110,6 +1119,7 @@ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
+ 	m0_rwlock_init(&tree->bb_lock);
+ 	tree->bb_root = root;
+ 	tree->bb_ops  = ops;
++	tree->bb_seg  = seg;
+ }
+ 
+ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
+@@ -1127,13 +1137,13 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
+ 
+ 	BTREE_OP_FILL(op, tree, tx, M0_BBO_CREATE, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+ 
+ 	btree_create(tree, tx);
+ 
+ 	m0_rwlock_write_unlock(&tree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
+@@ -1145,13 +1155,13 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
+ 
+ 	BTREE_OP_FILL(op, tree, tx, M0_BBO_DESTROY, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+ 
+ 	btree_destroy(tree, tx);
+ 
+ 	m0_rwlock_write_unlock(&tree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
+@@ -1159,16 +1169,19 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
+ 				    m0_bcount_t nr,
+ 				    struct m0_be_tx_credit *accum)
+ {
+-	struct m0_be_tx_credit node_credit = {
+-		.tc_reg_nr   = 1 + CHILDREN_NR + KV_NR,
+-		.tc_reg_size = sizeof(struct m0_be_bnode) +KV_SIZE+CHILDREN_SIZE
+-	};
+-	uint32_t height = tree->bb_root->b_level;
++	uint32_t height;
++	struct m0_be_allocator *a = &tree->bb_seg->bs_allocator;
+ 
+ 	M0_PRE(M0_IN(optype, (M0_BBO_CREATE, M0_BBO_DESTROY, M0_BBO_INSERT,
+ 			      M0_BBO_DELETE, M0_BBO_UPDATE)));
+ 
+-	m0_be_tx_credit_add(accum, &node_credit);
++	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof(struct m0_be_bnode),
++			       BTREE_ALLOC_SHIFT, accum);
++	m0_be_allocator_credit(a, M0_BAO_ALLOC, CHILDREN_SIZE,
++			       BTREE_ALLOC_SHIFT, accum);
++	m0_be_allocator_credit(a, M0_BAO_ALLOC, KV_SIZE,
++			       BTREE_ALLOC_SHIFT, accum);
++
+ 	switch (optype) {
+ 	case M0_BBO_CREATE:
+ 		break;
+@@ -1178,6 +1191,8 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
+ 	case M0_BBO_DELETE:
+ 	case M0_BBO_UPDATE:
+ 	default:
++		/* XXX */
++		height = tree->bb_root == NULL ? 2 : tree->bb_root->b_level;
+ 		m0_be_tx_credit_mul(accum, 2*height + 1);
+ 	}
+ }
+@@ -1188,24 +1203,27 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
+ 				    const struct m0_buf *key,
+ 				    const struct m0_buf *val)
+ {
+-	struct bt_key_val kv;
++	struct bt_key_val *kv; /* XXX: update credit accounting */
+ 
+-	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 	M0_PRE(key->b_nob == tree->bb_ops->ko_ksize(key->b_addr));
+ 	M0_PRE(val->b_nob == tree->bb_ops->ko_vsize(val->b_addr));
+ 
+ 	BTREE_OP_FILL(op, tree, tx, M0_BBO_INSERT, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+ 
+-	kv.key = key->b_addr;
+-	kv.val = val->b_addr;
+-	btree_insert_key(tree, tx, &kv);
++	kv = mem_alloc(tree, tx, sizeof(struct bt_key_val));
++	kv->key = key->b_addr;
++	kv->val = val->b_addr;
++	mem_update(tree, tx, kv, sizeof(struct bt_key_val));
++
++	btree_insert_key(tree, tx, kv);
+ 
+ 	m0_rwlock_write_unlock(&tree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
+@@ -1223,7 +1241,7 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
+ 
+ 	BTREE_OP_FILL(op, btree, tx, M0_BBO_UPDATE, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&btree->bb_lock);
+ 
+ 	kv = btree_search(btree, key->b_addr);
+@@ -1234,7 +1252,7 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
+ 	}
+ 
+ 	m0_rwlock_write_unlock(&btree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
++	m0_be_op_state_set(op, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
+@@ -1249,13 +1267,13 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
+ 
+ 	BTREE_OP_FILL(op, tree, tx, M0_BBO_DELETE, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+ 
+ 	rc = btree_delete_key(tree, tx, tree->bb_root, key->b_addr);
+ 
+ 	m0_rwlock_write_unlock(&tree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
++	m0_be_op_state_set(op, rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+@@ -1270,7 +1288,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ 
+ 	BTREE_OP_FILL(op, btree, NULL, M0_BBO_LOOKUP, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+ 
+ 	kv = btree_search(btree, key->b_addr);
+@@ -1280,7 +1298,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ 	}
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
++	m0_be_op_state_set(op, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
+@@ -1289,12 +1307,12 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
+ {
+ 	void *key;
+ 
+-	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+ 	BTREE_OP_FILL(op, btree, NULL, M0_BBO_MAXKEY, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+ 
+ 	key = btree_get_max_key(btree);
+@@ -1302,7 +1320,7 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
+ 	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_vsize(key);
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
+@@ -1311,12 +1329,12 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
+ {
+ 	void *key;
+ 
+-	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+ 	BTREE_OP_FILL(op, btree, NULL, M0_BBO_MINKEY, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+ 
+ 	key = btree_get_min_key(btree);
+@@ -1324,7 +1342,7 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
+ 	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_vsize(key);
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ 
+@@ -1346,7 +1364,7 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *btree,
+ 
+ 	BTREE_OP_FILL(op, btree, tx, M0_BBO_UPDATE, anchor);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&btree->bb_lock);
+ 
+ 	anchor->ba_write = true;
+@@ -1371,7 +1389,7 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
+ 
+ 	BTREE_OP_FILL(op, tree, tx, M0_BBO_INSERT, anchor);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+ 
+ 	kv.key = key->b_addr;
+@@ -1395,7 +1413,7 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
+ 
+ 	BTREE_OP_FILL(op, btree, NULL, M0_BBO_INSERT, anchor);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+ 
+ 	anchor->ba_write = false;
+@@ -1413,7 +1431,7 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree              *btree,
+ 	anchor->ba_write ? m0_rwlock_read_unlock(&btree->bb_lock) :
+ 		m0_rwlock_write_unlock(&btree->bb_lock);
+ 
+-	m0_sm_state_set(&op->bo_sm, anchor->ba_value.b_addr != NULL ?
++	m0_be_op_state_set(op, anchor->ba_value.b_addr != NULL ?
+ 				    M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ }
+ 
+@@ -1484,7 +1502,7 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
+ 
+ 	BTREE_OP_FILL(op, tree, NULL, M0_BBO_CURSOR_GET, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&tree->bb_lock);
+ 
+ 	/* cursor move */
+@@ -1508,7 +1526,7 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
+ 
+ out:
+ 	m0_rwlock_read_unlock(&tree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
+@@ -1521,7 +1539,7 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
+ 
+ 	BTREE_OP_FILL(op, tree, NULL, M0_BBO_CURSOR_NEXT, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&tree->bb_lock);
+ 
+ 
+@@ -1546,7 +1564,7 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
+ 
+ out:
+ 	m0_rwlock_read_unlock(&tree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
+@@ -1559,7 +1577,7 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
+ 
+ 	BTREE_OP_FILL(op, tree, NULL, M0_BBO_CURSOR_PREV, NULL);
+ 
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&tree->bb_lock);
+ 
+ 	if (cur->bc_pos == 0) {
+@@ -1579,7 +1597,7 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
+ 	op->bo_u.u_btree.t_out2->b_nob = cur->bc_tree->bb_ops->ko_ksize(kv->key);
+ out:
+ 	m0_rwlock_read_unlock(&tree->bb_lock);
+-	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ 
+@@ -1597,6 +1615,79 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
+ 	key = cur->bc_op.bo_u.u_btree.t_out2;
+ }
+ 
++
++
++
++static void print_single_node(struct m0_be_btree *btree,
++			      struct m0_be_bnode *node)
++{
++	int i = 0;
++
++	M0_LOG(M0_DEBUG, "{");
++	while (i < node->b_nr_active) {
++		void *key = node->b_key_vals[i]->key;
++		void *val = node->b_key_vals[i]->val;
++
++		M0_LOG(M0_DEBUG, "key: %s, val: %s, level: %d",
++		       (char *)key, (char *)val, node->b_level);
++
++		i++;
++	}
++	M0_LOG(M0_DEBUG, "} (%p,%d) ", node, node->b_leaf);
++}
++
++static void iter_prepare2(struct m0_be_btree *btree,
++			 struct m0_be_bnode *node,
++			 bool print)
++{
++
++	int i = 0;
++	unsigned int current_level;
++
++	struct m0_be_bnode *head, *tail;
++	struct m0_be_bnode *child;
++
++	current_level = node->b_level;
++	head = node;
++	tail = node;
++
++	if (print)
++		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
++
++	while (true) {
++		if (head == NULL) {
++			break;
++		}
++		if (head->b_level < current_level) {
++			current_level = head->b_level;
++			if (print)
++				M0_LOG(M0_DEBUG, "***");
++		}
++		if (print)
++			print_single_node(btree, head);
++
++		if (head->b_leaf == false) {
++			for (i = 0; i < head->b_nr_active + 1; i++) {
++				child = head->b_children[i];
++				tail->b_next = child;
++				tail = child;
++				child->b_next = NULL;
++			}
++		}
++		head = head->b_next;
++	}
++
++	if (print)
++		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
++}
++
++M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree)
++{
++	iter_prepare2(tree, tree->bb_root, true);
++}
++
++
++
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end of be group */
+ 
+diff --git a/be/btree.h b/be/btree.h
+index 4ddfe6a..2252cbd 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -396,6 +396,11 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cursor,
+ 					   struct m0_buf *key,
+ 					   struct m0_buf *value);
+ 
++
++
++
++M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree);
++
+ /** @} end of be group */
+ #endif /* __MERO_BE_BTREE_H__ */
+ 
+diff --git a/be/seg.c b/be/seg.c
+index 43c1ecb..b58ade7 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -359,6 +359,7 @@ static void iovec_prepare2(struct m0_be_seg *seg, struct m0_be_reg_area *area,
+ 
+ 		iv->iv_vec.v_count[i] = rd->rd_reg.br_size;
+ 		iv->iv_index[i]       = be_seg_blkno(seg, rd->rd_reg.br_addr);
++		M0_ASSERT(iv->iv_index[i] < 0xf000000000000000);
+ 		++i;
+ 	}
+ 	M0_ASSERT(i == nr);
+diff --git a/be/tx.c b/be/tx.c
+index 9ee5c01..92ce544 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -112,7 +112,7 @@ M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine)
+ 		  (tx_tlist_init(&engine->te_txs[i]), true));
+ 	m0_rwlock_init(&engine->te_lock);
+ 	tx_group_init(&engine->te_group);
+-	log_init(&engine->te_log, 1ULL << 26, 1ULL << 20, 100);
++	log_init(&engine->te_log, 1ULL << 28, 1ULL << 25, 200000);
+ 
+ 	M0_POST(m0_be__tx_engine_invariant(engine));
+ }
+@@ -350,6 +350,7 @@ static void cap_uncap(struct m0_be_tx *tx, const struct m0_be_reg *reg,
+ M0_INTERNAL void
+ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ {
++	M0_PRE(m0_be_seg_contains(reg->br_seg, reg->br_addr));
+ 	cap_uncap(tx, reg, m0_be_reg_area_capture);
+ }
+ 
+diff --git a/be/ut/btree.c b/be/ut/btree.c
+index 1045b0b..ddf8f36 100644
+--- a/be/ut/btree.c
++++ b/be/ut/btree.c
+@@ -117,7 +117,7 @@ enum {
+ 	INSERT_NR   = 100,
+ 	UPDATE_NR   = INSERT_NR / 2,
+ 	DELETE_NR   = INSERT_NR / 2,
+-	ALLOC_SHIFT = 1, /* XXX */
++	ALLOC_SHIFT = 0, /* XXX */
+ 	ALLOC_SIZE  = 8
+ };
+ 
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 8534727..c21bd8c 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -29,7 +29,7 @@
+ #include <sys/stat.h>	/* mkdir */
+ #include <sys/types.h>	/* mkdir */
+ 
+-#define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
++#define BE_UT_H_STORAGE_DIR "/tmp/__seg_ut_stob"
+ 
+ enum {
+ 	BE_UT_H_DOM_ID   = 42,
+@@ -104,7 +104,7 @@ void m0_be_ut_seg_destroy(struct m0_be_ut_h *h)
+ 	rc = m0_be_seg_destroy(&h->buh_seg);
+ 	M0_ASSERT(rc == 0);
+ 	m0_be_ut_seg_finalize(h, false);
+-	m0_be_ut_seg_storage_fini();
++	/* m0_be_ut_seg_storage_fini(); */ /* XXX */
+ }
+ 
+ void m0_be_ut_seg_create_open(struct m0_be_ut_h *h)
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 9dcbd46..1957c11 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -25,12 +25,14 @@
+ #include "lib/misc.h"      /* M0_BITS, M0_IN */
+ #include "rpc/rpclib.h"
+ #include "ut/ut.h"
++#include "be/btree.h"
+ 
+ static struct m0_be_ut_h  be_ut_tx_h;
+ static struct m0_sm_group g_grp;
+ static uint64_t           g_tid = 1;
++static void noop(const struct m0_be_tx *tx) {}
+ 
+-static void tx_test(struct m0_be *be)
++M0_UNUSED static void tx_test(struct m0_be *be)
+ {
+ 	struct m0_be_op         op;
+ 	struct m0_be_tx         tx = {};
+@@ -38,7 +40,6 @@ static void tx_test(struct m0_be *be)
+ 	struct m0_be_allocator *alloc = be_ut_tx_h.buh_a;
+ 	struct m0_uint128      *p;
+ 	int                     rc;
+-	void noop(const struct m0_be_tx *tx) {}
+ 
+ 	M0_ENTRY();
+ 
+@@ -73,6 +74,8 @@ static void tx_test(struct m0_be *be)
+ 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_LOG(M0_DEBUG, "closed");
++	m0_be_ut_seg_close_destroy(&be_ut_tx_h);
++	M0_LOG(M0_DEBUG, "segment closed");
+ 
+ 	m0_sm_group_unlock(&g_grp);
+ 
+@@ -81,6 +84,131 @@ static void tx_test(struct m0_be *be)
+ 	M0_LEAVE();
+ }
+ 
++
++/* ----------------------------------------------------------------------------
++ * btree test.
++ * --------------------------------------------------------------------------*/
++
++static int tree_cmp(const void *key0, const void *key1)
++{
++	return strcmp(key0, key1);
++}
++
++static m0_bcount_t tree_kv_size(const void *kv)
++{
++	return strlen(kv) + 1;
++}
++
++static const struct m0_be_btree_kv_ops kv_ops = {
++	.ko_ksize   = tree_kv_size,
++	.ko_vsize   = tree_kv_size,
++	.ko_compare = tree_cmp
++};
++
++static struct m0_be_btree tree;
++enum {
++	INSERT_COUNT = 100,
++	INSERT_SIZE  = 4
++};
++static void tree_test(struct m0_be *be)
++{
++	struct m0_be_op         op;
++	struct m0_be_tx         tx = {};
++	struct m0_be_tx_credit  cred;
++	struct m0_be_tx_credit  insert_cred;
++	struct m0_be_tx_credit  create_cred;
++	struct m0_be_allocator *a = &be_ut_tx_h.buh_seg.bs_allocator;
++	int                     rc;
++	int                     i;
++
++	M0_ENTRY();
++
++	m0_be_tx_credit_init(&cred);
++	m0_be_tx_credit_init(&insert_cred);
++	m0_be_tx_credit_init(&create_cred);
++
++	m0_be_tx_init(&tx, ++g_tid, be, &g_grp, noop, noop, true, NULL, NULL);
++	m0_be_btree_init(&tree, &be_ut_tx_h.buh_seg, &kv_ops, NULL);
++
++	m0_be_btree_credit(&tree, M0_BBO_CREATE, 1, &create_cred);
++
++	m0_be_btree_credit(&tree, M0_BBO_INSERT, 1, &insert_cred); /* nodes */
++	m0_be_allocator_credit(a, M0_BAO_ALLOC, INSERT_SIZE, 0, &insert_cred);
++	m0_be_allocator_credit(a, M0_BAO_ALLOC, INSERT_SIZE, 0, &insert_cred);
++	m0_be_tx_credit_mul(&insert_cred, INSERT_COUNT);
++
++	m0_be_tx_credit_add(&cred, &insert_cred);
++	m0_be_tx_credit_add(&cred, &create_cred);
++
++	m0_sm_group_lock(&g_grp);
++
++	m0_be_tx_prep(&tx, &cred);
++	M0_LOG(M0_DEBUG, "prepared");
++
++	/* Open transaction, allocate, dirty and capture region. */
++	m0_be_tx_open(&tx);
++	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
++	M0_UT_ASSERT(rc == 0);
++	M0_LOG(M0_DEBUG, "opened");
++
++	m0_be_op_init(&op);
++	m0_be_btree_create(&tree, &tx, &op);
++	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++						 M0_BOS_FAILURE)));
++
++	for (i = 0; i < INSERT_COUNT; ++i) {
++		struct m0_buf key;
++		struct m0_buf val;
++
++		m0_be_op_init(&op);
++		m0_buf_init(&key, m0_be_alloc(a, &tx, &op, INSERT_SIZE, 0),
++			    INSERT_SIZE);
++		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++							 M0_BOS_FAILURE)));
++		m0_be_op_init(&op);
++		m0_buf_init(&val, m0_be_alloc(a, &tx, &op, INSERT_SIZE, 0),
++			    INSERT_SIZE);
++		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++							 M0_BOS_FAILURE)));
++		m0_be_op_init(&op);
++
++		sprintf(key.b_addr, "%03d", i);
++		sprintf(val.b_addr, "%03d", i);
++		m0_be_tx_capture(&tx, &M0_BE_REG(&be_ut_tx_h.buh_seg,
++						INSERT_SIZE, key.b_addr));
++		m0_be_tx_capture(&tx, &M0_BE_REG(&be_ut_tx_h.buh_seg,
++						INSERT_SIZE, val.b_addr));
++
++		m0_be_btree_insert(&tree, &tx, &op, &key, &val);
++		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++							 M0_BOS_FAILURE)));
++		btree_dbg_print(&tree);
++	}
++
++	M0_LOG(M0_DEBUG, "captured");
++
++	m0_be_tx_close(&tx); /* Make things persistent. */
++
++	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);
++	M0_UT_ASSERT(rc == 0);
++	M0_LOG(M0_DEBUG, "closed");
++	m0_be_allocator__invariant(a);
++	btree_dbg_print(&tree);
++	m0_be_ut_seg_close_destroy(&be_ut_tx_h);
++	M0_LOG(M0_DEBUG, "segment closed, %p", tree.bb_root);
++
++	m0_sm_group_unlock(&g_grp);
++
++	m0_be_op_fini(&op);
++
++	M0_LEAVE();
++}
++
++/* ----------------------------------------------------------------------------
++ *
++ * --------------------------------------------------------------------------*/
++
++
+ static void test_tx_svc(void)
+ {
+ 	struct m0_be    be;
+@@ -117,7 +245,11 @@ static void test_tx_svc(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	/* sleep(3); give reqh some time to start */
+ 
++#if 0
+ 	tx_test(&be);
++#else
++	tree_test(&be);
++#endif
+ 
+ 	m0_be_fini(&be);
+ 
+@@ -165,6 +297,43 @@ static int _fini(void)
+ 	return 0;
+ }
+ 
++void loader(void)
++{
++	int rc;
++	struct m0_be_op op;
++	struct m0_buf   out;
++
++	m0_be_ut_seg_initialize(&be_ut_tx_h, true);
++	rc = m0_be_seg_open(&be_ut_tx_h.buh_seg);
++	M0_UT_ASSERT(rc == 0);
++
++	tree.bb_ops  = &kv_ops;
++	tree.bb_root = (struct m0_be_bnode *) 0x4000000054f0;
++	tree.bb_seg  = &be_ut_tx_h.buh_seg;
++
++	btree_dbg_print(&tree);
++
++	m0_be_op_init(&op);
++	m0_be_btree_minkey(&tree, &op, &out);
++	M0_LOG(M0_DEBUG, "--- %s", (char *) out.b_addr);
++	m0_be_op_fini(&op);
++
++	m0_be_op_init(&op);
++	m0_be_btree_maxkey(&tree, &op, &out);
++	M0_LOG(M0_DEBUG, "--- %s", (char *) out.b_addr);
++	m0_be_op_fini(&op);
++
++	m0_be_ut_seg_close_destroy(&be_ut_tx_h);
++}
++
++const struct m0_test_suite be_tx_load_ut = {
++	.ts_name = "be-tx-load-ut",
++	.ts_tests = {
++		{ "run", loader },
++		{ NULL, NULL }
++	}
++};
++
+ const struct m0_test_suite be_tx_ut = {
+ 	.ts_name = "be-tx-ut",
+ 	.ts_init = _init,
+diff --git a/stob/stob.c b/stob/stob.c
+index 58ca107..4f14b4a 100644
+--- a/stob/stob.c
++++ b/stob/stob.c
+@@ -305,8 +305,14 @@ M0_INTERNAL bool m0_stob_io_stob_is_valid(const struct m0_indexvec *stob)
+ 	m0_bindex_t reached;
+ 
+ 	for (reached = 0, i = 0; i < stob->iv_vec.v_nr; ++i) {
+-		if (stob->iv_index[i] < reached)
++		if (stob->iv_index[i] < reached) {
++#ifndef __KERNEL__
++			M0_LEAVE("%u: [%lu, %lu) > [%lu, %lu)\n", i,
++				 stob->iv_index[i-1], stob->iv_vec.v_count[i-1],
++				 stob->iv_index[i], stob->iv_vec.v_count[i]);
++#endif
+ 			return false;
++		}
+ 		reached = stob->iv_index[i] + stob->iv_vec.v_count[i];
+ 	}
+ 	return true;
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index ae469a0..b7f5fe4 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -42,6 +42,7 @@ extern const struct m0_test_suite be_list_ut;
+ extern const struct m0_test_suite m0_be_ut;
+ extern const struct m0_test_suite be_emap_ut;
+ extern const struct m0_test_suite be_tx_ut;
++extern const struct m0_test_suite be_tx_load_ut;
+ extern const struct m0_test_suite buffer_pool_ut;
+ extern const struct m0_test_suite bulkio_client_ut;
+ extern const struct m0_test_suite bulkio_server_ut;
+@@ -114,6 +115,7 @@ void add_uts(void)
+ 	m0_ut_add(&be_emap_ut);
+ 	*/
+ 	m0_ut_add(&be_tx_ut);
++	m0_ut_add(&be_tx_load_ut);
+ 	m0_ut_add(&buffer_pool_ut);
+ 	m0_ut_add(&bulkio_client_ut);
+ 	m0_ut_add(&bulkio_server_ut);
+-- 
+1.8.3.2
+

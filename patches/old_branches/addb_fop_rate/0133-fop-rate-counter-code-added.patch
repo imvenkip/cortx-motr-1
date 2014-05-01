@@ -1,0 +1,144 @@
+From e06fd57a85d6c3301ccd42ffa6247f33b45d9936 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Wed, 30 Oct 2013 16:18:32 +0530
+Subject: [PATCH 133/159]  - fop rate counter code added.
+
+---
+ fop/fom.c      | 26 ++++++++++++++++++++++++++
+ fop/fom.h      |  6 ++++++
+ fop/fop.c      |  1 +
+ fop/fop_addb.h |  3 +++
+ 4 files changed, 36 insertions(+)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 121d9af..9e3d90e 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -153,6 +153,8 @@ struct m0_loc_thread {
+ 	uint64_t                lt_magix;
+ };
+ 
++static m0_time_t fop_rate_interval = M0_MKTIME(1, 0);
++
+ M0_TL_DESCR_DEFINE(thr, "fom thread", static, struct m0_loc_thread, lt_linkage,
+ 		   lt_magix, M0_FOM_THREAD_MAGIC, M0_FOM_THREAD_HEAD_MAGIC);
+ M0_TL_DEFINE(thr, static, struct m0_loc_thread);
+@@ -536,6 +538,8 @@ static void fom_exec(struct m0_fom *fom)
+ 				exec_time >> 10); /* ~usec */
+ 
+ 	if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH) {
++		m0_time_t        now = m0_time_now();
++
+                 /*
+                  * Finish fom itself.
+                  */
+@@ -543,6 +547,15 @@ static void fom_exec(struct m0_fom *fom)
+ 		/*
+ 		 * Don't touch the fom after this point.
+ 		 */
++		++loc->fl_fop_rate_count;
++		if (now >= loc->fl_fop_rate_next_update ||
++		    loc->fl_fop_rate_next_update == 0) {
++			m0_addb_counter_update(&loc->fl_stat_fop_rate,
++					       loc->fl_fop_rate_count);
++			loc->fl_fop_rate_next_update =
++				m0_time_add(now, fop_rate_interval);
++			loc->fl_fop_rate_count = 0;
++		}
+ 	} else {
+ 		struct m0_fom_callback *cb;
+ 
+@@ -758,6 +771,7 @@ static void loc_fini(struct m0_fom_locality *loc)
+ 
+ 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+ 	m0_addb_counter_fini(&loc->fl_stat_run_times);
++	m0_addb_counter_fini(&loc->fl_stat_fop_rate);
+ 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
+ }
+ 
+@@ -807,6 +821,15 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 		return result;
+ 	}
+ 
++	result = m0_addb_counter_init(&loc->fl_stat_fop_rate,
++				      &m0_addb_rt_fop_rate);
++	if (result != 0) {
++		m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
++		m0_addb_counter_fini(&loc->fl_stat_run_times);
++		m0_addb_ctx_fini(&loc->fl_addb_ctx);
++		return result;
++	}
++
+ 	runq_tlist_init(&loc->fl_runq);
+ 	loc->fl_runq_nr = 0;
+ 
+@@ -854,6 +877,9 @@ static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ 	if (m0_addb_counter_nr(&loc->fl_stat_sched_wait_times) > 0)
+ 		M0_ADDB_POST_CNTR(&loc->fl_dom->fd_reqh->rh_addb_mc, cv,
+ 				  &loc->fl_stat_sched_wait_times);
++	if (m0_addb_counter_nr(&loc->fl_stat_fop_rate) > 0)
++		M0_ADDB_POST_CNTR(&loc->fl_dom->fd_reqh->rh_addb_mc, cv,
++				  &loc->fl_stat_fop_rate);
+ 	M0_ADDB_POST(&loc->fl_dom->fd_reqh->rh_addb_mc, &m0_addb_rt_fl_runq_nr,
+ 		     cv, loc->fl_runq_nr);
+ 	M0_ADDB_POST(&loc->fl_dom->fd_reqh->rh_addb_mc, &m0_addb_rt_fl_wail_nr,
+diff --git a/fop/fom.h b/fop/fom.h
+index 4bd5fc9..b4d0ff3 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -259,6 +259,10 @@ struct m0_fom_locality {
+ 	 */
+ 	unsigned                     fl_foms;
+ 
++	/** fop rate stats */
++	uint64_t                     fl_fop_rate_count;
++	m0_time_t		     fl_fop_rate_next_update;
++
+ 	/** State Machine (SM) group for AST call-backs */
+ 	struct m0_sm_group	     fl_group;
+ 
+@@ -295,6 +299,8 @@ struct m0_fom_locality {
+ 	   fom_dequeue() counting by m0_fom::fo_sched_epoch.
+ 	 */
+ 	struct m0_addb_counter       fl_stat_sched_wait_times;
++	/** FOP rate conter. It is fop execution per sec. */
++	struct m0_addb_counter       fl_stat_fop_rate;
+ 
+ 	/** AST which triggers the posting of statistics */
+ 	struct m0_sm_ast             fl_post_stats_ast;
+diff --git a/fop/fop.c b/fop/fop.c
+index b830ed5..89d6415 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -256,6 +256,7 @@ M0_INTERNAL int m0_fops_init(void)
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_sched_wait_times);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_wail_nr);
++	m0_addb_rec_type_register(&m0_addb_rt_fop_rate);
+ 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
+ 			 &m0_addb_proc_ctx);
+ 	ft_tlist_init(&fop_types_list);
+diff --git a/fop/fop_addb.h b/fop/fop_addb.h
+index c1b5a19..87962a8 100644
+--- a/fop/fop_addb.h
++++ b/fop/fop_addb.h
+@@ -92,6 +92,7 @@ enum {
+ 	M0_ADDB_RECID_FL_SCHED_WAIT_TIMES = 66,
+ 	M0_ADDB_RECID_FL_RUNQ_NR = 67,
+ 	M0_ADDB_RECID_FL_WAIL_NR = 68,
++	M0_ADDB_RECID_FOP_RATE   = 69,
+ };
+ 
+ /**
+@@ -132,6 +133,8 @@ M0_ADDB_RT_CNTR(m0_addb_rt_fl_run_times, M0_ADDB_RECID_FL_RUN_TIMES);
+ /** Accumulated scheduling overhead of all locality foms (in binary usec). */
+ M0_ADDB_RT_CNTR(m0_addb_rt_fl_sched_wait_times,
+ 		M0_ADDB_RECID_FL_SCHED_WAIT_TIMES);
++/** FOP rate (number of fop executed per sec) **/
++M0_ADDB_RT_CNTR(m0_addb_rt_fop_rate, M0_ADDB_RECID_FOP_RATE);
+ 
+ /** Locality run queue length */
+ M0_ADDB_RT_DP(m0_addb_rt_fl_runq_nr, M0_ADDB_RECID_FL_RUNQ_NR, "runq_nr");
+-- 
+1.8.3.2
+

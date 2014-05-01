@@ -1,0 +1,96 @@
+From c64d9572bac1d12314dd3acf3a2369286779b14c Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 8 Jun 2011 03:17:26 -0600
+Subject: [PATCH 112/158] - fixed fol ops array size; - fixed wrong init of tx
+ and md in mdservice.
+
+---
+ fol/fol.c           |  2 +-
+ mdservice/md_foms.c | 13 ++++++-------
+ mdservice/md_fops.h |  4 ++--
+ 3 files changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/fol/fol.c b/fol/fol.c
+index 53ffdad..25e741c 100644
+--- a/fol/fol.c
++++ b/fol/fol.c
+@@ -453,7 +453,7 @@ C2_EXPORTED(c2_fol_rec_fini);
+  */
+ 
+ enum {
+-	C2_FOL_REC_TYPE_MAX = 64
++	C2_FOL_REC_TYPE_MAX = 256
+ };
+ 
+ const static struct c2_fol_rec_type *rtypes[C2_FOL_REC_TYPE_MAX];
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 39f9091..ab9601e 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -331,9 +331,6 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         struct c2_md_store       *md;
+         int                       rc;
+ 
+-        md = site->s_mdstore;
+-        tx = &ctx->fc_tx->tx_dbtx;
+-
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+ 
+         fop = fom_obj->fm_fop;
+@@ -350,6 +347,9 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         site = ctx->fc_site;
+         C2_ASSERT(site != NULL);
+ 
++        md = site->s_mdstore;
++        tx = &ctx->fc_tx->tx_dbtx;
++
+         body = &req->u_body;
+         c2_md_fop_cob2attr(&attr, body);
+ 
+@@ -492,9 +492,6 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+         struct c2_md_store       *md;
+         int                       rc;
+ 
+-        tx = &ctx->fc_tx->tx_dbtx;
+-        md = site->s_mdstore;
+-
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+ 
+         fop = fom_obj->fm_fop;
+@@ -509,8 +506,10 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+         site = ctx->fc_site;
+         C2_ASSERT(site != NULL);
+ 
+-        req = c2_fop_data(fop);
++        tx = &ctx->fc_tx->tx_dbtx;
++        md = site->s_mdstore;
+ 
++        req = c2_fop_data(fop);
+         sbody = &req->r_sbody;
+         tbody = &req->r_tbody;
+ 
+diff --git a/mdservice/md_fops.h b/mdservice/md_fops.h
+index baa3e17..3a3d5a2 100644
+--- a/mdservice/md_fops.h
++++ b/mdservice/md_fops.h
+@@ -24,7 +24,7 @@ extern struct c2_fop_type c2_fop_rename_rep_fopt;
+ extern struct c2_fop_type c2_fop_readdir_rep_fopt;
+ 
+ enum c2_fop_metadata_code {
+-        C2_FOP_FIRST = 16,
++        C2_FOP_FIRST = 64,
+         C2_FOP_CREATE = C2_FOP_FIRST,
+         C2_FOP_LINK,
+         C2_FOP_UNLINK,
+@@ -34,7 +34,7 @@ enum c2_fop_metadata_code {
+         C2_FOP_SETATTR,
+         C2_FOP_GETATTR,
+         C2_FOP_READDIR,
+-        C2_FOP_CREATE_REP = 26,
++        C2_FOP_CREATE_REP,
+         C2_FOP_LINK_REP,
+         C2_FOP_UNLINK_REP,
+         C2_FOP_RENAME_REP,
+-- 
+1.8.3.2
+

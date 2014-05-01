@@ -1,0 +1,36 @@
+From fe2473fbf9e2d6695f9b622188121b79f47f3da2 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 26 Feb 2013 11:56:27 +0200
+Subject: [PATCH 12/17] mds/readdir: use m0_align() from lib/arith.h
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+---
+ mdstore/mdstore.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 09dbd69..360ae75 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -31,7 +31,7 @@
+ 
+ #include "lib/misc.h"    /* M0_SET0 */
+ #include "lib/cdefs.h"
+-#include "lib/arith.h"   /* M0_3WAY */
++#include "lib/arith.h"   /* M0_3WAY, m0_align */
+ #include "lib/errno.h"
+ #include "lib/assert.h"
+ #include "lib/memory.h"
+@@ -759,7 +759,8 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 					  m0_bitstring_len_get(&it.ci_key->cnk_name));
+ 		}
+ 
+-		reclen = ((sizeof(*ent) + m0_bitstring_len_get(rdpg->r_pos)) + 7) & ~7;
++		reclen = m0_align(sizeof(*ent) +
++				  m0_bitstring_len_get(rdpg->r_pos), 8);
+ 
+ 		if (nob >= reclen) {
+ 			memcpy(ent->d_name, m0_bitstring_buf_get(rdpg->r_pos),
+-- 
+1.8.3.2
+

@@ -1,0 +1,98 @@
+From e1de27c5c6221f72326d5c8dd7820f65c002ec77 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 11 Jul 2012 12:56:00 +0300
+Subject: [PATCH 230/370] make c2_conf_dircur_init() more user-friendly
+
+Change the signature of c2_conf_dircur_init() to accept c2_conf_obj
+argument instead of c2_conf_dir. This simplifies application code.
+
+LogD #378
+RB: r/865
+---
+ conf/confc.h |  8 ++++----
+ conf/obj.c   | 14 ++++++++++++++
+ conf/obj.h   |  4 ++--
+ 3 files changed, 20 insertions(+), 6 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index e918e59..79d6ac4 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -213,7 +213,7 @@ struct c2_mutex;
+  *
+  *     // This is the idiom: initialize c2_conf_dircur and close
+  *     // directory object.  c2_conf_dircur will keep the object pinned.
+- *     c2_conf_dircur_init(&cur, C2_CONF_CAST(obj, c2_conf_dir));
++ *     c2_conf_dircur_init(&cur, obj);
+  *     c2_confc_close(obj);
+  *
+  *     while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
+@@ -251,7 +251,7 @@ struct c2_mutex;
+  *     if (rc != 0)
+  *         return rc;
+  *
+- *     c2_conf_dircur_init(&svc_cur, C2_CONF_CAST(obj, c2_conf_dir));
++ *     c2_conf_dircur_init(&svc_cur, obj);
+  *     c2_confc_close(obj); // `svc_cur' will keep the object pinned
+  *
+  *     while ((rc = c2_confc_readdir_sync(&obj, &svc_cur)) > 0) {
+@@ -278,7 +278,7 @@ struct c2_mutex;
+  *             break;
+  *
+  *         // Process NICs.
+- *         c2_conf_dircur_init(&cur, C2_CONF_CAST(obj, c2_conf_dir));
++ *         c2_conf_dircur_init(&cur, obj);
+  *         c2_confc_close(obj);
+  *         while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
+  *             const struct c2_conf_nic *nic = C2_CONF_CAST(obj, c2_conf_nic);
+@@ -294,7 +294,7 @@ struct c2_mutex;
+  *             break;
+  *
+  *         // Process storage devices.
+- *         c2_conf_dircur_init(&cur, C2_CONF_CAST(obj, c2_conf_dir));
++ *         c2_conf_dircur_init(&cur, obj);
+  *         c2_confc_close(obj);
+  *         while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
+  *             const struct c2_conf_sdev *sdev = C2_CONF_CAST(obj,
+diff --git a/conf/obj.c b/conf/obj.c
+index f4c868d..d8309b5 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -401,4 +401,18 @@ struct c2_bob_type c2_conf_nic_bob = XXX;
+ struct c2_bob_type c2_conf_sdev_bob = XXX;
+ struct c2_bob_type c2_conf_partition_bob = XXX;
+ 
++void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_obj *dir)
++{
++	C2_PRE(dir->co_type == C2_CO_DIR && dir->co_status == C2_CS_READY);
++
++	C2_ASSERT(cur->dc_dir == NULL);
++	cur->dc_dir = C2_CONF_CAST(dir, c2_conf_dir);
++	C2_ASSERT(cur->dc_pin == NULL);
++}
++
++void c2_conf_dircur_fini(struct c2_conf_dircur *cur)
++{
++	XXX;
++}
++
+ /** @} conf_dlspec_obj */
+diff --git a/conf/obj.h b/conf/obj.h
+index e5fd46f..5487558 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -438,9 +438,9 @@ struct c2_conf_dircur {
+ /**
+  * Initializes directory cursor. Increments dir's reference counter.
+  *
+- * @pre  dir->cd_obj.co_status == C2_CS_READY
++ * @pre  dir->co_objtype == C2_CO_DIR && dir->co_status == C2_CS_READY
+  */
+-void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_dir *dir);
++void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_obj *dir);
+ 
+ /**
+  * Finalizes directory cursor.
+-- 
+1.8.3.2
+

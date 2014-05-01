@@ -1,0 +1,31 @@
+From cdd0410cb88cabcd97ebd7d4be98effed92ad515 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Thu, 6 Mar 2014 16:40:42 +0200
+Subject: [PATCH 60/60] m0_rpc_frm_fini(): excess comment dropped
+
+---
+ rpc/formation2.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/rpc/formation2.c b/rpc/formation2.c
+index c61a579..a022213 100644
+--- a/rpc/formation2.c
++++ b/rpc/formation2.c
+@@ -241,14 +241,6 @@ M0_INTERNAL void m0_rpc_frm_fini(struct m0_rpc_frm *frm)
+ 	M0_PRE(frm_invariant(frm));
+ 	M0_LOG(M0_DEBUG, "frm state: %d", frm->f_state);
+ 
+-	/*
+-	 * It is possible that some oneway items might still be queued.
+-	 * There are two alternatives here:
+-	 * - send all remaining oneway items; or
+-	 * - simply drop them.
+-	 * Choosing later one for its simplicity.
+-	 * In future iff needed this can be changed to implement first option.
+-	 */
+ 	drop_all_items(frm);
+ 	M0_ASSERT(frm->f_state == FRM_IDLE);
+ 	m0_addb_ctx_fini(&frm->f_addb_ctx);
+-- 
+1.8.3.2
+

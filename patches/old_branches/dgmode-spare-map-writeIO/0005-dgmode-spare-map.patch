@@ -1,0 +1,177 @@
+From 64c64db2366452470757b20f44748bd2b96806dc Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Tue, 14 Jan 2014 14:55:58 +0530
+Subject: [PATCH 05/14] dgmode-spare-map -Modularity introduced.
+
+---
+ m0t1fs/linux_kernel/file.c                     | 11 ---
+ m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh | 92 ++++++++++++++++----------
+ 2 files changed, 57 insertions(+), 46 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 3e6487b..a44fff0 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -2283,10 +2283,6 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 		M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
+ 		unit_type = m0_pdclust_unit_classify(play, src.sa_unit);
+ 		if (dev_state == M0_PNDS_SNS_REPAIRED) {
+-			if (unit_type == M0_PUT_SPARE) {
+-				rc = 0;
+-				goto end;
+-			}
+ 			rc = m0_sns_repair_spare_map(msb->csb_pool.po_mach,
+ 						     gfid, play, play_instance,
+ 						     src.sa_group, src.sa_unit,
+@@ -2313,13 +2309,6 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 			}
+ 			++map->pi_ioreq->ir_failed_nr;
+ 		}
+-		if (unit_type == M0_PUT_SPARE) {
+-			rc = m0_sns_repair_data_map(msb->csb_pool.po_mach,
+-						    gfid, play, src.sa_group,
+-						    src.sa_unit, &src.sa_unit);
+-			if (rc != 0)
+-				M0_RETERR(rc, "Failed to get data associated with a spare unit");
+-		}
+ 		map->pi_state = PI_DEGRADED;
+ 		/* Segment belongs to a data unit. */
+ 		if (src.sa_unit < layout_n(play)) {
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
+index 679b6a1..d097cd1 100755
+--- a/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
+@@ -75,8 +75,8 @@ sns_repair_test()
+ {
+ 	local rc=0
+ 	local fail_device1=1
+-	local fail_device2=3
+-	local fail_device3=9
++	local fail_device2=9
++	local fail_device3=2
+ 	local N=3
+ 	local K=3
+ 	local P=9
+@@ -117,64 +117,86 @@ sns_repair_test()
+ 	done
+ 
+ ####### Set Failure device
+-	pool_mach_set_failure $fail_device1 $fail_device2
++	pool_mach_set_failure $fail_device1
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dg-mode test 1"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	echo "IO dg-mode test 1: Reading after first failure"
++	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	sleep 2
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dg-mode test 2"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	echo "IO dg-mode test 2: Reading after repair"
++	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	sleep 2
+ ####### Query device state
+ 
+-	pool_mach_query $fail_device1 $fail_device2
++	pool_mach_query $fail_device1
++	if [ $? -ne "0" ]
++	then
++		return $?
++	fi
++
++	pool_mach_set_failure $fail_device2
++	if [ $? -ne "0" ]
++	then
++		return $?
++	fi
++	echo "IO dg-mode test 3: Reading after failure post first repair."
++	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	sleep 2
++
++	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+ 
++	pool_mach_query $fail_device2
++	if [ $? -ne "0" ]
++	then
++		return $?
++	fi
++	echo "IO dg-mode test 4: Reading after second repair"
++	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	sleep 2
+ 	pool_mach_set_failure $fail_device3
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "" >/var/log/messages
+-	echo "IO dg-mode test 3"
++
++	echo "IO dg-mode test 5: Reading after third failure"
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-	rm -f messages
+-	cp /var/log/messages .
+-#	cp /var/log/messages .
+-
+-#	sns_repair
+-#	if [ $? -ne "0" ]
+-#	then
+-#		return $?
+-#	fi
+-
+-#	pool_mach_query $fail_device3
+-#	if [ $? -ne "0" ]
+-#	then
+-#		return $?
+-#	fi
+ 
++	sns_repair
++	if [ $? -ne "0" ]
++	then
++		return $?
++	fi
++
++	echo "IO dg-mode test 6: Reading after last repair"
++	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	sleep 2
+  #       echo "Starting SNS Re-balance.."
+-#	sns_rebalance
+-#	if [ $? -ne "0" ]
+-#	then
+-#		return $?
+-#	fi
+-#	pool_mach_query $fail_device1 $fail_device2 $fail_device3
+-#	if [ $? -ne "0" ]
+-#	then
+-#		return $?
+-#	fi
++	sns_rebalance
++	if [ $? -ne "0" ]
++	then
++		return $?
++	fi
++	pool_mach_query $fail_device1 $fail_device2 $fail_device3
++	if [ $? -ne "0" ]
++	then
++		return $?
++	fi
+ 
++	echo "IO dg-mode test 7: Reading after rebalance"
++	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	sleep 2
+ 	echo "unmounting and cleaning.."
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 
+-- 
+1.8.3.2
+

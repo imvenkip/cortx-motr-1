@@ -1,0 +1,510 @@
+From 783e23205d59ed2c8487e61f392fdfa5dc509ba0 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Mon, 5 Aug 2013 11:58:06 +0530
+Subject: [PATCH 1/9] multi_node_parity_math
+
+1. Have introduced a new API m0_sns_ir_local_xform(). This API uses
+   partially recovered data for recovering lost parity.
+2. UT has been changed appropriately and it works successfully.
+3. Documentation has been changed to incorporate this change.
+---
+ sns/parity_math.c       |  34 ++++----
+ sns/parity_math.h       | 224 ++++++++++++++++++++++++++++--------------------
+ sns/ut/parity_math_ut.c |  25 ++----
+ 3 files changed, 155 insertions(+), 128 deletions(-)
+
+diff --git a/sns/parity_math.c b/sns/parity_math.c
+index 3a3537f..c3e51df 100644
+--- a/sns/parity_math.c
++++ b/sns/parity_math.c
+@@ -122,8 +122,6 @@ static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
+ 
+ static void restored_list_update(struct m0_sns_ir_block *block);
+ 
+-static void transform_recently_restored_blocks(struct m0_sns_ir *ir);
+-
+ static inline bool is_bitmap_empty(const struct m0_bitmap *bitmap);
+ 
+ static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
+@@ -740,6 +738,7 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
+ 	ir->si_parity_recovery_mat = math->pmi_vandmat_parity_slice;
+ 	ir->si_failed_data_nr	   = 0;
+ 	ir->si_alive_nr		   = block_count(ir);
++	ir->si_mode		   = M0_SI_BARE;
+ 
+ 	M0_ALLOC_ARR(ir->si_blocks, ir->si_alive_nr);
+ 	if (ir->si_blocks == NULL)
+@@ -938,14 +937,18 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
+ 	size_t		        b_set_nr;
+ 	struct m0_sns_ir_block *blocks;
+ 	struct m0_sns_ir_block *alive_block;
+-	M0_PRE(ir != NULL && bufvec != NULL && bitmap != NULL);
+ 
++	M0_PRE(ir != NULL && bufvec != NULL && bitmap != NULL);
++	M0_PRE(M0_IN(ir->si_mode, (M0_SI_BARE, M0_SI_XFORM)));
+ 	b_set_nr = m0_bitmap_set_nr(bitmap);
+ 	M0_PRE(b_set_nr > 0);
+-	M0_PRE(ergo(b_set_nr > 1, is_valid_block_idx(ir, failed_index)));
+-	M0_PRE(ergo(b_set_nr > 1, M0_IN(ir->si_blocks[failed_index].sib_status,
+-					(M0_SI_BLOCK_FAILED,
+-					 M0_SI_BLOCK_RESTORED))));
++	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
++		    is_valid_block_idx(ir, failed_index)));
++	M0_PRE(ergo(b_set_nr > 1, ir->si_mode == M0_SI_XFORM));
++
++	M0_PRE(ergo(ir->si_mode == M0_SI_XFORM,
++	       M0_IN(ir->si_blocks[failed_index].sib_status,
++		     (M0_SI_BLOCK_FAILED, M0_SI_BLOCK_RESTORED))));
+ 	if (b_set_nr == 1) {
+ 		for (block_idx = 0; block_idx < bitmap->b_nr; ++block_idx) {
+ 			if (m0_bitmap_get(bitmap, block_idx))
+@@ -953,8 +956,8 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
+ 		}
+ 	}
+ 	blocks = ir->si_blocks;
+-	switch (b_set_nr) {
+-	case 1:
++	switch (ir->si_mode) {
++	case M0_SI_BARE:
+ 		alive_block = &blocks[block_idx];
+ 		alive_block->sib_addr = bufvec;
+ 		for (j = 0; j < block_count(ir); ++j) {
+@@ -965,7 +968,7 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
+ 			}
+ 		}
+ 		break;
+-	default:
++	case M0_SI_XFORM:
+ 		if (!is_usable(ir, (struct m0_bitmap*) bitmap,
+ 			       &blocks[failed_index]))
+ 			break;
+@@ -977,8 +980,6 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
+ 			restored_list_update(&blocks[failed_index]);
+ 		break;
+ 	}
+-	/* Recovery using recently restored data-blocks */
+-	transform_recently_restored_blocks(ir);
+ }
+ 
+ static void incr_recover(struct m0_sns_ir_block *failed_block,
+@@ -1078,7 +1079,7 @@ static void restored_list_update(struct m0_sns_ir_block *block)
+ 	}
+ }
+ 
+-static void transform_recently_restored_blocks(struct m0_sns_ir *ir)
++void m0_sns_ir_local_xform(struct m0_sns_ir *ir)
+ {
+ 	struct m0_sns_ir_block *res_block;
+ 	struct m0_sns_ir_block *par_block;
+@@ -1093,15 +1094,18 @@ static void transform_recently_restored_blocks(struct m0_sns_ir *ir)
+ 	 * of failed parity blocks.
+ 	 */
+ 	for (i = 0; i < block_count(ir); ++i) {
+-		if (ir->si_blocks[i].sib_status == M0_SI_BLOCK_RESTORED)
++		if (is_data(ir, ir->si_blocks[i].sib_idx) &&
++		    ir->si_blocks[i].sib_status != M0_SI_BLOCK_ALIVE)
+ 			for (j = 0; j < block_count(ir); ++j) {
+-				if (ir->si_blocks[j].sib_status ==
++				if (!is_data(ir, ir->si_blocks[j].sib_idx) &&
++				    ir->si_blocks[j].sib_status ==
+ 				    M0_SI_BLOCK_FAILED)
+ 					incr_recover(&par_block[j],
+ 						     &res_block[i],
+ 						     ir);
+ 			}
+ 	}
++	ir->si_mode = M0_SI_XFORM;
+ }
+ 
+ static inline bool is_bitmap_empty(const struct m0_bitmap *bitmap)
+diff --git a/sns/parity_math.h b/sns/parity_math.h
+index 1c6264a..06e3a7a 100644
+--- a/sns/parity_math.h
++++ b/sns/parity_math.h
+@@ -58,6 +58,10 @@ enum m0_sns_ir_block_status {
+ 	M0_SI_BLOCK_RESTORED,
+ };
+ 
++enum m0_sns_ir_mode {
++	M0_SI_BARE,
++	M0_SI_XFORM,
++};
+ /**
+  * Every member of a parity-group is called as a block. During incremental
+  * recovery m0_sns_ir_block holds that information associated with a block
+@@ -128,6 +132,8 @@ struct m0_sns_ir {
+ 	 * math::pmi_vandmat_parity_slice.
+ 	 */
+ 	struct m0_matrix	si_parity_recovery_mat;
++	/* Mode in which incremental recovery is currently operating. */
++	enum m0_sns_ir_mode     si_mode;
+ };
+ 
+ /**
+@@ -237,7 +243,7 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+  *  After encountering a failure, SNS client initializes the incremental
+  *  recovery module by calling m0_sns_ir_init(). Followed by that it reports
+  *  failed blocks with m0_sns_ir_failure_register().
+- *  Once all failed bocks are registered, a call to m0_sns_ir_mat_compute()
++ *  Once all failed blocks are registered, a call to m0_sns_ir_mat_compute()
+  *  is placed. During this initialization the recovery module constructs
+  *  a recovery matrix associated with failed blocks.
+  *
+@@ -246,7 +252,7 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+  *  that a lost block can be represented as a linear combination of alive
+  *  blocks.  It keeps accumulating data from input alive blocks, as SNS client
+  *  passes it.  Various parameters to m0_sns_ir_recover() tell the recovery
+- *  routine how to use the incoming alive block for recovery. We will see how
++ *  routine how to use an incoming alive block for recovery. We will see how
+  *  m0_sns_ir_recover() works using a simple example. Suppose we have four
+  *  blocks in a parity group, b0 to b3, of which two have failed
+  *  (say b0 and b1). Assume that these blocks satisfy following equations:
+@@ -255,9 +261,10 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+  *    b0 = u0.b2 + u1.b3
+  *    b1 = u2.b2 + u3.b3
+  *  @endcode
+- *  Here each u_{i} is a  constant coefficient. When SNS client submits the
+- *  block b2 to m0_sns_ir_recover(), it updates b0 and b1 as below:
+- *
++ *  Note that each u_{i} is a  constant coefficient, which gets computed during
++ *  m0_sns_ir_compute_mat(). When block b2 becomes available to SNS client, it
++ *  submits it using m0_sns_ir_recover(). This routine then updates in-memory
++ *  copies of b0 and b1 as below:
+  *  @code
+  *    b0 = u0.b2
+  *    b1 = u2.b2
+@@ -272,14 +279,7 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+  *  @endcode
+  *
+  *  We call this mode of recovery as incremental recovery, where failed blocks
+- *  get recovered incrementally for each input block. When this algorithm works
+- *  on multiple nodes, it works in two phases. In the first phase each
+- *  node computes incremental contribution towards all lost blocks using blocks
+- *  available on it. After this, nodes share their incrementally recovered
+- *  blocks with spare nodes for various lost blocks. Spare node then adds
+- *  contributions sent by other nodes with its own contribution to restore
+- *  a lost block.
+- *
++ *  get recovered incrementally for each input alive block.
+  *  In all, there are three use-cases as below
+  *	 -# All failed blocks are data blocks.
+  *	 -# All failed blocks are parity blocks.
+@@ -288,42 +288,79 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+  *  It is worth noting that recovery of a lost parity block requires all data
+  *  blocks. Hence in the third case above, we first require to recover all lost
+  *  data blocks and then use recovered data blocks for restoring lost parity
+- *  blocks. In order to achieve this, incremental-recovery module not only
+- *  recovers lost data blocks on their respective spare nodes but also on spare
+- *  nodes for lost parity blocks.
++ *  blocks. SNS client being unaware of dependencies between lost and
++ *  available blocks, submits all available blocks to recovery module. When
++ *  contribution by all available blocks is received at a destination node for
++ *  a lost block, then SNS client marks recovery of that lost block as
++ *  complete.
+  *
+- *  SNS client being unaware of dependencies between lost and available blocks,
+- *  submits all available blocks to recovery module. When contribution by all
+- *  available blocks is received at a spare node for a lost block, then
+- *  SNS client marks recovery of that lost block as complete.
++ *  This algorithm works in three phases. In the first phase each node updates
++ *  in-memory copies for lost-blocks using alive blocks local to the node.
++ *  If the set of lost blocks consists of both data as well as parity blocks,
++ *  then in the second phase, contribution of the partially recovered data
++ *  blocks towards lost parity blocks gets computed. SNS client achieves this
++ *  by calling m0_sns_ir_local_xform().
++ *  At this stage, if we add in-memory copies of a lost block residing over all
++ *  the nodes, then we get a recovered block. In order to achieve this, each
++ *  node sends an in-memory copy of a lost block, to a node at which the spare
++ *  for that block resides. Node at the receiving end then passes incoming
++ *  blocks to m0_sns_ir_recover(). This completes the third phase. Nodes that
++ *  do not have any spare block, do not go through the third phase. Next
++ *  section illustrates entire recovery process using an example.
+  *
+  *  @section incremental_recovery-use-case Use-case
+- *  This section covers in detail how incremental recovery module can be used
+- *  in various scenarios.
+- *  Consider the case of six data blocks and two parity blocks, distributed
+- *  over four nodes. Assume following mapping between nodes and data/parity
+- *  blocks. Ni represents the i^th node, pi represents the i^th parity block
+- *  and di represents the i^th data block. Xi represent the i^th spare node.
++ *  Consider a case of six data blocks, two parity blocks, and two spare
++ *  blocks, distributed over four nodes. Assume following mapping between
++ *  data/parity/spare blocks and nodes. di represents the i^th data block,
++ *  pi represents the i^th parity block, si represents i^th spare block,
++ *  and Ni represents the i^th node.
+  *
+     @verbatim
+-			 ____________________
+-			*		     *
+-			*  d0, p0     --> N0 *
+-			*  d1, p1     --> N1 *
+-			*  d2, d3, d5 --> N2 *
+-			*  d4         --> N3 *
+-			*                 X0 *
+-			*	          X1 *
+-			*____________________*
++			 ________________________
++			*			 *
++			*  d0, p0, s0     --> N0 *
++			*  d1, p1         --> N1 *
++			*  d2, d3, d5     --> N2 *
++			*  d4, s1         --> N3 *
++			*________________________*
+     @endverbatim
+  *
+- * Suppose blocks d2 and p1 are lost. Let us assume that recovery of d2 is
+- * mapped to X0 and that of p1 is mapped to X1. In the first phase each node
+- * incrementally recovers d2 and p1 locally, except the node N3. Since N3 has
+- * only a single block, d4, it communicates it with X0 and X1 without going
+- * through any of the operations that incremental recovery involves.
+- * All other nodes initiate the recovery process using following sequence of
+- * API's:
++ * Assume that blocks d2 and p1 are lost. Let us assume that d2 gets restored
++ * at s0 and that of p1 gets restored at s1. Assume that d2 and p1 obey
++ * following equations:
++ * @code
++ * d2 = (w0.d0 + w5.p0) + (w1.d1) + (w2.d3 + w4.d5)         + (w3.d4)
++ * p1 = (v0.d0)         + (v1.d1) + (v3.d3 + v5.d5 + v2.d2) + (v4.d4)
++ * @endcode
++ * In the equations above, vi and wi are constants, for each i. Note
++ * that we have clubbed those terms which can be evaluated at a same node.
++ * As discussed earlier, recovery of failed blocks is carried out in three
++ * phases. Following table illustrates all three phases in the context of our
++ * example. In the following table, we represent a local copy of a lost block
++ * di, on node Nj as di_Nj.
++ * @verbatim
++	Configuration:
++	 N = 6, K = 2
++	 Lost blocks: d2 and p1
++          _____________________________________________________________________
++         |Phase 1              |Phase 2          |Phase 3                       |
++   ______|_____________________|_________________|______________________________|
++   |  N0 |d2_N0 = w0.d0 + w5.p0|p1_N0 += v2.d2_N0|d2_N0 += d2_N1 + d2_N2 + d2_N3|
++   |     |p1_N0 = v0.d0        |                 |send p1_N0 to N3              |
++   |_____|_____________________|_________________|______________________________|
++   |  N1 |d2_N1 = w1.d1        |p1_N1 += v2.d2_N1|send d2_N1 to N0              |
++   |     |p1_N1 = v1.d1        |                 |send p1_N1 to N3              |
++   |_____|_____________________|_________________|______________________________|
++   |  N2 |d2_N2 = w2.d3 + w4.d5|p1_N2 += v2.d2_N2|send d2_N2 to N0              |
++   |     |p1_N2 = v3.d3 + v5.d5|                 |send p1_N2 to N3              |
++   |_____|_____________________|_________________|_____________________________ |
++   |  N3 |d2_N3 = w3.d4        |p1_N3 += v2.d2_N3|send d2_N3 to N0              |
++   |     |p1_N3 = v4.d4        |                 |p1_N3 += p1_N0 + p1_N1 + p1_N2|
++   |_____|_____________________|_________________|______________________________|
++ * @endverbatim
++ * We will now see how incremental-recovery APIs enable execution of various
++ * phases described above.
++ * Following code will show sequence of APIs that are executed at the node N0.
+  *
+  * @code
+  * struct m0_sns_ir	 ir;
+@@ -335,12 +372,12 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+  *	 goto handle_error;
+  * // Register the failure of block d2 and provide in-memory location for its
+  * // recovery.
+- * ret = m0_sns_ir_failure_register(bufvec_d2, d2, &ir);
++ * ret = m0_sns_ir_failure_register(d2_N0, index_of(d2), &ir);
+  * if (ret != 0)
+  *	goto handle_error;
+  * // Register the failure of block p1 and provide in-memory location for its
+  * // recovery.
+- * ret = m0_sns_ir_failure_register(bufvec_p1, p1, &ir);
++ * ret = m0_sns_ir_failure_register(p1_N0, index_of(p1), &ir);
+  * if (ret != 0)
+  *	goto handle_error;
+  * // Construct recovery matrix for lost blocks.
+@@ -349,69 +386,62 @@ M0_INTERNAL void m0_parity_math_buffer_xor(struct m0_buf *dest,
+  *	goto handle_error;
+  * @endcode
+  *
+- * We will now consider calls at N0, X0, and X1. Generalizing these calls for
+- * other nodes is fairly easy and we will not discuss it here.
+- * Node N0 incrementally recovers d2 using d0 and p0, and sends it to X0 and
+- * X1. Followed by this it incrementally recovers p1 using d0 and p0, and sends
+- * it to X1. With every input block, recovery module expects a bitmap holding
+- * indices of blocks that contributed in the input block. Whenever any data or
+- * parity block is submitted to recovery module, it utilizes it for incremental
+- * recovery of all failed blocks that are registered. When input block is a
+- * linear combination of subset of available blocks then its use is restricted
+- * for only one failed block. In such a case recovery module expects index of
+- * the failed block as an input.
+- *
++ * Once initialization is over, nodes start the compute phases described
++ * earlier. Following code illustrates this for the node N0.
+  * @code
++ * // Phase 1
+  * // Incrementally recovering d2 and p1 using d0.
+- * m0_bitmap_set(bitmap_d0, d0, true);
+- * m0_sns_ir_recover(ir, bufvec_d0, bitmap_d0, do_not_care);
++ * m0_bitmap_set(bitmap, index_of(d0), true);
++ * m0_sns_ir_recover(&ir, d0_N0, bitmap_d0, do_not_care);
+  * // SNS client updates bitmaps associated with accumulator buffers for d2 and
+  * // p1.
+- * m0_bitmap_set(bitmap_d2, d0, true);
+- * m0_bitmap_set(bitmap_p1, d0, true);
++ * m0_bitmap_set(bitmap_d2, index_of(d0), true);
++ * m0_bitmap_set(bitmap_p1, index_of(d0), true);
++ * //Unset a bit from the bitmap that represents d0.
++ * m0_bitmap_set(bitmap, index_of(d0), false);
+  * // Incrementally recovering d2 and p1 using p0.
+- * m0_bitmap_set(bitmap_p0, p0, true);
+- * m0_sns_ir_recover(ir, bufvec_p0, bitmap_p0, do_not_care);
++ * m0_bitmap_set(bitmap, index_of(p0), true);
++ * m0_sns_ir_recover(&ir, p0_N0, bitmap_p0, do_not_care);
+  * // SNS client updates bitmap associated with accumulator buffers for d2 and
+  * // p1.
+- * m0_bitmap_set(bitmap_d2, p0, true);
+- * m0_bitmap_set(bitmap_p1, p0, true);
++ * m0_bitmap_set(bitmap_d2, index_of(p0), true);
++ * m0_bitmap_set(bitmap_p1, index_of(p0), true);
+  * @endcode
+  *
+- * It is worth noting that although recovery of a parity block is not
+- * dependent on other parity block, SNS client submits p0 for recovering
+- * p1. This is because SNS client is unaware of dependencies between available
+- * and failed blocks. Recovery module detects such redundant submissions
+- * internally, and proceeds with no-operation.
+- *
+- * Once local computations are over, N0 sends bufvec_d2 along with bitmap_d2 to
+- * X0 and X1. It then sends bufvec_p1 and bitmap_p1 to X1.
+- *
+- * At node X0, after receiving a pair (bufvec_d2, bitmap_d2)  form N0, a
+- * a call is placed to m0_sns_ir_recover() with following arguments.
+- *
++ * Once SNS client runs out of local blocks at N0, Phase 1 gets over. Second
++ * phase gets executed using m0_sns_ir_local_xform(), as shown below:
+  * @code
+- * m0_sns_ir_recover(ir, bufvec_d2, bitmap_d2, d2);
++ * //Phase 2
++ * m0_sns_ir_local_xform(&ir);
+  * @endcode
+- *
+- * Since bufvec_d2 from N0 is a linear combination of blocks d0 and p0,
+- * recovery module can not use it for recovery of all registered failed blocks.
+- * Hence it expects the index of a failed block for which bufvec_d2 can be
+- * used. X0 maintains its own accumulator buffer for  incrementally recovered
+- * d2. The above call to m0_sns_ir_recover() cumulatively adds copy of
+- * bufvec_d2 received from N0 to X0's accumulator buffer. X0 then updates
+- * bitmap for the same.
+- * At X1, when it receives (bufvec_d2, bitmap_d2) and (bufvec_p1, bitmap_p1)
+- * from N0 it places calls as follows:
++ * Note that whenever a set of failed blocks does not contain both data and
++ * parity blocks, the only operation m0_sns_ir_local_xform() performs is
++ * changing the phase associated with recovery routine from M0_SI_BARE to
++ * M0_SI_XFORM.
++ * In the last phase, a node sends a copy of a lost block to a node where
++ * respective spare unit resides. Receiving node passes incoming blocks to
++ * recovery routine.
+  *
+  * @code
+- * m0_sns_ir_recover(ir, bufvec_d2, bitmap_d2, d2);
+- * m0_sns_ir_recover(ir, bufvec_p1, bitmap_p1, p1);
++ * //Phase 3
++ * send_block_to_spare(p1_N0, N3);
++ *
++ * for (i = 1; i < 4; ++i) {
++ *	m0_sns_ir_recover(&ir, d2_Ni, bitmap_d2_Ni, index_of(d0));
++ * }
+  * @endcode
+- * When contribution from all blocks required for recovery of d2 is received,
+- * m0_sns_ir_recover() internally uses d2 for incrementally recovering p1.
+- * When all spare nodes receive all available blocks, then recovery gets over.
++ *
++ * With every block that SNS client submits to m0_sns_ir_recover(), a bitmap
++ * is submitted. Based upon indices of bits set in the bitmap, recovery module
++ * figures out the members from a parity group that have contributed to the
++ * incoming block. Hence, when a local block d0 gets submitted at node N0, a
++ * bitmap accompanying has only that bit set which represents d0. On the
++ * other hand, during third phase, a bitmap that accompanies d2_Ni has those
++ * bits set which represent blocks local to node Ni.
+  * When recovery gets over, node places a call to m0_sns_ir_fini().
++ * @code
++ * m0_sns_ir_fini(&ir);
++ * @endcode
+  **/
+ 
+ /**
+@@ -467,7 +497,15 @@ M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
+ 				   struct m0_bufvec *bufvec,
+ 				   const struct m0_bitmap *bitmap,
+ 				   uint32_t failed_index);
+-
++/**
++ * When failures include both data and parity blocks, this function uses
++ * local copy of recovered (partially or fully) data-block for recovering
++ * failed parity block. On any node, this function can be triggered only once,
++ * typically when blocks local to a node are exhausted. Subsequent triggers
++ * will result into a no-operaiton.
++ * @param ir holds information relevant for recovery
++ */
++M0_INTERNAL void m0_sns_ir_local_xform(struct m0_sns_ir *ir);
+ M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir);
+ /** @} end group Incremental recovery APIs */
+ 
+diff --git a/sns/ut/parity_math_ut.c b/sns/ut/parity_math_ut.c
+index b2c519f..dbd0d47 100644
+--- a/sns/ut/parity_math_ut.c
++++ b/sns/ut/parity_math_ut.c
+@@ -159,7 +159,7 @@ static void bufvec_initialize(struct m0_bufvec **bvec, uint32_t count,
+ static void bufvec_fill(struct m0_bufvec *x);
+ static void bufvec_fini(struct m0_bufvec *bvec, uint32_t count);
+ static bool bufvec_eq(struct m0_bufvec *bvec1, struct m0_bufvec *bvec2);
+-static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src);
++//static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src);
+ static void buf_initialize(struct m0_buf *buf, uint32_t size, uint32_t len);
+ static void buf_free(struct m0_buf *buf, uint32_t count);
+ 
+@@ -997,8 +997,7 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
+ 		node[0].sin_ir.si_alive_nr;
+ 	for (i = 0; i < node_nr; ++i) {
+ 		ir = node[i].sin_ir;
+-		for (j = 0; j < node[i].sin_alive_nr && node[i].sin_alive_nr >
+-		     1; ++j) {
++		for (j = 0; j < node[i].sin_alive_nr; ++j) {
+ 			m0_bitmap_set(&alive_bitmap, node[i].sin_alive[j],
+ 				      true);
+ 			alive_idx = node[i].sin_alive[j];
+@@ -1021,21 +1020,7 @@ static void sns_ir_nodes_recover(struct sns_ir_node *node, uint32_t node_nr,
+ 			m0_bitmap_set(&alive_bitmap, node[i].sin_alive[j],
+ 				      false);
+ 		}
+-		/* If only single alive block resides on a node it passes
+-		 * through the same to output accumulator buffer. */
+-		if (node[i].sin_alive_nr == 1) {
+-			for (k = 0; k < total_failures; ++k) {
+-				m0_bitmap_set(&node[i].sin_bitmap[k],
+-					      node[i].sin_alive[0], true);
+-				if (node[i].sin_alive[0] < ir.si_data_nr)
+-					bufvec_copy(&node[i].sin_recov_arr[k],
+-						    &x[node[i].sin_alive[0]]);
+-				else
+-					bufvec_copy(&node[i].sin_recov_arr[k],
+-						    &p[node[i].sin_alive[0]-
+-						    ir.si_data_nr]);
+-			}
+-		}
++		m0_sns_ir_local_xform(&node[i].sin_ir);
+ 	}
+ 	m0_bitmap_fini(&alive_bitmap);
+ }
+@@ -1241,7 +1226,7 @@ static bool bufvec_eq(struct m0_bufvec *bvec_1, struct m0_bufvec *bvec_2)
+ 		 !m0_bufvec_cursor_move(&bvec_2_cursor, step));
+ 	return ret == 0;
+ }
+-
++#if 0
+ static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src)
+ {
+ 	struct m0_bufvec_cursor src_cursor;
+@@ -1259,7 +1244,7 @@ static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src)
+ 	} while (!m0_bufvec_cursor_move(&src_cursor, step) &&
+ 		 !m0_bufvec_cursor_move(&des_cursor, step));
+ }
+-
++#endif
+ static inline uint32_t block_nr(const struct m0_sns_ir *ir)
+ {
+ 	return ir->si_data_nr + ir->si_parity_nr;
+-- 
+1.8.3.2
+

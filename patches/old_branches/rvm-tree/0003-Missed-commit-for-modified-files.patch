@@ -1,0 +1,197 @@
+From 9009595ef16df4715d785d25d7771d8d06236393 Mon Sep 17 00:00:00 2001
+From: devvm <devvm@bk-template.xyus.xyratex.com>
+Date: Fri, 7 Dec 2012 12:39:14 -0800
+Subject: [PATCH 03/94] Missed commit for modified files
+
+---
+ Makefile.am    |  8 ++++++--
+ be/be.c        |  2 +-
+ be/be_domain.c |  2 +-
+ configure.ac   | 13 +++++++++++++
+ lib/buf.c      | 13 +++++++++++++
+ lib/buf.h      | 15 +++++++++++++++
+ lib/types.h    | 19 +++++++++++++++++++
+ 7 files changed, 68 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 83d05d2..7ec7a7d 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -131,8 +131,10 @@ include $(top_srcdir)/xcode/ff2c/Makefile.sub
+ 
+ lib_LTLIBRARIES                += mero/libmero.la
+ mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
+-mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
+-                                  @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @CUNIT_LIBS@
++mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ 	\
++                            @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @CUNIT_LIBS@ 	\
++			    @RVM_LIBS@ @RDS_LIBS@ @SEG_LIBS@
++				
+ 
+ # TODO: remove CUnit dependency from libmero, move lib/ut.c to ut/ and
+ # libmero-ut
+@@ -147,6 +149,7 @@ mero_libmero_la_SOURCES  =
+ 
+ include $(top_srcdir)/addb/Makefile.sub
+ include $(top_srcdir)/addb/addbff/Makefile.sub
++include $(top_srcdir)/be/Makefile.sub
+ include $(top_srcdir)/balloc/Makefile.sub
+ include $(top_srcdir)/build_kernel_modules/Makefile.sub
+ include $(top_srcdir)/m0t1fs/Makefile.sub
+@@ -197,6 +200,7 @@ ut_libmero_ut_la_CPPFLAGS = $(AM_CPPFLAGS)
+ ut_libmero_ut_la_SOURCES  =
+ 
+ include $(top_srcdir)/addb/ut/Makefile.sub
++include $(top_srcdir)/be/ut/Makefile.sub
+ include $(top_srcdir)/balloc/ut/Makefile.sub
+ include $(top_srcdir)/capa/ut/Makefile.sub
+ include $(top_srcdir)/cm/ut/Makefile.sub
+diff --git a/be/be.c b/be/be.c
+index 22b9603..f17cf32 100644
+--- a/be/be.c
++++ b/be/be.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/be/be_domain.c b/be/be_domain.c
+index 3259114..e0576dc 100644
+--- a/be/be_domain.c
++++ b/be/be_domain.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+diff --git a/configure.ac b/configure.ac
+index c264813..ac53f1b 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -386,6 +386,11 @@ AC_CHECK_HEADERS([db.h], [],
+ 
+ else # non-rpm setup
+ 
++#check for rvm libs
++RVM_LIBS=$ABS_SRCDIR/../rvm/rvm/librvm.la
++RDS_LIBS=$ABS_SRCDIR/../rvm/rds/librds.la
++SEG_LIBS=$ABS_SRCDIR/../rvm/seg/libseg.la
++
+ # Check for galois
+ 
+ GALOIS_SRC=$ABS_SRCDIR/../galois
+@@ -440,6 +445,10 @@ AC_SUBST([DB_SRC])
+ AC_SUBST([DB_INCLUDES])
+ AC_SUBST([DB_LIBS])
+ 
++AC_SUBST([RVM_LIBS])
++AC_SUBST([RDS_LIBS])
++AC_SUBST([SEG_LIBS])
++
+ #
+ # Handle configuration options
+ #
+@@ -571,5 +580,9 @@ echo ""
+ echo "Linux Obj    :  \"$LINUX_OBJ\""
+ echo "Lustre       :  \"$LUSTRE\""
+ echo ""
++echo "RVM_LIBS     :  \"$RVM_LIBS\""
++echo "RDS_LIBS     :  \"$RDS_LIBS\""
++echo "SEG_LIBS     :  \"$SEG_LIBS\""
++echo ""
+ 
+ echo 'Run `make` to build Mero or `make help` for other options'
+diff --git a/lib/buf.c b/lib/buf.c
+index 85dc4b6..8b56035 100644
+--- a/lib/buf.c
++++ b/lib/buf.c
+@@ -35,6 +35,19 @@ M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob)
+ 	buf->b_nob  = nob;
+ }
+ 
++/* Initialize Backend Domain buffer */
++M0_INTERNAL void m0_be_buf_init(struct m0_be_buf *buf, void *data, uint32_t nob,
++                    uint64_t segment_id, uint64_t segment_offset,
++                    void *virtual_addr)
++{
++        buf->b_addr = data;
++        buf->b_nob  = nob;
++
++        buf->logical_address.segid_offset.u_hi = segment_id;
++        buf->logical_address.segid_offset.u_lo = segment_offset;
++        buf->logical_address.virtual_address   = virtual_addr;
++}
++
+ M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
+ {
+ 	m0_free(buf->b_addr);
+diff --git a/lib/buf.h b/lib/buf.h
+index 6162343..201fae1 100644
+--- a/lib/buf.h
++++ b/lib/buf.h
+@@ -37,6 +37,16 @@ struct m0_buf {
+ 	void       *b_addr;
+ } M0_XCA_SEQUENCE;
+ 
++/* Backend domain type buffer */
++struct m0_be_buf {
++        m0_bcount_t b_nob;
++        union {
++                void       *b_addr;
++                /* holds the m0_reference for the object */
++                struct m0_reference logical_address;
++        };
++};
++
+ /**
+  * Initialisers for struct m0_buf.
+  *
+@@ -73,6 +83,11 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
+ /** Initialises struct m0_buf */
+ M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
+ 
++/** Backend domain type buffer initialization */
++M0_INTERNAL void m0_be_buf_init(struct m0_be_buf *buf, void *data, uint32_t nob,
++                    uint64_t segment_id, uint64_t segment_offset,
++                    void *virtual_addr);
++
+ /**
+  * Frees the contents of the buffer and zeroes its fields.
+  */
+diff --git a/lib/types.h b/lib/types.h
+index 50f3852..8c8497b 100644
+--- a/lib/types.h
++++ b/lib/types.h
+@@ -61,6 +61,25 @@ enum {
+ 	M0_BSIGNED_MAX = 0x7fffffffffffffff
+ };
+ 
++/**
++ *      Structure added to support back-end domain wide reference pointer
++ */
++struct m0_reference {
++        /*
++         * Should always be the first field of this structure, stores the 
++         * virtual address of the object.
++         */
++        void *virtual_address;
++        /* Higher 64 bit segment id & lower 64 bit offset within the segment */
++        struct m0_uint128 segid_offset;
++
++        /* usage : TBD */
++        uint64_t magic;
++
++        /* usage : TBD */
++        uint64_t magic_offset;
++};
++
+ 
+ /* __MERO_LIB_TYPES_H__ */
+ #endif
+-- 
+1.8.3.2
+

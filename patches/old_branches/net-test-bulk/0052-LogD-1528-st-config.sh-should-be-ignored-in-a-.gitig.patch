@@ -1,0 +1,21 @@
+From 48123c09d1bc78dda9bb6ac46f6e9a391dedb54d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 30 Nov 2012 06:27:01 +0200
+Subject: [PATCH 52/58] LogD 1528: st-config.sh should be ignored in a
+ .gitignore
+
+---
+ net/test/st/.gitignore | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 net/test/st/.gitignore
+
+diff --git a/net/test/st/.gitignore b/net/test/st/.gitignore
+new file mode 100644
+index 0000000..97aabaf
+--- /dev/null
++++ b/net/test/st/.gitignore
+@@ -0,0 +1 @@
++st-config.sh
+-- 
+1.8.3.2
+

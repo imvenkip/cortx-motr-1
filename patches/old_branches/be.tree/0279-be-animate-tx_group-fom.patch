@@ -1,0 +1,343 @@
+From f45d418124574ae8e4c1b47327bacb3bbb903870 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 4 Jul 2013 19:56:37 +0300
+Subject: [PATCH 279/290] be: animate tx_group fom
+
+---
+ be/tx.c       | 20 ++++++++++++++------
+ be/tx.h       |  4 ++--
+ be/tx_fom.c   | 54 ++++++++++++++++++++++++++++++------------------------
+ be/tx_group.c | 20 +++++++++++++++-----
+ be/tx_group.h |  7 ++++++-
+ 5 files changed, 67 insertions(+), 38 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 13bf7c0..66dc84e 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -65,7 +65,8 @@ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
+ 	}
+ 
+ 	_S(M0_BTS_FAILED,  M0_SDF_FAILURE, 0),
+-	_S(M0_BTS_PREPARE, M0_SDF_INITIAL, M0_BITS(M0_BTS_OPENING,
++	_S(M0_BTS_PREPARE, M0_SDF_INITIAL, M0_BITS(M0_BTS_ACTIVE,
++						   M0_BTS_OPENING,
+ 						   M0_BTS_FAILED)),
+ 	_S(M0_BTS_OPENING, 0, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)),
+ 	_S(M0_BTS_ACTIVE,  0, M0_BITS(M0_BTS_CLOSED)),
+@@ -137,6 +138,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
+ 			       void               *datum)
+ {
+ 	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_PREPARE, sm_group);
++	M0_SET0(&tx->t_ast); /* XXX Is this really needed? */
+ 	tx->t_id = tid;
+ 	tx->t_be = be;
+ 
+@@ -495,7 +497,7 @@ static void tx_open_tail(struct m0_be_tx *tx)
+ {
+ 	m0_bcount_t log_size = tx_prepared_log_size(tx);
+ 
+-	M0_PRE(m0_be__tx_state(tx) == M0_BTS_OPENING);
++	M0_PRE(M0_IN(m0_be__tx_state(tx), (M0_BTS_PREPARE, M0_BTS_OPENING)));
+ 	M0_PRE(tx_engine_free_space(tx_engine(tx)) >= log_size);
+ 
+ 	tx_engine(tx)->te_reserved += log_size;
+@@ -542,6 +544,8 @@ static void _txs_set_ready(struct m0_be_tx *tx)
+ 
+ 	M0_PRE(!gr->tg_opened);
+ 
++	/* XXX TODO: Replace with m0_ref_put(). See also documentation of
++	 * m0_be_tx_group::tg_pending_count. */
+ 	M0_CNT_DEC(gr->tg_pending_count);
+ 	if (gr->tg_pending_count == 0)
+ 		m0_fom_wakeup(gr->tg_fom);
+@@ -563,7 +567,7 @@ _tx_state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
+ }
+ 
+ M0_INTERNAL void
+-m0_be__tx_state_post(struct m0_be_tx *tx, enum m0_be_tx_state state)
++m0_be__tx_state_post(struct m0_be_tx *tx, enum m0_be_tx_state next_state)
+ {
+ 	/*
+ 	 * tx_group's fom and tx's sm may belong different sm_groups (e.g.,
+@@ -585,12 +589,16 @@ m0_be__tx_state_post(struct m0_be_tx *tx, enum m0_be_tx_state state)
+ 	 * tx's sm is locked. In order to advance tx's sm, ->fo_tick()
+ 	 * implementation should post an AST to tx's sm_group.
+ 	 */
+-	M0_ENTRY("state=%u", state);
+-	M0_PRE(M0_IN(state, (M0_BTS_CLOSED, M0_BTS_PLACED, M0_BTS_DONE)));
++	M0_ENTRY("next_state=%u", next_state);
++#if 0 /*XXX*/
++	M0_PRE(M0_IN(next_state, (M0_BTS_CLOSED, M0_BTS_PLACED, M0_BTS_DONE)));
++#else
++	M0_PRE(next_state == M0_BTS_GROUPED);
++#endif
+ 
+ 	tx->t_ast.sa_cb    = _tx_state_set;
+ 	tx->t_ast.sa_datum = &tx->t_ast_datum;
+-	tx->t_ast_datum    = state;
++	tx->t_ast_datum    = next_state;
+ 	m0_sm_ast_post(tx->t_sm.sm_grp, &tx->t_ast);
+ 	M0_LEAVE();
+ }
+diff --git a/be/tx.h b/be/tx.h
+index ddfb46e..963e85c 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -326,6 +326,7 @@ struct m0_be_tx {
+ 	uint64_t               t_magic;
+ 	struct m0_sm           t_sm;
+ 	struct m0_sm_ast       t_ast;
++	int                    t_ast_datum; /* XXX DELETEME */
+ 
+ 	/** Transaction identifier, assigned by the user. */
+ 	uint64_t               t_id;
+@@ -409,7 +410,6 @@ struct m0_be_tx {
+ 	 * additional information to the call-backs.
+ 	 */
+ 	void                  *t_datum;
+-	int                    t_ast_datum;
+ };
+ 
+ M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx);
+@@ -459,7 +459,7 @@ M0_INTERNAL enum m0_be_tx_state m0_be__tx_state(const struct m0_be_tx *tx);
+  * Posts an AST that will advance transaction's state machine to given state.
+  */
+ M0_INTERNAL void m0_be__tx_state_post(struct m0_be_tx *tx,
+-				      enum m0_be_tx_state state);
++				      enum m0_be_tx_state next_state);
+ 
+ M0_TL_DESCR_DECLARE(tx, M0_EXTERN);
+ M0_TL_DECLARE(tx, M0_INTERNAL, struct m0_be_tx);
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 2405b99..34715ff 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -44,17 +44,20 @@
+ #  include <unistd.h>
+ 
+ static struct m0_thread g_thread;
+-static void g_handler(struct m0_be_op *op)
++static void mock_io(struct m0_be_op *op)
+ {
+-        M0_LOG(M0_DEBUG, "io emulation started");
++        M0_LOG(M0_DEBUG, "mock IO started");
+         sleep(3);
++        M0_LOG(M0_DEBUG, "mock IO ended");
++
++	M0_SET0(&g_thread); /* XXX Leak yourself! */
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+-        M0_LOG(M0_DEBUG, "io emulation ended");
+ }
+ 
+ M0_UNUSED static void _arm_io(struct m0_be_op *op)
+ {
+-	M0_THREAD_INIT(&g_thread, struct m0_be_op *, NULL, &g_handler, op, "X");
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
++	M0_THREAD_INIT(&g_thread, struct m0_be_op *, NULL, &mock_io, op, "X");
+ }
+ #endif /* XXX >>>>>>> */
+ 
+@@ -183,6 +186,7 @@ struct tx_group_fom {
+ 	struct m0_fom_timeout   tgf_timeout;
+ 	bool                    tgf_timed_out;
+ 	struct m0_be_op         tgf_op;
++	struct m0_be_tx        *tgf_tx_to_place;
+ 	struct m0_semaphore     tgf_started;
+ };
+ 
+@@ -203,10 +207,12 @@ static int tx_group_tick(struct m0_fom *fom)
+ 	case TGS_PLACING:
+ 		return placing_tick(fom);
+ 	case TGS_PLACED:
++		M0_ASSERT(tx_group_fom(fom)->tgf_tx_to_place == NULL);
++		/* fall through */
+ 	case TGS_STABLE:
+ 	case TGS_FINISH:
+ 	default:
+-		M0_IMPOSSIBLE("");
++		M0_IMPOSSIBLE("XXX");
+ 	}
+ 
+ 	M0_LEAVE();
+@@ -323,8 +329,8 @@ static bool add_if_grp_has_space(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+ 	 * Dummy impl. Just add one tx and that's it.
+ 	 */
+ 	M0_PRE(m0_be__tx_state(tx) == M0_BTS_CLOSED);
+-	gr_tlist_add(&gr->tg_txs, tx);
+-	return true;
++	tx_group_add(NULL, gr, tx);
++	return true; /*XXX*/
+ }
+ 
+ static enum m0_fom_phase_outcome open_tick(struct m0_fom *f)
+@@ -340,9 +346,8 @@ static enum m0_fom_phase_outcome open_tick(struct m0_fom *f)
+ 	M0_ENTRY("gr->tg_opened: %d", !!gr->tg_opened);
+ 	m0_semaphore_up(&fom->tgf_started);
+ 
+-	if (!gr->tg_opened)
+-		if (gr_tlist_is_empty(&gr->tg_txs))
+-			tx_group_open(eng, gr);
++	if (!gr->tg_opened && gr_tlist_is_empty(&gr->tg_txs))
++		tx_group_open(eng, gr);
+ 
+ 	ready_to_close = !tx_tlist_is_empty(&eng->te_txs[M0_BTS_CLOSED]) &&
+ 		m0_tl_forall(tx, tx, &eng->te_txs[M0_BTS_CLOSED],
+@@ -408,10 +413,8 @@ static enum m0_fom_phase_outcome logging_tick(struct m0_fom *m)
+ static enum m0_fom_phase_outcome committing_tick(struct m0_fom *m)
+ {
+ 	struct tx_group_fom    *fom = tx_group_fom(m);
+-#if !XXX_MOCK_IO
+ 	struct m0_be_tx_engine *eng = fom->tgf_engine;
+ 	struct m0_be_tx_group  *gr  = &eng->te_group;
+-#endif
+ 	struct m0_be_op        *op  = &fom->tgf_op;
+ 
+ 	/* XXX: on error transit to failure state, and finish system */
+@@ -432,8 +435,12 @@ static enum m0_fom_phase_outcome committing_tick(struct m0_fom *m)
+ 	m0_be_log_submit(&eng->te_log, op, gr);
+ #endif
+ 
++	/* Next state (TGS_PLACING) uses this pointer. */
++	fom->tgf_tx_to_place = gr_tlist_head(&gr->tg_txs);
++
++	M0_POST(fom->tgf_tx_to_place != NULL);
+ 	M0_LEAVE();
+-	return m0_be_op_tick_ret(op, &fom->tgf_gen, TGS_PLACED);
++	return m0_be_op_tick_ret(op, &fom->tgf_gen, TGS_PLACING);
+ }
+ 
+ #if 0 /* XXX */
+@@ -464,21 +471,19 @@ static enum m0_fom_phase_outcome placing_tick(struct m0_fom *m)
+ 	struct m0_be_tx        *tx;
+ 	struct m0_be_seg       *seg;
+ 	struct m0_be_reg_area  *area;
+-	int rc;
+ 
+ 	M0_ENTRY();
+-
+ 	/* XXX: PRE() check that tx is working with the same segment */
+ 	M0_PRE(!gr_tlist_is_empty(&gr->tg_txs));
+-	M0_PRE(gr->tg_pending_count > 0);
+ 
++	tx = fom->tgf_tx_to_place;
+ 
+-	M0_CNT_DEC(gr->tg_pending_count);
++	if (tx == NULL) {
++		m0_fom_phase_set(m, TGS_PLACED);
+ 
+-	tx = gr_tlist_head(&gr->tg_txs);
+-	gr_tlist_del(tx);
+-	if (gr_tlist_is_empty(&gr->tg_txs))
+-		m0_fom_phase_set(&fom->tgf_gen, TGS_PLACED);
++		M0_LEAVE();
++		return M0_FSO_AGAIN;
++	}
+ 
+ 	/* perform IO */
+ 	area = &tx->t_reg_area;
+@@ -486,11 +491,12 @@ static enum m0_fom_phase_outcome placing_tick(struct m0_fom *m)
+ 	m0_be_op_init(op);
+ 	m0_be_seg_write_simple(seg, op, area);
+ 
+-	rc = m0_be_op_tick_ret(op, &fom->tgf_gen, TGS_PLACING);
+-	M0_ASSERT(rc == M0_FSO_WAIT);
++	tx->t_persistent(tx);
++
++	fom->tgf_tx_to_place = gr_tlist_next(&gr->tg_txs, tx);
+ 
+ 	M0_LEAVE();
+-	return M0_FSO_WAIT;
++	return m0_be_op_tick_ret(op, &fom->tgf_gen, TGS_PLACING);
+ }
+ 
+ /** @} end of be group */
+diff --git a/be/tx_group.c b/be/tx_group.c
+index 97f266c..3a357c3 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -18,6 +18,9 @@
+  * Original creation date: 17-Jun-2013
+  */
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++
+ #include "be/tx_group.h"
+ #include "be/tx.h"
+ #include "fop/fom.h"  /* m0_fom_wakeup */
+@@ -43,7 +46,7 @@ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr)
+ 	gr->tg_lsn = 0ULL;
+ 	m0_be_tx_credit_init(&gr->tg_used);
+ 	gr_tlist_init(&gr->tg_txs);
+-	gr->tg_opened = true;
++	gr->tg_opened = false; /* XXX because tx_fom.c:open_tick() */
+ #endif
+ }
+ 
+@@ -57,7 +60,7 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
+ {
+ 	tx->t_group  = gr;
+ 	tx->t_leader = gr_tlist_is_empty(&gr->tg_txs);
+-	m0_be__tx_state_set(tx, M0_BTS_GROUPED);
++	/* tx will be moved to M0_BTS_GROUPED state by an AST. */
+ 	gr_tlist_add(&gr->tg_txs, tx);
+ 	/* gr->tg_used.     XXX: what's here? */
+ }
+@@ -70,6 +73,7 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
+ M0_INTERNAL void
+ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
+ {
++	M0_ENTRY();
+ 	/*
+ 	 * A group is stored as a contiguous extent of the logical log with the
+ 	 * following structure:
+@@ -126,18 +130,24 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
+ 
+ 	gr->tg_opened = false;
+ 	/* m0_fom_wakeup(eng->te_fom); */
++
++	M0_LEAVE();
+ }
+ 
+-M0_INTERNAL void tx_group_open(struct m0_be_tx_engine *eng,
+-			       struct m0_be_tx_group *gr)
++M0_INTERNAL void
++tx_group_open(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
+ {
++	M0_ENTRY();
+ 	M0_PRE(gr_tlist_is_empty(&gr->tg_txs));
+-	gr->tg_opened = true;
+ 
++	gr->tg_opened = true;
+ 	gr->tg_fom = eng->te_fom;
++
++	M0_LEAVE();
+ }
+ 
+ /** @} end of be group */
++#undef M0_TRACE_SUBSYSTEM
+ 
+ /*
+  *  Local variables:
+diff --git a/be/tx_group.h b/be/tx_group.h
+index e9fd21e..abc6c36 100644
+--- a/be/tx_group.h
++++ b/be/tx_group.h
+@@ -67,7 +67,12 @@ struct m0_be_tx_group {
+ 	/** List of transactions in the group. */
+ 	struct m0_tl            tg_txs;
+ 
+-	/** counter which counts pending transactions in the group */
++	/**
++	 * Counter which counts pending transactions in the group.
++	 *
++	 * XXX TODO: Use atomic m0_ref. ->tg_pending_count is decremented by
++	 * tx's AST callback, which may belong different m0_sm_group.
++	 */
+ 	uint32_t                tg_pending_count;
+ 
+ 	/** fom which processes current group */
+-- 
+1.8.3.2
+

@@ -1,0 +1,157 @@
+From 7202ed294bac7d18b1a88474e18f8f4905ff546a Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 17 Oct 2013 12:42:27 +0800
+Subject: [PATCH 7/8] fixes from insp:     - typo.     - renamed
+ m0_cm_sw_store_finish() to m0_cm_sw_store_complete() to avoid confusion;    
+ - added comments about testing.     - check return value
+
+---
+ cm/cm.c    | 22 +++++++++++-----------
+ cm/sw.c    |  2 +-
+ cm/sw.h    |  6 +++---
+ cm/ut/cm.c | 14 ++++++++++++--
+ 4 files changed, 27 insertions(+), 17 deletions(-)
+
+diff --git a/cm/cm.c b/cm/cm.c
+index e5488b0..d112183 100644
+--- a/cm/cm.c
++++ b/cm/cm.c
+@@ -265,13 +265,13 @@
+    - m0_cm_sw_store_init()            Init data on persistent storage.
+    - m0_cm_sw_store_load()            Load data from persistent storage.
+    - m0_cm_sw_store_update()          Update data to the last completed AG.
+-   - m0_cm_sw_store_finish()          Mark the cm operation as done.
++   - m0_cm_sw_store_complete()        Mark the cm operation as done.
+ 
+    These interfaces will be used in various copy machine operations to manage
+    the persistent information. For example, m0_cm_sw_store_load() will be used
+    in copy machine start routine to check if a previous unfinished operation
+    is in-progress. m0_cm_sw_store_update() will be called when sliding window
+-   advances. m0_cm_sw_store_finish() is called when a copy machine operation
++   advances. m0_cm_sw_store_complete() is called when a copy machine operation
+    completes. In this case, the stored AG id will be deleted from storage,
+    to indicate that the operation has already completed successfully. When
+    node failure happens at this time, and then restarts again, it loads from
+@@ -297,7 +297,7 @@
+          | setup sliding window with |     | m0_cm_sw_store_init():   |
+          | the returned sw.          |     | Allocate a persistent sw |
+          | CM operation will start   |     | and init it to zero. CM  |
+-         | from this sw.             |     | starts from scrach       |
++         | from this sw.             |     | starts from scratch      |
+          -----------------------------     ----------------------------
+                             \                        /
+                              \                      /
+@@ -314,14 +314,14 @@
+                    <--------------------V                                     |
+                      operation continue                                       |
+                                                                               V
+-                                                     --------------------------
+-                                                     |m0_cm_sw_store_finish():|
+-                                                     |delete sw info from     |
+-                                                     |persistent storage.     |
+-                                                     |m0_cm_sw_store_load()   |
+-                                                     |returns -ENOENT after   |
+-                                                     |this.                   |
+-                                                     --------------------------
++                                                   ----------------------------
++                                                   |m0_cm_sw_store_complete():|
++                                                   |delete sw info from       |
++                                                   |persistent storage.       |
++                                                   |m0_cm_sw_store_load()     |
++                                                   |returns -ENOENT after this|
++                                                   |call.                     |
++                                                   ----------------------------
+    @endcode
+ 
+    @subsection CMDLD-lspec-cm-stop Copy machine stop
+diff --git a/cm/sw.c b/cm/sw.c
+index fad70fe..78e23db 100644
+--- a/cm/sw.c
++++ b/cm/sw.c
+@@ -230,7 +230,7 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
+ 	return rc;
+ }
+ 
+-M0_INTERNAL int m0_cm_sw_store_finish(struct m0_cm *cm)
++M0_INTERNAL int m0_cm_sw_store_complete(struct m0_cm *cm)
+ {
+ 	struct m0_be_seg      *seg    = cm->cm_service.rs_reqh->rh_beseg;
+ 	struct m0_sm_group    *grp    = m0_locality0_get()->lo_grp;
+diff --git a/cm/sw.h b/cm/sw.h
+index d6b8861..aa1dcb9 100644
+--- a/cm/sw.h
++++ b/cm/sw.h
+@@ -77,7 +77,7 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
+ 
+ 
+ /**
+- * Init sliding window data for this copy machine.
++ * Initializes sliding window persistent store for this copy machine.
+  */
+ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm);
+ 
+@@ -90,7 +90,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm);
+ M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out);
+ 
+ /**
+- * Update sliding window data to the last completed AG.
++ * Update sliding window data to the last completed aggregation group.
+  */
+ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
+ 				      const struct m0_cm_sw *last);
+@@ -98,7 +98,7 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
+ /**
+  * Mark the cm operation as done by deleting sliding window data from storage.
+  */
+-M0_INTERNAL int m0_cm_sw_store_finish(struct m0_cm *cm);
++M0_INTERNAL int m0_cm_sw_store_complete(struct m0_cm *cm);
+ 
+ 
+ /** @} CMSW */
+diff --git a/cm/ut/cm.c b/cm/ut/cm.c
+index 44fe896..4729bba 100644
+--- a/cm/ut/cm.c
++++ b/cm/ut/cm.c
+@@ -246,6 +246,11 @@ static void cm_sw_persistence_ut(void)
+ 	m0_cm_state_set(cm, M0_CMS_READY);
+ 	m0_cm_unlock(cm);
+ 
++	/* Check if we have pending operation from last run */
++	rc = m0_cm_sw_store_load(cm, &out);
++	M0_UT_ASSERT(rc != 0);
++	M0_UT_ASSERT(rc == -ENOENT);
++	/* Init the sw persistent storage */
+ 	rc = m0_cm_sw_store_init(cm);
+ 	M0_UT_ASSERT(rc == 0);
+ 	for(i = 0; i < 10; i++) {
+@@ -264,12 +269,17 @@ static void cm_sw_persistence_ut(void)
+ 		rc = m0_cm_ag_id_cmp(&sw.sw_hi, &out.sw_hi);
+ 		M0_UT_ASSERT(rc == 0);
+ 	}
+-	rc = m0_cm_sw_store_finish(cm);
++	rc = m0_cm_sw_store_complete(cm);
+ 	M0_UT_ASSERT(rc == 0);
++	/* successfully completed an operation.*/
++
++	/* start another one */
+ 	rc = m0_cm_sw_store_load(cm, &out);
+ 	M0_UT_ASSERT(rc != 0);
++	M0_UT_ASSERT(rc == -ENOENT);
+ 	rc = m0_cm_sw_store_update(cm, &sw);
+ 	M0_UT_ASSERT(rc != 0);
++	M0_UT_ASSERT(rc == -ENOENT);
+ 	rc = m0_cm_sw_store_init(cm);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_cm_sw_store_update(cm, &sw);
+@@ -280,7 +290,7 @@ static void cm_sw_persistence_ut(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_cm_ag_id_cmp(&sw.sw_hi, &out.sw_hi);
+ 	M0_UT_ASSERT(rc == 0);
+-	rc = m0_cm_sw_store_finish(cm);
++	rc = m0_cm_sw_store_complete(cm);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	m0_ios_poolmach_fini(cm_ut_service);
+-- 
+1.8.3.2
+

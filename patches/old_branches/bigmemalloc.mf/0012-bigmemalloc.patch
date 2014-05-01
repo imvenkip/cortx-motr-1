@@ -1,0 +1,54 @@
+From 7b9a06a0b54bd6633ac076b4a4a68ee0c35a8b0b Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Wed, 14 Aug 2013 05:36:06 -0700
+Subject: [PATCH 12/50] bigmemalloc: - Introduced an iteration macro which will
+ help iterate over all objects   in virtual array.
+
+---
+ lib/varr.h | 23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/lib/varr.h b/lib/varr.h
+index 14ff882..455665e 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -200,7 +200,7 @@ M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+ 
+ #define varr_ele_get(arr, type, index)				\
+ ({								\
+-	type          *__ptr;					\
++	type *__ptr;						\
+ 								\
+ 	__ptr  = (type *)varr_buffer(arr, index);		\
+ 	__ptr += index % varr_obj_nr_in_buff(arr);		\
+@@ -214,6 +214,27 @@ M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+  */
+ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
+ 
++/** Iterates over whole virtual array. */
++#define m0_varr_for(arr, type, obj)				\
++({								\
++	uint64_t       buff_nr;					\
++	uint64_t       cnt;					\
++	uint64_t       oi;					\
++	uint64_t       done = 0;				\
++	type          *ptr;					\
++	unsigned long *buffer;					\
++								\
++	buff_nr = cont_nr_for_objs(arr->va_nr,			\
++				   varr_obj_nr_in_buff(arr));	\
++	for (cnt = 0; cnt < buff_nr; ++cnt) {			\
++		buffer = varr_buffer(arr, cnt);			\
++		for (oi = 0; oi < min64u(varr_obj_nr_in_buff(arr),\
++		     arr->va_nr - done); ++oi, ++done) {	\
++			ptr = (type *)buffer;			\
++			ptr += oi;				\
++
++#define m0_varr_endfor } } })
++
+ #endif /* __MERO_LIB_LINUX_KERNEL_GEN_ARRAY_H__ */
+ 
+ /*
+-- 
+1.8.3.2
+

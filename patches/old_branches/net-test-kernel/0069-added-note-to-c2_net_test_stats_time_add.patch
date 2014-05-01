@@ -1,0 +1,36 @@
+From 954fcbe570cff4c97e5b65a3acc10973d4c3e4e1 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 24 Jan 2013 12:17:55 +0200
+Subject: [PATCH 69/71] added note to c2_net_test_stats_time_add()
+
+---
+ net/test/stats.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/net/test/stats.h b/net/test/stats.h
+index cca4cf0..3a51e4d 100644
+--- a/net/test/stats.h
++++ b/net/test/stats.h
+@@ -110,6 +110,7 @@ struct c2_net_test_stats {
+ 
+ /**
+    Reset c2_net_test_stats structure.
++   Set sample size and min/max/sum/sum_sqr to 0.
+    @post c2_net_test_stats_invariant(stats)
+  */
+ void c2_net_test_stats_reset(struct c2_net_test_stats *stats);
+@@ -168,8 +169,10 @@ c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
+    - c2_net_test_stats_time_sum()
+    - c2_net_test_stats_time_avg()
+    - c2_net_test_stats_time_stddev()
+-   Mixing c2_net_test_stats_add() and c2_net_test_stats_time_add()
++   @note Mixing c2_net_test_stats_add() and c2_net_test_stats_time_add()
+    will lead to undefined behavior.
++   @note c2_net_test_stats_time_sum(), c2_net_test_stats_time_avg(),
++   c2_net_test_stats_time_stddev() are available from user space only.
+  */
+ void c2_net_test_stats_time_add(struct c2_net_test_stats *stats,
+ 				c2_time_t time);
+-- 
+1.8.3.2
+

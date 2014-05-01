@@ -1,0 +1,249 @@
+From 7745d551b98545debc633a27af2531c906f87962 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 15 Nov 2013 00:07:07 +0530
+Subject: [PATCH 136/159]  - Added local end point argument for m0stats  -
+ Fixed m0__addb_post() issue.  - Fixed m0stats issue.
+
+---
+ fop/fom.c               |  5 +--
+ scripts/m0mount.sh      |  3 +-
+ stats/util/stats_util.c | 81 +++++++++++++++++++++----------------------------
+ 3 files changed, 39 insertions(+), 50 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index cd27e2c..88b009f 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -219,7 +219,7 @@ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+ 
+ 		m0_mutex_lock(&sum_rec->asr_mutex);
+ 		M0_ASSERT(sum_rec->asr_rec.ss_id ==
+-			  M0_ADDB_RECID_FOP_RATE_CNTR);
++			  M0_ADDB_RECID_FOP_RATE);
+ 		f_rate = FOP_RATE(sum_rec);
+ 		/*
+ 		 * fop_rate is ADDB counter.
+@@ -228,6 +228,7 @@ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+  		 */
+ 		f_rate->frssr_fop_rate =
+ 		rec->ar_data.au64s_data[2]/rec->ar_data.au64s_data[1];;
++		sum_rec->asr_dirty = true;
+ 		m0_mutex_unlock(&sum_rec->asr_mutex);
+ 	}
+ #undef FOP_RATE
+@@ -254,7 +255,7 @@ static int fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 		return -ENOMEM;
+ 
+ 	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
+-	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate_cntr,
++	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,
+ 				     (uint64_t *)&fop_rate_stats_sum,
+ 				     FOP_RATE_STATS_NR);
+ 
+diff --git a/scripts/m0mount.sh b/scripts/m0mount.sh
+index 918fc0a..9f4203d 100755
+--- a/scripts/m0mount.sh
++++ b/scripts/m0mount.sh
+@@ -439,7 +439,7 @@ M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
+ M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+ $BROOT/mero/m0d -r -p \
+ $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
+--w $POOL_WIDTH -G $XPT:$MDS_EP
++-w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
+ -e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log &
+ 	if [ $? -ne 0 ]; then
+ 		echo ERROR: Failed to start remote server on $H
+@@ -461,6 +461,7 @@ function start_servers () {
+ 	fi
+ 
+ 	MDS_EP=${SERVICES[1]}
++	STATS_EP=${SERVICES[1]}
+ 	IOS_EPs=" -i $XPT:$MDS_EP"
+ 	for i in `seq 3 2 ${#SERVICES[*]}`; do
+ 		IOS_EPs="$IOS_EPs -i $XPT:${SERVICES[$i]}"
+diff --git a/stats/util/stats_util.c b/stats/util/stats_util.c
+index 6b709a3..0663cb7 100644
+--- a/stats/util/stats_util.c
++++ b/stats/util/stats_util.c
+@@ -47,14 +47,12 @@ enum {
+ 	STATS_MAX_NAME_SIZE = 32,
+ 	STATS_DEFAULT_COUNT = 1,
+ 	STATS_DEFAULT_DELAY = 5,
+-	STATS_EP_PID	    = 12345,
+-	STATS_EP_PORTAL     = 41,
+-        STATS_EP_TM         = 1,
+-	STATS_VALUE_WIDTH  = 16,
++	STATS_VALUE_WIDTH   = 16,
+ };
+ 
+ static struct m0_net_xprt        *xprt           = &m0_net_lnet_xprt;
+ static struct m0_net_domain       client_net_dom = { };
++static bool signaled = false;
+ 
+ static struct m0_rpc_client_ctx cctx = {
+ 	.rcx_net_dom               = &client_net_dom,
+@@ -69,7 +67,8 @@ static void m0stats_help()
+ 	fprintf(stderr,
+ "Usage: m0stats \n"
+ "\n"
+-"-e EndPoint    Specify the raw transport end point address.\n"
++"-e EndPoint    Specify the raw transport local end point address.\n"
++"-R EndPoint    Specify the raw transport stats service end point address.\n"
+ "-s StatsNames  Specify one or more comma separated stats names.\n"
+ "-o FileName    Specify output file name.\n"
+ "-l             Lists defined statistics names.\n"
+@@ -191,8 +190,11 @@ static void stats_print_values(FILE *out,
+ 			m0_addb_rec_type_lookup(stats_recs->sf_stats[i].ss_id);
+ 		if (rt == NULL)
+ 			continue;
++
++		/* @todo Summary record fields mismatch. Skip OR error ? */
+ 		if (stats_recs->sf_stats[i].ss_data.au64s_nr != rt->art_rf_nr)
+ 			continue;
++
+ 		for (j = 0; j < stats_recs->sf_stats[i].ss_data.au64s_nr; ++j)
+ 			fprintf(out, "%*lu",
+ 				stats_field_width(rt->art_rf[j].arfu_name),
+@@ -217,28 +219,7 @@ static int stats_print_list()
+ 
+ static void sig_handler(int signum)
+ {
+-}
+-
+-static int stats_local_ep(char *ep)
+-{
+-	int  rc;
+-	char hostname[M0_CFG_NAME_LEN];
+-	char addr[M0_CFG_NAME_LEN];
+-
+-	M0_PRE(ep != NULL);
+-
+-	rc = gethostname(hostname, sizeof hostname);
+-	if (rc != 0)
+-		return rc;
+-
+-	rc = m0_host_resolve(hostname, addr, sizeof addr);
+-	if (rc != 0)
+-		return rc;
+-
+-	sprintf(ep, "%s@tcp:%d:%d:%d", addr, STATS_EP_PID, STATS_EP_PORTAL,
+-		STATS_EP_TM);
+-
+-	return 0;
++	signaled = true;
+ }
+ 
+ int main(int argc, char *argv[])
+@@ -247,6 +228,7 @@ int main(int argc, char *argv[])
+ 	int                         rc = 0;
+ 	int                         r2;
+ 	struct sigaction            sa;
++	const char                 *local_addr = NULL;
+ 	const char                 *remote_addr = NULL;
+ 	const char                 *outfile     = NULL;
+ 	const char                 *stats_list  = NULL;
+@@ -257,10 +239,9 @@ int main(int argc, char *argv[])
+ 	struct m0_addb_uint64_seq  *stats_ids  = NULL;
+ 	struct cs_endpoint_and_xprt epx;
+ 	FILE			   *fout;
+-	char                        local_ep[M0_CFG_NAME_LEN];
+ 
+ 	r2 = M0_GETOPTS("m0stats", argc, argv,
+-			M0_STRINGARG('e', "Stats service endpoint",
++			M0_STRINGARG('R', "Stats service endpoint",
+ 				LAMBDA(void, (const char *str)
+ 				{
+ 					if (remote_addr != NULL)
+@@ -268,6 +249,14 @@ int main(int argc, char *argv[])
+ 					else
+ 						remote_addr = str;
+ 				})),
++			M0_STRINGARG('e', "Local endpoint",
++				LAMBDA(void, (const char *str)
++				{
++					if (local_addr != NULL)
++						rc = -EINVAL;
++					else
++						local_addr = str;
++				})),
+ 			M0_STRINGARG('s', "Stats list",
+ 				LAMBDA(void, (const char *str)
+ 				{
+@@ -301,7 +290,8 @@ int main(int argc, char *argv[])
+ 	}
+ 
+ 	if (!ergo(list_names,
+-		 remote_addr == NULL && stats_list == NULL && outfile == NULL)){
++		 local_addr == NULL && remote_addr == NULL &&
++		 stats_list == NULL && outfile == NULL)){
+ 		m0stats_help();
+ 		return 1;
+ 	}
+@@ -329,17 +319,6 @@ int main(int argc, char *argv[])
+ 		goto mero_fini;
+ 	}
+ 
+-	rc = stats_local_ep(local_ep);
+-	if (rc != 0) {
+-		fprintf(stderr, "Failed to get local address. rc = %d\n", rc);
+-		goto mero_fini;
+-	}
+-
+-	if (remote_addr == NULL || stats_list == NULL) {
+-		m0stats_help();
+-		return 1;
+-	}
+-
+ 	if (outfile != NULL) {
+ 		fout = fopen(outfile, "w");
+ 		if (fout == NULL) {
+@@ -350,15 +329,21 @@ int main(int argc, char *argv[])
+ 	} else
+ 		fout = stdout;
+ 
+-	rc = m0_ep_and_xprt_extract(&epx, remote_addr);
++	rc = m0_ep_and_xprt_extract(&epx, local_addr);
+ 	if (rc != 0) {
+                 fprintf(stderr,
+ 			"m0stats:Failed to extract endpoint. rc = %d\n", rc);
+ 		goto mero_fini_fclose;
+ 	}
++	cctx.rcx_local_addr = epx.ex_endpoint;
+ 
+-	cctx.rcx_remote_addr = epx.ex_endpoint;
+-	cctx.rcx_local_addr  = strdup(local_ep);
++	rc = m0_ep_and_xprt_extract(&epx, remote_addr);
++	if (rc != 0) {
++                fprintf(stderr,
++			"m0stats:Failed to extract endpoint. rc = %d\n", rc);
++		goto mero_fini_fclose;
++	}
++	cctx.rcx_remote_addr  = epx.ex_endpoint;
+ 
+ 
+         rc = m0_net_xprt_init(xprt);
+@@ -385,7 +370,7 @@ int main(int argc, char *argv[])
+ 		goto disconnect;
+ 
+ 	stats_print_header(fout, stats_ids);
+-	for (i = 0; i < count; ++i) {
++	for (i = 0; i < count && !signaled; ++i) {
+ 		rc = m0_stats_query(&cctx.rcx_session, stats_ids, &stats_recs);
+ 		if (rc != 0) {
+ 			fprintf(stderr,"m0stats:m0_stats_query failed."
+@@ -393,8 +378,10 @@ int main(int argc, char *argv[])
+ 			rc = EX_UNAVAILABLE;
+ 		}
+ 
+-		stats_print_values(fout, stats_recs);
+-		m0_stats_free(stats_recs);
++		if (stats_recs != NULL) {
++			stats_print_values(fout, stats_recs);
++			m0_stats_free(stats_recs);
++		}
+ 		m0_nanosleep(delay * 1000 * 1000 * 1000, NULL);
+ 	}
+ 
+-- 
+1.8.3.2
+

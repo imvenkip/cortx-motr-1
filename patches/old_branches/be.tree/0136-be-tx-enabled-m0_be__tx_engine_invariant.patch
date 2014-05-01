@@ -1,0 +1,42 @@
+From 15203ccd43d82d853e022577ebee9064b7713c52 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 11 Jun 2013 15:31:53 +0300
+Subject: [PATCH 136/290] be: tx: enabled m0_be__tx_engine_invariant().
+
+---
+ be/tx.c | 17 ++++++++---------
+ 1 file changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 68922bd..1196d81 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -494,17 +494,16 @@ M0_INTERNAL bool
+ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ {
+ 	/* struct m0_be_log	     *log  = &engine->te_log; */
+-	/* struct m0_be_tx		     *prev = NULL; */
++	struct m0_be_tx		     *prev = NULL;
+ 	const struct m0_be_tx_engine *te   = engine;
+ 	return
+-		/* XXX */
+-		/* m0_forall(i, M0_BTS_NR, */
+-		/* 	  m0_tl_forall(tx, tx, &engine->te_txs[i], */
+-		/* 		       m0_be__tx_invariant(tx) && */
+-		/* 		       ergo(prev != NULL && prev->t_lsn != 0, */
+-		/* 			    tx->t_lsn != NULL && */
+-		/* 			    prev->t_lsn > tx->t_lsn)) && */
+-		/* 	  (prev = tx, true)) && */
++		m0_forall(i, M0_BTS_NR,
++			  m0_tl_forall(tx, t, &engine->te_txs[i],
++				       m0_be__tx_invariant(t) &&
++				       ergo(prev != NULL && prev->t_lsn != 0,
++					    t->t_lsn != 0 &&
++					    prev->t_lsn > t->t_lsn) &&
++				       (prev = t, true))) &&
+ 		te->te_start->t_lsn <= te->te_placed->t_lsn &&
+ 		te->te_placed->t_lsn <= te->te_logged->t_lsn &&
+ 		te->te_logged->t_lsn <= te->te_submitted->t_lsn &&
+-- 
+1.8.3.2
+

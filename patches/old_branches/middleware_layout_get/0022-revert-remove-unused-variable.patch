@@ -1,0 +1,46 @@
+From 5ad9ee7dbddf81b65d8d3f2e8b96a226dea828e8 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 11 Mar 2013 23:56:49 +0800
+Subject: [PATCH 22/24] revert: remove unused variable
+
+---
+ ioservice/cob_foms.c | 16 +++++++---------
+ 1 file changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index 283a5a0..12da71e 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -332,14 +332,13 @@ static int cc_cob_nskey_make(struct m0_cob_nskey **nskey,
+ 
+ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
+ {
+-	int			  rc;
+-	struct m0_cob		 *cob;
+-	struct m0_cob_domain	 *cdom;
+-	struct m0_fop_cob_create *fop;
+-	struct m0_cob_nskey	 *nskey;
+-	struct m0_cob_nsrec	  nsrec;
+-	struct m0_cob_fabrec	 *fabrec;
+-	struct m0_cob_omgrec      omgrec;
++	int		      rc;
++	struct m0_cob	     *cob;
++	struct m0_cob_domain *cdom;
++	struct m0_cob_nskey  *nskey;
++	struct m0_cob_nsrec   nsrec;
++	struct m0_cob_fabrec *fabrec;
++	struct m0_cob_omgrec  omgrec;
+ 
+ 	M0_PRE(fom != NULL);
+ 	M0_PRE(cc != NULL);
+@@ -347,7 +346,6 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
+ 
+ 	cdom = cdom_get(fom);
+ 	M0_ASSERT(cdom != NULL);
+-	fop = m0_fop_data(fom->fo_fop);
+ 
+         rc = m0_cob_alloc(cdom, &cob);
+         if (rc)
+-- 
+1.8.3.2
+

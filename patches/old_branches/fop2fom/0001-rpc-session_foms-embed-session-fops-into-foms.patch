@@ -1,0 +1,336 @@
+From 4a28af896ed3f2644fb9ec1f81015bc0d9b4011a Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Mon, 28 May 2012 14:01:37 +0300
+Subject: [PATCH 1/2] rpc/session_foms: embed session fops into foms
+
+Initial stage of "Embed session fops into foms" task:
+ - struct c2_session_fom introduced;
+ - new phase C2_FOPH_SESSION_REP_FOP_WAIT introduced to synchronize
+   fom finalization with fop destruction;
+ - call cs_rpc_machines_fini() before waiting for all foms
+   finalization in cs_request_handler_stop(), else reqh won't ever
+   get stopped since cs_rpc_machines_fini() destructs fops.
+---
+ colibri/colibri_setup.c |  5 ++-
+ rpc/session_foms.c      | 99 +++++++++++++++++++++++++++++++++++++++----------
+ rpc/session_foms.h      | 14 ++++++-
+ 3 files changed, 96 insertions(+), 22 deletions(-)
+
+diff --git a/colibri/colibri_setup.c b/colibri/colibri_setup.c
+index 7e04743..a343789 100644
+--- a/colibri/colibri_setup.c
++++ b/colibri/colibri_setup.c
+@@ -1208,6 +1208,9 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
+         reqh->rh_shutdown = true;
+         c2_mutex_unlock(&reqh->rh_lock);
+ 
++	cs_services_fini(reqh);
++	cs_rpc_machines_fini(reqh);
++
+ 	sleepcnt = 1;
+ 	while (!c2_reqh_can_shutdown(reqh)) {
+ 		c2_nanosleep(c2_time_set(&rdelay, 0,
+@@ -1215,8 +1218,6 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
+                 ++sleepcnt;
+ 	}
+ 
+-	cs_services_fini(reqh);
+-	cs_rpc_machines_fini(reqh);
+ 	c2_reqh_fini(reqh);
+ 	c2_fol_fini(&rctx->rc_fol);
+ 	c2_cob_domain_fini(&rctx->rc_cdom);
+diff --git a/rpc/session_foms.c b/rpc/session_foms.c
+index 10ca3ed..778146f 100644
+--- a/rpc/session_foms.c
++++ b/rpc/session_foms.c
+@@ -54,6 +54,23 @@
+ extern void item_exit_stats_set(struct c2_rpc_item   *item,
+ 				enum c2_rpc_item_path path);
+ 
++static void rep_fop_item_free(struct c2_rpc_item *item)
++{
++	struct c2_fop         *fop;
++	struct c2_session_fom *s_fom;
++
++	fop = c2_rpc_item_to_fop(item);
++	/* reply fop is embedded into session fom - so don't free it here */
++	c2_fop_fini(fop);
++
++	s_fom = container_of(fop, struct c2_session_fom, sf_rep_fop);
++	c2_chan_signal(&s_fom->sf_chan);
++}
++
++static const struct c2_rpc_item_ops rep_fop_item_ops = {
++	.rio_free = rep_fop_item_free,
++};
++
+ /**
+    Common implementation of c2_fom::fo_ops::fo_fini() for conn establish,
+    conn terminate, session establish and session terminate foms
+@@ -62,8 +79,13 @@ extern void item_exit_stats_set(struct c2_rpc_item   *item,
+  */
+ static void session_gen_fom_fini(struct c2_fom *fom)
+ {
++	struct c2_session_fom   *s_fom;
++
++	s_fom = container_of(fom, struct c2_session_fom, sf_fom);
++
+ 	c2_fom_fini(fom);
+-	c2_free(fom);
++	c2_chan_fini(&s_fom->sf_chan);
++	c2_free(s_fom);
+ }
+ 
+ /**
+@@ -71,18 +93,22 @@ static void session_gen_fom_fini(struct c2_fom *fom)
+    conn establish, conn terminate, session establish,
+    session terminate fop types.
+  */
+-static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
++static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **out_fom)
+ {
+ 	const struct c2_fom_ops *fom_ops;
+ 	struct c2_fom           *fom;
++	struct c2_session_fom   *s_fom;
+ 	struct c2_fop_type      *reply_fopt;
+ 	struct c2_fop           *reply_fop;
+ 	int                      rc;
+ 
+-	C2_ALLOC_PTR(fom);
+-	if (fom == NULL)
++	C2_ALLOC_PTR(s_fom);
++	if (s_fom == NULL)
+ 		return -ENOMEM;
+ 
++	fom =       &s_fom->sf_fom;
++	reply_fop = &s_fom->sf_rep_fop;
++
+ 	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
+ 
+ 		reply_fopt = &c2_rpc_fop_conn_establish_rep_fopt;
+@@ -113,24 +139,26 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
+ 		goto out;
+ 	}
+ 
+-	reply_fop = c2_fop_alloc(reply_fopt, NULL);
+-	if (reply_fop == NULL) {
+-		rc = -ENOMEM;
++	rc = c2_fop_init(reply_fop, reply_fopt, NULL);
++	if (rc != 0)
+ 		goto out;
+-	}
++	reply_fop->f_item.ri_ops = &rep_fop_item_ops;
+ 
++	c2_chan_init(&s_fom->sf_chan);
+ 	c2_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop);
+-	*m = fom;
++	*out_fom = fom;
+ 	rc = 0;
+ 
+ out:
+-	if (rc != 0) {
+-		c2_free(fom);
+-		*m = NULL;
+-	}
++	if (rc != 0)
++		c2_free(s_fom);
++
+ 	return rc;
+ }
+ 
++/*
++ * FOM connection create
++ */
+ const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
+ 	.fo_fini = session_gen_fom_fini,
+ 	.fo_state = c2_rpc_fom_conn_establish_state,
+@@ -154,6 +182,7 @@ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
+ 
+ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
+ {
++	struct c2_session_fom                *s_fom;
+ 	struct c2_rpc_fop_conn_establish_rep *reply;
+ 	struct c2_rpc_fop_conn_establish_ctx *ctx;
+ 	struct c2_rpc_fop_conn_establish     *request;
+@@ -169,6 +198,11 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
+ 	C2_PRE(fom != NULL);
+ 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+ 
++	if (fom->fo_phase == C2_FOPH_SESSION_REP_FOP_WAIT) {
++		fom->fo_phase = C2_FOPH_FINISH;
++		return C2_FSO_WAIT;
++	}
++
+ 	fop     = fom->fo_fop;
+ 	request = c2_fop_data(fop);
+ 	C2_ASSERT(request != NULL);
+@@ -237,6 +271,9 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
+ 		C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
+ 				(unsigned long)conn->c_sender_id);
+ 
++		fom->fo_phase = C2_FOPH_SESSION_REP_FOP_WAIT;
++		s_fom = container_of(fom, struct c2_session_fom, sf_fom);
++		c2_fom_wait_on(fom, &s_fom->sf_chan, &fom->fo_cb);
+ 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+ 
+ 	} else {
+@@ -246,9 +283,9 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
+ 		c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
+ 		c2_free(ctx);
+ 		C2_LOG("Conn establish failed: rc [%d]\n", rc);
++		fom->fo_phase = C2_FOPH_FINISH;
+ 	}
+ 
+-	fom->fo_phase = C2_FOPH_FINISH;
+ 	return C2_FSO_WAIT;
+ }
+ /*
+@@ -293,7 +330,6 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
+ /*
+  * FOM session create
+  */
+-
+ const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
+ 	.fo_fini = session_gen_fom_fini,
+ 	.fo_state = c2_rpc_fom_session_establish_state,
+@@ -310,6 +346,7 @@ struct c2_fom_type c2_rpc_fom_session_establish_type = {
+ 
+ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
+ {
++	struct c2_session_fom                   *s_fom;
+ 	struct c2_rpc_fop_session_establish_rep *reply;
+ 	struct c2_rpc_fop_session_establish     *request;
+ 	struct c2_rpc_item                      *item;
+@@ -324,6 +361,11 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
+ 	C2_PRE(fom != NULL);
+ 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+ 
++	if (fom->fo_phase == C2_FOPH_SESSION_REP_FOP_WAIT) {
++		fom->fo_phase = C2_FOPH_FINISH;
++		return C2_FSO_WAIT;
++	}
++
+ 	fop = fom->fo_fop;
+ 	request = c2_fop_data(fop);
+ 	C2_ASSERT(request != NULL);
+@@ -377,15 +419,18 @@ out:
+ 			c2_free(session);
+ 	}
+ 
++	C2_LOG("Session establish %s: session [%p] rc [%d]\n",
++			(rc == 0) ? "successful" : "failed", session, rc);
++	fom->fo_phase = C2_FOPH_SESSION_REP_FOP_WAIT;
++	s_fom = container_of(fom, struct c2_session_fom, sf_fom);
++	c2_fom_wait_on(fom, &s_fom->sf_chan, &fom->fo_cb);
+ 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+-	fom->fo_phase = C2_FOPH_FINISH;
+ 	return C2_FSO_WAIT;
+ }
+ 
+ /*
+  * FOM session terminate
+  */
+-
+ const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
+ 	.fo_fini = session_gen_fom_fini,
+ 	.fo_state = c2_rpc_fom_session_terminate_state,
+@@ -402,6 +447,7 @@ struct c2_fom_type c2_rpc_fom_session_terminate_type = {
+ 
+ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
+ {
++	struct c2_session_fom                   *s_fom;
+ 	struct c2_rpc_fop_session_terminate_rep *reply;
+ 	struct c2_rpc_fop_session_terminate     *request;
+ 	struct c2_rpc_item                      *item;
+@@ -414,6 +460,11 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
+ 	C2_PRE(fom != NULL);
+ 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+ 
++	if (fom->fo_phase == C2_FOPH_SESSION_REP_FOP_WAIT) {
++		fom->fo_phase = C2_FOPH_FINISH;
++		return C2_FSO_WAIT;
++	}
++
+ 	request = c2_fop_data(fom->fo_fop);
+ 	C2_ASSERT(request != NULL);
+ 
+@@ -465,7 +516,9 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
+ 	 * Note: request is received on SESSION_0, which is different from
+ 	 * current session being terminated. Reply will also go on SESSION_0.
+ 	 */
+-	fom->fo_phase = C2_FOPH_FINISH;
++	fom->fo_phase = C2_FOPH_SESSION_REP_FOP_WAIT;
++	s_fom = container_of(fom, struct c2_session_fom, sf_fom);
++	c2_fom_wait_on(fom, &s_fom->sf_chan, &fom->fo_cb);
+ 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
+ 
+ 	return C2_FSO_WAIT;
+@@ -490,6 +543,7 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
+ 
+ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
+ {
++	struct c2_session_fom                *s_fom;
+ 	struct c2_rpc_fop_conn_terminate_rep *reply;
+ 	struct c2_rpc_fop_conn_terminate     *request;
+ 	struct c2_rpc_item                   *item;
+@@ -502,6 +556,11 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
+ 	C2_PRE(fom != NULL);
+ 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
+ 
++	if (fom->fo_phase == C2_FOPH_SESSION_REP_FOP_WAIT) {
++		fom->fo_phase = C2_FOPH_FINISH;
++		return C2_FSO_WAIT;
++	}
++
+ 	fop = fom->fo_fop;
+ 	request = c2_fop_data(fop);
+ 	C2_ASSERT(request != NULL);
+@@ -551,7 +610,9 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
+ 		 * callback of &fop_rep->f_item item.
+ 		 */
+ 		reply->ctr_rc = rc; /* rc can be -EBUSY */
+-		fom->fo_phase = C2_FOPH_FINISH;
++		fom->fo_phase = C2_FOPH_SESSION_REP_FOP_WAIT;
++		s_fom = container_of(fom, struct c2_session_fom, sf_fom);
++		c2_fom_wait_on(fom, &s_fom->sf_chan, &fom->fo_cb);
+ 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
+ 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+ 		return C2_FSO_WAIT;
+diff --git a/rpc/session_foms.h b/rpc/session_foms.h
+index f6282a3..0bc2976 100644
+--- a/rpc/session_foms.h
++++ b/rpc/session_foms.h
+@@ -56,17 +56,29 @@ extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
+ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom);
+ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom);
+ void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
++
+ /*
+  * FOM to execute "Session Create" request
+  */
+ 
+ enum c2_rpc_fom_session_establish_phase {
+-	C2_FOPH_SESSION_ESTABLISHING = C2_FOPH_NR + 1
++	C2_FOPH_SESSION_ESTABLISHING = C2_FOPH_NR + 1,
++	C2_FOPH_SESSION_REP_FOP_WAIT
+ };
+ 
+ extern struct c2_fom_type c2_rpc_fom_session_establish_type;
+ extern const struct c2_fom_ops c2_rpc_fom_session_establish_ops;
+ 
++/**
++ * Session FOM
++ */
++struct c2_session_fom {
++	struct c2_fom	sf_fom;		/**< base fom */
++	struct c2_fop	sf_rep_fop;	/**< reply fop */
++	/** to make sure we destroy the fom after reply fop is finalized */
++	struct c2_chan  sf_chan;
++};
++
+ int c2_rpc_fom_session_establish_state(struct c2_fom *fom);
+ void c2_rpc_fom_session_establish_fini(struct c2_fom *fom);
+ 
+-- 
+1.8.3.2
+

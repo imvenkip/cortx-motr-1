@@ -1,0 +1,1402 @@
+From 5d470f156867b1cd927f6880d71569aabe026e3a Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 21 Apr 2011 05:03:33 -0600
+Subject: [PATCH 074/158] - first round of CODEINSP fixes (details:
+ http://reviewboard.clusterstor.com/r/209/)
+
+---
+ Makefile.am           |   2 +-
+ cob/cob.c             | 221 +++++++++++++++-----------------------------------
+ cob/cob.h             | 175 +++++++++++++++++++++++++++++++--------
+ cob/ut/cob.c          |   1 -
+ colibri/Makefile.am   |   2 +-
+ configure.ac          |   2 +-
+ datastore/Makefile.am |   6 --
+ datastore/datastore.c |  20 -----
+ datastore/datastore.h |  27 ------
+ fid/fid.c             |   2 +-
+ ioservice/io_foms.c   |   8 +-
+ iostore/Makefile.am   |   6 ++
+ iostore/iostore.c     |  19 +++++
+ iostore/iostore.h     |  27 ++++++
+ lib/bitstring.c       |   7 ++
+ lib/bitstring.h       |   6 +-
+ mdservice/md_foms.c   |   8 +-
+ mdservice/md_foms.h   |  15 ++--
+ mdstore/mdstore.c     |  46 ++++++-----
+ reqh/reqh.c           |   2 +-
+ site/site.c           |   6 +-
+ site/site.h           |   6 +-
+ stob/ut/server.c      |  10 +--
+ 23 files changed, 330 insertions(+), 294 deletions(-)
+ delete mode 100644 datastore/Makefile.am
+ delete mode 100644 datastore/datastore.c
+ delete mode 100644 datastore/datastore.h
+ create mode 100644 iostore/Makefile.am
+ create mode 100644 iostore/iostore.c
+ create mode 100644 iostore/iostore.h
+
+diff --git a/Makefile.am b/Makefile.am
+index 31048ce..9de2153 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -7,7 +7,7 @@ SUBDIRS_BASE = m4 doc man patches
+ # built.
+ SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop addb sm stob net dtm nrs \
+                sns mw layout pool balloc desim cob capa udb ioservice mdservice \
+-               site reqh mdstore datastore  # rpc
++               site reqh mdstore iostore  # rpc
+ 
+ SUBDIR_KERNEL = build_kernel_modules
+ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
+diff --git a/cob/cob.c b/cob/cob.c
+index cc0b33c..7ea8af3 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -31,31 +31,25 @@ static const struct c2_addb_loc cob_addb_loc = {
+ 	.al_name = "cob"
+ };
+ 
+-C2_ADDB_EV_DEFINE(cob_eexist,      "cob_exist", 
+-                  C2_ADDB_EVENT_EXIST, C2_ADDB_INVAL);
+-C2_ADDB_EV_DEFINE(cob_enoent,      "cob_noent",
+-                  C2_ADDB_EVENT_NOENT, C2_ADDB_INVAL);
+-C2_ADDB_EV_DEFINE(cob_enomem,      "cob_nomem",
+-                  C2_ADDB_EVENT_NOMEM, C2_ADDB_INVAL);
+-
+ void c2_cob_make_oikey(struct c2_cob_oikey *oikey, 
+-                       struct c2_fid *fid)
++                       const struct c2_fid *fid,
++                       int linkno)
+ {
+         oikey->cok_fid = *fid;
+-        oikey->cok_linkno = 0;
++        oikey->cok_linkno = linkno;
+ }
+ 
+ void c2_cob_make_nskey(struct c2_cob_nskey **keyh, 
+-                       struct c2_fid *pfid,
++                       const struct c2_fid *pfid,
+                        const char *name, 
+                        int namelen)
+ {
+         struct c2_cob_nskey *key;
+ 
+         key = c2_alloc(sizeof(*key) + namelen);
++        C2_ASSERT(key != NULL);
+         key->cnk_pfid = *pfid;
+-        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
+-        c2_bitstring_len_set(&key->cnk_name, namelen);
++        c2_bitstring_copy(&key->cnk_name, name, namelen);
+         *keyh = key;
+ }
+ 
+@@ -73,8 +67,8 @@ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
+ 
+ int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
+ {
+-        return (sizeof(*cnk) +
+-                c2_bitstring_len_get(&cnk->cnk_name));
++        return sizeof(*cnk) +
++                c2_bitstring_len_get(&cnk->cnk_name);
+ }
+ 
+ /**
+@@ -82,17 +76,13 @@ int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
+    but put real string len into the struct.
+ */
+ void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh, 
+-                           struct c2_fid *pfid,
++                           const struct c2_fid *pfid,
+                            const char *name, 
+                            int namelen)
+ {
+-        struct c2_cob_nskey *key;
+-
+-        key = c2_alloc(sizeof(*key) + NAME_MAX);
+-        key->cnk_pfid = *pfid;
+-        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
+-        c2_bitstring_len_set(&key->cnk_name, namelen);
+-        *keyh = key;
++        static const char max_name_placeholder[NAME_MAX];
++        return c2_cob_make_nskey(keyh, pfid, max_name_placeholder, 
++                                 sizeof(max_name_placeholder));
+ }
+ 
+ /**
+@@ -102,7 +92,7 @@ void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh,
+  */
+ static int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
+ {
+-        return (sizeof(*cnk) + NAME_MAX);
++        return sizeof(*cnk) + NAME_MAX;
+ }
+ 
+ /** 
+@@ -275,11 +265,11 @@ static void cob_free_cb(struct c2_ref *ref);
+ 
+ static void cob_init(struct c2_cob_domain *dom, struct c2_cob *cob)
+ {
+-        cob->co_dom = dom;
++	c2_addb_ctx_init(&cob->co_addb, &c2_cob_addb, &dom->cd_addb);
+ 	c2_ref_init(&cob->co_ref, 1, cob_free_cb);
+-	C2_SET0(&cob->co_fid);
++        cob->co_fid = &cob->co_nsrec.cnr_fid;
++        cob->co_dom = dom;
+         cob->co_valid = 0;
+-	c2_addb_ctx_init(&cob->co_addb, &c2_cob_addb, &dom->cd_addb);
+ }
+ 
+ static void cob_fini(struct c2_cob *cob)
+@@ -357,7 +347,7 @@ static int cob_ns_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
+ 
+         if (rc == 0) {
+                 cob->co_valid |= CA_NSREC;
+-                C2_POST(c2_fid_is_set(&cob->co_fid));
++                C2_POST(c2_fid_is_set(cob->co_fid));
+         }
+ 
+         return rc;
+@@ -454,7 +444,7 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
+         if (cob->co_valid & CA_FABREC)
+                 return 0;
+ 
+-        fabkey.cfb_fid = cob->co_fid;
++        fabkey.cfb_fid = *cob->co_fid;
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
+ 			 &fabkey, sizeof fabkey,
+ 			 &cob->co_fabrec, sizeof cob->co_fabrec);
+@@ -610,75 +600,77 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
+ 	return rc;
+ }
+ 
+-int c2_cob_iterator_init(struct c2_cob *cob, const char *name, 
+-                         int namelen, int hint, struct c2_db_tx *tx)
++int c2_cob_iterator_init(struct c2_cob *cob, struct c2_cob_iterator *it,
++                         const char *name, int namelen, int hint, 
++                         struct c2_db_tx *tx)
+ {
+         int rc;
+ 
+         /*
+          * Prepare entry key using passed started pos.
+          */
+-        c2_cob_make_nskey_max(&cob->co_itkey, &cob->co_fid, name, namelen);
++        c2_cob_make_nskey_max(&it->ci_key, cob->co_fid, name, namelen);
+ 
+         /*
+          * Init iterator cursor with max possible key size.
+          */
+-        c2_db_pair_setup(&cob->co_itpair, &cob->co_dom->cd_namespace,
+-			 cob->co_itkey, c2_cob_nskey_size_max(cob->co_itkey), 
+-			 &cob->co_itrec, sizeof cob->co_itrec);
++        c2_db_pair_setup(&it->ci_pair, &cob->co_dom->cd_namespace,
++			 it->ci_key, c2_cob_nskey_size_max(it->ci_key), 
++			 &it->ci_rec, sizeof it->ci_rec);
+ 
+-        rc = c2_db_cursor_init(&cob->co_itcursor, 
++        rc = c2_db_cursor_init(&it->ci_cursor, 
+                                &cob->co_dom->cd_namespace, tx);
+         if (rc) {
+-                c2_db_pair_release(&cob->co_itpair);
+-                c2_db_pair_fini(&cob->co_itpair);
+-                c2_free(cob->co_itkey);
++                c2_db_pair_release(&it->ci_pair);
++                c2_db_pair_fini(&it->ci_pair);
++                c2_free(it->ci_key);
+                 return rc;
+         }
+-        cob->co_ithint = hint;
+-        cob->co_itinit = 1;
++        it->ci_hint = hint;
++        it->ci_cob = cob;
++        it->ci_init = 1;
+         return rc;
+ }
+ 
+-int c2_cob_iterator_next(struct c2_cob *cob)
++int c2_cob_iterator_next(struct c2_cob_iterator *it)
+ {
+         int rc;
+ 
+-        if (cob->co_itinit) {
+-                rc = c2_db_cursor_get(&cob->co_itcursor, &cob->co_itpair);
+-                if (cob->co_ithint == IH_PREV) {
+-                        if (rc == 0)
+-                                rc = c2_db_cursor_prev(&cob->co_itcursor, 
+-                                                       &cob->co_itpair);
+-                } else if (cob->co_ithint == IH_NEXT) {
+-                        if (rc == 0)
+-                                rc = c2_db_cursor_next(&cob->co_itcursor, 
+-                                                       &cob->co_itpair);
++        if (it->ci_init) {
++                rc = c2_db_cursor_get(&it->ci_cursor, &it->ci_pair);
++                if (rc)
++                        return rc;
++                if (it->ci_hint == IH_PREV) {
++                        rc = c2_db_cursor_prev(&it->ci_cursor, 
++                                               &it->ci_pair);
++                } else if (it->ci_hint == IH_NEXT) {
++                        rc = c2_db_cursor_next(&it->ci_cursor, 
++                                               &it->ci_pair);
+                 } else {
+                         /*
+-                         * We may want to read from most suitable position,
+-                         * no need to have exact match.
++                         * We may want to read from most suitable
++                         * position, no need to have exact match.
+                          */
+                         if (rc == -ENOENT)
+                                 rc = 0;
+                 }
+-                cob->co_itinit = 0;
++                it->ci_init = 0;
+         } else {
+-                rc = c2_db_cursor_next(&cob->co_itcursor, &cob->co_itpair);
++                rc = c2_db_cursor_next(&it->ci_cursor, &it->ci_pair);
+         }
+ 
+-        if (!c2_fid_eq(&cob->co_itkey->cnk_pfid, &cob->co_fid))
++        if (!c2_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+                 return -ENOENT;
+ 
+         return rc;
+ }
+ 
+-void c2_cob_iterator_fini(struct c2_cob *cob)
++void c2_cob_iterator_fini(struct c2_cob_iterator *it)
+ {
+-        c2_db_pair_release(&cob->co_itpair);
+-	c2_db_pair_fini(&cob->co_itpair);
+-        c2_db_cursor_fini(&cob->co_itcursor);
+-        c2_free(cob->co_itkey);
++        c2_db_pair_release(&it->ci_pair);
++	c2_db_pair_fini(&it->ci_pair);
++        c2_db_cursor_fini(&it->ci_cursor);
++        c2_free(it->ci_key);
+ }
+ 
+ /** 
+@@ -686,7 +678,7 @@ void c2_cob_iterator_fini(struct c2_cob *cob)
+ */
+ static bool c2_cob_is_valid(struct c2_cob *cob)
+ {
+-        return c2_fid_is_set(&cob->co_fid);
++        return c2_fid_is_set(cob->co_fid);
+ }
+ 
+ /**
+@@ -780,7 +772,7 @@ int c2_cob_create(struct c2_cob        *cob,
+         /*
+          * Prepare key for attribute tables.
+          */
+-        fabkey.cfb_fid = cob->co_fid;
++        fabkey.cfb_fid = *cob->co_fid;
+ 
+         /* 
+          * Now let's update file attributes. Cache the fabrec. 
+@@ -851,7 +843,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+         /* 
+          * Remove from the fileattr_basic table. 
+          */
+-        fabkey.cfb_fid = cob->co_fid;
++        fabkey.cfb_fid = *cob->co_fid;
+ 
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
+ 			 &fabkey, sizeof fabkey, NULL, 0);
+@@ -902,8 +894,7 @@ int c2_cob_update(struct c2_cob         *cob,
+         int                   rc;
+         
+         C2_PRE(c2_cob_is_valid(cob));
+-        C2_PRE(nsrec != NULL || fabrec != NULL || omgrec != NULL);
+-        C2_POST(cob->co_valid & CA_NSKEY);
++        C2_PRE(cob->co_valid & CA_NSKEY);
+ 
+         if (nsrec != NULL) {
+                 cob->co_nsrec = *nsrec;
+@@ -920,7 +911,7 @@ int c2_cob_update(struct c2_cob         *cob,
+         }
+         
+         if (fabrec != NULL) {
+-                fabkey.cfb_fid = cob->co_fid;
++                fabkey.cfb_fid = *cob->co_fid;
+                 cob->co_fabrec = *fabrec;
+                 cob->co_valid |= CA_FABREC;
+         
+@@ -982,14 +973,11 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         nsrec = cob->co_nsrec;
+ 
+         /*
+-         * Linkno for new name is number of links in statdata - 1
++         * Linkno for new name is number of links in statdata.
+          */
+         nsrec.cnr_linkno = nsrec.cnr_nlink;
+-        oikey.cok_fid = nsrec.cnr_fid;
+ 
+-        /* 
+-         * Use _old_ nlink value for the key in object index.
+-         */
++        oikey.cok_fid = nsrec.cnr_fid;
+         oikey.cok_linkno = nsrec.cnr_nlink;
+ 
+         /*
+@@ -1003,11 +991,8 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         rc = c2_table_insert(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+-	if (rc) {
+-                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+-                            cob_eexist, rc);
++	if (rc)
+                 goto out_free;
+-        }
+ 
+         /*
+          * Add to namespace table. Content of ->co_nsrec is not important
+@@ -1021,13 +1006,6 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         rc = c2_table_insert(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+-	if (rc) {
+-                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+-                            cob_eexist, rc);
+-                goto out_free;
+-        }
+-	return 0;
+-
+ out_free:
+         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+                     c2_addb_func_fail, "cob_add_name", rc);
+@@ -1073,7 +1051,7 @@ int c2_cob_del_name(struct c2_cob        *cob,
+         /*
+          * Let's also kill object index entry.
+          */
+-        oikey.cok_fid = cob->co_fid;
++        oikey.cok_fid = *cob->co_fid;
+         oikey.cok_linkno = nsrec.cnr_linkno;
+ 
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
+@@ -1102,41 +1080,12 @@ int c2_cob_update_name(struct c2_cob        *cob,
+ {
+         struct c2_cob_nsrec  nsrec;
+         struct c2_db_pair    pair;
+-//        struct c2_db_cursor  cursor;
+         struct c2_cob_oikey  oikey;
+         int                  rc;
+ 
+-#if 0
+-        /* Let's check if tgt name already exists */
+-        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+-	                 tgtkey, c2_cob_nskey_size(tgtkey),
+-		         &nsrec, sizeof nsrec);
+-        rc = c2_table_lookup(tx, &pair);
+-        c2_db_pair_release(&pair);
+-        c2_db_pair_fini(&pair);
+-        if (rc == 0) {
+-                rc = -EEXIST;
+-                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+-                            cob_eexist, rc);
+-                goto out;
+-        }
+-
+-        /* Let's check if src name exists */
+-        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+-	                 srckey, c2_cob_nskey_size(srckey),
+-		         &nsrec, sizeof nsrec);
+-
+-        rc = c2_table_lookup(tx, &pair);
+-        c2_db_pair_release(&pair);
+-        c2_db_pair_fini(&pair);
+-        if (rc != 0) {
+-                rc = -ENOENT;
+-                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+-                            cob_enoent, rc);
+-                goto out;
+-        }
+-#endif
+-
++        C2_PRE(c2_cob_is_valid(cob));
++        C2_PRE(srckey != NULL && tgtkey != NULL);
++        
+         nsrec = cob->co_nsrec;
+ 
+         /*
+@@ -1150,8 +1099,6 @@ int c2_cob_update_name(struct c2_cob        *cob,
+         c2_db_pair_fini(&pair);
+         if (rc != 0) {
+                 rc = -EEXIST;
+-                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+-                            cob_eexist, rc);
+                 goto out;
+         }
+         
+@@ -1166,47 +1113,11 @@ int c2_cob_update_name(struct c2_cob        *cob,
+         c2_db_pair_fini(&pair);
+         if (rc != 0) {
+                 rc = -ENOENT;
+-                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+-                            cob_enoent, rc);
+                 goto out;
+         }
+-#if 0
+-        rc = c2_db_cursor_init(&cursor, 
+-                               &cob->co_dom->cd_namespace, tx);
+-        if (rc)
+-                goto out;
+-
+-        /* 
+-         * Update name in namespace. To do so we need to position
+-         * first. 
+-         */
+-        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+-	                 srckey, c2_cob_nskey_size(srckey),
+-		         &nsrec, sizeof nsrec);
+-        rc = c2_db_cursor_get(&cursor, &pair);
+-        c2_db_pair_release(&pair);
+-        c2_db_pair_fini(&pair);
+-        if (rc) {
+-                c2_db_cursor_fini(&cursor);
+-                goto out;
+-        }
+-        
+-        /*
+-         * Update itself.
+-         */
+-        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+-                         tgtkey, c2_cob_nskey_size(tgtkey),
+-		         &nsrec, sizeof nsrec);
+-        rc = c2_db_cursor_set(&cursor, &pair);
+-        c2_db_pair_release(&pair);
+-        c2_db_pair_fini(&pair);
+-        c2_db_cursor_fini(&cursor);
+-        if (rc)
+-                goto out;        
+-#endif
+ 
+         /* Update object index */
+-        oikey.cok_fid = cob->co_fid;
++        oikey.cok_fid = *cob->co_fid;
+         oikey.cok_linkno = nsrec.cnr_linkno;
+ 
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
+diff --git a/cob/cob.h b/cob/cob.h
+index f702363..4578f57 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -34,7 +34,102 @@ struct c2_db_tx;
+    - file attributes: owner/mode/group, size, m/a/ctime, acls
+    - fol reference information:  log sequence number (lsn), version counter
+ 
+-   @see stob
++   Metadata organization:
++
++   COB uses three db tables for storing the following pieces of information:
++   - Namespace - stores file names and basic stat data for readdir speedup;
++   - Object Index - stores links of file (all names of the file);
++
++   - File attributes - stores file version, some replicator fields, basically
++   anything that is not needed during stat and readdir operations;
++
++   - One more table is needed for so called "omg" records. They will store
++   mode/uid/gid file attributes.
++
++   For traditional file systems namespace we need two tables: name space and
++   object index. It  may be stored in way like this.
++
++   Suppose that there is a file that has got three names:
++
++   "a/f0", "b/f1", "c/f3"
++
++   Then namespace will have the following records:
++
++   (a.fid, "f0")->(F stat data, 0)
++   (b.fid, "f1")->(F 1)
++   (c.fid, "f2")->(F 2)
++
++   where, in first record, we have key constructed of f0's parent fid (the
++   directory fid) and "f0", the filename itself. The namespace record is the
++   file "f0" fid with full stat data, plus the link number for this name.
++
++   Since this is the first name, it stores the stat data (basic file system
++   attributes) and has link number zero.
++
++   All the other records have keys constructed from their parent fid and child
++   name ("f1", "f2"), and the record only contains the file fid and link number
++   that this record describes (1, 2).
++
++   As you can see, stat data is stored in the first record and eventually needs
++   to be migrated when this name is killed. This will be shown below.
++
++   The object index will contain the records:
++
++   (F, 0)->(a.fid, "f0")
++   (F, 1)->(b.fid, "f1")
++   (F, 2)->(c.fid, "f2")
++
++   where the key is constructed of file fid and its link number. The record
++   contains the parent fid plus the file name. That is, the object index
++   enumerates all the names that file has. As we have already noted, the object
++   index records have the same format as name space keys and may be used
++   appropriately.
++
++   Now let's kill some names. When doing rm b/f0 we need to kill all its records
++   in object index and namespace. That is, we need to construct key containing
++   "a" fid and "f0" name. Using this key we can find its position in namespace
++   table and kill the record. Before actually killing it, we need to check if
++   this record stores file attributes. This is easy to do as ->linkno field is
++   zero for statdata names. Stat data should be moved to next name and we need
++   to find it somehow. In order to do this quickly we need to lookup in object
++   index for second file name with key constructed of linkno == 1, that is, next
++   after 0, and file fid F. Doing so allows to find record:
++
++   (F, 0)->(a.fid, "f0")
++
++   As you can see, it describes second name of the file. We now can use its
++   record as a key for name space and find second name record in name space
++   table. Having the name, we can move stat data of F to it.
++
++   Now let's kill the record in theobject index. We have already found that we
++   need key constructed of F and link number, that is, zero. Having this key we
++   can kill object index entry describing "f0" name.
++
++   We are done with unlink operation. Of course for cases when killing name that
++   does not hold stat data, algorithm is much more simple. We just need to kill
++   one record in name, update stat data record in namespace (decremented nlink
++   should be updated in the store) and kill one record in object index.
++
++   File attributes that are stored in separate tables may also be easily managed
++   using key constructed of (F), where F is file fid. Their management is very
++   simple and we will not describe it here.
++
++   Cob iterator.
++
++   In order to iterate over all names that "dir" cob may contains, cob iterator
++   is used. It is simple, cursor based API, that contains 3 methods:
++   - c2_cob_iterator_init() - init iterator with fid, name position;
++   - c2_cob_iterator_next() - move to next position;
++   - c2_cob_iterator_fini() - fini iterator.
++
++   At the beginning cursor gets positioned onto position described with key that
++   is constructed using passed cob's fid and name. Then iterator moves forward
++   with next() method over namespace table until end of table is reached or a rec
++   with another parent fid is found.
++
++   Once iterator is not longer needed, it is fininalized by c2_cob_iterator_fini().
++   @see c2_md_store_readdir()
++
+    @{
+  */
+ 
+@@ -103,15 +198,15 @@ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
+                      const struct c2_cob_nskey *k1);
+ 
+ /**
+-   Namespace table record. Zero record contains file attributes,
+-   may be called stat data.
++   Namespace table record. For each file many such nsrec recods may exist
++   in case that multiple hardlinks exist. First of the, that is, zero record
++   contains file attributes and may be called statdata.
+ */
+ struct c2_cob_nsrec {
+         struct c2_fid     cnr_fid;     /**< object fid */
+         uint32_t          cnr_linkno;  /**< number of link for the name */
+-
+-        uint64_t          cnr_ino;     /**< inode number. */
+         uint32_t          cnr_nlink;   /**< number of hard links. */
++        uint64_t          cnr_ino;     /**< inode number. */
+         uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
+ 
+         union {
+@@ -210,7 +305,7 @@ struct c2_cob_omgrec {
+    that has already been returned. c2_cob_locate() and c2_cob_lookup() return
+    new allocated cobs to the caller even oikey and nskey used are the same.
+    
+-   Concurrent thread will be blocked anyways on db[45] transaction untill it
++   Concurrent thread will be blocked anyways on db[45] transaction until it
+    is committed.
+ 
+    <b>Liveness</b>
+@@ -220,7 +315,7 @@ struct c2_cob_omgrec {
+    length. Once allocated, the cob can free the memory by using CA_NSKEY_FREE.
+    
+    <b>Caching</b>
+-   Cobs are not cached cob domain or even cob API users. Rationale is the
++   Cobs are not cached by cob domain or even cob API users. Rationale is the
+    following:
+    
+    - we use db[45] for storing metadata and it already has cache that may work
+@@ -235,22 +330,28 @@ struct c2_cob {
+         struct c2_ref          co_ref;      /**< refcounter for caching cobs */
+         uint64_t               co_valid;    /**< @see enum ca_valid */
+         struct c2_verno        co_version;  /**< current object version */
+-        struct c2_cob_nskey   *co_nskey;    /**< pfid, filename */
+-        struct c2_cob_oikey    co_oikey;    /**< tfid, linkno */
+-        struct c2_cob_nsrec    co_nsrec;    /**< fid, stat data */
+-        struct c2_cob_fabrec   co_fabrec;   /**< fileattr_basic data */
++        struct c2_fid         *co_fid;      /**< object fid, refers to nsrec fid */
++        struct c2_cob_nskey   *co_nskey;    /**< parent fid, filename */
++        struct c2_cob_oikey    co_oikey;    /**< object fid, linkno */
++        struct c2_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
++        struct c2_cob_fabrec   co_fabrec;   /**< fileattr_basic data (acl, etc) */
+         struct c2_cob_omgrec   co_omgrec;   /**< permission data */
+         struct c2_db_pair      co_oipair;   /**< used for oi accesss */
+-        struct c2_db_cursor    co_itcursor; /**< cob iterator cursor */
+-        struct c2_cob_nskey   *co_itkey;    /**< current iterator pos */
+-        struct c2_cob_nsrec    co_itrec;    /**< current iterator rec */
+-        struct c2_db_pair      co_itpair;   /**< used for iterator cursor */
+-        int                    co_ithint;   /**< iterator hint */
+-        int                    co_itinit;
+ 	struct c2_addb_ctx     co_addb;     /**< cob private addb ctx. */
+ };
+ 
+-#define co_fid co_nsrec.cnr_fid
++/**
++   Cob iterator. Holds current position inside a cob (used readdir).
++*/
++struct c2_cob_iterator {
++        struct c2_cob         *ci_cob;      /**< the cob we iterate */
++        struct c2_db_cursor    ci_cursor;   /**< cob iterator cursor */
++        struct c2_cob_nskey   *ci_key;      /**< current iterator pos */
++        struct c2_cob_nsrec    ci_rec;      /**< current iterator rec */
++        struct c2_db_pair      ci_pair;     /**< used for iterator cursor */
++        int                    ci_hint;     /**< iterator hint */
++        int                    ci_init;     /**< just initialized */
++};
+ 
+ /** 
+    Cob flags and valid attributes 
+@@ -331,7 +432,7 @@ int c2_cob_update(struct c2_cob        *cob,
+                   struct c2_cob_fabrec *fabrec,
+                   struct c2_cob_omgrec *omgrec,
+                   struct c2_db_tx      *tx);
+-                  
++
+ /**
+    Add name to namespace and object index.
+       
+@@ -342,13 +443,13 @@ int c2_cob_update(struct c2_cob        *cob,
+ int c2_cob_add_name(struct c2_cob        *cob,
+                     struct c2_cob_nskey  *nskey,
+                     struct c2_db_tx      *tx);
+-                
++
+ /**
+    Delete name from namespace and object index.
+    
+    cob   - stat data (zero name) cob;
+    nskey - name to kill (may be the name of statdata);
+-   tx    - transcation handle.
++   tx    - transaction handle.
+ */
+ int c2_cob_del_name(struct c2_cob        *cob, 
+                     struct c2_cob_nskey  *nskey,
+@@ -360,7 +461,7 @@ int c2_cob_del_name(struct c2_cob        *cob,
+    cob    - stat data (zero name) cob;
+    srckey - source name;
+    tgtkey - target name;
+-   tx     - transcation handle
++   tx     - transaction handle
+ */
+ int c2_cob_update_name(struct c2_cob        *cob, 
+                        struct c2_cob_nskey  *srckey,
+@@ -370,26 +471,28 @@ int c2_cob_update_name(struct c2_cob        *cob,
+ /**
+    Init cob iterator.
+ */
+-int c2_cob_iterator_init(struct c2_cob *cob, 
+-                         const char *name, 
+-                         int namelen, 
+-                         int hint,
+-                         struct c2_db_tx *tx);
++int c2_cob_iterator_init(struct c2_cob          *cob,
++                         struct c2_cob_iterator *it, 
++                         const char             *name, 
++                         int                     namelen, 
++                         int                     hint,
++                         struct c2_db_tx        *tx);
+ 
+ /**
+    Position to next name in a dir cob.
+ */
+-int c2_cob_iterator_next(struct c2_cob *cob);
++int c2_cob_iterator_next(struct c2_cob_iterator *it);
+ 
+ /**
+    Finish cob iterator.
+ */
+-void c2_cob_iterator_fini(struct c2_cob *cob);
++void c2_cob_iterator_fini(struct c2_cob_iterator *it);
+ 
+ /**
+    Allocate a new cob
+  */
+-int c2_cob_alloc(struct c2_cob_domain *dom, struct c2_cob **out);
++int c2_cob_alloc(struct c2_cob_domain *dom, 
++                 struct c2_cob       **out);
+ 
+ /**
+    Acquires an additional reference on the object.
+@@ -409,16 +512,20 @@ void c2_cob_get(struct c2_cob *obj);
+ void c2_cob_put(struct c2_cob *obj);
+ 
+ /**
+-   Make oikey.
++   Create object index key that is used for operations on object index table.
++   It consists of object fid an linkno depending on what record we want to 
++   find.
+ */
+ void c2_cob_make_oikey(struct c2_cob_oikey *oikey, 
+-                       struct c2_fid *fid);
++                       const struct c2_fid *fid,
++                       int linkno);
+ 
+ /**
+-   Make nskey.
++   Create namespace table key for ns table manipulation. It contains parent fid
++   and child name.
+ */
+ void c2_cob_make_nskey(struct c2_cob_nskey **keyh, 
+-                       struct c2_fid *pfid,
++                       const struct c2_fid *pfid,
+                        const char *name, 
+                        int namelen);
+ 
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index d537ff4..9ed2ed6 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -119,7 +119,6 @@ static void test_add_name(void)
+         c2_cob_put(cob);
+         c2_free(key);
+ 
+-        /* add new name to existing cob */
+         pfid.f_container = 0x123;
+         pfid.f_key = 0x456;
+         c2_cob_make_nskey(&key, &pfid, wrong_name, strlen(wrong_name));
+diff --git a/colibri/Makefile.am b/colibri/Makefile.am
+index 4e431d6..4007a8a 100644
+--- a/colibri/Makefile.am
++++ b/colibri/Makefile.am
+@@ -31,6 +31,6 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
+                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
+                             $(top_builddir)/mdservice/libcolibri-mdservice.la \
+                             $(top_builddir)/mdstore/libcolibri-mdstore.la \
+-                            $(top_builddir)/datastore/libcolibri-datastore.la
++                            $(top_builddir)/iostore/libcolibri-iostore.la
+ 
+ #                            $(top_builddir)/rpc/libcolibri-rpc.la
+diff --git a/configure.ac b/configure.ac
+index d333a02..2ad3d2d 100755
+--- a/configure.ac
++++ b/configure.ac
+@@ -534,7 +534,7 @@ AC_CONFIG_FILES([
+                  site/Makefile
+                  mdstore/Makefile
+                  mdstore/ut/Makefile
+-                 datastore/Makefile
++                 iostore/Makefile
+ 		 ioservice/Makefile
+ 		 mdservice/Makefile
+                  udb/Makefile
+diff --git a/datastore/Makefile.am b/datastore/Makefile.am
+deleted file mode 100644
+index 53ee075..0000000
+--- a/datastore/Makefile.am
++++ /dev/null
+@@ -1,6 +0,0 @@
+-datastoredir                     = $(includedir)/datastore
+-datastore_HEADERS                = datastore.h
+-
+-noinst_LTLIBRARIES               = libcolibri-datastore.la
+-libcolibri_datastore_la_SOURCES  = datastore.c datastore.h
+-INCLUDES                         = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+diff --git a/datastore/datastore.c b/datastore/datastore.c
+deleted file mode 100644
+index 336b56f..0000000
+--- a/datastore/datastore.c
++++ /dev/null
+@@ -1,20 +0,0 @@
+-#ifdef HAVE_CONFIG_H
+-#  include <config.h>
+-#endif
+-
+-#include "lib/assert.h"
+-#include "stob/stob.h"
+-#include "fop/fop.h"
+-
+-#include "datastore.h"
+-
+-int c2_data_store_init(struct c2_data_store *data, struct c2_stob_domain *stob)
+-{
+-        data->ds_dom = stob;
+-        return 0;
+-}
+-
+-void c2_data_store_fini(struct c2_data_store *data)
+-{
+-        return;
+-}
+diff --git a/datastore/datastore.h b/datastore/datastore.h
+deleted file mode 100644
+index a68fb34..0000000
+--- a/datastore/datastore.h
++++ /dev/null
+@@ -1,27 +0,0 @@
+-/* -*- C -*- */
+-
+-#ifndef __COLIBRI_DATASTORE_DATASTORE_H__
+-#define __COLIBRI_DATASTORE_DATASTORE_H__
+-
+-struct c2_stob_domain;
+-
+-struct c2_data_store {
+-        struct c2_stob_domain  *ds_dom;
+-};
+-
+-int c2_data_store_init(struct c2_data_store *data, struct c2_stob_domain *stob);
+-void c2_data_store_fini(struct c2_data_store *data);
+-
+-
+-/* __COLIBRI_DATASTORE_DATASTORE_H__ */
+-#endif
+-
+-/* 
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/fid/fid.c b/fid/fid.c
+index df67389..ae3ef97 100644
+--- a/fid/fid.c
++++ b/fid/fid.c
+@@ -40,7 +40,7 @@ int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
+                 .u_hi = fid1->f_container,
+                 .u_lo = fid1->f_key
+         };
+-        
++
+         return c2_uint128_cmp(&u0, &u1);
+ }
+ 
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index c15a297..1a67415 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -10,7 +10,7 @@
+ #include "lib/errno.h"
+ #include "net/net.h"
+ #include "site/site.h"
+-#include "datastore/datastore.h"
++#include "iostore/iostore.h"
+ 
+ #ifdef __KERNEL__
+ #include "io_fops_k.h"
+@@ -243,14 +243,14 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
+ 	/*
+ 	 * @todo: Use ctx->fc_tx prepared by reqh.
+ 	 */
+-	result = site->s_datastore->ds_dom->sd_ops->sdo_tx_make(
+-	        site->s_datastore->ds_dom, ctx->fc_tx);
++	result = site->s_iostore->ds_dom->sd_ops->sdo_tx_make(
++	        site->s_iostore->ds_dom, ctx->fc_tx);
+ 	C2_ASSERT(result == 0);
+ 
+ 	/*
+ 	 * Allocate and find out the c2_stob object from given domain. 
+ 	 */
+-	result = c2_stob_find(site->s_datastore->ds_dom, 
++	result = c2_stob_find(site->s_iostore->ds_dom, 
+ 	        (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
+ 	C2_ASSERT(result == 0);
+ 	result = c2_stob_locate(fom_obj->fcrw_stob, ctx->fc_tx);
+diff --git a/iostore/Makefile.am b/iostore/Makefile.am
+new file mode 100644
+index 0000000..5f9d782
+--- /dev/null
++++ b/iostore/Makefile.am
+@@ -0,0 +1,6 @@
++iostoredir                     = $(includedir)/iostore
++iostore_HEADERS                = iostore.h
++
++noinst_LTLIBRARIES             = libcolibri-iostore.la
++libcolibri_iostore_la_SOURCES  = iostore.c iostore.h
++INCLUDES                       = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+diff --git a/iostore/iostore.c b/iostore/iostore.c
+new file mode 100644
+index 0000000..96c34d6
+--- /dev/null
++++ b/iostore/iostore.c
+@@ -0,0 +1,19 @@
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++
++#include "lib/assert.h"
++#include "stob/stob.h"
++#include "fop/fop.h"
++#include "iostore/iostore.h"
++
++int c2_io_store_init(struct c2_io_store *io, struct c2_stob_domain *stob)
++{
++        io->ds_dom = stob;
++        return 0;
++}
++
++void c2_io_store_fini(struct c2_io_store *io)
++{
++        return;
++}
+diff --git a/iostore/iostore.h b/iostore/iostore.h
+new file mode 100644
+index 0000000..45bcff1
+--- /dev/null
++++ b/iostore/iostore.h
+@@ -0,0 +1,27 @@
++/* -*- C -*- */
++
++#ifndef __COLIBRI_IOSTORE_DATASTORE_H__
++#define __COLIBRI_IOSTORE_DATASTORE_H__
++
++struct c2_stob_domain;
++
++struct c2_io_store {
++        struct c2_stob_domain  *ds_dom;
++};
++
++int c2_io_store_init(struct c2_io_store *io, struct c2_stob_domain *stob);
++void c2_io_store_fini(struct c2_io_store *io);
++
++
++/* __COLIBRI_DATASTORE_DATASTORE_H__ */
++#endif
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/lib/bitstring.c b/lib/bitstring.c
+index 2b15300..103cf62 100644
+--- a/lib/bitstring.c
++++ b/lib/bitstring.c
+@@ -1,5 +1,6 @@
+ /* -*- C -*- */
+ 
++#include <string.h>
+ #include "lib/bitstring.h"
+ #include "lib/arith.h"      /* C2_3WAY */
+ 
+@@ -19,6 +20,12 @@ void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
+ 	c->b_len = len;
+ }
+ 
++void c2_bitstring_copy(struct c2_bitstring *dst, const char *src, size_t count)
++{
++        memcpy(c2_bitstring_buf_get(dst), src, count);
++        c2_bitstring_len_set(dst, count);
++}
++
+ /**
+    String-like compare: alphanumeric for the length of the shortest string.
+    Shorter strings precede longer strings.
+diff --git a/lib/bitstring.h b/lib/bitstring.h
+index 0abf3e2..82c95e6 100644
+--- a/lib/bitstring.h
++++ b/lib/bitstring.h
+@@ -38,7 +38,11 @@ void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len);
+  */
+ int c2_bitstring_cmp(const struct c2_bitstring *c1,
+                      const struct c2_bitstring *c2);
+-
++/**
++ Copy @src to @dst.
++*/
++void c2_bitstring_copy(struct c2_bitstring *dst, 
++                       const char *src, size_t count);
+ 
+ /** @} end of adt group */
+ 
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 7a666c6..d8785ff 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -28,7 +28,7 @@
+ /**
+    Make in-memory fid from wire fid (wid).
+ */
+-void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *wid)
++void c2_md_make_fid(struct c2_fid *fid, const struct c2_fop_fid *wid)
+ {
+         fid->f_container = wid->f_seq;
+         fid->f_key = wid->f_oid;
+@@ -37,7 +37,8 @@ void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *wid)
+ /**
+    Make nskey from passed parent fid and child name.
+ */
+-void c2_md_make_nskey(struct c2_cob_nskey **keyh, struct c2_fop_fid *fid,
++void c2_md_make_nskey(struct c2_cob_nskey **keyh, 
++                      const struct c2_fop_fid *fid,
+                       struct c2_fop_name *name)
+ {
+         struct c2_fid cfid;
+@@ -49,7 +50,8 @@ void c2_md_make_nskey(struct c2_cob_nskey **keyh, struct c2_fop_fid *fid,
+ /**
+    Make oikey from passed child fid and liunk number.
+ */
+-void c2_md_make_oikey(struct c2_cob_oikey *oikey, struct c2_fop_fid *fid,
++void c2_md_make_oikey(struct c2_cob_oikey *oikey, 
++                      const struct c2_fop_fid *fid,
+                       int linkno)
+ {
+         c2_md_make_fid(&oikey->cok_fid, fid);
+diff --git a/mdservice/md_foms.h b/mdservice/md_foms.h
+index 98702dc..01719c4 100644
+--- a/mdservice/md_foms.h
++++ b/mdservice/md_foms.h
+@@ -24,30 +24,35 @@ struct c2_fom_md {
+ /**
+    Init request fom for all types of requests.
+ */
+-int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fop_ctx *ctx, 
++int c2_md_req_fom_init(struct c2_fop *fop, 
++                       struct c2_fop_ctx *ctx, 
+                        struct c2_fom **m);
+ 
+ /**
+    Init reply fom.
+ */
+-int c2_md_rep_fom_init(struct c2_fop *fop, struct c2_fop_ctx *ctx, 
++int c2_md_rep_fom_init(struct c2_fop *fop, 
++                       struct c2_fop_ctx *ctx, 
+                        struct c2_fom **m);
+ 
+ /**
+    Make in-memory fid from wire fid (wid).
+ */
+-void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *wid);
++void c2_md_make_fid(struct c2_fid *fid, 
++                    const struct c2_fop_fid *wid);
+ 
+ /**
+    Make nskey from passed parent fid and child name.
+ */
+-void c2_md_make_nskey(struct c2_cob_nskey **keyh, struct c2_fop_fid *fid, 
++void c2_md_make_nskey(struct c2_cob_nskey **keyh, 
++                      const struct c2_fop_fid *fid, 
+                       struct c2_fop_name *name);
+ 
+ /**
+    Make oikey from passed child fid and link number.
+ */
+-void c2_md_make_oikey(struct c2_cob_oikey *oikey, struct c2_fop_fid *fid,
++void c2_md_make_oikey(struct c2_cob_oikey *oikey, 
++                      const struct c2_fop_fid *fid,
+                       int linkno);
+ 
+ #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 336d89d..fce2c20 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -103,15 +103,15 @@ int c2_md_store_create_attr(struct c2_md_store *md,
+                 /*
+                  * Add direntry "." to empty dir
+                  */
+-                rc = c2_md_store_add_name(cob, &cob->co_fid, ".", 1, tx);
++                rc = c2_md_store_add_name(cob, cob->co_fid, ".", 1, tx);
+                 if (rc)
+                         return rc;
+ 
+-                if (!c2_fid_eq(&pcob->co_fid, &cob->co_fid)) {
++                if (!c2_fid_eq(pcob->co_fid, cob->co_fid)) {
+                         /*
+                          * Add direntry ".." to empty dir.
+                          */
+-                        rc = c2_md_store_add_name(pcob, &cob->co_fid, "..", 2, tx);
++                        rc = c2_md_store_add_name(pcob, cob->co_fid, "..", 2, tx);
+                         if (rc)
+                                 return rc;
+ 
+@@ -126,7 +126,7 @@ int c2_md_store_create_attr(struct c2_md_store *md,
+                          */
+                         rc = c2_cob_update(pcob, &pcob->co_nsrec,  NULL, NULL, tx);
+                 } else {
+-                        rc = c2_md_store_add_name(cob, &cob->co_fid, "..", 2, tx);
++                        rc = c2_md_store_add_name(cob, cob->co_fid, "..", 2, tx);
+                         if (rc)
+                                 return rc;
+                 }
+@@ -161,7 +161,7 @@ int c2_md_store_create(struct c2_md_store *md,
+         C2_SET0(&fabrec);
+         C2_SET0(&omgrec);
+ 
+-        c2_cob_make_nskey(&nskey, &pcob->co_fid, 
++        c2_cob_make_nskey(&nskey, pcob->co_fid, 
+                           req->c_name.n_name, 
+                           req->c_name.n_count);
+         c2_md_make_fid(&nsrec.cnr_fid, &body->b_tfid);
+@@ -249,7 +249,7 @@ int c2_md_store_link(struct c2_md_store *md,
+         /*
+          * Link @nskey to a file described with @cob
+          */        
+-        c2_cob_make_nskey(&nskey, &pcob->co_fid, 
++        c2_cob_make_nskey(&nskey, pcob->co_fid, 
+                           req->l_name.n_name,
+                           req->l_name.n_count);
+         rc = c2_cob_add_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
+@@ -305,14 +305,14 @@ int c2_md_store_unlink(struct c2_md_store *md,
+                 /* 
+                  * Kill ".." and "." first.
+                  */
+-                c2_cob_make_nskey(&nskey, &cob->co_fid, "..", 2);
++                c2_cob_make_nskey(&nskey, cob->co_fid, "..", 2);
+                 rc = c2_cob_del_name(pcob, nskey, &ctx->fc_tx->tx_dbtx);
+                 c2_free(nskey);
+                 if (rc)
+                         goto out;
+                 
+                 cob->co_nsrec.cnr_nlink--;
+-                c2_cob_make_nskey(&nskey, &cob->co_fid, ".", 1);
++                c2_cob_make_nskey(&nskey, cob->co_fid, ".", 1);
+                 rc = c2_cob_del_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
+                 c2_free(nskey);
+                 if (rc)
+@@ -325,7 +325,7 @@ int c2_md_store_unlink(struct c2_md_store *md,
+                  */
+ //                C2_ASSERT(cob->co_nsrec.cnr_nlink == 0);
+         } else {
+-                c2_cob_make_nskey(&nskey, &pcob->co_fid, 
++                c2_cob_make_nskey(&nskey, pcob->co_fid, 
+                                   req->u_name.n_name,
+                                   req->u_name.n_count);
+ 
+@@ -338,7 +338,7 @@ int c2_md_store_unlink(struct c2_md_store *md,
+                         /*
+                          * Find another name (new stat data) in object index.
+                          */
+-                        oikey.cok_fid = cob->co_fid;
++                        oikey.cok_fid = *cob->co_fid;
+                         oikey.cok_linkno = cob->co_nsrec.cnr_linkno + 1;
+                 
+                         rc = c2_cob_locate(&md->md_dom, &oikey, &ncob, 
+@@ -464,7 +464,7 @@ static int c2_md_store_rename_sanity(struct c2_md_store *md,
+          */
+         do {
+                 /* Is root reached? */
+-                if (c2_fid_eq(&md->md_root->co_fid, &tgtfid))
++                if (c2_fid_eq(md->md_root->co_fid, &tgtfid))
+                         return 0;
+                 
+                 /*
+@@ -527,17 +527,17 @@ int c2_md_store_rename(struct c2_md_store *md,
+         /*
+          * Prepare src and dst keys.
+          */                
+-        c2_cob_make_nskey(&srckey, &pcob_src->co_fid, 
++        c2_cob_make_nskey(&srckey, pcob_src->co_fid, 
+                           req->r_sname.n_name,
+                           req->r_sname.n_count);
+-        c2_cob_make_nskey(&tgtkey, &pcob_tgt->co_fid, 
++        c2_cob_make_nskey(&tgtkey, pcob_tgt->co_fid, 
+                           req->r_tname.n_name,
+                           req->r_tname.n_count);
+ 
+         /*
+          * Cob is just renamed in same parent, not much to do.
+          */
+-        if (c2_fid_eq(&pcob_src->co_fid, &pcob_tgt->co_fid)) {
++        if (c2_fid_eq(pcob_src->co_fid, pcob_tgt->co_fid)) {
+                 rc = c2_cob_update_name(cob, srckey, tgtkey, 
+                                         &ctx->fc_tx->tx_dbtx);
+                 if (rc)
+@@ -721,6 +721,7 @@ int c2_md_store_readdir(struct c2_md_store *md,
+                         struct c2_fop_readdir_rep *rep, 
+                         struct c2_fop_ctx *ctx)
+ {
++        struct c2_cob_iterator         it;
+         struct c2_fop_readdir_vec     *vec;
+         struct c2_fop_readdir_dirent  *ent;
+         struct c2_cob_nskey           *nskey;
+@@ -730,7 +731,8 @@ int c2_md_store_readdir(struct c2_md_store *md,
+         
+         C2_ASSERT(cob != NULL);        
+ 
+-        rc = c2_cob_iterator_init(cob, req->r_pos.n_name, 
++        rc = c2_cob_iterator_init(cob, &it, 
++                                  req->r_pos.n_name, 
+                                   req->r_pos.n_count,
+                                   req->r_hint, 
+                                   &ctx->fc_tx->tx_dbtx);
+@@ -739,9 +741,9 @@ int c2_md_store_readdir(struct c2_md_store *md,
+ 
+         vec = &rep->r_vector;
+         for (count = 0; count < vec->v_count; count++) {
+-                nskey = cob->co_itkey;
+-                nsrec = &cob->co_itrec;
+-                rc = c2_cob_iterator_next(cob);
++                nskey = it.ci_key;
++                nsrec = &it.ci_rec;
++                rc = c2_cob_iterator_next(&it);
+                 if (rc)
+                         break;
+                 ent = &vec->v_dirent[count];
+@@ -754,7 +756,7 @@ int c2_md_store_readdir(struct c2_md_store *md,
+         }
+         
+         vec->v_count = count;
+-        c2_cob_iterator_fini(cob);
++        c2_cob_iterator_fini(&it);
+         
+         /*
+          * We have to return:
+@@ -785,7 +787,7 @@ int c2_md_store_locate(struct c2_md_store *md,
+         struct c2_cob_oikey oikey;
+         int                 rc;
+ 
+-        c2_cob_make_oikey(&oikey, fid);
++        c2_cob_make_oikey(&oikey, fid, 0);
+ 
+         if (flags == C2_MD_STORE_LOCATE_STORED) {
+                 rc = c2_cob_locate(&md->md_dom, &oikey, cob, tx);
+@@ -816,7 +818,7 @@ int c2_md_store_lookup(struct c2_md_store *md,
+         if (pcob == NULL)        
+                 c2_cob_make_nskey(&nskey, &C2_MD_ROOT_FID, name, namelen);
+         else
+-                c2_cob_make_nskey(&nskey, &pcob->co_fid, name, namelen);
++                c2_cob_make_nskey(&nskey, pcob->co_fid, name, namelen);
+         flags = (CA_NSKEY_FREE | CA_FABREC | CA_OMGREC);
+         rc = c2_cob_lookup(&md->md_dom, nskey, flags, cob, tx);
+ 
+@@ -834,6 +836,6 @@ int c2_md_store_alloc(struct c2_md_store *md,
+         
+         rc = c2_cob_alloc(&md->md_dom, cob);
+         if (rc == 0)
+-                (*cob)->co_fid = *fid;
++                *(*cob)->co_fid = *fid;
+         return rc;
+ }
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 25045ea..025711c 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -10,7 +10,7 @@
+ #include "stob/stob.h"
+ #include "cob/cob.h"
+ #include "mdstore/mdstore.h"
+-#include "datastore/datastore.h"
++#include "iostore/iostore.h"
+ #include "site/site.h"
+ 
+ #include "reqh.h"
+diff --git a/site/site.c b/site/site.c
+index 8fbb83c..a9fb0f2 100644
+--- a/site/site.c
++++ b/site/site.c
+@@ -16,7 +16,7 @@
+ #include "fop/fop.h"
+ #include "cob/cob.h"
+ #include "mdstore/mdstore.h"
+-#include "datastore/datastore.h"
++#include "iostore/iostore.h"
+ 
+ #include "site.h"
+ 
+@@ -29,10 +29,10 @@ static struct c2_list c2_sites;
+  
+ int c2_site_init(struct c2_site *s, 
+                  struct c2_md_store *md, 
+-                 struct c2_data_store *data)
++                 struct c2_io_store *io)
+ {
+         s->s_mdstore = md;
+-        s->s_datastore = data;
++        s->s_iostore = io;
+         c2_list_add(&c2_sites, &s->s_linkage);
+         return 0;
+ }
+diff --git a/site/site.h b/site/site.h
+index 54aa95e..a881948 100644
+--- a/site/site.h
++++ b/site/site.h
+@@ -11,12 +11,12 @@
+ 
+ /* import */
+ struct c2_md_store;
+-struct c2_data_store;
++struct c2_io_store;
+ struct c2_list_link;
+ 
+ struct c2_site {
+         struct c2_md_store     *s_mdstore;
+-        struct c2_data_store   *s_datastore;
++        struct c2_io_store     *s_iostore;
+         struct c2_list_link     s_linkage;
+ };
+ 
+@@ -25,7 +25,7 @@ struct c2_site {
+  */
+ int c2_site_init(struct c2_site *s, 
+                  struct c2_md_store *md, 
+-                 struct c2_data_store *data);
++                 struct c2_io_store *io);
+ 
+ void c2_site_fini(struct c2_site *s);
+ 
+diff --git a/stob/ut/server.c b/stob/ut/server.c
+index ac77fd0..ad1dcb4 100644
+--- a/stob/ut/server.c
++++ b/stob/ut/server.c
+@@ -31,7 +31,7 @@
+ #include "ioservice/io_fops.h"
+ 
+ #include "reqh/reqh.h"
+-#include "datastore/datastore.h"
++#include "iostore/iostore.h"
+ #include "site/site.h"
+ 
+ /**
+@@ -56,7 +56,7 @@ static struct c2_stob_domain *dom;
+ static struct c2_fol          fol;
+ static struct c2_reqh         reqh;
+ static struct c2_site         site;
+-static struct c2_data_store   datastore;
++static struct c2_io_store   iostore;
+ 
+ static struct c2_stob *object_find(const struct c2_fop_fid *fid,
+ 				   struct c2_dtx *tx)
+@@ -547,13 +547,13 @@ int main(int argc, char **argv)
+         /*
+          * Set up data store to be used.
+          */
+-        result = c2_data_store_init(&datastore, bdom);
++        result = c2_io_store_init(&iostore, bdom);
+         C2_ASSERT(result == 0);
+ 
+         /*
+          * Set up site.
+          */
+-        result = c2_site_init(&site, NULL, &datastore);
++        result = c2_site_init(&site, NULL, &iostore);
+         C2_ASSERT(result == 0);
+ 
+         /*
+@@ -578,7 +578,7 @@ int main(int argc, char **argv)
+ 	c2_service_id_fini(&sid);
+ 	c2_reqh_fini(&reqh);
+ 	c2_site_fini(&site);
+-	c2_data_store_fini(&datastore);
++	c2_io_store_fini(&iostore);
+ 	c2_net_domain_fini(&ndom);
+ 	c2_net_xprt_fini(&c2_net_usunrpc_xprt);
+ 
+-- 
+1.8.3.2
+

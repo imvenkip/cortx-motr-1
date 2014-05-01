@@ -1,0 +1,179 @@
+From 8c782e783bdff86b5fe97c13e336f732b473b695 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Fri, 8 Feb 2013 06:57:38 -0800
+Subject: [PATCH 047/121] Alignment and typo fixes in kv_store and helper.c
+
+---
+ be/helper.c         |  6 +++---
+ be/helper.h         |  6 +++---
+ be/kv_store.c       | 27 ++++++++++-----------------
+ be/ut/kv_store.c    |  2 +-
+ be/ut/kv_store_ub.c |  4 ++--
+ 5 files changed, 19 insertions(+), 26 deletions(-)
+
+diff --git a/be/helper.c b/be/helper.c
+index 76f7696..f991e04 100644
+--- a/be/helper.c
++++ b/be/helper.c
+@@ -60,9 +60,9 @@ M0_INTERNAL void m0_be_ks_init_domain(struct m0_be_domain  **out_dom)
+ }
+ M0_EXPORTED(m0_be_ks_init_domain);
+ 
+-M0_INTERNAL int m0_be_ks_domain_restore(struct m0_be_domain *dom,
+-                                        struct m0_be_seg    *seg,
+-                                        char                *name)
++M0_INTERNAL int m0_be_ks_restore(struct m0_be_domain *dom,
++                                 struct m0_be_seg    *seg,
++                                 char                *name)
+ {
+         struct m0_sm_group *sm_group;
+ 
+diff --git a/be/helper.h b/be/helper.h
+index 60dcd8f..e9def06 100644
+--- a/be/helper.h
++++ b/be/helper.h
+@@ -70,9 +70,9 @@ M0_INTERNAL void m0_be_ks_fini(struct m0_be_domain *dom, struct m0_be_seg *seg);
+   @retval BE_KV_FAILURE :       on failure to open a segment.
+   @return BE_KV_SUCCESS :       on successful restore of segment.
+  */
+-M0_INTERNAL int m0_be_ks_domain_restore(struct m0_be_domain *dom,
+-                                        struct m0_be_seg    *seg,
+-                                        char                *name);
++M0_INTERNAL int m0_be_ks_restore(struct m0_be_domain *dom,
++                                 struct m0_be_seg    *seg,
++                                 char                *name);
+ 
+ /**
+   Allocates memory to an object.
+diff --git a/be/kv_store.c b/be/kv_store.c
+index 24e0e60..1e2df73 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -160,8 +160,8 @@ M0_INTERNAL bool m0_be_ks_init(struct m0_be_kv_store **out_handle,
+                 M0_ASSERT(rvm_handle_seg != NULL);
+ 
+                 /* Try to restore (open) the segment in @dom */
+-                recovery_status = m0_be_ks_domain_restore(dom, rvm_handle_seg,
+-                                                          BE_KV_SEG_NAME);
++                recovery_status = m0_be_ks_restore(dom, rvm_handle_seg,
++                                                   BE_KV_SEG_NAME);
+                 if (recovery_status != BE_KV_SUCCESS) {
+                         ret_val = false;
+                         goto exit_init;
+@@ -222,8 +222,7 @@ M0_INTERNAL struct m0_list_link
+ 
+         ks_tlist      = &handle->handle_rvm->ks_tlist;
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+-
+-        temp_tail = m0_tlist_tail(ks_list_descr, ks_tlist);
++        temp_tail     = m0_tlist_tail(ks_list_descr, ks_tlist);
+ 
+         /* If object is last in linked list, then its next will be itself */
+         if (temp_tail == obj) {
+@@ -250,7 +249,7 @@ M0_INTERNAL void *m0_be_ks_find(struct m0_be_kv_store *handle,
+ 
+         M0_ENTRY();
+ 
+-        ks_tlist = &handle->handle_rvm->ks_tlist;
++        ks_tlist      = &handle->handle_rvm->ks_tlist;
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+ 
+         m0_tlist_for(ks_list_descr, ks_tlist, scan) {
+@@ -432,10 +431,9 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+         M0_ENTRY("obj_ref: %p", obj_ref);
+ 
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+-
+-        ks_tlist = &handle->handle_rvm->ks_tlist;
+-        dom      = handle->handle_heap.ks_dom;
+-        sm_group = m0_be_domain_sm_group(dom);
++        ks_tlist      = &handle->handle_rvm->ks_tlist;
++        dom           = handle->handle_heap.ks_dom;
++        sm_group      = m0_be_domain_sm_group(dom);
+ 
+         /* Ensure object is allocated on same domain as that of handle */
+         if (obj_ref->be_magic != dom->bd_magic) {
+@@ -459,7 +457,6 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                 in_tx_state = BE_KV_IN_TX_NULL;
+                 M0_ALLOC_PTR(tx);
+                 M0_ASSERT(tx != NULL);
+-
+                 m0_be_tx_init(tx, dom, 0);
+         }
+ 
+@@ -484,7 +481,7 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+         head = (void *)&ks_tlist->t_head;
+ 
+         /*
+-         * Capture t_head.
++         * Prepare t_head.
+          * Because object could be added at head or before head
+          */
+         m0_be_ks_prep_link_reg(dom, head, tx, &t_head_reg);
+@@ -493,7 +490,6 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+         /* Check if tlist is empty */
+         if ((head->ll_next == (void *)head) &&
+             (head->ll_prev == (void *)head)) {
+-
+                 /* Capture t_head region */
+                 if (ins_tx == NULL) {
+                         m0_be_tx_add_cred(tx, t_head_reg);
+@@ -531,9 +527,7 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                                 }
+ 
+                                 /* Now add the object to the tlist */
+-                                m0_tlist_add_before(ks_list_descr, scan,
+-                                                       new);
+-
++                                m0_tlist_add_before(ks_list_descr, scan, new);
+                                 ret_val = BE_KV_SUCCESS;
+                                 break;
+                         }
+@@ -589,8 +583,7 @@ M0_INTERNAL bool m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+         }
+ 
+         /* Retrieve the offset */
+-        lo = (long int)(seg->bs_addr + (kv_store->u_lo));
+-
++        lo         = (long int)(seg->bs_addr + (kv_store->u_lo));
+         handle_rvm = (struct m0_be_kv_store_rvm *)lo;
+         M0_ASSERT(handle_rvm != NULL);
+ 
+diff --git a/be/ut/kv_store.c b/be/ut/kv_store.c
+index b7f2536..54f18ee 100644
+--- a/be/ut/kv_store.c
++++ b/be/ut/kv_store.c
+@@ -168,7 +168,7 @@ static int insert(char *key_name, int val)
+ 
+         /* Memory alloc to the object via rvm */
+         object[val] = (struct m0_kv_store_obj *)m0_be_ks_obj_malloc(obj_reg,
+-                        &obj_ref);
++                                                                    &obj_ref);
+         if (object[val] == NULL) {
+                 status = BE_KV_FAILURE;
+                 goto exit;
+diff --git a/be/ut/kv_store_ub.c b/be/ut/kv_store_ub.c
+index 69211a8..e9391d7 100644
+--- a/be/ut/kv_store_ub.c
++++ b/be/ut/kv_store_ub.c
+@@ -110,7 +110,7 @@ static int __insert(char *key_name, int val)
+ 
+         /* Memory alloc to the object via rvm */
+         object[val] = (struct m0_kv_store_obj *)m0_be_ks_obj_malloc(obj_reg,
+-                        &obj_ref);
++                                                                    &obj_ref);
+         if (object[val] == NULL) {
+                 status = BE_KV_FAILURE;
+                 goto exit;
+@@ -129,7 +129,7 @@ static int __insert(char *key_name, int val)
+ 
+         m0_be_tx_done(tx);
+         m0_be_wait(sm_group, &tx->bt_sm,
+-                        M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
++                   M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+ 
+         m0_be_tx_fini(tx);
+         m0_free(tx);
+-- 
+1.8.3.2
+

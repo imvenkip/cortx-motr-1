@@ -1,0 +1,25 @@
+From f5905345dbab5aad7b8f351a99e35fddb540153d Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Tue, 29 Apr 2014 15:43:53 +0530
+Subject: [PATCH 4/6] stob-unlink, - code cleanup
+
+---
+ stob/ad.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/stob/ad.c b/stob/ad.c
+index 191d399..7c61450 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -605,7 +605,7 @@ static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
+ 	struct m0_ext   *ext = &it->ec_seg.ee_ext;
+ 	struct m0_ext    todo = {
+ 				.e_start = 0,
+-				.e_end   = ~0,
++				.e_end   = M0_BCOUNT_MAX
+ 			 };
+ 	int              rc = 0;
+ 
+-- 
+1.8.3.2
+

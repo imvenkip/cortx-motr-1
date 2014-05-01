@@ -1,0 +1,381 @@
+From c3dfe678af0ebe894d36e02226ca411d80c4a120 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 11 Jul 2012 19:03:47 +0300
+Subject: [PATCH 231/370] don't change ->co_nrefs in
+ c2_conf_dircur_{init,fini}()
+
+This change saves one take-release pair on obj->co_confc->cc_lock.
+The application will need to keep directory object pinned until
+c2_conf_dircur is finalised.
+
++ Refactor the code of @ref confc-fspec-recipe3.
++ confc.h: Indent the "recipes" properly.
+
+LogD #381
+RB: r/865
+---
+ conf/confc.h | 243 +++++++++++++++++++++++++++++++++--------------------------
+ conf/obj.c   |   1 +
+ conf/obj.h   |  11 ++-
+ 3 files changed, 149 insertions(+), 106 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index 79d6ac4..656823a 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -142,8 +142,8 @@ struct c2_mutex;
+  * A caller of c2_confc_open_sync() or c2_confc_readdir_sync() will be
+  * blocked while confc processes the request.
+  *
+- * All opened configuration objects must be closed (c2_confc_close())
+- * before c2_confc_fini() is called.
++ * All c2_confc_open*()ed configuration objects must be
++ * c2_confc_close()ed before c2_confc_fini() is called.
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section confc-fspec-recipes Recipes
+@@ -161,35 +161,35 @@ struct c2_mutex;
+  *
+  * static int filesystem_open_async(struct c2_conf_filesystem **fs)
+  * {
+- *     struct c2_confc_ctx ctx;
+- *     struct c2_clink     clink;
+- *     int                 rc;
+- *
+- *     c2_confc_ctx_init(&ctx, confc);
+- *     c2_clink_init(&clink, NULL)
+- *     c2_clink_add(&ctx.fc_complete, &clink);
+- *
+- *     rc = c2_confc_open(&ctx, NULL, "filesystem");
+- *     if (rc == 0) {
+- *         struct c2_conf_obj *obj;
+- *
+- *         c2_chan_wait(&clink);
+- *         obj = c2_confc_ctx_handout(&ctx);
+- *         if (obj == NULL)
+- *             rc = c2_confc_error(&ctx);
+- *         else
+- *             *fs = C2_CONF_CAST(obj, c2_conf_filesystem);
+- *     }
+- *
+- *     c2_clink_del(&clink);
+- *     c2_clink_fini(&clink);
+- *     c2_confc_ctx_fini(&ctx);
+- *     return rc;
++ *         struct c2_confc_ctx ctx;
++ *         struct c2_clink     clink;
++ *         int                 rc;
++ *
++ *         c2_confc_ctx_init(&ctx, confc);
++ *         c2_clink_init(&clink, NULL);
++ *         c2_clink_add(&ctx.fc_complete, &clink);
++ *
++ *         rc = c2_confc_open(&ctx, NULL, "filesystem");
++ *         if (rc == 0) {
++ *                 struct c2_conf_obj *obj;
++ *
++ *                 c2_chan_wait(&clink);
++ *                 obj = c2_confc_ctx_handout(&ctx);
++ *                 if (obj == NULL)
++ *                         rc = c2_confc_error(&ctx);
++ *                 else
++ *                         *fs = C2_CONF_CAST(obj, c2_conf_filesystem);
++ *         }
++ *
++ *         c2_clink_del(&clink);
++ *         c2_clink_fini(&clink);
++ *         c2_confc_ctx_fini(&ctx);
++ *         return rc;
+  * }
+  *
+  * static int filesystem_open_sync(struct c2_conf_filesystem **fs)
+  * {
+- *     return c2_confc_open_sync(fs, confc->cc_root, "filesystem");
++ *         return c2_confc_open_sync(fs, confc->cc_root, "filesystem");
+  * }
+  * @endcode
+  *
+@@ -201,31 +201,35 @@ struct c2_mutex;
+  *
+  * struct c2_confc *confc = ...;
+  *
+- * static int service_by_type(enum c2_cfg_service_type tos)
++ * static int specific_service_process(enum c2_cfg_service_type tos)
+  * {
+- *     struct c2_conf_obj   *obj;
+- *     struct c2_conf_dircur cur;
+- *     int rc;
++ *         struct c2_conf_obj   *dir_obj;
++ *         struct c2_conf_obj   *svc_obj;
++ *         struct c2_conf_dircur cur;
++ *         int rc;
+  *
+- *     rc = c2_confc_open_sync(&obj, confc->cc_root, "filesystem/services");
+- *     if (rc != 0)
+- *         return rc;
++ *         rc = c2_confc_open_sync(&dir_obj, confc->cc_root,
++ *                                 "filesystem/services");
++ *         if (rc != 0)
++ *                 return rc;
++ *         c2_conf_dircur_init(&cur, dir_obj);
++ *
++ *         while ((rc = c2_confc_readdir_sync(&svc_obj, &cur)) > 0) {
++ *                 const struct c2_conf_service *svc =
++ *                         C2_CONF_CAST(svc_obj, c2_conf_service);
+  *
+- *     // This is the idiom: initialize c2_conf_dircur and close
+- *     // directory object.  c2_conf_dircur will keep the object pinned.
+- *     c2_conf_dircur_init(&cur, obj);
+- *     c2_confc_close(obj);
++ *                 if (svc->cs_type == tos) {
++ *                         // ... Use `svc' ...
++ *                 }
+  *
+- *     while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
+- *         const struct c2_conf_service *svc =
+- *             C2_CONF_CAST(obj, c2_conf_service);
+- *         if (svc->cs_type == tos) {
+- *             // ... Use `svc' ...
++ *                 // Explicit c2_confc_close(svc_obj) is not needed:
++ *                 // c2_confc_readdir_sync() and c2_conf_dircur_fini()
++ *                 // take care of closing svc_obj.
+  *         }
+- *     }
+- *     c2_conf_dircur_fini(&cur);
+  *
+- *     return rc;
++ *         c2_conf_dircur_fini(&cur);
++ *         c2_confc_close(dir_obj);
++ *         return rc;
+  * }
+  * @endcode
+  *
+@@ -237,78 +241,105 @@ struct c2_mutex;
+  *
+  * struct c2_confc *confc = ...;
+  *
++ * static int node_devices_process(struct c2_conf_obj *node);
++ *
+  * /// Accesses configuration data of devices used by specific service on
+  * /// specific node.
+- * static int node_devices_process(enum c2_cfg_service_type svc_type,
+- *                                 const struct c2_conf_buf *node_id)
++ * static int specific_devices_process(enum c2_cfg_service_type svc_type,
++ *                                     const char *node_id)
+  * {
+- *     struct c2_conf_obj   *obj;
+- *     struct c2_conf_dircur svc_cur; // "services" directory cursor
+- *     struct c2_conf_obj   *node_obj = NULL;
+- *     int rc;
++ *         struct c2_conf_obj   *dir_obj;
++ *         struct c2_conf_dircur dir;
++ *         struct c2_conf_obj   *svc_obj;
++ *         int rc;
++ *
++ *         rc = c2_confc_open_sync(&dir_obj, confc->cc_root,
++ *                                 "filesystem/services");
++ *         if (rc != 0)
++ *                 return rc;
++ *         c2_conf_dircur_init(&dir, dir_obj);
++ *
++ *         // Note, that c2_confc_readdir_sync() and c2_conf_dircur_fini()
++ *         // take care of closing svc_obj.
++ *
++ *         while ((rc = c2_confc_readdir_sync(&svc_obj, &dir)) > 0) {
++ *                 struct c2_conf_obj     *node_obj;
++ *                 struct c2_conf_service *svc =
++ *                         C2_CONF_CAST(svc_obj, c2_conf_service);
++ *
++ *                 if (svc->cs_type != svc_type)
++ *                         // This is not the service we are looking for.
++ *                         continue;
++ *
++ *                 rc = c2_confc_open_sync(&node_obj, obj, "node"); // svc/node
++ *                 if (rc == 0) {
++ *                         if (streq(node_obj->co_id, node_id))
++ *                                 rc = node_devices_process(node_obj);
++ *                         c2_confc_close(node_obj);
++ *                 }
++ *
++ *                 if (rc != 0)
++ *                         break;
++ *         }
+  *
+- *     rc = c2_confc_open_sync(&obj, confc->cc_root, "filesystem/services");
+- *     if (rc != 0)
++ *         c2_conf_dircur_fini(&dir);
++ *         c2_confc_close(dir_obj);
+  *         return rc;
++ * }
+  *
+- *     c2_conf_dircur_init(&svc_cur, obj);
+- *     c2_confc_close(obj); // `svc_cur' will keep the object pinned
++ * static int node_nics_process(struct c2_conf_obj *node);
++ * static int node_sdevs_process(struct c2_conf_obj *node);
+  *
+- *     while ((rc = c2_confc_readdir_sync(&obj, &svc_cur)) > 0) {
+- *         // `obj' points at c2_conf_service::cs_obj.
+- *         struct c2_conf_dircur   cur;
+- *         struct c2_conf_service *svc = C2_CONF_CAST(obj, c2_conf_service);
++ * static int node_devices_process(struct c2_conf_obj *node)
++ * {
++ *         int rc = node_nics_process(node);
++ *         return rc ?: node_sdevs_process(node);
++ * }
+  *
+- *         if (svc->cs_type != svc_type)
+- *             continue; // This is not the service we are looking for.
++ * static int node_nics_process(struct c2_conf_obj *node)
++ * {
++ *         struct c2_conf_obj   *dir_obj;
++ *         struct c2_conf_dircur dir;
++ *         struct c2_conf_obj   *obj;
++ *         int                   rc;
+  *
+- *         rc = c2_confc_open_sync(&node_obj, obj, "node"); // svc/node
++ *         rc = c2_confc_open_sync(&dir_obj, node, "nics");
+  *         if (rc != 0)
+- *             break;
+- *         if (!c2_conf_buf_eq(node_obj->co_id, node_id)) {
+- *             // This is not the node we are looking for.
+- *             c2_confc_close(node_obj);
+- *             node_obj = NULL;
+- *             continue;
+- *         }
++ *                 return rc;
++ *         c2_conf_dircur_init(&dir, dir_obj);
+  *
+- *         // Open node/nics.
+- *         rc = c2_confc_open_sync(&obj, node_obj, "nics");
+- *         if (rc != 0)
+- *             break;
+- *
+- *         // Process NICs.
+- *         c2_conf_dircur_init(&cur, obj);
+- *         c2_confc_close(obj);
+- *         while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
+- *             const struct c2_conf_nic *nic = C2_CONF_CAST(obj, c2_conf_nic);
+- *             // ... Use `nic' ...
++ *         while ((rc = c2_confc_readdir_sync(&obj, &dir)) > 0) {
++ *                 const struct c2_conf_nic *nic =
++ *                         C2_CONF_CAST(obj, c2_conf_nic);
++ *                 // ... Use `nic' ...
+  *         }
+- *         c2_conf_dircur_fini(&cur);
+- *         if (rc != 0)
+- *             break;
+  *
+- *         // Open node/sdevs.
+- *         rc = c2_confc_open_sync(&obj, node_obj, "sdevs");
++ *         c2_conf_dircur_fini(&dir);
++ *         c2_confc_close(dir_obj);
++ *         return rc;
++ * }
++ *
++ * static int node_sdevs_process(struct c2_conf_obj *node)
++ * {
++ *         struct c2_conf_obj   *dir_obj;
++ *         struct c2_conf_dircur dir;
++ *         struct c2_conf_obj   *obj;
++ *         int                   rc;
++ *
++ *         rc = c2_confc_open_sync(&dir_obj, node, "sdevs");
+  *         if (rc != 0)
+- *             break;
+- *
+- *         // Process storage devices.
+- *         c2_conf_dircur_init(&cur, obj);
+- *         c2_confc_close(obj);
+- *         while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
+- *             const struct c2_conf_sdev *sdev = C2_CONF_CAST(obj,
+- *                                                            c2_conf_sdev);
+- *             // ... Use `sdev' ...
++ *                 return rc;
++ *         c2_conf_dircur_init(&dir, dir_obj);
++ *
++ *         while ((rc = c2_confc_readdir_sync(&obj, &dir)) > 0) {
++ *                 const struct c2_conf_sdev *sdev =
++ *                         C2_CONF_CAST(obj, c2_conf_sdev);
++ *                 // ... Use `sdev' ...
+  *         }
+- *         c2_conf_dircur_fini(&cur);
+- *         if (rc != 0)
+- *             break;
+- *     }
+- *     c2_conf_dircur_fini(&svc_cur);
+  *
+- *     c2_confc_close(node_obj);
+- *     return rc;
++ *         c2_conf_dircur_fini(&dir);
++ *         c2_confc_close(dir_obj);
++ *         return rc;
+  * }
+  * @endcode
+  *
+@@ -534,7 +565,8 @@ void c2_confc_close(struct c2_conf_obj *obj);
+  *
+  * @note  The application must not c2_confc_close() a configuration
+  *        object retrieved by c2_confc_readdir().  The object will be
+- *        closed implicitly by c2_conf_dircur_fini().
++ *        closed implicitly by next c2_confc_readdir*() call or by
++ *        c2_conf_dircur_fini().
+  */
+ int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_dircur *cur);
+ 
+@@ -550,8 +582,9 @@ int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_dircur *cur);
+  * @retval < 0  Error.
+  *
+  * @note  The application must not c2_confc_close() the resulting
+- *        configuration object.  The object will be closed
+- *        implicitly by c2_conf_dircur_fini().
++ *        configuration object.  The object will be closed implicitly
++ *        by next c2_confc_readdir*() call or by
++ *        c2_conf_dircur_fini().
+  */
+ int c2_confc_readdir_sync(struct c2_conf_obj **result,
+ 			  struct c2_conf_dircur *cur);
+diff --git a/conf/obj.c b/conf/obj.c
+index d8309b5..aceac34 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -404,6 +404,7 @@ struct c2_bob_type c2_conf_partition_bob = XXX;
+ void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_obj *dir)
+ {
+ 	C2_PRE(dir->co_type == C2_CO_DIR && dir->co_status == C2_CS_READY);
++	C2_PRE(dir->co_nrefs > 0);
+ 
+ 	C2_ASSERT(cur->dc_dir == NULL);
+ 	cur->dc_dir = C2_CONF_CAST(dir, c2_conf_dir);
+diff --git a/conf/obj.h b/conf/obj.h
+index 5487558..e9048e6 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -436,15 +436,24 @@ struct c2_conf_dircur {
+ };
+ 
+ /**
+- * Initializes directory cursor. Increments dir's reference counter.
++ * Initializes directory cursor.
++ *
++ * Note, that c2_conf_dircur_init() does not increment reference
++ * counter of its second argument (dir). It is responsibility of
++ * application's programmer to ensure that the corresponding directory
++ * object is pinned till c2_conf_dircur_fini().
+  *
+  * @pre  dir->co_objtype == C2_CO_DIR && dir->co_status == C2_CS_READY
++ * @pre  dir->co_nrefs > 0
+  */
+ void c2_conf_dircur_init(struct c2_conf_dircur *cur, struct c2_conf_obj *dir);
+ 
+ /**
+  * Finalizes directory cursor.
+  * Decrements reference counters of cur->dc_pin and cur->dc_dir.
++ *
++ * @pre   dir->co_nrefs > 0
++ * @post  dir->co_nrefs > 0
+  */
+ void c2_conf_dircur_fini(struct c2_conf_dircur *cur);
+ 
+-- 
+1.8.3.2
+

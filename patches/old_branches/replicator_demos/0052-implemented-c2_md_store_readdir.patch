@@ -1,0 +1,186 @@
+From 37c099a8a19dc7b7c551587b27d3845a5185f28b Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 8 Apr 2011 13:59:32 -0600
+Subject: [PATCH 52/91] - implemented c2_md_store_readdir()
+
+---
+ cob/cob.c            | 14 +++++++++-----
+ cob/cob.h            |  1 +
+ mdservice/md_foms.c  | 20 ++++++++++----------
+ mdservice/md_fops.c  |  3 ++-
+ mdservice/md_fops.ff |  9 ++++++---
+ mdstore/mdstore.c    | 34 ++++++++++++++++++++++++++++------
+ 6 files changed, 56 insertions(+), 25 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 4296bfc..bcaf9b9 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -547,11 +547,8 @@ int c2_cob_readdir_init(struct c2_cob *cob, struct c2_db_tx *tx)
+                 c2_free(cob->co_rdkey);
+                 return rc;
+         }
++        cob->co_rdinit = 1;
+ 
+-        /*
+-         * Position at "." entry location.
+-         */
+-        c2_db_cursor_get(&cob->co_rdcursor, &cob->co_rdpair);
+         return rc;
+ }
+ 
+@@ -559,12 +556,19 @@ int c2_cob_readdir_next(struct c2_cob *cob, struct c2_cob_nskey **key,
+                         struct c2_cob_nsrec **rec)
+ {
+         int   rc;
+-        rc = c2_db_cursor_next(&cob->co_rdcursor, &cob->co_rdpair);
++
++        if (cob->co_rdinit) {
++                rc = c2_db_cursor_get(&cob->co_rdcursor, &cob->co_rdpair);
++                cob->co_rdinit = 0;
++        } else {
++                rc = c2_db_cursor_next(&cob->co_rdcursor, &cob->co_rdpair);
++        }
+         if (rc)
+                 return rc;
+ 
+         *key = cob->co_rdkey;
+         *rec = &cob->co_rdrec;
++
+         return rc;
+ }
+ 
+diff --git a/cob/cob.h b/cob/cob.h
+index cbb936b..e73da71 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -239,6 +239,7 @@ struct c2_cob {
+         struct c2_cob_nskey   *co_rdkey;    /**< current readdir pos */
+         struct c2_cob_nsrec    co_rdrec;    /**< current readdit rec */
+         struct c2_db_pair      co_rdpair;   /**< used for readdir only */
++	int                    co_rdinit;
+         struct c2_db_pair      co_oipair;
+ 	struct c2_addb_ctx     co_addb;
+ };
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 9ef6277..e2e2f8f 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -541,17 +541,17 @@ static int c2_md_readdir_fom_perm(struct c2_fom *fom)
+ 
+ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+ {
+-        struct c2_fop_cob        *body;
+-        struct c2_site           *site;
+-        struct c2_cob            *cob;
+-        struct c2_fop_readdir    *req;
++        struct c2_fop_cob         *body;
++        struct c2_site            *site;
++        struct c2_cob             *cob;
++        struct c2_fop_readdir     *req;
+         struct c2_fop_readdir_rep *rep;
+-        struct c2_fom_md         *fom_obj;
+-        struct c2_fop            *fop;
+-        struct c2_fop            *fop_rep;
+-        struct c2_fop_ctx        *ctx;
+-        struct c2_fid             fid;
+-        int                       rc;
++        struct c2_fom_md          *fom_obj;
++        struct c2_fop             *fop;
++        struct c2_fop             *fop_rep;
++        struct c2_fop_ctx         *ctx;
++        struct c2_fid              fid;
++        int                        rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+ 
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index bf16443..aac5860 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -84,7 +84,8 @@ static struct c2_fop_type_format *c2_md_fop_fmts[] = {
+         &c2_fop_fid_tfmt,
+         &c2_fop_name_tfmt,
+         &c2_fop_cob_tfmt,
+-        &c2_fop_dirent_tfmt
++        &c2_fop_readdir_dirent_tfmt,
++        &c2_fop_readdir_vec_tfmt
+ };
+ 
+ void c2_md_fop_fini(void)
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 1d60e8f..b5ac480 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -94,14 +94,17 @@ DEF(c2_fop_getattr_rep, RECORD,
+ DEF(c2_fop_readdir, RECORD,
+     _(r_body, c2_fop_cob));
+ 
+-DEF(c2_fop_dirent, RECORD,
++DEF(c2_fop_readdir_dirent, RECORD,
+     _(d_body, c2_fop_cob),
+     _(d_name, c2_fop_name));
+ 
++DEF(c2_fop_readdir_vec, SEQUENCE,
++    _(v_count, U32),
++    _(v_dirent, c2_fop_readdir_dirent));
++
+ DEF(c2_fop_readdir_rep, RECORD,
+     _(r_body, c2_fop_cob),
+-    _(r_count, U32),
+-    _(r_entry, c2_fop_dirent));
++    _(r_vector, c2_fop_readdir_vec));
+ 
+ /** @} end of fop group */
+ 
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index d4a29ab..0d0c2af 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -653,15 +653,37 @@ int c2_md_store_readdir(struct c2_md_store *md,
+                         struct c2_fop_readdir_rep *rep, 
+                         struct c2_fop_ctx *ctx)
+ {
+-        int rc = 0;
++        struct c2_fop_readdir_vec     *vec;
++        struct c2_fop_readdir_dirent  *ent;
++        struct c2_cob_nskey           *nskey;
++        struct c2_cob_nsrec           *nsrec;
++        int                           rc;
+         
+         C2_ASSERT(cob != NULL);        
++
++        rc = c2_cob_readdir_init(cob, &ctx->fc_tx->tx_dbtx);
++        if (rc)
++                goto out;
++
++        vec = &rep->r_vector;
++        vec->v_count = 0;
++        do {
++                rc = c2_cob_readdir_next(cob, &nskey, &nsrec);
++                if (rc == 0) {
++                        ent = &vec->v_dirent[vec->v_count++];
++                        ent->d_name.n_count = nskey->cnk_name.b_len;
++
++                        memcpy(ent->d_name.n_name, 
++                               c2_bitstring_buf_get(&nskey->cnk_name),
++                               nskey->cnk_name.b_len);
++                }
++        } while (rc == 0);
+         
+-        /*
+-         * @todo: Go though @cob to find entries and put them
+-         * to response @rep.
+-         */
+-        
++        if (rc == -ENOENT)
++                rc = 0;
++
++        c2_cob_readdir_fini(cob);
++out:
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_readdir", rc);
+         return rc;
+-- 
+1.8.3.2
+

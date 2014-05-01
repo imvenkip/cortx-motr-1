@@ -1,0 +1,92 @@
+From 4d347ae346d07cd83a746a830b57be8fd0e4cfb9 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 2 Aug 2013 21:08:21 +0800
+Subject: [PATCH 3/7] more doc.
+
+---
+ ioservice/io_service.c | 6 ++----
+ ioservice/io_service.h | 2 ++
+ sns/cm/cm_utils.c      | 9 ++++++---
+ 3 files changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 22b13fc..d9da574 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -927,6 +927,7 @@ const struct m0_rpc_item_ops getattr_fop_rpc_item_ops = {
+ 
+ 
+ /**
++ * getattr from mdservice asynchronously.
+  */
+ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
+ 				         const struct m0_fid *gfid,
+@@ -1017,8 +1018,7 @@ const struct m0_rpc_item_ops getlayout_fop_rpc_item_ops = {
+ 	.rio_replied = getlayout_rpc_item_reply_cb,
+ };
+ 
+-
+-
++/** getlayout asynchronously from mdservice */
+ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
+ 					    struct m0_layout_domain *ldom,
+ 					    uint64_t lid,
+@@ -1056,8 +1056,6 @@ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
+ 	M0_RETURN(rc);
+ }
+ 
+-
+-
+ #undef M0_TRACE_SUBSYSTEM
+ 
+ /** @} endgroup io_service */
+diff --git a/ioservice/io_service.h b/ioservice/io_service.h
+index 7e42ab4..e601330 100644
+--- a/ioservice/io_service.h
++++ b/ioservice/io_service.h
+@@ -131,6 +131,8 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+ 				      struct m0_layout_domain *ldom,
+ 				      uint64_t lid,
+ 				      struct m0_layout **l_out);
++
++/** callback information for async getattr & getlayout request to mdservice */
+ struct m0_cm_callback_info {
+ 	/** @param arg1 caller provided.
+ 	 *  @param rc return value on this async call.
+diff --git a/sns/cm/cm_utils.c b/sns/cm/cm_utils.c
+index 38c233c..ea195d3 100644
+--- a/sns/cm/cm_utils.c
++++ b/sns/cm/cm_utils.c
+@@ -355,7 +355,8 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
+ }
+ 
+ 
+-/** Callback for async getattr.
++/**
++ * Callback for async getattr.
+  *
+  * This callback should tell the original cm the result and post event to ask it
+  * continue execution.
+@@ -382,7 +383,8 @@ struct m0_cm_callback_info getattr_cb_info = {
+ 	.ci_cb = &getattr_callback,
+ };
+ 
+-/** getattr sync
++/**
++ * getattr sync
+  *
+  * @retval 0, succeeded to sent out the request asynchronously.
+  *            Caller of this function should relinquish current execution,
+@@ -441,7 +443,8 @@ struct m0_cm_callback_info layout_cb_info = {
+ 	.ci_cb = &layout_callback,
+ };
+ 
+-/** getlayout async.
++/**
++ * getlayout async.
+  */
+ M0_INTERNAL int
+ m0_sns_cm_file_layout_fetch_async(struct m0_cm *cm,
+-- 
+1.8.3.2
+

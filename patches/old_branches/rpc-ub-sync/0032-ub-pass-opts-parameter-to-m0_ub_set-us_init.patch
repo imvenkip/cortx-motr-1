@@ -1,0 +1,1276 @@
+From 9714d45b4db1bb0b67820b136d84e2850fa29745 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 14 Mar 2013 21:19:44 +0200
+Subject: [PATCH 32/63] ub: pass `opts' parameter to m0_ub_set::us_init()
+
+Change the signature of m0_ub_set::us_init():
+-        void (*us_init)(void);
++        int  (*us_init)(const char *opts);
+Change m0_ub_run() and ub_init() correspondingly.
+
+* cob/ut/cob.c:
+  - Remove `static int rc;', use automatic variables instead.
+  - Delete obvious comments.
+  - Rename test_locate_internal() to _locate(). The function is used
+    for side effects, it doesn't _test_ anything.
+  - Whitespace: replace leading spaces with tabs.
+* rm/ut/rmut.c: Delete "rm-ub" -- a stub of benchmark.
+---
+ cob/ut/cob.c               | 544 ++++++++++++++++++++++-----------------------
+ db/ut/db.c                 |   3 +-
+ db/ut/emap.c               |   3 +-
+ fol/ut/fol.c               |   3 +-
+ fop/ub/ub.c                |   3 +-
+ lib/ub.c                   |  16 +-
+ lib/ub.h                   |  21 +-
+ lib/ut/bitmap.c            |   3 +-
+ lib/ut/list.c              |   3 +-
+ lib/ut/memory.c            |   3 +-
+ lib/ut/processor.c         |   5 +-
+ lib/ut/thread.c            |  12 +-
+ lib/ut/tlist.c             |   3 +-
+ rm/ut/rmut.c               |  27 +--
+ rpc/ub/ub.c                |   3 +-
+ sns/ut/parity_math_mt_ub.c |  13 +-
+ sns/ut/parity_math_ut.c    |  11 +-
+ stob/ut/ad.c               |  20 +-
+ stob/ut/adieu.c            |  26 ++-
+ utils/ub_main.c            |   9 +-
+ 20 files changed, 376 insertions(+), 355 deletions(-)
+
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index 6ea6a51..c7562bf 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -25,277 +25,274 @@
+ #include "lib/bitstring.h"
+ #include "cob/cob.h"
+ 
+-static const char db_name[] = "ut-cob";
+-static const char test_name[] = "hello_world";
+-static const char add_name[] = "add_name";
++static const char db_name[]    = "ut-cob";
++static const char test_name[]  = "hello_world";
++static const char add_name[]   = "add_name";
+ static const char wrong_name[] = "wrong_name";
+-
+ static struct m0_cob_domain_id id = { 42 };
+-static struct m0_dbenv       db;
+-static struct m0_cob_domain  dom;
+-static struct m0_cob         *cob;
+-static int rc;
++static struct m0_dbenv         db;
++static struct m0_cob_domain    dom;
++static struct m0_cob          *cob;
+ 
+ static int db_reset(void)
+ {
+-        rc = m0_ut_db_reset(db_name);
+-        /* M0_UT_ASSERT not usable during ts_init */
+-        M0_ASSERT(rc == 0);
+-        return rc;
++	int rc;
++
++	rc = m0_ut_db_reset(db_name);
++	/* M0_UT_ASSERT not usable during ts_init */
++	M0_ASSERT(rc == 0);
++	return rc;
+ }
+ 
+ static void test_mkfs(void)
+ {
+-        struct m0_db_tx         tx;
+-        int                     rc;
++	struct m0_db_tx tx;
++	int             rc;
+ 
+-        rc = m0_dbenv_init(&db, db_name, 0);
+-        M0_UT_ASSERT(rc == 0);
++	rc = m0_dbenv_init(&db, db_name, 0);
++	M0_UT_ASSERT(rc == 0);
+ 
+-        rc = m0_cob_domain_init(&dom, &db, &id);
+-        M0_UT_ASSERT(rc == 0);
++	rc = m0_cob_domain_init(&dom, &db, &id);
++	M0_UT_ASSERT(rc == 0);
+ 
+-        rc = m0_db_tx_init(&tx, &db, 0);
+-        M0_UT_ASSERT(rc == 0);
++	rc = m0_db_tx_init(&tx, &db, 0);
++	M0_UT_ASSERT(rc == 0);
+ 
+-        /* Create root and other structures */
+-        rc = m0_cob_domain_mkfs(&dom, &M0_COB_SLASH_FID,
+-                                &M0_COB_SESSIONS_FID, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-        m0_db_tx_commit(&tx);
++	/* Create root and other structures */
++	rc = m0_cob_domain_mkfs(&dom, &M0_COB_SLASH_FID,
++				&M0_COB_SESSIONS_FID, &tx);
++	M0_UT_ASSERT(rc == 0);
++	m0_db_tx_commit(&tx);
+ 
+-        /* Fini everything */
+-        m0_cob_domain_fini(&dom);
+-        m0_dbenv_fini(&db);
++	/* Fini everything */
++	m0_cob_domain_fini(&dom);
++	m0_dbenv_fini(&db);
+ }
+ 
+ static void test_init(void)
+ {
++	int rc;
+ 
+-        rc = m0_dbenv_init(&db, db_name, 0);
+-        /* test_init is called by ub_init which hates M0_UT_ASSERT */
+-        M0_ASSERT(rc == 0);
++	rc = m0_dbenv_init(&db, db_name, 0);
++	/* test_init is called by ub_init which hates M0_UT_ASSERT */
++	M0_ASSERT(rc == 0);
+ 
+-        rc = m0_cob_domain_init(&dom, &db, &id);
+-        M0_ASSERT(rc == 0);
++	rc = m0_cob_domain_init(&dom, &db, &id);
++	M0_ASSERT(rc == 0);
+ }
+ 
+ static void test_fini(void)
+ {
+-        m0_cob_domain_fini(&dom);
+-        m0_dbenv_fini(&db);
++	m0_cob_domain_fini(&dom);
++	m0_dbenv_fini(&db);
+ }
+ 
+ static void test_create(void)
+ {
+-        struct m0_cob_nskey    *key;
+-        struct m0_cob_nsrec    nsrec;
+-        struct m0_cob_fabrec  *fabrec;
+-        struct m0_cob_omgrec   omgrec;
+-        struct m0_fid          pfid;
+-        struct m0_db_tx        tx;
+-
+-        M0_SET0(&nsrec);
+-        M0_SET0(&omgrec);
+-
+-        /* pfid, filename */
+-        m0_fid_set(&pfid, 0x123, 0x456);
+-        m0_cob_nskey_make(&key, &pfid, test_name, strlen(test_name));
+-
+-        m0_fid_set(&nsrec.cnr_fid, 0xabc, 0xdef);
+-        nsrec.cnr_nlink = 0;
+-
+-        m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+-        rc = m0_cob_alloc(&dom, &cob);
+-        M0_UT_ASSERT(rc == 0);
+-        m0_cob_fabrec_make(&fabrec, NULL, 0);
+-        rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-
+-        nsrec.cnr_nlink++;
+-        rc = m0_cob_update(cob, &nsrec, NULL, NULL, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-        m0_cob_put(cob);
+-        m0_db_tx_commit(&tx);
++	struct m0_cob_nskey   *key;
++	struct m0_cob_nsrec   nsrec;
++	struct m0_cob_fabrec *fabrec;
++	struct m0_cob_omgrec  omgrec;
++	struct m0_fid         pfid;
++	struct m0_db_tx       tx;
++	int                   rc;
++
++	M0_SET0(&nsrec);
++	M0_SET0(&omgrec);
++
++	/* pfid, filename */
++	m0_fid_set(&pfid, 0x123, 0x456);
++	m0_cob_nskey_make(&key, &pfid, test_name, strlen(test_name));
++
++	m0_fid_set(&nsrec.cnr_fid, 0xabc, 0xdef);
++	nsrec.cnr_nlink = 0;
++
++	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
++	rc = m0_cob_alloc(&dom, &cob);
++	M0_UT_ASSERT(rc == 0);
++	m0_cob_fabrec_make(&fabrec, NULL, 0);
++	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, &tx);
++	M0_UT_ASSERT(rc == 0);
++
++	++nsrec.cnr_nlink;
++	rc = m0_cob_update(cob, &nsrec, NULL, NULL, &tx);
++	M0_UT_ASSERT(rc == 0);
++	m0_cob_put(cob);
++	m0_db_tx_commit(&tx);
+ }
+ 
+-/**
+-   Test that add_name works.
+-*/
+ static void test_add_name(void)
+ {
+-        struct m0_cob_nskey *nskey;
+-        struct m0_fid        pfid;
+-        struct m0_db_tx      tx;
+-
+-        /* pfid, filename */
+-        m0_fid_set(&pfid, 0x123, 0x456);
+-
+-        m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+-
+-        /* lookup for cob created before using @test_name. */
+-        m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
+-        rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-
+-        /* add new name to existing cob */
+-        m0_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
+-        cob->co_nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
+-        rc = m0_cob_name_add(cob, nskey, &cob->co_nsrec, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-        m0_cob_put(cob);
+-
+-        /* lookup for new name */
+-        rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-        m0_cob_put(cob);
+-        m0_free(nskey);
+-
+-        /* lookup for wrong name, should fail. */
+-        m0_cob_nskey_make(&nskey, &pfid, wrong_name, strlen(wrong_name));
+-        rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
+-        M0_UT_ASSERT(rc != 0);
+-        m0_free(nskey);
+-
+-        m0_db_tx_commit(&tx);
++	struct m0_cob_nskey *nskey;
++	struct m0_fid        pfid;
++	struct m0_db_tx      tx;
++	int                  rc;
++
++	/* pfid, filename */
++	m0_fid_set(&pfid, 0x123, 0x456);
++
++	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
++
++	/* lookup for cob created before using @test_name. */
++	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
++	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
++	M0_UT_ASSERT(rc == 0);
++
++	/* add new name to existing cob */
++	m0_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
++	cob->co_nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
++	rc = m0_cob_name_add(cob, nskey, &cob->co_nsrec, &tx);
++	M0_UT_ASSERT(rc == 0);
++	m0_cob_put(cob);
++
++	/* lookup for new name */
++	rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
++	M0_UT_ASSERT(rc == 0);
++	m0_cob_put(cob);
++	m0_free(nskey);
++
++	/* lookup for wrong name, should fail. */
++	m0_cob_nskey_make(&nskey, &pfid, wrong_name, strlen(wrong_name));
++	rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
++	M0_UT_ASSERT(rc != 0);
++	m0_free(nskey);
++
++	m0_db_tx_commit(&tx);
+ }
+ 
+-/**
+-   Test that del_name works.
+-*/
+ static void test_del_name(void)
+ {
+-        struct m0_cob_nskey *nskey;
+-        struct m0_fid        pfid;
+-        struct m0_db_tx      tx;
++	struct m0_cob_nskey *nskey;
++	struct m0_fid        pfid;
++	struct m0_db_tx      tx;
++	int                  rc;
+ 
+-        /* pfid, filename */
+-        m0_fid_set(&pfid, 0x123, 0x456);
++	/* pfid, filename */
++	m0_fid_set(&pfid, 0x123, 0x456);
+ 
+-        m0_db_tx_init(&tx, dom.cd_dbenv, 0);
++	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+ 
+-        /* lookup for cob created before using @test_name. */
+-        m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
+-        rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
+-        M0_UT_ASSERT(rc == 0);
++	/* lookup for cob created before using @test_name. */
++	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
++	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
++	M0_UT_ASSERT(rc == 0);
+ 
+-        /* del name that we created in prev test */
+-        m0_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
+-        rc = m0_cob_name_del(cob, nskey, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-        m0_cob_put(cob);
++	/* del name that we created in prev test */
++	m0_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
++	rc = m0_cob_name_del(cob, nskey, &tx);
++	M0_UT_ASSERT(rc == 0);
++	m0_cob_put(cob);
+ 
+-        /* lookup for new name */
+-        rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
+-        M0_UT_ASSERT(rc != 0);
+-        m0_free(nskey);
++	/* lookup for new name */
++	rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
++	M0_UT_ASSERT(rc != 0);
++	m0_free(nskey);
+ 
+-        m0_db_tx_commit(&tx);
++	m0_db_tx_commit(&tx);
+ }
+ 
+-/**
+-   Lookup by name, make sure cfid is right.
+-*/
++/** Lookup by name, make sure cfid is right. */
+ static void test_lookup(void)
+ {
+-        struct m0_db_tx      tx;
+-        struct m0_cob_nskey *nskey;
+-        struct m0_fid        pfid;
+-
+-        m0_fid_set(&pfid, 0x123, 0x456);
+-        m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
+-        m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+-        rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
+-        m0_db_tx_commit(&tx);
+-        M0_UT_ASSERT(rc == 0);
+-        M0_UT_ASSERT(cob != NULL);
+-        M0_UT_ASSERT(cob->co_dom == &dom);
+-        M0_UT_ASSERT(cob->co_flags & M0_CA_NSREC);
+-        M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xabc);
+-        M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_key == 0xdef);
+-
+-        /* We should have cached the key also, unless oom */
+-        M0_UT_ASSERT(cob->co_flags & M0_CA_NSKEY);
+-
+-        m0_cob_put(cob);
++	struct m0_db_tx      tx;
++	struct m0_cob_nskey *nskey;
++	struct m0_fid        pfid;
++	int                  rc;
++
++	m0_fid_set(&pfid, 0x123, 0x456);
++	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
++	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
++	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
++	m0_db_tx_commit(&tx);
++	M0_UT_ASSERT(rc == 0);
++	M0_UT_ASSERT(cob != NULL);
++	M0_UT_ASSERT(cob->co_dom == &dom);
++	M0_UT_ASSERT(cob->co_flags & M0_CA_NSREC);
++	M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xabc);
++	M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_key == 0xdef);
++
++	/* We should have cached the key also, unless oom */
++	M0_UT_ASSERT(cob->co_flags & M0_CA_NSKEY);
++
++	m0_cob_put(cob);
+ }
+ 
+-static int test_locate_internal(void)
++static int _locate(void)
+ {
+-        struct m0_db_tx      tx;
+-        struct m0_fid        fid;
+-        struct m0_cob_oikey  oikey;
++	struct m0_db_tx     tx;
++	struct m0_fid       fid;
++	struct m0_cob_oikey oikey;
++	int                 rc;
+ 
+-        m0_fid_set(&fid, 0xabc, 0xdef);
++	m0_fid_set(&fid, 0xabc, 0xdef);
+ 
+-        oikey.cok_fid = fid;
+-        oikey.cok_linkno = 0;
++	oikey.cok_fid = fid;
++	oikey.cok_linkno = 0;
+ 
+-        m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+-        rc = m0_cob_locate(&dom, &oikey, 0, &cob, &tx);
+-        m0_db_tx_commit(&tx);
++	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
++	rc = m0_cob_locate(&dom, &oikey, 0, &cob, &tx);
++	m0_db_tx_commit(&tx);
+ 
+-        return rc;
++	return rc;
+ }
+ 
+-/**
+-   Lookup by fid, make sure pfid is right.
+-*/
++/** Lookup by fid, make sure pfid is right. */
+ static void test_locate(void)
+ {
+-        rc = test_locate_internal();
+-        M0_UT_ASSERT(rc == 0);
+-        M0_UT_ASSERT(cob != NULL);
+-        M0_UT_ASSERT(cob->co_dom == &dom);
++	int rc;
++
++	rc = _locate();
++	M0_UT_ASSERT(rc == 0);
+ 
+-        /* We should have saved the NSKEY */
+-        M0_UT_ASSERT(cob->co_flags & M0_CA_NSKEY);
+-        M0_UT_ASSERT(cob->co_nskey->cnk_pfid.f_container == 0x123);
+-        M0_UT_ASSERT(cob->co_nskey->cnk_pfid.f_key == 0x456);
++	M0_UT_ASSERT(cob != NULL);
++	M0_UT_ASSERT(cob->co_dom == &dom);
+ 
+-        /* Assuming we looked up the NSREC at the same time */
+-        M0_UT_ASSERT(cob->co_flags & M0_CA_NSREC);
++	/* We should have saved the NSKEY */
++	M0_UT_ASSERT(cob->co_flags & M0_CA_NSKEY);
++	M0_UT_ASSERT(cob->co_nskey->cnk_pfid.f_container == 0x123);
++	M0_UT_ASSERT(cob->co_nskey->cnk_pfid.f_key == 0x456);
+ 
+-        m0_cob_put(cob);
++	/* Assuming we looked up the NSREC at the same time */
++	M0_UT_ASSERT(cob->co_flags & M0_CA_NSREC);
++
++	m0_cob_put(cob);
+ }
+ 
+-/**
+-   Test if delete works.
+-*/
+ static void test_delete(void)
+ {
+-        struct m0_db_tx tx;
++	struct m0_db_tx tx;
++	int             rc;
+ 
+-        /* gets ref */
+-        rc = test_locate_internal();
+-        M0_ASSERT(rc == 0);
++	/* gets ref */
++	rc = _locate();
++	M0_UT_ASSERT(rc == 0);
+ 
+-        m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+-        rc = m0_cob_delete_put(cob, &tx);
+-        m0_db_tx_commit(&tx);
+-        M0_UT_ASSERT(rc == 0);
++	m0_db_tx_init(&tx, dom.cd_dbenv, 0);
++	rc = m0_cob_delete_put(cob, &tx);
++	m0_db_tx_commit(&tx);
++	M0_UT_ASSERT(rc == 0);
+ 
+-        /* should fail now */
+-        rc = test_locate_internal();
+-        M0_UT_ASSERT(rc != 0);
++	/* should fail now */
++	rc = _locate();
++	M0_UT_ASSERT(rc != 0);
+ }
+ 
+ const struct m0_test_suite cob_ut = {
+-        .ts_name = "cob-ut",
+-        .ts_init = db_reset,
+-        /* .ts_fini = db_reset, */
+-        .ts_tests = {
+-                { "cob-mkfs", test_mkfs },
+-                { "cob-init", test_init },
+-                { "cob-create", test_create },
+-                { "cob-lookup", test_lookup },
+-                { "cob-locate", test_locate },
+-                { "cob-add-name", test_add_name },
+-                { "cob-del-name", test_del_name },
+-                { "cob-delete", test_delete },
+-                { "cob-fini", test_fini },
+-                { NULL, NULL }
+-        }
++	.ts_name = "cob-ut",
++	.ts_init = db_reset,
++	/* .ts_fini = db_reset, */
++	.ts_tests = {
++		{ "cob-mkfs",     test_mkfs },
++		{ "cob-init",     test_init },
++		{ "cob-create",   test_create },
++		{ "cob-lookup",   test_lookup },
++		{ "cob-locate",   test_locate },
++		{ "cob-add-name", test_add_name },
++		{ "cob-del-name", test_del_name },
++		{ "cob-delete",   test_delete },
++		{ "cob-fini",     test_fini },
++		{ NULL, NULL }
++	}
+ };
+ 
+ /*
+@@ -304,109 +301,110 @@ const struct m0_test_suite cob_ut = {
+ 
+ static struct m0_db_tx cob_ub_tx;
+ 
+-enum {
+-        UB_ITER = 100000
+-};
++enum { UB_ITER = 100000 };
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+-        db_reset();
+-        test_init();
+-        rc = m0_db_tx_init(&cob_ub_tx, dom.cd_dbenv, 0);
+-        M0_ASSERT(rc == 0);
++	db_reset();
++	test_init();
++	return m0_db_tx_init(&cob_ub_tx, dom.cd_dbenv, 0);
+ }
+ 
+ static void ub_fini(void)
+ {
+-        rc = m0_db_tx_commit(&cob_ub_tx);
+-        M0_ASSERT(rc == 0);
+-        test_fini();
+-        db_reset();
+-}
++	int rc;
+ 
+-static void newtx(int i) {
+-        int rc;
++	rc = m0_db_tx_commit(&cob_ub_tx);
++	M0_ASSERT(rc == 0);
++	test_fini();
++	db_reset();
++}
+ 
+-        if (i && i % 10 == 0) {
+-                rc = m0_db_tx_commit(&cob_ub_tx);
+-                M0_UB_ASSERT(rc == 0);
+-                rc = m0_db_tx_init(&cob_ub_tx, dom.cd_dbenv, 0);
+-                M0_UB_ASSERT(rc == 0);
+-        }
++static void newtx(int i)
++{
++	int rc;
++
++	if (i != 0 && i % 10 == 0) {
++		rc = m0_db_tx_commit(&cob_ub_tx);
++		M0_UB_ASSERT(rc == 0);
++		rc = m0_db_tx_init(&cob_ub_tx, dom.cd_dbenv, 0);
++		M0_UB_ASSERT(rc == 0);
++	}
+ }
+ 
+ static void ub_create(int i)
+ {
+-        struct m0_cob_nskey   *key;
+-        struct m0_cob_nsrec    nsrec;
+-        struct m0_cob_fabrec  *fabrec;
+-        struct m0_cob_omgrec   omgrec;
+-        struct m0_fid          fid;
++	struct m0_cob_nskey  *key;
++	struct m0_cob_nsrec   nsrec;
++	struct m0_cob_fabrec *fabrec;
++	struct m0_cob_omgrec  omgrec;
++	struct m0_fid         fid;
++	int                   rc;
+ 
+-        M0_SET0(&nsrec);
+-        M0_SET0(&omgrec);
++	M0_SET0(&nsrec);
++	M0_SET0(&omgrec);
+ 
+-        newtx(i);
++	newtx(i);
+ 
+-        /* pfid == cfid for data objects, so here we are identifying
+-           uniquely in the namespace by {pfid, ""} */
+-        m0_fid_set(&fid, 0xAA, i);
+-        m0_cob_nskey_make(&key, &fid, "", 0);
++	/* pfid == cfid for data objects, so here we are identifying
++	 * uniquely in the namespace by {pfid, ""} */
++	m0_fid_set(&fid, 0xAA, i);
++	m0_cob_nskey_make(&key, &fid, "", 0);
+ 
+-        m0_fid_set(&nsrec.cnr_fid, 0xAA, i);
+-        nsrec.cnr_nlink = 1;
++	m0_fid_set(&nsrec.cnr_fid, 0xAA, i);
++	nsrec.cnr_nlink = 1;
+ 
+-        rc = m0_cob_alloc(&dom, &cob);
+-        M0_UB_ASSERT(rc == 0);
++	rc = m0_cob_alloc(&dom, &cob);
++	M0_UB_ASSERT(rc == 0);
+ 
+-        m0_cob_fabrec_make(&fabrec, NULL, 0);
+-        rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, &cob_ub_tx);
+-        M0_UB_ASSERT(rc == 0);
++	m0_cob_fabrec_make(&fabrec, NULL, 0);
++	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, &cob_ub_tx);
++	M0_UB_ASSERT(rc == 0);
+ 
+-        m0_cob_put(cob);
++	m0_cob_put(cob);
+ }
+ 
+ static void ub_lookup(int i)
+ {
+-        struct m0_cob_nskey *key;
+-        struct m0_fid        fid;
++	struct m0_cob_nskey *key;
++	struct m0_fid        fid;
++	int                  rc;
+ 
+-        newtx(i);
++	newtx(i);
+ 
+-        /* pfid == cfid for data objects */
+-        m0_fid_set(&fid, 0xAA, i);
+-        m0_cob_nskey_make(&key, &fid, "", 0);
+-        rc = m0_cob_lookup(&dom, key, M0_CA_NSKEY_FREE, &cob, &cob_ub_tx);
+-        M0_UB_ASSERT(rc == 0);
+-        M0_UB_ASSERT(cob != NULL);
+-        M0_UB_ASSERT(cob->co_dom == &dom);
++	/* pfid == cfid for data objects */
++	m0_fid_set(&fid, 0xAA, i);
++	m0_cob_nskey_make(&key, &fid, "", 0);
++	rc = m0_cob_lookup(&dom, key, M0_CA_NSKEY_FREE, &cob, &cob_ub_tx);
++	M0_UB_ASSERT(rc == 0);
++	M0_UB_ASSERT(cob != NULL);
++	M0_UB_ASSERT(cob->co_dom == &dom);
+ 
+-        M0_UB_ASSERT(cob->co_flags & M0_CA_NSREC);
+-        M0_UB_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xAA);
+-        M0_UB_ASSERT(cob->co_nsrec.cnr_fid.f_key == i);
++	M0_UB_ASSERT(cob->co_flags & M0_CA_NSREC);
++	M0_UB_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xAA);
++	M0_UB_ASSERT(cob->co_nsrec.cnr_fid.f_key == i);
+ 
+-        /* We should be holding the nskey until the final put */
+-        M0_UB_ASSERT(cob->co_flags & M0_CA_NSKEY);
++	/* We should be holding the nskey until the final put */
++	M0_UB_ASSERT(cob->co_flags & M0_CA_NSKEY);
+ 
+-        m0_cob_put(cob);
++	m0_cob_put(cob);
+ }
+ 
+-
+ struct m0_ub_set m0_cob_ub = {
+-        .us_name = "cob-ub",
+-        .us_init = ub_init,
+-        .us_fini = ub_fini,
+-        .us_run  = {
+-                { .ub_name = "create",
+-                  .ub_iter = UB_ITER,
+-                  .ub_round = ub_create },
+-
+-                { .ub_name = "lookup",
+-                  .ub_iter = UB_ITER,
+-                  .ub_round = ub_lookup },
+-
+-                { .ub_name = NULL }
+-        }
++	.us_name = "cob-ub",
++	.us_init = ub_init,
++	.us_fini = ub_fini,
++	.us_run  = {
++		{ .ub_name  = "create",
++		  .ub_iter  = UB_ITER,
++		  .ub_round = ub_create },
++
++		{ .ub_name  = "lookup",
++		  .ub_iter  = UB_ITER,
++		  .ub_round = ub_lookup },
++
++		{ .ub_name = NULL }
++	}
+ };
+ 
+ /*
+diff --git a/db/ut/db.c b/db/ut/db.c
+index fc7373a..f398996 100644
+--- a/db/ut/db.c
++++ b/db/ut/db.c
+@@ -443,7 +443,7 @@ static struct m0_db_cursor ub_cur;
+ static uint64_t key;
+ static uint64_t rec;
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	int result;
+ 
+@@ -461,6 +461,7 @@ static void ub_init(void)
+ 
+ 	m0_db_pair_setup(&ub_pair, &ub_table,
+ 			 &key, sizeof key, &rec, sizeof rec);
++	return 0;
+ }
+ 
+ static void ub_fini(void)
+diff --git a/db/ut/emap.c b/db/ut/emap.c
+index cb52473..05e8325 100644
+--- a/db/ut/emap.c
++++ b/db/ut/emap.c
+@@ -216,10 +216,11 @@ enum {
+ 	UB_ITER_TX = 10000
+ };
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	db_reset();
+ 	test_init();
++	return 0;
+ }
+ 
+ static void ub_fini(void)
+diff --git a/fol/ut/fol.c b/fol/ut/fol.c
+index f4dcb11..bf2b53a 100644
+--- a/fol/ut/fol.c
++++ b/fol/ut/fol.c
+@@ -206,7 +206,7 @@ enum {
+ 	UB_ITER = 100000
+ };
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	db_reset();
+ 	test_init();
+@@ -215,6 +215,7 @@ static void ub_init(void)
+ 	M0_SET0(h);
+ 
+ 	h->rh_refcount = 1;
++	return 0;
+ }
+ 
+ static void ub_fini(void)
+diff --git a/fop/ub/ub.c b/fop/ub/ub.c
+index c71c25a..c6c81de 100644
+--- a/fop/ub/ub.c
++++ b/fop/ub/ub.c
+@@ -415,7 +415,7 @@ _UB_ROUND_DEFINE(ub_fom_block,         SC_BLOCK);
+ 
+ /* ---------------------------------------------------------------- */
+ 
+-static void _init(void)
++static int _init(const char *opts M0_UNUSED)
+ {
+ 	size_t i;
+ 	int    rc;
+@@ -455,6 +455,7 @@ static void _init(void)
+ 		m0_mutex_init(&g_mutexes[i]);
+ 
+ 	m0_long_lock_init(&g_long_lock);
++	return 0;
+ }
+ 
+ static void _fini(void)
+diff --git a/lib/ub.c b/lib/ub.c
+index 7f618e5..7da0510 100644
+--- a/lib/ub.c
++++ b/lib/ub.c
+@@ -135,11 +135,12 @@ static void ub_run_one(const struct m0_ub_set *set, struct m0_ub_bench *bench)
+ 	bench->ub_min = min_type(double, bench->ub_min, sec);
+ }
+ 
+-M0_INTERNAL void m0_ub_run(uint32_t rounds)
++M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts)
+ {
+ 	uint32_t            i;
+ 	struct m0_ub_set   *set;
+ 	struct m0_ub_bench *bench;
++	int                 rc = 0;
+ 
+ 	for (set = last; set != NULL; set = set->us_prev) {
+ 		for (bench = &set->us_run[0]; bench->ub_name; bench++) {
+@@ -154,8 +155,12 @@ M0_INTERNAL void m0_ub_run(uint32_t rounds)
+ 		printf("round %2i ", i);
+ 		for (set = last; set != NULL; set = set->us_prev) {
+ 			printf("%s[", set->us_name);
+-			if (set->us_init != NULL)
+-				set->us_init();
++			if (set->us_init != NULL) {
++				rc = set->us_init(opts);
++				if (rc != 0)
++					goto end;
++			}
++
+ 			for (bench = &set->us_run[0]; bench->ub_name; bench++)
+ 				ub_run_one(set, bench);
+ 			if (set->us_fini != NULL)
+@@ -184,6 +189,11 @@ M0_INTERNAL void m0_ub_run(uint32_t rounds)
+ 			}
+ 		}
+ 	}
++end:
++	if (rc != 0)
++		fprintf(stderr, "*ERROR* Benchmark initialisation failed:"
++			" set=`%s' rc=%d\n", set->us_name, rc);
++	return rc;
+ }
+ 
+ /** @} end of ub group. */
+diff --git a/lib/ub.h b/lib/ub.h
+index b24d944..9351225 100644
+--- a/lib/ub.h
++++ b/lib/ub.h
+@@ -68,11 +68,22 @@ struct m0_ub_bench {
+ struct m0_ub_set {
+ 	/** Name of a set, has to be unique. */
+ 	const char        *us_name;
+-	/** Function to prepare tests in set. */
+-	void             (*us_init)(void);
++
++	/**
++	 * Function to prepare tests in set.
++	 *
++	 * @param opts  Optional string with benchmark arguments,
++	 *              specified via `-o' CLI option.
++	 *
++	 * @see ub_args_parse()
++	 */
++	int              (*us_init)(const char *opts);
++
+ 	/** Function to free tests in set. */
+ 	void             (*us_fini)(void);
++
+ 	struct m0_ub_set  *us_prev;
++
+ 	/** Benchmarks in the set. */
+ 	struct m0_ub_bench us_run[];
+ };
+@@ -101,8 +112,12 @@ M0_INTERNAL void m0_ub_set_add(struct m0_ub_set *set);
+  * Runs unit sets unit benchmark consists of.
+  *
+  * @param rounds Number of times every set in benchark has to be run.
++ * @param opts   Optional string with benchmark arguments, specified
++ *               via `-o' CLI option.
++ *
++ * @see ub_args_parse()
+  */
+-M0_INTERNAL void m0_ub_run(uint32_t rounds);
++M0_INTERNAL int m0_ub_run(uint32_t rounds, const char *opts);
+ 
+ /** @} end of ub group. */
+ #endif /* __MERO_LIB_UB_H__ */
+diff --git a/lib/ut/bitmap.c b/lib/ut/bitmap.c
+index f18ee8b..05e94c6 100644
+--- a/lib/ut/bitmap.c
++++ b/lib/ut/bitmap.c
+@@ -120,9 +120,10 @@ enum {
+ 
+ static struct m0_bitmap ub_bm;
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	m0_bitmap_init(&ub_bm, UT_BITMAP_SIZE);
++	return 0;
+ }
+ 
+ static void ub_fini(void)
+diff --git a/lib/ut/list.c b/lib/ut/list.c
+index 53a0058..5d32564 100644
+--- a/lib/ut/list.c
++++ b/lib/ut/list.c
+@@ -142,13 +142,14 @@ enum {
+ static struct test1 t[UB_ITER];
+ static struct m0_list list;
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(t); ++i)
+ 		m0_list_link_init(&t[i].t_link);
+ 	m0_list_init(&list);
++	return 0;
+ }
+ 
+ static void ub_fini(void)
+diff --git a/lib/ut/memory.c b/lib/ut/memory.c
+index d3748b3..860776b 100644
+--- a/lib/ut/memory.c
++++ b/lib/ut/memory.c
+@@ -64,9 +64,10 @@ enum {
+ 
+ static void *ubx[UB_ITER];
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	M0_SET_ARR0(ubx);
++	return 0;
+ }
+ 
+ static void ub_free(int i)
+diff --git a/lib/ut/processor.c b/lib/ut/processor.c
+index 063f5d6..ca05db7 100644
+--- a/lib/ut/processor.c
++++ b/lib/ut/processor.c
+@@ -255,14 +255,13 @@ enum {
+ 
+ char *processor_info_dirp;
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+-	return;
++	return 0;
+ }
+ 
+ static void ub_fini(void)
+ {
+-	return;
+ }
+ 
+ static void ub_init1(int i)
+diff --git a/lib/ut/thread.c b/lib/ut/thread.c
+index ac060a4..24d8d0b 100644
+--- a/lib/ut/thread.c
++++ b/lib/ut/thread.c
+@@ -165,11 +165,17 @@ enum {
+ 
+ static struct m0_thread ubt[UB_ITER];
+ 
+-static void ub_init(void)
++static void threads_set0(void)
+ {
+ 	M0_SET_ARR0(ubt);
+ }
+ 
++static int ub_init(const char *opts M0_UNUSED)
++{
++	threads_set0();
++	return 0;
++}
++
+ static void ub_fini(void)
+ {
+ 	int i;
+@@ -213,7 +219,7 @@ static void ub_join_all(void)
+ 
+ 	for (i = 0; i < ARRAY_SIZE(ubt); ++i)
+ 		m0_thread_join(&ubt[i]);
+-	ub_init();
++	ub_init(NULL);
+ }
+ 
+ struct m0_ub_set m0_thread_ub = {
+@@ -228,7 +234,7 @@ struct m0_ub_set m0_thread_ub = {
+ 		{ .ub_name  = "join",
+ 		  .ub_iter  = UB_ITER,
+ 		  .ub_round = ub_join,
+-		  .ub_fini  = ub_init /* sic */ },
++		  .ub_fini  = threads_set0 },
+ 
+ 		{ .ub_name  = "spawn-init",
+ 		  .ub_iter  = UB_ITER,
+diff --git a/lib/ut/tlist.c b/lib/ut/tlist.c
+index 5c8b7c4..3ec913f 100644
+--- a/lib/ut/tlist.c
++++ b/lib/ut/tlist.c
+@@ -299,13 +299,14 @@ static struct foo    t[UB_ITER];
+ static struct m0_tl  list;
+ static struct foo   *obj;
+ 
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	int i;
+ 
+ 	for (i = 0, obj = t; i < ARRAY_SIZE(t); ++i, ++obj)
+ 		m0_tlink_init(&fl0, obj);
+ 	m0_tlist_init(&fl0, &list);
++	return 0;
+ }
+ 
+ static void ub_fini(void)
+diff --git a/rm/ut/rmut.c b/rm/ut/rmut.c
+index c556fb4..7bc4428 100644
+--- a/rm/ut/rmut.c
++++ b/rm/ut/rmut.c
+@@ -125,7 +125,7 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
+ 			rm_utdata_fini(data, OBJ_RES);
+ 			break;
+ 		default:
+-			break;
++			;
+ 	}
+ }
+ 
+@@ -142,31 +142,6 @@ const struct m0_test_suite rm_ut = {
+ };
+ 
+ /*
+- * UB
+- */
+-
+-enum {
+-	UB_ITER = 200000,
+-};
+-
+-static void ub_init(void)
+-{
+-}
+-
+-static void ub_fini(void)
+-{
+-}
+-
+-struct m0_ub_set m0_rm_ub = {
+-	.us_name = "rm-ub",
+-	.us_init = ub_init,
+-	.us_fini = ub_fini,
+-	.us_run  = {
+-		{ .ub_name = NULL }
+-	}
+-};
+-
+-/*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+  *  c-basic-offset: 8
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index dea56a2..eec0bee 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -145,7 +145,7 @@ static void _client_fini(struct ub_rpc_client *client)
+ 	m0_net_domain_fini(&client->rc_net_dom);
+ }
+ 
+-static void _start(void)
++static int _start(const char *opts /*XXX USEME*/)
+ {
+ 	int i;
+ 	int rc;
+@@ -165,6 +165,7 @@ static void _start(void)
+ 	}
+ 
+ 	m0_rpc_ub_fops_init();
++	return 0;
+ }
+ 
+ static void _stop(void)
+diff --git a/sns/ut/parity_math_mt_ub.c b/sns/ut/parity_math_mt_ub.c
+index a805eba..9af58e3 100644
+--- a/sns/ut/parity_math_mt_ub.c
++++ b/sns/ut/parity_math_mt_ub.c
+@@ -47,18 +47,13 @@ struct tb_cfg {
+ 	uint8_t  *tc_fail;
+ };
+ 
+-enum {
+-	UB_ITER = 1
+-};
+-
+-static void ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	srand(1285360231);
++	return 0;
+ }
+ 
+-void tb_cfg_init(struct tb_cfg *cfg,
+-		 uint32_t data_count,
+-		 uint32_t parity_count,
++void tb_cfg_init(struct tb_cfg *cfg, uint32_t data_count, uint32_t parity_count,
+ 		 uint32_t block_size)
+ {
+ 	uint32_t i;
+@@ -227,6 +222,8 @@ void ub_large_32768() {
+ 	/* ub_mt_test(30, 8, 32768); */
+ }
+ 
++enum { UB_ITER = 1 };
++
+ struct m0_ub_set m0_parity_math_mt_ub = {
+         .us_name = "m0_parity_math-ub",
+         .us_init = ub_init,
+diff --git a/sns/ut/parity_math_ut.c b/sns/ut/parity_math_ut.c
+index 00c8f58..84d0090 100644
+--- a/sns/ut/parity_math_ut.c
++++ b/sns/ut/parity_math_ut.c
+@@ -339,13 +339,10 @@ const struct m0_test_suite parity_math_ut = {
+         }
+ };
+ 
+-enum {
+-	UB_ITER = 1
+-};
+-
+-static void ut_ub_init(void)
++static int ub_init(const char *opts M0_UNUSED)
+ {
+ 	srand(1285360231);
++	return 0;
+ }
+ 
+ void parity_math_tb(void)
+@@ -467,9 +464,11 @@ static void ub_large_32768(int iter)
+ 	parity_math_tb();
+ }
+ 
++enum { UB_ITER = 1 };
++
+ struct m0_ub_set m0_parity_math_ub = {
+         .us_name = "parity-math-ub",
+-        .us_init = ut_ub_init,
++        .us_init = ub_init,
+         .us_fini = NULL,
+         .us_run  = {
+                 { .ub_name  = "s 10/05/ 4K",
+diff --git a/stob/ut/ad.c b/stob/ut/ad.c
+index 7a9f316..2b59b90 100644
+--- a/stob/ut/ad.c
++++ b/stob/ut/ad.c
+@@ -371,10 +371,6 @@ const struct m0_test_suite ad_ut = {
+ 	}
+ };
+ 
+-enum {
+-	UB_ITER = 100
+-};
+-
+ static void ub_write(int i)
+ {
+ 	test_write(NR - 1);
+@@ -385,10 +381,22 @@ static void ub_read(int i)
+ 	test_read(NR - 1);
+ }
+ 
++static int ub_init(const char *opts M0_UNUSED)
++{
++	return test_ad_init();
++}
++
++static void ub_fini(void)
++{
++	(void)test_ad_fini();
++}
++
++enum { UB_ITER = 100 };
++
+ struct m0_ub_set m0_ad_ub = {
+ 	.us_name = "ad-ub",
+-	.us_init = (void *)test_ad_init,
+-	.us_fini = (void *)test_ad_fini,
++	.us_init = ub_init,
++	.us_fini = ub_fini,
+ 	.us_run  = {
+ 		{ .ub_name = "write-prime",
+ 		  .ub_iter = 1,
+diff --git a/stob/ut/adieu.c b/stob/ut/adieu.c
+index eaf7068..f09fc6b 100644
+--- a/stob/ut/adieu.c
++++ b/stob/ut/adieu.c
+@@ -278,11 +278,6 @@ const struct m0_test_suite adieu_ut = {
+ 	}
+ };
+ 
+-enum {
+-	UB_ITER = 100,
+-	UB_ITER_SORT = 100000
+-};
+-
+ static void ub_write(int i)
+ {
+ 	test_write(NR - 1);
+@@ -293,8 +288,6 @@ static void ub_read(int i)
+ 	test_read(NR - 1);
+ }
+ 
+-
+-
+ static m0_bcount_t  user_vec1[NR_SORT];
+ static char        *user_bufs1[NR_SORT];
+ static m0_bindex_t  stob_vec1[NR_SORT];
+@@ -350,10 +343,25 @@ static void ub_iovec_sort_invert()
+ 	m0_stob_iovec_sort(&io);
+ }
+ 
++static int ub_init(const char *opts M0_UNUSED)
++{
++	return test_adieu_init();
++}
++
++static void ub_fini(void)
++{
++	(void)test_adieu_fini();
++}
++
++enum {
++	UB_ITER = 100,
++	UB_ITER_SORT = 100000
++};
++
+ struct m0_ub_set m0_adieu_ub = {
+ 	.us_name = "adieu-ub",
+-	.us_init = (void *)test_adieu_init,
+-	.us_fini = (void *)test_adieu_fini,
++	.us_init = ub_init,
++	.us_fini = ub_fini,
+ 	.us_run  = {
+ 		{ .ub_name = "write-prime",
+ 		  .ub_iter = 1,
+diff --git a/utils/ub_main.c b/utils/ub_main.c
+index 97c1de5..aee1731 100644
+--- a/utils/ub_main.c
++++ b/utils/ub_main.c
+@@ -38,7 +38,6 @@ extern struct m0_ub_set m0_fom_ub;
+ extern struct m0_ub_set m0_list_ub;
+ extern struct m0_ub_set m0_memory_ub;
+ extern struct m0_ub_set m0_parity_math_ub;
+-extern struct m0_ub_set m0_rm_ub;
+ extern struct m0_ub_set m0_rpc_ub;
+ extern struct m0_ub_set m0_thread_ub;
+ extern struct m0_ub_set m0_tlist_ub;
+@@ -81,7 +80,7 @@ static int ub_args_parse(int argc, char *argv[], struct ub_args *out)
+ 					       out->ua_name = strdup(str);
+ 				       })),
+ 		  M0_STRINGARG('o', "Benchmark options:"
+-			       " OPTION=VALUE[,OPTION=VALUE]...",
++			       " NAME[=VALUE][,NAME[=VALUE]]...",
+ 			       LAMBDA(void, (const char *str) {
+ 					       out->ua_opts = strdup(str);
+ 				       }))
+@@ -100,7 +99,6 @@ static void ub_add(const struct ub_args *args)
+ 	m0_ub_set_add(&m0_tlist_ub);
+ 	m0_ub_set_add(&m0_thread_ub);
+ 	m0_ub_set_add(&m0_rpc_ub);
+-	m0_ub_set_add(&m0_rm_ub);
+ 	m0_ub_set_add(&m0_parity_math_ub);
+ 	m0_ub_set_add(&m0_memory_ub);
+ 	m0_ub_set_add(&m0_list_ub);
+@@ -123,9 +121,8 @@ static int ub_run(const struct ub_args *args)
+ 
+ 	if (args->ua_name != NULL)
+ 		rc = m0_ub_set_select(args->ua_name);
+-	if (rc == 0)
+-		m0_ub_run(args->ua_rounds);
+-	return rc;
++
++	return rc ?: m0_ub_run(args->ua_rounds, args->ua_opts);
+ }
+ 
+ int main(int argc, char *argv[])
+-- 
+1.8.3.2
+

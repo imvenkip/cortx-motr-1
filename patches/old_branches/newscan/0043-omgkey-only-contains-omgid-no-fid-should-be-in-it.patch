@@ -1,0 +1,86 @@
+From 8903324229988a0a76f9540f7a2f902017aa4b3a Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 7 Apr 2011 04:07:50 -0600
+Subject: [PATCH 043/158] - omgkey only contains omgid, no fid should be in it.
+
+---
+ cob/cob.c | 15 +--------------
+ cob/cob.h |  1 -
+ 2 files changed, 1 insertion(+), 15 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 3737f5e..2c43160 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -122,13 +122,7 @@ static int omg_cmp(struct c2_table *table, const void *key0, const void *key1)
+ {
+ 	const struct c2_cob_omgkey *cok0 = key0;
+ 	const struct c2_cob_omgkey *cok1 = key1;
+-        int                         rc;
+-
+-        C2_PRE(c2_fid_is_set(&cok0->cok_fid));
+-        C2_PRE(c2_fid_is_set(&cok1->cok_fid));
+-
+-        rc = c2_fid_cmp(&cok0->cok_fid, &cok1->cok_fid);
+-        return rc ?: C2_3WAY(cok0->cok_omgid, cok1->cok_omgid);
++        return C2_3WAY(cok0->cok_omgid, cok1->cok_omgid);
+ }
+ 
+ static const struct c2_table_ops cob_omg_ops = {
+@@ -406,7 +400,6 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
+         if (cob->co_valid & CA_OMGREC)
+                 return 0;
+ 
+-        omgkey.cok_fid = cob->co_fid;
+         omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
+ 			 &omgkey, sizeof omgkey,
+@@ -539,9 +532,6 @@ int c2_cob_create(struct c2_cob        *cob,
+         struct c2_cob_oikey  oikey;
+ 	int                  rc;
+ 
+-        omgkey.cok_fid = cob->co_fid;
+-        omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
+-
+         C2_PRE(cob != NULL);
+         C2_PRE(nskey != NULL);
+         C2_PRE(nsrec != NULL);
+@@ -600,7 +590,6 @@ int c2_cob_create(struct c2_cob        *cob,
+         /*
+          * Prepare omg key.
+          */
+-        omgkey.cok_fid = cob->co_fid;
+         omgkey.cok_omgid = nsrec->cnr_omgid;
+ 
+         /* 
+@@ -663,7 +652,6 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+          * @todo: Omgrec may be shared between multiple objects.
+          * Delete should take this into account as well as update.
+          */
+-        omgkey.cok_fid = cob->co_fid;
+         omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
+ 
+         /* 
+@@ -740,7 +728,6 @@ int c2_cob_update(struct c2_cob         *cob,
+                  * @todo: Omgrec may be shared between multiple objects.
+                  * We need to take this into account.
+                  */
+-                omgkey.cok_fid = cob->co_fid;
+                 omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
+                 
+                 cob->co_omgrec = *omgrec;
+diff --git a/cob/cob.h b/cob/cob.h
+index d8b8422..1268c4e 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -155,7 +155,6 @@ struct c2_cob_fabrec {
+    Key for omg table
+ */
+ struct c2_cob_omgkey {
+-        struct c2_fid     cok_fid;     /**< object fid */
+         uint64_t          cok_omgid;   /**< omg id ref */
+ };
+ 
+-- 
+1.8.3.2
+

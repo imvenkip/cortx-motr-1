@@ -1,0 +1,64 @@
+From d62e262b021791a31e4d847ff9e9391f3bcb5395 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 29 May 2013 12:48:47 +0300
+Subject: [PATCH 018/290] be: seg: segment state added
+
+---
+ be/seg.c | 5 +++++
+ be/seg.h | 7 +++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/be/seg.c b/be/seg.c
+index 877f2e4..1783ab7 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -97,10 +97,13 @@ void m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob,
+ {
+ 	seg->bs_be   = be;
+ 	seg->bs_stob = stob;
++	seg->bs_state = M0_BSS_INIT;
+ }
+ 
+ void m0_be_seg_fini(struct m0_be_seg *seg)
+ {
++	M0_PRE(seg->bs_state == M0_BSS_CLOSED);
++
+ 	m0_be_allocator_fini(&seg->bs_allocator);
+ }
+ 
+@@ -119,6 +122,8 @@ int m0_be_seg_open(struct m0_be_seg *seg)
+ 	/* XXX: need to declare buffers/vectors etc for STOBIO */
+ 	m0_bcount_t       rdvec[1];
+ 
++	M0_PRE(seg->bs_state == M0_BSS_INIT);
++
+ 	st_block_shift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
+ 	m0_stob_io_init(&io);
+ 	/* TODO: prepare buffer for stob IO, align etc */
+diff --git a/be/seg.h b/be/seg.h
+index c17c061..9fc1d07 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -34,12 +34,19 @@ struct m0_be_op;
+  * @{
+  */
+ 
++enum m0_be_seg_states {
++	M0_BSS_INIT,
++	M0_BSS_OPENED,
++	M0_BSS_CLOSED,
++};
++
+ struct m0_be_seg {
+ 	struct m0_stob        *bs_stob;
+ 	m0_bcount_t            bs_size;
+ 	void                  *bs_addr;
+ 	struct m0_be_allocator bs_allocator;
+ 	struct m0_be          *bs_be;
++	int                    bs_state;
+ };
+ 
+ void m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob,
+-- 
+1.8.3.2
+

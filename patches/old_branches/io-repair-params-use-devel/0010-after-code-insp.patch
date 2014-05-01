@@ -1,0 +1,186 @@
+From 3843e047b078c9add3c01b8d36c8d3c863f22819 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 27 Nov 2012 13:28:58 +0800
+Subject: [PATCH 10/10] after code insp: 1. define macro for constant value. 2.
+ one assert one condition
+
+---
+ pool/pool.c       | 33 ++++++++++++++++++++++++---------
+ pool/ut/test_pm.c | 26 ++++++++++++++++++++++----
+ 2 files changed, 46 insertions(+), 13 deletions(-)
+
+diff --git a/pool/pool.c b/pool/pool.c
+index c29d1f9..65495d3 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -36,6 +36,11 @@ C2_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", ,
+ 
+ C2_TL_DEFINE(poolmach_events, , struct c2_pool_event_link);
+ 
++enum {
++	/* Unused spare slot has this device index */
++	POOL_PM_SPARE_SLOT_UNUSED = 0xFFFFFFFF
++};
++
+ 
+ int c2_pool_init(struct c2_pool *pool, uint32_t width)
+ {
+@@ -129,7 +134,9 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm,
+ 	}
+ 
+ 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-		pm->pm_state.pst_spare_usage_array[i].psp_device_index = 0xFFFFFFFF;
++		/* -1 means that this spare slot is not used */
++		pm->pm_state.pst_spare_usage_array[i].psp_device_index =
++						POOL_PM_SPARE_SLOT_UNUSED;
+ 	}
+ 
+ 	poolmach_events_tlist_init(&pm->pm_state.pst_events_list);
+@@ -298,7 +305,8 @@ int c2_poolmach_state_transit(struct c2_poolmach *pm,
+ 			if (spare_array[i].psp_device_index == event->pe_index){
+ 				C2_ASSERT(C2_IN(spare_array[i].psp_device_state,
+ 						     (C2_PNDS_SNS_REBALANCED)));
+-				spare_array[i].psp_device_index = 0xFFFFFFFF;
++				spare_array[i].psp_device_index =
++						POOL_PM_SPARE_SLOT_UNUSED;
+ 			break;
+ 			}
+ 		}
+@@ -306,7 +314,8 @@ int c2_poolmach_state_transit(struct c2_poolmach *pm,
+ 	case C2_PNDS_SNS_REPAIRING:
+ 		/* alloc a sns repare spare slot */
+ 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-			if (spare_array[i].psp_device_index == 0xFFFFFFFF) {
++			if (spare_array[i].psp_device_index ==
++						POOL_PM_SPARE_SLOT_UNUSED) {
+ 				spare_array[i].psp_device_index =
+ 							event->pe_index;
+ 				spare_array[i].psp_device_state =
+@@ -358,7 +367,8 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
+ 	struct c2_pool_event_link     *event_link;
+ 	int                            rc = 0;
+ 
+-	C2_PRE(pm != NULL && event_list_head != NULL);
++	C2_PRE(pm != NULL);
++	C2_PRE(event_list_head != NULL);
+ 
+ 	c2_rwlock_read_lock(&pm->pm_lock);
+ 	if (from != NULL && !c2_poolmach_version_equal(&zero, from)) {
+@@ -408,7 +418,8 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
+ int c2_poolmach_current_version_get(struct c2_poolmach *pm,
+ 				    struct c2_pool_version_numbers *curr)
+ {
+-	C2_PRE(pm != NULL && curr != NULL);
++	C2_PRE(pm != NULL);
++	C2_PRE(curr != NULL);
+ 
+ 	c2_rwlock_read_lock(&pm->pm_lock);
+ 	*curr = pm->pm_state.pst_version;
+@@ -420,7 +431,8 @@ int c2_poolmach_device_state(struct c2_poolmach *pm,
+ 			     uint32_t device_index,
+ 			     enum c2_pool_nd_state *state_out)
+ {
+-	C2_PRE(pm != NULL && state_out != NULL);
++	C2_PRE(pm != NULL);
++	C2_PRE(state_out != NULL);
+ 
+ 	if (device_index >= pm->pm_state.pst_nr_devices)
+ 		return -EINVAL;
+@@ -435,7 +447,8 @@ int c2_poolmach_node_state(struct c2_poolmach *pm,
+ 			   uint32_t node_index,
+ 			   enum c2_pool_nd_state *state_out)
+ {
+-	C2_PRE(pm != NULL && state_out != NULL);
++	C2_PRE(pm != NULL);
++	C2_PRE(state_out != NULL);
+ 
+ 	if (node_index >= pm->pm_state.pst_nr_nodes)
+ 		return -EINVAL;
+@@ -455,7 +468,8 @@ int c2_poolmach_sns_repair_spare_query(struct c2_poolmach *pm,
+ 	enum c2_pool_nd_state       device_state;
+ 	uint32_t i;
+ 	int      rc;
+-	C2_PRE(pm != NULL && spare_slot_out != NULL);
++	C2_PRE(pm != NULL);
++	C2_PRE(spare_slot_out != NULL);
+ 
+ 	if (device_index >= pm->pm_state.pst_nr_devices)
+ 		return -EINVAL;
+@@ -491,7 +505,8 @@ int c2_poolmach_sns_rebalance_spare_query(struct c2_poolmach *pm,
+ 	enum c2_pool_nd_state       device_state;
+ 	uint32_t i;
+ 	int      rc;
+-	C2_PRE(pm != NULL && spare_slot_out != NULL);
++	C2_PRE(pm != NULL);
++	C2_PRE(spare_slot_out != NULL);
+ 
+ 	if (device_index >= pm->pm_state.pst_nr_devices)
+ 		return -EINVAL;
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index dcb106d..f720cbd 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -25,6 +25,12 @@
+ #include "pool/pool.h"
+ 
+ static int verbose = 0;
++enum {
++	PM_TEST_DEFAULT_DEVICE_NUMBER      = 10,
++	PM_TEST_DEFAULT_NODE_NUMBER        = 1,
++	PM_TEST_DEFAULT_MAX_DEVICE_FAILURE = 1,
++	PM_TEST_DEFAULT_MAX_NODE_FAILURE   = 1
++};
+ 
+ static void pm_test_init_fini(void)
+ {
+@@ -32,7 +38,10 @@ static void pm_test_init_fini(void)
+ 	int                rc;
+ 
+ 	C2_SET0(&pm);
+-	rc = c2_poolmach_init(&pm, NULL, 1, 10, 1, 1);
++	rc = c2_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++					 PM_TEST_DEFAULT_DEVICE_NUMBER,
++					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
++					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+ 	C2_UT_ASSERT(rc == 0);
+ 	c2_poolmach_fini(&pm);
+ }
+@@ -87,7 +96,10 @@ static void pm_test_transit(void)
+ 	uint32_t                       index;
+ 
+ 	C2_SET0(&pm);
+-	rc = c2_poolmach_init(&pm, NULL, 1, 10, 1, 1);
++	rc = c2_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++					 PM_TEST_DEFAULT_DEVICE_NUMBER,
++					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
++					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	rc = c2_poolmach_current_version_get(&pm, &v0);
+@@ -381,7 +393,10 @@ static void pm_test_spare_slot(void)
+ 	uint32_t              spare_slot;
+ 
+ 	C2_SET0(&pm);
+-	rc = c2_poolmach_init(&pm, NULL, 1, 10, 1, 2);
++	rc = c2_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++					 PM_TEST_DEFAULT_DEVICE_NUMBER,
++					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
++					 2 /* two spare device */);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	event.pe_type  = C2_POOL_DEVICE;
+@@ -536,7 +551,10 @@ static void pm_test_multi_fail(void)
+ 	uint32_t              spare_slot;
+ 
+ 	C2_SET0(&pm);
+-	rc = c2_poolmach_init(&pm, NULL, 1, 10, 1, 3);
++	rc = c2_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++					 PM_TEST_DEFAULT_DEVICE_NUMBER,
++					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
++					 3 /*three spare device */);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	event.pe_type  = C2_POOL_DEVICE;
+-- 
+1.8.3.2
+

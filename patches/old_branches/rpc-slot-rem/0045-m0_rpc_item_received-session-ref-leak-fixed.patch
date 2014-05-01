@@ -1,0 +1,44 @@
+From 0912f1d84e14d6beb2d68bd12b2f7be17c304e70 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 11 Feb 2014 23:51:56 +0200
+Subject: [PATCH 45/60] m0_rpc_item_received(): session ref leak fixed
+
+---
+ rpc/item.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/rpc/item.c b/rpc/item.c
+index 5bd60aa..d75ed26 100644
+--- a/rpc/item.c
++++ b/rpc/item.c
+@@ -767,7 +767,6 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
+ 	}
+ 
+ 	M0_ASSERT(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
+-	m0_rpc_item_get(item);
+ 
+ 	if (m0_rpc_item_is_conn_establish(item)) {
+ 		m0_rpc_item_dispatch(item);
+@@ -784,7 +783,9 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
+ 
+ 	if (m0_rpc_item_is_request(item)) {
+ 		m0_rpc_session_hold_busy(sess);
+-		m0_rpc_item_dispatch(item);
++		rc = m0_rpc_item_dispatch(item);
++		if (rc != 0)
++			m0_rpc_session_release(sess);
+ 	} else {
+ 		rc = item_reply_received(item, &req);
+ 	}
+@@ -906,8 +907,6 @@ M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,
+ 		m0_rpc_item_send(reply);
+ 	}
+ 
+-	m0_rpc_item_put(req);
+-
+ 	M0_LEAVE();
+ }
+ 
+-- 
+1.8.3.2
+

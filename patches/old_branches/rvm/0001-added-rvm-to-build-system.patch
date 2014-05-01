@@ -1,0 +1,290 @@
+From 61abdcc64284bb6d0c92fb52cb9accc1adea4966 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 30 Nov 2012 15:16:13 +0400
+Subject: [PATCH 001/121] - added rvm to build system - fixes in be/* to follow
+ mero development style (not all of them)
+
+---
+ be/Makefile.sub   | 15 ++-------------
+ be/be.h           |  6 +++---
+ be/be_domain.c    |  2 +-
+ be/be_rvm.h       |  6 +++---
+ be/be_seg.c       |  2 +-
+ be/rds.h          |  6 +++---
+ be/rvm.h          |  5 +++++
+ be/ut/be.c        |  2 +-
+ configure.ac      | 37 +++++++++++++++++++++++++++++++++++--
+ mero/mero-pub.api | 28 ++++++++++++++++++++++++++++
+ 10 files changed, 82 insertions(+), 27 deletions(-)
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 2618456..7074511 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -1,18 +1,7 @@
+-nobase_mero_include_HEADERS +=  be/be.h	
+-
+-
++nobase_mero_include_HEADERS +=  be/be.h
+ 
+ mero_libmero_la_SOURCES  += be/be.c		\
+ 			    be/be_domain.c	\
+ 			    be/be_seg.c		\
+ 			    be/be_rvm.c		\
+-			    be/be_tx.c		
+-
+-#AM_LDFLAGS		+= -lrvm -lrds -lseg
+-
+-#AM_CFLAGS                       = -g
+-
+-#noinst_LTLIBRARIES              += libcolibri-be.la
+-#libcolibri_be_la_SOURCES        += be_domain.c be_seg.c be.c be_tx.c be_rvm.c
+-
+-#INCLUDES                        += -I. -I$(top_srcdir)/include
++			    be/be_tx.c
+diff --git a/be/be.h b/be/be.h
+index 7ee3b2e..b806a87 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -25,7 +25,7 @@
+ /**
+    @defgroup be (Meta-data) back-end
+ 
+-   Back-end is used by Colibri instances (mostly servers, but clients also) to
++   Back-end is used by Mero instances (mostly servers, but clients also) to
+    access and manipulate persistent meta-data.
+ 
+    Back-end provides multiple interface layers, where the next layer provides
+@@ -34,7 +34,7 @@
+    At the bottom there is level 0. It provides the following abstractions:
+ 
+        - a segment is a contiguous extent in primary store backed by persistent
+-         store. Level 0 uses Colibri storage objects (m0_stob) to access
++         store. Level 0 uses Mero storage objects (m0_stob) to access
+          persistet store. At the level 0, the segment is just an array of bytes,
+          uninterpreted by back-end. Level 0 allows user to load a segment in
+          primary store partially or completely. User can query and modify the
+@@ -130,7 +130,7 @@
+ 
+    Back-end will be implemented on top of CMU RVM
+    (http://www.coda.cs.cmu.edu/doc/html/rvm_manual.html). RVM should be changed
+-   to use Colibri stobs for IO.
++   to use Mero stobs for IO.
+ 
+    RVM-specific data structures should be defined in a separate be/rvm.h
+    header. "Generic" structures defined in be/be.h contain "impl" fields where
+diff --git a/be/be_domain.c b/be/be_domain.c
+index e0576dc..597162c 100644
+--- a/be/be_domain.c
++++ b/be/be_domain.c
+@@ -91,7 +91,7 @@ void m0_be_domain_init(struct m0_be_domain *dom, struct m0_stob *stob, struct m0
+         /** 
+          * initialize rvm 
+          * @todo - this initialization is per backend domain for now
+-         * need to do it only once while initializing colibri instance.
++         * need to do it only once while initializing Mero instance.
+          */
+         m0_be_rvm_init();
+ 
+diff --git a/be/be_rvm.h b/be/be_rvm.h
+index a686c86..60abca6 100644
+--- a/be/be_rvm.h
++++ b/be/be_rvm.h
+@@ -19,8 +19,8 @@
+ 
+ #pragma once
+ 
+-#ifndef __MERO_BE_RVM_H__
+-#define __MERO_BE_RVM_H__
++#ifndef __MERO_BE_BE_RVM_H__
++#define __MERO_BE_BE_RVM_H__
+ 
+ /**
+   @defgroup be_rvm interface 
+@@ -32,7 +32,7 @@ void m0_be_rvm_init();
+ 
+ /** @} end of be_rvm interface */
+ 
+-/* __MERO_BE_RVM_H__ */
++/* __MERO_BE_BE_RVM_H__ */
+ #endif
+ 
+ /*
+diff --git a/be/be_seg.c b/be/be_seg.c
+index 6be0da8..adde168 100644
+--- a/be/be_seg.c
++++ b/be/be_seg.c
+@@ -25,7 +25,7 @@
+   <b>Implementation of back-end segments </b>
+ 
+   A segment is a contiguous extent in primary store backed by persistent store.
+-  Level 0 uses Colibri storage objects (m0_stob) to access persistent store.
++  Level 0 uses Mero storage objects (m0_stob) to access persistent store.
+   At the level 0, the segment is just an array of bytes, uninterpreted by 
+   back-end. Level 0 allows user to load a segment in primary store partially 
+   or completely. User can query and modify the segment data. 
+diff --git a/be/rds.h b/be/rds.h
+index 0c54047..494c1b0 100644
+--- a/be/rds.h
++++ b/be/rds.h
+@@ -21,8 +21,8 @@ Coda are listed in the file CREDITS.
+  */
+ #pragma once
+ 
+-#ifndef	_RDS_H_
+-#define	_RDS_H_
++#ifndef __MERO_BE_RDS_H__
++#define __MERO_BE_RDS_H__
+ 
+ #include <stdio.h>
+ #include "rvm.h"
+@@ -154,4 +154,4 @@ extern int rds_trace_dump_heap();
+ } while (0) ;                            
+ 
+ 
+-#endif /* _RDS_H_ */
++#endif /* __MERO_BE_RDS_H__ */
+diff --git a/be/rvm.h b/be/rvm.h
+index cf487e9..9e00304 100644
+--- a/be/rvm.h
++++ b/be/rvm.h
+@@ -24,6 +24,9 @@ Coda are listed in the file CREDITS.
+ 
+ #pragma once 
+ 
++#ifndef __MERO_BE_RVM_H__
++#define __MERO_BE_RVM_H__
++
+ /*LINTLIBRARY*/
+ 
+ /* permit multiple includes */
+@@ -472,3 +475,5 @@ extern rvm_offset_t rvm_rnd_offset_up_to_page(rvm_offset_t *x);
+ extern rvm_offset_t rvm_rnd_offset_dn_to_page(rvm_offset_t *x);
+ 
+ #endif /* RVM_VERSION */
++
++#endif /* __MERO_BE_RVM_H__ */
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 5dd62a0..3924a05 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -107,7 +107,7 @@ int main() {
+ 
+         m0_be_tx_capture(&tx, &reg);
+ 
+-        strcpy(reg.br_buf.logical_address.virtual_address, "Xyratex --> CoLIbRI");
++        strcpy(reg.br_buf.logical_address.virtual_address, "Xyratex --> MeRo");
+ 
+         m0_be_tx_done(&tx);
+         printf("\ndata : [%s]\n", (char *)reg.br_buf.logical_address.virtual_address);
+diff --git a/configure.ac b/configure.ac
+index ac53f1b..65cc5cc 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -362,6 +362,28 @@ MERO_SEARCH_LIBS([yaml_parser_initialize], [yaml], [YAML_LIBS],
+ $SRCDIR/../yaml or from rpm]
+ )
+ 
++#Check for RVM
++
++MERO_SEARCH_LIBS([rvm_initialize], [rvm], [RVM_LIBS],
++        [rvm_initialize cannot be found! Try install rvm package from \
++$SRCDIR/../rvm or from rpm]
++)
++
++MERO_SEARCH_LIBS([rds_init_heap], [rds], [RDS_LIBS],
++        [rds_init_heap cannot be found! Try install rvm package from \
++$SRCDIR/../rvm or from rpm]
++)
++
++MERO_SEARCH_LIBS([rvm_create_segment], [seg], [SEG_LIBS],
++        [rvm_create_segment cannot be found! Try install rvm package from \
++$SRCDIR/../rvm or from rpm]
++)
++
++AC_CHECK_HEADERS([rvm/rvm/rvm.h], [],
++                 AC_MSG_ERROR([rvm/rvm/rvm.h is not found. Try install rvm \
++from $SRCDIR/../rvm or rvm-devel rpm package])
++)
++
+ # Check for CUnit
+ 
+ MERO_SEARCH_LIBS([CU_add_suite], [cunit], [CUNIT_LIBS],
+@@ -386,10 +408,20 @@ AC_CHECK_HEADERS([db.h], [],
+ 
+ else # non-rpm setup
+ 
+-#check for rvm libs
++#Check for rvm libs
++RVM_SRC=$ABS_SRCDIR/../rvm
+ RVM_LIBS=$ABS_SRCDIR/../rvm/rvm/librvm.la
+ RDS_LIBS=$ABS_SRCDIR/../rvm/rds/librds.la
+ SEG_LIBS=$ABS_SRCDIR/../rvm/seg/libseg.la
++RVM_INCLUDES="-I$RVM_SRC/include"
++
++AC_MSG_CHECKING([for rvm libs])
++MERO_BUILD_LIB([rvm], [$RVM_SRC], [$RVM_LIBS], [.],
++               ["--enable-librvm"])
++AC_MSG_CHECKING([for rds libs])
++MERO_BUILD_LIB([rds], [$RVM_SRC], [$RDS_LIBS])
++AC_MSG_CHECKING([for seg libs])
++MERO_BUILD_LIB([seg], [$RVM_SRC], [$SEG_LIBS])
+ 
+ # Check for galois
+ 
+@@ -448,6 +480,7 @@ AC_SUBST([DB_LIBS])
+ AC_SUBST([RVM_LIBS])
+ AC_SUBST([RDS_LIBS])
+ AC_SUBST([SEG_LIBS])
++AC_SUBST([RVM_INCLUDES])
+ 
+ #
+ # Handle configuration options
+@@ -483,7 +516,7 @@ AS_IF([test x$enable_mcheck = xyes],
+ 
+ AS_IF([test x$enable_rpm != xyes],
+       [M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES \
+-                    $DB_INCLUDES $M0_CPPFLAGS"]
++                    $DB_INCLUDES $RVM_INCLUDES $M0_CPPFLAGS"]
+ )
+ 
+ # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
+diff --git a/mero/mero-pub.api b/mero/mero-pub.api
+index 401b953..f1b6c38 100644
+--- a/mero/mero-pub.api
++++ b/mero/mero-pub.api
+@@ -90,3 +90,31 @@ m0_time_set
+ m0_tlist_head
+ m0_tlist_next
+ m0_vector_elem_get
++m0_be_alloc
++m0_be_domain_create
++m0_be_domain_fini
++m0_be_domain_init
++m0_be_domain_lookup
++m0_be_free
++m0_be_prefetch
++m0_be_put
++m0_be_rvm_init
++m0_be_seg_check
++m0_be_seg_create
++m0_be_seg_create_cb
++m0_be_seg_delete
++m0_be_seg_done
++m0_be_seg_fail
++m0_be_seg_fini
++m0_be_seg_init
++m0_be_seg_open
++m0_be_seg_open_cb
++m0_be_tx_capture
++m0_be_tx_done
++m0_be_tx_fini
++m0_be_tx_init
++m0_be_tx_prep
++m0_be_tx_start
++m0_bs_handler_thread
++m0_bs_sm_init
++m0_seg_req_post
+-- 
+1.8.3.2
+

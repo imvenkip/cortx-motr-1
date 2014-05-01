@@ -1,0 +1,214 @@
+From f4f6078424f1cedc688c5e77086f59188168f6e1 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 7 Jun 2012 15:08:26 +0530
+Subject: [PATCH 195/370] Updated DLD of `Configuration server Confd':  -
+ simplified state machine labels;  - introduced c2_longlock* interfaces,
+ provided an example;  - STs merged into `conf-st' section;  - minor changes.
+
+---
+ conf/confd.c | 72 ++++++++++++------------------------------------------------
+ conf/confd.h | 17 +++++---------
+ conf/obj.c   | 11 +++++++++-
+ 3 files changed, 30 insertions(+), 70 deletions(-)
+
+diff --git a/conf/confd.c b/conf/confd.c
+index e673110..f41ec05 100644
+--- a/conf/confd.c
++++ b/conf/confd.c
+@@ -33,7 +33,6 @@
+  *	- @ref confd-lspec-thread
+  *	- @ref confd-lspec-numa
+  * - @ref confd-ut
+- * - @ref confd-st
+  * - @ref confd-O
+  * - @ref confd-ref References
+  * - @ref confd_dlspec "Detailed Logical Specification"
+@@ -333,67 +332,41 @@
+  *
+  * @code
+  * bool c2_long_{read,write}_lock(struct c2_longlock *lock,
+- *             struct c2_fom *fom, struct c2_fom_callback *cb, int next_state);
++ *                                struct c2_fom *fom, int next_state);
+  * void c2_long_{read,write}_unlock(struct c2_longlock *lock);
+  * bool c2_long_is_{read,write}_locked(struct c2_longlock *lock);
+  * @endcode
+  *
+- * c2_long_{read,write}_lock() returns true iff the lock is taken. Arms
+- * the callback that will wake this FOM when the lock should be
+- * re-tried and returns false otherwise.
++ * c2_long_{read,write}_lock() returns true iff the lock is
++ * taken. Internally this arms the callback that will wake this FOM
++ * when the lock should be re-tried and returns false otherwise.
+  *
+  * c2_long_is_{read,write}_locked() returns true iff the lock has taken.
+  *
+- * Each object associated with a FOM (i.e. an instance of `struct
+- * c2_fetch_fom_obj') contains an instance of c2_fom_callback
+- * structure. This callback is armed, when corresponding `struct
+- * c2_longlock' instance becomes unlocked.
+- *
+- * The following code example shows the initialization procedure of
+- * FOM with struct c2_longlock:
++ * The following code example shows how to perform a transition from
++ * F_WAIT_RDLK to F_SERIALIZE and obtain a lock:
+  * @code
+- * // Generic callback defined by c2_long_lock implementation.
+- * // Can be overriden by caller with own written callback.
+- * void c2_long_lock_complete_cb(struct c2_fom_callback *cb);
+- *
+- * struct c2_fetch_fom_obj {
+- *       struct c2_fom          ffo_gen;
+- *       struct c2_chan         ffo_wait;
+- *       struct c2_fom_callback ffo_longlock_cb;
+- * };
+- *
+- * int fetch_fop_fom_create(struct c2_fop *fop, struct c2_fom **out)
+- * {
+- *	struct c2_fetch_fom_obj fom_obj;
+- *	1) allocate fom_obj;
+- *	2) initialize generic fom: fom_obj->ffo_gen;
+- *	3) initialize fom_obj callback: 
+- *         fom_obj->ffo_longlock_cb.fc_bottom = c2_long_lock_complete_cb;
+- * }
+- *
+- * // Performs a transition from F_WAIT_RDLK to F_SERIALIZE and
+- * // obtains a lock.
+  * static int fom_fetch_state(struct c2_fom *fom)
+  * {
+  *	//...
+  *	if (fom->state == F_WAIT_RDLK) {
+- *		// try to obtain a lock
+- *		struct c2_fom_callback *cb =
+- *                  container_of(fom, struct c2_fetch_fom_obj, ffo_longlock_cb);
+- *		if (!c2_long_lock(lock, fom, cb, F_SERIALIZE))
++ *		// try to obtain a lock, when it's obtained FOM is
++ *		// transitted into F_SERIALIZE
++ *
++ *		if (!c2_long_{read,write}_lock(lock, fom, F_SERIALIZE))
+  *			return C2_FSO_WAIT;
+  *
+  *		// ...
++ *
++ *              C2_ASSERT(c2_long_is_{read,write}_locked());
++ *
+  *		fom->state = F_SERIALIZE;
+  *		return C2_FSO_AGAIN;
+  *	}
+  *	//...
+  * }
+  * @endcode
+- *
+- * When struct c2_longlock instance has been already locked,
+- * c2_long_{read,write}_lock() returns false and arms a callback. This
+- * callback is fired, when lock changes it's state.
++ * @see fom-longlock <!-- @todo fom-longlock has to be defined in future -->
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section confd-lspec-thread Threading and Concurrency Model
+@@ -442,23 +415,6 @@
+  * predefined values.
+  *
+  * <hr> <!------------------------------------------------------------->
+- * @section confd-st System Tests
+- *
+- * System test will create a configuration db from yaml-file with
+- * predefined configuration values, and then read them by several
+- * confc clients.  Loaded configuration data in every confc should
+- * match with predefined configuration values.
+- *
+- * @test
+- * -# Prepare configuration DB with yaml2db and given yaml file.
+- * -# Run confd, configure it to use newly generated DB.
+- * -# Run multiple confcs in parallel, requesting the same configuration object.
+- * -# Every confc should dump configuration object to file with
+- *    name=("%d.dump", PID).
+- * -# Compare dumped objects with dumped predefined values.
+- * -# If values match, test considered to be succeeded, otherwise --- failed.
+- *
+- * <hr> <!------------------------------------------------------------->
+  * @section confd-O Analysis
+  *
+  * Size of configuration cache, can be evaluated according to a number
+diff --git a/conf/confd.h b/conf/confd.h
+index 51b6721..2c6d34e 100644
+--- a/conf/confd.h
++++ b/conf/confd.h
+@@ -102,24 +102,23 @@
+  * <!------------------------------------------------------------------>
+  * @subsection confd-fspec-sub-setup Initialization and termination
+  *
+- * To parametrize confd, user should provide the following arguments:
+- * through environment variables.  See @ref confd-fspec-cli.
++ * To parametrize confd, user should provide arguments through
++ * environment variables.  See @ref confd-fspec-cli.
+  *
+  * Confd is initiated and put into operation by request handler logic,
+  * after colibri is started. Confd service should be registered in
+  * request handler with c2_confd_service_register() call, where it has
+  * to initialize own data structures and FOPs used for communication.
+  *
+- * Initial configuration database is manually created prior to startup
+- * with @ref yaml2db utility. Confd assumes that:
++ * `yaml2db' utility generates configuration database from its
++ * description in YAML format. See @ref yaml2db for details. Confd
++ * assumes that:
+  *  - Configuration db is created before confd started;
+  *  - Confd uses configuration caching schema, described in
+  *    <a href=https://docs.google.com/a/xyratex.com/document/d/1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/view>
+  *    "High level design of Colibri’s configuration database schema"</a>
+  *    document.
+  *
+- *  - Format of configuration db, represented in yaml can be found in @ref yaml2db.
+- *
+  * The following errors may occur while using the configuration db:
+  * @li Db is empty or is in an unrecognized format.
+  * @li Db layout is different from that mentioned in
+@@ -182,15 +181,11 @@ struct c2_confd_cache {
+ 	struct c2_dbenv		ca_db;
+ 	/** Registry of cached configuration objects */
+ 	struct c2_conf_map	ca_cache;
+-	/** Keeps track of c2_confd_cache usage */
++	/** Tracks a number of confds using c2_confd_cache */
+ 	struct c2_ref		ca_ref;
+-	/** Tracks number of threads which are going to update ca_cache */
+-	uint32_t		ca_writers;
+ 	/** Protects this structure while processing of c2_conf_fetch
+ 	 * and c2_conf_update FOPs */
+ 	struct c2_longlock	ca_rwlock;
+-	/** Protects this structure from concurrent access */
+-	struct c2_mutex	cs_lock;
+ };
+ 
+ /** Configuration service statistics */
+diff --git a/conf/obj.c b/conf/obj.c
+index 14c4a47..dc5ae48 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -187,7 +187,7 @@
+  * - @subpage confc-lspec
+  * - @ref conf_dlspec_objops
+  * - @ref conf_dlspec_map
+- * - @subpage confd-lspec
++ * - @subpage confd-lspec-page
+  * - @ref conf-lspec-state
+  *
+  * <!---------------------------------------------------------------->
+@@ -302,6 +302,15 @@
+  *
+  * Actual output is compared with expected at `Compare' step.
+  *
++ * @test
++ * -# Prepare configuration DB with yaml2db and given yaml file.
++ * -# Run confd, configure it to use newly generated DB.
++ * -# Run multiple confcs in parallel, requesting the same configuration object.
++ * -# Every confc should dump configuration object to file with
++ *    name=("%d.dump", PID).
++ * -# Compare dumped objects with dumped predefined values.
++ * -# If values match, test considered to be succeeded, otherwise -- failed.
++ *
+  * @subsection conf-st-conf Configuration data
+  *
+  * confg generates "configuration string" --- an ASCII string
+-- 
+1.8.3.2
+

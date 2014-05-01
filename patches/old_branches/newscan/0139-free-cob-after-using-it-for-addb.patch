@@ -1,0 +1,29 @@
+From a40f7d1e1ba021beee3f8c1443a4278998e29b2a Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 15 Jun 2011 16:20:36 -0600
+Subject: [PATCH 139/158] - free cob after using it for addb
+
+---
+ cob/cob.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 581a743..9d7aeed 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -907,10 +907,10 @@ int c2_cob_create(struct c2_cob_domain *dom,
+         cob->co_valid |= CA_FABREC;
+         *out = cob;
+ out:
+-        if (rc)
+-                c2_cob_put(cob);
+         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+                     c2_addb_func_fail, "cob_create", rc);
++        if (rc)
++                c2_cob_put(cob);
+         return rc;
+ }
+ 
+-- 
+1.8.3.2
+

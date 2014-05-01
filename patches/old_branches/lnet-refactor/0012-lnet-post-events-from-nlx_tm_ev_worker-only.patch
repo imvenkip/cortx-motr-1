@@ -1,0 +1,100 @@
+From 758f2b97e1567ed0ee549374defa15888034bf95 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 13 Jul 2013 02:36:56 +0300
+Subject: [PATCH 12/14] lnet: post events from nlx_tm_ev_worker() only
+
+---
+ net/lnet/lnet_tm.c | 45 +++++++++++++++++++++------------------------
+ 1 file changed, 21 insertions(+), 24 deletions(-)
+
+diff --git a/net/lnet/lnet_tm.c b/net/lnet/lnet_tm.c
+index f8592ad..2356b71 100644
+--- a/net/lnet/lnet_tm.c
++++ b/net/lnet/lnet_tm.c
+@@ -169,34 +169,25 @@ buffer_events_process(struct m0_net_transfer_mc *tm, m0_time_t timeout)
+ 	tm_unlock(tm);
+ }
+ 
+-static bool
+-tm_must_stop(struct m0_net_transfer_mc *tm, struct m0_net_tm_event *tmev)
++static bool tm_must_stop(struct m0_net_transfer_mc *tm)
+ {
+-	struct nlx_core_domain      *cd  = core_domain(tm);
+ 	struct nlx_xo_transfer_mc   *tp  = tm->ntm_xprt_private;
+ 	struct nlx_core_transfer_mc *ctp = &tp->xtm_core;
+ 	bool stop = false;
+ 
+-	if (tm->ntm_state != M0_NET_TM_STOPPING)
+-		return false;
+-
+-	tm_lock(tm);
+-	if (all_tm_queues_are_empty(tm) && tm->ntm_callback_counter == 0) {
+-		nlx_core_tm_stop(cd, ctp);
+-		stop = true;
+-	}
+-	tm_unlock(tm);
+-
+-	if (stop) {
+-		tmev->nte_next_state = M0_NET_TM_STOPPED;
+-		tmev->nte_time       = m0_time_now();
+-		m0_net_tm_event_post(tmev);
++	if (tm->ntm_state == M0_NET_TM_STOPPING) {
++		tm_lock(tm);
++		if (all_tm_queues_are_empty(tm) &&
++		    tm->ntm_callback_counter == 0) {
++			nlx_core_tm_stop(core_domain(tm), ctp);
++			stop = true;
++		}
++		tm_unlock(tm);
+ 	}
+ 	return stop;
+ }
+ 
+-static void
+-worker_loop(struct m0_net_transfer_mc *tm, struct m0_net_tm_event *tmev)
++static void worker_loop(struct m0_net_transfer_mc *tm)
+ {
+ 	const struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
+ 	m0_time_t now;
+@@ -214,7 +205,6 @@ worker_loop(struct m0_net_transfer_mc *tm, struct m0_net_tm_event *tmev)
+ 	buffer_timeout_tick = NLX_tm_get_buffer_timeout_tick(tm);
+ 	next_buffer_timeout = m0_time_add(now, buffer_timeout_tick);
+ 
+-	NLXDBGP(tp, 1, "%p: tm_worker_thread started\n", tp);
+ 	while (1) {
+ 		buffer_events_process(tm,
+ 				      min3(m0_time_from_now(tm_delay(tm), 0),
+@@ -238,10 +228,9 @@ worker_loop(struct m0_net_transfer_mc *tm, struct m0_net_tm_event *tmev)
+ 		}
+ 		tm_unlock(tm);
+ 
+-		if (tm_must_stop(tm, tmev))
++		if (tm_must_stop(tm))
+ 			break;
+ 	}
+-	NLXDBGP(tp, 1, "%p: tm_worker_thread stopped\n", tp);
+ }
+ 
+ /**
+@@ -287,8 +276,16 @@ static void nlx_tm_ev_worker(struct m0_net_transfer_mc *tm)
+ 	};
+ 	m0_net_tm_event_post(&tmev);
+ 
+-	if (rc == 0)
+-		worker_loop(tm, &tmev);
++	if (rc == 0) {
++		NLXDBGP(tp, 1, "%p: tm_worker_thread started\n", tp);
++		worker_loop(tm);
++		NLXDBGP(tp, 1, "%p: tm_worker_thread stopped\n", tp);
++
++		tmev.nte_next_state = M0_NET_TM_STOPPED;
++		tmev.nte_time       = m0_time_now();
++		m0_net_tm_event_post(&tmev);
++	}
++
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

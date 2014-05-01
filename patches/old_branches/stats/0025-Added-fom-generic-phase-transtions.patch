@@ -1,0 +1,322 @@
+From cf315cec1e735b830bca0052ee5f9a427a948864 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 22 Nov 2013 14:51:37 +0530
+Subject: [PATCH 25/50]  - Added fom generic phase transtions.  - Added io_fom
+ phase transtions.
+
+---
+ fop/fom.h           | 24 +++++++++++++++++-
+ fop/fom_generic.c   | 70 ++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ fop/fom_generic.h   |  4 +++
+ fop/fop_addb.h      | 10 ++++++++
+ ioservice/io_foms.c | 51 +++++++++++++++++++++++++++++++++++++-
+ ioservice/io_fops.c |  3 +++
+ sm/sm.c             | 12 +++++++++
+ sm/sm.h             |  6 +++++
+ 8 files changed, 177 insertions(+), 3 deletions(-)
+
+diff --git a/fop/fom.h b/fop/fom.h
+index a422ee3..73833ba 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -398,6 +398,23 @@ enum {
+ 		M0_FOS_TRANS_NR
+ };
+ 
++/** @todo Need to remove duplication */
++#undef M0_FOM_PHASE_STATS_HIST_ARGS
++
++#ifdef M0_FOM_PHASE_STATS_HIST_ARGS
++#define M0_FOM_PHASE_STATS_HIST_ARGS2 0, M0_FOM_PHASE_STATS_HIST_ARGS
++#else
++#define M0_FOM_PHASE_STATS_HIST_ARGS2
++#endif
++enum {
++	FOM_PHASE_STATS_DATA_SZ =
++		(sizeof(struct m0_addb_counter_data) +
++		  ((M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) > 0 ?
++		    M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) + 1 : 0) *
++                   sizeof(uint64_t))) *
++		M0_FOS_TRANS_NR
++};
++
+ enum m0_fom_phase {
+ 	M0_FOM_PHASE_INIT,   /*< fom has been initialised. */
+ 	M0_FOM_PHASE_FINISH, /*< terminal phase. */
+@@ -551,7 +568,12 @@ struct m0_fom {
+ 	/** addb sm counter for states statistics */
+ 	struct m0_addb_sm_counter fo_sm_state_stats;
+ 	/** counter data for states statistics */
+-	uint8_t fo_fos_stats_data[FOM_STATE_STATS_DATA_SZ];
++	uint8_t                   fo_fos_stats_data[FOM_STATE_STATS_DATA_SZ];
++
++	/** addb sm counter for states statistics */
++	struct m0_addb_sm_counter fo_sm_phase_stats;
++	/** counter data for states statistics */
++	uint8_t                   fo_phase_stats_data[FOM_PHASE_STATS_DATA_SZ];
+ 
+ 	/** Thread executing current phase transition. */
+ 	struct m0_loc_thread     *fo_thread;
+diff --git a/fop/fom_generic.c b/fop/fom_generic.c
+index 7375fe6..80ecc91 100644
+--- a/fop/fom_generic.c
++++ b/fop/fom_generic.c
+@@ -658,10 +658,78 @@ static struct m0_sm_state_descr generic_phases[] = {
+ 	}
+ };
+ 
++/* @todo Need alignment and proper cause */
++static struct m0_sm_trans_descr generic_phases_trans[] = {
++	{"Init",	M0_FOPH_INIT,	M0_FOPH_AUTHENTICATE},
++	{"Init",	M0_FOPH_INIT,	M0_FOPH_FINISH},
++	{"Init",	M0_FOPH_INIT,	M0_FOPH_SUCCESS},
++	{"Init",	M0_FOPH_INIT,	M0_FOPH_FAILURE},
++	{"Init",	M0_FOPH_INIT,	M0_FOPH_TYPE_SPECIFIC},
++	{"fom_authen",	M0_FOPH_AUTHENTICATE, M0_FOPH_AUTHENTICATE_WAIT},
++	{"fom_authen",	M0_FOPH_AUTHENTICATE, M0_FOPH_RESOURCE_LOCAL},
++	{"fom_authen",	M0_FOPH_AUTHENTICATE, M0_FOPH_FAILURE},
++	{"fom_authen_wait", M0_FOPH_AUTHENTICATE_WAIT, M0_FOPH_RESOURCE_LOCAL},
++	{"fom_authen_wait", M0_FOPH_AUTHENTICATE_WAIT, M0_FOPH_FAILURE},
++	{"fom_loc_resource", M0_FOPH_RESOURCE_LOCAL,
++						M0_FOPH_RESOURCE_LOCAL_WAIT},
++	{"fom_loc_resource", M0_FOPH_RESOURCE_LOCAL,
++						M0_FOPH_RESOURCE_DISTRIBUTED},
++	{"fom_loc_resource", M0_FOPH_RESOURCE_LOCAL,
++						M0_FOPH_FAILURE},
++	{"fom_loc_resource_wait", M0_FOPH_RESOURCE_LOCAL_WAIT,
++						M0_FOPH_RESOURCE_DISTRIBUTED},
++	{"fom_loc_resource_wait", M0_FOPH_RESOURCE_LOCAL_WAIT,
++						     M0_FOPH_FAILURE},
++	{"fom_dist_resource",	 M0_FOPH_RESOURCE_DISTRIBUTED,
++					M0_FOPH_RESOURCE_DISTRIBUTED_WAIT},
++	{"fom_dist_resource",	 M0_FOPH_RESOURCE_DISTRIBUTED,
++					M0_FOPH_OBJECT_CHECK},
++	{"fom_dist_resource",	 M0_FOPH_RESOURCE_DISTRIBUTED,
++					M0_FOPH_FAILURE},
++	{"fom_dist_resource_wait", M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
++					M0_FOPH_OBJECT_CHECK},
++	{"fom_dist_resource_wait", M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
++					M0_FOPH_FAILURE},
++	{"fom_obj_check", M0_FOPH_OBJECT_CHECK, M0_FOPH_OBJECT_CHECK_WAIT},
++	{"fom_obj_check", M0_FOPH_OBJECT_CHECK, M0_FOPH_AUTHORISATION},
++	{"fom_obj_check", M0_FOPH_OBJECT_CHECK, M0_FOPH_FAILURE},
++	{"fom_obj_check_wait", M0_FOPH_OBJECT_CHECK_WAIT,
++						M0_FOPH_AUTHORISATION},
++	{"fom_obj_check_wait", M0_FOPH_OBJECT_CHECK_WAIT,
++						M0_FOPH_FAILURE},
++	{"fom_auth", M0_FOPH_AUTHORISATION, M0_FOPH_AUTHORISATION_WAIT},
++	{"fom_auth", M0_FOPH_AUTHORISATION, M0_FOPH_TXN_INIT},
++	{"fom_auth", M0_FOPH_AUTHORISATION, M0_FOPH_FAILURE},
++	{"fom_auth_wait", M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_TXN_INIT},
++	{"fom_auth_wait", M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_FAILURE},
++	{"fom_tx_init", M0_FOPH_TXN_INIT, M0_FOPH_TXN_OPEN},
++	{"fom_tx_open", M0_FOPH_TXN_OPEN, M0_FOPH_TXN_WAIT},
++	{"fom_tx_wait", M0_FOPH_TXN_WAIT, M0_FOPH_FAILURE},
++	{"fom_tx_wait", M0_FOPH_TXN_WAIT, M0_FOPH_TYPE_SPECIFIC},
++	{"fom_success", M0_FOPH_SUCCESS, M0_FOPH_FOL_REC_ADD},
++	{"fom_fol_rec_add", M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
++	{"fom_txn_commit", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
++	{"fom_queue_reply", M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
++	{"fom_queue_reply", M0_FOPH_QUEUE_REPLY, M0_FOPH_FINISH},
++	{"fom_queue_reply_wait", M0_FOPH_QUEUE_REPLY_WAIT,
++						M0_FOPH_TXN_COMMIT_WAIT},
++	{"fom_queue_reply_wait", M0_FOPH_QUEUE_REPLY_WAIT,
++						M0_FOPH_FINISH},
++	{"fom_txn_commit_wait", M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_FINISH},
++	{"fom_timeout", M0_FOPH_TIMEOUT, M0_FOPH_FAILURE},
++	{"fom_failure", M0_FOPH_FAILURE, M0_FOPH_TXN_COMMIT},
++	{"SM finish", M0_FOPH_FINISH, 0}, /* @todo need to check for this. */
++	{"Specific phase", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_SUCCESS},
++	{"Specific phase", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_FAILURE},
++	{"Specific phase", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_FINISH},
++};
++
+ struct m0_sm_conf m0_generic_conf = {
+ 	.scf_name      = "FOM standard phases",
+ 	.scf_nr_states = ARRAY_SIZE(generic_phases),
+-	.scf_state     = generic_phases
++	.scf_state     = generic_phases,
++	.scf_trans_nr  = ARRAY_SIZE(generic_phases_trans),
++	.scf_trans     = generic_phases_trans,
+ };
+ M0_EXPORTED(m0_generic_conf);
+ 
+diff --git a/fop/fom_generic.h b/fop/fom_generic.h
+index 6ba30fd..a58a430 100644
+--- a/fop/fom_generic.h
++++ b/fop/fom_generic.h
+@@ -35,6 +35,10 @@ struct m0_rpc_item;
+  * @addtogroup fom
+  */
+ 
++enum {
++	M0_FOM_GENERIC_PHASES_TRANS_NR = 42,
++};
++
+ /**
+  * "Phases" through which fom execution typically passes.
+  *
+diff --git a/fop/fop_addb.h b/fop/fop_addb.h
+index c0028ce..2789bb2 100644
+--- a/fop/fop_addb.h
++++ b/fop/fop_addb.h
+@@ -95,6 +95,7 @@ enum {
+ 	M0_ADDB_RECID_FL_WAIL_NR          = 68,
+ 	M0_ADDB_RECID_FOP_RATE_CNTR       = 69,
+ 	M0_ADDB_RECID_FOP_RATE            = 70,
++	M0_ADDB_RECID_FOM_PHASE_STATS     = 71,
+ };
+ 
+ /**
+@@ -127,6 +128,15 @@ M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_state_stats, M0_ADDB_RECID_FOM_STATE_STATS,
+ 		   &fom_states_conf);
+ #endif
+ 
++#ifdef FOM_PHASE_STATS_HIST_ARGS
++/** FOM state statistics counter */
++M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_phase_stats, M0_ADDB_RECID_FOM_PHASE_STATS,
++		   &fom_states_conf, FOM_PHASE_STATS_HIST_ARGS);
++#else
++M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_phase_stats, M0_ADDB_RECID_FOM_PHASE_STATS,
++		   &fom_states_conf);
++#endif
++
+ /**
+  * Accumulated run time of all locality foms (in "binary" usec).
+  * "Binary usec" == (nsec >> 10).
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 4ff491e..70b1595 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -607,6 +607,13 @@ static int net_buffer_release(struct m0_fom *);
+ 
+ static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom);
+ 
++enum {
++	IO_FOM_SPECIFIC_PHASE_TRANS_NR = 22,
++};
++
++#define IO_FOM_PHASE_TRANS_NR					\
++	(M0_FOM_GENERIC_PHASES_TRANS_NR + IO_FOM_SPECIFIC_PHASE_TRANS_NR)
++
+ /**
+  * I/O FOM operation vector.
+  */
+@@ -751,10 +758,52 @@ struct m0_sm_state_descr io_phases[] = {
+ 	},
+ };
+ 
++struct m0_sm_trans_descr io_phases_trans[IO_FOM_PHASE_TRANS_NR] = {
++	{"IO Prepare", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
++	{"IO Prepare", M0_FOPH_IO_FOM_PREPARE, M0_FOPH_FAILURE},
++	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++						M0_FOPH_IO_STOB_INIT},
++	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++						M0_FOPH_IO_ZERO_COPY_INIT},
++	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++						M0_FOPH_IO_FOM_BUFFER_WAIT},
++	{"Network buffer acquire", M0_FOPH_IO_FOM_BUFFER_ACQUIRE,
++						M0_FOPH_FAILURE},
++	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++						M0_FOPH_IO_STOB_INIT},
++	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++						M0_FOPH_IO_ZERO_COPY_INIT},
++	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++						M0_FOPH_IO_FOM_BUFFER_WAIT},
++	{"Network buffer wait", M0_FOPH_IO_FOM_BUFFER_WAIT,
++						M0_FOPH_FAILURE},
++	{"STOB I/O launch", M0_FOPH_IO_STOB_INIT, M0_FOPH_IO_STOB_WAIT},
++	{"STOB I/O launch", M0_FOPH_IO_STOB_INIT, M0_FOPH_FAILURE},
++	{"STOB I/O finish",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_ZERO_COPY_INIT},
++	{"STOB I/O finish",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_IO_BUFFER_RELEASE},
++	{"STOB I/O finish",  M0_FOPH_IO_STOB_WAIT, M0_FOPH_FAILURE},
++	{"Zero-copy initiate", M0_FOPH_IO_ZERO_COPY_INIT,
++						  M0_FOPH_IO_ZERO_COPY_WAIT},
++	{"Zero-copy initiate", M0_FOPH_IO_ZERO_COPY_INIT,
++						  M0_FOPH_FAILURE},
++	{"Zero-copy finish", M0_FOPH_IO_ZERO_COPY_WAIT,
++						  M0_FOPH_IO_BUFFER_RELEASE},
++	{"Zero-copy finish", M0_FOPH_IO_ZERO_COPY_WAIT,
++						  M0_FOPH_IO_STOB_INIT},
++	{"Zero-copy finish", M0_FOPH_IO_ZERO_COPY_WAIT,
++						  M0_FOPH_FAILURE},
++	{"Network buffer release", M0_FOPH_IO_BUFFER_RELEASE,
++						M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
++	{"Network buffer release", M0_FOPH_IO_BUFFER_RELEASE,
++						M0_FOPH_SUCCESS},
++};
++
+ struct m0_sm_conf io_conf = {
+ 	.scf_name      = "IO phases",
+ 	.scf_nr_states = ARRAY_SIZE(io_phases),
+-	.scf_state     = io_phases
++	.scf_state     = io_phases,
++	.scf_trans_nr  = ARRAY_SIZE(io_phases_trans),
++	.scf_trans     = io_phases_trans,
+ };
+ 
+ static bool m0_io_fom_cob_rw_invariant(const struct m0_io_fom_cob_rw *io)
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index c54b567..861cc89 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -204,6 +204,7 @@ extern struct m0_sm_conf io_conf;
+ extern struct m0_sm_state_descr io_phases[];
+ extern struct m0_sm_conf cob_ops_conf;
+ extern struct m0_sm_state_descr cob_ops_phases[];
++extern struct m0_sm_trans_descr io_phases_trans[];
+ 
+ M0_INTERNAL int m0_ioservice_fop_init(void)
+ {
+@@ -225,6 +226,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 			  m0_generic_conf.scf_nr_states);
+ 	m0_sm_conf_extend(m0_generic_conf.scf_state, cob_ops_phases,
+ 			  m0_generic_conf.scf_nr_states);
++	m0_sm_conf_trans_extend(m0_generic_conf.scf_trans, io_phases_trans,
++			        io_conf.scf_trans_nr);
+ #endif
+ 	M0_FOP_TYPE_INIT(&m0_fop_cob_readv_fopt,
+ 			 .name      = "Read request",
+diff --git a/sm/sm.c b/sm/sm.c
+index 597c0a9..4cc5101 100644
+--- a/sm/sm.c
++++ b/sm/sm.c
+@@ -639,6 +639,18 @@ M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to)
+ 	return m0_sm_timer_is_armed(&to->st_timer);
+ }
+ 
++M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_trans_descr *base,
++				         struct m0_sm_trans_descr       *sub,
++					 uint32_t                        nr)
++{
++	uint32_t i;
++
++	for (i = 0; i < nr; ++i) {
++		if (sub[i].td_cause == NULL && base[i].td_cause != NULL)
++			sub[i] = base[i];
++	}
++}
++
+ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
+ 				   struct m0_sm_state_descr *sub, uint32_t nr)
+ {
+diff --git a/sm/sm.h b/sm/sm.h
+index e6c36e4..3bfcd70 100644
+--- a/sm/sm.h
++++ b/sm/sm.h
+@@ -727,6 +727,12 @@ enum m0_sm_return {
+ };
+ 
+ /**
++ * "Extends" base transition descriptions with the given sub descriptions.
++ */
++M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_trans_descr *base,
++				         struct m0_sm_trans_descr       *sub,
++					 uint32_t                        nr);
++/**
+  * "Extends" base state descriptions with the given sub descriptions.
+  *
+  * Updates sub in place to become a merged state machine descriptions array that
+-- 
+1.8.3.2
+

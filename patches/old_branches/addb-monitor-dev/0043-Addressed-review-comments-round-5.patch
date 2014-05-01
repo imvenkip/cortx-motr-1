@@ -1,0 +1,288 @@
+From c381dce48dcbc5362d74c7ed6f49f31c751342af Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Wed, 31 Jul 2013 18:29:42 +0530
+Subject: [PATCH 043/125] Addressed review comments (round 5)
+
+---
+ addb/addb_monitor.c        | 114 ++++++++++++++++++++++++---------------------
+ addb/addb_monitor.h        |   7 ++-
+ addb/addb_monitor_wire.h   |   8 +---
+ addb/addb_rec.c            |   1 +
+ addb/user_space/addb_svc.c |   1 -
+ 5 files changed, 70 insertions(+), 61 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 713552d..58d0c93 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -137,8 +137,10 @@
+    the stats service and verify the data.
+ 
+    @section ADDB-MON-INFRA-O Analysis
+-   Monitoring infrastructure adds a small overhead as it executes
+-   a stats posting fom periodically.
++   Monitor related information (list of monitors, their specific data)
++   are all kept in memory. Monitor implementors are advised to take
++   locks on monitor specific data viz. m0_addb_sum_rec:asr_mutex
++   only when they require data consistency.
+ 
+ 
+    @section ADDB-MON-INFRA-ref
+@@ -206,7 +208,7 @@ fail:
+ 	return rc;
+ }
+ 
+-bool addb_monitor_invariant(struct m0_addb_monitor *mon)
++M0_INTERNAL bool m0_addb_monitor_invariant(struct m0_addb_monitor *mon)
+ {
+ 	return (mon != NULL && mon->am_ops != NULL);
+ }
+@@ -233,7 +235,7 @@ M0_INTERNAL void m0_addb_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
+ 
+ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor)
+ {
+-	M0_PRE(addb_monitor_invariant(monitor));
++	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
+ 	monitor->am_ops = NULL;
+ 	addb_mon_tlink_fini(monitor);
+@@ -241,14 +243,14 @@ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor)
+ 
+ M0_INTERNAL void m0_addb_monitor_add(struct m0_addb_monitor *monitor)
+ {
+-	M0_PRE(addb_monitor_invariant(monitor));
++	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
+ 	addb_mon_tlist_add_tail(&monitor_global_ctx.amgc_list, monitor);
+ }
+ 
+ M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor)
+ {
+-	M0_PRE(addb_monitor_invariant(monitor));
++	M0_PRE(m0_addb_monitor_invariant(monitor));
+ 
+ 	addb_mon_tlist_del(monitor);
+ }
+@@ -267,58 +269,51 @@ M0_INTERNAL void m0_addb_monitor_subsys_fini(void)
+ 	monitor_global_ctx.amgc_reqh = NULL;
+ }
+ 
+-/** @todo: Calculate the correct len for this macro */
+-#define ADDB_SUM_REC_ON_WIRE_LEN(sum) 0
++#define SUM_SIZE(sum) (sum->asr_rec.asrw_rec.au64s_nr * sizeof(uint64_t))
+ 
+ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ {
+-	const struct m0_addb_monitor    *mon;
+-	const struct m0_reqh            *reqh = monitor_global_ctx.amgc_reqh;
+-	uint16_t		         dirtied_mon_cnt = 0;
+-	struct m0_addb_sum_rec_fop      *sum_recs_fop;
+-	struct m0_addb_sum_rec_fop_data *sum_rec;
+-	int                              i = 0;
++	const struct m0_addb_monitor *mon;
++	const struct m0_reqh         *reqh = monitor_global_ctx.amgc_reqh;
++	uint16_t		      dirtied_mon_cnt = 0;
++	struct m0_addb_sum_rec_fop   *sum_recs_fop;
++	int                           i = 0;
++	int                           rc = 0;
++	uint32_t                      fop_len = 0;
+ 
+ 	M0_ALLOC_PTR(sum_recs_fop);
+ 
+-	if (sum_recs_fop == NULL)
+-		M0_RETURN(-ENOMEM);
++	if (sum_recs_fop == NULL) {
++		rc = -ENOMEM;
++		M0_RETURN(rc);
++	}
+ 
+ 	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
+ 		if (mon->am_ops->amo_sum_rec != NULL) {
+ 			struct m0_addb_sum_rec *sum = mon->am_ops->amo_sum_rec(mon,
+ 						                      reqh);
+-			m0_mutex_lock(&sum->asr_mutex);
+ 			if (sum->asr_dirty == true)
+ 				++dirtied_mon_cnt;
+-			m0_mutex_unlock(&sum->asr_mutex);
+ 		}
+ 	} m0_tl_endfor;
+ 
+ 	if (dirtied_mon_cnt == 0)
+-		M0_RETURN(0);
++		M0_RETURN(rc);
+ 
+ 	M0_ALLOC_ARR(sum_recs_fop->asrf_recs, dirtied_mon_cnt);
+ 
+-	if (sum_recs_fop->asrf_recs == NULL)
+-		M0_RETURN(-ENOMEM);
++	fop_len += sizeof(sum_recs_fop->asrf_recs[0]) * dirtied_mon_cnt;
++
++	if (sum_recs_fop->asrf_recs == NULL) {
++		rc = -ENOMEM;
++		M0_RETURN(rc);
++	}
+ 
+ 	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
+ 		if (mon->am_ops->amo_sum_rec != NULL) {
+-			struct m0_addb_sum_rec *sum = mon->am_ops->amo_sum_rec(mon,
+-								      reqh);
+-			struct m0_addb_sum_rec_wire  *addb_sum_rec_on_wire;
+-			size_t                        len;
+-
+-			len = ADDB_SUM_REC_ON_WIRE_LEN(sum);
+-
+-			addb_sum_rec_on_wire = m0_alloc(len);
+-
+-			if (addb_sum_rec_on_wire == NULL) {
+-				m0_free(sum_recs_fop->asrf_recs);
+-				m0_free(sum_recs_fop);
+-				M0_RETURN(-ENOMEM);
+-			}
++			struct m0_addb_sum_rec_wire  *sum_rec;
++			struct m0_addb_sum_rec       *sum =
++				mon->am_ops->amo_sum_rec(mon, reqh);
+ 
+ 			m0_mutex_lock(&sum->asr_mutex);
+ 			if (sum->asr_dirty == true) {
+@@ -338,30 +333,34 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 					m0_mutex_unlock(&sum->asr_mutex);
+ 					break;
+ 				}
++
+ 				sum_rec = &(sum_recs_fop->asrf_recs[i++]);
+ 
+ 				/**
+-				 * @note: We need to make a copy of monitor's
+-				 * m0_addb_sum_rec::asr_rec since,we cannot send
+-				 * the former as a fop as its content can change
+-				 * during the process of creation of fop to its
+-				 * sending to stats service. We can avoid that
+-				 * by taking some global lock until the fop is
+-				 * sent but this is avoided to make the lock
+-				 * granularity small, just to copying it. Also,
+-				 * on-wire summary record would be few bytes and
+-				 * all dirtied would be dirtied_mon *
+-				 * sizeof(each on-wire sum rec) would be
+-				 * approximately some KBs.
++				 * @todo: Need to check this with max fop
++				 * size that can be sent and take action
++				 * accordingly.
+ 				 */
+-				addb_sum_rec_on_wire->asrw_id = sum->asr_rec.asrw_id;
+-				addb_sum_rec_on_wire->asrw_rec.au64s_nr =
++				fop_len += SUM_SIZE(sum);
++
++				sum_rec->asrw_rec.au64s_data =
++					m0_alloc(SUM_SIZE(sum));
++
++
++				if (sum_rec->asrw_rec.au64s_data == NULL) {
++					rc = -ENOMEM;
++					goto mem_fail;
++				}
++
++				sum_rec->asrw_id = sum->asr_rec.asrw_id;
++				sum_rec->asrw_rec.au64s_nr =
+ 					sum->asr_rec.asrw_rec.au64s_nr;
+ 
+-				memcpy(addb_sum_rec_on_wire->asrw_rec.au64s_data,
+-				       sum->asr_rec.asrw_rec.au64s_data, len);
+-				sum_rec->asrfd_data = addb_sum_rec_on_wire;
++				memcpy(sum_rec->asrw_rec.au64s_data,
++				       sum->asr_rec.asrw_rec.au64s_data,
++				       SUM_SIZE(sum));
+ 			}
++			sum->asr_dirty = false;
+ 			m0_mutex_unlock(&sum->asr_mutex);
+ 		}
+ 	} m0_tl_endfor;
+@@ -374,7 +373,16 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 	/**
+ 	 * @todo: Post on global machine too.
+ 	 */
+-	M0_RETURN(0);
++	M0_RETURN(rc);
++
++mem_fail:
++	while ( --i >= 0)
++		m0_free(sum_recs_fop->asrf_recs[i].asrw_rec.au64s_data);
++
++	m0_free(sum_recs_fop->asrf_recs);
++	m0_free(sum_recs_fop);
++
++	M0_RETURN(rc);
+ }
+ 
+ /*
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index a9ea3a9..38eb6ec 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -241,6 +241,11 @@ struct m0_addb_monitor {
+ 	uint64_t                          am_magic;
+ };
+ 
++/**
++ * Monitor invariant
++ */
++M0_INTERNAL bool m0_addb_monitor_invariant(struct m0_addb_monitor *mon);
++
+ struct stats_conn {
+ 	struct m0_rpc_conn    sc_conn;
+ 	struct m0_rpc_session sc_session;
+@@ -283,7 +288,7 @@ M0_INTERNAL int m0_addb_monitor_subsys_init(const struct m0_reqh *reqh,
+  * @post *monitor != NULL
+  */
+ M0_INTERNAL void m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
+-				     const struct m0_addb_monitor_ops *mon_ops);
++				      const struct m0_addb_monitor_ops *mon_ops);
+ 
+ /**
+  * Init m0_addb_sum_rec (Generic summary record structure)
+diff --git a/addb/addb_monitor_wire.h b/addb/addb_monitor_wire.h
+index 8ae5bee..f9b1c9f 100644
+--- a/addb/addb_monitor_wire.h
++++ b/addb/addb_monitor_wire.h
+@@ -43,13 +43,9 @@ struct m0_addb_sum_rec_wire {
+ 	struct m0_addb_uint64_seq asrw_rec;
+ } M0_XCA_RECORD;
+ 
+-struct m0_addb_sum_rec_fop_data {
+-	struct m0_addb_sum_rec_wire *asrfd_data M0_XCA_OPAQUE("m0_addb_sum_rec_wire_xc_type");
+-} M0_XCA_RECORD;
+-
+ struct m0_addb_sum_rec_fop {
+-	uint32_t                         asrf_nr;
+-	struct m0_addb_sum_rec_fop_data *asrf_recs;
++	uint32_t                     asrf_nr;
++	struct m0_addb_sum_rec_wire *asrf_recs;
+ } M0_XCA_SEQUENCE;
+ 
+ #endif /* __MERO_ADDB_ADDB_MONITOR_WIRE_H__ */
+diff --git a/addb/addb_rec.c b/addb/addb_rec.c
+index 0164b5b..0cf8b3d 100644
+--- a/addb/addb_rec.c
++++ b/addb/addb_rec.c
+@@ -154,6 +154,7 @@ static void addb_rec_post(struct m0_addb_mc *mc,
+ 
+ 	/* Invoke all the monitor's filters */
+ 	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
++		M0_ASSERT(m0_addb_monitor_invariant(mon));
+ 		mon->am_ops->amo_watch(mon, rec, monitor_global_ctx.amgc_reqh);
+ 	} m0_tl_endfor;
+ }
+diff --git a/addb/user_space/addb_svc.c b/addb/user_space/addb_svc.c
+index 81a31ab..7ab422c 100644
+--- a/addb/user_space/addb_svc.c
++++ b/addb/user_space/addb_svc.c
+@@ -193,7 +193,6 @@ static int addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
+ 	m0_cond_init(&svc->as_cond, &(*service)->rs_mutex);
+ 	addb_svc_bob_init(svc);
+ 
+-
+ 	M0_POST(addb_svc_invariant(svc));
+ 
+ 	return 0;
+-- 
+1.8.3.2
+

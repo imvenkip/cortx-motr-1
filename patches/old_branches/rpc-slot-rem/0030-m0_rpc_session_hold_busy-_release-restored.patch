@@ -1,0 +1,135 @@
+From e0625b1c65ebbbbb927ef639a2cd320bf90dd8ed Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 29 Jan 2014 21:47:29 +0200
+Subject: [PATCH 30/60] m0_rpc_session_hold_busy()/_release() restored
+
+We need to hold session while processing the fop
+so it won't be destroyed before the reply is sent.
+---
+ rpc/session.c          | 22 +++++++++++++++++++++-
+ rpc/session.h          |  3 +++
+ rpc/session_internal.h | 23 +++++++++++++++++++++++
+ rpc/ut/session.c       | 12 ++++++++++++
+ 4 files changed, 59 insertions(+), 1 deletion(-)
+
+diff --git a/rpc/session.c b/rpc/session.c
+index d61c8d9..2568d90 100644
+--- a/rpc/session.c
++++ b/rpc/session.c
+@@ -196,7 +196,8 @@ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session)
+ 
+ M0_INTERNAL bool m0_rpc_session_is_idle(const struct m0_rpc_session *session)
+ {
+-	return session->s_nr_active_items == 0;
++	return session->s_nr_active_items == 0 &&
++	       session->s_hold_cnt == 0;
+ }
+ 
+ M0_INTERNAL int m0_rpc_session_init(struct m0_rpc_session *session,
+@@ -711,6 +712,25 @@ m0_rpc_session_get_max_item_payload_size(const struct m0_rpc_session *session)
+ 	       m0_rpc_item_onwire_header_size;
+ }
+ 
++M0_INTERNAL void m0_rpc_session_hold_busy(struct m0_rpc_session *session)
++{
++	M0_LOG(M0_DEBUG, "session %p %d -> %d", session, session->s_hold_cnt,
++		session->s_hold_cnt + 1);
++	++session->s_hold_cnt;
++	session_idle_x_busy(session);
++}
++
++M0_INTERNAL void m0_rpc_session_release(struct m0_rpc_session *session)
++{
++	M0_PRE(session_state(session) == M0_RPC_SESSION_BUSY);
++	M0_PRE(session->s_hold_cnt > 0);
++
++	M0_LOG(M0_DEBUG, "session %p %d -> %d", session, session->s_hold_cnt,
++		session->s_hold_cnt - 1);
++	--session->s_hold_cnt;
++	session_idle_x_busy(session);
++}
++
+ M0_INTERNAL void m0_rpc_session_mod_nr_active_items(struct m0_rpc_session
+ 						    *session, int delta)
+ {
+diff --git a/rpc/session.h b/rpc/session.h
+index 5b5925a..d7ec777 100644
+--- a/rpc/session.h
++++ b/rpc/session.h
+@@ -470,6 +470,9 @@ struct m0_rpc_session {
+ 	 */
+ 	int32_t                   s_nr_active_items;
+ 
++	/** if > 0, then session is in BUSY state */
++	uint32_t                  s_hold_cnt;
++
+ 	/** RPC session state machine
+ 	    @see m0_rpc_session_state, session_conf
+ 	 */
+diff --git a/rpc/session_internal.h b/rpc/session_internal.h
+index 7d8d4b9..07be753 100644
+--- a/rpc/session_internal.h
++++ b/rpc/session_internal.h
+@@ -48,6 +48,29 @@ enum {
+  */
+ M0_INTERNAL bool m0_rpc_session_invariant(const struct m0_rpc_session *session);
+ 
++/**
++   Holds a session in BUSY state.
++   Every call to m0_rpc_session_hold_busy() must accompany
++   call to m0_rpc_session_release()
++
++   @pre M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
++				       M0_RPC_SESSION_BUSY))
++   @pre m0_rpc_machine_is_locked(session_machine(session))
++   @post session_state(session) == M0_RPC_SESSION_BUSY
++ */
++M0_INTERNAL void m0_rpc_session_hold_busy(struct m0_rpc_session *session);
++
++/**
++   Decrements hold count. Moves session to IDLE state if it becomes idle.
++
++   @pre session_state(session) == M0_RPC_SESSION_BUSY
++   @pre session->s_hold_cnt > 0
++   @pre m0_rpc_machine_is_locked(session_machine(session))
++   @post ergo(m0_rpc_session_is_idle(session),
++	      session_state(session) == M0_RPC_SESSION_IDLE)
++ */
++M0_INTERNAL void m0_rpc_session_release(struct m0_rpc_session *session);
++
+ M0_INTERNAL void session_state_set(struct m0_rpc_session *session, int state);
+ M0_INTERNAL int session_state(const struct m0_rpc_session *session);
+ 
+diff --git a/rpc/ut/session.c b/rpc/ut/session.c
+index 7ad0882..4ba9da4 100644
+--- a/rpc/ut/session.c
++++ b/rpc/ut/session.c
+@@ -193,6 +193,17 @@ static void session_terminate_reply_and_fini(int err)
+ 	m0_rpc_session_fini(&session);
+ }
+ 
++static void session_hold_release(void)
++{
++	/* Session transition from IDLE => BUSY => IDLE */
++	m0_rpc_machine_lock(&machine);
++	m0_rpc_session_hold_busy(&session);
++	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_BUSY);
++	m0_rpc_session_release(&session);
++	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_IDLE);
++	m0_rpc_machine_unlock(&machine);
++}
++
+ static void session_check(void)
+ {
+ 	/* Checks for session states transitions,
+@@ -202,6 +213,7 @@ static void session_check(void)
+ 	session_init_and_establish();
+ 	session_establish_reply(0);
+ 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_IDLE);
++	session_hold_release();
+ 	session_terminate();
+ 	session_terminate_reply_and_fini(0);
+ }
+-- 
+1.8.3.2
+

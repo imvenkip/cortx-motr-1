@@ -1,0 +1,35 @@
+From decb6a3b89e513b01e1cea751a9d813187c4427d Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 6 Jun 2013 19:58:38 +0300
+Subject: [PATCH 122/290] be/list: don't overclaim by 2 pointers, use array
+ instead of switch.
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+---
+ be/list.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index 89af98f..580cdc7 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -127,13 +127,13 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 				   struct m0_be_tx_credit *accum)
+ {
+ 	struct m0_be_tx_credit k;
+-	/* Number of pointers affected. */
++	/*Number of pointers affected. */
+ 	static const m0_bcount_t npointers[M0_BLO_NR] = {
+-		[M0_BLO_INSERT] = 4, /* l->ll_next/h->l_head,
++		[M0_BLO_INSERT]= 4, /* l->ll_next/h->l_head,
+ 				      * self->{ll_prev,ll_nextright},
+ 				      * r->ll_prev/h->l_tail */
+ 		[M0_BLO_DELETE] = 4, /* the same */
+-		[M0_BLO_MOVE]   = 6, /* the same plus new neighbours'
++		[M0_BLO_MOVE]   = 6, /* the same plus new neighbours'
+ 				      * ll_next/l_head and ll_prev/l_tail. */
+ 	};
+ 
+-- 
+1.8.3.2
+

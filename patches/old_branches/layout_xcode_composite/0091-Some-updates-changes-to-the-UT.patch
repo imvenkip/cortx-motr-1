@@ -1,0 +1,1941 @@
+From a57c595badad945de4eb0e40f8ad38028a7ae800 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 15 Mar 2013 18:25:05 +0530
+Subject: [PATCH 091/157] Some updates/changes to the UT
+
+---
+ layout/ut/composite.c | 805 ++++++++++++++++++++++++++++++++++++++------------
+ layout/ut/composite.h |  13 +-
+ layout/ut/layout.c    | 620 ++++++++------------------------------
+ 3 files changed, 737 insertions(+), 701 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 2df5ec6..f09fe6f 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -492,7 +492,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 			M0_UT_ASSERT(rc == 0);
+ 			pair_set(&pair, &lid, area, num_bytes);
+ 			rc = m0_layout_add(&(*cl)->cl_base, &tx, &pair);
+-			if (failure_test)
++			if (layer_add_failure_test)
+ 				M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+ 				/*
+ 				 * todo rc == -ENOENT when cursor_init error is
+@@ -585,108 +585,6 @@ int test_build_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/** Depending upon 'the kind of the extent', define the extent. */
+-//todo placement
+-static void extent_to_be_operated(const struct m0_composite_layout *cl,
+-				  bool if_contiguous_extents,
+-				  uint32_t layer_idx,
+-				  uint64_t extent_idx,
+-				  uint32_t kind_of_extent_to_operate,
+-				  struct m0_ext *ext)
+-{
+-	struct m0_composite_layer        *layer;
+-	struct m0_composite_layer_extent *lr_ext;
+-	struct m0_ext                     ext_idxth;
+-	struct m0_ext                     ext_idx_plus_oneth;
+-	int                               i;
+-
+-	M0_UT_ASSERT(layer_idx > 0);
+-	M0_UT_ASSERT(M0_IN(kind_of_extent_to_operate, (EXACT_EXISTING,
+-						       NON_EXISTING,
+-						       OVERLAPPING_LEFT,
+-						       OVERLAPPING_RIGHT,
+-						       OVERLAPPING_COMPLETE,
+-						       CONTAINED_WITHIN)));
+-	layer = layer_find(cl, layer_idx);
+-	M0_UT_ASSERT(ergo(kind_of_extent_to_operate == EXACT_EXISTING,
+-			  extent_idx < layer->clr_extents_nr));
+-	M0_UT_ASSERT(ergo(kind_of_extent_to_operate == NON_EXISTING,
+-			  if_contiguous_extents == false));
+-	M0_UT_ASSERT(ergo(kind_of_extent_to_operate != EXACT_EXISTING,
+-			  layer->clr_extents_nr >= 3 &&
+-			  layer->clr_extents_nr >= extent_idx + 1));
+-	i = 0;
+-	ext_idxth.e_start = 0; /* To keep the compiler happy. */
+-	ext_idxth.e_end = 0;
+-	ext_idx_plus_oneth.e_start = 0;
+-	ext_idx_plus_oneth.e_end = 0;
+-	m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+-		if (i == extent_idx)
+-			ext_idxth = lr_ext->cle_ext;
+-		else if (i == extent_idx + 1) {
+-			ext_idx_plus_oneth = lr_ext->cle_ext;
+-			break;
+-		}
+-		++i;
+-	} m0_tl_endfor;
+-	M0_UT_ASSERT(ext_idxth.e_end == ext_idx_plus_oneth.e_start);
+-
+-	if (kind_of_extent_to_operate == EXACT_EXISTING) {
+-		if (if_contiguous_extents)
+-			*ext = ext_idxth;
+-		else {
+-			if ((i - 1) % 2 == 0)
+-				*ext = ext_idxth;
+-			else
+-				*ext = ext_idx_plus_oneth;
+-		}
+-	} else if (kind_of_extent_to_operate == NON_EXISTING) {
+-		M0_UT_ASSERT(!if_contiguous_extents);
+-		if ((i - 1) % 2 == 0)
+-			*ext = ext_idx_plus_oneth;
+-		else
+-			*ext = ext_idxth;
+-	} else if (kind_of_extent_to_operate == OVERLAPPING_LEFT) {
+-		ext->e_start = ext_idxth.e_start;
+-		ext->e_end = ext_idx_plus_oneth.e_start + 1;
+-	} else if (kind_of_extent_to_operate == OVERLAPPING_RIGHT) {
+-		ext->e_start = ext_idxth.e_end - 1;
+-		ext->e_end = ext_idx_plus_oneth.e_end;
+-	} else if (kind_of_extent_to_operate == OVERLAPPING_COMPLETE) {
+-		if (if_contiguous_extents) {
+-			ext->e_start = ext_idxth.e_start - 1;
+-			ext->e_end = ext_idxth.e_end + 1;
+-		} else {
+-			if ((i - 1) % 2 == 0) {
+-				ext->e_start = ext_idxth.e_start - 1;
+-				ext->e_end = ext_idxth.e_end + 1;
+-			} else {
+-				ext->e_start = ext_idx_plus_oneth.e_start - 1;
+-				ext->e_end = ext_idx_plus_oneth.e_end + 1;
+-			}
+-		}
+-	} else if (kind_of_extent_to_operate == CONTAINED_WITHIN) {
+-		if (if_contiguous_extents) {
+-			ext->e_start = ext_idxth.e_start + 2;
+-			ext->e_end = ext_idxth.e_end - 2;
+-		} else {
+-			if ((i - 1) % 2 == 0) {
+-				ext->e_start = ext_idxth.e_start + 2;
+-				ext->e_end = ext_idxth.e_end - 2;
+-			} else {
+-				ext->e_start = ext_idx_plus_oneth.e_start + 2;
+-				ext->e_end = ext_idx_plus_oneth.e_end - 2;
+-			}
+-		}
+-	}
+-}
+-
+-static void extent_to_be_operated(const struct m0_composite_layout *cl,
+-				  bool if_contiguous_extents,
+-				  uint32_t layer_idx,
+-				  uint64_t extent_idx,
+-				  uint32_t kind_of_extent_to_operate,
+-				  struct m0_ext *ext); //todo placement
+ /* Builds a buffer containing serialised representation of a layout object. */
+ static void composite_layout_buf_build(uint64_t composite_lid,
+ 				       struct m0_layout_domain *domain,
+@@ -1406,15 +1304,13 @@ static void layer_extents_delete(struct m0_composite_layout *cl,
+ 	} m0_tl_endfor;
+ }
+ 
+-/* todo Add layer addition part to this test, verification for inmem and indb
+-layers */
+-int test_layer_op_composite(uint64_t lid,
+-			    struct m0_layout_domain *domain,
+-			    uint32_t layers_nr,
+-			    uint32_t min_extents_nr,
+-			    bool failure_test)
++/** Tests the APIs m0_composite_layer_add() and m0_composite_layer_delete(). */
++int test_layer_ops_composite(uint64_t lid,
++			     struct m0_layout_domain *domain,
++			     uint32_t layers_nr,
++			     uint32_t min_extents_nr,
++			     bool layer_add_failure_test)
+ {
+-	bool                        is_add_to_db;
+ 	struct m0_layout           *l;
+ 	struct m0_layout           *l_copy_orig;
+ 	struct m0_layout           *l_copy_updated;
+@@ -1426,31 +1322,55 @@ int test_layer_op_composite(uint64_t lid,
+ 	int                         rc_tmp;
+ 	int                         rc;
+ 
+-	is_add_to_db = domain->ld_is_db_available ? true : false;
++	/* Build a layout, add layer to it. */
+ 	rc = composite_build_and_layers_add(lid, domain,
+ 					    layers_nr, min_extents_nr,
+ 					    !CONTIGUOUS_EXTENTS,
+-					    is_add_to_db, !FAILURE_TEST,
+-					    !LAYER_ADD_FAILURE_TEST, &cl);
++					    domain->ld_is_db_available ?
++								true : false,
++					    !FAILURE_TEST,
++					    layer_add_failure_test, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 	l = m0_cl_to_layout(cl);
+ 
+-	composite_layout_copy(l, &l_copy_orig);
++	/* Verify the layout. */
+ 	composite_layout_verify(l, lid, layers_nr, min_extents_nr,
+ 				!CONTIGUOUS_EXTENTS);
++	composite_layout_copy(l, &l_copy_orig);
+ 
+-	/*
+-	 * Try to delete the top-most layer from the composite layout while
+-	 * there are some extents associated with that layer, to verify that it
+-	 * results into an error.
+-	 */
+ 	if (domain->ld_is_db_available) {
+ 		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 		M0_UT_ASSERT(rc == 0);
+ 		txptr = &tx;
++
++		/* Delete the composite layout object from the memory. */
++		m0_layout_put(&cl->cl_base);
++		M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
++
++		/* Read the layout from the DB and compare. */
++		l_from_DB = NULL;
++		rc = layout_lookup(lid, domain, &m0_composite_layout_type,
++				   !FAILURE_TEST, &l_from_DB);
++		M0_UT_ASSERT(rc == 0);
++		composite_layout_compare(l_from_DB, l_copy_orig, false);
++
++		/* Restore l and cl since the earlier copy has been deleted. */
++		l = l_from_DB;
++		cl = m0_layout_to_cl(l_from_DB);
++
++		/*
++		 * There is only one reference on this layout that is added by
++		 * incremented by m0_layout_lookup(). Hence, it is not to be
++		 * released.
++		 */
+ 	} else
+ 		txptr = NULL;
+ 
++	/*
++	 * Try to delete the top-most layer from the composite layout while
++	 * there are some extents associated with that layer, to verify that it
++	 * results into an error.
++	 */
+ 	rc = m0_composite_layer_delete(cl, txptr);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+@@ -1468,15 +1388,10 @@ int test_layer_op_composite(uint64_t lid,
+ 	}
+ 
+ 	M0_ASSERT(cl->cl_layers_nr = layers_nr - 1);
+-
++	composite_layout_verify(l, lid, layers_nr - 1, min_extents_nr,
++				!CONTIGUOUS_EXTENTS);
+ 	composite_layout_copy(l, &l_copy_updated);
+ 
+-#if 0
+-	/* Verify the extent list in the in-memory layout. */
+-	if (!failure_test)
+-		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+-#endif
+-
+ 	/* Delete the composite layout object. */
+ 	m0_layout_put(&cl->cl_base);
+ 	M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
+@@ -1503,6 +1418,101 @@ int test_layer_op_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
++/** Depending upon 'the kind of the extent', define the extent. */
++static void extent_to_be_operated(const struct m0_composite_layout *cl,
++				  bool if_contiguous_extents,
++				  uint32_t layer_idx,
++				  uint64_t extent_idx,
++				  uint32_t kind_of_extent_to_operate,
++				  struct m0_ext *ext)
++{
++	struct m0_composite_layer        *layer;
++	struct m0_composite_layer_extent *lr_ext;
++	struct m0_ext                     ext_idxth;
++	struct m0_ext                     ext_idx_plus_oneth;
++	int                               i;
++
++	M0_UT_ASSERT(layer_idx > 0);
++	M0_UT_ASSERT(M0_IN(kind_of_extent_to_operate, (EXACT_EXISTING,
++						       NON_EXISTING,
++						       OVERLAPPING_LEFT,
++						       OVERLAPPING_RIGHT,
++						       OVERLAPPING_COMPLETE,
++						       CONTAINED_WITHIN)));
++	layer = layer_find(cl, layer_idx);
++	M0_UT_ASSERT(ergo(kind_of_extent_to_operate == EXACT_EXISTING,
++			  extent_idx < layer->clr_extents_nr));
++	M0_UT_ASSERT(ergo(kind_of_extent_to_operate == NON_EXISTING,
++			  if_contiguous_extents == false));
++	M0_UT_ASSERT(ergo(kind_of_extent_to_operate != EXACT_EXISTING,
++			  layer->clr_extents_nr >= 3 &&
++			  layer->clr_extents_nr >= extent_idx + 1));
++	i = 0;
++	ext_idxth.e_start = 0; /* To keep the compiler happy. */
++	ext_idxth.e_end = 0;
++	ext_idx_plus_oneth.e_start = 0;
++	ext_idx_plus_oneth.e_end = 0;
++	m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
++		if (i == extent_idx)
++			ext_idxth = lr_ext->cle_ext;
++		else if (i == extent_idx + 1) {
++			ext_idx_plus_oneth = lr_ext->cle_ext;
++			break;
++		}
++		++i;
++	} m0_tl_endfor;
++	M0_UT_ASSERT(ext_idxth.e_end == ext_idx_plus_oneth.e_start);
++
++	if (kind_of_extent_to_operate == EXACT_EXISTING) {
++		if (if_contiguous_extents)
++			*ext = ext_idxth;
++		else {
++			if ((i - 1) % 2 == 0)
++				*ext = ext_idxth;
++			else
++				*ext = ext_idx_plus_oneth;
++		}
++	} else if (kind_of_extent_to_operate == NON_EXISTING) {
++		M0_UT_ASSERT(!if_contiguous_extents);
++		if ((i - 1) % 2 == 0)
++			*ext = ext_idx_plus_oneth;
++		else
++			*ext = ext_idxth;
++	} else if (kind_of_extent_to_operate == OVERLAPPING_LEFT) {
++		ext->e_start = ext_idxth.e_start;
++		ext->e_end = ext_idx_plus_oneth.e_start + 1;
++	} else if (kind_of_extent_to_operate == OVERLAPPING_RIGHT) {
++		ext->e_start = ext_idxth.e_end - 1;
++		ext->e_end = ext_idx_plus_oneth.e_end;
++	} else if (kind_of_extent_to_operate == OVERLAPPING_COMPLETE) {
++		if (if_contiguous_extents) {
++			ext->e_start = ext_idxth.e_start - 1;
++			ext->e_end = ext_idxth.e_end + 1;
++		} else {
++			if ((i - 1) % 2 == 0) {
++				ext->e_start = ext_idxth.e_start - 1;
++				ext->e_end = ext_idxth.e_end + 1;
++			} else {
++				ext->e_start = ext_idx_plus_oneth.e_start - 1;
++				ext->e_end = ext_idx_plus_oneth.e_end + 1;
++			}
++		}
++	} else if (kind_of_extent_to_operate == CONTAINED_WITHIN) {
++		if (if_contiguous_extents) {
++			ext->e_start = ext_idxth.e_start + 2;
++			ext->e_end = ext_idxth.e_end - 2;
++		} else {
++			if ((i - 1) % 2 == 0) {
++				ext->e_start = ext_idxth.e_start + 2;
++				ext->e_end = ext_idxth.e_end - 2;
++			} else {
++				ext->e_start = ext_idx_plus_oneth.e_start + 2;
++				ext->e_end = ext_idx_plus_oneth.e_end - 2;
++			}
++		}
++	}
++}
++
+ enum extent_operation {
+ 	EXTENT_LOOKUP,
+ 	EXTENT_ADD,
+@@ -1518,74 +1528,6 @@ static int ext_operate(enum extent_operation eop,
+ 		       bool if_contiguous_extents,
+ 		       uint32_t kind_of_extent_to_operate,
+ 		       uint64_t ext_state,
+-		       bool failure_test);
+-
+-int test_ext_lookup_composite(uint64_t lid,
+-			      struct m0_layout_domain *domain,
+-			      uint32_t layers_nr,
+-			      uint32_t min_extents_nr,
+-			      bool if_contiguous_extents,
+-			      uint32_t kind_of_extent_to_operate,
+-			      bool failure_test)
+-{
+-	return ext_operate(EXTENT_LOOKUP, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   kind_of_extent_to_operate, M0_CLRES_INVALID,
+-			   failure_test);
+-}
+-
+-int test_ext_add_composite(uint64_t lid,
+-			   struct m0_layout_domain *domain,
+-			   uint32_t layers_nr,
+-			   uint32_t min_extents_nr,
+-			   bool if_contiguous_extents,
+-			   uint32_t kind_of_extent_to_operate,
+-			   uint64_t ext_state,
+-			   bool failure_test)
+-{
+-	return ext_operate(EXTENT_ADD, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   kind_of_extent_to_operate, ext_state,
+-			   failure_test);
+-}
+-
+-int test_ext_state_update_composite(uint64_t lid,
+-				    struct m0_layout_domain *domain,
+-				    uint32_t layers_nr,
+-				    uint32_t min_extents_nr,
+-				    bool if_contiguous_extents,
+-				    uint32_t kind_of_extent_to_operate,
+-				    uint64_t ext_state,
+-				    bool failure_test)
+-{
+-	return ext_operate(EXTENT_UPDATE, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   kind_of_extent_to_operate, ext_state,
+-			   failure_test);
+-}
+-
+-int test_ext_delete_composite(uint64_t lid,
+-			      struct m0_layout_domain *domain,
+-			      uint32_t layers_nr,
+-			      uint32_t min_extents_nr,
+-			      bool if_contiguous_extents,
+-			      uint32_t kind_of_extent_to_operate,
+-			      bool failure_test)
+-{
+-	return ext_operate(EXTENT_DELETE, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   kind_of_extent_to_operate, M0_CLRES_INVALID,
+-			   failure_test);
+-}
+-
+-static int ext_operate(enum extent_operation eop,
+-		       uint64_t lid,
+-		       struct m0_layout_domain *domain,
+-		       uint32_t layers_nr,
+-		       uint32_t min_extents_nr,
+-		       bool if_contiguous_extents,
+-		       uint32_t kind_of_extent_to_operate,
+-		       uint64_t ext_state,
+ 		       bool failure_test)
+ {
+ 	bool                        is_add_to_db;
+@@ -1831,6 +1773,479 @@ static int ext_operate(enum extent_operation eop,
+ 	return rc;
+ }
+ 
++int test_ext_lookup_composite(uint64_t lid,
++			      struct m0_layout_domain *domain,
++			      uint32_t layers_nr,
++			      uint32_t min_extents_nr,
++			      bool if_contiguous_extents,
++			      uint32_t kind_of_extent_to_operate,
++			      bool failure_test)
++{
++	return ext_operate(EXTENT_LOOKUP, lid, domain,
++			   layers_nr, min_extents_nr, if_contiguous_extents,
++			   kind_of_extent_to_operate, M0_CLRES_INVALID,
++			   failure_test);
++}
++
++int test_ext_add_composite(uint64_t lid,
++			   struct m0_layout_domain *domain,
++			   uint32_t layers_nr,
++			   uint32_t min_extents_nr,
++			   bool if_contiguous_extents,
++			   uint32_t kind_of_extent_to_operate,
++			   uint64_t ext_state,
++			   bool failure_test)
++{
++	return ext_operate(EXTENT_ADD, lid, domain,
++			   layers_nr, min_extents_nr, if_contiguous_extents,
++			   kind_of_extent_to_operate, ext_state,
++			   failure_test);
++}
++
++int test_ext_state_update_composite(uint64_t lid,
++				    struct m0_layout_domain *domain,
++				    uint32_t layers_nr,
++				    uint32_t min_extents_nr,
++				    bool if_contiguous_extents,
++				    uint32_t kind_of_extent_to_operate,
++				    uint64_t ext_state,
++				    bool failure_test)
++{
++	return ext_operate(EXTENT_UPDATE, lid, domain,
++			   layers_nr, min_extents_nr, if_contiguous_extents,
++			   kind_of_extent_to_operate, ext_state,
++			   failure_test);
++}
++
++int test_ext_delete_composite(uint64_t lid,
++			      struct m0_layout_domain *domain,
++			      uint32_t layers_nr,
++			      uint32_t min_extents_nr,
++			      bool if_contiguous_extents,
++			      uint32_t kind_of_extent_to_operate,
++			      bool failure_test)
++{
++	return ext_operate(EXTENT_DELETE, lid, domain,
++			   layers_nr, min_extents_nr, if_contiguous_extents,
++			   kind_of_extent_to_operate, M0_CLRES_INVALID,
++			   failure_test);
++}
++
++void test_layer_ext_ops_composite(uint64_t base_lid,
++				  struct m0_layout_domain *domain)
++{
++	uint64_t lid;
++	int      rc;
++
++	/* Test cases for extent lookup. */
++	lid = base_lid + 1;
++	rc = test_ext_lookup_composite(lid, domain, 3, 4,
++				       !CONTIGUOUS_EXTENTS, NON_EXISTING,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 2;
++	rc = test_ext_lookup_composite(lid, domain, 3, 5,
++				       CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 3;
++	rc = test_ext_lookup_composite(lid, domain, 3, 6,
++				       !CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 4;
++	rc = test_ext_lookup_composite(lid, domain, 3, 7,
++				       CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 5;
++	rc = test_ext_lookup_composite(lid, domain, 3, 8,
++				       !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 6;
++	rc = test_ext_lookup_composite(lid, domain, 3, 9,
++				       CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 7;
++	rc = test_ext_lookup_composite(lid, domain, 4, 4,
++				       !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 8;
++	rc = test_ext_lookup_composite(lid, domain, 4, 5,
++				       CONTIGUOUS_EXTENTS,
++				       OVERLAPPING_COMPLETE,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 9;
++	rc = test_ext_lookup_composite(lid, domain, 4, 6,
++				       !CONTIGUOUS_EXTENTS,
++				       OVERLAPPING_COMPLETE,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 10;
++	rc = test_ext_lookup_composite(lid, domain, 4, 7,
++				       CONTIGUOUS_EXTENTS,
++				       CONTAINED_WITHIN,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 11;
++	rc = test_ext_lookup_composite(lid, domain, 4, 8,
++				       !CONTIGUOUS_EXTENTS,
++				       CONTAINED_WITHIN,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	/* Test cases for extent addition. */
++	lid = base_lid + 21;
++	rc = test_ext_add_composite(lid, domain, 4, 7,
++				    !CONTIGUOUS_EXTENTS, NON_EXISTING,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 22;
++	rc = test_ext_add_composite(lid, domain, 4, 8,
++				    CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 23;
++	rc = test_ext_add_composite(lid, domain, 4, 4,
++				    !CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 24;
++	rc = test_ext_add_composite(lid, domain, 4, 5,
++				    CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 25;
++	rc = test_ext_add_composite(lid, domain, 4, 6,
++				    !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 26;
++	rc = test_ext_add_composite(lid, domain, 4, 7,
++				    CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 27;
++	rc = test_ext_add_composite(lid, domain, 4, 8,
++				    CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 28;
++	rc = test_ext_add_composite(lid, domain, 4, 4,
++				    CONTIGUOUS_EXTENTS, OVERLAPPING_COMPLETE,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 29;
++	rc = test_ext_add_composite(lid, domain, 4, 5,
++				    !CONTIGUOUS_EXTENTS, OVERLAPPING_COMPLETE,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 30;
++	rc = test_ext_add_composite(lid, domain, 4, 6,
++				    CONTIGUOUS_EXTENTS, CONTAINED_WITHIN,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 31;
++	rc = test_ext_add_composite(lid, domain, 4, 6,
++				    !CONTIGUOUS_EXTENTS, CONTAINED_WITHIN,
++				    M0_CLRES_VALID,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	//todo Add extent with the flattening state
++	//todo Cover other cases with the flattening state addition
++	lid = base_lid + 32;
++	rc = test_ext_add_composite(lid, domain, 4, 6,
++				    !CONTIGUOUS_EXTENTS, NON_EXISTING,
++				    M0_CLRES_FLATTENING,
++				    !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++
++	/* Test cases for extent updation. */
++	lid = base_lid + 41;
++	rc = test_ext_state_update_composite(lid, domain, 5, 4,
++					     !CONTIGUOUS_EXTENTS,
++					     NON_EXISTING,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 42;
++	rc = test_ext_state_update_composite(lid, domain, 5, 5,
++					     CONTIGUOUS_EXTENTS,
++					     EXACT_EXISTING,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 43;
++	rc = test_ext_state_update_composite(lid, domain, 5, 6,
++					     !CONTIGUOUS_EXTENTS,
++					     EXACT_EXISTING,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 44;
++	rc = test_ext_state_update_composite(lid, domain, 5, 7,
++					     CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_LEFT,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 45;
++	rc = test_ext_state_update_composite(lid, domain, 5, 8,
++					     !CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_LEFT,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 46;
++	rc = test_ext_state_update_composite(lid, domain, 4, 4,
++					     CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_RIGHT,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 47;
++	rc = test_ext_state_update_composite(lid, domain, 4, 5,
++					     !CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_RIGHT,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 48;
++	rc = test_ext_state_update_composite(lid, domain, 4, 6,
++					     CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_COMPLETE,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 49;
++	rc = test_ext_state_update_composite(lid, domain, 4, 7,
++					     !CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_COMPLETE,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 50;
++	rc = test_ext_state_update_composite(lid, domain, 4, 6,
++					     CONTIGUOUS_EXTENTS,
++					     CONTAINED_WITHIN,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 51;
++	rc = test_ext_state_update_composite(lid, domain, 4, 6,
++					     !CONTIGUOUS_EXTENTS,
++					     CONTAINED_WITHIN,
++					     M0_CLRES_VALID,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	//todo Update extent to have the flattening state
++	lid = base_lid + 61;
++	rc = test_ext_state_update_composite(lid, domain, 5, 4,
++					     !CONTIGUOUS_EXTENTS,
++					     NON_EXISTING,
++					     M0_CLRES_FLATTENING,
++					     !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 62;
++	rc = test_ext_state_update_composite(lid, domain, 5, 5,
++					     CONTIGUOUS_EXTENTS,
++					     EXACT_EXISTING,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 63;
++	rc = test_ext_state_update_composite(lid, domain, 5, 6,
++					     !CONTIGUOUS_EXTENTS,
++					     EXACT_EXISTING,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 64;
++	rc = test_ext_state_update_composite(lid, domain, 5, 7,
++					     CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_LEFT,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 65;
++	rc = test_ext_state_update_composite(lid, domain, 5, 8,
++					     !CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_LEFT,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 66;
++	rc = test_ext_state_update_composite(lid, domain, 4, 4,
++					     CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_RIGHT,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 67;
++	rc = test_ext_state_update_composite(lid, domain, 4, 5,
++					     !CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_RIGHT,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 68;
++	rc = test_ext_state_update_composite(lid, domain, 4, 6,
++					     CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_COMPLETE,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 69;
++	rc = test_ext_state_update_composite(lid, domain, 4, 7,
++					     !CONTIGUOUS_EXTENTS,
++					     OVERLAPPING_COMPLETE,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 70;
++	rc = test_ext_state_update_composite(lid, domain, 4, 6,
++					     CONTIGUOUS_EXTENTS,
++					     CONTAINED_WITHIN,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 71;
++	rc = test_ext_state_update_composite(lid, domain, 4, 6,
++					     !CONTIGUOUS_EXTENTS,
++					     CONTAINED_WITHIN,
++					     M0_CLRES_FLATTENING,
++					     FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	/* Test cases for extent deletion. */
++	lid = base_lid + 81;
++	rc = test_ext_delete_composite(lid, domain, 4, 4,
++				       !CONTIGUOUS_EXTENTS, NON_EXISTING,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 82;
++	rc = test_ext_delete_composite(lid, domain, 4, 5,
++				       CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 83;
++	rc = test_ext_delete_composite(lid, domain, 4, 6,
++				       !CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 84;
++	rc = test_ext_delete_composite(lid, domain, 4, 7,
++				       CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 85;
++	rc = test_ext_delete_composite(lid, domain, 4, 8,
++				       !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 86;
++	rc = test_ext_delete_composite(lid, domain, 4, 4,
++				       CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 87;
++	rc = test_ext_delete_composite(lid, domain, 4, 5,
++				       !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 88;
++	rc = test_ext_delete_composite(lid, domain, 4, 6,
++				       CONTIGUOUS_EXTENTS,
++				       OVERLAPPING_COMPLETE,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 89;
++	rc = test_ext_delete_composite(lid, domain, 4, 7,
++				       !CONTIGUOUS_EXTENTS,
++				       OVERLAPPING_COMPLETE,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 90;
++	rc = test_ext_delete_composite(lid, domain, 4, 6,
++				       CONTIGUOUS_EXTENTS,
++				       CONTAINED_WITHIN,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	lid = base_lid + 91;
++	rc = test_ext_delete_composite(lid, domain, 4, 6,
++				       !CONTIGUOUS_EXTENTS,
++				       CONTAINED_WITHIN,
++				       !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++}
++
+ #ifndef __KERNEL__
+ /* Tests the API m0_layout_lookup(), for the COMPOSITE layout type. */
+ int test_lookup_composite(uint64_t lid,
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index 16c3038..83a1a09 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -98,11 +98,11 @@ int test_delete_composite(uint64_t lid,
+ 			  uint32_t min_extents_nr,
+ 			  bool if_contiguous_extents,
+ 			  bool failure_test);
+-int test_layer_op_composite(uint64_t lid,
+-			    struct m0_layout_domain *domain,
+-			    uint32_t layers_nr,
+-			    uint32_t min_extents_nr,
+-			    bool failure_test);
++int test_layer_ops_composite(uint64_t lid,
++			     struct m0_layout_domain *domain,
++			     uint32_t layers_nr,
++			     uint32_t min_extents_nr,
++			     bool failure_test);
+ int test_ext_lookup_composite(uint64_t lid,
+ 			      struct m0_layout_domain *domain,
+ 			      uint32_t layers_nr,
+@@ -133,7 +133,8 @@ int test_ext_delete_composite(uint64_t lid,
+ 			      bool if_contiguous_extents,
+ 			      uint32_t kind_of_extent_to_operate,
+ 			      bool failure_test);
+-
++void test_layer_ext_ops_composite(uint64_t base_lid,
++				  struct m0_layout_domain *domain);
+ #endif /* __MERO_LAYOUT_UT_COMPOSITE_H__ */
+ 
+ /*
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 4008f83..a1f6825 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -613,8 +613,6 @@ static void test_build_failure(void)
+ 	 * todo Add such failure test for m0_composite_layer_add() by using:
+ 	 * m0_fi_enable_off_n_on_m("layer_inmem_add", "mem_err", 1, 1);
+ 	 */
+-
+-	/* todo Composite */
+ }
+ 
+ /* Tests the API m0_layout_decode(). */
+@@ -1293,465 +1291,34 @@ static void test_instance_failure(void)
+ 	M0_UT_ASSERT(rc == -EPROTO);
+ }
+ 
+-static void test_composite_layer_ext_ops_internal(void)
++static void test_layer_ops_inmem(void)
+ {
+ 	uint64_t lid;
++	int      rc;
+ 
+-	lid = 1400111; //todo
+-	//todo Add TC for m0_composite_layer_delete()
+-	rc = test_layer_op_composite(lid, &domain, 3, 4,
+-				     !FAILURE_TEST);
+-
++	M0_UT_ASSERT(domain.ld_is_db_available == false);
+ 
+-	/* Test cases for extent lookup. */
+ 	lid = 14001;
+-	rc = test_ext_lookup_composite(lid, &domain, 3, 4,
+-				       !CONTIGUOUS_EXTENTS, NON_EXISTING,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14002;
+-	rc = test_ext_lookup_composite(lid, &domain, 3, 5,
+-				       CONTIGUOUS_EXTENTS, EXACT_EXISTING,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14003;
+-	rc = test_ext_lookup_composite(lid, &domain, 3, 6,
+-				       !CONTIGUOUS_EXTENTS, EXACT_EXISTING,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14004;
+-	rc = test_ext_lookup_composite(lid, &domain, 3, 7,
+-				       CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14005;
+-	rc = test_ext_lookup_composite(lid, &domain, 3, 8,
+-				       !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14006;
+-	rc = test_ext_lookup_composite(lid, &domain, 3, 9,
+-				       CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14007;
+-	rc = test_ext_lookup_composite(lid, &domain, 4, 4,
+-				       !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14008;
+-	rc = test_ext_lookup_composite(lid, &domain, 4, 5,
+-				       CONTIGUOUS_EXTENTS,
+-				       OVERLAPPING_COMPLETE,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14009;
+-	rc = test_ext_lookup_composite(lid, &domain, 4, 6,
+-				       !CONTIGUOUS_EXTENTS,
+-				       OVERLAPPING_COMPLETE,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14010;
+-	rc = test_ext_lookup_composite(lid, &domain, 4, 7,
+-				       CONTIGUOUS_EXTENTS,
+-				       CONTAINED_WITHIN,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14011;
+-	rc = test_ext_lookup_composite(lid, &domain, 4, 8,
+-				       !CONTIGUOUS_EXTENTS,
+-				       CONTAINED_WITHIN,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	/* Test cases for extent addition. */
+-	lid = 14021;
+-	rc = test_ext_add_composite(lid, &domain, 4, 7,
+-				    !CONTIGUOUS_EXTENTS, NON_EXISTING,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14022;
+-	rc = test_ext_add_composite(lid, &domain, 4, 8,
+-				    CONTIGUOUS_EXTENTS, EXACT_EXISTING,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14023;
+-	rc = test_ext_add_composite(lid, &domain, 4, 4,
+-				    !CONTIGUOUS_EXTENTS, EXACT_EXISTING,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14024;
+-	rc = test_ext_add_composite(lid, &domain, 4, 5,
+-				    CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14025;
+-	rc = test_ext_add_composite(lid, &domain, 4, 6,
+-				    !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14026;
+-	rc = test_ext_add_composite(lid, &domain, 4, 7,
+-				    CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14027;
+-	rc = test_ext_add_composite(lid, &domain, 4, 8,
+-				    CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14028;
+-	rc = test_ext_add_composite(lid, &domain, 4, 4,
+-				    CONTIGUOUS_EXTENTS, OVERLAPPING_COMPLETE,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14029;
+-	rc = test_ext_add_composite(lid, &domain, 4, 5,
+-				    !CONTIGUOUS_EXTENTS, OVERLAPPING_COMPLETE,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14030;
+-	rc = test_ext_add_composite(lid, &domain, 4, 6,
+-				    CONTIGUOUS_EXTENTS, CONTAINED_WITHIN,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14031;
+-	rc = test_ext_add_composite(lid, &domain, 4, 6,
+-				    !CONTIGUOUS_EXTENTS, CONTAINED_WITHIN,
+-				    M0_CLRES_VALID,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	//todo Add extent with the flattening state
+-	//todo Cover other cases with the flattening state addition
+-	lid = 14032;
+-	rc = test_ext_add_composite(lid, &domain, 4, 6,
+-				    !CONTIGUOUS_EXTENTS, NON_EXISTING,
+-				    M0_CLRES_FLATTENING,
+-				    !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-
+-	/* Test cases for extent updation. */
+-	lid = 14041;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 4,
+-					     !CONTIGUOUS_EXTENTS,
+-					     NON_EXISTING,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14042;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 5,
+-					     CONTIGUOUS_EXTENTS,
+-					     EXACT_EXISTING,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14043;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 6,
+-					     !CONTIGUOUS_EXTENTS,
+-					     EXACT_EXISTING,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14044;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 7,
+-					     CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_LEFT,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14045;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 8,
+-					     !CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_LEFT,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14046;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 4,
+-					     CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_RIGHT,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14047;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 5,
+-					     !CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_RIGHT,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14048;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 6,
+-					     CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_COMPLETE,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14049;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 7,
+-					     !CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_COMPLETE,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14050;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 6,
+-					     CONTIGUOUS_EXTENTS,
+-					     CONTAINED_WITHIN,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14051;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 6,
+-					     !CONTIGUOUS_EXTENTS,
+-					     CONTAINED_WITHIN,
+-					     M0_CLRES_VALID,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	//todo Update extent to have the flattening state
+-	lid = 14061;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 4,
+-					     !CONTIGUOUS_EXTENTS,
+-					     NON_EXISTING,
+-					     M0_CLRES_FLATTENING,
+-					     !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14062;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 5,
+-					     CONTIGUOUS_EXTENTS,
+-					     EXACT_EXISTING,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14063;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 6,
+-					     !CONTIGUOUS_EXTENTS,
+-					     EXACT_EXISTING,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14064;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 7,
+-					     CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_LEFT,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14065;
+-	rc = test_ext_state_update_composite(lid, &domain, 5, 8,
+-					     !CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_LEFT,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14066;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 4,
+-					     CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_RIGHT,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14067;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 5,
+-					     !CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_RIGHT,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14068;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 6,
+-					     CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_COMPLETE,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14069;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 7,
+-					     !CONTIGUOUS_EXTENTS,
+-					     OVERLAPPING_COMPLETE,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14070;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 6,
+-					     CONTIGUOUS_EXTENTS,
+-					     CONTAINED_WITHIN,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14071;
+-	rc = test_ext_state_update_composite(lid, &domain, 4, 6,
+-					     !CONTIGUOUS_EXTENTS,
+-					     CONTAINED_WITHIN,
+-					     M0_CLRES_FLATTENING,
+-					     FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	/* Test cases for extent deletion. */
+-	lid = 14081;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 4,
+-				       !CONTIGUOUS_EXTENTS, NON_EXISTING,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14082;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 5,
+-				       CONTIGUOUS_EXTENTS, EXACT_EXISTING,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14083;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 6,
+-				       !CONTIGUOUS_EXTENTS, EXACT_EXISTING,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14084;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 7,
+-				       CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14085;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 8,
+-				       !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14086;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 4,
+-				       CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14087;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 5,
+-				       !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14088;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 6,
+-				       CONTIGUOUS_EXTENTS,
+-				       OVERLAPPING_COMPLETE,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14089;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 7,
+-				       !CONTIGUOUS_EXTENTS,
+-				       OVERLAPPING_COMPLETE,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14090;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 6,
+-				       CONTIGUOUS_EXTENTS,
+-				       CONTAINED_WITHIN,
+-				       !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	lid = 14091;
+-	rc = test_ext_delete_composite(lid, &domain, 4, 6,
+-				       !CONTIGUOUS_EXTENTS,
+-				       CONTAINED_WITHIN,
+-				       !FAILURE_TEST);
++	rc = test_layer_ops_composite(lid, &domain, 6, 10,
++				      !LAYER_ADD_FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ }
+ 
+-static void test_composite_layer_ext_ops_inmem(void)
++/* todo lid 15001 reserved for test_layer_ops_inmem_failure. */
++
++static void test_layer_ext_ops_inmem(void)
+ {
++	uint64_t lid;
++
+ 	M0_UT_ASSERT(domain.ld_is_db_available == false);
+-	test_composite_layer_ext_ops_internal();
+-}
+ 
+-#ifndef __KERNEL__
+-/**
+- * Setting the ld_is_db_available flag explicitly this way is being used as
+- * a hack in this UT. Ideally, user shall never change value of this flag
+- * directly. The correct way to make use of this flag is using
+- * m0_layout_domain_init() by passing it the applicable value for this flag.
+- *
+- * The reason to use such a hack here in this UT is to avoid the following
+- * overhead:
+- * Since any layout type or enum type can be registered with only one domain at
+- * a time, if we had to initialise a new/existing domain with new value of the
+- * ld_is_db_available flag, then we will need to:
+- * - unregister the layout types and enum types registered in the first domain
+- *   say domain1,
+- * - finalise domain1,
+- * - initialise another domain say domain2
+- * - register the applicable layout types and enum types
+- * - if in the kernel mode, then the layout types and the enum types need to be
+- *   unregistered from the  m0t1fs_globals.g_layout_dom domain and then they
+- *   need to be registered back at some other point (see test_init() for
+- *   reference).
+- */
+-void domain_ldb_available_set(struct m0_layout_domain *domain, bool val)
+-{
+-	domain->ld_is_db_available = val;
++	lid = 16000;
++	test_layer_ext_ops_composite(lid, &domain);
+ }
+ 
+-static void test_composite_layer_ext_ops_indb(void)
+-{
+-	domain_ldb_available_set(&domain, true);
+-	test_composite_layer_ext_ops_internal();
+-	domain_ldb_available_set(&domain, false);
+-}
++/* todo lid 17001 reserved for test_layer_ext_ops_inmem_failure. */
+ 
++#ifndef __KERNEL__
+ /* Tests the API m0_layout_lookup(). */
+ static void test_lookup(void)
+ {
+@@ -1763,7 +1330,7 @@ static void test_lookup(void)
+ 	 * Lookup for a layout object with LIST enum type, that does not
+ 	 * exist in the DB.
+ 	 */
+-	lid = 16001;
++	lid = 18001;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 !EXISTING_TEST, FAILURE_TEST);
+@@ -1773,7 +1340,7 @@ static void test_lookup(void)
+ 	 * Add a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a few inline entries only. Then perform lookup for it.
+ 	 */
+-	lid = 16002;
++	lid = 18002;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, LESS_THAN_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -1784,7 +1351,7 @@ static void test_lookup(void)
+ 	 * with a number of inline entries exactly equal to
+ 	 * LDB_MAX_INLINE_COB_ENTRIES. Then perform lookup for it.
+ 	 */
+-	lid = 16003;
++	lid = 18003;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, EXACT_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -1795,7 +1362,7 @@ static void test_lookup(void)
+ 	 * including noninline entries.
+ 	 * Then perform lookup for it.
+ 	 */
+-	lid = 16004;
++	lid = 18004;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -1805,7 +1372,7 @@ static void test_lookup(void)
+ 	 * Now that a few entries are added into the DB, once again, lookup
+ 	 * for a layout object that does not exist in the DB.
+ 	 */
+-	lid = 16005;
++	lid = 18005;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 !EXISTING_TEST, FAILURE_TEST);
+@@ -1815,7 +1382,7 @@ static void test_lookup(void)
+ 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
+ 	 * Then perform lookup for it.
+ 	 */
+-	lid = 16006;
++	lid = 18006;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -1826,7 +1393,7 @@ static void test_lookup(void)
+ 	 * created while the first layout object is being allocated by
+ 	 * m0_layout_lookup() with having the domain lock released.
+ 	 */
+-	lid = 16007;
++	lid = 18007;
+ 	rc = test_lookup_pdclust_with_ghost_creation(lid, &domain,
+ 						     LINEAR_ENUM_ID,
+ 						     INLINE_NOT_APPLICABLE);
+@@ -1836,7 +1403,7 @@ static void test_lookup(void)
+ 	 * Lookup for a layout object with COMPOSITE layout type, that does not
+ 	 * exist in the DB.
+ 	 */
+-	lid = 16021;
++	lid = 18021;
+ 	rc = test_lookup_composite(lid, &domain, 7, 30, !CONTIGUOUS_EXTENTS,
+ 				   !EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOENT);
+@@ -1845,7 +1412,7 @@ static void test_lookup(void)
+ 	 * Add a layout object with COMPOSITE layout type and with
+ 	 * non-contiguous extents. Then perform lookup for it.
+ 	 */
+-	lid = 16022;
++	lid = 18022;
+ 	rc = test_lookup_composite(lid, &domain, 2, 30, !CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -1854,7 +1421,7 @@ static void test_lookup(void)
+ 	 * Add a layout object with COMPOSITE layout type and with contiguous
+ 	 * extents. Then perform lookup for it.
+ 	 */
+-	lid = 16023;
++	lid = 18023;
+ 	rc = test_lookup_composite(lid, &domain, 5, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -1874,7 +1441,7 @@ static void test_lookup_failure(void)
+ 	 * Lookup for a layout object with LIST enum type, that does not
+ 	 * exist in the DB.
+ 	 */
+-	lid = 17001;
++	lid = 19001;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 !EXISTING_TEST, FAILURE_TEST);
+@@ -1884,14 +1451,14 @@ static void test_lookup_failure(void)
+ 	 * Lookup for a layout object with LINEAR enum type, that does not
+ 	 * exist in the DB.
+ 	 */
+-	lid = 17002;
++	lid = 19002;
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 				 !EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOENT);
+ 
+ 	/* Simulate pdclust_allocate() failure in m0_layout_lookup(). */
+-	lid = 17003;
++	lid = 19003;
+ 	m0_fi_enable_off_n_on_m("pdclust_allocate", "mem_err", 1, 1);
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+@@ -1900,7 +1467,7 @@ static void test_lookup_failure(void)
+ 	m0_fi_disable("pdclust_allocate", "mem_err");
+ 
+ 	/* Simulate m0_layout_decode() failure in m0_layout_lookup(). */
+-	lid = 17004;
++	lid = 19004;
+ 	m0_fi_enable_once("m0_layout_decode", "lo_decode_err");
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+@@ -1914,7 +1481,7 @@ static void test_lookup_failure(void)
+ 		.lt_domain   = NULL,
+ 		.lt_ops      = NULL
+ 	};
+-	lid = 17005;
++	lid = 19005;
+ 	rc = layout_lookup(lid, &domain, &test_layout_type, FAILURE_TEST, &l);
+ 	M0_UT_ASSERT(rc == -EPROTO);
+ 
+@@ -1922,7 +1489,7 @@ static void test_lookup_failure(void)
+ 	 * Simulate cursor init error in noninline_read() that is in the path
+ 	 * of list_decode() that is in the path of m0_layout_decode().
+ 	 */
+-	lid = 17006;
++	lid = 19006;
+ 	m0_fi_enable_once("noninline_read", "cursor_init_err");
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -1933,7 +1500,7 @@ static void test_lookup_failure(void)
+ 	 * Simulate cursor get error in noninline_read() that is in the path
+ 	 * of list_decode() that is in the path of m0_layout_decode().
+ 	 */
+-	lid = 17007;
++	lid = 19007;
+ 	m0_fi_enable_once("noninline_read", "cursor_get_err");
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -1944,7 +1511,7 @@ static void test_lookup_failure(void)
+ 	 * Simulate invalid fid error in noninline_read() that is in the path
+ 	 * of list_decode() that is in the path of m0_layout_decode().
+ 	 */
+-	lid = 17008;
++	lid = 19008;
+ 	m0_fi_enable_once("noninline_read", "invalid_fid_err");
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -1965,7 +1532,7 @@ static void test_add(void)
+ 	 * Add a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a few inline entries only.
+ 	 */
+-	lid = 18001;
++	lid = 20001;
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LIST_ENUM_ID, LESS_THAN_INLINE,
+ 			      LAYOUT_DESTROY, NULL,
+@@ -1977,7 +1544,7 @@ static void test_add(void)
+ 	 * with a number of inline entries exactly equal to
+ 	 * LDB_MAX_INLINE_COB_ENTRIES.
+ 	 */
+-	lid = 18002;
++	lid = 20002;
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LIST_ENUM_ID, EXACT_INLINE,
+ 			      LAYOUT_DESTROY, NULL,
+@@ -1988,7 +1555,7 @@ static void test_add(void)
+ 	 * Add a layout object with PDCLUST layout type and LIST enum type
+ 	 * including noninline entries.
+ 	 */
+-	lid = 18003;
++	lid = 20003;
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LIST_ENUM_ID, MORE_THAN_INLINE,
+ 			      LAYOUT_DESTROY, NULL,
+@@ -1996,7 +1563,7 @@ static void test_add(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Add a layout object with PDCLUST layout type and LINEAR enum type. */
+-	lid = 18004;
++	lid = 20004;
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 			      LAYOUT_DESTROY, NULL,
+@@ -2004,7 +1571,7 @@ static void test_add(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Add a layout object with COMPOSITE layout type. */
+-	lid = 18021;
++	lid = 20021;
+ 	rc = test_add_composite(lid, &domain, 7, 50,
+ 				!CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+@@ -2013,7 +1580,7 @@ static void test_add(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Add a layout object with COMPOSITE layout type. */
+-	lid = 18022;
++	lid = 20022;
+ 	rc = test_add_composite(lid, &domain, 5, 25,
+ 				CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+@@ -2031,7 +1598,7 @@ static void test_add_failure(void)
+ 	domain_ldb_available_set(&domain, true);
+ 
+ 	/* Simulate m0_layout_encode() failure in m0_layout_add(). */
+-	lid = 19001;
++	lid = 21001;
+ 	m0_fi_enable_once("m0_layout_encode", "lo_encode_err");
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -2047,7 +1614,7 @@ static void test_add_failure(void)
+ 	 * the test intention is indicated using another separate flag as
+ 	 * DUPLICATE_TEST.
+ 	 */
+-	lid = 19002;
++	lid = 21002;
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 			      LAYOUT_DESTROY, NULL,
+@@ -2058,7 +1625,7 @@ static void test_add_failure(void)
+ 	 * Simulate cursor init failure in noninline_write() that is in the
+ 	 * path of list_encode() which is in the path of m0_layout_encode().
+ 	 */
+-	lid = 19003;
++	lid = 21003;
+ 	m0_fi_enable_once("noninline_write", "cursor_init_err");
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -2070,7 +1637,7 @@ static void test_add_failure(void)
+ 	 * Simulate cursor add failure in noninline_write() that is in the
+ 	 * path of list_encode() which is in the path of m0_layout_encode().
+ 	 */
+-	lid = 19004;
++	lid = 21004;
+ 	m0_fi_enable_once("noninline_write", "cursor_add_err");
+ 	rc = test_add_pdclust(lid, &domain,
+ 			      LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -2086,7 +1653,7 @@ static void test_add_failure(void)
+ 	 * the test intention is indicated using another separate flag as
+ 	 * DUPLICATE_TEST.
+ 	 */
+-	lid = 19021;
++	lid = 21021;
+ 	rc = test_add_composite(lid, &domain, 4, 15, CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+ 				DUPLICATE_TEST, !FAILURE_TEST,
+@@ -2101,7 +1668,7 @@ static void test_add_failure(void)
+ 
+ 	m0_fi_enable_off_n_on_m("sublayout_id_indb_add", "table_insert_err",
+ 				1, 1);
+-	lid = 19022;
++	lid = 21022;
+ 	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+ 				!DUPLICATE_TEST, !FAILURE_TEST,
+@@ -2125,7 +1692,7 @@ static void test_update(void)
+ 	 * written newly to the DB as is done in case of m0_layout_add().
+ 	 * See m0_layout_update().
+ 	 */
+-	lid = 20001;
++	lid = 22001;
+ 	rc = test_update_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 !EXISTING_TEST, !FAILURE_TEST);
+@@ -2135,7 +1702,7 @@ static void test_update(void)
+ 	 * Update a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a few inline entries only.
+ 	 */
+-	lid = 20002;
++	lid = 22002;
+ 	rc = test_update_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, LESS_THAN_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -2146,7 +1713,7 @@ static void test_update(void)
+ 	 * with number of inline entries exactly equal to
+ 	 * LDB_MAX_INLINE_COB_ENTRIES.
+ 	 */
+-	lid = 20003;
++	lid = 22003;
+ 	rc = test_update_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, EXACT_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -2156,7 +1723,7 @@ static void test_update(void)
+ 	 * Update a layout object with PDCLUST layout type and LIST enum
+ 	 * type including noninline entries.
+ 	 */
+-	lid = 20004;
++	lid = 22004;
+ 	rc = test_update_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -2166,7 +1733,7 @@ static void test_update(void)
+ 	 * Update a layout object with PDCLUST layout type and LINEAR enum
+ 	 * type.
+ 	 */
+-	lid = 20005;
++	lid = 22005;
+ 	rc = test_update_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -2178,13 +1745,13 @@ static void test_update(void)
+ 	 * to the DB as is done in case of m0_layout_add().
+ 	 * See m0_layout_update().
+ 	 */
+-	lid = 20006;
++	lid = 22006;
+ 	rc = test_update_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				   !EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Update a layout object with COMPOSITE layout type. */
+-	lid = 20007;
++	lid = 22007;
+ 	rc = test_update_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -2200,7 +1767,7 @@ static void test_update_failure(void)
+ 	domain_ldb_available_set(&domain, true);
+ 
+ 	/* Simulate m0_layout_encode() failure in m0_layout_update(). */
+-	lid = 21001;
++	lid = 23001;
+ 	m0_fi_enable_off_n_on_m("m0_layout_encode", "lo_encode_err", 1, 1);
+ 	rc = test_update_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -2209,7 +1776,7 @@ static void test_update_failure(void)
+ 	m0_fi_disable("m0_layout_encode", "lo_encode_err");
+ 
+ 	/* Simulate m0_table_update() failure in m0_layout_update(). */
+-	lid = 21002;
++	lid = 23002;
+ 	m0_fi_enable_once("m0_layout_update", "table_update_err");
+ 	rc = test_update_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+@@ -2230,7 +1797,7 @@ static void test_delete(void)
+ 	 * Delete a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a few inline entries only.
+ 	 */
+-	lid = 22001;
++	lid = 24001;
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, LESS_THAN_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -2241,7 +1808,7 @@ static void test_delete(void)
+ 	 * with a number of inline entries exactly equal to
+ 	 * LDB_MAX_INLINE_COB_ENTRIES.
+ 	 */
+-	lid = 22002;
++	lid = 24002;
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, EXACT_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -2251,7 +1818,7 @@ static void test_delete(void)
+ 	 * Delete a layout object with PDCLUST layout type and LIST enum
+ 	 * type including noninline entries.
+ 	 */
+-	lid = 22003;
++	lid = 24003;
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+@@ -2261,14 +1828,14 @@ static void test_delete(void)
+ 	 * Delete a layout object with PDCLUST layout type and LINEAR enum
+ 	 * type.
+ 	 */
+-	lid = 22004;
++	lid = 24004;
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 				 EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Delete a layout object with COMPOSITE layout type. */
+-	lid = 22021;
++	lid = 24021;
+ 	rc = test_delete_composite(lid, &domain, 4, 10,
+ 				   CONTIGUOUS_EXTENTS, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -2285,7 +1852,7 @@ static void test_delete_failure(void)
+ 	domain_ldb_available_set(&domain, true);
+ 
+ 	/* Simulate m0_layout_encode() failure in m0_layout_delete(). */
+-	lid = 23001;
++	lid = 25001;
+ 	m0_fi_enable_off_n_on_m("m0_layout_encode", "lo_encode_err", 1, 1);
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+@@ -2298,7 +1865,7 @@ static void test_delete_failure(void)
+ 	 * enum type, that does not exist in the DB, to verify that it results
+ 	 * into the error ENOENT.
+ 	 */
+-	lid = 23002;
++	lid = 25002;
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 				 !EXISTING_TEST, FAILURE_TEST);
+@@ -2308,7 +1875,7 @@ static void test_delete_failure(void)
+ 	 * Simulate cursor get failure in noninline_write() that is in the
+ 	 * path of list_encode() which is in the path of m0_layout_encode().
+ 	 */
+-	lid = 23003;
++	lid = 25003;
+ 	m0_fi_enable_once("noninline_write", "cursor_get_err");
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -2319,7 +1886,7 @@ static void test_delete_failure(void)
+ 	 * Simulate cursor delete failure in noninline_write() that is in the
+ 	 * path of list_encode() which is in the path of m0_layout_encode().
+ 	 */
+-	lid = 23004;
++	lid = 25004;
+ 	m0_fi_enable_once("noninline_write", "cursor_del_err");
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+@@ -2331,7 +1898,7 @@ static void test_delete_failure(void)
+ 	 * enum type, that has non-zero user count, to verify that it results
+ 	 * into the error -EPROTO.
+ 	 */
+-	lid = 23005;
++	lid = 25005;
+ 	m0_fi_enable_once("test_delete_pdclust", "nonzero_user_count_err");
+ 	rc = test_delete_pdclust(lid, &domain,
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+@@ -2341,6 +1908,59 @@ static void test_delete_failure(void)
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
++/**
++ * Setting the ld_is_db_available flag explicitly this way is being used as
++ * a hack in this UT. Ideally, user shall never change value of this flag
++ * directly. The correct way to make use of this flag is using
++ * m0_layout_domain_init() by passing it the applicable value for this flag.
++ *
++ * The reason to use such a hack here in this UT is to avoid the following
++ * overhead:
++ * Since any layout type or enum type can be registered with only one domain at
++ * a time, if we had to initialise a new/existing domain with new value of the
++ * ld_is_db_available flag, then we will need to:
++ * - unregister the layout types and enum types registered in the first domain
++ *   say domain1,
++ * - finalise domain1,
++ * - initialise another domain say domain2
++ * - register the applicable layout types and enum types
++ * - if in the kernel mode, then the layout types and the enum types need to be
++ *   unregistered from the  m0t1fs_globals.g_layout_dom domain and then they
++ *   need to be registered back at some other point (see test_init() for
++ *   reference).
++ */
++void domain_ldb_available_set(struct m0_layout_domain *domain, bool val)
++{
++	domain->ld_is_db_available = val;
++}
++
++static void test_layer_ops_indb(void)
++{
++	uint64_t lid;
++	int      rc;
++
++	domain_ldb_available_set(&domain, true);
++
++	lid = 26001;
++	rc = test_layer_ops_composite(lid, &domain, 5, 10,
++				      !LAYER_ADD_FAILURE_TEST);
++	M0_ASSERT(rc == 0);
++
++	domain_ldb_available_set(&domain, false);
++}
++
++static void test_layer_ext_ops_indb(void)
++{
++	uint64_t lid;
++
++	domain_ldb_available_set(&domain, true);
++
++	lid = 27000;
++	test_layer_ext_ops_composite(lid, &domain);
++
++	domain_ldb_available_set(&domain, false);
++}
++
+ #endif /* __KERNEL__ */
+ 
+ const struct m0_test_suite layout_ut = {
+@@ -2370,8 +1990,8 @@ const struct m0_test_suite layout_ut = {
+ 		{ "layout-recsize", test_recsize },
+ 		{ "layout-instance", test_instance },
+ 		{ "layout-instance-failure", test_instance_failure },
+-		{ "layout-composite-layer-ext-ops-inmem",
+-					test_composite_layer_ext_ops_inmem },
++		{ "layout-layer-ops-inmem", test_layer_ops_inmem },
++		{ "layout-layer-ext-ops-inmem", test_layer_ext_ops_inmem },
+ #ifndef __KERNEL__
+ 		{ "layout-lookup", test_lookup },
+ 		{ "layout-lookup-failure", test_lookup_failure },
+@@ -2381,8 +2001,8 @@ const struct m0_test_suite layout_ut = {
+ 		{ "layout-update-failure", test_update_failure },
+ 		{ "layout-delete", test_delete },
+ 		{ "layout-delete-failure", test_delete_failure },
+-		{ "layout-composite-layer-ext-ops-indb",
+-					test_composite_layer_ext_ops_indb },
++		{ "layout-layer-ops-indb", test_layer_ops_indb },
++		{ "layout-layer-ext-ops-indb", test_layer_ext_ops_indb },
+ #endif
+ 		{ NULL, NULL }
+ 	}
+-- 
+1.8.3.2
+

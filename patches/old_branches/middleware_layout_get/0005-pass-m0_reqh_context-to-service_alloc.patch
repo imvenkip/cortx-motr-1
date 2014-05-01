@@ -1,0 +1,1451 @@
+From 18357b9dc6ae817f7365f632a720143b5afb1c9b Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 25 Feb 2013 19:48:30 +0800
+Subject: [PATCH 05/24] pass m0_reqh_context to service_alloc(). add
+ m0_reqh_context pointer to m0_reqh_service.
+
+---
+ addb/user_space/addb_svc.c      |   2 +-
+ addb/ut/addb_ut_svc.c           |   1 +
+ cm/ut/common_service.c          |   2 +-
+ cm/ut/cp.c                      |   2 +-
+ conf/confd.c                    |   9 ++-
+ conf/ut/confc.c                 |   3 +-
+ console/ut/console.c            |   2 +-
+ fop/ut/long_lock/long_lock_ut.c |   2 +-
+ ioservice/io_service.c          |   8 +-
+ ioservice/ut/bulkio_common.c    |   3 +
+ ioservice/ut/bulkio_common.h    |   2 +-
+ ioservice/ut/cob_foms.c         |   2 +-
+ ioservice/ut/ios_buffer_pool.c  |   4 +
+ mdservice/md_service.c          |   4 +-
+ mero/conf.c                     |   2 +-
+ mero/setup.c                    | 126 +++++++++++++++--------------
+ mero/setup.h                    | 172 +++++++++++++++++++++++++++++++++++++++-
+ mero/setup_internal.h           | 167 --------------------------------------
+ mero/ut/cs_ut_main.c            |  20 ++++-
+ reqh/reqh_service.c             |   5 +-
+ reqh/reqh_service.h             |   9 ++-
+ rpc/rpc.c                       |   2 +-
+ rpc/ut/clnt_srv_ctx.c           |   2 +-
+ sns/cm/service.c                |   4 +-
+ sns/cm/ut/cp_common.c           |   1 +
+ ut/cs_service.c                 |   8 +-
+ 26 files changed, 302 insertions(+), 262 deletions(-)
+
+diff --git a/addb/user_space/addb_svc.c b/addb/user_space/addb_svc.c
+index c65625c..2ac19f9 100644
+--- a/addb/user_space/addb_svc.c
++++ b/addb/user_space/addb_svc.c
+@@ -165,7 +165,7 @@ static const struct m0_reqh_service_ops addb_service_ops = {
+  */
+ static int addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
+ 					  struct m0_reqh_service_type *stype,
+-					const char *arg __attribute__((unused)))
++					  struct m0_reqh_context *rctx)
+ {
+ 	struct addb_svc *svc;
+ 
+diff --git a/addb/ut/addb_ut_svc.c b/addb/ut/addb_ut_svc.c
+index ae44794..fead51c 100644
+--- a/addb/ut/addb_ut_svc.c
++++ b/addb/ut/addb_ut_svc.c
+@@ -39,6 +39,7 @@ static char *addb_ut_svc[] = { "m0d", "-r", "-p", "-T", "linux",
+ 			       "-D", "as_db", "-S", "as_stob",
+ 			       "-A", "as_addb_stob",
+ 			       "-e", "lnet:0@lo:12345:34:1",
++			       "-G", "lnet:0@lo:12345:34:1",
+ 			       "-s", M0_ADDB_SVC_NAME};
+ static struct m0_net_xprt *as_xprts[] = {
+         &m0_net_lnet_xprt,
+diff --git a/cm/ut/common_service.c b/cm/ut/common_service.c
+index 97d7277..7293790 100644
+--- a/cm/ut/common_service.c
++++ b/cm/ut/common_service.c
+@@ -128,7 +128,7 @@ const struct m0_cm_aggr_group_ops cm_ag_ut_ops = {
+ 
+ static int cm_ut_service_allocate(struct m0_reqh_service **service,
+ 				  struct m0_reqh_service_type *stype,
+-				  const char *arg __attribute__((unused)))
++				  struct m0_reqh_context *rctx)
+ {
+ 	struct m0_cm *cm = &cm_ut;
+ 
+diff --git a/cm/ut/cp.c b/cm/ut/cp.c
+index d242a80..a4f4b7c 100644
+--- a/cm/ut/cp.c
++++ b/cm/ut/cp.c
+@@ -67,7 +67,7 @@ static const struct m0_reqh_service_ops ut_cp_service_ops = {
+ 
+ static int ut_cp_service_allocate(struct m0_reqh_service **service,
+ 				  struct m0_reqh_service_type *stype,
+-				  const char *arg __attribute__((unused)))
++				  struct m0_reqh_context *rctx)
+ {
+ 	struct m0_reqh_service *serv;
+ 
+diff --git a/conf/confd.c b/conf/confd.c
+index 972a748..7d78efb 100644
+--- a/conf/confd.c
++++ b/conf/confd.c
+@@ -31,6 +31,7 @@
+ #include "lib/memory.h"    /* M0_ALLOC_PTR_ADDB */
+ #include "lib/string.h"    /* strdup */
+ #include "mero/magic.h"    /* M0_CONFD_MAGIC */
++#include "mero/setup.h"
+ 
+ /**
+  * @page confd-lspec-page confd Internals
+@@ -444,7 +445,7 @@ const struct m0_bob_type m0_confd_bob = {
+ 
+ static int confd_allocate(struct m0_reqh_service **out,
+ 			  struct m0_reqh_service_type *stype,
+-			  const char *arg);
++			  struct m0_reqh_context *rctx);
+ 
+ static const struct m0_reqh_service_type_ops confd_stype_ops = {
+ 	.rsto_service_allocate = confd_allocate
+@@ -537,7 +538,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
+ /** Allocates and initialises confd service. */
+ static int confd_allocate(struct m0_reqh_service **service,
+ 			  struct m0_reqh_service_type *stype,
+-			  const char *arg)
++			  struct m0_reqh_context *rctx)
+ {
+ 	struct m0_confd *confd;
+ 	int              rc;
+@@ -545,7 +546,7 @@ static int confd_allocate(struct m0_reqh_service **service,
+ 	M0_ENTRY();
+ 	M0_PRE(stype == &m0_confd_stype);
+ 
+-	if (arg == NULL || *arg == '\0')
++	if (rctx == NULL || rctx->rc_confdb == NULL || *rctx->rc_confdb == '\0')
+ 		M0_RETERR(-EPROTO,
+ 			  "Path to the configuration database is not provided");
+ 
+@@ -558,7 +559,7 @@ static int confd_allocate(struct m0_reqh_service **service,
+ 	m0_conf_cache_init(&confd->d_cache, &confd->d_lock);
+ 
+ 	m0_mutex_lock(&confd->d_lock);
+-	rc = confd_cache_preload(&confd->d_cache, arg);
++	rc = confd_cache_preload(&confd->d_cache, rctx->rc_confdb);
+ 	m0_mutex_unlock(&confd->d_lock);
+ 
+ 	if (rc == 0) {
+diff --git a/conf/ut/confc.c b/conf/ut/confc.c
+index 1bb7ea1..91288c1 100644
+--- a/conf/ut/confc.c
++++ b/conf/ut/confc.c
+@@ -354,7 +354,8 @@ static void test_confc_net(void)
+ 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
+ 		"-S", NAME(".stob"), "-A", NAME("-addb.stob"),
+ 		"-e", SERVER_ENDPOINT, "-s", "confd",
+-		"-c", M0_CONF_UT_PATH("conf-str.txt")
++		"-c", M0_CONF_UT_PATH("conf-str.txt"),
++		"-G", SERVER_ENDPOINT,
+ 	};
+ 	M0_RPC_SERVER_CTX_DEFINE(confd, &g_xprt, 1, argv, ARRAY_SIZE(argv),
+ 				 NULL, 0, NAME(".log"));
+diff --git a/console/ut/console.c b/console/ut/console.c
+index 521b88e..84c7b0b 100644
+--- a/console/ut/console.c
++++ b/console/ut/console.c
+@@ -102,7 +102,7 @@ static struct m0_rpc_client_ctx cctx = {
+ static char *server_argv[] = {
+ 	"console_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+ 	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
+-	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
++	"-G", SERVER_ENDPOINT, "-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
+ };
+ 
+ static struct m0_rpc_server_ctx sctx = {
+diff --git a/fop/ut/long_lock/long_lock_ut.c b/fop/ut/long_lock/long_lock_ut.c
+index f992327..c872891 100644
+--- a/fop/ut/long_lock/long_lock_ut.c
++++ b/fop/ut/long_lock/long_lock_ut.c
+@@ -77,7 +77,7 @@ static const struct m0_reqh_service_ops ut_long_lock_service_ops = {
+ 
+ static int ut_long_lock_service_allocate(struct m0_reqh_service **service,
+ 					 struct m0_reqh_service_type *stype,
+-					const char *arg __attribute__((unused)))
++					 struct m0_reqh_context *rctx)
+ {
+ 	struct m0_reqh_service *serv;
+ 
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 138dfb4..4d14b43 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -80,7 +80,7 @@ static unsigned ios_mds_rpc_ctx_key;
+ 
+ static int ios_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+-			const char *arg);
++			struct m0_reqh_context *rctx);
+ static void ios_fini(struct m0_reqh_service *service);
+ 
+ static int ios_start(struct m0_reqh_service *service);
+@@ -369,7 +369,7 @@ static void ios_delete_buffer_pool(struct m0_reqh_service *service)
+  */
+ static int ios_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+-			const char *arg)
++			struct m0_reqh_context *rctx)
+ {
+ 	int                        i;
+ 	int                        j;
+@@ -396,9 +396,6 @@ static int ios_allocate(struct m0_reqh_service **service,
+         bufferpools_tlist_init(&ios->rios_buffer_pools);
+         ios->rios_magic = M0_IOS_REQH_SVC_MAGIC;
+ 
+-	/* retrieve mds endpoint from the arg */
+-	(void)arg;
+-
+         *service = &ios->rios_gen;
+ 	(*service)->rs_ops = &ios_ops;
+ 
+@@ -681,6 +678,7 @@ M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
+ 	m0_net_domain_fini(&serv_obj->rios_cl_ndom);
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+ 	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
++	m0_rpc_client_stop(rpc_client_ctx);
+ 	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
+ 	m0_free(rpc_client_ctx);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+diff --git a/ioservice/ut/bulkio_common.c b/ioservice/ut/bulkio_common.c
+index 3d1f80b..4bcbf06 100644
+--- a/ioservice/ut/bulkio_common.c
++++ b/ioservice/ut/bulkio_common.c
+@@ -104,6 +104,9 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
+ 	strcpy(server_args[16], tm_len);
+ 	strcpy(server_args[17], "-m");
+ 	strcpy(server_args[18], rpc_size);
++	strcpy(server_args[19], "-G");
++	strcat(server_args[20], xprt);
++	strcat(server_args[20], saddr);
+ 	M0_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
+ 	M0_ASSERT(stypes != NULL);
+ 	stypes[0] = &ds1_service_type;
+diff --git a/ioservice/ut/bulkio_common.h b/ioservice/ut/bulkio_common.h
+index 5f2a790..7c33981 100644
+--- a/ioservice/ut/bulkio_common.h
++++ b/ioservice/ut/bulkio_common.h
+@@ -56,7 +56,7 @@ enum IO_UT_VALUES {
+ 	IO_RPC_SESSION_SLOTS	= 8,
+ 	IO_RPC_MAX_IN_FLIGHT	= 32,
+ 	IO_RPC_CONN_TIMEOUT	= 60,
+-	IO_SERVER_ARGC		= 19,
++	IO_SERVER_ARGC		= 32,
+ 	IO_SERVER_SERVICE_NR	= 1,
+ };
+ 
+diff --git a/ioservice/ut/cob_foms.c b/ioservice/ut/cob_foms.c
+index be9c83f..a808ec3 100644
+--- a/ioservice/ut/cob_foms.c
++++ b/ioservice/ut/cob_foms.c
+@@ -99,7 +99,7 @@ struct cobthread_arg {
+ static char *server_args[] = {
+ 	"m0d", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
+ 	"cobfoms_ut_stob", "-A", "cobfoms_ut_addb_stob", "-e", SERVER_ENDP,
+-	"-s", "ioservice"
++	"-s", "ioservice", "-G", SERVER_ENDP,
+ };
+ 
+ static void cobfoms_utinit(void)
+diff --git a/ioservice/ut/ios_buffer_pool.c b/ioservice/ut/ios_buffer_pool.c
+index 87614b4..976a765 100644
+--- a/ioservice/ut/ios_buffer_pool.c
++++ b/ioservice/ut/ios_buffer_pool.c
+@@ -43,23 +43,27 @@ static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ioservice"};
+ static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
+                                 "-s", "ioservice"};
+ static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
++                                "-G", "bulk-mem:127.0.0.1:35678",
+                                 "-e", "bulk-mem:127.0.0.1:35679",
+                                 "-s", "ioservice"};
+ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:35:1",
++                                "-G", "lnet:0@lo:12345:35:1",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
+                                 "-e", "bulk-mem:127.0.0.1:35679",
+                                 "-s", "ioservice"};
+diff --git a/mdservice/md_service.c b/mdservice/md_service.c
+index cf446a6..59b93fb 100644
+--- a/mdservice/md_service.c
++++ b/mdservice/md_service.c
+@@ -38,7 +38,7 @@ static struct m0_addb_ctx m0_mds_mod_ctx;
+ 
+ static int mds_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+-                        const char *arg);
++                        struct m0_reqh_context *rctx);
+ static void mds_fini(struct m0_reqh_service *service);
+ 
+ static int mds_start(struct m0_reqh_service *service);
+@@ -87,7 +87,7 @@ M0_INTERNAL void m0_mds_unregister(void)
+  */
+ static int mds_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+-                        const char *arg __attribute__((unused)))
++                        struct m0_reqh_context *rctx)
+ {
+         struct m0_reqh_md_service *mds;
+ 
+diff --git a/mero/conf.c b/mero/conf.c
+index 9d1b1e6..44fca46 100644
+--- a/mero/conf.c
++++ b/mero/conf.c
+@@ -21,7 +21,7 @@
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
+ #include "lib/trace.h"
+ 
+-#include "mero/setup_internal.h"  /* cs_args */
++#include "mero/setup.h"           /* cs_args */
+ #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
+ #include "conf/obj.h"             /* m0_conf_filesystem */
+ #include "conf/buf_ext.h"         /* m0_buf_strdup */
+diff --git a/mero/setup.c b/mero/setup.c
+index db5300b..3c81a7f 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -84,14 +84,14 @@ M0_INTERNAL const struct m0_stob_id m0_addb_stob_id = {
+ 	}
+ };
+ 
+-M0_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct cs_reqh_context,
++M0_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct m0_reqh_context,
+ 		   rc_linkage, rc_magix, M0_CS_REQH_CTX_MAGIC,
+ 		   M0_CS_REQH_CTX_HEAD_MAGIC);
+ 
+-M0_TL_DEFINE(rhctx, static, struct cs_reqh_context);
++M0_TL_DEFINE(rhctx, static, struct m0_reqh_context);
+ 
+ static struct m0_bob_type rhctx_bob;
+-M0_BOB_DEFINE(static, &rhctx_bob, cs_reqh_context);
++M0_BOB_DEFINE(static, &rhctx_bob, m0_reqh_context);
+ 
+ M0_TL_DESCR_DEFINE(ndom, "network domains", static, struct m0_net_domain,
+ 		   nd_app_linkage, nd_magix, M0_NET_DOMAIN_MAGIC,
+@@ -119,7 +119,7 @@ static bool streq(const char *s1, const char *s2)
+  * Returns true iff there is service with given name among rctx->rc_services.
+  */
+ static bool
+-contains_service(const struct cs_reqh_context *rctx, const char *name)
++contains_service(const struct m0_reqh_context *rctx, const char *name)
+ {
+ 	int i;
+ 
+@@ -130,7 +130,7 @@ contains_service(const struct cs_reqh_context *rctx, const char *name)
+ 	return false;
+ }
+ 
+-static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
++static int reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
+ {
+ 	return equi(rctx->rc_confdb != NULL, contains_service(rctx, "confd")) &&
+ 		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
+@@ -142,7 +142,7 @@ static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
+ 
+ M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
+ {
+-	struct cs_reqh_context *reqh_ctx;
++	struct m0_reqh_context *reqh_ctx;
+ 
+ 	reqh_ctx = rhctx_tlist_head(&mero->cc_reqh_ctxs);
+ 	if (reqh_ctx == NULL)
+@@ -154,9 +154,9 @@ M0_INTERNAL struct m0_rpc_machine *m0_mero_to_rmach(struct m0_mero *mero)
+ /**
+    Checks consistency of request handler context.
+  */
+-static bool cs_reqh_context_invariant(const struct cs_reqh_context *rctx)
++static bool m0_reqh_context_invariant(const struct m0_reqh_context *rctx)
+ {
+-	return cs_reqh_context_bob_check(rctx) &&
++	return m0_reqh_context_bob_check(rctx) &&
+ 	       M0_IN(rctx->rc_state, (RC_UNINITIALISED, RC_INITIALISED)) &&
+ 	       rctx->rc_max_services == m0_reqh_service_types_length() &&
+ 	       M0_CHECK_EX(m0_tlist_invariant(&cs_eps_tl, &rctx->rc_eps)) &&
+@@ -248,14 +248,14 @@ static bool cs_endpoint_is_duplicate(struct m0_mero *cctx,
+ 				     const char *ep)
+ {
+ 	int                          cnt;
+-	struct cs_reqh_context      *rctx;
++	struct m0_reqh_context      *rctx;
+ 	struct cs_endpoint_and_xprt *ep_xprt;
+ 
+ 	M0_PRE(cctx != NULL && xprt != NULL && ep != NULL);
+ 
+ 	cnt = 0;
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+-		M0_ASSERT(cs_reqh_context_invariant(rctx));
++		M0_ASSERT(m0_reqh_context_invariant(rctx));
+ 		m0_tl_for(cs_eps, &rctx->rc_eps, ep_xprt) {
+ 			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep_xprt));
+ 			if (strcmp(xprt->nx_name, "lnet") == 0) {
+@@ -297,7 +297,10 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
+ 	struct m0_net_xprt *xprt;
+ 
+ 	M0_ENTRY();
+-	M0_PRE(cctx != NULL && ep != NULL && xprt_name != NULL);
++	M0_PRE(cctx != NULL);
++
++	if (ep == NULL || xprt_name == NULL)
++		M0_RETURN(-EINVAL);
+ 
+ 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
+ 	if (xprt == NULL)
+@@ -343,7 +346,7 @@ err:
+    mero endpoint.
+    Mero endpoint is of 2 parts network xprt:network endpoint.
+  */
+-static int ep_and_xprt_append(struct cs_reqh_context *rctx, const char *ep)
++static int ep_and_xprt_append(struct m0_reqh_context *rctx, const char *ep)
+ {
+ 	struct cs_endpoint_and_xprt *epx;
+ 	int                          rc;
+@@ -370,13 +373,13 @@ err:
+    Checks if specified service has already a duplicate entry in given request
+    handler context.
+  */
+-static bool service_is_duplicate(const struct cs_reqh_context *rctx,
++static bool service_is_duplicate(const struct m0_reqh_context *rctx,
+ 				 const char *sname)
+ {
+ 	int n;
+ 	int i;
+ 
+-	M0_PRE(cs_reqh_context_invariant(rctx));
++	M0_PRE(m0_reqh_context_invariant(rctx));
+ 
+ 	for (i = 0, n = 0; i < rctx->rc_nr_services; ++i) {
+ 		if (strcasecmp(rctx->rc_services[i], sname) == 0)
+@@ -395,9 +398,9 @@ static bool service_is_duplicate(const struct cs_reqh_context *rctx,
+ 
+    @see m0_mero
+  */
+-static struct cs_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
++static struct m0_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
+ {
+-	struct cs_reqh_context *rctx;
++	struct m0_reqh_context *rctx;
+ 
+ 	M0_PRE(cctx != NULL);
+ 
+@@ -419,7 +422,7 @@ static struct cs_reqh_context *cs_reqh_ctx_alloc(struct m0_mero *cctx)
+ 		goto err;
+ 	}
+ 
+-	cs_reqh_context_bob_init(rctx);
++	m0_reqh_context_bob_init(rctx);
+ 	cs_eps_tlist_init(&rctx->rc_eps);
+ 	rhctx_tlink_init_at_tail(rctx, &cctx->cc_reqh_ctxs);
+ 	rctx->rc_mero = cctx;
+@@ -430,7 +433,7 @@ err:
+ 	return NULL;
+ }
+ 
+-static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
++static void cs_reqh_ctx_free(struct m0_reqh_context *rctx)
+ {
+ 	struct cs_endpoint_and_xprt *ep;
+ 
+@@ -448,7 +451,7 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
+ 	cs_eps_tlist_fini(&rctx->rc_eps);
+ 	m0_free(rctx->rc_services);
+ 	rhctx_tlink_del_fini(rctx);
+-	cs_reqh_context_bob_fini(rctx);
++	m0_reqh_context_bob_fini(rctx);
+ 	m0_free(rctx);
+ }
+ 
+@@ -543,13 +546,13 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
+ static int cs_rpc_machines_init(struct m0_mero *cctx)
+ {
+ 	int                          rc = 0;
+-	struct cs_reqh_context      *rctx;
++	struct m0_reqh_context      *rctx;
+ 	struct cs_endpoint_and_xprt *ep;
+ 
+ 	M0_PRE(cctx != NULL);
+ 
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+-		M0_ASSERT(cs_reqh_context_invariant(rctx));
++		M0_ASSERT(m0_reqh_context_invariant(rctx));
+ 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+ 			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+ 			rc = cs_rpc_machine_init(cctx, ep->ex_xprt,
+@@ -593,7 +596,7 @@ static void cs_rpc_machines_fini(struct m0_reqh *reqh)
+ static uint32_t cs_domain_tms_nr(struct m0_mero *cctx,
+ 				struct m0_net_domain *dom)
+ {
+-	struct cs_reqh_context      *rctx;
++	struct m0_reqh_context      *rctx;
+ 	struct cs_endpoint_and_xprt *ep;
+ 	uint32_t                     cnt = 0;
+ 
+@@ -617,14 +620,14 @@ static uint32_t cs_domain_tms_nr(struct m0_mero *cctx,
+ static uint32_t cs_dom_tm_min_recv_queue_total(struct m0_mero *cctx,
+ 					       struct m0_net_domain *dom)
+ {
+-	struct cs_reqh_context      *rctx;
++	struct m0_reqh_context      *rctx;
+ 	struct cs_endpoint_and_xprt *ep;
+ 	uint32_t                     min_queue_len_total = 0;
+ 
+ 	M0_PRE(cctx != NULL);
+ 
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+-		M0_ASSERT(cs_reqh_context_bob_check(rctx));
++		M0_ASSERT(m0_reqh_context_bob_check(rctx));
+ 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+ 			if (strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
+ 				min_queue_len_total +=
+@@ -916,11 +919,11 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
+ 							  const struct
+ 							  m0_stob_id *stob_id)
+ {
+-	struct cs_reqh_context  *rqctx;
++	struct m0_reqh_context  *rqctx;
+ 	struct cs_stobs         *stob;
+ 	struct cs_ad_stob       *adstob;
+ 
+-	rqctx = bob_of(reqh, struct cs_reqh_context, rc_reqh, &rhctx_bob);
++	rqctx = bob_of(reqh, struct m0_reqh_context, rc_reqh, &rhctx_bob);
+ 	stob = &rqctx->rc_stob;
+ 
+ 	if (strcasecmp(stob->s_stype, m0_cs_stypes[M0_LINUX_STOB]) == 0)
+@@ -1009,7 +1012,8 @@ static void cs_storage_fini(struct cs_stobs *stob)
+    appropriate request handler.
+  */
+ static int
+-cs_service_init(const char *name, const char *arg, struct m0_reqh *reqh)
++cs_service_init(const char *name, struct m0_reqh_context *rctx,
++		struct m0_reqh *reqh)
+ {
+ 	struct m0_reqh_service_type *stype;
+ 	struct m0_reqh_service      *service;
+@@ -1022,7 +1026,7 @@ cs_service_init(const char *name, const char *arg, struct m0_reqh *reqh)
+ 	if (stype == NULL)
+ 		M0_RETURN(-EINVAL);
+ 
+-	rc = m0_reqh_service_allocate(&service, stype, arg);
++	rc = m0_reqh_service_allocate(&service, stype, rctx);
+ 	if (rc != 0)
+ 		M0_RETURN(rc);
+ 
+@@ -1036,21 +1040,22 @@ cs_service_init(const char *name, const char *arg, struct m0_reqh *reqh)
+ 	M0_RETURN(rc);
+ }
+ 
++<<<<<<< HEAD
+ static int reqh_services_init(struct cs_reqh_context *rctx)
++=======
++static int _services_init(struct m0_reqh_context *rctx)
++>>>>>>> pass m0_reqh_context to service_alloc().
+ {
+ 	const char *name;
+ 	uint32_t    i;
+ 	int         rc;
+ 
+ 	M0_ENTRY();
+-	M0_PRE(cs_reqh_context_invariant(rctx));
++	M0_PRE(m0_reqh_context_invariant(rctx));
+ 
+ 	for (i = 0, rc = 0; i < rctx->rc_nr_services && rc == 0; ++i) {
+ 		name = rctx->rc_services[i];
+-		rc = cs_service_init(
+-			name,
+-			streq(name, "confd") ? rctx->rc_confdb : NULL,
+-			&rctx->rc_reqh);
++		rc = cs_service_init(name, rctx, &rctx->rc_reqh);
+ 	}
+ 	if (rc != 0)
+ 		m0_reqh_services_terminate(&rctx->rc_reqh);
+@@ -1066,7 +1071,7 @@ static int reqh_services_init(struct cs_reqh_context *rctx)
+  */
+ static int cs_services_init(struct m0_mero *cctx)
+ {
+-	struct cs_reqh_context *rctx;
++	struct m0_reqh_context *rctx;
+ 	int                     rc = 0;
+ 
+ 	M0_ENTRY();
+@@ -1093,7 +1098,7 @@ static int cs_net_domains_init(struct m0_mero *cctx)
+ 	size_t                       xprts_nr;
+ 	struct m0_net_xprt         **xprts;
+ 	struct m0_net_xprt          *xprt;
+-	struct cs_reqh_context      *rctx;
++	struct m0_reqh_context      *rctx;
+ 	struct cs_endpoint_and_xprt *ep;
+ 	struct m0_net_domain        *ndom;
+ 	int                          rc = 0;
+@@ -1105,7 +1110,7 @@ static int cs_net_domains_init(struct m0_mero *cctx)
+ 	xprts_nr = cctx->cc_xprts_nr;
+ 
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+-		M0_ASSERT(cs_reqh_context_invariant(rctx));
++		M0_ASSERT(m0_reqh_context_invariant(rctx));
+ 
+ 		m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
+ 			M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+@@ -1172,7 +1177,7 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
+ 		m0_net_xprt_fini(xprts[idx]);
+ }
+ 
+-static int cs_storage_prepare(struct cs_reqh_context *rctx)
++static int cs_storage_prepare(struct m0_reqh_context *rctx)
+ {
+ 	struct m0_db_tx tx;
+ 	int rc;
+@@ -1197,7 +1202,7 @@ static int cs_storage_prepare(struct cs_reqh_context *rctx)
+    @see m0_addb_mc_configure_stob_sink() that is used by ADDB machine
+    to store the ADDB recs.
+  */
+-static int cs_addb_storage_init(struct cs_reqh_context *rctx)
++static int cs_addb_storage_init(struct m0_reqh_context *rctx)
+ {
+ 	int                  rc;
+ 	struct m0_dtx        tx;
+@@ -1258,7 +1263,7 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
+ 
+    @param rctx Request handler context to be initialised
+  */
+-static int cs_request_handler_start(struct cs_reqh_context *rctx)
++static int cs_request_handler_start(struct m0_reqh_context *rctx)
+ {
+ 	int                 rc;
+ 
+@@ -1362,12 +1367,12 @@ cleanup_stob:
+ static int cs_request_handlers_start(struct m0_mero *cctx)
+ {
+ 	int                     rc = 0;
+-	struct cs_reqh_context *rctx;
++	struct m0_reqh_context *rctx;
+ 
+ 	M0_PRE(cctx != NULL);
+ 
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+-		M0_ASSERT(cs_reqh_context_invariant(rctx));
++		M0_ASSERT(m0_reqh_context_invariant(rctx));
+ 		rc = cs_request_handler_start(rctx);
+ 		if (rc != 0)
+ 			return rc;
+@@ -1385,13 +1390,13 @@ static int cs_request_handlers_start(struct m0_mero *cctx)
+ 
+    @param rctx Request handler context to be finalised
+ 
+-   @pre cs_reqh_context_invariant()
++   @pre m0_reqh_context_invariant()
+  */
+-static void cs_request_handler_stop(struct cs_reqh_context *rctx)
++static void cs_request_handler_stop(struct m0_reqh_context *rctx)
+ {
+ 	struct m0_reqh *reqh;
+ 
+-	M0_PRE(cs_reqh_context_invariant(rctx));
++	M0_PRE(m0_reqh_context_invariant(rctx));
+ 
+ 	M0_ENTRY();
+ 
+@@ -1415,7 +1420,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
+  */
+ static void cs_request_handlers_stop(struct m0_mero *cctx)
+ {
+-	struct cs_reqh_context *rctx;
++	struct m0_reqh_context *rctx;
+ 
+ 	M0_PRE(cctx != NULL);
+ 
+@@ -1442,7 +1447,7 @@ struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
+ 			       const char *service_name)
+ {
+ 	int                     i;
+-	struct cs_reqh_context *rctx;
++	struct m0_reqh_context *rctx;
+ 	struct m0_reqh         *ret = NULL;
+ 
+ 	M0_PRE(cctx != NULL);
+@@ -1451,7 +1456,7 @@ struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx,
+ 	m0_rwlock_read_lock(&cctx->cc_rwlock);
+ 
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+-		M0_ASSERT(cs_reqh_context_invariant(rctx));
++		M0_ASSERT(m0_reqh_context_invariant(rctx));
+ 
+ 		for (i = 0; i < rctx->rc_nr_services; ++i) {
+ 			if (streq(rctx->rc_services[i], service_name)) {
+@@ -1466,14 +1471,14 @@ out:
+ }
+ M0_EXPORTED(m0_cs_reqh_get);
+ 
+-static struct cs_reqh_context *cs_reqh_ctx_get(struct m0_reqh *reqh)
++static struct m0_reqh_context *cs_reqh_ctx_get(struct m0_reqh *reqh)
+ {
+-	struct cs_reqh_context *rqctx;
++	struct m0_reqh_context *rqctx;
+ 
+ 	M0_PRE(m0_reqh_invariant(reqh));
+ 
+-	rqctx = bob_of(reqh, struct cs_reqh_context, rc_reqh, &rhctx_bob);
+-	M0_POST(cs_reqh_context_invariant(rqctx));
++	rqctx = bob_of(reqh, struct m0_reqh_context, rc_reqh, &rhctx_bob);
++	M0_POST(m0_reqh_context_invariant(rqctx));
+ 
+ 	return rqctx;
+ }
+@@ -1612,7 +1617,7 @@ static void cs_help(FILE *out)
+ 
+ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
+ {
+-	struct cs_reqh_context      *rctx;
++	struct m0_reqh_context      *rctx;
+ 	struct cs_endpoint_and_xprt *ep;
+ 	const char                  *sname;
+ 	int                          i;
+@@ -1624,13 +1629,6 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
+ 	if (cctx->cc_recv_queue_min_length < M0_NET_TM_RECV_QUEUE_DEF_LEN)
+ 		cctx->cc_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+ 
+-	if ((rc = cs_endpoint_validate(cctx, cctx->cc_mds_epx.ex_endpoint,
+-				  cctx->cc_mds_epx.ex_xprt))) {
+-		M0_LOG(M0_ERROR, "Missing or Invalid mdservice endpoint.\n"
+-				 "Use -G to provice a valid one: %d", rc);
+-		M0_RETURN(rc);
+-	}
+-
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+ 		if (!reqh_ctx_args_are_valid(rctx)) {
+ 			M0_LOG(M0_ERROR, "Missing or Invalid parameters");
+@@ -1691,6 +1689,13 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
+ 		}
+ 	} m0_tl_endfor;
+ 
++	if ((rc = cs_endpoint_validate(cctx, cctx->cc_mds_epx.ex_endpoint,
++				  cctx->cc_mds_epx.ex_xprt))) {
++		M0_LOG(M0_ERROR, "Missing or Invalid mdservice endpoint.\n"
++				 "Use -G to provice a valid one: %d", rc);
++		M0_RETURN(rc);
++	}
++
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -1699,7 +1704,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
+ 		       const char **confd_addr, const char **profile)
+ {
+ 	int                     result;
+-	struct cs_reqh_context *rctx = NULL;
++	struct m0_reqh_context *rctx = NULL;
+ 	int                     rc = 0;
+ 
+ 	M0_ENTRY();
+@@ -1760,6 +1765,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
+ 			M0_STRINGARG('G', "mdservice endpoint address",
+ 				LAMBDA(void, (const char *s)
+ 				{
++					M0_LOG(M0_ERROR, "%s", s);
+ 					rc = ep_and_xprt_extract(&cctx->
+ 								 cc_mds_epx, s);
+ 				})),
+diff --git a/mero/setup.h b/mero/setup.h
+index d70a0f8..a0dcb52 100644
+--- a/mero/setup.h
++++ b/mero/setup.h
+@@ -28,7 +28,13 @@
+ #include "lib/tlist.h"
+ #include "reqh/reqh_service.h"
+ #include "stob/stob.h"
++#include "db/db.h"
++#include "net/lnet/lnet.h"    /* M0_NET_LNET_XEP_ADDR_LEN */
+ #include "net/buffer_pool.h"
++#include "mdstore/mdstore.h"  /* m0_mdstore */
++#include "fol/fol.h"          /* m0_fol */
++#include "reqh/reqh.h"        /* m0_reqh */
++#include "yaml.h"             /* yaml_document_t */
+ 
+ /**
+    @defgroup m0d Mero Setup
+@@ -165,7 +171,7 @@ struct cs_endpoint_and_xprt {
+ 	 */
+ 	char            *ex_scrbuf;
+ 	uint64_t         ex_magix;
+-	/** Linkage into reqh context endpoint list, cs_reqh_context::rc_eps */
++	/** Linkage into reqh context endpoint list, m0_reqh_context::rc_eps */
+ 	struct m0_tlink  ex_linkage;
+ 	/**
+ 	   Unique Colour to be assigned to each TM.
+@@ -207,7 +213,7 @@ struct m0_mero {
+            List of request handler contexts running under one mero context
+ 	   on a node.
+ 
+-	   @see cs_reqh_context::rc_linkage
++	   @see m0_reqh_context::rc_linkage
+          */
+ 	struct m0_tl              cc_reqh_ctxs;
+ 
+@@ -245,6 +251,168 @@ struct m0_mero {
+ 	struct cs_args		 cc_args;
+ };
+ 
++enum {
++	CS_MAX_EP_ADDR_LEN = 86, /* "lnet:" + M0_NET_LNET_XEP_ADDR_LEN */
++};
++M0_BASSERT(CS_MAX_EP_ADDR_LEN >= M0_NET_LNET_XEP_ADDR_LEN);
++
++/**
++ * Represent devices configuration file in form of yaml document.
++ * @note This is temporary implementation in-order to configure device as
++ *       a stob. This may change when confc implementation lands into master.
++ */
++struct cs_stob_file {
++	bool              sf_is_initialised;
++	yaml_document_t   sf_document;
++};
++
++struct cs_ad_stob {
++	/** Allocation data storage domain.*/
++	struct m0_stob_domain *as_dom;
++	/** Back end storage object id, i.e. ad */
++	struct m0_stob_id      as_id_back;
++	/** Back end storage object. */
++	struct m0_stob        *as_stob_back;
++	uint64_t               as_magix;
++	struct m0_tlink        as_linkage;
++};
++
++/**
++   Structure which encapsulates stob type and
++   stob domain references for linux and ad stobs respectively.
++ */
++struct cs_stobs {
++	/** Type of storage domain to be initialise (e.g. Linux or AD) */
++	const char            *s_stype;
++	/** Linux storage domain. */
++	struct m0_stob_domain *s_ldom;
++	struct cs_stob_file    s_sfile;
++	/** List of AD stobs */
++	struct m0_tl           s_adoms;
++};
++
++/**
++   Represents state of a request handler context.
++ */
++enum cs_reqh_ctx_states {
++	/**
++	   A request handler context is in RC_UNINTIALISED state when it is
++	   allocated and added to the list of the same in struct m0_mero.
++
++	   @see m0_mero::cc_reqh_ctxs
++	 */
++	RC_UNINITIALISED,
++	/**
++	   A request handler context is in RC_INITIALISED state once the
++	   request handler (embedded inside the context) is successfully
++	   initialised.
++
++	   @see m0_reqh_context::rc_reqh
++	 */
++	RC_INITIALISED
++};
++
++/**
++   Tracks ADDB stob per reqh
++   cas_stob is the hard-coded stob, that is created during
++   @see cs_addb_storage_init(), on which actual ADDB records go.
++ */
++struct cs_addb_stob {
++	/** ADDB Storage domain for a request handler ADDB machine */
++	struct cs_stobs  cas_stobs;
++	struct m0_stob  *cas_stob;
++};
++
++/**
++   Represents a request handler environment.
++   It contains configuration information about the various global entities
++   to be configured and their corresponding instances that are needed to be
++   initialised before the request handler is started, which by itself is
++   contained in the same structure.
++ */
++struct m0_reqh_context {
++	/** Storage path for request handler context. */
++	const char                  *rc_stpath;
++
++	/** ADDB Storage path for request handler ADDB machine */
++	const char                  *rc_addb_stpath;
++
++	/** Path to device configuration file. */
++	const char                  *rc_dfilepath;
++
++	/** Type of storage to be initialised. */
++	const char                  *rc_stype;
++
++	/** Database environment path for request handler context. */
++	const char                  *rc_dbpath;
++
++	/** Whether to prepare storage (mkfs) attached to this context. */
++	int                          rc_prepare_storage;
++
++	/** Services running in request handler context. */
++	const char                 **rc_services;
++
++	/** Number of services configured in request handler context. */
++	uint32_t                     rc_nr_services;
++
++	/** Maximum number of services allowed per request handler context. */
++	int                          rc_max_services;
++
++	/** Endpoints and xprts per request handler context. */
++	struct m0_tl                 rc_eps;
++
++	/**
++	    State of a request handler context, i.e. RC_INITIALISED or
++	    RC_UNINTIALISED.
++	 */
++	enum cs_reqh_ctx_states      rc_state;
++
++	/** Storage domain for a request handler */
++	struct cs_stobs              rc_stob;
++
++	/** ADDB specific stob information */
++	struct cs_addb_stob          rc_addb_stob;
++	/** Database used by the request handler */
++	struct m0_dbenv              rc_db;
++
++	/** Path to the configuration database to be used by confd service. */
++	const char                  *rc_confdb;
++
++	/** Cob domain to be used by the request handler */
++	struct m0_mdstore            rc_mdstore;
++
++	struct m0_cob_domain_id      rc_cdom_id;
++
++	/** File operation log for a request handler */
++	struct m0_fol                rc_fol;
++
++	/** Request handler instance to be initialised */
++	struct m0_reqh               rc_reqh;
++
++	/** Reqh context magic */
++	uint64_t                     rc_magix;
++
++	/** Linkage into reqh context list */
++	struct m0_tlink              rc_linkage;
++
++	/** Backlink to struct m0_mero. */
++	struct m0_mero              *rc_mero;
++
++	/**
++	 * Minimum number of buffers in TM receive queue.
++	 * Default is set to m0_mero::cc_recv_queue_min_length
++	 */
++	uint32_t                     rc_recv_queue_min_length;
++
++	/**
++	 * Maximum RPC message size.
++	 * Default value is set to m0_mero::cc_max_rpc_msg_size
++	 * If value of cc_max_rpc_msg_size is zero then value from
++	 * m0_net_domain_get_max_buffer_size() is used.
++	 */
++	uint32_t                     rc_max_rpc_msg_size;
++};
++
+ /**
+    Initialises mero context.
+ 
+diff --git a/mero/setup_internal.h b/mero/setup_internal.h
+index 5087dab..b0cfba8 100644
+--- a/mero/setup_internal.h
++++ b/mero/setup_internal.h
+@@ -24,179 +24,12 @@
+ #define __MERO_SETUP_INTERNAL_H__
+ 
+ #include "mero/setup.h"
+-#include "mdstore/mdstore.h"  /* m0_mdstore */
+-#include "fol/fol.h"          /* m0_fol */
+-#include "net/lnet/lnet.h"    /* M0_NET_LNET_XEP_ADDR_LEN */
+-#include "reqh/reqh.h"        /* m0_reqh */
+-#include "yaml.h"             /* yaml_document_t */
+ 
+ /**
+    @addtogroup m0d
+    @{
+  */
+ 
+-enum {
+-	CS_MAX_EP_ADDR_LEN = 86, /* "lnet:" + M0_NET_LNET_XEP_ADDR_LEN */
+-};
+-M0_BASSERT(CS_MAX_EP_ADDR_LEN >= M0_NET_LNET_XEP_ADDR_LEN);
+-
+-/**
+- * Represent devices configuration file in form of yaml document.
+- * @note This is temporary implementation in-order to configure device as
+- *       a stob. This may change when confc implementation lands into master.
+- */
+-struct cs_stob_file {
+-	bool              sf_is_initialised;
+-	yaml_document_t   sf_document;
+-};
+-
+-struct cs_ad_stob {
+-	/** Allocation data storage domain.*/
+-	struct m0_stob_domain *as_dom;
+-	/** Back end storage object id, i.e. ad */
+-	struct m0_stob_id      as_id_back;
+-	/** Back end storage object. */
+-	struct m0_stob        *as_stob_back;
+-	uint64_t               as_magix;
+-	struct m0_tlink        as_linkage;
+-};
+-
+-/**
+-   Structure which encapsulates stob type and
+-   stob domain references for linux and ad stobs respectively.
+- */
+-struct cs_stobs {
+-	/** Type of storage domain to be initialise (e.g. Linux or AD) */
+-	const char            *s_stype;
+-	/** Linux storage domain. */
+-	struct m0_stob_domain *s_ldom;
+-	struct cs_stob_file    s_sfile;
+-	/** List of AD stobs */
+-	struct m0_tl           s_adoms;
+-};
+-
+-/**
+-   Represents state of a request handler context.
+- */
+-enum cs_reqh_ctx_states {
+-	/**
+-	   A request handler context is in RC_UNINTIALISED state when it is
+-	   allocated and added to the list of the same in struct m0_mero.
+-
+-	   @see m0_mero::cc_reqh_ctxs
+-	 */
+-	RC_UNINITIALISED,
+-	/**
+-	   A request handler context is in RC_INITIALISED state once the
+-	   request handler (embedded inside the context) is successfully
+-	   initialised.
+-
+-	   @see cs_reqh_context::rc_reqh
+-	 */
+-	RC_INITIALISED
+-};
+-
+-/**
+-   Tracks ADDB stob per reqh
+-   cas_stob is the hard-coded stob, that is created during
+-   @see cs_addb_storage_init(), on which actual ADDB records go.
+- */
+-struct cs_addb_stob {
+-	/** ADDB Storage domain for a request handler ADDB machine */
+-	struct cs_stobs  cas_stobs;
+-	struct m0_stob  *cas_stob;
+-};
+-
+-/**
+-   Represents a request handler environment.
+-   It contains configuration information about the various global entities
+-   to be configured and their corresponding instances that are needed to be
+-   initialised before the request handler is started, which by itself is
+-   contained in the same structure.
+- */
+-struct cs_reqh_context {
+-	/** Storage path for request handler context. */
+-	const char                  *rc_stpath;
+-
+-	/** ADDB Storage path for request handler ADDB machine */
+-	const char                  *rc_addb_stpath;
+-
+-	/** Path to device configuration file. */
+-	const char                  *rc_dfilepath;
+-
+-	/** Type of storage to be initialised. */
+-	const char                  *rc_stype;
+-
+-	/** Database environment path for request handler context. */
+-	const char                  *rc_dbpath;
+-
+-	/** Whether to prepare storage (mkfs) attached to this context. */
+-	int                          rc_prepare_storage;
+-
+-	/** Services running in request handler context. */
+-	const char                 **rc_services;
+-
+-	/** Number of services configured in request handler context. */
+-	uint32_t                     rc_nr_services;
+-
+-	/** Maximum number of services allowed per request handler context. */
+-	int                          rc_max_services;
+-
+-	/** Endpoints and xprts per request handler context. */
+-	struct m0_tl                 rc_eps;
+-
+-	/**
+-	    State of a request handler context, i.e. RC_INITIALISED or
+-	    RC_UNINTIALISED.
+-	 */
+-	enum cs_reqh_ctx_states      rc_state;
+-
+-	/** Storage domain for a request handler */
+-	struct cs_stobs              rc_stob;
+-
+-	/** ADDB specific stob information */
+-	struct cs_addb_stob          rc_addb_stob;
+-	/** Database used by the request handler */
+-	struct m0_dbenv              rc_db;
+-
+-	/** Path to the configuration database to be used by confd service. */
+-	const char                  *rc_confdb;
+-
+-	/** Cob domain to be used by the request handler */
+-	struct m0_mdstore            rc_mdstore;
+-
+-	struct m0_cob_domain_id      rc_cdom_id;
+-
+-	/** File operation log for a request handler */
+-	struct m0_fol                rc_fol;
+-
+-	/** Request handler instance to be initialised */
+-	struct m0_reqh               rc_reqh;
+-
+-	/** Reqh context magic */
+-	uint64_t                     rc_magix;
+-
+-	/** Linkage into reqh context list */
+-	struct m0_tlink              rc_linkage;
+-
+-	/** Backlink to struct m0_mero. */
+-	struct m0_mero              *rc_mero;
+-
+-	/**
+-	 * Minimum number of buffers in TM receive queue.
+-	 * Default is set to m0_mero::cc_recv_queue_min_length
+-	 */
+-	uint32_t                     rc_recv_queue_min_length;
+-
+-	/**
+-	 * Maximum RPC message size.
+-	 * Default value is set to m0_mero::cc_max_rpc_msg_size
+-	 * If value of cc_max_rpc_msg_size is zero then value from
+-	 * m0_net_domain_get_max_buffer_size() is used.
+-	 */
+-	uint32_t                     rc_max_rpc_msg_size;
+-};
+-
+ /**
+  * Represents list of buffer pools in the mero context.
+  */
+diff --git a/mero/ut/cs_ut_main.c b/mero/ut/cs_ut_main.c
+index bca497d..97a79a3 100644
+--- a/mero/ut/cs_ut_main.c
++++ b/mero/ut/cs_ut_main.c
+@@ -55,13 +55,15 @@ struct cl_ctx {
+ static char *cs_ut_service_one_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+-                                "-e", "lnet:0@lo:12345:34:1" ,
++                                "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_services_many_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
+                                 "-s", "ds1", "-s" "ds2"};
+ 
+@@ -69,6 +71,7 @@ static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
+                                 "-A", "cs_r1addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1",
+                                 "-r", "-p", "-T", "AD",
+                                 "-D", "cs_r2sdb", "-S", "cs_r2stob",
+@@ -79,6 +82,7 @@ static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+ static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-r", "-p", "-D",
+                                 "cs_sdb", "-T", "AD", "-s", "ds1",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-S", "cs_stob", "-A", "cs_addb_stob"};
+ 
+ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+@@ -86,57 +90,67 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-A", "cs_addb_stob",
+                                 "-d", "devices.conf",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_reqh_none_cmd[] = { "m0d", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_stype_bad_cmd[] = { "m0d", "-r", "-p", "-T", "asdadd",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-r", "-p","-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:asdad:asdsd:sadasd",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_service_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "dasdadasd"};
+ 
+ static char *cs_ut_args_bad_cmd[] = { "m0d", "-r", "-p", "-D", "cs_sdb",
+                                 "-S", "cs_stob", "-A", "cs_addb_sdb",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1"};
+ 
+ static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1", "-q", "4", "-m", "4096"};
+ 
+ static char *cs_ut_lnet_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:0@lo:12345:34:1",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
+                                 "-s", "ioservice"};
+@@ -145,6 +159,7 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb2", "-S", "cs_stob2",
+                                 "-A", "cs_addb_stob2",
+@@ -154,6 +169,7 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
+@@ -163,6 +179,7 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
+                                 "-s", "ds1"};
+@@ -170,6 +187,7 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
++                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:asdad:asdsd:sadasd",
+                                 "-s", "ds1"};
+ 
+diff --git a/reqh/reqh_service.c b/reqh/reqh_service.c
+index 92e86d2..d7987aa 100644
+--- a/reqh/reqh_service.c
++++ b/reqh/reqh_service.c
+@@ -92,15 +92,16 @@ m0_reqh_service_type_find(const char *sname)
+ 
+ M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
+ 					 struct m0_reqh_service_type *stype,
+-					 const char *arg)
++					 struct m0_reqh_context *rctx)
+ {
+ 	int rc;
+ 
+ 	M0_PRE(service != NULL && stype != NULL);
+ 
+-        rc = stype->rst_ops->rsto_service_allocate(service, stype, arg);
++        rc = stype->rst_ops->rsto_service_allocate(service, stype, rctx);
+         if (rc == 0) {
+ 		(*service)->rs_type = stype;
++		(*service)->rs_reqh_ctx = rctx;
+ 		m0_reqh_service_bob_init(*service);
+ 		M0_POST(m0_reqh_service_invariant(*service));
+ 	}
+diff --git a/reqh/reqh_service.h b/reqh/reqh_service.h
+index 82ad377..f0206c3 100644
+--- a/reqh/reqh_service.h
++++ b/reqh/reqh_service.h
+@@ -243,6 +243,10 @@ struct m0_reqh_service {
+ 	struct m0_addb_ctx                rs_addb_ctx;
+ 
+ 	/**
++	 * service context
++	 */
++	struct m0_reqh_context           *rs_reqh_ctx;
++	/**
+ 	   Service magic to check consistency of service instance.
+ 	 */
+ 	uint64_t                          rs_magix;
+@@ -317,6 +321,7 @@ struct m0_reqh_service_ops {
+ 	void (*rso_stats_post_addb)(struct m0_reqh_service *service);
+ };
+ 
++struct m0_reqh_context;
+ /**
+    Service type operations vector.
+  */
+@@ -336,7 +341,7 @@ struct m0_reqh_service_type_ops {
+ 	 */
+ 	int (*rsto_service_allocate)(struct m0_reqh_service **service,
+ 				     struct m0_reqh_service_type *stype,
+-				     const char *arg);
++				     struct m0_reqh_context *rctx);
+ };
+ 
+ /**
+@@ -386,7 +391,7 @@ struct m0_reqh_service_type {
+  */
+ M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
+ 					 struct m0_reqh_service_type *stype,
+-					 const char *arg);
++					 struct m0_reqh_context *rctx);
+ 
+ /**
+    Searches a particular type of service by traversing global list of service
+diff --git a/rpc/rpc.c b/rpc/rpc.c
+index e496baa..f55ad62 100644
+--- a/rpc/rpc.c
++++ b/rpc/rpc.c
+@@ -67,7 +67,7 @@ static const struct m0_reqh_service_ops rpc_ops = {
+ 
+ static int rpc_service_allocate(struct m0_reqh_service **service,
+ 				struct m0_reqh_service_type *stype,
+-				const char *arg __attribute__((unused)))
++				struct m0_reqh_context *rctx)
+ {
+ 	struct m0_reqh_service *serv;
+ 
+diff --git a/rpc/ut/clnt_srv_ctx.c b/rpc/ut/clnt_srv_ctx.c
+index b7672a0..642b910 100644
+--- a/rpc/ut/clnt_srv_ctx.c
++++ b/rpc/ut/clnt_srv_ctx.c
+@@ -67,7 +67,7 @@ static struct m0_rpc_client_ctx cctx = {
+ static char *server_argv[] = {
+ 	"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+ 	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
+-	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
++	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-G", SERVER_ENDPOINT,
+ };
+ 
+ static struct m0_rpc_server_ctx sctx = {
+diff --git a/sns/cm/service.c b/sns/cm/service.c
+index a89e1ea..a2c1597 100644
+--- a/sns/cm/service.c
++++ b/sns/cm/service.c
+@@ -45,7 +45,7 @@
+ /** Copy machine service type operations.*/
+ static int svc_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+-			const char *arg __attribute__((unused)));
++			struct m0_reqh_context *rctx);
+ 
+ static const struct m0_reqh_service_type_ops svc_type_ops = {
+ 	.rsto_service_allocate = svc_allocate,
+@@ -73,7 +73,7 @@ extern const struct m0_cm_ops cm_ops;
+  */
+ static int svc_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+-			const char *arg __attribute__((unused)))
++			struct m0_reqh_context *rctx)
+ {
+ 	struct m0_sns_cm *sns_cm;
+ 	struct m0_cm     *cm;
+diff --git a/sns/cm/ut/cp_common.c b/sns/cm/ut/cp_common.c
+index 8c8bd03..fb5fb7f 100644
+--- a/sns/cm/ut/cp_common.c
++++ b/sns/cm/ut/cp_common.c
+@@ -33,6 +33,7 @@ char      *sns_cm_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
+                                "-D", "sr_db", "-S", "sr_stob",
+                                "-A", "sr_addb_stob",
+                                "-e", "lnet:0@lo:12345:34:1",
++                               "-G", "lnet:0@lo:12345:34:1",
+                                "-s", "sns_cm",
+                                "-s", "ioservice"};
+ 
+diff --git a/ut/cs_service.c b/ut/cs_service.c
+index 0e849e1..ee02fb1 100644
+--- a/ut/cs_service.c
++++ b/ut/cs_service.c
+@@ -32,10 +32,10 @@ static void ds1_service_stop(struct m0_reqh_service *service);
+ static void ds2_service_stop(struct m0_reqh_service *service);
+ static int ds1_service_allocate(struct m0_reqh_service **service,
+ 				struct m0_reqh_service_type *stype,
+-				const char *arg);
++				struct m0_reqh_context *rctx);
+ static int ds2_service_allocate(struct m0_reqh_service **service,
+ 				struct m0_reqh_service_type *stype,
+-				const char *arg);
++				struct m0_reqh_context *rctx);
+ static void ds_service_fini(struct m0_reqh_service *service);
+ 
+ static const struct m0_reqh_service_type_ops ds1_service_type_ops = {
+@@ -92,14 +92,14 @@ static int _ds_alloc(struct m0_reqh_service **service,
+ 
+ static int ds1_service_allocate(struct m0_reqh_service **service,
+ 				struct m0_reqh_service_type *stype,
+-				const char *arg __attribute__((unused)))
++				struct m0_reqh_context *rctx)
+ {
+ 	return _ds_alloc(service, stype, &ds1_service_ops);
+ }
+ 
+ static int ds2_service_allocate(struct m0_reqh_service **service,
+ 				struct m0_reqh_service_type *stype,
+-				const char *arg __attribute__((unused)))
++				struct m0_reqh_context *rctx)
+ {
+ 	return _ds_alloc(service, stype, &ds2_service_ops);
+ }
+-- 
+1.8.3.2
+

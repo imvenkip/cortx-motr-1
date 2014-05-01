@@ -1,0 +1,211 @@
+From 4f85861d7788d76a53de8b41bf61e2e4bd6d88f2 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 18 Apr 2011 10:02:45 -0600
+Subject: [PATCH 067/177] - in c2_cob_del_name() lookup for correct linkno,
+ which is needed for oikey to kill entry from oi; - handle rmdir case
+ correctly; - handle hardlinks correctly; - simplify c2_md_store_unlink().
+
+---
+ cob/cob.c         |  11 ++++-
+ mdstore/mdstore.c | 124 ++++++++++++++++++++++++++++++++++--------------------
+ 2 files changed, 88 insertions(+), 47 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 531ca56..431ddc3 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1044,6 +1044,7 @@ int c2_cob_del_name(struct c2_cob        *cob,
+                     struct c2_db_tx      *tx)
+ {
+         struct c2_cob_oikey oikey;
++        struct c2_cob_nsrec nsrec;
+         struct c2_db_pair   pair;
+         int                 rc;
+ 
+@@ -1055,7 +1056,13 @@ int c2_cob_del_name(struct c2_cob        *cob,
+          */
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+                          nskey, c2_cob_nskey_size(nskey),
+-		         NULL, 0);
++		         &nsrec, sizeof nsrec);
++        rc = c2_table_lookup(tx, &pair);
++        if (rc) {
++                c2_db_pair_fini(&pair);
++                goto out;
++        }
++        
+         rc = c2_table_delete(tx, &pair);
+         c2_db_pair_fini(&pair);
+         if (rc)
+@@ -1065,7 +1072,7 @@ int c2_cob_del_name(struct c2_cob        *cob,
+          * Let's also kill object index entry.
+          */
+         oikey.cok_fid = cob->co_fid;
+-        oikey.cok_linkno = cob->co_nsrec.cnr_nlink;
++        oikey.cok_linkno = nsrec.cnr_linkno;
+ 
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
+                          &oikey, sizeof oikey, NULL, 0);
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 7220a95..39bbebe 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -290,7 +290,7 @@ int c2_md_store_unlink(struct c2_md_store *md,
+                        struct c2_fop_unlink_rep *rep, 
+                        struct c2_fop_ctx *ctx)
+ {
+-        struct c2_cob         *ncob = NULL;
++        struct c2_cob         *ncob;
+         struct c2_cob_nskey   *nskey;
+         struct c2_cob_oikey    oikey;
+         time_t                 now;
+@@ -299,58 +299,95 @@ int c2_md_store_unlink(struct c2_md_store *md,
+         C2_ASSERT(pcob != NULL);
+         C2_ASSERT(cob != NULL);
+ 
+-        c2_cob_make_nskey(&nskey, &pcob->co_fid, 
+-                          req->u_name.n_name,
+-                          req->u_name.n_count);
+-
+         C2_PRE(cob->co_nsrec.cnr_nlink > 0);
+-        cob->co_nsrec.cnr_nlink--;
+         
+-        /* 
+-         * Last nlink, let's delete everything left. 
+-         */
+-        if (cob->co_nsrec.cnr_nlink == 0) {
++        if (S_ISDIR(cob->co_omgrec.cor_mode)) {
++                /* 
++                 * Kill ".." and "." first.
++                 */
++                c2_cob_make_nskey(&nskey, &cob->co_fid, "..", 2);
++                rc = c2_cob_del_name(pcob, nskey, &ctx->fc_tx->tx_dbtx);
++                c2_free(nskey);
++                if (rc)
++                        goto out;
++                
++                cob->co_nsrec.cnr_nlink--;
++                c2_cob_make_nskey(&nskey, &cob->co_fid, ".", 1);
++                rc = c2_cob_del_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
++                c2_free(nskey);
++                if (rc)
++                        goto out;
++
++                cob->co_nsrec.cnr_nlink--;
++                
+                 /*
+-                 * @todo: orphans handling.
++                 * No hardlinks on directories, nlink shoudl be 0 now.
+                  */
+-                rc = c2_cob_delete(cob, &ctx->fc_tx->tx_dbtx);
+-                goto out;
+-        }
+-        
+-        /*
+-         * Check if we're trying to kill stata data entry. We need to
+-         * move stat data to another name if so.
+-         */
+-        if (!S_ISDIR(cob->co_omgrec.cor_mode) && 
+-            c2_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
++//                C2_ASSERT(cob->co_nsrec.cnr_nlink == 0);
++        } else {
++                c2_cob_make_nskey(&nskey, &pcob->co_fid, 
++                                  req->u_name.n_name,
++                                  req->u_name.n_count);
++
+                 /*
+-                 * Find another name (new stat data) in object index.
++                 * Check if we're trying to kill stata data entry. We need to
++                 * move stat data to another name if so.
+                  */
+-                oikey.cok_fid = cob->co_fid;
+-                oikey.cok_linkno = cob->co_nsrec.cnr_linkno + 1;
++                if (cob->co_nsrec.cnr_nlink > 1 && 
++                    c2_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
++                        /*
++                         * Find another name (new stat data) in object index.
++                         */
++                        oikey.cok_fid = cob->co_fid;
++                        oikey.cok_linkno = cob->co_nsrec.cnr_linkno + 1;
+                 
+-                rc = c2_cob_locate(&md->md_dom, &oikey, &ncob, 
++                        rc = c2_cob_locate(&md->md_dom, &oikey, &ncob, 
++                                           &ctx->fc_tx->tx_dbtx);
++                        if (rc) {
++                                c2_free(nskey);
++                                goto out;
++                        }
++
++                        /*
++                         * Copy nsrec from cob to ncob.
++                         */
++                        rc = c2_cob_update(ncob, &cob->co_nsrec, NULL, NULL, 
++                                           &ctx->fc_tx->tx_dbtx);
++                        if (rc) {
++                                c2_free(nskey);
++                                goto out;
++                        }
++
++                        /*
++                         * Kill the name described by req.
++                         */
++                        rc = c2_cob_del_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
++                        if (rc) {
++                                c2_free(nskey);
++                                goto out;
++                        }
++                }
++                c2_free(nskey);
++                cob->co_nsrec.cnr_nlink--;
++        }
++
++        if (cob->co_nsrec.cnr_nlink == 0) {
++                /* 
++                 * Last nlink, let's delete everything left. 
++                 */
++                rc = c2_cob_delete(cob, &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
++        } else {
++                /*
++                 * Not last nlink yet, let's update stat data on store.
++                 */
++                rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL, 
+                                    &ctx->fc_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+-                cob = ncob;
+         }
+-
+-        /*
+-         * Update stat data on store. 
+-         */
+-        rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL, 
+-                           &ctx->fc_tx->tx_dbtx);
+-        if (rc)
+-                goto out;
+-
+-        /*
+-         * Kill name whatever it was.
+-         */
+-        rc = c2_cob_del_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
+-        if (rc)
+-                goto out;
+-
++        
+         /*
+          * Update mtime in parent.
+          */
+@@ -363,9 +400,6 @@ int c2_md_store_unlink(struct c2_md_store *md,
+         rc = c2_cob_update(pcob, &pcob->co_nsrec,  NULL, NULL, 
+                            &ctx->fc_tx->tx_dbtx);
+ out:
+-        if (ncob)
+-                c2_cob_put(ncob);
+-        c2_free(nskey);
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_unlink", rc);
+         return rc;
+-- 
+1.8.3.2
+

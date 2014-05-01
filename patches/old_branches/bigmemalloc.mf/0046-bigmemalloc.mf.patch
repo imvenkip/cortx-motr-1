@@ -1,0 +1,58 @@
+From 8b20929a3d7a63eea575498037bb2e9a7d88ded4 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Tue, 29 Oct 2013 15:01:53 +0530
+Subject: [PATCH 46/50] bigmemalloc.mf
+
+-Removed m0_varr_cursor_set().
+-Fixed few typos.
+---
+ lib/varr.c | 9 ++-------
+ lib/varr.h | 1 -
+ 2 files changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index c40e8ae..73b9eb9 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -50,12 +50,12 @@ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr);
+ /* Frees a tree holding buffers. */
+ M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr);
+ /* Evaluates the height of the tree based upon total number of
+- * buffers to be alocated. */
++ * buffers to be allocated. */
+ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr, uint64_t buff_nr);
+ /* Returns log to the base two for the radix associated with a level. */
+ M0_INTERNAL uint32_t children_of_level(const struct m0_varr *arr,
+ 				       uint32_t level);
+-/* Returns the yongest  common ancestor of two children within a tree */
++/* Returns the youngest common ancestor of two children within a tree */
+ M0_INTERNAL uint32_t common_ancestor(const struct m0_varr *arr,
+ 				     uint64_t target_idx, uint64_t src_idx);
+ /* Returns index within a buffer at given depth for a given target_index within
+@@ -311,11 +311,6 @@ M0_INTERNAL void* m0_varr_cursor_get(struct m0_varr_cursor *cursor)
+ 	return cursor->vc_path[cursor->vc_depth].vp_buf;
+ }
+ 
+-M0_INTERNAL void m0_varr_cursor_set(struct m0_varr_cursor *cursor, void *addr)
+-{
+-	M0_PRE(cursor != NULL);
+-	cursor->vc_path[cursor->vc_depth].vp_buf = addr;
+-}
+ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor)
+ {
+ 	return m0_varr_cursor_move(cursor, 1);
+diff --git a/lib/varr.h b/lib/varr.h
+index be4b74d..411da24 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -200,7 +200,6 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+  * Returns a pointer corresponding to the current location of a cursor.
+  */
+ M0_INTERNAL void* m0_varr_cursor_get(struct m0_varr_cursor *cursor);
+-M0_INTERNAL void m0_varr_cursor_set(struct m0_varr_cursor *cursor, void *addr);
+ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor);
+ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor, uint32_t inc);
+ 
+-- 
+1.8.3.2
+

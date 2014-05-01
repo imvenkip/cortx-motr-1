@@ -1,0 +1,53 @@
+From 825a5bd161109dfcd683491f7f504f1f7bd11869 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Fri, 22 Feb 2013 00:03:56 -0800
+Subject: [PATCH 056/121] Fixed be ut
+
+---
+ be/kv_store_private.h | 4 ++--
+ be/ut/be.c            | 8 --------
+ 2 files changed, 2 insertions(+), 10 deletions(-)
+
+diff --git a/be/kv_store_private.h b/be/kv_store_private.h
+index 67ea921..951d8de 100644
+--- a/be/kv_store_private.h
++++ b/be/kv_store_private.h
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -15,7 +15,7 @@
+  * http://www.xyratex.com/contact
+  *
+  * Original author: Zishan Shaikh <zishan_shaikh@xyratex.com>
+- * Original creation date: 12/06/2012
++ * Original creation date: 02/22/2013
+  */
+ #pragma once
+ #ifndef __MERO_BE_KV_STORE_PRIVATE_H__
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 3343a8c..5f8673b 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -181,14 +181,6 @@ const struct m0_test_suite be_ut = {
+         }
+ };
+ 
+-int main() {
+-        ts_be_init();
+-        test_be_transaction();
+-        ts_be_fini();
+-
+-        return 0;
+-}
+-
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_ut */
+ 
+-- 
+1.8.3.2
+

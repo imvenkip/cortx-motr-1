@@ -1,0 +1,485 @@
+From 9e6ae09b1f099712e35881fef7c614922bdfa93c Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 15 May 2013 14:25:44 +0530
+Subject: [PATCH 137/172] Using composite layouts as sublayouts, in the UT
+
+---
+ layout/ut/composite.c | 204 ++++++++++++++++++++++++++++++++++++--------------
+ layout/ut/composite.h |   5 ++
+ layout/ut/layout.c    |  13 ++--
+ 3 files changed, 159 insertions(+), 63 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 617f656..c6a8e65 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -38,8 +38,21 @@
+ M0_TL_DESCR_DECLARE(comp_layer, extern);
+ M0_TL_DESCR_DECLARE(m0_composite_layer_ext, extern);
+ 
+-static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+-			    struct m0_layout **sublayout)
++static int composite_layout_build(uint64_t lid,
++				  struct m0_layout_domain *domain,
++				  bool failure_test,
++				  struct m0_composite_layout **cl);
++
++/**
++ * Builds a layout with pdclust or composite layout types alternatively.
++ *
++ * Since the sublayout id is formed as composite_lid * 100 + layer_idx,
++ * the layer 0 gets pdclust type of a sublayout and the 1st layer gets
++ * composite type of a sublayout.
++ */
++static int sublayout_build(uint64_t sublayout_id,
++			   struct m0_layout_domain *domain,
++			   struct m0_layout **sublayout)
+ {
+ 	bool                          inline_test;
+ 	uint32_t                      enum_id;
+@@ -50,22 +63,33 @@ static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+ 	struct m0_layout_list_enum   *list_enum;
+ 	struct m0_layout_linear_enum *lin_enum;
+ 	struct m0_uint128             seed;
++	struct m0_composite_layout   *cl;
+ 	int                           rc;
+ 
+-	m0_uint128_init(&seed, "sublayouts_build");
+-	enum_id = lid % 2 ? LIST_ENUM_ID : LINEAR_ENUM_ID;
+-	inline_test = lid % 5 ? LESS_THAN_INLINE : MORE_THAN_INLINE;
+-	NKP_assign(enum_id, inline_test, 9, 109, 1200, &N, &K, &P);
+-	rc = pdclust_layout_build(lid, domain, enum_id,
+-				  N, K, P, &seed, 10, 20,
+-				  &pl, &list_enum, &lin_enum, !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-	*sublayout = m0_pdl_to_layout(pl);
++	if (sublayout_id % 2 == 0) {
++		m0_uint128_init(&seed, "sublayouts_build");
++		enum_id = sublayout_id % 2 ? LIST_ENUM_ID : LINEAR_ENUM_ID;
++		inline_test = sublayout_id % 5 ?
++			LESS_THAN_INLINE : MORE_THAN_INLINE;
++		NKP_assign(enum_id, inline_test, 9, 109, 1200, &N, &K, &P);
++		rc = pdclust_layout_build(sublayout_id, domain, enum_id,
++					  N, K, P, &seed, 10, 20,
++					  &pl, &list_enum, &lin_enum,
++					  !FAILURE_TEST);
++		M0_UT_ASSERT(rc == 0);
++		*sublayout = m0_pdl_to_layout(pl);
++	} else {
++		rc = composite_layout_build(sublayout_id, domain,
++					    !FAILURE_TEST, &cl);
++		M0_UT_ASSERT(rc == 0);
++		*sublayout = m0_cl_to_layout(cl);
++	}
++	return rc;
+ }
+ 
+ /**
+  * For the 'layers_nr number of layers' to be added to a composite layout,
+- * this function creates "layer_nr - 1" number of layouts with their
++ * this function creates "layers_nr - 1" number of layouts with their
+  * respective lid. One layer that is the zeroth layer is already added to the
+  * composite layout when the composite layout got created.
+  *
+@@ -75,7 +99,6 @@ static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+  * - Layout with lid "composite_lid * 100 + layer_idx" is used as a part of
+  *   the layer_idx'th layer.
+  */
+-/* todo Add test to cover other composite layouts being used as sublayouts. */
+ static void sublayouts_precreate(uint64_t composite_lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t layers_nr)
+@@ -83,10 +106,12 @@ static void sublayouts_precreate(uint64_t composite_lid,
+ 	uint64_t          sublayout_id;
+ 	struct m0_layout *sublayout;
+ 	uint32_t          i;
++	int               rc;
+ 
+ 	for (i = 1; i < layers_nr; ++i) {
+ 		sublayout_id = composite_lid * 100 + i;
+-		sublayout_build(sublayout_id, domain, &sublayout);
++		rc = sublayout_build(sublayout_id, domain, &sublayout);
++		M0_UT_ASSERT(rc == 0);
+ 	}
+ }
+ 
+@@ -121,6 +146,15 @@ static void sublayouts_delete(struct m0_layout_domain *domain,
+ 	for (i = 0; i < layers_nr; ++i) {
+ 		sublayout_id = composite_lid * 100 + i;
+ 		sublayout_delete(domain, sublayout_id);
++		/*
++		 * Alternate sublayouts are of the kind composite. So, for
++		 * those composite sublayouts, sublayout from each of their
++		 * zeroth layer has to be deleted.
++		 */
++		if (i % 2 != 0) {
++			sublayout_id = (composite_lid * 100 + i) * 100;
++			sublayout_delete(domain, sublayout_id);
++		}
+ 	}
+ }
+ 
+@@ -206,17 +240,27 @@ static void composite_layout_verify(struct m0_layout *l,
+ 	i = 0;
+ 	m0_uint128_init(&seed, "sublayouts_build");
+         m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		M0_UT_ASSERT(layer->clr_idx == i);
+ 		M0_UT_ASSERT(layer->clr_cl->l_id == cl->cl_base.l_id);
+ 		/* Verify the sublayout. */
+-		sublayout_id = composite_lid * 100 + i;
+-		enum_id = sublayout_id % 2 ? LIST_ENUM_ID : LINEAR_ENUM_ID;
+-		inline_test = sublayout_id % 5 ? LESS_THAN_INLINE :
+-						 MORE_THAN_INLINE;
+-		NKP_assign(enum_id, inline_test, 9, 109, 1200, &N, &K, &P);
+-		pdclust_layout_verify(layer->clr_sl, sublayout_id, enum_id,
+-				      N, K, P, &seed, 10, 20,
+-				      !USER_COUNT_INCREMENTED);
+-		M0_UT_ASSERT(layer->clr_idx == i);
++		if (layer->clr_idx % 2 == 0) {
++			sublayout_id = composite_lid * 100 + i;
++			enum_id = sublayout_id % 2 ?
++				LIST_ENUM_ID : LINEAR_ENUM_ID;
++			inline_test = sublayout_id % 5 ? LESS_THAN_INLINE :
++							 MORE_THAN_INLINE;
++			NKP_assign(enum_id, inline_test, 9, 109, 1200,
++				   &N, &K, &P);
++			pdclust_layout_verify(layer->clr_sl, sublayout_id,
++					      enum_id, N, K, P, &seed, 10, 20,
++					      !USER_COUNT_INCREMENTED);
++		} else {
++			composite_layout_verify(layer->clr_sl,
++						layer->clr_sl->l_id, 1,
++						!EXTLIST_ASSOCIATED, 1,
++						CONTIGUOUS_EXTENTS,
++						!USER_COUNT_INCREMENTED);
++		}
+ 		M0_UT_ASSERT(layer->clr_extents_nr == extents_nr);
+ 
+ 		/* Verify the extents. */
+@@ -369,10 +413,10 @@ static int extlist_associate(struct m0_composite_layout *cl,
+ }
+ 
+ /** Builds a layout object with COMPOSITE layout type. */
+-static int composite_build(uint64_t lid,
+-			   struct m0_layout_domain *domain,
+-			   bool failure_test,
+-			   struct m0_composite_layout **cl)
++static int composite_layout_build(uint64_t lid,
++				  struct m0_layout_domain *domain,
++				  bool failure_test,
++				  struct m0_composite_layout **cl)
+ {
+ 	struct m0_layout *sublayout;
+ 	uint64_t          sublayout_id;
+@@ -381,7 +425,8 @@ static int composite_build(uint64_t lid,
+ 
+ 	/* Pre-create the sublayout to be used as the original layout. */
+ 	sublayout_id = lid * 100;
+-	sublayout_build(sublayout_id, domain, &sublayout);
++	rc = sublayout_build(sublayout_id, domain, &sublayout);
++	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Build a composite layout. */
+ 	rc = m0_composite_build(domain, lid, sublayout, cl);
+@@ -477,7 +522,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 	struct m0_layout *l;
+ 	int               rc;
+ 
+-	rc = composite_build(lid, domain, failure_test, cl);
++	rc = composite_layout_build(lid, domain, failure_test, cl);
+ 	if (failure_test) {
+ 		M0_UT_ASSERT(rc == -ENOMEM);
+ 		return rc;
+@@ -491,8 +536,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 		M0_UT_ASSERT(rc == 0);
+ 
+ 		rc = layers_add(*cl, layers_nr, extents_nr,
+-				is_contiguous_extents,
+-				layer_add_failure_test);
++				is_contiguous_extents, layer_add_failure_test);
+ 		if (layer_add_failure_test)
+ 			M0_UT_ASSERT(rc == -ENOMEM);
+ 		else {
+@@ -526,7 +570,7 @@ int test_build_composite(uint64_t lid,
+ 	struct m0_layout           *l;
+ 	int                         rc;
+ 
+-	rc = composite_build(lid, domain, failure_test, &cl);
++	rc = composite_layout_build(lid, domain, failure_test, &cl);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+ 	else {
+@@ -586,6 +630,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	m0_bindex_t                     delta;
+ 	uint32_t                        i;
+ 	uint32_t                        j;
++	int                             rc;
+ 
+ 	M0_UT_ASSERT(dcur != NULL);
+ 	M0_UT_ASSERT(layers_nr > 0);
+@@ -604,7 +649,8 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	M0_UT_ASSERT(nbytes == sizeof cl_rec);
+ 
+ 	/* Pre-create the sublayout to be used for the zeroth layer. */
+-	sublayout_build(composite_lid * 100, domain, &sublayout);
++	rc = sublayout_build(composite_lid * 100, domain, &sublayout);
++	M0_UT_ASSERT(rc == 0);
+ 	/* Pre-create the sublayouts to be used for layer 1 and above. */
+ 	sublayouts_precreate(composite_lid, domain, layers_nr);
+ 
+@@ -819,7 +865,6 @@ int test_encode_composite(uint64_t lid,
+ 	area = m0_alloc(num_bytes);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+-	my_console_printf("\n num_bytes %llu", (unsigned long long)num_bytes);
+ 
+ 	rc = m0_layout_encode(&cl->cl_base, M0_LXO_BUFFER_OP, NULL, &cur);
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+@@ -1286,7 +1331,7 @@ int test_layer_ops_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout with the default layer 'layer 0'. */
+-	rc = composite_build(lid, domain, !FAILURE_TEST, &cl);
++	rc = composite_layout_build(lid, domain, !FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Associate an extent list to the zeroth layer. */
+@@ -2276,6 +2321,10 @@ int test_add_composite(uint64_t lid,
+ 		       bool failure_test)
+ {
+ 	struct m0_composite_layout *cl;
++	struct m0_layout           *l_copy;
++	struct m0_layout           *l_from_db;
++	struct m0_composite_layer  *layer;
++	int                         rc_tmp;
+ 	int                         rc;
+ 
+ 	M0_UT_ASSERT(ergo(duplicate_test, !failure_test));
+@@ -2287,6 +2336,13 @@ int test_add_composite(uint64_t lid,
+ 					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
++	/*
++	 * Verify that the user count of all the sublayouts is set to the
++	 * default value that is 0.
++	 */
++	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		M0_UT_ASSERT(layer->clr_sl->l_user_count == 0);
++	} m0_tl_endfor;
+ 
+ 	/* Add the layout to the DB. */
+ 	rc = layout_add(&cl->cl_base, failure_test);
+@@ -2295,8 +2351,17 @@ int test_add_composite(uint64_t lid,
+ 			     rc == L_TABLE_INSERT_ERR ||
+ 			     rc == L_EMAP_LOOKUP_ERR ||
+ 			     rc == L_EMAP_OBJ_INSERT_ERR);
+-	else
++	else {
+ 		M0_UT_ASSERT(rc == 0);
++		composite_layout_copy(&cl->cl_base, &l_copy);
++		/*
++		 * Verify that the user count of all the sublayouts has been
++		 * incremented by 1.
++		 */
++		m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++			M0_UT_ASSERT(layer->clr_sl->l_user_count == 1);
++		} m0_tl_endfor;
++	}
+ 
+ 	/*
+ 	 * If duplicate_test is true, again try to add the same layout object
+@@ -2306,9 +2371,34 @@ int test_add_composite(uint64_t lid,
+ 		rc = layout_add(&cl->cl_base, FAILURE_TEST);
+ 		M0_UT_ASSERT(rc == -EEXIST);
+ 	}
++
+ 	/* Delete the layout. */
+ 	m0_layout_put(&cl->cl_base);
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
++
++	if (!failure_test) {
++		/* Lookup for the layout object from the DB. */
++		rc_tmp = layout_lookup(lid, domain, &m0_composite_layout_type,
++				       !FAILURE_TEST, &l_from_db);
++		M0_UT_ASSERT(rc_tmp == 0);
++		composite_layout_compare(l_copy, l_from_db, false);
++		composite_layout_copy_delete(l_copy);
++		/*
++		 * The user count has been verified with the layout compare.
++		 * But still.
++		 */
++		m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++			M0_UT_ASSERT(layer->clr_sl->l_user_count == 1);
++		} m0_tl_endfor;
++
++		/*
++		 * Release the reference acquired by m0_layout_lookup() so as
++		 * to destroy the layout object.
++		 */
++		m0_layout_put(l_from_db);
++		M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
++	}
++
+ 	/* Delete the precreated sublayouts. */
+ 	sublayouts_delete(domain, lid, layers_nr);
+ 	return rc;
+@@ -2329,7 +2419,6 @@ int test_update_composite(uint64_t lid,
+ 	struct m0_layout                  *l_from_db;
+ 	struct m0_layout                  *sublayout;
+ 	uint64_t                           sublayout_id;
+-	struct m0_tl                       extents;
+ 	struct m0_ext                      ext_to_operate;
+ 	uint32_t                           layer_id_lookup;
+ 	struct m0_ext                      ext_lookup;
+@@ -2390,12 +2479,11 @@ int test_update_composite(uint64_t lid,
+ 	/* 3. Add layers to it. */
+ 	M0_UT_ASSERT(cl->cl_layers_nr == layers_nr);
+ 	for (i = 0; i < layers_to_add_nr; ++i) {
+-		sublayout_id = cl->cl_base.l_id * 100 + cl->cl_layers_nr;
+-		sublayout_build(sublayout_id, domain, &sublayout);
+-		extentlist_build(&extents, extents_nr, is_contiguous_extents);
++		sublayout_id = (cl->cl_base.l_id * 100) + cl->cl_layers_nr;
++		rc = sublayout_build(sublayout_id, domain, &sublayout);
++		M0_UT_ASSERT(rc == 0);
+ 		rc = m0_composite_layer_add(cl, sublayout);
+ 		M0_UT_ASSERT(rc == 0);
+-		extentlist_free(&extents);
+ 	}
+ 	M0_UT_ASSERT(cl->cl_layers_nr == layers_nr + layers_to_add_nr);
+ 
+@@ -2469,7 +2557,7 @@ int test_update_composite(uint64_t lid,
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 
+ 	/* Delete the precreated sublayouts. */
+-	sublayouts_delete(domain, lid, layers_nr + 4);
++	sublayouts_delete(domain, lid, layers_nr + layers_to_add_nr);
+ 	return rc;
+ }
+ 
+@@ -2493,21 +2581,25 @@ int test_delete_composite(uint64_t lid,
+ 					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
++	/*
++	 * Verify that the user count of all the sublayouts is set to the
++	 * default value that is 0.
++	 */
++	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		M0_UT_ASSERT(layer->clr_sl->l_user_count == 0);
++	} m0_tl_endfor;
+ 
+ 	/* Add the layout to the DB. */
+ 	rc = layout_add(&cl->cl_base, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	/* Delete all the extents associated with the composite layout. */
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+-		layer_extents_delete(cl, layer);
+-	} m0_tl_endfor;
+-
+ 	/*
+-	 * Verify the user count of the sublayouts to be 1 since the user
+-	 * count has been incremented by one with every layer addition.
++	 * Delete all the extents associated with the composite layout and
++	 * verify that the user count of all the sublayouts has been
++	 * incremented by 1.
+ 	 */
+ 	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		layer_extents_delete(cl, layer);
+ 		M0_UT_ASSERT(layer->clr_sl->l_user_count == 1);
+ 	} m0_tl_endfor;
+ 
+@@ -2518,17 +2610,13 @@ int test_delete_composite(uint64_t lid,
+ 			     rc == -EPROTO || rc == LO_ENCODE_ERR ||
+ 			     rc == L_EMAP_LOOKUP_ERR ||
+ 			     rc == L_EMAP_OBJ_DEL_ERR);
+-	else
++	else {
+ 		M0_UT_ASSERT(rc == 0);
+-
+-	/* Verify the user count of the sublayouts to be 0. */
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+-		if (failure_test)
+-			M0_UT_ASSERT(layer->clr_sl->l_user_count == 1 ||
+-				     layer->clr_sl->l_user_count == 0);
+-		else
++		/* Verify the user count of the sublayouts to be 0. */
++		m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+ 			M0_UT_ASSERT(layer->clr_sl->l_user_count == 0);
+-	} m0_tl_endfor;
++		} m0_tl_endfor;
++	}
+ 
+ 	/* Destroy the in-memory composite layout. */
+ 	m0_layout_put(&cl->cl_base);
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index 7e9969c..ca2180f 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -80,6 +80,11 @@ enum {
+ 	 * extents.
+ 	 */
+ 	CONTIGUOUS_EXTENTS     = true,
++	/**
++	 * Some layouts are formed as composite type of layouts along with some
++	 * as pdclust type of layouts.
++	 */
++	COMPOSITE_SUBLAYOUTS   = true,
+ 	/** Failure injected for layer add op */
+         LAYER_ADD_FAILURE_TEST = true,
+ 	/** Failure injected for layer del op */
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 790c589..62804ab 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -802,15 +802,17 @@ static void test_decode_failure(void)
+ 	 * in the path of composite_populate()
+ 	 */
+ 	lid = 4025;
+-	m0_fi_enable_once("layer_inmem_add", "alloc_ptr_fail/layer");
++	m0_fi_enable_off_n_on_m("layer_inmem_add", "alloc_ptr_fail/layer",
++				2 /* composite_sublayouts nr */, 1);
+ 	rc = test_decode_composite(lid, &domain, 5, 6,
+ 				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("layer_inmem_add", "alloc_ptr_fail/layer");
+ 
+ 	/* Simulate memory allocation failure for the first layer addition. */
+ 	lid = 4026;
+ 	m0_fi_enable_off_n_on_m("layer_inmem_add", "alloc_ptr_fail/layer",
+-				1, 1);
++				3 /* 1 + composite_sublayouts nr */, 1);
+ 	rc = test_decode_composite(lid, &domain, 5, 6,
+ 				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+@@ -1430,7 +1432,7 @@ static void test_layer_ops_failure(void)
+ 	/* Simulate memory allocation error while adding a layer. */
+ 	lid = 15001;
+ 	m0_fi_enable_off_n_on_m("layer_inmem_add", "alloc_ptr_fail/layer",
+-				1, 1);
++				3 /* 1 + composite_sublayouts nr */, 1);
+ 	rc = test_layer_ops_composite(lid, &domain, 5, 8,
+ 				      LAYER_ADD_FAILURE_TEST,
+ 				      !LAYER_DEL_FAILURE_TEST);
+@@ -1668,7 +1670,7 @@ static void test_lookup_failure(void)
+ 	 */
+ 	lid = 19021;
+ 	m0_fi_enable_off_n_on_m("layer_inmem_add", "alloc_ptr_fail/layer",
+-				4 /* Number of layers */, 1);
++				6 /* layers_nr + composite_sublayouts nr */, 1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+@@ -1680,7 +1682,8 @@ static void test_lookup_failure(void)
+ 	 */
+ 	lid = 19022;
+ 	m0_fi_enable_off_n_on_m("layer_inmem_add", "alloc_ptr_fail/layer",
+-				5 /* Number of layers + 1 */, 1);
++				7 /* layers_nr + 1 + composite_sublayouts nr */,
++				1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-- 
+1.8.3.2
+

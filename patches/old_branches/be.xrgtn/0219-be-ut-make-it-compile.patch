@@ -1,0 +1,335 @@
+From 33eefb27c4f0966b1e877d33aef9ff245f731f42 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 28 Jun 2013 16:18:34 +0300
+Subject: [PATCH 219/228] be/ut: make it compile
+
+* remove be/tx_fom.c
+* remove be/ut/btree.c from compilation
+* pass reqh parameter to m0_be_tx_init()
+* remove calls to processing_start/stop
+---
+ be/tx_fom.c        | 247 -----------------------------------------------------
+ be/ut/Makefile.sub |   1 -
+ be/ut/tx.c         |  15 ++--
+ 3 files changed, 5 insertions(+), 258 deletions(-)
+ delete mode 100644 be/tx_fom.c
+
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+deleted file mode 100644
+index aead65c..0000000
+--- a/be/tx_fom.c
++++ /dev/null
+@@ -1,247 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+- * Original creation date: 17-Jun-2013
+- */
+-
+-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+-#include "lib/trace.h"
+-
+-#include "be/tx.h"
+-#include "be/tx_service.h"
+-#include "fop/fom.h"        /* m0_be_txs_stype */
+-#include "lib/misc.h"       /* M0_BITS */
+-#include "lib/memory.h"     /* m0_free */
+-#include "reqh/reqh.h"      /* m0_reqh_state_get */
+-#include "lib/errno.h"      /* ENOMEM */
+-
+-#define XXX_MOCK_IO 0
+-#if XXX_MOCK_IO /* XXX <<<<<<< */
+-#  include "lib/thread.h"
+-#  include "lib/mutex.h"
+-#  include "lib/chan.h"
+-#  include <unistd.h>
+-
+-static struct m0_thread g_thread;
+-static struct m0_chan   g_chan;
+-static struct m0_mutex  g_mutex;
+-
+-static void g_handler(int ignore)
+-{
+-	M0_LOG(M0_DEBUG, "io emulation started");
+-	sleep(3);
+-	m0_mutex_lock(&g_mutex);
+-	m0_chan_signal(&g_chan);
+-	m0_mutex_unlock(&g_mutex);
+-	M0_LOG(M0_DEBUG, "io emulation ended");
+-}
+-#endif /* XXX >>>>>>> */
+-
+-/**
+- * @addtogroup be
+- * @{
+- */
+-
+-/* ------------------------------------------------------------------
+- * State definitions
+- * ------------------------------------------------------------------ */
+-
+-static int  group_closed_st_in(struct m0_sm *mach);
+-static void group_closed_st_ex(struct m0_sm *mach);
+-static bool group_closed_st_invariant(const struct m0_sm *mach);
+-static struct tx_fom *fom_to_txm(const struct m0_fom *fom);
+-
+-enum tx_fom_states {
+-	FS_STARTED,
+-	FS_FINISHED,
+-	FS_GROUP_CLOSED,
+-	FS_SUBMITTED_TO_LOG,
+-	FS_PAYLOAD_LOGGED,
+-	FS_GROUP_HEADER_LOGGED,
+-	FS_LOG_HEADER_LOGGED,
+-	FS_LOGGED,
+-	FS_SUBMITTED_TO_SEG,
+-	FS_PLACED,
+-	FS_STABLE,
+-	FS_FAILED
+-};
+-
+-struct tx_fom {
+-	struct m0_fom           tf_gen;
+-	struct m0_be_tx        *tf_tx;
+-	struct m0_be_tx_engine *tf_engine;
+-};
+-
+-static struct m0_sm_state_descr tx_fom_states[] = {
+-#define _S(name, flags, allowed)       \
+-	[name] = {                     \
+-		.sd_flags   = (flags), \
+-		.sd_name    = #name,   \
+-		.sd_allowed = allowed  \
+-	}
+-
+-	_S(FS_STARTED,  M0_SDF_INITIAL,  M0_BITS(FS_GROUP_CLOSED)),
+-	_S(FS_FINISHED, M0_SDF_TERMINAL, 0),
+-
+-	[FS_GROUP_CLOSED] = {
+-		.sd_name      = "FS_GROUP_CLOSED",
+-		.sd_in        = group_closed_st_in,
+-		.sd_ex        = group_closed_st_ex,
+-		.sd_invariant = group_closed_st_invariant,
+-		.sd_allowed   = M0_BITS(FS_SUBMITTED_TO_LOG)
+-	},
+-
+-	_S(FS_SUBMITTED_TO_LOG,    0, M0_BITS(FS_PAYLOAD_LOGGED)),
+-	_S(FS_PAYLOAD_LOGGED,      0, M0_BITS(FS_GROUP_HEADER_LOGGED)),
+-	_S(FS_GROUP_HEADER_LOGGED, 0, M0_BITS(FS_LOG_HEADER_LOGGED)),
+-	_S(FS_LOG_HEADER_LOGGED,   0, M0_BITS(FS_LOGGED)),
+-	_S(FS_LOGGED,              0, M0_BITS(FS_SUBMITTED_TO_SEG)),
+-	_S(FS_SUBMITTED_TO_SEG,    0, M0_BITS(FS_PLACED)),
+-	_S(FS_PLACED,              0, M0_BITS(FS_STABLE)),
+-	_S(FS_STABLE, M0_SDF_FINAL, M0_BITS(FS_FINISHED) | M0_BITS(FS_STARTED)),
+-	_S(FS_FAILED, M0_SDF_FAILURE, 0)
+-#undef _S
+-};
+-
+-static struct m0_sm_conf tx_fom_conf = {
+-	.scf_name      = "tx_fom states",
+-	.scf_nr_states = ARRAY_SIZE(tx_fom_states),
+-	.scf_state     = tx_fom_states
+-};
+-
+-/* ------------------------------------------------------------------
+- * TX FOM operations
+- * ------------------------------------------------------------------ */
+-
+-
+-
+-static void tx_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+-{
+-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+-}
+-
+-static const struct m0_fom_ops tx_fom_ops = {
+-	.fo_fini          = tx_fom_fini,
+-	.fo_tick          = tx_fom_tick,
+-	.fo_home_locality = tx_fom_home_locality,
+-	.fo_addb_init     = tx_fom_addb_init
+-};
+-
+-static struct m0_fom_type tx_fom_type;
+-
+-static const struct m0_fom_type_ops tx_fom_type_ops = {
+-	.fto_create = NULL
+-};
+-
+-static struct m0_fom * tx_fom_create(struct m0_reqh *reqh,
+-				     struct m0_be_tx_engine *engine)
+-{
+-	struct tx_fom *txm;
+-	struct m0_fom *fom;
+-
+-	M0_ALLOC_PTR(txm);
+-	if (txm == NULL)
+-		return NULL;
+-
+-	fom = &txm->tf_gen;
+-	m0_fom_init(fom, &tx_fom_type, &tx_fom_ops, NULL, NULL, reqh,
+-		    &m0_be_txs_stype);
+-
+-	engine->te_fom = fom;
+-	txm->tf_engine = engine;
+-
+-	return fom;
+-}
+-
+-M0_INTERNAL int
+-m0_tx_processing_start(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
+-{
+-	struct m0_fom *fom;
+-
+-	M0_ENTRY();
+-	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
+-
+-	m0_fom_type_init(&tx_fom_type, &tx_fom_type_ops, &m0_be_txs_stype,
+-			 &tx_fom_conf);
+-
+-	fom = tx_fom_create(reqh, engine);
+-	if (fom == NULL)
+-		M0_RETURN(-ENOMEM);
+-
+-	m0_fom_queue(fom, reqh);
+-	M0_RETURN(0);
+-}
+-
+-M0_INTERNAL void m0_tx_processing_stop(void)
+-{
+-	M0_ENTRY();
+-	M0_LEAVE();
+-}
+-
+-/* ------------------------------------------------------------------
+- * Casts
+- * ------------------------------------------------------------------ */
+-
+-static const struct m0_fom *sm_to_fom(const struct m0_sm *sm)
+-{
+-	/* XXX TODO: Use bob_of(). */
+-	return container_of(sm, const struct m0_fom, fo_sm_phase);
+-}
+-
+-static struct tx_fom *fom_to_txm(const struct m0_fom *fom)
+-{
+-	/* XXX TODO: Use bob_of(). */
+-	return container_of(fom, struct tx_fom, tf_gen);
+-}
+-
+-/* ------------------------------------------------------------------
+- * State transitions
+- * ------------------------------------------------------------------ */
+-
+-static int group_closed_st_in(struct m0_sm *mach)
+-{
+-	M0_LOG(M0_DEBUG, "Entering sm_state %u", mach->sm_state);
+-	return -1;
+-}
+-
+-static void group_closed_st_ex(struct m0_sm *mach)
+-{
+-	M0_LOG(M0_DEBUG, "Leaving sm_state %u", mach->sm_state);
+-}
+-
+-static bool group_closed_st_invariant(const struct m0_sm *mach)
+-{
+-	/* XXX DELETEME */
+-	return fom_to_txm(sm_to_fom(mach))->tf_engine->te_fom ==
+-		sm_to_fom(mach);
+-}
+-
+-/** @} end of be group */
+-#undef M0_TRACE_SUBSYSTEM
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+-/*
+- * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+- */
+diff --git a/be/ut/Makefile.sub b/be/ut/Makefile.sub
+index d260e25..cf673ac 100644
+--- a/be/ut/Makefile.sub
++++ b/be/ut/Makefile.sub
+@@ -3,7 +3,6 @@ ut_libmero_ut_la_SOURCES += be/ut/alloc.c     \
+                             be/ut/list.c      \
+                             be/ut/main.c      \
+                             be/ut/seg.c       \
+-                            be/ut/btree.c     \
+                             be/ut/tx.c        \
+                             be/ut/tx_credit.c \
+                             be/ut/tx_group.c  \
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index a12d3ff..6761ea9 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -20,7 +20,6 @@
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+ 
+-#include "be/tx_fom.h"
+ #include "be/ut/helper.h"
+ #include "lib/misc.h"      /* M0_BITS, M0_IN */
+ #include "rpc/rpclib.h"
+@@ -59,7 +58,7 @@ static void be_fini(struct m0_be *be)
+ static void persistent(const struct m0_be_tx *tx) {}
+ static void discarded(const struct m0_be_tx *tx) {}
+ 
+-static void tx_test(struct m0_be *be)
++static void tx_test(struct m0_be *be, struct m0_reqh *reqh)
+ {
+ 	struct m0_be_op         op;
+ 	struct m0_be_tx         tx;
+@@ -79,10 +78,10 @@ static void tx_test(struct m0_be *be)
+ 	/*
+ 	 * Init transaction and its credits
+ 	 */
+-	m0_be_tx_init(&tx, ++g_tid, be, &g_grp, persistent, discarded, NULL,
+-		      NULL);
++	m0_be_tx_init(&tx, ++g_tid, be, &g_grp, reqh, persistent, discarded,
++		      NULL, NULL);
+ 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, sizeof *p, 0, &cred);
+-	m0_be_tx_prep(&tx, &cred);
++	m0_be_tx_prep(&tx, &cred, 100);
+ 	M0_LOG(M0_DEBUG, "prepared");
+ 
+ 	/*
+@@ -150,14 +149,10 @@ static void test_tx_svc(void)
+ 
+ 	reqh = m0_mero_to_rmach(&tx_svc.rsx_mero_ctx)->rm_reqh;
+ 	M0_UT_ASSERT(reqh != NULL);
+-
+-	rc = m0_tx_processing_start(reqh, &be.b_txe);
+-	M0_UT_ASSERT(rc == 0);
+ 	sleep(2); /* give reqh some time to start */
+ 
+-	tx_test(&be);
++	tx_test(&be, reqh);
+ 
+-	m0_tx_processing_stop();
+ 	m0_rpc_server_stop(&tx_svc);
+ 
+ 	M0_LEAVE();
+-- 
+1.8.3.2
+

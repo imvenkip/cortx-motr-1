@@ -1,0 +1,158 @@
+From ca90feba049bb365958ecdf82d6290654dd9622d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 27 Feb 2014 02:41:18 +0200
+Subject: [PATCH 96/96] be/alloc: documentation updated
+
+---
+ be/alloc.c | 98 +++++++++++++++++++++++++++++++++++++-------------------------
+ 1 file changed, 58 insertions(+), 40 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 47d8023..f4062bd 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -34,66 +34,68 @@
+ /**
+  * @addtogroup be
+  * @todo make a doxygen page
+- * @todo UPDATEME
+  *
+  * Overview
+  *
++ * Allocator provides API to allocate and free memory in BE segment.
++ *
+  * Definitions
+  *
+- * - allocator segment - memory segment (m0_be_seg) which is used as
+- *   memory for allocations;
++ * - allocator segment - BE segment which is used as memory for allocations;
+  * - allocator space - part of memory inside the allocator segment in which
+- *   all allocations will take place;
+- * - "B located just after A" - there is no free space in memory
+- *   after A before B, i.e. (char *) B == (char *) A + sizeof(A).
+- * - chunk - memory structure that contains allocator data and user data;
++ *   all allocations will take place. It may be smaller than segment itself;
++ * - chunk - memory structure that contains allocator data and user data.
++ *   User data follows allocator data in memory. There is no free space
++ *   in memory after allocator data and user data of the same chunk;
++ * - "chunk B located just after chunk A" - there is no free space in memory
++ *   after end of user data and in chunk A and before allocator data in chunk B;
+  * - used chunk - chunk for which address of user data was returned
+  *   to user from m0_be_alloc() and for which m0_be_free() wasn't called;
+  * - free chunk - chunk that is not used;
+- * - adjacent chunks - a and b are adjacent chunks iff chunk a
+- *   located just after b or vice versa;
++ * - adjacent chunks - A and B are adjacent chunks iff chunk A located
++ *   just after B or vice versa;
++ *
++ * API
++ *
++ * - m0_be_alloc() and m0_be_alloc_aligned(): allocate memory;
++ * - m0_be_free() and m0_be_free_aligned(): free memory allocated with
++ *   m0_be_alloc() and m0_be_alloc_aligned() respectively;
++ * - m0_be_alloc_stats(): provide some allocator statistics;
+  *
+  * Algorithm
+  *
+- * m0_be_alloc(): first-fit algorithm is used.
+- * Time complexity O(N), I/O complexity O(N).
++ * Allocator has:
++ * - list of all chunks;
++ * - data structure (m0_be_fl) to keep account of free chunks.
+  *
+- * List of free chunks is scanned until first chunk that fit the allocation
+- * requirements (chunk can be split somehow to obtain the chunk with
+- * size >= requested size and for this chunk start of user data should be
+- * alighed according to "shift" parameter) found. Then free chunk is split
+- * into one or more chunks, and at least one of them should meet the allocation
+- * requirements - pointer to user data of this chunk will be returned as a
+- * result of m0_be_alloc().
++ * m0_be_alloc_aligned()
++ * - uses m0_be_fl to pick free chunk that meets alignment and size requirement;
++ * - splits free chunk to have wasted space as little as possible.
+  *
+- * m0_be_free().
+- * Time complexity O(N), I/O complexity O(N).
++ * m0_be_free_aligned()
++ * - merges free chunk with ajacent chunks if they are free, so at most 2 merge
++ *   operations takes place.
+  *
+- * Chunk for the given pointer is marked as free and it is added to the free
+- * list. Then this chunk is merged with adjacent free chunks if any exists.
++ * m0_be_alloc(), m0_be_free()
++ * - they are calls to m0_be_alloc_aligned() and m0_be_free_aligned with
++ *   M0_BE_ALLOC_SHIFT_MIN alignment shift.
+  *
+- * Allocator space restrictions:
++ * Allocator space invariants:
+  * - Each byte of allocator space belongs to a chunk. There is one exception -
+  *   if there is no space for chunk with at least 1 byte of user data from
+  *   the beginning of allocator space to other chunk then this space is
+  *   temporary unused;
+  *
+- * Chunk restrictions:
++ * Chunk invariants:
+  * - all chunks are mutually disjoint;
+  * - chunk is entirely inside the allocator space;
+  * - each chunk is either free or used;
+  * - user data in chunk located just after allocator data;
+  *
+- * Two lists of chunks are maintained:
+- * - m0_be_allocator.ba_chunks contains all chunks - the chunks list;
+- * - m0_be_allocator.ba_free contains free chunks - the free list.
+- *
+- * Chunk lists invariants:
++ * List of all chunks invariants:
+  * - all chunks in a list are ordered by address;
+- * - every chunk is in the chunks list;
+- * - every free chunk is in the free list;
+- * - free list doesn't contain used chunk;
+- * - any two unequal to each other chunks in the free list are not adjacent;
++ * - every chunk is in the list;
++ * - chunks that are ajacent in the list are ajacent in allocator space.
+  *
+  * Special cases
+  *
+@@ -141,16 +143,32 @@
+  * |	      | |	   |
+  * @endverbatim
+  *
+- * Locks
++ * Time and I/O complexity.
++ * - m0_be_alloc_aligned() has the same time complexity and I/O complexity as
++ *   m0_be_fl_pick();
++ * - m0_be_free_aligned() has time complexity and I/O complexity O(1) -
++ *   the same as m0_be_fl_add() and m0_be_fl_del();
++ * - m0_be_alloc_aligned() and m0_be_free_aligned() has optimisations for
++ *   M0_BE_ALLOC_SHIFT_MIN alignment shift so if there is no special
++ *   requirements for alignment it's better to use m0_be_alloc() and
++ *   m0_be_free().
++ *
++ * Limitations
++ * - allocator can use only one BE segment;
++ * - allocator can use only continuous allocator space;
+  *
+- * Allocator lock is used to protect all allocator data. Only one allocation or
+- * freeing may take place at a some point of time for the same allocator.
++ * Known issues
++ * - all allocator functions are fully synchronous now despite the fact that
++ *   they have m0_be_op paramter;
++ * - m0_be_allocator_stats are unused;
++ * - allocator credit includes 2 * size requested for aligment shift greater
++ *   than M0_BE_ALLOC_SHIFT_MIN;
++ * - it is not truly O(1) allocator; see m0_be_fl documentation for explanation;
++ * - there is one big allocator lock that protects all allocations/deallocation.
+  *
+- * Implementation notes:
++ * Locks
++ * Allocator lock (m0_mutex) is used to protect all allocator data.
+  *
+- * Known issues:
+- * - op is unconditionally transitioned to state M0_BOS_SUCCESS in m0_be_alloc()
+- *   and m0_be_free().
+  */
+ 
+ /*
+-- 
+1.8.3.2
+

@@ -1,0 +1,107 @@
+From 1a420f68bb2b87f603af63c7513c7dd5c67f1dd6 Mon Sep 17 00:00:00 2001
+From: Andrew Perepechko <andrew_perepechko@xyratex.com>
+Date: Mon, 11 Jul 2011 17:50:13 +0400
+Subject: [PATCH 159/177] link support
+
+---
+ mdservice/md_foms.c  | 12 +++++++++++-
+ mdservice/md_fops.c  |  9 ++++++---
+ mdservice/md_fops.ff |  3 ++-
+ mdstore/ut/lustre.c  |  6 ++++--
+ 4 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 19ca588..1ef1f18 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -1020,11 +1020,21 @@ int c2_md_req_fom_init(struct c2_fop *fop,
+ 		link = c2_fop_data(fop);
+ 		rc = c2_md_req_path_get(site->s_mdstore, 
+                                         c2_md_fid_get(&link->l_body.b_pfid),
+-                                        &link->l_path);
++                                        &link->l_tpath);
+                 if (rc) {
+                         c2_free(fom_obj);
+                         return rc;
+                 }
++		rc = c2_md_req_path_get(site->s_mdstore, 
++                                        c2_md_fid_get(&link->l_body.b_tfid),
++                                        &link->l_spath);
++                if (rc) {
++                        c2_free(link->l_tpath.s_buf);
++                        link->l_tpath.s_buf = NULL;
++                        link->l_tpath.s_len = 0;
++                        c2_free(fom_obj);
++                        return rc;
++                }
+ 	        break;
+         case C2_FOP_UNLINK:
+ 		fom->fo_ops = &c2_md_fom_unlink_ops;
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 17cd973..afc3d46 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -44,7 +44,8 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
+ 		break;
+ 	case C2_FOP_LINK:
+ 	        len += ((struct c2_fop_link *)data)->l_name.s_len;
+-	        len += ((struct c2_fop_link *)data)->l_path.s_len;
++	        len += ((struct c2_fop_link *)data)->l_spath.s_len;
++	        len += ((struct c2_fop_link *)data)->l_tpath.s_len;
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        len += ((struct c2_fop_unlink *)data)->u_name.s_len;
+@@ -103,7 +104,8 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
+ 		break;
+ 	case C2_FOP_LINK:
+ 	        copy(&ptr, &((struct c2_fop_link *)data)->l_name);
+-	        copy(&ptr, &((struct c2_fop_link *)data)->l_path);
++	        copy(&ptr, &((struct c2_fop_link *)data)->l_spath);
++	        copy(&ptr, &((struct c2_fop_link *)data)->l_tpath);
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        copy(&ptr, &((struct c2_fop_unlink *)data)->u_name);
+@@ -160,7 +162,8 @@ static int c2_md_fol_open(const struct c2_fol_rec_type *type,
+ 	case C2_FOP_LINK:
+ 	        ptr = (char *)((struct c2_fop_link *)data + 1);
+ 		map(&ptr, &((struct c2_fop_link *)data)->l_name);
+-		map(&ptr, &((struct c2_fop_link *)data)->l_path);
++		map(&ptr, &((struct c2_fop_link *)data)->l_spath);
++		map(&ptr, &((struct c2_fop_link *)data)->l_tpath);
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        ptr = (char *)((struct c2_fop_unlink *)data + 1);
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index c7a25f2..c54565e 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -69,7 +69,8 @@ DEF(c2_fop_create_rep, RECORD,
+ 
+ DEF(c2_fop_link, RECORD,
+     _(l_body, c2_fop_cob),
+-    _(l_path, c2_fop_str),
++    _(l_spath, c2_fop_str),
++    _(l_tpath, c2_fop_str),
+     _(l_name, c2_fop_str));
+ 
+ DEF(c2_fop_link_rep, RECORD,
+diff --git a/mdstore/ut/lustre.c b/mdstore/ut/lustre.c
+index 8c4a434..0315bbc 100644
+--- a/mdstore/ut/lustre.c
++++ b/mdstore/ut/lustre.c
+@@ -305,8 +305,10 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
+                 link = c2_fop_data(fop);
+                 if (link->l_name.s_len != 0)
+                         c2_free(link->l_name.s_buf);
+-                if (link->l_path.s_len != 0)
+-                        c2_free(link->l_path.s_buf);
++                if (link->l_spath.s_len != 0)
++                        c2_free(link->l_spath.s_buf);
++                if (link->l_tpath.s_len != 0)
++                        c2_free(link->l_tpath.s_buf);
+                 break;
+         case C2_FOP_UNLINK:
+                 unlink = c2_fop_data(fop);
+-- 
+1.8.3.2
+

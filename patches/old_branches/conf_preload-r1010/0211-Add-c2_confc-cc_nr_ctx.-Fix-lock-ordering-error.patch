@@ -1,0 +1,315 @@
+From b5da89e61706aad573fd316d93d2054e1a8c93d3 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 4 Jul 2012 00:19:29 +0300
+Subject: [PATCH 211/311] Add c2_confc::cc_nr_ctx.  Fix lock ordering error.
+
+- New c2_confc::cc_nr_ctx counter lets assert in c2_confc_fini()
+  that there are no unfinished configuration retrieval requests.
+- c2_confc_{init,fini}() used to violate "Group Lock is Acquired
+  First" rule. This error is fixed now.
+- c2_confc{,_ctx}_{init,fini}(): both group lock and confc lock
+  are acquired and released within these functions. The application
+  doesn't need to bother acquiring any of these locks prior to
+  calling the mentioned functions.
+
+LogD: #233, #234
+RB: r/849
+---
+ conf/confc.c | 94 +++++++++++++++++++++++++++++++++++++++++-------------------
+ conf/confc.h | 22 +++++++-------
+ conf/obj.c   |  3 --
+ 3 files changed, 75 insertions(+), 44 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 4138c46..c9ffecb 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -257,6 +257,30 @@
+  */
+ 
+ /* ------------------------------------------------------------------
++ * Locks
++ * ------------------------------------------------------------------ */
++
++static inline struct c2_mutex *group_lock(struct c2_confc *confc)
++{
++	return &confc->cc_group->s_lock;
++}
++
++static inline struct c2_mutex *confc_lock(struct c2_confc_ctx *ctx)
++{
++	return ctx->fc_confc->cc_lock;
++}
++
++static bool group_is_locked(struct c2_confc_ctx *ctx)
++{
++	return c2_mutex_is_locked(group_lock(ctx->fc_confc));
++}
++
++static bool confc_is_locked(struct c2_confc *confc)
++{
++	return c2_mutex_is_locked(confc->cc_lock);
++}
++
++/* ------------------------------------------------------------------
+  * c2_confc
+  * ------------------------------------------------------------------ */
+ 
+@@ -271,13 +295,13 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 	 * int rc;
+ 	 * struct c2_conf_obj *root;
+ 	 *
+-	 * C2_PRE(c2_mutex_is_locked(lock));
+ 	 * C2_PRE(!confc_is_initialized(confc));
+ 	 * C2_PRE(conf_source != NULL && *conf_source != 0);
+ 	 * C2_PRE(profile != NULL && *profile != 0);
+-	 * C2_PRE(sm_group != NULL);
+ 	 *
+ 	 * c2_mutex_lock(&sm_group->s_lock);
++	 * c2_mutex_lock(lock);
++	 *
+ 	 * confc->cc_group = sm_group;
+ 	 * confc->cc_lock = lock;
+ 	 *
+@@ -289,13 +313,14 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 	 * confc->cc_root = root;
+ 	 *
+ 	 * if (conf_source starts with "local-conf:")
+-	 *     cache_preload(confc, conf_source + strlen("local-conf:"));
++	 *     rc = cache_preload(confc, conf_source + strlen("local-conf:"));
+ 	 * else
+ 	 *     XXX @todo setup confd connection;
+ 	 *
++	 * c2_mutex_unlock(lock);
+ 	 * c2_mutex_unlock(&sm_group->s_lock);
+-	 * C2_POST(equi(rc == 0, confc_is_initialized(confc) &&
+-	 *              confc->cc_lock == lock));
++	 *
++	 * C2_POST(equi(rc == 0, confc_is_initialized(confc)));
+ 	 * return rc;
+ 	 */
+ 	XXX;
+@@ -304,10 +329,11 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ void c2_confc_fini(struct c2_confc *confc)
+ {
+ 	/*
+-	 * C2_PRE(c2_mutex_is_locked(confc->cc_lock));
+ 	 * C2_PRE(confc_is_initialized(confc));
++	 * C2_PRE(confc->cc_nr_ctx == 0);
+ 	 *
+-	 * c2_mutex_lock(&confc->cc_group->s_lock);
++	 * c2_mutex_lock(group_lock(confc));
++	 * c2_mutex_lock(confc->cc_lock);
+ 	 *
+ 	 * for (obj in confc->cc_registry) {
+ 	 *     C2_ASSERT(obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING);
+@@ -316,10 +342,11 @@ void c2_confc_fini(struct c2_confc *confc)
+ 	 * c2_confc_map_fini(&confc->cc_registry);
+ 	 * confc->cc_root = NULL;
+ 	 *
+-	 * c2_mutex_unlock(&confc->cc_group->s_lock);
+-	 * confc->cc_group = NULL;
+-	 * confc->cc_lock = NULL;
++	 * c2_mutex_unlock(confc->cc_lock);
++	 * c2_mutex_unlock(group_lock(confc));
+ 	 *
++	 * confc->cc_lock = NULL;
++	 * confc->cc_group = NULL;
+ 	 * C2_POST(!confc_is_initialized(confc));
+ 	 */
+ 	XXX;
+@@ -370,9 +397,18 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
+ {
+ 	C2_PRE(confc_is_initialized(confc));
+ 
+-	ctx->fc_confc = confc;
++	c2_mutex_lock(group_lock(confc)); /* needed for c2_sm_init() */
+ 	c2_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
+ 		   confc->cc_group, XXX /* *c2_addb_ctx */);
++
++	/* Attach to c2_confc. */
++	c2_mutex_lock(confc->cc_lock);
++	C2_CNT_INC(confc->cc_nr_ctx);
++	c2_mutex_unlock(confc->cc_lock);
++	ctx->fc_confc = confc;
++
++	c2_mutex_unlock(group_lock(confc));
++
+ 	c2_chan_init(&ctx->fc_complete);
+ 	c2_clink_init(&ctx->fc_clink, on_object_updated);
+ 
+@@ -381,24 +417,28 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
+ 
+ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+ {
+-	size_t i;
++	struct c2_confc *confc = ctx->fc_confc;
+ 	C2_PRE(ctx_invariant(ctx));
+ 
+ 	c2_clink_fini(&ctx->fc_clink);
+ 	c2_chan_fini(&ctx->fc_complete);
+-	c2_sm_fini(&ctx->fc_mach);
++
++	c2_mutex_lock(group_lock(confc)); /* needed for c2_sm_fini() */
++
++	/* Detach from c2_confc. */
++	c2_mutex_lock(confc_lock(ctx));
++	C2_CNT_DEC(confc->cc_nr_ctx);
++	c2_mutex_unlock(confc_lock(ctx));
+ 	ctx->fc_confc = NULL;
++
++	c2_sm_fini(&ctx->fc_mach);
++	c2_mutex_unlock(group_lock(confc));
+ }
+ 
+ struct c2_conf_obj *c2_confc_ctx_handout(struct c2_confc_ctx *ctx)
+ {
+ 	XXX;
+ }
+-
+-static inline struct c2_mutex *confc_lock(struct c2_confc_ctx *ctx)
+-{
+-	return ctx->fc_confc->cc_lock;
+-}
+ 
+ /* ------------------------------------------------------------------
+  * open/close
+@@ -652,7 +692,7 @@ static bool on_object_updated(struct c2_clink *link)
+ {
+ 	struct c2_confc_ctx *ctx = bob_of(link->cl_group, struct c2_confc_ctx,
+ 					  fc_clink, &c2_confc_ctx_bob);
+-	C2_PRE(c2_mutex_is_locked(confc_lock(ctx)));
++	C2_PRE(confc_is_locked(ctx->fc_confc));
+ 
+ 	c2_clink_del(&ctx->fc_clink);
+ 	ast_state_set(&ctx->fc_ast, S_CHECK);
+@@ -689,7 +729,6 @@ static bool terminal_st_invariant(const struct c2_sm *mach)
+  *         They're "Techno Trousers". Ex-NASA. Fantastic for walkies!
+  * ------------------------------------------------------------------ */
+ 
+-static bool group_is_locked(struct c2_confc_ctx *ctx);
+ static int path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj,
+ 			      size_t ri);
+ static void request_fill(struct c2_conf_ctx *ctx, const struct c2_conf_obj *org,
+@@ -766,7 +805,7 @@ static int
+ path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj, size_t ri)
+ {
+ 	C2_PRE(group_is_locked(ctx));
+-	C2_PRE(c2_mutex_is_locked(confc_lock(ctx)));
++	C2_PRE(confc_is_locked(ctx->fc_confc));
+ 
+ 	switch (obj->co_status) {
+ 	case C2_CS_READY:
+@@ -871,7 +910,7 @@ static int cache_preload(struct c2_confc *confc, const char *conf_str)
+ 	 * int rc;
+ 	 * int i;
+ 	 *
+-	 * C2_PRE(c2_mutex_is_locked(confc->cc_lock));
++	 * C2_PRE(confc_is_locked(confc));
+ 	 *
+ 	 * rc = c2_conf_parse(conf_str, objs, ARRAY_SIZE(objs));
+ 	 * for (i = rc - 1; i >= 0; --i) {
+@@ -903,7 +942,7 @@ static int cache_add(struct c2_conf_map *reg, const struct confx_object *onwire)
+ 	 * struct c2_conf_obj *obj;
+ 	 * struct c2_confc    *confc = registry_to_confc(reg);
+ 	 *
+-	 * C2_PRE(c2_mutex_is_locked(confc->cc_lock));
++	 * C2_PRE(confc_is_locked(confc));
+ 	 *
+ 	 * obj = c2_conf_obj_new(onwire->o_conf.u_type, &onwire->o_id);
+ 	 * if (obj == NULL)
+@@ -928,7 +967,7 @@ static int object_enrich(struct c2_conf_obj *dest,
+ 	 * int ret;
+ 	 *
+ 	 * C2_PRE(dest->co_type == src->o_conf.v_type);
+-	 * C2_PRE(c2_mutex_is_locked(registry_to_confc(reg)->cc_lock));
++	 * C2_PRE(confc_is_locked(registry_to_confc(reg)));
+ 	 *
+ 	 * if (!c2_conf_obj_match(dest, src)) {
+ 	 *     C2_ADDB_ADD(report inconsistency);
+@@ -963,7 +1002,7 @@ cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
+ 	 * struct c2_confc     *confc = registry_to_confc(reg);
+ 	 *
+ 	 * C2_PRE(resp->fr_rc == 0);
+-	 * C2_PRE(c2_mutex_is_locked(&confc->cc_group->s_lock));
++	 * C2_PRE(c2_mutex_is_locked(group_lock(confc));
+ 	 *
+ 	 * c2_mutex_lock(confc->cc_lock);
+ 	 *
+@@ -996,11 +1035,6 @@ cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
+  * misc
+  * ------------------------------------------------------------------ */
+ 
+-static bool group_is_locked(struct c2_confc_ctx *ctx)
+-{
+-	return c2_mutex_is_locked(&ctx->fc_confc->cc_group->s_lock);
+-}
+-
+ /**
+  * Finds position and length of each path component and stores this
+  * information in an array of c2_conf_bufs.
+diff --git a/conf/confc.h b/conf/confc.h
+index f142135..1f763e0 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -367,6 +367,16 @@ struct c2_confc {
+ 	 * @see confc-lspec-thread
+ 	 */
+ 	struct c2_mutex    *cc_lock;
++	/**
++	 * The number of configuration retrieval contexts associated
++	 * with this c2_confc.
++	 *
++	 * This value is incremented by c2_confc_ctx_init() and
++	 * decremented by c2_confc_ctx_fini().
++	 *
++	 * @see c2_confc_ctx
++	 */
++	uint32_t            cc_nr_ctx;
+ };
+ extern struct c2_bob_type c2_confc_bob;
+ 
+@@ -384,9 +394,6 @@ extern struct c2_bob_type c2_confc_bob;
+  *                     configuration cache.
+  * @param lock         A mutex that will protect this c2_confc instance and
+  *                     its configuration cache from concurrent modifications.
+- *
+- * @pre   c2_mutex_is_locked(lock) && confc->cc_lock == NULL
+- * @post  equi(retval == 0, confc->cc_lock == lock)
+  */
+ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 		  const char *profile, struct c2_sm_group *sm_group,
+@@ -396,15 +403,8 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+  * Finalizes configuration client. Destroys configuration cache,
+  * freeing allocated memory.
+  *
+- * @note Users of confc API should be careful not to call
+- *       c2_confc_fini() while there is a configuration retrieval
+- *       operation in progress.  I.e., don't call c2_confc_fini() if
+- *       there is a thread executing c2_confc_open_sync() or an
+- *       c2_confc_ctx has been passed to c2_confc_open() and its
+- *       ->fc_complete channel has not been signaled yet.
+- *
++ * @pre  confc->cc_nr_ctx == 0
+  * @pre  There are no opened (pinned) configuration objects.
+- * @pre  c2_mutex_is_locked(confc->cc_lock)
+  */
+ void c2_confc_fini(struct c2_confc *confc);
+ 
+diff --git a/conf/obj.c b/conf/obj.c
+index 7707770..9d8c14b 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -361,9 +361,6 @@
+  * (@todo Delete this section from the DLD when the feature is landed
+  * into master.)
+  *
+- * [vvv] Carl, what was the 4th example you wanted me to add to @ref
+- *       confc-fspec-recipes?
+- *
+  * XXX
+  */
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From 52214429b7de0643a4c7a6ec66cb5f0156807183 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 18 Feb 2014 15:46:05 +0200
+Subject: [PATCH 88/96] be/fl: use be_fl_list() accessor
+
+---
+ be/fl.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/fl.c b/be/fl.c
+index ac06407..516f32b 100644
+--- a/be/fl.c
++++ b/be/fl.c
+@@ -71,7 +71,7 @@ M0_INTERNAL void m0_be_fl_init(struct m0_be_fl *fl, struct m0_be_seg *seg)
+ 
+ M0_INTERNAL void m0_be_fl_fini(struct m0_be_fl *fl)
+ {
+-	struct m0_be_seg *seg = fl->bfl_free[0].bfs_list.bl_seg;
++	struct m0_be_seg *seg = be_fl_list(fl, 0)->bl_seg;
+ 	int		  i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
+-- 
+1.8.3.2
+

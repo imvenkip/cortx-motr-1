@@ -1,0 +1,25 @@
+From 324aa8d2d3fdfca1a354c4140562ab6050c765ca Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 12 Dec 2013 17:16:38 -0800
+Subject: [PATCH 7/7] stap-allocator: allow long probes in run.sh
+
+---
+ scripts/systemtap/run.sh | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/scripts/systemtap/run.sh b/scripts/systemtap/run.sh
+index d50e867..9f5c090 100755
+--- a/scripts/systemtap/run.sh
++++ b/scripts/systemtap/run.sh
+@@ -12,5 +12,6 @@ M0TAPSET="$CWD/tapset"
+ 
+ stap -vv -d "$LIBMERO" -d "$M0D" -d "$UT" --ldd				\
+ 	-DMAXTRACE=10 -DSTP_NO_OVERLOAD					\
+-	-DMAXSKIPPED=1000000 -DMAXERRORS=1000 -I "$M0TAPSET"		\
+-	"$STP_SCRIPT" "$LIBMERO" "$M0D"
++	-DMAXSKIPPED=1000000 -DMAXERRORS=1000 -DMAXSTRINGLEN=2048	\
++	-t -DTRYLOCKDELAY=5000						\
++	-I "$M0TAPSET" "$STP_SCRIPT" "$LIBMERO" "$M0D"
+-- 
+1.8.3.2
+

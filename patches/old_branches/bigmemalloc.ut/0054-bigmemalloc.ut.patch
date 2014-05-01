@@ -1,0 +1,253 @@
+From 03f1e8a4e794982166149377161bbe157203bff5 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 22 Nov 2013 19:55:35 +0530
+Subject: [PATCH 54/61] bigmemalloc.ut -Fault injection has been introduced.
+ -UT crashes in m0_varr_init() in test_cache().
+
+---
+ lib/ut/varr.c | 67 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-----
+ lib/varr.c    | 34 +++++++++++++++++++-----------
+ 2 files changed, 84 insertions(+), 17 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index f4cc456..fffcb59 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -21,9 +21,12 @@
+ #include "lib/vec.h"
+ #include "lib/memory.h"
+ #include "lib/misc.h"		/* M0SET0() */
++#include "lib/arith.h"		/* m0_rnd() */
+ #include "ut/ut.h"
+ #include "lib/varr.h"
++#include "lib/varr_private.h"   /* varr_cache */
+ #include "lib/misc.h"		/* M0_BITS() */
++#include "lib/finject.h"	/* M0_FI_ENABLED */
+ #ifndef __KERNEL__
+ #include <limits.h>		/* CHAR_BIT */
+ #include <stdio.h>
+@@ -42,6 +45,10 @@ enum misc_params {
+ 	BUFF_SIZE       = 32,
+ 	BUFF_SHIFT      = 5,
+ 	DT_POWTWO_SHIFT = 4,
++	MAX_OBJ_NR      = 26000,
++	MAX_DEPTH	= 11,
++	//MAX_BUFFERS	= 22369536, 
++	MAX_BUFFERS	= 4096, 
+ };
+ 
+ M0_BASSERT(BUFF_SIZE == M0_BITS(BUFF_SHIFT));
+@@ -57,7 +64,7 @@ M0_BASSERT(sizeof (struct po2) == M0_BITS(DT_POWTWO_SHIFT));
+ /* sizeof struct non_po2 is not an integer power of two. */
+ struct non_po2 {
+ 	uint16_t np_chksum;
+-	uint8_t  np_arr[16];
++	uint8_t  np_arr[15];
+ };
+ 
+ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+@@ -73,16 +80,45 @@ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+ 	 })
+ 
+ static size_t size_get(enum data_types dt);
++static void test_init(void);
+ static void test_obj_size(void);
+ static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth);
+ static void test_depth(void);
++static void test_cache(void);
+ static void test_iterate(void);
+ static uint16_t int_summation(uint8_t n);
+ void test_varr(void)
+ {
+ 	test_obj_size();
+ 	test_depth();
++	test_cache();
+ 	test_iterate();
++	test_init();
++}
++
++static void test_init(void)
++{
++	struct m0_varr varr;
++	int	       rc;
++	uint64_t       n;
++	m0_time_t      seed;
++
++	M0_SET0(&varr);
++	rc = m0_varr_init(&varr, M0_VA_TNODE_NR, size_get(DT_POWTWO),
++			  M0_0VEC_ALIGN);
++	M0_UT_ASSERT(rc == 0);
++	m0_varr_fini(&varr);
++
++	/* Test error injection. */
++	seed = m0_time_now();
++	n = m0_rnd(MAX_BUFFERS, &seed);
++	m0_fi_enable_each_nth_time("varr_buffers_alloc", "varr_alloc", n);
++	M0_SET0(&varr);
++	rc = m0_varr_init(&varr, MAX_OBJ_NR, size_get(DT_POWTWO),
++			  M0_0VEC_ALIGN);
++	if (rc == 0)
++		m0_varr_fini(&varr);
++	m0_fi_disable("varr_buffers_alloc", "varr_alloc");
+ }
+ 
+ static void test_obj_size(void)
+@@ -95,7 +131,8 @@ static void test_obj_size(void)
+ 	for (dt = DT_ATOMIC; dt <= DT_NON_POWTWO; ++dt) {
+ 		obj_size = size_get(dt);
+ 		M0_SET0(&varr);
+-		rc = m0_varr_init(&varr, 10, obj_size, M0_0VEC_ALIGN - 1);
++		rc = m0_varr_init(&varr, M0_VA_TNODE_NR, obj_size,
++				  M0_0VEC_ALIGN - 1);
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(!(varr.va_obj_size & (varr.va_obj_size - 1)) &&
+ 			     obj_size <= varr.va_obj_size	          &&
+@@ -108,7 +145,7 @@ static void test_obj_size(void)
+ 
+ static size_t size_get(enum data_types dt)
+ {
+-	return dt == DT_ATOMIC ? sizeof (uint64_t) : dt == DT_POWTWO ?
++	return dt == DT_ATOMIC ? sizeof (uint8_t) : dt == DT_POWTWO ?
+ 		sizeof (struct po2) : sizeof (struct non_po2);
+ }
+ 
+@@ -164,7 +201,27 @@ static void test_depth(void)
+ 		m0_varr_fini(&varr);
+ 	}
+ }
++static void test_cache(void)
++{
++#if 1
++	struct m0_varr varr;
++	uint32_t       i;
++	uint32_t       obj_per_buff;
++	int	       rc;
++	void	      *arr_ele;
+ 
++	M0_SET0(&varr);
++	rc = m0_varr_init(&varr, MAX_OBJ_NR, size_get(DT_POWTWO), BUFF_SIZE);
++	M0_UT_ASSERT(rc == 0);
++	obj_per_buff = varr.va_bufsize/ varr.va_obj_size;
++	for (i = 0; i < m0_varr_size(&varr); ++i) {
++		arr_ele = m0_varr_ele_get(&varr, i);
++		M0_UT_ASSERT(arr_ele == (void *)varr.va_cache->vc_buff +
++			     (i % obj_per_buff) * varr.va_obj_size);
++	}
++	m0_varr_fini(&varr);
++#endif
++}
+ static void test_iterate(void)
+ {
+ 	struct m0_varr varr;
+@@ -195,7 +252,7 @@ static void test_iterate(void)
+ 			M0_UT_ASSERT(obj->p_x == obj->p_y && obj->p_x == i);
+ 		} m0_varr_end_for;
+ 		if (depth == 8) {
+-			for (step = 2; step <= 26000; ++step) {
++			for (step = 2; step <= MAX_OBJ_NR; ++step) {
+ 				m0_varr_iter(&varr, struct po2, i, obj, 0,
+ 					     varr.va_nr, step) {
+ 					arr_ele = m0_varr_ele_get(&varr, i);
+@@ -233,5 +290,5 @@ static void test_iterate(void)
+ 
+ static uint16_t int_summation(uint8_t n)
+ {
+-	return (n * (n + 1)) / 2;
++	return n * (n + 1) / 2;
+ }
+diff --git a/lib/varr.c b/lib/varr.c
+index 377915f..56dc7ff 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -25,6 +25,7 @@
+ #include "lib/types.h"		/* Includes appropriate types header. */
+ #include "lib/trace.h"		/* M0_ENTRY() */
+ #include "lib/string.h"		/* strcmp() */
++#include "lib/finject.h"	/* M0_FI_ENABLED() */
+ #include "lib/varr.h"		/* m0_varr */
+ #include "lib/varr_private.h"	/* m0_varr_buf_alloc(), m0_varr_buf_free */
+ #ifndef __KERNEL__
+@@ -111,7 +112,6 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ 			     size_t bufsize)
+ {
+ 	int	 rc = 0;
+-	uint64_t buff_nr;
+ 
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE(nr > 0 && size > 0 && bufsize > 0);
+@@ -134,9 +134,6 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ 	arr->va_bufptr_nr       = safe_bitshift((uint64_t) 1,
+ 						arr->va_bufptr_nr_shift, <<);
+ 	m0_varr_bob_init(arr);
+-	buff_nr = total_leaf_buffers(nr, varr_obj_nr_in_buff(arr),
+-				     arr->va_buf_shift - arr->va_obj_shift);
+-	arr->va_depth   = depth_find(arr, buff_nr);
+ 	M0_ALLOC_PTR(arr->va_cache);
+ 	if (arr->va_cache != NULL)
+ 		rc = varr_buffers_alloc(arr);
+@@ -230,25 +227,37 @@ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+ 
+ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ {
+-	struct m0_varr_cursor  cursor;
+-	int		       rc;
+-	void		      *holder;
+-	uint32_t	       i;
++	struct m0_varr_cursor cursor;
++	int		      rc;
++	void		     *holder;
++	uint32_t	      i;
++	uint64_t	      buff_nr;
++	bool		      fi_flag;
++
++	buff_nr = total_leaf_buffers(arr->va_nr, varr_obj_nr_in_buff(arr),
++				     arr->va_buf_shift - arr->va_obj_shift);
++	arr->va_depth = depth_find(arr, buff_nr);
+ 
+ 	for (i = 1; i < arr->va_depth; ++i) {
+ 		rc = m0_varr_cursor_init(&cursor, arr, i);
+ 		if (rc != 0)
+ 			goto end;
+ 		do {
+-			holder = m0_varr_buf_alloc(arr->va_bufsize);
+-			if (holder == NULL) {
++			fi_flag = M0_FI_ENABLED("varr_alloc");
++			if (!fi_flag);
++				holder = m0_varr_buf_alloc(arr->va_bufsize);
++			if (holder == NULL || fi_flag) {
+ 				rc = -ENOMEM;
++				arr->va_depth = cursor.vc_done == 0 ?
++				 cursor.vc_depth : cursor.vc_depth + 1;
+ 				goto end;
+ 			}
+ 			*(void **)m0_varr_cursor_get(&cursor) = holder;
+ 		} while (m0_varr_cursor_next(&cursor));
+ 	}
+ end:
++	if (M0_FI_ENABLED("varr_alloc"))
++	    m0_fi_disable("varr_buffers_alloc", "varr_alloc_fails");
+ 	return rc;
+ }
+ 
+@@ -464,7 +473,9 @@ M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr)
+ 			 * has got terminated intermittently. */
+ 			if ((void *)holder != NULL) {
+ 				m0_varr_buf_free(holder, arr->va_bufsize);
+-			}
++			} else
++				break;
++
+ 		} while (m0_varr_cursor_next(&cursor));
+ 	}
+ }
+@@ -485,7 +496,6 @@ M0_INTERNAL bool varr_invariant(const struct m0_varr *arr)
+ {
+ 	return  m0_varr_bob_check(arr) &&
+ 		arr->va_nr > 0         &&
+-		arr->va_obj_shift > 0  &&
+ 		arr->va_buf_shift >= arr->va_obj_shift;
+ }
+ 
+-- 
+1.8.3.2
+

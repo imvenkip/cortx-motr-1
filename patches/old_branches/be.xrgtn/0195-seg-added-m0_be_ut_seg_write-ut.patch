@@ -1,0 +1,109 @@
+From 1c830bbc72f54d2afece63a89a81c26791e865bb Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 21 Jun 2013 01:09:20 +0300
+Subject: [PATCH 195/228] seg: added m0_be_ut_seg_write() ut.
+
+---
+ be/seg.c    |  4 ++++
+ be/ut/seg.c | 54 ++++++++++++++++++++++++++++++------------------------
+ 2 files changed, 34 insertions(+), 24 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 6b812be..fa74904 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -268,6 +268,9 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ 		seg->bs_state = M0_BSS_OPENED;
+ 		for (i = 0; i < seg->bs_pgnr; i++)
+ 			seg->bs_pgmap[i] |= M0_BE_SEG_PG_PRESENT;
++
++		seg->bs_addr = seg_addr0;
++		seg->bs_size = seg_size;
+ 	}
+ 	return rc;
+ }
+@@ -277,6 +280,7 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
+ 	M0_PRE(seg->bs_state == M0_BSS_OPENED);
+ 
+ 	m0_free(seg->bs_pgmap);
++	munmap(seg->bs_addr, seg->bs_size);
+ 	seg->bs_state = M0_BSS_CLOSED;
+ }
+ 
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index 586f8ab..4f64833 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -36,12 +36,13 @@ M0_INTERNAL void m0_be_ut_seg_init_fini(void)
+ static void seg_write(struct m0_be_seg *seg)
+ {
+ 	char buf[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
++	m0_bindex_t off = 256; /* slightly afther the segment header */
+ 	struct m0_be_reg_d area[] = {
+-		{ .rd_reg = { .br_size = 8, .br_addr = seg->bs_addr },
++		{ .rd_reg = { .br_size = 8,  .br_addr = seg->bs_addr+off      },
+ 		  .rd_buf = &buf[0]  },
+-		{ .rd_reg = { .br_size = 8, .br_addr = seg->bs_addr + 8 },
++		{ .rd_reg = { .br_size = 8,  .br_addr = seg->bs_addr+off +  8 },
+ 		  .rd_buf = &buf[8]  },
+-		{ .rd_reg = { .br_size = 8, .br_addr = seg->bs_addr + 16 },
++		{ .rd_reg = { .br_size = 16, .br_addr = seg->bs_addr+off + 16 },
+ 		  .rd_buf = &buf[16] },
+ 	};
+ 	struct m0_be_op op;
+@@ -70,26 +71,31 @@ M0_INTERNAL void m0_be_ut_seg_open_close(void)
+ 
+ M0_INTERNAL void m0_be_ut_seg_write(void)
+ {
+-	m0_be_ut_seg_create(&be_ut_seg_h);
+-	m0_be_ut_seg_destroy(&be_ut_seg_h);
++	struct m0_be_seg  seg;
++	char             *addr;
++	int               rc;
++	int               i;
++
++	m0_be_ut_seg_create(&g_helper, &seg);
++	seg_write(&seg);
++	rc = m0_be_seg_destroy(&seg);
++	M0_UT_ASSERT(rc == 0);
++	m0_be_ut_seg_finalize(&g_helper, &seg, false);
++
++
++	m0_be_ut_seg_initialize(&g_helper, &seg, true);
++	rc = m0_be_seg_open(&seg);
++	M0_ASSERT(rc == 0);
++
++/* XXX */
++/* check here that write completed successfuly */
++/* (gdb) x/32c seg->bs_addr + 256 */
++
++/* 0x400000000100: 65 'A' 66 'B' 67 'C' 68 'D' 69 'E' 70 'F' 71 'G' 72 'H' */
++/* 0x400000000108: 73 'I' 74 'J' 75 'K' 76 'L' 77 'M' 78 'N' 79 'O' 80 'P' */
++/* 0x400000000110: 81 'Q' 82 'R' 83 'S' 84 'T' 85 'U' 86 'V' 87 'W' 88 'X' */
++/* 0x400000000118: 89 'Y' 90 'Z' 97 'a' 98 'b' 99 'c' 100 'd' 101 'e' 102 'f' */
++
+ 
+-	/* #define BE_SEG_DEFAULT_ADDR   ((void *)0x400000000000) */
+-
+-	/* seg_init() */
+-	/* seg_create() */
+-	/* char *p = BE_SEG_DEFAULT_ADDR; */
+-	/* for (i = 0; i < 128; ++i) */
+-	/* 	p[i] = i; */
+-	/* seg_write(..., {0, 40}, {41, 128}); */
+-	/* m0_sm_wait(op->sm, M0_BITS(WAIT_STATE), M0_TIME_NEVER); */
+-	/* seg_close() */
+-	/* seg_fini(); */
+-
+-	/* seg_init() */
+-	/* seg_open() */
+-	/* const char *r = BE_SEG_DEFAULT_ADDR; */
+-	/* for (i = 0; i < 128; ++i) */
+-	/* 	assert(r[i] == i); */
+-	/* seg_close() */
+-	/* seg_fini(); */
++	m0_be_ut_seg_close_destroy(&g_helper, &seg);
+ }
+-- 
+1.8.3.2
+

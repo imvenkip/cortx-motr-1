@@ -1,0 +1,174 @@
+From 25943090e7374c532a6f821f6f76bfe61ab83152 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 28 Feb 2012 23:12:50 +0200
+Subject: [PATCH 026/311] describe the 3rd scenario
+
+---
+ conf/confc.h | 122 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 113 insertions(+), 9 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index 694ff8c..a9cc820 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -36,10 +36,12 @@
+  *
+  * - @ref confc-dld-fspec-data
+  * - @ref confc-dld-fspec-sub
++ *   - @ref confc-dld-fspec-sub-setup
++ *   - @ref confc-dld-fspec-sub-use
+  * - @ref confc-dld-fspec-recipes
+- *   - @ref confc-dld-fspec-recipes-setup
+- *   - @ref confc-dld-fspec-recipes-open
+- *   - XXX
++ *   - @ref ex1
++ *   - @ref ex2
++ *   - @ref ex3
+  * - @ref confc_dfspec "Detailed Functional Specification"
+  *
+  * <hr> <!------------------------------------------------------------->
+@@ -78,10 +80,7 @@
+  * - c2_confc_error(): returns the error status for the asynchronous
+  *   configuration request.
+  *
+- * <hr> <!------------------------------------------------------------->
+- * @section confc-dld-fspec-recipes  Recipes
+- *
+- * @subsection confc-dld-fspec-recipes-setup Initialization and termination
++ * @subsection confc-dld-fspec-sub-setup Initialization and termination
+  *
+  * Prior to accessing configuration, the application (aka
+  * configuration consumer) should initialize configuration client by
+@@ -111,7 +110,7 @@
+  * }
+  * @endcode
+  *
+- * @subsection confc-dld-fspec-recipes-open Accessing configuration objects
++ * @subsection confc-dld-fspec-sub-use Accessing configuration objects
+  *
+  * The application gets access to configuration data by opening
+  * configuration objects.
+@@ -136,7 +135,10 @@
+  * before c2_confc_fini() is called.  c2_confc_close() and
+  * c2_confc_dirclose() are used for this purpose.
+  *
+- * Examples:
++ * <hr> <!------------------------------------------------------------->
++ * @section confc-dld-fspec-recipes  Recipes
++ *
++ * @subsection ex1  Getting data on the filesystem
+  *
+  * @code
+  * #include "conf/confc.h"
+@@ -180,6 +182,108 @@
+  * }
+  * @endcode
+  *
++ * @subsection ex2  Getting configuration of a service of specific type
++ *
++ * @code
++ * #include "conf/confc.h"
++ * #include "conf/obj.h" // c2_conf_service
++ *
++ * static int service_by_type(enum c2_cfg_service_type tos)
++ * {
++ * 	struct c2_confc_dir    *d;
++ * 	struct c2_conf_service *svc;
++ * 	struct c2_conf_pathcomp path[] = {
++ * 		C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM),
++ * 		C2_CONF_PATHCOMP_R(C2_CO_SERVICE)
++ * 	};
++ *
++ * 	d = c2_confc_diropen_sync(NULL, path, ARRAY_SIZE(path));
++ * 	if (d == NULL)
++ * 		return -1;
++ *
++ * 	while ((svc = c2_confc_dirnext(d)) != NULL) {
++ * 		if (svc->cs_type == tos) {
++ * 			// ... Use `svc' ...
++ * 		}
++ * 	}
++ *
++ * 	c2_confc_dirclose(d);
++ * 	return 0;
++ * }
++ * @endcode
++ *
++ * @subsection ex3  List devices used by a specific service on a specific node
++ *
++ * @code
++ * #include "conf/confc.h"
++ * #include "conf/obj.h" // c2_conf_service, c2_conf_node
++ *
++ * static int node_devices(enum c2_cfg_service_type svc_type,
++ * 			const struct c2_conf_buf *node_key)
++ * {
++ * 	struct c2_confc_dir    *services;
++ * 	struct c2_confc_dir    *d;
++ * 	struct c2_conf_service *svc;
++ * 	struct c2_conf_node    *node;
++ * 	struct c2_conf_nic     *nic;
++ * 	struct c2_conf_sdev    *sdev;
++ * 	struct c2_conf_pathcomp path[] = {
++ * 		C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM),
++ * 		C2_CONF_PATHCOMP_R(C2_CO_SERVICE)
++ * 	};
++ * 	int ret = -1;
++ *
++ * 	// /fs/services
++ * 	services = c2_confc_diropen_sync(NULL, path, ARRAY_SIZE(path));
++ * 	if (services == NULL)
++ * 		return -1;
++ *
++ * 	while ((svc = c2_confc_dirnext(services)) != NULL) {
++ * 		if (svc->cs_type != svc_type)
++ * 			continue;
++ *
++ * 		path->pc_u.relation = C2_CO_NODE;
++ * 		node = c2_confc_open_sync(svc, path, 1); // svc/node
++ * 		if (node == NULL)
++ * 			goto end;
++ *
++ * 		if (!c2_conf_buf_eq(node->cn_obj.co_key, node_key)) {
++ * 			c2_confc_close(node);
++ * 			continue;
++ * 		}
++ *
++ * 		path->pc_u.relation = C2_CO_NIC;
++ * 		d = c2_confc_diropen_sync(node, path, 1); // node/nics
++ * 		if (d == NULL) {
++ * 			c2_confc_close(node);
++ * 			goto end;
++ * 		}
++ * 		while ((nic = c2_confc_dirnext(d)) != NULL) {
++ * 			// ... Use `nic' ...
++ * 		}
++ * 		c2_confc_dirclose(d);
++ *
++ * 		path->pc_u.relation = C2_CO_SDEV;
++ * 		d = c2_confc_diropen_sync(node, path, 1); // node/sdevs
++ * 		if (d == NULL) {
++ * 			c2_confc_close(node);
++ * 			goto end;
++ * 		}
++ * 		while ((sdev = c2_confc_dirnext(d)) != NULL) {
++ * 			// ... Use `sdev' ...
++ * 		}
++ * 		c2_confc_dirclose(d);
++ *
++ * 		c2_confc_close(node);
++ * 	}
++ *
++ * 	ret = 0;
++ * end:
++ * 	c2_confc_dirclose(services);
++ * 	return ret;
++ * }
++ * @endcode
++ *
+  * @see confc_dfspec
+  */
+ 
+-- 
+1.8.3.2
+

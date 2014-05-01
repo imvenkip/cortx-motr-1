@@ -1,0 +1,43 @@
+From 9efca83c27049b4e1ef22371330cb7ffaf5411e8 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sat, 6 Apr 2013 00:15:51 +0800
+Subject: [PATCH 17/18] more fix for merge issue
+
+---
+ reqh/reqh.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 709b50d..5b167a2 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -83,6 +83,13 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
+ 
+ 	M0_PRE(reqh != NULL);
+ 
++	reqh->rh_dtm             = reqh_args->rhia_dtm;
++	reqh->rh_dbenv           = reqh_args->rhia_db;
++	reqh->rh_svc             = reqh_args->rhia_svc;
++	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
++	reqh->rh_fol             = reqh_args->rhia_fol;
++	reqh->rh_shutdown        = false;
++
+ 	result = m0_layout_domain_init(&reqh->rh_ldom, reqh->rh_dbenv);
+ 	if (result != 0)
+ 		return result;
+@@ -143,12 +150,6 @@ M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
+ 		m0_layout_domain_fini(&reqh->rh_ldom);
+ 		return result;
+ 	}
+-	reqh->rh_dtm             = reqh_args->rhia_dtm;
+-	reqh->rh_dbenv           = reqh_args->rhia_db;
+-	reqh->rh_svc             = reqh_args->rhia_svc;
+-	reqh->rh_mdstore         = reqh_args->rhia_mdstore;
+-	reqh->rh_fol             = reqh_args->rhia_fol;
+-	reqh->rh_shutdown        = false;
+ 
+ 	m0_reqh_svc_tlist_init(&reqh->rh_services);
+ 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
+-- 
+1.8.3.2
+

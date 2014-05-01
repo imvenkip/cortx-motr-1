@@ -1,0 +1,422 @@
+From b6c6484faab5f06cf40bc060f43ab20ba13d3fa4 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 12 Nov 2012 18:13:36 +0530
+Subject: [PATCH 019/157] encode-decode sequence test for composite type
+
+---
+ layout/ut/composite.c | 280 ++++++++++++++++++++++++++++++++++++++------------
+ layout/ut/layout.c    |  11 +-
+ layout/ut/layout.h    |   7 ++
+ 3 files changed, 227 insertions(+), 71 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index c36b14c..de54578 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -530,6 +530,7 @@ int test_encode_composite(uint64_t lid,
+ 	c2_bcount_t                   num_bytes;
+ 	struct c2_bufvec              bv;
+ 	struct c2_bufvec_cursor       cur;
++
+ 	C2_ENTRY("lid %llu", (unsigned long long)lid);
+ 
+ 	/* Build a layout object. */
+@@ -673,7 +674,7 @@ int test_decode_encode_composite(uint64_t lid,
+ 
+ 	lt = &c2_composite_layout_type;
+ 	rc = lt->lt_ops->lto_allocate(domain, lid, &l);
+-	C2_UT_ASSERT(c2_layout__allocated_invariant(l));
++	C2_UT_ASSERT(rc == 0);
+ 
+ 	/* Decode the layout buffer into a layout object. */
+ 	rc = c2_layout_decode(l, &cur1, C2_LXO_BUFFER_OP, NULL);
+@@ -730,28 +731,79 @@ int test_decode_encode_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-#if 0 //todo Tune it for composite
++/*
++ * Compares two layout objects with COMPOSITE layout type, provided as input
++ * arguments.
++ */
++static void composite_layout_compare(const struct c2_layout *l1,
++				     const struct c2_layout *l2,
++				     bool l2_ref_elevated)
++{
++	struct c2_composite_layout     *cl1;
++	struct c2_composite_layout     *cl2;
++	struct c2_composite_sub_layout *sl1;
++	struct c2_composite_sub_layout *sl2;
++	struct c2_sub_layout_extent    *sl_ext1;
++	struct c2_sub_layout_extent    *sl_ext2;
++
++	C2_UT_ASSERT(l1 != NULL && l2 != NULL);
++
++	/* todo Factor out this common code. */
++	/* Compare generic part of the layout objects. */
++	C2_UT_ASSERT(l1->l_id == l2->l_id);
++	C2_UT_ASSERT(l1->l_type == l2->l_type);
++	C2_UT_ASSERT(l1->l_dom == l2->l_dom);
++	if (l2_ref_elevated)
++		C2_UT_ASSERT(c2_ref_read(&l1->l_ref) ==
++			     c2_ref_read(&l2->l_ref) - 1);
++	else
++		C2_UT_ASSERT(c2_ref_read(&l1->l_ref) ==
++			     c2_ref_read(&l2->l_ref));
++	C2_UT_ASSERT(l1->l_user_count == l2->l_user_count);
++	C2_UT_ASSERT(l1->l_ops == l2->l_ops);
++
++	/* Compare COMPOSITE layout type specific part of the layout objects. */
++	cl1 = container_of(l1, struct c2_composite_layout, cl_base);
++	cl2 = container_of(l2, struct c2_composite_layout, cl_base);
++
++	C2_UT_ASSERT(cl1->cl_sublayouts_nr == cl2->cl_sublayouts_nr);
++	sl2 = c2_sub_layout_tlist_head(cl2->cl_sub_layouts);
++	c2_tl_for(c2_sub_layout, cl1->cl_sub_layouts, sl1) {
++		C2_UT_ASSERT(sl1->csl_l == sl2->csl_l);
++		C2_UT_ASSERT(sl1->csl_extents_nr == sl2->csl_extents_nr);
++
++		sl_ext2 = c2_layout_extent_tlist_head(sl2->csl_extents);
++		c2_tl_for(c2_layout_extent, sl1->csl_extents, sl_ext1) {
++			C2_UT_ASSERT(sl_ext1->sle_ext.e_start ==
++				     sl_ext2->sle_ext.e_start);
++			C2_UT_ASSERT(sl_ext1->sle_ext.e_end ==
++				     sl_ext2->sle_ext.e_end);
++			sl_ext2 = c2_layout_extent_tlist_next(sl2->csl_extents,
++							      sl_ext2);
++		} c2_tl_endfor;
++		sl2 = c2_sub_layout_tlist_next(cl2->cl_sub_layouts, sl2);
++	} c2_tl_endfor;
++}
++
+ /* Copies contents of one layout object to the other. */
+-static void pdclust_layout_copy(uint32_t enum_id,
+-				const struct c2_layout *l_src,
+-				struct c2_layout **l_dest)
++static void composite_layout_copy(const struct c2_layout *l_src,
++				  struct c2_layout **l_dest)
+ {
+-	struct c2_pdclust_layout     *pl_src;
+-	struct c2_pdclust_layout     *pl_dest;
+-	struct c2_layout_list_enum   *list_src;
+-	struct c2_layout_list_enum   *list_dest;
+-	struct c2_layout_linear_enum *lin_src;
+-	struct c2_layout_linear_enum *lin_dest;
+-	uint32_t                      i;
++	struct c2_composite_layout     *cl_src;
++	struct c2_composite_layout     *cl_dest;
++	struct c2_composite_sub_layout *sl_src;
++	struct c2_composite_sub_layout *sl_dest;
++	struct c2_sub_layout_extent    *sl_src_ext;
++	struct c2_sub_layout_extent    *sl_dest_ext;
+ 
+ 	C2_UT_ASSERT(l_src != NULL && l_dest != NULL);
+-	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+-	pl_src = container_of(l_src, struct c2_pdclust_layout, pl_base.sl_base);
+-	pl_dest = c2_alloc(sizeof *pl_src);
+-	C2_UT_ASSERT(pl_dest != NULL);
+-	*l_dest = &pl_dest->pl_base.sl_base;
++	cl_src = container_of(l_src, struct c2_composite_layout, cl_base);
++	C2_ALLOC_PTR(cl_dest);
++	C2_UT_ASSERT(cl_dest != NULL);
++	*l_dest = &cl_dest->cl_base;
+ 
++	// todo Factor out this common code.
+ 	/* Copy generic part of the layout object. */
+ 	(*l_dest)->l_id         = l_src->l_id;
+ 	(*l_dest)->l_type       = l_src->l_type;
+@@ -760,67 +812,167 @@ static void pdclust_layout_copy(uint32_t enum_id,
+ 	(*l_dest)->l_ops        = l_src->l_ops;
+ 	c2_ref_init(&(*l_dest)->l_ref, 1, l_src->l_ops->lo_fini);
+ 
+-	/* Copy PDCLUST layout type specific part of the layout objects. */
+-	pl_dest->pl_attr = pl_src->pl_attr;
++	/* Copy COMPOSITE layout type specific part of the layout objects. */
++	cl_dest->cl_sublayouts_nr = cl_src->cl_sublayouts_nr;
+ 
+-	/* Copy enumeration type specific part of the layout objects. */
+-	if (enum_id == LIST_ENUM_ID) {
+-		list_src = container_of(pl_src->pl_base.sl_enum,
+-					struct c2_layout_list_enum, lle_base);
+-		list_dest = c2_alloc(sizeof *list_src);
+-		C2_UT_ASSERT(list_src != NULL);
++	C2_ALLOC_PTR(cl_dest->cl_sub_layouts);
++	C2_UT_ASSERT(cl_dest->cl_sub_layouts != NULL);
++	c2_sub_layout_tlist_init(cl_dest->cl_sub_layouts);
+ 
+-		list_dest->lle_nr = list_src->lle_nr;
+-		C2_ALLOC_ARR(list_dest->lle_list_of_cobs, list_dest->lle_nr);
++	c2_tl_for(c2_sub_layout, cl_src->cl_sub_layouts, sl_src) {
++		C2_ALLOC_PTR(sl_dest);
++		C2_UT_ASSERT(sl_dest != NULL);
+ 
+-		for (i = 0; i < list_src->lle_nr; ++i)
+-			list_dest->lle_list_of_cobs[i] =
+-					       list_src->lle_list_of_cobs[i];
++		sl_dest->csl_l = sl_src->csl_l;
++		sl_dest->csl_extents_nr = sl_src->csl_extents_nr;
+ 
+-		pl_dest->pl_base.sl_enum = &list_dest->lle_base;
+-	} else { /* LINEAR_ENUM_ID */
+-		lin_src = container_of(pl_src->pl_base.sl_enum,
+-				       struct c2_layout_linear_enum, lle_base);
+-		lin_dest = c2_alloc(sizeof *lin_src);
+-		C2_UT_ASSERT(lin_src != NULL);
++		C2_ALLOC_PTR(sl_dest->csl_extents);
++		C2_UT_ASSERT(sl_dest->csl_extents != NULL);
++		c2_layout_extent_tlist_init(sl_dest->csl_extents);
+ 
+-		lin_dest->lle_attr = lin_src->lle_attr;
+-		pl_dest->pl_base.sl_enum = &lin_dest->lle_base;
+-	}
+-
+-	/* Copy enumeration specific part of the layout objects. */
+-	pl_dest->pl_base.sl_enum->le_type = pl_src->pl_base.sl_enum->le_type;
+-	pl_dest->pl_base.sl_enum->le_ops = pl_src->pl_base.sl_enum->le_ops;
+-	pl_dest->pl_base.sl_enum->le_sl = &pl_dest->pl_base;
++		c2_tl_for(c2_layout_extent, sl_src->csl_extents, sl_src_ext) {
++			C2_ALLOC_PTR(sl_dest_ext);
++			C2_UT_ASSERT(sl_dest_ext != NULL);
++			sl_dest_ext->sle_ext = sl_src_ext->sle_ext;
++			c2_layout_extent_tlink_init_at_tail(sl_dest_ext,
++							  sl_dest->csl_extents);
++		} c2_tl_endfor;
++		c2_sub_layout_tlink_init_at_tail(sl_dest,
++						 cl_dest->cl_sub_layouts);
++	} c2_tl_endfor;
+ 
+-	pdclust_layout_compare(enum_id, &pl_src->pl_base.sl_base,
+-			       &pl_dest->pl_base.sl_base, false);
++	composite_layout_compare(&cl_src->cl_base, &cl_dest->cl_base, false);
+ }
+ 
+-static void pdclust_layout_copy_delete(uint32_t enum_id, struct c2_layout *l)
++static void composite_layout_copy_delete(struct c2_layout *l)
+ {
+-	struct c2_pdclust_layout     *pl;
+-	struct c2_layout_list_enum   *list_enum;
+-	struct c2_layout_linear_enum *lin_enum;
++	struct c2_composite_layout     *cl;
++	struct c2_composite_sub_layout *sl;
++	struct c2_sub_layout_extent    *sl_ext;
+ 
+ 	C2_UT_ASSERT(l != NULL);
+-	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+-
+-	pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
+-	if (enum_id == LIST_ENUM_ID) {
+-		list_enum = container_of(pl->pl_base.sl_enum,
+-					struct c2_layout_list_enum, lle_base);
+-		c2_free(list_enum->lle_list_of_cobs);
+-		c2_free(list_enum);
+-	} else { /* LINEAR_ENUM_ID */
+-		lin_enum = container_of(pl->pl_base.sl_enum,
+-				        struct c2_layout_linear_enum, lle_base);
+-		c2_free(lin_enum);
++
++	cl = container_of(l, struct c2_composite_layout, cl_base);
++	c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
++		c2_tl_for(c2_layout_extent, sl->csl_extents, sl_ext) {
++			c2_layout_extent_tlist_del(sl_ext);
++			c2_layout_extent_tlink_fini(sl_ext);
++			c2_free(sl_ext);
++		} c2_tl_endfor;
++		c2_free(sl->csl_extents);
++		c2_sub_layout_tlist_del(sl);
++		c2_sub_layout_tlink_fini(sl);
++		c2_free(sl);
++	} c2_tl_endfor;
++	c2_sub_layout_tlist_fini(cl->cl_sub_layouts);
++	c2_free(cl->cl_sub_layouts);
++	c2_free(cl);
++}
++
++/*
++ * Tests the API sequence c2_layout_encode() followed by c2_layout_decode(),
++ * for the COMPOSITE layout type.
++ */
++int test_encode_decode_composite(uint64_t lid,
++				 struct c2_layout_domain *domain,
++				 uint32_t sublayouts_nr,
++				 uint32_t min_extents_nr,
++				 c2_bindex_t min_start_offset,
++				 c2_bindex_t approximate_end_offset,
++				 bool if_contiguous_extents)
++
++{
++	struct c2_composite_layout *cl;
++	void                       *area;
++	c2_bcount_t                 num_bytes;
++	struct c2_bufvec            bv;
++	struct c2_bufvec_cursor     cur;
++	struct c2_layout           *l;
++	struct c2_layout           *l_copy;
++	struct c2_layout_type      *lt;
++	uint64_t                 sublayout_lid;
++	struct c2_layout        *sl;
++	uint32_t                 i;
++
++	C2_ENTRY("lid %llu", (unsigned long long)lid);
++
++	/* Build a layout object. */
++	rc = composite_layout_build(lid, domain, &cl, sublayouts_nr,
++				    min_extents_nr, min_start_offset,
++				    approximate_end_offset,
++				    if_contiguous_extents, !FAILURE_TEST);
++	C2_UT_ASSERT(rc == 0);
++
++	composite_layout_copy(&cl->cl_base, &l_copy);
++
++	/* Encode the layout object into a layout buffer. */
++	allocate_area(&area, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes);
++	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
++	c2_bufvec_cursor_init(&cur, &bv);
++
++	c2_mutex_lock(&cl->cl_base.l_lock);
++	rc = c2_layout_encode(&cl->cl_base, C2_LXO_BUFFER_OP, NULL, &cur);
++	c2_mutex_unlock(&cl->cl_base.l_lock);
++	C2_UT_ASSERT(rc == 0);
++
++	/*
++	 * todo tempo until sublayouts are created separately in advance:
++	 * Add a reference to the sub-layouts so that don't get destoryed
++	 * while the composite layout is destroyed and are available for the
++	 * subsequent c2_layout_decode()..
++	 */
++	for (i = 0; i < sublayouts_nr; ++i) {
++		sublayout_lid = lid * 100 + i;
++		sl = c2_layout_find(domain, sublayout_lid);
++		C2_UT_ASSERT(sl != NULL);
++	}
++
++	/* Destroy the layout. */
++	c2_layout_put(&cl->cl_base);
++	C2_UT_ASSERT(list_lookup(lid) == NULL);
++
++	/* Rewind the cursor. */
++	c2_bufvec_cursor_init(&cur, &bv);
++
++	lt = &c2_composite_layout_type;
++	rc = lt->lt_ops->lto_allocate(domain, lid, &l);
++	C2_UT_ASSERT(rc == 0);
++
++	/*
++	 * Decode the layout buffer produced by c2_layout_encode() into another
++	 * layout object.
++	 */
++	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
++	C2_UT_ASSERT(rc == 0);
++
++	/*
++	 * Comapre the two layout objects - one created earlier here and the
++	 * one that is produced by c2_layout_decode().
++	 */
++	composite_layout_compare(l_copy, l, false);
++	composite_layout_copy_delete(l_copy);
++
++	/* Unlock the layout, locked by lto_allocate() */
++	c2_mutex_unlock(&l->l_lock);
++
++	/* Destroy the layout. */
++	c2_layout_put(l);
++	C2_UT_ASSERT(list_lookup(lid) == NULL);
++
++	/* todo tempo See above. */
++	for (i = 0; i < sublayouts_nr; ++i) {
++		sublayout_lid = lid * 100 + i;
++		sl = c2_layout_find(domain, sublayout_lid);
++		C2_UT_ASSERT(sl != NULL);
++		c2_layout_put(sl);
++		c2_layout_put(sl);
++		C2_UT_ASSERT(c2_layout_find(domain, sublayout_lid) == NULL);
+ 	}
+ 
+-	c2_free(pl);
++	c2_free(area);
++	C2_LEAVE();
++	return rc;
+ }
+-#endif
+ 
+ #ifndef __KERNEL__
+ #if 0
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index e6e7816..00390e2 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1067,7 +1067,6 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
+ 	lt = &c2_pdclust_layout_type;
+ 	rc = lt->lt_ops->lto_allocate(&domain, lid, &l);
+ 	C2_UT_ASSERT(rc == 0);
+-	C2_UT_ASSERT(c2_layout__allocated_invariant(l));
+ 
+ 	/* Decode the layout buffer into a layout object. */
+ 	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
+@@ -1642,7 +1641,6 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
+ 	lt = &c2_pdclust_layout_type;
+ 	rc = lt->lt_ops->lto_allocate(&domain, lid, &l);
+ 	C2_UT_ASSERT(rc == 0);
+-	C2_UT_ASSERT(c2_layout__allocated_invariant(l));
+ 
+ 	/* Decode the layout buffer into a layout object. */
+ 	rc = c2_layout_decode(l, &cur1, C2_LXO_BUFFER_OP, NULL);
+@@ -1855,7 +1853,7 @@ static void pdclust_layout_copy(uint32_t enum_id,
+ 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+ 	pl_src = container_of(l_src, struct c2_pdclust_layout, pl_base.sl_base);
+-	pl_dest = c2_alloc(sizeof *pl_src);
++	pl_dest = c2_alloc(sizeof *pl_src); //todo replace by C2_ALLOC_PTR()
+ 	C2_UT_ASSERT(pl_dest != NULL);
+ 	*l_dest = &pl_dest->pl_base.sl_base;
+ 
+@@ -1993,7 +1991,6 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
+ 
+ 	lt = &c2_pdclust_layout_type;
+ 	rc = lt->lt_ops->lto_allocate(&domain, lid, &l);
+-	C2_UT_ASSERT(c2_layout__allocated_invariant(l));
+ 
+ 	/*
+ 	 * Decode the layout buffer produced by c2_layout_encode() into another
+@@ -2076,7 +2073,6 @@ static void test_encode_decode(void)
+ 					INLINE_NOT_APPLICABLE);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+-#if 0
+ 	/*
+ 	 * Build a layout object with COMPOSITE layout type. Encode it into a
+ 	 * layout buffer. Then decode that layout buffer again into another
+@@ -2085,9 +2081,10 @@ static void test_encode_decode(void)
+ 	 * object.
+ 	 */
+ 	lid = 8005;
+-	rc = test_encode_decode_composite(lid, &domain);
++	rc = test_encode_decode_composite(lid, &domain, 7, 27,
++					  lid * 100, lid * 100 * 100,
++					  CONTIGUOUS_EXTENTS);
+ 	C2_UT_ASSERT(rc == 0);
+-#endif
+ }
+ 
+ /*
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index 23d4019..5c2396f 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -138,6 +138,13 @@ int test_decode_encode_composite(uint64_t lid,
+ 				 c2_bindex_t min_start_offset,
+ 				 c2_bindex_t approximate_end_offset,
+ 				 bool if_contiguous_extents);
++int test_encode_decode_composite(uint64_t lid,
++				 struct c2_layout_domain *domain,
++				 uint32_t sublayouts_nr,
++				 uint32_t min_extents_nr,
++				 c2_bindex_t min_start_offset,
++				 c2_bindex_t approximate_end_offset,
++				 bool if_contiguous_extents);
+ 
+ /* __COLIBRI_LAYOUT_LAYOUT_H__ */
+ #endif
+-- 
+1.8.3.2
+

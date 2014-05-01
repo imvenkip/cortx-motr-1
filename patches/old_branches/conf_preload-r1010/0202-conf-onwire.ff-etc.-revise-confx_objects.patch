@@ -1,0 +1,507 @@
+From 01ca5c4653056a483ece628197d276e7fb6132a1 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 21 Jun 2012 00:41:08 +0300
+Subject: [PATCH 202/311] conf/onwire.ff etc.: revise confx_objects
+
+onwire.ff:
+- Delete definition of c2_conf_pathcomp.
+- Revise confx_* objects: delete "uplink" relations, synchronize
+  fields with "conf/obj.h".
+- Rename: s/o_val/o_conf/; s/objval/confx_u/; s/ov_/u_/; s/f_comps/f_path/
+
+confc_offline.h:
+- s/key/id/
+- Update field names of confx_objects.
+
+obj_ops.[hc]:
+- s/key/id/
+- Add c2_conf_obj_match() function. Delete c2_conf_obj_mismatch().
+  Rationale: the fewer negations, the better.
+- Update field names of confx_objects.
+
+obj.h:
+- Add c2_conf_dir::cd_items_t field.
+---
+ conf/confc_offline.h |  22 +++++------
+ conf/obj.h           |  41 +++++++++++++-------
+ conf/obj_ops.c       |  34 ++++++++++------
+ conf/obj_ops.h       |  35 +++++++++--------
+ conf/onwire.ff       | 107 +++++++++++++++++++--------------------------------
+ 5 files changed, 119 insertions(+), 120 deletions(-)
+
+diff --git a/conf/confc_offline.h b/conf/confc_offline.h
+index 0cc803f..8195f07 100644
+--- a/conf/confc_offline.h
++++ b/conf/confc_offline.h
+@@ -17,8 +17,8 @@
+  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+  * Original creation date: 16-Mar-2012
+  */
+-#ifndef __COLIBRI_CONF__CONFC_OFFLINE_H__
+-#define __COLIBRI_CONF__CONFC_OFFLINE_H__
++#ifndef __COLIBRI_CONF_CONFC_OFFLINE_H__
++#define __COLIBRI_CONF_CONFC_OFFLINE_H__
+ 
+ /**
+  * @page conf-fspec-preload Pre-Loading of Configuration Cache
+@@ -72,19 +72,19 @@
+  *
+  * @code
+  * struct confx_object a = {
+- *     .o_key = C2_CONF_BUF_INIT(4, "test"),
+- *     .o_val = {
+- *         .ov_type = C2_CO_PROFILE,
+- *         .u.ov_profile = {
++ *     .o_id = C2_CONF_BUF_INIT(4, "test"),
++ *     .o_conf = {
++ *         .u_type = C2_CO_PROFILE,
++ *         .u.u_profile = {
+  *             .xp_filesystem = C2_CONF_BUF_INIT(6, "c2t1fs")
+  *         }
+  *     }
+  * };
+  * struct confx_object b = {
+- *     .o_key = C2_CONF_BUF_INIT(6, "c2t1fs"),
+- *     .o_val = {
+- *         .ov_type = C2_CO_FILESYSTEM,
+- *         .u.ov_filesystem = {
++ *     .o_id = C2_CONF_BUF_INIT(6, "c2t1fs"),
++ *     .o_conf = {
++ *         .u_type = C2_CO_FILESYSTEM,
++ *         .u.u_filesystem = {
+  *             .xp_rootfid = { .f_container = 11, .f_key = 22 },
+  *             .xp_params = { .an_count = 3, .an_elems = { 50, 60, 70 } },
+  *             .xp_services = { .ab_count = 0, .ab_elems = NULL }
+@@ -145,4 +145,4 @@ struct confx_object;
+ static int c2_conf_parse(const char *src, struct confx_object dest[], size_t n);
+ 
+ /** @} conf_dfspec_preload */
+-#endif /* __COLIBRI_CONF__CONFC_OFFLINE_H__ */
++#endif /* __COLIBRI_CONF_CONFC_OFFLINE_H__ */
+diff --git a/conf/obj.h b/conf/obj.h
+index a9be60c..142b877 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -146,14 +146,14 @@ enum c2_conf_status {
+ 
+ /** Type of configuration object. */
+ enum c2_conf_objtype {
+-	C2_CO_DIR,
+-	C2_CO_PROFILE,
+-	C2_CO_FILESYSTEM,
+-	C2_CO_SERVICE,
+-	C2_CO_NODE,
+-	C2_CO_NIC,
+-	C2_CO_SDEV,
+-	C2_CO_PARTITION,
++	C2_CO_DIR,        /* 0 */
++	C2_CO_PROFILE,    /* 1 */
++	C2_CO_FILESYSTEM, /* 2 */
++	C2_CO_SERVICE,    /* 3 */
++	C2_CO_NODE,       /* 4 */
++	C2_CO_NIC,        /* 5 */
++	C2_CO_SDEV,       /* 6 */
++	C2_CO_PARTITION,  /* 7 */
+ 	C2_CO_NR
+ };
+ 
+@@ -244,14 +244,29 @@ struct c2_conf_obj {
+  * Concrete configuration objects
+  * ------------------------------------------------------------------ */
+ 
+-/** Directory object --- container for configuration objects. */
++/**
++ * Directory object --- container for configuration objects.
++ *
++ * @see c2_conf_dircur
++ */
+ struct c2_conf_dir {
+-	struct c2_conf_obj cd_obj;
+-	uint64_t           cd_magix;
+-	struct c2_tl       cd_items;
++	struct c2_conf_obj   cd_obj;
++	uint64_t             cd_magix;
++	struct c2_tl         cd_items;
++	/**
++	 * Type of items.
++	 *
++	 * This field lets c2_conf_dir know which "relation" it
++	 * represents.
++	 */
++	enum c2_conf_objtype cd_items_t;
+ };
+ 
+ struct c2_conf_profile {
++	/*
++	 * ->cp_obj.co_parent == NULL: c2_conf_profile is the top-most
++	 * object in a DAG of configuration objects.
++	 */
+ 	struct c2_conf_obj         cp_obj;
+ 	uint64_t                   cp_magix;
+ 	struct c2_conf_filesystem *cp_filesystem;
+@@ -317,7 +332,7 @@ struct c2_conf_nic {
+ 	 */
+ 	struct c2_tlink    ni_linkage;
+ /* configuration data (for the application) */
+-	uint32_t           ni_iface_type;
++	uint32_t           ni_iface;
+ 	uint32_t           ni_mtu;
+ 	uint64_t           ni_speed;
+ 	const char        *ni_filename;
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 854494d..932f2ac 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -39,18 +39,27 @@ static const struct {
+ 	 * on-wire representation.
+ 	 *
+ 	 * @pre  cached->co_status == C2_CS_READY
+-	 * @pre  cached->co_type == onwire->o_val.ov_type
+-	 * @pre  c2_conf_buf_eq(cached->co_key, onwire->o_key)
++	 * @pre  cached->co_type == onwire->o_conf.u_type
++	 * @pre  c2_conf_buf_eq(cached->co_id, onwire->o_id)
+ 	 */
+ 	bool (*oo_equal)(const struct c2_conf_obj *cached,
+ 			 const struct confx_object *onwire);
+ } obj_ops[C2_CO_NR] = {
+-	XXX
++	[C2_CO_DIR]        = { .oo_equal = XXX },
++	[C2_CO_PROFILE]    = { .oo_equal = XXX },
++	[C2_CO_FILESYSTEM] = { .oo_equal = XXX },
++	[C2_CO_SERVICE]    = { .oo_equal = XXX },
++	[C2_CO_NODE]       = { .oo_equal = XXX },
++	[C2_CO_NIC]        = { .oo_equal = XXX },
++	[C2_CO_SDEV]       = { .oo_equal = XXX },
++	[C2_CO_PARTITION]  = { .oo_equal = XXX }
+ };
+ 
+ static size_t obj_size(enum c2_conf_objtype t)
+ {
+ 	switch (t) {
++	case C2_CO_DIR:
++		return sizeof c2_conf_dir;
+ 	case C2_CO_PROFILE:
+ 		return sizeof c2_conf_profile;
+ 	case C2_CO_FILESYSTEM:
+@@ -72,7 +81,7 @@ static size_t obj_size(enum c2_conf_objtype t)
+ }
+ 
+ struct c2_conf_obj *
+-c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *key)
++c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *id)
+ {
+ 	int rc;
+ 	struct c2_conf_obj *ret = c2_alloc(obj_size(type));
+@@ -85,7 +94,7 @@ c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *key)
+ 	C2_ASSERT(ret->co_nrefs == 0);
+ 	c2_chan_init(&ret->co_chan);
+ 
+-	rc = c2_conf_buf_copy(&ret->co_key, key);
++	rc = c2_conf_buf_copy(&ret->co_id, id);
+ 	if (rc != 0) {
+ 		c2_free(ret);
+ 		return NULL;
+@@ -93,18 +102,18 @@ c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *key)
+ 	return ret;
+ }
+ 
+-bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+-			  const struct confx_object *onwire)
++bool c2_conf_obj_match(const struct c2_conf_obj *cached,
++		       const struct confx_object *onwire)
+ {
+-	if (cached->co_type != onwire->o_val.ov_type
+-	    || !c2_conf_buf_eq(cached->co_key, onwire->o_key))
+-		return true;
++	if (cached->co_type != onwire->o_conf.u_type ||
++	    !c2_conf_buf_eq(cached->co_id, onwire->o_id))
++		return false;
+ 
+ 	if (cached->co_status != C2_CS_READY)
+-		return false; /* a stub corresponds to the on-wire object */
++		return true; /* a stub corresponds to the on-wire object */
+ 
+ 	C2_ASSERT(IS_IN_ARRAY(cached->co_type, obj_ops));
+-	return !obj_ops[cached->co_type].oo_equal(a, b);
++	return obj_ops[cached->co_type].oo_equal(a, b);
+ }
+ 
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+@@ -120,6 +129,7 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 	 *     stub for it;
+ 	 *   - Assign dest's relation: make it point to the target object.
+ 	 *
++	 * dest->co_status = C2_CS_READY;
+ 	 * C2_POST(...);
+ 	 */
+ 	XXX;
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index 474e801..3be3fef 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -25,7 +25,7 @@
+ /**
+  * @page conf-fspec-objops Configuration Object Operations
+  *
+- * XXX @todo Describe the context in which these functions are used.
++ * XXX @todo Describe when these functions are used.
+  *
+  * @see @ref conf_dfspec_objops "Detailed Functional Specification"
+  */
+@@ -39,32 +39,33 @@
+  * @{
+  */
+ 
+-/** Allocates and initiates configuration object of given type. */
+-struct c2_conf_obj * c2_conf_obj_new(enum c2_conf_objtype type,
+-				     const struct c2_conf_buf *key);
++/** Allocates and initializes configuration object of given type. */
++struct c2_conf_obj *c2_conf_obj_new(enum c2_conf_objtype type,
++				    const struct c2_conf_buf *id);
+ 
+ /**
+- * Returns true iff two objects have conflicting data.
+- *
+- * @param cached  Cached object.
+- * @param onwire  On-wire object.
++ * Returns false iff cached configuration object and on-wire object
++ * have conflicting data.
+  */
+-bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+-			  const struct confx_object *onwire);
++bool c2_conf_obj_match(const struct c2_conf_obj *cached,
++		       const struct confx_object *onwire);
+ 
+ /**
+  * Enriches a stub with configuration data.
+  *
+- * @param dest   Object to be populated with configuration data.
+- * @param src    Object to read the data from.
++ * @param dest   Cached configuration object (stub) to be populated with
++ *               configuration data.
++ * @param src    On-wire object to read the data from.
+  * @param cache  Registry of cached configuration objects.
+  *
+- * @pre   c2_mutex_is_locked(c2_conf_map_to_cache(registry)->cc_lock)
++ * @pre   c2_mutex_is_locked(&dest->co_confc->cc_lock)
+  * @pre   dest->co_status != C2_CS_READY
+- * @pre   dest->co_type == src->o_val.ov_type
+- * @pre   c2_conf_buf_eq(dest->co_key, src->o_key)
+- * @post  dest->co_status != C2_CS_READY  // the status is set by the caller
+- * @post  c2_mutex_is_locked(c2_conf_map_to_cache(registry)->cc_lock)
++ * @pre   dest->co_nrefs == 0
++ * @pre   dest->co_type == src->o_conf.u_type
++ * @pre   c2_conf_buf_eq(dest->co_id, src->o_id)
++ *
++ * @post  dest->co_status == C2_CS_READY
++ * @post  c2_mutex_is_locked(&dest->co_confc->cc_lock)
+  */
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		     struct c2_conf_map *cache);
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+index 9417b52..4a1f783 100644
+--- a/conf/onwire.ff
++++ b/conf/onwire.ff
+@@ -20,7 +20,6 @@
+ 
+ /* export */
+ struct c2_conf_buf;
+-struct c2_conf_pathcomp;
+ struct c2_conf_fetch;
+ struct c2_conf_fetch_resp;
+ struct c2_conf_update;
+@@ -36,43 +35,21 @@ DEF(c2_conf_buf, SEQUENCE,
+     _(cb_size, U32),
+     _(cb_data, BYTE));
+ 
+-/**
+- * Path component.
+- *
+- * See also: C2_CONF_REL(), C2_CONF_KEY(), C2_CONF_EOP, c2_conf_eop().
+- */
+-DEF(c2_conf_pathcomp, UNION,
+-    _(pc_iskey, U32),           /* boolean value: 0 (no), 1 (yes) */
+-    _case(0, pc_relation, U32), /* see c2_conf_objtype for values */
+-    _case(1, pc_key,      c2_conf_buf));
+-
+-/* ---------------------------------------------------------------------
+- * Auxiliary definitions.
+- */
+-
+-DEF(arr_u64, SEQUENCE,
+-    _(an_count, U32),
+-    _(an_elems, U64));
+-
+ DEF(arr_buf, SEQUENCE,
+     _(ab_count, U32),
+     _(ab_elems, c2_conf_buf));
+ 
+-DEF(arr_pathcomp, SEQUENCE,
+-    _(ap_count, U32),
+-    _(ap_elems, c2_conf_pathcomp));
+-
+ DEF(objid, RECORD,
+-    _(oi_objtype, U32), /* see c2_conf_objtype for values */
+-    _(oi_objkey,  c2_conf_buf));
++    _(oi_type, U32), /* see c2_conf_objtype for values */
++    _(oi_id,   c2_conf_buf));
+ 
+ DEF(fid, RECORD,
+     _(f_container, U64),
+     _(f_key,       U64));
+ 
+-/* ---------------------------------------------------------------------
+- * Configuration objects.
+- */
++/* ------------------------------------------------------------------
++ * Configuration objects
++ * ------------------------------------------------------------------ */
+ 
+ DEF(confx_profile, RECORD,
+     /* Name of profile's filesystem. */
+@@ -82,13 +59,11 @@ DEF(confx_filesystem, RECORD,
+     /* Rood fid. */
+     _(xf_rootfid,  fid),
+     /* Filesystem parameters. */
+-    _(xf_params,   arr_u64),
++    _(xf_params,   arr_buf),
+     /* Services of this filesystem. */
+     _(xf_services, arr_buf));
+ 
+ DEF(confx_service, RECORD,
+-    /* Parent filesystem. */
+-    _(xs_filesystem, c2_conf_buf),
+     /* Service type.  See c2_cfg_service_type. */
+     _(xs_type,       U32),
+     /* End-points from which this service is reachable. */
+@@ -97,40 +72,34 @@ DEF(confx_service, RECORD,
+     _(xs_node,       c2_conf_buf));
+ 
+ DEF(confx_node, RECORD,
+-    /* Services being hosted by this node. */
+-    _(xn_services, arr_buf),
+     /* Memory size in MB. */
+-    _(xn_memsize,  U32),
++    _(xn_memsize,    U32),
+     /* Number of processors. */
+-    _(xn_nr_cpu,   U32),
++    _(xn_nr_cpu,     U32),
+     /* Last known state.  See c2_cfg_state_bit. */
+-    _(xn_state,    U64),
++    _(xn_last_state, U64),
+     /* Property flags.  See c2_cfg_flag_bit. */
+-    _(xn_flags,    U64),
++    _(xn_flags,      U64),
+     /* Pool id. */
+-    _(xn_pool_id,  U64),
++    _(xn_pool_id,    U64),
+     /* Network interfaces. */
+-    _(xn_nics,     arr_buf),
++    _(xn_nics,       arr_buf),
+     /* Storage devices. */
+-    _(xn_sdevs,    arr_buf));
++    _(xn_sdevs,      arr_buf));
+ 
+ DEF(confx_nic, RECORD,
+-    /* Parent node. */
+-    _(xi_node,     c2_conf_buf),
+     /* Type of network interface.  See c2_cfg_nic_type. */
+-    _(xi_type,     U32),
++    _(xi_iface,      U32),
+     /* Maximum transmission unit. */
+-    _(xi_mtu,      U32),
++    _(xi_mtu,        U32),
+     /* Speed in Mb/sec. */
+-    _(xi_speed,    U64),
++    _(xi_speed,      U64),
+     /* Filename in host OS. */
+-    _(xi_filename, c2_conf_buf),
++    _(xi_filename,   c2_conf_buf),
+     /* Last known state.  See c2_cfg_state_bit. */
+-    _(xi_state,    U64));
++    _(xi_last_state, U64));
+ 
+ DEF(confx_sdev, RECORD,
+-    /* Parent node. */
+-    _(xd_node,       c2_conf_buf),
+     /* Interface type.  See c2_cfg_storage_device_interface_type. */
+     _(xd_iface,      U32),
+     /* Media type.  See c2_cfg_storage_device_media_type. */
+@@ -138,7 +107,7 @@ DEF(confx_sdev, RECORD,
+     /* Size in bytes. */
+     _(xd_size,       U64),
+     /* Last known state.  See c2_cfg_state_bit. */
+-    _(xd_state,      U64),
++    _(xd_last_state, U64),
+     /* Property flags.  See c2_cfg_flag_bit. */
+     _(xd_flags,      U64),
+     /* Filename in host OS. */
+@@ -147,8 +116,6 @@ DEF(confx_sdev, RECORD,
+     _(xd_partitions, arr_buf));
+ 
+ DEF(confx_partition, RECORD,
+-    /* Parent storage device. */
+-    _(xa_sdev,  c2_conf_buf),
+     /* Start offset in bytes. */
+     _(xa_start, U64),
+     /* Size in bytes. */
+@@ -160,35 +127,41 @@ DEF(confx_partition, RECORD,
+     /* Filename in host OS. */
+     _(xa_file,  c2_conf_buf));
+ 
+-DEF(objval, UNION,
+-    _(ov_type, U32), /* see c2_conf_objtype for values */
+-    _case(0, ov_profile,    confx_profile),
+-    _case(1, ov_filesystem, confx_filesystem),
+-    _case(2, ov_service,    confx_service),
+-    _case(3, ov_node,       confx_node),
+-    _case(4, ov_nic,        confx_nic),
+-    _case(5, ov_sdev,       confx_sdev),
+-    _case(6, ov_partition,  confx_partition));
++DEF(confx_u, UNION,
++    _(u_type, U32), /* see c2_conf_objtype for values */
++    /*
++     * Note that there is no confx_dir.  One-to-many relations are
++     * represented by arr_buf --- lists of identifiers.
++     */
++    _case(1, u_profile,    confx_profile),
++    _case(2, u_filesystem, confx_filesystem),
++    _case(3, u_service,    confx_service),
++    _case(4, u_node,       confx_node),
++    _case(5, u_nic,        confx_nic),
++    _case(6, u_sdev,       confx_sdev),
++    _case(7, u_partition,  confx_partition));
+ 
+ /** Configuration object descriptor. */
+ DEF(confx_object, RECORD,
+-    _(o_key, c2_conf_buf),
+-    _(o_val, objval));
++    /* Object identifier. */
++    _(o_id,     c2_conf_buf),
++    /* Configuration data. */
++    _(o_conf,   confx_u));
+ 
+ DEF(enconf, SEQUENCE,
+     _(ec_nr,   U32),
+     _(ec_objs, confx_object));
+ 
+-/* ---------------------------------------------------------------------
+- * Configuration fops.
+- */
++/* ------------------------------------------------------------------
++ * Configuration fops
++ * ------------------------------------------------------------------ */
+ 
+ /** Configuration request. */
+ DEF(c2_conf_fetch, RECORD,
+     /** Configuration object the path originates from. */
+     _(f_origin, objid),
+     /** Path components. */
+-    _(f_comps,  arr_pathcomp));
++    _(f_path,  arr_buf));
+ 
+ /** Confd's response to c2_conf_fetch. */
+ DEF(c2_conf_fetch_resp, RECORD,
+-- 
+1.8.3.2
+

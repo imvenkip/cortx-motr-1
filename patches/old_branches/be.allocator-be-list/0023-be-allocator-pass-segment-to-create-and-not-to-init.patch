@@ -1,0 +1,142 @@
+From 37936fa328731b135a5c54bb7165cf304dbbfca5 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 20 Nov 2013 02:39:38 +0200
+Subject: [PATCH 23/26] be/allocator: pass segment to create() and not to
+ init()
+
+---
+ be/alloc.c     | 19 +++++++++----------
+ be/alloc.h     |  6 +++---
+ be/ut/alloc.c  |  2 +-
+ be/ut/helper.c |  7 ++++---
+ db/db.c        |  2 +-
+ 5 files changed, 18 insertions(+), 18 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 4323c4b..44eb31e 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -541,17 +541,10 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
+ 	return chunks_were_merged;
+ }
+ 
+-M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
+-				     struct m0_be_seg *seg)
++M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a)
+ {
+-	M0_PRE(m0_be_seg__invariant(seg));
+-
+ 	m0_mutex_init(&a->ba_lock);
+ 
+-	a->ba_seg = seg;
+-	a->ba_h = &((struct m0_be_seg_hdr *) seg->bs_addr)->bh_alloc;
+-	M0_ASSERT(m0_addr_is_aligned(a->ba_h, BE_ALLOC_HEADER_SHIFT));
+-
+ 	m0_be_list_init(be_alloc_list_chunks(a));
+ 	m0_be_list_init(be_alloc_list_free(a));
+ 
+@@ -591,14 +584,20 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a)
+ }
+ 
+ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+-				       struct m0_be_tx *tx)
++				       struct m0_be_tx *tx,
++				       struct m0_be_seg *seg)
+ {
+ 	struct m0_be_allocator_header *h;
+ 	struct be_alloc_chunk	      *c;
+-	struct m0_be_seg	      *seg = a->ba_seg;
+ 	m0_bcount_t		       overhead;
+ 	m0_bcount_t		       free_space;
+ 
++	M0_PRE(m0_be_seg__invariant(seg));
++
++	a->ba_seg = seg;
++	a->ba_h = &((struct m0_be_seg_hdr *) seg->bs_addr)->bh_alloc;
++	M0_ASSERT(m0_addr_is_aligned(a->ba_h, BE_ALLOC_HEADER_SHIFT));
++
+ 	h = a->ba_h;
+ 	/** @todo GET_PTR h */
+ 	overhead   = seg->bs_reserved;
+diff --git a/be/alloc.h b/be/alloc.h
+index dd74b85..f55a97b 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -78,8 +78,7 @@ struct m0_be_allocator {
+  *
+  * @see m0_be_allocator_header.
+  */
+-M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
+-				     struct m0_be_seg *seg);
++M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a);
+ 
+ /**
+  * Finalize allocator structure.
+@@ -103,7 +102,8 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a);
+  * m0_be_allocator_header.
+  */
+ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+-				       struct m0_be_tx *tx);
++				       struct m0_be_tx *tx,
++				       struct m0_be_seg *seg);
+ 
+ /**
+  * Destroy allocator on the segment.
+diff --git a/be/ut/alloc.c b/be/ut/alloc.c
+index 3588947..b9975c0 100644
+--- a/be/ut/alloc.c
++++ b/be/ut/alloc.c
+@@ -62,7 +62,7 @@ M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
+ 	int		       rc;
+ 
+ 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
+-	rc = m0_be_allocator_init(&a, &ut_seg.bus_seg);
++	rc = m0_be_allocator_init(&a);
+ 	M0_UT_ASSERT(rc == 0);
+ 	m0_be_allocator_fini(&a);
+ 	m0_be_ut_seg_fini(&ut_seg);
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 68b4084..f5fb6b5 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -584,10 +584,11 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
+ {
+ 	struct m0_be_tx_credit	credit = {};
+ 	struct m0_be_allocator *a;
++	struct m0_be_seg       *seg = &ut_seg->bus_seg;
+ 	struct m0_be_tx         tx;
+ 	int                     rc;
+ 
+-	ut_seg->bus_allocator = m0_be_seg_allocator(&ut_seg->bus_seg);
++	ut_seg->bus_allocator = m0_be_seg_allocator(seg);
+ 	a = ut_seg->bus_allocator;
+ 
+ 	if (ut_be != NULL) {
+@@ -601,9 +602,9 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
+ 	}
+ 
+ 	if (init) {
+-		rc = m0_be_allocator_init(a, &ut_seg->bus_seg);
++		rc = m0_be_allocator_init(a);
+ 		M0_ASSERT(rc == 0);
+-		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx);
++		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx, seg);
+ 		M0_ASSERT(rc == 0);
+ 	} else {
+ 		m0_be_allocator_destroy(a, ut_be == NULL ? NULL : &tx);
+diff --git a/db/db.c b/db/db.c
+index 9023413..a115902 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -170,7 +170,7 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
+ 		m0_be_seg_init(seg, stob, &ut_be->but_dom);
+ 		rc = m0_be_seg_open(&ut_seg->bus_seg);
+ 		M0_ASSERT(rc == 0);
+-		m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
++		m0_be_allocator_init(m0_be_seg_allocator(seg));
+ 		m0_be_seg_dict_init(seg);
+ 
+ 		ut_seg->bus_copy = NULL;
+-- 
+1.8.3.2
+

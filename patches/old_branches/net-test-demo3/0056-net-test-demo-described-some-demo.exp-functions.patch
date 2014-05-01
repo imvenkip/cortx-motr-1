@@ -1,0 +1,43 @@
+From 6e9da8458359e3a14442e74b3f17bb541c175ec8 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 13 Feb 2013 13:15:13 +0200
+Subject: [PATCH 56/99] net-test/demo: described some demo.exp functions
+
+---
+ net/test/demo/demo.exp | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/net/test/demo/demo.exp b/net/test/demo/demo.exp
+index 4eb7293..9cb62b3 100755
+--- a/net/test/demo/demo.exp
++++ b/net/test/demo/demo.exp
+@@ -13,6 +13,8 @@ proc finish {pid sid} {
+     } timeout {terminate $pid $sid}
+ }
+ 
++# check current time -- if timed out, finish program and ssh
++# and raise a "timeout" exception
+ proc tm_ok_or_bomb {pid sid tmout t0} {
+     set t [timestamp]
+     if {$t < $t0 || [expr $t - $t0] > $tmout} {
+@@ -21,6 +23,8 @@ proc tm_ok_or_bomb {pid sid tmout t0} {
+     }
+ }
+ 
++# start a command and wait for shell prompt/eof
++# return command output as raw multiline string
+ proc exec_cmd {pid sid cmd {tmout 10} {e 0}} {
+     send -i $sid $cmd\n
+     set r ""
+@@ -38,7 +42,7 @@ proc exec_cmd {pid sid cmd {tmout 10} {e 0}} {
+     } eof {if {"z$e" == "zwait_eof"} {return $r} {error eof}}
+ }
+ 
+-# initialize a host and return spawn id of ssh
++# initialize a host and return [pid, spawn id] of ssh
+ proc init_host {addr {tmout 10}} {
+     set pid [spawn ssh $addr]
+     set sid $spawn_id
+-- 
+1.8.3.2
+

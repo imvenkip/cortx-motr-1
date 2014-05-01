@@ -1,0 +1,391 @@
+From 53ad3e77ff1f8460e4fa5f6ca160d752f5195024 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 22 May 2013 16:08:21 +0530
+Subject: [PATCH 141/172] Some renaming
+
+---
+ layout/composite.c          | 50 ++++++++++++++++++++++-----------------------
+ layout/composite_internal.h |  2 +-
+ layout/ut/composite.c       | 40 ++++++++++++++++++------------------
+ 3 files changed, 46 insertions(+), 46 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 4ff8626..30ce6d3 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -39,11 +39,11 @@
+ 
+ extern struct m0_addb_ctx layout_global_ctx;
+ 
+-M0_TL_DESCR_DEFINE(comp_layer, "composite-layer-list",
++M0_TL_DESCR_DEFINE(layers, "composite-layer-list",
+ 		   M0_INTERNAL, struct m0_composite_layer,
+ 		   clr_linkage, clr_extents.t_magic,
+ 		   LAYER_EXTENT_MAGIC, LAYER_EXTENT_MAGIC);
+-M0_TL_DEFINE(comp_layer, M0_INTERNAL, struct m0_composite_layer);
++M0_TL_DEFINE(layers, M0_INTERNAL, struct m0_composite_layer);
+ 
+ M0_TL_DESCR_DEFINE(ext, "composite-layer-extent-list",
+ 		   M0_INTERNAL, struct m0_composite_layer_extent,
+@@ -126,7 +126,7 @@ static bool composite_allocated_invariant(const struct m0_composite_layout *cl)
+ 		_0C(m0_layout__allocated_invariant(&cl->cl_base)) &&
+ 		_0C(m0_mutex_is_locked(&cl->cl_base.l_lock)) &&
+ 		_0C(cl->cl_layers_nr == 0) &&
+-		_0C(comp_layer_tlist_is_empty(&cl->cl_layers));
++		_0C(layers_tlist_is_empty(&cl->cl_layers));
+ }
+ 
+ /**
+@@ -163,9 +163,9 @@ static bool composite_invariant(const struct m0_composite_layout *cl)
+ 		_0C(m0_composite_layout_bob_check(cl)) &&
+ 		m0_layout__invariant(&cl->cl_base) &&
+ 		_0C(cl->cl_layers_nr ==
+-		    comp_layer_tlist_length(&cl->cl_layers)) &&
++		    layers_tlist_length(&cl->cl_layers)) &&
+ 		_0C(cl->cl_layers_nr <= M0_COMPOSITE_LAYERS_MAX) &&
+-		m0_tl_forall(comp_layer, layer, &cl->cl_layers,
++		m0_tl_forall(layers, layer, &cl->cl_layers,
+ 			     _0C(layer->clr_cl == &cl->cl_base) &&
+ 			     _0C(layer->clr_idx == i++) &&
+ 			     layer_invariant(layer));
+@@ -268,7 +268,7 @@ static int composite_allocate(struct m0_layout_domain *dom,
+ 	m0_layout__init(&cl->cl_base, dom, lid,
+ 			(struct m0_layout_type *)&m0_composite_layout_type,
+ 			&composite_ops);
+-	comp_layer_tlist_init(&cl->cl_layers);
++	layers_tlist_init(&cl->cl_layers);
+ 	m0_mutex_lock(&cl->cl_base.l_lock);
+ 
+ 	*out = &cl->cl_base;
+@@ -288,7 +288,7 @@ static void composite_delete(struct m0_layout *l)
+ 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	m0_mutex_unlock(&l->l_lock);
+ 	m0_layout__delete(&cl->cl_base);
+-	comp_layer_tlist_fini(&cl->cl_layers);
++	layers_tlist_fini(&cl->cl_layers);
+ 	m0_free(cl);
+ 	M0_LEAVE();
+ }
+@@ -348,7 +348,7 @@ static int layer_inmem_add(struct m0_composite_layout *cl,
+ 	lr_ext->cle_state       = M0_CLRES_HOLE;
+ 	ext_tlink_init_at_tail(lr_ext, &layer->clr_extents);
+ 
+-	comp_layer_tlink_init_at_tail(layer, &cl->cl_layers);
++	layers_tlink_init_at_tail(layer, &cl->cl_layers);
+ 	M0_CNT_INC(cl->cl_layers_nr);
+ 
+ 	*lr = layer;
+@@ -377,7 +377,7 @@ static void layer_inmem_delete(struct m0_composite_layout *cl,
+ 	M0_PRE(layer->clr_idx == cl->cl_layers_nr - 1);
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+-	comp_layer_tlink_del_fini(layer);
++	layers_tlink_del_fini(layer);
+ 	M0_CNT_DEC(cl->cl_layers_nr);
+ 	m0_layout_put(layer->clr_sl);
+ 	extlist_free(&layer->clr_extents, EXTLIST_FINI);
+@@ -414,7 +414,7 @@ static int composite_populate(struct m0_composite_layout *cl,
+ static void composite_populate_reverse(struct m0_composite_layout *cl)
+ {
+ 	M0_PRE(cl->cl_layers_nr == 0);
+-	M0_PRE(comp_layer_tlist_is_empty(&cl->cl_layers));
++	M0_PRE(layers_tlist_is_empty(&cl->cl_layers));
+ 
+ 	m0_layout__populate_reverse(&cl->cl_base);
+ }
+@@ -463,9 +463,9 @@ static void layers_inmem_delete(struct m0_composite_layout *cl)
+ 	 * layer_inmem_delete() that 'it is the top-most layer being deleted'
+ 	 * remains intact.
+ 	 */
+-	layer = comp_layer_tlist_tail(&cl->cl_layers);
++	layer = layers_tlist_tail(&cl->cl_layers);
+ 	while (layer != NULL) {
+-		layer_prev = comp_layer_tlist_prev(&cl->cl_layers, layer);
++		layer_prev = layers_tlist_prev(&cl->cl_layers, layer);
+ 		layer_inmem_delete(cl, layer);
+ 		layer = layer_prev;
+ 	}
+@@ -483,7 +483,7 @@ static void composite_fini(struct m0_ref *ref)
+ 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	cl = m0_layout_to_cl(l);
+ 	layers_inmem_delete(cl);
+-	comp_layer_tlist_fini(&cl->cl_layers);
++	layers_tlist_fini(&cl->cl_layers);
+ 
+ 	m0_layout__fini(&cl->cl_base);
+ 	m0_free(cl);
+@@ -529,7 +529,7 @@ static struct m0_composite_layer *layer_find(
+ 	struct m0_composite_layer *layer = NULL;
+ 
+ 	M0_PRE(layer_idx < cl->cl_layers_nr);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		if (layer->clr_idx == layer_idx)
+ 			break;
+ 	} m0_tl_endfor;
+@@ -791,7 +791,7 @@ static int layers_read(struct m0_composite_layout *cl,
+ 		if (i == 0) { /* Zeroth layer */
+ 			rc = composite_populate(cl, sublayout, user_count);
+ 			if (rc == 0) {
+-				layer = comp_layer_tlist_head(&cl->cl_layers);
++				layer = layers_tlist_head(&cl->cl_layers);
+ 				populate_done = true;
+ 			}
+ 		} else
+@@ -824,7 +824,7 @@ static int layers_read(struct m0_composite_layout *cl,
+ 		 * Undo the layer addition and the layout population done
+ 		 * through the earlier iterations of the loop above.
+ 		 */
+-		if (comp_layer_tlist_length(&cl->cl_layers) > 0)
++		if (layers_tlist_length(&cl->cl_layers) > 0)
+ 			layers_inmem_delete(cl);
+ 		if (populate_done)
+ 			composite_populate_reverse(cl);
+@@ -890,7 +890,7 @@ static void layers_inbuf_write(const struct m0_composite_layout *cl,
+ 	M0_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+ 	M0_PRE(m0_bufvec_cursor_step(out) >= cl->cl_layers_nr *
+ 	       sizeof lr_header);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		/* Write the layer header. */
+ 		lr_header.clh_idx = layer->clr_idx;
+ 		lr_header.clh_extents_nr = layer->clr_extents_nr;
+@@ -949,7 +949,7 @@ static int composite_encode(struct m0_layout *l,
+ 	/* Write the sublayout identifiers in the buffer. */
+ 	M0_ASSERT(m0_bufvec_cursor_step(out) >=
+ 		  cl->cl_layers_nr * sizeof layer->clr_sl->l_id);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		nbytes = m0_bufvec_cursor_copyto(out, &layer->clr_sl->l_id,
+ 						 sizeof layer->clr_sl->l_id);
+ 		M0_ASSERT(nbytes == sizeof layer->clr_sl->l_id);
+@@ -1180,7 +1180,7 @@ M0_INTERNAL int m0_composite_layer_ext_lookup(
+ 		 (unsigned long long)offset);
+ 	m0_mutex_lock(&cl->cl_base.l_lock);
+ 	/* Start the lookup with the top-most layer. */
+-	layer = comp_layer_tlist_tail(&cl->cl_layers);
++	layer = layers_tlist_tail(&cl->cl_layers);
+ 	M0_ASSERT(layer != NULL);
+ 	i = cl->cl_layers_nr - 1;
+ 	found = false;
+@@ -1200,7 +1200,7 @@ M0_INTERNAL int m0_composite_layer_ext_lookup(
+ 		} m0_tl_endfor;
+ 		if (found)
+ 			break;
+-		layer = comp_layer_tlist_prev(&cl->cl_layers, layer);
++		layer = layers_tlist_prev(&cl->cl_layers, layer);
+ 		--i;
+ 	}
+ 
+@@ -1734,7 +1734,7 @@ static m0_bcount_t composite_bufsize(const struct m0_layout *l)
+ 	m0_bcount_t                 bufsize = 0;
+ 
+ 	cl = m0_layout_to_cl(l);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		bufsize = bufsize +
+ 			(layer->clr_extents_nr * sizeof(struct layer_buf_ext));
+ 	} m0_tl_endfor;
+@@ -2008,9 +2008,9 @@ static int layers_indb_add(struct m0_composite_layout *cl,
+ 	M0_ENTRY("lid %llu, layers_nr %lu",
+ 		 (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)cl->cl_layers_nr);
+-	layer = comp_layer_tlist_head(&cl->cl_layers);
++	layer = layers_tlist_head(&cl->cl_layers);
+ 	M0_ASSERT(layer->clr_idx == 0);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		/* Add 'the extent map for this layer' to the DB. */
+ 		rc = extents_indb_add(cl, layer, tx);
+ 		if (rc == 0)
+@@ -2279,7 +2279,7 @@ static int layers_indb_delete(struct m0_composite_layout *cl,
+ 
+ 	M0_PRE(composite_invariant(cl));
+ 	M0_PRE(ergo(!in_update_path,
+-		     m0_tl_forall(comp_layer, lr, &cl->cl_layers,
++		     m0_tl_forall(layers, lr, &cl->cl_layers,
+ 				  m0_tl_forall(ext, lr_ext, &lr->clr_extents,
+ 					       lr_ext->cle_state ==
+ 					       M0_CLRES_HOLE))));
+@@ -2304,7 +2304,7 @@ static int layers_indb_delete(struct m0_composite_layout *cl,
+ 			m0_free(existing_sl_id_list);
+ 		}
+ 	} else {
+-		m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		m0_tl_for(layers, &cl->cl_layers, layer) {
+ 			rc = layer_indb_delete(cl, layer->clr_idx,
+ 					       layer->clr_sl->l_id,
+ 					       layer->clr_sl, tx,
+diff --git a/layout/composite_internal.h b/layout/composite_internal.h
+index ad01c2e..6effe90 100644
+--- a/layout/composite_internal.h
++++ b/layout/composite_internal.h
+@@ -37,7 +37,7 @@
+ struct m0_composite_layer;
+ 
+ /* export */
+-M0_TL_DECLARE(comp_layer, M0_INTERNAL, struct m0_composite_layer);
++M0_TL_DECLARE(layers, M0_INTERNAL, struct m0_composite_layer);
+ M0_TL_DECLARE(ext, M0_INTERNAL, struct m0_composite_layer_extent);
+ 
+ 
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 8b744a3..343f6ac 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -35,7 +35,7 @@
+ 				     * pdclust_layout_verify */
+ #include "layout/ut/composite.h"
+ 
+-M0_TL_DESCR_DECLARE(comp_layer, extern);
++M0_TL_DESCR_DECLARE(layers, extern);
+ M0_TL_DESCR_DECLARE(ext, extern);
+ 
+ static int composite_layout_build(uint64_t lid,
+@@ -239,7 +239,7 @@ static void composite_layout_verify(struct m0_layout *l,
+ 	/* Verify the layers */
+ 	i = 0;
+ 	m0_uint128_init(&seed, "sublayouts_build");
+-        m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++        m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_idx == i);
+ 		M0_UT_ASSERT(layer->clr_cl->l_id == cl->cl_base.l_id);
+ 		/* Verify the sublayout. */
+@@ -302,7 +302,7 @@ static struct m0_composite_layer *layer_find(
+ 	struct m0_composite_layer *layer = NULL;
+ 
+ 	M0_PRE(layer_idx < cl->cl_layers_nr);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		if (layer->clr_idx == layer_idx)
+ 			break;
+ 	} m0_tl_endfor;
+@@ -376,7 +376,7 @@ static void composite_dump(const struct m0_composite_layout *cl)
+ 	my_console_printf("composite_dump(): lid %llu, layers_nr %lu: \n ",
+ 			  (unsigned long long)cl->cl_base.l_id,
+ 			  (unsigned long)cl->cl_layers_nr);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		extlist_dump(cl, layer->clr_idx);
+ 	} m0_tl_endfor;
+ }
+@@ -1064,8 +1064,8 @@ static void composite_layout_compare(const struct m0_layout *l1,
+ 	cl2 = container_of(l2, struct m0_composite_layout, cl_base);
+ 
+ 	M0_UT_ASSERT(cl1->cl_layers_nr == cl2->cl_layers_nr);
+-	layer2 = comp_layer_tlist_head(&cl2->cl_layers);
+-	m0_tl_for(comp_layer, &cl1->cl_layers, layer1) {
++	layer2 = layers_tlist_head(&cl2->cl_layers);
++	m0_tl_for(layers, &cl1->cl_layers, layer1) {
+ 		/*
+ 		 * Can not check layer1->clr_l->l_id or layer2->clr_l->l_id
+ 		 * since layer1->clr_cl or layer1->clr_cl that is the composite
+@@ -1084,7 +1084,7 @@ static void composite_layout_compare(const struct m0_layout *l1,
+ 			M0_UT_ASSERT(lr_ext1->cle_state == lr_ext2->cle_state);
+ 			lr_ext2 = ext_tlist_next(&layer2->clr_extents, lr_ext2);
+ 		} m0_tl_endfor;
+-		layer2 = comp_layer_tlist_next(&cl2->cl_layers, layer2);
++		layer2 = layers_tlist_next(&cl2->cl_layers, layer2);
+ 	} m0_tl_endfor;
+ }
+ 
+@@ -1111,8 +1111,8 @@ static void composite_layout_copy(const struct m0_layout *l_src,
+ 
+ 	/* Copy COMPOSITE layout type specific part of the layout objects. */
+ 	cl_dest->cl_layers_nr = cl_src->cl_layers_nr;
+-	comp_layer_tlist_init(&cl_dest->cl_layers);
+-	m0_tl_for(comp_layer, &cl_src->cl_layers, layer_src) {
++	layers_tlist_init(&cl_dest->cl_layers);
++	m0_tl_for(layers, &cl_src->cl_layers, layer_src) {
+ 		M0_ALLOC_PTR(layer_dest);
+ 		M0_UT_ASSERT(layer_dest != NULL);
+ 		layer_dest->clr_cl = layer_src->clr_cl;
+@@ -1129,7 +1129,7 @@ static void composite_layout_copy(const struct m0_layout *l_src,
+ 			ext_tlink_init_at_tail(lr_ext_dest,
+ 					       &layer_dest->clr_extents);
+ 		} m0_tl_endfor;
+-		comp_layer_tlink_init_at_tail(layer_dest, &cl_dest->cl_layers);
++		layers_tlink_init_at_tail(layer_dest, &cl_dest->cl_layers);
+ 	} m0_tl_endfor;
+ 
+ 	composite_layout_compare(&cl_src->cl_base, &cl_dest->cl_base, false);
+@@ -1144,18 +1144,18 @@ static void composite_layout_copy_delete(struct m0_layout *l)
+ 	M0_UT_ASSERT(l != NULL);
+ 
+ 	cl = container_of(l, struct m0_composite_layout, cl_base);
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		m0_tl_for(ext, &layer->clr_extents, lr_ext) {
+ 			ext_tlist_del(lr_ext);
+ 			ext_tlink_fini(lr_ext);
+ 			m0_free(lr_ext);
+ 		} m0_tl_endfor;
+ 		ext_tlist_fini(&layer->clr_extents);
+-		comp_layer_tlist_del(layer);
+-		comp_layer_tlink_fini(layer);
++		layers_tlist_del(layer);
++		layers_tlink_fini(layer);
+ 		m0_free(layer);
+ 	} m0_tl_endfor;
+-	comp_layer_tlist_fini(&cl->cl_layers);
++	layers_tlist_fini(&cl->cl_layers);
+ 	m0_free(cl);
+ }
+ 
+@@ -2333,7 +2333,7 @@ int test_add_composite(uint64_t lid,
+ 	 * Verify that the user count of all the sublayouts is set to the
+ 	 * default value that is 0.
+ 	 */
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_sl->l_user_count == 0);
+ 	} m0_tl_endfor;
+ 
+@@ -2351,7 +2351,7 @@ int test_add_composite(uint64_t lid,
+ 		 * Verify that the user count of all the sublayouts has been
+ 		 * incremented by 1.
+ 		 */
+-		m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		m0_tl_for(layers, &cl->cl_layers, layer) {
+ 			M0_UT_ASSERT(layer->clr_sl->l_user_count == 1);
+ 		} m0_tl_endfor;
+ 	}
+@@ -2380,7 +2380,7 @@ int test_add_composite(uint64_t lid,
+ 		 * The user count has been verified with the layout compare.
+ 		 * But still.
+ 		 */
+-		m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		m0_tl_for(layers, &cl->cl_layers, layer) {
+ 			M0_UT_ASSERT(layer->clr_sl->l_user_count == 1);
+ 		} m0_tl_endfor;
+ 
+@@ -2578,7 +2578,7 @@ int test_delete_composite(uint64_t lid,
+ 	 * Verify that the user count of all the sublayouts is set to the
+ 	 * default value that is 0.
+ 	 */
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_sl->l_user_count == 0);
+ 	} m0_tl_endfor;
+ 
+@@ -2591,7 +2591,7 @@ int test_delete_composite(uint64_t lid,
+ 	 * verify that the user count of all the sublayouts has been
+ 	 * incremented by 1.
+ 	 */
+-	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		layer_extents_delete(cl, layer);
+ 		M0_UT_ASSERT(layer->clr_sl->l_user_count == 1);
+ 	} m0_tl_endfor;
+@@ -2606,7 +2606,7 @@ int test_delete_composite(uint64_t lid,
+ 	else {
+ 		M0_UT_ASSERT(rc == 0);
+ 		/* Verify the user count of the sublayouts to be 0. */
+-		m0_tl_for(comp_layer, &cl->cl_layers, layer) {
++		m0_tl_for(layers, &cl->cl_layers, layer) {
+ 			M0_UT_ASSERT(layer->clr_sl->l_user_count == 0);
+ 		} m0_tl_endfor;
+ 	}
+-- 
+1.8.3.2
+

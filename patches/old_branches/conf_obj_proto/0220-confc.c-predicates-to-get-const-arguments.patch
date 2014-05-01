@@ -1,0 +1,33 @@
+From 8cb6689532acb929a492bca3ec36973ca7586920 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 4 Jul 2012 22:23:53 +0300
+Subject: [PATCH 220/370] confc.c: predicates to get const arguments
+
+LogD #266
+RB: r/865
+---
+ conf/confc.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index cda9db9..32b5bba 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -276,12 +276,12 @@ static inline struct c2_mutex *confc_lock(struct c2_confc_ctx *ctx)
+ 	return ctx->fc_confc->cc_lock;
+ }
+ 
+-static bool group_is_locked(struct c2_confc_ctx *ctx)
++static bool group_is_locked(const struct c2_confc_ctx *ctx)
+ {
+ 	return c2_mutex_is_locked(group_lock(ctx->fc_confc));
+ }
+ 
+-static bool confc_is_locked(struct c2_confc *confc)
++static bool confc_is_locked(const struct c2_confc *confc)
+ {
+ 	return c2_mutex_is_locked(confc->cc_lock);
+ }
+-- 
+1.8.3.2
+

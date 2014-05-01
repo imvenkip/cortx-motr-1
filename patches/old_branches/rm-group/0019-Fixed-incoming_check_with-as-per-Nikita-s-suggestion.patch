@@ -1,0 +1,109 @@
+From 6d9abee970cfa5250634ea3ff08ed2a633d26cea Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Tue, 3 Sep 2013 17:15:33 +0530
+Subject: [PATCH 19/24] Fixed incoming_check_with() as per Nikita's suggestion.
+
+---
+ rm/rm.c | 64 +++++++++++++++++++++++++++++++++-------------------------------
+ 1 file changed, 33 insertions(+), 31 deletions(-)
+
+diff --git a/rm/rm.c b/rm/rm.c
+index 24ac07e..be60b3a 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -1452,7 +1452,7 @@ M0_EXPORTED(m0_rm_revoke_commit);
+  */
+ /** @{ */
+ 
+-static bool owner_group_conflict(struct m0_rm_owner    *o,
++static bool same_group(struct m0_rm_owner    *o,
+ 				 struct m0_rm_incoming *in)
+ {
+ 	return !m0_uint128_eq(&o->ro_group_id, &m0_rm_standalone_grp_id) &&
+@@ -1507,7 +1507,7 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
+ 	 * of races between owner state transition and credit requests.
+ 	 */
+ 	if (owner_state(owner) == ROS_ACTIVE) {
+-		if (owner_group_conflict(owner, in))
++		if (same_group(owner, in))
+ 			incoming_failure_set(in, -EINVAL);
+ 		else
+ 			incoming_queue(owner, in);
+@@ -1864,43 +1864,45 @@ static int incoming_check_with(struct m0_rm_incoming *in,
+ 	if (!credit_is_empty(rest)) {
+ 		m0_tl_for (m0_rm_ur, &o->ro_sublet, r) {
+ 			M0_ASSERT(m0_rm_credit_bob_check(r));
++			M0_ASSERT(!credit_is_empty(r));
+ 			if (!credit_intersects(r, rest))
+ 				continue;
+-			loan = bob_of(r, struct m0_rm_loan, rl_credit,
+-				      &loan_bob);
+-			M0_ASSERT(!credit_is_empty(r));
+ 			group_mismatch = credit_group_conflict(&r->cr_group_id,
+ 						&rest->cr_group_id);
+-			if (group_mismatch && in->rin_flags & RIF_MAY_REVOKE) {
+-				/*
+-				 * It is possible that this loop emits multiple
+-				 * outgoing requests toward the same remote
+-				 * owner. Don't bother to coalesce them here.
+-				 * The rpc layer would do this more efficiently.
+-				 *
+-				 * @todo use rpc grouping here.
+-				 */
+-				/*
+-				 * @todo - Revoke entire loan?? rest could be
+-				 * subset of r.
+-				 */
+-				wait++;
+-				rc = revoke_send(in, loan, r) ?:
+-					credit_diff(rest, r);
+-				if (rc != 0) {
+-					RM_ADDB_FUNCFAIL(rc, REVOKE_FAIL,
+-							 &m0_rm_addb_ctx);
++			if (!group_mismatch) {
++				rc = credit_diff(rest, r);
++				if (rc != 0)
+ 					M0_RETURN(rc);
+-				}
+-			} else if (!group_mismatch &&
+-				   in->rin_flags & RIF_MAY_BORROW) {
+-				rc = rc ?: credit_diff(rest, r);
++				if (!credit_is_empty(rest))
++					continue;
++				else
++					break;
+ 			} else if (group_mismatch &&
+-				   in->rin_flags & RIF_MAY_BORROW)
+-				rc = -EREMOTE;
++				   !(in->rin_flags & RIF_MAY_REVOKE))
++				M0_RETURN(-EREMOTE);
+ 
+-			if (rc != 0)
++			loan = bob_of(r, struct m0_rm_loan, rl_credit,
++				      &loan_bob);
++			/*
++			 * It is possible that this loop emits multiple
++			 * outgoing requests toward the same remote
++			 * owner. Don't bother to coalesce them here.
++			 * The rpc layer would do this more efficiently.
++			 *
++			 * @todo use rpc grouping here.
++			 */
++			/*
++			 * @todo - Revoke entire loan?? rest could be
++			 * subset of r.
++			 */
++			wait++;
++			rc = revoke_send(in, loan, r) ?:
++				credit_diff(rest, r);
++			if (rc != 0) {
++				RM_ADDB_FUNCFAIL(rc, REVOKE_FAIL,
++						 &m0_rm_addb_ctx);
+ 				M0_RETURN(rc);
++			}
+ 		} m0_tl_endfor;
+ 	}
+ 
+-- 
+1.8.3.2
+

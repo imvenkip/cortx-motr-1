@@ -1,0 +1,244 @@
+From b8c978ecde1dd0f58086f6d6388fa83ac7ac9845 Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Thu, 30 May 2013 07:57:10 -0700
+Subject: [PATCH 106/121] Split range_chk_sum to support async mechanism.
+
+---
+ rvm/rvm_logrecovr.c | 190 ++++++++++++++++++++++++++++++++++++++++------------
+ rvm/rvm_private.h   |  11 +++
+ 2 files changed, 160 insertions(+), 41 deletions(-)
+
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index 337f706..54febc8 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -1117,55 +1117,163 @@ rvm_return_t scan_reverse(log,synch)
+ static void set_wrap_status(status,rec_hdr)
+     log_status_t    *status;            /* status descriptor */
+     rec_hdr_t       *rec_hdr;           /* current record scanned in buffer */
+-    {
++{
+     status->wrap_time = rec_hdr->timestamp;
+     status->n_special++;
+     status->tot_wrap++;
+-    }
+-/* range checksum computation & check */
+-static rvm_return_t range_chk_sum(log,nv,chk_val,synch)
+-    log_t           *log;               /* log descriptor */
+-    nv_range_t      *nv;                /* range header */
+-    rvm_bool_t      *chk_val;           /* result [out] */
+-    rvm_bool_t      synch;              /* true ==> synchronization required */
+-    {
+-    log_buf_t       *log_buf = &log->log_buf; /* log buffer descriptor */
+-    rvm_length_t    nv_chk_sum;         /* nv's check sum */
+-    rvm_length_t    chk_sum_temp = 0;   /* check sum temp */
+-    rvm_length_t    nv_length;          /* actual length of data */
+-    rvm_length_t    chk_length;         /* length of check summed range */
+-    rvm_length_t    align_skew;         /* initial alignment skew */
+-    rvm_return_t    retval;             /* return value */
++}
+ 
+-    (*chk_val) = rvm_false;
+-    nv_chk_sum = nv->chk_sum;
+-    nv_length = nv->length;
+-    align_skew = BYTE_SKEW(RVM_OFFSET_TO_LENGTH(nv->offset));
+-    log_buf->ptr += sizeof(nv_range_t);
++void rcs_done_loop(range_chk_sum_cbdata_t *rcs_cbdata)
++{
++	struct m0_be_cbinfo 	*cbinfo;
++	int 			 be_status   = 0;
++	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
++	log_buf_t       	*log_buf;
+ 
+-    /* do checksum over as many buffer loads as needed */
+-    DO_FOREVER
+-        {
+-        chk_length = log_buf->r_length - log_buf->ptr - align_skew;
+-        if (chk_length > nv_length) chk_length = nv_length;
+-        chk_sum_temp +=
+-            chk_sum(&log_buf->buf[log_buf->ptr+align_skew],
+-                    chk_length);
+-        nv_length -= chk_length;
+-        log_buf->ptr += (chk_length+align_skew);
+-        if (nv_length == 0) break;  /* done */
+-        if ((retval=refill_buffer(log,FORWARD,synch))
+-            != RVM_SUCCESS) return retval;
+-        align_skew = 0;             /* following buffers have no padding */
++	cbinfo  = &rcs_cbdata->rcsc_cbinfo;
++	log_buf = &rcs_cbdata->rcsc_log->log_buf;
++
++	log_buf->ptr = ROUND_TO_LENGTH(log_buf->ptr);
++
++	/* report result */
++	if (rcs_cbdata->rcsc_nv_chk_sum == rcs_cbdata->rcsc_chk_sum_temp)
++		(*rcs_cbdata->rcsc_chk_val) = rvm_true;
++
++	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, be_status, msg_type);
+         }
+-    log_buf->ptr = ROUND_TO_LENGTH(log_buf->ptr);
++	m0_free(rcs_cbdata);
++}
+ 
+-    /* report result */
+-    if (nv_chk_sum == chk_sum_temp)
+-        (*chk_val) = rvm_true;
++void rcs_refill_buffer_cb(struct m0_be_cbinfo *cbinfo, int be_status,
++			  m0_be_msg_type_t msg_type)
++{
++	log_buf_t       	*log_buf;
++	range_chk_sum_cbdata_t	*rcs_cbdata;
++	log_t			*log;
++	rvm_length_t		 chk_length;
++	rvm_length_t		 nv_length;
++	rvm_length_t		 chk_sum_temp;
++	rvm_length_t		 align_skew = 0;
++	rvm_bool_t		 synch;
++	rvm_bool_t		 done = rvm_false;
++	rvm_return_t		 retval;
++
++        rcs_cbdata 	= container_of(cbinfo, range_chk_sum_cbdata_t, rcsc_cbinfo);
++	log	   	= rcs_cbdata->rcsc_log;
++	log_buf	   	= &log->log_buf;
++	nv_length  	= rcs_cbdata->rcsc_nv_length;
++	chk_sum_temp 	= rcs_cbdata->rcsc_chk_sum_temp;
++	synch		= rcs_cbdata->rcsc_synch;
++
++	chk_length = log_buf->r_length - log_buf->ptr - align_skew;
++	if (chk_length > nv_length)
++		chk_length = nv_length;
++
++	chk_sum_temp += chk_sum(&log_buf->buf[log_buf->ptr + align_skew],
++				chk_length);
++	nv_length       -= chk_length;
++	log_buf->ptr    += (chk_length + align_skew);
++	if (nv_length == 0) {
++		done = rvm_true;
++		goto done_looping;
++	}
++
++	retval = refill_buffer(log, FORWARD, synch);
++
++	if (retval != RVM_SUCCESS) {
++		be_status = -1;
++		msg_type = retval;
++		goto exit;
++	}
++
++	rcs_cbdata->rcsc_nv_length = nv_length;
++	rcs_cbdata->rcsc_chk_sum_temp = chk_sum_temp;
++
++	goto exit;
++done_looping:
++	rcs_done_loop(rcs_cbdata);
++exit:
++	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, be_status, msg_type);
++                m0_free(rcs_cbdata);
++        }
++}
++
++/* range checksum computation & check */
++static rvm_return_t range_chk_sum(log, nv, chk_val, synch, cbinfo)
++log_t           	*log;               /* log descriptor */
++nv_range_t      	*nv;                /* range header */
++rvm_bool_t      	*chk_val;           /* result [out] */
++rvm_bool_t      	synch;              /* true ==> synchronization required */
++struct m0_be_cbinfo 	*cbinfo;
++{
++	range_chk_sum_cbdata_t *rcs_cbdata;
++	struct m0_be_cbinfo    *rcsc_cbinfo;
++
++	log_buf_t       	*log_buf = &log->log_buf; 	/* log buffer descriptor */
++	rvm_length_t    	 nv_chk_sum;        		/* nv's check sum */
++	rvm_length_t    	 chk_sum_temp = 0;   		/* check sum temp */
++	rvm_length_t    	 nv_length;          		/* actual length of data */
++	rvm_length_t    	 chk_length;         		/* length of check summed range */
++	rvm_length_t    	 align_skew;         		/* initial alignment skew */
++	rvm_return_t    	 retval;             		/* return value */
++	rvm_bool_t		 done = rvm_false;
++
++	int			 be_status = 0;
++	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
++
++	M0_ALLOC_PTR(rcs_cbdata);
++	M0_ASSERT(rcs_cbdata != NULL);
++
++	rcsc_cbinfo = &rcs_cbdata->rcsc_cbinfo;
++	rcs_cbdata->rcsc_chk_val 	= chk_val;
++	rcs_cbdata->rcsc_log 	 	= log;
++	*rcs_cbdata->rcsc_chk_val 	= rvm_false;
++
++	nv_chk_sum 	= nv->chk_sum;
++	nv_length  	= nv->length;
++	align_skew 	= BYTE_SKEW(RVM_OFFSET_TO_LENGTH(nv->offset));
++	log_buf->ptr 	+= sizeof(nv_range_t);
++
++	chk_length = log_buf->r_length - log_buf->ptr - align_skew;
++	if (chk_length > nv_length)
++		chk_length = nv_length;
++
++	chk_sum_temp += chk_sum(&log_buf->buf[log_buf->ptr + align_skew],
++				chk_length);
++	nv_length 	-= chk_length;
++	log_buf->ptr 	+= (chk_length + align_skew);
++
++	if (nv_length == 0) {
++		done = rvm_true;
++		goto done_looping;
++	}
++
++        m0_be_cbinfo_copy_helper(cbinfo, rcsc_cbinfo, rcs_refill_buffer_cb);
++
++	retval = refill_buffer(log, FORWARD, synch);
++
++	if (retval != RVM_SUCCESS) {
++		msg_type  = retval;
++		be_status = -1;
++	}
++
++	rcs_cbdata->rcsc_nv_length 	= nv_length;
++	rcs_cbdata->rcsc_chk_sum_temp 	= chk_sum_temp;
++	rcs_cbdata->rcsc_nv_chk_sum 	= nv->chk_sum;
++
++	goto exit;
++done_looping:
++	rcs_done_loop(rcs_cbdata);
++exit:
++	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, be_status, msg_type);
++                m0_free(rcs_cbdata);
++        }
++	return retval;
++}
+ 
+-    return RVM_SUCCESS;
+-    }
+ /* transaction validation & status update for tail location */
+ static rvm_return_t set_trans_status(log,rec_hdr)
+     log_t           *log;               /* log descriptor */
+diff --git a/rvm/rvm_private.h b/rvm/rvm_private.h
+index e70f02d..8eac243 100644
+--- a/rvm/rvm_private.h
++++ b/rvm/rvm_private.h
+@@ -1905,6 +1905,17 @@ typedef struct chk_wrap_cbdata {
+ 	rvm_offset_t		 cwc_end_offset;
+ } chk_wrap_cbdata_t;
+ 
++/* range_check_sum cbdata */
++typedef struct range_chk_sum_cbdata {
++	struct m0_be_cbinfo	 rcsc_cbinfo;
++	log_t			*rcsc_log;
++	rvm_length_t		 rcsc_nv_length;
++	rvm_length_t		 rcsc_nv_chk_sum;
++	rvm_length_t		 rcsc_chk_sum_temp;
++	rvm_bool_t		 rcsc_synch;
++	rvm_bool_t		*rcsc_chk_val;
++} range_chk_sum_cbdata_t;
++
+ void rvm_initialize_cb(struct m0_be_cbinfo *cbinfo, int status,
+                        m0_be_msg_type_t msg_type);
+ 
+-- 
+1.8.3.2
+

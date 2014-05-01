@@ -1,0 +1,35 @@
+From 7d067c68e9fc86d941b44adfb9b95fb491620eaf Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 1 Jul 2013 11:58:55 +0800
+Subject: [PATCH 10/14] remove obsolete code
+
+---
+ m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh b/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh
+index 170e203..16ef79d 100755
+--- a/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh
+@@ -16,9 +16,6 @@ sns_repair_test()
+ 	local unit_size=$((stride * 1024))
+ 
+ 	echo "Starting SNS repair testing ..."
+-#	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride || {
+-#		return 1
+-#	}
+ 
+ 	for ((i=1; i < ${#EP[*]}; i++)) ; do
+ 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
+@@ -115,8 +112,6 @@ sns_repair_test()
+ 		rc=0
+ 	fi
+ 
+-#	unmount_and_clean
+-
+ 	return $rc
+ }
+ 
+-- 
+1.8.3.2
+

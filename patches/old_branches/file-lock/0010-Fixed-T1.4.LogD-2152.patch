@@ -1,0 +1,89 @@
+From 0f218f37025411a261997815dc19d76467e95b7a Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Mon, 8 Apr 2013 10:06:09 +0530
+Subject: [PATCH 10/25] Fixed T1.4.LogD#2152.
+
+---
+ rm/rm.c          | 6 ++++--
+ rm/ut/filelock.c | 4 ++--
+ rm/ut/rmapi.c    | 4 +---
+ 3 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/rm/rm.c b/rm/rm.c
+index 44bb87f..34eb8bf 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -1337,8 +1337,8 @@ M0_INTERNAL void m0_rm_credit_put(struct m0_rm_incoming *in)
+ 	struct m0_rm_owner *owner = in->rin_want.cr_owner;
+ 
+ 	M0_ENTRY("owner: %p credit: %lu", owner, in->rin_want.cr_datum);
+-	incoming_release(in);
+ 	m0_rm_owner_lock(owner);
++	incoming_release(in);
+ 	incoming_surrender(in);
+ 	/*
+ 	 * Release of this credit may excite other waiting incoming-requests.
+@@ -2203,19 +2203,21 @@ static void pin_del(struct m0_rm_pin *pin)
+ 
+ 	in = pin->rp_incoming;
+ 	owner = in->rin_want.cr_owner;
++	M0_ASSERT(owner_smgrp_is_locked(owner));
+ 	pi_tlink_del_fini(pin);
+ 	pr_tlink_del_fini(pin);
+-	m0_rm_pin_bob_fini(pin);
+ 	if (incoming_pin_nr(in, M0_RPF_TRACK) == 0 &&
+ 	    pin->rp_flags & M0_RPF_TRACK) {
+ 		/*
+ 		 * Last tracking pin removed, excite the request.
+ 		 */
+ 		M0_LOG(M0_INFO, "Exciting incoming: %p\n", in);
++		M0_ASSERT(incoming_state(in) == RI_WAIT);
+ 		m0_rm_ur_tlist_move(
+ 			&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
+ 			&in->rin_want);
+ 	}
++	m0_rm_pin_bob_fini(pin);
+ 	m0_free(pin);
+ 	M0_LEAVE();
+ }
+diff --git a/rm/ut/filelock.c b/rm/ut/filelock.c
+index 74f9a40..efa100b 100644
+--- a/rm/ut/filelock.c
++++ b/rm/ut/filelock.c
+@@ -15,7 +15,7 @@
+  * http://www.xyratex.com/contact
+  *
+  * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
+- * Original creation date: 08/21/2012
++ * Original creation date: 03/27/2013
+  */
+ #include "lib/types.h"            /* uint64_t */
+ #include "lib/chan.h"
+@@ -51,7 +51,7 @@ enum flock_tests {
+ };
+ 
+ enum {
+-	CLNT_THR_NR = 20
++	CLNT_THR_NR = 10
+ };
+ 
+ static struct m0_thread clnt_thr[CLNT_THR_NR];
+diff --git a/rm/ut/rmapi.c b/rm/ut/rmapi.c
+index 03a7fa1..b34dc6b 100644
+--- a/rm/ut/rmapi.c
++++ b/rm/ut/rmapi.c
+@@ -181,10 +181,8 @@ static void rt_api_test(void)
+ 	M0_UT_ASSERT(rm_test_data.rd_dom.rd_types[0] == rm_test_data.rd_rt);
+ 
+ 	/* Test m0_rm_type_deregister */
+-	m0_rm_type_deregister(rm_test_data.rd_rt);
+-
++	rm_test_data.rd_ops->rtype_unset(&rm_test_data);
+ 	M0_UT_ASSERT(rm_test_data.rd_dom.rd_types[0] == NULL);
+-	M0_UT_ASSERT(rm_test_data.rd_rt->rt_dom == NULL);
+ 
+ 	m0_rm_domain_fini(&rm_test_data.rd_dom);
+ }
+-- 
+1.8.3.2
+

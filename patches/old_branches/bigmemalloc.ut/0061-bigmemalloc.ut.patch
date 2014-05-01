@@ -1,0 +1,421 @@
+From 35426a647ad6a6888064e229ee14405c949051a2 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Mon, 2 Dec 2013 12:09:25 +0530
+Subject: [PATCH 61/61] bigmemalloc.ut
+
+-UT runs successfully.
+-UB runs successfully.
+-Code coverage is 98 %.
+---
+ lib/ut/varr.c | 194 ++++++++++++++++++++++++++++++++++------------------------
+ lib/varr.c    |  12 ++--
+ 2 files changed, 120 insertions(+), 86 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index 4e5168e..42f759b 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -30,8 +30,6 @@
+ #include "lib/finject.h"	/* M0_FI_ENABLED */
+ #ifndef __KERNEL__
+ #include <limits.h>		/* CHAR_BIT */
+-#include <stdio.h>
+-#include <math.h>
+ #else
+ #include <linux/limits.h>
+ #endif
+@@ -43,87 +41,104 @@ enum data_types {
+ 	DT_NON_POWTWO,
+ };
+ 
+-enum misc_params {
++enum sizes_and_shifts {
+ 	BUFF_SIZE           = 32,
+ 	BUFF_SHIFT          = 5,
+ 	DT_ATOMIC_8_SHIFT   = 0,
+ 	DT_ATOMIC_64_SHIFT  = 3,
+ 	DT_POWTWO_SHIFT     = 4,
+ 	DT_NON_POWTWO_SHIFT = BUFF_SHIFT,
+-	MAX_OBJ_NR          = 26000,
++};
++
++M0_BASSERT(sizeof (uint64_t) == M0_BITS(DT_ATOMIC_64_SHIFT));
++M0_BASSERT(sizeof (uint8_t) == M0_BITS(DT_ATOMIC_8_SHIFT));
++
++enum misc_params {
+ /* Following expression has been used to compute the maximum allowable tree
+- * depth under given constraints. In actual computation SYSTEM_MEMORY has been
++ * depth under given constraints. In actual computation, SYSTEM_MEMORY has been
+  * assumed to be 1GB.
+    max_depth = log(SYSTEM_MEMORY *
+ 		(BUFF_SIZE - M0_VA_TNODEPTR_SIZE)/
+ 		(BUFF_SIZE * M0_VA_TNODEPTR_SIZE*M0_VA_TNODE_NR) + 1))/
+ 		log (BUFF_SIZE/M0_VA_TNODEPTR_SIZE) + 1;
+ */
+-	MAX_DEPTH	    = 11,
+-	MAX_TEST_DEPTH      = 6,
+-	MAX_BUFFERS	    = 4096,
++	MAX_DEPTH      = 11,
++	MAX_OBJ_NR     = 26000,
++	MAX_TEST_DEPTH = 6,
++	MAX_BUFFERS    = 4096,
+ };
+ 
+ M0_BASSERT(BUFF_SIZE == M0_BITS(BUFF_SHIFT));
+ M0_BASSERT(M0_0VEC_ALIGN > BUFF_SIZE);
+ M0_BASSERT(!(M0_0VEC_ALIGN & (M0_0VEC_ALIGN - 1)));
++
+ /* sizeof struct po2 is an integer power of two. */
+ struct po2 {
+ 	uint64_t p_x;
+ 	uint64_t p_y;
+ };
+-
+ M0_BASSERT(sizeof (struct po2) == M0_BITS(DT_POWTWO_SHIFT));
+ /* sizeof struct non_po2 is not an integer power of two. */
+ struct non_po2 {
+ 	uint16_t np_chksum;
+ 	uint8_t  np_arr[15];
+ };
+-
++/* Test the case when object size and buffer size are same. */
+ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+ 	   sizeof (struct non_po2) > M0_BITS(BUFF_SHIFT - 1));
+ 
+-/* Iterates over arrays with various sizes of objects of type 'dt'. Max
+- * possible number of elements from array get decided by depth. */
+-#define test_iterate(varr, ele, dt, nr)				      \
+-({								      \
+-	 struct m0_varr *__varr_ = (varr);			      \
+-	 typeof(ele)     __ele;					      \
+-	 uint64_t	 __nr    = (nr);			      \
+-	 int		 __rc;					      \
+-	 uint64_t	 __step;				      \
+-								      \
+-	 M0_ASSERT(size_get(dt) == sizeof __ele);		      \
+-	 M0_SET0(__varr_);					      \
+-	 __rc = m0_varr_init(__varr_, __nr, size_get(dt), BUFF_SIZE); \
+-	 M0_ASSERT(__rc == 0);					      \
+-	 m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,	      \
+-		      m0_varr_size(__varr_), 1) {		      \
+-		obj_init((void*)obj, i, dt);			      \
+-	 } m0_varr_enditer;					      \
+-	 m0_varr_for (__varr_, typeof(__ele), i, obj) {		      \
+-		obj_sanity_check(obj, i, dt);			      \
+-	 } m0_varr_endfor;					      \
+-	 for (__step = 2; __step <= nr;	++__step) {		      \
+-		 m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,      \
+-			      m0_varr_size(__varr_), __step) {        \
+-			 obj_sanity_check((void *)obj, i, dt);	      \
+-		 } m0_varr_enditer;				      \
+-	 }							      \
+-	 m0_varr_fini(__varr_);				      \
++/* Iterates over arrays with various sizes of objects of type 'dt'. */
++#define test_iterate(varr, ele, dt, buff_nr)			        \
++({								        \
++	 struct m0_varr *__varr_   = (varr);			        \
++	 typeof(ele)     __ele;					        \
++	 uint64_t	 __buff_nr = (buff_nr);			        \
++	 uint64_t        __nr;					        \
++	 int		 __rc;					        \
++	 uint64_t	 __step;				        \
++	 uint32_t        __dt      = dt;			        \
++								        \
++	 M0_ASSERT(size_get(__dt) == sizeof __ele);		        \
++	 M0_SET0(__varr_);					        \
++	 __nr = array_len_compute(__buff_nr, __dt);		        \
++	 __rc = m0_varr_init(__varr_, __nr, size_get(__dt), BUFF_SIZE); \
++	 M0_ASSERT(__rc == 0);					        \
++	 m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,	        \
++		      m0_varr_size(__varr_), 1) {		        \
++		obj_init((void*)obj, i, __dt);			        \
++	 } m0_varr_enditer;					        \
++	 m0_varr_for (__varr_, typeof(__ele), i, obj) {		        \
++		obj_sanity_check(obj, i, __dt);			        \
++	 } m0_varr_endfor;					        \
++	 for (__step = 2; __step <= __nr;	++__step) {		\
++		 m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,        \
++			      m0_varr_size(__varr_), __step) {          \
++			 obj_sanity_check((void *)obj, i, __dt);	\
++		 } m0_varr_enditer;				        \
++	 }							        \
++	 m0_varr_fini(__varr_);				                \
+ })
+-static void obj_init(void *obj, uint64_t data, enum data_types dt);
+-static void obj_sanity_check(void *obj, uint64_t data, enum data_types dt);
+-static size_t size_get(enum data_types dt);
++
++/* Tests init and fini APIs for m0_varr. */
+ static void test_init(void);
++/* Tests sanity of object and buffer sizes that get stored within
++ * m0_varr. */
+ static void test_size(void);
+-static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth);
++/* Tests tree construction for complete trees of various depths, maximum
++ * depth being max_depth. */
+ static void test_depth(uint32_t max_depth);
++/* Tests contents of cache present in m0_varr. */
+ static void test_cache(void);
+-static void test_ut_iterate(void);
++/* Iterates over array, for various input objects. */
++static void test_ut_iterate(uint64_t nr);
++static void obj_init(void *obj, uint64_t data, enum data_types dt);
++static void obj_sanity_check(const void *obj, uint64_t data,
++			     enum data_types dt);
++static size_t size_get(enum data_types dt);
+ static uint16_t int_summation(uint8_t n);
+ uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt);
+ uint32_t shift_get(enum data_types dt);
++static void tree_sanity_check(const struct m0_varr *varr, uint32_t depth);
+ 
+ void test_varr(void)
+ {
+@@ -131,14 +146,14 @@ void test_varr(void)
+ 	test_size();
+ 	test_depth(MAX_TEST_DEPTH);
+ 	test_cache();
+-	test_ut_iterate();
++	test_ut_iterate(MAX_OBJ_NR);
+ }
+ 
+ static void test_init(void)
+ {
+ 	struct m0_varr varr;
+ 	int	       rc;
+-	uint64_t       n = 1;
++	uint64_t       n;
+ 	m0_time_t      seed;
+ 
+ 	M0_SET0(&varr);
+@@ -149,8 +164,7 @@ static void test_init(void)
+ 
+ 	/* Test fault injection. */
+ 	seed = m0_time_now();
+-	while (!!(n % 2))
+-		n = m0_rnd(MAX_BUFFERS, &seed);
++	n = m0_rnd(MAX_BUFFERS, &seed);
+ 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", n, 1);
+ 	M0_SET0(&varr);
+ 	rc = m0_varr_init(&varr, MAX_OBJ_NR, size_get(DT_POWTWO),
+@@ -166,11 +180,13 @@ static void test_size(void)
+ 	int		rc;
+ 	enum data_types dt;
+ 	size_t		obj_size;
++
+ 	M0_SET0(&varr);
+ 	for (dt = DT_ATOMIC_8; dt <= DT_NON_POWTWO; ++dt) {
+ 		obj_size = size_get(dt);
+ 		M0_SET0(&varr);
+-		/* Test non-power of two buffer-size */
++		/* Note that input buffer size has been deliberately given as
++		 * non power of two */
+ 		rc = m0_varr_init(&varr, M0_VA_TNODE_NR, obj_size,
+ 				  M0_0VEC_ALIGN - 1);
+ 		M0_UT_ASSERT(rc == 0);
+@@ -178,7 +194,7 @@ static void test_size(void)
+ 			     obj_size <= varr.va_obj_size	          &&
+ 			     2 * obj_size > varr.va_obj_size);
+ 		M0_UT_ASSERT(varr.va_bufsize == M0_0VEC_ALIGN);
+-		test_tree_sanity(&varr, 2);
++		tree_sanity_check(&varr, 2);
+ 		m0_varr_fini(&varr);
+ 	}
+ }
+@@ -199,7 +215,7 @@ static size_t size_get(enum data_types dt)
+ 
+ }
+ 
+-static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth)
++static void tree_sanity_check(const struct m0_varr *varr, uint32_t depth)
+ {
+ 	uint32_t num_trees;
+ 	uint64_t buff_nr;
+@@ -207,38 +223,41 @@ static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth)
+ 
+ 	for (num_trees = 0; num_trees < M0_VA_TNODE_NR &&
+ 		varr->va_tree[num_trees] != NULL; ++num_trees);
+-
++	/* Maximum possible leaf buffers for a given depth. */
+ 	buff_nr = M0_BITS(varr->va_bufptr_nr_shift * (varr->va_depth - 2));
+ 	buff_nr *= num_trees;
+ 	M0_UT_ASSERT(varr->va_buff_nr <= buff_nr);
+-	num_accomodated = M0_BITS(varr->va_buf_shift - varr->va_obj_shift);
+-	num_accomodated *= varr->va_buff_nr;
++	/* Maximum number of objects that can accomodate in a given number of
++	 * leaf-buffers. */
++	num_accomodated = M0_BITS(varr->va_buf_shift - varr->va_obj_shift) *
++		varr->va_buff_nr;
+ 	M0_UT_ASSERT(num_accomodated >= varr->va_nr);
+ 	M0_UT_ASSERT(num_accomodated - varr->va_nr <
+-			M0_BITS(varr->va_buf_shift - varr->va_obj_shift));
++		     M0_BITS(varr->va_buf_shift - varr->va_obj_shift));
+ 	M0_UT_ASSERT(varr->va_depth == depth);
+ }
+ 
+ static void test_depth(uint32_t max_depth)
+ {
+-	struct       m0_varr varr;
+-	uint64_t     nr;
+-	int          rc;
+-	uint32_t     depth = 2;
+-	uint64_t     buff_nr;
++	struct   m0_varr varr;
++	uint64_t nr;
++	int      rc;
++	uint32_t depth = 2;
++	uint64_t buff_nr;
+ 
+ 	M0_SET0(&varr);
+ 	M0_UT_ASSERT(max_depth > 1);
+ 
+-
++	/* Test complete trees with various depths, maximum depth being
++	 * max_depth. */
+ 	for (buff_nr = M0_VA_TNODE_NR; depth <= max_depth;
+ 	     buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE), ++depth) {
+-		nr = buff_nr * (M0_BITS( BUFF_SHIFT - DT_POWTWO_SHIFT));
++		nr = buff_nr * M0_BITS(BUFF_SHIFT - DT_POWTWO_SHIFT);
+ 		M0_SET0(&varr);
+ 		rc = m0_varr_init(&varr, nr,
+ 				  size_get(DT_POWTWO), BUFF_SIZE);
+ 		M0_UT_ASSERT(rc == 0);
+-		test_tree_sanity(&varr, depth);
++		tree_sanity_check(&varr, depth);
+ 		m0_varr_fini(&varr);
+ 	}
+ }
+@@ -254,7 +273,7 @@ static void test_cache(void)
+ 	M0_SET0(&varr);
+ 	rc = m0_varr_init(&varr, MAX_OBJ_NR, size_get(DT_POWTWO), BUFF_SIZE);
+ 	M0_UT_ASSERT(rc == 0);
+-	test_tree_sanity(&varr, 6);
++	tree_sanity_check(&varr, 6);
+ 	obj_per_buff = varr.va_bufsize/ varr.va_obj_size;
+ 	for (i = 0; i < m0_varr_size(&varr); ++i) {
+ 		arr_ele = m0_varr_ele_get(&varr, i);
+@@ -266,26 +285,42 @@ static void test_cache(void)
+ 
+ static uint16_t int_summation(uint8_t n)
+ {
+-	return n * (n + 1) / 2;
++	return (n + 1) * n / 2;
+ }
+ 
+-void  test_ut_iterate(void)
++void  test_ut_iterate(uint64_t buff_nr)
+ {
++	struct m0_varr varr;
+ 	struct po2     obj_po2;
+ 	struct non_po2 obj_non_po2;
+ 	uint8_t        atomic8_obj;
+ 	uint64_t       atomic64_obj;
+-	m0_time_t      seed;
+-	uint64_t       nr;
+-	struct m0_varr varr;
+ 
+-	seed = m0_time_now();
+-	nr = m0_rnd(MAX_OBJ_NR, &seed);
++	test_iterate(&varr, obj_po2, DT_POWTWO, buff_nr);
++	test_iterate(&varr, obj_non_po2, DT_NON_POWTWO, buff_nr);
++	test_iterate(&varr, atomic8_obj, DT_ATOMIC_8, buff_nr);
++	test_iterate(&varr, atomic64_obj, DT_ATOMIC_64, buff_nr);
++}
++
++void test_ub_iterate(void)
++{
++	uint32_t  depth = 2;
++	uint64_t  buff_nr;
++	m0_time_t seed;
++	int	  i;
++
++	/* Testing for various leaf buffers. */
++	for (i = 0; i < 100; ++i) {
++		seed = m0_time_now();
++		buff_nr = m0_rnd(MAX_BUFFERS, &seed);
++		test_ut_iterate(buff_nr);
++	}
+ 
+-	test_iterate(&varr, obj_po2, DT_POWTWO, nr);
+-	test_iterate(&varr, obj_non_po2, DT_NON_POWTWO, nr);
+-	test_iterate(&varr, atomic8_obj, DT_ATOMIC_8, nr);
+-	test_iterate(&varr, atomic64_obj, DT_ATOMIC_64, nr);
++	/* Testing complete tree.  */
++	for (buff_nr = M0_VA_TNODE_NR; depth <= MAX_DEPTH - 1;
++	     buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE), ++depth) {
++		test_ut_iterate(buff_nr);
++	}
+ }
+ 
+ uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt)
+@@ -340,7 +375,8 @@ static void obj_init(void *obj, uint64_t data, enum data_types dt)
+ 	}
+ }
+ 
+-static void obj_sanity_check(void *obj, uint64_t data, enum data_types dt)
++static void obj_sanity_check(const void *obj, uint64_t data,
++			     enum data_types dt)
+ {
+ 	struct po2     obj_po2;
+ 	struct non_po2 obj_non_po2;
+@@ -360,17 +396,17 @@ static void obj_sanity_check(void *obj, uint64_t data, enum data_types dt)
+ 	case DT_NON_POWTWO:
+ 		obj_non_po2 = *(struct non_po2 *)obj;
+ 		M0_ASSERT(obj_non_po2.np_chksum == (data % UINT8_MAX)*
+-			     int_summation(ARRAY_SIZE(obj_non_po2.np_arr) -
+-						      1));
++			  int_summation(ARRAY_SIZE(obj_non_po2.np_arr) -
++						   1));
+ 	}
+ }
+ enum {
+-	UB_ITER = 1000,
++	UB_ITER = 1,
+ };
+ 
+ static void varr_ub(int i)
+ {
+-	test_ut_iterate();
++	test_ub_iterate();
+ }
+ 
+ struct m0_ub_set m0_varr_ub = {
+diff --git a/lib/varr.c b/lib/varr.c
+index 30efe7a..3d92c1e 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -30,8 +30,6 @@
+ #include "lib/varr_private.h"	/* m0_varr_buf_alloc(), m0_varr_buf_free */
+ #ifndef __KERNEL__
+ #include <limits.h>		/* CHAR_BIT */
+-/*XXX*/
+-#include <stdio.h>
+ #else
+ #include <linux/pagemap.h>	/* PAGE_CACHE_SIZE */
+ #include <linux/limits.h>
+@@ -195,10 +193,10 @@ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+  * M0_VA_TNODE_NR then for *all* arrays with total objects less than or equal to
+  * k * M0_VA_TNODE_NR, depth of trees holding object(s) will be one.
+  * When total objects in an array exceed k * M0_VA_TNODE_NR, we increase
+- * depth by one. If buf_size represents size of a buffer,
+- * ptr_size represents size of a pointer and obj_size represents size of an
+- * object, then following table summarizes mapping between total number of
+- * objects and depth of trees holding objects.
++ * depth by one. If buf_size represents size of a buffer, * ptr_size represents
++ * size of a pointer and obj_size represents size of an object, then following
++ * table summarizes mapping between total number of objects and depth of trees
++ * holding objects.
+  * @verbatim
+   _______________________________________________________________________
+  | Max. number of objects                                     | Depth   |
+@@ -214,7 +212,7 @@ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+  * collection of trees with same depth, but as a single tree encompassing
+  * entire data-structure. Following function returns depth of this tree. For
+  * each case in the table above, this tree has depth one more than the one
+- * mentioned in the table.
++ * mentioned in the table above.
+  */
+ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+ 				uint64_t total_leaves)
+-- 
+1.8.3.2
+

@@ -1,0 +1,49 @@
+From cb600a398512a032a2838f6330325ebca01c7b3a Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 13 Jun 2013 15:38:45 +0300
+Subject: [PATCH 151/161] be/tx: tsearch() returns pointer to node, not to key.
+
+---
+ be/tx.c | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 1c00ab6..6b866a6 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -288,6 +288,11 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
++/* Regions tree node for tsearch(). */
++struct be_regdtree_node {
++	struct m0_be_reg_d *bn_reg_d;
++};
++
+ M0_INTERNAL void
+ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ {
+@@ -311,12 +316,14 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 	 * buffers, until the new region either do not intersect any of the
+ 	 * old ones or is completely stuffed into old buffers. */
+ 	while (new->rd_reg.br_size > 0) {
+-		struct m0_ext enew;
+-		struct m0_ext eold;
+-		struct m0_ext intersection;
+-
+-		old = tsearch(new, &tx->t_root, &tx_reg_cmp);
+-		M0_ASSERT(old != NULL);
++		struct m0_ext            enew;
++		struct m0_ext            eold;
++		struct m0_ext            intersection;
++		struct be_regdtree_node *oldnode;
++
++		oldnode = tsearch(new, &tx->t_root, &tx_reg_cmp);
++		M0_ASSERT(oldnode != NULL);
++		old = oldnode->bn_reg_d;
+ 		M0_ASSERT(old != prev);
+ 
+ 		if (old == new) {
+-- 
+1.8.3.2
+

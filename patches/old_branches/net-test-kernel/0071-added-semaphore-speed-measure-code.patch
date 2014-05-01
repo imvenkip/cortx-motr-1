@@ -1,0 +1,139 @@
+From a70498f1182a38a9d8f7a2cb45ba06c59c3ac824 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 24 Jan 2013 12:20:00 +0200
+Subject: [PATCH 71/71] added semaphore speed measure code
+
+---
+ net/test/ut/main.c    |  2 ++
+ net/test/ut/network.c | 95 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 97 insertions(+)
+
+diff --git a/net/test/ut/main.c b/net/test/ut/main.c
+index 306f01f..9d96b93 100644
+--- a/net/test/ut/main.c
++++ b/net/test/ut/main.c
+@@ -46,6 +46,7 @@ extern void c2_net_test_cmd_ut_multiple2(void);
+ extern void c2_net_test_bug_ut(void);
+ extern void c2_net_test_bug2_ut(void);
+ extern void c2_net_test_bug3_ut(void);
++extern void c2_net_test_debug_ut(void);
+ extern void c2_net_test_client_server_stub_ut(void);
+ extern void c2_net_test_client_server_ping_ut(void);
+ extern void c2_net_test_client_server_bulk_ut(void);
+@@ -74,6 +75,7 @@ const struct c2_test_suite c2_net_test_ut = {
+ 		{ "cmd-single",		c2_net_test_cmd_ut_single	  },
+ 		{ "cmd-multiple",	c2_net_test_cmd_ut_multiple	  },
+ 		{ "cmd-multiple2",	c2_net_test_cmd_ut_multiple2	  },
++		{ "debug",		c2_net_test_debug_ut		  },
+ #if 0
+ 		{ "bug3",		c2_net_test_bug3_ut		  },
+ 		{ "bug2",		c2_net_test_bug2_ut		  },
+diff --git a/net/test/ut/network.c b/net/test/ut/network.c
+index bf2f48b..11f6ed8 100644
+--- a/net/test/ut/network.c
++++ b/net/test/ut/network.c
+@@ -1535,6 +1535,101 @@ void c2_net_test_bug3_ut(void)
+ 	}
+ }
+ 
++#include "net/test/stats.h"		/* c2_net_test_stats */
++#include "lib/trace.h"			/* C2_LOG */
++
++enum {
++	SAMPLE_SIZE = 0x100000,
++	SEM_DOWN_NR = 0x1000,
++};
++
++static c2_time_t debug_get_time(void)
++{
++	struct timespec ts;
++#ifndef __KERNEL__
++	int		rc;
++
++	rc = clock_gettime(CLOCK_REALTIME, &ts);
++	C2_ASSERT(rc == 0);
++#else
++	getnstimeofday(&ts);
++#endif
++
++	return ts.tv_sec * C2_TIME_ONE_BILLION + ts.tv_nsec;
++}
++
++static void debug_log_stats(const char *descr,
++			    struct c2_net_test_stats *stats)
++{
++	C2_LOG(C2_INFO, "%s nr/min/max/~avg sumHI/sumLO/sum_sqrHI/sum_sqrLO = "
++	       "%lu/%ld/%ld/%lu %lu/%lu/%lu/%lu",
++	       descr,
++	       stats->nts_count,
++	       (long) c2_net_test_stats_time_min(stats),
++	       (long) c2_net_test_stats_time_max(stats),
++	       (unsigned long) stats->nts_sum.u_lo / stats->nts_count,
++	       (unsigned long) stats->nts_sum.u_hi,
++	       (unsigned long) stats->nts_sum.u_lo,
++	       (unsigned long) stats->nts_sum_sqr.u_hi,
++	       (unsigned long) stats->nts_sum_sqr.u_lo);
++}
++
++static void time_measure_accuracy(void)
++{
++	struct c2_net_test_stats stats;
++	size_t			 i;
++	c2_time_t		 time_current;
++	c2_time_t		 time_next;
++	c2_time_t		 delta;
++
++	c2_net_test_stats_reset(&stats);
++	time_current = debug_get_time();
++	for (i = 0; i < SAMPLE_SIZE; ++i) {
++		time_next = debug_get_time();
++		delta = time_next - time_current;
++		time_current = time_next;
++		if (delta != 0)
++			c2_net_test_stats_time_add(&stats, delta);
++	}
++	debug_log_stats("c2_time_now() delta ", &stats);
++}
++
++static void semaphore_timeddown_measure_speed(void)
++{
++	struct c2_net_test_stats stats;
++	struct c2_semaphore	 sem;
++	size_t			 i;
++	int			 rc;
++	c2_time_t		 time_start;
++	c2_time_t		 time_finish;
++	const size_t		 LOG_SIZE = 0x10;
++	c2_time_t		 small_log[LOG_SIZE];
++
++	rc = c2_semaphore_init(&sem, 0);
++	C2_ASSERT(rc == 0);
++	c2_net_test_stats_reset(&stats);
++	for (i = 0; i < SEM_DOWN_NR; ++i) {
++		time_start = debug_get_time();
++		c2_semaphore_timeddown(&sem, c2_time_now());
++		// c2_semaphore_timeddown(&sem, time_start);
++		// c2_semaphore_trydown(&sem);
++		time_finish = debug_get_time();
++		c2_net_test_stats_add(&stats, time_finish - time_start);
++		if (i < LOG_SIZE)
++			small_log[i] = time_finish - time_start;
++	}
++	c2_semaphore_fini(&sem);
++	debug_log_stats("c2_semaphore_down(&sem, c2_time_now()) time ", &stats);
++	for (i = 0; i < LOG_SIZE; ++i)
++		C2_LOG(C2_INFO, "%lu", (unsigned long) small_log[i]);
++}
++
++void c2_net_test_debug_ut(void)
++{
++	time_measure_accuracy();
++	semaphore_timeddown_measure_speed();
++}
++
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+-- 
+1.8.3.2
+

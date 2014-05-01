@@ -1,0 +1,28 @@
+From 87144cec6fdb29dd2af0005833f8caca187f4746 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 25 Jan 2013 19:57:28 +0200
+Subject: [PATCH 13/79] sync parameter in m0_net_test_network_ctx_init() was
+ lost after merge
+
+---
+ net/test/network.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/net/test/network.c b/net/test/network.c
+index 88b666f..a09787f 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -316,6 +316,10 @@ int m0_net_test_network_ctx_init(struct m0_net_test_network_ctx *ctx,
+ 	if (rc != 0)
+ 		goto free_tm;
+ 
++	rc = sync ? m0_net_buffer_event_deliver_synchronously(ctx->ntc_tm) : 0;
++	if (rc != 0)
++		goto fini_tm;
++
+ 	m0_clink_init(&tmwait, NULL);
+ 	m0_clink_add(&ctx->ntc_tm->ntm_chan, &tmwait);
+ 	rc = m0_net_tm_start(ctx->ntc_tm, tm_addr);
+-- 
+1.8.3.2
+

@@ -1,0 +1,380 @@
+From fe7c16e1e3fe21cfc9ac4fb11829ebb221dce22f Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 8 Apr 2011 11:34:07 -0600
+Subject: [PATCH 51/91] - move make_nskey and make_oikey to cob module; - added
+ readdir interface to cob module.
+
+---
+ cob/cob.c            | 74 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ cob/cob.h            | 53 ++++++++++++++++++++++++++++++-------
+ mdservice/md_foms.c  | 12 +++------
+ mdstore/mdstore.c    | 57 +++++++++++++---------------------------
+ mdstore/mdstore.h    | 14 ----------
+ utils/mkfs.colibri.c |  2 +-
+ 6 files changed, 141 insertions(+), 71 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index e72e818..4296bfc 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -36,6 +36,27 @@ C2_ADDB_EV_DEFINE(cob_enoent,      "cob_noent",
+ C2_ADDB_EV_DEFINE(cob_enomem,      "cob_nomem",
+                   C2_ADDB_EVENT_NOMEM, C2_ADDB_INVAL);
+ 
++void c2_cob_make_oikey(struct c2_cob_oikey *oikey, 
++                       struct c2_fid *fid)
++{
++        oikey->cok_fid = *fid;
++        oikey->cok_linkno = 0;
++}
++
++void c2_cob_make_nskey(struct c2_cob_nskey **keyh, 
++                       struct c2_fid *pfid,
++                       const char *name, 
++                       int namelen)
++{
++        struct c2_cob_nskey *key;
++
++        key = c2_alloc(sizeof(*key) + namelen);
++        key->cnk_pfid = *pfid;
++        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
++        c2_bitstring_len_set(&key->cnk_name, namelen);
++        *keyh = key;
++}
++
+ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0, 
+                      const struct c2_cob_nskey *k1)
+ {
+@@ -336,6 +357,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
+ 
+                 c2_db_cursor_get(&cursor, &cob->co_oipair);
+                 c2_db_pair_release(&cob->co_oipair);
++	        c2_db_pair_fini(&cob->co_oipair);
+                 c2_db_cursor_fini(&cursor);
+         } else {
+                 /*
+@@ -503,6 +525,57 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
+ 	return rc;
+ }
+ 
++int c2_cob_readdir_init(struct c2_cob *cob, struct c2_db_tx *tx)
++{
++        int rc;
++
++        /*
++         * Prepare "." entry key.
++         */        
++        c2_cob_make_nskey(&cob->co_rdkey, &cob->co_fid, ".", 1);
++
++        /*
++         * Init readdir cursor.
++         */
++        c2_db_pair_setup(&cob->co_rdpair, &cob->co_dom->cd_namespace,
++			 &cob->co_rdkey, c2_cob_nskey_size(cob->co_rdkey), 
++			 &cob->co_rdrec, sizeof cob->co_rdrec);
++
++        rc = c2_db_cursor_init(&cob->co_rdcursor, 
++                               &cob->co_dom->cd_namespace, tx);
++        if (rc) {
++                c2_free(cob->co_rdkey);
++                return rc;
++        }
++
++        /*
++         * Position at "." entry location.
++         */
++        c2_db_cursor_get(&cob->co_rdcursor, &cob->co_rdpair);
++        return rc;
++}
++
++int c2_cob_readdir_next(struct c2_cob *cob, struct c2_cob_nskey **key, 
++                        struct c2_cob_nsrec **rec)
++{
++        int   rc;
++        rc = c2_db_cursor_next(&cob->co_rdcursor, &cob->co_rdpair);
++        if (rc)
++                return rc;
++
++        *key = cob->co_rdkey;
++        *rec = &cob->co_rdrec;
++        return rc;
++}
++
++void c2_cob_readdir_fini(struct c2_cob *cob)
++{
++        c2_free(cob->co_rdkey);
++        c2_db_pair_release(&cob->co_rdpair);
++	c2_db_pair_fini(&cob->co_rdpair);
++        c2_db_cursor_fini(&cob->co_rdcursor);
++}
++
+ /** 
+    For assertions only.
+ */
+@@ -559,6 +632,7 @@ int c2_cob_create(struct c2_cob        *cob,
+         c2_db_cursor_get(&cursor, &pair);
+         c2_db_cursor_prev(&cursor, &pair);
+         c2_db_pair_release(&pair);
++	c2_db_pair_fini(&pair);
+         c2_db_cursor_fini(&cursor);
+ 
+         /*
+diff --git a/cob/cob.h b/cob/cob.h
+index 1268c4e..cbb936b 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -226,15 +226,19 @@ struct c2_cob_omgrec {
+  */
+ struct c2_cob {
+         struct c2_cob_domain  *co_dom;
+-        struct c2_stob        *co_stob;    /**< underlying storage object */
+-        struct c2_ref          co_ref;     /**< refcounter for caching cobs */
+-        uint64_t               co_valid;   /**< @see enum ca_valid */
+-        struct c2_verno        co_version; /**< current object version */
+-        struct c2_cob_nskey   *co_nskey;   /**< pfid, filename */
+-        struct c2_cob_oikey    co_oikey;   /**< tfid, linkno */
+-        struct c2_cob_nsrec    co_nsrec;   /**< fid, stat data */
+-        struct c2_cob_fabrec   co_fabrec;  /**< fileattr_basic data */
+-        struct c2_cob_omgrec   co_omgrec;  /**< permission data */
++        struct c2_stob        *co_stob;     /**< underlying storage object */
++        struct c2_ref          co_ref;      /**< refcounter for caching cobs */
++        uint64_t               co_valid;    /**< @see enum ca_valid */
++        struct c2_verno        co_version;  /**< current object version */
++        struct c2_cob_nskey   *co_nskey;    /**< pfid, filename */
++        struct c2_cob_oikey    co_oikey;    /**< tfid, linkno */
++        struct c2_cob_nsrec    co_nsrec;    /**< fid, stat data */
++        struct c2_cob_fabrec   co_fabrec;   /**< fileattr_basic data */
++        struct c2_cob_omgrec   co_omgrec;   /**< permission data */
++        struct c2_db_cursor    co_rdcursor; /**< readdir cursor */
++        struct c2_cob_nskey   *co_rdkey;    /**< current readdir pos */
++        struct c2_cob_nsrec    co_rdrec;    /**< current readdit rec */
++        struct c2_db_pair      co_rdpair;   /**< used for readdir only */
+         struct c2_db_pair      co_oipair;
+ 	struct c2_addb_ctx     co_addb;
+ };
+@@ -351,6 +355,24 @@ int c2_cob_update_name(struct c2_cob        *cob,
+                        struct c2_db_tx      *tx);
+ 
+ /**
++   Init readdir iterator.
++*/
++int c2_cob_readdir_init(struct c2_cob *cob, 
++                        struct c2_db_tx *tx);
++
++/**
++   Postion to next name in a dir cob.
++*/
++int c2_cob_readdir_next(struct c2_cob *cob, 
++                        struct c2_cob_nskey **key, 
++                        struct c2_cob_nsrec **rec);
++
++/**
++   Finish readdir iterator.
++*/
++void c2_cob_readdir_fini(struct c2_cob *cob);
++
++/**
+    Allocate a new cob
+  */
+ int c2_cob_alloc(struct c2_cob_domain *dom, struct c2_cob **out);
+@@ -372,6 +394,19 @@ void c2_cob_get(struct c2_cob *obj);
+  */
+ void c2_cob_put(struct c2_cob *obj);
+ 
++/**
++   Make oikey.
++*/
++void c2_cob_make_oikey(struct c2_cob_oikey *oikey, 
++                       struct c2_fid *fid);
++
++/**
++   Make nskey.
++*/
++void c2_cob_make_nskey(struct c2_cob_nskey **keyh, 
++                       struct c2_fid *pfid,
++                       const char *name, 
++                       int namelen);
+ 
+ /** @} end group cob */
+ 
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 51d04a1..9ef6277 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -37,14 +37,10 @@ void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *wid)
+ void c2_md_make_nskey(struct c2_cob_nskey **keyh, struct c2_fop_fid *fid,
+                       struct c2_fop_name *name)
+ {
+-        struct c2_cob_nskey *key;
+-
+-        key = c2_alloc(sizeof(*key) + name->n_count);
+-        c2_md_make_fid(&key->cnk_pfid, fid);
+-        memcpy(c2_bitstring_buf_get(&key->cnk_name), 
+-               name->n_name, name->n_count);
+-        c2_bitstring_len_set(&key->cnk_name, name->n_count);
+-        *keyh = key;
++        struct c2_fid cfid;
++        
++        c2_md_make_fid(&cfid, fid);
++        c2_cob_make_nskey(keyh, &cfid, name->n_name, name->n_count);
+ }
+ 
+ /**
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 415c9c2..d4a29ab 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -36,27 +36,6 @@ struct c2_fid C2_MD_ROOT_FID = {
+         .f_key       = 1ULL
+ };
+ 
+-void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
+-                            struct c2_fid *fid)
+-{
+-        oikey->cok_fid = *fid;
+-        oikey->cok_linkno = 0;
+-}
+-
+-void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
+-                            struct c2_fid *pfid,
+-                            const char *name, 
+-                            int namelen)
+-{
+-        struct c2_cob_nskey *key;
+-
+-        key = c2_alloc(sizeof(*key) + namelen);
+-        key->cnk_pfid = *pfid;
+-        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
+-        c2_bitstring_len_set(&key->cnk_name, namelen);
+-        *keyh = key;
+-}
+-
+ int c2_md_store_init(struct c2_md_store *md, 
+                      struct c2_cob_domain_id *id,
+                      struct c2_dbenv *db, 
+@@ -185,9 +164,9 @@ int c2_md_store_create(struct c2_md_store *md,
+         C2_SET0(&fabrec);
+         C2_SET0(&omgrec);
+ 
+-        c2_md_store_make_nskey(&nskey, &pcob->co_fid, 
+-                               req->c_name.n_name, 
+-                               req->c_name.n_count);
++        c2_cob_make_nskey(&nskey, &pcob->co_fid, 
++                          req->c_name.n_name, 
++                          req->c_name.n_count);
+         c2_md_make_fid(&nsrec.cnr_fid, &body->b_tfid);
+ 
+         /*
+@@ -249,7 +228,7 @@ int c2_md_store_add_name(struct c2_cob *cob,
+         struct c2_cob_nskey   *nskey;
+         int                    rc;
+         
+-        c2_md_store_make_nskey(&nskey, pfid, name, namelen);
++        c2_cob_make_nskey(&nskey, pfid, name, namelen);
+         rc = c2_cob_add_name(cob, nskey, tx);
+         cob->co_nsrec.cnr_nlink++;
+         c2_free(nskey);
+@@ -273,9 +252,9 @@ int c2_md_store_link(struct c2_md_store *md,
+         /*
+          * Link @nskey to a file described with @cob
+          */        
+-        c2_md_store_make_nskey(&nskey, &pcob->co_fid, 
+-                               req->l_name.n_name,
+-                               req->l_name.n_count);
++        c2_cob_make_nskey(&nskey, &pcob->co_fid, 
++                          req->l_name.n_name,
++                          req->l_name.n_count);
+         rc = c2_cob_add_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
+         c2_free(nskey);
+         if (rc)
+@@ -324,9 +303,9 @@ int c2_md_store_unlink(struct c2_md_store *md,
+         C2_ASSERT(pcob != NULL);
+         C2_ASSERT(cob != NULL);
+ 
+-        c2_md_store_make_nskey(&nskey, &pcob->co_fid, 
+-                               req->u_name.n_name,
+-                               req->u_name.n_count);
++        c2_cob_make_nskey(&nskey, &pcob->co_fid, 
++                          req->u_name.n_name,
++                          req->u_name.n_count);
+ 
+         /*
+          * Copy "working copy" of stat data.
+@@ -520,12 +499,12 @@ int c2_md_store_rename(struct c2_md_store *md,
+         /*
+          * Prepare src and dst keys.
+          */                
+-        c2_md_store_make_nskey(&srckey, &pcob_src->co_fid, 
+-                               req->r_sname.n_name,
+-                               req->r_sname.n_count);
+-        c2_md_store_make_nskey(&tgtkey, &pcob_tgt->co_fid, 
+-                               req->r_tname.n_name,
+-                               req->r_tname.n_count);
++        c2_cob_make_nskey(&srckey, &pcob_src->co_fid, 
++                          req->r_sname.n_name,
++                          req->r_sname.n_count);
++        c2_cob_make_nskey(&tgtkey, &pcob_tgt->co_fid, 
++                          req->r_tname.n_name,
++                          req->r_tname.n_count);
+ 
+         rc = c2_cob_update_name(cob, srckey, tgtkey, 
+                                 &ctx->fc_tx->tx_dbtx);
+@@ -700,7 +679,7 @@ int c2_md_store_locate(struct c2_md_store *md,
+         struct c2_cob_oikey oikey;
+         int                 rc;
+ 
+-        c2_md_store_make_oikey(&oikey, fid);
++        c2_cob_make_oikey(&oikey, fid);
+ 
+         if (flags == C2_MD_STORE_LOCATE_STORED) {
+                 rc = c2_cob_locate(&md->md_dom, &oikey, cob, tx);
+@@ -727,7 +706,7 @@ int c2_md_store_lookup(struct c2_md_store *md,
+         struct c2_cob_nskey *nskey;
+         int                  rc;
+         
+-        c2_md_store_make_nskey(&nskey, &pcob->co_fid, name, namelen);
++        c2_cob_make_nskey(&nskey, &pcob->co_fid, name, namelen);
+         rc = c2_cob_lookup(&md->md_dom, nskey, CA_NSKEY_FREE, &cob, tx);
+ 
+         return rc;
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 1e1ca1a..ee20ac3 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -239,20 +239,6 @@ int c2_md_store_create_attr(struct c2_md_store *md,
+                             struct c2_cob_omgrec *omgrec, 
+                             struct c2_db_tx *tx);
+ 
+-/**
+-   Create oi key using passed fid.
+-*/
+-void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
+-                            struct c2_fid *fid);
+-
+-/**
+-   Create nskey using passed parent fid and name.
+-*/
+-void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
+-                            struct c2_fid *pfid,
+-                            const char *name, 
+-                            int namelen);
+-
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+ 
+diff --git a/utils/mkfs.colibri.c b/utils/mkfs.colibri.c
+index 8c3bcf3..be31c16 100644
+--- a/utils/mkfs.colibri.c
++++ b/utils/mkfs.colibri.c
+@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
+ 
+         C2_SET0(&nsrec);
+ 
+-        c2_md_store_make_nskey(&nskey, &C2_MD_ROOT_FID, "ROOT", 4);
++        c2_cob_make_nskey(&nskey, &C2_MD_ROOT_FID, "ROOT", 4);
+ 
+         /*
+          * Zero omgid is for root directory.
+-- 
+1.8.3.2
+

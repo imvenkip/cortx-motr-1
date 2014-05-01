@@ -1,0 +1,312 @@
+From 8acf1705f8a66ade3811dd20ed18249772351fac Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 22 Feb 2012 15:29:49 +0200
+Subject: [PATCH 012/370] s/c2_confc_fetchctx/c2_confc_ctx/
+
+---
+ conf/confc.c    | 56 +++++++++++++++++++++++++++-----------------------------
+ conf/confc.h    | 28 ++++++++++++----------------
+ conf/ut/confc.c | 10 +++++-----
+ 3 files changed, 44 insertions(+), 50 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 9c5f36e..327c573 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -34,23 +34,23 @@
+ 
+ static struct c2_conf_cache confc_cache;
+ 
+-static bool ctx_invariant(struct c2_confc_fetchctx *ctx);
++static bool ctx_invariant(struct c2_confc_ctx *ctx);
+ 
+-void c2_confc_fetchctx_init(struct c2_confc_fetchctx *ctx)
++void c2_confc_ctx_init(struct c2_confc_ctx *ctx)
+ {
+ 	c2_chan_init(&ctx->fc_complete);
+ 	c2_clink_init(&ctx->fc_clink, on_unpinned);
+ 	C2_POST(ctx_invariant(ctx));
+ }
+-C2_EXPORTED(c2_confc_fetchctx_init);
++C2_EXPORTED(c2_confc_ctx_init);
+ 
+-void c2_confc_fetchctx_fini(struct c2_confc_fetchctx *ctx)
++void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+ {
+ 	C2_PRE(ctx_invariant(ctx));
+ 	c2_clink_fini(&ctx->fc_clink);
+ 	c2_chan_fini(&ctx->fc_complete);
+ }
+-C2_EXPORTED(c2_confc_fetchctx_fini);
++C2_EXPORTED(c2_confc_ctx_fini);
+ 
+ static enum c2_conf_status
+ list_status(const struct c2_tl_descr *descr, const struct c2_tl *list)
+@@ -71,10 +71,10 @@ static inline struct c2_mutex * cache_lock(void) {
+ 	return &confc_cache.cc_lock;
+ }
+ 
+-static inline struct c2_confc_fetchctx * to_ctx(struct c2_sm *mach)
++static inline struct c2_confc_ctx * to_ctx(struct c2_sm *mach)
+ {
+ 	C2_PRE(mach != NULL);
+-	return container_of(mach, struct c2_confc_fetchctx, fc_mach);
++	return container_of(mach, struct c2_confc_ctx, fc_mach);
+ }
+ 
+ static void
+@@ -90,7 +90,7 @@ request_fill(struct c2_confop_fetch *req, const struct c2_conf_obj *path_org,
+  *                  object does not exist.
+  */
+ static int
+-path_status(struct c2_confc_fetchctx *ctx, enum c2_conf_status *status)
++path_status(struct c2_confc_ctx *ctx, enum c2_conf_status *status)
+ {
+ 	struct c2_conf_obj *obj = ctx->fc_path.p_origin ?: confc_cache->cc_root;
+ 	struct c2_conf_pathcomp *comp = ctx->fc_path.p_comps;
+@@ -171,10 +171,8 @@ end:
+ 	return ret;
+ }
+ 
+-int c2_confc_open(struct c2_confc_fetchctx *ctx,
+-		  struct c2_conf_obj *path_origin,
+-		  const struct c2_conf_pathcomp *path,
+-		  size_t path_len)
++int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
++		  const struct c2_conf_pathcomp *path, size_t path_len)
+ {
+ 	C2_PRE(ctx->fc_path.p_comps == NULL);
+ 
+@@ -195,11 +193,11 @@ C2_EXPORTED(c2_confc_open);
+ 
+ void * c2_confc_open_sync(const struct c2_conf_path *path)
+ {
+-	struct c2_confc_fetchctx ctx;
++	struct c2_confc_ctx ctx;
+ 	int rc;
+ 	void *ret = NULL;
+ 
+-	c2_confc_fetchctx_init(&ctx);
++	c2_confc_ctx_init(&ctx);
+ 	rc = c2_confc_open(path, &ctx);
+ 	if (rc == 0) {
+ 		rc = c2_sm_timedwait(&ctx.fc_mach, S_TERMINAL | S_FAILURE,
+@@ -207,7 +205,7 @@ void * c2_confc_open_sync(const struct c2_conf_path *path)
+ 		C2_ASSERT(rc == 0);
+ 		ret = ctx.fc_result;
+ 	}
+-	c2_confc_fetchctx_fini(&ctx);
++	c2_confc_ctx_fini(&ctx);
+ 	return ret;
+ }
+ C2_EXPORTED(c2_confc_open_sync);
+@@ -337,16 +335,16 @@ enum confc_state { S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
+ static void _state_set(struct c2_sm_group *grp __attribute__((unused)),
+ 		       struct c2_sm_ast *ast)
+ {
+-	struct c2_confc_fetchctx *ctx =
+-		container_of(ast, struct c2_conf_fetchctx, fc_ast);
++	struct c2_confc_ctx *ctx =
++		container_of(ast, struct c2_confc_ctx, fc_ast);
+ 	c2_sm_state_set(&ctx->fc_mach, (enum confc_state)ast->sa_datum);
+ }
+ 
+ static void _fail(struct c2_sm_group *grp __attribute__((unused)),
+ 		  struct c2_sm_ast *ast)
+ {
+-	struct c2_confc_fetchctx *ctx =
+-		container_of(ast, struct c2_conf_fetchctx, fc_ast);
++	struct c2_confc_ctx *ctx =
++		container_of(ast, struct c2_confc_ctx, fc_ast);
+ 	c2_sm_fail(&ctx->fc_mach, S_FAILURE, (int32_t)ast->sa_datum);
+ }
+ 
+@@ -393,7 +391,7 @@ static void check_st_in(struct c2_sm *mach)
+ static void wait_reply_st_in(struct c2_sm *mach)
+ {
+ 	int rc;
+-	struct c2_confc_fetchctx *ctx = to_ctx(mach);
++	struct c2_confc_ctx *ctx = to_ctx(mach);
+ 
+ 	C2_PRE(ctx_invariant(ctx));
+ 	rc = c2_rpc_post(&ctx->fc_fop.f_item);
+@@ -450,25 +448,25 @@ static void completion_announce(struct c2_sm *mach)
+ 
+ static bool failure_st_invariant(const struct c2_sm *mach)
+ {
+-	const struct c2_confc_fetchctx *ctx =
+-		container_of(mach, const struct c2_confc_fetchctx, fc_mach);
++	const struct c2_confc_ctx *ctx =
++		container_of(mach, const struct c2_confc_ctx, fc_mach);
+ 	return ctx->fc_result == NULL && ctx->fc_mach.sm_rc < 0;
+ }
+ 
+ static bool terminal_st_invariant(const struct c2_sm *mach)
+ {
+-	const struct c2_confc_fetchctx *ctx =
+-		container_of(mach, const struct c2_confc_fetchctx, fc_mach);
++	const struct c2_confc_ctx *ctx =
++		container_of(mach, const struct c2_confc_ctx, fc_mach);
+ 	return mach->sm_rc == 0 && ctx->fc_result != NULL;
+ }
+ 
+ /** Handles RPC "replied" event: response arrival or an error. */
+ static void on_replied(struct c2_rpc_item *item)
+ {
+-	struct c2_confc_fetchctx *ctx;
++	struct c2_confc_ctx *ctx;
+ 
+ 	C2_PRE(item->ri_type == &request_item_type);
+-	ctx = container_of(c2_rpc_item_to_fop(item), struct c2_confc_fetchctx,
++	ctx = container_of(c2_rpc_item_to_fop(item), struct c2_confc_ctx,
+ 			   fc_fop);
+ 
+ 	if (item->ri_error == 0)
+@@ -480,8 +478,8 @@ static void on_replied(struct c2_rpc_item *item)
+ /** Handles "object unpinned" event. */
+ static bool on_unpinned(struct c2_clink *link)
+ {
+-	struct c2_confc_fetchctx *ctx =
+-		container_of(link, struct c2_confc_fetchctx, fc_clink);
++	struct c2_confc_ctx *ctx =
++		container_of(link, struct c2_confc_ctx, fc_clink);
+ 
+ 	c2_clink_del(link);
+ 	ast_state_set(&ctx->fc_ast, S_CHECK);
+@@ -558,7 +556,7 @@ static struct c2_sm_conf confc_states_conf = {
+  * misc
+  * ------------------------------------------------------------------ */
+ 
+-static bool ctx_invariant(struct c2_confc_fetchctx *ctx)
++static bool ctx_invariant(struct c2_confc_ctx *ctx)
+ {
+ 	const struct c2_rpc_item *item = &ctx->fc_fop.f_item;
+ 	return XXX /* more checks */ &&
+diff --git a/conf/confc.h b/conf/confc.h
+index 9530ded..6600db9 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -101,13 +101,13 @@
+  *
+  * static struct c2_conf_filesystem * filesystem_open_a(int32_t *errno)
+  * {
+- * 	struct c2_confc_fetchctx   ctx;
++ * 	struct c2_confc_ctx        ctx;
+  * 	struct c2_clink            clink;
+  * 	struct c2_conf_filesystem *ret = NULL;
+  * 	struct c2_conf_pathcomp    path[] =
+  * 		{ C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM) };
+  *
+- * 	c2_confc_fetchctx_init(&ctx);
++ * 	c2_confc_ctx_init(&ctx);
+  * 	c2_clink_init(&clink, NULL)
+  * 	c2_clink_add(&ctx.fc_complete, &clink);
+  *
+@@ -125,7 +125,7 @@
+  * end:
+  * 	c2_clink_del(&clink);
+  * 	c2_clink_fini(&clink);
+- * 	c2_confc_fetchctx_fini(&ctx);
++ * 	c2_confc_ctx_fini(&ctx);
+  * 	return ret;
+  * }
+  *
+@@ -162,7 +162,7 @@ int c2_confc_init(const char *profile, const char *confd_addr,
+ void c2_confc_fini(void);
+ 
+ /** Configuration retrieval context. */
+-struct c2_confc_fetchctx {
++struct c2_confc_ctx {
+ 	/** This channel is signaled when the retrieval operation completes. */
+ 	struct c2_chan         fc_complete;
+ 
+@@ -209,11 +209,11 @@ struct c2_confc_fetchctx {
+ 	struct c2_fop          fc_fop;
+ };
+ 
+-void c2_confc_fetchctx_init(struct c2_confc_fetchctx *ctx);
+-void c2_confc_fetchctx_fini(struct c2_confc_fetchctx *ctx);
++void c2_confc_ctx_init(struct c2_confc_ctx *ctx);
++void c2_confc_ctx_fini(struct c2_confc_ctx *ctx);
+ 
+ /** Returns the error status for the asynchronous configuration request. */
+-static inline int32_t c2_confc_error(const struct c2_confc_fetchctx *ctx)
++static inline int32_t c2_confc_error(const struct c2_confc_ctx *ctx)
+ {
+ 	C2_PRE(ctx->fc_mach.sm_rc <= 0);
+ 	return -ctx->fc_mach.sm_rc;
+@@ -230,10 +230,8 @@ static inline int32_t c2_confc_error(const struct c2_confc_fetchctx *ctx)
+  * @retval -EISDIR  Path leads to a directory.
+  * @retval -ENOMEM  Insufficient memory.
+  */
+-int c2_confc_open(struct c2_confc_fetchctx *ctx,
+-		  struct c2_conf_obj *path_origin,
+-		  const struct c2_conf_pathcomp *path,
+-		  size_t path_len);
++int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
++		  const struct c2_conf_pathcomp *path, size_t path_len);
+ 
+ /**
+  * Synchronous variant of c2_confc_open(). Returns a pointer to the
+@@ -257,7 +255,7 @@ void * c2_confc_open_sync(struct c2_conf_obj *path_origin,
+  *
+  * @param obj  The value returned by c2_confc_open_sync() or, in case
+  *             of c2_confc_open(), the value taken from
+- *             c2_confc_fetchctx::fc_result.
++ *             c2_confc_ctx::fc_result.
+  *
+  * @note  c2_confc_close(NULL) is a noop.
+  *
+@@ -276,10 +274,8 @@ void c2_confc_close(void *obj);
+  * @retval -ENOTDIR  Path does not lead to a directory.
+  * @retval -ENOMEM   Insufficient memory.
+  */
+-int c2_confc_diropen(struct c2_confc_fetchctx *ctx,
+-		     struct c2_conf_obj *path_origin,
+-		     const struct c2_conf_pathcomp *path,
+-		     size_t path_len);
++int c2_confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
++		     const struct c2_conf_pathcomp *path, size_t path_len);
+ 
+ /**
+  * Synchronous variant of c2_confc_diropen(). Returns a pointer to the
+diff --git a/conf/ut/confc.c b/conf/ut/confc.c
+index 5519ec2..6f596f3 100644
+--- a/conf/ut/confc.c
++++ b/conf/ut/confc.c
+@@ -88,11 +88,11 @@ static void test_init_fini(void)
+ 	}
+ }
+ 
+-static void test_fetchctx(void)
++static void test_ctx(void)
+ {
+-	struct c2_confc_fetchctx ctx;
++	struct c2_confc_ctx ctx;
+ 
+-	c2_confc_fetchctx_init(&ctx);
++	c2_confc_ctx_init(&ctx);
+ 
+ 	C2_UT_ASSERT(ctx.fc_result         == NULL);
+ 	C2_UT_ASSERT(ctx.fc_mach.sm_grp   == &g_grp);
+@@ -139,7 +139,7 @@ static void test_path_status(void)
+ static void test_open(void)
+ {
+ 	/* XXX
+-	 * - Initiate a c2_confc_fetchctx object --- ctx.
++	 * - Initiate a c2_confc_ctx object --- ctx.
+ 	 *
+ 	 * - `path1' ends with a one-to-many downlink.
+ 	 *   - Assert c2_confc_open(path1, ctx) returns -EISDIR and
+@@ -160,7 +160,7 @@ const struct c2_test_suite confc_ut = {
+ 	.fs_fini  = fini,
+ 	.ts_tests = {
+ 		{ "init/fini",   test_init_fini },
+-		{ "fetchctx",    test_fetchctx },
++		{ "ctx",         test_ctx },
+ 		{ "path_status", test_path_status },
+ 		{ "open",        test_open },
+ 		{ NULL, NULL }
+-- 
+1.8.3.2
+

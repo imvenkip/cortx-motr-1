@@ -1,0 +1,159 @@
+From 011952def72f27460863dc405492eb7f0d9b416f Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 18 Jun 2013 16:44:46 +0300
+Subject: [PATCH 168/290] be: extmap no need for tx argument in lookup()
+
+There is no need for tx argument in be_emap_lookup()
+routine since the cursor in read-only now.
+
+be_emap_invariant() reanimated also.
+---
+ be/extmap.c    | 25 +++++++++++--------------
+ be/extmap.h    |  1 -
+ be/ut/extmap.c | 10 +++++-----
+ 3 files changed, 16 insertions(+), 20 deletions(-)
+
+diff --git a/be/extmap.c b/be/extmap.c
+index 907c183..1aa82db 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -199,7 +199,6 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
+ }
+ 
+ static void emap_it_init(struct m0_be_emap        *map,
+-			 struct m0_be_tx          *tx,
+ 		   const struct m0_uint128        *prefix,
+ 			 m0_bindex_t               offset,
+ 			 struct m0_be_emap_cursor *it)
+@@ -230,20 +229,20 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
+ 	return emap_it_open(it);
+ }
+ 
+-static void be_emap_lookup(struct m0_be_emap        *map,
+-			   struct m0_be_tx          *tx,
+-		     const struct m0_uint128        *prefix,
+-		           m0_bindex_t               offset,
+-			   struct m0_be_emap_cursor *it)
++static int be_emap_lookup(struct m0_be_emap        *map,
++		    const struct m0_uint128        *prefix,
++		          m0_bindex_t               offset,
++			  struct m0_be_emap_cursor *it)
+ {
+ 	int result;
+ 
+-	emap_it_init(map, tx, prefix, offset, it);
++	emap_it_init(map, prefix, offset, it);
+ 	result = emap_it_get(it);
+ 	if (result != 0)
+ 		be_emap_close(it);
+ 
+ 	M0_POST(ergo(result == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
++	return result;
+ }
+ 
+ enum move_dir {
+@@ -272,7 +271,7 @@ static int be_emap_prev(struct m0_be_emap_cursor *it)
+ 	return be_emap_move(it, PREV);
+ }
+ 
+-#if 0
++#if 1
+ static bool be_emap_invariant_check(struct m0_be_emap_cursor *it)
+ {
+ 	int                   result;
+@@ -306,11 +305,10 @@ static bool be_emap_invariant_check(struct m0_be_emap_cursor *it)
+ static bool be_emap_invariant(struct m0_be_emap_cursor *it)
+ {
+ 	struct m0_be_emap_cursor scan;
+-	int                   result;
+-	bool                  check;
++	int                      result;
++	bool                     check;
+ 
+-	result = be_emap_lookup(it->ec_map, it->ec_cursor.c_tx,
+-			     &it->ec_key.ek_prefix, 0, &scan);
++	result = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, &scan);
+ 	if (result == 0) {
+ 		check = be_emap_invariant_check(&scan);
+ 		be_emap_close(&scan);
+@@ -328,7 +326,6 @@ static bool be_emap_invariant(struct m0_be_emap_cursor *it)
+ #endif
+ 
+ M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
+-				   struct m0_be_tx          *tx,
+ 			     const struct m0_uint128        *prefix,
+ 				   m0_bindex_t               offset,
+ 				   struct m0_be_emap_cursor *it)
+@@ -336,7 +333,7 @@ M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
+ 	M0_PRE(offset <= M0_BINDEX_MAX);
+ 
+ 	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
+-	be_emap_lookup(map, tx, prefix, offset, it);
++	be_emap_lookup(map, prefix, offset, it);
+ 	m0_sm_state_set(&it->ec_op.bo_sm, it->ec_op.bo_sm.sm_rc == 0 ?
+ 					M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ 	M0_ASSERT_EX(be_emap_invariant(it));
+diff --git a/be/extmap.h b/be/extmap.h
+index f5812e3..2730337 100644
+--- a/be/extmap.h
++++ b/be/extmap.h
+@@ -200,7 +200,6 @@ M0_INTERNAL struct m0_be_op *m0_be_emap_op_get(struct m0_be_emap_cursor *it);
+    requested one.
+  */
+ M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
+-				   struct m0_be_tx          *tx,
+ 			     const struct m0_uint128        *prefix,
+ 				   m0_bindex_t               offset,
+ 				   struct m0_be_emap_cursor *it);
+diff --git a/be/ut/extmap.c b/be/ut/extmap.c
+index 7474302..870e9aa 100644
+--- a/be/ut/extmap.c
++++ b/be/ut/extmap.c
+@@ -109,7 +109,7 @@ static void test_obj_init(void)
+ 
+ static void test_lookup(void)
+ {
+-	m0_be_emap_lookup(&emap, &tx, &prefix, 0, &it);
++	m0_be_emap_lookup(&emap, &prefix, 0, &it);
+ 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+ 	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+ 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
+@@ -118,7 +118,7 @@ static void test_lookup(void)
+ 
+ 	m0_be_emap_close(&it);
+ 
+-	m0_be_emap_lookup(&emap, &tx, &prefix, 1000000, &it);
++	m0_be_emap_lookup(&emap, &prefix, 1000000, &it);
+ 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+ 	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+ 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
+@@ -142,7 +142,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
+ 		.iv_index = val
+ 	};
+ 
+-	m0_be_emap_lookup(&emap, &tx, &prefix, offset, &it);
++	m0_be_emap_lookup(&emap, &prefix, offset, &it);
+ 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+ 	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+ 
+@@ -176,7 +176,7 @@ static void test_print(void)
+ {
+ 	int i;
+ 
+-	m0_be_emap_lookup(&emap, &tx, &prefix, 0, &it);
++	m0_be_emap_lookup(&emap, &prefix, 0, &it);
+ 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+ 	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+ 
+@@ -200,7 +200,7 @@ static void test_print(void)
+ 
+ static void test_merge(void)
+ {
+-	m0_be_emap_lookup(&emap, &tx, &prefix, 0, &it);
++	m0_be_emap_lookup(&emap, &prefix, 0, &it);
+ 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+ 	M0_UT_ASSERT(it_op->bo_sm.sm_rc == 0);
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,48 @@
+From 98418f2ce5119eaaac4764f388d9e64018377d21 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 13 Mar 2012 18:08:39 +0200
+Subject: [PATCH 057/370] onwire.ff: add xf_services to confx_filesystem
+
+This field has been forgotten by mistake.
+---
+ conf/obj.h     | 3 +--
+ conf/onwire.ff | 6 ++++--
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/conf/obj.h b/conf/obj.h
+index 4d33da6..ed28bf9 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -85,10 +85,9 @@ struct c2_conf_filesystem {
+ 	struct c2_conf_obj cf_obj;
+ 	struct c2_fid      cf_rootfid;
+ 	uint64_t           cf_params[C2_CFG_PARAM_LEN];
+-
+ /* private: internal use only */
+ 	/**
+-	 * Services running in this filesystem.
++	 * Services of this filesystem.
+ 	 *
+ 	 * List of c2_conf_service objects, linked through
+ 	 * cs_filesystem_linkage member.
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+index eeacf0f..add076d 100644
+--- a/conf/onwire.ff
++++ b/conf/onwire.ff
+@@ -72,9 +72,11 @@ DEF(confx_profile, RECORD,
+ 
+ DEF(confx_filesystem, RECORD,
+     /* Rood fid. */
+-    _(xf_rootfid, fid),
++    _(xf_rootfid,  fid),
+     /* Filesystem parameters. */
+-    _(xf_params,  arr_u64));
++    _(xf_params,   arr_u64),
++    /* Services of this filesystem. */
++    _(xf_services, arr_buf));
+ 
+ DEF(confx_service, RECORD,
+     /* Parent filesystem. */
+-- 
+1.8.3.2
+

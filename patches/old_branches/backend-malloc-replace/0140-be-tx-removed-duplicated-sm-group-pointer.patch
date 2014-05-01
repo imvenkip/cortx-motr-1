@@ -1,0 +1,37 @@
+From 5d0c2dd7661956b3555e467bace394034b744179 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 12 Jun 2013 10:19:58 +0300
+Subject: [PATCH 140/161] be: tx: removed duplicated sm group pointer.
+
+---
+ be/tx.c | 1 -
+ be/tx.h | 1 -
+ 2 files changed, 2 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index e9ba850..06593a7 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -230,7 +230,6 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 	tx->t_be = be;
+ 	tx->t_persistent = persistent;
+ 	tx->t_discarded  = discarded;
+-	tx->t_grp = tx_grp;
+ 	tx_tlink_init_at(tx, &tx_engine(tx)->te_txs[M0_BTS_INIT]);
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+diff --git a/be/tx.h b/be/tx.h
+index 254f6f0..9ab78e0 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -457,7 +457,6 @@ M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine);
+ struct m0_be_tx {
+ 	uint64_t               t_magic;
+ 	struct m0_sm           t_sm;
+-	struct m0_sm_group    *t_grp;
+ 	/** Transaction identifier, assigned by the user. */
+ 	uint64_t               t_id;
+ 	/**
+-- 
+1.8.3.2
+

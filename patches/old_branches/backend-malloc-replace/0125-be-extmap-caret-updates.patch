@@ -1,0 +1,135 @@
+From 70f22bf2607745dba7d87de513d00ba37357da63 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Fri, 7 Jun 2013 13:21:02 +0300
+Subject: [PATCH 125/161] be: extmap: caret updates
+
+---
+ db/extmap.c | 58 +++++++++++++++++++---------------------------------------
+ db/extmap.h |  4 ++--
+ 2 files changed, 21 insertions(+), 41 deletions(-)
+
+diff --git a/db/extmap.c b/db/extmap.c
+index ee8897f..f033878 100644
+--- a/db/extmap.c
++++ b/db/extmap.c
+@@ -174,28 +174,6 @@ static bool it_prefix_ok(const struct m0_emap_cursor *it)
+ 	return m0_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
+ }
+ 
+-#define IT_DO_OPEN(it, func)					\
+-({								\
+-	int __result;						\
+-	struct m0_emap_cursor *__it = (it);			\
+-								\
+-	__result = (*(func))(&__it->ec_cursor, &__it->ec_pair);	\
+-	if (__result == 0) {					\
+-		it_open(__it);					\
+-		if (!it_prefix_ok(__it))			\
+-			__result = -ESRCH;			\
+-	}							\
+-	__result;						\
+-})
+-
+-#define IT_DO_PACK(it, func)				\
+-({							\
+-	struct m0_emap_cursor *__it = (it);		\
+-							\
+-	it_pack(__it);					\
+-	(*(func))(&__it->ec_cursor, &__it->ec_pair);	\
+-})
+-
+ static void it_init(struct m0_emap *map, struct m0_db_tx *tx,
+ 		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		   struct m0_emap_cursor *it, uint32_t flags)
+@@ -215,6 +193,11 @@ static void emap_close(struct m0_emap_cursor *it)
+ 	m0_be_btree_cursor_fini(&it->ec_cursor);
+ }
+ 
++M0_INTERNAL m0_be_op *m0_emap_be_op_get(struct m0_emap_cursor *it)
++{
++	return &it->ec_cursor.bc_op;
++}
++
+ static void emap_lookup(struct m0_emap *map, struct m0_db_tx *tx,
+ 		       const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		       struct m0_emap_cursor *it)
+@@ -689,9 +672,9 @@ static bool m0_emap_caret_invariant(const struct m0_emap_caret *car)
+ 		 car->ct_index == M0_BINDEX_MAX + 1);
+ }
+ 
+-M0_INTERNAL void m0_emap_caret_init(struct m0_emap_caret *car,
+-				    struct m0_emap_cursor *it,
+-				    m0_bindex_t index)
++M0_INTERNAL void m0_emap_caret_init(struct m0_emap_caret  *car,
++			      const struct m0_emap_cursor *it,
++			      const m0_bindex_t            index)
+ {
+ 	M0_PRE(index <= M0_BINDEX_MAX);
+ 	M0_PRE(m0_ext_is_in(&it->ec_seg.ee_ext, index));
+@@ -705,9 +688,16 @@ M0_INTERNAL void m0_emap_caret_fini(struct m0_emap_caret *car)
+ 	M0_ASSERT(m0_emap_caret_invariant(car));
+ }
+ 
++M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car)
++{
++	M0_ASSERT(m0_emap_caret_invariant(car));
++	return car->ct_it->ec_seg.ee_ext.e_end - car->ct_index;
++}
++
+ M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car, m0_bcount_t count)
+ {
+ 	int result;
++	struct m0_be_op *bt_it_op = m0_emap_be_op_get(it);
+ 
+ 	M0_ASSERT(m0_emap_caret_invariant(car));
+ 	while (count > 0 && car->ct_index < M0_BINDEX_MAX + 1) {
+@@ -715,9 +705,10 @@ M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car, m0_bcount_t count)
+ 
+ 		step = m0_emap_caret_step(car);
+ 		if (count >= step) {
+-			result = m0_emap_next(car->ct_it);
+-			if (result < 0)
+-				return result;
++			m0_emap_next(car->ct_it);
++			M0_ASSERT(m0_be_op_state(bt_io_op) == M0_BOS_SUCCESS);
++			if (bt_it_op->bo_sm.sm_rc < 0)
++				return bt_it_op->bo_sm.sm_rc;
+ 		} else
+ 			step = count;
+ 		car->ct_index += step;
+@@ -727,17 +718,6 @@ M0_INTERNAL int m0_emap_caret_move(struct m0_emap_caret *car, m0_bcount_t count)
+ 	return car->ct_index == M0_BINDEX_MAX + 1;
+ }
+ 
+-M0_INTERNAL m0_bcount_t m0_emap_caret_step(const struct m0_emap_caret *car)
+-{
+-	M0_ASSERT(m0_emap_caret_invariant(car));
+-	return car->ct_it->ec_seg.ee_ext.e_end - car->ct_index;
+-}
+-
+-M0_INTERNAL m0_be_op *m0_emap_be_op_get(struct m0_emap_cursor *it)
+-{
+-	return &it->ec_cursor.bc_op;
+-}
+-
+ /** @} end group extmap */
+ 
+ /*
+diff --git a/db/extmap.h b/db/extmap.h
+index c50ecca..166fc66 100644
+--- a/db/extmap.h
++++ b/db/extmap.h
+@@ -340,8 +340,8 @@ struct m0_emap_caret {
+ };
+ 
+ M0_INTERNAL void m0_emap_caret_init(struct m0_emap_caret  *car,
+-				    struct m0_emap_cursor *it,
+-				    m0_bindex_t index);
++			      const struct m0_emap_cursor *it,
++			      const m0_bindex_t            index);
+ 
+ M0_INTERNAL void m0_emap_caret_fini(struct m0_emap_caret *car);
+ 
+-- 
+1.8.3.2
+

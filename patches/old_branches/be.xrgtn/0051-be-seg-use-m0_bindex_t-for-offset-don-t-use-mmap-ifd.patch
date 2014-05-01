@@ -1,0 +1,44 @@
+From b9b97a71d2fc1a41c8c3b9da17801b16175e7012 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 29 May 2013 18:07:43 +0300
+Subject: [PATCH 051/228] be/seg: use m0_bindex_t for offset, don't use mmap
+ ifdef __KERNEL__
+
+---
+ be/seg.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 9d732d8..6969e01 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -137,7 +137,7 @@ bool m0_be__reg_invariant(const struct m0_be_reg *reg)
+ 
+ static int stob_io_single_read(void *buf, m0_bcount_t bufsz,
+ 			       struct m0_stob *stob,
+-			       m0_bcount_t offs, uint32_t pgshift)
++			       m0_bindex_t offs, uint32_t pgshift)
+ {
+ 	size_t            pgsz;
+ 	m0_bcount_t       rdcnt[1];    /* sectors counts */
+@@ -213,6 +213,7 @@ int m0_be_seg_open(struct m0_be_seg *seg)
+ 	if (rc != 0)
+ 		return rc;
+ 
++#ifndef __KERNEL__
+ 	/* mmap an area at bh_addr of bh_size. */
+ 	p = mmap(seg_addr0, seg_size, PROT_READ|PROT_WRITE,
+ 		 MAP_FIXED|MAP_ANONYMOUS, -1, 0);
+@@ -224,6 +225,9 @@ int m0_be_seg_open(struct m0_be_seg *seg)
+ 	rc = stob_io_single_read(seg_addr0, seg_size, seg->bs_stob,
+ 				 0, st_block_shift);
+ 	return rc;
++#else
++	return -ENOTSUP;
++#endif
+ }
+ 
+ void m0_be_seg_close(struct m0_be_seg *seg)
+-- 
+1.8.3.2
+

@@ -1,0 +1,243 @@
+From 73163a43c560a73dc35759235f58ac3805f9a7d5 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Fri, 28 Dec 2012 08:07:05 -0800
+Subject: [PATCH 021/121] missed be_helper files in previous commit, corrected
+ in this commit
+
+---
+ be/lib/be_helper.c | 131 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ be/lib/be_helper.h |  84 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 215 insertions(+)
+ create mode 100644 be/lib/be_helper.c
+ create mode 100644 be/lib/be_helper.h
+
+diff --git a/be/lib/be_helper.c b/be/lib/be_helper.c
+new file mode 100644
+index 0000000..a0b5dda
+--- /dev/null
++++ b/be/lib/be_helper.c
+@@ -0,0 +1,131 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author              : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date       : 12/28/2012
++ */
++
++/**
++   @addtogroup be_helper
++   @{
++ */
++#include "be/lib/be_helper.h"
++#include "be/lib/be_kv_store.h"
++
++M0_INTERNAL void m0_ks_init_domain(struct m0_be_domain  **out_dom)
++{
++        struct m0_be_domain  *dom = NULL;
++        
++        /* Allocate memory to @dom pointer */
++        m0_be_domain_create(&dom);
++        M0_ASSERT(dom != NULL);
++
++        /* Initializing domain */
++        m0_be_domain_init(dom);
++        dom->bd_data.bs_sm.sm_state = M0_BESEG_ACTIVE;
++
++        *out_dom = dom;
++}
++M0_EXPORTED(m0_ks_init_domain);
++
++M0_INTERNAL void m0_ks_domain_lookup(struct m0_be_domain    *dom,
++                                     struct m0_be_seg      **seg,
++                                     uint64_t                segid)
++{
++        m0_be_domain_lookup(dom, segid, seg);
++
++        M0_BE_WAIT((*seg)->bs_impl.sm_group, &((*seg)->bs_sm), M0_BESEG_ACTIVE,
++                   M0_BESEG_FAILED);
++}
++M0_EXPORTED(m0_ks_domain_lookup);
++
++M0_INTERNAL void *m0_ks_obj_malloc(struct m0_be_reg     *obj_reg,
++                                   struct m0_be_tx     **in_tx,
++                                   struct m0_reference **obj_ref)
++{
++        struct m0_be_tx         *tx = (*in_tx);
++        struct m0_be_domain     *dom;
++        void                    *obj;
++        M0_ASSERT(obj_reg != NULL);
++
++        dom = obj_reg->br_seg->bs_dom;
++
++        if ((*in_tx) == NULL){
++                tx = (struct m0_be_tx *)malloc(sizeof(struct m0_be_tx));
++                /* NOTE: free(tx) should be called by user */
++                if (tx == NULL)
++                       goto exit_failure; 
++
++                m0_be_tx_init(tx, dom, 0);
++                M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_PREPARING,
++                           M0_BETX_FAILED);
++       }
++
++        m0_be_alloc(obj_reg);
++        M0_BE_WAIT(obj_reg->br_impl.sm_group, &obj_reg->br_sm, M0_BEREG_SUCCEED,
++                   M0_BEREG_FAILED);
++
++        m0_be_tx_add_cred(tx, obj_reg);
++        /* TODO : reg_capture */
++        obj = obj_reg->br_buf.b_addr;
++        M0_ASSERT(obj != NULL);
++
++        (*obj_ref) = &(obj_reg->br_buf.logical_address);
++
++        if ((*in_tx) == NULL)
++                (*in_tx) = tx;
++        
++        return obj;
++
++exit_failure:
++        return NULL;
++}
++M0_EXPORTED(m0_ks_obj_malloc);
++
++M0_INTERNAL void m0_ks_fini(struct m0_be_domain *dom, struct m0_be_seg *seg)
++{
++        m0_be_seg_done(seg);
++        dom->bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
++        m0_be_domain_fini(dom);
++}
++M0_EXPORTED(m0_ks_fini);
++
++M0_INTERNAL void m0_ks_tx_prep(struct m0_be_tx *tx)
++{
++        m0_be_tx_prep(tx);
++        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_PREPARED,
++                   M0_BETX_FAILED);
++}
++M0_EXPORTED(m0_ks_tx_prep);
++
++M0_INTERNAL void m0_ks_tx_start(struct m0_be_tx *tx)
++{
++        m0_be_tx_start(tx);
++        M0_BE_WAIT(tx->bt_impl.sm_group, &tx->bt_sm, M0_BETX_OPEN,
++                   M0_BETX_FAILED);
++}
++M0_EXPORTED(m0_ks_tx_prep_start);
++/* @} end of be_helper group */
++
++/*
++ * Local variables:
++ * c-indentation-style: "K&R"
++ * c-basic-offset: 8
++ * tab-width: 8
++ * fill-column: 80
++ * scroll-step: 1
++ * End:
++ */
+diff --git a/be/lib/be_helper.h b/be/lib/be_helper.h
+new file mode 100644
+index 0000000..a0a1486
+--- /dev/null
++++ b/be/lib/be_helper.h
+@@ -0,0 +1,84 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author              : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date       : 12/28/2012
++ */
++#pragma once
++#ifndef __MERO_BE_LIB_BE_HELPER_H__
++#define __MERO_BE_LIB_BE_HELPER_H__
++
++#include "be/be.h"
++
++#define M0_BE_WAIT(sm_group, sm, state1, state2)                          \
++        m0_sm_group_lock(sm_group);                                       \
++        m0_sm_timedwait(sm, (1 << state1) | (1 << state2), M0_TIME_NEVER);\
++        m0_sm_group_unlock(sm_group);
++
++/**
++ * @defgroup be_helper
++ */
++
++/*
++ * Initialise a domain and return it to the user.
++ */
++M0_INTERNAL void m0_ks_init_domain(struct m0_be_domain  **out_dom);
++
++/*
++ * NOTE: Finalises the domain.
++ */
++M0_INTERNAL void m0_ks_fini(struct m0_be_domain *dom, struct m0_be_seg *seg);
++
++/*
++ * Lookup for a segment identified by the @segid within the domain/
++ */
++M0_INTERNAL void m0_ks_domain_lookup(struct m0_be_domain   *dom,
++                                     struct m0_be_seg     **seg,
++                                     uint64_t               segid);
++
++/*
++ * Allocates memory to an object. Returns allocated chunk of memory.
++ * Returns the reference of the allocated chunk in @obj_ref.
++ * PRE: reg_init done on @obj_reg
++ */
++M0_INTERNAL void *m0_ks_obj_malloc(struct m0_be_reg     *objreg,
++                                   struct m0_be_tx     **in_tx,
++                                   struct m0_reference **obj_ref);
++
++/*
++ * Prepares a transaction
++ */
++M0_INTERNAL void m0_ks_tx_prep(struct m0_be_tx *tx);
++
++/*
++ * Starts a transaction
++ */
++M0_INTERNAL void m0_ks_tx_start(struct m0_be_tx *tx);
++
++
++/** @} end of be_helper group */
++
++#endif /* __MERO_BE_LIB_BE_HELPER__H__ */
++
++/*
++ * Local variables:
++ * c-indentation-style: "K&R"
++ * c-basic-offset: 8
++ * tab-width: 8
++ * fill-column: 80
++ * scroll-step: 1
++ * End:
++ */
+-- 
+1.8.3.2
+

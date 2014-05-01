@@ -1,0 +1,50 @@
+From 9b0ae9a2b0e2ae2cd374b9e486a1a370539a4297 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 27 Nov 2013 23:38:15 +0200
+Subject: [PATCH 05/13] scripts/be_allocator: print allocator stats each second
+
+---
+ scripts/be_allocator.stp | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/be_allocator.stp b/scripts/be_allocator.stp
+index d4f3b4b..6cd2d28 100644
+--- a/scripts/be_allocator.stp
++++ b/scripts/be_allocator.stp
+@@ -18,6 +18,21 @@ probe	process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_alloc_al
+ 	// printf("%s %s %s %d\n", m0_timestamp(), ppfunc(), $$parms, time_elapsed)
+ }
+ 
++function print_allocator_stats()
++{
++	printf("%s\n", tz_ctime(gettimeofday_s()))
++	foreach (ftime in func_time_avg) {
++		printf("timing histogram for %s, ns\n", ftime)
++		print(@hist_log(func_time_avg[ftime]))
++	}
++}
++
++probe timer.ms(1000)
++{
++	print_allocator_stats()
++	delete func_time_avg
++}
++
+ probe begin
+ {
+ 	printf("begin\n");
+@@ -25,10 +40,7 @@ probe begin
+ 
+ probe end
+ {
+-	foreach (ftime in func_time_avg) {
+-		printf("timing histogram for %s, ns\n", ftime)
+-		print(@hist_log(func_time_avg[ftime]))
+-	}
++	print_allocator_stats()
+ 	printf("end\n");
+ }
+ 
+-- 
+1.8.3.2
+

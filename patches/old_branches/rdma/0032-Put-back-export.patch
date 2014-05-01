@@ -1,0 +1,21 @@
+From 6e15626fffc3fd3706ccd1320cba6b8d60a130d9 Mon Sep 17 00:00:00 2001
+From: Carl Braganza <Carl_Braganza@us.xyratex.com>
+Date: Wed, 2 Mar 2011 14:09:33 -0800
+Subject: [PATCH 32/34] Put back export.
+
+---
+ lib/refs.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/lib/refs.c b/lib/refs.c
+index 9eb9fdf..4f334e0 100644
+--- a/lib/refs.c
++++ b/lib/refs.c
+@@ -20,3 +20,4 @@ void c2_ref_put(struct c2_ref *ref)
+                 ref->release(ref);
+         }
+ }
++C2_EXPORTED(c2_ref_put);
+-- 
+1.8.3.2
+

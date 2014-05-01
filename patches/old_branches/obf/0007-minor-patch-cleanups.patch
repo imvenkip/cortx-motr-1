@@ -1,0 +1,53 @@
+From eace925b9c32124c06a08dfa9aebd7f4565089af Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 2 Apr 2014 00:09:07 +0400
+Subject: [PATCH 07/13] - minor patch cleanups
+
+---
+ cob/cob.c                 | 3 ---
+ m0t1fs/linux_kernel/dir.c | 1 -
+ 2 files changed, 4 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 5e8d38c..a09a435 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -94,7 +94,6 @@ const struct m0_fid M0_COB_SLASH_FID = {
+ 	.f_key       = 2ULL
+ };
+ 
+-
+ const char M0_COB_ROOT_NAME[] = "ROOT";
+ 
+ struct m0_addb_ctx m0_cob_mod_ctx;
+@@ -767,7 +766,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+ 
+ 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+ 	m0_cob_put(cob);
+-
+ 	if (rc == -EEXIST)
+ 		rc = 0;
+ 	if (rc != 0) {
+@@ -775,7 +773,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+ 		m0_free(fabrec);
+ 		return rc;
+ 	}
+-
+ 	return 0;
+ }
+ 
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index c6d0c81..24bfe90 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -296,7 +296,6 @@ static int m0t1fs_create(struct inode     *dir,
+ 	m0t1fs_fs_lock(csb);
+ 	ci->ci_fid = new_fid;
+ 
+-	inode->i_ino = ci->ci_fid.f_key;
+ 	inode->i_mode = mode;
+ 	inode->i_uid = current_fsuid();
+ 	if (dir->i_mode & S_ISGID) {
+-- 
+1.8.3.2
+

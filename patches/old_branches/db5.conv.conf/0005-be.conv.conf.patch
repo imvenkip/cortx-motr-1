@@ -1,0 +1,26 @@
+From 9a34c2bb78a2ad7fa12235c55284462ad73c5b21 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Mon, 23 Dec 2013 16:53:01 +0530
+Subject: [PATCH 5/7] be.conv.conf, - Remove undefined
+ xcode/xcode.c:m0_xcode_cpy() prototype.
+
+---
+ xcode/xcode.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/xcode/xcode.h b/xcode/xcode.h
+index 82b382f..038e6de 100644
+--- a/xcode/xcode.h
++++ b/xcode/xcode.h
+@@ -642,8 +642,6 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
+ M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj);
+ M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
+ 			     const struct m0_xcode_obj *o1);
+-M0_INTERNAL int m0_xcode_cpy(const struct m0_xcode_obj *o0,
+-			     const struct m0_xcode_obj *o1);
+ 
+ /**
+    Returns the address of a sub-object within an object.
+-- 
+1.8.3.2
+

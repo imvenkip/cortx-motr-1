@@ -1,0 +1,34 @@
+From 2c01c063def56d17de160a588d114a706af27e95 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Tue, 20 Aug 2013 17:44:05 +0530
+Subject: [PATCH 045/159] Removed whitespaces
+
+---
+ addb/addb_monitor.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 1fca29f..1c73ec8 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -184,7 +184,7 @@ M0_TL_DESCR_DECLARE(addb_mon, M0_EXTERN);
+ struct m0_addb_sum_rec {
+ 	/**
+ 	 * This flag is true iff the record contains data still
+-	 * not sent to the stats service. 
++	 * not sent to the stats service.
+ 	 */
+ 	bool                         asr_dirty;
+ 	/** This lock serializes access to this structure */
+@@ -199,7 +199,7 @@ struct m0_addb_sum_rec {
+ 
+ struct m0_addb_monitor_ops {
+ 	/**
+-	 * This method is called on each addb record. 
++	 * This method is called on each addb record.
+ 	 */
+ 	void                    (*amo_watch) (const struct m0_addb_monitor *mon,
+ 					      const struct m0_addb_rec     *rec,
+-- 
+1.8.3.2
+

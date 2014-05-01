@@ -1,0 +1,2019 @@
+From f7b546f32cf2e605d8cc4dc37901b731b60f2750 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Wed, 10 Apr 2013 09:45:41 -0700
+Subject: [PATCH 076/121] Cob-nsrec db5 replacement with kv_store, via ks_pair
+ complete
+
+---
+ be/be_impl.h         |   3 +
+ be/domain.c          |  12 +-
+ be/handler.c         |  14 ++-
+ be/helper.c          | 150 +++++++++++++++--------
+ be/helper.h          |  42 +++++--
+ be/kv_store.c        |  80 ++++++++----
+ be/kv_store.h        |  54 +++++++--
+ be/reg.c             |   3 +
+ be/seg.c             |   4 +-
+ be/ut/be.c           |  59 ++++++++-
+ be/ut/handle_store.c |   2 +-
+ be/ut/kv_store.c     |  12 +-
+ cob/cob.c            | 335 +++++++++++++++++++++++++++++++++------------------
+ cob/cob.h            |  31 +++--
+ cob/ut/cob.c         | 153 ++++++++++++++---------
+ rvm/rds.h            |   4 +
+ rvm/rds_init.c       |   1 +
+ rvm/rds_util.c       |   2 +-
+ rvm/rds_zap.c        |  21 +++-
+ rvm/rvm.h            |   4 +
+ rvm/rvm_segment.h    |   5 +-
+ 21 files changed, 691 insertions(+), 300 deletions(-)
+
+diff --git a/be/be_impl.h b/be/be_impl.h
+index 9ab952d..09c52b4 100644
+--- a/be/be_impl.h
++++ b/be/be_impl.h
+@@ -36,6 +36,9 @@
+  * Backend Domain private implementation.
+  */
+ struct m0_be_domain_impl {
++        /** Flag for handler_thread running status. */
++        bool                    th_status_flag;
++
+         /* Stob which is used as log device for entire back-end domain. */
+         struct m0_stob         *log_stob;
+         struct m0_sm_group      sm_group;
+diff --git a/be/domain.c b/be/domain.c
+index e4cc555..860a62b 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -68,12 +68,14 @@ M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
+ 
+         m0_sm_group_init(&dom->bd_impl.sm_group);
+ 
++        /* Start be_handler thread. */
+         result = M0_THREAD_INIT(&dom->bd_impl.th, struct m0_sm_group *, NULL,
+                                 &m0_be_handler_thread, &dom->bd_impl.sm_group,
+                                 "Backend handler thread");
+         if (result != 0) {
+                 m0_thread_fini(&dom->bd_impl.th);
+         }
++
+         m0_be_seg_init(&dom->bd_data, dom, &dom->bd_impl.sm_group, 0);
+ 
+         /**
+@@ -149,6 +151,12 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+         m0_be_tx_tlist_fini(&dom->bd_tx);
+         m0_stob_fini(dom->bd_impl.log_stob);
+ 
++        /* Fini be_handler_thread */
++        dom->bd_impl.th_status_flag = false;
++        m0_clink_signal(&dom->bd_impl.sm_group.s_clink);
++        m0_thread_join(&dom->bd_impl.th);
++        m0_thread_fini(&dom->bd_impl.th);
++
+         M0_POST(m0_be_domain_invariant(dom));
+         M0_LOG(M0_INFO, "Domain finalised, dom = %p", dom);
+         M0_LEAVE();
+@@ -162,7 +170,7 @@ M0_INTERNAL void m0_be_domain_seg_restore(struct m0_be_domain *dom,
+         struct  m0_stob_id        stob_id = {{0, 1}}; /* Hardcoded for now. */
+         struct m0_be_seg         *seg_rec;
+         int                       result;
+-        bool                      stob_directio = true;
++        bool                      stob_directio = false;
+ 
+         M0_ENTRY("domain: %p, seg: %p", dom, seg);
+         M0_ASSERT(m0_be_domain_invariant(dom));
+@@ -183,7 +191,7 @@ M0_INTERNAL void m0_be_domain_seg_restore(struct m0_be_domain *dom,
+                 m0_be_seg_init(seg, dom, &dom->bd_impl.sm_group, 0);
+ 
+                 m0_stob_type_init(&m0_linux_stob_type);
+-                result = m0_stob_domain_locate(&m0_linux_stob_type, "./__be",
++                result = m0_stob_domain_locate(&m0_linux_stob_type, "/tmp/__be",
+                                                &stob_dom);
+                 M0_ASSERT(result == 0);
+ 
+diff --git a/be/handler.c b/be/handler.c
+index 41f131b..1170801 100644
+--- a/be/handler.c
++++ b/be/handler.c
+@@ -24,6 +24,7 @@
+ #include "be/be.h"
+ #include "be/be_private.h"
+ #include "be/handler.h"
++#include <stdio.h>
+ 
+ /**
+   @addtogroup be_handler
+@@ -121,9 +122,18 @@ M0_EXPORTED(m0_sm_enqueue_post);
+ 
+ M0_INTERNAL void m0_be_handler_thread(struct m0_sm_group *sm_group)
+ {
+-        struct m0_be_sm_obj *be_sm_obj;
++        struct m0_be_sm_obj      *be_sm_obj;
++        struct m0_be_domain_impl *bd_impl;
++        bool                     *thread_running;
++
++        bd_impl        = (struct m0_be_domain_impl *)
++                          container_of(sm_group, struct m0_be_domain_impl,
++                                       sm_group);
++
++        thread_running  = &bd_impl->th_status_flag;
++        *thread_running = true;
+ 
+-        while(1) {
++        while(*thread_running) {
+                 be_sm_obj = NULL;
+                 m0_chan_wait(&sm_group->s_clink);
+                 be_sm_obj = m0_sm_dequeue_obj(sm_group);
+diff --git a/be/helper.c b/be/helper.c
+index 585136a..7e2a32c 100644
+--- a/be/helper.c
++++ b/be/helper.c
+@@ -140,11 +140,13 @@ M0_INTERNAL void m0_be_wait(struct m0_sm_group *sm_group,
+ }
+ M0_EXPORTED(m0_be_wait);
+ 
+-M0_INTERNAL void m0_kv_init_helper(struct m0_be_domain   **dom,
+-                                   struct m0_be_kv_store **handle,
+-                                   struct m0_tl_descr     *list_descr,
+-                                   kv_key_cmp_t            cmp_routine,
+-                                   kv_key_match_t          match_routine)
++M0_INTERNAL void m0_kv_init_helper(struct m0_be_domain     **dom,
++                                   struct m0_be_kv_store   **handle,
++                                   struct m0_tl_descr       *list_descr,
++                                   kv_key_cmp_t              cmp_routine,
++                                   kv_key_match_t            match_routine,
++                                   struct m0_be_kv_store_cb *cb_info,
++                                   const  char              *init_mode)
+ 
+ {
+         struct m0_sm_group        *sm_group;
+@@ -154,25 +156,27 @@ M0_INTERNAL void m0_kv_init_helper(struct m0_be_domain   **dom,
+         char                       kv_cmd[1024];
+         int                        rc;
+ 
+-        stob_file = "0000000000000000.0000000000000001";
+-        stob_dir  = "./__be/o";
+-        log_file  = "/tmp/log_file";
++        if (strcasecmp(init_mode, "create") == 0) {
++                stob_file = "0000000000000000.0000000000000001";
++                stob_dir  = "/tmp/__be/o";
++                log_file  = "/tmp/log_file";
+ 
+ 
+-        M0_LOG(M0_DEBUG,"KV Store Initialization");
+-        sprintf(kv_cmd, "rm -rf %s", log_file);
+-        rc = system(kv_cmd);
+-        M0_ASSERT(rc == 0);
++                M0_LOG(M0_DEBUG,"KV Store Initialization");
++                sprintf(kv_cmd, "rm -rf %s", log_file);
++                rc = system(kv_cmd);
++                M0_ASSERT(rc == 0);
+ 
+-        sprintf(kv_cmd, "mkdir -p %s", stob_dir);
+-        rc = system(kv_cmd);
+-        M0_ASSERT(rc == 0);
++                sprintf(kv_cmd, "mkdir -p %s", stob_dir);
++                rc = system(kv_cmd);
++                M0_ASSERT(rc == 0);
+ 
+-        sprintf(kv_cmd,
+-                "dd if=/dev/zero of=%s/%s bs=1024 count=204800 2>/dev/null",
+-                stob_dir, stob_file);
+-        rc = system(kv_cmd);
+-        M0_ASSERT(rc == 0);
++                sprintf(kv_cmd,
++                        "dd if=/dev/zero of=%s/%s bs=1024 count=204800 2>/dev/null",
++                        stob_dir, stob_file);
++                rc = system(kv_cmd);
++                M0_ASSERT(rc == 0);
++        }
+ 
+         m0_be_ks_init_domain(dom);
+         M0_ASSERT(dom != NULL);
+@@ -185,7 +189,7 @@ M0_INTERNAL void m0_kv_init_helper(struct m0_be_domain   **dom,
+         sm_group = m0_be_domain_sm_group(*dom);
+ 
+         /* Initialise the kv-store i.e. create or recover from RVM */
+-        m0_be_ks_init(*handle, NULL, "create");
++        m0_be_ks_init(*handle, cb_info, init_mode);
+         m0_be_wait(sm_group, &(*handle)->ks_handle_heap.ksh_sm,
+                    M0_BITS(M0_BEKS_DONE));
+ 
+@@ -212,8 +216,7 @@ M0_INTERNAL int32_t m0_kv_insert_helper(struct m0_be_kv_store  *handle,
+ 
+         /* Insert this into the kv_store */
+         status = m0_be_ks_insert(handle, NULL, ref, tx);
+-        if (status == BE_KV_FAILURE || status == BE_KV_OUT_OF_DOMAIN ||
+-            status == BE_KV_DUPLICATE)
++        if (status != BE_KV_SUCCESS)
+                 goto exit;
+ 
+         m0_be_tx_done(tx);
+@@ -222,25 +225,23 @@ M0_INTERNAL int32_t m0_kv_insert_helper(struct m0_be_kv_store  *handle,
+         m0_be_tx_fini(tx);
+         m0_free(tx);
+ 
+-        /* to free obj_buf given by malloc */
+ exit:
+         return status;
+ }
+ M0_EXPORTED(m0_kv_insert_helper);
+ 
+-M0_INTERNAL int m0_kv_malloc_helper(struct m0_be_domain     *cob_be_domain,
+-                                    struct m0_be_tx        **tx_out,
+-                                    struct m0_cob_nsrec    **nsrec_out,
+-                                    struct m0_be_reference **ref_out)
++M0_INTERNAL void *m0_kv_malloc_helper(struct m0_be_domain     *cob_be_domain,
++                                      struct m0_be_tx        **tx_out,
++                                      struct m0_be_reference **ref_out,
++                                      uint64_t                 sizeof_obj)
+ {
+         struct m0_be_seg        *kv_seg;
+         struct m0_be_reg        *obj_reg;
+         struct m0_be_buf        *obj_buf;
+-        struct m0_be_tx         *be_tx;
+-        struct m0_cob_nsrec     *co_kv_nsrec;
++        struct m0_be_tx         *be_tx = *tx_out;
+         struct m0_be_reference  *obj_ref;
++        void                    *ret_val;
+         bool                     ret_dom;
+-        int32_t                  status;
+ 
+         M0_ASSERT(cob_be_domain != NULL);
+ 
+@@ -249,10 +250,11 @@ M0_INTERNAL int m0_kv_malloc_helper(struct m0_be_domain     *cob_be_domain,
+         M0_ASSERT(ret_dom);
+         M0_ASSERT(kv_seg != NULL);
+ 
+-        M0_ALLOC_PTR(be_tx);
+-        M0_ASSERT(be_tx != NULL);
+-
+-        m0_be_tx_init(be_tx, cob_be_domain, 0);
++        if (*tx_out == NULL) {
++                M0_ALLOC_PTR(be_tx);
++                M0_ASSERT(be_tx != NULL);
++                m0_be_tx_init(be_tx, cob_be_domain, 0);
++        }
+ 
+         /* Prepare a region for the object */
+         M0_ALLOC_PTR(obj_reg);
+@@ -261,31 +263,32 @@ M0_INTERNAL int m0_kv_malloc_helper(struct m0_be_domain     *cob_be_domain,
+         M0_ALLOC_PTR(obj_buf);
+         M0_ASSERT(obj_buf != NULL);
+ 
+-        obj_buf->b_nob = sizeof *co_kv_nsrec;
++        obj_buf->b_nob = sizeof_obj;
+ 
+         m0_be_reg_init(obj_reg, be_tx, kv_seg, obj_buf);
+ 
+-        /* As nothing in credit list, so can start tx directly */
+-        m0_be_tx_start(be_tx);
++        if (*tx_out == NULL) {
++                /* As nothing in credit list, so can start tx directly */
++                m0_be_tx_start(be_tx);
++        }
+ 
+         /* Memory alloc to the object via rvm */
+-        co_kv_nsrec = (struct m0_cob_nsrec *)m0_be_ks_obj_malloc(obj_reg,
+-                                                                 &obj_ref);
++        ret_val = m0_be_ks_obj_malloc(obj_reg, &obj_ref);
+         M0_ASSERT(obj_ref != NULL);
+ 
+-        if (co_kv_nsrec == NULL) {
+-                status = BE_KV_FAILURE;
++        if (ret_val == NULL) {
+                 goto exit;
+         }
+-        M0_ASSERT(obj_ref != NULL);
+ 
+-        *tx_out     = be_tx;
+-        *ref_out    = obj_ref;
+-        *nsrec_out  = co_kv_nsrec;
+-        status      = BE_KV_SUCCESS;
++        if (ref_out != NULL)
++                *ref_out    = obj_ref;
+ 
++        if (*tx_out == NULL)
++                *tx_out     = be_tx;
+ exit:
+-        return status;
++        m0_free(obj_buf);
++        m0_free(obj_reg);
++        return ret_val;
+ }
+ M0_EXPORTED(m0_kv_malloc_helper);
+ 
+@@ -306,7 +309,8 @@ M0_INTERNAL void *m0_kv_find_helper(struct m0_be_kv_store *handle,
+         }
+ 
+         result = m0_be_ks_find(handle, cb_info, key);
+-        m0_free(cb_info);
++        if (cb_info != NULL)
++                m0_free(cb_info);
+ 
+         return result;
+ }
+@@ -378,6 +382,54 @@ M0_INTERNAL int32_t m0_kv_delete_helper(struct m0_be_kv_store *handle,
+         return ret_val;
+ }
+ M0_EXPORTED(m0_kv_delete_helper);
++
++M0_INTERNAL void m0_be_free_helper(struct m0_be_domain *dom,
++                                   struct m0_be_tx     *tx, void *obj,
++                                   uint64_t             sizeof_obj)
++{
++        struct m0_be_reg     *reg;
++        struct m0_be_seg     *kv_seg;
++        struct m0_be_buf     *buf;
++        bool                  ret_dom;
++
++        ret_dom = m0_be_domain_lookup(dom, BE_KV_SEG_NAME, &kv_seg);
++        M0_ASSERT(ret_dom);
++        M0_ASSERT(kv_seg != NULL);
++
++        /* Prepare a region to be_free existing value */
++        M0_ALLOC_PTR(reg);
++        M0_ASSERT(reg != NULL);
++
++        M0_ALLOC_PTR(buf);
++        M0_ASSERT(buf != NULL);
++
++        buf->b_nob  = sizeof_obj;
++        buf->b_addr = obj;
++        m0_be_reg_init(reg, tx, kv_seg, buf);
++
++        m0_be_reg_capture(reg);
++
++        /* Delete from RVM */
++        m0_be_free(reg);
++
++        m0_free(reg);
++        m0_free(buf);
++}
++M0_EXPORTED(m0_be_free_helper);
++
++M0_INTERNAL void m0_be_ks_fini_helper(struct m0_be_kv_store *handle,
++                                      struct m0_be_domain   *dom)
++{
++        struct m0_be_seg *kv_seg;
++        bool              ret_dom;
++
++        ret_dom = m0_be_domain_lookup(dom, BE_KV_SEG_NAME, &kv_seg);
++        M0_ASSERT(ret_dom);
++        M0_ASSERT(kv_seg != NULL);
++        m0_be_ks_fini(handle, NULL, kv_seg);
++}
++M0_EXPORTED(m0_be_ks_fini_helper);
++
+ #undef M0_TRACE_SUBSYSTEM
+ /* @} end of helper group */
+ 
+diff --git a/be/helper.h b/be/helper.h
+index a53acd4..dd423fc 100644
+--- a/be/helper.h
++++ b/be/helper.h
+@@ -27,8 +27,10 @@
+ #include "lib/list.h"
+ #include "mero/magic.h"
+ #include "be/kv_store.h"
+-#include "cob/cob.h"
+ 
++/**
++  Segment name used for kv_store objects.
++ */
+ #define BE_KV_SEG_NAME "kv_store"
+ 
+ /**
+@@ -54,9 +56,6 @@ enum m0_be_kv_status {
+         BE_KV_DELETE         = 666,
+ };
+ 
+-/**
+-  Segment name used for kv_store objects.
+- */
+ M0_INTERNAL void m0_be_ks_init_domain(struct m0_be_domain  **out_dom);
+ 
+ /**
+@@ -85,16 +84,22 @@ M0_INTERNAL void m0_be_ks_prep_link_reg(struct m0_be_domain    *dom,
+ M0_INTERNAL void m0_be_wait(struct m0_sm_group *sm_group,
+                             struct m0_sm       *sm, uint64_t allowed_states);
+ 
+-M0_INTERNAL void m0_kv_init_helper(struct m0_be_domain   **dom,
+-                                   struct m0_be_kv_store **handle,
+-                                   struct m0_tl_descr     *list_descr,
+-                                   kv_key_cmp_t            cmp_routine,
+-                                   kv_key_match_t          match_routine);
++M0_INTERNAL void m0_kv_init_helper(struct m0_be_domain     **dom,
++                                   struct m0_be_kv_store   **handle,
++                                   struct m0_tl_descr       *list_descr,
++                                   kv_key_cmp_t              cmp_routine,
++                                   kv_key_match_t            match_routine,
++                                   struct m0_be_kv_store_cb *cb_info,
++                                   const  char              *init_mode);
+ 
+-M0_INTERNAL int32_t m0_kv_malloc_helper(struct m0_be_domain     *cob_be_domain,
+-                                        struct m0_be_tx        **tx_out,
+-                                        struct m0_cob_nsrec    **nsrec_out,
+-                                        struct m0_be_reference **ref_out);
++/**
++  Wrapper over m0_be_ks_obj_malloc. tx_out maybe NULL.
++  If tx_out is NULL, it starts a transaction and returns it back.
++ */
++M0_INTERNAL void *m0_kv_malloc_helper(struct m0_be_domain     *cob_be_domain,
++                                      struct m0_be_tx        **tx_out,
++                                      struct m0_be_reference **ref_out,
++                                      uint64_t                 sizeof_obj);
+ 
+ M0_INTERNAL int32_t m0_kv_insert_helper(struct m0_be_kv_store  *handle,
+                                         struct m0_be_reference *ref,
+@@ -110,6 +115,17 @@ M0_INTERNAL void *m0_kv_find_helper(struct m0_be_kv_store *handle,
+ M0_INTERNAL int32_t m0_kv_delete_helper(struct m0_be_kv_store *handle,
+                                         void                  *target,
+                                         uint64_t               sizeof_target);
++
++/**
++  Helper to free an object on rvm.
++  Captures i.e. preserves the @obj to be deleted before freeing from RVM.
++ */
++M0_INTERNAL void m0_be_free_helper(struct m0_be_domain *dom,
++                                   struct m0_be_tx     *tx, void *obj,
++                                   uint64_t             sizeof_obj);
++
++M0_INTERNAL void m0_be_ks_fini_helper(struct m0_be_kv_store *handle,
++                                      struct m0_be_domain   *dom);
+ /** @} end of helper group */
+ 
+ #endif /* __MERO_BE_HELPER_H__ */
+diff --git a/be/kv_store.c b/be/kv_store.c
+index a8b13eb..3c0b38f 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -20,6 +20,7 @@
+ 
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++
+ #include "lib/trace.h"
+ #include "be/kv_store.h"
+ #include "be/handle_store.h"
+@@ -27,8 +28,6 @@
+ #include "be/helper.h"
+ #include "be/handler.h"
+ #include "be/kv_store_private.h"
+-#include <string.h>
+-#include <stdlib.h>
+ 
+ /**
+    @addtogroup be_kv_store
+@@ -131,7 +130,7 @@ M0_EXPORTED(m0_be_ks_create);
+ 
+ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store     *handle,
+                                struct m0_be_kv_store_cb  *cb_info,
+-                               char                      *mode)
++                               const  char               *mode)
+ {
+         struct m0_sm_group         *sm_group;
+         struct m0_be_seg           *rvm_handle_seg = NULL;
+@@ -189,7 +188,6 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store     *handle,
+         else {
+                 /* Assures bko_cbinfo won't contain garbage info */
+                 bk_opdata->bko_cbinfo = NULL;
+-                bk_opdata->bko_cbinfo = NULL;
+         }
+ 
+         m0_sm_enqueue_post(sm_group, bk_opdata, m0_be_ksi_handle_cb);
+@@ -209,11 +207,10 @@ M0_INTERNAL void m0_be_ks_fini(struct m0_be_kv_store     *handle,
+ 
+         dom = handle->ks_handle_heap.ksh_dom;
+ 
++        /* calls rvm_truncate as well. */
+         m0_be_seg_done(seg);
+         dom->bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
+ 
+-        rvm_truncate();
+-
+         m0_be_domain_fini(dom);
+         m0_free(dom);
+ 
+@@ -238,7 +235,7 @@ M0_INTERNAL void *m0_be_ks_find(struct m0_be_kv_store     *handle,
+         void                    *ksc_cbdata;
+         struct m0_tl            *ks_tlist;
+         struct m0_tl_descr      *ks_list_descr;
+-        int                      rc;
++        int                      rc = BE_KV_INVALID_REQ;
+ 
+         M0_ENTRY();
+ 
+@@ -249,10 +246,13 @@ M0_INTERNAL void *m0_be_ks_find(struct m0_be_kv_store     *handle,
+                 if (handle->ks_handle_heap.ksh_key_match(scan, key) == 0) {
+                         target = scan;
+                         rc     = BE_KV_SUCCESS;
+-                        goto exit_find;
++                        break;
+                 }
+         } m0_tlist_endfor;
+ 
++        if (rc == BE_KV_SUCCESS)
++                goto exit_find;
++
+         /* Target was not found, so we return NULL */
+         target = NULL;
+         rc     = BE_KV_FAILURE;
+@@ -348,10 +348,8 @@ M0_EXPORTED(m0_be_ks_delete);
+ M0_INTERNAL int32_t m0_be_ks_update(struct m0_be_kv_store     *handle,
+                                     struct m0_be_kv_store_cb  *cb_info,
+                                     void                      *in_obj,
+-                                    void                     (*key_copy)
+-                                                             (void *dest_obj,
+-                                                              void *src_obj),
+-                                    uint64_t                   sizeof_obj)
++                                    uint64_t                   sizeof_obj,
++                                    kv_obj_copy_t              obj_copy)
+ {
+         struct m0_be_domain     *dom;
+         struct m0_tl            *ks_tlist;
+@@ -365,7 +363,6 @@ M0_INTERNAL int32_t m0_be_ks_update(struct m0_be_kv_store     *handle,
+         void                    *scan;
+         void                    *ksc_cbdata;
+         int32_t                  ret_val       = BE_KV_INVALID_REQ;
+-        int32_t                  obj_found;
+         bool                     ret_dom;
+         kv_key_cmp_t             cmp_fp;
+ 
+@@ -416,11 +413,15 @@ M0_INTERNAL int32_t m0_be_ks_update(struct m0_be_kv_store     *handle,
+                 m0_be_tx_start(tx);
+ 
+                 /* Update the current object */
+-                memcpy(current, in_obj, sizeof_obj);
+-                if (key_copy != NULL) {
+-                        key_copy(current, in_obj);
++                if (obj_copy != NULL) {
++                        obj_copy(current, in_obj, tx);
++                } else {
++                        memcpy(current, in_obj, sizeof_obj);
+                 }
+ 
++                /* Just to assure the key was not corrupted */
++                M0_ASSERT(cmp_fp(current, in_obj) == 0);
++
+                 m0_be_tx_done(tx);
+                 m0_be_wait(sm_group, &tx->bt_sm,
+                            M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+@@ -430,11 +431,6 @@ M0_INTERNAL int32_t m0_be_ks_update(struct m0_be_kv_store     *handle,
+                 m0_free(reg);
+                 m0_free(buf);
+ 
+-                if (key_copy != NULL) {
+-                        obj_found = cmp_fp(current, in_obj);
+-                        M0_ASSERT(obj_found == 0);
+-                }
+-
+                 ret_val = BE_KV_SUCCESS;
+                 goto exit_update;
+         }
+@@ -584,6 +580,46 @@ exit_insert:
+ }
+ M0_EXPORTED(m0_be_ks_insert);
+ 
++M0_INTERNAL int32_t m0_be_ks_pair_setup(struct m0_be_domain        *dom,
++                                        void                       *key,
++                                        void                       *rec_value,
++                                        struct m0_be_tx           **tx,
++                                        struct m0_be_ks_pair      **out_pair,
++                                        struct m0_be_reference    **out_ref,
++                                        enum   pair_allocate_area   alloc_area)
++{
++        struct m0_be_reference  *obj_ref;
++        struct m0_be_ks_pair    *pair;
++        int32_t                  ret_val;
++
++        M0_ASSERT(dom != NULL);
++
++        if (tx == NULL &&  alloc_area == KS_PAIR_ON_HEAP) {
++               M0_ALLOC_PTR(pair);
++        } else {
++                pair = (struct m0_be_ks_pair *)
++                        m0_kv_malloc_helper(dom, tx, &obj_ref, sizeof *pair);
++                M0_ASSERT(obj_ref != NULL);
++                M0_ASSERT(*tx != NULL);
++        }
++
++        if (pair == NULL) {
++                ret_val = BE_KV_FAILURE;
++                goto exit_setup;
++        }
++
++        pair->ksp_key   = key;
++        pair->ksp_value = rec_value;
++        ret_val         = BE_KV_SUCCESS;
++
++exit_setup:
++        *out_pair       = pair;
++        if (out_ref != NULL)
++                *out_ref        = obj_ref;
++        return ret_val;
++}
++M0_EXPORTED(m0_be_ks_pair_setup);
++
+ M0_INTERNAL bool m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+                                        struct m0_be_seg      *seg)
+ {
+@@ -774,7 +810,7 @@ M0_INTERNAL void m0_be_ksi_handle_cb(void *cb_data)
+         struct m0_tl_descr      *descr;
+         struct m0_be_seg        *seg;
+         struct m0_sm_group      *sm_group;
+-        char                    *mode;
++        const  char             *mode;
+         bool                     ret_val;
+ 
+         M0_ENTRY();
+diff --git a/be/kv_store.h b/be/kv_store.h
+index 1329ef4..74c11a1 100644
+--- a/be/kv_store.h
++++ b/be/kv_store.h
+@@ -187,6 +187,11 @@ typedef int     (*kv_key_cmp_t)(void *, void *);
+ typedef int     (*kv_key_match_t)(void *, void *);
+ 
+ /**
++  Object update routine, used by m0_be_ks_update.
++ */
++typedef void    (*kv_obj_copy_t)(void *, void *, struct m0_be_tx *);
++
++/**
+   Structure that stores the fields of the kv_store handle that neeed to be made
+   persistent.
+  */
+@@ -232,6 +237,23 @@ struct m0_be_kv_store_cb {
+         void           (*ksc_cb)(void *cb_data, void *result, int rc);
+ };
+ 
++/**
++  The actual key_value pair, has to be allocated on RVM.
++  @todo: both ksp_key and ksp_value are just holding virtual addresses for now.
++ */
++struct m0_be_ks_pair {
++        /** Pointer to the actual key, has to be allocated on RVM. */
++        void                    *ksp_key;
++        /**
++          Pointer to the value associated with @ksp_key,
++          has to be allocated on RVM.
++         */
++        void                    *ksp_value;
++        /** Linkage to hold this pair in the tlist of kv_store. */
++        struct m0_tlink          ksp_linkage;
++        /** Magic for this pair. */
++        uint64_t                 ksp_magic;
++};
+ 
+ /**
+   Structure to hold callback data when transferring control
+@@ -253,7 +275,7 @@ struct m0_be_ks_opdata {
+         /** Callback information to be used after operation completion. */
+         struct m0_be_kv_store_cb  *bko_cbinfo;
+         /** Kv-store init mode. */
+-        char                      *bko_ksi_mode;
++        const  char               *bko_ksi_mode;
+ };
+ 
+ /**
+@@ -277,6 +299,13 @@ enum m0_be_ks_op_state {
+ };
+ 
+ /**
++ *
++ */
++enum pair_allocate_area {
++        KS_PAIR_ON_RVM,
++        KS_PAIR_ON_HEAP
++};
++/**
+   Create a key value store handle with the specified paramaters.
+   It will initialise the kv-store with heap values that need not be
+   made persistent.
+@@ -312,7 +341,7 @@ M0_INTERNAL void m0_be_ks_create(struct m0_tl_descr      *descr,
+  */
+ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store     *handle,
+                                struct m0_be_kv_store_cb  *cb_info,
+-                               char                      *mode);
++                               const  char               *mode);
+ 
+ /**
+   Finalise a kv-store.
+@@ -398,9 +427,6 @@ M0_INTERNAL int32_t m0_be_ks_delete(struct m0_be_kv_store     *handle,
+                                 to call the callback function after  completion
+                                 of updation.
+   @param obj            :       the object to be updated.
+-  @param key_copy       :       function pointer that copies keys from incoming
+-                                object to updated object, needed to maintain key
+-                                integrity.
+   @param sizeof_obj     :       the size of the object to updated, needed for
+                                 actual updation.
+ 
+@@ -410,12 +436,22 @@ M0_INTERNAL int32_t m0_be_ks_delete(struct m0_be_kv_store     *handle,
+ M0_INTERNAL int32_t m0_be_ks_update(struct m0_be_kv_store     *handle,
+                                     struct m0_be_kv_store_cb  *cb_info,
+                                     void                      *obj,
+-                                    void                     (*key_copy)
+-                                                             (void *dest_obj,
+-                                                              void *src_obj),
+-                                    uint64_t                   sizeof_obj);
++                                    uint64_t                   sizeof_obj,
++                                    kv_obj_copy_t              obj_copy);
+ 
++/**
++  Prepares a key value pair to be inserted in kv_store.
++  Allocates memory to @pair on RVM.
+ 
++  @PRE: key and @rec_value have already been allocated on RVM.
++ */
++M0_INTERNAL int32_t m0_be_ks_pair_setup(struct m0_be_domain        *dom,
++                                        void                       *key,
++                                        void                       *rec_value,
++                                        struct m0_be_tx           **tx,
++                                        struct m0_be_ks_pair      **out_pair,
++                                        struct m0_be_reference    **out_ref,
++                                        enum   pair_allocate_area   alloc_area);
+ /** @} end of kv_store group */
+ #endif /* __MERO_BE_KV_STORE_H__ */
+ 
+diff --git a/be/reg.c b/be/reg.c
+index f91fe7d..96787e6 100644
+--- a/be/reg.c
++++ b/be/reg.c
+@@ -66,6 +66,7 @@ static const struct m0_sm_state_descr reg_states[] = {
+                 .sd_flags     = 0,
+                 .sd_name      = "Captured",
+                 .sd_allowed   = M0_BITS(M0_BEREG_DONE,
++                                        M0_BEREG_FREEING,
+                                         M0_BEREG_FAILED)
+         },
+         [M0_BEREG_DONE] = {
+@@ -173,6 +174,8 @@ M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+         if (reg->br_tx != NULL)
+                 tid = reg->br_tx->bt_impl.tx_id;
+ 
++        m0_be_reg_state_change(reg, M0_BEREG_FREEING);
++
+         rds_free(&reg->br_seg->bs_rvm, (char *)reg->br_buf.b_addr, tid, &err);
+ 
+         if (err != SUCCESS) {
+diff --git a/be/seg.c b/be/seg.c
+index 27c5b6f..75f12e1 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -198,6 +198,8 @@ M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg)
+         m0_be_seg_state_change(seg, M0_BESEG_CLOSED);
+ 
+         /* @todo - Start unmapping the segment. */
++        rds_done(&seg->bs_rvm);
++
+         M0_POST(m0_be_seg_invariant(seg));
+         M0_LEAVE();
+ }
+@@ -334,7 +336,7 @@ M0_INTERNAL void m0_be_seg_create_cb(void *cb_data)
+ 
+         /* @todo - stob path is hardcoded for now. */
+         result = m0_stob_domain_locate(&m0_linux_stob_type,
+-                                       "./__be",
++                                       "/tmp/__be",
+                                        &stob_dom);
+         M0_ASSERT(result == 0);
+ 
+diff --git a/be/ut/be.c b/be/ut/be.c
+index f1732d4..14c338e 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -45,18 +45,23 @@
+ #include "be/seg.h"
+ #include "be/tx.h"
+ 
++#define RVM_CREATE 1
++
+ static struct m0_be_seg         *seg;
+ static struct m0_sm_group       *sm_group;
+ static struct m0_be_domain      *dom;
+ 
+ char be_cmd[1024];
+-static const char      *stob_dir  = "./__be/o";
++#if RVM_CREATE
++static const char      *stob_dir  = "/tmp/__be/o";
+ static const char      *stob_file = "0000000000000000.0000000000000001";
++#endif
+ extern const char      *log_file;
+ 
+ static int ts_be_init(void)   /* ts_ for "test suite" */
+ {
+         int rc = 0;
++#if RVM_CREATE
+         bool result;
+ 
+         M0_LOG(M0_DEBUG, "Test Initialization");
+@@ -102,6 +107,35 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         if (m0_be_seg_state(seg) == M0_BESEG_FAILED) {
+                 rc = -1;
+         }
++#else
++        M0_LOG(M0_DEBUG, "Test Re-initialization");
++
++        M0_ALLOC_PTR(dom);
++        M0_ASSERT(dom != NULL);
++
++        M0_LOG(M0_DEBUG, "Domain recreate");
++        m0_be_domain_create(dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
++        m0_be_domain_init(dom);
++        sm_group = m0_be_domain_sm_group(dom);
++        M0_ASSERT(sm_group != NULL);
++
++        m0_be_seg_state_change(&dom->bd_data, M0_BESEG_ACTIVE);
++
++        M0_ALLOC_PTR(seg);
++        M0_ASSERT(seg != NULL);
++        m0_be_domain_seg_restore(dom, "first", seg);
++
++        m0_sm_group_lock(sm_group);
++        m0_sm_timedwait(&seg->bs_sm,
++                        (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(sm_group);
++
++        if (m0_be_seg_state(seg) == M0_BESEG_FAILED) {
++                rc = -1;
++        }
++
++#endif
+ 
+         return rc;
+ }
+@@ -110,6 +144,7 @@ static int ts_be_fini(void)
+ {
+         int rc = 0;
+ 
++#if RVM_CREATE
+         rvm_truncate();
+         m0_be_seg_done(seg);
+         m0_sm_group_lock(sm_group);
+@@ -118,11 +153,15 @@ static int ts_be_fini(void)
+         m0_be_domain_fini(dom);
+ 
+         m0_free(dom);
++#else
++        m0_be_seg_done(seg);
++        m0_sm_group_lock(sm_group);
++        m0_sm_state_set(&dom->bd_data.bs_sm, M0_BESEG_CLOSED);
++        m0_sm_group_unlock(sm_group);
++        m0_be_domain_fini(dom);
+ 
+-        sprintf(be_cmd, "rm -rf %s", stob_dir);
+-        rc = system(be_cmd);
+-        M0_ASSERT(rc == 0);
+-        /*rvm_terminate();*/
++        m0_free(dom);
++#endif
+ 
+         return rc;
+ }
+@@ -180,7 +219,15 @@ const struct m0_test_suite be_ut = {
+                 { NULL, NULL },
+         }
+ };
+-
++#if 0
++int main()
++{
++        ts_be_init();
++        test_be_transaction();
++        ts_be_fini();
++        return 0;
++}
++#endif
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_ut */
+ 
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index fcc5f4c..aadca23 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -46,7 +46,7 @@ struct m0_be_hs_opdata  *bh_opdata;
+ struct m0_uint128       *kvstore;
+ 
+ char hs_cmd[1024];
+-static const char      *stob_dir  = "./__be/o";
++static const char      *stob_dir  = "/tmp/__be/o";
+ static const char      *stob_file = "0000000000000000.0000000000000001";
+ extern const char      *log_file;
+ 
+diff --git a/be/ut/kv_store.c b/be/ut/kv_store.c
+index 4300486..1a47a33 100644
+--- a/be/ut/kv_store.c
++++ b/be/ut/kv_store.c
+@@ -62,7 +62,7 @@ struct m0_be_kv_store      *handle         = NULL;
+ struct m0_be_kv_store_rvm  *handle_rvm     = NULL;
+ struct m0_sm_group         *sm_group;
+ 
+-static const char          *stob_dir  = "./__be/o";
++static const char          *stob_dir  = "/tmp/__be/o";
+ static const char          *stob_file = "0000000000000000.0000000000000001";
+ extern const char          *log_file;
+ char                        kv_cmd[1024];
+@@ -352,6 +352,7 @@ static int delete(struct m0_kv_store_obj *target)
+ 
+         /* Delete this obj from kv store */
+         ret_val = m0_be_ks_delete(handle, cb_info, (void *)target, tx);
++        m0_be_free_helper(kv_dom, tx, target, sizeof *target);
+ 
+         if (ret_val == BE_KV_SUCCESS) {
+                 m0_be_tx_done(tx);
+@@ -482,6 +483,15 @@ const struct m0_test_suite be_kv_store_ut = {
+         }
+ };
+ 
++#if 0
++int main()
++{
++        ts_kv_store_init();
++        test_kv_store();
++        ts_kv_store_fini();
++        return 0;
++}
++#endif
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_ut */
+ 
+diff --git a/cob/cob.c b/cob/cob.c
+index ee2ded9..9af4c74 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -17,6 +17,7 @@
+  * Original creation date: 10/24/2010
+  *
+  * Mdstore changes: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Nsrec on kv_store changes: Zishan Shaikh <zishan_shaikh@xyratex.com>
+  */
+ 
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_COB
+@@ -44,10 +45,10 @@
+ */
+ 
+ /* @todo: Magic values random for now,. */
+-struct m0_tl_descr cob_ns_list_descr = M0_TL_DESCR("cob",
+-                                                    struct m0_cob_nsrec,
+-                                                    cnr_linkage,
+-                                                    cnr_magic,
++struct m0_tl_descr cob_ns_list_descr = M0_TL_DESCR("cob-nsrec-pair",
++                                                    struct m0_be_ks_pair,
++                                                    ksp_linkage,
++                                                    ksp_magic,
+                                                     0xab5ce55edba1b0a0,
+                                                     0xba1dba11adba0bab);
+ 
+@@ -57,42 +58,79 @@ struct m0_be_domain  *cob_be_domain = NULL;
+ /** Compare and match routines for kv_store. */
+ M0_INTERNAL int m0_cob_kv_ns_cmp(void *in_obj1, void *in_obj2)
+ {
+-        struct m0_cob_nsrec *obj1;
+-        struct m0_cob_nsrec *obj2;
++        struct m0_be_ks_pair *pair1;
++        struct m0_cob_nskey  *key1;
++        struct m0_be_ks_pair *pair2;
++        struct m0_cob_nskey  *key2;
+ 
+-        obj1 = (struct m0_cob_nsrec *)in_obj1;
+-        obj2 = (struct m0_cob_nsrec *)in_obj2;
++        pair1 = (struct m0_be_ks_pair *)in_obj1;
++        pair2 = (struct m0_be_ks_pair *)in_obj2;
++        key1  = (struct m0_cob_nskey *)pair1->ksp_key;
++        key2  = (struct m0_cob_nskey *)pair2->ksp_key;
+ 
+-        return m0_cob_nskey_cmp(&obj1->cnr_nskey, &obj2->cnr_nskey);
++        return m0_cob_nskey_cmp(key1, key2);
+ }
+ 
+ M0_INTERNAL int m0_cob_kv_ns_match(void *in_obj, void *key)
+ {
+-        struct m0_cob_nsrec *obj;
+-        obj = (struct m0_cob_nsrec *)in_obj;
++        struct m0_be_ks_pair *pair;
++        struct m0_cob_nskey  *pair_key;
++        struct m0_cob_nskey  *in_key;
++
++        pair       = (struct m0_be_ks_pair *)in_obj;
++        pair_key   = (struct m0_cob_nskey *)pair->ksp_key;
++        in_key     = (struct m0_cob_nskey *)key;
++
++        return m0_cob_nskey_cmp(pair_key, (struct m0_cob_nskey *)key);
++}
++
++/** Used to update nsrec pair objects for m0_cob_update. */
++M0_INTERNAL void m0_be_kv_cob_pair_copy(void *old_obj, void *new_obj,
++                                        struct m0_be_tx *tx)
++{
++        struct m0_be_ks_pair *old_pair;
++        struct m0_be_ks_pair *new_pair;
++        struct m0_cob_nsrec  *temp;
++
++        M0_PRE(tx != NULL);
++
++        old_pair = (struct m0_be_ks_pair *)old_obj;
++        new_pair = (struct m0_be_ks_pair *)new_obj;
++
++        temp = (struct m0_cob_nsrec *)old_pair->ksp_value;
++
++        /* Delete old value from RVM */
++        m0_be_free_helper(cob_be_domain, tx, temp, sizeof *temp);
++
++        /* Only value is being updated, key has to remain same for integrity */
++        old_pair->ksp_value = new_pair->ksp_value;
+ 
+-        return m0_cob_nskey_cmp(&obj->cnr_nskey, (struct m0_cob_nskey *)key);
+ }
+ 
+-M0_INTERNAL void m0_cob_kv_key_copy(void *dest, void *src)
++M0_INTERNAL int m0_be_cob_nskey_make(struct m0_cob_nskey  **keyh,
++				     const  struct m0_fid  *pfid,
++				     const  char *name, size_t namelen,
++                                     struct m0_be_tx **be_tx)
+ {
+-        struct m0_cob_nsrec     *dest_nsrec;
+-        struct m0_cob_nsrec     *src_nsrec;
+-        struct m0_cob_nskey     *dest_key;
+-        struct m0_cob_nskey     *src_key;
+-        const  char             *name;
+-        uint32_t                 len;
+-
+-        dest_nsrec = (struct m0_cob_nsrec *)dest;
+-        src_nsrec  = (struct m0_cob_nsrec *)src;
+-
+-        dest_key   = &dest_nsrec->cnr_nskey;
+-        src_key    = &src_nsrec->cnr_nskey;
+-        name       = (const char *)src_key->cnk_name.b_data;
+-        len        = m0_bitstring_len_get(&src_key->cnk_name);
+-
+-        m0_bitstring_copy(&dest_key->cnk_name, name, len);
++        struct m0_cob_nskey *key;
++        uint64_t             size_req;
++
++        /*key = m0_alloc(sizeof *key + namelen);*/
++
++        size_req = sizeof *key + namelen;
++        key      = (struct m0_cob_nskey *)m0_kv_malloc_helper(cob_be_domain,
++                                                              be_tx, NULL,
++                                                              size_req);
++        if (key == NULL)
++                return -ENOMEM;
++
++        key->cnk_pfid = *pfid;
++        m0_bitstring_copy(&key->cnk_name, name, namelen);
++
++        *keyh = key;
++        return 0;
+ }
++M0_EXPORTED(m0_be_cob_nskey_make);
+ #endif
+ 
+ 
+@@ -356,6 +394,36 @@ static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id *id,
+         return buf;
+ }
+ 
++#ifndef __KERNEL__
++void __cob_nsrec_kv_store_init(struct m0_be_kv_store **handle,
++                               const char             *init_mode)
++{
++        kv_key_cmp_t   cmp_routine;
++        kv_key_match_t match_routine;
++
++        cmp_routine     = m0_cob_kv_ns_cmp;
++        match_routine   = m0_cob_kv_ns_match;
++
++        m0_kv_init_helper(&cob_be_domain, handle, &cob_ns_list_descr,
++                          cmp_routine, match_routine, NULL, init_mode);
++}
++#endif
++
++int m0_cob_domain_init_recovery(struct m0_cob_domain *dom, struct m0_dbenv *env,
++		                const struct m0_cob_domain_id *id)
++{
++
++#ifndef __KERNEL__
++        if (cob_be_domain == NULL) {
++                __cob_nsrec_kv_store_init(&dom->cd_kvnamespace, "recover");
++        }
++
++        M0_ASSERT(cob_be_domain != NULL);
++#endif
++
++        return m0_cob_domain_init(dom, env, id);
++}
++
+ /**
+    Set up a new cob domain
+ 
+@@ -377,19 +445,10 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
+ #ifndef __KERNEL__
+         /* Initialise be_domain for kv_store */
+         if (cob_be_domain == NULL) {
+-                kv_key_cmp_t   cmp_routine;
+-                kv_key_match_t match_routine;
+-
+-                cmp_routine     = &m0_cob_kv_ns_cmp;
+-                match_routine   = &m0_cob_kv_ns_match;
+-
+-                m0_kv_init_helper(&cob_be_domain, &dom->cd_kvnamespace,
+-                                  &cob_ns_list_descr, cmp_routine,
+-                                  match_routine);
++                __cob_nsrec_kv_store_init(&dom->cd_kvnamespace, "create");
+         }
+ #endif
+ 
+-
+         /* Locate table based on domain id */
+         rc = m0_table_init(&dom->cd_namespace, dom->cd_dbenv,
+                            cob_dom_id_make(table, &dom->cd_id, "ns"),
+@@ -431,6 +490,12 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
+ 
+ void m0_cob_domain_fini(struct m0_cob_domain *dom)
+ {
++#ifndef __KERNEL__
++        /* Fini kv_store for nsrec. Finis cob_be_domain as well*/
++        m0_be_ks_fini_helper(dom->cd_kvnamespace, cob_be_domain);
++        cob_be_domain = NULL;
++#endif
++
+         m0_table_fini(&dom->cd_fileattr_omg);
+         m0_table_fini(&dom->cd_fileattr_basic);
+         m0_table_fini(&dom->cd_object_index);
+@@ -456,7 +521,6 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+ 				   const struct m0_fid *sessfid,
+ 				   struct m0_db_tx *tx)
+ {
+-        struct m0_cob_nskey  *nskey;
+         struct m0_cob_omgkey  omgkey;
+         struct m0_cob_omgrec  omgrec;
+         struct m0_cob_fabrec *fabrec;
+@@ -466,22 +530,21 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+         int                   rc;
+ 
+         /* KV_store declarations */
+-        int32_t                    status  = -2;
+-        struct m0_be_reference    *obj_ref;
+-        struct m0_be_tx           *be_tx;
++        struct m0_be_tx      *be_tx = NULL;
+         /* Two seperate declarations, as both go onto RVM */
+-        struct m0_cob_nsrec       *nsrec;
+-        struct m0_cob_nsrec       *nsrec_root_session;
++        struct m0_cob_nsrec  *nsrec;
++        struct m0_cob_nsrec  *nsrec_root_session;
++        struct m0_cob_nskey  *nskey_root;
++        struct m0_cob_nskey  *nskey_root_session;
+ 
+         /*
+          * Need to allocate ns_rec on rvm here first, this goes to cob_create
+          * and assigned to cob->nsrec
+          */
+-        status = m0_kv_malloc_helper(cob_be_domain, &be_tx, &nsrec,
+-                                     &obj_ref);
++        nsrec = (struct m0_cob_nsrec *)
++                 m0_kv_malloc_helper(cob_be_domain, &be_tx, NULL,
++                                     sizeof *nsrec);
+ 
+-        M0_ASSERT(status == BE_KV_SUCCESS);
+-        M0_ASSERT(obj_ref != NULL);
+         M0_ASSERT(nsrec != NULL);
+ 
+         /**
+@@ -509,8 +572,11 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+         if (rc != 0)
+                 return rc;
+ 
+-        rc = m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
+-                               strlen(M0_COB_ROOT_NAME));
++        /* Allocate key & nsrec  on rvm within same be_tx */
++        rc = m0_be_cob_nskey_make(&nskey_root, &M0_COB_ROOT_FID,
++                                  M0_COB_ROOT_NAME, strlen(M0_COB_ROOT_NAME),
++                                  &be_tx);
++
+         if (rc != 0) {
+             m0_cob_put(cob);
+             return rc;
+@@ -526,7 +592,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+ 
+         if (time(&now) < 0) {
+                 m0_cob_put(cob);
+-                m0_free(nskey);
++                m0_free(nskey_root);
+                 return errno;
+         }
+         nsrec->cnr_atime = nsrec->cnr_mtime = nsrec->cnr_ctime = now;
+@@ -541,7 +607,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+         rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
+         if (rc != 0) {
+                 m0_cob_put(cob);
+-                m0_free(nskey);
++                m0_free(nskey_root);
+                 return rc;
+         }
+ 
+@@ -550,12 +616,11 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+          * ks_insert in name_add
+          */
+         cob->cnr_betx  = be_tx;
+-        cob->cnr_beref = obj_ref;
+ 
+-        rc = m0_cob_create(cob, nskey, nsrec, fabrec, &omgrec, tx);
++        rc = m0_cob_create(cob, nskey_root, nsrec, fabrec, &omgrec, tx);
+         m0_cob_put(cob);
+         if (rc != 0) {
+-                m0_free(nskey);
++                m0_free(nskey_root);
+                 m0_free(fabrec);
+                 return rc;
+         }
+@@ -565,21 +630,23 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+          */
+         /*M0_SET0(&nsrec);*/
+ 
+-        obj_ref = NULL;
+-        be_tx   = NULL;
+-        status  = m0_kv_malloc_helper(cob_be_domain, &be_tx,
+-                                      &nsrec_root_session, &obj_ref);
++        be_tx = NULL;
++        nsrec_root_session = (struct m0_cob_nsrec *)
++                              m0_kv_malloc_helper(cob_be_domain, &be_tx,
++                                                  NULL,
++                                                  sizeof *nsrec_root_session);
+ 
+-        M0_ASSERT(status == BE_KV_SUCCESS);
+-        M0_ASSERT(obj_ref != NULL);
+         M0_ASSERT(nsrec_root_session != NULL);
+ 
+         rc = m0_cob_alloc(dom, &cob);
+         if (rc != 0)
+                 return rc;
+ 
+-        rc = m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_SESSIONS_NAME,
+-                               strlen(M0_COB_SESSIONS_NAME));
++        /* Allocate nsrec & key on rvm within same be_tx */
++        rc = m0_be_cob_nskey_make(&nskey_root_session, &M0_COB_ROOT_FID,
++                                  M0_COB_SESSIONS_NAME,
++                                  strlen(M0_COB_SESSIONS_NAME), &be_tx);
++
+         if (rc != 0) {
+                 m0_cob_put(cob);
+                 return rc;
+@@ -605,7 +672,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+         rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
+         if (rc != 0) {
+                 m0_cob_put(cob);
+-                m0_free(nskey);
++                m0_free(nskey_root_session);
+         }
+ 
+         fabrec->cfb_version.vn_lsn = M0_LSN_RESERVED_NR + 2;
+@@ -616,12 +683,12 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
+          * ks_insert in name_add
+          */
+         cob->cnr_betx  = be_tx;
+-        cob->cnr_beref = obj_ref;
+ 
+-        rc = m0_cob_create(cob, nskey, nsrec_root_session, fabrec, &omgrec, tx);
++        rc = m0_cob_create(cob, nskey_root_session, nsrec_root_session, fabrec,
++                           &omgrec, tx);
+         m0_cob_put(cob);
+         if (rc != 0) {
+-                m0_free(nskey);
++                m0_free(nskey_root_session);
+                 m0_free(fabrec);
+                 return rc;
+         }
+@@ -701,42 +768,30 @@ static int cob_fab_lookup(struct m0_cob *cob, struct m0_db_tx *tx);
+  */
+ static int cob_ns_lookup(struct m0_cob *cob, struct m0_db_tx *tx)
+ {
+-        int                       rc = -1;
++        int                      rc = -1;
+ #ifndef __KERNEL__
+         struct m0_be_kv_store   *kv_handle;
+         struct m0_cob_nsrec     *ret_kv_nsrec;
+-        const  char             *name;
+-        uint32_t                 len;
++        struct m0_be_ks_pair    *ret_pair = NULL;
+ 
+         kv_handle    = cob->co_dom->cd_kvnamespace;
+         M0_ASSERT(kv_handle != NULL);
+ 
+-        ret_kv_nsrec = (struct m0_cob_nsrec *)m0_kv_find_helper(kv_handle,
+-                                                                cob->co_nskey,
+-                                                                NULL, NULL);
+-
+-        if (ret_kv_nsrec != NULL) {
+-                name = (const char *)ret_kv_nsrec->cnr_nskey.cnk_name.b_data;
+-                M0_ASSERT(m0_fid_is_set(&ret_kv_nsrec->cnr_fid));
++        ret_pair = (struct m0_be_ks_pair *)m0_kv_find_helper(kv_handle,
++                                                             cob->co_nskey,
++                                                             NULL, NULL);
++        if (ret_pair != NULL) {
++                /* cob->co_pair is used while deletion. */
++                cob->co_pair = ret_pair;
++                ret_kv_nsrec = (struct m0_cob_nsrec *)ret_pair->ksp_value;
++                M0_ASSERT(ret_kv_nsrec != NULL);
+ 
+-                len = m0_bitstring_len_get(&ret_kv_nsrec->cnr_nskey.cnk_name);
+-
+-                /*
+-                 * Needed, as still there are unresolved dependencies
+-                 * with cob->co_nsrec.
+-                 */
+                 memcpy(&cob->co_nsrec, ret_kv_nsrec, sizeof *ret_kv_nsrec);
+-                m0_bitstring_copy(&cob->co_nsrec.cnr_nskey.cnk_name, name, len);
+-
+-                cob->co_kv_nsrec  = ret_kv_nsrec;
+                 cob->co_flags    |= M0_CA_NSREC;
+ 
+                 M0_ASSERT(cob->co_nsrec.cnr_linkno > 0 ||
+                           cob->co_nsrec.cnr_nlink > 0);
+ 
+-                M0_ASSERT(cob->co_kv_nsrec->cnr_linkno > 0 ||
+-                          cob->co_kv_nsrec->cnr_nlink > 0);
+-
+                 M0_POST(m0_fid_is_set(cob->co_fid));
+                 rc = 0;
+                 goto exit_ns_lookup;
+@@ -1222,8 +1277,13 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
+         rc = m0_table_insert(tx, &pair);
+         m0_db_pair_release(&pair);
+         m0_db_pair_fini(&pair);
+-        if (rc == 0)
+-                cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
++        if (rc == 0) {
++                /*
++                 * Changed the key flag here from M0_CA_NSKEY_FREE
++                 * to M0_CA_NSKEY , as the key is on RVM and not regular heap.
++                 */
++                cob->co_flags |= M0_CA_NSKEY | M0_CA_FABREC;
++       }
+ out:
+         M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
+                     m0_addb_func_fail, "cob_create", rc);
+@@ -1324,24 +1384,30 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
+         /* KV Store declarations */
+ #ifndef __KERNEL__
+         struct m0_be_kv_store  *handle;
+-        const  char            *name;
+-        uint32_t                len;
++        struct m0_be_ks_pair   *kv_pair;
+ 
+         if (nsrec != NULL) {
+                 handle = cob->co_dom->cd_kvnamespace;
+                 M0_ASSERT(handle != NULL);
+ 
+-                name = (const char *)cob->co_nskey->cnk_name.b_data;
+-                len  = m0_bitstring_len_get(&cob->co_nskey->cnk_name);
+-
+-                nsrec->cnr_nskey = *cob->co_nskey;
+-                m0_bitstring_copy(&nsrec->cnr_nskey.cnk_name, name, len);
++                /*
++                 * Create a pair, with the new updated input @nsrec,
++                 * without changing the key.
++                 */
++                rc = m0_be_ks_pair_setup(cob_be_domain, cob->co_nskey, nsrec,
++                                         NULL, &kv_pair, NULL,
++                                         KS_PAIR_ON_HEAP);
+ 
+-                rc = m0_be_ks_update(handle, NULL, nsrec, &m0_cob_kv_key_copy,
+-                                     sizeof *nsrec);
+                 M0_ASSERT(rc == BE_KV_SUCCESS);
+-                if (rc != 0);
++                M0_ASSERT(kv_pair  != NULL);
++
++                rc = m0_be_ks_update(handle, NULL, kv_pair, sizeof *kv_pair,
++                                     m0_be_kv_cob_pair_copy);
++
++                if (rc != BE_KV_SUCCESS)
+                         goto out;
++
++                m0_free(kv_pair);
+         }
+ #endif
+         if (fabrec != NULL) {
+@@ -1396,9 +1462,9 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
+ 
+         /* KV store declarations */
+ #ifndef __KERNEL__
+-        struct m0_be_reference  *obj_ref;
++        struct m0_be_reference  *pair_ref;
+         struct m0_be_tx         *be_tx;
+-        const char              *name = (const char *)nskey->cnk_name.b_data;
++        struct m0_be_ks_pair    *kv_pair;
+ #endif
+ 
+         M0_PRE(cob != NULL);
+@@ -1427,19 +1493,16 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
+ 
+ #ifndef __KERNEL__
+         /* Insert nsrec in kv_store */
+-        obj_ref = cob->cnr_beref;
+-        M0_ASSERT(obj_ref != NULL);
+-
+         be_tx   = cob->cnr_betx;
+         M0_ASSERT(be_tx != NULL);
+ 
+-        M0_ASSERT(obj_ref->be_virtual_address == (void *)nsrec);
+-
+-        memcpy(&nsrec->cnr_nskey, nskey, sizeof *nskey);
+-        m0_bitstring_copy(&nsrec->cnr_nskey.cnk_name, name,
+-                          m0_bitstring_len_get(&nskey->cnk_name));
++        rc = m0_be_ks_pair_setup(cob_be_domain, nskey, nsrec, &be_tx, &kv_pair,
++                                 &pair_ref, KS_PAIR_ON_RVM);
++        M0_ASSERT(rc == BE_KV_SUCCESS);
++        M0_ASSERT(kv_pair  != NULL);
++        M0_ASSERT(pair_ref != NULL);
+ 
+-        rc  = m0_kv_insert_helper(cob->co_dom->cd_kvnamespace, obj_ref,
++        rc  = m0_kv_insert_helper(cob->co_dom->cd_kvnamespace, pair_ref,
+                                   be_tx);
+ #endif
+ out:
+@@ -1452,9 +1515,9 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
+ 				struct m0_cob_nskey *nskey,
+ 				struct m0_db_tx *tx)
+ {
+-        int                 rc;
+-        struct m0_cob_oikey oikey;
+-        struct m0_db_pair   pair;
++        int                  rc;
++        struct m0_cob_oikey  oikey;
++        struct m0_db_pair    pair;
+         struct m0_cob_nsrec *nsrec = NULL;
+ 
+         M0_PRE(m0_cob_is_valid(cob));
+@@ -1463,6 +1526,10 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
+                 goto out;
+ 
+ #ifndef __KERNEL__
++
++        struct m0_sm_group  *sm_group;
++        struct m0_be_tx     *be_tx;
++
+         /*
+          * Kill name kv store.
+          */
+@@ -1470,15 +1537,43 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
+         /* First lookup nsrec with nskey from kv store */
+         cob->co_nskey =  nskey;
+         rc            =  cob_ns_lookup(cob, NULL);
++
+         if (rc != 0)
+                 goto out;
+-        nsrec         =  cob->co_kv_nsrec;
++        nsrec         =  &cob->co_nsrec;
+         M0_ASSERT(nsrec != NULL);
+ 
+-        /* Now delete nsrec */
+-        rc = m0_kv_delete_helper(cob->co_dom->cd_kvnamespace, (void *)nsrec,
+-                                 sizeof *nsrec);
++        /* Now delete pair ultimately in cob->co_pair. */
++        rc = m0_kv_delete_helper(cob->co_dom->cd_kvnamespace, cob->co_pair,
++                                 sizeof *cob->co_pair);
+         M0_ASSERT(rc == BE_KV_SUCCESS);
++
++        /* Delete key, value and pair from RVM */
++        M0_ALLOC_PTR(be_tx);
++        M0_ASSERT(be_tx != NULL);
++
++        m0_be_tx_init(be_tx, cob_be_domain, 0);
++        m0_be_tx_start(be_tx);
++
++        /* Free the ns key */
++        m0_be_free_helper(cob_be_domain, be_tx, cob->co_pair->ksp_key,
++                          sizeof (struct m0_cob_nskey));
++
++        /* Free the ns rec value */
++        m0_be_free_helper(cob_be_domain, be_tx, cob->co_pair->ksp_value,
++                          sizeof (struct m0_cob_nsrec));
++
++        /* Free the pair holding the above key-value */
++        m0_be_free_helper(cob_be_domain, be_tx, cob->co_pair,
++                          sizeof cob->co_pair);
++
++        sm_group = m0_be_domain_sm_group(cob_be_domain);
++        m0_be_tx_done(be_tx);
++        m0_be_wait(sm_group, &be_tx->bt_sm,
++                   M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
++        m0_be_tx_fini(be_tx);
++        m0_free(be_tx);
++        cob->co_pair = NULL;
+ #endif
+         /*
+          * Let's also kill object index entry.
+diff --git a/cob/cob.h b/cob/cob.h
+index 6c4546c..d86cd30 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -275,6 +275,7 @@ struct m0_cob_domain {
+         struct m0_table         cd_namespace;
+ 
+ #ifndef __KERNEL__
++        /** KV-Store handle for namespaces. */
+         struct m0_be_kv_store  *cd_kvnamespace;
+ #endif
+ 
+@@ -289,6 +290,11 @@ struct m0_cob_domain {
+ 
+ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
+ 		       const struct m0_cob_domain_id *id);
++/**
++  Recovers kv_store for nsrec and then calls m0_cob_domain_init.
++ */
++int m0_cob_domain_init_recovery(struct m0_cob_domain *dom, struct m0_dbenv *env,
++		                const struct m0_cob_domain_id *id);
+ 
+ void m0_cob_domain_fini(struct m0_cob_domain *dom);
+ 
+@@ -390,13 +396,6 @@ struct m0_cob_nsrec {
+         uint64_t          cnr_atime;   /**< time of last access */
+         uint64_t          cnr_mtime;   /**< time of last modification */
+         uint64_t          cnr_ctime;   /**< time of last status change */
+-
+-#ifndef __KERNEL__
+-        /** For kv_store. */
+-        struct m0_tlink             cnr_linkage;
+-        uint64_t                    cnr_magic;
+-        struct m0_cob_nskey         cnr_nskey;
+-#endif
+ };
+ 
+ /** Object index table key. The oi table record is a struct m0_cob_nskey. */
+@@ -512,15 +511,21 @@ struct m0_cob {
+         struct m0_cob_oikey    co_oikey;    /**< object fid, linkno */
+         struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
+ 
+-        struct m0_cob_nsrec   *co_kv_nsrec;
++        /** This object goes onto RVM. */
++        /*struct m0_cob_nsrec   *co_kv_nsrec;*/
++
++        /** Used while deleting a pair, after look up. */
++        struct m0_be_ks_pair  *co_pair;
+ 
+         struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
+         struct m0_cob_omgrec   co_omgrec;   /**< permission data */
+         struct m0_db_pair      co_oipair;   /**< used for object index access */
+         struct m0_addb_ctx     co_addb;     /**< cob private addb ctx */
+ 
++        /** @todo: Following fields need to be added somewhere else */
++
++        /** BE domain transaction. Used while adding a new nsrec to kv_store. */
+         struct m0_be_tx            *cnr_betx;
+-        struct m0_be_reference     *cnr_beref;
+ };
+ 
+ /**
+@@ -757,6 +762,14 @@ M0_INTERNAL void m0_cob_oikey_make(struct m0_cob_oikey *oikey,
+ M0_INTERNAL int m0_cob_nskey_make(struct m0_cob_nskey **keyh,
+ 				  const struct m0_fid *pfid,
+ 				  const char *name, size_t namelen);
++/**
++ * Allocates on key for ns table on RVM.
++ * To be used when adding a new nsrec to kv_store.
++ */
++M0_INTERNAL int m0_be_cob_nskey_make(struct m0_cob_nskey  **keyh,
++				     const  struct m0_fid  *pfid,
++				     const  char *name, size_t namelen,
++                                     struct m0_be_tx **be_tx);
+ 
+ /**
+  * Allocate fabrec record according with @link and @linklen and setup record
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index f039e12..f875c7f 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -25,6 +25,7 @@
+ #include "lib/bitstring.h"
+ #include "cob/cob.h"
+ #include "be/helper.h"
++#include <stdlib.h>
+ 
+ static const char db_name[] = "ut-cob";
+ static const char test_name[] = "hello_world";
+@@ -40,7 +41,6 @@ static int rc;
+ /* defined in cob/cob.c */
+ extern struct m0_be_domain  *cob_be_domain;
+ 
+-
+ static int db_reset(void)
+ {
+         rc = m0_ut_db_reset(db_name);
+@@ -76,14 +76,12 @@ static void test_mkfs(void)
+ 
+ static void test_init(void)
+ {
+-
+         rc = m0_dbenv_init(&db, db_name, 0);
+-        /* test_init is called by ub_init which hates M0_UT_ASSERT */
++        /*test_init is called by ub_init which hates M0_UT_ASSERT*/
+         M0_ASSERT(rc == 0);
+ 
+         rc = m0_cob_domain_init(&dom, &db, &id);
+         M0_ASSERT(rc == 0);
+-        printf("Init success!!\n");
+ }
+ 
+ static void test_fini(void)
+@@ -92,6 +90,19 @@ static void test_fini(void)
+         m0_dbenv_fini(&db);
+ }
+ 
++/* Just recover the kv_store for nsrec. */
++static void test_recovery_nsrec_kvstore(void)
++{
++        int                     rc;
++
++        rc = m0_dbenv_init(&db, db_name, 0);
++        M0_UT_ASSERT(rc == 0);
++
++        rc = m0_cob_domain_init_recovery(&dom, &db, &id);
++        M0_UT_ASSERT(rc == 0);
++        test_fini();
++}
++
+ static void test_create(void)
+ {
+         struct m0_cob_nskey       *key;
+@@ -99,29 +110,29 @@ static void test_create(void)
+         struct m0_cob_omgrec       omgrec;
+         struct m0_fid             *pfid;
+         struct m0_db_tx            tx;
++
+         /* Kv_store declarations */
+-        struct m0_be_reference    *obj_ref;
+-        struct m0_be_tx           *be_tx;
++        struct m0_be_tx           *be_tx = NULL;
+         struct m0_cob_nsrec       *nsrec;
+-        int32_t                    status  = -2;
++        struct m0_cob_nsrec       *updated_nsrec;
++        struct m0_sm_group        *sm_group;
+ 
+-        /*M0_SET0(&nsrec);*/
+         M0_SET0(&omgrec);
+ 
+-        /*
+-         * Allocate nsrec on RVM first.
+-         */
+-        status = m0_kv_malloc_helper(cob_be_domain, &be_tx, &nsrec,
+-                                     &obj_ref);
++        /* Allocate nsrec on RVM first */
+ 
+-        M0_ASSERT(status == BE_KV_SUCCESS);
+-        M0_ASSERT(obj_ref != NULL);
++        nsrec = (struct m0_cob_nsrec *)
++                 m0_kv_malloc_helper(cob_be_domain, &be_tx, NULL,
++                                     sizeof *nsrec);
+         M0_ASSERT(nsrec != NULL);
+ 
+         /* pfid, filename */
+         M0_ALLOC_PTR(pfid);
+         m0_fid_set(pfid, 0x123, 0x456);
+-        m0_cob_nskey_make(&key, pfid, test_name, strlen(test_name));
++
++        /* allocate nsrec & key within same be_tx */
++        m0_be_cob_nskey_make(&key, pfid, test_name, strlen(test_name), &be_tx);
++        M0_ASSERT(key != NULL);
+ 
+         m0_fid_set(&nsrec->cnr_fid, 0xabc, 0xdef);
+         nsrec->cnr_nlink = 0;
+@@ -133,31 +144,57 @@ static void test_create(void)
+ 
+         /* Store in cob for now, to use in ks_insert */
+         cob->cnr_betx  = be_tx;
+-        cob->cnr_beref = obj_ref;
++
++        /*
++         * In order to have successful cob_ns_lookup for m0_cob_update,
++         * increment it to non zero value.
++         */
++        nsrec->cnr_nlink++;
+ 
+         rc = m0_cob_create(cob, key, nsrec, fabrec, &omgrec, &tx);
+         M0_UT_ASSERT(rc == 0);
+ 
+-        nsrec->cnr_nlink++;
+-        rc = m0_cob_update(cob, nsrec, NULL, NULL, &tx);
++        /* Update this nsrec */
++        rc = m0_cob_lookup(&dom, key, 0, &cob, &tx);
++        M0_UT_ASSERT(rc == 0);
++
++        be_tx = NULL;
++        updated_nsrec = (struct m0_cob_nsrec *)
++                        m0_kv_malloc_helper(cob_be_domain, &be_tx, NULL,
++                                            sizeof *updated_nsrec);
++        M0_ASSERT(updated_nsrec != NULL);
++
++        /* Update the nsrec now. */
++        memcpy(updated_nsrec, &cob->co_nsrec, sizeof *updated_nsrec);
++        /* Set it to default 1 */
++        updated_nsrec->cnr_nlink = 1;
++
++        sm_group = m0_be_domain_sm_group(cob_be_domain);
++        m0_be_tx_done(be_tx);
++        m0_be_wait(sm_group, &be_tx->bt_sm, M0_BITS(M0_BETX_DONE,
++                                                    M0_BETX_FAILED));
++        m0_be_tx_fini(be_tx);
++        m0_free(be_tx);
++
++        rc = m0_cob_update(cob, updated_nsrec, NULL, NULL, &tx);
+         M0_UT_ASSERT(rc == 0);
+         m0_cob_put(cob);
+         m0_db_tx_commit(&tx);
++        m0_free(pfid);
+ }
+ 
+-/**
+-   Test that add_name works.
+-*/
++/*Test that add_name works.*/
++
+ static void test_add_name(void)
+ {
+-        struct m0_cob_nskey       *nskey;
++        struct m0_cob_nskey       *nskey_root;
++        struct m0_cob_nskey       *nskey_add_name;
++        struct m0_cob_nskey       *nskey_wrong_name;
+         struct m0_fid             *pfid;
+         struct m0_db_tx            tx;
+ 
+         /* Kv_store declarations */
+-        int32_t                    status  = -2;
+-        struct m0_be_reference    *obj_ref;
+-        struct m0_be_tx           *be_tx;
++        struct m0_be_tx           *be_tx = NULL;
+         struct m0_cob_nsrec       *co_kv_nsrec;
+ 
+         /* pfid, filename */
+@@ -167,20 +204,26 @@ static void test_add_name(void)
+         m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+ 
+         /* lookup for cob created before using @test_name. */
+-        m0_cob_nskey_make(&nskey, pfid, test_name, strlen(test_name));
+-        rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
++        m0_cob_nskey_make(&nskey_root, pfid, test_name, strlen(test_name));
++        rc = m0_cob_lookup(&dom, nskey_root, M0_CA_NSKEY_FREE, &cob, &tx);
+         M0_UT_ASSERT(rc == 0);
+ 
+         /* add new name to existing cob */
+-        m0_cob_nskey_make(&nskey, pfid, add_name, strlen(add_name));
++
++        /* allocate nsrec & key within same be_tx */
++        m0_be_cob_nskey_make(&nskey_add_name, pfid, add_name, strlen(add_name),
++                             &be_tx);
++        M0_ASSERT(nskey_add_name != NULL);
++
+         cob->co_nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
+ 
+         /* kv_store integration here */
+ 
+         /* Allocate memory to co_kv_ns_rec on RVM */
+-        status = m0_kv_malloc_helper(cob_be_domain, &be_tx, &co_kv_nsrec,
+-                                     &obj_ref);
+-        M0_ASSERT(obj_ref != NULL);
++        co_kv_nsrec = (struct m0_cob_nsrec *)
++                       m0_kv_malloc_helper(cob_be_domain, &be_tx, NULL,
++                                           sizeof *co_kv_nsrec);
++        /*M0_ASSERT(obj_ref != NULL);*/
+         M0_ASSERT(co_kv_nsrec != NULL);
+ 
+         /* Needed, as we do not use the original cob->co_nsrec for insertion */
+@@ -190,30 +233,30 @@ static void test_add_name(void)
+ 
+         /* Save current be tx and reference to be used for ks_insert */
+         cob->cnr_betx           = be_tx;
+-        cob->cnr_beref          = obj_ref;
+ 
+-        rc = m0_cob_name_add(cob, nskey, co_kv_nsrec, &tx);
++        rc = m0_cob_name_add(cob, nskey_add_name, co_kv_nsrec, &tx);
+         M0_UT_ASSERT(rc == 0);
+         m0_cob_put(cob);
+ 
+         /* lookup for new name */
+-        rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
++        rc = m0_cob_lookup(&dom, nskey_add_name, 0, &cob, &tx);
+         M0_UT_ASSERT(rc == 0);
+         m0_cob_put(cob);
+-        m0_free(nskey);
+ 
+         /* lookup for wrong name, should fail. */
+-        m0_cob_nskey_make(&nskey, pfid, wrong_name, strlen(wrong_name));
+-        rc = m0_cob_lookup(&dom, nskey, 0, &cob, &tx);
++        m0_cob_nskey_make(&nskey_wrong_name, pfid, wrong_name,
++                          strlen(wrong_name));
++
++        rc = m0_cob_lookup(&dom, nskey_wrong_name, 0, &cob, &tx);
+         M0_UT_ASSERT(rc != 0);
+-        m0_free(nskey);
++
++        m0_free(nskey_wrong_name);
++        m0_free(pfid);
+ 
+         m0_db_tx_commit(&tx);
+ }
+ 
+-/**
+-   Test that del_name works.
+-*/
++/*Test that del_name works.*/
+ static void test_del_name(void)
+ {
+         struct m0_cob_nskey *nskey;
+@@ -243,17 +286,16 @@ static void test_del_name(void)
+         m0_db_tx_commit(&tx);
+ }
+ 
+-/**
+-   Lookup by name, make sure cfid is right.
+-*/
++/*Lookup by name, make sure cfid is right.*/
+ static void test_lookup(void)
+ {
+         struct m0_db_tx      tx;
+         struct m0_cob_nskey *nskey;
+-        struct m0_fid        pfid;
++        struct m0_fid       *pfid;
+ 
+-        m0_fid_set(&pfid, 0x123, 0x456);
+-        m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
++        M0_ALLOC_PTR(pfid);
++        m0_fid_set(pfid, 0x123, 0x456);
++        m0_cob_nskey_make(&nskey, pfid, test_name, strlen(test_name));
+         m0_db_tx_init(&tx, dom.cd_dbenv, 0);
+         rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob, &tx);
+         m0_db_tx_commit(&tx);
+@@ -264,13 +306,11 @@ static void test_lookup(void)
+         M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xabc);
+         M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_key == 0xdef);
+ 
+-        M0_UT_ASSERT(cob->co_kv_nsrec->cnr_fid.f_container == 0xabc);
+-        M0_UT_ASSERT(cob->co_kv_nsrec->cnr_fid.f_key == 0xdef);
+-
+         /* We should have cached the key also, unless oom */
+         M0_UT_ASSERT(cob->co_flags & M0_CA_NSKEY);
+ 
+         m0_cob_put(cob);
++        m0_free(pfid);
+ }
+ 
+ static int test_locate_internal(void)
+@@ -291,9 +331,8 @@ static int test_locate_internal(void)
+         return rc;
+ }
+ 
+-/**
+-   Lookup by fid, make sure pfid is right.
+-*/
++/*Lookup by fid, make sure pfid is right.*/
++
+ static void test_locate(void)
+ {
+         rc = test_locate_internal();
+@@ -312,9 +351,8 @@ static void test_locate(void)
+         m0_cob_put(cob);
+ }
+ 
+-/**
+-   Test if delete works.
+-*/
++/*Test if delete works.*/
++
+ static void test_delete(void)
+ {
+         struct m0_db_tx tx;
+@@ -347,6 +385,7 @@ const struct m0_test_suite cob_ut = {
+                 { "cob-del-name", test_del_name },
+                 { "cob-delete", test_delete },
+                 { "cob-fini", test_fini },
++                { "cob-nsrec-recovery", test_recovery_nsrec_kvstore },
+                 { NULL, NULL }
+         }
+ };
+diff --git a/rvm/rds.h b/rvm/rds.h
+index 3b9515a..9c31bb7 100644
+--- a/rvm/rds.h
++++ b/rvm/rds.h
+@@ -104,6 +104,10 @@ extern int rds_free(
+       int                   *err
+     );
+ 
++extern int rds_done(
++      rvm_seg_hdr_t         *seg_hdr
++     );
++
+ int rds_maxblock(rvm_seg_hdr_t *seg_hdr, unsigned long size);
+ 
+ extern rvm_bool_t rvm_init_segment(
+diff --git a/rvm/rds_init.c b/rvm/rds_init.c
+index 4b767c5..820a7e0 100644
+--- a/rvm/rds_init.c
++++ b/rvm/rds_init.c
+@@ -132,6 +132,7 @@ rvm_bool_t rds_init(rvm_seg_hdr_t *seg_hdr)
+             seg_hdr->heap_hdr = (heap_def_t *) malloc(sizeof(heap_def_t));
+             init_rvm_seg_region_tree(seg_hdr);
+             seg_hdr->no_init  = rvm_true;
++            seg_hdr->regions  = (rvm_region_def_t *) malloc (sizeof(rvm_region_def_t) * seg_hdr->n_loadregions);
+     }
+     return rvm_true;
+ }
+diff --git a/rvm/rds_util.c b/rvm/rds_util.c
+index a5a80ab..71e89da 100644
+--- a/rvm/rds_util.c
++++ b/rvm/rds_util.c
+@@ -90,7 +90,7 @@ rm_from_list(seg_hdr,list, bp, tid, err)
+ 
+     /* If block is at the head of the list, dequeue will cleanly remove it. */
+     if (bp == list->head) {
+-	bp = dequeue(list, tid, err);
++        bp = dequeue(seg_hdr, list, tid, err);
+ 	if (bp == NULL)
+ 	    return ZERO;
+     } else {
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index ec286ef..1702e60 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -47,13 +47,15 @@ rds_zap_heap(DevName, DevLength, startAddr, staticLength, heapLength, nlists, ch
+     }
+ 
+     /* Initialization of seg->bs_rvm */
++    seg_hdr->n_loadregions = 2;
+     rds_init(seg_hdr);
+ 
+     memset(regions, 0, 2 * sizeof(rvm_region_def_t));
+-    regions[0].length = heapLength;
+-    regions[0].vmaddr = startAddr;
+-    regions[1].length = staticLength;
+-    regions[1].vmaddr = startAddr + heapLength;
++    memset(seg_hdr->regions, 0, 2 * sizeof(rvm_region_def_t));
++    seg_hdr->regions[0].length = regions[0].length = heapLength;
++    seg_hdr->regions[0].vmaddr = regions[0].vmaddr = startAddr;
++    seg_hdr->regions[1].length = regions[1].length = staticLength;
++    seg_hdr->regions[1].vmaddr = regions[1].vmaddr = startAddr + heapLength;
+     /* Create an air bubble at the end? */
+     /* Determine the length of the segment, and create a region which makes the
+      * rest of it air. */
+@@ -119,3 +121,14 @@ rds_zap_heap(DevName, DevLength, startAddr, staticLength, heapLength, nlists, ch
+ 
+     return (*err == SUCCESS ? 0 : -1);
+ }
++
++int rds_done(rvm_seg_hdr_t *seg_hdr)
++{
++    /* Make sure the initialization has been committed to rvm data */
++    rvm_flush();
++    rvm_truncate();
++
++    rvm_release_segment(seg_hdr->n_loadregions, &seg_hdr->regions, seg_hdr);
++
++    return 0;
++}
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index 7ab5057..80005e2 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -385,6 +385,7 @@ typedef struct rw_lock rw_lock_t;
+ typedef struct heap_def heap_def_t;
+ typedef struct heap_header heap_header_t;
+ typedef struct tree_root tree_root_t;
++typedef struct rvm_region_def rvm_region_def_t;
+ 
+ typedef struct rvm_seg_hdr
+     {
+@@ -404,6 +405,9 @@ typedef struct rvm_seg_hdr
+         void                   *static_addr;
+         heap_def_t             *heap_hdr; /* rds heap globals */
+         rvm_bool_t             no_init;
++
++        rvm_region_def_t       *regions;
++        unsigned long          n_loadregions;
+     } rvm_seg_hdr_t;
+ 
+ /*
+diff --git a/rvm/rvm_segment.h b/rvm/rvm_segment.h
+index 5e61f20..0c767c7 100644
+--- a/rvm/rvm_segment.h
++++ b/rvm/rvm_segment.h
+@@ -30,13 +30,12 @@ Coda are listed in the file CREDITS.
+ #define RVM_SEGMENT_HDR_SIZE RVM_PAGE_SIZE /* length of segment header */
+ 
+ /* region definition descriptor */
+-typedef struct
++struct rvm_region_def
+     {
+     rvm_offset_t        offset;         /* region's offset in segment */
+     rvm_length_t        length;         /* region length */
+     char                *vmaddr;        /* mapping address for region */
+-    }
+-rvm_region_def_t;
++    };
+ 
+ /* initializer for region definition descriptor */
+ #define RVM_INIT_REGION(region,off,len,addr) \
+-- 
+1.8.3.2
+

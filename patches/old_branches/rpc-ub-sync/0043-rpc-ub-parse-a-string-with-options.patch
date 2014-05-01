@@ -1,0 +1,148 @@
+From e74f43fc0da77ca56d6980aef3dd644d3ef1aa2e Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 20 Mar 2013 21:37:30 +0200
+Subject: [PATCH 43/63] rpc-ub: parse a string with options
+
+The parser is rather primitive: it is based on sscanf() and demands
+that the format is followed precisely.
+---
+ rpc/ub/ub.c | 98 +++++++++++++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 89 insertions(+), 9 deletions(-)
+
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index b91e3bd..dcf38e1 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -35,7 +35,83 @@
+ #include "rpc/ub/rpc_ub_fops.h"
+ 
+ /* ----------------------------------------------------------------
+- * Client and Server definitions
++ * CLI arguments
++ * ---------------------------------------------------------------- */
++
++struct args {
++	unsigned int a_nr_conns;
++	unsigned int a_nr_slots;
++	unsigned int a_msg_len;
++	bool         a_use_lnet;
++};
++
++/** Assigns default values to the arguments. */
++static void args_init(struct args *args)
++{
++	args->a_nr_conns = 1;
++	args->a_nr_slots = 1;
++	args->a_msg_len  = 32;
++	args->a_use_lnet = false;
++}
++
++enum {
++	MAX_NR_CONNS = 10000,
++	MAX_NR_SLOTS = 100,
++	MAX_MSG_LEN  = 8192
++};
++
++static int args_format_error(void)
++{
++	fprintf(stderr, "**ERROR** Invalid format of the string with options.\n"
++		"  Expected: [lnet,]nr_conns=NUM,nr_slots=NUM,msg_len=NUM\n");
++	return -EINVAL;
++}
++
++static int args_check_limits(const struct args *args)
++{
++	if (0 < args->a_nr_conns && args->a_nr_conns <= MAX_NR_CONNS &&
++	    0 < args->a_nr_slots && args->a_nr_slots <= MAX_NR_SLOTS &&
++	    0 < args->a_msg_len && args->a_msg_len <= MAX_MSG_LEN)
++		return 0;
++
++	fprintf(stderr, "**ERROR** Parameter is out of limits, which are:\n"
++		"  nr_conns: 1..%u\n"
++		"  nr_slots: 1..%u\n"
++		"  msg_len:  1..%u\n", MAX_NR_CONNS, MAX_NR_SLOTS,
++		MAX_MSG_LEN);
++	return -EINVAL;
++}
++
++static int args_parse(const char *src, struct args *dest)
++{
++	if (src == NULL || *src == 0)
++		return 0;
++
++	int rc;
++
++	rc = strncmp(src, "lnet", 4);
++	if (rc == 0) {
++		src += 4;
++		if (*src == 0) {
++			dest->a_use_lnet = true;
++			return 0;
++		} else if (*src == ',') {
++			dest->a_use_lnet = true;
++			++src;
++		} else {
++			return args_format_error();
++		}
++	}
++
++	rc = sscanf(src, "nr_conns=%u,nr_slots=%u,msg_len=%u",
++		    &dest->a_nr_conns, &dest->a_nr_slots, &dest->a_msg_len);
++	return rc == 3 ? args_check_limits(dest) : args_format_error();
++}
++
++static struct args g_args;
++
++/* ----------------------------------------------------------------
++ * RPC client and server definitions
+  * ---------------------------------------------------------------- */
+ 
+ enum {
+@@ -93,9 +169,7 @@ static const struct m0_rpc_item_ops ub_item_ops = {
+ };
+ 
+ /* ----------------------------------------------------------------
+- * RPC Server and Client initialisation
+- *
+- * XXX FIXME: Code duplication!
++ * RPC client and server operations
+  * ---------------------------------------------------------------- */
+ 
+ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
+@@ -136,22 +210,28 @@ static void _client_stop(struct ub_rpc_client *client)
+ 	m0_net_domain_fini(&client->rc_net_dom);
+ }
+ 
+-static int _start(const char *opts /*XXX USEME*/)
++static int _start(const char *opts)
+ {
+ 	int  i;
+ 	int  rc;
+ 	char db[40] = "";
+ 	char ep[40] = "";
+ 
+-	rc = m0_net_xprt_init(g_xprt);
+-	M0_ASSERT(rc == 0);
++	args_init(&g_args);
++	rc = args_parse(opts, &g_args) ?: m0_net_xprt_init(g_xprt);
++	if (rc != 0)
++		return rc;
+ 
+ 	rc = m0_rpc_server_start(&g_sctx);
+-	M0_ASSERT(rc == 0);
++	if (rc != 0) {
++		m0_net_xprt_fini(g_xprt);
++		return rc;
++	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(g_client); ++i) {
+ 		snprintf(db, ARRAY_SIZE(db), "rpc-ub.client-db_%d", i);
+-		snprintf(ep, ARRAY_SIZE(ep), CLIENT_ENDPOINT_FMT, 2 + i);
++		snprintf(ep, ARRAY_SIZE(ep), CLIENT_ENDPOINT_FMT,
++			 2 + i); /* 1 is server EP, so we start from 2 */
+ 		_client_start(&g_client[i], CLIENT_COB_DOM_ID + i, db,
+ 			      SESSION_SLOTS, ep);
+ 	}
+-- 
+1.8.3.2
+

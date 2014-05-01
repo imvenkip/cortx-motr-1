@@ -1,0 +1,29 @@
+From e2a55b2b7784f801561740ae04ec9dd7c362121f Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Fri, 7 Feb 2014 18:06:43 +0530
+Subject: [PATCH 8/9] be.conv.use-real-reqh, - Do not wait if tx_group_fom is
+ already in TGS_FINISH state.
+
+---
+ be/tx_group_fom.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/be/tx_group_fom.c b/be/tx_group_fom.c
+index 5ba9314..7800c13 100644
+--- a/be/tx_group_fom.c
++++ b/be/tx_group_fom.c
+@@ -404,9 +404,8 @@ M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
+ M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
+ {
+ 	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stop);
+-	m0_semaphore_down(&gf->tgf_finish_sem);
+-	//if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH, TGS_STOPPING)))
+-	//	m0_semaphore_down(&gf->tgf_stopped);
++	if (!M0_IN(m0_fom_phase(&gf->tgf_gen), (TGS_FINISH, TGS_STOPPING)))
++		m0_semaphore_down(&gf->tgf_finish_sem);
+ }
+ 
+ M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m,
+-- 
+1.8.3.2
+

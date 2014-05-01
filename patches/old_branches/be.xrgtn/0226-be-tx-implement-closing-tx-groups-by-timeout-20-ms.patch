@@ -1,0 +1,79 @@
+From 77a9424a1dcd28770d5759b7a24bd632919fb017 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Mon, 1 Jul 2013 14:50:07 +0300
+Subject: [PATCH 226/228] be/tx: implement closing tx groups by timeout (20
+ ms).
+
+---
+ be/tx_group.c | 15 +++++++++++++--
+ be/tx_group.h |  1 +
+ 2 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/be/tx_group.c b/be/tx_group.c
+index 82d0e53..62bbc1c 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -231,10 +231,16 @@ static int tg_fom_tick(struct m0_fom *fom)
+ 	switch (state) {
+ 	case M0_BGS_INIT:
+ 	case M0_BGS_EMPTY:
+-	case M0_BGS_ACTIVE:
+ 		/* noop */
+ 		return M0_FSO_WAIT;
+ 
++	case M0_BGS_ACTIVE:
++		/* Group is woken up in ACTIVE state iff tg_close_timeout
++		 * has expired. */
++		tg_state_set(gr, M0_BGS_CLOSED);
++		log_next_group(gr->tg_eng);
++		return M0_FSO_WAIT;
++
+ 	case M0_BGS_CLOSED:
+ 		/* All group's transactions must be in CLOSED state,
+ 		 * and wakeup conditions as in log_next_group(). */
+@@ -332,6 +338,7 @@ static void tx_group_init_state(struct m0_be_tx_group *gr,
+ 
+ {
+ 	m0_mutex_init(&gr->tg_lock);
++	m0_fom_timeout_init(&gr->tg_close_timeout);
+ 	gr->tg_hdr.gh_id        = 0;
+ 	gr->tg_hdr.gh_lsn       = 0ULL;
+ 	gr->tg_hdr.gh_tx_nr     = 0;
+@@ -405,9 +412,11 @@ M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr)
+ 	m0_stob_io_fini(&gr->tg_stobio);
+ 	m0_forall(i, ARRAY_SIZE(gr->tg_txs),
+ 		  (gr_tlist_fini(&gr->tg_txs[i]), true));
++	m0_fom_timeout_fini(&gr->tg_close_timeout);
+ 	m0_mutex_fini(&gr->tg_lock);
+ }
+ 
++/* Must be called with tx engine lock held. */
+ M0_INTERNAL void tx_group_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+ {
+ 	M0_PRE(tx_state(tx) == M0_BTS_CLOSED);
+@@ -423,7 +432,9 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+ 		gr->tg_hdr.gh_id  = tx->t_hdr.th_id;
+ 		gr->tg_hdr.gh_lsn = gr->tg_eng->te_log.lg_lsn;
+ 		tg_state_set(gr, M0_BGS_ACTIVE);
+-		/* TODO:XXX Start grop close timer. */
++		/* XXX: Schedule group close in 20ms. */
++		m0_fom_timeout_wait_on(&gr->tg_close_timeout, &gr->tg_fom,
++				       m0_time_from_now(0, 20000000));
+ 	}
+ 	/* Calculate tx offset in log. */
+ 	tx->t_hdr.th_lsn = gr->tg_hdr.gh_lsn + sizeof(struct m0_be_tg_hdr) +
+diff --git a/be/tx_group.h b/be/tx_group.h
+index 4169216..decb52e 100644
+--- a/be/tx_group.h
++++ b/be/tx_group.h
+@@ -121,6 +121,7 @@ struct m0_be_tx_group {
+ 	struct m0_be_tg_hdr     tg_hdr;  /* header */
+ 	struct m0_be_tg_cblk    tg_cblk; /* commit block */
+ 	struct m0_be_tx_engine *tg_eng;
++	struct m0_fom_timeout   tg_close_timeout;
+ 	uint64_t                tg_magic;
+ 	/** Linkage in the m0_be_tx_engine::te_tgs[...] lists. */
+ 	struct m0_tlink         tg_linkage;
+-- 
+1.8.3.2
+

@@ -1,0 +1,582 @@
+From 716fcafab9e2824c9c1dbb551f9720c9c4d6d15b Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 16 May 2011 03:58:52 -0600
+Subject: [PATCH 087/158] - fixes in readdir, use buf instead of preallocated
+ entries of NAME_MAX len.
+
+---
+ cob/cob.c            |  13 ++++--
+ cob/cob.h            |   3 +-
+ lib/bitstring.c      |  16 +++++++
+ lib/bitstring.h      |  10 +++++
+ mdservice/md_foms.c  | 119 ++++++++++++++++++++++++++-------------------------
+ mdservice/md_fops.c  |   3 +-
+ mdservice/md_fops.ff |  12 ++----
+ mdstore/mdstore.c    | 110 +++++++++++++++++++++++++----------------------
+ mdstore/mdstore.h    |  31 +++++++++-----
+ 9 files changed, 180 insertions(+), 137 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 932e861..b6a6571 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -80,7 +80,8 @@ static void cob_make_nskey_max(struct c2_cob_nskey **keyh,
+                                const char *name, 
+                                int namelen)
+ {
+-        static const char max_name_placeholder[NAME_MAX];
++        static char max_name_placeholder[NAME_MAX];
++        strncpy(max_name_placeholder, name, namelen);
+         return c2_cob_make_nskey(keyh, pfid, max_name_placeholder, 
+                                  sizeof(max_name_placeholder));
+ }
+@@ -600,15 +601,19 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
+ 	return rc;
+ }
+ 
+-int c2_cob_iterator_init(struct c2_cob *cob, struct c2_cob_iterator *it,
+-                         const char *name, int namelen, struct c2_db_tx *tx)
++int c2_cob_iterator_init(struct c2_cob *cob, 
++                         struct c2_cob_iterator *it,
++                         struct c2_bitstring *name,
++                         struct c2_db_tx *tx)
+ {
+         int rc;
+ 
+         /*
+          * Prepare entry key using passed started pos.
+          */
+-        cob_make_nskey_max(&it->ci_key, cob->co_fid, name, namelen);
++        cob_make_nskey_max(&it->ci_key, cob->co_fid, 
++                           c2_bitstring_buf_get(name),
++                           c2_bitstring_len_get(name));
+ 
+         /*
+          * Init iterator cursor with max possible key size.
+diff --git a/cob/cob.h b/cob/cob.h
+index dad1f93..c55b4c6 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -491,8 +491,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
+ */
+ int c2_cob_iterator_init(struct c2_cob          *cob,
+                          struct c2_cob_iterator *it, 
+-                         const char             *name, 
+-                         int                     namelen, 
++                         struct c2_bitstring    *name,
+                          struct c2_db_tx        *tx);
+ 
+ /**
+diff --git a/lib/bitstring.c b/lib/bitstring.c
+index 103cf62..8ad5c4e 100644
+--- a/lib/bitstring.c
++++ b/lib/bitstring.c
+@@ -3,6 +3,7 @@
+ #include <string.h>
+ #include "lib/bitstring.h"
+ #include "lib/arith.h"      /* C2_3WAY */
++#include "lib/memory.h"
+ 
+ 
+ void *c2_bitstring_buf_get(struct c2_bitstring *c)
+@@ -20,6 +21,21 @@ void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
+ 	c->b_len = len;
+ }
+ 
++struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len)
++{
++        struct c2_bitstring *c = c2_alloc(sizeof(*c) + len);
++        if (c == NULL)
++                return NULL;
++        c2_bitstring_len_set(c, len);
++        c2_bitstring_copy(c, name, len);
++        return c;
++}
++
++void c2_bitstring_free(struct c2_bitstring *c)
++{
++        c2_free(c);
++}
++
+ void c2_bitstring_copy(struct c2_bitstring *dst, const char *src, size_t count)
+ {
+         memcpy(c2_bitstring_buf_get(dst), src, count);
+diff --git a/lib/bitstring.h b/lib/bitstring.h
+index 82c95e6..7321da0 100644
+--- a/lib/bitstring.h
++++ b/lib/bitstring.h
+@@ -44,6 +44,16 @@ int c2_bitstring_cmp(const struct c2_bitstring *c1,
+ void c2_bitstring_copy(struct c2_bitstring *dst, 
+                        const char *src, size_t count);
+ 
++/**
++ Alloc memory for a string of passed len and copy name to it.
++*/
++struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len);
++
++/**
++ Free memory of passed @c.
++*/
++void c2_bitstring_free(struct c2_bitstring *c);
++
+ /** @} end of adt group */
+ 
+ 
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index e54e93f..094a590 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -487,13 +487,29 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+                 goto out;
+ 
+         if (cob->co_nsrec.cnr_version > sbody->b_version) {
++                struct c2_bitstring *src;
++                struct c2_bitstring *tgt;
++                
++                src = c2_bitstring_alloc(req->r_sname.n_name, 
++                                         req->r_sname.n_count);
++                if (!src) {
++                        rc = -ENOMEM;
++                        goto out;
++                }
++                
++                tgt = c2_bitstring_alloc(req->r_tname.n_name, 
++                                         req->r_tname.n_count);
++                if (!tgt) {
++                        c2_bitstring_free(src);
++                        rc = -ENOMEM;
++                        goto out;
++                }
++
+                 rc = c2_md_store_rename(site->s_mdstore, &pfid_tgt, 
+-                                        &pfid_src, cob,
+-                                        req->r_sname.n_name,
+-                                        req->r_sname.n_count,
+-                                        req->r_tname.n_name,
+-                                        req->r_tname.n_count,
++                                        &pfid_src, cob, src, tgt,
+                                         ctx);
++                c2_bitstring_free(src);
++                c2_bitstring_free(tgt);
+         }
+         c2_cob_put(cob);
+         if (rc == 0) {
+@@ -822,10 +838,7 @@ static int c2_md_readdir_fom_sanity(struct c2_fom *fom)
+         return rc;
+ }
+ 
+-/**
+-   Number of entries preallocated for readdir.
+- */
+-#define C2_MD_READDIR_ENTRIES_ALLOC 4096
++#define C2_MD_READDIR_BUF_ALLOC 4096
+ 
+ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+ {
+@@ -839,18 +852,20 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         struct c2_fop                 *fop_rep;
+         struct c2_fop_ctx             *ctx;
+         struct c2_fid                  fid;
+-        struct c2_fop_readdir_dirent  *ent;
+         struct c2_service             *svc;
++        struct c2_rdpg                 rdpg;
++        void                          *addr;
+         int                            rc;
+-        int                            i;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+ 
+         fop = fom_obj->fm_fop;
+         C2_ASSERT(fop != NULL);
++        req = c2_fop_data(fop);
+ 
+         fop_rep = fom_obj->fm_fop_rep;
+         C2_ASSERT(fop_rep != NULL);
++        rep = c2_fop_data(fop_rep);
+ 	
+         ctx = fom->fo_fop_ctx;
+         C2_ASSERT(ctx != NULL);
+@@ -858,7 +873,6 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         site = ctx->fc_site;
+         C2_ASSERT(site != NULL);
+ 
+-        req = c2_fop_data(fop);
+         body = &req->r_body;
+ 
+         c2_md_make_fid(&fid, &body->b_tfid);
+@@ -869,69 +883,58 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         if (rc)
+                 goto out;
+ 
+-        rep = c2_fop_data(fop_rep);
+-        
+-        /*
+-         * Preallocate some number of entries for readdir.
+-         */
+-        rep->r_end.n_name = c2_alloc(NAME_MAX);
+-        if (rep->r_end.n_name == NULL) {
++        rdpg.r_pos = c2_bitstring_alloc(req->r_pos.n_name,
++                                        req->r_pos.n_count);
++        if (rdpg.r_pos == NULL) {
+                 c2_cob_put(cob);
+                 rc = -ENOMEM;
+                 goto out;
+         }
+-        rep->r_end.n_count = NAME_MAX;
+-        
+-        rep->r_vector.v_dirent = 
+-            c2_alloc(C2_MD_READDIR_ENTRIES_ALLOC * 
+-                     sizeof(*rep->r_vector.v_dirent));
+-        if (rep->r_vector.v_dirent == NULL) {
++
++        addr = c2_alloc(C2_MD_READDIR_BUF_ALLOC);
++        if (addr == NULL) {
++                c2_bitstring_free(rdpg.r_pos);
+                 c2_cob_put(cob);
+                 rc = -ENOMEM;
+-                goto out_free_end;
+-        }
+-        rep->r_vector.v_count = C2_MD_READDIR_ENTRIES_ALLOC;
+-        
+-        for (i = 0; i < rep->r_vector.v_count; i++) {
+-                ent = &rep->r_vector.v_dirent[i];
+-                ent->d_name.n_name = c2_alloc(NAME_MAX);
+-                if (ent->d_name.n_name == NULL) {
+-                        rc = -ENOMEM;
+-                        break;
+-                }
+-                ent->d_name.n_count = NAME_MAX;
++                goto out;
+         }
+         
+-        if (rc) {
+-                c2_cob_put(cob);
+-                goto out_free;
+-        }
++        c2_buf_init(&rdpg.r_buf, addr, C2_MD_READDIR_BUF_ALLOC);
+ 
+-        rc = c2_md_store_readdir(site->s_mdstore, cob, req, rep, ctx);
++        rc = c2_md_store_readdir(site->s_mdstore, cob, &rdpg, ctx);
++        c2_bitstring_free(rdpg.r_pos);
+         c2_cob_put(cob);
++        if (rc < 0) {
++                c2_free(addr);
++                goto out;
++        }
+ 
+         /*
+-         * Copy in non-error cases.
++         * Prepare end position.
++         */
++        rep->r_end.n_count = c2_bitstring_len_get(rdpg.r_end);
++        rep->r_end.n_name = c2_alloc(rep->r_end.n_count);
++        if (rep->r_end.n_name == NULL) {
++                c2_free(addr);
++                rc = -ENOMEM;
++                goto out;
++        }
++        strncpy(rep->r_end.n_name, c2_bitstring_buf_get(rdpg.r_end),
++                rep->r_end.n_count);
++
++        /* 
++         * Prepare buf with data.
++         */
++        rep->r_buf.b_count = rdpg.r_buf.b_nob;
++        rep->r_buf.b_addr = rdpg.r_buf.b_addr;
++        
++        /*
++         * Post reply in non-error cases.
+          */
+         if (rc >= 0) {
+                 svc = fom->fo_fop_ctx->fc_service;
+                 svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+         }
+-out_free_end:
+-        if (rc < 0) {
+-                c2_free(rep->r_end.n_name);
+-                rep->r_end.n_count = 0;
+-        }
+-out_free:
+-        if (rc < 0) {
+-                while (--i >= 0) {
+-                        ent = &rep->r_vector.v_dirent[i];
+-                        c2_free(ent->d_name.n_name);
+-                }
+-                c2_free(rep->r_vector.v_dirent);
+-                rep->r_vector.v_dirent = NULL;
+-                rep->r_vector.v_count = 0;
+-        }
+ out:
+ 	ctx->fc_retval = rc;
+         if (rc < 0)
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 664a250..ed89443 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -84,8 +84,7 @@ static struct c2_fop_type_format *c2_md_fop_fmts[] = {
+         &c2_fop_fid_tfmt,
+         &c2_fop_name_tfmt,
+         &c2_fop_cob_tfmt,
+-        &c2_fop_readdir_dirent_tfmt,
+-        &c2_fop_readdir_vec_tfmt
++	&c2_fop_buf_tfmt
+ };
+ 
+ void c2_md_fop_fini(void)
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index c539b0e..7aa8b60 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -97,18 +97,14 @@ DEF(c2_fop_readdir, RECORD,
+     _(r_body, c2_fop_cob),
+     _(r_pos, c2_fop_name));
+ 
+-DEF(c2_fop_readdir_dirent, RECORD,
+-    _(d_body, c2_fop_cob),
+-    _(d_name, c2_fop_name));
+-
+-DEF(c2_fop_readdir_vec, SEQUENCE,
+-    _(v_count, U32),
+-    _(v_dirent, c2_fop_readdir_dirent));
++DEF(c2_fop_buf, SEQUENCE,
++    _(b_count, U32),
++    _(b_addr, BYTE));
+ 
+ DEF(c2_fop_readdir_rep, RECORD,
+     _(r_end, c2_fop_name),
+     _(r_body, c2_fop_cob),
+-    _(r_vector, c2_fop_readdir_vec));
++    _(r_buf, c2_fop_buf));
+ 
+ /** @} end of fop group */
+ 
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 920752b..f74429f 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -323,10 +323,8 @@ int c2_md_store_rename(struct c2_md_store       *md,
+                        struct c2_fid            *pfid_tgt,
+                        struct c2_fid            *pfid_src,
+                        struct c2_cob            *cob,
+-                       const char               *name_src,
+-                       int                       len_src,
+-                       const char               *name_tgt,
+-                       int                       len_tgt,
++                       struct c2_bitstring      *name_src,
++                       struct c2_bitstring      *name_tgt,
+                        struct c2_fop_ctx        *ctx)
+ {
+         struct c2_cob_nskey  *srckey;
+@@ -343,8 +341,12 @@ int c2_md_store_rename(struct c2_md_store       *md,
+         /*
+          * Prepare src and dst keys.
+          */                
+-        c2_cob_make_nskey(&srckey, pfid_src, name_src, len_src);
+-        c2_cob_make_nskey(&tgtkey, pfid_tgt, name_tgt, len_tgt);
++        c2_cob_make_nskey(&srckey, pfid_src, 
++                          c2_bitstring_buf_get(name_src),
++                          c2_bitstring_len_get(name_src));
++        c2_cob_make_nskey(&tgtkey, pfid_tgt, 
++                          c2_bitstring_buf_get(name_tgt),
++                          c2_bitstring_len_get(name_tgt));
+ 
+         /*
+          * Cob is just renamed in same parent, not much to do.
+@@ -533,39 +535,31 @@ int c2_md_store_getattr(struct c2_md_store      *md,
+ 
+ int c2_md_store_readdir(struct c2_md_store      *md, 
+                         struct c2_cob           *cob,
+-                        struct c2_fop_readdir   *req, 
+-                        struct c2_fop_readdir_rep *rep, 
++                        struct c2_rdpg          *rdpg,
+                         struct c2_fop_ctx       *ctx)
+ {
+         struct c2_cob_iterator         it;
+-        char                           cur[NAME_MAX];
+-        int                            cur_len;
+-        struct c2_fop_readdir_vec     *vec;
+-        struct c2_fop_readdir_dirent  *ent;
+-        struct c2_cob_nskey           *nskey;
+-        struct c2_cob_nsrec           *nsrec;
++        struct c2_dirent              *ent;
++        struct c2_dirent              *last = NULL;
++        char                          *name;
++        int                            nob;
++        int                            recsize;
++        int                            len;
+         int                            first;
+         int                            second;
+-        int                            count;
+         int                            rc;
+         
+         C2_ASSERT(cob != NULL);
+ 
+-        first = req->r_pos.n_count == 1 &&
+-                !strncmp(req->r_pos.n_name, ".", 1);
++        first = c2_bitstring_len_get(rdpg->r_pos) == 1 &&
++                !strncmp(c2_bitstring_buf_get(rdpg->r_pos), ".", 1);
+         second = 0;
+ 
+-        strncpy(cur, req->r_pos.n_name, req->r_pos.n_count);
+-        cur_len = req->r_pos.n_count;
+-
+-        rc = c2_cob_iterator_init(cob, &it, cur, cur_len,
++        rc = c2_cob_iterator_init(cob, &it, rdpg->r_pos,
+                                   &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
+-        vec = &rep->r_vector;
+-        count = 0;
+-
+         rc = c2_cob_iterator_get(&it);
+         if (rc == 0) {
+                 /* 
+@@ -575,44 +569,56 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+                 rc = c2_cob_iterator_next(&it);
+         } else if (rc > 0)
+                 rc = 0;
+-                
++    
++        ent = rdpg->r_buf.b_addr;
++        nob = rdpg->r_buf.b_nob;
+         while (rc == 0 || first || second) {
+                 int next_step = 0;
+-                nskey = it.ci_key;
+-                nsrec = &it.ci_rec;
+-
+-                if (count < vec->v_count) {
+-                        ent = &vec->v_dirent[count];
+-                        if (first) {
+-                                strncpy(ent->d_name.n_name, ".", 1);
+-                                ent->d_name.n_count = 1;
+-                                second = 1;
+-                                first = 0;
+-                        } else if (second) {
+-                                strncpy(ent->d_name.n_name, "..", 2);
+-                                ent->d_name.n_count = 2;
+-                                second = 0;
++                
++                if (first) {
++                        name = ".";
++                        len = 1;
++                        second = 1;
++                        first = 0;
++                } else if (second) {
++                        name = "..";
++                        len = 2;
++                        second = 0;
++                } else {
++                        name = c2_bitstring_buf_get(&it.ci_key->cnk_name);
++                        len = c2_bitstring_len_get(&it.ci_key->cnk_name);
++                        next_step = 1;
++                }
++
++                recsize = ((sizeof(*ent) + len) + 7) & ~7;
++
++                if (nob >= recsize) {
++                        strncpy(ent->d_name, name, len);
++                        ent->d_namelen = len;
++                        ent->d_reclen = recsize;
++                } else {
++                        if (last) {
++                                last->d_reclen += nob;
++                                rc = 0;
+                         } else {
+-                                memcpy(ent->d_name.n_name, 
+-                                       c2_bitstring_buf_get(&nskey->cnk_name),
+-                                       nskey->cnk_name.b_len);
+-                                ent->d_name.n_count = nskey->cnk_name.b_len;
+-                                next_step = 1;
++                                rc = -EINVAL;
+                         }
+-                        strncpy(cur, ent->d_name.n_name, ent->d_name.n_count);
+-                        cur_len = ent->d_name.n_count;
+-                } else {
+-                        memcpy(rep->r_end.n_name, cur, cur_len);
+-                        rep->r_end.n_count = cur_len;
+-                        break;
++                        goto out_end;
+                 }
+-                count++;
++                last = ent;
++                ent = (void *)ent + recsize;
++                nob -= recsize;
+ 
+                 if (next_step)
+                         rc = c2_cob_iterator_next(&it);
+         }
+-        vec->v_count = count;
++out_end:
+         c2_cob_iterator_fini(&it);
++        if (rc >= 0) {
++                if (last)
++                        last->d_reclen = 0;
++                rdpg->r_end = c2_bitstring_alloc(name, len);
++        }
+ out:
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_readdir", rc);
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 92dcd9c..3e9fb5e 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -159,6 +159,18 @@ enum c2_md_lustre_logrec_type {
+         RT_LAST
+ };
+ 
++struct c2_dirent {
++        uint32_t             d_namelen;
++        uint32_t             d_reclen;
++        char                 d_name[0];
++};
++
++struct c2_rdpg {
++        struct c2_bitstring *r_pos;
++        struct c2_buf        r_buf;
++        struct c2_bitstring *r_end;
++};
++
+ /**
+    Init mdstore and get it ready to work. Ifinit_root == !!1
+    then root cob is initialized.
+@@ -209,10 +221,8 @@ int c2_md_store_rename(struct c2_md_store       *md,
+                        struct c2_fid            *pfid_tgt,
+                        struct c2_fid            *pfid_src,
+                        struct c2_cob            *cob,
+-                       const char               *name_src,
+-                       int                       len_src,
+-                       const char               *name_tgt,
+-                       int                       len_tgt,
++                       struct c2_bitstring      *name_src,
++                       struct c2_bitstring      *name_tgt,
+                        struct c2_fop_ctx        *ctx);
+ 
+ /**
+@@ -275,17 +285,16 @@ int c2_md_store_getattr(struct c2_md_store *md,
+                         struct c2_fop_ctx *ctx);
+ 
+ /**
+-   Handle readdir operation described by @req on @cob. Input @cob
++   Handle readdir operation described by @rdpg on @cob. Input @cob
+    is so called statdata cob and returned by c2_cob_locate(). 
+    Save result to @rep.
+    
+-   Error code is returned in error case or zero otherwise.
++   Error code is returned in error case or something >= 0 otherwise.
+ */
+-int c2_md_store_readdir(struct c2_md_store *md, 
+-                        struct c2_cob *cob,
+-                        struct c2_fop_readdir *req, 
+-                        struct c2_fop_readdir_rep *rep, 
+-                        struct c2_fop_ctx *ctx);
++int c2_md_store_readdir(struct c2_md_store      *md, 
++                        struct c2_cob           *cob,
++                        struct c2_rdpg          *rdpg,
++                        struct c2_fop_ctx       *ctx);
+ 
+ /**
+    Find cob by fid.
+-- 
+1.8.3.2
+

@@ -1,0 +1,237 @@
+From 1f41ac686b76d0532d90ea52fabae7b3ad1dc4f0 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 18 Jun 2013 16:12:06 +0300
+Subject: [PATCH 166/290] be: m0_be_emap_paste(): set op state explicitly
+
+---
+ be/extmap.c | 75 ++++++++++++++++++++++++++++++++++++-------------------------
+ be/extmap.h |  8 +++----
+ 2 files changed, 49 insertions(+), 34 deletions(-)
+
+diff --git a/be/extmap.c b/be/extmap.c
+index 66aee9f..808f5ac 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -104,8 +104,9 @@ static const struct m0_be_btree_kv_ops be_emap_ops = {
+         .ko_compare = be_emap_cmp
+ };
+ 
+-M0_INTERNAL int m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db,
+-			     const char *mapname)
++M0_INTERNAL int m0_be_emap_init(struct m0_be_emap *map,
++				struct m0_be_seg  *db,
++				const char        *mapname)
+ {
+ 	int rc;
+ 	struct m0_be_bnode *root;
+@@ -129,7 +130,8 @@ M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
+ 	m0_be_btree_fini(&map->em_mapping);
+ }
+ 
+-M0_INTERNAL struct m0_be_emap_seg *m0_be_emap_seg_get(struct m0_be_emap_cursor *it)
++M0_INTERNAL struct m0_be_emap_seg *
++m0_be_emap_seg_get(struct m0_be_emap_cursor *it)
+ {
+ 	return &it->ec_seg;
+ }
+@@ -145,10 +147,11 @@ M0_INTERNAL bool m0_be_emap_ext_is_first(const struct m0_ext *ext)
+ }
+ 
+ static int emap_it_pack(struct m0_be_emap_cursor *it,
+-	void (*btree_func)(struct m0_be_btree *btree, struct m0_be_tx *tx,
+-                                    struct m0_be_op *op,
+-                                    const struct m0_buf *key,
+-                                    const struct m0_buf *val),
++			void (*btree_func)(struct m0_be_btree *btree,
++					   struct m0_be_tx    *tx,
++					   struct m0_be_op    *op,
++				     const struct m0_buf      *key,
++				     const struct m0_buf      *val),
+ 			struct m0_be_tx *tx)
+ {
+ 	const struct m0_be_emap_seg *ext = &it->ec_seg;
+@@ -173,10 +176,10 @@ static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it)
+ 
+ static int emap_it_open(struct m0_be_emap_cursor *it)
+ {
+-	const struct m0_be_emap_key *key = &it->ec_key;
+-	const struct m0_be_emap_rec *rec = &it->ec_rec;
+-	struct m0_be_emap_seg       *ext = &it->ec_seg;
+-	struct m0_be_op             *bt_it_op = &it->ec_cursor.bc_op;
++	const struct m0_be_emap_key *key      = &it->ec_key;
++	const struct m0_be_emap_rec *rec      = &it->ec_rec;
++	      struct m0_be_emap_seg *ext      = &it->ec_seg;
++	      struct m0_be_op       *bt_it_op = &it->ec_cursor.bc_op;
+ 
+ 	M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
+ 
+@@ -195,9 +198,11 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
+ 	return it->ec_op.bo_sm.sm_rc;
+ }
+ 
+-static void emap_it_init(struct m0_be_emap *map, struct m0_be_tx *tx,
+-		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+-		   struct m0_be_emap_cursor *it)
++static void emap_it_init(struct m0_be_emap        *map,
++			 struct m0_be_tx          *tx,
++		   const struct m0_uint128        *prefix,
++			 m0_bindex_t               offset,
++			 struct m0_be_emap_cursor *it)
+ {
+ 	it->ec_keybuf.b_addr = &it->ec_key;
+ 	it->ec_recbuf.b_addr = &it->ec_rec;
+@@ -225,21 +230,19 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
+ 	return emap_it_open(it);
+ }
+ 
+-static void be_emap_lookup(struct m0_be_emap *map, struct m0_be_tx *tx,
+-		       const struct m0_uint128 *prefix, m0_bindex_t offset,
+-		       struct m0_be_emap_cursor *it)
++static void be_emap_lookup(struct m0_be_emap        *map,
++			   struct m0_be_tx          *tx,
++		     const struct m0_uint128        *prefix,
++		           m0_bindex_t               offset,
++			   struct m0_be_emap_cursor *it)
+ {
+ 	int result;
+ 
+-	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
+-
+ 	emap_it_init(map, tx, prefix, offset, it);
+ 	result = emap_it_get(it);
+ 	if (result != 0)
+ 		be_emap_close(it);
+ 
+-	m0_sm_state_set(&it->ec_op.bo_sm, it->ec_op.bo_sm.sm_rc == 0 ?
+-					M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ 	M0_POST(ergo(result == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
+ }
+ 
+@@ -332,7 +335,10 @@ M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
+ {
+ 	M0_PRE(offset <= M0_BINDEX_MAX);
+ 
++	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
+ 	be_emap_lookup(map, tx, prefix, offset, it);
++	m0_sm_state_set(&it->ec_op.bo_sm, it->ec_op.bo_sm.sm_rc == 0 ?
++					M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ 	M0_ASSERT_EX(be_emap_invariant(it));
+ }
+ 
+@@ -447,8 +453,6 @@ static void be_emap_split(struct m0_be_emap_cursor *it,
+ 	};
+ 	struct m0_be_op  bt_op;
+ 
+-	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
+-
+ 	m0_be_btree_delete(&it->ec_map->em_mapping, tx, &bt_op, &it->ec_keybuf);
+ 	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
+ 	if (bt_op.bo_sm.sm_rc != 0)
+@@ -484,11 +488,9 @@ static void be_emap_split(struct m0_be_emap_cursor *it,
+ 			goto fail;
+ 	}
+ 
+-	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_SUCCESS);
+ 	return;
+ 
+ fail:
+-	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_FAILURE);
+ 	if (it->ec_op.bo_sm.sm_rc == 0)
+ 		it->ec_op.bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+ }
+@@ -500,7 +502,10 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
+ 	M0_PRE(m0_vec_count(&vec->iv_vec) == m0_ext_length(&it->ec_seg.ee_ext));
+ 	M0_INVARIANT_EX(be_emap_invariant(it));
+ 
++	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
+ 	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start);
++	m0_sm_state_set(&it->ec_op.bo_sm, it->ec_op.bo_sm.sm_rc == 0 ?
++					M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ 	M0_ASSERT_EX(be_emap_invariant(it));
+ }
+ 
+@@ -531,6 +536,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
+ 	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
+ 	M0_INVARIANT_EX(be_emap_invariant(it));
+ 
++	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
++
+ 	/*
+ 	 * Iterate over existing segments overlapping with the new one,
+ 	 * calculating for each, what parts have to be deleted and what remains.
+@@ -585,6 +592,9 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
+ 			break;
+ 	}
+ 
++	m0_sm_state_set(&it->ec_op.bo_sm, it->ec_op.bo_sm.sm_rc == 0 ?
++					M0_BOS_SUCCESS : M0_BOS_FAILURE);
++
+ 	M0_ASSERT_EX(ergo(it->ec_op.bo_sm.sm_rc == 0, be_emap_invariant(it)));
+ 
+ 	/*
+@@ -709,7 +719,9 @@ M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret *car
+ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
+ 				      m0_bcount_t count)
+ {
+-	struct m0_be_op *op = &car->ct_it->ec_op;
++	int rc = 0;
++
++	m0_sm_state_set(&car->ct_it->ec_op.bo_sm, M0_BOS_ACTIVE);
+ 
+ 	M0_ASSERT(m0_be_emap_caret_invariant(car));
+ 	while (count > 0 && car->ct_index < M0_BINDEX_MAX + 1) {
+@@ -717,16 +729,19 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
+ 
+ 		step = m0_be_emap_caret_step(car);
+ 		if (count >= step) {
+-			m0_be_emap_next(car->ct_it);
+-			if (op->bo_sm.sm_rc < 0)
+-				return op->bo_sm.sm_rc;
++			rc = be_emap_next(car->ct_it);
++			if (rc < 0)
++				break;
+ 		} else
+ 			step = count;
+ 		car->ct_index += step;
+ 		count -= step;
+ 	}
++
++	m0_sm_state_set(&car->ct_it->ec_op.bo_sm, rc == 0 ?
++					M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ 	M0_ASSERT(m0_be_emap_caret_invariant(car));
+-	return car->ct_index == M0_BINDEX_MAX + 1;
++	return rc < 0 ? rc : car->ct_index == M0_BINDEX_MAX + 1;
+ }
+ 
+ /** @} end group extmap */
+diff --git a/be/extmap.h b/be/extmap.h
+index 8deda8f..34324ca 100644
+--- a/be/extmap.h
++++ b/be/extmap.h
+@@ -334,8 +334,8 @@ struct m0_be_emap_caret {
+ };
+ 
+ M0_INTERNAL void m0_be_emap_caret_init(struct m0_be_emap_caret  *car,
+-				    struct m0_be_emap_cursor *it,
+-				    m0_bindex_t            index);
++				       struct m0_be_emap_cursor *it,
++				       m0_bindex_t               index);
+ 
+ M0_INTERNAL void m0_be_emap_caret_fini(struct m0_be_emap_caret *car);
+ 
+@@ -346,10 +346,10 @@ M0_INTERNAL void m0_be_emap_caret_fini(struct m0_be_emap_caret *car);
+    m0_be_emap_op_get(car->ct_it)->bo_sm.sm_rc.
+  */
+ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
+-				   m0_bcount_t           count);
++				      m0_bcount_t              count);
+ 
+ /** Returns how far is the end of extent. */
+-M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret *car);
++M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret*);
+ 
+ /** @} end group extmap */
+ 
+-- 
+1.8.3.2
+

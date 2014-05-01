@@ -1,0 +1,108 @@
+From 28e20c2aaaaf6ab2d07ee84d159807a19c58ef14 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 28 Mar 2014 15:34:15 +0530
+Subject: [PATCH 16/20]  - Added ast to fop_rate_monitor.
+
+---
+ fop/fom.c              |  2 +-
+ fop/fop_rate_monitor.c | 31 +++++++++++++------------------
+ fop/fop_rate_monitor.h |  2 ++
+ 3 files changed, 16 insertions(+), 19 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index b66ce5c..dae82cd 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -865,7 +865,7 @@ static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ 	struct m0_fop_rate_monitor *fop_rate_monitor =
+ 		m0_fop_rate_monitor_get(loc);
+ 	struct m0_addb_ctx         *cv[] = {&loc->fl_addb_ctx, NULL};
+-	struct m0_addb_mc          *mc   = &loc->fl_dom->fd_reqh->rh_addb_mc;
++	struct m0_addb_mc          *mc = &loc->fl_dom->fd_reqh->rh_addb_mc;
+ 
+ 	if (m0_addb_counter_nr(&loc->fl_stat_run_times) > 0)
+ 		M0_ADDB_POST_CNTR(mc, cv, &loc->fl_stat_run_times);
+diff --git a/fop/fop_rate_monitor.c b/fop/fop_rate_monitor.c
+index d026101..f318e33 100644
+--- a/fop/fop_rate_monitor.c
++++ b/fop/fop_rate_monitor.c
+@@ -39,12 +39,12 @@ enum {
+ 	INTERVAL_SECOND = 1,
+ };
+ 
+-int key = 0;
++static int key;
+ static void timer_rearm(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+ 
+ static struct fop_rate_stats_sum_rec {
+ 	uint64_t ssr_fop_rate;
+-}fop_rate_stats_sum;
++} fop_rate_stats_sum;
+ 
+ M0_BASSERT((sizeof(fop_rate_stats_sum) / sizeof(uint64_t)) ==
+ 	   M0_FOP_RATE_MON_DATA_NR);
+@@ -61,11 +61,8 @@ static unsigned long timer_callback(unsigned long arg)
+ 
+ 	m0_addb_counter_update(&mon->frm_addb_ctr, mon->frm_count);
+ 	mon->frm_count = 0;
+-	if (mon->frm_loc->fl_post_stats_ast.sa_next == NULL) {
+-		mon->frm_loc->fl_post_stats_ast.sa_cb = timer_rearm;
+-		m0_sm_ast_post(&mon->frm_loc->fl_group,
+-			       &mon->frm_loc->fl_post_stats_ast);
+-	}
++	m0_sm_ast_post(&mon->frm_loc->fl_group, &mon->frm_ast);
++
+ 	return 0;
+ }
+ 
+@@ -88,18 +85,15 @@ static int timer_arm(struct m0_fop_rate_monitor *mon)
+ 
+ static void timer_rearm(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ {
+-	int                         result = 0;
+-	struct m0_fom_locality     *loc = container_of(ast,
+-						       struct m0_fom_locality,
+-						       fl_post_stats_ast);
+-	struct m0_fop_rate_monitor *monitor = m0_fop_rate_monitor_get(loc);
+-
+-	if (monitor != NULL) {
+-		__timer_fini(&monitor->frm_timer);
+-		result = timer_arm(monitor);
+-	}
++	int                         result;
++	struct m0_fop_rate_monitor *monitor;
+ 
+-	if (monitor == NULL || result != 0)
++	monitor = container_of(ast, struct m0_fop_rate_monitor, frm_ast);
++
++	__timer_fini(&monitor->frm_timer);
++	result = timer_arm(monitor);
++
++	if (result != 0)
+ 		M0_LOG(M0_WARN, "Failed to re-arm fop_rate timer.");
+ }
+ 
+@@ -179,6 +173,7 @@ int m0_fop_rate_monitor_init(struct m0_fom_locality *loc)
+ 	m0_addb_monitor_sum_rec_init(&fmon->frm_sum_rec, &m0_addb_rt_fop_rate,
+ 				     fmon->frm_md, M0_FOP_RATE_MON_DATA_NR);
+ 	fmon->frm_loc = loc;
++	fmon->frm_ast.sa_cb = timer_rearm;
+ 
+ 	m0_fom_locality_lockers_set(loc, key, fmon);
+ 	m0_addb_monitor_add(loc->fl_dom->fd_reqh, &fmon->frm_monitor);
+diff --git a/fop/fop_rate_monitor.h b/fop/fop_rate_monitor.h
+index 2a1590d..e91248d 100644
+--- a/fop/fop_rate_monitor.h
++++ b/fop/fop_rate_monitor.h
+@@ -50,6 +50,8 @@ struct m0_fop_rate_monitor {
+ 	struct m0_addb_counter  frm_addb_ctr;
+ 	/** fop rate monitor */
+ 	struct m0_addb_monitor  frm_monitor;
++	/** AST to post fop_rate timer rearm */
++	struct m0_sm_ast        frm_ast;
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

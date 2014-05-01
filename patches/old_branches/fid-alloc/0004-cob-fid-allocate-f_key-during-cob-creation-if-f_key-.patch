@@ -1,0 +1,135 @@
+From 46f1af85668879636cd49baa7756e319bb403f4d Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 29 Mar 2013 13:23:55 +0200
+Subject: [PATCH 04/15] cob/fid: allocate f_key during cob creation if f_key ==
+ 0
+
+* add m0_cob_alloc_fkey() function
+* add M0_ENTRY/M0_RETURN tracing to m0_cob_create()
+* call m0_cob_alloc_fkey() from m0_cob_create() if f_key == 0
+---
+ cob/cob.c | 86 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 84 insertions(+), 2 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 2fed767..7c17e5b 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1103,6 +1103,70 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom,
+ 	return rc;
+ }
+ 
++M0_INTERNAL int m0_cob_alloc_fkey(struct m0_cob_domain *dom,
++				  struct m0_db_tx *tx, struct m0_fid *fid)
++{
++	struct m0_db_pair     pair;
++	struct m0_cob_fabkey  fabkey;
++	struct m0_cob_fabkey *fabkey2;
++	struct m0_db_cursor   cursor;
++	int                   rc;
++
++	M0_ASSERT(fid != NULL);
++	M0_ASSERT(fid->f_key == 0);
++	M0_ENTRY("[%llx:%llx]", (long long unsigned)fid->f_container,
++		 (long long unsigned)fid->f_key);
++
++	rc = m0_db_cursor_init(&cursor,
++			       &dom->cd_fileattr_basic, tx, 0);
++	if (rc != 0)
++		goto leave;
++	/*
++	 * Find max allocated key in FAB table
++	 * (start looking from {f_container, ~0ULL} downwards).
++	 */
++	fabkey.cfb_fid.f_container = fid->f_container;
++	fabkey.cfb_fid.f_key       = ~0ULL;
++
++	m0_db_pair_setup(&pair, &dom->cd_fileattr_basic,
++			 &fabkey, sizeof fabkey, NULL, 0);
++	/* Look for FAB key >= {f_container, ~0ULL}. */
++	rc = m0_db_cursor_get(&cursor, &pair);
++	if (rc == 0) {
++		fabkey2 = (struct m0_cob_fabkey *) pair.dp_key.db_buf.b_addr;
++		if (fabkey2->cfb_fid.f_container == fid->f_container &&
++		    fabkey2->cfb_fid.f_key == ~0ULL) {
++			/* Cannot allocate any more keys in the container. */
++			rc = -ENOSPC;
++			goto out;
++		}
++		M0_ASSERT(fabkey2->cfb_fid.f_container != fid->f_container);
++	}
++	if (rc == -ENOENT || rc == 0)
++		rc = m0_db_cursor_prev(&cursor, &pair);
++	if (rc == 0) {
++		fabkey2 = (struct m0_cob_fabkey *) pair.dp_key.db_buf.b_addr;
++		M0_LOG(M0_DEBUG, "max fid: [%llx, %llx]",
++		       (long long unsigned)fabkey2->cfb_fid.f_container,
++		       (long long unsigned)fabkey2->cfb_fid.f_key);
++		if (fabkey2->cfb_fid.f_container == fid->f_container)
++			fid->f_key = fabkey2->cfb_fid.f_key + 1;
++		else
++			fid->f_key = 1;
++	} else if (rc == -ENOENT) {
++		fid->f_key = 1;
++		rc = 0;
++	}
++out:
++	m0_db_pair_release(&pair);
++	m0_db_pair_fini(&pair);
++	m0_db_cursor_fini(&cursor);
++leave:
++	M0_LEAVE("[%llx:%llx], rc=%d", (long long unsigned)fid->f_container,
++		 (long long unsigned)fid->f_key, rc);
++	return rc;
++}
++
+ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
+ 			      struct m0_cob_nskey *nskey,
+ 			      struct m0_cob_nsrec *nsrec,
+@@ -1123,6 +1187,19 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
+ 	M0_PRE(m0_fid_is_set(&nsrec->cnr_fid));
+ 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
+ 
++	M0_ENTRY("[%llx:%llx]/%.*s",
++		 (long long unsigned)nskey->cnk_pfid.f_container,
++		 (long long unsigned)nskey->cnk_pfid.f_key,
++		 m0_bitstring_len_get(&nskey->cnk_name),
++		 (char *)m0_bitstring_buf_get(&nskey->cnk_name));
++
++	/* Allocate f_key part of FID if asked by caller. */
++	if (nsrec->cnr_fid.f_key == 0) {
++		rc = m0_cob_alloc_fkey(cob->co_dom, tx, &nsrec->cnr_fid);
++		if (rc != 0)
++			goto out;
++	}
++
+ 	rc = m0_cob_alloc_omgid(cob->co_dom, tx, &nsrec->cnr_omgid);
+ 	if (rc != 0)
+ 		goto out;
+@@ -1168,8 +1245,13 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
+ 	m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
+ 			 &fabkey, sizeof fabkey, cob->co_fabrec,
+ 			 m0_cob_fabrec_size(cob->co_fabrec));
+-
+ 	rc = m0_table_insert(tx, &pair);
++	M0_LOG(M0_DEBUG, "insert fab [%llx:%llx] v%llu.%llu, rc=%d",
++	       (long long unsigned)fabkey.cfb_fid.f_container,
++	       (long long unsigned)fabkey.cfb_fid.f_key,
++	       (long long unsigned)cob->co_fabrec->cfb_version.vn_lsn,
++	       (long long unsigned)cob->co_fabrec->cfb_version.vn_vc,
++	       rc);
+ 	m0_db_pair_release(&pair);
+ 	m0_db_pair_fini(&pair);
+ 	if (rc != 0)
+@@ -1200,7 +1282,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
+ 		cob->co_flags |= M0_CA_NSKEY_FREE | M0_CA_FABREC;
+ out:
+ 	COB_FUNC_FAIL(CREATE, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx)
+-- 
+1.8.3.2
+

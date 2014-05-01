@@ -1,0 +1,34 @@
+From bade52c102b24bcb22984e18fef22ccf8804a24d Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 29 May 2013 14:39:28 +0300
+Subject: [PATCH 037/161] be: restore b3237a3 fixes
+
+---
+ be/seg.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 987f7dd..ab285e1 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -64,7 +64,7 @@ static void seg_header_prepare(struct m0_be_seg *seg, struct m0_stob_io *io,
+ 	struct be_seg_hdr *header = (struct be_seg_hdr *)seg->bs_addr;
+ 
+ 	/* fill segment header */
+-	header->bh_addr = BE_SEG_DEAULT_ADDR;
++	header->bh_addr = BE_SEG_DEFAULT_ADDR;
+ 	header->bh_size = size;
+ 
+ 	seg_io_prepare(seg, io);
+@@ -99,7 +99,7 @@ int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size)
+ 	M0_PRE(seg->bs_stob->so_domain != NULL);
+ 	M0_PRE(seg->bs_stob->so_state != CSS_EXISTS);
+ 
+-	return m0_stob_create(&seg->bs_stob, NULL) ?:
++	return m0_stob_create(seg->bs_stob, NULL) ?:
+ 		seg_header_write(seg, size);
+ }
+ 
+-- 
+1.8.3.2
+

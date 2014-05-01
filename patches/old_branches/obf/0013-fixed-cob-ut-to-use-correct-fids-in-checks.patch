@@ -1,0 +1,30 @@
+From 018485dcf4027e117b482a7f1d07004244c1abff Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 4 Apr 2014 19:11:40 +0400
+Subject: [PATCH 13/13] - fixed cob ut to use correct fids in checks
+
+---
+ cob/ut/cob.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index c30df77..0190ba1 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -123,9 +123,11 @@ static void test_mkfs(void)
+ 	rc = m0_cob_domain_mkfs(&dom, &M0_MDSERVICE_SLASH_FID, tx);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	rc = _locate(1, 2); /* slash */
++	rc = _locate(M0_MDSERVICE_SLASH_FID.f_container,
++	             M0_MDSERVICE_SLASH_FID.f_key); /* slash */
+ 	M0_UT_ASSERT(rc == 0);
+-	rc = _locate(1, 1); /* root */
++	rc = _locate(M0_COB_ROOT_FID.f_container,
++	             M0_COB_ROOT_FID.f_key); /* root */
+ 	M0_UT_ASSERT(rc != 0);
+ 
+ 	ut_tx_close(tx);
+-- 
+1.8.3.2
+

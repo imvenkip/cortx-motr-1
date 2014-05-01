@@ -1,0 +1,102 @@
+From 26fd105d4708a94e1d3221ca4e933191fce8de8b Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 13 Jul 2013 02:18:35 +0300
+Subject: [PATCH 11/14] net, lnet: trace more functions
+
+Trace the calls of
+  - nlx_xo_tm_start(),
+  - nlx_xo_tm_stop(),
+  - nlx_xo_tm_fini(),
+  - m0_net_tm_fini().
+---
+ net/lnet/lnet_xo.c | 8 ++++++--
+ net/tm.c           | 5 +++--
+ 2 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/net/lnet/lnet_xo.c b/net/lnet/lnet_xo.c
+index c6084eb..99672a8 100644
+--- a/net/lnet/lnet_xo.c
++++ b/net/lnet/lnet_xo.c
+@@ -420,6 +420,7 @@ static void nlx_xo_tm_fini(struct m0_net_transfer_mc *tm)
+ {
+ 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
+ 
++	M0_ENTRY();
+ 	M0_PRE(m0_mutex_is_locked(&tm->ntm_dom->nd_mutex));
+ 	M0_PRE(nlx_tm_invariant(tm));
+ 	M0_PRE(tm->ntm_callback_counter == 0);
+@@ -432,6 +433,7 @@ static void nlx_xo_tm_fini(struct m0_net_transfer_mc *tm)
+ 	m0_cond_fini(&tp->xtm_ev_cond);
+ 	tm->ntm_xprt_private = NULL;
+ 	NLX_FREE_ALIGNED_PTR(tp);
++	M0_LEAVE();
+ }
+ 
+ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
+@@ -440,6 +442,7 @@ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
+ 	struct nlx_xo_transfer_mc *tp;
+ 	int rc;
+ 
++	M0_ENTRY();
+ 	M0_PRE(nlx_tm_invariant(tm));
+ 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
+ 	dp = tm->ntm_dom->nd_xprt_private;
+@@ -454,7 +457,7 @@ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
+ 				    "nlx_tm_ev_worker");
+ 	if (rc != 0)
+ 		LNET_ADDB_FUNCFAIL(rc, X_TM_START, &tm->ntm_addb_ctx);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ static int nlx_xo_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
+@@ -463,6 +466,7 @@ static int nlx_xo_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
+ 	struct m0_net_buffer *nb;
+ 	int qt;
+ 
++	M0_ENTRY("cancel=%d", !!cancel);
+ 	M0_PRE(nlx_tm_invariant(tm));
+ 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
+ 
+@@ -476,7 +480,7 @@ static int nlx_xo_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
+ 			} m0_tl_endfor;
+ 
+ 	m0_cond_signal(&tp->xtm_ev_cond);
+-	return 0;
++	M0_RETURN(0);
+ }
+ 
+ static int nlx_xo_tm_confine(struct m0_net_transfer_mc *tm,
+diff --git a/net/tm.c b/net/tm.c
+index e8df08f..8763815 100644
+--- a/net/tm.c
++++ b/net/tm.c
+@@ -215,6 +215,8 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
+ 	struct m0_net_domain *dom = tm->ntm_dom;
+ 	int i;
+ 
++	M0_ENTRY();
++
+ 	/* wait for ongoing event processing to drain without holding lock:
+ 	   events modify state and end point refcounts
+ 	   Also applies to ongoing provisioning, which requires a check for
+@@ -263,7 +265,7 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
+ 	m0_list_link_fini(&tm->ntm_dom_linkage);
+ 
+ 	m0_mutex_unlock(&dom->nd_mutex);
+-	return;
++	M0_LEAVE();
+ }
+ M0_EXPORTED(m0_net_tm_fini);
+ 
+@@ -574,7 +576,6 @@ M0_INTERNAL void m0_net_tm_pool_length_set(struct m0_net_transfer_mc *tm,
+ 		m0_chan_broadcast(&tm->ntm_chan);
+ 		m0_mutex_unlock(&tm->ntm_mutex);
+ 	}
+-	return;
+ }
+ M0_EXPORTED(m0_net_tm_pool_length_set);
+ 
+-- 
+1.8.3.2
+

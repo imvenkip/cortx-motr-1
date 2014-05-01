@@ -1,0 +1,44 @@
+From 911d6cfc1f594b0c76d4623c208bf4a62065b66a Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 24 Feb 2013 16:28:44 -0800
+Subject: [PATCH 83/99] simplified node_pre()/_post() in demo-test-run.sh
+
+---
+ net/test/demo/demo-test-run.sh | 17 ++---------------
+ 1 file changed, 2 insertions(+), 15 deletions(-)
+
+diff --git a/net/test/demo/demo-test-run.sh b/net/test/demo/demo-test-run.sh
+index 8410513..6fd50d9 100755
+--- a/net/test/demo/demo-test-run.sh
++++ b/net/test/demo/demo-test-run.sh
+@@ -150,25 +150,12 @@ node_user_post()
+ 
+ node_pre()
+ {
+-	local space="$(node_get $1 space)"
+-
+-	if [ "$space" == "user" ]; then
+-		node_user_pre "$@"
+-	elif [ "$space" == "kernel" ]; then
+-		node_kernel_pre "$@"
+-	fi
++	node_$(node_get $1 space)_pre "$@"
+ }
+ 
+ node_post()
+ {
+-	local space="$(node_get $1 space)"
+-
+-	if [ "$space" == "user" ]; then
+-		node_user_post "$@"
+-	elif [ "$space" == "kernel" ]; then
+-		node_kernel_post "$@"
+-	fi
+-
++	node_$(node_get $1 space)_post "$@"
+ }
+ 
+ main "$@"
+-- 
+1.8.3.2
+

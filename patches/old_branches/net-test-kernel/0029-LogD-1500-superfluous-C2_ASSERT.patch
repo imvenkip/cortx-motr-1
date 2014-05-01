@@ -1,0 +1,24 @@
+From a269f3f1ad97261ba5ec89fc9172797aae1ac6f4 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 09:31:11 +0200
+Subject: [PATCH 29/71] LogD 1500: superfluous C2_ASSERT()
+
+---
+ net/test/node_bulk.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index ef6a5e6..5d22317 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -870,7 +870,6 @@ static void node_bulk_cb(struct c2_net_test_network_ctx *net_ctx,
+ 		c2_net_test_ringbuf_push(&ctx->nbc_rb_ping_unused, buf_index);
+ 	}
+ 	if (!role_client && q == C2_NET_QT_MSG_RECV) {
+-		C2_ASSERT(!role_client);
+ 		/*
+ 		 * @todo nbc_stop_flag isn't protected here with lock.
+ 		 * is it safe?
+-- 
+1.8.3.2
+

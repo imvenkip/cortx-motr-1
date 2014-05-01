@@ -1,0 +1,49 @@
+From 6e317c369504ec2b137f805ad935111157769e62 Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Tue, 26 Mar 2013 00:40:18 -0700
+Subject: [PATCH 070/121] Remove unnecessary members from seg_hdr_t
+
+---
+ rvm/rvm.h    | 3 ---
+ rvm/ut/rvm.c | 4 ----
+ 2 files changed, 7 deletions(-)
+
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index b1e4c07..f94a73e 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -379,9 +379,6 @@ typedef struct tree_root tree_root_t;
+ 
+ typedef struct rvm_seg_hdr
+     {
+-        char                   *seg_name;
+-        int                     seg_id;
+-
+         /* These are linked lists which maintains the mapped pages information,
+          * see rvm_register_page() for details
+          */
+diff --git a/rvm/ut/rvm.c b/rvm/ut/rvm.c
+index 30a4556..d501bb4 100644
+--- a/rvm/ut/rvm.c
++++ b/rvm/ut/rvm.c
+@@ -172,7 +172,6 @@ static int ts_be_fini(void)
+ {
+         for(i=INIT_INDEX;i < NDFILE;i++)
+         {
+-                free(seg_hdr[i]->seg_name);
+                 free(seg_hdr[i]->heap_hdr);
+                 free(seg_hdr[i]->region_tree);
+                 free(seg_hdr[i]->region_tree_lock);
+@@ -204,9 +203,6 @@ static void test_seg_load()
+    		RVM_LOG(RVM_DEBUG,"rdsAddrs : [%p]\n", rdsAddrs);
+ 
+                 seg_hdr[i] = (rvm_seg_hdr_t *)malloc(sizeof(rvm_seg_hdr_t));
+-                seg_hdr[i]->seg_name = (char *)malloc(strlen(datafile));
+-                strcpy(seg_hdr[i]->seg_name, datafile);
+-                seg_hdr[i]->seg_id = i + 1;
+                 seg_hdr[i]->rvm_allocations = NULL;
+                 seg_hdr[i]->rvm_allocations_tail = NULL;
+ 
+-- 
+1.8.3.2
+

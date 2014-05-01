@@ -1,0 +1,51 @@
+From 25cd00b15c92c144e4f9f527b7d02a75f1a5ecf9 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 11 Feb 2014 19:09:51 +0200
+Subject: [PATCH 43/60] rpc-connection-ut fixed & enabled
+
+---
+ rpc/ut/conn.c   | 5 -----
+ utils/ut_main.c | 4 ++--
+ 2 files changed, 2 insertions(+), 7 deletions(-)
+
+diff --git a/rpc/ut/conn.c b/rpc/ut/conn.c
+index 0dfb0c8..045789b 100644
+--- a/rpc/ut/conn.c
++++ b/rpc/ut/conn.c
+@@ -195,11 +195,6 @@ static void conn_init_fail_test(void)
+ 	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 
+-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+-	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
+-	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("m0_alloc", "fail_allocation");
+-
+ 	/* Checks for failure due to error in rpc_chan_get() */
+ 	m0_fi_enable_once("rpc_chan_get", "fake_error");
+ 	rc = m0_rpc_conn_init(&conn, &ep, &machine, 1);
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 029cb1c..8fe15e0 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -51,7 +51,7 @@ extern const struct m0_test_suite cobfoms_ut;
+ extern const struct m0_test_suite conf_ut;
+ extern const struct m0_test_suite confc_ut;
+ extern const struct m0_test_suite confstr_ut;
+-//extern const struct m0_test_suite conn_ut;
++extern const struct m0_test_suite conn_ut;
+ extern const struct m0_test_suite console_ut;
+ extern const struct m0_test_suite di_ut;
+ extern const struct m0_test_suite db_cursor_ut;
+@@ -121,7 +121,7 @@ void add_uts(void)
+ 	m0_ut_add(&conf_ut);
+ 	m0_ut_add(&confc_ut);
+ 	m0_ut_add(&confstr_ut); /* db: panic: pair->dp_rec.db_i.db_dbt.b_nob <= rec.b_nob cursor_get() (db/db.c:612) */
+-//	m0_ut_add(&conn_ut);
++	m0_ut_add(&conn_ut);
+ 	m0_ut_add(&db_cursor_ut);
+ 	m0_ut_add(&db_ut);
+ 	m0_ut_add(&dtm_nucleus_ut);
+-- 
+1.8.3.2
+

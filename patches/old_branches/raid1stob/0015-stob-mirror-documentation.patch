@@ -1,0 +1,357 @@
+From 463768ad01f056061aa4cb5825f182c1a3aa617e Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Wed, 6 Feb 2013 07:21:11 -0800
+Subject: [PATCH 15/15] stob/mirror: documentation.
+
+---
+ stob/mirror.c | 114 +++++++++++++++++++++++++++++++++++++++++++++-------------
+ stob/mirror.h |  50 ++++++++++++++++++++++++++
+ 2 files changed, 140 insertions(+), 24 deletions(-)
+
+diff --git a/stob/mirror.c b/stob/mirror.c
+index d95ea62..e4f829a 100644
+--- a/stob/mirror.c
++++ b/stob/mirror.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -29,8 +29,20 @@
+ #include "stob/mirror.h"
+ 
+ /**
+-   @addtogroup stobmirror
+-   @{
++ * @addtogroup stobmirror
++ *
++ * <b>Implementation.</b>
++ *
++ * Implementation is mostly straight-forward.
++ *
++ * Re-trying a read operation after a failed request cannot be done directly
++ * from the request end-io call-back, because request initiating
++ * (c2_stob_io_launch()) can block. Instead, an AST (c2_sm_ast) is posted to
++ * issue the next request. Such ASTs are processed by a dedicated per-domain
++ * thread (ast_thread(), thread handler is stored in
++ * mirror_domain::mr_ast_thread) started by mirror_stob_type_domain_locate().
++ *
++ * @{
+  */
+ 
+ static const struct c2_stob_type_op   mirror_stob_type_op;
+@@ -38,9 +50,13 @@ static const struct c2_stob_op        mirror_stob_op;
+ static const struct c2_stob_domain_op mirror_stob_domain_op;
+ static const struct c2_stob_io_op     mirror_stob_io_op;
+ 
++/** Possible target domain states. */
+ enum target_state {
++	/** Read and write requests are issued to this target domain. */
+ 	ONLINE,
++	/** No IO to this target domain. */
+ 	FAILED,
++	/** The target domain is being repaired. */
+ 	REPAIR
+ };
+ 
+@@ -48,11 +64,13 @@ enum {
+ 	MAX_NR_TARGET = 16
+ };
+ 
++/** Target domain. */
+ struct target {
+ 	enum target_state      t_state;
+ 	struct c2_stob_domain *t_dom;
+ };
+ 
++/** Mirror stob type specific stob domain. */
+ struct mirror_domain {
+ 	struct c2_stob_domain mr_base;
+ 	struct c2_stob_cache  mr_cache;
+@@ -68,6 +86,7 @@ struct mirror_domain {
+  */
+ struct mirror_stob {
+ 	struct c2_stob_cacheable   ms_stob;
++	/** Array of target stobs. */
+ 	struct c2_stob           **ms_obj;
+ };
+ 
+@@ -117,6 +136,9 @@ static void mirror_domain_fini(struct c2_stob_domain *self)
+ 	c2_free(mdom);
+ }
+ 
++/**
++ * Thread, started for each mirror stob domain to process read re-try ASTs.
++ */
+ static void ast_thread(struct mirror_domain *mdom)
+ {
+ 	struct c2_sm_group *g = &mdom->mr_group;
+@@ -221,6 +243,10 @@ static void mirror_stob_fini(struct c2_stob *stob)
+ 	c2_free(mstob);
+ }
+ 
++/**
++ * Helper function for c2_stob_cache_find() that initialises a new stob in the
++ * cache.
++ */
+ static int mirror_incache_init(struct c2_stob_domain *dom,
+ 			       const struct c2_stob_id *id,
+ 			       struct c2_stob_cacheable **out)
+@@ -254,20 +280,18 @@ static int mirror_incache_init(struct c2_stob_domain *dom,
+ }
+ 
+ /**
+-   Implementation of c2_stob_domain_op::sdo_stob_find().
+-
+-   Returns an in-memory representation of the object with a given identifier.
++ * Implementation of c2_stob_domain_op::sdo_stob_find().
++ *
++ * Returns an in-memory representation of the object with a given identifier.
+  */
+ static int mirror_domain_stob_find(struct c2_stob_domain *dom,
+ 				   const struct c2_stob_id *id,
+ 				   struct c2_stob **out)
+ {
+ 	struct c2_stob_cacheable *incache;
+-	struct mirror_domain     *mdom;
+ 	int                       result;
+ 
+-	mdom = domain2mirror(dom);
+-	result = c2_stob_cache_find(&mdom->mr_cache, dom, id,
++	result = c2_stob_cache_find(&domain2mirror(dom)->mr_cache, dom, id,
+ 				    mirror_incache_init, &incache);
+ 	*out = &incache->ca_stob;
+ 	return result;
+@@ -275,6 +299,8 @@ static int mirror_domain_stob_find(struct c2_stob_domain *dom,
+ 
+ /**
+  * Implementation of c2_stob_domain_op::sdo_tx_make().
++ *
++ * Starts a transaction on any (0-th) target domain.
+  */
+ static int mirror_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
+ {
+@@ -344,8 +370,6 @@ static int mirror_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
+ /**
+    @addtogroup stobmirror
+ 
+-   <b>Mirror IO implementation.</b>
+-
+    @{
+  */
+ 
+@@ -361,17 +385,36 @@ struct io_target {
+ };
+ 
+ /**
+-   Mirror private IO state.
++ * Mirror private IO state.
+  */
+ struct mirror_stob_io {
+-	/** parent IO request */
++	/** Serialises completion notifications and IO initiation. */
+ 	struct c2_mutex    mi_lock;
++	/** parent IO request */
+ 	struct c2_stob_io *mi_io;
++	/**
++	 * Index of first target stob for which IO request was issued. This is
++	 * selected by the load-balancer and is used to determine when all
++	 * possible targets were tried for read.
++	 */
+ 	uint32_t           mi_start;
++	/**
++	 * How many requests are still in flight.
++	 */
+ 	uint32_t           mi_todo;
++	/**
++	 * How many requests were issued.
++	 */
+ 	uint32_t           mi_total;
++	/**
++	 * How many requests completed successfully.
++	 */
+ 	uint32_t           mi_success;
++	/**
++	 * AST used to try another target in case of read failure.
++	 */
+ 	struct c2_sm_ast   mi_ast;
++	/** Array of sub-io requests. */
+ 	struct io_target   mi_target[0];
+ };
+ 
+@@ -434,19 +477,31 @@ static void mirror_stob_io_fini(struct c2_stob_io *io)
+ 	c2_free(mio);
+ }
+ 
+-static int subio_build(struct mirror_stob_io *mio,
+-		       uint32_t start, uint32_t end)
++/**
++ * Helper function used to launch a new IO (mirror_stob_io_launch()) and to
++ * issue a new read target request in case of failure (from mirror_endio()).
++ *
++ * This function scans the range [where, mio->mi_start + mdom->mr_nr) modulo
++ * mdom->mr_nr of target stobs.
++ *
++ * In the case of starting a new IO (mirror_stob_io_launch()), "where" is set to
++ * mio->mi_start, so that all targets are scanned. In case of trying next target
++ * after a read failure (read_try_next()), "where" is set to idx+1, where idx is
++ * the index of the target stob for which read operation failed, so that the
++ * remainder of targets is scanned.
++ */
++static int subio_build(struct mirror_stob_io *mio, uint32_t where)
+ {
+ 	struct c2_stob_io     *io   = mio->mi_io;
+ 	struct c2_stob        *obj  = io->si_obj;
+ 	struct mirror_domain  *mdom = domain2mirror(obj->so_domain);
+ 	struct mirror_stob    *mobj = stob2mirror(obj);
+ 	uint32_t               nr   = mdom->mr_nr;
++	uint32_t               end  = mio->mi_start + mdom->mr_nr;
+ 	uint32_t               i;
+ 	int                    result;
+ 
+ 	C2_PRE(nr > 0);
+-	C2_PRE(end <= nr);
+ 	C2_PRE(obj->so_domain->sd_type == &c2_mirror_stob_type);
+ 	C2_PRE(io->si_stob.iv_vec.v_nr > 0);
+ 	C2_PRE(c2_vec_count(&io->si_user.ov_vec) > 0);
+@@ -455,26 +510,37 @@ static int subio_build(struct mirror_stob_io *mio,
+ 	C2_ASSERT(C2_IN(io->si_opcode, (SIO_READ, SIO_WRITE)));
+ 
+ 	c2_mutex_lock(&mio->mi_lock);
+-	for (result = 0, i = start % nr; i != end; i = (i + 1) % nr) {
+-		struct c2_stob_io *tio = &mio->mi_target[i].t_req;
++	for (result = 0, i = where; i < end; i++) {
++		uint32_t           idx = i % nr;
++		struct c2_stob_io *tio = &mio->mi_target[idx].t_req;
+ 
+-		if (mdom->mr_target[i].t_state != ONLINE)
++		if (mdom->mr_target[idx].t_state != ONLINE)
+ 			continue;
+ 		tio->si_opcode = io->si_opcode;
+ 		tio->si_stob   = io->si_stob;
+ 		tio->si_user   = io->si_user;
+ 		tio->si_flags  = io->si_flags;
+-		result = c2_stob_io_launch(tio, mobj->ms_obj[i], io->si_tx,
++		result = c2_stob_io_launch(tio, mobj->ms_obj[idx], io->si_tx,
+ 					   io->si_scope);
+ 		if (result != 0)
+ 			break;
+ 		mio->mi_todo++;
+ 		if (io->si_opcode == SIO_READ)
++			/*
++			 * For a read operation, only one request is sent, see
++			 * the top-level comment in mirror.h.
++			 */
+ 			break;
+ 	}
+ 	mio->mi_total = mio->mi_todo;
+-	io->si_rc = io->si_rc ?: result;
+-	if (mio->mi_todo > 0 && result != 0)
++	io->si_rc = io->si_rc ?: result; /* don't overwrite io->si_rc, if it is
++					    already non-0. */
++	if (mio->mi_todo > 0)
++		/*
++		 * Always return 0 if requests were launched to indicate that
++		 * the caller should wait for completion. The error, if any, is
++		 * returned through io->si_rc.
++		 */
+ 		result = 0;
+ 	c2_mutex_unlock(&mio->mi_lock);
+ 	return result;
+@@ -495,7 +561,7 @@ static int mirror_stob_io_launch(struct c2_stob_io *io)
+ 	C2_ASSERT(C2_IN(io->si_opcode, (SIO_READ, SIO_WRITE)));
+ 
+ 	mio->mi_start = 0;
+-	return subio_build(mio, mio->mi_start, mdom->mr_nr);
++	return subio_build(mio, mio->mi_start);
+ }
+ 
+ /**
+@@ -572,7 +638,7 @@ static void read_try_next(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+ 	mio = container_of(ast, struct mirror_stob_io, mi_ast);
+ 	io  = mio->mi_io;
+ 	C2_PRE(io->si_opcode == SIO_READ);
+-	if (subio_build(mio, idx + 1, mio->mi_start) != 0)
++	if (subio_build(mio, idx + 1) != 0)
+ 		io_done(io);
+ }
+ 
+diff --git a/stob/mirror.h b/stob/mirror.h
+index 827b942..f4e3af4 100644
+--- a/stob/mirror.h
++++ b/stob/mirror.h
+@@ -29,6 +29,8 @@
+  * Mirror stob type (c2_mirror_stob_type) implements a simple multi-way
+  * mirroring of data.
+  *
++ * <b>Overview.</b>
++ *
+  * At the configuration time, mirror stob domain is supplied with an array of
+  * "target domains" (c2_mirror_stob_setup()), which can be any stob domains. A
+  * stob in the mirror domain uses "target stobs", one in each of the target
+@@ -38,12 +40,60 @@
+  * corresponding operationson the mirror stob. The implementation assumes that
+  * target domains are not accessed except through the mirror stob interface.
+  *
++ * At any moment, a target domain can be in either ONLINE, FAILED or REPAIR
++ * state, see below for more details.
++ *
++ * Target domain's state determines how a mirror stob accesses the *data* on
++ * this target domain. The state does not affect how meta-data are
++ * accessed. Specifically, when a mirror stob is created, target stobs are
++ * created on all target domains, independently of the target domain
++ * state. Similarly, when a mirror stob is opened, stobs on all target domains
++ * are opened.
++ *
++ * <b>Operations.</b>
++ *
++ * A write operation on a mirror stob issues concurrent write requests to all
++ * ONLINE target stobs. Such request is considered successful iff it completes
++ * with the 0 return code (c2_stob_io::si_rc) and the number of bytes written
++ * (c2_stob_io::si_count) is the same as for the previous successful (according
++ * to the same definition) write request in this mirror write operation, if
++ * any. The write operation is successful iff all its write requests are
++ * successful.
++ *
++ * A read operation on a mirror stob selects some ONLINE target stob according
++ * to a load-balancing policy (currently the first ONLINE target stob is always
++ * selected) and issues a read request to this target stob. If this request
++ * completes with the return code 0, the read operation completes
++ * successfully. Otherwise the next ONLINE target stob is selected and a read
++ * request is issued. This process is repeated until some read request succeeds
++ * or all ONLINE stobs are tried. The read operation fails in the latter case.
++ *
++ * <b>Failures.</b>
++ *
++ * Mirror stob implementation relies on its user to detect and announce target
++ * domain failures. The user calls c2_mirror_failed() to mark a set of target
++ * domain failed.
++ *
++ * The implementation provides no concurrency control between ongoing IO and
++ * marking a target domain failed, because IO request can fail anyway.
++ *
++ * <b>Repair.</b>
++ *
++ * @note repair is not implemented at the moment. Its implementation needs
++ * additional stob domain interfaces to ietrate over existing objects and also
++ * an interface to determine stob size.
++ *
++ * The implementation can repair a set of FAILED mirror domains by copying data
++ * from ONLINE domains. Once repair is complete, repaired target domains are
++ * marked ONLINE by the implementation. New objects cannot be created while
++ * REPAIR is in progress.
+  *
+  * "I will pack my comb and mirror to praxis oval owes and artless awes."
+  *
+  * @{
+  */
+ 
++#include "lib/types.h"        /* c2_bindex_t */
+ #include "stob/stob.h"
+ 
+ extern struct c2_stob_type c2_mirror_stob_type;
+-- 
+1.8.3.2
+

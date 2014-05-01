@@ -1,0 +1,133 @@
+From d5f0e643cda1614697c34e05093aadc67f3e97a4 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 5 Jun 2013 02:32:43 +0300
+Subject: [PATCH 105/228] m0_be_free() implemented, m0_be_alloc() implemented
+ partially
+
+---
+ be/alloc.c | 81 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 78 insertions(+), 3 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 36973c2..9d81cc3 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -74,7 +74,8 @@ M0_TL_DESCR_DEFINE(chunks_all, "list of all chunks in m0_be_allocator",
+ M0_TL_DEFINE(chunks_all, static, struct be_alloc_chunk);
+ 
+ M0_TL_DESCR_DEFINE(chunks_free, "list of free chunks in m0_be_allocator",
+-		   static, struct be_alloc_chunk, bac_linkage_free, bac_magic_free,
++		   static, struct be_alloc_chunk,
++		   bac_linkage_free, bac_magic_free,
+ 		   M0_BE_ALLOC_FREE_LINK_MAGIC, M0_BE_ALLOC_FREE_MAGIC);
+ M0_TL_DEFINE(chunks_free, static, struct be_alloc_chunk);
+ 
+@@ -85,9 +86,11 @@ struct m0_be_allocator_header {
+ 	struct be_alloc_chunk	      bah_main;		/**< main chunk */
+ };
+ 
++/** O(1) time complexity */
+ static bool be_alloc_chunk_invariant(const struct be_alloc_chunk *c)
+ {
+-	return c->bac_magic0 == M0_BE_ALLOC_MAGIC0 &&
++	return c != NULL &&
++	       c->bac_magic0 == M0_BE_ALLOC_MAGIC0 &&
+ 	       c->bac_magic1 == M0_BE_ALLOC_MAGIC1;
+ }
+ 
+@@ -112,6 +115,39 @@ static void be_alloc_chunk_fini(struct be_alloc_chunk *c)
+ 	chunks_all_tlink_fini(c);
+ }
+ 
++static struct be_alloc_chunk *
++be_alloc_chunk_trysplit(struct be_alloc_chunk *c,
++			m0_bcount_t size, unsigned shift)
++{
++	return NULL;
++}
++
++static bool
++be_alloc_chunk_trymerge(struct be_alloc_chunk *a, struct be_alloc_chunk *b)
++{
++	bool chunks_were_merged = false;
++
++	M0_PRE(be_alloc_chunk_invariant(a));
++	M0_PRE(be_alloc_chunk_invariant(b));
++	M0_PRE((char *) a < (char *) b);
++	if (a != NULL && b != NULL &&
++	    a->bac_free && b->bac_free) {
++		a->bac_size += b->bac_size + sizeof(struct be_alloc_chunk);
++		chunks_all_tlist_del(b);
++		chunks_free_tlist_del(b);
++		be_alloc_chunk_fini(b);
++		chunks_were_merged = true;
++	}
++	M0_POST(be_alloc_chunk_invariant(a));
++	return chunks_were_merged;
++}
++
++
++static struct be_alloc_chunk *be_alloc_chunk_addr(void *ptr)
++{
++	return container_of(ptr, struct be_alloc_chunk, bac_mem);
++}
++
+ M0_INTERNAL int
+ m0_be_allocator_init(struct m0_be_allocator *a, struct m0_be_seg *seg)
+ {
+@@ -219,12 +255,51 @@ M0_INTERNAL void m0_be_allocator_credit(const struct m0_be_allocator *a,
+ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a, struct m0_be_tx *tx,
+ 			      m0_bcount_t size, unsigned shift)
+ {
+-	return NULL; /*XXX*/
++	struct be_alloc_chunk *iter;
++	struct be_alloc_chunk *c = NULL;
++
++	M0_PRE(m0_be_allocator__invariant(a));
++	m0_mutex_lock(&a->ba_lock);
++	m0_tl_for(chunks_free, &a->ba_h->bah_free.bl_list, iter) {
++		c = be_alloc_chunk_trysplit(iter, size, shift);
++		if (c != NULL)
++			break;
++	} m0_tl_endfor;
++	m0_mutex_unlock(&a->ba_lock);
++	M0_POST(m0_be_allocator__invariant(a));
++
++	return c == NULL ? NULL : &c->bac_mem;
+ }
+ 
+ M0_INTERNAL void
+ m0_be_free(struct m0_be_allocator *a, struct m0_be_tx *tx, void *ptr)
+ {
++	struct be_alloc_chunk *c;
++	struct be_alloc_chunk *prev;
++	struct be_alloc_chunk *next;
++	bool		       chunks_were_merged;
++
++	M0_PRE(m0_be_allocator__invariant(a));
++	m0_mutex_lock(&a->ba_lock);
++	if (ptr != NULL) {
++		c = be_alloc_chunk_addr(ptr);
++		M0_PRE(be_alloc_chunk_invariant(c));
++		M0_PRE(!c->bac_free);
++		/* actual algorithm starts here */
++		c->bac_free = true;
++		prev = chunks_free_tlist_prev(&a->ba_h->bah_free.bl_list, c);
++		next = chunks_free_tlist_next(&a->ba_h->bah_free.bl_list, c);
++		chunks_were_merged = be_alloc_chunk_trymerge(prev, c);
++		if (chunks_were_merged)
++			c = prev;
++		be_alloc_chunk_trymerge(c, next);
++		/* and ends here */
++		M0_POST(c->bac_free);
++		M0_POST(c->bac_size > 0);
++		M0_POST(be_alloc_chunk_invariant(c));
++	}
++	m0_mutex_unlock(&a->ba_lock);
++	M0_POST(m0_be_allocator__invariant(a));
+ }
+ 
+ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
+-- 
+1.8.3.2
+

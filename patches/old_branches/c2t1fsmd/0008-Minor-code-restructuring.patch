@@ -1,0 +1,175 @@
+From de50cfef343b2de8fc1e652db87d4a9b582255bd Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Thu, 5 Apr 2012 11:54:25 +0530
+Subject: [PATCH 08/10] * Minor code restructuring.
+
+---
+ c2t1fs/linux_kernel/dir.c | 94 +++++++++++++++++++++++------------------------
+ 1 file changed, 46 insertions(+), 48 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/dir.c b/c2t1fs/linux_kernel/dir.c
+index 8bfa99b..7760009 100644
+--- a/c2t1fs/linux_kernel/dir.c
++++ b/c2t1fs/linux_kernel/dir.c
+@@ -192,28 +192,36 @@ static void inode_to_fop_cob(const struct inode *inode,
+ 	to_fop_fid(&ci->ci_fid, &fop_cob->b_tfid);
+ }
+ 
++#define OFFSET_WITHIN_PAGE(addr) \
++		(uint32_t)((unsigned long)addr & (PAGE_CACHE_SIZE - 1))
++
+ static int to_fop_str(const unsigned char *name,
+ 		      int                  namelen,
+ 		      struct c2_fop_str   *fop_str)
+ {
+ 	struct page **ppage;
++	int           rc;
+ 
+ 	C2_ENTRY();
+ 
+ 	C2_ALLOC_PTR(ppage);
+ 	if (ppage == NULL) {
+-		C2_LEAVE("rc: -ENOMEM");
+-		return -ENOMEM;
+-	}
+ 
+-	*ppage             = virt_to_page(name);
+-	fop_str->s_buf     = ppage;
+-	fop_str->cfs_pgoff = (uint32_t)(
+-				(unsigned long)name & (PAGE_CACHE_SIZE - 1));
+-	fop_str->s_len     = namelen;
++		rc = -ENOMEM;
+ 
+-	C2_LEAVE("rc: 0");
+-	return 0;
++	} else {
++
++		*ppage             = virt_to_page(name);
++		fop_str->s_buf     = ppage;
++		fop_str->cfs_pgoff = OFFSET_WITHIN_PAGE(name);
++		fop_str->s_len     = namelen;
++
++		rc = 0;
++
++	}
++
++	C2_LEAVE("rc: %d", rc);
++	return rc;
+ }
+ 
+ int fop_create_prepare(struct inode        *dir,
+@@ -314,10 +322,11 @@ int c2t1fs_gob_create(struct inode        *dir,
+ 
+ 	C2_ENTRY("name=\"%s\" namelen=%d", name, namelen);
+ 
+-	rc = namelen == 0 ? -EINVAL
+-			  : namelen >= C2T1FS_MAX_NAME_LEN ? -ENAMETOOLONG
+-							   : 0;
+-	if (rc == 0) {
++	if (namelen == 0) {
++		rc = -EINVAL;
++	} else if (namelen >= C2T1FS_MAX_NAME_LEN) {
++		rc =  -ENAMETOOLONG;
++	} else {
+ 		rc = fop_create_prepare(dir, inode, name, namelen, &fop) ?:
+ 		     make_create_rpc_call(dir, inode, fop);
+ 	}
+@@ -367,32 +376,33 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
+ 	C2_ASSERT(c2t1fs_inode_is_root(dir));
+ 
+ 	if (namelen == 0) {
++
+ 		rc = -EINVAL;
+-		goto out;
+-	}
+ 
+-	if (namelen >= C2T1FS_MAX_NAME_LEN) {
++	} else if (namelen >= C2T1FS_MAX_NAME_LEN) {
++
+ 		rc = -ENAMETOOLONG;
+-		goto out;
+-	}
+ 
+-	ci = C2T1FS_I(dir);
++	} else {
+ 
+-	C2_ALLOC_PTR(de);
+-	if (de == NULL) {
+-		rc = -ENOMEM;
+-		goto out;
+-	}
++		ci = C2T1FS_I(dir);
+ 
+-	c2t1fs_dir_ent_init(de, name, namelen, fid);
+-	dir_ents_tlist_add_tail(&ci->ci_dir_ents, de);
++		C2_ALLOC_PTR(de);
++		if (de == NULL) {
++			rc = -ENOMEM;
++			goto out;
++		}
++
++		c2t1fs_dir_ent_init(de, name, namelen, fid);
++		dir_ents_tlist_add_tail(&ci->ci_dir_ents, de);
+ 
+-	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
++		C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
+ 					  (unsigned long)fid->f_container,
+ 					  (unsigned long)fid->f_key);
+-	
+-	mark_inode_dirty(dir);
+-	rc = 0;
++
++		mark_inode_dirty(dir);
++		rc = 0;
++	}
+ out:
+ 	C2_LEAVE("rc: %d", rc);
+ 	return rc;
+@@ -400,19 +410,9 @@ out:
+ 
+ static bool name_eq(const unsigned char *name, const char *buf, int len)
+ {
+-	bool rc;
+-
+-	C2_ENTRY();
+-
+-	if (len <= C2T1FS_MAX_NAME_LEN && buf[len] != '\0') {
+-		rc = false;
+-	} else {
+-		C2_LOG("buf: \"%s\" name: \"%s\" len: %d", buf, name, len);
+-		rc = (memcmp(name, buf, len) == 0);
+-	}
+-
+-	C2_LEAVE("rc: %d", rc);
+-	return rc;
++	return  len <= C2T1FS_MAX_NAME_LEN &&
++		buf[len] == '\0' &&
++		memcmp(name, buf, len) == 0;
+ }
+ 
+ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
+@@ -420,19 +420,17 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
+ 						  int                  namelen)
+ {
+ 	struct c2t1fs_inode   *ci;
+-	struct c2t1fs_sb      *csb;
+ 	struct c2t1fs_dir_ent *de = NULL;
+ 
+ 	C2_ENTRY();
+ 
+-	C2_ASSERT(name != NULL && dir != NULL);
++	C2_ASSERT(name != NULL && dir != NULL && dir->i_sb != NULL);
+ 
+ 	C2_LOG("Name: \"%s\"", name);
+ 
+ 	ci  = C2T1FS_I(dir);
+-	csb = C2T1FS_SB(dir->i_sb);
+ 
+-	C2_ASSERT(c2t1fs_fs_is_locked(csb));
++	C2_ASSERT(c2t1fs_fs_is_locked(C2T1FS_SB(dir->i_sb)));
+ 
+ 	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
+ 
+-- 
+1.8.3.2
+

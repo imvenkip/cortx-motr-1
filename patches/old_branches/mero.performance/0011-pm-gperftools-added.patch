@@ -1,0 +1,302 @@
+From 70c3bee3ca9e58126df0b4741b3b4e44582c16ae Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 27 Oct 2013 19:28:09 +0200
+Subject: [PATCH 11/17] pm: gperftools added
+
+---
+ Makefile.am     |   1 +
+ doc/pm          |  12 +++++
+ mero/init.c     |   2 +
+ pm/Makefile.sub |   2 +
+ pm/profiler.c   | 154 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ pm/profiler.h   |  57 +++++++++++++++++++++
+ 6 files changed, 228 insertions(+)
+ create mode 100644 doc/pm
+ create mode 100644 pm/Makefile.sub
+ create mode 100644 pm/profiler.c
+ create mode 100644 pm/profiler.h
+
+diff --git a/Makefile.am b/Makefile.am
+index b3ee28a..00ab073 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -197,6 +197,7 @@ include $(top_srcdir)/mgmt/Makefile.sub
+ include $(top_srcdir)/net/Makefile.sub
+ include $(top_srcdir)/net/bulk_emulation/Makefile.sub
+ include $(top_srcdir)/net/lnet/Makefile.sub
++include $(top_srcdir)/pm/Makefile.sub
+ include $(top_srcdir)/pool/Makefile.sub
+ include $(top_srcdir)/reqh/Makefile.sub
+ include $(top_srcdir)/rm/Makefile.sub
+diff --git a/doc/pm b/doc/pm
+new file mode 100644
+index 0000000..be16a4c
+--- /dev/null
++++ b/doc/pm
+@@ -0,0 +1,12 @@
++Mero Performance Measurement
++TODO
++
++---
++
++Draft
++
++m0_profiler_start(category, subcategory)
++m0_profiler_stop(category, subcategory)
++
++M0_PROFILER_START(category, subcategory)
++M0_PROFILER_STOP(category, subcategory)
+diff --git a/mero/init.c b/mero/init.c
+index 84d8418..010abe5 100644
+--- a/mero/init.c
++++ b/mero/init.c
+@@ -74,6 +74,7 @@
+ #include "addb/addb_fops.h"
+ #include "mgmt/mgmt.h"
+ #include "ha/epoch.h"
++#include "pm/profiler.h"
+ 
+ M0_INTERNAL int m0_utime_init(void);
+ M0_INTERNAL void m0_utime_fini(void);
+@@ -142,6 +143,7 @@ struct init_fini_call subsystem[] = {
+ 	{ &m0_ad_stobs_init,    &m0_ad_stobs_fini,    "ad-stob" },
+ 	{ &sim_global_init,     &sim_global_fini,     "desim" },
+ 	{ &m0_addb_svc_mod_init, &m0_addb_svc_mod_fini, "addbsvc" },
++	{ &m0_profilers_init,	&m0_profilers_fini,   "profiler" },
+ #endif
+ 	{ &m0_confx_types_init, &m0_confx_types_fini, "conf-xtypes" },
+ 	{ &m0_conf_fops_init,   &m0_conf_fops_fini,   "conf-fops" },
+diff --git a/pm/Makefile.sub b/pm/Makefile.sub
+new file mode 100644
+index 0000000..ce8eec7
+--- /dev/null
++++ b/pm/Makefile.sub
+@@ -0,0 +1,2 @@
++nobase_mero_include_HEADERS += pm/profiler.h
++mero_libmero_la_SOURCES += pm/profiler.c
+diff --git a/pm/profiler.c b/pm/profiler.c
+new file mode 100644
+index 0000000..52ff4eb
+--- /dev/null
++++ b/pm/profiler.c
+@@ -0,0 +1,154 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <max_medved@xyratex.com>
++ * Original creation date: 26-Oct-2013
++ */
++
++#include "lib/errno.h"			/* EINVAL */
++#include "lib/mutex.h"			/* m0_mutex */
++#include "lib/misc.h"			/* ARRAY_SIZE */
++
++#include <string.h>			/* strcmp */
++#include <stdio.h>			/* snprintf */
++
++#include <linux/limits.h>		/* PATH_MAX */
++#include <gperftools/profiler.h>	/* ProfilerStart */
++
++/**
++ * @addtogroup pm
++ *
++ * @{
++ */
++
++/* m0_ prefix added to distinguish type and variable */
++struct m0_profiler_ctx {
++	struct m0_mutex  pc_lock;
++	const char	*pc_category;
++	const char	*pc_subcategory;
++	char		 pc_filename[PATH_MAX];
++	const char	*pc_type;		/**< @todo USEME */
++	const char	*pc_data_dir;
++	bool		 pc_enabled;
++	unsigned	 pc_nr;
++};
++
++struct m0_profiler_ctx profiler_ctx;
++
++static void profiler_lock(void)
++{
++	m0_mutex_lock(&profiler_ctx.pc_lock);
++}
++
++static void profiler_unlock(void)
++{
++	m0_mutex_unlock(&profiler_ctx.pc_lock);
++}
++
++static bool profiler_is_locked(void)
++{
++	return m0_mutex_is_locked(&profiler_ctx.pc_lock);
++}
++
++static bool profiler_enabled(const char *category, const char *subcategory)
++{
++	M0_PRE(profiler_is_locked());
++	return true;
++}
++
++M0_INTERNAL void m0_profiler_start(const char *category,
++				   const char *subcategory)
++{
++	bool started;
++	int  size;
++
++	profiler_lock();
++	if (profiler_enabled(category, subcategory)) {
++		M0_PRE(!profiler_ctx.pc_enabled);
++
++		profiler_ctx.pc_enabled = true;
++		profiler_ctx.pc_category = category;
++		profiler_ctx.pc_subcategory = subcategory;
++
++		size = snprintf(profiler_ctx.pc_filename,
++				ARRAY_SIZE(profiler_ctx.pc_filename),
++				"%s/mero-%06d_%s_%s.prof",
++				profiler_ctx.pc_data_dir, profiler_ctx.pc_nr++,
++				category, subcategory);
++		M0_ASSERT_INFO(size < ARRAY_SIZE(profiler_ctx.pc_filename),
++			       "size = %d, profiler_ctx.pc_filename = %s",
++			       size, profiler_ctx.pc_filename);
++
++		started = ProfilerStart(profiler_ctx.pc_filename);
++		M0_ASSERT(started);
++	}
++	profiler_unlock();
++}
++
++M0_INTERNAL void m0_profiler_stop(const char *category,
++				  const char *subcategory)
++{
++	profiler_lock();
++	if (profiler_enabled(category, subcategory)) {
++		M0_PRE(profiler_ctx.pc_enabled);
++		M0_PRE(strcmp(category, profiler_ctx.pc_category) == 0);
++		M0_PRE(strcmp(subcategory, profiler_ctx.pc_subcategory) == 0);
++
++		ProfilerStop();
++
++		profiler_ctx.pc_enabled = false;
++	}
++	profiler_unlock();
++}
++
++M0_INTERNAL int m0_profiler_configure(const char *profiler_type,
++				      const char *profiler_data_dir)
++{
++	profiler_ctx.pc_type	 = profiler_type;
++	profiler_ctx.pc_data_dir = profiler_data_dir;
++
++	return strcmp(profiler_type, "gperftools") == 0 ? 0 : -EINVAL;
++}
++
++M0_INTERNAL int m0_profilers_init(void)
++{
++	m0_mutex_init(&profiler_ctx.pc_lock);
++	profiler_ctx.pc_enabled	 = false;
++	profiler_ctx.pc_nr	 = 0;
++	profiler_ctx.pc_data_dir = ".";
++	return 0;
++}
++
++M0_INTERNAL void m0_profilers_fini(void)
++{
++	M0_PRE(!profiler_ctx.pc_enabled);
++	m0_mutex_fini(&profiler_ctx.pc_lock);
++}
++
++/** @} end of pm group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/pm/profiler.h b/pm/profiler.h
+new file mode 100644
+index 0000000..e38aadd
+--- /dev/null
++++ b/pm/profiler.h
+@@ -0,0 +1,57 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <max_medved@xyratex.com>
++ * Original creation date: 26-Oct-2013
++ */
++
++#pragma once
++
++#ifndef __MERO_PM_PROFILER_H__
++#define __MERO_PM_PROFILER_H__
++
++/**
++ * @defgroup pm
++ *
++ * @{
++ */
++
++M0_INTERNAL void m0_profiler_start(const char *category,
++				   const char *subcategory);
++M0_INTERNAL void m0_profiler_stop(const char *category,
++				  const char *subcategory);
++
++M0_INTERNAL int m0_profiler_configure(const char *profiler_type,
++				      const char *profiler_data_dir);
++
++M0_INTERNAL int  m0_profilers_init(void);
++M0_INTERNAL void m0_profilers_fini(void);
++
++/** @} end of pm group */
++#endif /* __MERO_PM_PROFILER_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+-- 
+1.8.3.2
+

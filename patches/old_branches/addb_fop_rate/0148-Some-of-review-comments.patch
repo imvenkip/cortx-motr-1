@@ -1,0 +1,305 @@
+From 1710dbf29f2c3a144b7599e52ae1522907532925 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 15 Nov 2013 18:45:34 +0530
+Subject: [PATCH 148/159]  - Some of review comments.
+
+---
+ addb/addb_monitor.c |  7 ++++++-
+ addb/addb_monitor.h |  5 +++++
+ addb/addb_rec.c     |  6 +-----
+ fop/fom.c           | 46 ++++++++++++++++++++++++++++------------------
+ fop/fop_addb.h      | 18 +++++++++---------
+ reqh/reqh.c         | 20 ++++++++++++++++----
+ 6 files changed, 65 insertions(+), 37 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 2be25bd..32aac0b 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -274,6 +274,11 @@ M0_INTERNAL bool m0_addb_monitor_invariant(struct m0_addb_monitor *mon)
+ 	return mon != NULL && mon->am_ops != NULL;
+ }
+ 
++M0_INTERNAL bool m0_addb_mon_ctx_invariant(struct m0_addb_monitoring_ctx *ctx)
++{
++	return ctx->amc_magic == M0_ADDB_MONITOR_CTX_MAGIC;
++}
++
+ M0_INTERNAL void m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
+ 				      const struct m0_addb_monitor_ops *mon_ops)
+ {
+@@ -345,7 +350,7 @@ M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh         *reqh,
+ 		if (addb_svc->as_pfom.pf_mon == monitor) {
+ 			addb_svc->as_pfom.pf_mon = NULL;
+ 		}
+-		m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
++		m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	}
+ 	m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	addb_mon_tlist_del(monitor);
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 85a380d..477fd7a 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -286,6 +286,11 @@ struct m0_addb_monitoring_ctx {
+ };
+ 
+ /**
++ * Monitor context invariant.
++ */
++M0_INTERNAL bool m0_addb_mon_ctx_invariant(struct m0_addb_monitoring_ctx *ctx);
++
++/**
+  * Initialize ADDB monitoring sub-system
+  * @param mach RPC machine
+  * @param endpoint endpoint where stats service runs
+diff --git a/addb/addb_rec.c b/addb/addb_rec.c
+index 9579010..10fdbea 100644
+--- a/addb/addb_rec.c
++++ b/addb/addb_rec.c
+@@ -158,11 +158,8 @@ static void addb_rec_post(struct m0_addb_mc *mc,
+ 	 * @todo: Find a way to remove this condition and instead assert
+ 	 * on not NULL.
+ 	 */
+-#undef MON_CTX_CONFIGURED
+-#define MON_CTX_CONFIGURED(mon_ctx)				\
+-	(mon_ctx.amc_magic == M0_ADDB_MONITOR_CTX_MAGIC)
+ 	if (mc->am_reqh != NULL &&
+-	    MON_CTX_CONFIGURED(mc->am_reqh->rh_addb_monitoring_ctx)) {
++	    m0_addb_mon_ctx_invariant(&mc->am_reqh->rh_addb_monitoring_ctx)) {
+ 		/* Invoke all the monitor's filters */
+ 		m0_mutex_lock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 		m0_tl_for(addb_mon,
+@@ -172,7 +169,6 @@ static void addb_rec_post(struct m0_addb_mc *mc,
+ 		} m0_tl_endfor;
+ 		m0_mutex_unlock(&mc->am_reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 	}
+-#undef MON_CTX_CONFIGURED
+ }
+ 
+ #ifndef __KERNEL__
+diff --git a/fop/fom.c b/fop/fom.c
+index 6a6dfb0..d5e5427 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -27,6 +27,8 @@
+ #include "lib/time.h"
+ #include "lib/timer.h"
+ #include "lib/arith.h"
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
++#include "lib/trace.h"
+ #include "db/db_common.h"
+ #include "addb/addb.h"
+ #include "mero/magic.h"
+@@ -194,7 +196,12 @@ fop_rate_monitor_sum_rec(const struct m0_addb_monitor *mon,
+ {
+ 	struct m0_addb_sum_rec *sum_rec;
+ 
++	M0_PRE(reqh != NULL);
++
++	m0_rwlock_read_lock(&reqh->rh_rwlock);
+ 	sum_rec = m0_reqh_lockers_get(reqh, FOM_RATE_KEY(reqh));
++	m0_rwlock_read_unlock(&reqh->rh_rwlock);
++
+ 	M0_ASSERT(sum_rec != NULL);
+ 
+ 	return sum_rec;
+@@ -211,6 +218,8 @@ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+ 	struct m0_addb_sum_rec        *sum_rec;
+ 	struct fop_rate_stats_sum_rec *f_rate;
+ 
++	M0_PRE(reqh != NULL);
++
+ 	if (m0_addb_rec_rid_to_id(rec->ar_rid) == M0_ADDB_RECID_FOP_RATE_CNTR) {
+ 		m0_rwlock_read_lock(&reqh->rh_rwlock);
+ 		sum_rec = m0_reqh_lockers_get(reqh, FOM_RATE_KEY(reqh));
+@@ -221,13 +230,14 @@ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+ 		M0_ASSERT(sum_rec->asr_rec.ss_id ==
+ 			  M0_ADDB_RECID_FOP_RATE);
+ 		f_rate = FOP_RATE(sum_rec);
++		M0_ASSERT(f_rate != NULL);
+ 		/*
+ 		 * fop_rate is ADDB counter.
+ 		 * rec->ar_data.au64s_data[1] is number of samples
+ 		 * rec->ar_data.au64s_data[2] is sum_samples
+ 		 */
+ 		f_rate->frssr_fop_rate =
+-		rec->ar_data.au64s_data[2]/rec->ar_data.au64s_data[1];;
++		rec->ar_data.au64s_data[2] / rec->ar_data.au64s_data[1];
+ 		sum_rec->asr_dirty = true;
+ 		m0_mutex_unlock(&sum_rec->asr_mutex);
+ 	}
+@@ -252,7 +262,7 @@ static int fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 
+ 	FOP_ALLOC_PTR(sum_rec, FOM_RATE_MON_INIT, &m0_fop_addb_ctx);
+ 	if (sum_rec == NULL)
+-		return -ENOMEM;
++		M0_RETURN(-ENOMEM);
+ 
+ 	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
+ 	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,
+@@ -277,13 +287,13 @@ static void fop_rate_monitor_fini(struct m0_reqh         *reqh,
+ 
+ 	M0_PRE(monitor != NULL && reqh != NULL);
+ 
+-	sum_rec = monitor->am_ops->amo_sum_rec(monitor, reqh);
+ 	m0_addb_monitor_del(reqh, monitor);
+ 
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+ 	m0_reqh_lockers_clear(reqh, fop_rate_monitor_key);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 
++	sum_rec = monitor->am_ops->amo_sum_rec(monitor, reqh);
+ 	m0_addb_monitor_sum_rec_fini(sum_rec);
+ 	m0_free(sum_rec);
+ 
+@@ -919,26 +929,18 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 
+ 	result = m0_addb_counter_init(&loc->fl_stat_run_times,
+ 				      &m0_addb_rt_fl_run_times);
+-	if (result != 0) {
+-		m0_addb_ctx_fini(&loc->fl_addb_ctx);
+-		return result;
+-	}
++	if (result != 0)
++		goto err3;
++
+ 	result = m0_addb_counter_init(&loc->fl_stat_sched_wait_times,
+ 				      &m0_addb_rt_fl_sched_wait_times);
+-	if (result != 0) {
+-		m0_addb_counter_fini(&loc->fl_stat_run_times);
+-		m0_addb_ctx_fini(&loc->fl_addb_ctx);
+-		return result;
+-	}
++	if (result != 0)
++		goto err2;
+ 
+ 	result = m0_addb_counter_init(&loc->fl_stat_fop_rate,
+ 				      &m0_addb_rt_fop_rate_cntr);
+-	if (result != 0) {
+-		m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+-		m0_addb_counter_fini(&loc->fl_stat_run_times);
+-		m0_addb_ctx_fini(&loc->fl_addb_ctx);
+-		return result;
+-	}
++	if (result != 0)
++		goto err1;
+ 
+ 	runq_tlist_init(&loc->fl_runq);
+ 	loc->fl_runq_nr = 0;
+@@ -973,6 +975,14 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 		loc_fini(loc);
+ 
+ 	return result;
++
++err1:
++	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
++err2:
++	m0_addb_counter_fini(&loc->fl_stat_run_times);
++err3:
++	m0_addb_ctx_fini(&loc->fl_addb_ctx);
++	return result;
+ }
+ 
+ static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+diff --git a/fop/fop_addb.h b/fop/fop_addb.h
+index 14a2fec..c0028ce 100644
+--- a/fop/fop_addb.h
++++ b/fop/fop_addb.h
+@@ -86,15 +86,15 @@ extern struct m0_addb_ctx m0_fop_addb_ctx;
+  * Do not change the numbering.
+  */
+ enum {
+-	M0_ADDB_RECID_FOM_INIT = 60,
+-	M0_ADDB_RECID_FOM_FINI = 61,
+-	M0_ADDB_RECID_FOM_STATE_STATS = 62,
+-	M0_ADDB_RECID_FL_RUN_TIMES = 65,
++	M0_ADDB_RECID_FOM_INIT            = 60,
++	M0_ADDB_RECID_FOM_FINI            = 61,
++	M0_ADDB_RECID_FOM_STATE_STATS     = 62,
++	M0_ADDB_RECID_FL_RUN_TIMES        = 65,
+ 	M0_ADDB_RECID_FL_SCHED_WAIT_TIMES = 66,
+-	M0_ADDB_RECID_FL_RUNQ_NR = 67,
+-	M0_ADDB_RECID_FL_WAIL_NR = 68,
+-	M0_ADDB_RECID_FOP_RATE_CNTR = 69,
+-	M0_ADDB_RECID_FOP_RATE      = 70,
++	M0_ADDB_RECID_FL_RUNQ_NR          = 67,
++	M0_ADDB_RECID_FL_WAIL_NR          = 68,
++	M0_ADDB_RECID_FOP_RATE_CNTR       = 69,
++	M0_ADDB_RECID_FOP_RATE            = 70,
+ };
+ 
+ /**
+@@ -142,7 +142,7 @@ M0_ADDB_RT_CNTR(m0_addb_rt_fop_rate_cntr, M0_ADDB_RECID_FOP_RATE_CNTR);
+ M0_ADDB_RT_DP(m0_addb_rt_fl_runq_nr, M0_ADDB_RECID_FL_RUNQ_NR, "runq_nr");
+ /** Locality wait queue (list) length */
+ M0_ADDB_RT_DP(m0_addb_rt_fl_wail_nr, M0_ADDB_RECID_FL_WAIL_NR, "wail_nr");
+-/** ADDB record for fop rate stats summary record */
++/** ADDB summary record for fop rate stats */
+ M0_ADDB_RT_STATS(m0_addb_rt_fop_rate, M0_ADDB_RECID_FOP_RATE, "fop_rate");
+ 
+ /** @} end of fom group */
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 2da9c44..52a6217 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -72,6 +72,8 @@ M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
+ 
+ M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
+ 
++static void __reqh_fini(struct m0_reqh *reqh);
++
+ /**
+    Request handler state machine description
+  */
+@@ -180,9 +182,11 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
+ 	m0_sm_init(&reqh->rh_sm, &m0_reqh_sm_conf, M0_REQH_ST_INIT,
+ 		   &reqh->rh_sm_grp);
+ 
+-	if (reqh->rh_beseg != NULL)
++	if (reqh->rh_beseg != NULL) {
+ 		rc = m0_reqh_dbenv_init(reqh, reqh->rh_beseg);
+-
++		if (rc != 0)
++			__reqh_fini(reqh);
++	}
+ 	return rc;
+ 
+ fom_domain_init_failed:
+@@ -190,6 +194,9 @@ fom_domain_init_failed:
+ monitors_init_failed:
+ 	m0_rwlock_fini(&reqh->rh_rwlock);
+ 	m0_reqh_lockers_fini(reqh);
++	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
++	m0_addb_mc_fini(&reqh->rh_addb_mc);
++	m0_ha_domain_fini(&reqh->rh_hadom);
+ 	return rc;
+ }
+ 
+@@ -362,9 +369,8 @@ M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)
+ 	m0_addb_mc_unconfigure(&reqh->rh_addb_mc);
+ }
+ 
+-M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
++static void __reqh_fini(struct m0_reqh *reqh)
+ {
+-	m0_reqh_dbenv_fini(reqh);
+ 	m0_sm_group_lock(&reqh->rh_sm_grp);
+ 	m0_sm_fini(&reqh->rh_sm);
+ 	m0_sm_group_unlock(&reqh->rh_sm_grp);
+@@ -382,6 +388,12 @@ M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
+ 	m0_ha_domain_fini(&reqh->rh_hadom);
+ }
+ 
++M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)
++{
++	m0_reqh_dbenv_fini(reqh);
++	__reqh_fini(reqh);
++}
++
+ M0_INTERNAL void m0_reqhs_fini(void)
+ {
+ 	m0_reqh_service_types_fini();
+-- 
+1.8.3.2
+

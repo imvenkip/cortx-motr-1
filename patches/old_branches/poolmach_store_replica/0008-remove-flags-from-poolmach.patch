@@ -1,0 +1,140 @@
+From c2a0e28466afad01908fb1bc261d0d4a32ede36b Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 6 May 2013 10:32:58 +0800
+Subject: [PATCH 08/14] remove "flags" from poolmach.
+
+---
+ pool/pool.c       | 12 ++++++++----
+ pool/pool.h       |  9 ---------
+ pool/pool_store.c | 27 ++++++++++++---------------
+ 3 files changed, 20 insertions(+), 28 deletions(-)
+
+diff --git a/pool/pool.c b/pool/pool.c
+index f66fd29..375ea55 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -318,7 +318,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+ 				 uint32_t max_device_failures)
+ {
+ 	uint32_t i;
+-	int      rc;
++	int      rc = 0;
+ 	M0_PRE(!pm->pm_is_initialised);
+ 
+ 	M0_SET0(pm);
+@@ -369,8 +369,12 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+ 	}
+ 	poolmach_events_tlist_init(&pm->pm_state.pst_events_list);
+ 	m0_rwlock_init(&pm->pm_lock);
+-	rc = m0_poolmach_store_init(pm, dbenv, dtm, nr_nodes, nr_devices,
+-				    max_node_failures, max_device_failures);
++	if (dbenv != NULL) {
++		/* On client, dbenv is NULL */
++		rc = m0_poolmach_store_init(pm, dbenv, dtm, nr_nodes,
++					    nr_devices, max_node_failures,
++					    max_device_failures);
++	}
+ 	if (rc == 0)
+ 		pm->pm_is_initialised = true;
+ 	else
+@@ -582,7 +586,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
+ 		;
+ 	}
+ 
+-	if (pm->pm_flags & M0_POOLMACH_FLAG_MASTER) {
++	if (pm->pm_dbenv != NULL) {
+ 		rc = m0_db_tx_init(&local_tx, pm->pm_dbenv, 0);
+ 		if (rc == 0) {
+ 			rc = m0_poolmach_store(pm, &local_tx);
+diff --git a/pool/pool.h b/pool/pool.h
+index 5a5f828..7fc9d11 100644
+--- a/pool/pool.h
++++ b/pool/pool.h
+@@ -284,10 +284,6 @@ struct m0_poolmach_state {
+ 	struct m0_tl                   pst_events_list;
+ };
+ 
+-enum m0_poolmach_flags {
+-	M0_POOLMACH_FLAG_MASTER = 1 << 0
+-};
+-
+ /**
+  * pool machine. Data structure representing replicated pool state machine.
+  *
+@@ -312,11 +308,6 @@ struct m0_poolmach {
+ 	/** the db env */
+ 	struct m0_dbenv         *pm_dbenv;
+ 
+-	/**
+-	 * flag bits. See enum m0_poolmach_flags.
+-	 */
+-	uint32_t                 pm_flags;
+-
+ 	/** this pool machine initialized or not */
+ 	bool                     pm_is_initialised;
+ 
+diff --git a/pool/pool_store.c b/pool/pool_store.c
+index 48990fe..e240dbb 100644
+--- a/pool/pool_store.c
++++ b/pool/pool_store.c
+@@ -215,15 +215,17 @@ M0_INTERNAL int m0_poolmach_store(struct m0_poolmach *pm,
+ 	uint32_t                        i;
+ 	int                             rc;
+ 
+-	nr_nodes = pm->pm_state.pst_nr_nodes;
+-	nr_devices = pm->pm_state.pst_nr_devices;
+-	max_node_failures = pm->pm_state.pst_max_node_failures;
++	nr_nodes            = pm->pm_state.pst_nr_nodes;
++	nr_devices          = pm->pm_state.pst_nr_devices;
++	max_node_failures   = pm->pm_state.pst_max_node_failures;
+ 	max_device_failures = pm->pm_state.pst_max_device_failures;
+-	poolnode_rec = m0_alloc(nr_nodes * sizeof (*poolnode_rec));
+-	pooldev_rec  = m0_alloc(nr_devices * sizeof (*pooldev_rec));
++
++	poolnode_rec         = m0_alloc(nr_nodes * sizeof (*poolnode_rec));
++	pooldev_rec          = m0_alloc(nr_devices * sizeof (*pooldev_rec));
+ 	pool_spare_usage_rec = m0_alloc(max_device_failures *
+ 					 sizeof (*pool_spare_usage_rec));
+-	if (poolnode_rec == NULL || pooldev_rec == NULL ||
++	if (poolnode_rec == NULL ||
++	    pooldev_rec == NULL ||
+ 	    pool_spare_usage_rec == NULL) {
+ 		rc = -ENOMEM;
+ 		goto out_free;
+@@ -299,13 +301,14 @@ static int m0_poolmach_load(struct m0_poolmach *pm,
+ 	pooldev_rec  = m0_alloc(nr_devices * sizeof (*pooldev_rec));
+ 	pool_spare_usage_rec = m0_alloc(max_device_failures *
+ 					 sizeof (*pool_spare_usage_rec));
+-	if (poolnode_rec == NULL || pooldev_rec == NULL ||
++	if (poolnode_rec == NULL ||
++	    pooldev_rec == NULL ||
+ 	    pool_spare_usage_rec == NULL) {
++		/* m0_free(NULL) is OK */
+ 		rc = -ENOMEM;
+ 		goto out_free;
+ 	}
+ 
+-
+ 	rc = load_from_db(&pm->pm_table, tx, &poolmach_state_key,
+ 			  &poolmach_rec, sizeof poolmach_rec);
+ 	if (rc != 0)
+@@ -376,15 +379,9 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
+ 	int                             rc;
+ 
+ 	M0_PRE(!pm->pm_is_initialised);
+-	M0_PRE((dbenv == NULL) == (dtm == NULL));
++	M0_PRE(dbenv != NULL);
+ 	M0_ENTRY();
+ 
+-	if (dbenv == NULL) {
+-		pm->pm_flags &= ~M0_POOLMACH_FLAG_MASTER;
+-		M0_RETURN(0);
+-	}
+-	pm->pm_flags |= M0_POOLMACH_FLAG_MASTER;
+-
+ 	rc = m0_table_init(&pm->pm_table, dbenv,
+ 			   "poolmach_persistent_state", 0,
+ 			   &m0_poolmach_store_ops);
+-- 
+1.8.3.2
+

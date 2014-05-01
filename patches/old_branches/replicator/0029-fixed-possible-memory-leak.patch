@@ -1,0 +1,162 @@
+From 95a40063fba6ba378b66019da8a2a867ae14e02d Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 30 Mar 2011 04:24:36 -0600
+Subject: [PATCH 029/177] - fixed possible memory leak
+
+---
+ mdservice/md_foms.c | 40 +++++++++++++++++++++++++++++-----------
+ 1 file changed, 29 insertions(+), 11 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index b1fc9ae..0bf8b39 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -21,6 +21,8 @@
+ 
+ #include "mdstore/mdstore.h"
+ 
++void c2_md_req_fom_fini(struct c2_fom *fom);
++
+ /**
+    Make in-memory fid from fop fid.
+ */
+@@ -107,6 +109,7 @@ static int c2_md_fom_create_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -167,6 +170,7 @@ static int c2_md_fom_link_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -227,6 +231,7 @@ static int c2_md_fom_unlink_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -287,6 +292,7 @@ static int c2_md_fom_rename_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -352,6 +358,7 @@ static int c2_md_fom_open_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -404,6 +411,7 @@ static int c2_md_fom_close_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -464,6 +472,7 @@ static int c2_md_fom_setattr_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -524,6 +533,7 @@ static int c2_md_fom_getattr_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+@@ -584,53 +594,61 @@ static int c2_md_fom_readdir_state(struct c2_fom *fom)
+         }
+ out:
+ 	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
++	c2_md_req_fom_fini(fom);
+         return FSO_AGAIN;
+ }
+ 
+-struct c2_fom_ops c2_md_fom_create_ops = {
++static struct c2_fom_ops c2_md_fom_create_ops = {
+ 	.fo_state = c2_md_fom_create_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_link_ops = {
++static struct c2_fom_ops c2_md_fom_link_ops = {
+ 	.fo_state = c2_md_fom_link_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_unlink_ops = {
++static struct c2_fom_ops c2_md_fom_unlink_ops = {
+ 	.fo_state = c2_md_fom_unlink_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_rename_ops = {
++static struct c2_fom_ops c2_md_fom_rename_ops = {
+ 	.fo_state = c2_md_fom_rename_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_open_ops = {
++static struct c2_fom_ops c2_md_fom_open_ops = {
+ 	.fo_state = c2_md_fom_open_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_close_ops = {
++static struct c2_fom_ops c2_md_fom_close_ops = {
+ 	.fo_state = c2_md_fom_close_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_setattr_ops = {
++static struct c2_fom_ops c2_md_fom_setattr_ops = {
+ 	.fo_state = c2_md_fom_setattr_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_getattr_ops = {
++static struct c2_fom_ops c2_md_fom_getattr_ops = {
+ 	.fo_state = c2_md_fom_getattr_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_readdir_ops = {
++static struct c2_fom_ops c2_md_fom_readdir_ops = {
+ 	.fo_state = c2_md_fom_readdir_state
+ };
+ 
+-struct c2_fom_ops c2_md_fom_rep_ops = {0,};
+-struct c2_fom_type c2_md_fom_type_pch = {0,};
++static struct c2_fom_type c2_md_fom_type_pch = {0,};
+ 
+ int c2_md_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
+ {
+         return 0;
+ }
+ 
++void c2_md_req_fom_fini(struct c2_fom *fom)
++{
++        struct c2_fom_md *fom_obj;
++        
++        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
++        c2_free(fom_obj);
++}
++
+ int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fom **m)
+ {
+ 	struct c2_fom           *fom;
+-- 
+1.8.3.2
+

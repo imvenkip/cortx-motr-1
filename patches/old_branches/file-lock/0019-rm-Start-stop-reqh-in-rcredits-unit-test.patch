@@ -1,0 +1,33 @@
+From 6e214e15a7d0b54c967183f5b9d9aa637d94029f Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Mon, 22 Apr 2013 15:07:50 +0530
+Subject: [PATCH 19/25] rm: Start/stop reqh in rcredits unit test.
+
+---
+ rm/ut/rmut.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/rm/ut/rmut.c b/rm/ut/rmut.c
+index d2e54d8..b5ec0c8 100644
+--- a/rm/ut/rmut.c
++++ b/rm/ut/rmut.c
+@@ -204,6 +204,8 @@ void rm_ctx_init(struct rm_context *rmctx)
+ 			.rhia_addb_stob = NULL);
+ 	M0_UT_ASSERT(rc == 0);
+ 
++	m0_reqh_start(&rmctx->rc_reqh);
++
+ 	rc = m0_rpc_machine_init(&rmctx->rc_rpc, &rmctx->rc_cob_dom,
+ 				 &rmctx->rc_net_dom, rmctx->rc_ep_addr,
+ 				 &rmctx->rc_reqh, &rmctx->rc_bufpool,
+@@ -222,6 +224,7 @@ void rm_ctx_fini(struct rm_context *rmctx)
+ 	m0_chan_fini_lock(&rmctx->rc_chan);
+ 	m0_mutex_fini(&rmctx->rc_mutex);
+ 	m0_rpc_machine_fini(&rmctx->rc_rpc);
++	m0_reqh_services_terminate(&rmctx->rc_reqh);
+ 	m0_reqh_fini(&rmctx->rc_reqh);
+ 	m0_mdstore_fini(&rmctx->rc_mdstore);
+ 	m0_cob_domain_fini(&rmctx->rc_cob_dom);
+-- 
+1.8.3.2
+

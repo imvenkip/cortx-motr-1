@@ -1,0 +1,44 @@
+From bc40ce36666df75b66a8053dc6b4dc29a2e74d58 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 4 Jun 2013 19:30:17 +0300
+Subject: [PATCH 102/228] be/op: add reference to parent op, add llink pointer
+ to u_link.
+
+---
+ be/be.h | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index acf154b..f5fb7e2 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -62,19 +62,22 @@ enum m0_be_op_type {
+ 	M0_BOP_NR
+ };
+ 
++struct m0_be_op;
+ struct m0_be_op {
+ 	struct m0_sm        bo_sm;
+ 	struct m0_fom      *bo_fom;
+ 
+ 	enum m0_be_op_type  bo_utype; /* bo_u type */
++	struct m0_be_op    *bo_parent_op;
+ 	union {
+ 		/* Used by m0_be_reg_get(). */
+-		const struct m0_be_reg *u_reg;
++		struct m0_be_reg                   u_reg;
+ 
+-		/* Used by m0_be_list_get(). */
++		/* Used by m0_be_list_get() and its callback. */
+ 		struct {
+-			const struct m0_be_list *l_list;
+-			m0_bcount_t              l_nelems;
++			const struct m0_be_list   *l_list;
++			const struct m0_list_link *l_llink;
++			m0_bcount_t                l_nelems;
+ 		} u_list;
+ 
+ 		struct {
+-- 
+1.8.3.2
+

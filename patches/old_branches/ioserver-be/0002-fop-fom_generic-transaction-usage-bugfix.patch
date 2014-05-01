@@ -1,0 +1,121 @@
+From 9497b251253fb42f234544bda1258918a7668977 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 24 Sep 2013 17:13:17 +0300
+Subject: [PATCH 2/7] fop/fom_generic: transaction usage bugfix
+
+Not opened transaction was tried to be committed.
+---
+ fop/fom_generic.c   | 26 +++++++++++++++++++++-----
+ fop/fom_generic.h   |  1 +
+ ioservice/io_foms.c |  6 +++---
+ 3 files changed, 25 insertions(+), 8 deletions(-)
+
+diff --git a/fop/fom_generic.c b/fop/fom_generic.c
+index 9e7da35..91575ad 100644
+--- a/fop/fom_generic.c
++++ b/fop/fom_generic.c
+@@ -284,13 +284,15 @@ static int loc_ctx_wait(struct m0_fom *fom)
+ {
+ 	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+ 
++	M0_ENTRY("fom=%p", fom);
++
+ 	M0_PRE((M0_BITS(m0_be_tx_state(tx)) &
+ 	        M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)) != 0);
+ 
+ 	if (m0_be_tx_state(tx) != M0_BTS_ACTIVE)
+-		return -EAGAIN;
++		m0_fom_phase_move(fom, tx->t_sm.sm_rc, M0_FOPH_TXN_OPEN_FAILED);
+ 
+-	return M0_FSO_AGAIN;
++	M0_RETURN(M0_FSO_AGAIN);
+ }
+ 
+ /**
+@@ -368,7 +370,11 @@ static int fom_fol_rec_add(struct m0_fom *fom)
+  */
+ static int fom_txn_commit(struct m0_fom *fom)
+ {
+-	m0_fom_wait_on(fom, &fom->fo_tx.tx_betx.t_sm.sm_chan, &fom->fo_cb);
++	struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
++
++	M0_PRE(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
++
++	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+ 	m0_dtx_done(&fom->fo_tx);
+ 
+ 	m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
+@@ -490,12 +496,16 @@ static const struct fom_phase_desc fpd_table[] = {
+ 					      1 << M0_FOPH_TXN_INIT },
+ 	[M0_FOPH_TXN_OPEN] =		   { &loc_ctx_open,
+ 					      M0_FOPH_TXN_WAIT,
+-					     "loc_ctx_init",
++					     "loc_ctx_open",
+ 					      1 << M0_FOPH_TXN_OPEN },
+ 	[M0_FOPH_TXN_WAIT] =		   { &loc_ctx_wait,
+ 					      M0_FOPH_TYPE_SPECIFIC,
+ 					     "loc_ctx_wait",
+ 					      1 << M0_FOPH_TXN_WAIT },
++	[M0_FOPH_TXN_OPEN_FAILED] =	   { &fom_failure,
++					      M0_FOPH_QUEUE_REPLY,
++					     "loc_ctx_open_failed",
++					      1 << M0_FOPH_TXN_OPEN_FAILED },
+ 	[M0_FOPH_SUCCESS] =		   { &fom_success,
+ 					      M0_FOPH_FOL_REC_PART_ADD,
+ 					     "fom_success",
+@@ -608,9 +618,14 @@ static struct m0_sm_state_descr generic_phases[] = {
+ 	},
+ 	[M0_FOPH_TXN_WAIT] = {
+ 		.sd_name      = "loc_ctx_wait",
+-		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE,
++		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN_FAILED,
+ 					M0_FOPH_TYPE_SPECIFIC)
+ 	},
++	[M0_FOPH_TXN_OPEN_FAILED] = {
++		.sd_flags     = M0_SDF_FAILURE,
++		.sd_name      = "loc_ctx_open_failure",
++		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY)
++	},
+ 	[M0_FOPH_SUCCESS] = {
+ 		.sd_name      = "fom_success",
+ 		.sd_allowed   = M0_BITS(M0_FOPH_FOL_REC_PART_ADD)
+@@ -682,6 +697,7 @@ int m0_fom_tick_generic(struct m0_fom *fom)
+ 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+ 		rc = M0_FSO_AGAIN;
+ 	} else if (rc == M0_FSO_AGAIN) {
++		fpd_phase = &fpd_table[m0_fom_phase(fom)];
+ 		if (m0_fom_phase(fom) < M0_FOPH_NR &&
+ 		    fpd_phase->fpd_nextphase < M0_FOPH_NR)
+ 			M0_LOG(M0_DEBUG, "phase set: %s -> %s",
+diff --git a/fop/fom_generic.h b/fop/fom_generic.h
+index 300d8a1..746ebe5 100644
+--- a/fop/fom_generic.h
++++ b/fop/fom_generic.h
+@@ -63,6 +63,7 @@ enum m0_fom_standard_phase {
+ 	M0_FOPH_TXN_INIT,           /*< init local transactional context. */
+ 	M0_FOPH_TXN_OPEN,           /*< open local transactional context. */
+ 	M0_FOPH_TXN_WAIT,           /*< waiting for log space. */
++	M0_FOPH_TXN_OPEN_FAILED,    /*< failed to open transaction. */
+ 	M0_FOPH_SUCCESS,            /*< fom execution completed successfully. */
+ 	M0_FOPH_FOL_REC_PART_ADD,   /*< add a fol record part for the fop to the
+ 					trasaction. */
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index e6f2795..5914ef4 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1791,9 +1791,9 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
+ 
+ 	/* first handle generic phase */
+         if (m0_fom_phase(fom) < M0_FOPH_NR) {
+-			if (m0_is_write_fop(fom->fo_fop) &&
+-			    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
+-				stob_write_credit(fom);
++		if (m0_is_write_fop(fom->fo_fop) &&
++		    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN)
++			stob_write_credit(fom);
+                 return m0_fom_tick_generic(fom);
+ 	}
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From 18e7b916f85ea6351e7de984d1382343dc6b3c6e Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 9 Aug 2013 19:41:14 +0530
+Subject: [PATCH 3/4] multi-node-parity-math -Removed a commented line from
+ sns/ut/parity_math_ut.c
+
+---
+ sns/ut/parity_math_ut.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/sns/ut/parity_math_ut.c b/sns/ut/parity_math_ut.c
+index 43edaee..79424d1 100644
+--- a/sns/ut/parity_math_ut.c
++++ b/sns/ut/parity_math_ut.c
+@@ -159,7 +159,6 @@ static void bufvec_initialize(struct m0_bufvec **bvec, uint32_t count,
+ static void bufvec_fill(struct m0_bufvec *x);
+ static void bufvec_fini(struct m0_bufvec *bvec, uint32_t count);
+ static bool bufvec_eq(struct m0_bufvec *bvec1, struct m0_bufvec *bvec2);
+-//static void bufvec_copy(struct m0_bufvec *des, struct m0_bufvec *src);
+ static void buf_initialize(struct m0_buf *buf, uint32_t size, uint32_t len);
+ static void buf_free(struct m0_buf *buf, uint32_t count);
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,35 @@
+From 15347a42582b6da0913595826c3b737b99d1c090 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 19 Sep 2012 11:17:43 +0300
+Subject: [PATCH 311/311] preload.c: Fix seq_length() to return 0-length for
+ invalid sequences
+
+---
+ conf/preload.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/conf/preload.c b/conf/preload.c
+index 5d6a2b7..8b6bb8a 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -356,7 +356,7 @@ static int seq_iterate(struct hunk *unit, const struct hunk *buffer, char ss)
+  * @pre hunk_invariant(unit)
+  * @pre C2_IN(ss, (',', ':'))
+  */
+-static int seq_length(const struct hunk *unit, char ss)
++static size_t seq_length(const struct hunk *unit, char ss)
+ {
+ 	int rc;
+ 	int length = 0;
+@@ -365,7 +365,7 @@ static int seq_length(const struct hunk *unit, char ss)
+ 	while ((rc = seq_iterate(&contents, unit, ss)) == 0)
+ 		length++;
+ 
+-	return rc == 0 ? length : rc;
++	return rc == -ENOENT ? length : 0;
+ }
+ 
+ 
+-- 
+1.8.3.2
+

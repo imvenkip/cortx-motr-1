@@ -1,0 +1,194 @@
+From e9db68be2eabee2b92a37d68acd1c38620724662 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 25 Feb 2013 13:07:20 +0200
+Subject: [PATCH 85/99] net-test ST: added kernel-to-user and user-to-kernel
+ testing; kernel modules will not be rmmod'ed between the tests; test time
+ limit set to 5s for single test;
+
+---
+ net/test/st/run-1x1.sh      | 53 ++++++++++++++++++++++++++++++---------------
+ net/test/st/st-bulk.sh      |  1 -
+ net/test/st/st-config.sh.in |  1 +
+ net/test/st/st-ping.sh      |  1 -
+ net/test/st/st.sh           | 34 +++++++++++++++++++++++++++--
+ 5 files changed, 68 insertions(+), 22 deletions(-)
+
+diff --git a/net/test/st/run-1x1.sh b/net/test/st/run-1x1.sh
+index 51a7956..0b16bdd 100644
+--- a/net/test/st/run-1x1.sh
++++ b/net/test/st/run-1x1.sh
+@@ -1,4 +1,6 @@
+ #!/bin/sh
++# set -eux
++# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+ 
+ # The same values as in client-server UT
+ ADDR_CONSOLE4CLIENTS="$LNET_PREFIX:2998"
+@@ -8,15 +10,37 @@ ADDR_DATA_CLIENT="$LNET_PREFIX:3128"
+ ADDR_CMD_SERVER="$LNET_PREFIX:3256"
+ ADDR_DATA_SERVER="$LNET_PREFIX:3384"
+ 
+-# Copy-paste from core/utils/ut.sh
+-# Small wrapper to run user-space UT, which depends on kmero module
+-
+ if [ "$(id -u)" -ne 0 ]; then
+     echo "Must be run as root"
+     exit 1
+ fi
+ 
+-source "$ST_COMMON"
++node_start()
++{
++	local role=$1
++	local addr
++	local addr_console
++
++	[ "$role" == "client" ] && addr=$ADDR_CMD_CLIENT
++	[ "$role" == "client" ] && addr_console=$ADDR_CONSOLE4CLIENTS
++	[ "$role" == "server" ] && addr=$ADDR_CMD_SERVER
++	[ "$role" == "server" ] && addr_console=$ADDR_CONSOLE4SERVERS
++	if [ "$role" == "$KERNEL_ROLE" ]; then
++		insmod "$MOD_M0NETTESTD" addr=$addr addr_console=$addr_console
++	else
++		"$CMD_M0NETTESTD" -a "$addr" -c "$addr_console" &
++		PID_SERVER=$!
++	fi
++}
++
++node_stop()
++{
++	local role=$1
++
++	if [ "$role" == "$KERNEL_ROLE" ]; then
++		rmmod -w m0nettestd
++	fi
++}
+ 
+ eval_kill_pid() {
+ 	eval pid=\${$1-xxx}
+@@ -28,6 +52,8 @@ eval_kill_pid() {
+ 
+ unload_all() {
+ 	KILL_PID=
++	node_stop "client"
++	node_stop "server"
+ 	eval_kill_pid "PID_SERVER"
+ 	eval_kill_pid "PID_CLIENT"
+ 	eval_kill_pid "PID_CONSOLE"
+@@ -35,16 +61,12 @@ unload_all() {
+ 		kill $pid > /dev/null 2>&1 || true
+ 		wait $pid > /dev/null 2>&1 || true
+ 	done
+-	modunload
+-	modunload_galois
++	# for m0_net in kernel (to stop transfer machine etc.)
++	# added because m0mero.ko will not be rmmod'ed between the tests
++	sleep 1
+ }
+ trap unload_all EXIT
+ 
+-modprobe_lnet
+-lctl network up > /dev/null
+-modload_galois
+-modload || exit $?
+-
+ # allow only 'fatal' and higher trace messages to be printed on console by
+ # default, to prevent cluttering of UT output with "fake" error messages,
+ # generated while testing various error paths using fault injection;
+@@ -53,13 +75,8 @@ export M0_TRACE_LEVEL='fatal+'
+ # export M0_TRACE_LEVEL=debug+
+ export M0_TRACE_IMMEDIATE_MASK=all
+ 
+-
+-"$CMD_M0NETTESTD" -a $ADDR_CMD_SERVER -c $ADDR_CONSOLE4SERVERS &
+-PID_SERVER=$!
+-sleep $NODE_INIT_DELAY
+-
+-"$CMD_M0NETTESTD" -a $ADDR_CMD_CLIENT -c $ADDR_CONSOLE4CLIENTS &
+-PID_CLIENT=$!
++node_start "client"
++node_start "server"
+ sleep $NODE_INIT_DELAY
+ 
+ BULK_PARAMETERS=
+diff --git a/net/test/st/st-bulk.sh b/net/test/st/st-bulk.sh
+index 952549c..85686a8 100644
+--- a/net/test/st/st-bulk.sh
++++ b/net/test/st/st-bulk.sh
+@@ -5,7 +5,6 @@ CWD=$(cd "$( dirname "$0")" && pwd)
+ source $CWD/st-config.sh
+ TEST_TYPE="bulk"
+ MSG_NR=1048576
+-TEST_RUN_TIME=10
+ MSG_SIZE=1m
+ CONCURRENCY_CLIENT=8
+ CONCURRENCY_SERVER=16
+diff --git a/net/test/st/st-config.sh.in b/net/test/st/st-config.sh.in
+index b3b7af9..975986a 100644
+--- a/net/test/st/st-config.sh.in
++++ b/net/test/st/st-config.sh.in
+@@ -5,6 +5,7 @@
+ NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
+ 
+ # Path to binaries
++MOD_M0NETTESTD=@ABS_SRCDIR@/net/test/linux_kernel/m0nettestd.ko
+ CMD_M0NETTESTD=@ABS_SRCDIR@/net/test/user_space/m0nettestd
+ CMD_M0NETTEST=@ABS_SRCDIR@/net/test/user_space/m0nettest
+ ST_COMMON=@ABS_SRCDIR@/m0t1fs/linux_kernel/st/common.sh
+diff --git a/net/test/st/st-ping.sh b/net/test/st/st-ping.sh
+index f5cb33d..83728ed 100644
+--- a/net/test/st/st-ping.sh
++++ b/net/test/st/st-ping.sh
+@@ -5,7 +5,6 @@ CWD=$(cd "$( dirname "$0")" && pwd)
+ source $CWD/st-config.sh
+ TEST_TYPE="ping"
+ MSG_NR=1048576
+-TEST_RUN_TIME=10
+ MSG_SIZE=4k
+ CONCURRENCY_CLIENT=8
+ CONCURRENCY_SERVER=16
+diff --git a/net/test/st/st.sh b/net/test/st/st.sh
+index 8fcee3e..b415902 100755
+--- a/net/test/st/st.sh
++++ b/net/test/st/st.sh
+@@ -6,5 +6,35 @@
+ 
+ CWD=$(cd "$( dirname "$0")" && pwd)
+ 
+-sh $CWD/st-ping.sh
+-sh $CWD/st-bulk.sh
++source $CWD/st-config.sh
++source "$ST_COMMON"
++
++role_space()
++{
++	local role=$1
++	[ "$role" == "$KERNEL_ROLE" ] && echo -n "kernel space"
++	[ "$role" != "$KERNEL_ROLE" ] && echo -n "user space"
++}
++
++unload_all() {
++	modunload
++	modunload_galois
++}
++trap unload_all EXIT
++
++modprobe_lnet
++lctl network up > /dev/null
++modload_galois
++modload || exit $?
++
++export TEST_RUN_TIME=5
++echo "transfer machines endpoint prefix is $LNET_PREFIX"
++for KERNEL_ROLE in "none" "client" "server"; do
++	export KERNEL_ROLE
++	echo -n "------ test client in $(role_space client), "
++	echo "test server in $(role_space server)"
++	echo "--- ping test (test message size is 4KiB)"
++	sh $CWD/st-ping.sh
++	echo "--- bulk test (test message size is 1MiB)"
++	sh $CWD/st-bulk.sh
++done
+-- 
+1.8.3.2
+

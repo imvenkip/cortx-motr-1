@@ -1,0 +1,188 @@
+From 35c659ed295281d9f459d4270828fa5dabc43887 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 5 Jun 2013 11:26:28 +0300
+Subject: [PATCH 107/161] be: btree ut mockup finished.
+
+---
+ be/btree.c    |  6 ++--
+ be/ut/btree.c | 97 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 96 insertions(+), 7 deletions(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index 121fc0e..c88503a 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -1227,7 +1227,7 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
+ 	kv = btree_search(btree, key->b_addr);
+ 	if (kv != NULL) {
+ 		MEM_FREE(tx, kv->val, btree->bb_ops->ko_dsize(kv->val));
+-		kv->val = MEM_ALLOC(tx, val->b_nob);
++		kv->val = val->b_addr;
+ 		MEM_UPDATE(tx, kv, sizeof(struct bt_key_val));
+ 	}
+ 
+@@ -1285,8 +1285,8 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ 
+ 	kv = btree_search(btree, key->b_addr);
+ 	if (kv != NULL) {
+-		op->bo_u.u_btree.t_out->b_addr = kv->val;
+-		op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_dsize(kv->val);
++		dest_value->b_addr = kv->val;
++		dest_value->b_nob = btree->bb_ops->ko_dsize(kv->val);
+ 	}
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+diff --git a/be/ut/btree.c b/be/ut/btree.c
+index 880fac0..e4a4fca 100644
+--- a/be/ut/btree.c
++++ b/be/ut/btree.c
+@@ -24,6 +24,7 @@
+ #include "be/btree.h"
+ #include "be/alloc.h"
+ #include "lib/misc.h"
++#include "lib/memory.h"
+ 
+ extern void m0_be_ut_seg_create(void);
+ extern void m0_be_ut_seg_destroy(void);
+@@ -106,7 +107,7 @@ void test_destroy(void)
+ 	struct m0_be_tx        tx;
+ 	struct m0_be_tx_credit cred;
+ 
+- 	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
++	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_DESTROY, 1, &cred);
+ 
+ 	m0_be_tx_prep(&tx, &cred);
+@@ -123,6 +124,8 @@ void test_destroy(void)
+ 
+ enum {
+ 	INSERT_NR   = 100,
++	UPDATE_NR   = INSERT_NR / 2,
++	DELETE_NR   = INSERT_NR / 2,
+ 	ALLOC_SHIFT = 1, /* XXX */
+ 	ALLOC_SIZE  = 8
+ };
+@@ -138,7 +141,7 @@ void test_insert(void)
+ 	struct m0_be_allocator *alloc = &tree.bb_seg->bs_allocator;
+ 	int			i;
+ 
+- 	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
++	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_INSERT, INSERT_NR, &tree_cred);
+ 
+ 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, ALLOC_SIZE,
+@@ -158,8 +161,8 @@ void test_insert(void)
+ 		M0_UT_ASSERT(key.b_addr != NULL);
+ 		M0_UT_ASSERT(val.b_addr != NULL);
+ 
+-		sprintf(key.b_addr, "%d", i);
+-		sprintf(val.b_addr, "%d", i);
++		sprintf(key.b_addr, "%03d", i);
++		sprintf(val.b_addr, "%03d", i);
+ 
+ 		m0_be_tx_capture(&tx, &M0_BE_REG(tree.bb_seg, ALLOC_SIZE,
+ 						 key.b_addr));
+@@ -177,14 +180,100 @@ void test_insert(void)
+ 
+ void test_update(void)
+ {
++	struct m0_be_op         op;
++	struct m0_be_tx         tx;
++	struct m0_be_tx_credit  tree_cred;
++	struct m0_be_tx_credit  cred;
++	struct m0_buf           key;
++	struct m0_buf           val;
++	struct m0_be_allocator *alloc = &tree.bb_seg->bs_allocator;
++	int			i;
++
++	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
++
++	m0_be_btree_credit(&tree, M0_BBO_UPDATE, UPDATE_NR, &tree_cred);
++
++	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, ALLOC_SIZE,
++			       ALLOC_SHIFT, &cred);
++
++	m0_be_tx_credit_mul(&cred, UPDATE_NR);
++	m0_be_tx_credit_add(&cred, &tree_cred);
++
++	m0_be_tx_prep(&tx, &cred);
++	m0_be_tx_open(&tx);
++
++	for (i = 0; i < UPDATE_NR; ++i) {
++		m0_buf_init(&key, m0_be_alloc(alloc, &tx, ALLOC_SIZE,
++					      ALLOC_SHIFT), ALLOC_SIZE);
++		M0_UT_ASSERT(key.b_addr != NULL);
++		sprintf(key.b_addr, "%03d", i);
++
++		m0_buf_init(&val, "UPD", sizeof("UPD"));
++
++		m0_be_tx_capture(&tx, &M0_BE_REG(tree.bb_seg, ALLOC_SIZE,
++						 key.b_addr));
++
++		m0_be_btree_update(&tree, &tx, &op, &key, &val);
++		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++							 M0_BOS_FAILURE)));
++	}
++
++	m0_be_tx_close(&tx);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_TIME_NEVER) == 0);
+ }
+ 
+ void test_delete(void)
+ {
++	struct m0_be_op         op;
++	struct m0_be_tx         tx;
++	struct m0_be_tx_credit  cred;
++	struct m0_buf           key;
++
++	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
++	m0_be_btree_credit(&tree, M0_BBO_DELETE, DELETE_NR, &cred);
++	m0_be_tx_prep(&tx, &cred);
++	m0_be_tx_open(&tx);
++
++	for (i = DELETE_NR/2; i < INSERT_NR - DELETE_NR/2; ++i) {
++		m0_buf_init(&key, m0_alloc(ALLOC_SIZE), ALLOC_SIZE);
++		M0_UT_ASSERT(key.b_addr != NULL);
++		sprintf(key.b_addr, "%03d", i);
++
++		m0_be_btree_delete(&tree, &tx, &op, &key);
++		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++							 M0_BOS_FAILURE)));
++	}
++
++	m0_be_tx_close(&tx);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_TIME_NEVER) == 0);
+ }
+ 
+ void test_lookup(void)
+ {
++	struct m0_be_op         op;
++	struct m0_be_tx         tx;
++	struct m0_be_tx_credit  cred;
++	struct m0_buf           key;
++	struct m0_buf		val;
++	struct m0_be_allocator *alloc = &tree.bb_seg->bs_allocator;
++	int			i;
++
++	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
++	m0_be_btree_credit(&tree, M0_BBO_LOOKUP, 1, &cred);
++	m0_be_tx_prep(&tx, &cred);
++	m0_be_tx_open(&tx);
++
++	m0_buf_init(&key, m0_alloc(ALLOC_SIZE), ALLOC_SIZE);
++	M0_UT_ASSERT(key.b_addr != NULL);
++	sprintf(key.b_addr, "%03d", DELETE_NR/2 + 5);
++
++	m0_be_btree_lookup(&tree, &op, &key, &val);
++	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++						 M0_BOS_FAILURE)));
++	M0_UT_ASSERT(val.b_addr != NULL);
++
++	m0_be_tx_close(&tx);
++	M0_UT_ASSERT(m0_be_tx_timedwait(&tx, M0_TIME_NEVER) == 0);
+ }
+ 
+ const struct m0_test_suite be_list_ut = {
+-- 
+1.8.3.2
+

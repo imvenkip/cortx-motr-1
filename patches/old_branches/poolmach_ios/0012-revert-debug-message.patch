@@ -1,0 +1,31 @@
+From 6142f9ea0128f4e4c32fda9b7a741eaffb94e274 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 18 Jun 2013 11:38:18 +0800
+Subject: [PATCH 12/12] revert debug message
+
+---
+ sm/sm.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/sm/sm.c b/sm/sm.c
+index ce19980..df9fbdd 100644
+--- a/sm/sm.c
++++ b/sm/sm.c
+@@ -361,14 +361,6 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
+ 	 */
+ 	do {
+ 		sd = sm_state(mach);
+-		if (!(sd->sd_allowed & M0_BITS(state))) {
+-			M0_LOG(M0_FATAL, "conf name = %s, sd name = %s, "
+-					 "allowed = %lx, cur state = %d, "
+-					 "target state = %d",
+-					 mach->sm_conf->scf_name, sd->sd_name,
+-					 (unsigned long)sd->sd_allowed,
+-					 mach->sm_state, state);
+-		}
+ 		M0_ASSERT(sd->sd_allowed & M0_BITS(state));
+ 		if (sd->sd_ex != NULL)
+ 			sd->sd_ex(mach);
+-- 
+1.8.3.2
+

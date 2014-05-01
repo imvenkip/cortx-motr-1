@@ -1,0 +1,83 @@
+From 65209643100b6036d5004d0711c7cd040c178bf3 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 5 Apr 2013 21:25:56 +0800
+Subject: [PATCH 15/18] rename cm_layout_fetch() to file_size_layout_fetch()
+ and remove file_size().
+
+---
+ sns/cm/iter.c | 35 +++++------------------------------
+ 1 file changed, 5 insertions(+), 30 deletions(-)
+
+diff --git a/sns/cm/iter.c b/sns/cm/iter.c
+index 5e37f03..5a8fb41 100644
+--- a/sns/cm/iter.c
++++ b/sns/cm/iter.c
+@@ -251,26 +251,11 @@ static bool iter_invariant(const struct m0_sns_cm_iter *it)
+ }
+ 
+ /**
+- * Fetches total size of a file corresponding to the given GOB fid
+- * (m0_sns_cm::si_fc::sfc_gob_fid). This is used to calculate
+- * total number of parity groups per GOB.
+- * @note Fetching file attributes may block.
+- * @retval 0 on success, IT_WAIT for blocking operation
+- */
+-static ssize_t file_size(struct m0_sns_cm_iter *it)
+-{
+-	/* File size is already filled in cm_layout_fetch().
+-	 * If file size may change during repair, it needs to be updated.
+-	 */
+-	return 0;
+-}
+-
+-/**
+- * Fetches file layout for it->si_fc.sfc_gob_fid.
++ * Fetches file size and layout for it->si_fc.sfc_gob_fid.
+  * @note This may block.
+  * @retval 0 on success, IT_WAIT for blocking operation
+  */
+-static int cm_layout_fetch(struct m0_sns_cm_iter *it)
++static int file_size_layout_fetch(struct m0_sns_cm_iter *it)
+ {
+ 	struct m0_fid             gfid;
+ 	struct m0_cob_attr        attr = { {0} };
+@@ -283,7 +268,7 @@ static int cm_layout_fetch(struct m0_sns_cm_iter *it)
+ 	gfid = it->si_fc.sfc_gob_fid;
+ 	ldom = &it->si_cp->sc_base.c_fom.fo_service->rs_reqh->rh_ldom;
+ 
+-	M0_LOG(M0_DEBUG, "get size and layout for %llu:%llu",
++	M0_LOG(M0_DEBUG, "fetch file size and layout for %llu:%llu",
+ 			 (unsigned long long)gfid.f_container,
+ 			 (unsigned long long)gfid.f_key);
+ 	rc = m0_ios_mds_getattr(it->si_cp->sc_base.c_fom.fo_service->rs_reqh,
+@@ -595,7 +580,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
+ 			it->si_fc.sfc_pdlayout = NULL;
+ 		}
+ 
+-		rc = cm_layout_fetch(it);
++		rc = file_size_layout_fetch(it);
+ 		if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
+ 			return -ENODATA;
+ 		if (rc < 0)
+@@ -679,17 +664,7 @@ static int iter_group_next_wait(struct m0_sns_cm_iter *it)
+  */
+ static int iter_group_next(struct m0_sns_cm_iter *it)
+ {
+-	int rc;
+-
+-	/* File size may have changed, fetch new file size. */
+-	rc = file_size(it);
+-	if (rc == IT_WAIT) {
+-		iter_phase_set(it, ITPH_GROUP_NEXT_WAIT);
+-		return rc;
+-	}
+-	rc = __group_next(it);
+-
+-	return rc;
++	return __group_next(it);
+ }
+ 
+ static void agid_setup(const struct m0_fid *gob_fid, uint64_t group,
+-- 
+1.8.3.2
+

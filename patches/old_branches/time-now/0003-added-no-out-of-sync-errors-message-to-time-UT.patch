@@ -1,0 +1,26 @@
+From e9e152272e5dd74488efb579187a7188cf6f4395 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 8 Apr 2013 08:39:01 -0700
+Subject: [PATCH 3/6] added 'no out-of-sync errors' message to time UT
+
+---
+ lib/ut/time.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/lib/ut/time.c b/lib/ut/time.c
+index e597c12..95da1a4 100644
+--- a/lib/ut/time.c
++++ b/lib/ut/time.c
+@@ -219,6 +219,9 @@ static void time_test_mt_nr(int threads_nr)
+ 				 "maximum out-of-sync error = %lu ns",
+ 		       threads_nr, TIME_VALUES_NR,
+ 		       err_nr, (unsigned long) err_max);
++	} else {
++		M0_LOG(M0_DEBUG, "time UT: threads = %d, "
++				 "no out-of-sync errors found", threads_nr);
+ 	}
+ }
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,111 @@
+From 235742ffc051a39271804e669cce200c49c1bca5 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 1 Aug 2012 10:50:54 +0300
+Subject: [PATCH 273/311] conf/obj_ops.c (dir_readdir): revise the
+ [pseudo-]logic
+
+dir_readdir(): Take the first directory entry if the provided pointer
+is NULL.
+
+RB: r/939/diff/1-2/?file=25262#file25262line259
+---
+ conf/confc.c   | 12 ++++++++++--
+ conf/confc.h   |  6 +++---
+ conf/obj_ops.c | 17 ++++++++++-------
+ 3 files changed, 23 insertions(+), 12 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index c2d99b5..2169efd 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -525,8 +525,16 @@ int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
+ 		     struct c2_conf_obj **pptr)
+ {
+ 	/*
+-	 * XXX ctx->fc_confc should be locked before ->coo_readdir()
+-	 * is called.
++	 * int rc;
++	 *
++	 * confc_lock(ctx->fc_confc);
++	 * rc = dir->co_ops->coo_readdir(dir, pptr);
++	 * confc_unlock(ctx->fc_confc);
++	 *
++	 * if (rc == C2_CONF_DIRMISS)
++	 *     rc = XXX_initiate_asynchronous_retrieval_of_configuration();
++	 *
++	 * return rc;
+ 	 */
+ 	XXX;
+ }
+diff --git a/conf/confc.h b/conf/confc.h
+index 2842678..295dc5a 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -402,6 +402,7 @@ struct c2_mutex;
+  *         while ((rc = c2_confc_readdir(&w.w_ctx, dir, &entry)) > 0) {
+  *                 if (rc == C2_CONF_DIRNEXT) {
+  *                         // The entry is available immediately.
++ *                         C2_ASSERT(entry != NULL);
+  *                         use(entry);
+  *                         continue; // Note, that `entry' will be
+  *                                   // closed by c2_confc_readdir().
+@@ -419,9 +420,8 @@ struct c2_mutex;
+  *                 entry = c2_confc_ctx_result(&w.w_ctx);
+  *                 if (entry == NULL)
+  *                         break; // end of directory
+- *                 else
+- *                         use(entry);
+  *
++ *                 use(entry);
+  *                 if (stop_at != NULL && stop_at(entry))
+  *                         break;
+  *
+@@ -676,7 +676,7 @@ int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+  *                         C2_CONF_BUF_INITS("filesystem"));
+  * @endcode
+  *
+- * @see c2_confc_open()
++ * @see c2_confc_open() for a description of the parameters.
+  */
+ #define c2_confc_open_sync(result, origin, ...)             \
+ 	c2__confc_open_sync((result), (origin),             \
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 432c7d6..2b8436a 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -145,22 +145,25 @@ static int dir_lookup(struct c2_conf_obj *parent,
+ static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+ {
+ 	/*
+-	 * int ret;
++	 * struct c2_conf_obj *next;
++	 * int                 ret;
+ 	 * C2_PRE(c2_conf__readdir_pre(dir, *pptr));
+ 	 *
+-	 * if (*pptr != NULL) {
++	 * if (*pptr == NULL) {
++	 *     next = c2_tlist_head();
++	 * } else {
++	 *     next = c2_tlist_next(..., *pptr);
+ 	 *     c2_conf__obj_put(*pptr);
+ 	 *     *pptr = NULL;
+ 	 * }
+ 	 *
+-	 * *pptr = c2_tlist_next();
+-	 *
+-	 * if (*pptr == NULL) {
++	 * if (next == NULL) {
+ 	 *     ret = C2_CONF_DIREND;
+-	 * } else if ((*pptr)->co_status != C2_CS_READY) {
++	 * } else if (next->co_status != C2_CS_READY) {
+ 	 *     ret = C2_CONF_DIRMISS;
+ 	 * } else {
+-	 *     c2_conf__obj_get(*pptr);
++	 *     c2_conf__obj_get(next);
++	 *     *pptr = next;
+ 	 *     ret = C2_CONF_DIRNEXT;
+ 	 * }
+ 	 *
+-- 
+1.8.3.2
+

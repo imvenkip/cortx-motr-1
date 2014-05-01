@@ -1,0 +1,871 @@
+From c7d15c263756d0db387781a297ed8053d700f67c Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 12 Aug 2012 22:31:21 +0300
+Subject: [PATCH 310/370] conf: move "internal" declarations from obj.h to
+ obj_ops.h
+
+Move the definition of struct c2_conf_obj_ops and functions
+c2_conf_obj_{invariant,get,put}(), c2_conf_readdir_{pre,post}()
+to conf/obj_ops.[hc] files.  These definitions are only used by confc
+and confd implementations; they should be hidden from the application.
+---
+ conf/confc.c   |   7 +-
+ conf/confc.h   |  17 +++--
+ conf/obj.c     |  68 -----------------
+ conf/obj.h     | 238 +++++++++------------------------------------------------
+ conf/obj_ops.c |  79 +++++++++++++++++--
+ conf/obj_ops.h | 142 +++++++++++++++++++++++++++++++++-
+ conf/preload.h |   4 +-
+ 7 files changed, 264 insertions(+), 291 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index ca7bd00..766e862 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -22,6 +22,7 @@
+ #  include "config.h"
+ #endif
+ #include "conf/confc.h"
++#include "conf/obj_ops.h"
+ #include "conf/preload.h"  /* c2_conf_parse */
+ #include "lib/cdefs.h"     /* C2_HAS_TYPE */
+ #include "lib/arith.h"     /* C2_CNT_INC, C2_CNT_DEC */
+@@ -407,7 +408,7 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+ 	confc_lock(confc);
+ 
+ 	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
+-		c2_conf__obj_put(ctx->fc_result);
++		c2_conf_obj_put(ctx->fc_result);
+ 	C2_CNT_DEC(confc->cc_nr_ctx); /* detach from c2_confc */
+ 
+ 	confc_unlock(confc);
+@@ -506,7 +507,7 @@ void c2_confc_close(struct c2_conf_obj *obj)
+ {
+ 	if (obj != NULL) {
+ 		confc_lock(obj->co_confc);
+-		c2_conf__obj_put(obj);
++		c2_conf_obj_put(obj);
+ 		confc_unlock(obj->co_confc);
+ 	}
+ }
+@@ -834,7 +835,7 @@ path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj, size_t ri)
+ 	switch (obj->co_status) {
+ 	case C2_CS_READY:
+ 		C2_ASSERT(XXX_is_eop(&ctx->fc_path[ri]));
+-		c2_conf__obj_get(obj);
++		c2_conf_obj_get(obj);
+ 		ctx->fc_result = obj;
+ 		return C2_CS_READY;
+ 
+diff --git a/conf/confc.h b/conf/confc.h
+index 6e23cbf..f785aa1 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -25,13 +25,13 @@
+ #else
+ #  include "conf/onwire_u.h" /* c2_conf_buf, c2_conf_fetch */
+ #endif
+-#include "conf/obj.h"
+ #include "conf/reg.h"        /* c2_conf_reg */
+ #include "conf/buf.h"        /* C2_CONF_BUF_INIT0 */
+ #include "sm/sm.h"           /* c2_sm, c2_sm_ast */
++#include "lib/mutex.h"       /* c2_mutex */
+ #include "fop/fop.h"         /* c2_fop */
+ 
+-struct c2_mutex;
++struct c2_conf_obj;
+ 
+ /**
+  * @page confc-fspec Configuration Client (confc)
+@@ -107,6 +107,7 @@ struct c2_mutex;
+  *
+  * @code
+  * #include "conf/confc.h"
++ * #include "conf/obj.h"
+  *
+  * struct c2_sm_group *group = ...;
+  * struct c2_confc     confc;
+@@ -168,6 +169,7 @@ struct c2_mutex;
+  *
+  * @code
+  * #include "conf/confc.h"
++ * #include "conf/obj.h"
+  *
+  * struct c2_confc *g_confc = ...;
+  *
+@@ -239,6 +241,7 @@ struct c2_mutex;
+  *
+  * @code
+  * #include "conf/confc.h"
++ * #include "conf/obj.h"
+  *
+  * struct c2_confc *g_confc = ...;
+  *
+@@ -275,6 +278,7 @@ struct c2_mutex;
+  *
+  * @code
+  * #include "conf/confc.h"
++ * #include "conf/obj.h"
+  *
+  * struct c2_confc *g_confc = ...;
+  *
+@@ -375,6 +379,7 @@ struct c2_mutex;
+  *
+  * @code
+  * #include "conf/confc.h"
++ * #include "conf/obj.h"
+  * #include "lib/arith.h" // C2_CNT_INC
+  *
+  * struct c2_confc *g_confc = ...;
+@@ -733,9 +738,9 @@ void c2_confc_close(struct c2_conf_obj *obj);
+  * @see confc-fspec-recipe4
+  *
+  * @pre   ctx->fc_mach.sm_state == S_INITIAL
+- * @pre   c2_conf__readdir_pre(dir, *pptr)
++ * @pre   c2_conf_readdir_pre(dir, *pptr)
+  *
+- * @post  c2_conf__readdir_post(retval, dir, *pptr)
++ * @post  c2_conf_readdir_post(retval, dir, *pptr)
+  * @post  ergo(C2_IN(retval, (C2_CONF_DIRNEXT, C2_CONF_DIREND)),
+  *             ctx->fc_mach.sm_state == S_INITIAL)
+  */
+@@ -769,8 +774,8 @@ int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
+  * c2_confc_close(entry);
+  * @endcode
+  *
+- * @pre   c2_conf__readdir_pre(dir, *pptr)
+- * @post  c2_conf__readdir_post(retval, dir, *pptr)
++ * @pre   c2_conf_readdir_pre(dir, *pptr)
++ * @post  c2_conf_readdir_post(retval, dir, *pptr)
+  */
+ int c2_confc_readdir_sync(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+ 
+diff --git a/conf/obj.c b/conf/obj.c
+index 084b0e3..d987932 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -22,10 +22,6 @@
+ #  include "config.h"
+ #endif
+ #include "conf/obj.h"
+-#include "conf/confc.h" /* c2_confc */
+-#include "lib/arith.h"  /* C2_CNT_INC, C2_CNT_DEC */
+-#include "lib/cdefs.h"  /* ergo */
+-#include "lib/misc.h"   /* C2_IN */
+ 
+ /**
+  * @page conf DLD of configuration caching
+@@ -440,68 +436,4 @@ struct c2_bob_type c2_conf_nic_bob = XXX;
+ struct c2_bob_type c2_conf_sdev_bob = XXX;
+ struct c2_bob_type c2_conf_partition_bob = XXX;
+ 
+-static bool confc_is_locked(const struct c2_confc *confc);
+-static bool belongs(const struct c2_conf_obj *entry,
+-		    const struct c2_conf_obj *dir);
+-
+-bool c2_conf__obj_invariant(const struct c2_conf_obj *obj)
+-{
+-	return XXX_generic_invariant(obj) &&
+-		(obj->co_ops->coo_invariant == NULL ? true :
+-		 obj->co_ops->coo_invariant(obj));
+-}
+-
+-void c2_conf__obj_get(struct c2_conf_obj *obj)
+-{
+-	C2_PRE(c2_conf__obj_invariant(obj));
+-	C2_PRE(obj->co_status == C2_CS_READY);
+-	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
+-
+-	C2_CNT_INC(obj->co_nrefs);
+-}
+-
+-void c2_conf__obj_put(struct c2_conf_obj *obj)
+-{
+-	C2_PRE(c2_conf__obj_invariant(obj));
+-	C2_PRE(obj->co_status == C2_CS_READY);
+-	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
+-
+-	C2_CNT_DEC(obj->co_nrefs);
+-	if (obj->co_nrefs == 0)
+-		c2_chan_broadcast(&obj->co_chan);
+-}
+-
+-bool c2_conf__readdir_pre(const struct c2_conf_obj *dir,
+-			  const struct c2_conf_obj *entry)
+-{
+-	return c2_conf__obj_invariant(dir) && c2_conf__obj_invariant(entry) &&
+-		dir->co_type == C2_CO_DIR && dir->co_nrefs > 0 &&
+-		ergo(entry != NULL, belongs(entry, dir) && entry->co_nrefs > 0);
+-}
+-
+-bool c2_conf__readdir_post(int retval, const struct c2_conf_obj *dir,
+-			   const struct c2_conf_obj *entry)
+-{
+-	return c2_conf__obj_invariant(dir) && c2_conf__obj_invariant(entry) &&
+-		C2_IN(retval,
+-		     (C2_CONF_DIREND, C2_CONF_DIRNEXT, C2_CONF_DIRMISS)) &&
+-		(retval == C2_CONF_DIRNEXT ?
+-		 (entry != NULL && belongs(entry, dir) && entry->co_nrefs > 0) :
+-		 entry == NULL);
+-}
+-
+-static bool
+-belongs(const struct c2_conf_obj *entry, const struct c2_conf_obj *dir)
+-{
+-	const struct c2_conf_dir *d = bob_of(dir, const struct c2_conf_dir,
+-					     c2_conf_dir_cast_field,
+-					     &c2_conf_dir_bob);
+-	return d->cd_items_t == entry->co_type && entry->co_parent == dir;
+-}
+-
+-static bool confc_is_locked(const struct c2_confc *confc)
+-{
+-	return c2_mutex_is_locked(&confc->cc_lock);
+-}
+-
+ /** @} conf_dlspec_obj */
+diff --git a/conf/obj.h b/conf/obj.h
+index 7409464..1136eda 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -32,8 +32,11 @@
+ #include "lib/chan.h"  /* c2_chan */
+ #include "fid/fid.h"   /* c2_fid */
+ #include "lib/tlist.h" /* c2_tl, c2_tlink */
+-#include "lib/types.h"
+ #include "lib/bob.h"   /* c2_bob_type */
++#include "lib/types.h"
++
++struct c2_conf_obj_ops;
++struct c2_confc;
+ 
+ /**
+  * @page conf-fspec-obj Configuration Objects
+@@ -41,7 +44,6 @@
+  * - @ref conf-fspec-obj-data
+  * - @ref conf-fspec-obj-enum
+  *   - @ref conf-fspec-obj-enum-status
+- * - @ref conf-fspec-obj-sub
+  * - @ref conf-fspec-obj-pinned
+  * - @ref conf-fspec-obj-private
+  *
+@@ -65,8 +67,6 @@
+  * Such common attributes are put together into c2_conf_obj structure,
+  * which is embedded into concrete configuration objects.
+  *
+- * c2_conf_obj_ops is configuration object operations vector.
+- *
+  * <hr> <!------------------------------------------------------------>
+  * @section conf-fspec-obj-enum Enumerations
+  *
+@@ -102,21 +102,6 @@
+  * @enddot
+  *
+  * <hr> <!------------------------------------------------------------>
+- * @section conf-fspec-obj-sub Subroutines
+- *
+- * c2_conf__obj_invariant() checks validity of a configuration object.
+- *
+- * c2_conf__obj_get() and c2_conf__obj_put() are used by confc and
+- * confd implementations to manipulate reference counter of a
+- * configuration object.
+- *
+- * c2_conf__readdir_pre() and c2_conf__readdir_post() are pre- and
+- * postconditions for c2_conf_obj_ops::coo_readdir().
+- *
+- * The c2_conf__*() functions mentioned above are not supposed to be
+- * used by the application (aka configuration consumer).
+- *
+- * <hr> <!------------------------------------------------------------>
+  * @section conf-fspec-obj-pinned Pinned Objects
+  *
+  * If object's reference counter -- c2_conf_obj::co_nrefs -- is
+@@ -145,16 +130,6 @@
+  * @{
+  */
+ 
+-/**
+- * Status of configuration object.
+- * Configuration object is a stub unless its status is C2_CS_READY.
+- */
+-enum c2_conf_status {
+-	C2_CS_MISSING, /*< Configuration is absent; no retrieval in progress. */
+-	C2_CS_LOADING, /*< Retrieval of configuration is in progress. */
+-	C2_CS_READY    /*< Configuration is available. */
+-};
+-
+ /** Type of configuration object. */
+ enum c2_conf_objtype {
+ 	C2_CO_DIR,        /* 0 */
+@@ -168,8 +143,15 @@ enum c2_conf_objtype {
+ 	C2_CO_NR
+ };
+ 
+-struct c2_conf_obj_ops;
+-struct c2_confc; /* defined in "conf/confc.h" */
++/**
++ * Status of configuration object.
++ * Configuration object is a stub unless its status is C2_CS_READY.
++ */
++enum c2_conf_status {
++	C2_CS_MISSING, /*< Configuration is absent; no retrieval in progress. */
++	C2_CS_LOADING, /*< Retrieval of configuration is in progress. */
++	C2_CS_READY    /*< Configuration is available. */
++};
+ 
+ /**
+  * Generic configuration object.
+@@ -199,7 +181,7 @@ struct c2_conf_obj {
+ 	 * Reference counter.
+ 	 * The object is "pinned" if this value is non-zero.
+ 	 *
+-	 * @see c2_conf__obj_get(), c2_conf__obj_put()
++	 * @see c2_conf_obj_get(), c2_conf_obj_put()
+ 	 */
+ 	uint64_t                      co_nrefs;
+ 	/**
+@@ -236,43 +218,6 @@ struct c2_conf_obj {
+ 	 */
+ 	uint64_t                      co_con_magic;
+ };
+-
+-/**
+- * Checks validity of given configuration object.
+- *
+- * @note  c2_conf__obj_invariant() is used by confc and confd
+- *        implementations and is not supposed to be used by the
+- *        application (aka configuration consumer).
+- *
+- * @see  c2_conf_obj_ops::coo_invariant()
+- */
+-bool c2_conf__obj_invariant(const struct c2_conf_obj *obj);
+-
+-/**
+- * Increments reference counter of given configuration object.
+- *
+- * @pre   obj->co_status == C2_CS_READY
+- * @post  obj->co_nrefs > 0
+- *
+- * @note  c2_conf__obj_get() is used by confc and confd
+- *        implementations and is not supposed to be used by the
+- *        application (aka configuration consumer).
+- */
+-void c2_conf__obj_get(struct c2_conf_obj *obj);
+-
+-/**
+- * Decrements reference counter of given configuration object.
+- *
+- * Broadcasts obj->co_chan if the object becomes unpinned (i.e., if
+- * the decremented counter reaches 0).
+- *
+- * @pre  obj->co_nrefs > 0 && obj->co_status == C2_CS_READY
+- *
+- * @note  c2_conf__obj_put() is used by confc and confd
+- *        implementations and is not supposed to be used by the
+- *        application (aka configuration consumer).
+- */
+-void c2_conf__obj_put(struct c2_conf_obj *obj);
+ 
+ /* ------------------------------------------------------------------
+  * Concrete configuration objects
+@@ -402,33 +347,11 @@ struct c2_conf_partition {
+  * Cast
+  * ------------------------------------------------------------------ */
+ 
+-#define _DECLARE(type) \
+-struct type;           \
+-extern struct c2_bob_type type ## _bob
+-_DECLARE(c2_conf_dir);
+-_DECLARE(c2_conf_profile);
+-_DECLARE(c2_conf_filesystem);
+-_DECLARE(c2_conf_service);
+-_DECLARE(c2_conf_node);
+-_DECLARE(c2_conf_nic);
+-_DECLARE(c2_conf_sdev);
+-_DECLARE(c2_conf_partition);
+-#undef _DECLARE
+-
+-#define c2_conf_dir_cast_field        cd_obj
+-#define c2_conf_profile_cast_field    cp_obj
+-#define c2_conf_filesystem_cast_field cf_obj
+-#define c2_conf_service_cast_field    cs_obj
+-#define c2_conf_node_cast_field       cn_obj
+-#define c2_conf_nic_cast_field        ni_obj
+-#define c2_conf_sdev_cast_field       sd_obj
+-#define c2_conf_partition_cast_field  pa_obj
+-
+ /**
+  * Casts c2_conf_obj to the ambient concrete configuration object.
+  *
+- * @param ptr    Pointer to c2_conf_obj member.
+- * @param type   Type of concrete configuration object (without `struct').
++ * @param ptr   Pointer to c2_conf_obj member.
++ * @param type  Type of concrete configuration object (without `struct').
+  *
+  * Example:
+  * @code
+@@ -437,119 +360,26 @@ _DECLARE(c2_conf_partition);
+  */
+ #define C2_CONF_CAST(ptr, type) \
+ 	bob_of(ptr, struct type, type ## _cast_field, &type ## _bob)
+-
+-/* ------------------------------------------------------------------
+- * Object operations vector
+- * ------------------------------------------------------------------ */
+-
+-/** Symbolic names for c2_conf_obj_ops::coo_readdir() return values. */
+-enum c2_conf_dirval {
+-	/** End of directory is reached. */
+-	C2_CONF_DIREND = 0,
+-	/** The next directory entry is available immediately. */
+-	C2_CONF_DIRNEXT,
+-	/**
+-	 * The next directory entry is missing from configuration
+-	 * cache or is a stub.
+-	 */
+-	C2_CONF_DIRMISS
+-};
+-
+-/** Configuration object operations. */
+-struct c2_conf_obj_ops {
+-	/**
+-	 * Finds a child of given object.
+-	 *
+-	 * @param parent  The object being searched.
+-	 * @param name    Name of the relation leading to a child object.
+-	 *                Identifier of the child object, if parent is
+-	 *                a directory.
+-	 * @param out     If the function succeeds, *out will point to the
+-	 *                sought-for object.
+-	 *
+-	 * @pre  parent->co_status == C2_CS_READY
+-	 */
+-	int (*coo_lookup)(struct c2_conf_obj *parent,
+-			  const struct c2_conf_buf *name,
+-			  struct c2_conf_obj **out);
+-	/**
+-	 * Gets next directory entry.
+-	 *
+-	 * @param      dir   Directory.
+-	 * @param[in]  pptr  "Current" entry.
+-	 * @param[out] pptr  "Next" entry.
+-	 *
+-	 * @retval C2_CONF_DIRMISS  The next directory entry is missing from
+-	 *                          configuration cache or is a stub.
+-	 * @retval C2_CONF_DIRNEXT  *pptr now points to the next entry.
+-	 * @retval C2_CONF_DIREND   End of directory is reached.
+-	 * @retval -Exxx            Error.
+-	 *
+-	 * ->coo_readdir() puts (c2_conf__obj_put()) configuration
+-	 * object referred to via `pptr' input parameter.
+-	 *
+-	 * ->coo_readdir() pins (c2_conf__obj_get()) the resulting
+-	 * object in case of C2_CONF_DIRNEXT.
+-	 *
+-	 * @pre   c2_conf__readdir_pre(dir, *pptr)
+-	 * @post  c2_conf__readdir_post(retval, dir, *pptr)
+-	 */
+-	int (*coo_readdir)(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+-	/**
+-	 * Checks validity of given concrete object.
+-	 *
+-	 * ->coo_invariant() should only validate concrete fields of
+-	 * an object. Generic ones (i.e., the fields of c2_conf_obj)
+-	 * are validated by c2_conf__obj_invariant().
+-	 *
+-	 * ->coo_invariant() can be NULL; in this case only generic
+-	 * fields will be validated by c2_conf__obj_invariant().
+-	 *
+-	 * @see c2_conf__obj_invariant()
+-	 */
+-	bool (*coo_invariant)(const struct c2_conf_obj *obj);
+-	/**
+-	 * Destructor of configuration object.
+-	 *
+-	 * The intended usage of ->coo_fini() is to free the allocated
+-	 * concrete object (i.e., the ambient object that `obj' is
+-	 * embedded in).
+-	 */
+-	void (*coo_fini)(struct c2_conf_obj *obj);
+-};
+ 
+-/**
+- * Precondition for c2_conf_obj_ops::coo_readdir().
+- *
+- * @param dir     The 1st argument of ->coo_readdir().
+- * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
+- *                before the function is called (*pptr).
+- *
+- * @note  c2_conf__readdir_pre() is used by confc and confd
+- *        implementations and is not supposed to be used by the
+- *        application (aka configuration consumer).
+- *
+- * @see c2_conf_obj_ops::coo_readdir()
+- */
+-bool c2_conf__readdir_pre(const struct c2_conf_obj *dir,
+-			  const struct c2_conf_obj *entry);
++#define c2_conf_dir_cast_field        cd_obj
++#define c2_conf_profile_cast_field    cp_obj
++#define c2_conf_filesystem_cast_field cf_obj
++#define c2_conf_service_cast_field    cs_obj
++#define c2_conf_node_cast_field       cn_obj
++#define c2_conf_nic_cast_field        ni_obj
++#define c2_conf_sdev_cast_field       sd_obj
++#define c2_conf_partition_cast_field  pa_obj
+ 
+-/**
+- * Postcondition for c2_conf_obj_ops::coo_readdir().
+- *
+- * @param retval  The value returned by ->coo_readdir().
+- * @param dir     The 1st argument of ->coo_readdir().
+- * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
+- *                after the function is called (*pptr).
+- *
+- * @note  c2_conf__readdir_pre() is used by confc and confd
+- *        implementations and is not supposed to be used by the
+- *        application (aka configuration consumer).
+- *
+- * @see c2_conf_obj_ops::coo_readdir()
+- */
+-bool c2_conf__readdir_post(int retval, const struct c2_conf_obj *dir,
+-			   const struct c2_conf_obj *entry);
++#define _DECLARE(type) extern struct c2_bob_type type ## _bob
++_DECLARE(c2_conf_dir);
++_DECLARE(c2_conf_profile);
++_DECLARE(c2_conf_filesystem);
++_DECLARE(c2_conf_service);
++_DECLARE(c2_conf_node);
++_DECLARE(c2_conf_nic);
++_DECLARE(c2_conf_sdev);
++_DECLARE(c2_conf_partition);
++#undef _DECLARE
+ 
+ /** @} conf_dfspec_obj */
+ #endif /* __COLIBRI_CONF_OBJ_H__ */
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index a0bce43..eacd9ca 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -22,8 +22,11 @@
+ #  include "config.h"
+ #endif
+ #include "conf/obj_ops.h"
+-#include "lib/assert.h" /* C2_IMPOSSIBLE */
+-#include "lib/cdefs.h"  /* IS_IN_ARRAY */
++#include "conf/confc.h"   /* c2_confc */
++#include "lib/cdefs.h"    /* ergo */
++#include "lib/arith.h"    /* C2_CNT_INC, C2_CNT_DEC */
++#include "lib/misc.h"     /* C2_IN */
++#include "lib/cdefs.h"    /* IS_IN_ARRAY */
+ 
+ /**
+  * @defgroup conf_dlspec_objops Configuration Object Operations
+@@ -33,6 +36,34 @@
+  * @{
+  */
+ 
++static bool confc_is_locked(const struct c2_confc *confc);
++
++bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
++{
++	return XXX_bob_check(obj) && (obj->co_ops->coo_invariant == NULL ?
++				      true : obj->co_ops->coo_invariant(obj));
++}
++
++void c2_conf_obj_get(struct c2_conf_obj *obj)
++{
++	C2_PRE(c2_conf_obj_invariant(obj));
++	C2_PRE(obj->co_status == C2_CS_READY);
++	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
++
++	C2_CNT_INC(obj->co_nrefs);
++}
++
++void c2_conf_obj_put(struct c2_conf_obj *obj)
++{
++	C2_PRE(c2_conf_obj_invariant(obj));
++	C2_PRE(obj->co_status == C2_CS_READY);
++	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
++
++	C2_CNT_DEC(obj->co_nrefs);
++	if (obj->co_nrefs == 0)
++		c2_chan_broadcast(&obj->co_chan);
++}
++
+ static const struct {
+ 	/**
+ 	 * Tests equality of the cached configuration object and its
+@@ -116,6 +147,28 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 	 */
+ 	XXX;
+ }
++
++static bool
++belongs(const struct c2_conf_obj *entry, const struct c2_conf_obj *dir);
++
++bool c2_conf_readdir_pre(const struct c2_conf_obj *dir,
++			 const struct c2_conf_obj *entry)
++{
++	return c2_conf_obj_invariant(dir) && c2_conf_obj_invariant(entry) &&
++		dir->co_type == C2_CO_DIR && dir->co_nrefs > 0 &&
++		ergo(entry != NULL, belongs(entry, dir) && entry->co_nrefs > 0);
++}
++
++bool c2_conf_readdir_post(int retval, const struct c2_conf_obj *dir,
++			  const struct c2_conf_obj *entry)
++{
++	return c2_conf_obj_invariant(dir) && c2_conf_obj_invariant(entry) &&
++		C2_IN(retval,
++		     (C2_CONF_DIREND, C2_CONF_DIRNEXT, C2_CONF_DIRMISS)) &&
++		(retval == C2_CONF_DIRNEXT ?
++		 (entry != NULL && belongs(entry, dir) && entry->co_nrefs > 0) :
++		 entry == NULL);
++}
+ 
+ /* ------------------------------------------------------------------
+  * Implementations of ->coo_{lookup,readdir,invariant}() for concrete
+@@ -150,13 +203,13 @@ static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+ 	 * int                 ret;
+ 	 * struct c2_conf_obj *prev = *pptr;
+ 	 *
+-	 * C2_PRE(c2_conf__readdir_pre(dir, prev));
++	 * C2_PRE(c2_conf_readdir_pre(dir, prev));
+ 	 *
+ 	 * if (prev == NULL) {
+ 	 *     next = c2_tlist_head();
+ 	 * } else {
+ 	 *     next = c2_tlist_next(..., prev);
+-	 *     c2_conf__obj_put(prev);
++	 *     c2_conf_obj_put(prev);
+ 	 *     *pptr = NULL;
+ 	 * }
+ 	 *
+@@ -165,12 +218,12 @@ static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+ 	 * } else if (next->co_status != C2_CS_READY) {
+ 	 *     ret = C2_CONF_DIRMISS;
+ 	 * } else {
+-	 *     c2_conf__obj_get(next);
++	 *     c2_conf_obj_get(next);
+ 	 *     *pptr = next;
+ 	 *     ret = C2_CONF_DIRNEXT;
+ 	 * }
+ 	 *
+-	 * C2_POST(c2_conf__readdir_post(ret, dir, *pptr));
++	 * C2_POST(c2_conf_readdir_post(ret, dir, *pptr));
+ 	 * return ret;
+ 	 */
+ 	XXX;
+@@ -226,4 +279,18 @@ profile_lookup(struct c2_conf_obj *parent, const struct c2_conf_buf *name,
+  * {profile..partition}_invariant()
+  */
+ 
++static bool confc_is_locked(const struct c2_confc *confc)
++{
++	return c2_mutex_is_locked(&confc->cc_lock);
++}
++
++static bool
++belongs(const struct c2_conf_obj *entry, const struct c2_conf_obj *dir)
++{
++	const struct c2_conf_dir *d = bob_of(dir, const struct c2_conf_dir,
++					     c2_conf_dir_cast_field,
++					     &c2_conf_dir_bob);
++	return d->cd_items_t == entry->co_type && entry->co_parent == dir;
++}
++
+ /** @} conf_dlspec_objops */
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index 6e0aeee..2a7ad92 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -20,12 +20,32 @@
+ #ifndef __COLIBRI_CONF_OBJOPS_H__
+ #define __COLIBRI_CONF_OBJOPS_H__
+ 
+-#include "conf/obj.h" /* c2_conf_objtype */
++#include "conf/obj.h"
+ 
+ /**
+  * @page conf-fspec-objops Configuration Object Operations
+  *
+- * XXX @todo Describe when these functions are used.
++ * "conf/obj_ops.h" is not supposed to be included by the application
++ * (configuration consumer). Data structures and functions defined in
++ * this file are used by confc and confd implementations.
++ *
++ * @section conf-fspec-objops-data Data Structures
++ *
++ * - c2_conf_obj_ops --- configuration object operations vector.
++ *
++ * @section conf-fspec-objops-sub Subroutines
++ *
++ * - c2_conf_obj_new() allocates and initialises new configuration object.
++ * - c2_conf_obj_match() compares cached configuration object with its
++ *   on-wire representation.
++ * - c2_conf_obj_fill() enriches a stub with configuration data.
++ *
++ * - c2_conf_obj_invariant() checks validity of a configuration object.
++ * - c2_conf_obj_get() increases and c2_conf_obj_put() decreases
++ *   object's number of references.
++ *
++ * - c2_conf_readdir_pre(), c2_conf_readdir_post() --- pre- and
++ *   postcondition for c2_conf_obj_ops::coo_readdir().
+  *
+  * @see @ref conf_dfspec_objops "Detailed Functional Specification"
+  */
+@@ -42,6 +62,86 @@
+ /** Magic value of a generic configuration object (c2_conf_obj). */
+ enum { C2_CONF_OBJ_MAGIC = 0x335e1f1e55ce1177 /* selfless cell */ };
+ 
++/** Configuration object operations. */
++struct c2_conf_obj_ops {
++	/**
++	 * Finds a child of given object.
++	 *
++	 * @param parent  The object being searched.
++	 * @param name    Name of the relation leading to a child object.
++	 *                Identifier of the child object, if parent is
++	 *                a directory.
++	 * @param out     If the function succeeds, *out will point to the
++	 *                sought-for object.
++	 *
++	 * @pre  parent->co_status == C2_CS_READY
++	 */
++	int (*coo_lookup)(struct c2_conf_obj *parent,
++			  const struct c2_conf_buf *name,
++			  struct c2_conf_obj **out);
++	/**
++	 * Gets next directory entry.
++	 *
++	 * @param      dir   Directory.
++	 * @param[in]  pptr  "Current" entry.
++	 * @param[out] pptr  "Next" entry.
++	 *
++	 * @retval C2_CONF_DIRMISS  The next directory entry is missing from
++	 *                          configuration cache or is a stub.
++	 * @retval C2_CONF_DIRNEXT  *pptr now points to the next entry.
++	 * @retval C2_CONF_DIREND   End of directory is reached.
++	 * @retval -Exxx            Error.
++	 *
++	 * ->coo_readdir() puts (c2_conf_obj_put()) configuration object
++	 * referred to via `pptr' input parameter.
++	 *
++	 * ->coo_readdir() pins (c2_conf_obj_get()) the resulting
++	 * object in case of C2_CONF_DIRNEXT.
++	 *
++	 * @pre   c2_conf_readdir_pre(dir, *pptr)
++	 * @post  c2_conf_readdir_post(retval, dir, *pptr)
++	 */
++	int (*coo_readdir)(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
++	/**
++	 * Checks validity of given concrete object.
++	 *
++	 * ->coo_invariant() should only validate concrete fields of
++	 * an object. Generic ones (i.e., the fields of c2_conf_obj)
++	 * are validated by c2_conf_obj_invariant().
++	 *
++	 * ->coo_invariant() can be NULL; in this case only generic
++	 * fields will be validated by c2_conf_obj_invariant().
++	 *
++	 * @see c2_conf_obj_invariant()
++	 */
++	bool (*coo_invariant)(const struct c2_conf_obj *obj);
++};
++
++/**
++ * Checks validity of given configuration object.
++ *
++ * @see  c2_conf_obj_ops::coo_invariant()
++ */
++bool c2_conf_obj_invariant(const struct c2_conf_obj *obj);
++
++/**
++ * Increments reference counter of given configuration object.
++ *
++ * @pre   obj->co_status == C2_CS_READY
++ * @post  obj->co_nrefs > 0
++ */
++void c2_conf_obj_get(struct c2_conf_obj *obj);
++
++/**
++ * Decrements reference counter of given configuration object.
++ *
++ * Broadcasts obj->co_chan if the object becomes unpinned (i.e., if
++ * the decremented counter reaches 0).
++ *
++ * @pre  obj->co_nrefs > 0 && obj->co_status == C2_CS_READY
++ */
++void c2_conf_obj_put(struct c2_conf_obj *obj);
++
+ /** Allocates and initialises configuration object of given type. */
+ struct c2_conf_obj *c2_conf_obj_new(enum c2_conf_objtype type,
+ 				    const struct c2_conf_buf *id);
+@@ -72,5 +172,43 @@ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		     struct c2_conf_reg *reg);
+ 
++/** Symbolic names for c2_conf_obj_ops::coo_readdir() return values. */
++enum c2_conf_dirval {
++	/** End of directory is reached. */
++	C2_CONF_DIREND = 0,
++	/** The next directory entry is available immediately. */
++	C2_CONF_DIRNEXT,
++	/**
++	 * The next directory entry is missing from configuration
++	 * cache or is a stub.
++	 */
++	C2_CONF_DIRMISS
++};
++
++/**
++ * Precondition for c2_conf_obj_ops::coo_readdir().
++ *
++ * @param dir     The 1st argument of ->coo_readdir().
++ * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
++ *                before the function is called (*pptr).
++ *
++ * @see c2_conf_obj_ops::coo_readdir()
++ */
++bool c2_conf_readdir_pre(const struct c2_conf_obj *dir,
++			 const struct c2_conf_obj *entry);
++
++/**
++ * Postcondition for c2_conf_obj_ops::coo_readdir().
++ *
++ * @param retval  The value returned by ->coo_readdir().
++ * @param dir     The 1st argument of ->coo_readdir().
++ * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
++ *                after the function is called (*pptr).
++ *
++ * @see c2_conf_obj_ops::coo_readdir()
++ */
++bool c2_conf_readdir_post(int retval, const struct c2_conf_obj *dir,
++			  const struct c2_conf_obj *entry);
++
+ /** @} conf_dfspec_objops */
+ #endif /* __COLIBRI_CONF_OBJOPS_H__ */
+diff --git a/conf/preload.h b/conf/preload.h
+index d4898ae..fe4f04c 100644
+--- a/conf/preload.h
++++ b/conf/preload.h
+@@ -20,6 +20,8 @@
+ #ifndef __COLIBRI_CONF_PRELOAD_H__
+ #define __COLIBRI_CONF_PRELOAD_H__
+ 
++struct confx_object;
++
+ /**
+  * @page conf-fspec-preload Pre-Loading of Configuration Cache
+  *
+@@ -127,8 +129,6 @@
+  * @{
+  */
+ 
+-struct confx_object;
+-
+ /**
+  * Fills the array of confx_objects with configuration data, obtained
+  * from string.
+-- 
+1.8.3.2
+

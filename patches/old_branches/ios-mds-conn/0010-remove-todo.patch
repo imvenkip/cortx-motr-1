@@ -1,0 +1,25 @@
+From 54095708e12e5625a3facc9d318f2587f752e1be Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 11 Apr 2013 16:13:59 +0800
+Subject: [PATCH 10/10] remove todo
+
+---
+ ioservice/io_service.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 942773e..a3d0e0d 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -693,8 +693,6 @@ M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
+ 
+ /**
+  * Terminates and clears the ioservice to mdservice connection.
+- *
+- * @todo This is also a blocker operation. How to do with this?
+  */
+ M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh)
+ {
+-- 
+1.8.3.2
+

@@ -1,0 +1,39 @@
+From e99340d6128acb99ce56d74494332b4e977e0d4c Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sat, 11 May 2013 21:49:05 +0800
+Subject: [PATCH 14/14] fix ut after rebase
+
+---
+ sns/cm/ut/cm.c  | 2 ++
+ sns/cm/ut/net.c | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/sns/cm/ut/cm.c b/sns/cm/ut/cm.c
+index a3017a5..d907ac6 100644
+--- a/sns/cm/ut/cm.c
++++ b/sns/cm/ut/cm.c
+@@ -290,6 +290,8 @@ static void iter_stop(uint64_t nr_files, uint64_t pool_width)
+ 	m0_cm_stop(cm);
+ 	cobs_delete(nr_files, pool_width);
+ 	sns_cm_ut_server_stop();
++	/* Cleanup the old db files. Otherwise it messes */
++	system("rm -r sr_db > /dev/null");
+ }
+ 
+ static void iter_repair_single_file(void)
+diff --git a/sns/cm/ut/net.c b/sns/cm/ut/net.c
+index 5e778cd..3bd4294 100644
+--- a/sns/cm/ut/net.c
++++ b/sns/cm/ut/net.c
+@@ -99,7 +99,7 @@ struct m0_cm                      sender_cm;
+ struct m0_reqh_service           *sender_cm_service;
+ extern struct m0_cm_type          sender_cm_cmt;
+ struct m0_cm_cp                   sender_cm_cp;
+-struct m0_mero                    sender_mero = { .cc_pool_width = 3 };
++struct m0_mero                    sender_mero = { .cc_pool_width = 10 };
+ struct m0_reqh_context            sender_rctx = { .rc_mero = &sender_mero };
+ 
+ /* Global structures for copy packet to be sent (Sender side). */
+-- 
+1.8.3.2
+

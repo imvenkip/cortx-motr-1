@@ -1,0 +1,32 @@
+From e646f1283e72048154a87e7cd80b06a87e3c540f Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 30 Jun 2013 17:15:38 +0300
+Subject: [PATCH 222/228] be/tg: don't switch group to LOG state until other
+ groups leave it.
+
+---
+ be/tx_group.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/be/tx_group.c b/be/tx_group.c
+index 69e52fe..efe6c61 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -229,8 +229,12 @@ static int tg_fom_tick(struct m0_fom *fom)
+ 				 (i == M0_BTS_CLOSED ||
+ 				  tg_tlist_is_empty(&gr->tg_txs[i]))));
+ 
+-		/* If group isn't first in the CLOSED list, wait. */
+-		if (gr != tg_tlist_head(&eng->te_tgs[M0_BGS_CLOSED]))
++		/* If group isn't first in the CLOSED list or there are
++		 * unfinished LOG groups, wait. XXX: tg_wake_log() must
++		 * be implemented and called after a group leaves LOG/CLOSED
++		 * state or enters CLOSED state.*/
++		if (gr != tg_tlist_head(&eng->te_tgs[M0_BGS_CLOSED])
++		    || ! tg_tlist_is_empty(&eng->te_tgs[M0_BGS_LOG]))
+ 			return M0_FSO_WAIT;
+ 
+ 		/* TODO:XXX: start log i/o. */
+-- 
+1.8.3.2
+

@@ -1,0 +1,91 @@
+From ed99c4c2f5eff62199a36a5873675cffd9e5f7fd Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 06:34:29 +0200
+Subject: [PATCH 20/58] LogD 1491: added _rc suffix to struct buf_status_errno
+ fields
+
+---
+ net/test/node_bulk.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index c6db6bf..f4a25d0 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -110,8 +110,8 @@ enum {
+  * @todo add timestamp
+  */
+ struct buf_status_errno {
+-	int bsn_func;	/**< Network buffer addition to queue */
+-	int bsn_cb;	/**< Network buffer callback */
++	int bse_func_rc;	/**< Network buffer addition to queue */
++	int bse_cb_rc;	/**< Network buffer callback */
+ };
+ 
+ /** Bulk transfer status */
+@@ -681,7 +681,7 @@ static c2_bcount_t node_bulk_server_transfer_start(struct node_bulk_ctx *ctx,
+ 	bs = &ctx->nbc_bs[buf_bulk_index];
+ 	buf = c2_net_test_network_buf(&ctx->nbc_net, C2_NET_TEST_BUF_BULK,
+ 				      buf_bulk_index);
+-	bs->bsb_recv.bsn_func = rc;
++	bs->bsb_recv.bse_func_rc = rc;
+ 	if (rc != 0) {
+ 		/**
+ 		 * Addition buffer to network queue failed.
+@@ -743,7 +743,7 @@ static void node_bulk_cb_server(struct node_bulk_ctx *ctx,
+ 		rc = c2_net_test_network_bulk_enqueue(&ctx->nbc_net,
+ 						      buf_index, 0,
+ 						C2_NET_QT_ACTIVE_BULK_SEND);
+-		ctx->nbc_bs[buf_index].bsb_send.bsn_func = rc;
++		ctx->nbc_bs[buf_index].bsb_send.bse_func_rc = rc;
+ 		if (rc != 0) {
+ 			C2_LOG(C2_DEBUG, "--- active bulk send FAILED!");
+ 			buf_desc_free(ctx, buf_index);
+@@ -808,7 +808,7 @@ static void node_bulk_cb(struct c2_net_test_network_ctx *net_ctx,
+ 		       q == C2_NET_QT_PASSIVE_BULK_SEND ||
+ 		       q == C2_NET_QT_ACTIVE_BULK_SEND ? &bs->bsb_send : NULL;
+ 		C2_ASSERT(bs_e != NULL);
+-		bs_e->bsn_cb = ev->nbe_status;
++		bs_e->bse_cb_rc = ev->nbe_status;
+ 		node_bulk_state_change_cb(ctx, bs_index, ev->nbe_status == 0);
+ 	}
+ 	if (role_client && q == C2_NET_QT_MSG_SEND) {
+@@ -817,7 +817,7 @@ static void node_bulk_cb(struct c2_net_test_network_ctx *net_ctx,
+ 		 * descriptor is stored in current message.
+ 		 */
+ 		c2_tl_for(bsb, &ctx->nbc_bsp[buf_index].bsp_buffers, bs) {
+-			bs->bsb_msg.bsn_cb = ev->nbe_status;
++			bs->bsb_msg.bse_cb_rc = ev->nbe_status;
+ 			node_bulk_state_change_cb(ctx, bs->bsb_index,
+ 						  ev->nbe_status == 0);
+ 			bsb_tlist_del(bs);
+@@ -903,7 +903,7 @@ static void client_transfer_start(struct node_bulk_ctx *ctx,
+ 	node_bulk_state_change(ctx, bs_index, TS_QUEUED);
+ 	bs->bsb_time_start = c2_time_now();
+ 	rc = client_bulk_enqueue(ctx, bs_index * 2);
+-	bs->bsb_send.bsn_func = rc;
++	bs->bsb_send.bse_func_rc = rc;
+ 	if (rc != 0) {
+ 		C2_LOG(C2_DEBUG, "123");
+ 		node_bulk_state_change(ctx, bs_index, TS_FAILED);
+@@ -911,7 +911,7 @@ static void client_transfer_start(struct node_bulk_ctx *ctx,
+ 		return;
+ 	}
+ 	rc = client_bulk_enqueue(ctx, bs_index * 2 + 1);
+-	bs->bsb_recv.bsn_func = rc;
++	bs->bsb_recv.bse_func_rc = rc;
+ 	if (rc != 0) {
+ 		C2_LOG(C2_DEBUG, "456");
+ 		node_bulk_state_change(ctx, bs_index, TS_FAILED1);
+@@ -1096,7 +1096,7 @@ take_msg:
+ 		}
+ 		/** Save rc for future analysis */
+ 		c2_tl_for(bsb, &msg_bs->bsp_buffers, bs) {
+-			bs->bsb_msg.bsn_func = rc;
++			bs->bsb_msg.bse_func_rc = rc;
+ 			/** Change state if msg sending failed */
+ 			if (rc != 0) {
+ 				node_bulk_state_change(ctx, bs->bsb_index,
+-- 
+1.8.3.2
+

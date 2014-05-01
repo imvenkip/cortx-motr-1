@@ -1,0 +1,71 @@
+From 644882d9b5c8fc646b693688bf071dd658d130ac Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 4 Mar 2012 22:52:32 +0200
+Subject: [PATCH 035/311] rpc.c: add response_decode()
+
+---
+ conf/rpc.c | 31 ++++++++++++++++++++-----------
+ 1 file changed, 20 insertions(+), 11 deletions(-)
+
+diff --git a/conf/rpc.c b/conf/rpc.c
+index 2819e64..0f8b988 100644
+--- a/conf/rpc.c
++++ b/conf/rpc.c
+@@ -35,10 +35,6 @@ static const struct c2_fop_type_ops fopt_ops = {
+ static struct c2_rpc_item_type_ops fetch_ops = {
+ 	/* return c2_xcode_length() */
+ 	.rito_item_size = XXX,
+-	/*
+-	 * Like c2_fop_item_type_default_encode(), but item_encdec()
+-	 * is replaced with c2_xcode_encode().
+-	 */
+ 	.rito_encode    = request_encode,
+ 	/* XXX TODO should be set for confd */
+ 	.rito_decode    = NULL
+@@ -61,13 +57,7 @@ static struct c2_rpc_item_type_ops fetch_resp_ops = {
+ 	.rito_item_size = XXX,
+ 	/* XXX TODO should be set for confd */
+ 	.rito_encode    = NULL,
+-	/*
+-	 * - Allocate and initialize c2_fop.
+-	 * - c2_xcode_decode() serialized configuration data pointed
+-	 *   to by `cur' ==> dynamically allocated c2_conf_fetch_resp.
+-	 * - Set c2_fop_data() to the address of c2_conf_fetch_resp.
+-	 */
+-	.rito_decode    = XXX
++	.rito_decode    = response_decode
+ };
+ 
+ C2_FOP_TYPE_DECLARE_OPS(c2_conf_fetch_resp, "c2_conf_fetch_resp", &ftype_ops,
+@@ -100,9 +90,28 @@ request_encode(struct c2_rpc_item_type *item_type __attribute__((unused)),
+ 	 *               (req->ff_origin.o_objtype, req->ff_origin.o_objkey,
+ 	 *                req->ff_comps.c_data, req->ff_comps.c_nr, NULL) == 0);
+ 	 *
++	 * // See c2_fop_item_type_default_encode().
++	 * Encode item->ri_type->rit_opcode.
++	 *
+ 	 * c2_xcode_ctx_init(&xtx, &xobj);
+ 	 * xtx.xtx_buf = *cur;
+ 	 * return c2_xcode_encode(&xtx);
+ 	 */
+ 	XXX;
+ }
++
++static int response_decode(struct c2_rpc_item_type *item_type,
++			   struct c2_rpc_item **item,
++			   struct c2_bufvec_cursor *cur)
++{
++	/*
++	 * C2_PRE(item_type == &fetch_resp_itype);
++	 *
++	 * - Allocate and initialize c2_fop.
++	 * - c2_xcode_decode() serialized configuration data, pointed
++	 *   to by `cur' ==> dynamically allocated c2_conf_fetch_resp.
++	 * - Set c2_fop_data() to the address of c2_conf_fetch_resp.
++	 * - Set *item.
++	 */
++	XXX;
++}
+-- 
+1.8.3.2
+

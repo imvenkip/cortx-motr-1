@@ -1,0 +1,31 @@
+From f35f9db9c07841d5425aeb214b9de58eb6c12a9d Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Sat, 16 Nov 2013 00:53:19 +0530
+Subject: [PATCH 129/159]  - Fix for sum_rec assertion.
+
+---
+ fop/fom.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index d5e5427..fa5f254 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -287,13 +287,13 @@ static void fop_rate_monitor_fini(struct m0_reqh         *reqh,
+ 
+ 	M0_PRE(monitor != NULL && reqh != NULL);
+ 
++	sum_rec = monitor->am_ops->amo_sum_rec(monitor, reqh);
+ 	m0_addb_monitor_del(reqh, monitor);
+ 
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+ 	m0_reqh_lockers_clear(reqh, fop_rate_monitor_key);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 
+-	sum_rec = monitor->am_ops->amo_sum_rec(monitor, reqh);
+ 	m0_addb_monitor_sum_rec_fini(sum_rec);
+ 	m0_free(sum_rec);
+ 
+-- 
+1.8.3.2
+

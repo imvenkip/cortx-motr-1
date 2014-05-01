@@ -1,0 +1,491 @@
+From 73d8d9610ebac25a7a980f8c1683b0d862037228 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 7 Jun 2012 10:14:19 +0530
+Subject: [PATCH 194/370] Updated confd.h:  - Simplified lables in state
+ machines;  - Updated `Locking model' section.
+
+---
+ conf/confd.c | 277 +++++++++++++++++++++++++++--------------------------------
+ 1 file changed, 127 insertions(+), 150 deletions(-)
+
+diff --git a/conf/confd.c b/conf/confd.c
+index eba04a3..e673110 100644
+--- a/conf/confd.c
++++ b/conf/confd.c
+@@ -24,12 +24,12 @@
+ #include "conf/confd.h"
+ 
+ /**
+- * @page confd-lspec confd Internals
++ * @page confd-lspec-page confd Internals
+  * - @ref confd-depends
+  * - @ref confd-highlights
+  * - @ref confd-lspec
+  *	- @ref confd-lspec-state
+- *      - @ref confd-lspec-long-lock
++ *	- @ref confd-lspec-long-lock
+  *	- @ref confd-lspec-thread
+  *	- @ref confd-lspec-numa
+  * - @ref confd-ut
+@@ -46,10 +46,10 @@
+  * - @ref fop <!-- fop/fop.h -->
+  * - @ref reqh <!-- reqh/reqh.h -->
+  * - @ref colibri_setup <!-- colibri/colibri_setup.h -->
+- * - @ref c2_reqh_service_type_{register/unregister}()
+- *        <!--reqh/reqh_service.h -->
+- * - @ref c2_addb_ctx_{init/fini}() <!-- addb/addb.h -->
+- * - @ref c2_long_{read,write}_{un,}lock() <!-- @todo -->
++ * - c2_reqh_service_type_{register/unregister}()  <!--reqh/reqh_service.h -->
++ * - c2_addb_ctx_{init,fini}() <!-- addb/addb.h -->
++ * - c2_long_{read,write}_{un,}lock() <!-- @todo -->
++ * - c2_long_is_{read,write}_locked() <!-- @todo -->
+  *
+  * Most reasonable functions, confd depends on, are listed above:
+  * - RPC layer:
+@@ -91,11 +91,11 @@
+  * c2_confd_service_locate() is used.
+  *
+  * Confd service defines operation vector:
+- * - Confd service operation @ref c2_confd_service_start() to
++ * - Confd service operation c2_confd_service_start() to
+  *   initiate c2_confd and register Confd FOPs with service
+- * - Confd service operation @ref c2_confd_service_stop() to
++ * - Confd service operation c2_confd_service_stop() to
+  *   free internal structures of c2_confd and unregister FOPs
+- * - Confd service operation @ref c2_confd_service_fini() to
++ * - Confd service operation c2_confd_service_fini() to
+  *   free Confd service instance.
+  *
+  * Confd service is registered in `subsystem' data structure of
+@@ -134,7 +134,7 @@
+  *
+  * c2_fom_fetch_state() - called by reqh to handle incoming
+  * confc requests. Implementation of this function processes all
+- * FOP-FOM specific and C2_CONFD_STATUS_* states:
++ * FOP-FOM specific and c2_conf_fetch_resp states:
+  * @code
+  * static int c2_fom_fetch_state(struct c2_fom *fom)
+  *  {
+@@ -144,7 +144,7 @@
+  *       if (fom->fo_phase < FOPH_NR) {
+  *               result = c2_fom_state_generic(fom);
+  *       } else {
+- *		... process C2_CONFD_STATUS_* states transitions ...
++ *		... process c2_conf_fetch_resp states transitions ...
+  *	 }
+  *  }
+  * @endcode
+@@ -198,7 +198,7 @@
+  * Confd has not a state machine, state processing is implemented on
+  * basis of FOM of c2_conf_fetch, c2_conf_update, c2_conf_stat FOPs.
+  * After corresponding FOM went through a list of FOM specific states
+- * it transited into C2_CONFD_STATUS_INITIAL state.
++ * it transited into F_INITIAL state.
+  *
+  * The number of state machine instances correspond to the number of
+  * FOPs being processed in confd.
+@@ -208,42 +208,38 @@
+  *  digraph confd_serialize_states {
+  *      node [fontsize=9];
+  *      edge [fontsize=9];
+- *      FETCH_INITIAL [style=filled, fillcolor=lightgrey];
+- *      FETCH_SERIALIZE;
+- *      FETCH_WAIT_RDLK;
+- *      FETCH_TERMINATE [style=filled, fillcolor=lightgrey];
+- *      FETCH_FAILURE [style=filled, fillcolor=lightgrey];
++ *      F_INITIAL [style=filled, fillcolor=lightgrey];
++ *      F_SERIALIZE;
++ *      F_WAIT_RDLK;
++ *      F_TERMINATE [style=filled, fillcolor=lightgrey];
++ *      F_FAILURE [style=filled, fillcolor=lightgrey];
+  *
+- *      FETCH_INITIAL -> FETCH_WAIT_RDLK [label=
+- *      "c2_conf_fetch-FOP is arrived \n, fetch_next_state() == FETCH_WAIT_RDLK"];
++ *      F_INITIAL -> F_WAIT_RDLK [label=
++ *      "c2_conf_fetch-FOP is arrived"];
+  *
+- *      FETCH_WAIT_RDLK -> FETCH_WAIT_RDLK [label=
+- *      "c2_long_read_lock(c2_confd::c_cache::ca_rwlock) != 0 || \n c2_confd::c_cache::ca_writers > 0, \n fetch_next_state() == FETCH_WAIT_RDLK"];
++ *      F_WAIT_RDLK -> F_WAIT_RDLK [label=
++ *      "!c2_long_read_lock(c2_confd::c_cache::ca_rwlock)"];
+  *
+- *      FETCH_WAIT_RDLK -> FETCH_SERIALIZE [label=
+- *      "c2_long_read_lock(c2_confd::c_cache::ca_rwlock) == 0 && \n c2_confd::c_cache::ca_writers == 0, \n fetch_next_state()== FETCH_SERIALIZE"];
++ *      F_WAIT_RDLK -> F_SERIALIZE [label=
++ *      "c2_long_read_lock(c2_confd::c_cache::ca_rwlock)"];
+  *
+- *      FETCH_SERIALIZE -> FETCH_TERMINATE [label=
+- *      "serialization is done \n c2_long_read_unlock(c2_confd::c_cache::ca_rwlock)"];
+- *
+- *      FETCH_SERIALIZE -> FETCH_FAILURE [label=
+- *      "failed to lookup object \n in cache or (fetch_next_state() < 0) \n c2_long_read_unlock(c2_confd::c_cache::ca_rwlock)"];
++ *      F_SERIALIZE -> F_TERMINATE [label = "success"];
++ *      F_SERIALIZE -> F_FAILURE [label = "failure"];
+  *  }
+  * @enddot
+  *
+- * - C2_CONFD_FETCH_INITIAL
++ * - F_INITIAL
+  *   In this state, statistics values are being updated in
+  *   c2_confd::c_stat.  Then fetch_next_state() is called and FOM is
+- *   transited into C2_CONFD_FETCH_WAIT_RDLK.
++ *   transited into F_WAIT_RDLK.
+  *
+- * - C2_CONFD_FETCH_WAIT_RDLK:
+- *   In this state, c2_confd::c_cache::ca_rwlock is being obtained as
+- *   a read lock. If it's obtained and there's no pending update
+- *   requests in the system (c2_confd::c_cache::ca_writers == 0) than
+- *   fetch_next_state() transits FOM back into C2_CONFD_FETCH_SERIALIZE.
+- *   Otherwise FOM remains in the same state until lock is obtained.
++ * - F_WAIT_RDLK:
++ *   In this state, an attempt is made to obtain a read lock
++ *   c2_confd::c_cache::ca_rwlock. If it's obtained than
++ *   fetch_next_state() transits FOM back into F_SERIALIZE.  Otherwise
++ *   FOM remains in the same state until lock is obtained.
+  *
+- * - C2_CONFD_UPDATE_SERIALIZE:
++ * - F_SERIALIZE:
+  *   Current design assumes that data is pre-loaded into configuration
+  *   cache. In current state, c2_confd::c_cache::ca_rwlock lock has
+  *   been already obtained as a read lock.
+@@ -251,83 +247,83 @@
+  *   up requested path in configuration cache and unlocking
+  *   c2_confd::c_cache::ca_rwlock.  After that, c2_conf_fetch_resp FOP
+  *   is sent with c2_rpc_reply_post().  fetch_next_state() transits FOM into
+- *   C2_CONFD_UPDATE_TERMINATE.
++ *   F_TERMINATE.
+  *   If incoming request consists of a path which is not in
+  *   configuration cache than c2_confd::c_cache::ca_rwlock has to be
+  *   unlocked, c2_conf_fetch FOM is transited into
+- *   C2_CONFD_FETCH_FAILURE.
++ *   F_FAILURE.
+  *
+- * - C2_CONFD_UPDATE_TERMINATE:
++ * - F_TERMINATE:
+  *   In this state, statistics values are being updated in
+- *   c2_confd::c_stat.
++ *   c2_confd::c_stat. c2_confd::c_cache::ca_rwlock has to be
++ *   unlocked.
+  *
+- * - C2_CONFD_UPDATE_FAILURE:
++ * - F_FAILURE:
+  *   In this state, statistics values are being updated in
+  *   c2_confd::c_stat, ADDB records are being added.
+  *   c2_conf_fetch_resp FOP with an empty configuration objects
+  *   sequence and negative error code is sent with c2_rpc_reply_post().
++ *   c2_confd::c_cache::ca_rwlock has to be unlocked.
+  *
+  *  c2_conf_update FOM state transition diagram:
+  * @dot
+  *  digraph confd_serialize_states {
+  *      node [fontsize=9];
+  *      edge [fontsize=9];
+- *      UPDATE_INITIAL [style=filled, fillcolor=lightgrey];
+- *      UPDATE_UPDATE;
+- *      UPDATE_WAIT_WRLK;
+- *      UPDATE_TERMINATE [style=filled, fillcolor=lightgrey];
+- *      UPDATE_FAILURE [style=filled, fillcolor=lightgrey];
+- *
+- *      UPDATE_INITIAL -> UPDATE_WAIT_WRLK [label=
+- *      "c2_long_write_lock(c2_confd::c_cache::ca_rwlock) != 0, \n update_next_state() == UPDATE_WAIT_WRLK, \n ++c2_confd::c_cache::ca_writers"];
++ *      U_INITIAL [style=filled, fillcolor=lightgrey];
++ *      U_UPDATE;
++ *      U_WAIT_WRLK;
++ *      U_TERMINATE [style=filled, fillcolor=lightgrey];
++ *      U_FAILURE [style=filled, fillcolor=lightgrey];
+  *
+- *      UPDATE_WAIT_WRLK -> UPDATE_WAIT_WRLK [label=
+- *      "c2_long_write_lock(c2_confd::c_cache::ca_rwlock) != 0, \n update_next_state() == UPDATE_WAIT_WRLK"];
++ *      U_INITIAL -> U_WAIT_WRLK [label=
++ *      "!c2_long_write_lock(c2_confd::c_cache::ca_rwlock)"];
+  *
+- *      UPDATE_WAIT_WRLK -> UPDATE_UPDATE [label=
+- *      "c2_long_write_lock(c2_confd::c_cache::ca_rwlock) == 0, \n update_next_state()== UPDATE_UPDATE, \n --c2_confd::c_cache::ca_writers"];
++ *      U_WAIT_WRLK -> U_WAIT_WRLK [label=
++ *      "!c2_long_write_lock(c2_confd::c_cache::ca_rwlock)"];
+  *
+- *      UPDATE_UPDATE -> UPDATE_TERMINATE [label=
+- *      "serialization is done \n c2_long_write_unlock(c2_confd::c_cache::ca_rwlock), \n --c2_confd::c_cache::ca_writers"];
++ *      U_WAIT_WRLK -> U_UPDATE [label=
++ *      "c2_long_write_lock(c2_confd::c_cache::ca_rwlock)"];
+  *
+- *      UPDATE_UPDATE -> UPDATE_FAILURE [label=
+- *      "failed to lookup object \n in cache or (update_next_state() < 0) \n c2_write_read_unlock(c2_confd::c_cache::ca_rwlock), \n --c2_confd::c_cache::ca_writers"];
++ *      U_UPDATE -> U_TERMINATE [label = "success"];
++ *      U_UPDATE -> U_FAILURE [label = "failure"];
+  *  }
+  * @enddot
+  *
+- * - C2_CONFD_UPDATE_INITIAL
++ * - U_INITIAL
+  *   In this state, statistics values are being updated in
+  *   c2_confd::c_stat.  Then update_next_state() is called and FOM is
+- *   transited into C2_CONFD_UPDATE_WAIT_WRLK.
++ *   transited into U_WAIT_WRLK.
+  *
+- * - C2_CONFD_UPDATE_WAIT_WRLK:
+- *   In current state, c2_confd::c_cache::ca_rwlock lock is being obtained
+- *   as a write lock. If it's already locked, pending update requests count
+- *   c2_confd::c_cache::ca_writers should be incremented. In this case,
+- *   update_next_state() is called and FOM is transited into C2_CONFD_UPDATE_WAIT_WRLK
+- *   state.  Otherwise configuration c2_confd::c_cache::ca_rwlock is being
+- *   locked as a write lock and transited into C2_CONFD_UPDATE_UPDATE.
++ * - U_WAIT_WRLK:
++ *   In current state, an attempt is made to obtain a read lock
++ *   c2_confd::c_cache::ca_rwlock. In this case, update_next_state()
++ *   is called and FOM is transited into U_WAIT_WRLK state.  Otherwise
++ *   configuration c2_confd::c_cache::ca_rwlock is being locked as a
++ *   write lock and transited into U_UPDATE.
+  *
+- * - C2_CONFD_UPDATE_UPDATE:
++ * - U_UPDATE:
+  *   In current state, c2_confd::c_cache::ca_rwlock lock has been
+  *   already obtained as a write lock. Then, configuration cache has
+  *   to be updated and c2_confd::c_cache::ca_rwlock lock should be
+  *   unlocked.  After that, c2_conf_update_resp FOP is sent with
+  *   c2_rpc_reply_post(). update_next_state() transits FOM into
+- *   C2_CONFD_UPDATE_TERMINATE.  If incoming request consists of a
++ *   U_TERMINATE.  If incoming request consists of a
+  *   path which is not in configuration cache than
+  *   c2_confd::c_cache::ca_rwlock has to be unlocked, c2_conf_update
+- *   FOM is transited into C2_CONFD_UPDATE_FAILURE.
++ *   FOM is transited into U_FAILURE.
+  *
+- * - C2_CONFD_UPDATE_TERMINATE:
++ * - U_TERMINATE:
+  *   In this state, statistics values are being updated in
+- *   c2_confd::c_stat.
++ *   c2_confd::c_stat. c2_confd::c_cache::ca_rwlock has to be
++ *   unlocked.
+  *
+- * - C2_CONFD_UPDATE_FAILURE:
++ * - U_FAILURE:
+  *   In this state, statistics values are being updated in
+  *   c2_confd::c_stat, ADDB records are being added.
+  *   c2_conf_update_resp FOP with an empty configuration objects
+  *   sequence and negative error code is sent with c2_rpc_reply_post().
++ *   c2_confd::c_cache::ca_rwlock has to be unlocked.
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section confd-lspec-long-lock Locking model
+@@ -337,27 +333,33 @@
+  *
+  * @code
+  * bool c2_long_{read,write}_lock(struct c2_longlock *lock,
+- *             struct c2_fom *fom, struct c2_fom_callback *cb);
++ *             struct c2_fom *fom, struct c2_fom_callback *cb, int next_state);
+  * void c2_long_{read,write}_unlock(struct c2_longlock *lock);
++ * bool c2_long_is_{read,write}_locked(struct c2_longlock *lock);
+  * @endcode
+  *
+- * c2_long_{read,write}_lock returns true iff the lock is taken. Arms
++ * c2_long_{read,write}_lock() returns true iff the lock is taken. Arms
+  * the callback that will wake this FOM when the lock should be
+  * re-tried and returns false otherwise.
+  *
+- * Each object encompassing FOM associated with this FOM contains a
+- * struct c2_fom_callback instance and it's armed, when corresponding
+- * struct c2_longlock instance becomes unlocked.
++ * c2_long_is_{read,write}_locked() returns true iff the lock has taken.
++ *
++ * Each object associated with a FOM (i.e. an instance of `struct
++ * c2_fetch_fom_obj') contains an instance of c2_fom_callback
++ * structure. This callback is armed, when corresponding `struct
++ * c2_longlock' instance becomes unlocked.
+  *
+  * The following code example shows the initialization procedure of
+  * FOM with struct c2_longlock:
+  * @code
+- * static void wait_lock_complete_cb(struct c2_fom_callback *cb);
++ * // Generic callback defined by c2_long_lock implementation.
++ * // Can be overriden by caller with own written callback.
++ * void c2_long_lock_complete_cb(struct c2_fom_callback *cb);
+  *
+  * struct c2_fetch_fom_obj {
+  *       struct c2_fom          ffo_gen;
+  *       struct c2_chan         ffo_wait;
+- *       struct c2_fom_callback ffo_cb;
++ *       struct c2_fom_callback ffo_longlock_cb;
+  * };
+  *
+  * int fetch_fop_fom_create(struct c2_fop *fop, struct c2_fom **out)
+@@ -365,56 +367,34 @@
+  *	struct c2_fetch_fom_obj fom_obj;
+  *	1) allocate fom_obj;
+  *	2) initialize generic fom: fom_obj->ffo_gen;
+- *	3) initialize fom_obj callback: fom_obj->ffo_cb = wait_lock_complete_cb;
++ *	3) initialize fom_obj callback: 
++ *         fom_obj->ffo_longlock_cb.fc_bottom = c2_long_lock_complete_cb;
+  * }
+- * @endcode
+- *
+- * When struct c2_longlock instance has been already locked,
+- * c2_long_{read,write}_lock() returns false and arms a callback. This
+- * callback is fired, when lock changes it's state. The following code shows
+- * how to perform a transition from C2_CONFD_FETCH_WAIT_RDLK to
+- * C2_CONFD_FETCH_SERIALIZE and to obtain a lock:
+  *
+- * @code
++ * // Performs a transition from F_WAIT_RDLK to F_SERIALIZE and
++ * // obtains a lock.
+  * static int fom_fetch_state(struct c2_fom *fom)
+  * {
+  *	//...
+- *	if (fom->state == C2_CONFD_FETCH_WAIT_RDLK) {
++ *	if (fom->state == F_WAIT_RDLK) {
+  *		// try to obtain a lock
+- *		bool held = c2_long_read_lock(confd->c_cache->ca_rwlock,
+- *					      fom, fom->fcrw_cb);
+- *		if (!held) {
+- *			// wait until awaken
+- *			c2_fom_block_at(fom, &bpdesc->rios_bp_wait);
+- *		} else {
+- *			// perform transition
+- *			fom->state = C2_CONFD_FETCH_SERIALIZE;
+- *		}
+- *
+- *		return C2_FSO_WAIT;
++ *		struct c2_fom_callback *cb =
++ *                  container_of(fom, struct c2_fetch_fom_obj, ffo_longlock_cb);
++ *		if (!c2_long_lock(lock, fom, cb, F_SERIALIZE))
++ *			return C2_FSO_WAIT;
++ *
++ *		// ...
++ *		fom->state = F_SERIALIZE;
++ *		return C2_FSO_AGAIN;
+  *	}
+  *	//...
+  * }
+- *
+- * // callback, called when lock has been unlocked.
+- * static void wait_lock_complete_cb(struct c2_fom_callback *cb)
+- * {
+- *	struct c2_fom *fom = (retreive FOM from cb);
+- *      struct c2_fetch_fom_obj *fom_obj =
+- *            container_of(fom, struct c2_fetch_fom_obj, ffo_gen);
+- *
+- *	C2_ASSERT(fom->state == C2_CONFD_FETCH_WAIT_RDLK);
+- *      // try to obtain a lock
+- *	bool held = c2_long_rw_lock(confd->c_cache->ca_rwlock, fom,
+- *				    fom_obj->ffo_cb);
+- *	if (held) {
+- *              // perform transition and wake FOM up.
+- *		fom->state = C2_CONFD_FETCH_SERIALIZE;
+- *		c2_chan_signal(fom_obj->ffo_chan);
+- *	}
+- * }
+  * @endcode
+  *
++ * When struct c2_longlock instance has been already locked,
++ * c2_long_{read,write}_lock() returns false and arms a callback. This
++ * callback is fired, when lock changes it's state.
++ *
+  * <hr> <!------------------------------------------------------------>
+  * @section confd-lspec-thread Threading and Concurrency Model
+  *
+@@ -430,10 +410,6 @@
+  * asynchronous-like manner. Only synchronous calls to configuration
+  * DB are allowed which should be bracketed with c2_fom_block_{enter,leave}().
+  *
+- * According to `HLD of configuration caching', C2_CONFD_STATUS_WAIT state
+- * handler may be implemented using c2_chan_wait(). c2_fom_block_at()
+- * should be called prior to c2_chan_wait().
+- *
+  * Multiple concurrently executing FOMs share the same configuration
+  * cache and db environment of confd, so access to them is
+  * synchronized with read/write lock. An access to db and cache, while
+@@ -518,23 +494,35 @@
+  * c2_conf_fetch FOM states.
+  */
+ enum c2_confd_fetch_status {
+-	C2_CONFD_FETCH_INITIAL = FOPH_NR + 1,
+-	C2_CONFD_FETCH_SERIALIZE,
+-	C2_CONFD_FETCH_WAIT_RDLK,
+-	C2_CONFD_FETCH_TERMINATE,
+-	C2_CONFD_FETCH_FAILURE
++	F_INITIAL = FOPH_NR + 1,
++	F_SERIALIZE,
++	F_WAIT_RDLK,
++	F_TERMINATE,
++	F_FAILURE
+ };
+ 
+ /**
+  * c2_conf_update FOM states.
+  */
+ enum c2_confd_update_status {
+-	C2_CONFD_UPDATE_INITIAL = FOPH_NR + 1,
+-	C2_CONFD_UPDATE_UPDATE,
+-	C2_CONFD_UPDATE_WAIT_WRLK,
+-	C2_CONFD_UPDATE_WORK,
+-	C2_CONFD_UPDATE_TERMINATE,
+-	C2_CONFD_UPDATE_FAILURE
++	U_INITIAL = FOPH_NR + 1,
++	U_UPDATE,
++	U_WAIT_WRLK,
++	U_WORK,
++	U_TERMINATE,
++	U_FAILURE
++};
++
++/**
++ * c2_conf_stat FOM states.
++ */
++enum c2_confd_stat_status {
++	S_INITIAL = FOPH_NR + 1,
++	S_UPDATE,
++	S_WAIT_WRLK,
++	S_WORK,
++	S_TERMINATE,
++	S_FAILURE
+ };
+ 
+ 
+@@ -668,7 +656,7 @@ void c2_confd_service_unregister(void)
+ }
+ 
+ /**
+- * Serialises given DAG into FOP-package.
++ * Serialises given path into FOP-package.
+  *
+  * @param confd	configuration service instance.
+  * @param path path to the object/directory requested by confc.
+@@ -704,31 +692,20 @@ static int update_next_state(struct c2_confd *confd, int st)
+ }
+ 
+ /**
+- * Loads confd::c_root of the DAG of configuration objects
+- * from configuration db, or confd::c_cache::ca_map cache if mapping exists.
+- *
+- * @param confd	configuration service instance.
+- */
+-static int obj_load(struct c2_confd *confd)
+-{
+-}
+-
+-/**
+- * Waits for every object, loaded into cache, c2_conf_obj::co_chan to
+- * be signalled.
++ * Called when confd transits to F_FAILURE
+  *
+  * @param confd	configuration service instance.
+  */
+-static int obj_wait(struct c2_confd *confd)
++static void fetch_failure_handle(struct c2_confd *confd)
+ {
+ }
+ 
+ /**
+- * Called when confd transits to C2_CONFD_STATUS_FAILURE
++ * Called when confd transits to U_FAILURE
+  *
+  * @param confd	configuration service instance.
+  */
+-static void failure_handle(struct c2_confd *confd)
++static void update_failure_handle(struct c2_confd *confd)
+ {
+ }
+ 
+-- 
+1.8.3.2
+

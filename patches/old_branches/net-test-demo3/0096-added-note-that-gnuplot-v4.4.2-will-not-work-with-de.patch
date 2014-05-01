@@ -1,0 +1,25 @@
+From 4821a8aa138a0605645aa6626c5d53b13f3fd3c4 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 6 Mar 2013 15:40:18 +0200
+Subject: [PATCH 96/99] added note that gnuplot v4.4.2 will not work with demo
+
+---
+ net/test/demo/demo.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/demo/demo.sh b/net/test/demo/demo.sh
+index f115a61..cb5b088 100755
+--- a/net/test/demo/demo.sh
++++ b/net/test/demo/demo.sh
+@@ -136,7 +136,7 @@ ECHO="echo -e"
+ ECHO_N="echo -n"
+ RM_RF="rm -rf"
+ # Tested with v4.6.1
+-# devvm has v4.2.6 - it will not work
++# devvm has v4.2.6 and v4.4.2 - it will not work
+ GNUPLOT="gnuplot"
+ 
+ main()
+-- 
+1.8.3.2
+

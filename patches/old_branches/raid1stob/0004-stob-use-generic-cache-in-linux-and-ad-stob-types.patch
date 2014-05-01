@@ -1,0 +1,527 @@
+From e3b8a07ecc388d32d796886720ae659b42d2825a Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Sun, 11 Nov 2012 17:43:19 +0400
+Subject: [PATCH 04/15] stob: use generic cache in linux and ad stob types.
+
+    * use c2_stob_cache and c2_stob_cacheable for linux and ad stob types;
+
+    * update unit test to match new caching behaviour.
+---
+ stob/ad.c             | 113 ++++++++++------------------------
+ stob/linux.c          | 164 ++++++++++++++++++--------------------------------
+ stob/linux_internal.h |  16 ++---
+ stob/ut/adieu.c       |   5 +-
+ 4 files changed, 102 insertions(+), 196 deletions(-)
+
+diff --git a/stob/ad.c b/stob/ad.c
+index 8259af5..ee593d3 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -25,10 +25,10 @@
+ #include "lib/thread.h"             /* LAMBDA */
+ #include "lib/memory.h"
+ #include "lib/arith.h"              /* min_type, min3 */
+-#include "lib/tlist.h"
+ #include "lib/misc.h"		    /* C2_SET0 */
+ 
+ #include "stob/stob.h"
++#include "stob/cache.h"
+ #include "stob/ad.h"
+ 
+ /**
+@@ -112,8 +112,7 @@ struct ad_domain {
+ 	    are stored in.
+ 	 */
+ 	struct c2_stob            *ad_bstore;
+-	/** List of all existing c2_stob's. */
+-	struct c2_tl               ad_object;
++	struct c2_stob_cache       ad_cache;
+ 	struct c2_ad_balloc       *ad_ballroom;
+ 
+ };
+@@ -121,23 +120,15 @@ struct ad_domain {
+ /**
+    AD storage object.
+ 
+-   There is very little of the state besides c2_stob.
++   There is very little of the state besides c2_stob_cacheable.
+  */
+ struct ad_stob {
+-	struct c2_stob      as_stob;
+-	struct c2_tlink     as_linkage;
+-	uint64_t            as_magix;
++	struct c2_stob_cacheable as_stob;
+ };
+ 
+-C2_TL_DESCR_DEFINE(ad, "ad stobs", static, struct ad_stob, as_linkage, as_magix,
+-		   0xc01101da1fe11c1a /* colloidal felicia */,
+-		   0x1dea112ed5ea51de /* idealized seaside */);
+-
+-C2_TL_DEFINE(ad, static, struct ad_stob);
+-
+ static inline struct ad_stob *stob2ad(struct c2_stob *stob)
+ {
+-	return container_of(stob, struct ad_stob, as_stob);
++	return container_of(stob, struct ad_stob, as_stob.ca_stob);
+ }
+ 
+ static inline struct ad_domain *domain2ad(struct c2_stob_domain *dom)
+@@ -201,7 +192,7 @@ static void ad_domain_fini(struct c2_stob_domain *self)
+ 		c2_emap_fini(&adom->ad_adata);
+ 		c2_stob_put(adom->ad_bstore);
+ 	}
+-	ad_tlist_fini(&adom->ad_object);
++	c2_stob_cache_fini(&adom->ad_cache);
+ 	c2_stob_domain_fini(self);
+ 	c2_free(adom);
+ }
+@@ -229,10 +220,10 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
+ 	C2_ALLOC_PTR(adom);
+ 	if (adom != NULL) {
+ 		adom->ad_setup = false;
+-		ad_tlist_init(&adom->ad_object);
+ 		dom = &adom->ad_base;
+ 		dom->sd_ops = &ad_stob_domain_op;
+ 		c2_stob_domain_init(dom, type);
++		c2_stob_cache_init(&adom->ad_cache);
+ 		sprintf(adom->ad_path, "%s%s", prefix, domain_name);
+ 		dom->sd_name = adom->ad_path + ARRAY_SIZE(prefix) - 1;
+ 		*out = dom;
+@@ -281,29 +272,23 @@ int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
+ 	return result;
+ }
+ 
+-/**
+-   Searches for the object with a given identifier in the domain object list.
+-
+-   This function is used by ad_domain_stob_find() to check whether in-memory
+-   representation of an object already exists.
+- */
+-static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
+-					const struct c2_stob_id *id)
++static int ad_incache_init(struct c2_stob_domain *dom,
++			   const struct c2_stob_id *id,
++			   struct c2_stob_cacheable **out)
+ {
+-	struct ad_stob *obj;
+-	bool            found;
+-
+-	C2_PRE(adom->ad_setup);
+-
+-	found = false;
+-	c2_tl_for(ad, &adom->ad_object, obj) {
+-		if (c2_stob_id_eq(id, &obj->as_stob.so_id)) {
+-			c2_stob_get(&obj->as_stob);
+-			found = true;
+-			break;
+-		}
+-	} c2_tl_endfor;
+-	return found ? obj : NULL;
++	struct ad_stob           *astob;
++	struct c2_stob_cacheable *incache;
++
++	C2_ALLOC_PTR(astob);
++	if (astob != NULL) {
++		*out = incache = &astob->as_stob;
++		incache->ca_stob.so_op = &ad_stob_op;
++		c2_stob_cacheable_init(incache, id, dom);
++		return 0;
++	} else {
++		C2_ADDB_ADD(&dom->sd_addb, &ad_stob_addb_loc, c2_addb_oom);
++		return -ENOMEM;
++	}
+ }
+ 
+ /**
+@@ -312,48 +297,17 @@ static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
+    Returns an in-memory representation of the object with a given identifier.
+  */
+ static int ad_domain_stob_find(struct c2_stob_domain *dom,
+-				  const struct c2_stob_id *id,
+-				  struct c2_stob **out)
++			       const struct c2_stob_id *id,
++			       struct c2_stob **out)
+ {
+-	struct ad_domain *adom;
+-	struct ad_stob   *astob;
+-	struct ad_stob   *ghost;
+-	struct c2_stob   *stob;
+-	int               result;
++	struct c2_stob_cacheable *incache;
++	struct ad_domain         *adom;
++	int                       result;
+ 
+ 	adom = domain2ad(dom);
+-
+-	C2_PRE(adom->ad_setup);
+-
+-	result = 0;
+-	c2_rwlock_read_lock(&dom->sd_guard);
+-	astob = ad_domain_lookup(adom, id);
+-	c2_rwlock_read_unlock(&dom->sd_guard);
+-
+-	if (astob == NULL) {
+-		C2_ALLOC_PTR(astob);
+-		if (astob != NULL) {
+-			c2_rwlock_write_lock(&dom->sd_guard);
+-			ghost = ad_domain_lookup(adom, id);
+-			if (ghost == NULL) {
+-				stob = &astob->as_stob;
+-				stob->so_op = &ad_stob_op;
+-				c2_stob_init(stob, id, dom);
+-				ad_tlink_init_at(astob, &adom->ad_object);
+-			} else {
+-				c2_free(astob);
+-				astob = ghost;
+-				c2_stob_get(&astob->as_stob);
+-			}
+-			c2_rwlock_write_unlock(&dom->sd_guard);
+-		} else {
+-			C2_ADDB_ADD(&dom->sd_addb,
+-				    &ad_stob_addb_loc, c2_addb_oom);
+-			result = -ENOMEM;
+-		}
+-	}
+-	if (result == 0)
+-		*out = &astob->as_stob;
++	result = c2_stob_cache_find(&adom->ad_cache, dom, id,
++				    ad_incache_init, &incache);
++	*out = &incache->ca_stob;
+ 	return result;
+ }
+ 
+@@ -371,16 +325,13 @@ static int ad_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
+ 
+ /**
+    Implementation of c2_stob_op::sop_fini().
+-
+-   Closes the object's file descriptor.
+  */
+ static void ad_stob_fini(struct c2_stob *stob)
+ {
+ 	struct ad_stob *astob;
+ 
+ 	astob = stob2ad(stob);
+-	ad_tlink_del_fini(astob);
+-	c2_stob_fini(&astob->as_stob);
++	c2_stob_cacheable_fini(&astob->as_stob);
+ 	c2_free(astob);
+ }
+ 
+diff --git a/stob/linux.c b/stob/linux.c
+index 1a161a7..3685e92 100644
+--- a/stob/linux.c
++++ b/stob/linux.c
+@@ -28,10 +28,9 @@
+ #include "lib/errno.h"
+ #include "lib/memory.h"
+ #include "lib/assert.h"
+-#include "lib/queue.h"
+ 
+-#include "linux.h"
+-#include "linux_internal.h"
++#include "stob/linux.h"
++#include "stob/linux_internal.h"
+ 
+ /**
+    @addtogroup stoblinux
+@@ -80,13 +79,6 @@ static const struct c2_addb_loc c2_linux_stob_addb_loc = {
+ 	.al_name = "linux-stob"
+ };
+ 
+-C2_TL_DESCR_DEFINE(ls, "linux stobs", static, struct linux_stob,
+-		   sl_linkage, sl_magix,
+-		   0xb1b11ca15cab105a /* biblical scabiosa */,
+-		   0x11fe1e55cab00d1e /* lifeless caboodle */);
+-
+-C2_TL_DEFINE(ls, static, struct linux_stob);
+-
+ /**
+    Implementation of c2_stob_type_op::sto_init().
+  */
+@@ -112,16 +104,10 @@ static void linux_stob_type_fini(struct c2_stob_type *stype)
+ static void linux_domain_fini(struct c2_stob_domain *self)
+ {
+ 	struct linux_domain *ldom;
+-	struct linux_stob   *lstob;
+ 
+ 	ldom = domain2linux(self);
+ 	linux_domain_io_fini(self);
+-	c2_rwlock_write_lock(&self->sd_guard);
+-	c2_tl_for(ls, &ldom->sdl_object, lstob) {
+-		linux_stob_fini(&lstob->sl_stob);
+-	} c2_tl_endfor;
+-	c2_rwlock_write_unlock(&self->sd_guard);
+-	ls_tlist_fini(&ldom->sdl_object);
++	c2_stob_cache_fini(&ldom->sdl_cache);
+ 	c2_stob_domain_fini(self);
+ 	c2_free(ldom);
+ }
+@@ -148,11 +134,11 @@ static int linux_stob_type_domain_locate(struct c2_stob_type *type,
+ 
+ 	C2_ALLOC_PTR(ldom);
+ 	if (ldom != NULL) {
+-		ls_tlist_init(&ldom->sdl_object);
+ 		strcpy(ldom->sdl_path, domain_name);
+ 		dom = &ldom->sdl_base;
+ 		dom->sd_ops = &linux_stob_domain_op;
+ 		c2_stob_domain_init(dom, type);
++		c2_stob_cache_init(&ldom->sdl_cache);
+ 		result = linux_domain_io_init(dom);
+ 		if (result == 0)
+ 			*out = dom;
+@@ -184,31 +170,31 @@ static bool linux_stob_invariant(const struct linux_stob *lstob)
+ {
+ 	const struct c2_stob *stob;
+ 
+-	stob = &lstob->sl_stob;
++	stob = &lstob->sl_stob.ca_stob;
+ 	return
+ 		(lstob->sl_fd >= 0) == (stob->so_state == CSS_EXISTS) &&
+-		lstob->sl_stob.so_domain->sd_type == &c2_linux_stob_type;
++		stob->so_domain->sd_type == &c2_linux_stob_type;
+ }
+ 
+-/**
+-   Searches for the object with a given identifier in the domain object list.
+-
+-   This function is used by linux_domain_stob_find() to check whether in-memory
+-   representation of an object already exists.
+- */
+-static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
+-					      const struct c2_stob_id *id)
++static int linux_incache_init(struct c2_stob_domain *dom,
++			      const struct c2_stob_id *id,
++			      struct c2_stob_cacheable **out)
+ {
+-	struct linux_stob *obj;
+-
+-	c2_tl_for(ls, &ldom->sdl_object, obj) {
+-		C2_ASSERT(linux_stob_invariant(obj));
+-		if (c2_stob_id_eq(id, &obj->sl_stob.so_id)) {
+-			c2_stob_get(&obj->sl_stob);
+-			break;
+-		}
+-	} c2_tl_endfor;
+-	return obj;
++	struct linux_stob        *lstob;
++	struct c2_stob_cacheable *incache;
++
++	C2_ALLOC_PTR(lstob);
++	if (lstob != NULL) {
++		*out = incache = &lstob->sl_stob;
++		incache->ca_stob.so_op = &linux_stob_op;
++		c2_stob_cacheable_init(incache, id, dom);
++		lstob->sl_fd = -1;
++		return 0;
++	} else {
++		C2_ADDB_ADD(&dom->sd_addb,
++			    &c2_linux_stob_addb_loc, c2_addb_oom);
++		return -ENOMEM;
++	}
+ }
+ 
+ /**
+@@ -220,47 +206,39 @@ static int linux_domain_stob_find(struct c2_stob_domain *dom,
+ 				  const struct c2_stob_id *id,
+ 				  struct c2_stob **out)
+ {
+-	struct linux_domain *ldom;
+-	struct linux_stob   *lstob;
+-	struct linux_stob   *ghost;
+-	struct c2_stob      *stob;
+-	int                  result;
++	struct c2_stob_cacheable *incache;
++	struct linux_domain      *ldom;
++	int                       result;
+ 
+ 	ldom = domain2linux(dom);
++	result = c2_stob_cache_find(&ldom->sdl_cache, dom, id,
++				    linux_incache_init, &incache);
++	*out = &incache->ca_stob;
++	return result;
++}
+ 
+-	result = 0;
+-	c2_rwlock_read_lock(&dom->sd_guard);
+-	lstob = linux_domain_lookup(ldom, id);
+-	c2_rwlock_read_unlock(&dom->sd_guard);
+-
+-	if (lstob == NULL) {
+-		C2_ALLOC_PTR(lstob);
+-		if (lstob != NULL) {
+-			c2_rwlock_write_lock(&dom->sd_guard);
+-			ghost = linux_domain_lookup(ldom, id);
+-			if (ghost == NULL) {
+-				stob = &lstob->sl_stob;
+-				stob->so_op = &linux_stob_op;
+-				lstob->sl_fd = -1;
+-				c2_stob_init(stob, id, dom);
+-				ls_tlink_init_at(lstob, &ldom->sdl_object);
+-			} else {
+-				c2_free(lstob);
+-				lstob = ghost;
+-				c2_stob_get(&lstob->sl_stob);
+-			}
+-			c2_rwlock_write_unlock(&dom->sd_guard);
+-		} else {
+-			C2_ADDB_ADD(&dom->sd_addb,
+-				    &c2_linux_stob_addb_loc, c2_addb_oom);
+-			result = -ENOMEM;
+-		}
+-	}
+-	if (result == 0) {
+-		*out = &lstob->sl_stob;
+-		C2_ASSERT(linux_stob_invariant(lstob));
++/**
++ * Implementation of c2_stob_op::sop_fini().
++ *
++ * Closes the object's file descriptor.
++ *
++ * @see c2_linux_stob_link()
++ */
++static void linux_stob_fini(struct c2_stob *stob)
++{
++	struct linux_stob *lstob;
++
++	lstob = stob2linux(stob);
++	C2_ASSERT(linux_stob_invariant(lstob));
++	/*
++	 * No caching for now, dispose of the body^Wobject immediately.
++	 */
++	if (lstob->sl_fd != -1) {
++		close(lstob->sl_fd);
++		lstob->sl_fd = -1;
+ 	}
+-	return result;
++	c2_stob_cacheable_fini(&lstob->sl_stob);
++	c2_free(lstob);
+ }
+ 
+ /**
+@@ -276,44 +254,20 @@ static int linux_domain_tx_make(struct c2_stob_domain *dom, struct c2_dtx *tx)
+  */
+ static int linux_stob_path(const struct linux_stob *lstob, int nr, char *path)
+ {
+-	int                  nob;
+-	struct linux_domain *ldom;
++	int                   nob;
++	struct linux_domain  *ldom;
++	const struct c2_stob *stob;
+ 
+ 	C2_ASSERT(linux_stob_invariant(lstob));
+ 
+-	ldom  = domain2linux(lstob->sl_stob.so_domain);
++	stob = &lstob->sl_stob.ca_stob;
++	ldom = domain2linux(stob->so_domain);
+ 	nob = snprintf(path, nr, "%s/o/%016lx.%016lx", ldom->sdl_path,
+-		       lstob->sl_stob.so_id.si_bits.u_hi,
+-		       lstob->sl_stob.so_id.si_bits.u_lo);
++		       stob->so_id.si_bits.u_hi, stob->so_id.si_bits.u_lo);
+ 	return nob < nr ? 0 : -EOVERFLOW;
+ }
+ 
+ /**
+-   Implementation of c2_stob_op::sop_fini().
+-
+-   Closes the object's file descriptor.
+-
+-   @see c2_linux_stob_link()
+- */
+-static void linux_stob_fini(struct c2_stob *stob)
+-{
+-	struct linux_stob *lstob;
+-
+-	lstob = stob2linux(stob);
+-	C2_ASSERT(linux_stob_invariant(lstob));
+-	/*
+-	 * No caching for now, dispose of the body^Wobject immediately.
+-	 */
+-	if (lstob->sl_fd != -1) {
+-		close(lstob->sl_fd);
+-		lstob->sl_fd = -1;
+-	}
+-	ls_tlink_del_fini(lstob);
+-	c2_stob_fini(&lstob->sl_stob);
+-	c2_free(lstob);
+-}
+-
+-/**
+    Helper function opening the object in the file system.
+  */
+ static int linux_stob_open(struct linux_stob *lstob, int oflag)
+diff --git a/stob/linux_internal.h b/stob/linux_internal.h
+index 611b002..77b8f86 100644
+--- a/stob/linux_internal.h
++++ b/stob/linux_internal.h
+@@ -37,6 +37,7 @@
+ #include "lib/tlist.h"
+ #include "lib/thread.h"
+ #include "stob/stob.h"
++#include "stob/cache.h"
+ 
+ enum {
+ 	/** Default number of threads to create in a storage object domain. */
+@@ -74,8 +75,7 @@ struct linux_domain {
+ 	 */
+ 	char             sdl_path[MAXPATHLEN];
+ 
+-	/** List of all existing c2_stob's. */
+-	struct c2_tl     sdl_object;
++	struct c2_stob_cache sdl_cache;
+ 
+ 	/** @name ioq Linux adieu fields. @{ */
+ 
+@@ -110,20 +110,20 @@ struct linux_domain {
+    stob based on Linux file system and block devices
+  */
+ struct linux_stob {
+-	struct c2_stob		sl_stob;
++	struct c2_stob_cacheable sl_stob;
+ 
+ 	/** fd from returned open(2) */
+-	int			sl_fd;
++	int			 sl_fd;
+ 	/** File mode as returned by stat(2) */
+-	mode_t			sl_mode;
++	mode_t			 sl_mode;
+ 
+-	struct c2_tlink		sl_linkage;
+-	uint64_t		sl_magix;
++	struct c2_tlink		 sl_linkage;
++	uint64_t		 sl_magix;
+ };
+ 
+ static inline struct linux_stob *stob2linux(struct c2_stob *stob)
+ {
+-	return container_of(stob, struct linux_stob, sl_stob);
++	return container_of(stob, struct linux_stob, sl_stob.ca_stob);
+ }
+ 
+ static inline struct linux_domain *domain2linux(struct c2_stob_domain *dom)
+diff --git a/stob/ut/adieu.c b/stob/ut/adieu.c
+index 8d9403f..6752181 100644
+--- a/stob/ut/adieu.c
++++ b/stob/ut/adieu.c
+@@ -102,7 +102,8 @@ static int test_adieu_init(void)
+ 
+ 	result = c2_stob_find(dom, &id, &obj);
+ 	C2_ASSERT(result == 0);
+-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
++	/* This checks that obj is still in the cache. */
++	C2_ASSERT(obj->so_state == CSS_NOENT);
+ 
+ 	result = c2_stob_create(obj, NULL);
+ 	C2_ASSERT(result == 0);
+@@ -111,7 +112,7 @@ static int test_adieu_init(void)
+ 
+ 	result = c2_stob_find(dom, &id, &obj);
+ 	C2_ASSERT(result == 0);
+-	C2_ASSERT(obj->so_state == CSS_UNKNOWN);
++	C2_ASSERT(obj->so_state == CSS_EXISTS); /* still in the cache. */
+ 
+ 	result = c2_stob_locate(obj, NULL);
+ 	C2_ASSERT(result == 0);
+-- 
+1.8.3.2
+

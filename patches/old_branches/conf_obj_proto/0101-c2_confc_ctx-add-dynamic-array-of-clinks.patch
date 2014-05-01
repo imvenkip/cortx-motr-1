@@ -1,0 +1,373 @@
+From 98299d64f83883264a00532b532ea5525869bda2 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 29 Mar 2012 23:29:30 +0300
+Subject: [PATCH 101/370] c2_confc_ctx: add dynamic array of clinks
+
+c2_confc_ctx::fc_clink allone does not suffice if there are several
+C2_CS_LOADING objects to wait for.  Add ->fc_extra and ->fc_nr_extra
+members.
+
++ Refactor path_walk().
++ Fix errors in request_fill() and change its prototype.
++ _confc_open_sync: call _confc_open(), not c2_confc_open().
+---
+ conf/confc.c | 241 ++++++++++++++++++++++++++++++++++++-----------------------
+ conf/confc.h |  13 ++++
+ conf/path.h  |   2 +-
+ 3 files changed, 160 insertions(+), 96 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 01be233..00caa96 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -484,11 +484,116 @@ static inline struct c2_confc * registry_to_client(struct c2_conf_map *cache)
+ 	return container_of(cache, struct c2_confc, cc_registry);
+ }
+ 
++/** Path walk context. */
++struct walk_ctx {
++	/** Current object. */
++	struct c2_conf_obj      *w_obj;
++	/** Remaining path components. */
++	struct c2_conf_pathcomp *w_path;
++	/** Are we looking at a directory? */
++	bool                     w_atdir;
++	/** The number of C2_CS_LOADING objects in this directory. */
++	uint32_t                 w_nload;
++};
++
++static bool walk_ctx_invariant(const struct walk_ctx *wx)
++{
++	return c2_conf_path_is_valid(wx->w_obj, wx->w_path, NULL) &&
++		wx->w_atdir
++		? (wx->w_obj->co_status == C2_CS_READY &&
++		   c2_conf_pathcomp_is_last(wx->w_path))
++		: wx->w_obj->co_status == wx->w_status;
++}
++
++static int walk(struct walk_ctx *wx)
++{
++	const struct c2_conf_relation *relation;
++	struct c2_conf_obj            *child;
++	int                            ret;
++
++	C2_PRE(walk_ctx_invariant(wx));
++
++	for (ret = wx->w_obj->co_status;
++	     ret == C2_CS_READY && !c2_conf_eop(wx->w_path); ++wx->w_path) {
++		C2_ASSERT(!wx->w_path[0].pc_iskey);
++		relation = c2_conf_downlink(wx->w_obj->co_type,
++					    wx->w_path[0].pc_u.relation);
++		C2_ASSERT(relation != NULL);
++
++		wx->w_atdir = relation->r_dir != NULL;
++		if (!wx->w_atdir) {
++			/* child = *(struct c2_conf_obj **)( */
++			/* 	(void *)wx->w_obj + relation->r_offset); */
++			child = XXX_relation_target(wx->w_obj, relation);
++		} else if (c2_conf_pathcomp_is_last(wx->w_path)) {
++			ret = list_status(XXX_descr, XXX_list, &wx->w_nload);
++			break;
++		} else { /* choose the particular object in this directory */
++			++wx->w_path;
++			C2_ASSERT(wx->w_path[0].pc_iskey);
++			wx->w_atdir = false;
++
++			/* XXX use the objid-to-address mapping instead
++			 * of XXX_list_find() */
++			child = XXX_list_find(XXX_dir, wx->w_path[0].pc_u.key);
++			if (child == NULL)
++				return -ENOENT; /* no such key */
++		}
++
++		wx->w_obj = child;
++		ret = wx->w_obj->co_status;
++	}
++
++	C2_POST(walk_ctx_invariant(wx));
++	return ret;
++}
++
++static int act(struct c2_confc_ctx *cx, const struct walk_ctx *wx,
++	       enum c2_conf_status status)
++{
++	C2_PRE(c2_mutex_is_locked(group_lock(cx)));
++	C2_PRE(c2_mutex_is_locked(cache_lock(cx)));
++	C2_PRE(walk_ctx_invariant(wx));
++
++	if (status == C2_CS_READY) {
++		cx->fc_result = wx->w_atdir ? XXX_dir_allocate() : wx->w_obj;
++		if (cx->fc_result == NULL)
++			return -ENOMEM;
++		C2_CNT_INC(parent->co_nrefs);
++	} else if (status == C2_CS_MISSING) {
++		request_fill(&cx->fc_req, wx->w_obj, wx->w_path);
++		if (wx->w_atdir)
++			C2_ASSERT(XXX /* directory has 0 C2_CS_MISSING objects
++				       * and > 0 C2_CS_LOADING objects */);
++		else
++			wx->w_obj->co_status = C2_CS_LOADING;
++	} else if (status == C2_CS_LOADING) {
++		if (wx->w_atdir) {
++			C2_ASSERT(wx->w_nload > 0);
++			if (wx->w_nload > 1) {
++				C2_ALLOC_ARR(cx->fc_extra, wx->w_nload - 1);
++				if (cx->fc_extra == NULL)
++					return -ENOMEM;
++				cx->fc_nr_extra = wx->w_nload - 1;
++			}
++			XXX; /* scan directory, calling c2_clink_add() */
++		} else {
++			c2_clink_add(&wx->w_obj->co_chan, &cx->fc_clink);
++		}
++	} else {
++		C2_IMPOSSIBLE("invalid object status");
++	}
++
++	C2_POST(c2_mutex_is_locked(cache_lock(cx)));
++	C2_POST(c2_mutex_is_locked(group_lock(cx)));
++	return status;
++}
++
+ /**
+  * Follows the path, checking statuses of met objects.
+  *
+- * @pre   cache's sm_group is locked
+  * @pre   c2_conf_path_is_valid(ctx->fc_origin, ctx->fc_path, NULL)
++ * @pre   cache's sm_group is locked
+  * @post  cache's sm_group is locked
+  *
+  * @retval C2_CS_READY    Path target is reachable.
+@@ -511,91 +616,27 @@ static inline struct c2_confc * registry_to_client(struct c2_conf_map *cache)
+  */
+ static int path_walk(struct c2_confc_ctx *ctx)
+ {
+-	struct c2_conf_obj *obj = ctx->fc_origin ?: ctx->fc_client->cc_root;
+-	struct c2_conf_pathcomp *comp = ctx->fc_path;
+-	bool   target_is_directory = false;
+-	size_t len = 0; /* number of components to go */
+-	int    ret;
++	int             ret;
++	struct walk_ctx wx = {
++		.w_obj   = ctx->fc_origin,
++		.w_path  = ctx->fc_path,
++		.w_atdir = false,
++		.w_nload = 0
++	};
+ 
+-	C2_PRE(c2_mutex_is_locked(group_lock(ctx)));
+ 	C2_PRE(c2_conf_path_is_valid(ctx->fc_origin, ctx->fc_path, NULL));
+-
+-	while (!c2_conf_eop(ctx->fc_path + len))
+-		C2_CNT_INC(len);
+-	/* NB: `len' equals the number of components _without_ C2_CONF_EOP */
++	C2_PRE(c2_mutex_is_locked(group_lock(ctx)));
+ 
+ 	c2_mutex_lock(cache_lock(ctx));
+-	ret = obj->co_status;
+-
+-	for (; ret == C2_CS_READY && len > 0; --len, ++comp) {
+-		const struct c2_conf_relation *rel;
+-		struct c2_conf_obj *child;
+-		C2_ASSERT(!comp->pc_iskey);
+-
+-		rel = c2_conf_downlink(obj->co_type, comp->pc_u.relation);
+-		C2_ASSERT(rel != NULL);
+-		target_is_directory = rel->r_dir != NULL;
+-
+-		if (target_is_directory) {
+-			if (len == 1) { /* the last component */
+-				ret = list_status(XXX_descr, XXX_list);
+-				break;
+-			}
+-
+-			--len;
+-			++comp;
+-			C2_ASSERT(comp->pc_iskey);
+-
+-			/* XXX use the objid-to-address mapping instead
+-			 * of list_find() */
+-			child = list_find(XXX_dir, comp->pc_u.key);
+-
+-			target_is_directory = false;
+-		} else {
+-			/* child = *(struct c2_conf_obj **)((void *)obj */
+-			/* 				 + rel->r_offset); */
+-			child = XXX_relation_target(obj, rel);
+-		}
+-
+-		if (child == NULL) {
+-			C2_ASSERT(comp->pc_iskey);
+-			ret = -ENOENT; /* no such key */
+-			goto end;
+-		}
+-
+-		obj = child;
+-		ret = obj->co_status;
+-	}
+-
++	ret = walk(&wx);
+ 	/*
+-	 * XXX "confc offline": all the needed configuration data is
+-	 * supposed to be pre-loaded.
++	 * XXX `confc offline' workaround: all the needed
++	 * configuration data is supposed to be pre-loaded.
+ 	 */
+ 	C2_ASSERT(ret == C2_CS_READY);
++	if (ret >= 0)
++		ret = act(ctx, &wx, ret);
+ 
+-	if (ret == C2_CS_READY) {
+-		C2_CNT_INC(obj->co_nrefs);
+-		if (target_is_directory) {
+-			XXX; /* ctx->fc_result = dir_allocate() */
+-		} else {
+-			ctx->fc_result = obj;
+-		}
+-	} else if (ret == C2_CS_MISSING) {
+-		if (!target_is_directory) {
+-			C2_ASSERT(obj->co_status == C2_CS_MISSING);
+-			obj->co_status = C2_CS_LOADING;
+-		}
+-		request_fill(&ctx->fc_req, obj, comp, len);
+-	} else if (ret == C2_CS_LOADING) {
+-		if (target_is_directory) {
+-			XXX; /* scan directory, adding clinks */
+-		} else {
+-			c2_clink_add(&obj->co_chan, &ctx->fc_clink);
+-		}
+-	} else {
+-		C2_IMPOSSIBLE("invalid object status");
+-	}
+-end:
+ 	c2_mutex_unlock(cache_lock(ctx));
+ 	C2_POST(c2_mutex_is_locked(group_lock(ctx)));
+ 	return ret;
+@@ -674,9 +715,11 @@ int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ 
+ 	C2_PRE(confc_is_initialised(ctx->fc_client));
+ 	C2_PRE(ctx->fc_origin == NULL && ctx->fc_path == NULL);
+-	C2_PRE(path != NULL);
+ 
++	if (origin == NULL)
++		origin = ctx->fc_client->cc_root;
+ 	C2_ASSERT(c2_conf_path_is_valid(origin, path, &isdir));
++
+ 	if (isdir)
+ 		return -EISDIR;
+ 
+@@ -703,7 +746,7 @@ int _confc_open_sync(void **obj, struct c2_confc *client,
+ 	c2_clink_init(&clink, NULL);
+ 	c2_clink_add(&ctx.fc_complete, &clink);
+ 
+-	rc = c2_confc_open(&ctx, origin, path);
++	rc = _confc_open(&ctx, origin, path);
+ 	if (rc == 0) {
+ 		c2_chan_wait(&clink);
+ 		*obj = ctx.fc_result;
+@@ -750,26 +793,28 @@ struct c2_confc_dir {
+ 
+ static bool request_is_valid(const struct c2_conf_fetch *req)
+ {
+-	return  req->ff_origin.o_objtype < C2_CO_NR &&
+-		req->ff_origin.o_objkey.cb_size > 0 &&
+-		req->ff_origin.o_objkey.cb_data != NULL &&
+-		equi(req->ff_comps.c_nr == 0, req->ff_comps.c_data == NULL);
++	return  req->f_origin.oi_objtype < C2_CO_NR &&
++		req->f_origin.oi_objkey.cb_size > 0 &&
++		req->f_origin.oi_objkey.cb_data != NULL &&
++		equi(req->f_comps.ap_count == 0, req->f_comps.ap_elems == NULL);
+ }
+ 
+ /** Fills c2_conf_fetch structure. */
+ static void
+-request_fill(struct c2_conf_fetch *req, const struct c2_conf_obj *path_org,
+-	     struct c2_conf_pathcomp *path, size_t path_len)
++request_fill(struct c2_conf_fetch *req, const struct c2_conf_obj *origin,
++	     struct c2_conf_pathcomp *path)
+ {
+ 	struct c2_confc_ctx *ctx =
+ 		container_of(req, struct c2_confc_ctx, fc_req);
++
++	C2_PRE(c2_conf_path_is_valid(origin, path, NULL));
+ 	C2_PRE(c2_mutex_is_locked(group_lock(ctx)));
+ 	C2_PRE(c2_mutex_is_locked(cache_lock(ctx)));
+ 
+-	req->f_origin.o_objtype = path_org->co_type;
+-	req->f_origin.oi_objkey = path_org->co_key;
+-	req->f_comps.ap_count = path_len;
+-	req->f_comps.ap_elems = path;
++	req->f_origin.oi_objtype = origin->co_type;
++	req->f_origin.oi_objkey = origin->co_key;
++	req->f_comps.ap_count = c2_conf_path_len(path);
++	req->f_comps.ap_elems = req->f_comps.ap_count == 0 ? NULL : path;
+ 
+ 	C2_POST(request_is_valid(req));
+ }
+@@ -1140,13 +1185,19 @@ static bool ctx_invariant(struct c2_confc_ctx *ctx)
+ }
+ 
+ static enum c2_conf_status
+-list_status(const struct c2_tl_descr *descr, const struct c2_tl *list)
++list_status(const struct c2_tl_descr *descr, const struct c2_tl *list,
++	    int *nr_loading)
+ {
+ 	/*
+-	 * - If all of the objects are LOADING => return LOADING.
+-	 * - If MISSING objects are found => change their statuses to
+-	 *   LOADING and return MISSING.
+-	 * - Otherwise (all objects are READY) return READY.
++	 * if (there are C2_CS_MISSING objects) {
++	 *     change their statuses to C2_CS_LOADING;
++	 *     return C2_CS_MISSING;
++	 * } else if (there are C2_CS_LOADING objects) {
++	 *     *nr_loading = the number of C2_CS_LOADING objects;
++	 *     return C2_CS_LOADING;
++	 * } else {
++	 *     return C2_CS_READY;
++	 * }
+ 	 */
+ 	XXX;
+ }
+diff --git a/conf/confc.h b/conf/confc.h
+index 26a34f5..51a1414 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -391,8 +391,21 @@ struct c2_confc_ctx {
+ 	 * "object unpinned" events.
+ 	 *
+ 	 * This clink gets added to c2_conf_obj::co_chan channel.
++	 * It is also a "group head" clink for ->fc_extra.
+ 	 */
+ 	struct c2_clink          fc_clink;
++	/**
++	 * Array of additional clinks.
++	 *
++	 * This array is dynamically allocated when there are several
++	 * configuration objects to wait for.  Elements of ->fc_extra
++	 * are c2_clink_attach()ed to ->fc_clink.
++	 *
++	 * @see `Multiple channels' section in @ref chan.
++	 */
++	struct c2_clink         *fc_extra;
++	/** Length of ->fc_extra array. */
++	size_t                   fc_nr_extra;
+ };
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *client);
+diff --git a/conf/path.h b/conf/path.h
+index 6245ddd..a9399ce 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -111,7 +111,7 @@ bool c2_conf_eop(const struct c2_conf_pathcomp *pc);
+  */
+ bool c2_conf_pathcomp_is_last(const struct c2_conf_pathcomp *pc);
+ 
+-/** Returns the number of path components excluding trailing C2_CONF_EOP. */
++/** Returns the number of path components without the trailing C2_CONF_EOP. */
+ size_t c2_conf_path_len(const struct c2_conf_pathcomp *path);
+ 
+ /**
+-- 
+1.8.3.2
+

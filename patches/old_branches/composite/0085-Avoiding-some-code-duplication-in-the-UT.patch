@@ -1,0 +1,101 @@
+From 89fee6bac4de9c23e0d170de362d49e3666fbf1c Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 13 Mar 2013 15:31:59 +0530
+Subject: [PATCH 085/172] Avoiding some code duplication in the UT
+
+---
+ layout/ut/composite.c | 38 ++------------------------------------
+ 1 file changed, 2 insertions(+), 36 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 908d46e..27d9c81 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1329,7 +1329,6 @@ int test_instance_composite(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-//todo Make use of this function wherever applicable
+ static void layer_extents_delete(struct m0_composite_layout *cl,
+ 				 struct m0_composite_layer *layer,
+ 				 struct m0_db_tx *tx)
+@@ -1366,8 +1365,6 @@ int test_layer_op_composite(uint64_t lid,
+ 	struct m0_db_tx                   tx;
+ 	struct m0_layout                 *l_from_DB;
+ 	struct m0_composite_layer        *layer;
+-	//todo rm struct m0_ext                     ext;
+-	//todo rm struct m0_composite_layer_extent *lr_ext;
+ 	int                               rc_tmp;
+ 	int                               rc;
+ 
+@@ -1409,22 +1406,9 @@ int test_layer_op_composite(uint64_t lid,
+ 	rc = m0_composite_layer_delete(cl, txptr);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+-	//todo Code duplication
+ 	/* Delete all the extents associated with the layer. */
+ 	layer = layer_find(cl, cl->cl_layers_nr - 1);
+ 	layer_extents_delete(cl, layer, txptr);
+-#if 0
+-	m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+-		/*
+-		 * Shall not pass &lr_ext->cle_ext directly since
+-		 * lr_ext is going to get deleted. Hence, make a copy.
+-		 */
+-		ext = lr_ext->cle_ext;
+-		rc = m0_composite_layer_ext_delete(cl, layer->clr_idx,
+-						   &ext, txptr);
+-		M0_UT_ASSERT(rc == 0);
+-	} m0_tl_endfor;
+-#endif
+ 
+ 	rc = m0_composite_layer_delete(cl, txptr);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -1968,14 +1952,8 @@ int test_add_composite(uint64_t lid,
+ 	if (layout_destroy) {
+ 		m0_layout_put(&cl->cl_base);
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+-
+ 		/* Delete the precreated sublayouts. */
+-#if 0 //todo
+-		if (layer_add_failure_test)
+-			sublayout_delete(domain, lid);
+-		else
+-#endif
+-			sublayouts_delete(domain, lid, layers_nr);
++		sublayouts_delete(domain, lid, layers_nr);
+ 	} else
+ 		*l_obj = &cl->cl_base;
+ 
+@@ -2214,8 +2192,6 @@ int test_delete_composite(uint64_t lid,
+ 	struct m0_db_pair                 pair;
+ 	struct m0_db_tx                   tx;
+ 	struct m0_composite_layer        *layer;
+-	struct m0_composite_layer_extent *lr_ext;
+-	struct m0_ext                     ext;
+ 	int                               rc_tmp;
+ 	int                               rc;
+ 
+@@ -2265,18 +2241,8 @@ int test_delete_composite(uint64_t lid,
+ 	/* Delete all the extents associated with the composite layout. */
+ 	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 	M0_UT_ASSERT(rc == 0);
+-
+ 	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+-		m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+-			/*
+-			 * Shall not pass &lr_ext->cle_ext directly since
+-			 * lr_ext is going to get deleted. Hence, make a copy.
+-			 */
+-			ext = lr_ext->cle_ext;
+-			rc = m0_composite_layer_ext_delete(cl, layer->clr_idx,
+-							   &ext, &tx);
+-			M0_UT_ASSERT(rc == 0);
+-		} m0_tl_endfor;
++		layer_extents_delete(cl, layer, &tx);
+ 	} m0_tl_endfor;
+ 	rc_tmp = m0_db_tx_commit(&tx);
+ 	M0_UT_ASSERT(rc_tmp == 0);
+-- 
+1.8.3.2
+

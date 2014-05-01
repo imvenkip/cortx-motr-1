@@ -1,0 +1,68 @@
+From 2b09e69074fd096f4d9b4d57d9c4f3e1d700dc92 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 11 Feb 2014 19:13:46 +0200
+Subject: [PATCH 44/60] rpc-session-ut fixed & enabled
+
+---
+ rpc/ut/session.c | 15 ---------------
+ utils/ut_main.c  |  4 ++--
+ 2 files changed, 2 insertions(+), 17 deletions(-)
+
+diff --git a/rpc/ut/session.c b/rpc/ut/session.c
+index 5d972ac..65b9b35 100644
+--- a/rpc/ut/session.c
++++ b/rpc/ut/session.c
+@@ -217,20 +217,6 @@ static void session_check(void)
+ 	session_terminate_reply_and_fini(0);
+ }
+ 
+-static void session_init_fail_test(void)
+-{
+-	int rc;
+-	/* Checks for m0_rpc_session_init() failure due to allocation failure */
+-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+-	rc = m0_rpc_session_init(&session, &conn);
+-	M0_UT_ASSERT(rc == -ENOMEM);
+-
+-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+-	rc = m0_rpc_session_init(&session, &conn);
+-	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("m0_alloc", "fail_allocation");
+-}
+-
+ static void session_establish_fail_test(void)
+ {
+ 	int rc;
+@@ -338,7 +324,6 @@ const struct m0_test_suite session_ut = {
+ 	.ts_tests = {
+ 		{ "session-init-fini", session_init_fini_test},
+ 		{ "session-check", session_check},
+-		{ "session-init-fail", session_init_fail_test},
+ 		{ "session-establish-fail", session_establish_fail_test},
+ 		{ "session-terminate-fail", session_terminate_fail_test},
+ 		{ "session-establish-reply-fail", session_establish_reply_fail_test},
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 8fe15e0..c40d632 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -89,7 +89,7 @@ extern const struct m0_test_suite rpc_mc_ut;
+ //extern const struct m0_test_suite rpc_rcv_session_ut;
+ extern const struct m0_test_suite rpc_service_ut;
+ extern const struct m0_test_suite rpclib_ut;
+-//extern const struct m0_test_suite session_ut;
++extern const struct m0_test_suite session_ut;
+ extern const struct m0_test_suite sm_ut;
+ extern const struct m0_test_suite sns_cm_repair_ut;
+ extern const struct m0_test_suite snscm_net_ut;
+@@ -156,7 +156,7 @@ void add_uts(void)
+ //	m0_ut_add(&rpc_rcv_session_ut);
+ 	m0_ut_add(&rpc_service_ut);
+ 	m0_ut_add(&rpclib_ut);
+-//	m0_ut_add(&session_ut);
++	m0_ut_add(&session_ut);
+ 	m0_ut_add(&sm_ut);
+ 	m0_ut_add(&snscm_xform_ut);
+ 	m0_ut_add(&snscm_storage_ut);
+-- 
+1.8.3.2
+

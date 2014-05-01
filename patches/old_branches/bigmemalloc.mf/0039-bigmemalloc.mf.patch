@@ -1,0 +1,70 @@
+From e7b0573b87c0f915e1a5ece0d17113561c2043bd Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 11 Oct 2013 17:19:04 +0530
+Subject: [PATCH 39/50] bigmemalloc.mf
+
+-For both traversals, iterate and non-iterates (ALLOC and DEALLOC) cursor->vc_done
+ holds the number of objects completed.
+---
+ lib/varr.c | 31 ++++++++++++-------------------
+ 1 file changed, 12 insertions(+), 19 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index 9b37395..b3bb612 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -383,7 +383,10 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 			goto end;
+ 		break;
+ 	case ALLOC:
+-		if (cursor->vc_done == cursor->vc_arr->va_buff_nr)
++		/* Increments of cursor->vc_done are in the quantums of objects
++		 * in a single leaf buffer. Hence strict equality constraint is
++		 * avoided below. */
++		if (cursor->vc_done > cursor->vc_arr->va_buff_nr)
+ 			goto end;
+ 		if (cursor->vc_depth < cursor->vc_arr->va_depth - 1) {
+ 			buf = (unsigned long *)pe->vp_buf;
+@@ -463,8 +466,7 @@ M0_INTERNAL bool within_tree_width(const struct m0_varr_cursor *cursor,
+ 				   uint32_t depth, uint32_t index)
+ {
+ 	return index < cursor->vc_path[depth].vp_width &&
+-		cursor->vc_done < (cursor->vc_trav == ITERATE ?
+-			cursor->vc_arr->va_nr : cursor->vc_arr->va_buff_nr);
++		cursor->vc_done < cursor->vc_arr->va_nr;
+ }
+ 
+ M0_INTERNAL void completed_leaves_update(struct m0_varr_cursor *cursor,
+@@ -474,22 +476,13 @@ M0_INTERNAL void completed_leaves_update(struct m0_varr_cursor *cursor,
+ 	M0_PRE(ergo(cursor->vc_trav != ITERATE,
+ 		    depth < cursor->vc_arr->va_depth));
+ 
+-	if (cursor->vc_trav == ITERATE) {
+-		if (depth == cursor->vc_arr->va_depth)
+-			cursor->vc_done += inc;
+-		else
+-			cursor->vc_done += inc *
+-				varr_obj_nr_in_buff(cursor->vc_arr) *
+-				max_buff_nr_till_lev_n_pn(cursor->vc_arr,
+-							  depth);
+-	} else {
+-		if (depth == cursor->vc_arr->va_depth - 1)
+-			cursor->vc_done += inc;
+-		else
+-			cursor->vc_done += inc *
+-				max_buff_nr_till_lev_n_pn(cursor->vc_arr,
+-							  depth);
+-	}
++	if (depth == cursor->vc_arr->va_depth)
++		cursor->vc_done += inc;
++	else
++		cursor->vc_done += inc *
++			varr_obj_nr_in_buff(cursor->vc_arr) *
++			max_buff_nr_till_lev_n_pn(cursor->vc_arr,
++					depth);
+ }
+ 
+ /*
+-- 
+1.8.3.2
+

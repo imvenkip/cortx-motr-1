@@ -1,0 +1,99 @@
+From 7d7e1dfe41313cfb8a1d1f227fbffa3484c14659 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Fri, 20 Dec 2013 14:57:29 -0800
+Subject: [PATCH 2/2] m0mount: remove ssh user related changes
+
+---
+ scripts/m0mount | 27 +++++++++++----------------
+ 1 file changed, 11 insertions(+), 16 deletions(-)
+
+diff --git a/scripts/m0mount b/scripts/m0mount
+index e0362a2..bed6790 100755
+--- a/scripts/m0mount
++++ b/scripts/m0mount
+@@ -252,8 +252,8 @@ setup_local_params()
+ function r_run () {
+ 	H=$1
+ 	shift
+-	echo "# ssh $H sudo $*" >/dev/tty
+-	ssh $H sudo $*
++	echo "# ssh root@$H $*" >/dev/tty
++	ssh root@$H $*
+ }
+ 
+ function setup_host () {
+@@ -380,7 +380,7 @@ DISKS_SH_NR=$DISKS_SH_NR
+ 
+ i=$dev_id; j=0; f=0;
+ 
+-echo "Device:" > $WORK_ARENA/disks.conf
++echo "Device:" > disks.conf
+ 
+ devs=\`ls $DISKS_PATTERN | grep -v part\`
+ 
+@@ -390,12 +390,12 @@ for dev in \$devs; do
+ 	# and it doesn't contain any partition table (output of partprobe is empy)
+ 	if [[ \$? -eq 0 && -z \$partitions ]]; then
+ 		if [ \$j -eq 0 ]; then
+-			echo "Device:" > $WORK_ARENA/disks\$f.conf
+-			echo "   - id: 0" >> $WORK_ARENA/disks\$f.conf
+-			echo "     filename: \$dev" >> $WORK_ARENA/disks\$f.conf
++			echo "Device:" > disks\$f.conf
++			echo "   - id: 0" >> disks\$f.conf
++			echo "     filename: \$dev" >> disks\$f.conf
+ 		else
+-			echo "   - id: \$i" | tee -a disks.conf >> $WORK_ARENA/disks\$f.conf
+-			echo "     filename: \$dev" | tee -a disks.conf >> $WORK_ARENA/disks\$f.conf
++			echo "   - id: \$i" | tee -a disks.conf >> disks\$f.conf
++			echo "     filename: \$dev" | tee -a disks.conf >> disks\$f.conf
+ 			i=\`expr \$i + 1\`
+ 		fi
+ 		j=\`expr \$j + 1\`
+@@ -407,8 +407,6 @@ exit 0
+ EOF
+ 
+ 	if [ $H != $THIS_HOST ]; then
+-		r_run $H touch $DISKS_SH
+-		r_run $H chmod 777 $DISKS_SH
+ 		l_run scp $SF $H:$DISKS_SH
+ 	else
+ 		$RUN cp $SF $DISKS_SH
+@@ -418,7 +416,7 @@ EOF
+ 		return 1
+ 	fi
+ 
+-	$RUN "sh $DISKS_SH"
++	$RUN "(cd $WORK_ARENA && sh $DISKS_SH)"
+ 	if [ $? -ne 0 ]; then
+ 		echo ERROR: Failed to get disks list on $H
+ 		return 1
+@@ -445,7 +443,6 @@ function start_server () {
+ 	local DDIR=$SDIR
+ 	$RUN rm -rf $SDIR
+ 	$RUN mkdir -p $SDIR
+-	$RUN chmod 777 $SDIR	# XXX SECURITY BREACH
+ 	local DF=$SDIR/m0d.sh
+ 	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
+ 	local STOB_PARAMS="-T linux"
+@@ -487,16 +484,14 @@ function start_server () {
+ 		SNAME="-s mdservice -s rmservice -s stats $SNAME"
+ 	fi
+ 
+-	$RUN "touch ${SLOG}$I.log"
+-	$RUN "chmod 777 ${SLOG}$I.log"
+ 	$RUN "echo rotated > ${SLOG}$I.log"
+-	$RUN "bash -c \"cd $DDIR && \
++	$RUN "cd $DDIR && \
+ M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
+ M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
+ M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+ $M0D -r -p $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A $DDIR/stobs \
+ -w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
+--e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP\"" > ${SLOG}$I.log &
++-e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log &
+ 	if [ $? -ne 0 ]; then
+ 		echo ERROR: Failed to start remote server on $H
+ 		return 1
+-- 
+1.8.3.2
+

@@ -1,0 +1,114 @@
+From 5dd697aaefe27a30ebfe726fd862e5224b517992 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 22 Jan 2014 21:48:12 +0200
+Subject: [PATCH 28/60] rpc/formation: FRMQ_*_BOUND/UBOUND merged to *_NORMAL
+
+---
+ rpc/formation2.c          | 25 ++++++++-----------------
+ rpc/formation2_internal.h | 13 ++-----------
+ 2 files changed, 10 insertions(+), 28 deletions(-)
+
+diff --git a/rpc/formation2.c b/rpc/formation2.c
+index 225d7e5..463d5e6 100644
+--- a/rpc/formation2.c
++++ b/rpc/formation2.c
+@@ -74,11 +74,9 @@ static bool
+ constraints_are_valid(const struct m0_rpc_frm_constraints *constraints);
+ 
+ static const char *str_qtype[] = {
+-	[FRMQ_URGENT_BOUND]    = "URGENT_BOUND",
+-	[FRMQ_URGENT_UNBOUND]  = "URGENT_UNBOUND",
++	[FRMQ_URGENT_NORMAL]    = "URGENT_NORMAL",
+ 	[FRMQ_URGENT_ONEWAY]   = "URGENT_ONEWAY",
+-	[FRMQ_WAITING_UNBOUND] = "WAITING_UNBOUND",
+-	[FRMQ_WAITING_BOUND]   = "WAITING_BOUND",
++	[FRMQ_WAITING_NORMAL]   = "WAITING_NORMAL",
+ 	[FRMQ_WAITING_ONEWAY]  = "WAITING_ONEWAY"
+ };
+ 
+@@ -355,8 +353,7 @@ up:
+ M0_INTERNAL bool item_is_in_waiting_queue(const struct m0_rpc_item *item,
+ 					  const struct m0_rpc_frm *frm)
+ {
+-	return  M0_IN(item->ri_itemq, (&frm->f_itemq[FRMQ_WAITING_BOUND],
+-				       &frm->f_itemq[FRMQ_WAITING_UNBOUND],
++	return  M0_IN(item->ri_itemq, (&frm->f_itemq[FRMQ_WAITING_NORMAL],
+ 				       &frm->f_itemq[FRMQ_WAITING_ONEWAY]));
+ }
+ 
+@@ -369,31 +366,26 @@ frm_which_qtype(struct m0_rpc_frm *frm, const struct m0_rpc_item *item)
+ {
+ 	enum m0_rpc_frm_itemq_type qtype;
+ 	bool                       oneway;
+-	bool                       bound;
+ 	bool                       deadline_passed;
+ 
+ 	M0_ENTRY("item: %p", item);
+ 	M0_PRE(item != NULL);
+ 
+ 	oneway          = m0_rpc_item_is_oneway(item);
+-	bound           = !oneway; /* XXX we don't want bound/unbound anymore*/
+ 	deadline_passed = m0_time_now() >= item->ri_deadline;
+ 
+ 	M0_LOG(M0_DEBUG,
+-	       "deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
++	       "deadline: [%llu:%llu] oneway: %s deadline_passed: %s",
+ 	       (unsigned long long)m0_time_seconds(item->ri_deadline),
+ 	       (unsigned long long)m0_time_nanoseconds(item->ri_deadline),
+-	       m0_bool_to_str(bound), m0_bool_to_str(oneway),
+-	       m0_bool_to_str(deadline_passed));
++	       m0_bool_to_str(oneway), m0_bool_to_str(deadline_passed));
+ 
+ 	if (deadline_passed)
+ 		qtype = oneway ? FRMQ_URGENT_ONEWAY
+-			       : bound  ? FRMQ_URGENT_BOUND
+-					: FRMQ_URGENT_UNBOUND;
++			       : FRMQ_URGENT_NORMAL;
+ 	else
+ 		qtype = oneway ? FRMQ_WAITING_ONEWAY
+-			       : bound  ? FRMQ_WAITING_BOUND
+-					: FRMQ_WAITING_UNBOUND;
++			       : FRMQ_WAITING_NORMAL;
+ 	M0_LEAVE("qtype: %s", str_qtype[qtype]);
+ 	return qtype;
+ }
+@@ -529,8 +521,7 @@ static bool frm_is_ready(const struct m0_rpc_frm *frm)
+ 	if (M0_FI_ENABLED("ready"))
+ 		return true;
+ 	has_urgent_items =
+-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_BOUND]) ||
+-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_UNBOUND]) ||
++		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_NORMAL]) ||
+ 		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_URGENT_ONEWAY]);
+ 
+ 	c = &frm->f_constraints;
+diff --git a/rpc/formation2_internal.h b/rpc/formation2_internal.h
+index 6af0db0..28f5b9f 100644
+--- a/rpc/formation2_internal.h
++++ b/rpc/formation2_internal.h
+@@ -146,20 +146,11 @@ enum frm_state {
+    WAITING_* are the queues which contain items whose deadline is not yet
+    reached. An item from these queues can be picked for formation even
+    before its deadline is passed.
+-
+-   (URGENT|WAITING)_BOUND queues contain items for which slot is already
+-   assigned. These are "ready to go" items.
+-   (URGENT|WAITING)_UNBOUND queues contain items for which slot needs to
+-   assigned first. @see m0_rpc_frm_ops::fo_item_bind()
+-
+-   A bound item cannot be merged with other bound RPC items.
+  */
+ enum m0_rpc_frm_itemq_type {
+-	FRMQ_URGENT_BOUND,
+-	FRMQ_URGENT_UNBOUND,
++	FRMQ_URGENT_NORMAL,
+ 	FRMQ_URGENT_ONEWAY,
+-	FRMQ_WAITING_BOUND,
+-	FRMQ_WAITING_UNBOUND,
++	FRMQ_WAITING_NORMAL,
+ 	FRMQ_WAITING_ONEWAY,
+ 	FRMQ_NR_QUEUES
+ };
+-- 
+1.8.3.2
+

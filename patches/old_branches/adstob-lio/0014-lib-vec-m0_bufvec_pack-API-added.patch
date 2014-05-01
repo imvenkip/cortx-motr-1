@@ -1,0 +1,108 @@
+From c32f7ab2bbc7c311e8e4fb4e925b0f293ba2538e Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 30 Oct 2013 15:53:54 +0200
+Subject: [PATCH 14/17] lib/vec: m0_bufvec_pack() API added
+
+m0_bufvec_pack() packs buffers vector by
+squashing its contiguous chunks.
+---
+ lib/vec.c | 57 +++++++++++++++++++++++++++++++++------------------------
+ lib/vec.h |  7 +++++++
+ 2 files changed, 40 insertions(+), 24 deletions(-)
+
+diff --git a/lib/vec.c b/lib/vec.c
+index 7f60613..0d1e556 100644
+--- a/lib/vec.c
++++ b/lib/vec.c
+@@ -308,6 +308,39 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
+ }
+ M0_EXPORTED(m0_bufvec_free_aligned);
+ 
++static uint32_t vec_pack(struct m0_vec *vec, m0_bindex_t *idx)
++{
++	uint32_t i = 0;
++	uint32_t j;
++
++	M0_PRE(vec->v_nr > 0);
++
++	for (j = i + 1; j < vec->v_nr; ++j) {
++		if (idx[i] + vec->v_count[i] == idx[j]) {
++			vec->v_count[i] += vec->v_count[j];
++		} else {
++			++i;
++			if (i != j) {
++				idx[i] = idx[j];
++				vec->v_count[i] = vec->v_count[j];
++			}
++		}
++	}
++	vec->v_nr = i + 1;
++
++	return j - vec->v_nr;
++}
++
++M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bv)
++{
++	return vec_pack(&bv->ov_vec, (m0_bindex_t*)bv->ov_buf);
++}
++
++M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *iv)
++{
++	return vec_pack(&iv->iv_vec, iv->iv_index);
++}
++
+ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
+ 				  uint32_t len,
+ 				  struct m0_addb_ctx *ctx,
+@@ -347,30 +380,6 @@ M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec)
+ 	ivec->iv_vec.v_nr = 0;
+ }
+ 
+-M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *iv)
+-{
+-	uint32_t i = 0;
+-	uint32_t j;
+-
+-	M0_PRE(iv->iv_vec.v_nr > 0);
+-
+-	for (j = i + 1; j < iv->iv_vec.v_nr; ++j) {
+-		if (iv->iv_index[i] + iv->iv_vec.v_count[i] ==
+-		    iv->iv_index[j]) {
+-			iv->iv_vec.v_count[i] += iv->iv_vec.v_count[j];
+-		} else {
+-			++i;
+-			if (i != j) {
+-				iv->iv_index[i] = iv->iv_index[j];
+-				iv->iv_vec.v_count[i] = iv->iv_vec.v_count[j];
+-			}
+-		}
+-	}
+-	iv->iv_vec.v_nr = i + 1;
+-
+-	return j - iv->iv_vec.v_nr;
+-}
+-
+ M0_INTERNAL void m0_bufvec_cursor_init(struct m0_bufvec_cursor *cur,
+ 				       struct m0_bufvec *bvec)
+ {
+diff --git a/lib/vec.h b/lib/vec.h
+index b1c82c2..54cfc3e 100644
+--- a/lib/vec.h
++++ b/lib/vec.h
+@@ -242,6 +242,13 @@ M0_INTERNAL void m0_bufvec_free_aligned(struct m0_bufvec *bufvec,
+ 					unsigned shift);
+ 
+ /**
++ * Packs buffers vector by squashing its contiguous chunks.
++ * @pre bufvec->ov_vec.v_nr > 0.
++ * @return the number of squashed chunks.
++ */
++M0_INTERNAL uint32_t m0_bufvec_pack(struct m0_bufvec *bufvec);
++
++/**
+  * Allocate memory for index array and counts array in index vector.
+  * @param len Number of elements to allocate memory for.
+  * @param ctx Addb context to log addb messages in case of failure.
+-- 
+1.8.3.2
+

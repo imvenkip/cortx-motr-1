@@ -1,0 +1,237 @@
+From 9052746d09686e49d0dd49f3941329588bb325ee Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 16 Jul 2012 16:19:09 +0300
+Subject: [PATCH 244/311] embed c2_confc::cc_lock
+
++ Don't do any locking in c2_confc_{init,fini}().
+
+There are 2 lock usage patterns: (i) a lock that protects structure fields
+and (ii) a lock that protects structure existence.  The first one
+is typically embedded in the structure it protects and is useless in
+constructors and destructors. The second one is used during construction
+and finalisation, for example, when the structure is inserted to
+(and deleted from) some global index.
+
+->cc_lock is type-i, so it should be embedded in struct c2_confc.
+
+We don't protect c2_confc creation and destruction with locks, because
+c2_confc would be typically a member of some data structure, like reqh or
+client super-block, and there are already methods to serialise initialisation
+and finalisation of these structures.
+
+LogD #456
+RB: r/865/diff/1/?file=22712#file22712line369,
+    r/865/diff/1-4/?file=22713#file22713line316
+---
+ conf/confc.c | 47 ++++++++++++++++-------------------------------
+ conf/confc.h | 14 ++++----------
+ 2 files changed, 20 insertions(+), 41 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 6801c0d..1cc2bde 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -220,8 +220,7 @@
+  * achieved by using c2_sm_group (c2_confc::cc_group).
+  *
+  * Modifications to c2_confc instance and confc cache are protected by
+- * a confc lock --- c2_mutex pointed to by c2_confc::cc_lock. The
+- * mutex is owned by an external entity (e.g., the application).
++ * c2_confc::cc_lock mutex, aka confc lock.
+  *
+  * If a function needs both locks -- group lock and confc lock -- for
+  * its operation, group lock must be acquired first. (Note, that the
+@@ -260,7 +259,7 @@ static inline struct c2_mutex *group_lock(struct c2_confc *confc)
+ 
+ static inline struct c2_mutex *confc_lock(struct c2_confc_ctx *ctx)
+ {
+-	return ctx->fc_confc->cc_lock;
++	return &ctx->fc_confc->cc_lock;
+ }
+ 
+ static bool group_is_locked(const struct c2_confc_ctx *ctx)
+@@ -270,7 +269,7 @@ static bool group_is_locked(const struct c2_confc_ctx *ctx)
+ 
+ static bool confc_is_locked(const struct c2_confc *confc)
+ {
+-	return c2_mutex_is_locked(confc->cc_lock);
++	return c2_mutex_is_locked(&confc->cc_lock);
+ }
+ 
+ /* ------------------------------------------------------------------
+@@ -281,15 +280,13 @@ static int cache_preload(struct c2_confc *confc, const char *conf_str);
+ static bool confc_invariant(const struct c2_confc *confc);
+ 
+ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+-		  const char *profile, struct c2_sm_group *sm_group,
+-		  struct c2_mutex *lock)
++		  const char *profile, struct c2_sm_group *sm_group)
+ {
+ 	/*
+ 	 * int rc;
+ 	 * struct c2_conf_obj *root;
+ 	 *
+-	 * C2_PRE(confc->cc_root == NULL && confc->cc_group == NULL &&
+-	 *        confc->cc_lock == NULL);
++	 * C2_PRE(confc->cc_root == NULL && confc->cc_group == NULL);
+ 	 * C2_PRE(conf_source != NULL && *conf_source != 0);
+ 	 * C2_PRE(profile != NULL && *profile != 0);
+ 	 *
+@@ -299,24 +296,18 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+ 	 *     return -ENOMEM;
+ 	 * root->co_confc = confc;
+ 	 *
+-	 * c2_mutex_lock(&sm_group->s_lock);
+-	 * c2_mutex_lock(lock);
+-	 *
+-	 * confc->cc_group = sm_group;
+-	 * confc->cc_lock = lock;
+-	 *
+ 	 * c2_conf_map_init(&confc->cc_registry);
+ 	 * c2_conf_map_add(&confc->cc_registry, root);
+ 	 * confc->cc_root = root;
+ 	 *
++	 * confc->cc_group = sm_group;
++	 * c2_mutex_init(&confc->cc_lock);
++	 *
+ 	 * if (conf_source starts with "local-conf:")
+ 	 *     rc = cache_preload(confc, conf_source + strlen("local-conf:"));
+ 	 * else
+ 	 *     XXX @todo setup confd connection;
+ 	 *
+-	 * c2_mutex_unlock(lock);
+-	 * c2_mutex_unlock(&sm_group->s_lock);
+-	 *
+ 	 * C2_POST((rc == 0) == confc_invariant(confc));
+ 	 * return rc;
+ 	 */
+@@ -329,9 +320,6 @@ void c2_confc_fini(struct c2_confc *confc)
+ 	 * C2_PRE(confc_invariant(confc));
+ 	 * C2_PRE(confc->cc_nr_ctx == 0);
+ 	 *
+-	 * c2_mutex_lock(group_lock(confc));
+-	 * c2_mutex_lock(confc->cc_lock);
+-	 *
+ 	 * for (obj in confc->cc_registry) {
+ 	 *     C2_ASSERT(obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING);
+ 	 *     c2_free(obj);
+@@ -339,11 +327,8 @@ void c2_confc_fini(struct c2_confc *confc)
+ 	 * c2_confc_map_fini(&confc->cc_registry);
+ 	 * confc->cc_root = NULL;
+ 	 *
+-	 * c2_mutex_unlock(confc->cc_lock);
+-	 * c2_mutex_unlock(group_lock(confc));
+-	 *
+-	 * confc->cc_lock = NULL;
+ 	 * confc->cc_group = NULL;
++	 * c2_mutex_fini(&confc->cc_lock);
+ 	 */
+ 	XXX;
+ }
+@@ -356,7 +341,7 @@ C2_BOB_DEFINE(static, &c2_confc_bob, c2_confc);
+ static bool confc_invariant(const struct c2_confc *confc)
+ {
+ 	return c2_confc_bob_check(confc) && confc->cc_root != NULL &&
+-		confc->cc_group != NULL && confc->cc_lock != NULL;
++		confc->cc_group != NULL;
+ }
+ 
+ /* ------------------------------------------------------------------
+@@ -396,9 +381,9 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
+ 		   confc->cc_group, XXX /* *c2_addb_ctx */);
+ 
+ 	/* Attach to c2_confc. */
+-	c2_mutex_lock(confc->cc_lock);
++	c2_mutex_lock(&confc->cc_lock);
+ 	C2_CNT_INC(confc->cc_nr_ctx);
+-	c2_mutex_unlock(confc->cc_lock);
++	c2_mutex_unlock(&confc->cc_lock);
+ 	ctx->fc_confc = confc;
+ 
+ 	c2_mutex_unlock(group_lock(confc));
+@@ -504,11 +489,11 @@ int c2_confc_open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
+ void c2_confc_close(struct c2_conf_obj *obj)
+ {
+ 	if (obj != NULL) {
+-		c2_mutex_lock(obj->co_confc->cc_lock);
++		c2_mutex_lock(&obj->co_confc->cc_lock);
+ 		C2_CNT_DEC(obj->co_nrefs);
+ 		if (obj->co_nrefs == 0)
+ 			c2_chan_broadcast(&obj->co_chan);
+-		c2_mutex_unlock(obj->co_confc->cc_lock);
++		c2_mutex_unlock(&obj->co_confc->cc_lock);
+ 	}
+ }
+ 
+@@ -1010,7 +995,7 @@ cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
+ 	 * C2_PRE(resp->fr_rc == 0);
+ 	 * C2_PRE(c2_mutex_is_locked(group_lock(confc));
+ 	 *
+-	 * c2_mutex_lock(confc->cc_lock);
++	 * c2_mutex_lock(&confc->cc_lock);
+ 	 *
+ 	 * for (onwire in resp->fr_data) {
+ 	 *     if (onwire->o_id.cb_size == 0 ||
+@@ -1031,7 +1016,7 @@ cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
+ 	 *         break;
+ 	 * }
+ 	 *
+-	 * c2_mutex_unlock(confc->cc_lock);
++	 * c2_mutex_unlock(&confc->cc_lock);
+ 	 * return ret;
+ 	 */
+ 	XXX;
+diff --git a/conf/confc.h b/conf/confc.h
+index 7ac9886..3afb231 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -106,12 +106,10 @@ struct c2_mutex;
+  * #include "conf/confc.h"
+  *
+  * struct c2_sm_group *group = ...;
+- * struct c2_mutex    *confc_lock = ...;
+  * struct c2_confc     confc;
+  *
+  * startup(...) {
+- *     rc = c2_confc_init(&confc, "profile-name", "confd-endpoint", group,
+- *                        confc_lock);
++ *     rc = c2_confc_init(&confc, "profile-name", "confd-endpoint", group);
+  *     ...
+  * }
+  *
+@@ -392,8 +390,7 @@ struct c2_confc {
+ 	 * Confc lock (aka cache lock).
+ 	 *
+ 	 * Protects this structure and the DAG of cached configuration
+-	 * objects from concurrent modifications.  The mutex itself is
+-	 * owned by an external entity (e.g., the application).
++	 * objects from concurrent modifications.
+ 	 *
+ 	 * Rationale: while ->cc_group ensures that there are no
+ 	 * concurrent state transitions, it has no influence on the
+@@ -405,7 +402,7 @@ struct c2_confc {
+ 	 *
+ 	 * @see confc-lspec-thread
+ 	 */
+-	struct c2_mutex    *cc_lock;
++	struct c2_mutex     cc_lock;
+ 	/**
+ 	 * The number of configuration retrieval contexts associated
+ 	 * with this c2_confc.
+@@ -432,12 +429,9 @@ struct c2_confc {
+  * @param profile      Name of profile used by this confc.
+  * @param sm_group     State machine group to be associated with confc
+  *                     configuration cache.
+- * @param lock         A mutex that will protect this c2_confc instance and
+- *                     its configuration cache from concurrent modifications.
+  */
+ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+-		  const char *profile, struct c2_sm_group *sm_group,
+-		  struct c2_mutex *lock);
++		  const char *profile, struct c2_sm_group *sm_group);
+ 
+ /**
+  * Finalizes configuration client. Destroys configuration cache,
+-- 
+1.8.3.2
+

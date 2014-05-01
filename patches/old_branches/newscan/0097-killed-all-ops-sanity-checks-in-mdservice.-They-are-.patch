@@ -1,0 +1,639 @@
+From 90e50a4f3f3728e591cc31ed95b8c4f280cff2c4 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Sat, 28 May 2011 09:46:26 -0600
+Subject: [PATCH 097/158] - killed all ops sanity checks in mdservice. They are
+ not needed for replicator and they were npot implemented in a full scale; -
+ add sec check for readdir not to read from files; - fixes about readdir on
+ handling some corner cases; - do not handle -ENOENT in link stat function
+ with create a cob. If it is not yet existing - initial scan did not find it
+ and will do later; - rename name.n_count into name.n_len in mdservice.ff; -
+ use "c2_bitstring name" in store_link and store_unlink methods instead of
+ c2_cob_attr; - cleanups in create handler in mdservice;
+
+---
+ cob/cob.c            |   3 +-
+ mdservice/md_foms.c  | 258 +++++++++------------------------------------------
+ mdservice/md_fops.ff |   2 +-
+ mdstore/mdstore.c    |  24 +++--
+ mdstore/mdstore.h    |  18 ++--
+ mdstore/ut/lustre.c  |   2 +-
+ 6 files changed, 70 insertions(+), 237 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index fd23e09..f62df9c 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -648,8 +648,7 @@ int c2_cob_iterator_get(struct c2_cob_iterator *it)
+         /*
+          * Exact position found.
+          */
+-        if (rc == 0 || (it->ci_key->cnk_name.b_len == 1 &&
+-                        *(char *)it->ci_key->cnk_name.b_data == '.'))
++        if (rc == 0)
+                 return 1;
+ 
+         /*
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 457bb23..5297d6d 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -44,7 +44,7 @@ void c2_md_make_nskey(struct c2_cob_nskey **keyh,
+         struct c2_fid cfid;
+         
+         c2_md_make_fid(&cfid, fid);
+-        c2_cob_make_nskey(keyh, &cfid, name->n_name, name->n_count);
++        c2_cob_make_nskey(keyh, &cfid, name->n_name, name->n_len);
+ }
+ 
+ /**
+@@ -58,23 +58,6 @@ void c2_md_make_oikey(struct c2_cob_oikey *oikey,
+         oikey->cok_linkno = linkno;
+ }
+ 
+-static int c2_md_create_fom_sanity(struct c2_fom *fom)
+-{
+-        /*
+-         * @todo:
+-         * 1. MAY_WRITE and MAY_EXEC for parent;
+-         * 2. uid/gid for parent.
+-         */
+-         
+-        /*
+-         * Sanity checks related for exsiting objects
+-         * are done automatically in mdstore create
+-         * code. If object is already existing then
+-         * -EEXIST will be returned. Same for name.
+-         */
+-        return 0;
+-}
+-
+ static void c2_md_fop_cob2attr(struct c2_cob_attr *attr, 
+                                struct c2_fop_cob *body)
+ {
+@@ -179,7 +162,7 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
+ 
+         c2_md_fop_cob2attr(&attr, body);
+         attr.ca_name = req->c_name.n_name;
+-        attr.ca_namelen = req->c_name.n_count;
++        attr.ca_namelen = req->c_name.n_len;
+         
+         rc = c2_md_store_locate(site->s_mdstore, &tfid, 
+                                 &cob, C2_MD_STORE_LOCATE_STORED,
+@@ -213,7 +196,7 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
+                  */
+                 cname = c2_bitstring_buf_get(&cob->co_nskey->cnk_name);
+                 clen = c2_bitstring_len_get(&cob->co_nskey->cnk_name);
+-                if (clen == attr.ca_namelen && 
++                if (clen != attr.ca_namelen ||
+                     strncmp(attr.ca_name, cname, clen)) {
+                         c2_cob_make_nskey(&nskey, &pfid, 
+                                           attr.ca_name, 
+@@ -248,50 +231,8 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_link_fom_sanity(struct c2_fom *fom)
+-{
+-        struct c2_fom_md              *fom_obj;
+-        struct c2_fop_link            *req;
+-        struct c2_fop_ctx             *ctx;
+-        struct c2_fid                  fid;
+-        struct c2_cob                 *cob;
+-        int                            rc;
+-
+-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+-        req = c2_fop_data(fom_obj->fm_fop);
+-        ctx = fom->fo_fop_ctx;
+-
+-        if (req->l_name.n_count > NAME_MAX)
+-                return -ENAMETOOLONG;
+-
+-        /*
+-         * Let's check for possible hardlink to a dir.
+-         */
+-        c2_md_make_fid(&fid, &req->l_body.b_tfid);
+-
+-        rc = c2_md_store_locate(ctx->fc_site->s_mdstore, &fid, 
+-                                &cob, C2_MD_STORE_LOCATE_STORED,
+-                                &ctx->fc_tx->tx_dbtx);
+-        if (rc)
+-                return rc;
+-
+-        if (S_ISDIR(cob->co_omgrec.cor_mode))
+-                rc = -EPERM;
+-        else if (cob->co_nsrec.cnr_nlink >= (unsigned short)~0 / 2)
+-                rc = -EMLINK;
+-                
+-        /*
+-         * @todo:
+-         * 1. Check for MAY_WRITE and MAY_EXEC in parent;
+-         * 2. Check for immutable and append target.
+-         */
+-        c2_cob_put(cob);
+-        return rc;
+-}
+-
+ static int c2_md_link_fom_state(struct c2_fom *fom)
+ {
+-        struct c2_cob_attr        attr;
+         struct c2_fop_cob        *body;
+         struct c2_site           *site;
+         struct c2_cob            *cob;
+@@ -304,6 +245,7 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
+         struct c2_fid             tfid;
+         struct c2_fid             pfid;
+         struct c2_service        *svc;
++        struct c2_bitstring      *name;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -327,32 +269,19 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&tfid, &body->b_tfid);
+ 
+         rep = c2_fop_data(fop_rep);
+-        attr.ca_name = req->l_name.n_name;
+-        attr.ca_namelen = req->l_name.n_count;
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
+                                 C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc == 0) {
+                 if (req->l_body.b_version > cob->co_nsrec.cnr_version) {
++                        name = c2_bitstring_alloc(req->l_name.n_name,
++                                                  req->l_name.n_len);
+                         rc = c2_md_store_link(site->s_mdstore, &pfid,
+-                                              cob, &attr, 
++                                              cob, name, 
+                                               &ctx->fc_tx->tx_dbtx);
++                        c2_bitstring_free(name);
+                 }
+-        } else if (rc == -ENOENT) {
+-                /*
+-                 * No object may exist in db yet. Let's convert this
+-                 * link into a create. Later when initial scan finds
+-                 * other names of this object we will handle it in
+-                 * create state function.
+-                 */
+-                C2_ASSERT(body->b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS);
+-                rc = c2_md_store_alloc(site->s_mdstore, &tfid, &cob);
+-                if (rc)
+-                        goto out;
+-
+-                rc = c2_md_store_create(site->s_mdstore, &pfid,
+-                                        cob, &attr, &ctx->fc_tx->tx_dbtx);
+         } else {
+                 goto out;
+         }
+@@ -369,20 +298,6 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_unlink_fom_sanity(struct c2_fom *fom)
+-{
+-        /*
+-         * @todo: Check for following:
+-         * 1. MAY_WRITE and MAY_EXEC in parent;
+-         * 2. Append-only parent;
+-         * 3. Append-only child;
+-         * 4. Sticky bit on child; 
+-         * 5. Immutable child;
+-         * 6. Empty child dir (if a dir).
+-         */
+-        return 0;
+-}
+-
+ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+ {
+         struct c2_cob_nskey      *nskey;
+@@ -390,7 +305,6 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         struct c2_fop_cob        *body;
+         struct c2_site           *site;
+         struct c2_cob            *cob;
+-        struct c2_cob            *ncob;
+         struct c2_fop_unlink     *req;
+         struct c2_fop_unlink_rep *rep;
+         struct c2_fom_md         *fom_obj;
+@@ -400,6 +314,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         struct c2_fid             tfid;
+         struct c2_fid             pfid;
+         struct c2_service        *svc;
++        struct c2_bitstring      *name;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -421,53 +336,50 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+ 
+         c2_md_make_fid(&pfid, &body->b_pfid);
+         c2_md_make_fid(&tfid, &body->b_tfid);
+-
+         rep = c2_fop_data(fop_rep);
+-        attr.ca_name = req->u_name.n_name;
+-        attr.ca_namelen = req->u_name.n_count;
+ 
+-        rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORED,
+-                                &ctx->fc_tx->tx_dbtx);
+         if (body->b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS) {
+-                if (rc == -ENOENT) {
+-                        rc = 0;
+-                        goto out;
+-                } else if (rc) {
+-                        goto out;
+-                }
+-                
+-                c2_cob_make_nskey(&nskey, &pfid, attr.ca_name, 
+-                                  attr.ca_namelen);
++                c2_cob_make_nskey(&nskey, &pfid, 
++                                  req->u_name.n_name,
++                                  req->u_name.n_len);
+                 
+                 rc = c2_cob_lookup(&site->s_mdstore->md_dom, 
+-                                   nskey, CA_NSKEY_FREE, &ncob, 
++                                   nskey, CA_NSKEY_FREE, &cob, 
+                                    &ctx->fc_tx->tx_dbtx);
+-                if (rc)
+-                        goto out_put_cob;
++                if (rc) {
++                        c2_free(nskey);
++                        goto out;
++                }
+                 
+-                rc = c2_md_store_getattr(site->s_mdstore, ncob, 
++                attr.ca_flags = 0;
++
++                rc = c2_md_store_getattr(site->s_mdstore, cob, 
+                                          &attr, &ctx->fc_tx->tx_dbtx);
+                 if (rc) {
+-                        c2_cob_put(ncob);
+-                        goto out_put_cob;
++                        c2_cob_put(cob);
++                        goto out;
+                 }
+                 attr.ca_zombie = 1;
+-                rc = c2_md_store_setattr(site->s_mdstore, ncob, 
++                rc = c2_md_store_setattr(site->s_mdstore, cob, 
+                                          &attr, &ctx->fc_tx->tx_dbtx);
+-                c2_cob_put(ncob);
++                c2_cob_put(cob);
+         } else {
++                rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
++                                        C2_MD_STORE_LOCATE_STORED,
++                                        &ctx->fc_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+                 if (req->u_body.b_version > cob->co_nsrec.cnr_version) {
++                        name = c2_bitstring_alloc(req->u_name.n_name,
++                                                  req->u_name.n_len);
+                         rc = c2_md_store_unlink(site->s_mdstore, &pfid,
+-                                                cob, &attr, 
++                                                cob, name, 
+                                                 &ctx->fc_tx->tx_dbtx);
++                        c2_bitstring_free(name);
+                 }
++                c2_cob_put(cob);
+         }
+-out_put_cob:
+-        c2_cob_put(cob);
+         if (rc == 0) {
+                 svc = fom->fo_fop_ctx->fc_service;
+ 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+@@ -480,19 +392,6 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_rename_fom_sanity(struct c2_fom *fom)
+-{
+-        /*
+-         * @todo: Check for following:
+-         * 1. MAY_WRITE and MAY_EXEC in parent;
+-         * 2. Append-only parent;
+-         * 3. Append-only child;
+-         * 4. Sticky bit on child; 
+-         * 5. Immutable child.
+-         */
+-        return 0;
+-}
+-
+ static int c2_md_rename_fom_state(struct c2_fom *fom)
+ {
+         struct c2_fop_cob        *sbody;
+@@ -544,14 +443,14 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+                 struct c2_bitstring *tgt;
+                 
+                 src = c2_bitstring_alloc(req->r_sname.n_name, 
+-                                         req->r_sname.n_count);
++                                         req->r_sname.n_len);
+                 if (!src) {
+                         rc = -ENOMEM;
+                         goto out;
+                 }
+                 
+                 tgt = c2_bitstring_alloc(req->r_tname.n_name, 
+-                                         req->r_tname.n_count);
++                                         req->r_tname.n_len);
+                 if (!tgt) {
+                         c2_bitstring_free(src);
+                         rc = -ENOMEM;
+@@ -577,47 +476,6 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_open_fom_sanity(struct c2_fom *fom)
+-{
+-        struct c2_fom_md              *fom_obj;
+-        struct c2_fop_open            *req;
+-        struct c2_fid                  fid;
+-        struct c2_fop_ctx             *ctx;
+-        struct c2_cob                 *cob;
+-        int                            mode;
+-        int                            rc;
+-
+-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+-        req = c2_fop_data(fom_obj->fm_fop);
+-        ctx = fom->fo_fop_ctx;
+-
+-        c2_md_make_fid(&fid, &req->o_body.b_tfid);
+-
+-        rc = c2_md_store_locate(ctx->fc_site->s_mdstore, &fid, 
+-                                &cob, C2_MD_STORE_LOCATE_STORED,
+-                                &ctx->fc_tx->tx_dbtx);
+-        if (rc)
+-                return rc;
+-
+-        if (S_ISLNK(cob->co_omgrec.cor_mode)) {
+-                rc = -ELOOP;
+-        } else {
+-                mode = accmode(req->o_body.b_flags);
+-                if (S_ISDIR(cob->co_omgrec.cor_mode) && 
+-                   (mode & C2_MD_MAY_WRITE))
+-                        rc = -EISDIR;
+-        }
+-        
+-        /*
+-         * @todo:
+-         * 1. Check for open-create;
+-         * 2. Check for appent-only files.
+-         */
+-        c2_cob_put(cob);
+-
+-        return rc;
+-}
+-
+ static int c2_md_open_fom_state(struct c2_fom *fom)
+ {
+         struct c2_fop_cob        *body;
+@@ -869,34 +727,6 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_readdir_fom_sanity(struct c2_fom *fom)
+-{
+-        struct c2_fom_md              *fom_obj;
+-        struct c2_fop_readdir         *req;
+-        struct c2_fid                  fid;
+-        struct c2_fop_ctx             *ctx;
+-        struct c2_cob                 *cob;
+-        int                            rc;
+-
+-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+-        req = c2_fop_data(fom_obj->fm_fop);
+-        ctx = fom->fo_fop_ctx;
+-
+-        c2_md_make_fid(&fid, &req->r_body.b_tfid);
+-
+-        rc = c2_md_store_locate(ctx->fc_site->s_mdstore, &fid, 
+-                                &cob, C2_MD_STORE_LOCATE_STORED,
+-                                &ctx->fc_tx->tx_dbtx);
+-        if (rc)
+-                return rc;
+-
+-        if (!S_ISDIR(cob->co_omgrec.cor_mode))
+-                rc = -ENOTDIR;
+-        c2_cob_put(cob);
+-
+-        return rc;
+-}
+-
+ #define C2_MD_READDIR_BUF_ALLOC 4096
+ 
+ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+@@ -942,8 +772,14 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         if (rc)
+                 goto out;
+ 
++        if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
++                rc = -ENOTDIR;
++                c2_cob_put(cob);
++                goto out;
++        }
++
+         rdpg.r_pos = c2_bitstring_alloc(req->r_pos.n_name,
+-                                        req->r_pos.n_count);
++                                        req->r_pos.n_len);
+         if (rdpg.r_pos == NULL) {
+                 c2_cob_put(cob);
+                 rc = -ENOMEM;
+@@ -972,15 +808,15 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         /*
+          * Prepare end position.
+          */
+-        rep->r_end.n_count = c2_bitstring_len_get(rdpg.r_end);
+-        rep->r_end.n_name = c2_alloc(rep->r_end.n_count);
++        rep->r_end.n_len = c2_bitstring_len_get(rdpg.r_end);
++        rep->r_end.n_name = c2_alloc(rep->r_end.n_len);
+         if (rep->r_end.n_name == NULL) {
+                 c2_free(addr);
+                 rc = -ENOMEM;
+                 goto out;
+         }
+         strncpy(rep->r_end.n_name, c2_bitstring_buf_get(rdpg.r_end),
+-                rep->r_end.n_count);
++                rep->r_end.n_len);
+ 
+         /* 
+          * Prepare buf with data.
+@@ -1013,31 +849,26 @@ static void c2_md_req_fom_fini(struct c2_fom *fom)
+ 
+ static struct c2_fom_ops c2_md_fom_create_ops = {
+ 	.fo_state  = c2_md_create_fom_state,
+-	.fo_sanity = c2_md_create_fom_sanity,
+ 	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_link_ops = {
+ 	.fo_state  = c2_md_link_fom_state,
+-	.fo_sanity = c2_md_link_fom_sanity,
+ 	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_unlink_ops = {
+ 	.fo_state  = c2_md_unlink_fom_state,
+-	.fo_sanity = c2_md_unlink_fom_sanity,
+ 	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_rename_ops = {
+ 	.fo_state  = c2_md_rename_fom_state,
+-	.fo_sanity = c2_md_rename_fom_sanity,
+ 	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_open_ops = {
+ 	.fo_state  = c2_md_open_fom_state,
+-	.fo_sanity = c2_md_open_fom_sanity,
+ 	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+@@ -1058,7 +889,6 @@ static struct c2_fom_ops c2_md_fom_getattr_ops = {
+ 
+ static struct c2_fom_ops c2_md_fom_readdir_ops = {
+ 	.fo_state  = c2_md_readdir_fom_state,
+-	.fo_sanity = c2_md_readdir_fom_sanity,
+ 	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 042fe67..47851b3 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -16,7 +16,7 @@ DEF(c2_fop_fid, RECORD,
+     _(f_oid, U64));
+ 
+ DEF(c2_fop_name, SEQUENCE,
+-    _(n_count, U32),
++    _(n_len, U32),
+     _(n_name, BYTE));
+ 
+ DEF(c2_fop_cob, RECORD,
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index b780a2a..754c257 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -138,7 +138,7 @@ int c2_md_store_create(struct c2_md_store       *md,
+ int c2_md_store_link(struct c2_md_store         *md, 
+                      struct c2_fid              *pfid,
+                      struct c2_cob              *cob,
+-                     struct c2_cob_attr         *attr,
++                     struct c2_bitstring        *name,
+                      struct c2_db_tx            *tx)
+ {
+         struct c2_cob_nskey   *nskey;
+@@ -152,9 +152,9 @@ int c2_md_store_link(struct c2_md_store         *md,
+ 
+         /*
+          * Link @nskey to a file described with @cob
+-         */        
+-        c2_cob_make_nskey(&nskey, pfid, attr->ca_name, 
+-                          attr->ca_namelen);
++         */
++        c2_cob_make_nskey(&nskey, pfid, c2_bitstring_buf_get(name), 
++                          c2_bitstring_len_get(name));
+         rc = c2_cob_add_name(cob, nskey, tx);
+         c2_free(nskey);
+         if (rc)
+@@ -193,7 +193,7 @@ out:
+ int c2_md_store_unlink(struct c2_md_store       *md,
+                        struct c2_fid            *pfid,
+                        struct c2_cob            *cob,
+-                       struct c2_cob_attr       *attr,
++                       struct c2_bitstring      *name,
+                        struct c2_db_tx          *tx)
+ {
+         struct c2_cob         *ncob;
+@@ -213,8 +213,8 @@ int c2_md_store_unlink(struct c2_md_store       *md,
+          * Check for hardlinks.
+          */
+         if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
+-                c2_cob_make_nskey(&nskey, pfid, 
+-                                  attr->ca_name, attr->ca_namelen);
++                c2_cob_make_nskey(&nskey, pfid, c2_bitstring_buf_get(name), 
++                                  c2_bitstring_len_get(name));
+ 
+                 /*
+                  * Check if we're trying to kill stata data entry. We need to
+@@ -615,9 +615,9 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+     
+         ent = rdpg->r_buf.b_addr;
+         nob = rdpg->r_buf.b_nob;
+-        while (rc == 0) {
++        while (rc == 0 || first || second) {
+                 int next_step = 0;
+-                
++
+                 if (first) {
+                         name = ".";
+                         len = 1;
+@@ -627,8 +627,12 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+                         name = "..";
+                         len = 2;
+                         second = 0;
+-                        next_step = 1;
+                 } else {
++                        if (!c2_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid)) {
++                                rc = 1;
++                                break;
++                        }
++                
+                         name = c2_bitstring_buf_get(&it.ci_key->cnk_name);
+                         len = c2_bitstring_len_get(&it.ci_key->cnk_name);
+                         next_step = 1;
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index c3e44c6..7940ed0 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -199,7 +199,7 @@ void c2_md_store_fini(struct c2_md_store *md);
+ int c2_md_store_link(struct c2_md_store *md, 
+                      struct c2_fid *pfid, 
+                      struct c2_cob *cob, 
+-                     struct c2_cob_attr *attr,
++                     struct c2_bitstring *name,
+                      struct c2_db_tx *tx);
+                      
+ /**
+@@ -212,7 +212,7 @@ int c2_md_store_link(struct c2_md_store *md,
+ int c2_md_store_unlink(struct c2_md_store *md, 
+                        struct c2_fid *pfid, 
+                        struct c2_cob *cob,
+-                       struct c2_cob_attr *attr,
++                       struct c2_bitstring *name,
+                        struct c2_db_tx *tx);
+                        
+ /**
+@@ -221,13 +221,13 @@ int c2_md_store_unlink(struct c2_md_store *md,
+    
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_rename(struct c2_md_store       *md, 
+-                       struct c2_fid            *pfid_tgt,
+-                       struct c2_fid            *pfid_src,
+-                       struct c2_cob            *cob,
+-                       struct c2_bitstring      *name_src,
+-                       struct c2_bitstring      *name_tgt,
+-                       struct c2_db_tx          *tx);
++int c2_md_store_rename(struct c2_md_store *md, 
++                       struct c2_fid *pfid_tgt,
++                       struct c2_fid *pfid_src,
++                       struct c2_cob *cob,
++                       struct c2_bitstring *name_src,
++                       struct c2_bitstring *name_tgt,
++                       struct c2_db_tx *tx);
+ 
+ /**
+    Handle create operation described by @attr on @cob. Input @cob
+diff --git a/mdstore/ut/lustre.c b/mdstore/ut/lustre.c
+index cc8ce67..1b69ec3 100644
+--- a/mdstore/ut/lustre.c
++++ b/mdstore/ut/lustre.c
+@@ -30,7 +30,7 @@ static void lustre_copy_fid(struct c2_fop_fid *bf,
+ static int lustre_copy_name(struct c2_fop_name *n, 
+                             struct c2_md_lustre_logrec *rec)
+ {
+-        n->n_count = rec->cr_namelen;
++        n->n_len = rec->cr_namelen;
+         n->n_name = c2_alloc(rec->cr_namelen);
+         if (!n->n_name)
+                 return -ENOMEM;
+-- 
+1.8.3.2
+

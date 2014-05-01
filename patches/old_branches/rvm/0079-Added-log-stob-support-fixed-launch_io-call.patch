@@ -1,0 +1,760 @@
+From 3937844474cf8eab8f65b1d29d831df5f516da68 Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Fri, 26 Apr 2013 04:07:53 -0700
+Subject: [PATCH 079/121] Added log stob support, fixed launch_io call
+
+---
+ be/be_init.c        |   1 -
+ be/be_rvm.c         |  28 ++++++--
+ be/be_rvm.h         |   2 +-
+ be/domain.c         |   3 +
+ be/ut/be.c          |  84 +++++++++++++++++++----
+ rvm/rvm.h           |   2 +-
+ rvm/rvm_init.c      |   2 +-
+ rvm/rvm_io.c        | 187 ++++++++++++++++++++++++----------------------------
+ rvm/rvm_logrecovr.c |   6 +-
+ rvm/rvm_logstatus.c |  32 +++------
+ rvm/rvm_trans.c     |   2 +-
+ rvm/rvm_utils.c     |   2 +
+ rvm/ut/rvm.c        |   1 +
+ 13 files changed, 199 insertions(+), 153 deletions(-)
+
+diff --git a/be/be_init.c b/be/be_init.c
+index d130fcb..211cc2f 100644
+--- a/be/be_init.c
++++ b/be/be_init.c
+@@ -33,7 +33,6 @@ M0_INTERNAL int m0_be_init(void)
+         m0_bob_type_tlist_init(&m0_be_seg_type_bob, &m0_be_seg_tl);
+         m0_bob_type_tlist_init(&m0_be_reg_type_bob, &m0_be_reg_tl);
+         m0_bob_type_tlist_init(&m0_be_tx_type_bob,  &m0_be_tx_tl);
+-        m0_be_rvm_init();
+         return 0;
+ }
+ 
+diff --git a/be/be_rvm.c b/be/be_rvm.c
+index f30998a..c50ed57 100644
+--- a/be/be_rvm.c
++++ b/be/be_rvm.c
+@@ -16,31 +16,47 @@
+  * Original author              : Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date       : 11/28/2012
+  */
+-
++#include <stdio.h>
+ #include "be/be.h"
+ #include "rvm/rvm.h"
++#include "stob/linux.h"
++#include "stob/linux_internal.h"
+ 
+ /**
+   @addtogroup be_rvm
+   @{
+   */
+-const char *log_file="/tmp/log_file";
++char log_file[MAXPATHLEN];
+ 
+ /**
+  * Initialize RVM
+  * @todo - most of the rvm options are hardcoded for now
+  */
+-void m0_be_rvm_init()
++void m0_be_rvm_init(struct m0_be_domain *dom)
+ {
+-        rvm_options_t   *options;
+-        rvm_return_t    retval;
++        rvm_options_t            *options;
++        rvm_return_t             retval;
++        struct linux_domain      *ldom;
++        struct m0_stob           *log_stob = dom->bd_impl.log_stob;
++        int                      nbytes    = 0;
++
++        M0_ASSERT(log_stob != NULL);
++
++        ldom = domain2linux(log_stob->so_domain);
++        nbytes = snprintf(log_file,
++                          ARRAY_SIZE(log_file),
++                          "%s/o/%016lx.%016lx",
++                          ldom->sdl_path,
++                          log_stob->so_id.si_bits.u_hi,
++                          log_stob->so_id.si_bits.u_lo);
+ 
+         options = rvm_malloc_options();
+ 
+         M0_ASSERT(options != NULL);
+ 
+         options->flags |= RVM_ALL_OPTIMIZATIONS;
+-        options->log_dev = (char *)log_file;
++        options->log_stob = log_stob;
++        options->log_dev = (char *) log_file;
+         options->create_log_file = rvm_true;
+         options->create_log_size = RVM_MK_OFFSET(0,20971520);
+         options->create_log_mode = 0600;
+diff --git a/be/be_rvm.h b/be/be_rvm.h
+index 0e221bf..0f57569 100644
+--- a/be/be_rvm.h
++++ b/be/be_rvm.h
+@@ -29,7 +29,7 @@
+ /*
+  * Initializes RVM.
+  */
+-void m0_be_rvm_init();
++void m0_be_rvm_init(struct m0_be_domain *dom);
+ 
+ /*
+  * Returns address of the heap start form the RVM segment.
+diff --git a/be/domain.c b/be/domain.c
+index be3925f..76ec56d 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -19,6 +19,7 @@
+ 
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include <string.h>
+ 
+ #include "lib/trace.h"
+ #include "lib/memory.h"
+@@ -29,6 +30,7 @@
+ #include "be/tx.h"
+ #include "be/be_private.h"
+ #include "be/be_init.h"
++#include "be/be_rvm.h"
+ #include "be/kv_store.h"
+ #include "be/handler.h"
+ 
+@@ -98,6 +100,7 @@ M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
+         m0_be_runq_tlist_init(&be_sm_runq);
+         m0_be_waitq_tlist_init(&be_sm_waitq);
+ 
++        m0_be_rvm_init(dom);
+         M0_POST(m0_be_domain_invariant(dom));
+         M0_LEAVE("Domain initialised, dom = %p", dom);
+ }
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 7dcdf16..d125ab1 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -31,6 +31,7 @@
+ 
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+ #include "mero/magic.h"
+@@ -44,7 +45,10 @@
+ #include "be/seg.h"
+ #include "be/tx.h"
+ 
+-#define RVM_CREATE 1
++#include "stob/linux.h"
++#include "stob/linux_internal.h"
++
++#define RVM_CREATE 0
+ 
+ static struct m0_be_seg         *seg;
+ static struct m0_sm_group       *sm_group;
+@@ -56,6 +60,62 @@ static const char      *stob_dir  = "/tmp/__be/o";
+ static const char      *stob_file = "0000000000000000.0000000000000001";
+ #endif
+ extern const char      *log_file;
++struct m0_stob         *log_stob;
++struct m0_stob_domain  *stob_dom;
++char                    path_name[MAXPATHLEN];
++
++static int log_stob_create(void)
++{
++        struct linux_stob        *lstob;
++        struct linux_domain      *ldom;
++        bool                      stob_directio     = false;
++        int                       nbytes            = 0;
++        struct  m0_stob_id        stob_id;
++        int                       result;
++
++        stob_id.si_bits.u_hi    = 0;
++        stob_id.si_bits.u_lo    = 2;
++
++        /* Initialize stob type. */
++        m0_stob_type_init(&m0_linux_stob_type);
++
++        /* @todo - stob path is hardcoded for now. */
++        result = m0_stob_domain_locate(&m0_linux_stob_type,
++                                       "/tmp/__be",
++                                       &stob_dom);
++        M0_ASSERT(result == 0);
++
++        result = m0_linux_stob_setup(stob_dom, stob_directio);
++        M0_ASSERT(result == 0);
++
++        result = m0_stob_find(stob_dom, &stob_id, &log_stob);
++        M0_ASSERT(result == 0);
++        M0_ASSERT(log_stob->so_state == CSS_UNKNOWN);
++        result = m0_stob_create(log_stob, NULL);
++
++        if (result < 0) {
++                M0_LOG(M0_ERROR, "Failed to creat stob in m0_be_seg_create_cb");
++                return -1;
++        }
++
++        lstob = stob2linux(log_stob);
++
++        M0_ASSERT(lstob != NULL);
++
++        ldom = domain2linux(log_stob->so_domain);
++        nbytes = snprintf(path_name,
++                          ARRAY_SIZE(path_name),
++                          "%s/o/%016lx.%016lx",
++                          ldom->sdl_path,
++                          log_stob->so_id.si_bits.u_hi,
++                          log_stob->so_id.si_bits.u_lo);
++
++        if (nbytes < 0)
++                return -1;
++
++        printf("log stob : %s\n", path_name);
++        return 0;
++}
+ 
+ static int ts_be_init(void)   /* ts_ for "test suite" */
+ {
+@@ -64,9 +124,6 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         bool result;
+ 
+         M0_LOG(M0_DEBUG, "Test Initialization");
+-        sprintf(be_cmd, "rm -rf %s", log_file);
+-        rc = system(be_cmd);
+-        M0_ASSERT(rc == 0);
+ 
+         sprintf(be_cmd, "mkdir -p %s", stob_dir);
+         rc = system(be_cmd);
+@@ -81,8 +138,11 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         M0_ALLOC_PTR(dom);
+         M0_ASSERT(dom != NULL);
+ 
++        rc = log_stob_create();
++        M0_ASSERT(rc == 0);
++
+         M0_LOG(M0_DEBUG, "Domain create");
+-        m0_be_domain_create(dom, NULL, NULL);
++        m0_be_domain_create(dom, NULL, log_stob);
+         m0_be_domain_init(dom);
+         sm_group = m0_be_domain_sm_group(dom);
+         M0_ASSERT(sm_group != NULL);
+@@ -110,14 +170,15 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         M0_ALLOC_PTR(dom);
+         M0_ASSERT(dom != NULL);
+ 
++        rc = log_stob_create();
++        M0_ASSERT(rc == 0);
++
+         M0_LOG(M0_DEBUG, "Domain recreate");
+-        m0_be_domain_create(dom, NULL, NULL);
++        m0_be_domain_create(dom, NULL, log_stob);
+         m0_be_domain_init(dom);
+         sm_group = m0_be_domain_sm_group(dom);
+         M0_ASSERT(sm_group != NULL);
+ 
+-        m0_be_seg_state_change(&dom->bd_data, M0_BESEG_ACTIVE);
+-
+         M0_ALLOC_PTR(seg);
+         M0_ASSERT(seg != NULL);
+         m0_be_domain_seg_restore(dom, "first", seg);
+@@ -144,17 +205,12 @@ static int ts_be_fini(void)
+ #if RVM_CREATE
+         rvm_truncate();
+         m0_be_seg_done(seg);
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_group_unlock(sm_group);
++        m0_stob_domain_fini(stob_dom);
+         m0_be_domain_fini(dom);
+-
+         m0_free(dom);
+ #else
+         m0_be_seg_done(seg);
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_group_unlock(sm_group);
+         m0_be_domain_fini(dom);
+-
+         m0_free(dom);
+ #endif
+ 
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index 80005e2..2cc21d7 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -303,7 +303,7 @@ typedef struct
+     rvm_struct_id_t struct_id;          /* self-identifier, do not change */
+     rvm_bool_t      from_heap;          /* true if heap allocated;
+                                            do not change */
+-
++    struct m0_stob  *log_stob;
+     char            *log_dev;           /* device name */
+     long            truncate;           /* truncation threshold, % of log */
+     rvm_length_t    recovery_buf_len;   /* length of recovery buffer */
+diff --git a/rvm/rvm_init.c b/rvm/rvm_init.c
+index a09e8d9..f9eaaad 100644
+--- a/rvm/rvm_init.c
++++ b/rvm/rvm_init.c
+@@ -98,7 +98,7 @@ rvm_return_t rvm_initialize(const char *rvm_version, rvm_options_t *rvm_options)
+ 
+         /* take care of default log */
+         if (default_log == NULL) {
+-		if ((retval=do_log_options(NULL,NULL)) != RVM_SUCCESS) {
++		if ((retval=do_log_options(NULL,rvm_options)) != RVM_SUCCESS) {
+ 			printf("do_rvm_options failed\n");
+ 			goto err_exit;
+ 		}
+diff --git a/rvm/rvm_io.c b/rvm/rvm_io.c
+index d4e7769..31cb46d 100644
+--- a/rvm/rvm_io.c
++++ b/rvm/rvm_io.c
+@@ -243,6 +243,7 @@ uint32_t launch_stob_io(opcode, io_nr, io_count, io_offset, io_addr, stob)
+     struct m0_stob_io       io;
+     struct m0_clink         clink;
+     uint32_t                rc;
++    uint64_t                nr;
+ 
+     m0_stob_io_init(&io);
+ 
+@@ -266,11 +267,12 @@ uint32_t launch_stob_io(opcode, io_nr, io_count, io_offset, io_addr, stob)
+     if (rc == 0)
+         m0_chan_wait(&clink);
+ 
++    nr = io.si_count;
+     m0_clink_del(&clink);
+     m0_clink_fini(&clink);
+     m0_stob_io_fini(&io);
+ 
+-    return rc;
++    return nr;
+ }
+ 
+ uint64_t launch_read_io(stob, offset, dest, length)
+@@ -314,11 +316,10 @@ uint64_t launch_read_io(stob, offset, dest, length)
+         length      -= io_read_len;
+         offset      += io_read_len;
+         dest        += io_read_len;
+-        retval      += io_read_len;
+         i           += 1;
+     }
+ 
+-    launch_stob_io(SIO_READ, io_nr, io_count, io_offset, io_addr, stob);
++    retval = launch_stob_io(SIO_READ, io_nr, io_count, io_offset, io_addr, stob);
+ 
+     m0_free(io_offset);
+     m0_free(io_count);
+@@ -338,10 +339,10 @@ long read_stob(dev,offset,dest,length)
+     rvm_length_t    retval;
+     rvm_length_t    nbytes = 0;
+ 
+-    assert(dev->handle != ZERO);
++    assert(dev->stob != NULL);
+     assert(length != 0);
+     assert((dev->raw_io) ? (SECTOR_INDEX(length) == 0) : 1);
+-    assert(((dev == &default_log->dev) && (!rvm_utlsw)) ?
++    assert((dev == &default_log->dev) ?
+            (!LOCK_FREE(default_log->dev_lock)) : 1);
+ 
+     /* seek if necessary */
+@@ -370,60 +371,9 @@ long read_dev(dev,offset,dest,length)
+     char            *dest;              /* address of data destination */
+     rvm_length_t    length;             /* length of transfer */
+     {
+-    rvm_offset_t    last_position;
+-    long            nbytes;
+-    long            read_len;
+-    long            retval;
+-
+-    assert(dev->handle != ZERO);
+-    assert(length != 0);
+-    assert((dev->raw_io) ? (SECTOR_INDEX(length) == 0) : 1);
+-    assert(((dev == &default_log->dev) && (!rvm_utlsw)) ?
+-           (!LOCK_FREE(default_log->dev_lock)) : 1);
+-
+-    /* seek if necessary */
+-    errno = 0;
+-    if ((retval = chk_seek(dev,offset)) < 0)
+-        return retval;
+-    last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
+-                                             length);
+-    assert(RVM_OFFSET_EQL_ZERO(*offset) ? 1
+-           : RVM_OFFSET_LEQ(last_position,dev->num_bytes));
+-
+-    /* do read in larg-ish blocks to avoid kernel buffer availability problems
+-       also zero region if /dev/null being read */
+-    retval = 0;
+-    while (length != 0)
+-        {
+-        if (length <= rvm_max_read_len)
+-		read_len = length;
+-        else
+-		read_len = rvm_max_read_len;
+-	nbytes=read((int)dev->handle,dest,(int)read_len);
+-        if (nbytes < 0) {
+-		rvm_errdev = dev;
+-		rvm_ioerrno = errno;
+-		return nbytes;
+-	}
+-        if (nbytes == 0)                /* force a cheap negative test */
+-            if (rvm_utlsw && dev->raw_io) /* since rarely used */
+-                if (!strcmp(dev->name,"/dev/null"))
+-                    {
+-                    retval = length;
+-                    BZERO(dest,length); /* zero the read region */
+-                    break;
+-                    }
+-        assert((dev->raw_io) ? (nbytes == read_len) : 1);
+-        retval += nbytes;
+-        dest += nbytes;
+-        length -= nbytes;
+-        }
+-
+-    /* update position */
+-    dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
+-                                                  retval);
+-    return retval;
++        return read_stob(dev, offset, dest, length);
+     }
++
+ /* write bytes to device or file */
+ long write_dev(dev,offset,src,length,sync)
+     device_t        *dev;               /* device descriptor */
+@@ -432,49 +382,52 @@ long write_dev(dev,offset,src,length,sync)
+     rvm_length_t    length;             /* length of transfer */
+     rvm_bool_t      sync;               /* fsync if true */
+ {
+-    rvm_offset_t    last_position;
+-    long            retval;
+-    long            wrt_len = length;   /* for no_update mode */
++    void                  **io_addr;
++    m0_bindex_t            *io_offset;
++    m0_bcount_t            *io_count;
++    uint32_t                io_bshift;
++    uint32_t                iter_count;
++    uint32_t                wrt_len;
+ 
+-    assert(dev->handle != ZERO);
+-    assert(length != 0);
+-    assert((dev->raw_io) ? (SECTOR_INDEX(length) == 0) : 1);
+-    assert(((dev == &default_log->dev) && (!rvm_utlsw)) ?
+-           (!LOCK_FREE(default_log->dev_lock)) : 1);
++    assert(dev->stob != NULL);
+ 
+-    /* seek if necessary */
+-    errno = 0;
+-    if ((retval = chk_seek(dev,offset)) < 0)
+-	return retval;
+-    last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
+-                                             length);
+-    assert(RVM_OFFSET_LEQ(last_position,dev->num_bytes));
+-
+-    /* do write if not in no update mode */
+-    if (!(rvm_utlsw && rvm_no_update)) {
+-        if ((wrt_len=write((int)dev->handle,src,(int)length)) < 0) {
+-            rvm_errdev = dev;
+-	    rvm_ioerrno = errno;
+-            return wrt_len;
+-	}
++    iter_count = 1;
+ 
+-        /* fsync if doing file i/o */
+-        if (((!dev->raw_io && sync==SYNCH) ||
+-	     (dev->raw_io && dev->type == S_IFBLK))) {
+-            if ((retval=FSYNC((int)dev->handle))  < 0) {
+-                rvm_errdev = dev;
+-		rvm_ioerrno = errno;
+-                return retval;
+-	    }
+-	}
+-    }
++    M0_ALLOC_ARR(io_addr, iter_count);
++    M0_ASSERT(io_addr != NULL);
+ 
+-    /* update position (raw i/o must be exact) */
+-    assert((dev->raw_io) ? (wrt_len == length) : 1);
+-    dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
+-                                                  wrt_len);
+-    return wrt_len;
++    M0_ALLOC_ARR(io_count, iter_count);
++    M0_ASSERT(io_count != NULL);
++
++    M0_ALLOC_ARR(io_offset, iter_count);
++    M0_ASSERT(io_offset != NULL);
++
++    io_bshift = dev->stob->so_op->sop_block_shift(dev->stob);
++
++    io_addr[0]      = m0_stob_addr_pack(src, io_bshift);
++    io_count[0]     = length >> io_bshift;
++    io_offset[0]    = offset->low >> io_bshift;
++
++    wrt_len = launch_stob_io(SIO_WRITE, iter_count, io_count, io_offset,
++                             io_addr, dev->stob);
++
++    m0_free(io_offset);
++    m0_free(io_count);
++    m0_free(io_addr);
++
++   if (wrt_len < 0) {
++         rvm_errdev = dev;
++         rvm_ioerrno = errno;
++         return wrt_len;
++   }
++
++   /* update position (raw i/o must be exact) */
++   assert((dev->raw_io) ? (wrt_len == length) : 1);
++   dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
++                                                 wrt_len);
++   return wrt_len;
+ }
++
+ /* gather write for files */
+ static long gather_write_file(dev,offset,wrt_len)
+     device_t        *dev;               /* device descriptor */
+@@ -562,8 +515,9 @@ static long incr_write_partition(dev,offset,start_addr,end_addr)
+ 
+     return length;
+     }
+-/* gather write for disk partitions */
+-static long gather_write_partition(dev,offset,wrt_len)
++
++/* gather write for stob */
++static long gather_write_stob(dev,offset,wrt_len)
+     device_t        *dev;                 /* device descriptor */
+     rvm_offset_t    *offset;              /* disk position */
+     rvm_length_t    *wrt_len;             /* num bytes written (out) */
+@@ -572,10 +526,15 @@ static long gather_write_partition(dev,offset,wrt_len)
+     long            iov_index = 0;        /* index of current iov entry */
+     long            bytes_left;           /* num. bytes left in wrt_buf */
+     struct iovec   *iov = dev->iov;      /* i/o vector */
++    void          **io_addr;
++    m0_bindex_t    *io_offset;
++    m0_bcount_t    *io_count;
++    uint32_t        io_bshift;
+ 
+     rvm_bool_t      did_wrap = rvm_false; /* debug use only */
+     rvm_offset_t    temp;
+     rvm_length_t    len;
++    rvm_offset_t    io_temp_off;
+ 
+     assert((SECTOR_INDEX(dev->ptr-dev->wrt_buf)) ==
+            (OFFSET_TO_SECTOR_INDEX(*offset)));
+@@ -584,6 +543,19 @@ static long gather_write_partition(dev,offset,wrt_len)
+     temp = RVM_ADD_LENGTH_TO_OFFSET(dev->sync_offset,len);
+     assert(RVM_OFFSET_EQL(*offset,temp)); /* must match tail */
+ 
++    io_temp_off = temp;
++    /* */
++    M0_ALLOC_ARR(io_addr, dev->iov_cnt);
++    M0_ASSERT(io_addr != NULL);
++
++    M0_ALLOC_ARR(io_count, dev->iov_cnt);
++    M0_ASSERT(io_count != NULL);
++
++    M0_ALLOC_ARR(io_offset, dev->iov_cnt);
++    M0_ASSERT(io_offset != NULL);
++
++    io_bshift = dev->stob->so_op->sop_block_shift(dev->stob);
++
+     /* write io vector entries */
+     bytes_left = (long)RVM_SUB_LENGTH_FROM_ADDR(dev->buf_end,dev->ptr);
+     while (dev->iov_cnt > 0)
+@@ -593,6 +565,10 @@ static long gather_write_partition(dev,offset,wrt_len)
+             {
+             /* copy whole range into wrt_buf */
+             BCOPY(iov[iov_index].iov_base, dev->ptr, iov[iov_index].iov_len);
++            io_addr[iov_index]      = m0_stob_addr_pack(iov[iov_index].iov_base, io_bshift);
++            io_count[iov_index]     = iov[iov_index].iov_len >> io_bshift;
++            io_offset[iov_index]    = io_temp_off.low >> io_bshift;
++            io_temp_off             = RVM_ADD_LENGTH_TO_OFFSET(io_temp_off, iov[iov_index].iov_len);
+             bytes_left -= iov[iov_index].iov_len;
+             *wrt_len += iov[iov_index].iov_len;
+             dev->ptr = RVM_ADD_LENGTH_TO_ADDR(dev->ptr, iov[iov_index].iov_len);
+@@ -623,9 +599,16 @@ static long gather_write_partition(dev,offset,wrt_len)
+             }
+         }
+ 
+-    assert((retval >= 0) ? (*wrt_len == dev->io_length) : 1);
++    retval = launch_stob_io(SIO_WRITE, iov_index, io_count, io_offset,
++                            io_addr, dev->stob);
++
++    assert((retval >= 0) ? (*wrt_len == retval) : 1);
+     return retval;
+     }
++
++
++
++
+ /* gather write to device: accepts vector of any length
+    pointed to by device descriptor */
+ long gather_write_dev(dev,offset)
+@@ -643,7 +626,7 @@ long gather_write_dev(dev,offset)
+ 
+     /* select gather-write mechanism for partitions or files */
+     if (dev->raw_io)
+-        retval = gather_write_partition(dev,offset,&wrt_len);
++        retval = gather_write_stob(dev,offset,&wrt_len);
+     else
+         retval = gather_write_file(dev,offset,&wrt_len);
+ 
+@@ -657,8 +640,8 @@ long sync_dev(dev)
+     {
+     long            retval;
+ 
+-    assert(dev->handle != 0);
+-    assert(((dev == &default_log->dev) && (!rvm_utlsw)) ?
++    assert(dev->stob != NULL);
++    assert((dev == &default_log->dev) ?
+            (!LOCK_FREE(default_log->dev_lock)) : 1);
+     errno = 0;
+ 
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index b90c466..aacb7ce 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -2345,8 +2345,8 @@ static rvm_return_t  update_seg(log, seg_dict, seg_dev)
+         if (i == iter_count) {
+             retval = launch_stob_io(SIO_WRITE, iter_count, io_count, io_offset,
+                                     io_addr, stob);
+-            if(retval != RVM_SUCCESS)
+-                return retval;
++            if(retval != *io_count)
++                return RVM_EOFFSET;
+ 
+             iter_remained -= iter_count;
+             iter_count = MAX_WRITE_RECORDS;
+@@ -2377,7 +2377,7 @@ static rvm_return_t  update_seg(log, seg_dict, seg_dev)
+         assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_APPLY);
+     }
+ 
+-    return retval;
++    return RVM_SUCCESS;
+ }
+ 
+ /*
+diff --git a/rvm/rvm_logstatus.c b/rvm/rvm_logstatus.c
+index bd293a6..af10c9e 100644
+--- a/rvm/rvm_logstatus.c
++++ b/rvm/rvm_logstatus.c
+@@ -80,8 +80,9 @@ list_entry_t        log_root;           /* header for log descriptor list */
+ static rvm_offset_t file_status_offset = /* log status area offset in files */
+     RVM_OFFSET_INITIALIZER(0,FILE_STATUS_OFFSET);
+ 
++    /*static rvm_offset_t raw_status_offset = *//* log status area offset in partitions */
+ static rvm_offset_t raw_status_offset = /* log status area offset in partitions */
+-    RVM_OFFSET_INITIALIZER(0,RAW_STATUS_OFFSET);
++    RVM_OFFSET_INITIALIZER(0,FILE_STATUS_OFFSET);
+ 
+ static rvm_offset_t min_trans_size =    /* minimum usable log size as offset */
+     RVM_OFFSET_INITIALIZER(0,MIN_TRANS_SIZE);
+@@ -345,6 +346,7 @@ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options)
+         goto err_exit2;
+     dev = &log->dev;
+     log_buf = &log->log_buf;
++    log->dev.stob = rvm_options->log_stob;
+ 
+     /* allocate recovery buffers */
+     if (rvm_options == NULL)
+@@ -361,11 +363,7 @@ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options)
+ 
+     /* open the device and determine characteristics */
+     if (rvm_no_update) flags = O_RDONLY;
+-    if (open_dev(dev,flags,0) != 0)
+-        {
+-        retval = RVM_EIO;
+-        goto err_exit2;
+-        }
++
+     if (set_dev_char(dev,NULL) < 0)
+         {
+         retval = RVM_EIO;
+@@ -441,7 +439,6 @@ rvm_return_t do_log_options(log_ptr,rvm_options)
+         if (default_log != NULL)
+             return RVM_ELOG;
+ 
+-        /* build log descriptor */
+         if ((retval=open_log(log_dev,&log,NULL,rvm_options))
+             != RVM_SUCCESS) {
+ 		printf("open_log failed.\n");
+@@ -687,7 +684,8 @@ rvm_return_t read_log_status(log,status_buf)
+         dev_status = (log_dev_status_t *)status_io;
+     }
+     if (log->dev.raw_io) status_offset = &raw_status_offset;
+-    else status_offset = &file_status_offset;
++    else
++    status_offset = &file_status_offset;
+     if (read_dev(&log->dev,status_offset,
+                   dev_status,LOG_DEV_STATUS_SIZE) < 0)
+         return RVM_EIO;
+@@ -1064,6 +1062,8 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+     /* build a log descriptor and create log file*/
+     if ((log=make_log(rvm_options->log_dev,&retval)) == NULL)
+         return retval;
++
++    log->dev.stob = rvm_options->log_stob;
+ #ifdef RVM_LOG_TAIL_BUG
+     /*
+       We only need to track the log descriptor while we are
+@@ -1076,21 +1076,7 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+ #ifdef RVM_LOG_TAIL_SHADOW
+     RVM_ASSIGN_OFFSET(log_tail_shadow,log->status.log_tail);
+ #endif /* RVM_LOG_TAIL_SHADOW */
+-    if (open_dev(&log->dev,O_WRONLY,mode) == 0) /* don't allow create yet */
+-        {
+-        retval = RVM_ELOG;              /* error -- file already exists */
+-        goto err_exit;
+-        }
+-    if (errno != ENOENT)
+-        {
+-        retval = RVM_EIO;               /* other i/o error, errno specifies */
+-        goto err_exit;
+-        }
+-    if (open_dev(&log->dev,O_WRONLY | O_CREAT,mode) != 0)
+-        {                               /* do real create */
+-        retval = RVM_EIO;
+-        goto err_exit;
+-        }
++
+     /* force file length to specified size by writting last byte */
+     log->dev.num_bytes = offset;
+     offset = RVM_SUB_LENGTH_FROM_OFFSET(offset,strlen(end_mark));
+diff --git a/rvm/rvm_trans.c b/rvm/rvm_trans.c
+index 6b047fe..0227378 100644
+--- a/rvm/rvm_trans.c
++++ b/rvm/rvm_trans.c
+@@ -914,7 +914,7 @@ rvm_return_t rvm_begin_transaction(rvm_tid,mode)
+     if (bad_init()) return RVM_EINIT;
+     if ((retval=bad_tid(rvm_tid)) != RVM_SUCCESS)
+         return retval;
+-    if ((default_log == NULL) || (default_log->dev.handle == 0))
++    if ((default_log == NULL) || (default_log->dev.stob == NULL))
+         return RVM_ELOG;
+     if ((mode != restore) && (mode != no_restore))
+         return RVM_EMODE;
+diff --git a/rvm/rvm_utils.c b/rvm/rvm_utils.c
+index 4ab407a..7046630 100644
+--- a/rvm/rvm_utils.c
++++ b/rvm/rvm_utils.c
+@@ -647,6 +647,8 @@ log_t *make_log(log_dev_name,retval)
+          * rvm_page_alloc info */
+ 
+         log->seg_hdr = (rvm_seg_hdr_t *)malloc(sizeof(rvm_seg_hdr_t));
++        log->seg_hdr->rvm_allocations      = NULL;
++        log->seg_hdr->rvm_allocations_tail = NULL;
+ 
+ 	/* first and foremost */
+ 	log->trunc_thread = (cthread_t) 0;
+diff --git a/rvm/ut/rvm.c b/rvm/ut/rvm.c
+index 7b43045..4a428c3 100644
+--- a/rvm/ut/rvm.c
++++ b/rvm/ut/rvm.c
+@@ -169,6 +169,7 @@ static int ts_be_fini(void)
+ {
+         for(i=INIT_INDEX;i < NDFILE;i++)
+         {
++                rds_done(seg_hdr[i]);
+                 free(seg_hdr[i]->heap_hdr);
+                 free(seg_hdr[i]->region_tree);
+                 free(seg_hdr[i]->region_tree_lock);
+-- 
+1.8.3.2
+

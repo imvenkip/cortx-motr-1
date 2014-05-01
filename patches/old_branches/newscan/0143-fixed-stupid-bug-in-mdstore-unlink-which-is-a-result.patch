@@ -1,0 +1,57 @@
+From 6a3984e4ab078fabf5c3fe1b0c07a1815dbab91e Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Sun, 19 Jun 2011 08:39:38 -0600
+Subject: [PATCH 143/158] - fixed stupid bug in mdstore unlink, which is a
+ result of multiple refactoing. As a result unlink did not kill names in some
+ cases that caused hang in mdservice.
+
+---
+ mdstore/mdstore.c | 21 ++++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index d65a257..9c13686 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -281,24 +281,31 @@ int c2_md_store_unlink(struct c2_md_store       *md,
+                                 goto out;
+                         }
+ 
+-                        /*
+-                         * Kill the name described by req.
+-                         */
+                         rc = c2_cob_del_name(cob, nskey, tx);
+                         if (rc) {
+                                 c2_free(nskey);
+                                 goto out;
+                         }
+-                } else if (cob->co_nsrec.cnr_nlink > 0) {
+-                        rc = c2_cob_update(cob, &cob->co_nsrec, 
+-                                           NULL, NULL, tx);
++                } else {
++                        if (cob->co_nsrec.cnr_nlink > 0) {
++                                rc = c2_cob_del_name(cob, nskey, tx);
++                                if (rc) {
++                                        c2_free(nskey);
++                                        goto out;
++                                }
++                                rc = c2_cob_update(cob, &cob->co_nsrec, 
++                                                   NULL, NULL, tx);
++                        } else {
++                                rc = c2_cob_delete(cob, tx);
++                        }
+                 }
++
+                 c2_free(nskey);
+         } else {
+                 /*
+                  * We ignore nlink for dirs and go for killing it.
+                  * This is because we don't update parent nlink in
+-                 * case of killing dirs. This results in situation
++                 * case of killing subdirs. This results in a case
+                  * that dir will have nlink > 0 becasue correct
+                  * fop that will bring its nlink to zero will come
+                  * later.
+-- 
+1.8.3.2
+

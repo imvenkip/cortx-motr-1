@@ -1,0 +1,38 @@
+From 4e0a9f5237d789d0248e891a017e84387f7e997b Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Thu, 22 Aug 2013 12:26:27 +0530
+Subject: [PATCH 07/24] Fixed white space style problems.
+
+---
+ rm/rm.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/rm/rm.c b/rm/rm.c
+index 73b14bb..e2f0368 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -1581,7 +1581,7 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
+ 		if (incoming_group_conflict(owner, in))
+ 			incoming_failure_set(in, -EINVAL);
+ 		else
+-			incoming_queue(owner, in);	
++			incoming_queue(owner, in);
+ 	} else {
+ 		M0_LOG(M0_DEBUG, "Incoming req: %p, state change:[%d -> %d]",
+ 				 in, in->rin_sm.sm_state, RI_FAILURE);
+@@ -2308,9 +2308,9 @@ M0_INTERNAL bool m0_rm_loan_pay_n_check(struct m0_rm_owner *owner,
+ 		return false;
+ 
+ 	/*
+- 	 * Delete the remote from the remote list of the loan
+- 	 * and check if all the revokes are complete?
+- 	 */
++	 * Delete the remote from the proxies list of the loan
++	 * and check if all the revokes are complete?
++	 */
+ 	m0_tl_for(m0_proxies, &onrecord_loan->rl_others, rrl) {
+ 		other = rrl->rrl_ptr;
+ 		if (other->rem_cookie.co_addr == rem_cookie->co_addr &&
+-- 
+1.8.3.2
+

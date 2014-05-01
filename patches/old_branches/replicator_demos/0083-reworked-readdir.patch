@@ -1,0 +1,288 @@
+From bb5bdb0a54a6059a84728f1ace13bacd41f0d961 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 11 May 2011 17:22:10 -0600
+Subject: [PATCH 83/91] - reworked readdir
+
+---
+ cob/cob.c            | 61 ++++++++++++++++++++++++++++------------------------
+ cob/cob.h            | 14 +++++-------
+ mdservice/md_foms.c  | 15 ++++++++++++-
+ mdservice/md_fops.ff |  2 +-
+ mdstore/mdstore.c    | 55 +++++++++++++++++++++++++---------------------
+ 5 files changed, 84 insertions(+), 63 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 2c294d3..8f73958 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -601,8 +601,7 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
+ }
+ 
+ int c2_cob_iterator_init(struct c2_cob *cob, struct c2_cob_iterator *it,
+-                         const char *name, int namelen, int hint, 
+-                         struct c2_db_tx *tx)
++                         const char *name, int namelen, struct c2_db_tx *tx)
+ {
+         int rc;
+ 
+@@ -626,43 +625,49 @@ int c2_cob_iterator_init(struct c2_cob *cob, struct c2_cob_iterator *it,
+                 c2_free(it->ci_key);
+                 return rc;
+         }
+-        it->ci_hint = hint;
+         it->ci_cob = cob;
+-        it->ci_init = 1;
+         return rc;
+ }
+ 
+-int c2_cob_iterator_next(struct c2_cob_iterator *it)
++/**
++   Position in table according to @it properties.
++*/
++int c2_cob_iterator_get(struct c2_cob_iterator *it)
+ {
+         int rc;
+ 
+-        if (it->ci_init) {
+-                rc = c2_db_cursor_get(&it->ci_cursor, &it->ci_pair);
+-                if (rc)
+-                        return rc;
+-                if (it->ci_hint == IH_PREV) {
+-                        rc = c2_db_cursor_prev(&it->ci_cursor, 
+-                                               &it->ci_pair);
+-                } else if (it->ci_hint == IH_NEXT) {
+-                        rc = c2_db_cursor_next(&it->ci_cursor, 
+-                                               &it->ci_pair);
+-                } else {
+-                        /*
+-                         * We may want to read from most suitable
+-                         * position, no need to have exact match.
+-                         */
+-                        if (rc == -ENOENT)
+-                                rc = 0;
+-                }
+-                it->ci_init = 0;
+-        } else {
+-                rc = c2_db_cursor_next(&it->ci_cursor, &it->ci_pair);
+-        }
++        rc = c2_db_cursor_get(&it->ci_cursor, &it->ci_pair);
+ 
++        /* 
++         * Exact position found. 
++         */
++        if (rc == 0)
++                return 1;
++
++        /* 
++         * Nothing found, cursor is on another object key. 
++         */
+         if (!c2_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+                 return -ENOENT;
++        
++        /* 
++         * Not exact position found. 
++         */
++        return 0;
++}
+ 
+-        return rc;
++int c2_cob_iterator_next(struct c2_cob_iterator *it)
++{
++        int rc;
++
++        rc = c2_db_cursor_next(&it->ci_cursor, &it->ci_pair);
++        if (rc)
++                return rc;
++
++        if (!c2_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
++                return 1;
++
++        return 0;
+ }
+ 
+ void c2_cob_iterator_fini(struct c2_cob_iterator *it)
+diff --git a/cob/cob.h b/cob/cob.h
+index aad0e48..5a63c8d 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -373,8 +373,6 @@ struct c2_cob_iterator {
+         struct c2_cob_nskey   *ci_key;      /**< current iterator pos */
+         struct c2_cob_nsrec    ci_rec;      /**< current iterator rec */
+         struct c2_db_pair      ci_pair;     /**< used for iterator cursor */
+-        int                    ci_hint;     /**< iterator hint */
+-        int                    ci_init;     /**< just initialized */
+ };
+ 
+ /** 
+@@ -390,12 +388,6 @@ enum c2_cob_ca_valid {
+         CA_LAYOUT     = (1 << 6),  /**< layout in cob is up-to-date */
+ };
+ 
+-enum c2_cob_iterator_hint {
+-        IH_PREV      = (1 << 0),   /**< position on prev record from key */
+-        IH_XTLY      = (1 << 1),   /**< position exactly on passed key */
+-        IH_NEXT      = (1 << 2)    /**< position on next record from key */
+-};
+-
+ /**
+    Lookup a filename in the namespace table
+ 
+@@ -499,7 +491,6 @@ int c2_cob_iterator_init(struct c2_cob          *cob,
+                          struct c2_cob_iterator *it, 
+                          const char             *name, 
+                          int                     namelen, 
+-                         int                     hint,
+                          struct c2_db_tx        *tx);
+ 
+ /**
+@@ -508,6 +499,11 @@ int c2_cob_iterator_init(struct c2_cob          *cob,
+ int c2_cob_iterator_next(struct c2_cob_iterator *it);
+ 
+ /**
++   Position in table according to @it properties.
++*/
++int c2_cob_iterator_get(struct c2_cob_iterator *it);
++
++/**
+    Finish cob iterator.
+ */
+ void c2_cob_iterator_fini(struct c2_cob_iterator *it);
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index d8785ff..0007567 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -780,13 +780,21 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         /*
+          * Preallocate some number of entries for readdir.
+          */
++        rep->r_end.n_name = c2_alloc(NAME_MAX);
++        if (rep->r_end.n_name == NULL) {
++                c2_cob_put(cob);
++                rc = -ENOMEM;
++                goto out;
++        }
++        rep->r_end.n_count = NAME_MAX;
++        
+         rep->r_vector.v_dirent = 
+             c2_alloc(C2_MD_READDIR_ENTRIES_ALLOC * 
+                      sizeof(*rep->r_vector.v_dirent));
+         if (rep->r_vector.v_dirent == NULL) {
+                 c2_cob_put(cob);
+                 rc = -ENOMEM;
+-                goto out;
++                goto out_free_end;
+         }
+         rep->r_vector.v_count = C2_MD_READDIR_ENTRIES_ALLOC;
+         
+@@ -815,6 +823,11 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+                 svc = fom->fo_fop_ctx->fc_service;
+                 svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+         }
++out_free_end:
++        if (rc < 0) {
++                c2_free(rep->r_end.n_name);
++                rep->r_end.n_count = 0;
++        }
+ out_free:
+         if (rc < 0) {
+                 while (--i >= 0) {
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 85cf72c..c539b0e 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -95,7 +95,6 @@ DEF(c2_fop_getattr_rep, RECORD,
+ 
+ DEF(c2_fop_readdir, RECORD,
+     _(r_body, c2_fop_cob),
+-    _(r_hint, U32),
+     _(r_pos, c2_fop_name));
+ 
+ DEF(c2_fop_readdir_dirent, RECORD,
+@@ -107,6 +106,7 @@ DEF(c2_fop_readdir_vec, SEQUENCE,
+     _(v_dirent, c2_fop_readdir_dirent));
+ 
+ DEF(c2_fop_readdir_rep, RECORD,
++    _(r_end, c2_fop_name),
+     _(r_body, c2_fop_cob),
+     _(r_vector, c2_fop_readdir_vec));
+ 
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 6233f41..fb06a0f 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -746,41 +746,48 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+         rc = c2_cob_iterator_init(cob, &it, 
+                                   req->r_pos.n_name, 
+                                   req->r_pos.n_count,
+-                                  req->r_hint, 
+                                   &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
+         vec = &rep->r_vector;
+-        for (count = 0; count < vec->v_count; count++) {
++        count = 0;
++
++        rc = c2_cob_iterator_get(&it);
++        if (rc == 0) {
++                /* 
++                 * No exact position found and we are on least key, 
++                 * let's do one step forward. 
++                 */
++                rc = c2_cob_iterator_next(&it);
++        } else if (rc > 0)
++                rc = 0;
++                
++        while (rc == 0) {
+                 nskey = it.ci_key;
+                 nsrec = &it.ci_rec;
+-                rc = c2_cob_iterator_next(&it);
+-                if (rc)
++
++                if (count < vec->v_count) {
++                        ent = &vec->v_dirent[count];
++                        memcpy(ent->d_name.n_name, 
++                               c2_bitstring_buf_get(&nskey->cnk_name),
++                               nskey->cnk_name.b_len);
++                        ent->d_name.n_count = nskey->cnk_name.b_len;
++                        ent->d_body.b_nlink = nsrec->cnr_nlink;
++                        ent->d_body.b_size = nsrec->u.cnr_size;
++                } else {
++                        memcpy(rep->r_end.n_name, 
++                               c2_bitstring_buf_get(&nskey->cnk_name),
++                               nskey->cnk_name.b_len);
++                        rep->r_end.n_count = nskey->cnk_name.b_len;
+                         break;
+-                ent = &vec->v_dirent[count];
+-                memcpy(ent->d_name.n_name, 
+-                       c2_bitstring_buf_get(&nskey->cnk_name),
+-                       nskey->cnk_name.b_len);
+-                ent->d_name.n_count = nskey->cnk_name.b_len;
+-                ent->d_body.b_nlink = nsrec->cnr_nlink;
+-                ent->d_body.b_size = nsrec->u.cnr_size;
++                }
++                count++;
++
++                rc = c2_cob_iterator_next(&it);
+         }
+-        
+         vec->v_count = count;
+         c2_cob_iterator_fini(&it);
+-        
+-        /*
+-         * We have to return:
+-         *  =1 - if directory end is not reached, just read requested
+-         *       number of entries;
+-         *  =0 - if directory end is reached;
+-         *  <0 - for errors.
+-         */
+-        if (rc == 0)
+-                rc = 1;
+-        else if (rc == -ENOENT)
+-                rc = 0;
+ out:
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_readdir", rc);
+-- 
+1.8.3.2
+

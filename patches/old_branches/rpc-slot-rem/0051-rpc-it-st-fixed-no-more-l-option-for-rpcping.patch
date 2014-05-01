@@ -1,0 +1,25 @@
+From c5a02843b715d5d3aff608dd75b78697b43f3e2d Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 12 Feb 2014 12:21:07 +0200
+Subject: [PATCH 51/60] rpc/it/st fixed: no more -l option for rpcping
+
+---
+ rpc/it/st | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rpc/it/st b/rpc/it/st
+index 87ce824..aa5d727 100755
+--- a/rpc/it/st
++++ b/rpc/it/st
+@@ -31,7 +31,7 @@ expect -i $server -re {Press Enter to terminate.*#+\r*\n$} {
+ } eof {die "server has quit unexpectedly"}
+ 
+ # Start client:
+-spawn sudo $prog -t300 -n2 -l100 -v
++spawn sudo $prog -t300 -n2 -v
+ set client $spawn_id
+ 
+ # Wait till client terminates:
+-- 
+1.8.3.2
+

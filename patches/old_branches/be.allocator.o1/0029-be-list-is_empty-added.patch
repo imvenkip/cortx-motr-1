@@ -1,0 +1,51 @@
+From 8c4458e922c296748a6619646bc3aaafffb51eb7 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Fri, 13 Dec 2013 01:19:15 +0200
+Subject: [PATCH 29/96] be/list: is_empty() added
+
+---
+ be/list.c | 12 ++++++++++++
+ be/list.h |  4 ++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/be/list.c b/be/list.c
+index 0a6df23..04df7e7 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -167,6 +167,18 @@ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
++M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list,
++				     struct m0_be_op *op)
++{
++	bool result;
++
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
++	result = m0_tlist_is_empty(list->bl_descr, &list->bl_list);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
++
++	return result;
++}
++
+ /* XXX TODO: This function has to be reimplemented using m0_be_op */
+ static void *list_side(struct m0_be_list *list, struct m0_be_op *op,
+ 		       void *(*side)(const struct m0_tl_descr *d,
+diff --git a/be/list.h b/be/list.h
+index 3b83e7a..0a4ce2d 100644
+--- a/be/list.h
++++ b/be/list.h
+@@ -81,6 +81,10 @@ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
+ 				    struct m0_be_tx   *tx,
+ 				    struct m0_be_op   *op);
+ 
++
++M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list,
++				     struct m0_be_op *op);
++
+ /*
+  * m0_be_link_*() functions follow BE naming pattern
+  * and not m0_tlist naming.
+-- 
+1.8.3.2
+

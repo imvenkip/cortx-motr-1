@@ -1,0 +1,209 @@
+From f022aec0929473033c7b63e8daa9e5c01db1c3ff Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 9 Mar 2013 21:32:20 +0200
+Subject: [PATCH 07/63] rpc: rename and document m0_rpc_item_slot_ref_encdec()
+
+- Rename m0_rpc_item_slot_ref_encdec() to m0_rpc_slot_refs_encdec():
+  this function relates to m0_rpc_items _very_ indirectly.
+- Document.
+- Refactor the implementation.
+- rpc/rpc_helpers.h: Don't #include "rpc/item.h".
+---
+ fop/fop_item_type.c |  4 ++--
+ fop/fop_item_type.h |  3 +++
+ rpc/rpc_helpers.h   | 19 +++++++++++------
+ rpc/rpc_onwire.c    | 60 +++++++++++++++++++++++++----------------------------
+ rpc/rpc_onwire.h    |  3 ---
+ 5 files changed, 46 insertions(+), 43 deletions(-)
+
+diff --git a/fop/fop_item_type.c b/fop/fop_item_type.c
+index 6cbf582..b3d70ff 100644
+--- a/fop/fop_item_type.c
++++ b/fop/fop_item_type.c
+@@ -22,7 +22,7 @@
+ #include "lib/memory.h"
+ #include "fop/fop.h"
+ #include "fop/fop_item_type.h"
+-#include "rpc/rpc_helpers.h"
++#include "rpc/rpc_helpers.h"   /* m0_rpc_slot_refs_encdec */
+ 
+ M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item)
+ {
+@@ -98,7 +98,7 @@ M0_INTERNAL int m0_fop_item_encdec(struct m0_rpc_item *item,
+ 	M0_PRE(cur != NULL);
+ 
+ 	/* Currently MAX slot references in sessions is 1. */
+-	return m0_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, 1, what) ?:
++	return m0_rpc_slot_refs_encdec(cur, item->ri_slot_refs, 1, what) ?:
+ 		m0_fop_encdec(m0_rpc_item_to_fop(item), cur, what);
+ }
+ 
+diff --git a/fop/fop_item_type.h b/fop/fop_item_type.h
+index a7b3748..d258e17 100644
+--- a/fop/fop_item_type.h
++++ b/fop/fop_item_type.h
+@@ -25,6 +25,9 @@
+ 
+ #include "rpc/rpc_helpers.h"
+ 
++struct m0_rpc_item;
++struct m0_rpc_item_type;
++
+ /**
+    @addtogroup fop
+ 
+diff --git a/rpc/rpc_helpers.h b/rpc/rpc_helpers.h
+index af810c1..d5f0dfb 100644
+--- a/rpc/rpc_helpers.h
++++ b/rpc/rpc_helpers.h
+@@ -23,18 +23,25 @@
+ #ifndef __MERO_RPC_HELPERS_H__
+ #define __MERO_RPC_HELPERS_H__
+ 
+-#include "lib/vec.h"
+-#include "rpc/item.h"
++#include "lib/vec.h"  /* m0_bufvec_what */
++
++struct m0_rpc_slot_ref;
+ 
+ /**
+  * @addtogroup rpc
+  * @{
+  */
+ 
+-M0_INTERNAL int m0_rpc_item_slot_ref_encdec(struct m0_bufvec_cursor *cur,
+-					    struct m0_rpc_slot_ref *slot_ref,
+-					    int nr_slot_refs,
+-					    enum m0_bufvec_what what);
++/**
++ * Encodes or decodes onwire parts of m0_rpc_slot_refs.
++ *
++ * For every x in `slot_refs' array, encodes or decodes, depending on
++ * `what' argument, x->sr_ow.
++ */
++M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
++					struct m0_rpc_slot_ref *slot_refs,
++					int nr_slot_refs,
++					enum m0_bufvec_what what);
+ 
+ /** @} */
+ 
+diff --git a/rpc/rpc_onwire.c b/rpc/rpc_onwire.c
+index baa0853..7b5ac43 100644
+--- a/rpc/rpc_onwire.c
++++ b/rpc/rpc_onwire.c
+@@ -15,15 +15,18 @@
+  * http://www.xyratex.com/contact
+  *
+  * Original author: Subhash Arya <subhash_arya@xyratex.com>
+- * Original creation date: 06/25/2011
++ * Original creation date: 25-Jun-2011
+  */
+ 
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+ #include "lib/trace.h"
++
+ #include "lib/errno.h"
++#include "rpc/rpc_onwire.h"
+ #include "rpc/rpc_onwire_xc.h"
++#include "rpc/item.h"          /* m0_rpc_slot_ref */
+ #include "rpc/rpc_helpers.h"
+-#include "xcode/xcode.h" /* M0_XCODE_OBJ */
++#include "xcode/xcode.h"       /* M0_XCODE_OBJ */
+ 
+ /**
+  * @addtogroup rpc
+@@ -33,12 +36,6 @@
+ #define ITEM_HEAD_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_rpc_item_onwire_header_xc, ptr)
+ #define SLOT_REF_XCODE_OBJ(ptr)  M0_XCODE_OBJ(m0_rpc_onwire_slot_ref_xc, ptr)
+ 
+-static int slot_ref_encode(struct m0_rpc_onwire_slot_ref *osr,
+-			   struct m0_bufvec_cursor       *cur);
+-
+-static int slot_ref_decode(struct m0_bufvec_cursor       *cur,
+-			   struct m0_rpc_onwire_slot_ref *osr);
+-
+ M0_INTERNAL int m0_rpc_item_header_encode(struct m0_rpc_item_onwire_header *ioh,
+ 					  struct m0_bufvec_cursor *cur)
+ {
+@@ -82,29 +79,6 @@ M0_INTERNAL int m0_rpc_item_header_decode(struct m0_bufvec_cursor *cur,
+ 	M0_RETURN(rc);
+ }
+ 
+-M0_INTERNAL int m0_rpc_item_slot_ref_encdec(struct m0_bufvec_cursor *cur,
+-					    struct m0_rpc_slot_ref *slot_ref,
+-					    int nr_slot_refs,
+-					    enum m0_bufvec_what what)
+-{
+-	struct m0_rpc_onwire_slot_ref *osr = NULL;
+-	int                            rc;
+-	int                            i;
+-
+-	M0_ENTRY();
+-	M0_PRE(slot_ref != NULL);
+-	M0_PRE(cur != NULL);
+-
+-	for (i = 0, rc = 0; rc == 0 && i < nr_slot_refs; ++i) {
+-		osr = &slot_ref[i].sr_ow;
+-		rc = what == M0_BUFVEC_ENCODE ?
+-			slot_ref_encode(osr, cur) :
+-			slot_ref_decode(cur, osr);
+-	}
+-
+-	M0_RETURN(rc);
+-}
+-
+ static int slot_ref_encode(struct m0_rpc_onwire_slot_ref *osr,
+ 			   struct m0_bufvec_cursor       *cur)
+ 
+@@ -140,8 +114,30 @@ static int slot_ref_decode(struct m0_bufvec_cursor       *cur,
+ 	M0_RETURN(rc);
+ }
+ 
+-#undef M0_TRACE_SUBSYSTEM
++M0_INTERNAL int m0_rpc_slot_refs_encdec(struct m0_bufvec_cursor *cur,
++					struct m0_rpc_slot_ref *slot_refs,
++					int nr_slot_refs,
++					enum m0_bufvec_what what)
++{
++	int i;
++	int rc = 0;
++
++	M0_ENTRY();
++	M0_PRE(slot_refs != NULL);
++	M0_PRE(cur != NULL);
++
++	for (i = 0; i < nr_slot_refs; ++i) {
++		struct m0_rpc_onwire_slot_ref *x = &slot_refs[i].sr_ow;
++		rc = what == M0_BUFVEC_ENCODE ?
++			slot_ref_encode(x, cur) : slot_ref_decode(cur, x);
++		if (rc != 0)
++			break;
++	}
++	M0_RETURN(rc);
++}
++
+ #undef SLOT_REF_XCODE_OBJ
++#undef M0_TRACE_SUBSYSTEM
+ 
+ /** @} */
+ 
+diff --git a/rpc/rpc_onwire.h b/rpc/rpc_onwire.h
+index ae4bd67..7288775 100644
+--- a/rpc/rpc_onwire.h
++++ b/rpc/rpc_onwire.h
+@@ -49,11 +49,8 @@ struct m0_rpc_sender_uuid {
+ } M0_XCA_RECORD;
+ 
+ struct m0_rpc_onwire_slot_ref {
+-
+ 	struct m0_rpc_sender_uuid  osr_uuid;
+-
+ 	uint64_t                   osr_sender_id;
+-
+ 	uint64_t                   osr_session_id;
+ 
+ 	/** Numeric id of slot. Used when encoding and decoding rpc item to
+-- 
+1.8.3.2
+

@@ -1,0 +1,75 @@
+From 2330b1f47e65c8bde8037f89b7ce2948529b7ce1 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 8 May 2012 14:29:46 +0300
+Subject: [PATCH 155/311] conf/obj.h: describe configuration object states
+
++ Mention `stub' in doxygen of c2_conf_status.
+
+LogD: #1155
+RB: r/714
+---
+ conf/obj.h | 34 +++++++++++++++++++++++++++++++++-
+ 1 file changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/conf/obj.h b/conf/obj.h
+index f5eb215..827ebbe 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -29,6 +29,13 @@
+ /**
+  * @page conf-fspec-obj Configuration Objects
+  *
++ * - @ref conf-fspec-obj-ovw
++ * - @ref conf-fspec-obj-status
++ * - @ref conf-fspec-obj-enum
++ *
++ * <hr> <!------------------------------------------------------------>
++ * @section conf-fspec-obj-ovw Overview
++ *
+  * There are different kinds of configuration data: configuration of
+  * filesystems, services, nodes, storage devices, etc.  Configuration
+  * data is contained in configuration objects of which there are 7
+@@ -53,6 +60,27 @@
+  * while c2_conf_profile, ..., c2_conf_partition are @em concrete
+  * configuration objects.
+  *
++ * <hr> <!------------------------------------------------------------>
++ * @section conf-fspec-obj-status Configuration Object States
++ *
++ * A configuration object exists in one of three states:
++ *   - C2_CS_MISSING --- configuration is absent and is not being
++ *     retrieved; the object is a stub.
++ *   - C2_CS_LOADING --- retrieval of configuration is in progress; the
++ *     object is a stub.
++ *   - C2_CS_READY --- configuration is available; this is a
++ *     fully-fledged object, not a stub.
++ *
++ * These values make up @ref c2_conf_status enumeration.
++ *
++ * <hr> <!------------------------------------------------------------>
++ * @section conf-fspec-obj-enum Enumerations
++ *
++ * - c2_conf_objtype --- numeric tag that corresponds to a type of
++ *   concrete configuration objects.
++ * - c2_conf_status --- readiness of the configuration data contained
++ *   in an object.
++ *
+  * @see @ref conf_dfspec_obj "Detailed Functional Specification"
+  */
+ 
+@@ -73,7 +101,11 @@
+ #include "lib/tlist.h" /* c2_tl, c2_tlink */
+ #include "lib/types.h"
+ 
+-/** Status of configuration object. */
++/**
++ * Status of configuration object.
++ *
++ * Configuration object is a stub unless its status is C2_CS_READY.
++ */
+ enum c2_conf_status {
+ 	C2_CS_MISSING, /*< Configuration is absent; no retrieval in progress. */
+ 	C2_CS_LOADING, /*< Retrieval of configuration is in progress. */
+-- 
+1.8.3.2
+

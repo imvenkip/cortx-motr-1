@@ -1,0 +1,86 @@
+From bea3bcb74ff01a9478b70a095271bb5b20c609d2 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 28 May 2013 12:30:07 +0300
+Subject: [PATCH 011/161] be: add m0_be_btree_cursor operations
+
+---
+ be/seg.h | 26 +++++++++++++++++++++++---
+ 1 file changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/be/seg.h b/be/seg.h
+index a607527..45901b8 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -33,7 +33,7 @@ struct m0_be_allocator {
+ };
+ 
+ struct m0_be_op {
+-	XXX;
++	struct m0_sm bo_sm;
+ };
+ 
+ enum m0_be_tx_state {
+@@ -117,8 +117,22 @@ struct m0_be_btree {
+ 
+ struct m0_be_btree_cursor {
+ 	struct m0_be_btree *bc_tree;
++	struct m0_op        bc_op;
++	struct m0_buf       bc_current;
+ };
+ 
++void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
++			     struct m0_be_btree *tree);
++
++void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
++
++void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
++			    const struct m0_buf *key);
++
++void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
++
++void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
++
+ struct m0_be_tx_credit {
+ 	/**
+ 	 * The number of regions needed for operation representation in the
+@@ -145,6 +159,9 @@ struct m0_be_btree_anchor {
+ 	bool                ba_write; /**< Is write lock being held? */
+ };
+ 
++void m0_be_btree_maxkey(const struct m0_be_btree *tree, struct m0_be_op *op,
++			struct m0_buf *out);
++
+ void m0_be_btree_lookup(struct m0_be_btree *tree, struct m0_be_op *op,
+ 			const struct m0_buf *key, struct m0_buf *dest_buf);
+ 
+@@ -152,7 +169,7 @@ void m0_be_btree_lookup_inplace(struct m0_be_btree *tree, struct m0_be_op *op,
+ 				const struct m0_buf *key,
+ 				struct m0_be_btree_anchor *anchor);
+ 
+-void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
++void m0_be_btree_insert_credit(const struct m0_be_btree *tree, m0_bcount_t nr,
+ 			       struct m0_be_tx_credit *accum);
+ 
+ void m0_be_btree_insert(struct m0_be_btree *tree, struct m0_be_tx *tx,
+@@ -163,6 +180,9 @@ void m0_be_btree_insert_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
+ 				struct m0_be_op *op, const struct m0_buf *key,
+ 				struct m0_be_btree_anchor *anchor);
+ 
++void m0_be_btree_update_credit(const struct m0_be_btree *tree, m0_bcount_t nr,
++			       struct m0_be_tx_credit *accum);
++
+ void m0_be_btree_update(struct m0_be_btree *tree, struct m0_be_tx *tx,
+ 			struct m0_be_op *op, const struct m0_buf *key,
+ 			const struct m0_buf *value);
+@@ -171,7 +191,7 @@ void m0_be_btree_update_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
+ 				struct m0_be_op *op, const struct m0_buf *key,
+ 				struct m0_be_btree_anchor *anchor);
+ 
+-void m0_be_btree_delete_credit(struct m0_be_btree *tree,
++void m0_be_btree_delete_credit(struct m0_be_btree *tree, m0_bcount_t nr,
+ 			       struct m0_be_tx_credit *accum);
+ 
+ void m0_be_btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-- 
+1.8.3.2
+

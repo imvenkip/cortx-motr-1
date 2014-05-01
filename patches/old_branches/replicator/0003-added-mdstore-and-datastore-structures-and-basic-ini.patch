@@ -1,0 +1,289 @@
+From 0dd4927c6eec99707610981c40e2fcb17b01dd2d Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 17 Jan 2011 00:47:14 -0700
+Subject: [PATCH 003/177] - added mdstore and datastore structures and basic
+ init/fini functions; - use mdstore and datastore in reqh.
+
+---
+ Makefile.am           |  2 +-
+ colibri/Makefile.am   |  4 +++-
+ configure.ac          |  2 ++
+ datastore/Makefile.am |  6 ++++++
+ datastore/datastore.c | 19 +++++++++++++++++++
+ datastore/datastore.h | 27 +++++++++++++++++++++++++++
+ mdstore/Makefile.am   |  6 ++++++
+ mdstore/mdstore.c     | 22 ++++++++++++++++++++++
+ mdstore/mdstore.h     | 26 ++++++++++++++++++++++++++
+ reqh/reqh.c           | 13 ++++++++-----
+ reqh/reqh.h           | 22 +++++++++++++++-------
+ 11 files changed, 135 insertions(+), 14 deletions(-)
+ create mode 100644 datastore/Makefile.am
+ create mode 100644 datastore/datastore.c
+ create mode 100644 datastore/datastore.h
+ create mode 100644 mdstore/Makefile.am
+ create mode 100644 mdstore/mdstore.c
+ create mode 100644 mdstore/mdstore.h
+
+diff --git a/Makefile.am b/Makefile.am
+index 1d7b415..b1e9291 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -1,6 +1,6 @@
+ SUBDIRS_BASE = m4 doc man patches 
+ SUBDIRS_LIBS = lib sm addb fop stob net fol fid dtm nrs sns mw reqh layout \
+-               pool balloc db desim cob capa udb # rpc
++               pool balloc db desim cob capa udb mdstore datastore # rpc
+ SUBDIR_KERNEL = build_kernel_modules
+ SUBDIR_BINARIES = mds utils
+ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
+diff --git a/colibri/Makefile.am b/colibri/Makefile.am
+index 90bac3f..66ddbc8 100644
+--- a/colibri/Makefile.am
++++ b/colibri/Makefile.am
+@@ -25,7 +25,9 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
+                             $(top_builddir)/sm/libcolibri-sm.la \
+                             $(top_builddir)/sns/libcolibri-sns.la \
+                             $(top_builddir)/stob/libcolibri-stob.la \
+-                            $(top_builddir)/udb/libcolibri-udb.la
++                            $(top_builddir)/udb/libcolibri-udb.la \
++                            $(top_builddir)/mdstore/libcolibri-mdstore.la \
++                            $(top_builddir)/datastore/libcolibri-datastore.la
+ 
+ #                            $(top_builddir)/rpc/libcolibri-rpc.la
+ 
+diff --git a/configure.ac b/configure.ac
+index 3b44388..2bf4f1c 100755
+--- a/configure.ac
++++ b/configure.ac
+@@ -539,6 +539,8 @@ AC_CONFIG_FILES([
+                  sns/ut/Makefile
+                  stob/Makefile
+                  stob/ut/Makefile
++                 mdstore/Makefile
++                 datastore/Makefile
+                  udb/Makefile
+                  utils/Makefile
+                  utils/ploss/Makefile
+diff --git a/datastore/Makefile.am b/datastore/Makefile.am
+new file mode 100644
+index 0000000..53ee075
+--- /dev/null
++++ b/datastore/Makefile.am
+@@ -0,0 +1,6 @@
++datastoredir                     = $(includedir)/datastore
++datastore_HEADERS                = datastore.h
++
++noinst_LTLIBRARIES               = libcolibri-datastore.la
++libcolibri_datastore_la_SOURCES  = datastore.c datastore.h
++INCLUDES                         = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+diff --git a/datastore/datastore.c b/datastore/datastore.c
+new file mode 100644
+index 0000000..8d2ad2f
+--- /dev/null
++++ b/datastore/datastore.c
+@@ -0,0 +1,19 @@
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++
++#include "lib/assert.h"
++#include "stob/stob.h"
++#include "fop/fop.h"
++
++#include "datastore.h"
++
++int c2_data_store_init(struct c2_data_store *store, struct c2_stob_domain *stob)
++{
++        store->dt_stob = stob;
++        return 0;
++}
++
++void c2_data_store_fini(struct c2_data_store *store)
++{
++}
+diff --git a/datastore/datastore.h b/datastore/datastore.h
+new file mode 100644
+index 0000000..07d1b13
+--- /dev/null
++++ b/datastore/datastore.h
+@@ -0,0 +1,27 @@
++/* -*- C -*- */
++
++#ifndef __COLIBRI_DATASTORE_DATASTORE_H__
++#define __COLIBRI_DATASTORE_DATASTORE_H__
++
++struct c2_stob_domain;
++
++struct c2_data_store {
++        struct c2_stob_domain  *dt_stob;
++};
++
++int c2_data_store_init(struct c2_data_store *store, struct c2_stob_domain *stob);
++void c2_data_store_fini(struct c2_data_store *store);
++
++
++/* __COLIBRI_DATASTORE_DATASTORE_H__ */
++#endif
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/mdstore/Makefile.am b/mdstore/Makefile.am
+new file mode 100644
+index 0000000..aeff9f6
+--- /dev/null
++++ b/mdstore/Makefile.am
+@@ -0,0 +1,6 @@
++mdstoredir                     = $(includedir)/mdstore
++mdstore_HEADERS                = mdstore.h
++
++noinst_LTLIBRARIES             = libcolibri-mdstore.la
++libcolibri_mdstore_la_SOURCES  = mdstore.c mdstore.h
++INCLUDES                       = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+new file mode 100644
+index 0000000..d6a9a21
+--- /dev/null
++++ b/mdstore/mdstore.c
+@@ -0,0 +1,22 @@
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++
++#include "lib/assert.h"
++#include "lib/memory.h"
++#include "lib/misc.h"              /* C2_SET0 */
++#include "lib/bitstring.h"
++#include "cob/cob.h"
++#include "fop/fop.h"
++
++#include "mdstore.h"
++
++int c2_md_store_init(struct c2_md_store *store, struct c2_cob_domain *cob)
++{
++        store->md_cob = cob;
++        return 0;
++}
++
++void c2_md_store_fini(struct c2_md_store *store)
++{
++}
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+new file mode 100644
+index 0000000..222ba31
+--- /dev/null
++++ b/mdstore/mdstore.h
+@@ -0,0 +1,26 @@
++/* -*- C -*- */
++
++#ifndef __COLIBRI_MDSTORE_MDSTORE_H__
++#define __COLIBRI_MDSTORE_MDSTORE_H__
++
++struct c2_cob_domain;
++
++struct c2_md_store {
++        struct c2_cob_domain  *md_cob;
++};
++
++int c2_md_store_init(struct c2_md_store *store, struct c2_cob_domain *cob);
++void c2_md_store_fini(struct c2_md_store *store);
++
++/* __COLIBRI_MDSTORE_MDSTORE_H__ */
++#endif
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 01ec4cc..f643f2c 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -5,6 +5,8 @@
+ #include "lib/assert.h"
+ #include "stob/stob.h"
+ #include "fop/fop.h"
++#include "mdstore/mdstore.h"
++#include "datastore/datastore.h"
+ 
+ #include "reqh.h"
+ 
+@@ -13,13 +15,14 @@
+    @{
+  */
+ 
+-int  c2_reqh_init(struct c2_reqh *reqh, 
+-		  struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
+-		  struct c2_stob_domain *dom)
++int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
++		  struct c2_fol *fol, struct c2_md_store *md,
++		  struct c2_data_store *data)
+ {
+-	reqh->rh_rpc = rpc;
++	reqh->rh_md = md;
++	reqh->rh_fol = fol;
+ 	reqh->rh_dtm = dtm;
+-	reqh->rh_dom = dom;
++	reqh->rh_data = data;
+ 	return 0;
+ }
+ 
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index 01a7f4e..b2f9296 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -8,6 +8,8 @@
+ /* import */
+ struct c2_fop;
+ struct c2_stob_domain;
++struct c2_md_store;
++struct c2_data_store;
+ 
+ /**
+    @defgroup reqh Request handler
+@@ -22,18 +24,24 @@ struct c2_fop_sortkey;
+    Request handler instance.
+  */
+ struct c2_reqh {
+-	struct c2_rpcmachine  *rh_rpc;
+ 	struct c2_dtm         *rh_dtm;
+ 	/**
+-	   @todo for now simply use storage object domain. In the future, this
+-	   will be replaced with "stores".
++	   File operations log for this request handler.
++	*/
++	struct c2_fol         *rh_fol;
++	/**
++	   Metadata store is collection of cobs.
+ 	 */
+-	struct c2_stob_domain *rh_dom;
++	struct c2_md_store    *rh_md;
++	/**
++	   Data store is collection of stobs.
++	*/
++	struct c2_data_store  *rh_data;
+ };
+ 
+-int  c2_reqh_init(struct c2_reqh *reqh, 
+-		  struct c2_rpcmachine *rpc, struct c2_dtm *dtm,
+-		  struct c2_stob_domain *rh_stob_dom);
++int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
++		  struct c2_fol *fol, struct c2_md_store *md,
++		  struct c2_data_store *data);
+ void c2_reqh_fini(struct c2_reqh *reqh);
+ 
+ /**
+-- 
+1.8.3.2
+

@@ -1,0 +1,162 @@
+From 98ec1691470ba0ae8ee6083d455384a31d4f5b39 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 24 Jan 2013 12:18:40 +0200
+Subject: [PATCH 70/71] nbc_stop_flag now is atomic; rewrote bulk node stopping
+ code.
+
+---
+ net/test/node_bulk.c | 76 +++++++++++++++++++++++++++++++++++++---------------
+ 1 file changed, 54 insertions(+), 22 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 7b420a4..aae3a2d 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -23,6 +23,7 @@
+ #include "lib/memory.h"			/* C2_ALLOC_PTR */
+ #include "lib/cdefs.h"			/* ergo */
+ #include "lib/misc.h"			/* C2_IN */
++#include "lib/atomic.h"			/* c2_atomic64 */
+ 
+ #include "colibri/magic.h"		/* C2_NET_TEST_BSB_MAGIC */
+ 
+@@ -271,7 +272,7 @@ struct node_bulk_ctx {
+ 	 */
+ 	struct c2_clink			   nbc_stop_clink;
+ 	/** Stop flag */
+-	bool				   nbc_stop_flag;
++	struct c2_atomic64		   nbc_stop_flag;
+ 	/**
+ 	 * At least one callback was executed.
+ 	 * Set to true in every callback.
+@@ -827,6 +828,11 @@ static void node_bulk_cb_client(struct node_bulk_ctx *ctx,
+ 	}
+ }
+ 
++static bool node_bulk_is_stopping(struct node_bulk_ctx *ctx)
++{
++	return c2_atomic64_get(&ctx->nbc_stop_flag) == 1;
++}
++
+ static void node_bulk_cb(struct c2_net_test_network_ctx *net_ctx,
+ 			 const uint32_t buf_index,
+ 			 enum c2_net_queue_type q,
+@@ -886,11 +892,7 @@ static void node_bulk_cb(struct c2_net_test_network_ctx *net_ctx,
+ 		c2_net_test_ringbuf_push(&ctx->nbc_rb_ping_unused, buf_index);
+ 	}
+ 	if (!role_client && q == C2_NET_QT_MSG_RECV) {
+-		/*
+-		 * @todo nbc_stop_flag isn't protected here with lock.
+-		 * is it safe?
+-		 */
+-		if (!ctx->nbc_stop_flag)
++		if (!node_bulk_is_stopping(ctx))
+ 			server_process_unused_ping(ctx);
+ 	}
+ 	/* update stats */
+@@ -1226,11 +1228,41 @@ static void node_bulk_buf_dequeue(struct node_bulk_ctx *ctx)
+ 	}
+ }
+ 
++static bool node_bulk_bufs_is_in_use(struct node_bulk_ctx *ctx)
++{
++	struct c2_net_test_network_ctx *net_ctx;
++	struct c2_net_buffer	       *buf;
++	uint64_t			flags;
++	size_t				i;
++	size_t				buf_ping_nr;
++
++	C2_PRE(ctx != NULL);
++
++	net_ctx = &ctx->nbc_net;
++	buf_ping_nr = net_ctx->ntc_buf_ping_nr;
++	for (i = 0; i < buf_ping_nr + net_ctx->ntc_buf_bulk_nr; ++i) {
++		buf = i < buf_ping_nr ?
++		      c2_net_test_network_buf(&ctx->nbc_net,
++					      C2_NET_TEST_BUF_PING, i) :
++		      net_buf_bulk_get(ctx, i - buf_ping_nr);
++
++		C2_CASSERT(sizeof(buf->nb_flags) == 8);
++		C2_CASSERT(sizeof(struct c2_atomic64) == 8);
++		flags = c2_atomic64_get((struct c2_atomic64 *) &buf->nb_flags);
++		if (flags & (C2_NET_BUF_QUEUED | C2_NET_BUF_IN_USE |
++			     C2_NET_BUF_CANCELLED |
++			     C2_NET_BUF_TIMED_OUT | C2_NET_BUF_RETAIN))
++			return true;
++	}
++	return false;
++}
++
+ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ {
+ 	struct c2_clink	tm_clink;
+ 	struct c2_chan	tm_chan;
+ 	bool		pending;
++	bool		stopping;
+ 
+ 	C2_PRE(ctx != NULL);
+ 
+@@ -1245,12 +1277,15 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 	c2_chan_init(&tm_chan);
+ 	c2_clink_add(&tm_chan, &tm_clink);
+ 	/* main loop */
+-	while (1) {
+-		if (ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
+-			client_process_unused_bulk(ctx);
+-			client_process_queued_bulk(ctx);
+-		} else {
+-			server_process_unused_ping(ctx);
++	stopping = false;
++	while (!node_bulk_is_stopping(ctx) || node_bulk_bufs_is_in_use(ctx)) {
++		if (!node_bulk_is_stopping(ctx)) {
++			if (ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
++				client_process_unused_bulk(ctx);
++				client_process_queued_bulk(ctx);
++			} else {
++				server_process_unused_ping(ctx);
++			}
+ 		}
+ 		/* notification for buffer events */
+ 		pending = c2_net_buffer_event_pending(ctx->nbc_net.ntc_tm);
+@@ -1269,15 +1304,12 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 		/* wait for STOP command or buffer event */
+ 		if (!ctx->nbc_callback_executed)
+ 			c2_chan_wait(&ctx->nbc_stop_clink);
+-		/* it was STOP command */
+-		if (ctx->nbc_stop_flag)
+-			break;
++		if (node_bulk_is_stopping(ctx) && !stopping) {
++			/* dequeue all queued network buffers */
++			node_bulk_buf_dequeue(ctx);
++			stopping = true;
++		}
+ 	}
+-	/* dequeue all queued network buffers */
+-	node_bulk_buf_dequeue(ctx);
+-	c2_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
+-	node_bulk_state_transition_auto_all(ctx);
+-	c2_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
+ 	/* transfer machine should't signal to tm_chan */
+ 	c2_net_buffer_event_notify(ctx->nbc_net.ntc_tm, NULL);
+ 	c2_clink_del(&tm_clink);
+@@ -1546,7 +1578,7 @@ static int node_bulk_cmd_start(void *ctx_,
+ 	/* initialize stats */
+ 	c2_net_test_mps_init(&sd->ntcsd_mps_send, 0, sd->ntcsd_time_start, _1s);
+ 	c2_net_test_mps_init(&sd->ntcsd_mps_recv, 0, sd->ntcsd_time_start, _1s);
+-	ctx->nbc_stop_flag = false;
++	c2_atomic64_set(&ctx->nbc_stop_flag, 0);
+ 	rc = C2_THREAD_INIT(&ctx->nbc_thread, struct node_bulk_ctx *, NULL,
+ 			    &node_bulk_worker, ctx,
+ 			    "net-test-bulk-worker#%s",
+@@ -1579,7 +1611,7 @@ static int node_bulk_cmd_stop(void *ctx_,
+ 		goto reply;
+ 	}
+ 	/* stop worker thread */
+-	ctx->nbc_stop_flag = true;
++	c2_atomic64_set(&ctx->nbc_stop_flag, 1);
+ 	c2_chan_signal(&ctx->nbc_stop_chan);
+ 	rc = c2_thread_join(&ctx->nbc_thread);
+ 	C2_ASSERT(rc == 0);
+-- 
+1.8.3.2
+

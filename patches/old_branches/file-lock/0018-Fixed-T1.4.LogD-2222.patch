@@ -1,0 +1,57 @@
+From 5e265fa1ce7629d34ca14f36ff5c82918b475aba Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Fri, 19 Apr 2013 12:28:35 +0530
+Subject: [PATCH 18/25] Fixed T1.4.LogD#2222.
+
+---
+ rm/file.c     |  1 -
+ rm/ut/rings.c | 11 +----------
+ 2 files changed, 1 insertion(+), 11 deletions(-)
+
+diff --git a/rm/file.c b/rm/file.c
+index b93a3f1..a6c0371 100644
+--- a/rm/file.c
++++ b/rm/file.c
+@@ -22,7 +22,6 @@
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
+ 
+ #include "fid/fid_xc.h"
+-#include "rpc/rpc_helpers.h"
+ #include "xcode/xcode.h"
+ #include "rm/file.h"
+ 
+diff --git a/rm/ut/rings.c b/rm/ut/rings.c
+index fbe8264..8ae57eb 100644
+--- a/rm/ut/rings.c
++++ b/rm/ut/rings.c
+@@ -26,7 +26,6 @@
+ #include "lib/misc.h"
+ #include "lib/chan.h"
+ #include "lib/vec.h"
+-#include "rpc/rpc_helpers.h"
+ #include "xcode/xcode.h"
+ #include "ut/ut.h"
+ 
+@@ -183,18 +182,10 @@ static int rings_credit_encdec(struct m0_rm_credit *credit,
+ {
+ 	struct m0_xcode_obj datumobj;
+ 	struct m0_xcode_ctx ctx;
+-	int		    rc;
+ 
+ 	datumobj.xo_type = &M0_XT_U64;
+ 	datumobj.xo_ptr = (void *)&credit->cr_datum;
+-	m0_xcode_ctx_init(&ctx, &datumobj);
+-	ctx.xcx_buf = *cur;
+-	ctx.xcx_alloc = m0_xcode_alloc;
+-	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&ctx) :
+-					m0_xcode_decode(&ctx);
+-	if (rc == 0 && what == M0_BUFVEC_DECODE)
+-		credit->cr_datum = *(uint64_t *)m0_xcode_ctx_top(&ctx);
+-	return rc;
++	return m0_xcode_encdec(&ctx, &datumobj, cur, what);
+ }
+ 
+ static int rings_credit_encode(struct m0_rm_credit *credit,
+-- 
+1.8.3.2
+

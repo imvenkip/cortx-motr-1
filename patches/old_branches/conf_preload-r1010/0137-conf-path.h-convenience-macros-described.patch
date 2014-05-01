@@ -1,0 +1,101 @@
+From a2fb0eb2a7c098883ce3dd713a85ff759790457a Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 18 Apr 2012 16:09:47 +0300
+Subject: [PATCH 137/311] conf/path.h: convenience macros described
+
++ Fix the description of path components: end-of-path marker is also
+  a component.
+---
+ conf/path.h | 53 +++++++++++++++++++++++++++++------------------------
+ 1 file changed, 29 insertions(+), 24 deletions(-)
+
+diff --git a/conf/path.h b/conf/path.h
+index 88b394b..e9e7c23 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -42,19 +42,22 @@
+  * algorithm (see @ref confc-lspec-walk) consumes path components in
+  * the order they are specified.
+  *
+- * A component is either relation or key.  Relation tells which one of
+- * current object's downlinks to follow. Relations are expressed via
+- * c2_conf_objtype of target objects.  For example, consider a
+- * c2_conf_node object. It has two downlinks: ->cn_nics and
+- * ->cn_sdevs. The types of target objects are C2_CO_NIC and
+- * C2_CO_SDEV, correspondingly.
+- *
+- * A key "narrows" one-to-many relation. E.g.,
++ * There are three types of path components: relation, key, and
++ * end-of-path marker.
++ *
++ * Relation tells which one of current object's downlinks to
++ * follow. Relations are expressed via c2_conf_objtype of target
++ * objects.  For example, consider a c2_conf_node object. It has two
++ * downlinks: ->cn_nics and ->cn_sdevs. The types of target objects
++ * are C2_CO_NIC and C2_CO_SDEV, correspondingly.
++ *
++ * Key "narrows" one-to-many relation. E.g.,
+  * c2_conf_filesystem::cf_services downlink points to a list of
+  * service objects. If the next path component is a key, then this key
+  * is used to choose one particular c2_conf_service object in the
+  * list; path traversal will be continued from that object.
+  *
++ * <!---------------------------------------------------------------->
+  * @subsection conf-fspec-path-example Example
+  *
+  * Suppose we have the following DAG of configuration objects (as per
+@@ -163,11 +166,10 @@ Legend:
+  * <hr> <!------------------------------------------------------------>
+  * @section conf-fspec-path-macros Convenience Macros
+  *
+- * - C2_CONF_REL()
+- * - C2_CONF_KEY()
+- * - C2_CONF_EOP
+- *
+- * XXX @todo describe
++ * These are initializers for c2_conf_pathcomp structure:
++ * - C2_CONF_REL() -- relation;
++ * - C2_CONF_KEY() -- key;
++ * - C2_CONF_EOP   -- end-of-path marker.
+  *
+  * @see @ref conf_dfspec_path "Detailed Functional Specification"
+  */
+@@ -247,21 +249,24 @@ struct c2_conf_relation {
+ const struct c2_conf_relation * c2_conf_downlink(uint32_t src, uint32_t tgt);
+ 
+ /**
+- * Initializers for c2_conf_pathcomp structure. The structure itself
+- * is described in `onwire.ff'.
++ * Initializers for c2_conf_pathcomp structure. (The structure itself
++ * is defined in "conf/onwire.ff".)
+  *
+- * - C2_CONF_REL --- relation
+- * - C2_CONF_KEY --- key
+- * - C2_CONF_EOP --- "end of path" marker
++ * - C2_CONF_REL(<objtype>)      -- "relation" component;
++ * - C2_CONF_KEY(<size>, <data>) -- "key" component;
++ * - C2_CONF_EOP                 -- end-of-path marker.
+  *
+  * Example:
+  *
+- *     uint8_t key[] = "uuid";
+- *     struct c2_conf_pathcomp pcomps[] = {
+- *         C2_CONF_REL(C2_CO_SERVICE),
+- *         C2_CONF_KEY(sizeof key, key),
+- *         C2_CONF_EOP
+- *     };
++ * @code
++ * char key[] = "svc-uuid";
++ * const struct c2_conf_pathcomp path[] = {
++ *     C2_CONF_REL(C2_CO_SERVICE),
++ *     C2_CONF_KEY(sizeof key, key),
++ *     C2_CONF_EOP
++ * };
++ * const struct c2_conf_pathcomp empty_path[] = { C2_CONF_EOP };
++ * @endcode
+  */
+ #define C2_CONF_REL(r)  { .pc_iskey = 0, .u.pc_relation = (r) }
+ #define C2_CONF_KEY(ksize, kdata)  \
+-- 
+1.8.3.2
+

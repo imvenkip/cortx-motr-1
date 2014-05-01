@@ -1,0 +1,91 @@
+From dc5fbe94f7d484e5aab18f37c392a3a2bae910bf Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 21 Aug 2012 15:21:03 +0300
+Subject: [PATCH 321/370] conf/obj_ops.c: replace services_tl et al. with a
+ generic list
+
+---
+ conf/obj_ops.c | 46 +++++++---------------------------------------
+ 1 file changed, 7 insertions(+), 39 deletions(-)
+
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 887553c..d290d4d 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -67,6 +67,11 @@ static const struct c2_bob_type generic_obj_bob = {
+ };
+ C2_BOB_DEFINE(static, &generic_obj_bob, c2_conf_obj);
+ 
++C2_TL_DESCR_DEFINE(generic_objs, "c2_conf_obj-s", static, struct c2_conf_obj,
++		   co_linkage, co_magic.generic, CONF_GENERIC_MAGIC,
++		   CONF_DIR_MAGIC);
++C2_TL_DEFINE(generic_objs, static, struct c2_conf_obj);
++
+ #define _BOB_TYPE_DEFINE(abbrev, magic)                            \
+ static bool abbrev ## _invariant(const void *bob);                 \
+ static int abbrev ## _lookup(struct c2_conf_obj *parent,           \
+@@ -149,7 +154,6 @@ C2_BASSERT(generic_obj_bob.bt_check == _generic_obj_check);
+  * ------------------------------------------------------------------ */
+ 
+ static bool obj_is_stub(const struct c2_conf_obj *obj);
+-static const struct c2_tl_descr *list_of(enum c2_conf_objtype t);
+ 
+ bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
+ {
+@@ -170,8 +174,8 @@ static bool dir_invariant(const void *bob)
+ 	const struct c2_conf_dir *self = bob;
+ 	const struct c2_conf_obj *self_obj = &self->cd_obj;
+ 	const struct c2_conf_obj *parent = self_obj->co_parent;
+-	const struct c2_tl_descr *td = obj_is_stub(self_obj) ? NULL :
+-		list_of(self->cd_item_type);
++	const struct c2_tl_descr *td =
++		obj_is_stub(self_obj) ? NULL : &generic_objs_tl;
+ 
+ 	C2_PRE(self_obj->co_type == C2_CO_DIR);
+ 
+@@ -552,42 +556,6 @@ static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+  */
+ 
+ /* ------------------------------------------------------------------
+- * Lists of configuration objects
+- * ------------------------------------------------------------------ */
+-
+-C2_TL_DESCR_DEFINE(services, "service objs", static, struct c2_conf_obj,
+-		   co_linkage, co_magic.concrete, CONF_SERVICE_MAGIC,
+-		   CONF_DIR_MAGIC);
+-C2_TL_DEFINE(services, static, struct c2_conf_obj);
+-
+-C2_TL_DESCR_DEFINE(nics, "nic objs", static, struct c2_conf_obj, co_linkage,
+-		   co_magic.concrete, CONF_NIC_MAGIC, CONF_DIR_MAGIC);
+-C2_TL_DEFINE(nics, static, struct c2_conf_obj);
+-
+-C2_TL_DESCR_DEFINE(sdevs, "sdev objs", static, struct c2_conf_obj,
+-		   co_linkage, co_magic.concrete, CONF_SDEV_MAGIC,
+-		   CONF_DIR_MAGIC);
+-C2_TL_DEFINE(sdevs, static, struct c2_conf_obj);
+-
+-C2_TL_DESCR_DEFINE(partitions, "partition objs", static, struct c2_conf_obj,
+-		   co_linkage, co_magic.concrete, CONF_PARTITION_MAGIC,
+-		   CONF_DIR_MAGIC);
+-C2_TL_DEFINE(partitions, static, struct c2_conf_obj);
+-
+-/** Returns descriptor of a list given type of its items. */
+-static const struct c2_tl_descr *list_of(enum c2_conf_objtype t)
+-{
+-	switch (t) {
+-	case C2_CO_SERVICE:   return &services_tl;
+-	case C2_CO_NIC:       return &nics_tl;
+-	case C2_CO_SDEV:      return &sdevs_tl;
+-	case C2_CO_PARTITION: return &partitions_tl;
+-	default:;
+-	}
+-	return NULL;
+-}
+-
+-/* ------------------------------------------------------------------
+  * c2_conf_obj_{get,put}()
+  * ------------------------------------------------------------------ */
+ 
+-- 
+1.8.3.2
+

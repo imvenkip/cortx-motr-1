@@ -1,0 +1,25 @@
+From f6e6a59059fc34af235789f4c36c4c7a6ac9ab8a Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 18 Feb 2014 15:53:14 +0200
+Subject: [PATCH 89/96] be/fl: removed unused fields from struct size
+
+---
+ be/fl.h | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/be/fl.h b/be/fl.h
+index 1283eea..fe940f3 100644
+--- a/be/fl.h
++++ b/be/fl.h
+@@ -50,8 +50,6 @@ enum m0_be_fl_op {
+ /** m0_be free list for some size of chunks */
+ struct m0_be_fl_size {
+ 	struct m0_be_list bfs_list;
+-	struct m0_tlink	  bfs_size_link;
+-	uint64_t	  bfs_size_link_magic;
+ };
+ 
+ /** m0_be free list */
+-- 
+1.8.3.2
+

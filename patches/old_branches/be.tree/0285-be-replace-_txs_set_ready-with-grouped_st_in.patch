@@ -1,0 +1,120 @@
+From 89fcbd821110807c9aa65ffc7481e221220313d1 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 5 Jul 2013 01:19:48 +0300
+Subject: [PATCH 285/290] be: replace _txs_set_ready() with grouped_st_in()
+
+---
+ be/tx.c | 60 +++++++++++++++++++++++++++++++++++++-----------------------
+ 1 file changed, 37 insertions(+), 23 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index d8e72bc..d50c703 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -40,8 +40,9 @@
+  * @{
+  */
+ 
+-static int placed_st_in(struct m0_sm *mach);
+-static int   done_st_in(struct m0_sm *mach);
++static int grouped_st_in(struct m0_sm *mach);
++static int  placed_st_in(struct m0_sm *mach);
++static int    done_st_in(struct m0_sm *mach);
+ static void _tx_state_set(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+ 
+ M0_TL_DESCR_DEFINE(tx, "transactions", M0_INTERNAL, struct m0_be_tx,
+@@ -72,7 +73,12 @@ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
+ 	_S(M0_BTS_OPENING, 0, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)),
+ 	_S(M0_BTS_ACTIVE,  0, M0_BITS(M0_BTS_CLOSED)),
+ 	_S(M0_BTS_CLOSED,  0, M0_BITS(M0_BTS_GROUPED)),
+-	_S(M0_BTS_GROUPED, 0, M0_BITS(M0_BTS_PLACED)),
++	[M0_BTS_GROUPED] = {
++		.sd_name      = "M0_BTS_GROUPED",
++		.sd_in        = grouped_st_in,
++		.sd_invariant = tx_state_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_PLACED)
++	},
+ 	[M0_BTS_PLACED] = {
+ 		.sd_name      = "M0_BTS_PLACED",
+ 		.sd_in        = placed_st_in,
+@@ -517,20 +523,6 @@ static void tx_fail(struct m0_be_tx *tx, int err)
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+-/* XXX RENAMEME */
+-static void _txs_set_ready(const struct m0_be_tx *tx)
+-{
+-	struct m0_be_tx_group *gr = tx->t_group;
+-
+-	M0_PRE(!gr->tg_opened);
+-
+-	/* XXX TODO: Replace with m0_ref_put(). See also documentation of
+-	 * m0_be_tx_group::tg_nr_ungrouped. */
+-	M0_CNT_DEC(gr->tg_nr_ungrouped); /* XXX atomic! */
+-	if (gr->tg_nr_ungrouped == 0)
+-		m0_fom_wakeup(gr->tg_fom);
+-}
+-
+ static void
+ _tx_state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
+ {
+@@ -541,7 +533,6 @@ _tx_state_set(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
+ 	M0_PRE(IS_IN_ARRAY(state, tx_states));
+ 
+ 	m0_be__tx_state_set(tx, state);
+-	_txs_set_ready(tx);
+ 
+ 	M0_LEAVE();
+ }
+@@ -635,20 +626,43 @@ static bool tx_is_locked(const struct m0_be_tx *tx)
+ 	return m0_mutex_is_locked(&tx->t_sm.sm_grp->s_lock);
+ }
+ 
+-static int placed_st_in(struct m0_sm *mach)
++static struct m0_be_tx *sm_to_tx(struct m0_sm *mach)
++{
++	return container_of(mach, struct m0_be_tx, t_sm); /* XXX bob_of() */
++}
++
++static int grouped_st_in(struct m0_sm *mach)
+ {
+-	struct m0_be_tx *tx = container_of(mach, struct m0_be_tx, t_sm);
+-	M0_ENTRY("t_glob_stable=%d", !!tx->t_glob_stable);
++	struct m0_be_tx_group *gr = sm_to_tx(mach)->t_group;
+ 
++	M0_ENTRY();
++	M0_PRE(!gr->tg_opened);
++
++#if 0 /*XXX*/
++	m0_ref_put(&gr->tg_nr_ungrouped);
++#else
++	/* XXX TODO: Replace with m0_ref_put(). See also documentation of
++	 * m0_be_tx_group::tg_nr_ungrouped. */
++	M0_CNT_DEC(gr->tg_nr_ungrouped); /* XXX atomic! */
++	if (gr->tg_nr_ungrouped == 0)
++		m0_fom_wakeup(gr->tg_fom);
++#endif
++	M0_LEAVE();
++	return -1;
++}
++
++static int placed_st_in(struct m0_sm *mach)
++{
++	M0_ENTRY("t_glob_stable=%d", !!sm_to_tx(mach)->t_glob_stable);
+ 	M0_LEAVE();
+ 	/* XXX FIXME: Don't intermix "external" and "chained" styles of state
+ 	 * transitions. This makes code hard to read. (Reported by Nikita.) */
+-	return tx->t_glob_stable ? M0_BTS_DONE : -1;
++	return sm_to_tx(mach)->t_glob_stable ? M0_BTS_DONE : -1;
+ }
+ 
+ static int done_st_in(struct m0_sm *mach)
+ {
+-	struct m0_be_tx *tx = container_of(mach, struct m0_be_tx, t_sm);
++	const struct m0_be_tx *tx = sm_to_tx(mach);
+ 	M0_ENTRY();
+ 
+ 	if (tx->t_discarded != NULL)
+-- 
+1.8.3.2
+

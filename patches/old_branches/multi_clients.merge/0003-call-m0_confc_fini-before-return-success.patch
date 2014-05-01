@@ -1,0 +1,70 @@
+From 438ed6c7133d4cf7d95f55999b24276a46e07418 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 25 Mar 2014 00:22:48 +0800
+Subject: [PATCH 3/3] call m0_confc_fini() before return success.
+
+---
+ m0t1fs/linux_kernel/st/st   | 6 +++---
+ m0t1fs/linux_kernel/super.c | 8 +++++---
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/st b/m0t1fs/linux_kernel/st/st
+index df67910..f267e84 100755
+--- a/m0t1fs/linux_kernel/st/st
++++ b/m0t1fs/linux_kernel/st/st
+@@ -293,9 +293,9 @@ say '  Test: m0t1fs local_conf'
+ _mount local || _fini $?
+ umount $SANDBOX_DIR/mnt
+ 
+-#say '  Test: m0t1fs confd'
+-#_mount net || _fini $?
+-#umount $SANDBOX_DIR/mnt
++say '  Test: m0t1fs confd'
++_mount net || _fini $?
++umount $SANDBOX_DIR/mnt
+ 
+ ## "conf-reqh" demo: start another instance of m0d, which configures
+ ## itself retrieving data from confd.
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 74c46df..de62df5 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -1340,7 +1340,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
+ 	rc = m0_confc_open_sync(&fs, confc.cc_root,
+ 				M0_CONF_PROFILE_FILESYSTEM_FID);
+ 	if (rc != 0)
+-		goto end;
++		goto confc_fini;
+ 
+ 	rc = fs_params_parse(&fs_params,
+ 			     M0_CONF_CAST(fs, m0_conf_filesystem)->cf_params) ?:
+@@ -1360,7 +1360,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
+ 		M0_LOG(M0_WARN, "Stats service not connected");
+ 	m0_confc_close(fs);
+ 	if (rc != 0)
+-		goto end;
++		goto confc_fini;
+ 
+ 	rc = configure_addb_rpc_sink(csb, &m0_addb_gmc);
+ 	if (rc != 0)
+@@ -1388,6 +1388,8 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
+ 	rc = m0t1fs_sb_layout_init(csb, &fs_params);
+ 	if (rc != 0)
+ 		goto err_poolmach_destroy;
++
++	m0_confc_fini(&confc);
+ 	return M0_RC(rc);
+ 
+ err_poolmach_destroy:
+@@ -1400,7 +1402,7 @@ addb_mc_unconf:
+ 	m0_addb_mc_init(&m0_addb_gmc);
+ err_disconnect:
+ 	disconnect_from_services(csb);
+-end:
++confc_fini:
+ 	m0_confc_fini(&confc);
+ err_layout_fini:
+ 	m0t1fs_layout_fini(csb);
+-- 
+1.8.3.2
+

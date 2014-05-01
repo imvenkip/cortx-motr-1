@@ -1,0 +1,22 @@
+From b8daa0c9a32c8a0d437ad13de348dd3007160605 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 19 Nov 2012 17:41:24 +0200
+Subject: [PATCH 08/58] typo fix in net-test st.sh
+
+---
+ net/test/st/st.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/st/st.sh b/net/test/st/st.sh
+index 168bc71..8fcee3e 100755
+--- a/net/test/st/st.sh
++++ b/net/test/st/st.sh
+@@ -7,4 +7,4 @@
+ CWD=$(cd "$( dirname "$0")" && pwd)
+ 
+ sh $CWD/st-ping.sh
+-SH $CWD/st-bulk.sh
++sh $CWD/st-bulk.sh
+-- 
+1.8.3.2
+

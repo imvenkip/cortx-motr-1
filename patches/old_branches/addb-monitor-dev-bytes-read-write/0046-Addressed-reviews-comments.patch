@@ -1,0 +1,122 @@
+From 34540fa009fccd9e5e967a3dad099f0fdebb6385 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Mon, 26 Aug 2013 14:34:42 +0530
+Subject: [PATCH 046/121] Addressed reviews comments
+
+---
+ addb/addb_monitor.c | 73 +++++++++++++++++++++++++++--------------------------
+ 1 file changed, 37 insertions(+), 36 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 9ea314b..0e15c80 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -251,24 +251,28 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh)
+ {
+ 	struct m0_addb_monitor       *mon;
+ 	struct m0_addb_sum_rec_fop   *sum_recs_fop;
+-	uint32_t		      dirtied_mon_cnt = 0;
++	uint32_t		      dirtied_mon_cnt;
++	uint32_t                      fop_mon_cnt = 0;
++	uint32_t                      scanned = 0;
++	struct m0_tl                 *mon_list;
+ 	int                           i = 0;
+ 	int                           rc = 0;
+-	uint32_t                      fop_mon_cnt = 0;
+-
+-	m0_tl_for(addb_mon, &reqh->rh_addb_monitoring_ctx.amc_list, mon) {
+-		if (mon->am_ops->amo_sum_rec != NULL) {
+-			struct m0_addb_sum_rec *sum = mon->am_ops->amo_sum_rec(mon,
+-						                      reqh);
+-			if (sum->asr_dirty)
+-				++dirtied_mon_cnt;
+-		}
+-	} m0_tl_endfor;
+ 
+-	if (dirtied_mon_cnt == 0)
+-		M0_RETURN(rc);
++	M0_PRE(reqh != NULL);
+ 
++	mon_list = &reqh->rh_addb_monitoring_ctx.amc_list;
+ 	do {
++		dirtied_mon_cnt = 0;
++		m0_tl_for(addb_mon, mon_list, mon) {
++			if (mon->am_ops->amo_sum_rec != NULL) {
++				struct m0_addb_sum_rec *sum =
++					mon->am_ops->amo_sum_rec(mon, reqh);
++				if (sum->asr_dirty)
++					++dirtied_mon_cnt;
++			}
++		} m0_tl_endfor;
++		if (dirtied_mon_cnt == 0)
++			break;
+ 		M0_ALLOC_PTR(sum_recs_fop);
+ 		if (sum_recs_fop == NULL) {
+ 			rc = -ENOMEM;
+@@ -281,34 +285,32 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh)
+ 			M0_RETURN(rc);
+ 		}
+ 
+-		for( i = 0; i < fop_mon_cnt; ++i) {
++		for(i = 0; i < fop_mon_cnt; ++i) {
+ 			struct m0_addb_sum_rec_wire  *sum_rec;
+ 			struct m0_addb_sum_rec       *sum =
+ 				mon->am_ops->amo_sum_rec(mon, reqh);
+ 
+-			mon = addb_mon_tlist_head(&reqh->rh_addb_monitoring_ctx.amc_list);
+-			addb_mon_tlist_move_tail(&reqh->rh_addb_monitoring_ctx.amc_list,
+-						 mon);
+-			if (mon->am_ops->amo_sum_rec == NULL)
++			mon = addb_mon_tlist_head(mon_list);
++			addb_mon_tlist_move_tail(mon_list, mon);
++			++scanned;
++			if (!sum->asr_dirty ||
++			    mon->am_ops->amo_sum_rec == NULL)
+ 				continue;
+-
+ 			m0_mutex_lock(&sum->asr_mutex);
+-			if (sum->asr_dirty) {
+-				sum_rec = &sum_recs_fop->asrf_recs[i++];
+-				sum_rec->asrw_rec.au64s_data =
+-					m0_alloc(SUM_SIZE(sum));
+-
+-				if (sum_rec->asrw_rec.au64s_data == NULL) {
+-					rc = -ENOMEM;
+-					goto mem_fail;
+-				}
+-				sum_rec->asrw_id = sum->asr_rec.asrw_id;
+-				sum_rec->asrw_rec.au64s_nr =
+-					sum->asr_rec.asrw_rec.au64s_nr;
+-				memcpy(sum_rec->asrw_rec.au64s_data,
+-				       sum->asr_rec.asrw_rec.au64s_data,
+-				       SUM_SIZE(sum));
++			sum_rec = &sum_recs_fop->asrf_recs[i++];
++			sum_rec->asrw_rec.au64s_data =
++				m0_alloc(SUM_SIZE(sum));
++
++			if (sum_rec->asrw_rec.au64s_data == NULL) {
++				rc = -ENOMEM;
++				goto mem_fail;
+ 			}
++			sum_rec->asrw_id = sum->asr_rec.asrw_id;
++			sum_rec->asrw_rec.au64s_nr =
++				sum->asr_rec.asrw_rec.au64s_nr;
++			memcpy(sum_rec->asrw_rec.au64s_data,
++					sum->asr_rec.asrw_rec.au64s_data,
++					SUM_SIZE(sum));
+ 			sum->asr_dirty = false;
+ 			m0_mutex_unlock(&sum->asr_mutex);
+ 		}
+@@ -321,8 +323,7 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh *reqh)
+ 			m0_free(sum_recs_fop->asrf_recs[i].asrw_rec.au64s_data);
+ 		m0_free(sum_recs_fop->asrf_recs);
+ 		m0_free(sum_recs_fop);
+-		dirtied_mon_cnt -= fop_mon_cnt;
+-	} while (dirtied_mon_cnt > 0);
++	} while (scanned < addb_mon_tlist_length(mon_list));
+ 	/**
+ 	 * @todo: Post on global machine too.
+ 	 */
+-- 
+1.8.3.2
+

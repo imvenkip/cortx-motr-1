@@ -1,0 +1,84 @@
+From d7e009b167f7636eeb6bb4db6218a38cd070791f Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 18 Mar 2013 18:39:40 +0530
+Subject: [PATCH 093/172] More tests for error code coverage
+
+---
+ layout/ut/composite.c | 11 ++++++++---
+ layout/ut/layout.c    | 10 ++++++----
+ 2 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 9565270..6e848f4 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -148,6 +148,9 @@ static void extentlist_build(struct m0_tl *extents,
+ 	m0_composite_layer_ext_tlist_init(extents);
+ 	M0_UT_ASSERT(m0_composite_layer_ext_tlist_is_empty(extents));
+ 
++	if (M0_FI_ENABLED("extents_nr_zero"))
++		return;
++
+ 	delta = (end_offset - start_offset) / extents_nr;
+ 	for (i = 0; i < extents_nr; ++i) {
+ 		M0_ALLOC_PTR(lr_ext);
+@@ -434,7 +437,8 @@ static int composite_layers_add(struct m0_composite_layout *cl,
+ 		rc = m0_composite_layer_add(cl, sublayout, &extents,
+ 					    extents_nr, tx);
+ 		if (layer_add_failure_test) {
+-			M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM);
++			M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR ||
++				     rc == -ENOMEM || rc == -EINVAL);
+ 			M0_UT_ASSERT(cl->cl_layers_nr == i);
+ 			extentlist_free(&extents);
+ 			break;
+@@ -561,7 +565,7 @@ int test_build_composite(uint64_t lid,
+ 	rc = composite_build(lid, domain, extents_nr, if_contiguous_extents,
+ 			     failure_test, &cl);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == -ENOMEM);
++		M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+ 	else {
+ 		M0_UT_ASSERT(rc == 0);
+ 		/*
+@@ -1356,7 +1360,8 @@ int test_layer_ops_composite(uint64_t lid,
+ 	rc = composite_layers_add(cl, txptr, layers_nr, min_extents_nr,
+ 				  !CONTIGUOUS_EXTENTS, layer_add_failure_test);
+ 	if (layer_add_failure_test) {
+-		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM);
++		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM ||
++			     rc == -EINVAL);
+ 		//todo tx_fini()  or m0_db_tx_abort(txptr); ?
+ 
+ 		/* Delete the composite layout object. */
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 56bd196..7bbfff8 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -608,10 +608,6 @@ static void test_build_failure(void)
+ 	rc = test_build_composite(lid, &domain, 5, !CONTIGUOUS_EXTENTS,
+ 				  FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	/*
+-	 * todo Add such failure test for m0_composite_layer_add() by using:
+-	 * m0_fi_enable_off_n_on_m("layer_inmem_add", "mem_err", 1, 1);
+-	 */
+ }
+ 
+ /* Tests the API m0_layout_decode(). */
+@@ -1349,6 +1345,12 @@ static void test_layer_ops_inmem_failure(void)
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 	m0_fi_disable("layer_inmem_add", "mem_err");
+ 
++	lid = 15002;
++	m0_fi_enable_off_n_on_m("extentlist_build", "extents_nr_zero", 1, 1);
++	rc = test_layer_ops_composite(lid, &domain, 5, 8,
++				      LAYER_ADD_FAILURE_TEST);
++	m0_fi_disable("extentlist_build", "extents_nr_zero");
++	M0_UT_ASSERT(rc == -EINVAL);
+ }
+ 
+ static void test_layer_ext_ops_inmem(void)
+-- 
+1.8.3.2
+

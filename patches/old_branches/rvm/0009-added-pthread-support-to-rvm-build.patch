@@ -1,0 +1,87 @@
+From bc64774588c38fb3c4eb8161ca9a6456947e43ee Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 30 Nov 2012 23:25:00 +0400
+Subject: [PATCH 009/121] - added pthread support to rvm build
+
+---
+ configure.ac      | 20 ++++++++++----------
+ mero/mero-pub.api |  8 +++++++-
+ 2 files changed, 17 insertions(+), 11 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 146647c..168804b 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -364,17 +364,17 @@ $SRCDIR/../yaml or from rpm]
+ 
+ #Check for RVM
+ 
+-MERO_SEARCH_LIBS([rvm_initialize], [rvm], [RVM_LIBS],
++MERO_SEARCH_LIBS([rvm_initialize], [rvmpt], [RVM_LIBS],
+         [rvm_initialize cannot be found! Try install rvm package from \
+ $SRCDIR/../rvm or from rpm]
+ )
+ 
+-MERO_SEARCH_LIBS([rds_init_heap], [rds], [RDS_LIBS],
++MERO_SEARCH_LIBS([rds_init_heap], [rdspt], [RDS_LIBS],
+         [rds_init_heap cannot be found! Try install rvm package from \
+ $SRCDIR/../rvm or from rpm]
+ )
+ 
+-MERO_SEARCH_LIBS([rvm_create_segment], [seg], [SEG_LIBS],
++MERO_SEARCH_LIBS([rvm_create_segment], [segpt], [SEG_LIBS],
+         [rvm_create_segment cannot be found! Try install rvm package from \
+ $SRCDIR/../rvm or from rpm]
+ )
+@@ -410,18 +410,18 @@ else # non-rpm setup
+ 
+ #Check for rvm libs
+ RVM_SRC=$ABS_SRCDIR/../rvm
+-RVM_LIBS=$ABS_SRCDIR/../rvm/rvm/librvm.la
+-RDS_LIBS=$ABS_SRCDIR/../rvm/rds/librds.la
+-SEG_LIBS=$ABS_SRCDIR/../rvm/seg/libseg.la
++RVM_LIBS=$ABS_SRCDIR/../rvm/rvm/librvmpt.la
++RDS_LIBS=$ABS_SRCDIR/../rvm/rds/librdspt.la
++SEG_LIBS=$ABS_SRCDIR/../rvm/seg/libsegpt.la
+ RVM_INCLUDES="-I$RVM_SRC/include"
+ 
+ AC_MSG_CHECKING([for rvm libs])
+-MERO_BUILD_LIB([rvm], [$RVM_SRC], [$RVM_LIBS], [.],
+-               ["--enable-librvm"])
++MERO_BUILD_LIB([rvmpt], [$RVM_SRC], [$RVM_LIBS], [.],
++               ["--enable-librvmpt --disable-librvm --disable-librvmlwp"])
+ AC_MSG_CHECKING([for rds libs])
+-MERO_BUILD_LIB([rds], [$RVM_SRC], [$RDS_LIBS])
++MERO_BUILD_LIB([rdspt], [$RVM_SRC], [$RDS_LIBS])
+ AC_MSG_CHECKING([for seg libs])
+-MERO_BUILD_LIB([seg], [$RVM_SRC], [$SEG_LIBS])
++MERO_BUILD_LIB([segpt], [$RVM_SRC], [$SEG_LIBS])
+ 
+ # Check for galois
+ 
+diff --git a/mero/mero-pub.api b/mero/mero-pub.api
+index bf21bb1..537f5c2 100644
+--- a/mero/mero-pub.api
++++ b/mero/mero-pub.api
+@@ -112,7 +112,6 @@ m0_be_seg_fini
+ m0_be_seg_init
+ m0_be_seg_open
+ m0_be_seg_open_cb
+-m0_be_tx_capture
+ m0_be_tx_done
+ m0_be_tx_fini
+ m0_be_tx_init
+@@ -164,3 +163,10 @@ m0_be_tlist_move_tail
+ m0_be_tlist_next
+ m0_be_tlist_prev
+ m0_be_tlist_tail
++m0_be_credit_add
++m0_be_credit_fini
++m0_be_credit_init
++m0_be_reg_capture
++m0_be_reg_fini
++m0_be_reg_init
++m0_be_tx_prep_cb
+-- 
+1.8.3.2
+

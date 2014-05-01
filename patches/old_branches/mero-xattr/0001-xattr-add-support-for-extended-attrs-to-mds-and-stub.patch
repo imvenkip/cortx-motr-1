@@ -1,0 +1,1363 @@
+From ed90fef4816c3e0bf527c9c26ca64720a893a461 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Tue, 12 Feb 2013 10:59:37 +0200
+Subject: [PATCH 01/10] xattr: add support for extended attrs to mds and stubs
+ to m0t1fs
+
+* cob:
+  - add xattr (eakey/earec) table definition
+  - add eakey/earec functions
+  - add M0_COB_ADDB_LOC_EA_ADD/DEL ADDB posting locations
+  - init/deinit cd_fileattr_ea table during m0_cob_domain_init/fini()
+  - add m0_cob_ea_get/set/del() functions
+  - add m0_cob_ea_iterator and iterator functions:
+    m0_cob_ea_iterator_init/get/next/fini()
+* m0t1fs: add m0t1fs_set/get/list/removexattr() stubs
+* mdservice/fom:
+  - define m0_md_fom_set/get/del/listxattr_ops
+  - add m0_md_tick_get/set/del/listxattr() functions
+  - switch to m0_md_fom_set/get/del/listxattr_ops from
+    m0_md_req_fom_create() function according to
+    M0_MDSERVICE_SET/GET/DEL/LISTXATTR_OPCODE
+* mdservice/fop:
+  - define m0_fop_get/set/del/listxattr and
+    m0_fop_get/set/del/listxattr_rep FOP structures
+  - define and initialize (in m0_mdservice_fop_init() function)
+    FOP types m0_fop_set/get/del/listxattr_fopt and
+    corresponding m0_fop_set/get/del/listxattr_rep_fopt ones
+  - deinitialize m0_fop_set/get/del/listxattr_fopt and
+    m0_fop_set/get/del/listxattr_rep_fopt during
+    m0_mdservice_fop_fini()
+* rpc: declare M0_MDSERVICE_SET/GET/DEL/LISTXATTR_OPCODE
+  and M0_MDSERVICE_SET/GET/DEL/LISTXATTR_REP_OPCODE codes
+---
+ cob/cob.c                    | 249 ++++++++++++++++++++++++++++++++++-
+ cob/cob.h                    |  90 +++++++++++++
+ cob/cob_addb.h               |   2 +
+ m0t1fs/linux_kernel/dir.c    |  42 ++++--
+ m0t1fs/linux_kernel/file.c   |   8 +-
+ m0t1fs/linux_kernel/m0t1fs.h |  10 ++
+ mdservice/md_foms.c          | 304 +++++++++++++++++++++++++++++++++++++++++--
+ mdservice/md_fops.c          |  90 ++++++++++++-
+ mdservice/md_fops.h          |  79 ++++++++---
+ rpc/rpc_opcodes.h            |  52 ++++----
+ 10 files changed, 857 insertions(+), 69 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index b2d9744..e45e756 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -47,7 +47,8 @@
+ */
+ 
+ enum {
+-	M0_COB_NAME_MAX = 256
++	M0_COB_NAME_MAX = 256,
++	M0_COB_EA_MAX   = 4096
+ };
+ 
+ /**
+@@ -139,6 +140,80 @@ M0_INTERNAL size_t m0_cob_nskey_size(const struct m0_cob_nskey *cnk)
+ 		m0_bitstring_len_get(&cnk->cnk_name);
+ }
+ 
++M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
++				  const struct m0_fid *fid,
++				  const char *name, size_t namelen)
++{
++	struct m0_cob_eakey *key;
++
++	key = m0_alloc(sizeof *key + namelen);
++	if (key == NULL)
++		return -ENOMEM;
++	key->cek_fid = *fid;
++	m0_bitstring_copy(&key->cek_name, name, namelen);
++	*keyh = key;
++	return 0;
++}
++
++/**
++   Make eakey for iterator. Allocate space for max possible name
++   but put real string len into the struct.
++*/
++static int m0_cob_max_eakey_make(struct m0_cob_eakey **keyh,
++				 const struct m0_fid *fid,
++				 const char *name,
++				 int namelen)
++{
++	struct m0_cob_eakey *key;
++
++	key = m0_alloc(sizeof *key + M0_COB_NAME_MAX);
++	if (key == NULL)
++		return -ENOMEM;
++	key->cek_fid = *fid;
++	m0_bitstring_copy(&key->cek_name, name, namelen);
++	*keyh = key;
++	return 0;
++}
++
++M0_INTERNAL int m0_cob_eakey_cmp(const struct m0_cob_eakey *k0,
++				 const struct m0_cob_eakey *k1)
++{
++	int rc;
++
++	M0_PRE(m0_fid_is_set(&k0->cek_fid));
++	M0_PRE(m0_fid_is_set(&k1->cek_fid));
++
++	rc = m0_fid_cmp(&k0->cek_fid, &k1->cek_fid);
++	return rc ?: m0_bitstring_cmp(&k0->cek_name, &k1->cek_name);
++}
++
++M0_INTERNAL size_t m0_cob_eakey_size(const struct m0_cob_eakey *cek)
++{
++	return sizeof *cek +
++		m0_bitstring_len_get(&cek->cek_name);
++}
++
++static size_t m0_cob_earec_size(const struct m0_cob_earec *rec)
++{
++	return sizeof *rec + rec->cer_size;
++}
++
++/**
++   Maximal possible earec size.
++ */
++M0_INTERNAL size_t m0_cob_max_earec_size(void)
++{
++	return sizeof(struct m0_cob_earec) + M0_COB_EA_MAX;
++}
++
++/**
++   Maximal possible eakey size.
++ */
++static size_t m0_cob_max_eakey_size(const struct m0_cob_eakey *cek)
++{
++	return sizeof *cek + M0_COB_NAME_MAX;
++}
++
+ /**
+    Fabrec size taking into account symlink length.
+  */
+@@ -210,7 +285,7 @@ static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
+    and want to allocate it for worst case scenario, that is, for max
+    possible name len.
+  */
+-static size_t m0_cob_nskey_size_max(const struct m0_cob_nskey *cnk)
++static size_t m0_cob_max_nskey_size(const struct m0_cob_nskey *cnk)
+ {
+ 	return sizeof *cnk + M0_COB_NAME_MAX;
+ }
+@@ -264,6 +339,9 @@ static const struct m0_table_ops cob_oi_ops = {
+ 	.key_cmp = oi_cmp
+ };
+ 
++/**
++   File attributes table definition
++ */
+ static int fb_cmp(struct m0_table *table, const void *key0, const void *key1)
+ {
+ 	const struct m0_cob_fabkey *cok0 = key0;
+@@ -288,6 +366,26 @@ static const struct m0_table_ops cob_fab_ops = {
+ };
+ 
+ /**
++   Extended attributes table definition
++ */
++static int ea_cmp(struct m0_table *table, const void *key0, const void *key1)
++{
++	return m0_cob_eakey_cmp(key0, key1);
++}
++
++static const struct m0_table_ops cob_ea_ops = {
++	.to = {
++		[TO_KEY] = {
++			.max_size = ~0
++		},
++		[TO_REC] = {
++			.max_size = ~0
++		}
++	},
++	.key_cmp = ea_cmp
++};
++
++/**
+    Omg table definition.
+ */
+ static int omg_cmp(struct m0_table *table, const void *key0, const void *key1)
+@@ -365,11 +463,23 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
+ 		return rc;
+ 	}
+ 
++	rc = m0_table_init(&dom->cd_fileattr_ea, dom->cd_dbenv,
++			   cob_dom_id_make(table, &dom->cd_id, "ea"),
++			   0, &cob_ea_ops);
++	if (rc != 0) {
++		m0_table_fini(&dom->cd_fileattr_basic);
++		m0_table_fini(&dom->cd_object_index);
++		m0_table_fini(&dom->cd_namespace);
++		m0_table_fini(&dom->cd_fileattr_omg);
++		return rc;
++	}
++
+ 	return 0;
+ }
+ 
+ void m0_cob_domain_fini(struct m0_cob_domain *dom)
+ {
++	m0_table_fini(&dom->cd_fileattr_ea);
+ 	m0_table_fini(&dom->cd_fileattr_omg);
+ 	m0_table_fini(&dom->cd_fileattr_basic);
+ 	m0_table_fini(&dom->cd_object_index);
+@@ -875,7 +985,7 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
+ 	 * Init iterator cursor with max possible key size.
+ 	 */
+ 	m0_db_pair_setup(&it->ci_pair, &cob->co_dom->cd_namespace,
+-			 it->ci_key, m0_cob_nskey_size_max(it->ci_key),
++			 it->ci_key, m0_cob_max_nskey_size(it->ci_key),
+ 			 &it->ci_rec, sizeof it->ci_rec);
+ 
+ 	rc = m0_db_cursor_init(&it->ci_cursor,
+@@ -1227,7 +1337,8 @@ out:
+ 
+ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
+ 				struct m0_cob_nskey *nskey,
+-				struct m0_cob_nsrec *nsrec, struct m0_db_tx *tx)
++				struct m0_cob_nsrec *nsrec,
++				struct m0_db_tx *tx)
+ {
+ 	struct m0_cob_oikey  oikey;
+ 	struct m0_db_pair    pair;
+@@ -1382,6 +1493,136 @@ out:
+ 	return rc;
+ }
+ 
++M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
++                              struct m0_cob_eakey *eakey,
++                              struct m0_cob_earec *out,
++                              struct m0_db_tx *tx)
++{
++	struct m0_db_pair     pair;
++	int                   rc;
++
++	m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_ea,
++			 eakey, m0_cob_eakey_size(eakey),
++			 out, m0_cob_max_earec_size());
++	rc = m0_table_lookup(tx, &pair);
++	m0_db_pair_release(&pair);
++	m0_db_pair_fini(&pair);
++	return rc;
++}
++
++M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
++			      struct m0_cob_eakey *eakey,
++			      struct m0_cob_earec *earec,
++			      struct m0_db_tx *tx)
++{
++	struct m0_db_pair     pair;
++	int                   rc;
++
++	M0_PRE(cob != NULL);
++	M0_PRE(eakey != NULL);
++	M0_PRE(m0_fid_is_set(&eakey->cek_fid));
++	M0_PRE(m0_cob_is_valid(cob));
++
++	m0_cob_ea_del(cob, eakey, tx);
++
++	m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_ea,
++			 eakey, m0_cob_eakey_size(eakey),
++			 earec, m0_cob_earec_size(earec));
++
++	rc = m0_table_insert(tx, &pair);
++	m0_db_pair_release(&pair);
++	m0_db_pair_fini(&pair);
++
++	COB_FUNC_FAIL(EA_ADD, rc);
++	return rc;
++}
++
++M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
++			      struct m0_cob_eakey *eakey,
++			      struct m0_db_tx *tx)
++{
++	struct m0_db_pair   pair;
++	int                 rc;
++
++	M0_PRE(m0_cob_is_valid(cob));
++
++	m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_ea,
++			 &eakey, m0_cob_eakey_size(eakey), NULL, 0);
++	rc = m0_table_delete(tx, &pair);
++	m0_db_pair_fini(&pair);
++
++	COB_FUNC_FAIL(EA_DEL, rc);
++	return rc;
++}
++
++M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
++				        struct m0_cob_ea_iterator *it,
++				        struct m0_bitstring *name,
++				        struct m0_db_tx *tx)
++{
++	int rc;
++
++	/*
++	 * Prepare entry key using passed started pos.
++	 */
++	rc = m0_cob_max_eakey_make(&it->ci_key, cob->co_fid,
++				   m0_bitstring_buf_get(name),
++				   m0_bitstring_len_get(name));
++	if (rc != 0)
++		return rc;
++
++        it->ci_rec = m0_alloc(m0_cob_max_earec_size());
++	if (it->ci_rec == NULL) {
++	        m0_free(it->ci_key);
++		return rc;
++        }
++
++	/*
++	 * Init iterator cursor with max possible key and rec size.
++	 */
++	m0_db_pair_setup(&it->ci_pair, &cob->co_dom->cd_fileattr_ea,
++			 it->ci_key, m0_cob_max_eakey_size(it->ci_key),
++			 it->ci_rec, m0_cob_max_earec_size());
++
++	rc = m0_db_cursor_init(&it->ci_cursor,
++			       &cob->co_dom->cd_fileattr_ea, tx, 0);
++	if (rc != 0) {
++		m0_db_pair_release(&it->ci_pair);
++		m0_db_pair_fini(&it->ci_pair);
++		m0_free(it->ci_key);
++		m0_free(it->ci_rec);
++		return rc;
++	}
++	it->ci_cob = cob;
++	return rc;
++}
++
++M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
++{
++	return m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
++}
++
++M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
++{
++	int rc;
++
++	rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
++
++	if (rc == 0 && !m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
++		return -ENOENT;
++
++	return rc;
++}
++
++M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it)
++{
++	m0_db_pair_release(&it->ci_pair);
++	m0_db_pair_fini(&it->ci_pair);
++	m0_db_cursor_fini(&it->ci_cursor);
++	m0_free(it->ci_key);
++	m0_free(it->ci_rec);
++}
++
+ /** @} end group cob */
+ 
+ #undef M0_TRACE_SUBSYSTEM
+diff --git a/cob/cob.h b/cob/cob.h
+index 264e3fd..80edb5e 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -270,6 +270,7 @@ struct m0_cob_domain {
+ 	struct m0_table         cd_namespace;
+ 	struct m0_table         cd_fileattr_basic;
+ 	struct m0_table         cd_fileattr_omg;
++	struct m0_table         cd_fileattr_ea;
+ };
+ 
+ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
+@@ -426,6 +427,18 @@ struct m0_cob_omgrec {
+ 	uint32_t          cor_gid;     /**< group ID of owner */
+ };
+ 
++/** Extended attributes table key */
++struct m0_cob_eakey {
++	struct m0_fid       cek_fid;   /**< EA owner fid */
++	struct m0_bitstring cek_name;  /**< EA name */
++};
++
++/** Extended attributes table value */
++struct m0_cob_earec {
++	uint16_t          cer_size;    /**< EA len */
++	char              cer_body[0]; /**< EA body */
++};
++
+ /**
+  * In-memory representation of a component object.
+  *
+@@ -528,6 +541,17 @@ struct m0_cob_iterator {
+ };
+ 
+ /**
++ * Cob EA iterator. Holds current position inside EA table.
++ */
++struct m0_cob_ea_iterator {
++	struct m0_cob         *ci_cob;      /**< the cob we iterate */
++	struct m0_db_cursor    ci_cursor;   /**< cob iterator cursor */
++	struct m0_cob_eakey   *ci_key;      /**< current iterator pos */
++	struct m0_cob_earec   *ci_rec;      /**< current iterator rec */
++	struct m0_db_pair      ci_pair;     /**< used for iterator cursor */
++};
++
++/**
+  * Cob flags and valid attributes.
+  */
+ enum m0_cob_flags {
+@@ -672,6 +696,72 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
+ 				   struct m0_cob_nskey *tgtkey,
+ 				   struct m0_db_tx *tx);
+ 
++/** Max possible size of earec. */
++M0_INTERNAL size_t m0_cob_max_earec_size(void);
++
++/**
++   Create ea table key from passed file fid and ea name.
++ */
++M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
++				  const struct m0_fid *fid,
++				  const char *name,
++				  size_t namelen);
++
++/**
++   Search for a record to the extended attributes table
++ */
++M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
++                              struct m0_cob_eakey *eakey,
++                              struct m0_cob_earec *out,
++                              struct m0_db_tx *tx);
++
++/**
++   Add a record to the extended attributes table. If key already exists
++   then kill the old record.
++ */
++M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
++			      struct m0_cob_eakey *eakey,
++			      struct m0_cob_earec *earec,
++			      struct m0_db_tx *tx);
++
++/**
++   Del a record in the extended attributes table
++ */
++M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
++			      struct m0_cob_eakey *eakey,
++			      struct m0_db_tx *tx);
++
++/**
++ * Init ea iterator on passed @cob and @name as a start position.
++ */
++M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
++				        struct m0_cob_ea_iterator *it,
++				        struct m0_bitstring *name,
++				        struct m0_db_tx *tx);
++
++/**
++ * Position to next name in a ea table.
++ *
++ * @retval 0        Success.
++ * @retval -ENOENT  Next name is not found in ea table.
++ * @retval -errno   Other error.
++ */
++M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it);
++
++/**
++ * Position in table according with @it properties.
++ *
++ * @retval 0        Success.
++ * @retval -ENOENT  Specified position not found in table.
++ * @retval -errno   Other error.
++ */
++M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it);
++
++/**
++ * Finish cob ea iterator.
++ */
++M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
++
+ /**
+  * Init cob iterator on passed @cob and @name as a start position.
+  */
+diff --git a/cob/cob_addb.h b/cob/cob_addb.h
+index c3598c1..b071850 100644
+--- a/cob/cob_addb.h
++++ b/cob/cob_addb.h
+@@ -55,6 +55,8 @@ enum {
+ 	M0_COB_ADDB_LOC_NAME_DEL    = 50,
+ 	M0_COB_ADDB_LOC_NAME_UPDATE = 60,
+ 	M0_COB_ADDB_LOC_UPDATE      = 70,
++	M0_COB_ADDB_LOC_EA_ADD      = 80,
++	M0_COB_ADDB_LOC_EA_DEL      = 90,
+ };
+ 
+ /** @} */ /* end of cob group */
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index ba86b05..aeec8a4 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -97,14 +97,18 @@ const struct file_operations m0t1fs_dir_file_operations = {
+ };
+ 
+ const struct inode_operations m0t1fs_dir_inode_operations = {
+-	.create  = m0t1fs_create,
+-	.lookup  = m0t1fs_lookup,
+-	.unlink  = m0t1fs_unlink,
+-	.link    = m0t1fs_link,
+-	.mkdir   = m0t1fs_mkdir,
+-	.rmdir   = m0t1fs_rmdir,
+-	.setattr = m0t1fs_setattr,
+-	.getattr = m0t1fs_getattr
++	.create         = m0t1fs_create,
++	.lookup         = m0t1fs_lookup,
++	.unlink         = m0t1fs_unlink,
++	.link           = m0t1fs_link,
++	.mkdir          = m0t1fs_mkdir,
++	.rmdir          = m0t1fs_rmdir,
++	.setattr        = m0t1fs_setattr,
++	.getattr        = m0t1fs_getattr,
++        .setxattr       = m0t1fs_setxattr,
++        .getxattr       = m0t1fs_getxattr,
++        .listxattr      = m0t1fs_listxattr,
++        .removexattr    = m0t1fs_removexattr
+ };
+ 
+ static int name_mem2wire(struct m0_fop_str *tgt,
+@@ -166,6 +170,28 @@ static struct m0_fid m0t1fs_fid_alloc(struct m0t1fs_sb *csb)
+ 	return fid;
+ }
+ 
++int m0t1fs_setxattr(struct dentry *dentry, const char *name,
++                    const void *value, size_t size, int flags)
++{
++        return -EOPNOTSUPP;
++}
++
++ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
++                        void *buffer, size_t size)
++{
++        return -EOPNOTSUPP;
++}
++
++int m0t1fs_removexattr(struct dentry *dentry, const char *name)
++{
++        return -EOPNOTSUPP;
++}
++
++ssize_t ll_listxattr(struct dentry *dentry, char *buffer, size_t size)
++{
++        return -EOPNOTSUPP;
++}
++
+ static int m0t1fs_create(struct inode     *dir,
+ 			 struct dentry    *dentry,
+ 			 int               mode,
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 1f03103..8d1c733 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -4592,6 +4592,10 @@ err:
+ }
+ 
+ const struct inode_operations m0t1fs_reg_inode_operations = {
+-        .setattr = m0t1fs_setattr,
+-        .getattr = m0t1fs_getattr
++        .setattr        = m0t1fs_setattr,
++        .getattr        = m0t1fs_getattr,
++        .setxattr       = m0t1fs_setxattr,
++        .getxattr       = m0t1fs_getxattr,
++        .listxattr      = m0t1fs_listxattr,
++        .removexattr    = m0t1fs_removexattr
+ };
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 07844c7..99e5ebb 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -742,6 +742,16 @@ M0_INTERNAL int m0t1fs_layout_op(struct m0t1fs_sb *csb,
+ M0_INTERNAL int m0t1fs_size_update(struct inode *inode,
+ 				   uint64_t newsize);
+ 
++M0_INTERNAL int m0t1fs_setxattr(struct dentry *dentry, const char *name,
++                                const void *value, size_t size, int flags);
++
++M0_INTERNAL ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
++                                    void *buffer, size_t size);
++
++M0_INTERNAL int m0t1fs_removexattr(struct dentry *dentry, const char *name);
++
++M0_INTERNAL ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size);
++
+ #endif /* __MERO_M0T1FS_M0T1FS_H__ */
+ 
+ /*
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index d129b7a..a7534fc 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -853,6 +853,240 @@ static void md_statfs_mem2wire(struct m0_fop_statfs_rep *rep,
+ 	rep->f_root = statfs->sf_root;
+ }
+ 
++static int m0_md_tick_getxattr(struct m0_fom *fom)
++{
++        struct m0_cob_eakey           *eakey;
++        struct m0_cob_earec           *earec;
++        struct m0_fop_cob             *body;
++        struct m0_cob                 *cob;
++        struct m0_fop_getxattr        *req;
++        struct m0_fop_getxattr_rep    *rep;
++        struct m0_fop                 *fop;
++        struct m0_fop                 *fop_rep;
++        int                            rc;
++
++        rc = m0_md_tick_generic(fom);
++        if (rc != 0)
++                return rc;
++
++        fop = fom->fo_fop;
++        M0_ASSERT(fop != NULL);
++        req = m0_fop_data(fop);
++        body = &req->g_body;
++
++        fop_rep = fom->fo_rep_fop;
++        M0_ASSERT(fop_rep != NULL);
++        rep = m0_fop_data(fop_rep);
++
++        M0_LOG(M0_DEBUG, "Getxattr for [%lx:%lx] started",
++               body->b_tfid.f_container, body->b_tfid.f_key);
++
++        /**
++         * Init some fop fields (full path) that require mdstore and other
++         * initialialized structures.
++         */
++        rc = m0_md_fop_init(fop, fom);
++        if (rc != 0)
++                goto out;
++
++        m0_fom_block_enter(fom);
++        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
++                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
++                               &fom->fo_tx.tx_dbtx);
++        if (rc != 0) {
++                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
++                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
++                m0_fom_block_leave(fom);
++                goto out;
++        }
++
++        rc = m0_cob_eakey_make(&eakey, cob->co_fid, (char *)req->g_key.s_buf,
++                               req->g_key.s_len);
++        if (rc != 0) {
++                m0_fom_block_leave(fom);
++                goto out;
++        }
++
++        earec = m0_alloc(m0_cob_max_earec_size());
++        if (earec == NULL) {
++                m0_fom_block_leave(fom);
++                m0_free(eakey);
++                goto out;
++        }
++
++        rc = m0_cob_ea_get(cob, eakey, earec, &fom->fo_tx.tx_dbtx);
++        m0_cob_put(cob);
++        m0_fom_block_leave(fom);
++        if (rc == 0) {
++                rep->g_value.s_len = earec->cer_size;
++                rep->g_value.s_buf = m0_alloc(earec->cer_size);
++                if (rep->g_value.s_buf == NULL) {
++                        m0_free(eakey);
++                        m0_free(earec);
++                        rc = -ENOMEM;
++                        goto out;
++                }
++                memcpy(rep->g_value.s_buf, earec->cer_body, earec->cer_size);
++        }
++        m0_free(eakey);
++        m0_free(earec);
++out:
++        M0_LOG(M0_DEBUG, "Getxattr for [%lx:%lx] finished with %d",
++               body->b_tfid.f_container, body->b_tfid.f_key, rc);
++        rep->g_body.b_rc = rc;
++        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
++        return M0_FSO_AGAIN;
++}
++
++static int m0_md_tick_setxattr(struct m0_fom *fom)
++{
++        struct m0_cob_eakey           *eakey;
++        struct m0_cob_earec           *earec;
++        struct m0_fop_cob             *body;
++        struct m0_cob                 *cob;
++        struct m0_fop_setxattr        *req;
++        struct m0_fop_setxattr_rep    *rep;
++        struct m0_fop                 *fop;
++        struct m0_fop                 *fop_rep;
++        int                            rc;
++
++        rc = m0_md_tick_generic(fom);
++        if (rc != 0)
++                return rc;
++
++        fop = fom->fo_fop;
++        M0_ASSERT(fop != NULL);
++        req = m0_fop_data(fop);
++        body = &req->s_body;
++
++        fop_rep = fom->fo_rep_fop;
++        M0_ASSERT(fop_rep != NULL);
++        rep = m0_fop_data(fop_rep);
++
++        M0_LOG(M0_DEBUG, "Setxattr for [%lx:%lx] started",
++               body->b_tfid.f_container, body->b_tfid.f_key);
++
++        /**
++         * Init some fop fields (full path) that require mdstore and other
++         * initialialized structures.
++         */
++        rc = m0_md_fop_init(fop, fom);
++        if (rc != 0)
++                goto out;
++
++        m0_fom_block_enter(fom);
++        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
++                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
++                               &fom->fo_tx.tx_dbtx);
++        if (rc != 0) {
++                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
++                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
++                m0_fom_block_leave(fom);
++                goto out;
++        }
++
++        rc = m0_cob_eakey_make(&eakey, cob->co_fid, (char *)req->s_key.s_buf,
++                               req->s_key.s_len);
++        if (rc != 0) {
++                m0_fom_block_leave(fom);
++                goto out;
++        }
++
++        earec = m0_alloc(m0_cob_max_earec_size());
++        if (earec == NULL) {
++                m0_fom_block_leave(fom);
++                m0_free(eakey);
++                goto out;
++        }
++
++        earec->cer_size = req->s_value.s_len;
++        memcpy(earec->cer_body, req->s_value.s_buf, earec->cer_size);
++
++        rc = m0_cob_ea_set(cob, eakey, earec, &fom->fo_tx.tx_dbtx);
++        m0_cob_put(cob);
++        m0_fom_block_leave(fom);
++        m0_free(eakey);
++        m0_free(earec);
++out:
++        M0_LOG(M0_DEBUG, "Setxattr for [%lx:%lx] finished with %d",
++               body->b_tfid.f_container, body->b_tfid.f_key, rc);
++        rep->s_body.b_rc = rc;
++        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
++        return M0_FSO_AGAIN;
++}
++
++static int m0_md_tick_delxattr(struct m0_fom *fom)
++{
++        struct m0_cob_eakey           *eakey;
++        struct m0_fop_cob             *body;
++        struct m0_cob                 *cob;
++        struct m0_fop_delxattr        *req;
++        struct m0_fop_delxattr_rep    *rep;
++        struct m0_fop                 *fop;
++        struct m0_fop                 *fop_rep;
++        int                            rc;
++
++        rc = m0_md_tick_generic(fom);
++        if (rc != 0)
++                return rc;
++
++        fop = fom->fo_fop;
++        M0_ASSERT(fop != NULL);
++        req = m0_fop_data(fop);
++        body = &req->d_body;
++
++        fop_rep = fom->fo_rep_fop;
++        M0_ASSERT(fop_rep != NULL);
++        rep = m0_fop_data(fop_rep);
++
++        M0_LOG(M0_DEBUG, "Delxattr for [%lx:%lx] started",
++               body->b_tfid.f_container, body->b_tfid.f_key);
++
++        /**
++         * Init some fop fields (full path) that require mdstore and other
++         * initialialized structures.
++         */
++        rc = m0_md_fop_init(fop, fom);
++        if (rc != 0)
++                goto out;
++
++        m0_fom_block_enter(fom);
++        rc = m0_mdstore_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
++                               &body->b_tfid, &cob, M0_MD_LOCATE_STORED,
++                               &fom->fo_tx.tx_dbtx);
++        if (rc != 0) {
++                M0_LOG(M0_DEBUG, "m0_mdstore_locate() for [%lx:%lx] failed with %d",
++                       body->b_tfid.f_container, body->b_tfid.f_key, rc);
++                m0_fom_block_leave(fom);
++                goto out;
++        }
++
++        rc = m0_cob_eakey_make(&eakey, cob->co_fid, (char *)req->d_key.s_buf,
++                               req->d_key.s_len);
++        if (rc != 0) {
++                m0_fom_block_leave(fom);
++                goto out;
++        }
++
++        rc = m0_cob_ea_del(cob, eakey, &fom->fo_tx.tx_dbtx);
++        m0_cob_put(cob);
++        m0_fom_block_leave(fom);
++        m0_free(eakey);
++out:
++        M0_LOG(M0_DEBUG, "Delxattr for [%lx:%lx] finished with %d",
++               body->b_tfid.f_container, body->b_tfid.f_key, rc);
++        rep->d_body.b_rc = rc;
++        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
++        return M0_FSO_AGAIN;
++}
++
++static int m0_md_tick_listxattr(struct m0_fom *fom)
++{
++        int rc = -EOPNOTSUPP;
++        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
++        return M0_FSO_AGAIN;
++}
++
+ static int m0_md_tick_statfs(struct m0_fom *fom)
+ {
+ 	struct m0_fop_statfs          *req;
+@@ -1270,77 +1504,105 @@ static const struct m0_fom_ops m0_md_fom_create_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_create,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_link_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_link,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_unlink_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_unlink,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_rename_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_rename,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_open_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_open,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_close_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick  = m0_md_tick_close,
+ 	.fo_fini  = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_setattr_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_setattr,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_getattr_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_getattr,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
++};
++
++static const struct m0_fom_ops m0_md_fom_setxattr_ops = {
++        .fo_home_locality = m0_md_req_fom_locality_get,
++        .fo_tick   = m0_md_tick_setxattr,
++        .fo_fini   = m0_md_req_fom_fini,
++        .fo_addb_init = m0_md_fom_addb_init
++};
++
++static const struct m0_fom_ops m0_md_fom_getxattr_ops = {
++        .fo_home_locality = m0_md_req_fom_locality_get,
++        .fo_tick   = m0_md_tick_getxattr,
++        .fo_fini   = m0_md_req_fom_fini,
++        .fo_addb_init = m0_md_fom_addb_init
++};
++
++static const struct m0_fom_ops m0_md_fom_delxattr_ops = {
++        .fo_home_locality = m0_md_req_fom_locality_get,
++        .fo_tick   = m0_md_tick_delxattr,
++        .fo_fini   = m0_md_req_fom_fini,
++        .fo_addb_init = m0_md_fom_addb_init
++};
++
++static const struct m0_fom_ops m0_md_fom_listxattr_ops = {
++        .fo_home_locality = m0_md_req_fom_locality_get,
++        .fo_tick   = m0_md_tick_listxattr,
++        .fo_fini   = m0_md_req_fom_fini,
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_lookup_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_lookup,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_statfs_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_statfs,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_readdir_ops = {
+ 	.fo_home_locality = m0_md_req_fom_locality_get,
+ 	.fo_tick   = m0_md_tick_readdir,
+ 	.fo_fini   = m0_md_req_fom_fini,
+-	.fo_addb_init = m0_md_fom_addb_init
++        .fo_addb_init = m0_md_fom_addb_init
+ };
+ 
+ static const struct m0_fom_ops m0_md_fom_layout_ops = {
+@@ -1410,6 +1672,22 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
+ 		ops = &m0_md_fom_getattr_ops;
+ 		rep_fopt = &m0_fop_getattr_rep_fopt;
+ 		break;
++        case M0_MDSERVICE_SETXATTR_OPCODE:
++                ops = &m0_md_fom_setxattr_ops;
++                rep_fopt = &m0_fop_setxattr_rep_fopt;
++                break;
++        case M0_MDSERVICE_GETXATTR_OPCODE:
++                ops = &m0_md_fom_getxattr_ops;
++                rep_fopt = &m0_fop_getxattr_rep_fopt;
++                break;
++        case M0_MDSERVICE_DELXATTR_OPCODE:
++                ops = &m0_md_fom_delxattr_ops;
++                rep_fopt = &m0_fop_delxattr_rep_fopt;
++                break;
++        case M0_MDSERVICE_LISTXATTR_OPCODE:
++                ops = &m0_md_fom_listxattr_ops;
++                rep_fopt = &m0_fop_listxattr_rep_fopt;
++                break;
+ 	case M0_MDSERVICE_STATFS_OPCODE:
+ 		ops = &m0_md_fom_statfs_ops;
+ 		rep_fopt = &m0_fop_statfs_rep_fopt;
+@@ -1427,7 +1705,7 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+-	rep_fop = m0_fop_alloc(rep_fopt, NULL);
++        rep_fop = m0_fop_alloc(rep_fopt, NULL);
+ 	if (rep_fop == NULL) {
+ 		m0_free(fom_obj);
+ 		return -ENOMEM;
+@@ -1437,7 +1715,7 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
+ 		    ops, fop, rep_fop, reqh,
+ 		    fop->f_type->ft_fom_type.ft_rstype);
+ 
+-	m0_fop_put(rep_fop);
++        m0_fop_put(rep_fop);
+ 	*m = fom;
+ 	return 0;
+ }
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 3fb3095..937981d 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -263,6 +263,10 @@ struct m0_fop_type m0_fop_open_fopt;
+ struct m0_fop_type m0_fop_close_fopt;
+ struct m0_fop_type m0_fop_setattr_fopt;
+ struct m0_fop_type m0_fop_getattr_fopt;
++struct m0_fop_type m0_fop_setxattr_fopt;
++struct m0_fop_type m0_fop_getxattr_fopt;
++struct m0_fop_type m0_fop_delxattr_fopt;
++struct m0_fop_type m0_fop_listxattr_fopt;
+ struct m0_fop_type m0_fop_statfs_fopt;
+ struct m0_fop_type m0_fop_rename_fopt;
+ struct m0_fop_type m0_fop_readdir_fopt;
+@@ -276,6 +280,10 @@ struct m0_fop_type m0_fop_open_rep_fopt;
+ struct m0_fop_type m0_fop_close_rep_fopt;
+ struct m0_fop_type m0_fop_setattr_rep_fopt;
+ struct m0_fop_type m0_fop_getattr_rep_fopt;
++struct m0_fop_type m0_fop_setxattr_rep_fopt;
++struct m0_fop_type m0_fop_getxattr_rep_fopt;
++struct m0_fop_type m0_fop_delxattr_rep_fopt;
++struct m0_fop_type m0_fop_listxattr_rep_fopt;
+ struct m0_fop_type m0_fop_statfs_rep_fopt;
+ struct m0_fop_type m0_fop_rename_rep_fopt;
+ struct m0_fop_type m0_fop_readdir_rep_fopt;
+@@ -335,7 +343,7 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .svc_type  = &m0_mds_type,
+ #endif
+                                  .sm        = &m0_generic_conf) ?:
+-                M0_FOP_TYPE_INIT(&m0_fop_open_fopt,
++/*                M0_FOP_TYPE_INIT(&m0_fop_open_fopt,
+                                  .name      = "Open request",
+                                  .opcode    = M0_MDSERVICE_OPEN_OPCODE,
+                                  .xt        = m0_fop_open_xc,
+@@ -358,7 +366,7 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .fom_ops   = &m0_md_fom_ops,
+                                  .svc_type  = &m0_mds_type,
+ #endif
+-                                 .sm        = &m0_generic_conf) ?:
++                                 .sm        = &m0_generic_conf) ?:*/
+                 M0_FOP_TYPE_INIT(&m0_fop_setattr_fopt,
+                                  .name      = "Setattr request",
+                                  .opcode    = M0_MDSERVICE_SETATTR_OPCODE,
+@@ -382,6 +390,52 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .svc_type  = &m0_mds_type,
+ #endif
+                                  .sm        = &m0_generic_conf) ?:
++                M0_FOP_TYPE_INIT(&m0_fop_setxattr_fopt,
++                                 .name      = "Setxattr request",
++                                 .opcode    = M0_MDSERVICE_SETXATTR_OPCODE,
++                                 .xt        = m0_fop_setxattr_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
++                                              M0_RPC_ITEM_TYPE_MUTABO,
++                                 .fop_ops   = &m0_md_fop_ops,
++#ifndef __KERNEL__
++                                 .fom_ops   = &m0_md_fom_ops,
++                                 .svc_type  = &m0_mds_type,
++#endif
++                                 .sm        = &m0_generic_conf) ?:
++                M0_FOP_TYPE_INIT(&m0_fop_delxattr_fopt,
++                                 .name      = "Delxattr request",
++                                 .opcode    = M0_MDSERVICE_DELXATTR_OPCODE,
++                                 .xt        = m0_fop_delxattr_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
++                                              M0_RPC_ITEM_TYPE_MUTABO,
++                                 .fop_ops   = &m0_md_fop_ops,
++#ifndef __KERNEL__
++                                 .fom_ops   = &m0_md_fom_ops,
++                                 .svc_type  = &m0_mds_type,
++#endif
++                                 .sm        = &m0_generic_conf) ?:
++                M0_FOP_TYPE_INIT(&m0_fop_getxattr_fopt,
++                                 .name      = "Getxattr request",
++                                 .opcode    = M0_MDSERVICE_GETXATTR_OPCODE,
++                                 .xt        = m0_fop_getxattr_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
++                                 .fop_ops   = &m0_md_fop_ops,
++#ifndef __KERNEL__
++                                 .fom_ops   = &m0_md_fom_ops,
++                                 .svc_type  = &m0_mds_type,
++#endif
++                                 .sm        = &m0_generic_conf) ?:
++/*                M0_FOP_TYPE_INIT(&m0_fop_listxattr_fopt,
++                                 .name      = "Listxattr request",
++                                 .opcode    = M0_MDSERVICE_LISTXATTR_OPCODE,
++                                 .xt        = m0_fop_listxattr_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
++                                 .fop_ops   = &m0_md_fop_ops,
++#ifndef __KERNEL__
++                                 .fom_ops   = &m0_md_fom_ops,
++                                 .svc_type  = &m0_mds_type,
++#endif
++                                 .sm        = &m0_generic_conf) ?:*/
+                 M0_FOP_TYPE_INIT(&m0_fop_statfs_fopt,
+                                  .name      = "Statfs request",
+                                  .opcode    = M0_MDSERVICE_STATFS_OPCODE,
+@@ -447,7 +501,7 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .opcode    = M0_MDSERVICE_UNLINK_REP_OPCODE,
+                                  .xt        = m0_fop_unlink_rep_xc,
+                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+-                M0_FOP_TYPE_INIT(&m0_fop_open_rep_fopt,
++                /*M0_FOP_TYPE_INIT(&m0_fop_open_rep_fopt,
+                                  .name      = "Open reply",
+                                  .opcode    = M0_MDSERVICE_OPEN_REP_OPCODE,
+                                  .xt        = m0_fop_open_rep_xc,
+@@ -456,7 +510,7 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .name      = "Close reply",
+                                  .opcode    = M0_MDSERVICE_CLOSE_REP_OPCODE,
+                                  .xt        = m0_fop_close_rep_xc,
+-                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:*/
+                 M0_FOP_TYPE_INIT(&m0_fop_setattr_rep_fopt,
+                                  .name      = "Setattr reply",
+                                  .opcode    = M0_MDSERVICE_SETATTR_REP_OPCODE,
+@@ -467,6 +521,26 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .opcode    = M0_MDSERVICE_GETATTR_REP_OPCODE,
+                                  .xt        = m0_fop_getattr_rep_xc,
+                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
++                M0_FOP_TYPE_INIT(&m0_fop_setxattr_rep_fopt,
++                                 .name      = "Setxattr reply",
++                                 .opcode    = M0_MDSERVICE_SETXATTR_REP_OPCODE,
++                                 .xt        = m0_fop_setxattr_rep_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
++                M0_FOP_TYPE_INIT(&m0_fop_getxattr_rep_fopt,
++                                 .name      = "Getxattr reply",
++                                 .opcode    = M0_MDSERVICE_GETXATTR_REP_OPCODE,
++                                 .xt        = m0_fop_getxattr_rep_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
++                M0_FOP_TYPE_INIT(&m0_fop_delxattr_rep_fopt,
++                                 .name      = "Delxattr reply",
++                                 .opcode    = M0_MDSERVICE_DELXATTR_REP_OPCODE,
++                                 .xt        = m0_fop_delxattr_rep_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
++                /*M0_FOP_TYPE_INIT(&m0_fop_listxattr_rep_fopt,
++                                 .name      = "Listxattr reply",
++                                 .opcode    = M0_MDSERVICE_LISTXATTR_REP_OPCODE,
++                                 .xt        = m0_fop_listxattr_rep_xc,
++                                 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:*/
+                 M0_FOP_TYPE_INIT(&m0_fop_statfs_rep_fopt,
+                                  .name      = "Statfs reply",
+                                  .opcode    = M0_MDSERVICE_STATFS_REP_OPCODE,
+@@ -500,6 +574,10 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
+         m0_fop_type_fini(&m0_fop_close_fopt);
+         m0_fop_type_fini(&m0_fop_setattr_fopt);
+         m0_fop_type_fini(&m0_fop_getattr_fopt);
++        m0_fop_type_fini(&m0_fop_setxattr_fopt);
++        m0_fop_type_fini(&m0_fop_getxattr_fopt);
++        m0_fop_type_fini(&m0_fop_delxattr_fopt);
++        m0_fop_type_fini(&m0_fop_listxattr_fopt);
+         m0_fop_type_fini(&m0_fop_statfs_fopt);
+         m0_fop_type_fini(&m0_fop_rename_fopt);
+         m0_fop_type_fini(&m0_fop_readdir_fopt);
+@@ -513,6 +591,10 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
+         m0_fop_type_fini(&m0_fop_close_rep_fopt);
+         m0_fop_type_fini(&m0_fop_setattr_rep_fopt);
+         m0_fop_type_fini(&m0_fop_getattr_rep_fopt);
++        m0_fop_type_fini(&m0_fop_setxattr_rep_fopt);
++        m0_fop_type_fini(&m0_fop_getxattr_rep_fopt);
++        m0_fop_type_fini(&m0_fop_delxattr_rep_fopt);
++        m0_fop_type_fini(&m0_fop_listxattr_rep_fopt);
+         m0_fop_type_fini(&m0_fop_statfs_rep_fopt);
+         m0_fop_type_fini(&m0_fop_rename_rep_fopt);
+         m0_fop_type_fini(&m0_fop_readdir_rep_fopt);
+diff --git a/mdservice/md_fops.h b/mdservice/md_fops.h
+index 37e916f..01aa3ba 100644
+--- a/mdservice/md_fops.h
++++ b/mdservice/md_fops.h
+@@ -36,6 +36,10 @@ extern struct m0_fop_type m0_fop_open_fopt;
+ extern struct m0_fop_type m0_fop_close_fopt;
+ extern struct m0_fop_type m0_fop_setattr_fopt;
+ extern struct m0_fop_type m0_fop_getattr_fopt;
++extern struct m0_fop_type m0_fop_setxattr_fopt;
++extern struct m0_fop_type m0_fop_getxattr_fopt;
++extern struct m0_fop_type m0_fop_delxattr_fopt;
++extern struct m0_fop_type m0_fop_listxattr_fopt;
+ extern struct m0_fop_type m0_fop_statfs_fopt;
+ extern struct m0_fop_type m0_fop_rename_fopt;
+ extern struct m0_fop_type m0_fop_readdir_fopt;
+@@ -49,6 +53,10 @@ extern struct m0_fop_type m0_fop_open_rep_fopt;
+ extern struct m0_fop_type m0_fop_close_rep_fopt;
+ extern struct m0_fop_type m0_fop_setattr_rep_fopt;
+ extern struct m0_fop_type m0_fop_getattr_rep_fopt;
++extern struct m0_fop_type m0_fop_setxattr_rep_fopt;
++extern struct m0_fop_type m0_fop_getxattr_rep_fopt;
++extern struct m0_fop_type m0_fop_delxattr_rep_fopt;
++extern struct m0_fop_type m0_fop_listxattr_rep_fopt;
+ extern struct m0_fop_type m0_fop_statfs_rep_fopt;
+ extern struct m0_fop_type m0_fop_rename_rep_fopt;
+ extern struct m0_fop_type m0_fop_readdir_rep_fopt;
+@@ -83,6 +91,11 @@ struct m0_fop_cob {
+         struct m0_fid b_tfid;
+ } M0_XCA_RECORD;
+ 
++struct m0_fop_buf {
++        uint32_t b_count;
++        uint8_t *b_addr;
++} M0_XCA_SEQUENCE;
++
+ struct m0_fop_create {
+         struct m0_fop_cob c_body;
+         struct m0_fop_str c_target;
+@@ -174,17 +187,51 @@ struct m0_fop_getattr_rep {
+         struct m0_fop_cob g_body;
+ } M0_XCA_RECORD;
+ 
++struct m0_fop_getxattr {
++        struct m0_fop_cob g_body;
++        struct m0_fop_str g_key;
++} M0_XCA_RECORD;
++
++struct m0_fop_getxattr_rep {
++        struct m0_fop_cob g_body;
++        struct m0_fop_str g_value;
++} M0_XCA_RECORD;
++
++struct m0_fop_setxattr {
++        struct m0_fop_cob s_body;
++        struct m0_fop_str s_key;
++        struct m0_fop_str s_value;
++} M0_XCA_RECORD;
++
++struct m0_fop_setxattr_rep {
++        struct m0_fop_cob s_body;
++} M0_XCA_RECORD;
++
++struct m0_fop_delxattr {
++        struct m0_fop_cob d_body;
++        struct m0_fop_str d_key;
++} M0_XCA_RECORD;
++
++struct m0_fop_delxattr_rep {
++        struct m0_fop_cob d_body;
++} M0_XCA_RECORD;
++
++struct m0_fop_listxattr {
++        struct m0_fop_cob l_body;
++} M0_XCA_RECORD;
++
++struct m0_fop_listxattr_rep {
++        struct m0_fop_str l_end;
++        struct m0_fop_cob l_body;
++        struct m0_fop_buf l_buf;
++} M0_XCA_RECORD;
++
+ struct m0_fop_readdir {
+         struct m0_fop_cob r_body;
+         struct m0_fop_str r_path;
+         struct m0_fop_str r_pos;
+ } M0_XCA_RECORD;
+ 
+-struct m0_fop_buf {
+-        uint32_t b_count;
+-        uint8_t *b_addr;
+-} M0_XCA_SEQUENCE;
+-
+ struct m0_fop_readdir_rep {
+         struct m0_fop_str r_end;
+         struct m0_fop_cob r_body;
+@@ -192,20 +239,20 @@ struct m0_fop_readdir_rep {
+ } M0_XCA_RECORD;
+ 
+ struct m0_fop_statfs {
+-        uint64_t f_flags;
++        uint64_t          f_flags;
+ } M0_XCA_RECORD;
+ 
+ struct m0_fop_statfs_rep {
+-        uint32_t      f_rc;
+-        uint64_t      f_type;
+-        uint32_t      f_bsize;
+-        uint64_t      f_blocks;
+-        uint64_t      f_bfree;
+-        uint64_t      f_bavail;
+-        uint64_t      f_files;
+-        uint64_t      f_ffree;
+-        uint32_t      f_namelen;
+-        struct m0_fid f_root;
++        uint32_t          f_rc;
++        uint64_t          f_type;
++        uint32_t          f_bsize;
++        uint64_t          f_blocks;
++        uint64_t          f_bfree;
++        uint64_t          f_bavail;
++        uint64_t          f_files;
++        uint64_t          f_ffree;
++        uint32_t          f_namelen;
++        struct m0_fid     f_root;
+ } M0_XCA_RECORD;
+ 
+ enum m0_layout_opcode {
+diff --git a/rpc/rpc_opcodes.h b/rpc/rpc_opcodes.h
+index 6eff443..0575963 100644
+--- a/rpc/rpc_opcodes.h
++++ b/rpc/rpc_opcodes.h
+@@ -130,32 +130,40 @@ enum M0_RPC_OPCODES {
+         M0_MDSERVICE_CLOSE_OPCODE           = 61,
+         M0_MDSERVICE_SETATTR_OPCODE         = 62,
+         M0_MDSERVICE_GETATTR_OPCODE         = 63,
+-        M0_MDSERVICE_STATFS_OPCODE          = 64,
+-        M0_MDSERVICE_READDIR_OPCODE         = 65,
+-        M0_MDSERVICE_CREATE_REP_OPCODE      = 66,
+-        M0_MDSERVICE_LOOKUP_REP_OPCODE      = 67,
+-        M0_MDSERVICE_LINK_REP_OPCODE        = 68,
+-        M0_MDSERVICE_UNLINK_REP_OPCODE      = 69,
+-        M0_MDSERVICE_RENAME_REP_OPCODE      = 70,
+-        M0_MDSERVICE_OPEN_REP_OPCODE        = 71,
+-        M0_MDSERVICE_CLOSE_REP_OPCODE       = 72,
+-        M0_MDSERVICE_SETATTR_REP_OPCODE     = 73,
+-        M0_MDSERVICE_GETATTR_REP_OPCODE     = 74,
+-        M0_MDSERVICE_STATFS_REP_OPCODE      = 75,
+-        M0_MDSERVICE_READDIR_REP_OPCODE     = 76,
+-
+-	M0_SNS_REPAIR_TRIGGER_OPCODE        = 77,
+-	M0_SNS_REPAIR_TRIGGER_REP_OPCODE    = 78,
++        M0_MDSERVICE_SETXATTR_OPCODE        = 64,
++        M0_MDSERVICE_GETXATTR_OPCODE        = 65,
++        M0_MDSERVICE_DELXATTR_OPCODE        = 66,
++        M0_MDSERVICE_LISTXATTR_OPCODE       = 67,
++        M0_MDSERVICE_STATFS_OPCODE          = 68,
++        M0_MDSERVICE_READDIR_OPCODE         = 69,
++        M0_MDSERVICE_CREATE_REP_OPCODE      = 70,
++        M0_MDSERVICE_LOOKUP_REP_OPCODE      = 71,
++        M0_MDSERVICE_LINK_REP_OPCODE        = 72,
++        M0_MDSERVICE_UNLINK_REP_OPCODE      = 73,
++        M0_MDSERVICE_RENAME_REP_OPCODE      = 74,
++        M0_MDSERVICE_OPEN_REP_OPCODE        = 75,
++        M0_MDSERVICE_CLOSE_REP_OPCODE       = 76,
++        M0_MDSERVICE_SETATTR_REP_OPCODE     = 77,
++        M0_MDSERVICE_GETATTR_REP_OPCODE     = 78,
++        M0_MDSERVICE_STATFS_REP_OPCODE      = 79,
++        M0_MDSERVICE_READDIR_REP_OPCODE     = 80,
++        M0_MDSERVICE_SETXATTR_REP_OPCODE    = 81,
++        M0_MDSERVICE_GETXATTR_REP_OPCODE    = 82,
++        M0_MDSERVICE_DELXATTR_REP_OPCODE    = 83,
++        M0_MDSERVICE_LISTXATTR_REP_OPCODE   = 84,
++
++	M0_SNS_REPAIR_TRIGGER_OPCODE        = 85,
++	M0_SNS_REPAIR_TRIGGER_REP_OPCODE    = 86,
+ 
+ 	/* RPC UT */
+-	M0_RPC_ARROW_OPCODE                 = 79,
++	M0_RPC_ARROW_OPCODE                 = 87,
+ 
+ 	/** Resource manager opcodes */
+-	M0_RM_FOP_BORROW                    = 84,
+-	M0_RM_FOP_BORROW_REPLY              = 85,
+-	M0_RM_FOP_REVOKE                    = 86,
+-	M0_RM_FOP_REVOKE_REPLY              = 87,
+-	M0_RM_FOP_CANCEL                    = 88,
++	M0_RM_FOP_BORROW                    = 88,
++	M0_RM_FOP_BORROW_REPLY              = 89,
++	M0_RM_FOP_REVOKE                    = 90,
++	M0_RM_FOP_REVOKE_REPLY              = 91,
++	M0_RM_FOP_CANCEL                    = 92,
+ 
+ 	M0_LAYOUT_OPCODE                    = 90,
+ 	M0_LAYOUT_REP_OPCODE                = 91,
+-- 
+1.8.3.2
+

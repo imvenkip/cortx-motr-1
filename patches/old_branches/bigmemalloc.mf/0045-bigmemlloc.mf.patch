@@ -1,0 +1,137 @@
+From 30d6535b7707d93a8887d4004c9e6fea1832c7de Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Tue, 29 Oct 2013 14:33:36 +0530
+Subject: [PATCH 45/50] bigmemlloc.mf -Updated the function cache_update().
+ Used varr_obj_nr_in_buff()  instead of using safe_bitshift(). -Cache in
+ struct m0_varr is made private, as its access functions  have been kept
+ private.
+
+---
+ lib/varr.c         | 10 ++++------
+ lib/varr.h         | 30 ++++++++++++------------------
+ lib/varr_private.h |  7 +++++++
+ 3 files changed, 23 insertions(+), 24 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index c4c611e..c40e8ae 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -27,7 +27,6 @@
+ #include "lib/string.h"		/* strcmp() */
+ #include "lib/varr.h"		/* m0_varr */
+ #include "lib/varr_private.h"	/* m0_varr_buf_alloc(), m0_varr_buf_free */
+-
+ #ifndef __KERNEL__
+ #include <limits.h>		/* CHAR_BIT */
+ #else
+@@ -632,11 +631,10 @@ M0_INTERNAL void cache_update(struct m0_varr *arr, void *holder,
+ 	arr->va_cache->vc_buff = holder;
+ 	arr->va_cache->vc_first_index = index - index_in_level;
+ 	arr->va_cache->vc_last_index = min64u(arr->va_cache->vc_first_index +
+-					      safe_bitshift((uint64_t)1,
+-							    arr->va_buf_shift -
+-							    arr->va_obj_shift,
+-							    <<) - 1,
+-					      arr->va_nr - 1);
++					      varr_obj_nr_in_buff((const struct
++								   m0_varr *)
++								   arr) -
++					      1, arr->va_nr - 1);
+ }
+ 
+ M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr)
+diff --git a/lib/varr.h b/lib/varr.h
+index c889869..be4b74d 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -91,12 +91,6 @@ enum {
+ 	M0_VA_DEPTH_MAX	  = 16,
+ };
+ 
+-struct m0_varr_cache {
+-	unsigned long *vc_buff;
+-	uint64_t       vc_first_index;
+-	uint64_t       vc_last_index;
+-};
+-
+ enum m0_varr_cursor_trav {
+ 	ITERATE,
+ 	ALLOC,
+@@ -120,22 +114,22 @@ struct m0_varr_cursor {
+ 
+ struct m0_varr {
+ 	/** Number of elements in array. */
+-	uint64_t              va_nr;
++	uint64_t           va_nr;
+ 	/** Number of leaf-level buffers required to store m0_varr::va_nr
+ 	 * number of objects.
+ 	 */
+-	uint64_t	      va_buff_nr;
++	uint64_t	   va_buff_nr;
+ 
+ 	/** Log of object-size to the base two. */
+-	uint8_t               va_obj_shift;
+-	size_t		      va_obj_size;
++	uint8_t            va_obj_shift;
++	size_t		   va_obj_size;
+ 	/** Size of buffer which is used to store objects from array. */
+-	size_t		      va_bufsize;
++	size_t		   va_bufsize;
+ 	/** Log of va_bufsize to the base 2. */
+-	uint8_t               va_buf_shift;
++	uint8_t            va_buf_shift;
+ 
+ 	/** Level depth of tree proportional to number of objects stored. */
+-	uint32_t              va_depth;
++	uint32_t           va_depth;
+ 
+ 	/**
+ 	 * Number of pointer to buffer that can be accommodated in one
+@@ -146,8 +140,8 @@ struct m0_varr {
+ 	 * significant and _exactly same_ compute operations which can be
+ 	 * easily avoided by maintaining it as a member.
+ 	 */
+-	uint64_t	      va_bufptr_nr;
+-	uint8_t               va_bufptr_nr_shift;
++	uint64_t	   va_bufptr_nr;
++	uint8_t            va_bufptr_nr_shift;
+ 
+ 	/**
+ 	 * Array of radix tree nodes, each of which represents an abstraction
+@@ -157,14 +151,14 @@ struct m0_varr {
+ 	 * Such arrangement provisions constant height radix tree which eases
+ 	 * up the lookups.
+ 	 */
+-	void                 *va_tree[M0_VA_TNODE_NR];
++	void              *va_tree[M0_VA_TNODE_NR];
+ 	/**
+ 	 * Holds address of buffer holding recently accessed object.
+ 	 */
+-	struct m0_varr_cache *va_cache;
++	struct varr_cache *va_cache;
+ 
+ 	/** Magic field to cross check sanity of structure. */
+-	uint64_t              va_magic;
++	uint64_t           va_magic;
+ };
+ 
+ /**
+diff --git a/lib/varr_private.h b/lib/varr_private.h
+index 6a04cbe..1e26efa 100644
+--- a/lib/varr_private.h
++++ b/lib/varr_private.h
+@@ -26,4 +26,11 @@
+ M0_EXTERN void *m0_varr_buf_alloc(size_t bufsize);
+ M0_EXTERN void  m0_varr_buf_free(void *buf, size_t bufsize);
+ M0_EXTERN bool  m0_varr_size_is_valid(const struct m0_varr *arr);
++
++struct varr_cache {
++	unsigned long *vc_buff;
++	uint64_t       vc_first_index;
++	uint64_t       vc_last_index;
++};
++
+ #endif /* __MERO_LIB_VIRTUAL_ARRAY_PRIVATE_H__ */
+-- 
+1.8.3.2
+

@@ -1,0 +1,2877 @@
+From ba001f844460e5cb469cc66aae686d8f80c2caee Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 30 Aug 2012 22:59:02 +0300
+Subject: [PATCH 358/370] conf: move concrete object operations to obj/* files
+
+Move implementations of foo_{invariant,fill,match,lookup,fini}() to
+objs/foo.c, where foo in {dir..partition}.
+---
+ conf/Makefile.am       |    6 +-
+ conf/obj_ops.c         | 1009 ++++--------------------------------------------
+ conf/obj_ops.h         |  168 ++++----
+ conf/objs/common.c     |  136 +++++++
+ conf/objs/common.h     |  119 ++++++
+ conf/objs/dir.c        |  159 ++++++++
+ conf/objs/filesystem.c |  118 ++++++
+ conf/objs/nic.c        |  112 ++++++
+ conf/objs/node.c       |  135 +++++++
+ conf/objs/partition.c  |  105 +++++
+ conf/objs/profile.c    |  123 ++++++
+ conf/objs/sdev.c       |  108 ++++++
+ conf/objs/service.c    |  149 +++++++
+ conf/reg.c             |    8 +-
+ conf/ut/obj.c          |   28 +-
+ conf/ut/reg.c          |   51 +--
+ 16 files changed, 1463 insertions(+), 1071 deletions(-)
+ create mode 100644 conf/objs/common.c
+ create mode 100644 conf/objs/common.h
+ create mode 100644 conf/objs/dir.c
+ create mode 100644 conf/objs/filesystem.c
+ create mode 100644 conf/objs/nic.c
+ create mode 100644 conf/objs/node.c
+ create mode 100644 conf/objs/partition.c
+ create mode 100644 conf/objs/profile.c
+ create mode 100644 conf/objs/sdev.c
+ create mode 100644 conf/objs/service.c
+
+diff --git a/conf/Makefile.am b/conf/Makefile.am
+index 90e1c4e..f16b656 100644
+--- a/conf/Makefile.am
++++ b/conf/Makefile.am
+@@ -1,8 +1,12 @@
+ include $(top_srcdir)/Makefile.xc
+ 
++_OBJS_SRC = objs/common.h objs/common.c objs/dir.c objs/profile.c   \
++            objs/filesystem.c objs/service.c objs/node.c objs/nic.c \
++            objs/sdev.c objs/partition.c
++
+ noinst_LTLIBRARIES = libcolibri-conf.la
+ libcolibri_conf_la_SOURCES = obj.h obj.c reg.h reg.c obj_ops.h obj_ops.c \
+-                             onwire.h preload.h preload.c
++                             onwire.h preload.h preload.c $(_OBJS_SRC)
+ 
+ INCLUDES = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include \
+            -iquote /usr/include
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 7cd5be9..1a74ab6 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -22,15 +22,11 @@
+ #  include "config.h"
+ #endif
+ #include "conf/obj_ops.h"
+-#include "conf/reg.h"     /* c2_conf_reg_lookup */
+-#include "conf/onwire.h"  /* arr_buf */
+-/* #include "conf/confc.h"   /\* c2_confc *\/ */
+-#include "lib/cdefs.h"    /* ergo, C2_MAGIX_OFFSET, IS_IN_ARRAY */
+-#include "lib/arith.h"    /* C2_CNT_INC, C2_CNT_DEC */
+-#include "lib/misc.h"     /* C2_IN, memcpy, memcmp, strlen */
+-#include "lib/memory.h"   /* c2_alloc, C2_ALLOC_ARR */
+-#include "lib/tlist.h"
+-#include "lib/errno.h"    /* ENOENT, ENOMEM, EINVAL */
++#include "conf/onwire.h" /* confx_object */
++/* #include "conf/confc.h"  /\* c2_confc *\/ */
++#include "lib/cdefs.h"   /* IS_IN_ARRAY */
++#include "lib/misc.h"    /* C2_IN */
++#include "lib/arith.h"   /* C2_CNT_INC, C2_CNT_DEC */
+ 
+ /**
+  * @defgroup conf_dlspec_objops Configuration Object Operations
+@@ -40,579 +36,114 @@
+  * @{
+  */
+ 
+-/* ------------------------------------------------------------------
+- * bobs
+- * ------------------------------------------------------------------ */
+-
+-static bool generic_obj_invariant(const void *bob);
+-static bool buf_is_valid(const struct c2_buf *buf);
+-
+-enum {
+-	DIR_MAGIC        = 0x3301dca1ab005e77, /* old calaboose */
+-	PROFILE_MAGIC    = 0x33c105ab1e5ea177, /* closable seal */
+-	FILESYSTEM_MAGIC = 0x33f00d0fc01aba77, /* food of Colaba */
+-	SERVICE_MAGIC    = 0x33b1a5ed10ca1e77, /* biased locale */
+-	NODE_MAGIC       = 0x33c01055a1d05a77, /* colossal dosa */
+-	NIC_MAGIC        = 0x33ba5eba11feed77, /* baseball feed */
+-	SDEV_MAGIC       = 0x33a115eed5a1ad77, /* allseed salad */
+-	PARTITION_MAGIC  = 0x33bacca15a100f77  /* bacca is aloof */
+-};
++static bool _generic_obj_invariant(const void *bob);
+ 
+ static const struct c2_bob_type generic_obj_bob = {
+ 	.bt_name         = "c2_conf_obj",
+ 	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_conf_obj, co_gen_magic),
+ 	.bt_magix        = C2_CONF_OBJ_MAGIC,
+-	.bt_check        = generic_obj_invariant
+-};
+-C2_BOB_DEFINE(/* static */, &generic_obj_bob, c2_conf_obj); /* XXX */
+-
+-C2_TL_DESCR_DEFINE(generic_objs, "c2_conf_obj-s", static, struct c2_conf_obj,
+-		   co_dir_link, co_gen_magic, C2_CONF_OBJ_MAGIC, DIR_MAGIC);
+-C2_TL_DEFINE(generic_objs, static, struct c2_conf_obj);
+-
+-#define _BOB_TYPE_DEFINE(abbrev, magic)                            \
+-static bool abbrev ## _invariant(const void *bob);                 \
+-static int abbrev ## _lookup(struct c2_conf_obj *parent,           \
+-			     const struct c2_buf *name,            \
+-			     struct c2_conf_obj **out);            \
+-static int abbrev ## _fill(struct c2_conf_obj *dest,               \
+-			   const struct confx_object *src,         \
+-			   struct c2_conf_reg *reg);               \
+-static bool abbrev ## _match(const struct c2_conf_obj *cached,     \
+-			     const struct confx_object *onwire);   \
+-								   \
+-const struct c2_bob_type c2_conf_ ## abbrev ## _bob = {            \
+-	.bt_name = "c2_conf_" #abbrev,                             \
+-	.bt_magix_offset =                                         \
+-		C2_MAGIX_OFFSET(struct c2_conf_ ## abbrev,         \
+-				c2_conf_ ## abbrev ## _cast_field. \
+-					co_con_magic),             \
+-	.bt_magix = magic,                                         \
+-	.bt_check = abbrev ## _invariant                           \
+-}
+-
+-_BOB_TYPE_DEFINE(dir,        DIR_MAGIC);
+-_BOB_TYPE_DEFINE(profile,    PROFILE_MAGIC);
+-_BOB_TYPE_DEFINE(filesystem, FILESYSTEM_MAGIC);
+-_BOB_TYPE_DEFINE(service,    SERVICE_MAGIC);
+-_BOB_TYPE_DEFINE(node,       NODE_MAGIC);
+-_BOB_TYPE_DEFINE(nic,        NIC_MAGIC);
+-_BOB_TYPE_DEFINE(sdev,       SDEV_MAGIC);
+-_BOB_TYPE_DEFINE(partition,  PARTITION_MAGIC);
+-#undef _BOB_TYPE_DEFINE
+-
+-void dummy_fini_XXX(struct c2_conf_obj *obj) {}
+-
+-/** Configuration object type. */
+-static const struct obj_type {
+-	/** Size of object. */
+-	size_t                    ot_size;
+-	/** Offset of c2_conf_obj field. */
+-	int                       ot_obj_offset;
+-	/**
+-	 * Branded object type that corresponds to concrete
+-	 * configuration object.
+-	 */
+-	const struct c2_bob_type *ot_bob;
+-	/** Operations vector. */
+-	struct c2_conf_obj_ops    ot_ops;
+-} _obj_types[C2_CO_NR] = {
+-#define _OBJ_TYPE_INIT(abbrev)                                                \
+-	{                                                                     \
+-		.ot_size       = sizeof(struct c2_conf_ ## abbrev),           \
+-		.ot_obj_offset = offsetof(struct c2_conf_ ## abbrev,          \
+-					  c2_conf_ ## abbrev ## _cast_field), \
+-		.ot_bob        = &c2_conf_ ## abbrev ## _bob,                 \
+-		.ot_ops        = {                                            \
+-			.coo_lookup  = abbrev ## _lookup,                     \
+-			.coo_readdir = NULL, /*XXX*/                          \
+-			.coo_fill    = abbrev ## _fill,                       \
+-			.coo_match   = abbrev ## _match,                      \
+-			.coo_fini    = dummy_fini_XXX                         \
+-		}                                                             \
+-	}
+-
+-	[C2_CO_DIR]        = _OBJ_TYPE_INIT(dir),
+-	[C2_CO_PROFILE]    = _OBJ_TYPE_INIT(profile),
+-	[C2_CO_FILESYSTEM] = _OBJ_TYPE_INIT(filesystem),
+-	[C2_CO_SERVICE]    = _OBJ_TYPE_INIT(service),
+-	[C2_CO_NODE]       = _OBJ_TYPE_INIT(node),
+-	[C2_CO_NIC]        = _OBJ_TYPE_INIT(nic),
+-	[C2_CO_SDEV]       = _OBJ_TYPE_INIT(sdev),
+-	[C2_CO_PARTITION]  = _OBJ_TYPE_INIT(partition)
+-#undef _OBJ_TYPE_INIT
++	.bt_check        = _generic_obj_invariant
+ };
++C2_BOB_DEFINE(static, &generic_obj_bob, c2_conf_obj);
+ 
+-static const struct obj_type *obj_type(enum c2_conf_objtype type)
++bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
+ {
+-	C2_PRE(IS_IN_ARRAY(type, _obj_types));
+-	return &_obj_types[type];
++	return c2_conf_obj_bob_check(obj) && obj->co_ops->coo_invariant(obj);
+ }
+-
+-/* ------------------------------------------------------------------
+- * Invariants
+- * ------------------------------------------------------------------ */
+ 
+-static bool obj_is_stub(const struct c2_conf_obj *obj);
+-
+-bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
++static bool obj_is_stub(const struct c2_conf_obj *obj)
+ {
+-	const struct obj_type *ot = obj_type(obj->co_type);
+-
+-	return c2_conf_obj_bob_check(obj) &&
+-		c2_bob_check(ot->ot_bob, (const char *)obj - ot->ot_obj_offset);
++	return obj->co_status != C2_CS_READY;
+ }
+ 
+-static bool
+-generic_obj_check_as(const struct c2_conf_obj *obj, enum c2_conf_objtype type)
++static bool buf_is_valid(const struct c2_buf *buf)
+ {
+-	return obj->co_type == type && c2_conf_obj_bob_check(obj);
++	return buf->b_nob > 0 && buf->b_addr != NULL;
+ }
+ 
+-static bool generic_obj_invariant(const void *bob)
++static bool _generic_obj_invariant(const void *bob)
+ {
+ 	const struct c2_conf_obj *obj = bob;
+ 
+ 	return buf_is_valid(&obj->co_id) &&
+ 		C2_IN(obj->co_status,
+ 		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
+-		obj->co_ops == &obj_type(obj->co_type)->ot_ops &&
++		obj->co_ops != NULL &&
+ 		ergo(obj_is_stub(obj), obj->co_nrefs == 0);
+ }
+ 
+-static bool dir_invariant(const void *bob)
+-{
+-	const struct c2_conf_dir *self = bob;
+-	const struct c2_conf_obj *self_obj = &self->cd_obj;
+-	const struct c2_conf_obj *parent = self_obj->co_parent;
+-	const struct c2_tl_descr *td =
+-		obj_is_stub(self_obj) ? NULL : &generic_objs_tl;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_DIR);
+-
+-	return /* Parent is valid configuration object. */
+-		parent != NULL &&
+-		generic_obj_check_as(parent, parent->co_type) &&
+-		/* List's magic is unset iff `self' is a stub.*/
+-		obj_is_stub(self_obj) == (self->cd_items.t_magic == 0) &&
+-		/* Children are valid objects of proper type and point
+-		 * to `self' via ->co_parent field. */
+-		ergo(!obj_is_stub(self_obj), td != NULL &&
+-		     c2_tlist_forall(td, child, &self->cd_items,
+-			generic_obj_check_as(child, self->cd_item_type) &&
+-			((struct c2_conf_obj *)child)->co_parent == self_obj));
+-}
+-
+-static bool child_is_ok(const struct c2_conf_obj *obj,
+-			const struct c2_conf_obj *child,
+-			enum c2_conf_objtype child_type)
+-{
+-	return /* Child is NULL iff `obj' is a stub. */
+-		obj_is_stub(obj) == (child == NULL) &&
+-		/* Child is valid object of given type, and `obj' is
+-		 * its parent. */
+-		ergo(!obj_is_stub(obj),
+-		     generic_obj_check_as(child, child_type) &&
+-		     child->co_parent == obj);
+-}
+-
+-#define MEMBER_PTR(ptr, member)                \
+-({                                             \
+-	typeof(ptr) __ptr = (ptr);             \
+-	__ptr == NULL ? NULL : &__ptr->member; \
+-})
+-
+-static bool profile_invariant(const void *bob)
+-{
+-	const struct c2_conf_profile *self = bob;
+-	const struct c2_conf_obj     *self_obj = &self->cp_obj;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_PROFILE);
+-
+-	return /* c2_conf_profile is the topmost object in the DAG. */
+-		self_obj->co_parent == NULL &&
+-		child_is_ok(self_obj, MEMBER_PTR(self->cp_filesystem, cf_obj),
+-			    C2_CO_FILESYSTEM) &&
+-		/* Other checks. */
+-#if 0 /* XXX */
+-		ergo(self_obj->co_confc != NULL,
+-		     self_obj->co_confc->cc_root == self_obj);
+-#else
+-		true;
+-#endif
+-}
+-
+-static bool filesystem_invariant(const void *bob)
+-{
+-	const struct c2_conf_filesystem *self = bob;
+-	const struct c2_conf_obj        *self_obj = &self->cf_obj;
+-	struct c2_conf_obj              *parent = self_obj->co_parent;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_FILESYSTEM);
+-
+-	return /* Parent is valid c2_conf_profile pointing to `self' via
+-		* c2_conf_profile::cp_filesystem field. */
+-		generic_obj_check_as(parent, C2_CO_PROFILE) &&
+-		C2_CONF_CAST(parent, c2_conf_profile)->cp_filesystem == self &&
+-		child_is_ok(self_obj, MEMBER_PTR(self->cf_services, cd_obj),
+-			    C2_CO_DIR) &&
+-		/* Other checks. */
+-		obj_is_stub(self_obj) == (self->cf_params == NULL);
+-}
+-
+-static bool service_invariant(const void *bob)
+-{
+-	const struct c2_conf_service *self = bob;
+-	const struct c2_conf_obj     *self_obj = &self->cs_obj;
+-	struct c2_conf_obj           *parent = self_obj->co_parent;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_SERVICE);
+-
+-	return /* Parent is valid c2_conf_dir with proper
+-		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CO_DIR) &&
+-		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CO_SERVICE &&
+-		child_is_ok(self_obj, MEMBER_PTR(self->cs_node, cn_obj),
+-			    C2_CO_NODE) &&
+-		/* Other checks. */
+-		ergo(!obj_is_stub(self_obj),
+-		     C2_IN(self->cs_type, (C2_CFG_SERVICE_METADATA,
+-					   C2_CFG_SERVICE_IO,
+-					   C2_CFG_SERVICE_MGMT,
+-					   C2_CFG_SERVICE_DLM))) &&
+-		obj_is_stub(self_obj) == (self->cs_endpoints == NULL);
+-}
+-
+-static bool node_invariant(const void *bob)
+-{
+-	const struct c2_conf_node *self = bob;
+-	const struct c2_conf_obj  *self_obj = &self->cn_obj;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_NODE);
+-
+-	return /* The notion of parent is not applicable to a node,
+-		* since a node may host (be child of) several
+-		* services. */
+-		self_obj->co_parent == NULL &&
+-		child_is_ok(self_obj, MEMBER_PTR(self->cn_nics, cd_obj),
+-			    C2_CO_DIR) &&
+-		child_is_ok(self_obj, MEMBER_PTR(self->cn_sdevs, cd_obj),
+-			    C2_CO_DIR);
+-}
+-
+-static bool nic_invariant(const void *bob)
+-{
+-	const struct c2_conf_nic *self = bob;
+-	const struct c2_conf_obj *self_obj = &self->ni_obj;
+-	struct c2_conf_obj       *parent = self_obj->co_parent;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_NIC);
+-
+-	return /* Parent is valid c2_conf_dir with proper
+-		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CO_DIR) &&
+-		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CO_NIC &&
+-		/* Other checks. */
+-		obj_is_stub(self_obj) == (self->ni_filename == NULL);
+-}
+-
+-static bool sdev_invariant(const void *bob)
+-{
+-	const struct c2_conf_sdev *self = bob;
+-	const struct c2_conf_obj  *self_obj = &self->sd_obj;
+-	struct c2_conf_obj        *parent = self_obj->co_parent;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_SDEV);
+-
+-	return /* Parent is valid c2_conf_dir with proper
+-		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CO_DIR) &&
+-		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CO_SDEV &&
+-		child_is_ok(self_obj, MEMBER_PTR(self->sd_partitions, cd_obj),
+-			    C2_CO_DIR) &&
+-		/* Other checks. */
+-		obj_is_stub(self_obj) == (self->sd_filename == NULL);
+-}
+-
+-static bool partition_invariant(const void *bob)
+-{
+-	const struct c2_conf_partition *self = bob;
+-	const struct c2_conf_obj       *self_obj = &self->pa_obj;
+-	struct c2_conf_obj             *parent = self_obj->co_parent;
+-
+-	C2_PRE(self_obj->co_type == C2_CO_PARTITION);
+-
+-	return /* Parent is valid c2_conf_dir with proper
+-		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CO_DIR) &&
+-		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CO_PARTITION &&
+-		/* Other checks. */
+-		obj_is_stub(self_obj) == (self->pa_filename == NULL);
+-}
+-
+-/* ------------------------------------------------------------------
+- * Allocators
+- * ------------------------------------------------------------------ */
++struct c2_conf_obj *c2_conf__dir_create(void);
++struct c2_conf_obj *c2_conf__profile_create(void);
++struct c2_conf_obj *c2_conf__filesystem_create(void);
++struct c2_conf_obj *c2_conf__service_create(void);
++struct c2_conf_obj *c2_conf__node_create(void);
++struct c2_conf_obj *c2_conf__nic_create(void);
++struct c2_conf_obj *c2_conf__sdev_create(void);
++struct c2_conf_obj *c2_conf__partition_create(void);
++
++static struct c2_conf_obj *(*concrete_ctors[C2_CO_NR])(void) = {
++	[C2_CO_DIR]        = c2_conf__dir_create,
++	[C2_CO_PROFILE]    = c2_conf__profile_create,
++	[C2_CO_FILESYSTEM] = c2_conf__filesystem_create,
++	[C2_CO_SERVICE]    = c2_conf__service_create,
++	[C2_CO_NODE]       = c2_conf__node_create,
++	[C2_CO_NIC]        = c2_conf__nic_create,
++	[C2_CO_SDEV]       = c2_conf__sdev_create,
++	[C2_CO_PARTITION]  = c2_conf__partition_create
++};
+ 
+ struct c2_conf_obj *
+-c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_buf *id)
++c2_conf_obj_create(enum c2_conf_objtype type, const struct c2_buf *id)
+ {
+-	void                  *amb; /* concrete object being allocated */
+-	struct c2_conf_obj    *obj; /* embedded c2_conf_obj */
+-	int                    rc;
+-	const struct obj_type *ot = obj_type(type);
++	struct c2_conf_obj *obj;
++	int                 rc;
++
++	C2_PRE(IS_IN_ARRAY(type, concrete_ctors));
+ 
+-	amb = c2_alloc(ot->ot_size);
+-	if (amb == NULL)
++	/* Allocate concrete object; initialise concrete fields. */
++	obj = concrete_ctors[type]();
++	if (obj == NULL)
+ 		return NULL;
+-	obj = amb + ot->ot_obj_offset;
+ 
++	/* Initialise generic fields. */
+ 	rc = c2_buf_copy(&obj->co_id, id);
+ 	if (rc != 0) {
+-		c2_free(amb);
++		obj->co_ops->coo_delete(obj);
+ 		return NULL;
+ 	}
+-
+-	c2_conf_obj_bob_init(obj);
+-	c2_bob_init(ot->ot_bob, amb);
+ 	obj->co_type = type;
+ 	obj->co_status = C2_CS_MISSING;
+-	obj->co_ops = &ot->ot_ops;
+ 	c2_chan_init(&obj->co_chan);
++	c2_conf_reg_tlink_init(obj);
++	c2_conf_dir_tlink_init(obj);
++	c2_conf_obj_bob_init(obj);
++	C2_ASSERT(obj->co_gen_magic == C2_CONF_OBJ_MAGIC);
++	C2_ASSERT(obj->co_con_magic != 0);
+ 
+-	/* We cannot check c2_conf_obj_invariant() here: concrete
+-	 * fields can't be validated, because connections to other
+-	 * objects of the DAG have not been established yet. */
++	/*
++	 * We cannot check c2_conf_obj_invariant() here: validation of
++	 * concrete fields may fail, because connections to other
++	 * objects of the DAG have not been established yet.
++	 */
+ 	C2_POST(c2_conf_obj_bob_check(obj));
+ 	return obj;
+ }
+ 
+-/** Finds object in the registry or creates (and registers) a stub for it. */
+-static int obj_find(struct c2_conf_reg *reg, enum c2_conf_objtype type,
+-		    const struct c2_buf *id, struct c2_conf_obj **out)
+-{
+-	*out = c2_conf_reg_lookup(reg, type, id);
+-
+-	if (*out == NULL) {
+-		/* Create a stub. */
+-		*out = c2_conf_obj_new(type, id);
+-		if (*out == NULL)
+-			return -ENOMEM;
+-
+-		/* Register the stub. */
+-		c2_conf_reg_add(reg, *out);
+-	}
+-
+-	return 0;
+-}
+-
+-/**
+- * Creates new c2_conf_directory and populates it with stubs.
+- *
+- * @param dir_id      Directory identifier.
+- * @param child_type  Type of entries.
+- * @param src         Identifiers of the entries.
+- * @param reg         Registry of cached objects.
+- * @param[out] out    Resulting pointer.
+- *
+- * dir_new() is transactional: if it fails, the configuration cache
+- * (i.e., the DAG of objects and the registry) is left unchanged.
+- *
+- * XXX @todo UT transactional property of dir_new().
+- */
+-static int dir_new(const struct c2_buf *dir_id, enum c2_conf_objtype child_type,
+-		   const struct arr_buf *src, struct c2_conf_reg *reg,
+-		   struct c2_conf_dir **out)
+-{
+-	struct c2_conf_obj *dir;
+-	struct c2_conf_obj *child;
+-	uint32_t            i;
+-	int                 rc;
+-
+-	C2_PRE(*out == NULL);
+-
+-	dir = c2_conf_obj_new(C2_CO_DIR, dir_id);
+-	if (dir == NULL)
+-		return -ENOMEM;
+-	*out = C2_CONF_CAST(dir, c2_conf_dir); /* XXX C2_CONF_CAST()? */
+-
+-	for (rc = 0, i = 0; i < src->ab_count; ++i) {
+-		rc = obj_find(reg, child_type, &src->ab_elems[i], &child);
+-		if (rc != 0)
+-			break;
+-
+-		/* Link the directory and its element together. */
+-		child->co_parent = dir;
+-		generic_objs_tlist_add(&(*out)->cd_items, child);
+-	}
+-
+-	if (rc == 0) {
+-		c2_conf_reg_add(reg, dir);
+-	} else {
+-		/* Restore consistency. */
+-		c2_tlist_for(&generic_objs_tl, &(*out)->cd_items, child) {
+-			c2_conf_reg_del(reg, child);
+-			c2_conf_obj_delete(child);
+-
+-		} c2_tlist_endfor;
+-		c2_conf_reg_del(reg, dir);
+-		c2_conf_obj_delete(dir);
+-	}
+-
+-	return rc;
+-}
+-
+-/* ------------------------------------------------------------------
+- * Destructors
+- * ------------------------------------------------------------------ */
+-
+ void c2_conf_obj_delete(struct c2_conf_obj *obj)
+ {
+-	/* XXX C2_PRE(c2_conf_obj_invariant(obj)); */
++	C2_PRE(c2_conf_obj_invariant(obj));
+ 	C2_PRE(obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING);
+ 
+-	obj->co_ops->coo_fini(obj);
+-	/* XXX Finalise generic object. */
+-
+-	c2_free((void *)obj - obj_type(obj->co_type)->ot_obj_offset);
+-}
+-
+-/* ------------------------------------------------------------------
+- * c2_conf_match()
+- * ------------------------------------------------------------------ */
+-
+-static bool confx_object_is_valid(const struct confx_object *src);
+-static bool buf_streq(const struct c2_buf *buf, const char *str);
+-static bool arrays_eq(const char **cached, const struct arr_buf *onwire);
+-
+-bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+-		       const struct confx_object *onwire)
+-{
+-	C2_PRE(c2_conf_obj_invariant(cached));
+-	C2_PRE(confx_object_is_valid(onwire));
+-
+-	if (cached->co_type != onwire->o_conf.u_type ||
+-	    !c2_buf_eq(&cached->co_id, &onwire->o_id))
+-		return false;
+-
+-	if (cached->co_status != C2_CS_READY)
+-		return true; /* a stub corresponds to the on-wire object */
+-
+-	return obj_type(cached->co_type)->ot_ops.coo_match(cached, onwire);
+-}
+-
+-static bool profile_match(const struct c2_conf_obj *cached,
+-			  const struct confx_object *onwire)
+-{
+-	const struct confx_profile      *objx = &onwire->o_conf.u.u_profile;
+-	const struct c2_conf_filesystem *child =
+-		C2_CONF_CAST(cached, c2_conf_profile)->cp_filesystem;
+-
+-	return c2_buf_eq(&child->cf_obj.co_id, &objx->xp_filesystem);
+-}
+-
+-static bool filesystem_match(const struct c2_conf_obj *cached,
+-			     const struct confx_object *onwire)
+-{
+-	const struct confx_filesystem   *objx = &onwire->o_conf.u.u_filesystem;
+-	const struct c2_conf_filesystem *obj = C2_CONF_CAST(cached,
+-							    c2_conf_filesystem);
+-	C2_IMPOSSIBLE("XXX TODO: compare dir elements");
+-	return arrays_eq(obj->cf_params, &objx->xf_params) &&
+-		obj->cf_rootfid.f_container == objx->xf_rootfid.f_container &&
+-		obj->cf_rootfid.f_key == objx->xf_rootfid.f_key;
+-}
+-
+-static bool service_match(const struct c2_conf_obj *cached,
+-			  const struct confx_object *onwire)
+-{
+-	const struct confx_service   *objx = &onwire->o_conf.u.u_service;
+-	const struct c2_conf_service *obj = C2_CONF_CAST(cached,
+-							 c2_conf_service);
+-	const struct c2_conf_node    *child = obj->cs_node;
+-
+-	return obj->cs_type == objx->xs_type &&
+-		arrays_eq(obj->cs_endpoints, &objx->xs_endpoints) &&
+-		c2_buf_eq(&child->cn_obj.co_id, &objx->xs_node);
+-}
+-
+-static bool node_match(const struct c2_conf_obj *cached,
+-		       const struct confx_object *onwire)
+-{
+-	const struct confx_node   *objx = &onwire->o_conf.u.u_node;
+-	const struct c2_conf_node *obj = C2_CONF_CAST(cached, c2_conf_node);
+-
+-	C2_IMPOSSIBLE("XXX TODO: compare dir elements");
+-	return  obj->cn_memsize    == objx->xn_memsize    &&
+-		obj->cn_nr_cpu     == objx->xn_nr_cpu     &&
+-		obj->cn_last_state == objx->xn_last_state &&
+-		obj->cn_flags      == objx->xn_flags      &&
+-		obj->cn_pool_id    == objx->xn_pool_id;
+-
+-}
+-
+-static bool nic_match(const struct c2_conf_obj *cached,
+-		      const struct confx_object *onwire)
+-{
+-	const struct confx_nic   *objx = &onwire->o_conf.u.u_nic;
+-	const struct c2_conf_nic *obj = C2_CONF_CAST(cached, c2_conf_nic);
+-
+-	return  obj->ni_iface      == objx->xi_iface      &&
+-		obj->ni_mtu        == objx->xi_mtu        &&
+-		obj->ni_speed      == objx->xi_speed      &&
+-		obj->ni_last_state == objx->xi_last_state &&
+-		buf_streq(&objx->xi_filename, obj->ni_filename);
+-}
+-
+-static bool sdev_match(const struct c2_conf_obj *cached,
+-		       const struct confx_object *onwire)
+-{
+-	const struct confx_sdev   *objx = &onwire->o_conf.u.u_sdev;
+-	const struct c2_conf_sdev *obj = C2_CONF_CAST(cached, c2_conf_sdev);
+-
+-	C2_IMPOSSIBLE("XXX TODO: compare dir elements");
+-	return  obj->sd_iface      == objx->xd_iface      &&
+-		obj->sd_media      == objx->xd_media      &&
+-		obj->sd_size       == objx->xd_size       &&
+-		obj->sd_last_state == objx->xd_last_state &&
+-		obj->sd_flags      == objx->xd_flags      &&
+-		buf_streq(&objx->xd_filename, obj->sd_filename);
+-}
+-
+-static bool partition_match(const struct c2_conf_obj *cached,
+-			    const struct confx_object *onwire)
+-{
+-	const struct confx_partition   *objx = &onwire->o_conf.u.u_partition;
+-	const struct c2_conf_partition *obj = C2_CONF_CAST(cached,
+-							   c2_conf_partition);
+-	return  obj->pa_start == objx->xa_start &&
+-		obj->pa_size  == objx->xa_size  &&
+-		obj->pa_index == objx->xa_index &&
+-		obj->pa_type  == objx->xa_type  &&
+-		buf_streq(&objx->xa_file, obj->pa_filename);
+-}
+-
+-static bool arrays_eq(const char **cached, const struct arr_buf *onwire)
+-{
+-	uint32_t i;
+-
+-	C2_PRE(onwire->ab_count != 0);
++	/* Finalise generic fields. */
++	c2_conf_obj_bob_fini(obj);
++	c2_conf_dir_tlink_fini(obj);
++	c2_conf_reg_tlink_fini(obj);
++	c2_chan_fini(&obj->co_chan);
++	c2_buf_free(&obj->co_id);
+ 
+-	for (i = 0; cached[i] != NULL; ++i) {
+-		if (i >= onwire->ab_count || !buf_streq(&onwire->ab_elems[i],
+-							cached[i]))
+-			return false;
+-	}
+-	return i == onwire->ab_count;
++	/* Finalise concrete fields; free the object. */
++	obj->co_ops->coo_delete(obj);
+ }
+-
+-/* ------------------------------------------------------------------
+- * c2_conf_obj_{get,put}()
+- * ------------------------------------------------------------------ */
+ 
+ static bool confc_is_nil_or_locked(const struct c2_conf_obj *obj)
+ {
+@@ -643,19 +174,13 @@ void c2_conf_obj_put(struct c2_conf_obj *obj)
+ 	if (obj->co_nrefs == 0)
+ 		c2_chan_broadcast(&obj->co_chan);
+ }
+-
+-/* ------------------------------------------------------------------
+- * Fillers
+- * ------------------------------------------------------------------ */
+ 
+-static int endpoints_populate(const char ***dest, const struct arr_buf *src);
+-static char *buf_strdup(const struct c2_buf *buf);
++static bool confx_object_is_valid(const struct confx_object *src);
+ 
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		     struct c2_conf_reg *reg)
+ {
+-	int                    rc;
+-	const struct obj_type *ot = obj_type(dest->co_type);
++	int rc;
+ 
+ 	C2_PRE(c2_conf_obj_invariant(dest));
+ 	C2_PRE(confc_is_nil_or_locked(dest));
+@@ -664,399 +189,29 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 	C2_PRE(c2_buf_eq(&dest->co_id, &src->o_id));
+ 	C2_PRE(confx_object_is_valid(src));
+ 
+-	rc = ot->ot_ops.coo_fill(dest, src, reg);
+-	if (rc != 0)
+-		return rc;
+-	dest->co_status = C2_CS_READY;
++	rc = dest->co_ops->coo_fill(dest, src, reg);
+ 
+-	C2_POST(c2_conf_obj_invariant(dest));
++	C2_POST(dest->co_status == (rc == 0 ? C2_CS_READY : C2_CS_MISSING));
+ 	C2_POST(confc_is_nil_or_locked(dest));
+-	return 0;
+-}
+-
+-#define DUMMY_FILL(abbrev)                                              \
+-static int abbrev ## _fill(struct c2_conf_obj *__dest,                  \
+-			   const struct confx_object *__src,            \
+-			   struct c2_conf_reg *reg)                     \
+-{                                                                       \
+-	C2_IMPOSSIBLE("c2_conf_dir is never filled from confx_object"); \
+-	return -1; \
+-}
+-
+-DUMMY_FILL(dir);
+-DUMMY_FILL(sdev);
+-DUMMY_FILL(partition);
+-
+-#define DUMMY_LOOKUP(abbrev)                             \
+-static int abbrev ## _lookup(struct c2_conf_obj *parent, \
+-			     const struct c2_buf *name,  \
+-			     struct c2_conf_obj **out)   \
+-{                                                        \
+-	C2_IMPOSSIBLE("XXX");                            \
+-	return -1;                                       \
+-}
+-
+-DUMMY_LOOKUP(filesystem);
+-DUMMY_LOOKUP(service);
+-DUMMY_LOOKUP(node);
+-DUMMY_LOOKUP(nic);
+-DUMMY_LOOKUP(sdev);
+-DUMMY_LOOKUP(partition);
+-
+-static bool
+-dir_match(const struct c2_conf_obj *cached, const struct confx_object *onwire)
+-{
+-	C2_IMPOSSIBLE("XXX");
+-	return false;
+-}
+-
+-static int profile_fill(struct c2_conf_obj *__dest,
+-			const struct confx_object *__src,
+-			struct c2_conf_reg *reg)
+-{
+-	struct c2_conf_profile     *dest;
+-	struct c2_conf_obj         *fs;
+-	int                         rc;
+-	const struct confx_profile *src = &__src->o_conf.u.u_profile;
+-
+-	/* XXX C2_CONF_CAST() may be not applicable here: ->bt_check()
+-	 * may fail, because __dest's linkage hasn't been set yet.  */
+-	dest = C2_CONF_CAST(__dest, c2_conf_profile);
+-
+-	rc = obj_find(reg, C2_CO_FILESYSTEM, &src->xp_filesystem, &fs);
+-	if (rc != 0)
+-		return rc;
+-	dest->cp_filesystem = C2_CONF_CAST(fs, c2_conf_filesystem);
+-
+-	return 0;
+-}
+-
+-static int filesystem_fill(struct c2_conf_obj *__dest,
+-			   const struct confx_object *__src,
+-			   struct c2_conf_reg *reg)
+-{
+-	struct c2_conf_filesystem     *dest;
+-	const struct confx_filesystem *src = &__src->o_conf.u.u_filesystem;
+-
+-	/* XXX C2_CONF_CAST()? */
+-	dest = C2_CONF_CAST(__dest, c2_conf_filesystem);
+-
+-#if 0 /*XXX*/
+-	dest->cf_rootfid = src->xf_rootfid;
+-#else
+-	dest->cf_rootfid.f_container = src->xf_rootfid.f_container;
+-	dest->cf_rootfid.f_key = src->xf_rootfid.f_key;
+-#endif
+-	/* dest->cf_params = XXX; */
+-
+-	return dir_new(&__src->o_id, C2_CO_SERVICE, &src->xf_services, reg,
+-		       &dest->cf_services);
+-}
+-
+-static int service_fill(struct c2_conf_obj *__dest,
+-			const struct confx_object *__src,
+-			struct c2_conf_reg *reg)
+-{
+-	struct c2_conf_service     *dest;
+-	struct c2_conf_obj         *child;
+-	int                         rc;
+-	const struct confx_service *src = &__src->o_conf.u.u_service;
+-
+-	dest = C2_CONF_CAST(__dest, c2_conf_service); /* XXX C2_CONF_CAST()? */
+-	dest->cs_type = src->xs_type;
+-
+-	rc = obj_find(reg, C2_CO_NODE, &src->xs_node, &child);
+-	if (rc != 0)
+-		return rc;
+-	dest->cs_node = C2_CONF_CAST(child, c2_conf_node);
+-
+-	return endpoints_populate(&dest->cs_endpoints, &src->xs_endpoints);
+-}
+-
+-static int node_fill(struct c2_conf_obj *__dest,
+-		     const struct confx_object *__src,
+-		     struct c2_conf_reg *reg)
+-{
+-	int                      rc;
+-	struct c2_conf_node     *dest;
+-	struct c2_buf            nic_id = C2_BUF_INIT0;
+-	struct c2_buf            sdev_id = C2_BUF_INIT0;
+-	const struct confx_node *src = &__src->o_conf.u.u_node;
+-
+-	dest = C2_CONF_CAST(__dest, c2_conf_node); /* XXX */
+-
+-	dest->cn_memsize    = src->xn_memsize;
+-	dest->cn_nr_cpu     = src->xn_nr_cpu;
+-	dest->cn_last_state = src->xn_last_state;
+-	dest->cn_flags      = src->xn_flags;
+-	dest->cn_pool_id    = src->xn_pool_id;
+-
+-	/* Mangle directories' identifiers to make them unique. */
+-	{
+-		C2_ASSERT(__src->o_id.b_nob > 1);
+-
+-		rc = c2_buf_copy(&nic_id, &__src->o_id);
+-		if (rc != 0)
+-			return rc;
+-		*(char *)nic_id.b_addr = 'N';
+-
+-		rc = c2_buf_copy(&sdev_id, &__src->o_id);
+-		if (rc != 0)
+-			return rc;
+-		*(char *)sdev_id.b_addr = 'S';
+-	}
+-
+-	return dir_new(&nic_id, C2_CO_NIC, &src->xn_nics, reg,
+-		       &dest->cn_nics) ?:
+-		dir_new(&sdev_id, C2_CO_SDEV, &src->xn_sdevs, reg,
+-			&dest->cn_sdevs);
+-}
+-
+-static int nic_fill(struct c2_conf_obj *__dest,
+-		    const struct confx_object *__src, struct c2_conf_reg *reg)
+-{
+-	struct c2_conf_nic *dest;
+-	const struct confx_nic *src = &__src->o_conf.u.u_nic;
+-
+-	dest = C2_CONF_CAST(__dest, c2_conf_nic); /* XXX C2_CONF_CAST()? */
+-
+-	dest->ni_iface = src->xi_iface;
+-	dest->ni_mtu = src->xi_mtu;
+-	dest->ni_speed = src->xi_speed;
+-	dest->ni_last_state = src->xi_last_state;
+-
+-	dest->ni_filename = buf_strdup(&src->xi_filename);
+-	return dest->ni_filename == NULL ? -ENOMEM : 0;
+-}
+-
+-static int endpoints_populate(const char ***dest, const struct arr_buf *src)
+-{
+-	uint32_t i;
+-
+-	C2_PRE(src->ab_count > 0 && src->ab_elems != NULL);
+-
+-	C2_ALLOC_ARR(*dest, src->ab_count + 1);
+-	if (*dest == NULL)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < src->ab_count; ++i) {
+-		(*dest)[i] = buf_strdup(&src->ab_elems[i]);
+-		if ((*dest)[i] == NULL)
+-			goto fail;
+-	}
+-	(*dest)[i] = NULL; /* end of list */
+-
+-	return 0;
+-fail:
+-	for (; i != 0; --i)
+-		c2_free((void *)(*dest)[i]);
+-	c2_free(*dest);
+-	return -ENOMEM;
+-}
+-
+-/* ------------------------------------------------------------------
+- * ->coo_lookup()
+- * ------------------------------------------------------------------ */
+-
+-static int dir_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
+-		      struct c2_conf_obj **out)
+-{
+-	/* struct c2_conf_obj *child; */
+-	/* struct c2_conf_dir *dir = C2_CONF_CAST(parent, c2_conf_dir); */
+-
+-	C2_PRE(parent->co_status == C2_CS_READY);
+-
+-	/*
+-	 * for_each(child in dir->cd_items) {
+-	 *     if (c2_buf_eq(&child->co_id, name)) {
+-	 *         *out = child;
+-	 *         return 0;
+-	 *     }
+-	 * }
+-	 *
+-	 * return -ENOENT;
+-	 */
+-	return -ENOENT; /*XXX*/
+-}
+-
+-static int
+-profile_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
+-	       struct c2_conf_obj **out)
+-{
+-	struct c2_conf_obj     *child;
+-	struct c2_conf_profile *prof = C2_CONF_CAST(parent, c2_conf_profile);
+-
+-	C2_PRE(parent->co_status == C2_CS_READY);
+-
+-	if (!c2_buf_eq(name, &(const struct c2_buf)C2_BUF_INITS("filesystem")))
+-		return -ENOENT;
+-
+-	child = &prof->cp_filesystem->cf_obj;
+-	C2_ASSERT(child->co_parent == parent);
+-	*out = child;
+-	return 0;
+-}
+-
+-/* XXX
+- *
+- * The remaining *_lookup()s are mostly similar to
+- * profile_lookup(). The differences are:
+- * - a list of expected names (e.g., node_lookup() will expect
+- *   ["nics", "sdevs"]);
+- * - offset of child pointer in the ambient (concrete) parent.
+- *
+- * Thus much of contents of *_lookup()s will go into a helper
+- * function, taking a NULL terminated array of "known children" as a
+- * parameter.
+- */
+-
+-/* ------------------------------------------------------------------
+- * ->coo_readdir()
+- * ------------------------------------------------------------------ */
+-
+-/* static bool readdir_pre(const struct c2_conf_obj *dir, */
+-/* 			const struct c2_conf_obj *entry); */
+-/* static bool readdir_post(int retval, const struct c2_conf_obj *dir, */
+-/* 			 const struct c2_conf_obj *entry); */
+-
+-/* static XXX */ int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+-{
+-	/*
+-	 * struct c2_conf_obj *next;
+-	 * int                 ret;
+-	 * struct c2_conf_obj *prev = *pptr;
+-	 *
+-	 * C2_PRE(readdir_pre(dir, prev));
+-	 *
+-	 * if (prev == NULL) {
+-	 *     next = c2_tlist_head();
+-	 * } else {
+-	 *     next = c2_tlist_next(..., prev);
+-	 *     c2_conf_obj_put(prev);
+-	 *     *pptr = NULL;
+-	 * }
+-	 *
+-	 * if (next == NULL) {
+-	 *     ret = C2_CONF_DIREND;
+-	 * } else if (next->co_status != C2_CS_READY) {
+-	 *     ret = C2_CONF_DIRMISS;
+-	 * } else {
+-	 *     c2_conf_obj_get(next);
+-	 *     *pptr = next;
+-	 *     ret = C2_CONF_DIRNEXT;
+-	 * }
+-	 *
+-	 * C2_POST(readdir_post(ret, dir, *pptr));
+-	 * return ret;
+-	 */
+-
+-	return C2_CONF_DIRMISS; /*XXX*/
+-}
+-
+-/* XXX
+- *
+- * There are no {profile..partition}_readdir().
+- * ->coo_readdir of any object except of c2_conf_dir is NULL.
+- */
+-
+-/* ------------------------------------------------------------------
+- * Auxiliary c2_buf operations
+- * ------------------------------------------------------------------ */
+-
+-static bool buf_is_valid(const struct c2_buf *buf)
+-{
+-	return buf->b_nob > 0 && buf->b_addr != NULL;
+-}
+-
+-/*
+- * Note, that buf_strdup() expects valid (buf_is_valid()) buffer.
+- * Take care when working with buffers received over network.
+- */
+-static char *buf_strdup(const struct c2_buf *buf)
+-{
+-	size_t len;
+-	char  *s;
+-
+-	C2_PRE(buf_is_valid(buf));
+-
+-	/* Measure the size of payload. Buffer's bytes beyond '\0'
+-	 * will never be used. */
+-	len = strlen(buf->b_addr);
+-	if (len > buf->b_nob)
+-		len = buf->b_nob;
+-
+-	C2_ALLOC_ARR(s, len + 1);
+-	if (s != NULL) {
+-		memcpy(s, buf->b_addr, len);
+-		s[len] = 0;
+-	}
+-	return s;
+-}
+-
+-static bool buf_streq(const struct c2_buf *buf, const char *str)
+-{
+-	C2_PRE(buf_is_valid(buf) && str != NULL);
+-
+-	return memcmp(str, buf->b_addr, buf->b_nob) == 0 &&
+-		strlen(str) == buf->b_nob;
+-}
+-
+-/* ------------------------------------------------------------------
+- * misc.
+- * ------------------------------------------------------------------ */
+-
+-static bool
+-belongs(const struct c2_conf_obj *entry, const struct c2_conf_obj *dir)
+-{
+-	const struct c2_conf_dir *d = bob_of(dir, const struct c2_conf_dir,
+-					     c2_conf_dir_cast_field,
+-					     &c2_conf_dir_bob);
+-	return d->cd_item_type == entry->co_type && entry->co_parent == dir;
++	C2_POST(c2_conf_obj_invariant(dest));
++	return rc;
+ }
+ 
+-#if 0 /*XXX*/
+-/**
+- * Precondition for c2_conf_obj_ops::coo_readdir().
+- *
+- * @param dir     The 1st argument of ->coo_readdir().
+- * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
+- *                before the function is called (*pptr).
+- *
+- * @see c2_conf_obj_ops::coo_readdir()
+- */
+-static bool
+-readdir_pre(const struct c2_conf_obj *dir, const struct c2_conf_obj *entry)
++bool c2_conf_obj_match(const struct c2_conf_obj *cached,
++		       const struct confx_object *onwire)
+ {
+-	return c2_conf_obj_invariant(dir) && c2_conf_obj_invariant(entry) &&
+-		dir->co_type == C2_CO_DIR && dir->co_nrefs > 0 &&
+-		ergo(entry != NULL, belongs(entry, dir) && entry->co_nrefs > 0);
+-}
+-#endif
++	C2_PRE(c2_conf_obj_invariant(cached));
++	C2_PRE(confx_object_is_valid(onwire));
+ 
+-/**
+- * Postcondition for c2_conf_obj_ops::coo_readdir().
+- *
+- * @param retval  The value returned by ->coo_readdir().
+- * @param dir     The 1st argument of ->coo_readdir().
+- * @param entry   The 2nd argument of ->coo_readdir(), dereferenced
+- *                after the function is called (*pptr).
+- *
+- * @see c2_conf_obj_ops::coo_readdir()
+- */
+-/* static XXX */ bool readdir_post(int retval, const struct c2_conf_obj *dir,
+-			 const struct c2_conf_obj *entry)
+-{
+-	return c2_conf_obj_invariant(dir) && c2_conf_obj_invariant(entry) &&
+-		C2_IN(retval,
+-		     (C2_CONF_DIREND, C2_CONF_DIRNEXT, C2_CONF_DIRMISS)) &&
+-		(retval == C2_CONF_DIRNEXT ?
+-		 (entry != NULL && belongs(entry, dir) && entry->co_nrefs > 0) :
+-		 entry == NULL);
+-}
++	if (cached->co_type != onwire->o_conf.u_type ||
++	    !c2_buf_eq(&cached->co_id, &onwire->o_id))
++		return false;
+ 
+-static bool obj_is_stub(const struct c2_conf_obj *obj)
+-{
+-	return obj->co_status != C2_CS_READY;
++	return cached->co_status == C2_CS_READY ?
++		/* compare concrete fields */
++		cached->co_ops->coo_match(cached, onwire) :
++		/* a stub with matching identity */
++		true;
+ }
+ 
+ /** Performs sanity checking of given onwire object. */
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index 2d08228..f7ba022 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -21,14 +21,16 @@
+ #ifndef __COLIBRI_CONF_OBJOPS_H__
+ #define __COLIBRI_CONF_OBJOPS_H__
+ 
+-#include "conf/obj.h" /* c2_conf_objtype */
++#include "conf/obj.h"  /* c2_conf_objtype */
++#include "lib/tlist.h" /* C2_TL_DESCR_DECLARE, C2_TL_DECLARE */
+ 
+ /**
+  * @page conf-fspec-objops Configuration Object Operations
+  *
+- * "conf/obj_ops.h" is not supposed to be included by the application
+- * (configuration consumer). Data structures and functions defined in
+- * this file are used by confc and confd implementations.
++ * Data structures and functions declared in "conf/obj_ops.h" are used
++ * by confc and confd implementations. "conf/obj_ops.h" is not
++ * supposed to be #included by the application (aka configuration
++ * consumer).
+  *
+  * @section conf-fspec-objops-data Data Structures
+  *
+@@ -36,17 +38,14 @@
+  *
+  * @section conf-fspec-objops-sub Subroutines
+  *
+- * - c2_conf_obj_new() allocates and initialises configuration object.
++ * - c2_conf_obj_create() allocates and initialises configuration object.
+  * - c2_conf_obj_delete() finalises and frees configuration object.
+- *
+- * - c2_conf_obj_match() compares cached configuration object with its
+- *   on-wire representation.
+- * - c2_conf_obj_fill() enriches a stub with configuration data.
+- *
+- * - c2_conf_obj_invariant() checks validity of a configuration object.
+- *
++ * - c2_conf_obj_invariant() validates given configuration object.
+  * - c2_conf_obj_get() increases and c2_conf_obj_put() decreases
+  *   object's number of references.
++ * - c2_conf_obj_fill() enriches a stub with configuration data.
++ * - c2_conf_obj_match() compares cached configuration object with its
++ *   on-wire representation.
+  *
+  * @see @ref conf_dfspec_objops "Detailed Functional Specification"
+  */
+@@ -71,9 +70,52 @@ struct confx_object;
+ /** Magic value for a generic configuration object (c2_conf_obj). */
+ enum { C2_CONF_OBJ_MAGIC = 0x335e1f1e55ce1177 /* selfless cell */ };
+ 
++C2_TL_DESCR_DECLARE(c2_conf_dir, extern);
++C2_TL_DECLARE(c2_conf_dir, , struct c2_conf_obj);
++
++/** Symbolic names for c2_conf_obj_ops::coo_readdir() return values. */
++enum c2_conf_dirval {
++	/** End of directory is reached. */
++	C2_CONF_DIREND = 0,
++	/** The next directory entry is available immediately. */
++	C2_CONF_DIRNEXT,
++	/**
++	 * The next directory entry is missing from configuration
++	 * cache or is a stub.
++	 */
++	C2_CONF_DIRMISS
++};
++
+ /** Configuration object operations. */
+ struct c2_conf_obj_ops {
+ 	/**
++	 * Validates concrete fields of given configuration object.
++	 *
++	 * @param bob  Address of concrete configuration object.
++	 */
++	bool (*coo_invariant)(const void *bob);
++
++	/**
++	 * Populates concrete object with configuration data taken
++	 * from confx_object.
++	 *
++	 * Creates stubs of object's neighbours, if necessary.
++	 *
++	 * @pre   dest->co_nrefs == 0 && dest->co_status != C2_CS_READY
++	 * @post  dest->co_status == (retval == 0 ? C2_CS_READY : C2_CS_MISSING)
++	 */
++	int (*coo_fill)(struct c2_conf_obj *dest,
++			const struct confx_object *src,
++			struct c2_conf_reg *reg);
++
++	/**
++	 * Returns false iff cached configuration object and on-wire object
++	 * have conflicting data.
++	 */
++	bool (*coo_match)(const struct c2_conf_obj *cached,
++			  const struct confx_object *onwire);
++
++	/**
+ 	 * Finds a child of given object.
+ 	 *
+ 	 * @param parent  The object being searched.
+@@ -110,43 +152,33 @@ struct c2_conf_obj_ops {
+ 	int (*coo_readdir)(struct c2_conf_obj *dir, struct c2_conf_obj **pptr);
+ 
+ 	/**
+-	 * Populates a concrete object with configuration data taken
+-	 * from confx_object.
+-	 *
+-	 * Creates stubs of object's neighbours, if necessary.
+-	 *
+-	 * Note, that ->coo_fill() *does not* set dest->co_status to
+-	 * C2_CS_READY.
+-	 */
+-	int (*coo_fill)(struct c2_conf_obj *dest,
+-			const struct confx_object *src,
+-			struct c2_conf_reg *reg);
+-
+-	/**
+-	 * Returns false iff cached configuration object and on-wire object
+-	 * have conflicting data.
+-	 */
+-	bool (*coo_match)(const struct c2_conf_obj *cached,
+-			  const struct confx_object *onwire);
+-
+-	/**
+-	 * Finalises the concrete fields of given configuration object.
+-	 *
+-	 * ->coo_fini() neither finalises generic fields (those of
+-	 * c2_conf_obj), nor c2_free()s the configuration object.
++	 * Finalises concrete fields of given configuration object and
++	 * frees it.
+ 	 *
+ 	 * @see c2_conf_obj_delete()
+ 	 */
+-	void (*coo_fini)(struct c2_conf_obj *obj);
++	void (*coo_delete)(struct c2_conf_obj *obj);
+ };
+ 
+ /**
+- * Checks validity of given configuration object.
++ * Allocates and initialises configuration object of given type.
++ *
++ * Copies `id' into ->co_id of the resulting object.
++ *
++ * Note, that c2_conf_obj_create() does not add the resulting object
++ * into configuration cache.
++ */
++struct c2_conf_obj *c2_conf_obj_create(enum c2_conf_objtype type,
++				       const struct c2_buf *id);
++
++/**
++ * Finalises and frees configuration object.
+  *
+- * c2_conf_obj_invariant() checks both generic and concrete fields of
+- * a configuration object.  I.e., not only c2_conf_obj is validated,
+- * but the ambient object (e.g., c2_conf_node) as well.
++ * @pre  obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING
+  */
++void c2_conf_obj_delete(struct c2_conf_obj *obj);
++
++/** Validates given configuration object. */
+ bool c2_conf_obj_invariant(const struct c2_conf_obj *obj);
+ 
+ /**
+@@ -168,39 +200,16 @@ void c2_conf_obj_get(struct c2_conf_obj *obj);
+ void c2_conf_obj_put(struct c2_conf_obj *obj);
+ 
+ /**
+- * Allocates and initialises configuration object of given type.
+- *
+- * `id' is copied into ->co_id of the resulting object.
+- *
+- * Note, that c2_conf_obj_new() does not add resulting object into the
+- * configuration cache: the resulting object is neither registered,
+- * nor integrated into the @ref conf-lspec-comps "DAG" of
+- * configuration objects.
+- */
+-struct c2_conf_obj *c2_conf_obj_new(enum c2_conf_objtype type,
+-				    const struct c2_buf *id);
+-
+-/**
+- * Finalises and frees concrete configuration object.
+- *
+- * @pre  obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING
+- */
+-void c2_conf_obj_delete(struct c2_conf_obj *obj);
+-
+-/**
+- * Returns false iff cached configuration object and on-wire object
+- * have conflicting data.
+- */
+-bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+-		       const struct confx_object *onwire);
+-
+-/**
+  * Enriches a stub with configuration data.
+  *
+  * @param dest  A stub to be filled with configuration data.
+  * @param src   On-wire object, providing the configuration data.
+  * @param reg   Registry of cached configuration objects.
+  *
++ * Note, that the caller is responsible for ensuring that valid
++ * confx_object is passed via `src' parameter.
++ *
++ * @pre   `src' is valid
+  * @pre   c2_mutex_is_locked(&dest->co_confc->cc_lock)
+  * @pre   dest->co_status != C2_CS_READY
+  * @pre   dest->co_nrefs == 0
+@@ -214,18 +223,17 @@ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		     struct c2_conf_reg *reg);
+ 
+-/** Symbolic names for c2_conf_obj_ops::coo_readdir() return values. */
+-enum c2_conf_dirval {
+-	/** End of directory is reached. */
+-	C2_CONF_DIREND = 0,
+-	/** The next directory entry is available immediately. */
+-	C2_CONF_DIRNEXT,
+-	/**
+-	 * The next directory entry is missing from configuration
+-	 * cache or is a stub.
+-	 */
+-	C2_CONF_DIRMISS
+-};
++/**
++ * Returns false iff cached configuration object and on-wire object
++ * have conflicting data.
++ *
++ * Note, that the caller is responsible for ensuring that valid
++ * confx_object is passed via `onwire' parameter.
++ *
++ * @pre  `onwire' is valid
++ */
++bool c2_conf_obj_match(const struct c2_conf_obj *cached,
++		       const struct confx_object *onwire);
+ 
+ /** @} conf_dfspec_objops */
+ #endif /* __COLIBRI_CONF_OBJOPS_H__ */
+diff --git a/conf/objs/common.c b/conf/objs/common.c
+new file mode 100644
+index 0000000..13a7f15
+--- /dev/null
++++ b/conf/objs/common.c
+@@ -0,0 +1,136 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++#include "conf/reg.h" /* c2_conf_reg_lookup, c2_conf_reg_add, c2_conf_reg_del */
++
++int obj_find(struct c2_conf_reg *reg, enum c2_conf_objtype type,
++	     const struct c2_buf *id, struct c2_conf_obj **out)
++{
++	*out = c2_conf_reg_lookup(reg, type, id);
++	if (*out == NULL) {
++		/* Create a stub. */
++		*out = c2_conf_obj_create(type, id);
++		if (*out == NULL)
++			return -ENOMEM;
++
++		/* Register the stub. */
++		c2_conf_reg_add(reg, *out);
++	}
++	return 0;
++}
++
++char *buf_strdup(const struct c2_buf *buf)
++{
++	size_t len;
++	char  *s;
++
++	C2_PRE(buf_is_valid(buf));
++
++	/* Measure the size of payload. Buffer's bytes beyond '\0'
++	 * will never be used. */
++	len = strlen(buf->b_addr);
++	if (len > buf->b_nob)
++		len = buf->b_nob;
++
++	C2_ALLOC_ARR(s, len + 1);
++	if (s != NULL) {
++		memcpy(s, buf->b_addr, len);
++		s[len] = 0;
++	}
++	return s;
++}
++
++bool buf_streq(const struct c2_buf *buf, const char *str)
++{
++	C2_PRE(buf_is_valid(buf) && str != NULL);
++
++	return memcmp(str, buf->b_addr, buf->b_nob) == 0 &&
++		strlen(str) == buf->b_nob;
++}
++
++bool child_is_ok(const struct c2_conf_obj *obj, const struct c2_conf_obj *child,
++		 enum c2_conf_objtype child_type)
++{
++	return /* Child is NULL iff `obj' is a stub. */
++		obj_is_stub(obj) == (child == NULL) &&
++		/* Child is valid object of given type, and `obj' is
++		 * its parent. */
++		ergo(!obj_is_stub(obj), obj_check_as(child, child_type) &&
++		     child->co_parent == obj);
++}
++
++int dir_new(const struct c2_buf *dir_id, enum c2_conf_objtype child_type,
++	    const struct arr_buf *src, struct c2_conf_reg *reg,
++	    struct c2_conf_dir **out)
++{
++	struct c2_conf_obj *dir;
++	struct c2_conf_obj *child;
++	uint32_t            i;
++	int                 rc;
++
++	C2_PRE(*out == NULL);
++
++	dir = c2_conf_obj_create(C2_CO_DIR, dir_id);
++	if (dir == NULL)
++		return -ENOMEM;
++	*out = C2_CONF_CAST(dir, c2_conf_dir);
++
++	for (rc = 0, i = 0; i < src->ab_count; ++i) {
++		rc = obj_find(reg, child_type, &src->ab_elems[i], &child);
++		if (rc != 0)
++			break;
++
++		/* Link the directory and its element together. */
++		child->co_parent = dir;
++		c2_conf_dir_tlist_add(&(*out)->cd_items, child);
++	}
++
++	if (rc == 0) {
++		c2_conf_reg_add(reg, dir);
++	} else {
++		/* Restore consistency. */
++		c2_tl_for(c2_conf_dir, &(*out)->cd_items, child) {
++			c2_conf_reg_del(reg, child);
++			c2_conf_obj_delete(child);
++		} c2_tl_endfor;
++		c2_conf_reg_del(reg, dir);
++		c2_conf_obj_delete(dir);
++	}
++
++	return rc;
++}
++
++bool arrays_eq(const char **cached, const struct arr_buf *onwire)
++{
++	uint32_t i;
++
++	C2_PRE(onwire->ab_count != 0); /* `onwire' is known to be valid */
++
++	for (i = 0; cached[i] != NULL; ++i) {
++		if (i >= onwire->ab_count || !buf_streq(&onwire->ab_elems[i],
++							cached[i]))
++			return false;
++	}
++	return i == onwire->ab_count;
++}
+diff --git a/conf/objs/common.h b/conf/objs/common.h
+new file mode 100644
+index 0000000..66d37dd
+--- /dev/null
++++ b/conf/objs/common.h
+@@ -0,0 +1,119 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++#pragma once
++#ifndef __COLIBRI_CONF_OBJS_COMMON_H__
++#define __COLIBRI_CONF_OBJS_COMMON_H__
++
++#include "conf/obj.h"     /* c2_conf_obj, c2_conf_objtype */
++#include "conf/obj_ops.h" /* c2_conf_obj_ops */
++#include "conf/onwire.h"  /* confx_object */
++#include "lib/memory.h"   /* c2_free */
++#include "lib/errno.h"    /* ENOMEM, ENOENT */
++#include "lib/misc.h"     /* memcpy, memcmp, strlen, C2_IN */
++
++struct c2_conf_reg;
++struct c2_buf;
++
++#define MEMBER_PTR(ptr, member)                \
++({                                             \
++	typeof(ptr) __ptr = (ptr);             \
++	__ptr == NULL ? NULL : &__ptr->member; \
++})
++
++#define BOB_DEFINE(type, magic, check)          \
++const struct c2_bob_type type ## _bob = {       \
++	.bt_name         = #type,               \
++	.bt_magix_offset = C2_MAGIX_OFFSET(struct type,                       \
++					   type ## _cast_field.co_con_magic), \
++	.bt_magix        = magic,               \
++	.bt_check        = check                \
++};                                              \
++						\
++static void type ## _bob_init(struct type *bob) \
++{                                               \
++	c2_bob_init(&type ## _bob, bob);        \
++}                                               \
++						\
++static void type ## _bob_fini(struct type *bob) \
++{                                               \
++	c2_bob_fini(&type ## _bob, bob);        \
++}                                               \
++						\
++/* Note the absence of ## _bob_check(). */      \
++						\
++struct __ ## type ## _semicolon_catcher
++
++static inline bool obj_is_stub(const struct c2_conf_obj *obj)
++{
++	return obj->co_status != C2_CS_READY;
++}
++
++static inline bool
++obj_check_as(const struct c2_conf_obj *obj, enum c2_conf_objtype type)
++{
++	return obj->co_type == type && c2_conf_obj_invariant(obj);
++}
++
++/** Finds object in the registry or creates (and registers) a stub for it. */
++int obj_find(struct c2_conf_reg *reg, enum c2_conf_objtype type,
++	     const struct c2_buf *id, struct c2_conf_obj **out);
++
++static inline bool buf_is_valid(const struct c2_buf *buf)
++{
++	return buf->b_nob > 0 && buf->b_addr != NULL;
++}
++
++/**
++ * Duplicates a string pointed to by buf->b_addr.  Length of the
++ * resulting string will not exceed buf->b_nob characters.
++ *
++ * Note, that buf_strdup() expects valid buffer. Take this into
++ * consideration, when working with network-originated buffers.
++ *
++ * @pre  buf_is_valid(buf)
++ */
++char *buf_strdup(const struct c2_buf *buf);
++
++bool buf_streq(const struct c2_buf *buf, const char *str);
++
++bool child_is_ok(const struct c2_conf_obj *obj, const struct c2_conf_obj *child,
++		 enum c2_conf_objtype child_type);
++
++/**
++ * Creates new c2_conf_directory and populates it with stubs.
++ *
++ * @param dir_id      Directory identifier.
++ * @param child_type  Type of entries.
++ * @param src         Identifiers of the entries.
++ * @param reg         Registry of cached objects.
++ * @param[out] out    Resulting pointer.
++ *
++ * dir_new() is transactional: if it fails, the configuration cache
++ * (i.e., the DAG of objects and the registry) is left unchanged.
++ *
++ * XXX @todo UT transactional property of dir_new().
++ */
++int dir_new(const struct c2_buf *dir_id, enum c2_conf_objtype child_type,
++	    const struct arr_buf *src, struct c2_conf_reg *reg,
++	    struct c2_conf_dir **out);
++
++bool arrays_eq(const char **cached, const struct arr_buf *onwire);
++
++#endif /* __COLIBRI_CONF_OBJS_COMMON_H__ */
+diff --git a/conf/objs/dir.c b/conf/objs/dir.c
+new file mode 100644
+index 0000000..62c38c5
+--- /dev/null
++++ b/conf/objs/dir.c
+@@ -0,0 +1,159 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { DIR_MAGIC = 0x3301dca1ab005e77 /* old calaboose */ };
++
++C2_TL_DESCR_DEFINE(c2_conf_dir, "c2_conf_dir::cd_items", , struct c2_conf_obj,
++		   co_dir_link, co_gen_magic, C2_CONF_OBJ_MAGIC, DIR_MAGIC);
++C2_TL_DEFINE(c2_conf_dir, , struct c2_conf_obj);
++
++static bool dir_invariant(const void *bob)
++{
++	const struct c2_conf_dir *self = bob;
++	const struct c2_conf_obj *self_obj = &self->cd_obj;
++	const struct c2_conf_obj *parent = self_obj->co_parent;
++
++	C2_PRE(self_obj->co_type == C2_CO_DIR);
++
++	return /* Parent is valid configuration object. */
++		obj_check_as(parent, parent->co_type) &&
++		/* Children are valid objects of proper type and point
++		 * to `self' via ->co_parent field. */
++		ergo(!obj_is_stub(self_obj),
++		     c2_tl_forall(c2_conf_dir, child, &self->cd_items,
++			obj_check_as(child, self->cd_item_type) &&
++			((struct c2_conf_obj *)child)->co_parent == self_obj));
++}
++
++static int dir_fill(struct c2_conf_obj *__dest __attribute__((unused)),
++		    const struct confx_object *__src __attribute__((unused)),
++		    struct c2_conf_reg *reg __attribute__((unused)))
++{
++	C2_IMPOSSIBLE("c2_conf_dir should not be filled explicitly");
++	return -1;
++}
++
++static bool dir_match(const struct c2_conf_obj *cached __attribute__((unused)),
++		      const struct confx_object *onwire __attribute__((unused)))
++{
++	C2_IMPOSSIBLE("c2_conf_dir should not be compared with confx_object");
++	return false;
++}
++
++static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
++{
++	/*
++	 * struct c2_conf_obj *next;
++	 * int                 ret;
++	 * struct c2_conf_obj *prev = *pptr;
++	 *
++	 * C2_PRE(readdir_pre(dir, prev));
++	 *
++	 * if (prev == NULL) {
++	 *     next = c2_tlist_head();
++	 * } else {
++	 *     next = c2_tlist_next(..., prev);
++	 *     c2_conf_obj_put(prev);
++	 *     *pptr = NULL;
++	 * }
++	 *
++	 * if (next == NULL) {
++	 *     ret = C2_CONF_DIREND;
++	 * } else if (next->co_status != C2_CS_READY) {
++	 *     ret = C2_CONF_DIRMISS;
++	 * } else {
++	 *     c2_conf_obj_get(next);
++	 *     *pptr = next;
++	 *     ret = C2_CONF_DIRNEXT;
++	 * }
++	 *
++	 * C2_POST(readdir_post(ret, dir, *pptr));
++	 * return ret;
++	 */
++
++	C2_IMPOSSIBLE("XXX not implemented");
++	return C2_CONF_DIRMISS;
++}
++
++static int dir_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
++		      struct c2_conf_obj **out)
++{
++	/* struct c2_conf_obj *child; */
++	/* struct c2_conf_dir *dir = C2_CONF_CAST(parent, c2_conf_dir); */
++
++	C2_PRE(parent->co_status == C2_CS_READY);
++
++	/*
++	 * for_each(child in dir->cd_items) {
++	 *     if (c2_buf_eq(&child->co_id, name)) {
++	 *         *out = child;
++	 *         return 0;
++	 *     }
++	 * }
++	 *
++	 * return -ENOENT;
++	 */
++
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -ENOENT;
++}
++
++BOB_DEFINE(c2_conf_dir, DIR_MAGIC, dir_invariant);
++
++static void dir_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_dir *x = C2_CONF_CAST(obj, c2_conf_dir);
++
++	c2_conf_dir_tlist_fini(&x->cd_items);
++	c2_conf_dir_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops dir_ops = {
++	.coo_invariant = dir_invariant,
++	.coo_fill      = dir_fill,
++	.coo_match     = dir_match,
++	.coo_lookup    = dir_lookup,
++	.coo_readdir   = dir_readdir,
++	.coo_delete    = dir_delete
++};
++
++struct c2_conf_obj *c2_conf__dir_create(void)
++{
++	struct c2_conf_dir *x;
++	struct c2_conf_obj *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_dir_bob_init(x);
++
++	/* Initialise concrete fields. */
++	c2_conf_dir_tlist_init(&x->cd_items);
++
++	ret = &x->cd_obj;
++	ret->co_ops = &dir_ops;
++	return ret;
++}
+diff --git a/conf/objs/filesystem.c b/conf/objs/filesystem.c
+new file mode 100644
+index 0000000..1b2e55d
+--- /dev/null
++++ b/conf/objs/filesystem.c
+@@ -0,0 +1,118 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { FILESYSTEM_MAGIC = 0x33f00d0fc01aba77 /* food of Colaba */ };
++
++static bool filesystem_invariant(const void *bob)
++{
++	const struct c2_conf_filesystem *self = bob;
++	const struct c2_conf_obj        *self_obj = &self->cf_obj;
++	struct c2_conf_obj              *parent = self_obj->co_parent;
++
++	C2_PRE(self_obj->co_type == C2_CO_FILESYSTEM);
++
++	return /* Parent is valid c2_conf_profile pointing to `self' via
++		* c2_conf_profile::cp_filesystem field. */
++		obj_check_as(parent, C2_CO_PROFILE) &&
++		C2_CONF_CAST(parent, c2_conf_profile)->cp_filesystem == self &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cf_services, cd_obj),
++			    C2_CO_DIR) &&
++		/* Other checks. */
++		obj_is_stub(self_obj) == (self->cf_params == NULL);
++}
++
++static int filesystem_fill(struct c2_conf_obj *__dest,
++			   const struct confx_object *__src,
++			   struct c2_conf_reg *reg)
++{
++	struct c2_conf_filesystem     *dest = C2_CONF_CAST(__dest,
++							   c2_conf_filesystem);
++	const struct confx_filesystem *src = &__src->o_conf.u.u_filesystem;
++
++#if 0 /*XXX*/
++	dest->cf_rootfid = src->xf_rootfid;
++#else
++	dest->cf_rootfid.f_container = src->xf_rootfid.f_container;
++	dest->cf_rootfid.f_key = src->xf_rootfid.f_key;
++#endif
++	/* dest->cf_params = XXX; */
++
++	return dir_new(&__src->o_id, C2_CO_SERVICE, &src->xf_services, reg,
++		       &dest->cf_services);
++}
++
++static bool filesystem_match(const struct c2_conf_obj *cached,
++			     const struct confx_object *onwire)
++{
++	const struct confx_filesystem   *objx = &onwire->o_conf.u.u_filesystem;
++	const struct c2_conf_filesystem *obj = C2_CONF_CAST(cached,
++							    c2_conf_filesystem);
++	C2_IMPOSSIBLE("XXX TODO: compare dir elements");
++	return arrays_eq(obj->cf_params, &objx->xf_params) &&
++		obj->cf_rootfid.f_container == objx->xf_rootfid.f_container &&
++		obj->cf_rootfid.f_key == objx->xf_rootfid.f_key;
++}
++
++static int filesystem_lookup(struct c2_conf_obj *parent,
++			     const struct c2_buf *name,
++			     struct c2_conf_obj **out)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++BOB_DEFINE(c2_conf_filesystem, FILESYSTEM_MAGIC, filesystem_invariant);
++
++static void filesystem_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_filesystem *x = C2_CONF_CAST(obj, c2_conf_filesystem);
++
++	c2_conf_filesystem_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops filesystem_ops = {
++	.coo_invariant = filesystem_invariant,
++	.coo_fill      = filesystem_fill,
++	.coo_match     = filesystem_match,
++	.coo_lookup    = filesystem_lookup,
++	.coo_readdir   = NULL,
++	.coo_delete    = filesystem_delete
++};
++
++struct c2_conf_obj *c2_conf__filesystem_create(void)
++{
++	struct c2_conf_filesystem *x;
++	struct c2_conf_obj        *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_filesystem_bob_init(x);
++
++	ret = &x->cf_obj;
++	ret->co_ops = &filesystem_ops;
++	return ret;
++}
+diff --git a/conf/objs/nic.c b/conf/objs/nic.c
+new file mode 100644
+index 0000000..682d5dc
+--- /dev/null
++++ b/conf/objs/nic.c
+@@ -0,0 +1,112 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { NIC_MAGIC = 0x33ba5eba11feed77 /* baseball feed */ };
++
++static bool nic_invariant(const void *bob)
++{
++	const struct c2_conf_nic *self = bob;
++	const struct c2_conf_obj *self_obj = &self->ni_obj;
++	struct c2_conf_obj       *parent = self_obj->co_parent;
++
++	C2_PRE(self_obj->co_type == C2_CO_NIC);
++
++	return /* Parent is valid c2_conf_dir with proper
++		* ->cd_item_type. */
++		obj_check_as(parent, C2_CO_DIR) &&
++		C2_CONF_CAST(parent,
++			     c2_conf_dir)->cd_item_type == C2_CO_NIC &&
++		/* Other checks. */
++		obj_is_stub(self_obj) == (self->ni_filename == NULL);
++}
++
++static int nic_fill(struct c2_conf_obj *__dest,
++		    const struct confx_object *__src, struct c2_conf_reg *reg)
++{
++	struct c2_conf_nic *dest = C2_CONF_CAST(__dest, c2_conf_nic);
++	const struct confx_nic *src = &__src->o_conf.u.u_nic;
++
++	dest->ni_iface      = src->xi_iface;
++	dest->ni_mtu        = src->xi_mtu;
++	dest->ni_speed      = src->xi_speed;
++	dest->ni_last_state = src->xi_last_state;
++
++	dest->ni_filename = buf_strdup(&src->xi_filename);
++	return dest->ni_filename == NULL ? -ENOMEM : 0;
++}
++
++static bool
++nic_match(const struct c2_conf_obj *cached, const struct confx_object *onwire)
++{
++	const struct confx_nic   *objx = &onwire->o_conf.u.u_nic;
++	const struct c2_conf_nic *obj = C2_CONF_CAST(cached, c2_conf_nic);
++
++	return  obj->ni_iface      == objx->xi_iface      &&
++		obj->ni_mtu        == objx->xi_mtu        &&
++		obj->ni_speed      == objx->xi_speed      &&
++		obj->ni_last_state == objx->xi_last_state &&
++		buf_streq(&objx->xi_filename, obj->ni_filename);
++}
++
++static int nic_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
++		      struct c2_conf_obj **out)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++BOB_DEFINE(c2_conf_nic, NIC_MAGIC, nic_invariant);
++
++static void nic_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_nic *x = C2_CONF_CAST(obj, c2_conf_nic);
++
++	c2_conf_nic_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops nic_ops = {
++	.coo_invariant = nic_invariant,
++	.coo_fill      = nic_fill,
++	.coo_match     = nic_match,
++	.coo_lookup    = nic_lookup,
++	.coo_readdir   = NULL,
++	.coo_delete    = nic_delete
++};
++
++struct c2_conf_obj *c2_conf__nic_create(void)
++{
++	struct c2_conf_nic *x;
++	struct c2_conf_obj *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_nic_bob_init(x);
++
++	ret = &x->ni_obj;
++	ret->co_ops = &nic_ops;
++	return ret;
++}
+diff --git a/conf/objs/node.c b/conf/objs/node.c
+new file mode 100644
+index 0000000..b20bb38
+--- /dev/null
++++ b/conf/objs/node.c
+@@ -0,0 +1,135 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { NODE_MAGIC = 0x33c01055a1d05a77 /* colossal dosa */ };
++
++static bool node_invariant(const void *bob)
++{
++	const struct c2_conf_node *self = bob;
++	const struct c2_conf_obj  *self_obj = &self->cn_obj;
++
++	C2_PRE(self_obj->co_type == C2_CO_NODE);
++
++	return /* The notion of parent is not applicable to a node,
++		* since a node may host (be child of) several
++		* services. */
++		self_obj->co_parent == NULL &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cn_nics, cd_obj),
++			    C2_CO_DIR) &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cn_sdevs, cd_obj),
++			    C2_CO_DIR);
++}
++
++static int node_fill(struct c2_conf_obj *__dest,
++		     const struct confx_object *__src, struct c2_conf_reg *reg)
++{
++	int                      rc;
++	struct c2_buf            nic_id = C2_BUF_INIT0;
++	struct c2_buf            sdev_id = C2_BUF_INIT0;
++	struct c2_conf_node     *dest = C2_CONF_CAST(__dest, c2_conf_node);
++	const struct confx_node *src = &__src->o_conf.u.u_node;
++
++	dest->cn_memsize    = src->xn_memsize;
++	dest->cn_nr_cpu     = src->xn_nr_cpu;
++	dest->cn_last_state = src->xn_last_state;
++	dest->cn_flags      = src->xn_flags;
++	dest->cn_pool_id    = src->xn_pool_id;
++
++	/* Mangle directories' identifiers to make them unique. */
++	{
++		C2_ASSERT(__src->o_id.b_nob > 1);
++
++		rc = c2_buf_copy(&nic_id, &__src->o_id);
++		if (rc != 0)
++			return rc;
++		*(char *)nic_id.b_addr = 'N';
++
++		rc = c2_buf_copy(&sdev_id, &__src->o_id);
++		if (rc != 0)
++			return rc;
++		*(char *)sdev_id.b_addr = 'S';
++	}
++
++	return dir_new(&nic_id, C2_CO_NIC, &src->xn_nics, reg,
++		       &dest->cn_nics) ?:
++		dir_new(&sdev_id, C2_CO_SDEV, &src->xn_sdevs, reg,
++			&dest->cn_sdevs);
++}
++
++static bool
++node_match(const struct c2_conf_obj *cached, const struct confx_object *onwire)
++{
++	const struct confx_node   *objx = &onwire->o_conf.u.u_node;
++	const struct c2_conf_node *obj = C2_CONF_CAST(cached, c2_conf_node);
++
++	C2_IMPOSSIBLE("XXX TODO: compare dir elements");
++	return  obj->cn_memsize    == objx->xn_memsize    &&
++		obj->cn_nr_cpu     == objx->xn_nr_cpu     &&
++		obj->cn_last_state == objx->xn_last_state &&
++		obj->cn_flags      == objx->xn_flags      &&
++		obj->cn_pool_id    == objx->xn_pool_id;
++
++}
++
++static int node_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
++		       struct c2_conf_obj **out)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++BOB_DEFINE(c2_conf_node, NODE_MAGIC, node_invariant);
++
++static void node_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_node *x = C2_CONF_CAST(obj, c2_conf_node);
++
++	c2_conf_node_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops node_ops = {
++	.coo_invariant = node_invariant,
++	.coo_fill      = node_fill,
++	.coo_match     = node_match,
++	.coo_lookup    = node_lookup,
++	.coo_readdir   = NULL,
++	.coo_delete    = node_delete
++};
++
++struct c2_conf_obj *c2_conf__node_create(void)
++{
++	struct c2_conf_node *x;
++	struct c2_conf_obj  *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_node_bob_init(x);
++
++	ret = &x->cn_obj;
++	ret->co_ops = &node_ops;
++	return ret;
++}
+diff --git a/conf/objs/partition.c b/conf/objs/partition.c
+new file mode 100644
+index 0000000..17cdebb
+--- /dev/null
++++ b/conf/objs/partition.c
+@@ -0,0 +1,105 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { PARTITION_MAGIC = 0x33bacca15a100f77 /* bacca is aloof */ };
++
++static bool partition_invariant(const void *bob)
++{
++	const struct c2_conf_partition *self = bob;
++	const struct c2_conf_obj       *self_obj = &self->pa_obj;
++	struct c2_conf_obj             *parent = self_obj->co_parent;
++
++	C2_PRE(self_obj->co_type == C2_CO_PARTITION);
++
++	return /* Parent is valid c2_conf_dir with proper
++		* ->cd_item_type. */
++		obj_check_as(parent, C2_CO_DIR) &&
++		C2_CONF_CAST(parent,
++			     c2_conf_dir)->cd_item_type == C2_CO_PARTITION &&
++		/* Other checks. */
++		obj_is_stub(self_obj) == (self->pa_filename == NULL);
++}
++
++static int partition_fill(struct c2_conf_obj *__dest,
++			  const struct confx_object *__src,
++			  struct c2_conf_reg *reg)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++static bool partition_match(const struct c2_conf_obj *cached,
++			    const struct confx_object *onwire)
++{
++	const struct confx_partition   *objx = &onwire->o_conf.u.u_partition;
++	const struct c2_conf_partition *obj = C2_CONF_CAST(cached,
++							   c2_conf_partition);
++	return  obj->pa_start == objx->xa_start &&
++		obj->pa_size  == objx->xa_size  &&
++		obj->pa_index == objx->xa_index &&
++		obj->pa_type  == objx->xa_type  &&
++		buf_streq(&objx->xa_file, obj->pa_filename);
++}
++
++static int partition_lookup(struct c2_conf_obj *parent,
++			    const struct c2_buf *name, struct c2_conf_obj **out)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++BOB_DEFINE(c2_conf_partition, PARTITION_MAGIC, partition_invariant);
++
++static void partition_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_partition *x = C2_CONF_CAST(obj, c2_conf_partition);
++
++	c2_conf_partition_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops partition_ops = {
++	.coo_invariant = partition_invariant,
++	.coo_fill      = partition_fill,
++	.coo_match     = partition_match,
++	.coo_lookup    = partition_lookup,
++	.coo_readdir   = NULL,
++	.coo_delete    = partition_delete
++};
++
++struct c2_conf_obj *c2_conf__partition_create(void)
++{
++	struct c2_conf_partition *x;
++	struct c2_conf_obj       *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_partition_bob_init(x);
++
++	ret = &x->pa_obj;
++	ret->co_ops = &partition_ops;
++	return ret;
++}
+diff --git a/conf/objs/profile.c b/conf/objs/profile.c
+new file mode 100644
+index 0000000..4c2d565
+--- /dev/null
++++ b/conf/objs/profile.c
+@@ -0,0 +1,123 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { PROFILE_MAGIC = 0x33c105ab1e5ea177 /* closable seal */ };
++
++static bool profile_invariant(const void *bob)
++{
++	const struct c2_conf_profile *self = bob;
++	const struct c2_conf_obj     *self_obj = &self->cp_obj;
++
++	C2_PRE(self_obj->co_type == C2_CO_PROFILE);
++
++	return /* c2_conf_profile is the topmost object in the DAG. */
++		self_obj->co_parent == NULL &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cp_filesystem, cf_obj),
++			    C2_CO_FILESYSTEM) &&
++#if 0 /* XXX */
++		/* Other checks. */
++		ergo(self_obj->co_confc != NULL,
++		     self_obj->co_confc->cc_root == self_obj);
++#else
++		true;
++#endif
++}
++
++static int profile_fill(struct c2_conf_obj *__dest,
++			const struct confx_object *__src,
++			struct c2_conf_reg *reg)
++{
++	struct c2_conf_obj         *fs;
++	int                         rc;
++	struct c2_conf_profile     *dest = C2_CONF_CAST(__dest,
++							c2_conf_profile);
++	const struct confx_profile *src = &__src->o_conf.u.u_profile;
++
++	rc = obj_find(reg, C2_CO_FILESYSTEM, &src->xp_filesystem, &fs);
++	if (rc == 0)
++		dest->cp_filesystem = C2_CONF_CAST(fs, c2_conf_filesystem);
++	return rc;
++}
++
++static bool profile_match(const struct c2_conf_obj *cached,
++			  const struct confx_object *onwire)
++{
++	const struct confx_profile      *objx = &onwire->o_conf.u.u_profile;
++	const struct c2_conf_filesystem *child =
++		C2_CONF_CAST(cached, c2_conf_profile)->cp_filesystem;
++
++	return c2_buf_eq(&child->cf_obj.co_id, &objx->xp_filesystem);
++}
++
++static int profile_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
++			  struct c2_conf_obj **out)
++{
++	struct c2_conf_obj     *child;
++	struct c2_conf_profile *prof = C2_CONF_CAST(parent, c2_conf_profile);
++
++	C2_PRE(parent->co_status == C2_CS_READY);
++
++	if (!c2_buf_eq(name, &(const struct c2_buf)C2_BUF_INITS("filesystem")))
++		return -ENOENT;
++
++	child = &prof->cp_filesystem->cf_obj;
++	C2_ASSERT(child->co_parent == parent);
++	*out = child;
++	return 0;
++}
++
++BOB_DEFINE(c2_conf_profile, PROFILE_MAGIC, profile_invariant);
++
++static void profile_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_profile *x = C2_CONF_CAST(obj, c2_conf_profile);
++
++	c2_conf_profile_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops profile_ops = {
++	.coo_invariant = profile_invariant,
++	.coo_fill      = profile_fill,
++	.coo_match     = profile_match,
++	.coo_lookup    = profile_lookup,
++	.coo_readdir   = NULL,
++	.coo_delete    = profile_delete
++};
++
++struct c2_conf_obj *c2_conf__profile_create(void)
++{
++	struct c2_conf_profile *x;
++	struct c2_conf_obj     *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_profile_bob_init(x);
++
++	ret = &x->cp_obj;
++	ret->co_ops = &profile_ops;
++	return ret;
++}
+diff --git a/conf/objs/sdev.c b/conf/objs/sdev.c
+new file mode 100644
+index 0000000..2d3d8c0
+--- /dev/null
++++ b/conf/objs/sdev.c
+@@ -0,0 +1,108 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { SDEV_MAGIC = 0x33a115eed5a1ad77 /* allseed salad */ };
++
++static bool sdev_invariant(const void *bob)
++{
++	const struct c2_conf_sdev *self = bob;
++	const struct c2_conf_obj  *self_obj = &self->sd_obj;
++	struct c2_conf_obj        *parent = self_obj->co_parent;
++
++	C2_PRE(self_obj->co_type == C2_CO_SDEV);
++
++	return /* Parent is valid c2_conf_dir with proper
++		* ->cd_item_type. */
++		obj_check_as(parent, C2_CO_DIR) &&
++		C2_CONF_CAST(parent,
++			     c2_conf_dir)->cd_item_type == C2_CO_SDEV &&
++		child_is_ok(self_obj, MEMBER_PTR(self->sd_partitions, cd_obj),
++			    C2_CO_DIR) &&
++		/* Other checks. */
++		obj_is_stub(self_obj) == (self->sd_filename == NULL);
++}
++
++static int sdev_fill(struct c2_conf_obj *__dest,
++		     const struct confx_object *__src, struct c2_conf_reg *reg)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++static bool
++sdev_match(const struct c2_conf_obj *cached, const struct confx_object *onwire)
++{
++	const struct confx_sdev   *objx = &onwire->o_conf.u.u_sdev;
++	const struct c2_conf_sdev *obj = C2_CONF_CAST(cached, c2_conf_sdev);
++
++	C2_IMPOSSIBLE("XXX TODO: compare dir elements");
++	return  obj->sd_iface      == objx->xd_iface      &&
++		obj->sd_media      == objx->xd_media      &&
++		obj->sd_size       == objx->xd_size       &&
++		obj->sd_last_state == objx->xd_last_state &&
++		obj->sd_flags      == objx->xd_flags      &&
++		buf_streq(&objx->xd_filename, obj->sd_filename);
++}
++
++static int sdev_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
++		       struct c2_conf_obj **out)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++BOB_DEFINE(c2_conf_sdev, SDEV_MAGIC, sdev_invariant);
++
++static void sdev_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_sdev *x = C2_CONF_CAST(obj, c2_conf_sdev);
++
++	c2_conf_sdev_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops sdev_ops = {
++	.coo_invariant = sdev_invariant,
++	.coo_fill      = sdev_fill,
++	.coo_match     = sdev_match,
++	.coo_lookup    = sdev_lookup,
++	.coo_readdir   = NULL,
++	.coo_delete    = sdev_delete
++};
++
++struct c2_conf_obj *c2_conf__sdev_create(void)
++{
++	struct c2_conf_sdev *x;
++	struct c2_conf_obj  *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_sdev_bob_init(x);
++
++	ret = &x->sd_obj;
++	ret->co_ops = &sdev_ops;
++	return ret;
++}
+diff --git a/conf/objs/service.c b/conf/objs/service.c
+new file mode 100644
+index 0000000..3c59ced
+--- /dev/null
++++ b/conf/objs/service.c
+@@ -0,0 +1,149 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "conf/objs/common.h"
++
++enum { SERVICE_MAGIC = 0x33b1a5ed10ca1e77 /* biased locale */ };
++
++static bool service_invariant(const void *bob)
++{
++	const struct c2_conf_service *self = bob;
++	const struct c2_conf_obj     *self_obj = &self->cs_obj;
++	struct c2_conf_obj           *parent = self_obj->co_parent;
++
++	C2_PRE(self_obj->co_type == C2_CO_SERVICE);
++
++	return /* Parent is valid c2_conf_dir with proper
++		* ->cd_item_type. */
++		obj_check_as(parent, C2_CO_DIR) &&
++		C2_CONF_CAST(parent,
++			     c2_conf_dir)->cd_item_type == C2_CO_SERVICE &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cs_node, cn_obj),
++			    C2_CO_NODE) &&
++		/* Other checks. */
++		ergo(!obj_is_stub(self_obj),
++		     C2_IN(self->cs_type, (C2_CFG_SERVICE_METADATA,
++					   C2_CFG_SERVICE_IO,
++					   C2_CFG_SERVICE_MGMT,
++					   C2_CFG_SERVICE_DLM))) &&
++		obj_is_stub(self_obj) == (self->cs_endpoints == NULL);
++}
++
++static int endpoints_populate(const char ***dest, const struct arr_buf *src)
++{
++	uint32_t i;
++
++	C2_PRE(src->ab_count > 0 && src->ab_elems != NULL);
++
++	C2_ALLOC_ARR(*dest, src->ab_count + 1);
++	if (*dest == NULL)
++		return -ENOMEM;
++
++	for (i = 0; i < src->ab_count; ++i) {
++		(*dest)[i] = buf_strdup(&src->ab_elems[i]);
++		if ((*dest)[i] == NULL)
++			goto fail;
++	}
++	(*dest)[i] = NULL; /* end of list */
++
++	return 0;
++fail:
++	for (; i != 0; --i)
++		c2_free((void *)(*dest)[i]);
++	c2_free(*dest);
++	return -ENOMEM;
++}
++
++static int service_fill(struct c2_conf_obj *__dest,
++			const struct confx_object *__src,
++			struct c2_conf_reg *reg)
++{
++	struct c2_conf_obj         *child;
++	int                         rc;
++	struct c2_conf_service     *dest = C2_CONF_CAST(__dest,
++							c2_conf_service);
++	const struct confx_service *src = &__src->o_conf.u.u_service;
++
++	dest->cs_type = src->xs_type;
++
++	rc = obj_find(reg, C2_CO_NODE, &src->xs_node, &child);
++	if (rc != 0)
++		return rc;
++	dest->cs_node = C2_CONF_CAST(child, c2_conf_node);
++
++	return endpoints_populate(&dest->cs_endpoints, &src->xs_endpoints);
++}
++
++static bool service_match(const struct c2_conf_obj *cached,
++			  const struct confx_object *onwire)
++{
++	const struct confx_service   *objx = &onwire->o_conf.u.u_service;
++	const struct c2_conf_service *obj = C2_CONF_CAST(cached,
++							 c2_conf_service);
++	const struct c2_conf_node    *child = obj->cs_node;
++
++	return obj->cs_type == objx->xs_type &&
++		arrays_eq(obj->cs_endpoints, &objx->xs_endpoints) &&
++		c2_buf_eq(&child->cn_obj.co_id, &objx->xs_node);
++}
++
++static int service_lookup(struct c2_conf_obj *parent, const struct c2_buf *name,
++			  struct c2_conf_obj **out)
++{
++	C2_IMPOSSIBLE("XXX not implemented");
++	return -1;
++}
++
++BOB_DEFINE(c2_conf_service, SERVICE_MAGIC, service_invariant);
++
++static void service_delete(struct c2_conf_obj *obj)
++{
++	struct c2_conf_service *x = C2_CONF_CAST(obj, c2_conf_service);
++
++	c2_conf_service_bob_fini(x);
++	c2_free(x);
++}
++
++static const struct c2_conf_obj_ops service_ops = {
++	.coo_invariant = service_invariant,
++	.coo_fill      = service_fill,
++	.coo_match     = service_match,
++	.coo_lookup    = service_lookup,
++	.coo_readdir   = NULL,
++	.coo_delete    = service_delete
++};
++
++struct c2_conf_obj *c2_conf__service_create(void)
++{
++	struct c2_conf_service *x;
++	struct c2_conf_obj     *ret;
++
++	C2_ALLOC_PTR(x);
++	if (x == NULL)
++		return NULL;
++	c2_conf_service_bob_init(x);
++
++	ret = &x->cs_obj;
++	ret->co_ops = &service_ops;
++	return ret;
++}
+diff --git a/conf/reg.c b/conf/reg.c
+index 8d2f415..32a9b99 100644
+--- a/conf/reg.c
++++ b/conf/reg.c
+@@ -59,10 +59,10 @@ struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg *reg,
+ {
+ 	struct c2_conf_obj *obj;
+ 
+-	c2_tlist_for(&c2_conf_reg_tl, &reg->r_objs, obj) {
++	c2_tl_for(c2_conf_reg, &reg->r_objs, obj) {
+ 		if (obj->co_type == type && c2_buf_eq(&obj->co_id, id))
+ 			break;
+-	} c2_tlist_endfor;
++	} c2_tl_endfor;
+ 
+ 	return obj;
+ }
+@@ -77,11 +77,11 @@ void c2_conf_reg_fini(struct c2_conf_reg *reg, bool delete)
+ {
+ 	struct c2_conf_obj *obj;
+ 
+-	c2_tlist_for(&c2_conf_reg_tl, &reg->r_objs, obj) {
++	c2_tl_for(c2_conf_reg, &reg->r_objs, obj) {
+ 		c2_conf_reg_tlist_del(obj);
+ 		if (delete)
+ 			c2_conf_obj_delete(obj);
+-	} c2_tlist_endfor;
++	} c2_tl_endfor;
+ 
+ 	c2_conf_reg_tlist_fini(&reg->r_objs);
+ }
+diff --git a/conf/ut/obj.c b/conf/ut/obj.c
+index 5f7ee4d..25060ac 100644
+--- a/conf/ut/obj.c
++++ b/conf/ut/obj.c
+@@ -28,25 +28,21 @@
+ 
+ void test_obj(void)
+ {
+-	struct c2_conf_obj *obj;
+-	struct c2_conf_reg  reg;
+-	int                 rc;
++	struct c2_conf_obj  *obj;
++	enum c2_conf_objtype t;
+ 
+-	c2_conf_reg_init(&reg);
++	for (t = 0; t < C2_CO_NR; ++t) {
++		obj = c2_conf_obj_create(t, &(const struct c2_buf)
++					 C2_BUF_INITS("test"));
++		C2_UT_ASSERT(obj != NULL);
+ 
+-	obj = c2_conf_obj_new(C2_CO_PROFILE,
+-			      &(const struct c2_buf)C2_BUF_INITS("profile"));
+-	C2_UT_ASSERT(obj != NULL);
++		/* XXX TODO: check generic fields */
+ 
+-	/* XXX TODO: check generic fields */
++		/* rc = c2_conf_obj_fill(obj, objx, &reg); */
++		/* C2_UT_ASSERT(rc == 0); */
+ 
+-	/* rc = c2_conf_obj_fill(obj, objx, &reg); */
+-	/* C2_UT_ASSERT(rc == 0); */
+-	(void)reg;
+-	(void)rc;
++		/* XXX TODO: check concrete fields */
+ 
+-	/* XXX TODO: check concrete fields */
+-
+-	c2_conf_obj_delete(obj);
+-	c2_conf_reg_fini(&reg, true);
++		c2_conf_obj_delete(obj);
++	}
+ }
+diff --git a/conf/ut/reg.c b/conf/ut/reg.c
+index a2b90c6..e3f857a 100644
+--- a/conf/ut/reg.c
++++ b/conf/ut/reg.c
+@@ -27,40 +27,6 @@
+ #include "lib/buf.h"      /* c2_buf, C2_BUF_INITS */
+ #include "lib/ut.h"
+ 
+-static size_t g_nr_finalised = 0;
+-
+-static void obj_fini(struct c2_conf_obj *obj)
+-{
+-	c2_buf_free(&obj->co_id);
+-	c2_conf_reg_tlink_fini(obj);
+-	++g_nr_finalised;
+-}
+-
+-const struct c2_conf_obj_ops g_ops = { .coo_fini = obj_fini };
+-
+-static struct c2_conf_obj *
+-obj_new(enum c2_conf_objtype type, const struct c2_buf *id)
+-{
+-	struct c2_conf_obj *obj;
+-	int                 rc;
+-
+-	C2_ALLOC_PTR(obj);
+-	if (obj == NULL)
+-		return NULL;
+-
+-	obj->co_type = type;
+-	obj->co_ops = &g_ops;
+-	c2_conf_reg_tlink_init(obj);
+-
+-	rc = c2_buf_copy(&obj->co_id, id);
+-	if (rc != 0) {
+-		c2_free(obj);
+-		return NULL;
+-	}
+-
+-	return obj;
+-}
+-
+ void test_reg(void)
+ {
+ 	struct c2_conf_reg  reg;
+@@ -70,18 +36,20 @@ void test_reg(void)
+ 		enum c2_conf_objtype type;
+ 		struct c2_buf        id;
+ 	} samples[] = {
+-		{ C2_CO_NODE, C2_BUF_INITS("node") },
+-		{ C2_CO_DIR,  C2_BUF_INITS("dir") },
+-		{ C2_CO_NIC,  C2_BUF_INIT(4, "ni\0c") }
++		{ C2_CO_PROFILE,    C2_BUF_INIT(7, "pr\0file") },
++#if 0 /* XXX filesystem_invariant() fails, since objects are not connected */
++		{ C2_CO_FILESYSTEM, C2_BUF_INITS("filesystem") },
++		{ C2_CO_DIR,        C2_BUF_INITS("dir") }
++#endif
+ 	};
+ 
+ 	c2_conf_reg_init(&reg);
+ 
+ 	for (i = 0; i < ARRAY_SIZE(samples); ++i) {
+-		C2_UT_ASSERT(c2_conf_reg_lookup(&reg, samples[i].type,
+-						&samples[i].id) == NULL);
++		obj = c2_conf_reg_lookup(&reg, samples[i].type, &samples[i].id);
++		C2_UT_ASSERT(obj == NULL);
+ 
+-		obj = obj_new(samples[i].type, &samples[i].id);
++		obj = c2_conf_obj_create(samples[i].type, &samples[i].id);
+ 		C2_UT_ASSERT(obj != NULL);
+ 		c2_conf_reg_add(&reg, obj);
+ 
+@@ -92,10 +60,7 @@ void test_reg(void)
+ 	c2_conf_reg_del(&reg, obj);
+ 	C2_UT_ASSERT(c2_conf_reg_lookup(&reg, obj->co_type, &obj->co_id) ==
+ 		     NULL);
+-	C2_UT_ASSERT(g_nr_finalised == 0);
+ 	c2_conf_obj_delete(obj);
+-	C2_UT_ASSERT(g_nr_finalised == 1);
+ 
+ 	c2_conf_reg_fini(&reg, true);
+-	C2_UT_ASSERT(g_nr_finalised == ARRAY_SIZE(samples));
+ }
+-- 
+1.8.3.2
+

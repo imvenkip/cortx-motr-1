@@ -1,0 +1,27 @@
+From 9b8f92e52169d48bee9b18cb51957e8224684c24 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 27 Sep 2013 19:14:13 +0800
+Subject: [PATCH 2/8] Storing the itertator in BE.
+
+---
+ cm/cm.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/cm/cm.c b/cm/cm.c
+index e4f2cc9..e54a377 100644
+--- a/cm/cm.c
++++ b/cm/cm.c
+@@ -256,6 +256,10 @@
+    i)  copy machine id. It is struct m0_cm::cm_id.
+    ii) last completed aggregation group id.
+ 
++   This information is stored in BE. It is also inserted into BE dictionary,
++   with the key "CM ${ID}". Copy machine can find a pointer to this information
++   from BE dictionary with proper key.
++
+    The following interfaces are provided to manage this information,
+    - m0_cm_sw_store_init()            Init data on persistent storage.
+    - m0_cm_sw_store_load()            Load data from persistent storage.
+-- 
+1.8.3.2
+

@@ -1,0 +1,258 @@
+From 4e0142a3ddd20f962aa77e9740a443fc0d991ba7 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 30 Oct 2013 10:28:34 +0200
+Subject: [PATCH 11/17] stob/ad: use m0_indexvec_pack() for si_stob
+
+Using m0_ivec_cursor_cstep() in the ad_write_map() loop
+to determine contiguous si_stob chunks may be very inoptimal,
+especially, when si_user have a lot of small chunks buffers.
+It is because m0_ivec_cursor_cstep() by itself traverse
+index vector every time to determine contiguous chunk.
+
+Nikita suggested to implement m0_indexvec_pack() routine
+instead of m0_ivec_cursor_cstep(). So now the latter is
+dropped and the former is used.
+
+References: http://reviewboard.clusterstor.com/r/1552
+---
+ lib/ut/vec.c |  4 ----
+ lib/vec.c    | 18 ------------------
+ lib/vec.h    |  8 --------
+ stob/ad.c    | 10 +++++-----
+ stob/ut/ad.c | 48 ++++++++++++++++++++++++++++++------------------
+ 5 files changed, 35 insertions(+), 53 deletions(-)
+
+diff --git a/lib/ut/vec.c b/lib/ut/vec.c
+index 464365a..41f4d43 100644
+--- a/lib/ut/vec.c
++++ b/lib/ut/vec.c
+@@ -165,20 +165,16 @@ static void test_ivec_cursor(void)
+ 	M0_UT_ASSERT(cur.ic_cur.vc_offset == 0);
+ 
+ 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 2);
+-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 4);
+ 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 0);
+ 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
+ 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 1);
+ 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 1);
+-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 3);
+ 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 1));
+ 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 2);
+ 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 2);
+-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 2);
+ 	M0_UT_ASSERT(!m0_ivec_cursor_move(&cur, 2));
+ 	M0_UT_ASSERT(m0_ivec_cursor_index(&cur) == 8);
+ 	M0_UT_ASSERT(m0_ivec_cursor_step(&cur)  == 4);
+-	M0_UT_ASSERT(m0_ivec_cursor_cstep(&cur) == 4);
+ 	M0_UT_ASSERT(m0_ivec_cursor_move(&cur, 4));
+ 
+ 	m0_ivec_cursor_init(&cur, &ivec);
+diff --git a/lib/vec.c b/lib/vec.c
+index 0268172..6ddd7ca 100644
+--- a/lib/vec.c
++++ b/lib/vec.c
+@@ -509,24 +509,6 @@ M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur)
+         return m0_vec_cursor_step(&cur->ic_cur);
+ }
+ 
+-M0_INTERNAL m0_bcount_t m0_ivec_cursor_cstep(const struct m0_ivec_cursor *cur)
+-{
+-        struct m0_indexvec	*ivec;
+-	m0_bcount_t		 cstep	= m0_ivec_cursor_step(cur);
+-	uint32_t		 seg;
+-
+-	ivec = container_of(cur->ic_cur.vc_vec, struct m0_indexvec, iv_vec);
+-
+-	for (seg = cur->ic_cur.vc_seg;
+-	     seg < ivec->iv_vec.v_nr - 1 &&
+-	       ivec->iv_index[seg] + ivec->iv_vec.v_count[seg] ==
+-	       ivec->iv_index[seg + 1];
+-	     seg++)
+-		cstep += ivec->iv_vec.v_count[seg + 1];
+-
+-	return cstep;
+-}
+-
+ M0_INTERNAL m0_bindex_t m0_ivec_cursor_index(struct m0_ivec_cursor *cur)
+ {
+         struct m0_indexvec *ivec;
+diff --git a/lib/vec.h b/lib/vec.h
+index c4a7460..032576f 100644
+--- a/lib/vec.h
++++ b/lib/vec.h
+@@ -406,14 +406,6 @@ M0_INTERNAL bool m0_ivec_cursor_move_to(struct m0_ivec_cursor *cursor,
+ M0_INTERNAL m0_bcount_t m0_ivec_cursor_step(const struct m0_ivec_cursor *cur);
+ 
+ /**
+- * Returns the number of bytes needed to move cursor to next non-contiguous
+- * segment in given index vector.
+- * @param cur Index vector to be moved.
+- * @ret   Number of bytes needed to move the cursor to next segment.
+- */
+-M0_INTERNAL m0_bcount_t m0_ivec_cursor_cstep(const struct m0_ivec_cursor *cur);
+-
+-/**
+  * Returns index at current cursor position.
+  * @param cur Given index vector cursor.
+  * @ret   Index at current cursor position.
+diff --git a/stob/ad.c b/stob/ad.c
+index 2736c01..5d1bb2e 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -1080,8 +1080,9 @@ static uint32_t ad_write_map_count(struct m0_indexvec *iv)
+ 	m0_ivec_cursor_init(&it, iv);
+ 	grp_size = BALLOC_DEF_BLOCKS_PER_GROUP << BALLOC_DEF_BLOCK_SHIFT;
+ 
++	m0_indexvec_pack(iv);
+ 	do {
+-		frag_size = min_check(m0_ivec_cursor_cstep(&it), grp_size);
++		frag_size = min_check(m0_ivec_cursor_step(&it), grp_size);
+ 		M0_ASSERT(frag_size > 0);
+ 		M0_ASSERT(frag_size <= (size_t)~0ULL);
+ 
+@@ -1337,7 +1338,7 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
+ 
+ 	do {
+ 		off = m0_ivec_cursor_index(dst);
+-		frag_size = min_check(m0_ivec_cursor_cstep(dst),
++		frag_size = min_check(m0_ivec_cursor_step(dst),
+ 				      ad_wext_cursor_step(wc));
+ 
+ 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
+@@ -1405,7 +1406,6 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
+ {
+ 	m0_bcount_t           todo;
+ 	uint32_t              frags;
+-	uint32_t              cfrags;
+ 	int                   result;
+ 	struct ad_write_ext   head;
+ 	struct ad_write_ext  *wext;
+@@ -1461,8 +1461,8 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
+ 
+ 			ivec = container_of(dst->ic_cur.vc_vec,
+ 						struct m0_indexvec, iv_vec);
+-			cfrags = ad_write_map_count(ivec);
+-			result = ad_write_map(io, adom, dst, map, &wc, cfrags);
++			frags = ad_write_map_count(ivec);
++			result = ad_write_map(io, adom, dst, map, &wc, frags);
+ 		}
+ 	}
+ 	ad_wext_fini(&head);
+diff --git a/stob/ut/ad.c b/stob/ut/ad.c
+index b8d5a33..d8c5b77 100644
+--- a/stob/ut/ad.c
++++ b/stob/ut/ad.c
+@@ -71,12 +71,13 @@ static const struct m0_stob_id id_fore = {
+ static struct m0_stob *obj_back;
+ static struct m0_stob *obj_fore;
+ static struct m0_stob_io io;
+-static m0_bcount_t user_vec[NR];
++static m0_bcount_t user_vc[NR];
++static m0_bcount_t stob_vc[NR];
+ static char *user_buf[NR];
+ static char *read_buf[NR];
+ static char *user_bufs[NR];
+ static char *read_bufs[NR];
+-static m0_bindex_t stob_vec[NR];
++static m0_bindex_t stob_vi[NR];
+ static struct m0_clink clink;
+ static struct m0_dtx g_tx;
+ struct m0_be_ut_backend	 ut_be;
+@@ -146,6 +147,20 @@ struct mock_balloc mb = {
+ 	}
+ };
+ 
++static void init_vecs()
++{
++	int i;
++
++	for (i = 0; i < NR; ++i) {
++		user_bufs[i] = m0_stob_addr_pack(user_buf[i], block_shift);
++		read_bufs[i] = m0_stob_addr_pack(read_buf[i], block_shift);
++		user_vc[i] = buf_size >> block_shift;
++		stob_vc[i] = buf_size >> block_shift;
++		stob_vi[i] = (buf_size * (2 * i + 1)) >> block_shift;
++		memset(user_buf[i], ('a' + i)|1, buf_size);
++	}
++}
++
+ static int test_ad_init(void)
+ {
+ 	int	i;
+@@ -230,13 +245,7 @@ static int test_ad_init(void)
+ 		M0_ASSERT(read_buf[i] != NULL);
+ 	}
+ 
+-	for (i = 0; i < NR; ++i) {
+-		user_bufs[i] = m0_stob_addr_pack(user_buf[i], block_shift);
+-		read_bufs[i] = m0_stob_addr_pack(read_buf[i], block_shift);
+-		user_vec[i] = buf_size >> block_shift;
+-		stob_vec[i] = (buf_size * (2 * i + 1)) >> block_shift;
+-		memset(user_buf[i], ('a' + i)|1, buf_size);
+-	}
++	init_vecs();
+ 
+ 	return result;
+ }
+@@ -280,12 +289,12 @@ static void test_write(int nr, struct m0_dtx *tx)
+ 	io.si_flags  = 0;
+ 	io.si_fol_rec_part = fol_rec_part;
+ 	io.si_user.ov_vec.v_nr = nr;
+-	io.si_user.ov_vec.v_count = user_vec;
++	io.si_user.ov_vec.v_count = user_vc;
+ 	io.si_user.ov_buf = (void **)user_bufs;
+ 
+ 	io.si_stob.iv_vec.v_nr = nr;
+-	io.si_stob.iv_vec.v_count = user_vec;
+-	io.si_stob.iv_index = stob_vec;
++	io.si_stob.iv_vec.v_count = stob_vc;
++	io.si_stob.iv_index = stob_vi;
+ 
+ 	m0_clink_init(&clink, NULL);
+ 	m0_clink_add_lock(&io.si_wait, &clink);
+@@ -330,12 +339,12 @@ static void test_read(int i)
+ 	io.si_opcode = SIO_READ;
+ 	io.si_flags  = 0;
+ 	io.si_user.ov_vec.v_nr = i;
+-	io.si_user.ov_vec.v_count = user_vec;
++	io.si_user.ov_vec.v_count = user_vc;
+ 	io.si_user.ov_buf = (void **)read_bufs;
+ 
+ 	io.si_stob.iv_vec.v_nr = i;
+-	io.si_stob.iv_vec.v_count = user_vec;
+-	io.si_stob.iv_index = stob_vec;
++	io.si_stob.iv_vec.v_count = stob_vc;
++	io.si_stob.iv_index = stob_vi;
+ 
+ 	m0_clink_init(&clink, NULL);
+ 	m0_clink_add_lock(&io.si_wait, &clink);
+@@ -359,20 +368,23 @@ static void test_ad_rw_unordered()
+ 	int i;
+ 
+ 	/* Unorderd write requests */
++	init_vecs();
+ 	for (i = NR/2; i < NR; ++i) {
+-		stob_vec[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
++		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
+ 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
+ 	}
+ 	test_write(NR/2, NULL);
+ 
++	init_vecs();
+ 	for (i = 0; i < NR/2; ++i) {
+-		stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
++		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
+ 		memset(user_buf[i], ('a' + i)|1, buf_size);
+ 	}
+ 	test_write(NR/2, NULL);
+ 
++	init_vecs();
+ 	for (i = 0; i < NR; ++i) {
+-		stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
++		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
+ 		memset(user_buf[i], ('a' + i)|1, buf_size);
+ 	}
+ 
+-- 
+1.8.3.2
+

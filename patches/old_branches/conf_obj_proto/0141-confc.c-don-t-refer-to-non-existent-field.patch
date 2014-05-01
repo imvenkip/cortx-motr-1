@@ -1,0 +1,57 @@
+From 1066eeaff5b21d26449174476611a6391ec7afee Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 20 Apr 2012 12:14:39 +0300
+Subject: [PATCH 141/370] confc.c: don't refer to non-existent field
+
+Fix a bug in walk_ctx_invariant(): non-existent field of walk_ctx
+was referred to.
+
+LogD:  #1087
+RB:    r/714
+kudos: nikita
+---
+ conf/confc.c | 7 +++----
+ conf/path.c  | 2 +-
+ 2 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 4281ec6..67ab861 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -377,10 +377,8 @@ struct walk_ctx {
+ static bool walk_ctx_invariant(const struct walk_ctx *wx)
+ {
+ 	return c2_conf_path_is_valid(wx->w_obj, wx->w_path, NULL) &&
+-		wx->w_atdir
+-		? (wx->w_obj->co_status == C2_CS_READY &&
+-		   c2_conf_pathcomp_is_last(wx->w_path))
+-		: wx->w_obj->co_status == wx->w_status;
++		ergo(wx->w_atdir, wx->w_obj->co_status == C2_CS_READY &&
++		     c2_conf_pathcomp_is_last(wx->w_path));
+ }
+ 
+ static int walk(struct walk_ctx *wx)
+@@ -409,6 +407,7 @@ static int walk(struct walk_ctx *wx)
+ 		} else { /* choose the particular object in this directory */
+ 			++wx->w_path;
+ 			C2_ASSERT(wx->w_path[0].pc_iskey);
++			/* key has "narrowed" one-to-many relation */
+ 			wx->w_atdir = false;
+ 
+ 			/* XXX use the objid-to-address mapping instead
+diff --git a/conf/path.c b/conf/path.c
+index 9be7ce6..07d5fa0 100644
+--- a/conf/path.c
++++ b/conf/path.c
+@@ -106,7 +106,7 @@ bool c2_conf_path_is_valid(const struct c2_conf_obj *origin,
+ 	for (*isdir = false; !c2_conf_eop(path); ++path) {
+ 		if (path->pc_iskey) {
+ 			if (*isdir) {
+-				/* key has narrowed one-to-many relation */
++				/* key has "narrowed" one-to-many relation */
+ 				*isdir = false;
+ 				continue;
+ 			} else {
+-- 
+1.8.3.2
+

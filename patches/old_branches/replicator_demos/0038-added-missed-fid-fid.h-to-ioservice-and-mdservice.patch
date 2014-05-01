@@ -1,0 +1,201 @@
+From 5838639a728d28302f1c6678e797cd9ea74ce679 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 4 Apr 2011 13:53:04 -0600
+Subject: [PATCH 38/91] - added missed fid/fid.h to ioservice and mdservice; -
+ added creating "." and ".." in directory while create.
+
+---
+ ioservice/io_foms.c |  1 +
+ mdservice/md_foms.c |  1 +
+ mdstore/mdstore.c   | 98 ++++++++++++++++++++++++++++++++++++++++-------------
+ nrs/nrs.c           |  5 ++-
+ 4 files changed, 79 insertions(+), 26 deletions(-)
+
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index f1a6895..fd9c3fa 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -3,6 +3,7 @@
+ #include <config.h>
+ #endif
+ 
++#include "fid/fid.h"
+ #include "fop/fop.h"
+ #include "io_foms.h"
+ #include "io_fops.h"
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index ef8ebf0..4c0b9f3 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -11,6 +11,7 @@
+ #include "lib/bitstring.h"
+ #include "lib/rwlock.h"
+ 
++#include "fid/fid.h"
+ #include "fop/fop.h"
+ #include "cob/cob.h"
+ #include "site/site.h"
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index ffee909..47be046 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -2,7 +2,9 @@
+ #  include <config.h>
+ #endif
+ 
+-#include "lib/misc.h"   /* C2_SET0 */
++#include <sys/stat.h>    /* S_ISDIR */
++
++#include "lib/misc.h"    /* C2_SET0 */
+ #include "lib/cdefs.h"
+ #include "lib/arith.h"   /* C2_3WAY */
+ #include "lib/errno.h"
+@@ -34,6 +36,26 @@ static const struct c2_fid C2_MD_ROOTID = {
+         .f_key       = 1ULL
+ };
+ 
++static void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
++                                   struct c2_fid *fid)
++{
++        oikey->cok_fid = *fid;
++        oikey->cok_linkno = 0;
++}
++
++static void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
++                                   struct c2_fid *pfid,
++                                   const char *name, int nlen)
++{
++        struct c2_cob_nskey *key;
++
++        key = c2_alloc(sizeof(*key) + nlen);
++        key->cnk_pfid = *pfid;
++        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, nlen);
++        c2_bitstring_len_set(&key->cnk_name, nlen);
++        *keyh = key;
++}
++
+ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+                      struct c2_dbenv *db)
+ {
+@@ -66,6 +88,7 @@ int c2_md_store_create(struct c2_md_store *md,
+         struct c2_cob_nsrec    nsrec;
+         struct c2_cob_fabrec   fabrec;
+         struct c2_cob_omgrec   omgrec;
++        struct c2_cob         *pcob;
+         int                    rc;
+         
+         c2_md_make_nskey(&nskey, &body->b_pfid, &req->c_name);
+@@ -121,9 +144,58 @@ int c2_md_store_create(struct c2_md_store *md,
+         omgrec.cor_gid = body->b_gid;
+         omgrec.cor_mode = body->b_mode;
+ 
+-        rc = c2_cob_create(cob, nskey, &nsrec, &fabrec, &omgrec, 0,
+-                           &ctx->fc_tx->tx_dbtx);
++        rc = c2_cob_create(cob, nskey, &nsrec, &fabrec, &omgrec, 
++                           0, &ctx->fc_tx->tx_dbtx);
+         c2_free(nskey);
++
++        if (S_ISDIR(body->b_mode)) {
++                /*
++                 * Add direntry "." to empty dir
++                 */
++                c2_md_store_make_nskey(&nskey, &cob->co_fid, ".", 1);
++                rc = c2_cob_add_name(cob, nskey, &ctx->fc_tx->tx_dbtx);
++                c2_free(nskey);
++                if (rc)
++                        goto out;
++
++                /*
++                 * Add direntry ".." to empty dir. To do so we need parent
++                 * cob first.
++                 */
++                rc = c2_md_store_locate(md, &cob->co_nskey->cnk_pfid, 
++                                        &pcob, 0, &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
++
++                c2_md_store_make_nskey(&nskey, &cob->co_fid, "..", 2);
++                rc = c2_cob_add_name(pcob, nskey, &ctx->fc_tx->tx_dbtx);
++                c2_free(nskey);
++                if (rc) {
++                        c2_cob_put(pcob);
++                        goto out;
++                }
++
++                /*
++                 * Add one more link to parent dir.
++                 */
++                pcob->co_nsrec.cnr_nlink++;
++                rc = c2_cob_update(pcob, &pcob->co_nsrec, NULL, NULL,
++                                   &ctx->fc_tx->tx_dbtx);
++                c2_cob_put(pcob);
++                if (rc)
++                        goto out;
++                
++                /*
++                 * Two links to cob is what we have now. Let's update
++                 * on store cob.
++                 */
++                cob->co_nsrec.cnr_nlink += 2;
++        } else {
++                cob->co_nsrec.cnr_nlink++;
++        }
++        rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL,
++                           &ctx->fc_tx->tx_dbtx);
++out:
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_create", rc);
+         return rc;
+@@ -446,26 +518,6 @@ int c2_md_store_readdir(struct c2_md_store *md,
+         return rc;
+ }
+ 
+-static void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
+-                                   struct c2_fid *fid)
+-{
+-        oikey->cok_fid = *fid;
+-        oikey->cok_linkno = 0;
+-}
+-
+-static void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
+-                                   struct c2_fid *pfid,
+-                                   const char *name, int nlen)
+-{
+-        struct c2_cob_nskey *key;
+-
+-        key = c2_alloc(sizeof(*key) + nlen);
+-        key->cnk_pfid = *pfid;
+-        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, nlen);
+-        c2_bitstring_len_set(&key->cnk_name, nlen);
+-        *keyh = key;
+-}
+-
+ /**
+    Find cob by fid.
+ */
+diff --git a/nrs/nrs.c b/nrs/nrs.c
+index c5ddd03..35385a7 100644
+--- a/nrs/nrs.c
++++ b/nrs/nrs.c
+@@ -27,8 +27,6 @@ static const struct c2_addb_loc nrs_addb = {
+ 	.al_name = "nrs"
+ };
+ 
+-C2_ADDB_EV_DEFINE(nrs_addb_enqueue, "enqueue", 0x10, C2_ADDB_STAMP);
+-
+ int  c2_nrs_init(struct c2_nrs *nrs, struct c2_nrs_policy *pol, 
+                  struct c2_reqh *reqh)
+ {
+@@ -65,7 +63,8 @@ void c2_nrs_fini(struct c2_nrs *nrs)
+ void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop, void *cookie)
+ {
+ 	C2_ASSERT(nrs->s_pol != NULL);
+-	C2_ADDB_ADD(&fop->f_addb, &nrs_addb, nrs_addb_enqueue);
++        C2_ADDB_ADD(&fop->f_addb, &nrs_addb, 
++                    c2_addb_func_fail, "nrs_enqueue", 0);
+ 	nrs->s_pol->sp_enqueue(nrs, fop, cookie);
+ }
+ 
+-- 
+1.8.3.2
+

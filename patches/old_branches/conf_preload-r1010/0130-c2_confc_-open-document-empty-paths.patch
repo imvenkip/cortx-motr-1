@@ -1,0 +1,158 @@
+From 31a18aaeabaaa46d135c6930b080f47b1563eca5 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 11 Apr 2012 17:30:02 +0300
+Subject: [PATCH 130/311] c2_confc_*open(): document empty paths
+
+Closes: #1015, #1021.
+
++ Too bad the "## trick", proposed by Nikita, does not work here.
+  It would work if there was a comma before `__VA_ARGS__'.
+
+     In the current version of the preprocessor, if `##' appears between
+     a comma and a variable arguments parameter, and the variable
+     argument is omitted entirely, the comma will be removed from the
+     expansion.  If the variable argument is empty, or the token before
+     `##' is not a comma, then `##' behaves as a normal token paste.
+ -- http://gcc.gnu.org/onlinedocs/cpp/Differences-from-previous-versions.html
+
++ Rename _confc_*open() to c2__confc_*open() as these symbols
+  are globally visible.
+
+ReviewBoard: r/714
+---
+ conf/confc.c | 12 ++++++------
+ conf/confc.h | 50 ++++++++++++++++++++++++++------------------------
+ 2 files changed, 32 insertions(+), 30 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 595c18f..a5624f7 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -936,8 +936,8 @@ void c2_confc_fini(struct c2_confc *client)
+ 	XXX;
+ }
+ 
+-int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		const struct c2_conf_pathcomp *path)
++int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		   const struct c2_conf_pathcomp *path)
+ {
+ 	bool isdir;
+ 
+@@ -960,9 +960,9 @@ int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ 	return 0;
+ }
+ 
+-int _confc_open_sync(void **obj, struct c2_confc *client,
+-		     struct c2_conf_obj *origin,
+-		     const struct c2_conf_pathcomp *path)
++int c2__confc_open_sync(void **obj, struct c2_confc *client,
++			struct c2_conf_obj *origin,
++			const struct c2_conf_pathcomp *path)
+ {
+ 	struct c2_confc_ctx ctx;
+ 	struct c2_clink     clink;
+@@ -974,7 +974,7 @@ int _confc_open_sync(void **obj, struct c2_confc *client,
+ 	c2_clink_init(&clink, NULL);
+ 	c2_clink_add(&ctx.fc_complete, &clink);
+ 
+-	rc = _confc_open(&ctx, origin, path);
++	rc = c2__confc_open(&ctx, origin, path);
+ 	if (rc == 0) {
+ 		c2_chan_wait(&clink);
+ 		*obj = ctx.fc_result;
+diff --git a/conf/confc.h b/conf/confc.h
+index 452e74f..42622e3 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -430,16 +430,17 @@ static inline int32_t c2_confc_error(const struct c2_confc_ctx *ctx)
+  *
+  * @param ctx     Fetch context.
+  * @param origin  Path origin (NULL = root configuration object).
+- * @param ...     Path to the requested object.
++ * @param ...     Path to the requested object.  Use `C2_CONF_EOP' for
++ *                empty path.
+  *
+  * @retval -EISDIR  Path leads to a directory.
+  * @retval -ENOMEM  Insufficient memory.
+  */
+-#define c2_confc_open(ctx, origin, ...)                                  \
+-	_confc_open((ctx), (origin), (const struct c2_conf_pathcomp []){ \
++#define c2_confc_open(ctx, origin, ...)                                     \
++	c2__confc_open((ctx), (origin), (const struct c2_conf_pathcomp []){ \
+ 			__VA_ARGS__, C2_CONF_EOP })
+-int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		const struct c2_conf_pathcomp *path);
++int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		   const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Opens configuration object synchronously.
+@@ -458,13 +459,13 @@ int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+  *
+  * @see c2_confc_open()
+  */
+-#define c2_confc_open_sync(obj, client, origin, ...)         \
+-	_confc_open_sync((obj), (client), (origin),          \
+-			 (const struct c2_conf_pathcomp []){ \
+-				 __VA_ARGS__, C2_CONF_EOP })
+-int _confc_open_sync(void **obj, struct c2_confc *client,
+-		     struct c2_conf_obj *origin,
+-		     const struct c2_conf_pathcomp *path);
++#define c2_confc_open_sync(obj, client, origin, ...)            \
++	c2__confc_open_sync((obj), (client), (origin),          \
++			    (const struct c2_conf_pathcomp []){ \
++				    __VA_ARGS__, C2_CONF_EOP })
++int c2__confc_open_sync(void **obj, struct c2_confc *client,
++			struct c2_conf_obj *origin,
++			const struct c2_conf_pathcomp *path);
+ 
+ /* XXX[future]
+  * If statistics shows that synchronous variant is used more often, we
+@@ -490,16 +491,17 @@ void c2_confc_close(void *obj, struct c2_confc *client);
+  *
+  * @param ctx     Fetch context.
+  * @param origin  Path origin (NULL = root configuration object).
+- * @param ...     Path to the requested directory.
++ * @param ...     Path to the requested directory.  Use `C2_CONF_EOP' for
++ *                empty path.
+  *
+  * @retval -ENOTDIR  Path does not lead to a directory.
+  * @retval -ENOMEM   Insufficient memory.
+  */
+-#define c2_confc_diropen(ctx, origin, ...)                                 \
+-	_confc_diropen((ctx), (origin, (const struct c2_conf_pathcomp []){ \
++#define c2_confc_diropen(ctx, origin, ...)                                    \
++	c2__confc_diropen((ctx), (origin, (const struct c2_conf_pathcomp []){ \
+ 			__VA_ARGS, C2_CONF_EOP })
+-int _confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		   const struct c2_conf_pathcomp *path);
++int c2__confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		      const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Opens collection of configuration objects synchronously.
+@@ -520,13 +522,13 @@ int _confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+  *
+  * @see c2_confc_diropen()
+  */
+-#define c2_confc_diropen_sync(dir, client, origin, ...)         \
+-	_confc_diropen_sync((dir), (client), (origin),          \
+-			    (const struct c2_conf_pathcomp []){ \
+-				    __VA_ARGS__, C2_CONF_EOP })
+-int _confc_diropen_sync(struct c2_confc_dir **dir, struct c2_confc *client,
+-			struct c2_conf_obj *origin,
+-			const struct c2_conf_pathcomp *path);
++#define c2_confc_diropen_sync(dir, client, origin, ...)            \
++	c2__confc_diropen_sync((dir), (client), (origin),          \
++			       (const struct c2_conf_pathcomp []){ \
++				       __VA_ARGS__, C2_CONF_EOP })
++int c2__confc_diropen_sync(struct c2_confc_dir **dir, struct c2_confc *client,
++			   struct c2_conf_obj *origin,
++			   const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Returns the next configuration object of given collection.
+-- 
+1.8.3.2
+

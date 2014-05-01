@@ -1,0 +1,52 @@
+From 78f2368eef3cc17ecb2ce4e446af624accf6d9cf Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 27 Mar 2013 14:54:12 +0530
+Subject: [PATCH 102/157] Fixing a wrongly placed M0_ASSERT(lr_ext_next !=
+ NULL) in ext_inmem_write()
+
+---
+ layout/composite.c | 21 +++++++++------------
+ 1 file changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 0abbd4f..03365ff 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -1717,18 +1717,9 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 		 * lr_ext_to_insert_into, with multiple smaller segments. Hence,
+ 		 * store the next node before invoking ext_split_internal().
+ 		 */
+-		lr_ext_next = NULL;
+-		if (!m0_ext_is_empty(&ext0)) {
+-			lr_ext_next = m0_composite_layer_ext_tlist_next(
+-                                                        &layer->clr_extents,
+-                                                        lr_ext_to_insert_into);
+-
+-			/*
+-			 * If ext0 is not yet empty, lr_ext_to_insert_into
+-			 * should not be the last element of the list.
+-			 */
+-			M0_ASSERT(lr_ext_next != NULL);
+-		}
++		lr_ext_next = m0_composite_layer_ext_tlist_next(
++							&layer->clr_extents,
++							lr_ext_to_insert_into);
+ 
+ 		if (split_required) {
+ 			rc = ext_split_internal(layer, lr_ext_to_insert_into,
+@@ -1750,6 +1741,12 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 		ext0.e_start += consumed;
+ 		M0_ASSERT(ext0.e_start <= ext0.e_end);
+ 		if (!m0_ext_is_empty(&ext0)) {
++			/*
++			 * If ext0 is not yet empty, lr_ext_to_insert_into
++			 * should not be the last element of the list.
++			 */
++			M0_ASSERT(lr_ext_next != NULL);
++
+ 			lr_ext_to_insert_into = lr_ext_next;
+ 			chunk = &lr_ext_to_insert_into->cle_ext;
+ 			if (lr_ext_to_insert_into == NULL)
+-- 
+1.8.3.2
+

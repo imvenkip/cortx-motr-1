@@ -1,0 +1,229 @@
+From 481f1b26f5b1d34a6e2a76f7263593e0e666ef78 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 28 Jul 2012 02:59:31 +0300
+Subject: [PATCH 268/370] conf/buf.h: rename c2_conf_buf initialisers
+
+Now each of C2_CONF_BUF_* initialisers contains `INIT', reducing the urge
+to use it in place of lvalue.
+
+Also fix an error in "startup" example, where c2_conf_buf initialiser
+was used incorrectly.
+
+LogD #560
+RB: r/939/diff/1/?file=25262#file25262line114
+---
+ conf/buf.h     |  4 ++--
+ conf/confc.h   | 53 ++++++++++++++++++++++++++++-------------------------
+ conf/obj_ops.c |  2 +-
+ conf/preload.h |  6 +++---
+ 4 files changed, 34 insertions(+), 31 deletions(-)
+
+diff --git a/conf/buf.h b/conf/buf.h
+index 90afd32..e891d5f 100644
+--- a/conf/buf.h
++++ b/conf/buf.h
+@@ -34,8 +34,8 @@
+  * be defined there --- fop/fop2c would skip such a definition.
+  */
+ #define C2_CONF_BUF_INIT(size, data) { .cb_size = (size), .cb_data = (data) }
+-#define C2_CONF_BUF_STR(str) { .cb_size = strlen(str), .cb_data = (str) }
+-#define C2_CONF_BUF_ZERO { .cb_size = 0, .cb_data = NULL }
++#define C2_CONF_BUF_INITS(str)       C2_CONF_BUF_INIT(strlen(str), (str))
++#define C2_CONF_BUF_INIT0            C2_CONF_BUF_INIT(0, NULL)
+ 
+ /** Returns true iff two buffers are equal. */
+ bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y);
+diff --git a/conf/confc.h b/conf/confc.h
+index 504f5a9..dc0ab56 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -27,7 +27,7 @@
+ #endif
+ #include "conf/obj.h"
+ #include "conf/map.h"        /* c2_conf_map */
+-#include "conf/buf.h"        /* C2_CONF_BUF_ZERO */
++#include "conf/buf.h"        /* C2_CONF_BUF_INIT0 */
+ #include "sm/sm.h"           /* c2_sm, c2_sm_ast */
+ #include "fop/fop.h"         /* c2_fop */
+ 
+@@ -110,16 +110,19 @@ struct c2_mutex;
+  * struct c2_sm_group *group = ...;
+  * struct c2_confc     confc;
+  *
+- * startup(...) {
+- *     rc = c2_confc_init(&confc, "confd-endpoint",
+- *                        C2_CONF_BUF_STR("profile-name"), group);
+- *     ...
++ * startup(const char *profile, ...)
++ * {
++ *         const struct c2_conf_buf prof = C2_CONF_BUF_INITS(profile);
++ *
++ *         rc = c2_confc_init(&confc, "confd-endpoint", &prof, group);
++ *         ...
+  * }
+  *
+- * ... Access configuration objects using confc interfaces. ...
++ * ... Access configuration objects, using confc interfaces. ...
+  *
+- * shutdown(...) {
+- *     c2_confc_fini(confc);
++ * shutdown(...)
++ * {
++ *         c2_confc_fini(confc);
+  * }
+  * @endcode
+  *
+@@ -184,7 +187,7 @@ struct c2_mutex;
+  *
+  *         sm_waiter_init(&w, g_confc);
+  *
+- *         rc = c2_confc_open(&w.w_ctx, NULL, C2_CONF_BUF_STR("filesystem"));
++ *         rc = c2_confc_open(&w.w_ctx, NULL, C2_CONF_BUF_INITS("filesystem"));
+  *         if (rc == 0) {
+  *                 while (!c2_confc_ctx_is_completed(&w.w_ctx))
+  *                         c2_chan_wait(&w.w_clink);
+@@ -203,7 +206,7 @@ struct c2_mutex;
+  * static int filesystem_open2(struct c2_conf_filesystem **fs)
+  * {
+  *         return c2_confc_open_sync(fs, g_confc->cc_root,
+- *                                   C2_CONF_BUF_STR("filesystem"));
++ *                                   C2_CONF_BUF_INITS("filesystem"));
+  * }
+  *
+  * // Filters out intermediate state transitions of c2_confc_ctx::fc_mach.
+@@ -243,11 +246,11 @@ struct c2_mutex;
+  *         struct c2_conf_obj   *dir_obj;
+  *         struct c2_conf_obj   *svc_obj;
+  *         struct c2_conf_dircur cur;
+- *         int rc;
++ *         int                   rc;
+  *
+- *         rc = c2_confc_open_sync(&dir_obj, g_confc->cc_root,
+- *                                 C2_CONF_BUF_STR("filesystem"),
+- *                                 C2_CONF_BUF_STR("services"));
++ *         rc = c2_confc__open_sync(&dir_obj, g_confc->cc_root,
++ *                                  C2_CONF_BUF_INITS("filesystem"),
++ *                                  C2_CONF_BUF_INITS("services"));
+  *         if (rc != 0)
+  *                 return rc;
+  *         c2_conf_dircur_init(&cur, dir_obj);
+@@ -290,11 +293,11 @@ struct c2_mutex;
+  *         struct c2_conf_obj   *dir_obj;
+  *         struct c2_conf_dircur dir;
+  *         struct c2_conf_obj   *svc_obj;
+- *         int rc;
++ *         int                   rc;
+  *
+  *         rc = c2_confc_open_sync(&dir_obj, g_confc->cc_root,
+- *                                 C2_CONF_BUF_STR("filesystem"),
+- *                                 C2_CONF_BUF_STR("services"));
++ *                                 C2_CONF_BUF_INITS("filesystem"),
++ *                                 C2_CONF_BUF_INITS("services"));
+  *         if (rc != 0)
+  *                 return rc;
+  *         c2_conf_dircur_init(&dir, dir_obj);
+@@ -310,7 +313,7 @@ struct c2_mutex;
+  *                         continue;
+  *
+  *                 rc = c2_confc_open_sync(&node_obj, svc_obj,
+- *                                         C2_CONF_BUF_STR("node"));
++ *                                         C2_CONF_BUF_INITS("node"));
+  *                 if (rc == 0) {
+  *                         if (c2_conf_buf_eq(node_obj->co_id, node_id))
+  *                                 rc = node_devices_process(node_obj);
+@@ -341,7 +344,7 @@ struct c2_mutex;
+  *         struct c2_conf_obj   *obj;
+  *         int                   rc;
+  *
+- *         rc = c2_confc_open_sync(&dir_obj, node, C2_CONF_BUF_STR("nics"));
++ *         rc = c2_confc_open_sync(&dir_obj, node, C2_CONF_BUF_INITS("nics"));
+  *         if (rc != 0)
+  *                 return rc;
+  *         c2_conf_dircur_init(&dir, dir_obj);
+@@ -364,7 +367,7 @@ struct c2_mutex;
+  *         struct c2_conf_obj   *obj;
+  *         int                   rc;
+  *
+- *         rc = c2_confc_open_sync(&dir_obj, node, C2_CONF_BUF_STR("sdevs"));
++ *         rc = c2_confc_open_sync(&dir_obj, node, C2_CONF_BUF_INITS("sdevs"));
+  *         if (rc != 0)
+  *                 return rc;
+  *         c2_conf_dircur_init(&dir, dir_obj);
+@@ -652,8 +655,7 @@ struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx);
+  * @param origin  Path origin (NULL = root configuration object).
+  * @param ...     Path to the requested object. The variable arguments
+  *                are c2_conf_buf initialisers (C2_CONF_BUF_INIT(),
+- *                C2_CONF_BUF_STR()); use C2_CONF_BUF_ZERO for empty
+- *                path.
++ *                C2_CONF_BUF_INITS()); use C2_CONF_BUF_INIT0 for empty path.
+  *
+  * @note  The application must keep the data, pointed to by path
+  *        arguments, intact, until configuration retrieval operation
+@@ -664,7 +666,7 @@ struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx);
+  */
+ #define c2_confc_open(ctx, origin, ...)				       \
+ 	c2__confc_open((ctx), (origin), (const struct c2_conf_buf []){ \
+-			__VA_ARGS__, C2_CONF_BUF_ZERO })
++			__VA_ARGS__, C2_CONF_BUF_INIT0 })
+ int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ 		   const struct c2_conf_buf path[]);
+ 
+@@ -681,7 +683,8 @@ int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+  * struct c2_conf_filesystem *fs;
+  * int rc;
+  *
+- * rc = c2_confc_open_sync(&fs, confc->cc_root, C2_CONF_BUF_STR("filesystem"));
++ * rc = c2_confc_open_sync(&fs, confc->cc_root,
++ *                         C2_CONF_BUF_INITS("filesystem"));
+  * @endcode
+  *
+  * @see c2_confc_open()
+@@ -689,7 +692,7 @@ int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ #define c2_confc_open_sync(result, origin, ...)             \
+ 	c2__confc_open_sync((result), (origin),             \
+ 			    (const struct c2_conf_buf []) { \
+-				    __VA_ARGS__, C2_CONF_BUF_ZERO })
++				    __VA_ARGS__, C2_CONF_BUF_INIT0 })
+ int c2__confc_open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
+ 			const struct c2_conf_buf path[]);
+ 
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index fb1ffb7..99ffa68 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -165,7 +165,7 @@ profile_lookup(struct c2_conf_obj *parent, const struct c2_conf_buf *name,
+ 	C2_PRE(parent->co_status == C2_CS_READY);
+ 
+ 	if (!c2_conf_buf_eq(name, &(const struct c2_conf_buf)
+-			    C2_CONF_BUF_STR("filesystem")))
++			    C2_CONF_BUF_INITS("filesystem")))
+ 		return -ENOENT;
+ 
+ 	child = &prof->cp_filesystem->cf_obj;
+diff --git a/conf/preload.h b/conf/preload.h
+index 3ddf773..d4898ae 100644
+--- a/conf/preload.h
++++ b/conf/preload.h
+@@ -72,16 +72,16 @@
+  *
+  * @code
+  * struct confx_object a = {
+- *     .o_id = C2_CONF_BUF_STR("test"),
++ *     .o_id = C2_CONF_BUF_INITS("test"),
+  *     .o_conf = {
+  *         .u_type = C2_CO_PROFILE,
+  *         .u.u_profile = {
+- *             .xp_filesystem = C2_CONF_BUF_STR("c2t1fs")
++ *             .xp_filesystem = C2_CONF_BUF_INITS("c2t1fs")
+  *         }
+  *     }
+  * };
+  * struct confx_object b = {
+- *     .o_id = C2_CONF_BUF_STR("c2t1fs"),
++ *     .o_id = C2_CONF_BUF_INITS("c2t1fs"),
+  *     .o_conf = {
+  *         .u_type = C2_CO_FILESYSTEM,
+  *         .u.u_filesystem = {
+-- 
+1.8.3.2
+

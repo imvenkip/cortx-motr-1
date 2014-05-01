@@ -1,0 +1,55 @@
+From 8ab511b1abc813acd9643a283bfd7e0d912d31bf Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 06:52:26 +0200
+Subject: [PATCH 22/58] LogD 1494: use container_of() instead of type casting
+ and arithmetic
+
+---
+ net/test/node_bulk.c | 3 +--
+ net/test/node_ping.c | 3 +--
+ net/test/serialize.c | 1 -
+ 3 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index ec9f443..a1f16a3 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -304,8 +304,7 @@ static const struct c2_net_tm_callbacks node_bulk_tm_cb = {
+ static struct node_bulk_ctx *
+ node_bulk_ctx_from_net_ctx(struct c2_net_test_network_ctx *net_ctx)
+ {
+-	return (struct node_bulk_ctx *)
+-	       ((char *) net_ctx - offsetof(struct node_bulk_ctx, nbc_net));
++	return container_of(net_ctx, struct node_bulk_ctx, nbc_net);
+ }
+ 
+ static bool
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index 496a14b..d8f533b 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -243,8 +243,7 @@ static const struct c2_net_tm_callbacks node_ping_tm_cb = {
+ static struct node_ping_ctx *
+ node_ping_ctx_from_net_ctx(struct c2_net_test_network_ctx *net_ctx)
+ {
+-	return (struct node_ping_ctx *)
+-	       ((char *) net_ctx - offsetof(struct node_ping_ctx, npc_net));
++	return container_of(net_ctx, struct node_ping_ctx, npc_net);
+ }
+ 
+ static c2_time_t node_ping_timestamp_put(struct c2_net_test_network_ctx *net_ctx,
+diff --git a/net/test/serialize.c b/net/test/serialize.c
+index 8079be8..3377d17 100644
+--- a/net/test/serialize.c
++++ b/net/test/serialize.c
+@@ -18,7 +18,6 @@
+  * Original creation date: 06/28/2012
+  */
+ 
+-#include "lib/cdefs.h"		/* container_of */
+ #include "lib/misc.h"		/* C2_SET0 */
+ #include "lib/memory.h"		/* c2_alloc */
+ #include "lib/errno.h"		/* ENOMEM */
+-- 
+1.8.3.2
+

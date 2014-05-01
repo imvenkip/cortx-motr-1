@@ -1,0 +1,318 @@
+From 341f471a99664d4f3801c4b5f2a48871e6ce00d0 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Mon, 17 Jun 2013 23:05:07 +0300
+Subject: [PATCH 161/290] be: extmap: code reuse improvements
+
+- emap_it_get() introduced;
+- emap_it_pack() extended to take btree function as parameter;
+- emap_it_open() extended to check result;
+- be_emap_move() introduced for next() and prev().
+---
+ be/extmap.c | 165 +++++++++++++++++++++++++++++++-----------------------------
+ 1 file changed, 85 insertions(+), 80 deletions(-)
+
+diff --git a/be/extmap.c b/be/extmap.c
+index 8a33c62..37ac1c4 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -144,7 +144,13 @@ M0_INTERNAL bool m0_be_emap_ext_is_first(const struct m0_ext *ext)
+ 	return ext->e_start == 0;
+ }
+ 
+-static void emap_it_pack(struct m0_be_emap_cursor *it)
++static void emap_it_pack(struct m0_be_emap_cursor *it,
++	void (*btree_func)(struct m0_be_btree *btree, struct m0_be_tx *tx,
++                                    struct m0_be_op *op,
++                                    const struct m0_buf *key,
++                                    const struct m0_buf *val),
++			struct m0_be_tx *tx,
++			struct m0_be_op *op)
+ {
+ 	const struct m0_be_emap_seg *ext = &it->ec_seg;
+ 	struct m0_be_emap_key       *key = &it->ec_key;
+@@ -154,25 +160,39 @@ static void emap_it_pack(struct m0_be_emap_cursor *it)
+ 	key->ek_offset = ext->ee_ext.e_end;
+ 	rec->er_start  = ext->ee_ext.e_start;
+ 	rec->er_value  = ext->ee_val;
++
++	btree_func(&it->ec_map->em_mapping, tx, op, &it->ec_keybuf,
++						    &it->ec_recbuf);
++	M0_ASSERT(m0_be_op_state(op) == M0_BOS_SUCCESS);
++}
++
++static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it)
++{
++	return m0_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
+ }
+ 
+-static void emap_it_open(struct m0_be_emap_cursor *it)
++static int emap_it_open(struct m0_be_emap_cursor *it)
+ {
+ 	const struct m0_be_emap_key *key = &it->ec_key;
+ 	const struct m0_be_emap_rec *rec = &it->ec_rec;
+ 	struct m0_be_emap_seg       *ext = &it->ec_seg;
++	struct m0_be_op             *bt_it_op = &it->ec_cursor.bc_op;
+ 
+-	m0_be_btree_cursor_kv_get(&it->ec_cursor, &it->ec_keybuf,
+-						  &it->ec_recbuf);
+-	ext->ee_pre         = key->ek_prefix;
+-	ext->ee_ext.e_start = rec->er_start;
+-	ext->ee_ext.e_end   = key->ek_offset;
+-	ext->ee_val         = rec->er_value;
+-}
++	M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
+ 
+-static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it)
+-{
+-	return m0_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
++	it->ec_op.bo_sm.sm_rc = bt_it_op->bo_sm.sm_rc;
++	if (it->ec_op.bo_sm.sm_rc == 0) {
++		m0_be_btree_cursor_kv_get(&it->ec_cursor, &it->ec_keybuf,
++							  &it->ec_recbuf);
++		ext->ee_pre         = key->ek_prefix;
++		ext->ee_ext.e_start = rec->er_start;
++		ext->ee_ext.e_end   = key->ek_offset;
++		ext->ee_val         = rec->er_value;
++		if (!emap_it_prefix_ok(it))
++			it->ec_op.bo_sm.sm_rc = -ESRCH;
++	}
++
++	return it->ec_op.bo_sm.sm_rc;
+ }
+ 
+ static void emap_it_init(struct m0_be_emap *map, struct m0_be_tx *tx,
+@@ -199,40 +219,58 @@ M0_INTERNAL struct m0_be_op *m0_be_emap_op_get(struct m0_be_emap_cursor *it)
+ 	return &it->ec_op;
+ }
+ 
++static int emap_it_get(struct m0_be_emap_cursor *it)
++{
++	m0_be_btree_cursor_get(&it->ec_cursor, &it->ec_keybuf, true);
++	return emap_it_open(it);
++}
++
+ static void be_emap_lookup(struct m0_be_emap *map, struct m0_be_tx *tx,
+ 		       const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		       struct m0_be_emap_cursor *it)
+ {
+ 	int result;
+ 
++	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
++
+ 	emap_it_init(map, tx, prefix, offset, it);
+-	m0_be_btree_cursor_get(&it->ec_cursor, &it->ec_keybuf, true);
+-	result = it->ec_cursor.bc_op.bo_sm.sm_rc;
+-	if (result != 0) {
++	result = emap_it_get(it);
++	if (result != 0)
+ 		be_emap_close(it);
+-		return;
+-	}
+-	emap_it_open(it);
+-	if (!emap_it_prefix_ok(it))
+-		result = it->ec_cursor.bc_op.bo_sm.sm_rc = -ESRCH;
+ 
++	m0_sm_state_set(&it->ec_op.bo_sm, it->ec_op.bo_sm.sm_rc == 0 ?
++					M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ 	M0_POST(ergo(result == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
+ }
+ 
+-static void be_emap_next(struct m0_be_emap_cursor *it)
++enum move_dir {
++	NEXT,
++	PREV
++};
++
++static int be_emap_move(struct m0_be_emap_cursor *it, enum move_dir dir)
+ {
+-	m0_be_btree_cursor_next(&it->ec_cursor);
++	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
++
++	if (dir == NEXT)
++		m0_be_btree_cursor_next(&it->ec_cursor);
++	else
++		m0_be_btree_cursor_prev(&it->ec_cursor);
+ 	emap_it_open(it);
+-	if (!emap_it_prefix_ok(it))
+-		it->ec_cursor.bc_op.bo_sm.sm_rc = -ESRCH;
++
++	m0_sm_state_set(&it->ec_op.bo_sm, it->ec_op.bo_sm.sm_rc == 0 ?
++					M0_BOS_SUCCESS : M0_BOS_FAILURE);
++	return it->ec_op.bo_sm.sm_rc;
+ }
+ 
+-static void be_emap_prev(struct m0_be_emap_cursor *it)
++static int be_emap_next(struct m0_be_emap_cursor *it)
+ {
+-	m0_be_btree_cursor_prev(&it->ec_cursor);
+-	emap_it_open(it);
+-	if (!emap_it_prefix_ok(it))
+-		it->ec_cursor.bc_op.bo_sm.sm_rc = -ESRCH;
++	return be_emap_move(it, NEXT);
++}
++
++static int be_emap_prev(struct m0_be_emap_cursor *it)
++{
++	return be_emap_move(it, PREV);
+ }
+ 
+ #if 0
+@@ -339,10 +377,7 @@ M0_INTERNAL void m0_be_emap_extent_update(struct m0_be_emap_cursor *it,
+ 
+ 	it->ec_seg.ee_ext.e_start = es->ee_ext.e_start;
+ 	it->ec_seg.ee_val = es->ee_val;
+-	emap_it_pack(it);
+-	m0_be_btree_update(&it->ec_map->em_mapping, tx, &bt_op, &it->ec_keybuf,
+-								&it->ec_recbuf);
+-	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
++	emap_it_pack(it, m0_be_btree_update, tx, &bt_op);
+ 
+ 	it->ec_op.bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+ 	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_SUCCESS);
+@@ -353,7 +388,6 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
+ 				  m0_bindex_t               delta)
+ {
+ 	struct m0_be_op  bt_op;
+-	struct m0_be_op *bt_it_op = &it->ec_cursor.bc_op;
+ 
+ 	M0_PRE(!m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
+ 	M0_PRE(delta <= m0_ext_length(&it->ec_seg.ee_ext));
+@@ -368,29 +402,16 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
+ 
+ 	if (m0_ext_length(&it->ec_seg.ee_ext) < delta) {
+ 		it->ec_seg.ee_ext.e_end -= delta;
+-		emap_it_pack(it);
+-		m0_be_btree_insert(&it->ec_map->em_mapping, tx, &bt_op,
+-							&it->ec_keybuf,
+-							&it->ec_recbuf);
+-		M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
++		emap_it_pack(it, m0_be_btree_insert, tx, &bt_op);
+ 		if (bt_op.bo_sm.sm_rc != 0)
+ 			goto fail;
+ 	}
+ 
+-	/* Re-initialize cursor. */
+-	m0_be_btree_cursor_get(&it->ec_cursor, &it->ec_keybuf, true);
+-	M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
+-	if (bt_it_op->bo_sm.sm_rc != 0)
+-		goto fail;
+-	emap_it_open(it);
+-	if (!emap_it_prefix_ok(it)) {
+-		it->ec_op.bo_sm.sm_rc = -ESRCH;
++	/* Re-initialize the cursor position. */
++	if (emap_it_get(it) != 0)
+ 		goto fail;
+-	}
+ 
+-	be_emap_next(it);
+-	M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
+-	if (bt_it_op->bo_sm.sm_rc != 0)
++	if (be_emap_next(it) != 0)
+ 		goto fail;
+ 
+ 	it->ec_seg.ee_ext.e_start -= delta;
+@@ -407,8 +428,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
+ fail:
+ 	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_FAILURE);
+ 	if (it->ec_op.bo_sm.sm_rc == 0)
+-		it->ec_op.bo_sm.sm_rc = bt_op.bo_sm.sm_rc ?:
+-					bt_it_op->bo_sm.sm_rc;
++		it->ec_op.bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+ }
+ 
+ static void be_emap_split(struct m0_be_emap_cursor *it,
+@@ -423,7 +443,6 @@ static void be_emap_split(struct m0_be_emap_cursor *it,
+ 		.b_nob  = sizeof save_key
+ 	};
+ 	struct m0_be_op  bt_op;
+-	struct m0_be_op *bt_it_op = &it->ec_cursor.bc_op;
+ 
+ 	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_ACTIVE);
+ 
+@@ -432,20 +451,14 @@ static void be_emap_split(struct m0_be_emap_cursor *it,
+ 	if (bt_op.bo_sm.sm_rc != 0)
+ 		goto fail;
+ 	/*
+-	 * Now, by the same key just deleted cursor is moved
+-	 * to the next segment.
++	 * Now, by the same key just deleted cursor will be moved
++	 * to the next segment. We move and save the retrieved new key
++	 * to be able to re-position cursor to it after the following
++	 * btree_insert(s) will invalidate the cursor.
+ 	 */
+-	m0_be_btree_cursor_get(&it->ec_cursor, &it->ec_keybuf, true);
+-	M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
+-	if (bt_it_op->bo_sm.sm_rc != 0)
++	if (emap_it_get(it) != 0)
+ 		goto fail;
+-	emap_it_open(it);
+-	if (!emap_it_prefix_ok(it)) {
+-		it->ec_op.bo_sm.sm_rc = -ESRCH;
+-		goto fail;
+-	}
+ 
+-	/* btree_insert below will invalidate the cursor. */
+ 	if (vec->iv_vec.v_nr > 0)
+ 		save_key = it->ec_key;
+ 
+@@ -456,23 +469,17 @@ static void be_emap_split(struct m0_be_emap_cursor *it,
+ 		it->ec_seg.ee_ext.e_start = scan;
+ 		it->ec_seg.ee_ext.e_end   = scan + count;
+ 		it->ec_seg.ee_val         = vec->iv_index[i];
+-		emap_it_pack(it);
+-		m0_be_btree_insert(&it->ec_map->em_mapping, tx, &bt_op,
+-							&it->ec_keybuf,
+-							&it->ec_recbuf);
+-		M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
++		emap_it_pack(it, m0_be_btree_insert, tx, &bt_op);
+ 		if (bt_op.bo_sm.sm_rc != 0)
+ 			goto fail;
+ 		scan += count;
+ 	}
+ 
+ 	if (vec->iv_vec.v_nr > 0) {
+-		/* Re-initialize cursor */
++		/* Re-initialize cursor position */
+ 		m0_be_btree_cursor_get(&it->ec_cursor, &save_key_buf, true);
+-		M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
+-		if (bt_it_op->bo_sm.sm_rc != 0)
++		if (emap_it_open(it) != 0)
+ 			goto fail;
+-		emap_it_open(it);
+ 	}
+ 
+ 	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_SUCCESS);
+@@ -481,8 +488,7 @@ static void be_emap_split(struct m0_be_emap_cursor *it,
+ fail:
+ 	m0_sm_state_set(&it->ec_op.bo_sm, M0_BOS_FAILURE);
+ 	if (it->ec_op.bo_sm.sm_rc == 0)
+-		it->ec_op.bo_sm.sm_rc = bt_op.bo_sm.sm_rc ?:
+-					bt_it_op->bo_sm.sm_rc;
++		it->ec_op.bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
+ }
+ 
+ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
+@@ -699,7 +705,7 @@ M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret *car
+ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
+ 				      m0_bcount_t count)
+ {
+-	struct m0_be_op *bt_it_op = &car->ct_it->ec_cursor.bc_op;
++	struct m0_be_op *op = &car->ct_it->ec_op;
+ 
+ 	M0_ASSERT(m0_be_emap_caret_invariant(car));
+ 	while (count > 0 && car->ct_index < M0_BINDEX_MAX + 1) {
+@@ -708,9 +714,8 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
+ 		step = m0_be_emap_caret_step(car);
+ 		if (count >= step) {
+ 			m0_be_emap_next(car->ct_it);
+-			M0_ASSERT(m0_be_op_state(bt_it_op) == M0_BOS_SUCCESS);
+-			if (bt_it_op->bo_sm.sm_rc < 0)
+-				return bt_it_op->bo_sm.sm_rc;
++			if (op->bo_sm.sm_rc < 0)
++				return op->bo_sm.sm_rc;
+ 		} else
+ 			step = count;
+ 		car->ct_index += step;
+-- 
+1.8.3.2
+

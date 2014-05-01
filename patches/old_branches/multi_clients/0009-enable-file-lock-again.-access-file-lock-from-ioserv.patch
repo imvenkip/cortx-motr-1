@@ -1,0 +1,256 @@
+From a3e728dab7fd11b9d13123dc5b4c49931f6430f5 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sat, 1 Mar 2014 23:40:22 +0800
+Subject: [PATCH 09/26] enable file lock again. access file lock from ioservice
+ code.
+
+---
+ addb/linux_kernel/kctx.c                    |  1 +
+ ioservice/io_fops.c                         | 15 ++++++++++---
+ m0t1fs/linux_kernel/file.c                  | 35 ++++++++++++++++++++---------
+ m0t1fs/linux_kernel/inode.c                 |  2 --
+ m0t1fs/linux_kernel/m0t1fs.c                |  2 ++
+ m0t1fs/linux_kernel/m0t1fs.h                |  2 +-
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh |  1 +
+ m0t1fs/linux_kernel/super.c                 |  1 +
+ 8 files changed, 42 insertions(+), 17 deletions(-)
+
+diff --git a/addb/linux_kernel/kctx.c b/addb/linux_kernel/kctx.c
+index f931bda..a8ed9f6 100644
+--- a/addb/linux_kernel/kctx.c
++++ b/addb/linux_kernel/kctx.c
+@@ -21,6 +21,7 @@
+ /* This file is designed to be included by addb/addb.c */
+ 
+ #include "m0t1fs/linux_kernel/m0t1fs.h"
++#include "m0t1fs/m0t1fs_addb.h"
+ 
+ /**
+    @ingroup addb_pvt
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index 97a2f66..35e31ad 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -41,6 +41,10 @@
+ #include "fop/fom_generic.h"
+ #include "ioservice/cob_foms.h"
+ #include "file/file.h"
++#ifdef __KERNEL__
++  #undef M0_ADDB_CT_CREATE_DEFINITION
++  #include "m0t1fs/linux_kernel/m0t1fs.h"
++#endif
+ 
+ /**
+  * This addb ctx would be used only to post for exception records
+@@ -1225,8 +1229,9 @@ static void io_fop_ivec_prepare(struct m0_fop *res_fop,
+ 
+ static int io_fop_di_prepare(struct m0_fop *fop)
+ {
++#ifndef __KERNEL__
+ 	return 0;
+-/*
++#else
+ 	uint64_t		   size;
+ 	struct m0_fop_cob_rw	  *rw;
+ 	struct m0_io_indexvec_seq *io_info;
+@@ -1236,6 +1241,8 @@ static int io_fop_di_prepare(struct m0_fop *fop)
+ 	struct m0_file		  *file;
+ 	uint32_t		   i;
+ 	m0_bcount_t		   bsize;
++	struct m0t1fs_sb          *sb;
++	struct m0_rm_domain       *rdom;
+ 
+ 	M0_PRE(fop != NULL);
+ 
+@@ -1244,7 +1251,9 @@ static int io_fop_di_prepare(struct m0_fop *fop)
+ 	M0_ASSERT(m0_mutex_is_locked(&rbulk->rb_mutex));
+ 	rw = io_rw_get(fop);
+ 	io_info = &rw->crw_ivecs;
+-	file = m0_resource_to_file(&rw->crw_gfid);
++	sb = m0_fop_to_sb(fop);
++	rdom = m0t1fs_rmsvc_domain_get(&sb->csb_m0t1fs_globals.g_reqh);
++	file = m0_resource_to_file(&rw->crw_gfid, rdom->rd_types[M0_RM_FLOCK_RT]);
+ 	if (file->fi_di_ops->do_out_shift(file) == 0)
+ 		return 0;
+ 	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
+@@ -1279,7 +1288,7 @@ cleanup:
+ 		--i;
+ 	}
+ 	return -ENOMEM;
+-*/
++#endif
+ }
+ 
+ static void io_fop_bulkbuf_move(struct m0_fop *src, struct m0_fop *dest)
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 0c68934..5085ff8 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -44,6 +44,8 @@
+ #include "lib/hash.h"	    /* m0_htable */
+ 
+ #include "m0t1fs/linux_kernel/file_internal.h"
++#include "m0t1fs/m0t1fs_addb.h"
++
+ 
+ /**
+    @page iosnsrepair I/O with SNS and SNS repair.
+@@ -3217,8 +3219,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
+ 
+ static int ioreq_file_lock(struct io_request *req)
+ {
+-	int                  rc = 0;
+-/*
++	int                  rc;
+ 	struct m0t1fs_inode *mi;
+ 
+ 	M0_PRE(req != NULL);
+@@ -3232,7 +3233,6 @@ static int ioreq_file_lock(struct io_request *req)
+ 			     M0_TIME_NEVER);
+ 	m0_rm_owner_unlock(&mi->ci_fowner);
+ 	rc = rc ?: req->ir_in.rin_rc;
+-*/
+ 	if (rc == 0)
+ 		ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
+ 
+@@ -3242,9 +3242,7 @@ static int ioreq_file_lock(struct io_request *req)
+ static void ioreq_file_unlock(struct io_request *req)
+ {
+ 	M0_PRE(req != NULL);
+-/*
+ 	m0_file_unlock(&req->ir_in);
+-*/
+ 	ioreq_sm_state_set(req, IRS_LOCK_RELINQUISHED);
+ }
+ 
+@@ -3257,7 +3255,7 @@ static int ioreq_iosm_handle(struct io_request *req)
+ 	struct inode	    *inode;
+ 	struct target_ioreq *ti;
+ 
+-	M0_ENTRY("io_request %p", req);
++	M0_ENTRY("io_request %p sb = %p", req, file_to_sb(req->ir_file));
+ 	M0_PRE_EX(io_request_invariant(req));
+ 
+ 	for (map = 0; map < req->ir_iomap_nr; ++map) {
+@@ -4559,6 +4557,19 @@ static void failure_vector_mismatch(struct io_req_fop *irfop)
+ 	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");
+ }
+ 
++M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop)
++{
++	struct m0_io_fop  *iofop;
++	struct io_req_fop *irfop;
++	struct io_request *ioreq;
++
++	iofop = container_of(fop, struct m0_io_fop, if_fop);
++	irfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
++	ioreq  = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
++			ir_nwxfer, &ioreq_bobtype);
++	return file_to_sb(ioreq->ir_file);
++}
++
+ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ {
+ 	int                         rc;
+@@ -4855,14 +4866,16 @@ static inline uint32_t io_seg_size(void)
+ 
+ static uint32_t io_di_size(const struct io_request *req)
+ {
+-	return 0;
+-/*
+-	struct m0_file *file;
+-	file = m0_resource_to_file(file_to_fid(req->ir_file));
++	struct m0_file      *file;
++	struct m0t1fs_sb    *sb;
++	struct m0_rm_domain *rdom;
++
++	sb = file_to_sb(req->ir_file);
++	rdom = m0t1fs_rmsvc_domain_get(&sb->csb_m0t1fs_globals.g_reqh);
++	file = m0_resource_to_file(file_to_fid(req->ir_file), rdom->rd_types[M0_RM_FLOCK_RT]);
+ 	if (file->fi_di_ops->do_out_shift(file) == 0)
+ 		return 0;
+ 	return file->fi_di_ops->do_out_shift(file) * M0_DI_ELEMENT_SIZE;
+-*/
+ }
+ 
+ static int bulk_buffer_add(struct io_req_fop	   *irfop,
+diff --git a/m0t1fs/linux_kernel/inode.c b/m0t1fs/linux_kernel/inode.c
+index 912ba43..b8d417d 100644
+--- a/m0t1fs/linux_kernel/inode.c
++++ b/m0t1fs/linux_kernel/inode.c
+@@ -117,7 +117,6 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
+ 	const struct m0_fid *fid = &ci->ci_fid;
+ 
+ 	M0_ENTRY();
+-	return;
+ 
+ 	M0_LOG(M0_INFO, FID_F, FID_P(fid));
+ 	rdom = m0t1fs_rmsvc_domain_get(&csb->csb_m0t1fs_globals.g_reqh);
+@@ -145,7 +144,6 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
+ M0_INTERNAL void m0t1fs_file_lock_fini(struct m0t1fs_inode *ci)
+ {
+ 	int rc;
+-	return;
+ 
+ 	m0_rm_owner_windup(&ci->ci_fowner);
+ 	rc = m0_rm_owner_timedwait(&ci->ci_fowner, M0_BITS(ROS_FINAL),
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index 392373b..6f21a40 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -32,6 +32,8 @@
+ #include "rpc/rpclib.h"
+ #include "rm/rm.h"
+ 
++#include "m0t1fs/m0t1fs_addb.h"
++
+ static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
+ module_param(node_uuid, charp, S_IRUGO);
+ MODULE_PARM_DESC(node_uuid, "UUID of Mero node");
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 10fd283..c2c038e 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -40,7 +40,6 @@
+ #include "ioservice/io_fops.h"    /* m0_fop_cob_create_fopt */
+ #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
+ #include "conf/schema.h"          /* m0_conf_service_type */
+-#include "m0t1fs/m0t1fs_addb.h"
+ #include "file/file.h"		  /* m0_file */
+ 
+ /**
+@@ -770,6 +769,7 @@ M0_INTERNAL const struct m0_fid *
+ 
+ void m0t1fs_fid_alloc(struct m0t1fs_sb *csb, struct m0_fid *out);
+ unsigned long fid_hash(const struct m0_fid *fid);
++M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
+ 
+ #endif /* __MERO_M0T1FS_M0T1FS_H__ */
+ 
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 0ef173b..5d8266b 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -320,6 +320,7 @@ file_creation_test()
+ 	    >> $MERO_TEST_LOGFILE
+ 	for ((i=0; i<$nr_files; ++i)); do
+ 		touch $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
++		echo touch > $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+ 		ls -li $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+ 	done
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 327e73e..0226506 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -39,6 +39,7 @@
+ #include "lib/uuid.h"   /* m0_uuid_generate */
+ #include "net/lnet/lnet.h"
+ #include "rpc/rpc_internal.h"
++#include "m0t1fs/m0t1fs_addb.h"
+ 
+ extern struct io_mem_stats iommstats;
+ 
+-- 
+1.8.3.2
+

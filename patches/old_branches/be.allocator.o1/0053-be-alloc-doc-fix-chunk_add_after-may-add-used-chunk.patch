@@ -1,0 +1,26 @@
+From 661573296651775b3c3cc869e3f04889ad06ad0d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 14 Jan 2014 18:35:23 +0200
+Subject: [PATCH 53/96] be/alloc: doc fix - chunk_add_after() may add used
+ chunk
+
+---
+ be/alloc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index ff61c1e..27dd5ed 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -338,7 +338,7 @@ static uintptr_t be_alloc_chunk_after(struct m0_be_allocator *a,
+ 			   (uintptr_t) &c->bac_mem[c->bac_size];
+ }
+ 
+-/** try to add a free chunk after the c */
++/** try to add a chunk after the c */
+ static struct be_alloc_chunk *
+ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 			 struct m0_be_tx *tx,
+-- 
+1.8.3.2
+

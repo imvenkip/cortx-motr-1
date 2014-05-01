@@ -1,0 +1,138 @@
+From e85de7757f3a4d17419e0d008ad61f98c1e461c9 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 22 Aug 2012 20:44:03 +0300
+Subject: [PATCH 326/370] conf/obj_ops.c: refactor endpoints_populate()
+
+- Rename the function.
+  Rationale: `_fill' suffix is reserved for functions being assigned to
+  c2_conf_obj_ops::coo_fill().
+
+- Swap the parameters.
+  Rationale: strcpy(dest, src)
+
+- Fix erroneous pointer dereferencing.
+
+- Minimize the number of local variables.
+
+- Move endpoints_populate() to the bottom of "Stubs filling" section,
+  since it is an auxiliary function.
+---
+ conf/obj_ops.c | 74 +++++++++++++++++++++++++++-------------------------------
+ 1 file changed, 34 insertions(+), 40 deletions(-)
+
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index b36cad8..d7e3af6 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -551,6 +551,8 @@ void c2_conf_obj_put(struct c2_conf_obj *obj)
+  * Stubs filling
+  * ------------------------------------------------------------------ */
+ 
++static int endpoints_populate(char ***dest, const struct arr_buf *src);
++
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		     struct c2_conf_reg *reg)
+ {
+@@ -572,44 +574,6 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 	return 0;
+ }
+ 
+-static int endpoint_fill(const struct arr_buf *buf, char ***endpoint)
+-{
+-	uint32_t  i;
+-	uint32_t  j;
+-	char     *str;
+-	uint32_t  size;
+-	char     *data;
+-
+-	C2_ALLOC_PTR(**endpoint, ab_count);
+-	if (**endpoint == NULL)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < buf->ab_count; ++i) {
+-		size = buf->ab_elems[i]->cb_size;
+-		data = buf->ab_elems[i]->cb_data;
+-
+-		C2_ALLOC_PTR(str, size + 1);
+-		if (str == NULL)
+-			break;
+-
+-		memcpy(str, data, size);
+-		str[size] = '\0';
+-		endpoint[i] = str;
+-	}
+-
+-	if (str != NULL)
+-		return 0;
+-
+-	/* cleanup */
+-	for (j = 0; j < i; ++j) {
+-		c2_free(endpoint[j]);
+-	}
+-
+-	c2_free(**endpoint);
+-
+-	return -ENOMEM;
+-}
+-
+ static int profile_fill(struct c2_conf_obj *__dest,
+ 			const struct confx_object *__src,
+ 			struct c2_conf_reg *reg)
+@@ -658,7 +622,6 @@ static int service_fill(struct c2_conf_obj *__dest,
+ 	const struct confx_service *src = &__src->o_conf.u.u_service;
+ 
+ 	dest = C2_CONF_CAST(__dest, c2_conf_service); /* XXX C2_CONF_CAST()? */
+-
+ 	dest->cs_type = src->xs_type;
+ 
+ 	rc = obj_find(reg, C2_CO_NODE, &src->xs_node, &child);
+@@ -666,7 +629,7 @@ static int service_fill(struct c2_conf_obj *__dest,
+ 		return rc;
+ 	dest->cs_node = C2_CONF_CAST(child, c2_conf_node);
+ 
+-	return endpoint_fill(&src->xs_endpoints, &dest->cs_endpoints);
++	return endpoints_populate(&dest->cs_endpoints, &src->xs_endpoints);
+ }
+ 
+ static int node_fill(struct c2_conf_obj *__dest,
+@@ -705,6 +668,37 @@ static int node_fill(struct c2_conf_obj *__dest,
+ 		dir_new(&sdev_id, C2_CO_SDEV, &src->xn_sdevs, reg,
+ 			&dest->cn_sdevs);
+ }
++
++static int endpoints_populate(char ***dest, const struct arr_buf *src)
++{
++	uint32_t              i;
++	char                 *s;
++	const struct arr_buf *ep;
++
++	/* XXX TODO What if (src->ab_count == 0 || src->ab_elems == NULL)? */
++	C2_ALLOC_ARR(*dest, src->ab_count);
++	if (*dest == NULL)
++		return -ENOMEM;
++
++	for (i = 0; i < src->ab_count; ++i) {
++		ep = &src->ab_elems[i];
++
++		C2_ALLOC_PTR(s, ep->cb_size + 1);
++		if (s == NULL)
++			goto fail;
++
++		memcpy(s, ep->cb_data, ep->cb_size);
++		s[ep->cb_size] = '\0';
++		(*dest)[i] = s;
++	}
++
++	return 0;
++fail:
++	for (; i != 0; --i)
++		c2_free((*dest)[i]);
++	c2_free(*dest);
++	return -ENOMEM;
++}
+ 
+ /* ------------------------------------------------------------------
+  * ->coo_lookup()
+-- 
+1.8.3.2
+

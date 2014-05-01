@@ -1,0 +1,25 @@
+From 3193376f2f13092410c971d7fbc1d20d1d8a5ce7 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 9 Jan 2014 06:12:52 +0200
+Subject: [PATCH 40/96] be/alloc: fixed size param description for alloc()
+
+---
+ be/alloc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/alloc.h b/be/alloc.h
+index ce6ad49..19560cc 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -226,7 +226,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+  * @param ptr Pointer to allocated memory will be stored to *ptr.
+  *	      *ptr shouldn't be used before completion of the operation.
+  *	      Can be NULL.
+- * @param size Memory size
++ * @param size Allocated memory size in bytes
+  * @param shift Memory will be aligned on (2^shift)-byte boundary.
+  *		It can be less than M0_BE_ALLOC_SHIFT_MIN - in this case
+  *		allocation will be done as if it is equal to
+-- 
+1.8.3.2
+

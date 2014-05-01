@@ -1,0 +1,70 @@
+From c1c2a8f47272bd775430a1d7ada41c07c7b0b355 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 30 May 2013 19:01:48 +0300
+Subject: [PATCH 072/290] be (list): minor edit of list UT pseudocode
+
+---
+ be/ut/list.c | 34 +++++++++++++++++++++++++---------
+ 1 file changed, 25 insertions(+), 9 deletions(-)
+
+diff --git a/be/ut/list.c b/be/ut/list.c
+index 91f9197..495c2e2 100644
+--- a/be/ut/list.c
++++ b/be/ut/list.c
+@@ -19,20 +19,36 @@
+ 
+ #include "ut/ut.h"
+ 
+-static void test_XXX(void)
++static void test_list_api(void)
+ {
+ #if 0 /*XXX*/
+-	struct m0_be_list *list;
++	struct m0_be_list *a;
++	struct m0_be_tx_credit cred;
+ 
+-	list = m0_be_alloc(sizeof *list);
+-	M0_UT_ASSERT(list != NULL);
++	list = m0_be_alloc(sizeof *a);
++	M0_UT_ASSERT(a != NULL);
+ 
+-	list_create(list);
++	m0_be_list_create(a);
+ 
+-	list_get(list);
++	m0_be_list_get(a, 0, op); /* gets the head of the list */
+ 
+-	list_init();
+-	list_init(); /* we explicitly allow sequential init()s */
++	m0_be_list_init(a, seg);
++	/*
++	 * Sequential init()s must be allowed.
++	 *
++	 * Imagine this scenario:
++	 * init() --> crash, reboot, recovery --> init() again.
++	 */
++	m0_be_list_init(a, seg);
++
++	m0_be_tx_credit_init(&cred);
++	m0_be_list_credit(a, M0_BLO_INSERT, 3, &cred);
++	M0_UT_ASSERT(cred.tc_reg_nr != 0);
++	M0_UT_ASSERT(cred.tc_reg_size != 0);
++
++	/* XXX perform 3 insertions */
++
++	m0_be_list_capture(a, ...);
+ 
+ 	...
+ #endif /*XXX*/
+@@ -41,7 +57,7 @@ static void test_XXX(void)
+ const struct m0_test_suite be_list_ut = {
+ 	.ts_name = "be-list-ut",
+ 	.ts_tests = {
+-		{ "XXX", test_XXX },
++		{ "api", test_list_api },
+ 		{ NULL, NULL }
+ 	}
+ };
+-- 
+1.8.3.2
+

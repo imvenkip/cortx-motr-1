@@ -1,0 +1,45 @@
+From 890ebe1bda6f4e82fa12d335d6c657212cd6d847 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 25 Jun 2013 15:13:57 +0300
+Subject: [PATCH 218/290] be/allocator: added credits for create and destroy
+ operations
+
+---
+ be/alloc.c | 7 +++++++
+ be/alloc.h | 2 ++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 15cba0f..07136ac 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -594,6 +594,13 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 
+ 	/** @todo TODO XXX add list credits instead of entire header */
+ 	switch (optype) {
++		case M0_BAO_CREATE:
++			m0_be_tx_credit_mac(accum, &chunk_credit, 1);
++			m0_be_tx_credit_add(accum, &header_credit);
++			break;
++		case M0_BAO_DESTROY:
++			m0_be_tx_credit_add(accum, &header_credit);
++			break;
+ 		case M0_BAO_ALLOC:
+ 			/* see be_alloc_chunk_split() */
+ 			/* prev, chunk0, new, chunk1, next */
+diff --git a/be/alloc.h b/be/alloc.h
+index 04eed4c..818b680 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -119,6 +119,8 @@ M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a);
+  * @see m0_be_allocator_credit().
+  */
+ enum m0_be_allocator_op {
++	M0_BAO_CREATE,	/**< Allocator credit for m0_be_allocator_create() */
++	M0_BAO_DESTROY,	/**< Allocator credit for m0_be_allocator_destroy() */
+ 	M0_BAO_ALLOC,	/**< Allocator credit for m0_be_alloc() */
+ 	M0_BAO_FREE,	/**< Allocator credit for m0_be_free() */
+ };
+-- 
+1.8.3.2
+

@@ -1,0 +1,26 @@
+From aafb2b223fca1388746f853ae7864f51f73edfc2 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 27 Feb 2014 02:40:22 +0200
+Subject: [PATCH 95/96] be/fl: [doc] added `Locks' section
+
+---
+ be/fl.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/be/fl.c b/be/fl.c
+index 51096f1..a15ad82 100644
+--- a/be/fl.c
++++ b/be/fl.c
+@@ -59,6 +59,9 @@
+  *     complexity is O(N), where N is total number of free chunks with
+  *     size from this range.
+  *
++ * Locks
++ * m0_be_fl doesn't have any locks.
++ *
+  * Limitations.
+  * - m0_be_fl doesn't take chunks memory aligntment into account.
+  * - m0_be_fl doesn't take chunks address into account.
+-- 
+1.8.3.2
+

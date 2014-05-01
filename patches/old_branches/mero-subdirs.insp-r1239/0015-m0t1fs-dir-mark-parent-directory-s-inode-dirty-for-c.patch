@@ -1,0 +1,42 @@
+From f3d14dc6dc3d1477a01f6e0d191725a9f1835fe4 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 10 Feb 2013 14:30:06 +0200
+Subject: [PATCH 15/25] m0t1fs/dir: mark parent directory's inode dirty for
+ create, link & unlink
+
+---
+ m0t1fs/linux_kernel/dir.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index aea2734..9937fed 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -247,7 +247,7 @@ static int m0t1fs_create(struct inode     *dir,
+ 			goto out;
+ 	}
+ 
+-	/* mark_inode_dirty(dir); */
++	mark_inode_dirty(dir);
+ 	m0t1fs_fs_unlock(csb);
+ 
+ 	d_instantiate(dentry, inode);
+@@ -509,6 +509,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
+ 	inode->i_ctime = now;
+ 	atomic_inc(&inode->i_count);
+ 	d_instantiate(new, inode);
++	mark_inode_dirty(dir);
+ 
+ out:
+ 	m0t1fs_fs_unlock(csb);
+@@ -581,6 +582,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
+ 
+ 	inode->i_ctime = dir->i_ctime = dir->i_mtime = now;
+ 	inode_dec_link_count(inode);
++	mark_inode_dirty(dir);
+ out:
+ 	m0t1fs_fs_unlock(csb);
+ 	M0_LEAVE("rc: %d", rc);
+-- 
+1.8.3.2
+

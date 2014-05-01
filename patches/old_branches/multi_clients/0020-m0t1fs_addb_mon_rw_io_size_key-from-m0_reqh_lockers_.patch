@@ -1,0 +1,93 @@
+From 8af9039698e250c38f0d69659794003cb4e59ce3 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 13 Mar 2014 14:32:45 +0800
+Subject: [PATCH 20/26] m0t1fs_addb_mon_rw_io_size_key from
+ m0_reqh_lockers_allot() is a global variable, shared by all mounts.
+
+---
+ m0t1fs/linux_kernel/m0t1fs.c |  6 ++++--
+ m0t1fs/linux_kernel/super.c  | 15 ++++++---------
+ 2 files changed, 10 insertions(+), 11 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index c4f0311..e9a6375 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -54,8 +54,9 @@ module_param(max_rpc_msg_size, int, S_IRUGO);
+ MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
+ 
+ struct m0_addb_ctx m0t1fs_addb_ctx;
+-struct m0_bitmap m0t1fs_client_ep_tmid;
+-struct m0_mutex m0t1fs_mutex;
++struct m0_bitmap   m0t1fs_client_ep_tmid;
++struct m0_mutex    m0t1fs_mutex;
++uint32_t           m0t1fs_addb_mon_rw_io_size_key;
+ 
+ static struct file_system_type m0t1fs_fs_type = {
+ 	.owner        = THIS_MODULE,
+@@ -101,6 +102,7 @@ M0_INTERNAL int m0t1fs_init(void)
+ 
+ 	M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_m0t1fs_mon_io_size,
+ 					    "io_size");
++	m0t1fs_addb_mon_rw_io_size_key = m0_reqh_lockers_allot();
+ 	m0_mutex_init(&m0t1fs_mutex);
+ 	/*
+ 	 * [0 - M0_NET_LNET_TMID_MAX / 2] for clients.
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index c35e5a8..3b131fa 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -43,8 +43,9 @@
+ #include "net/lnet/lnet_core_types.h"
+ 
+ extern struct io_mem_stats iommstats;
+-extern struct m0_bitmap m0t1fs_client_ep_tmid;
+-extern struct m0_mutex m0t1fs_mutex;
++extern struct m0_bitmap    m0t1fs_client_ep_tmid;
++extern struct m0_mutex     m0t1fs_mutex;
++extern uint32_t            m0t1fs_addb_mon_rw_io_size_key;
+ 
+ M0_INTERNAL void io_bob_tlists_init(void);
+ 
+@@ -1167,8 +1168,7 @@ m0t1fs_mon_rw_io_sum_rec(const struct m0_addb_monitor *mon,
+ 	struct m0_addb_sum_rec *sum_rec;
+ 
+ 	m0_rwlock_read_lock(&reqh->rh_rwlock);
+-	sum_rec = m0_reqh_lockers_get(reqh,
+-			reqh2globals(reqh)->g_addb_mon_rw_io_size_key);
++	sum_rec = m0_reqh_lockers_get(reqh, m0t1fs_addb_mon_rw_io_size_key);
+ 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+ 
+ 	return sum_rec;
+@@ -1183,7 +1183,6 @@ int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb)
+ {
+ 	struct m0_addb_sum_rec *sum_rec;
+ 	struct m0_reqh         *reqh = &csb->csb_m0t1fs_globals.g_reqh;
+-	uint32_t               *key = &csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size_key;
+ 	uint64_t               *sum_data =
+ 		     (uint64_t *)&csb->csb_m0t1fs_globals.g_addb_mon_sum_data_rw_io_size;
+ 	uint32_t                sum_rec_nr =
+@@ -1199,10 +1198,8 @@ int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb)
+ 	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_m0t1fs_mon_io_size,
+ 				     sum_data, sum_rec_nr);
+ 
+-	*key = m0_reqh_lockers_allot();
+-
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+-	m0_reqh_lockers_set(reqh, *key, sum_rec);
++	m0_reqh_lockers_set(reqh, m0t1fs_addb_mon_rw_io_size_key, sum_rec);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 
+ 	m0_addb_monitor_add(reqh, &csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size);
+@@ -1221,7 +1218,7 @@ void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb)
+ 	m0_addb_monitor_del(reqh, mon);
+ 
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+-	m0_reqh_lockers_clear(reqh, csb->csb_m0t1fs_globals.g_addb_mon_rw_io_size_key);
++	m0_reqh_lockers_clear(reqh, m0t1fs_addb_mon_rw_io_size_key);
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 	m0_addb_monitor_sum_rec_fini(sum_rec);
+ 	m0_free(sum_rec);
+-- 
+1.8.3.2
+

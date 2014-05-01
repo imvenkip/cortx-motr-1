@@ -1,0 +1,150 @@
+From a7a6ac5776bfea33fa511ffcc931985a9a7989a4 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Wed, 8 Jan 2014 14:45:53 +0530
+Subject: [PATCH 02/14] dgmode-spare-map -Made changes in client path, to
+ incorporate cascaded failure which  is already reflected in failure vector.
+ -Changes required to incorporate version-mismatch due to cascaded failure 
+ are yet to be implemented.
+
+---
+ m0t1fs/linux_kernel/file.c | 58 +++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 49 insertions(+), 9 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 1f8b42e..f6403f8 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -41,7 +41,7 @@
+ #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
+ #include "file/file.h"
+ #include "lib/hash.h"	    /* m0_htable */
+-
++#include "sns/parity_repair.h"  /*m0_sns_repair_spare_map() */
+ #include "m0t1fs/linux_kernel/file_internal.h"
+ 
+ /**
+@@ -379,6 +379,7 @@ static const struct m0_bob_type tioreq_bobtype = {
+ 
+ #define SEG_NR(vec)    ((vec)->iv_vec.v_nr)
+ 
++
+ static inline m0_bcount_t seg_endpos(const struct m0_indexvec *ivec, uint32_t i)
+ {
+ 	M0_PRE(ivec != NULL);
+@@ -2232,6 +2233,9 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 	struct m0_pdclust_layout  *play;
+ 	struct m0_pdclust_src_addr src;
+ 	struct m0_pdclust_tgt_addr tgt;
++	enum m0_pdclust_unit_type  unit_type;
++	struct m0t1fs_sb	  *msb;
++	const struct m0_fid	  *gfid;
+ 
+ 	M0_PRE_EX(pargrp_iomap_invariant(map));
+ 	M0_ENTRY("grpid = %llu, count = %u\n", map->pi_grpid, count);
+@@ -2250,6 +2254,9 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 			             &tio->ti_fid);
+ 	play   = pdlayout_get(map->pi_ioreq);
+ 	map->pi_state = PI_DEGRADED;
++	msb = file_to_sb(map->pi_ioreq->ir_file);
++	gfid = file_to_fid(map->pi_ioreq->ir_file);
++
+ 	for (seg = 0; seg < count; ++seg) {
+ 
+ 		tgt.ta_frame = index[seg] / layout_unit_size(play);
+@@ -2264,6 +2271,14 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 				        &tgt, &src);
+ 		M0_ASSERT(src.sa_group == map->pi_grpid);
+ 		M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
++		unit_type = m0_pdclust_unit_classify(play, src.sa_unit);
++		if (unit_type == M0_PUT_SPARE) {
++			rc = m0_sns_repair_data_map(msb->csb_pool.po_mach,
++						    gfid, play, src.sa_group,
++						    src.sa_unit, &src.sa_unit);
++		if (rc != 0)
++			M0_RETERR(rc, "Failed to get data associated with a spare unit");
++		}
+ 		/* Segment belongs to a data unit. */
+ 		if (src.sa_unit < layout_n(play)) {
+ 			goff = gfile_offset(index[seg], map, play, &src);
+@@ -2875,7 +2890,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
+ 			 * number of spare units equal number of parity units.
+ 			 * In case of spare units, no IO is done.
+ 			 */
+-			for (unit = 0; unit < 2 * layout_k(play); ++unit) {
++//			for (unit = 0; unit < 2 * layout_k(play); ++unit) {
++			for (unit = 0; unit < layout_k(play); ++unit) {
+ 
+ 				src.sa_unit = layout_n(play) + unit;
+ 				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
+@@ -3575,13 +3591,16 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 			      struct target_ioreq             **out)
+ {
+ 	struct m0_fid		    tfid;
++	const struct m0_fid	   *gfid;
+ 	struct io_request	   *req;
+ 	struct m0_rpc_session	   *session;
+ 	struct m0_pdclust_layout   *play;
+ 	struct m0_pdclust_instance *play_instance;
+ 	struct m0t1fs_sb           *csb;
+ 	enum m0_pool_nd_state       device_state;
++	enum m0_pool_nd_state       device_state_prev;
+ 	uint32_t                    spare_slot;
++	uint32_t                    spare_slot_prev;
+ 	struct m0_pdclust_src_addr  spare;
+ 	int			    rc;
+ 
+@@ -3683,13 +3702,15 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 	     req->ir_sns_state   == SRS_REPAIR_DONE &&
+ 	     M0_IN(device_state,
+ 		   (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)))) {
+-		rc = m0_poolmach_sns_repair_spare_query(csb->csb_pool.po_mach,
+-							tfid.f_container,
+-							&spare_slot);
++		gfid = file_to_fid(req->ir_file);
++		rc = m0_sns_repair_spare_map(csb->csb_pool.po_mach, gfid, play,
++					     play_instance, src->sa_group,
++					     src->sa_unit, &spare_slot,
++					     &spare_slot_prev);
+ 		if (M0_FI_ENABLED("poolmach_client_repaired_device1")) {
+ 			if (tfid.f_container == 1) {
+ 				rc = 0;
+-				spare_slot = 0;
++				spare_slot = layout_n(play) + layout_k(play);
+ 			}
+ 		}
+ 
+@@ -3699,9 +3720,28 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 					  rc, &m0t1fs_addb_ctx);
+ 			M0_RETURN(rc);
+ 		}
+-		spare.sa_unit = layout_n(play) + layout_k(play) + spare_slot;
+-		m0_pdclust_instance_map(play_instance, &spare, tgt);
+-		tfid = target_fid(req, tgt);
++		/* Check if there is effective-failure. */
++		if (spare_slot_prev != src->sa_unit) {
++			spare.sa_unit = spare_slot_prev;
++			m0_pdclust_instance_map(play_instance, &spare, tgt);
++			tfid = target_fid(req, tgt);
++			rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
++						      tfid.f_container,
++						      &device_state_prev);
++			if (rc != 0) {
++				M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
++						  M0T1FS_ADDB_LOC_TIOREQ_MAP_QDEVST,
++						  rc, &m0t1fs_addb_ctx);
++				M0_RETURN(rc);
++			}
++		} else
++			device_state_prev = M0_PNDS_SNS_REPAIRED;
++
++		if (device_state_prev == M0_PNDS_SNS_REPAIRED) {
++			spare.sa_unit = spare_slot;
++			m0_pdclust_instance_map(play_instance, &spare, tgt);
++			tfid = target_fid(req, tgt);
++		}
+ 		M0_LOG(M0_DEBUG, "REPAIRED: [%llu:%llu] -> [%llu:%llu] @ tfid "
+ 		       FID_F,
+ 		       spare.sa_group, spare.sa_unit,
+-- 
+1.8.3.2
+

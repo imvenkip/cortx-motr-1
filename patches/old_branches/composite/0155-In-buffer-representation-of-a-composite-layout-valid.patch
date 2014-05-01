@@ -1,0 +1,202 @@
+From 0445586afa05503f1cd3175975e2b115ef62c89d Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 19 Jun 2013 17:11:20 +0530
+Subject: [PATCH 155/172] In buffer representation of a composite layout,
+ validate the extents and
+
+avoid storing start address for the extents
+---
+ layout/composite.c          | 31 ++++++++++++++++++-------------
+ layout/composite_internal.h | 10 +++++++---
+ layout/ut/composite.c       | 30 ++++++++++++++----------------
+ 3 files changed, 39 insertions(+), 32 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 731a68b..7c9c01b 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -660,8 +660,10 @@ static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 			      struct m0_bufvec_cursor *cur)
+ {
+ 	struct m0_composite_layer_extent *ext;
+-	struct layer_header              *header;
+ 	struct layer_buf_ext             *buf_ext;
++	struct m0_ext                     e;
++	struct layer_header              *header;
++	m0_bindex_t                       start;
+ 	uint32_t                          i;
+ 	int                               rc = 0;
+ 
+@@ -687,30 +689,30 @@ static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 		M0_RETURN(-EINVAL);
+ 	}
+ 
+-	/*
+-	 * Serially add the the extents read from the buffer. Do not need any
+-	 * verification since the overlapping was checked before the layout was
+-	 * encoded.
+-	 */
++	/* Serially add the the extents read from the buffer. */
+ 	M0_ASSERT(m0_bufvec_cursor_step(cur) >=
+ 		  header->clh_extents_nr * sizeof *buf_ext);
++	start = 0;
+ 	for (i = 0; i < header->clh_extents_nr; ++i) {
++		e.e_start = start;
+ 		buf_ext = m0_bufvec_cursor_addr(cur);
+ 		m0_bufvec_cursor_move(cur, sizeof *buf_ext);
+ 
+-		if (m0_ext_is_empty(&buf_ext->lbe_ext) ||
++		if (buf_ext->lbe_end <= start ||
++		    (i == header->clh_extents_nr - 1 &&
++		     buf_ext->lbe_end != M0_BINDEX_MAX + 1) ||
+ 		    !M0_IN(buf_ext->lbe_state, (M0_CLRES_HOLE, M0_CLRES_VALID,
+ 						M0_CLRES_FLATTENING))) {
+ 			rc = -EINVAL;
+-			M0_LOG(M0_ERROR, "lid %llu, layer %lu, Invalid extent "
+-			       "found in the buffer",
++			M0_LOG(M0_ERROR, "lid %llu, layer %lu, "
++			       "Invalid extent found in the buffer",
+ 			       (unsigned long long)cl->cl_base.l_id,
+ 			       (unsigned long)layer->clr_idx);
+ 			break;
+ 		}
+-		rc = ext_add(&layer->clr_extents, &cl->cl_base,
+-			     &buf_ext->lbe_ext, buf_ext->lbe_state,
+-			     ADD_AT_TAIL, NULL);
++		e.e_end = buf_ext->lbe_end;
++		rc = ext_add(&layer->clr_extents, &cl->cl_base, &e,
++			     buf_ext->lbe_state, ADD_AT_TAIL, NULL);
+ 		if (rc != 0) {
+ 			M0_LOG(M0_ERROR, "lid %llu, layer %lu, Extent could "
+ 			       "not be added to the list",
+@@ -718,8 +720,11 @@ static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 			       (unsigned long)layer->clr_idx);
+ 			break;
+ 		}
++		start = buf_ext->lbe_end;
+ 	}
+ 	layer->clr_extents_nr = ext_tlist_length(&layer->clr_extents);
++	M0_ASSERT(ergo(rc == 0,
++		       layer->clr_extents_nr == header->clh_extents_nr));
+ 	M0_POST(ergo(rc == 0, composite_invariant(cl)));
+ 	M0_RETURN(rc);
+ }
+@@ -888,7 +893,7 @@ static void layers_inbuf_write(const struct m0_composite_layout *cl,
+ 		M0_ASSERT(m0_bufvec_cursor_step(out) >=
+ 			  layer->clr_extents_nr * sizeof buf_ext);
+ 		m0_tl_for(ext, &layer->clr_extents, ext1) {
+-			buf_ext.lbe_ext = ext1->cle_ext;
++			buf_ext.lbe_end = ext1->cle_ext.e_end;
+ 			buf_ext.lbe_state = ext1->cle_state;
+ 			nbytes = m0_bufvec_cursor_copyto(out, &buf_ext,
+ 							 sizeof buf_ext);
+diff --git a/layout/composite_internal.h b/layout/composite_internal.h
+index 3b3d2ba..c0f3063 100644
+--- a/layout/composite_internal.h
++++ b/layout/composite_internal.h
+@@ -92,14 +92,18 @@ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct layer_header)));
+  * Structure used to store extents for 'a layer of a composite
+  * layout'. It is used in the buffer representation of a composite layout.
+  *
++ * It is assumed that the first extent starts with the offset 0 and hence,
++ * extent start offset is avoided to be stored in the buffer representation
++ * of the extents.
++ *
+  * @note This structure needs to be maintained as 8 bytes aligned.
+  */
+ struct layer_buf_ext {
+-	/** Extent. */
+-	struct m0_ext lbe_ext;
++	/** Extent end offset. */
++	m0_bindex_t lbe_end;
+ 
+ 	/* Extent state. */
+-	uint64_t      lbe_state;
++	uint64_t    lbe_state;
+ };
+ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct layer_buf_ext)));
+ 
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 03b7632..2072d27 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -626,6 +626,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	struct layer_header             header;
+ 	struct layer_buf_ext            buf_ext;
+ 	m0_bindex_t                     delta;
++	m0_bindex_t                     start;
+ 	uint32_t                        i;
+ 	uint32_t                        j;
+ 	int                             rc;
+@@ -677,15 +678,15 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 						 sizeof header);
+ 		M0_UT_ASSERT(nbytes == sizeof header);
+ 
+-		if (extents_nr == 0) /* Possible only in error condition. */
++		if (extents_nr == 0) /* Possible only in error conditions. */
+ 			continue;
+ 
++		start = 0;
+ 		delta = (END_OFFSET - START_OFFSET) / extents_nr;
+ 		for (j = 0; j < header.clh_extents_nr; ++j) {
+-			buf_ext.lbe_ext.e_start = START_OFFSET + j * delta;
+-			buf_ext.lbe_ext.e_end =
++			buf_ext.lbe_end =
+ 				(j == header.clh_extents_nr - 1) ?
+-				END_OFFSET : buf_ext.lbe_ext.e_start + delta;
++				END_OFFSET : start + delta;
+ 			buf_ext.lbe_state =
+ 				(is_contiguous_extents || j % 2 == 0) ?
+ 				M0_CLRES_VALID : M0_CLRES_HOLE;
+@@ -696,6 +697,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 			nbytes = m0_bufvec_cursor_copyto(dcur, &buf_ext,
+ 							 sizeof buf_ext);
+ 			M0_UT_ASSERT(nbytes == sizeof buf_ext);
++			start = buf_ext.lbe_end;
+ 		}
+ 	}
+ }
+@@ -778,8 +780,8 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 	struct m0_layout_composite_rec *cl_rec;
+ 	uint64_t                       *sublayout_id;
+ 	struct layer_header            *header;
+-	struct m0_ext                  *ext;
+-	uint64_t                       *state;
++	struct layer_buf_ext           *ext;
++	m0_bindex_t                     start;
+ 	m0_bindex_t                     delta;
+ 	uint32_t                        i;
+ 	uint32_t                        j;
+@@ -814,23 +816,19 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 		M0_UT_ASSERT(m0_bufvec_cursor_step(cur) >=
+ 			     header->clh_extents_nr * sizeof ext);
+ 		delta = (END_OFFSET - START_OFFSET) / extents_nr;
++		start = 0;
+ 		for (j = 0; j < header->clh_extents_nr; ++j) {
+ 			ext = m0_bufvec_cursor_addr(cur);
+ 			m0_bufvec_cursor_move(cur, sizeof *ext);
+-			M0_UT_ASSERT(ext->e_start ==
+-				     START_OFFSET + j * delta);
+ 			if (j == header->clh_extents_nr - 1)
+-				M0_UT_ASSERT(ext->e_end == END_OFFSET);
++				M0_UT_ASSERT(ext->lbe_end == END_OFFSET);
+ 			else
+-				M0_UT_ASSERT(ext->e_end ==
+-					     ext->e_start + delta);
+-
+-			state = m0_bufvec_cursor_addr(cur);
+-			m0_bufvec_cursor_move(cur, sizeof *state);
++				M0_UT_ASSERT(ext->lbe_end == start + delta);
+ 			if (is_contiguous_extents || j % 2 == 0)
+-				M0_UT_ASSERT(*state == M0_CLRES_VALID);
++				M0_UT_ASSERT(ext->lbe_state == M0_CLRES_VALID);
+ 			else
+-				M0_UT_ASSERT(*state == M0_CLRES_HOLE);
++				M0_UT_ASSERT(ext->lbe_state == M0_CLRES_HOLE);
++			start = ext->lbe_end;
+ 		}
+ 	}
+ }
+-- 
+1.8.3.2
+

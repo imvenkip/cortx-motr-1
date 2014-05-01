@@ -1,0 +1,24 @@
+From a99979fe4ae588f218b5d9657dee0cf6264aaace Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 8 Mar 2013 01:39:21 +0200
+Subject: [PATCH 97/99] common.sh fix: s/m/REPLY/
+
+---
+ m0t1fs/linux_kernel/st/common.sh.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/m0t1fs/linux_kernel/st/common.sh.in b/m0t1fs/linux_kernel/st/common.sh.in
+index ccb1a9d..c674fc7 100644
+--- a/m0t1fs/linux_kernel/st/common.sh.in
++++ b/m0t1fs/linux_kernel/st/common.sh.in
+@@ -57,6 +57,6 @@ modunload()
+ 	for m in $MODLIST ;do
+ 		echo $m
+ 	done | tac | while read ;do
+-		rmmod $REPLY &>> /dev/null || echo "Error unloading $m."
++		rmmod $REPLY &>> /dev/null || echo "Error unloading $REPLY."
+ 	done
+ }
+-- 
+1.8.3.2
+

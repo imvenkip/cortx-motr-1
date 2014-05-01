@@ -1,0 +1,57 @@
+From 9e3245a046c1a0d8da5f9646524ef45a4d02852d Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 21 Jun 2013 13:39:15 +0300
+Subject: [PATCH 201/290] be: fixed tx_fom finalization in tx test.
+
+---
+ be/tx_fom.c | 1 +
+ be/ut/tx.c  | 7 ++++++-
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 686dd21..403cf42 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -211,6 +211,7 @@ static void tx_fom_fini(struct m0_fom *fom)
+ {
+ 	M0_ENTRY();
+ 	m0_free(fom_to_txm(fom));
++	m0_fom_fini(fom);
+ 	M0_LEAVE();
+ }
+ 
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 6196fa2..97f3a9b 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -40,7 +40,8 @@ static int seg_create(void)
+ static int seg_destroy(void)
+ {
+ 	m0_sm_group_fini(&g_grp);
+-	m0_be_ut_h_fini(&be_ut_tx_h);
++	/* m0_be_ut_h_fini(&be_ut_tx_h); */
++	m0_be_ut_seg_close_destroy(&be_ut_tx_h);
+ 	return 0;
+ }
+ 
+@@ -140,6 +141,8 @@ static void test_tx_svc(void)
+ 	};
+ #undef NAME
+ 
++	M0_ENTRY();
++
+ 	rc = m0_rpc_server_start(&tx_svc);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -154,6 +157,8 @@ static void test_tx_svc(void)
+ 
+ 	m0_tx_processing_stop();
+ 	m0_rpc_server_stop(&tx_svc);
++
++	M0_LEAVE();
+ }
+ 
+ const struct m0_test_suite be_tx_ut = {
+-- 
+1.8.3.2
+

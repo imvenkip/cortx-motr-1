@@ -1,0 +1,400 @@
+From 131d04fdb6bf2c3d2ed0676e2c913e4cc36b9fb2 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 9 Jun 2011 05:46:41 -0600
+Subject: [PATCH 119/158] - resolve full names in mdservice as this is only the
+ place that all fops before current have already been handled and db is
+ consistent.
+
+---
+ mdservice/md_foms.c | 234 +++++++++++++++++++++++++++++++++++++++++++++++++++-
+ mdservice/md_fops.c |  14 ++++
+ reqh/reqh.c         |  20 ++---
+ 3 files changed, 252 insertions(+), 16 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 641ea8f..34d45d7 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -568,8 +568,7 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+                                                 &sattr, tx);
+                 } else if (rc == 0) {
+                         /*
+-                         * There is src stat data, let's perfrom normal
+-                         * rename.
++                         * There is src stat data, let's do normal rename.
+                          */
+                         rc = c2_md_rename(md, &pfid_tgt, &pfid_src, 
+                                           &tfid_tgt, &tfid_src, &tattr,
+@@ -1027,9 +1026,75 @@ out:
+ 
+ static void c2_md_req_fom_fini(struct c2_fom *fom)
+ {
+-        struct c2_fom_md *fom_obj;
++        struct c2_fop_create    *create;
++        struct c2_fop_link      *link;
++        struct c2_fop_unlink    *unlink;
++        struct c2_fop_rename    *rename;
++        struct c2_fop_open      *open;
++        struct c2_fop_close     *close;
++        struct c2_fop_setattr   *setattr;
++        struct c2_fop_getattr   *getattr;
++        struct c2_fop_readdir   *readdir;
++        struct c2_fom_md        *fom_obj;
++        struct c2_fop           *fop;
+         
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
++        C2_ASSERT(fom_obj->fm_fop != NULL);
++        fop = fom_obj->fm_fop;
++
++        switch (fop->f_type->ft_code) {
++        case C2_FOP_CREATE:
++		create = c2_fop_data(fop);
++		if (create->c_path.s_len)
++		        c2_free(create->c_path.s_buf);
++	        break;
++        case C2_FOP_LINK:
++		link = c2_fop_data(fop);
++		if (link->l_spath.s_len)
++		        c2_free(link->l_spath.s_buf);
++		if (link->l_tpath.s_len)
++		        c2_free(link->l_tpath.s_buf);
++	        break;
++        case C2_FOP_UNLINK:
++		unlink = c2_fop_data(fop);
++		if (unlink->u_path.s_len)
++		        c2_free(unlink->u_path.s_buf);
++	        break;
++        case C2_FOP_RENAME:
++		rename = c2_fop_data(fop);
++		if (rename->r_spath.s_len)
++		        c2_free(rename->r_spath.s_buf);
++		if (rename->r_tpath.s_len)
++		        c2_free(rename->r_tpath.s_buf);
++	        break;
++        case C2_FOP_OPEN:
++		open = c2_fop_data(fop);
++		if (open->o_path.s_len)
++		        c2_free(open->o_path.s_buf);
++	        break;
++        case C2_FOP_CLOSE:
++		close = c2_fop_data(fop);
++		if (close->c_path.s_len)
++		        c2_free(close->c_path.s_buf);
++	        break;
++        case C2_FOP_SETATTR:
++		setattr = c2_fop_data(fop);
++		if (setattr->s_path.s_len)
++		        c2_free(setattr->s_path.s_buf);
++	        break;
++        case C2_FOP_GETATTR:
++		getattr = c2_fop_data(fop);
++		if (getattr->g_path.s_len)
++		        c2_free(getattr->g_path.s_buf);
++	        break;
++        case C2_FOP_READDIR:
++		readdir = c2_fop_data(fop);
++		if (readdir->r_path.s_len)
++		        c2_free(readdir->r_path.s_buf);
++	        break;
++        default:
++                break;
++        }
+         c2_free(fom_obj);
+ }
+ 
+@@ -1087,6 +1152,38 @@ int c2_md_rep_fom_init(struct c2_fop *fop,
+         return 0;
+ }
+ 
++static int c2_md_make_path(struct c2_fop_str *p,
++                           struct c2_fop_fid *f,
++                           struct c2_md_store *md)
++{
++        struct c2_fid fid = {
++                .f_container = f->f_seq,
++                .f_key       = f->f_oid
++        };
++        char *path;
++        int rc;
++        
++        rc = c2_md_store_path(md, &fid, &path);
++        if (rc)
++                return rc;
++
++        p->s_len = strlen(path);
++        if (p->s_len == 0) {
++                c2_free(path);
++                return -EINVAL;
++        }
++
++        p->s_buf = c2_alloc(p->s_len + 1);
++        if (!p->s_buf) {
++                c2_free(path);
++                return -ENOMEM;
++        }
++
++        memcpy(p->s_buf, path, p->s_len);
++        c2_free(path);
++        return 0;
++}
++
+ int c2_md_req_fom_init(struct c2_fop *fop, 
+                        struct c2_fop_ctx *ctx, 
+                        struct c2_fom **m)
+@@ -1095,6 +1192,16 @@ int c2_md_req_fom_init(struct c2_fop *fop,
+         struct c2_fom_md        *fom_obj;
+         struct c2_fom_type      *fom_type;
+         struct c2_fop_type      *fop_type;
++        struct c2_fop_create    *create;
++        struct c2_fop_link      *link;
++        struct c2_fop_unlink    *unlink;
++        struct c2_fop_rename    *rename;
++        struct c2_fop_open      *open;
++        struct c2_fop_close     *close;
++        struct c2_fop_setattr   *setattr;
++        struct c2_fop_getattr   *getattr;
++        struct c2_fop_readdir   *readdir;
++        int                      rc;
+ 
+         C2_PRE(fop != NULL);
+         C2_PRE(m != NULL);
+@@ -1117,38 +1224,159 @@ int c2_md_req_fom_init(struct c2_fop *fop,
+         case C2_FOP_CREATE:
+ 		fom->fo_ops = &c2_md_fom_create_ops;
+ 		fop_type = &c2_fop_create_rep_fopt;
++
++		/*
++		 * Generating full path to fop object. It should be done here
++		 * because all fops before it may change dirs structure and
++		 * need to be handled by this moment.
++		 *
++		 * Note we do it only for fops generated after scan. Doing it
++		 * while scan is not reliable. Tree is not consistent yet.
++		 */
++		create = c2_fop_data(fop);
++                if (!(create->c_body.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&create->c_path, 
++                                             &create->c_body.b_pfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_LINK:
+ 		fom->fo_ops = &c2_md_fom_link_ops;
+ 		fop_type = &c2_fop_link_rep_fopt;
++
++		link = c2_fop_data(fop);
++                if (!(link->l_body.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&link->l_spath, 
++                                             &link->l_body.b_tfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                        rc = c2_md_make_path(&link->l_tpath, 
++                                             &link->l_body.b_pfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(link->l_spath.s_buf);
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_UNLINK:
+ 		fom->fo_ops = &c2_md_fom_unlink_ops;
+ 		fop_type = &c2_fop_unlink_rep_fopt;
++		
++		unlink = c2_fop_data(fop);
++                if (!(unlink->u_body.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&unlink->u_path, 
++                                             &unlink->u_body.b_pfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_RENAME:
+ 		fom->fo_ops = &c2_md_fom_rename_ops;
+ 		fop_type = &c2_fop_rename_rep_fopt;
++
++		rename = c2_fop_data(fop);
++                if (!(rename->r_sbody.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&rename->r_spath, 
++                                             &rename->r_sbody.b_pfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                        rc = c2_md_make_path(&rename->r_tpath, 
++                                             &rename->r_tbody.b_pfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(rename->r_spath.s_buf);
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_OPEN:
+ 		fom->fo_ops = &c2_md_fom_open_ops;
+ 		fop_type = &c2_fop_open_rep_fopt;
++
++		open = c2_fop_data(fop);
++                if (!(open->o_body.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&open->o_path, 
++                                             &open->o_body.b_tfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_CLOSE:
+ 		fom->fo_ops = &c2_md_fom_close_ops;
+ 		fop_type = &c2_fop_close_rep_fopt;
++
++		close = c2_fop_data(fop);
++                if (!(close->c_body.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&close->c_path, 
++                                             &close->c_body.b_tfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_SETATTR:
+ 		fom->fo_ops = &c2_md_fom_setattr_ops;
+ 		fop_type = &c2_fop_setattr_rep_fopt;
++
++		setattr = c2_fop_data(fop);
++                if (!(setattr->s_body.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&setattr->s_path, 
++                                             &setattr->s_body.b_tfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_GETATTR:
+ 		fom->fo_ops = &c2_md_fom_getattr_ops;
+ 		fop_type = &c2_fop_getattr_rep_fopt;
++
++		getattr = c2_fop_data(fop);
++                if (!(getattr->g_body.b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS)) {
++                        rc = c2_md_make_path(&getattr->g_path, 
++                                             &getattr->g_body.b_tfid,
++                                             ctx->fc_site->s_mdstore);
++                        if (rc) {
++                                c2_free(fom_obj);
++                                return -EINVAL;
++                        }
++                }
+ 	        break;
+         case C2_FOP_READDIR:
+ 		fom->fo_ops = &c2_md_fom_readdir_ops;
+ 		fop_type = &c2_fop_readdir_rep_fopt;
++
++		readdir = c2_fop_data(fop);
++                rc = c2_md_make_path(&readdir->r_path, 
++                                     &readdir->r_body.b_tfid,
++                                     ctx->fc_site->s_mdstore);
++                if (rc) {
++                        c2_free(fom_obj);
++                        return -EINVAL;
++                }
+ 	        break;
+         default:
+                 c2_free(fom_obj);
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index a9ad60e..19ebf82 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -68,6 +68,11 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
+ 	case C2_FOP_CLOSE:
+ 	        len += ((struct c2_fop_close *)data)->c_path.s_len;
+ 	        break;
++	case C2_FOP_READDIR:
++	        len += ((struct c2_fop_readdir *)data)->r_path.s_len;
++	        break;
++        default:
++                break;
+ 	}
+ 
+ 	return (len + 7) & ~7;
+@@ -120,6 +125,11 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
+ 	case C2_FOP_CLOSE:
+ 	        copy(&ptr, &((struct c2_fop_close *)data)->c_path);
+ 	        break;
++	case C2_FOP_READDIR:
++	        copy(&ptr, &((struct c2_fop_readdir *)data)->r_path);
++	        break;
++	default:
++	        break;
+ 	}
+ }
+ 
+@@ -176,6 +186,10 @@ static int c2_md_fol_open(const struct c2_fol_rec_type *type,
+ 	        ptr = (char *)((struct c2_fop_close *)data + 1);
+ 		map(&ptr, &((struct c2_fop_close *)data)->c_path);
+ 		break;
++	case C2_FOP_READDIR:
++	        ptr = (char *)((struct c2_fop_readdir *)data + 1);
++		map(&ptr, &((struct c2_fop_readdir *)data)->r_path);
++		break;
+ 	}
+ 
+ 	return 0;
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 66e6fca..539f330 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -83,19 +83,6 @@ restart:
+         ctx.fc_tx = &tx;
+ 
+         /*
+-         * Reqh generic phases will be run here that will do 
+-         * the standard actions like authentication, authorization,
+-         * resource allocation, locking &c.
+-         */
+-
+-        /*
+-         * Add this fop to the fol.
+-         */
+-        result = c2_fop_fol_rec_add(fop, ctx.fc_fol, &tx.tx_dbtx);
+-        if (result)
+-                goto out;
+-                
+-        /*
+          * Init fom for the fop start handling it.
+          */
+         result = fop->f_type->ft_ops->fto_fom_init(fop, &ctx, &fom);
+@@ -110,6 +97,13 @@ restart:
+                         goto out_fini;
+         }
+ 
++        /*
++         * Add this fop to the fol.
++         */
++        result = c2_fop_fol_rec_add(fop, ctx.fc_fol, &tx.tx_dbtx);
++        if (result)
++                goto out_fini;
++
+         /* 
+          * Start the FOM. Return value from ->fo_state() is something
+          * from FSO_* which will be used here for making decision on
+-- 
+1.8.3.2
+

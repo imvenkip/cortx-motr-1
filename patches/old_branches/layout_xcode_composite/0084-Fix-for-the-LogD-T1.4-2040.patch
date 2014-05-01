@@ -1,0 +1,333 @@
+From 4f6d9f30daf02c14543eef8016a65debf94c4e0f Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 13 Mar 2013 14:41:05 +0530
+Subject: [PATCH 084/157] Fix for the LogD T1.4 2040
+
+LogD T1.4 2010 In case layer_indb_add() failed, layer add op deleted the
+extlist as well which is not expected in case of failure to the user of
+m0_composite_layer_delete(). Fixed this by restoring the extlist in such case.
+---
+ layout/composite.c    |  30 ++++++++++-----
+ layout/ut/composite.c | 103 ++++++++++++++++++++++++++++++++++++++++----------
+ 2 files changed, 104 insertions(+), 29 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 3840022..c622785 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -170,6 +170,7 @@ enum {
+ 	EXT_MERGE_VALIDATION = 11, /* Some random number other than 0 and 1. */
+ 	EXT_DEL_VALIDATION   = 12, /* Another random number. */
+ 	USER_COUNT_ADJUST    = true,
++	EXTLIST_FREE         = true /* Free extlist during layer delete op. */
+ };
+ 
+ M0_TL_DESCR_DEFINE(comp_layer, "composite-layer-list",
+@@ -405,7 +406,7 @@ static void composite_delete(struct m0_layout *l)
+ /** Adds a layer to the in-memory layout. */
+ static int layer_inmem_add(struct m0_composite_layout *cl,
+ 			   struct m0_layout *sublayout,
+-			   struct m0_tl *extlist,
++			   const struct m0_tl *extlist,
+ 			   uint32_t ext_nr,
+ 			   bool is_user_count_adjust,
+ 			   struct m0_composite_layer **lr)
+@@ -475,17 +476,21 @@ static void extlist_free(struct m0_tl *extlist)
+ 
+ /** Deletes the top-most layer from the in-memory layout. */
+ static void layer_inmem_delete(struct m0_composite_layout *cl,
+-			       struct m0_composite_layer *layer)
++			       struct m0_composite_layer *layer,
++			       bool is_extlist_free)
+ {
+ 	M0_PRE(layer->clr_idx == cl->cl_layers_nr - 1);
+ 
+-	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+-		 (unsigned long)layer->clr_idx);
++	M0_ENTRY("lid %llu, layer %lu, is_extlist_free %d",
++		 (unsigned long long)cl->cl_base.l_id,
++		 (unsigned long)layer->clr_idx,
++		 is_extlist_free ? 1 : 0);
+ 
+ 	comp_layer_tlink_del_fini(layer);
+ 	M0_CNT_DEC(cl->cl_layers_nr);
+ 	m0_layout_put(layer->clr_sl);
+-	extlist_free(&layer->clr_extents);
++	if (is_extlist_free)
++		extlist_free(&layer->clr_extents);
+ 	M0_POST(layer->clr_idx == cl->cl_layers_nr);
+ 	m0_free(layer);
+ 	M0_POST(composite_invariant_internal(cl));
+@@ -494,7 +499,7 @@ static void layer_inmem_delete(struct m0_composite_layout *cl,
+ 
+ static int composite_populate(struct m0_composite_layout *cl,
+ 			      struct m0_layout *sublayout,
+-			      struct m0_tl *extlist,
++			      const struct m0_tl *extlist,
+ 			      uint32_t ext_nr,
+ 			      uint32_t user_count,
+ 			      bool is_user_count_adjust)
+@@ -575,7 +580,7 @@ static void composite_fini(struct m0_ref *ref)
+ 	layer = comp_layer_tlist_tail(&cl->cl_layers);
+ 	while (layer != NULL) {
+ 		layer_prev = comp_layer_tlist_prev(&cl->cl_layers, layer);
+-		layer_inmem_delete(cl, layer);
++		layer_inmem_delete(cl, layer, EXTLIST_FREE);
+ 		layer = layer_prev;
+ 	}
+ 	comp_layer_tlist_fini(&cl->cl_layers);
+@@ -654,8 +659,13 @@ static int layer_add_internal(struct m0_composite_layout *cl,
+ 
+ 	if (cl->cl_base.l_dom->ld_is_db_available) {
+ 		rc = layer_indb_add(cl, layer, tx);
+-		if (rc != 0)
+-			layer_inmem_delete(cl, layer);
++		if (rc != 0) {
++			layer_inmem_delete(cl, layer, !EXTLIST_FREE);
++			/* Restore the extlist. */
++			m0_composite_layer_ext_tlist_init(extlist);
++			m0_composite_layer_ext_tlist_splice(extlist,
++							&layer->clr_extents);
++		}
+ 	}
+ 	M0_POST(ergo(rc == 0, layer_invariant(layer)));
+ 	return rc;
+@@ -783,7 +793,7 @@ M0_INTERNAL int m0_composite_layer_delete(struct m0_composite_layout *cl,
+ 		}
+ 	}
+ 
+-	layer_inmem_delete(cl, layer);
++	layer_inmem_delete(cl, layer, EXTLIST_FREE);
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+ 	M0_POST(composite_invariant(cl));
+ 	M0_RETURN(rc);
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 696764d..908d46e 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -169,6 +169,17 @@ static void extentlist_build(struct m0_tl *extents,
+ 	M0_UT_ASSERT(!m0_composite_layer_ext_tlist_is_empty(extents));
+ }
+ 
++static void extentlist_free(struct m0_tl *extlist)
++{
++	struct m0_composite_layer_extent *lr_ext;
++
++	m0_tl_for(m0_composite_layer_ext, extlist, lr_ext) {
++		m0_composite_layer_ext_tlink_del_fini(lr_ext);
++		m0_free(lr_ext);
++	} m0_tl_endfor;
++	m0_composite_layer_ext_tlist_fini(extlist);
++}
++
+ static void composite_layout_verify(struct m0_layout *l,
+ 				    uint64_t composite_lid,
+ 				    uint32_t layers_nr,
+@@ -206,15 +217,15 @@ static void composite_layout_verify(struct m0_layout *l,
+ 	m0_uint128_init(&seed, "sublayouts_build");
+ 
+ 	/* Verify the layers */
+-	extents_nr = min_extents_nr;
+ 	i = 0;
++	extents_nr = min_extents_nr;
+         m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_cl->l_id == cl->cl_base.l_id);
+ 		/* Verify the sublayout. */
+ 		sublayout_id = composite_lid * 100 + i;
+ 		enum_id = sublayout_id % 2 ? LIST_ENUM_ID : LINEAR_ENUM_ID;
+ 		inline_test = sublayout_id % 5 ? LESS_THAN_INLINE :
+-						  MORE_THAN_INLINE;
++						 MORE_THAN_INLINE;
+ 		NKP_assign(enum_id, inline_test, 9, 109, 1200, &N, &K, &P);
+ 		pdclust_layout_verify(layer->clr_sl, sublayout_id, enum_id,
+ 				      N, K, P, &seed, 10, 20,
+@@ -273,8 +284,8 @@ static void my_console_printf(const char *fmt, ...)
+ 	 *        it should be some "temporary" debugging output.
+ 	 *
+ 	 * In case of the composite layout, specifically involving extent
+-	 * lists/masks, it is very likely that that we will often need
+-	 * such temporary debugging output to be available to help:
++	 * lists/masks, it is very likely that we will often need such
++	 * temporary debugging output to be available to help:
+ 	 * - Understanding the code,
+ 	 * - Debug known issues if any with the steps to reproduce being known,
+ 	 * - Debug issues during future enhancements.
+@@ -308,7 +319,6 @@ static void extlist_dump(const struct m0_composite_layout *cl,
+ 	my_console_printf("extlist_dump(): lid %llu, layer %lu: \n ",
+ 			  (unsigned long long)cl->cl_base.l_id,
+ 			  (unsigned long)layer_idx);
+-	i = 0;
+ 	m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+ 		my_console_printf("\t ext[%lu]: start %llu, end %llu, "
+ 				  "state %llu \n",
+@@ -321,6 +331,10 @@ static void extlist_dump(const struct m0_composite_layout *cl,
+ }
+ 
+ #if 0
++/*
++ * Though not in use currently, this code is to be retained since it may be
++ * required for future debugging, as has been explained in my_console_printf().
++ */
+ static void composite_dump(const struct m0_composite_layout *cl)
+ {
+ 	struct m0_composite_layer *layer;
+@@ -360,7 +374,7 @@ static int composite_build(uint64_t lid,
+ 				&extents, min_extents_nr, cl);
+ 	if (failure_test) {
+ 		M0_UT_ASSERT(rc == -ENOMEM);
+-		//todo shall get rid of the extentlist built
++		extentlist_free(&extents);
+ 		sublayout_delete(domain, sublayout_id);
+ 		return rc;
+ 	}
+@@ -379,9 +393,9 @@ static int composite_build(uint64_t lid,
+ //todo layout add now adds the layers as well. Make related changes to UT
+ /*
+  * Adds layers to the provided composite layout.
+- * The 'number of extents, start offset and end offset are varied (incremented
+- * by one) for each layer. Effectively, as of now, extents of one layer are
+- * overlapping to the extents of another layer.
++ * 'The number of extents' is varied (incremented by one) for each layer.
++ * Effectively, as of now, extents of one layer are overlapping to the extents
++ * of another layer.
+  */
+ static int composite_layers_add(struct m0_composite_layout *cl,
+ 				struct m0_db_tx *tx,
+@@ -411,15 +425,18 @@ static int composite_layers_add(struct m0_composite_layout *cl,
+ 		/* Build an extent list to be associated with the sublayout. */
+ 		extentlist_build(&extents, extents_nr, if_contiguous_extents);
+ 
++		M0_UT_ASSERT(cl->cl_layers_nr == i);
+ 		rc = m0_composite_layer_add(cl, sublayout, &extents,
+ 					    extents_nr, tx);
+ 		if (layer_add_failure_test) {
+ 			M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR);
+-			/* todo get rid of extentlist built. */
+-			//todo sublayout_delete(cl->cl_base.l_dom, sublayout_id);
++			M0_UT_ASSERT(cl->cl_layers_nr == i);
++			extentlist_free(&extents);
+ 			break;
+-		} else
++		} else {
+ 			M0_UT_ASSERT(rc == 0);
++			M0_UT_ASSERT(cl->cl_layers_nr == i + 1);
++		}
+ 
+ 		/* Verify the composite layout object contents. */
+ 		composite_layout_verify(&cl->cl_base, cl->cl_base.l_id, i + 1,
+@@ -1312,6 +1329,27 @@ int test_instance_composite(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
++//todo Make use of this function wherever applicable
++static void layer_extents_delete(struct m0_composite_layout *cl,
++				 struct m0_composite_layer *layer,
++				 struct m0_db_tx *tx)
++{
++	struct m0_composite_layer_extent *lr_ext;
++	struct m0_ext                     ext;
++	int                               rc;
++
++	m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
++		/*
++		 * Shall not pass &lr_ext->cle_ext directly since
++		 * lr_ext is going to get deleted. Hence, make a copy.
++		 */
++		ext = lr_ext->cle_ext;
++		rc = m0_composite_layer_ext_delete(cl, layer->clr_idx,
++						   &ext, tx);
++		M0_UT_ASSERT(rc == 0);
++	} m0_tl_endfor;
++}
++
+ /* todo Add layer addition part to this test, verification for inmem and indb
+ layers */
+ int test_layer_op_composite(uint64_t lid,
+@@ -1328,8 +1366,8 @@ int test_layer_op_composite(uint64_t lid,
+ 	struct m0_db_tx                   tx;
+ 	struct m0_layout                 *l_from_DB;
+ 	struct m0_composite_layer        *layer;
+-	struct m0_ext                     ext;
+-	struct m0_composite_layer_extent *lr_ext;
++	//todo rm struct m0_ext                     ext;
++	//todo rm struct m0_composite_layer_extent *lr_ext;
+ 	int                               rc_tmp;
+ 	int                               rc;
+ 
+@@ -1374,6 +1412,8 @@ int test_layer_op_composite(uint64_t lid,
+ 	//todo Code duplication
+ 	/* Delete all the extents associated with the layer. */
+ 	layer = layer_find(cl, cl->cl_layers_nr - 1);
++	layer_extents_delete(cl, layer, txptr);
++#if 0
+ 	m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+ 		/*
+ 		 * Shall not pass &lr_ext->cle_ext directly since
+@@ -1384,6 +1424,7 @@ int test_layer_op_composite(uint64_t lid,
+ 						   &ext, txptr);
+ 		M0_UT_ASSERT(rc == 0);
+ 	} m0_tl_endfor;
++#endif
+ 
+ 	rc = m0_composite_layer_delete(cl, txptr);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -1965,6 +2006,9 @@ int test_update_composite(uint64_t lid,
+ 	struct m0_ext                     ext_lookup;
+ 	uint64_t                          ext_state_lookup;
+ 	struct m0_layout                 *sublayout_lookup;
++	uint64_t                          sublayout_id;
++	struct m0_layout                 *sublayout;
++	struct m0_tl                      extents;
+ 	uint32_t                          i;
+ 	int                               rc_tmp;
+ 	int                               rc;
+@@ -2058,12 +2102,33 @@ int test_update_composite(uint64_t lid,
+ 	M0_UT_ASSERT(rc == -ENOENT);
+ #endif
+ 
++	domain_ldb_available_set(domain, false);
+ 
+-	/* 3. Add a layer to it. */
+-	//todo
++	/* 3. Add layers to it. */
++	M0_ASSERT(cl->cl_layers_nr == layers_nr);
++	for (i = 0; i < 4; ++i) {
++		sublayout_id = cl->cl_base.l_id * 100 + cl->cl_layers_nr;
++		sublayout_build(sublayout_id, domain, &sublayout);
++		extentlist_build(&extents, min_extents_nr,
++				 if_contiguous_extents);
++		rc = m0_composite_layer_add(cl, sublayout, &extents,
++					    min_extents_nr, NULL);
++		M0_ASSERT(rc == 0);
++	}
++	M0_ASSERT(cl->cl_layers_nr == layers_nr + 4);
+ 
+-	/* 4. Delete a layer from it. */
+-	//todo
++	/* 4. Delete layers from it. */
++#if 0
++	M0_ASSERT(cl->cl_layers_nr == layers_nr + 4);
++	for (i = 0; i < 2; ++i) {
++		//todo Need to delete all the extents
++		rc = m0_composite_layer_delete(cl, NULL);
++		M0_ASSERT(rc == 0);
++	}
++	M0_ASSERT(cl->cl_layers_nr == layers_nr + 2);
++#endif
++
++	domain_ldb_available_set(domain, true);
+ 
+ 	/* Update the layout object in the DB. */
+ 	pair_set(&pair, &lid, area, num_bytes);
+@@ -2128,7 +2193,7 @@ int test_update_composite(uint64_t lid,
+ 	}
+ 
+ 	/* Delete the precreated sublayouts. */
+-	sublayouts_delete(domain, lid, layers_nr);
++	sublayouts_delete(domain, lid, layers_nr + 4);
+ 
+ 	m0_free(area);
+ 	return rc;
+-- 
+1.8.3.2
+

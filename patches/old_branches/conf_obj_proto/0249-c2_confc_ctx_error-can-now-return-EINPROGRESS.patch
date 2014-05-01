@@ -1,0 +1,266 @@
+From 0ff02fadc3fab3e33c6a5d81410f2d964b33c880 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 17 Jul 2012 03:35:51 +0300
+Subject: [PATCH 249/370] c2_confc_ctx_error() can now return EINPROGRESS
+
++ c2_confc_ctx_result() can be called at most once.
++ c2_confc_is_completed() is not needed any more.
+
+New design of c2_confc_ctx_{error,result}() API has been mimicked after
+aio_error(2) and aio_return(2).
+---
+ conf/confc.c |  33 +++++++++++++-------
+ conf/confc.h | 100 +++++++++++++++++++++++++++++++----------------------------
+ 2 files changed, 73 insertions(+), 60 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 1f52e49..a99da04 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -414,17 +414,25 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+ 	group_unlock(confc);
+ }
+ 
+-bool c2_confc_ctx_is_completed(const struct c2_confc_ctx *ctx)
++struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx)
+ {
+-	C2_PRE(ctx_invariant(ctx));
+-	return C2_IN(ctx->fc_mach.sm_state, (S_TERMINAL, S_FAILURE));
++	XXX;
+ }
+ 
+-struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx)
++int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx)
+ {
+-	C2_PRE(c2_confc_ctx_is_completed(ctx));
++	C2_PRE(ctx_invariant(ctx));
+ 
+-	XXX;
++	switch (ctx->fc_mach.sm_state) {
++	case S_FAILURE:
++		C2_ASSERT(ctx->fc_mach.sm_rc < 0);
++		return ctx->fc_mach.sm_rc;
++	case S_TERMINAL:
++		return 0;
++	default:
++		return EINPROGRESS; /* > 0 */
++	}
++	/* never reached */
+ }
+ 
+ /* ------------------------------------------------------------------
+@@ -458,8 +466,9 @@ struct sm_waiter {
+ /** Filters out intermediate states of c2_confc_ctx::fc_mach. */
+ static bool sm_filter(struct c2_clink *link)
+ {
+-	struct sm_waiter *w = container_of(link, struct sm_waiter, w_clink);
+-	return !c2_confc_ctx_is_completed(&w->w_ctx);
++	int32_t e = c2_confc_ctx_error(&container_of(link, struct sm_waiter,
++						     w_clink)->w_ctx);
++	return e == EINPROGRESS;
+ }
+ 
+ int c2_confc_open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
+@@ -476,10 +485,10 @@ int c2_confc_open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
+ 
+ 	rc = c2_confc_open(&w.w_ctx, origin, path);
+ 	if (rc == 0) {
+-		c2_chan_wait(&w.w_clink);
+-		*result = c2_confc_ctx_result(&w.w_ctx);
+-		if (*result == NULL)
+-			rc = c2_confc_ctx_error(&w.w_ctx);
++		while ((rc = c2_confc_ctx_error(&w.w_ctx)) == EINPROGRESS)
++			c2_chan_wait(&w.w_clink);
++		if (rc == 0)
++			*result = c2_confc_ctx_result(&w.w_ctx);
+ 	}
+ 
+ 	c2_clink_del(&w.w_clink);
+diff --git a/conf/confc.h b/conf/confc.h
+index bd3581e..1871025 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -79,10 +79,10 @@ struct c2_mutex;
+  * - c2_confc_open_sync() opens configuration object synchronously.
+  * - c2_confc_close() closes configuration object.
+  *
++ * - c2_confc_ctx_error() returns error status of an asynchronous
++ *   configuration retrieval operation.
+  * - c2_confc_ctx_result() is used to obtain the resulting
+  *   configuration object from c2_confc_ctx.
+- * - c2_confc_ctx_error() returns the error status for the
+- *   asynchronous configuration request.
+  *
+  * - c2_confc_readdir() requests asynchronous retrieval of the next
+  *   directory entry.
+@@ -131,10 +131,11 @@ struct c2_mutex;
+  * c2_confc_open() and c2_confc_readdir() are asynchronous functions.
+  * Prior to calling them, the application should initialise a context
+  * object (c2_confc_ctx_init()) and register a clink with .sm_chan
+- * member of c2_confc_ctx::fc_mach.  When the configuration retrieval
+- * completes (c2_confc_ctx_is_completed)), c2_confc_ctx_result() can
+- * be used to obtain the requested configuration object.
+- * c2_confc_ctx_error() returns the error code.
++ * member of c2_confc_ctx::fc_mach.
++
++ * c2_confc_ctx_error() returns the error status of an asynchronous
++ * configuration retrieval operation. c2_confc_ctx_result() returns
++ * the requested configuration object.
+  *
+  * A caller of c2_confc_open_sync() or c2_confc_readdir_sync() will be
+  * blocked while confc processes the request.
+@@ -168,8 +169,9 @@ struct c2_mutex;
+  * /// Filters out intermediate states of c2_confc_ctx::fc_mach.
+  * static bool sm_filter(struct c2_clink *link)
+  * {
+- *         struct sm_waiter *w = container_of(link, struct sm_waiter, w_clink);
+- *         return !c2_confc_ctx_is_completed(&w->w_ctx);
++ *         int32_t e = c2_confc_ctx_error(&container_of(link, struct sm_waiter,
++ *                                                      w_clink)->w_ctx);
++ *         return e == EINPROGRESS;
+  * }
+  *
+  * static int filesystem_open_async(struct c2_conf_filesystem **fs)
+@@ -183,16 +185,11 @@ struct c2_mutex;
+  *
+  *         rc = c2_confc_open(&w.w_ctx, NULL, "filesystem");
+  *         if (rc == 0) {
+- *                 struct c2_conf_obj *obj;
+- *
+- *                 while (!c2_confc_ctx_is_completed(&w.w_ctx))
++ *                 while ((rc = c2_confc_ctx_error(&w.w_ctx)) == EINPROGRESS)
+  *                         c2_chan_wait(&w.w_clink);
+- *
+- *                 obj = c2_confc_ctx_result(&w.w_ctx);
+- *                 if (obj == NULL)
+- *                         rc = c2_confc_ctx_error(&w.w_ctx);
+- *                 else
+- *                         *fs = C2_CONF_CAST(obj, c2_conf_filesystem);
++ *                 if (rc == 0)
++ *                         *fs = C2_CONF_CAST(c2_confc_ctx_result(&w.w_ctx),
++ *                                            c2_conf_filesystem);
+  *         }
+  *
+  *         c2_clink_del(&w.w_clink);
+@@ -451,24 +448,15 @@ enum { C2_CONFC_MAX_PATH_COMP = 16 };
+ 
+ /** Configuration retrieval context. */
+ struct c2_confc_ctx {
+-	/**
+-	 * Pointer to the requested configuration object.
+-	 *
+-	 * The value is NULL unless the retrieval operation has
+-	 * completed successfully.
+-	 *
+-	 * @see c2_confc_ctx_result(), c2_confc_ctx_error().
+-	 */
+-	struct c2_conf_obj      *fc_result;
+ 	/** The confc instance this context belongs to. */
+-	struct c2_confc         *fc_confc;
++	struct c2_confc     *fc_confc;
+ 	/** Context state machine. */
+-	struct c2_sm             fc_mach;
++	struct c2_sm         fc_mach;
+ 	/**
+ 	 * Asynchronous system trap, used by the implementation to
+ 	 * schedule a transition of ->fc_mach state machine.
+ 	 */
+-	struct c2_sm_ast         fc_ast;
++	struct c2_sm_ast     fc_ast;
+ 	/**
+ 	 * Origin of the requested path.
+ 	 *
+@@ -477,23 +465,30 @@ struct c2_confc_ctx {
+ 	 * measures to pin this object for the duration of path
+ 	 * traversal.  See the note in @ref confc-fspec-sub-use.
+ 	 */
+-	struct c2_conf_obj      *fc_origin;
++	struct c2_conf_obj  *fc_origin;
+ 	/**
+ 	 * Path to the object requested by the application.
+ 	 * End of path is marked with zeroed c2_conf_buf.
+ 	 */
+-	struct c2_conf_buf       fc_path[C2_CONFC_MAX_PATH_COMP + 1];
++	struct c2_conf_buf   fc_path[C2_CONFC_MAX_PATH_COMP + 1];
+ 	/** Configuration fetch request being sent to confd. */
+-	struct c2_conf_fetch     fc_req;
++	struct c2_conf_fetch fc_req;
+ 	/** Request fop. */
+-	struct c2_fop            fc_fop;
++	struct c2_fop        fc_fop;
+ 	/**
+ 	 * Record of interest in `object loading completed' or
+ 	 * `object unpinned' events.
+ 	 */
+-	struct c2_clink          fc_clink;
++	struct c2_clink      fc_clink;
++	/**
++	 * Pointer to the requested configuration object.
++	 *
++	 * The application should use c2_confc_ctx_result() instead of
++	 * accessing this value.
++	 */
++	struct c2_conf_obj  *fc_result;
+ 	/** Magic number. */
+-	uint64_t                 fc_magix;
++	uint64_t             fc_magix;
+ };
+ 
+ /**
+@@ -505,31 +500,40 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc);
+ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx);
+ 
+ /**
+- * Returns true iff ctx->fc_mach has terminated or failed.
++ * Returns error status of asynchronous configuration retrieval operation.
++ *
++ * @retval EINPROGRESS  The asynchronous configuration request has not yet
++ *                      completed.
++ * @retval 0      The asynchronous configuration request has completed
++ *                successfully.
++ * @retval -Exxx  The request has completed unsuccessfully.
+  *
+- * This is a helper function that can be applied to filter out
+- * intermediate state transitions, signaled on ctx->fc_mach.sm_chan
+- * channel.
++ * c2_confc_ctx_error() can be applied to filtering out intermediate
++ * state transitions, signaled on ctx->fc_mach.sm_chan channel.
+  *
+  * @see
+  *   - `Filtered wake-ups' section in @ref chan
+  *   - @ref confc-fspec-recipe1
+  */
+-bool c2_confc_ctx_is_completed(struct c2_confc_ctx *ctx);
++int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx);
+ 
+ /**
+- * Sets c2_confc_ctx::fc_result to NULL and returns the original value.
++ * Retrieves the resulting object of a configuration request.
+  *
+- * @pre  c2_confc_ctx_is_completed(ctx)
++ * c2_confc_ctx_result() should only be called once, after
++ * ctx->fc_mach.sm_chan is signaled and c2_confc_ctx_error()
++ * returns 0.
++ *
++ * c2_confc_ctx_result() sets ctx->fc_result to NULL and returns the
++ * original value.
++ *
++ * @pre   c2_confc_ctx_error(ctx) == 0 && ctx->fc_result != NULL
++ * @post  ctx->fc_result == NULL
++ *
++ * @see c2_confc_ctx_error()
+  */
+ struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx);
+ 
+-/** Returns the error status for the asynchronous configuration request. */
+-static inline int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx)
+-{
+-	return ctx->fc_mach.sm_rc;
+-}
+-
+ /* ------------------------------------------------------------------
+  * open/close
+  * ------------------------------------------------------------------ */
+-- 
+1.8.3.2
+

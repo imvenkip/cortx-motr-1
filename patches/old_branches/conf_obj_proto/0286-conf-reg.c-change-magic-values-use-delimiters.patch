@@ -1,0 +1,62 @@
+From fb705f5eca751d71ea0563bb089040aa593baf8a Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 11 Aug 2012 23:11:37 +0300
+Subject: [PATCH 286/370] conf/reg.c: change magic values (use delimiters)
+
+Use 0x33xxxxxxxxxxxx77 pattern for the magic values. Such "delimiters"
+are supposed to increase discoverability of magic values in memory dump.
+
+Numbers 0x33 and 0x77 originate from Nikita's e-mail:
+
+| One wants to see magic values in debugger when invariants fails. For
+| example, when a structure is used after it has been freed and
+| re-allocated to an object of different type or when a structure is
+| overwritten, looking for magic numbers "around" can give a valuable
+| clue. In these cases hex-speak is a better method, because a value
+| is recognizable in p/x output or memory dump, including cases where
+| it is misaligned. I thought of another device to make magic values
+| more visible: we can make each magic start and end with some bit
+| pattern, e.g., 0x33xxxxxxxxxxxx77.
+---
+ conf/reg.c | 4 ++--
+ doc/magix  | 6 +++---
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/conf/reg.c b/conf/reg.c
+index f77573b..99dacef 100644
+--- a/conf/reg.c
++++ b/conf/reg.c
+@@ -51,8 +51,8 @@ struct objptr {
+ };
+ 
+ enum {
+-	CONF_REG_MAGIC = 0xb0b51edca1ab005e,
+-	OBJPTR_MAGIC   = 0xad0bec0dd1e5c01a
++	CONF_REG_MAGIC = 0x33fab1edfe0da177,
++	OBJPTR_MAGIC   = 0x335e1f1e55ce1177
+ };
+ 
+ C2_TL_DESCR_DEFINE(reg, "registered c2_conf_obj-s", static, struct objptr,
+diff --git a/doc/magix b/doc/magix
+index 1bb422d..cafbbec 100755
+--- a/doc/magix
++++ b/doc/magix
+@@ -1,6 +1,6 @@
+ Magic values used to tag Colibri structures are recorded here.
+ 
+-type or instance   field                     value            mnemonics
++type or instance     field                   value            mnemonics
+ ---------------------------------------------------------------------------
+ c2_fop_type          ft_magix                ba11ab1ea5111dae bailable asilidae
+ fop_types_list       t_magic                 d15ea5e0fed1f1ce disease of edifice
+@@ -38,5 +38,5 @@ c2_long_lock_link    lll_magix               b055b1e55edf01d5 boss blessed folds
+ c2_long_lock         l_magix                 0b055b1e55edba55 boss blessed bass
+ c2_fom_thread        lt_magix                fa151f1ab1ec0b01 falsifiable COBOL
+ thr_tl               td_head_magic           dec1a551f1edcade declassified cade
+-c2_conf_reg          r_magic                 b0b51edca1ab005e bobsled calaboose
+-objptr               p_magic                 ad0bec0dd1e5c01a adobe coddles cola
++c2_conf_reg          r_magic                 33fab1edfe0da177 fabled feodal
++objptr               p_magic                 335e1f1e55ce1177 selfless cell
+-- 
+1.8.3.2
+

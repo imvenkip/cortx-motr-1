@@ -1,0 +1,140 @@
+From 4bf1f2c7487ceb9dc7ebb26ef2efb8e1cd6e9298 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Fri, 25 Oct 2013 14:37:02 +0530
+Subject: [PATCH 105/107] Changes summary : - 1. FIXED Style issues in DLD.
+
+These changes are part of the discussion between Rajanikanth & me for
+the review of addb-monitoring-infrastructure at
+link http://reviewboard.clusterstor.com/r/1544/ .
+---
+ addb/addb_monitor.h | 68 ++++++++++++++++++++++++++---------------------------
+ 1 file changed, 34 insertions(+), 34 deletions(-)
+
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index b649d55..a6f3e66 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -68,9 +68,9 @@
+    for creating, initializing & adding the monitor into mero system.
+ 
+    @code
+-	// 1. Add monitor to the structure that is to be monitored
+-	//    or dynamically allocate them as mentioned in step 7.
+-	//    Define key field to locate m0_addb_sum_rec for this monitor.
++	   1. Add monitor to the structure that is to be monitored
++	      or dynamically allocate them as mentioned in step 7.
++	      Define key field to locate m0_addb_sum_rec for this monitor.
+ 	struct m0_xyz_module_struct {
+ 		.
+ 		.
+@@ -82,11 +82,11 @@
+ 	Lets consider we have a variable available to access an instance
+ 	of struct m0_xyz_module_struct, viz. xyz_module_var.
+ 
+-	// 2. Define the ADDB summary record type.
++	   2. Define the ADDB summary record type.
+ 	M0_ADDB_RT_DP(m0_addb_xyz, M0_ADDB_XYZ, "xyz_parm");
+ 
+-	// 3. Define a new monitor specific stats data
+-	// NOTE: The fields should be only uint64_t
++	   3. Define a new monitor specific stats data
++	   NOTE: The fields should be only uint64_t
+ 	struct xyz {
+ 		uint64_t x_parm;
+ 	};
+@@ -106,7 +106,7 @@
+ 	the meaning to the ADDB summary record type defined in 2 (serial order
+ 	should be maintained while defining the structure).
+ 
+-	// 4. Define monitor operation amo_sum_rec
++	   4. Define monitor operation amo_sum_rec
+ 	struct m0_addb_sum_rec *xyz_amo_sum_rec(const struct m0_addb_monitor *m,
+ 					       struct m0_reqh             *rqh)
+ 	{
+@@ -121,7 +121,7 @@
+ 		return sum_rec;
+ 	}
+ 
+-	// 5. Define monitor operations amo_watch()
++	   5. Define monitor operations amo_watch()
+ 	void xyz_amo_watch(struct m0_addb_monitor *monitor,
+ 			   struct m0_addb_rec *rec, struct m0_reqh *reqh)
+ 	{
+@@ -140,28 +140,28 @@
+ 		m0_mutex_unlock(&xyz->asr_mutex);
+ 	}
+ 
+-	// 6. Define monitor ops struct and set these operations as initializers
++	   6. Define monitor ops struct and set these operations as initializers
+ 	const struct m0_addb_monitor_ops mon_ops = {
+ 		.amo_watch = xyz_amo_watch,
+ 		.amo_sum_rec = xyz_amo_sum_rec
+ 	};
+ 
+-	// 7. Define monitor entry's init function
++	   7. Define monitor entry's init function
+ 	int xyz_ame_init(void)
+ 	{
+-		//1. Define monitor.(as part of some module structure or
+-		//   global variable)
+-		//2. Define monitor specific data, in example defined as
+-		//   'struct xyz' & key for it. (as part of some module
+-		//   structure or global variable)
+-		//3. Dynamically allocate instance of struct m0_addb_sum_rec.
+-		//4. Initialize monitor.
+-		//5. Initialize summary record (m0_addb_sum_rec) with monitor
+-		//   specific data.
+-		//6. Initialize monitor specific data's key.
+-		//7. Store (lockers_set) this monitor specific data in reqh's
+-		//   locker data structure.
+-		//8. Add monitor to reqh's list of monitors for this node.
++		1. Define monitor.(as part of some module structure or
++		   global variable)
++		2. Define monitor specific data, in example defined as
++		   'struct xyz' & key for it. (as part of some module
++		   structure or global variable)
++		3. Dynamically allocate instance of struct m0_addb_sum_rec.
++		4. Initialize monitor.
++		5. Initialize summary record (m0_addb_sum_rec) with monitor
++		   specific data.
++		6. Initialize monitor specific data's key.
++		7. Store (lockers_set) this monitor specific data in reqh's
++		   locker data structure.
++		8. Add monitor to reqh's list of monitors for this node.
+ 
+ 		struct m0_addb_sum_rec *rec;
+ 		M0_ALLOC_PTR(rec);
+@@ -176,19 +176,19 @@
+ 		m0_addb_monitor_add(&xyz_module_var.xms_mon);
+ 	}
+ 
+-	// 8. Define monitor entry's fini function
++	   8. Define monitor entry's fini function
+ 	void xyz_ame_fini(void)
+ 	{
+-		//1. Delete monitor from reqh's list of monitors for this node.
+-		//2. Remove (lockers_clear)  monitor specific data from reqh's
+-		//   locker data structure (obviously do lockers_get before this
+-		//   to get the pointer to m0_addb_sum_rec structure for
+-		//   following steps, NOTE: shown in below code snippet).
+-		//3. Finalize summary record (m0_addb_sum_rec).
+-		//4. Free summary record (m0_addb_sum_rec).
+-		//5. Finalize monitor.
+-		//6. Free monitor specific data, key or monitor iff any of them
+-		//   was dynamically allocated.
++		1. Delete monitor from reqh's list of monitors for this node.
++		2. Remove (lockers_clear)  monitor specific data from reqh's
++		   locker data structure (obviously do lockers_get before this
++		   to get the pointer to m0_addb_sum_rec structure for
++		   following steps, NOTE: shown in below code snippet).
++		3. Finalize summary record (m0_addb_sum_rec).
++		4. Free summary record (m0_addb_sum_rec).
++		5. Finalize monitor.
++		6. Free monitor specific data, key or monitor iff any of them
++		   was dynamically allocated.
+ 
+ 		struct m0_addb_sum_rec *rec =
+ 			&xyz_module_var.xms_mon->am_ops->amo_sum_rec(reqh,
+-- 
+1.8.3.2
+

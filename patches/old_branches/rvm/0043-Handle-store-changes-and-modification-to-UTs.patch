@@ -1,0 +1,380 @@
+From 3aa9c1426c00c3c72de3f2ed000d4777cde7130a Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Tue, 5 Feb 2013 02:24:01 -0800
+Subject: [PATCH 043/121] Handle store changes and modification to UTs
+
+---
+ be/handle_store.c    | 59 ++++++++++++++++++++++++++--------------------------
+ be/handle_store.h    |  8 +++----
+ be/kv_store.c        |  9 ++------
+ be/reg.c             | 26 ++++++++++-------------
+ be/reg.h             |  7 +++----
+ be/ut/be.c           |  2 +-
+ be/ut/handle_store.c | 15 +++++++------
+ utils/ut_main.c      | 12 +++++------
+ 8 files changed, 66 insertions(+), 72 deletions(-)
+
+diff --git a/be/handle_store.c b/be/handle_store.c
+index fd10ca4..a4a3e01 100644
+--- a/be/handle_store.c
++++ b/be/handle_store.c
+@@ -31,80 +31,81 @@
+ /**
+  * Handle store APIs
+  *
+- * m0_be_hs_init()           - Initialize handle store
+  * m0_be_hs_update()         - Update handle store address on RVM
+  * m0_be_hs_get()            - Get handle store reference (m0_uint128) from RVM
+  */
+-static struct m0_be_seg *seg = NULL;
+-
+-M0_INTERNAL void m0_be_hs_init(struct m0_be_seg *segin)
+-{
+-        M0_ASSERT(segin != NULL);
+-
+-        seg = segin;
+-
+-        m0_be_static_reg_init(seg->bs_static_addr);
+-}
+-
+-M0_INTERNAL void m0_be_hs_update(uint64_t index, struct m0_uint128 *h_addr)
++M0_INTERNAL void m0_be_hs_update(struct m0_be_seg *seg, uint64_t index,
++                                 struct m0_uint128 *h_addr)
+ {
+         struct m0_be_tx         tx;
+         struct m0_uint128      *elem;
+-        struct m0_be_reg       *reg;
++        struct m0_be_reg        reg;
+         uint64_t                offset;
+ 
++        M0_ASSERT(seg != NULL);
+         m0_be_tx_init(&tx, seg->bs_dom, 0);
+ 
+         m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+         m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_INIT) | (1 << M0_BETX_FAILED),
++                        M0_BITS(M0_BETX_INIT, M0_BETX_FAILED),
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+-        
+-        M0_ALLOC_PTR(reg);
+ 
+-        M0_ASSERT(reg != NULL);
++        if (m0_be_tx_state_get(&tx) == M0_BETX_FAILED)
++                goto hs_exit;
+ 
+         offset = index * sizeof(struct m0_uint128);
+ 
+-        m0_be_static_reg_capture_buf(offset, seg, reg, &tx);
++        m0_be_static_reg_capture_buf(offset, seg, &reg, &tx);
+ 
+         m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+         m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED),
++                        M0_BITS(M0_BETX_PREPARED, M0_BETX_FAILED),
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+ 
++        if (m0_be_tx_state_get(&tx) == M0_BETX_FAILED)
++                goto hs_exit;
++
+         m0_be_tx_start(&tx);
+         m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+         m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED),
++                        M0_BITS(M0_BETX_OPEN, M0_BETX_FAILED),
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+ 
+-        elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(offset);
++        if (m0_be_tx_state_get(&tx) == M0_BETX_FAILED)
++                goto hs_exit;
+ 
+-        elem->u_hi = h_addr->u_hi;
+-        elem->u_lo = h_addr->u_lo;
++        elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(seg,
++                                                                      offset);
+ 
+-        m0_be_tx_done(&tx);
++        elem = h_addr;
+ 
++        m0_be_tx_done(&tx);
+         m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+         m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
++                        M0_BITS(M0_BETX_DONE, M0_BETX_FAILED),
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
++
++        if (m0_be_tx_state_get(&tx) == M0_BETX_FAILED)
++                goto hs_exit;
++
+         m0_be_tx_fini(&tx);
+ 
+-        m0_free(reg);
++hs_exit:
++        return;
+ }
+ 
+ 
+-M0_INTERNAL struct m0_uint128 *m0_be_hs_get(uint64_t index)
++M0_INTERNAL struct m0_uint128 *m0_be_hs_get(struct m0_be_seg *seg,
++                                            uint64_t index)
+ {
+         uint64_t offset = index * sizeof(struct m0_uint128);
+ 
+-        return (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(offset);
++        return (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(seg,
++                                                                      offset);
+ }
+ 
+ /** @} end group handle_store */
+diff --git a/be/handle_store.h b/be/handle_store.h
+index 97c9f9b..b5e0640 100644
+--- a/be/handle_store.h
++++ b/be/handle_store.h
+@@ -31,11 +31,11 @@
+   */
+ #include "be/be.h"
+ 
+-M0_INTERNAL void m0_be_hs_init(struct m0_be_seg *segin);
++M0_INTERNAL void m0_be_hs_update(struct m0_be_seg *seg, uint64_t index,
++                                 struct m0_uint128 *h_addr);
+ 
+-M0_INTERNAL void m0_be_hs_update(uint64_t index, struct m0_uint128 *h_addr);
+-
+-M0_INTERNAL struct m0_uint128 *m0_be_hs_get(uint64_t index);
++M0_INTERNAL struct m0_uint128 *m0_be_hs_get(struct m0_be_seg *seg,
++                                            uint64_t index);
+ 
+ /** @} end of be group */
+ 
+diff --git a/be/kv_store.c b/be/kv_store.c
+index 1104d03..da8be04 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -91,9 +91,6 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_domain        *dom,
+         M0_ASSERT(ret_val == 0);
+         M0_ASSERT(rvm_handle_seg != NULL);
+ 
+-        /** Initialise the handle_store with the static addr in this segment. */
+-        m0_be_hs_init(rvm_handle_seg);
+-
+         m0_be_tx_init(tx, dom, 0);
+         m0_be_wait(sm_group, &tx->bt_sm, M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+ 
+@@ -115,7 +112,7 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_domain        *dom,
+         /*
+          * Store this handle information at index 0 in handle_store
+          */
+-        m0_be_hs_update(0, &rvm_handle_ref->be_segid_offset);
++        m0_be_hs_update(rvm_handle_seg, 0, &rvm_handle_ref->be_segid_offset);
+ 
+         m0_be_tlist_init(descr, &rvm_handle->ks_tlist);
+ 
+@@ -190,8 +187,6 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store    **out_handle,
+                 }
+         }
+ 
+-        m0_be_hs_init(rvm_handle_seg);
+-
+         /*
+          * Try to recover the handle from index 0 in the handle_store
+          * If recovery fails, create a new handle
+@@ -591,7 +586,7 @@ M0_INTERNAL int m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+         int                        ret_val;
+ 
+         /* Get the segid_offset representation stored at index 0 */
+-        kv_store = m0_be_hs_get(0);
++        kv_store = m0_be_hs_get(seg, 0);
+ 
+         if (kv_store->u_hi == 0) {
+                 ret_val = BE_KV_FAILURE;
+diff --git a/be/reg.c b/be/reg.c
+index e1d9b33..88155cb 100644
+--- a/be/reg.c
++++ b/be/reg.c
+@@ -98,9 +98,6 @@ static const struct m0_sm_conf reg_conf = {
+         .scf_state     = reg_states
+ };
+ 
+-
+-static void *static_reg_start_addr = NULL;
+-
+ /**
+  * @post m0_be_reg_state_get(reg) == M0_BEREG_INIT
+  */
+@@ -140,7 +137,7 @@ M0_INTERNAL void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+  *
+  * @pre m0_be_reg_state_get(reg) == M0_BEREG_INIT
+  * @pre reg->br_buf.b_addr == NULL
+- * @post M0_IN(m0_be_reg_state_get(reg), (M0_BEREG_ALLOCATING, 
++ * @post M0_IN(m0_be_reg_state_get(reg), (M0_BEREG_ALLOCATING
+  *                                        M0_BEREG_ALLOCATED,M0_BEREG_FAILED))
+  */
+ 
+@@ -435,11 +432,6 @@ reg_done_exit:
+         }
+ }
+ 
+-M0_INTERNAL void m0_be_static_reg_init(void *start_addr)
+-{
+-        static_reg_start_addr = start_addr;
+-}
+-
+ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+                                               struct m0_be_seg *seg,
+                                               struct m0_be_reg *reg,
+@@ -447,22 +439,26 @@ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+ {
+         struct m0_be_buf buf;
+ 
++        M0_ASSERT(reg != NULL);
++        M0_ASSERT(seg->bs_static_addr != NULL);
+         buf.b_nob = sizeof(struct m0_uint128);
+-        buf.b_addr = seg->bs_static_addr + offset; 
+-        
++        buf.b_addr = seg->bs_static_addr + offset;
++
+         m0_be_reg_init(reg, NULL, seg, &buf);
+-        
++
+         m0_be_tx_add_cred(tx, reg);
+ 
+         m0_be_tx_prep(tx);
+ }
+ 
+-M0_INTERNAL void *m0_be_static_reg_get_handle_addr(uint64_t offset)
++M0_INTERNAL void *m0_be_static_reg_get_handle_addr(struct m0_be_seg *seg,
++                                                   uint64_t offset)
+ {
+-        return (static_reg_start_addr + offset);
++        M0_ASSERT(seg->bs_static_addr != NULL);
++        return (seg->bs_static_addr + offset);
+ }
+ 
+-uint32_t m0_be_reg_state_get(const struct m0_be_reg *reg)
++M0_INTERNAL uint32_t m0_be_reg_state_get(const struct m0_be_reg *reg)
+ {
+         return reg->br_sm.sm_state;
+ }
+diff --git a/be/reg.h b/be/reg.h
+index e2ed787..fca6341 100644
+--- a/be/reg.h
++++ b/be/reg.h
+@@ -45,16 +45,15 @@ M0_INTERNAL void m0_be_reg_req_post(struct m0_sm_group *sm_group,
+  * Due to RVM limitation of single segment support,
+  * the static region from segment is used as a handle store.
+  */
+-M0_INTERNAL void m0_be_static_reg_init();
+-
+ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+                                              struct m0_be_seg *seg,
+                                              struct m0_be_reg *reg,
+                                              struct m0_be_tx *tx);
+ 
+-M0_INTERNAL void *m0_be_static_reg_get_handle_addr(uint64_t offset);
++M0_INTERNAL void *m0_be_static_reg_get_handle_addr(struct m0_be_seg *seg,
++                                                   uint64_t offset);
+ 
+-uint32_t m0_be_reg_state_get(const struct m0_be_reg *reg);
++M0_INTERNAL uint32_t m0_be_reg_state_get(const struct m0_be_reg *reg);
+ 
+ /** @} end of be group */
+ 
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 69a7de8..6184edb 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -59,7 +59,6 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         int rc = 0;
+         int result;
+ 
+-
+         sprintf(be_cmd, "rm -rf %s", log_file);
+         rc = system(be_cmd);
+         M0_ASSERT(rc == 0);
+@@ -124,6 +123,7 @@ static int ts_be_fini(void)
+         sprintf(be_cmd, "rm -rf %s", stob_dir);
+         rc = system(be_cmd);
+         M0_ASSERT(rc == 0);
++        rvm_terminate();
+ 
+         return rc;
+ }
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index 2fe856d..63ed415 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -56,12 +56,12 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         sprintf(hs_cmd, "rm -rf %s", log_file);
+         rc = system(hs_cmd);
+         M0_ASSERT(rc == 0);
+-        
++
+         sprintf(hs_cmd, "mkdir -p %s", stob_dir);
+         rc = system(hs_cmd);
+         M0_ASSERT(rc == 0);
+-        
+-        sprintf(hs_cmd, 
++
++        sprintf(hs_cmd,
+                 "dd if=/dev/zero of=%s/%s bs=1024 count=102408 2>/dev/null",
+                 stob_dir, stob_file);
+         rc = system(hs_cmd);
+@@ -117,6 +117,7 @@ static int ts_be_fini(void)
+         sprintf(hs_cmd, "rm -rf %s", stob_dir);
+         rc = system(hs_cmd);
+         M0_ASSERT(rc == 0);
++        rvm_terminate();
+ 
+         return rc;
+ }
+@@ -125,13 +126,15 @@ static void test_be_handlestore()
+ {
+         int i;
+ 
+-        m0_be_hs_init(seg);
+-
+         for (i = 0; i < 10; i++) {
+                 struct m0_uint128 kvstore;
+                 kvstore.u_hi = 1 + i;
+                 kvstore.u_lo = 88779911231 + i;
+-                m0_be_hs_update(i, &kvstore);
++                m0_be_hs_update(seg, i, &kvstore);
++        }
++        for (i = 0; i < 10; i = i+2) {
++                struct m0_uint128 *kvstore = m0_be_hs_get(seg, i);
++                M0_ASSERT(kvstore != NULL);
+         }
+ }
+ 
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 7d98e90..5626afa 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -96,15 +96,15 @@ void add_uts(void)
+         m0_ut_add(&libm0_ut); /* test lib first */
+         m0_ut_add(&ad_ut);
+         m0_ut_add(&adieu_ut);
+-        /*m0_ut_add(&be_hs_ut);*/
+-        m0_ut_add(&be_kv_store_ut);
++        m0_ut_add(&be_hs_ut);
++        /*m0_ut_add(&be_kv_store_ut);*/
+         /*m0_ut_add(&be_tlist_ut);*/
+         /*m0_ut_add(&be_ut);*/
+ 	m0_ut_add(&balloc_ut);
+-	m0_ut_add(&buffer_pool_ut);
+-	m0_ut_add(&bulkio_client_ut);
+-	m0_ut_add(&bulkio_server_ut);
+-	m0_ut_add(&m0_fop_lock_ut);
++        m0_ut_add(&buffer_pool_ut);
++        m0_ut_add(&bulkio_client_ut);
++        m0_ut_add(&bulkio_server_ut);
++        m0_ut_add(&m0_fop_lock_ut);
+ 	m0_ut_add(&m0_net_bulk_if_ut);
+ 	m0_ut_add(&m0_net_bulk_mem_ut);
+ 	m0_ut_add(&m0_net_lnet_ut);
+-- 
+1.8.3.2
+

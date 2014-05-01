@@ -1,0 +1,72 @@
+From 728e0f82324c10aa7923ea56b5929816f9cffca8 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 27 Feb 2014 02:39:54 +0200
+Subject: [PATCH 94/96] be/alloc: free lists info updated
+
+---
+ be/alloc.h          | 2 +-
+ be/alloc_internal.h | 4 ++--
+ be/fl.c             | 2 +-
+ mero/magic.h        | 2 +-
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/be/alloc.h b/be/alloc.h
+index b05f624..13e7196 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -82,7 +82,7 @@ struct m0_be_allocator {
+ 	struct m0_be_allocator_stats   ba_stats;	/**< XXX not used now */
+ 	m0_bcount_t		       ba_size;		/**< memory size */
+ 	void			      *ba_addr;		/**< memory address */
+-	struct m0_be_fl		       ba_fl;
++	struct m0_be_fl		       ba_fl;		/**< free lists */
+ };
+ 
+ /**
+diff --git a/be/alloc_internal.h b/be/alloc_internal.h
+index 905b679..58575b7 100644
+--- a/be/alloc_internal.h
++++ b/be/alloc_internal.h
+@@ -47,11 +47,11 @@ struct be_alloc_chunk {
+ 	 * Used to find invalid memory access after allocated chunk.
+ 	 */
+ 	uint64_t	bac_magic0;
+-	/** for m0_be_allocator.ba_chunks list */
++	/** for m0_be_allocator::ba_chunks list */
+ 	struct m0_tlink bac_linkage;
+ 	/** magic for bac_linkage */
+ 	uint64_t	bac_magic;
+-	/** for m0_be_allocator.ba_free list */
++	/** for m0_be_fl::bfl_free[index]::bfs_list list */
+ 	struct m0_tlink bac_linkage_free;
+ 	/** magic for bac_linkage_free */
+ 	uint64_t	bac_magic_free;
+diff --git a/be/fl.c b/be/fl.c
+index 4ac4bc4..51096f1 100644
+--- a/be/fl.c
++++ b/be/fl.c
+@@ -82,7 +82,7 @@
+  * @{
+  */
+ 
+-M0_TL_DESCR_DEFINE(chunks_free, "XXX list of free chunks in m0_be_allocator",
++M0_TL_DESCR_DEFINE(chunks_free, "list of free chunks in m0_be_fl",
+ 		   static, struct be_alloc_chunk,
+ 		   bac_linkage_free, bac_magic_free,
+ 		   M0_BE_ALLOC_FREE_LINK_MAGIC, M0_BE_ALLOC_FREE_MAGIC);
+diff --git a/mero/magic.h b/mero/magic.h
+index 9537eba..82e2520 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -149,7 +149,7 @@ enum m0_magic_satchel {
+ 	/* be_alloc_chunk::bac_magic (official feis) */
+ 	M0_BE_ALLOC_ALL_LINK_MAGIC = 0x0ff1c1a1fe15,
+ 
+-	/* m0_be_allocator::ba_free (cascadia aloe) */
++	/* m0_be_fl::bfl_free[index]::bfs_list (cascadia aloe) */
+ 	M0_BE_ALLOC_FREE_MAGIC = 0xca5cad1aa10e,
+ 
+ 	/* be_alloc_chunk::bac_magic_free (edifice faded) */
+-- 
+1.8.3.2
+

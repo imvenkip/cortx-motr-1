@@ -1,0 +1,271 @@
+From 60693d27344ffa11c71eb236e87a2b2017261afd Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Wed, 3 Apr 2013 10:03:26 -0700
+Subject: [PATCH 075/121] Fix page_alloc keep allocation list with
+ log->seg_hdr, rvm recovery issue, added rds_init
+
+---
+ be/domain.c         |  2 ++
+ rvm/rds.h           |  4 ++++
+ rvm/rds_init.c      | 12 ++++++++++++
+ rvm/rds_start.c     |  3 +++
+ rvm/rds_zap.c       |  7 +++----
+ rvm/rvm.h           |  1 +
+ rvm/rvm_logrecovr.c | 12 ++++++------
+ rvm/rvm_logstatus.c |  3 ++-
+ rvm/rvm_map.c       | 11 ++++-------
+ rvm/rvm_private.h   |  4 +++-
+ rvm/rvm_utils.c     |  5 +++++
+ 11 files changed, 45 insertions(+), 19 deletions(-)
+
+diff --git a/be/domain.c b/be/domain.c
+index 1c64485..e4cc555 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -196,6 +196,8 @@ M0_INTERNAL void m0_be_domain_seg_restore(struct m0_be_domain *dom,
+                 result = m0_stob_create(seg->bs_stob, NULL);
+                 strncpy(seg->bs_impl.segment_name, name,
+                         sizeof(seg->bs_impl.segment_name));
++
++                seg->bs_rvm.seg_stob = seg->bs_stob;
+                 m0_be_seg_open(seg);
+ 
+                 m0_be_seg_tlink_init(seg);
+diff --git a/rvm/rds.h b/rvm/rds.h
+index 785da89..3b9515a 100644
+--- a/rvm/rds.h
++++ b/rvm/rds.h
+@@ -64,6 +64,10 @@ extern int rds_init_heap(
+       int                   *err
+     );
+ 
++extern rvm_bool_t rds_init(
++      rvm_seg_hdr_t *seg_hdr
++    );
++
+ extern int rds_load_heap(
+       char                  *DevName,
+       rvm_offset_t          DevLength,
+diff --git a/rvm/rds_init.c b/rvm/rds_init.c
+index 82b391b..4b767c5 100644
+--- a/rvm/rds_init.c
++++ b/rvm/rds_init.c
+@@ -18,6 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ #include <stdio.h>
++#include <stdlib.h>
+ #include "rvm/rds_private.h"
+ 
+ /* This routine initializes a region of memory to contain the heap. The
+@@ -123,3 +124,14 @@ void *rds_heap_addr(rvm_seg_hdr_t *seg_hdr)
+         heap_header_t *hdrp = seg_hdr->heap_hdr->RecoverableHeapStartAddress;
+         return hdrp;
+ }
++
++rvm_bool_t rds_init(rvm_seg_hdr_t *seg_hdr)
++{
++    if(seg_hdr->no_init != rvm_true) {
++            /* @TODO: move to segment header */
++            seg_hdr->heap_hdr = (heap_def_t *) malloc(sizeof(heap_def_t));
++            init_rvm_seg_region_tree(seg_hdr);
++            seg_hdr->no_init  = rvm_true;
++    }
++    return rvm_true;
++}
+diff --git a/rvm/rds_start.c b/rvm/rds_start.c
+index 2985f43..474bf7f 100644
+--- a/rvm/rds_start.c
++++ b/rvm/rds_start.c
+@@ -57,6 +57,9 @@ rds_load_heap(DevName, DevLength, static_addr, err, seg_hdr)
+ {
+     rvm_return_t     rvmret;
+ 
++    /* Initialization of seg->bs_rvm */
++    rds_init(seg_hdr);
++
+     /* Map in the appropriate structures by calling Rvm_Load_Segment. */
+     rvmret = rvm_load_segment(DevName, DevLength, NULL,
+ 			      &seg_hdr->heap_hdr->NRegionDefs, &seg_hdr->heap_hdr->RegionDefs, seg_hdr);
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index 1736e4c..ec286ef 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -46,6 +46,9 @@ rds_zap_heap(DevName, DevLength, startAddr, staticLength, heapLength, nlists, ch
+         assert(startAddr != NULL);
+     }
+ 
++    /* Initialization of seg->bs_rvm */
++    rds_init(seg_hdr);
++
+     memset(regions, 0, 2 * sizeof(rvm_region_def_t));
+     regions[0].length = heapLength;
+     regions[0].vmaddr = startAddr;
+@@ -55,10 +58,6 @@ rds_zap_heap(DevName, DevLength, startAddr, staticLength, heapLength, nlists, ch
+     /* Determine the length of the segment, and create a region which makes the
+      * rest of it air. */
+ 
+-    /* @TODO: move to segment header */
+-    seg_hdr->heap_hdr = (heap_def_t *) malloc(sizeof(heap_def_t));
+-    init_rvm_seg_region_tree(seg_hdr);
+-
+     /* Create the segments */
+     rvmret = rvm_create_segment(DevName, DevLength, NULL, 2, regions, seg_hdr);
+     if (rvmret != RVM_SUCCESS) {
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index 664e06c..7ab5057 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -403,6 +403,7 @@ typedef struct rvm_seg_hdr
+ 
+         void                   *static_addr;
+         heap_def_t             *heap_hdr; /* rds heap globals */
++        rvm_bool_t             no_init;
+     } rvm_seg_hdr_t;
+ 
+ /*
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index cd782be..b90c466 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -125,17 +125,17 @@ rvm_return_t alloc_log_buf(log)
+     {
+     log_buf_t       *log_buf = &log->log_buf; /* log buffer descriptor */
+ 
+-    if ((log_buf->buf = page_alloc(log_buf->length)) == NULL)
++    if ((log_buf->buf = page_alloc(log->seg_hdr, log_buf->length)) == NULL)
+         return RVM_ENO_MEMORY;
+ #ifdef SPECIAL_DEBUG
+-    if ((log_buf->shadow_buf=page_alloc(log_buf->length)) == NULL)
++    if ((log_buf->shadow_buf=page_alloc(log->seg_hdr, log_buf->length)) == NULL)
+         return RVM_ENO_MEMORY;
+-    if ((tst_buf=page_alloc(log_buf->length)) == NULL)
++    if ((tst_buf=page_alloc(log->seg_hdr, log_buf->length)) == NULL)
+         return RVM_ENO_MEMORY;
+ #endif /* SPECIAL_DEBUG */
+     log_buf->buf_len = RVM_MK_OFFSET(0,log_buf->length);
+ 
+-    if ((log_buf->aux_buf=page_alloc(log_buf->aux_length)) == NULL)
++    if ((log_buf->aux_buf=page_alloc(log->seg_hdr, log_buf->aux_length)) == NULL)
+         return RVM_ENO_MEMORY;
+ 
+     /* write-protect the buffers */
+@@ -166,7 +166,7 @@ void free_log_buf(log)
+ 
+     if (log_buf->buf != NULL)
+         {
+-        page_free(NULL, log_buf->buf,log_buf->length);
++        page_free(log->seg_hdr, log_buf->buf,log_buf->length);
+         log_buf->buf = NULL;
+         log_buf->length = 0;
+         RVM_ZERO_OFFSET(log_buf->buf_len);
+@@ -175,7 +175,7 @@ void free_log_buf(log)
+ 
+     if (log_buf->aux_buf != NULL)
+         {
+-        page_free(NULL, log_buf->aux_buf,log_buf->aux_length);
++        page_free(log->seg_hdr, log_buf->aux_buf,log_buf->aux_length);
+         log_buf->aux_buf = NULL;
+         log_buf->aux_length = 0;
+         }
+diff --git a/rvm/rvm_logstatus.c b/rvm/rvm_logstatus.c
+index 96e041f..bd293a6 100644
+--- a/rvm/rvm_logstatus.c
++++ b/rvm/rvm_logstatus.c
+@@ -394,7 +394,7 @@ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options)
+             rvm_options->flush_buf_len = MIN_FLUSH_BUF_LEN;
+         dev->wrt_buf_len =
+             ROUND_TO_PAGE_SIZE(rvm_options->flush_buf_len);
+-        dev->wrt_buf = page_alloc(dev->wrt_buf_len);
++        dev->wrt_buf = page_alloc(log->seg_hdr, dev->wrt_buf_len);
+         if (dev->wrt_buf == NULL)
+             {
+             retval = RVM_ENO_MEMORY;
+@@ -447,6 +447,7 @@ rvm_return_t do_log_options(log_ptr,rvm_options)
+ 		printf("open_log failed.\n");
+ 		return retval;
+ 	}
++
+         /* do recovery processing for log */
+         log->in_recovery = rvm_true;
+         if ((retval = log_recover(log,&log->status.tot_recovery,
+diff --git a/rvm/rvm_map.c b/rvm/rvm_map.c
+index 8e6ed81..6316923 100644
+--- a/rvm/rvm_map.c
++++ b/rvm/rvm_map.c
+@@ -347,14 +347,11 @@ rvm_page_entry_t *find_page_entry(rvm_seg_hdr_t *seg_hdr, char *vmaddr)
+ 
+ 
+ /* BSD44 page allocator */
+-char *page_alloc(len)
++char *page_alloc(seg_hdr,len)
++    rvm_seg_hdr_t   *seg_hdr;
+     rvm_length_t    len;
+     {
+     char           *vmaddr;
+-    rvm_seg_hdr_t     seg_hdr;
+-
+-    seg_hdr.rvm_allocations = NULL;
+-    seg_hdr.rvm_allocations_tail = NULL;
+ 
+     /* printf ("page_alloc(%ul)\n", len); */
+ #ifdef HAVE_MMAP
+@@ -389,7 +386,7 @@ char *page_alloc(len)
+        not only wrong [since we don't if it's allocated, or
+        actually allocated in the RVM heap!!], but doesn't
+        work with mmap()). */
+-    if (rvm_register_page(&seg_hdr, vmaddr, len) == rvm_false)
++    if (rvm_register_page(seg_hdr, vmaddr, len) == rvm_false)
+         {
+ 	assert(rvm_false);	/* Registering shouldn't have failed */
+ 	}
+@@ -827,7 +824,7 @@ static rvm_return_t round_region(seg_hdr, rvm_region,seg)
+     else
+         {
+         rvm_region->vmaddr =
+-            page_alloc(ROUND_TO_PAGE_SIZE(rvm_region->length));
++            page_alloc(seg_hdr, ROUND_TO_PAGE_SIZE(rvm_region->length));
+         if (rvm_region->vmaddr == NULL) return RVM_ENO_MEMORY;
+         }
+ 
+diff --git a/rvm/rvm_private.h b/rvm/rvm_private.h
+index 8bbbd69..caa3503 100644
+--- a/rvm/rvm_private.h
++++ b/rvm/rvm_private.h
+@@ -1008,6 +1008,8 @@ typedef struct
+                     *seg_dict_vec;      /* recovery segment dictionary */
+     long            seg_dict_len;       /* length of seg_dict_vec */
+     device_t        *cur_seg_dev;       /* current segment device in truncation */
++
++    rvm_seg_hdr_t   *seg_hdr;
+     }
+ log_t;
+ /* segment descriptor: seg_t */
+@@ -1468,7 +1470,7 @@ void free_log_buf();                    /* [rvm_logrecovr.c] */
+ /* [rvm_map.c] */
+ void init_map_roots(void);
+ rvm_return_t bad_region(rvm_region_t *rvm_region);
+-char *page_alloc(rvm_length_t len);
++char *page_alloc(rvm_seg_hdr_t *seg_hdr, rvm_length_t len);
+ void page_free(rvm_seg_hdr_t *seg_hdr, char *vmaddr, rvm_length_t length);
+ long open_seg_dev(seg_t *seg, rvm_offset_t *dev_length);
+ long close_seg_dev(seg_t *seg);
+diff --git a/rvm/rvm_utils.c b/rvm/rvm_utils.c
+index 667a8ee..4ab407a 100644
+--- a/rvm/rvm_utils.c
++++ b/rvm/rvm_utils.c
+@@ -643,6 +643,11 @@ log_t *make_log(log_dev_name,retval)
+             free(log);
+             return NULL;                /* no space for device name */
+             }
++        /* do allocate memory to log->seg_hdr which keeps track of
++         * rvm_page_alloc info */
++
++        log->seg_hdr = (rvm_seg_hdr_t *)malloc(sizeof(rvm_seg_hdr_t));
++
+ 	/* first and foremost */
+ 	log->trunc_thread = (cthread_t) 0;
+ 
+-- 
+1.8.3.2
+

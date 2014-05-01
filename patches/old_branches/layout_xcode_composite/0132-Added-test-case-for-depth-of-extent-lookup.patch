@@ -1,0 +1,1035 @@
+From 974ce314f54fdf65a8250c07a9530b6d1226aa44 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 9 May 2013 12:43:51 +0530
+Subject: [PATCH 132/157] Added test case for depth of extent lookup
+
+---
+ layout/composite.c    |   2 +-
+ layout/composite.h    |   4 +-
+ layout/ut/composite.c | 381 +++++++++++++++++++++++++++++++-------------------
+ layout/ut/composite.h |  38 ++---
+ layout/ut/layout.c    |  10 +-
+ 5 files changed, 267 insertions(+), 168 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index c951752..6efa37e 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -1944,7 +1944,7 @@ static int extents_indb_read(struct m0_composite_layout *cl,
+ 
+ 	/*
+ 	 * Delete the single extent added by default when the layer got added.
+-	 * Then serially add the the extents as read from the buffer.
++	 * Then sequentially, add the extents as read from the buffer.
+ 	 */
+ 	lr_ext = m0_composite_layer_ext_tlist_head(&layer->clr_extents);
+ 	M0_ASSERT(lr_ext->cle_ext.e_start == 0 &&
+diff --git a/layout/composite.h b/layout/composite.h
+index b4c654f..cee55d2 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -56,7 +56,7 @@
+  * B] NBA
+  *    (1) When a failure occurs, the server revokes the old layout from all
+  *        the clients for the Mero objects affected by the failure and sends a
+- *        new composite layout for each of those object.
++ *        new composite layout for each of those objects.
+  *        - The zeroth layer points to the old layout and one layer gets added
+  *          with each failure encountered.
+  *    (2) New writes are directed into new sub-layouts, extents are
+@@ -65,7 +65,7 @@
+  *        sublayout.
+  *    (4) Recoverable data is migrated from the old server to the new one.
+  *    (5) Eventually, flattening operation will convert composite layouts to
+- *       new non-composite layouts.
++ *        new non-composite layouts.
+  * @{
+  */
+ 
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 2ef4c99..2094c23 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -123,13 +123,7 @@ static void sublayouts_delete(struct m0_layout_domain *domain,
+ 	}
+ }
+ 
+-/** todo
+- * 1) Add tests for having the first layer spanning the whole namespace
+- * 2) Add test to cover the functioning of the ext lookup.
+- * 3) Add test to cover the NBA use case specifically.
+- * 4) Add test to cover the small IO use case specifically.
+- * 5) Add test to cover other composite layouts being used as sublayouts.
+- */
++/* todo Add test to cover other composite layouts being used as sublayouts. */
+ static void extentlist_build(struct m0_tl *extents,
+ 			     uint32_t extents_nr,
+ 			     bool is_contiguous_extents)
+@@ -178,7 +172,8 @@ static void extentlist_free(struct m0_tl *extlist)
+ static void composite_layout_verify(struct m0_layout *l,
+ 				    uint64_t composite_lid,
+ 				    uint32_t layers_nr,
+-				    uint32_t min_extents_nr,
++				    bool is_extlist_associated,
++				    uint32_t extents_nr,
+ 				    bool is_contiguous_extents,
+ 				    bool is_user_count_incremented)
+ {
+@@ -193,12 +188,12 @@ static void composite_layout_verify(struct m0_layout *l,
+ 	uint32_t                          P;
+ 	m0_bindex_t			  delta;
+ 	struct m0_composite_layer_extent *lr_ext;
+-	uint32_t                          extents_nr;
+ 	uint32_t                          i;
+ 	uint32_t                          j;
+ 
+ 	M0_UT_ASSERT(l != NULL);
+ 	M0_UT_ASSERT(l->l_type == &m0_composite_layout_type);
++	M0_UT_ASSERT(ergo(!is_extlist_associated, extents_nr == 1));
+ 
+ 	/* Verify the generic layout data. */
+ 	l_verify(l, composite_lid, is_user_count_incremented);
+@@ -209,7 +204,6 @@ static void composite_layout_verify(struct m0_layout *l,
+ 
+ 	/* Verify the layers */
+ 	i = 0;
+-	extents_nr = min_extents_nr;
+ 	m0_uint128_init(&seed, "sublayouts_build");
+         m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_cl->l_id == cl->cl_base.l_id);
+@@ -226,24 +220,35 @@ static void composite_layout_verify(struct m0_layout *l,
+ 		M0_UT_ASSERT(layer->clr_extents_nr == extents_nr);
+ 
+ 		/* Verify the extents. */
+-		j = 0;
+-		delta = (END_OFFSET - START_OFFSET) / extents_nr;
+-		m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+-			M0_UT_ASSERT(lr_ext->cle_ext.e_start ==
+-				     START_OFFSET + j * delta);
++		if (is_extlist_associated) {
++			j = 0;
++			delta = (END_OFFSET - START_OFFSET) / extents_nr;
++			m0_tl_for(m0_composite_layer_ext, &layer->clr_extents,
++				  lr_ext) {
++				M0_UT_ASSERT(lr_ext->cle_ext.e_start ==
++					     START_OFFSET + j * delta);
++				M0_UT_ASSERT(lr_ext->cle_ext.e_end ==
++					     lr_ext->cle_ext.e_start + delta ||
++					     lr_ext->cle_ext.e_end ==
++					     END_OFFSET);
++				if (is_contiguous_extents || j % 2 == 0)
++					M0_UT_ASSERT(lr_ext->cle_state ==
++						     M0_CLRES_VALID);
++				else
++					M0_UT_ASSERT(lr_ext->cle_state ==
++						     M0_CLRES_HOLE);
++				++j;
++			} m0_tl_endfor;
++			M0_UT_ASSERT(j == extents_nr);
++		} else {
++			M0_UT_ASSERT(layer->clr_extents_nr == 1);
++			lr_ext = m0_composite_layer_ext_tlist_head(
++							&layer->clr_extents);
++			M0_UT_ASSERT(lr_ext->cle_ext.e_start == 0);
+ 			M0_UT_ASSERT(lr_ext->cle_ext.e_end ==
+-				     lr_ext->cle_ext.e_start + delta ||
+-				     lr_ext->cle_ext.e_end == END_OFFSET);
+-			if (is_contiguous_extents || j % 2 == 0)
+-				M0_UT_ASSERT(lr_ext->cle_state ==
+-					     M0_CLRES_VALID);
+-			else
+-				M0_UT_ASSERT(lr_ext->cle_state ==
+-					     M0_CLRES_HOLE);
+-			++j;
+-		} m0_tl_endfor;
+-		M0_UT_ASSERT(j == extents_nr);
+-		//todo ++extents_nr;
++				     M0_BINDEX_MAX + 1);
++			M0_UT_ASSERT(lr_ext->cle_state == M0_CLRES_HOLE);
++		}
+ 		++i;
+         } m0_tl_endfor;
+ }
+@@ -335,33 +340,53 @@ static void composite_dump(const struct m0_composite_layout *cl)
+ }
+ #endif
+ 
++static int extlist_associate(struct m0_composite_layout *cl,
++			     uint32_t layer_id,
++			     uint32_t extents_nr,
++			     bool is_contiguous_extents,
++			     bool failure_test)
++{
++	struct m0_layout                 *l_from_cl;
++	struct m0_tl                      extents;
++	struct m0_composite_layer_extent *lr_ext;
++	int                               rc;
++
++	/* Build an extent list and associate it with the sublayout. */
++	extentlist_build(&extents, extents_nr, is_contiguous_extents);
++	m0_tl_for(m0_composite_layer_ext, &extents, lr_ext) {
++		rc = m0_composite_layer_ext_add(cl, layer_id, &lr_ext->cle_ext,
++						lr_ext->cle_state);
++		M0_UT_ASSERT(rc == 0);
++	} m0_tl_endfor;
++
++	/* Verify the composite layout object contents. */
++	l_from_cl = m0_cl_to_layout(cl);
++	composite_layout_verify(l_from_cl, l_from_cl->l_id, cl->cl_layers_nr,
++				EXTLIST_ASSOCIATED, extents_nr,
++				is_contiguous_extents, !USER_COUNT_INCREMENTED);
++	extentlist_free(&extents);
++	return rc;
++}
++
+ /** Builds a layout object with COMPOSITE layout type. */
+ static int composite_build(uint64_t lid,
+ 			   struct m0_layout_domain *domain,
+-			   uint32_t extents_nr,
+-			   bool is_contiguous_extents,
+ 			   bool failure_test,
+ 			   struct m0_composite_layout **cl)
+ {
+-	struct m0_layout                 *sublayout;
+-	uint64_t                          sublayout_id;
+-	struct m0_tl                      extents;
+-	struct m0_composite_layer_extent *lr_ext;
+-	struct m0_layout                 *l_from_cl;
+-	int                               rc;
++	struct m0_layout *sublayout;
++	uint64_t          sublayout_id;
++	struct m0_layout *l_from_cl;
++	int               rc;
+ 
+ 	/* Pre-create the sublayout to be used as the original layout. */
+ 	sublayout_id = lid * 100;
+ 	sublayout_build(sublayout_id, domain, &sublayout);
+ 
+-	/* Build an extent list to be associated with the sublayout. */
+-	extentlist_build(&extents, extents_nr, is_contiguous_extents);
+-
+ 	/* Build a composite layout. */
+ 	rc = m0_composite_build(domain, lid, sublayout, cl);
+ 	if (failure_test) {
+ 		M0_UT_ASSERT(rc == -ENOMEM);
+-		extentlist_free(&extents);
+ 		sublayout_delete(domain, sublayout_id);
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+@@ -370,19 +395,11 @@ static int composite_build(uint64_t lid,
+ 		l_from_cl = m0_cl_to_layout(*cl);
+ 		M0_UT_ASSERT(l_from_cl == &(*cl)->cl_base);
+ 
+-		m0_tl_for(m0_composite_layer_ext, &extents, lr_ext) {
+-			rc = m0_composite_layer_ext_add(*cl, 0,
+-							&lr_ext->cle_ext,
+-							lr_ext->cle_state);
+-			M0_UT_ASSERT(rc == 0);
+-		} m0_tl_endfor;
+-
+ 		/* Verify the composite layout object contents. */
+-		composite_layout_verify(l_from_cl, lid, 1, extents_nr,
+-					is_contiguous_extents,
++		composite_layout_verify(l_from_cl, lid, 1, !EXTLIST_ASSOCIATED,
++					1, CONTIGUOUS_EXTENTS,
+ 					!USER_COUNT_INCREMENTED);
+ 	}
+-	extentlist_free(&extents);
+ 	return rc;
+ }
+ 
+@@ -394,15 +411,12 @@ static int composite_build(uint64_t lid,
+  */
+ static int layers_add(struct m0_composite_layout *cl,
+ 		      uint32_t layers_nr,
+-		      uint32_t min_extents_nr,
++		      uint32_t extents_nr,
+ 		      bool is_contiguous_extents,
+ 		      bool layer_add_failure_test)
+ {
+ 	uint64_t                          sublayout_id;
+ 	struct m0_layout                 *sublayout;
+-	struct m0_tl                      extents;
+-	uint32_t                          extents_nr;
+-	struct m0_composite_layer_extent *lr_ext;
+ 	uint32_t                          i;
+ 	int                               rc;
+ 
+@@ -413,40 +427,33 @@ static int layers_add(struct m0_composite_layout *cl,
+ 	/* Pre-create the sublayouts to be used for the layer 1 and above. */
+ 	sublayouts_precreate(cl->cl_base.l_id, cl->cl_base.l_dom, layers_nr);
+ 
+-	extents_nr = min_extents_nr;
+-	for (i = 1; i < layers_nr; ++i /*, todo ++extents_nr */) {
++	for (i = 1; i < layers_nr; ++i) {
+ 		sublayout_id = cl->cl_base.l_id * 100 + i;
+ 		sublayout = m0_layout_find(cl->cl_base.l_dom, sublayout_id);
+ 		M0_UT_ASSERT(sublayout != NULL);
+ 		/* Release the reference acquired by m0_layout_find(). */
+ 		m0_layout_put(sublayout);
+ 
+-		/* Build an extent list to be associated with the sublayout. */
+-		extentlist_build(&extents, extents_nr, is_contiguous_extents);
+-
+ 		M0_UT_ASSERT(cl->cl_layers_nr == i);
+ 		rc = m0_composite_layer_add(cl, sublayout);
+ 		if (layer_add_failure_test) {
+ 			M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+ 			M0_UT_ASSERT(cl->cl_layers_nr == i);
+-			extentlist_free(&extents);
+ 			break;
+ 		} else {
+ 			M0_UT_ASSERT(rc == 0);
+ 			M0_UT_ASSERT(cl->cl_layers_nr == i + 1);
+ 		}
+ 
+-		m0_tl_for(m0_composite_layer_ext, &extents, lr_ext) {
+-			rc = m0_composite_layer_ext_add(cl, i,
+-							&lr_ext->cle_ext,
+-							lr_ext->cle_state);
+-			M0_UT_ASSERT(rc == 0);
+-		} m0_tl_endfor;
+-		extentlist_free(&extents);
++		/* Associate an extent list to the layer added above. */
++		rc = extlist_associate(cl, cl->cl_layers_nr - 1, extents_nr,
++				       is_contiguous_extents, !FAILURE_TEST);
++		M0_UT_ASSERT(rc == 0);
+ 
+ 		/* Verify the composite layout object contents. */
+ 		composite_layout_verify(&cl->cl_base, cl->cl_base.l_id, i + 1,
+-					min_extents_nr, is_contiguous_extents,
++					EXTLIST_ASSOCIATED, extents_nr,
++					is_contiguous_extents,
+ 					!USER_COUNT_INCREMENTED);
+ 	}
+ 	return rc;
+@@ -461,28 +468,41 @@ static int layers_add(struct m0_composite_layout *cl,
+ static int composite_build_and_layers_add(uint64_t lid,
+ 					  struct m0_layout_domain *domain,
+ 					  uint32_t layers_nr,
+-					  uint32_t min_extents_nr,
++					  uint32_t extents_nr,
+ 					  bool is_contiguous_extents,
+ 					  bool failure_test,
+ 					  bool layer_add_failure_test,
+ 					  struct m0_composite_layout **cl)
+ {
+-	int rc;
++	struct m0_layout *l;
++	int               rc;
+ 
+-	rc = composite_build(lid, domain, min_extents_nr,
+-			     is_contiguous_extents, failure_test, cl);
++	rc = composite_build(lid, domain, failure_test, cl);
+ 	if (failure_test) {
+ 		M0_UT_ASSERT(rc == -ENOMEM);
+ 		return rc;
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+-		rc = layers_add(*cl, layers_nr, min_extents_nr,
++		l = &(*cl)->cl_base;
++
++		/* Associate an extent list to the zeroth layer. */
++		rc = extlist_associate(*cl, 0, extents_nr,
++				       is_contiguous_extents, failure_test);
++		M0_UT_ASSERT(rc == 0);
++
++		rc = layers_add(*cl, layers_nr, extents_nr,
+ 				is_contiguous_extents,
+ 				layer_add_failure_test);
+ 		if (layer_add_failure_test)
+ 			M0_UT_ASSERT(rc == -ENOMEM);
+-		else
++		else {
+ 			M0_UT_ASSERT(rc == 0);
++			composite_layout_verify(l, l->l_id, (*cl)->cl_layers_nr,
++						EXTLIST_ASSOCIATED,
++						extents_nr,
++						is_contiguous_extents,
++						!USER_COUNT_INCREMENTED);
++		}
+ #if 0
+ 		composite_dump(*cl);
+ #endif
+@@ -506,8 +526,7 @@ int test_build_composite(uint64_t lid,
+ 	struct m0_layout           *l;
+ 	int                         rc;
+ 
+-	rc = composite_build(lid, domain, extents_nr, is_contiguous_extents,
+-			     failure_test, &cl);
++	rc = composite_build(lid, domain, failure_test, &cl);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+ 	else {
+@@ -519,13 +538,26 @@ int test_build_composite(uint64_t lid,
+ 		l = m0_layout_find(domain, lid);
+ 		M0_UT_ASSERT(l == &cl->cl_base);
+ 
++		/* Reduce the reference acquired by m0_layout_find(). */
++		m0_layout_put(&cl->cl_base);
++
+ 		/* Verify the layout object built earlier here. */
+-		composite_layout_verify(l, lid, 1, extents_nr,
+-					is_contiguous_extents,
++		composite_layout_verify(l, lid, 1, !EXTLIST_ASSOCIATED,
++					1, is_contiguous_extents,
+ 					!USER_COUNT_INCREMENTED);
+ 
+-		/* Reduce the reference acquired by m0_layout_find(). */
+-		m0_layout_put(&cl->cl_base);
++		/* Associate an extent list to the zeroth layer. */
++		rc = extlist_associate(cl, 0, extents_nr,
++				       is_contiguous_extents, failure_test);
++		M0_UT_ASSERT(rc == 0);
++
++		/*
++		 * Verify the layout now that the extents are associated to
++		 * the zeroth layer.
++		 */
++		composite_layout_verify(l, lid, 1, EXTLIST_ASSOCIATED,
++					extents_nr, is_contiguous_extents,
++					!USER_COUNT_INCREMENTED);
+ 
+ 		/* Delete the composite layout object. */
+ 		m0_layout_put(&cl->cl_base);
+@@ -541,7 +573,7 @@ int test_build_composite(uint64_t lid,
+ static void composite_layout_buf_build(uint64_t composite_lid,
+ 				       struct m0_layout_domain *domain,
+ 				       uint32_t layers_nr,
+-				       uint32_t min_extents_nr,
++				       uint32_t extents_nr,
+ 				       bool is_contiguous_extents,
+ 				       struct m0_bufvec_cursor *dcur)
+ {
+@@ -552,7 +584,6 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	struct layer_header             lr_header;
+ 	struct layer_buf_ext            buf_ext;
+ 	m0_bindex_t                     delta;
+-	uint32_t                        extents_nr;
+ 	uint32_t                        i;
+ 	uint32_t                        j;
+ 
+@@ -589,7 +620,6 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	/* Write the layers to the buffer. */
+ 	M0_UT_ASSERT(m0_bufvec_cursor_step(dcur) >=
+ 		     layers_nr * sizeof lr_header);
+-	extents_nr = min_extents_nr;
+ 	for (i = 0; i < layers_nr; ++i) {
+ 		sublayout_id = composite_lid * 100 + i;
+ 		sublayout = m0_layout_find(domain, sublayout_id);
+@@ -607,7 +637,6 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 			continue;
+ 
+ 		delta = (END_OFFSET - START_OFFSET) / extents_nr;
+-		//todo Assert everywhere applicable that extents_nr >= 2
+ 		for (j = 0; j < lr_header.clh_extents_nr; ++j) {
+ 			buf_ext.lbe_ext.e_start = START_OFFSET + j * delta;
+ 			buf_ext.lbe_ext.e_end =
+@@ -624,7 +653,6 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 							 sizeof buf_ext);
+ 			M0_UT_ASSERT(nbytes == sizeof buf_ext);
+ 		}
+-		//todo ++extents_nr;
+ 	}
+ }
+ 
+@@ -632,7 +660,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ int test_decode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test)
+ {
+@@ -648,7 +676,7 @@ int test_decode_composite(uint64_t lid,
+ 	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes, &area);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+-	composite_layout_buf_build(lid, domain, layers_nr, min_extents_nr,
++	composite_layout_buf_build(lid, domain, layers_nr, extents_nr,
+ 				   is_contiguous_extents, &cur);
+ 
+ 	/* Rewind the cursor. */
+@@ -668,8 +696,8 @@ int test_decode_composite(uint64_t lid,
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == l);
+ 
+ 		/* Verify the layout object built by m0_layout_decode(). */
+-		composite_layout_verify(l, lid, layers_nr, min_extents_nr,
+-					is_contiguous_extents,
++		composite_layout_verify(l, lid, layers_nr, EXTLIST_ASSOCIATED,
++					extents_nr, is_contiguous_extents,
+ 					!USER_COUNT_INCREMENTED);
+ 	}
+ 
+@@ -698,7 +726,7 @@ int test_decode_composite(uint64_t lid,
+ static void composite_layout_buf_verify(uint64_t lid,
+ 					struct m0_layout_domain *domain,
+ 					uint32_t layers_nr,
+-					uint32_t min_extents_nr,
++					uint32_t extents_nr,
+ 					bool is_contiguous_extents,
+ 					struct m0_bufvec_cursor *cur)
+ {
+@@ -709,7 +737,6 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 	struct m0_ext                  *ext;
+ 	uint64_t                       *ext_state;
+ 	m0_bindex_t                     delta;
+-	uint32_t                        extents_nr;
+ 	uint32_t                        i;
+ 	uint32_t                        j;
+ 
+@@ -734,7 +761,6 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 
+ 	M0_UT_ASSERT(m0_bufvec_cursor_step(cur) >=
+ 		     cl_rec->cr_layers_nr * sizeof *lr_header);
+-	extents_nr = min_extents_nr;
+ 
+ 	for (i = 0; i < layers_nr; ++i) {
+ 		lr_header = m0_bufvec_cursor_addr(cur);
+@@ -762,7 +788,6 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 			else
+ 				M0_UT_ASSERT(*ext_state == M0_CLRES_HOLE);
+ 		}
+-		//todo ++extents_nr;
+ 	}
+ }
+ 
+@@ -770,7 +795,7 @@ static void composite_layout_buf_verify(uint64_t lid,
+ int test_encode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test)
+ {
+@@ -782,10 +807,8 @@ int test_encode_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout object. */
+-	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+-					    min_extents_nr,
+-					    is_contiguous_extents,
+-					    !FAILURE_TEST,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
++					    is_contiguous_extents, !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -807,8 +830,7 @@ int test_encode_composite(uint64_t lid,
+ 
+ 	/* Verify the layout buffer produced by m0_layout_encode(). */
+ 	if (!failure_test)
+-		composite_layout_buf_verify(lid, domain, layers_nr,
+-					    min_extents_nr,
++		composite_layout_buf_verify(lid, domain, layers_nr, extents_nr,
+ 					    is_contiguous_extents, &cur);
+ 
+ 	/* Delete the composite layout object. */
+@@ -895,7 +917,7 @@ static void composite_layout_buf_compare(struct m0_bufvec_cursor *cur1,
+ int test_decode_encode_composite(uint64_t lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t layers_nr,
+-				 uint32_t min_extents_nr,
++				 uint32_t extents_nr,
+ 				 bool is_contiguous_extents)
+ {
+ 	void                    *area1;
+@@ -914,7 +936,7 @@ int test_decode_encode_composite(uint64_t lid,
+ 	bv1 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area1, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur1, &bv1);
+ 
+-	composite_layout_buf_build(lid, domain, layers_nr, min_extents_nr,
++	composite_layout_buf_build(lid, domain, layers_nr, extents_nr,
+ 				   is_contiguous_extents, &cur1);
+ 
+ 	/* Rewind the cursor. */
+@@ -1104,7 +1126,7 @@ static void composite_layout_copy_delete(struct m0_layout *l)
+ int test_encode_decode_composite(uint64_t lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t layers_nr,
+-				 uint32_t min_extents_nr,
++				 uint32_t extents_nr,
+ 				 bool is_contiguous_extents)
+ {
+ 	struct m0_composite_layout *cl;
+@@ -1118,10 +1140,8 @@ int test_encode_decode_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout object. */
+-	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+-					    min_extents_nr,
+-					    is_contiguous_extents,
+-					    !FAILURE_TEST,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
++					    is_contiguous_extents, !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -1251,7 +1271,7 @@ static void layer_extents_delete(struct m0_composite_layout *cl,
+ int test_layer_ops_composite(uint64_t lid,
+ 			     struct m0_layout_domain *domain,
+ 			     uint32_t layers_nr,
+-			     uint32_t min_extents_nr,
++			     uint32_t extents_nr,
+ 			     bool layer_add_failure_test,
+ 			     bool layer_del_failure_test)
+ {
+@@ -1261,13 +1281,17 @@ int test_layer_ops_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout with the default layer 'layer 0'. */
+-	rc = composite_build(lid, domain, min_extents_nr,
+-			     !CONTIGUOUS_EXTENTS, !FAILURE_TEST, &cl);
++	rc = composite_build(lid, domain, !FAILURE_TEST, &cl);
++	M0_UT_ASSERT(rc == 0);
++
++	/* Associate an extent list to the zeroth layer. */
++	rc = extlist_associate(cl, 0, extents_nr, !CONTIGUOUS_EXTENTS,
++			       !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Now, add layers to the layout. */
+-	rc = layers_add(cl, layers_nr, min_extents_nr,
+-			!CONTIGUOUS_EXTENTS, layer_add_failure_test);
++	rc = layers_add(cl, layers_nr, extents_nr, !CONTIGUOUS_EXTENTS,
++			layer_add_failure_test);
+ 
+ 	if (layer_add_failure_test) {
+ 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+@@ -1279,8 +1303,9 @@ int test_layer_ops_composite(uint64_t lid,
+ 
+ 	/* Verify the layout. */
+ 	l = m0_cl_to_layout(cl);
+-	composite_layout_verify(l, lid, layers_nr, min_extents_nr,
+-				!CONTIGUOUS_EXTENTS, !USER_COUNT_INCREMENTED);
++	composite_layout_verify(l, lid, layers_nr, EXTLIST_ASSOCIATED,
++				extents_nr, !CONTIGUOUS_EXTENTS,
++				!USER_COUNT_INCREMENTED);
+ 
+ 	/* Delete all the extents associated with the top-most layer. */
+ 	layer = layer_find(cl, cl->cl_layers_nr - 1);
+@@ -1291,8 +1316,9 @@ int test_layer_ops_composite(uint64_t lid,
+ 	M0_ASSERT(cl->cl_layers_nr = layers_nr - 1);
+ 
+ 	/* Verify the layout. */
+-	composite_layout_verify(l, lid, layers_nr - 1, min_extents_nr,
+-				!CONTIGUOUS_EXTENTS, !USER_COUNT_INCREMENTED);
++	composite_layout_verify(l, lid, layers_nr - 1, EXTLIST_ASSOCIATED,
++				extents_nr, !CONTIGUOUS_EXTENTS,
++				!USER_COUNT_INCREMENTED);
+ exit:
+ 	/* Delete the composite layout object. */
+ 	m0_layout_put(&cl->cl_base);
+@@ -1409,7 +1435,7 @@ static int ext_op_pre(enum extent_operation eop,
+ 		      uint64_t lid,
+ 		      struct m0_layout_domain *domain,
+ 		      uint32_t layers_nr,
+-		      uint32_t min_extents_nr,
++		      uint32_t extents_nr,
+ 		      bool is_contiguous_extents,
+ 		      enum kind_of_extent extent_kind,
+ 		      uint64_t ext_state,
+@@ -1430,10 +1456,8 @@ static int ext_op_pre(enum extent_operation eop,
+ 				 EXTENT_DELETE)));
+ 
+ 	/* Build a layout and add layers to it. */
+-	rc = composite_build_and_layers_add(lid, domain,
+-					    layers_nr, min_extents_nr,
+-					    is_contiguous_extents,
+-					    !FAILURE_TEST,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
++					    is_contiguous_extents, !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -1455,7 +1479,7 @@ static int ext_op_pre(enum extent_operation eop,
+ 		else {
+ 			M0_UT_ASSERT(extent_kind == SECOND_HALF);
+ 			M0_UT_ASSERT(!is_contiguous_extents);
+-			if (min_extents_nr % 2 == 0)
++			if (extents_nr % 2 == 0)
+ 				*offset_to_operate =
+ 					 ext_to_operate->e_start + 1;
+ 			else
+@@ -1713,7 +1737,7 @@ static int ext_delete(struct m0_composite_layout *cl,
+ static int test_ext_lookup(uint64_t lid,
+ 			   struct m0_layout_domain *domain,
+ 			   uint32_t layers_nr,
+-			   uint32_t min_extents_nr,
++			   uint32_t extents_nr,
+ 			   bool is_contiguous_extents,
+ 			   enum kind_of_extent extent_kind,
+ 			   bool failure_test)
+@@ -1725,7 +1749,7 @@ static int test_ext_lookup(uint64_t lid,
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+ 	int                                rc;
+ 
+-	rc = ext_op_pre(EXTENT_LOOKUP, lid, domain, layers_nr, min_extents_nr,
++	rc = ext_op_pre(EXTENT_LOOKUP, lid, domain, layers_nr, extents_nr,
+ 			is_contiguous_extents, extent_kind,
+ 			M0_CLRES_HOLE, /* todo */
+ 			failure_test, &cl, &ext_to_operate, &offset_to_operate,
+@@ -1747,10 +1771,82 @@ static int test_ext_lookup(uint64_t lid,
+ 	return rc;
+ }
+ 
++/**
++ * Exercises the part of m0_composite_layer_ext_lookup() that starts searching
++ * for an extent in the top-most layer and then goes all the way upto the zeroth
++ * layer if the extent is not found with the prior layer.
++ *
++ * This test also exercises having the layers contain different extent lists.
++ * In the other tests, in most of the cases, all the layers contain almost the
++ * same extent lists.
++ */
++int test_ext_lookup_depth(uint64_t lid,
++			  struct m0_layout_domain *domain,
++			  uint32_t layers_nr,
++			  uint32_t extents_nr)
++{
++	struct m0_layout                  *l_copy_orig;
++	struct m0_composite_layout        *cl;
++	struct m0_ext                      ext_to_operate;
++	m0_bindex_t                        offset_to_operate;
++	struct m0_ext                      ext_lookup;
++	uint32_t                           layer_id_lookup;
++	enum m0_composite_layer_ext_state  ext_state_lookup;
++	struct m0_layout                  *sublayout_lookup;
++	uint32_t                           i;
++	int                                rc;
++
++	my_console_printf("\ntest_ext_lookup_depth:");
++	rc = ext_op_pre(EXTENT_LOOKUP, lid, domain, layers_nr, extents_nr,
++			CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++			M0_CLRES_HOLE, /* todo */
++			!FAILURE_TEST, &cl, &ext_to_operate, &offset_to_operate,
++			&ext_state_lookup, &l_copy_orig);
++	M0_UT_ASSERT(rc == 0);
++	composite_layout_copy_delete(l_copy_orig);
++	/*
++	 * At this point, ext_to_operate is present as a valid extent at the
++	 * zeroth layer. now delete the same extent from the top-most layer and
++	 * verify that the extent lokkup returns the subsequent layer until
++	 * we reach the zeroth layer. When the same extent is deleted from the
++	 * zeroth layer, the subsequent extent lookup returns ENOENT error.
++	 */
++	i = cl->cl_layers_nr - 1;
++	while (1) {
++		rc = m0_composite_layer_ext_delete(cl, i, &ext_to_operate);
++		M0_UT_ASSERT(rc == 0);
++
++		rc = m0_composite_layer_ext_lookup(cl, offset_to_operate,
++						   &ext_lookup, &layer_id_lookup,
++						   &ext_state_lookup,
++						   &sublayout_lookup);
++		if (i > 0) {
++			M0_UT_ASSERT(rc == 0);
++			M0_UT_ASSERT(layer_id_lookup == i - 1);
++			M0_UT_ASSERT(ext_state_lookup == M0_CLRES_VALID);
++			M0_UT_ASSERT(sublayout_lookup->l_id ==
++				     lid * 100 + layer_id_lookup);
++			M0_UT_ASSERT(ext_to_operate.e_start ==
++				     ext_lookup.e_start &&
++				     ext_to_operate.e_end == ext_lookup.e_end);
++		} else {
++			M0_UT_ASSERT(rc == -ENOENT);
++			break;
++		}
++		--i;
++	}
++	/* Delete the layout. */
++	m0_layout_put(&cl->cl_base);
++	M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
++	/* Delete all the precreated sublayouts. */
++	sublayouts_delete(domain, lid, layers_nr);
++	return rc;
++}
++
+ static int test_ext_add(uint64_t lid,
+ 			struct m0_layout_domain *domain,
+ 			uint32_t layers_nr,
+-			uint32_t min_extents_nr,
++			uint32_t extents_nr,
+ 			bool is_contiguous_extents,
+ 			enum kind_of_extent extent_kind,
+ 			uint64_t ext_state,
+@@ -1763,7 +1859,7 @@ static int test_ext_add(uint64_t lid,
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+ 	int                                rc;
+ 
+-	rc = ext_op_pre(EXTENT_ADD, lid, domain, layers_nr, min_extents_nr,
++	rc = ext_op_pre(EXTENT_ADD, lid, domain, layers_nr, extents_nr,
+ 			is_contiguous_extents, extent_kind, ext_state,
+ 			failure_test, &cl, &ext_to_operate, &offset_to_operate,
+ 			&ext_state_lookup, &l_copy_orig);
+@@ -1784,7 +1880,7 @@ static int test_ext_add(uint64_t lid,
+ static int test_ext_state_update(uint64_t lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t layers_nr,
+-				 uint32_t min_extents_nr,
++				 uint32_t extents_nr,
+ 				 bool is_contiguous_extents,
+ 				 enum kind_of_extent extent_kind,
+ 				 uint64_t ext_state,
+@@ -1797,7 +1893,7 @@ static int test_ext_state_update(uint64_t lid,
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+ 	int                                rc;
+ 
+-	rc = ext_op_pre(EXTENT_UPDATE, lid, domain, layers_nr, min_extents_nr,
++	rc = ext_op_pre(EXTENT_UPDATE, lid, domain, layers_nr, extents_nr,
+ 			is_contiguous_extents, extent_kind, ext_state,
+ 			failure_test, &cl, &ext_to_operate, &offset_to_operate,
+ 			&ext_state_lookup, &l_copy_orig);
+@@ -1819,7 +1915,7 @@ static int test_ext_state_update(uint64_t lid,
+ static int test_ext_delete(uint64_t lid,
+ 			   struct m0_layout_domain *domain,
+ 			   uint32_t layers_nr,
+-			   uint32_t min_extents_nr,
++			   uint32_t extents_nr,
+ 			   bool is_contiguous_extents,
+ 			   enum kind_of_extent extent_kind,
+ 			   bool failure_test)
+@@ -1832,7 +1928,7 @@ static int test_ext_delete(uint64_t lid,
+ 	struct m0_ext                      ext;
+ 	int                                rc;
+ 
+-	rc = ext_op_pre(EXTENT_DELETE, lid, domain, layers_nr, min_extents_nr,
++	rc = ext_op_pre(EXTENT_DELETE, lid, domain, layers_nr, extents_nr,
+ 			is_contiguous_extents, extent_kind, M0_CLRES_HOLE,
+ 			failure_test, &cl, &ext_to_operate, &offset_to_operate,
+ 			&ext_state_lookup, &l_copy_orig);
+@@ -2078,7 +2174,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ int test_lookup_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool existing_test,
+ 			  bool failure_test)
+@@ -2096,7 +2192,7 @@ int test_lookup_composite(uint64_t lid,
+ 	if (existing_test) {
+ 		/* Build a layout object, add layers to it, add it to the DB. */
+ 		rc = composite_build_and_layers_add(lid, domain, layers_nr,
+-						    min_extents_nr,
++						    extents_nr,
+ 						    is_contiguous_extents,
+ 						    !FAILURE_TEST,
+ 						    !LAYER_ADD_FAILURE_TEST,
+@@ -2164,7 +2260,7 @@ int test_lookup_composite(uint64_t lid,
+ int test_add_composite(uint64_t lid,
+ 		       struct m0_layout_domain *domain,
+ 		       uint32_t layers_nr,
+-		       uint32_t min_extents_nr,
++		       uint32_t extents_nr,
+ 		       bool is_contiguous_extents,
+ 		       bool duplicate_test,
+ 		       bool failure_test)
+@@ -2179,7 +2275,7 @@ int test_add_composite(uint64_t lid,
+ 
+ 	/* Build a layout object and add layers to it only in memory. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+-					    min_extents_nr,
++					    extents_nr,
+ 					    is_contiguous_extents,
+ 					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+@@ -2216,7 +2312,7 @@ int test_add_composite(uint64_t lid,
+ int test_update_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test)
+ {
+@@ -2238,10 +2334,8 @@ int test_update_composite(uint64_t lid,
+ 	int                                rc;
+ 
+ 	/* Build a layout object and add layers to it only in memory. */
+-	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+-					    min_extents_nr,
+-					    is_contiguous_extents,
+-					    !FAILURE_TEST,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
++					    is_contiguous_extents, !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 	l1 = &cl->cl_base;
+@@ -2289,8 +2383,7 @@ int test_update_composite(uint64_t lid,
+ 	for (i = 0; i < 4; ++i) {
+ 		sublayout_id = cl->cl_base.l_id * 100 + cl->cl_layers_nr;
+ 		sublayout_build(sublayout_id, domain, &sublayout);
+-		extentlist_build(&extents, min_extents_nr,
+-				 is_contiguous_extents);
++		extentlist_build(&extents, extents_nr, is_contiguous_extents);
+ 		rc = m0_composite_layer_add(cl, sublayout);
+ 		extentlist_free(&extents);
+ 		M0_ASSERT(rc == 0);
+@@ -2372,7 +2465,7 @@ int test_update_composite(uint64_t lid,
+ int test_delete_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test)
+ {
+@@ -2383,10 +2476,8 @@ int test_delete_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout object, add layers to it, add it to the DB. */
+-	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+-					    min_extents_nr,
+-					    is_contiguous_extents,
+-					    !FAILURE_TEST,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr, extents_nr,
++					    is_contiguous_extents, !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index 999567f..d22806d 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -75,47 +75,49 @@ enum extent_operation {
+ };
+ 
+ enum {
+-	/*
++	/**
+ 	 * Extent list associated with a layer is built with contiguous valid
+ 	 * extents.
+ 	 */
+ 	CONTIGUOUS_EXTENTS     = true,
+-	/* Failure injected for layer add op */
++	/** Failure injected for layer add op */
+         LAYER_ADD_FAILURE_TEST = true,
+-	/* Failure injected for layer del op */
++	/** Failure injected for layer del op */
+         LAYER_DEL_FAILURE_TEST = true,
+-	/* Start offset for the first extent from an extent map. */
++	/** Start offset for the first extent from an extent map. */
+ 	START_OFFSET           = 0,
+-	/* End offset for the last extent from an extent map. */
+-	END_OFFSET             = M0_BINDEX_MAX + 1
++	/** End offset for the last extent from an extent map. */
++	END_OFFSET             = M0_BINDEX_MAX + 1,
++	/** If exent list is explicitly associated to a a layer. */
++	EXTLIST_ASSOCIATED     = true
+ };
+ 
+ int test_build_composite(uint64_t lid,
+ 			 struct m0_layout_domain *domain,
+-			 uint32_t min_extents_nr,
++			 uint32_t extents_nr,
+ 			 bool is_contiguous_extents,
+ 			 bool failure_test);
+ int test_decode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_encode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_decode_encode_composite(uint64_t lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t sublayouts_nr,
+-				 uint32_t min_extents_nr,
++				 uint32_t extents_nr,
+ 				 bool is_contiguous_extents);
+ int test_encode_decode_composite(uint64_t lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t sublayouts_nr,
+-				 uint32_t min_extents_nr,
++				 uint32_t extents_nr,
+ 				 bool is_contiguous_extents);
+ int test_instance_composite(uint64_t lid,
+ 			    struct m0_layout_domain *domain,
+@@ -123,37 +125,41 @@ int test_instance_composite(uint64_t lid,
+ int test_lookup_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool existing_test,
+ 			  bool failure_test);
+ int test_add_composite(uint64_t lid,
+ 		       struct m0_layout_domain *domain,
+ 		       uint32_t sublayouts_nr,
+-		       uint32_t min_extents_nr,
++		       uint32_t extents_nr,
+ 		       bool is_contiguous_extents,
+ 		       bool duplicate_test,
+ 		       bool failure_test);
+ int test_update_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_delete_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+-			  uint32_t min_extents_nr,
++			  uint32_t extents_nr,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_layer_ops_composite(uint64_t lid,
+ 			     struct m0_layout_domain *domain,
+ 			     uint32_t layers_nr,
+-			     uint32_t min_extents_nr,
++			     uint32_t extents_nr,
+ 			     bool layer_add_failure_test,
+ 			     bool layer_del_failure_test);
+ void test_layer_ext_ops_composite(uint64_t base_lid,
+ 				  struct m0_layout_domain *domain);
++int test_ext_lookup_depth(uint64_t lid,
++			  struct m0_layout_domain *domain,
++			  uint32_t layers_nr,
++			  uint32_t extents_nr);
+ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 					  struct m0_layout_domain *domain);
+ #endif /* __MERO_LAYOUT_UT_COMPOSITE_H__ */
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 0fb4641..59fbfaf 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1405,17 +1405,19 @@ static void test_layer_ops_failure(void)
+ 
+ static void test_layer_ext_ops(void)
+ {
+-	uint64_t lid;
++	uint64_t lid = 16001;
+ 
+-	lid = 16001;
+ 	test_layer_ext_ops_composite(lid, &domain);
++
++	lid = 16001 + 200;
++	rc = test_ext_lookup_depth(lid, &domain, 25, 25);
++	M0_UT_ASSERT(rc == -ENOENT);
+ }
+ 
+ static void test_layer_ext_ops_failure(void)
+ {
+-	uint64_t lid;
++	uint64_t lid = 17001;
+ 
+-	lid = 17000;
+ 	test_layer_ext_ops_composite_failure(lid, &domain);
+ }
+ 
+-- 
+1.8.3.2
+

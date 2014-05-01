@@ -1,0 +1,174 @@
+From 16fdc9f3f4cb62f70d0e0e1fb35fe89bf9f3f5ed Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 10 Feb 2013 14:31:26 +0200
+Subject: [PATCH 16/25] mdstore/nlink: only count subdirs in nlink, not regular
+ files
+
+* update cnr_nlink not cnt_cntr in m0_mdstore_dir_nlink_update()
+* only call m0_mdstore_dir_nlink_update() when directory is
+  added or removed, don't update nlink when regular file is
+  created, linked or unlinked
+* change fid format to [%lx:%lx] for consistency with other user
+  mode trace formats
+* added tracing to _getattr(), _locate() and _path() functions
+---
+ mdstore/mdstore.c | 67 ++++++++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 44 insertions(+), 23 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index f5c2fe6..bf3d399 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -158,9 +158,8 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
+         struct m0_cob_oikey    oikey;
+ 	int                    rc;
+ 
+-	M0_ENTRY("%+d nlinks for dir[%llu:%llu]", inc,
+-		 (long long unsigned)(fid->f_container),
+-		 (long long unsigned)(fid->f_key));
++	M0_ENTRY("%+d nlinks for dir[%lx:%lx]", inc, fid->f_container,
++		 fid->f_key);
+ 	/**
+ 	 * Directories cannot have hardlinks, so they can always
+ 	 * be found by oikey(fid, 0):
+@@ -168,12 +167,18 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
+ 	m0_cob_oikey_make(&oikey, fid, 0);
+ 	rc = m0_cob_locate(&md->md_dom, &oikey, 0, &cob, tx);
+ 	if (rc != 0) {
+-		M0_LOG(M0_DEBUG, "cannot locate stat data for dir[%llu:%llu]"
+-		       " - %d", (long long unsigned)(fid->f_container),
+-		       (long long unsigned)(fid->f_key), rc);
++		M0_LOG(M0_DEBUG, "cannot locate stat data for dir[%lx:%lx] "
++		       "- %d", fid->f_container, fid->f_key, rc);
+ 		goto out;
+ 	}
+-	cob->co_nsrec.cnr_linkno += inc;
++	M0_LOG(M0_DEBUG, "%u %+d nlinks for [%lx:%lx]<-[%lx:%lx]/%.*s",
++	       (unsigned)cob->co_nsrec.cnr_nlink, inc,
++	       fid->f_container, fid->f_key,
++	       cob->co_nskey->cnk_pfid.f_container,
++	       cob->co_nskey->cnk_pfid.f_key,
++	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
++	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name));
++	cob->co_nsrec.cnr_nlink += inc;
+         rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+ 	m0_cob_put(cob);
+ out:
+@@ -241,8 +246,10 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
+                 m0_free(fabrec);
+         } else {
+                 *out = cob;
+-		/** Increment cnr_nlink of parent directory. */
+-		rc = m0_mdstore_dir_nlink_update(md, pfid, +1, tx);
++		if (S_ISDIR(attr->ca_mode)) {
++			/** Increment cnr_nlink of parent directory. */
++			rc = m0_mdstore_dir_nlink_update(md, pfid, +1, tx);
++		}
+         }
+ 
+ out:
+@@ -291,13 +298,8 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
+          * save it to storage.
+          */
+         cob->co_nsrec.cnr_cntr++;
+-
+         rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+-        if (rc != 0)
+-                goto out;
+ 
+-	/** Increment cnr_nlink of parent directory. */
+-	rc = m0_mdstore_dir_nlink_update(md, pfid, +1, tx);
+ out:
+ 	MDSTORE_FUNC_FAIL(LINK, rc);
+ 	M0_LEAVE("rc: %d", rc);
+@@ -413,11 +415,12 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
+                  */
+                 cob->co_nsrec.cnr_nlink = 0;
+                 rc = m0_cob_delete(cob, tx);
++		if (rc == 0) {
++			/** Decrement cnr_nlink of parent directory. */
++			rc = m0_mdstore_dir_nlink_update(md, pfid, -1, tx);
++		}
+         }
+ 
+-	/** Decrement cnr_nlink of parent directory. */
+-	rc = m0_mdstore_dir_nlink_update(md, pfid, -1, tx);
+-
+ out:
+ 	MDSTORE_FUNC_FAIL(UNLINK, rc);
+ 	M0_LEAVE("rc: %d", rc);
+@@ -620,6 +623,15 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
+                 //attr->ca_rdev = cob->co_nsrec.cnr_rdev;
+                 attr->ca_size = cob->co_nsrec.cnr_size;
+                 //attr->ca_version = cob->co_nsrec.cnr_version;
++		M0_LOG(M0_DEBUG, "attrs of [%lx:%lx]/%.*s->[%lx:%lx],%u: "
++		       "cntr:%u, nlink:%u",
++		       attr->ca_pfid.f_container, attr->ca_pfid.f_key,
++		       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
++		       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
++		       attr->ca_tfid.f_container, attr->ca_tfid.f_key,
++		       (unsigned)cob->co_nsrec.cnr_linkno,
++		       (unsigned)cob->co_nsrec.cnr_cntr,
++		       (unsigned)attr->ca_nlink);
+         }
+ 
+         /*
+@@ -648,7 +660,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+         M0_ASSERT(cob != NULL);
+ 
+         M0_LOG(M0_DEBUG,
+-               "Readdir on object [%lx:%lx] starting from \"%*s\" (len %d)",
++               "Readdir on object [%lx:%lx] starting from \"%.*s\" (len %d)",
+                cob->co_fid->f_container, cob->co_fid->f_key,
+                m0_bitstring_len_get(rdpg->r_pos),
+                (char *)m0_bitstring_buf_get(rdpg->r_pos),
+@@ -761,7 +773,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
+         struct m0_cob_oikey oikey;
+         int                 rc;
+ 
+-	M0_ENTRY();
++	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
+         m0_cob_oikey_make(&oikey, fid, 0);
+ 
+         if (flags == M0_MD_LOCATE_STORED) {
+@@ -773,8 +785,17 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
+                  */
+                 rc = -EOPNOTSUPP;
+         }
+-
+-	M0_LEAVE("rc: %d", rc);
++	if (rc == 0) {
++		M0_LEAVE("[%lx:%lx]<-[%lx:%lx]/%.*s",
++			 (*cob)->co_nsrec.cnr_fid.f_container,
++			 (*cob)->co_nsrec.cnr_fid.f_key,
++			 (*cob)->co_nskey->cnk_pfid.f_container,
++			 (*cob)->co_nskey->cnk_pfid.f_key,
++			 m0_bitstring_len_get(&(*cob)->co_nskey->cnk_name),
++			 (char *)m0_bitstring_buf_get(&(*cob)->co_nskey->cnk_name));
++	} else {
++		M0_LEAVE("rc: %d", rc);
++	}
+         return rc;
+ }
+ 
+@@ -813,7 +834,7 @@ M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
+         struct m0_db_tx  tx;
+         int              rc;
+ 
+-	M0_ENTRY();
++	M0_ENTRY("[%lx:%lx]", fid->f_container, fid->f_key);
+         *path = m0_alloc(MDSTORE_PATH_MAX);
+         if (*path == NULL)
+                 return -ENOMEM;
+@@ -860,7 +881,7 @@ out:
+         } else {
+                 m0_db_tx_commit(&tx);
+         }
+-	M0_LEAVE("rc: %d", rc);
++	M0_LEAVE("rc: %d, path: %s", rc, *path);
+         return rc;
+ }
+ #undef M0_TRACE_SUBSYSTEM
+-- 
+1.8.3.2
+

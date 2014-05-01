@@ -1,0 +1,84 @@
+From b849454e763e0cda132a073a4c0242b2bcf1332e Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 28 Mar 2011 04:35:17 -0600
+Subject: [PATCH 25/91] - changes in reqh
+
+---
+ reqh/reqh.c | 49 ++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 46 insertions(+), 3 deletions(-)
+
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index cbb67e9..8dd7e74 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -37,8 +37,9 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
+ {
+         struct c2_fop_ctx ctx;
+         struct c2_fop_env env;
+-        struct c2_db_tx tx;
+-        int rc;
++        struct c2_db_tx   tx;
++	int 		  rc;
++	struct c2_fom	  *fom = NULL;
+ 
+         C2_SET0(&ctx);
+         C2_SET0(&env);
+@@ -50,12 +51,54 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
+         ctx.ft_env = &env;
+         ctx.ft_tx = &tx;
+ 
+-        rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
++	ctx.ft_service = s;
++	ctx.fc_cookie  = cookie;
+ 
++	/*
++	 * Reqh generic phases will be run here that will do 
++	 * the standard actions like authentication, authorization,
++	 * resource allocation, locking &c.
++	 */
++
++	/* 
++	 * This init function will allocate memory for a c2_fom 
++	 * structure. 
++	 * It will find out the respective c2_fom_type object
++	 * for the given c2_fop_type object using a mapping function
++	 * and will embed the c2_fom_type object in c2_fop_type object.
++	 */
++	rc = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
++	if (rc)
++	        goto out;
++
++	/*
++	 * This create function will create a type specific FOM
++	 * structure which primarily includes the context.
++	 */
++	rc = fom->fo_type->ft_ops->fto_create(&fop->f_type->ft_fom_type, fop, &fom);
++	if (rc)
++	        goto out_free_fom;
++	
++	/*
++	 * Populate the FOM context object with whatever is 
++	 * needed from server side.
++	 */
++	fom->fo_type->ft_ops->fto_populate(fom, dom, &ctx, fol);
++	/* 
++	 * Start the FOM.
++	 */
++        rc = fom->fo_ops->fo_state(fom);
++
++out_free_fom:
++        if (fom)
++                c2_free(fom);
++out:
+         if (rc)
+                 c2_db_tx_abort(&tx);
+         else 
+                 c2_db_tx_commit(&tx);
++        
++        return rc;
+ }
+ 
+ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
+-- 
+1.8.3.2
+

@@ -1,0 +1,182 @@
+From d35a5f7568315abba6e8b26190afdf2564f92e38 Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Mon, 3 Jun 2013 00:15:12 +0400
+Subject: [PATCH 087/228] be: tx updates:
+
+    - add tx and gr tlist definitions;
+
+    - fix tx_reg_cmp() to use address rather than segment offset: regions can be
+      from different segments.
+---
+ be/tx.c | 79 ++++++++++++++++++++++++++++++++++++-----------------------------
+ be/tx.h |  1 +
+ 2 files changed, 45 insertions(+), 35 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 537f97e..a46771d 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -46,6 +46,20 @@ struct m0_be_reg_d {
+ 	void             *rd_buf;
+ };
+ 
++M0_TL_DESCR_DEFINE(tx, "transactions", static, struct m0_be_tx,
++		   t_linkage, t_magic,
++		   0x3300000000000177x /* tbd */,
++		   0x3300000000000277x /* tbd */);
++
++M0_TL_DEFINE(tx, static, struct m0_be_tx);
++
++M0_TL_DESCR_DEFINE(gr, "tx group", static, struct m0_be_tx,
++		   t_group_linkage, t_magic,
++		   0x3300000000000177x /* tbd */,
++		   0x3300000000000377x /* tbd */);
++
++M0_TL_DEFINE(gr, static, struct m0_be_tx);
++
+ static const struct m0_sm_conf tx_sm_conf;
+ 
+ static enum m0_be_tx_state tx_state_get(const struct m0_be_tx *tx);
+@@ -59,7 +73,7 @@ static void        tx_link             (const struct m0_be_tx *tx);
+ static m0_bcount_t tx_log_size         (const struct m0_be_tx *tx,
+ 					const struct m0_be_tx_credit *cr,
+ 					bool leader);
+-static m0_bcount_t tx_prepareg_log_size(const struct m0_be_tx *tx)
++static m0_bcount_t tx_prepared_log_size(const struct m0_be_tx *tx)
+ static m0_bcount_t tx_group_header_size(m0_bcount_t tx_nr);
+ static m0_bcount_t tx_engine_free_space(const struct m0_be_tx_engine *eng);
+ static void        tx_engine_got_space (struct m0_be_tx_engine *eng);
+@@ -68,9 +82,6 @@ static void        tx_group_fini       (struct m0_be_tx_group *gr);
+ static void        tx_group_init       (struct m0_be_tx_group *gr);
+ static void        tx_reg_ext          (const struct m0_be_reg_d *reg,
+ 					struct m0_ext *out);
+-static void        index_add           (void **tree, struct m0_be_tx_reg *old,
+-					struct m0_be_tx_reg *new,
+-					struct m0_be_credit *delta);
+ static bool        credit_le           (const struct m0_be_tx_credit *c0,
+ 					const struct m0_be_tx_credit *c1);
+ static void        credit_mod          (struct m0_be_tx_credit *cr,
+@@ -299,7 +310,8 @@ static void tx_engine_got_closed(struct m0_be_tx_engine *eng,
+ 				 struct m0_be_tx *tx)
+ {
+ 	struct m0_be_tx_group *gr = &eng->te_group;
+-	m0_bcount_t used = tx_log_size(tx, &tx->t_used, gr->tg_size == 0);
++	m0_bcount_t          used = tx_log_size(tx, &tx->t_used,
++						gr_tlist_is_empty(&gr->tg_tx));
+ 
+ 	M0_PRE(tx_state_get(tx) == M0_BTS_CLOSED);
+ 
+@@ -316,48 +328,42 @@ static void tx_group_close(struct m0_be_tx_engine *eng,
+ {
+ }
+ 
++#define REGD_EXT(rd) {							\
++	.e_start = (uint64_t)(rd)->rd_reg.br_addr,			\
++	.e_end   = (uint64_t)(rd)->rd_reg.br_addr + (rd)->rd_reg.br_size - 1 \
++}
++
+ static int tx_reg_cmp(const void *p0, const void *p1)
+ {
+-	const struct m0_be_tx_reg *r0   = p0;
+-	const struct m0_be_tx_reg *r0   = p1;
+-	const struct m0_be_tx     *t0   = r0->tr_tx;
+-	const struct m0_be_tx     *t1   = r1->tr_tx;
+-	m0_bindex_t                idx0 = r0 - t0->t_reg_index;
+-	m0_bindex_t                idx1 = r1 - t1->t_reg_index;
+-	const struct m0_ext       *e0   = &t0->t_reg_d[idx0].rd_ext;
+-	const struct m0_ext       *e1   = &t1->t_reg_d[idx1].rd_ext;
+-	struct m0_ext              intersection;
++	const struct m0_be_reg_d *r0   = p0;
++	const struct m0_be_reg_d *r1   = p1;
++	const struct m0_be_tx    *t0   = r0->rd_tx;
++	const struct m0_be_tx    *t1   = r1->rd_tx;
++	m0_bindex_t               idx0 = r0->rd_idx;
++	m0_bindex_t               idx1 = r1->rd_idx;
++	const struct m0_ext       e0   = REGD_EXT(r0);
++	const struct m0_ext       e1   = REGD_EXT(r1);
++	struct m0_ext             intersection;
+ 
+ 	M0_ASSERT(idx0 < t0->t_used.tc_reg_nr);
+ 	M0_ASSERT(idx1 < t1->t_used.tc_reg_nr);
++	M0_ASSERT(idx0 == r0 - t0->t_reg_d_area);
++	M0_ASSERT(idx1 == r1 - t1->t_reg_d_area);
+ 
+-	m0_ext_intersection(e0, e1, &intersection);
++	m0_ext_intersection(&e0, &e1, &intersection);
+ 	return m0_ext_is_empty(&intersection) ?
+-		M0_3WAY(e0->e_start, e1->e_start) : 0;
++		M0_3WAY(r0->rd_reg.br_addr, r1->rd_reg.br_addr) : 0;
+ }
+ 
+ static void tx_group_add(struct m0_be_tx_engine *eng,
+ 			 struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+ {
+-	m0_bcount_t used;
+-	m0_bcount_t i;
+-
+-	tx->t_leader = gr->tg_size == 0;
+-	used = tx_log_size(tx, &tx->t_used, tx->t_leader);
+ 
++	tx->t_group  = gr;
++	tx->t_leader = gr_tlist_is_empty(&gr->tg_tx);;
+ 	tx_state_set(tx, M0_BTS_GROUPED);
+-
+-	for (i = 0; i < tx->t_used.tc_reg_nr; ++i) {
+-		struct m0_tx_reg *new;
+-		struct m0_tx_reg *old;
+-
+-		new = &tx->t_reg_index[i];
+-		old = tsearch(new, &gr->tg_tree, &tx_reg_cmp);
+-		M0_ASSERT(old != NULL); /* XXX */
+-		if (old != new) {
+-
+-		}
+-	}
++	gr_tlist_add(&gr->tg_tx, tx);
++	gr->tg_used.
+ }
+ 
+ static void tx_state_set(struct m0_be_tx *tx, enum m0_be_tx_state state)
+@@ -383,6 +389,7 @@ static void tx_fail(struct m0_be_tx *tx, int errno)
+ {
+ 	M0_PRE(m0_be__tx_invariant(tx));
+ 	m0_sm_fail(&tx->t_sm, M0_BTS_FAILED, errno);
++	tx_tlist_del(tx);
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+@@ -413,7 +420,7 @@ static m0_bcount_t tx_log_size(const struct m0_be_tx *tx,
+ 		cr->tc_reg_nr * sizeof(struct m0_be_reg_d) + cr->tc_reg_size;
+ }
+ 
+-static m0_bcount_t tx_prepareg_log_size(const struct m0_be_tx *tx)
++static m0_bcount_t tx_prepared_log_size(const struct m0_be_tx *tx)
+ {
+ 	return tx_log_size(tx, &tx->t_prepared, true);
+ }
+@@ -491,7 +498,9 @@ M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)
+ 		(tx->t_reg_area == NULL) == (tx->t_reg_d_area == NULL) &&
+ 		(tx->t_group != NULL) == (state >= M0_BTS_GROUPED) &&
+ 		(tx->t_leader == (tx->t_group != NULL &&
+-				  tx == gr_tlist_head(&tx->t_group->tg_tx)));
++				  tx == gr_tlist_head(&tx->t_group->tg_tx))) &&
++		(tx->t_group != NULL) == gr_tlist_contains(&tx->t_group->gr_tx,
++							   tx);
+ }
+ 
+ /** @} end of be group */
+diff --git a/be/tx.h b/be/tx.h
+index 9b11d1c..9777170 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -451,6 +451,7 @@ typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
+  * Transaction.
+  */
+ struct m0_be_tx {
++	uint64_t               t_magic;
+ 	struct m0_sm           t_sm;
+ 	/** Transaction identifier, assigned by the user. */
+ 	uint64_t               t_id;
+-- 
+1.8.3.2
+

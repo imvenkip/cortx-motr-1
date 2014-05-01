@@ -1,0 +1,152 @@
+From 846449164a549efc7aed3fee9a301979bbdae7f6 Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Fri, 28 Dec 2012 04:37:30 -0800
+Subject: [PATCH 07/10] m0t1fs IO path: - Fixed a bug in IO path which did not
+ finalise rpc bulk object in case where   m0_rpc_bulk_store() succeeds but
+ bulk transfer never happens.   - Added an API in rpc bulk code to handle this
+ situation.   - Changed the existing bulk buffer callback to handle new
+ situation.
+
+---
+ m0t1fs/linux_kernel/file.c | 22 ++++++++++++++++++++--
+ rpc/bulk.c                 | 30 +++++++++++++++++++++---------
+ rpc/bulk.h                 | 14 ++++++++++++++
+ 3 files changed, 55 insertions(+), 11 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 7055c52..54a5a31 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -305,6 +305,8 @@ M0_INTERNAL void iov_iter_advance(struct iov_iter *i, size_t bytes);
+ /* Imports */
+ struct m0_net_domain;
+ M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
++M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
++M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
+ 
+ M0_TL_DESCR_DEFINE(tioreqs, "List of target_ioreq objects", static,
+ 		   struct target_ioreq, ti_link, ti_magic,
+@@ -3133,6 +3135,24 @@ static void io_req_fop_release(struct m0_ref *ref)
+ 	/* see io_req_fop_fini(). */
+ 	io_req_fop_bob_fini(reqfop);
+ 
++	/*
++	 * Release the net buffers if rpc bulk object is still dirty.
++	 * And wait on channel till all net buffers are deleted from
++	 * transfer machine.
++	 */
++	if (!m0_tlist_is_empty(&rpcbulk_tl,
++			       &reqfop->irf_iofop.if_rbulk.rb_buflist)) {
++		struct m0_clink clink;
++
++		m0_clink_init(&clink, NULL);
++		m0_clink_add(&reqfop->irf_iofop.if_rbulk.rb_chan, &clink);
++		m0_rpc_bulk_store_del(&reqfop->irf_iofop.if_rbulk);
++
++		m0_chan_wait(&clink);
++		m0_clink_del(&clink);
++		m0_clink_fini(&clink);
++	}
++
+ 	m0_io_fop_fini(iofop);
+ 	m0_free(reqfop);
+ 	++iommstats.d_io_req_fop_nr;
+@@ -3200,8 +3220,6 @@ static int failure_vector_mismatch(struct io_req_fop *irfop)
+ 	rc = -EAGAIN;
+ 	*cli = *srv;
+ 
+-	/* TODO XXX FIXME Anand: Please release bulk for this request */
+-
+ 	while (i < reply_updates->fvu_count) {
+ 		event = &reply_updates->fvu_events[i];
+ 		m0_poolmach_state_transit(csb->csb_pool.po_mach,
+diff --git a/rpc/bulk.c b/rpc/bulk.c
+index 0af43fe..d16f843 100644
+--- a/rpc/bulk.c
++++ b/rpc/bulk.c
+@@ -142,7 +142,6 @@ static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
+ 	struct m0_rpc_bulk	*rbulk;
+ 	struct m0_rpc_bulk_buf	*buf;
+ 	struct m0_net_buffer	*nb;
+-	bool			 receiver;
+ 
+ 	M0_ENTRY("net_buf_evt: %p", evt);
+ 	M0_PRE(evt != NULL);
+@@ -159,9 +158,6 @@ static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
+ 				 M0_NET_QT_ACTIVE_BULK_RECV)))
+ 		nb->nb_length = evt->nbe_length;
+ 
+-	receiver = M0_IN(nb->nb_qtype, (M0_NET_QT_ACTIVE_BULK_RECV,
+-					M0_NET_QT_ACTIVE_BULK_SEND));
+-
+ 	m0_mutex_lock(&rbulk->rb_mutex);
+ 	M0_ASSERT(rpc_bulk_invariant(rbulk));
+ 	/*
+@@ -176,18 +172,34 @@ static void rpc_bulk_buf_cb(const struct m0_net_buffer_event *evt)
+ 		rbulk->rb_rc = evt->nbe_status;
+ 
+ 	rpcbulk_tlist_del(buf);
+-	if (receiver) {
+-		M0_ASSERT(m0_chan_has_waiters(&rbulk->rb_chan));
+-		if (rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
+-			m0_chan_signal(&rbulk->rb_chan);
+-	}
+ 	rpc_bulk_buf_deregister(buf);
+ 
+ 	rpc_bulk_buf_fini(buf);
+ 	m0_mutex_unlock(&rbulk->rb_mutex);
++	if (m0_chan_has_waiters(&rbulk->rb_chan) &&
++	    rpcbulk_tlist_is_empty(&rbulk->rb_buflist))
++		m0_chan_signal(&rbulk->rb_chan);
+ 	M0_LEAVE();
+ }
+ 
++M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
++{
++	struct m0_rpc_bulk_buf *rbuf;
++
++	M0_ENTRY();
++	M0_PRE(rbulk != NULL);
++
++	m0_mutex_lock(&rbulk->rb_mutex);
++	M0_PRE(rbulk->rb_rc == 0);
++	M0_PRE(rpc_bulk_invariant(rbulk));
++	M0_PRE(m0_chan_has_waiters(&rbulk->rb_chan));
++	m0_mutex_unlock(&rbulk->rb_mutex);
++
++	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
++		m0_net_buffer_del(rbuf->bb_nbuf, rbuf->bb_nbuf->nb_tm);
++	} m0_tl_endfor;
++}
++
+ const struct m0_net_buffer_callbacks rpc_bulk_cb  = {
+ 	.nbc_cb = {
+ 		[M0_NET_QT_PASSIVE_BULK_SEND] = rpc_bulk_buf_cb,
+diff --git a/rpc/bulk.h b/rpc/bulk.h
+index c7178fe..09eed7b 100644
+--- a/rpc/bulk.h
++++ b/rpc/bulk.h
+@@ -343,6 +343,20 @@ M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk *rbulk,
+ 				 const struct m0_rpc_conn *conn,
+ 				 struct m0_net_buf_desc *from_desc);
+ 
++/*
++ * Does exactly opposite of what m0_rpc_bulk_store() does.
++ * Should be called only when m0_rpc_bulk_store() had succeeded
++ * earlier and later due to some other condition, bulk transfer
++ * did not happen.
++ * Now the already stored net buffers need to be
++ * deleted from m0_net_transfer_mc so that m0_rpc_bulk object can be
++ * finalised.
++ * Invocation of this API should be followed by wait on m0_rpc_bulk::rb_chan. 
++ * @pre  rbulk != NULL && rbulk->rb_rc == 0 && rpc_bulk_invariant(rbulk).
++ * @post rpcbulk_tlist_is_empty(&rbulk->rb_buflist).
++ */
++M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
++
+ /** @} bulkclientDFS end group */
+ 
+ /** @} end of rpc group */
+-- 
+1.8.3.2
+

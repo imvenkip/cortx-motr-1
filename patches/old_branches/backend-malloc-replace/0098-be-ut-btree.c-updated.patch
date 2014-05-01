@@ -1,0 +1,209 @@
+From 61a789fb3bbbb75d2659d96e56d1c3d100fbad18 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 4 Jun 2013 17:48:52 +0300
+Subject: [PATCH 098/161] be: ut/btree.c updated
+
+---
+ be/ut/btree.c | 101 ++++++++++++++++++++++++++++++++++++++++++++++++++--------
+ be/ut/seg.c   |  26 +++++++++++----
+ 2 files changed, 106 insertions(+), 21 deletions(-)
+
+diff --git a/be/ut/btree.c b/be/ut/btree.c
+index 5646f9a..9b014e6 100644
+--- a/be/ut/btree.c
++++ b/be/ut/btree.c
+@@ -18,59 +18,132 @@
+  */
+ 
+ #include "ut/ut.h"
++#include "be/tx.h"
++#include "be/be.h"
+ #include "be/btree.h"
++#include "lib/misc.h"
+ 
+-int test_init(void)
++extern void m0_be_ut_seg_create(void);
++extern void m0_be_ut_seg_destroy(void);
++
++extern struct m0_be_seg m0_be_ut_seg;
++static uint64_t tid = 1ULL;
++
++static void persistent(const struct m0_be_tx *tx)
+ {
+-	return 0;
++}
++static void discarded(const struct m0_be_tx *tx)
++{
++}
++
++void be_op_init(struct m0_be_op *op)
++{/* XXX */
++}
++
++void be_init(struct m0_be *be)
++{/* XXX */
++}
++
++void be_op_fini(struct m0_be_op *op)
++{/* XXX */
+ }
+ 
+-int test_fini(void)
++void be_fini(struct m0_be *be)
++{/* XXX */
++}
++
++static int tree_cmp(void *key0, void *key1)
+ {
+-	return 0;
++        return strcmp(key0, key1);
+ }
+ 
+-void test_create(void)
++static uint32_t tree_key_size(void *key)
+ {
++        return strlen(key) + 1;
+ }
+ 
+-void test_insert(void)
++static uint32_t tree_data_size(void *data)
+ {
++        return strlen(data) + 1;
+ }
+ 
+-void test_update(void)
++static const struct m0_be_btree_kv_ops kv_ops = {
++	.ko_ksize   = tree_key_size,
++	.ko_dsize   = tree_data_size,
++	.ko_compare = tree_cmp
++};
++
++static struct m0_be       be;
++static struct m0_be_btree tree;
++
++void test_create(void)
+ {
++	struct m0_be_op        op;
++	struct m0_be_tx        tx;
++	struct m0_be_tx_credit cred;
++
++	be_init(&be);
++	be_op_init(&op);
++
++	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
++	m0_be_btree_init(&tree, &m0_be_ut_seg, &kv_ops, NULL);
++	m0_be_btree_credit(&tree, M0_BBO_CREATE, 1, &cred);
++
++	m0_be_tx_open(&tx);
++	m0_be_btree_create(&tree, &tx, &op);
++	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++						 M0_BOS_FAILURE)));
++	m0_be_tx_close(&tx);
+ }
+ 
+-void test_delete(void)
++void test_destroy(void)
+ {
++	struct m0_be_op        op;
++	struct m0_be_tx        tx;
++	struct m0_be_tx_credit cred;
++
++ 	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
++	m0_be_btree_credit(&tree, M0_BBO_DESTROY, 1, &cred);
++
++	m0_be_tx_open(&tx);
++	m0_be_btree_create(&tree, &tx, &op);
++	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++						 M0_BOS_FAILURE)));
++	m0_be_tx_close(&tx);
++
++	be_op_fini(&op);
++	be_fini(&be);
+ }
+ 
+-void test_lookup(void)
++void test_insert(void)
+ {
+ }
+ 
+-void test_iterate(void)
++void test_update(void)
+ {
+ }
+ 
+-void test_destroy(void)
++void test_delete(void)
+ {
+ }
+ 
++void test_lookup(void)
++{
++}
+ 
+ const struct m0_test_suite be_list_ut = {
+ 	.ts_name = "be-btree-ut",
+-	.ts_init = test_init,
+-	.ts_fini = test_fini,
+ 	.ts_tests = {
++		{ "segment create", m0_be_ut_seg_create },
++
+ 		{ "create",  test_create  },
+ 		{ "insert",  test_insert  },
+ 		{ "update",  test_update  },
+ 		{ "delete",  test_delete  },
+ 		{ "lookup",  test_lookup  },
+-		{ "iterate", test_iterate },
+ 		{ "destroy", test_destroy },
++
++		{ "segment destroy", m0_be_ut_seg_destroy },
+ 		{ NULL, NULL }
+ 	}
+ };
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index 869af20..c459404 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -107,21 +107,33 @@ M0_INTERNAL void m0_be_ut_seg_init_fini(void)
+ 	seg_storage_fini();
+ }
+ 
+-M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
++struct m0_be_seg m0_be_ut_seg;
++M0_INTERNAL void m0_be_ut_seg_create(void)
+ {
+-	struct m0_be_seg seg;
+-	int              rc;
++	int rc;
+ 
+ 	seg_storage_init();
+-	seg_init_helper(&seg, false);
+-	rc = m0_be_seg_create(&seg, BE_SEG_UT_SEG_SIZE);
++	seg_init_helper(&m0_be_ut_seg, false);
++	rc = m0_be_seg_create(&m0_be_ut_seg, BE_SEG_UT_SEG_SIZE);
+ 	M0_UT_ASSERT(rc == 0);
+-	rc = m0_be_seg_destroy(&seg);
++}
++
++M0_INTERNAL void m0_be_ut_seg_destroy(void)
++{
++	int rc;
++
++	rc = m0_be_seg_destroy(&m0_be_ut_seg);
+ 	M0_UT_ASSERT(rc == 0);
+-	seg_fini_helper(&seg, false);
++	seg_fini_helper(&m0_be_ut_seg, false);
+ 	seg_storage_fini();
+ }
+ 
++M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
++{
++	m0_be_ut_seg_create();
++	m0_be_ut_seg_destroy();
++}
++
+ M0_INTERNAL void m0_be_ut_seg_open_close(void)
+ {
+ 	struct m0_be_seg seg;
+-- 
+1.8.3.2
+

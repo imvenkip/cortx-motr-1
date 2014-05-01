@@ -1,0 +1,348 @@
+From d3401e026fa8522efa2c9b459f097a568ecda644 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 8 Apr 2011 04:55:45 -0600
+Subject: [PATCH 48/91] - implemented basic getattr and setattr functionality.
+
+---
+ mdservice/md_foms.c  | 26 +++++++-------
+ mdservice/md_fops.ff |  4 +++
+ mdstore/mdstore.c    | 98 +++++++++++++++++++++++++++++++++++++---------------
+ mdstore/mdstore.h    | 32 +++++++++++++++--
+ 4 files changed, 117 insertions(+), 43 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 7f0ffcd..51d04a1 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -98,7 +98,7 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
+ 
+         c2_md_make_fid(&pfid, &body->b_pfid);
+         rc = c2_md_store_locate(site->s_mdstore, &pfid, &pcob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -159,14 +159,14 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
+ 
+         c2_md_make_fid(&pfid, &body->b_pfid);
+         rc = c2_md_store_locate(site->s_mdstore, &pfid, &pcob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
+         c2_md_make_fid(&tfid, &body->b_tfid);
+         rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc) {
+                 c2_cob_put(pcob);
+@@ -223,14 +223,14 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+ 
+         c2_md_make_fid(&pfid, &body->b_pfid);
+         rc = c2_md_store_locate(site->s_mdstore, &pfid, &pcob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
+         c2_md_make_fid(&tfid, &body->b_tfid);
+         rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc) {
+                 c2_cob_put(pcob);
+@@ -292,14 +292,14 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+ 
+         c2_md_make_fid(&pfid_src, &sbody->b_pfid);
+         rc = c2_md_store_locate(site->s_mdstore, &pfid_src, &pcob_src, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
+         c2_md_make_fid(&pfid_tgt, &tbody->b_pfid);
+         rc = c2_md_store_locate(site->s_mdstore, &pfid_tgt, &pcob_tgt, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc) {
+                 c2_cob_put(pcob_src);
+@@ -308,7 +308,7 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+ 
+         c2_md_make_fid(&tfid, &sbody->b_tfid);
+         rc = c2_md_store_locate(site->s_mdstore, &tfid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc) {
+                 c2_cob_put(pcob_src);
+@@ -366,7 +366,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc == -ENOENT) {
+                 /*
+@@ -419,7 +419,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_OPEN,
++                                C2_MD_STORE_LOCATE_OPENED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -471,7 +471,7 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -524,7 +524,7 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -577,7 +577,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORE,
++                                C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 579ed3d..1d60e8f 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -23,10 +23,14 @@ DEF(c2_fop_cob, RECORD,
+     _(b_index, U64),
+     _(b_flags, U32),
+     _(b_mode, U32),
++    _(b_size, U64),
++    _(b_blksize, U64),
++    _(b_blocks, U64),
+     _(b_uid, U32),
+     _(b_gid, U32),
+     _(b_sid, U32),
+     _(b_nid, U64),
++    _(b_rdev, U32),
+     _(b_atime, U32),
+     _(b_mtime, U32),
+     _(b_ctime, U32),
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index c072989..a1dc875 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -76,7 +76,7 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+         if (locate_root) {
+                 c2_db_tx_init(&tx, db, 0);
+                 rc = c2_md_store_locate(md, &C2_MD_ROOT_FID, &md->md_root, 
+-                                        C2_MD_STORE_LOCATE_STORE, &tx);
++                                        C2_MD_STORE_LOCATE_STORED, &tx);
+                 if (rc) {
+                         c2_db_tx_abort(&tx);
+                 } else {
+@@ -227,9 +227,10 @@ int c2_md_store_create(struct c2_md_store *md,
+ 
+         rc = c2_md_store_create_attr(md, pcob, cob, nskey, &nsrec, &fabrec, 
+                                      &omgrec, &ctx->fc_tx->tx_dbtx);
++        c2_free(nskey);
++
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_create", rc);
+-        c2_free(nskey);
+         return rc;
+ }
+ 
+@@ -563,34 +564,49 @@ int c2_md_store_setattr(struct c2_md_store *md,
+                         struct c2_fop_ctx *ctx)
+ {
+         struct c2_fop_cob     *body = &req->s_body;
+-        struct c2_cob_nsrec    nsrec;
+-        struct c2_cob_fabrec   fabrec;
+-        struct c2_cob_omgrec   omgrec;
++        struct c2_cob_nsrec   *nsrec;
++        struct c2_cob_fabrec  *fabrec;
++        struct c2_cob_omgrec  *omgrec;
+         int                    rc;
+ 
+         C2_ASSERT(cob != NULL);        
+ 
++        /*
++         * Handle basic stat fields update.
++         */
++        nsrec = &cob->co_nsrec;
++        if (body->b_flags & C2_MD_ATIME)
++                nsrec->cnr_atime = body->b_atime;
++        if (body->b_flags & C2_MD_MTIME)
++                nsrec->cnr_mtime = body->b_mtime;
++        if (body->b_flags & C2_MD_CTIME)
++                nsrec->cnr_ctime = body->b_ctime;
++        if (body->b_flags & C2_MD_SIZE)
++                nsrec->u.cnr_size = body->b_size;
++        if (body->b_flags & C2_MD_RDEV)
++                nsrec->u.cnr_rdev = body->b_rdev;
++        if (body->b_flags & C2_MD_BLOCKS)
++                nsrec->cnr_blocks = body->b_blocks;
++        if (body->b_flags & C2_MD_BLKSIZE)
++                nsrec->cnr_blksize = body->b_blksize;
++
++        /*
++         * Handle uid/gid/mode update.
++         */
++        omgrec = &cob->co_omgrec;
++        if (body->b_flags & C2_MD_UID)
++                omgrec->cor_uid = body->b_uid;
++        if (body->b_flags & C2_MD_GID)
++                omgrec->cor_gid = body->b_gid;
++        if (body->b_flags & C2_MD_MODE)
++                omgrec->cor_mode = body->b_mode;
++
+         /* 
+-         * @todo: these need to be fixed. We do have 64 bit time
+-         * stamp in changelog rec and can use it. Still it may be
+-         * not needed as on target fs these fields may be updated
+-         * in create time.
++         * @todo: update fabrec.
+          */
+-        nsrec = cob->co_nsrec;
+-        if (0/* flags & ATIME */)
+-                nsrec.cnr_atime = body->b_atime;
+-        if (0/* flags & MTIME */)
+-                nsrec.cnr_mtime = body->b_mtime;
+-        if (0/* flags & CTIME */)
+-            nsrec.cnr_ctime = body->b_ctime;
+-
+-        /* @todo: Update fabrec version? */
+-        fabrec = cob->co_fabrec;
+-        
+-        /* @todo: Fill omgrec */
+-        C2_SET0(&omgrec);
++        fabrec = &cob->co_fabrec;
+ 
+-        rc = c2_cob_update(cob, &nsrec, &fabrec, &omgrec, 
++        rc = c2_cob_update(cob, nsrec, fabrec, omgrec, 
+                            &ctx->fc_tx->tx_dbtx);
+         
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+@@ -604,15 +620,43 @@ int c2_md_store_getattr(struct c2_md_store *md,
+                         struct c2_fop_getattr_rep *rep, 
+                         struct c2_fop_ctx *ctx)
+ {
+-        int rc = 0;
++        struct c2_fop_cob *body = &rep->g_body;
++        int                rc = 0;
+ 
+         C2_ASSERT(cob != NULL);
++
++        body->b_flags = C2_MD_UID | C2_MD_GID | C2_MD_MODE |
++                        C2_MD_ATIME | C2_MD_CTIME | C2_MD_MTIME |
++                        C2_MD_BLKSIZE | C2_MD_BLOCKS;
+         
+         /*
+-         * @todo: copy cob->co_nsrec cob->co_fabrec and cob->co_omgrec
+-         * to response.
++         * Copy permissions and owner info into rep.
++         */
++        body->b_uid = cob->co_omgrec.cor_uid;
++        body->b_gid = cob->co_omgrec.cor_gid;
++        body->b_mode = cob->co_omgrec.cor_mode;
++
++        /*
++         * Copy nsrec fields into response.
+          */
++        body->b_atime = cob->co_nsrec.cnr_atime;
++        body->b_ctime = cob->co_nsrec.cnr_ctime;
++        body->b_mtime = cob->co_nsrec.cnr_mtime;
++        body->b_blksize = cob->co_nsrec.cnr_blksize;
++        body->b_blocks = cob->co_nsrec.cnr_blocks;
++
++        if (S_ISCHR(body->b_mode) || S_ISBLK(body->b_mode)) {
++                body->b_rdev = cob->co_nsrec.u.cnr_rdev;
++                body->b_flags |= C2_MD_RDEV;
++        } else {
++                body->b_size = cob->co_nsrec.u.cnr_size;
++                body->b_flags |= C2_MD_SIZE;
++        }
+         
++        /*
++         * @todo: Copy fab fields.
++         */
++
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_getattr", rc);
+         return rc;
+@@ -652,7 +696,7 @@ int c2_md_store_locate(struct c2_md_store *md,
+ 
+         c2_md_store_make_oikey(&oikey, fid);
+ 
+-        if (flags == C2_MD_STORE_LOCATE_STORE) {
++        if (flags == C2_MD_STORE_LOCATE_STORED) {
+                 rc = c2_cob_locate(&md->md_dom, &oikey, cob, tx);
+         } else {
+                 /*
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index ca97d0e..16fc507 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -24,10 +24,36 @@ struct c2_md_store {
+         struct c2_addb_ctx    md_addb;
+ };
+ 
++/**
++   Flags supplied to c2_md_store_locate() to point out where a cob 
++   should be found: on store, in opened files table or orhans table.
++*/
+ enum c2_md_store_locate_flags {
+-        C2_MD_STORE_LOCATE_STORE   = 1 << 0,
+-        C2_MD_STORE_LOCATE_OPEN    = 1 << 1,
+-        C2_MD_STORE_LOCATE_ORPHANS = 1 << 2
++        /** Find cob on store. */
++        C2_MD_STORE_LOCATE_STORED  = 1 << 0,
++        /** Find cob in opened cobs table. */
++        C2_MD_STORE_LOCATE_OPENED  = 1 << 1,
++        /** Find cob in orphans table. */
++        C2_MD_STORE_LOCATE_ORPHAN  = 1 << 2
++};
++
++/**
++   Valid flags attribute updates.
++*/
++enum c2_md_valid_flags {
++        C2_MD_ATIME   = 1 << 0,
++        C2_MD_MTIME   = 1 << 1,
++        C2_MD_CTIME   = 1 << 2,
++        C2_MD_SIZE    = 1 << 3,
++        C2_MD_MODE    = 1 << 4,
++        C2_MD_UID     = 1 << 5,
++        C2_MD_GID     = 1 << 6,
++        C2_MD_BLOCKS  = 1 << 7,
++        C2_MD_TYPE    = 1 << 8,
++        C2_MD_FLAGS   = 1 << 9,
++        C2_MD_NLINK   = 1 << 10,
++        C2_MD_RDEV    = 1 << 11,
++        C2_MD_BLKSIZE = 1 << 12
+ };
+ 
+ extern struct c2_fid C2_MD_ROOT_FID;
+-- 
+1.8.3.2
+

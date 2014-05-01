@@ -1,0 +1,59 @@
+From a7fe175efff753f7a5fa24a7e014ef6278e4073d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 18:19:27 +0200
+Subject: [PATCH 46/71] LogD 1523: tm can be fini'd without starting
+
+---
+ net/net.h          | 1 -
+ net/test/network.c | 8 +++-----
+ 2 files changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/net/net.h b/net/net.h
+index 3aceb90..9b1507d 100644
+--- a/net/net.h
++++ b/net/net.h
+@@ -901,7 +901,6 @@ struct c2_net_transfer_mc {
+ 
+    All fields in the structure other then the above will be set to their
+    appropriate initial values.
+-   @note An initialized TM cannot be fini'd without first starting it.
+    @param dom Network domain pointer.
+    @post tm->ntm_bev_auto_deliver is set.
+    @post (tm->ntm_pool_colour == C2_NET_BUFFER_POOL_ANY_COLOR &&
+diff --git a/net/test/network.c b/net/test/network.c
+index 5ece23a..5d48e19 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -287,7 +287,6 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
+ {
+ 	struct c2_clink tmwait;
+ 	int		rc;
+-	int		rc1;
+ 
+ 	C2_PRE(ctx     != NULL);
+ 	C2_PRE(tm_addr != NULL);
+@@ -321,18 +320,17 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
+ 	ctx->ntc_tm->ntm_state     = C2_NET_TM_UNDEFINED;
+ 	ctx->ntc_tm->ntm_callbacks = &ctx->ntc_tm_cb;
+ 
+-
+ 	rc = c2_net_tm_init(ctx->ntc_tm, ctx->ntc_dom);
+ 	if (rc != 0)
+ 		goto free_tm;
+ 
+-	rc1 = sync ? c2_net_buffer_event_deliver_synchronously(ctx->ntc_tm) : 0;
++	rc = sync ? c2_net_buffer_event_deliver_synchronously(ctx->ntc_tm) : 0;
++	if (rc != 0)
++		goto fini_tm;
+ 
+ 	c2_clink_init(&tmwait, NULL);
+ 	c2_clink_add(&ctx->ntc_tm->ntm_chan, &tmwait);
+-	/* tm can't be fini'd if not started */
+ 	rc = c2_net_tm_start(ctx->ntc_tm, tm_addr);
+-	rc = rc1 != 0 ? rc1 : rc;
+ 	c2_chan_wait(&tmwait);
+ 	c2_clink_del(&tmwait);
+ 	c2_clink_fini(&tmwait);
+-- 
+1.8.3.2
+

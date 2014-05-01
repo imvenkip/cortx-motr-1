@@ -1,0 +1,331 @@
+From 79cad21a9ed327c8bd95e7c161a05230b8e1aa3e Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Thu, 6 Feb 2014 00:52:26 +0200
+Subject: [PATCH 34/60] STs pass now
+
+---
+ ioservice/io_foms.c | 32 ++++++++++++++++++++++++++++++--
+ rpc/bulk.c          |  2 +-
+ rpc/item.c          |  4 +++-
+ rpc/session_foms.c  | 45 ++++++++++++---------------------------------
+ rpc/ut/rpclib_ut.c  |  2 ++
+ 5 files changed, 48 insertions(+), 37 deletions(-)
+
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index ff7fa11..8a6a5eb 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1062,7 +1062,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
+ 	M0_PRE(m0_is_io_fop(fop));
+ 	M0_PRE(out != NULL);
+ 
+-	M0_ENTRY();
++	M0_ENTRY("fop=%p", fop);
+ 
+ 	rwfop = io_rw_get(fop);
+ 
+@@ -1115,7 +1115,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
+ 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
+ 	stobio_tlist_init(&fom_obj->fcrw_done_list);
+ 
+-	M0_LOG(M0_DEBUG, "FOM created : operation=%s, desc=%d.",
++	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d.", fom,
+ 	       m0_is_read_fop(fop) ? "READ" : "WRITE", rwfop->crw_desc.id_nr);
+ 
+         M0_RETURN(rc);
+@@ -1170,6 +1170,8 @@ static int io_prepare(struct m0_fom *fom)
+ 	struct m0_pool_version_numbers *cliv;
+ 	int                             rc;
+ 
++	M0_ENTRY("fom=%p", fom);
++
+ 	reqh = m0_fom_reqh(fom);
+ 	poolmach = m0_ios_poolmach_get(reqh);
+ 	rwfop = io_rw_get(fom->fo_fop);
+@@ -1192,6 +1194,7 @@ static int io_prepare(struct m0_fom *fom)
+ 	if (rc != 0)
+ 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+ 
++	M0_LEAVE();
+ 	return M0_FSO_AGAIN;
+ }
+ /**
+@@ -1224,6 +1227,8 @@ static int net_buffer_acquire(struct m0_fom *fom)
+         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_ACQUIRE ||
+                m0_fom_phase(fom) == M0_FOPH_IO_FOM_BUFFER_WAIT);
+ 
++	M0_ENTRY("fom=%p", fom);
++
+         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+         M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+ 
+@@ -1291,6 +1296,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
+                     m0_fom_phase_set(fom, M0_FOPH_IO_FOM_BUFFER_WAIT);
+                     m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+ 
++                    M0_LEAVE();
+                     return M0_FSO_WAIT;
+             } else if (nb == NULL) {
+                     m0_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+@@ -1319,6 +1325,7 @@ static int net_buffer_acquire(struct m0_fom *fom)
+ 	M0_LOG(M0_DEBUG, "Acquired network buffers, batch_size = %d.",
+ 	       fom_obj->fcrw_batch_size);
+ 
++	M0_LEAVE();
+         return M0_FSO_AGAIN;
+ }
+ 
+@@ -1348,6 +1355,8 @@ static int net_buffer_release(struct m0_fom *fom)
+ 	M0_PRE(fom->fo_service != NULL);
+ 	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_BUFFER_RELEASE);
+ 
++	M0_ENTRY("fom=%p", fom);
++
+ 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+ 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+ 	M0_ASSERT(fom_obj->fcrw_bp != NULL);
+@@ -1380,6 +1389,7 @@ static int net_buffer_release(struct m0_fom *fom)
+         if (required_net_bufs == 0)
+                m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+ 
++	M0_LEAVE();
+ 	return M0_FSO_AGAIN;
+ }
+ 
+@@ -1410,6 +1420,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
+         M0_PRE(m0_is_io_fop(fom->fo_fop));
+         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_INIT);
+ 
++	M0_ENTRY("fom=%p", fom);
++
+ 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+ 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+ 
+@@ -1446,12 +1458,14 @@ static int zero_copy_initiate(struct m0_fom *fom)
+                  *         I/O requests.
+                  */
+ 
++		nb->nb_timeout = m0_time_from_now(2, 0);
+ 		rc = rc ?: m0_rpc_bulk_buf_add(rbulk, segs_nr, dom,
+ 					       nb, &rb_buf);
+                 if (rc != 0) {
+                         m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+                         IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_1,
+ 					  &fom->fo_addb_ctx);
++			M0_LEAVE();
+                         return M0_FSO_AGAIN;
+                 }
+ 
+@@ -1482,11 +1496,13 @@ static int zero_copy_initiate(struct m0_fom *fom)
+                 m0_rpc_bulk_fini(rbulk);
+                 m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+                 IOS_ADDB_FUNCFAIL(rc, ZERO_COPY_INITIATE_2, &fom->fo_addb_ctx);
++		M0_LEAVE();
+                 return M0_FSO_AGAIN;
+         }
+ 	M0_LOG(M0_DEBUG, "Zero-copy initiated. Added buffers %d",
+ 	       buffers_added);
+ 
++	M0_LEAVE();
+         return M0_FSO_WAIT;
+ }
+ 
+@@ -1504,6 +1520,8 @@ static int zero_copy_finish(struct m0_fom *fom)
+ 	struct m0_io_fom_cob_rw *fom_obj;
+ 	struct m0_rpc_bulk      *rbulk;
+ 
++	M0_ENTRY("fom=%p", fom);
++
+         M0_PRE(fom != NULL);
+         M0_PRE(m0_is_io_fop(fom->fo_fop));
+         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_ZERO_COPY_WAIT);
+@@ -1520,6 +1538,7 @@ static int zero_copy_finish(struct m0_fom *fom)
+                 IOS_ADDB_FUNCFAIL(rbulk->rb_rc, ZERO_COPY_FINISH,
+ 				  &fom->fo_addb_ctx);
+                 m0_mutex_unlock(&rbulk->rb_mutex);
++		M0_LEAVE();
+                 return M0_FSO_AGAIN;
+         }
+ 
+@@ -1527,6 +1546,7 @@ static int zero_copy_finish(struct m0_fom *fom)
+         m0_rpc_bulk_fini(rbulk);
+ 	M0_LOG(M0_DEBUG, "Zero-copy finished.");
+ 
++	M0_LEAVE();
+         return M0_FSO_AGAIN;
+ }
+ 
+@@ -1573,6 +1593,8 @@ static int io_launch(struct m0_fom *fom)
+         M0_PRE(m0_is_io_fop(fom->fo_fop));
+         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_INIT);
+ 
++	M0_ENTRY("fom=%p", fom);
++
+ 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
+ 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+ 	M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
+@@ -1718,6 +1740,7 @@ static int io_launch(struct m0_fom *fom)
+ 	if (fom_obj->fcrw_num_stobio_launched > 0) {
+ 		M0_LOG(M0_DEBUG, "STOB I/O launched, io_descs = %d",
+ 		       fom_obj->fcrw_num_stobio_launched);
++		M0_LEAVE();
+ 		return M0_FSO_WAIT;
+ 	}
+ 
+@@ -1731,6 +1754,7 @@ cleanup:
+ 		M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
+ 		M0_IMPOSSIBLE("Implement me.");
+ 	}
++	M0_LEAVE();
+ 	return M0_FSO_AGAIN;
+ }
+ 
+@@ -1754,6 +1778,8 @@ static int io_finish(struct m0_fom *fom)
+         M0_PRE(m0_is_io_fop(fom->fo_fop));
+         M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
+ 
++	M0_ENTRY("fom=%p", fom);
++
+ 	if (M0_FI_ENABLED("fake_error"))
+ 		rc = -EINVAL;
+ 
+@@ -1796,11 +1822,13 @@ static int io_finish(struct m0_fom *fom)
+ 		M0_LOG(M0_ERROR, "rc=%d", rc);
+ 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+                 IOS_ADDB_FUNCFAIL(rc, IO_FINISH, &fom->fo_addb_ctx);
++		M0_LEAVE();
+ 	        return M0_FSO_AGAIN;
+         }
+ 
+ 	M0_LOG(M0_DEBUG, "STOB I/O finished.");
+ 
++	M0_LEAVE();
+         return M0_FSO_AGAIN;
+ }
+ 
+diff --git a/rpc/bulk.c b/rpc/bulk.c
+index 2566835..d74c16c 100644
+--- a/rpc/bulk.c
++++ b/rpc/bulk.c
+@@ -177,7 +177,7 @@ static void buf_bulk_cb(const struct m0_net_buffer_event *evt)
+ 		m0_chan_signal(&rbulk->rb_chan);
+ 	m0_mutex_unlock(&rbulk->rb_mutex);
+ 
+-	M0_LEAVE();
++	M0_LEAVE("rb_rc=%d", rbulk->rb_rc);
+ }
+ 
+ M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
+diff --git a/rpc/item.c b/rpc/item.c
+index 51fef39..cfb6098 100644
+--- a/rpc/item.c
++++ b/rpc/item.c
+@@ -751,10 +751,12 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
+ 	struct m0_rpc_session *sess;
+ 	int rc = 0;
+ 
+-	M0_ENTRY("item: %p, machine: %p", item, machine);
+ 	M0_PRE(item != NULL);
+ 	M0_PRE(m0_rpc_machine_is_locked(machine));
+ 
++	M0_ENTRY("item=%p xid=%llu machine=%p", item,
++	         (unsigned long long)item->ri_header.osr_xid, machine);
++
+ 	m0_addb_counter_update(&machine->rm_cntr_rcvd_item_sizes,
+ 			       (uint64_t)m0_rpc_item_size(item));
+ 	++machine->rm_stats.rs_nr_rcvd_items;
+diff --git a/rpc/session_foms.c b/rpc/session_foms.c
+index 1438dfb..d57e407 100644
+--- a/rpc/session_foms.c
++++ b/rpc/session_foms.c
+@@ -407,7 +407,10 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
+ 	m0_rpc_machine_lock(machine);
+ 
+ 	M0_ASSERT(m0_rpc_conn_invariant(conn));
+-	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
++	if (conn_state(conn) != M0_RPC_CONN_ACTIVE) {
++		rc = -EINVAL;
++		goto out;
++	}
+ 
+ 	session = m0_rpc_session_search(conn, session_id);
+ 	if (session != NULL) {
+@@ -426,7 +429,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
+ 	} else { /* session == NULL */
+ 		rc = -ENOENT;
+ 	}
+-
++out:
+ 	m0_rpc_machine_unlock(machine);
+ 
+ 	reply->rstr_rc = rc;
+@@ -467,36 +470,6 @@ struct m0_fom_type_ops m0_rpc_fom_conn_terminate_type_ops = {
+ 	.fto_create = session_gen_fom_create
+ };
+ 
+-static void conn_cleanup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+-{
+-	struct m0_rpc_conn *conn;
+-
+-	conn = container_of(ast, struct m0_rpc_conn, c_ast);
+-	m0_rpc_conn_terminate_reply_sent(conn);
+-}
+-
+-static void conn_terminate_reply_sent_cb(struct m0_rpc_item *item)
+-{
+-	struct m0_rpc_conn *conn;
+-
+-	M0_ENTRY("item: %p", item);
+-
+-	M0_PRE(item != NULL &&
+-	       item->ri_session != NULL &&
+-	       item->ri_session->s_session_id == SESSION_ID_0 &&
+-	       item->ri_session->s_conn != NULL);
+-
+-	conn = item->ri_session->s_conn;
+-	M0_LOG(M0_DEBUG, "conn: %p\n", conn);
+-	conn->c_ast.sa_cb = conn_cleanup_ast;
+-	m0_sm_ast_post(&conn->c_rpc_machine->rm_sm_grp, &conn->c_ast);
+-	M0_LEAVE();
+-}
+-
+-static const struct m0_rpc_item_ops conn_terminate_reply_item_ops = {
+-	.rio_sent = conn_terminate_reply_sent_cb,
+-};
+-
+ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
+ {
+ 	struct m0_rpc_fop_conn_terminate_rep *reply;
+@@ -525,8 +498,14 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
+ 	reply->ctr_rc        = m0_rpc_rcv_conn_terminate(conn);
+ 	m0_rpc_machine_unlock(machine);
+ 
+-	fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
+ 	m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
++
++	m0_rpc_machine_lock(machine);
++	m0_sm_timedwait(&item->ri_session->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
++			M0_TIME_NEVER);
++	m0_rpc_conn_terminate_reply_sent(conn);
++	m0_rpc_machine_unlock(machine);
++
+ 	/*
+ 	 * In memory state of conn is not cleaned up, at this point.
+ 	 * conn will be finalised and freed in the ->rio_sent()
+diff --git a/rpc/ut/rpclib_ut.c b/rpc/ut/rpclib_ut.c
+index 09cb3eb..f616091 100644
+--- a/rpc/ut/rpclib_ut.c
++++ b/rpc/ut/rpclib_ut.c
+@@ -109,7 +109,9 @@ static int send_fop(struct m0_rpc_session *session)
+ 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
+ 	M0_UT_ASSERT(fop->f_item.ri_reply != 0);
+ 
++	m0_sm_group_lock(&fop->f_item.ri_rmachine->rm_sm_grp);
+ 	m0_fop_put(fop);
++	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
+ out:
+ 	return rc;
+ }
+-- 
+1.8.3.2
+

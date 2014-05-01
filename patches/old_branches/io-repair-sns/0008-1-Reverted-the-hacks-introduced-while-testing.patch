@@ -1,0 +1,65 @@
+From f1b6fc55c6a2eab16965b92d011eed3872a8f3b3 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Fri, 28 Dec 2012 19:01:05 +0530
+Subject: [PATCH 08/10] 1) Reverted the hacks introduced while testing. 2)
+ Fixed cm-ut
+
+---
+ cm/ut/cm.c          | 4 ++++
+ ioservice/io_foms.c | 4 ++--
+ stob/stob.c         | 2 +-
+ 3 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/cm/ut/cm.c b/cm/ut/cm.c
+index d9bd3cf..1bead31 100644
+--- a/cm/ut/cm.c
++++ b/cm/ut/cm.c
+@@ -23,6 +23,8 @@
+ #include "lib/ut.h"
+ #include "reqh/reqh.h"
+ #include "reqh/reqh_service.h"
++#include "ioservice/io_device.h"
++#include "pool/pool.h"
+ #include "cm/cm.h"
+ #include "cm/cp.h"
+ #include "cm/ag.h"
+@@ -207,6 +209,8 @@ static void cm_setup_ut(void)
+ 	rc = m0_reqh_service_start(service);
+ 	M0_UT_ASSERT(rc == 0);
+ 
++	rc = m0_ios_poolmach_init(service->rs_reqh);
++
+ 	/* Checks if the restructuring process is started successfully. */
+ 	rc = m0_cm_start(&cm_ut);
+ 	M0_UT_ASSERT(rc == 0);
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index c74df2d..0a550cf 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1608,8 +1608,8 @@ static int io_finish(struct m0_fom *fom)
+ 
+         m0_stob_put(fom_obj->fcrw_stob);
+ 
+-        //M0_ASSERT(ergo(rc == 0,
+-        //               fom_obj->fcrw_req_count == fom_obj->fcrw_count));
++        M0_ASSERT(ergo(rc == 0,
++		       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
+ 
+ 	rc = fom_obj->fcrw_rc ?: rc;
+         if (rc != 0) {
+diff --git a/stob/stob.c b/stob/stob.c
+index 2c81b47..16dff1c 100644
+--- a/stob/stob.c
++++ b/stob/stob.c
+@@ -95,7 +95,7 @@ M0_INTERNAL int m0_stob_find(struct m0_stob_domain *dom,
+ M0_INTERNAL void m0_stob_init(struct m0_stob *obj, const struct m0_stob_id *id,
+ 			      struct m0_stob_domain *dom)
+ {
+-	m0_atomic64_set(&obj->so_ref, 0);
++	m0_atomic64_set(&obj->so_ref, 1);
+ 	obj->so_state = CSS_UNKNOWN;
+ 	obj->so_id = *id;
+ 	obj->so_domain = dom;
+-- 
+1.8.3.2
+

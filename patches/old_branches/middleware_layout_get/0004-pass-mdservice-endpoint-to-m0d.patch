@@ -1,0 +1,254 @@
+From 0e789a248143d60b5fa67e760c8fa6ccf9bb91ca Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 25 Feb 2013 15:52:48 +0800
+Subject: [PATCH 04/24] pass mdservice endpoint to m0d.
+
+---
+ ioservice/io_service.c                      |  2 +
+ m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh |  1 +
+ mero/setup.c                                | 66 ++++++++++++++++++++---------
+ mero/setup.h                                | 33 +++++++++++++++
+ mero/setup_internal.h                       | 30 -------------
+ 5 files changed, 83 insertions(+), 49 deletions(-)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 352eb0d..138dfb4 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -621,6 +621,7 @@ M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
+ 		MAX_NR_RPC_IN_FLIGHT     = 10,
+ 	};
+ 
++	return 0;
+ 	M0_PRE(m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
+ 
+ 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+@@ -674,6 +675,7 @@ M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
+ 	struct m0_reqh_io_service *serv_obj;
+ 	struct m0_rpc_client_ctx  *rpc_client_ctx;
+ 
++	return;
+ 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+ 
+ 	m0_net_domain_fini(&serv_obj->rios_cl_ndom);
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+index 500cbb3..e13a875 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+@@ -28,6 +28,7 @@ mero_service()
+ 			$prog_start -r $PREPARE_STORAGE \
+ 			 -T $MERO_STOB_DOMAIN \
+ 			 -D db -S stobs -A addb-stobs \
++			 -G $XPT:${lnet_nid}:${EP[0]} \
+ 			 -e $XPT:${lnet_nid}:${EP[$i]} \
+ 			 $SNAME -m $MAX_RPC_MSG_SIZE \
+ 			 -q $TM_MIN_RECV_QUEUE_LEN"
+diff --git a/mero/setup.c b/mero/setup.c
+index 3bc525a..db5300b 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -306,30 +306,16 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
+ 	M0_RETURN(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE : 0);
+ }
+ 
+-/**
+-   Extracts network transport name and network endpoint address from given
+-   mero endpoint.
+-   Mero endpoint is of 2 parts network xprt:network endpoint.
+- */
+-static int ep_and_xprt_append(struct cs_reqh_context *rctx, const char *ep)
++int ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx, const char *ep)
+ {
+-	char                        *sptr;
+-	struct cs_endpoint_and_xprt *epx;
+-	char                        *endpoint;
+-	int ep_len = min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN);
+-
+-	M0_PRE(ep != NULL);
++	char *sptr;
++	char *endpoint;
++	int   ep_len = min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN);
+ 
+-	M0_ALLOC_PTR(epx);
+-	if (epx == NULL) {
+-		M0_LOG(M0_ERROR, "malloc failed");
+-		return -ENOMEM;
+-	}
+ 	epx->ex_cep = ep;
+ 	M0_ALLOC_ARR(epx->ex_scrbuf, ep_len);
+ 	if (epx->ex_scrbuf == NULL) {
+ 		M0_LOG(M0_ERROR, "malloc failed");
+-		m0_free(epx);
+ 		return -ENOMEM;
+ 	}
+ 
+@@ -344,10 +330,38 @@ static int ep_and_xprt_append(struct cs_reqh_context *rctx, const char *ep)
+ 
+ 	epx->ex_endpoint = endpoint;
+ 	cs_endpoint_and_xprt_bob_init(epx);
+-	cs_eps_tlink_init_at_tail(epx, &rctx->rc_eps);
++	cs_eps_tlink_init(epx);
+ 	return 0;
++
+ err:
+ 	m0_free(epx->ex_scrbuf);
++	return -EINVAL;
++}
++
++/**
++   Extracts network transport name and network endpoint address from given
++   mero endpoint.
++   Mero endpoint is of 2 parts network xprt:network endpoint.
++ */
++static int ep_and_xprt_append(struct cs_reqh_context *rctx, const char *ep)
++{
++	struct cs_endpoint_and_xprt *epx;
++	int                          rc;
++	M0_PRE(ep != NULL);
++
++	M0_ALLOC_PTR(epx);
++	if (epx == NULL) {
++		M0_LOG(M0_ERROR, "malloc failed");
++		return -ENOMEM;
++	}
++
++	rc = ep_and_xprt_extract(epx, ep);
++	if (rc != 0)
++		goto err;
++
++	cs_eps_tlist_add_tail(&rctx->rc_eps, epx);
++	return 0;
++err:
+ 	m0_free(epx);
+ 	return -EINVAL;
+ }
+@@ -1549,6 +1563,7 @@ static void cs_help(FILE *out)
+ "  -Q num   Minimum length of TM receive queue.\n"
+ "  -M num   Maximum RPC message size.\n"
+ "  -C addr  Endpoint address of confd service.\n"
++"  -G addr  Endpoint address of mdservice service.\n"
+ "  -P str   Configuration profile.\n"
+ "\n"
+ "Request handler options:\n"
+@@ -1609,6 +1624,13 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
+ 	if (cctx->cc_recv_queue_min_length < M0_NET_TM_RECV_QUEUE_DEF_LEN)
+ 		cctx->cc_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+ 
++	if ((rc = cs_endpoint_validate(cctx, cctx->cc_mds_epx.ex_endpoint,
++				  cctx->cc_mds_epx.ex_xprt))) {
++		M0_LOG(M0_ERROR, "Missing or Invalid mdservice endpoint.\n"
++				 "Use -G to provice a valid one: %d", rc);
++		M0_RETURN(rc);
++	}
++
+ 	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+ 		if (!reqh_ctx_args_are_valid(rctx)) {
+ 			M0_LOG(M0_ERROR, "Missing or Invalid parameters");
+@@ -1735,6 +1757,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
+ 					M0_ASSERT(profile != NULL);
+ 					*profile = s;
+ 				})),
++			M0_STRINGARG('G', "mdservice endpoint address",
++				LAMBDA(void, (const char *s)
++				{
++					rc = ep_and_xprt_extract(&cctx->
++								 cc_mds_epx, s);
++				})),
+ 
+ 			/* -------------------------------------------
+ 			 * Request handler options
+diff --git a/mero/setup.h b/mero/setup.h
+index 0c4b9b6..d70a0f8 100644
+--- a/mero/setup.h
++++ b/mero/setup.h
+@@ -145,6 +145,36 @@ struct cs_args {
+ };
+ 
+ /**
++   Contains extracted network endpoint and transport from mero endpoint.
++ */
++struct cs_endpoint_and_xprt {
++	/**
++	   mero endpoint specified as argument.
++	   Used for ADDB purpose.
++	 */
++	const char      *ex_cep;
++	/**
++	   4-tuple network layer endpoint address.
++	   e.g. 172.18.50.40@o2ib1:12345:34:1
++	 */
++	const char      *ex_endpoint;
++	/** Supported network transport. */
++	const char      *ex_xprt;
++	/**
++	   Scratch buffer for endpoint and transport extraction.
++	 */
++	char            *ex_scrbuf;
++	uint64_t         ex_magix;
++	/** Linkage into reqh context endpoint list, cs_reqh_context::rc_eps */
++	struct m0_tlink  ex_linkage;
++	/**
++	   Unique Colour to be assigned to each TM.
++	   @see m0_net_transfer_mc::ntm_pool_colour.
++	 */
++	uint32_t	 ex_tm_colour;
++};
++
++/**
+    Defines a mero context containing a set of network transports,
+    network domains and request handler contexts.
+ 
+@@ -208,6 +238,9 @@ struct m0_mero {
+ 	/** Segment size for any ADDB stob. */
+ 	size_t                   cc_addb_stob_segment_size;
+ 
++	/** mdservice end point */
++	struct cs_endpoint_and_xprt cc_mds_epx;
++
+ 	/** command line arguments */
+ 	struct cs_args		 cc_args;
+ };
+diff --git a/mero/setup_internal.h b/mero/setup_internal.h
+index f28b2e6..5087dab 100644
+--- a/mero/setup_internal.h
++++ b/mero/setup_internal.h
+@@ -41,36 +41,6 @@ enum {
+ M0_BASSERT(CS_MAX_EP_ADDR_LEN >= M0_NET_LNET_XEP_ADDR_LEN);
+ 
+ /**
+-   Contains extracted network endpoint and transport from mero endpoint.
+- */
+-struct cs_endpoint_and_xprt {
+-	/**
+-	   mero endpoint specified as argument.
+-	   Used for ADDB purpose.
+-	 */
+-	const char      *ex_cep;
+-	/**
+-	   4-tuple network layer endpoint address.
+-	   e.g. 172.18.50.40@o2ib1:12345:34:1
+-	 */
+-	const char      *ex_endpoint;
+-	/** Supported network transport. */
+-	const char      *ex_xprt;
+-	/**
+-	   Scratch buffer for endpoint and transport extraction.
+-	 */
+-	char            *ex_scrbuf;
+-	uint64_t         ex_magix;
+-	/** Linkage into reqh context endpoint list, cs_reqh_context::rc_eps */
+-	struct m0_tlink  ex_linkage;
+-	/**
+-	   Unique Colour to be assigned to each TM.
+-	   @see m0_net_transfer_mc::ntm_pool_colour.
+-	 */
+-	uint32_t	 ex_tm_colour;
+-};
+-
+-/**
+  * Represent devices configuration file in form of yaml document.
+  * @note This is temporary implementation in-order to configure device as
+  *       a stob. This may change when confc implementation lands into master.
+-- 
+1.8.3.2
+

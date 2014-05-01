@@ -1,0 +1,72 @@
+From 36a6334ee2d419add68c07a8f6fc6ceff64b4c14 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 16 Feb 2014 16:55:36 +0200
+Subject: [PATCH 74/96] be/alloc: be_alloc_{chunk,mem}_is_in names used
+
+---
+ be/alloc.c | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index a0c6056..a20a077 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -199,17 +199,17 @@ static void be_alloc_size_capture(const struct m0_be_allocator *a,
+ 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &c->bac_size);
+ }
+ 
+-static bool be_alloc_is_mem_in_allocator(const struct m0_be_allocator *a,
+-					 const void *ptr, m0_bcount_t size)
++static bool be_alloc_mem_is_in(const struct m0_be_allocator *a,
++			       const void *ptr, m0_bcount_t size)
+ {
+ 	return ptr >= a->ba_addr &&
+ 	       ptr + size <= a->ba_addr + a->ba_size;
+ }
+ 
+-static bool be_alloc_is_chunk_in_allocator(const struct m0_be_allocator *a,
+-					   const struct be_alloc_chunk *c)
++static bool be_alloc_chunk_is_in(const struct m0_be_allocator *a,
++				 const struct be_alloc_chunk *c)
+ {
+-	return be_alloc_is_mem_in_allocator(a, c, sizeof *c + c->bac_size);
++	return be_alloc_mem_is_in(a, c, sizeof *c + c->bac_size);
+ }
+ 
+ static bool be_alloc_chunk_is_not_overlapping(const struct be_alloc_chunk *a,
+@@ -229,11 +229,11 @@ static bool be_alloc_chunk_invariant(const struct m0_be_allocator *a,
+ 	cnext = chunks_all_tlist_next(&a->ba_chunks.bl_list, c);
+ 
+ 	return _0C(c != NULL) &&
+-	       _0C(be_alloc_is_chunk_in_allocator(a, c)) &&
++	       _0C(be_alloc_chunk_is_in(a, c)) &&
+ 	       _0C(ergo(cnext != NULL,
+-			be_alloc_is_chunk_in_allocator(a, cnext))) &&
++			be_alloc_chunk_is_in(a, cnext))) &&
+ 	       _0C(ergo(cprev != NULL,
+-			be_alloc_is_chunk_in_allocator(a, cprev))) &&
++			be_alloc_chunk_is_in(a, cprev))) &&
+ 	       _0C(c->bac_magic0 == M0_BE_ALLOC_MAGIC0) &&
+ 	       _0C(c->bac_magic1 == M0_BE_ALLOC_MAGIC1) &&
+ 	       _0C(be_alloc_chunk_is_not_overlapping(cprev, c)) &&
+@@ -703,7 +703,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+ 		M0_POST(!c->bac_free);
+ 		M0_POST(c->bac_size >= size);
+ 		M0_POST(m0_addr_is_aligned(&c->bac_mem, shift));
+-		M0_POST(be_alloc_is_chunk_in_allocator(a, c));
++		M0_POST(be_alloc_chunk_is_in(a, c));
+ 	}
+ 	/*
+ 	 * unlock mutex after post-conditions which are using allocator
+@@ -743,7 +743,7 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
+ 	struct be_alloc_chunk *next;
+ 	bool		       chunks_were_merged;
+ 
+-	M0_PRE(ergo(ptr != NULL, be_alloc_is_mem_in_allocator(a, ptr, 1)));
++	M0_PRE(ergo(ptr != NULL, be_alloc_mem_is_in(a, ptr, 1)));
+ 
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 
+-- 
+1.8.3.2
+

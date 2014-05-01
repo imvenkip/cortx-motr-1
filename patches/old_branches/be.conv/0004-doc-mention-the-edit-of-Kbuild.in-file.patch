@@ -1,0 +1,24 @@
+From e74bffe821884dede92c22ae4d7bdae3503231a2 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 17 Aug 2013 23:53:14 +0530
+Subject: [PATCH 4/7] doc: mention the edit of Kbuild.in file
+
+---
+ doc/source-structure | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/doc/source-structure b/doc/source-structure
+index c8f8ffc..63aac8c 100644
+--- a/doc/source-structure
++++ b/doc/source-structure
+@@ -325,6 +325,7 @@ e.g.:
+ 
+ create these source and header files in <module> directory.
+ 
++Include foo/Kbuild.sub in the top-level Kbuild.in.
+ Add foo/Kbuild.sub to EXTRA_DIST in the top-level Makefile.am.
+ 
+ 2) If you want to build the module as separate stand-alone UT named <module>,
+-- 
+1.8.3.2
+

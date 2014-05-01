@@ -1,0 +1,122 @@
+From f5fede0d45b1afcd98c80d62a5dbf6a273d2735f Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 30 Sep 2013 15:51:52 +0300
+Subject: [PATCH 4/5] Unit test names added into m0_be_tx_open().
+
+---
+ Makefile.am | 22 +++++++++++++++-------
+ be/tx.c     | 14 +++++++++++++-
+ 2 files changed, 28 insertions(+), 8 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 266fb1f..7f39708 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -514,14 +514,16 @@ noinst_PROGRAMS                         += net/test/user_space/m0nettest
+ endif
+ net_test_user_space_m0nettest_CPPFLAGS   = -DM0_TARGET='m0nettest' $(AM_CPPFLAGS)
+ net_test_user_space_m0nettest_LDADD      = $(top_builddir)/mero/libmero.la \
+-                                           $(top_builddir)/net/test/libmero-net-test.la
++                                           $(top_builddir)/net/test/libmero-net-test.la \
++					   $(top_builddir)/ut/libmero-ut.la
+ 
+ if ENABLE_UNIT_TESTS
+ noinst_PROGRAMS                         += net/test/user_space/m0nettestd
+ endif
+ net_test_user_space_m0nettestd_CPPFLAGS  = -DM0_TARGET='m0nettestd' $(AM_CPPFLAGS)
+ net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
+-                                           $(top_builddir)/net/test/libmero-net-test.la
++                                           $(top_builddir)/net/test/libmero-net-test.la \
++					   $(top_builddir)/ut/libmero-ut.la
+ 
+ include $(top_srcdir)/net/test/user_space/Makefile.sub
+ 
+@@ -561,10 +563,12 @@ include $(top_srcdir)/utils/ploss/Makefile.sub
+ bin_SCRIPTS                   += utils/trace/m0trace
+ 
+ bin_PROGRAMS                  += utils/trace/m0tracedump
+-utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la
++utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la \
++				 $(top_builddir)/ut/libmero-ut.la
+ 
+ bin_PROGRAMS                  += utils/trace/m0traced
+-utils_trace_m0traced_LDADD     = $(top_builddir)/mero/libmero.la
++utils_trace_m0traced_LDADD     = $(top_builddir)/mero/libmero.la \
++				 $(top_builddir)/ut/libmero-ut.la
+ 
+ include $(top_srcdir)/utils/trace/Makefile.sub
+ 
+@@ -585,7 +589,8 @@ include $(top_srcdir)/m0t1fs/linux_kernel/st/Makefile.sub
+ 
+ bin_PROGRAMS     += mero/m0d
+ mero_m0d_CPPFLAGS  = -DM0_TARGET='m0d' $(AM_CPPFLAGS)
+-mero_m0d_LDADD     = $(top_builddir)/mero/libmero.la
++mero_m0d_LDADD     = $(top_builddir)/mero/libmero.la \
++		     $(top_builddir)/ut/libmero-ut.la
+ 
+ #
+ # mero/m0d-altogether
+@@ -597,7 +602,9 @@ endif
+ 
+ mero_m0d_altogether_CPPFLAGS = -DM0_TARGET='m0d-altogether' $(AM_CPPFLAGS)
+ mero_m0d_altogether_SOURCES  = $(mero_m0d_SOURCES)
+-mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
++mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
++			       $(top_builddir)/ut/libmero-ut.la
++
+ 
+ #XXX_BE_DB #
+ #XXX_BE_DB # console/bin/m0console
+@@ -615,7 +622,8 @@ mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
+ 
+ bin_PROGRAMS             += pool/m0poolmach
+ pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
+-pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
++pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la \
++			    $(top_builddir)/ut/libmero-ut.la
+ 
+ #XXX_BE_DB #
+ #XXX_BE_DB # addb/dump
+diff --git a/be/tx.c b/be/tx.c
+index 70ceb86..5930eca 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -39,6 +39,8 @@
+ #include "be/domain.h"		/* m0_be_domain_engine */
+ #include "be/engine.h"		/* m0_be_engine__tx_state_set */
+ 
++#include "ut/ut.h" /* XXX: CU_get_current_test, CU_get_current_suite */
++
+ /**
+  * @addtogroup be
+  *
+@@ -230,6 +232,10 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 	char **strings;
+ 	static bool   initialized;
+ 	static struct m0_mutex lock;
++#ifndef __KERNEL__
++	extern CU_pSuite CU_get_current_suite(void);
++	extern CU_pTest  CU_get_current_test(void);
++#endif
+ 
+ 	if (!initialized) {
+ 		initialized = true;
+@@ -242,8 +248,14 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 	strings = backtrace_symbols(buffer, nptrs);
+ 	M0_ASSERT(strings != NULL);
+ 	for (j = 0; j < nptrs; j++)
+-		dprintf(2, "\"%s\"%c", strings[j], j == nptrs - 1 ? '\n' : ' ');
++		dprintf(2, "\"%s\" ", strings[j]);
+ 	free(strings);
++#ifndef __KERNEL__
++	dprintf(2, "test{%s:%s}\n", CU_get_current_suite()->pName,
++		CU_get_current_test()->pName);
++#else
++	dprintf(2, "\n");
++#endif
+ 	m0_mutex_unlock(&lock);
+ 
+ 	M0_ENTRY();
+-- 
+1.8.3.2
+

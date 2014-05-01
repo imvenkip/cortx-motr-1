@@ -1,0 +1,33 @@
+From 7459bc00d44b298fe5d410baf400f05e6d70ff54 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 19 Nov 2012 17:27:10 +0200
+Subject: [PATCH 04/71] variables in node_bulk_test_init_fini() may be
+ uninitialized
+
+---
+ net/test/node_bulk.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 0898d35..6595711 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1267,6 +1267,7 @@ static int node_bulk_test_init_fini(struct node_bulk_ctx *ctx,
+ 	icmd	    = &cmd->ntc_init;
+ 	role_client = icmd->ntci_role == C2_NET_TEST_ROLE_CLIENT;
+ 
++	rc = -ENOMEM;
+ 	C2_ALLOC_ARR(ctx->nbc_bs, ctx->nbc_bs_nr);
+ 	if (ctx->nbc_bs == NULL)
+ 		goto fail;
+@@ -1345,6 +1346,7 @@ static int node_bulk_test_init_fini(struct node_bulk_ctx *ctx,
+ 	c2_clink_add(&ctx->nbc_stop_chan, &ctx->nbc_stop_clink);
+ 	goto success;
+ fini:
++	icmd = NULL;
+ 	rc = 0;
+ 	c2_clink_del(&ctx->nbc_stop_clink);
+ 	c2_clink_fini(&ctx->nbc_stop_clink);
+-- 
+1.8.3.2
+

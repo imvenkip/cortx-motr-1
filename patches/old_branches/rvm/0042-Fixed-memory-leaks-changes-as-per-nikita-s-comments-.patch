@@ -1,0 +1,827 @@
+From 683d4002760d8209727aa4dd652e83f849933436 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Mon, 4 Feb 2013 22:48:03 -0800
+Subject: [PATCH 042/121] Fixed memory leaks, changes as per nikita's comments
+ on #1214, except const parameters
+
+---
+ be/be_list.c     |   4 +-
+ be/helper.c      |  28 ++++++------
+ be/kv_store.c    | 136 ++++++++++++++++++++++++++++---------------------------
+ be/ut/be_tlist.c |  26 +++++------
+ be/ut/kv_store.c |  47 ++++++++++---------
+ 5 files changed, 123 insertions(+), 118 deletions(-)
+
+diff --git a/be/be_list.c b/be/be_list.c
+index 513e4a5..bf4fa40 100644
+--- a/be/be_list.c
++++ b/be/be_list.c
+@@ -62,7 +62,7 @@ M0_INTERNAL bool m0_be_list_link_invariant(const struct m0_be_list_link *link)
+                 next_temp = scan->ll_next.n_virtual_address;
+                 prev_temp = scan->ll_prev.n_virtual_address;
+ 
+-                /** Make sure all belong in same domain. */
++                /* Make sure all belong in same domain */
+                 prev_magic = prev_temp->ll_next.n_logical_address.be_magic;
+                 next_magic = next_temp->ll_next.n_logical_address.be_magic;
+                 curr_magic = scan->ll_next.n_logical_address.be_magic;
+@@ -225,7 +225,7 @@ M0_INTERNAL void m0_be_list_link_init(struct m0_be_list_link *link,
+                 prev_temp->u_hi = seg_id;
+                 prev_temp->u_lo = offset;
+                 
+-                /** Assign domain magic in @ref */
++                /* Assign domain magic in @ref */
+                 link->ll_prev.n_logical_address.be_magic = ref->be_magic;
+                 link->ll_next.n_logical_address.be_magic = ref->be_magic;
+         }
+diff --git a/be/helper.c b/be/helper.c
+index de08c21..e020284 100644
+--- a/be/helper.c
++++ b/be/helper.c
+@@ -32,14 +32,13 @@ M0_INTERNAL void m0_be_ks_init_domain(struct m0_be_domain  **out_dom)
+         M0_ALLOC_PTR(dom);
+         M0_ASSERT(dom != NULL);
+ 
+-        if ((*out_dom) == NULL) {
++        if (*out_dom == NULL) {
+                 m0_be_domain_create(dom, NULL);
+-                M0_ASSERT(dom != NULL);
+         }
+ 
+-        /**
+-          Initialise the domain with some magic.
+-          For now, we use M0_BE_DOMAIN_MAGIC.
++        /*
++         * Initialise the domain with some magic.
++         * For now, we use M0_BE_DOMAIN_MAGIC
+          */
+         m0_be_domain_init(dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
+         dom->bd_data.bs_sm.sm_state = M0_BESEG_ACTIVE;
+@@ -59,7 +58,7 @@ M0_INTERNAL int m0_be_ks_domain_lookup(struct m0_be_domain     *dom,
+ 
+         ret_val = m0_be_domain_lookup(dom, name, seg);
+ 
+-        /** Wait only if lookup succeeds. */
++        /* Wait only if lookup succeeds */
+         if (ret_val == 0 && m0_be_seg_state_get(*seg) != M0_BESEG_ACTIVE) {
+                 m0_be_wait(sm_group, &(*seg)->bs_sm,
+                            M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
+@@ -81,7 +80,7 @@ M0_INTERNAL int m0_be_ks_domain_restore(struct m0_be_domain *dom,
+         m0_be_wait(sm_group, &seg->bs_sm,
+                    M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
+ 
+-        /** If opening the segment failed, fini the @seg and return. */
++        /* If opening the segment failed, fini the @seg and return */
+         if (seg->bs_sm.sm_state == M0_BESEG_FAILED) {
+                 m0_be_seg_fini(seg);
+                 return BE_KV_FAILURE;
+@@ -103,12 +102,12 @@ M0_INTERNAL void *m0_be_ks_obj_malloc(struct m0_be_reg        *obj_reg,
+         dom      = obj_reg->br_seg->bs_dom;
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+-        /** Allocate memory from RVM. */
++        /* Allocate memory from RVM */
+         m0_be_alloc(obj_reg);
+         m0_be_wait(sm_group, &obj_reg->br_sm,
+                    M0_BITS(M0_BEREG_ALLOCATED, M0_BEREG_FAILED));
+ 
+-        /** Capture this region explicitly. */
++        /* Capture this region explicitly */
+         m0_be_reg_capture(obj_reg);
+         m0_be_wait(sm_group, &obj_reg->br_sm,
+                    M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+@@ -117,8 +116,8 @@ M0_INTERNAL void *m0_be_ks_obj_malloc(struct m0_be_reg        *obj_reg,
+         if (obj == NULL)
+                 goto exit_failure;
+ 
+-        /** Collect the reference to be returned to the user. */
+-        (*obj_ref) = &obj_reg->br_buf.b_logical_address;
++        /* Collect the reference to be returned to the user */
++        *obj_ref = &obj_reg->br_buf.b_logical_address;
+ 
+         return obj;
+ 
+@@ -133,6 +132,7 @@ M0_INTERNAL void m0_be_ks_fini(struct m0_be_domain *dom, struct m0_be_seg *seg)
+         dom->bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
+         rvm_truncate();
+         m0_be_domain_fini(dom);
++        m0_free(dom);
+ }
+ M0_EXPORTED(m0_be_ks_fini);
+ 
+@@ -172,16 +172,16 @@ M0_INTERNAL void m0_be_ks_prep_link_reg(struct m0_be_domain    *dom,
+ 
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+-        /** Lookup for the kv_store segment. If not found, create one. */
++        /* Lookup for the kv_store segment. If not found, create one */
+         ret_val = m0_be_ks_domain_lookup(dom, &seg, BE_KV_SEG_NAME);
+         M0_ASSERT(ret_val == 0);
+         M0_ASSERT(seg != NULL);
+ 
+         M0_ALLOC_PTR((*reg));
+-        M0_ASSERT((*reg) != NULL);
++        M0_ASSERT(*reg != NULL);
+         buf.b_nob = sizeof(struct m0_be_list_link);
+         buf.b_addr = (void *)link;
+-        m0_be_reg_init((*reg), tx, seg, &buf);
++        m0_be_reg_init(*reg, tx, seg, &buf);
+ }
+ M0_EXPORTED(m0_be_ks_prep_link);
+ 
+diff --git a/be/kv_store.c b/be/kv_store.c
+index c912663..1104d03 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -112,14 +112,14 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_domain        *dom,
+         M0_ASSERT(rvm_handle != NULL);
+         M0_ASSERT(rvm_handle_ref != NULL);
+ 
+-        /**
+-          Store this handle information at index 0 in handle_store.
++        /*
++         * Store this handle information at index 0 in handle_store
+          */
+         m0_be_hs_update(0, &rvm_handle_ref->be_segid_offset);
+ 
+         m0_be_tlist_init(descr, &rvm_handle->ks_tlist);
+ 
+-        /* Update segment id & offset in head & tail. */
++        /* Update segment id & offset in head & tail */
+         head = &rvm_handle->ks_tlist.t_head.l_head;
+         tail = &rvm_handle->ks_tlist.t_head.l_tail;
+ 
+@@ -134,14 +134,15 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_domain        *dom,
+         head->n_logical_address.be_magic = dom->bd_magic;
+         tail->n_logical_address.be_magic = dom->bd_magic;
+ 
+-        (*rvm_han_out) = rvm_handle;
+-        M0_ASSERT((*rvm_han_out) != NULL);
++        *rvm_han_out = rvm_handle;
++        M0_ASSERT(*rvm_han_out != NULL);
+ 
+         m0_be_tx_done(tx);
+         m0_be_wait(sm_group, &tx->bt_sm, M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+ 
+         m0_be_tx_fini(tx);
+         m0_free(tx);
++        m0_free(rvm_handle_reg);
+ }
+ M0_EXPORTED(m0_be_ks_create_handle);
+ 
+@@ -159,7 +160,7 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store    **out_handle,
+         int                         ret_val;
+         int                         recovery_status = -1;
+ 
+-        if ((*out_handle) == NULL) {
++        if (*out_handle == NULL) {
+                         M0_ALLOC_PTR(handle);
+                         M0_ASSERT(handle != NULL);
+         }
+@@ -174,10 +175,7 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store    **out_handle,
+                                                           BE_KV_SEG_NAME);
+                 M0_ASSERT(recovery_status == BE_KV_SUCCESS);
+         } else {
+-                /**
+-                  Lookup for the kv_store segment.
+-                  If not found, create one.
+-                 */
++                /* Lookup for the kv_store segment. If not found, create one */
+                 ret_val = m0_be_ks_domain_lookup(dom, &rvm_handle_seg,
+                                                  BE_KV_SEG_NAME);
+                 if (ret_val !=0) {
+@@ -194,9 +192,9 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store    **out_handle,
+ 
+         m0_be_hs_init(rvm_handle_seg);
+ 
+-        /**
+-          Try to recover the handle from index 0 in the handle_store.
+-          If recovery fails, create a new handle.
++        /*
++         * Try to recover the handle from index 0 in the handle_store
++         * If recovery fails, create a new handle
+          */
+         ret_val = m0_be_ks_deref_handle(handle, rvm_handle_seg);
+ 
+@@ -206,7 +204,7 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store    **out_handle,
+                 handle->handle_rvm = rvm_handle;
+         }
+ 
+-        /** Set the non_rvm part of the handle with user values. */
++        /* Set the non_rvm part of the handle with user values */
+         handle->handle_heap = (struct m0_be_kv_store_heap){
+                 .ks_key_cmp    = cmp_fp,
+                 .ks_key_match  = match_fp,
+@@ -214,7 +212,7 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store    **out_handle,
+                 .ks_dom        = dom
+         };
+ 
+-        (*out_handle) = handle;
++        *out_handle = handle;
+ }
+ M0_EXPORTED(m0_be_ks_init);
+ 
+@@ -232,7 +230,7 @@ M0_INTERNAL struct m0_be_reference
+ 
+         temp_tail = m0_be_tlist_tail(ks_list_descr, ks_tlist);
+ 
+-        /** If object is last in linked list, then its next will be itself. */
++        /* If object is last in linked list, then its next will be itself */
+         if (temp_tail == obj) {
+                 __ks_get_current(ks_list_descr, obj, &link_next);
+                 goto get_ref;
+@@ -249,9 +247,9 @@ M0_EXPORTED(m0_be_ks_get_next_value);
+ M0_INTERNAL void *m0_be_ks_find(struct m0_be_kv_store *handle,
+                                 void                  *key)
+ {
+-        /**
+-          In case the target is not found, the function returns "target"
+-          as NULL.
++        /*
++         * In case the target is not found, the function returns "target"
++         * as NULL
+          */
+         void                    *scan;
+         void                    *target = NULL;
+@@ -296,7 +294,7 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+         ks_dom         = handle->handle_heap.ks_dom;
+         sm_group       = m0_be_domain_sm_group(ks_dom);
+ 
+-        /** If tx is not provided create and start a new one. */
++        /* If tx is not provided create and start a new one */
+         if (del_tx == NULL) {
+                 del_tx_state = BE_KV_IN_TX_NULL;
+ 
+@@ -308,7 +306,7 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+                            M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+         }
+ 
+-        /** Find the target node to be deleted. */
++        /* Find the target node to be deleted */
+         m0_be_tlist_for(ks_list_descr, ks_tlist, scan) {
+                 if (handle->handle_heap.ks_key_cmp(scan, obj) == 0) {
+                         target = scan;
+@@ -318,7 +316,7 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+         } m0_be_tlist_endfor;
+ 
+         if (target_found == BE_KV_SUCCESS) {
+-                /** Capture t_head. */
++                /* Capture t_head */
+                 temp_link   = head->ll_next.n_virtual_address;
+                 t_head_link = temp_link->ll_prev.n_virtual_address;
+                 M0_ASSERT(t_head_link != NULL);
+@@ -332,12 +330,13 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+                         m0_be_reg_capture(t_head_reg);
+                         m0_be_wait(sm_group, &t_head_reg->br_sm,
+                                    M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
++                        m0_free(t_head_reg);
+                 }
+ 
+-                /**
+-                  Add the current, previous and next pointers about to
+-                  be modified to the credit or captures them depending
+-                  upon the transaction received.
++                /*
++                 * Add the current, previous and next pointers about to
++                 * be modified to the credit or captures them depending
++                 * upon the transaction received
+                  */
+                 __ks_prev_next_add_cred(handle, tx, target, del_tx_state,
+                                         BE_KV_DELETE);
+@@ -347,7 +346,7 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+                         m0_be_ks_tx_start(tx);
+                 }
+ 
+-                /** Now delete. */
++                /* Now delete */
+                 m0_be_tlink_del_fini(ks_list_descr, target);
+ 
+                 if (del_tx == NULL) {
+@@ -356,6 +355,7 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+                                    M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+                         m0_be_tx_fini(tx);
+                         m0_free(tx);
++                        m0_free(t_head_reg);
+                 }
+                 goto exit_success;
+         }
+@@ -387,13 +387,13 @@ M0_INTERNAL int __ks_tlist_add_at_tail(struct m0_be_kv_store     *handle,
+         ks_dom        = handle->handle_heap.ks_dom;
+         sm_group      = m0_be_domain_sm_group(ks_dom);
+ 
+-        /** Add current tail to credit. */
++        /* Add current tail to credit */
+         tail_obj  = m0_be_tlist_tail(ks_list_descr, ks_tlist);
+ 
+         __ks_get_current(ks_list_descr, tail_obj, &tail_obj_link);
+         M0_ASSERT(tail_obj_link != NULL);
+ 
+-        /** Init a region for this link. */
++        /* Init a region for this link */
+         m0_be_ks_prep_link_reg(ks_dom, tail_obj_link, tx, &tail_obj_reg);
+         M0_ASSERT(tail_obj_reg != NULL);
+ 
+@@ -405,9 +405,10 @@ M0_INTERNAL int __ks_tlist_add_at_tail(struct m0_be_kv_store     *handle,
+                 m0_be_reg_capture(tail_obj_reg);
+                 m0_be_wait(sm_group, &tail_obj_reg->br_sm,
+                            M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
++                m0_free(tail_obj_reg);
+         }
+ 
+-        /** Finally, add at tail in tlist. */
++        /* Finally, add at tail in tlist */
+         m0_be_tlist_add_tail(ks_list_descr, ks_tlist, new);
+         return BE_KV_SUCCESS;
+ }
+@@ -436,7 +437,7 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+         dom      = handle->handle_heap.ks_dom;
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+-        /** Ensure object is allocated on same domain as that of handle. */
++        /* Ensure object is allocated on same domain as that of handle */
+         if (obj_ref->be_magic != dom->bd_magic) {
+                 ret_val = BE_KV_OUT_OF_DOMAIN;
+                 goto exit_insert;
+@@ -445,7 +446,7 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+         /** Collect the object to be inserted. */
+         new = obj_ref->be_virtual_address;
+ 
+-        /** Check for duplicate insertion. */
++        /* Check for duplicate insertion */
+         m0_be_tlist_for(ks_list_descr, ks_tlist, scan) {
+                 if (handle->handle_heap.ks_key_cmp(new, scan) == 0) {
+                         ret_val = BE_KV_DUPLICATE;
+@@ -453,7 +454,7 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                 }
+         } m0_be_tlist_endfor;
+ 
+-        /** If tx is not provided, create and start a new one. */
++        /* If tx is not provided, create and start a new one */
+         if (ins_tx == NULL) {
+                 in_tx_state = BE_KV_IN_TX_NULL;
+                 M0_ALLOC_PTR(tx);
+@@ -465,13 +466,13 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                            M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+         }
+ 
+-        /** Tlink init for this object. */
++        /* Tlink init for this object */
+         m0_be_tlink_init(ks_list_descr, obj_ref);
+ 
+         __ks_get_current(ks_list_descr, new, &link);
+         M0_ASSERT(link != NULL);
+ 
+-        /** Init a region for this link. */
++        /* Init a region for this link */
+         m0_be_ks_prep_link_reg(dom, link, tx, &obj_link_reg);
+         M0_ASSERT(obj_link_reg != NULL);
+ 
+@@ -482,19 +483,23 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                 m0_be_reg_capture(obj_link_reg);
+                 m0_be_wait(sm_group, &obj_link_reg->br_sm,
+                            M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
++                m0_free(obj_link_reg);
+         }
+ 
+         head = (void *)&ks_tlist->t_head;
+ 
+-        /** Check if tlist is empty. */
++        /*
++         * Capture t_head.
++         * Because object could be added at head or before head
++         */
++        m0_be_ks_prep_link_reg(dom, head, tx, &t_head_reg);
++        M0_ASSERT(t_head_reg != NULL);
++
++        /* Check if tlist is empty */
+         if ((head->ll_next.n_virtual_address == (void *)head) &&
+             (head->ll_prev.n_virtual_address == (void *)head)) {
+ 
+-                /** Capture t_head. */
+-                m0_be_ks_prep_link_reg(dom, head, tx, &t_head_reg);
+-                M0_ASSERT(t_head_reg != NULL);
+-
+-                /** Capture this region. */
++                /* Capture t_head region */
+                 if (ins_tx == NULL) {
+                         m0_be_tx_add_cred(tx, t_head_reg);
+                         m0_be_ks_tx_prep(tx);
+@@ -503,27 +508,22 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                         m0_be_reg_capture(t_head_reg);
+                         m0_be_wait(sm_group, &t_head_reg->br_sm,
+                                    M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
++                        m0_free(t_head_reg);
+                 }
+ 
+-                /** Add to tlist now. */
++                /* Add to tlist now */
+                 m0_be_tlist_add(ks_list_descr, ks_tlist, new);
+                 ret_val = BE_KV_SUCCESS;
+         } else {
+-                /**
+-                  Else, find the appropriate position for the obj and insert.
++                /*
++                 * Else, find the appropriate position for the obj and insert
+                  */
+                 m0_be_tlist_for(ks_list_descr, ks_tlist, scan)
+                 {
+                         if (handle->handle_heap.ks_key_cmp(new, scan) < 0) {
+-
+-                                /** Capture t_head. */
+-                                m0_be_ks_prep_link_reg(dom, head, tx,
+-                                                       &t_head_reg);
+-                                M0_ASSERT(t_head_reg != NULL);
+-
+-                                /**
+-                                  Add the current, previous and next pointers
+-                                  about to be modified to the credit.
++                                /*
++                                 * Add the current, previous and next pointers
++                                 * about to be modified to the credit
+                                  */
+                                 __ks_prev_next_add_cred(handle, tx, scan,
+                                                         in_tx_state,
+@@ -539,7 +539,7 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                                                            M0_BEREG_FAILED));
+                                 }
+ 
+-                                /** Now add the object to the tlist. */
++                                /* Now add the object to the tlist */
+                                 m0_be_tlist_add_before(ks_list_descr, scan,
+                                                        new);
+ 
+@@ -548,13 +548,9 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                         }
+                 } m0_be_tlist_endfor;
+ 
+-                /** If key is largest in the list, add at tail. */
++                /* If key is largest in the list, add at tail */
+                 if (ret_val == BE_KV_INVALID_REQ) {
+ 
+-                        /** Capture t_head. */
+-                        m0_be_ks_prep_link_reg(dom, head, tx, &t_head_reg);
+-                        M0_ASSERT(t_head_reg != NULL);
+-
+                         if (ins_tx == NULL) {
+                                 m0_be_tx_add_cred(tx, t_head_reg);
+                         } else {
+@@ -562,6 +558,7 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                                 m0_be_wait(sm_group, &t_head_reg->br_sm,
+                                            M0_BITS(M0_BEREG_CAPTURED,
+                                                    M0_BEREG_FAILED));
++                                m0_free(t_head_reg);
+                         }
+ 
+                         ret_val = __ks_tlist_add_at_tail(handle, new, tx,
+@@ -576,6 +573,8 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                            M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+                 m0_be_tx_fini(tx);
+                 m0_free(tx);
++                m0_free(t_head_reg);
++                m0_free(obj_link_reg);
+         }
+ 
+ exit_insert:
+@@ -591,7 +590,7 @@ M0_INTERNAL int m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+         long int                   lo;
+         int                        ret_val;
+ 
+-        /** Get the segid_offset representation stored at index 0. */
++        /* Get the segid_offset representation stored at index 0 */
+         kv_store = m0_be_hs_get(0);
+ 
+         if (kv_store->u_hi == 0) {
+@@ -599,7 +598,7 @@ M0_INTERNAL int m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+                 goto exit_deref;
+         }
+ 
+-        /** Retrieve the offset. */
++        /* Retrieve the offset */
+         lo = (long int)(seg->bs_addr + (kv_store->u_lo));
+ 
+         handle_rvm = (struct m0_be_kv_store_rvm *)lo;
+@@ -675,11 +674,11 @@ static void __ks_prev_next_add_cred(struct m0_be_kv_store *handle,
+ 
+         sm_group      = m0_be_domain_sm_group(ks_dom);
+ 
+-        /** Get previous and current pointers. */
++        /* Get previous and current pointers */
+         __ks_get_prev(ks_list_descr, current, &link_prev);
+         __ks_get_current(ks_list_descr, current, &link_curr);
+ 
+-        /** Get next pointer only if operation is BE_KV_DELETE. */
++        /* Get next pointer only if operation is BE_KV_DELETE */
+         if (operation == BE_KV_DELETE)
+                 __ks_get_next(ks_list_descr, current, &link_next);
+ 
+@@ -689,16 +688,16 @@ static void __ks_prev_next_add_cred(struct m0_be_kv_store *handle,
+         m0_be_ks_prep_link_reg(ks_dom, link_prev, tx, &prev_reg);
+         M0_ASSERT(prev_reg != NULL);
+ 
+-        /**
+-          Capture next region only if operation is delete, for insert
+-          only current and prev regions need to be captured.
++        /*
++         * Capture next region only if operation is delete, for insert
++         * only current and prev regions need to be captured
+          */
+         if (operation == BE_KV_DELETE) {
+                 m0_be_ks_prep_link_reg(ks_dom, link_next, tx, &next_reg);
+                 M0_ASSERT(next_reg != NULL);
+         }
+ 
+-        /** Capture the regions. */
++        /* Capture the regions */
+         if (in_tx_state == BE_KV_IN_TX_NULL) {
+                 m0_be_tx_add_cred(tx, prev_reg);
+                 m0_be_tx_add_cred(tx, curr_reg);
+@@ -708,16 +707,19 @@ static void __ks_prev_next_add_cred(struct m0_be_kv_store *handle,
+                 m0_be_reg_capture(prev_reg);
+                 m0_be_wait(sm_group, &prev_reg->br_sm,
+                            M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
++                m0_free(prev_reg);
+ 
+                 if (operation == BE_KV_DELETE) {
+                         m0_be_reg_capture(next_reg);
+                         m0_be_wait(sm_group, &next_reg->br_sm,
+                                    M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
++                        m0_free(next_reg);
+                 }
+ 
+                 m0_be_reg_capture(curr_reg);
+                 m0_be_wait(sm_group, &curr_reg->br_sm,
+                            M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
++                m0_free(curr_reg);
+        }
+ }
+ 
+diff --git a/be/ut/be_tlist.c b/be/ut/be_tlist.c
+index d611f09..85db5d6 100644
+--- a/be/ut/be_tlist.c
++++ b/be/ut/be_tlist.c
+@@ -81,7 +81,7 @@ void alloc_memory_tlist_rvm()
+         m0_be_wait(m0_be_domain_sm_group(tx->bt_dom), &tx->bt_sm,
+                    M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+ 
+-        /** Prepare a region for the rvm_handle. */
++        /* Prepare a region for the tlist */
+         buf.b_nob = sizeof(struct m0_be_tl);
+         m0_be_reg_init(reg, tx, seg, &buf);
+ 
+@@ -135,11 +135,11 @@ static int ts_be_tlist_init(void)
+         rc = system(cmd);
+         M0_ASSERT(rc == 0);
+ 
+-        /** Initializing domain and segment. */
++        /* Initializing domain and segment */
+         m0_be_domain_init(&dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
+         dom.bd_data.bs_sm.sm_state = M0_BESEG_ACTIVE;
+ 
+-        /** Create and Open Segment. */
++        /* Create and Open Segment */
+         sm_group = m0_be_domain_sm_group(&dom);
+         ret_dom = m0_be_domain_lookup(&dom, "first", &seg);
+ 
+@@ -162,7 +162,7 @@ static int ts_be_tlist_init(void)
+         alloc_memory_tlist_rvm();
+         m0_be_tlist_init(&list_descr, tlist);
+ 
+-        /** Update segment id & offset in head & tail. */
++        /* Update segment id & offset in head & tail */
+         head = &(tlist->t_head.l_head);
+         tail = &(tlist->t_head.l_tail);
+ 
+@@ -191,7 +191,7 @@ void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+         M0_ALLOC_PTR(reg);
+         M0_ASSERT(reg != NULL);
+ 
+-        /** Initialise and start transaction */
++        /* Initialise and start transaction */
+         m0_be_tx_init(&tx, &dom, 0);
+         m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+         m0_sm_timedwait(&tx.bt_sm,
+@@ -206,11 +206,11 @@ void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+ 
+-        /** Initialise a region for this object. */
++        /* Initialise a region for this object */
+         m0_be_buf_init(&buf, NULL, sizeof(struct foo), 0, 0, 0);
+         m0_be_reg_init(reg, &tx, seg, &buf);
+ 
+-        /** Allocate memory on RVM. */
++        /* Allocate memory on RVM */
+         m0_be_alloc(reg);
+         m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+         m0_sm_timedwait(&reg->br_sm,
+@@ -218,7 +218,7 @@ void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+ 
+-        /** Capture this region. */
++        /* Capture this region */
+         m0_be_reg_capture(reg);
+         m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+         m0_sm_timedwait(&reg->br_sm,
+@@ -227,7 +227,7 @@ void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+         m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+ 
+ 
+-        /** Point the memory to the object from @reg->br_buf. */
++        /* Point the memory to the object from @reg->br_buf */
+         *new_obj = (struct foo *)reg->br_buf.b_addr;
+         if (*new_obj == NULL) {
+                 return;
+@@ -236,7 +236,7 @@ void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+         (*new_obj)->key   = incoming_key;
+         (*new_obj)->value = incoming_value;
+ 
+-        /** Insert in tlist. */
++        /* Insert in tlist */
+         add_to_tlist(*new_obj, &reg->br_buf.b_logical_address);
+ 
+         m0_be_tx_done(&tx);
+@@ -252,15 +252,15 @@ void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+ 
+ void test_move_del_be_tlist()
+ {
+-        /** Move @test3 to head. */
++        /* Move @test3 to head */
+         m0_be_tlist_move(&list_descr, tlist, test3);
+ 
+-        /** Move @test4 to tail. */
++        /* Move @test4 to tail */
+         m0_be_tlist_move_tail(&list_descr, tlist, test4);
+ 
+         M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 4);
+ 
+-        /** Try and delete some node. Here @test1. */
++        /* Try and delete some node. Here @test1 */
+         if (m0_be_tlink_is_in(&list_descr, test1)) {
+                 m0_be_tlink_del_fini(&list_descr, test1);
+         }
+diff --git a/be/ut/kv_store.c b/be/ut/kv_store.c
+index 975d7c1..2c082b3 100644
+--- a/be/ut/kv_store.c
++++ b/be/ut/kv_store.c
+@@ -45,7 +45,7 @@ struct m0_kv_store_obj {
+         uint64_t                magic;
+ };
+ 
+-struct m0_be_tl_descr list_descr = M0_BE_TL_DESCR("kv_store_obj",
++struct m0_be_tl_descr kv_list_descr = M0_BE_TL_DESCR("kv_store_obj",
+                                                   struct m0_kv_store_obj,
+                                                   linkage,
+                                                   magic,
+@@ -84,7 +84,7 @@ int function_match(void *in_obj, void *key)
+         return strcmp(obj->key, (char *)key);
+ }
+ 
+-static int ts_kv_store_init(void)
++static int ts_kv_store_init()
+ {
+         int rc;
+ 
+@@ -111,8 +111,8 @@ static int ts_kv_store_init(void)
+         m0_be_ks_init_domain(&kv_dom);
+         M0_ASSERT(kv_dom != NULL);
+ 
+-        m0_be_ks_init(&handle, &list_descr, kv_dom, cmp_routine, match_routine,
+-                      "create");
++        m0_be_ks_init(&handle, &kv_list_descr, kv_dom, cmp_routine,
++                      match_routine, "create");
+         M0_ASSERT(handle != NULL);
+         return 0;
+ }
+@@ -153,16 +153,16 @@ static int insert(char *key_name, int val)
+         m0_be_wait(sm_group, &tx->bt_sm,
+                    M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+ 
+-        /** Prepare a region for the object. */
++        /* Prepare a region for the object */
+         M0_ALLOC_PTR(obj_reg);
+         M0_ASSERT(obj_reg != NULL);
+         obj_buf.b_nob = sizeof(struct m0_kv_store_obj);
+         m0_be_reg_init(obj_reg, tx, kv_seg, &obj_buf);
+ 
+-        /** As nothing in credit list, so can start tx directly. */
++        /* As nothing in credit list, so can start tx directly */
+         m0_be_ks_tx_start(tx);
+ 
+-        /** Memory alloc to the object via rvm. */
++        /* Memory alloc to the object via rvm */
+         object[val] = (struct m0_kv_store_obj *)m0_be_ks_obj_malloc(obj_reg,
+                                                                     &obj_ref);
+         if (object[val] == NULL) {
+@@ -171,11 +171,11 @@ static int insert(char *key_name, int val)
+         }
+         M0_ASSERT(obj_ref != NULL);
+ 
+-        /** Make changes to object. */
++        /* Make changes to object */
+         strncpy(object[val]->key, key_name, strlen(key_name));
+         object[val]->obj_val = val;
+ 
+-        /** Insert this into the kv_store. */
++        /* Insert this into the kv_store */
+         status = m0_be_ks_insert(handle, obj_ref, tx);
+         if (status == BE_KV_FAILURE || status == BE_KV_OUT_OF_DOMAIN ||
+             status == BE_KV_DUPLICATE)
+@@ -188,6 +188,7 @@ static int insert(char *key_name, int val)
+         m0_be_tx_fini(tx);
+ 
+         m0_free(tx);
++        m0_free(obj_reg);
+ 
+ exit:
+         return status;
+@@ -217,7 +218,7 @@ static int delete(struct m0_kv_store_obj *target)
+         m0_be_wait(sm_group, &tx->bt_sm,
+                    M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+ 
+-        /** Prepare a region for this object. */
++        /* Prepare a region for this object */
+         M0_ALLOC_PTR(obj_reg);
+         M0_ASSERT(obj_reg != NULL);
+         obj_buf.b_nob = sizeof(struct m0_kv_store_obj);
+@@ -230,7 +231,7 @@ static int delete(struct m0_kv_store_obj *target)
+         m0_be_ks_tx_prep(tx);
+         m0_be_ks_tx_start(tx);
+ 
+-        /** Delete this obj from kv store. */
++        /* Delete this obj from kv store */
+         ret_val = m0_be_ks_delete(handle, (void *)target, tx);
+ 
+         if (ret_val != BE_KV_FAILURE) {
+@@ -243,10 +244,12 @@ static int delete(struct m0_kv_store_obj *target)
+ 
+         m0_be_tx_fini(tx);
+         m0_free(tx);
++        m0_free(obj_reg);
+         return ret_val;
+ }
+ 
+-void test_kv_store() {
++void test_kv_store()
++{
+         int     status = -2;
+         int     i      =  0;
+         int     count  =  0;
+@@ -254,9 +257,9 @@ void test_kv_store() {
+         size_t  length =  0;
+         char    obj_name[MAX_KEY_SIZE]   = "a";
+ 
+-        /**
+-          Lookup for the kv_store segment to be used for allocations while
+-          insertion.
++        /*
++         * Lookup for the kv_store segment to be used for allocations while
++         * insertion
+          */
+         sm_group = m0_be_domain_sm_group(kv_dom);
+ 
+@@ -266,7 +269,7 @@ void test_kv_store() {
+ 
+         strcat(obj_name, "b");
+ 
+-        /** Insert objects. */
++        /* Insert objects */
+         for(i = 0; i < 10; i++) {
+                 status = insert(obj_name, i);
+                 M0_ASSERT(status != BE_KV_FAILURE);
+@@ -278,11 +281,12 @@ void test_kv_store() {
+                 else
+                         strcpy(obj_name, "akv");
+         }
+-        length = m0_be_tlist_length(&list_descr,
++
++        length = m0_be_tlist_length(&kv_list_descr,
+                                     &handle->handle_rvm->ks_tlist);
+         M0_ASSERT(length == 10);
+ 
+-        /** Find the inserted objects. */
++        /* Find the inserted objects */
+         count = 0;
+         strcpy(obj_name, "a");
+         strcat(obj_name, "b");
+@@ -296,14 +300,13 @@ void test_kv_store() {
+                 else
+                         strcpy(obj_name, "akv");
+         }
+-
+-
+-        /** Delete'em. */
++        
++        /* Delete'em */
+         for(i =0; i < 10; i++) {
+                 status = delete(ret_obj[i]);
+                 M0_ASSERT(status == BE_KV_SUCCESS);
+         }
+-        length = m0_be_tlist_length(&list_descr,
++        length = m0_be_tlist_length(&kv_list_descr,
+                                     &handle->handle_rvm->ks_tlist);
+ 
+         M0_ASSERT(length == 0);
+-- 
+1.8.3.2
+

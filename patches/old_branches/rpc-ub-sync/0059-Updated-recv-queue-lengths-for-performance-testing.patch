@@ -1,0 +1,145 @@
+From c0eb48d8822af058eff420adea27deb4e285f078 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 26 Mar 2013 10:44:25 +0200
+Subject: [PATCH 59/63] Updated recv queue lengths for performance testing.
+
+	- Sorted Send/Recv work-items in network emulation w.r.t.
+	  suppress -ENOBUFS.
+---
+ net/bulk_emulation/mem_xprt_msg.c |  7 +++++++
+ net/bulk_emulation/mem_xprt_tm.c  | 28 ++++++++++++++++++++++++++++
+ rpc/ub/ub.c                       | 10 ++++++----
+ 3 files changed, 41 insertions(+), 4 deletions(-)
+
+diff --git a/net/bulk_emulation/mem_xprt_msg.c b/net/bulk_emulation/mem_xprt_msg.c
+index ae82b38..d59496e 100644
+--- a/net/bulk_emulation/mem_xprt_msg.c
++++ b/net/bulk_emulation/mem_xprt_msg.c
+@@ -26,6 +26,9 @@
+    @{
+  */
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
++#include "lib/trace.h"
++
+ static void mem_wf_msg_recv_cb(struct m0_net_transfer_mc *tm,
+ 			       struct m0_net_bulk_mem_work_item *wi)
+ {
+@@ -204,6 +207,10 @@ static void mem_wf_msg_send(struct m0_net_transfer_mc *tm,
+ 			}
+ 		} m0_tl_endfor;
+ 		if (!found_dest_nb) {
++			M0_LOG(M0_FATAL, "mem_buf_count: %zu", m0_tlist_length
++			       (&m0_net_tm_tl,
++				&dest_tm->ntm_q[M0_NET_QT_MSG_RECV]));
++
+ 			dest_tm->ntm_qstats[M0_NET_QT_MSG_RECV].nqs_num_f_events
+ 				++;
+ 			rc = -ENOBUFS;
+diff --git a/net/bulk_emulation/mem_xprt_tm.c b/net/bulk_emulation/mem_xprt_tm.c
+index 4ebb25c..561f0b0 100644
+--- a/net/bulk_emulation/mem_xprt_tm.c
++++ b/net/bulk_emulation/mem_xprt_tm.c
+@@ -26,6 +26,9 @@
+    @{
+  */
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
++#include "lib/trace.h"
++
+ /**
+    Work function for the M0_NET_XOP_STATE_CHANGE work item.
+    @param tm the corresponding transfer machine
+@@ -176,6 +179,13 @@ enum {
+    time the function returns, causing the thread to exit.
+    @param tm Transfer machine pointer
+  */
++
++enum m0_net_bulk_mem_work_opcode wi_op(struct m0_list_link *li)
++{
++	return m0_list_entry(li, struct m0_net_bulk_mem_work_item,
++			     xwi_link)->xwi_op;
++}
++
+ static void mem_xo_tm_worker(struct m0_net_transfer_mc *tm)
+ {
+ 	struct m0_net_bulk_mem_tm_pvt *tp;
+@@ -192,14 +202,32 @@ static void mem_xo_tm_worker(struct m0_net_transfer_mc *tm)
+ 	dp = mem_dom_to_pvt(tm->ntm_dom);
+ 
+ 	while (1) {
++		M0_LOG(M0_FATAL, "====");
+ 		while (!m0_list_is_empty(&tp->xtm_work_list)) {
+ 			link = m0_list_first(&tp->xtm_work_list);
+ 			wi = m0_list_entry(link,
+ 					   struct m0_net_bulk_mem_work_item,
+ 					   xwi_link);
++
++			/* XXX */
++			if (wi->xwi_op == M0_NET_XOP_MSG_SEND) {
++				bool all;
++				all = m0_list_forall
++					(li, &tp->xtm_work_list,
++					 wi_op(li) == M0_NET_XOP_MSG_SEND);
++
++				if (!all) {
++					m0_list_move_tail(&tp->xtm_work_list,
++							  &wi->xwi_link);
++					continue;
++				}
++			}
++			/* XXX */
++
+ 			m0_list_del(&wi->xwi_link);
+ 			fn = dp->xd_ops->bmo_work_fn[wi->xwi_op];
+ 			M0_ASSERT(fn != NULL);
++			M0_LOG(M0_FATAL, "wi->xwi_op: %u", wi->xwi_op);
+ 
+ 			tp->xtm_callback_counter++;
+ 			if (wi->xwi_op == M0_NET_XOP_STATE_CHANGE) {
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index cc770f3..b324356 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -139,7 +139,7 @@ enum {
+ 	MAX_RPCS_IN_FLIGHT = 1,  /* XXX CONFIGUREME */
+ 	CONNECT_TIMEOUT    = 50,
+ 	MAX_RETRIES        = 500,
+-	MIN_RECV_QUEUE_LEN = 200
++	MIN_RECV_QUEUE_LEN = 400
+ };
+ 
+ /* #define UB_USE_LNET_XPORT */
+@@ -166,9 +166,10 @@ static struct ub_rpc_client *g_clients;
+ 
+ #define NAME(ext) "rpc-ub" ext
+ static char *g_argv[] = {
+-	NAME(""), "-Q", "200" /* MIN_RECV_QUEUE_LEN */, "-w", "10",
++	NAME(""), "-w", "10",
+ 	"-r", "-p", "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
+-	"-A", NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1"
++	"-A", NAME(".addb-stob"), "-e", SERVER_ENDPOINT, "-s", "ds1",
++	"-q", "200"
+ };
+ 
+ static struct m0_rpc_server_ctx g_sctx = {
+@@ -210,7 +211,7 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
+ 	client->rc_ctx.rcx_remote_addr           = SERVER_ENDPOINT_ADDR;
+ 	client->rc_ctx.rcx_timeout_s             = CONNECT_TIMEOUT;
+ 	client->rc_ctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
+-	client->rc_ctx.rcx_recv_queue_min_length = MIN_RECV_QUEUE_LEN;
++	client->rc_ctx.rcx_recv_queue_min_length = 5; //MIN_RECV_QUEUE_LEN;
+ 
+ 	rc = m0_rpc_client_start(&client->rc_ctx);
+ 	if (rc != 0)
+@@ -312,6 +313,7 @@ static void fop_send(struct m0_rpc_session *session, size_t msg_id)
+ 	req->uq_seqn = msg_id;
+ 	M0_ALLOC_ARR(data, g_args.a_msg_len);
+ 	M0_UB_ASSERT(data != NULL);
++	memset(data, 0, g_args.a_msg_len);
+ 	/* `data' will be freed by rpc layer (see m0_fop_fini()) */
+ 	m0_buf_init(&req->uq_data, data, g_args.a_msg_len);
+ 
+-- 
+1.8.3.2
+

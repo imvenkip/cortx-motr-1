@@ -1,0 +1,43 @@
+From a2d589686ea02492a3b77e2deaa3dc43a2731b81 Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Fri, 26 Jul 2013 03:03:56 -0700
+Subject: [PATCH 10/10] lib:hash - Fixed a typo.
+
+---
+ m0t1fs/linux_kernel/file.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 51c8bf7f..3c18025 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -40,7 +40,7 @@
+ #include "mero/magic.h"  /* M0_T1FS_IOREQ_MAGIC */
+ #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
+ #include "rm/file.h"
+-#include "lib/hash.h"	    /* m0_hashlist */
++#include "lib/hash.h"	    /* m0_htable */
+ 
+ #include "m0t1fs/linux_kernel/file_internal.h"
+ 
+@@ -3098,7 +3098,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
+ 
+ 	csb = file_to_sb(req->ir_file);
+ 	start = m0_time_now();
+-	m0_hashlist_for(tioreq_hash, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
++	m0_htable_for(tioreqht, ti, &req->ir_nwxfer.nxr_tioreqs_hash) {
+ 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
+ 				ti->ti_fid.f_container, &state);
+ 		if (rc != 0)
+@@ -3156,7 +3156,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
+ 		 */
+ 
+ 		m0_htable_for(tioreqht, ti,
+-			     &req->ir_nwxfer.nxr_tioreqs_hash) {
++			      &req->ir_nwxfer.nxr_tioreqs_hash) {
+ 			ti->ti_ivec.iv_vec.v_nr = 0;
+ 		} m0_htable_endfor;
+ 	}
+-- 
+1.8.3.2
+

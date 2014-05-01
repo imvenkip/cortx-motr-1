@@ -1,0 +1,96 @@
+From 04f43fa75fec4398d3b05e13cad86e40a041311c Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 27 Aug 2012 15:23:58 +0300
+Subject: [PATCH 299/311] conf: remove anonymous struct around the magic fields
+
+c2_conf_obj: Use co_magic_{gen,con} fields instead of anonymous structure
+co_magic with {gen,con} fields.
+
+(Change copied from commit aae8bc0, which belongs `conf_obj' branch.)
+
+LogD #839
+RB: r/981/diff/1-2/?file=27287#file27287line224
+---
+ conf/obj.h | 41 +++++++++++++++++++----------------------
+ conf/reg.c |  2 +-
+ doc/magix  |  2 +-
+ 3 files changed, 21 insertions(+), 24 deletions(-)
+
+diff --git a/conf/obj.h b/conf/obj.h
+index faa887c..7533068 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -216,28 +216,25 @@ struct c2_conf_obj {
+ 	 * NULL at confd side.
+ 	 */
+ 	struct c2_confc              *co_confc;
+-	/** Magic values. */
+-	struct {
+-		/**
+-		 * Generic magic.
+-		 *
+-		 * All configuration objects have the same value of
+-		 * ->co_magic.generic.
+-		 *
+-		 * This magic is used for list operations.
+-		 */
+-		uint64_t generic;
+-		/**
+-		 * Concrete magic.
+-		 *
+-		 * Different concrete object types have different
+-		 * values of ->co_magic.concrete.
+-		 *
+-		 * This magic is used for generic-to-concrete casting
+-		 * (see C2_CONF_CAST()).
+-		 */
+-		uint64_t concrete;
+-	}                             co_magic;
++	/**
++	 * Generic magic.
++	 *
++	 * All configuration objects have the same value of
++	 * ->co_magic_gen.
++	 *
++	 * This magic value is used for list operations.
++	 */
++	uint64_t                      co_magic_gen;
++	/**
++	 * Concrete magic.
++	 *
++	 * Different concrete object types have different values of
++	 * ->co_magic_con.
++	 *
++	 * This magic value is used for generic-to-concrete casting
++	 * (see C2_CONF_CAST()).
++	 */
++	uint64_t                      co_magic_con;
+ };
+ 
+ /**
+diff --git a/conf/reg.c b/conf/reg.c
+index 21cdb44..49cc364 100644
+--- a/conf/reg.c
++++ b/conf/reg.c
+@@ -42,7 +42,7 @@
+ enum { REG_MAGIC = 0x33fab1edfe0da177 };
+ 
+ C2_TL_DESCR_DEFINE(reg, "registered c2_conf_obj-s", static, struct c2_conf_obj,
+-		   co_reg_link, co_magic.generic, C2_CONF_OBJ_MAGIC, REG_MAGIC);
++		   co_reg_link, co_magic_gen, C2_CONF_OBJ_MAGIC, REG_MAGIC);
+ C2_TL_DEFINE(reg, static, struct c2_conf_obj);
+ 
+ void c2_conf_reg_init(struct c2_conf_reg *reg)
+diff --git a/doc/magix b/doc/magix
+index 4904f5f..4edfba7 100755
+--- a/doc/magix
++++ b/doc/magix
+@@ -39,4 +39,4 @@ c2_long_lock         l_magix                 0b055b1e55edba55 boss blessed bass
+ c2_fom_thread        lt_magix                fa151f1ab1ec0b01 falsifiable COBOL
+ thr_tl               td_head_magic           dec1a551f1edcade declassified cade
+ c2_conf_reg          r_magic                 33fab1edfe0da177 fabled feodal
+-c2_conf_obj          co_magic.generic        335e1f1e55ce1177 selfless cell
++c2_conf_obj          co_magic_gen            335e1f1e55ce1177 selfless cell
+-- 
+1.8.3.2
+

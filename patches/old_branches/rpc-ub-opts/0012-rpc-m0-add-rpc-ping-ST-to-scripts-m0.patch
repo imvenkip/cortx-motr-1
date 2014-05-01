@@ -1,0 +1,101 @@
+From cd93098c2aca9397d8e5c14bfb0f6e4b59a21c23 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 10 Mar 2013 23:22:42 +0200
+Subject: [PATCH 12/24] rpc, m0: add rpc ping ST to scripts/m0
+
+rpc/it/st: new file (Expect script).
+---
+ rpc/it/Makefile.sub |  3 ++-
+ rpc/it/st           | 31 +++++++++++++++++++++++++++++++
+ scripts/m0          | 15 ++++++++++++++-
+ 3 files changed, 47 insertions(+), 2 deletions(-)
+ create mode 100755 rpc/it/st
+
+diff --git a/rpc/it/Makefile.sub b/rpc/it/Makefile.sub
+index 54b2168..d671ffd 100644
+--- a/rpc/it/Makefile.sub
++++ b/rpc/it/Makefile.sub
+@@ -12,7 +12,8 @@ EXTRA_DIST += rpc/it/linux_kernel/rpc_ping.h \
+               rpc/it/linux_kernel/rpcload.sh \
+               rpc/it/linux_kernel/load.sh \
+               rpc/it/linux_kernel/unload.sh \
+-              rpc/it/linux_kernel/m0mero.symvers
++              rpc/it/linux_kernel/m0mero.symvers \
++              rpc/it/st
+ 
+ CLEANFILES += rpc/it/ping_fop_xc.h \
+               rpc/it/ping_fop_xc.c \
+diff --git a/rpc/it/st b/rpc/it/st
+new file mode 100755
+index 0000000..fe51351
+--- /dev/null
++++ b/rpc/it/st
+@@ -0,0 +1,31 @@
++#!/usr/bin/env expect
++### ------------------------------------------------------------------
++### System test for `m0rpcping'.
++###
++### Assumes that `m0mero' kernel module is already inserted.
++### ------------------------------------------------------------------
++
++set prog [file join [file dirname $argv0] m0rpcping]
++
++spawn sudo $prog -s -v
++set server $spawn_id
++expect {to terminate} {}
++
++spawn sudo $prog -t300 -n2 -l100 -v
++set client $spawn_id
++expect -i $client -re {^Time:.*sec\n} {
++    expect -i $client eof {}
++}
++
++send -i $server "\n"
++expect -i $server {Server DS2 statS} {
++    expect -i $server {FATAL} {
++	wait -i $server
++	send_error "*ERROR* $argv0: m0rpcping server has failed\n"
++	exit 1
++    } eof {}
++}
++
++# Local Variables:
++# mode: tcl
++# End:
+diff --git a/scripts/m0 b/scripts/m0
+index 2242665..393ed30 100755
+--- a/scripts/m0
++++ b/scripts/m0
+@@ -10,7 +10,9 @@ set -e
+ ### Type `m0 help' for usage.
+ ### --------------------------------------------------------------------
+ 
+-RUNDIR=${RUNDIR:-$HOME/XXX}  # CAUTION! This directory will be removed by superuser.
++## CAUTION! This directory will be removed by superuser.
++RUNDIR=${RUNDIR:-$HOME/XXX}
++
+ PROG="${0##*/}"
+ SRC="$(readlink -f $0)"
+ SRC="${SRC%/*/*}"
+@@ -45,7 +47,18 @@ run_kut() {
+ 
+ run_st() {
+     _reset
++
++    ## rpc ping
++    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" insmod
++    local rc=0
++    "$SRC/rpc/it/st" || rc=$?
++    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" rmmod
++    [ $rc -eq 0 ] || exit $rc
++
++    ## conf ST
+     $SUDO SANDBOX_DIR=${RUNDIR}/_m0-sandbox "$SRC/m0t1fs/linux_kernel/st/st"
++
++    ## other ST
+     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
+ }
+ 
+-- 
+1.8.3.2
+

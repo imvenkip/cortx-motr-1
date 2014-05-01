@@ -1,0 +1,31 @@
+From 4eb052d5b2679c019e979616ec31e9e219175f0b Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 21 Aug 2013 15:12:00 +0300
+Subject: [PATCH 23/34] db: m0_be_close_sync() is void now
+
+---
+ db/db.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/db/db.c b/db/db.c
+index 092e313..131583a 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -202,12 +202,11 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
+ 
+ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx_)
+ {
+-	int rc;
+ 	struct m0_be_tx *tx = tx_->dt_i.dt_txn;
+-        rc = m0_be_tx_close_sync(tx);
++	m0_be_tx_close_sync(tx);
+         m0_be_tx_fini(tx);
+ 	m0_free(tx);
+-	return rc;
++	return 0;
+ }
+ 
+ M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)
+-- 
+1.8.3.2
+

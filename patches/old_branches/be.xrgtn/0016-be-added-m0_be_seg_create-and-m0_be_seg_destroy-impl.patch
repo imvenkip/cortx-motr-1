@@ -1,0 +1,82 @@
+From bb30caff1fd474bf42e7b6b53d969b1fdbb4e278 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 29 May 2013 12:32:12 +0300
+Subject: [PATCH 016/228] be: added m0_be_seg_create() and m0_be_seg_destroy()
+ implementation
+
+---
+ be/seg.c | 58 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 58 insertions(+)
+
+diff --git a/be/seg.c b/be/seg.c
+index e6fd384..0b50d4b 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -25,6 +25,64 @@
+  * @{
+  */
+ 
++#include "be/seg.h"
++#include "stob/stob.h"
++#include "stob/linux.h"
++#include "stob/linux_internal.h"
++
++static void seg_header_prepare(struct m0_be_seg *seg, struct m0_stob_io *io)
++{
++	/** fill segment header */
++	/** fill stob ovec: offset and size */
++	/** fill stob ivec: size and addr */
++}
++
++static int seg_header_write(struct m0_be_seg *seg)
++{
++	int		   result;
++	struct m0_stob_io  io;
++	struct m0_clink    clink;
++
++	m0_stob_io_init(&io);
++
++	seg_header_prepare(seg, &io);
++
++	m0_clink_init(&clink, NULL);
++	m0_clink_add(&io.si_wait, &clink);
++
++	result = m0_stob_io_launch(&io, seg->bs_stob, NULL, NULL);
++	M0_UT_ASSERT(result == 0);
++
++	m0_chan_wait(&clink);
++	m0_clink_del(&clink);
++	m0_clink_fini(&clink);
++	m0_stob_io_fini(&io);
++
++	return io.si_rc;
++}
++
++int m0_be_seg_create(struct m0_be_seg *seg)
++{
++	int		   result;
++
++	M0_PRE(seg->bs_stob->so_domain != NULL);
++	M0_PRE(seg->bs_stob->so_state != CSS_EXISTS);
++
++	result = m0_stob_create(&seg->bs_stob, NULL);
++
++	if (result != 0)
++		return result;
++
++	return stobio_write(seg);
++}
++
++
++
++int m0_be_seg_destroy(struct m0_be_seg *seg);
++{
++	m0_stob_put(seg->bs_stob);
++	//stob destroy ...
++}
+ 
+ 
+ /** @} end of XXX group */
+-- 
+1.8.3.2
+

@@ -1,0 +1,69 @@
+From 65879baa02a762d22b383cd7a42943fa705b2290 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 27 Dec 2013 18:53:53 +0800
+Subject: [PATCH 10/11] calculate credit once. capture list modification: save
+ prev & next temporarily before list operation, and capture them after list
+ operation.
+
+---
+ pool/pool_store.c | 30 +++++++++++++++++-------------
+ 1 file changed, 17 insertions(+), 13 deletions(-)
+
+diff --git a/pool/pool_store.c b/pool/pool_store.c
+index d844362..d0016fc 100644
+--- a/pool/pool_store.c
++++ b/pool/pool_store.c
+@@ -275,6 +275,8 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
+ 	struct m0_pool_spare_usage *spare_usage_array;
+ 	const char                 *poolmach_name = "poolmach_state";
+ 	struct m0_pool_event_link  *scan;
++	struct m0_list_link        *prev;
++	struct m0_list_link        *next;
+ 	int                         rc;
+ 
+ 	M0_PRE(pm->pm_is_initialised);
+@@ -289,26 +291,28 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
+ 	if (rc != 0)
+ 		goto out;
+ 
++	M0_BE_FREE_CREDIT_PTR(scan, pm->pm_be_seg, &cred);
++	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(*scan));
++	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
++	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
++
++
+ 	m0_tl_for(poolmach_events, &state->pst_events_list, scan) {
+-		M0_SET0(&cred);
++		/* save prev & next in temprary variables. */
++		prev = scan->pel_linkage.t_link.ll_prev;
++		next = scan->pel_linkage.t_link.ll_next;
++
+ 		m0_be_tx_init(tx, 0, be_seg->bs_domain, sm_grp,
+ 			      NULL, NULL, NULL, NULL);
+-		M0_BE_FREE_CREDIT_PTR(scan, pm->pm_be_seg, &cred);
+-		m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(*scan));
+-		m0_be_tx_credit_add(&cred,
+-				    &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
+-		m0_be_tx_credit_add(&cred,
+-				    &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
+-
+ 		m0_be_tx_prep(tx, &cred);
+ 		rc = m0_be_tx_open_sync(tx);
+ 		M0_ASSERT(rc == 0);
+-		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, scan);
+-		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx,
+-				     scan->pel_linkage.t_link.ll_prev);
+-		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx,
+-				     scan->pel_linkage.t_link.ll_next);
++
+ 		poolmach_events_tlink_del_fini(scan);
++		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, scan);
++		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, prev);
++		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, next);
++
+ 		M0_BE_FREE_PTR_SYNC(scan, be_seg, tx);
+ 		m0_be_tx_close_sync(tx);
+ 		m0_be_tx_fini(tx);
+-- 
+1.8.3.2
+

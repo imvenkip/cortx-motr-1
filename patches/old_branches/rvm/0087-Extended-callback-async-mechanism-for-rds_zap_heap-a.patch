@@ -1,0 +1,1274 @@
+From 1886930c084c8cb393f1583dba9cd09b8b5740f6 Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Tue, 7 May 2013 00:26:29 -0700
+Subject: [PATCH 087/121] Extended callback async mechanism for rds_zap_heap
+ and rvm_create_segment
+
+---
+ be/handler.c              |   3 +-
+ be/seg.c                  | 114 +++++++++++----
+ be/seg.h                  |  13 +-
+ be/ut/be.c                |   5 +-
+ be/ut/handle_store.c      |   4 +-
+ rvm/rds.h                 |   7 +-
+ rvm/rds_private.h         |  15 +-
+ rvm/rds_start.c           |  14 +-
+ rvm/rds_zap.c             | 363 ++++++++++++++++++++++++++++++++++------------
+ rvm/rvm_createseg.c       | 293 ++++++++++++++++++++++++-------------
+ rvm/rvm_logrecovr.c       |   5 +-
+ rvm/rvm_releaseseg.c      |   1 -
+ rvm/rvm_segment.h         |  32 ++--
+ rvm/rvm_segment_private.h |   9 ++
+ rvm/ut/rvm.c              |  10 +-
+ utils/ut_main.c           |   2 +-
+ 16 files changed, 631 insertions(+), 259 deletions(-)
+
+diff --git a/be/handler.c b/be/handler.c
+index 0fe89d4..51bb460 100644
+--- a/be/handler.c
++++ b/be/handler.c
+@@ -104,7 +104,8 @@ M0_INTERNAL void m0_be_handler_thread(struct m0_be_handler_data *bh_data)
+                 handler_obj = m0_be_handler_dequeue_obj(sm_group, handlerq);
+                 while (handler_obj != NULL) {
+                         m0_be_op_run(handler_obj);
+-                        handler_obj = m0_be_handler_dequeue_obj(sm_group, handlerq);
++                        handler_obj = m0_be_handler_dequeue_obj(sm_group,
++                                                                handlerq);
+                 }
+         }
+ }
+diff --git a/be/seg.c b/be/seg.c
+index 781a4be..18171f9 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -39,8 +39,6 @@
+   @{
+ */
+ 
+-//extern struct m0_bob_type m0_be_seg_type_bob;
+-
+ M0_BOB_DEFINE(M0_INTERNAL, &m0_be_seg_type_bob, m0_be_seg);
+ 
+ static const struct m0_sm_state_descr m0_be_seg_states[] = {
+@@ -311,9 +309,12 @@ M0_INTERNAL void m0_be_seg_fail(struct m0_be_seg *seg)
+         M0_LEAVE();
+ }
+ 
++
++
++#if 0
+ static int be_rvm_rds_zap_heap(struct m0_be_seg *seg)
+ {
+-        char                     *start_Addr        = (char *)0xbebd000;
++        char                     *start_addr        = (char *)0xbebd000;
+         long                      rds_static_len    = 0;
+         long                      nlist             = RVM_NLIST;
+         long                      chunk_size        = RVM_CHUNK_SIZE;
+@@ -328,7 +329,7 @@ static int be_rvm_rds_zap_heap(struct m0_be_seg *seg)
+ 
+         result = rds_zap_heap(seg->bs_impl.path_name,
+                               RVM_LENGTH_TO_OFFSET(dev_length),
+-                              start_Addr,
++                              start_addr,
+                               rds_static_len,
+                               heap_length,
+                               nlist,
+@@ -338,6 +339,7 @@ static int be_rvm_rds_zap_heap(struct m0_be_seg *seg)
+ 
+         return result;
+ }
++#endif
+ 
+ /**
+  * The function calls rvm api's to create and open segment.
+@@ -351,13 +353,17 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_be_cbinfo *cbinfo, int status,
+         struct m0_stob_domain    *stob_dom;
+         struct linux_stob        *lstob;
+         struct linux_domain      *ldom;
++        char                     *start_addr        = (char *)0xbebd000;
+         bool                      stob_directio     = false;
++        unsigned long             dev_length        = RVM_SEGMENT_SIZE;
++        long                      nlist             = RVM_NLIST;
++        long                      chunk_size        = RVM_CHUNK_SIZE;
++        unsigned long             heap_length       = RVM_HEAP_SIZE;
++        enum m0_be_seg_state      seg_state         = 0;
++        long                      rds_static_len;
+         struct  m0_stob_id        stob_id;
+-        char                     *static_addr       = NULL;
+         int                       result;
+         int                       err;
+-        unsigned long             dev_length        = RVM_SEGMENT_SIZE;
+-        enum m0_be_seg_state      seg_state = 0;
+ 
+         M0_ASSERT(cbinfo != NULL);
+ 
+@@ -389,6 +395,7 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_be_cbinfo *cbinfo, int status,
+         if (result < 0) {
+                 M0_LOG(M0_ERROR, "Failed to creat stob in m0_be_seg_create_cb");
+                 seg_state = M0_BESEG_FAILED;
++                status    = -1;
+                 goto exit;
+         }
+ 
+@@ -403,41 +410,94 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_be_cbinfo *cbinfo, int status,
+                  seg->bs_stob->so_id.si_bits.u_lo);
+ 
+         seg->bs_rvm.seg_stob = seg->bs_stob;
+-        result = be_rvm_rds_zap_heap(seg);
+ 
+-        if (result < 0) {
+-                M0_LOG(M0_ERROR, "rds_zap_heap failed in m0_be_seg_create_cb");
+-                seg_state = M0_BESEG_FAILED;
+-                goto exit;
++        rds_static_len = RVM_ROUND_LENGTH_DOWN_TO_PAGE_SIZE(4096);
++        cbinfo->bc_cb  = m0_bs_create_rds_zap_cb;
++
++        rds_zap_heap(seg->bs_impl.path_name,
++		     RVM_LENGTH_TO_OFFSET(dev_length),
++		     start_addr,
++		     rds_static_len,
++		     heap_length,
++		     nlist,
++		     chunk_size,
++                     &err,
++		     &seg->bs_rvm,
++		     cbinfo);
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++           cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(bs_cbdata);
+         }
++}
+ 
+-        result = rds_load_heap(seg->bs_impl.path_name,
+-                               RVM_LENGTH_TO_OFFSET(dev_length),
+-                               &static_addr,
+-                               &err,
+-                               &seg->bs_rvm);
++M0_INTERNAL void m0_bs_create_rds_zap_cb(struct m0_be_cbinfo *cbinfo,
++                                         int status,
++                                         m0_be_msg_type_t msg_type)
++{
++        struct m0_be_seg_cbdata  *bs_cbdata;
++        struct m0_be_seg         *seg;
++        char                     *static_addr = NULL;
++        int                       err;
+ 
+-        if (result < 0) {
+-                M0_LOG(M0_ERROR, "rds_load_heap failed in m0_be_seg_create_cb");
++        if(status != 0)
+                 goto exit;
++
++        M0_ASSERT(cbinfo != NULL);
++
++        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
++        seg       = bs_cbdata->bsc_seg;
++
++        M0_ASSERT(seg != NULL);
++
++        cbinfo->bc_cb  = m0_bs_create_rds_load_cb;
++
++        status = rds_load_heap(seg->bs_impl.path_name,
++                      RVM_LENGTH_TO_OFFSET(RVM_SEGMENT_SIZE), &static_addr,
++                      &err, &seg->bs_rvm, cbinfo);
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++           cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		if(status != 0)
++			m0_free(bs_cbdata);
+         }
++	else {
++		m0_bs_create_rds_load_cb(cbinfo, status, M0_BE_SUCCESS);
++	}
++}
++
++M0_INTERNAL void m0_bs_create_rds_load_cb(struct m0_be_cbinfo *cbinfo,
++                                          int status,
++                                          m0_be_msg_type_t msg_type)
++{
++        struct m0_be_seg_cbdata  *bs_cbdata;
++        struct m0_be_seg         *seg;
++
++        if(status != 0)
++                goto exit;
++
++        M0_ASSERT(cbinfo != NULL);
++
++        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
++        seg       = bs_cbdata->bsc_seg;
++
++        M0_ASSERT(seg != NULL);
+ 
+         seg->bs_static_addr = (void *)(seg->bs_rvm.static_addr);
+         seg->bs_addr = (void *)m0_be_rvm_get_heapaddr(seg);
+         m0_be_seg_tlink_init(seg);
+         m0_be_seg_tlist_add(&seg->bs_dom->bd_seg, seg);
+ 
+-        seg_state = M0_BESEG_ACTIVE;
++        m0_be_sm_lock_state_change_helper(&seg->bs_sm, cbinfo->bc_sm_group,
++                                          M0_BESEG_ACTIVE);
+ exit:
+-
+         if(cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL)
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 
+-        m0_be_sm_lock_state_change_helper(&seg->bs_sm, cbinfo->bc_sm_group,
+-                                          seg_state);
+-
+         m0_free(bs_cbdata);
+-        M0_LEAVE("Seg = %p segment state = %d", seg, seg_state);
++        M0_LEAVE("Seg = %p segment state = %d", seg, seg->bs_sm.sm_state);
+ }
+ 
+ /**
+@@ -485,9 +545,7 @@ M0_INTERNAL void m0_be_seg_open_cb(struct m0_be_cbinfo *cbinfo, int status,
+         /* Load heap */
+         result = rds_load_heap(seg->bs_impl.path_name,
+                                RVM_LENGTH_TO_OFFSET(dev_length),
+-                               &static_addr,
+-                               &err,
+-                               &seg->bs_rvm);
++                               &static_addr, &err, &seg->bs_rvm, cbinfo);
+ 
+         if (result < 0) {
+                 M0_LOG(M0_ERROR, "rds_load_heap failed in m0_be_seg_open_cb");
+diff --git a/be/seg.h b/be/seg.h
+index 81f02ce..4a3dde0 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -57,11 +57,22 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_be_cbinfo *cbinfo, int status,
+                                      m0_be_msg_type_t msg_type);
+ 
+ /**
++ * Callback function for rds_zap_heap.
++ */
++M0_INTERNAL void m0_bs_create_rds_zap_cb(struct m0_be_cbinfo *cbinfo,
++                                         int status,
++                                         m0_be_msg_type_t msg_type);
++/**
++ * Callback function for rds_load_heap.
++ */
++M0_INTERNAL void m0_bs_create_rds_load_cb(struct m0_be_cbinfo *cbinfo,
++                                          int status,
++                                          m0_be_msg_type_t msg_type);
++/**
+  * Callback function to open segment.
+  */
+ M0_INTERNAL void m0_be_seg_open_cb(struct m0_be_cbinfo *cbinfo, int status,
+                                    m0_be_msg_type_t msg_type);
+-
+ /**
+  * This function returns state machine for the segment.
+  */
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 55f24ba..97e214c 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -41,6 +41,7 @@
+ #include "lib/trace.h"
+ 
+ #include "be/be.h"
++#include "be/be_init.h"
+ #include "be/domain.h"
+ #include "be/seg.h"
+ #include "be/tx.h"
+@@ -114,7 +115,9 @@ static int log_stob_create(void)
+         if (nbytes < 0)
+                 return -1;
+ 
+-        printf("log stob : %s\n", path_name);
++	if (BE_DEBUG)
++		printf("log stob : %s\n", path_name);
++
+         return 0;
+ }
+ 
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index 1f75101..2bbaece 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -107,7 +107,9 @@ static int log_stob_create(void)
+         if (nbytes < 0)
+                 return -1;
+ 
+-        printf("log stob : %s\n", path_name);
++	if (BE_DEBUG)
++		printf("log stob : %s\n", path_name);
++
+         return 0;
+ }
+ 
+diff --git a/rvm/rds.h b/rvm/rds.h
+index 9c31bb7..95062df 100644
+--- a/rvm/rds.h
++++ b/rvm/rds.h
+@@ -26,6 +26,7 @@ Coda are listed in the file CREDITS.
+ 
+ #include <stdio.h>
+ #include "rvm/rvm.h"
++#include "be/be.h"
+ 
+ /* Error codes */
+ 
+@@ -51,7 +52,8 @@ extern int rds_zap_heap(
+       unsigned long         nlists,
+       unsigned long         chunkSize,
+       int                   *err,
+-      rvm_seg_hdr_t         *seg_hdr
++      rvm_seg_hdr_t         *seg_hdr,
++      struct m0_be_cbinfo   *cbinfo
+      );
+ 
+ extern int rds_init_heap(
+@@ -73,7 +75,8 @@ extern int rds_load_heap(
+       rvm_offset_t          DevLength,
+       char                  **staticAddr,
+       int                   *err,
+-      rvm_seg_hdr_t         *seg_hdr
++      rvm_seg_hdr_t         *seg_hdr,
++      struct m0_be_cbinfo   *cbinfo
+     );
+ 
+ extern int rds_start_heap(
+diff --git a/rvm/rds_private.h b/rvm/rds_private.h
+index c270d20..e29e44d 100644
+--- a/rvm/rds_private.h
++++ b/rvm/rds_private.h
+@@ -141,7 +141,20 @@ struct heap_def {
+         RVM_MUTEX               heap_lock;
+ };
+ 
+-
++typedef struct rds_zap_heap_cbdata {
++	struct m0_be_cbinfo	 rzhc_cbinfo;
++	char 		    	*rzhc_dev_name;
++	char 		    	*rzhc_start_addr;
++	rvm_seg_hdr_t	    	*rzhc_seg_hdr;
++	rvm_tid_t	    	*rzhc_tid;
++	rvm_region_def_t    	*rzhc_loadregions;
++	rvm_offset_t 	     	rzhc_dev_length;
++	rvm_length_t 	     	rzhc_static_length;
++	rvm_length_t 	     	rzhc_heap_length;
++	unsigned long	     	rzhc_chunk_size;
++	unsigned long	     	rzhc_nlists;
++	unsigned long        	rzhc_n_loadregions;
++}rzh_cbdata_t;
+ 
+ #define HEAP_INIT(pheap)   		(pheap->RecoverableHeapStartAddress != 0)
+ #define RDS_VERSION_STAMP(pheap)	(pheap->RecoverableHeapStartAddress->version)
+diff --git a/rvm/rds_start.c b/rvm/rds_start.c
+index 474bf7f..6bc2702 100644
+--- a/rvm/rds_start.c
++++ b/rvm/rds_start.c
+@@ -47,13 +47,13 @@ Coda are listed in the file CREDITS.
+  * EFFECTIVELY idempotent since it will fail in rvm_load_segment without
+  * modifying any structures if it has already been called.
+  */
+-int
+-rds_load_heap(DevName, DevLength, static_addr, err, seg_hdr)
+-     char	  *DevName;
+-     rvm_offset_t DevLength;
+-     char	  **static_addr; /* Start of region holding statics */
+-     int	  *err;
+-     rvm_seg_hdr_t   *seg_hdr;
++int rds_load_heap(DevName, DevLength, static_addr, err, seg_hdr, cbinfo)
++     char	           *DevName;
++     rvm_offset_t          DevLength;
++     char	           **static_addr; /* Start of region holding statics */
++     int	           *err;
++     rvm_seg_hdr_t         *seg_hdr;
++     struct m0_be_cbinfo   *cbinfo;
+ {
+     rvm_return_t     rvmret;
+ 
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index 1702e60..a702411 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -19,107 +19,286 @@ Coda are listed in the file CREDITS.
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include "rvm/rds_private.h"
++#include "be/handler.h"
++#include "lib/memory.h"
++
++void rzh_rvm_truncate_cb1(cbinfo, status, msg_type)
++	struct m0_be_cbinfo   	*cbinfo;
++	int 			 status;
++	m0_be_msg_type_t 	 msg_type;
++{
++	rzh_cbdata_t 		*rzh_cbdata;
++
++	M0_ASSERT(cbinfo != NULL);
++
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++	M0_ASSERT(rzh_cbdata != NULL);
++
++	rvm_release_segment(rzh_cbdata->rzhc_n_loadregions,
++			    &rzh_cbdata->rzhc_loadregions,
++			    rzh_cbdata->rzhc_seg_hdr);
++
++	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
++
++	m0_free(rzh_cbdata);
++}
++
++void rzh_rvm_flush_cb(cbinfo, status, msg_type)
++	struct m0_be_cbinfo   	*cbinfo;
++	int 			 status;
++	m0_be_msg_type_t 	 msg_type;
++{
++	rzh_cbdata_t 	*rzh_cbdata;
++
++	if (status != 0)
++		goto exit;
++
++	/* Make sure the initialization has been committed to rvm data */
++	M0_ASSERT(cbinfo != NULL);
++
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++	M0_ASSERT(rzh_cbdata != NULL);
++
++	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_truncate_cb1;
++
++	status = rvm_truncate();
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rzh_cbdata);
++        }
++	rzh_rvm_truncate_cb1(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
++}
++
++void rzh_rvm_end_transaction_cb(cbinfo, status, msg_type)
++	struct m0_be_cbinfo   	*cbinfo;
++	int 			 status;
++	m0_be_msg_type_t 	 msg_type;
++{
++	rvm_tid_t 		*tid = NULL;
++	rzh_cbdata_t 		*rzh_cbdata;
++
++	if (status != 0)
++		goto exit;
++
++	M0_ASSERT(cbinfo != NULL);
++
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++	M0_ASSERT(rzh_cbdata != NULL);
++
++	tid = rzh_cbdata->rzhc_tid;
++
++	rvm_free_tid(tid);
++	status = rvm_flush();
++
++	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_flush_cb;
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rzh_cbdata);
++        }
++	rzh_rvm_flush_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
++}
++
++
++void rzh_rvm_load_seg_cb(cbinfo, status, msg_type)
++	struct m0_be_cbinfo   	*cbinfo;
++	int 			 status;
++	m0_be_msg_type_t 	 msg_type;
++{
++	rvm_tid_t 		*tid = NULL;
++	rzh_cbdata_t 		*rzh_cbdata;
++
++	if (status != 0)
++		goto exit;
++
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++	M0_ASSERT(rzh_cbdata != NULL);
++
++	/* Total sanity checks -- since we just created the segment */
++	if (rzh_cbdata->rzhc_n_loadregions != 2) {
++		status = EBAD_SEGMENT_HDR;
++		goto exit;
++	}
++
++	/* Start a transaction to initialize the heap */
++	rzh_cbdata->rzhc_tid = rvm_malloc_tid();
++	tid = rzh_cbdata->rzhc_tid;
++
++	status = (int)rvm_begin_transaction(tid, restore);
++	if (status != RVM_SUCCESS) {
++		rvm_free_tid(tid);
++		goto exit;
++	}
++
++	status = SUCCESS; 		/* Initialize the error value */
++	status = rds_init_heap(rzh_cbdata->rzhc_seg_hdr,
++			       rzh_cbdata->rzhc_start_addr,
++			       rzh_cbdata->rzhc_heap_length,
++			       rzh_cbdata->rzhc_chunk_size,
++			       rzh_cbdata->rzhc_nlists,
++			       tid,
++			       &status);
++
++	if (status != SUCCESS) {
++		rvm_abort_transaction(tid);
++		rvm_free_tid(tid);
++		goto exit;
++	}
++
++	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_end_transaction_cb;
++	status = rvm_end_transaction(tid, no_flush);
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rzh_cbdata);
++        }
++	rzh_rvm_end_transaction_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
++}
++
++void rzh_rvm_truncate_cb(cbinfo, status, msg_type)
++	struct m0_be_cbinfo   	*cbinfo;
++	int 			 status;
++	m0_be_msg_type_t 	 msg_type;
++{
++	rzh_cbdata_t 		*rzh_cbdata;
++
++	if (status != 0)
++		goto exit;
++
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++	M0_ASSERT(rzh_cbdata != NULL);
++
++	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_load_seg_cb;
++
++	/* Map in the appropriate structures by calling Rvm_Load_Segment. */
++	status = rvm_load_segment(rzh_cbdata->rzhc_dev_name,
++				  rzh_cbdata->rzhc_dev_length,
++			 	  NULL,
++				  &rzh_cbdata->rzhc_n_loadregions,
++			 	  &rzh_cbdata->rzhc_loadregions,
++				  rzh_cbdata->rzhc_seg_hdr);
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rzh_cbdata);
++        }
++	rzh_rvm_load_seg_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
++}
++
++void rzh_create_seg_cb(cbinfo, status, msg_type)
++	struct m0_be_cbinfo   	*cbinfo;
++	int 			 status;
++	m0_be_msg_type_t 	 msg_type;
++{
++	rzh_cbdata_t 		*rzh_cbdata;
++
++	if (status != 0)
++		goto exit;
++
++	M0_ASSERT(cbinfo != NULL);
++
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++
++	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_truncate_cb;
++
++	/* Force the writes from create to appear in the data segment. */
++	status = rvm_truncate();
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++           cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rzh_cbdata);
++        }
++	rzh_rvm_truncate_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
++}
+ 
+ /*
+  * Put the heap in the first, or lower address range, and the statics in the
+  * upper address range.
+  */
+-int
+-rds_zap_heap(DevName, DevLength, startAddr, staticLength, heapLength, nlists, chunkSize, err, seg_hdr)
+-     char 		*DevName;
+-     rvm_offset_t 	DevLength;
+-     char  		*startAddr;
+-     rvm_length_t 	staticLength;
+-     rvm_length_t	heapLength;
+-     unsigned long 	nlists;
+-     unsigned long 	chunkSize;
+-     int		*err;
+-     rvm_seg_hdr_t      *seg_hdr;
++int rds_zap_heap(dev_name, dev_length, start_addr, static_length, heap_length,
++		 nlists, chunk_size, err, seg_hdr, cbinfo)
++	char			*dev_name;
++	rvm_offset_t 	   	 dev_length;
++	char  		   	*start_addr;
++	rvm_length_t 	   	 static_length;
++	rvm_length_t	   	 heap_length;
++	unsigned long 	   	 nlists;
++	unsigned long 	   	 chunk_size;
++	int		   	*err;
++	rvm_seg_hdr_t         	*seg_hdr;
++	struct m0_be_cbinfo   	*cbinfo;
+ {
+-    rvm_region_def_t regions[2], *loadregions = NULL;
+-    rvm_tid_t *tid = NULL;
+-    unsigned long n_loadregions;
+-    rvm_return_t rvmret;
+-
+-    if(startAddr == NULL) {
+-        startAddr = rvm_get_vm_addr(heapLength + staticLength + RVM_SEGMENT_HDR_SIZE);
+-        assert(startAddr != NULL);
+-    }
+-
+-    /* Initialization of seg->bs_rvm */
+-    seg_hdr->n_loadregions = 2;
+-    rds_init(seg_hdr);
+-
+-    memset(regions, 0, 2 * sizeof(rvm_region_def_t));
+-    memset(seg_hdr->regions, 0, 2 * sizeof(rvm_region_def_t));
+-    seg_hdr->regions[0].length = regions[0].length = heapLength;
+-    seg_hdr->regions[0].vmaddr = regions[0].vmaddr = startAddr;
+-    seg_hdr->regions[1].length = regions[1].length = staticLength;
+-    seg_hdr->regions[1].vmaddr = regions[1].vmaddr = startAddr + heapLength;
+-    /* Create an air bubble at the end? */
+-    /* Determine the length of the segment, and create a region which makes the
+-     * rest of it air. */
+-
+-    /* Create the segments */
+-    rvmret = rvm_create_segment(DevName, DevLength, NULL, 2, regions, seg_hdr);
+-    if (rvmret != RVM_SUCCESS) {
+-	(*err) = (int) rvmret;
+-	return -1;
+-    }
+-
+-    /* Force the writes from create to appear in the data segment. */
+-    if ((rvmret = rvm_truncate()) != RVM_SUCCESS) {
+-	(*err) = (int) rvmret;
+-	return -1;
+-    }
+-
+-    /* Map in the appropriate structures by calling Rvm_Load_Segment. */
+-    rvmret = rvm_load_segment(DevName, DevLength, NULL, &n_loadregions, &loadregions, seg_hdr);
+-    if (rvmret != RVM_SUCCESS) {
+-	(*err) = (int) rvmret;
+-        return -1;
+-    }
+-
+-    /* Total sanity checks -- since we just created the segment */
+-    if (n_loadregions != 2) {
+-	*err = EBAD_SEGMENT_HDR;
+-        rvm_release_segment(n_loadregions, &loadregions, seg_hdr);
+-        return -1;
+-    }
+-
+-    /* Start a transaction to initialize the heap */
+-    tid = rvm_malloc_tid();
+-    rvmret = rvm_begin_transaction(tid, restore);
+-    if (rvmret != RVM_SUCCESS) {
+-	(*err) = (int) rvmret;
+-        rvm_free_tid(tid);
+-        rvm_release_segment(n_loadregions, &loadregions, seg_hdr);
+-        return -1;
+-    }
+-
+-    *err = SUCCESS; 		/* Initialize the error value */
+-    rds_init_heap(seg_hdr, startAddr, heapLength, chunkSize, nlists, tid, err);
+-    if (*err != SUCCESS) {
+-	rvm_abort_transaction(tid);
+-        rvm_free_tid(tid);
+-        rvm_release_segment(n_loadregions, &loadregions, seg_hdr);
+-        return -1;
+-    }
+-
+-    rvmret = rvm_end_transaction(tid, no_flush);
+-    if (rvmret != RVM_SUCCESS) {
+-	(*err) = (int) rvmret;
+-    }
+-
+-    rvm_free_tid(tid);
++	rzh_cbdata_t 		*rzh_cbdata;
++	struct m0_be_cbinfo 	*rzhc_cbinfo;
++	int			 status = 0;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
+ 
+-    /* Make sure the initialization has been committed to rvm data */
+-    rvm_flush();
+-    rvm_truncate();
++	if (status != 0)
++		goto exit;
++
++	if (start_addr == NULL) {
++		start_addr = rvm_get_vm_addr(heap_length + static_length +
++					     RVM_SEGMENT_HDR_SIZE);
++		assert(start_addr != NULL);
++	}
++
++	/* Initialization of seg->bs_rvm */
++	seg_hdr->n_loadregions = 2;
++	rds_init(seg_hdr);
++
++	memset(seg_hdr->regions, 0,
++	       seg_hdr->n_loadregions * sizeof(rvm_region_def_t));
++
++	seg_hdr->regions[0].length = heap_length;
++	seg_hdr->regions[0].vmaddr = start_addr;
++	seg_hdr->regions[1].length = static_length;
++	seg_hdr->regions[1].vmaddr = start_addr + heap_length;
++
++	M0_ALLOC_PTR(rzh_cbdata);
++	M0_ASSERT(rzh_cbdata != NULL);
++
++	rzh_cbdata->rzhc_dev_name 	= dev_name;
++	rzh_cbdata->rzhc_start_addr 	= start_addr;
++	rzh_cbdata->rzhc_seg_hdr 	= seg_hdr;
++	rzh_cbdata->rzhc_seg_hdr 	= seg_hdr;
++	rzh_cbdata->rzhc_dev_length 	= dev_length;
++	rzh_cbdata->rzhc_static_length 	= static_length;
++	rzh_cbdata->rzhc_heap_length 	= heap_length;
++	rzh_cbdata->rzhc_chunk_size 	= chunk_size;
++	rzh_cbdata->rzhc_nlists 	= nlists;
++
++	rzhc_cbinfo = &rzh_cbdata->rzhc_cbinfo;
++
++	rzhc_cbinfo->bc_pcbinfo 	= cbinfo;
++	rzhc_cbinfo->bc_cb 		= rzh_create_seg_cb;
++	rzhc_cbinfo->bc_sm_group 	= cbinfo->bc_sm_group;
++	rzhc_cbinfo->bc_hq 		= cbinfo->bc_hq;
++
++	/* Create the segments */
++	status = rvm_create_segment(dev_name,
++				    dev_length,
++				    NULL,
++				    seg_hdr->n_loadregions,
++				    seg_hdr->regions,
++				    seg_hdr,
++				    rzhc_cbinfo);
+ 
+-    rvm_release_segment(n_loadregions, &loadregions, seg_hdr);
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rzh_cbdata);
++        }
+ 
+-    return (*err == SUCCESS ? 0 : -1);
++	return 0;
+ }
+ 
+ int rds_done(rvm_seg_hdr_t *seg_hdr)
+diff --git a/rvm/rvm_createseg.c b/rvm/rvm_createseg.c
+index b0231c9..7d00fe9 100644
+--- a/rvm/rvm_createseg.c
++++ b/rvm/rvm_createseg.c
+@@ -1,4 +1,4 @@
+-/* BLURB lgpl
++/* BLURB lgp
+ 
+                            Coda File System
+                               Release 5
+@@ -24,127 +24,216 @@ Coda are listed in the file CREDITS.
+ #include "rvm/rvm_segment.h"
+ #include "rvm/rvm_segment_private.h"
+ 
+-/* rvm_create_segment erases the old contents of the recoverable
+- * segment, and write a new structure to it. The arguments specify the
+- * number of regions, and the form of each region in the new segment
+- * structure. It is important to realize that all information that
+- * used to exist in the segment will no longer be accessible.  */
++#include "be/be.h"
++#include "be/handler.h"
++#include "lib/memory.h"
+ 
+-rvm_return_t
+-rvm_create_segment(DevName, DevLength, options, nregions, regionDefs, seg_hdr)
+-     char 	    	*DevName;
+-     rvm_offset_t	DevLength;
+-     rvm_options_t  	*options;
+-     rvm_length_t	nregions;
+-     rvm_region_def_t   regionDefs[];
+-     rvm_seg_hdr_t      *seg_hdr;
++void rcs_rvm_end_transaction_cb(struct m0_be_cbinfo *cbinfo,
++		    		int status,
++		    		m0_be_msg_type_t msg_type)
+ {
+-    rvm_region_t *region = rvm_malloc_region();
+-    rvm_segment_hdr_t *hptr;
+-    rvm_offset_t offset;
+-    rvm_tid_t *tid;
+-    rvm_return_t err;
+-    int i;
++	rcs_cbdata_t 	*rcs_cbdata;
++	rvm_seg_hdr_t	*seg_hdr;
++	rvm_region_t	*region;
++	rvm_tid_t	*tid;
+ 
+-    /* Make sure the region definitions do not overlap. */
+-    if (overlap(nregions, regionDefs))
+-	return RVM_ERANGE;
+ 
+-    assert( nregions <= RVM_MAX_REGIONS );
++	rcs_cbdata = container_of(cbinfo, rcs_cbdata_t, rcsc_cbinfo);
++	M0_ASSERT(rcs_cbdata != NULL);
+ 
+-    /* Erase the old contents of the segment, including entries in the log */
++	seg_hdr = rcs_cbdata->rcsc_seg_hdr;
++	region  = rcs_cbdata->rcsc_region;
++	tid  	= rcs_cbdata->rcsc_tid;
+ 
+-    /* Map in the first RVM_SEGMENT_HDR_SIZE bytes of the segment */
+ 
+-    region->data_dev = DevName;
+-    region->dev_length = DevLength;
+-    RVM_ZERO_OFFSET(region->offset);
+-    region->length = RVM_SEGMENT_HDR_SIZE;
+-    region->vmaddr = 0;
++	rvm_free_tid(tid);
++	if (status != RVM_SUCCESS) {
++		rvm_free_region(region);
++		goto exit;
++	}
+ 
+-    /* allocate the address range for this region */
+-    err = allocate_vm(seg_hdr, &(region->vmaddr), region->length);
+-    if (err != RVM_SUCCESS) {
+-	rvm_free_region(region);
+-	return err;
+-    }
++	/* The segment should now be all set to go, clean up. */
++	status = rvm_unmap(seg_hdr, region);
++	if (status != RVM_SUCCESS) {
++		printf("create_segment unmap failed %s\n", rvm_return(status));
++		goto exit;
++	}
+ 
+-    err = rvm_map(seg_hdr, region, options);
+-    if (err != RVM_SUCCESS) {
+-	rvm_free_region(region);
+-	return err; 	/* Some error condition exists, return the error code */
+-    }
++	deallocate_vm(seg_hdr, region->vmaddr, region->length);
+ 
+-    tid = rvm_malloc_tid();
+-    err = rvm_begin_transaction(tid, restore);
+-    if (err != RVM_SUCCESS) {
+-	rvm_free_tid(tid);
+ 	rvm_free_region(region);
+-	return err;
+-    }
++exit:
++	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
+ 
+-    /* Set up the header region. This is always a fixed size. */
+-    hptr = (rvm_segment_hdr_t *) region->vmaddr;
++	m0_free(rcs_cbdata);
++}
+ 
+-    err = rvm_set_range(seg_hdr, tid, (char *)hptr, RVM_SEGMENT_HDR_SIZE);
+-    if (err != RVM_SUCCESS) {
+-	rvm_abort_transaction(tid);
+-	rvm_free_tid(tid);
+-	rvm_free_region(region);
+-	return err;
+-    }
+-
+-    hptr->struct_id = rvm_segment_hdr_id;
+-    strcpy(hptr->version, RVM_SEGMENT_VERSION);
+-    hptr->nregions = nregions;
+-
+-    /* First region goes right after segment header */
+-    RVM_ZERO_OFFSET(offset);
+-    offset = RVM_ADD_LENGTH_TO_OFFSET(offset, RVM_SEGMENT_HDR_SIZE);
+-
+-    /* For each region definition, set it to start at the next available spot
+-     * in the segment, fill in the length and vmaddr fields, and
+-     * determine the next available spot in the segment.
+-     */
+-
+-    /* XXXXXX this needs a check to bound the number of regions */
+-
+-    for (i = 0; i < nregions; i++) {
+-	hptr->regions[i].offset = offset;
+-	hptr->regions[i].length = regionDefs[i].length;
+-	hptr->regions[i].vmaddr = regionDefs[i].vmaddr;
+-	/* printf("Creating region at offset %x,%x , vmaddr %x, len %d\n",
+-	       hptr->regions[i].offset.high, hptr->regions[i].offset.low,
+-	       hptr->regions[i].vmaddr, hptr->regions[i].length); */
+-	offset = RVM_ADD_LENGTH_TO_OFFSET(offset, regionDefs[i].length);
+-    }
+-
+-    err = rvm_end_transaction(tid, flush);
+-    rvm_free_tid(tid);
+-    if (err != RVM_SUCCESS) {
+-	rvm_free_region(region);
+-	return err;
+-    }
++void rcs_rvm_map_cb(struct m0_be_cbinfo *cbinfo,
++		    int status,
++		    m0_be_msg_type_t msg_type)
++{
++	int 	 	 	 i;
++	rvm_tid_t 		*tid;
++	rvm_segment_hdr_t 	*hptr;
++	rvm_offset_t 		 offset;
++
++	rcs_cbdata_t 		*rcs_cbdata;
++	rvm_seg_hdr_t		*seg_hdr;
++	rvm_region_t		*region;
++	rvm_region_def_t	*region_defs;
++	rvm_length_t 		 nregions;
++
++
++	rcs_cbdata = container_of(cbinfo, rcs_cbdata_t, rcsc_cbinfo);
++	M0_ASSERT(rcs_cbdata != NULL);
++
++	seg_hdr	  	= rcs_cbdata->rcsc_seg_hdr;
++	region    	= rcs_cbdata->rcsc_region;
++	nregions  	= rcs_cbdata->rcsc_nregions;
++	region_defs  	= rcs_cbdata->rcsc_region_defs;
++
++	tid = rvm_malloc_tid();
++	rcs_cbdata->rcsc_tid = tid;
++
++	status = rvm_begin_transaction(tid, restore);
++	if (status != RVM_SUCCESS) {
++		rvm_free_tid(tid);
++		rvm_free_region(region);
++		goto exit;
++	}
++
++	/* Set up the header region. This is always a fixed size. */
++	hptr = (rvm_segment_hdr_t *) region->vmaddr;
++
++	status = rvm_set_range(seg_hdr, tid, (char *)hptr, RVM_SEGMENT_HDR_SIZE);
++	if (status != RVM_SUCCESS) {
++		rvm_abort_transaction(tid);
++		rvm_free_tid(tid);
++		rvm_free_region(region);
++		goto exit;
++	}
++
++	hptr->struct_id = rvm_segment_hdr_id;
++	strcpy(hptr->version, RVM_SEGMENT_VERSION);
++	hptr->nregions = nregions;
++
++	/* First region goes right after segment header */
++	RVM_ZERO_OFFSET(offset);
++	offset = RVM_ADD_LENGTH_TO_OFFSET(offset, RVM_SEGMENT_HDR_SIZE);
++
++	/* For each region definition, set it to start at the next available spot
++	* in the segment, fill in the length and vmaddr fields, and
++	* determine the next available spot in the segment.
++	*/
++
++	/* XXXXXX this needs a check to bound the number of regions */
++
++	for (i = 0; i < nregions; i++) {
++		hptr->regions[i].offset = offset;
++		hptr->regions[i].length = region_defs[i].length;
++		hptr->regions[i].vmaddr = region_defs[i].vmaddr;
++		offset = RVM_ADD_LENGTH_TO_OFFSET(offset, region_defs[i].length);
++	}
++
++	rcs_cbdata->rcsc_cbinfo.bc_cb = rcs_rvm_end_transaction_cb;
++
++	status = rvm_end_transaction(tid, flush);
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rcs_cbdata);
++        }
++	rcs_rvm_end_transaction_cb(&rcs_cbdata->rcsc_cbinfo, status, msg_type);
++}
+ 
+-    /* The segment should now be all set to go, clean up. */
+-    err = rvm_unmap(seg_hdr, region);
+-    if (err != RVM_SUCCESS)
+-	printf("create_segment unmap failed %s\n", rvm_return(err));
+ 
+-    deallocate_vm(seg_hdr, region->vmaddr, region->length);
++/* rvm_create_segment erases the old contents of the recoverable
++ * segment, and write a new structure to it. The arguments specify the
++ * number of regions, and the form of each region in the new segment
++ * structure. It is important to realize that all information that
++ * used to exist in the segment will no longer be accessible.  */
+ 
+-    rvm_free_region(region);
+-    return err;
++rvm_return_t rvm_create_segment(char *dev_name,
++				rvm_offset_t dev_length,
++				rvm_options_t *options,
++				rvm_length_t nregions,
++				rvm_region_def_t region_defs[],
++				rvm_seg_hdr_t *seg_hdr,
++		   		struct m0_be_cbinfo *cbinfo)
++{
++	rcs_cbdata_t	 	*rcs_cbdata;
++	struct m0_be_cbinfo 	*rcsc_cbinfo;
++	int 		  	 status;
++	m0_be_msg_type_t  	 msg_type = M0_BE_SUCCESS;
++
++	M0_ALLOC_PTR(rcs_cbdata);
++	M0_ASSERT(rcs_cbdata != NULL);
++
++	rvm_region_t *region = rvm_malloc_region();
++
++	/* Make sure the region definitions do not overlap. */
++	if (overlap(nregions, region_defs)) {
++		status =  RVM_ERANGE;
++		goto exit;
++	}
++
++	M0_ASSERT(nregions <= RVM_MAX_REGIONS);
++
++	/* Erase the old contents of the segment, including entries in the log */
++
++	/* Map in the first RVM_SEGMENT_HDR_SIZE bytes of the segment */
++
++	region->data_dev 	= dev_name;
++	region->dev_length 	= dev_length;
++	region->length 		= RVM_SEGMENT_HDR_SIZE;
++	region->vmaddr 		= 0;
++	RVM_ZERO_OFFSET(region->offset);
++
++	/* allocate the address range for this region */
++	status = allocate_vm(seg_hdr, &(region->vmaddr), region->length);
++	if (status != RVM_SUCCESS) {
++		rvm_free_region(region);
++		goto exit;
++	}
++
++	rcsc_cbinfo = &rcs_cbdata->rcsc_cbinfo;
++
++	rcs_cbdata->rcsc_region  	= region;
++	rcs_cbdata->rcsc_seg_hdr 	= seg_hdr;
++	rcs_cbdata->rcsc_nregions 	= nregions;
++	rcs_cbdata->rcsc_region_defs 	= region_defs;
++
++
++	rcsc_cbinfo->bc_hq 	 = cbinfo->bc_hq;
++	rcsc_cbinfo->bc_sm_group = cbinfo->bc_sm_group;
++	rcsc_cbinfo->bc_cb 	 = rcs_rvm_map_cb;
++	rcsc_cbinfo->bc_pcbinfo  = cbinfo;
++
++	status = rvm_map(seg_hdr, region, options);
++	if (status != RVM_SUCCESS) {
++		rvm_free_region(region);
++	}
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rcs_cbdata);
++	}
++	rcs_rvm_map_cb(rcsc_cbinfo, status, msg_type);
++
++	return status;
+ }
+ 
+ char *rvm_get_vm_addr(unsigned long length)
+ {
+-        char *addr = NULL;
+-        rvm_bool_t ret = rvm_false;
+-
+-        ret = find_available_vm_addr(&addr, length);
++	char *addr = NULL;
++	rvm_bool_t ret = rvm_false;
+ 
+-        assert(ret == rvm_true);
++	ret = find_available_vm_addr(&addr, length);
++	assert(ret == rvm_true);
+ 
+-        return addr;
++	return addr;
+ }
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index aacb7ce..c0be850 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -2294,6 +2294,7 @@ static rvm_return_t  update_seg(log, seg_dict, seg_dev)
+     void                  **io_addr;
+     m0_bindex_t            *io_offset;
+     m0_bcount_t            *io_count;
++    m0_bcount_t             io_total_count;
+     uint32_t                io_bshift;
+     uint32_t                iter_count;
+     uint32_t                iter_remained;
+@@ -2340,12 +2341,14 @@ static rvm_return_t  update_seg(log, seg_dict, seg_dev)
+         io_addr[i]      = m0_stob_addr_pack(node->nv_ptr, io_bshift);
+         io_count[i]     = node->length >> io_bshift;
+         io_offset[i]    = node->offset.low >> io_bshift;
++	io_total_count  += io_count[i];
++
+         i++;
+         nodes_done++;
+         if (i == iter_count) {
+             retval = launch_stob_io(SIO_WRITE, iter_count, io_count, io_offset,
+                                     io_addr, stob);
+-            if(retval != *io_count)
++            if(retval != io_total_count)
+                 return RVM_EOFFSET;
+ 
+             iter_remained -= iter_count;
+diff --git a/rvm/rvm_releaseseg.c b/rvm/rvm_releaseseg.c
+index 225ce21..1a5a38e 100644
+--- a/rvm/rvm_releaseseg.c
++++ b/rvm/rvm_releaseseg.c
+@@ -49,4 +49,3 @@ rvm_release_segment (
+     free(*regions);
+     return err;
+ }
+-
+diff --git a/rvm/rvm_segment.h b/rvm/rvm_segment.h
+index 0c767c7..aff3bc1 100644
+--- a/rvm/rvm_segment.h
++++ b/rvm/rvm_segment.h
+@@ -25,6 +25,7 @@ Coda are listed in the file CREDITS.
+ #define __MERO_RVM_RVM_SEGMENT_H__
+ 
+ #include "rvm/rvm.h"
++#include "be/be.h"
+ 
+ /* taken from rvm_segment_private.h */
+ #define RVM_SEGMENT_HDR_SIZE RVM_PAGE_SIZE /* length of segment header */
+@@ -48,29 +49,30 @@ struct rvm_region_def
+ 
+ /* define regions within a segment for segement loader */
+ extern rvm_return_t rvm_create_segment (
+-    char                *DevName,       /* pointer to data device name */
+-    rvm_offset_t        DevLength,      /* Length of dataDev if really a device */
+-    rvm_options_t       *options,       /* options record for RVM */
+-    rvm_length_t        nregions,       /* number of regions defined for segment*/
+-    rvm_region_def_t    *region_defs,   /* array of region defs for segment */
+-    rvm_seg_hdr_t          *seg_hdr
++    char			*dev_name,       /* pointer to data device name */
++    rvm_offset_t		dev_length,      /* Length of dataDev if really a device */
++    rvm_options_t		*options,       /* options record for RVM */
++    rvm_length_t		nregions,       /* number of regions defined for segment*/
++    rvm_region_def_t		*region_defs,   /* array of region defs for segment */
++    rvm_seg_hdr_t		*seg_hdr,
++    struct m0_be_cbinfo		*cbinfo
+     );
+ 
+ /* load regions of a segment */
+ extern rvm_return_t rvm_load_segment (
+-    char                *DevName,       /* pointer to data device name */
+-    rvm_offset_t        DevLength,      /* Length of dataDev if really a device */
+-    rvm_options_t       *options,       /* options record for RVM */
+-    unsigned long       *nregions,      /* returned -- number of regions mapped */
+-    rvm_region_def_t    *regions[],     /* returned array of region descriptors */
+-    rvm_seg_hdr_t          *seg_hdr
++    char                *dev_name,       /* pointer to data device name */
++    rvm_offset_t	 dev_length,      /* Length of dataDev if really a device */
++    rvm_options_t	*options,       /* options record for RVM */
++    unsigned long	*nregions,      /* returned -- number of regions mapped */
++    rvm_region_def_t	*regions[],     /* returned array of region descriptors */
++    rvm_seg_hdr_t	*seg_hdr
+     );
+ 
+ /* release regions of a segment */
+ extern rvm_return_t rvm_release_segment (
+-    unsigned long       nregions,      /* number of regions mapped */
+-    rvm_region_def_t    **regions,     /* array of region descriptors */
+-    rvm_seg_hdr_t          *seg_hdr
++    unsigned long	  nregions,      /* number of regions mapped */
++    rvm_region_def_t	**regions,     /* array of region descriptors */
++    rvm_seg_hdr_t	 *seg_hdr
+     );
+ 
+ extern char *rvm_get_vm_addr(unsigned long length);
+diff --git a/rvm/rvm_segment_private.h b/rvm/rvm_segment_private.h
+index a2c32f9..682c542 100644
+--- a/rvm/rvm_segment_private.h
++++ b/rvm/rvm_segment_private.h
+@@ -58,4 +58,13 @@ typedef struct
+     }
+ rvm_segment_hdr_t;
+ 
++typedef struct rvm_create_segment_cbdata {
++        struct m0_be_cbinfo      rcsc_cbinfo;
++        rvm_seg_hdr_t           *rcsc_seg_hdr;
++        rvm_tid_t               *rcsc_tid;
++        rvm_region_def_t        *rcsc_region_defs;
++        rvm_region_t            *rcsc_region;
++        rvm_length_t            rcsc_nregions;
++}rcs_cbdata_t;
++
+ #endif /* __MERO_RVM_RVM_SEGMENT_PRIVATE_H__ */
+diff --git a/rvm/ut/rvm.c b/rvm/ut/rvm.c
+index 4a428c3..500b720 100644
+--- a/rvm/ut/rvm.c
++++ b/rvm/ut/rvm.c
+@@ -79,7 +79,7 @@ rvm_return_t      ret;
+ rvm_length_t      devsize;
+ rvm_length_t      rvgLength;
+ rvm_length_t      rdsLength;
+-struct stat      *buf = NULL;
++struct stat       buf;
+ char             *rdsAddrs = NULL;
+ char             *rvgAddrs = NULL;
+ int               fd;
+@@ -111,7 +111,7 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+ 	RVM_LOG(RVM_DEBUG,"%d : %ld %ld\n", chkSize, sizeof(free_block_t),
+                sizeof(guard_t));
+ 
+-	if(stat(MAPPED_LOG_FILE, buf)!=0)
++	if(stat(MAPPED_LOG_FILE, &buf)!=0)
+ 	{
+ 		Recov_Options.flags |= RVM_ALL_OPTIMIZATIONS;
+ 	        Recov_Options.log_dev = MAPPED_LOG_FILE;
+@@ -139,7 +139,7 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+                 char datafile[80];
+ 
+                 sprintf(datafile, "%s%d", MAPPED_DATA_FILE, i);
+-        	if(stat(datafile, buf) != 0) {
++        	if(stat(datafile, &buf) != 0) {
+         		fd = open(datafile ,O_WRONLY|O_CREAT, 0600);
+         		if(fd < 0) {
+         		   RVM_LOG(RVM_DEBUG,
+@@ -206,7 +206,7 @@ static void test_seg_load()
+ 
+   		rds_zap_heap(datafile,RVM_LENGTH_TO_OFFSET(devsize),
+                              rdsAddrs, rvgLength, rdsLength, nLists,
+-                             chkSize, &ret, seg_hdr[i]);
++                             chkSize, &ret, seg_hdr[i], NULL);
+ 
+    		if(ret != SUCCESS)
+    		{
+@@ -217,7 +217,7 @@ static void test_seg_load()
+    		RVM_LOG(RVM_DEBUG,"RDS heap allocateed successfully\n");
+ 
+    		rds_load_heap(datafile,RVM_LENGTH_TO_OFFSET(devsize),
+-                              &rvgAddrs, &ret, seg_hdr[i]);
++                              &rvgAddrs, &ret, seg_hdr[i], NULL);
+ 
+    		if (ret != SUCCESS) {
+    			RVM_LOG(RVM_DEBUG,
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 21abc01..f560d95 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -100,7 +100,7 @@ void add_uts(void)
+         /*m0_ut_add(&rvm_ut);*/
+         m0_ut_add(&be_hs_ut);
+         m0_ut_add(&be_kv_store_ut);
+-        m0_ut_add(&be_ut);
++	m0_ut_add(&be_ut);
+         m0_ut_add(&buffer_pool_ut);
+         m0_ut_add(&bulkio_client_ut);
+         m0_ut_add(&bulkio_server_ut);
+-- 
+1.8.3.2
+

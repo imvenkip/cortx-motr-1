@@ -1,0 +1,337 @@
+From c3604a06d403b3374cb0eb62c807cd7606dc7e65 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 18 Mar 2013 17:39:54 +0530
+Subject: [PATCH 092/172] Added coverage for a few error cases
+
+---
+ layout/composite.c    |  6 +++++
+ layout/ut/composite.c | 64 ++++++++++++++++++++++++++++++++++----------
+ layout/ut/layout.c    | 73 ++++++++++++++++++++++++++++++++++++++++++++++++---
+ 3 files changed, 126 insertions(+), 17 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index ed15a2c..b6aa801 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -861,6 +861,7 @@ static int extlist_inbuf_read(struct m0_composite_layout *cl,
+ 				       M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_2,
+ 				       &cl->cl_base.l_addb_ctx,
+ 				       cl->cl_base.l_id, -ENOMEM);
++			extlist_free(extlist);
+ 			return -EINVAL;
+ 		}
+ 		rc = ext_inmem_add_internal(NULL, &cl->cl_base, extlist,
+@@ -870,6 +871,7 @@ static int extlist_inbuf_read(struct m0_composite_layout *cl,
+ 			M0_LOG(M0_ERROR, "lid %llu, Extent could not be "
+ 			       "added to the list",
+ 			       (unsigned long long)cl->cl_base.l_id);
++			extlist_free(extlist);
+ 			return rc;
+ 		}
+ 	}
+@@ -934,6 +936,8 @@ static int comp_layout_inbuf_read(struct m0_composite_layout *cl,
+ 			       "reading extlist from the buf",
+ 			       (unsigned long long)cl->cl_base.l_id,
+ 			       (unsigned long)i);
++			/* Release the reference added by m0_layout_find(). */
++			m0_layout_put(sublayout);
+ 			return rc;
+ 		}
+ 
+@@ -1208,7 +1212,9 @@ static int ext_inmem_add_internal(struct m0_composite_layer *layer,
+ 		 (adjacent_lr_ext == NULL) ? 0 :
+ 		 (unsigned long long)adjacent_lr_ext->cle_ext.e_end);
+ 
++	if (M0_FI_ENABLED("mem_err")) { lr_ext = NULL; goto err1_injected; }
+ 	M0_ALLOC_PTR(lr_ext);
++err1_injected:
+ 	if (lr_ext == NULL) {
+ 		m0_layout__log("ext_inmem_add_internal",
+ 			       "failed to allocate composite extent",
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index f09fe6f..9565270 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -22,6 +22,7 @@
+ #include "lib/memory.h"             /* M0_ALLOC_PTR() */
+ #include "lib/misc.h"               /* M0_IN() */
+ #include "lib/trace.h"              /* m0_console_printf() */
++#include "lib/finject.h"
+ 
+ #include "layout/layout.h"
+ #include "layout/layout_internal.h" /* *_ERR */
+@@ -433,7 +434,7 @@ static int composite_layers_add(struct m0_composite_layout *cl,
+ 		rc = m0_composite_layer_add(cl, sublayout, &extents,
+ 					    extents_nr, tx);
+ 		if (layer_add_failure_test) {
+-			M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR);
++			M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM);
+ 			M0_UT_ASSERT(cl->cl_layers_nr == i);
+ 			extentlist_free(&extents);
+ 			break;
+@@ -470,6 +471,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 	struct m0_db_pair  pair;
+ 	struct m0_db_tx    tx;
+ 	struct m0_db_tx   *txptr;
++	//todo check if really reqd here. It is making the code a bit complicated here
+ #ifndef __KERNEL__
+ 	bool               domain_available_altered = false;
+ #endif
+@@ -493,7 +495,8 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 			pair_set(&pair, &lid, area, num_bytes);
+ 			rc = m0_layout_add(&(*cl)->cl_base, &tx, &pair);
+ 			if (layer_add_failure_test)
+-				M0_UT_ASSERT(rc == LO_ENCODE_ERR);
++				M0_UT_ASSERT(rc == LO_ENCODE_ERR ||
++					     rc == L_TABLE_INSERT_ERR);
+ 				/*
+ 				 * todo rc == -ENOENT when cursor_init error is
+ 				 * injected.
+@@ -518,7 +521,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 				  if_contiguous_extents,
+ 				  layer_add_failure_test);
+ 	if (layer_add_failure_test)
+-		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR);
++		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+@@ -657,6 +660,9 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 						 sizeof layer_header);
+ 		M0_UT_ASSERT(nbytes == sizeof layer_header);
+ 
++		if (extents_nr == 0) /* Possible only in error condition. */
++			continue;
++
+ 		delta = (end_offset - start_offset) / extents_nr;
+ 		//todo Assert everywhere applicable that extents_nr >= 2
+ 		for (j = 0; j < layer_header.clh_extents_nr; ++j) {
+@@ -673,6 +679,10 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 				ext_state = M0_CLRES_VALID;
+ 			else
+ 				ext_state = M0_CLRES_INVALID;
++
++			if (M0_FI_ENABLED("invalid_ext_state_err"))
++				ext_state = 111;
++
+ 			nbytes = m0_bufvec_cursor_copyto(dcur, &ext_state,
+ 							 sizeof ext_state);
+ 			M0_UT_ASSERT(nbytes == sizeof ext_state);
+@@ -714,7 +724,7 @@ int test_decode_composite(uint64_t lid,
+ 	/* Decode the layout buffer into a layout object. */
+ 	rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == -ENOMEM);
++		M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+ 	else {
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == l);
+@@ -1322,15 +1332,43 @@ int test_layer_ops_composite(uint64_t lid,
+ 	int                         rc_tmp;
+ 	int                         rc;
+ 
+-	/* Build a layout, add layer to it. */
++	/*
++	 * Build a layout with the default layer 'layer 0', add it to the DB
++	 * if applicable.
++	 */
+ 	rc = composite_build_and_layers_add(lid, domain,
+-					    layers_nr, min_extents_nr,
++					    1, min_extents_nr,
+ 					    !CONTIGUOUS_EXTENTS,
+ 					    domain->ld_is_db_available ?
+ 								true : false,
+ 					    !FAILURE_TEST,
+-					    layer_add_failure_test, &cl);
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
++
++	/* Now, add layers to the layout. */
++	if (domain->ld_is_db_available) {
++		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
++		M0_UT_ASSERT(rc == 0);
++		txptr = &tx;
++	} else
++		txptr = NULL;
++
++	rc = composite_layers_add(cl, txptr, layers_nr, min_extents_nr,
++				  !CONTIGUOUS_EXTENTS, layer_add_failure_test);
++	if (layer_add_failure_test) {
++		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM);
++		//todo tx_fini()  or m0_db_tx_abort(txptr); ?
++
++		/* Delete the composite layout object. */
++		m0_layout_put(&cl->cl_base);
++		M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
++
++		/* Delete the precreated sublayouts. */
++		sublayouts_delete(domain, lid, layers_nr);
++		return rc;
++	}
++	M0_UT_ASSERT(rc == 0);
++	M0_ASSERT(cl->cl_layers_nr == layers_nr);
+ 	l = m0_cl_to_layout(cl);
+ 
+ 	/* Verify the layout. */
+@@ -1339,10 +1377,6 @@ int test_layer_ops_composite(uint64_t lid,
+ 	composite_layout_copy(l, &l_copy_orig);
+ 
+ 	if (domain->ld_is_db_available) {
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-		txptr = &tx;
+-
+ 		/* Delete the composite layout object from the memory. */
+ 		m0_layout_put(&cl->cl_base);
+ 		M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
+@@ -1354,7 +1388,10 @@ int test_layer_ops_composite(uint64_t lid,
+ 		M0_UT_ASSERT(rc == 0);
+ 		composite_layout_compare(l_from_DB, l_copy_orig, false);
+ 
+-		/* Restore l and cl since the earlier copy has been deleted. */
++		/*
++		 * Restore 'l' and 'cl' since the earlier layout from the memory
++		 * has been deleted.
++		 */
+ 		l = l_from_DB;
+ 		cl = m0_layout_to_cl(l_from_DB);
+ 
+@@ -1363,8 +1400,7 @@ int test_layer_ops_composite(uint64_t lid,
+ 		 * incremented by m0_layout_lookup(). Hence, it is not to be
+ 		 * released.
+ 		 */
+-	} else
+-		txptr = NULL;
++	}
+ 
+ 	/*
+ 	 * Try to delete the top-most layer from the composite layout while
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index a1f6825..56bd196 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -97,7 +97,6 @@ static int test_fini(void)
+ 
+ 	m0_layout_domain_fini(&domain);
+ 	m0_dbenv_fini(&dbenv);
+-
+ 	return 0;
+ }
+ 
+@@ -675,7 +674,7 @@ static void test_decode(void)
+ 	 * noncontiguous extents in its layers.
+ 	 */
+ 	lid = 3022;
+-	rc = test_decode_composite(lid, &domain, 8, 10,
++	rc = test_decode_composite(lid, &domain, 8, 9,
+ 				   !CONTIGUOUS_EXTENTS, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ }
+@@ -755,6 +754,38 @@ static void test_decode_failure(void)
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 				 FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EPROTO);
++
++	/*
++	 * Simulate lr_header->clh_extents_nr == 0 error in
++	 * comp_layout_inbuf_read().
++	 */
++	lid = 4021;
++	rc = test_decode_composite(lid, &domain, 2, 0,
++				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EINVAL);
++
++	/*
++	 * Simulate invalid_ext_state_err error in
++	 * composite_layout_buf_build().
++	 */
++	lid = 4022;
++	m0_fi_enable_once("composite_layout_buf_build",
++			  "invalid_ext_state_err");
++	rc = test_decode_composite(lid, &domain, 5, 6,
++				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EINVAL);
++
++	/*
++	 * Simulate memory allocation error in the path of
++	 * extlist_inbuf_read().
++	 */
++	lid = 4023;
++	m0_fi_enable_once("ext_inmem_add_internal", "mem_err");
++	rc = test_decode_composite(lid, &domain, 5, 6,
++				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++
++
+ }
+ 
+ /* Tests the API m0_layout_encode(). */
+@@ -1304,7 +1335,21 @@ static void test_layer_ops_inmem(void)
+ 	M0_UT_ASSERT(rc == 0);
+ }
+ 
+-/* todo lid 15001 reserved for test_layer_ops_inmem_failure. */
++static void test_layer_ops_inmem_failure(void)
++{
++	uint64_t lid;
++	int      rc;
++
++	M0_UT_ASSERT(domain.ld_is_db_available == false);
++
++	lid = 15001;
++	m0_fi_enable_off_n_on_m("layer_inmem_add", "mem_err", 1, 1);
++	rc = test_layer_ops_composite(lid, &domain, 5, 8,
++				      LAYER_ADD_FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("layer_inmem_add", "mem_err");
++
++}
+ 
+ static void test_layer_ext_ops_inmem(void)
+ {
+@@ -1949,6 +1994,24 @@ static void test_layer_ops_indb(void)
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
++static void test_layer_ops_indb_failure(void)
++{
++	uint64_t lid;
++	int      rc;
++
++	domain_ldb_available_set(&domain, true);
++
++	lid = 2700111; //todo
++	m0_fi_enable_off_n_on_m("sublayout_id_indb_add",
++				"table_insert_err", 1, 1);
++	rc = test_layer_ops_composite(lid, &domain, 5, 10,
++				      LAYER_ADD_FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR);
++	m0_fi_disable("sublayout_id_indb_add", "table_insert_err");
++
++	domain_ldb_available_set(&domain, false);
++}
++
+ static void test_layer_ext_ops_indb(void)
+ {
+ 	uint64_t lid;
+@@ -1991,6 +2054,8 @@ const struct m0_test_suite layout_ut = {
+ 		{ "layout-instance", test_instance },
+ 		{ "layout-instance-failure", test_instance_failure },
+ 		{ "layout-layer-ops-inmem", test_layer_ops_inmem },
++		{ "layout-layer-ops-inmem-failure",
++			test_layer_ops_inmem_failure },
+ 		{ "layout-layer-ext-ops-inmem", test_layer_ext_ops_inmem },
+ #ifndef __KERNEL__
+ 		{ "layout-lookup", test_lookup },
+@@ -2002,6 +2067,8 @@ const struct m0_test_suite layout_ut = {
+ 		{ "layout-delete", test_delete },
+ 		{ "layout-delete-failure", test_delete_failure },
+ 		{ "layout-layer-ops-indb", test_layer_ops_indb },
++		{ "layout-layer-ops-indb-failure",
++			test_layer_ops_indb_failure },
+ 		{ "layout-layer-ext-ops-indb", test_layer_ext_ops_indb },
+ #endif
+ 		{ NULL, NULL }
+-- 
+1.8.3.2
+

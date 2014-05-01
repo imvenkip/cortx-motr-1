@@ -1,0 +1,39 @@
+From cfe1b0ddd0e9bf24dfc5042a9820c207ae6782ff Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 13 Apr 2012 15:08:38 +0530
+Subject: [PATCH 07/11] - Minor issues.
+
+---
+ addb/ut/addb.c      | 2 +-
+ ioservice/io_foms.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/addb/ut/addb.c b/addb/ut/addb.c
+index 25e68fc..4326c24 100644
+--- a/addb/ut/addb.c
++++ b/addb/ut/addb.c
+@@ -91,7 +91,7 @@ static void test_addb_var_msg_add(void)
+ 
+ 	C2_UT_ASSERT(msg_size == ADDB_UT_VAR_MSG_SIZE-1);
+ 
+-	/* Truncate message and returns actual size of formated message. */
++	/* Truncate message and returns actual size of formatted message. */
+ 	msg_size = c2_addb_var_msg_add(&addb_ut_ctx, &c2_addb_ut_loc, addb_msg,
+ 				       ADDB_UT_VAR_MSG_SIZE,
+ 				       "msglen = %d, %s",
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index f89382c..d632088 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1233,7 +1233,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+         return FSO_AGAIN;
+ }
+ 
+-/*
++/**
+  * Release network buffer.
+  * Return back network buffer to buffer pool.
+  * If acquired buffers are more than the remaining descriptors
+-- 
+1.8.3.2
+

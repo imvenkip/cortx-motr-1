@@ -1,0 +1,44 @@
+From 168f05966c2ce212f9371aeee9d4131280f27d22 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Fri, 1 Nov 2013 12:09:35 +0530
+Subject: [PATCH 121/159] Changes summary : - 1. Fixed BUG, revealed during
+ stats service ep specification in conf profile for    m0t1fs starting, during
+ changes made to m0mount.sh script.
+
+These changes were part of kernel testing of m0_addb_monitor_setup() function.
+---
+ conf/objs/service.c         | 3 ++-
+ m0t1fs/linux_kernel/super.c | 3 +++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/conf/objs/service.c b/conf/objs/service.c
+index 5b8e4a0..d9cbab5 100644
+--- a/conf/objs/service.c
++++ b/conf/objs/service.c
+@@ -30,7 +30,8 @@ static bool service_check(const void *bob)
+ 
+ 	return ergo(self_obj->co_status == M0_CS_READY,
+ 		    M0_IN(self->cs_type,
+-			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_DLM))) &&
++			  (M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_DLM,
++			   M0_CST_SS))) &&
+ 		ergo(self_obj->co_mounted, /* check relations */
+ 		     parent_check(self_obj) &&
+ 		     child_check(self_obj, MEMBER_PTR(self->cs_node, cn_obj),
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 0cc785d..cf016ca 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -782,6 +782,9 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
+ 		case M0_CST_MGS:
+ 			break;
+ 
++		case M0_CST_SS:
++			break;
++
+ 		case M0_CST_DLM:
+ 			map->clm_map[csb->csb_nr_containers] = ctx;
+ 			break;
+-- 
+1.8.3.2
+

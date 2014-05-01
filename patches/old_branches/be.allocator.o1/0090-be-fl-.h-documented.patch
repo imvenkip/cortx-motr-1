@@ -1,0 +1,80 @@
+From 34e0438875fcdea667e316c11d464559ab7fd2df Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 18 Feb 2014 15:57:13 +0200
+Subject: [PATCH 90/96] be/fl: .h documented
+
+---
+ be/fl.c |  1 -
+ be/fl.h | 24 +++++++++++++++++++-----
+ 2 files changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/be/fl.c b/be/fl.c
+index 516f32b..295b812 100644
+--- a/be/fl.c
++++ b/be/fl.c
+@@ -156,7 +156,6 @@ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl *fl,
+ 	M0_POST_EX(m0_be_fl__invariant(fl));
+ }
+ 
+-/** find empty chunk with size at least 'size' */
+ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
+ 						 m0_bcount_t size)
+ {
+diff --git a/be/fl.h b/be/fl.h
+index fe940f3..0ce438e 100644
+--- a/be/fl.h
++++ b/be/fl.h
+@@ -32,10 +32,10 @@
+  */
+ 
+ enum {
+-	M0_BE_FL_STEP = 8,	/**< each size is increased to this boundary */
+-	M0_BE_FL_NR = 128,	/**< number of free lists for each size */
+-	M0_BE_FL_PICK_SCAN_LIMIT = 0x10, /**< scan limit for searching in
+-					      chunks with size >=
++	M0_BE_FL_STEP = 8,	/**< each size is aligned on this boundary */
++	M0_BE_FL_NR = 128,	/**< number of free lists */
++	M0_BE_FL_PICK_SCAN_LIMIT = 0x10, /**< scan limit for best-fit search
++					      for chunks with size >=
+ 					      M0_BE_FL_NR * M0_BE_FL_STEP */
+ };
+ 
+@@ -47,13 +47,25 @@ enum m0_be_fl_op {
+ 	M0_BFL_DEL,
+ };
+ 
+-/** m0_be free list for some size of chunks */
++/**
++ * m0_be free list for some size of chunks.
++ * Currently it is possible to use just list a list instead of struct,
++ * but in the future it may be expanded to contain some kind of cache.
++ */
+ struct m0_be_fl_size {
+ 	struct m0_be_list bfs_list;
+ };
+ 
+ /** m0_be free list */
+ struct m0_be_fl {
++	/*
++	 * If i is from range [0,  M0_BE_FL_NR) then i-th element of array
++	 * contains free list with chunk sizes in range
++	 * [i * M0_BE_FL_STEP, (i + 1) * M0_BE_FL_STEP).
++	 * M0_BE_FL_NR-th element contains list of chunks
++	 * with size >= (M0_BE_FL_NR * M0_BE_FL_STEP).
++	 * @see m0_be_fl_add(), m0_be_fl_pick().
++	 */
+ 	struct m0_be_fl_size bfl_free[M0_BE_FL_NR + 1];
+ };
+ 
+@@ -74,6 +86,8 @@ M0_INTERNAL void m0_be_fl_add(struct m0_be_fl *fl,
+ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl *fl,
+ 			      struct m0_be_tx *tx,
+ 			      struct be_alloc_chunk *chunk);
++
++/** find free chunk with size at least `size' */
+ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
+ 						 m0_bcount_t size);
+ 
+-- 
+1.8.3.2
+

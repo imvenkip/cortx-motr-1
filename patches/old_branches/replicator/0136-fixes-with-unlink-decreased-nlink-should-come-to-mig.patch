@@ -1,0 +1,155 @@
+From ea01a349bcd6b59a2f7350a8efa60b4439c241f0 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 15 Jun 2011 14:56:33 -0600
+Subject: [PATCH 136/177] - fixes with unlink, decreased nlink should come to
+ migrated stat data name; - fixes in rename - don't update attrs for just
+ killed cobs.
+
+---
+ mdservice/md_foms.c | 26 ++++++++++++++++++++------
+ mdstore/mdstore.c   | 35 ++++++++++++++++-------------------
+ 2 files changed, 36 insertions(+), 25 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 3bae13c..0751bdd 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -485,10 +485,14 @@ static int c2_md_rename(struct c2_md_store  *md,
+         /*
+          * Update attributes of source and target.
+          */
+-        rc = c2_md_store_setattr(md, scob, sattr, tx);
+-        if (rc == 0 && tcob->co_nsrec.cnr_nlink > 0 && 
+-            !c2_fid_eq(scob->co_fid, tcob->co_fid))
+-                rc = c2_md_store_setattr(md, tcob, tattr, tx);
++        if (c2_fid_eq(scob->co_fid, tcob->co_fid)) {
++                if (tcob->co_nsrec.cnr_nlink > 0)
++                        rc = c2_md_store_setattr(md, tcob, tattr, tx);
++        } else {
++                rc = c2_md_store_setattr(md, scob, sattr, tx);
++                if (rc == 0 && tcob->co_nsrec.cnr_nlink > 0)
++                        rc = c2_md_store_setattr(md, tcob, tattr, tx);
++        }
+         return rc;
+ }
+ 
+@@ -693,7 +697,8 @@ static int c2_md_rename_check_src(struct c2_md_store *md,
+                 }
+         }
+         if (scob) {
+-                if (sattr->ca_version > scob->co_nsrec.cnr_version)
++                if (sattr->ca_version > scob->co_nsrec.cnr_version &&
++                    scob->co_nsrec.cnr_nlink > 0)
+                         rc = c2_md_store_setattr(md, scob, sattr, tx);
+                 c2_cob_put(scob);
+         }
+@@ -794,7 +799,8 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+         }
+ 
+         if (tcob) {
+-                if (rc == 0 && tattr.ca_version > tcob->co_nsrec.cnr_version)
++                if (rc == 0 && tcob->co_nsrec.cnr_nlink > 0 &&
++                    tattr.ca_version > tcob->co_nsrec.cnr_version)
+                         rc = c2_md_store_setattr(md, tcob, &tattr, tx);
+                 c2_cob_put(tcob);
+         }
+@@ -857,6 +863,10 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+                                       &ctx->fc_tx->tx_dbtx);
+                 if (rc == 0 &&
+                     attr.ca_version > cob->co_nsrec.cnr_version) {
++                        /*
++                         * Mode contains open flags that we don't need
++                         * to store to db.
++                         */
+                         attr.ca_flags &= ~C2_MD_MODE;
+                         rc = c2_md_store_setattr(site->s_mdstore,
+                                                  cob, &attr, 
+@@ -938,6 +948,10 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
+                                &ctx->fc_tx->tx_dbtx);
+         if (rc == 0 &&
+             attr.ca_version > cob->co_nsrec.cnr_version) {
++                /*
++                 * Mode contains open flags that we don't need
++                 * to store to db.
++                 */
+                 attr.ca_flags &= ~C2_MD_MODE;
+                 rc = c2_md_store_setattr(site->s_mdstore, cob,
+                                          &attr, &ctx->fc_tx->tx_dbtx);
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index e518c47..b85f9bd 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -248,12 +248,17 @@ int c2_md_store_unlink(struct c2_md_store       *md,
+          */
+         if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
+                 c2_cob_make_nskey(&nskey, pfid, name, namelen);
++                
++                /*
++                 * New stat data name should get updated nlink value.
++                 */
++                cob->co_nsrec.cnr_nlink--;
+ 
+                 /*
+                  * Check if we're trying to kill stata data entry. We need to
+                  * move stat data to another name if so.
+                  */
+-                if (cob->co_nsrec.cnr_nlink > 1 && 
++                if (cob->co_nsrec.cnr_nlink > 0 && 
+                     c2_cob_nskey_cmp(nskey, cob->co_nskey) == 0) {
+                         /*
+                          * Find another name (new stat data) in object index.
+@@ -284,28 +289,22 @@ int c2_md_store_unlink(struct c2_md_store       *md,
+                                 c2_free(nskey);
+                                 goto out;
+                         }
++                } else if (cob->co_nsrec.cnr_nlink > 0) {
++                        rc = c2_cob_update(cob, &cob->co_nsrec, 
++                                           NULL, NULL, tx);
+                 }
+                 c2_free(nskey);
+-                cob->co_nsrec.cnr_nlink--;
+         } else {
+                 /*
+                  * We ignore nlink for dirs and go for killing it.
+                  * This is because we don't update parent nlink in
+-                 * case of killing dirs.
++                 * case of killing dirs. This results in situation
++                 * that dir will have nlink > 0 becasue correct
++                 * fop that will bring its nlink to zero will come
++                 * later.
+                  */
+                 cob->co_nsrec.cnr_nlink = 0;
+-        }
+-
+-        if (cob->co_nsrec.cnr_nlink == 0) {
+-                /* 
+-                 * Last nlink, let's delete everything left. 
+-                 */
+                 rc = c2_cob_delete(cob, tx);
+-        } else {
+-                /*
+-                 * Not last nlink yet, let's update stat data on store.
+-                 */
+-                rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+         }
+ 
+ out:
+@@ -414,12 +413,10 @@ int c2_md_store_rename(struct c2_md_store       *md,
+         c2_cob_make_nskey(&tgtkey, pfid_tgt, tname, tnamelen);
+ 
+         rc = c2_cob_update_name(cob_src, srckey, tgtkey, tx);
+-out:
+-        if (srckey != NULL)
+-                c2_free(srckey);
+-        if (tgtkey != NULL)
+-                c2_free(tgtkey);
+ 
++        c2_free(srckey);
++        c2_free(tgtkey);
++out:
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_rename", rc);
+         return rc;
+-- 
+1.8.3.2
+

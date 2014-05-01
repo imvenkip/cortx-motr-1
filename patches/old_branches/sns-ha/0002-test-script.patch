@@ -1,0 +1,91 @@
+From ca267ec9a7870ab694f576c570c5fddb4819e2ef Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 19 Jun 2013 20:12:08 +0800
+Subject: [PATCH 02/14] test script
+
+---
+ m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh | 72 +++++++++++++++++++++++++++++++
+ 1 file changed, 72 insertions(+)
+ create mode 100755 m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh b/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh
+new file mode 100755
+index 0000000..ad3f988
+--- /dev/null
++++ b/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh
+@@ -0,0 +1,72 @@
++#!/bin/sh
++
++#set -x
++
++. `dirname $0`/common.sh
++. `dirname $0`/m0t1fs_common_inc.sh
++. `dirname $0`/m0t1fs_client_inc.sh
++. `dirname $0`/m0t1fs_server_inc.sh
++
++
++sns_repair_test()
++{
++	local rc=0
++	local fail_device=1
++	local stride=20
++	local unit_size=$((stride * 1024))
++
++	echo "Starting SNS repair testing ..."
++#	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride || {
++#		return 1
++#	}
++
++	for ((i=1; i < ${#EP[*]}; i++)) ; do
++		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
++	done
++
++	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Q -I 1
++                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
++	echo $trigger
++
++	if ! $trigger ; then
++		echo "m0poolmach failed"
++		rc=1
++	else
++		echo "m0poolmach done."
++		rc=0
++	fi
++
++#	unmount_and_clean
++
++	return $rc
++}
++
++main()
++{
++	NODE_UUID=`uuidgen`
++	mero_service start
++	if [ $? -ne "0" ]
++	then
++		echo "Failed to start Mero Service."
++		return 1
++	fi
++
++	rc=0
++	sns_repair_test || {
++		echo "Failed: SNS repair failed.."
++		rc=1
++	}
++
++	mero_service stop
++	if [ $? -ne "0" ]
++	then
++		echo "Failed to stop Mero Service."
++		return 1
++	fi
++
++	return $rc
++}
++
++trap unprepare EXIT
++
++main
+-- 
+1.8.3.2
+

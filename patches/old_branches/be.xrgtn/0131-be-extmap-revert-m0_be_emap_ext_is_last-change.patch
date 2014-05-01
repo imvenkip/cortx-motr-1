@@ -1,0 +1,25 @@
+From c0ffff21bdd164902358f61d454e8d0a0c360cf4 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Fri, 7 Jun 2013 20:25:11 +0300
+Subject: [PATCH 131/228] be: extmap: revert m0_be_emap_ext_is_last() change
+
+---
+ be/extmap.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/extmap.c b/be/extmap.c
+index 5a68f05..7b17f34 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -137,7 +137,7 @@ M0_INTERNAL struct m0_be_emap_seg *m0_be_emap_seg_get(struct m0_be_emap_cursor *
+ 
+ M0_INTERNAL bool m0_be_emap_ext_is_last(const struct m0_ext *ext)
+ {
+-	return ext->e_end == M0_BCOUNT_MAX;
++	return ext->e_end == M0_BINDEX_MAX + 1;
+ }
+ 
+ M0_INTERNAL bool m0_be_emap_ext_is_first(const struct m0_ext *ext)
+-- 
+1.8.3.2
+

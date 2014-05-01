@@ -1,0 +1,518 @@
+From c81ca027fe001f835e2731014897b7f3d7cd590a Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 8 Jun 2011 05:31:55 -0600
+Subject: [PATCH 113/158] - fix *.[ch] file header copyrights.
+
+---
+ cob/cob.c            |  1 +
+ iostore/iostore.c    | 20 ++++++++++++++++++++
+ iostore/iostore.h    | 18 ++++++++++++++++++
+ mdservice/md_foms.c  | 19 +++++++++++++++++++
+ mdservice/md_foms.h  | 18 ++++++++++++++++++
+ mdservice/md_fops.c  | 18 ++++++++++++++++++
+ mdservice/md_fops.ff | 18 ++++++++++++++++++
+ mdservice/md_fops.h  | 18 ++++++++++++++++++
+ mdstore/mdstore.c    | 19 +++++++++++++++++++
+ mdstore/mdstore.h    | 18 ++++++++++++++++++
+ mdstore/ut/lustre.c  | 43 ++++++++++++++++++++++++++++++++++++++-----
+ mdstore/ut/mdstore.c | 18 ++++++++++++++++++
+ nrs/nrs.c            |  3 ++-
+ nrs/nrs.h            |  3 ++-
+ reqh/reqh.c          |  3 ++-
+ reqh/reqh.h          |  3 ++-
+ site/site.c          | 20 ++++++++++++++++++++
+ site/site.h          | 18 ++++++++++++++++++
+ utils/mkfs.colibri.c | 18 ++++++++++++++++++
+ 19 files changed, 287 insertions(+), 9 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 827318d..985e0f4 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -14,6 +14,7 @@
+  * http://www.xyratex.com/contact
+  *
+  * Original author: Nathan Rutman <nathan_rutman@xyratex.com>
++ *                  Yuriy Umanets <yuriy_umanets@xyratex.com>
+  * Original creation date: 10/24/2010
+  */
+ 
+diff --git a/iostore/iostore.c b/iostore/iostore.c
+index 96c34d6..6392c49 100644
+--- a/iostore/iostore.c
++++ b/iostore/iostore.c
+@@ -1,3 +1,23 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 04/21/2011
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+diff --git a/iostore/iostore.h b/iostore/iostore.h
+index 45bcff1..4fcca9f 100644
+--- a/iostore/iostore.h
++++ b/iostore/iostore.h
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 04/21/2011
++ */
+ 
+ #ifndef __COLIBRI_IOSTORE_DATASTORE_H__
+ #define __COLIBRI_IOSTORE_DATASTORE_H__
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index ab9601e..a955463 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -1,3 +1,22 @@
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 03/29/2011
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+diff --git a/mdservice/md_foms.h b/mdservice/md_foms.h
+index 427f8d4..b884266 100644
+--- a/mdservice/md_foms.h
++++ b/mdservice/md_foms.h
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 03/29/2011
++ */
+ 
+ #ifndef __COLIBRI_MDSERVICE_MD_FOMS_H__
+ #define __COLIBRI_MDSERVICE_MD_FOMS_H__
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 0e4e28a..8b0c37e 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -1,3 +1,21 @@
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 03/29/2011
++ */
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 169688c..d8ee9a4 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 03/29/2011
++ */
+ 
+ /**
+    @addtogroup fop
+diff --git a/mdservice/md_fops.h b/mdservice/md_fops.h
+index 3a3d5a2..5d6fae4 100644
+--- a/mdservice/md_fops.h
++++ b/mdservice/md_fops.h
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 03/29/2011
++ */
+ 
+ #ifndef __COLIBRI_MDSERVICE_MD_FOPS_H__
+ #define __COLIBRI_MDSERVICE_MD_FOPS_H__
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index ac78751..40d2405 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -1,3 +1,22 @@
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 01/17/2011
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 36f48be..fc87af6 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 01/17/2011
++ */
+ 
+ #ifndef __COLIBRI_MDSTORE_MDSTORE_H__
+ #define __COLIBRI_MDSTORE_MDSTORE_H__
+diff --git a/mdstore/ut/lustre.c b/mdstore/ut/lustre.c
+index ecdbee1..b073e67 100644
+--- a/mdstore/ut/lustre.c
++++ b/mdstore/ut/lustre.c
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 04/19/2011
++ */
+ 
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+@@ -272,20 +290,35 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
+         switch (fop->f_type->ft_code) {
+         case C2_FOP_CREATE:
+                 create = c2_fop_data(fop);
+-                c2_free(create->c_name.s_buf);
++                if (create->c_name.s_len != 0)
++                        c2_free(create->c_name.s_buf);
++                if (create->c_path.s_len != 0)
++                        c2_free(create->c_path.s_buf);
+                 break;
+         case C2_FOP_LINK:
+                 link = c2_fop_data(fop);
+-                c2_free(link->l_name.s_buf);
++                if (link->l_name.s_len != 0)
++                        c2_free(link->l_name.s_buf);
++                if (link->l_path.s_len != 0)
++                        c2_free(link->l_path.s_buf);
+                 break;
+         case C2_FOP_UNLINK:
+                 unlink = c2_fop_data(fop);
+-                c2_free(unlink->u_name.s_buf);
++                if (unlink->u_name.s_len != 0)
++                        c2_free(unlink->u_name.s_buf);
++                if (unlink->u_path.s_len != 0)
++                        c2_free(unlink->u_path.s_buf);
+                 break;
+         case C2_FOP_RENAME:
+                 rename = c2_fop_data(fop);
+-                c2_free(rename->r_sname.s_buf);
+-                c2_free(rename->r_tname.s_buf);
++                if (rename->r_sname.s_len != 0)
++                        c2_free(rename->r_sname.s_buf);
++                if (rename->r_spath.s_len != 0)
++                        c2_free(rename->r_spath.s_buf);
++                if (rename->r_tname.s_len != 0)
++                        c2_free(rename->r_tname.s_buf);
++                if (rename->r_tpath.s_len != 0)
++                        c2_free(rename->r_tpath.s_buf);
+                 break;
+         default:
+                 break;
+diff --git a/mdstore/ut/mdstore.c b/mdstore/ut/mdstore.c
+index 6efccca..bfa5f9e 100644
+--- a/mdstore/ut/mdstore.c
++++ b/mdstore/ut/mdstore.c
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 04/19/2011
++ */
+ 
+ #include <sys/types.h>
+ #include <sys/stat.h>
+diff --git a/nrs/nrs.c b/nrs/nrs.c
+index cad03ba..4419089 100644
+--- a/nrs/nrs.c
++++ b/nrs/nrs.c
+@@ -14,7 +14,8 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Nikita Danilov
++ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
++ *                  Yuriy Umanets  <yuriy_umanets@xyratex.com>
+  * Original creation date: 07/31/2010
+  */
+ 
+diff --git a/nrs/nrs.h b/nrs/nrs.h
+index 2cee5d0..ed4dbff 100644
+--- a/nrs/nrs.h
++++ b/nrs/nrs.h
+@@ -14,7 +14,8 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Nikita Danilov
++ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
++ *                  Yuriy Umanets  <yuriy_umanets@xyratex.com>
+  * Original creation date: 07/31/2010
+  */
+ 
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index df88a3b..66e6fca 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -13,7 +13,8 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Nikita Danilov
++ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
++ *                  Yuriy Umanets  <yuriy_umanets@xyratex.com>
+  * Original creation date: 05/19/2010
+  */
+ 
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index d92d0b8..9aeef8e 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -14,7 +14,8 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Nikita Danilov
++ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
++ *                  Yuriy Umanets  <yuriy_umanets@xyratex.com>
+  * Original creation date: 05/19/2010
+  */
+ 
+diff --git a/site/site.c b/site/site.c
+index a9fb0f2..e8fc22c 100644
+--- a/site/site.c
++++ b/site/site.c
+@@ -1,3 +1,23 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 02/23/2011
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+diff --git a/site/site.h b/site/site.h
+index a881948..beaed70 100644
+--- a/site/site.h
++++ b/site/site.h
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 02/23/2011
++ */
+ 
+ #ifndef __COLIBRI_SITE_SITE_H__
+ #define __COLIBRI_SITE_SITE_H__
+diff --git a/utils/mkfs.colibri.c b/utils/mkfs.colibri.c
+index e6797db..b761095 100644
+--- a/utils/mkfs.colibri.c
++++ b/utils/mkfs.colibri.c
+@@ -1,4 +1,22 @@
+ /* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 04/06/2010
++ */
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+-- 
+1.8.3.2
+

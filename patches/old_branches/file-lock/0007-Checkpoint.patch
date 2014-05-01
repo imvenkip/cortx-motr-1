@@ -1,0 +1,2224 @@
+From 1503b85f71bf4f6fb6dd8d92904f5ab357a7c67b Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Mon, 1 Apr 2013 18:39:35 +0530
+Subject: [PATCH 07/25] Checkpoint.
+
+---
+ rm/ut/Makefile.sub |   1 +
+ rm/ut/filelock.c   | 168 +++++++++++++++++++++++++++++
+ rm/ut/lcredits.c   |  87 +++++++--------
+ rm/ut/rcredits.c   | 304 ++++++-----------------------------------------------
+ rm/ut/rings.c      |  78 ++++++++++++++
+ rm/ut/rings.h      |   2 +
+ rm/ut/rm_foms.c    | 112 ++++++++++----------
+ rm/ut/rm_fops.c    | 148 +++++++++++++-------------
+ rm/ut/rmapi.c      | 169 ++++++++++++++---------------
+ rm/ut/rmut.c       | 235 +++++++++++++++++++++++++++++++++++++----
+ rm/ut/rmut.h       |  84 +++++++++++++--
+ 11 files changed, 838 insertions(+), 550 deletions(-)
+ create mode 100644 rm/ut/filelock.c
+
+diff --git a/rm/ut/Makefile.sub b/rm/ut/Makefile.sub
+index 2513a37..c3fea4d 100644
+--- a/rm/ut/Makefile.sub
++++ b/rm/ut/Makefile.sub
+@@ -6,4 +6,5 @@ ut_libmero_ut_la_SOURCES += rm/ut/rings.h \
+                             rm/ut/rcredits.c \
+                             rm/ut/rm_foms.c \
+                             rm/ut/rm_fops.c \
++                            rm/ut/filelock.c \
+                             rm/ut/rmut.c
+diff --git a/rm/ut/filelock.c b/rm/ut/filelock.c
+new file mode 100644
+index 0000000..db2df7c
+--- /dev/null
++++ b/rm/ut/filelock.c
+@@ -0,0 +1,168 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
++ * Original creation date: 08/21/2012
++ */
++#include "lib/types.h"            /* uint64_t */
++#include "lib/chan.h"
++#include "lib/misc.h"
++#include "lib/memory.h"
++#include "lib/time.h"
++#include "lib/ut.h"
++#include "fop/fom_generic.h"
++#include "fop/fom_generic.h"
++
++#include "rm/rm.h"
++#include "rm/rm_internal.h"
++#include "rm/rm_fops.h"
++#include "rm/ut/rmut.h"
++
++/* Import */
++extern struct rm_context rm_ctx[SERVER_NR];
++
++/*
++ * Hierarchy description:
++ * SERVER_1 is downward debtor for SERVER_2.
++ * SERVER_2 is upward creditor for SERVER_1.
++ */
++
++enum flock_tests {
++	TEST1 = 0,
++	TEST2,
++	TEST3,
++	TEST4,
++	TEST_NR,
++};
++
++/* Maximum test servers for this testcase */
++static enum rm_server test_servers_nr;
++
++static struct m0_chan flock_tests_chan;
++static struct m0_clink tests_clink[TEST_NR];
++static struct m0_mutex flock_tests_chan_mutex;
++
++static void server1_tests(void)
++{
++	printf("Running server1\n");
++}
++
++static void server2_tests(void)
++{
++	printf("Running server2\n");
++}
++
++static void rm_server_start(const int tid)
++{
++	if (tid < test_servers_nr)
++		rm_ctx_server_start(tid);
++
++	switch(tid) {
++	case SERVER_1:
++		server1_tests();
++		break;
++	case SERVER_2:
++		server2_tests();
++		break;
++	default:
++		break;
++	}
++}
++
++/*
++ * Configure server hierarchy.
++ */
++static void server_hier_config(void)
++{
++	rm_ctx[SERVER_1].creditor_id = SERVER_2;
++	rm_ctx[SERVER_1].debtor_id = SERVER_INVALID;
++
++	rm_ctx[SERVER_2].creditor_id = SERVER_INVALID;
++	rm_ctx[SERVER_2].debtor_id = SERVER_1;
++}
++
++static void flock_utinit(void)
++{
++	uint32_t i;
++
++	/* Maximum 2 servers for this test */
++	test_servers_nr = SERVER_NR - 1;
++	for (i = 0; i < test_servers_nr; ++i)
++		rm_ctx_config(i);
++
++	server_hier_config();
++	m0_mutex_init(&flock_tests_chan_mutex);
++	m0_chan_init(&flock_tests_chan, &flock_tests_chan_mutex);
++#if 0
++	/* Set up test sync points */
++	for (i = 0; i < TEST_NR; ++i) {
++		m0_clink_init(&tests_clink[i], NULL);
++		m0_clink_add_lock(&flock_tests_chan, &tests_clink[i]);
++	}
++#endif
++	m0_rm_fop_init();
++}
++
++static void flock_utfini(void)
++{
++	uint32_t i;
++
++	m0_rm_fop_fini();
++	for (i = 0; i < test_servers_nr; ++i) {
++		rm_ctx_server_stop(i);
++	}
++	for (i = 0; i < test_servers_nr; ++i) {
++		rm_ctx_fini(&rm_ctx[i]);
++	}
++	for (i = 0; i < TEST_NR; ++i) {
++		m0_clink_del_lock(&tests_clink[i]);
++		m0_clink_fini(&tests_clink[i]);
++	}
++	m0_chan_fini_lock(&flock_tests_chan);
++	m0_mutex_fini(&flock_tests_chan_mutex);
++}
++
++void flock_test(void)
++{
++	int rc;
++	int i;
++
++	flock_utinit();
++	/* Start RM servers */
++	for (i = 0; i < test_servers_nr; ++i) {
++		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
++				    &rm_server_start, i, "rm_server_%d", i);
++		M0_UT_ASSERT(rc == 0);
++	}
++
++	/* Now start the tests - wait till all the servers are ready */
++	m0_chan_signal_lock(&flock_tests_chan);
++	for (i = 0; i < test_servers_nr; ++i) {
++		m0_thread_join(&rm_ctx[i].rc_thr);
++		m0_thread_fini(&rm_ctx[i].rc_thr);
++	}
++	flock_utfini();
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/rm/ut/lcredits.c b/rm/ut/lcredits.c
+index cd4bf88..1f8175c 100644
+--- a/rm/ut/lcredits.c
++++ b/rm/ut/lcredits.c
+@@ -24,7 +24,6 @@
+ #include "lib/ub.h"
+ 
+ #include "rm/rm.h"
+-#include "rm/ut/rmut.h"
+ #include "rm/ut/rings.h"
+ 
+ static struct m0_chan lcredits_chan;
+@@ -49,37 +48,39 @@ const struct m0_rm_incoming_ops lcredits_incoming_ops = {
+ 
+ static void local_credits_init(void)
+ {
+-	rm_utdata_init(&test_data, OBJ_OWNER);
+-	rm_test_owner_capital_raise(&test_data.rd_owner, &test_data.rd_credit);
+-	M0_SET0(&test_data.rd_in);
+-	m0_chan_init(&lcredits_chan, &test_data.rd_rt.rt_lock);
++	rings_utdata_ops_set(&rm_test_data);
++	rm_utdata_init(&rm_test_data, OBJ_OWNER);
++	rm_test_owner_capital_raise(rm_test_data.rd_owner,
++				    &rm_test_data.rd_credit);
++	M0_SET0(&rm_test_data.rd_in);
++	m0_chan_init(&lcredits_chan, &rm_test_data.rd_rt->rt_lock);
+ }
+ 
+ static void local_credits_fini(void)
+ {
+ 	m0_chan_fini_lock(&lcredits_chan);
+-	rm_utdata_fini(&test_data, OBJ_OWNER);
++	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+ }
+ 
+ static void cached_credits_test(enum m0_rm_incoming_flags flags)
+ {
+ 	struct m0_rm_incoming next_in;
+ 
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
++	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, flags);
+ 
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_want.cr_datum = NENYA;
+-	test_data.rd_in.rin_ops = &rings_incoming_ops;
++	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
++	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
++	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
+ 	/*
+ 	 * 1. Test obtaining cached credit.
+ 	 */
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
++	m0_rm_credit_get(&rm_test_data.rd_in);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+ 
+ 	M0_SET0(&next_in);
+-	m0_rm_incoming_init(&next_in, &test_data.rd_owner,
++	m0_rm_incoming_init(&next_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, flags);
+ 	next_in.rin_want.cr_datum = VILYA;
+ 	next_in.rin_ops = &rings_incoming_ops;
+@@ -91,10 +92,10 @@ static void cached_credits_test(enum m0_rm_incoming_flags flags)
+ 	M0_UT_ASSERT(next_in.rin_rc == 0);
+ 	M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
+ 
+-	m0_rm_credit_put(&test_data.rd_in);
++	m0_rm_credit_put(&rm_test_data.rd_in);
+ 	m0_rm_credit_put(&next_in);
+ 
+-	m0_rm_incoming_fini(&test_data.rd_in);
++	m0_rm_incoming_fini(&rm_test_data.rd_in);
+ 	m0_rm_incoming_fini(&next_in);
+ }
+ 
+@@ -103,20 +104,20 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
+ 	struct m0_rm_incoming next_in;
+ 	struct m0_clink	      clink;
+ 
+-	M0_SET0(&test_data.rd_in);
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
++	M0_SET0(&rm_test_data.rd_in);
++	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, flags);
+ 
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_want.cr_datum = NENYA;
+-	test_data.rd_in.rin_ops = &lcredits_incoming_ops;
++	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
++	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
++	rm_test_data.rd_in.rin_ops = &lcredits_incoming_ops;
+ 
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
++	m0_rm_credit_get(&rm_test_data.rd_in);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+ 
+ 	M0_SET0(&next_in);
+-	m0_rm_incoming_init(&next_in, &test_data.rd_owner,
++	m0_rm_incoming_init(&next_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, flags);
+ 	next_in.rin_want.cr_datum = NENYA;
+ 	next_in.rin_ops = &lcredits_incoming_ops;
+@@ -136,7 +137,7 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
+ 	}
+ 
+ 	/* First caller releases the credit */
+-	m0_rm_credit_put(&test_data.rd_in);
++	m0_rm_credit_put(&rm_test_data.rd_in);
+ 
+ 	/*
+ 	 * 2. If the flag is RIF_LOCAL_WAIT, check if we get the credit
+@@ -151,39 +152,39 @@ static void held_credits_test(enum m0_rm_incoming_flags flags)
+ 		m0_clink_fini(&clink);
+ 	}
+ 
+-	m0_rm_incoming_fini(&test_data.rd_in);
++	m0_rm_incoming_fini(&rm_test_data.rd_in);
+ 	m0_rm_incoming_fini(&next_in);
+ }
+ 
+ static void failures_test(void)
+ {
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
++	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
+ 
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_ops = &rings_incoming_ops;
+-	test_data.rd_in.rin_want.cr_datum = INVALID_RING;
++	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
++	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
++	rm_test_data.rd_in.rin_want.cr_datum = INVALID_RING;
+ 
+ 	/*
+ 	 * 1. Test - m0_rm_credit_get() with invalid credit (value) fails.
+ 	 */
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ESRCH);
++	m0_rm_credit_get(&rm_test_data.rd_in);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -ESRCH);
+ 
+ 	/*
+ 	 * 2. Test - credit_get fails when owner is not in ROS_ACTIVE state.
+ 	 */
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
++	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_ops = &rings_incoming_ops;
+-	test_data.rd_in.rin_want.cr_datum = INVALID_RING;
+-	test_data.rd_owner.ro_sm.sm_state = ROS_FINALISING;
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ENODEV);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
+-	test_data.rd_owner.ro_sm.sm_state = ROS_ACTIVE;
++	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
++	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
++	rm_test_data.rd_in.rin_want.cr_datum = INVALID_RING;
++	rm_test_data.rd_owner->ro_sm.sm_state = ROS_FINALISING;
++	m0_rm_credit_get(&rm_test_data.rd_in);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -ENODEV);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
++	rm_test_data.rd_owner->ro_sm.sm_state = ROS_ACTIVE;
+ }
+ 
+ void local_credits_test(void)
+diff --git a/rm/ut/rcredits.c b/rm/ut/rcredits.c
+index b685828..f501da6 100644
+--- a/rm/ut/rcredits.c
++++ b/rm/ut/rcredits.c
+@@ -23,32 +23,16 @@
+ #include "lib/memory.h"
+ #include "lib/time.h"
+ #include "lib/ut.h"
+-#include "db/db.h"
+-#include "cob/cob.h"
+-#include "net/lnet/lnet.h"
+-#include "net/buffer_pool.h"
+-#include "mdstore/mdstore.h"
+-#include "reqh/reqh.h"
+-#include "rpc/rpc.h"
+-#include "rpc/rpc_internal.h"
+-#include "rpc/rpc_machine.h"
+ #include "fop/fom_generic.h"
+ #include "fop/fom_generic.h"
+ 
+ #include "rm/rm.h"
+ #include "rm/rm_internal.h"
+ #include "rm/rm_fops.h"
+-#include "rm/ut/rmut.h"
++#include "rm/ut/rings.h"
+ 
+-static const char *db_name[] = {"ut-rm-cob_1",
+-				"ut-rm-cob_2",
+-				"ut-rm-cob_3"
+-			       };
+-
+-static const char *serv_addr[] = { "0@lo:12345:34:1",
+-				   "0@lo:12345:34:2",
+-				   "0@lo:12345:34:3"
+-				 };
++/* Import */
++extern struct rm_context rm_ctx[SERVER_NR];
+ 
+ /*
+  * Hierarchy description:
+@@ -57,21 +41,6 @@ static const char *serv_addr[] = { "0@lo:12345:34:1",
+  * SERVER_3 is upward creditor for SERVER_2.
+  */
+ 
+-static const int cob_ids[] = { 20, 30, 40 };
+-/*
+- * Buffer pool parameters.
+- */
+-static uint32_t bp_buf_nr = 8;
+-static uint32_t bp_tm_nr = 2;
+-
+-enum rm_server {
+-	SERVER_1 = 0,
+-	SERVER_2,
+-	SERVER_3,
+-	SERVER_NR,
+-	SERVER_INVALID,
+-};
+-
+ enum rr_tests {
+ 	TEST1 = 0,
+ 	TEST2,
+@@ -80,52 +49,13 @@ enum rr_tests {
+ 	TEST_NR,
+ };
+ 
+-/*
+- * RM server context. It lives inside a thread in this test.
+- */
+-struct rm_context {
+-	enum rm_server		  rc_id;
+-	const char		 *rc_ep_addr;
+-	struct m0_thread	  rc_thr;
+-	struct m0_chan		  rc_chan;
+-	struct m0_clink		  rc_clink;
+-	struct m0_mutex		  rc_mutex;
+-	struct m0_rpc_machine	  rc_rpc;
+-	struct m0_dbenv		  rc_dbenv;
+-	struct m0_fol		  rc_fol;
+-	struct m0_cob_domain_id	  rc_cob_id;
+-	struct m0_mdstore	  rc_mdstore;
+-	struct m0_cob_domain	  rc_cob_dom;
+-	struct m0_net_domain	  rc_net_dom;
+-	struct m0_net_buffer_pool rc_bufpool;
+-	struct m0_net_xprt	 *rc_xprt;
+-	struct m0_reqh		  rc_reqh;
+-	struct m0_net_end_point	 *rc_ep[SERVER_NR];
+-	struct m0_rpc_conn	  rc_conn[SERVER_NR];
+-	struct m0_rpc_session	  rc_sess[SERVER_NR];
+-	struct rm_ut_data	  rc_test_data;
+-	enum rm_server		  creditor_id;
+-	enum rm_server		  debtor_id;
+-};
++/* Maximum test servers for this testcase */
++static enum rm_server test_servers_nr;
+ 
+ static struct m0_chan rr_tests_chan;
+ static struct m0_clink tests_clink[TEST_NR];
+ static struct m0_mutex rr_tests_chan_mutex;
+ 
+-struct rm_context rm_ctx[SERVER_NR];
+-
+-static void buf_empty(struct m0_net_buffer_pool *bp);
+-static void buf_low(struct m0_net_buffer_pool *bp);
+-
+-const struct m0_net_buffer_pool_ops buf_ops = {
+-	.nbpo_below_threshold = buf_low,
+-	.nbpo_not_empty	      = buf_empty,
+-};
+-
+-static void buf_empty(struct m0_net_buffer_pool *bp)
+-{
+-}
+-
+ static void server1_in_complete(struct m0_rm_incoming *in, int32_t rc)
+ {
+ 	M0_UT_ASSERT(in != NULL);
+@@ -171,178 +101,11 @@ const struct m0_rm_incoming_ops server3_incoming_ops = {
+ 	.rio_conflict = server3_in_conflict
+ };
+ 
+-static void buf_low(struct m0_net_buffer_pool *bp)
+-{
+-}
+-
+-static void rm_ctx_init(struct rm_context *rmctx)
+-{
+-	int		rc;
+-	struct m0_db_tx tx;
+-
+-	rmctx->rc_xprt = &m0_net_lnet_xprt;
+-
+-	rc = m0_net_domain_init(&rmctx->rc_net_dom, rmctx->rc_xprt,
+-	                        &m0_addb_proc_ctx);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rmctx->rc_bufpool.nbp_ops = &buf_ops;
+-	rc = m0_rpc_net_buffer_pool_setup(&rmctx->rc_net_dom,
+-					  &rmctx->rc_bufpool,
+-					  bp_buf_nr, bp_tm_nr);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_dbenv_init(&rmctx->rc_dbenv, db_name[rmctx->rc_id], 0);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_fol_init(&rmctx->rc_fol, &rmctx->rc_dbenv);
+-        M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_cob_domain_init(&rmctx->rc_cob_dom, &rmctx->rc_dbenv,
+-				&rmctx->rc_cob_id);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_mdstore_init(&rmctx->rc_mdstore, &rmctx->rc_cob_id,
+-			     &rmctx->rc_dbenv, 0);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_db_tx_init(&tx, &rmctx->rc_dbenv, 0);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = m0_rpc_root_session_cob_create(&rmctx->rc_mdstore.md_dom, &tx);
+-	M0_UT_ASSERT(rc == 0);
+-	m0_db_tx_commit(&tx);
+-
+-	rc = M0_REQH_INIT(&rmctx->rc_reqh,
+-			.rhia_dtm       = (void*)1,
+-			.rhia_db        = &rmctx->rc_dbenv,
+-			.rhia_mdstore   = &rmctx->rc_mdstore,
+-			.rhia_fol       = &rmctx->rc_fol,
+-			.rhia_svc       = (void*)1,
+-			.rhia_addb_stob = NULL);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_rpc_machine_init(&rmctx->rc_rpc, &rmctx->rc_cob_dom,
+-				 &rmctx->rc_net_dom, rmctx->rc_ep_addr,
+-				 &rmctx->rc_reqh, &rmctx->rc_bufpool,
+-				 M0_BUFFER_ANY_COLOUR,
+-				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
+-				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
+-	M0_UT_ASSERT(rc == 0);
+-	m0_mutex_init(&rmctx->rc_mutex);
+-	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
+-	m0_clink_init(&rmctx->rc_clink, NULL);
+-}
+-
+-static void rm_ctx_fini(struct rm_context *rmctx)
+-{
+-	m0_clink_fini(&rmctx->rc_clink);
+-	m0_chan_fini_lock(&rmctx->rc_chan);
+-	m0_mutex_fini(&rmctx->rc_mutex);
+-	m0_rpc_machine_fini(&rmctx->rc_rpc);
+-	m0_reqh_fini(&rmctx->rc_reqh);
+-	m0_mdstore_fini(&rmctx->rc_mdstore);
+-	m0_cob_domain_fini(&rmctx->rc_cob_dom);
+-	m0_fol_fini(&rmctx->rc_fol);
+-	m0_dbenv_fini(&rmctx->rc_dbenv);
+-	m0_rpc_net_buffer_pool_cleanup(&rmctx->rc_bufpool);
+-	m0_net_domain_fini(&rmctx->rc_net_dom);
+-}
+-
+-static void rm_connect(struct rm_context *src, const struct rm_context *dest)
+-{
+-	struct m0_net_end_point *ep;
+-	int		         rc;
+-
+-	/*
+-	 * Create a local end point to communicate with remote server.
+-	 */
+-	rc = m0_net_end_point_create(&ep,
+-				     &src->rc_rpc.rm_tm,
+-				     dest->rc_ep_addr);
+-	M0_UT_ASSERT(rc == 0);
+-	src->rc_ep[dest->rc_id] = ep;
+-
+-	rc = m0_rpc_conn_create(&src->rc_conn[dest->rc_id],
+-				ep, &src->rc_rpc, 15, m0_time_from_now(10, 0));
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
+-				   &src->rc_conn[dest->rc_id], 1,
+-				   m0_time_from_now(30, 0));
+-	M0_UT_ASSERT(rc == 0);
+-}
+-
+-static void rm_disconnect(struct rm_context *src, const struct rm_context *dest)
+-{
+-	int rc;
+-
+-	rc = m0_rpc_session_destroy(&src->rc_sess[dest->rc_id],
+-				    m0_time_from_now(30, 0));
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id],
+-				 m0_time_from_now(30, 0));
+-	M0_UT_ASSERT(rc == 0);
+-
+-	m0_net_end_point_put(src->rc_ep[dest->rc_id]);
+-	M0_UT_ASSERT(rc == 0);
+-}
+-
+-static void server_start(enum rm_server srv_id)
+-{
+-	struct m0_rm_remote *creditor;
+-	struct m0_rm_owner  *owner = &rm_ctx[srv_id].rc_test_data.rd_owner;
+-	struct m0_rm_credit *credit = &rm_ctx[srv_id].rc_test_data.rd_credit;
+-	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
+-	enum rm_server	     debt_id = rm_ctx[srv_id].debtor_id;
+-
+-	rm_utdata_init(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
+-	/*
+-	 * If creditor id is valid, do creditor setup.
+-	 * If there is no creditor, this server is original owner.
+-	 * For original owner, raise capital.
+-	 */
+-	if (cred_id != SERVER_INVALID) {
+-		rm_connect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
+-		M0_ALLOC_PTR(creditor);
+-		M0_UT_ASSERT(creditor != NULL);
+-		m0_rm_remote_init(creditor, owner->ro_resource);
+-		creditor->rem_session = &rm_ctx[srv_id].rc_sess[cred_id];
+-		owner->ro_creditor = creditor;
+-	} else
+-		rm_test_owner_capital_raise(owner, credit);
+-
+-	if (debt_id != SERVER_INVALID)
+-		rm_connect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
+-
+-}
+-
+-static void server_stop(enum rm_server srv_id)
+-{
+-	struct m0_rm_remote *creditor;
+-	struct m0_rm_owner  *owner = &rm_ctx[srv_id].rc_test_data.rd_owner;
+-	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
+-	enum rm_server	     debt_id = rm_ctx[srv_id].debtor_id;
+-
+-	if (cred_id != SERVER_INVALID) {
+-		creditor = owner->ro_creditor;
+-		M0_UT_ASSERT(creditor != NULL);
+-		m0_rm_remote_fini(creditor);
+-		m0_free(creditor);
+-		owner->ro_creditor = NULL;
+-	}
+-	rm_utdata_fini(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
+-	if (cred_id != SERVER_INVALID)
+-		rm_disconnect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
+-	if (debt_id != SERVER_INVALID)
+-		rm_disconnect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
+-}
+-
+ static void creditor_cookie_setup(enum rm_server dsrv_id,
+ 				  enum rm_server csrv_id)
+ {
+-	struct m0_rm_owner *creditor = &rm_ctx[csrv_id].rc_test_data.rd_owner;
+-	struct m0_rm_owner *owner = &rm_ctx[dsrv_id].rc_test_data.rd_owner;
++	struct m0_rm_owner *creditor = rm_ctx[csrv_id].rc_test_data.rd_owner;
++	struct m0_rm_owner *owner = rm_ctx[dsrv_id].rc_test_data.rd_owner;
+ 
+ 	m0_cookie_init(&owner->ro_creditor->rem_cookie, &creditor->ro_id);
+ 
+@@ -353,7 +116,7 @@ static void credit_setup(enum rm_server srv_id,
+ 			int value)
+ {
+ 	struct m0_rm_incoming *in = &rm_ctx[srv_id].rc_test_data.rd_in;
+-	struct m0_rm_owner    *owner = &rm_ctx[srv_id].rc_test_data.rd_owner;
++	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+ 
+ 	m0_rm_incoming_init(in, owner, M0_RIT_LOCAL, RIP_NONE, flag);
+ 	m0_rm_credit_init(&in->rin_want, owner);
+@@ -376,7 +139,7 @@ static void credit_setup(enum rm_server srv_id,
+ static void loan_session_set(enum rm_server csrv_id,
+ 			     enum rm_server dsrv_id)
+ {
+-	struct m0_rm_owner *owner = &rm_ctx[csrv_id].rc_test_data.rd_owner;
++	struct m0_rm_owner *owner = rm_ctx[csrv_id].rc_test_data.rd_owner;
+ 	struct m0_rm_loan  *loan;
+ 	struct m0_rm_credit *credit;
+ 
+@@ -391,8 +154,8 @@ static void loan_session_set(enum rm_server csrv_id,
+ 
+ static void test2_verify(void)
+ {
+-	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
+-	struct m0_rm_owner *so1 = &rm_ctx[SERVER_1].rc_test_data.rd_owner;
++	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
++	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+ 
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_sublet));
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
+@@ -435,9 +198,9 @@ static void server1_tests(void)
+ 
+ static void test3_verify(void)
+ {
+-	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
+-	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
+-	struct m0_rm_owner *so1 = &rm_ctx[SERVER_1].rc_test_data.rd_owner;
++	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
++	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
++	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+ 
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
+@@ -480,8 +243,8 @@ static void test3_run(void)
+ 
+ static void test1_verify(void)
+ {
+-	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
+-	struct m0_rm_owner *so2 = &rm_ctx[SERVER_2].rc_test_data.rd_owner;
++	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
++	struct m0_rm_owner *so2 = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+ 
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so3->ro_sublet));
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
+@@ -556,7 +319,7 @@ static void server2_tests(void)
+ 
+ static void test4_run(void)
+ {
+-	struct m0_rm_owner *so3 = &rm_ctx[SERVER_3].rc_test_data.rd_owner;
++	struct m0_rm_owner *so3 = rm_ctx[SERVER_3].rc_test_data.rd_owner;
+ 	int		    rc;
+ 
+ 	/*
+@@ -568,9 +331,9 @@ static void test4_run(void)
+ 	M0_UT_ASSERT(rc == -ESRCH);
+ 	M0_UT_ASSERT(owner_state(so3) == ROS_FINAL);
+ 	m0_rm_owner_fini(so3);
+-	M0_SET0(&rm_ctx[SERVER_3].rc_test_data.rd_owner);
+-	m0_rm_owner_init(&rm_ctx[SERVER_3].rc_test_data.rd_owner,
+-			 &rm_ctx[SERVER_3].rc_test_data.rd_res.rs_resource,
++	M0_SET0(rm_ctx[SERVER_3].rc_test_data.rd_owner);
++	m0_rm_owner_init(rm_ctx[SERVER_3].rc_test_data.rd_owner,
++			 rm_ctx[SERVER_3].rc_test_data.rd_res,
+ 			 NULL);
+ }
+ 
+@@ -585,8 +348,10 @@ static void server3_tests(void)
+ 
+ static void rm_server_start(const int tid)
+ {
+-	if (tid < SERVER_NR)
+-		server_start(tid);
++	if (tid < test_servers_nr) {
++		rings_utdata_ops_set(&rm_ctx[tid].rc_test_data);
++		rm_ctx_server_start(tid);
++	}
+ 
+ 	switch(tid) {
+ 	case SERVER_1:
+@@ -622,13 +387,10 @@ static void remote_credits_utinit(void)
+ {
+ 	uint32_t i;
+ 
+-	for (i = 0; i < SERVER_NR; ++i) {
+-		M0_SET0(&rm_ctx[i]);
+-		rm_ctx[i].rc_ep_addr = serv_addr[i];
+-		rm_ctx[i].rc_id = i;
+-		rm_ctx[i].rc_cob_id.id = cob_ids[i];
+-		rm_ctx_init(&rm_ctx[i]);
+-	}
++	test_servers_nr = SERVER_NR;
++	for (i = 0; i < test_servers_nr; ++i)
++		rm_ctx_config(i);
++
+ 	server_hier_config();
+ 	m0_mutex_init(&rr_tests_chan_mutex);
+ 	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
+@@ -645,10 +407,10 @@ static void remote_credits_utfini(void)
+ 	uint32_t i;
+ 
+ 	m0_rm_fop_fini();
+-	for (i = 0; i < SERVER_NR; ++i) {
+-		server_stop(i);
++	for (i = 0; i < test_servers_nr; ++i) {
++		rm_ctx_server_stop(i);
+ 	}
+-	for (i = 0; i < SERVER_NR; ++i) {
++	for (i = 0; i < test_servers_nr; ++i) {
+ 		rm_ctx_fini(&rm_ctx[i]);
+ 	}
+ 	for (i = 0; i < TEST_NR; ++i) {
+@@ -666,7 +428,7 @@ void remote_credits_test(void)
+ 
+ 	remote_credits_utinit();
+ 	/* Start RM servers */
+-	for (i = 0; i < SERVER_NR; ++i) {
++	for (i = 0; i < test_servers_nr; ++i) {
+ 		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
+ 				    &rm_server_start, i, "rm_server_%d", i);
+ 		M0_UT_ASSERT(rc == 0);
+@@ -674,7 +436,7 @@ void remote_credits_test(void)
+ 
+ 	/* Now start the tests - wait till all the servers are ready */
+ 	m0_chan_signal_lock(&rr_tests_chan);
+-	for (i = 0; i < SERVER_NR; ++i) {
++	for (i = 0; i < test_servers_nr; ++i) {
+ 		m0_thread_join(&rm_ctx[i].rc_thr);
+ 		m0_thread_fini(&rm_ctx[i].rc_thr);
+ 	}
+diff --git a/rm/ut/rings.c b/rm/ut/rings.c
+index 2ecfda0..59377d7 100644
+--- a/rm/ut/rings.c
++++ b/rm/ut/rings.c
+@@ -25,10 +25,14 @@
+ #include "lib/errno.h"
+ #include "lib/misc.h"
+ #include "lib/chan.h"
++#include "lib/ut.h"
+ #include "lib/vec.h"
+ 
+ #include "rm/rm.h"
+ #include "rm/ut/rings.h"
++#include "rm/ut/rmut.h"
++
++static const char rings_rtype_name[] = "UT Rings Resource Type";
+ 
+ static void rings_policy(struct m0_rm_resource *resource,
+ 			 struct m0_rm_incoming *in)
+@@ -47,6 +51,80 @@ const struct m0_rm_resource_ops rings_ops = {
+ 	.rop_credit_init   = rings_credit_init
+ };
+ 
++static void rings_rtype_set(struct rm_ut_data *_this)
++{
++	struct m0_rm_resource_type *rings_rtype;
++	int			    rc;
++
++	M0_ALLOC_PTR(rings_rtype);
++	M0_UT_ASSERT(rings_rtype != NULL);
++	rings_rtype->rt_id = 0;
++	rings_rtype->rt_ops = &rings_rtype_ops;
++	rc = m0_rm_type_register(&_this->rd_dom, rings_rtype);
++	M0_UT_ASSERT(rc == 0);
++	_this->rd_rt = rings_rtype;
++}
++
++static void rings_rtype_unset(struct rm_ut_data *_this)
++{
++	m0_rm_type_deregister(_this->rd_rt);
++	m0_free(_this->rd_rt);
++	_this->rd_rt = NULL;
++}
++
++static void rings_res_set(struct rm_ut_data *_this)
++{
++	struct m0_rings *rings_res;
++
++	M0_ALLOC_PTR(rings_res);
++	M0_UT_ASSERT(rings_res != NULL);
++	rings_res->rs_resource.r_ops = &rings_ops;
++	m0_rm_resource_add(_this->rd_rt, &rings_res->rs_resource);
++	_this->rd_res = &rings_res->rs_resource;
++}
++
++static void rings_res_unset(struct rm_ut_data *_this)
++{
++	struct m0_rings *rings_res;
++
++	m0_rm_resource_del(_this->rd_res);
++	rings_res = container_of(_this->rd_res, struct m0_rings, rs_resource);
++	m0_free(_this->rd_res);
++	_this->rd_res = NULL;
++}
++
++static void rings_owner_set(struct rm_ut_data *_this)
++{
++	struct m0_rm_owner *owner;
++
++	M0_ALLOC_PTR(owner);
++	M0_UT_ASSERT(owner != NULL);
++	m0_rm_owner_init(owner, _this->rd_res, NULL);
++	_this->rd_owner = owner;
++}
++
++static void rings_owner_unset(struct rm_ut_data *_this)
++{
++	m0_rm_owner_windup(_this->rd_owner);
++	m0_rm_owner_fini(_this->rd_owner);
++	m0_free(_this->rd_owner);
++	_this->rd_owner = NULL;
++}
++
++static struct rm_ut_data_ops rings_ut_data_ops = {
++	.rtype_set = rings_rtype_set,
++	.rtype_unset = rings_rtype_unset,
++	.resource_set = rings_res_set,
++	.resource_unset = rings_res_unset,
++	.owner_set = rings_owner_set,
++	.owner_unset = rings_owner_unset
++};
++
++void rings_utdata_ops_set(struct rm_ut_data *data)
++{
++	data->rd_ops = &rings_ut_data_ops;
++}
++
+ static bool resources_are_equal(const struct m0_rm_resource *c0,
+ 				const struct m0_rm_resource *c1)
+ {
+diff --git a/rm/ut/rings.h b/rm/ut/rings.h
+index 11f49a9..736d000 100644
+--- a/rm/ut/rings.h
++++ b/rm/ut/rings.h
+@@ -24,6 +24,7 @@
+ #define __MERO_RM_RINGS_H__
+ 
+ #include "rm/rm.h"
++#include "rm/ut/rmut.h"
+ 
+ /* from http://en.wikipedia.org/wiki/Rings_of_Power */
+ enum {
+@@ -84,6 +85,7 @@ extern const struct m0_rm_resource_ops rings_ops;
+ extern const struct m0_rm_resource_type_ops rings_rtype_ops;
+ extern const struct m0_rm_credit_ops rings_credit_ops;
+ extern const struct m0_rm_incoming_ops rings_incoming_ops;
++extern void rings_utdata_ops_set(struct rm_ut_data *data);
+ 
+ /* __MERO_RM_RINGS_H__ */
+ #endif
+diff --git a/rm/ut/rm_foms.c b/rm/ut/rm_foms.c
+index f283812..7f06692 100644
+--- a/rm/ut/rm_foms.c
++++ b/rm/ut/rm_foms.c
+@@ -28,7 +28,6 @@
+ #include "fop/ut/fop_put_norpc.h"
+ #include "rm/rm.h"
+ #include "rm/rm_fops.h"
+-#include "rm/ut/rmut.h"
+ #include "rm/ut/rings.h"
+ #include "rm/rm_foms.c"          /* To access static APIs. */
+ 
+@@ -248,10 +247,10 @@ static void brw_fop_populate(struct m0_fom *fom, enum test_type test)
+ 	brw_fop->bo_base.rrq_flags = RIF_LOCAL_WAIT;
+ 
+ 	m0_cookie_init(&brw_fop->bo_creditor.ow_cookie,
+-		       &test_data.rd_owner.ro_id);
++		       &rm_test_data.rd_owner->ro_id);
+ 	m0_cookie_init(&brw_fop->bo_base.rrq_owner.ow_cookie,
+-		       &test_data.rd_owner.ro_id);
+-	m0_rm_credit_init(&credit, &test_data.rd_owner);
++		       &rm_test_data.rd_owner->ro_id);
++	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
+ 	switch (test) {
+ 	case RM_UT_FULL_CREDITS_TEST:
+ 	case RM_UT_MEMFAIL_TEST:
+@@ -273,7 +272,7 @@ static void brw_test_cleanup(void)
+ 	struct m0_rm_credit *credit;
+ 	struct m0_rm_loan  *loan;
+ 
+-	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_sublet, credit) {
++	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_sublet, credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		loan = container_of(credit, struct m0_rm_loan, rl_credit);
+ 		m0_rm_loan_fini(loan);
+@@ -289,31 +288,27 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
+ {
+ 	struct m0_fop_rm_borrow *brw_fop;
+ 
+-	m0_rm_owner_lock(&test_data.rd_owner);
++	m0_rm_owner_lock(rm_test_data.rd_owner);
+ 	switch (test) {
+ 	case RM_UT_FULL_CREDITS_TEST:
+ 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+ 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+-		M0_UT_ASSERT(
+-		    !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_sublet));
+-		M0_UT_ASSERT(
+-			m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
+-		M0_UT_ASSERT(
+-			m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_owned[OWOS_HELD]));
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_sublet));
++		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
++		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_owned[OWOS_HELD]));
+ 		break;
+ 	case RM_UT_PARTIAL_CREDITS_TEST:
+ 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+ 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+-		M0_UT_ASSERT(
+-		    !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_sublet));
+-		M0_UT_ASSERT(
+-			!m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
+-		M0_UT_ASSERT(
+-			m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_owned[OWOS_HELD]));
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_sublet));
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
++		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_owned[OWOS_HELD]));
+ 		break;
+ 	case RM_UT_INVALID_CREDITS_TEST:
+ 	case RM_UT_MEMFAIL_TEST:
+@@ -321,7 +316,7 @@ static void brw_fom_state_validate(struct m0_fom *fom, int32_t rc,
+ 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+ 		break;
+ 	}
+-	m0_rm_owner_unlock(&test_data.rd_owner);
++	m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 	brw_fop = m0_fop_data(fom->fo_fop);
+ 	M0_UT_ASSERT(brw_fop != NULL);
+ 	m0_buf_free(&brw_fop->bo_base.rrq_credit.cr_opaque);
+@@ -337,11 +332,13 @@ static void brw_fom_state_test(enum test_type test)
+ 	struct rm_request_fom *rfom;
+ 	int		       rc;
+ 
+-	/* Initialise hierarchy of RM objects */
+-	rm_utdata_init(&test_data, OBJ_OWNER);
++	/* Initialise hierarchy of RM objects with rings resource */
++	rings_utdata_ops_set(&rm_test_data);
++	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+ 
+ 	/* Add self-loan to the test owner object */
+-	rm_test_owner_capital_raise(&test_data.rd_owner, &test_data.rd_credit);
++	rm_test_owner_capital_raise(rm_test_data.rd_owner,
++				    &rm_test_data.rd_credit);
+ 
+ 	fop = fop_alloc(M0_RIT_BORROW);
+ 
+@@ -371,7 +368,7 @@ static void brw_fom_state_test(enum test_type test)
+ 
+ 	fom_fini(fom, M0_RIT_BORROW);
+ 	brw_test_cleanup();
+-	rm_utdata_fini(&test_data, OBJ_OWNER);
++	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+ }
+ 
+ /*
+@@ -405,7 +402,7 @@ static void rvk_data_setup(enum test_type test)
+ 
+ 	M0_ALLOC_PTR(credit);
+ 	M0_UT_ASSERT(credit != NULL);
+-	m0_rm_credit_init(credit, &test_data.rd_owner);
++	m0_rm_credit_init(credit, rm_test_data.rd_owner);
+ 	switch (test) {
+ 	case RM_UT_FULL_CREDITS_TEST:
+ 	case RM_UT_MEMFAIL_TEST:
+@@ -424,24 +421,26 @@ static void rvk_data_setup(enum test_type test)
+ 
+ 	M0_ALLOC_PTR(remote);
+ 	M0_UT_ASSERT(remote != NULL);
+-	m0_rm_remote_init(remote, test_data.rd_owner.ro_resource);
++	m0_rm_remote_init(remote, rm_test_data.rd_owner->ro_resource);
+ 	remote->rem_state = REM_OWNER_LOCATED;
+-	m0_cookie_init(&remote->rem_cookie, &test_data.rd_owner.ro_id);
+-	remotes_tlist_add(&test_data.rd_res.rs_resource.r_remote, remote);
++	m0_cookie_init(&remote->rem_cookie, &rm_test_data.rd_owner->ro_id);
++	remotes_tlist_add(&rm_test_data.rd_res->r_remote, remote);
+ 
+ 	m0_rm_loan_init(test_loan, credit, remote);
+ 	test_loan->rl_id = M0_RM_LOAN_SELF_ID + test;
+ 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+ 
+-	m0_rm_owner_lock(&test_data.rd_owner);
+-	m0_rm_ur_tlist_add(&test_data.rd_owner.ro_borrowed,
++	m0_rm_owner_lock(rm_test_data.rd_owner);
++	m0_rm_ur_tlist_add(&rm_test_data.rd_owner->ro_borrowed,
+ 			   &test_loan->rl_credit);
+-	m0_rm_ur_tlist_add(&test_data.rd_owner.ro_owned[OWOS_CACHED], credit);
++	m0_rm_ur_tlist_add(&rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
++			   credit);
+ 
+-	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
+-			     &test_data.rd_owner.ro_owned[OWOS_CACHED]));
+-	m0_rm_owner_unlock(&test_data.rd_owner);
++			&rm_test_data.rd_owner->ro_borrowed));
++	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++			     &rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
++	m0_rm_owner_unlock(rm_test_data.rd_owner);
+ }
+ 
+ /*
+@@ -458,13 +457,13 @@ static void rvk_fop_populate(struct m0_fom *fom)
+ 	rvk_fop->rr_base.rrq_policy = RIP_NONE;
+ 	rvk_fop->rr_base.rrq_flags = RIF_LOCAL_WAIT;
+ 
+-	m0_rm_credit_init(&credit, &test_data.rd_owner);
++	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
+ 	credit.cr_datum = VILYA;
+ 	m0_rm_credit_encode(&credit, &rvk_fop->rr_base.rrq_credit.cr_opaque);
+ 
+ 	m0_cookie_init(&rvk_fop->rr_loan.lo_cookie, &test_loan->rl_id);
+ 	m0_cookie_init(&rvk_fop->rr_base.rrq_owner.ow_cookie,
+-		       &test_data.rd_owner.ro_id);
++		       &rm_test_data.rd_owner->ro_id);
+ 	m0_rm_credit_fini(&credit);
+ }
+ 
+@@ -474,13 +473,14 @@ static void rvk_test_cleanup(void)
+ 	struct m0_rm_remote *remote;
+ 	struct m0_rm_loan   *loan;
+ 
+-	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_owned[OWOS_CACHED], credit) {
++	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
++			credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		m0_rm_credit_fini(credit);
+ 		m0_free(credit);
+ 	} m0_tl_endfor;
+ 
+-	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_borrowed, credit) {
++	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_borrowed, credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		loan = container_of(credit, struct m0_rm_loan, rl_credit);
+ 		remote = loan->rl_other;
+@@ -488,7 +488,7 @@ static void rvk_test_cleanup(void)
+ 		m0_free(loan);
+ 	} m0_tl_endfor;
+ 
+-	m0_tl_for(remotes, &test_data.rd_res.rs_resource.r_remote, remote) {
++	m0_tl_for(remotes, &rm_test_data.rd_res->r_remote, remote) {
+ 		remotes_tlist_del(remote);
+ 		m0_rm_remote_fini(remote);
+ 		m0_free(remote);
+@@ -503,26 +503,25 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
+ {
+ 	struct m0_fop_rm_revoke *rvk_fop;
+ 
+-	m0_rm_owner_lock(&test_data.rd_owner);
++	m0_rm_owner_lock(rm_test_data.rd_owner);
+ 	switch (test) {
+ 	case RM_UT_FULL_CREDITS_TEST:
+ 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+ 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+-		M0_UT_ASSERT(
+-			m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
+-		M0_UT_ASSERT(
+-		    m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
++		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
++		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(
++				&rm_test_data.rd_owner->ro_borrowed));
+ 		break;
+ 	case RM_UT_PARTIAL_CREDITS_TEST:
+ 		M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_SUCCESS);
+ 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+ 		M0_UT_ASSERT(
+ 			!m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
++				&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
+ 		M0_UT_ASSERT(
+ 			!m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_borrowed));
++				&rm_test_data.rd_owner->ro_borrowed));
+ 		break;
+ 	case RM_UT_INVALID_CREDITS_TEST:
+ 	case RM_UT_MEMFAIL_TEST:
+@@ -530,14 +529,14 @@ static void rvk_fom_state_validate(struct m0_fom *fom, int32_t rc,
+ 		M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+ 		M0_UT_ASSERT(
+ 			!m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_owned[OWOS_CACHED]));
++				&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
+ 		M0_UT_ASSERT(
+ 			!m0_rm_ur_tlist_is_empty(
+-				&test_data.rd_owner.ro_borrowed));
++				&rm_test_data.rd_owner->ro_borrowed));
+ 		break;
+ 	}
+ 	rvk_test_cleanup();
+-	m0_rm_owner_unlock(&test_data.rd_owner);
++	m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 	rvk_fop = m0_fop_data(fom->fo_fop);
+ 	M0_UT_ASSERT(rvk_fop != NULL);
+ 	m0_buf_free(&rvk_fop->rr_base.rrq_credit.cr_opaque);
+@@ -553,8 +552,9 @@ static void rvk_fom_state_test(enum test_type test)
+ 	struct rm_request_fom *rfom;
+ 	int		       rc;
+ 
+-	/* Initialise hierarchy of RM objects */
+-	rm_utdata_init(&test_data, OBJ_OWNER);
++	/* Initialise hierarchy of RM objects with rings resource */
++	rings_utdata_ops_set(&rm_test_data);
++	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+ 
+ 	rvk_data_setup(test);
+ 
+@@ -583,7 +583,7 @@ static void rvk_fom_state_test(enum test_type test)
+ 	rvk_fom_state_validate(fom, rc, test);
+ 
+ 	fom_fini(fom, M0_RIT_REVOKE);
+-	rm_utdata_fini(&test_data, OBJ_OWNER);
++	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+ }
+ 
+ /*
+diff --git a/rm/ut/rm_fops.c b/rm/ut/rm_fops.c
+index 9a59ffd..cbdd70c 100644
+--- a/rm/ut/rm_fops.c
++++ b/rm/ut/rm_fops.c
+@@ -28,7 +28,6 @@
+ #include "lib/ut.h"
+ #include "rm/rm.h"
+ #include "rm/rm_fops.h"
+-#include "rm/ut/rmut.h"
+ #include "rm/ut/rings.h"
+ #include "rm/rm_fops.c"          /* To access static APIs. */
+ 
+@@ -66,33 +65,33 @@ static void rmfops_utfini(void)
+  */
+ static void request_param_init(enum m0_rm_incoming_type reqtype)
+ {
+-	M0_SET0(&test_data.rd_in);
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner, reqtype,
++	M0_SET0(&rm_test_data.rd_in);
++	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner, reqtype,
+ 			    RIP_NONE, RIF_LOCAL_WAIT);
+ 
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_want.cr_datum = NENYA;
+-	test_data.rd_in.rin_ops = &rings_incoming_ops;
+-
+-	M0_SET0(&test_data.rd_credit);
+-	m0_rm_credit_init(&test_data.rd_credit, &test_data.rd_owner);
+-	test_data.rd_credit.cr_datum = NENYA;
+-	test_data.rd_credit.cr_ops = &rings_credit_ops;
+-
+-	M0_ALLOC_PTR(test_data.rd_owner.ro_creditor);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_creditor != NULL);
+-	m0_rm_remote_init(test_data.rd_owner.ro_creditor,
+-			  test_data.rd_owner.ro_resource);
+-	m0_cookie_init(&test_data.rd_owner.ro_creditor->rem_cookie,
+-		       &test_data.rd_owner.ro_id);
++	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
++	rm_test_data.rd_in.rin_want.cr_datum = NENYA;
++	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
++
++	M0_SET0(&rm_test_data.rd_credit);
++	m0_rm_credit_init(&rm_test_data.rd_credit, rm_test_data.rd_owner);
++	rm_test_data.rd_credit.cr_datum = NENYA;
++	rm_test_data.rd_credit.cr_ops = &rings_credit_ops;
++
++	M0_ALLOC_PTR(rm_test_data.rd_owner->ro_creditor);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_creditor != NULL);
++	m0_rm_remote_init(rm_test_data.rd_owner->ro_creditor,
++			  rm_test_data.rd_owner->ro_resource);
++	m0_cookie_init(&rm_test_data.rd_owner->ro_creditor->rem_cookie,
++		       &rm_test_data.rd_owner->ro_id);
+ 	M0_ALLOC_PTR(test_loan);
+ 	M0_UT_ASSERT(test_loan != NULL);
+ 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+ 	remote.rem_state = REM_FREED;
+-	m0_rm_remote_init(&remote, &test_data.rd_res.rs_resource);
+-	m0_cookie_init(&remote.rem_cookie, &test_data.rd_owner.ro_id);
++	m0_rm_remote_init(&remote, rm_test_data.rd_res);
++	m0_cookie_init(&remote.rem_cookie, &rm_test_data.rd_owner->ro_id);
+ 	test_loan->rl_other = &remote;
+-	m0_rm_loan_init(test_loan, &test_data.rd_credit, &remote);
++	m0_rm_loan_init(test_loan, &rm_test_data.rd_credit, &remote);
+ 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+ }
+ 
+@@ -102,8 +101,8 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
+ static void request_param_fini(void)
+ {
+ 	m0_free(test_loan);
+-	m0_free(test_data.rd_owner.ro_creditor);
+-	test_data.rd_owner.ro_creditor = NULL;
++	m0_free(rm_test_data.rd_owner->ro_creditor);
++	rm_test_data.rd_owner->ro_creditor = NULL;
+ }
+ 
+ /*
+@@ -119,7 +118,7 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
+ 	struct rm_out		*oreq;
+ 	uint32_t		 pins_nr = 0;
+ 
+-	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
++	m0_tl_for(pi, &rm_test_data.rd_in.rin_pins, pin) {
+ 
+ 		M0_UT_ASSERT(pin->rp_flags == M0_RPF_TRACK);
+ 		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
+@@ -171,7 +170,7 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
+ 	struct rm_out		    *oreq;
+ 	uint32_t		     pins_nr = 0;
+ 
+-	m0_tl_for(pi, &test_data.rd_in.rin_pins, pin) {
++	m0_tl_for(pi, &rm_test_data.rd_in.rin_pins, pin) {
+ 
+ 		M0_UT_ASSERT(pin->rp_flags == M0_RPF_TRACK);
+ 		loan = bob_of(pin->rp_credit, struct m0_rm_loan,
+@@ -233,31 +232,31 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
+ 	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
+ 	switch (reqtype) {
+ 	case M0_RIT_BORROW:
+-		test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
+-		rc = m0_rm_request_out(M0_ROT_BORROW, &test_data.rd_in, NULL,
+-				       &test_data.rd_credit);
++		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
++		rc = m0_rm_request_out(M0_ROT_BORROW, &rm_test_data.rd_in, NULL,
++				       &rm_test_data.rd_credit);
+ 		M0_UT_ASSERT(rc == 0);
+ 		item = rm_reply_create(M0_RIT_BORROW, err);
+ 		reply_process(item);
+ 		/* Lock and unlock the owner to run AST */
+-		m0_rm_owner_lock(&test_data.rd_owner);
+-		m0_rm_owner_unlock(&test_data.rd_owner);
++		m0_rm_owner_lock(rm_test_data.rd_owner);
++		m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 		post_borrow_validate(err);
+ 		post_borrow_cleanup(item, err);
+ 		break;
+ 	case M0_RIT_REVOKE:
+-		test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
+-		rc = m0_rm_request_out(M0_ROT_REVOKE, &test_data.rd_in,
++		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
++		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
+ 				       test_loan, &test_loan->rl_credit);
+ 		item = rm_reply_create(M0_RIT_REVOKE, err);
+-		m0_rm_owner_lock(&test_data.rd_owner);
+-		m0_rm_ur_tlist_add(&test_data.rd_owner.ro_sublet,
++		m0_rm_owner_lock(rm_test_data.rd_owner);
++		m0_rm_ur_tlist_add(&rm_test_data.rd_owner->ro_sublet,
+ 				   &test_loan->rl_credit);
+-		m0_rm_owner_unlock(&test_data.rd_owner);
++		m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 		reply_process(item);
+ 		/* Lock and unlock the owner to run AST */
+-		m0_rm_owner_lock(&test_data.rd_owner);
+-		m0_rm_owner_unlock(&test_data.rd_owner);
++		m0_rm_owner_lock(rm_test_data.rd_owner);
++		m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 		post_revoke_validate(err);
+ 		post_revoke_cleanup(item, err);
+ 		/*
+@@ -287,13 +286,13 @@ static void request_test(enum m0_rm_incoming_type reqtype)
+ 	m0_fi_enable_once("m0_rm_request_out", "no-rpc");
+ 	switch (reqtype) {
+ 	case M0_RIT_BORROW:
+-		test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
+-		rc = m0_rm_request_out(M0_ROT_BORROW, &test_data.rd_in, NULL,
+-				       &test_data.rd_credit);
++		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
++		rc = m0_rm_request_out(M0_ROT_BORROW, &rm_test_data.rd_in, NULL,
++				       &rm_test_data.rd_credit);
+ 		break;
+ 	case M0_RIT_REVOKE:
+-		test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
+-		rc = m0_rm_request_out(M0_ROT_REVOKE, &test_data.rd_in,
++		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
++		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
+ 				       test_loan, &test_loan->rl_credit);
+ 		break;
+ 	default:
+@@ -317,10 +316,12 @@ static void post_borrow_validate(int err)
+ {
+ 	bool got_credit;
+ 
+-	m0_rm_owner_lock(&test_data.rd_owner);
+-	got_credit = !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed) &&
+-		    !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]);
+-	m0_rm_owner_unlock(&test_data.rd_owner);
++	m0_rm_owner_lock(rm_test_data.rd_owner);
++	got_credit = !m0_rm_ur_tlist_is_empty(
++			&rm_test_data.rd_owner->ro_borrowed) &&
++		    !m0_rm_ur_tlist_is_empty(
++			&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]);
++	m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 	M0_UT_ASSERT(ergo(err, !got_credit));
+ 	M0_UT_ASSERT(ergo(err == 0, got_credit));
+ }
+@@ -333,7 +334,7 @@ static void borrow_reply_populate(struct m0_fop_rm_borrow_rep *breply,
+ 	breply->br_rc.rerr_rc = err;
+ 
+ 	if (err == 0) {
+-		rc = m0_rm_credit_encode(&test_data.rd_credit,
++		rc = m0_rm_credit_encode(&rm_test_data.rd_credit,
+ 					&breply->br_credit.cr_opaque);
+ 		M0_UT_ASSERT(rc == 0);
+ 	}
+@@ -353,18 +354,19 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
+ 	if (err)
+ 		return;
+ 
+-	m0_rm_owner_lock(&test_data.rd_owner);
+-	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_owned[OWOS_CACHED], credit) {
++	m0_rm_owner_lock(rm_test_data.rd_owner);
++	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
++			credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		m0_free(credit);
+ 	} m0_tl_endfor;
+ 
+-	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_borrowed, credit) {
++	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_borrowed, credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
+ 		m0_free(loan);
+ 	} m0_tl_endfor;
+-	m0_rm_owner_unlock(&test_data.rd_owner);
++	m0_rm_owner_unlock(rm_test_data.rd_owner);
+ }
+ 
+ /*
+@@ -380,13 +382,13 @@ static void borrow_fop_validate(struct m0_fop_rm_borrow *bfop)
+ 			     struct m0_rm_owner, ro_id);
+ 
+ 	M0_UT_ASSERT(owner != NULL);
+-	M0_UT_ASSERT(owner == &test_data.rd_owner);
++	M0_UT_ASSERT(owner == rm_test_data.rd_owner);
+ 
+-	m0_rm_credit_init(&credit, &test_data.rd_owner);
++	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
+ 	credit.cr_ops = &rings_credit_ops;
+ 	rc = m0_rm_credit_decode(&credit, &bfop->bo_base.rrq_credit.cr_opaque);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
++	M0_UT_ASSERT(credit.cr_datum == rm_test_data.rd_credit.cr_datum);
+ 	m0_rm_credit_fini(&credit);
+ 
+ 	M0_UT_ASSERT(bfop->bo_base.rrq_policy == RIP_NONE);
+@@ -428,10 +430,11 @@ static void post_revoke_validate(int err)
+ 	bool sublet;
+ 	bool owned;
+ 
+-	m0_rm_owner_lock(&test_data.rd_owner);
+-	sublet = !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_sublet);
+-	owned = !m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]);
+-	m0_rm_owner_unlock(&test_data.rd_owner);
++	m0_rm_owner_lock(rm_test_data.rd_owner);
++	sublet = !m0_rm_ur_tlist_is_empty(&rm_test_data.rd_owner->ro_sublet);
++	owned = !m0_rm_ur_tlist_is_empty(
++			&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]);
++	m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 
+ 	/* If revoke fails, credit remains in sublet list */
+ 	M0_UT_ASSERT(ergo(err, sublet && !owned));
+@@ -453,17 +456,17 @@ static void revoke_fop_validate(struct m0_fop_rm_revoke *rfop)
+ 			     struct m0_rm_owner, ro_id);
+ 
+ 	M0_UT_ASSERT(owner != NULL);
+-	M0_UT_ASSERT(owner == &test_data.rd_owner);
++	M0_UT_ASSERT(owner == rm_test_data.rd_owner);
+ 
+ 	loan = m0_cookie_of(&rfop->rr_loan.lo_cookie, struct m0_rm_loan, rl_id);
+ 	M0_UT_ASSERT(loan != NULL);
+ 	M0_UT_ASSERT(loan == test_loan);
+ 
+-	m0_rm_credit_init(&credit, &test_data.rd_owner);
++	m0_rm_credit_init(&credit, rm_test_data.rd_owner);
+ 	credit.cr_ops = &rings_credit_ops;
+ 	rc = m0_rm_credit_decode(&credit, &rfop->rr_base.rrq_credit.cr_opaque);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(credit.cr_datum == test_data.rd_credit.cr_datum);
++	M0_UT_ASSERT(credit.cr_datum == rm_test_data.rd_credit.cr_datum);
+ 	m0_rm_credit_fini(&credit);
+ 
+ 	M0_UT_ASSERT(rfop->rr_base.rrq_policy == RIP_NONE);
+@@ -482,22 +485,23 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
+ 	 * OWOS_CACHED. Otherwise it remains in the sublet list.
+ 	 * Clean up the lists.
+ 	 */
+-	m0_rm_owner_lock(&test_data.rd_owner);
++	m0_rm_owner_lock(rm_test_data.rd_owner);
+ 	if (err == 0) {
+-		m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_owned[OWOS_CACHED],
++		m0_tl_for(m0_rm_ur,
++			  &rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
+ 			  credit) {
+ 			m0_rm_ur_tlink_del_fini(credit);
+ 			m0_free(credit);
+ 		} m0_tl_endfor;
+ 	} else {
+-		m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_sublet, credit) {
++		m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_sublet, credit) {
+ 			m0_rm_ur_tlink_del_fini(credit);
+ 			loan = bob_of(credit, struct m0_rm_loan,
+ 				      rl_credit, &loan_bob);
+ 			m0_free(loan);
+ 		} m0_tl_endfor;
+ 	}
+-	m0_rm_owner_unlock(&test_data.rd_owner);
++	m0_rm_owner_unlock(rm_test_data.rd_owner);
+ 	m0_fop_put(m0_rpc_item_to_fop(item->ri_reply));
+ }
+ 
+@@ -534,8 +538,9 @@ static void revoke_reply_test(void)
+  */
+ static void borrow_fop_funcs_test(void)
+ {
+-	/* Initialise hierarchy of RM objects */
+-	rm_utdata_init(&test_data, OBJ_OWNER);
++	/* Initialise hierarchy of RM objects with rings resource */
++	rings_utdata_ops_set(&rm_test_data);
++	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+ 
+ 	/* 1. Test m0_rm_request_out() - sending BORROW FOP */
+ 	borrow_request_test();
+@@ -543,13 +548,14 @@ static void borrow_fop_funcs_test(void)
+ 	/* 2. Test borrow_reply() - reply for BORROW FOP */
+ 	borrow_reply_test();
+ 
+-	rm_utdata_fini(&test_data, OBJ_OWNER);
++	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+ }
+ 
+ static void revoke_fop_funcs_test(void)
+ {
+-	/* Initialise hierarchy of RM objects */
+-	rm_utdata_init(&test_data, OBJ_OWNER);
++	/* Initialise hierarchy of RM objects with rings resource */
++	rings_utdata_ops_set(&rm_test_data);
++	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+ 
+ 	/* 1. Test m0_rm_request_out() - sending REVOKE FOP */
+ 	revoke_request_test();
+@@ -557,7 +563,7 @@ static void revoke_fop_funcs_test(void)
+ 	/* 2. Test revoke_reply() - reply for REVOKE FOP */
+ 	revoke_reply_test();
+ 
+-	rm_utdata_fini(&test_data, OBJ_OWNER);
++	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+ }
+ 
+ void rm_fop_funcs_test(void)
+diff --git a/rm/ut/rmapi.c b/rm/ut/rmapi.c
+index c4aaf82..03a7fa1 100644
+--- a/rm/ut/rmapi.c
++++ b/rm/ut/rmapi.c
+@@ -19,7 +19,7 @@
+  */
+ 
+ #include "lib/types.h"            /* uint64_t */
+-#include "lib/misc.h"
++#include "lib/memory.h"
+ #include "lib/misc.h"
+ #include "lib/ut.h"
+ #include "lib/ub.h"
+@@ -45,159 +45,162 @@ static void credits_api_test (void)
+ {
+ 	int rc;
+ 
+-	rm_utdata_init(&test_data, OBJ_OWNER);
++	rings_utdata_ops_set(&rm_test_data);
++	rm_utdata_init(&rm_test_data, OBJ_OWNER);
+ 
+ 	/* 1. Test m0_rm_incoming_init() */
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
++	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_INITIALISED);
+-	M0_UT_ASSERT(test_data.rd_in.rin_type == M0_RIT_LOCAL);
+-	M0_UT_ASSERT(test_data.rd_in.rin_policy == RIP_NONE);
+-	M0_UT_ASSERT(test_data.rd_in.rin_flags == RIF_LOCAL_WAIT);
+-	M0_UT_ASSERT(test_data.rd_in.rin_want.cr_datum == 0);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_INITIALISED);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_type == M0_RIT_LOCAL);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_policy == RIP_NONE);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_flags == RIF_LOCAL_WAIT);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_want.cr_datum == 0);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
+ 
+ 	/* 2. Test m0_rm_credit_init */
+-	m0_rm_credit_init(&test_data.rd_credit, &test_data.rd_owner);
+-	M0_UT_ASSERT(test_data.rd_credit.cr_datum == 0);
+-	M0_UT_ASSERT(test_data.rd_credit.cr_owner == &test_data.rd_owner);
++	m0_rm_credit_init(&rm_test_data.rd_credit, rm_test_data.rd_owner);
++	M0_UT_ASSERT(rm_test_data.rd_credit.cr_datum == 0);
++	M0_UT_ASSERT(rm_test_data.rd_credit.cr_owner == rm_test_data.rd_owner);
+ 
+ 	/* 3. Test m0_rm_owner_selfadd. Test memory failure */
+-	test_data.rd_credit.cr_datum = ALLRINGS;
++	rm_test_data.rd_credit.cr_datum = ALLRINGS;
+ 	m0_fi_enable_once("rings_credit_copy", "fail_copy");
+-	rc = m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
++	rc = m0_rm_owner_selfadd(rm_test_data.rd_owner,
++				 &rm_test_data.rd_credit);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 
+ 	/* 4. Test m0_rm_owner_selfadd. Indirectly tests m0_rm_loan_init */
+-	rc = m0_rm_owner_selfadd(&test_data.rd_owner, &test_data.rd_credit);
++	rc = m0_rm_owner_selfadd(rm_test_data.rd_owner,
++				 &rm_test_data.rd_credit);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_borrowed));
+-	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&test_data.rd_owner.ro_owned[OWOS_CACHED]));
++	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++			&rm_test_data.rd_owner->ro_borrowed));
++	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++			&rm_test_data.rd_owner->ro_owned[OWOS_CACHED]));
+ 
+ 	/*
+ 	 * 5. Test m0_rm_credit_get for memory failure.
+ 	 */
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_want.cr_datum = test_data.rd_credit.cr_datum;
+-	test_data.rd_in.rin_ops = &rings_incoming_ops;
++	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
++	rm_test_data.rd_in.rin_want.cr_datum = rm_test_data.rd_credit.cr_datum;
++	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
+ 	m0_fi_enable_once("rings_credit_copy", "fail_copy");
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == -ENOMEM);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
++	m0_rm_credit_get(&rm_test_data.rd_in);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == -ENOMEM);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_FAILURE);
+ 	/* Test m0_rm_incoming_fini */
+-	m0_rm_incoming_fini(&test_data.rd_in);
++	m0_rm_incoming_fini(&rm_test_data.rd_in);
+ 
+ 	/*
+ 	 * 6. Test m0_rm_credit_get - Success case.
+ 	 * Indirectly tests owner_balance, incoming_check, incoming_check_with,
+ 	 * incoming_complete, pin_add.
+ 	 */
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
++	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
+ 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_want.cr_datum = test_data.rd_credit.cr_datum;
+-	test_data.rd_in.rin_ops = &rings_incoming_ops;
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
++	m0_rm_credit_init(&rm_test_data.rd_in.rin_want, rm_test_data.rd_owner);
++	rm_test_data.rd_in.rin_want.cr_datum = rm_test_data.rd_credit.cr_datum;
++	rm_test_data.rd_in.rin_ops = &rings_incoming_ops;
++	m0_rm_credit_get(&rm_test_data.rd_in);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_rc == 0);
++	M0_UT_ASSERT(rm_test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+ 
+ 	/* Test m0_rm_credit_put. Indirectly tests incoming_release, pin_del */
+-	m0_rm_credit_put(&test_data.rd_in);
++	m0_rm_credit_put(&rm_test_data.rd_in);
+ 
+ 	/* Test m0_rm_incoming_fini */
+-	m0_rm_incoming_fini(&test_data.rd_in);
++	m0_rm_incoming_fini(&rm_test_data.rd_in);
+ 
+-	rm_utdata_fini(&test_data, OBJ_OWNER);
++	rm_utdata_fini(&rm_test_data, OBJ_OWNER);
+ }
+ 
+ static void owner_api_test (void)
+ {
+-	rm_utdata_init(&test_data, OBJ_RES);
++	rings_utdata_ops_set(&rm_test_data);
+ 
+ 	/*
+ 	 * 1. Test m0_rm_owner_init
+ 	 * Indirectly tests resource_get(), owner_internal_init(),
+ 	 * owner_invariant(), owner_invariant_state().
+ 	 */
+-	m0_rm_owner_init(&test_data.rd_owner,
+-			 &test_data.rd_res.rs_resource, NULL);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_ACTIVE);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_creditor == NULL);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_resource ==
+-			&test_data.rd_res.rs_resource);
++	rm_utdata_init(&rm_test_data, OBJ_OWNER);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_sm.sm_state == ROS_ACTIVE);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_creditor == NULL);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_resource == rm_test_data.rd_res);
+ 
+ 	/* 2. Test m0_rm_owner_windup - on newly initialised owner */
+-	m0_rm_owner_windup(&test_data.rd_owner);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_FINAL);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_resource ==
+-			&test_data.rd_res.rs_resource);
+-	M0_UT_ASSERT(test_data.rd_res.rs_resource.r_ref == 1);
++	m0_rm_owner_windup(rm_test_data.rd_owner);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_sm.sm_state == ROS_FINAL);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_resource == rm_test_data.rd_res);
++	M0_UT_ASSERT(rm_test_data.rd_res->r_ref == 1);
+ 
+ 	/* 3. Test m0_rm_owner_fini. Indirectly tests resource_put(). */
+-	m0_rm_owner_fini(&test_data.rd_owner);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_sm.sm_state == ROS_FINAL);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_creditor == NULL);
+-	M0_UT_ASSERT(test_data.rd_owner.ro_resource == NULL);
+-	M0_UT_ASSERT(test_data.rd_res.rs_resource.r_ref == 0);
+-
+-	rm_utdata_fini(&test_data, OBJ_RES);
++	m0_rm_owner_fini(rm_test_data.rd_owner);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_sm.sm_state == ROS_FINAL);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_creditor == NULL);
++	M0_UT_ASSERT(rm_test_data.rd_owner->ro_resource == NULL);
++	M0_UT_ASSERT(rm_test_data.rd_res->r_ref == 0);
++
++	m0_free(rm_test_data.rd_owner);
++	rm_test_data.rd_owner = NULL;
++	rm_utdata_fini(&rm_test_data, OBJ_RES);
+ }
+ 
+ static void res_api_test(void)
+ {
+-	rm_utdata_init(&test_data, OBJ_RES_TYPE);
+-
+-	M0_SET0(&test_data.rd_res);
+-	/* 1. Test m0_rm_resource_add */
+-	m0_rm_resource_add(&test_data.rd_rt, &test_data.rd_res.rs_resource);
++	rings_utdata_ops_set(&rm_test_data);
++	/* 1. Test m0_rm_resource_add. Resource is added during init */
++	rm_utdata_init(&rm_test_data, OBJ_RES);
+ 
+-	m0_mutex_lock(&test_data.rd_rt.rt_lock);
+-	M0_UT_ASSERT(test_data.rd_rt.rt_nr_resources == 1);
+-	M0_UT_ASSERT(res_tlist_contains(&test_data.rd_rt.rt_resources,
+-				        &test_data.rd_res.rs_resource));
+-	m0_mutex_unlock(&test_data.rd_rt.rt_lock);
++	m0_mutex_lock(&rm_test_data.rd_rt->rt_lock);
++	M0_UT_ASSERT(rm_test_data.rd_rt->rt_nr_resources == 1);
++	M0_UT_ASSERT(res_tlist_contains(&rm_test_data.rd_rt->rt_resources,
++				        rm_test_data.rd_res));
++	m0_mutex_unlock(&rm_test_data.rd_rt->rt_lock);
+ 
+-	M0_UT_ASSERT(test_data.rd_res.rs_resource.r_type == &test_data.rd_rt);
++	M0_UT_ASSERT(rm_test_data.rd_res->r_type == rm_test_data.rd_rt);
+ 
+ 	/* 2. Test m0_rm_resource_del */
+-	m0_rm_resource_del(&test_data.rd_res.rs_resource);
++	rm_test_data.rd_ops->resource_unset(&rm_test_data);
+ 
+-	m0_mutex_lock(&test_data.rd_rt.rt_lock);
+-	M0_UT_ASSERT(test_data.rd_rt.rt_nr_resources == 0);
+-	M0_UT_ASSERT(res_tlist_is_empty(&test_data.rd_rt.rt_resources));
+-	m0_mutex_unlock(&test_data.rd_rt.rt_lock);
++	m0_mutex_lock(&rm_test_data.rd_rt->rt_lock);
++	M0_UT_ASSERT(rm_test_data.rd_rt->rt_nr_resources == 0);
++	M0_UT_ASSERT(res_tlist_is_empty(&rm_test_data.rd_rt->rt_resources));
++	m0_mutex_unlock(&rm_test_data.rd_rt->rt_lock);
+ 
+-	rm_utdata_fini(&test_data, OBJ_RES_TYPE);
++	rm_utdata_fini(&rm_test_data, OBJ_RES_TYPE);
+ }
+ 
+ static void rt_api_test(void)
+ {
+-	rm_utdata_init(&test_data, OBJ_RES_TYPE);
++	rings_utdata_ops_set(&rm_test_data);
++	rm_utdata_init(&rm_test_data, OBJ_RES_TYPE);
+ 
+-	M0_UT_ASSERT(test_data.rd_rt.rt_dom == &test_data.rd_dom);
+-	M0_UT_ASSERT(test_data.rd_dom.rd_types[0] == &test_data.rd_rt);
++	M0_UT_ASSERT(rm_test_data.rd_rt->rt_dom == &rm_test_data.rd_dom);
++	M0_UT_ASSERT(rm_test_data.rd_dom.rd_types[0] == rm_test_data.rd_rt);
+ 
+ 	/* Test m0_rm_type_deregister */
+-	m0_rm_type_deregister(&test_data.rd_rt);
++	m0_rm_type_deregister(rm_test_data.rd_rt);
+ 
+-	M0_UT_ASSERT(test_data.rd_dom.rd_types[1] == NULL);
+-	M0_UT_ASSERT(test_data.rd_rt.rt_dom == NULL);
++	M0_UT_ASSERT(rm_test_data.rd_dom.rd_types[0] == NULL);
++	M0_UT_ASSERT(rm_test_data.rd_rt->rt_dom == NULL);
+ 
+-	m0_rm_domain_fini(&test_data.rd_dom);
++	m0_rm_domain_fini(&rm_test_data.rd_dom);
+ }
+ 
+ static void dom_api_test(void)
+ {
+-	/* Initialise test_data.rd_domain */
+-	m0_rm_domain_init(&test_data.rd_dom);
++	/* Initialise rm_test_data.rd_domain */
++	m0_rm_domain_init(&rm_test_data.rd_dom);
+ 
+ 	/* Make sure that all resource entries are NULL */
+-	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(test_data.rd_dom.rd_types),
+-                         test_data.rd_dom.rd_types[i] == NULL));
+-	M0_UT_ASSERT(test_data.rd_dom.rd_lock.m_owner == 0);
++	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(rm_test_data.rd_dom.rd_types),
++                         rm_test_data.rd_dom.rd_types[i] == NULL));
++	M0_UT_ASSERT(rm_test_data.rd_dom.rd_lock.m_owner == 0);
+ 
+ 	/* Finalise domain - Nothing to test - make sure it does not crash */
+-	m0_rm_domain_fini(&test_data.rd_dom);
++	m0_rm_domain_fini(&rm_test_data.rd_dom);
+ }
+ 
+ void rm_api_test(void)
+diff --git a/rm/ut/rmut.c b/rm/ut/rmut.c
+index 109f0df..0f143ed 100644
+--- a/rm/ut/rmut.c
++++ b/rm/ut/rmut.c
+@@ -26,6 +26,7 @@
+ #include "rm/ut/rings.h"
+ #include "rm/ut/rmut.h"
+ 
++/* Import */
+ extern const struct m0_tl_descr remotes_tl;
+ 
+ extern void rm_api_test(void);
+@@ -33,9 +34,35 @@ extern void local_credits_test(void);
+ extern void remote_credits_test(void);
+ extern void rm_fom_funcs_test(void);
+ extern void rm_fop_funcs_test(void);
++extern void flock_test(void);
+ extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
+ extern void remotes_tlist_del(struct m0_rm_remote *other);
+ 
++struct rm_context rm_ctx[SERVER_NR];
++static const char *db_name[SERVER_NR] = {"ut-rm-cob_1",
++					 "ut-rm-cob_2",
++					 "ut-rm-cob_3"
++					};
++
++static const char *serv_addr[SERVER_NR] = { "0@lo:12345:34:1",
++					    "0@lo:12345:34:2",
++					    "0@lo:12345:34:3"
++					  };
++static const int cob_ids[SERVER_NR] = { 20, 30, 40 };
++/*
++ * Buffer pool parameters.
++ */
++static uint32_t bp_buf_nr = 8;
++static uint32_t bp_tm_nr = 2;
++
++static void buf_empty(struct m0_net_buffer_pool *bp);
++static void buf_low(struct m0_net_buffer_pool *bp);
++
++const static struct m0_net_buffer_pool_ops buf_ops = {
++	.nbpo_below_threshold = buf_low,
++	.nbpo_not_empty	      = buf_empty,
++};
++
+ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
+ 				 struct m0_rm_credit *credit)
+ {
+@@ -51,8 +78,6 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
+  */
+ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
+ {
+-	int rc;
+-
+ 	M0_UT_ASSERT(data != NULL);
+ 
+ 	switch (type) {
+@@ -63,21 +88,15 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
+ 		case OBJ_RES_TYPE:
+ 			rm_utdata_init(data, OBJ_DOMAIN);
+ 			/* Register test resource type */
+-			rc = m0_rm_type_register(&data->rd_dom, &data->rd_rt);
+-			M0_UT_ASSERT(rc == 0);
+-			data->rd_rt.rt_ops = &rings_rtype_ops;
++			data->rd_ops->rtype_set(data);
+ 			break;
+ 		case OBJ_RES:
+ 			rm_utdata_init(data, OBJ_RES_TYPE);
+-			M0_SET0(&data->rd_res);
+-			data->rd_res.rs_resource.r_ops = &rings_ops;
+-			m0_rm_resource_add(&data->rd_rt,
+-					   &data->rd_res.rs_resource);
++			data->rd_ops->resource_set(data);
+ 			break;
+ 		case OBJ_OWNER:
+ 			rm_utdata_init(data, OBJ_RES);
+-			m0_rm_owner_init(&data->rd_owner,
+-					 &data->rd_res.rs_resource, NULL);
++			data->rd_ops->owner_set(data);
+ 			break;
+ 
+ 		default:
+@@ -97,26 +116,24 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
+ 	switch (type) {
+ 		case OBJ_DOMAIN:
+ 			/* Finalise test_domain */
+-			m0_rm_domain_init(&data->rd_dom);
++			m0_rm_domain_fini(&data->rd_dom);
+ 			break;
+ 		case OBJ_RES_TYPE:
+ 			/* De-register test resource type */
+-			m0_rm_type_deregister(&data->rd_rt);
++			data->rd_ops->rtype_unset(data);
+ 			rm_utdata_fini(data, OBJ_DOMAIN);
+ 			break;
+ 		case OBJ_RES:
+-			m0_tl_for(remotes, &data->rd_res.rs_resource.r_remote,
+-				  other) {
++			m0_tl_for(remotes, &data->rd_res->r_remote, other) {
+ 				remotes_tlist_del(other);
+ 				m0_rm_remote_fini(other);
+ 				m0_free(other);
+ 			} m0_tl_endfor;
+-			m0_rm_resource_del(&data->rd_res.rs_resource);
++			data->rd_ops->resource_unset(data);
+ 			rm_utdata_fini(data, OBJ_RES_TYPE);
+ 			break;
+ 		case OBJ_OWNER:
+-			m0_rm_owner_windup(&data->rd_owner);
+-			m0_rm_owner_fini(&data->rd_owner);
++			data->rd_ops->owner_unset(data);
+ 			rm_utdata_fini(data, OBJ_RES);
+ 			break;
+ 		default:
+@@ -124,6 +141,187 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
+ 	}
+ }
+ 
++void rm_ctx_config(enum rm_server id)
++{
++	M0_SET0(&rm_ctx[id]);
++	rm_ctx[id].rc_ep_addr = serv_addr[id];
++	rm_ctx[id].rc_id = id;
++	rm_ctx[id].rc_cob_id.id = cob_ids[id];
++	rm_ctx_init(&rm_ctx[id]);
++}
++
++void rm_ctx_init(struct rm_context *rmctx)
++{
++	int		rc;
++	struct m0_db_tx tx;
++
++	rmctx->rc_xprt = &m0_net_lnet_xprt;
++
++	rc = m0_net_domain_init(&rmctx->rc_net_dom, rmctx->rc_xprt,
++	                        &m0_addb_proc_ctx);
++	M0_UT_ASSERT(rc == 0);
++
++	rmctx->rc_bufpool.nbp_ops = &buf_ops;
++	rc = m0_rpc_net_buffer_pool_setup(&rmctx->rc_net_dom,
++					  &rmctx->rc_bufpool,
++					  bp_buf_nr, bp_tm_nr);
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_dbenv_init(&rmctx->rc_dbenv, db_name[rmctx->rc_id], 0);
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_fol_init(&rmctx->rc_fol, &rmctx->rc_dbenv);
++        M0_UT_ASSERT(rc == 0);
++
++	rc = m0_cob_domain_init(&rmctx->rc_cob_dom, &rmctx->rc_dbenv,
++				&rmctx->rc_cob_id);
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_mdstore_init(&rmctx->rc_mdstore, &rmctx->rc_cob_id,
++			     &rmctx->rc_dbenv, 0);
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_db_tx_init(&tx, &rmctx->rc_dbenv, 0);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_rpc_root_session_cob_create(&rmctx->rc_mdstore.md_dom, &tx);
++	M0_UT_ASSERT(rc == 0);
++	m0_db_tx_commit(&tx);
++
++	rc = M0_REQH_INIT(&rmctx->rc_reqh,
++			.rhia_dtm       = (void*)1,
++			.rhia_db        = &rmctx->rc_dbenv,
++			.rhia_mdstore   = &rmctx->rc_mdstore,
++			.rhia_fol       = &rmctx->rc_fol,
++			.rhia_svc       = (void*)1,
++			.rhia_addb_stob = NULL);
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_rpc_machine_init(&rmctx->rc_rpc, &rmctx->rc_cob_dom,
++				 &rmctx->rc_net_dom, rmctx->rc_ep_addr,
++				 &rmctx->rc_reqh, &rmctx->rc_bufpool,
++				 M0_BUFFER_ANY_COLOUR,
++				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
++				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
++	M0_UT_ASSERT(rc == 0);
++	m0_mutex_init(&rmctx->rc_mutex);
++	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
++	m0_clink_init(&rmctx->rc_clink, NULL);
++}
++
++void rm_ctx_fini(struct rm_context *rmctx)
++{
++	m0_clink_fini(&rmctx->rc_clink);
++	m0_chan_fini_lock(&rmctx->rc_chan);
++	m0_mutex_fini(&rmctx->rc_mutex);
++	m0_rpc_machine_fini(&rmctx->rc_rpc);
++	m0_reqh_fini(&rmctx->rc_reqh);
++	m0_mdstore_fini(&rmctx->rc_mdstore);
++	m0_cob_domain_fini(&rmctx->rc_cob_dom);
++	m0_fol_fini(&rmctx->rc_fol);
++	m0_dbenv_fini(&rmctx->rc_dbenv);
++	m0_rpc_net_buffer_pool_cleanup(&rmctx->rc_bufpool);
++	m0_net_domain_fini(&rmctx->rc_net_dom);
++}
++
++void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest)
++{
++	struct m0_net_end_point *ep;
++	int		         rc;
++
++	/*
++	 * Create a local end point to communicate with remote server.
++	 */
++	rc = m0_net_end_point_create(&ep,
++				     &src->rc_rpc.rm_tm,
++				     dest->rc_ep_addr);
++	M0_UT_ASSERT(rc == 0);
++	src->rc_ep[dest->rc_id] = ep;
++
++	rc = m0_rpc_conn_create(&src->rc_conn[dest->rc_id],
++				ep, &src->rc_rpc, 15, m0_time_from_now(10, 0));
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
++				   &src->rc_conn[dest->rc_id], 1,
++				   m0_time_from_now(30, 0));
++	M0_UT_ASSERT(rc == 0);
++}
++
++void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest)
++{
++	int rc;
++
++	rc = m0_rpc_session_destroy(&src->rc_sess[dest->rc_id],
++				    m0_time_from_now(30, 0));
++	M0_UT_ASSERT(rc == 0);
++
++	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id],
++				 m0_time_from_now(30, 0));
++	M0_UT_ASSERT(rc == 0);
++
++	m0_net_end_point_put(src->rc_ep[dest->rc_id]);
++	M0_UT_ASSERT(rc == 0);
++}
++
++void rm_ctx_server_start(enum rm_server srv_id)
++{
++	struct m0_rm_remote *creditor;
++	struct m0_rm_owner  *owner;
++	struct m0_rm_credit *credit = &rm_ctx[srv_id].rc_test_data.rd_credit;
++	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
++	enum rm_server	     debt_id = rm_ctx[srv_id].debtor_id;
++
++	rm_utdata_init(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
++	owner = rm_ctx[srv_id].rc_test_data.rd_owner;
++	/*
++	 * If creditor id is valid, do creditor setup.
++	 * If there is no creditor, this server is original owner.
++	 * For original owner, raise capital.
++	 */
++	if (cred_id != SERVER_INVALID) {
++		rm_ctx_connect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
++		M0_ALLOC_PTR(creditor);
++		M0_UT_ASSERT(creditor != NULL);
++		m0_rm_remote_init(creditor, owner->ro_resource);
++		creditor->rem_session = &rm_ctx[srv_id].rc_sess[cred_id];
++		owner->ro_creditor = creditor;
++	} else
++		rm_test_owner_capital_raise(owner, credit);
++
++	if (debt_id != SERVER_INVALID)
++		rm_ctx_connect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
++
++}
++
++void rm_ctx_server_stop(enum rm_server srv_id)
++{
++	struct m0_rm_remote *creditor;
++	struct m0_rm_owner  *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
++	enum rm_server	     cred_id = rm_ctx[srv_id].creditor_id;
++	enum rm_server	     debt_id = rm_ctx[srv_id].debtor_id;
++
++	if (cred_id != SERVER_INVALID) {
++		creditor = owner->ro_creditor;
++		M0_UT_ASSERT(creditor != NULL);
++		m0_rm_remote_fini(creditor);
++		m0_free(creditor);
++		owner->ro_creditor = NULL;
++	}
++	rm_utdata_fini(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
++	if (cred_id != SERVER_INVALID)
++		rm_ctx_disconnect(&rm_ctx[srv_id], &rm_ctx[cred_id]);
++	if (debt_id != SERVER_INVALID)
++		rm_ctx_disconnect(&rm_ctx[srv_id], &rm_ctx[debt_id]);
++}
++
++static void buf_empty(struct m0_net_buffer_pool *bp)
++{
++}
++
++static void buf_low(struct m0_net_buffer_pool *bp)
++{
++}
++
+ const struct m0_test_suite rm_ut = {
+ 	.ts_name = "librm",
+ 	.ts_tests = {
+@@ -132,6 +330,7 @@ const struct m0_test_suite rm_ut = {
+ 		{ "fom-funcs", rm_fom_funcs_test },
+ 		{ "fop-funcs", rm_fop_funcs_test },
+ 		{ "rcredits", remote_credits_test },
++		{ "flock", flock_test },
+ 		{ NULL, NULL }
+ 	}
+ };
+diff --git a/rm/ut/rmut.h b/rm/ut/rmut.h
+index d4fdb22..cdcbbe0 100644
+--- a/rm/ut/rmut.h
++++ b/rm/ut/rmut.h
+@@ -21,7 +21,15 @@
+ #ifndef __MERO_RM_UT_RMUT_H__
+ #define __MERO_RM_UT_RMUT_H__
+ 
+-#include "rings.h"
++#include "db/db.h"
++#include "cob/cob.h"
++#include "net/lnet/lnet.h"
++#include "net/buffer_pool.h"
++#include "mdstore/mdstore.h"
++#include "reqh/reqh.h"
++#include "rpc/rpc.h"
++#include "rpc/rpc_internal.h"
++#include "rpc/rpc_machine.h"
+ 
+ enum obj_type {
+ 	OBJ_DOMAIN = 1,
+@@ -31,26 +39,86 @@ enum obj_type {
+ };
+ 
+ /*
++ * If you add another server, you will have to make changes in other places.
++ */
++enum rm_server {
++	SERVER_1 = 0,
++	SERVER_2,
++	SERVER_3,
++	SERVER_NR,
++	SERVER_INVALID,
++};
++
++/* Forward declaration */
++struct rm_ut_data;
++
++struct rm_ut_data_ops {
++	void (*rtype_set)(struct rm_ut_data *_this);
++	void (*rtype_unset)(struct rm_ut_data *_this);
++	void (*resource_set)(struct rm_ut_data *_this);
++	void (*resource_unset)(struct rm_ut_data *_this);
++	void (*owner_set)(struct rm_ut_data *_this);
++	void (*owner_unset)(struct rm_ut_data *_this);
++};
++
++/*
+  * Resource manager class-collection.
+  */
+ struct rm_ut_data {
+-	struct m0_rm_domain	   rd_dom;
+-	struct m0_rm_resource_type rd_rt;
+-	struct m0_rings		   rd_res;
+-	struct m0_rm_owner	   rd_owner;
+-	struct m0_rm_incoming	   rd_in;
+-	struct m0_rm_credit	   rd_credit;
++	struct m0_rm_domain	    rd_dom;
++	struct m0_rm_resource_type *rd_rt;
++	struct m0_rm_resource	   *rd_res;
++	struct m0_rm_owner	   *rd_owner;
++	struct m0_rm_incoming	    rd_in;
++	struct m0_rm_credit	    rd_credit;
++	struct rm_ut_data_ops	   *rd_ops;
++};
++
++/*
++ * RM server context. It lives inside a thread in this test.
++ */
++struct rm_context {
++	enum rm_server		  rc_id;
++	const char		 *rc_ep_addr;
++	struct m0_thread	  rc_thr;
++	struct m0_chan		  rc_chan;
++	struct m0_clink		  rc_clink;
++	struct m0_mutex		  rc_mutex;
++	struct m0_rpc_machine	  rc_rpc;
++	struct m0_dbenv		  rc_dbenv;
++	struct m0_fol		  rc_fol;
++	struct m0_cob_domain_id	  rc_cob_id;
++	struct m0_mdstore	  rc_mdstore;
++	struct m0_cob_domain	  rc_cob_dom;
++	struct m0_net_domain	  rc_net_dom;
++	struct m0_net_buffer_pool rc_bufpool;
++	struct m0_net_xprt	 *rc_xprt;
++	struct m0_reqh		  rc_reqh;
++	struct m0_net_end_point	 *rc_ep[SERVER_NR];
++	struct m0_rpc_conn	  rc_conn[SERVER_NR];
++	struct m0_rpc_session	  rc_sess[SERVER_NR];
++	struct rm_ut_data	  rc_test_data;
++	enum rm_server		  creditor_id;
++	enum rm_server		  debtor_id;
+ };
+ 
+ /*
+  * Test variable(s)
+  */
+-struct rm_ut_data	   test_data;
++struct rm_ut_data rm_test_data;
+ 
+ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
+ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);
+ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
+ 				 struct m0_rm_credit *credit);
++/* Test server functions */
++void rm_ctx_config(enum rm_server id);
++void rm_ctx_init(struct rm_context *rmctx);
++void rm_ctx_fini(struct rm_context *rmctx);
++void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest);
++void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest);
++void rm_ctx_server_start(enum rm_server srv_id);
++void rm_ctx_server_stop(enum rm_server srv_id);
+ 
+ /* __MERO_RM_UT_RMUT_H__ */
+ #endif
+-- 
+1.8.3.2
+

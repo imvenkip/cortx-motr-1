@@ -1,0 +1,25 @@
+From 170f40b113bfcbdf1901b07ad64c21ce3402d421 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Mon, 15 Jul 2013 16:51:31 +0530
+Subject: [PATCH 009/107] Fix comment style
+
+---
+ mero/magic.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mero/magic.h b/mero/magic.h
+index e4b3ecd..0cc46fc 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -117,7 +117,7 @@ enum m0_magic_satchel {
+ 	/* ADDB monitor list's head (addb hellhole) */
+ 	M0_ADDB_MONITOR_LIST_HEAD_MAGIC = 0x33addb3704773477,
+ 
+-	/* ADDB monitor (addb shoebill*/
++	/* ADDB monitor (addb shoebill) */
+ 	M0_ADDB_MONITOR_LIST_LINK_MAGIC = 0x33addb7719304577,
+ 
+ /* balloc */
+-- 
+1.8.3.2
+

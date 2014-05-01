@@ -1,0 +1,191 @@
+From 0a7d8b4ed6e2559a9e66d8b8b52c3749745eabd2 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 12 May 2011 04:26:05 -0600
+Subject: [PATCH 083/177] - after . and .. are not added to dirs we don't need
+ create_attr method in mdstore; - related fixes.
+
+---
+ mdstore/mdstore.c    | 30 +++---------------------------
+ mdstore/mdstore.h    | 15 +--------------
+ mdstore/ut/mdstore.c | 14 +++++---------
+ utils/mkfs.colibri.c | 15 ++++++---------
+ 4 files changed, 15 insertions(+), 59 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 23a6343..a672a38 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -88,26 +88,6 @@ void c2_md_store_fini(struct c2_md_store *md)
+ 	c2_addb_ctx_fini(&md->md_addb);
+ }
+ 
+-int c2_md_store_create_attr(struct c2_md_store   *md,
+-                            struct c2_cob        *pcob,
+-                            struct c2_cob        *cob,
+-                            struct c2_cob_nskey  *nskey,
+-                            struct c2_cob_nsrec  *nsrec,
+-                            struct c2_cob_fabrec *fabrec,
+-                            struct c2_cob_omgrec *omgrec,
+-                            struct c2_db_tx      *tx)
+-{
+-        int rc;
+-        
+-        cob->co_nsrec.cnr_nlink++;
+-        rc = c2_cob_create(cob, nskey, nsrec, fabrec, omgrec, 0, tx);
+-        if (rc)
+-                return rc;
+-        if (md->md_root && !c2_fid_eq(cob->co_fid, md->md_root->co_fid))
+-                C2_ASSERT(cob->co_nsrec.cnr_nlink <= 2);
+-        return rc;
+-}
+-
+ int c2_md_store_create(struct c2_md_store       *md,
+                        struct c2_cob            *pcob,
+                        struct c2_cob            *cob,
+@@ -135,11 +115,7 @@ int c2_md_store_create(struct c2_md_store       *md,
+                           req->c_name.n_count);
+         c2_md_make_fid(&nsrec.cnr_fid, &body->b_tfid);
+ 
+-        /*
+-         * Create case, nlink == 0, will be bumped by c2_cob_create()
+-         * where needed.
+-         */
+-        nsrec.cnr_nlink = 0;
++        nsrec.cnr_nlink = 1;
+         
+         /*
+          * @todo: In fact we need to get ino from @body here. Inode
+@@ -179,8 +155,8 @@ int c2_md_store_create(struct c2_md_store       *md,
+         /* @todo: fol ref component should also be initialized. */
+         fabrec.cfb_version.vn_vc = body->b_version;
+ 
+-        rc = c2_md_store_create_attr(md, pcob, cob, nskey, &nsrec, &fabrec, 
+-                                     &omgrec, &ctx->fc_tx->tx_dbtx);
++        rc = c2_cob_create(cob, nskey, &nsrec, &fabrec, &omgrec, 0, 
++                           &ctx->fc_tx->tx_dbtx);
+         c2_free(nskey);
+ 
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 8f3d6e7..9e2fc55 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -25,6 +25,7 @@ struct c2_md_store {
+ };
+ 
+ #define C2_MD_ROOT_NAME "ROOT"
++extern struct c2_fid C2_MD_ROOT_FID;
+ 
+ /**
+    Flags supplied to c2_md_store_locate() to point out where a cob 
+@@ -58,8 +59,6 @@ enum c2_md_valid_flags {
+         C2_MD_BLKSIZE = 1 << 12
+ };
+ 
+-extern struct c2_fid C2_MD_ROOT_FID;
+-
+ enum c2_md_fmode_flags {
+         C2_MD_FMODE_READ   = 1 << 0,
+         C2_MD_FMODE_WRITE  = 1 << 1,
+@@ -328,18 +327,6 @@ int c2_md_store_add_name(struct c2_cob *cob,
+                          int namelen, 
+                          struct c2_db_tx *tx);
+ 
+-/**
+-   Create a cob using passed attributes and nskey.
+-*/
+-int c2_md_store_create_attr(struct c2_md_store *md, 
+-                            struct c2_cob *pcob, 
+-                            struct c2_cob *cob, 
+-                            struct c2_cob_nskey *nskey, 
+-                            struct c2_cob_nsrec *nsrec, 
+-                            struct c2_cob_fabrec *fabrec, 
+-                            struct c2_cob_omgrec *omgrec, 
+-                            struct c2_db_tx *tx);
+-
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+ 
+diff --git a/mdstore/ut/mdstore.c b/mdstore/ut/mdstore.c
+index 4a3f8d4..4e51ce3 100644
+--- a/mdstore/ut/mdstore.c
++++ b/mdstore/ut/mdstore.c
+@@ -86,7 +86,8 @@ static void test_mkfs(void)
+          * we can always find root after mkfs using known
+          * parent fid and name "ROOT".
+          */
+-        c2_cob_make_nskey(&nskey, &C2_MD_ROOT_FID, "ROOT", 4);
++        c2_cob_make_nskey(&nskey, &C2_MD_ROOT_FID, C2_MD_ROOT_NAME, 
++                          strlen(C2_MD_ROOT_NAME));
+ 
+         /*
+          * Zero omgid is for root directory.
+@@ -95,11 +96,7 @@ static void test_mkfs(void)
+         nsrec.cnr_fid.f_container = root.f_seq;
+         nsrec.cnr_fid.f_key = root.f_oid;
+ 
+-        /*
+-         * c2_md_store_create_attr() will take care of correct nlink,
+-         * we just need to set it to zero here.
+-         */
+-        nsrec.cnr_nlink = 0;
++        nsrec.cnr_nlink = 1;
+         nsrec.cnr_ino = 1;
+         nsrec.u.cnr_rdev = 0;
+         nsrec.u.cnr_size = 4096;
+@@ -129,9 +126,8 @@ static void test_mkfs(void)
+         rc = c2_md_store_alloc(&md, &nsrec.cnr_fid, &cob);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+-        rc = c2_md_store_create_attr(&md, cob, cob, nskey, 
+-                                     &nsrec, &fabrec, &omgrec, 
+-                                     &tx);
++        rc = c2_cob_create(cob, nskey, &nsrec, &fabrec, 
++                           &omgrec, 0, &tx);
+ 	C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
+         c2_free(nskey);
+diff --git a/utils/mkfs.colibri.c b/utils/mkfs.colibri.c
+index 896dc4f..52aea64 100644
+--- a/utils/mkfs.colibri.c
++++ b/utils/mkfs.colibri.c
+@@ -118,7 +118,8 @@ int main(int argc, char *argv[])
+ 
+         C2_SET0(&nsrec);
+ 
+-        c2_cob_make_nskey(&nskey, &C2_MD_ROOT_FID, "ROOT", 4);
++        c2_cob_make_nskey(&nskey, &C2_MD_ROOT_FID, C2_MD_ROOT_NAME, 
++                          strlen(C2_MD_ROOT_NAME));
+ 
+         /*
+          * Zero omgid is for root directory.
+@@ -126,11 +127,7 @@ int main(int argc, char *argv[])
+         nsrec.cnr_omgid = 0;
+         nsrec.cnr_fid = C2_MD_ROOT_FID;
+ 
+-        /*
+-         * c2_md_store_create_attr() will take care of correct nlink,
+-         * we just need to set it to zero here.
+-         */
+-        nsrec.cnr_nlink = 0;
++        nsrec.cnr_nlink = 1;
+         nsrec.cnr_ino = 1;
+         nsrec.u.cnr_rdev = 0;
+         nsrec.u.cnr_size = 4096;
+@@ -161,10 +158,10 @@ int main(int argc, char *argv[])
+         if (rc)
+                 goto out;
+ 
+-        rc = c2_md_store_create_attr(&md, cob, cob, nskey, 
+-                                     &nsrec, &fabrec, &omgrec, 
+-                                     &tx);
++        rc = c2_cob_create(cob, nskey, &nsrec, &fabrec, &omgrec, 0, &tx);
+         c2_cob_put(cob);
++        if (rc)
++                goto out;
+         
+         /*
+          * Create terminator omgid record with id == ~0.
+-- 
+1.8.3.2
+

@@ -1,0 +1,1304 @@
+From bb105954a36875226f979fbba3b04bf70b695ebe Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Mon, 5 Aug 2013 13:25:51 +0530
+Subject: [PATCH 02/24] Added RM-group feature. Compiles.
+
+---
+ m0t1fs/linux_kernel/inode.c |   2 +-
+ mero/magic.h                |   3 +
+ rm/file.c                   |   3 +-
+ rm/file.h                   |   5 +-
+ rm/rm.c                     | 204 +++++++++++++++++++++++++++-----------------
+ rm/rm.h                     |   1 +
+ rm/rm_foms.c                |  50 +++++++----
+ rm/rm_fops.c                | 122 +++++++++++++++-----------
+ rm/rm_fops.h                |  14 +++
+ rm/rm_internal.h            |  52 +++++++----
+ rm/rm_service.c             |   9 +-
+ rm/ut/file.c                |   2 +-
+ rm/ut/rcredits.c            |   2 +-
+ rm/ut/rings.c               |   2 +-
+ rm/ut/rm_foms.c             |   6 +-
+ rm/ut/rm_fops.c             |  23 +++--
+ rm/ut/rm_service.c          |   2 +-
+ rm/ut/rmut.c                |  13 +--
+ 18 files changed, 328 insertions(+), 187 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/inode.c b/m0t1fs/linux_kernel/inode.c
+index 8b89eda..85246a8 100644
+--- a/m0t1fs/linux_kernel/inode.c
++++ b/m0t1fs/linux_kernel/inode.c
+@@ -111,7 +111,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
+ 	M0_ASSERT(rdom != NULL);
+ 	m0_file_init(&ci->ci_flock, &ci->ci_fid, rdom);
+ 	m0_rm_remote_init(&ci->ci_creditor, &ci->ci_flock.fi_res);
+-	m0_file_owner_init(&ci->ci_fowner, &ci->ci_flock, NULL);
++	m0_file_owner_init(&ci->ci_fowner, M0_RM_NO_GROUP, &ci->ci_flock, NULL);
+ 	ci->ci_fowner.ro_creditor = &ci->ci_creditor;
+ 	ci->ci_creditor.rem_session =
+ 		m0t1fs_container_id_to_session(csb, m0t1fs_rm_container(csb));
+diff --git a/mero/magic.h b/mero/magic.h
+index d3ba253..da5f6ae 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -634,6 +634,9 @@ enum m0_magic_satchel {
+ 	/* m0_loans_tl::td_head_magic (scalable scaffold) */
+ 	M0_RM_LOAN_TO_REMOTES_HEAD_MAGIC = 0x5CA1AB1E5CAFF01D,
+ 
++	/* m0_debtors_tl::td_head_magic (debase do disclose) */
++	M0_RM_DEBTORS_HEAD_MAGIC = 0xDEBA5ED0D15C105E,
++
+ /* RPC */
+ 	/* m0_rpc_service_type::svt_magix (seedless seel) */
+ 	M0_RPC_SERVICE_TYPE_MAGIC = 0x335eed1e555ee177,
+diff --git a/rm/file.c b/rm/file.c
+index 3f8adb4..fbfb1dd 100644
+--- a/rm/file.c
++++ b/rm/file.c
+@@ -482,10 +482,11 @@ M0_INTERNAL void m0_file_fini(struct m0_file *file)
+ M0_EXPORTED(m0_file_fini);
+ 
+ M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner  *owner,
++				    enum m0_rm_group_id  grp_id,
+ 				    struct m0_file      *file,
+ 				    struct m0_rm_remote *creditor)
+ {
+-	m0_rm_owner_init(owner, &file->fi_res, creditor);
++	m0_rm_owner_init(owner, grp_id, &file->fi_res, creditor);
+ }
+ M0_EXPORTED(m0_file_owner_init);
+ 
+diff --git a/rm/file.h b/rm/file.h
+index 2341655..a4bb41c 100644
+--- a/rm/file.h
++++ b/rm/file.h
+@@ -105,8 +105,9 @@ M0_INTERNAL void m0_file_fini(struct m0_file *file);
+  * @param owner - Owner for file
+  * @param creditor - Creditor for this owner
+  */
+-M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner *owner,
+-				    struct m0_file *file,
++M0_INTERNAL void m0_file_owner_init(struct m0_rm_owner  *owner,
++				    enum m0_rm_group_id  grp_id,
++				    struct m0_file      *file,
+ 				    struct m0_rm_remote *creditor);
+ 
+ /**
+diff --git a/rm/rm.c b/rm/rm.c
+index 5f2e310..84e12e5 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -50,7 +50,8 @@ static bool resource_type_invariant(const struct m0_rm_resource_type *rt);
+ 
+ static void owner_balance          (struct m0_rm_owner *o);
+ static bool owner_invariant        (struct m0_rm_owner *owner);
+-static int  owner_loan_remove      (struct m0_rm_credit *credit,
++static int  owner_loan_debit       (struct m0_rm_owner *o,
++				    struct m0_rm_loan *loan,
+ 				    struct m0_tl *list);
+ 
+ static void pin_del                (struct m0_rm_pin *pin);
+@@ -130,15 +131,17 @@ M0_TL_DESCR_DEFINE(m0_remotes, "remote owners", , struct m0_rm_remote,
+ 		   M0_RM_REMOTE_MAGIC, M0_RM_REMOTE_OWNER_HEAD_MAGIC);
+ M0_TL_DEFINE(m0_remotes, M0_INTERNAL, struct m0_rm_remote);
+ 
++#if 0
+ M0_TL_DESCR_DEFINE(m0_loans, "loans to remotes", , struct m0_rm_remote,
+ 		   rem_loan_linkage, rem_magix,
+ 		   M0_RM_REMOTE_MAGIC, M0_RM_LOAN_TO_REMOTES_HEAD_MAGIC);
+ M0_TL_DEFINE(m0_loans, M0_INTERNAL, struct m0_rm_remote);
++#endif
+ 
+-M0_TL_DESCR_DEFINE(m0_debtors, "debtors", , struct m0_rm_loan,
+-		   rl_lothers, rl_magix,
++M0_TL_DESCR_DEFINE(m0_debtors, "debtors", , struct m0_rm_remote,
++		   rem_loan_linkage, rem_magix,
+ 		   M0_RM_LOAN_MAGIC, M0_RM_DEBTORS_HEAD_MAGIC);
+-M0_TL_DEFINE(m0_debtors, M0_INTERNAL, struct m0_rm_loan);
++M0_TL_DEFINE(m0_debtors, M0_INTERNAL, struct m0_rm_remote);
+ 
+ static const struct m0_bob_type credit_bob = {
+         .bt_name         = "credit",
+@@ -673,9 +676,8 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
+ 		}
+ 		m0_rm_credit_init(credit_transfer, owner);
+ 		rc = m0_rm_credit_copy(credit_transfer, r) ?:
+-		     m0_rm_loan_init(nominal_capital, r, NULL);
++		     m0_rm_loan_init(nominal_capital, r);
+ 		if (rc == 0) {
+-			nominal_capital->rl_other = owner->ro_creditor;
+ 			nominal_capital->rl_id = M0_RM_LOAN_SELF_ID;
+ 			/* Add capital to the borrowed list. */
+ 			m0_rm_ur_tlist_add(&owner->ro_borrowed,
+@@ -984,25 +986,34 @@ M0_EXPORTED(m0_rm_outgoing_fini);
+ static int loan_dup(const struct m0_rm_loan  *src_loan,
+ 		    struct m0_rm_loan       **dest_loan)
+ {
+-	return m0_rm_loan_alloc(dest_loan, &src_loan->rl_credit,
+-				src_loan->rl_other);
++	int                  rc;
++	struct m0_rm_remote *other;
++
++	rc =  m0_rm_loan_alloc(dest_loan, &src_loan->rl_credit);
++	if (rc != 0)
++		goto out;
++
++	m0_tl_for(m0_debtors, &src_loan->rl_others, other) {
++		m0_rm_loan_debtor_add(*dest_loan, other);
++	} m0_tl_endfor;
++
++out:
++	return rc;
+ }
+ 
+ M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan         **loan,
+-				 const struct m0_rm_credit  *credit,
+-				 struct m0_rm_remote        *creditor)
++				 const struct m0_rm_credit  *credit)
+ {
+ 	struct m0_rm_loan *new_loan;
+ 	int		   rc = -ENOMEM;
+ 
+-	M0_ENTRY("loan credit: %llu creditor: %p",
+-		 (long long unsigned) credit->cr_datum, creditor);
++	M0_ENTRY("loan credit: %llu", (long long unsigned) credit->cr_datum);
+ 	M0_PRE(loan != NULL);
+ 	M0_PRE(credit != NULL);
+ 
+ 	RM_ALLOC_PTR(new_loan, LOAN_ALLOC, &m0_rm_addb_ctx);
+ 	if (new_loan != NULL) {
+-		rc = m0_rm_loan_init(new_loan, credit, creditor);
++		rc = m0_rm_loan_init(new_loan, credit);
+ 		if (rc != 0) {
+ 			m0_free(new_loan);
+ 			new_loan = NULL;
+@@ -1042,9 +1053,22 @@ static int remnant_loan_get(const struct m0_rm_loan    *loan,
+ 	M0_RETURN(rc);
+ }
+ 
++M0_INTERNAL void m0_rm_loan_debtor_add(struct m0_rm_loan   *loan,
++				       struct m0_rm_remote *other)
++{
++	m0_debtors_tlist_add(&loan->rl_others, other);
++	resource_get(other->rem_resource);
++}
++
++M0_INTERNAL void m0_rm_loan_debtor_del(struct m0_rm_loan   *loan,
++				       struct m0_rm_remote *other)
++{
++	m0_debtors_tlist_del(other);
++	resource_put(other->rem_resource);
++}
++
+ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
+-				const struct m0_rm_credit *credit,
+-				struct m0_rm_remote       *creditor)
++				const struct m0_rm_credit *credit)
+ {
+ 	M0_PRE(loan != NULL);
+ 	M0_PRE(credit != NULL);
+@@ -1055,9 +1079,6 @@ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
+ 	m0_rm_credit_init(&loan->rl_credit, credit->cr_owner);
+ 	m0_rm_loan_bob_init(loan);
+ 	m0_debtors_tlist_init(&loan->rl_others);
+-	m0_debtors_tlist_add(&loan->rl_others, creditor);
+-	if (creditor != NULL)
+-		resource_get(creditor->rem_resource);
+ 
+ 	M0_RETURN(m0_rm_credit_copy(&loan->rl_credit, credit));
+ }
+@@ -1066,12 +1087,11 @@ M0_EXPORTED(m0_rm_loan_init);
+ M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan)
+ {
+ 	M0_PRE(loan != NULL);
++	M0_PRE(m0_debtors_tlist_is_empty(&loan->rl_others));
+ 
+ 	M0_ENTRY("loan: %p", loan);
+ 	m0_rm_credit_fini(&loan->rl_credit);
+-	if (loan->rl_other != NULL)
+-		resource_put(loan->rl_other->rem_resource);
+-	m0_debtors_tlist_init(&loan->rl_others);
++	m0_debtors_tlist_fini(&loan->rl_others);
+ 	loan->rl_id = 0;
+ 	m0_rm_loan_bob_fini(loan);
+ 	M0_LEAVE();
+@@ -1129,7 +1149,7 @@ M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,
+ 	rem->rem_resource = res;
+ 	m0_chan_init(&rem->rem_signal, &res->r_type->rt_lock);
+ 	m0_remotes_tlink_init(rem);
+-	m0_loan_tlink_init(rem);
++	m0_debtors_tlink_init(rem);
+ 	m0_rm_remote_bob_init(rem);
+ 	resource_get(res);
+ 	M0_LEAVE();
+@@ -1146,13 +1166,33 @@ M0_INTERNAL void m0_rm_remote_fini(struct m0_rm_remote *rem)
+ 	rem->rem_state = REM_FREED;
+ 	m0_chan_fini_lock(&rem->rem_signal);
+ 	m0_remotes_tlink_fini(rem);
+-	m0_loans_tlink_fini(rem);
++	m0_debtors_tlink_fini(rem);
+ 	resource_put(rem->rem_resource);
+ 	m0_rm_remote_bob_fini(rem);
+ 	M0_LEAVE();
+ }
+ M0_EXPORTED(m0_rm_remote_fini);
+ 
++M0_INTERNAL void m0_rev_session_wait(struct m0_rm_remote *remote)
++{
++	struct m0_clink *clink;
++
++	M0_ASSERT(remote != NULL);
++
++	clink = &remote->rem_rev_sess_clink;
++	/*
++	 * Check whether remote session is established or not.
++	 * If a situation comes when we have to send revoke
++	 * request even before the session is established,
++	 * we need to wait till the session is established.
++	 */
++	if (m0_clink_is_armed(clink)) {
++		m0_chan_wait(clink);
++		m0_clink_del_lock(clink);
++		m0_clink_fini(clink);
++	}
++}
++
+ static void cached_credits_clear(struct m0_rm_owner *owner)
+ {
+ 	struct m0_rm_credit *credit;
+@@ -1286,14 +1326,14 @@ static void rm_addb_credit_counter_update(struct m0_rm_credit *credit)
+ 
+ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
+ {
+-	struct m0_rm_incoming *in    = &rem_in->ri_incoming;
+-	struct m0_rm_owner    *owner = in->rin_want.cr_owner;
+-	struct m0_rm_loan     *loan = NULL;
++	struct m0_rm_incoming *in     = &rem_in->ri_incoming;
++	struct m0_rm_owner    *o      = in->rin_want.cr_owner;
++	struct m0_rm_loan     *loan   = NULL;
+ 	struct m0_rm_remote   *debtor = NULL;
+ 	struct m0_rm_credit   *r;
+ 	int                    rc;
+ 
+-	M0_ENTRY("owner: %p credit: %llu", owner,
++	M0_ENTRY("owner: %p credit: %llu", o,
+ 		 (long long unsigned) INCOMING_CREDIT(in));
+ 	M0_PRE(in->rin_type == M0_RIT_BORROW);
+ 
+@@ -1302,18 +1342,19 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
+ 	 * Clear the credits cache and remove incoming credits from the cache.
+ 	 * If everything succeeds add loan to the sublet list.
+ 	 */
+-	rc = remote_find(&debtor, rem_in, owner->ro_resource);
++	rc = remote_find(&debtor, rem_in, o->ro_resource);
+ 	if (rc == 0 && !pi_tlist_is_empty(&in->rin_pins)) {
+-		rc = m0_rm_loan_alloc(&loan, &in->rin_want, debtor) ?:
++		rc = m0_rm_loan_alloc(&loan, &in->rin_want) ?:
+ 			cached_credits_remove(in);
+ 		if (rc != 0 && loan != NULL) {
+ 			m0_rm_loan_fini(loan);
+ 			m0_free(loan);
+ 		} else if (rc == 0) {
++			m0_rm_loan_debtor_add(loan, debtor);
+ 			/*
+ 			 * Store the loan in the sublet list.
+ 			 */
+-			m0_rm_ur_tlist_add(&owner->ro_sublet, &loan->rl_credit);
++			m0_rm_ur_tlist_add(&o->ro_sublet, &loan->rl_credit);
+ 			/*
+ 			 * Store loan cookie locally. Copy it into
+ 			 * rem_in->ri_loan_cookie.
+@@ -1329,14 +1370,13 @@ M0_INTERNAL int m0_rm_borrow_commit(struct m0_rm_remote_incoming *rem_in)
+ 					      &loan_bob);
+ 				break;
+ 			}
+-		}
++		} m0_tl_endfor;
+ 		M0_ASSERT(loan != NULL);
+-		m0_debtors_tlist_add(&loan->rl_others, debtor);
+-		resource_get(debtor->rem_resource);
++		m0_rm_loan_debtor_add(loan, debtor);
+ 		rem_in->ri_loan_cookie = loan->rl_cookie;
+ 		rm_addb_req_counter_update(M0_RIT_BORROW, rem_in);
+ 	}
+-	M0_POST(owner_invariant(owner));
++	M0_POST(owner_invariant(o));
+ 	M0_RETURN(rc);
+ }
+ M0_EXPORTED(m0_rm_borrow_commit);
+@@ -1467,8 +1507,8 @@ M0_EXPORTED(m0_rm_revoke_commit);
+ static bool incoming_group_conflict(struct m0_rm_owner    *owner,
+ 				    struct m0_rm_incoming *in)
+ {
+-	return !m0_uint128_eq(owner->cr_group_id, no_group_id) &&
+-	       m0_uint128_eq(owner->cr_group_id, in->rin_want.cr_group_id);
++	return !m0_uint128_eq(&owner->cr_group_id, &no_group_id) &&
++	       m0_uint128_eq(&owner->cr_group_id, &in->rin_want.cr_group_id);
+ }
+ 
+ static void incoming_failure_set(struct m0_rm_incoming *in, int err)
+@@ -1511,7 +1551,7 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
+ 	 * of races between owner state transition and credit requests.
+ 	 */
+ 	if (owner_state(owner) == ROS_ACTIVE) {
+-		if (incoming_group_conflict(owner, in->rin_want.cr_group_id))
++		if (incoming_group_conflict(owner, in))
+ 			incoming_failure_set(in, -EINVAL);
+ 		else
+ 			incoming_queue(owner, in);	
+@@ -1867,13 +1907,15 @@ static int incoming_check_with(struct m0_rm_incoming *in,
+ 			M0_ASSERT(m0_rm_credit_bob_check(r));
+ 			if (!credit_intersects(r, rest))
+ 				continue;
+-			if (!m0_uint128_eq(r->cr_group_id, rest->cr_group_id) &&
++			if (!m0_uint128_eq(&r->cr_group_id,
++					   &rest->cr_group_id) &&
+ 			    !(in->rin_flags & RIF_MAY_REVOKE))
+ 				return -EREMOTE;
+ 			loan = bob_of(r, struct m0_rm_loan, rl_credit,
+ 				      &loan_bob);
+ 			M0_ASSERT(!credit_is_empty(r));
+-			if (!m0_uint128_eq(r->cr_group_id, rest->cr_group_id)) {
++			if (!m0_uint128_eq(&r->cr_group_id,
++					   &rest->cr_group_id)) {
+ 				/*
+ 				 * It is possible that this loop emits multiple
+ 				 * outgoing requests toward the same remote
+@@ -2015,6 +2057,7 @@ static int outgoing_check(struct m0_rm_incoming    *in,
+ 	struct m0_rm_owner    *owner = in->rin_want.cr_owner;
+ 	struct m0_rm_credit   *scan;
+ 	struct m0_rm_outgoing *out;
++	struct m0_tl          *list;
+ 
+ 	M0_ENTRY();
+ 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); ++i) {
+@@ -2024,7 +2067,10 @@ static int outgoing_check(struct m0_rm_incoming    *in,
+ 				     rog_want.rl_credit, &outgoing_bob);
+ 			if (out->rog_type == otype &&
+ 			    credit_intersects(scan, credit)) {
+-				M0_ASSERT(out->rog_want.rl_other == other);
++				list = &out->rog_want.rl_others;
++				M0_ASSERT(m0_debtors_tlist_length(list) == 1);
++				M0_ASSERT(m0_debtors_tlist_contains(list,
++								    other));
+ 				/**
+ 				 * @todo adjust outgoing requests priority
+ 				 * (priority inheritance)
+@@ -2072,7 +2118,7 @@ static int revoke_send(struct m0_rm_incoming *in,
+ 					       loan, &rest, other);
+ 
+ 		m0_rm_credit_fini(&rest);
+-	}
++	} m0_tl_endfor;
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -2110,40 +2156,44 @@ static int borrow_send(struct m0_rm_incoming *in, struct m0_rm_credit *credit)
+  */
+ static int cancel_send(struct m0_rm_loan *loan)
+ {
+-	int rc;
++	int                  rc;
++	struct m0_rm_remote *other;
+ 
+ 	M0_ENTRY("credit: %llu", (long long unsigned)
+ 		 loan->rl_credit.cr_datum);
+-	M0_PRE(loan->rl_other != NULL);
++	M0_PRE(!m0_debtors_tlist_is_empty(&loan->rl_others));
++	M0_PRE(!m0_debtors_tlist_length(&loan->rl_others) == 1);
+ 
+-	rc = m0_rm_request_out(M0_ROT_CANCEL, NULL, loan, &loan->rl_credit);
++	other = m0_debtors_tlist_head(&loan->rl_others);
++	rc = m0_rm_request_out(M0_ROT_CANCEL, NULL, loan,
++			       &loan->rl_credit, other);
+ 	M0_RETURN(rc);
+ }
+ 
+-static int owner_loan_remove(struct m0_rm_credit *credit, struct m0_tl *list)
++static int owner_loan_debit(struct m0_rm_owner *owner,
++			     struct m0_rm_loan  *loan,
++			     struct m0_tl       *list)
+ {
+ 	struct m0_rm_credit *cr;
+-	struct m0_rm_loan   *loan;
++	struct m0_rm_credit *loaned_cr = &loan->rl_credit;
+ 	struct m0_rm_loan   *remnant_loan;
+-	struct m0_rm_owner  *owner;
+ 	struct m0_tl	     diff_list;
+ 	struct m0_tl	     remove_list;
+ 	int		     rc = 0;
+ 
+-	M0_PRE(credit != NULL);
+-	M0_ENTRY("credit: %llu",
+-		 (long long unsigned) credit->cr_datum);
++	M0_PRE(owner != NULL);
++	M0_PRE(loan != NULL);
++	M0_ENTRY("credit: %llu", (long long unsigned) loan->rl_credit.cr_datum);
+ 
+-	owner = credit->cr_owner;
+ 	m0_rm_ur_tlist_init(&diff_list);
+ 	m0_rm_ur_tlist_init(&remove_list);
+ 	m0_tl_for (m0_rm_ur, list, cr) {
+ 		m0_rm_ur_tlist_move(&remove_list, cr);
+-		if (!credit->cr_ops->cro_is_subset(cr, credit)) {
++		if (!loaned_cr->cr_ops->cro_is_subset(cr, loaned_cr)) {
+ 			loan = bob_of(cr, struct m0_rm_loan, rl_credit,
+ 				      &loan_bob);
+-			/* Get diff(loan->rl_credit, credit) */
+-			rc = remnant_loan_get(loan, credit, &remnant_loan);
++			/* Get diff(loan->rl_credit, loaned_cr) */
++			rc = remnant_loan_get(loan, loaned_cr, &remnant_loan);
+ 			if (rc == 0)
+ 				m0_rm_ur_tlist_add(&diff_list,
+ 						   &remnant_loan->rl_credit);
+@@ -2154,14 +2204,14 @@ static int owner_loan_remove(struct m0_rm_credit *credit, struct m0_tl *list)
+ 	 * and move the remnant credits to the OWOS_CACHED. Do the opposite
+ 	 * on failure.
+ 	 */
+-	m0_tl_teardown(m0_rm_ur, rc ? &diff_list : &remove_list, credit) {
+-		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
++	m0_tl_teardown(m0_rm_ur, rc ? &diff_list : &remove_list, cr) {
++		loan = bob_of(cr, struct m0_rm_loan, rl_credit, &loan_bob);
+ 		m0_rm_loan_fini(loan);
+ 		m0_free(loan);
+ 	}
+ 
+-	m0_tl_for (m0_rm_ur, rc ? &remove_list : &diff_list, credit) {
+-		m0_rm_ur_tlist_move(list, credit);
++	m0_tl_for (m0_rm_ur, rc ? &remove_list : &diff_list, cr) {
++		m0_rm_ur_tlist_move(list, cr);
+ 	} m0_tl_endfor;
+ 
+ 	m0_rm_ur_tlist_fini(&diff_list);
+@@ -2169,18 +2219,16 @@ static int owner_loan_remove(struct m0_rm_credit *credit, struct m0_tl *list)
+ 	M0_RETURN(rc);
+ }
+ 
+-static int loan_remove(struct m0_rm_credit *credit,
+-		       struct m0_tl        *list)
++M0_INTERNAL int m0_rm_loan_pay(struct m0_rm_owner *owner,
++			       struct m0_rm_loan  *loan,
++			       struct m0_tl       *list)
+ {
+ 	int                  rc;
+-	struct m0_rm_owner  *owner;
+ 	struct m0_rm_credit *cached;
+ 
+-	owner = credit->cr_owner;
+-
+-	rc = m0_rm_credit_dup(credit, &cached);
++	rc = m0_rm_credit_dup(&loan->rl_credit, &cached);
+ 	if (rc == 0) {
+-		rc = owner_loan_remove(credit, list);
++		rc = owner_loan_debit(owner, loan, list);
+ 		if (rc == 0) {
+ 			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
+ 					   cached);
+@@ -2196,22 +2244,20 @@ static int loan_remove(struct m0_rm_credit *credit,
+ 	return rc;
+ }
+ 
+-int _sublet_remove(struct m0_rm_credit *credit)
++M0_INTERNAL bool m0_rm_loan_payment_check(struct m0_rm_loan *loan,
++					  struct m0_cookie  *cookie)
+ {
+-	struct m0_rm_owner *owner;
+-
+-	M0_PRE(credit != NULL);
+-	owner = credit->cr_owner;
+-	return loan_remove(credit, &owner->ro_sublet);
+-}
++	struct m0_rm_remote *other;
+ 
+-int _borrowed_remove(struct m0_rm_credit *credit)
+-{
+-	struct m0_rm_owner *owner;
++	m0_tl_for(m0_debtors, &loan->rl_others, other) {
++		if (other->rem_cookie.co_addr == cookie->co_addr &&
++		    other->rem_cookie.co_generation == cookie->co_generation) {
++			m0_rm_loan_debtor_del(loan, other);
++			break;
++		}
++	}m0_tl_endfor;
+ 
+-	M0_PRE(credit != NULL);
+-	owner  = credit->cr_owner;
+-	return loan_remove(credit, &owner->ro_borrowed);
++	return m0_debtors_tlist_is_empty(&loan->rl_others);
+ }
+ 
+ /** @} end of Owner state machine group */
+@@ -2595,7 +2641,7 @@ static bool credit_conflicts(const struct m0_rm_credit *A,
+ 	M0_PRE(A->cr_ops != NULL);
+ 	M0_PRE(A->cr_ops->cro_conflicts != NULL);
+ 
+-	return !m0_uint128_eq(A->cr_group_id, B->cr_group_id) ||
++	return !m0_uint128_eq(&A->cr_group_id, &B->cr_group_id) ||
+ 	       A->cr_ops->cro_conflicts(A, B);
+ }
+ 
+diff --git a/rm/rm.h b/rm/rm.h
+index 7091872..09fc5a2 100644
+--- a/rm/rm.h
++++ b/rm/rm.h
+@@ -1647,6 +1647,7 @@ m0_rm_resource_initial_credit(const struct m0_rm_resource *resource,
+  *       owner->ro_resource == res)
+  */
+ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner *owner,
++				  enum m0_rm_group_id grp_id,
+ 				  struct m0_rm_resource *res,
+ 				  struct m0_rm_remote *creditor);
+ 
+diff --git a/rm/rm_foms.c b/rm/rm_foms.c
+index 40b7137..95b0401 100644
+--- a/rm/rm_foms.c
++++ b/rm/rm_foms.c
+@@ -228,7 +228,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
+ 		fom_ops = &rm_fom_borrow_ops;
+ 		break;
+ 	case FRT_REVOKE:
+-		fopt = &m0_fop_generic_reply_fopt;
++		fopt = &m0_rm_fop_revoke_rep_fopt;
+ 		fom_ops = &rm_fom_revoke_ops;
+ 		break;
+ 	case FRT_CANCEL:
+@@ -291,7 +291,9 @@ static size_t locality(const struct m0_fom *fom)
+ static int reply_prepare(const enum m0_rm_incoming_type type,
+ 			 struct m0_fom *fom)
+ {
+-	struct m0_rm_fop_borrow_rep *reply_fop;
++	struct m0_rm_fop_borrow_rep *breply_fop;
++	struct m0_rm_fop_revoke_rep *rreply_fop;
++	struct m0_rm_remote         *other;
+ 	struct rm_request_fom       *rfom;
+ 	struct m0_rm_loan	    *loan;
+ 	int			     rc = 0;
+@@ -301,8 +303,8 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
+ 
+ 	switch (type) {
+ 	case FRT_BORROW:
+-		reply_fop = m0_fop_data(fom->fo_rep_fop);
+-		reply_fop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
++		breply_fop = m0_fop_data(fom->fo_rep_fop);
++		breply_fop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
+ 
+ 		/*
+ 		 * Get the loan pointer, for processing reply, from the cookie.
+@@ -313,12 +315,19 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
+ 				    struct m0_rm_loan, rl_id);
+ 
+ 		M0_ASSERT(loan != NULL);
+-		reply_fop->br_creditor_cookie = loan->rl_other->rem_cookie;
++		M0_ASSERT(!m0_debtors_tlist_is_empty(&loan->rl_others));
++		M0_ASSERT(m0_debtors_tlist_length(&loan->rl_others) == 1);
++		other = m0_debtors_tlist_head(&loan->rl_others);
++		breply_fop->br_creditor_cookie = other->rem_cookie;
+ 		/*
+ 		 * Memory for the buffer is allocated by the function.
+ 		 */
+ 		rc = m0_rm_credit_encode(&loan->rl_credit,
+-					 &reply_fop->br_credit.cr_opaque);
++					 &breply_fop->br_credit.cr_opaque);
++		break;
++	case FRT_REVOKE:
++		rreply_fop = m0_fop_data(fom->fo_rep_fop);
++		rreply_fop->rr_debtor_cookie = rfom->rf_in.ri_rem_owner_cookie;
+ 		break;
+ 	default:
+ 		break;
+@@ -333,24 +342,28 @@ static void reply_err_set(enum m0_rm_incoming_type type,
+ 			 struct m0_fom *fom, int rc)
+ {
+ 	struct m0_rm_fop_borrow_rep *bfop;
+-	struct m0_fop_generic_reply *rfop = NULL;
++	struct m0_rm_fop_revoke_rep *rfop;
++	struct m0_fop_generic_reply *reply_fop = NULL;
+ 
+ 	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
+ 
+ 	switch (type) {
+ 	case FRT_BORROW:
+ 		bfop = m0_fop_data(fom->fo_rep_fop);
+-		rfop = &bfop->br_rc;
++		reply_fop = &bfop->br_rc;
+ 		break;
+ 	case FRT_REVOKE:
+-	case FRT_CANCEL:
+ 		rfop = m0_fop_data(fom->fo_rep_fop);
++		reply_fop = &rfop->rr_rc;
++		break;
++	case FRT_CANCEL:
++		reply_fop = m0_fop_data(fom->fo_rep_fop);
+ 		break;
+ 	default:
+ 		M0_IMPOSSIBLE("Unrecognized RM request");
+ 		break;
+ 	}
+-	rfop->gr_rc = rc;
++	reply_fop->gr_rc = rc;
+ 	m0_fom_phase_move(fom, rc, rc ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
+ 	M0_LEAVE();
+ }
+@@ -598,7 +611,8 @@ static int process_cancel(struct m0_fom *fom)
+ 	struct m0_rm_fop_cancel *cfop;
+ 	struct rm_request_fom	*rfom;
+ 	struct m0_rm_loan       *loan;
+-	struct m0_clink         *clink;
++	struct m0_rm_owner      *owner;
++	struct m0_rm_remote     *other;
+ 	int			 rc = 0;
+ 
+ 	cfop = m0_fop_data(fom->fo_fop);
+@@ -607,13 +621,13 @@ static int process_cancel(struct m0_fom *fom)
+ 	loan = m0_cookie_of(&cfop->fc_loan.lo_cookie,
+ 			    struct m0_rm_loan, rl_id);
+ 	M0_ASSERT(loan != NULL);
+-	M0_ASSERT(loan->rl_other != NULL);
+-	clink = &loan->rl_other->rem_rev_sess_clink;
+-	if (m0_clink_is_armed(clink)) {
+-		m0_clink_del_lock(clink);
+-		m0_clink_fini(clink);
+-	}
+-	rc = _sublet_remove(&loan->rl_credit);
++	M0_PRE(!m0_debtors_tlist_is_empty(&loan->rl_others));
++
++	owner = loan->rl_credit.cr_owner;
++	other = m0_debtors_tlist_head(&loan->rl_others);
++	m0_rev_session_wait(other);
++	rc = m0_rm_loan_payment_check(loan, &other->rem_cookie) ?
++		m0_rm_loan_pay(owner, loan, &owner->ro_sublet) : 0;
+ 
+ 	m0_fom_phase_set(fom, FOPH_RM_REQ_FINISH);
+ 	reply_err_set(FRT_CANCEL, fom, rc);
+diff --git a/rm/rm_fops.c b/rm/rm_fops.c
+index e7b8e71..37f70da 100644
+--- a/rm/rm_fops.c
++++ b/rm/rm_fops.c
+@@ -72,6 +72,7 @@ extern struct m0_reqh_service_type m0_rms_type;
+  * FOP definitions for resource-credit revoke request.
+  */
+ struct m0_fop_type m0_rm_fop_revoke_fopt;
++struct m0_fop_type m0_rm_fop_revoke_rep_fopt;
+ 
+ /**
+  * FOP definitions for resource-credit cancel request.
+@@ -101,6 +102,7 @@ static int rm_out_create(struct rm_out           **out,
+ 
+ 	M0_ENTRY();
+ 	M0_PRE (out != NULL);
++	M0_PRE(other != NULL);
+ 
+ 	RM_ALLOC_PTR(outreq, RM_OUT_ALLOC, &m0_rm_addb_ctx);
+ 	if (outreq == NULL) {
+@@ -109,13 +111,13 @@ static int rm_out_create(struct rm_out           **out,
+ 	}
+ 
+ 	m0_rm_outgoing_init(&outreq->ou_req, otype);
+-	rc = m0_rm_loan_init(&outreq->ou_req.rog_want, credit, other);
++	rc = m0_rm_loan_init(&outreq->ou_req.rog_want, credit);
+ 	if (rc != 0) {
+ 		m0_free(outreq);
+ 		goto out;
+-	}
++	} else
++		m0_rm_loan_debtor_add(&outreq->ou_req.rog_want, other);
+ 
+-	M0_ASSERT(outreq->ou_req.rog_want.rl_other != NULL);
+ 	*out = outreq;
+ out:
+ 	M0_RETURN(rc);
+@@ -199,6 +201,7 @@ static int borrow_fop_fill(struct rm_out         *outreq,
+ 		/* Copy creditor cookie */
+ 		bfop->bo_creditor.ow_cookie = rem ? rem->rem_cookie :
+ 			M0_COOKIE_NULL;
++		bfop->bo_group_id = credit->cr_group_id;
+ 	}
+ 	M0_RETURN(rc);
+ }
+@@ -206,6 +209,7 @@ static int borrow_fop_fill(struct rm_out         *outreq,
+ static int revoke_fop_fill(struct rm_out         *outreq,
+ 			   struct m0_rm_incoming *in,
+ 			   struct m0_rm_loan     *loan,
++			   struct m0_rm_remote   *other,
+ 			   struct m0_rm_credit   *credit)
+ {
+ 	struct m0_rm_fop_revoke *rfop;
+@@ -214,7 +218,7 @@ static int revoke_fop_fill(struct rm_out         *outreq,
+ 	M0_ENTRY("creating revoke fop for incoming: %p credit value: %llu",
+ 		 in, (long long unsigned) credit->cr_datum);
+ 
+-	rc = fop_common_fill(outreq, in, credit, &loan->rl_other->rem_cookie,
++	rc = fop_common_fill(outreq, in, credit, &other->rem_cookie,
+ 			     &m0_rm_fop_revoke_fopt,
+ 			     offsetof(struct m0_rm_fop_revoke, fr_base),
+ 			     (void **)&rfop);
+@@ -225,8 +229,8 @@ static int revoke_fop_fill(struct rm_out         *outreq,
+ 	M0_RETURN(rc);
+ }
+ 
+-static int cancel_fop_fill(struct rm_out            *outreq,
+-			   struct m0_rm_loan        *loan)
++static int cancel_fop_fill(struct rm_out     *outreq,
++			   struct m0_rm_loan *loan)
+ {
+ 	struct m0_rm_fop_cancel *cfop;
+ 	struct m0_fop           *fop;
+@@ -247,44 +251,35 @@ static int cancel_fop_fill(struct rm_out            *outreq,
+ 	M0_RETURN(rc);
+ }
+ 
+-static void rev_seesion_wait(struct m0_rm_remote *remote)
+-{
+-	struct m0_clink *clink;
+-
+-	M0_ASSERT(remote != NULL);
+-
+-	clink = &remote->rem_rev_sess_clink;
+-	/*
+-	 * Check whether remote session is established or not.
+-	 * If a situation comes when we have to send revoke
+-	 * request even before the session is established,
+-	 * we need to wait till the session is established.
+-	 */
+-	if (m0_clink_is_armed(clink)) {
+-		m0_chan_wait(clink);
+-		m0_clink_del_lock(clink);
+-		m0_clink_fini(clink);
+-	}
+-}
+-
+ static void outgoing_queue(enum m0_rm_outgoing_type  otype,
+-			   struct m0_rm_out         *outreq,
+-			   struct m0_rm_incoming    *in)
++			   struct rm_out            *outreq,
++			   struct m0_rm_incoming    *in,
++			   struct m0_rm_remote      *other)
+ {
+-	outreq->ou_ast.sa_cb = otype == M0_ROT_BORROW ? &borrow_ast :
+-							&revoke_ast;
++	switch (otype) {
++	case M0_ROT_BORROW:
++		outreq->ou_ast.sa_cb = &borrow_ast;
++		break;
++	case M0_ROT_REVOKE:
++		outreq->ou_ast.sa_cb = &revoke_ast;
++		break;
++	case M0_ROT_CANCEL:
++		outreq->ou_ast.sa_cb = &cancel_ast;
++		break;
++	default:
++		break;
++	}
+ 	pin_add(in, &outreq->ou_req.rog_want.rl_credit, M0_RPF_TRACK);
+ 	m0_rm_ur_tlist_add(&in->rin_want.cr_owner->ro_outgoing[OQS_GROUND],
+ 			   &outreq->ou_req.rog_want.rl_credit);
+-	outreq->ou_fop.f_item.ri_session =
+-		outreq->ou_req.rog_want.rl_other->rem_session;
+-	outreq->ou_fop.f_item.ri_ops = &rm_request_rpc_ops;
++	outreq->ou_fop.f_item.ri_session = other->rem_session;
++	outreq->ou_fop.f_item.ri_ops     = &rm_request_rpc_ops;
+ 
+ 	if (M0_FI_ENABLED("no-rpc"))
+ 		goto out;
+ 
+ 	M0_LOG(M0_DEBUG, "sending request:%p over session: %p",
+-			 outreq, session);
++			 outreq, other->rem_session);
+ 	m0_rpc_post(&outreq->ou_fop.f_item);
+ 
+ out:
+@@ -303,17 +298,27 @@ int m0_rm_request_out(enum m0_rm_outgoing_type  otype,
+ 	M0_ENTRY("sending request type: %d for incoming: %p credit value: %llu",
+ 		 otype, in, (long long unsigned) credit->cr_datum);
+ 	M0_PRE(loan != NULL);
+-	M0_PRE(M0_IN(otype, (M0_ROT_BORROW, M0_ROT_REVOKE)));
++	M0_PRE(M0_IN(otype, (M0_ROT_BORROW, M0_ROT_REVOKE, M0_ROT_CANCEL)));
+ 
+ 	rc = rm_out_create(&outreq, otype, other, credit);
+ 	if (rc != 0)
+ 		goto out;
+ 
+-	if (otype == M0_ROT_BORROW)
++	switch (otype) {
++	case M0_ROT_BORROW:
+ 		rc = borrow_fop_fill(outreq, in, credit);
+-	else if (otype == M0_ROT_REVOKE) {
+-		rev_session_wait(other);
+-		rc = revoke_fop_fill(outreq, in, loan, credit);
++		break;
++	case M0_ROT_REVOKE:
++		m0_rev_session_wait(other);
++		rc = revoke_fop_fill(outreq, in, loan, other, credit);
++		break;
++	case M0_ROT_CANCEL:
++		rc = cancel_fop_fill(outreq, loan);
++		break;
++	default:
++		rc = -EINVAL;
++		M0_IMPOSSIBLE("Unrecognized RM request");
++		break;
+ 	}
+ 
+ 	if (rc != 0) {
+@@ -321,7 +326,7 @@ int m0_rm_request_out(enum m0_rm_outgoing_type  otype,
+ 		m0_fop_put(&outreq->ou_fop);
+ 		goto out;
+ 	}
+-	outgoing_queue(otype, outreq, in);
++	outgoing_queue(otype, outreq, in, other);
+ 
+ out:
+ 	M0_RETURN(rc);
+@@ -370,8 +375,9 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ 		}
+ 
+ 		rc = m0_rm_credit_dup(bcredit, &credit) ?:
+-			m0_rm_loan_alloc(&loan, bcredit, owner->ro_creditor);
++			m0_rm_loan_alloc(&loan, bcredit);
+ 		if (rc == 0) {
++			m0_rm_loan_debtor_add(loan, owner->ro_creditor);
+ 			loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
+ 			/* Add loan to the borrowed list. */
+ 			m0_rm_ur_tlist_add(&owner->ro_borrowed,
+@@ -403,7 +409,9 @@ out:
+ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ {
+ 	struct m0_fop_generic_reply *revoke_reply;
+-	struct m0_rm_credit	    *out_credit;
++	struct m0_rm_owner          *owner;
++	struct m0_rm_loan	    *rvk_loan;
++	struct m0_cookie             cookie;
+ 	struct rm_out		    *outreq;
+ 	struct m0_rpc_item	    *item;
+ 	int			     rc;
+@@ -411,12 +419,11 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ 	M0_ENTRY();
+ 	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
+ 
+-	outreq     = container_of(ast, struct rm_out, ou_ast);
+-	out_credit = &outreq->ou_req.rog_want.rl_credit;
+-
+-	item = &outreq->ou_fop.f_item;
+-	rc   = item->ri_error;
++	outreq = container_of(ast, struct rm_out, ou_ast);
++	item   = &outreq->ou_fop.f_item;
++	rc     = item->ri_error;
+ 	if (rc == 0) {
++		/* No RPC error. Check for revoke error, if any */
+ 		M0_ASSERT(item->ri_reply != NULL);
+ 		revoke_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+ 		rc = revoke_reply->gr_rc;
+@@ -427,7 +434,12 @@ static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ 		goto out;
+ 	}
+ 
+-	rc = _sublet_remove(out_credit);
++	rvk_loan = &outreq->ou_req.rog_want;
++	owner    = rvk_loan->rl_credit.cr_owner;
++	m0_cookie_init(&cookie, &owner->ro_id);
++	rc       = m0_rm_loan_payment_check(rvk_loan, &cookie) ?
++			m0_rm_loan_pay(owner, rvk_loan, &owner->ro_sublet) : 0;
++
+ out:
+ 	outreq->ou_req.rog_rc = rc;
+ 	m0_rm_outgoing_complete(&outreq->ou_req);
+@@ -438,6 +450,7 @@ out:
+ static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ {
+ 	struct m0_fop_generic_reply *cancel_reply;
++	struct m0_rm_owner          *owner;
+ 	struct rm_out		    *outreq;
+ 	struct m0_rpc_item	    *item;
+ 	int			     rc;
+@@ -456,9 +469,13 @@ static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ 	if (rc != 0)
+ 		M0_LOG(M0_ERROR, "cancel request: %p failed: rc [%d]\n",
+ 		       outreq, rc);
++	else {
++		owner = outreq->ou_req.rog_want.rl_credit.cr_owner;
++		rc = m0_rm_loan_pay(owner, &outreq->ou_req.rog_want,
++				    &owner->ro_sublet);
++	}
+ 
+ 	outreq->ou_req.rog_rc = rc;
+-	_borrowed_remove(&outreq->ou_req.rog_want.rl_credit);
+ 	m0_rm_outgoing_complete(&outreq->ou_req);
+ 	m0_fop_put(&outreq->ou_fop);
+ 	M0_LEAVE();
+@@ -483,6 +500,7 @@ static void reply_process(struct m0_rpc_item *item)
+ M0_INTERNAL void m0_rm_fop_fini(void)
+ {
+ 	m0_fop_type_fini(&m0_rm_fop_cancel_fopt);
++	m0_fop_type_fini(&m0_rm_fop_revoke_rep_fopt);
+ 	m0_fop_type_fini(&m0_rm_fop_revoke_fopt);
+ 	m0_fop_type_fini(&m0_rm_fop_borrow_rep_fopt);
+ 	m0_fop_type_fini(&m0_rm_fop_borrow_fopt);
+@@ -529,6 +547,12 @@ M0_INTERNAL int m0_rm_fop_init(void)
+ 				 .fom_ops   = &rm_revoke_fom_type_ops,
+ 				 .svc_type  = &m0_rms_type,
+ 				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST) ?:
++		M0_FOP_TYPE_INIT(&m0_rm_fop_revoke_rep_fopt,
++				 .name      = "Credit Revoke Reply",
++				 .opcode    = M0_RM_FOP_REVOKE_REPLY,
++				 .xt        = m0_rm_fop_revoke_rep_xc,
++				 .svc_type  = &m0_rpc_service_type,
++				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY) ?:
+ 		M0_FOP_TYPE_INIT(&m0_rm_fop_cancel_fopt,
+ 				 .name      = "Credit Return (Cancel)",
+ 				 .opcode    = M0_RM_FOP_CANCEL,
+diff --git a/rm/rm_fops.h b/rm/rm_fops.h
+index 03ac5b4..de4b871 100644
+--- a/rm/rm_fops.h
++++ b/rm/rm_fops.h
+@@ -95,6 +95,7 @@ struct m0_rm_fop_req {
+ struct m0_rm_fop_borrow {
+ 	struct m0_rm_fop_req   bo_base;
+ 	struct m0_rm_fop_owner bo_creditor;
++	struct m0_uint128      bo_group_id;
+ } M0_XCA_RECORD;
+ 
+ struct m0_rm_fop_borrow_rep {
+@@ -116,8 +117,20 @@ struct m0_rm_fop_revoke {
+ 	struct m0_rm_fop_loan fr_loan;
+ } M0_XCA_RECORD;
+ 
++struct m0_rm_fop_revoke_rep {
++	struct m0_fop_generic_reply rr_rc;
++	/**
++	 * Debtor sends its own cookie.
++	 * This is useful for the creditor to identify the debtor.
++	 * It's necessary to identify the debtor when a loan has been
++	 * given to many debtors belonging to the same group.
++	 */
++	struct m0_cookie            rr_debtor_cookie;
++} M0_XCA_RECORD;
++
+ struct m0_rm_fop_cancel {
+ 	struct m0_rm_fop_loan fc_loan;
++	struct m0_cookie      fc_debtor_cookie;
+ } M0_XCA_RECORD;
+ 
+ /**
+@@ -126,6 +139,7 @@ struct m0_rm_fop_cancel {
+ extern struct m0_fop_type m0_rm_fop_borrow_fopt;
+ extern struct m0_fop_type m0_rm_fop_borrow_rep_fopt;
+ extern struct m0_fop_type m0_rm_fop_revoke_fopt;
++extern struct m0_fop_type m0_rm_fop_revoke_rep_fopt;
+ extern struct m0_fop_type m0_rm_fop_cancel_fopt;
+ extern struct m0_fop_type m0_fop_generic_reply_fopt;
+ 
+diff --git a/rm/rm_internal.h b/rm/rm_internal.h
+index 01431d4..a0c1c0d 100644
+--- a/rm/rm_internal.h
++++ b/rm/rm_internal.h
+@@ -134,7 +134,8 @@ int m0_rm_resource_owner_find(const struct m0_rm_resource *resource,
+ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
+ 				  struct m0_rm_incoming *in,
+ 				  struct m0_rm_loan *loan,
+-				  struct m0_rm_credit *credit);
++				  struct m0_rm_credit *credit,
++				  struct m0_rm_remote *remote);
+ 
+ /**
+  * Initialises the fields of for incoming structure.
+@@ -156,11 +157,10 @@ M0_INTERNAL void m0_rm_outgoing_init(struct m0_rm_outgoing *out,
+ M0_INTERNAL void m0_rm_outgoing_fini(struct m0_rm_outgoing *out);
+ 
+ /**
+- * Initialise the loan
++ * Initialises the loan
+  */
+ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan *loan,
+-				const struct m0_rm_credit *credit,
+-				struct m0_rm_remote *creditor);
++				const struct m0_rm_credit *credit);
+ 
+ /**
+  * Finalise the lona. Release ref count of remote owner.
+@@ -168,33 +168,49 @@ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan *loan,
+ M0_INTERNAL void m0_rm_loan_fini(struct m0_rm_loan *loan);
+ 
+ /**
+- * Initialise the loan
++ * Allocates and initialises the loan
+  *
+  * @param loan - On success, this will contain an allocated and initialised
+  *               loan strucutre
+  * @param credit - the credits for which loan is being allocated/created.
+- * @param creditor - Remote resource owner.
+  */
+ M0_INTERNAL int m0_rm_loan_alloc(struct m0_rm_loan **loan,
+-				 const struct m0_rm_credit *credit,
+-				 struct m0_rm_remote *creditor);
++				 const struct m0_rm_credit *credit);
+ 
+ /**
+- * Called when an outgoing request completes (possibly with an error, like a
+- * timeout).
++ * Pays back the loan. Removes the loan (either borrowed or sublet) and
++ * refreshes the credit cache.
+  */
+-M0_INTERNAL void m0_rm_outgoing_complete(struct m0_rm_outgoing *og);
++M0_INTERNAL int m0_rm_loan_pay(struct m0_rm_owner *owner,
++			       struct m0_rm_loan  *loan,
++			       struct m0_tl       *list);
++
++/**
++ * Removes the remote proxy associated with the loan.
++ * Checks if loan can be removed. Whrn a group is using a credit of a resource,
++ * multiple debtors may have the same loan. When such loan is revoked, each
++ * remote proxy associated with loan is removed. When all proxies have been
++ * removed, the loan could be paid back (removed).
++ */
++M0_INTERNAL bool m0_rm_loan_payment_check(struct m0_rm_loan *loan,
++					  struct m0_cookie  *rem_cookie);
+ 
+ /**
+- * Removes partial or full sublet matching the credit from the owner's sublet
+- * list.
++ * Adds debtor/creditor to the loan.
+  */
+-int _sublet_remove(struct m0_rm_credit *credit);
++M0_INTERNAL void m0_rm_loan_debtor_add(struct m0_rm_loan   *loan,
++				       struct m0_rm_remote *other);
+ 
+ /**
+- * Removes partial or full credit from owners borrowed list
++ * Removes debtor/creditor to the loan.
+  */
+-int _borrowed_remove(struct m0_rm_credit *credit);
++M0_INTERNAL void m0_rm_loan_debtor_del(struct m0_rm_loan   *loan,
++				       struct m0_rm_remote *other);
++/**
++ * Called when an outgoing request completes (possibly with an error, like a
++ * timeout).
++ */
++M0_INTERNAL void m0_rm_outgoing_complete(struct m0_rm_outgoing *og);
+ 
+ /**
+  * Establish a reverse session to facilitate sending revoke requests
+@@ -203,6 +219,7 @@ M0_INTERNAL int
+ m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
+ 			  struct m0_rm_remote          *remote);
+ 
++M0_INTERNAL void m0_rev_session_wait(struct m0_rm_remote *remote);
+ /** @} end of rm-fop interface. */
+ 
+ /**
+@@ -229,6 +246,9 @@ M0_TL_DECLARE(pi, M0_INTERNAL, struct m0_rm_pin);
+ M0_EXTERN const struct m0_bob_type loan_bob;
+ M0_BOB_DECLARE(M0_INTERNAL, m0_rm_loan);
+ 
++M0_TL_DESCR_DECLARE(m0_debtors, extern);
++M0_TL_DECLARE(m0_debtors, M0_INTERNAL, struct m0_rm_remote);
++
+ /**
+  * Execute "expr" against all credits lists in a given owner.
+  */
+diff --git a/rm/rm_service.c b/rm/rm_service.c
+index d2d8822..fc5b645 100644
+--- a/rm/rm_service.c
++++ b/rm/rm_service.c
+@@ -294,7 +294,14 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
+ 				rc = -ENOMEM;
+ 				goto err_resource;
+ 			} else {
+-				m0_rm_owner_init(owner, resource, NULL);
++				/*
++				 * RM service does not belong to any group at
++				 * the moment. If we change this assumption,
++				 * we need to introduce function to source
++				 * the group id.
++				 */
++				m0_rm_owner_init(owner, M0_RM_NO_GROUP,
++						 resource, NULL);
+ 
+ 				RM_ALLOC_PTR(ow_cr, OWNER_CREDIT_ALLOC,
+ 					     &m0_rm_addb_ctx);
+diff --git a/rm/ut/file.c b/rm/ut/file.c
+index 9d82d6b..aaa6d52 100644
+--- a/rm/ut/file.c
++++ b/rm/ut/file.c
+@@ -117,7 +117,7 @@ static void fl_owner_set(struct rm_ut_data *self)
+ 	M0_ALLOC_PTR(owner);
+ 	M0_UT_ASSERT(owner != NULL);
+ 	flock = container_of(self->rd_res, struct m0_file, fi_res);
+-	m0_file_owner_init(owner, flock, NULL);
++	m0_file_owner_init(owner, M0_RM_NO_GROUP, flock, NULL);
+ 	self->rd_owner = owner;
+ }
+ 
+diff --git a/rm/ut/rcredits.c b/rm/ut/rcredits.c
+index a07cf07..157f40b 100644
+--- a/rm/ut/rcredits.c
++++ b/rm/ut/rcredits.c
+@@ -287,7 +287,7 @@ static void test4_run(void)
+ 	m0_rm_owner_fini(so3);
+ 	M0_SET0(rm_ctx[SERVER_3].rc_test_data.rd_owner);
+ 	m0_rm_owner_init(rm_ctx[SERVER_3].rc_test_data.rd_owner,
+-			 rm_ctx[SERVER_3].rc_test_data.rd_res,
++			 M0_RM_NO_GROUP, rm_ctx[SERVER_3].rc_test_data.rd_res,
+ 			 NULL);
+ }
+ 
+diff --git a/rm/ut/rings.c b/rm/ut/rings.c
+index 471bd0a..050c620 100644
+--- a/rm/ut/rings.c
++++ b/rm/ut/rings.c
+@@ -299,7 +299,7 @@ static void rings_owner_set(struct rm_ut_data *self)
+ 
+ 	M0_ALLOC_PTR(owner);
+ 	M0_ASSERT(owner != NULL);
+-	m0_rm_owner_init(owner, self->rd_res, NULL);
++	m0_rm_owner_init(owner, M0_RM_NO_GROUP, self->rd_res, NULL);
+ 	self->rd_owner = owner;
+ }
+ 
+diff --git a/rm/ut/rm_foms.c b/rm/ut/rm_foms.c
+index 68fc8e2..af51b7f 100644
+--- a/rm/ut/rm_foms.c
++++ b/rm/ut/rm_foms.c
+@@ -410,7 +410,8 @@ static void rvk_data_setup(enum test_type test)
+ 	m0_cookie_init(&remote->rem_cookie, &rm_test_data.rd_owner->ro_id);
+ 	m0_remotes_tlist_add(&rm_test_data.rd_res->r_remote, remote);
+ 
+-	m0_rm_loan_init(test_loan, credit, remote);
++	m0_rm_loan_init(test_loan, credit);
++	m0_rm_loan_debtor_add(test_loan, remote);
+ 	test_loan->rl_id = M0_RM_LOAN_SELF_ID + test;
+ 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+ 
+@@ -467,7 +468,8 @@ static void rvk_test_cleanup(void)
+ 	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_borrowed, credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		loan = container_of(credit, struct m0_rm_loan, rl_credit);
+-		remote = loan->rl_other;
++		remote = m0_debtors_tlist_head(&loan->rl_others);
++		m0_rm_loan_debtor_del(loan, remote);
+ 		m0_rm_loan_fini(loan);
+ 		m0_free(loan);
+ 	} m0_tl_endfor;
+diff --git a/rm/ut/rm_fops.c b/rm/ut/rm_fops.c
+index 8f803c3..0ba3be5 100644
+--- a/rm/ut/rm_fops.c
++++ b/rm/ut/rm_fops.c
+@@ -82,8 +82,8 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
+ 	remote.rem_state = REM_FREED;
+ 	m0_rm_remote_init(&remote, rm_test_data.rd_res);
+ 	m0_cookie_init(&remote.rem_cookie, &rm_test_data.rd_owner->ro_id);
+-	test_loan->rl_other = &remote;
+-	m0_rm_loan_init(test_loan, &rm_test_data.rd_credit, &remote);
++	m0_rm_loan_init(test_loan, &rm_test_data.rd_credit);
++	m0_rm_loan_debtor_add(test_loan, &remote);
+ 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+ }
+ 
+@@ -215,8 +215,9 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
+  */
+ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
+ {
+-	int		    rc;
+-	struct m0_rpc_item *item;
++	int		     rc;
++	struct m0_rpc_item  *item;
++	struct m0_rm_remote *other;
+ 
+ 	request_param_init(reqtype);
+ 
+@@ -224,8 +225,9 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
+ 	switch (reqtype) {
+ 	case M0_RIT_BORROW:
+ 		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
++		other = rm_test_data.rd_owner->ro_creditor;
+ 		rc = m0_rm_request_out(M0_ROT_BORROW, &rm_test_data.rd_in, NULL,
+-				       &rm_test_data.rd_credit);
++				       &rm_test_data.rd_credit, other);
+ 		M0_UT_ASSERT(rc == 0);
+ 		item = rm_reply_create(M0_RIT_BORROW, err);
+ 		reply_process(item);
+@@ -237,8 +239,9 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
+ 		break;
+ 	case M0_RIT_REVOKE:
+ 		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
++		other = m0_debtors_tlist_head(&test_loan->rl_others);
+ 		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
+-				       test_loan, &test_loan->rl_credit);
++				       test_loan, &test_loan->rl_credit, other);
+ 		item = rm_reply_create(M0_RIT_REVOKE, err);
+ 		m0_rm_owner_lock(rm_test_data.rd_owner);
+ 		m0_rm_ur_tlist_add(&rm_test_data.rd_owner->ro_sublet,
+@@ -270,7 +273,8 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
+  */
+ static void request_test(enum m0_rm_incoming_type reqtype)
+ {
+-	struct m0_rm_credit rest;
++	struct m0_rm_credit  rest;
++	struct m0_rm_remote *remote;
+ 	int                 rc = 0;
+ 
+ 	request_param_init(reqtype);
+@@ -279,16 +283,17 @@ static void request_test(enum m0_rm_incoming_type reqtype)
+ 	m0_rm_credit_init(&rest, rm_test_data.rd_owner);
+ 	rc = rest.cr_ops->cro_copy(&rest, &rm_test_data.rd_credit);
+ 	M0_UT_ASSERT(rc == 0);
++	remote = m0_debtors_tlist_head(&test_loan->rl_others);
+ 	switch (reqtype) {
+ 	case M0_RIT_BORROW:
+ 		rm_test_data.rd_in.rin_flags |= RIF_MAY_BORROW;
+ 		rc = m0_rm_request_out(M0_ROT_BORROW, &rm_test_data.rd_in, NULL,
+-				       &rest);
++				       &rest, remote);
+ 		break;
+ 	case M0_RIT_REVOKE:
+ 		rm_test_data.rd_in.rin_flags |= RIF_MAY_REVOKE;
+ 		rc = m0_rm_request_out(M0_ROT_REVOKE, &rm_test_data.rd_in,
+-				       test_loan, &rest);
++				       test_loan, &rest, remote);
+ 		break;
+ 	default:
+ 		M0_IMPOSSIBLE("Invalid RM-FOM type");
+diff --git a/rm/ut/rm_service.c b/rm/ut/rm_service.c
+index 1ff1bb2..98646ff 100644
+--- a/rm/ut/rm_service.c
++++ b/rm/ut/rm_service.c
+@@ -115,7 +115,7 @@ static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
+ 	struct m0_rm_incoming  in;
+ 
+ 	m0_file_init(file, fid, &rm_test_data.rd_dom);
+-	m0_file_owner_init(owner, file, NULL);
++	m0_file_owner_init(owner, M0_RM_NO_GROUP, file, NULL);
+ 	owner->ro_creditor = creditor;
+ 	m0_file_lock(owner, &in);
+ 	m0_rm_owner_lock(owner);
+diff --git a/rm/ut/rmut.c b/rm/ut/rmut.c
+index 8b38902..d159d26 100644
+--- a/rm/ut/rmut.c
++++ b/rm/ut/rmut.c
+@@ -277,16 +277,19 @@ void rm_ctx_server_stop(enum rm_server srv_id)
+ void loan_session_set(enum rm_server csrv_id,
+ 		      enum rm_server dsrv_id)
+ {
+-	struct m0_rm_owner *owner = rm_ctx[csrv_id].rc_test_data.rd_owner;
+-	struct m0_rm_loan  *loan;
++	struct m0_rm_owner  *owner = rm_ctx[csrv_id].rc_test_data.rd_owner;
++	struct m0_rm_loan   *loan;
+ 	struct m0_rm_credit *credit;
++	struct m0_rm_remote *remote;
+ 
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_sublet));
+ 	m0_tl_for(m0_rm_ur, &owner->ro_sublet, credit) {
+ 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
+-		M0_UT_ASSERT(loan != NULL && loan->rl_other != NULL);
+-		loan->rl_other->rem_session =
+-			&rm_ctx[csrv_id].rc_sess[dsrv_id];
++		M0_UT_ASSERT(loan != NULL);
++		M0_UT_ASSERT(!m0_debtors_tlist_is_empty(&loan->rl_others));
++		M0_UT_ASSERT(m0_debtors_tlist_length(&loan->rl_others) == 1);
++		remote = m0_debtors_tlist_head(&loan->rl_others);
++		remote->rem_session = &rm_ctx[csrv_id].rc_sess[dsrv_id];
+ 	} m0_tl_endfor;
+ }
+ 
+-- 
+1.8.3.2
+

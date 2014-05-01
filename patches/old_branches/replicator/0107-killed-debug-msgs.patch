@@ -1,0 +1,26 @@
+From de51c6843a467ee8fc95a1bc7cde1487d8bd8438 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Tue, 7 Jun 2011 08:14:05 -0600
+Subject: [PATCH 107/177] - killed debug msgs
+
+---
+ mdservice/md_foms.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 2e3b908..c93b4ae 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -496,9 +496,6 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+         sbody = &req->r_sbody;
+         tbody = &req->r_tbody;
+ 
+-        fprintf(stderr, "S-path: %s\n", req->r_spath.s_buf);
+-        fprintf(stderr, "T-path: %s\n", req->r_tpath.s_buf);
+-
+         c2_md_make_fid(&pfid_src, &sbody->b_pfid);
+         c2_md_make_fid(&pfid_tgt, &tbody->b_pfid);
+ 
+-- 
+1.8.3.2
+

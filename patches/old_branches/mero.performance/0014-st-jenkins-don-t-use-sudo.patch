@@ -1,0 +1,38 @@
+From d3bb27e32053f673197577d32f396ebea2c618fd Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 27 Oct 2013 19:49:13 +0200
+Subject: [PATCH 14/17] st/jenkins: don't use sudo
+
+---
+ st/jenkins.sh | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/st/jenkins.sh b/st/jenkins.sh
+index 68e6e9c..4ee726c 100755
+--- a/st/jenkins.sh
++++ b/st/jenkins.sh
+@@ -20,18 +20,18 @@ main() {
+ 		make -j9
+ 		;;
+ 	"net-test")
+-		sudo "$MERO_ST_ROOT/pm/net-test/st.sh" "$@" \
++		"$MERO_ST_ROOT/pm/net-test/st.sh" "$@" \
+ 			 > "$MERO_ST_ARTIFACTS/net-test-stdout.txt" \
+ 			2> "$MERO_ST_ARTIFACTS/net-test-stderr.txt"
+ 		;;
+ 	"clean")
+-		sudo rm -rf "$MERO_ST_ARTIFACTS" "$MERO_ST_DATA_ROOT"
++		rm -rf "$MERO_ST_ARTIFACTS" "$MERO_ST_DATA_ROOT"
+ 		mkdir -p "$MERO_ST_ARTIFACTS"
+ 		mkdir -p "$MERO_ST_DATA_ROOT"
+ 		;;
+ 	"git-clean")
+ 		cd $MERO_SRC_ROOT
+-		sudo chown --recursive `id -nu`:`id -ng` "$MERO_SRC_ROOT"
++		chown --recursive `id -nu`:`id -ng` "$MERO_SRC_ROOT"
+ 		git clean -dfx
+ 		;;
+ 	"help")
+-- 
+1.8.3.2
+

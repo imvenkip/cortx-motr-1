@@ -1,0 +1,74 @@
+From 94ccffad085855cf904641899c84eec3c84acd14 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 19:50:59 +0200
+Subject: [PATCH 41/99] LogD 1879, part 2: removed unnecessary 'bool init'
+ param from node_ping_initfini()
+
+---
+ net/test/node_bulk.c |  3 +--
+ net/test/node_ping.c | 15 ++++++---------
+ 2 files changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 398e56a..140ecc3 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1463,8 +1463,7 @@ success:
+ 	return rc;
+ }
+ 
+-static void *node_bulk_initfini(void *ctx_,
+-				struct m0_net_test_service *svc)
++static void *node_bulk_initfini(void *ctx_, struct m0_net_test_service *svc)
+ {
+ 	struct node_bulk_ctx *ctx;
+ 	int		      rc;
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index a94a3ab..89b0bdd 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -741,17 +741,14 @@ exit:
+ 	return rc;
+ }
+ 
+-static void *node_ping_init_fini(void *ctx_,
+-				 struct m0_net_test_service *svc,
+-				 bool init)
++static void *node_ping_initfini(void *ctx_, struct m0_net_test_service *svc)
+ {
+ 	struct node_ping_ctx *ctx;
+ 	int		      rc;
+ 
+-	M0_PRE(equi(init, ctx_ == NULL));
+-	M0_PRE(equi(init, svc != NULL));
++	M0_PRE(equi(ctx_ == NULL, svc != NULL));
+ 
+-	if (init) {
++	if (svc != NULL) {
+ 		M0_ALLOC_PTR(ctx);
+ 		if (ctx != NULL) {
+ 			ctx->npc_svc			  = svc;
+@@ -763,17 +760,17 @@ static void *node_ping_init_fini(void *ctx_,
+ 		M0_ASSERT(rc == 0);
+ 		m0_free(ctx);
+ 	}
+-	return init ? ctx : NULL;
++	return svc != NULL ? ctx : NULL;
+ }
+ 
+ static void *node_ping_init(struct m0_net_test_service *svc)
+ {
+-	return node_ping_init_fini(NULL, svc, true);
++	return node_ping_initfini(NULL, svc);
+ }
+ 
+ static void node_ping_fini(void *ctx_)
+ {
+-	void *rc = node_ping_init_fini(ctx_, NULL, false);
++	void *rc = node_ping_initfini(ctx_, NULL);
+ 	M0_POST(rc == NULL);
+ }
+ 
+-- 
+1.8.3.2
+

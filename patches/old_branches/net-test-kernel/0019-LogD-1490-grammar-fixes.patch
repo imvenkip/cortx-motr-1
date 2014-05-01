@@ -1,0 +1,68 @@
+From 8ce293c45c34d810e838a2943067873864bb1af1 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 06:28:38 +0200
+Subject: [PATCH 19/71] LogD 1490: grammar fixes
+
+---
+ net/test/node.c      | 10 +++++-----
+ net/test/node_bulk.c |  2 +-
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/net/test/node.c b/net/test/node.c
+index c136434..555a9de 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -317,8 +317,8 @@ finished.up();\l", shape=box];
+ 	bd_sent	    [label="BD_SENT"];
+ 	cb_left2    [label="CB_LEFT2"];
+ 	cb_left1    [label="CB_LEFT1"];
+-	failed2	    [label="FAILED2", color="red", style="solid"];
+-	failed1	    [label="FAILED1", color="red", style="solid"];
++	failed2	    [label="FAILED2", color="red"];
++	failed1	    [label="FAILED1", color="red"];
+ 	transferred [label="TRANSFERRED", peripheries=2];
+ 	failed	    [label="FAILED", peripheries=2];
+ 
+@@ -348,7 +348,7 @@ finished.up();\l", shape=box];
+    - QUEUED - buffer pair is queued or almost added to network bulk queue.
+    - BD_SENT - buffer descriptors for bulk buffer pair are sent or almost sent
+      to the test server.
+-   - CB_LEFT2(CB_LFET1) - there is 2 (or 1) network buffer callback(s) left
++   - CB_LEFT2(CB_LFET1) - there are 2 (or 1) network buffer callback(s) left
+      for this buffer pair (including network buffer callback for the message
+      with buffer descriptor).
+    - TRANSFERRED - all buffer for this buffer pair and message with buffer
+@@ -421,7 +421,7 @@ finished.up();\l", shape=box];
+    - Every bulk buffer have its own state.
+    - Bulk test server maintains unused bulk buffers queue - the bulk buffer
+      for messages transfer will be taken from this queue when buffer
+-     descriptor arrives. If there is no buffers in queue -
++     descriptor arrives. If there are no buffers in queue -
+      then buffer descriptor will be discarded, and number of failed and total
+      test messages will be increased.
+ 
+@@ -452,7 +452,7 @@ finished.up();\l", shape=box];
+    @see @ref net-test-lspec-algo-sm-legend
+ 
+    Bulk buffer states
+-   - UNUSED - bulk buffer isn't currenly used in network operations and
++   - UNUSED - bulk buffer isn't currently used in network operations and
+      can be used when passive bulk buffer decriptors arrive.
+    - BD_RECEIVED - message with buffer descriptors was received from the test
+      client.
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index c6b2114..c6db6bf 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -38,7 +38,7 @@
+ 
+    Bulk node service c2_net_test_service_ops:
+    - ntso_init
+-     - allocalte bulk node context
++     - allocate bulk node context
+    - ntso_fini
+      - finalize network context if it was initialized;
+      - free bulk node context
+-- 
+1.8.3.2
+

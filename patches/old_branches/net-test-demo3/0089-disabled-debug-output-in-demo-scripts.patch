@@ -1,0 +1,49 @@
+From b23baf29a164d73e2054e7f700a38a15a86380b6 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 28 Feb 2013 17:51:03 +0200
+Subject: [PATCH 89/99] disabled debug output in demo scripts
+
+---
+ net/test/demo/demo-list-nids.sh | 2 +-
+ net/test/demo/demo-test-run.sh  | 2 +-
+ net/test/demo/demo.sh           | 4 ++--
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/net/test/demo/demo-list-nids.sh b/net/test/demo/demo-list-nids.sh
+index 6de0bb3..12670fd 100755
+--- a/net/test/demo/demo-list-nids.sh
++++ b/net/test/demo/demo-list-nids.sh
+@@ -1,5 +1,5 @@
+ #!/bin/bash
+-set -eux
++# set -eux
+ 
+ SSH="ssh"
+ 
+diff --git a/net/test/demo/demo-test-run.sh b/net/test/demo/demo-test-run.sh
+index 68ef9f7..922baf2 100755
+--- a/net/test/demo/demo-test-run.sh
++++ b/net/test/demo/demo-test-run.sh
+@@ -1,5 +1,5 @@
+ #!/bin/bash
+-set -eux
++# set -eux
+ 
+ # Set this to 1 to enable removing of m0.trace.* files
+ TRACE_RM=0
+diff --git a/net/test/demo/demo.sh b/net/test/demo/demo.sh
+index 4248e15..0b2071d 100755
+--- a/net/test/demo/demo.sh
++++ b/net/test/demo/demo.sh
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+-set -eux
+-export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
++# set -eux
++# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+ 
+ # Note: only 1 client/1 server configuration supported in this script.
+ # Update console_cmdline_complement() calculations for other configurations.
+-- 
+1.8.3.2
+

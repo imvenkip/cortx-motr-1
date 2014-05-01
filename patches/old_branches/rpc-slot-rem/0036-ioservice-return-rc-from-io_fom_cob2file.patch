@@ -1,0 +1,56 @@
+From 7ab029d65821adca196f1a48740eb6da2bab5426 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Thu, 6 Feb 2014 15:23:50 +0200
+Subject: [PATCH 36/60] ioservice: return rc from io_fom_cob2file()
+
+---
+ ioservice/io_foms.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 8a6a5eb..15bb20a 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -850,7 +850,8 @@ M0_INTERNAL void io_fom_cob_rw_stob2fid_map(const struct m0_stob_id *in,
+         m0_fid_set(out, in->si_bits.u_hi, in->si_bits.u_lo);
+ }
+ 
+-static struct m0_file *io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid)
++static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
++			   struct m0_file **out)
+ {
+ 	int			   rc;
+ 	struct m0_cob		  *cob;
+@@ -865,14 +866,14 @@ static struct m0_file *io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid)
+ 			   rios_gen);
+ 	cob_dom = ios->rios_cdom;
+ 	if (cob_dom == NULL)
+-		return NULL;
++		return -EINVAL;
+ 
+ 	m0_cob_oikey_make(&oikey, fid, 0);
+ 	rc = m0_cob_locate(cob_dom, &oikey, M0_CA_NSKEY_FREE, &cob);
+-	if (rc < 0 || cob == NULL)
+-		return NULL;
++	if (rc == 0)
++		*out = &cob->co_file;
+ 
+-	return &cob->co_file;
++	return rc;
+ }
+ 
+ /**
+@@ -1608,8 +1609,8 @@ static int io_launch(struct m0_fom *fom)
+ 	if (rc != 0)
+ 		goto cleanup;
+ 
+-	file = io_fom_cob2file(fom, &rwfop->crw_fid);
+-	if (file == NULL)
++	rc = io_fom_cob2file(fom, &rwfop->crw_fid, &file);
++	if (rc != 0)
+ 		goto cleanup;
+ 
+ 	/*
+-- 
+1.8.3.2
+

@@ -1,0 +1,444 @@
+From 4ea84167f88a36a3991060832238057b8293759d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 05:44:33 +0200
+Subject: [PATCH 17/71] LogD 1488: added c2_net_test_serialize_len_total(),
+ replaced ?:
+
+---
+ net/test/commands.c  | 31 +++++++++++++++++--------------
+ net/test/network.c   | 13 +++++++------
+ net/test/node_bulk.c | 19 +++++++++++--------
+ net/test/serialize.c | 16 ++++++++--------
+ net/test/serialize.h | 40 ++++++++++++++++++++++++++++++++++++++++
+ net/test/slist.c     | 30 +++++++++++++++++-------------
+ net/test/stats.c     | 23 +++++++++++------------
+ net/test/str.c       | 13 +++++++------
+ 8 files changed, 118 insertions(+), 67 deletions(-)
+
+diff --git a/net/test/commands.c b/net/test/commands.c
+index fb01d9d..0516fce 100644
+--- a/net/test/commands.c
++++ b/net/test/commands.c
+@@ -120,22 +120,23 @@ cmd_status_data_serialize(enum c2_net_test_serialize_op op,
+ 	if (op == C2_NET_TEST_DESERIALIZE)
+ 		C2_SET0(sd);
+ 
+-	len_total = len = c2_net_test_serialize(op, sd,
+-			  USE_TYPE_DESCR(c2_net_test_cmd_status_data),
+-			  bv, offset);
++	len = c2_net_test_serialize(op, sd,
++				    USE_TYPE_DESCR(c2_net_test_cmd_status_data),
++				    bv, offset);
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 
+-	for (i = 0; i < ARRAY_SIZE(msg_nr) && len != 0; ++i) {
++	for (i = 0; i < ARRAY_SIZE(msg_nr) && len_total != 0; ++i) {
+ 		len = c2_net_test_serialize(op, (void *) msg_nr[i],
+ 					    USE_TYPE_DESCR(c2_net_test_msg_nr),
+ 					    bv, offset + len_total);
+-		len_total += len;
++		len_total = c2_net_test_serialize_len_total(len_total, len);
+ 	}
+-	for (i = 0; i < ARRAY_SIZE(stats) && len != 0; ++i) {
++	for (i = 0; i < ARRAY_SIZE(stats) && len_total != 0; ++i) {
+ 		len = c2_net_test_stats_serialize(op, (void *) stats[i], bv,
+ 						  offset + len_total);
+-		len_total += len;
++		len_total = c2_net_test_serialize_len_total(len_total, len);
+ 	}
+-	return len == 0 ? 0 : len_total;
++	return len_total;
+ }
+ 
+ /**
+@@ -158,10 +159,11 @@ static int cmd_serialize(enum c2_net_test_serialize_op op,
+ 	c2_bcount_t	  len_total;
+ 
+ 	C2_PRE(cmd != NULL);
+-	len = len_total = c2_net_test_serialize(op, cmd,
+-				  USE_TYPE_DESCR(c2_net_test_cmd), bv, offset);
+-	if (len_total == 0)
++	len = c2_net_test_serialize(op, cmd, USE_TYPE_DESCR(c2_net_test_cmd),
++				    bv, offset);
++	if (len == 0)
+ 		return -EINVAL;
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 
+ 	switch (cmd->ntc_type) {
+ 	case C2_NET_TEST_CMD_INIT:
+@@ -170,13 +172,13 @@ static int cmd_serialize(enum c2_net_test_serialize_op op,
+ 					bv, offset + len_total);
+ 		if (len == 0)
+ 			break;
+-		len_total += len;
++		len_total = c2_net_test_serialize_len_total(len_total, len);
+ 
+ 		len = c2_net_test_str_serialize(op, &cmd->ntc_init.ntci_tm_ep,
+ 						bv, offset + len_total);
+ 		if (len == 0)
+ 			break;
+-		len_total += len;
++		len_total = c2_net_test_serialize_len_total(len_total, len);
+ 
+ 		len = c2_net_test_slist_serialize(op, &cmd->ntc_init.ntci_ep,
+ 						  bv, offset + len_total);
+@@ -200,7 +202,8 @@ static int cmd_serialize(enum c2_net_test_serialize_op op,
+ 		return -ENOSYS;
+ 	};
+ 
+-	return len == 0 ? -EINVAL : 0;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	return len_total == 0 ? -EINVAL : 0;
+ }
+ 
+ /**
+diff --git a/net/test/network.c b/net/test/network.c
+index e3fb3d4..d13b8b2 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -597,7 +597,7 @@ static c2_bcount_t network_bd_serialize(enum c2_net_test_serialize_op op,
+ 				    bv, bv_offset);
+ 	if (len == 0)
+ 		return 0;
+-	len_total = len;
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 
+ 	/* optimizing memory allocation */
+ 	if (op == C2_NET_TEST_DESERIALIZE &&
+@@ -615,7 +615,8 @@ static c2_bcount_t network_bd_serialize(enum c2_net_test_serialize_op op,
+ 	len = c2_net_test_serialize_data(op, buf->nb_desc.nbd_data,
+ 					 buf->nb_desc.nbd_len, true,
+ 					 bv, bv_offset + len_total);
+-	return len == 0 ? 0 : len_total + len;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	return len_total;
+ }
+ 
+ static c2_bcount_t network_bds_serialize(enum c2_net_test_serialize_op op,
+@@ -686,16 +687,17 @@ c2_net_test_network_bd_serialize(enum c2_net_test_serialize_op op,
+ 	if (offset == 0) {
+ 		nr = 0;
+ 		/* include header length to the first descriptor length */
+-		len_total = len = network_bds_serialize(op, &nr, bv);
++		len = network_bds_serialize(op, &nr, bv);
+ 		if (len == 0)
+ 			return 0;
++		len_total = c2_net_test_serialize_len_total(0, len);
+ 	} else {
+ 		len_total = 0;
+ 	}
+ 	len = network_bd_serialize(op, buf, bv, offset + len_total);
+-	len_total = len == 0 ? 0 : len + len_total;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
+ 	/* increase number of descriptors for 'serialize' operation */
+-	if (len != 0 && op == C2_NET_TEST_SERIALIZE) {
++	if (len_total != 0 && op == C2_NET_TEST_SERIALIZE) {
+ 		nr = c2_net_test_network_bd_nr_get(ctx, buf_ping_index);
+ 		++nr;
+ 		rc = c2_net_test_network_bd_nr_set(ctx, buf_ping_index, nr);
+@@ -703,7 +705,6 @@ c2_net_test_network_bd_serialize(enum c2_net_test_serialize_op op,
+ 			return 0;
+ 	}
+ 
+-
+ 	/*
+ 	C2_LOG(C2_DEBUG, "bd_serialize: len_total = %lu",
+ 	       (long unsigned) len_total);
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index e3db315..c6b2114 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -606,7 +606,7 @@ static c2_bcount_t buf_desc_deserialize(struct node_bulk_ctx *ctx,
+ 					       buf_ping_index, offset);
+ 	if (len == 0)
+ 		return 0;
+-	len_total = len;
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 
+ 	/**
+ 	 * buf->nb_desc = zero descriptor
+@@ -616,13 +616,14 @@ static c2_bcount_t buf_desc_deserialize(struct node_bulk_ctx *ctx,
+ 
+ 	len = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
+ 					       &ctx->nbc_net, buf_bulk_index,
+-					       buf_ping_index, offset + len);
++					       buf_ping_index,
++					       offset + len_total);
+ 	if (len == 0) {
+ 		/** free already allocated network descriptor */
+ 		buf_desc_free(ctx, buf_bulk_index);
+ 		return 0;
+ 	}
+-	len_total += len;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
+ 
+ 	/**
+ 	 * buf->nb_desc = descriptor for active bulk receiving
+@@ -959,11 +960,12 @@ static c2_bcount_t client_bds_serialize2(struct c2_net_test_network_ctx *net,
+ 	c2_bcount_t len_total;
+ 	size_t	    nr;
+ 
+-	len_total = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
+-						     net, bsb_index * 2,
+-						     msg_buf_index, offset);
+-	if (len_total == 0)
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++					       net, bsb_index * 2,
++					       msg_buf_index, offset);
++	if (len == 0)
+ 		return 0;
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 
+ 	len = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
+ 					       net, bsb_index * 2 + 1,
+@@ -974,7 +976,8 @@ static c2_bcount_t client_bds_serialize2(struct c2_net_test_network_ctx *net,
+ 		--nr;
+ 		c2_net_test_network_bd_nr_set(net, msg_buf_index, nr);
+ 	}
+-	return len == 0 ? 0 : len_total + len;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	return len_total;
+ }
+ 
+ 
+diff --git a/net/test/serialize.c b/net/test/serialize.c
+index 8ddb777..8079be8 100644
+--- a/net/test/serialize.c
++++ b/net/test/serialize.c
+@@ -183,7 +183,7 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
+ 	const struct c2_net_test_descr *d_i;
+ 	void			       *addr;
+ 	c2_bcount_t			len_total = 0;
+-	c2_bcount_t			len_current = 0;
++	c2_bcount_t			len;
+ 	c2_bcount_t			bv_length;
+ 
+ 	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
+@@ -195,15 +195,15 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
+ 	for (i = 0; i < descr_nr; ++i) {
+ 		d_i = &descr[i];
+ 		addr = &((char *) obj)[d_i->ntd_offset];
+-		len_current = net_test_serialize_data(op, addr, d_i->ntd_length,
+-						      d_i->ntd_plain_data,
+-						      bv, bv_offset + len_total,
+-						      bv_length);
+-		len_total += len_current;
+-		if (len_current == 0)
++		len = net_test_serialize_data(op, addr, d_i->ntd_length,
++					      d_i->ntd_plain_data,
++					      bv, bv_offset + len_total,
++					      bv_length);
++		len_total = c2_net_test_serialize_len_total(len_total, len);
++		if (len_total == 0)
+ 			break;
+ 	}
+-	return len_current == 0 ? 0 : len_total;
++	return len_total;
+ }
+ 
+ /**
+diff --git a/net/test/serialize.h b/net/test/serialize.h
+index c65aa49..e644734 100644
+--- a/net/test/serialize.h
++++ b/net/test/serialize.h
+@@ -107,6 +107,46 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
+ 				  c2_bcount_t bv_offset);
+ 
+ /**
++   Get new len_total value after serializing part of data.
++   Usage pattern:
++   @code
++	c2_bcount_t len;
++	c2_bcount_t len_total;
++
++	len = serialize_first_part(...);
++	if (len == 0)
++		return 0;
++	len_total = c2_net_test_serialize_len_total(0, len);
++	len = serialize_second_part(...);
++	if (len == 0)
++		return 0;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	...
++	for (i = 0; i < number_of_items && len_total != 0; ++i) {
++		len = serialize_item(i, ...);
++		len_total = c2_net_test_serialize_len_total(len_total, len);
++	}
++	if (len_total == 0)
++		return 0;
++	...
++	len = serialize_last_part(...);
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	return len_total;
++   @endcode
++   @param len_total Total serialized length before serializing current
++		    part of data.
++   @param len Length of serialized current part of data.
++	      0 means serializing failed.
++   @return 0 if len == 0
++	   len_total + len otherwise.
++ */
++static inline c2_bcount_t c2_net_test_serialize_len_total(c2_bcount_t len_total,
++							  c2_bcount_t len)
++{
++	return len == 0 ? 0 : len_total + len;
++}
++
++/**
+    @} end of NetTestSerializeDFS group
+  */
+ 
+diff --git a/net/test/slist.c b/net/test/slist.c
+index 7ed7b5a..8e1e1e2 100644
+--- a/net/test/slist.c
++++ b/net/test/slist.c
+@@ -167,16 +167,17 @@ static c2_bcount_t slist_encode(struct c2_net_test_slist *slist,
+ 		      strlen(slist->ntsl_list[slist->ntsl_nr - 1]) + 1;
+ 	sp.sp_magic = SLIST_SERIALIZE_MAGIC;
+ 
+-	len_total = c2_net_test_serialize(C2_NET_TEST_SERIALIZE, &sp,
+-				          USE_TYPE_DESCR(slist_params),
+-					  bv, offset);
+-	if (len_total == 0 || slist->ntsl_nr == 0)
+-		return len_total;
++	len = c2_net_test_serialize(C2_NET_TEST_SERIALIZE, &sp,
++				    USE_TYPE_DESCR(slist_params), bv, offset);
++	if (len == 0 || slist->ntsl_nr == 0)
++		return len;
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 
+ 	len = c2_net_test_serialize_data(C2_NET_TEST_SERIALIZE, slist->ntsl_str,
+ 					 sp.sp_len, true,
+ 					 bv, offset + len_total);
+-	return len == 0 ? 0 : len_total + len;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	return len_total;
+ }
+ 
+ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
+@@ -190,11 +191,12 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
+ 	bool		    allocated;
+ 
+ 
+-	len_total = c2_net_test_serialize(C2_NET_TEST_DESERIALIZE, &sp,
+-					  USE_TYPE_DESCR(slist_params),
+-					  bv, offset);
+-	if (len_total == 0 || sp.sp_magic != SLIST_SERIALIZE_MAGIC)
++	len = c2_net_test_serialize(C2_NET_TEST_DESERIALIZE, &sp,
++				    USE_TYPE_DESCR(slist_params),
++				    bv, offset);
++	if (len == 0 || sp.sp_magic != SLIST_SERIALIZE_MAGIC)
+ 		return 0;
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 
+ 	C2_SET0(slist);
+ 	slist->ntsl_nr = sp.sp_nr;
+@@ -206,10 +208,12 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
+ 	if (!allocated)
+ 		return 0;
+ 
+-	len = c2_net_test_serialize_data(C2_NET_TEST_DESERIALIZE, slist->ntsl_str,
+-				    sp.sp_len, true, bv, offset + len_total);
++	len = c2_net_test_serialize_data(C2_NET_TEST_DESERIALIZE,
++					 slist->ntsl_str, sp.sp_len, true,
++					 bv, offset + len_total);
+ 	if (len == 0)
+ 		goto failed;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
+ 
+ 	slist->ntsl_list[0] = slist->ntsl_str;
+ 	/* additional check if received string doesn't contains '\0' */
+@@ -221,7 +225,7 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
+ 			goto failed;
+ 	}
+ 
+-	return len + len_total;
++	return len_total;
+ failed:
+ 	slist_free(slist);
+ 	return 0;
+diff --git a/net/test/stats.c b/net/test/stats.c
+index 2badaf1..d13ffd0 100644
+--- a/net/test/stats.c
++++ b/net/test/stats.c
+@@ -133,7 +133,10 @@ c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
+ 					struct c2_bufvec *bv,
+ 					c2_bcount_t bv_offset)
+ {
+-	struct c2_uint128 *pv128;
++	struct c2_uint128 *pv128[] = {
++		&stats->nts_sum,
++		&stats->nts_sum_sqr,
++	};
+ 	c2_bcount_t	   len_total;
+ 	c2_bcount_t	   len;
+ 	int		   i;
+@@ -141,18 +144,14 @@ c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
+ 	len = c2_net_test_serialize(op, stats,
+ 				    USE_TYPE_DESCR(c2_net_test_stats),
+ 				    bv, bv_offset);
+-	len_total = len;
+-	for (i = 0; i < 2; ++i) {
+-		if (len != 0) {
+-			pv128 = stats == NULL ? NULL : i == 0 ?
+-				&stats->nts_sum : &stats->nts_sum_sqr;
+-			len = c2_net_test_serialize(op, pv128,
+-						    USE_TYPE_DESCR(c2_uint128),
+-						    bv, bv_offset + len_total);
+-			len_total += len;
+-		}
++	len_total = c2_net_test_serialize_len_total(0, len);
++	for (i = 0; i < ARRAY_SIZE(pv128) && len_total != 0; ++i) {
++		len = c2_net_test_serialize(op, pv128[i],
++					    USE_TYPE_DESCR(c2_uint128),
++					    bv, bv_offset + len_total);
++		len_total = c2_net_test_serialize_len_total(len_total, len);
+ 	}
+-	return len == 0 ? 0 : len_total;
++	return len_total;
+ }
+ 
+ static c2_time_t unsigned_long2c2_time_t(unsigned long value)
+diff --git a/net/test/str.c b/net/test/str.c
+index 86609df..558576c 100644
+--- a/net/test/str.c
++++ b/net/test/str.c
+@@ -56,7 +56,7 @@ c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
+ 				      c2_bcount_t bv_offset)
+ {
+ 	struct net_test_str_len str_len;
+-	c2_bcount_t		len = 0;
++	c2_bcount_t		len;
+ 	c2_bcount_t		len_total;
+ 
+ 	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
+@@ -66,9 +66,10 @@ c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
+ 		str_len.ntsl_len = strlen(*str) + 1;
+ 		str_len.ntsl_magic = C2_NET_TEST_STR_MAGIC;
+ 	}
+-	len_total = c2_net_test_serialize(op, &str_len,
+-					  USE_TYPE_DESCR(net_test_str_len),
+-					  bv, bv_offset);
++	len = c2_net_test_serialize(op, &str_len,
++				    USE_TYPE_DESCR(net_test_str_len),
++				    bv, bv_offset);
++	len_total = c2_net_test_serialize_len_total(0, len);
+ 	if (len_total != 0) {
+ 		if (op == C2_NET_TEST_DESERIALIZE) {
+ 			if (str_len.ntsl_magic != C2_NET_TEST_STR_MAGIC)
+@@ -80,10 +81,10 @@ c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
+ 		len = c2_net_test_serialize_data(op, *str, str_len.ntsl_len,
+ 						 true,
+ 						 bv, bv_offset + len_total);
+-		len_total += len;
++		len_total = c2_net_test_serialize_len_total(len_total, len);
+ 	};
+ 
+-	return len == 0 ? 0 : len_total;
++	return len_total;
+ }
+ 
+ void c2_net_test_str_fini(char **str)
+-- 
+1.8.3.2
+

@@ -1,0 +1,437 @@
+From 1bd081a011da72d44dec0a1b615b89f66395b86b Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Thu, 23 May 2013 13:24:57 +0530
+Subject: [PATCH 03/60] rpc: Remove code related to creation/lookup of
+ root-session-cob.
+
+---
+ mero/setup.c          |  25 --------
+ reqh/ut/reqh_fom_ut.c |  11 ----
+ rpc/rpc_internal.h    |  42 --------------
+ rpc/session_utils.c   | 158 --------------------------------------------------
+ rpc/slot.c            |  52 -----------------
+ ut/ut_rpc_machine.c   |   9 +--
+ 6 files changed, 1 insertion(+), 296 deletions(-)
+
+diff --git a/mero/setup.c b/mero/setup.c
+index 2e2f0a2..607646d 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -1212,24 +1212,6 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
+ 		m0_net_xprt_fini(xprts[idx]);
+ }
+ 
+-static int cs_storage_prepare(struct m0_reqh_context *rctx)
+-{
+-	struct m0_db_tx tx;
+-	int rc;
+-
+-	rc = m0_db_tx_init(&tx, &rctx->rc_db, 0);
+-	if (rc != 0)
+-		return rc;
+-
+-	rc = m0_rpc_root_session_cob_create(&rctx->rc_mdstore.md_dom, &tx);
+-	if (rc == 0)
+-		m0_db_tx_commit(&tx);
+-	else
+-		m0_db_tx_abort(&tx);
+-
+-	return rc;
+-}
+-
+ /**
+    Initializes storage for ADDB depending on the type of specified
+    while running m0d. It also creates a hard-coded stob on
+@@ -1348,13 +1330,6 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
+ 			M0_LOG(M0_ERROR, "m0_mdstore_init");
+ 			goto cleanup_addb_stob;
+ 		}
+-
+-		rc = cs_storage_prepare(rctx);
+-		if (rc != 0) {
+-			M0_LOG(M0_ERROR, "cs_storage_prepare");
+-			goto cleanup_mdstore;
+-		}
+-
+ 		m0_mdstore_fini(&rctx->rc_mdstore);
+ 	}
+ 
+diff --git a/reqh/ut/reqh_fom_ut.c b/reqh/ut/reqh_fom_ut.c
+index f30b1d1..1a57b12 100644
+--- a/reqh/ut/reqh_fom_ut.c
++++ b/reqh/ut/reqh_fom_ut.c
+@@ -167,7 +167,6 @@ static int server_init(const char             *stob_path,
+ 		       struct m0_stob        **reqh_addb_stob,
+ 		       struct m0_stob_id      *rh_addb_stob_id)
+ {
+-        struct m0_db_tx              tx;
+         int                          rc;
+ 	struct m0_rpc_machine       *rpc_machine = &srv_rpc_mach;
+ 	uint32_t		     bufs_nr;
+@@ -223,16 +222,6 @@ static int server_init(const char             *stob_path,
+         /* Init mdstore without reading root cob. */
+         rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
+         M0_UT_ASSERT(rc == 0);
+-
+-        rc = m0_db_tx_init(&tx, &srv_db, 0);
+-        M0_UT_ASSERT(rc == 0);
+-
+-        /* Create root session cob and other structures */
+-        rc = m0_rpc_root_session_cob_create(&srv_mdstore.md_dom, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-
+-        /* Comit and finalize old mdstore. */
+-        m0_db_tx_commit(&tx);
+         m0_mdstore_fini(&srv_mdstore);
+ 
+         /* Init new mdstore with open root flag. */
+diff --git a/rpc/rpc_internal.h b/rpc/rpc_internal.h
+index d1e30eb..e44b935 100644
+--- a/rpc/rpc_internal.h
++++ b/rpc/rpc_internal.h
+@@ -87,48 +87,6 @@ M0_INTERNAL void m0_rpc_session_module_fini(void);
+ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
+ 				     struct m0_rpc_machine *machine);
+ 
+-/**
+-   Helper to create cob
+-
+-   @param dom cob domain in which cob should be created.
+-   @param pcob parent cob in which new cob is to be created
+-   @param name name of cob
+-   @param out newly created cob
+-   @param tx transaction context
+-
+-   @return 0 on success. *out != NULL
+- */
+-
+-M0_INTERNAL int m0_rpc_cob_create_helper(struct m0_cob_domain *dom,
+-					 const struct m0_cob *pcob,
+-					 const char *name,
+-					 struct m0_cob **out,
+-					 struct m0_db_tx *tx);
+-
+-/**
+-   Lookup a cob named 'name' in parent cob @pcob. If found store reference
+-   in @out. If not found set *out to NULL. To lookup root cob, pcob can be
+-   set to NULL
+- */
+-M0_INTERNAL int m0_rpc_cob_lookup_helper(struct m0_cob_domain *dom,
+-					 struct m0_cob *pcob,
+-					 const char *name,
+-					 struct m0_cob **out,
+-					 struct m0_db_tx *tx);
+-
+-/**
+-  Lookup /SESSIONS entry in cob namespace
+- */
+-M0_INTERNAL int m0_rpc_root_session_cob_get(struct m0_cob_domain *dom,
+-					    struct m0_cob **out,
+-					    struct m0_db_tx *tx);
+-
+-/**
+-  Creates /SESSIONS entry in cob namespace
+- */
+-int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+-				   struct m0_db_tx *tx);
+-
+ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
+ 
+ /**
+diff --git a/rpc/session_utils.c b/rpc/session_utils.c
+index 409d9c1..5170a03 100644
+--- a/rpc/session_utils.c
++++ b/rpc/session_utils.c
+@@ -32,7 +32,6 @@
+ #include "lib/bitstring.h"
+ #include "lib/finject.h"       /* M0_FI_ENABLED */
+ #include "lib/uuid.h"
+-#include "cob/cob.h"
+ #include "fop/fop.h"
+ #include "reqh/reqh.h"
+ #include "db/db.h"
+@@ -94,23 +93,6 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
+ 	M0_RETURN(rc);
+ }
+ 
+-static struct m0_uint128 stob_id_alloc(void)
+-{
+-        static struct m0_atomic64 cnt;
+-	struct m0_uint128         id;
+-        uint64_t                  millisec;
+-
+-	/*
+-	 * TEMPORARY implementation to allocate unique stob id
+-	 */
+-	millisec = m0_time_nanoseconds(m0_time_now()) * 1000000;
+-	m0_atomic64_inc(&cnt);
+-
+-	id.u_hi = (0xFFFFULL << 48); /* MSB 16 bit set */
+-	id.u_lo = (millisec << 20) | (m0_atomic64_get(&cnt) & 0xFFFFF);
+-        return id;
+-}
+-
+ M0_INTERNAL uint64_t m0_rpc_id_generate(void)
+ {
+ 	static struct m0_atomic64 cnt;
+@@ -126,146 +108,6 @@ M0_INTERNAL uint64_t m0_rpc_id_generate(void)
+ 	return id;
+ }
+ 
+-M0_INTERNAL int m0_rpc_cob_create_helper(struct m0_cob_domain *dom,
+-					 const struct m0_cob *pcob,
+-					 const char *name,
+-					 struct m0_cob **out,
+-					 struct m0_db_tx *tx)
+-{
+-	struct m0_cob_nskey  *key;
+-	struct m0_cob_nsrec   nsrec;
+-	struct m0_cob_fabrec *fabrec;
+-	struct m0_cob_omgrec  omgrec;
+-	struct m0_cob        *cob;
+-	struct m0_fid         pfid;
+-	struct m0_uint128     stobid;
+-	int                   rc;
+-
+-	M0_ENTRY("cob_dom: %p, pcob: %p", dom, pcob);
+-	M0_PRE(dom != NULL && name != NULL && out != NULL);
+-
+-	*out = NULL;
+-	M0_SET0(&nsrec);
+-
+-	rc = m0_cob_alloc(dom, &cob);
+-	if (rc)
+-	        return rc;
+-
+-	if (pcob == NULL) {
+-	        m0_fid_set(&pfid, 1, 1);
+-	} else {
+-	        pfid = pcob->co_nsrec.cnr_fid;
+-	}
+-
+-	rc = m0_cob_nskey_make(&key, &pfid, name, strlen(name));
+-	if (rc != 0) {
+-	        m0_cob_put(cob);
+-		M0_RETURN(rc);
+-	}
+-
+-        stobid = stob_id_alloc();
+-        m0_fid_set(&nsrec.cnr_fid, stobid.u_hi, stobid.u_lo);
+-	nsrec.cnr_nlink = 1;
+-
+-        rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
+-        if (rc != 0) {
+-	        m0_cob_put(cob);
+-		M0_RETURN(rc);
+-        }
+-
+-	/*
+-	 * Temporary assignment for lsn
+-	 */
+-	fabrec->cfb_version.vn_lsn = M0_LSN_RESERVED_NR + 2;
+-	fabrec->cfb_version.vn_vc = 0;
+-
+-        omgrec.cor_uid = 0;
+-        omgrec.cor_gid = 0;
+-        omgrec.cor_mode = S_IFDIR |
+-                          S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+-                          S_IRGRP | S_IXGRP |           /* r-x for group */
+-                          S_IROTH | S_IXOTH;            /* r-x for others */
+-
+-	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
+-	if (rc == 0) {
+-		*out = cob;
+-	} else {
+-	        m0_cob_put(cob);
+-                m0_free(key);
+-                m0_free(fabrec);
+-	}
+-
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL int m0_rpc_cob_lookup_helper(struct m0_cob_domain *dom,
+-					 struct m0_cob *pcob,
+-					 const char *name,
+-					 struct m0_cob **out,
+-					 struct m0_db_tx *tx)
+-{
+-	struct m0_cob_nskey *key = NULL;
+-	struct m0_fid        pfid;
+-	int                  rc;
+-
+-	M0_ENTRY("cob_dom: %p, pcob; %p, name: %s", dom, pcob,
+-		 (char *)name);
+-	M0_PRE(dom != NULL && name != NULL && out != NULL);
+-
+-	*out = NULL;
+-	if (pcob == NULL) {
+-	        m0_fid_set(&pfid, 1, 1);
+-	} else {
+-	        pfid = pcob->co_nsrec.cnr_fid;
+-	}
+-
+-	rc = m0_cob_nskey_make(&key, &pfid, name, strlen(name));
+-	if (rc != 0)
+-	        M0_RETURN(rc);
+-	if (key == NULL)
+-		M0_RETURN(-ENOMEM);
+-	rc = m0_cob_lookup(dom, key, M0_CA_NSKEY_FREE | M0_CA_FABREC, out, tx);
+-
+-	M0_POST(ergo(rc == 0, *out != NULL));
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL int m0_rpc_root_session_cob_get(struct m0_cob_domain *dom,
+-					    struct m0_cob **out,
+-					    struct m0_db_tx *tx)
+-{
+-	return m0_rpc_cob_lookup_helper(dom, NULL, M0_COB_SESSIONS_NAME,
+-					out, tx);
+-}
+-
+-#ifdef __KERNEL__
+-
+-int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+-				   struct m0_db_tx      *tx)
+-{
+-	return 0;
+-}
+-
+-#else /* !__KERNEL__ */
+-
+-int m0_rpc_root_session_cob_create(struct m0_cob_domain *dom,
+-				   struct m0_db_tx *tx)
+-{
+-	int rc;
+-
+-	if (M0_FI_ENABLED("fake_error"))
+-		M0_RETURN(-EINVAL);
+-
+-	rc = m0_cob_domain_mkfs(dom, &M0_COB_SLASH_FID,
+-				&M0_COB_SESSIONS_FID, tx);
+-	if (rc == -EEXIST)
+-		rc = 0;
+-
+-	return rc;
+-}
+-
+-#endif /* __KERNEL__ */
+-
+ /**
+   XXX temporary routine that submits the fop inside item for execution.
+  */
+diff --git a/rpc/slot.c b/rpc/slot.c
+index 9c6f71b..c7a2bbf 100644
+--- a/rpc/slot.c
++++ b/rpc/slot.c
+@@ -27,7 +27,6 @@
+ #include "lib/misc.h"
+ #include "lib/bitstring.h"
+ #include "lib/finject.h"
+-#include "cob/cob.h"
+ #include "fop/fop.h"
+ #include "lib/arith.h"
+ #include "db/db.h"
+@@ -167,7 +166,6 @@ M0_INTERNAL int m0_rpc_slot_init(struct m0_rpc_slot *slot,
+ 		.sl_xid             = 1, /* xid 0 will be taken by dummy item */
+ 		.sl_in_flight       = 0,
+ 		.sl_max_in_flight   = SLOT_DEFAULT_MAX_IN_FLIGHT,
+-		.sl_cob             = NULL,
+ 		.sl_ops             = ops,
+ 		.sl_last_sent       = dummy_item,
+ 		.sl_last_persistent = dummy_item,
+@@ -272,8 +270,6 @@ M0_INTERNAL void m0_rpc_slot_fini(struct m0_rpc_slot *slot)
+ 	m0_fop_put(fop);
+ 
+ 	slot_item_tlist_fini(&slot->sl_item_list);
+-	if (slot->sl_cob != NULL)
+-		m0_cob_put(slot->sl_cob);
+ 	M0_SET0(slot);
+ 	M0_LEAVE();
+ }
+@@ -937,54 +933,6 @@ M0_INTERNAL int m0_rpc_slot_item_received(struct m0_rpc_item *item)
+ 	return rc;
+ }
+ 
+-M0_INTERNAL int m0_rpc_slot_cob_lookup(struct m0_cob *session_cob,
+-				       uint32_t slot_id,
+-				       uint64_t slot_generation,
+-				       struct m0_cob **slot_cob,
+-				       struct m0_db_tx *tx)
+-{
+-	struct m0_cob *cob;
+-	char           name[SESSION_COB_MAX_NAME_LEN];
+-	int            rc;
+-
+-	M0_ENTRY("session_cob: %p, slot_id: %u, slot_generation: %llu",
+-		 session_cob, slot_id, (unsigned long long)slot_generation);
+-	M0_PRE(session_cob != NULL && slot_cob != NULL);
+-
+-	*slot_cob = NULL;
+-	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
+-
+-	rc = m0_rpc_cob_lookup_helper(session_cob->co_dom, session_cob, name,
+-					&cob, tx);
+-	M0_ASSERT(ergo(rc != 0, cob == NULL));
+-	*slot_cob = cob;
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL int m0_rpc_slot_cob_create(const struct m0_cob *session_cob,
+-				       uint32_t slot_id,
+-				       uint64_t slot_generation,
+-				       struct m0_cob **slot_cob,
+-				       struct m0_db_tx *tx)
+-{
+-	struct m0_cob *cob;
+-	char           name[SESSION_COB_MAX_NAME_LEN];
+-	int            rc;
+-
+-	M0_ENTRY("session_cob: %p, slot_id: %u, slot_generation: %llu",
+-		 session_cob, slot_id, (unsigned long long)slot_generation);
+-	M0_PRE(session_cob != NULL && slot_cob != NULL);
+-
+-	if (M0_FI_ENABLED("failed")) return -EINVAL;
+-
+-	sprintf(name, "SLOT_%u:%lu", slot_id, (unsigned long)slot_generation);
+-	rc = m0_rpc_cob_create_helper(session_cob->co_dom, session_cob, name,
+-					&cob, tx);
+-	M0_ASSERT(ergo(rc != 0, cob == NULL));
+-	*slot_cob = cob;
+-	M0_RETURN(rc);
+-}
+-
+ /**
+    Just for debugging purpose.
+  */
+diff --git a/ut/ut_rpc_machine.c b/ut/ut_rpc_machine.c
+index 7bec04f..367cba6 100644
+--- a/ut/ut_rpc_machine.c
++++ b/ut/ut_rpc_machine.c
+@@ -41,8 +41,7 @@ static void buf_dummy(struct m0_net_buffer_pool *bp)
+ 
+ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
+ {
+-	int             rc;
+-	struct m0_db_tx tx;
++	int rc;
+ 
+ 	ctx->rmc_xprt = &m0_net_lnet_xprt;
+ 	rc = m0_net_xprt_init(ctx->rmc_xprt);
+@@ -71,12 +70,6 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
+ 			     &ctx->rmc_dbenv, 0);
+ 	M0_ASSERT(rc == 0);
+ 
+-	rc = m0_db_tx_init(&tx, &ctx->rmc_dbenv, 0);
+-	M0_ASSERT(rc == 0);
+-	rc = m0_rpc_root_session_cob_create(&ctx->rmc_mdstore.md_dom, &tx);
+-	M0_ASSERT(rc == 0);
+-	m0_db_tx_commit(&tx);
+-
+ 	/*
+ 	 * Instead of using m0d and dealing with network, database and
+ 	 * other subsystems, request handler is initialised in a 'special way'.
+-- 
+1.8.3.2
+

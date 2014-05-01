@@ -1,0 +1,527 @@
+From ed6a2be321b86a56623edcc93df2e97b5b9e67a9 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 25 Mar 2012 00:21:27 +0200
+Subject: [PATCH 092/311] introduce a special "END-OF-PATH" component
+
++ Get rid of `c2_conf_path' structure.
++ Get rid of path_len variables.
++ Update examples.
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+Reviewed-on: http://reviewboard.clusterstor.com/r/714/
+---
+ conf/confc.c   |  52 +++++++++++++--------------
+ conf/confc.h   | 111 ++++++++++++++++++++++++++++++---------------------------
+ conf/onwire.ff |   9 +++--
+ conf/path.c    |  34 ++++++++++++++++++
+ conf/path.h    |  40 +++++++++++++--------
+ 5 files changed, 151 insertions(+), 95 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 18ce609..c3ab378 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -25,8 +25,6 @@
+ #include "conf/cache.h"  /* c2_conf_cache */
+ #include "lib/cdefs.h"   /* container_of, C2_HAS_TYPE, equi */
+ #include "lib/arith.h"   /* C2_CNT_INC, C2_CNT_DEC */
+-#include "lib/time.h"    /* C2_TIME_NEVER */
+-#include "lib/misc.h"    /* memcpy */
+ 
+ /**
+  * @page confc-dld Configuration client (confc) DLD
+@@ -286,9 +284,9 @@
+  *
+  *     @test c2_conf_map operations will be tested.
+  *
+- *     @test c2_conf_path operations will be tested. This includes
+- *           checking validity of various paths, testing success and
+- *           failure of c2_conf_downlink().
++ *     @test Path operations will be tested. This includes checking
++ *           validity of various paths, testing success and failure of
++ *           c2_conf_downlink().
+  *
+  *     @test Object operations will be tested. This includes
+  *           allocation, comparison with on-wire representation, stub
+@@ -372,10 +370,10 @@ static inline struct c2_confc * registry_to_client(struct c2_conf_map *cache)
+ }
+ 
+ /**
+- * Follows ctx->fc_path and checks the statuses of met objects.
++ * Follows the path, checking statuses of met objects.
+  *
+  * @pre   cache's sm_group is locked
+- * @pre   c2_conf_path_is_valid(&ctx->fc_path, NULL)
++ * @pre   c2_conf_path_is_valid(ctx->fc_origin, ctx->fc_path, NULL)
+  * @post  cache's sm_group is locked
+  *
+  * @retval C2_CS_READY    Path target is reachable.
+@@ -398,15 +396,18 @@ static inline struct c2_confc * registry_to_client(struct c2_conf_map *cache)
+  */
+ static int path_walk(struct c2_confc_ctx *ctx)
+ {
+-	struct c2_conf_obj *obj = ctx->fc_path.p_origin
+-		?: ctx->fc_client->cc_root;
+-	struct c2_conf_pathcomp *comp = ctx->fc_path.p_comps;
+-	size_t len = ctx->fc_path.p_len; /* number of components to go */
+-	bool target_is_directory = false;
+-	int ret;
++	struct c2_conf_obj *obj = ctx->fc_origin ?: ctx->fc_client->cc_root;
++	struct c2_conf_pathcomp *comp = ctx->fc_path;
++	bool   target_is_directory = false;
++	size_t len = 0; /* number of components to go */
++	int    ret;
+ 
+ 	C2_PRE(c2_mutex_is_locked(group_lock(ctx)));
+-	C2_PRE(c2_conf_path_is_valid(&ctx->fc_path, NULL));
++	C2_PRE(c2_conf_path_is_valid(ctx->fc_origin, ctx->fc_path, NULL));
++
++	while (!c2_conf_eop(ctx->fc_path + len))
++		C2_CNT_INC(len);
++	/* NB: `len' equals the number of components _without_ C2_CONF_EOP */
+ 
+ 	c2_mutex_lock(cache_lock(ctx));
+ 	ret = obj->co_status;
+@@ -551,22 +552,21 @@ void c2_confc_fini(struct c2_confc *client)
+ 	XXX;
+ }
+ 
+-int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+-		  const struct c2_conf_pathcomp *path, size_t path_len)
++int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		  const struct c2_conf_pathcomp *path)
+ {
+ 	bool isdir;
+ 
+ 	C2_PRE(confc_is_initialised(ctx->fc_client));
+-	C2_PRE(ctx->fc_path.p_origin == NULL && ctx->fc_path.p_len == 0 &&
+-	       ctx->fc_path.p_comps == NULL);
++	C2_PRE(ctx->fc_origin == NULL && ctx->fc_path == NULL);
++	C2_PRE(path != NULL);
+ 
+-	ctx->fc_path.p_comps = C2_ALLOC_ARR(path, path_len);
+-	if (ctx->fc_path.p_comps == NULL)
++	ctx->fc_path = c2_conf_pathcomp_dup(path);
++	if (ctx->fc_path == NULL)
+ 		return -ENOMEM;
+-	ctx->fc_path.p_len = path_len;
+-	ctx->fc_path.p_origin = path_origin;
++	ctx->fc_origin = origin;
+ 
+-	C2_ASSERT(c2_conf_path_is_valid(&ctx->fc_path, &isdir));
++	C2_ASSERT(c2_conf_path_is_valid(ctx->fc_origin, ctx->fc_path, &isdir));
+ 	if (isdir)
+ 		return -EISDIR;
+ 
+@@ -575,8 +575,8 @@ int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+ }
+ 
+ int c2_confc_open_sync(void **obj, struct c2_confc *client,
+-		       struct c2_conf_obj *path_origin,
+-		       const struct c2_conf_pathcomp *path, size_t path_len)
++		       struct c2_conf_obj *origin,
++		       const struct c2_conf_pathcomp *path)
+ {
+ 	struct c2_confc_ctx ctx;
+ 	struct c2_clink     clink;
+@@ -588,7 +588,7 @@ int c2_confc_open_sync(void **obj, struct c2_confc *client,
+ 	c2_clink_init(&clink, NULL);
+ 	c2_clink_add(&ctx.fc_complete, &clink);
+ 
+-	rc = c2_confc_open(&ctx, path_origin, path, path_len);
++	rc = c2_confc_open(&ctx, origin, path);
+ 	if (rc == 0) {
+ 		c2_chan_wait(&clink);
+ 		*obj = ctx.fc_result;
+diff --git a/conf/confc.h b/conf/confc.h
+index fe21839..3568964 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -161,17 +161,17 @@
+  *
+  * static int filesystem_open_a(struct c2_conf_filesystem **fs)
+  * {
+- *     struct c2_confc_ctx     ctx;
+- *     struct c2_clink         clink;
+- *     struct c2_conf_pathcomp path[] =
+- *         { C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM) };
+- *     int                     rc;
++ *     struct c2_confc_ctx ctx;
++ *     struct c2_clink     clink;
++ *     int                 rc;
+  *
+  *     c2_confc_ctx_init(&ctx, confc);
+  *     c2_clink_init(&clink, NULL)
+  *     c2_clink_add(&ctx.fc_complete, &clink);
+  *
+- *     rc = c2_confc_open(&ctx, NULL, path, ARRAY_SIZE(path));
++ *     rc = c2_confc_open(&ctx, NULL, (struct c2_conf_pathcomp []){
++ *                        C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM),
++ *                        C2_CONF_EOP });
+  *     if (rc == 0) {
+  *         c2_chan_wait(&clink);
+  *         *fs = ctx.fc_result;
+@@ -187,9 +187,9 @@
+  *
+  * static int filesystem_open_s(struct c2_conf_filesystem **fs)
+  * {
+- *     struct c2_conf_pathcomp path[] =
+- *         { C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM) };
+- *     return c2_confc_open_sync(fs, confc, NULL, path, ARRAY_SIZE(path));
++ *     return c2_confc_open_sync(fs, confc, NULL, (struct c2_conf_pathcomp []){
++ *                               C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM),
++ *                               C2_CONF_EOP });
+  * }
+  * @endcode
+  *
+@@ -207,11 +207,12 @@
+  *     struct c2_conf_service *svc;
+  *     struct c2_conf_pathcomp path[] = {
+  *         C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM),
+- *         C2_CONF_PATHCOMP_R(C2_CO_SERVICE)
++ *         C2_CONF_PATHCOMP_R(C2_CO_SERVICE),
++ *         C2_CONF_EOP
+  *     };
+  *     int rc;
+  *
+- *     rc = c2_confc_diropen_sync(&d, confc, NULL, path, ARRAY_SIZE(path));
++ *     rc = c2_confc_diropen_sync(&d, confc, NULL, path);
+  *     if (rc != 0)
+  *         return rc;
+  *
+@@ -243,15 +244,14 @@
+  *     struct c2_conf_node    *node;
+  *     struct c2_conf_nic     *nic;
+  *     struct c2_conf_sdev    *sdev;
+- *     struct c2_conf_pathcomp path[] = {
+- *         C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM),
+- *         C2_CONF_PATHCOMP_R(C2_CO_SERVICE)
+- *     };
+  *     int ret;
+  *
+  *     // /fs/services
+- *     ret = c2_confc_diropen_sync(&services, confc, NULL, path,
+- *                                 ARRAY_SIZE(path));
++ *     ret = c2_confc_diropen_sync(&services, confc, NULL,
++ *                                 (struct c2_conf_pathcomp []){
++ *                                 C2_CONF_PATHCOMP_R(C2_CO_FILESYSTEM),
++ *                                 C2_CONF_PATHCOMP_R(C2_CO_SERVICE),
++ *                                 C2_CONF_EOP });
+  *     if (ret != 0)
+  *         return ret;
+  *
+@@ -259,8 +259,10 @@
+  *         if (svc->cs_type != svc_type)
+  *             continue;
+  *
+- *         path[0].pc_u.relation = C2_CO_NODE;
+- *         ret = c2_confc_open_sync(&node, confc, svc, path, 1); // svc/node
++ *         ret = c2_confc_open_sync(&node, confc, svc,
++ *                                  (struct c2_conf_pathcomp []){
++ *                                  C2_CONF_PATHCOMP_R(C2_CO_NODE),
++ *                                  C2_CONF_EOP });  // svc/node
+  *         if (ret != 0)
+  *             break;
+  *
+@@ -269,8 +271,10 @@
+  *             continue;
+  *         }
+  *
+- *         path[0].pc_u.relation = C2_CO_NIC;
+- *         ret = c2_confc_diropen_sync(&d, confc, node, path, 1); // node/nics
++ *         ret = c2_confc_diropen_sync(&d, confc, node,
++ *                                     (struct c2_conf_pathcomp []){
++ *                                     C2_CONF_PATHCOMP_R(C2_CO_NIC),
++ *                                     C2_CONF_EOP });  // node/nics
+  *         if (ret != 0) {
+  *             c2_confc_close(node, confc);
+  *             break;
+@@ -280,8 +284,10 @@
+  *         }
+  *         c2_confc_dirclose(d, confc);
+  *
+- *         path[0].pc_u.relation = C2_CO_SDEV;
+- *         ret = c2_confc_diropen_sync(&d, confc, node, path, 1); // node/sdevs
++ *         ret = c2_confc_diropen_sync(&d, confc, node,
++ *                                     (struct c2_conf_pathcomp []){
++ *                                     C2_CONF_PATHCOMP_R(C2_CO_SDEV),
++ *                                     C2_CONF_EOP });  // node/sdevs
+  *         if (ret != 0) {
+  *             c2_confc_close(node, confc);
+  *             break;
+@@ -364,7 +370,7 @@ void c2_confc_fini(struct c2_confc *client);
+ /** Configuration retrieval context. */
+ struct c2_confc_ctx {
+ 	/** This channel is signaled when the retrieval operation completes. */
+-	struct c2_chan       fc_complete;
++	struct c2_chan           fc_complete;
+ 	/**
+ 	 * Pointer to the requested configuration object/directory.
+ 	 *
+@@ -378,26 +384,27 @@ struct c2_confc_ctx {
+ 	 * It is also NULL if configuration retrieval failed; see
+ 	 * c2_confc_error().
+ 	 */
+-	void                *fc_result;
++	void                    *fc_result;
+ /* private: internal use only */
+ 	/** The confc instance this context belongs to. */
+-	struct c2_confc     *fc_client;
+-	/** A confc state machine. */
+-	struct c2_sm         fc_mach;
++	struct c2_confc         *fc_client;
++	/** Confc state machine. */
++	struct c2_sm             fc_mach;
+ 	/** Asynchronous system trap. */
+-	struct c2_sm_ast     fc_ast;
+-	/** Path to the object/directory (as requested by application). */
+-	struct c2_conf_path  fc_path;
+-	/** Configuration fetch request (as sent to confd). */
+-	struct c2_conf_fetch fc_req;
++	struct c2_sm_ast         fc_ast;
++	/** Origin of the path. */
++	struct c2_conf_obj      *fc_origin;
++	/** Path to the object/directory requested by the application. */
++	struct c2_conf_pathcomp *fc_path;
++	/** Configuration fetch request being sent to confd. */
++	struct c2_conf_fetch     fc_req;
+ 	/** Request fop. */
+-	struct c2_fop        fc_fop;
++	struct c2_fop            fc_fop;
+ 	/**
+ 	 * Record of interest in "object unpinned" events.
+-	 *
+ 	 * This clink gets added to c2_conf_obj::co_chan channel.
+ 	 */
+-	struct c2_clink      fc_clink;
++	struct c2_clink          fc_clink;
+ };
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *client);
+@@ -412,16 +419,17 @@ static inline int32_t c2_confc_error(const struct c2_confc_ctx *ctx)
+ /**
+  * Requests an asynchronous opening of configuration object.
+  *
+- * @param ctx          Fetch context.
+- * @param path_origin  Path origin (NULL = root configuration object).
+- * @param path         Path components.
+- * @param path_len     Number of path components.
++ * @param ctx     Fetch context.
++ * @param origin  Path origin (NULL = root configuration object).
++ * @param path    Path to the requested object.
+  *
+  * @retval -EISDIR  Path leads to a directory.
+  * @retval -ENOMEM  Insufficient memory.
++ *
++ * @pre  path != NULL
+  */
+-int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+-		  const struct c2_conf_pathcomp *path, size_t path_len);
++int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		  const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Opens configuration object synchronously.
+@@ -432,8 +440,8 @@ int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+  * @see c2_confc_open()
+  */
+ int c2_confc_open_sync(void **obj, struct c2_confc *client,
+-		       struct c2_conf_obj *path_origin,
+-		       const struct c2_conf_pathcomp *path, size_t path_len);
++		       struct c2_conf_obj *origin,
++		       const struct c2_conf_pathcomp *path);
+ 
+ /* XXX[future]
+  * If statistics shows that synchronous variant is used more often, we
+@@ -457,16 +465,15 @@ void c2_confc_close(void *obj, struct c2_confc *client);
+ /**
+  * Requests an asynchronous opening of a collection of configuration objects.
+  *
+- * @param ctx          Fetch context.
+- * @param path_origin  Path origin (NULL = root configuration object).
+- * @param path         Path components.
+- * @param path_len     Number of path components.
++ * @param ctx     Fetch context.
++ * @param origin  Path origin (NULL = root configuration object).
++ * @param path    Path to the requested directory.
+  *
+  * @retval -ENOTDIR  Path does not lead to a directory.
+  * @retval -ENOMEM   Insufficient memory.
+  */
+-int c2_confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+-		     const struct c2_conf_pathcomp *path, size_t path_len);
++int c2_confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		     const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Opens collection of configuration object synchronously.
+@@ -477,8 +484,8 @@ int c2_confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+  * @see c2_confc_diropen()
+  */
+ int c2_confc_diropen_sync(struct c2_confc_dir **dir, struct c2_confc *client,
+-			  struct c2_conf_obj *path_origin,
+-			  const struct c2_conf_pathcomp *path, size_t path_len);
++			  struct c2_conf_obj *origin,
++			  const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Returns the next configuration object of given collection.
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+index e52a89b..ef77c79 100644
+--- a/conf/onwire.ff
++++ b/conf/onwire.ff
+@@ -26,13 +26,18 @@ struct c2_conf_fetch_resp;
+ 
+ /**
+  * Sequence of bytes.
+- * See also C2_CONF_BUF_INIT() and c2_conf_buf_eq().
++ * See also C2_CONF_BUF_INIT(), c2_conf_buf_eq().
+  */
+ DEF(c2_conf_buf, SEQUENCE,
+     _(cb_size, U32),
+     _(cb_data, BYTE));
+ 
+-/** Path component. */
++/**
++ * Path component.
++ *
++ * See also: C2_CONF_PATHCOMP_R(), C2_CONF_PATHCOMP_K(), C2_CONF_EOP,
++ *           c2_conf_eop().
++ */
+ DEF(c2_conf_pathcomp, UNION,
+     _(pc_iskey, U32),           /* boolean value: 0 (no), 1 (yes) */
+     _case(0, pc_relation, U32), /* see c2_conf_objtype for values */
+diff --git a/conf/path.c b/conf/path.c
+index 093152e..f7bcd34 100644
+--- a/conf/path.c
++++ b/conf/path.c
+@@ -23,6 +23,9 @@
+ #endif
+ #include "conf/path.h"
+ #include "conf/obj.h"
++#include "lib/arith.h"  /* C2_CNT_INC */
++#include "lib/memory.h" /* C2_ALLOC_ARR */
++#include "lib/misc.h"   /* memcpy */
+ 
+ const struct c2_conf_relation dl_profile[] = {
+ 	{
+@@ -96,3 +99,34 @@ const struct c2_conf_relation * c2_conf_downlink(uint32_t src, uint32_t tgt)
+ 	}
+ 	return NULL;
+ }
++
++static bool pathcomp_invariant(const struct c2_conf_pathcomp *pc)
++{
++	return (pc->pc_iskey == 0 && pc->pc_relation < C2_CO_NR) ||
++		(pc->pc_iskey == 1 && pc->u.pc_key.cb_size > 0
++		 && pc->u.pc_key.cb_data != NULL) ||
++		pc->pc_iskey == ~0U;
++}
++
++bool c2_conf_eop(const struct c2_conf_pathcomp *pc)
++{
++	C2_ASSERT(pathcomp_invariant(pc));
++	return pc->pc_iskey == ~0U;
++}
++
++struct c2_conf_pathcomp *
++c2_conf_pathcomp_dup(const struct c2_conf_pathcomp *src)
++{
++	struct c2_conf_pathcomp *ret;
++	size_t len = 0;
++
++	while (!c2_conf_eop(src + len))
++		C2_CNT_INC(len);
++	C2_CNT_INC(len); /* one for C2_CONF_EOP */
++
++	C2_ALLOC_ARR(ret, len);
++	if (ret == NULL)
++		return NULL;
++
++	return memcpy(ret, src, len * sizeof *ret);
++}
+diff --git a/conf/path.h b/conf/path.h
+index d0d5829..8fff418 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -20,21 +20,9 @@
+ #ifndef __COLIBRI_CONF_PATH_H__
+ #define __COLIBRI_CONF_PATH_H__
+ 
+-#include "lib/memory.h" /* C2_ALLOC_ARR */
+-
+ struct c2_conf_obj;
+ struct c2_conf_pathcomp;
+ 
+-/** Path to configuration object/directory. */
+-struct c2_conf_path {
+-	/** Path origin. */
+-	struct c2_conf_obj      *p_origin;
+-	/** Number of components. */
+-	size_t                   p_len;
+-	/** Path components. */
+-	struct c2_conf_pathcomp *p_comps;
+-};
+-
+ /**
+  * Checks validity of a path.
+  *
+@@ -46,13 +34,15 @@ struct c2_conf_path {
+  *   component;
+  * - a key is preceded by a one-to-many downlink.
+  *
++ * @param origin      Origin of the path to validate.
+  * @param path        Path to validate.
+  * @param[out] isdir  If the path is valid and isdir != NULL, then
+  *                    *isdir will be set to:
+  *                    - @c true:  the path leads to a collection of objects;
+  *                    - @c false: the path leads to a single object.
+  */
+-bool c2_conf_path_is_valid(const struct c2_conf_path *path, bool *isdir);
++bool c2_conf_path_is_valid(const struct c2_conf_obj *origin,
++			   const struct c2_conf_pathcomp *path, bool *isdir);
+ 
+ /**
+  * Relation --- a pointer from one configuration object to another
+@@ -91,16 +81,36 @@ const struct c2_conf_relation * c2_conf_downlink(uint32_t src, uint32_t tgt);
+  * Initializers for c2_conf_pathcomp structure. The structure itself
+  * is described in `onwire.ff'.
+  *
+- * Use example:
++ * - C2_CONF_PATHCOMP_R --- relation
++ * - C2_CONF_PATHCOMP_K --- key
++ * - C2_CONF_EOP -- "end of path" marker
++ *
++ * Example:
+  *
+  *     uint8_t key[] = "uuid";
+  *     struct c2_conf_pathcomp pcomps[] = {
+  *         C2_CONF_PATHCOMP_R(C2_CO_SERVICE),
+- *         C2_CONF_PATHCOMP_K(sizeof key, key)
++ *         C2_CONF_PATHCOMP_K(sizeof key, key),
++ *         C2_CONF_EOP
+  *     };
+  */
+ #define C2_CONF_PATHCOMP_R(r)  { .pc_iskey = 0, .u.pc_relation = (r) }
+ #define C2_CONF_PATHCOMP_K(ksize, kdata)  \
+ 	{ .pc_iskey = 1, .u.pc_key = C2_CONF_BUF_INIT(ksize, kdata) }
++#define C2_CONF_EOP  { .pc_iskey = ~0U }
++
++/** Returns true iff the path component is equal to C2_CONF_EOP. */
++bool c2_conf_eop(const struct c2_conf_pathcomp *pc);
++
++/**
++ * Duplicates an array of path components.
++ *
++ * Allocates memory for a copy of the path `src', does the copy, and
++ * returns a pointer to it.
++ *
++ * If insufficient memory is available, NULL is returned.
++ */
++struct c2_conf_pathcomp *
++c2_conf_pathcomp_dup(const struct c2_conf_pathcomp *src);
+ 
+ #endif /* __COLIBRI_CONF_PATH_H__ */
+-- 
+1.8.3.2
+

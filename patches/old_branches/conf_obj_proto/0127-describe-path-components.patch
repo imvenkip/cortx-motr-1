@@ -1,0 +1,128 @@
+From 983d95eb346533623b8a15d2f3252a60571d6d10 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 10 Apr 2012 17:37:21 +0300
+Subject: [PATCH 127/370] describe path components
+
+This commit introduces `confb-fspec-path' doxygen @page.  It should
+have been a @subpage of the DLD of Configuration Caching, but is not yet.
+Such a sub-paging will be performed as part of overall DLD re-structuring
+(see
+https://docs.google.com/a/xyratex.com/document/d/1MDGtxcOcvoDoT76hy0NYl7gb20vzMk_VOGLraiISz6A/view#heading=h.2g1530hf5ves
+for details on DLD re-structuring).
+
+Reviewed-on: https://reviewboard.clusterstor.com/r/714/
+Reported-by: Carl Braganza <carl_braganza@xyratex.com>
+References:  LogD-1.3 #1003
+---
+ conf/path.h | 83 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 83 insertions(+)
+
+diff --git a/conf/path.h b/conf/path.h
+index a9399ce..c5d56d3 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -20,6 +20,86 @@
+ #ifndef __COLIBRI_CONF_PATH_H__
+ #define __COLIBRI_CONF_PATH_H__
+ 
++/**
++ * @page confb-fspec-path Path to Configuration Data
++ *
++ * @section confb-fspec-path-pathcomp Interpretation of Path Components
++ *
++ * Recall from @ref confc-dld-def that path is `{x, R}' tuple, where
++ * `x' (path origin) is a configuration object and `R' is a sequence
++ * of path components.
++ *
++ * Path components explain how to "move" from the origin of a path to
++ * its target. Path components can be thought of as "navigational
++ * directives".
++ *
++ * Let's look into an example:
++ *
++ * `{prof, [C2_CO_FILESYSTEM, C2_CO_SERVICE, "svc-1", C2_CO_NODE, C2_CONF_EOP]}'
++ *
++ * This pseudo-code represents a path that originates at `prof' object
++ * and has five components, including the trailing end-of-path marker.
++ *
++ * 1) The first path component -- `C2_CO_FILESYSTEM' -- represents a
++ *    relation (a relation is expressed by c2_conf_objtype of target
++ *    object(s)).  It specifies which downlink of "current"
++ *    configuration object (`prof') to follow.  The object does have a
++ *    suitable downlink: c2_conf_profile::cp_filesystem.  So we
++ *    "follow" the first path component and move to, say, `fs'
++ *    configuration object.
++ *
++ * 2) Next path component is `C2_CO_SERVICE'. The corresponding
++ *    downlink is c2_conf_filesystem::cf_services --- a "one-to-many"
++ *    relation.  If it was the last path component, the path target
++ *    would be a directory (of c2_conf_services).  But this is not the
++ *    last component.
++ *
++ * Let's suppose that fs->cf_services points to a list of three
++ * services with keys "svc-0", "svc-1", and "svc-2".
++ *
++ * 3) Next path component -- "svc-1" -- is a key. It instructs which
++ *    particular route to take when navigating from `fs' object. Thus
++ *    we move to `svc-1' c2_conf_service object.
++ *
++ * 4) `C2_CO_NODE'. This path component corresponds to
++ *    c2_conf_service::cs_node relation.  We advance to the
++ *    corresponding c2_conf_node configuration object, ...
++ *
++ * ... which happens to be the path target as there are no more
++ * components to follow.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confb-fspec-path-data Data Structures
++ *
++ * c2_conf_pathcomp (defined in "conf/onwire.ff") is a representation
++ * of path component. It is a tagged union which can be either a
++ * relation (c2_conf_objtype), or a key (c2_conf_buf), or a
++ * end-of-path marker.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confb-fspec-path-sub Subroutines and Macros
++ *
++ * - c2_conf_path_is_valid()
++ * - C2_CONF_REL()
++ * - C2_CONF_KEY()
++ * - C2_CONF_EOP()
++ * - c2_conf_eop()
++ * - c2_conf_downlink()
++ * - c2_conf_pathcomp_is_last()
++ * - c2_conf_path_len()
++ * - c2_conf_pathcomp_dup()
++ *
++ * @todo XXX describe those
++ *
++ * @see confb_dfspec
++ */
++
++/**
++ * @addtogroup confb_dfspec
++ *
++ * @{
++ */
++
+ struct c2_conf_obj;
+ struct c2_conf_pathcomp;
+ 
+@@ -49,6 +129,8 @@ bool c2_conf_path_is_valid(const struct c2_conf_obj *origin,
+ /**
+  * Relation --- a pointer from one configuration object to another
+  * object or a list of objects.
++ *
++ * @todo XXX Try to make this definition private.
+  */
+ struct c2_conf_relation {
+ 	/**
+@@ -125,4 +207,5 @@ size_t c2_conf_path_len(const struct c2_conf_pathcomp *path);
+ struct c2_conf_pathcomp *
+ c2_conf_pathcomp_dup(const struct c2_conf_pathcomp *src);
+ 
++/** @} confb_dfspec */
+ #endif /* __COLIBRI_CONF_PATH_H__ */
+-- 
+1.8.3.2
+

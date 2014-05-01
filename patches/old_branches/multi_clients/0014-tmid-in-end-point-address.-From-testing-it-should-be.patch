@@ -1,0 +1,88 @@
+From cc9689f0c19e15026e6bf686de5c4af4838a038c Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 6 Mar 2014 21:58:05 +0800
+Subject: [PATCH 14/26] tmid in end point address. From testing, it should be
+ less than 101.
+
+---
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 20 +++++++++++---------
+ m0t1fs/linux_kernel/super.c                 |  8 ++++----
+ rpc/rpc_machine.c                           |  2 +-
+ 3 files changed, 16 insertions(+), 14 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 610fd95..d4ba9c8 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -463,20 +463,22 @@ rmw_test()
+ 
+ m0t1fs_system_tests()
+ {
+-#	file_creation_test $MAX_NR_FILES || {
+-#               echo "Failed: File creation test failed."
+-#		return 1
+-#	}
+-#	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+-#		echo "Failed: IO failed.."
+-#		return 1
+-#	}
++	file_creation_test $MAX_NR_FILES || {
++		echo "Failed: File creation test failed."
++		return 1
++	}
++
++	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
++		echo "Failed: IO failed.."
++		return 1
++	}
++
+ 	rmw_test || {
+ 		echo "Failed: IO-RMW failed.."
+ 		return 1
+ 	}
+ 
+-#	m0loop_st || return 1
++	m0loop_st || return 1
+ 
+ 	return 0
+ }
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 87fe0fa..6379efe 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -988,15 +988,15 @@ static int m0t1fs_net_init(struct m0t1fs_sb *csb)
+ 	struct m0_net_domain *ndom;
+ 	int		      rc;
+ 	char                 *laddr;
+-	static int            i = 1;
++	static int            tmid = 1;
+ 
+ 	M0_ENTRY();
+ 	laddr = m0_alloc(100);
+ 
+ 	csb->csb_m0t1fs_globals.g_xprt  = &m0_net_lnet_xprt;;
+-	sprintf(laddr, "%s%d", local_addr, i++);
+-	if (i > 200)
+-		i = 1;
++	sprintf(laddr, "%s%d", local_addr, tmid++);
++	if (tmid > 99)
++		tmid = 1;
+ 	csb->csb_m0t1fs_globals.g_laddr = laddr;
+ 	xprt =  csb->csb_m0t1fs_globals.g_xprt;
+ 	ndom = &csb->csb_m0t1fs_globals.g_ndom;
+diff --git a/rpc/rpc_machine.c b/rpc/rpc_machine.c
+index 8b79067..467eb3f 100644
+--- a/rpc/rpc_machine.c
++++ b/rpc/rpc_machine.c
+@@ -414,7 +414,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
+ 		 */
+ 		rc = -ENETUNREACH;
+ 		m0_net_tm_fini(tm);
+-		M0_RETERR(rc, "TM start");
++		M0_RETERR(rc, "TM start ep=%s", ep_addr);
+ 	}
+ 	M0_RETURN(rc);
+ }
+-- 
+1.8.3.2
+

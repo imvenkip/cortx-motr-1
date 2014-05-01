@@ -1,0 +1,410 @@
+From 961edf05370dbf160e3936e218b5a9c77ec974ca Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Tue, 23 Apr 2013 17:17:37 +0530
+Subject: [PATCH 1/2] lib: Added user-space wrapper over libuuid APIs.
+
+---
+ Makefile.am             |  3 ++-
+ configure.ac            |  5 ++++
+ lib/Kbuild.sub          |  3 ++-
+ lib/Makefile.sub        |  6 ++++-
+ lib/linux_kernel/uuid.c | 44 ++++++++++++++++++++++++++++++++
+ lib/linux_kernel/uuid.h | 54 +++++++++++++++++++++++++++++++++++++++
+ lib/user_space/uuid.c   | 68 +++++++++++++++++++++++++++++++++++++++++++++++++
+ lib/user_space/uuid.h   | 55 +++++++++++++++++++++++++++++++++++++++
+ lib/uuid.h              | 12 +++++++++
+ rpc/service.h           |  6 +----
+ 10 files changed, 248 insertions(+), 8 deletions(-)
+ create mode 100644 lib/linux_kernel/uuid.c
+ create mode 100644 lib/linux_kernel/uuid.h
+ create mode 100644 lib/user_space/uuid.c
+ create mode 100644 lib/user_space/uuid.h
+
+diff --git a/Makefile.am b/Makefile.am
+index 98f2f08..7680833 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -149,7 +149,8 @@ lib_LTLIBRARIES          += mero/libmero.la
+ mero_libmero_la_CPPFLAGS  = -DM0_TARGET='libmero' $(AM_CPPFLAGS)
+ mero_libmero_la_LDFLAGS   = -release @LT_RELEASE@ -pthread $(AM_LDFLAGS)
+ mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
+-                            @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@
++                            @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @PROFILER_LIBS@ \
++                            @UUID_LIBS@
+ 
+ # install directory for public libmero headers
+ mero_includedir             = $(includedir)/mero
+diff --git a/configure.ac b/configure.ac
+index bfb386b..7209e81 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -327,6 +327,9 @@ MERO_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
+ )
+ AC_SUBST([RT_LIBS])
+ 
++MERO_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
++        [uuid_generate cannot be found! Try to install libuuid])
++
+ #
+ # Checking for required header files
+ #
+@@ -524,6 +527,7 @@ AC_SUBST([GALOIS_LIBS])
+ AC_SUBST([YAML_LIBS])
+ AC_SUBST([CUNIT_LIBS])
+ AC_SUBST([DB_LIBS])
++AC_SUBST([UUID_LIBS])
+ 
+ 
+ #
+@@ -679,6 +683,7 @@ echo "GALOIS_LIBS  :  \"$GALOIS_LIBS\""
+ echo "CUNIT_LIBS   :  \"$CUNIT_LIBS\""
+ echo "YAML_LIBS    :  \"$YAML_LIBS\""
+ echo "DB_LIBS      :  \"$DB_LIBS\""
++echo "UUID_LIBS    :  \"$UUID_LIBS\""
+ echo ""
+ echo "Linux kernel :  \"$LINUX_OBJ\""
+ echo "Lustre       :  \"$LUSTRE\""
+diff --git a/lib/Kbuild.sub b/lib/Kbuild.sub
+index a4ad01f..21c1b8a 100644
+--- a/lib/Kbuild.sub
++++ b/lib/Kbuild.sub
+@@ -42,4 +42,5 @@ m0mero_objects += lib/linux_kernel/finject_init.o \
+                   lib/linux_kernel/processor.o \
+                   lib/linux_kernel/rwlock.o \
+                   lib/linux_kernel/semaphore.o \
+-                  lib/linux_kernel/timer.o
++                  lib/linux_kernel/timer.o \
++                  lib/linux_kernel/uuid.o
+diff --git a/lib/Makefile.sub b/lib/Makefile.sub
+index fbe6889..dbe29c4 100644
+--- a/lib/Makefile.sub
++++ b/lib/Makefile.sub
+@@ -53,6 +53,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
+                                lib/user_space/trace.h \
+                                lib/user_space/types.h \
+                                lib/user_space/user_x86_64_atomic.h \
++                               lib/user_space/uuid.h \
+                                lib/user_space/__sync_atomic.h
+ 
+ mero_libmero_la_SOURCES += lib/assert.c \
+@@ -101,7 +102,8 @@ mero_libmero_la_SOURCES += lib/assert.c \
+                            lib/user_space/umisc.c \
+                            lib/user_space/uthread.c \
+                            lib/user_space/utime.c \
+-                           lib/user_space/utrace.c
++                           lib/user_space/utrace.c \
++                           lib/user_space/uuid.c
+ 
+ XC_FILES += lib/buf_xc.h \
+             lib/cookie_xc.h \
+@@ -134,6 +136,8 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
+               lib/linux_kernel/timer.c \
+               lib/linux_kernel/timer.h \
+               lib/linux_kernel/types.h \
++              lib/linux_kernel/uuid.h \
++              lib/linux_kernel/uuid.c \
+               lib/linux_kernel/vec.h \
+               lib/linux_kernel/ut/main.c
+ 
+diff --git a/lib/linux_kernel/uuid.c b/lib/linux_kernel/uuid.c
+new file mode 100644
+index 0000000..d9dbbd0
+--- /dev/null
++++ b/lib/linux_kernel/uuid.c
+@@ -0,0 +1,44 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
++ * Original creation date: 23-Apr-2013
++ */
++
++
++/**
++ * @addtogroup XXX
++ *
++ * @{
++ */
++
++
++
++/** @} end of XXX group */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/lib/linux_kernel/uuid.h b/lib/linux_kernel/uuid.h
+new file mode 100644
+index 0000000..2e164b1
+--- /dev/null
++++ b/lib/linux_kernel/uuid.h
+@@ -0,0 +1,54 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
++ * Original creation date: 23-Apr-2013
++ */
++
++
++#pragma once
++
++#ifndef __MERO_LIB_LINUX_KERNEL_UUID_H__
++#define __MERO_LIB_LINUX_KERNEL_UUID_H__
++
++
++/**
++ * @defgroup XXX
++ *
++ * @{
++ */
++
++struct m0_uuid {
++	char u_byte[16];
++};
++
++/** @} end of XXX group */
++
++#endif /* __MERO_LIB_LINUX_KERNEL_UUID_H__ */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/lib/user_space/uuid.c b/lib/user_space/uuid.c
+new file mode 100644
+index 0000000..9076739
+--- /dev/null
++++ b/lib/user_space/uuid.c
+@@ -0,0 +1,68 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
++ * Original creation date: 23-Apr-2013
++ */
++
++#include "lib/uuid.h"
++
++/**
++ * @addtogroup XXX
++ *
++ * @{
++ */
++
++M0_INTERNAL void m0_uuid_init(struct m0_uuid *u)
++{
++	uuid_clear(u->u_uuid);
++}
++
++M0_INTERNAL bool m0_uuid_is_null(const struct m0_uuid *u)
++{
++	return uuid_is_null(u->u_uuid) == 1;
++}
++
++M0_INTERNAL void m0_uuid_generate1(struct m0_uuid *u)
++{
++	uuid_generate(u->u_uuid);
++}
++
++M0_INTERNAL int m0_uuid_parse1(char *str, struct m0_uuid *u)
++{
++	return uuid_parse(str, u->u_uuid);
++}
++
++M0_INTERNAL void m0_uuid_unparse(struct m0_uuid *u, char *out)
++{
++	uuid_unparse(u->u_uuid, out);
++}
++
++/** @} end of XXX group */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/lib/user_space/uuid.h b/lib/user_space/uuid.h
+new file mode 100644
+index 0000000..818d36a
+--- /dev/null
++++ b/lib/user_space/uuid.h
+@@ -0,0 +1,55 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
++ * Original creation date: 23-Apr-2013
++ */
++
++
++#pragma once
++
++#ifndef __MERO_LIB_USER_SPACE_UUID_H__
++#define __MERO_LIB_USER_SPACE_UUID_H__
++
++#include <uuid/uuid.h>
++
++/**
++ * @defgroup XXX
++ *
++ * @{
++ */
++
++struct m0_uuid {
++	uuid_t u_uuid;
++};
++
++/** @} end of XXX group */
++
++#endif /* __MERO_LIB_USER_SPACE_UUID_H__ */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/lib/uuid.h b/lib/uuid.h
+index 34edede..d101270 100644
+--- a/lib/uuid.h
++++ b/lib/uuid.h
+@@ -25,6 +25,12 @@
+ 
+ #include "lib/types.h" /* struct m0_uint128 */
+ 
++#ifndef __KERNEL__
++#include "lib/user_space/uuid.h"
++#else
++#include "lib/linux_kernel/uuid.h"
++#endif
++
+ /**
+    @defgroup uuid UUID support
+    @{
+@@ -34,6 +40,12 @@ enum {
+ 	M0_UUID_STRLEN = 36
+ };
+ 
++M0_INTERNAL void m0_uuid_init     (struct m0_uuid *u);
++M0_INTERNAL bool m0_uuid_is_null  (const struct m0_uuid *u);
++M0_INTERNAL void m0_uuid_generate1(struct m0_uuid *u);
++M0_INTERNAL int  m0_uuid_parse1   (char *str, struct m0_uuid *uuid);
++M0_INTERNAL void m0_uuid_unparse  (struct m0_uuid *u, char *out);
++
+ /**
+    Parse the 8-4-4-4-12 hexadecimal string representation of a UUID
+    and convert to numerical form.
+diff --git a/rpc/service.h b/rpc/service.h
+index 4e638eb..d50250d 100644
+--- a/rpc/service.h
++++ b/rpc/service.h
+@@ -31,6 +31,7 @@
+ 
+ #include "lib/tlist.h"
+ #include "lib/bob.h"
++#include "lib/uuid.h"
+ #include "mero/magic.h"
+ 
+ /* Imports */
+@@ -45,11 +46,6 @@ struct m0_rpc_service_ops;
+ M0_INTERNAL int m0_rpc_service_module_init(void);
+ M0_INTERNAL void m0_rpc_service_module_fini(void);
+ 
+-/** @todo XXX This is stub definition */
+-struct m0_uuid {
+-	char u_uuid[40];
+-};
+-
+ struct m0_rpc_service_type {
+ 	/** Numeric id that uniquely identifies a service type */
+ 	uint32_t                              svt_type_id;
+-- 
+1.8.3.2
+

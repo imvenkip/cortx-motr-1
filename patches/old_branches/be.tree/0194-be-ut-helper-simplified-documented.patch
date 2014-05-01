@@ -1,0 +1,562 @@
+From 6e58067543b559c45fb3d06bc25ddfad75f218f5 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 21 Jun 2013 01:05:28 +0300
+Subject: [PATCH 194/290] be/ut/helper simplified&documented
+
+---
+ be/ut/alloc.c  | 63 +++++++++++++----------------------------------
+ be/ut/btree.c  | 13 +++++-----
+ be/ut/extmap.c |  9 +++----
+ be/ut/helper.c | 76 +++++++++++++++++++++++++++++++++++----------------------
+ be/ut/helper.h | 77 ++++++++++++++++++++++++++++++++++++++++++++--------------
+ be/ut/seg.c    | 28 ++++++++-------------
+ be/ut/tx.c     | 31 ++++++-----------------
+ 7 files changed, 150 insertions(+), 147 deletions(-)
+
+diff --git a/be/ut/alloc.c b/be/ut/alloc.c
+index 55e59f5..2981e17 100644
+--- a/be/ut/alloc.c
++++ b/be/ut/alloc.c
+@@ -24,7 +24,7 @@
+ #include "lib/misc.h"		/* M0_SET_ARR0 */
+ #include "lib/thread.h"		/* m0_thread */
+ #include "ut/ut.h"		/* M0_UT_ASSERT */
+-#include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
++#include "be/ut/helper.h"	/* m0_be_ut_h */
+ 
+ #include <stdlib.h>		/* rand_r */
+ #include <string.h>		/* memset */
+@@ -46,54 +46,25 @@ struct be_ut_alloc_thread_state {
+ 	int		 ats_nr;
+ };
+ 
+-static struct m0_be_ut_seg_helper      be_ut_alloc_seg_helper;
+-static struct m0_be_seg		       be_ut_alloc_seg;
+-static struct m0_be_allocator	       be_ut_allocator;
++static struct m0_be_ut_h	       be_ut_alloc_h;
+ static struct be_ut_alloc_thread_state be_ut_ts[BE_UT_ALLOC_THR_NR];
+ 
+-static void be_ut_alloc_init(void)
+-{
+-	int rc;
+-
+-	m0_be_ut_seg_create_open(&be_ut_alloc_seg_helper, &be_ut_alloc_seg);
+-	rc = m0_be_allocator_init(&be_ut_allocator, &be_ut_alloc_seg);
+-	M0_UT_ASSERT(rc == 0);
+-}
+-
+-static void be_ut_alloc_fini(void)
+-{
+-	m0_be_allocator_fini(&be_ut_allocator);
+-	m0_be_ut_seg_close_destroy(&be_ut_alloc_seg_helper, &be_ut_alloc_seg);
+-}
+-
+-static void be_ut_alloc_create(void)
+-{
+-	int rc;
+-
+-	be_ut_alloc_init();
+-	rc = m0_be_allocator_create(&be_ut_allocator);
+-	M0_UT_ASSERT(rc == 0);
+-}
+-
+-static void be_ut_alloc_destroy()
++M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
+ {
+-	int rc;
++	struct m0_be_allocator a;
++	int		       rc;
+ 
+-	rc = m0_be_allocator_destroy(&be_ut_allocator);
++	m0_be_ut_seg_create_open(&be_ut_alloc_h);
++	rc = m0_be_allocator_init(&a, &be_ut_alloc_h.buh_seg);
+ 	M0_UT_ASSERT(rc == 0);
+-	be_ut_alloc_fini();
+-}
+-
+-M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
+-{
+-	be_ut_alloc_init();
+-	be_ut_alloc_fini();
++	m0_be_allocator_fini(&a);
++	m0_be_ut_seg_close_destroy(&be_ut_alloc_h);
+ }
+ 
+ M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
+ {
+-	be_ut_alloc_create();
+-	be_ut_alloc_destroy();
++	m0_be_ut_h_init(&be_ut_alloc_h);
++	m0_be_ut_h_fini(&be_ut_alloc_h);
+ }
+ 
+ static void be_ut_alloc_thread(int index)
+@@ -115,14 +86,14 @@ static void be_ut_alloc_thread(int index)
+ 		if (p == NULL) {
+ 			size = (rand_r(&seed) % BE_UT_ALLOC_SIZE) + 1;
+ 			shift = rand_r(&seed) % BE_UT_ALLOC_SHIFT;
+-			p = m0_be_alloc(&be_ut_allocator, NULL, &op, /* XXX */
+-					size, shift);
++			p = m0_be_alloc(be_ut_alloc_h.buh_a, NULL, &op,
++					/* XXX */ size, shift);
+ 			M0_UT_ASSERT(p != NULL);
+ 			M0_UT_ASSERT(m0_addr_is_aligned(p, shift));
+ 			if (p != NULL)
+ 				memset(p, 0xFF, size);
+ 		} else {
+-			m0_be_free(&be_ut_allocator, NULL, &op, /* XXX */ p);
++			m0_be_free(be_ut_alloc_h.buh_a, NULL, &op, /* XXX */ p);
+ 			p = NULL;
+ 		}
+ 		m0_be_op_fini(&op);
+@@ -130,7 +101,7 @@ static void be_ut_alloc_thread(int index)
+ 	}
+ 	for (i = 0; i < BE_UT_ALLOC_PTR_NR; ++i) {
+ 		m0_be_op_init(&op);
+-		m0_be_free(&be_ut_allocator, NULL, &op, /* XXX */
++		m0_be_free(be_ut_alloc_h.buh_a, NULL, &op, /* XXX */
+ 			   ts->ats_ptr[i]);
+ 		m0_be_op_fini(&op);
+ 	}
+@@ -146,7 +117,7 @@ static void be_ut_alloc_mt(int nr)
+ 		be_ut_ts[i].ats_nr = nr == 1 ? BE_UT_ALLOC_NR :
+ 					       BE_UT_ALLOC_MT_NR;
+ 	}
+-	be_ut_alloc_create();
++	m0_be_ut_h_init(&be_ut_alloc_h);
+ 	for (i = 0; i < nr; ++i) {
+ 		rc = M0_THREAD_INIT(&be_ut_ts[i].ats_thread, int, NULL,
+ 				    &be_ut_alloc_thread, i,
+@@ -157,7 +128,7 @@ static void be_ut_alloc_mt(int nr)
+ 		m0_thread_join(&be_ut_ts[i].ats_thread);
+ 		m0_thread_fini(&be_ut_ts[i].ats_thread);
+ 	}
+-	be_ut_alloc_destroy();
++	m0_be_ut_h_fini(&be_ut_alloc_h);
+ }
+ 
+ M0_INTERNAL void m0_be_ut_alloc_multiple(void)
+diff --git a/be/ut/btree.c b/be/ut/btree.c
+index 95bd7b4..c03c31e 100644
+--- a/be/ut/btree.c
++++ b/be/ut/btree.c
+@@ -27,22 +27,21 @@
+ #include "lib/misc.h"
+ #include "lib/memory.h"
+ 
+-static struct m0_be_seg		  be_ut_btree_seg;
+-static struct m0_be_ut_seg_helper be_ut_btree_seg_helper;
+-static struct m0_sm_group         grp;
+-static uint64_t			  tid = 1ULL;
++static struct m0_be_ut_h  be_ut_btree_h;
++static struct m0_sm_group grp;
++static uint64_t		  tid = 1ULL;
+ 
+ 
+ static void seg_create(void)
+ {
+-	m0_be_ut_seg_create_open(&be_ut_btree_seg_helper, &be_ut_btree_seg);
++	m0_be_ut_seg_create_open(&be_ut_btree_h);
+ 	m0_sm_group_init(&grp);
+ }
+ 
+ static void seg_destroy(void)
+ {
+-	m0_be_ut_seg_close_destroy(&be_ut_btree_seg_helper, &be_ut_btree_seg);
+ 	m0_sm_group_fini(&grp);
++	m0_be_ut_seg_close_destroy(&be_ut_btree_h);
+ }
+ 
+ static void persistent(const struct m0_be_tx *tx)
+@@ -97,7 +96,7 @@ void test_create(void)
+ 	be_op_init(&op);
+ 
+ 	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL);
+-	m0_be_btree_init(&tree, &be_ut_btree_seg, &kv_ops, NULL);
++	m0_be_btree_init(&tree, &be_ut_btree_h.buh_seg, &kv_ops, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_CREATE, 1, &cred);
+ 
+ 	m0_be_tx_prep(&tx, &cred);
+diff --git a/be/ut/extmap.c b/be/ut/extmap.c
+index 870e9aa..148bc0c 100644
+--- a/be/ut/extmap.c
++++ b/be/ut/extmap.c
+@@ -29,10 +29,9 @@
+ #include "be/extmap.h"
+ 
+ static const char be_emap_name[] = "test-emap";
+-static struct m0_be_ut_seg_helper be_ut_emap_seg_helper;
++static struct m0_be_ut_h be_ut_emap_h;
+ 
+ //static struct m0_be               be;
+-static struct m0_be_seg		  be_ut_emap_seg;
+ static struct m0_be_tx            tx;
+ static struct m0_be_op            op;
+ //static struct m0_be_tx_credit     cred;
+@@ -49,12 +48,12 @@ static int                        result;
+ 
+ static void seg_create(void)
+ {
+-	m0_be_ut_seg_create_open(&be_ut_emap_seg_helper, &be_ut_emap_seg);
++	m0_be_ut_seg_create_open(&be_ut_emap_h);
+ }
+ 
+ static void seg_destroy(void)
+ {
+-	m0_be_ut_seg_close_destroy(&be_ut_emap_seg_helper, &be_ut_emap_seg);
++	m0_be_ut_seg_close_destroy(&be_ut_emap_h);
+ }
+ 
+ //static void persistent(const struct m0_be_tx *tx)
+@@ -70,7 +69,7 @@ static void test_init(void)
+ 
+ 	//m0_be_tx_init(&tx, tid, &be, persistent, discarded, NULL);
+ 
+-	result = m0_be_emap_init(&emap, &be_ut_emap_seg, be_emap_name);
++	result = m0_be_emap_init(&emap, &be_ut_emap_h.buh_seg, be_emap_name);
+ 	M0_ASSERT(result == 0);
+ 	//m0_be_emap_credit(&tree, M0_EMO_CREATE, 1, &cred);
+ 	//m0_be_emap_credit(&tree, M0_EMO_CREATE, 1, &cred);
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 6dc8ded..4109081 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -60,70 +60,88 @@ void m0_be_ut_seg_storage_init(void)
+ 	M0_ASSERT(rc == 0);
+ }
+ 
+-void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
+-			     struct m0_be_seg *seg, bool stob_create)
++void m0_be_ut_seg_initialize(struct m0_be_ut_h *h, bool stob_create)
+ {
+ 	int rc;
+ 
+-	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &h->bus_dom);
++	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &h->buh_dom);
+ 	M0_ASSERT(rc == 0);
+-	m0_dtx_init(&h->bus_dtx);
++	m0_dtx_init(&h->buh_dtx);
+ 	if (!stob_create) {
+-		m0_stob_init(&h->bus_stob_, &be_ut_h_stob_id, h->bus_dom);
+-		h->bus_stob = &h->bus_stob_;
++		m0_stob_init(&h->buh_stob_, &be_ut_h_stob_id, h->buh_dom);
++		h->buh_stob = &h->buh_stob_;
+ 	} else {
+-		rc = m0_stob_create_helper(h->bus_dom, &h->bus_dtx,
+-					   &be_ut_h_stob_id, &h->bus_stob);
++		rc = m0_stob_create_helper(h->buh_dom, &h->buh_dtx,
++					   &be_ut_h_stob_id, &h->buh_stob);
+ 		M0_ASSERT(rc == 0);
+ 	}
+-	m0_be_seg_init(seg, h->bus_stob, &h->bus_be);
++	m0_be_seg_init(&h->buh_seg, h->buh_stob, &h->buh_be);
+ }
+ 
+-void m0_be_ut_seg_finalize(struct m0_be_ut_seg_helper *h,
+-			   struct m0_be_seg *seg, bool stob_put)
++void m0_be_ut_seg_finalize(struct m0_be_ut_h *h, bool stob_put)
+ {
+-	m0_be_seg_fini(seg);
++	m0_be_seg_fini(&h->buh_seg);
+ 	if (stob_put)
+-		m0_stob_put(h->bus_stob);
+-	m0_dtx_fini(&h->bus_dtx);
+-	h->bus_dom->sd_ops->sdo_fini(h->bus_dom);
++		m0_stob_put(h->buh_stob);
++	m0_dtx_fini(&h->buh_dtx);
++	h->buh_dom->sd_ops->sdo_fini(h->buh_dom);
+ }
+ 
+-void m0_be_ut_seg_create(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg)
++void m0_be_ut_seg_create(struct m0_be_ut_h *h)
+ {
+ 	int rc;
+ 
+ 	m0_be_ut_seg_storage_init();
+-	m0_be_ut_seg_initialize(h, seg, false);
+-	rc = m0_be_seg_create(seg, BE_UT_H_SEG_SIZE);
++	m0_be_ut_seg_initialize(h, false);
++	rc = m0_be_seg_create(&h->buh_seg, BE_UT_H_SEG_SIZE);
+ 	M0_ASSERT(rc == 0);
+ }
+ 
+-void m0_be_ut_seg_destroy(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg)
++void m0_be_ut_seg_destroy(struct m0_be_ut_h *h)
+ {
+ 	int rc;
+ 
+-	rc = m0_be_seg_destroy(seg);
++	rc = m0_be_seg_destroy(&h->buh_seg);
+ 	M0_ASSERT(rc == 0);
+-	m0_be_ut_seg_finalize(h, seg, false);
++	m0_be_ut_seg_finalize(h, false);
+ 	m0_be_ut_seg_storage_fini();
+ }
+ 
+-void m0_be_ut_seg_create_open(struct m0_be_ut_seg_helper *h,
+-			      struct m0_be_seg *seg)
++void m0_be_ut_seg_create_open(struct m0_be_ut_h *h)
+ {
+ 	int rc;
+ 
+-	m0_be_ut_seg_create(h, seg);
+-	rc = m0_be_seg_open(seg);
++	m0_be_ut_seg_create(h);
++	rc = m0_be_seg_open(&h->buh_seg);
+ 	M0_ASSERT(rc == 0);
+ }
+ 
+-void m0_be_ut_seg_close_destroy(struct m0_be_ut_seg_helper *h,
+-				struct m0_be_seg *seg)
++void m0_be_ut_seg_close_destroy(struct m0_be_ut_h *h)
+ {
+-	m0_be_seg_close(seg);
+-	m0_be_ut_seg_destroy(h, seg);
++	m0_be_seg_close(&h->buh_seg);
++	m0_be_ut_seg_destroy(h);
++}
++
++void m0_be_ut_h_init(struct m0_be_ut_h *h)
++{
++	int rc;
++
++	m0_be_ut_seg_create_open(h);
++	h->buh_a = &h->buh_seg.bs_allocator;
++	rc = m0_be_allocator_init(h->buh_a, &h->buh_seg);
++	M0_ASSERT(rc == 0);
++	rc = m0_be_allocator_create(h->buh_a);
++	M0_ASSERT(rc == 0);
++}
++
++void m0_be_ut_h_fini(struct m0_be_ut_h *h)
++{
++	int rc;
++
++	rc = m0_be_allocator_destroy(h->buh_a);
++	M0_ASSERT(rc == 0);
++	m0_be_allocator_fini(h->buh_a);
++	m0_be_ut_seg_close_destroy(h);
+ }
+ 
+ /*
+diff --git a/be/ut/helper.h b/be/ut/helper.h
+index d037f66..2ca3f07 100644
+--- a/be/ut/helper.h
++++ b/be/ut/helper.h
+@@ -27,30 +27,71 @@
+ #include "dtm/dtm.h"            /* m0_dtx */
+ 
+ /** Helper structure for easy segment preparing for UT */
+-struct m0_be_ut_seg_helper {
+-	struct m0_stob_domain *bus_dom;
+-	struct m0_dtx          bus_dtx;
+-	struct m0_stob        *bus_stob;
+-	struct m0_stob         bus_stob_;
+-	struct m0_be           bus_be;
++struct m0_be_ut_h {
++	/** Stob domain. All stobs for UT helper are in this domain */
++	struct m0_stob_domain  *buh_dom;
++	/** Newly created stob will use this m0_dtx */
++	struct m0_dtx           buh_dtx;
++	/**
++	 * Stob to test. It can point to m0_be_ut_h.buh_stob_ if
++	 * there is new stob and to existing stob if it isn't new.
++	 */
++	struct m0_stob         *buh_stob;
++	/** Newly created stob. This field is unused if stob already exists */
++	struct m0_stob		buh_stob_;
++	/** Segment will be initialized in this m0_be */
++	struct m0_be		buh_be;
++	/** Segment to test */
++	struct m0_be_seg	buh_seg;
++	/**
++	 * Pointer to m0_be_ut_h.buh_seg.bs_allocator
++	 * Added to increase readability of UT.
++	 * Initialized in m0_be_ut_h_init().
++	 */
++	struct m0_be_allocator *buh_a;
+ };
+ 
+-void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
+-			     struct m0_be_seg *seg, bool stob_create);
++/** Prepare stob and do m0_be_seg_init() */
++void m0_be_ut_seg_initialize(struct m0_be_ut_h *h, bool stob_create);
++/** m0_be_seg_fini() and stob finalization */
++void m0_be_ut_seg_finalize(struct m0_be_ut_h *h, bool stob_put);
+ 
+-void m0_be_ut_seg_finalize(struct m0_be_ut_seg_helper *h,
+-			   struct m0_be_seg *seg, bool stob_put);
++/** m0_be_ut_seg_initialize() + create segment */
++void m0_be_ut_seg_create(struct m0_be_ut_h *h);
++/** destroy segment + m0_be_ut_seg_finalize() */
++void m0_be_ut_seg_destroy(struct m0_be_ut_h *h);
+ 
+-void m0_be_ut_seg_create(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg);
+-void m0_be_ut_seg_destroy(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg);
+-
+-void m0_be_ut_seg_create_open(struct m0_be_ut_seg_helper *h,
+-			      struct m0_be_seg *seg);
+-void m0_be_ut_seg_close_destroy(struct m0_be_ut_seg_helper *h,
+-				struct m0_be_seg *seg);
++/**
++ * Create new stob. Prepare segment on this stob to UT
++ * m0_be_ut_seg_create() + m0_be_seg_open().
++ */
++void m0_be_ut_seg_create_open(struct m0_be_ut_h *h);
++/**
++ * Destroy segment and stob
++ * m0_be_seg_close() + m0_be_ut_seg_destroy().
++ */
++void m0_be_ut_seg_close_destroy(struct m0_be_ut_h *h);
+ 
+-void m0_be_ut_seg_storage_fini(void);
++/** Create linux stob domain directory */
+ void m0_be_ut_seg_storage_init(void);
++/** Remove linux stob domain directory */
++void m0_be_ut_seg_storage_fini(void);
++
++/**
++ * - create dtx;
++ * - create stob domain;
++ * - create stob in the domain;
++ * - create segment on this stob;
++ * - initalize segment allocator.
++ *
++ * @note m0_be_ut_h.buh_be should be initialized before calling this function.
++ */
++void m0_be_ut_h_init(struct m0_be_ut_h *h);
++/**
++ * - finalize segment allocator, segment, stob, stob domain and dtx;
++ * - remove stob domain directory.
++ */
++void m0_be_ut_h_fini(struct m0_be_ut_h *h);
+ 
+ #endif /* __MERO_BE_UT_HELPER_H__ */
+ 
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index cdb0909..586f8ab 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -23,15 +23,13 @@
+ #include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
+ #include "lib/misc.h"		/* M0_BITS */
+ 
+-static struct m0_be_ut_seg_helper g_helper;
++static struct m0_be_ut_h be_ut_seg_h;
+ 
+ M0_INTERNAL void m0_be_ut_seg_init_fini(void)
+ {
+-	struct m0_be_seg seg;
+-
+ 	m0_be_ut_seg_storage_init();
+-	m0_be_ut_seg_initialize(&g_helper, &seg, true);
+-	m0_be_ut_seg_finalize(&g_helper, &seg, true);
++	m0_be_ut_seg_initialize(&be_ut_seg_h, true);
++	m0_be_ut_seg_finalize(&be_ut_seg_h, true);
+ 	m0_be_ut_seg_storage_fini();
+ }
+ 
+@@ -59,27 +57,21 @@ static void seg_write(struct m0_be_seg *seg)
+ 
+ M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
+ {
+-	struct m0_be_seg   seg;
+-
+-	m0_be_ut_seg_create(&g_helper, &seg);
+-	seg_write(&seg);
+-	m0_be_ut_seg_destroy(&g_helper, &seg);
++	m0_be_ut_seg_create(&be_ut_seg_h);
++	seg_write(&be_ut_seg_h.buh_seg);
++	m0_be_ut_seg_destroy(&be_ut_seg_h);
+ }
+ 
+ M0_INTERNAL void m0_be_ut_seg_open_close(void)
+ {
+-	struct m0_be_seg seg;
+-
+-	m0_be_ut_seg_create_open(&g_helper, &seg);
+-	m0_be_ut_seg_close_destroy(&g_helper, &seg);
++	m0_be_ut_seg_create_open(&be_ut_seg_h);
++	m0_be_ut_seg_close_destroy(&be_ut_seg_h);
+ }
+ 
+ M0_INTERNAL void m0_be_ut_seg_write(void)
+ {
+-	struct m0_be_seg seg;
+-
+-	m0_be_ut_seg_create(&g_helper, &seg);
+-	m0_be_ut_seg_destroy(&g_helper, &seg);
++	m0_be_ut_seg_create(&be_ut_seg_h);
++	m0_be_ut_seg_destroy(&be_ut_seg_h);
+ 
+ 	/* #define BE_SEG_DEFAULT_ADDR   ((void *)0x400000000000) */
+ 
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index f2e53d9..6196fa2 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -26,38 +26,21 @@
+ #include "rpc/rpclib.h"
+ #include "ut/ut.h"
+ 
+-static struct m0_be_ut_seg_helper g_helper;
+-static struct m0_be_seg           g_seg;
+-static struct m0_sm_group         g_grp;
+-static uint64_t                   g_tid = 1;
++static struct m0_be_ut_h  be_ut_tx_h;
++static struct m0_sm_group g_grp;
++static uint64_t           g_tid = 1;
+ 
+ static int seg_create(void)
+ {
+-	int                     rc;
+-	struct m0_be_allocator *alloc = &g_seg.bs_allocator;
+-
+-	m0_be_ut_seg_create_open(&g_helper, &g_seg);
+-
+-	rc = m0_be_allocator_init(alloc, &g_seg);
+-	M0_ASSERT(rc == 0);
+-
+-	rc = m0_be_allocator_create(alloc);
+-	M0_ASSERT(rc == 0);
+-
++	m0_be_ut_h_init(&be_ut_tx_h);
+ 	m0_sm_group_init(&g_grp);
+ 	return 0;
+ }
+ 
+ static int seg_destroy(void)
+ {
+-	int                     rc;
+-	struct m0_be_allocator *alloc = &g_seg.bs_allocator;
+-
+ 	m0_sm_group_fini(&g_grp);
+-	rc = m0_be_allocator_destroy(alloc);
+-	M0_ASSERT(rc == 0);
+-	m0_be_allocator_fini(alloc);
+-	m0_be_ut_seg_close_destroy(&g_helper, &g_seg);
++	m0_be_ut_h_fini(&be_ut_tx_h);
+ 	return 0;
+ }
+ 
+@@ -79,7 +62,7 @@ static void tx_test(struct m0_be *be)
+ 	struct m0_be_op         op;
+ 	struct m0_be_tx         tx;
+ 	struct m0_be_tx_credit  cred;
+-	struct m0_be_allocator *alloc = &g_seg.bs_allocator;
++	struct m0_be_allocator *alloc = be_ut_tx_h.buh_a;
+ 	struct m0_uint128      *p;
+ 	int                     rc;
+ 
+@@ -114,7 +97,7 @@ static void tx_test(struct m0_be *be)
+ 
+ 	p->u_hi = 0xdeadd00d8badf00d;
+ 	p->u_lo = 0x5ca1ab1e7e1eca57;
+-	M0_BE_TX_CAPTURE_PTR(&g_seg, &tx, p);
++	M0_BE_TX_CAPTURE_PTR(&be_ut_tx_h.buh_seg, &tx, p);
+ 	M0_LOG(M0_DEBUG, "captured");
+ 
+ 	/*
+-- 
+1.8.3.2
+

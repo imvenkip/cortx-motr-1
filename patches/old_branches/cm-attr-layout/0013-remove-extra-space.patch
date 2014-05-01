@@ -1,0 +1,27 @@
+From d6dbf2d810c59edd861f4906411fa657721ce030 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 4 Apr 2013 12:03:21 +0800
+Subject: [PATCH 13/18] remove extra space
+
+---
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 16aa0e8..a7a1442 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -456,10 +456,8 @@ rmw_test()
+ 	return 0
+ }
+ 
+-
+ m0t1fs_system_tests()
+ {
+-
+ 	file_creation_test $MAX_NR_FILES || {
+                 echo "Failed: File creation test failed."
+ 		return 1
+-- 
+1.8.3.2
+

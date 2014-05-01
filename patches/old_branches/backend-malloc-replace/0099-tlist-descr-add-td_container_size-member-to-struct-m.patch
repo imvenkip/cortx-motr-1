@@ -1,0 +1,36 @@
+From 36c3bedf247e1cb4a51adb0da87ed83b4237f6bd Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 4 Jun 2013 19:14:20 +0300
+Subject: [PATCH 099/161] tlist/descr: add td_container_size member to struct
+ m0_tl_descr.
+
+---
+ lib/tlist.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/lib/tlist.h b/lib/tlist.h
+index b21d508..7282d36 100644
+--- a/lib/tlist.h
++++ b/lib/tlist.h
+@@ -221,6 +221,8 @@ struct m0_tl_descr {
+ 	    operations.
+ 	 */
+ 	uint64_t    td_head_magic;
++	/** Size of the ambient object. */
++	size_t      td_container_size;
+ };
+ 
+ #define M0_TL_DESCR(name, ambient_type, link_field, link_magic_field,	\
+@@ -230,7 +232,8 @@ struct m0_tl_descr {
+ 	.td_link_offset       = offsetof(ambient_type, link_field),	\
+ 	.td_link_magic_offset = offsetof(ambient_type, link_magic_field), \
+ 	.td_link_magic        = link_magic,				\
+-	.td_head_magic        = head_magic				\
++	.td_head_magic        = head_magic,				\
++	.td_container_size    = sizeof(ambient_type)			\
+ };									\
+ 									\
+ M0_BASSERT(M0_HAS_TYPE(M0_FIELD_VALUE(ambient_type, link_field),	\
+-- 
+1.8.3.2
+

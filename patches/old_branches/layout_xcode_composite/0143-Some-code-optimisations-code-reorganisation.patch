@@ -1,0 +1,668 @@
+From e003a7bb19dd06b3f5c95b92ae3d7dc335d2ec85 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 23 May 2013 19:40:35 +0530
+Subject: [PATCH 143/157] Some code optimisations, code reorganisation
+
+---
+ layout/composite.c    | 417 ++++++++++++++++++++++++--------------------------
+ layout/ut/composite.c |  38 ++---
+ layout/ut/layout.c    |   7 +-
+ 3 files changed, 223 insertions(+), 239 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 29a6557..c33f56e 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -107,6 +107,7 @@ struct layout_prefix {
+ enum ext_add_position {
+ 	ADD_AFTER,
+ 	ADD_BEFORE,
++	ADD_AT_START,
+ 	ADD_AT_TAIL
+ };
+ 
+@@ -654,13 +655,12 @@ static int sublayout_ids_inbuf_read(struct m0_composite_layout *cl,
+ 
+ static void ext_inmem_del(struct m0_composite_layer *layer,
+ 			  struct m0_composite_layer_extent *lr_ext);
+-static int ext_inmem_add_internal(
+-			struct m0_tl *extlist,
+-			struct m0_layout *l,
+-			const struct m0_ext *ext,
+-			enum m0_composite_layer_ext_state ext_state,
+-			uint32_t add_position,
+-			struct m0_composite_layer_extent *adjacent_lr_ext);
++static int ext_inmem_add(struct m0_tl *extlist,
++			 struct m0_layout *l,
++			 const struct m0_ext *ext,
++			 enum m0_composite_layer_ext_state ext_state,
++			 uint32_t add_position,
++			 struct m0_composite_layer_extent *adjacent_lr_ext);
+ 
+ /*
+  * Reads all the extents associated with each layer for a composite layout,
+@@ -721,10 +721,9 @@ static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 				       cl->cl_base.l_id, -ENOMEM);
+ 			return -EINVAL;
+ 		}
+-		rc = ext_inmem_add_internal(&layer->clr_extents, &cl->cl_base,
+-					    &buf_ext->lbe_ext,
+-					    buf_ext->lbe_state,
+-					    ADD_AT_TAIL, NULL);
++		rc = ext_inmem_add(&layer->clr_extents, &cl->cl_base,
++				   &buf_ext->lbe_ext, buf_ext->lbe_state,
++				   ADD_AT_TAIL, NULL);
+ 		if (rc != 0) {
+ 			M0_LOG(M0_ERROR, "lid %llu, Extent could not be "
+ 			       "added to the list",
+@@ -1038,123 +1037,77 @@ static int ext_inmem_find(struct m0_composite_layer *layer,
+ 	M0_RETURN(rc);
+ }
+ 
+-/** Adds an extent to the provided extent list, at the provided position. */
+-static int ext_inmem_add_internal(
+-			struct m0_tl *extlist,
+-			struct m0_layout *l,
+-			const struct m0_ext *ext,
+-			enum m0_composite_layer_ext_state ext_state,
+-			uint32_t add_position,
+-			struct m0_composite_layer_extent *adjacent_lr_ext)
++/**
++ * Adds an extent to the provided extent list, at the provided position and
++ * using the pre-allocated lr_ext.
++ */
++static void ext_inmem_add_internal(struct m0_tl *extlist,
++				   struct m0_layout *l,
++				   const struct m0_ext *ext,
++				   enum m0_composite_layer_ext_state ext_state,
++				   uint32_t add_position,
++				   struct m0_composite_layer_extent *adj_lr_ext,
++				   struct m0_composite_layer_extent *lr_ext)
+ {
+-	struct m0_composite_layer_extent *lr_ext;
+-
+ 	M0_PRE(extlist != NULL);
+ 	M0_PRE(m0_layout__invariant(l));
+ 	M0_PRE(!m0_ext_is_empty(ext));
+ 	M0_PRE(M0_IN(ext_state, (M0_CLRES_HOLE, M0_CLRES_VALID,
+ 				 M0_CLRES_FLATTENING)));
+-	M0_PRE(M0_IN(add_position, (ADD_AFTER, ADD_BEFORE, ADD_AT_TAIL)));
++	M0_PRE(M0_IN(add_position, (ADD_AFTER, ADD_BEFORE, ADD_AT_START,
++				    ADD_AT_TAIL)));
+ 	M0_PRE(ergo(M0_IN(add_position, (ADD_AFTER, ADD_BEFORE)),
+-		    adjacent_lr_ext != NULL &&
+-		    ext_tlink_is_in(adjacent_lr_ext)));
+-	M0_PRE(ergo(add_position == ADD_AT_TAIL, adjacent_lr_ext == NULL));
+-
+-	M0_ENTRY("lid %llu, e_start %llu, e_end %llu, "
+-		 "e_state %llu, add_position %lu, "
+-		 "adjacent_ext_start %llu, adjacent_ext_end %llu",
+-		 (unsigned long long)l->l_id,
++		    adj_lr_ext != NULL && ext_tlink_is_in(adj_lr_ext)));
++	M0_PRE(ergo(add_position == ADD_AT_START || add_position == ADD_AT_TAIL,
++		    adj_lr_ext == NULL));
++	M0_PRE(lr_ext != NULL);
++
++	M0_ENTRY("lid %llu, e_start %llu, e_end %llu, e_state %llu, "
++		 "add_position %lu, adjacent_ext_start %llu, "
++		 "adjacent_ext_end %llu", (unsigned long long)l->l_id,
+ 		 (unsigned long long)ext->e_start,
+ 		 (unsigned long long)ext->e_end, (unsigned long long)ext_state,
+ 		 (unsigned long)add_position,
+-		 (adjacent_lr_ext == NULL) ? 0 :
+-		 (unsigned long long)adjacent_lr_ext->cle_ext.e_start,
+-		 (adjacent_lr_ext == NULL) ? 0 :
+-		 (unsigned long long)adjacent_lr_ext->cle_ext.e_end);
++		 (adj_lr_ext == NULL) ? 0 :
++		 (unsigned long long)adj_lr_ext->cle_ext.e_start,
++		 (adj_lr_ext == NULL) ? 0 :
++		 (unsigned long long)adj_lr_ext->cle_ext.e_end);
+ 
+-	M0_ALLOC_PTR(lr_ext);
+-	if (lr_ext == NULL) {
+-		m0_layout__log("ext_inmem_add_internal",
+-			       "failed to allocate composite extent",
+-			       M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL,
+-			       &l->l_addb_ctx, l->l_id, -ENOMEM);
+-		M0_RETURN(-ENOMEM);
+-	}
+ 	lr_ext->cle_ext = *ext;
+ 	lr_ext->cle_state = ext_state;
+-
+ 	if (M0_IN(add_position, (ADD_AFTER, ADD_BEFORE))) {
+ 		ext_tlink_init(lr_ext);
+ 		if (add_position == ADD_AFTER)
+-			ext_tlist_add_after(adjacent_lr_ext, lr_ext);
++			ext_tlist_add_after(adj_lr_ext, lr_ext);
+ 		else
+-			ext_tlist_add_before(adjacent_lr_ext, lr_ext);
+-	} else
++			ext_tlist_add_before(adj_lr_ext, lr_ext);
++	} else if (add_position == ADD_AT_START)
++		ext_tlink_init_at(lr_ext, extlist);
++	else
+ 		ext_tlink_init_at_tail(lr_ext, extlist);
+-
+-	M0_RETURN(0);
+ }
+ 
+-
+-/**
+- * Finds a position to add at and adds the extent to the extent list associated
+- * with the provided layer.
+- *
+- * @pre The caller has confirmed that the extent 'ext' is non-overlapping
+- * with any of the other extents in the extent list.
+- */
+-static int ext_inmem_add(struct m0_composite_layer *layer,
++/** Adds an extent to the provided extent list, at the provided position. */
++static int ext_inmem_add(struct m0_tl *extlist,
++			 struct m0_layout *l,
+ 			 const struct m0_ext *ext,
+-			 enum m0_composite_layer_ext_state ext_state)
++			 enum m0_composite_layer_ext_state ext_state,
++			 uint32_t add_position,
++			 struct m0_composite_layer_extent *adjacent_lr_ext)
+ {
+-	struct m0_composite_layer_extent *lr_ext_to_insert_before;
+-	struct m0_composite_layer_extent *lr_ext_to_insert_after;
+ 	struct m0_composite_layer_extent *lr_ext;
+-	int                               rc;
+ 
+-	M0_ENTRY("lid %llu, layer %lu, e_start %llu, e_end %llu, e_state %llu ",
+-		 (unsigned long long)layer->clr_cl->l_id,
+-		 (unsigned long)layer->clr_idx,
+-		 (unsigned long long)ext->e_start,
+-		 (unsigned long long)ext->e_end, (unsigned long long)ext_state);
+-	/* Figure out the position such that the list remains sorted. */
+-	lr_ext_to_insert_before = NULL;
+-	lr_ext_to_insert_after = NULL;
+-	m0_tl_for(ext, &layer->clr_extents, lr_ext) {
+-		if (ext->e_start < lr_ext->cle_ext.e_start)
+-			lr_ext_to_insert_before = lr_ext;
+-		if (ext->e_start >= lr_ext->cle_ext.e_end)
+-			lr_ext_to_insert_after = lr_ext;
+-		if (ext->e_start <= lr_ext->cle_ext.e_start)
+-			break;
+-	} m0_tl_endfor;
+-
+-	if (M0_FI_ENABLED("insert_after_null_insert_before_nonnull")) {
+-		M0_ASSERT(lr_ext_to_insert_after != NULL);
+-		M0_ASSERT(lr_ext_to_insert_before != NULL);
+-		lr_ext_to_insert_after = NULL;
++	M0_ALLOC_PTR(lr_ext);
++	if (lr_ext == NULL) {
++		m0_layout__log("ext_inmem_add",
++			       "failed to allocate composite extent",
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL,
++			       &l->l_addb_ctx, l->l_id, -ENOMEM);
++		M0_RETURN(-ENOMEM);
+ 	}
+-
+-	if (lr_ext_to_insert_after != NULL)
+-		rc = ext_inmem_add_internal(&layer->clr_extents,
+-					    layer->clr_cl, ext, ext_state,
+-					    ADD_AFTER,
+-					    lr_ext_to_insert_after);
+-	else if (lr_ext_to_insert_before != NULL)
+-		rc = ext_inmem_add_internal(&layer->clr_extents,
+-					    layer->clr_cl, ext, ext_state,
+-					    ADD_BEFORE,
+-					    lr_ext_to_insert_before);
+-	else
+-		rc = ext_inmem_add_internal(&layer->clr_extents,
+-					    layer->clr_cl, ext, ext_state,
+-					    ADD_AT_TAIL, NULL);
+-	if (rc == 0)
+-		M0_CNT_INC(layer->clr_extents_nr);
+-	else
+-		M0_LOG(M0_ERROR, "lid %llu, extent could not be added to "
+-		       "memory", (unsigned long long)layer->clr_cl->l_id);
+-	M0_RETURN(rc);
++	ext_inmem_add_internal(extlist, l, ext, ext_state, add_position,
++			       adjacent_lr_ext, lr_ext);
++	M0_RETURN(0);
+ }
+ 
+ M0_INTERNAL int m0_composite_layer_ext_lookup(
+@@ -1237,10 +1190,10 @@ static void ext_inmem_del(struct m0_composite_layer *layer,
+  * Splits an existing extent as required when an overlapping extent is to be
+  * added.
+  */
+-static int ext_split_internal(struct m0_composite_layer *layer,
+-			      struct m0_composite_layer_extent *lr_ext,
+-			      struct m0_indexvec *vec,
+-			      m0_bindex_t scan)
++static int ext_split(struct m0_composite_layer *layer,
++		     struct m0_composite_layer_extent *lr_ext,
++		     struct m0_indexvec *vec,
++		     m0_bindex_t scan)
+ {
+ 	struct m0_ext ext;
+ 	m0_bcount_t   len;
+@@ -1262,10 +1215,9 @@ static int ext_split_internal(struct m0_composite_layer *layer,
+ 		if (len != 0) {
+ 			ext.e_start = scan;
+ 			ext.e_end = scan = scan + len;
+-			rc = ext_inmem_add_internal(&layer->clr_extents,
+-						    layer->clr_cl, &ext,
+-						    vec->iv_index[i],
+-						    ADD_BEFORE, lr_ext);
++			rc = ext_inmem_add(&layer->clr_extents, layer->clr_cl,
++					   &ext, vec->iv_index[i],
++					   ADD_BEFORE, lr_ext);
+ 			if (rc == 0)
+ 				M0_CNT_INC(layer->clr_extents_nr);
+ 			else {
+@@ -1380,114 +1332,44 @@ static int ext_inmem_validate(struct m0_composite_layout *cl,
+ 	M0_RETURN(rc);
+ }
+ 
++
+ /**
+- * Pastes an extent with the specified state into 'the in-memory extent list
+- * associated with the specified layer'. It internally deletes or truncates
+- * the overlappping extents as necessary.
++ * Iterates over the existing extents overlapping with the new one, calculating
++ * for each, what parts have to be deleted and what remains.
++ *
++ * In the worst case, an existing extent can split into three parts.
++ *
++ * Note that the "whole" new extent is inserted after all the iterations of the
++ * following loop complete (see length[1] and is_ultimate_ext_add flag
++ * assignment), thus violating the layer invariant until that point (the extent
++ * mask is "porous" during that time).
++ *
++ * This logic for the extent addition has been inherited from m0_emap_paste()
++ * that has been exercised for some time now and is understood to be highly
++ * efficient! For 'an example illustrating the functioning of m0_emap_paste()',
++ * see the note added in ext_indb_write().
+  */
+-static int ext_inmem_write(struct m0_composite_layout *cl,
++static int ext_inmem_paste(struct m0_composite_layout *cl,
+ 			   struct m0_composite_layer *layer,
+ 			   const struct m0_ext *ext,
+ 			   enum m0_composite_layer_ext_state new_ext_state,
+-			   uint32_t ext_validation_kind)
++			   struct m0_composite_layer_extent
++					*lr_ext_to_insert_into)
+ {
+-	uint64_t                          lid;
+ 	struct m0_composite_layer_extent *lr_ext;
+ 	struct m0_composite_layer_extent *lr_ext_next;
+ 	struct m0_composite_layer_extent *lr_ext_to_del;
+-	struct m0_composite_layer_extent *lr_ext_to_insert_into;
++	struct m0_composite_layer_extent *prev;
+ 	struct m0_ext                    *chunk;
+ 	struct m0_ext                     ext0 = *ext; /* A read-write copy. */
+ 	bool                              is_ultimate_ext_add;
+-	struct m0_tl                      extents_copy;
+ 	int                               rc;
+ 
+-	M0_PRE(composite_invariant(cl));
+-	M0_PRE(!m0_ext_is_empty(ext));
+-
+-	lid = cl->cl_base.l_id;
+-	/* Validate the 'ext' and find the nearest extent from the list. */
+-	rc = ext_inmem_validate(cl, layer, ext, new_ext_state,
+-			        ext_validation_kind, &lr_ext_to_insert_into);
+-	if (rc != 0)
+-		return rc;
+-	M0_ASSERT(lr_ext_to_insert_into != NULL);
+-
+-	M0_ENTRY("lid %llu, layer %lu, e_start %llu, e_end %llu, e_state %llu "
+-		 "lr_ext_to_insert_into_start %llu, "
+-		 "lr_ext_to_insert_into_end %llu",
+-		 (unsigned long long)layer->clr_cl->l_id,
+-		 (unsigned long)layer->clr_idx,
+-		 (unsigned long long)ext->e_start,
+-		 (unsigned long long)ext->e_end,
+-		 (unsigned long long)new_ext_state,
+-		 (unsigned long long)lr_ext_to_insert_into->cle_ext.e_start,
+-		 (unsigned long long)lr_ext_to_insert_into->cle_ext.e_end);
+-
+-	if (lr_ext_to_insert_into->cle_ext.e_start == ext->e_start &&
+-	    lr_ext_to_insert_into->cle_ext.e_end == ext->e_end &&
+-	    lr_ext_to_insert_into->cle_state == new_ext_state) {
+-		/* The exact extent already exists. So, nothing to be done. */
+-		rc = 0;
+-		M0_LEAVE("lid %llu, layer %lu, rc %d", (unsigned long long)lid,
+-			 (unsigned long)layer->clr_idx, rc);
+-		return rc;
+-	}
+-
+-	if (lr_ext_to_insert_into->cle_ext.e_start == ext->e_start &&
+-	    lr_ext_to_insert_into->cle_ext.e_end == ext->e_end &&
+-	    lr_ext_to_insert_into->cle_state != new_ext_state) {
+-		/* The exact extent already exists but with different state. */
+-		lr_ext_to_insert_into->cle_state = new_ext_state;
+-		rc = 0;
+-		M0_LEAVE("lid %llu, layer %lu, rc %d", (unsigned long long)lid,
+-			 (unsigned long)layer->clr_idx, rc);
+-		return rc;
+-	}
+-
+ 	chunk = &lr_ext_to_insert_into->cle_ext;
+-	M0_ASSERT(m0_ext_is_in(chunk, ext->e_start));
+-
+-	/*
+-	 * It is possible that part of the overlapping extent has been changed
+-	 * and then some error encounters. In such a case, it is required
+-	 * to restore the original extent list. Hence, make a copy of the
+-	 * original extent list.
+-	 */
+-	ext_tlist_init(&extents_copy);
+-	m0_tl_for(ext, &layer->clr_extents, lr_ext) {
+-		rc = ext_inmem_add_internal(&extents_copy, &cl->cl_base,
+-					    &lr_ext->cle_ext,
+-					    lr_ext->cle_state, ADD_AT_TAIL,
+-					    NULL);
+-		if (rc != 0) {
+-			extlist_free(&extents_copy, EXTLIST_FINI);
+-			M0_LEAVE("lid %llu, layer %lu, rc %d",
+-				 (unsigned long long)lid,
+-				 (unsigned long)layer->clr_idx, rc);
+-			return rc;
+-		}
+-	} m0_tl_endfor;
++	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
+ 
+-	/*
+-	 * Iterate over the existing extents overlapping with the new one,
+-	 * calculating for each, what parts have to be deleted and what remains.
+-	 *
+-	 * In the worst case, an existing extent can split into three parts.
+-	 *
+-	 * Note that the "whole" new extent is inserted after all the
+-	 * iterations of the following loop complete (see length[1] and
+-	 * is_ultimate_ext_add flag assignment), thus violating the layer
+-	 * invariant until that point (the extent mask is "porous" during that
+-	 * time).
+-	 *
+-	 * This logic for the extent addition has been inherited from
+-	 * m0_emap_paste() that has been exercised for some time now and is
+-	 * understood to be highly efficient! For 'an example illustrating the
+-	 * functioning of m0_emap_paste()', see the note added in
+-	 * ext_indb_write().
+-	 */
+ 	is_ultimate_ext_add = false;
++	prev = ext_tlist_prev(&layer->clr_extents, lr_ext_to_insert_into);
+ 	while (!m0_ext_is_empty(&ext0)) {
+ 		m0_bcount_t    length[3];
+ 		uint64_t       bstart[3] = { 0 };
+@@ -1531,17 +1413,16 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 		}
+ 
+ 		/*
+-		 * ext_split_internal() may replace the current node, that is
++		 * ext_split() may replace the current node, that is
+ 		 * lr_ext_to_insert_into, with multiple smaller segments. Hence,
+-		 * store the next node before invoking ext_split_internal().
++		 * store the next node before invoking ext_split().
+ 		 */
+ 		lr_ext_next = ext_tlist_next(&layer->clr_extents,
+ 					     lr_ext_to_insert_into);
+ 		if (split_required) {
+-			rc = ext_split_internal(layer, lr_ext_to_insert_into,
+-						&vec,
+-						length[0] > 0 ?
+-						chunk->e_start : ext->e_start);
++			rc = ext_split(layer, lr_ext_to_insert_into, &vec,
++				       length[0] > 0 ?
++				       chunk->e_start : ext->e_start);
+ 			if (rc != 0) {
+ 				M0_LOG(M0_ERROR, "lid %llu, Extent could not "
+ 				       "be split",
+@@ -1576,9 +1457,117 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 	if (rc == 0 && is_ultimate_ext_add) {
+ 		M0_ASSERT(ext_inmem_find(layer, ext, new_ext_state, &lr_ext) ==
+ 			  -ENOENT);
+-		rc = ext_inmem_add(layer, ext, new_ext_state);
++		if (ext->e_start == 0) {
++			M0_ASSERT(prev == NULL);
++			rc = ext_inmem_add(&layer->clr_extents, &cl->cl_base,
++					   ext, new_ext_state,
++					   ADD_AT_START, NULL);
++		} else {
++			M0_ASSERT(prev != NULL);
++			M0_ASSERT(ext_inmem_find(layer, &prev->cle_ext,
++						 prev->cle_state,
++						 &lr_ext) == 0);
++			if (prev->cle_ext.e_end < ext->e_start)
++				/*
++				 * It is possible that as a result of some
++				 * split operation, an extent got added in
++				 * between.
++				 */
++				prev = ext_tlist_next(&layer->clr_extents,
++						      prev);
++			rc = ext_inmem_add(&layer->clr_extents, &cl->cl_base,
++					   ext, new_ext_state,
++					   ADD_AFTER, prev);
++		}
++		if (rc == 0) //todo
++			M0_CNT_INC(layer->clr_extents_nr);
++	}
++	M0_RETURN(rc);
++}
++
++/**
++ * Writes an extent with the specified state into 'the in-memory extent list
++ * associated with the specified layer'. It internally deletes or truncates
++ * the overlappping extents as necessary.
++ */
++static int ext_inmem_write(struct m0_composite_layout *cl,
++			   struct m0_composite_layer *layer,
++			   const struct m0_ext *ext,
++			   enum m0_composite_layer_ext_state new_ext_state,
++			   uint32_t ext_validation_kind)
++{
++	uint64_t                          lid;
++	struct m0_composite_layer_extent *lr_ext;
++	struct m0_composite_layer_extent *lr_ext_to_insert_into;
++	struct m0_tl                      extents_copy;
++	int                               rc;
++
++	M0_PRE(composite_invariant(cl));
++	M0_PRE(!m0_ext_is_empty(ext));
++
++	lid = cl->cl_base.l_id;
++	/* Validate the 'ext' and find the nearest extent from the list. */
++	rc = ext_inmem_validate(cl, layer, ext, new_ext_state,
++			        ext_validation_kind, &lr_ext_to_insert_into);
++	if (rc != 0)
++		return rc;
++	M0_ASSERT(lr_ext_to_insert_into != NULL);
++
++	M0_ENTRY("lid %llu, layer %lu, e_start %llu, e_end %llu, e_state %llu "
++		 "lr_ext_to_insert_into_start %llu, "
++		 "lr_ext_to_insert_into_end %llu",
++		 (unsigned long long)layer->clr_cl->l_id,
++		 (unsigned long)layer->clr_idx,
++		 (unsigned long long)ext->e_start,
++		 (unsigned long long)ext->e_end,
++		 (unsigned long long)new_ext_state,
++		 (unsigned long long)lr_ext_to_insert_into->cle_ext.e_start,
++		 (unsigned long long)lr_ext_to_insert_into->cle_ext.e_end);
++
++	if (lr_ext_to_insert_into->cle_ext.e_start == ext->e_start &&
++	    lr_ext_to_insert_into->cle_ext.e_end == ext->e_end &&
++	    lr_ext_to_insert_into->cle_state == new_ext_state) {
++		/* The exact extent already exists. So, nothing to be done. */
++		rc = 0;
++		M0_LEAVE("lid %llu, layer %lu, rc %d", (unsigned long long)lid,
++			 (unsigned long)layer->clr_idx, rc);
++		return rc;
+ 	}
+ 
++	if (lr_ext_to_insert_into->cle_ext.e_start == ext->e_start &&
++	    lr_ext_to_insert_into->cle_ext.e_end == ext->e_end &&
++	    lr_ext_to_insert_into->cle_state != new_ext_state) {
++		/* The exact extent already exists but with different state. */
++		lr_ext_to_insert_into->cle_state = new_ext_state;
++		rc = 0;
++		M0_LEAVE("lid %llu, layer %lu, rc %d", (unsigned long long)lid,
++			 (unsigned long)layer->clr_idx, rc);
++		return rc;
++	}
++
++	/*
++	 * It is possible that part of the overlapping extent has been changed
++	 * and then some error encounters. In such a case, it is required
++	 * to restore the original extent list. Hence, make a copy of the
++	 * original extent list.
++	 */
++	ext_tlist_init(&extents_copy);
++	m0_tl_for(ext, &layer->clr_extents, lr_ext) {
++		rc = ext_inmem_add(&extents_copy, &cl->cl_base,
++				   &lr_ext->cle_ext, lr_ext->cle_state,
++				   ADD_AT_TAIL, NULL);
++		if (rc != 0) {
++			extlist_free(&extents_copy, EXTLIST_FINI);
++			M0_LEAVE("lid %llu, layer %lu, rc %d",
++				 (unsigned long long)lid,
++				 (unsigned long)layer->clr_idx, rc);
++			return rc;
++		}
++	} m0_tl_endfor;
++
++	//todo check the error handling carefully
++	rc = ext_inmem_paste(cl, layer, ext, new_ext_state,
++			     lr_ext_to_insert_into);
+ 	if (rc == 0) {
+ 		/* The extent has to be present in the list, at this time. */
+ 		M0_POST(ext_inmem_find(layer, ext, new_ext_state, &lr_ext) ==
+@@ -1975,13 +1964,9 @@ static int extents_indb_read(struct m0_composite_layout *cl,
+ 			break;
+ 		}
+ 
+-		rc = ext_inmem_add_internal(&layer->clr_extents, l,
+-					    &seg->ee_ext, seg->ee_val,
+-					    ADD_AT_TAIL, NULL);
+-		if (rc != 0)
+-			break;
+-
+-		if (m0_emap_ext_is_last(&seg->ee_ext))
++		rc = ext_inmem_add(&layer->clr_extents, l, &seg->ee_ext,
++				   seg->ee_val, ADD_AT_TAIL, NULL);
++		if (rc != 0 || m0_emap_ext_is_last(&seg->ee_ext))
+ 			break;
+ 		m0_emap_next(&it);
+ 		seg = m0_emap_seg_get(&it);
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 5058272..6e8bfa6 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -2122,61 +2122,61 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	 * encountering error while adding one of the overlapping extents.
+ 	 */
+ 	lid = base_lid + 22;
+-	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
+-				"alloc_ptr_fail/lr_ext", 82, 1);
++	m0_fi_enable_off_n_on_m("ext_inmem_add", "alloc_ptr_fail/lr_ext",
++				82, 1);
+ 	rc = test_ext_add(lid, domain, 3, 6,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++	m0_fi_disable("ext_inmem_add", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+-	 * Simulate memory allocation in ext_inmem_add_internal() that is in
+-	 * the path of ext_inmem_write().
++	 * Simulate memory allocation in ext_inmem_add() that is in the path of
++	 * ext_inmem_write().
+ 	 * This test exercises error in the code part from ext_inmem_write()
+ 	 * that makes a copy of the original extent list so that it can be
+ 	 * restored at a later point, if required.
+ 	 */
+ 	lid = base_lid + 23;
+-	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
+-				"alloc_ptr_fail/lr_ext", 80, 1);
++	m0_fi_enable_off_n_on_m("ext_inmem_add", "alloc_ptr_fail/lr_ext",
++				80, 1);
+ 	rc = test_ext_add(lid, domain, 3, 6,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++	m0_fi_disable("ext_inmem_add", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+-	 * Simulate memory allocation in ext_inmem_add_internal() that is in
+-	 * the path of ext_inmem_add().
++	 * Simulate memory allocation in ext_inmem_add() that is in the path of
++	 * ext_inmem_add().
+ 	 * This test exercises error in ext_inmem_add() such that its
+-	 * internally called ext_inmem_add_internal() faces error.
++	 * internally called ext_inmem_add() faces error.
+ 	 */
+ 	lid = base_lid + 24;
+-	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
+-				"alloc_ptr_fail/lr_ext", 140, 1);
++	m0_fi_enable_off_n_on_m("ext_inmem_add", "alloc_ptr_fail/lr_ext",
++				140, 1);
+ 	rc = test_ext_add(lid, domain, 4, 7,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++	m0_fi_disable("ext_inmem_add", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+ 	 * Simulate an exception in ext_inmem_add() such that
+ 	 * lr_ext_to_insert_after is NULL, lr_ext_to_insert_before is non-NULL
+-	 * and then memory allocation in ext_inmem_add_internal() that is in
+-	 * the path of ext_inmem_add() faces error.
++	 * and then memory allocation in ext_inmem_add() that is in the path of
++	 * ext_inmem_add() faces error.
+ 	 */
+ 	lid = base_lid + 25;
+ 	m0_fi_enable_once("ext_inmem_add",
+ 			  "insert_after_null_insert_before_nonnull");
+-	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
+-				"alloc_ptr_fail/lr_ext", 140, 1);
++	m0_fi_enable_off_n_on_m("ext_inmem_add", "alloc_ptr_fail/lr_ext",
++				140, 1);
+ 	rc = test_ext_add(lid, domain, 4, 7,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++	m0_fi_disable("ext_inmem_add", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+ 	 * Simulate extent validation error by trying to update an extent with
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 62804ab..773572b 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -792,7 +792,7 @@ static void test_decode_failure(void)
+ 	 * extents_inbuf_read().
+ 	 */
+ 	lid = 4024;
+-	m0_fi_enable_once("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++	m0_fi_enable_once("ext_inmem_add", "alloc_ptr_fail/lr_ext");
+ 	rc = test_decode_composite(lid, &domain, 5, 6,
+ 				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+@@ -1706,13 +1706,12 @@ static void test_lookup_failure(void)
+ 	 * extents_indb_read().
+ 	 */
+ 	lid = 19024;
+-	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
+-				"alloc_ptr_fail/lr_ext",
++	m0_fi_enable_off_n_on_m("ext_inmem_add", "alloc_ptr_fail/lr_ext",
+ 				80 /* layers_nr * extents_nr * 4 */, 1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++	m0_fi_disable("ext_inmem_add", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+ 	 * Simulate invalid extent state error in the path of
+-- 
+1.8.3.2
+

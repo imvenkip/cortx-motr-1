@@ -1,0 +1,79 @@
+From 46ec9d998b31348bbc69eb2e836b4a13f5a6ed9d Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 14 Feb 2013 12:00:27 +0200
+Subject: [PATCH 08/10] m0t1fs/xattr: use separate cob members
+ ca_eakey/ca_eaval for xattrs
+
+---
+ m0t1fs/linux_kernel/dir.c | 23 +++++++++++++----------
+ 1 file changed, 13 insertions(+), 10 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index c61a82d..1a53207 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -182,14 +182,13 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
+ 	M0_ENTRY("%.*s", dentry->d_name.len, dentry->d_name.name);
+ 
+ 	m0t1fs_fs_lock(csb);
++
+ 	M0_SET0(&mo);
+ 	mo.mo_attr.ca_tfid = ci->ci_fid;
+-	/*
+-	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
++	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+ 		    dentry->d_name.len);
+-		    */
+-	m0_buf_init(&mo.mo_attr.ca_name, (void *)name, strlen(name));
+-	m0_buf_init(&mo.mo_attr.ca_link, (void *)value, size);
++	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
++	m0_buf_init(&mo.mo_attr.ca_eaval, (void *)value, size);
+ 
+ 	rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep);
+ 
+@@ -211,9 +210,12 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
+ 		 dentry->d_name.name, size);
+ 
+ 	m0t1fs_fs_lock(csb);
++
+ 	M0_SET0(&mo);
+ 	mo.mo_attr.ca_tfid = ci->ci_fid;
+-	m0_buf_init(&mo.mo_attr.ca_name, (void *)name, strlen(name));
++	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
++		    dentry->d_name.len);
++	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
+ 
+ 	rc = m0t1fs_mds_cob_getxattr(csb, &mo, &rep);
+ 	if (rc == 0) {
+@@ -1074,15 +1076,16 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
+ 		req = &setxattr->s_body;
+ 
+ 		req->b_tfid = mo->mo_attr.ca_tfid;
+-		rc = name_mem2wire(&setxattr->s_key, &mo->mo_attr.ca_name);
+-		rc = name_mem2wire(&setxattr->s_value, &mo->mo_attr.ca_link);
++		rc = name_mem2wire(&setxattr->s_key, &mo->mo_attr.ca_eakey) ?:
++			name_mem2wire(&setxattr->s_value,
++				      &mo->mo_attr.ca_eaval);
+ 		break;
+ 	case M0_MDSERVICE_GETXATTR_OPCODE:
+ 		getxattr = m0_fop_data(fop);
+ 		req = &getxattr->g_body;
+ 
+ 		req->b_tfid = mo->mo_attr.ca_tfid;
+-		rc = name_mem2wire(&getxattr->g_key, &mo->mo_attr.ca_name);
++		rc = name_mem2wire(&getxattr->g_key, &mo->mo_attr.ca_eakey);
+ 		break;
+ 	case M0_MDSERVICE_LISTXATTR_OPCODE:
+ 		listxattr = m0_fop_data(fop);
+@@ -1095,7 +1098,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
+ 		req = &delxattr->d_body;
+ 
+ 		req->b_tfid = mo->mo_attr.ca_tfid;
+-		rc = name_mem2wire(&delxattr->d_key, &mo->mo_attr.ca_name);
++		rc = name_mem2wire(&delxattr->d_key, &mo->mo_attr.ca_eakey);
+ 		break;
+ 	default:
+ 		rc = -ENOSYS;
+-- 
+1.8.3.2
+

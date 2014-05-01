@@ -1,0 +1,74 @@
+From 3531ac2106fd84655c171e3b3707a933615bb617 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 4 Jul 2013 11:16:17 +0530
+Subject: [PATCH 058/125] Stats Service DLD - Defined stuffs for stats fop -
+ Added DLD into dld-index
+
+---
+ addb/stats_srv.c |  2 +-
+ addb/stats_srv.h | 30 ++++++++++++++++++++++++++----
+ 2 files changed, 27 insertions(+), 5 deletions(-)
+
+diff --git a/addb/stats_srv.c b/addb/stats_srv.c
+index 70a22dd..6f6639b 100644
+--- a/addb/stats_srv.c
++++ b/addb/stats_srv.c
+@@ -71,7 +71,7 @@
+    @subsection DLD-stats-svc-lspecs-stats_list Stats Object List
+    In memory stats object list does not contains any object initially. When the
+    first update request comes for respective stats, stats update FOM creates it
+-   update it's stats values. If stats object already allocated stats update FOM
++   update its stats values. If stats object already allocated stats update FOM
+    update respective object direcly.
+ 
+    @subsection DLD-stats-svc-lspec-state State Transitions
+diff --git a/addb/stats_srv.h b/addb/stats_srv.h
+index c516eb6..9a755ee 100644
+--- a/addb/stats_srv.h
++++ b/addb/stats_srv.h
+@@ -73,16 +73,38 @@
+ extern struct m0_reqh_service_type m0_stats_svc_type;
+ 
+ /**
++ * @todo Need to define stuffs which can be removed on stats fops code merge.
++ *       Mero nodes sends sequence of m0_addb_stats_sum.
++ */
++struct m0_addb_stats_sum_data {
++	uint64_t  ssd_nr;
++	uint64_t *ssd_fields;
++} M0_XCA_SEQUENCE;
++
++struct m0_addb_stats_sum {
++	/** stats id */
++	uint64_t		      ss_id;
++	struct m0_addb_stats_sum_data ss_data;
++} M0_XCA_RECORD;
++
++struct m0_addb_stats_fop {
++	uint64_t		  sf_nr;
++	struct m0_addb_stats_sum *sf_stats;
++} M0_XCA_SEQUENCE;
++/** stuff ends */
++
++/**
+  * In-memory representation of Statistic information
+  * @todo This should goto mon.h
+  */
+ struct m0_stats {
+-	uint64_t            s_magic;
+-	char		   *s_name;
++	uint64_t		  s_magic;
++	/** stats name (instead can put uint64_t stats_id ???) */
++	char			 *s_name;
+ 	/** Linkage to global stats objects */
+-	struct m0_tlink    *s_linkage;
++	struct m0_tlink		 *s_linkage;
+ 	/** ADDB records which represent statitics */
+-	struct m0_addb_rec *s_data;
++	struct m0_addb_stats_sum *s_data;
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

@@ -1,0 +1,1577 @@
+From 0ace0443adf2ad4a69a7c1c1948ad644d6520f14 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Wed, 23 Oct 2013 01:11:47 +0530
+Subject: [PATCH 003/121] 	Stats Utility 	- Stats query API 	-
+ Stats utility (m0stats) 	- Stats query API UT
+
+	Reviewed-by : Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+	Reviewed-on : http://reviewboard.clusterstor.com/r/1540/
+---
+ Makefile.am             |   8 +
+ addb/addb.h             |  21 +++
+ addb/addb_macros.h      |   1 +
+ addb/addb_rt.c          |  26 ++-
+ extra-libs/cunit        |   2 +-
+ lib/misc.c              |  40 +++++
+ lib/misc.h              |   5 +
+ mero/mero-pub.api       |   2 +
+ mero/setup.c            |  12 +-
+ mero/setup.h            |   9 ++
+ mgmt/mgmt_conf.c        |  36 +----
+ rpc/session_foms.c      |   2 +
+ stats/Makefile.sub      |   2 +
+ stats/stats_addb.h      |  21 +++
+ stats/stats_api.c       | 165 +++++++++++++++++++
+ stats/stats_api.h       |  71 ++++++++
+ stats/stats_fops.c      |  11 +-
+ stats/stats_fops.h      |   8 +-
+ stats/stats_srv.c       |  68 ++++++++
+ stats/ut/stats_ut.c     |   1 +
+ stats/ut/stats_ut_svc.c | 186 +++++++++++++++------
+ stats/util/Makefile.sub |   1 +
+ stats/util/stats_util.c | 422 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 23 files changed, 1031 insertions(+), 89 deletions(-)
+ create mode 100644 stats/stats_api.c
+ create mode 100644 stats/stats_api.h
+ create mode 100644 stats/util/Makefile.sub
+ create mode 100644 stats/util/stats_util.c
+
+diff --git a/Makefile.am b/Makefile.am
+index ead8fe8..199a304 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -640,6 +640,14 @@ pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
+ #XXX_BE_DB
+ #XXX_BE_DB include $(top_srcdir)/mgmt/ctl/Makefile.sub
+ 
++#
++# stats/util/m0stats
++#
++
++bin_PROGRAMS               += stats/util/m0stats
++stats_util_m0stats_LDADD    = $(top_builddir)/mero/libmero.la
++
++include $(top_srcdir)/stats/util/Makefile.sub
+ ################################################################################
+ #                        Init scripts and config files
+ ################################################################################
+diff --git a/addb/addb.h b/addb/addb.h
+index cf0f5a3..ea3a0cb 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -107,6 +107,7 @@ enum m0_addb_base_rec_type {
+ 	M0_ADDB_BRT_CNTR,     /**< Counter record */
+ 	M0_ADDB_BRT_SM_CNTR,  /**< SM Counter record */
+ 	M0_ADDB_BRT_SEQ,      /**< Sequence record */
++	M0_ADDB_BRT_STATS,    /**< Stats records */
+ 
+ 	/* internal base record types */
+ 	M0_ADDB_BRT_CTXDEF,   /**< Context definition record (internal) */
+@@ -207,6 +208,9 @@ struct m0_addb_rec_type {
+ #define M0_ADDB_RT_DP(name, id, ...) \
+ 	extern struct m0_addb_rec_type name
+ 
++#define M0_ADDB_RT_STATS(name, id, ...) \
++	extern struct m0_addb_rec_type name
++
+ /**
+    This macro expands in two different ways based on the existence of the
+    ::M0_ADDB_RT_CREATE_DEFINITION predicate macro.
+@@ -278,6 +282,10 @@ M0_CAT(M0__ADDB_RT_N, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
+ M0_CAT(M0__ADDB_RT_N, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
+  (name, DP, id, ## __VA_ARGS__)
+ 
++#define M0_ADDB_RT_STATS(name, id, ...)				\
++M0_CAT(M0__ADDB_RT_N, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
++ (name, STATS, id, ## __VA_ARGS__)
++
+ #define M0_ADDB_RT_CNTR(name, id, ...)				\
+ M0_CAT(M0__ADDB_RT_L, M0_COUNT_PARAMS(id, ## __VA_ARGS__))	\
+  (name, CNTR, id, NULL, ## __VA_ARGS__)
+@@ -320,6 +328,19 @@ M0_INTERNAL void m0_addb_rec_type_register(struct m0_addb_rec_type *rt);
+  */
+ M0_INTERNAL const struct m0_addb_rec_type *m0_addb_rec_type_lookup(uint32_t id);
+ 
++/**
++ * Get addb record type identifier from record type name.
++ * @param rt_name Specify the record type name.
++ * @retval rec_id
++ */
++M0_INTERNAL uint32_t m0_addb_rec_type_name2id(const char *rt_name);
++
++/**
++ * Get max addb record type identifier registred.
++ * @retval rec_type_id
++ */
++M0_INTERNAL uint32_t m0_addb_rec_type_max_id(void);
++
+ enum {
+ 	/** Undefined record id */
+ 	M0_ADDB_RECID_UNDEF     = 0,
+diff --git a/addb/addb_macros.h b/addb/addb_macros.h
+index 1b12a79..7992ac3 100644
+--- a/addb/addb_macros.h
++++ b/addb/addb_macros.h
+@@ -37,6 +37,7 @@
+ #define M0__ADDB_RT_N_BEGIN(name, bt, id, nr)		\
+ M0_BASSERT(M0_HAS_TYPE((id), int) && (id) > 0);		\
+ M0_BASSERT(M0_ADDB_BRT_ ## bt == M0_ADDB_BRT_EX ||	\
++	   M0_ADDB_BRT_ ## bt == M0_ADDB_BRT_STATS ||   \
+ 	   M0_ADDB_BRT_ ## bt == M0_ADDB_BRT_DP);	\
+ struct m0_addb_rec_type name = {			\
+ 	.art_magic = 0,					\
+diff --git a/addb/addb_rt.c b/addb/addb_rt.c
+index 458ebd4..e603023 100644
+--- a/addb/addb_rt.c
++++ b/addb/addb_rt.c
+@@ -39,7 +39,7 @@ M0_TL_DEFINE(addb_rt, static, struct m0_addb_rec_type);
+ /** The context type hash table */
+ static struct m0_tl addb_rt_htab[ADDB_RT_HASH_BUCKETS];
+ 
+-static uint32_t addb_rt_max_id; /* for the UT */
++static uint32_t addb_rt_max_id; /* Represent highest rec type id registred */
+ 
+ /** Record type for context definition. */
+ static struct m0_addb_rec_type addb_rt_ctxdef = {
+@@ -137,7 +137,7 @@ M0_INTERNAL void m0_addb_rec_type_register(struct m0_addb_rec_type *rt)
+ 	addb_rt_tlist_add_tail(&addb_rt_htab[addb_rt_hash(rt->art_id)], rt);
+ 
+ 	if (rt->art_id > addb_rt_max_id)
+-		addb_rt_max_id = rt->art_id; /* for the UT */
++		addb_rt_max_id = rt->art_id;
+ 
+ 	M0_POST(addb_rec_type_invariant(rt));
+ 
+@@ -155,6 +155,28 @@ M0_INTERNAL const struct m0_addb_rec_type *m0_addb_rec_type_lookup(uint32_t id)
+ 	return rt;
+ }
+ 
++M0_INTERNAL uint32_t m0_addb_rec_type_name2id(const char *rt_name)
++{
++	int i;
++
++	M0_PRE(rt_name != NULL);
++
++	for (i = 0; i < ADDB_RT_HASH_BUCKETS; ++i) {
++		struct m0_addb_rec_type *rt;
++		m0_tl_for(addb_rt, &addb_rt_htab[i], rt) {
++			if (strcmp(rt->art_name, rt_name) == 0)
++				return rt->art_id;
++		} m0_tl_endfor;
++	}
++
++	return M0_ADDB_RECID_UNDEF;
++}
++
++M0_INTERNAL uint32_t m0_addb_rec_type_max_id(void)
++{
++	return addb_rt_max_id;
++}
++
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/extra-libs/cunit b/extra-libs/cunit
+index 45a64be..11b1fec 160000
+--- a/extra-libs/cunit
++++ b/extra-libs/cunit
+@@ -1 +1 @@
+-Subproject commit 45a64be3a2339812e47f474984b478ed47d33673
++Subproject commit 11b1fecaee828c34669301a0cbdd37be720a6ae5
+diff --git a/lib/misc.c b/lib/misc.c
+index 868a888..b537a7a 100644
+--- a/lib/misc.c
++++ b/lib/misc.c
+@@ -24,6 +24,10 @@
+ #include "lib/misc.h"
+ 
+ #ifndef __KERNEL__
++#include <netdb.h>  /* gethostbyname_r */
++#include <arpa/inet.h> /* inet_ntoa, inet_ntop */
++#include <unistd.h> /* gethostname */
++#include <errno.h>
+ #include <limits.h>	    /* CHAR_BIT */
+ #endif
+ 
+@@ -203,6 +207,42 @@ M0_INTERNAL const char *m0_short_file_name(const char *fname)
+ 	return fname;
+ }
+ 
++#ifndef __KERNEL__
++/** Resolve a hostname to a stringified IP address */
++M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)
++{
++        int            i;
++        int            rc = 0;
++        struct in_addr ipaddr;
++
++        if (inet_aton(name, &ipaddr) == 0) {
++                struct hostent  he;
++                char            he_buf[4096];
++                struct hostent *hp;
++                int             herrno;
++
++                rc = gethostbyname_r(name, &he, he_buf, sizeof he_buf,
++                                     &hp, &herrno);
++                if (rc != 0 || hp == NULL)
++                        return -ENOENT;
++                for (i = 0; hp->h_addr_list[i] != NULL; ++i)
++                        /* take 1st IPv4 address found */
++                        if (hp->h_addrtype == AF_INET &&
++                            hp->h_length == sizeof(ipaddr))
++                                break;
++                if (hp->h_addr_list[i] == NULL)
++                        return -EPFNOSUPPORT;
++                if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) == NULL)
++                        rc = -errno;
++        } else if (strlen(name) >= bufsiz) {
++                rc = -ENOSPC;
++        } else {
++                strcpy(buf, name);
++        }
++        return rc;
++}
++#endif
++
+ M0_INTERNAL const char *m0_failed_condition;
+ M0_EXPORTED(m0_failed_condition);
+ 
+diff --git a/lib/misc.h b/lib/misc.h
+index b2f9038..0a47006 100644
+--- a/lib/misc.h
++++ b/lib/misc.h
+@@ -269,6 +269,11 @@ M0_FIELD_IS(type, field, uint64_t) ? \
+ #define M0_CAT(A, B) M0_CAT2(A, B)
+ #define M0_CAT2(A, B) A ## B
+ 
++/**
++ * Resolve hostname.
++ */
++M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz);
++
+ #define M0_UNUSED __attribute__((unused))
+ 
+ #endif /* __MERO_LIB_MISC_H__ */
+diff --git a/mero/mero-pub.api b/mero/mero-pub.api
+index b1ecd64..5754a5f 100644
+--- a/mero/mero-pub.api
++++ b/mero/mero-pub.api
+@@ -113,6 +113,8 @@ m0_rpc_slot_item_list_print
+ m0_rwlock_read_lock
+ m0_rwlock_read_unlock
+ m0_sm_state_set
++m0_stats_free
++m0_stats_query
+ m0_thread_fini
+ m0_thread_init
+ m0_thread_join
+diff --git a/mero/setup.c b/mero/setup.c
+index 42b15d0..bfe5088 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -314,12 +314,15 @@ static int cs_endpoint_validate(struct m0_mero *cctx, const char *ep,
+ 	M0_RETURN(cs_endpoint_is_duplicate(cctx, xprt, ep) ? -EADDRINUSE : 0);
+ }
+ 
+-int ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx, const char *ep)
++M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
++				       const char *ep)
+ {
+ 	char *sptr;
+ 	char *endpoint;
+ 	int   ep_len = min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN);
+ 
++	M0_PRE(ep != NULL);
++
+ 	epx->ex_cep = ep;
+ 	M0_ALLOC_ARR(epx->ex_scrbuf, ep_len);
+ 	if (epx->ex_scrbuf == NULL) {
+@@ -363,7 +366,7 @@ static int ep_and_xprt_append(struct m0_tl *head, const char *ep)
+ 		return -ENOMEM;
+ 	}
+ 
+-	rc = ep_and_xprt_extract(epx, ep);
++	rc = m0_ep_and_xprt_extract(epx, ep);
+ 	if (rc != 0)
+ 		goto err;
+ 
+@@ -1942,8 +1945,9 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
+ 			M0_STRINGARG('G', "mdservice endpoint address",
+ 				LAMBDA(void, (const char *s)
+ 				{
+-					rc = ep_and_xprt_extract(&cctx->
+-								 cc_mds_epx, s);
++					rc = m0_ep_and_xprt_extract(&cctx->
++								    cc_mds_epx,
++								    s);
+ 				})),
+ 			M0_STRINGARG('i', "ioservice endpoints list",
+ 				LAMBDA(void, (const char *s)
+diff --git a/mero/setup.h b/mero/setup.h
+index 0b30d82..691b660 100644
+--- a/mero/setup.h
++++ b/mero/setup.h
+@@ -502,6 +502,15 @@ M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh);
+  */
+ M0_INTERNAL struct m0_net_domain *m0_cs_net_domain_locate(struct m0_mero *cctx,
+ 							  const char *xprtname);
++
++/**
++ * Extract network layer endpoint and network transport from end point string.
++ *
++ * @pre ep != NULL
++ */
++M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
++				       const char *ep);
++
+ M0_TL_DESCR_DECLARE(cs_eps, extern);
+ M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
+ M0_BOB_DECLARE(M0_INTERNAL, cs_endpoint_and_xprt);
+diff --git a/mgmt/mgmt_conf.c b/mgmt/mgmt_conf.c
+index bf281ca..f9bf5e2 100644
+--- a/mgmt/mgmt_conf.c
++++ b/mgmt/mgmt_conf.c
+@@ -285,40 +285,6 @@ static int mgmt_conf_strarg_dup(char **out, char *val)
+ 	return (*out == NULL) ? -ENOMEM : 0;
+ }
+ 
+-/** Resolve a hostname to a stringified IP address */
+-static int mgmt_conf_host_resolve(const char *name, char *buf, size_t bufsiz)
+-{
+-	int            i;
+-	int            rc = 0;
+-	struct in_addr ipaddr;
+-
+-	if (inet_aton(name, &ipaddr) == 0) {
+-		struct hostent  he;
+-		char            he_buf[4096];
+-		struct hostent *hp;
+-		int             herrno;
+-
+-		rc = gethostbyname_r(name, &he, he_buf, sizeof he_buf,
+-				     &hp, &herrno);
+-		if (rc != 0)
+-			M0_RETERR(-ENOENT, "%s", name);
+-		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
+-			/* take 1st IPv4 address found */
+-			if (hp->h_addrtype == AF_INET &&
+-			    hp->h_length == sizeof(ipaddr))
+-				break;
+-		if (hp->h_addr_list[i] == NULL)
+-			M0_RETERR(-EPFNOSUPPORT, "%s", name);
+-		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) == NULL)
+-			rc = -errno;
+-	} else if (strlen(name) >= bufsiz) {
+-		rc = -ENOSPC;
+-	} else {
+-		strcpy(buf, name);
+-	}
+-	M0_RETURN(rc);
+-}
+-
+ /**
+  * Populate a m0_mgmt_node_conf and/or m0_mgmt_client_conf with information
+  * about a node.  May partially initialize the object(s) on failure.  Caller
+@@ -509,7 +475,7 @@ static int mgmt_node_query(struct m0_mgmt_node_conf   *node,
+ 		goto out;
+ 	}
+ 
+-	rc = mgmt_conf_host_resolve(lnet_host, addr, sizeof addr);
++	rc = m0_host_resolve(lnet_host, addr, sizeof addr);
+ 	if (rc != 0)
+ 		goto out;
+ 
+diff --git a/rpc/session_foms.c b/rpc/session_foms.c
+index 18c5871..13fe116 100644
+--- a/rpc/session_foms.c
++++ b/rpc/session_foms.c
+@@ -99,6 +99,7 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
+ 
+ 	if (reply_fopt == NULL || fom_ops == NULL) {
+ 		rc = -EINVAL;
++		m0_console_printf("Error: session_gen_fom_create\n");
+ 		goto out;
+ 	}
+ 
+@@ -362,6 +363,7 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
+ 	session = NULL;
+ 	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
+ 		rc = -EINVAL;
++		m0_console_printf("Error: m0_rpc_fom_session_establish_tick\n");
+ 		goto out;
+ 	}
+ 
+diff --git a/stats/Makefile.sub b/stats/Makefile.sub
+index 3f5b815..97567a6 100644
+--- a/stats/Makefile.sub
++++ b/stats/Makefile.sub
+@@ -1,10 +1,12 @@
+ nobase_mero_include_HEADERS += stats/stats_srv.h     \
+                                stats/stats_fops.h    \
+ 			       stats/stats_addb.h    \
++			       stats/stats_api.h     \
+                                stats/stats_fops_xc.h
+ 
+ mero_libmero_la_SOURCES  += stats/stats_srv.c        \
+ 			    stats/stats_fops.c       \
++			    stats/stats_api.c        \
+ 			    stats/stats_fops_xc.c
+ 
+ XC_FILES   += stats/stats_fops_xc.h
+diff --git a/stats/stats_addb.h b/stats/stats_addb.h
+index ed04139..16d2006 100644
+--- a/stats/stats_addb.h
++++ b/stats/stats_addb.h
+@@ -51,6 +51,27 @@ enum {
+ 	M0_STATS_SVC_ADDB_LOC_SERVICE_ALLOC = 1,
+ };
+ 
++/**
++ *  @todo stuff These are stuffs and need to remove when actual stats defined.
++ *              These are added just to test stats utility.
++ *              This should be removed when actual Monitoring infra and
++ *              some monitors code come in.
++ */
++enum {
++	M0_ADDB_RECID_STATS_FOP_RATE = 9900,
++	M0_ADDB_RECID_STATS_READ_SIZE,
++	M0_ADDB_RECID_STATS_DISK_STATS
++};
++
++M0_ADDB_RT_STATS(m0_addb_rt_stats_fop_rate, M0_ADDB_RECID_STATS_FOP_RATE,
++	         "rate", "avg_turnaround_time_ns");
++M0_ADDB_RT_STATS(m0_addb_rt_stats_read_size, M0_ADDB_RECID_STATS_READ_SIZE,
++	         "avg_size");
++M0_ADDB_RT_STATS(m0_addb_rt_stats_disk_stats, M0_ADDB_RECID_STATS_DISK_STATS,
++	         "total", "free", "used");
++
++/** end stuff */
++
+ /** @} */ /* end of stats */
+ 
+ #endif /* __MERO_STATS_ADDB_H_ */
+diff --git a/stats/stats_api.c b/stats/stats_api.c
+new file mode 100644
+index 0000000..58b8c50
+--- /dev/null
++++ b/stats/stats_api.c
+@@ -0,0 +1,165 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 09/16/2013
++ */
++
++#include "errno.h"
++#include "stdio.h"
++
++#include "lib/memory.h"
++#include "lib/trace.h"
++#include "fop/fop.h"
++#include "rpc/rpclib.h"
++#include "stats/stats_fops.h"
++#include "stats/stats_fops_xc.h"
++
++static struct m0_stats_recs *stats_recs_dup(struct m0_stats_recs *stats_recs)
++{
++	int                   i;
++	struct m0_stats_recs *recs;
++
++	M0_PRE(stats_recs != NULL);
++	M0_PRE(stats_recs->sf_nr > 0 && stats_recs->sf_stats != NULL);
++
++	M0_ALLOC_PTR(recs);
++	if (recs == NULL)
++		goto error;
++
++	recs->sf_nr = stats_recs->sf_nr;
++	M0_ALLOC_ARR(recs->sf_stats, recs->sf_nr);
++	if (recs->sf_stats == NULL)
++		goto free_recs;
++
++	for (i = 0; i < recs->sf_nr; ++i) {
++		/* if stats type not defined. */
++		if (stats_recs->sf_stats[i].ss_data.au64s_nr <= 0)
++			continue;
++
++		recs->sf_stats[i].ss_id = stats_recs->sf_stats[i].ss_id;
++		recs->sf_stats[i].ss_data.au64s_nr =
++			stats_recs->sf_stats[i].ss_data.au64s_nr;
++		M0_ALLOC_ARR(recs->sf_stats[i].ss_data.au64s_data,
++			     recs->sf_stats[i].ss_data.au64s_nr);
++		if (recs->sf_stats[i].ss_data.au64s_data == NULL)
++			goto free_stats;
++
++		memcpy(recs->sf_stats[i].ss_data.au64s_data,
++		       stats_recs->sf_stats[i].ss_data.au64s_data,
++		       recs->sf_stats[i].ss_data.au64s_nr * sizeof (uint64_t));
++	}
++
++	return recs;
++
++free_stats:
++	for(; i >= 0; --i) {
++		if (recs->sf_stats[i].ss_data.au64s_data != NULL)
++			m0_free(recs->sf_stats[i].ss_data.au64s_data);
++	}
++	m0_free(recs->sf_stats);
++free_recs:
++	m0_free(recs);
++error:
++	return NULL;
++}
++
++static struct m0_fop *query_fop_alloc(struct m0_addb_uint64_seq *stats_ids)
++{
++	struct m0_fop             *fop;
++	struct m0_stats_query_fop *qfop;
++
++	M0_ALLOC_PTR(fop);
++	if (fop == NULL)
++		goto error;
++
++	M0_ALLOC_PTR(qfop);
++	if (qfop == NULL)
++		goto free_fop;
++
++	qfop->sqf_ids.au64s_nr = stats_ids->au64s_nr;
++	M0_ALLOC_ARR(qfop->sqf_ids.au64s_data, qfop->sqf_ids.au64s_nr);
++	if (qfop->sqf_ids.au64s_data == NULL)
++		goto free_qfop;
++
++	memcpy(qfop->sqf_ids.au64s_data, stats_ids->au64s_data,
++	       stats_ids->au64s_nr * sizeof (uint64_t));
++
++	m0_fop_init(fop, &m0_fop_stats_query_fopt, (void *)qfop,
++		    m0_stats_query_fop_release);
++
++	return fop;
++
++free_qfop:
++	m0_free(qfop);
++free_fop:
++	m0_free(fop);
++error:
++	return NULL;
++}
++
++int m0_stats_query(struct m0_rpc_session      *session,
++		   struct m0_addb_uint64_seq  *stats_ids,
++                   struct m0_stats_recs      **stats)
++{
++	int                            rc;
++	struct m0_fop                 *fop;
++	struct m0_fop                 *rfop;
++	struct m0_rpc_item            *item;
++	struct m0_stats_query_rep_fop *qrfop;
++
++	M0_PRE(session != NULL);
++	M0_PRE(stats_ids != NULL && stats_ids->au64s_nr != 0);
++	M0_PRE(stats != NULL);
++
++	fop = query_fop_alloc(stats_ids);
++	if (fop == NULL)
++		return -ENOMEM;
++
++	item = &fop->f_item;
++	rc = m0_rpc_client_call(fop, session, NULL, 0);
++	if (rc != 0) {
++		m0_fop_put(fop);
++		return rc;
++	}
++
++	rfop  = m0_rpc_item_to_fop(item->ri_reply);
++	qrfop = m0_stats_query_rep_fop_get(rfop);
++
++	*stats = stats_recs_dup(&qrfop->sqrf_stats);
++
++	m0_fop_put(fop);
++	return rc;
++}
++
++void m0_stats_free(struct m0_stats_recs *stats)
++{
++	struct m0_xcode_obj obj = {
++                .xo_type = m0_stats_recs_xc,
++                .xo_ptr  = stats,
++	};
++
++	m0_xcode_free(&obj);
++}
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/stats_api.h b/stats/stats_api.h
+new file mode 100644
+index 0000000..e67f323
+--- /dev/null
++++ b/stats/stats_api.h
+@@ -0,0 +1,71 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 09/16/2013
++ */
++#pragma once
++
++#ifndef __MERO_STATS_UTIL_STATS_API_H__
++#define __MERO_STATS_UTIL_STATS_API_H__
++/**
++ * @defgroup stats_api Stats Query API
++ * This module provide stats query interfaces. These interfaces are used by
++ * mero monitoring/administrating utilities/console.
++ *
++ * Interfaces
++ *   m0_stats_query
++ *   m0_stats_free
++ *
++ * @{
++ */
++struct m0_addb_uint64_seq;
++struct m0_addb_stats;
++struct m0_stats_recs;
++struct m0_rpc_session;
++
++/**
++ * Stats query API
++ * It retrive stats from stats service of provided stats ids.
++ * @param session   The session to be used for the stats query.
++ * @param stats_ids Sequence of stats ids.
++ * @param stats On success, stats information is returned here.  It must
++ *              be released using m0_stats_free().
++ * @retval Pointer to stats return by stats service. This should be freed by
++ *         caller after use. It can be freed using m0_stats_free().
++ */
++int m0_stats_query(struct m0_rpc_session      *session,
++		   struct m0_addb_uint64_seq  *stats_ids,
++		   struct m0_stats_recs      **stats);
++
++/**
++ * Free stats sequence
++ * It frees stats sequence returned by m0_stats_query().
++ * @param stats Stats sequence.
++ */
++void m0_stats_free(struct m0_stats_recs *stats);
++
++/** @} end group stats_api */
++#endif
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/stats_fops.c b/stats/stats_fops.c
+index a4d194d..f6d05ad 100644
+--- a/stats/stats_fops.c
++++ b/stats/stats_fops.c
+@@ -72,7 +72,7 @@ M0_INTERNAL int m0_stats_fops_init(void)
+                                  .name      = "Stats query fop",
+ 				 .opcode    = M0_STATS_QUERY_FOP_OPCODE,
+ 				 .xt	    = m0_stats_query_fop_xc,
+-				 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
++				 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+ 				 .fop_ops   = &stats_query_fop_ops,
+ 				 .fom_ops   = &stats_query_fom_type_ops,
+ 				 .sm	    = &stats_query_fom_sm_conf,
+@@ -111,6 +111,15 @@ m0_stats_query_rep_fop_get(struct m0_fop *fop)
+ 	return (struct m0_stats_query_rep_fop *)m0_fop_data(fop);
+ }
+ 
++M0_INTERNAL void m0_stats_query_fop_release(struct m0_ref *ref)
++{
++        struct m0_fop *fop = container_of(ref, struct m0_fop, f_ref);
++
++        M0_PRE(fop != NULL);
++        m0_fop_fini(fop);
++        m0_free(fop);
++}
++
+ #undef M0_TRACE_SUBSYSTEM
+ /*
+  *  Local variables:
+diff --git a/stats/stats_fops.h b/stats/stats_fops.h
+index c737573..303db74 100644
+--- a/stats/stats_fops.h
++++ b/stats/stats_fops.h
+@@ -38,6 +38,7 @@ enum {
+ };
+ 
+ struct m0_fop;
++struct m0_ref;
+ 
+ extern struct m0_fop_type m0_fop_stats_update_fopt;
+ extern struct m0_fop_type m0_fop_stats_query_fopt;
+@@ -60,7 +61,7 @@ struct m0_stats_sum {
+ 
+ struct m0_stats_recs {
+ 	/** Stats sequence length */
+-	uint64_t		   sf_nr;
++	uint64_t	      sf_nr;
+ 	/** Stats sequence data */
+ 	struct m0_stats_sum  *sf_stats;
+ } M0_XCA_SEQUENCE;
+@@ -107,6 +108,11 @@ m0_stats_query_fop_get(struct m0_fop *fop);
+ M0_INTERNAL struct m0_stats_query_rep_fop *
+ m0_stats_query_rep_fop_get(struct m0_fop *fop);
+ 
++/**
++ * m0_stats_query_fop_release
++ */
++M0_INTERNAL void m0_stats_query_fop_release(struct m0_ref *ref);
++
+ M0_INTERNAL int  m0_stats_fops_init(void);
+ M0_INTERNAL void m0_stats_fops_fini(void);
+ 
+diff --git a/stats/stats_srv.c b/stats/stats_srv.c
+index 73fcb89..806ce58 100644
+--- a/stats/stats_srv.c
++++ b/stats/stats_srv.c
+@@ -172,6 +172,8 @@
+  */
+ #undef M0_ADDB_CT_CREATE_DEFINITION
+ #define M0_ADDB_CT_CREATE_DEFINITION
++#undef M0_ADDB_RT_CREATE_DEFINITION
++#define M0_ADDB_RT_CREATE_DEFINITION
+ #include "stats/stats_addb.h"
+ 
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STATS
+@@ -209,6 +211,66 @@ const struct m0_fom_type_ops stats_query_fom_type_ops;
+ struct m0_sm_conf stats_update_fom_sm_conf;
+ struct m0_sm_conf stats_query_fom_sm_conf;
+ 
++static int stats_add(struct m0_tl *stats_list, struct m0_stats_sum *sum);
++
++/**
++ * @todo stuff These are stuffs and need to remove when actual stats defined.
++ *             These are added just to test stats utility.
++ *             This should be removed when actual Monitoring infra and
++ *             some monitors code come in.
++ *
++ */
++static void define_stats()
++{
++	/** No provision to pass seperate name for rec type to M0_ADDB_RT_DP */
++	m0_addb_rt_stats_fop_rate.art_name = "fop_rate";
++	m0_addb_rec_type_register(&m0_addb_rt_stats_fop_rate);
++	m0_addb_rt_stats_read_size.art_name = "read_size";
++	m0_addb_rec_type_register(&m0_addb_rt_stats_read_size);
++	m0_addb_rt_stats_disk_stats.art_name = "disk_stats";
++	m0_addb_rec_type_register(&m0_addb_rt_stats_disk_stats);
++}
++
++static void add_dummy_stats(struct m0_tl *stats_list)
++{
++	struct m0_stats_sum stats_sum;
++	static struct fop_rate {
++		uint64_t fr_rate;
++		uint64_t fr_avg_turnaround_time_ns;
++	} f_rate;
++	static struct read_size {
++		uint64_t rs_avg_size;
++	} r_size;
++	static struct disk_stats {
++		uint64_t ds_total;
++		uint64_t ds_free;
++		uint64_t ds_used;
++	} d_stats;
++
++        f_rate.fr_rate = 3000;
++        f_rate.fr_avg_turnaround_time_ns = 98765;
++        stats_sum.ss_id = M0_ADDB_RECID_STATS_FOP_RATE;
++        stats_sum.ss_data.au64s_nr = 2;
++        stats_sum.ss_data.au64s_data = (uint64_t *)&f_rate;
++	stats_add(stats_list, &stats_sum);
++
++        r_size.rs_avg_size = 8196;
++        stats_sum.ss_id = M0_ADDB_RECID_STATS_READ_SIZE;
++        stats_sum.ss_data.au64s_nr = 1;
++        stats_sum.ss_data.au64s_data = (uint64_t *)&r_size;
++	stats_add(stats_list, &stats_sum);
++
++        d_stats.ds_free  = 2678901234;
++        d_stats.ds_used  = 3578901234;
++        d_stats.ds_total = 6257802468;
++        stats_sum.ss_id = M0_ADDB_RECID_STATS_DISK_STATS;
++        stats_sum.ss_data.au64s_nr = 3;
++        stats_sum.ss_data.au64s_data = (uint64_t *)&d_stats;
++	stats_add(stats_list, &stats_sum);
++}
++/** end stuff */
++
++
+ /*
+  * Stats Service
+  */
+@@ -286,6 +348,9 @@ static int stats_svc_rsto_service_allocate(struct m0_reqh_service      **srv,
+ 
+ 	M0_POST(stats_svc_invariant(svc));
+ 
++	// stuff. check @todo stuff
++	add_dummy_stats(&svc->ss_stats);
++
+ 	return 0;
+ }
+ 
+@@ -315,6 +380,9 @@ M0_INTERNAL int m0_stats_svc_init(void)
+ 	if (rc != 0)
+ 		m0_reqh_service_type_unregister(&m0_stats_svc_type);
+ 
++	// stuff. check @todo stuff
++	define_stats();
++
+ 	return rc;
+ }
+ 
+diff --git a/stats/ut/stats_ut.c b/stats/ut/stats_ut.c
+index 961010d..39f782f 100644
+--- a/stats/ut/stats_ut.c
++++ b/stats/ut/stats_ut.c
+@@ -40,6 +40,7 @@ const struct m0_test_suite stats_ut = {
+ 		{ "stats-svc-start-stop", stats_ut_svc_start_stop },
+ 		{ "stats-svc-update-fom", stats_ut_svc_update_fom },
+ 		{ "stats-svc-query-fom",  stats_ut_svc_query_fom },
++		{ "stats-svc-query-api",  stats_svc_query_api },
+ 		{ NULL,	NULL}
+ 	}
+ };
+diff --git a/stats/ut/stats_ut_svc.c b/stats/ut/stats_ut_svc.c
+index 536f2da..b310b32 100644
+--- a/stats/ut/stats_ut_svc.c
++++ b/stats/ut/stats_ut_svc.c
+@@ -17,11 +17,13 @@
+  * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+  * Original creation date: 07/31/2013
+  */
++#include "lib/memory.h"
+ #include "fop/fop.h"
+ #include "fop/fom.h"
+ #include "mero/setup.h"
+ #include "stats/stats_fops.h"
+ #include "reqh/reqh_service.h"
++#include "stats/stats_api.h"
+ 
+ #include "stats/stats_srv.c"
+ #include "rpc/ut/clnt_srv_ctx.c"
+@@ -54,17 +56,17 @@ enum fop_type {
+ struct fop_rate {
+ 	uint64_t fr_rate;
+ 	uint64_t fr_avg_turnaround_time_ns;
+-};
++} f_rate;
+ 
+ struct read_size {
+ 	uint64_t rs_avg_size;
+-};
++} r_size;
+ 
+ struct disk_stats {
+ 	uint64_t ds_total;
+ 	uint64_t ds_free;
+ 	uint64_t ds_used;
+-};
++} d_stats;
+ 
+ struct m0_stats_sum stats_sum[3];
+ uint64_t                 stats_ids[] = {
+@@ -73,13 +75,35 @@ uint64_t                 stats_ids[] = {
+ 	UT_STATS_DISK
+ };
+ 
++static void fill_stats_input()
++{
++
++	f_rate.fr_rate = 3000;
++	f_rate.fr_avg_turnaround_time_ns = 98765;
++	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
++	stats_sum[0].ss_data.au64s_nr = 2;
++	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
++
++	r_size.rs_avg_size = 8196;
++	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
++	stats_sum[1].ss_data.au64s_nr = 1;
++	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
++
++	d_stats.ds_free  = 2678901234;
++	d_stats.ds_used  = 3578901234;
++	d_stats.ds_total = 6257802468;
++	stats_sum[2].ss_id = UT_STATS_DISK;
++	stats_sum[2].ss_data.au64s_nr = 3;
++	stats_sum[2].ss_data.au64s_data = (uint64_t *)&d_stats;
++}
++
+ static void check_summary_data(struct m0_addb_uint64_seq *d1,
+ 			       struct m0_addb_uint64_seq *d2)
+ {
+ 	M0_UT_ASSERT(d1->au64s_nr == d2->au64s_nr);
+ 	if (d1->au64s_nr != 0 && d2->au64s_nr != 0)
+ 		M0_UT_ASSERT(memcmp(d1->au64s_data, d2->au64s_data,
+-				    d1->au64s_nr) == 0);
++				    d1->au64s_nr * sizeof(uint64_t)) == 0);
+ }
+ 
+ void check_stats(struct m0_tl *stats_list, int count)
+@@ -238,9 +262,6 @@ static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
+ static void stats_ut_svc_update_fom()
+ {
+ 	struct m0_reqh	       *reqh;
+-	struct fop_rate		f_rate;
+-	struct read_size        r_size;
+-	struct disk_stats       d_stats;
+ 	struct m0_reqh_service *reqh_srv;
+ 	struct stats_svc       *srv;
+ 
+@@ -298,23 +319,7 @@ static void stats_ut_svc_update_fom()
+ 	 * verify creation (new stats type) & multiple update
+ 	 * (existing stats type) from stats list
+ 	 */
+-	f_rate.fr_rate = 3000;
+-	f_rate.fr_avg_turnaround_time_ns = 98765;
+-	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
+-	stats_sum[0].ss_data.au64s_nr = 2;
+-	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
+-
+-	r_size.rs_avg_size = 8196;
+-	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
+-	stats_sum[1].ss_data.au64s_nr = 1;
+-	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
+-
+-	d_stats.ds_free  = 2678901234;
+-	d_stats.ds_used  = 3578901234;
+-	d_stats.ds_total = 6257802468;
+-	stats_sum[2].ss_id = UT_STATS_DISK;
+-	stats_sum[2].ss_data.au64s_nr = 3;
+-	stats_sum[2].ss_data.au64s_data = (uint64_t *)&d_stats;
++	fill_stats_input();
+ 
+ 	update_fom_test(srv, reqh, 3);
+ 
+@@ -403,9 +408,6 @@ static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
+ static void stats_ut_svc_query_fom()
+ {
+ 	struct m0_reqh	       *reqh;
+-	struct fop_rate		f_rate;
+-	struct read_size        r_size;
+-	struct disk_stats       d_stats;
+ 	struct m0_reqh_service *reqh_srv;
+ 	struct stats_svc       *srv;
+ 
+@@ -431,24 +433,7 @@ static void stats_ut_svc_query_fom()
+ 	/*
+ 	 * Populate stats on stats service.
+ 	 */
+-	f_rate.fr_rate = 3000;
+-	f_rate.fr_avg_turnaround_time_ns = 98765;
+-	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
+-	stats_sum[0].ss_data.au64s_nr = 2;
+-	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
+-
+-	r_size.rs_avg_size = 8196;
+-	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
+-	stats_sum[1].ss_data.au64s_nr = 1;
+-	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
+-
+-	d_stats.ds_free  = 2678901234;
+-	d_stats.ds_used  = 3578901234;
+-	d_stats.ds_total = 6257802468;
+-	stats_sum[2].ss_id = UT_STATS_DISK;
+-	stats_sum[2].ss_data.au64s_nr = 3;
+-	stats_sum[2].ss_data.au64s_data = (uint64_t *)&d_stats;
+-
++	fill_stats_input();
+ 	update_fom_test(srv, reqh, 3);
+ 
+ 	/* Test 1 : Query single stats. */
+@@ -468,6 +453,117 @@ static void stats_ut_svc_query_fom()
+ 	stats_ids[1] = 9999;
+ 	stats_sum[1].ss_id = M0_STATS_ID_UNDEFINED;
+ 	query_fom_test(srv, reqh, 3);
++	stats_ids[1] = UT_STATS_READ_SIZE;
++
++	stop_rpc_client_and_server();
++
++	sctx = stats_ut_sctx_bk;
++}
++
++static struct m0_addb_uint64_seq *create_stats_id_seq(int count)
++{
++	struct m0_addb_uint64_seq *ids;
++
++	M0_PRE(count != 0);
++
++	M0_ALLOC_PTR(ids);
++	M0_UT_ASSERT(ids != NULL);
++
++	ids->au64s_nr = count;
++	M0_ALLOC_ARR(ids->au64s_data, ids->au64s_nr);
++	M0_UT_ASSERT(ids->au64s_data != NULL);
++
++	memcpy(ids->au64s_data, stats_ids, count * sizeof(uint64_t));
++
++	return ids;
++}
++
++static void check_stats_recs(struct m0_stats_recs *recs, int num)
++{
++	int i;
++
++	M0_UT_ASSERT(recs->sf_nr == num);
++	for (i = 0; i < recs->sf_nr; ++i) {
++		M0_UT_ASSERT(recs->sf_stats[i].ss_id == stats_sum[i].ss_id);
++		if (recs->sf_stats[i].ss_id != M0_STATS_ID_UNDEFINED)
++			check_summary_data(&stats_sum[i].ss_data,
++					   &(recs->sf_stats[i].ss_data));
++	}
++}
++
++static void stats_svc_query_api()
++{
++	struct m0_reqh	       *reqh;
++	struct m0_reqh_service *reqh_srv;
++	struct stats_svc       *srv;
++	struct m0_addb_uint64_seq *ids;
++	struct m0_stats_recs      *stats_recs = NULL;
++	int                       rc;
++
++	stats_ut_sctx_bk = sctx;
++
++        sctx.rsx_argv             = stats_ut_server_argv,
++        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
++        sctx.rsx_service_types    = stats_ut_default_stypes,
++        sctx.rsx_service_types_nr = 1,
++
++	start_rpc_client_and_server();
++
++	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
++	M0_UT_ASSERT(reqh != NULL);
++
++	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
++	M0_UT_ASSERT(reqh_srv != NULL);
++	M0_UT_ASSERT(m0_reqh_service_state_get(reqh_srv) == M0_RST_STARTED);
++
++	srv = container_of(reqh_srv, struct stats_svc, ss_reqhs);
++	stats_svc_invariant(srv);
++
++	/*
++	 * Populate stats on stats service.
++	 */
++	fill_stats_input();
++
++	update_fom_test(srv, reqh, 3);
++
++	/* Test 1 : Query single stats. */
++	ids = create_stats_id_seq(1);
++	M0_UT_ASSERT(ids != NULL);
++	rc = m0_stats_query(&cctx.rcx_session, ids, &stats_recs);
++	M0_UT_ASSERT(rc == 0);
++	check_stats_recs(stats_recs, 1);
++	m0_stats_free(stats_recs);
++
++	/* Test 2 : Query two stats. */
++	ids = create_stats_id_seq(2);
++	M0_UT_ASSERT(ids != NULL);
++	rc = m0_stats_query(&cctx.rcx_session, ids, &stats_recs);
++	M0_UT_ASSERT(rc == 0);
++	check_stats_recs(stats_recs, 2);
++	m0_stats_free(stats_recs);
++
++	/* Test 3 : Query all stats. */
++	ids = create_stats_id_seq(3);
++	M0_UT_ASSERT(ids != NULL);
++	rc = m0_stats_query(&cctx.rcx_session, ids, &stats_recs);
++	M0_UT_ASSERT(rc == 0);
++	check_stats_recs(stats_recs, 3);
++	m0_stats_free(stats_recs);
++
++	/*
++	 * Test 4 : Query stats with some undfined stats ids.
++	 *          Reply fops should get ss_id for queried stats is
++	 *          M0_UNDEF_STATS.
++	 */
++	stats_ids[1] = 9999;
++	stats_sum[1].ss_id = M0_STATS_ID_UNDEFINED;
++	ids = create_stats_id_seq(3);
++	M0_UT_ASSERT(ids != NULL);
++	rc = m0_stats_query(&cctx.rcx_session, ids, &stats_recs);
++	M0_UT_ASSERT(rc == 0);
++	check_stats_recs(stats_recs, 3);
++	m0_stats_free(stats_recs);
++	stats_ids[1] = UT_STATS_READ_SIZE;
+ 
+ 	stop_rpc_client_and_server();
+ 
+diff --git a/stats/util/Makefile.sub b/stats/util/Makefile.sub
+new file mode 100644
+index 0000000..dbbf145
+--- /dev/null
++++ b/stats/util/Makefile.sub
+@@ -0,0 +1 @@
++stats_util_m0stats_SOURCES  = stats/util/stats_util.c
+diff --git a/stats/util/stats_util.c b/stats/util/stats_util.c
+new file mode 100644
+index 0000000..4c665b6
+--- /dev/null
++++ b/stats/util/stats_util.c
+@@ -0,0 +1,422 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 09/16/2013
++ */
++
++#include <signal.h>
++#include <stdio.h>
++#include <strings.h>
++#include <unistd.h>
++#include <signal.h>
++#include <sysexits.h>
++
++#include "fop/fop.h"
++#include "lib/trace.h"
++#include "lib/errno.h"
++#include "lib/getopts.h"
++#include "lib/memory.h"
++#include "rpc/rpclib.h"
++#include "net/net.h"
++#include "mero/init.h"
++#include "addb/addb.h"
++#include "stats/stats_api.h"
++#include "stats/stats_fops.h"
++#include "mero/setup.h"
++#include "lib/chan.h"
++#include "cfg/cfg.h"
++#include "lib/user_space/getopts.h"
++
++enum {
++	STATS_SESSION_SLOTS = 2,
++	STATS_MAX_COUNT     = 3,
++	STATS_MAX_NAME_SIZE = 32,
++	STATS_DEFAULT_COUNT = 1,
++	STATS_DEFAULT_DELAY = 5,
++	STATS_EP_PID	    = 12345,
++	STATS_EP_PORTAL     = 41,
++        STATS_EP_TM         = 1,
++	STATS_VALUE_WIDTH  = 16,
++};
++
++static struct m0_net_xprt        *xprt           = &m0_net_lnet_xprt;
++static struct m0_net_domain       client_net_dom = { };
++static struct m0_dbenv            client_dbenv;
++
++static struct m0_rpc_client_ctx cctx = {
++	.rcx_net_dom               = &client_net_dom,
++	.rcx_db_name               = "m0stats_client_db",
++	.rcx_dbenv                 = &client_dbenv,
++	.rcx_max_rpcs_in_flight    = 1,
++	.rcx_nr_slots              = STATS_SESSION_SLOTS,
++	.rcx_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE,
++	.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN,
++};
++
++static void m0stats_help()
++{
++	fprintf(stderr,
++"Usage: m0stats \n"
++"\n"
++"-e EndPoint    Specify the raw transport end point address.\n"
++"-s StatsNames  Specify one or more comma separated stats names.\n"
++"-o FileName    Specify output file name.\n"
++"-l             Lists defined statistics names.\n"
++"-d             Specify the delay between updates in second. If no delay is\n"
++"		specified default to %d second.\n"
++"-c             Specify the number updates. If no count is specified, count\n"
++"               default to %d.\n",
++	STATS_DEFAULT_DELAY, STATS_DEFAULT_COUNT);
++}
++
++static int stats_parse_ids(const char                 *stats_list,
++			   struct m0_addb_uint64_seq **stats_ids)
++{
++	char                      *p;
++	const char                *stats = stats_list;
++	uint64_t                   id;
++	uint32_t                   nstats = 0;
++	uint64_t                   ids[STATS_MAX_COUNT];
++	struct m0_addb_uint64_seq *seq_ids;
++
++	p = (char *)stats;
++	while(p != NULL) {
++		if (nstats > STATS_MAX_COUNT) {
++			m0_console_printf("m0stats:only %d stats can be query"
++					  "at once. Ignoring others.\n",
++					  STATS_MAX_COUNT);
++			break;
++		}
++		p = strchr(stats, ',');
++		if (p != NULL)
++			*p++ = '\0';
++
++		id = m0_addb_rec_type_name2id(stats);
++		if (id == M0_ADDB_RECID_UNDEF) {
++			m0_console_printf("m0stats:stats \"%s\" not defined.\n",
++					  stats);
++			return -EINVAL;
++		}
++		ids[nstats++] = id;
++		stats = p;
++	}
++
++	M0_ALLOC_PTR(seq_ids);
++	if (seq_ids == NULL)
++		return -ENOMEM;
++
++	seq_ids->au64s_nr = nstats;
++	M0_ALLOC_ARR(seq_ids->au64s_data, seq_ids->au64s_nr);
++	if (seq_ids->au64s_data == NULL) {
++		m0_free(seq_ids);
++		return -ENOMEM;
++	}
++	memcpy(seq_ids->au64s_data, ids, nstats * sizeof(uint64_t));
++	*stats_ids = seq_ids;
++
++	return 0;
++}
++
++static int stats_type_width(const struct m0_addb_rec_type *rt)
++{
++	int i;
++	int width = 0;
++
++	for (i = 0; i < rt->art_rf_nr; ++i) {
++		int fwidth = strlen(rt->art_rf[i].arfu_name) + 1;
++
++		width += fwidth < STATS_VALUE_WIDTH ?
++			 STATS_VALUE_WIDTH : fwidth;
++	}
++
++	return width;
++}
++
++static int stats_field_width(const char *fname)
++{
++	int fwidth = strlen(fname) + 1;
++
++	return fwidth < STATS_VALUE_WIDTH ? STATS_VALUE_WIDTH : fwidth;
++}
++
++static void stats_print_header(FILE *out, struct m0_addb_uint64_seq *stats_ids)
++{
++	int                            i;
++	int			       stats_width;
++	int			       total_width = 0;
++	const struct m0_addb_rec_type *rt[STATS_MAX_COUNT];
++
++	for (i = 0; i < stats_ids->au64s_nr; ++i) {
++		rt[i] = m0_addb_rec_type_lookup(stats_ids->au64s_data[i]);
++		M0_ASSERT(rt[i] != NULL);
++		stats_width = stats_type_width(rt[i]);
++		total_width += stats_width;
++		fprintf(out, "%*s", stats_width, rt[i]->art_name);
++	}
++
++	fprintf(out, "\n");
++	for (i = 0; i < total_width; ++i)
++		fprintf(out, "-");
++	fprintf(out, "\n");
++
++	for (i = 0; i < stats_ids->au64s_nr; ++i) {
++		int j;
++		for (j = 0; j < rt[i]->art_rf_nr; ++j)
++			fprintf(out, "%*s",
++				stats_field_width(rt[i]->art_rf[j].arfu_name),
++				rt[i]->art_rf[j].arfu_name);
++	}
++	fprintf(out, "\n");
++}
++
++static void stats_print_values(FILE *out,
++			       const struct m0_stats_recs *stats_recs)
++{
++	int i;
++	int j;
++
++	for (i = 0; i < stats_recs->sf_nr; ++i) {
++		const struct m0_addb_rec_type *rt =
++			m0_addb_rec_type_lookup(stats_recs->sf_stats[i].ss_id);
++		M0_ASSERT(stats_recs->sf_stats[i].ss_data.au64s_nr ==
++			  rt->art_rf_nr);
++		for (j = 0; j < stats_recs->sf_stats[i].ss_data.au64s_nr; ++j)
++			fprintf(out, "%*lu",
++				stats_field_width(rt->art_rf[j].arfu_name),
++				stats_recs->sf_stats[i].ss_data.au64s_data[j]);
++	}
++	fprintf(out, "\n");
++}
++
++static int stats_print_list()
++{
++	int id;
++	int max_rec_ids = m0_addb_rec_type_max_id();
++
++	fprintf(stdout, "Available stats:\n");
++	for (id = 1; id <= max_rec_ids; ++id) {
++		const struct m0_addb_rec_type *rt = m0_addb_rec_type_lookup(id);
++		if (rt != NULL && rt->art_base_type == M0_ADDB_BRT_STATS)
++				fprintf(stdout, "%s\n", rt->art_name);
++	}
++	return 0;
++}
++
++static void sig_handler(int signum)
++{
++}
++
++static int stats_local_ep(char *ep)
++{
++	int  rc;
++	char hostname[M0_CFG_NAME_LEN];
++	char addr[M0_CFG_NAME_LEN];
++
++	M0_PRE(ep != NULL);
++
++	rc = gethostname(hostname, sizeof hostname);
++	if (rc != 0)
++		return rc;
++
++	rc = m0_host_resolve(hostname, addr, sizeof addr);
++	if (rc != 0)
++		return rc;
++
++	sprintf(ep, "%s@tcp:%d:%d:%d", addr, STATS_EP_PID, STATS_EP_PORTAL,
++		STATS_EP_TM);
++
++	return 0;
++}
++
++int main(int argc, char *argv[])
++{
++	int                         i;
++	int                         rc = 0;
++	int                         r2;
++	struct sigaction            sa;
++	const char                 *remote_addr = NULL;
++	const char                 *outfile     = NULL;
++	const char                 *stats_list  = NULL;
++	bool                        list_names = false;
++	m0_time_t		    delay = STATS_DEFAULT_DELAY;
++	uint64_t                    count = STATS_DEFAULT_COUNT;
++	struct m0_stats_recs       *stats_recs = NULL;
++	struct m0_addb_uint64_seq  *stats_ids  = NULL;
++	struct cs_endpoint_and_xprt epx;
++	FILE			   *fout;
++	char                        local_ep[M0_CFG_NAME_LEN];
++
++	r2 = M0_GETOPTS("m0stats", argc, argv,
++			M0_STRINGARG('e', "Stats service endpoint",
++				LAMBDA(void, (const char *str)
++				{
++					if (remote_addr != NULL)
++						rc = -EINVAL;
++					else
++						remote_addr = str;
++				})),
++			M0_STRINGARG('s', "Stats list",
++				LAMBDA(void, (const char *str)
++				{
++					if (stats_list != NULL)
++						rc = -EINVAL;
++					else
++						stats_list = str;
++				})),
++			M0_STRINGARG('o', "Output file",
++				LAMBDA(void, (const char *str)
++				{
++					if (outfile != NULL)
++						rc = -EINVAL;
++					else
++						outfile = str;
++				})),
++			M0_FORMATARG('c', "Number of results", "%lu", &count),
++			M0_FORMATARG('d', "Delay between results", "%lu",
++				     &delay),
++			M0_FLAGARG('l', "List defined stats", &list_names),
++			M0_VOIDARG('h', "Detailed usage help",
++				LAMBDA(void, (void)
++				{
++					m0stats_help();
++					rc = 1;
++				})));
++	rc = rc != 0 ? : r2;
++	if (rc != 0) {
++		m0stats_help();
++		return 1;
++	}
++
++	if (!ergo(list_names,
++		 remote_addr == NULL && stats_list == NULL && outfile == NULL)){
++		m0stats_help();
++		return 1;
++	}
++
++        /* set up a signal handler to remove work arena */
++        M0_SET0(&sa);
++        sigaddset(&sa.sa_mask, SIGTERM);
++        sigaddset(&sa.sa_mask, SIGINT);
++        sigaddset(&sa.sa_mask, SIGQUIT);
++        sigaddset(&sa.sa_mask, SIGPIPE);
++        sa.sa_handler = sig_handler;
++        sigaction(SIGTERM, &sa, NULL);
++        sigaction(SIGINT,  &sa, NULL);
++        sigaction(SIGQUIT, &sa, NULL);
++        sigaction(SIGPIPE, &sa, NULL);
++
++	rc = stats_local_ep(local_ep);
++	if (rc != 0) {
++		fprintf(stderr, "Failed to get local address. rc = %d\n", rc);
++		return rc;
++	}
++
++	if (remote_addr == NULL || stats_list == NULL) {
++		m0stats_help();
++		return 1;
++	}
++
++	if (outfile != NULL) {
++		fout = fopen(outfile, "w");
++		if (fout == NULL) {
++			fprintf(stderr, "m0stast:Failed to open output file.\n"
++				"rc = %d.\n", errno);
++			return 1;
++		}
++	} else
++		fout = stdout;
++
++	rc = m0_ep_and_xprt_extract(&epx, remote_addr);
++	if (rc != 0) {
++                fprintf(stderr,
++			"m0stats:Failed to extract endpoint. rc = %d\n", rc);
++		goto mero_fini_fclose;
++	}
++
++	cctx.rcx_remote_addr = epx.ex_endpoint;
++	cctx.rcx_local_addr  = strdup(local_ep);
++
++	rc = m0_init();
++	if (rc != 0) {
++		fprintf(stderr, "Failed to initialize library. rc = %d\n", rc);
++		return rc;
++	}
++
++	if (list_names) {
++		stats_print_list();
++		goto mero_fini;
++	}
++
++        rc = m0_net_xprt_init(xprt);
++        if (rc != 0) {
++                fprintf(stderr,
++			"m0stats:Failed to initialize transport. rc = %d\n",
++			rc);
++		goto mero_fini_fclose;
++        }
++
++	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
++	M0_ASSERT(rc == 0);
++
++	rc = m0_rpc_client_start(&cctx);
++	if (rc != 0) {
++		fprintf(stderr,
++			"m0stats:m0_rpc_client_start failed. rc = %d.\n", rc);
++		rc = EX_UNAVAILABLE;
++		goto domain_fini;
++        }
++
++	rc = stats_parse_ids(stats_list, &stats_ids);
++	if (rc != 0)
++		goto disconnect;
++
++	stats_print_header(fout, stats_ids);
++	for (i = 0; i < count; ++i) {
++		rc = m0_stats_query(&cctx.rcx_session, stats_ids, &stats_recs);
++		if (rc != 0) {
++			fprintf(stderr,"m0stats:m0_stats_query failed."
++				"rc = %d.\n", rc);
++			rc = EX_UNAVAILABLE;
++		}
++
++		stats_print_values(fout, stats_recs);
++		m0_stats_free(stats_recs);
++		m0_nanosleep(delay * 1000 * 1000 * 1000, NULL);
++	}
++
++disconnect:
++	rc = m0_rpc_client_stop(&cctx);
++	M0_ASSERT(rc == 0);
++
++domain_fini:
++	m0_net_domain_fini(&client_net_dom);
++mero_fini:
++	m0_fini();
++mero_fini_fclose:
++	fclose(fout);
++	return rc;
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+-- 
+1.8.3.2
+

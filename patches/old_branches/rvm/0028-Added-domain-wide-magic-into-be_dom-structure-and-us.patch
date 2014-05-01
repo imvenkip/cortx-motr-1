@@ -1,0 +1,261 @@
+From 41defa11da1665849e7169f2c3270cdd8f8811fb Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Mon, 7 Jan 2013 02:22:37 -0800
+Subject: [PATCH 028/121] Added domain wide magic into be_dom structure and
+ used this as ref magic in  m0_be_alloc
+
+---
+ be/be.h        |  3 +++
+ be/be_domain.c |  4 +++-
+ be/be_impl.h   |  2 +-
+ be/be_magic.h  | 52 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ be/be_reg.c    | 21 +++++++++++++++------
+ be/be_rvm.c    |  2 +-
+ be/be_rvm.h    |  2 +-
+ be/be_seg.c    |  2 +-
+ be/be_seg.h    |  2 +-
+ be/ut/be.c     |  7 ++++++-
+ 10 files changed, 84 insertions(+), 13 deletions(-)
+ create mode 100644 be/be_magic.h
+
+diff --git a/be/be.h b/be/be.h
+index d913909..2686445 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -202,6 +202,7 @@ struct m0_be_reg;
+ #include "be/be_tx.h"
+ #include "be/be_reg.h"
+ #include "be/be_rvm.h"
++#include "be/be_magic.h"
+ 
+ struct m0_be_buf;
+ 
+@@ -499,6 +500,8 @@ struct m0_be_domain {
+         struct m0_tl             bd_seg;
+         /** List of active transactions. */
+         struct m0_tl             bd_tx;
++        /** Domain wide magic*/
++        uint64_t                 bd_magic;
+         /** Implementation private fields. */
+         struct m0_be_domain_impl bd_impl;
+ };
+diff --git a/be/be_domain.c b/be/be_domain.c
+index ed5fd2b..80e115a 100644
+--- a/be/be_domain.c
++++ b/be/be_domain.c
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 08 Nov 2012
+  */
+ 
+@@ -65,6 +65,8 @@ M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
+         M0_ASSERT(dom != NULL);
+ 
+         /* Initialise domain structure with required values */
++        /* Initialize domain wide magic */
++        dom->bd_magic = BE_DOM_MAGIC;
+         /*
+         dom->bd_data.bs_stob    = stob;
+         dom->bd_impl.log_stob   = log_stob;
+diff --git a/be/be_impl.h b/be/be_impl.h
+index 3b53d81..798df62 100644
+--- a/be/be_impl.h
++++ b/be/be_impl.h
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 08 Nov 2012
+  */
+ 
+diff --git a/be/be_magic.h b/be/be_magic.h
+new file mode 100644
+index 0000000..22182aa
+--- /dev/null
++++ b/be/be_magic.h
+@@ -0,0 +1,52 @@
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
++ * Original creation date: 07 Jan 2013
++ */
++
++#pragma once
++
++#ifndef __MERO_BE_BE_MAGIC_H__
++#define __MERO_BE_BE_MAGIC_H__
++
++/**
++  @defgroup be_magic
++  @{
++  */
++
++/**
++ * Backend Domain Magic declarations
++ */
++
++enum m0_be_magic {
++        /* be_domain::be_dom_magic (cca11a5ca11ed) */
++        BE_DOM_MAGIC = 0x33ca11a5ca11ed77
++};
++
++/** @} end of be_magic interface */
++
++/* __MERO_BE_BE_RVM_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/be_reg.c b/be/be_reg.c
+index 406a041..b9890c3 100644
+--- a/be/be_reg.c
++++ b/be/be_reg.c
+@@ -338,6 +338,8 @@ M0_INTERNAL void m0_be_alloc_cb(struct m0_sm_group *sm_group,
+         struct m0_uint128 *toffset;
+         rvm_tid_t *tid = NULL;
+         int             err;
++        uint64_t hi;
++        long int lo;
+ 
+         /* Asserting on required pointers */
+         M0_ASSERT(sm_group != NULL);
+@@ -352,20 +354,27 @@ M0_INTERNAL void m0_be_alloc_cb(struct m0_sm_group *sm_group,
+ 
+         reg->br_buf.b_addr = (void *)rds_malloc(reg->br_buf.b_nob,
+                                                 tid, &err);
++                                                
+ 
+-        reg->br_buf.logical_address.magic = BE_ALLOC_REF_MAGIC;
++        /* Assign domain magic to reg reference magic  to identify references 
++         * within the domain.
++         */
++        reg->br_buf.logical_address.magic = reg->br_seg->bs_dom->bd_magic;
+ 
+         toffset = &(reg->br_buf.logical_address.segid_offset);
+ 
+-        toffset->u_hi = reg->br_seg->bs_impl.segment_id;
+-        toffset->u_lo = (reg->br_seg->bs_heap_addr - reg->br_buf.b_addr);
++        hi = reg->br_seg->bs_impl.segment_id;
++        lo = (reg->br_seg->bs_heap_addr - reg->br_buf.b_addr);
+ 
+ 
+-       if (toffset->u_lo < 0)
+-                toffset->u_lo = -(toffset->u_lo);
++       if (lo < 0)
++                 lo = -1 * lo;
+ 
+         /* As heap always starts after segment header of size PAGE_SIZE */
+-        toffset->u_lo += PAGE_SIZE;
++        lo += PAGE_SIZE;
++
++        toffset->u_hi = hi;
++        toffset->u_lo = lo;
+ 
+         m0_sm_state_set(&(reg->br_sm), M0_BEREG_ALLOCATED);
+ 
+diff --git a/be/be_rvm.c b/be/be_rvm.c
+index aa356ff..12be84b 100644
+--- a/be/be_rvm.c
++++ b/be/be_rvm.c
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 28 Nov 2012
+  */
+ 
+diff --git a/be/be_rvm.h b/be/be_rvm.h
+index 5f08ff1..f010828 100644
+--- a/be/be_rvm.h
++++ b/be/be_rvm.h
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 27 Nov 2012
+  */
+ 
+diff --git a/be/be_seg.c b/be/be_seg.c
+index 312a786..24470b1 100644
+--- a/be/be_seg.c
++++ b/be/be_seg.c
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 12 Nov 2012
+  */
+ 
+diff --git a/be/be_seg.h b/be/be_seg.h
+index 1cc8ba9..215f809 100644
+--- a/be/be_seg.h
++++ b/be/be_seg.h
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 26 Nov 2012
+  */
+ 
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 210296f..b21138b 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -13,7 +13,7 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original author: Sachin Patil <sachin_patil@xyratex.com>
+  * Original creation date: 28 Nov 2012
+  */
+ 
+@@ -114,6 +114,11 @@ int main()
+         m0_sm_group_unlock(reg->br_impl.sm_group);
+         printf("\nReg is allocated\n");
+ 
++        printf("\nsegment_id : %ld segment_offset : %ld\n",
++                        reg->br_buf.logical_address.segid_offset.u_hi,
++                        reg->br_buf.logical_address.segid_offset.u_lo);
++
++
+         m0_be_tx_add_cred(&tx, reg);
+ 
+         printf("reg : %p reg_state[%d]\n", reg, reg->br_sm.sm_state);
+-- 
+1.8.3.2
+

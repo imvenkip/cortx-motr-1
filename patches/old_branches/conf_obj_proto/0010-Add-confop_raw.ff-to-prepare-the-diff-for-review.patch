@@ -1,0 +1,284 @@
+From 9572b4e972d6ef3781e072cde62f83f53f5259d7 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 20 Feb 2012 00:07:59 +0200
+Subject: [PATCH 010/370] Add confop_raw.ff to prepare the diff for review.
+
++ struct c2_confop_buf: defined in confop_raw.ff, used in confop.ff.
+---
+ conf/confc.c       | 39 ++++++++++++++++++++++++++++++++++-----
+ conf/confc.h       |  4 ++--
+ conf/confop.ff     | 51 +++++++++++++++++++++------------------------------
+ conf/confop_raw.ff | 28 ++++++++++++++++++++++++++++
+ conf/obj.h         |  4 ++--
+ 5 files changed, 87 insertions(+), 39 deletions(-)
+ create mode 100644 conf/confop_raw.ff
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 66ea12c..9dae245 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -264,18 +264,47 @@ static void wait_reply_st_in(struct c2_sm *mach)
+ 	C2_ASSERT(rc == 0); /* c2_rpc_post() always returns 0, but hey */
+ }
+ 
++static void *
++xcx_alloc(struct c2_xcode_ctx *ctx __attribute__((unused)), size_t n)
++{
++	return c2_alloc(n);
++}
++
+ /** Actions to perform on entering GROW_CACHE state. */
+ static void grow_cache_st_in(struct c2_sm *mach)
+ {
+-	struct c2_fop            *fop;
+-	struct c2_confc_fetchctx *ctx  = fetchctx(mach);
+-	struct c2_rpc_item       *item = &ctx->fc_fop.f_item;
++	struct c2_fop      *fop;
++	struct c2_rpc_item *item = &fetchctx(mach)->fc_fop.f_item;
+ 
+ 	C2_PRE(item->ri_error == 0 && item->ri_reply != NULL);
+-	fop = container_of(item, struct c2_fop, f_item);
++	fop = c2_rpc_item_to_fop(item->ri_reply);
+ 
+-	XXX;
+ 	/* XXX decode c2_fop_data(fop) */
++	{
++		struct c2_xcode_ctx xc_ctx;
++		struct c2_xcode_obj xc_obj = {
++			.xo_type = c2_confop_fetch_resp_xc,
++			.xo_ptr  = NULL
++		};
++		/* XXX This buffer must contain serialized configuration. */
++		char             ebuf[100];
++		c2_bcount_t      count = ARRAY_SIZE(ebuf);
++		void            *vec   = ebuf;
++		struct c2_bufvec bvec  = C2_BUFVEC_INIT_BUF(&vec, &count);
++		int rc;
++
++		c2_xcode_ctx_init(&xc_ctx, &xc_obj);
++		xc_ctx.xcx_alloc = xcx_alloc;
++		c2_bufvec_cursor_init(&xc_ctx.xcx_buf, &bvec);
++
++		rc = c2_xcode_decode(&xc_ctx);
++		if (rc != 0) {
++			c2_sm_fail(mach, S_FAILURE, rc);
++			return;
++		}
++
++		XXX;
++	}
+ }
+ 
+ static void complete(struct c2_sm *mach)
+diff --git a/conf/confc.h b/conf/confc.h
+index eaa0d83..be3f364 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -197,14 +197,14 @@ struct c2_confc_fetchctx {
+ 	 */
+ 	struct c2_conf_path fc_path;
+ 
+-	struct c2_fop       fc_fop;
+-
+ 	/**
+ 	 * Record of interest in "object unpinned" events.
+ 	 *
+ 	 * This clink gets added to c2_conf_obj::co_chan channel.
+ 	 */
+ 	struct c2_clink     fc_clink;
++
++	struct c2_fop       fc_fop;
+ };
+ 
+ void c2_confc_fetchctx_init(struct c2_confc_fetchctx *ctx);
+diff --git a/conf/confop.ff b/conf/confop.ff
+index f00c1ec..8b5a382 100644
+--- a/conf/confop.ff
++++ b/conf/confop.ff
+@@ -21,16 +21,7 @@
+ /* XXX @todo Move definitions from cfg/cfg.h to conf/schema.h */
+ require "cfg/cfg"; /* C2_CFG_NAME_LEN, C2_CFG_PARAM_LEN,
+ 		    * C2_CFG_SERVICE_MAX_END_POINTS */
+-
+-/*
+- * Sequence of bytes.
+- *
+- * XXX Can this structure be used instead of c2_conf_buf?
+- */
+-sequence {
+-	u32 fb_size;
+-	u8  fb_data
+-} c2_confop_bytes;
++require "conf/confop_raw_u"; /* c2_confop_buf */
+ 
+ /* Array of C2_CFG_NAME_LEN bytes. cfg/cfg.h puts names in such arrays. */
+ sequence {
+@@ -39,16 +30,16 @@ sequence {
+ } c2_confop_fixstr;
+ 
+ union {
+-	u8              pc_iskey;
+-	u32             pc_relation :0;
+-	c2_confop_bytes pc_key      :1
++	u8            pc_iskey;
++	u32           pc_relation :0;
++	c2_confop_buf pc_key      :1
+ } c2_confop_pathcomp;
+ 
+ /* Configuration request. */
+ record {
+ 	record {
+-		u32             o_objtype; /* see c2_conf_objtype for values */
+-		c2_confop_bytes o_objkey
++		u32           o_objtype; /* see c2_conf_objtype for values */
++		c2_confop_buf o_objkey
+ 	} ff_origin; /* Configuration object the path originates from. */
+ 	sequence {
+ 		u32                c_nr;
+@@ -76,10 +67,10 @@ record {
+ /* Configuration of a service. */
+ record {
+ 	/* Parent filesystem. */
+-	c2_confop_bytes fs_filesystem;
++	c2_confop_buf fs_filesystem;
+ 
+ 	/* Service type. See c2_cfg_service_type for values. */
+-	u32             fs_type;
++	u32           fs_type;
+ 
+ 	/* End-points from which this service is reachable. */
+ 	sequence {
+@@ -88,13 +79,13 @@ record {
+ 	} fs_endpoints;
+ 
+ 	/* Hosting node. */
+-	c2_confop_bytes fs_node
++	c2_confop_buf fs_node
+ } c2_confop_service;
+ 
+ record {
+ 	sequence {
+-		u32             s_nr;
+-		c2_confop_bytes s_data
++		u32           s_nr;
++		c2_confop_buf s_data
+ 	} fn_services;
+ 	u32 fn_memsize;
+ 	u32 fn_nr_processors;
+@@ -102,17 +93,17 @@ record {
+ 	u64 fn_flags;
+ 	u64 fn_pool_id;
+ 	sequence {
+-		u32             n_nr;
+-		c2_confop_bytes n_data
++		u32           n_nr;
++		c2_confop_buf n_data
+ 	} fn_nics;
+ 	sequence {
+-		u32             d_nr;
+-		c2_confop_bytes d_data
++		u32           d_nr;
++		c2_confop_buf d_data
+ 	} fn_sdevs
+ } c2_confop_node;
+ 
+ record {
+-	c2_confop_bytes  fn_node;
++	c2_confop_buf    fn_node;
+ 	u32              fn_iface_type;
+ 	u32              fn_mtu;
+ 	u64              fn_speed;
+@@ -121,7 +112,7 @@ record {
+ } c2_confop_nic;
+ 
+ record {
+-	c2_confop_bytes  fd_node;
++	c2_confop_buf    fd_node;
+ 	u32              fd_type;
+ 	u32              fd_media;
+ 	u64              fd_size;
+@@ -129,13 +120,13 @@ record {
+ 	u64              fd_flags;
+ 	c2_confop_fixstr fd_filename;
+ 	sequence {
+-		u32             p_nr;
+-		c2_confop_bytes p_data
++		u32           p_nr;
++		c2_confop_buf p_data
+ 	} fd_partitions
+ } c2_confop_sdev;
+ 
+ record {
+-	c2_confop_bytes  fp_sdev;
++	c2_confop_buf    fp_sdev;
+ 	u64              fp_start;
+ 	u64              fp_size;
+ 	u32              fp_index;
+@@ -145,7 +136,7 @@ record {
+ 
+ /* Encoding of a configuration object. */
+ record {
+-	c2_confop_bytes fo_key;
++	c2_confop_buf fo_key;
+ 	union {
+ 		u8                   v_type;
+ 		c2_confop_profile    v_profile;
+diff --git a/conf/confop_raw.ff b/conf/confop_raw.ff
+new file mode 100644
+index 0000000..747bceb
+--- /dev/null
++++ b/conf/confop_raw.ff
+@@ -0,0 +1,28 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 15-Feb-2012
++ */
++
++/*
++ * Sequence of bytes.
++ *
++ * XXX Can this structure be used instead of `c2_conf_buf'?
++ */
++DEF(c2_confop_buf, SEQUENCE,
++    _(fb_size, U32),
++    _(fb_data, BYTE));
+diff --git a/conf/obj.h b/conf/obj.h
+index 259f245..4ae1318 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -25,7 +25,7 @@
+ 
+ #include "lib/chan.h"  /* c2_chan */
+ #include "fid/fid.h"   /* c2_fid */
+-#include "lib/tlist.h" /* c2_tl */
++#include "lib/tlist.h" /* c2_tl, c2_tlink */
+ #include "lib/types.h"
+ 
+ /**
+@@ -54,7 +54,7 @@ enum c2_conf_status {
+ 	C2_CS_READY    /*< Configuration is available. */
+ };
+ 
+-/** Buffer --- a sequence of bytes. */
++/** Sequence of bytes. */
+ struct c2_conf_buf {
+ 	size_t   cb_size;
+ 	uint8_t *cb_data;
+-- 
+1.8.3.2
+

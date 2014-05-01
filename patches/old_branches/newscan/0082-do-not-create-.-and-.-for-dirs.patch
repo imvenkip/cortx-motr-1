@@ -1,0 +1,149 @@
+From c933c69d3bf34e20be47f9fe39b728be50121de6 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 12 May 2011 03:34:39 -0600
+Subject: [PATCH 082/158] - do not create . and .. for dirs; - while readdir,
+ emulate reading . and ..;
+
+---
+ mdstore/mdstore.c | 89 ++++++++++++++++++++++---------------------------------
+ 1 file changed, 36 insertions(+), 53 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 9b89a96..23a6343 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -99,48 +99,10 @@ int c2_md_store_create_attr(struct c2_md_store   *md,
+ {
+         int rc;
+         
++        cob->co_nsrec.cnr_nlink++;
+         rc = c2_cob_create(cob, nskey, nsrec, fabrec, omgrec, 0, tx);
+         if (rc)
+                 return rc;
+-        cob->co_nsrec.cnr_nlink++;
+-
+-        if (S_ISDIR(omgrec->cor_mode)) {
+-                /*
+-                 * Add direntry "." to empty dir
+-                 */
+-                rc = c2_md_store_add_name(cob, cob->co_fid, ".", 1, tx);
+-                if (rc)
+-                        return rc;
+-
+-                if (!c2_fid_eq(pcob->co_fid, cob->co_fid)) {
+-                        /*
+-                         * Add direntry ".." to empty dir.
+-                         */
+-                        rc = c2_md_store_add_name(pcob, cob->co_fid, "..", 2, tx);
+-                        if (rc)
+-                                return rc;
+-
+-                        /*
+-                         * Update mtime in parent.
+-                         */
+-                        pcob->co_nsrec.cnr_mtime = nsrec->cnr_mtime;
+-                         
+-                        /*
+-                         * Update on-store cob so that updated time
+-                         * is saved.
+-                         */
+-                        rc = c2_cob_update(pcob, &pcob->co_nsrec,  NULL, NULL, tx);
+-                } else {
+-                        rc = c2_md_store_add_name(cob, cob->co_fid, "..", 2, tx);
+-                        if (rc)
+-                                return rc;
+-                }
+-        }
+-        /*
+-         * Update on-store cob so that updated number of links
+-         * is saved.
+-         */
+-        rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+         if (md->md_root && !c2_fid_eq(cob->co_fid, md->md_root->co_fid))
+                 C2_ASSERT(cob->co_nsrec.cnr_nlink <= 2);
+         return rc;
+@@ -734,18 +696,27 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+                         struct c2_fop_ctx       *ctx)
+ {
+         struct c2_cob_iterator         it;
++        char                           cur[NAME_MAX];
++        int                            cur_len;
+         struct c2_fop_readdir_vec     *vec;
+         struct c2_fop_readdir_dirent  *ent;
+         struct c2_cob_nskey           *nskey;
+         struct c2_cob_nsrec           *nsrec;
++        int                            first;
++        int                            second;
+         int                            count;
+         int                            rc;
+         
+         C2_ASSERT(cob != NULL);
+ 
+-        rc = c2_cob_iterator_init(cob, &it, 
+-                                  req->r_pos.n_name, 
+-                                  req->r_pos.n_count,
++        first = req->r_pos.n_count == 1 &&
++                !strncmp(req->r_pos.n_name, ".", 1);
++        second = 0;
++
++        strncpy(cur, req->r_pos.n_name, req->r_pos.n_count);
++        cur_len = req->r_pos.n_count;
++
++        rc = c2_cob_iterator_init(cob, &it, cur, cur_len,
+                                   &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -764,27 +735,39 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+                 rc = 0;
+                 
+         while (rc == 0) {
++                int next_step = 0;
+                 nskey = it.ci_key;
+                 nsrec = &it.ci_rec;
+ 
+                 if (count < vec->v_count) {
+                         ent = &vec->v_dirent[count];
+-                        memcpy(ent->d_name.n_name, 
+-                               c2_bitstring_buf_get(&nskey->cnk_name),
+-                               nskey->cnk_name.b_len);
+-                        ent->d_name.n_count = nskey->cnk_name.b_len;
+-                        ent->d_body.b_nlink = nsrec->cnr_nlink;
+-                        ent->d_body.b_size = nsrec->u.cnr_size;
++                        if (first) {
++                                strncpy(ent->d_name.n_name, ".", 1);
++                                ent->d_name.n_count = 1;
++                                second = 1;
++                                first = 0;
++                        } else if (second) {
++                                strncpy(ent->d_name.n_name, "..", 2);
++                                ent->d_name.n_count = 2;
++                                second = 0;
++                        } else {
++                                memcpy(ent->d_name.n_name, 
++                                       c2_bitstring_buf_get(&nskey->cnk_name),
++                                       nskey->cnk_name.b_len);
++                                ent->d_name.n_count = nskey->cnk_name.b_len;
++                                next_step = 1;
++                        }
++                        strncpy(cur, ent->d_name.n_name, ent->d_name.n_count);
++                        cur_len = ent->d_name.n_count;
+                 } else {
+-                        memcpy(rep->r_end.n_name, 
+-                               c2_bitstring_buf_get(&nskey->cnk_name),
+-                               nskey->cnk_name.b_len);
+-                        rep->r_end.n_count = nskey->cnk_name.b_len;
++                        memcpy(rep->r_end.n_name, cur, cur_len);
++                        rep->r_end.n_count = cur_len;
+                         break;
+                 }
+                 count++;
+ 
+-                rc = c2_cob_iterator_next(&it);
++                if (next_step)
++                        rc = c2_cob_iterator_next(&it);
+         }
+         vec->v_count = count;
+         c2_cob_iterator_fini(&it);
+-- 
+1.8.3.2
+

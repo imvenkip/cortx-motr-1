@@ -1,0 +1,158 @@
+From f16765c48bc78796179ad43337d6eedfaac67999 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 5 Nov 2013 15:33:00 +0200
+Subject: [PATCH 2/2] perf: updated in order to collect performance sample just
+ for one 64Mb read/write.
+
+---
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 87 ++++++++++++++++++++++-------
+ m0t1fs/linux_kernel/st/m0t1fs_test.sh       |  4 ++
+ 2 files changed, 72 insertions(+), 19 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index adc4fb5..1553972 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -93,15 +93,22 @@ unmount_and_clean()
+ 
+ perf_sample_collect()
+ {
+-	prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
+-	$stride_size=$1
+-	$io_counts=$2
+-	$io_size=$3
++	local prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
++	local ss=$1
++	local ic=$2
++	local is=$3
++
++	#local perf_opts=""
++	#perf_mode="sched-stat-sleep"
++	#perf_mode="cpu-only"
++
++	#[ "$perf_mode" = "sched-stat-sleep" ] && perf_opts="-e sched:sched_stat_sleep -e sched:sched_switch -e sched:sched_process_exit"
+ 
+ 	pids=$(__pids_pidof $prog_exec)
+ 	for pid in $pids; do
+-		echo Collecting samples into perf_${pid}_${cmd}_${now}.dat
+-		perf record -g -p $pid -o perf_${pid}_${stride_size}x${io_counts}x${io_size}.dat 2>&1 &
++		perf record	-e sched:sched_stat_sleep \
++				-g -p $pid                \
++				-o perf_${pid}_${ss}x${ic}x${is}.dat 2>&1 &
+ 	done
+ 
+ 	return 0
+@@ -167,6 +174,8 @@ bulkio_test()
+ 		return 1
+ 	fi
+ 
++	perf_sample_collected
++
+ 	echo "Comparing data written and data read from m0t1fs file ..."
+ 	if ! cmp $local_input $local_output
+ 	then
+@@ -182,8 +191,6 @@ bulkio_test()
+ 
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 
+-	perf_sample_collected
+-
+ 	return 0
+ }
+ 
+@@ -498,24 +505,66 @@ rmw_test()
+ 	return 0
+ }
+ 
+-m0t1fs_system_tests()
++performance_test()
+ {
+-	file_creation_test $MAX_NR_FILES || {
+-                echo "Failed: File creation test failed."
++	# This test runs for various stripe unit size values
++	echo "Storage conf: pool_width=$1, data_units=$2, parity_units=$3"
++
++	pool_width=$1
++	data_units=$2
++	parity_units=$3
++
++	p=`expr $data_units + 2 '*' $parity_units`
++	if [ $p -gt $pool_width ]
++	then
++		echo "Error: pool_width >=  data_units + 2 * parity_units."
+ 		return 1
+-	}
++	fi
+ 
+-	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
+-		echo "Failed: IO failed.."
++	stride_size=28
++	stripe_size=`expr $stride_size '*' $data_units`
++	io_size=64
++	stripe_1M_mult=`expr 1024 / $stripe_size`
++
++	[ $stripe_1M_mult -ge 1 ] || stripe_1M_mult=1
++	io_size=`expr $io_size '*' $stripe_size '*' $stripe_1M_mult`
++	io_size=${io_size}K
++	echo -n "Test: I/O for stripe = ${stripe_size}K," \
++	     "bs = $io_size, count = 2... "
++	bulkio_test $stride_size 1 &>> $MERO_TEST_LOGFILE
++	if [ $? -ne "0" ]
++	then
+ 		return 1
+-	}
++	fi
++	show_write_speed
++
++	return 0
++}
+ 
+-	rmw_test || {
+-		echo "Failed: IO-RMW failed.."
++m0t1fs_system_tests()
++{
++	# file_creation_test $MAX_NR_FILES || {
++        #         echo "Failed: File creation test failed."
++	# 	return 1
++	# }
++
++	# io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY || {
++	# 	echo "Failed: IO failed.."
++	# 	return 1
++	# }
++
++	# rmw_test || {
++	# 	echo "Failed: IO-RMW failed.."
++	# 	return 1
++	# }
++
++	# m0loop_st || return 1
++
++
++	performance_test $POOL_WIDTH $NR_DATA $NR_PARITY || {
++		echo "Failed: performance_test failed.."
+ 		return 1
+ 	}
+ 
+-	m0loop_st || return 1
+-
+ 	return 0
+ }
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_test.sh b/m0t1fs/linux_kernel/st/m0t1fs_test.sh
+index fbcb6f2..e1c282d 100755
+--- a/m0t1fs/linux_kernel/st/m0t1fs_test.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_test.sh
+@@ -21,6 +21,10 @@ main()
+ 		return 1
+ 	fi
+ 
++	echo "sleeping ........................"
++	sleep 60
++	echo "continue ........................"
++
+ 	m0t1fs_system_tests
+ 	rc=$?
+ 
+-- 
+1.8.3.2
+

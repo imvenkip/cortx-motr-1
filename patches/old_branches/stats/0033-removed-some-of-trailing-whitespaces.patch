@@ -1,0 +1,30 @@
+From f310f6b44cf349205dd37ec735aafcec8eab7943 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 19 Dec 2013 11:24:37 +0530
+Subject: [PATCH 33/50]  - removed some of trailing whitespaces.
+
+---
+ fop/fom.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 3aa31a2..d9185d1 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1472,11 +1472,11 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
+ 					fom->fo_fos_stats_data,
+ 					sizeof(fom->fo_fos_stats_data));
+ 		m0_sm_stats_enable(&fom->fo_sm_state,
+-			   	   &fom->fo_sm_state_stats);
++				   &fom->fo_sm_state_stats);
+ 
+ 		if (fom->fo_phase_stats_data != NULL)
+ 			m0_sm_stats_enable(&fom->fo_sm_phase,
+-				   	   &fom->fo_sm_phase_stats);
++					   &fom->fo_sm_phase_stats);
+ 	}
+ }
+ 
+-- 
+1.8.3.2
+

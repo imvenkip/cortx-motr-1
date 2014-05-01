@@ -1,0 +1,108 @@
+From 4946b8de3cbdbd1ccf3de3afd4994486dc491995 Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Tue, 8 Jan 2013 03:32:14 -0800
+Subject: [PATCH 030/121] Added magic as an argument to domain_init, changed
+ respective ut's. Also typo corrections in be/ut/Makefile
+
+---
+ be/be.h                 | 3 ++-
+ be/be_domain.c          | 4 ++--
+ be/be_magic.h           | 2 +-
+ be/ut/Makefile          | 4 ++--
+ be/ut/be.c              | 2 +-
+ be/ut/be_handle_store.c | 2 +-
+ 6 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index 2686445..2197bfc 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -214,7 +214,8 @@ struct m0_be_buf;
+  */
+ //void m0_be_domain_init  (struct m0_be_domain *dom, struct m0_stob *stob,
+ //                                      struct m0_stob *log_stob);
+-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom);
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom, 
++                                   uint64_t dom_magic);
+ 
+ /**
+  * Finalises the in-memory part of domain structure.
+diff --git a/be/be_domain.c b/be/be_domain.c
+index 80e115a..12c6b8c 100644
+--- a/be/be_domain.c
++++ b/be/be_domain.c
+@@ -59,14 +59,14 @@ M0_INTERNAL void m0_be_domain_create(struct m0_be_domain **out)
+  *
+  * @post dom->bd_data.bs_sm.sm_state == M0_BESEG_CLOSED
+  */
+-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom, uint64_t dom_magic)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(dom != NULL);
+ 
+         /* Initialise domain structure with required values */
+         /* Initialize domain wide magic */
+-        dom->bd_magic = BE_DOM_MAGIC;
++        dom->bd_magic = dom_magic;
+         /*
+         dom->bd_data.bs_stob    = stob;
+         dom->bd_impl.log_stob   = log_stob;
+diff --git a/be/be_magic.h b/be/be_magic.h
+index 22182aa..2fe0680 100644
+--- a/be/be_magic.h
++++ b/be/be_magic.h
+@@ -33,7 +33,7 @@
+ 
+ enum m0_be_magic {
+         /* be_domain::be_dom_magic (cca11a5ca11ed) */
+-        BE_DOM_MAGIC = 0x33ca11a5ca11ed77
++        BE_DOMAIN_MAGIC = 0x33ca11a5ca11ed77
+ };
+ 
+ /** @} end of be_magic interface */
+diff --git a/be/ut/Makefile b/be/ut/Makefile
+index 15cf35a..600e5ed 100644
+--- a/be/ut/Makefile
++++ b/be/ut/Makefile
+@@ -2,9 +2,9 @@
+ 
+ all:
+ 	gcc .libs/ut_libmero_ut_la-be.o  ../../mero/.libs/libmero.a  -o ./be_ut  -lpthread  -ldb  -lrt -laio -lrvm -lrds -lseg -L../../../rvm/rvm/.libs -L../../../rvm/rds/.libs -L../../../rvm/seg/.libs
+-	gcc .libs/ut_libmero_ut_la-be_handle_store.o  ../../mero/.libs/libmero.a -o ./be_hanlde_store -lpthread -ldb -lrt -laio -lrvm -lrds -lseg -L../../../rvm/rvm/.libs -L../../../rvm/rds/.libs -L../../../rvm/seg/.libs
++	gcc .libs/ut_libmero_ut_la-be_handle_store.o  ../../mero/.libs/libmero.a -o ./be_handle_store -lpthread -ldb -lrt -laio -lrvm -lrds -lseg -L../../../rvm/rvm/.libs -L../../../rvm/rds/.libs -L../../../rvm/seg/.libs
+ 	rm -rf /tmp/log_file
+ 
+ clean:
+ 	rm -rf ./be_ut
+-	rm -rf ./be_kv_table
++	rm -rf ./be_handle_store
+diff --git a/be/ut/be.c b/be/ut/be.c
+index b21138b..ee238a3 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -46,7 +46,7 @@ int main()
+ 
+         /* Initializing domain */
+         printf("\n\tBackend UT\n");
+-        m0_be_domain_init(&dom);
++        m0_be_domain_init(&dom, BE_DOMAIN_MAGIC);
+         printf("\nDomain is initialized\n");
+ 
+         /**
+diff --git a/be/ut/be_handle_store.c b/be/ut/be_handle_store.c
+index fe07850..359c9d8 100644
+--- a/be/ut/be_handle_store.c
++++ b/be/ut/be_handle_store.c
+@@ -46,7 +46,7 @@ void __init()
+         /* Initializing domain */
+         printf("\n\tBackend UT\n");
+         m0_be_domain_create(&dom);
+-        m0_be_domain_init(dom);
++        m0_be_domain_init(dom, BE_DOMAIN_MAGIC);
+         printf("\nDomain is initialized\n");
+ 
+         /**
+-- 
+1.8.3.2
+

@@ -1,0 +1,753 @@
+From 8a53cb5b9decef2c8dceb2a5a6f0b12e9cfcc9df Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 26 Apr 2013 19:47:46 +0530
+Subject: [PATCH 125/172] Taking out usage of ld_is_db_available from the
+ layout domain
+
+---
+ desim/m0t1fs.c               |   2 +-
+ layout/layout.c              |   5 +-
+ layout/layout.h              |  20 +++-----
+ layout/layout_db.c           |   4 --
+ layout/ut/composite.c        | 111 ++++++++-----------------------------------
+ layout/ut/layout.c           |  60 +++--------------------
+ layout/ut/ldemo.c            |   2 +-
+ m0t1fs/linux_kernel/m0t1fs.c |   2 +-
+ mdservice/md_service.c       |   2 +-
+ sns/cm/iter.c                |   2 +-
+ 10 files changed, 39 insertions(+), 171 deletions(-)
+
+diff --git a/desim/m0t1fs.c b/desim/m0t1fs.c
+index c3bb47c..7b234d3 100644
+--- a/desim/m0t1fs.c
++++ b/desim/m0t1fs.c
+@@ -141,7 +141,7 @@ static void layout_build(struct m0t1fs_conf *conf)
+ 	result = m0_dbenv_init(&conf->ct_dbenv, "m0t1fs_sim-db", 0);
+ 	M0_ASSERT(result == 0);
+ 
+-	result = m0_layout_domain_init(&conf->ct_l_dom, &conf->ct_dbenv, false);
++	result = m0_layout_domain_init(&conf->ct_l_dom, &conf->ct_dbenv);
+ 	M0_ASSERT(result == 0);
+ 
+ 	result = m0_layout_standard_types_register(&conf->ct_l_dom);
+diff --git a/layout/layout.c b/layout/layout.c
+index ea2b1b2..4b555ef 100644
+--- a/layout/layout.c
++++ b/layout/layout.c
+@@ -688,8 +688,7 @@ M0_INTERNAL void m0_layouts_fini(void)
+ }
+ 
+ M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom,
+-				      struct m0_dbenv *dbenv,
+-				      bool is_db_available)
++				      struct m0_dbenv *dbenv)
+ {
+ 	int rc;
+ 
+@@ -711,7 +710,6 @@ err1_injected:
+ 		return rc;
+ 	}
+ 	dom->ld_dbenv = dbenv;
+-	dom->ld_is_db_available = is_db_available;
+ 	layout_tlist_init(&dom->ld_layout_list);
+ 	m0_mutex_init(&dom->ld_lock);
+ 	M0_POST(m0_layout__domain_invariant(dom));
+@@ -740,7 +738,6 @@ M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom)
+ 	layout_tlist_fini(&dom->ld_layout_list);
+ 	m0_table_fini(&dom->ld_layouts);
+ 	dom->ld_dbenv = NULL;
+-	dom->ld_is_db_available = false;
+ }
+ 
+ M0_INTERNAL int m0_layout_standard_types_register(struct m0_layout_domain *dom)
+diff --git a/layout/layout.h b/layout/layout.h
+index 97b06f5..206d891 100644
+--- a/layout/layout.h
++++ b/layout/layout.h
+@@ -190,18 +190,11 @@ struct m0_layout_domain {
+ 	m0_bcount_t                 ld_max_recsize;
+ 
+ 	/**
+-	 * Flag indicating if the layout DB is accessible. For example,
+-	 * the layout DB is available to the server side and not to the
+-	 * client side.
+-	 */
+-	bool                        ld_is_db_available;
+-
+-	/**
+-	 * @todo Add a flag viz. ld_is_nw_available to indicate if the
+-	 * network is available to the domain.
+-	 * An assumption is that either of ld_is_db_available and
+-	 * ld_is_network_available can be false at any point in time but not
+-	 * both of them.
++	 * @todo Add two flags viz. ld_is_db_available and ld_is_nw_available
++	 * to indicate if the DB is available and it the network is available
++	 * to the domain, respectively. An assumption is that either of
++	 * ld_is_db_available and ld_is_network_available can be false at any
++	 * point in time but not both of them.
+ 	 *
+ 	 * This item will be cleared with the subsequent task to add
+ 	 * 'the composite layout type support to getattr'.
+@@ -697,8 +690,7 @@ M0_INTERNAL void m0_layouts_fini(void);
+  * @pre Caller should have performed m0_dbenv_init() on dbenv.
+  */
+ M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom,
+-				      struct m0_dbenv *dbenv,
+-				      bool is_db_available);
++				      struct m0_dbenv *dbenv);
+ 
+ /**
+  * Finalises the layout domain.
+diff --git a/layout/layout_db.c b/layout/layout_db.c
+index 90c0c4a..cb757c6 100644
+--- a/layout/layout_db.c
++++ b/layout/layout_db.c
+@@ -469,7 +469,6 @@ M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
+ 	struct m0_layout        *ghost;
+ 
+ 	M0_PRE(m0_layout__domain_invariant(dom));
+-	M0_PRE(dom->ld_is_db_available);
+ 	M0_PRE(lid > 0);
+ 	M0_PRE(lt != NULL);
+ 	M0_PRE(tx != NULL);
+@@ -577,7 +576,6 @@ M0_INTERNAL int m0_layout_add(struct m0_layout *l,
+ 	int         rc;
+ 
+ 	M0_PRE(m0_layout__invariant(l));
+-	M0_PRE(l->l_dom->ld_is_db_available);
+ 	M0_PRE(tx != NULL);
+ 	M0_PRE(pair != NULL);
+ 
+@@ -610,7 +608,6 @@ M0_INTERNAL int m0_layout_update(struct m0_layout *l,
+ 	int         rc;
+ 
+ 	M0_PRE(m0_layout__invariant(l));
+-	M0_PRE(l->l_dom->ld_is_db_available);
+ 	M0_PRE(tx != NULL);
+ 	M0_PRE(pair != NULL);
+ 
+@@ -667,7 +664,6 @@ M0_INTERNAL int m0_layout_delete(struct m0_layout *l,
+ 	int         rc;
+ 
+ 	M0_PRE(m0_layout__invariant(l));
+-	M0_PRE(l->l_dom->ld_is_db_available);
+ 	M0_PRE(tx != NULL);
+ 	M0_PRE(pair != NULL);
+ 
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 137afc6..73d9182 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -492,9 +492,11 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 	struct m0_db_tx    tx;
+ 	struct m0_db_tx   *txptr;
+ 	//todo check if really reqd here. It is making the code a bit complicated here
++#if 0
+ #ifndef __KERNEL__
+ 	bool               domain_available_altered = false;
+ #endif
++#endif
+ 	int                rc_tmp;
+ 	int                rc;
+ 
+@@ -507,7 +509,6 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	if (is_add_to_db) {
+-		M0_UT_ASSERT(domain->ld_is_db_available); //todo tempo
+ 		allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes,
+ 			      &area);
+ 		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+@@ -522,14 +523,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 		m0_free(area);
+ 		txptr = &tx;
+ 	} else {
+-		//M0_UT_ASSERT(!domain->ld_is_db_available); //todo tempo
+ 		txptr = NULL;
+-#ifndef __KERNEL__
+-		if (domain->ld_is_db_available) {
+-			domain_ldb_available_set(domain, false);
+-			domain_available_altered = true;
+-		}
+-#endif
+ 	}
+ 
+ 	rc = composite_layers_add(*cl, txptr, layers_nr, min_extents_nr,
+@@ -541,20 +535,13 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 		M0_UT_ASSERT(rc == 0);
+ 
+ 	if (is_add_to_db) {
+-		if (domain->ld_is_db_available) {
+-			/*
+-			 * Now that some layers are added, update the layout in
+-			 * the DB.
+-			 */
+-			layout_update(&(*cl)->cl_base);
+-			rc_tmp = m0_db_tx_commit(txptr);
+-			M0_UT_ASSERT(rc_tmp == 0);
+-		}
+-	} else {
+-#ifndef __KERNEL__
+-		 if (domain_available_altered)
+-			domain_ldb_available_set(domain, true);
+-#endif
++		/*
++		 * Now that some layers are added, update the layout in
++		 * the DB.
++		 */
++		layout_update(&(*cl)->cl_base);
++		rc_tmp = m0_db_tx_commit(txptr);
++		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+ #if 0
+ 	composite_dump(*cl);
+@@ -1509,7 +1496,7 @@ static int ext_op_pre(enum extent_operation eop,
+ 	M0_UT_ASSERT(M0_IN(eop, (EXTENT_LOOKUP, EXTENT_ADD, EXTENT_UPDATE,
+ 				 EXTENT_DELETE)));
+ 
+-	is_add_to_db = domain->ld_is_db_available ? true : false;
++	is_add_to_db = false;
+ 	rc = composite_build_and_layers_add(lid, domain,
+ 					    layers_nr, min_extents_nr,
+ 					    if_contiguous_extents,
+@@ -1543,7 +1530,7 @@ static int ext_op_pre(enum extent_operation eop,
+ 		}
+ 	}
+ 
+-	if (domain->ld_is_db_available) {
++	if (is_add_to_db) {
+ 		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 		M0_UT_ASSERT(rc == 0);
+ 		txptr = &tx;
+@@ -1620,7 +1607,7 @@ static int ext_op_pre(enum extent_operation eop,
+ 			M0_UT_ASSERT(ext_lookup.e_end > *offset_to_operate);
+ 		}
+ 	}
+-	if (domain->ld_is_db_available) {
++	if (is_add_to_db) {
+ 		rc_tmp = m0_db_tx_commit(&tx);
+ 		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+@@ -1643,6 +1630,7 @@ static void ext_op_post(enum extent_operation eop,
+ 			bool layout_compare,
+ 			bool failure_test)
+ {
++	bool              is_add_to_db = false;
+ 	struct m0_layout *l_copy_updated;
+ 	struct m0_layout *l_from_DB;
+ 	int               rc;
+@@ -1673,7 +1661,7 @@ static void ext_op_post(enum extent_operation eop,
+ 	m0_layout_put(&cl->cl_base);
+ 	M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
+ 
+-	if (l_copy_orig->l_dom->ld_is_db_available && layout_compare) {
++	if (is_add_to_db && layout_compare) {
+ 		/*
+ 		 * Read the layout from the DB and compare it to the in-memory
+ 		 * layout to verify that the DB version of the layout has been
+@@ -1704,22 +1692,12 @@ static int ext_add(struct m0_composite_layout *cl,
+ 		   enum m0_composite_layer_ext_state ext_state,
+ 		   bool failure_test)
+ {
+-	struct m0_db_tx                    tx;
+-	struct m0_db_tx                   *txptr;
+ 	uint32_t                           layer_id_lookup;
+ 	struct m0_ext                      ext_lookup;
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+ 	struct m0_layout                  *sublayout_lookup;
+-	int                                rc_tmp;
+ 	int                                rc;
+ 
+-	if (domain->ld_is_db_available) {
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-		txptr = &tx;
+-	} else
+-		txptr = NULL;
+-
+ 	/* Add the extent. */
+ 	rc = m0_composite_layer_ext_add(cl, cl->cl_layers_nr - 1,
+ 					ext_to_operate, ext_state);
+@@ -1751,11 +1729,6 @@ static int ext_add(struct m0_composite_layout *cl,
+ 		M0_UT_ASSERT(sublayout_lookup->l_id ==
+ 			     cl->cl_base.l_id * 100 + layer_id_lookup);
+ 	}
+-	//todo in failure case, compare the original in-mem layout
+-	if (domain->ld_is_db_available) {
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+-	}
+ 	return rc;
+ }
+ 
+@@ -1768,23 +1741,12 @@ static int ext_update(struct m0_composite_layout *cl,
+ 		      enum m0_composite_layer_ext_state ext_state,
+ 		      bool failure_test)
+ {
+-	struct m0_db_tx                    tx;
+-	struct m0_db_tx                   *txptr;
+ 	uint32_t                           layer_id_lookup;
+ 	struct m0_ext                      ext_lookup;
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+ 	struct m0_layout                  *sublayout_lookup;
+-	int                                rc_tmp;
+ 	int                                rc;
+ 
+-	//todo Factor out this common code and tx commit code
+-	if (domain->ld_is_db_available) {
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-		txptr = &tx;
+-	} else
+-		txptr = NULL;
+-
+ 	rc = m0_composite_layer_ext_state_update(cl, cl->cl_layers_nr - 1,
+ 						 ext_to_operate, ext_state);
+ 	if (failure_test) {
+@@ -1809,11 +1771,6 @@ static int ext_update(struct m0_composite_layout *cl,
+ 		M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 1);
+ 		M0_UT_ASSERT(ext_state_lookup == ext_state);
+ 	}
+-	//todo in failure case, compare the original in-mem layout
+-	if (domain->ld_is_db_available) {
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+-	}
+ 	return rc;
+ }
+ 
+@@ -1826,23 +1783,12 @@ static int ext_delete(struct m0_composite_layout *cl,
+ 		      m0_bindex_t offset_to_operate,
+ 		      bool failure_test)
+ {
+-	struct m0_db_tx                    tx;
+-	struct m0_db_tx                   *txptr;
+ 	uint32_t                           layer_id_lookup;
+ 	struct m0_ext                      ext_lookup;
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+ 	struct m0_layout                  *sublayout_lookup;
+-	int                                rc_tmp;
+ 	int                                rc;
+ 
+-	//todo Factor out this common code and tx commit code
+-	if (domain->ld_is_db_available) {
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-		txptr = &tx;
+-	} else
+-		txptr = NULL;
+-
+ 	/* Delete the extent. */
+ 	rc = m0_composite_layer_ext_delete(cl, cl->cl_layers_nr - 1,
+ 					   ext_to_operate);
+@@ -1873,12 +1819,6 @@ static int ext_delete(struct m0_composite_layout *cl,
+ 			M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 2);
+ 		}
+ 	}
+-
+-	//todo in failure case, compare the original in-mem layout
+-	if (domain->ld_is_db_available) {
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+-	}
+ 	return rc;
+ }
+ 
+@@ -1998,6 +1938,7 @@ static int test_ext_state_update(uint64_t lid,
+ 	return rc;
+ }
+ 
++#if 0
+ //todo Make use of this where applicable
+ static void tx_init(struct m0_layout_domain *domain,
+ 		    struct m0_db_tx *tx,
+@@ -2025,6 +1966,7 @@ static void tx_commit(struct m0_layout_domain *domain,
+ 	} else
+ 		M0_UT_ASSERT(txptr == NULL);
+ }
++#endif
+ 
+ static int test_ext_delete(uint64_t lid,
+ 			   struct m0_layout_domain *domain,
+@@ -2039,8 +1981,8 @@ static int test_ext_delete(uint64_t lid,
+ 	struct m0_ext                      ext_to_operate;
+ 	m0_bindex_t                        offset_to_operate;
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+-	struct m0_db_tx                    tx;
+-	struct m0_db_tx                   *txptr;
++	//struct m0_db_tx                    tx;
++	//struct m0_db_tx                   *txptr;
+ 	struct m0_ext                      ext;
+ 	int                                rc;
+ 
+@@ -2052,7 +1994,7 @@ static int test_ext_delete(uint64_t lid,
+ 
+ 	if (M0_FI_ENABLED("ext_del_validation_err")) {
+ 		M0_UT_ASSERT(extent_kind == OVERLAPPING_COMPLETE);
+-		tx_init(domain, &tx, &txptr);
++		//tx_init(domain, &tx, &txptr);
+ 		ext.e_start = ext_to_operate.e_end - 1;
+ 		ext.e_end = ext_to_operate.e_end;
+ 		rc = m0_composite_layer_ext_state_update(cl,
+@@ -2060,7 +2002,7 @@ static int test_ext_delete(uint64_t lid,
+ 							 &ext,
+ 							 M0_CLRES_FLATTENING);
+ 		M0_UT_ASSERT(rc == 0);
+-		tx_commit(domain, txptr);
++		//tx_commit(domain, txptr);
+ 		/* Now that the layout is updated, update its copy. */
+ 		composite_layout_copy_delete(l_copy_orig);
+ 		composite_layout_copy(&cl->cl_base, &l_copy_orig);
+@@ -2154,9 +2096,6 @@ void test_layer_ext_ops_composite(uint64_t base_lid,
+ 	 * Asserts of the following kind are placed to help during debugging to
+ 	 * quickly associate which the test o/p to the tests called from here.
+ 	 */
+-	M0_UT_ASSERT(ergo(domain->ld_is_db_available, base_lid == 28001));
+-	M0_UT_ASSERT(ergo(!domain->ld_is_db_available, base_lid == 16001));
+-
+ 	/* Test cases for extent lookup. */
+ 	lid = base_lid;
+ 	rc = ext_ops(lid, domain, EXTENT_LOOKUP);
+@@ -2196,10 +2135,6 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ {
+ 	uint64_t lid;
+ 	int      rc;
+-
+-	M0_UT_ASSERT(ergo(domain->ld_is_db_available, base_lid == 29000));
+-	M0_UT_ASSERT(ergo(!domain->ld_is_db_available, base_lid == 17000));
+-
+ #if 0 //todo rm
+ 	/*
+ 	 * Simulate a situation that a valid extent with the given offset is
+@@ -2521,10 +2456,6 @@ int test_update_composite(uint64_t lid,
+ 	/* Verify the original user count is as expected. */
+ 	M0_UT_ASSERT(l1->l_user_count == 0);
+ 
+-	/* Alter the in-memory layout. */
+-	M0_UT_ASSERT(domain->ld_is_db_available == true); //todo need changes
+-	domain_ldb_available_set(domain, false); //todo need changes
+-
+ 	/* 1. Alter user count. */
+ 	for (i = 0; i < 100; ++i)
+ 		m0_layout_user_count_inc(l1);
+@@ -2585,8 +2516,6 @@ int test_update_composite(uint64_t lid,
+ 	M0_ASSERT(cl->cl_layers_nr == layers_nr + 2);
+ #endif
+ 
+-	domain_ldb_available_set(domain, true);
+-
+ 	/* Update the layout object in the DB. */
+ 	pair_set(&pair, &lid, area, num_bytes);
+ 	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 8845304..bb122a3 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -60,7 +60,7 @@ static int test_init(void)
+ 	M0_ASSERT(rc == 0);
+ 
+ 	/* Initialise the domain. */
+-	rc = m0_layout_domain_init(&domain, &dbenv, !LDB_AVAILABLE);
++	rc = m0_layout_domain_init(&domain, &dbenv);
+ 	M0_ASSERT(rc == 0);
+ 
+ #ifdef __KERNEL__
+@@ -110,17 +110,15 @@ static void test_domain_init_fini(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Initialise the domain. */
+-	rc = m0_layout_domain_init(&t_domain, &t_dbenv, LDB_AVAILABLE);
++	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(t_domain.ld_is_db_available == LDB_AVAILABLE);
+ 
+ 	/* Finalise the domain. */
+ 	m0_layout_domain_fini(&t_domain);
+ 
+ 	/* Should be able to initialise the domain again after finalising it. */
+-	rc = m0_layout_domain_init(&t_domain, &t_dbenv, !LDB_AVAILABLE);
++	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(t_domain.ld_is_db_available == !LDB_AVAILABLE);
+ 
+ 	/* Finalise the domain. */
+ 	m0_layout_domain_fini(&t_domain);
+@@ -142,7 +140,7 @@ static void test_domain_init_fini_failure(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	m0_fi_enable_once("m0_layout_domain_init", "table_init_err");
+-	rc = m0_layout_domain_init(&t_domain, &t_dbenv, !LDB_AVAILABLE);
++	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+ 	M0_UT_ASSERT(rc == L_TABLE_INIT_ERR);
+ 
+ 	m0_dbenv_fini(&t_dbenv);
+@@ -251,7 +249,7 @@ static void test_reg_unreg(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Initialise the domain. */
+-	rc = m0_layout_domain_init(&t_domain, &t_dbenv, !LDB_AVAILABLE);
++	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Register all the available layout types and enum types. */
+@@ -337,7 +335,7 @@ static void test_reg_unreg_failure(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Initialise the domain. */
+-	rc = m0_layout_domain_init(&t_domain, &t_dbenv, LDB_AVAILABLE);
++	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/*
+@@ -1135,7 +1133,7 @@ static void test_max_recsize(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Initialise the domain. */
+-	rc = m0_layout_domain_init(&t_domain, &t_dbenv, !LDB_AVAILABLE);
++	rc = m0_layout_domain_init(&t_domain, &t_dbenv);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Register pdclust layout type and verify m0_layout_max_recsize(). */
+@@ -1361,8 +1359,6 @@ static void test_layer_ops(void)
+ 	uint64_t lid;
+ 	int      rc;
+ 
+-	M0_UT_ASSERT(domain.ld_is_db_available == false);
+-
+ 	lid = 14001;
+ 	rc = test_layer_ops_composite(lid, &domain, 6, 10,
+ 				      !LAYER_ADD_FAILURE_TEST,
+@@ -1375,8 +1371,6 @@ static void test_layer_ops_failure(void)
+ 	uint64_t lid;
+ 	int      rc;
+ 
+-	M0_UT_ASSERT(domain.ld_is_db_available == false);
+-
+ 	/* Simulate memory allocation error while adding a layer. */
+ 	lid = 15001;
+ 	m0_fi_enable_off_n_on_m("layer_inmem_add", "alloc_ptr_fail/layer",
+@@ -1392,8 +1386,6 @@ static void test_layer_ext_ops(void)
+ {
+ 	uint64_t lid;
+ 
+-	M0_UT_ASSERT(domain.ld_is_db_available == false);
+-
+ 	lid = 16001;
+ 	test_layer_ext_ops_composite(lid, &domain);
+ }
+@@ -1402,8 +1394,6 @@ static void test_layer_ext_ops_failure(void)
+ {
+ 	uint64_t lid;
+ 
+-	M0_UT_ASSERT(domain.ld_is_db_available == false);
+-
+ 	lid = 17000;
+ 	test_layer_ext_ops_composite_failure(lid, &domain);
+ }
+@@ -1414,8 +1404,6 @@ static void test_lookup(void)
+ {
+ 	uint64_t lid;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/*
+ 	 * Lookup for a layout object with LIST enum type, that does not
+ 	 * exist in the DB.
+@@ -1524,8 +1512,6 @@ static void test_lookup(void)
+ 	rc = test_lookup_composite(lid, &domain, 5, 1, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+-
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ /* Tests the API m0_layout_lookup(). */
+@@ -1534,8 +1520,6 @@ static void test_lookup_failure(void)
+ 	uint64_t          lid;
+ 	struct m0_layout *l;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/*
+ 	 * Lookup for a layout object with LIST enum type, that does not
+ 	 * exist in the DB.
+@@ -1719,8 +1703,6 @@ static void test_lookup_failure(void)
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 	m0_fi_disable("layout_find", "layout_find_err");
+ #endif
+-
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ /* Tests the API m0_layout_add(). */
+@@ -1728,8 +1710,6 @@ static void test_add(void)
+ {
+ 	uint64_t lid;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/*
+ 	 * Add a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a few inline entries only.
+@@ -1785,16 +1765,12 @@ static void test_add(void)
+ 				CONTIGUOUS_EXTENTS,
+ 				!DUPLICATE_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+-
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ static void test_add_failure(void)
+ {
+ 	uint64_t lid;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/* Simulate m0_layout_encode() failure in m0_layout_add(). */
+ 	lid = 21001;
+ 	m0_fi_enable_once("m0_layout_encode", "lo_encode_err");
+@@ -1877,8 +1853,6 @@ static void test_add_failure(void)
+ 				!DUPLICATE_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
+ 	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
+-
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ /* Tests the API m0_layout_update(). */
+@@ -1886,8 +1860,6 @@ static void test_update(void)
+ {
+ 	uint64_t lid;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/*
+ 	 * Update a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a few inline entries only.
+@@ -1932,15 +1904,12 @@ static void test_update(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	//todo Cover other combinations for composite
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ static void test_update_failure(void)
+ {
+ 	uint64_t lid;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/* Simulate m0_layout_encode() failure in m0_layout_update(). */
+ 	lid = 23001;
+ 	m0_fi_enable_off_n_on_m("m0_layout_encode", "lo_encode_err", 1, 1);
+@@ -1976,8 +1945,6 @@ static void test_update_failure(void)
+ 				   FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_EMAP_PASTE_ERR);
+ 	m0_fi_disable("ext_indb_write", "emap_paste_err");
+-
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ /* Tests the API m0_layout_delete(). */
+@@ -1985,8 +1952,6 @@ static void test_delete(void)
+ {
+ 	uint64_t lid;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/*
+ 	 * Delete a layout object with PDCLUST layout type, LIST enum type and
+ 	 * with a few inline entries only.
+@@ -2035,16 +2000,12 @@ static void test_delete(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	//todo Cover other composite cases
+-
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ static void test_delete_failure(void)
+ {
+ 	uint64_t lid;
+ 
+-	domain_ldb_available_set(&domain, true);
+-
+ 	/* Simulate m0_layout_encode() failure in m0_layout_delete(). */
+ 	lid = 25001;
+ 	m0_fi_enable_off_n_on_m("m0_layout_encode", "lo_encode_err", 1, 1);
+@@ -2112,8 +2073,6 @@ static void test_delete_failure(void)
+ 	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
+ 	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
+ #endif
+-
+-	domain_ldb_available_set(&domain, false);
+ }
+ 
+ /**
+@@ -2137,11 +2096,6 @@ static void test_delete_failure(void)
+  *   need to be registered back at some other point (see test_init() for
+  *   reference).
+  */
+-void domain_ldb_available_set(struct m0_layout_domain *domain, bool val)
+-{
+-	domain->ld_is_db_available = val;
+-}
+-
+ #endif /* __KERNEL__ */
+ 
+ const struct m0_test_suite layout_ut = {
+diff --git a/layout/ut/ldemo.c b/layout/ut/ldemo.c
+index 98d4fa7..9b0b79a 100644
+--- a/layout/ut/ldemo.c
++++ b/layout/ut/ldemo.c
+@@ -60,7 +60,7 @@ static int dummy_create(struct m0_layout_domain *domain,
+ 	rc = m0_dbenv_init(dbenv, "ldemo-db", 0);
+ 	M0_ASSERT(rc == 0);
+ 
+-	rc = m0_layout_domain_init(domain, dbenv, false);
++	rc = m0_layout_domain_init(domain, dbenv);
+ 	M0_ASSERT(rc == 0);
+ 
+ 	rc = m0_layout_standard_types_register(domain);
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index 2eaf1b9..d4b82f7 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -299,7 +299,7 @@ static int m0t1fs_layout_init(void)
+ 	M0_ENTRY();
+ 
+ 	rc = m0_layout_domain_init(&m0t1fs_globals.g_layout_dom,
+-				   &m0t1fs_globals.g_dbenv, false);
++				   &m0t1fs_globals.g_dbenv);
+ 	if (rc == 0) {
+ 		rc = m0_layout_standard_types_register(
+ 						&m0t1fs_globals.g_layout_dom);
+diff --git a/mdservice/md_service.c b/mdservice/md_service.c
+index 1a53d58..cf446a6 100644
+--- a/mdservice/md_service.c
++++ b/mdservice/md_service.c
+@@ -137,7 +137,7 @@ static int mds_start(struct m0_reqh_service *service)
+ 
+         serv_obj = container_of(service, struct m0_reqh_md_service, rmds_gen);
+         rc = m0_layout_domain_init(&serv_obj->rmds_layout_dom,
+-				   service->rs_reqh->rh_dbenv, true);
++				   service->rs_reqh->rh_dbenv);
+         if (rc == 0) {
+                 rc = m0_layout_standard_types_register(
+ 					&serv_obj->rmds_layout_dom);
+diff --git a/sns/cm/iter.c b/sns/cm/iter.c
+index b443204..c0247ed 100644
+--- a/sns/cm/iter.c
++++ b/sns/cm/iter.c
+@@ -836,7 +836,7 @@ static int layout_setup(struct m0_sns_cm_iter *it)
+ 	int                              rc;
+ 
+ 	dbenv = it->si_dbenv;
+-	rc = m0_layout_domain_init(&it->si_lay_dom, dbenv, true);
++	rc = m0_layout_domain_init(&it->si_lay_dom, dbenv);
+ 	if (rc != 0)
+ 		return rc;
+ 	rc = m0_layout_standard_types_register(&it->si_lay_dom);
+-- 
+1.8.3.2
+

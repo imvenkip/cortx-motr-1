@@ -1,0 +1,95 @@
+From 2e37d9437d0462595df462f6ea02348586cd8410 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 30 Oct 2012 00:17:39 +0530
+Subject: [PATCH 013/172] Partial support for composite layout in
+ c2_layout_delete()
+
+---
+ layout/composite.c |  2 --
+ layout/ut/layout.c | 17 ++++++++++++-----
+ 2 files changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 48b861a..02c4789 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -644,8 +644,6 @@ static int sublayouts_write(struct c2_layout *l,
+ 		rc = c2_emap_obj_delete(emap, tx,
+ 					(struct c2_uint128 *)&prefix);
+ 		c2_emap_close(&it);
+-		rc = c2_emap_obj_delete(emap, tx,
+-					(struct c2_uint128 *)&prefix);
+ 		C2_ASSERT(rc == 0); //todo handle err
+ 	}
+ 
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index e54498d..f520832 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -4236,7 +4236,6 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
+ 	return rc;
+ }
+ 
+-#if 0
+ /* Tests the API c2_layout_delete(), for the COMPOSITE layout type. */
+ static int test_delete_composite(uint64_t lid,
+ 				 bool existing_test,
+@@ -4248,6 +4247,8 @@ static int test_delete_composite(uint64_t lid,
+ 	struct c2_db_tx               tx;
+ 	struct c2_layout             *l;
+ 	struct c2_composite_layout   *cl;
++	uint32_t                      sublayout_lid;
++	uint32_t                      i;
+ 	int                           rc_tmp;
+ 
+ 	C2_ENTRY("lid %llu", (unsigned long long)lid);
+@@ -4262,7 +4263,7 @@ static int test_delete_composite(uint64_t lid,
+ 		C2_UT_ASSERT(rc == 0);
+ 	} else {
+ 		/* Build a layout object. */
+-		rc = composite_layout_build(lid, &cl, 15, !FAILURE_TEST);
++		rc = composite_layout_build(lid, &cl, 10, !FAILURE_TEST);
+ 		C2_UT_ASSERT(rc == 0);
+ 		l = &cl->cl_base;
+ 	}
+@@ -4290,6 +4291,15 @@ static int test_delete_composite(uint64_t lid,
+ 	c2_layout_put(l);
+ 	C2_UT_ASSERT(list_lookup(lid) == NULL);
+ 
++	/* Delete all the sub-layouts. */
++	for (i = 0; i < 10; ++i) {
++		sublayout_lid = lid * 100 + i;
++		l = c2_layout_find(&domain, sublayout_lid);
++		C2_UT_ASSERT(l->l_user_count == 0);
++		c2_layout_put(l);
++		c2_layout_put(l);
++	}
++
+ 	if (!failure_test) {
+ 		/*
+ 		 * Lookup for the layout object from the DB, to verify that it
+@@ -4314,7 +4324,6 @@ static int test_delete_composite(uint64_t lid,
+ 	C2_LEAVE();
+ 	return rc;
+ }
+-#endif
+ 
+ /* Tests the API c2_layout_delete(). */
+ static void test_delete(void)
+@@ -4367,13 +4376,11 @@ static void test_delete(void)
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	/* Delete a layout object with COMPOSITE layout type. */
+-#if 0 //todo
+ 	lid = 20005;
+ 	rc = test_delete_composite(lid,
+ 				   EXISTING_TEST,
+ 				   !FAILURE_TEST);
+ 	C2_UT_ASSERT(rc == 0);
+-#endif
+ }
+ 
+ static void test_delete_failure(void)
+-- 
+1.8.3.2
+

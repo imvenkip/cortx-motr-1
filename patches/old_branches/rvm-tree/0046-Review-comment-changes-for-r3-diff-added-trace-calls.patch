@@ -1,0 +1,4666 @@
+From 700968d3fa7e35d65142b4f271728f6711d25d48 Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Fri, 8 Feb 2013 05:41:48 -0800
+Subject: [PATCH 46/94] Review comment changes for r3 diff, added trace calls,
+ added invariants for internal consistency of structures and UT changes
+
+---
+ be/Makefile.sub      |   4 -
+ be/be.h              |  16 +-
+ be/be_list.c         | 262 -------------------------------
+ be/be_list.h         | 246 -----------------------------
+ be/be_tlist.c        | 304 ------------------------------------
+ be/be_tlist.h        | 430 ---------------------------------------------------
+ be/domain.c          | 143 ++++++++++-------
+ be/domain.h          |  18 +++
+ be/handle_store.c    |  28 ++--
+ be/helper.c          |  99 +++++-------
+ be/helper.h          |  16 --
+ be/kv_store.c        | 173 ++++++++++++---------
+ be/kv_store.h        |  19 ++-
+ be/reg.c             |  92 +++++++++--
+ be/reg.h             |  10 ++
+ be/seg.c             | 174 +++++++++++++--------
+ be/seg.h             |  11 ++
+ be/tx.c              | 121 +++++++++++----
+ be/tx.h              |  16 ++
+ be/ut/Makefile.sub   |   4 +-
+ be/ut/be.c           |  46 ++----
+ be/ut/be_tlist.c     | 348 -----------------------------------------
+ be/ut/handle_store.c |  17 +-
+ be/ut/kv_store.c     | 132 ++++++++++------
+ be/ut/kv_store_ub.c  | 383 +++++++++++++++++++++++++++++++++++++++++++++
+ lib/trace.h          |   3 +-
+ sm/sm.c              |   8 -
+ sm/sm.h              |   9 --
+ utils/ub_main.c      |   2 +
+ utils/ut_main.c      |   2 -
+ 30 files changed, 1069 insertions(+), 2067 deletions(-)
+ delete mode 100644 be/be_list.c
+ delete mode 100644 be/be_list.h
+ delete mode 100644 be/be_tlist.c
+ delete mode 100644 be/be_tlist.h
+ delete mode 100644 be/ut/be_tlist.c
+ create mode 100644 be/ut/kv_store_ub.c
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 5c3677d..57ba2c7 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -1,8 +1,6 @@
+ nobase_mero_include_HEADERS +=  be/be.h
+ 				be/be_types.h		\
+ 				be/be_buf.h		\
+-				be/be_list.h		\
+-				be/be_tlist.h		\
+ 				be/helper.h		\
+ 				be/handle_store.h	\
+ 				be/kv_store.h
+@@ -14,8 +12,6 @@ mero_libmero_la_SOURCES	    +=	be/be_init.c		\
+ 				be/be_rvm.c		\
+ 				be/tx.c			\
+ 				be/be_buf.c		\
+-				be/be_list.c		\
+-				be/be_tlist.c		\
+ 				be/helper.c		\
+ 				be/handle_store.c	\
+ 				be/kv_store.c
+diff --git a/be/be.h b/be/be.h
+index 5220382..f4791d1 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -195,10 +195,7 @@ struct m0_be_reg;
+  *
+  * @post m0_be_seg_state(dom->bd_data) == M0_BESEG_CLOSED
+  */
+-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
+-                                   struct m0_stob *stob,
+-                                   struct m0_stob *log_stob,
+-                                   uint64_t dom_magic);
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom);
+ 
+ /**
+  * Finalises the in-memory part of domain structure.
+@@ -220,8 +217,9 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom);
+  *                                            M0_BESEG_CREATING))
+  */
+ M0_INTERNAL void m0_be_domain_create(struct m0_be_domain *dom,
+-                                     struct m0_stob *stob);
+-
++                                     struct m0_stob *stob,
++                                     struct m0_stob *log_stob,
++                                     uint64_t dom_magic);
+ /**
+  * Searches a domain for the existing segment with a given name.
+  *
+@@ -244,9 +242,9 @@ M0_INTERNAL bool m0_be_domain_lookup(struct m0_be_domain *dom, const char *name,
+  * @post M0_IN(m0_be_seg_state(seg), (M0_BESEG_OPENING, M0_BESEG_ACTIVE,
+  *                                    M0_BESEG_FAILED))
+  */
+-M0_INTERNAL void m0_be_domain_restore(struct m0_be_domain *dom,
+-                                             const char *name,
+-                                             struct m0_be_seg *out);
++M0_INTERNAL void m0_be_domain_seg_restore(struct m0_be_domain *dom,
++                                          const char *name,
++                                          struct m0_be_seg *out);
+ 
+ /**
+  * Initialises the segment structure in memory.
+diff --git a/be/be_list.c b/be/be_list.c
+deleted file mode 100644
+index bf4fa40..0000000
+--- a/be/be_list.c
++++ /dev/null
+@@ -1,262 +0,0 @@
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Zishan Shaikh <zishan_shaikh@xyratex.com>
+- * Original creation date : 12/04/2012
+- */
+-#include "lib/assert.h"
+-#include "be/be_list.h"
+-
+-/** @addtogroup be_list
+- * @{
+- */
+-
+-M0_INTERNAL void m0_be_list_init(struct m0_be_list *head)
+-{
+-        head->l_head.n_virtual_address = (struct m0_be_list_link *)head;
+-        head->l_tail.n_virtual_address = (struct m0_be_list_link *)head;
+-}
+-M0_EXPORTED(m0_be_list_init);
+-
+-M0_INTERNAL void m0_be_list_fini(struct m0_be_list *head)
+-{
+-        M0_ASSERT(m0_be_list_is_empty(head));
+-}
+-M0_EXPORTED(m0_be_list_fini);
+-
+-M0_INTERNAL bool m0_be_list_is_empty(const struct m0_be_list *head)
+-{
+-        return head->l_head.n_virtual_address == (void *)head;
+-}
+-M0_EXPORTED(m0_be_list_is_empty);
+-
+-M0_INTERNAL bool m0_be_list_link_invariant(const struct m0_be_list_link *link)
+-{
+-        struct m0_be_list_link *scan;
+-        struct m0_be_list_link *next_temp;
+-        struct m0_be_list_link *prev_temp;
+-        uint64_t                prev_magic;
+-        uint64_t                next_magic;
+-        uint64_t                curr_magic;
+-
+-        if ((link->ll_next.n_virtual_address == link) !=
+-            (link->ll_prev.n_virtual_address == link))
+-                return false;
+-
+-        for (scan = link->ll_next.n_virtual_address;
+-             scan != link;
+-             scan = scan->ll_next.n_virtual_address) {
+-
+-                next_temp = scan->ll_next.n_virtual_address;
+-                prev_temp = scan->ll_prev.n_virtual_address;
+-
+-                /* Make sure all belong in same domain */
+-                prev_magic = prev_temp->ll_next.n_logical_address.be_magic;
+-                next_magic = next_temp->ll_next.n_logical_address.be_magic;
+-                curr_magic = scan->ll_next.n_logical_address.be_magic;
+-
+-                M0_ASSERT(curr_magic == prev_magic);
+-                M0_ASSERT(curr_magic == next_magic);
+-
+-                prev_magic = prev_temp->ll_prev.n_logical_address.be_magic;
+-                next_magic = next_temp->ll_prev.n_logical_address.be_magic;
+-                curr_magic  = scan->ll_prev.n_logical_address.be_magic;
+-
+-                M0_ASSERT(curr_magic == prev_magic);
+-                M0_ASSERT(curr_magic == next_magic);
+-
+-                if (next_temp->ll_prev.n_virtual_address != scan ||
+-                    prev_temp->ll_next.n_virtual_address != scan)
+-                        return false;
+-        }
+-        return true;
+-}
+-
+-M0_INTERNAL bool m0_be_list_invariant(const struct m0_be_list *head)
+-{
+-        return m0_be_list_link_invariant((void *)head);
+-}
+-
+-M0_INTERNAL size_t m0_be_list_length(const struct m0_be_list *list)
+-{
+-        struct m0_be_list_link *scan;
+-        size_t                 length;
+-
+-        M0_ASSERT(m0_be_list_invariant(list));
+-        length = 0;
+-
+-        for (scan = list->l_head.n_virtual_address;
+-             scan != (void *)list;
+-             scan = scan->ll_next.n_virtual_address)
+-                length++;
+-
+-        return length;
+-}
+-
+-M0_INTERNAL bool m0_be_list_contains(const struct m0_be_list *list,
+-                                     const struct m0_be_list_link *link)
+-{
+-        struct m0_be_list_link *scan;
+-
+-        M0_ASSERT(m0_be_list_invariant(list));
+-
+-        for (scan = list->l_head.n_virtual_address;
+-             scan != (void *)list;
+-             scan = scan->ll_next.n_virtual_address)
+-                if (scan == link)
+-                        return true;
+-        return false;
+-}
+-
+-static inline void __m0_be_list_add(struct m0_be_list_link *next,
+-                                    struct m0_be_list_link *prev,
+-                                    struct m0_be_list_link *new)
+-{
+-        M0_ASSERT(prev->ll_next.n_virtual_address == (void *)next &&
+-                  next->ll_prev.n_virtual_address == (void *)prev);
+-        M0_ASSERT(m0_be_list_link_invariant(next));
+-
+-        new->ll_next.n_virtual_address  = next;
+-        new->ll_prev.n_virtual_address  = prev;
+-
+-        next->ll_prev.n_virtual_address = new;
+-        prev->ll_next.n_virtual_address = new;
+-
+-        M0_ASSERT(m0_be_list_link_invariant(next));
+-}
+-
+-M0_INTERNAL void m0_be_list_add(struct m0_be_list *head,
+-                                struct m0_be_list_link *new)
+-{
+-        __m0_be_list_add(head->l_head.n_virtual_address, (void *)head, new);
+-}
+-M0_EXPORTED(m0_be_list_add);
+-
+-M0_INTERNAL void m0_be_list_add_tail(struct m0_be_list *head,
+-                                     struct m0_be_list_link *new)
+-{
+-        __m0_be_list_add((void *)head, head->l_tail.n_virtual_address, new);
+-}
+-M0_EXPORTED(m0_be_list_add_tail);
+-
+-M0_INTERNAL void m0_be_list_add_after(struct m0_be_list_link *anchor,
+-                                      struct m0_be_list_link *new)
+-{
+-        __m0_be_list_add(anchor->ll_next.n_virtual_address, anchor, new);
+-}
+-M0_EXPORTED(m0_be_list_add_after);
+-
+-M0_INTERNAL void m0_be_list_add_before(struct m0_be_list_link *anchor,
+-                                       struct m0_be_list_link *new)
+-{
+-        __m0_be_list_add(anchor, anchor->ll_prev.n_virtual_address, new);
+-}
+-M0_EXPORTED(m0_be_list_add_before);
+-
+-static void __m0_be_list_del(struct m0_be_list_link *old)
+-{
+-        M0_ASSERT(m0_be_list_link_invariant(old));
+-        struct m0_be_list_link *prev_temp;
+-        struct m0_be_list_link *next_temp;
+-
+-        prev_temp = old->ll_prev.n_virtual_address;
+-        next_temp = old->ll_next.n_virtual_address;
+-
+-        prev_temp->ll_next.n_virtual_address = next_temp;
+-        next_temp->ll_prev.n_virtual_address = prev_temp;
+-}
+-
+-M0_INTERNAL void m0_be_list_del(struct m0_be_list_link *old)
+-{
+-        __m0_be_list_del(old);
+-        m0_be_list_link_init(old, NULL);
+-}
+-M0_EXPORTED(m0_be_list_del);
+-
+-M0_INTERNAL void m0_be_list_move(struct m0_be_list      *head,
+-                                 struct m0_be_list_link *old)
+-{
+-        __m0_be_list_del(old);
+-        m0_be_list_add(head, old);
+-        M0_ASSERT(m0_be_list_invariant(head));
+-}
+-
+-M0_INTERNAL void m0_be_list_move_tail(struct m0_be_list      *head,
+-                                      struct m0_be_list_link *old)
+-{
+-        __m0_be_list_del(old);
+-        m0_be_list_add_tail(head, old);
+-        M0_ASSERT(m0_be_list_invariant(head));
+-}
+-
+-M0_INTERNAL void m0_be_list_link_init(struct m0_be_list_link *link,
+-                                      struct m0_be_reference  *ref)
+-{
+-        struct m0_uint128      *next_temp;
+-        struct m0_uint128      *prev_temp;
+-        uint64_t                seg_id;
+-        uint64_t                offset;
+-
+-        link->ll_prev.n_virtual_address = (void *)link;
+-        link->ll_next.n_virtual_address = (void *)link;
+-
+-        if (ref != NULL) {
+-                seg_id    = ref->be_segid_offset.u_hi;
+-                offset    = ref->be_segid_offset.u_lo;
+-
+-                next_temp = &link->ll_next.n_logical_address.be_segid_offset;
+-                prev_temp = &link->ll_prev.n_logical_address.be_segid_offset;
+-
+-                next_temp->u_hi = seg_id;
+-                next_temp->u_lo = offset;
+-
+-                prev_temp->u_hi = seg_id;
+-                prev_temp->u_lo = offset;
+-                
+-                /* Assign domain magic in @ref */
+-                link->ll_prev.n_logical_address.be_magic = ref->be_magic;
+-                link->ll_next.n_logical_address.be_magic = ref->be_magic;
+-        }
+-}
+-M0_EXPORTED(m0_be_list_link_init);
+-
+-
+-M0_INTERNAL void m0_be_list_link_fini(struct m0_be_list_link *link)
+-{
+-        M0_ASSERT(!m0_be_list_link_is_in(link));
+-}
+-
+-M0_INTERNAL bool m0_be_list_link_is_in(const struct m0_be_list_link *link)
+-{
+-        return link->ll_prev.n_virtual_address != (void *)link;
+-}
+-
+-M0_INTERNAL bool m0_be_list_link_is_last(const struct m0_be_list_link *link,
+-                                         const struct m0_be_list      *head)
+-{
+-        return link->ll_next.n_virtual_address == (void *)head;
+-}
+-
+-/** @} end of be_list group */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/be/be_list.h b/be/be_list.h
+deleted file mode 100644
+index 15aac85..0000000
+--- a/be/be_list.h
++++ /dev/null
+@@ -1,246 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Zishan Shaikh <zishan_shaikh@xyratex.com>
+- * Original creation date: 11/28/2012
+- */
+-#pragma once
+-
+-#ifndef __MERO_BE_BE_LIST_H__
+-#define __MERO_BE_BE_LIST_H__
+-
+-#include "be/be_types.h"
+-#include "lib/cdefs.h"
+-#include "lib/assert.h"
+-
+-/**
+-  @defgroup be_list Double-linked list.
+-  Extension of m0_list
+-  @{
+- */
+-
+-struct m0_be_list_link;
+-
+-/**
+-  Structure to support the linkage in tlist and store the logical address
+-  details of the object.
+- */
+-struct m0_be_reference_ll {
+-        union {
+-                /* Node's virtual address */
+-                struct m0_be_list_link  *n_virtual_address;
+-                /* Node's logical address on BE domain */
+-                struct m0_be_reference   n_logical_address;
+-        };
+-};
+-
+-/**
+-  List entry.
+-  Modified to support traversal in tlist via references.
+- */
+-struct m0_be_list_link {
+-        /* Next entry in the list */
+-        struct m0_be_reference_ll ll_next;
+-        /* Previous entry in the list */
+-        struct m0_be_reference_ll ll_prev;
+-};
+-
+-/**
+-  Initialize list link entry for be domain
+- 
+-  @param link - pointer to link entry
+-  @param ref  - pointer to struct m0_be_reference in m0_buf
+- */
+-M0_INTERNAL void m0_be_list_link_init(struct m0_be_list_link *link,
+-                                      struct m0_be_reference *ref);
+-
+-/**
+-  Free resources associated with link entry
+-
+-  @param link - pointer to link enty
+- */
+-M0_INTERNAL void m0_be_list_link_fini(struct m0_be_list_link *link);
+-
+-M0_INTERNAL bool m0_be_list_link_invariant(const struct m0_be_list_link *link);
+-
+-/**
+-  List head.
+- */
+-struct m0_be_list {
+-        /*
+-         * Pointer to the first entry in the list.
+-         */
+-        struct m0_be_reference_ll l_head;
+-        /*
+-         * Pointer to the last entry in the list.
+-         */
+-        struct m0_be_reference_ll l_tail;
+-};
+-
+-/**
+-  It is necessary that m0_be_list and m0_be_list_link structures have exactly
+-  the same layout.
+- */
+-
+-M0_BASSERT(offsetof(struct m0_be_list, l_head) ==
+-           offsetof(struct m0_be_list_link, ll_next));
+-M0_BASSERT(offsetof(struct m0_be_list, l_tail) ==
+-           offsetof(struct m0_be_list_link, ll_prev));
+-
+-M0_INTERNAL void m0_be_list_init(struct m0_be_list *head);
+-
+-M0_INTERNAL void m0_be_list_fini(struct m0_be_list *head);
+-
+-M0_INTERNAL bool m0_be_list_is_empty(const struct m0_be_list *head);
+-
+-/**
+-  Returns true iff @link is in @list.
+- */
+-M0_INTERNAL bool m0_be_list_contains(const struct m0_be_list      *list,
+-                                     const struct m0_be_list_link *link);
+-
+-/**
+-  This function iterates over the argument list checking that double-linked
+-  list invariant holds (x->ll_prev->ll_next == x && x->ll_next->ll_prev == x).
+- 
+-  @return true if @list isn't corrupted
+- */
+-M0_INTERNAL bool m0_be_list_invariant(const struct m0_be_list *list);
+-
+-M0_INTERNAL size_t m0_be_list_length(const struct m0_be_list *list);
+-
+-/**
+-  Add list to top on the list.
+-
+-  This function can be called on an uninitialised @new link. All @new fields are
+-  overwritten.
+-
+-  @param head pointer to list head
+-  @param new  pointer to list entry
+- */
+-M0_INTERNAL void m0_be_list_add(struct m0_be_list       *head,
+-                                struct m0_be_list_link  *new);
+-
+-/**
+-  Add list to tail on the list. This function can be called on an
+-  uninitialised @new link. All @new fields are overwritten.
+- 
+-  @param head pointer to list head
+-  @param new  pointer to list entry
+- */
+-M0_INTERNAL void m0_be_list_add_tail(struct m0_be_list      *head,
+-                                     struct m0_be_list_link *new);
+-
+-/**
+-  adds an element to the list right after the specified element
+-  
+-  This function can be called on an uninitialised @new link.
+-  All @new fields are overwritten.
+- */
+-M0_INTERNAL void m0_be_list_add_after (struct m0_be_list_link *anchor,
+-                                       struct m0_be_list_link *new);
+-
+-/**
+-  Adds an element to the list right before the specified element. This function
+-  can be called on an uninitialised @new link. All @new fields are overwritten.
+- */
+-M0_INTERNAL void m0_be_list_add_before(struct m0_be_list_link *anchor,
+-                                       struct m0_be_list_link *new);
+-
+-/**
+-  Deletes an entry from the list and re-initializes the entry.
+- */
+-M0_INTERNAL void m0_be_list_del(struct m0_be_list_link *old);
+-
+-/**
+-  Moves an entry to head of the list.
+- */
+-M0_INTERNAL void m0_be_list_move(struct m0_be_list      *head,
+-                                 struct m0_be_list_link *new);
+-
+-/**
+-  Moves an entry to tail of the list.
+- */
+-M0_INTERNAL void m0_be_list_move_tail(struct m0_be_list      *head,
+-                                      struct m0_be_list_link *new);
+-
+-/**
+-  Return first entry from the list.
+- 
+-  @param head pointer to list head
+-  @return pointer to first list entry or NULL if list empty
+- */
+-static inline struct m0_be_list_link
+-*m0_be_list_first(const struct m0_be_list *head)
+-{
+-        return head->l_head.n_virtual_address !=
+-               (void *)head ? head->l_head.n_virtual_address : NULL;
+-}
+-
+-
+-/**
+-  Is link entry connected to the list.
+- 
+-  @param link - pointer to link entry
+-  @retval true - entry connected to a list
+-  @retval false - entry disconnected from a list
+-*/
+-M0_INTERNAL bool m0_be_list_link_is_in(const struct m0_be_list_link *link);
+-
+-M0_INTERNAL bool m0_be_list_link_is_last(const struct m0_be_list_link *link,
+-                                         const struct m0_be_list      *head);
+-
+-M0_INTERNAL size_t m0_be_list_length(const struct m0_be_list *list);
+-
+-#define m0_be_list_entry(link, type, member) \
+-        container_of(link, type, member)
+-
+-#define m0_be_list_for_each(head, pos) \
+-        for (pos = (head)->l_head.n_virtual_address; pos != (void *)(head); \
+-             pos = (pos)->ll_next.n_virtual_address)
+-
+-#define m0_be_list_for_each_entry(head, pos, type, member) \
+-        for (pos = m0_be_list_entry((head)->l_head.n_virtual_address, type, \
+-                                    member);\
+-             &(pos->member) != (void *)head; \
+-             pos = m0_be_list_entry((pos)->member.ll_next.n_virtual_address,\
+-                                    type, member))
+-
+-#define m0_be_list_for_each_entry_safe(head, pos, next, type, member)   \
+-        for (pos = m0_be_list_entry((head)->l_head.n_virtual_address, type, \
+-                                    member),\
+-             next = m0_be_list_entry((pos)->member.ll_next.n_virtual_address,\
+-                                     type, member);                         \
+-             &(pos)->member != (void *)head;                            \
+-             pos  = next,                                               \
+-             next = m0_be_list_entry((next)->member.ll_next.n_virtual_address,\
+-                                     type, member))
+-
+-
+-/** @} end of be_list group */
+-
+-#endif /* __MERO_BE_BE_LIST_H__ */
+-
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/be/be_tlist.c b/be/be_tlist.c
+deleted file mode 100644
+index 32e4f63..0000000
+--- a/be/be_tlist.c
++++ /dev/null
+@@ -1,304 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author        : Zishan Shaikh <zishan_shaikh@xyratex.com>
+- * Original creation date : 12/04/2012
+- */
+-
+-#include "be/be_tlist.h"
+-
+-/**
+-   @addtogroup be_tlist
+-   @{
+- */
+-
+-/**
+-   Returns the address of a link embedded in an ambient object.
+- */
+-static struct m0_be_list_link
+-*be_link(const struct m0_be_tl_descr *d, const void *obj);
+-/**
+-   Returns the value of the magic field in an ambient object
+- */
+-static uint64_t be_magic(const struct m0_be_tl_descr *d,
+-                         const void *obj);
+-
+-/**
+-   Casts a link to its ambient object.
+- */
+-static void *be_amb(const struct m0_be_tl_descr *d,
+-                    struct m0_be_list_link *link);
+-
+-M0_INTERNAL void m0_be_tlist_init(const struct m0_be_tl_descr *d,
+-                                   struct m0_be_tl *list)
+-{
+-        list->t_magic = d->td_head_magic;
+-        m0_be_list_init(&list->t_head);
+-        M0_POST(m0_be_tlist_invariant(d, list));
+-}
+-
+-M0_INTERNAL void m0_be_tlist_fini(const struct m0_be_tl_descr *d,
+-                                  struct m0_be_tl *list)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        m0_be_list_fini(&list->t_head);
+-}
+-
+-M0_INTERNAL void m0_be_tlink_init(const struct m0_be_tl_descr *d,
+-                                  struct m0_be_reference      *ref)
+-{
+-        void *obj = ref->be_virtual_address;
+-        m0_be_list_link_init(be_link(d,obj), ref);
+-        if (d->td_link_magic != 0)
+-                *(uint64_t *)(obj + d->td_link_magic_offset) = d->td_link_magic;
+-        M0_POST(m0_be_tlink_invariant(d, obj));
+-}
+-
+-M0_INTERNAL void m0_be_tlink_init_at(const struct m0_be_tl_descr *d,
+-                                     struct m0_be_tl             *list,
+-                                     struct m0_be_reference      *ref)
+-{
+-        void *obj = ref->be_virtual_address;
+-        m0_be_tlink_init(d, ref);
+-        m0_be_tlist_add(d, list, obj);
+-}
+-
+-M0_INTERNAL void m0_be_tlink_init_at_tail(const struct m0_be_tl_descr *d,
+-                                          struct m0_be_tl             *list,
+-                                          struct m0_be_reference      *ref)
+-{
+-        void *obj = ref->be_virtual_address;
+-        m0_be_tlink_init(d, ref);
+-        m0_be_tlist_add_tail(d, list, obj);
+-}
+-
+-M0_INTERNAL void m0_be_tlink_fini(const struct m0_be_tl_descr *d, void *obj)
+-{
+-        m0_be_list_link_fini(be_link(d, obj));
+-}
+-
+-M0_INTERNAL void m0_be_tlink_del_fini(const struct m0_be_tl_descr *d, void *obj)
+-{
+-        m0_be_tlist_del(d, obj);
+-        m0_be_tlink_fini(d, obj);
+-}
+-
+-M0_INTERNAL bool m0_be_tlist_is_empty(const struct m0_be_tl_descr *d,
+-                                      const struct m0_be_tl *list)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        return m0_be_list_is_empty(&list->t_head);
+-}
+-
+-M0_INTERNAL bool m0_be_tlink_is_in(const struct m0_be_tl_descr *d,
+-                                   const void *obj)
+-{
+-        M0_PRE(m0_be_tlink_invariant(d, obj));
+-        return m0_be_list_link_is_in(be_link(d, obj));
+-}
+-
+-M0_INTERNAL bool m0_be_tlist_contains(const struct m0_be_tl_descr *d,
+-                                      const struct m0_be_tl       *list,
+-                                      const void                  *obj)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        M0_PRE(m0_be_tlink_invariant(d, obj));
+-        return m0_be_list_contains(&list->t_head, be_link(d, obj));
+-}
+-
+-M0_INTERNAL size_t m0_be_tlist_length(const struct m0_be_tl_descr *d,
+-                                      const struct m0_be_tl       *list)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        return m0_be_list_length(&list->t_head);
+-}
+-M0_EXPORTED(m0_be_tlist_length);
+-
+-M0_INTERNAL void m0_be_tlist_add(const struct m0_be_tl_descr *d,
+-                                 struct m0_be_tl *list, void *obj)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        M0_PRE(!m0_be_tlink_is_in(d, obj));
+-        m0_be_list_add(&list->t_head, be_link(d, obj));
+-}
+-
+-M0_INTERNAL void m0_be_tlist_add_tail(const struct m0_be_tl_descr *d,
+-                                      struct m0_be_tl *list, void *obj)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        M0_PRE(!m0_be_tlink_is_in(d, obj));
+-        m0_be_list_add_tail(&list->t_head, be_link(d, obj));
+-}
+-
+-M0_INTERNAL void m0_be_tlist_add_after(const struct m0_be_tl_descr *d,
+-                                       void *obj, void *new)
+-{
+-        M0_PRE(m0_be_tlink_is_in(d, obj));
+-        M0_PRE(!m0_be_tlink_is_in(d, new));
+-        m0_be_list_add_after(be_link(d, obj), be_link(d, new));
+-}
+-
+-M0_INTERNAL void m0_be_tlist_add_before(const struct m0_be_tl_descr *d,
+-                                        void *obj, void *new)
+-{
+-        M0_PRE(m0_be_tlink_is_in(d, obj));
+-        M0_PRE(!m0_be_tlink_is_in(d, new));
+-        m0_be_list_add_before(be_link(d, obj), be_link(d, new));
+-}
+-
+-M0_INTERNAL void m0_be_tlist_del(const struct m0_be_tl_descr *d, void *obj)
+-{
+-        M0_PRE(m0_be_tlink_invariant(d, obj));
+-        M0_PRE(m0_be_tlink_is_in(d, obj));
+-        m0_be_list_del(be_link(d, obj));
+-        M0_PRE(!m0_be_tlink_is_in(d, obj));
+-}
+-
+-M0_INTERNAL void m0_be_tlist_move(const struct m0_be_tl_descr *d,
+-                                  struct m0_be_tl *list, void *obj)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        M0_PRE(m0_be_tlink_is_in(d, obj));
+-
+-        m0_be_list_move(&list->t_head, be_link(d, obj));
+-}
+-
+-M0_INTERNAL void m0_be_tlist_move_tail(const struct m0_be_tl_descr *d,
+-                                       struct m0_be_tl *list, void *obj)
+-{
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-        M0_PRE(m0_be_tlink_is_in(d, obj));
+-
+-        m0_be_list_move_tail(&list->t_head, be_link(d, obj));
+-}
+-
+-M0_INTERNAL void *m0_be_tlist_head(const struct m0_be_tl_descr *d,
+-                                   const struct m0_be_tl *list)
+-{
+-        const struct m0_be_list *head;
+-
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-
+-        head = &list->t_head;
+-        return (head->l_head.n_virtual_address !=
+-               (void *)head ? be_amb(d, head->l_head.n_virtual_address) : NULL);
+-}
+-
+-M0_INTERNAL void *m0_be_tlist_tail(const struct m0_be_tl_descr *d,
+-                                   const struct m0_be_tl *list)
+-{
+-        const struct m0_be_list *head;
+-
+-        M0_PRE(m0_be_tlist_invariant(d, list));
+-
+-        head = &list->t_head;
+-        return (head->l_tail.n_virtual_address !=
+-               (void *)head ? be_amb(d, head->l_tail.n_virtual_address) : NULL);
+-}
+-
+-M0_INTERNAL void *m0_be_tlist_next(const struct m0_be_tl_descr *d,
+-                                   const struct m0_be_tl *list, void *obj)
+-{
+-        struct m0_be_list_link *next;
+-
+-        M0_PRE(m0_be_tlist_contains(d, list, obj));
+-
+-        next = (struct m0_be_list_link *)
+-                be_link(d, obj)->ll_next.n_virtual_address;
+-        return (void *)next != &list->t_head ? be_amb(d, next) : NULL;
+-}
+-
+-M0_INTERNAL void *m0_be_tlist_prev(const struct m0_be_tl_descr *d,
+-                                   const struct m0_be_tl *list, void *obj)
+-{
+-        struct m0_be_list_link *prev;
+-
+-        M0_PRE(m0_be_tlist_contains(d, list, obj));
+-
+-        prev = (struct m0_be_list_link *)
+-                be_link(d, obj)->ll_prev.n_virtual_address;
+-        return (void *)prev != &list->t_head ? be_amb(d, prev) : NULL;
+-}
+-
+-M0_INTERNAL bool m0_be_tlist_invariant(const struct m0_be_tl_descr *d,
+-                                       const struct m0_be_tl *list)
+-{
+-        struct m0_be_list_link *head;
+-        struct m0_be_list_link *scan;
+-        struct m0_be_list_link *next_temp;
+-        struct m0_be_list_link *prev_temp;
+-
+-        head = (void *)&list->t_head;
+-
+-        if (list->t_magic != d->td_head_magic)
+-                return false;
+-        if ((head->ll_next.n_virtual_address == (void *)head) !=
+-            (head->ll_prev.n_virtual_address == (void *)head))
+-                return false;
+-
+-        for (scan = head->ll_next.n_virtual_address;
+-             scan != head; scan = scan->ll_next.n_virtual_address) {
+-
+-                next_temp = scan->ll_next.n_virtual_address;
+-                prev_temp = scan->ll_prev.n_virtual_address;
+-
+-                if (next_temp->ll_prev.n_virtual_address != scan ||
+-                    prev_temp->ll_next.n_virtual_address != scan)
+-                        return false;
+-
+-                if (!m0_be_tlink_invariant(d, be_amb(d, scan)))
+-                        return false;
+-        }
+-
+-        return true;
+-}
+-
+-M0_INTERNAL bool m0_be_tlink_invariant(const struct m0_be_tl_descr *d,
+-                                       const void *obj)
+-{
+-        return d->td_link_magic == 0 || be_magic(d, obj) == d->td_link_magic;
+-}
+-
+-static struct m0_be_list_link
+-*be_link(const struct m0_be_tl_descr *d, const void *obj)
+-{
+-        return &((struct m0_be_tlink *)(obj + d->td_link_offset))->t_link;
+-}
+-
+-static uint64_t be_magic(const struct m0_be_tl_descr *d,
+-                         const void *obj)
+-{
+-        return *(uint64_t *)(obj + d->td_link_magic_offset);
+-}
+-
+-static void *be_amb(const struct m0_be_tl_descr *d,
+-                    struct m0_be_list_link *link)
+-{
+-        return (void *)container_of(link, struct m0_be_tlink,
+-                                    t_link) - d->td_link_offset;
+-}
+-
+-/** @} end of be_tlist group */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/be/be_tlist.h b/be/be_tlist.h
+deleted file mode 100644
+index 22f4e77..0000000
+--- a/be/be_tlist.h
++++ /dev/null
+@@ -1,430 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Zishan Shaikh <zishan_shaikh@xyratex.com>
+- * Original creation date: 12/04/2012
+- */
+-#pragma once
+-#ifndef __MERO_BE_TLIST_H__
+-#define __MERO_BE_TLIST_H__
+-
+-#include "be/be_list.h"
+-#include "be/be_types.h"
+-
+-/**
+-   @defgroup be_tlist Typed lists.
+-   Extension of m0_tlist.
+-
+-   @{
+- */
+-
+-struct m0_be_tl_descr;
+-struct m0_be_tl;
+-struct m0_be_tlink;
+-
+-struct m0_be_tl_descr {
+-        /** Human-readable list name, used for error messages. */
+-        const char *td_name;
+-        /** Offset of list link (m0_tlink) in the ambient object. */
+-        int         td_link_offset;
+-        /**
+-            Offset of magic field in the ambient object.
+-            This is used only when link magic checking is on.
+-
+-            @see m0_be_tl_descr::td_link_magic
+-         */
+-        int         td_link_magic_offset;
+-        /**
+-            Magic stored in an ambient object.
+-
+-            If this field is 0, link magic checking is disabled.
+-         */
+-        uint64_t    td_link_magic;
+-        /**
+-            Magic stored in m0_tl::t_magic and checked on all tlist
+-            operations.
+-         */
+-        uint64_t    td_head_magic;
+-};
+-
+-#define M0_BE_TL_DESCR(name, ambient_type, link_field, link_magic_field,\
+-                       link_magic, head_magic)                          \
+-{                                                                       \
+-        .td_name              = name,                                   \
+-        .td_link_offset       = offsetof(ambient_type, link_field),     \
+-        .td_link_magic_offset = offsetof(ambient_type, link_magic_field),\
+-        .td_link_magic        = link_magic,                             \
+-        .td_head_magic        = head_magic                              \
+-};                                                                      \
+-                                                                        \
+-M0_BASSERT(M0_HAS_TYPE(M0_FIELD_VALUE(ambient_type, link_field),        \
+-                       struct m0_be_tlink));                            \
+-M0_BASSERT(M0_HAS_TYPE(M0_FIELD_VALUE(ambient_type, link_magic_field),  \
+-                       uint64_t))
+-
+-/**
+-  Tlist head to support back-end domain
+- */
+-struct m0_be_tl {
+-        /**
+-           Head magic. This is set to m0_tl::td_head_magic and verified by the
+-           list invariant.
+-         */
+-        uint64_t          t_magic;
+-        /** Underlying m0_be_list. */
+-        struct m0_be_list t_head;
+-};
+-
+-
+-/**
+-  Tlist link to support back-end domain
+- */
+-struct m0_be_tlink {
+-        /** Underlying m0_be_list link. */
+-        struct m0_be_list_link t_link;
+-};
+-
+-M0_INTERNAL void m0_be_tlist_init(const struct m0_be_tl_descr *d,
+-                                  struct m0_be_tl *list);
+-
+-M0_INTERNAL void m0_be_tlist_fini(const struct m0_be_tl_descr *d,
+-                                  struct m0_be_tl *list);
+-
+-M0_INTERNAL void m0_be_tlink_init(const struct m0_be_tl_descr *d,
+-                                  struct m0_be_reference      *ref);
+-
+-M0_INTERNAL void m0_be_tlink_fini(const struct m0_be_tl_descr *d, void *obj);
+-
+-M0_INTERNAL void m0_be_tlink_init_at(const struct m0_be_tl_descr *d,
+-                                     struct m0_be_tl             *list,
+-                                     struct m0_be_reference      *ref);
+-
+-M0_INTERNAL void m0_be_tlink_init_at_tail(const struct m0_be_tl_descr *d,
+-                                          struct m0_be_tl             *list,
+-                                          struct m0_be_reference      *ref);
+-
+-M0_INTERNAL void m0_be_tlink_del_fini(const struct m0_be_tl_descr *d,
+-                                      void *obj);
+-
+-M0_INTERNAL bool m0_be_tlist_invariant(const struct m0_be_tl_descr *d,
+-                                       const struct m0_be_tl *list);
+-
+-M0_INTERNAL bool m0_be_tlink_invariant(const struct m0_be_tl_descr *d,
+-                                       const void *obj);
+-
+-M0_INTERNAL bool   m0_be_tlist_is_empty(const struct m0_be_tl_descr *d,
+-                                        const struct m0_be_tl *list);
+-
+-M0_INTERNAL bool   m0_be_tlink_is_in(const struct m0_be_tl_descr *d,
+-                                     const void *obj);
+-
+-M0_INTERNAL bool   m0_be_tlist_contains(const struct m0_be_tl_descr *d,
+-                                        const struct m0_be_tl *list,
+-                                        const void *obj);
+-
+-M0_INTERNAL size_t m0_be_tlist_length  (const struct m0_be_tl_descr *d,
+-                                        const struct m0_be_tl *list);
+-
+-/**
+-   Adds an element to the beginning of a list.
+-
+-   @pre !m0_tlink_is_in(d, obj)
+-   @post m0_tlink_is_in(d, obj)
+- */
+-M0_INTERNAL void   m0_be_tlist_add(const struct m0_be_tl_descr *d,
+-                                   struct m0_be_tl *list, void *obj);
+-
+-/**
+-   Adds an element to the end of a list.
+-
+-   @pre !m0_tlink_is_in(d, obj)
+-   @post m0_tlink_is_in(d, obj)
+- */
+-M0_INTERNAL void   m0_be_tlist_add_tail(const struct m0_be_tl_descr *d,
+-                                        struct m0_be_tl *list, void *obj);
+-
+-/**
+-   Adds an element after another element of the list.
+-
+-   @pre !m0_tlink_is_in(d, new)
+-   @post m0_tlink_is_in(d, new)
+- */
+-M0_INTERNAL void   m0_be_tlist_add_after(const struct m0_be_tl_descr *d,
+-                                         void *obj, void *new);
+-
+-/**
+-   Adds an element before another element of the list.
+-
+-   @pre !m0_tlink_is_in(d, new)
+-   @post m0_tlink_is_in(d, new)
+- */
+-M0_INTERNAL void   m0_be_tlist_add_before(const struct m0_be_tl_descr *d,
+-                                          void *obj, void *new);
+-
+-/**
+-   Deletes an element from the list.
+-
+-   @pre   m0_tlink_is_in(d, obj)
+-   @post !m0_tlink_is_in(d, obj)
+- */
+-M0_INTERNAL void   m0_be_tlist_del(const struct m0_be_tl_descr *d, void *obj);
+-
+-/**
+-   Moves an element from a list to the head of (possibly the same) list.
+-
+-   @pre  m0_tlink_is_in(d, obj)
+-   @post m0_tlink_is_in(d, obj)
+- */
+-M0_INTERNAL void   m0_be_tlist_move(const struct m0_be_tl_descr *d,
+-                                    struct m0_be_tl *list, void *obj);
+-
+-/**
+-   Moves an element from a list to the tail of (possibly the same) list.
+-
+-   @pre  m0_tlink_is_in(d, obj)
+-   @post m0_tlink_is_in(d, obj)
+- */
+-M0_INTERNAL void   m0_be_tlist_move_tail(const struct m0_be_tl_descr *d,
+-                                         struct m0_be_tl *list, void *obj);
+-
+-/**
+-   Returns the first element of a list or NULL if the list is empty.
+- */
+-M0_INTERNAL void  *m0_be_tlist_head(const struct m0_be_tl_descr *d,
+-                                    const struct m0_be_tl *list);
+-
+-/**
+-   Returns the last element of a list or NULL if the list is empty.
+- */
+-M0_INTERNAL void  *m0_be_tlist_tail(const struct m0_be_tl_descr *d,
+-                                    const struct m0_be_tl *list);
+-
+-/**
+-   Returns the next element of a list or NULL if @obj is the last element.
+-
+-   @pre m0_be_tlist_contains(d, list, obj)
+- */
+-M0_INTERNAL void  *m0_be_tlist_next(const struct m0_be_tl_descr *d,
+-                                    const struct m0_be_tl *list, void *obj);
+-
+-
+-/**
+-   Returns the previous element of a list or NULL if @obj is the first element.
+-
+-   @pre m0_be_tlist_contains(d, list, obj)
+- */
+-M0_INTERNAL void  *m0_be_tlist_prev(const struct m0_be_tl_descr *d,
+-                                    const struct m0_be_tl    *list, void *obj);
+-
+-#define m0_be_tlist_for(descr, head, obj)                               \
+-do {                                                                    \
+-        void *__be_tl;                                                  \
+-                                                                        \
+-        for (obj = m0_be_tlist_head(descr, head);                       \
+-             obj != NULL &&                                             \
+-             ((void)(__be_tl = m0_be_tlist_next(descr, head, obj)), true);\
+-             obj = __be_tl)
+-
+-/**
+-   Terminates m0_be_tlist_for() loop.
+- */
+-#define m0_be_tlist_endfor ; (void)__be_tl; } while (0)
+-
+-#define M0_BE_TL_DECLARE(name, scope, amb_type)                         \
+-                                                                        \
+-scope void name ## _be_tlist_init(struct m0_be_tl *head);               \
+-scope void name ## _be_tlist_fini(struct m0_be_tl *head);               \
+-scope void name ## _be_tlink_init(struct m0_be_reference *ref);         \
+-scope void name ## _be_tlink_init_at(struct m0_be_reference *ref,       \
+-                                     struct m0_be_tl        *head);     \
+-scope void name ## _be_tlink_init_at_tail(struct m0_be_reference *ref,  \
+-                                          struct m0_be_tl        *head);\
+-scope void name ## _be_tlink_fini(amb_type *amb);                       \
+-scope void name ## _be_tlink_del_fini(amb_type *amb);                   \
+-scope bool   name ## _be_tlist_is_empty(const struct m0_be_tl *list);   \
+-scope bool   name ## _be_tlink_is_in   (const amb_type *amb);           \
+-scope bool   name ## _be_tlist_contains(const struct m0_be_tl *list,    \
+-                                        const amb_type *amb);           \
+-scope size_t name ## _be_tlist_length(const struct m0_be_tl *list);     \
+-scope void   name ## _be_tlist_add(struct m0_be_tl *list, amb_type *amb); \
+-scope void   name ## _be_tlist_add_tail(struct m0_be_tl *list, amb_type *amb); \
+-scope void   name ## _be_tlist_add_after(amb_type *amb, amb_type *new); \
+-scope void   name ## _be_tlist_add_before(amb_type *amb, amb_type *new);\
+-scope void   name ## _be_tlist_del(amb_type *amb);                      \
+-scope void   name ## _be_tlist_move(struct m0_be_tl *list, amb_type *amb); \
+-scope void   name ## _be_tlist_move_tail(struct m0_be_tl *list, amb_type *amb);\
+-scope amb_type *name ## _be_tlist_head(const struct m0_be_tl *list);    \
+-scope amb_type *name ## _be_tlist_tail(const struct m0_be_tl *list);    \
+-scope amb_type *name ## _be_tlist_next(const struct m0_be_tl *list,     \
+-                                       amb_type *amb);                  \
+-scope amb_type *name ## _be_tlist_prev(const struct m0_be_tl *list, \
+-                                       amb_type *amb)
+-
+-#define __AUN __attribute__((unused))
+-
+-
+-/**
+-   Defines a tlist descriptor (m0_be_tl_descr) for a particular ambient type.
+- */
+-#define M0_BE_TL_DESCR_DEFINE(name, hname, scope, amb_type, amb_link_field, \
+-                              amb_magic_field, amb_magic, head_magic)   \
+-scope const struct m0_be_tl_descr name ## _tl = M0_BE_TL_DESCR(hname,   \
+-                                                               amb_type,\
+-                                                               amb_link_field,\
+-                                                               amb_magic_field,\
+-                                                               amb_magic,\
+-                                                               head_magic)
+-
+-
+-/**
+-   Defines functions declared by M0_BE_TL_DECLARE().
+-
+-   The definitions generated assume that tlist descriptor, defined by
+-   M0_BE_TL_DESC_DEFINE() is in scope.
+- */
+-#define M0_BE_TL_DEFINE(name, scope, amb_type)                          \
+-                                                                        \
+-scope __AUN void name ## _tlist_init(struct m0_be_tl *head)             \
+-{                                                                       \
+-        m0_be_tlist_init(&name ## _tl, head);                           \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void name ## _tlist_fini(struct m0_be_tl *head)             \
+-{                                                                       \
+-        m0_be_tlist_fini(&name ## _tl, head);                           \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void name ## _tlink_init(struct m0_be_reference *ref)       \
+-{                                                                       \
+-        m0_be_tlink_init(&name ## _tl, ref);                            \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void name ## _tlink_init_at(struct m0_be_reference *ref,    \
+-                                        struct m0_be_tl        *head)   \
+-{                                                                       \
+-        m0_be_tlink_init_at(&name ## _tl,  head, ref);                  \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void name ## _tlink_init_at_tail(struct m0_be_reference *ref, \
+-                                             struct m0_be_tl        *head)\
+-{                                                                       \
+-        m0_be_tlink_init_at_tail(&name ## _tl, head, ref);              \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void name ## _tlink_fini(amb_type *amb)                     \
+-{                                                                       \
+-        m0_be_tlink_fini(&name ## _tl, amb);                            \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void name ## _tlink_del_fini(amb_type *amb)                 \
+-{                                                                       \
+-        m0_be_tlink_del_fini(&name ## _tl, amb);                        \
+-}                                                                       \
+-                                                                        \
+-scope __AUN bool   name ## _tlist_is_empty(const struct m0_be_tl *list) \
+-{                                                                       \
+-        return m0_be_tlist_is_empty(&name ## _tl, list);                \
+-}                                                                       \
+-                                                                        \
+-scope __AUN bool   name ## _tlink_is_in   (const amb_type *amb)         \
+-{                                                                       \
+-        return m0_be_tlink_is_in(&name ## _tl, amb);                    \
+-}                                                                       \
+-                                                                        \
+-scope __AUN bool   name ## _tlist_contains(const struct m0_be_tl *list, \
+-                                           const amb_type *amb)         \
+-{                                                                       \
+-        return m0_be_tlist_contains(&name ## _tl, list, amb);           \
+-}                                                                       \
+-                                                                        \
+-scope __AUN size_t name ## _tlist_length(const struct m0_be_tl *list)   \
+-{                                                                       \
+-        return m0_be_tlist_length(&name ## _tl, list);                  \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void   name ## _tlist_add(struct m0_be_tl *list, amb_type *amb) \
+-{                                                                       \
+-        m0_be_tlist_add(&name ## _tl, list, amb);                       \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void   name ## _tlist_add_tail(struct m0_be_tl *list,       \
+-                                           amb_type *amb)               \
+-{                                                                       \
+-        m0_be_tlist_add_tail(&name ## _tl, list, amb);                  \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void   name ## _tlist_add_after(amb_type *amb, amb_type *new) \
+-{                                                                       \
+-        m0_be_tlist_add_after(&name ## _tl, amb, new);                  \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void   name ## _tlist_add_before(amb_type *amb, amb_type *new) \
+-{                                                                       \
+-        m0_be_tlist_add_before(&name ## _tl, amb, new);                 \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void   name ## _tlist_del(amb_type *amb)                    \
+-{                                                                       \
+-        m0_be_tlist_del(&name ## _tl, amb);                             \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void   name ## _tlist_move(struct m0_be_tl *list, amb_type *amb)\
+-{                                                                       \
+-        m0_be_tlist_move(&name ## _tl, list, amb);                      \
+-}                                                                       \
+-                                                                        \
+-scope __AUN void   name ## _tlist_move_tail(struct m0_be_tl *list,      \
+-                                            amb_type *amb)              \
+-{                                                                       \
+-        m0_be_tlist_move_tail(&name ## _tl, list, amb);                 \
+-}                                                                       \
+-                                                                        \
+-scope __AUN amb_type *name ## _tlist_head(const struct m0_be_tl *list)  \
+-{                                                                       \
+-        return m0_be_tlist_head(&name ## _tl, list);                    \
+-}                                                                       \
+-                                                                        \
+-scope __AUN amb_type *name ## _tlist_tail(const struct m0_be_tl *list)  \
+-{                                                                       \
+-        return m0_be_tlist_tail(&name ## _tl, list);                    \
+-}                                                                       \
+-                                                                        \
+-scope __AUN amb_type *name ## _tlist_next(const struct m0_be_tl *list,  \
+-                                          amb_type *amb)                \
+-{                                                                       \
+-        return m0_be_tlist_next(&name ## _tl, list, amb);               \
+-}                                                                       \
+-                                                                        \
+-scope __AUN amb_type *name ## _tlist_prev(const struct m0_be_tl *list,  \
+-                                          amb_type *amb)                \
+-{                                                                       \
+-        return m0_be_tlist_prev(&name ## _tl, list, amb);               \
+-}                                                                       \
+-                                                                        \
+-struct __ ## name ## _terminate_me_with_a_semicolon { ; }
+-/** @} end of be_tlist group */
+-
+-#endif /* __MERO_BE_TLIST_H__ */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/be/domain.c b/be/domain.c
+index 4315542..5967b50 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -17,6 +17,9 @@
+  * Original creation date       : 11/08/2012
+  */
+ 
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
+ #include <stdio.h>
+ #include <string.h>
+ 
+@@ -34,23 +37,27 @@
+ */
+ 
+ M0_INTERNAL void m0_be_domain_create(struct m0_be_domain *dom,
+-                                     struct m0_stob *stob)
++                                     struct m0_stob *stob,
++                                     struct m0_stob *log_stob,
++                                     uint64_t dom_magic)
+ {
++        M0_ENTRY("domain: %p", dom);
++        M0_ASSERT(dom != NULL);
++
++        dom->bd_data.bs_stob    = stob;
++        dom->bd_impl.log_stob   = log_stob;
++        dom->bd_magic           = dom_magic;
+ 
++        M0_POST(m0_be_domain_invariant(dom));
++        M0_LEAVE();
+ }
+ 
+-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
+-                                   struct m0_stob *stob,
+-                                   struct m0_stob *log_stob,
+-                                   uint64_t dom_magic)
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
+ {
+         int          result;
+ 
+-        M0_ASSERT(dom != NULL);
+-
+-        dom->bd_data.bs_stob    = stob;
+-        dom->bd_impl.log_stob   = log_stob;
+-        dom->bd_magic           = dom_magic;
++        M0_ENTRY("domain: %p", dom);
++        M0_ASSERT(m0_be_domain_invariant(dom));
+ 
+         m0_sm_group_init(&dom->bd_impl.sm_group);
+ 
+@@ -66,12 +73,9 @@ M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
+          * @todo - Need to decide if m0_be_seg_init should be called
+          * instead of M0_BESEG_CLOSED state assignment.
+          **/
+-        m0_sm_group_lock(&dom->bd_impl.sm_group);
+-        m0_sm_state_set(&dom->bd_data.bs_sm, M0_BESEG_CLOSED);
+-        m0_sm_group_unlock(&dom->bd_impl.sm_group);
++        m0_be_seg_state_change(&dom->bd_data, M0_BESEG_CLOSED);
+ 
+         m0_be_seg_tlist_init(&dom->bd_seg);
+-
+         m0_be_tx_tlist_init(&dom->bd_tx);
+ 
+         /**
+@@ -79,29 +83,35 @@ M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
+          * this needs to be removed.
+          */
+         m0_be_init();
++        M0_POST(m0_be_domain_invariant(dom));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL bool m0_be_domain_lookup(struct m0_be_domain *dom, const char *name,
+                                      struct m0_be_seg **out)
+ {
+-        struct m0_be_seg        *seg_it;
++        struct m0_be_seg        *seg;
+         bool                     found = false;
+ 
+-        M0_ASSERT(dom != NULL);
++        M0_ENTRY("domain: %p, name: %p", dom, name);
++        M0_ASSERT(m0_be_domain_invariant(dom));
+         M0_PRE(m0_be_seg_state(&dom->bd_data) == M0_BESEG_ACTIVE);
+ 
+-        m0_tl_for(m0_be_seg, &dom->bd_seg, seg_it) {
+-                if (strcmp(name, seg_it->bs_impl.segment_name) == 0) {
+-                        *out = seg_it;
++        seg = m0_be_domain_get_seg(dom, name);
++
++        if (seg) {
++                if (m0_be_seg_state(seg) == M0_BESEG_CLOSED) {
++                        m0_be_seg_open(seg);
++                        found = true;
++                } else if (m0_be_seg_state(seg) == M0_BESEG_ACTIVE) {
+                         found = true;
+-                        break;
+                 }
+-        } m0_tl_endfor;
+-
+-        if (found && m0_be_seg_state(*out) == M0_BESEG_CLOSED) {
+-                m0_be_seg_open(*out);
++        } else {
++                found = false;
+         }
+ 
++        *out = seg;
++        M0_LEAVE("seg : %p", *out);
+         return found;
+ }
+ 
+@@ -110,55 +120,53 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+         struct m0_be_seg         *seg_it;
+         struct m0_be_tx          *tx_it;
+ 
++        M0_ENTRY("domain: %p", dom);
++        M0_ASSERT(m0_be_domain_invariant(dom));
+         M0_PRE(M0_IN(m0_be_seg_state(&dom->bd_data), (M0_BESEG_CLOSED,
+                                                       M0_BESEG_FAILED)));
+ 
+-        m0_tl_for(m0_be_tx, &dom->bd_tx, tx_it) {
++        for_each_tx_in_domain(tx_it, dom)
+                 m0_be_tx_tlink_del_fini(tx_it);
+-        } m0_tl_endfor;
++        end_for_each_tx_in_domain
+ 
+-        m0_tl_for(m0_be_seg, &dom->bd_seg, seg_it) {
++        for_each_seg_in_domain(seg_it, dom)
+                 m0_be_seg_tlink_del_fini(seg_it);
+                 m0_be_seg_fini(seg_it);
+-        } m0_tl_endfor;
++        end_for_each_seg_in_domain
+ 
+         m0_be_seg_tlist_fini(&dom->bd_seg);
+         m0_be_tx_tlist_fini(&dom->bd_tx);
+         m0_stob_fini(dom->bd_impl.log_stob);
++
++        M0_POST(m0_be_domain_invariant(dom));
++        M0_LEAVE();
+ }
+ 
+-M0_INTERNAL void m0_be_domain_restore(struct m0_be_domain *dom,
+-                                      const char          *name,
+-                                      struct m0_be_seg    *out)
++M0_INTERNAL void m0_be_domain_seg_restore(struct m0_be_domain *dom,
++                                          const char          *name,
++                                          struct m0_be_seg    *seg)
+ {
+-        struct  m0_be_seg        *seg_it;
+         struct  m0_stob_domain   *stob_dom;
+         struct  m0_stob_id        stob_id = {{0, 1}}; /* Hardcoded for now. */
+         int                       result;
+         bool                      stob_directio = true;
+-        bool                      found = false;
+ 
+-        M0_ASSERT(dom != NULL);
++        M0_ENTRY("domain: %p, seg: %p", dom, seg);
++        M0_ASSERT(m0_be_domain_invariant(dom));
+ 
+         M0_PRE(m0_be_seg_state(&dom->bd_data) == M0_BESEG_ACTIVE);
+ 
+-        m0_tl_for(m0_be_seg, &dom->bd_seg, seg_it) {
+-                if (strcmp(name, seg_it->bs_impl.segment_name) == 0) {
+-                        *out = *seg_it;
+-                        found = true;
+-                        break;
+-                }
+-        } m0_tl_endfor;
++        seg = m0_be_domain_get_seg(dom, name);
+ 
+-        if (found && m0_be_seg_state(out) == M0_BESEG_CLOSED) {
+-                m0_be_seg_open(out);
++        if (seg && m0_be_seg_state(seg) == M0_BESEG_CLOSED) {
++                m0_be_seg_open(seg);
+         }
+ 
+-        if (!found) {
++        if (!seg) {
+                 /* Hardcoded for now. */
+-                out->bs_impl.segment_id = 1;
++                seg->bs_impl.segment_id = 1;
+ 
+-                m0_be_seg_init(out, dom, &dom->bd_impl.sm_group, 0);
++                m0_be_seg_init(seg, dom, &dom->bd_impl.sm_group, 0);
+ 
+                 //m0_stob_type_init(&m0_linux_stob_type);
+                 result = m0_stob_domain_locate(&m0_linux_stob_type, "./__be",
+@@ -168,17 +176,19 @@ M0_INTERNAL void m0_be_domain_restore(struct m0_be_domain *dom,
+                 result = m0_linux_stob_setup(stob_dom, stob_directio);
+                 M0_ASSERT(result == 0);
+ 
+-                result = m0_stob_find(stob_dom, &stob_id, &out->bs_stob);
++                result = m0_stob_find(stob_dom, &stob_id, &seg->bs_stob);
+                 M0_ASSERT(result == 0);
+ 
+-                result = m0_stob_create(out->bs_stob, NULL);
+-                strncpy(out->bs_impl.segment_name, name,
+-                        sizeof(out->bs_impl.segment_name));
+-                m0_be_seg_open(out);
++                result = m0_stob_create(seg->bs_stob, NULL);
++                strncpy(seg->bs_impl.segment_name, name,
++                        sizeof(seg->bs_impl.segment_name));
++                m0_be_seg_open(seg);
+ 
+-                m0_be_seg_tlink_init(out);
+-                m0_be_seg_tlist_add(&dom->bd_seg, out);
++                m0_be_seg_tlink_init(seg);
++                m0_be_seg_tlist_add(&dom->bd_seg, seg);
+         }
++        M0_POST(m0_be_domain_invariant(dom));
++        M0_LEAVE("seg: %p", seg);
+ }
+ 
+ M0_INTERNAL void m0_be_handler_thread(struct m0_sm_group *sm_group)
+@@ -206,11 +216,34 @@ struct m0_sm_group *m0_be_domain_sm_group(struct m0_be_domain *dom)
+         return &dom->bd_impl.sm_group;
+ }
+ 
+-bool m0_be_domain_invariant(const struct m0_be_domain *dom)
++M0_INTERNAL bool m0_be_domain_invariant(const struct m0_be_domain *dom)
+ {
+-        return true;
++        struct m0_sm_group      *sm_group;
++        struct m0_be_domain     *sdom;
++
++        sdom     = (struct m0_be_domain *)dom;
++        sm_group = m0_be_domain_sm_group(sdom);
++
++        return  dom != NULL &&
++                dom->bd_magic == M0_BE_DOMAIN_MAGIC &&
++                !m0_mutex_is_locked(&sm_group->s_lock);
++}
++
++M0_INTERNAL struct m0_be_seg *m0_be_domain_get_seg(struct m0_be_domain *dom,
++                                                   const char *name)
++{
++        struct m0_be_seg        *seg_it = NULL;
++
++        for_each_seg_in_domain(seg_it, dom)
++                if (strcmp(name, seg_it->bs_impl.segment_name) == 0) {
++                        return seg_it;
++                }
++        end_for_each_seg_in_domain
++
++        return seg_it;
+ }
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_domain */
+ 
+ /*
+diff --git a/be/domain.h b/be/domain.h
+index e7c9285..1480c8f 100644
+--- a/be/domain.h
++++ b/be/domain.h
+@@ -29,6 +29,22 @@
+ 
+ #include "be/be.h"
+ 
++#define for_each_seg_in_domain(seg_it, dom) \
++        m0_tl_for(m0_be_seg, &dom->bd_seg, seg_it) {
++
++#define end_for_each_seg_in_domain } m0_tl_endfor;
++
++#define for_each_tx_in_domain(tx_it, dom) \
++        m0_tl_for(m0_be_tx, &dom->bd_tx, tx_it) {
++
++#define end_for_each_tx_in_domain } m0_tl_endfor;
++
++/**
++ * Helper function for domain to get segment from domain's segment list
++ */
++M0_INTERNAL struct m0_be_seg *m0_be_domain_get_seg(struct m0_be_domain *dom,
++                                                   const char *name);
++
+ /**
+  * Handler thread for backend domain.
+  */
+@@ -39,6 +55,8 @@ M0_INTERNAL void m0_be_handler_thread(struct m0_sm_group *sm_group);
+  */
+ struct m0_sm_group *m0_be_domain_sm_group(struct m0_be_domain *dom);
+ 
++M0_INTERNAL bool m0_be_domain_invariant(const struct m0_be_domain *dom);
++
+ /** @} end of be_domain group */
+ 
+ /* __MERO_BE_DOMAIN_H__ */
+diff --git a/be/handle_store.c b/be/handle_store.c
+index 84c803b..65c998c 100644
+--- a/be/handle_store.c
++++ b/be/handle_store.c
+@@ -22,11 +22,14 @@
+   @{
+   */
+ 
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++#include "lib/memory.h"
+ #include "be/be.h"
+ #include "be/domain.h"
+ #include "be/reg.h"
+ #include "be/tx.h"
+-#include "lib/memory.h"
+ 
+ /**
+  * Handle store APIs
+@@ -42,15 +45,10 @@ M0_INTERNAL void m0_be_hs_update(struct m0_be_seg *seg, uint64_t index,
+         struct m0_be_reg        reg;
+         uint64_t                offset;
+ 
++        M0_ENTRY("seg: %p", seg);
+         M0_ASSERT(seg != NULL);
+         m0_be_tx_init(&tx, seg->bs_dom, 0);
+ 
+-        m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        M0_BITS(M0_BETX_INIT, M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+-
+         if (m0_be_tx_state(&tx) == M0_BETX_FAILED)
+                 goto hs_exit;
+ 
+@@ -58,21 +56,10 @@ M0_INTERNAL void m0_be_hs_update(struct m0_be_seg *seg, uint64_t index,
+ 
+         m0_be_static_reg_capture_buf(offset, seg, &reg, &tx);
+ 
+-        m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        M0_BITS(M0_BETX_PREPARED, M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+-
+         if (m0_be_tx_state(&tx) == M0_BETX_FAILED)
+                 goto hs_exit;
+ 
+         m0_be_tx_start(&tx);
+-        m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        M0_BITS(M0_BETX_OPEN, M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+ 
+         if (m0_be_tx_state(&tx) == M0_BETX_FAILED)
+                 goto hs_exit;
+@@ -80,7 +67,7 @@ M0_INTERNAL void m0_be_hs_update(struct m0_be_seg *seg, uint64_t index,
+         elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(seg,
+                                                                       offset);
+ 
+-        elem = h_addr;
++        *elem = *h_addr;
+ 
+         m0_be_tx_done(&tx);
+         m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+@@ -95,6 +82,7 @@ M0_INTERNAL void m0_be_hs_update(struct m0_be_seg *seg, uint64_t index,
+         m0_be_tx_fini(&tx);
+ 
+ hs_exit:
++        M0_LEAVE();
+         return;
+ }
+ 
+@@ -104,10 +92,12 @@ M0_INTERNAL struct m0_uint128 *m0_be_hs_get(struct m0_be_seg *seg,
+ {
+         uint64_t offset = index * sizeof(struct m0_uint128);
+ 
++        M0_ENTRY("seg: %p", seg);
+         return (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(seg,
+                                                                       offset);
+ }
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end group handle_store */
+ 
+ /*
+diff --git a/be/helper.c b/be/helper.c
+index e04309f..76f7696 100644
+--- a/be/helper.c
++++ b/be/helper.c
+@@ -22,51 +22,43 @@
+    @addtogroup helper Helper Routines
+    @{
+  */
++
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
+ #include "be/helper.h"
+ #include "be/seg.h"
+ 
+ M0_INTERNAL void m0_be_ks_init_domain(struct m0_be_domain  **out_dom)
+ {
+         struct m0_be_domain  *dom;
++        struct m0_sm_group   *sm_group;
++
++        M0_ENTRY();
+ 
+         M0_ALLOC_PTR(dom);
+         M0_ASSERT(dom != NULL);
+ 
+         if (*out_dom == NULL) {
+-                m0_be_domain_create(dom, NULL);
++                m0_be_domain_create(dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
+         }
+ 
+         /*
+          * Initialise the domain with some magic.
+          * For now, we use M0_BE_DOMAIN_MAGIC
+          */
+-        m0_be_domain_init(dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
+-        dom->bd_data.bs_sm.sm_state = M0_BESEG_ACTIVE;
+-
+-        *out_dom = dom;
+-}
+-M0_EXPORTED(m0_be_ks_init_domain);
+-
+-M0_INTERNAL int m0_be_ks_domain_lookup(struct m0_be_domain     *dom,
+-                                       struct m0_be_seg       **seg,
+-                                       char                    *name)
+-{
+-        struct m0_sm_group *sm_group;
+-        int                 ret_val;
++        m0_be_domain_init(dom);
+ 
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+-        ret_val = m0_be_domain_lookup(dom, name, seg);
+-
+-        /* Wait only if lookup succeeds */
+-        if (ret_val == 0 && m0_be_seg_state(*seg) != M0_BESEG_ACTIVE) {
+-                m0_be_wait(sm_group, &(*seg)->bs_sm,
+-                           M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
+-        }
++        m0_sm_group_lock(sm_group);
++        m0_sm_state_set(&dom->bd_data.bs_sm, M0_BESEG_ACTIVE);
++        m0_sm_group_unlock(sm_group);
+ 
+-        return ret_val;
++        *out_dom = dom;
++        M0_LEAVE();
+ }
+-M0_EXPORTED(m0_be_ks_domain_lookup);
++M0_EXPORTED(m0_be_ks_init_domain);
+ 
+ M0_INTERNAL int m0_be_ks_domain_restore(struct m0_be_domain *dom,
+                                         struct m0_be_seg    *seg,
+@@ -74,9 +66,12 @@ M0_INTERNAL int m0_be_ks_domain_restore(struct m0_be_domain *dom,
+ {
+         struct m0_sm_group *sm_group;
+ 
++        M0_ENTRY();
++
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+-        m0_be_domain_restore(dom, name, seg);
++        /* Try to open a segment */
++        m0_be_domain_seg_restore(dom, name, seg);
+         m0_be_wait(sm_group, &seg->bs_sm,
+                    M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
+ 
+@@ -85,6 +80,8 @@ M0_INTERNAL int m0_be_ks_domain_restore(struct m0_be_domain *dom,
+                 m0_be_seg_fini(seg);
+                 return BE_KV_FAILURE;
+         }
++
++        M0_LEAVE();
+         return BE_KV_SUCCESS;
+ }
+ M0_EXPORTED(m0_be_ks_domain_restore);
+@@ -92,11 +89,13 @@ M0_EXPORTED(m0_be_ks_domain_restore);
+ M0_INTERNAL void *m0_be_ks_obj_malloc(struct m0_be_reg        *obj_reg,
+                                       struct m0_be_reference **obj_ref)
+ {
+-        M0_PRE(obj_reg->br_sm.sm_state == M0_BEREG_INIT);
+         struct m0_be_domain     *dom;
+         void                    *obj;
+         struct m0_sm_group      *sm_group;
+ 
++        M0_ENTRY("obj_reg: %p", obj_reg);
++        M0_PRE(obj_reg->br_sm.sm_state == M0_BEREG_INIT);
++
+         M0_ASSERT(obj_reg != NULL);
+ 
+         dom      = obj_reg->br_seg->bs_dom;
+@@ -104,62 +103,35 @@ M0_INTERNAL void *m0_be_ks_obj_malloc(struct m0_be_reg        *obj_reg,
+ 
+         /* Allocate memory from RVM */
+         m0_be_alloc(obj_reg);
+-        m0_be_wait(sm_group, &obj_reg->br_sm,
+-                   M0_BITS(M0_BEREG_ALLOCATED, M0_BEREG_FAILED));
+ 
+         /* Capture this region explicitly */
+         m0_be_reg_capture(obj_reg);
+-        m0_be_wait(sm_group, &obj_reg->br_sm,
+-                   M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+ 
+         obj = obj_reg->br_buf.b_addr;
+         if (obj == NULL)
+-                goto exit_failure;
++                goto exit_malloc;
+ 
+         /* Collect the reference to be returned to the user */
+         *obj_ref = &obj_reg->br_buf.b_logical_address;
+ 
++exit_malloc:
++        M0_LEAVE();
+         return obj;
+-
+-exit_failure:
+-        return NULL;
+ }
+ M0_EXPORTED(m0_be_ks_obj_malloc);
+ 
+ M0_INTERNAL void m0_be_ks_fini(struct m0_be_domain *dom, struct m0_be_seg *seg)
+ {
++        M0_ENTRY();
+         m0_be_seg_done(seg);
+         dom->bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
+         rvm_truncate();
+         m0_be_domain_fini(dom);
+         m0_free(dom);
++        M0_LEAVE();
+ }
+ M0_EXPORTED(m0_be_ks_fini);
+ 
+-M0_INTERNAL void m0_be_ks_tx_prep(struct m0_be_tx *tx)
+-{
+-        struct m0_sm_group      *sm_group;
+-
+-        sm_group = m0_be_domain_sm_group(tx->bt_dom);
+-
+-        m0_be_tx_prep(tx);
+-        m0_be_wait(sm_group, &tx->bt_sm,
+-                   M0_BITS(M0_BETX_PREPARED, M0_BETX_FAILED));
+-}
+-M0_EXPORTED(m0_be_ks_tx_prep);
+-
+-M0_INTERNAL void m0_be_ks_tx_start(struct m0_be_tx *tx)
+-{
+-        struct m0_sm_group      *sm_group;
+-
+-        sm_group = m0_be_domain_sm_group(tx->bt_dom);
+-
+-        m0_be_tx_start(tx);
+-        m0_be_wait(sm_group, &tx->bt_sm,
+-                   M0_BITS(M0_BETX_OPEN, M0_BETX_FAILED));
+-}
+-M0_EXPORTED(m0_be_ks_tx_prep_start);
+-
+ M0_INTERNAL void m0_be_ks_prep_link_reg(struct m0_be_domain    *dom,
+                                         struct m0_list_link    *link,
+                                         struct m0_be_tx        *tx,
+@@ -168,32 +140,37 @@ M0_INTERNAL void m0_be_ks_prep_link_reg(struct m0_be_domain    *dom,
+         struct m0_be_seg        *seg = NULL;
+         struct m0_sm_group      *sm_group;
+         struct m0_be_buf         buf;
+-        int                      ret_val;
++        bool                     ret_val;
+ 
++        M0_ENTRY();
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+         /* Lookup for the kv_store segment. If not found, create one */
+-        ret_val = m0_be_ks_domain_lookup(dom, &seg, BE_KV_SEG_NAME);
+-        M0_ASSERT(ret_val == 0);
++        ret_val = m0_be_domain_lookup(dom, BE_KV_SEG_NAME, &seg);
++        M0_ASSERT(ret_val);
+         M0_ASSERT(seg != NULL);
+ 
+         M0_ALLOC_PTR((*reg));
+         M0_ASSERT(*reg != NULL);
+-        buf.b_nob = sizeof(struct m0_list_link);
++        buf.b_nob = sizeof *link;
+         buf.b_addr = (void *)link;
+         m0_be_reg_init(*reg, tx, seg, &buf);
++        M0_LEAVE();
+ }
+ M0_EXPORTED(m0_be_ks_prep_link);
+ 
+ M0_INTERNAL void m0_be_wait(struct m0_sm_group *sm_group,
+                             struct m0_sm       *sm, uint64_t allowed_states)
+ {
++        M0_ENTRY();
+         m0_sm_group_lock(sm_group);
+         m0_sm_timedwait(sm, allowed_states, M0_TIME_NEVER);
+         m0_sm_group_unlock(sm_group);
++        M0_LEAVE();
+ }
+ M0_EXPORTED(m0_be_wait);
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /* @} end of helper group */
+ 
+ /*
+diff --git a/be/helper.h b/be/helper.h
+index 5318013..60dcd8f 100644
+--- a/be/helper.h
++++ b/be/helper.h
+@@ -61,18 +61,6 @@ M0_INTERNAL void m0_be_ks_init_domain(struct m0_be_domain  **out_dom);
+ M0_INTERNAL void m0_be_ks_fini(struct m0_be_domain *dom, struct m0_be_seg *seg);
+ 
+ /**
+-  Lookup for a segment identified by the @segid within the domain.
+-  @param dom    :       domain to lookup in.
+-  @param seg    :       segment to be returned.
+-  @param name   :       name of the segment to be looked up.
+-  @retval 0     :       on successful lookup.
+-  @retval -1    :       on failed lookup.
+- */
+-M0_INTERNAL int m0_be_ks_domain_lookup(struct m0_be_domain   *dom,
+-                                       struct m0_be_seg     **seg,
+-                                       char                  *name);
+-
+-/**
+   Tries to open a segment with @segid.
+   Used while recovery of kv store handle.
+ 
+@@ -98,10 +86,6 @@ M0_INTERNAL int m0_be_ks_domain_restore(struct m0_be_domain *dom,
+ M0_INTERNAL void *m0_be_ks_obj_malloc(struct m0_be_reg        *obj_reg,
+                                       struct m0_be_reference **obj_ref);
+ 
+-M0_INTERNAL void m0_be_ks_tx_prep(struct m0_be_tx *tx);
+-
+-M0_INTERNAL void m0_be_ks_tx_start(struct m0_be_tx *tx);
+-
+ /**
+   Prepares and carries out reg_init for @reg for the linkage @link.
+  */
+diff --git a/be/kv_store.c b/be/kv_store.c
+index 8401713..24e0e60 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -17,6 +17,10 @@
+  * Original author: Zishan Shaikh <zishan_shaikh@xyratex.com>
+  * Original creation date: 12/24/2012
+  */
++
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
+ #include "be/kv_store.h"
+ #include "be/handle_store.h"
+ #include "be/be_buf.h"
+@@ -70,34 +74,37 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_domain        *dom,
+         struct m0_be_reference      *rvm_handle_ref;
+         struct m0_be_kv_store_rvm   *rvm_handle;
+         struct m0_sm_group          *sm_group;
+-        struct m0_be_seg            *rvm_handle_seg = NULL;
++        struct m0_be_seg            *rvm_handle_seg;
+         struct m0_be_buf             rvm_handle_buf;
+         int                          ret_val;
+ 
++        M0_ENTRY("dom: %p, descr: %p", dom, descr);
+         M0_ALLOC_PTR(tx);
+         M0_ASSERT(tx != NULL);
+ 
+         if (tx == NULL)
+                 return;
+ 
+-        /** Lookup for the kv_store segment. */
++        /* Lookup for the kv_store segment. */
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+-        ret_val = m0_be_ks_domain_lookup(dom, &rvm_handle_seg, BE_KV_SEG_NAME);
+-        M0_ASSERT(ret_val == 0);
++        ret_val = m0_be_domain_lookup(dom, BE_KV_SEG_NAME, &rvm_handle_seg);
++        m0_be_wait(sm_group, &rvm_handle_seg->bs_sm,
++                   M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
++
++        M0_ASSERT(ret_val == true);
+         M0_ASSERT(rvm_handle_seg != NULL);
+ 
+         m0_be_tx_init(tx, dom, 0);
+-        m0_be_wait(sm_group, &tx->bt_sm, M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+ 
+-        /** Prepare a region for the rvm_handle. */
++        /* Prepare a region for the rvm_handle. */
+         M0_ALLOC_PTR(rvm_handle_reg);
+         M0_ASSERT(rvm_handle_reg != NULL);
+ 
+-        rvm_handle_buf.b_nob = sizeof(struct m0_be_kv_store_rvm);
++        rvm_handle_buf.b_nob = sizeof *rvm_handle;
+         m0_be_reg_init(rvm_handle_reg, tx, rvm_handle_seg, &rvm_handle_buf);
+ 
+-        m0_be_ks_tx_start(tx);
++        m0_be_tx_start(tx);
+ 
+         rvm_handle = (struct m0_be_kv_store_rvm *)
+                       m0_be_ks_obj_malloc(rvm_handle_reg, &rvm_handle_ref);
+@@ -121,10 +128,11 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_domain        *dom,
+         m0_be_tx_fini(tx);
+         m0_free(tx);
+         m0_free(rvm_handle_reg);
++        M0_LEAVE("dom: %p, descr: %p", dom, descr);
+ }
+ M0_EXPORTED(m0_be_ks_create_handle);
+ 
+-M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **out_handle,
++M0_INTERNAL bool m0_be_ks_init(struct m0_be_kv_store **out_handle,
+                                struct m0_tl_descr     *descr,
+                                struct m0_be_domain    *dom,
+                                kv_key_cmp              cmp_fp,
+@@ -135,37 +143,43 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **out_handle,
+         struct m0_be_kv_store_rvm  *rvm_handle;
+         struct m0_sm_group         *sm_group;
+         struct m0_be_seg           *rvm_handle_seg = NULL;
+-        int                         ret_val;
++        bool                        ret_val;
+         int                         recovery_status = -1;
+ 
++        M0_ENTRY("dom: %p, descr: %p", dom, descr);
++
+         if (*out_handle == NULL) {
+                         M0_ALLOC_PTR(handle);
+                         M0_ASSERT(handle != NULL);
+         }
+ 
+-
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+         if (strcmp(mode, "RECOVER") == 0 || strcmp(mode, "recover") == 0) {
+                 M0_ALLOC_PTR(rvm_handle_seg);
+                 M0_ASSERT(rvm_handle_seg != NULL);
++
++                /* Try to restore (open) the segment in @dom */
+                 recovery_status = m0_be_ks_domain_restore(dom, rvm_handle_seg,
+                                                           BE_KV_SEG_NAME);
+-                M0_ASSERT(recovery_status == BE_KV_SUCCESS);
++                if (recovery_status != BE_KV_SUCCESS) {
++                        ret_val = false;
++                        goto exit_init;
++                }
+         } else {
+                 /* Lookup for the kv_store segment. If not found, create one */
+-                ret_val = m0_be_ks_domain_lookup(dom, &rvm_handle_seg,
+-                                                 BE_KV_SEG_NAME);
+-                if (ret_val != 0) {
++                ret_val = m0_be_domain_lookup(dom, BE_KV_SEG_NAME,
++                                              &rvm_handle_seg);
++                if (ret_val != true) {
+                         M0_ALLOC_PTR(rvm_handle_seg);
+                         M0_ASSERT(rvm_handle_seg != NULL);
+ 
+                         m0_be_seg_init(rvm_handle_seg, dom, sm_group, 0);
+                         m0_be_seg_create(rvm_handle_seg, NULL,  BE_KV_SEG_NAME,
+                                          NULL);
+-                        m0_be_wait(sm_group, &rvm_handle_seg->bs_sm,
+-                                   M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
+                 }
++                m0_be_wait(sm_group, &rvm_handle_seg->bs_sm,
++                           M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
+         }
+ 
+         /*
+@@ -174,10 +188,11 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **out_handle,
+          */
+         ret_val = m0_be_ks_deref_handle(handle, rvm_handle_seg);
+ 
+-        if (ret_val == BE_KV_FAILURE && recovery_status != BE_KV_SUCCESS) {
++        if (ret_val == false && recovery_status != BE_KV_SUCCESS) {
+                 m0_be_ks_create_handle(dom, descr, &rvm_handle);
+                 M0_ASSERT(rvm_handle != NULL);
+                 handle->handle_rvm = rvm_handle;
++                ret_val = true;
+         }
+ 
+         /* Set the non_rvm part of the handle with user values */
+@@ -189,6 +204,9 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **out_handle,
+         };
+ 
+         *out_handle = handle;
++exit_init:
++        M0_LEAVE("ret_val: %d dom: %p, descr: %p", ret_val, dom, descr);
++        return ret_val;
+ }
+ M0_EXPORTED(m0_be_ks_init);
+ 
+@@ -200,6 +218,8 @@ M0_INTERNAL struct m0_list_link
+         struct m0_tl            *ks_tlist;
+         struct m0_tl_descr      *ks_list_descr;
+ 
++        M0_ENTRY();
++
+         ks_tlist      = &handle->handle_rvm->ks_tlist;
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+ 
+@@ -215,6 +235,7 @@ M0_INTERNAL struct m0_list_link
+         __ks_get_next(ks_list_descr, obj, &link_next);
+ 
+ get_ref:
++        M0_LEAVE();
+         return link_next;
+ }
+ M0_EXPORTED(m0_be_ks_get_next_value);
+@@ -222,25 +243,28 @@ M0_EXPORTED(m0_be_ks_get_next_value);
+ M0_INTERNAL void *m0_be_ks_find(struct m0_be_kv_store *handle,
+                                 void                  *key)
+ {
+-        /*
+-         * In case the target is not found, the function returns "target"
+-         * as NULL
+-         */
+         void                    *scan;
+-        void                    *target = NULL;
++        void                    *target;
+         struct m0_tl            *ks_tlist;
+         struct m0_tl_descr      *ks_list_descr;
+ 
++        M0_ENTRY();
++
+         ks_tlist = &handle->handle_rvm->ks_tlist;
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+ 
+         m0_tlist_for(ks_list_descr, ks_tlist, scan) {
+                 if (handle->handle_heap.ks_key_match(scan, key) == 0) {
+                         target = scan;
+-                        break;
++                        goto exit_find;
+                 }
+         } m0_tlist_endfor;
+ 
++        /* Target was not found, so we return NULL */
++        target = NULL;
++
++exit_find:
++        M0_LEAVE("target: %p", target);
+         return target;
+ }
+ M0_EXPORTED(m0_be_ks_find);
+@@ -263,6 +287,8 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+         int                      del_tx_state   = BE_KV_IN_TX_NOT_NULL;
+         int                      target_found;
+ 
++        M0_ENTRY();
++
+         ks_list_descr  = handle->handle_heap.ks_list_descr;
+         ks_tlist       = &handle->handle_rvm->ks_tlist;
+         head           = (void *)&ks_tlist->t_head;
+@@ -272,13 +298,10 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+         /* If tx is not provided create and start a new one */
+         if (del_tx == NULL) {
+                 del_tx_state = BE_KV_IN_TX_NULL;
+-
+                 M0_ALLOC_PTR(tx);
+                 M0_ASSERT(tx != NULL);
+ 
+                 m0_be_tx_init(tx, ks_dom, 0);
+-                m0_be_wait(sm_group, &tx->bt_sm,
+-                           M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+         }
+ 
+         /* Find the target node to be deleted */
+@@ -303,8 +326,6 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+                         m0_be_tx_add_cred(tx, t_head_reg);
+                 } else {
+                         m0_be_reg_capture(t_head_reg);
+-                        m0_be_wait(sm_group, &t_head_reg->br_sm,
+-                                   M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+                         m0_free(t_head_reg);
+                 }
+ 
+@@ -317,8 +338,8 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+                                         BE_KV_DELETE);
+ 
+                 if (del_tx == NULL) {
+-                        m0_be_ks_tx_prep(tx);
+-                        m0_be_ks_tx_start(tx);
++                        m0_be_tx_prep(tx);
++                        m0_be_tx_start(tx);
+                 }
+ 
+                 /* Now delete */
+@@ -338,8 +359,10 @@ M0_INTERNAL int m0_be_ks_delete(struct m0_be_kv_store  *handle,
+         goto exit_failure;
+ 
+ exit_success:
++        M0_LEAVE();
+         return BE_KV_SUCCESS;
+ exit_failure:
++        M0_LEAVE();
+         return BE_KV_FAILURE;
+ }
+ M0_EXPORTED(m0_be_ks_delete);
+@@ -354,13 +377,13 @@ M0_INTERNAL int __ks_tlist_add_at_tail(struct m0_be_kv_store     *handle,
+         struct m0_tl            *ks_tlist;
+         struct m0_tl_descr      *ks_list_descr;
+         struct m0_be_domain     *ks_dom;
+-        struct m0_sm_group      *sm_group;
+         void                    *tail_obj;
+ 
++        M0_ENTRY();
++
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+         ks_tlist      = &handle->handle_rvm->ks_tlist;
+         ks_dom        = handle->handle_heap.ks_dom;
+-        sm_group      = m0_be_domain_sm_group(ks_dom);
+ 
+         /* Add current tail to credit */
+         tail_obj  = m0_tlist_tail(ks_list_descr, ks_tlist);
+@@ -374,17 +397,17 @@ M0_INTERNAL int __ks_tlist_add_at_tail(struct m0_be_kv_store     *handle,
+ 
+         if (in_tx_state == BE_KV_IN_TX_NULL) {
+                 m0_be_tx_add_cred(tx, tail_obj_reg);
+-                m0_be_ks_tx_prep(tx);
+-                m0_be_ks_tx_start(tx);
++                m0_be_tx_prep(tx);
++                m0_be_tx_start(tx);
+         } else {
+                 m0_be_reg_capture(tail_obj_reg);
+-                m0_be_wait(sm_group, &tail_obj_reg->br_sm,
+-                           M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+                 m0_free(tail_obj_reg);
+         }
+ 
+         /* Finally, add at tail in tlist */
+         m0_tlist_add_tail(ks_list_descr, ks_tlist, new);
++        M0_LEAVE();
++
+         return BE_KV_SUCCESS;
+ }
+ 
+@@ -406,6 +429,8 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+         int                      ret_val       = BE_KV_INVALID_REQ;
+         int                      in_tx_state   = BE_KV_IN_TX_NOT_NULL;
+ 
++        M0_ENTRY("obj_ref: %p", obj_ref);
++
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+ 
+         ks_tlist = &handle->handle_rvm->ks_tlist;
+@@ -436,9 +461,6 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                 M0_ASSERT(tx != NULL);
+ 
+                 m0_be_tx_init(tx, dom, 0);
+-
+-                m0_be_wait(sm_group, &tx->bt_sm,
+-                           M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+         }
+ 
+         /* Tlink init for this object */
+@@ -456,8 +478,6 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                 m0_be_tx_add_cred(tx, obj_link_reg);
+         else {
+                 m0_be_reg_capture(obj_link_reg);
+-                m0_be_wait(sm_group, &obj_link_reg->br_sm,
+-                           M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+                 m0_free(obj_link_reg);
+         }
+ 
+@@ -477,12 +497,10 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                 /* Capture t_head region */
+                 if (ins_tx == NULL) {
+                         m0_be_tx_add_cred(tx, t_head_reg);
+-                        m0_be_ks_tx_prep(tx);
+-                        m0_be_ks_tx_start(tx);
++                        m0_be_tx_prep(tx);
++                        m0_be_tx_start(tx);
+                 } else {
+                         m0_be_reg_capture(t_head_reg);
+-                        m0_be_wait(sm_group, &t_head_reg->br_sm,
+-                                   M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+                         m0_free(t_head_reg);
+                 }
+ 
+@@ -505,13 +523,11 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                                                         BE_KV_INSERT);
+                                 if (ins_tx == NULL) {
+                                         m0_be_tx_add_cred(tx, t_head_reg);
+-                                        m0_be_ks_tx_prep(tx);
+-                                        m0_be_ks_tx_start(tx);
++                                        m0_be_tx_prep(tx);
++                                        m0_be_tx_start(tx);
+                                 } else {
+                                         m0_be_reg_capture(t_head_reg);
+-                                        m0_be_wait(sm_group, &t_head_reg->br_sm,
+-                                                   M0_BITS(M0_BEREG_CAPTURED,
+-                                                           M0_BEREG_FAILED));
++                                        m0_free(t_head_reg);
+                                 }
+ 
+                                 /* Now add the object to the tlist */
+@@ -530,9 +546,6 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+                                 m0_be_tx_add_cred(tx, t_head_reg);
+                         } else {
+                                 m0_be_reg_capture(t_head_reg);
+-                                m0_be_wait(sm_group, &t_head_reg->br_sm,
+-                                           M0_BITS(M0_BEREG_CAPTURED,
+-                                                   M0_BEREG_FAILED));
+                                 m0_free(t_head_reg);
+                         }
+ 
+@@ -543,7 +556,6 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+ 
+         if (ins_tx == NULL) {
+                 m0_be_tx_done(tx);
+-
+                 m0_be_wait(sm_group, &tx->bt_sm,
+                            M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+                 m0_be_tx_fini(tx);
+@@ -553,23 +565,26 @@ M0_INTERNAL int m0_be_ks_insert(struct m0_be_kv_store      *handle,
+         }
+ 
+ exit_insert:
++        M0_LEAVE("ret_val: %d", ret_val);
+         return ret_val;
+ }
+ M0_EXPORTED(m0_be_ks_insert);
+ 
+-M0_INTERNAL int m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+-                                      struct m0_be_seg      *seg)
++M0_INTERNAL bool m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
++                                       struct m0_be_seg      *seg)
+ {
+         struct m0_be_kv_store_rvm *handle_rvm;
+         struct m0_uint128         *kv_store;
+         long int                   lo;
+-        int                        ret_val;
++        bool                       ret_val;
++
++        M0_ENTRY();
+ 
+         /* Get the segid_offset representation stored at index 0 */
+         kv_store = m0_be_hs_get(seg, 0);
+ 
+         if (kv_store->u_hi == 0) {
+-                ret_val = BE_KV_FAILURE;
++                ret_val = false;
+                 goto exit_deref;
+         }
+ 
+@@ -580,9 +595,10 @@ M0_INTERNAL int m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+         M0_ASSERT(handle_rvm != NULL);
+ 
+         handle->handle_rvm = handle_rvm;
+-        ret_val = BE_KV_SUCCESS;
++        ret_val = true;
+ 
+ exit_deref:
++        M0_LEAVE();
+         return ret_val;
+ }
+ M0_EXPORTED(m0_be_ks_deref_handle);
+@@ -594,11 +610,13 @@ static void __ks_get_prev(struct m0_tl_descr   *d,
+         struct m0_list_link *link;
+         int                  link_offset;
+ 
+-        link_offset = d->td_link_offset;
++        M0_ENTRY();
+ 
+-        link = &((struct m0_tlink *)(current + link_offset))->t_link;
++        link_offset = d->td_link_offset;
++        link        = &((struct m0_tlink *)(current + link_offset))->t_link;
++        *link_prev  = link->ll_prev;
+ 
+-        *link_prev = link->ll_prev;
++        M0_LEAVE();
+ }
+ 
+ static void __ks_get_next(struct m0_tl_descr   *d,
+@@ -608,11 +626,13 @@ static void __ks_get_next(struct m0_tl_descr   *d,
+         struct m0_list_link *link;
+         int                  link_offset;
+ 
+-        link_offset = d->td_link_offset;
++        M0_ENTRY();
+ 
+-        link = &((struct m0_tlink *)(current + link_offset))->t_link;
++        link_offset = d->td_link_offset;
++        link        = &((struct m0_tlink *)(current + link_offset))->t_link;
++        *link_next  = link->ll_next;
+ 
+-        *link_next = link->ll_next;
++        M0_LEAVE();
+ }
+ 
+ static void __ks_get_current(struct m0_tl_descr   *d,
+@@ -622,11 +642,13 @@ static void __ks_get_current(struct m0_tl_descr   *d,
+         struct m0_list_link *link;
+         int                     link_offset;
+ 
+-        link_offset = d->td_link_offset;
+-
+-        link = &((struct m0_tlink *)(current + link_offset))->t_link;
++        M0_ENTRY();
+ 
++        link_offset   = d->td_link_offset;
++        link          = &((struct m0_tlink *)(current + link_offset))->t_link;
+         *link_current = link;
++
++        M0_LEAVE();
+ }
+ static void __ks_prev_next_add_cred(struct m0_be_kv_store *handle,
+                                     struct m0_be_tx       *tx,
+@@ -642,12 +664,12 @@ static void __ks_prev_next_add_cred(struct m0_be_kv_store *handle,
+         struct m0_list_link      *link_next = NULL;
+         struct m0_tl_descr       *ks_list_descr;
+         struct m0_be_domain      *ks_dom;
+-        struct m0_sm_group       *sm_group;
++
++        M0_ENTRY();
+ 
+         ks_list_descr = handle->handle_heap.ks_list_descr;
+         ks_dom        = handle->handle_heap.ks_dom;
+ 
+-        sm_group      = m0_be_domain_sm_group(ks_dom);
+ 
+         /* Get previous and current pointers */
+         __ks_get_prev(ks_list_descr, current, &link_prev);
+@@ -680,24 +702,21 @@ static void __ks_prev_next_add_cred(struct m0_be_kv_store *handle,
+                         m0_be_tx_add_cred(tx, next_reg);
+         } else {
+                 m0_be_reg_capture(prev_reg);
+-                m0_be_wait(sm_group, &prev_reg->br_sm,
+-                           M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+                 m0_free(prev_reg);
+ 
+                 if (operation == BE_KV_DELETE) {
+                         m0_be_reg_capture(next_reg);
+-                        m0_be_wait(sm_group, &next_reg->br_sm,
+-                                   M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+                         m0_free(next_reg);
+                 }
+ 
+                 m0_be_reg_capture(curr_reg);
+-                m0_be_wait(sm_group, &curr_reg->br_sm,
+-                           M0_BITS(M0_BEREG_CAPTURED, M0_BEREG_FAILED));
+                 m0_free(curr_reg);
+        }
++
++       M0_LEAVE();
+ }
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /* @} end of kv_store group */
+ 
+ /*
+diff --git a/be/kv_store.h b/be/kv_store.h
+index 8a65bf7..0b9a29f 100644
+--- a/be/kv_store.h
++++ b/be/kv_store.h
+@@ -62,8 +62,8 @@
+        PRE: @dom should have been initialised already.
+             @cmp_routine and @match_routine must be pointing to the key compare
+             and match routines which return integer value.
+-       @code:
+ 
++       @code:
+        int function_match(void *, void *);
+        int function_compare(void *, void *);
+ 
+@@ -73,10 +73,13 @@
+        kv_key_cmp             cmp_routine;
+        kv_key_match           match_routine;
+        char                  *mode = "create" or "recover";
++       bool                   status;
+ 
+        cmp_routine   = &function_compare;
+        match_routine = &function_match(void *, void *);
+-       m0_be_ks_init(handle, list_descr, dom, cmp_routine, match_routine, mode);
++       status = m0_be_ks_init(handle, list_descr, dom, cmp_routine,
++                              match_routine, mode);
++       M0_ASSERT(status == true);
+        @endcode
+ 
+    Insertion:
+@@ -191,8 +194,10 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_domain        *dom,
+   @param mode          :       decides whether kv_store is new or has to be
+                                recovered.
+                                Allowed modes: CREATE/RECOVER or create/recover.
++  @retval true         :       upon succesful initialisation/recovery.
++  @retval false        :       upon failure to initialise/recover kv_store
+  */
+-M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **handle,
++M0_INTERNAL bool m0_be_ks_init(struct m0_be_kv_store **handle,
+                                struct m0_tl_descr     *descr,
+                                struct m0_be_domain    *dom,
+                                kv_key_cmp              cmp_fp,
+@@ -260,11 +265,11 @@ M0_INTERNAL struct m0_list_link
+   @param seg                  :       segment pointer containing heap address.
+   @param kv_store             :       pointer containing segment id and offset
+                                       of the persistent kv_store handle.
+-  @retval BE_KV_SUCCESS       :       upon successful retrieval.
+-  @retval BE_KV_FAILURE       :       upon retrival failure.
++  @retval true                :       upon successful retrieval.
++  @retval false               :       upon retrival failure.
+  */
+-M0_INTERNAL int m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+-                                      struct m0_be_seg      *seg);
++M0_INTERNAL bool m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
++                                       struct m0_be_seg      *seg);
+ 
+ /** @} end of kv_store group */
+ 
+diff --git a/be/reg.c b/be/reg.c
+index b3d9b43..08f1d93 100644
+--- a/be/reg.c
++++ b/be/reg.c
+@@ -17,7 +17,13 @@
+  * Original creation date       : 11/30/2012
+  */
+ 
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++#include "lib/bob.h"
++#include "mero/magic.h"
+ #include "be/be.h"
++#include "be/be_private.h"
+ #include "be/domain.h"
+ #include "be/reg.h"
+ #include "be/tx.h"
+@@ -30,11 +36,22 @@
+   @{
+ */
+ 
++static struct m0_bob_type m0_be_reg_type_bob;
++
++static void m0_be_reg_bob_init(struct m0_be_reg *)
++				__attribute__((unused));
++
++static void m0_be_reg_bob_fini(struct m0_be_reg *)
++			__attribute__((unused));
++
++M0_BOB_DEFINE(static, &m0_be_reg_type_bob, m0_be_reg);
++
+ static const struct m0_sm_state_descr reg_states[] = {
+         [M0_BEREG_INIT] = {
+                 .sd_flags     = M0_SDF_INITIAL,
+                 .sd_name      = "Init",
+                 .sd_allowed   = M0_BITS(M0_BEREG_ALLOCATED,
++                                        M0_BEREG_CAPTURED,
+                                         M0_BEREG_FREEING,
+                                         M0_BEREG_FAILED)
+         },
+@@ -84,6 +101,7 @@ static const struct m0_sm_conf reg_conf = {
+ M0_INTERNAL void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+                                 struct m0_be_seg *seg,  struct m0_be_buf *buf)
+ {
++        M0_ENTRY("reg: %p, tx: %p, seg: %p", reg, tx, seg);
+         M0_ASSERT(reg != NULL);
+         M0_ASSERT(seg != NULL);
+         M0_ASSERT(buf != NULL);
+@@ -92,11 +110,16 @@ M0_INTERNAL void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+         reg->br_tx                         = tx;
+         reg->br_buf.b_nob                  = buf->b_nob;
+         reg->br_buf.b_logical_address      = buf->b_logical_address;
++        reg->br_magic                      = M0_BE_REG_MAGIC;
++
++        m0_bob_type_tlist_init(&m0_be_reg_type_bob, &m0_be_reg_tl);
+ 
+         m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+         m0_sm_init(&reg->br_sm, &reg_conf, M0_BEREG_INIT,
+                   m0_be_domain_sm_group(reg->br_seg->bs_dom), NULL);
+         m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
++
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
+@@ -108,7 +131,8 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
+         struct m0_be_reference  *reg_laddress;
+         struct m0_uint128       *toffset;
+ 
+-        M0_ASSERT(reg != NULL);
++        M0_ENTRY("reg: %p", reg);
++        M0_PRE(m0_be_reg_invariant(reg));
+ 
+         if (reg->br_tx != NULL)
+                 tid = reg->br_tx->bt_impl.tx_id;
+@@ -131,9 +155,10 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
+         toffset->u_hi   = hi;
+         toffset->u_lo   = lo;
+ 
+-        m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+-        m0_sm_state_set(&reg->br_sm, M0_BEREG_ALLOCATED);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
++        m0_be_reg_state_change(reg, M0_BEREG_ALLOCATED);
++
++        M0_POST(m0_be_reg_invariant(reg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+@@ -142,7 +167,8 @@ M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+         rvm_tid_t               *tid = NULL;
+         struct m0_uint128       *toffset;
+ 
+-        M0_ASSERT(reg != NULL);
++        M0_ENTRY("reg: %p", reg);
++        M0_PRE(m0_be_reg_invariant(reg));
+ 
+         if (reg->br_tx != NULL)
+                 tid = reg->br_tx->bt_impl.tx_id;
+@@ -150,9 +176,7 @@ M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+         rds_free((char *)reg->br_buf.b_addr, tid, &err);
+ 
+         if (err != SUCCESS) {
+-                m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+-                m0_sm_state_set(&reg->br_sm, M0_BEREG_FAILED);
+-                m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
++                m0_be_reg_state_change(reg, M0_BEREG_FAILED);
+                 return;
+         }
+ 
+@@ -162,9 +186,10 @@ M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+         toffset->u_hi       = 0;
+         toffset->u_lo       = 0;
+ 
+-        m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+-        m0_sm_state_set(&reg->br_sm, M0_BEREG_FREED);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
++        m0_be_reg_state_change(reg, M0_BEREG_FREED);
++
++        M0_POST(m0_be_reg_invariant(reg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_prefetch(const struct m0_be_reg *reg)
+@@ -183,10 +208,13 @@ M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
+         rvm_return_t             ret;
+         enum m0_be_reg_state     reg_st;
+ 
++        M0_ENTRY("reg: %p", reg);
++        M0_PRE(m0_be_reg_invariant(reg));
+         M0_ASSERT(reg != NULL);
+         M0_ASSERT(reg->br_tx != NULL);
+ 
+-        M0_PRE(M0_IN(m0_be_reg_state(reg), (M0_BEREG_INIT, M0_BEREG_ALLOCATED)));
++        M0_PRE(M0_IN(m0_be_reg_state(reg), (M0_BEREG_INIT,
++                                            M0_BEREG_ALLOCATED)));
+ 
+         sm_group = m0_be_domain_sm_group(reg->br_seg->bs_dom);
+         M0_ASSERT(sm_group != NULL);
+@@ -199,14 +227,16 @@ M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
+         else
+                 reg_st = M0_BEREG_FAILED;
+ 
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_state_set(&reg->br_sm, reg_st);
+-        m0_sm_group_unlock(sm_group);
++        m0_be_reg_state_change(reg, reg_st);
++
++        M0_POST(m0_be_reg_invariant(reg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_reg_fini(struct m0_be_reg *reg)
+ {
+-        M0_PRE(M0_IN(m0_be_reg_state(reg), (M0_BEREG_DONE, M0_BEREG_FAILED)));
++        M0_PRE(m0_be_reg_invariant(reg) &&
++               M0_IN(m0_be_reg_state(reg), (M0_BEREG_DONE, M0_BEREG_FAILED)));
+         /* todo@ Finalizing on state machine */
+ }
+ 
+@@ -217,7 +247,7 @@ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+ {
+         struct m0_be_buf buf;
+ 
+-        M0_ASSERT(reg != NULL);
++        M0_ENTRY("reg: %p, seg: %p, tx: %p", reg, seg, tx);
+         M0_ASSERT(seg->bs_static_addr != NULL);
+ 
+         buf.b_nob = sizeof(struct m0_uint128);
+@@ -226,6 +256,9 @@ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+         m0_be_reg_init(reg, NULL, seg, &buf);
+         m0_be_tx_add_cred(tx, reg);
+         m0_be_tx_prep(tx);
++
++        M0_POST(m0_be_reg_invariant(reg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void *m0_be_static_reg_get_handle_addr(struct m0_be_seg *seg,
+@@ -240,6 +273,31 @@ M0_INTERNAL uint32_t m0_be_reg_state(const struct m0_be_reg *reg)
+         return reg->br_sm.sm_state;
+ }
+ 
++M0_INTERNAL bool m0_be_reg_invariant(const struct m0_be_reg *reg)
++{
++        struct m0_sm_group      *sm_group;
++
++        reg      = (struct m0_be_reg *)reg;
++        sm_group = m0_be_domain_sm_group(reg->br_seg->bs_dom);
++
++        return  reg != NULL &&
++                m0_be_reg_bob_check(reg) &&
++                !m0_mutex_is_locked(&sm_group->s_lock);
++}
++
++M0_INTERNAL void m0_be_reg_state_change(struct m0_be_reg *reg,
++                                       uint32_t state)
++{
++        struct m0_sm_group      *sm_group;
++
++        sm_group = m0_be_domain_sm_group(reg->br_seg->bs_dom);
++
++        m0_sm_group_lock(sm_group);
++        m0_sm_state_set(&reg->br_sm, state);
++        m0_sm_group_unlock(sm_group);
++}
++
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end group be */
+ 
+ /*
+diff --git a/be/reg.h b/be/reg.h
+index 7f74e66..2af172a 100644
+--- a/be/reg.h
++++ b/be/reg.h
+@@ -55,6 +55,16 @@ M0_INTERNAL void *m0_be_static_reg_get_handle_addr(struct m0_be_seg *seg,
+ 
+ M0_INTERNAL uint32_t m0_be_reg_state(const struct m0_be_reg *reg);
+ 
++M0_INTERNAL bool m0_be_reg_invariant(const struct m0_be_reg *reg);
++
++/**
++ * Region state change with sm group locking
++ * This function locks sm_group and changes state specified in function
++ * parameter, then unlocks the sm_group.
++ */
++M0_INTERNAL void m0_be_reg_state_change(struct m0_be_reg *reg,
++                                        uint32_t state);
++
+ /** @} end of be_reg group */
+ 
+ /* __MERO_BE_REG_H__ */
+diff --git a/be/seg.c b/be/seg.c
+index ab77307..5da8e24 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -17,7 +17,11 @@
+  * Original creation date       : 11/12/2012
+  */
+ 
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
+ #include "lib/memory.h"
++#include "lib/bob.h"
+ #include "be/be.h"
+ #include "be/be_private.h"
+ #include "be/seg.h"
+@@ -33,6 +37,16 @@
+   @{
+ */
+ 
++static struct m0_bob_type m0_be_seg_type_bob;
++
++static void m0_be_seg_bob_init(struct m0_be_seg *)
++                        __attribute__((unused));
++
++static void m0_be_seg_bob_fini(struct m0_be_seg *)
++                        __attribute__((unused));
++
++M0_BOB_DEFINE(static, &m0_be_seg_type_bob, m0_be_seg);
++
+ static const struct m0_sm_state_descr m0_be_seg_states[] = {
+         [M0_BESEG_INIT] = {
+                 .sd_flags     = M0_SDF_INITIAL,
+@@ -100,51 +114,22 @@ static const struct m0_sm_conf seg_conf = {
+         .scf_state     = m0_be_seg_states
+ };
+ 
+-M0_INTERNAL void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+-                                  const char *name, struct m0_stob *stob)
+-{
+-        M0_PRE(seg->bs_sm.sm_state == M0_BESEG_INIT);
+-        struct m0_be_seg        *scan;
+-
+-        /**
+-          Check for duplicate segment name.
+-          If found set state to M0_BESEG_FAILED and return.
+-         */
+-        m0_tl_for(m0_be_seg, &seg->bs_dom->bd_seg, scan) {
+-                if (strcmp(name, scan->bs_impl.segment_name) == 0) {
+-                        m0_sm_group_lock(m0_be_domain_sm_group(seg->bs_dom));
+-                        m0_sm_state_set(&seg->bs_sm, M0_BESEG_FAILED);
+-                        m0_sm_group_unlock(m0_be_domain_sm_group(seg->bs_dom));
+-                        return;
+-                }
+-        } m0_tl_endfor;
+-
+-        m0_sm_group_lock(m0_be_domain_sm_group(seg->bs_dom));
+-        m0_sm_state_set(&seg->bs_sm, M0_BESEG_CREATING);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(seg->bs_dom));
+-
+-        strncpy(seg->bs_impl.segment_name, name,
+-                sizeof(seg->bs_impl.segment_name));
+-        seg->bs_stob            = stob;
+-        seg->bs_sm_ast.sa_cb    = m0_be_seg_create_cb;
+-        seg->bs_sm_ast.sa_datum = (void *)seg;
+-
+-        m0_seg_req_post(m0_be_domain_sm_group(seg->bs_dom), &seg->bs_sm_ast);
+-}
+-
+ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+                                 struct m0_be_domain *dom,
+                                 struct m0_sm_group *sm_group,
+                                 uint64_t flags)
+ {
+-        M0_ASSERT(seg != NULL);
++        M0_ENTRY("dom: %p, seg: %p", dom, seg);
+         M0_ASSERT(dom != NULL);
+ 
++        m0_bob_type_tlist_init(&m0_be_seg_type_bob, &m0_be_seg_tl);
++
+         /* Initialise domain structure with required values. */
+         seg->bs_dom = dom;
+ 
+         /* Hardcoded for time being. */
+         seg->bs_impl.segment_id = 1;
++        seg->bs_magic           = M0_BE_SEG_MAGIC;
+ 
+         /**
+          * Need to make it null because it is referenced into rvm callback to
+@@ -156,48 +141,72 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+         m0_sm_init(&seg->bs_sm, &seg_conf, M0_BESEG_INIT, sm_group,
+                         &seg->bs_addb);
+         m0_sm_group_unlock(sm_group);
++        M0_LEAVE();
+ }
+ 
+-M0_INTERNAL void m0_be_seg_open(struct m0_be_seg *seg)
++M0_INTERNAL void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
++                                  const char *name, struct m0_stob *stob)
+ {
+-        M0_ASSERT(seg != NULL);
+-
+-        M0_PRE(M0_IN(m0_be_seg_state(seg), (M0_BESEG_INIT, M0_BESEG_CLOSED)));
+-
+-        M0_PRE(m0_be_seg_state(&seg->bs_dom->bd_data) == M0_BESEG_ACTIVE);
++        struct m0_be_seg        *scan;
+ 
+-        m0_sm_group_lock(m0_be_domain_sm_group(seg->bs_dom));
++        M0_ENTRY("seg: %p, tx: %p", seg, tx);
++        M0_PRE(m0_be_seg_invariant(seg) &&
++               m0_be_seg_state(seg) == M0_BESEG_INIT);
+ 
+-        m0_sm_state_set(&seg->bs_sm, M0_BESEG_OPENING);
++        /**
++          Check for duplicate segment name.
++          If found set state to M0_BESEG_FAILED and return.
++         */
++        for_each_seg_in_domain(scan, seg->bs_dom)
++                if (strcmp(name, scan->bs_impl.segment_name) == 0) {
++                        m0_be_seg_state_change(seg, M0_BESEG_FAILED);
++                        return;
++                }
++        end_for_each_seg_in_domain
+ 
+-        m0_sm_group_unlock(m0_be_domain_sm_group(seg->bs_dom));
++        m0_be_seg_state_change(seg, M0_BESEG_CREATING);
+ 
+-        seg->bs_sm_ast.sa_cb    = m0_be_seg_open_cb;
++        strncpy(seg->bs_impl.segment_name, name,
++                sizeof(seg->bs_impl.segment_name));
++        seg->bs_stob            = stob;
++        seg->bs_sm_ast.sa_cb    = m0_be_seg_create_cb;
+         seg->bs_sm_ast.sa_datum = (void *)seg;
+ 
+         m0_seg_req_post(m0_be_domain_sm_group(seg->bs_dom), &seg->bs_sm_ast);
+ }
+ 
+-M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg)
++M0_INTERNAL void m0_be_seg_open(struct m0_be_seg *seg)
+ {
+-        M0_ASSERT(seg != NULL);
++        M0_ENTRY("seg: %p", seg);
++        M0_PRE(m0_be_seg_invariant(seg) &&
++               M0_IN(m0_be_seg_state(seg), (M0_BESEG_INIT, M0_BESEG_CLOSED)) &&
++               m0_be_seg_state(&seg->bs_dom->bd_data) == M0_BESEG_ACTIVE);
+ 
+-        M0_PRE(m0_be_seg_state(seg) == M0_BESEG_ACTIVE);
++        m0_be_seg_state_change(seg, M0_BESEG_OPENING);
+ 
+-        m0_sm_group_lock(m0_be_domain_sm_group(seg->bs_dom));
++        seg->bs_sm_ast.sa_cb    = m0_be_seg_open_cb;
++        seg->bs_sm_ast.sa_datum = (void *)seg;
++        m0_seg_req_post(m0_be_domain_sm_group(seg->bs_dom), &seg->bs_sm_ast);
++}
+ 
+-        m0_sm_state_set(&seg->bs_sm, M0_BESEG_CLOSED);
++M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg)
++{
++        M0_ENTRY("seg: %p", seg);
++        M0_PRE(m0_be_seg_invariant(seg) &&
++               m0_be_seg_state(seg) == M0_BESEG_ACTIVE);
+ 
+-        m0_sm_group_unlock(m0_be_domain_sm_group(seg->bs_dom));
++        m0_be_seg_state_change(seg, M0_BESEG_CLOSED);
+ 
+         /* @todo - Start unmapping the segment. */
++        M0_POST(m0_be_seg_invariant(seg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+ {
+-        M0_ASSERT(seg != NULL);
+-
+-        M0_PRE(M0_IN(m0_be_seg_state(seg), (M0_BESEG_CLOSED, M0_BESEG_FAILED)));
++        M0_ENTRY("seg: %p", seg);
++        M0_PRE(m0_be_seg_invariant(seg) &&
++               M0_IN(m0_be_seg_state(seg), (M0_BESEG_CLOSED, M0_BESEG_FAILED)));
+ 
+         /* Finalizing on state machine. */
+         m0_sm_fini(&seg->bs_sm);
+@@ -210,6 +219,8 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+                 m0_be_seg_tlink_del_fini(seg);
+ 
+         m0_free(seg);
++        M0_POST(m0_be_seg_invariant(seg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+@@ -217,16 +228,12 @@ M0_INTERNAL void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+         uint64_t segment_id;
+         struct m0_be_domain *dom;
+ 
+-        M0_ASSERT(seg != NULL);
++        M0_ENTRY("seg: %p, tx: %p", seg, tx);
++        M0_PRE(m0_be_seg_invariant(seg) &&
++               m0_be_seg_state(seg) == M0_BESEG_CLOSED);
+         M0_ASSERT(tx != NULL);
+ 
+-        M0_PRE(seg->bs_sm.sm_state == M0_BESEG_CLOSED);
+-
+-        m0_sm_group_lock(m0_be_domain_sm_group(seg->bs_dom));
+-
+-        m0_sm_state_set(&seg->bs_sm, M0_BESEG_DELETING);
+-
+-        m0_sm_group_unlock(m0_be_domain_sm_group(seg->bs_dom));
++        m0_be_seg_state_change(seg, M0_BESEG_DELETING);
+ 
+         /* Removing entry from in memory in segment list if present. */
+         /* todo@ Need some kind of log here if condition is false. */
+@@ -241,25 +248,30 @@ M0_INTERNAL void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+         dom        = seg->bs_dom;
+ 
+         /* @todo - remove entry from named segment transactionally. */
++        M0_POST(m0_be_seg_invariant(seg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ {
+-        M0_ASSERT(seg != NULL);
++        M0_ENTRY("seg: %p, tx: %p", seg, tx);
++        M0_PRE(m0_be_seg_invariant(seg));
+         M0_ASSERT(tx != NULL);
+ 
+         /* @todo - not clear idea about what to do in this at the moment. */
++        M0_POST(m0_be_seg_invariant(seg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_seg_fail(struct m0_be_seg *seg)
+ {
+-        M0_ASSERT(seg != NULL);
+-
+-        m0_sm_group_lock(m0_be_domain_sm_group(seg->bs_dom));
++        M0_ENTRY("seg: %p", seg);
++        M0_PRE(m0_be_seg_invariant(seg));
+ 
+-        m0_sm_state_set(&seg->bs_sm, M0_BESEG_FAILED);
++        m0_be_seg_state_change(seg, M0_BESEG_FAILED);
+ 
+-        m0_sm_group_unlock(m0_be_domain_sm_group(seg->bs_dom));
++        M0_POST(m0_be_seg_invariant(seg));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_seg_req_post(struct m0_sm_group *sm_group,
+@@ -371,10 +383,12 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
+         m0_be_seg_tlink_init(seg);
+         m0_be_seg_tlist_add(&seg->bs_dom->bd_seg, seg);
+ 
++        M0_LEAVE();
+         return;
+ 
+ error:
+         m0_sm_state_set((&seg->bs_sm), M0_BESEG_FAILED);
++        M0_LEAVE();
+ }
+ 
+ /**
+@@ -434,11 +448,12 @@ M0_INTERNAL void m0_be_seg_open_cb(struct m0_sm_group *sm_group,
+ 
+         m0_sm_state_set((&seg->bs_sm), M0_BESEG_ACTIVE);
+ 
++        M0_LEAVE();
+         return;
+ 
+ error:
+         m0_sm_state_set((&seg->bs_sm), M0_BESEG_FAILED);
+-
++        M0_LEAVE();
+         return;
+ }
+ 
+@@ -447,6 +462,31 @@ M0_INTERNAL uint32_t m0_be_seg_state(const struct m0_be_seg *seg)
+         return seg->bs_sm.sm_state;
+ }
+ 
++M0_INTERNAL bool m0_be_seg_invariant(const struct m0_be_seg *seg)
++{
++        struct m0_sm_group      *sm_group;
++
++        seg     = (struct m0_be_seg *)seg;
++        sm_group = m0_be_domain_sm_group(seg->bs_dom);
++
++        return  seg != NULL &&
++                m0_be_seg_bob_check(seg) &&
++                !m0_mutex_is_locked(&sm_group->s_lock);
++}
++
++M0_INTERNAL void m0_be_seg_state_change(struct m0_be_seg *seg,
++                                        uint32_t state)
++{
++        struct m0_sm_group      *sm_group;
++
++        sm_group = m0_be_domain_sm_group(seg->bs_dom);
++
++        m0_sm_group_lock(sm_group);
++        m0_sm_state_set(&seg->bs_sm, state);
++        m0_sm_group_unlock(sm_group);
++}
++
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_seg */
+ 
+ /*
+diff --git a/be/seg.h b/be/seg.h
+index 561f72b..0d549b5 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -60,6 +60,17 @@ M0_INTERNAL void m0_be_seg_open_cb(struct m0_sm_group *sm_group,
+  */
+ M0_INTERNAL uint32_t m0_be_seg_state(const struct m0_be_seg *seg);
+ 
++M0_INTERNAL bool m0_be_seg_invariant(const struct m0_be_seg *seg);
++
++
++/**
++ * Segment state change with sm group locking
++ * This function locks sm_group and changes state specified in function
++ * parameter, then unlocks the sm_group.
++ */
++M0_INTERNAL void m0_be_seg_state_change(struct m0_be_seg *seg,
++                                        uint32_t state);
++
+ /** @} end of be_seg group */
+ 
+ /* __MERO_BE_SEG_H__ */
+diff --git a/be/tx.c b/be/tx.c
+index 2232021..a574af7 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -16,6 +16,11 @@
+  * Original author: Prashant Dhange <prashant_dhange@xyratex.com>
+  * Original creation date: 12/03/2012
+  */
++
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++#include "lib/bob.h"
+ #include "be/be.h"
+ #include "be/be_private.h"
+ #include "be/tx.h"
+@@ -27,6 +32,16 @@
+   @{
+ */
+ 
++static struct m0_bob_type m0_be_tx_type_bob;
++
++static void m0_be_tx_bob_init(struct m0_be_tx *)
++				__attribute__((unused));
++
++static void m0_be_tx_bob_fini(struct m0_be_tx *)
++			__attribute__((unused));
++
++M0_BOB_DEFINE(static, &m0_be_tx_type_bob, m0_be_tx);
++
+ static const struct m0_sm_state_descr tx_states[] = {
+         [M0_BETX_INIT] = {
+                 .sd_flags     = M0_SDF_INITIAL,
+@@ -87,11 +102,15 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, struct m0_be_domain *dom,
+         rvm_tid_t            *tid;
+         rvm_return_t          ret;
+ 
+-        M0_ASSERT(tx != NULL);
+-        M0_ASSERT(dom != NULL);
+-        M0_ASSERT(&dom->bd_impl.sm_group != NULL);
++        M0_ENTRY("dom: %p, tx: %p", dom, tx);
++        M0_ASSERT(tx != NULL &&
++                  dom != NULL &&
++                  &dom->bd_impl.sm_group != NULL);
++
++        tx->bt_dom   = dom;
++        tx->bt_magic = M0_BE_TX_MAGIC;
+ 
+-        tx->bt_dom = dom;
++        m0_bob_type_tlist_init(&m0_be_tx_type_bob, &m0_be_tx_tl);
+         m0_be_reg_tlist_init(&tx->bt_impl.bc_tl);
+ 
+         m0_sm_group_lock(m0_be_domain_sm_group(tx->bt_dom));
+@@ -112,10 +131,11 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, struct m0_be_domain *dom,
+                 tx_state = M0_BETX_FAILED;
+                 goto err_exit;
+         }
++        M0_LEAVE();
+         return;
+ err_exit:
+-        m0_be_sm_state_change(m0_be_domain_sm_group(tx->bt_dom), &tx->bt_sm,
+-                              M0_BETX_FAILED);
++        m0_be_tx_state_change(tx, tx_state);
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx)
+@@ -123,10 +143,11 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx)
+         struct m0_be_reg        *reg_it;
+         enum m0_be_tx_state      tx_state;
+ 
+-        M0_ASSERT(tx != NULL);
++        M0_ENTRY("tx: %p", tx);
++        M0_PRE(m0_be_tx_invariant(tx) &&
++               m0_be_tx_state(tx) == M0_BETX_INIT);
+ 
+-        M0_PRE(m0_be_tx_state(tx) == M0_BETX_INIT);
+-        m0_tl_for(m0_be_reg, &tx->bt_impl.bc_tl, reg_it) {
++        for_each_reg_in_tx(reg_it, tx)
+                 if (!M0_IN(m0_be_reg_state(reg_it), (M0_BEREG_INIT,
+                                                      M0_BEREG_ALLOCATED))) {
+                         tx_state = M0_BETX_FAILED;
+@@ -134,38 +155,43 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx)
+                         rvm_free_tid(tx->bt_impl.tx_id);
+                         goto exit;
+                 }
+-        } m0_tlist_endfor;
++        end_for_each_reg_in_tx
+ 
+-        m0_tl_for(m0_be_reg, &tx->bt_impl.bc_tl, reg_it) {
++        for_each_reg_in_tx(reg_it, tx)
+                 reg_it->br_tx = tx;
+                 m0_be_reg_capture(reg_it);
+                 if (m0_be_reg_state(reg_it) != M0_BEREG_CAPTURED) {
+                         tx_state = M0_BETX_FAILED;
+                         goto exit;
+                 }
+-        } m0_tlist_endfor;
++        end_for_each_reg_in_tx
+ 
+         tx_state = M0_BETX_PREPARED;
+ exit:
+-        m0_be_sm_state_change(m0_be_domain_sm_group(tx->bt_dom), &tx->bt_sm,
+-                              tx_state);
++        m0_be_tx_state_change(tx, tx_state);
++        M0_POST(m0_be_tx_invariant(tx));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_tx_start(struct m0_be_tx *tx)
+ {
+-        M0_ASSERT(tx != NULL);
+-        M0_PRE(m0_be_tx_state(tx) == M0_BETX_PREPARED);
++        M0_ENTRY("tx: %p", tx);
++        M0_PRE(m0_be_tx_invariant(tx));
+ 
+         m0_be_tx_tlink_init(tx);
+         m0_be_tx_tlist_add(&tx->bt_dom->bd_tx, tx);
+-        m0_be_sm_state_change(m0_be_domain_sm_group(tx->bt_dom), &tx->bt_sm,
+-                              M0_BETX_OPEN);
++        m0_be_tx_state_change(tx, M0_BETX_OPEN);
++
++        M0_POST(m0_be_tx_invariant(tx));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_tx_done(struct m0_be_tx *tx)
+ {
+-        M0_ASSERT(tx != NULL);
+-        M0_PRE(m0_be_tx_state(tx) == M0_BETX_OPEN);
++        M0_ENTRY("tx: %p", tx);
++        M0_PRE(m0_be_tx_invariant(tx) &&
++               m0_be_tx_state(tx) == M0_BETX_OPEN);
++
+         tx->bt_sm_ast.sa_cb    = m0_be_tx_done_cb;
+         tx->bt_sm_ast.sa_datum = (void *)tx;
+         m0_tx_req_post(m0_be_domain_sm_group(tx->bt_dom), &tx->bt_sm_ast);
+@@ -175,22 +201,28 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ {
+         struct m0_be_reg *reg_it;
+ 
+-        M0_ASSERT(tx != NULL);
+-        M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BETX_DONE, M0_BETX_FAILED)));
++        M0_ENTRY("tx: %p", tx);
++        M0_PRE(m0_be_tx_invariant(tx) &&
++               M0_IN(m0_be_tx_state(tx), (M0_BETX_DONE, M0_BETX_FAILED)));
++
+         rvm_free_tid(tx->bt_impl.tx_id);
+-         m0_tl_for(m0_be_reg, &tx->bt_impl.bc_tl, reg_it) {
++
++        for_each_reg_in_tx(reg_it, tx)
+                 if (m0_be_reg_tlink_is_in(reg_it)) {
+                          m0_be_reg_tlink_del_fini(reg_it);
+                          m0_be_reg_fini(reg_it);
+                 }
+-         } m0_tlist_endfor;
++        end_for_each_reg_in_tx
+ 
+         m0_be_reg_tlist_fini(&tx->bt_impl.bc_tl);
+-        m0_be_sm_state_change(m0_be_domain_sm_group(tx->bt_dom),
+-                              &tx->bt_sm, M0_BETX_CLOSED);
++        m0_be_tx_state_change(tx, M0_BETX_CLOSED);
++
+         if (m0_be_tx_tlink_is_in(tx))
+                 m0_be_tx_tlink_del_fini(tx);
+         m0_sm_fini(&tx->bt_sm);
++
++        M0_POST(m0_be_tx_invariant(tx));
++        M0_LEAVE();
+ }
+ 
+ /**
+@@ -207,14 +239,15 @@ M0_INTERNAL void m0_be_tx_done_cb(struct m0_sm_group *sm_group,
+         M0_ASSERT(sm_ast != NULL);
+ 
+         tx = (struct m0_be_tx *) sm_ast->sa_datum;
++
+         ret = rvm_end_transaction(tx->bt_impl.tx_id, flush);
+         if (RVM_SUCCESS != ret) {
+                 goto exit_end_tx;
+         }
+ 
+-        m0_tl_for(m0_be_reg, &tx->bt_impl.bc_tl, reg_it) {
++        for_each_reg_in_tx(reg_it, tx)
+                 m0_sm_state_set(&reg_it->br_sm, M0_BEREG_DONE);
+-        } m0_tlist_endfor;
++        end_for_each_reg_in_tx
+ 
+         m0_sm_state_set(&tx->bt_sm, M0_BETX_DONE);
+         goto exit;
+@@ -223,17 +256,22 @@ exit_end_tx:
+         rvm_free_tid(tx->bt_impl.tx_id);
+         m0_sm_state_set(&tx->bt_sm, M0_BETX_FAILED);
+ exit:
++        M0_LEAVE();
+         return;
+ }
+ 
+ M0_INTERNAL void m0_be_tx_add_cred(struct m0_be_tx *tx,
+                                    struct m0_be_reg *reg)
+ {
+-        M0_ASSERT(tx != NULL);
++        M0_ENTRY("tx: %p, reg: %p", tx, reg);
++        M0_PRE(m0_be_tx_invariant(tx));
+         M0_ASSERT(reg != NULL);
+ 
+         m0_be_reg_tlink_init(reg);
+         m0_be_reg_tlist_add_tail(&tx->bt_impl.bc_tl, reg);
++
++        M0_POST(m0_be_tx_invariant(tx));
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_tx_req_post(struct m0_sm_group *sm_group,
+@@ -247,6 +285,31 @@ uint32_t m0_be_tx_state(const struct m0_be_tx *tx)
+         return tx->bt_sm.sm_state;
+ }
+ 
++M0_INTERNAL bool m0_be_tx_invariant(const struct m0_be_tx *tx)
++{
++        struct m0_sm_group      *sm_group;
++
++        tx       = (struct m0_be_tx *)tx;
++        sm_group = m0_be_domain_sm_group(tx->bt_dom);
++
++        return  tx != NULL &&
++                m0_be_tx_bob_check(tx) &&
++                !m0_mutex_is_locked(&sm_group->s_lock);
++}
++
++M0_INTERNAL void m0_be_tx_state_change(struct m0_be_tx *tx,
++                                       uint32_t state)
++{
++        struct m0_sm_group      *sm_group;
++
++        sm_group = m0_be_domain_sm_group(tx->bt_dom);
++
++        m0_sm_group_lock(sm_group);
++        m0_sm_state_set(&tx->bt_sm, state);
++        m0_sm_group_unlock(sm_group);
++}
++
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_tx */
+ 
+ /*
+diff --git a/be/tx.h b/be/tx.h
+index 5f29365..49b1cd1 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -28,6 +28,11 @@
+  */
+ #include "be/be.h"
+ 
++#define for_each_reg_in_tx(reg_it, tx) \
++        m0_tl_for(m0_be_reg, &tx->bt_impl.bc_tl, reg_it) {
++
++#define end_for_each_reg_in_tx } m0_tl_endfor;
++
+ enum m0_be_tx_prep_state {
+         M0_BETX_PREP_INPROGRESS,
+         M0_BETX_PREP_SUCCEED,
+@@ -66,6 +71,17 @@ M0_INTERNAL int m0_be_tx_get_capture_status(void * data);
+ M0_INTERNAL void m0_be_tx_set_capture_status(void * data);
+ 
+ uint32_t m0_be_tx_state(const struct m0_be_tx *tx);
++
++M0_INTERNAL bool m0_be_tx_invariant(const struct m0_be_tx *tx);
++
++/**
++ * Transaction state change with sm group locking
++ * This function locks sm_group and changes state specified in function
++ * parameter, then unlocks the sm_group.
++ */
++M0_INTERNAL void m0_be_tx_state_change(struct m0_be_tx *tx,
++                                       uint32_t state);
++
+ /** @} end of be_tx group */
+ 
+ /* __MERO_BE_TX_H__ */
+diff --git a/be/ut/Makefile.sub b/be/ut/Makefile.sub
+index 4f6cff3..db0b2e0 100644
+--- a/be/ut/Makefile.sub
++++ b/be/ut/Makefile.sub
+@@ -1,4 +1,4 @@
+ ut_libmero_ut_la_SOURCES += be/ut/be.c		 \
+ 			    be/ut/handle_store.c \
+-			    be/ut/be_tlist.c	 \
+-			    be/ut/kv_store.c
++			    be/ut/kv_store.c	 \
++			    be/ut/kv_store_ub.c
+diff --git a/be/ut/be.c b/be/ut/be.c
+index ea5cf51..d02df63 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -29,6 +29,8 @@
+   @{
+   */
+ 
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <unistd.h>
+@@ -36,6 +38,7 @@
+ #include "sm/sm.h"
+ #include "lib/ut.h"
+ #include "lib/memory.h"
++#include "lib/trace.h"
+ 
+ #include "be/be.h"
+ #include "be/domain.h"
+@@ -59,7 +62,7 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         int rc = 0;
+         bool result;
+ 
+-
++        M0_LOG(M0_DEBUG, "Test Initialization");
+         sprintf(be_cmd, "rm -rf %s", log_file);
+         rc = system(be_cmd);
+         M0_ASSERT(rc == 0);
+@@ -74,24 +77,17 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         rc = system(be_cmd);
+         M0_ASSERT(rc == 0);
+ 
+-        /* Initializing domain. */
+-        m0_be_domain_init(&dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
+-
+-        /**
+-         * This is just done to work other part of the code.
+-         * We are not dealing with named segment for this moment.
+-         */
++        M0_LOG(M0_DEBUG, "Domain create");
++        m0_be_domain_create(&dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
++        m0_be_domain_init(&dom);
+         sm_group = m0_be_domain_sm_group(&dom);
+-
+         M0_ASSERT(sm_group != NULL);
+ 
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_state_set(&dom.bd_data.bs_sm, M0_BESEG_ACTIVE);
+-        m0_sm_group_unlock(sm_group);
++        m0_be_seg_state_change(&dom.bd_data, M0_BESEG_ACTIVE);
+ 
+         result = m0_be_domain_lookup(&dom, "first", &seg);
+ 
+-        if(result == false) {
++        if (result == false) {
+                 M0_ALLOC_PTR(seg);
+                 m0_be_seg_init(seg, &dom, sm_group, 0);
+                 m0_be_seg_create(seg, NULL,  "first", NULL);
+@@ -134,37 +130,14 @@ static void test_be_transaction()
+         /* Transaction list initialization. */
+         m0_be_tx_init(&tx, &dom, 0);
+ 
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_INIT) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(sm_group);
+-
+         buf.b_nob = 1024;
+         m0_be_reg_init(&reg, NULL, seg, &buf);
+         m0_be_alloc(&reg);
+ 
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_timedwait(&reg.br_sm,
+-                        (1 << M0_BEREG_ALLOCATED) | (1 << M0_BEREG_FAILED),
+-                         M0_TIME_NEVER);
+-
+-        m0_sm_group_unlock(sm_group);
+         m0_be_tx_add_cred(&tx, &reg);
+         m0_be_tx_prep(&tx);
+ 
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(sm_group);
+-
+         m0_be_tx_start(&tx);
+-        m0_sm_group_lock(sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(sm_group);
+ 
+         strcpy(reg.br_buf.b_logical_address.be_virtual_address,
+                "Be UT - VIRTUAL WORLD");
+@@ -189,6 +162,7 @@ const struct m0_test_suite be_ut = {
+         }
+ };
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_ut */
+ 
+ /*
+diff --git a/be/ut/be_tlist.c b/be/ut/be_tlist.c
+deleted file mode 100644
+index 392785b..0000000
+--- a/be/ut/be_tlist.c
++++ /dev/null
+@@ -1,348 +0,0 @@
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author              : Zishan Shaikh <zishan_shaikh@xyratex.com>
+- * Original creation date       : 12/12/2012
+- */
+-
+-/**
+- *             BE Tlist UT
+- */
+-
+-/**
+-  @addtogroup be_ut
+-  @{
+-  */
+-
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <unistd.h>
+-#include "lib/ut.h"
+-#include "be/be.h"
+-#include "be/be_tlist.h"
+-#include "be/helper.h"
+-
+-typedef struct foo {
+-        int                key;
+-        int                value;
+-        struct m0_be_tlink linkage;
+-        unsigned long int  ref_magic;
+-}foo;
+-
+-struct m0_be_tl_descr list_descr = M0_BE_TL_DESCR("foo",
+-                                                  struct foo,
+-                                                  linkage,
+-                                                  ref_magic,
+-                                                  0xab5ce55edba1b0a0,
+-                                                  0xba1dba11adba0bab);
+-
+-struct m0_be_tl         *tlist;
+-struct m0_be_seg        *seg;
+-struct foo              *test1;
+-struct foo              *test2;
+-struct foo              *test3;
+-struct foo              *test4;
+-struct m0_be_domain      dom;
+-uint64_t                 tlist_segid;
+-uint64_t                 tlist_offset;
+-char                     cmd[1024];
+-
+-static const char      *stob_dir  = "./__be/o";
+-static const char      *stob_file = "0000000000000000.0000000000000001";
+-extern const char      *log_file;
+-
+-/** Allocates and stores the tlist on RVM. */
+-void alloc_memory_tlist_rvm()
+-{
+-        struct m0_be_tx         *tx;
+-        struct m0_be_reg        *reg;
+-        struct m0_be_reference  *ref;
+-        struct m0_be_buf         buf;
+-
+-        M0_ALLOC_PTR(tx);
+-        M0_ASSERT(tx != NULL);
+-
+-        M0_ALLOC_PTR(reg);
+-        M0_ASSERT(reg != NULL);
+-
+-        m0_be_tx_init(tx, &dom, 0);
+-        m0_be_wait(m0_be_domain_sm_group(tx->bt_dom), &tx->bt_sm,
+-                   M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+-
+-        /* Prepare a region for the tlist */
+-        buf.b_nob = sizeof(struct m0_be_tl);
+-        m0_be_reg_init(reg, tx, seg, &buf);
+-
+-        m0_be_ks_tx_start(tx);
+-
+-        tlist = (struct m0_be_tl *)m0_be_ks_obj_malloc(reg, &ref);
+-        M0_ASSERT(tlist != NULL);
+-        M0_ASSERT(ref != NULL);
+-
+-        tlist_segid = ref->be_segid_offset.u_hi;
+-        tlist_offset = ref->be_segid_offset.u_lo;
+-
+-        m0_be_tx_done(tx);
+-        m0_be_wait(m0_be_domain_sm_group(tx->bt_dom), &tx->bt_sm,
+-                   M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+-
+-        m0_be_tx_fini(tx);
+-        m0_free(tx);
+-        m0_free(reg);
+-}
+-
+-/** Adds a new @obj to the tlist. */
+-void add_to_tlist(struct foo *obj, struct m0_be_reference *ref)
+-{
+-       m0_be_tlink_init(&list_descr, ref);
+-       m0_be_tlist_add(&list_descr, tlist, obj);
+-       M0_ASSERT(m0_be_tlink_is_in(&list_descr, obj));
+-}
+-
+-/** Initialise the tlist, domain and the segment. */
+-static int ts_be_tlist_init(void)
+-{
+-        struct m0_be_reference_ll *head;
+-        struct m0_be_reference_ll *tail;
+-        struct m0_uint128         *temp_head_offset;
+-        struct m0_uint128         *temp_tail_offset;
+-        struct m0_sm_group        *sm_group;
+-        int                        ret_dom;
+-        int                        rc = 0;
+-
+-        sprintf(cmd, "rm -rf %s", log_file);
+-        rc = system(cmd);
+-        M0_ASSERT(rc == 0);
+-
+-        sprintf(cmd, "mkdir -p %s", stob_dir);
+-        rc = system(cmd);
+-        M0_ASSERT(rc == 0);
+-
+-        sprintf(cmd,
+-                "dd if=/dev/zero of=%s/%s bs=1024 count=102408 2>/dev/null",
+-                stob_dir, stob_file);
+-        rc = system(cmd);
+-        M0_ASSERT(rc == 0);
+-
+-        /* Initializing domain and segment */
+-        m0_be_domain_init(&dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
+-        dom.bd_data.bs_sm.sm_state = M0_BESEG_ACTIVE;
+-
+-        /* Create and Open Segment */
+-        sm_group = m0_be_domain_sm_group(&dom);
+-        ret_dom = m0_be_domain_lookup(&dom, "first", &seg);
+-
+-        if (ret_dom !=0) {
+-                M0_ALLOC_PTR(seg);
+-                M0_ASSERT(seg != NULL);
+-
+-                m0_be_seg_init(seg, &dom, sm_group, 0);
+-                m0_be_seg_create(seg, NULL,  "first", NULL);
+-                m0_be_wait(sm_group, &seg->bs_sm,
+-                           M0_BITS(M0_BESEG_ACTIVE, M0_BESEG_FAILED));
+-        }
+-
+-        m0_sm_group_lock(m0_be_domain_sm_group(seg->bs_dom));
+-        m0_sm_timedwait(&(seg->bs_sm),
+-                        (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(seg->bs_dom));
+-
+-        alloc_memory_tlist_rvm();
+-        m0_be_tlist_init(&list_descr, tlist);
+-
+-        /* Update segment id & offset in head & tail */
+-        head = &(tlist->t_head.l_head);
+-        tail = &(tlist->t_head.l_tail);
+-
+-        temp_head_offset       = &(head->n_logical_address.be_segid_offset);
+-        temp_head_offset->u_hi = tlist_segid;
+-        temp_head_offset->u_lo = tlist_offset;
+-
+-        temp_tail_offset       = &(tail->n_logical_address.be_segid_offset);
+-        temp_tail_offset->u_hi = tlist_segid;
+-        temp_tail_offset->u_lo = tlist_offset;
+-
+-        head->n_logical_address.be_magic = dom.bd_magic;
+-        tail->n_logical_address.be_magic = dom.bd_magic;
+-
+-        return rc;
+-}
+-
+-/** Allocates memory to an object and adds it to the tlist. */
+-void test_add_be_tlist(struct foo **new_obj, int incoming_key,
+-                       int incoming_value)
+-{
+-        struct m0_be_tx         tx;
+-        struct m0_be_buf        buf;
+-        struct m0_be_reg       *reg;
+-
+-        M0_ALLOC_PTR(reg);
+-        M0_ASSERT(reg != NULL);
+-
+-        /* Initialise and start transaction */
+-        m0_be_tx_init(&tx, &dom, 0);
+-        m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_INIT) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+-
+-        m0_be_tx_start(&tx);
+-        m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+-
+-        /* Initialise a region for this object */
+-        m0_be_buf_init(&buf, NULL, sizeof(struct foo), 0, 0, 0);
+-        m0_be_reg_init(reg, &tx, seg, &buf);
+-
+-        /* Allocate memory on RVM */
+-        m0_be_alloc(reg);
+-        m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+-        m0_sm_timedwait(&reg->br_sm,
+-                       (1 << M0_BEREG_ALLOCATED) | (1 << M0_BEREG_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+-
+-        /* Capture this region */
+-        m0_be_reg_capture(reg);
+-        m0_sm_group_lock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+-        m0_sm_timedwait(&reg->br_sm,
+-                       (1 << M0_BEREG_CAPTURED) | (1 << M0_BEREG_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(reg->br_seg->bs_dom));
+-
+-
+-        /* Point the memory to the object from @reg->br_buf */
+-        *new_obj = (struct foo *)reg->br_buf.b_addr;
+-        if (*new_obj == NULL) {
+-                return;
+-        }
+-
+-        (*new_obj)->key   = incoming_key;
+-        (*new_obj)->value = incoming_value;
+-
+-        /* Insert in tlist */
+-        add_to_tlist(*new_obj, &reg->br_buf.b_logical_address);
+-
+-        m0_be_tx_done(&tx);
+-        m0_sm_group_lock(m0_be_domain_sm_group(tx.bt_dom));
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(m0_be_domain_sm_group(tx.bt_dom));
+-
+-        m0_be_tx_fini(&tx);
+-        m0_free(reg);
+-}
+-
+-
+-void test_move_del_be_tlist()
+-{
+-        /* Move @test3 to head */
+-        m0_be_tlist_move(&list_descr, tlist, test3);
+-
+-        /* Move @test4 to tail */
+-        m0_be_tlist_move_tail(&list_descr, tlist, test4);
+-
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 4);
+-
+-        /* Try and delete some node. Here @test1 */
+-        if (m0_be_tlink_is_in(&list_descr, test1)) {
+-                m0_be_tlink_del_fini(&list_descr, test1);
+-        }
+-        M0_ASSERT(!m0_be_tlink_is_in(&list_descr, test1));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 3);
+-
+-        if (m0_be_tlink_is_in(&list_descr, test2)) {
+-                m0_be_tlink_del_fini(&list_descr, test2);
+-        }
+-        M0_ASSERT(!m0_be_tlink_is_in(&list_descr, test2));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 2);
+-
+-        if (m0_be_tlink_is_in(&list_descr, test3)) {
+-                m0_be_tlink_del_fini(&list_descr, test3);
+-        }
+-        M0_ASSERT(!m0_be_tlink_is_in(&list_descr, test3));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 1);
+-
+-        if (m0_be_tlink_is_in(&list_descr, test4)) {
+-                m0_be_tlink_del_fini(&list_descr, test4);
+-        }
+-        M0_ASSERT(!m0_be_tlink_is_in(&list_descr, test4));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 0);
+-}
+-
+-void test_be_tlist()
+-{
+-        test_add_be_tlist(&test1, 10, 20);
+-        M0_ASSERT(m0_be_tlink_is_in(&list_descr, test1));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 1);
+-
+-        test_add_be_tlist(&test2, 20, 30);
+-        M0_ASSERT(m0_be_tlink_is_in(&list_descr, test2));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 2);
+-
+-        test_add_be_tlist(&test3, 30, 40);
+-        M0_ASSERT(m0_be_tlink_is_in(&list_descr, test3));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 3);
+-
+-        test_add_be_tlist(&test4, 40, 10);
+-        M0_ASSERT(m0_be_tlink_is_in(&list_descr, test4));
+-        M0_ASSERT(m0_be_tlist_length(&list_descr, tlist) == 4);
+-
+-        test_move_del_be_tlist();
+-}
+-
+-/** Finalise. */
+-static int ts_be_tlist_fini(void)
+-{
+-        int rc;
+-        m0_be_seg_done(seg);
+-        dom.bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
+-        rvm_truncate();
+-        m0_be_domain_fini(&dom);
+-
+-        sprintf(cmd, "rm -rf %s", stob_dir);
+-        rc = system(cmd);
+-        M0_ASSERT(rc == 0);
+-
+-        return rc;
+-}
+-
+-const struct m0_test_suite be_tlist_ut = {
+-        .ts_name = "be-tlist-ut",
+-        .ts_init = ts_be_tlist_init,
+-        .ts_fini = ts_be_tlist_fini,
+-        .ts_tests = {
+-                { "be-tlist", test_be_tlist },
+-                { NULL, NULL },
+-        }
+-};
+-
+-/** @} end group be_ut */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index 9947c97..afa887d 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -50,8 +50,8 @@ extern const char      *log_file;
+ 
+ static int ts_be_init(void)   /* ts_ for "test suite" */
+ {
+-        int rc = 0;
+-        int result;
++        int  rc = 0;
++        bool result;
+ 
+         sprintf(hs_cmd, "rm -rf %s", log_file);
+         rc = system(hs_cmd);
+@@ -67,15 +67,9 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         rc = system(hs_cmd);
+         M0_ASSERT(rc == 0);
+ 
+-        /* Initializing domain */
+-        m0_be_domain_init(&dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
+-
+-        /**
+-         * This is just done to work other part of the code.
+-         * We are not dealing with named segment for this moment.
+-         */
++        m0_be_domain_create(&dom, NULL, NULL, M0_BE_DOMAIN_MAGIC);
++        m0_be_domain_init(&dom);
+         sm_group = m0_be_domain_sm_group(&dom);
+-
+         M0_ASSERT(sm_group != NULL);
+ 
+         m0_sm_group_lock(sm_group);
+@@ -84,7 +78,7 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+ 
+         result = m0_be_domain_lookup(&dom, "first", &seg);
+ 
+-        if(result != 0) {
++        if (result == false) {
+                 M0_ALLOC_PTR(seg);
+                 m0_be_seg_init(seg, &dom, sm_group, 0);
+                 m0_be_seg_create(seg, NULL,  "first", NULL);
+@@ -117,7 +111,6 @@ static int ts_be_fini(void)
+         sprintf(hs_cmd, "rm -rf %s", stob_dir);
+         rc = system(hs_cmd);
+         M0_ASSERT(rc == 0);
+-        rvm_terminate();
+ 
+         return rc;
+ }
+diff --git a/be/ut/kv_store.c b/be/ut/kv_store.c
+index 9a6e700..b7f2536 100644
+--- a/be/ut/kv_store.c
++++ b/be/ut/kv_store.c
+@@ -27,11 +27,14 @@
+   @{
+   */
+ 
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++#include "lib/ut.h"
+ #include "be/kv_store.h"
+ #include "be/be_private.h"
+ #include "be/handle_store.h"
+ #include "be/helper.h"
+-#include "lib/ut.h"
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -41,7 +44,7 @@
+ struct m0_kv_store_obj {
+         char                    key[MAX_KEY_SIZE];
+         int                     obj_val;
+-        struct m0_tlink      linkage;
++        struct m0_tlink         linkage;
+         uint64_t                magic;
+ };
+ 
+@@ -86,8 +89,10 @@ int function_match(void *in_obj, void *key)
+ 
+ static int ts_kv_store_init()
+ {
+-        int rc;
++        int  rc;
++        bool init_status;
+ 
++        M0_LOG(M0_DEBUG,"KV Store Initialization");
+         sprintf(kv_cmd, "rm -rf %s", log_file);
+         rc = system(kv_cmd);
+         M0_ASSERT(rc == 0);
+@@ -111,8 +116,9 @@ static int ts_kv_store_init()
+         m0_be_ks_init_domain(&kv_dom);
+         M0_ASSERT(kv_dom != NULL);
+ 
+-        m0_be_ks_init(&handle, &kv_list_descr, kv_dom, cmp_routine,
+-                      match_routine, "create");
++        init_status = m0_be_ks_init(&handle, &kv_list_descr, kv_dom,
++                                    cmp_routine, match_routine, "create");
++        M0_ASSERT(init_status == true);
+         M0_ASSERT(handle != NULL);
+         return 0;
+ }
+@@ -150,21 +156,19 @@ static int insert(char *key_name, int val)
+         sm_group = m0_be_domain_sm_group(kv_dom);
+ 
+         m0_be_tx_init(tx, kv_dom, 0);
+-        m0_be_wait(sm_group, &tx->bt_sm,
+-                   M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+ 
+         /* Prepare a region for the object */
+         M0_ALLOC_PTR(obj_reg);
+         M0_ASSERT(obj_reg != NULL);
+-        obj_buf.b_nob = sizeof(struct m0_kv_store_obj);
++        obj_buf.b_nob = sizeof *object[val];
+         m0_be_reg_init(obj_reg, tx, kv_seg, &obj_buf);
+ 
+         /* As nothing in credit list, so can start tx directly */
+-        m0_be_ks_tx_start(tx);
++        m0_be_tx_start(tx);
+ 
+         /* Memory alloc to the object via rvm */
+         object[val] = (struct m0_kv_store_obj *)m0_be_ks_obj_malloc(obj_reg,
+-                                                                    &obj_ref);
++                        &obj_ref);
+         if (object[val] == NULL) {
+                 status = BE_KV_FAILURE;
+                 goto exit;
+@@ -186,7 +190,6 @@ static int insert(char *key_name, int val)
+                    M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+ 
+         m0_be_tx_fini(tx);
+-
+         m0_free(tx);
+         m0_free(obj_reg);
+ exit:
+@@ -214,8 +217,6 @@ static int delete(struct m0_kv_store_obj *target)
+         sm_group = m0_be_domain_sm_group(kv_dom);
+ 
+         m0_be_tx_init(tx, kv_dom, 0);
+-        m0_be_wait(sm_group, &tx->bt_sm,
+-                   M0_BITS(M0_BETX_INIT, M0_BETX_FAILED));
+ 
+         /* Prepare a region for this object */
+         M0_ALLOC_PTR(obj_reg);
+@@ -227,8 +228,8 @@ static int delete(struct m0_kv_store_obj *target)
+ 
+         m0_be_tx_add_cred(tx, obj_reg);
+ 
+-        m0_be_ks_tx_prep(tx);
+-        m0_be_ks_tx_start(tx);
++        m0_be_tx_prep(tx);
++        m0_be_tx_start(tx);
+ 
+         /* Delete this obj from kv store */
+         ret_val = m0_be_ks_delete(handle, (void *)target, tx);
+@@ -247,13 +248,48 @@ static int delete(struct m0_kv_store_obj *target)
+         return ret_val;
+ }
+ 
++static void __insert(int start, int last, char *obj_name, char *cat_name,
++                     char *cp_name)
++{
++        int i;
++        int status;
++
++        for(i = start; i < last; i++) {
++                status = insert(obj_name, i);
++                M0_ASSERT(status != BE_KV_FAILURE);
++                M0_ASSERT(status != BE_KV_OUT_OF_DOMAIN);
++                M0_ASSERT(status != BE_KV_DUPLICATE);
++
++                if (strlen(obj_name) < 254)
++                        strcat(obj_name, cat_name);
++                else
++                        strcpy(obj_name, cp_name);
++        }
++}
++
++static void __find(int start, int last, char *obj_name, char *cat_name,
++                   char *cp_name)
++{
++        int i;
++
++        for(i = start; i < last; i++) {
++                ret_obj[i]  = (struct m0_kv_store_obj *)find(obj_name);
++                M0_ASSERT(ret_obj[i] != NULL);
++
++                if (strlen(obj_name) < 254)
++                        strcat(obj_name, cat_name);
++                else
++                        strcpy(obj_name, cp_name);
++        }
++
++}
++
+ void test_kv_store()
+ {
+-        int     status = -2;
+-        int     i      =  0;
+-        int     count  =  0;
+-        int     ret_dom;
+-        size_t  length =  0;
++        int     status                   = -2;
++        int     i                        =  0;
++        bool    ret_dom;
++        size_t  length                   =  0;
+         char    obj_name[MAX_KEY_SIZE]   = "a";
+ 
+         /*
+@@ -262,51 +298,54 @@ void test_kv_store()
+          */
+         sm_group = m0_be_domain_sm_group(kv_dom);
+ 
+-        ret_dom = m0_be_ks_domain_lookup(kv_dom, &kv_seg, BE_KV_SEG_NAME);
+-        M0_ASSERT(ret_dom == 0);
++        ret_dom = m0_be_domain_lookup(kv_dom, BE_KV_SEG_NAME, &kv_seg);
++        M0_ASSERT(ret_dom);
+         M0_ASSERT(kv_seg != NULL);
+ 
+         strcat(obj_name, "b");
++        __insert(0, 256, obj_name, "a", "akv");
+ 
+-        /* Insert objects */
+-        for(i = 0; i < 10; i++) {
+-                status = insert(obj_name, i);
+-                M0_ASSERT(status != BE_KV_FAILURE);
+-                M0_ASSERT(status != BE_KV_OUT_OF_DOMAIN);
+-                M0_ASSERT(status != BE_KV_DUPLICATE);
++        strcpy(obj_name, "a");
++        strcat(obj_name, "c");
++        __insert(256, 512, obj_name, "b", "bkv");
+ 
+-                if (strlen(obj_name) < 255)
+-                        strcat(obj_name, "a");
+-                else
+-                        strcpy(obj_name, "akv");
+-        }
++        strcpy(obj_name, "a");
++        strcat(obj_name, "d");
++        __insert(512, 768, obj_name, "c", "ckv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "e");
++        __insert(768, 1024, obj_name, "d", "dkv");
+ 
+         length = m0_tlist_length(&kv_list_descr,
+-                                    &handle->handle_rvm->ks_tlist);
+-        M0_ASSERT(length == 10);
++                                 &handle->handle_rvm->ks_tlist);
++        M0_ASSERT(length == 1024);
+ 
+         /* Find the inserted objects */
+-        count = 0;
+         strcpy(obj_name, "a");
+         strcat(obj_name, "b");
+ 
+-        for(i = 0; i < 10; i++) {
+-                ret_obj[i]  = (struct m0_kv_store_obj *)find(obj_name);
+-                M0_ASSERT(ret_obj[i] != NULL);
++        __find(0, 256, obj_name, "a", "akv");
+ 
+-                if (strlen(obj_name) < 255)
+-                        strcat(obj_name, "a");
+-                else
+-                        strcpy(obj_name, "akv");
+-        }
++        strcpy(obj_name, "a");
++        strcat(obj_name, "c");
++        __find(256, 512, obj_name, "b", "bkv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "d");
++        __find(512, 768, obj_name, "c", "ckv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "e");
++        __find(768, 1024, obj_name, "d", "dkv");
+ 
+         /* Delete'em */
+-        for(i =0; i < 10; i++) {
++        for(i =0; i < 1024; i++) {
+                 status = delete(ret_obj[i]);
+                 M0_ASSERT(status == BE_KV_SUCCESS);
+         }
+         length = m0_tlist_length(&kv_list_descr,
+-                                    &handle->handle_rvm->ks_tlist);
++                                 &handle->handle_rvm->ks_tlist);
+ 
+         M0_ASSERT(length == 0);
+ }
+@@ -321,6 +360,7 @@ const struct m0_test_suite be_kv_store_ut = {
+         }
+ };
+ 
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_ut */
+ 
+ /*
+diff --git a/be/ut/kv_store_ub.c b/be/ut/kv_store_ub.c
+new file mode 100644
+index 0000000..69211a8
+--- /dev/null
++++ b/be/ut/kv_store_ub.c
+@@ -0,0 +1,383 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date: 02/08/2013
++ */
++
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++#include "lib/ub.h"
++#include "lib/ut.h"
++#include "be/kv_store.h"
++#include "be/be_private.h"
++#include "be/handle_store.h"
++#include "be/helper.h"
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#define MAX_KEY_SIZE 256
++
++/** User defined structure. */
++struct m0_kv_store_obj {
++        char                    key[MAX_KEY_SIZE];
++        int                     obj_val;
++        struct m0_tlink         linkage;
++        uint64_t                magic;
++};
++
++struct m0_tl_descr kv_list_descr = M0_TL_DESCR("kv_store_obj",
++                                                struct m0_kv_store_obj,
++                                                linkage,
++                                                magic,
++                                                0xab5ce55edba1b0a0,
++                                                0xba1dba11adba0bab);
++
++struct m0_be_domain        *kv_dom;
++struct m0_be_seg           *kv_seg;
++struct m0_kv_store_obj     *object[1024]   = {NULL};
++struct m0_kv_store_obj     *ret_obj[1024]  = {NULL};
++struct m0_be_kv_store      *handle         = NULL;
++struct m0_be_kv_store_rvm  *handle_rvm     = NULL;
++struct m0_sm_group         *sm_group;
++
++static const char          *stob_dir  = "./__be/o";
++static const char          *stob_file = "0000000000000000.0000000000000001";
++extern const char          *log_file;
++char                        kv_cmd[1024];
++
++/** Key compare routine. */
++int function_comp(void *key1, void *key2)
++{
++        struct m0_kv_store_obj *obj1;
++        struct m0_kv_store_obj *obj2;
++
++        obj1 = (struct m0_kv_store_obj *)key1;
++        obj2 = (struct m0_kv_store_obj *)key2;
++        return strcmp(obj1->key, obj2->key);
++}
++
++/** Match routine. */
++int function_match(void *in_obj, void *key)
++{
++        struct m0_kv_store_obj *obj;
++        obj = (struct m0_kv_store_obj *)in_obj;
++        return strcmp(obj->key, (char *)key);
++}
++
++static int __insert(char *key_name, int val)
++{
++        int                      status  = -2;
++        struct m0_be_tx         *tx;
++        struct m0_be_reference  *obj_ref;
++        struct m0_be_reg        *obj_reg;
++        struct m0_be_buf         obj_buf;
++        struct m0_sm_group      *sm_group;
++
++        M0_ALLOC_PTR(tx);
++
++        if (tx == NULL) {
++                status = BE_KV_FAILURE;
++                goto exit;
++        }
++
++        sm_group = m0_be_domain_sm_group(kv_dom);
++
++        m0_be_tx_init(tx, kv_dom, 0);
++
++        /* Prepare a region for the object */
++        M0_ALLOC_PTR(obj_reg);
++        M0_ASSERT(obj_reg != NULL);
++        obj_buf.b_nob = sizeof *object[val];
++        m0_be_reg_init(obj_reg, tx, kv_seg, &obj_buf);
++
++        /* As nothing in credit list, so can start tx directly */
++        m0_be_tx_start(tx);
++
++        /* Memory alloc to the object via rvm */
++        object[val] = (struct m0_kv_store_obj *)m0_be_ks_obj_malloc(obj_reg,
++                        &obj_ref);
++        if (object[val] == NULL) {
++                status = BE_KV_FAILURE;
++                goto exit;
++        }
++        M0_ASSERT(obj_ref != NULL);
++
++        /* Make changes to object */
++        strncpy(object[val]->key, key_name, strlen(key_name));
++        object[val]->obj_val = val;
++
++        /* Insert this into the kv_store */
++        status = m0_be_ks_insert(handle, obj_ref, tx);
++        if (status == BE_KV_FAILURE || status == BE_KV_OUT_OF_DOMAIN ||
++            status == BE_KV_DUPLICATE)
++                goto exit;
++
++        m0_be_tx_done(tx);
++        m0_be_wait(sm_group, &tx->bt_sm,
++                        M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
++
++        m0_be_tx_fini(tx);
++        m0_free(tx);
++        m0_free(obj_reg);
++exit:
++        return status;
++}
++
++static void *__find(char *key)
++{
++        return m0_be_ks_find(handle, key);
++}
++
++static int __delete(struct m0_kv_store_obj *target)
++{
++        struct m0_be_tx      *tx = NULL;
++        struct m0_be_buf      obj_buf;
++        struct m0_be_reg     *obj_reg = NULL;
++        struct m0_sm_group   *sm_group;
++        int                   ret_val;
++
++        M0_ALLOC_PTR(tx);
++
++        if (tx == NULL)
++                return BE_KV_FAILURE;
++
++        sm_group = m0_be_domain_sm_group(kv_dom);
++
++        m0_be_tx_init(tx, kv_dom, 0);
++
++        /* Prepare a region for this object */
++        M0_ALLOC_PTR(obj_reg);
++        M0_ASSERT(obj_reg != NULL);
++        obj_buf.b_nob = sizeof(struct m0_kv_store_obj);
++        obj_buf.b_addr = (void *)target;
++        m0_be_reg_init(obj_reg, tx, kv_seg, &obj_buf);
++        M0_ASSERT(obj_reg != NULL);
++
++        m0_be_tx_add_cred(tx, obj_reg);
++
++        m0_be_tx_prep(tx);
++        m0_be_tx_start(tx);
++
++        /* Delete this obj from kv store */
++        ret_val = m0_be_ks_delete(handle, (void *)target, tx);
++
++        if (ret_val != BE_KV_FAILURE) {
++                m0_be_tx_done(tx);
++                m0_be_wait(sm_group, &tx->bt_sm,
++                           M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
++
++                ret_val = BE_KV_SUCCESS;
++        }
++
++        m0_be_tx_fini(tx);
++        m0_free(tx);
++        m0_free(obj_reg);
++        return ret_val;
++}
++
++static void __loop_insert(int start, int last, char *obj_name, char *cat_name,
++                     char *cp_name)
++{
++        int i;
++        int status;
++        for(i = start; i < last; i++) {
++                status = __insert(obj_name, i);
++                M0_ASSERT(status != BE_KV_FAILURE);
++                M0_ASSERT(status != BE_KV_OUT_OF_DOMAIN);
++                M0_ASSERT(status != BE_KV_DUPLICATE);
++
++                if (strlen(obj_name) < 254)
++                        strcat(obj_name, cat_name);
++                else
++                        strcpy(obj_name, cp_name);
++        }
++}
++
++static void __loop_find(int start, int last, char *obj_name, char *cat_name,
++                   char *cp_name)
++{
++        int i;
++
++        for(i = start; i < last; i++) {
++                ret_obj[i]  = (struct m0_kv_store_obj *)__find(obj_name);
++                M0_ASSERT(ret_obj[i] != NULL);
++
++                if (strlen(obj_name) < 254)
++                        strcat(obj_name, cat_name);
++                else
++                        strcpy(obj_name, cp_name);
++        }
++
++}
++
++static void ub_kv_insert()
++{
++        bool    ret_dom;
++        size_t  length                   =  0;
++        char    obj_name[MAX_KEY_SIZE]   = "a";
++
++        /*
++         * Lookup for the kv_store segment to be used for allocations while
++         * insertion
++         */
++        sm_group = m0_be_domain_sm_group(kv_dom);
++
++        ret_dom = m0_be_domain_lookup(kv_dom, BE_KV_SEG_NAME, &kv_seg);
++        M0_ASSERT(ret_dom);
++        M0_ASSERT(kv_seg != NULL);
++
++        strcat(obj_name, "b");
++        __loop_insert(0, 256, obj_name, "a", "akv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "c");
++        __loop_insert(256, 512, obj_name, "b", "bkv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "d");
++        __loop_insert(512, 768, obj_name, "c", "ckv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "e");
++        __loop_insert(768, 1024, obj_name, "d", "dkv");
++
++        length = m0_tlist_length(&kv_list_descr,
++                                 &handle->handle_rvm->ks_tlist);
++        M0_ASSERT(length == 1024);
++}
++
++static void ub_kv_find()
++{
++        char    obj_name[MAX_KEY_SIZE]  = "a";
++
++        strcat(obj_name, "b");
++
++        __loop_find(0, 256, obj_name, "a", "akv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "c");
++        __loop_find(256, 512, obj_name, "b", "bkv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "d");
++        __loop_find(512, 768, obj_name, "c", "ckv");
++
++        strcpy(obj_name, "a");
++        strcat(obj_name, "e");
++        __loop_find(768, 1024, obj_name, "d", "dkv");
++
++}
++
++void ub_kv_delete()
++{
++        int     status = -2;
++        int     i      =  0;
++        size_t  length =  0;
++
++        /* Delete the object. */
++        for(i =0; i < 1024; i++) {
++                status = __delete(ret_obj[i]);
++                M0_ASSERT(status == BE_KV_SUCCESS);
++        }
++        length = m0_tlist_length(&kv_list_descr,
++                                 &handle->handle_rvm->ks_tlist);
++
++        M0_ASSERT(length == 0);
++}
++
++enum {
++	UB_ITER   = 1,
++};
++
++static void ub_init(void)
++{
++        int  rc;
++        bool init_status;
++
++        M0_LOG(M0_DEBUG,"KV Store Initialization");
++        sprintf(kv_cmd, "rm -rf %s", log_file);
++        rc = system(kv_cmd);
++        M0_ASSERT(rc == 0);
++
++        sprintf(kv_cmd, "mkdir -p %s", stob_dir);
++        rc = system(kv_cmd);
++        M0_ASSERT(rc == 0);
++
++        sprintf(kv_cmd,
++                "dd if=/dev/zero of=%s/%s bs=1024 count=102408 2>/dev/null",
++                stob_dir, stob_file);
++        rc = system(kv_cmd);
++        M0_ASSERT(rc == 0);
++
++        kv_key_cmp     cmp_routine;
++        kv_key_match   match_routine;
++
++        cmp_routine   = &function_comp;
++        match_routine = &function_match;
++
++        m0_be_ks_init_domain(&kv_dom);
++        M0_ASSERT(kv_dom != NULL);
++
++        init_status = m0_be_ks_init(&handle, &kv_list_descr, kv_dom,
++                                    cmp_routine, match_routine, "create");
++        M0_ASSERT(init_status == true);
++        M0_ASSERT(handle != NULL);
++}
++
++static void ub_fini()
++{
++        int rc;
++
++        m0_be_ks_fini(kv_dom, kv_seg);
++        m0_free(handle);
++
++        sprintf(kv_cmd, "rm -rf %s", stob_dir);
++        rc = system(kv_cmd);
++        M0_ASSERT(rc == 0);
++}
++
++struct m0_ub_set m0_kvstore_ub = {
++	.us_name = "kvstore-ub",
++	.us_init = ub_init,
++	.us_fini = ub_fini,
++	.us_run  = {
++		{ .ut_name  = "kv-store-insert",
++		  .ut_iter  = UB_ITER,
++		  .ut_round = ub_kv_insert },
++
++		{ .ut_name  = "kv-store-find",
++		  .ut_iter  = UB_ITER,
++		  .ut_round = ub_kv_find },
++
++		{ .ut_name  = "kv-store-delete",
++		  .ut_iter  = UB_ITER,
++		  .ut_round = ub_kv_delete },
++
++		{ .ut_name = NULL }
++	}
++};
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/lib/trace.h b/lib/trace.h
+index c5a5b60..1cc5af0 100644
+--- a/lib/trace.h
++++ b/lib/trace.h
+@@ -208,7 +208,8 @@ M0_INTERNAL void m0_trace_fini(void);
+   M0_TRACE_SUBSYS(CONF,      16) \
+   M0_TRACE_SUBSYS(LIB,       17) \
+   M0_TRACE_SUBSYS(STOB,      18) \
+-  M0_TRACE_SUBSYS(FOP,       19)
++  M0_TRACE_SUBSYS(FOP,       19) \
++  M0_TRACE_SUBSYS(BE,        20)
+ 
+ #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
+ /** The subsystem bitmask definitions */
+diff --git a/sm/sm.c b/sm/sm.c
+index 5b0360f..043da9b 100644
+--- a/sm/sm.c
++++ b/sm/sm.c
+@@ -396,14 +396,6 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
+ 	}
+ }
+ 
+-M0_INTERNAL void m0_be_sm_state_change(struct m0_sm_group *grp,
+-                                       struct m0_sm *sm, uint32_t state)
+-{
+-        m0_sm_group_lock(grp);
+-        m0_sm_state_set(sm, state);
+-        m0_sm_group_unlock(grp);
+-}
+-
+ /** @} end of sm group */
+ 
+ /*
+diff --git a/sm/sm.h b/sm/sm.h
+index a6b6973..18b425e 100644
+--- a/sm/sm.h
++++ b/sm/sm.h
+@@ -628,15 +628,6 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
+ 
+ M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach);
+ 
+-
+-/**
+- * State change with sm group locking 
+- * This function locks sm_group and changes state specified in function
+- * parameter, then unlocks the sm_group.
+- */
+-M0_INTERNAL void m0_be_sm_state_change(struct m0_sm_group *grp,
+-                                       struct m0_sm *sm, uint32_t state);
+-
+ /** @} end of sm group */
+ 
+ /* __MERO_SM_SM_H__ */
+diff --git a/utils/ub_main.c b/utils/ub_main.c
+index 4d9ea4c..0f3362b 100644
+--- a/utils/ub_main.c
++++ b/utils/ub_main.c
+@@ -37,6 +37,7 @@ extern struct m0_ub_set m0_db_ub;
+ extern struct m0_ub_set m0_emap_ub;
+ extern struct m0_ub_set m0_fol_ub;
+ extern struct m0_ub_set m0_parity_math_ub;
++extern struct m0_ub_set m0_kvstore_ub;
+ 
+ #define UB_SANDBOX "./ub-sandbox"
+ 
+@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
+ 		m0_ub_set_add(&m0_thread_ub);
+ 		m0_ub_set_add(&m0_trace_ub);
+ 		m0_ub_set_add(&m0_atomic_ub);
++                m0_ub_set_add(&m0_kvstore_ub);
+ 		m0_ub_run(rounds);
+ 
+ 		unit_end(UB_SANDBOX, false);
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 88e989f..3c05a5b 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -37,7 +37,6 @@ extern const struct m0_test_suite addb_ut;
+ extern const struct m0_test_suite adieu_ut;
+ extern const struct m0_test_suite be_hs_ut;
+ extern const struct m0_test_suite be_kv_store_ut;
+-extern const struct m0_test_suite be_tlist_ut;
+ extern const struct m0_test_suite be_ut;
+ extern const struct m0_test_suite balloc_ut;
+ extern const struct m0_test_suite buffer_pool_ut;
+@@ -98,7 +97,6 @@ void add_uts(void)
+         m0_ut_add(&adieu_ut);
+         /*m0_ut_add(&be_hs_ut);*/
+         m0_ut_add(&be_kv_store_ut);
+-        /*m0_ut_add(&be_tlist_ut);*/
+         /*m0_ut_add(&be_ut);*/
+ 	m0_ut_add(&balloc_ut);
+         m0_ut_add(&buffer_pool_ut);
+-- 
+1.8.3.2
+

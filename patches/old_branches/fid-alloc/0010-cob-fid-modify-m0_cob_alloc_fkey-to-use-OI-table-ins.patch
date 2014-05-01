@@ -1,0 +1,111 @@
+From 076c65cd716dd11d9eb4c97e316b57b33c421c58 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 31 Mar 2013 21:01:03 +0300
+Subject: [PATCH 10/15] cob/fid: modify m0_cob_alloc_fkey() to use OI table
+ instead of FAB
+
+Look for maximal FID of the given f_container in Object Index
+table instead of File Attributes Basic.
+
+Don't reinitialize db pair structure between m0_db_cursor_get()
+and m0_db_cursor_prev() calls, because pair_prep() doesn't break
+m0_db_pair_invariant() anymore.
+---
+ cob/cob.c | 55 +++++++++++++++++++++++--------------------------------
+ 1 file changed, 23 insertions(+), 32 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 0af31f1..438f2f6 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1108,9 +1108,9 @@ M0_INTERNAL int m0_cob_alloc_fkey(struct m0_cob_domain *dom,
+ 				  struct m0_db_tx *tx, struct m0_fid *fid)
+ {
+ 	struct m0_db_pair     pair;
+-	struct m0_cob_fabkey  fabkey;
+-	struct m0_cob_fabkey *fabkey2;
+-	struct m0_fid        *fid2;
++	struct m0_cob_oikey   oikey;
++	struct m0_cob_oikey  *maxkey;
++	struct m0_fid        *maxfid;
+ 	struct m0_db_cursor   cursor;
+ 	int                   rc;
+ 
+@@ -1119,54 +1119,45 @@ M0_INTERNAL int m0_cob_alloc_fkey(struct m0_cob_domain *dom,
+ 	M0_ENTRY("[%llx:%llx]", (long long unsigned)fid->f_container,
+ 		 (long long unsigned)fid->f_key);
+ 
+-	rc = m0_db_cursor_init(&cursor, &dom->cd_fileattr_basic, tx, 0);
++	rc = m0_db_cursor_init(&cursor, &dom->cd_object_index, tx, 0);
+ 	if (rc != 0)
+ 		goto leave;
+ 	/*
+-	 * Find max allocated key in FAB table
+-	 * (start looking from {f_container, ~0ULL} downwards).
++	 * Find max allocated key in Object Index table (start looking from
++	 * {{f_container, 0xFFFFFFFFFFFFFFFF}, 0xFFFFFFFF} downwards).
+ 	 */
+-	fabkey.cfb_fid.f_container = fid->f_container;
+-	fabkey.cfb_fid.f_key       = ~0ULL;
+-	m0_db_pair_setup(&pair, &dom->cd_fileattr_basic,
+-			 &fabkey, sizeof fabkey, NULL, 0);
++	oikey.cok_fid.f_container = fid->f_container;
++	oikey.cok_fid.f_key       = ~0ULL;  /* uint64_t */
++	oikey.cok_linkno          = ~0U;    /* uint32_t */
++	m0_db_pair_setup(&pair, &dom->cd_object_index,
++			 &oikey, sizeof oikey, NULL, 0);
+ 	rc = m0_db_cursor_get(&cursor, &pair);
+ 	if (rc == 0) {
+ 		/* 
+ 		 * Most probably got some {f_container2, ...} key,
+ 		 * where f_container2 > f_container...
+ 		 */
+-		fabkey2 = (struct m0_cob_fabkey *) pair.dp_key.db_buf.b_addr;
+-		fid2 = &fabkey2->cfb_fid;
+-		if (fid2->f_container == fid->f_container &&
+-		    fid2->f_key == ~0ULL) {
++		maxkey = (struct m0_cob_oikey *) pair.dp_key.db_buf.b_addr;
++		maxfid = &maxkey->cok_fid;
++		if (maxfid->f_container == fid->f_container &&
++		    maxfid->f_key == ~0ULL) {
+ 			/* Cannot allocate any more keys in the container. */
+ 			rc = -ENOSPC;
+ 			goto out;
+ 		}
+-		M0_ASSERT(fid2->f_container != fid->f_container);
++		M0_ASSERT(maxfid->f_container != fid->f_container);
+ 	}
+-	if (rc == -ENOENT || rc == 0) {
+-		/*
+-		 * XXX: m0_db_cursor_prev() fails with "panic:
+-		 * m0_db_pair_invariant(pair) pair_done() (db/db.c:657)"
+-		 * unless we redo the m0_db_pair_setup().
+-		 */
+-		m0_db_pair_release(&pair);
+-		m0_db_pair_fini(&pair);
+-		m0_db_pair_setup(&pair, &dom->cd_fileattr_basic,
+-				 &fabkey, sizeof fabkey, NULL, 0);
++	if (rc == -ENOENT || rc == 0)
+ 		rc = m0_db_cursor_prev(&cursor, &pair);
+-	}
+ 	if (rc == 0) {
+-		fabkey2 = (struct m0_cob_fabkey *) pair.dp_key.db_buf.b_addr;
+-		fid2 = &fabkey2->cfb_fid;
+-		if (fid2->f_container == fid->f_container) {
++		maxkey = (struct m0_cob_oikey *) pair.dp_key.db_buf.b_addr;
++		maxfid = &maxkey->cok_fid;
++		if (maxfid->f_container == fid->f_container) {
+ 			M0_LOG(M0_DEBUG, "max fid in [%llx:*]: [%llx:%llx]",
+ 			       (long long unsigned)fid->f_container,
+-			       (long long unsigned)fid2->f_container,
+-			       (long long unsigned)fid2->f_key);
+-			fid->f_key = fid2->f_key + 1;
++			       (long long unsigned)maxfid->f_container,
++			       (long long unsigned)maxfid->f_key);
++			fid->f_key = maxfid->f_key + 1;
+ 		} else
+ 			fid->f_key = 4;
+ 	} else if (rc == -ENOENT) {
+-- 
+1.8.3.2
+

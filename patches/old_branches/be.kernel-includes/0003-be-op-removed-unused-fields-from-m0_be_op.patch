@@ -1,0 +1,51 @@
+From 40e549fa3657bf45c8d518f4c6c38ade5b5a335c Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 26 Sep 2013 05:12:45 +0300
+Subject: [PATCH 3/5] be/op: removed unused fields from m0_be_op
+
+---
+ be/op.h | 18 +++---------------
+ 1 file changed, 3 insertions(+), 15 deletions(-)
+
+diff --git a/be/op.h b/be/op.h
+index 9c4d0ac..b632611 100644
+--- a/be/op.h
++++ b/be/op.h
+@@ -23,8 +23,7 @@
+ #ifndef __MERO_BE_OP_H__
+ #define __MERO_BE_OP_H__
+ 
+-#include "be/tx.h"
+-#include "be/seg.h"
++#include "sm/sm.h"		/* m0_sm */
+ 
+ /**
+  * @defgroup be
+@@ -56,22 +55,11 @@ enum m0_be_op_type {
+ 
+ struct m0_be_op {
+ 	struct m0_sm       bo_sm;
+-	struct m0_fom     *bo_fom;
++	struct m0_fom     *bo_fom;	/** XXX @todo not used */
+ 
+ 	enum m0_be_op_type bo_utype; /* bo_u type */
+-	struct m0_be_op   *bo_parent_op;
++	struct m0_be_op   *bo_parent_op;	/** XXX @todo not used */
+ 	union {
+-		/* Used by m0_be_reg_get(). */
+-		struct m0_be_reg                   u_reg;
+-
+-		/* Used by m0_be_seg_read(), m0_be_seg_write(). */
+-		struct {
+-			/* STOB i/o structure with allocated si_stob.iv_index
+-			 * array. */
+-			struct m0_stob_io          si_stobio;
+-			struct m0_clink            si_clink;
+-		} u_segio;
+-
+ 		/* Used by m0_be_list_get() and its callback. */
+ 		struct {
+ 			const struct m0_be_list   *l_list;
+-- 
+1.8.3.2
+

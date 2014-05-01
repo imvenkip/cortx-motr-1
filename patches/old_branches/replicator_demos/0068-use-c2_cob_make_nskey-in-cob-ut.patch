@@ -1,0 +1,156 @@
+From ca43d1569b9c5af9488ecdc92697eec6dc36a86e Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 18 Apr 2011 05:48:13 -0600
+Subject: [PATCH 68/91] - use c2_cob_make_nskey() in cob/ut; - check tx_init()
+ result in c2_reqh_fop_handle(); - kill not needed c2_db_pair_release() after
+ c2_table_delete()
+
+---
+ cob/cob.c    |  4 ----
+ cob/ut/cob.c | 31 ++++++++++++++-----------------
+ reqh/reqh.c  |  6 ++++--
+ 3 files changed, 18 insertions(+), 23 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index c1f7aaa..36a809a 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -845,7 +845,6 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+          * no harm. 
+          */
+         c2_table_delete(tx, &pair);
+-        c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+ 
+         /*
+@@ -865,7 +864,6 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+          * no harm. 
+          */
+         c2_table_delete(tx, &pair);
+-        c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+ out:
+         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+@@ -1045,7 +1043,6 @@ int c2_cob_del_name(struct c2_cob        *cob,
+                          nskey, c2_cob_nskey_size(nskey),
+ 		         NULL, 0);
+         rc = c2_table_delete(tx, &pair);
+-        c2_db_pair_release(&pair);
+         c2_db_pair_fini(&pair);
+         if (rc)
+                 goto out;
+@@ -1059,7 +1056,6 @@ int c2_cob_del_name(struct c2_cob        *cob,
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
+                          &oikey, sizeof oikey, NULL, 0);
+         rc = c2_table_delete(tx, &pair);
+-        c2_db_pair_release(&pair);
+         c2_db_pair_fini(&pair);
+ 
+ out:
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index d934b70..b3bd392 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -8,6 +8,7 @@
+ #include "cob/cob.h"
+ 
+ static const char db_name[] = "ut-cob";
++static const char test_name[] = "hello_world";
+ 
+ static struct c2_dbenv       db;
+ static struct c2_cob_domain  dom;
+@@ -40,19 +41,6 @@ static void test_fini(void)
+ 	c2_dbenv_fini(&db);
+ }
+ 
+-static void make_nskey(struct c2_cob_nskey **keyh, uint64_t hi, uint64_t lo,
+-                       char *name)
+-{
+-        struct c2_cob_nskey *key;
+-
+-        key = c2_alloc(sizeof(*key) + strlen(name));
+-        key->cnk_pfid.f_container = hi;
+-        key->cnk_pfid.f_key = lo;
+-        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, strlen(name));
+-        c2_bitstring_len_set(&key->cnk_name, strlen(name));
+-        *keyh = key;
+-}
+-
+ static void test_create(void)
+ {
+         struct c2_cob_nskey *key;
+@@ -65,7 +53,7 @@ static void test_create(void)
+         /* pfid, filename */
+         pfid.f_container = 0x123;
+         pfid.f_key = 0x456;
+-        c2_cob_make_nskey(&key, &pfid, "hello world");
++        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+ 
+         nsrec.cnr_fid.f_container = 0xabc;
+         nsrec.cnr_fid.f_key = 0xdef;
+@@ -102,8 +90,11 @@ static void test_lookup(void)
+ {
+         struct c2_db_tx      tx;
+         struct c2_cob_nskey *key;
++        struct c2_fid        pfid;
+ 
+-        make_nskey(&key, 0x123, 0x456, "hello world");
++        pfid.f_container = 0x123;
++        pfid.f_key = 0x456;
++        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+         rc = c2_cob_lookup(&dom, key, CA_NSKEY_FREE, &cob, &tx);
+         c2_db_tx_commit(&tx);
+@@ -240,12 +231,15 @@ static void ub_create(int i)
+         struct c2_cob_nsrec  nsrec;
+         struct c2_cob_fabrec fabrec;
+         struct c2_cob_omgrec omgrec;
++        struct c2_fid        fid;
+ 
+         newtx(i);
+ 
+         /* pfid == cfid for data objects, so here we are identifying
+            uniquely in the namespace by {pfid, ""} */
+-        make_nskey(&key, 0xAA, i, "");
++        fid.f_container = 0xAA;
++        fid.f_key = i;
++        c2_cob_make_nskey(&key, &fid, "", 0);
+ 
+         nsrec.cnr_fid.f_container = 0xAA;
+         nsrec.cnr_fid.f_key = i;
+@@ -264,11 +258,14 @@ static void ub_create(int i)
+ static void ub_lookup(int i)
+ {
+         struct c2_cob_nskey *key;
++        struct c2_fid        fid;
+ 
+         newtx(i);
+ 
+         /* pfid == cfid for data objects */
+-        make_nskey(&key, 0xAA, i, "");
++        fid.f_container = 0xAA;
++        fid.f_key = i;
++        c2_cob_make_nskey(&key, &fid, "", 0);
+         rc = c2_cob_lookup(&dom, key, CA_NSKEY_FREE, &cob, &cob_ub_tx);
+         C2_UB_ASSERT(rc == 0);
+         C2_UB_ASSERT(cob != NULL);
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 783f5bf..25045ea 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -46,8 +46,10 @@ int c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
+         C2_SET0(&ctx);
+         C2_SET0(&env);
+ 
+-        c2_db_tx_init(&tx.tx_dbtx, 
+-                      reqh->rh_site->s_mdstore->md_dom.cd_dbenv, 0);
++        result = c2_db_tx_init(&tx.tx_dbtx, 
++                               reqh->rh_site->s_mdstore->md_dom.cd_dbenv, 0);
++        if (result != 0)
++                return result;
+ 
+         ctx.fc_site = reqh->rh_site;
+         ctx.fc_fol  = reqh->rh_fol;
+-- 
+1.8.3.2
+

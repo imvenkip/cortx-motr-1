@@ -1,0 +1,59 @@
+From 5fd407ac1a150868df070dd8985388fc03e85303 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 22:24:02 +0200
+Subject: [PATCH 48/99] LogD 1886: @ref to problem with semaphore max value
+ description
+
+---
+ net/test/commands.h  | 2 ++
+ net/test/node.c      | 1 +
+ net/test/node_ping.c | 1 +
+ 3 files changed, 4 insertions(+)
+
+diff --git a/net/test/commands.h b/net/test/commands.h
+index bed3640..ee73064 100644
+--- a/net/test/commands.h
++++ b/net/test/commands.h
+@@ -260,6 +260,7 @@ struct m0_net_test_cmd_ctx {
+ 	   m0_semaphore_down() in m0_net_test_commands_send_wait_all().
+ 
+ 	   @note Problem with semaphore max value can be here.
++	   @see @ref net-test-sem-max-value "Problem Description"
+ 	 */
+ 	struct m0_semaphore		   ntcc_sem_send;
+ 	/**
+@@ -267,6 +268,7 @@ struct m0_net_test_cmd_ctx {
+ 	   m0_semaphore_timeddown() in m0_net_test_commands_recv().
+ 
+ 	   @note Problem with semaphore max value can be here.
++	   @see @ref net-test-sem-max-value "Problem Description"
+ 	 */
+ 	struct m0_semaphore		   ntcc_sem_recv;
+ 	/** Called from message send callback */
+diff --git a/net/test/node.c b/net/test/node.c
+index c5f3f68..dd9bed8 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -661,6 +661,7 @@ finished.up();\l", shape=box];
+ 
+    - test buffer for commands between test console and test node have
+      size 16KiB now (see ::M0_NET_TEST_CMD_SIZE_MAX);
++   @anchor net-test-sem-max-value
+    - m0_net_test_cmd_ctx.ntcc_sem_send, m0_net_test_cmd_ctx.ntcc_sem_recv
+      and node_ping_ctx.npc_buf_q_sem can exceed
+      SEMVMX (see 'man 3 sem_post', 'man 2 semop') if large number of
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index 89b0bdd..88eb910 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -183,6 +183,7 @@ struct node_ping_ctx {
+ 	 * - up() after unsuccessful addition to queue.
+ 	 *
+ 	 * @note Problem with semaphore max value can be here.
++	 * @see @ref net-test-sem-max-value "Problem Description"
+ 	 */
+ 	struct m0_semaphore		    npc_buf_q_sem;
+ 	/** Ringbuf of buffers that are not in network buffers queue */
+-- 
+1.8.3.2
+

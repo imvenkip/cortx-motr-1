@@ -1,0 +1,129 @@
+From 3b606a6f39ccf3ba3d2ff6889ab3efc8910dc4c4 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 5 Mar 2012 00:18:01 +0200
+Subject: [PATCH 037/311] get rid of __C2_CONF_IMPL noise
+
+---
+ conf/cache.h       | 4 ----
+ conf/confc.c       | 3 ---
+ conf/confc.h       | 3 +--
+ conf/relation.c    | 1 -
+ conf/relation.h    | 3 ---
+ conf/rpc.c         | 1 -
+ conf/rpc.h         | 4 ----
+ conf/ut/relation.c | 1 -
+ 8 files changed, 1 insertion(+), 19 deletions(-)
+
+diff --git a/conf/cache.h b/conf/cache.h
+index e048a2b..bf3fba2 100644
+--- a/conf/cache.h
++++ b/conf/cache.h
+@@ -20,10 +20,6 @@
+ #ifndef __COLIBRI_CONF_CACHE_H__
+ #define __COLIBRI_CONF_CACHE_H__
+ 
+-#ifndef __C2_CONF_IMPL
+-#  error "conf/cache.h is not supposed to be #included by confc API users"
+-#endif
+-
+ #include "lib/mutex.h" /* c2_mutex */
+ 
+ struct c2_sm_group;
+diff --git a/conf/confc.c b/conf/confc.c
+index eaae35c..3dd96f3 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -22,10 +22,7 @@
+ #  include <config.h>
+ #endif
+ #include "conf/confc.h"
+-
+-#define __C2_CONF_IMPL
+ #include "conf/cache.h"  /* c2_conf_cache */
+-
+ #include "xcode/xcode.h"
+ #include "lib/cdefs.h"   /* C2_EXPORTED, container_of, C2_HAS_TYPE, equi */
+ #include "lib/arith.h"   /* C2_CNT_INC, C2_CNT_DEC */
+diff --git a/conf/confc.h b/conf/confc.h
+index b0214dd..9e9c8e1 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -332,9 +332,8 @@ void c2_confc_fini(void);
+ struct c2_confc_ctx {
+ 	/** This channel is signaled when the retrieval operation completes. */
+ 	struct c2_chan       fc_complete;
+-
+ 	/**
+-	 * Pointer to the requested configuration object or directory.
++	 * Pointer to the requested configuration object/directory.
+ 	 *
+ 	 * To be type-casted to
+ 	 * - <tt>struct X *</tt>, where X is a _concrete_ configuration
+diff --git a/conf/relation.c b/conf/relation.c
+index 36536ae..07d4eb8 100644
+--- a/conf/relation.c
++++ b/conf/relation.c
+@@ -21,7 +21,6 @@
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+-#define __C2_CONF_IMPL
+ #include "conf/relation.h"
+ 
+ const struct c2_conf_relation dl_profile[] = {
+diff --git a/conf/relation.h b/conf/relation.h
+index 840082a..55019ec 100644
+--- a/conf/relation.h
++++ b/conf/relation.h
+@@ -20,9 +20,6 @@
+ #ifndef __COLIBRI_CONF_RELATION_H__
+ #define __COLIBRI_CONF_RELATION_H__
+ 
+-#ifndef __C2_CONF_IMPL
+-#  error "conf/relation.h is not supposed to be #included by confc API users"
+-#endif
+ #include "conf/obj.h" /* c2_conf_objtype */
+ 
+ /**
+diff --git a/conf/rpc.c b/conf/rpc.c
+index a8045da..d8f692f 100644
+--- a/conf/rpc.c
++++ b/conf/rpc.c
+@@ -21,7 +21,6 @@
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+-#define __C2_CONF_IMPL
+ #include "conf/rpc.h"
+ #include "conf/xdata.h"  /* c2_conf_fetch_xc */
+ #include "xcode/xcode.h"
+diff --git a/conf/rpc.h b/conf/rpc.h
+index 6647c91..a7e382e 100644
+--- a/conf/rpc.h
++++ b/conf/rpc.h
+@@ -20,10 +20,6 @@
+ #ifndef __COLIBRI_CONF_RPC_H__
+ #define __COLIBRI_CONF_RPC_H__
+ 
+-#ifndef __C2_CONF_IMPL
+-#  error "conf/rpc.h is not supposed to be #included by confc API users"
+-#endif
+-
+ extern struct c2_fop_type c2_conf_fetch_fopt;
+ extern struct c2_fop_type c2_conf_fetch_resp_fopt;
+ 
+diff --git a/conf/ut/relation.c b/conf/ut/relation.c
+index 6ca804f..a342472 100644
+--- a/conf/ut/relation.c
++++ b/conf/ut/relation.c
+@@ -21,7 +21,6 @@
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+-#define __C2_CONF_IMPL
+ #include "conf/relation.h"
+ #include "lib/cdefs.h"     /* offsetof */
+ 
+-- 
+1.8.3.2
+

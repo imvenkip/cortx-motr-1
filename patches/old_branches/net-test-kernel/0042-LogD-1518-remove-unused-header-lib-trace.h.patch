@@ -1,0 +1,24 @@
+From cc20a3c231878610d307cba6b7fc01932f3979ce Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 11:09:37 +0200
+Subject: [PATCH 42/71] LogD 1518: remove unused header "lib/trace.h"
+
+---
+ net/test/network.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/test/network.c b/net/test/network.c
+index 73f43a7..f3c8114 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -30,7 +30,6 @@
+ #include "lib/memory.h"		/* C2_ALLOC_ARR */
+ #include "lib/misc.h"		/* C2_SET0 */
+ #include "lib/vec.h"		/* C2_SEG_SHIFT */
+-#include "lib/trace.h"		/* C2_LOG */
+ 
+ #include "net/net.h"
+ #include "net/lnet/lnet.h"	/* c2_net_lnet_xprt */
+-- 
+1.8.3.2
+

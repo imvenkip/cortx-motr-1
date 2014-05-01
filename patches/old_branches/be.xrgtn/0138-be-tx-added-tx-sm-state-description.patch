@@ -1,0 +1,132 @@
+From 11fdb0f85d68e209885212105e0f0a3f5236affa Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 11 Jun 2013 16:51:41 +0300
+Subject: [PATCH 138/228] be: tx: added tx sm state description.
+
+---
+ be/tx.c | 102 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 101 insertions(+), 1 deletion(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 1196d81..e9ba850 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -75,7 +75,97 @@ M0_TL_DESCR_DEFINE(gr, "tx group", static, struct m0_be_tx,
+ 
+ M0_TL_DEFINE(gr, static, struct m0_be_tx);
+ 
+-static const struct m0_sm_conf tx_sm_conf;
++static bool tx_invariant(const struct m0_sm *mach);
++
++static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
++	[M0_BTS_INIT] = {
++		.sd_flags     = M0_SDF_INITIAL,
++		.sd_name      = "M0_BTS_INIT",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_PREPARE)
++	},
++	[M0_BTS_PREPARE] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BTS_PREPARE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_PREPARE, M0_BTS_ACTIVE,
++					M0_BTS_FAILED),
++	},
++	[M0_BTS_ACTIVE] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BTS_ACTIVE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_ACTIVE, M0_BTS_CLOSED),
++	},
++	[M0_BTS_CLOSED] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BTS_CLOSED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_GROUPED),
++	},
++	[M0_BTS_GROUPED] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BTS_GROUPED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_SUBMITTED),
++	},
++	[M0_BTS_SUBMITTED] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BTS_SUBMITTED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_LOGGED),
++	},
++	[M0_BTS_LOGGED] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BTS_LOGGED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_PLACED),
++	},
++	[M0_BTS_PLACED] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BTS_PLACED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = M0_BITS(M0_BTS_STABLE),
++	},
++	[M0_BTS_STABLE] = {
++		.sd_flags     = M0_SDF_TERMINAL,
++		.sd_name      = "M0_BTS_STABLE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = 0
++	},
++	[M0_BTS_FAILED] = {
++		.sd_flags     = M0_SDF_FAILURE,
++		.sd_name      = "M0_BTS_FAILURE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tx_invariant,
++		.sd_allowed   = 0
++	}
++};
++
++static const struct m0_sm_conf tx_sm_conf = {
++	.scf_name      = "m0_be_tx::bo_sm",
++	.scf_nr_states = M0_BTS_NR,
++	.scf_state     = tx_states
++};
+ 
+ static enum m0_be_tx_state tx_state    (const struct m0_be_tx *tx);
+ static void                tx_state_set(struct m0_be_tx *tx,
+@@ -546,6 +636,16 @@ static m0_bcount_t tx_log_free_space(struct m0_be_tx_engine *eng)
+ 	return 0ULL;
+ }
+ 
++static const struct m0_be_tx *sm2tx(const struct m0_sm *sm)
++{
++	return container_of(sm, const struct m0_be_tx, t_sm);
++}
++
++static bool tx_invariant(const struct m0_sm *sm)
++{
++	return m0_be__tx_invariant(sm2tx(sm));
++}
++
+ /** @} end of be group */
+ 
+ /*
+-- 
+1.8.3.2
+

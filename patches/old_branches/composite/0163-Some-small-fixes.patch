@@ -1,0 +1,245 @@
+From ca3acd81fc9bb69e0ae209f9cbcd7fa85efbeba7 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 31 Jul 2013 13:00:14 +0530
+Subject: [PATCH 163/172] Some small fixes
+
+---
+ layout/composite.h   |  9 ++-------
+ layout/layout.h      | 17 ++++++++++-------
+ layout/linear_enum.h |  5 ++---
+ layout/list_enum.h   |  5 ++---
+ layout/pdclust.h     | 32 ++++++++++++++++++--------------
+ layout/ut/pdclust.c  | 32 --------------------------------
+ 6 files changed, 34 insertions(+), 66 deletions(-)
+
+diff --git a/layout/composite.h b/layout/composite.h
+index 31a7d38..c25aa33 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -247,9 +247,8 @@ struct m0_layers_array {
+ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_layers_array)));
+ 
+ /**
+- * Representation of 'the part of the in-memory composite layout' that needs to
+- * be either 'transferred over the network' or to be 'written/read to/from the
+- * DB'.
++ * Part of the 'in-memory composite layout' that needs to be transferred over
++ * the network.
+  */
+ struct m0_composite_onwire {
+ 	/** Super class. */
+@@ -390,10 +389,6 @@ M0_INTERNAL int m0_composite_layer_ext_lookup(
+  * not satisfied, the error -EINVAL is returned.
+  *
+  * @pre M0_IN(ext_state, (M0_CLRES_HOLE, M0_CLRES_VALID, M0_CLRES_FLATTENING))
+- *
+- * @todo Adding an extent with the M0_CLRES_HOLE state, in fact means deleting
+- * the extent which could be performed using m0_composite_layer_ext_del() as
+- * well. So, shall we continue to support ext_state = M0_CLRES_VALID here?
+  */
+ M0_INTERNAL int m0_composite_layer_update(
+ 				struct m0_composite_layout *cl,
+diff --git a/layout/layout.h b/layout/layout.h
+index 30e6aa7..5cf871f 100644
+--- a/layout/layout.h
++++ b/layout/layout.h
+@@ -141,7 +141,6 @@ struct m0_xcode_type;
+ struct m0_layout_domain;
+ struct m0_layout;
+ struct m0_layout_ops;
+-//todo rm enum m0_layout_xcode_op;
+ struct m0_layout_type;
+ struct m0_layout_type_ops;
+ struct m0_layout_enum;
+@@ -233,11 +232,8 @@ struct m0_layout_domain {
+ 	struct m0_mutex             ld_lock;
+ };
+ 
+-//#define LAYOUT_XCODE_OBJ(ptr) M0_XCODE_OBJ(m0_layout_onwire_xc, ptr)
+-
+ /**
+- * Part of the in-memory layout that needs to be either 'transferred over the
+- * network' or 'to be written/read to/from the DB'.
++ * Part of the in-memory layout that needs to be transferred over the network.
+  */
+ struct m0_layout_onwire {
+ 	/** Layout type id. */
+@@ -561,7 +557,11 @@ struct m0_layout_enum_ops {
+ 				  struct m0_db_tx *tx,
+ 				  struct m0_bufvec_cursor *out);
+ 
+-	/** todo */
++	/**
++	 * Allocates an onwire enum object for the respective enum type and
++	 * copies relevant data from the in-memory enum object to the onwire
++	 * enum object.
++	 */
+ 	int         (*leo_copy_to_onwire)(const struct m0_layout_enum *le,
+ 					  void **enum_onwire,
+ 					  uint32_t *let_id);
+@@ -646,7 +646,10 @@ struct m0_layout_enum_type_ops {
+ 	int         (*leto_allocate)(struct m0_layout_domain *dom,
+ 				     struct m0_layout_enum **out);
+ 
+-	/** todo */
++	/**
++	 * Copies relevant data from the onwire enum object to the in-memory
++	 * enum object.
++	 */
+ 	int         (*leto_copy_from_onwire)(struct m0_layout_domain *domain,
+ 					     void *enum_onwire,
+ 					     struct m0_layout_enum **out);
+diff --git a/layout/linear_enum.h b/layout/linear_enum.h
+index 44e9872..d7ac9f1 100644
+--- a/layout/linear_enum.h
++++ b/layout/linear_enum.h
+@@ -72,9 +72,8 @@ struct m0_layout_linear_enum {
+ };
+ 
+ /**
+- * Representation of 'the part of the linear enum' that needs to
+- * be either 'transferred over the network' or to be 'written/read to/from the
+- * DB'.
++ * Part of the 'in-memory linear enum' that needs to be transferred over the
++ * network.
+  */
+ struct m0_layout_linear_enum_onwire {
+ 	struct m0_layout_linear_attr lleo_attr;
+diff --git a/layout/list_enum.h b/layout/list_enum.h
+index a5d8f85..84045d4 100644
+--- a/layout/list_enum.h
++++ b/layout/list_enum.h
+@@ -70,9 +70,8 @@ struct m0_layout_list_cobs_array {
+ } M0_XCA_SEQUENCE;
+ 
+ /**
+- * Representation of 'the part of the list enum' that needs to
+- * be either 'transferred over the network' or to be 'written/read to/from the
+- * DB'.
++ * Part of the 'in-memory list enum' that needs to be transferred over the
++ * network.
+  */
+ struct m0_layout_list_enum_onwire {
+ 	/** Array of cobs. */
+diff --git a/layout/pdclust.h b/layout/pdclust.h
+index d129dfd..d748f1d 100644
+--- a/layout/pdclust.h
++++ b/layout/pdclust.h
+@@ -79,10 +79,17 @@ struct m0_pdclust_attr;
+ struct m0_layout_pdclust_rec;
+ struct m0_pdclust_layout;
+ struct m0_pdclust_instance;
+-//todo enum m0_pdclust_unit_type;
+ struct m0_pdclust_src_addr;
+ struct m0_pdclust_tgt_addr;
+ 
++/** Classification of units in a parity group. */
++enum m0_pdclust_unit_type {
++	M0_PUT_DATA,
++	M0_PUT_PARITY,
++	M0_PUT_SPARE,
++	M0_PUT_NR
++};
++
+ /**
+  * Attributes specific to PDCLUST layout type.
+  * These attributes are part of m0_pdclust_layout which is in-memory layout
+@@ -105,12 +112,14 @@ struct m0_pdclust_attr {
+ 	 * Number of target objects over which this layout stripes the source.
+ 	 */
+ 	uint32_t           pa_P;
+-
+-	//todo req'd so that UT can write 8 bytes aligned rec. Instead, have attr and po_let_id combined in UT so that the rec to be written is 8 bytes aligned
+-	uint32_t           pa_pad; //todo tempo rm
++	uint32_t           pa_pad;
+ } M0_XCA_RECORD;
++M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_pdclust_attr)));
+ 
+-//todo
++/**
++ * Part of the 'in-memory pdclust layout' that needs to be transferred over the
++ * network.
++ */
+ struct m0_pdclust_onwire {
+ 	/** Super class. */
+ 	struct m0_layout_onwire po_base;
+@@ -118,7 +127,10 @@ struct m0_pdclust_onwire {
+ 	struct m0_pdclust_attr  po_attr;
+ 	/** Layout enumeration type id. */
+ 	uint32_t                po_let_id;
+-	/** enum todo ptr either to m0_layout_list_onwire or linear_onwire */
++	/**
++	 * Pointer to onwire enum object. For example it may be pointer to
++	 * m0_layout_list_onwire or m0_layout_linear_enum_onwire object.
++	 */
+ 	void                   *po_enum M0_XCA_OPAQUE("m0_layout_enum_xc_type");
+ } M0_XCA_RECORD;
+ M0_BASSERT(M0_IS_8ALIGNED(sizeof(struct m0_pdclust_onwire)));
+@@ -234,14 +246,6 @@ struct m0_pdclust_instance {
+ 	uint64_t                     pi_magic;
+ };
+ 
+-/** Classification of units in a parity group. */
+-enum m0_pdclust_unit_type {
+-	M0_PUT_DATA,
+-	M0_PUT_PARITY,
+-	M0_PUT_SPARE,
+-	M0_PUT_NR
+-};
+-
+ /**
+  * Source unit address.
+  *
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index 6cf5017..dc25778 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -331,37 +331,6 @@ int test_build_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-#if 0 //todo
+-/**
+- * Builds part of the buffer representing generic and PDCLUST layout type
+- * specific parts of the layout object.
+- */
+-static void pdclust_buf_build(uint32_t let_id, uint64_t lid,
+-			      uint32_t N, uint32_t K, uint32_t P,
+-			      struct m0_uint128 *seed,
+-			      struct m0_bufvec_cursor *dcur)
+-{
+-	m0_bcount_t nbytes_copied;
+-	struct {
+-		struct m0_pdclust_attr attr;
+-		uint32_t               let_id;
+-	} pd_attr;
+-
+-	generic_buf_build(lid, m0_pdclust_layout_type.lt_id, dcur);
+-
+-	pd_attr.attr.pa_N         = N;
+-	pd_attr.attr.pa_K         = K;
+-	pd_attr.attr.pa_P         = P;
+-	pd_attr.attr.pa_unit_size = UNIT_SIZE;
+-	pd_attr.attr.pa_seed      = *seed;
+-	pd_attr.let_id            = let_id;
+-	nbytes_copied = m0_bufvec_cursor_copyto(dcur, &pd_attr,
+-						sizeof pd_attr);
+-	M0_UT_ASSERT(nbytes_copied == sizeof pd_attr);
+-}
+-#endif
+-
+-#if 1
+ /**
+  * Builds part of the buffer representing generic and PDCLUST layout type
+  * specific parts of the layout object.
+@@ -387,7 +356,6 @@ static void pdclust_buf_build(uint32_t let_id, uint64_t lid,
+ 	nbytes_copied = m0_bufvec_cursor_copyto(dcur, &let_id, sizeof let_id);
+ 	M0_UT_ASSERT(nbytes_copied == sizeof let_id);
+ }
+-#endif
+ 
+ /** Builds a buffer containing serialised representation of a layout object. */
+ static int pdclust_layout_buf_build(uint64_t lid, uint32_t enum_id,
+-- 
+1.8.3.2
+

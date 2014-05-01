@@ -1,0 +1,115 @@
+From 908e4588ea98dc24e1f1b4fb66aace7f536e6639 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 15 Jan 2014 00:16:43 +0200
+Subject: [PATCH 63/96] be/alloc: be_alloc_list_chunks() inlined and removed
+
+---
+ be/alloc.c | 29 ++++++++++-------------------
+ 1 file changed, 10 insertions(+), 19 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index ee4142c..c0a3625 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -169,12 +169,6 @@ M0_TL_DESCR_DEFINE(chunks_all, "list of all chunks in m0_be_allocator",
+ 		   M0_BE_ALLOC_ALL_LINK_MAGIC, M0_BE_ALLOC_ALL_MAGIC);
+ M0_TL_DEFINE(chunks_all, static, struct be_alloc_chunk);
+ 
+-/* XXX use these accessors everywhere */
+-static struct m0_be_list *be_alloc_list_chunks(struct m0_be_allocator *a)
+-{
+-	return &a->ba_chunks;
+-}
+-
+ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
+ 				   struct m0_be_tx *tx,
+ 				   struct be_alloc_chunk *c)
+@@ -258,8 +252,7 @@ static void be_alloc_chunk_init(struct m0_be_allocator *a,
+ 		.bac_free   = free,
+ 		.bac_magic1 = M0_BE_ALLOC_MAGIC1,
+ 	};
+-	M0_BE_OP_SYNC(op,
+-		      m0_be_tlink_create(c, tx, &op, be_alloc_list_chunks(a)));
++	M0_BE_OP_SYNC(op, m0_be_tlink_create(c, tx, &op, &a->ba_chunks));
+ 	/*
+ 	 * Move this right before m0_be_tlink_create() to optimize capturing
+ 	 * size. Chunk capturing at the end of the function will help with
+@@ -277,9 +270,8 @@ static void be_alloc_chunk_del_fini(struct m0_be_allocator *a,
+ 
+ 	m0_be_fl_del(&a->ba_fl, tx, c);
+ 
+-	M0_BE_OP_SYNC(op, m0_be_list_del(be_alloc_list_chunks(a), &op, tx, c));
+-	M0_BE_OP_SYNC(op, m0_be_tlink_destroy(c, tx, &op,
+-					      be_alloc_list_chunks(a)));
++	M0_BE_OP_SYNC(op, m0_be_list_del(&a->ba_chunks, &op, tx, c));
++	M0_BE_OP_SYNC(op, m0_be_tlink_destroy(c, tx, &op, &a->ba_chunks));
+ }
+ 
+ static struct be_alloc_chunk *be_alloc_chunk_addr(void *ptr)
+@@ -335,7 +327,6 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 			 uintptr_t offset,
+ 			 m0_bcount_t size_total, bool free)
+ {
+-	struct m0_be_list     *chunks = be_alloc_list_chunks(a);
+ 	struct be_alloc_chunk *new;
+ 
+ 	M0_PRE(ergo(c != NULL, be_alloc_chunk_invariant(a, c)));
+@@ -347,8 +338,8 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 	be_alloc_chunk_init(a, tx, new, size_total - sizeof(*new), free);
+ 
+ 	M0_BE_OP_SYNC(op, c != NULL ?
+-			  m0_be_list_add_after(chunks, &op, tx, c, new) :
+-			  m0_be_list_add(chunks, &op, tx, new));
++			  m0_be_list_add_after(&a->ba_chunks, &op, tx, c, new) :
++			  m0_be_list_add(&a->ba_chunks, &op, tx, new));
+ 	if (free) {
+ 		m0_be_fl_add(&a->ba_fl, tx, new);
+ 	}
+@@ -488,7 +479,7 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
+ 	m0_mutex_init(&a->ba_lock);
+ 
+ 	a->ba_seg = seg;
+-	m0_be_list_init(be_alloc_list_chunks(a), seg);
++	m0_be_list_init(&a->ba_chunks, seg);
+ 	m0_be_fl_init(&a->ba_fl, seg);
+ 
+ 	/* XXX temporary solution to make capturing checkers pass */
+@@ -500,7 +491,7 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
+ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a)
+ {
+ 	m0_be_fl_fini(&a->ba_fl);
+-	m0_be_list_fini(be_alloc_list_chunks(a));
++	m0_be_list_fini(&a->ba_chunks);
+ 	m0_mutex_fini(&a->ba_lock);
+ 
+ 	/* XXX temporary solution to make capturing checkers pass */
+@@ -536,7 +527,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+ 	a->ba_stats = (struct m0_be_allocator_stats) {
+ 		.bas_free_space = free_space,
+ 	};
+-	M0_BE_OP_SYNC(op, m0_be_list_create(be_alloc_list_chunks(a), tx, &op,
++	M0_BE_OP_SYNC(op, m0_be_list_create(&a->ba_chunks, tx, &op,
+ 					    seg, &chunks_all_tl));
+ 	m0_be_fl_create(&a->ba_fl, tx, seg);
+ 	/* init main chunk */
+@@ -566,7 +557,7 @@ M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
+ 	be_alloc_chunk_del_fini(a, tx, c);
+ 
+ 	m0_be_fl_destroy(&a->ba_fl, tx);
+-	M0_BE_OP_SYNC(op, m0_be_list_destroy(be_alloc_list_chunks(a), tx, &op));
++	M0_BE_OP_SYNC(op, m0_be_list_destroy(&a->ba_chunks, tx, &op));
+ 
+ 	a->ba_size = 0;
+ 	be_alloc_head_capture(a, tx);
+@@ -595,7 +586,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	struct m0_be_tx_credit cred_chunk_size;
+ 	struct m0_be_tx_credit tmp;
+ 	struct be_alloc_chunk  chunk;
+-	struct m0_be_list      *chunks = be_alloc_list_chunks(a);
++	struct m0_be_list      *chunks = &a->ba_chunks;
+ 
+ 	chunk_credit	= M0_BE_TX_CREDIT_TYPE(struct be_alloc_chunk);
+ 	cred_free_flag	= M0_BE_TX_CREDIT_PTR(&chunk.bac_free);
+-- 
+1.8.3.2
+

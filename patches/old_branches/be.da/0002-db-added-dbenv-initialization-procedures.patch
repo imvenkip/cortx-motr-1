@@ -1,0 +1,150 @@
+From 58a0e261f8acb03c7cebae4027fb41058b110bcb Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 20 Aug 2013 18:11:10 +0300
+Subject: [PATCH 02/34] db: added dbenv initialization procedures.
+
+---
+ db/db.c      | 55 +++++++++++++++++++++++++++++++++++++++++++++++--------
+ db/db_impl.h |  4 +++-
+ db/ut/db.c   |  6 ++++--
+ 3 files changed, 54 insertions(+), 11 deletions(-)
+
+diff --git a/db/db.c b/db/db.c
+index cfec1de..b753b6d 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -43,6 +43,9 @@
+ #include "db/db.h"
+ #include "db/db_common.h"
+ 
++#include "be/domain.h"	/* m0_be_domain */
++#include "ut/ast_thread.c"/* XXX: m0_ut_ast_thread_start */
++
+ /**
+    @addtogroup db
+    @{
+@@ -50,15 +53,57 @@
+ 
+ struct m0_addb_ctx m0_db_mod_ctx;
+ 
++static int ast_start(struct m0_dbenv *env)
++{
++        m0_sm_group_init(&env->d_i.d_sm_group);
++        return m0_ut_ast_thread_start(&env->d_i.d_sm_group);
++}
++
++static void ast_stop(struct m0_dbenv *env)
++{
++        m0_ut_ast_thread_stop();
++        m0_sm_group_fini(&env->d_i.d_sm_group);
++}
++
+ M0_INTERNAL int m0_dbenv_init(struct m0_dbenv *env, const char *name,
+ 			      uint64_t flags)
+ {
+-	return -1;
++	int rc;
++	static struct m0_be_domain     dom;
++	static struct m0_be_domain_cfg cfg = {
++		.bc_engine = {
++			.bec_group_nr = 1,
++			.bec_log_size = 1 << 27,
++			.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(1 << 20,
++								1 << 26),
++			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(1 << 21,
++								   1 << 27),
++			.bec_group_tx_max = 20
++		},
++	};
++
++	rc = ast_start(env);
++	if (rc != 0)
++		return rc;
++
++        rc = m0_be_domain_init(&dom, &cfg);
++	if (rc != 0) {
++		ast_stop(env);
++		return rc;
++	}
++
++	env->d_i.d_dom      = &dom;
++	env->d_i.d_dom_cfg  = &cfg;
++
++        m0_sm_group_lock(&env->d_i.d_sm_group);
++	return rc;
+ }
+ 
+ M0_INTERNAL void m0_dbenv_fini(struct m0_dbenv *env)
+ {
+-
++        m0_sm_group_unlock(&env->d_i.d_sm_group);
++        m0_be_domain_fini(env->d_i.d_dom);
++	ast_stop(env);
+ }
+ 
+ M0_INTERNAL int m0_dbenv_sync(struct m0_dbenv *env)
+@@ -96,12 +141,6 @@ M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env,
+ 	return -1;
+ }
+ 
+-
+-M0_INTERNAL void tx_fini(struct m0_db_tx *tx)
+-{
+-
+-}
+-
+ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx)
+ {
+ 	return -1;
+diff --git a/db/db_impl.h b/db/db_impl.h
+index 118aa8a..6052ae5 100644
+--- a/db/db_impl.h
++++ b/db/db_impl.h
+@@ -44,10 +44,12 @@ struct m0_dbenv_impl {
+         struct m0_be_domain_cfg *d_dom_cfg;
+         /** SM group associated with this database backend implementation */
+         struct m0_sm_group       d_sm_group;
+-        /** Thread for asynchronous environment related work. */
++#if 0 /* XXX: move from mero/ut/ast_thread.c */
++	/** Thread for asynchronous environment related work. */
+         struct m0_thread         d_thread;
+         /** True iff the environment is being shut down. */
+         bool                     d_shutdown;
++#endif
+ };
+ 
+ struct m0_table_impl {
+diff --git a/db/ut/db.c b/db/ut/db.c
+index 04dc253..647a3be 100644
+--- a/db/ut/db.c
++++ b/db/ut/db.c
+@@ -216,6 +216,7 @@ static void test_delete(void)
+         dbut_fini(&db, &table, &tx, &m0_db_tx_commit);
+ }
+ 
++#if 0 /* unused */
+ static void test_abort(void)
+ {
+ 	struct m0_dbenv   db;
+@@ -319,6 +320,7 @@ static void test_waiter(void)
+         dbut_fini(&db, &table, &tx, &m0_db_tx_commit);
+ 	M0_UT_ASSERT(wflag == 3);
+ }
++#endif
+ 
+ const struct m0_test_suite db_ut = {
+ 	.ts_name = "libdb-ut",
+@@ -330,8 +332,8 @@ const struct m0_test_suite db_ut = {
+ 		{ "lookup", test_lookup },
+ 		{ "insert", test_insert },
+ 		{ "delete", test_delete },
+-		{ "abort", test_abort },
+-		{ "waiter", test_waiter },
++		/* { "abort", test_abort }, */
++		/* { "waiter", test_waiter }, */
+ 		{ NULL, NULL }
+ 	}
+ };
+-- 
+1.8.3.2
+

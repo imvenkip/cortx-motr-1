@@ -1,0 +1,521 @@
+From c0e3577c83fb7422277c1949d19d4141c2528743 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 18 Jun 2013 19:12:11 +0300
+Subject: [PATCH 171/290] be (tx_fom.c): rename tx_fom_states; introduce new
+ state
+
+Rename tx_fom_states in accordance with the state diagram
+from today's whiteboard. Add new state --- FS_SUBMITTED_TO_SEG,
+symmetric to FS_SUBMITTED_TO_LOG (former FS_SUBMITTED).
+
+Run the UT with
+    m0 run-ut -t be-tx-ut -p short -e call+ -m be
+Kill it with ^C.
+
++ Code cleanup.
+---
+ be/be.h     |   1 -
+ be/tx.c     |  31 ++++++++++------
+ be/tx_fom.c | 117 ++++++++++++++++++++++++++++++------------------------------
+ be/ut/tx.c  |  33 +++++++++--------
+ fop/fom.c   |   4 +--
+ sm/sm.h     |   1 -
+ 6 files changed, 97 insertions(+), 90 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index 1950a9f..1dcee75 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -63,7 +63,6 @@ enum m0_be_op_type {
+ 	M0_BOP_NR
+ };
+ 
+-struct m0_be_op;
+ struct m0_be_op {
+ 	struct m0_sm        bo_sm;
+ 	struct m0_fom      *bo_fom;
+diff --git a/be/tx.c b/be/tx.c
+index 41c431d..b8c78af 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -18,11 +18,6 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-/**
+- * @addtogroup be
+- *
+- * @{
+- */
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+@@ -38,9 +33,14 @@
+ 
+ #include "be/be.h"
+ #include "be/tx.h"
+-/* #include "be/tx_regmap.h"    /\* m0_be_regdtree_node *\/ */
+ #include "fop/fom.h"
+ 
++/**
++ * @addtogroup be
++ *
++ * @{
++ */
++
+ M0_TL_DESCR_DEFINE(tx, "transactions", M0_INTERNAL, struct m0_be_tx,
+ 		   t_linkage, t_magic,
+ 		   M0_TRACE_TX_MAGIC,
+@@ -160,12 +160,14 @@ M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine)
+ 	m0_rwlock_init(&engine->te_lock);
+ 	tx_group_init(&engine->te_group);
+ 	log_init(&engine->te_log);
++
+ 	M0_POST(m0_be__tx_engine_invariant(engine));
+ }
+ 
+ M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine)
+ {
+ 	M0_PRE(m0_be__tx_engine_invariant(engine));
++
+ 	tx_group_fini(&engine->te_group);
+ 	m0_rwlock_fini(&engine->te_lock);
+ 	m0_forall(i, ARRAY_SIZE(engine->te_txs),
+@@ -180,6 +182,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 					      void *payload, void *datum))
+ {
+ 	M0_PRE(tx != NULL);
++
+ 	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_INIT, tx_grp);
+ 	tx->t_root       = NULL;
+ 	tx->t_id         = tid;
+@@ -193,12 +196,14 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 	m0_be_tx_credit_init(&tx->t_pos);
+ 	tx_tlink_init_at(tx, &tx_engine(tx)->te_txs[M0_BTS_INIT]);
+ 	gr_tlink_init(tx);
++
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ {
+ 	M0_PRE(m0_be__tx_invariant(tx));
++
+ 	m0_free(tx->t_reg_d_area);
+ 	m0_free(tx->t_reg_area);
+ 	tx_tlink_del_fini(tx);
+@@ -210,12 +215,14 @@ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
+ {
+ 	M0_PRE(m0_be__tx_invariant(tx));
+ 	M0_PRE(tx_state(tx) == M0_BTS_INIT);
++
+ 	m0_be_tx_credit_add(&tx->t_prepared, credit);
+ 
+ #if 1  /* added XXX */
+ 	tx->t_payload_size = tx->t_prepared.tc_reg_size;
+ #endif
+ 	tx_state_set(tx, M0_BTS_PREPARE);
++
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+@@ -223,7 +230,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ {
+ 	struct m0_be_tx_engine *eng      = tx_engine(tx);
+ 	struct m0_be_tx_credit *prepared = &tx->t_prepared;
+-	m0_bcount_t		log_size = tx_prepared_log_size(tx);
++	m0_bcount_t             log_size = tx_prepared_log_size(tx);
+ 
+ 	M0_PRE(m0_be__tx_invariant(tx));
+ 	M0_PRE(tx_state(tx) == M0_BTS_PREPARE);
+@@ -426,7 +433,6 @@ static void tx_open_tail(struct m0_be_tx *tx)
+ 	M0_PRE(M0_IN(tx_state(tx), (M0_BTS_OPENING, M0_BTS_PREPARE)));
+ 	M0_PRE(tx_engine_free_space(tx_engine(tx)) >= log_size);
+ 
+-
+ 	tx_engine(tx)->te_reserved += log_size;
+ 	tx_state_set(tx, M0_BTS_ACTIVE);
+ }
+@@ -434,8 +440,10 @@ static void tx_open_tail(struct m0_be_tx *tx)
+ static void tx_fail(struct m0_be_tx *tx, int err)
+ {
+ 	M0_PRE(m0_be__tx_invariant(tx));
++
+ 	m0_sm_fail(&tx->t_sm, M0_BTS_FAILED, err);
+ 	tx_tlist_del(tx);
++
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+@@ -462,7 +470,8 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ 	/* struct m0_be_log	     *log  = &engine->te_log; */
+ 	struct m0_be_tx		     *prev = NULL;
+ 	const struct m0_be_tx_engine *te   = engine;
+-	return true || ( /*XXX: passify invarinat for a while */
++
++	return true || ( /* XXX: passify invariant for a while */
+ 		m0_forall(i, M0_BTS_NR,
+ 			  m0_tl_forall(tx, t, &engine->te_txs[i],
+ 				       m0_be__tx_invariant(t) &&
+@@ -481,6 +490,7 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)
+ {
+ 	enum m0_be_tx_state state = tx_state(tx);
++
+ 	return true || ( /* XXX: and this */
+ 		state < M0_BTS_NR &&
+ 		tx_tlist_contains(&tx_engine(tx)->te_txs[state], tx) &&
+@@ -524,12 +534,11 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, int state,
+         m0_sm_group_lock(tx->t_sm.sm_grp);
+         m0_sm_timedwait(&tx->t_sm, state, timeout);
+         m0_sm_group_unlock(tx->t_sm.sm_grp);
+-
+         return tx->t_sm.sm_rc;
+ }
+ 
+-#undef M0_TRACE_SUBSYSTEM
+ /** @} struct of be group */
++#undef M0_TRACE_SUBSYSTEM
+ 
+ /*
+  *  Local variables:
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 808f3e1..a2cae4e 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -21,6 +21,7 @@
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
++
+ #include "lib/cdefs.h"
+ #include "lib/errno.h"
+ #include "lib/memory.h"
+@@ -38,52 +39,51 @@
+ 
+ enum tx_fom_states {
+ 	FS_STARTED,
+-	FS_STABLE,
+-
+-	FS_GROUPED,
+-	FS_SUBMITTED,
++	FS_FINISHED,
++	FS_GROUP_CLOSED,
++	FS_SUBMITTED_TO_LOG,
+ 	FS_PAYLOAD_LOGGED,
+-	FS_COMMIT_GROUP_LOGGED,
+-	FS_LOG_HEAD_UPDATED,
++	FS_GROUP_HEADER_LOGGED,
++	FS_LOG_HEADER_LOGGED,
+ 	FS_LOGGED,
++	FS_SUBMITTED_TO_SEG,
+ 	FS_PLACED,
+-	FS_FAILED,
++	FS_STABLE,
++	FS_FAILED
+ };
+ 
+ static struct m0_sm_state_descr descr[] = {
+-#define _STATE(name, flags, allowed)			\
+-	[name] = {					\
+-		.sd_flags   = (flags),			\
+-		.sd_name    = #name,			\
+-		.sd_allowed = allowed		\
++#define _S(name, flags, allowed)       \
++	[name] = {                     \
++		.sd_flags   = (flags), \
++		.sd_name    = #name,   \
++		.sd_allowed = allowed  \
+ 	}
+ 
+-	_STATE(FS_STARTED        , M0_SDF_INITIAL, M0_BITS(FS_GROUPED)),
+-	_STATE(FS_GROUPED        , 0,	 M0_BITS(FS_SUBMITTED)),
+-	_STATE(FS_SUBMITTED       , 0,	 M0_BITS(FS_PAYLOAD_LOGGED)),
+-	_STATE(FS_PAYLOAD_LOGGED    , 0, M0_BITS(FS_COMMIT_GROUP_LOGGED)),
+-	_STATE(FS_COMMIT_GROUP_LOGGED  , 0, M0_BITS(FS_LOG_HEAD_UPDATED)),
+-	_STATE(FS_LOG_HEAD_UPDATED   , 0, M0_BITS(FS_LOGGED)),
+-	_STATE(FS_LOGGED        , 0, M0_BITS(FS_PLACED)),
+-	_STATE(FS_PLACED        , 0, M0_BITS(FS_STABLE)),
+-	_STATE(FS_FAILED        , M0_SDF_TERMINAL, 0),
+-	_STATE(FS_STABLE        , M0_SDF_TERMINAL, 0)
+-
+-#undef _STATE
++	_S(FS_STARTED,  M0_SDF_INITIAL,  M0_BITS(FS_GROUP_CLOSED)),
++	_S(FS_FINISHED, M0_SDF_TERMINAL, 0),
++	_S(FS_GROUP_CLOSED,        0, M0_BITS(FS_SUBMITTED_TO_LOG)),
++	_S(FS_SUBMITTED_TO_LOG,    0, M0_BITS(FS_PAYLOAD_LOGGED)),
++	_S(FS_PAYLOAD_LOGGED,      0, M0_BITS(FS_GROUP_HEADER_LOGGED)),
++	_S(FS_GROUP_HEADER_LOGGED, 0, M0_BITS(FS_LOG_HEADER_LOGGED)),
++	_S(FS_LOG_HEADER_LOGGED,   0, M0_BITS(FS_LOGGED)),
++	_S(FS_LOGGED,              0, M0_BITS(FS_SUBMITTED_TO_SEG)),
++	_S(FS_SUBMITTED_TO_SEG,    0, M0_BITS(FS_PLACED)),
++	_S(FS_PLACED,              0, M0_BITS(FS_STABLE)),
++	_S(FS_STABLE, M0_SDF_FINAL, M0_BITS(FS_FINISHED) | M0_BITS(FS_STARTED)),
++	_S(FS_FAILED, M0_SDF_FAILURE, 0)
++#undef _S
+ };
+ 
+ static struct m0_sm_conf conf = {
+-	.scf_name = "tx_fom states",
++	.scf_name      = "tx_fom states",
+ 	.scf_nr_states = ARRAY_SIZE(descr),
+-	.scf_state = descr
++	.scf_state     = descr
+ };
+ 
+ struct tx_fom {
+-	/** Generic m0_fom object. */
+-	struct m0_fom            tf_gen;
+-
+-	/** other stuff */
+-	struct m0_be_tx_engine  *tf_eng;
++	struct m0_fom           tf_gen;
++	struct m0_be_tx_engine *tf_eng;
+ };
+ 
+ static int tx_fom_tick(struct m0_fom *fom)
+@@ -93,44 +93,48 @@ static int tx_fom_tick(struct m0_fom *fom)
+ 
+ 	M0_ENTRY();
+ 
+-	/* if (m0_fom_phase(fom) < M0_FOPH_NR) */
+-	/* 	return m0_fom_tick_generic(fom); */
+-
+ 	M0_LOG(M0_DEBUG, "phase = %d", m0_fom_phase(fom));
+ 
+-	if (m0_fom_phase(fom) > FS_STARTED)
++	if (m0_fom_phase(fom) > FS_STARTED) /* XXX This is ugly. */
+ 		tx = gr_tlist_head(&m->tf_eng->te_group.tg_tx);
+ 
+ 	switch (m0_fom_phase(fom)) {
+ 	case FS_STARTED:
+-		m0_fom_phase_set(fom, FS_GROUPED);
++		m0_fom_phase_set(fom, FS_GROUP_CLOSED);
+ 		M0_RETURN(M0_FSO_WAIT);
+-	case FS_GROUPED:
+-		/* tx_state_set(tx, M0_BTS_GROUPED); */
+-		break;
+-	case FS_SUBMITTED:
+-		break;
++
++	case FS_GROUP_CLOSED:
++	case FS_SUBMITTED_TO_LOG:
+ 	case FS_PAYLOAD_LOGGED:
++	case FS_GROUP_HEADER_LOGGED:
+ 		break;
+-	case FS_COMMIT_GROUP_LOGGED:
+-		break;
+-	case FS_LOG_HEAD_UPDATED:
++
++	case FS_LOG_HEADER_LOGGED:
+ 		tx_state_set(tx, M0_BTS_SUBMITTED);
+ 		break;
++
+ 	case FS_LOGGED:
+ 		tx_state_set(tx, M0_BTS_LOGGED);
+ 		break;
++
++	case FS_SUBMITTED_TO_SEG:
++		break;
++
+ 	case FS_PLACED:
+ 		tx_state_set(tx, M0_BTS_PLACED);
+ 		m0_fom_phase_set(fom, FS_STABLE);
++		gr_tlist_del(tx);
++		tx_tlist_del(tx);
+ 		M0_RETURN(M0_FSO_WAIT);
++
+ 	case FS_STABLE:
+ 		tx_state_set(tx, M0_BTS_STABLE);
+ 		/* m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH); */
+ 		M0_RETURN(M0_FSO_WAIT);
++
+ 	case FS_FAILED:
+ 	default:
+-		M0_IMPOSSIBLE("Just for now it's not possible..."); /* XXX */
++		M0_IMPOSSIBLE("XXX Just for now it's not possible...");
+ 	}
+ 
+ 	m0_fom_phase_set(fom, m0_fom_phase(fom) + 1);
+@@ -182,8 +186,8 @@ static int tx_fom_create(struct m0_fom **out, struct m0_reqh *reqh,
+ 		return -ENOMEM;
+ 
+ 	*out = &m->tf_gen;
+-	m0_fom_init(*out, &tx_fom_type, &tx_fom_ops,
+-		    NULL, NULL, reqh, &m0_txs_stype);
++	m0_fom_init(*out, &tx_fom_type, &tx_fom_ops, NULL, NULL, reqh,
++		    &m0_txs_stype);
+ 
+ 	/* init tx_fom fields */
+ 	m->tf_eng = eng;
+@@ -192,23 +196,19 @@ static int tx_fom_create(struct m0_fom **out, struct m0_reqh *reqh,
+ 	return 0;
+ }
+ 
+-M0_INTERNAL int m0_tx_processing_start(struct m0_reqh *reqh,
+-				       struct m0_be_tx_engine *eng)
++M0_INTERNAL int
++m0_tx_processing_start(struct m0_reqh *reqh, struct m0_be_tx_engine *eng)
+ {
+ 	struct m0_fom *fom;
+ 	int            rc;
+ 
+-        M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
++	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
+ 
+-	m0_fom_type_init(&tx_fom_type, &tx_fom_type_ops,
+-			 &m0_txs_stype, &conf);
++	m0_fom_type_init(&tx_fom_type, &tx_fom_type_ops, &m0_txs_stype, &conf);
+ 
+ 	rc = tx_fom_create(&fom, reqh, eng);
+-	if (rc != 0)
+-		M0_RETURN(rc);
+-
+-	m0_fom_queue(fom, reqh);
+-
++	if (rc == 0)
++		m0_fom_queue(fom, reqh);
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -218,8 +218,9 @@ M0_INTERNAL void m0_tx_processing_stop(void)
+ 	M0_LEAVE();
+ }
+ 
+-#undef M0_TRACE_SUBSYSTEM
+ /** @} end of be group */
++#undef M0_TRACE_SUBSYSTEM
++
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 6aa84a7..b559c7c 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -32,13 +32,13 @@
+ 
+ static struct m0_be_ut_seg_helper be_ut_btree_seg_helper;
+ static struct m0_sm_group         grp;
+-static struct m0_be_seg		  be_ut_btree_seg;
+-static struct m0_be		  be;
+-static uint64_t			  tid = 1ULL;
++static struct m0_be_seg           be_ut_btree_seg;
++static struct m0_be               be;
++static uint64_t                   tid = 1ULL;
+ 
+ M0_UNUSED static void seg_create(void)
+ {
+-	int			rc;
++	int                     rc;
+ 	struct m0_be_seg       *seg   = &be_ut_btree_seg;
+ 	struct m0_be_allocator *alloc = &seg->bs_allocator;
+ 
+@@ -55,7 +55,7 @@ M0_UNUSED static void seg_create(void)
+ 
+ M0_UNUSED static void seg_destroy(void)
+ {
+-	int			rc;
++	int                     rc;
+ 	struct m0_be_seg       *seg   = &be_ut_btree_seg;
+ 	struct m0_be_allocator *alloc = &seg->bs_allocator;
+ 
+@@ -85,7 +85,7 @@ static void be_fini(struct m0_be *be)
+ 	m0_be_tx_engine_fini(&be->b_tx);
+ }
+ 
+-static void test_tx(void)
++static void tx_test(void)
+ {
+ 	struct m0_be_op         op;
+ 	struct m0_be_tx         tx;
+@@ -93,7 +93,7 @@ static void test_tx(void)
+ 	struct m0_be_seg       *seg   = &be_ut_btree_seg;
+ 	struct m0_be_allocator *alloc = &seg->bs_allocator;
+ 	struct m0_uint128      *p;
+-	int 			rc;
++	int                     rc;
+ 
+ 	M0_ENTRY();
+ 	/*
+@@ -120,11 +120,12 @@ static void test_tx(void)
+ 	M0_LOG(M0_DEBUG, "opened");
+ 
+ 	p = m0_be_alloc(&seg->bs_allocator, &tx, &op, sizeof *p, 0);
+-	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS, M0_BOS_FAILURE)));
+ 	M0_UT_ASSERT(p != NULL);
++	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++						 M0_BOS_FAILURE)));
+ 
+-	p->u_hi = 0xDEADD00D8BADF00D;
+-	p->u_lo = 0x5CA1AB1E7E1ECA57;
++	p->u_hi = 0xdeadd00d8badf00d;
++	p->u_lo = 0x5ca1ab1e7e1eca57;
+ 	M0_BE_TX_CAPTURE_PTR(seg, &tx, p);
+ 	M0_LOG(M0_DEBUG, "captured");
+ 
+@@ -145,9 +146,9 @@ static void test_tx(void)
+ 	M0_LEAVE();
+ }
+ 
+-#include <unistd.h>
++#include <unistd.h> /* XXX DELETEME */
+ 
+-static void test_txs(void)
++static void test_tx_svc(void)
+ {
+ #define NAME(ext) "be-tx-ut" ext
+ #define SERVER_ENDPOINT "lnet:0@lo:12345:34:1"
+@@ -179,10 +180,9 @@ static void test_txs(void)
+ 
+ 	rc = m0_tx_processing_start(reqh, &be.b_tx);
+ 	M0_UT_ASSERT(rc == 0);
++	sleep(2); /* XXX FIXME */
+ 
+-	sleep(2);
+-
+-	test_tx();
++	tx_test();
+ 
+ 	m0_tx_processing_stop();
+ 	m0_rpc_server_stop(&txs);
+@@ -192,8 +192,7 @@ const struct m0_test_suite be_tx_ut = {
+ 	.ts_name = "be-tx-ut",
+ 	.ts_tests = {
+ 		{ "tx: segment create", seg_create },
+-		/* { "tx: run", test_tx  }, */
+-		{ "txs: run", test_txs },
++		{ "txs: run", test_tx_svc },
+ 		{ "tx: segment destroy", seg_destroy },
+ 		{ NULL, NULL }
+ 	}
+diff --git a/fop/fom.c b/fop/fom.c
+index aec561e..f8b9149 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -422,8 +422,8 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
+ 
+ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
+ {
+-	struct m0_fom_domain		  *dom;
+-	size_t				   loc_idx;
++	struct m0_fom_domain *dom;
++	size_t                loc_idx;
+ 
+ 	M0_PRE(reqh != NULL);
+ 	M0_PRE(fom != NULL);
+diff --git a/sm/sm.h b/sm/sm.h
+index cf8fc1b..4c30081 100644
+--- a/sm/sm.h
++++ b/sm/sm.h
+@@ -729,7 +729,6 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
+ 
+ M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach);
+ 
+-
+ /**
+  * Initialises state machine configuration.
+  *
+-- 
+1.8.3.2
+

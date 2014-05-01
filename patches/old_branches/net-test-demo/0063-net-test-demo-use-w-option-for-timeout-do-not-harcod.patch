@@ -1,0 +1,74 @@
+From ff799de3f367247c47469371eb5ee6c219e4ca0c Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 13 Feb 2013 20:14:57 +0200
+Subject: [PATCH 63/79] net-test/demo: use -w option for timeout, do not
+ harcode it
+
+---
+ net/test/demo/demo.exp | 18 ++++++++++--------
+ 1 file changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/net/test/demo/demo.exp b/net/test/demo/demo.exp
+index 4f25c79..87ab9f6 100755
+--- a/net/test/demo/demo.exp
++++ b/net/test/demo/demo.exp
+@@ -69,7 +69,7 @@ proc init_hosts {shosts chosts ntopts_al} {
+     set ehosts ""
+     foreach h $hosts {
+         if {[catch {
+-            set r [init_host $h]
++            set r [init_host $h $ntopts(w)]
+             set pid($h) [lindex $r 0]
+             set sid($h) [lindex $r 1]
+             lappend ihosts $h
+@@ -86,9 +86,10 @@ proc init_hosts {shosts chosts ntopts_al} {
+         "sudo rmmod ksocklnd lnet"\
+         "sudo modprobe lnet"\
+         "sudo lctl net up"] {
+-            exec_cmd $pid($h) $sid($h) $c 10
++            exec_cmd $pid($h) $sid($h) $c $ntopts(w)
+         }
+-        set r [exec_cmd $pid($h) $sid($h) "sudo lctl list_nids" 10]
++        set r [exec_cmd $pid($h) $sid($h) "sudo lctl list_nids"\
++            $ntopts(w)]
+         foreach l [split $r \n] {
+             if {[regexp {([0-9.]+)@([a-z0-9_]+)} $l a addr typ]
+             && "z$typ" == "z$ntopts(t)"} {
+@@ -101,13 +102,13 @@ proc init_hosts {shosts chosts ntopts_al} {
+         [array get nid]]
+ }
+ 
+-proc fini_hosts {ihosts pid_al sid_al} {
++proc fini_hosts {ihosts pid_al sid_al tmout} {
+     array set pid $pid_al
+     array set sid $sid_al
+     foreach h $ihosts {catch {
+-        exec_cmd $pid($h) $sid($h) "sudo lctl net down" 10
+-        exec_cmd $pid($h) $sid($h) "sudo rmmod ksocklnd lnet" 10
+-        exec_cmd $pid($h) $sid($h) exit 10 wait_eof
++        exec_cmd $pid($h) $sid($h) "sudo lctl net down" $tmout
++        exec_cmd $pid($h) $sid($h) "sudo rmmod ksocklnd lnet" $tmout
++        exec_cmd $pid($h) $sid($h) exit $tmout wait_eof
+     }}
+ }
+ 
+@@ -118,6 +119,7 @@ proc main {argv0 argv} {
+         {p.arg    12345     "LNET pid"}
+         {t.arg    tcp       "network type: tcp or o2ib"}
+         {v                  "turn on verbose mode"}
++        {w.arg    10        "ssh and commands' timeout"}
+     }
+     set usg "\[options\] srv1\[,srv2...\] clnt1\[,clnt2...\]"
+     if {[catch {
+@@ -131,7 +133,7 @@ proc main {argv0 argv} {
+     set shosts [split [lindex $argv 0] ,]
+     set chosts [split [lindex $argv 1] ,]
+     set r [init_hosts $shosts $chosts [array get ntopts]]
+-    fini_hosts [lindex $r 0] [lindex $r 2] [lindex $r 3]
++    fini_hosts [lindex $r 0] [lindex $r 2] [lindex $r 3] $ntopts(w)
+ }
+ 
+ main $argv0 $argv
+-- 
+1.8.3.2
+

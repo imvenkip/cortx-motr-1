@@ -1,0 +1,98 @@
+From 672db381166eb0f2137242f36b4b23858dfd86a1 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Tue, 18 Dec 2012 13:13:49 +0530
+Subject: [PATCH 02/10] - Removed duplication of pool event variable.
+
+---
+ scripts/m0mount.sh |  4 ++--
+ sns/repair/cm.c    | 22 +++++++++++-----------
+ 2 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/scripts/m0mount.sh b/scripts/m0mount.sh
+index cb06f4d..858b0bf 100755
+--- a/scripts/m0mount.sh
++++ b/scripts/m0mount.sh
+@@ -81,7 +81,7 @@ SERVICES=(
+ 
+ LOCAL_EP=(
+ 	12345:33:101
+-	12345:33:102
++#	12345:33:102
+ )
+ 
+ UNIT_SIZE=262144
+@@ -343,7 +343,7 @@ function start_server () {
+ 		fi
+ 	fi
+ 
+-	local SNAME="-s ioservice"
++	local SNAME="-s ioservice -s sns_repair"
+ 	if [ $I -eq 0 ]; then
+ 		SNAME="-s mdservice $SNAME"
+ 	fi
+diff --git a/sns/repair/cm.c b/sns/repair/cm.c
+index 4d13562..acf61d6 100644
+--- a/sns/repair/cm.c
++++ b/sns/repair/cm.c
+@@ -411,22 +411,23 @@ static size_t cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
+ }
+ 
+ static int pm_event_setup_and_post(struct m0_poolmach *pm,
+-				   struct m0_pool_event *pme,
+ 				   enum m0_pool_event_owner_type et,
+ 				   uint32_t oid,
+ 				   enum m0_pool_nd_state state)
+ {
+-        pme->pe_type  = et;
+-        pme->pe_index = oid;
+-        pme->pe_state = state;
++	struct m0_pool_event pme;
+ 
+-	return m0_poolmach_state_transit(pm, pme);
++	M0_SET0(&pme);
++        pme.pe_type  = et;
++        pme.pe_index = oid;
++        pme.pe_state = state;
++
++	return m0_poolmach_state_transit(pm, &pme);
+ }
+ 
+ static int cm_start(struct m0_cm *cm)
+ {
+ 	struct m0_sns_repair_cm *rcm;
+-	struct m0_pool_event     pm_event;
+ 	int                      bufs_nr;
+ 	int                      rc;
+ 
+@@ -447,8 +448,8 @@ static int cm_start(struct m0_cm *cm)
+ 	rc = m0_sns_repair_iter_init(rcm);
+ 	if (rc == 0) {
+ 		m0_cm_sw_fill(cm);
+-		rc = pm_event_setup_and_post(cm->cm_pm, &pm_event,
+-					     M0_POOL_DEVICE, rcm->rc_fdata,
++		rc = pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE,
++					     rcm->rc_fdata,
+ 					     M0_PNDS_SNS_REPAIRING);
+ 	}
+ 
+@@ -459,15 +460,14 @@ static int cm_start(struct m0_cm *cm)
+ static int cm_stop(struct m0_cm *cm)
+ {
+ 	struct m0_sns_repair_cm *rcm;
+-	struct m0_pool_event     pm_event;
+ 
+ 	M0_PRE(cm != NULL);
+ 
+ 	rcm = cm2sns(cm);
+ 	m0_sns_repair_iter_fini(rcm);
+ 
+-	pm_event_setup_and_post(cm->cm_pm, &pm_event, M0_POOL_DEVICE,
+-				rcm->rc_fdata, M0_PNDS_SNS_REPAIRED);
++	pm_event_setup_and_post(cm->cm_pm, M0_POOL_DEVICE, rcm->rc_fdata,
++				M0_PNDS_SNS_REPAIRED);
+ 	return 0;
+ }
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,24 @@
+From e7804b1a8f3fa1ad9ddee0f8b3507018e5b329c0 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 29 May 2013 11:48:35 +0300
+Subject: [PATCH 003/161] be: too early to init allocator at seg_init()
+
+---
+ be/seg.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 9eca378..42081b0 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -32,7 +32,6 @@ void m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob,
+ 	seg->bs_stob = stob;
+ 	seg->bs_size = 0;
+ 	seg->bs_addr = NULL;
+-	m0_be_allocator_init(&seg->bs_allocator, seg);
+ }
+ 
+ void m0_be_seg_fini(struct m0_be_seg *seg)
+-- 
+1.8.3.2
+

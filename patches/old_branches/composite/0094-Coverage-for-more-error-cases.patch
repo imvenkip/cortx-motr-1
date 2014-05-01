@@ -1,0 +1,431 @@
+From e50ca81a1b2c4977f46c1c922283b56e8093b2b7 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 20 Mar 2013 16:56:55 +0530
+Subject: [PATCH 094/172] Coverage for more error cases.
+
+---
+ layout/composite.c         | 51 +++++++++++++++++++++++-------
+ layout/layout.c            | 31 ++++++++++++++----
+ layout/layout.h            |  7 +++--
+ layout/layout_internal.h   | 10 +++++-
+ layout/ut/composite.c      |  3 +-
+ layout/ut/layout.c         | 78 +++++++++++++++++++++++++++++++++++++++++-----
+ layout/ut/layout_generic.c |  3 +-
+ layout/ut/pdclust.c        |  2 +-
+ 8 files changed, 155 insertions(+), 30 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index b6aa801..b0acf87 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -521,6 +521,15 @@ static int composite_populate(struct m0_composite_layout *cl,
+ 	return rc;
+ }
+ 
++/** Required only in case of error handling. */
++static void composite_populate_reverse(struct m0_composite_layout *cl)
++{
++	M0_PRE(cl->cl_layers_nr == 0);
++	M0_PRE(comp_layer_tlist_is_empty(&cl->cl_layers));
++
++	m0_layout__populate_reverse(&cl->cl_base);
++}
++
+ M0_INTERNAL int m0_composite_build(struct m0_layout_domain *dom,
+ 				   uint64_t lid,
+ 				   struct m0_layout *sublayout,
+@@ -557,20 +566,10 @@ M0_INTERNAL int m0_composite_build(struct m0_layout_domain *dom,
+ 	return rc;
+ }
+ 
+-/** Implementation of lo_fini for COMPOSITE layout type. */
+-static void composite_fini(struct m0_ref *ref)
++static void layers_delete(struct m0_composite_layout *cl)
+ {
+-	struct m0_layout           *l;
+-	struct m0_composite_layout *cl;
+ 	struct m0_composite_layer  *layer;
+ 	struct m0_composite_layer  *layer_prev;
+-
+-	l = container_of(ref, struct m0_layout, l_ref);
+-	M0_PRE(m0_mutex_is_not_locked(&l->l_lock));
+-
+-	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+-	cl = m0_layout_to_cl(l);
+-
+ 	/*
+ 	 * Start deleting layers from the top-most layer so that the check from
+ 	 * layer_inmem_delete() that 'it is the top-most layer being
+@@ -582,6 +581,20 @@ static void composite_fini(struct m0_ref *ref)
+ 		layer_inmem_delete(cl, layer, EXTLIST_FREE);
+ 		layer = layer_prev;
+ 	}
++}
++
++/** Implementation of lo_fini for COMPOSITE layout type. */
++static void composite_fini(struct m0_ref *ref)
++{
++	struct m0_layout           *l;
++	struct m0_composite_layout *cl;
++
++	l = container_of(ref, struct m0_layout, l_ref);
++	M0_PRE(m0_mutex_is_not_locked(&l->l_lock));
++
++	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
++	cl = m0_layout_to_cl(l);
++	layers_delete(cl);
+ 	comp_layer_tlist_fini(&cl->cl_layers);
+ 
+ 	m0_composite_layout_bob_fini(cl);
+@@ -2550,7 +2563,10 @@ static int extentmap_indb_read(struct m0_composite_layout *cl,
+ 
+ 	emap = emap_from_cl(cl);
+ 	prefix_set(&prefix, cl->cl_base.l_id, layer_idx);
++	if (M0_FI_ENABLED("emap_lookup_err"))
++		{ rc = L_EMAP_LOOKUP_ERR; goto err1_injected; } 
+ 	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix, 0, &it);
++err1_injected:
+ 	if (rc != 0) {
+ 		m0_layout__log("extentmap_indb_read",
+ 			       "failed to lookup into layer_emap",
+@@ -2564,6 +2580,8 @@ static int extentmap_indb_read(struct m0_composite_layout *cl,
+ 	seg = m0_emap_seg_get(&it);
+ 	while (1) {
+ 		M0_ASSERT(seg != NULL);
++		if (M0_FI_ENABLED("invalid_ext_state_err"))
++			seg->ee_val = 222; /* Some random number. */
+ 		if (m0_ext_is_empty(&seg->ee_ext) ||
+ 		    !M0_IN(seg->ee_val, (M0_CLRES_INVALID, M0_CLRES_VALID,
+ 					 M0_CLRES_FLATTENING))) {
+@@ -2672,6 +2690,7 @@ static int comp_layout_indb_read(struct m0_composite_layout *cl,
+ 			       "written to the layout",
+ 			       (unsigned long long)cl->cl_base.l_id,
+ 			       (unsigned long)i);
++			extlist_free(&extents);
+ 			/* Release the reference added by m0_layout_find(). */
+ 			m0_layout_put(sublayout);
+ 			break;
+@@ -2688,6 +2707,16 @@ static int comp_layout_indb_read(struct m0_composite_layout *cl,
+ 		++i;
+ 	}
+ 
++	if (rc != 0 && i > 0) {
++		/*
++		 * Undo the layer addition and the layout population done
++		 * through the earlier iterations of the loop above.
++		 */
++		M0_ASSERT(comp_layer_tlist_length(&cl->cl_layers) == i);
++		layers_delete(cl);
++		composite_populate_reverse(cl);
++	}
++
+ 	M0_RETURN(rc);
+ }
+ 
+diff --git a/layout/layout.c b/layout/layout.c
+index 892dc3f..80744bf 100644
+--- a/layout/layout.c
++++ b/layout/layout.c
+@@ -71,6 +71,9 @@
+  *     m0_layout::l_lock is locked throughout the m0_layout_decode() operation.
+  *   - The user is explicitly required to hold this lock while invoking
+  *     m0_layout_encode().
++ *
++ * The sequence of holding layout lock and domain lock is as below:
++ * First the layout lock should be held and then the domain lock'.
+  */
+ 
+ /*
+@@ -296,10 +299,12 @@ M0_INTERNAL struct m0_layout *m0_layout__list_lookup(
+ 		/*
+ 		 * The dom->ld_lock is held at this points that protects
+ 		 * the deletion of a layout entry from the layout list.
+-		 * Hence, it is safe to increment the l->l_ref without
+-		 * acquiring the l->l_lock. Acquiring the l->l_lock here would
+-		 * have violated the locking sequence that 'first the layout
+-		 * lock should be held and then the domain lock'.
++		 * Hence, it is safe to increment the l->l_ref even without
++		 * acquiring the l->l_lock.
++		 * In some cases, the caller has acquired the l->l_lock. In the
++		 * other cases, acquiring the l->l_lock here would have violated
++		 * the locking sequence that 'first the layout lock should be
++		 * held and then the domain lock'.
+ 		 */
+ 		m0_ref_get(&l->l_ref);
+ 	return l;
+@@ -370,6 +375,20 @@ M0_INTERNAL void m0_layout__populate(struct m0_layout *l, uint32_t user_count)
+ 	M0_LEAVE("lid %llu", (unsigned long long)l->l_id);
+ }
+ 
++/** Required only in case of error handling. */
++M0_INTERNAL void m0_layout__populate_reverse(struct m0_layout *l)
++{
++	M0_PRE(m0_layout__invariant(l));
++
++	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
++	l->l_user_count = 0;
++	m0_mutex_lock(&l->l_dom->ld_lock);
++	layout_tlist_del(l);
++	m0_mutex_unlock(&l->l_dom->ld_lock);
++	M0_POST(m0_layout__allocated_invariant(l));
++	M0_LEAVE("lid %llu", (unsigned long long)l->l_id);
++}
++
+ M0_INTERNAL void m0_layout__fini_internal(struct m0_layout *l)
+ {
+ 	M0_PRE(m0_mutex_is_not_locked(&l->l_lock));
+@@ -926,8 +945,8 @@ M0_INTERNAL void m0_layout_put(struct m0_layout *l)
+ 
+ 	M0_ENTRY("lid %llu, ref_count %ld", (unsigned long long)l->l_id,
+ 		 (long)m0_ref_read(&l->l_ref));
+-	m0_mutex_lock(&l->l_dom->ld_lock);
+ 	m0_mutex_lock(&l->l_lock);
++	m0_mutex_lock(&l->l_dom->ld_lock);
+ 	killme = m0_ref_read(&l->l_ref) == 1;
+ 	if (killme)
+ 		/*
+@@ -937,8 +956,8 @@ M0_INTERNAL void m0_layout_put(struct m0_layout *l)
+ 		layout_tlist_del(l);
+ 	else
+ 		m0_ref_put(&l->l_ref);
+-	m0_mutex_unlock(&l->l_lock);
+ 	m0_mutex_unlock(&l->l_dom->ld_lock);
++	m0_mutex_unlock(&l->l_lock);
+ 
+ 	/* Finalise outside of the domain lock to improve concurrency. */
+ 	if (killme)
+diff --git a/layout/layout.h b/layout/layout.h
+index 308a300..a9eefc5 100644
+--- a/layout/layout.h
++++ b/layout/layout.h
+@@ -239,10 +239,13 @@ struct m0_layout {
+ 	uint32_t                     l_user_count;
+ 
+ 	/**
+-	 * Lock to protect an instance of m0_layout, including all its direct
+-	 * and indirect members.
++	 * Lock to protect modifications to an instance of m0_layout, including
++	 * modifications to all its direct and indirect members.
+ 	 * This lock is also used to serialise the data-base operations for a
+ 	 * particular layout. See @ref layout-thread.
++	 *
++	 * @note Creation and destruction of a layout is protected by the domain
++	 * lock that is m0_layout_domain::ld_lock.
+ 	 */
+ 	struct m0_mutex              l_lock;
+ 
+diff --git a/layout/layout_internal.h b/layout/layout_internal.h
+index a2c3dde..4bc313e 100644
+--- a/layout/layout_internal.h
++++ b/layout/layout_internal.h
+@@ -98,7 +98,14 @@ enum {
+ 	 * Simulation for m0_table_insert() facing error e.g. in
+ 	 * the path of m0_composite_layer_add().
+ 	 */
+-	L_TABLE_INSERT_ERR         = -507
++	L_TABLE_INSERT_ERR         = -507,
++
++	/**
++	 * Simulation for m0_emap_lookup() facing error e.g. in
++	 * the path of m0_layout_lookup() for composite type of a layout.
++	 */
++	L_EMAP_LOOKUP_ERR          = -508
++
+ };
+ 
+ /** ADDB context for the layout module. */
+@@ -126,6 +133,7 @@ M0_INTERNAL void m0_layout__init(struct m0_layout *l,
+ 				 const struct m0_layout_ops *ops);
+ M0_INTERNAL void m0_layout__fini(struct m0_layout *l);
+ M0_INTERNAL void m0_layout__populate(struct m0_layout *l, uint32_t user_count);
++M0_INTERNAL void m0_layout__populate_reverse(struct m0_layout *l);
+ M0_INTERNAL void m0_layout__delete(struct m0_layout *l);
+ 
+ M0_INTERNAL void m0_layout__striped_init(struct m0_striped_layout *stl,
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 6e848f4..b0bcaa0 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -2346,7 +2346,8 @@ int test_lookup_composite(uint64_t lid,
+ 			   failure_test, &l3);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
+-			     rc == LO_DECODE_ERR);
++			     rc == -EINVAL || rc == LO_DECODE_ERR ||
++			     L_EMAP_LOOKUP_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 7bbfff8..95ec411 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -593,7 +593,7 @@ static void test_build_failure(void)
+ 	 * Simulate memory allocation failure in composite_allocate() that is
+ 	 * in the path of m0_composite_build().
+ 	 */
+-	lid = 2009;
++	lid = 2021;
+ 	m0_fi_enable_once("composite_allocate", "mem_err");
+ 	rc = test_build_composite(lid, &domain, 5, !CONTIGUOUS_EXTENTS,
+ 				  FAILURE_TEST);
+@@ -603,7 +603,7 @@ static void test_build_failure(void)
+ 	 * Simulate memory allocation failure in the first invokation of
+ 	 * layer_inmem_add() that is in the path of m0_composite_build().
+ 	 */
+-	lid = 2010;
++	lid = 2022;
+ 	m0_fi_enable_once("layer_inmem_add", "mem_err");
+ 	rc = test_build_composite(lid, &domain, 5, !CONTIGUOUS_EXTENTS,
+ 				  FAILURE_TEST);
+@@ -782,6 +782,7 @@ static void test_decode_failure(void)
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 
+ 
++	/* todo layer_add failure for zeroth and the next layer? */
+ }
+ 
+ /* Tests the API m0_layout_encode(). */
+@@ -1359,7 +1360,7 @@ static void test_layer_ext_ops_inmem(void)
+ 
+ 	M0_UT_ASSERT(domain.ld_is_db_available == false);
+ 
+-	lid = 16000;
++	lid = 16001;
+ 	test_layer_ext_ops_composite(lid, &domain);
+ }
+ 
+@@ -1565,6 +1566,69 @@ static void test_lookup_failure(void)
+ 				 EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EPROTO);
+ 
++	/*
++	 * Simulate layer_inmem_add() failure for its first invokation that is
++	 * in the path of composite_decode().
++	 */
++	lid = 19021;
++	m0_fi_enable_off_n_on_m("layer_inmem_add", "mem_err",
++				4 /* Number of layers */, 1);
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("layer_inmem_add", "mem_err");
++
++	/*
++	 * Simulate layer_inmem_add() failure for its second invokation that is
++	 * in the path of composite_decode().
++	 */
++	lid = 19022;
++	m0_fi_enable_off_n_on_m("layer_inmem_add", "mem_err",
++				5 /* Number of layers + 1 */, 1);
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("layer_inmem_add", "mem_err");
++
++	/*
++	 * Simulate layer_inmem_add() failure for the last layer addition
++	 * that is in the path of composite_decode().
++	 */
++	lid = 19023;
++	m0_fi_enable_off_n_on_m("layer_inmem_add", "mem_err",
++				7 /* 2 * layers_nr - 1) */, 1);
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("layer_inmem_add", "mem_err");
++
++	/*
++	 * Simulate memory allocation error in the path of
++	 * extentmap_indb_read().
++	 */
++	lid = 19024;
++	m0_fi_enable_once("ext_inmem_add_internal", "mem_err");
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++
++	/*
++	 * Simulate invalid extent state error in the path of
++	 * extentmap_indb_read().
++	 */
++	lid = 19025;
++	m0_fi_enable_once("extentmap_indb_read", "invalid_ext_state_err");
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EINVAL);
++
++	/* Simulate emap lookup error in the path of extentmap_indb_read(). */
++	lid = 19026;
++	m0_fi_enable_once("extentmap_indb_read", "emap_lookup_err");
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
+@@ -1792,13 +1856,13 @@ static void test_update(void)
+ 	 * to the DB as is done in case of m0_layout_add().
+ 	 * See m0_layout_update().
+ 	 */
+-	lid = 22006;
++	lid = 22021;
+ 	rc = test_update_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				   !EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Update a layout object with COMPOSITE layout type. */
+-	lid = 22007;
++	lid = 22022;
+ 	rc = test_update_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -2003,7 +2067,7 @@ static void test_layer_ops_indb_failure(void)
+ 
+ 	domain_ldb_available_set(&domain, true);
+ 
+-	lid = 2700111; //todo
++	lid = 27001;
+ 	m0_fi_enable_off_n_on_m("sublayout_id_indb_add",
+ 				"table_insert_err", 1, 1);
+ 	rc = test_layer_ops_composite(lid, &domain, 5, 10,
+@@ -2020,7 +2084,7 @@ static void test_layer_ext_ops_indb(void)
+ 
+ 	domain_ldb_available_set(&domain, true);
+ 
+-	lid = 27000;
++	lid = 28001;
+ 	test_layer_ext_ops_composite(lid, &domain);
+ 
+ 	domain_ldb_available_set(&domain, false);
+diff --git a/layout/ut/layout_generic.c b/layout/ut/layout_generic.c
+index 409a80c..d9e1fba 100644
+--- a/layout/ut/layout_generic.c
++++ b/layout/ut/layout_generic.c
+@@ -258,7 +258,8 @@ int layout_lookup(uint64_t lid, struct m0_layout_domain *domain,
+ 	rc = m0_layout_lookup(domain, lid, lt, &tx, &pair, &l);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
+-			     rc == LO_DECODE_ERR);
++			     rc == -EINVAL || rc == LO_DECODE_ERR ||
++			     rc == L_EMAP_LOOKUP_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index 2b472ae..332dafc 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -1284,7 +1284,7 @@ int test_instance_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	m0_uint128_init(&seed, "buildpdclustlayo");
+ 
+ 	NKP_assign(enum_id,
+-		   inline_test, 14, 30, 30,
++		   inline_test, 13, 30, 31,
+ 		   &N, &K, &P);
+ 
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+-- 
+1.8.3.2
+

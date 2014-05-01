@@ -1,0 +1,71 @@
+From db23374748d834527284896bc6bbc807100cee78 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 15 Jan 2014 00:58:01 +0200
+Subject: [PATCH 66/96] be: sizeof *var style fix
+
+---
+ be/alloc.c        | 6 +++---
+ be/ut/tx.c        | 2 +-
+ be/ut/tx_regmap.c | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 02935a4..9a8f311 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -334,7 +334,7 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 	new = c == NULL ? (struct be_alloc_chunk *)
+ 			  ((uintptr_t) a->ba_addr + offset) :
+ 			  (struct be_alloc_chunk *) be_alloc_chunk_after(a, c);
+-	be_alloc_chunk_init(a, tx, new, size_total - sizeof(*new), free);
++	be_alloc_chunk_init(a, tx, new, size_total - sizeof *new, free);
+ 
+ 	M0_BE_OP_SYNC(op, c != NULL ?
+ 			  m0_be_list_add_after(&a->ba_chunks, &op, tx, c, new) :
+@@ -460,7 +460,7 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
+ 	M0_PRE(ergo(x != NULL && y != NULL, (char *) x < (char *) y));
+ 	M0_PRE(ergo(x != NULL, x->bac_free) || ergo(y != NULL, y->bac_free));
+ 	if (x != NULL && y != NULL && x->bac_free && y->bac_free) {
+-		y_size_total = sizeof(*y) + y->bac_size;
++		y_size_total = sizeof *y + y->bac_size;
+ 		be_alloc_chunk_del_fini(a, tx, y);
+ 		m0_be_fl_resize(&a->ba_fl, tx, x, x->bac_size + y_size_total);
+ 		be_alloc_size_capture(a, tx, x);
+@@ -515,7 +515,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+ 	free_space = seg->bs_size - m0_be_seg_reserved(seg);
+ 
+ 	/* check if segment is large enough to allocate at least 1 byte */
+-	if (seg->bs_size <= m0_be_seg_reserved(seg) + sizeof(*c) + 1)
++	if (seg->bs_size <= m0_be_seg_reserved(seg) + sizeof *c + 1)
+ 		return -ENOSPC;
+ 
+ 	m0_mutex_lock(&a->ba_lock);
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 467b171..1e52e6a 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -534,7 +534,7 @@ void m0_be_ut_tx_capturing(void)
+ 		for (j = 0; j < BE_UT_TX_CAPTURING_NR; ++j) {
+ 			ptr = seg->bs_addr + m0_be_seg_reserved(seg) +
+ 			      rand_r(&seed) %
+-			      (BE_UT_TX_CAPTURING_RANGE - sizeof(*ptr));
++			      (BE_UT_TX_CAPTURING_RANGE - sizeof *ptr);
+ 			*ptr = rand_r(&seed);
+ 			m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, ptr));
+ 
+diff --git a/be/ut/tx_regmap.c b/be/ut/tx_regmap.c
+index c6c58a2..6871a60 100644
+--- a/be/ut/tx_regmap.c
++++ b/be/ut/tx_regmap.c
+@@ -710,7 +710,7 @@ static void be_ut_reg_area_do(m0_bcount_t begin, m0_bcount_t end,
+ 	M0_PRE(0 <= end   && end   <= BE_UT_RA_SIZE);
+ 	M0_PRE(begin <= end);
+ 
+-	memcpy(be_ut_ra_save, be_ut_ra_data, sizeof(be_ut_ra_save));
++	memcpy(be_ut_ra_save, be_ut_ra_data, sizeof be_ut_ra_save);
+ 
+ 	LOGD("\n%s [%lu, %lu)",
+ 	     do_insert ? "capture" : "uncapture", begin, end);
+-- 
+1.8.3.2
+

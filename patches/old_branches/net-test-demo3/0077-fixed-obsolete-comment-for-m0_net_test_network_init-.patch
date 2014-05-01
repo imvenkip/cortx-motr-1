@@ -1,0 +1,33 @@
+From efda8bc97e2448a44386040422b8cd8fa35e2441 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 21 Feb 2013 07:34:40 +0200
+Subject: [PATCH 77/99] fixed obsolete comment for
+ m0_net_test_network_init()/_fini()
+
+---
+ net/test/network.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/test/network.h b/net/test/network.h
+index f0e82bd..153f8e8 100644
+--- a/net/test/network.h
++++ b/net/test/network.h
+@@ -127,13 +127,13 @@ struct m0_net_test_network_ctx {
+ 
+ /**
+    Initialize net-test network module.
+-   Calls m0_net_xprt_init(), m0_net_domain_init().
++   Calls m0_net_xprt_init().
+  */
+ int m0_net_test_network_init(void);
+ 
+ /**
+    Finalize net-test network module.
+-   Calls m0_net_xprt_fini(), m0_net_domain_fini().
++   Calls m0_net_xprt_fini().
+  */
+ void m0_net_test_network_fini(void);
+ 
+-- 
+1.8.3.2
+

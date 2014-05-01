@@ -1,0 +1,46 @@
+From de1cd70b32ebe5911e29f27ab338231398147b6a Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Wed, 16 Apr 2014 18:25:42 +0530
+Subject: [PATCH 1/6] stob-unlink, - Define stob delete operations.
+
+---
+ stob/domain.h | 9 +++++++++
+ stob/linux.c  | 2 ++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/stob/domain.h b/stob/domain.h
+index 7c74f7e..3e299b5 100644
+--- a/stob/domain.h
++++ b/stob/domain.h
+@@ -133,6 +133,15 @@ struct m0_stob_domain_ops {
+ 			       struct m0_dtx *dtx,
+ 			       uint64_t stob_key,
+ 			       void *cfg);
++	/** @see m0_stob_create_credit() */
++	void (*sdo_stob_delete_credit)(struct m0_stob_domain *dom,
++				       struct m0_be_tx_credit *accum);
++	/** @see m0_stob_create() */
++	int (*sdo_stob_delete)(struct m0_stob *stob,
++			       struct m0_stob_domain *dom,
++			       struct m0_dtx *dtx,
++			       uint64_t stob_key,
++			       void *cfg);
+ 	/** @see m0_stob_write_credit() */
+ 	void (*sdo_stob_write_credit)(struct m0_stob_domain *dom,
+ 				      struct m0_indexvec *iv,
+diff --git a/stob/linux.c b/stob/linux.c
+index 79980df..36146b8 100644
+--- a/stob/linux.c
++++ b/stob/linux.c
+@@ -479,6 +479,8 @@ static struct m0_stob_domain_ops stob_linux_domain_ops = {
+ 	.sdo_stob_init		= &stob_linux_init,
+ 	.sdo_stob_create_credit = &stob_linux_create_credit,
+ 	.sdo_stob_create	= &stob_linux_create,
++	.sdo_stob_delete_credit = &stob_linux_delete_credit,
++	.sdo_stob_delete	= &stob_linux_delete,
+ 	.sdo_stob_write_credit	= &stob_linux_write_credit,
+ };
+ 
+-- 
+1.8.3.2
+

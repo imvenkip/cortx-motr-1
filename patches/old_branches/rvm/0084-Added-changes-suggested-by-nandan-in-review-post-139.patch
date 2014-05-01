@@ -1,0 +1,110 @@
+From 4c84d294538723ab39c143118287adce5be93697 Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Mon, 6 May 2013 03:39:17 -0700
+Subject: [PATCH 084/121] Added changes suggested by nandan in review post
+ #1393
+
+---
+ rvm/rvm_io.c        |  9 +++++----
+ rvm/rvm_logstatus.c | 28 +++++++++++-----------------
+ 2 files changed, 16 insertions(+), 21 deletions(-)
+
+diff --git a/rvm/rvm_io.c b/rvm/rvm_io.c
+index a3595ce..d39149a 100644
+--- a/rvm/rvm_io.c
++++ b/rvm/rvm_io.c
+@@ -404,7 +404,10 @@ long read_dev(dev,offset,dest,length)
+         long            retval;
+ 
+ 
+-        if(!dev->stob_io) {
++        if(dev->stob_io) {
++            return read_stob(dev, offset, dest, length);
++        }
++        else {
+             assert(dev->handle != ZERO);
+             assert(length != 0);
+             assert((dev->raw_io) ? (SECTOR_INDEX(length) == 0) : 1);
+@@ -454,8 +457,6 @@ long read_dev(dev,offset,dest,length)
+                                                           retval);
+             return retval;
+        }
+-       else
+-            return read_stob(dev, offset, dest, length);
+     }
+ 
+ /* write bytes to device or file */
+@@ -739,7 +740,6 @@ static long gather_write_stob(dev,offset,wrt_len)
+             dev->iov_cnt--;
+     }
+ 
+-    /* update position */
+     retval = launch_stob_io(SIO_WRITE, iov_index, io_count, io_offset,
+                             io_addr, dev->stob);
+ 
+@@ -748,6 +748,7 @@ static long gather_write_stob(dev,offset,wrt_len)
+     m0_free(io_addr);
+     assert((retval >= 0) ? (*wrt_len == retval) : 1);
+ 
++    /* update position */
+     dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
+                                                   *wrt_len);
+ 
+diff --git a/rvm/rvm_logstatus.c b/rvm/rvm_logstatus.c
+index 55b0873..462b786 100644
+--- a/rvm/rvm_logstatus.c
++++ b/rvm/rvm_logstatus.c
+@@ -1072,6 +1072,7 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+     if(rvm_options->log_stob != NULL) {
+         log->dev.stob    = rvm_options->log_stob;
+         log->dev.stob_io = rvm_true;
++        log->dev.raw_io  = rvm_false;
+     }
+ #ifdef RVM_LOG_TAIL_BUG
+     /*
+@@ -1085,32 +1086,25 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+ #ifdef RVM_LOG_TAIL_SHADOW
+     RVM_ASSIGN_OFFSET(log_tail_shadow,log->status.log_tail);
+ #endif /* RVM_LOG_TAIL_SHADOW */
+-    if(log->dev.stob_io == rvm_true) {
+-        if (open_log_dev(&log->dev,O_WRONLY,mode) == 0) /* don't allow create yet */
+-        {
+-           retval = RVM_ELOG;              /* error -- file already exists */
+-           goto err_exit;
+-        }
+-    }
+-    else {
++    if(log->dev.stob_io == rvm_false) {
+         if (open_dev(&log->dev,O_WRONLY,mode) == 0) /* don't allow create yet */
+         {
+            retval = RVM_ELOG;              /* error -- file already exists */
+            goto err_exit;
+         }
+ 
+-    }
+-    if (errno != ENOENT)
++        if (errno != ENOENT)
+         {
+-        retval = RVM_EIO;               /* other i/o error, errno specifies */
+-        goto err_exit;
+-        }
+-    if(log->dev.stob_io == rvm_false) {
+-        if (open_dev(&log->dev,O_WRONLY | O_CREAT,mode) != 0)
+-        {                               // do real create
+-           retval = RVM_EIO;
++           retval = RVM_EIO;               /* other i/o error, errno specifies */
+            goto err_exit;
+         }
++        if(log->dev.stob_io == rvm_false) {
++            if (open_dev(&log->dev,O_WRONLY | O_CREAT,mode) != 0)
++            {                               // do real create
++                retval = RVM_EIO;
++                goto err_exit;
++            }
++        }
+     }
+     /* force file length to specified size by writting last byte */
+     log->dev.num_bytes = offset;
+-- 
+1.8.3.2
+

@@ -1,0 +1,473 @@
+From 65542b0afd6fba49819c5c32d1a62de5693e15ed Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sat, 12 Jan 2013 20:53:33 +0200
+Subject: [PATCH 62/71] added node_stub.[ch], moved node_stub code from
+ node_ping here
+
+---
+ build_kernel_modules/Makefile.in |   8 +--
+ net/test/Makefile.am             |  14 +++--
+ net/test/node.c                  |   3 +-
+ net/test/node_ping.c             |  85 -------------------------
+ net/test/node_ping.h             |   1 -
+ net/test/node_stub.c             | 133 +++++++++++++++++++++++++++++++++++++++
+ net/test/node_stub.h             |  51 +++++++++++++++
+ net/test/ut/client_server.c      |  42 +++++++------
+ 8 files changed, 221 insertions(+), 116 deletions(-)
+ create mode 100644 net/test/node_stub.c
+ create mode 100644 net/test/node_stub.h
+
+diff --git a/build_kernel_modules/Makefile.in b/build_kernel_modules/Makefile.in
+index faecc36..331a59e 100644
+--- a/build_kernel_modules/Makefile.in
++++ b/build_kernel_modules/Makefile.in
+@@ -142,12 +142,12 @@ net_lnet_ut_SOURCES             := lnet_ut.c
+ 
+ net_test_SOURCES		:= commands.c console.c initfini.c network.c  \
+ 				   node_bulk.c node_helper.c node_ping.c      \
+-				   node.c ringbuf.c serialize.c service.c     \
+-				   slist.c stats.c str.c
++				   node_stub.c node.c ringbuf.c serialize.c   \
++				   service.c slist.c stats.c str.c
+ net_test_HEADERS		:= commands.h console.h initfini.h network.h  \
+ 				   node_bulk.h node_helper.h node_ping.h      \
+-				   node.h ringbuf.h serialize.h service.h     \
+-				   slist.h stats.h str.h
++				   node_stub.h node.h ringbuf.h serialize.h   \
++				   service.h slist.h stats.h str.h
+ 
+ net_test_ut_SOURCES		:= client_server.c commands.c main.c	      \
+ 				   network.c ringbuf.c serialize.c service.c  \
+diff --git a/net/test/Makefile.am b/net/test/Makefile.am
+index efc7051..ec03784 100644
+--- a/net/test/Makefile.am
++++ b/net/test/Makefile.am
+@@ -3,13 +3,15 @@ noinst_LTLIBRARIES		= libcolibri-net-test.la
+ INCLUDES			= -I. -I$(top_srcdir) -I$(top_srcdir)/include
+ 
+ net_test_SRC			= commands.c console.c initfini.c network.c    \
+-				  node_bulk.c node_helper.c node_ping.c node.c \
+-				  ringbuf.c serialize.c service.c slist.c      \
+-				  stats.c str.c user_space/stats_u.c
++				  node_bulk.c node_helper.c node_ping.c        \
++				  node_stub.c node.c ringbuf.c serialize.c     \
++				  service.c slist.c stats.c str.c 	       \
++				  user_space/stats_u.c
+ net_test_HDR			= commands.h console.h initfini.h network.h    \
+-				  node_bulk.h node_helper.h node_ping.h node.h \
+-				  ringbuf.h serialize.h service.h slist.h      \
+-				  stats.h str.h user_space/stats_u.h
++				  node_bulk.h node_helper.h node_ping.h        \
++				  node_stub.h node.h ringbuf.h serialize.h     \
++				  service.h slist.h stats.h str.h 	       \
++				  user_space/stats_u.h
+ 
+ libcolibri_net_test_la_SOURCES	= $(net_test_HDR) $(net_test_SRC)
+ 
+diff --git a/net/test/node.c b/net/test/node.c
+index bb87445..b220e50 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -21,9 +21,10 @@
+ #include "lib/errno.h"		/* ETIMEDOUT */
+ #include "lib/misc.h"		/* C2_SET0 */
+ #include "lib/memory.h"		/* C2_ALLOC_PTR */
+-#include "lib/trace.h"			/* C2_LOG */
++#include "lib/trace.h"		/* C2_LOG */
+ 
+ #include "net/test/node.h"	/* c2_net_test_node_ctx */
++#include "net/test/node_stub.h"	/* c2_net_test_node_stub_ops */
+ #include "net/test/node_ping.h"	/* c2_net_test_node_ping_ops */
+ #include "net/test/node_bulk.h"	/* c2_net_test_node_bulk_ops */
+ 
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index 45ac210..c2feb39 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -986,91 +986,6 @@ struct c2_net_test_service_ops c2_net_test_node_ping_ops = {
+ 	.ntso_cmd_handler_nr = ARRAY_SIZE(node_ping_cmd_handler),
+ };
+ 
+-static void *node_stub_init(struct c2_net_test_service *svc)
+-{
+-	return svc;
+-}
+-
+-static void node_stub_fini(void *ctx_)
+-{
+-}
+-
+-static int node_stub_step(void *ctx_)
+-{
+-	return 0;
+-}
+-
+-static int node_stub_cmd_init(void *ctx_,
+-			      const struct c2_net_test_cmd *cmd,
+-			      struct c2_net_test_cmd *reply)
+-{
+-	reply->ntc_type = C2_NET_TEST_CMD_INIT_DONE;
+-	reply->ntc_done.ntcd_errno = 0;
+-	return 0;
+-}
+-
+-static int node_stub_cmd_start(void *ctx_,
+-			       const struct c2_net_test_cmd *cmd,
+-			       struct c2_net_test_cmd *reply)
+-{
+-	reply->ntc_type = C2_NET_TEST_CMD_START_DONE;
+-	reply->ntc_done.ntcd_errno = 0;
+-	return 0;
+-}
+-
+-static int node_stub_cmd_stop(void *ctx_,
+-			      const struct c2_net_test_cmd *cmd,
+-			      struct c2_net_test_cmd *reply)
+-{
+-	c2_net_test_service_state_change(ctx_, C2_NET_TEST_SERVICE_FINISHED);
+-	reply->ntc_type = C2_NET_TEST_CMD_STOP_DONE;
+-	reply->ntc_done.ntcd_errno = 0;
+-	return 0;
+-}
+-
+-static int node_stub_cmd_status(void *ctx_,
+-				const struct c2_net_test_cmd *cmd,
+-				struct c2_net_test_cmd *reply)
+-{
+-	struct c2_net_test_cmd_status_data *sd;
+-
+-	reply->ntc_type = C2_NET_TEST_CMD_STATUS_DATA;
+-	sd = &reply->ntc_status_data;
+-	C2_SET0(sd);
+-	sd->ntcsd_finished = true;
+-	sd->ntcsd_time_start = c2_time_now();
+-	sd->ntcsd_time_finish = c2_time_add(sd->ntcsd_time_start,
+-					    C2_MKTIME(0, 1));
+-	return 0;
+-}
+-
+-static struct c2_net_test_service_cmd_handler node_stub_cmd_handler[] = {
+-	{
+-		.ntsch_type    = C2_NET_TEST_CMD_INIT,
+-		.ntsch_handler = node_stub_cmd_init,
+-	},
+-	{
+-		.ntsch_type    = C2_NET_TEST_CMD_START,
+-		.ntsch_handler = node_stub_cmd_start,
+-	},
+-	{
+-		.ntsch_type    = C2_NET_TEST_CMD_STOP,
+-		.ntsch_handler = node_stub_cmd_stop,
+-	},
+-	{
+-		.ntsch_type    = C2_NET_TEST_CMD_STATUS,
+-		.ntsch_handler = node_stub_cmd_status,
+-	},
+-};
+-
+-struct c2_net_test_service_ops c2_net_test_node_stub_ops = {
+-	.ntso_init	     = node_stub_init,
+-	.ntso_fini	     = node_stub_fini,
+-	.ntso_step	     = node_stub_step,
+-	.ntso_cmd_handler    = node_stub_cmd_handler,
+-	.ntso_cmd_handler_nr = ARRAY_SIZE(node_stub_cmd_handler),
+-};
+-
+ /**
+    @} end of NetTestPingNodeInternals group
+  */
+diff --git a/net/test/node_ping.h b/net/test/node_ping.h
+index 094ac84..6d92c9e 100644
+--- a/net/test/node_ping.h
++++ b/net/test/node_ping.h
+@@ -33,7 +33,6 @@
+  */
+ 
+ extern struct c2_net_test_service_ops c2_net_test_node_ping_ops;
+-extern struct c2_net_test_service_ops c2_net_test_node_stub_ops;
+ 
+ /**
+    @} end of NetTestPingNodeDFS group
+diff --git a/net/test/node_stub.c b/net/test/node_stub.c
+new file mode 100644
+index 0000000..b30945f
+--- /dev/null
++++ b/net/test/node_stub.c
+@@ -0,0 +1,133 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <max_medved@xyratex.com>
++ * Original creation date: 01/12/2013
++ */
++
++#include "lib/misc.h"			/* C2_SET0 */
++#include "lib/time.h"			/* c2_time_t */
++
++#include "net/test/node_stub.h"
++
++
++/**
++   @defgroup NetTestStubNodeInternals Node Stub
++   @ingroup NetTestInternals
++
++   Used in UT to test node-console interaction.
++
++   @{
++ */
++
++static void *node_stub_init(struct c2_net_test_service *svc)
++{
++	return svc;
++}
++
++static void node_stub_fini(void *ctx_)
++{
++}
++
++static int node_stub_step(void *ctx_)
++{
++	return 0;
++}
++
++static int node_stub_cmd_init(void *ctx_,
++			      const struct c2_net_test_cmd *cmd,
++			      struct c2_net_test_cmd *reply)
++{
++	reply->ntc_type = C2_NET_TEST_CMD_INIT_DONE;
++	reply->ntc_done.ntcd_errno = 0;
++	return 0;
++}
++
++static int node_stub_cmd_start(void *ctx_,
++			       const struct c2_net_test_cmd *cmd,
++			       struct c2_net_test_cmd *reply)
++{
++	reply->ntc_type = C2_NET_TEST_CMD_START_DONE;
++	reply->ntc_done.ntcd_errno = 0;
++	return 0;
++}
++
++static int node_stub_cmd_stop(void *ctx_,
++			      const struct c2_net_test_cmd *cmd,
++			      struct c2_net_test_cmd *reply)
++{
++	c2_net_test_service_state_change(ctx_, C2_NET_TEST_SERVICE_FINISHED);
++	reply->ntc_type = C2_NET_TEST_CMD_STOP_DONE;
++	reply->ntc_done.ntcd_errno = 0;
++	return 0;
++}
++
++static int node_stub_cmd_status(void *ctx_,
++				const struct c2_net_test_cmd *cmd,
++				struct c2_net_test_cmd *reply)
++{
++	struct c2_net_test_cmd_status_data *sd;
++
++	reply->ntc_type = C2_NET_TEST_CMD_STATUS_DATA;
++	sd = &reply->ntc_status_data;
++	C2_SET0(sd);
++	sd->ntcsd_finished = true;
++	sd->ntcsd_time_start = c2_time_now();
++	sd->ntcsd_time_finish = c2_time_add(sd->ntcsd_time_start,
++					    C2_MKTIME(0, 1));
++	return 0;
++}
++
++static struct c2_net_test_service_cmd_handler node_stub_cmd_handler[] = {
++	{
++		.ntsch_type    = C2_NET_TEST_CMD_INIT,
++		.ntsch_handler = node_stub_cmd_init,
++	},
++	{
++		.ntsch_type    = C2_NET_TEST_CMD_START,
++		.ntsch_handler = node_stub_cmd_start,
++	},
++	{
++		.ntsch_type    = C2_NET_TEST_CMD_STOP,
++		.ntsch_handler = node_stub_cmd_stop,
++	},
++	{
++		.ntsch_type    = C2_NET_TEST_CMD_STATUS,
++		.ntsch_handler = node_stub_cmd_status,
++	},
++};
++
++struct c2_net_test_service_ops c2_net_test_node_stub_ops = {
++	.ntso_init	     = node_stub_init,
++	.ntso_fini	     = node_stub_fini,
++	.ntso_step	     = node_stub_step,
++	.ntso_cmd_handler    = node_stub_cmd_handler,
++	.ntso_cmd_handler_nr = ARRAY_SIZE(node_stub_cmd_handler),
++};
++
++/**
++   @} end of NetTestStubNodeInternals group
++ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 79
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/net/test/node_stub.h b/net/test/node_stub.h
+new file mode 100644
+index 0000000..191c640
+--- /dev/null
++++ b/net/test/node_stub.h
+@@ -0,0 +1,51 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <max_medved@xyratex.com>
++ * Original creation date: 01/12/2012
++ */
++
++#pragma once
++
++#ifndef __COLIBRI_NET_TEST_NODE_STUB_H__
++#define __COLIBRI_NET_TEST_NODE_STUB_H__
++
++#include "net/test/service.h"		/* c2_net_test_service_ops */
++
++/**
++   @defgroup NetTestStubNodeDFS Node Stub
++   @ingroup NetTestDFS
++
++   @{
++ */
++
++extern struct c2_net_test_service_ops c2_net_test_node_stub_ops;
++
++/**
++   @} end of NetTestStubNodeDFS group
++ */
++
++#endif /*  __COLIBRI_NET_TEST_NODE_STUB_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 79
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/net/test/ut/client_server.c b/net/test/ut/client_server.c
+index b4f6d0e..291b236 100644
+--- a/net/test/ut/client_server.c
++++ b/net/test/ut/client_server.c
+@@ -18,10 +18,6 @@
+  * Original creation date: 05/19/2012
+  */
+ 
+-#ifdef __KERNEL__
+-#include <linux/kgdb.h>
+-#endif
+-
+ #include "lib/ut.h"			/* C2_UT_ASSERT */
+ #include "lib/memory.h"			/* c2_free */
+ #include "lib/thread.h"			/* C2_THREAD_INIT */
+@@ -179,12 +175,6 @@ static void net_test_client_server(const char *nid,
+ 	int				    i;
+ 	c2_time_t			    _1s = C2_MKTIME(1, 0);
+ 
+-#ifdef __KERNEL__
+-	/*
+-	kgdb_breakpoint();
+-	*/
+-#endif
+-
+ 	C2_PRE(clients_nr <= NTCS_NODES_MAX);
+ 	C2_PRE(servers_nr <= NTCS_NODES_MAX);
+ 
+@@ -366,6 +356,7 @@ done:
+ 
+ void c2_net_test_client_server_stub_ut(void)
+ {
++	/* test console-node interaction with dummy node */
+ 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_STUB,
+ 			       1, 1, 1, 1, 1, 1,
+ 			       0, 0, 0, 0);
+@@ -373,14 +364,17 @@ void c2_net_test_client_server_stub_ut(void)
+ 
+ void c2_net_test_client_server_ping_ut(void)
+ {
+-	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
+-			       /* 8, 8, 8, 128, 0x1000, 0x1000, */
+-			       1, 1, 8, 128, 0x1000, 0x1000,
+-			       0, 0, 0, 0);
+ 	/*
++	 * - 0@lo interface
++	 * - 8 test clients, 8 test servers
++	 * - 4k test messages x 4KiB per message
++	 * - 8 pairs of concurrent buffers on each test client
++	 * - 128 concurrent buffers on each test server
++	 */
+ 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
+-			       8, 8, 4, 16, 0x100, 0x100);
+-	*/
++			       8, 8, 8, 128, 0x1000, 0x1000,
++			       /* 1, 1, 8, 128, 0x1000, 0x1000, */
++			       0, 0, 0, 0);
+ }
+ 
+ void c2_net_test_client_server_bulk_ut(void)
+@@ -389,10 +383,20 @@ void c2_net_test_client_server_bulk_ut(void)
+ 	 * @todo investigate strange c2_net_tm_stop() time
+ 	 * on the bulk test client.
+ 	 */
++	/*
++	 * - 0@lo interface
++	 * - 8 test clients, 8 test servers
++	 * - 256 test messages x 64KiB per message
++	 * - 2 pairs of concurrent buffers on each test client
++	 * - 32 concurrent buffers on each test server
++	 * - 32(64) network buffers for network buffer descriptors
++	 *   on the test client(server) with 4KiB per buffer and
++	 *   64k maximum buffer descriptors in buffer
++	 */
+ 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_BULK,
+-			       1, 1, 1, 2,
+-			       0x1000, 0x1000,
+-			       1, 2, 0x1000, 0x10000);
++			       8, 8, 2, 32,
++			       0x100, 0x10000,
++			       32, 64, 0x1000, 0x10000);
+ }
+ 
+ /*
+-- 
+1.8.3.2
+

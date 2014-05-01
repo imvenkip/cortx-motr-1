@@ -1,0 +1,27 @@
+From 63615c8c6204c85c20d3b963c3b86fccd91ae3eb Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Mon, 10 Feb 2014 16:50:31 +0200
+Subject: [PATCH 38/60] rpc/item: increase resend timeout
+
+It is workaround to avoid LNet stuck issue on
+duplicate fops handling.
+---
+ rpc/item.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rpc/item.h b/rpc/item.h
+index 75ff306..d551985 100644
+--- a/rpc/item.h
++++ b/rpc/item.h
+@@ -112,7 +112,7 @@ enum m0_rpc_item_dir {
+ };
+ 
+ enum m0_rpc_item_resend {
+-	M0_RPC_ITEM_RESEND_INTERVAL = 2 /* in secs */
++	M0_RPC_ITEM_RESEND_INTERVAL = 20 /* in secs */
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

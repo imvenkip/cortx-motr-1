@@ -1,0 +1,80 @@
+From 2c9cee3362d230b5276e454f5acc1e826ab0cb59 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 5 Sep 2012 20:48:25 +0300
+Subject: [PATCH 360/370] conf: get rid of `delete' argument of
+ c2_conf_reg_fini()
+
+If this argument is ever needed, it will be added.
+---
+ conf/confc.c  | 2 +-
+ conf/reg.c    | 5 ++---
+ conf/reg.h    | 6 +++---
+ conf/ut/reg.c | 2 +-
+ 4 files changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 99c52c5..2e94b10 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -320,7 +320,7 @@ void c2_confc_fini(struct c2_confc *confc)
+ 	 * if (confc->cc_rpc.rcx_remote_addr != NULL)
+ 	 *     confd_disconnect(&confc->cc_rpc);
+ 	 *
+-	 * c2_conf_reg_fini(&confc->cc_registry, true);
++	 * c2_conf_reg_fini(&confc->cc_registry);
+ 	 * confc->cc_root = NULL;
+ 	 *
+ 	 * confc->cc_group = NULL;
+diff --git a/conf/reg.c b/conf/reg.c
+index 32a9b99..74d0b31 100644
+--- a/conf/reg.c
++++ b/conf/reg.c
+@@ -73,14 +73,13 @@ void c2_conf_reg_del(const struct c2_conf_reg *reg, struct c2_conf_obj *obj)
+ 	c2_conf_reg_tlist_del(obj);
+ }
+ 
+-void c2_conf_reg_fini(struct c2_conf_reg *reg, bool delete)
++void c2_conf_reg_fini(struct c2_conf_reg *reg)
+ {
+ 	struct c2_conf_obj *obj;
+ 
+ 	c2_tl_for(c2_conf_reg, &reg->r_objs, obj) {
+ 		c2_conf_reg_tlist_del(obj);
+-		if (delete)
+-			c2_conf_obj_delete(obj);
++		c2_conf_obj_delete(obj);
+ 	} c2_tl_endfor;
+ 
+ 	c2_conf_reg_tlist_fini(&reg->r_objs);
+diff --git a/conf/reg.h b/conf/reg.h
+index 3ea081f..3b40ac1 100644
+--- a/conf/reg.h
++++ b/conf/reg.h
+@@ -86,10 +86,10 @@ void c2_conf_reg_init(struct c2_conf_reg *reg);
+ /**
+  * Finalises a registry.
+  *
+- * If `delete' parameter is true, the function c2_conf_obj_delete()s
+- * every registered configuration object.
++ * This function c2_conf_obj_delete()s every registered configuration
++ * object.
+  */
+-void c2_conf_reg_fini(struct c2_conf_reg *reg, bool delete);
++void c2_conf_reg_fini(struct c2_conf_reg *reg);
+ 
+ /**
+  * Registers configuration object.
+diff --git a/conf/ut/reg.c b/conf/ut/reg.c
+index 71fb401..795573f 100644
+--- a/conf/ut/reg.c
++++ b/conf/ut/reg.c
+@@ -60,5 +60,5 @@ void test_reg(void)
+ 		     NULL);
+ 	c2_conf_obj_delete(obj);
+ 
+-	c2_conf_reg_fini(&reg, true);
++	c2_conf_reg_fini(&reg);
+ }
+-- 
+1.8.3.2
+

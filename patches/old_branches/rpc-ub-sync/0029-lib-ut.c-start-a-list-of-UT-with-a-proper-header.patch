@@ -1,0 +1,43 @@
+From c7bde8a79691d303c1c5dfc078b0bc32327a68d1 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 14 Mar 2013 11:32:54 +0200
+Subject: [PATCH 29/63] lib/ut.c: start a list of UT with a proper header
+
+Old:
+    $ sudo utils/ut.sh -l | head -2
+    # YAML
+    ---
+
+New:
+    $ sudo utils/ut.sh -l | head -1
+    Available unit tests:
+
+New header is descriptive and resembles the one printed by `ub.sh -l'.
+---
+ lib/ut.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/lib/ut.c b/lib/ut.c
+index 3a07bb3..25d3e91 100644
+--- a/lib/ut.c
++++ b/lib/ut.c
+@@ -234,13 +234,12 @@ M0_INTERNAL void m0_ut_list(bool with_tests)
+ 		return;
+ 	}
+ 
+-	printf("# YAML\n");
+-	printf("---\n");
+-
++	printf("Available unit tests:\n");
+ 	for (suite = registry->pSuite; suite != NULL; suite = suite->pNext)
+ 		if (with_tests && suite->uiNumberOfTests != 0) {
+ 			printf("%s:\n", suite->pName);
+-			for (test = suite->pTest ; test != NULL; test = test->pNext)
++			for (test = suite->pTest; test != NULL;
++			     test = test->pNext)
+ 				printf("    - %s\n", test->pName);
+ 		} else {
+ 			printf("%s\n", suite->pName);
+-- 
+1.8.3.2
+

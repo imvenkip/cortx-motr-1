@@ -1,0 +1,1562 @@
+From 2cbd5f1e4c154ec37d8212cb77ab2a7a72441585 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 17 Jun 2013 17:04:08 +0300
+Subject: [PATCH 159/290] be: split tx.[hc] into submodules
+
+---
+ be/Makefile.sub    |  39 ++++++-----
+ be/seg.c           |   2 +-
+ be/tx.c            | 190 +----------------------------------------------------
+ be/tx.h            | 132 ++-----------------------------------
+ be/tx_credit.c     |  80 ++++++++++++++++++++++
+ be/tx_credit.h     |  97 +++++++++++++++++++++++++++
+ be/tx_group.c      |  81 +++++++++++++++++++++++
+ be/tx_group.h      |  95 +++++++++++++++++++++++++++
+ be/tx_internal.h   |  61 -----------------
+ be/tx_log.c        |  93 ++++++++++++++++++++++++++
+ be/tx_log.h        | 101 ++++++++++++++++++++++++++++
+ be/tx_regmap.c     |  78 ++++++++++++++++++++++
+ be/tx_regmap.h     |  64 ++++++++++++++++++
+ be/tx_service.c    |   7 +-
+ be/ut/Makefile.sub |  18 +++--
+ be/ut/tx_credit.c  |  32 +++++++++
+ be/ut/tx_group.c   |  32 +++++++++
+ be/ut/tx_log.c     |  32 +++++++++
+ be/ut/tx_regmap.c  |  32 +++++++++
+ 19 files changed, 866 insertions(+), 400 deletions(-)
+ create mode 100644 be/tx_credit.c
+ create mode 100644 be/tx_credit.h
+ create mode 100644 be/tx_group.c
+ create mode 100644 be/tx_group.h
+ delete mode 100644 be/tx_internal.h
+ create mode 100644 be/tx_log.c
+ create mode 100644 be/tx_log.h
+ create mode 100644 be/tx_regmap.c
+ create mode 100644 be/tx_regmap.h
+ create mode 100644 be/ut/tx_credit.c
+ create mode 100644 be/ut/tx_group.c
+ create mode 100644 be/ut/tx_log.c
+ create mode 100644 be/ut/tx_regmap.c
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 87638be..d4032d0 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -1,17 +1,24 @@
+-nobase_mero_include_HEADERS += be/alloc.h		\
+-                               be/list.h		\
+-                               be/seg.h			\
+-                               be/tx_service.h		\
+-                               be/tx_fom.h		\
+-                               be/extmap.h		\
+-                               be/extmap_internal.h
++nobase_mero_include_HEADERS += be/alloc.h           \
++                               be/extmap.h          \
++                               be/list.h            \
++                               be/seg.h             \
++                               be/tx_credit.h       \
++                               be/tx_fom.h          \
++                               be/tx_group.c        \
++                               be/tx_log.c          \
++                               be/tx_regmap.c       \
++                               be/tx_service.h
+ 
+-mero_libmero_la_SOURCES += be/alloc.c		\
+-                           be/list.c		\
+-                           be/seg.c		\
+-                           be/be.c		\
+-                           be/btree.c		\
+-                           be/tx.c		\
+-                           be/tx_service.c	\
+-                           be/tx_fom.c		\
+-                           be/extmap.c
++mero_libmero_la_SOURCES += be/alloc.c     \
++                           be/be.c        \
++                           be/btree.c     \
++                           be/extmap.c    \
++                           be/list.c      \
++                           be/seg.c       \
++                           be/tx.c        \
++                           be/tx_credit.c \
++                           be/tx_fom.c    \
++                           be/tx_group.c  \
++                           be/tx_log.c    \
++                           be/tx_regmap.c \
++                           be/tx_service.c
+diff --git a/be/seg.c b/be/seg.c
+index 98c86d2..b0a26d0 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -28,7 +28,7 @@
+ #include "stob/stob.h"
+ 
+ #include "be/seg_internal.h"
+-#include "be/tx_internal.h"  /* struct m0_be_regdtree_node */
++/* #include "be/tx_regmap.h"  /\* m0_be_regdtree_node *\/ */
+ 
+ #include <search.h>          /* twalk */
+ #include <sys/mman.h>        /* mmap */
+diff --git a/be/tx.c b/be/tx.c
+index 008bf3c..8855899 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -27,33 +27,15 @@
+ #include <search.h>            /* tsearch */
+ 
+ #include "lib/errno.h"
+-#include "lib/misc.h"          /* m0_forall, M0_SET0 */
++#include "lib/misc.h"          /* m0_forall */
+ #include "lib/cdefs.h"         /* ARRAY_SIZE */
+ #include "lib/memory.h"
+ #include "lib/types.h"
+ #include "lib/ext.h"           /* m0_ext */
+ 
+-
+ #include "be/be.h"
+ #include "be/tx.h"
+-#include "be/tx_internal.h"    /* struct m0_be_regdtree_node */
+-
+-struct m0_be_tx_group_desc {
+-	uint64_t tgd_size;
+-	uint64_t tgd_tx_nr;
+-};
+-
+-struct tx_group_header
+-{
+-};
+-
+-struct tx_group_entry
+-{
+-};
+-
+-struct tx_header
+-{
+-};
++/* #include "be/tx_regmap.h"    /\* m0_be_regdtree_node *\/ */
+ 
+ M0_TL_DESCR_DEFINE(tx, "transactions", static, struct m0_be_tx,
+ 		   t_linkage, t_magic,
+@@ -62,13 +44,6 @@ M0_TL_DESCR_DEFINE(tx, "transactions", static, struct m0_be_tx,
+ 
+ M0_TL_DEFINE(tx, static, struct m0_be_tx);
+ 
+-M0_TL_DESCR_DEFINE(gr, "tx group", static, struct m0_be_tx,
+-		   t_group_linkage, t_magic,
+-		   M0_TRACE_TX_MAGIC,
+-		   M0_TRACE_TX_GROUP_LIST_MAGIC);
+-
+-M0_TL_DEFINE(gr, static, struct m0_be_tx);
+-
+ static bool tx_invariant(const struct m0_sm *mach);
+ 
+ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
+@@ -162,38 +137,17 @@ static const struct m0_sm_conf tx_sm_conf = {
+ };
+ 
+ static enum m0_be_tx_state tx_state    (const struct m0_be_tx *tx);
+-static void                tx_state_set(struct m0_be_tx *tx,
+-					enum m0_be_tx_state state);
+ static struct m0_be_tx_engine *tx_engine   (const struct m0_be_tx *tx);
+ 
+ static void        tx_open_tail        (struct m0_be_tx *tx);
+ static void        tx_fail             (struct m0_be_tx *tx, int err);
+ static void        tx_link             (struct m0_be_tx *tx);
+-static m0_bcount_t tx_log_size         (const struct m0_be_tx *tx,
+-					const struct m0_be_tx_credit *cr,
+-					bool leader);
+-static m0_bcount_t tx_log_free_space(const struct m0_be_tx_engine *eng);
+-static m0_bcount_t tx_prepared_log_size(const struct m0_be_tx *tx);
+-static m0_bcount_t tx_group_header_size(m0_bcount_t tx_nr);
+ static m0_bcount_t tx_engine_free_space(const struct m0_be_tx_engine *eng);
+ static void        tx_engine_got_space (struct m0_be_tx_engine *eng);
+ static void        tx_engine_got_closed(struct m0_be_tx_engine *eng,
+ 					struct m0_be_tx *tx);
+ static void        tx_engine_lock      (struct m0_be_tx_engine *eng);
+ static void        tx_engine_unlock    (struct m0_be_tx_engine *eng);
+-static void        tx_group_fini       (struct m0_be_tx_group *gr);
+-static void        tx_group_init       (struct m0_be_tx_group *gr);
+-static void        tx_reg_ext          (const struct m0_be_reg_d *reg,
+-					struct m0_ext *out);
+-static bool        credit_le           (const struct m0_be_tx_credit *c0,
+-					const struct m0_be_tx_credit *c1);
+-static void        credit_mod          (struct m0_be_tx_credit *cr,
+-					const struct m0_be_reg_d *reg, int sgn);
+-static int	   tx_reg_cmp	       (const void *p0, const void *p1);
+-static void	   tx_group_add(struct m0_be_tx_engine *eng,
+-				struct m0_be_tx_group *gr, struct m0_be_tx *tx);
+-static void	   log_init(struct m0_be_log *log);
+-
+ 
+ M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine)
+ {
+@@ -401,24 +355,6 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
+ 	tx_engine_unlock(eng);
+ }
+ 
+-M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit)
+-{
+-	M0_SET0(credit);
+-}
+-
+-M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
+-				     const struct m0_be_tx_credit *c1)
+-{
+-	c0->tc_reg_nr   += c1->tc_reg_nr;
+-	c0->tc_reg_size += c1->tc_reg_size;
+-}
+-
+-M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
+-{
+-	c->tc_reg_nr   *= k;
+-	c->tc_reg_size *= k;
+-}
+-
+ static m0_bcount_t tx_engine_free_space(const struct m0_be_tx_engine *te)
+ {
+ 	M0_PRE(m0_be__tx_engine_invariant(te));
+@@ -439,12 +375,6 @@ static void tx_engine_got_space(struct m0_be_tx_engine *eng)
+ 	M0_POST(m0_be__tx_engine_invariant(eng));
+ }
+ 
+-static void tx_group_close(struct m0_be_tx_engine *eng,
+-			   struct m0_be_tx_group *gr)
+-{
+-	gr->tg_opened = false;
+-}
+-
+ static void tx_engine_got_closed(struct m0_be_tx_engine *eng,
+ 				 struct m0_be_tx *tx)
+ {
+@@ -469,45 +399,7 @@ static void tx_engine_got_closed(struct m0_be_tx_engine *eng,
+ #endif
+ }
+ 
+-#define REGD_EXT(rd) {							\
+-	.e_start = (uint64_t)(rd)->rd_reg.br_addr,			\
+-	.e_end   = (uint64_t)(rd)->rd_reg.br_addr + (rd)->rd_reg.br_size - 1 \
+-}
+-
+-M0_UNUSED static int tx_reg_cmp(const void *p0, const void *p1)
+-{
+-	const struct m0_be_reg_d *r0   = p0;
+-	const struct m0_be_reg_d *r1   = p1;
+-	const struct m0_be_tx    *t0   = r0->rd_tx;
+-	const struct m0_be_tx    *t1   = r1->rd_tx;
+-	m0_bindex_t               idx0 = r0->rd_idx;
+-	m0_bindex_t               idx1 = r1->rd_idx;
+-	const struct m0_ext       e0   = REGD_EXT(r0);
+-	const struct m0_ext       e1   = REGD_EXT(r1);
+-	struct m0_ext             intersection;
+-
+-	M0_ASSERT(idx0 < t0->t_used.tc_reg_nr);
+-	M0_ASSERT(idx1 < t1->t_used.tc_reg_nr);
+-	M0_ASSERT(idx0 == r0 - t0->t_reg_d_area);
+-	M0_ASSERT(idx1 == r1 - t1->t_reg_d_area);
+-
+-	m0_ext_intersection(&e0, &e1, &intersection);
+-	return m0_ext_is_empty(&intersection) ?
+-		M0_3WAY(r0->rd_reg.br_addr, r1->rd_reg.br_addr) : 0;
+-}
+-
+-static void tx_group_add(struct m0_be_tx_engine *eng,
+-			 struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+-{
+-
+-	tx->t_group  = gr;
+-	tx->t_leader = gr_tlist_is_empty(&gr->tg_tx);
+-	tx_state_set(tx, M0_BTS_GROUPED);
+-	gr_tlist_add(&gr->tg_tx, tx);
+-	/* gr->tg_used.     XXX: what's here? */
+-}
+-
+-static void tx_state_set(struct m0_be_tx *tx, enum m0_be_tx_state state)
++M0_INTERNAL void tx_state_set(struct m0_be_tx *tx, enum m0_be_tx_state state)
+ {
+ 	M0_PRE(m0_be__tx_invariant(tx));
+ 
+@@ -551,72 +443,11 @@ static void tx_link(struct m0_be_tx *tx)
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+-M0_UNUSED static m0_bcount_t tx_group_header_size(m0_bcount_t tx_nr)
+-{
+-	return sizeof(struct tx_group_header) +
+-		tx_nr * sizeof(struct tx_group_entry);
+-}
+-
+-static m0_bcount_t tx_log_size(const struct m0_be_tx *tx,
+-			       const struct m0_be_tx_credit *cr, bool leader)
+-{
+-	return (leader ? sizeof(struct tx_group_header) : 0) +
+-		sizeof(struct tx_group_entry) + sizeof(struct tx_header) +
+-		tx->t_payload_size +
+-		cr->tc_reg_nr * sizeof(struct m0_be_reg_d) + cr->tc_reg_size;
+-}
+-
+-static m0_bcount_t tx_prepared_log_size(const struct m0_be_tx *tx)
+-{
+-	return tx_log_size(tx, &tx->t_prepared, true);
+-}
+-
+ static struct m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx)
+ {
+ 	return &tx->t_be->b_tx;
+ }
+ 
+-static void tx_group_fini(struct m0_be_tx_group *gr)
+-{
+-}
+-
+-static void tx_group_init(struct m0_be_tx_group *gr)
+-{
+-	/* M0_SET0(gr); */
+-
+-	gr->tg_lsn = 0ULL;
+-	gr->tg_opened = true;
+-	m0_be_tx_credit_init(&gr->tg_used);
+-	gr_tlist_init(&gr->tg_tx);
+-
+-}
+-
+-static bool credit_le(const struct m0_be_tx_credit *c0,
+-		      const struct m0_be_tx_credit *c1)
+-{
+-	return c0->tc_reg_nr <= c1->tc_reg_nr &&
+-		c0->tc_reg_size <= c1->tc_reg_size;
+-}
+-
+-static void credit_mod(struct m0_be_tx_credit *cr,
+-		       const struct m0_be_reg_d *rd, int sgn)
+-{
+-	M0_PRE(M0_IN(sgn, (+1, -1)));
+-
+-	cr->tc_reg_nr += sgn;
+-	cr->tc_reg_size += sgn * rd->rd_reg.br_size;
+-
+-	M0_ASSERT((int64_t)cr->tc_reg_nr >= 0);
+-	M0_ASSERT((int64_t)cr->tc_reg_size >= 0);
+-}
+-
+-M0_UNUSED static void tx_reg_ext(const struct m0_be_reg_d *rd, struct m0_ext *out)
+-{
+-	const struct m0_be_reg *reg = &rd->rd_reg;
+-	out->e_start = reg->br_addr - reg->br_seg->bs_addr;
+-	out->e_end   = out->e_start + reg->br_size - 1;
+-}
+-
+ M0_INTERNAL bool
+ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ {
+@@ -669,11 +500,6 @@ static void tx_engine_unlock(struct m0_be_tx_engine *eng)
+ 	m0_rwlock_write_unlock(&eng->te_lock);
+ }
+ 
+-static m0_bcount_t tx_log_free_space(const struct m0_be_tx_engine *eng)
+-{
+-	return eng->te_log.lg_size - eng->te_reserved; /* XXX */
+-}
+-
+ static const struct m0_be_tx *sm2tx(const struct m0_sm *sm)
+ {
+ 	return container_of(sm, const struct m0_be_tx, t_sm);
+@@ -684,16 +510,6 @@ static bool tx_invariant(const struct m0_sm *sm)
+ 	return m0_be__tx_invariant(sm2tx(sm));
+ }
+ 
+-static void log_init(struct m0_be_log *log)
+-{
+-	*log = (struct m0_be_log) {
+-		.lg_lsn         = 0ULL,
+-		.lg_size        = 1ULL << 26, /* 64 MB */
+-		.lg_gr_size_max = 1ULL << 20, /* 1  MB */
+-		.lg_stob        = NULL /* XXX */
+-	};
+-}
+-
+ /** @} struct of be group */
+ 
+ /*
+diff --git a/be/tx.h b/be/tx.h
+index 0d601f6..a4d6d54 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -22,26 +22,22 @@
+ #ifndef __MERO_BE_TX_H__
+ #define __MERO_BE_TX_H__
+ 
+-/* import */
+ #include "lib/rwlock.h"
+ #include "lib/tlist.h"
+ #include "lib/types.h"
+ #include "sm/sm.h"
++#include "be/tx_group.h"
++#include "be/tx_log.h"
+ 
+ /** @todo XXX TODO added by max as a temporary fix of compilation error */
+ typedef uint64_t m0_bindex_lsn;
+ 
+ struct m0_stob;
+ struct m0_be;
+-
+-/* export */
+ struct m0_be_tx_engine;
+-struct m0_be_tx_credit;
+ struct m0_be_tx;
+ 
+-/* internal */
+-struct m0_be_reg_d; /* tx.c */
+-struct m0_be_tx_group;
++struct m0_be_reg_d;
+ struct m0_be_reg;
+ 
+ /**
+@@ -285,129 +281,9 @@ enum m0_be_tx_state {
+ 	M0_BTS_NR
+ };
+ 
+-/**
+- * This structure encapsulates internals of transactional log.
+- *
+- * Logically, a log is an infinite sequence of transaction groups. New groups
+- * are added to the log as they are formed and old groups are retired, when
+- * their transaction stabilise.
+- *
+- * Physically, the log is implemented as a circular buffer on persistent
+- * storage. To make this implementation possible, transaction engine guarantees
+- * that the used portion of infinite log is never larger than the physical log
+- * size.
+- *
+- * A position in the log is identified by a "log sequence number" (lsn), which
+- * is simply an offset in the logical log. lsn uniquely identifies a point in
+- * system history.
+- */
+-struct m0_be_log {
+-	/**
+-	 * Underlying storage.
+-	 *
+-	 * @todo this might be changed to something more complicated to support
+-	 * flexible deployment and grow-able logs. E.g., a log can be stored in
+-	 * a sequence of regions in segments, linked to each other through
+-	 * header blocks.
+-	 */
+-	struct m0_stob  *lg_stob;
+-	/** Log size. */
+-	m0_bcount_t      lg_size;
+-	/**
+-	 * Maximal transaction group size.
+-	 *
+-	 * When a transaction group reaches this size, it is "closed" and new
+-	 * group starts forming.
+-	 */
+-	m0_bcount_t      lg_gr_size_max;
+-	/**
+-	 * lsn to be used for the next log element.
+-	 */
+-	m0_bindex_t      lg_lsn;
+-};
+-
+-/**
+- * Credit represents resources that a transaction could consume:
+- *
+- *     - for each region captured by an active transaction, contents of captured
+- *       region must be stored somewhere (to be written to the log later). That
+- *       requires memory, which must be pre-allocated before transaction
+- *       captures anything to avoid dead-locks;
+- *
+- *     - similarly, for each captured region, a fixed size region descriptor
+- *       (m0_be_reg_d) should be stored. The memory for the descriptor must be
+- *       pre-allocated;
+- *
+- *     - finally, before transaction captures anything, transaction engine must
+- *       assure that there is enough free space in the log to write
+- *       transaction's updates. The space required is proportional to total
+- *       number of regions captured by the transaction and to total size of
+- *       these regions.
+- *
+- * Hence, the user should inform the engine about amount and size of regions
+- * that the transaction would modify. This is achieved by calling
+- * m0_be_tx_prep() (possibly multiple times), while the transaction is in
+- * PREPARE state. The calls to m0_be_tx_prep() must be conservative: it is fine
+- * to prepare for more updates than the transaction will actually make (the
+- * latter quantity is usually impossible to know beforehand anyway), but the
+- * transaction must never capture more than it prepared.
+- */
+-struct m0_be_tx_credit {
+-	/**
+-	 * The number of regions needed for operation representation in the
+-	 * transaction.
+-	 */
+-	m0_bcount_t tc_reg_nr;
+-	/** Total size of memory needed for the same. */
+-	m0_bcount_t tc_reg_size;
+-};
+-
+-M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
+-
+-/** c0 += c1 */
+-M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
+-				     const struct m0_be_tx_credit *c1);
+-
+-/** c *= k */
+-M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
+-
+ typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
+ 
+ /**
+- * Transaction group is a collection of transactions, consecutive in closing
+- * order, that are written to the log and recovered together.
+- *
+- * A new group is initially empty. It absorbs transactions as they are closed,
+- * until the group either grows larger than m0_be_log::lg_gr_size_max or grows
+- * older than XXX. At that point, the group is closed and a new group is opened
+- * up to an upper limit (XXX) on groups number (1 is a possible and reasonable
+- * such limit).
+- *
+- * Once a group is closed it constructs in memory its persistent representation,
+- * consisting of group header, sequence of transaction representations and group
+- * commit block. The memory for this representation is pre-allocated in
+- * transaction engine to avoid dead-locks. Once representation is constructed,
+- * it is written to the log in one or multiple asynchronous IOs. Before group
+- * commit block is written, all other IOs for the group must complete. After
+- * that, the commit block is written. Once commit block IO completes, it is
+- * guaranteed that the entire group is on the log. Waiting for IO completion can
+- * be eliminated by using (currently unimplemented) barrier interface provided
+- * by m0_stob, or by placing in the commit block a strong checksum of group
+- * representation (the latter approach allows to check whether the entire group
+- * made it to the log).
+- *
+- */
+-struct m0_be_tx_group {
+-	/** lsn of transaction group header in the log. */
+-	m0_bindex_t             tg_lsn;
+-	bool                    tg_opened;
+-	/** Total size of all updates in all transactions in this group. */
+-	struct m0_be_tx_credit  tg_used;
+-	/** List of transactions in the group. */
+-	struct m0_tl            tg_tx;
+-};
+-
+-/**
+  * Transaction engine. Embedded in m0_be.
+  */
+ struct m0_be_tx_engine {
+@@ -626,6 +502,8 @@ M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
+  */
+ M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx);
+ 
++M0_INTERNAL void tx_state_set(struct m0_be_tx *tx, enum m0_be_tx_state state);
++
+ /** @} end of be group */
+ #endif /* __MERO_BE_TX_H__ */
+ 
+diff --git a/be/tx_credit.c b/be/tx_credit.c
+new file mode 100644
+index 0000000..40cfe70
+--- /dev/null
++++ b/be/tx_credit.c
+@@ -0,0 +1,80 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#include "be/tx_credit.h"
++#include "lib/misc.h"  /* M0_SET0 */
++
++/**
++ * @addtogroup be
++ *
++ * @{
++ */
++
++M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit)
++{
++	M0_SET0(credit);
++}
++
++M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
++				     const struct m0_be_tx_credit *c1)
++{
++	c0->tc_reg_nr   += c1->tc_reg_nr;
++	c0->tc_reg_size += c1->tc_reg_size;
++}
++
++M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
++{
++	c->tc_reg_nr   *= k;
++	c->tc_reg_size *= k;
++}
++
++M0_INTERNAL bool
++credit_le(const struct m0_be_tx_credit *c0, const struct m0_be_tx_credit *c1)
++{
++	return c0->tc_reg_nr <= c1->tc_reg_nr &&
++		c0->tc_reg_size <= c1->tc_reg_size;
++}
++
++M0_INTERNAL void
++credit_mod(struct m0_be_tx_credit *cr, const struct m0_be_reg_d *rd, int sgn)
++{
++	M0_PRE(M0_IN(sgn, (+1, -1)));
++
++	cr->tc_reg_nr += sgn;
++	cr->tc_reg_size += sgn * rd->rd_reg.br_size;
++
++	M0_ASSERT((int64_t)cr->tc_reg_nr >= 0);
++	M0_ASSERT((int64_t)cr->tc_reg_size >= 0);
++}
++
++/** @} end of be group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_credit.h b/be/tx_credit.h
+new file mode 100644
+index 0000000..235310b
+--- /dev/null
++++ b/be/tx_credit.h
+@@ -0,0 +1,97 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_TX_CREDIT_H__
++#define __MERO_BE_TX_CREDIT_H__
++
++#include "be/tx_regmap.h"  /* m0_be_reg_d */
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++/**
++ * Credit represents resources that a transaction could consume:
++ *
++ *     - for each region captured by an active transaction, contents of captured
++ *       region must be stored somewhere (to be written to the log later). That
++ *       requires memory, which must be pre-allocated before transaction
++ *       captures anything to avoid dead-locks;
++ *
++ *     - similarly, for each captured region, a fixed size region descriptor
++ *       (m0_be_reg_d) should be stored. The memory for the descriptor must be
++ *       pre-allocated;
++ *
++ *     - finally, before transaction captures anything, transaction engine must
++ *       assure that there is enough free space in the log to write
++ *       transaction's updates. The space required is proportional to total
++ *       number of regions captured by the transaction and to total size of
++ *       these regions.
++ *
++ * Hence, the user should inform the engine about amount and size of regions
++ * that the transaction would modify. This is achieved by calling
++ * m0_be_tx_prep() (possibly multiple times), while the transaction is in
++ * PREPARE state. The calls to m0_be_tx_prep() must be conservative: it is fine
++ * to prepare for more updates than the transaction will actually make (the
++ * latter quantity is usually impossible to know beforehand anyway), but the
++ * transaction must never capture more than it prepared.
++ */
++struct m0_be_tx_credit {
++	/**
++	 * The number of regions needed for operation representation in the
++	 * transaction.
++	 */
++	m0_bcount_t tc_reg_nr;
++	/** Total size of memory needed for the same. */
++	m0_bcount_t tc_reg_size;
++};
++
++M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
++
++/** c0 += c1 */
++M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
++				     const struct m0_be_tx_credit *c1);
++
++/** c *= k */
++M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
++
++M0_INTERNAL bool credit_le(const struct m0_be_tx_credit *c0,
++			   const struct m0_be_tx_credit *c1);
++M0_INTERNAL void credit_mod(struct m0_be_tx_credit *cr,
++			    const struct m0_be_reg_d *reg, int sgn);
++
++/** @} end of be group */
++#endif /* __MERO_BE_TX_CREDIT_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_group.c b/be/tx_group.c
+new file mode 100644
+index 0000000..d4d81cb
+--- /dev/null
++++ b/be/tx_group.c
+@@ -0,0 +1,81 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#include "be/tx_group.h"
++#include "be/tx.h"
++
++/**
++ * @addtogroup be
++ *
++ * @{
++ */
++
++M0_TL_DESCR_DEFINE(gr, "tx group", M0_INTERNAL, struct m0_be_tx,
++		   t_group_linkage, t_magic,
++		   M0_TRACE_TX_MAGIC,
++		   M0_TRACE_TX_GROUP_LIST_MAGIC);
++
++M0_TL_DEFINE(gr, M0_INTERNAL, struct m0_be_tx);
++
++M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr)
++{
++	/* M0_SET0(gr); */
++
++	gr->tg_lsn = 0ULL;
++	gr->tg_opened = true;
++	m0_be_tx_credit_init(&gr->tg_used);
++	gr_tlist_init(&gr->tg_tx);
++
++}
++
++M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr)
++{
++}
++
++M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
++			 struct m0_be_tx_group *gr, struct m0_be_tx *tx)
++{
++
++	tx->t_group  = gr;
++	tx->t_leader = gr_tlist_is_empty(&gr->tg_tx);
++	tx_state_set(tx, M0_BTS_GROUPED);
++	gr_tlist_add(&gr->tg_tx, tx);
++	/* gr->tg_used.     XXX: what's here? */
++}
++
++M0_INTERNAL void
++tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
++{
++	gr->tg_opened = false;
++}
++
++/** @} end of be group */
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_group.h b/be/tx_group.h
+new file mode 100644
+index 0000000..dc23b1f
+--- /dev/null
++++ b/be/tx_group.h
+@@ -0,0 +1,95 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_TX_GROUP_H__
++#define __MERO_BE_TX_GROUP_H__
++
++#include "be/tx_credit.h"
++
++struct m0_be_tx_engine;
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++/**
++ * Transaction group is a collection of transactions, consecutive in closing
++ * order, that are written to the log and recovered together.
++ *
++ * A new group is initially empty. It absorbs transactions as they are closed,
++ * until the group either grows larger than m0_be_log::lg_gr_size_max or grows
++ * older than XXX. At that point, the group is closed and a new group is opened
++ * up to an upper limit (XXX) on groups number (1 is a possible and reasonable
++ * such limit).
++ *
++ * Once a group is closed it constructs in memory its persistent representation,
++ * consisting of group header, sequence of transaction representations and group
++ * commit block. The memory for this representation is pre-allocated in
++ * transaction engine to avoid dead-locks. Once representation is constructed,
++ * it is written to the log in one or multiple asynchronous IOs. Before group
++ * commit block is written, all other IOs for the group must complete. After
++ * that, the commit block is written. Once commit block IO completes, it is
++ * guaranteed that the entire group is on the log. Waiting for IO completion can
++ * be eliminated by using (currently unimplemented) barrier interface provided
++ * by m0_stob, or by placing in the commit block a strong checksum of group
++ * representation (the latter approach allows to check whether the entire group
++ * made it to the log).
++ *
++ */
++struct m0_be_tx_group {
++	/** lsn of transaction group header in the log. */
++	m0_bindex_t             tg_lsn;
++	bool                    tg_opened;
++	/** Total size of all updates in all transactions in this group. */
++	struct m0_be_tx_credit  tg_used;
++	/** List of transactions in the group. */
++	struct m0_tl            tg_tx;
++};
++
++M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr);
++M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr);
++
++M0_INTERNAL void tx_group_add(struct m0_be_tx_engine *eng,
++			      struct m0_be_tx_group *gr,
++			      struct m0_be_tx *tx);
++M0_INTERNAL void tx_group_close(struct m0_be_tx_engine *eng,
++				struct m0_be_tx_group *gr);
++
++M0_TL_DESCR_DECLARE(gr, M0_EXTERN);
++M0_TL_DECLARE(gr, M0_INTERNAL, struct m0_be_tx);
++
++/** @} end of be group */
++#endif /* __MERO_BE_TX_GROUP_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_internal.h b/be/tx_internal.h
+deleted file mode 100644
+index 8d38b87..0000000
+--- a/be/tx_internal.h
++++ /dev/null
+@@ -1,61 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: xrgtn <alexander_gattin@xyratex.com>
+- * Original creation date: 14-Jun-2013
+- */
+-
+-
+-#pragma once
+-
+-#ifndef __MERO_BE_TX_INTERNAL_H__
+-#define __MERO_BE_TX_INTERNAL_H__
+-
+-/**
+- * @defgroup be
+- *
+- * @{
+- */
+-
+-struct m0_be_reg_d {
+-	struct m0_be_tx  *rd_tx;
+-	m0_bindex_t       rd_idx;
+-	struct m0_be_reg  rd_reg;
+-	void             *rd_buf;
+-};
+-
+-/* Regions tree node for tsearch(). */
+-struct m0_be_regdtree_node {
+-	struct m0_be_reg_d *bn_reg_d;
+-};
+-
+-/** @} end of be group */
+-
+-#endif /* __MERO_BE_TX_INTERNAL_H__ */
+-
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+-/*
+- * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+- */
+diff --git a/be/tx_log.c b/be/tx_log.c
+new file mode 100644
+index 0000000..95fd8e4
+--- /dev/null
++++ b/be/tx_log.c
+@@ -0,0 +1,93 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#include "be/tx_log.h"
++#include "be/tx.h"
++
++/**
++ * @addtogroup be
++ *
++ * @{
++ */
++
++struct tx_group_header {
++};
++
++struct tx_group_entry {
++};
++
++struct tx_header {
++};
++
++struct m0_be_tx_group_desc {
++	uint64_t tgd_size;
++	uint64_t tgd_tx_nr;
++};
++
++M0_INTERNAL m0_bcount_t tx_log_size(const struct m0_be_tx *tx,
++				    const struct m0_be_tx_credit *cr,
++				    bool leader)
++{
++	return (leader ? sizeof(struct tx_group_header) : 0) +
++		sizeof(struct tx_group_entry) + sizeof(struct tx_header) +
++		tx->t_payload_size +
++		cr->tc_reg_nr * sizeof(struct m0_be_reg_d) + cr->tc_reg_size;
++}
++
++M0_INTERNAL m0_bcount_t tx_log_free_space(const struct m0_be_tx_engine *eng)
++{
++	return eng->te_log.lg_size - eng->te_reserved; /* XXX */
++}
++
++M0_INTERNAL m0_bcount_t tx_prepared_log_size(const struct m0_be_tx *tx)
++{
++	return tx_log_size(tx, &tx->t_prepared, true);
++}
++
++M0_INTERNAL m0_bcount_t tx_group_header_size(m0_bcount_t tx_nr)
++{
++	return sizeof(struct tx_group_header) +
++		tx_nr * sizeof(struct tx_group_entry);
++}
++
++M0_INTERNAL void log_init(struct m0_be_log *log)
++{
++	*log = (struct m0_be_log) {
++		.lg_lsn         = 0ULL,
++		.lg_size        = 1ULL << 26, /* 64 MB */
++		.lg_gr_size_max = 1ULL << 20, /* 1  MB */
++		.lg_stob        = NULL /* XXX */
++	};
++}
++
++/** @} end of be group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_log.h b/be/tx_log.h
+new file mode 100644
+index 0000000..4e85e52
+--- /dev/null
++++ b/be/tx_log.h
+@@ -0,0 +1,101 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <maxim_medved@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_TX_LOG_H__
++#define __MERO_BE_TX_LOG_H__
++
++#include "lib/types.h"  /* m0_bcount_t */
++
++struct m0_be_tx;
++struct m0_be_tx_engine;
++struct m0_be_tx_credit;
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++/**
++ * This structure encapsulates internals of transactional log.
++ *
++ * Logically, a log is an infinite sequence of transaction groups. New groups
++ * are added to the log as they are formed and old groups are retired, when
++ * their transaction stabilise.
++ *
++ * Physically, the log is implemented as a circular buffer on persistent
++ * storage. To make this implementation possible, transaction engine guarantees
++ * that the used portion of infinite log is never larger than the physical log
++ * size.
++ *
++ * A position in the log is identified by a "log sequence number" (lsn), which
++ * is simply an offset in the logical log. lsn uniquely identifies a point in
++ * system history.
++ */
++struct m0_be_log {
++	/**
++	 * Underlying storage.
++	 *
++	 * @todo this might be changed to something more complicated to support
++	 * flexible deployment and grow-able logs. E.g., a log can be stored in
++	 * a sequence of regions in segments, linked to each other through
++	 * header blocks.
++	 */
++	struct m0_stob  *lg_stob;
++	/** Log size. */
++	m0_bcount_t      lg_size;
++	/**
++	 * Maximal transaction group size.
++	 *
++	 * When a transaction group reaches this size, it is "closed" and new
++	 * group starts forming.
++	 */
++	m0_bcount_t      lg_gr_size_max;
++	/**
++	 * lsn to be used for the next log element.
++	 */
++	m0_bindex_t      lg_lsn;
++};
++
++M0_INTERNAL m0_bcount_t tx_log_size(const struct m0_be_tx *tx,
++				    const struct m0_be_tx_credit *cr,
++				    bool leader);
++M0_INTERNAL m0_bcount_t tx_log_free_space(const struct m0_be_tx_engine *eng);
++M0_INTERNAL m0_bcount_t tx_prepared_log_size(const struct m0_be_tx *tx);
++M0_INTERNAL m0_bcount_t tx_group_header_size(m0_bcount_t tx_nr);
++
++M0_INTERNAL void log_init(struct m0_be_log *log);
++
++/** @} end of be group */
++#endif /* __MERO_BE_TX_LOG_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_regmap.c b/be/tx_regmap.c
+new file mode 100644
+index 0000000..6aa4c79
+--- /dev/null
++++ b/be/tx_regmap.c
+@@ -0,0 +1,78 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#include "be/tx_regmap.h"
++#include "be/tx.h"
++#include "lib/ext.h"  /* m0_ext */
++
++/**
++ * @addtogroup be
++ *
++ * @{
++ */
++
++#define REGD_EXT(rd) {                                                       \
++	.e_start = (uint64_t)(rd)->rd_reg.br_addr,                           \
++	.e_end   = (uint64_t)(rd)->rd_reg.br_addr + (rd)->rd_reg.br_size - 1 \
++}
++
++M0_INTERNAL int tx_reg_cmp(const void *p0, const void *p1)
++{
++	const struct m0_be_reg_d *r0   = p0;
++	const struct m0_be_reg_d *r1   = p1;
++	const struct m0_be_tx    *t0   = r0->rd_tx;
++	const struct m0_be_tx    *t1   = r1->rd_tx;
++	m0_bindex_t               idx0 = r0->rd_idx;
++	m0_bindex_t               idx1 = r1->rd_idx;
++	const struct m0_ext       e0   = REGD_EXT(r0);
++	const struct m0_ext       e1   = REGD_EXT(r1);
++	struct m0_ext             intersection;
++
++	M0_ASSERT(idx0 < t0->t_used.tc_reg_nr);
++	M0_ASSERT(idx1 < t1->t_used.tc_reg_nr);
++	M0_ASSERT(idx0 == r0 - t0->t_reg_d_area);
++	M0_ASSERT(idx1 == r1 - t1->t_reg_d_area);
++
++	m0_ext_intersection(&e0, &e1, &intersection);
++	return m0_ext_is_empty(&intersection) ?
++		M0_3WAY(r0->rd_reg.br_addr, r1->rd_reg.br_addr) : 0;
++}
++
++M0_INTERNAL void tx_reg_ext(const struct m0_be_reg_d *rd, struct m0_ext *out)
++{
++	const struct m0_be_reg *reg = &rd->rd_reg;
++	out->e_start = reg->br_addr - reg->br_seg->bs_addr;
++	out->e_end   = out->e_start + reg->br_size - 1;
++}
++
++/** @} end of be group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_regmap.h b/be/tx_regmap.h
+new file mode 100644
+index 0000000..d2dffe1
+--- /dev/null
++++ b/be/tx_regmap.h
+@@ -0,0 +1,64 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_TX_REGMAP_H__
++#define __MERO_BE_TX_REGMAP_H__
++
++#include "be/seg.h"  /* m0_be_reg */
++
++struct m0_ext;
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++struct m0_be_reg_d {
++	struct m0_be_tx  *rd_tx;
++	m0_bindex_t       rd_idx;
++	struct m0_be_reg  rd_reg;
++	void             *rd_buf;
++};
++
++/* Regions tree node for tsearch(). */
++struct m0_be_regdtree_node {
++	struct m0_be_reg_d *bn_reg_d;
++};
++
++M0_INTERNAL int tx_reg_cmp(const void *p0, const void *p1);
++M0_INTERNAL void tx_reg_ext(const struct m0_be_reg_d *rd, struct m0_ext *out);
++
++/** @} end of be group */
++#endif /* __MERO_BE_TX_REGMAP_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx_service.c b/be/tx_service.c
+index 64d6fe8..dc36cb0 100644
+--- a/be/tx_service.c
++++ b/be/tx_service.c
+@@ -20,10 +20,14 @@
+ 
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+-#define M0_ADDB_CT_CREATE_DEFINITION
+ #include "lib/trace.h"
++
+ #include "lib/errno.h"
++
++#undef M0_ADDB_CT_CREATE_DEFINITION
++#define M0_ADDB_CT_CREATE_DEFINITION
+ #include "addb/addb.h"
++
+ #include "lib/memory.h"
+ #include "be/tx_service.h"
+ 
+@@ -138,6 +142,7 @@ static void txs_stop(struct m0_reqh_service *service)
+ 	M0_ENTRY();
+ 	M0_LEAVE();
+ }
++
+ #undef M0_ADDB_CT_CREATE_DEFINITION
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end of be group */
+diff --git a/be/ut/Makefile.sub b/be/ut/Makefile.sub
+index 20c6664..d260e25 100644
+--- a/be/ut/Makefile.sub
++++ b/be/ut/Makefile.sub
+@@ -1,8 +1,12 @@
+-ut_libmero_ut_la_SOURCES += be/ut/alloc.c  \
+-                            be/ut/helper.c \
+-                            be/ut/list.c   \
+-                            be/ut/main.c   \
+-                            be/ut/seg.c    \
+-                            be/ut/btree.c  \
+-                            be/ut/tx.c     \
++ut_libmero_ut_la_SOURCES += be/ut/alloc.c     \
++                            be/ut/helper.c    \
++                            be/ut/list.c      \
++                            be/ut/main.c      \
++                            be/ut/seg.c       \
++                            be/ut/btree.c     \
++                            be/ut/tx.c        \
++                            be/ut/tx_credit.c \
++                            be/ut/tx_group.c  \
++                            be/ut/tx_log.c    \
++                            be/ut/tx_regmap.c \
+                             be/ut/extmap.c
+diff --git a/be/ut/tx_credit.c b/be/ut/tx_credit.c
+new file mode 100644
+index 0000000..a53fc77
+--- /dev/null
++++ b/be/ut/tx_credit.c
+@@ -0,0 +1,32 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/ut/tx_group.c b/be/ut/tx_group.c
+new file mode 100644
+index 0000000..a53fc77
+--- /dev/null
++++ b/be/ut/tx_group.c
+@@ -0,0 +1,32 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/ut/tx_log.c b/be/ut/tx_log.c
+new file mode 100644
+index 0000000..a53fc77
+--- /dev/null
++++ b/be/ut/tx_log.c
+@@ -0,0 +1,32 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/ut/tx_regmap.c b/be/ut/tx_regmap.c
+new file mode 100644
+index 0000000..a53fc77
+--- /dev/null
++++ b/be/ut/tx_regmap.c
+@@ -0,0 +1,32 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 17-Jun-2013
++ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+-- 
+1.8.3.2
+

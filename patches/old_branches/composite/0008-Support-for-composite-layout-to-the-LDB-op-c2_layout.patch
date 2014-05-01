@@ -1,0 +1,364 @@
+From 2110206f3a91d4e00893a618d539e4287ef0023f Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 25 Oct 2012 18:04:47 +0530
+Subject: [PATCH 008/172] Support for composite layout to the LDB op
+ c2_layout_add()
+
+---
+ layout/composite.c | 143 ++++++++++++++++++++++++++++++++++++++++++-----------
+ layout/composite.h |   8 ++-
+ layout/ut/layout.c |  91 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 210 insertions(+), 32 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index b3c7837..38a640d 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -63,7 +63,11 @@ struct composite_schema_data {
+ 	struct c2_emap csd_comp_layout_ext_map;
+ };
+ 
+-/** Prefix for the comp_layout_ext_map table. */
++/**
++ * Prefix for the comp_layout_ext_map table. The prefix helps to identify an
++ * extent map for a particular composite layout, from the set of extent maps
++ * for all the composite layouts.
++ */
+ struct layout_prefix {
+ 	/**
+ 	 * Layout id for the composite layout.
+@@ -71,10 +75,7 @@ struct layout_prefix {
+ 	 */
+ 	uint64_t lp_l_id;
+ 
+-	/**
+-	 * Filler since prefix is a 128 bit field.
+-	 * Currently un-used.
+-	 */
++	/** Filler since prefix is a 128 bit field; currently un-used. */
+ 	uint64_t lp_filler;
+ };
+ 
+@@ -99,8 +100,9 @@ static bool composite_invariant(const struct c2_composite_layout *cl)
+ 		c2_composite_layout_bob_check(cl) &&
+ 		c2_layout__invariant(&cl->cl_base) &&
+ 		cl->cl_sub_layouts != NULL &&
+-		cl->cl_nr != 0 &&
+ 		!c2_sub_layout_tlist_is_empty(cl->cl_sub_layouts) &&
++		cl->cl_nr > 1 && /* There have to be at least 2 sub-layouts */
++		cl->cl_nr == c2_sub_layout_tlist_length(cl->cl_sub_layouts) &&
+ 		c2_tl_forall(c2_sub_layout, sl, cl->cl_sub_layouts,
+ 			     c2_layout__invariant(sl->csl_l));
+ }
+@@ -297,7 +299,7 @@ struct c2_layout *c2_cl_to_layout(struct c2_composite_layout *cl)
+ /** Implementation of lo_recsize() for COMPOSITE layout type. */
+ static c2_bcount_t composite_recsize(const struct c2_layout *l)
+ {
+-	return 0;
++	return sizeof(struct c2_layout_rec);
+ }
+ 
+ /** Implementation of lto_register for COMPOSITE layout type. */
+@@ -461,6 +463,84 @@ static int composite_decode(struct c2_layout *l,
+ 	return rc;
+ }
+ 
++static int sublayouts_write(struct c2_layout *l,
++			    struct c2_composite_layout *cl,
++			    enum c2_layout_xcode_op op,
++			    struct c2_db_tx *tx)
++{
++	struct c2_composite_sub_layout *sl;
++	struct composite_schema_data   *csd;
++	struct c2_emap                 *emap;
++	struct c2_emap_cursor           it;
++	struct c2_emap_seg             *seg;
++	c2_bcount_t                     seg_len;
++	c2_bcount_t                     total;
++	struct layout_prefix            prefix;
++	struct c2_uint128              *prefix_addr;
++	uint32_t                        sublayouts_nr;//todo rm since in invar
++	c2_bcount_t                     len[cl->cl_nr];
++	uint64_t                        val[cl->cl_nr];
++	int                             rc;
++
++	struct c2_indexvec vec = {
++		.iv_vec = {
++			.v_nr    = ARRAY_SIZE(len),
++			.v_count = len
++		},
++		.iv_index = val
++	};
++
++	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_DELETE)));
++	C2_PRE(op == C2_LXO_DB_ADD); //todo handling add to start with
++
++	csd  = l->l_dom->ld_type_data[c2_composite_layout_type.lt_id];
++	emap = &csd->csd_comp_layout_ext_map;
++
++	prefix.lp_l_id = l->l_id;
++	prefix_addr = (struct c2_uint128 *)&prefix;
++
++	// todo Handle the first sub-layout case carefully
++	if (op == C2_LXO_DB_ADD)
++		rc = c2_emap_obj_insert(emap, tx, prefix_addr, 0);
++	C2_ASSERT(rc == 0); //todo handle err
++
++	rc = c2_emap_lookup(emap, tx, prefix_addr, 0 /* todo check */, &it);
++	C2_ASSERT(rc == 0); //todo handle err
++	seg = c2_emap_seg_get(&it);
++	C2_ASSERT(c2_emap_ext_is_first(&seg->ee_ext));
++	C2_ASSERT(c2_emap_ext_is_last(&seg->ee_ext));
++	seg_len = c2_ext_length(&seg->ee_ext);
++
++	total = 0;
++	sublayouts_nr = 0;
++	c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
++		len[sublayouts_nr] = sl->csl_ext.e_end - sl->csl_ext.e_start;
++		val[sublayouts_nr] = sl->csl_l->l_id;
++		total = total + len[sublayouts_nr];
++		++sublayouts_nr;
++	} c2_tl_endfor;
++	C2_ASSERT(sublayouts_nr == cl->cl_nr);
++	/*
++	 * Since the name-space of an extent map table is a set of all the
++	 * 64-bit unsigned numbers from 0 to C2_BINDEX_MAX, the length of the
++	 * last segment is set to "C2_BINDEX_MAX - total length of all the
++	 * earlier segments".
++	 */
++	//todo Eventually C2_ASSERT(total == seg_len);
++	len[ARRAY_SIZE(len) - 1] = seg_len + len[ARRAY_SIZE(len) - 1] - total;
++
++	if (op == C2_LXO_DB_ADD)
++		rc = c2_emap_split(&it, &vec);
++	C2_ASSERT(rc == 0); //todo Handle
++
++	c2_emap_close(&it);
++#if 0
++	else
++		rc = c2_emap_obj_delete(emap, tx, prefix_addr);
++#endif
++	return rc;
++}
++
+ /** Implementation of lo_encode() for composite layout type. */
+ static int composite_encode(struct c2_layout *l,
+ 			    enum c2_layout_xcode_op op,
+@@ -471,8 +551,9 @@ static int composite_encode(struct c2_layout *l,
+ 	struct c2_composite_sub_layout *sl;
+ 	struct sub_layouts_header       sl_header;
+ 	struct sub_layout_entry         sl_entry;
+-	uint32_t                        sublayouts_nr = 0;
++	uint32_t                        sublayouts_nr;//todo since in invar
+ 	c2_bcount_t                     nbytes;
++	int                             rc;
+ 
+ 	C2_PRE(l != NULL);
+ 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+@@ -481,14 +562,17 @@ static int composite_encode(struct c2_layout *l,
+ 	C2_PRE(out != NULL);
+ 
+ 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
+-	cl = c2_layout_to_cl(l);
+-	C2_ASSERT(c2_bufvec_cursor_step(out) >= sizeof sl_header);
+-	sl_header.slh_nr = cl->cl_nr;
+-	nbytes = c2_bufvec_cursor_copyto(out, &sl_header, sizeof sl_header);
+-	C2_ASSERT(nbytes == sizeof sl_header);
+ 
+-	C2_ASSERT(c2_bufvec_cursor_step(out) >= cl->cl_nr * sizeof sl_entry);
++	cl = c2_layout_to_cl(l);
+ 	if (op == C2_LXO_BUFFER_OP) {
++		C2_ASSERT(c2_bufvec_cursor_step(out) >= sizeof sl_header);
++		sl_header.slh_nr = cl->cl_nr;
++		nbytes = c2_bufvec_cursor_copyto(out, &sl_header,
++						 sizeof sl_header);
++		C2_ASSERT(nbytes == sizeof sl_header);
++		C2_ASSERT(c2_bufvec_cursor_step(out) >= cl->cl_nr *
++							sizeof sl_entry);
++		sublayouts_nr = 0;
+ 		c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+ 			sl_entry.sle_lid         = sl->csl_l->l_id;
+ 			sl_entry.sle_ext.e_start = sl->csl_ext.e_start;
+@@ -496,27 +580,26 @@ static int composite_encode(struct c2_layout *l,
+ 			nbytes = c2_bufvec_cursor_copyto(out, &sl_entry,
+ 							 sizeof sl_entry);
+ 			C2_ASSERT(nbytes == sizeof sl_entry);
++
+ 			++sublayouts_nr;
+ 		} c2_tl_endfor;
+ 		C2_ASSERT(sublayouts_nr == cl->cl_nr);
++		rc = 0;
++	} else if (op == C2_LXO_DB_UPDATE) {
++		/*
++		 * The auxiliary table viz. comp_layout_ext_map is not to be
++		 * modified for an update operation.
++		 */
++		rc = 0;
++	} else if (op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE) {
++		rc = sublayouts_write(l, cl, op, tx);
++		if (rc != 0) {
++			// todo
++		}
+ 	}
+ 
+-	/*
+-	@code
+-	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
+-            (op == C2_LXO_DB_DELETE)) {
+-		Form records for the cob_lists table by using data from the
+-		c2_layout object l and depending on the value of op,
+-		insert/update/delete those records to/from the cob_lists table.
+-	} else {
+-		Store composite layout type specific fields like information
+-		about the sub-layouts, into the buffer by referring it from
+-		c2_layout object l.
+-	}
+-	@endcode
+-	*/
+-	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
+-	return 0;
++	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
++	return rc;
+ }
+ 
+ static const struct c2_layout_ops composite_ops = {
+diff --git a/layout/composite.h b/layout/composite.h
+index aefec7c..5831969 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -64,10 +64,14 @@ struct c2_composite_layout {
+  * todo
+  */
+ struct c2_composite_sub_layout {
+-	/* Layout for a specific segment pointed by csl_extent. */
++	/** Layout for a specific segment pointed by csl_extent. */
+ 	struct c2_layout *csl_l;
+ 
+-	/* Segment of an object todo */
++	/** Segment of an object todo */
++	/*
++	 * todo Shall struct c2_indexvec be used in struct c2_composite_layout
++	 * instead to store segement info for all the sub-layouts?
++	 */
+ 	struct c2_ext     csl_ext;
+ 
+ 	/** Magic number todo. */
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 5762156..a6da37c 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -821,6 +821,7 @@ static void sub_layouts_build(uint64_t composite_lid,
+ 	c2_sub_layout_tlist_init(*sub_layout_list);
+ 	C2_UT_ASSERT(c2_sub_layout_tlist_is_empty(*sub_layout_list));
+ 
++	/* todo Check why the last seg shows the first sublayout-id n so on. */
+ 	c2_uint128_init(&seed, "sub_layouts_buil");
+ 	for (i = 0; i < num_sublayouts; ++i) {
+ 		/* Build a sub-layout. */
+@@ -3531,6 +3532,88 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
+ 	return rc;
+ }
+ 
++/* Tests the API c2_layout_add(), for the COMPOSITE layout type. */
++static int test_add_composite(uint64_t lid,
++			      bool layout_destroy, struct c2_layout **l_obj,
++			      bool duplicate_test,
++			      bool failure_test)
++{
++	c2_bcount_t                   num_bytes;
++	void                         *area;
++	struct c2_composite_layout   *cl;
++	struct c2_db_pair             pair;
++	struct c2_db_tx               tx;
++	struct c2_layout             *l;
++	uint64_t                      sub_layout_lid;
++	uint32_t                      i;
++	int                           rc_tmp;
++
++	C2_ENTRY("lid %llu", (unsigned long long)lid);
++	C2_UT_ASSERT(ergo(layout_destroy, l_obj == NULL));
++	C2_UT_ASSERT(ergo(!layout_destroy, l_obj != NULL));
++	C2_UT_ASSERT(ergo(duplicate_test, !failure_test));
++
++	allocate_area(&area, ADDITIONAL_BYTES_NONE, &num_bytes);
++
++	/* Build a layout object. */
++	rc = composite_layout_build(lid, &cl, 10, 400, failure_test);
++	C2_UT_ASSERT(rc == 0);
++
++	/* Add the layout object to the DB. */
++	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
++	C2_UT_ASSERT(rc == 0);
++
++	pair_set(&pair, &lid, area, num_bytes);
++
++	rc = c2_layout_add(&cl->cl_base, &tx, &pair);
++	if (failure_test)
++		C2_UT_ASSERT(rc == -ENOENT || rc == LO_ENCODE_ERR);
++		//todo check why -ENOENT err here n for pdclust
++	else
++		C2_UT_ASSERT(rc == 0);
++
++	rc_tmp = c2_db_tx_commit(&tx);
++	C2_UT_ASSERT(rc_tmp == 0);
++
++	C2_UT_ASSERT(list_lookup(lid) == &cl->cl_base);
++
++	/*
++	 * If duplicate_test is true, again try to add the same layout object
++	 * to the DB, to verify that it results into EEXIST error.
++	 */
++	if (duplicate_test) {
++		rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
++		C2_UT_ASSERT(rc == 0);
++
++		pair_set(&pair, &lid, area, num_bytes);
++
++		rc = c2_layout_add(&cl->cl_base, &tx, &pair);
++		C2_UT_ASSERT(rc == -EEXIST);
++
++		rc_tmp = c2_db_tx_commit(&tx);
++		C2_UT_ASSERT(rc_tmp == 0);
++	}
++
++	if (layout_destroy) {
++		c2_layout_put(&cl->cl_base);
++		C2_UT_ASSERT(list_lookup(lid) == NULL);
++
++		/* Delete all the sub-layouts. */
++		for (i = 0; i < 10; ++i) {
++			sub_layout_lid = lid * 100 + i;
++			l = c2_layout_find(&domain, sub_layout_lid);
++			c2_layout_put(l);
++			c2_layout_put(l);
++		}
++	}
++	else
++		*l_obj = &cl->cl_base;
++
++	c2_free(area);
++	C2_LEAVE("lid %llu", (unsigned long long)lid);
++	return rc;
++}
++
+ /* Tests the API c2_layout_add(). */
+ static void test_add(void)
+ {
+@@ -3581,6 +3664,14 @@ static void test_add(void)
+ 			      !DUPLICATE_TEST,
+ 			      !FAILURE_TEST);
+ 	C2_UT_ASSERT(rc == 0);
++
++	/* Add a layout object with COMPOSITE layout type. */
++	lid = 16005;
++	rc = test_add_composite(lid,
++				LAYOUT_DESTROY, NULL,
++				!DUPLICATE_TEST,
++				!FAILURE_TEST);
++	C2_UT_ASSERT(rc == 0);
+ }
+ 
+ static void test_add_failure(void)
+-- 
+1.8.3.2
+

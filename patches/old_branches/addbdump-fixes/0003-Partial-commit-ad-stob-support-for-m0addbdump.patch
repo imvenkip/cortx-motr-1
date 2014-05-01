@@ -1,0 +1,853 @@
+From 932658c559242dbbc5f3a73171001128a7378bcd Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Wed, 8 Jan 2014 14:30:34 +0530
+Subject: [PATCH 3/5] Partial commit, ad stob support for m0addbdump
+
+---
+ Makefile.am            |  22 +++----
+ addb/dump/Makefile.sub |   3 +-
+ addb/dump/addbdump.c   | 170 ++++++++++++++++++++++++++++++++++++++-----------
+ addb/ut/addb_ut_fom.c  |   2 +-
+ balloc/balloc.c        |  24 ++++---
+ balloc/balloc.h        |   5 ++
+ be/extmap.c            |  10 ++-
+ be/extmap.h            |   1 +
+ be/seg.c               |  12 +++-
+ db/db.c                |   5 +-
+ mero/setup.c           |   4 +-
+ stob/ad.c              |  33 ++++++++--
+ stob/ad.h              |   2 +
+ stob/stob.c            |   4 ++
+ 14 files changed, 223 insertions(+), 74 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index c0a708d..f551aba 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -620,18 +620,16 @@ bin_PROGRAMS             += pool/m0poolmach
+ pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
+ pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
+ 
+-#XXX_BE_DB #
+-#XXX_BE_DB # addb/dump
+-#XXX_BE_DB #
+-#XXX_BE_DB
+-#XXX_BE_DB sbin_PROGRAMS                 += addb/dump/m0addbdump
+-#XXX_BE_DB addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
+-#XXX_BE_DB addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
+-#XXX_BE_DB
+-#XXX_BE_DB include $(top_srcdir)/addb/dump/Makefile.sub
+-#XXX_BE_DB
+-#XXX_BE_DB #
+-#XXX_BE_DB # mgmt/ctl/m0ctl
++#
++# addb/dump
++#
++sbin_PROGRAMS                 += addb/dump/m0addbdump
++addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
++addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
++include $(top_srcdir)/addb/dump/Makefile.sub
++#
++
++# mgmt/ctl/m0ctl
+ #XXX_BE_DB # (This is unrelated to utils/linux_kernel/ctl.c).
+ #XXX_BE_DB #
+ #XXX_BE_DB
+diff --git a/addb/dump/Makefile.sub b/addb/dump/Makefile.sub
+index b31b0d0..345cecd 100644
+--- a/addb/dump/Makefile.sub
++++ b/addb/dump/Makefile.sub
+@@ -1,4 +1,5 @@
+-addb_dump_m0addbdump_SOURCES  = addb/dump/addbdump.c
++addb_dump_m0addbdump_SOURCES  = addb/dump/addbdump.c \
++				balloc/balloc.c
+ 
+ EXTRA_DIST += addb/dump/m0addbdump.sh.in \
+               addb/dump/st/m0addbdump.py
+diff --git a/addb/dump/addbdump.c b/addb/dump/addbdump.c
+index 4552c6e..94fb981 100644
+--- a/addb/dump/addbdump.c
++++ b/addb/dump/addbdump.c
+@@ -24,12 +24,14 @@
+ #include "lib/memory.h"
+ #include "lib/misc.h" /* M0_SET0 */
+ #include "lib/thread.h" /* LAMBDA */
++#include "lib/locality.h"
+ #include "balloc/balloc.h"
+ #include "dtm/dtm.h"
+ #include "mero/init.h"
+ #include "mero/setup.h"
+ #include "stob/ad.h"
+ #include "stob/linux.h"
++#include "balloc/balloc.h"
+ 
+ /*
+  * Tracks related information pertinent to AD stob.
+@@ -41,6 +43,9 @@ struct dump_ad_stob {
+ 	struct m0_stob_id      as_id_back;
+ 	/* Back end storage object. */
+ 	struct m0_stob        *as_stob_back;
++	struct m0_stob_id      as_be_id_back;
++	struct m0_stob        *as_be_stob_back;
++
+ };
+ 
+ /*
+@@ -78,8 +83,8 @@ struct addb_dump_ops {
+ struct addb_dump_ctl {
+ 	/* ADDB Storage path */
+ 	const char                  *adc_stpath;
+-	/* Database environment path. */
+-	const char                  *adc_dbpath;
++	/* BE path. */
++	const char                  *adc_bepath;
+ 	/* Binary data input file path */
+ 	const char                  *adc_infile;
+ 	/* Flags for record cursor */
+@@ -93,6 +98,9 @@ struct addb_dump_ctl {
+ 	const char                  *adc_errstr;
+ 	int                          adc_stype_nr;
+ 	struct m0_dbenv              adc_db;
++	struct m0_dtx                adc_dtx;
++	struct m0_be_ut_backend      adc_be;
++	struct m0_be_seg             adc_be_seg;
+ 	struct dump_stob             adc_stob;
+ 	struct m0_addb_segment_iter *adc_iter;
+ 	FILE                        *adc_out;
+@@ -121,7 +129,6 @@ static int dump_linux_stob_init(struct addb_dump_ctl *ctl)
+ }
+ 
+ static int dump_stob_locate(struct m0_stob_domain *dom,
+-			    struct m0_dtx *dtx,
+ 			    const struct m0_stob_id *stob_id,
+ 			    struct m0_stob **out)
+ {
+@@ -130,6 +137,7 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
+ 
+ 	*out = NULL;
+ 	rc = m0_stob_find(dom, stob_id, &stob);
++	printf("m0_stob_find: rc: %d\n", rc);
+ 	if (rc == 0) {
+ 		/*
+ 		 * Here, stob != NULL and m0_stob_find() has taken reference on
+@@ -137,7 +145,7 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
+ 		 * point.
+ 		 */
+ 		if (stob->so_state == CSS_UNKNOWN)
+-			rc = m0_stob_locate(stob, dtx);
++			rc = m0_stob_locate(stob);
+ 		/* do not attempt to create, this is a dump utility! */
+ 		if (rc != 0) {
+ 			m0_stob_put(stob);
+@@ -149,50 +157,103 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
+ 	return rc;
+ }
+ 
++//#define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
++#define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
++
+ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
+-			     struct m0_dtx *tx, struct m0_dbenv *db)
++			     struct m0_dbenv *db, struct m0_be_ut_backend *be,
++			     struct m0_be_seg *be_seg)
+ {
+ 
+ 	char                 ad_dname[MAXPATHLEN];
+ 	struct dump_ad_stob *adstob;
+-	struct m0_stob_id   *bstob_id;
+-	struct m0_stob     **bstob;
+-	struct m0_balloc    *cb;
++	struct m0_stob_id   *bstob_id, *bestob_id;
++	struct m0_stob     **bstob, **bestob;
++//	struct m0_balloc    *cb;
+ 	int                  rc;
++	struct m0_stob_domain *be_stob_dom;
++	struct m0_sm_group *grp = NULL;// m0_locality0_get()->lo_grp;
+ 
+         M0_PRE(stob != NULL && db != NULL);
+ 	M0_ALLOC_PTR(adstob);
+ 	if (adstob == NULL)
+ 		return -ENOMEM;
+ 
+-	m0_dtx_open(tx, db);
++	M0_ALLOC_PTR(be_stob_dom);
++	if (be_stob_dom == NULL)
++		return -ENOMEM;
++
++	bestob = &adstob->as_be_stob_back;
++	bestob_id = &adstob->as_be_id_back;
++	bestob_id->si_bits.u_hi = cid;
++	bestob_id->si_bits.u_lo = /*M0_AD_STOB_ID_LO*/ 43;
++//	rc = dump_stob_locate(stob->s_ldom, bstob_id, bstob);
++//	rc = m0_be_ut_stob_get_by_id(M0_AD_STOB_ID_LO, false);
++	printf("ad 1\n");
++	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &be_stob_dom);
++	M0_ASSERT(rc == 0);
++	rc = dump_stob_locate(be_stob_dom, bestob_id, bestob);
++	M0_ASSERT(rc == 0);
++
++	/* ADDB backend linux stob setup */
+ 	bstob = &adstob->as_stob_back;
+ 	bstob_id = &adstob->as_id_back;
+ 	bstob_id->si_bits.u_hi = cid;
+ 	bstob_id->si_bits.u_lo = M0_AD_STOB_ID_LO;
+-	rc = dump_stob_locate(stob->s_ldom, tx, bstob_id, bstob);
++	rc = dump_stob_locate(stob->s_ldom, bstob_id, bstob);
++	//	rc = m0_linux_stob_domain_locate(BE_UT_H_STORAGE_DIR, &be_stob_dom);
++	M0_ASSERT(rc == 0);
+ 	if (rc == 0) {
++		printf("bestob: %p\n", *bestob);
++		m0_be_ut_backend_init(be);
++		m0_be_ut_backend_new_grp_lock_state_set(be, true);
++		grp = m0_be_ut_backend_sm_group_lookup(be);
++		M0_ASSERT(grp != NULL);
++		m0_sm_group_lock(grp);
++		m0_be_seg_init(be_seg, *bestob, &be->but_dom);
++		printf("ad 2\n");
++		rc = m0_be_seg_open(be_seg);
++		printf("ad 3\n");
++		M0_ASSERT(rc == 0);
++		m0_be_allocator_init(m0_be_seg_allocator(be_seg), be_seg);
++		m0_be_seg_dict_init(be_seg);
++
+ 		sprintf(ad_dname, "%lx%lx",
+-			bstob_id->si_bits.u_hi, bstob_id->si_bits.u_lo);
+-		rc = m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom,
+-					      *bstob);
++			bstob_id->si_bits.u_hi,
++			bstob_id->si_bits.u_lo);
++
++		rc = m0_ad_stob_domain_locate(ad_dname, be_seg, grp,
++				&adstob->as_dom, *bstob);
++		m0_sm_group_unlock(grp);
++		printf("ad 4\n");
+ 	}
+ 	if (rc != 0) {
+-		if (*bstob != NULL) {
+-			m0_stob_put(*bstob);
+-			*bstob = NULL;
++		if (*bestob != NULL) {
++			m0_stob_put(*bestob);
++			*bestob = NULL;
+ 		}
+ 		m0_free(adstob);
+ 	} else {
+ 		M0_ASSERT(stob->s_adom == NULL);
+ 		stob->s_adom = adstob;
+-		rc = m0_balloc_allocate(cid, &cb) ?:
+-		    m0_ad_stob_setup(adstob->as_dom, db,
+-				     *bstob, &cb->cb_ballroom,
+-				     BALLOC_DEF_CONTAINER_SIZE,
+-				     BALLOC_DEF_BLOCK_SHIFT,
+-				     BALLOC_DEF_BLOCKS_PER_GROUP,
+-				     BALLOC_DEF_RESERVED_GROUPS);
++		adstob->as_dom->sd_ops = &ad_stob_domain_op;
++#if 0
++		m0_sm_group_lock(grp);
++		rc = m0_balloc_create(cid, be_seg, NULL, &cb);
++		if (rc == 0) {
++			cb->cb_ballroom.ab_ops = &balloc_ops;
++			adstob->as_dom->sd_ops = &ad_stob_domain_op;
++			printf("stob domain name: '%s'\n", adstob->as_dom->sd_name);
++			rc = m0_ad_stob_setup(adstob->as_dom, be_seg, grp,
++					*bstob, &cb->cb_ballroom,
++					BALLOC_DEF_CONTAINER_SIZE,
++					BALLOC_DEF_BLOCK_SHIFT,
++					BALLOC_DEF_BLOCKS_PER_GROUP,
++					BALLOC_DEF_RESERVED_GROUPS);
++		}
++		m0_sm_group_unlock(grp);
++#endif
++		printf("ad 5\n");
+ 	}
+ 	return rc;
+ }
+@@ -201,7 +262,7 @@ static void dump_linux_stob_fini(struct dump_stob *stob)
+ {
+ 	M0_PRE(stob != NULL);
+ 	if (stob->s_ldom != NULL)
+-                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
++                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom, NULL);
+ }
+ 
+ static void dump_ad_stob_fini(struct dump_stob *stob)
+@@ -218,7 +279,7 @@ static void dump_ad_stob_fini(struct dump_stob *stob)
+ 		adom = adstob->as_dom;
+ 		if (bstob != NULL)
+ 			m0_stob_put(bstob);
+-		adom->sd_ops->sdo_fini(adom);
++		adom->sd_ops->sdo_fini(adom, NULL);
+ 		stob->s_adom = NULL;
+ 		m0_free(adstob);
+ 	}
+@@ -240,50 +301,76 @@ static void cleanup(struct addb_dump_ctl *ctl)
+ 	if (ctl->adc_iter != NULL)
+ 		m0_addb_segment_iter_free(ctl->adc_iter);
+ 	dump_storage_fini(&ctl->adc_stob);
++#if 0
+ 	if (ctl->adc_dbpath != NULL)
+ 		m0_dbenv_fini(&ctl->adc_db);
++#endif
+ }
+ 
+ static int setup(struct addb_dump_ctl *ctl)
+ {
+-	struct m0_dtx tx;
+ 	int           rc;
++	//struct m0_sm_group *grp = NULL;
+ 
++/*
+ 	if (ctl->adc_dbpath != NULL) {
+ 		rc = m0_dbenv_init(&ctl->adc_db, ctl->adc_dbpath, 0);
+ 		if (rc != 0) {
+ 			ctl->adc_errstr = ctl->adc_dbpath;
+ 			return rc;
+ 		}
+-	} else if (ctl->adc_infile != NULL) {
++	} else */if (ctl->adc_infile != NULL) {
+ 		rc = m0_addb_file_iter_alloc(&ctl->adc_iter, ctl->adc_infile);
+ 		if (rc != 0)
+ 			ctl->adc_errstr = ctl->adc_infile;
+ 		return rc;
+ 	}
++	printf("setup 1\n");
+ 
+ 	ctl->adc_stob.s_stype_nr = ctl->adc_stype_nr;
+-	m0_dtx_init(&tx);
+ 	rc = dump_linux_stob_init(ctl);
+-	if (rc == 0 && ctl->adc_stype_nr == M0_AD_STOB)
++	if (rc == 0 && ctl->adc_stype_nr == M0_AD_STOB) {
+ 		rc = dump_ad_stob_init(&ctl->adc_stob, M0_ADDB_STOB_ID_HI,
+-				       &tx, &ctl->adc_db);
++				       &ctl->adc_db, &ctl->adc_be,
++				       &ctl->adc_be_seg);
++	}
+ 
++	printf("setup 2 : rc: %d\n", rc);
+ 	if (rc == 0) {
++		printf("ad stob dom: %p\n", ctl->adc_stob.s_adom->as_dom);
+ 		rc = dump_stob_locate(ctl->adc_stype_nr == M0_LINUX_STOB ?
+ 				      ctl->adc_stob.s_ldom :
+ 				      ctl->adc_stob.s_adom->as_dom,
+-				      &tx, &m0_addb_stob_id,
++				      &m0_addb_stob_id,
+ 				      &ctl->adc_stob.s_stob);
++			printf("setup 3: rc: %d\n", rc);
+ 	}
+-	m0_dtx_done(&tx);
+-	if (rc != 0 && ctl->adc_dbpath != NULL)
++#if 0
++		if (ctl->adc_stype_nr == M0_LINUX_STOB)
++		rc = dump_stob_locate(ctl->adc_stob.s_ldom,
++				      &m0_addb_stob_id,
++				      &ctl->adc_stob.s_stob);
++		else {
++			grp = m0_be_ut_backend_sm_group_lookup(&ctl->adc_be);
++			m0_sm_group_lock(grp);
++			m0_dtx_init(&ctl->adc_dtx, ctl->adc_be_seg.bs_domain,
++				    grp);
++			rc = m0_stob_find(ctl->adc_stob.s_adom->as_dom,
++					&m0_addb_stob_id, &ctl->adc_stob.s_stob);
++			m0_stob_create_credit(ctl->adc_stob.s_stob, &ctl->adc_dtx.tx_betx_cred);
++			rc = (ctl->adc_stob.s_adom->as_dom)->sd_ops->sdo_tx_make(ctl->adc_stob.s_adom->as_dom, &ctl->adc_dtx);
++		rc = m0_stob_create(ctl->adc_stob.s_stob, &ctl->adc_dtx);
++		//m0_dtx_fini(&ctl->adc_dtx);
++		m0_sm_group_unlock(grp);
++#endif
++	if (rc != 0 && ctl->adc_bepath != NULL)
+ 		dump_storage_fini(&ctl->adc_stob);
+ 	if (rc != 0)
+ 		ctl->adc_errstr = ctl->adc_stpath;
+ 	else
+ 		rc = m0_addb_stob_iter_alloc(&ctl->adc_iter,
+ 					     ctl->adc_stob.s_stob);
++	printf("setup 4: rc: %d\n", rc);
+ 	return rc;
+ }
+ 
+@@ -770,15 +857,19 @@ static int dump(struct addb_dump_ctl *ctl)
+ 	else
+ 		ctl->adc_ops = &dump_text_ops;
+ 	rc = m0_addb_cursor_init(&cur, ctl->adc_iter, ctl->adc_dump_flags);
++	printf("dump 1\n");
+ 	if (rc != 0)
+ 		return rc;
++	printf("dump 2\n");
+ 	while (1) {
++		printf("dump 3\n");
+ 		rc = m0_addb_cursor_next(&cur, &rec);
+ 		if (rc == -ENODATA) {
+ 			if (count != 0)
+ 				rc = 0;
+ 			break;
+ 		}
++		printf("dump 4\n");
+ 		M0_ASSERT(rec != NULL);
+ 		cur_seq_nr = ctl->adc_iter->asi_seq_get(ctl->adc_iter);
+ 		if (seq_nr != cur_seq_nr) {
+@@ -874,13 +965,13 @@ int main(int argc, char *argv[])
+ 					else
+ 						ctl.adc_stpath = str;
+ 				})),
+-			M0_STRINGARG('D', "Database environment path",
++			M0_STRINGARG('B', "BE path",
+ 				LAMBDA(void, (const char *str)
+ 				{
+-					if (ctl.adc_dbpath != NULL)
++					if (ctl.adc_bepath != NULL)
+ 						rc = -EINVAL;
+ 					else
+-						ctl.adc_dbpath = str;
++						ctl.adc_bepath = str;
+ 				})),
+ 			M0_FLAGARG('b', "Dump binary data", &dump_binary),
+ 			M0_FLAGARG('c', "Dump context records", &dump_ctx),
+@@ -922,7 +1013,7 @@ int main(int argc, char *argv[])
+ 			goto done;
+ 		} else if (ctl.adc_infile != NULL) {
+ 			if (stype != NULL || dump_binary ||
+-			    ctl.adc_stpath != NULL || ctl.adc_dbpath != NULL) {
++			    ctl.adc_stpath != NULL || ctl.adc_bepath != NULL) {
+ 				rc = EINVAL;
+ 				addbdump_help(stderr);
+ 				goto done;
+@@ -931,7 +1022,7 @@ int main(int argc, char *argv[])
+ 			ctl.adc_stype_nr = stype_parse(stype);
+ 			if (ctl.adc_stype_nr == M0_STOB_TYPE_NR ||
+ 			    ctl.adc_stpath == NULL ||
+-			    (ctl.adc_dbpath == NULL &&
++			    (ctl.adc_bepath == NULL &&
+ 			     ctl.adc_stype_nr == M0_AD_STOB)) {
+ 				rc = EINVAL;
+ 				addbdump_help(stderr);
+@@ -955,7 +1046,9 @@ int main(int argc, char *argv[])
+ 	} else {
+ 		ctl.adc_out = stdout;
+ 	}
++	printf("hello 1\n");
+ 	rc = setup(&ctl);
++	printf("hello 2\n");
+ 	if (rc != 0)
+ 		goto done;
+ 	ctl.adc_iter->asi_seq_set(ctl.adc_iter, min_seg_id);
+@@ -963,6 +1056,7 @@ int main(int argc, char *argv[])
+ 		rc = bindump(&ctl);
+ 	else
+ 		rc = dump(&ctl);
++	printf("hello 3\n");
+ 	cleanup(&ctl);
+ done:
+ 	if (ctl.adc_out != NULL && ctl.adc_out != stdout)
+diff --git a/addb/ut/addb_ut_fom.c b/addb/ut/addb_ut_fom.c
+index 614eb36..a23e809 100644
+--- a/addb/ut/addb_ut_fom.c
++++ b/addb/ut/addb_ut_fom.c
+@@ -124,7 +124,7 @@ fill_global_array_with_last_posted_addb_rec(struct rpcsink *rsink)
+ }
+ 
+ static char *addb_server_argv[] = {
+-	"rpclib_ut", "-r", "-p", "-T", "linux", "-D", SERVER_DB_NAME,
++	"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_NAME,
+ 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
+ 	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-s", "addb", "-w",
+ 	"10"
+diff --git a/balloc/balloc.c b/balloc/balloc.c
+index cb0cb28..0423d11 100644
+--- a/balloc/balloc.c
++++ b/balloc/balloc.c
+@@ -1699,7 +1699,7 @@ out:
+ 	return rc;
+ }
+ 
+-static void
++M0_INTERNAL void
+ balloc_alloc_credit(const struct m0_ad_balloc *balroom, int nr,
+ 			  struct m0_be_tx_credit *accum)
+ {
+@@ -1921,7 +1921,7 @@ out:
+ 	M0_RETURN(rc);
+ }
+ 
+-static void balloc_free_credit(const struct m0_ad_balloc *balroom, int nr,
++M0_INTERNAL void balloc_free_credit(const struct m0_ad_balloc *balroom, int nr,
+ 				     struct m0_be_tx_credit *accum)
+ {
+ 	balloc_db_update_credit(b2m0(balroom), nr, accum);
+@@ -2045,7 +2045,7 @@ static bool balloc_query(struct m0_balloc *ctx, struct m0_ext *ext)
+  * @param count count of bytes. count will be first aligned to block boundry.
+  * @param out result is stored there. space is still in bytes.
+  */
+-static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
++M0_INTERNAL int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
+ 			m0_bcount_t count, struct m0_ext *out)
+ {
+ 	struct m0_balloc		*mero = b2m0(ballroom);
+@@ -2083,7 +2083,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
+  * free spaces to container.
+  * @param ext the space to be freed. This space must align to block boundry.
+  */
+-static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
++M0_INTERNAL int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
+ 		       struct m0_ext *ext)
+ {
+ 	struct m0_balloc		*mero = b2m0(ballroom);
+@@ -2101,7 +2101,7 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
+ 	return rc;
+ }
+ 
+-static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
++M0_INTERNAL int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
+ 		       struct m0_sm_group *grp,
+ 		       uint32_t bshift, m0_bcount_t container_size,
+ 		       m0_bcount_t blocks_per_group, m0_bcount_t res_groups)
+@@ -2110,6 +2110,7 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
+ 	int			 rc;
+ 	M0_ENTRY();
+ 
++	m0_console_printf("rohan\n");
+ 	mero = b2m0(ballroom);
+ 
+ 	rc = balloc_init_internal(mero, db, grp, bshift, container_size,
+@@ -2118,7 +2119,7 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
+ 	M0_RETURN(rc);
+ }
+ 
+-static void balloc_fini(struct m0_ad_balloc *ballroom)
++M0_INTERNAL void balloc_fini(struct m0_ad_balloc *ballroom)
+ {
+ 	struct m0_balloc	*mero = b2m0(ballroom);
+ 
+@@ -2129,7 +2130,7 @@ static void balloc_fini(struct m0_ad_balloc *ballroom)
+ 	M0_LEAVE();
+ }
+ 
+-static const struct m0_ad_balloc_ops balloc_ops = {
++const struct m0_ad_balloc_ops balloc_ops = {
+ 	.bo_init  = balloc_init,
+ 	.bo_fini  = balloc_fini,
+ 	.bo_alloc = balloc_alloc,
+@@ -2212,10 +2213,13 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
+ 	M0_PRE(out != NULL);
+ 
+ 	sprintf(cid_name, "%llu", (unsigned long long)cid);
++	m0_console_printf("balloc_create 1\n");
+ 	rc = m0_be_seg_dict_lookup(seg, cid_name, (void**)out);
+-	if (rc == 0)
++	if (rc == 0) {
++		m0_console_printf("*out: %p\n", *out);
+ 		return rc;
+-
++	}
++	m0_console_printf("balloc_create 2\n");
+ 	m0_be_tx_init(&tx, 0, seg->bs_domain,
+ 		      grp, NULL, NULL, NULL, NULL);
+ 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);
+@@ -2239,6 +2243,8 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
+ 			if (rc == 0) {
+ 				cb->cb_container_id = cid;
+ 				cb->cb_ballroom.ab_ops = &balloc_ops;
++				m0_console_printf("balloc ops s: %p\n", &balloc_ops);
++				m0_console_printf("balloc_init s: %p\n", balloc_ops.bo_init);
+ 
+ 				m0_be_btree_init(&cb->cb_db_group_extents, seg,
+ 						 &ge_btree_ops);
+diff --git a/balloc/balloc.h b/balloc/balloc.h
+index f8f619c..80db8f3 100644
+--- a/balloc/balloc.h
++++ b/balloc/balloc.h
+@@ -287,6 +287,11 @@ M0_INTERNAL void m0_balloc_lock_group(struct m0_balloc_group_info *grp);
+ M0_INTERNAL int m0_balloc_trylock_group(struct m0_balloc_group_info *grp);
+ M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp);
+ 
++M0_INTERNAL int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
++		       struct m0_sm_group *grp,
++		       uint32_t bshift, m0_bcount_t container_size,
++		       m0_bcount_t blocks_per_group, m0_bcount_t res_groups);
++extern const struct m0_ad_balloc_ops balloc_ops;
+ /** @} end of balloc */
+ 
+ #endif /*__MERO_BALLOC_BALLOC_H__*/
+diff --git a/be/extmap.c b/be/extmap.c
+index f09aab5..b8e3834 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -121,7 +121,7 @@ static const struct m0_be_btree_kv_ops be_emap_ops = {
+ 	.ko_compare = be_emap_cmp
+ };
+ 
+-M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
++M0_INTERNAL void emap_dump(struct m0_be_emap_cursor *it)
+ {
+ 	struct m0_be_emap_cursor scan;
+ 	struct m0_uint128       *prefix = &it->ec_key.ek_prefix;
+@@ -133,11 +133,17 @@ M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
+ 	rc = be_emap_lookup(it->ec_map, prefix, 0, &scan);
+ 	M0_ASSERT(rc == 0);
+ 
+-	M0_LOG(M0_DEBUG, "%010lx:%010lx:", prefix->u_hi, prefix->u_lo);
++	//M0_LOG(M0_DEBUG, "%010lx:%010lx:", prefix->u_hi, prefix->u_lo);
++	m0_console_printf("%010lx:%010lx:", prefix->u_hi, prefix->u_lo);
+ 	for (i = 0; ; ++i) {
++#if 0
+ 		M0_LOG(M0_DEBUG, "\t%5.5i %16lx .. %16lx: %16lx %10lx", i,
+ 		       seg->ee_ext.e_start, seg->ee_ext.e_end,
+ 		       m0_ext_length(&seg->ee_ext), seg->ee_val);
++#endif
++		m0_console_printf("\t%5.5i %16lx .. %16lx: %16lx %10lx", i,
++		       seg->ee_ext.e_start, seg->ee_ext.e_end,
++		       m0_ext_length(&seg->ee_ext), seg->ee_val);
+ 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
+ 			break;
+ 		rc = be_emap_next(&scan);
+diff --git a/be/extmap.h b/be/extmap.h
+index 3ce5996..51809e6 100644
+--- a/be/extmap.h
++++ b/be/extmap.h
+@@ -401,6 +401,7 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
+ 				   m0_bcount_t             nr,
+ 				   struct m0_be_tx_credit *accum);
+ 
++M0_INTERNAL void emap_dump(struct m0_be_emap_cursor *it);
+ /** @} end group extmap */
+ 
+ /* __MERO_BE_EXTMAP_H__ */
+diff --git a/be/seg.c b/be/seg.c
+index d3c846a..86dce4f 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -31,6 +31,7 @@
+ 
+ #include <sys/mman.h>         /* mmap */
+ #include <search.h>           /* twalk */
++#include "lib/trace.h"
+ 
+ /**
+  * @addtogroup be
+@@ -53,6 +54,7 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
+ 		.bh_addr = addr,
+ 		.bh_size = size,
+ 	};
++	m0_console_printf("addr: %p, size: %llu\n", addr,(unsigned long long)size);
+ 	return m0_be_io_sync(seg->bs_stob, SIO_WRITE,
+ 			     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
+ }
+@@ -109,14 +111,19 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
+ 	rc = m0_be_io_sync(seg->bs_stob, SIO_READ,
+ 			   &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr);
+-	if (rc != 0)
++	if (rc != 0) {
++		m0_console_printf("rc: m0_be_io_sync: %d\n", rc);
+ 		return rc;
++	}
+ 	/* XXX check for magic */
+ 
+ 	p = mmap(hdr.bh_addr, hdr.bh_size, PROT_READ|PROT_WRITE,
+ 		 MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+-	if (p != hdr.bh_addr)
++	if (p != hdr.bh_addr) {
++		m0_console_printf("rc: mmap: %d, addr: %p, seg_size: %llu\n", -errno,
++				  hdr.bh_addr, (unsigned long long) hdr.bh_size);
+ 		return -errno;
++	}
+ 
+ 	rc = m0_be_io_sync(seg->bs_stob, SIO_READ, hdr.bh_addr, 0, hdr.bh_size);
+ 	if (rc == 0) {
+@@ -124,6 +131,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ 		seg->bs_addr  = hdr.bh_addr;
+ 		seg->bs_state = M0_BSS_OPENED;
+ 	} else {
++		m0_console_printf("rc: m0_be_io_sync: %d\n", rc);
+ 		munmap(hdr.bh_addr, hdr.bh_size);
+ 	}
+ 	return rc;
+diff --git a/db/db.c b/db/db.c
+index 9023413..3fef2e4 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -72,7 +72,8 @@ struct m0_stob;
+ 
+ enum {
+ 	SEG_MAP_SIZE_MAX = 0x1000,
+-	SEG_SIZE	 = 1UL << 26,
++	//SEG_SIZE	 = 1UL << 26,
++	SEG_SIZE	 = 0x40000,
+ };
+ 
+ struct seg_map_item {
+@@ -162,6 +163,8 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
+ 			seg_map_add(name,
+ 				    ut_seg->bus_seg.bs_stob->so_id.si_bits.u_lo,
+ 				    ut_seg->bus_seg.bs_addr, ut_seg);
++			m0_console_printf("lo: %llu\n", (unsigned long long)
++						ut_seg->bus_seg.bs_stob->so_id.si_bits.u_lo);
+ 		}
+ 	} else {
+ 		seg = &ut_seg->bus_seg;
+diff --git a/mero/setup.c b/mero/setup.c
+index c7d5e9e..a10e344 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -1296,12 +1296,12 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
+ 	int                    rc;
+ 	struct m0_stob_domain *sdom;
+ 	struct cs_addb_stob   *addb_stob = &rctx->rc_addb_stob;
+-	const char            *stype = m0_cs_stypes[M0_LINUX_STOB];
++//	const char            *stype = m0_cs_stypes[M0_LINUX_STOB];
+ 
+ 	M0_ENTRY();
+ 
+ 	/** @todo allow different stob type for data stobs & ADDB stobs? */
+-	rc = cs_storage_init(stype, rctx->rc_addb_stpath,
++	rc = cs_storage_init(/*stype*/ rctx->rc_stype, rctx->rc_addb_stpath,
+ 			     &addb_stob->cas_stobs, rctx->rc_beseg);
+ 	if (rc != 0)
+ 		M0_RETURN(rc);
+diff --git a/stob/ad.c b/stob/ad.c
+index 16d48da..2952f76 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -82,7 +82,7 @@
+ 
+ static const struct m0_stob_type_op ad_stob_type_op;
+ static const struct m0_stob_op ad_stob_op;
+-static const struct m0_stob_domain_op ad_stob_domain_op;
++const struct m0_stob_domain_op ad_stob_domain_op;
+ static const struct m0_stob_io_op ad_stob_io_op;
+ 
+ struct ad_domain {
+@@ -265,7 +265,7 @@ static void ad_stob_type_fini(struct m0_stob_type *stype)
+ 
+    Finalizes all still existing in-memory objects.
+  */
+-static void ad_domain_fini(struct m0_stob_domain *self,
++M0_INTERNAL void ad_domain_fini(struct m0_stob_domain *self,
+ 			   struct m0_sm_group *grp)
+ {
+ 	struct ad_domain       *adom = domain2ad(self);
+@@ -331,6 +331,7 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
+ 	struct m0_be_tx_credit  cred = {};
+ 	struct m0_be_op         op;
+ 	int                     rc;
++	char                    name[80];
+ 
+ 	M0_ENTRY("name=%s id=%lld", domain_name,
+ 			(unsigned long long)dom_id);
+@@ -340,9 +341,19 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
+ 	M0_PRE(strlen(domain_name) <
+ 		  ARRAY_SIZE(adom->ad_path) - ARRAY_SIZE(prefix));
+ 
++	sprintf(name, "ad_%llu", (unsigned long long)dom_id);
++	rc = m0_be_seg_dict_lookup(be_seg, name, (void **)&adom);
++	if (rc == 0) {
++		m0_console_printf("ad stob found in dict\n");
++		*out = &adom->ad_base;
++	//	adom->ad_setup = false;
++		return rc;
++	}
++
+ 	m0_be_tx_init(&tx, 0, be_seg->bs_domain, grp,
+ 		      NULL, NULL, NULL, NULL);
+ 	M0_BE_ALLOC_CREDIT_PTR(adom, be_seg, &cred);
++	m0_be_seg_dict_insert_credit(be_seg, name, &cred);
+ 	m0_be_emap_init(emap, be_seg);
+ 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
+ 	m0_be_emap_fini(emap);
+@@ -370,6 +381,9 @@ static int ad_stob_type_domain_locate(struct m0_stob_type *type,
+ 			if (rc == 0) {
+ 				M0_BE_TX_CAPTURE_PTR(be_seg, &tx, adom);
+ 				*out = dom;
++				/* XXX check for failure case */
++				rc = m0_be_seg_dict_insert(be_seg, &tx, name,
++							   adom);
+ 			}
+ 		} else {
+ 			M0_STOB_OOM(AD_DOM_LOCATE);
+@@ -437,6 +451,12 @@ M0_INTERNAL int m0_ad_stob_setup(struct m0_stob_domain *dom,
+ 	M0_PRE(container_size > groupsize);
+ 	M0_PRE(container_size / groupsize > res_groups);
+ 
++	M0_ASSERT(ballroom != NULL);
++	M0_ASSERT(ballroom->ab_ops != NULL);
++	m0_console_printf("balloc ops r: %p\n", ballroom->ab_ops);
++	m0_console_printf("balloc init r: %p\n", ballroom->ab_ops->bo_init);
++	M0_ASSERT(ballroom->ab_ops->bo_init != NULL);
++
+ 	result = ballroom->ab_ops->bo_init(ballroom, be_seg, grp, bshift,
+ 					   container_size, blocks_per_group,
+ 					   res_groups);
+@@ -478,7 +498,7 @@ static int ad_incache_init(struct m0_stob_domain *dom,
+ 
+    Returns an in-memory representation of the object with a given identifier.
+  */
+-static int ad_domain_stob_find(struct m0_stob_domain *dom,
++M0_INTERNAL int ad_domain_stob_find(struct m0_stob_domain *dom,
+ 			       const struct m0_stob_id *id,
+ 			       struct m0_stob **out)
+ {
+@@ -497,7 +517,7 @@ static int ad_domain_stob_find(struct m0_stob_domain *dom,
+    Implementation of m0_stob_op::sop_fini().
+    Implementation of m0_stob_domain_op::sdo_tx_make().
+  */
+-static int ad_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
++M0_INTERNAL int ad_domain_tx_make(struct m0_stob_domain *dom, struct m0_dtx *tx)
+ {
+ 	struct ad_domain *adom = domain2ad(dom);
+ 
+@@ -563,6 +583,7 @@ static int ad_cursor(struct ad_domain *adom, struct m0_stob *obj,
+ 	m0_be_op_wait(&it->ec_op);
+ 	M0_ASSERT(m0_be_op_state(&it->ec_op) == M0_BOS_SUCCESS);
+ 	rc = it->ec_op.bo_u.u_emap.e_rc;
++	//emap_dump(it);
+ 	m0_be_op_fini(&it->ec_op);
+ 	if (rc != 0 && rc != -ENOENT && rc != -ESRCH)
+ 		M0_STOB_FUNC_FAIL(AD_CURSOR, rc);
+@@ -1531,7 +1552,7 @@ static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
+ /**
+    Implementation of m0_stob_domain_op::sdo_write_credit().
+  */
+-static void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
++M0_INTERNAL void ad_domain_stob_write_credit(struct m0_stob_domain  *dom,
+ 					struct m0_indexvec     *iv,
+ 					struct m0_be_tx_credit *accum)
+ {
+@@ -1659,7 +1680,7 @@ static const struct m0_stob_type_op ad_stob_type_op = {
+ 	.sto_domain_locate = ad_stob_type_domain_locate
+ };
+ 
+-static const struct m0_stob_domain_op ad_stob_domain_op = {
++const struct m0_stob_domain_op ad_stob_domain_op = {
+ 	.sdo_fini         = ad_domain_fini,
+ 	.sdo_stob_find    = ad_domain_stob_find,
+ 	.sdo_tx_make      = ad_domain_tx_make,
+diff --git a/stob/ad.h b/stob/ad.h
+index f2d76b2..b23fa8b 100644
+--- a/stob/ad.h
++++ b/stob/ad.h
+@@ -127,6 +127,8 @@ M0_INTERNAL int m0_ad_stob_domain_locate(const char *domain_name,
+ 				         struct m0_stob_domain **dom,
+ 				         struct m0_stob *stob);
+ 
++extern const struct m0_stob_domain_op ad_stob_domain_op;
++
+ /** @} end group stobad */
+ 
+ /* __MERO_STOB_AD_INTERNAL_H__ */
+diff --git a/stob/stob.c b/stob/stob.c
+index 380d5ac..7a225de 100644
+--- a/stob/stob.c
++++ b/stob/stob.c
+@@ -172,6 +172,10 @@ M0_INTERNAL int m0_stob_locate(struct m0_stob *obj)
+ 			obj->so_state = CSS_EXISTS;
+ 			break;
+ 		case -ENOENT:
++			m0_console_printf("ENOENT: Stobid_lo:%llu,"
++					  "stobid_hi:%llu\n",
++					  (unsigned long long)obj->so_id.si_bits.u_lo,
++					  (unsigned long long)obj->so_id.si_bits.u_hi);
+ 			obj->so_state = CSS_NOENT;
+ 			break;
+ 		}
+-- 
+1.8.3.2
+

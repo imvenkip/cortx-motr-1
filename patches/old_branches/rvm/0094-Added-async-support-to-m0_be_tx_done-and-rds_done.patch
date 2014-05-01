@@ -1,0 +1,394 @@
+From bfe271b48becee1b9dd82758f57a1c8ea4604d24 Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Wed, 22 May 2013 07:53:44 -0700
+Subject: [PATCH 094/121] Added async support to m0_be_tx_done and rds_done
+
+---
+ be/be.h              |  3 ++-
+ be/seg.c             |  5 ++--
+ be/tx.c              | 52 +++++++++++++++++++++++++++--------
+ be/ut/be.c           | 16 ++++++++++-
+ be/ut/handle_store.c |  2 +-
+ be/ut/kv_store.c     |  4 +--
+ cob/cob.c            |  2 +-
+ rvm/rds.h            |  3 ++-
+ rvm/rds_free.c       | 76 ----------------------------------------------------
+ rvm/rds_stats.c      | 43 -----------------------------
+ rvm/rds_zap.c        |  4 ++-
+ 11 files changed, 70 insertions(+), 140 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index 9b68cfc..6430987 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -315,7 +315,8 @@ M0_INTERNAL void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx);
+  * @post M0_IN(m0_be_seg_state(seg), (M0_BESEG_CLOSED, M0_BESEG_CLOSING,
+  *                                    M0_BESEG_FAILED))
+  */
+-M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg);
++M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg,
++				struct m0_be_cbinfo *cbinfo);
+ 
+ /**
+  * Marks the segment as failed.
+diff --git a/be/seg.c b/be/seg.c
+index 9e1446b..8e6a4f6 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -219,7 +219,8 @@ M0_INTERNAL void m0_be_seg_open(struct m0_be_seg *seg,
+         m0_be_handler_post(bs_cbinfo, status, msg_type);
+ }
+ 
+-M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg)
++M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg,
++				struct m0_be_cbinfo *cbinfo)
+ {
+         M0_ENTRY("seg: %p", seg);
+         M0_PRE(m0_be_seg_invariant(seg) &&
+@@ -227,7 +228,7 @@ M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg)
+ 
+         m0_be_seg_state_change(seg, M0_BESEG_CLOSED);
+ 
+-        rds_done(&seg->bs_rvm);
++        rds_done(&seg->bs_rvm, cbinfo);
+ 
+         M0_POST(m0_be_seg_invariant(seg));
+         M0_LEAVE();
+diff --git a/be/tx.c b/be/tx.c
+index 936a96e..cd3037b 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -245,13 +245,13 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ /**
+  *  m0_be_tx_done callback function.
+  */
+-M0_INTERNAL void m0_be_tx_done_cb(struct m0_be_cbinfo *cbinfo, int status,
+-                                  m0_be_msg_type_t msg_type)
++M0_INTERNAL void td_rvm_end_transaction_cb(struct m0_be_cbinfo *cbinfo,
++					   int status,
++                                           m0_be_msg_type_t msg_type)
+ {
+         struct m0_be_tx_cbdata   *bt_cbdata;
+         struct m0_be_tx          *tx;
+         struct m0_be_reg         *reg_it;
+-        rvm_return_t              ret;
+         enum m0_be_tx_state       tx_state;
+ 
+         bt_cbdata = container_of(cbinfo, struct m0_be_tx_cbdata, btc_cbinfo);
+@@ -261,13 +261,6 @@ M0_INTERNAL void m0_be_tx_done_cb(struct m0_be_cbinfo *cbinfo, int status,
+         tx = bt_cbdata->btc_tx;
+         M0_ASSERT(tx != NULL);
+ 
+-        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush, NULL);
+-        if (RVM_SUCCESS != ret) {
+-                M0_LOG(M0_DEBUG, "rvm_end_transaction failed in tx_done_cb");
+-                tx_state = M0_BETX_FAILED;
+-                goto tx_exit;
+-        }
+-
+         m0_sm_group_lock(cbinfo->bc_sm_group);
+         for_each_reg_in_tx(reg_it, tx) {
+                 m0_sm_state_set(&reg_it->br_sm, M0_BEREG_DONE);
+@@ -279,12 +272,49 @@ tx_exit:
+         if(cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL)
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 
+-        m0_be_sm_lock_state_change_helper(&tx->bt_sm, cbinfo->bc_sm_group, tx_state);
++        m0_be_sm_lock_state_change_helper(&tx->bt_sm,
++					  cbinfo->bc_sm_group,
++					  tx_state);
+ 
+         m0_free(bt_cbdata);
+         M0_LEAVE("Transaction = %p state = %d", tx, tx_state);
+ }
+ 
++M0_INTERNAL void m0_be_tx_done_cb(struct m0_be_cbinfo *cbinfo, int status,
++                                  m0_be_msg_type_t msg_type)
++{
++        struct m0_be_tx_cbdata   *bt_cbdata;
++        struct m0_be_tx          *tx;
++        rvm_return_t              ret;
++        enum m0_be_tx_state       tx_state;
++        struct m0_be_cbinfo      *bt_cbinfo;
++
++        bt_cbdata = container_of(cbinfo, struct m0_be_tx_cbdata, btc_cbinfo);
++        if(status != 0)
++                goto tx_exit;
++
++        tx = bt_cbdata->btc_tx;
++        M0_ASSERT(tx != NULL);
++        bt_cbinfo              = &bt_cbdata->btc_cbinfo;
++        bt_cbinfo->bc_cb       = td_rvm_end_transaction_cb;
++        bt_cbinfo->bc_pcbinfo  = cbinfo;
++        bt_cbinfo->bc_sm_group = cbinfo->bc_sm_group;
++        bt_cbinfo->bc_hq       = &tx->bt_dom->bd_hq;
++
++        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush, bt_cbinfo);
++        if (RVM_SUCCESS != ret) {
++                M0_LOG(M0_DEBUG, "rvm_end_transaction failed in tx_done_cb");
++                tx_state = M0_BETX_FAILED;
++                goto tx_exit;
++        }
++tx_exit:
++        if(status != 0 && cbinfo->bc_pcbinfo != NULL &&
++	   cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        	m0_free(bt_cbdata);
++	}
++}
++
+ M0_INTERNAL void m0_be_tx_add_cred(struct m0_be_tx *tx,
+                                    struct m0_be_reg *reg)
+ {
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 94a593d..aeb1d77 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -89,6 +89,7 @@ struct m0_be_ts_cbdata {
+ } *bt_cbdata;
+ 
+ struct m0_be_ts_cbdata *bt_dom_cbdata;
++
+ static int log_stob_create(void)
+ {
+         struct linux_stob        *lstob;
+@@ -305,7 +306,20 @@ static int ts_be_fini(void)
+ {
+         int rc = 0;
+ 
+-        m0_be_seg_done(seg);
++	bt_cbdata->cbinfo.bc_cb             =  be_ts_cb;
++	bt_cbdata->cbinfo.bc_sm_group       =  sm_group;
++	bt_cbdata->cbinfo.bc_hq             = &dom->bd_hq;
++	bt_cbdata->cbinfo.bc_pcbinfo        =  NULL;
++	bt_cbdata->counter                  =  0;
++	bt_cbdata->completed                =  false;
++	bt_cbdata->be_usr_ast.bua_sm_group = &usr_sm_group;
++
++        m0_be_seg_done(seg, &bt_cbdata->cbinfo);
++        m0_chan_wait(&usr_sm_group.s_clink);
++	m0_sm_group_lock(&usr_sm_group);
++	m0_sm_asts_run(&usr_sm_group);
++	m0_sm_group_unlock(&usr_sm_group);
++
+         m0_stob_domain_fini(stob_dom);
+         m0_be_domain_fini(dom);
+         m0_free(dom);
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index 87b2356..96dd27c 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -193,7 +193,7 @@ static int ts_be_fini(void)
+         int rc = 0;
+ 
+         rvm_truncate();
+-        m0_be_seg_done(seg);
++        m0_be_seg_done(seg, NULL);
+         m0_stob_domain_fini(stob_dom);
+         m0_be_domain_fini(&dom);
+ 
+diff --git a/be/ut/kv_store.c b/be/ut/kv_store.c
+index 36b0d71..d570e4d 100644
+--- a/be/ut/kv_store.c
++++ b/be/ut/kv_store.c
+@@ -452,7 +452,7 @@ void ts_kv_store_fini()
+ 
+         m0_be_ks_fini(handle2, cb_info);
+ 
+-        m0_be_seg_done(kv_seg);
++        m0_be_seg_done(kv_seg, NULL);
+ 
+         m0_be_domain_fini(kv_dom);
+         m0_free(kv_dom);
+@@ -965,7 +965,7 @@ static void ub_fini()
+         sm_group = m0_be_domain_sm_group(kv_dom);
+ 
+         m0_be_ks_fini(handle1, NULL);
+-        m0_be_seg_done(kv_seg);
++        m0_be_seg_done(kv_seg, NULL);
+         m0_be_domain_fini(kv_dom);
+         m0_stob_domain_fini(stob_dom);
+ 
+diff --git a/cob/cob.c b/cob/cob.c
+index 16a475a..72f9b30 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -754,7 +754,7 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
+         ret_dom = m0_be_domain_lookup(cob_be_domain, BE_KV_SEG_NAME, &kv_seg);
+         M0_ASSERT(ret_dom);
+         M0_ASSERT(kv_seg != NULL);
+-        m0_be_seg_done(kv_seg);
++        m0_be_seg_done(kv_seg, NULL);
+ 
+         m0_be_domain_fini(cob_be_domain);
+         m0_free(cob_be_domain);
+diff --git a/rvm/rds.h b/rvm/rds.h
+index 95062df..22bdfd8 100644
+--- a/rvm/rds.h
++++ b/rvm/rds.h
+@@ -108,7 +108,8 @@ extern int rds_free(
+     );
+ 
+ extern int rds_done(
+-      rvm_seg_hdr_t         *seg_hdr
++      rvm_seg_hdr_t         *seg_hdr,
++      struct m0_be_cbinfo   *cbinfo
+      );
+ 
+ int rds_maxblock(rvm_seg_hdr_t *seg_hdr, unsigned long size);
+diff --git a/rvm/rds_free.c b/rvm/rds_free.c
+index b40af9f..d29d922 100644
+--- a/rvm/rds_free.c
++++ b/rvm/rds_free.c
+@@ -168,79 +168,3 @@ int rds_fake_free(seg_hdr,addr, list)
+     (list->table)[list->count++] = (char *)addr;
+     return(SUCCESS);
+ }
+-
+-int rds_do_free(seg_hdr,list, mode)
+-     rvm_seg_hdr_t  *seg_hdr;
+-     intentionList_t *list;
+-     rvm_mode_t mode;
+-{
+-    int i, err;
+-    rvm_tid_t *tid = rvm_malloc_tid();
+-    rvm_return_t rvmret;
+-
+-    rvmret = rvm_begin_transaction(tid, restore);
+-    if (rvmret != RVM_SUCCESS) {
+-        rvm_free_tid(tid);
+-	return (int) rvmret;
+-    }
+-
+-    RDS_LOG("rdstrace: start do_free\n");
+-
+-    err = SUCCESS; 		/* Initialize the error value */
+-    START_CRITICAL(seg_hdr->heap_hdr);
+-    {
+-	/* Only need to set the range once. To be safe, doing in critical...*/
+-	rvmret = rvm_set_range(seg_hdr, tid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
+-	if (rvmret != RVM_SUCCESS) {
+-	    err = (int)rvmret;
+-	} else
+-	  for (i = 0; i < list->count; i++) {
+-	    /* find pointer to block header */
+-	    free_block_t *bp = BLOCK_HDR((list->table)[i]);
+-
+-	    /* Set the lowguard to reflect that the block has been allocated. */
+-	    assert(bp->type == ALLOC_GUARD);
+-	    rvmret = rvm_set_range(seg_hdr,tid, &(bp->type), sizeof(guard_t));
+-	    if (rvmret != RVM_SUCCESS) {
+-		err = (int)rvmret;
+-		break;
+-	    }
+-	    bp->type = FREE_GUARD;
+-
+-	    /* Update statistics */
+-	    RDS_STATS(seg_hdr->heap_hdr).free++;
+-	    RDS_STATS(seg_hdr->heap_hdr).freebytes   += bp->size * RDS_CHUNK_SIZE(seg_hdr->heap_hdr);
+-	    RDS_STATS(seg_hdr->heap_hdr).mallocbytes -= bp->size * RDS_CHUNK_SIZE(seg_hdr->heap_hdr);
+-
+-	    RDS_LOG("rdstrace: addr %p size %lx\n",
+-				     USER_BLOCK(bp)  , bp->size * RDS_CHUNK_SIZE(seg_hdr->heap_hdr));
+-
+-	    /* try to merge with trailing free blocks */
+-	    merge_with_next_free(seg_hdr, bp, tid, &err);
+-	    if (err != SUCCESS)
+-		break;
+-
+-	    /* Add the block to the approprite free list. */
+-	    put_block(bp, tid, &err);
+-	    if (err != SUCCESS)
+-		break;
+-	}
+-
+-	RDS_LOG("rdstrace: end do_free\n");
+-
+-	if (err != SUCCESS) {
+-	    rvm_abort_transaction(tid);
+-	} else {
+-	    rvmret = rvm_end_transaction(tid, mode, NULL);
+-	}
+-    }
+-    END_CRITICAL(seg_hdr->heap_hdr);
+-
+-    rvm_free_tid(tid);
+-    free(list->table);
+-    list->table = NULL;		/* Just to be safe */
+-
+-    if (err != SUCCESS) return err;
+-    if (rvmret != RVM_SUCCESS) return (int) rvmret;
+-    return (err != SUCCESS) ? err : ((rvmret != RVM_SUCCESS) ? (int)rvmret : 0);
+-}
+diff --git a/rvm/rds_stats.c b/rvm/rds_stats.c
+index f60198f..dd24661 100644
+--- a/rvm/rds_stats.c
++++ b/rvm/rds_stats.c
+@@ -54,49 +54,6 @@ rds_print_stats(rvm_seg_hdr_t *seg_hdr)
+     return 0;
+ }
+ 
+-/* Zero out the stats structure. */
+-int
+-rds_clear_stats(seg_hdr,err)
+-     rvm_seg_hdr_t *seg_hdr;
+-     int *err;
+-{
+-    rvm_return_t rvmret;
+-    rvm_tid_t *atid = rvm_malloc_tid();
+-
+-    rvmret = rvm_begin_transaction(atid, restore);
+-    if (rvmret != RVM_SUCCESS) {
+-	(*err) = (int)rvmret;
+-	rvm_free_tid(atid);
+-	return -1;
+-    }
+-
+-    START_CRITICAL(seg_hdr->heap_hdr);
+-    {
+-	rvmret = rvm_set_range(seg_hdr, atid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
+-	if (rvmret == RVM_SUCCESS)
+-	    BZERO(&RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
+-    }
+-    END_CRITICAL(seg_hdr->heap_hdr);
+-
+-    if (rvmret != RVM_SUCCESS) {
+-	rvm_abort_transaction(atid);
+-	(*err) = (int)rvmret;
+-	rvm_free_tid(atid);
+-	return -1;
+-    }
+-
+-    rvmret = rvm_end_transaction(atid, no_flush, NULL);
+-    if (rvmret != RVM_SUCCESS) {
+-	(*err) = (int)rvmret;
+-	rvm_free_tid(atid);
+-	return -1; /* should I abort here just in case? */
+-    }
+-
+-    *err = SUCCESS;
+-    rvm_free_tid(atid);
+-    return 0;
+-}
+-
+ /*
+  * Return a structure initialized from the statistics in the heap header.
+  * Like print_stats, this really doesn't need to be critical -- dcs 1/29
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index 03d6c1a..a2ffea6 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -299,7 +299,9 @@ exit:
+ 	return 0;
+ }
+ 
+-int rds_done(rvm_seg_hdr_t *seg_hdr)
++int rds_done(seg_hdr, cbinfo)
++	rvm_seg_hdr_t 		*seg_hdr;
++	struct m0_be_cbinfo 	*cbinfo;
+ {
+     int retval;
+     /* Make sure the initialization has been committed to rvm data */
+-- 
+1.8.3.2
+

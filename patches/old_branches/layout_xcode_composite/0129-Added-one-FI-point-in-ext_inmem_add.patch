@@ -1,0 +1,355 @@
+From 632cbb10339275a4d43a5db443c734f1f0f656db Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 3 May 2013 10:15:50 +0530
+Subject: [PATCH 129/157] Added one FI point in ext_inmem_add()
+
+---
+ layout/composite.c    | 39 ++++++++++++++++---------------
+ layout/ut/composite.c | 64 +++++++++++++++++++++++++++++++++++++++++++++------
+ layout/ut/composite.h | 33 ++++++++++++++------------
+ layout/ut/layout.c    | 22 ++++++++++++++----
+ 4 files changed, 114 insertions(+), 44 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index efe4d5a..c951752 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -92,7 +92,7 @@ struct layout_prefix {
+ };
+ 
+ /** Position to add a new extent at, in the list of the extents. */
+-enum extent_add_position {
++enum ext_add_position {
+ 	ADD_AFTER,
+ 	ADD_BEFORE,
+ 	ADD_AT_TAIL
+@@ -743,11 +743,14 @@ static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 	M0_RETURN(rc);
+ }
+ 
+-static int ext_inmem_write(struct m0_composite_layout *cl,
+-			   struct m0_composite_layer *layer,
+-			   const struct m0_ext *ext,
+-			   enum m0_composite_layer_ext_state new_ext_state,
+-			   uint32_t ext_validation_kind);
++/*
++ * Layout DB related functions are defined towards the end of this file.
++ * Hence some of those are forward declared here.
++ */
++static int layers_indb_add(struct m0_composite_layout *cl,
++			   struct m0_db_tx *tx);
++static int layers_indb_delete(struct m0_composite_layout *cl,
++			      struct m0_db_tx *tx, bool in_update_path);
+ static int extents_indb_read(struct m0_composite_layout *cl,
+ 			     struct m0_composite_layer *layer,
+ 			     struct m0_db_tx *tx);
+@@ -915,15 +918,6 @@ static void layers_inbuf_write(const struct m0_composite_layout *cl,
+ 	M0_LEAVE("lid %llu", (unsigned long long)cl->cl_base.l_id);
+ }
+ 
+-/*
+- * Layout DB related functions are defined towards the end of this file.
+- * Hence some of those are forward declared here.
+- */
+-static int layers_indb_add(struct m0_composite_layout *cl,
+-			   struct m0_db_tx *tx);
+-static int layers_indb_delete(struct m0_composite_layout *cl,
+-			      struct m0_db_tx *tx, bool in_update_path);
+-
+ /** Implementation of lo_encode() for composite layout type. */
+ static int composite_encode(struct m0_layout *l,
+ 			    enum m0_layout_xcode_op op,
+@@ -1143,6 +1137,12 @@ static int ext_inmem_add(struct m0_composite_layer *layer,
+ 			break;
+ 	} m0_tl_endfor;
+ 
++	if (M0_FI_ENABLED("insert_after_null_insert_before_nonnull")) {
++		M0_ASSERT(lr_ext_to_insert_after != NULL);
++		M0_ASSERT(lr_ext_to_insert_before != NULL);
++		lr_ext_to_insert_after = NULL;
++	}
++
+ 	if (lr_ext_to_insert_after != NULL)
+ 		rc = ext_inmem_add_internal(&layer->clr_extents,
+ 					    layer->clr_cl, ext, ext_state,
+@@ -1593,9 +1593,7 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 	if (rc == 0 && is_ultimate_ext_add) {
+ 		rc1 = ext_inmem_find(layer, ext, new_ext_state, &lr_ext);
+ 		M0_ASSERT(rc1 == -ENOENT);
+-
+ 		rc = ext_inmem_add(layer, ext, new_ext_state);
+-		M0_ASSERT(rc == 0);
+ 	}
+ 
+ 	if (rc == 0) {
+@@ -2191,7 +2189,12 @@ err1_injected:
+ 	if (rc == 0) {
+ 		rc = sublayout_user_count_dec(cl, sublayout_id, sublayout,
+ 					      in_update_path);
+-		M0_ASSERT(rc == 0);
++		if (rc != 0)
++			m0_layout__log(
++			      "layer_indb_delete",
++			      "failed to decrement user count for a sublayout",
++			      M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL,
++			      &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 	} else
+ 		m0_layout__log("layer_indb_delete",
+ 			       "failed to delete from layer_emap",
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index fc6843f..e907de1 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1974,11 +1974,10 @@ static int ext_ops(uint64_t base_lid,
+ 			/* todo For failure test, use M0_CLRES_FLATTENING. And
+ 			 * in that case, the only success case is
+ 			 * !CONTIGUOUS_EXTENTS, NON_EXISTING. */
+-		else if (eop == EXTENT_DELETE) {
++		else if (eop == EXTENT_DELETE)
+ 			rc = test_ext_delete(lid, domain, 4, 4,
+ 					     is_contiguous, extent_kind,
+ 					     failure_test);
+-		}
+ 
+ 		if (failure_test) {
+ 			//todo
+@@ -2066,6 +2065,55 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
++	 * Simulate memory allocation in ext_inmem_add_internal() that is in
++	 * the path of ext_inmem_write().
++	 * This test exercises error in the code part from ext_inmem_write()
++	 * that makes a copy of the original extent list so that it can be
++	 * restored at a later point, if required.
++	 */
++	lid = base_lid + 23;
++	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
++				"alloc_ptr_fail/lr_ext", 80, 1);
++	rc = test_ext_add(lid, domain, 3, 6,
++			  !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++			  M0_CLRES_VALID, FAILURE_TEST);
++	M0_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++
++	
++	/*
++	 * Simulate memory allocation in ext_inmem_add_internal() that is in
++	 * the path of ext_inmem_add().
++	 * This test exercises error in ext_inmem_add() such that its
++	 * internally called ext_inmem_add_internal() faces error.
++	 */
++	lid = base_lid + 24;
++	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
++				"alloc_ptr_fail/lr_ext", 140, 1);
++	rc = test_ext_add(lid, domain, 4, 7,
++			  !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++			  M0_CLRES_VALID, FAILURE_TEST);
++	M0_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++
++	/*
++	 * Simulate an exception in ext_inmem_add() such that
++	 * lr_ext_to_insert_after is NULL, lr_ext_to_insert_before is non-NULL
++	 * and then memory allocation in ext_inmem_add_internal() that is in
++	 * the path of ext_inmem_add() faces error.
++	 */
++	lid = base_lid + 25;
++	m0_fi_enable_once("ext_inmem_add",
++			  "insert_after_null_insert_before_nonnull");
++	m0_fi_enable_off_n_on_m("ext_inmem_add_internal",
++				"alloc_ptr_fail/lr_ext", 140, 1);
++	rc = test_ext_add(lid, domain, 4, 7,
++			  !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++			  M0_CLRES_VALID, FAILURE_TEST);
++	M0_ASSERT(rc == -ENOMEM);
++	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
++
++	/*
+ 	 * Simulate extent validation error by trying to update an extent with
+ 	 * the M0_CLRES_FLATTENING state that at least partially overlaps with
+ 	 * two existing extents - one with the M0_CLRES_HOLE state and the
+@@ -2212,9 +2260,10 @@ int test_add_composite(uint64_t lid,
+ 
+ 	rc = m0_layout_add(&cl->cl_base, &tx, &pair);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_EMAP_LOOKUP_ERR ||
+-			     rc == L_TABLE_LOOKUP_ERR ||
+-			     rc == L_TABLE_INSERT_ERR);
++		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_LOOKUP_ERR ||
++			     rc == L_TABLE_INSERT_ERR ||
++			     rc == L_EMAP_LOOKUP_ERR ||
++			     rc == L_EMAP_OBJ_INSERT_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+@@ -2350,7 +2399,7 @@ int test_update_composite(uint64_t lid,
+ 	rc = m0_layout_update(l1, &tx, &pair);
+ 	if (failure_test) {
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_UPDATE_ERR ||
+-			     rc == L_TABLE_INSERT_ERR ||
++			     rc == L_TABLE_INSERT_ERR || rc == -EINVAL ||
+ 			     rc == L_EMAP_LOOKUP_ERR || rc == L_EMAP_PASTE_ERR);
+ 		/*
+ 		 * Abort the transaction. It is possible that some updates were
+@@ -2469,7 +2518,8 @@ int test_delete_composite(uint64_t lid,
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM ||
+ 			     rc == -EPROTO || rc == LO_ENCODE_ERR ||
+-			     rc == L_EMAP_LOOKUP_ERR);
++			     rc == L_EMAP_LOOKUP_ERR ||
++			     rc == L_EMAP_OBJ_DEL_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 	rc_tmp = m0_db_tx_commit(&tx);
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index ae53e64..b9a08ba 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -38,13 +38,16 @@
+  * ext[6]: [15811494920322472812, 18446744073709551615), state 1
+  *
+  * Now, examples of extents with various kinds:
+- * NON_EXISTING:		[2635249153387078802, 5270498306774157604)
+- * EXACT_EXISTING:		[5270498306774157604, 7905747460161236406)
+- * OVERLAPPING_LEFT:		[2635249153387078802, 5270498306774157605)
+- * OVERLAPPING_RIGHT:		[5270498306774157603, 7905747460161236406)
+- * OVERLAPPING_COMPLETE:	[5270498306774157603, 7905747460161236407)
+- * CONTAINED_WITHIN:		[5270498306774157606, 7905747460161236404)
++ * NON_EXISTING:		[ 2635249153387078802,  5270498306774157604)
++ * EXACT_EXISTING:		[ 5270498306774157604,  7905747460161236406)
++ * OVERLAPPING_LEFT:		[ 2635249153387078802,  5270498306774157605)
++ * OVERLAPPING_RIGHT:		[ 5270498306774157603,  7905747460161236406)
++ * OVERLAPPING_COMPLETE:	[ 5270498306774157603,  7905747460161236407)
++ * CONTAINED_WITHIN:		[ 5270498306774157606,  7905747460161236404)
+  * OVERLAPPING_MULTIPLE: todo
++ * WHOLE_OFFSET_SPACE:          [                   0, 18446744073709551615)
++ * FIRST_HALF:                  [                   0,  9223372036854775807)
++ * SECOND_HALF                  [ 9223372036854775807, 18446744073709551615)
+  */
+ enum kind_of_extent {
+ 	NON_EXISTING          = 0,
+@@ -92,30 +95,30 @@ enum {
+ int test_build_composite(uint64_t lid,
+ 			 struct m0_layout_domain *domain,
+ 			 uint32_t min_extents_nr,
+-			 bool if_contiguous_extents,
++			 bool is_contiguous_extents,
+ 			 bool failure_test);
+ int test_decode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+ 			  uint32_t min_extents_nr,
+-			  bool if_contiguous_extents,
++			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_encode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+ 			  uint32_t min_extents_nr,
+-			  bool if_contiguous_extents,
++			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_decode_encode_composite(uint64_t lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t sublayouts_nr,
+ 				 uint32_t min_extents_nr,
+-				 bool if_contiguous_extents);
++				 bool is_contiguous_extents);
+ int test_encode_decode_composite(uint64_t lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t sublayouts_nr,
+ 				 uint32_t min_extents_nr,
+-				 bool if_contiguous_extents);
++				 bool is_contiguous_extents);
+ int test_instance_composite(uint64_t lid,
+ 			    struct m0_layout_domain *domain,
+ 			    bool failure_test);
+@@ -123,27 +126,27 @@ int test_lookup_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+ 			  uint32_t min_extents_nr,
+-			  bool if_contiguous_extents,
++			  bool is_contiguous_extents,
+ 			  bool existing_test,
+ 			  bool failure_test);
+ int test_add_composite(uint64_t lid,
+ 		       struct m0_layout_domain *domain,
+ 		       uint32_t sublayouts_nr,
+ 		       uint32_t min_extents_nr,
+-		       bool if_contiguous_extents,
++		       bool is_contiguous_extents,
+ 		       bool duplicate_test,
+ 		       bool failure_test);
+ int test_update_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+ 			  uint32_t min_extents_nr,
+-			  bool if_contiguous_extents,
++			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_delete_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t sublayouts_nr,
+ 			  uint32_t min_extents_nr,
+-			  bool if_contiguous_extents,
++			  bool is_contiguous_extents,
+ 			  bool failure_test);
+ int test_layer_ops_composite(uint64_t lid,
+ 			     struct m0_layout_domain *domain,
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index be2edc9..a911f51 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1865,6 +1865,16 @@ static void test_add_failure(void)
+ 				!DUPLICATE_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
+ 	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
++
++	/*
++	 * Simulate extmap object insertion error while adding a layer to the
++	 * DB as a part of the m0_layout_add() op.
++	 */
++	lid = 21028;
++	m0_fi_enable_once("extents_indb_add", "emap_obj_insert_err");
++	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
++				!DUPLICATE_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_EMAP_OBJ_INSERT_ERR);
+ }
+ 
+ /* Tests the API m0_layout_update(). */
+@@ -1980,6 +1990,13 @@ static void test_update_failure(void)
+ 				   FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_EMAP_PASTE_ERR);
+ 	m0_fi_disable("ext_indb_write", "emap_paste_err");
++
++	/* Simulate layout find error in the path of layer deletion. */
++	lid = 25023;
++	m0_fi_enable_once("layout_find", "layout_find_err");
++	rc = test_update_composite(lid, &domain, 3, 5, !CONTIGUOUS_EXTENTS,
++				   FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EINVAL);
+ }
+ 
+ /* Tests the API m0_layout_delete(). */
+@@ -2107,16 +2124,13 @@ static void test_delete_failure(void)
+ 	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
+ 	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
+ 
+-#if 0 //todo
+ 	/* Simulate layer deletion error while deleting emap from the DB. */
+ 	lid = 25022;
+-	m0_fi_enable_off_n_on_m("layer_indb_delete", "emap_obj_del_err",
+-				16 /* layers_nr todo */, 1);
++	m0_fi_enable_once("layer_indb_delete", "emap_obj_del_err");
+ 	rc = test_delete_composite(lid, &domain, 4, 10,
+ 				   CONTIGUOUS_EXTENTS, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_EMAP_OBJ_DEL_ERR);
+ 	m0_fi_disable("layer_indb_delete", "emap_obj_del_err");
+-#endif
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

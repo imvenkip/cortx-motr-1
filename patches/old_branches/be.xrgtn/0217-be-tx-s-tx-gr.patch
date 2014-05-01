@@ -1,0 +1,25 @@
+From 6ccbf6807a551ffa53ebba3c98d433067296fcb4 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 28 Jun 2013 15:36:28 +0300
+Subject: [PATCH 217/228] be/tx: s/tx/gr/
+
+---
+ be/tx_group.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/tx_group.c b/be/tx_group.c
+index 5b9aa29..27eaa70 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -50,7 +50,7 @@ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
+ 			       struct m0_be_tx_engine *eng)
+ {
+ 	m0_mutex_init(&gr->tg_lock);
+-	tx->tg_hdr.gh_magic   = M0_TRACE_TG_HDR_MAGIC;
++	gr->tg_hdr.gh_magic   = M0_TRACE_TG_HDR_MAGIC;
+ 	gr->tg_hdr.gh_tx_nr   = 0;
+ 	gr->tg_hdr.gh_tx_size = 0;
+ 	gr->tg_eng            = eng;
+-- 
+1.8.3.2
+

@@ -1,0 +1,62 @@
+From 69759753e604a7d200fb71f03011908808753b04 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 10:01:00 +0200
+Subject: [PATCH 37/58] LogD 1513: c2_net_test_fini() was empty
+
+---
+ net/test/initfini.c | 30 +++++++++++++++++++++---------
+ 1 file changed, 21 insertions(+), 9 deletions(-)
+
+diff --git a/net/test/initfini.c b/net/test/initfini.c
+index 8d8f555..de1c974 100644
+--- a/net/test/initfini.c
++++ b/net/test/initfini.c
+@@ -49,24 +49,36 @@ struct init_fini if_list[] = {
+ #undef NET_TEST_MODULE
+ };
+ 
+-int c2_net_test_init(void)
++static int net_test_initfini(bool init)
+ {
+-	size_t i;
+-	int rc = 0;
++	size_t i = ARRAY_SIZE(if_list);
++	int    rc = 0;
+ 
+-	for (i = 0; i < ARRAY_SIZE(if_list); ++i) {
+-		rc = if_list[i].if_init();
+-		if (rc != 0) {
+-			for (; i != 0; --i)
+-				if_list[i - 1].if_fini();
+-			break;
++	if (init) {
++		for (i = 0; i < ARRAY_SIZE(if_list); ++i) {
++			rc = if_list[i].if_init();
++			if (rc != 0) {
++				init = false;
++				break;
++			}
+ 		}
+ 	}
++	if (!init) {
++		for (; i != 0; --i)
++			if_list[i - 1].if_fini();
++	}
+ 	return rc;
+ }
+ 
++int c2_net_test_init(void)
++{
++	return net_test_initfini(true);
++}
++
+ void c2_net_test_fini(void)
+ {
++	int rc = net_test_initfini(false);
++	C2_POST(rc == 0);
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

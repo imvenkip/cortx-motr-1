@@ -1,0 +1,25 @@
+From b30e6218255f1f3e6e286a1fb685023f8d5727ce Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Mon, 19 Aug 2013 02:37:04 -0700
+Subject: [PATCH 14/61] bigmemalloc: - Fixed trailing whitespaces.
+
+---
+ lib/varr.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/varr.h b/lib/varr.h
+index 6229dd2..ae4d11a 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -70,7 +70,7 @@
+  *         M0_ASSERT(*ptr == id);
+  *         *ptr = id + 1;
+  * }
+- * 
++ *
+  * m0_varr_fini(&varr);
+  *
+  * @endcode
+-- 
+1.8.3.2
+

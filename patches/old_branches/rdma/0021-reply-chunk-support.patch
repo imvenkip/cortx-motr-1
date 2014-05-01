@@ -1,0 +1,410 @@
+From a590567c09f206a5c11b509b379abf1289de0a89 Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Fri, 30 Jul 2010 23:11:40 -0600
+Subject: [PATCH 21/34] - reply chunk support
+
+---
+ net/usunrpc/rfc5666/svc_rdma.c | 194 ++++++++++++++++++++++++++++-------------
+ 1 file changed, 134 insertions(+), 60 deletions(-)
+
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index dc0f5b2..0f18232 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -43,6 +43,11 @@ static int rdma_reply_send(struct rdma_reply *reply);
+ static void rdma_reply_put(struct rdma_reply *reply);
+ static struct rdma_reply *rdma_reply_get(struct svcrdma_xprt *xprt);
+ static int rdma_chunks_read(struct rdma_request *req, char *buffer, int buflen);
++static int rdma_bufdesc_alloc(struct svcrdma_xprt *xprt,
++                              struct rdma_bufdesc *desc,
++                              int bufsize);
++static void rdma_bufdesc_free(struct svcrdma_xprt *xprt,
++                              struct rdma_bufdesc *desc);
+ 
+ /* SVCXPRT callbacks */
+ static void svcrdma_xprt_destroy (struct svcrdma_xprt *xprt);
+@@ -499,12 +504,17 @@ static bool_t svcrdma_freeargs(SVCXPRT *svcxprt, xdrproc_t xdr_args,
+         return ((*xdr_args) (&xdrs, args_ptr));
+ }
+ 
++static int rdma_count_wchunks(struct rdma_write_chunk *chunk)
++{
++        return 0;
++}
++
+ static bool_t svcrdma_reply(SVCXPRT *svcxprt, struct rpc_msg *rpcmsg)
+ {
+         struct svcrdma_xprt *xprt = (struct svcrdma_xprt *)svcxprt->xp_p1;
+-        int bufsize;
+         struct rdma_reply *reply;
+         XDR xdrs;
++        int chunk_len = 0;
+         int rc;
+ 
+         /* XXX: there is no way to get request in current implementation of
+@@ -519,11 +529,14 @@ static bool_t svcrdma_reply(SVCXPRT *svcxprt, struct rpc_msg *rpcmsg)
+         /* check if client provides reply chunk. */
+         C2_ASSERT(reply->rp_rpc == &reply->rp_rpc_default);
+         if (reply->rp_reply) {
+-                int total_len = rdma_count_wchunks(reply->rp_reply);
+-                if (total_len > reply->rp_rpc->rbd_bufsz) {
++                chunk_len = rdma_count_wchunks(reply->rp_reply);
++                if (chunk_len > reply->rp_rpc->rbd_bufsz) {
++                        /* though the reply rpc msg may not be so big, but
++                          mostly it will be, because client knows how big is
++                          the reply size. */
+                         rc = rdma_bufdesc_alloc(reply->rp_xprt,
+                                                 &reply->rp_rpc_chunks,
+-                                                total_len);
++                                                chunk_len);
+                         if (rc)
+                                 goto out;
+                         reply->rp_rpc = &reply->rp_rpc_chunks;
+@@ -539,6 +552,12 @@ static bool_t svcrdma_reply(SVCXPRT *svcxprt, struct rpc_msg *rpcmsg)
+                 goto out;
+         }
+         reply->rp_rpc_buflen = XDR_GETPOS(&xdrs);
++        if (reply->rp_reply && chunk_len < reply->rp_rpc_buflen) {
++                /* this is a fatal error, client hopes server to
++                  transfer the reply to reply chunk, but it is too
++                  small. */
++                goto out;
++        }
+ 
+         /* it looks all right, post reply buffer */
+         rc = rdma_reply_send(reply);
+@@ -591,7 +610,7 @@ static void rdma_bufdesc_free(struct svcrdma_xprt *xprt,
+                 ibv_dereg_mr(desc->rbd_mr);
+         if (desc->rbd_buf)
+                 c2_free(desc->rbd_buf);
+-        memset(desc, 0, size *desc);
++        memset(desc, 0, sizeof *desc);
+ }
+ 
+ static int rdma_bufdesc_alloc(struct svcrdma_xprt *xprt,
+@@ -599,6 +618,7 @@ static int rdma_bufdesc_alloc(struct svcrdma_xprt *xprt,
+                               int bufsize)
+ {
+         int alignment = xprt->rx_rndzv->vx_page_size;
++        int rc;
+ 
+         if (bufsize == 0)
+                 bufsize = xprt->rx_rndzv->vx_mms;
+@@ -614,11 +634,10 @@ static int rdma_bufdesc_alloc(struct svcrdma_xprt *xprt,
+         }
+ 
+         desc->rbd_bufsz = bufsize;
+-        desc->rbd_buflen  = 0;
+         return 0;
+ 
+ out:
+-        rdma_bufdesc_free(reply, desc);
++        rdma_bufdesc_free(xprt, desc);
+         return rc;
+ }
+ 
+@@ -641,8 +660,8 @@ static void svcrdma_buffer_destroy(struct svcrdma_xprt *xprt)
+         while (reply) {
+                 struct rdma_reply *tmp = reply->rp_next;
+ 
+-                rdma_bufdesc_free(reply, &reply->rp_rpc_default);
+-                rdma_bufdesc_free(reply, &reply->rp_rdma);
++                rdma_bufdesc_free(xprt, &reply->rp_rpc_default);
++                rdma_bufdesc_free(xprt, &reply->rp_rdma);
+ 
+                 c2_free(reply);
+                 reply = tmp;
+@@ -737,7 +756,7 @@ static void rdma_reply_put(struct rdma_reply *reply)
+         (void)xdr_svcrdma_msg(&xdrs, &reply->rp_msg);
+ 
+         if (reply->rp_rpc == &reply->rp_rpc_chunks) {
+-                rdma_bufdesc_free(reply->rp_rpc);
++                rdma_bufdesc_free(xprt, reply->rp_rpc);
+                 reply->rp_rpc = &reply->rp_rpc_default;
+         }
+ 
+@@ -1111,7 +1130,6 @@ static int do_rdma_post(struct rdma_context *ctxt, struct rdma_bufdesc *desc,
+                 }
+         };
+         struct ibv_send_wr *badwr;
+-        struct ibv_mr *mr;
+         int rc;
+ 
+         C2_ASSERT(desc->rbd_bufsz >= seg->rs_length);
+@@ -1121,20 +1139,19 @@ static int do_rdma_post(struct rdma_context *ctxt, struct rdma_bufdesc *desc,
+ }
+ 
+ static int do_rdma_post_buffer(struct rdma_context *ctxt,
+-                               struct svcrdma_xprt *xprt,
+                                char *buffer,
+                                struct rdma_segment *seg,
+-                               enum ibv_wr_opcode opc,
+-                               struct ibv_mr **mrp)
++                               enum ibv_wr_opcode opc)
+ {
++        struct svcrdma_xprt *xprt = ctxt->xprt;
+         struct rdma_bufdesc desc;
+-        struct ibv_mr *mr;
++        int rc;
+ 
+         rc = EIO;
+         desc.rbd_buf    = buffer;
+         desc.rbd_bufsz  = seg->rs_length;
+         desc.rbd_mr     = ibv_reg_mr(xprt->rx_pd,
+-                                     desc->rbd_buf, desc->rbd_bufsz,
++                                     desc.rbd_buf, desc.rbd_bufsz,
+                                      xprt->rx_rndzv->vx_snd_wr_flags);
+         if (desc.rbd_mr == NULL)
+                 return rc;
+@@ -1146,7 +1163,9 @@ static int do_rdma_post_buffer(struct rdma_context *ctxt,
+                 return rc;
+         }
+ 
+-        *mrp = desc.rbd_mr;
++        c2_atomic64_inc(&ctxt->refcnt);
++        ctxt->mrs[ctxt->index++] = desc.rbd_mr;
++        C2_ASSERT(ctxt->index < ctxt->max_index);
+         return 0;
+ }
+ 
+@@ -1158,7 +1177,6 @@ static int do_rdma_post_buffer(struct rdma_context *ctxt,
+  */
+ static int rdma_chunks_read(struct rdma_request *req, char *buffer, int buflen)
+ {
+-        struct svcrdma_xprt *xprt = req->rq_xprt;
+         struct rdma_context *ctxt;
+         struct rdma_read_list *rl;
+         int rc = 0;
+@@ -1170,7 +1188,6 @@ static int rdma_chunks_read(struct rdma_request *req, char *buffer, int buflen)
+ 
+         rl= req->rq_read_list;
+         while (rl && buflen) {
+-                struct ibv_mr *mr;
+                 struct rdma_segment *seg;
+ 
+                 seg = &rl->rrl_entry.rrc_target;
+@@ -1179,17 +1196,13 @@ static int rdma_chunks_read(struct rdma_request *req, char *buffer, int buflen)
+                         rl->rrl_entry.rrc_position,
+                         seg->rs_length, seg->rs_handle, seg->rs_offset);
+ 
+-                rc = do_rdma_post_buffer(ctxt, xprt, buffer, seg,
+-                                         IBV_WR_RDMA_READ, &mr);
++                rc = do_rdma_post_buffer(ctxt, buffer, seg,
++                                         IBV_WR_RDMA_READ);
+                 if (rc) {
+                         rdma_errx(rc, "post recv buffer error\n");
+                         break;        
+                 }
+ 
+-                c2_atomic64_inc(&ctxt->refcnt);
+-                ctxt->mrs[ctxt->index++] = mr;
+-                C2_ASSERT(ctxt->index < ctxt->max_index);
+-
+                 buffer += seg->rs_length;
+                 buflen -= seg->rs_length;
+                 if (buflen < 0)
+@@ -1217,16 +1230,44 @@ static int rdma_chunks_read(struct rdma_request *req, char *buffer, int buflen)
+         return rc;
+ }
+ 
++static int rdma_chunks_write_chunk(struct rdma_context *ctxt,
++                                   struct rdma_write_chunk *chunk,
++                                   int start_index,
++                                   int *end_index,
++                                   char **buffer, int *buflen,
++                                   enum ibv_wr_opcode opcode)
++{
++        struct rdma_segment *seg;
++        int rc = 0;
++        int i;
++
++        for (i = start_index; i < chunk->rwc_nr_segs && buflen; i++) {
++                seg = &chunk->rwc_segs[i];
++                if (*buflen < seg->rs_length) {
++                        *buflen = 0;
++                        seg->rs_length = *buflen;
++                }
++
++                rc = do_rdma_post_buffer(ctxt, *buffer, seg, opcode);
++                if (rc)
++                        break;
++
++                *buffer += seg->rs_length;
++                *buflen -= seg->rs_length;
++                C2_ASSERT(*buflen >= 0);
++        }
++        *end_index = i;
++        return rc;
++}
++
+ /**
+  * rdma_chunks_write: Write chunks to reply stream.
+  */
+-int rdma_chunks_write(struct rdma_reply *reply, char *buffer, int buflen)
++static int rdma_chunks_write(struct rdma_reply *reply, char *buffer, int buflen)
+ {
+         struct rdma_context *ctxt;
+         struct rdma_write_list *wl;
+         struct rdma_write_chunk *chunk;
+-        struct rdma_segment *seg;
+-        struct ibv_mr *mr;
+         int start_index;
+         int rc = 0;
+ 
+@@ -1238,39 +1279,23 @@ int rdma_chunks_write(struct rdma_reply *reply, char *buffer, int buflen)
+         wl = reply->rp_writes;
+         start_index = reply->rp_writes_index;
+         while (wl && buflen) {
+-                int i;
++                int end_index;
+ 
+                 chunk = &wl->rwl_entry;
+-                for (i = start_index; i < chunk->rwc_nr_segs && buflen; i++) {
+-                        seg = &chunk->rwc_segs[i];
+-                        if (buflen < seg->rs_length) {
+-                                buflen = 0;
+-                                seg->rs_length = buflen;
+-                        }
+-
+-                        rc = do_rdma_post_buffer(ctxt, xprt, buffer, seg,
+-                                                 IBV_WR_RDMA_READ, &mr);
+-                        if (rc)
+-                                break;
+-
+-                        /* update rdma context */
+-                        c2_atomic64_get(&ctxt->refcnt);
+-                        ctxt->mrs[ctxt->index++] = mr;
+-                        C2_ASSERT(ctxt->index < ctxt->max_index);
+-
+-                        buffer += seg->rs_length;
+-                        buflen -= seg->rs_length;
+-                        C2_ASSERT(buflen >= 0);
+-                }
++                rc = rdma_chunks_write_chunk(ctxt, chunk,
++                                             start_index, &end_index,
++                                             &buffer, &buflen,
++                                             IBV_WR_RDMA_READ);
+                 if (rc)
+                         break;
+ 
++                C2_ASSERT(buflen >= 0);
+                 if (!buflen) {
+-                        if (i == chunk->rwc_nr_segs) {
++                        if (end_index == chunk->rwc_nr_segs) {
+                                 reply->rp_writes_index = 0;
+                                 wl = wl->rwl_next;
+                         } else {
+-                                reply->rp_writes_index = i;
++                                reply->rp_writes_index = end_index;
+                         }
+                         break;
+                 }
+@@ -1296,6 +1321,46 @@ int rdma_chunks_write(struct rdma_reply *reply, char *buffer, int buflen)
+         return rc;
+ }
+ 
++/**
++  write rpc bytes into reply chunk
++ */
++static int rdma_chunks_reply(struct rdma_reply *reply)
++{
++        struct rdma_write_chunk *chunk = reply->rp_reply;
++        struct rdma_context *ctxt;
++        char *buffer;
++        int buflen;
++        int end_index;
++        int rc;
++
++        ctxt = rdma_context_alloc(reply->rp_xprt, 0, rdma_completion_rw,
++                                  reply);
++        if (ctxt == NULL)
++                return ENOMEM;
++
++        buffer = reply->rp_rpc->rbd_buf;
++        buflen = reply->rp_rpc_buflen;
++        rc = rdma_chunks_write_chunk(ctxt, chunk,
++                                     0, &end_index,
++                                     &buffer, &buflen,
++                                     IBV_WR_RDMA_WRITE);
++        if (ctxt->index) {
++                int rc2;
++                rc2 = rdma_wait_for_completion(ctxt);
++                if (rc == 0)
++                        rc = rc2;
++        }
++        if (buflen != 0)
++                rc = EIO;
++        if (rc == 0) {
++                int i;
++                for (i = end_index; i < chunk->rwc_nr_segs; i++)
++                        chunk->rwc_segs[i].rs_length = 0;
++        }
++        rdma_context_free(ctxt);
++        return rc;
++}
++
+ static void rdma_write_chunks_fixup(struct rdma_reply *reply)
+ {
+         struct rdma_segment *seg;
+@@ -1346,7 +1411,7 @@ static int rdma_reply_encode(struct rdma_reply *reply)
+                 rdma_write_chunks_fixup(reply);
+ 
+                 /* prepare to encode rdma chunks information */
+-                {
++                if (reply->rp_reply == NULL) {
+                         /* assuming RDMA_MSG, will be fixed when actually
+                            composing the message; it may be RDMA_NOMSG in case
+                            rpc message is too long to send by RDMA send/recv */
+@@ -1357,10 +1422,18 @@ static int rdma_reply_encode(struct rdma_reply *reply)
+                         rdma_msg->rdma_reads = NULL;
+                         rdma_msg->rdma_writes = reply->rp_orig_writes;
+                         rdma_msg->rdma_reply = NULL;
++                } else {
++                        struct rdma_header_nomsg *rdma_nomsg;
++                        msg->rdma_body.rdma_proc = RDMA_NOMSG;
++                        rdma_nomsg = &msg->rdma_body.u.rdma_nomsg;
++                        rdma_nomsg->rdma_reads = NULL;
++                        rdma_nomsg->rdma_writes = reply->rp_orig_writes;
++                        rdma_nomsg->rdma_reply = reply->rp_reply;
++                        reply->rp_rpc_buflen = 0;
+                 }
+         }
+ 
+-        bufsize = reply->rp_xprt->rx_rndzv->vx_mms;
++        bufsize = reply->rp_rdma.rbd_bufsz;
+         xdrmem_create(&xdrs, reply->rp_rdma.rbd_buf, bufsize, XDR_ENCODE);
+         if (!xdr_svcrdma_msg(&xdrs, msg)) {
+                 /* impossible! the bufsize is not enough for even rdma
+@@ -1395,9 +1468,10 @@ static int rdma_reply_send(struct rdma_reply *reply)
+         int rc;
+ 
+         /* check if it needs to send rpc msg in reply chunk */
+-        if (reply->rp_reply) {
+-                int total_len = rdma_count_nchunks(reply->rp_reply);
+-                if (total_len < reply->rp_rpc_buflen) 
++        if (reply->rp_reply && reply->rp_rpc_buflen > 0) {
++                rc = rdma_chunks_reply(reply);
++                if (rc)
++                        return rc;
+         }
+ 
+         rc = rdma_reply_encode(reply);
+@@ -1411,12 +1485,12 @@ static int rdma_reply_send(struct rdma_reply *reply)
+         C2_ASSERT(reply->rp_rdma_buflen != 0);
+         sge[0].addr   = (uint64_t)reply->rp_rdma.rbd_buf;
+         sge[0].length = reply->rp_rdma_buflen;
+-        sge[0].lkey   = reply->rp_rdma_mr->lkey;
++        sge[0].lkey   = reply->rp_rdma.rbd_mr->lkey;
+ 
+         if (reply->rp_rpc_buflen) {
+-                sge[1].addr   = (uint64_t)reply->rp_rpc_buf;
++                sge[1].addr   = (uint64_t)reply->rp_rpc->rbd_buf;
+                 sge[1].length = reply->rp_rpc_buflen;
+-                sge[1].lkey   = reply->rp_rpc_mr->lkey;
++                sge[1].lkey   = reply->rp_rpc->rbd_mr->lkey;
+                 nr_sges++;
+         }
+ 
+-- 
+1.8.3.2
+

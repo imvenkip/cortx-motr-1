@@ -1,0 +1,276 @@
+From 719ee70a22adf123b536bbd6da90ca45c7afb770 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 20 Apr 2011 06:43:36 -0600
+Subject: [PATCH 072/158] - fixes in rename code path:   - c2_cob_update_name()
+ works now;   - mv works now too.
+
+---
+ addb/addb.c       |  2 +-
+ cob/cob.c         | 82 ++++++++++++++++++++++++++++++++++++++++----------
+ mdstore/mdstore.c | 89 ++++++++++++++++++++++++++++++++++++++++---------------
+ 3 files changed, 133 insertions(+), 40 deletions(-)
+
+diff --git a/addb/addb.c b/addb/addb.c
+index 3719e39..0128ecc 100644
+--- a/addb/addb.c
++++ b/addb/addb.c
+@@ -27,7 +27,7 @@
+ /*
+  * This can be changed.
+  */
+-int c2_addb_level_default = AEL_NONE;
++int c2_addb_level_default = AEL_WARN;
+ C2_EXPORTED(c2_addb_level_default);
+ 
+ 
+diff --git a/cob/cob.c b/cob/cob.c
+index e6fcc42..cc0b33c 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1100,26 +1100,21 @@ int c2_cob_update_name(struct c2_cob        *cob,
+                        struct c2_cob_nskey  *tgtkey,
+                        struct c2_db_tx      *tx)
+ {
+-        struct c2_cob_nsrec nsrec;
+-        struct c2_db_pair   pair;
+-        struct c2_db_cursor cursor;
+-        struct c2_cob_oikey oikey;
+-        int                 rc;
+-
+-        rc = c2_db_cursor_init(&cursor, 
+-                               &cob->co_dom->cd_namespace, tx);
+-        if (rc)
+-                goto out;
++        struct c2_cob_nsrec  nsrec;
++        struct c2_db_pair    pair;
++//        struct c2_db_cursor  cursor;
++        struct c2_cob_oikey  oikey;
++        int                  rc;
+ 
++#if 0
+         /* Let's check if tgt name already exists */
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+ 	                 tgtkey, c2_cob_nskey_size(tgtkey),
+ 		         &nsrec, sizeof nsrec);
+-        rc = c2_db_cursor_get(&cursor, &pair);
++        rc = c2_table_lookup(tx, &pair);
+         c2_db_pair_release(&pair);
+         c2_db_pair_fini(&pair);
+         if (rc == 0) {
+-                c2_db_cursor_fini(&cursor);
+                 rc = -EEXIST;
+                 C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+                             cob_eexist, rc);
+@@ -1131,27 +1126,84 @@ int c2_cob_update_name(struct c2_cob        *cob,
+ 	                 srckey, c2_cob_nskey_size(srckey),
+ 		         &nsrec, sizeof nsrec);
+ 
+-        rc = c2_db_cursor_get(&cursor, &pair);
++        rc = c2_table_lookup(tx, &pair);
+         c2_db_pair_release(&pair);
+         c2_db_pair_fini(&pair);
+         if (rc != 0) {
+-                c2_db_cursor_fini(&cursor);
+                 rc = -ENOENT;
+                 C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+                             cob_enoent, rc);
+                 goto out;
+         }
++#endif
++
++        nsrec = cob->co_nsrec;
+ 
+-        /* Update name in namespace */
++        /*
++         * Insert new record. Error will be returned if exists.
++         */
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+ 	                 tgtkey, c2_cob_nskey_size(tgtkey),
+ 		         &nsrec, sizeof nsrec);
++        rc = c2_table_insert(tx, &pair);
++        c2_db_pair_release(&pair);
++        c2_db_pair_fini(&pair);
++        if (rc != 0) {
++                rc = -EEXIST;
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
++                            cob_eexist, rc);
++                goto out;
++        }
++        
++        /*
++         * Kill old record. Error will be returned if nothing found.
++         */
++        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
++	                 srckey, c2_cob_nskey_size(srckey),
++		         &nsrec, sizeof nsrec);
++        rc = c2_table_delete(tx, &pair);
++        c2_db_pair_release(&pair);
++        c2_db_pair_fini(&pair);
++        if (rc != 0) {
++                rc = -ENOENT;
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
++                            cob_enoent, rc);
++                goto out;
++        }
++#if 0
++        rc = c2_db_cursor_init(&cursor, 
++                               &cob->co_dom->cd_namespace, tx);
++        if (rc)
++                goto out;
++
++        /* 
++         * Update name in namespace. To do so we need to position
++         * first. 
++         */
++        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
++	                 srckey, c2_cob_nskey_size(srckey),
++		         &nsrec, sizeof nsrec);
++        rc = c2_db_cursor_get(&cursor, &pair);
++        c2_db_pair_release(&pair);
++        c2_db_pair_fini(&pair);
++        if (rc) {
++                c2_db_cursor_fini(&cursor);
++                goto out;
++        }
++        
++        /*
++         * Update itself.
++         */
++        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
++                         tgtkey, c2_cob_nskey_size(tgtkey),
++		         &nsrec, sizeof nsrec);
+         rc = c2_db_cursor_set(&cursor, &pair);
+         c2_db_pair_release(&pair);
+         c2_db_pair_fini(&pair);
+         c2_db_cursor_fini(&cursor);
+         if (rc)
+                 goto out;        
++#endif
+ 
+         /* Update object index */
+         oikey.cok_fid = cob->co_fid;
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 39bbebe..336d89d 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -321,7 +321,7 @@ int c2_md_store_unlink(struct c2_md_store *md,
+                 cob->co_nsrec.cnr_nlink--;
+                 
+                 /*
+-                 * No hardlinks on directories, nlink shoudl be 0 now.
++                 * No hardlinks on directories, nlink should be 0 now.
+                  */
+ //                C2_ASSERT(cob->co_nsrec.cnr_nlink == 0);
+         } else {
+@@ -514,6 +514,8 @@ int c2_md_store_rename(struct c2_md_store *md,
+         C2_ASSERT(pcob_src != NULL);
+         C2_ASSERT(cob != NULL);
+ 
++        time(&now);
++
+         /*
+          * Perform rename sanity checks (source should not be ancestor
+          * of target dir, etc).
+@@ -532,37 +534,76 @@ int c2_md_store_rename(struct c2_md_store *md,
+                           req->r_tname.n_name,
+                           req->r_tname.n_count);
+ 
+-        rc = c2_cob_update_name(cob, srckey, tgtkey, 
+-                                &ctx->fc_tx->tx_dbtx);
+-        c2_free(srckey);
+-        c2_free(tgtkey);
+-        if (rc)
+-                goto out;
+-
+         /*
+-         * Update mtime in parent.
++         * Cob is just renamed in same parent, not much to do.
+          */
+-        pcob_src->co_nsrec.cnr_mtime = time(&now);
++        if (c2_fid_eq(&pcob_src->co_fid, &pcob_tgt->co_fid)) {
++                rc = c2_cob_update_name(cob, srckey, tgtkey, 
++                                        &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
++
++                /*
++                 * Update mtime in parent.
++                 */
++                pcob_src->co_nsrec.cnr_mtime = now;
+                          
+-        /*
+-         * Update on-store cob so that updated time
+-         * is saved.
+-         */
+-        rc = c2_cob_update(pcob_src, &pcob_src->co_nsrec,  NULL,
+-                           NULL, &ctx->fc_tx->tx_dbtx);
+-        if (rc)
+-                goto out;
++                /*
++                 * Update on-store cob so that updated time
++                 * is saved.
++                 */
++                rc = c2_cob_update(pcob_src, &pcob_src->co_nsrec,
++                                   NULL, NULL, &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
++        } else {
++                /*
++                 * Del name from src parent.
++                 */
++                rc = c2_cob_del_name(cob, srckey, &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
+ 
+-        /*
+-         * Update time in tgt parent unless it is not the same
+-         * as source.
+-         */
+-        if (!c2_fid_eq(&pcob_src->co_fid, &pcob_tgt->co_fid)) {
++                /*
++                 * Update mtime and links in src parent.
++                 */
++                pcob_src->co_nsrec.cnr_nlink--;
++                pcob_src->co_nsrec.cnr_mtime = now;
++
++                /*
++                 * Add name to new location.
++                 */
++                rc = c2_cob_add_name(cob, tgtkey, &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
++                /*
++                 * Update mtime and links in tgt parent.
++                 */
++                pcob_tgt->co_nsrec.cnr_nlink++;
+                 pcob_tgt->co_nsrec.cnr_mtime = now;
+-                rc = c2_cob_update(pcob_tgt, &pcob_tgt->co_nsrec,  
++
++                /*
++                 * Update on-store cob so that updated statdata
++                 * is saved.
++                 */
++                rc = c2_cob_update(pcob_src, &pcob_src->co_nsrec,
+                                    NULL, NULL, &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
++
++                /*
++                 * Update on-store cob so that updated statdata
++                 * is saved.
++                 */
++                rc = c2_cob_update(pcob_tgt, &pcob_tgt->co_nsrec,
++                                   NULL, NULL, &ctx->fc_tx->tx_dbtx);
++                if (rc)
++                        goto out;
+         }
+ out:
++        c2_free(srckey);
++        c2_free(tgtkey);
++
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_rename", rc);
+         return rc;
+-- 
+1.8.3.2
+

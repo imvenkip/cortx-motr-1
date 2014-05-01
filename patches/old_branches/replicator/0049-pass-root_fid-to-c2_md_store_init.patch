@@ -1,0 +1,88 @@
+From 187c1f28b08244c95b7c58b60cc52349a0c5b017 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 8 Apr 2011 08:19:04 -0600
+Subject: [PATCH 049/177] - pass root_fid to c2_md_store_init()
+
+---
+ mdstore/mdstore.c    | 18 ++++++++++++------
+ mdstore/mdstore.h    |  9 +++++----
+ utils/mkfs.colibri.c |  2 +-
+ 3 files changed, 18 insertions(+), 11 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index a1dc875..614087c 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -57,11 +57,17 @@ void c2_md_store_make_nskey(struct c2_cob_nskey **keyh,
+         *keyh = key;
+ }
+ 
+-int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+-                     struct c2_dbenv *db, int locate_root)
++int c2_md_store_init(struct c2_md_store *md, 
++                     struct c2_cob_domain_id *id,
++                     struct c2_dbenv *db, 
++                     struct c2_fid *root_fid, 
++                     int init_root)
+ {
+-        struct c2_db_tx tx;
+-        int             rc;
++        struct c2_db_tx        tx;
++        int                    rc;
++
++        C2_ASSERT(md != NULL && id != NULL && 
++                  db != NULL && root_fid != NULL);
+         
+         C2_SET0(md);
+         c2_addb_ctx_init(&md->md_addb, &mdstore_addb_ctx, 
+@@ -73,9 +79,9 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+ 	        c2_addb_ctx_fini(&md->md_addb);
+                 return rc;
+         }
+-        if (locate_root) {
++        if (init_root) {
+                 c2_db_tx_init(&tx, db, 0);
+-                rc = c2_md_store_locate(md, &C2_MD_ROOT_FID, &md->md_root, 
++                rc = c2_md_store_locate(md, root_fid, &md->md_root, 
+                                         C2_MD_STORE_LOCATE_STORED, &tx);
+                 if (rc) {
+                         c2_db_tx_abort(&tx);
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 16fc507..1e1ca1a 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -59,13 +59,14 @@ enum c2_md_valid_flags {
+ extern struct c2_fid C2_MD_ROOT_FID;
+ 
+ /**
+-   Init mdstore and get it ready to work. If locate_root is
+-   specified then also root cob is located on store.
++   Init mdstore and get it ready to work. Specified root_fid
++   is used to locate root cob init_root == !!1.
+ */
+ int c2_md_store_init(struct c2_md_store *md, 
+                      struct c2_cob_domain_id *id,
+-                     struct c2_dbenv *db,
+-                     int locate_root);
++                     struct c2_dbenv *db, 
++                     struct c2_fid *root_fid, 
++                     int init_root);
+ 
+ /**
+    Finalize mdstore instance.
+diff --git a/utils/mkfs.colibri.c b/utils/mkfs.colibri.c
+index 5d2323c..8c3bcf3 100644
+--- a/utils/mkfs.colibri.c
++++ b/utils/mkfs.colibri.c
+@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
+ 	if (rc)
+ 	        goto out_free_c2;
+ 	        
+-        rc = c2_md_store_init(&md, &cdid, &db, 0);
++        rc = c2_md_store_init(&md, &cdid, &db, &C2_MD_ROOT_FID, 0);
+         if (rc)
+                 goto out_free_db;
+ 
+-- 
+1.8.3.2
+

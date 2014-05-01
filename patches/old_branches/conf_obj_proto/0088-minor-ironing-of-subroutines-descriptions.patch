@@ -1,0 +1,90 @@
+From fed9808771e15801356c22ba06149bde0478f7b7 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 23 Mar 2012 11:00:29 +0200
+Subject: [PATCH 088/370] minor ironing of subroutines' descriptions
+
+---
+ conf/confc.h | 45 +++++++++++++++++++++++----------------------
+ 1 file changed, 23 insertions(+), 22 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index 46eaf71..9c1407b 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -69,25 +69,26 @@
+  * <hr> <!------------------------------------------------------------->
+  * @section confc-dld-fspec-sub  Subroutines
+  *
+- * - c2_confc_init(): initiates configuration client.
+- * - c2_confc_fini(): terminates confc, destroys configuration cache.
++ * - c2_confc_init() initialises configuration client.
++ * - c2_confc_fini() finalises confc, destroys configuration cache.
+  *
+- * - c2_confc_ctx_init()
++ * - c2_confc_ctx_init() initialises context object, which will be
++ *   used by c2_confc_open() and c2_confc_diropen() functions.
+  * - c2_confc_ctx_fini()
+  *
+- * - c2_confc_open(): requests asynchronous opening of configuration object.
+- * - c2_confc_open_sync(): opens configuration object synchronously.
+- * - c2_confc_close(): closes a configuration object.
++ * - c2_confc_open() requests asynchronous opening of a configuration object.
++ * - c2_confc_open_sync() opens configuration object synchronously.
++ * - c2_confc_close() closes configuration object.
+  *
+- * - c2_confc_diropen(): requests asynchronous opening of a collection
++ * - c2_confc_diropen() requests asynchronous opening of a collection
+  *   of configuration objects.
+- * - c2_confc_diropen_sync(): opens a collection of configuration
+- *   objects synchronously.
+- * - c2_confc_dirnext(): returns the next configuration object of a
+- *   collection.
+- * - c2_confc_dirclose(): closes a collection of configuration objects.
++ * - c2_confc_diropen_sync() opens collection of configuration objects
++ *   synchronously.
++ * - c2_confc_dirnext() is used to iterate a collection of
++ *   configuration objects.
++ * - c2_confc_dirclose() closes collection of configuration objects.
+  *
+- * - c2_confc_error(): returns the error status for the asynchronous
++ * - c2_confc_error() returns the error status for the asynchronous
+  *   configuration request.
+  *
+  * @subsection confc-dld-fspec-sub-setup Initialization and termination
+@@ -473,9 +474,9 @@ int c2_confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+ 		     const struct c2_conf_pathcomp *path, size_t path_len);
+ 
+ /**
+- * Synchronous variant of c2_confc_diropen(). Returns a pointer to the
+- * requested collection (directory) of configuration objects or NULL
+- * in case of error.
++ * Synchronous variant of c2_confc_diropen(). Returns pointer to the
++ * requested collection of configuration objects or NULL in case of
++ * error.
+  *
+  * @see c2_confc_diropen()
+  */
+@@ -484,14 +485,14 @@ c2_confc_diropen_sync(struct c2_confc *client, struct c2_conf_obj *path_origin,
+ 		      const struct c2_conf_pathcomp *path, size_t path_len);
+ 
+ /**
+- * Returns a pointer to the next configuration object of given
+- * collection.  Returns NULL if at the end of collection.
++ * Returns the next configuration object of given collection.
++ * Returns NULL if at the end of collection.
+  *
+- * Closes the object returned by previous c2_confc_dirnext() call with
+- * the same argument.
++ * Closes the object returned by previous c2_confc_dirnext() called
++ * with the same argument.
+  *
+- * c2_confc_dirnext() is used to navigate collections of configuration
+- * objects:
++ * c2_confc_dirnext() is used to iterate a collection of configuration
++ * objects.  Example:
+  *
+  * @code
+  * const struct c2_conf_obj *obj;
+-- 
+1.8.3.2
+

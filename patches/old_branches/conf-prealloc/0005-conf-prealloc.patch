@@ -1,0 +1,25 @@
+From c446b61f9ba2cb04d625f1bcfdd454e428ac5b44 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Wed, 2 Apr 2014 12:04:07 +0530
+Subject: [PATCH 5/5] conf-prealloc, - Remove extra braces.
+
+---
+ xcode/xcode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/xcode/xcode.c b/xcode/xcode.c
+index 8cd74b6..d72aa98 100644
+--- a/xcode/xcode.c
++++ b/xcode/xcode.c
+@@ -227,7 +227,7 @@ M0_INTERNAL void m0_xcode_free_obj(struct m0_xcode_obj *obj)
+ 	struct m0_xcode_ctx ctx;
+ 
+ 	M0_SET0(&ctx);
+-	m0_xcode_ctx_init(&ctx, (obj));
++	m0_xcode_ctx_init(&ctx, obj);
+ 	m0_xcode_free(&ctx);
+ }
+ 
+-- 
+1.8.3.2
+

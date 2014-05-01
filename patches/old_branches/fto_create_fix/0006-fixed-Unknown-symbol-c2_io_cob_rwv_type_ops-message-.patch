@@ -1,0 +1,41 @@
+From ba7b83b730fe2156ef6bb06472eba3be01f6b4f1 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 22 Mar 2012 17:31:28 +0200
+Subject: [PATCH 6/9] fixed 'Unknown symbol c2_io_cob_rwv_type_ops' message
+ while loading kcolibri.ko
+
+---
+ ioservice/io_fops.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index ef647ad..1cfe138 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -508,11 +508,21 @@ const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
+ 
+ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request", &c2_io_cob_readv_ops,
+ 			C2_IOSERVICE_READV_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
+-			&rpc_item_iov_type_ops, &c2_io_cob_rwv_type_ops);
++			&rpc_item_iov_type_ops,
++#ifndef __KERNEL__
++			&c2_io_cob_rwv_type_ops);
++#else
++			&c2_fom_type_ops_default);
++#endif
+ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
+ 			&c2_io_cob_writev_ops,
+ 			C2_IOSERVICE_WRITEV_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
+-			&rpc_item_iov_type_ops, &c2_io_cob_rwv_type_ops);
++			&rpc_item_iov_type_ops,
++#ifndef __KERNEL__
++			&c2_io_cob_rwv_type_ops);
++#else
++			&c2_fom_type_ops_default);
++#endif
+ 
+ /**
+  * FOP definitions of readv and writev reply FOPs.
+-- 
+1.8.3.2
+

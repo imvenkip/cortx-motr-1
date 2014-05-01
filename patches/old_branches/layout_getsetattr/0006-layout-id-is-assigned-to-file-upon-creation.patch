@@ -1,0 +1,304 @@
+From 4dbb4fa0b613c11b0602c57eb132eb1ecdde865e Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 1 Feb 2013 14:43:29 +0800
+Subject: [PATCH 06/11] layout id is assigned to file upon creation. layout id
+ is retrieved back from mds upon lookup, and layout instance is built. layout
+ id is stored as an attribute in cob record. file_creation_test() is fixed and
+ enhanced to create:umount:delete.
+
+---
+ m0t1fs/linux_kernel/dir.c                   | 29 ++++++++-----
+ m0t1fs/linux_kernel/inode.c                 | 66 ++++++++++++++---------------
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 29 ++++++++++---
+ m0t1fs/linux_kernel/super.c                 |  6 ++-
+ mdstore/mdstore.c                           |  1 +
+ 5 files changed, 81 insertions(+), 50 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index d979642..6fca70f 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -199,7 +199,7 @@ static int m0t1fs_create(struct inode     *dir,
+ 
+ 	ci               = M0T1FS_I(inode);
+ 	ci->ci_fid       = m0t1fs_fid_alloc(csb);
+-	ci->ci_layout_id = csb->csb_layout_id;
++	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
+ 
+ 	insert_inode_hash(inode);
+ 	mark_inode_dirty(inode);
+@@ -215,15 +215,18 @@ static int m0t1fs_create(struct inode     *dir,
+         mo.mo_attr.ca_atime     = inode->i_atime.tv_sec;
+         mo.mo_attr.ca_ctime     = inode->i_ctime.tv_sec;
+         mo.mo_attr.ca_mtime     = inode->i_mtime.tv_sec;
+-        mo.mo_attr.ca_blocks    = inode->i_blocks;
+         mo.mo_attr.ca_mode      = inode->i_mode;
++        mo.mo_attr.ca_blocks    = inode->i_blocks;
+         mo.mo_attr.ca_pfid      = csb->csb_root_fid;
+         mo.mo_attr.ca_tfid      = ci->ci_fid;
++        mo.mo_attr.ca_lid       = ci->ci_layout_id;
+         mo.mo_attr.ca_nlink     = inode->i_nlink;
+-        mo.mo_attr.ca_valid     = (M0_COB_UID | M0_COB_GID | M0_COB_ATIME |
+-                                   M0_COB_CTIME | M0_COB_MTIME | M0_COB_MODE |
+-                                   M0_COB_BLOCKS | M0_COB_SIZE | M0_COB_NLINK);
+-        m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name, dentry->d_name.len);
++        mo.mo_attr.ca_valid     = (M0_COB_UID    | M0_COB_GID   | M0_COB_ATIME |
++                                   M0_COB_CTIME  | M0_COB_MTIME | M0_COB_MODE  |
++                                   M0_COB_BLOCKS | M0_COB_SIZE  | M0_COB_LID   |
++                                   M0_COB_NLINK);
++        m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
++			dentry->d_name.len);
+ 
+         rc = m0t1fs_mds_cob_create(csb, &mo, &rep);
+         if (rc != 0)
+@@ -471,7 +474,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
+ 
+         M0_SET0(&mo);
+         now = CURRENT_TIME_SEC;
+-        mo.mo_attr.ca_pfid = csb->csb_root_fid;
++        mo.mo_attr.ca_pfid  = csb->csb_root_fid;
+         mo.mo_attr.ca_tfid  = ci->ci_fid;
+         mo.mo_attr.ca_nlink = inode->i_nlink + 1;
+         mo.mo_attr.ca_ctime = now.tv_sec;
+@@ -716,6 +719,11 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
+                 mo.mo_attr.ca_gid = attr->ia_gid;
+                 mo.mo_attr.ca_valid |= M0_COB_GID;
+         }
++	/* XXX
++	 * Layout can be changed explicitly here?
++	 * By administrator?
++	 * For internal use? e.g. NBA
++	 */
+ 
+         rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+         if (rc != 0)
+@@ -991,6 +999,8 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
+                                 0 /* deadline */,
+ 				m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
+ 
++        M0_LOG(M0_DEBUG, "Got rep for operation %u to session %lu rc=%d",
++                m0_fop_opcode(fop), (unsigned long)session->s_session_id, rc);
+         if (rc != 0) {
+                 M0_LOG(M0_ERROR,
+                        "m0_rpc_client_call(%x) failed with %d", m0_fop_opcode(fop), rc);
+@@ -1096,10 +1106,10 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
+ 	mo.mo_layout_id = lid;
+ 	mo.mo_layout    = layout;
+ 
+-	m0t1fs_fs_lock(csb);
+         rc = m0t1fs_mds_cob_op(csb, &mo, &m0_fop_layout_fopt, (void **)&rep);
++	M0_LOG(M0_DEBUG, "layout rep rc = %d", rc);
+ 	if (rc == 0) {
+-		M0_LOG(M0_DEBUG, "layout rep rc = %d", rep->lr_rc);
++		M0_LOG(M0_DEBUG, "layout rep->lr_rc = %d", rep->lr_rc);
+ 
+ 		if (op == M0_LAYOUT_OP_LOOKUP) {
+ 			struct m0_bufvec               bv;
+@@ -1130,7 +1140,6 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
+ 			}
+ 		}
+ 	}
+-	m0t1fs_fs_unlock(csb);
+ 
+ 	if (layout != NULL)
+ 		m0_layout_put(layout); /* dual to m0_layout_find() */
+diff --git a/m0t1fs/linux_kernel/inode.c b/m0t1fs/linux_kernel/inode.c
+index 691c137..e8d0077 100644
+--- a/m0t1fs/linux_kernel/inode.c
++++ b/m0t1fs/linux_kernel/inode.c
+@@ -31,13 +31,6 @@
+ #include "lib/trace.h"          /* M0_LOG and M0_ENTRY */
+ #include "mero/magic.h"
+ 
+-static int m0t1fs_inode_test(struct inode *inode, void *opaque);
+-static int m0t1fs_inode_set(struct inode *inode, void *opaque);
+-
+-static int m0t1fs_build_layout_instance(const uint64_t              layout_id,
+-					const struct m0_fid        *fid,
+-					struct m0_layout_instance **linst);
+-
+ static struct kmem_cache *m0t1fs_inode_cachep = NULL;
+ 
+ static const struct m0_bob_type m0t1fs_inode_bob = {
+@@ -263,6 +256,8 @@ M0_INTERNAL int m0t1fs_inode_update(struct inode *inode,
+         if (body->b_valid & M0_COB_MODE)
+ 	        inode->i_mode = body->b_mode;
+ 
++	/* XXX Can layout change at this time? if yes, update layout here */
++
+ 	M0_LEAVE("rc: %d", rc);
+ 	return rc;
+ }
+@@ -294,7 +289,6 @@ static int m0t1fs_inode_read(struct inode *inode,
+ 		rc = -ENOSYS;
+ 	}
+         if (!m0t1fs_inode_is_root(inode)) {
+-                ci->ci_layout_id = (M0T1FS_SB(inode->i_sb))->csb_layout_id;
+                 ci->ci_layout_id = body->b_lid;
+                 rc = m0t1fs_inode_layout_init(ci);
+         }
+@@ -357,8 +351,36 @@ out_err:
+ 	return ERR_PTR(err);
+ }
+ 
++static int m0t1fs_build_layout_instance(struct m0t1fs_sb           *csb,
++					const uint64_t              layout_id,
++					const struct m0_fid        *fid,
++					struct m0_layout_instance **linst)
++{
++	struct m0_layout           *layout;
++	int                         rc;
++
++	M0_ENTRY();
++	M0_PRE(fid != NULL && linst != NULL);
++
++	layout   = m0_layout_find(&m0t1fs_globals.g_layout_dom, layout_id);
++	if (layout == NULL) {
++		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, layout_id, &layout);
++		if (rc != 0)
++			goto out;
++	}
++
++	*linst   = NULL;
++	rc = m0_layout_instance_build(layout, fid, linst);
++	m0_layout_put(layout);
++
++out:
++	M0_LEAVE("rc: %d", rc);
++	return rc;
++}
++
+ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
+ {
++	struct m0t1fs_sb  *csb;
+ 	struct m0_layout_instance *linst;
+ 	int                        rc;
+ 
+@@ -367,8 +389,10 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
+ 			(unsigned long)ci->ci_fid.f_container,
+ 			(unsigned long)ci->ci_fid.f_key);
+ 
++	csb = M0T1FS_SB(ci->ci_inode.i_sb);
++
+ 	M0_ASSERT(ci->ci_layout_id != 0);
+-	rc = m0t1fs_build_layout_instance(ci->ci_layout_id,
++	rc = m0t1fs_build_layout_instance(csb, ci->ci_layout_id,
+ 					  &ci->ci_fid, &linst);
+ 	if (rc == 0)
+ 		ci->ci_layout_instance = linst;
+@@ -376,27 +400,3 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
+ 	M0_LEAVE("rc: %d", rc);
+ 	return rc;
+ }
+-
+-static int m0t1fs_build_layout_instance(const uint64_t              layout_id,
+-					const struct m0_fid        *fid,
+-					struct m0_layout_instance **linst)
+-{
+-	struct m0_layout           *layout;
+-	int                         rc;
+-
+-	M0_ENTRY();
+-	M0_PRE(fid != NULL && linst != NULL);
+-
+-	layout   = m0_layout_find(&m0t1fs_globals.g_layout_dom, layout_id);
+-	/**
+-	 * During m0t1fs mount we have built a layout, so m0_layout_find
+-	 * will always return a registered layout.
+-	 */
+-	M0_ASSERT(layout != NULL);
+-	*linst   = NULL;
+-	rc = m0_layout_instance_build(layout, fid, linst);
+-	m0_layout_put(layout);
+-
+-	M0_LEAVE("rc: %d", rc);
+-	return rc;
+-}
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 3e5e8a7..6e6478d 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -306,19 +306,38 @@ file_creation_test()
+ 	echo "Test: Creating $nr_files files on m0t1fs..." \
+ 	    >> $MERO_TEST_LOGFILE
+ 	for ((i=0; i<$nr_files; ++i)); do
+-		touch $m0t1fs_mount_dir/file$i || break
++		touch $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
++		ls -li $MERO_M0T1FS_MOUNT_DIR/file$i >>$MERO_TEST_LOGFILE || break
+ 	done
+-	echo "Removing files..." >> $MERO_TEST_LOGFILE
+-	rm -f $m0t1fs_mount_dir/file*
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 	echo -n "Test: file creation: " >> $MERO_TEST_LOGFILE
+ 	if [ $i -eq $nr_files ]; then
+-		echo "Success." >> $MERO_TEST_LOGFILE
++		echo "Creation Success." >> $MERO_TEST_LOGFILE
++	else
++		echo "Creation Failed." >> $MERO_TEST_LOGFILE
++		return 1
++	fi
++
++	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 &>> $MERO_TEST_LOGFILE || {
++		cat $MERO_TEST_LOGFILE
++		return 1
++	}
++	echo "Test: removing $nr_files files on m0t1fs..." \
++	    >> $MERO_TEST_LOGFILE
++	for ((i=0; i<$nr_files; ++i)); do
++		rm -vf $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
++	done
++
++	unmount_and_clean &>> $MERO_TEST_LOGFILE
++	echo -n "Test: file removal: " >> $MERO_TEST_LOGFILE
++	if [ $i -eq $nr_files ]; then
++		echo "Removal Success." >> $MERO_TEST_LOGFILE
+ 		return 0
+ 	else
+-		echo "Failed." >> $MERO_TEST_LOGFILE
++		echo "Removal Failed." >> $MERO_TEST_LOGFILE
+ 		return 1
+ 	fi
++
+ 	return 1
+ }
+ 
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 72cdbcf..94fdbc9 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -703,7 +703,8 @@ static int m0t1fs_root_alloc(struct super_block *sb)
+ 	if (rc != 0 && rc != -EEXIST)
+ 		M0_RETURN(rc);
+ 
+-	if (0) {/* testing */
++	/* testing code
++	if (0) {
+ 		uint64_t lid1 = 1234;
+ 		uint64_t lid2 = 5678;
+ 		struct m0_layout *l1;
+@@ -742,8 +743,9 @@ static int m0t1fs_root_alloc(struct super_block *sb)
+ 		M0_ASSERT(rc == 0);
+ 		m0_layout_put(tmp);
+ 		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, lid2 + lid1, &tmp);
+-		M0_ASSERT(rc =! 0);
++		M0_ASSERT(rc != 0);
+ 	}
++	*/
+ 
+ 	sb->s_magic = rep->f_type;
+ 	csb->csb_namelen = rep->f_namelen;
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 6c351e7..acec24a 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -188,6 +188,7 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
+         nsrec.cnr_atime = attr->ca_atime;
+         nsrec.cnr_mtime = attr->ca_mtime;
+         nsrec.cnr_ctime = attr->ca_ctime;
++        nsrec.cnr_lid   = attr->ca_lid;
+ 
+         omgrec.cor_uid = attr->ca_uid;
+         omgrec.cor_gid = attr->ca_gid;
+-- 
+1.8.3.2
+

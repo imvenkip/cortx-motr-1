@@ -1,0 +1,914 @@
+From 0dcfb0bea25adefd527ba3232d087c6916e8baea Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Mon, 16 Sep 2013 16:56:49 +0530
+Subject: [PATCH 9/9] Fix issuses found during testing, - Fix out of order
+ local and remote copy packet processing for an aggregation group,   with
+ respect to reed solomon. - Fix issues found in UTs.
+
+---
+ cm/ag.h                  |   3 +-
+ cm/cp.c                  |   2 +-
+ sns/cm/cm.c              |  85 +++++++++++++--------------------
+ sns/cm/cm.h              |  15 +++---
+ sns/cm/cm_utils.c        |   7 ---
+ sns/cm/cm_utils.h        |   5 --
+ sns/cm/iter.c            |  15 ++++--
+ sns/cm/rebalance/ag.c    |   4 +-
+ sns/cm/rebalance/cm.c    |  18 +++----
+ sns/cm/repair/ag.c       |  49 +++++++------------
+ sns/cm/repair/ag.h       |   6 ++-
+ sns/cm/repair/cm.c       |  16 +++++--
+ sns/cm/repair/ut/cm.c    |  21 +++++----
+ sns/cm/repair/ut/net.c   |  35 ++++++++------
+ sns/cm/repair/ut/xform.c |   8 ++--
+ sns/cm/repair/xform.c    | 119 +++++++++++++++++++++++------------------------
+ 16 files changed, 191 insertions(+), 217 deletions(-)
+
+diff --git a/cm/ag.h b/cm/ag.h
+index b80e979..90a166c 100644
+--- a/cm/ag.h
++++ b/cm/ag.h
+@@ -106,8 +106,7 @@ struct m0_cm_aggr_group_ops {
+ 	 * aggregation group and copy packet to be finalised.y
+ 	 * @pre ag != NULL && cp != NULL
+ 	 */
+-	bool (*cago_ag_can_fini) (struct m0_cm_aggr_group *ag,
+-				  struct m0_cm_cp *cp);
++	bool (*cago_ag_can_fini) (struct m0_cm_aggr_group *ag);
+ 
+ 	/** Performs aggregation group completion processing. */
+ 	void (*cago_fini)(struct m0_cm_aggr_group *ag);
+diff --git a/cm/cp.c b/cm/cp.c
+index afed38c..b63d6d3 100644
+--- a/cm/cp.c
++++ b/cm/cp.c
+@@ -424,7 +424,6 @@ static void cp_fom_fini(struct m0_fom *fom)
+ 	bool                     ag_fini;
+ 
+ 	M0_CNT_INC(ag->cag_freed_cp_nr);
+-	ag_fini = ag->cag_ops->cago_ag_can_fini(ag, cp);
+ 	m0_cm_cp_fini(cp);
+ 	/**
+ 	 * Try to create a new copy packet since this copy packet is
+@@ -432,6 +431,7 @@ static void cp_fom_fini(struct m0_fom *fom)
+ 	 */
+ 	m0_cm_lock(cm);
+ 	cp->c_ops->co_free(cp);
++	ag_fini = ag->cag_ops->cago_ag_can_fini(ag);
+         if (ag_fini)
+                 ag->cag_ops->cago_fini(ag);
+ 	if (m0_cm_has_more_data(cm))
+diff --git a/sns/cm/cm.c b/sns/cm/cm.c
+index cfdbbc1..a136d88 100644
+--- a/sns/cm/cm.c
++++ b/sns/cm/cm.c
+@@ -35,7 +35,6 @@
+ #include "mero/setup.h"
+ #include "net/net.h"
+ #include "ioservice/io_device.h"
+-#include "pool/pool.h"
+ #include "reqh/reqh.h"
+ #include "rpc/rpc.h"
+ #include "cob/ns_iter.h"
+@@ -537,39 +536,36 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
+ 	return bnr;
+ }
+ 
+-static int pm_event_setup_and_post(struct m0_dbenv *dbenv,
+-				   struct m0_poolmach *pm,
+-	                           enum m0_pool_event_owner_type et,
+-	                           uint32_t oid,
+-	                           enum m0_pool_nd_state state)
++M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
++					enum m0_pool_event_owner_type et,
++					enum m0_pool_nd_state state)
+ {
+-	struct m0_pool_event pme;
+-	struct m0_db_tx      tx;
+-	int                  rc;
++	struct m0_pool_event  pme;
++	struct m0_dbenv      *dbenv = scm->sc_it.si_dbenv;
++	struct m0_db_tx       tx;
++	int                   i;
++	int                   rc = 0;
+ 
+-	rc = m0_db_tx_init(&tx, dbenv, 0);
+-	if (rc != 0)
+-		return rc;
++	for (i = 0; i < scm->sc_failures_nr; ++i) {
++		rc = m0_db_tx_init(&tx, dbenv, 0);
++		if (rc != 0)
++			return rc;
+ 
+-	M0_SET0(&pme);
+-	pme.pe_type  = et;
+-	pme.pe_index = oid;
+-	pme.pe_state = state;
+-	rc = m0_poolmach_state_transit(pm, &pme, &tx);
++		M0_SET0(&pme);
++		pme.pe_type  = et;
++		pme.pe_index = scm->sc_it.si_fdata[i];
++		pme.pe_state = state;
++		rc = m0_poolmach_state_transit(scm->sc_base.cm_pm, &pme, &tx);
++		if (rc == 0)
++			m0_db_tx_commit(&tx);
++		else
++			break;
++			//m0_db_tx_abort(&tx);
++	}
+ 
+-	if (rc == 0)
+-		m0_db_tx_commit(&tx);
+-	else
+-		m0_db_tx_abort(&tx);
+ 	return rc;
+ }
+ 
+-static int pm_state(struct m0_sns_cm *scm)
+-{
+-	return scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
+-					  M0_PNDS_SNS_REBALANCING;
+-}
+-
+ M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm)
+ {
+ 	struct m0_sns_cm      *scm = cm2sns(cm);
+@@ -611,42 +607,23 @@ M0_INTERNAL int m0_sns_cm_ready(struct m0_cm *cm)
+ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
+ {
+ 	struct m0_sns_cm      *scm = cm2sns(cm);
+-	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
+-	enum m0_pool_nd_state  state;
+ 	int                    rc;
+-	int                    i;
+ 
+ 	M0_ENTRY("cm: %p", cm);
+ 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
+ 
+-	state = pm_state(scm);
+-	for (i = 0; i < scm->sc_failures_nr; ++i) {
+-		rc = pm_event_setup_and_post(dbenv, cm->cm_pm,
+-					     M0_POOL_DEVICE,
+-					     scm->sc_it.si_fdata[i],
+-					     state);
+-	}
+-
+ 	rc = m0_sns_cm_iter_start(&scm->sc_it);
++	if (rc == 0)
++		scm->sc_start_time = m0_time_now();
+ 
+-	scm->sc_start_time = m0_time_now();
+-	M0_LEAVE();
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
+ {
+ 	struct m0_sns_cm      *scm = cm2sns(cm);;
+-	struct m0_dbenv       *dbenv = scm->sc_it.si_dbenv;
+-	enum m0_pool_nd_state  pm_state = 0;
+-	int                    i;
+ 
+ 	m0_sns_cm_iter_stop(&scm->sc_it);
+-	for (i = 0; i < scm->sc_failures_nr; ++i) {
+-		pm_event_setup_and_post(dbenv, cm->cm_pm, M0_POOL_DEVICE,
+-					scm->sc_it.si_fdata[i], pm_state);
+-	}
+-
+ 	scm->sc_failures_nr = 0;
+ 	scm->sc_stop_time = m0_time_now();
+ 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_repair_info,
+@@ -699,20 +676,24 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
+ 	struct m0_sns_cm     *scm = cm2sns(cp->c_ag->cag_cm);
+ 	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
+ 	size_t                colour;
+-	uint32_t              seg_nr;
++	uint32_t              seg_nr = 0;
+ 	uint32_t              rem_bufs;
+ 
+ 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+ 
+ 	colour =  cp_home_loc_helper(cp) % bp->nbp_colours_nr;
+-	seg_nr = cp->c_data_seg_nr;
+-	rem_bufs = m0_sns_cm_cp_buf_nr(bp, seg_nr);
++	rem_bufs = m0_sns_cm_cp_buf_nr(bp, cp->c_data_seg_nr);
+ 	rem_bufs -= cp->c_buf_nr;
+ 	while (rem_bufs > 0) {
+ 		buf = m0_cm_buffer_get(bp, colour);
+ 		if (buf == NULL)
+ 			return -ENOBUFS;
+ 		m0_cm_cp_buf_add(cp, buf);
++		if (cp->c_data_seg_nr > (cp->c_buf_nr * bp->nbp_seg_nr))
++			seg_nr = bp->nbp_seg_nr;
++		else
++			seg_nr = cp->c_data_seg_nr -
++				 ((cp->c_buf_nr - 1) * bp->nbp_seg_nr);
+ 		buf->nb_buffer.ov_vec.v_nr = seg_nr;
+ 		M0_CNT_DEC(rem_bufs);
+ 		if (!scp->sc_is_local) {
+diff --git a/sns/cm/cm.h b/sns/cm/cm.h
+index bedeeec..86e14ba 100644
+--- a/sns/cm/cm.h
++++ b/sns/cm/cm.h
+@@ -24,10 +24,11 @@
+ #ifndef __MERO_SNS_CM_H__
+ #define __MERO_SNS_CM_H__
+ 
+-#include "cm/cm.h"
+ #include "net/buffer_pool.h"
+ #include "layout/pdclust.h"
++#include "pool/pool.h"
+ 
++#include "cm/cm.h"
+ #include "sns/cm/iter.h"
+ 
+ /**
+@@ -148,14 +149,6 @@ struct m0_sns_cm_helpers {
+ 				       struct m0_pdclust_layout *pl,
+ 				       struct m0_pdclust_instance *pi);
+ 
+-	/**
+-	 * Returns true if all the necessary copy packets are transformed or
+-	 * accumulated into the aggregation group accumulator for a given
+-	 * copy machine operation, viz. sns-repair or sns-rebalance.
+-	 */
+-	bool     (*sch_ag_accumulator_is_full)(const struct m0_sns_cm_ag *sag,
+-					       int xform_cp_nr);
+-
+ 	int      (*sch_ag_setup)(struct m0_sns_cm_ag *sag,
+ 				 struct m0_pdclust_layout *pl);
+ 
+@@ -277,6 +270,10 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
+ 					 struct m0_pdclust_layout *pl,
+ 					 uint64_t nr_bufs);
+ 
++M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
++					enum m0_pool_event_owner_type et,
++					enum m0_pool_nd_state state);
++
+ /**
+  * Returns state of SNS repair process with respect to @gfid.
+  * @param gfid Input global fid for which SNS repair state has to
+diff --git a/sns/cm/cm_utils.c b/sns/cm/cm_utils.c
+index 062fb99..def59b7 100644
+--- a/sns/cm/cm_utils.c
++++ b/sns/cm/cm_utils.c
+@@ -550,13 +550,6 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
+         return result;
+ }
+ 
+-M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag)
+-{
+-	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+-
+-	return ag->cag_freed_cp_nr == ag->cag_cp_local_nr + sag->sag_fnr;
+-}
+-
+ M0_INTERNAL uint64_t
+ m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
+ 				const struct m0_pdclust_layout *pl)
+diff --git a/sns/cm/cm_utils.h b/sns/cm/cm_utils.h
+index 3a1d812..f97c238 100644
+--- a/sns/cm/cm_utils.h
++++ b/sns/cm/cm_utils.h
+@@ -175,11 +175,6 @@ M0_INTERNAL bool
+ m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
+ 			      uint64_t nr_cps_fini);
+ 
+-M0_INTERNAL bool m0_sns_cm_ag_local_is_done(const struct m0_cm_aggr_group *ag);
+-
+-M0_INTERNAL bool
+-m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag, int acc_idx);
+-
+ /** @} endgroup SNSCM */
+ 
+ /* __MERO_SNS_CM_UTILS_H__ */
+diff --git a/sns/cm/iter.c b/sns/cm/iter.c
+index 06f8877..a7a2431 100644
+--- a/sns/cm/iter.c
++++ b/sns/cm/iter.c
+@@ -249,12 +249,12 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
+ {
+ 	int             rc;
+ 	struct m0_db_tx tx;
++
+ 	M0_ENTRY("it = %p", it);
+ 
+ 	rc = m0_db_tx_init(&tx, it->si_dbenv, 0);
+ 	if (rc != 0)
+ 		return rc;
+-
+ 	rc = m0_cob_ns_iter_next(&it->si_cns_it, &tx, fid_next);
+         if (rc == 0) {
+ 		M0_ADDB_POST(&m0_addb_gmc,
+@@ -265,7 +265,11 @@ M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
+ 	}
+         else {
+ 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_FID_NEXT);
+-                m0_db_tx_abort(&tx);
++		/**
++		 * XXX: Abort the transaction. Commented out because not yet
++		 * implemented.
++		 * m0_db_tx_abort(&tx);
++		 */
+ 	}
+ 	M0_RETURN(rc);
+ }
+@@ -340,11 +344,12 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
+ 	int                         fnr_cnt = 0;
+ 	int                         i;
+ 
+-	for (i = 0; i < scm->sc_failures_nr; ++i) {
+-		sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl) - i;
++	for (i = 0; i < m0_pdclust_K(pl); ++i) {
++		sa.sa_unit = m0_pdclust_N(pl) + m0_pdclust_K(pl) + i;
+ 		sa.sa_group = group;
+ 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, fid, &cobfid);
+-		if (m0_sns_cm_is_cob_failed(scm, &cobfid))
++		if (m0_sns_cm_is_cob_failed(scm, &cobfid) &&
++		    m0_sns_cm_unit_is_spare(scm, pl, sa.sa_unit))
+ 			M0_CNT_INC(fnr_cnt);
+ 	}
+ 
+diff --git a/sns/cm/rebalance/ag.c b/sns/cm/rebalance/ag.c
+index 9d36732..bb3f13b 100644
+--- a/sns/cm/rebalance/ag.c
++++ b/sns/cm/rebalance/ag.c
+@@ -82,12 +82,12 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
+ 	M0_LEAVE();
+ }
+ 
+-static bool rebalance_ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
++static bool rebalance_ag_can_fini(struct m0_cm_aggr_group *ag)
+ {
+ 	struct m0_sns_cm_ag           *sag = ag2snsag(ag);
+ 	struct m0_sns_cm_rebalance_ag *rag = sag2rebalanceag(sag);
+ 
+-	M0_PRE(ag != NULL && cp != NULL);
++	M0_PRE(ag != NULL);
+ 
+         if (ag->cag_has_incoming) {
+ 		return ag->cag_freed_cp_nr == rag->rag_incoming_nr +
+diff --git a/sns/cm/rebalance/cm.c b/sns/cm/rebalance/cm.c
+index 45c0301..946b551 100644
+--- a/sns/cm/rebalance/cm.c
++++ b/sns/cm/rebalance/cm.c
+@@ -70,24 +70,26 @@ static int rebalance_cm_ready(struct m0_cm *cm)
+ 	M0_ENTRY("cm: %p", cm);
+ 	M0_PRE(scm->sc_op == SNS_REBALANCE);
+ 
++        rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
++				     M0_PNDS_SNS_REBALANCING);
++	if (rc != 0)
++		return rc;
+ 	scm->sc_helpers = &rebalance_helpers;
+-	rc = m0_sns_cm_ready(cm);
+-
+-	M0_RETURN(rc);
++	return m0_sns_cm_ready(cm);
+ }
+ 
+ static int rebalance_cm_stop(struct m0_cm *cm)
+ {
+ 	struct m0_sns_cm      *scm = cm2sns(cm);;
+ 	int                    rc;
+-	enum m0_pool_nd_state  pm_state;
+ 
+ 	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
+ 
+-	pm_state = M0_PNDS_ONLINE;
+-	rc = m0_sns_cm_stop(cm);
+-
+-	M0_RETURN(rc);
++        rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
++				     M0_PNDS_ONLINE);
++	if (rc != 0)
++		return rc;
++	return m0_sns_cm_stop(cm);
+ }
+ 
+ /**
+diff --git a/sns/cm/repair/ag.c b/sns/cm/repair/ag.c
+index cbd0117..008f062 100644
+--- a/sns/cm/repair/ag.c
++++ b/sns/cm/repair/ag.c
+@@ -95,9 +95,6 @@ static int incr_recover_failure_register(struct m0_sns_cm_repair_ag *rag)
+ 		rc = m0_sns_ir_failure_register(&nbuf_head->nb_buffer,
+ 						rag->rag_fc[i].fc_failed_idx,
+ 						&rag->rag_ir);
+-		/*XXX: Remove this after finding a better solution.*/
+-		/*if (rag->rag_base.sag_base.cag_cp_local_nr == 0)
+-			rag->rag_ir.si_mode = M0_SI_XFORM;*/
+ 		if (rc != 0)
+ 			goto out;
+ 	}
+@@ -197,21 +194,11 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
+ 	M0_LEAVE();
+ }
+ 
+-static bool repair_ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
++static bool repair_ag_can_fini(struct m0_cm_aggr_group *ag)
+ {
+-	struct m0_sns_cm_cp *scp = cp2snscp(cp);
+-	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+-        uint64_t             nr_cps;
+-
+-        if (ag->cag_has_incoming) {
+-		/* Check if this is local accumulator. */
+-		if (!scp->sc_is_acc)
+-			return false;
+-		nr_cps = m0_cm_cp_nr(cp);
+-		return nr_cps == sag->sag_base.cag_cp_global_nr -
+-				 sag->sag_fnr;
+-        } else
+-		return m0_sns_cm_ag_local_is_done(ag);
++	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
++
++	return rag->rag_acc_freed == rag->rag_base.sag_fnr;
+ }
+ 
+ static const struct m0_cm_aggr_group_ops sns_cm_repair_ag_ops = {
+@@ -375,29 +362,25 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
+ 	return rc;
+ }
+ 
+-M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
+-						  int acc_idx)
++/**
++ * Returns true if all the necessary copy packets are transformed or
++ * accumulated into the aggregation group accumulator for a given
++ * copy machine operation, viz. sns-repair or sns-rebalance.
++ */
++M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
++					       uint64_t nr_cps)
+ {
+-	struct m0_sns_cm           *scm;
+-	struct m0_sns_cm_repair_ag *rag = sag2repairag(sag);
+-	struct m0_cm_cp            *acc_cp;
+-	uint64_t                    global_cp_nr;
+ 	int                         i;
+ 	uint64_t                    xform_cp_nr = 0;
+ 
+-	M0_PRE(sag != NULL);
+-
+-	acc_cp = &rag->rag_fc[acc_idx].fc_tgt_acc_cp.sc_base;
+-	scm = cm2sns(sag->sag_base.cag_cm);
+-	global_cp_nr = sag->sag_base.cag_cp_global_nr;
+-	for (i = 0; i < global_cp_nr; ++i) {
+-		if (m0_bitmap_get(&acc_cp->c_xform_cp_indices, i))
++	for (i = 0; i < acc->c_xform_cp_indices.b_nr; ++i) {
++		if (m0_bitmap_get(&acc->c_xform_cp_indices, i))
+ 			M0_CNT_INC(xform_cp_nr);
+ 	}
+ 
+-	M0_LOG(M0_DEBUG, "acc is full: xform_cp_nr: [%lu] global_cp_nr: [%lu]", xform_cp_nr,
+-		global_cp_nr);
+-	return xform_cp_nr == global_cp_nr - sag->sag_fnr ? true : false;
++	M0_LOG(M0_DEBUG, "acc is full: xform_cp_nr: [%lu] cp_nr: [%lu]",
++	       xform_cp_nr, nr_cps);
++	return xform_cp_nr == nr_cps;
+ }
+ 
+ /** @} SNSCMAG */
+diff --git a/sns/cm/repair/ag.h b/sns/cm/repair/ag.h
+index 924ffec..348695e 100644
+--- a/sns/cm/repair/ag.h
++++ b/sns/cm/repair/ag.h
+@@ -58,6 +58,8 @@ struct m0_sns_cm_repair_ag_failure_ctx {
+ 
+ 	/** Target unit offset within the cob identified by tgt_cobfid. */
+ 	uint64_t                     fc_tgt_cob_index;
++
++	bool                         fc_is_active;
+ };
+ 
+ struct m0_sns_cm_repair_ag {
+@@ -116,8 +118,8 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *ag,
+  * copy packet.
+  * @see struct m0_sns_cm_repair_ag_failure_ctx::fc_tgt_acc_cp
+  */
+-M0_INTERNAL bool m0_sns_cm_ag_accumulator_is_full(const struct m0_sns_cm_ag *sag,
+-						  int acc_idx);
++M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
++					       uint64_t nr_cps);
+ 
+ /**
+  * Calculates number of buffers required for all the incoming copy packets.
+diff --git a/sns/cm/repair/cm.c b/sns/cm/repair/cm.c
+index 4eb35ac..3a11dba 100644
+--- a/sns/cm/repair/cm.c
++++ b/sns/cm/repair/cm.c
+@@ -61,23 +61,31 @@ static struct m0_cm_cp *repair_cm_cp_alloc(struct m0_cm *cm)
+ 
+ static int repair_cm_ready(struct m0_cm *cm)
+ {
+-	struct m0_sns_cm      *scm = cm2sns(cm);
++	struct m0_sns_cm *scm = cm2sns(cm);
++	int               rc;
+ 
+ 	M0_ENTRY("cm: %p", cm);
+ 	M0_PRE(scm->sc_op == SNS_REPAIR);
+ 
++	rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
++				     M0_PNDS_SNS_REPAIRING);
++	if (rc != 0)
++		return rc;
+ 	scm->sc_helpers = &repair_helpers;
+ 	return m0_sns_cm_ready(cm);
+ }
+ 
+ static int repair_cm_stop(struct m0_cm *cm)
+ {
+-	struct m0_sns_cm      *scm = cm2sns(cm);;
+-	enum m0_pool_nd_state  pm_state;
++	struct m0_sns_cm *scm = cm2sns(cm);;
++	int               rc;
+ 
+ 	M0_PRE(scm->sc_op == SNS_REPAIR);
+ 
+-	pm_state = M0_PNDS_SNS_REPAIRED;
++	rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
++				     M0_PNDS_SNS_REPAIRED);
++	if (rc != 0)
++		return rc;
+ 	return m0_sns_cm_stop(cm);
+ }
+ 
+diff --git a/sns/cm/repair/ut/cm.c b/sns/cm/repair/ut/cm.c
+index dd19ead..fcc12b4 100644
+--- a/sns/cm/repair/ut/cm.c
++++ b/sns/cm/repair/ut/cm.c
+@@ -105,10 +105,6 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
+ 	scm->sc_it.si_fdata = &fdata;
+ 	scm->sc_failures_nr = 1;
+ 	scm->sc_op = op;
+-	rc = cm->cm_ops->cmo_ready(cm);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = cm->cm_ops->cmo_start(cm);
+-	M0_UT_ASSERT(rc == 0);
+ 	M0_SET0(&pme);
+ 	pme.pe_type  = M0_POOL_DEVICE;
+ 	pme.pe_index = fd;
+@@ -118,6 +114,11 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
+ 	rc = m0_poolmach_state_transit(cm->cm_pm, &pme,
+ 				       &tx);
+ 	M0_UT_ASSERT(rc == 0);
++	m0_db_tx_commit(&tx);
++	rc = cm->cm_ops->cmo_ready(cm);
++	M0_UT_ASSERT(rc == 0);
++	rc = cm->cm_ops->cmo_start(cm);
++	M0_UT_ASSERT(rc == 0);
+ }
+ 
+ static bool cp_verify(struct m0_sns_cm_cp *scp)
+@@ -179,7 +180,7 @@ static void cob_delete(uint64_t cont, uint64_t key)
+ 	struct m0_cob        *cob;
+ 	struct m0_cob_domain *cdom;
+ 	struct m0_fid         cob_fid;
+-	struct m0_dtx         tx;
++	struct m0_db_tx       tx;
+ 	struct m0_dbenv      *dbenv;
+ 	struct m0_cob_oikey   oikey;
+ 	int                   rc;
+@@ -187,13 +188,13 @@ static void cob_delete(uint64_t cont, uint64_t key)
+ 	dbenv_cob_domain_get(&dbenv, &cdom);
+ 	m0_fid_set(&cob_fid, cont, key);
+ 	m0_cob_oikey_make(&oikey, &cob_fid, 0);
+-	rc = m0_db_tx_init(&tx.tx_dbtx, dbenv, 0);
++	rc = m0_db_tx_init(&tx, dbenv, 0);
+ 	M0_UT_ASSERT(rc == 0);
+-	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob, &tx.tx_dbtx);
++	rc = m0_cob_locate(cdom, &oikey, 0/*M0_CA_NSKEY_FREE*/, &cob, &tx);
+ 	M0_UT_ASSERT(rc == 0);
+-	rc = m0_cob_delete_put(cob, &tx.tx_dbtx);
++	rc = m0_cob_delete_put(cob, &tx);
+ 	M0_UT_ASSERT(rc == 0);
+-	m0_db_tx_commit(&tx.tx_dbtx);
++	m0_db_tx_commit(&tx);
+ }
+ 
+ static void buf_put(struct m0_sns_cm_cp *scp)
+@@ -304,7 +305,7 @@ static void iter_repair_single_file(void)
+ 	iter_setup(SNS_REPAIR, 2);
+ 	rc = iter_run(10, 1);
+ 	M0_UT_ASSERT(rc == -ENODATA);
+-	iter_stop(1, 5);
++	iter_stop(1, 10);
+ }
+ 
+ static void iter_repair_multi_file(void)
+diff --git a/sns/cm/repair/ut/net.c b/sns/cm/repair/ut/net.c
+index 124b4a6..e7e1c83 100644
+--- a/sns/cm/repair/ut/net.c
++++ b/sns/cm/repair/ut/net.c
+@@ -68,6 +68,8 @@ enum {
+         SEG_NR             = 256,
+         SEG_SIZE           = 4096,
+         START_DATA         = 101,
++	DEV_ID		   = 1,
++	KEY		   = 1,
+ };
+ 
+ static struct m0_net_domain  client_net_dom;
+@@ -120,8 +122,8 @@ static struct m0_stob_id sid = {
+ 
+ static struct m0_cm_ag_id ag_id = {
+         .ai_hi = {
+-                .u_hi = 1,
+-                .u_lo = 1
++                .u_hi = DEV_ID,
++                .u_lo = KEY
+         },
+         .ai_lo = {
+                 .u_hi = 0,
+@@ -146,18 +148,11 @@ static void cp_ag_fini(struct m0_cm_aggr_group *ag)
+         m0_cm_aggr_group_fini(ag);
+ }
+ 
+-static bool cp_ag_can_fini(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
++static bool cp_ag_can_fini(struct m0_cm_aggr_group *ag)
+ {
+-        struct m0_sns_cm_ag *sag = ag2snsag(ag);
+-        uint64_t             nr_cps;
+-
+-        M0_PRE(ag != NULL && cp != NULL);
++	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
+ 
+-        if (ag->cag_has_incoming) {
+-                nr_cps = m0_cm_cp_nr(cp);
+-                return nr_cps == ag->cag_cp_global_nr - sag->sag_fnr;
+-        } else
+-                return ag->cag_freed_cp_nr == ag->cag_cp_local_nr + sag->sag_fnr;
++	return rag->rag_acc_freed == rag->rag_base.sag_fnr;
+ }
+ 
+ static const struct m0_cm_aggr_group_ops group_ops = {
+@@ -483,7 +478,9 @@ static void cm_ready(struct m0_cm *cm)
+ 
+ static void receiver_init()
+ {
+-        M0_UT_ASSERT(cs_init(&sctx) == 0);
++        struct m0_poolmach_state *ps;
++
++	M0_UT_ASSERT(cs_init(&sctx) == 0);
+         s0_reqh = m0_cs_reqh_get(&sctx, "sns_repair");
+         M0_UT_ASSERT(s0_reqh != NULL);
+ 
+@@ -501,6 +498,18 @@ static void receiver_init()
+ 	cm->cm_pm = m0_ios_poolmach_get(cm->cm_service.rs_reqh);
+ 	M0_UT_ASSERT(cm->cm_pm != NULL);
+ 	m0_cm_lock(cm);
++	/*
++	 * Set the state of the failed device to "M0_PNDS_FAILED" in the pool
++	 * machine explicitly.
++	 */
++	ps = &cm->cm_pm->pm_state;
++	ps->pst_devices_array[DEV_ID].pd_state = M0_PNDS_FAILED;
++	ps->pst_spare_usage_array[DEV_ID].psu_device_state  =
++	M0_PNDS_SNS_REPAIRING;
++	ps->pst_spare_usage_array[DEV_ID].psu_device_index = DEV_ID;
++	//sns_cm_ut_dev_state(ps->pst_devices_array[DEV_ID].pd_state,
++	//                    M0_PNDS_FAILED);
++
+ 	cm->cm_ops->cmo_ready(cm);
+ 	m0_cm_unlock(cm);
+ 	cm_ready(cm);
+diff --git a/sns/cm/repair/ut/xform.c b/sns/cm/repair/ut/xform.c
+index ab6ab61..7560b09 100644
+--- a/sns/cm/repair/ut/xform.c
++++ b/sns/cm/repair/ut/xform.c
+@@ -210,7 +210,7 @@ static struct m0_fom_ops multiple_cp_fom_ops = {
+ 	.fo_home_locality = dummy_fom_locality,
+ 	.fo_addb_init     = dummy_fom_addb_init
+ };
+-
++/*
+ static bool dummy_xform_ut_accumulator_is_full(const struct m0_sns_cm_ag *sag,
+ 					       int xform_cp_nr)
+ {
+@@ -218,9 +218,8 @@ static bool dummy_xform_ut_accumulator_is_full(const struct m0_sns_cm_ag *sag,
+ 
+         return xform_cp_nr == global_cp_nr - sag->sag_fnr ? true : false;
+ }
+-
++*/
+ const struct m0_sns_cm_helpers xform_ut_repair_helpers = {
+-	.sch_ag_accumulator_is_full = dummy_xform_ut_accumulator_is_full
+ };
+ 
+ static void cp_buf_free(struct m0_sns_cm_ag *sag)
+@@ -423,6 +422,7 @@ static void cp_multi_failures_post(char data, int cnt, int index)
+ {
+ 	struct m0_net_buffer *nbuf;
+ 	struct m0_sns_cm_ag *sag;
++	struct m0_sns_cm_cp *scp;
+ 
+ 	n_buf[cnt][0].nb_pool = &nbp;
+ 	sag = &n_rag.rag_base;
+@@ -433,6 +433,8 @@ static void cp_multi_failures_post(char data, int cnt, int index)
+ 	buffers_attach(n_buf[cnt], &n_cp[cnt], data);
+ 
+ 	n_cp[cnt].c_data_seg_nr = SEG_NR * BUF_NR;
++	scp = (struct m0_sns_cm_cp *)&n_cp[cnt];
++	scp->sc_is_local = true;
+ 	m0_bitmap_init(&n_cp[cnt].c_xform_cp_indices,
+ 			sag->sag_base.cag_cp_global_nr);
+ 	m0_bitmap_set(&n_cp[cnt].c_xform_cp_indices, index, true);
+diff --git a/sns/cm/repair/xform.c b/sns/cm/repair/xform.c
+index 4e07f85..f9f5564 100644
+--- a/sns/cm/repair/xform.c
++++ b/sns/cm/repair/xform.c
+@@ -161,20 +161,6 @@ static void cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
+ 			  &src_cp->c_xform_cp_indices, failed_index, bt);
+ }
+ 
+-/*
+-static void cp_incr_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp,
+-			    uint32_t failed_index)
+-{
+-	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
+-
+-	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+-		cp_xor_recover(dst_cp, src_cp);
+-	else if (rag->rag_math.pmi_parity_algo ==
+-			M0_PARITY_CAL_ALGO_REED_SOLOMON)
+-		cp_rs_recover(dst_cp, src_cp, failed_index);
+-}
+-*/
+-
+ /** Merges the source bitmap to the destination bitmap. */
+ static void res_cp_bitmap_merge(struct m0_cm_cp *dst, struct m0_cm_cp *src)
+ {
+@@ -205,6 +191,47 @@ out:
+ 	return rc;
+ }
+ 
++static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
++				 struct m0_sns_cm_repair_ag_failure_ctx *fc)
++{
++	struct m0_sns_cm        *scm;
++	struct m0_cm_aggr_group *ag  = &rag->rag_base.sag_base;
++	struct m0_cm_cp         *acc = &fc->fc_tgt_acc_cp.sc_base;
++        struct m0_dbenv         *dbenv;
++        struct m0_cob_domain    *cdom;
++	int                      rc;
++
++	scm = cm2sns(ag->cag_cm);
++        dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
++        cdom  = scm->sc_it.si_cob_dom;
++	/*
++	 * Check if all copy packets are processed at this stage,
++	 * For incoming path transformation can be marked as complete
++	 * iff bitmap of transformed copy packets "global" to
++	 * aggregation group is full.
++	 * For outgoing path, iff all "local" copy packets in
++	 * aggregation group are transformed, then transformation can
++	 * be marked complete.
++	 */
++	if ((rc = m0_sns_cm_cob_is_local(&fc->fc_tgt_cobfid, dbenv,
++					 cdom)) == 0 &&
++	    m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_global_nr -
++						rag->rag_base.sag_fnr)) {
++			rc = res_cp_enqueue(acc);
++			if (rc != 0)
++				return rc;
++			fc->fc_is_active = true;
++	} else if (rc == -ENOENT &&
++		   (m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_local_nr))) {
++		rc = res_cp_enqueue(acc);
++		if (rc != 0)
++			return rc;
++		fc->fc_is_active = true;
++	}
++
++	return rc;
++}
++
+ /**
+  * Transformation function for sns repair.
+  * Performs transformation between the accumulator and the given copy packet.
+@@ -225,12 +252,7 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
+ 	struct m0_sns_cm_repair_ag *rag;
+ 	struct m0_cm_aggr_group    *ag;
+ 	struct m0_cm_cp            *res_cp;
+-	struct m0_sns_cm           *scm;
+-        struct m0_dbenv            *dbenv;
+-        struct m0_cob_domain       *cdom;
+ 	struct m0_cm_ag_id          id;
+-	bool                        bitmap_merge;
+-	bool                        rs_done = false;
+ 	int                         rc;
+ 	int                         i;
+ 
+@@ -238,10 +260,12 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
+ 
+ 	ag = cp->c_ag;
+ 	id = ag->cag_id;
+-	scm = cm2sns(ag->cag_cm);
+ 	scp = cp2snscp(cp);
+ 	sns_ag = ag2snsag(ag);
+ 	rag = sag2repairag(sns_ag);
++	M0_ASSERT(M0_IN(rag->rag_math.pmi_parity_algo,
++			(M0_PARITY_CAL_ALGO_XOR,
++			 M0_PARITY_CAL_ALGO_REED_SOLOMON)));
+ 	m0_cm_ag_lock(ag);
+ 
+         M0_LOG(M0_DEBUG, "xform: id [%lu] [%lu] [%lu] [%lu] local_cp_nr: [%lu]\
+@@ -250,71 +274,43 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
+ 	       ag->cag_cp_local_nr, ag->cag_transformed_cp_nr,
+ 	       ag->cag_has_incoming);
+ 
+-        dbenv = scm->sc_base.cm_service.rs_reqh->rh_dbenv;
+-        cdom  = scm->sc_it.si_cob_dom;
+-
+ 	/* Increment number of transformed copy packets in the accumulator. */
+ 	M0_CNT_INC(ag->cag_transformed_cp_nr);
+ 	if (!ag->cag_has_incoming)
+ 		M0_ASSERT(ag->cag_transformed_cp_nr <= ag->cag_cp_local_nr);
++	else
++		M0_ASSERT(ag->cag_transformed_cp_nr <=
++			 (ag->cag_cp_global_nr - sns_ag->sag_fnr));
+ 
+-	if (rag->rag_math.pmi_parity_algo != M0_PARITY_CAL_ALGO_XOR) {
++	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
+ 		rc = m0_cm_cp_bufvec_merge(cp);
+ 		if (rc != 0) {
+ 			SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx,
+ 					  CP_XFORM_BUFVEC_MERGE);
+ 			goto out;
+ 		}
++		cp_rs_recover(cp, scp->sc_failed_idx);
+ 	}
+-
+ 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
+-		bitmap_merge = false;
++		if (rag->rag_fc[i].fc_is_active)
++			continue;
+ 		res_cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
+ 		if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+ 			cp_xor_recover(res_cp, cp);
+-		else if ((rag->rag_math.pmi_parity_algo ==
+-				M0_PARITY_CAL_ALGO_REED_SOLOMON) && !rs_done) {
+-			cp_rs_recover(cp, scp->sc_failed_idx);
+-			rs_done = true;
+-		}
+-		//cp_incr_recover(res_cp, cp, rag->rag_fc[i].fc_failed_idx);
+ 
+ 		/*
+ 		 * Merge the bitmaps of incoming copy packet with the
+ 		 * resultant copy packet.
+ 		 */
+ 		if (cp->c_xform_cp_indices.b_nr > 0) {
+-			if (scp->sc_is_local || (scp->sc_failed_idx == rag->rag_fc[i].fc_failed_idx)) {
++			if (scp->sc_is_local ||
++			    (!scp->sc_is_local && (scp->sc_failed_idx ==
++			     rag->rag_fc[i].fc_failed_idx))) {
+ 				res_cp_bitmap_merge(res_cp, cp);
+-				bitmap_merge = true;
+-			}
+-		}
+-		/*
+-		 * Check if all copy packets are processed at this stage,
+-		 * For incoming path transformation can be marked as complete
+-		 * iff bitmap of transformed copy packets "global" to
+-		 * aggregation group is full.
+-		 * For outgoing path, iff all "local" copy packets in
+-		 * aggregation group are transformed, then transformation can
+-		 * be marked complete.
+-		 */
+-		if ((rc = m0_sns_cm_cob_is_local(
+-					&rag->rag_fc[i].fc_tgt_cobfid,
+-					dbenv, cdom)) == 0) {
+-			if (bitmap_merge && m0_sns_cm_ag_accumulator_is_full(sns_ag, i)) {
+-				M0_LOG(M0_DEBUG, "1:Enqueuing acc got tgt ind: [%u]",
+-					rag->rag_fc[i].fc_tgt_idx);
+-				rc = res_cp_enqueue(res_cp);
+-				if (rc != 0)
++				rc = repair_ag_fc_acc_post(rag, &rag->rag_fc[i]);
++				if (rc != 0 && rc != -ENOENT)
+ 					goto out;
+ 			}
+-		} else if (rc == -ENOENT && ag->cag_cp_local_nr ==
+-						ag->cag_transformed_cp_nr) {
+-			M0_LOG(M0_DEBUG, "2:Enqueuing acc got tgt ind: [%u]",
+-				rag->rag_fc[i].fc_tgt_idx);
+-			rc = res_cp_enqueue(res_cp);
+-			if (rc != 0)
+-				goto out;
+ 		}
+ 	}
+ 
+@@ -327,7 +323,8 @@ out:
+ 	 * buffer pool, merged bufvec is split back to its original form
+ 	 * to be reused by other copy packets.
+ 	 */
+-	rc = cp_bufvec_split(cp);
++	if (rc == 0 || rc == -ENOENT)
++		rc = cp_bufvec_split(cp);
+ 	m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
+ 	rc = M0_FSO_WAIT;
+ 	m0_cm_ag_unlock(ag);
+-- 
+1.8.3.2
+

@@ -1,0 +1,43 @@
+From 271db212dca6f00de47178aba56065129320422f Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 25 Jan 2013 20:06:08 +0200
+Subject: [PATCH 14/79] expanded comment for ntci_buf_send_timeout
+
+---
+ net/test/commands.h | 7 ++++++-
+ net/test/console.c  | 1 -
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/net/test/commands.h b/net/test/commands.h
+index 6a4cbd7..1467873 100644
+--- a/net/test/commands.h
++++ b/net/test/commands.h
+@@ -140,7 +140,12 @@ struct m0_net_test_cmd_init {
+ 	 * from endpoints list ntci_ep.
+ 	 */
+ 	uint64_t		 ntci_msg_concurrency;
+-	/** Buffer send timeout for M0_NET_QT_MSG_SEND queue */
++	/**
++	 * Buffer send timeout for M0_NET_QT_MSG_SEND queue.
++	 * Buffers in M0_NET_QT_MSG_RECV queue have M0_TIME_NEVER
++	 * timeout because there is no way to send message to this queue
++	 * to specific buffer (if number of buffers > 0).
++	 */
+ 	m0_time_t		 ntci_buf_send_timeout;
+ 	/** Bulk buffers timeout for all bulk queues */
+ 	m0_time_t		 ntci_buf_bulk_timeout;
+diff --git a/net/test/console.c b/net/test/console.c
+index 011e443..d03841c 100644
+--- a/net/test/console.c
++++ b/net/test/console.c
+@@ -140,7 +140,6 @@ static void console_cmd_init_fill(struct m0_net_test_console_cfg *cfg,
+ 	cinit->ntci_msg_concurrency  = role == M0_NET_TEST_ROLE_CLIENT ?
+ 				       cfg->ntcc_concurrency_client :
+ 				       cfg->ntcc_concurrency_server;
+-	/** @todo other timeouts */
+ 	cinit->ntci_buf_send_timeout = cfg->ntcc_buf_send_timeout;
+ 	cinit->ntci_buf_bulk_timeout = cfg->ntcc_buf_bulk_timeout;
+ 	cinit->ntci_ep		     = role == M0_NET_TEST_ROLE_CLIENT ?
+-- 
+1.8.3.2
+

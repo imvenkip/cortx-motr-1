@@ -1,0 +1,395 @@
+From 0336b6580fc3e2f0acd533dcdcd3feaed67cfe6d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 19 Jun 2013 02:17:07 +0300
+Subject: [PATCH 161/161] m0_be_alloc() was used instead of m0_alloc()
+
+To build:
+> sh autogen.sh && ./configure --enable-debug && make utils/ut
+
+To run UT:
+sudo utils/ut.sh -x be-tx-ut,be-ut,bulk-server-ut,ios-bufferpool-ut,\
+addb-ut:addb-evmgr-cache-post,rpc-item-ut,net-test,snscm_net-ut,\
+snscm_storage-ut,sns-cm-ut,xcode-ut,cob-foms-ut,yaml2db-ut,libconsole-ut
+---
+ be/alloc.c                  |  11 ++++
+ be/ut/helper.c              |   6 +-
+ lib/user_space/memory.c     | 154 +++++++++++++++++++++++++++++++++++++++++++-
+ mero/init.c                 |   6 +-
+ net/test/ut/client_server.c |   2 +-
+ rpc/service.c               |   3 +
+ 6 files changed, 178 insertions(+), 4 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 2cae782..60397a5 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -473,6 +473,11 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
+ 	struct be_alloc_chunk *iter;
+ 	struct be_alloc_chunk *c = NULL;
+ 
++	/** @todo XXX TODO temporary hack because some UT relies on non-NULL
++	 *  result with zero size allocations */
++	if (size == 0)
++		size = sizeof(void *);
++
+ 	M0_PRE(m0_be_allocator__invariant(a));
+ 	m0_mutex_lock(&a->ba_lock);
+ 	/* algorithm starts here */
+@@ -485,8 +490,10 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
+ 	m0_mutex_unlock(&a->ba_lock);
+ 
+ 	/* XXX */
++	/*
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
++	*/
+ 
+ 	M0_POST(m0_be_allocator__invariant(a));
+ 	M0_POST(ergo(c != NULL, !c->bac_free));
+@@ -507,6 +514,8 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
+ 		goto done;
+ 
+ 	M0_PRE(m0_be_allocator__invariant(a));
++	M0_PRE((char *) ptr >= (char *) a->ba_h->bah_addr);
++	M0_PRE((char *) ptr < ((char *) a->ba_h->bah_addr) + a->ba_h->bah_size);
+ 	m0_mutex_lock(&a->ba_lock);
+ 	if (ptr != NULL) {
+ 		c = be_alloc_chunk_addr(ptr);
+@@ -529,8 +538,10 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
+ 
+ done:
+ 	/* XXX */
++	/*
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
++	*/
+ 
+ 	M0_POST(m0_be_allocator__invariant(a));
+ }
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 4d23c98..a3d9b84 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -33,7 +33,7 @@
+ enum {
+ 	BE_SEG_UT_DOM_ID   = 42,
+ 	BE_SEG_UT_STOB_ID  = 42,
+-	BE_SEG_UT_SEG_SIZE = 0x1000000,	/**< 16MiB */
++	BE_SEG_UT_SEG_SIZE = 0x40000000,	/**< 1GiB */
+ };
+ 
+ const char *seg_ut_storage_dir = "./__seg_ut_stob";
+@@ -49,6 +49,10 @@ static char *printf_dir(const char *str) {
+ 	return buf;
+ };
+ 
++/** @todo XXX TODO */
++#undef M0_UT_ASSERT
++#define M0_UT_ASSERT M0_ASSERT
++
+ void m0_be_ut_seg_storage_fini(void)
+ {
+ 	int rc;
+diff --git a/lib/user_space/memory.c b/lib/user_space/memory.c
+index eef2150..32cc3f1 100644
+--- a/lib/user_space/memory.c
++++ b/lib/user_space/memory.c
+@@ -30,6 +30,13 @@
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
+ #include "lib/trace.h"
+ 
++#include "net/test/stats.h"
++#include "net/test/user_space/stats_u.h"
++#include "lib/mutex.h"
++#include "be/alloc.h"
++#include "be/alloc_internal.h"
++#include "be/ut/helper.h"
++
+ /**
+    @addtogroup memory
+ 
+@@ -46,7 +53,28 @@
+    @{
+ */
+ 
++/** @todo XXX TODO */
++#define BE_ALLOC
++
++#ifndef BE_ALLOC
+ static struct m0_atomic64 allocated;
++#endif
++
++static struct m0_net_test_stats m0_alloc_stats;
++static struct m0_net_test_stats m0_alloc_stats_aligned;
++static struct m0_net_test_stats m0_alloc_stats_shift;
++static struct m0_net_test_stats m0_alloc_stats_free;
++static struct m0_net_test_stats m0_alloc_stats_max;
++static struct m0_mutex m0_alloc_stats_lock;
++
++#ifdef BE_ALLOC
++static struct m0_be_seg seg;
++static struct m0_be_ut_seg_helper helper;
++static struct m0_be_allocator a;
++bool m0_be_alloc_replace;
++#endif
++
++#ifndef BE_ALLOC
+ 
+ #ifdef HAVE_MALLINFO
+ 
+@@ -96,6 +124,31 @@ static size_t __allocated(void)
+ 
+ #endif
+ 
++#else /* BE_ALLOC */
++
++M0_INTERNAL void *__malloc(size_t size)
++{
++	return m0_be_alloc_replace ? m0_be_alloc(&a, NULL, NULL, size, 3) :
++		malloc(size);
++}
++
++static void __free(void *ptr)
++{
++	if (m0_be_alloc_replace &&
++	    (a.ba_h != NULL &&
++	     ((char *) ptr >= (char *) a.ba_h->bah_addr &&
++	      (char *) ptr < ((char *) a.ba_h->bah_addr + a.ba_h->bah_size))))
++		m0_be_free(&a, NULL, NULL, ptr);
++	else
++		free(ptr);
++}
++
++static size_t __allocated(void)
++{
++	return 0;
++}
++#endif
++
+ void *m0_alloc(size_t size)
+ {
+ 	void *ret;
+@@ -103,16 +156,29 @@ void *m0_alloc(size_t size)
+ 	if (M0_FI_ENABLED("fail_allocation"))
+ 		return NULL;
+ 
++	m0_mutex_lock(&m0_alloc_stats_lock);
++	m0_net_test_stats_add(&m0_alloc_stats, size);
++	m0_mutex_unlock(&m0_alloc_stats_lock);
++
+ 	M0_ENTRY("size=%lu", size);
+ 	ret = __malloc(size);
+ 	if (ret)
+ 		memset(ret, 0, size);
+ 	M0_LEAVE("ptr=%p size=%lu", ret, size);
++
++	m0_mutex_lock(&m0_alloc_stats_lock);
++	m0_net_test_stats_add(&m0_alloc_stats_max, m0_allocated());
++	m0_mutex_unlock(&m0_alloc_stats_lock);
++
+ 	return ret;
+ }
+ 
+ void m0_free(void *data)
+ {
++	m0_mutex_lock(&m0_alloc_stats_lock);
++	m0_net_test_stats_add(&m0_alloc_stats_free, 1);
++	m0_mutex_unlock(&m0_alloc_stats_lock);
++
+ 	M0_ENTRY("ptr=%p", data);
+ 	__free(data);
+ 	M0_LEAVE();
+@@ -136,12 +202,48 @@ M0_INTERNAL size_t m0_allocated(void)
+ 	return used - used0;
+ }
+ 
+-M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
++static void stats_init(void)
++{
++	m0_net_test_stats_reset(&m0_alloc_stats);
++	m0_net_test_stats_reset(&m0_alloc_stats_aligned);
++	m0_net_test_stats_reset(&m0_alloc_stats_shift);
++	m0_net_test_stats_reset(&m0_alloc_stats_free);
++	m0_net_test_stats_reset(&m0_alloc_stats_max);
++	m0_mutex_init(&m0_alloc_stats_lock);
++}
++
++static void stats_print(const char *prefix, struct m0_net_test_stats *s)
++{
++	printf("%s: nr=%lu, min=%lu, max=%lu, avg=%.0f, stddev=%.0f\n",
++	       prefix,
++	       s->nts_count,
++	       m0_net_test_stats_min(s),
++	       m0_net_test_stats_max(s),
++	       m0_net_test_stats_avg(s),
++	       m0_net_test_stats_stddev(s));
++}
++
++static void stats_fini(void)
++{
++	m0_mutex_fini(&m0_alloc_stats_lock);
++	stats_print("m0_alloc", &m0_alloc_stats);
++	stats_print("m0_alloc_aligned", &m0_alloc_stats_aligned);
++	stats_print("shift", &m0_alloc_stats_shift);
++	stats_print("m0_free", &m0_alloc_stats_free);
++	stats_print("max", &m0_alloc_stats_max);
++}
++
++static void *_alloc_aligned(size_t size, unsigned shift)
+ {
+ 	void  *result;
+ 	int    rc;
+ 	size_t alignment;
+ 
++	m0_mutex_lock(&m0_alloc_stats_lock);
++	m0_net_test_stats_add(&m0_alloc_stats_aligned, size);
++	m0_net_test_stats_add(&m0_alloc_stats_shift, shift);
++	m0_mutex_unlock(&m0_alloc_stats_lock);
++
+ 	/*
+ 	 * posix_memalign(3):
+ 	 *
+@@ -159,6 +261,13 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
+ 	return result;
+ }
+ 
++#ifndef BE_ALLOC
++
++M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
++{
++	return _alloc_aligned;
++}
++
+ M0_INTERNAL int m0_memory_init(void)
+ {
+ 	void *nothing;
+@@ -171,13 +280,56 @@ M0_INTERNAL int m0_memory_init(void)
+ 	m0_free(nothing);
+ 	m0_atomic64_set(&allocated, 0);
+ 	used0 = __allocated();
++
++	stats_init();
++
+ 	return 0;
+ }
+ 
+ M0_INTERNAL void m0_memory_fini(void)
+ {
++	stats_fini();
+ }
+ 
++#else
++
++M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
++{
++	void *ptr;
++
++	ptr = m0_be_alloc_replace ? m0_be_alloc(&a, NULL, NULL, size, shift) :
++		_alloc_aligned(size, shift);
++	if (ptr != NULL)
++		memset(ptr, 0, size);
++	return ptr;
++}
++
++M0_INTERNAL int m0_memory_init(void)
++{
++	int rc;
++
++	stats_init();
++	m0_be_ut_seg_create_open(&helper, &seg);
++	rc = m0_be_allocator_init(&a, &seg);
++	M0_ASSERT(rc == 0);
++	rc = m0_be_allocator_create(&a);
++	M0_ASSERT(rc == 0);
++	return 0;
++}
++
++M0_INTERNAL void m0_memory_fini(void)
++{
++	int rc;
++
++	rc = m0_be_allocator_destroy(&a);
++	M0_ASSERT(rc == 0);
++	m0_be_allocator_fini(&a);
++	m0_be_ut_seg_close_destroy(&helper, &seg);
++	stats_fini();
++}
++
++#endif
++
+ M0_INTERNAL int m0_pagesize_get()
+ {
+ 	return getpagesize();
+diff --git a/mero/init.c b/mero/init.c
+index 5da6c6c..681c62f 100644
+--- a/mero/init.c
++++ b/mero/init.c
+@@ -102,7 +102,6 @@ struct init_fini_call subsystem[] = {
+ #endif
+ 	{ &m0_trace_init,       &m0_trace_fini,       "trace" },
+ 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },
+-	{ &m0_memory_init,      &m0_memory_fini,      "memory" },
+ 	{ &libm0_init,          &libm0_fini,          "libm0" },
+ 	{ &m0_ha_global_init ,  &m0_ha_global_fini,   "ha" },
+ 	{ &m0_fid_init,         &m0_fid_fini,         "fid" },
+@@ -159,6 +158,7 @@ struct init_fini_call subsystem[] = {
+ 	{ &m0_yaml2db_mod_init, &m0_yaml2db_mod_fini, "yaml2db" },
+ #endif /* __KERNEL__ */
+ 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
++	{ &m0_memory_init,      &m0_memory_fini,      "memory" },
+ };
+ 
+ static void fini_nr(int i)
+@@ -169,11 +169,14 @@ static void fini_nr(int i)
+ 	}
+ }
+ 
++extern bool m0_be_alloc_replace;
++
+ int m0_init(void)
+ {
+ 	int i;
+ 	int rc = 0;
+ 
++	m0_be_alloc_replace = false;
+ 	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
+ 		rc = subsystem[i].ifc_init();
+ 		if (rc != 0) {
+@@ -181,6 +184,7 @@ int m0_init(void)
+ 			break;
+ 		}
+ 	}
++	m0_be_alloc_replace = true;
+ 	return rc;
+ }
+ 
+diff --git a/net/test/ut/client_server.c b/net/test/ut/client_server.c
+index 924b132..fb7ae46 100644
+--- a/net/test/ut/client_server.c
++++ b/net/test/ut/client_server.c
+@@ -38,7 +38,7 @@ enum {
+ 	NTCS_PORTAL		  = 42,
+ 	NTCS_NODES_MAX		  = 128,
+ 	NTCS_NODE_ADDR_MAX	  = 0x100,
+-	NTCS_TIMEOUT		  = 20,
++	NTCS_TIMEOUT		  = 60,
+ 	NTCS_TIMEOUT_GDB	  = 1200, /**< 20min for debugging in gdb */
+ 	NTCS_TMID_CONSOLE4CLIENTS = 2998,
+ 	NTCS_TMID_CONSOLE4SERVERS = 2999,
+diff --git a/rpc/service.c b/rpc/service.c
+index 08b450f..177a665 100644
+--- a/rpc/service.c
++++ b/rpc/service.c
+@@ -415,6 +415,9 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_service *svc)
+ 	 * disconnection fom.
+ 	 */
+ 	nr_sessions = rev_conn_tlist_length(&reqhsvc->rs_rpc_svc.svc_rev_conn);
++	/** @todo XXX TODO it can be 0 */
++	if (nr_sessions == 0)
++		return;
+ 	M0_ALLOC_ARR(clinks, nr_sessions);
+ 	M0_ASSERT(clinks != NULL);
+ 	/*
+-- 
+1.8.3.2
+

@@ -1,0 +1,44 @@
+From 872ff7257e9600b5a4dde87ed3b64a8a0c975627 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 14 Jul 2011 05:53:24 -0600
+Subject: [PATCH 162/177] - small cleanup
+
+---
+ cob/cob.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 6176b71..ff32052 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -907,8 +907,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
+ 	if (rc)
+ 	        goto out;
+ 
+-        cob->co_valid |= CA_NSKEY_FREE;
+-        cob->co_valid |= CA_FABREC;
++        cob->co_valid |= CA_NSKEY_FREE | CA_FABREC;
+         *out = cob;
+ out:
+         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+@@ -1087,7 +1086,7 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+ 	if (rc)
+-                goto out_free;
++                goto out;
+ 
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+ 			 nskey, c2_cob_nskey_size(nskey),
+@@ -1096,7 +1095,7 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         rc = c2_table_insert(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+-out_free:
++out:
+         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+                     c2_addb_func_fail, "cob_add_name", rc);
+         return rc;
+-- 
+1.8.3.2
+

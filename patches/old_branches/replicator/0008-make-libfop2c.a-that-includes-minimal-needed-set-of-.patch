@@ -1,0 +1,1057 @@
+From 2d8759adca2f833c67492bf2d8c26a7af54d2a2f Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 23 Feb 2011 04:10:06 -0700
+Subject: [PATCH 008/177] - make libfop2c.a that includes minimal needed set of
+ components. This allows other components of colibri use it before
+ libcolibri.a is built; - add md.ff and needed build/init infrastructure to
+ mdstore module; - added C2_FOP_* operations to fop/fop.h (so far only md
+ operations there); - c2_fop_ctx modified to have also c2_db_tx and
+ c2_fop_env; - call fop2c using sh as it may have no exec bit set; - md fops
+ exec and free now live in mdstore module; - added
+ c2_md_store_{link|unlink|rename|etc}() method stabs; - modifications in reqh
+ handler to prepare c2_fop_ctx correctly;
+
+---
+ Makefile.am         |   8 ++-
+ c2t1fs/Makefile.in  |   2 +-
+ colibri/Makefile.am |   3 +-
+ colibri/init.c      |  38 ++++++-----
+ fop/Makefile.am     |  14 +++-
+ fop/fop.h           |  34 ++++++++--
+ fop/fop2c.in        |   2 +-
+ fop/ut/Makefile.am  |  14 ++--
+ mdstore/Makefile.am |  16 ++++-
+ mdstore/md.c        | 192 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ mdstore/md.ff       |  70 +++++++++++++++++++
+ mdstore/mdstore.c   | 167 +++++++++++++++++++++++++++++++++++++++++++++
+ mdstore/mdstore.h   |  34 ++++++++++
+ net/ut/Makefile.am  |  10 +--
+ reqh/reqh.c         |  24 ++++++-
+ reqh/reqh.h         |   1 -
+ site/Makefile.am    |   6 ++
+ site/site.c         |  65 ++++++++++++++++++
+ site/site.h         |  44 ++++++++++++
+ stob/ut/Makefile.am |   4 +-
+ 20 files changed, 701 insertions(+), 47 deletions(-)
+ mode change 100755 => 100644 Makefile.am
+ create mode 100644 mdstore/md.c
+ create mode 100644 mdstore/md.ff
+ create mode 100644 site/Makefile.am
+ create mode 100644 site/site.c
+ create mode 100644 site/site.h
+
+diff --git a/Makefile.am b/Makefile.am
+old mode 100755
+new mode 100644
+index b46c0ec..a32276f
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -1,6 +1,10 @@
+ SUBDIRS_BASE = m4 doc man patches 
+-SUBDIRS_LIBS = lib sm addb fop stob net fol fid dtm nrs sns mw reqh layout \
+-               pool balloc db desim cob capa udb site mdstore datastore # rpc
++
++# Order is important until fop is reached. Fop needs all libs before it in the 
++# list be build in order to use fop2c
++SUBDIRS_LIBS = lib addb fol db fid fop sm stob net fid dtm nrs sns mw reqh \
++               layout pool balloc desim cob capa udb site mdstore datastore # rpc
++
+ SUBDIR_KERNEL = build_kernel_modules
+ SUBDIR_BINARIES = mds utils
+ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
+diff --git a/c2t1fs/Makefile.in b/c2t1fs/Makefile.in
+index 86ccf50..6aad1ce 100644
+--- a/c2t1fs/Makefile.in
++++ b/c2t1fs/Makefile.in
+@@ -8,7 +8,7 @@ c2t1fs-y := main.o io_fop_init.o io_k.o
+ EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+ 
+ prepare:
+-	$(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
++	sh $(FOPDIR)/fop2c -k $(STOBDIR)/io.ff 
+ 	ln -sf $(STOBDIR)/io_fop_init.c .
+ 
+ install modules_install:
+diff --git a/colibri/Makefile.am b/colibri/Makefile.am
+index 06e7b64..e370190 100644
+--- a/colibri/Makefile.am
++++ b/colibri/Makefile.am
+@@ -1,6 +1,7 @@
+ SUBDIRS                   = . 
+ 
+ lib_LTLIBRARIES           = libcolibri.la
++
+ libcolibri_la_SOURCES     = init.h init.c
+ libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread 
+ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
+@@ -31,5 +32,3 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
+                             $(top_builddir)/site/libcolibri-site.la
+ 
+ #                            $(top_builddir)/rpc/libcolibri-rpc.la
+-
+-
+diff --git a/colibri/init.c b/colibri/init.c
+index ae833a5..fb814e2 100644
+--- a/colibri/init.c
++++ b/colibri/init.c
+@@ -10,6 +10,7 @@
+ #include "fop/fop.h"
+ #include "addb/addb.h"
+ #include "lib/ut.h"
++#include "lib/bitstring.h"
+ #include "layout/layout.h"
+ #include "pool/pool.h"
+ #include "lib/trace.h"
+@@ -19,6 +20,8 @@
+ #include "fol/fol.h"
+ #include "desim/sim.h"
+ #include "site/site.h"
++#include "cob/cob.h"
++#include "mdstore/mdstore.h"
+ 
+ #include "colibri/init.h"
+ 
+@@ -34,23 +37,24 @@ struct init_fini_call {
+ };
+ 
+ struct init_fini_call subsystem[] = {
+-	{ &c2_trace_init,    &c2_trace_fini,   "trace" },
+-	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
+-	{ &c2_uts_init,      &c2_uts_fini,     "ut" },
+-	{ &c2_threads_init,  &c2_threads_fini, "thread" },
+-	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
+-	{ &c2_db_init,       &c2_db_fini,      "db" },
+-	{ &c2_net_init,      &c2_net_fini,     "net" },
+-	{ &usunrpc_init,     &usunrpc_fini,     "user/sunrpc"},
+-/*	{ &c2_rpclib_init,   &c2_rpclib_fini,  "rpc" }, */
+-	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
+-	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
+-	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
+-	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },
+-	{ &ad_stobs_init,    &ad_stobs_fini,    "ad-stob" },
+-	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
+-	{ &sim_global_init,  &sim_global_fini,  "desim" },
+-	{ &c2_sites_init,    &c2_sites_fini,    "sites" }
++	{ &c2_trace_init,        &c2_trace_fini,        "trace" },
++	{ &c2_memory_init,       &c2_memory_fini,       "memory" },
++	{ &c2_uts_init,          &c2_uts_fini,          "ut" },
++	{ &c2_threads_init,      &c2_threads_fini,      "thread" },
++	{ &c2_addb_init,         &c2_addb_fini,         "addb" },
++	{ &c2_db_init,           &c2_db_fini,           "db" },
++	{ &c2_net_init,          &c2_net_fini,          "net" },
++	{ &usunrpc_init,         &usunrpc_fini,         "user/sunrpc"},
++/*	{ &c2_rpclib_init,        &c2_rpclib_fini,       "rpc" }, */
++	{ &c2_layouts_init,      &c2_layouts_fini,      "layout" },
++	{ &c2_pools_init,        &c2_pools_fini,        "pool" },
++	{ &c2_fops_init,         &c2_fops_fini,         "fop" },
++	{ &linux_stobs_init,     &linux_stobs_fini,     "linux-stob" },
++	{ &ad_stobs_init,        &ad_stobs_fini,        "ad-stob" },
++	{ &c2_fols_init,         &c2_fols_fini,         "fol" },
++	{ &sim_global_init,      &sim_global_fini,      "desim" },
++	{ &c2_sites_init,        &c2_sites_fini,        "sites" },
++	{ &c2_md_store_fop_init, &c2_md_store_fop_fini, "mdstore"}
+ };
+ 
+ static void fini_nr(int i)
+diff --git a/fop/Makefile.am b/fop/Makefile.am
+index 0ef1c02..ce94a42 100644
+--- a/fop/Makefile.am
++++ b/fop/Makefile.am
+@@ -1,9 +1,19 @@
+ fopdir                        = $(includedir)/fop
++noinst_LTLIBRARIES            = libfop2c.la libcolibri-fop.la
++
+ fop_HEADERS                   = fop.h fop_format.h fop_user.h fop_format_def.h
+ 
+-noinst_LTLIBRARIES            = libcolibri-fop.la
+-libcolibri_fop_la_SOURCES     = fop.c fop.h fop_format.c fop_format.h \
++fop_SOURCES                   = fop.c fop.h fop_format.c fop_format.h \
+                                 fop_user.h fop_format_def.h fop_format_c.c
+ 
++libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
++
++libfop2c_la_SOURCES           = $(fop_SOURCES)
++libfop2c_la_LIBADD            = $(top_builddir)/addb/libcolibri-addb.la \
++                                $(top_builddir)/fol/libcolibri-fol.la \
++                                $(top_builddir)/db/libcolibri-db.la \
++                                $(top_builddir)/fid/libcolibri-fid.la \
++                                $(top_builddir)/lib/libc2.la
++
+ INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+ EXTRA_DIST                    = fop2c.in
+diff --git a/fop/fop.h b/fop/fop.h
+index b111ca8..32399f3 100644
+--- a/fop/fop.h
++++ b/fop/fop.h
+@@ -82,6 +82,24 @@ void c2_fop_type_fini(struct c2_fop_type *fopt);
+ int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
+ void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
+ 
++enum c2_fop_metadata_code {
++        C2_FOP_FIRST,
++        C2_FOP_CREATE = C2_FOP_FIRST,
++        C2_FOP_LINK,
++        C2_FOP_UNLINK,
++        C2_FOP_RENAME,
++        C2_FOP_OPEN,
++        C2_FOP_CLOSE,
++        C2_FOP_SETATTR,
++        C2_FOP_LAST
++};
++
++/**
++   Per-fop environment.
++*/
++struct c2_fop_env {
++};
++
+ /**
+    A context for fop processing in a service.
+ 
+@@ -93,23 +111,31 @@ struct c2_fop_ctx {
+         /**
+            Service that fop is executed on behlf of.
+         */
+-	struct c2_service *ft_service;
++	struct c2_service  *ft_service;
+ 	/**
+ 	   Fol that reqh uses.
+ 	*/
+-	struct c2_fol     *ft_fol;
++	struct c2_fol      *ft_fol;
+ 	/**
+ 	   Site that fop is executed on behalf of. Site contains devices
+ 	   stack and allows accessing them from ->fop_execute().
+ 	*/
+-        struct c2_site    *ft_site;
++        struct c2_site     *ft_site;
++        /**
++           Transaction handle.
++        */
++        struct c2_db_tx    *ft_tx;
++        /**
++           Fop handling environment.
++        */
++        struct c2_fop_env  *ft_env;
+ 	/**
+ 	   Service-dependent cookie identifying fop execution. Passed to
+ 	   c2_service_ops::so_reply_post() to post a reply.
+ 
+ 	   @see c2_net_reply_post()
+ 	 */
+-	void              *fc_cookie;
++	void               *fc_cookie;
+ };
+ 
+ /** fop type operations. */
+diff --git a/fop/fop2c.in b/fop/fop2c.in
+index 6a2a760..ec281f3 100755
+--- a/fop/fop2c.in
++++ b/fop/fop2c.in
+@@ -22,7 +22,7 @@ INC="-I$topdir -I@DBSRC@ -I@DBSRC@/build_unix"
+ # Enumerate all object files and libraries necessary for the binary linked
+ # below.
+ #
+-OBJS="$topdir/colibri/.libs/libcolibri.a @DBSRC@/build_unix/libdb.a"
++OBJS="$topdir/fop/.libs/libfop2c.a @DBSRC@/build_unix/libdb.a"
+ 
+ generate_u=0
+ generate_k=0
+diff --git a/fop/ut/Makefile.am b/fop/ut/Makefile.am
+index 99b79f3..cff1ad3 100644
+--- a/fop/ut/Makefile.am
++++ b/fop/ut/Makefile.am
+@@ -1,21 +1,19 @@
+-INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+ UT_SRCDIR          = @SRCDIR@/fop/ut
+ 
+ noinst_LTLIBRARIES = libfop-ut.la
++INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+ 
+ test_format_u.h test_format_u.c test_format_k.h test_format_k.c: \
+                                      test_format.ff \
+-                                     $(top_builddir)/colibri/libcolibri.la \
++                                     $(top_builddir)/fop/libfop2c.la \
+                                      $(top_builddir)/fop/fop2c 
+-	$(top_builddir)/fop/fop2c -ku $<
++	sh $(top_builddir)/fop/fop2c -ku $<
++
++libfop_ut_la_SOURCES = test_format_u.h test_format_u.c fmt_test.c
+ 
+-libfop_ut_la_SOURCES = test_format_u.h test_format_u.c fmt_test.c test_format.ff
++EXTRA_DIST = test_format.ff
+ 
+ clean-local:
+ 	cd $(UT_SRCDIR) ; \
+ 	rm -fr test_format_[uk].[ch]
+ 
+-distdir:
+-	cp $(UT_SRCDIR)/Makefile.am $(UT_SRCDIR)/Makefile.in \
+-           $(UT_SRCDIR)/fmt_test.c $(UT_SRCDIR)/test_format.ff \
+-           @top_builddir@/@PACKAGE@-@VERSION@/fop/ut
+diff --git a/mdstore/Makefile.am b/mdstore/Makefile.am
+index aeff9f6..00714e3 100644
+--- a/mdstore/Makefile.am
++++ b/mdstore/Makefile.am
+@@ -1,6 +1,20 @@
++MDSTORE_SRCDIR                 = @SRCDIR@/mdstore
++
+ mdstoredir                     = $(includedir)/mdstore
+ mdstore_HEADERS                = mdstore.h
+ 
++md_u.h md_u.c: md.ff \
++                  $(top_builddir)/fop/libfop2c.la \
++                  $(top_builddir)/fop/fop2c 
++	sh $(top_builddir)/fop/fop2c -ku $<
++
++
+ noinst_LTLIBRARIES             = libcolibri-mdstore.la
+-libcolibri_mdstore_la_SOURCES  = mdstore.c mdstore.h
++libcolibri_mdstore_la_SOURCES  = mdstore.c mdstore.h md_u.c md_u.h md.h md.c
+ INCLUDES                       = -I. -I$(top_srcdir) -I$(top_srcdir)/include
++
++EXTRA_DIST                     = md.ff
++
++clean-local:
++	cd $(MDSTORE_SRCDIR) ; \
++	rm -fr md_[uk].[ch]
+diff --git a/mdstore/md.c b/mdstore/md.c
+new file mode 100644
+index 0000000..45bc469
+--- /dev/null
++++ b/mdstore/md.c
+@@ -0,0 +1,192 @@
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++
++#include "lib/misc.h"   /* C2_SET0 */
++#include "lib/cdefs.h"
++#include "lib/arith.h"   /* C2_3WAY */
++#include "lib/errno.h"
++#include "lib/assert.h"
++#include "lib/memory.h"
++#include "lib/bitstring.h"
++#include "lib/rwlock.h"
++
++#include <fop/fop.h>
++#include <cob/cob.h>
++#include <mdstore/mdstore.h>
++#include <site/site.h>
++
++#include "mdstore/md_u.h"
++#include <fop/fop_format_def.h>
++#include "mdstore/md.ff"
++
++#define ADDB_CALL(name, rc) \
++    do {} while (0)
++
++static int c2_md_store_fop_execute(struct c2_fop *fop, struct c2_fop_ctx *ctx);
++static void c2_md_store_fop_free(struct c2_fop *fop);
++
++static struct c2_fop_type_ops c2_md_store_ops = {
++        .fto_execute = c2_md_store_fop_execute,
++	.fto_free    = c2_md_store_fop_free
++};
++
++/**
++   Free some fop fields according to fop type and free fop itself.
++   We use ->fto_free for this, which may be not right but so far
++   it looks best way.
++ */
++static void c2_md_store_fop_free(struct c2_fop *fop)
++{
++        struct c2_fop_create *create;
++        struct c2_fop_unlink *unlink;
++        struct c2_fop_rename *rename;
++        struct c2_fop_link   *link;
++
++        switch (fop->f_type->ft_code) {
++        case C2_FOP_CREATE:
++                create = c2_fop_data(fop);
++                c2_free(create->c_name.n_name);
++                break;
++        case C2_FOP_LINK:
++                link = c2_fop_data(fop);
++                c2_free(link->l_name.n_name);
++                break;
++        case C2_FOP_UNLINK:
++                unlink = c2_fop_data(fop);
++                c2_free(unlink->u_name.n_name);
++                break;
++        case C2_FOP_RENAME:
++                rename = c2_fop_data(fop);
++                c2_free(rename->r_src.n_name);
++                c2_free(rename->r_tgt.n_name);
++                break;
++        default:
++                break;
++        }
++}
++
++static int c2_md_store_fop_execute(struct c2_fop *fop, struct c2_fop_ctx *ctx)
++{
++        struct c2_site        *site;
++        struct c2_md_store    *md;
++        int                    rc = 0;
++
++        site = ctx->ft_site;
++        C2_ASSERT(site != NULL);
++
++        md = site->s_md;
++        C2_ASSERT(md != NULL);
++        
++        switch (fop->f_type->ft_code) {
++        case C2_FOP_CREATE:
++                rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++                ADDB_CALL("fol_create", rc);
++                if (rc == 0) {
++                        rc = c2_md_store_create(md, fop, ctx);
++                        ADDB_CALL("md_store_create", rc);
++                }
++                break;
++        case C2_FOP_OPEN:
++                rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++                ADDB_CALL("fol_open", rc);
++                if (rc == 0) {
++                        rc = c2_md_store_open(md, fop, ctx);
++                        ADDB_CALL("md_store_open", rc);
++                }
++                break;
++        case C2_FOP_CLOSE:
++                rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++                ADDB_CALL("fol_close", rc);
++                if (rc == 0) {
++                        rc = c2_md_store_close(md, fop, ctx);
++                        ADDB_CALL("md_store_close", rc);
++                }
++                break;
++        case C2_FOP_SETATTR:
++                rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++                ADDB_CALL("fol_setattr", rc);
++                if (rc == 0) {
++                        rc = c2_md_store_setattr(md, fop, ctx);
++                        ADDB_CALL("md_store_setattr", rc);
++                }
++                break;
++        case C2_FOP_LINK:
++                rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++                ADDB_CALL("fol_link", rc);
++                if (rc == 0) {
++                        rc = c2_md_store_link(md, fop, ctx);
++                        ADDB_CALL("md_store_link", rc);
++                }
++                break;
++        case C2_FOP_UNLINK:
++                rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++                ADDB_CALL("fol_unlink", rc);
++
++                if (rc == 0) {
++                        rc = c2_md_store_unlink(md, fop, ctx);
++                        ADDB_CALL("md_store_unlink", rc);
++                }
++                break;
++        case C2_FOP_RENAME:
++                rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++                ADDB_CALL("fol_rename", rc);
++                
++                if (rc == 0) {
++                        rc = c2_md_store_rename(md, fop, ctx);
++                        ADDB_CALL("md_store_rename", rc);
++                }
++                break;
++        default:
++                rc = EOPNOTSUPP;
++                break;
++        }
++        
++        return rc;
++}
++
++/**
++   The rest of records/fops is not yet supported. Not clear if we need them 
++   at all.
++ */
++C2_FOP_TYPE_DECLARE(c2_fop_create,   "create",    C2_FOP_CREATE,  &c2_md_store_ops);
++C2_FOP_TYPE_DECLARE(c2_fop_link,     "hardlink",  C2_FOP_LINK,    &c2_md_store_ops);
++C2_FOP_TYPE_DECLARE(c2_fop_unlink,   "unlink",    C2_FOP_UNLINK,  &c2_md_store_ops);
++C2_FOP_TYPE_DECLARE(c2_fop_open,     "open",      C2_FOP_OPEN,    &c2_md_store_ops);
++C2_FOP_TYPE_DECLARE(c2_fop_close,    "close",     C2_FOP_CLOSE,   &c2_md_store_ops);
++C2_FOP_TYPE_DECLARE(c2_fop_setattr,  "setattr",   C2_FOP_SETATTR, &c2_md_store_ops);
++C2_FOP_TYPE_DECLARE(c2_fop_rename,   "rename",    C2_FOP_RENAME,  &c2_md_store_ops);
++
++static struct c2_fop_type *c2_fop_fops[] = {
++        &c2_fop_create_fopt,
++        &c2_fop_link_fopt,
++        &c2_fop_unlink_fopt,
++        &c2_fop_rename_fopt,
++        &c2_fop_open_fopt,
++        &c2_fop_close_fopt,
++        &c2_fop_setattr_fopt
++};
++
++static struct c2_fop_type_format *c2_fop_fmts[] = {
++        &c2_fop_fid_tfmt,
++        &c2_fop_name_tfmt,
++        &c2_fop_body_tfmt
++};
++
++void c2_md_store_fop_fini(void)
++{
++        c2_fop_type_fini_nr(c2_fop_fops, ARRAY_SIZE(c2_fop_fops));
++        c2_fop_type_format_fini_nr(c2_fop_fmts, ARRAY_SIZE(c2_fop_fmts));
++}
++
++int c2_md_store_fop_init(void)
++{
++	int rc;
++
++	rc = c2_fop_type_format_parse_nr(c2_fop_fmts, ARRAY_SIZE(c2_fop_fmts));
++	if (rc == 0)
++		rc = c2_fop_type_build_nr(c2_fop_fops, ARRAY_SIZE(c2_fop_fops));
++	if (rc != 0)
++		c2_md_store_fop_fini();
++	return rc;
++}
+diff --git a/mdstore/md.ff b/mdstore/md.ff
+new file mode 100644
+index 0000000..6969443
+--- /dev/null
++++ b/mdstore/md.ff
+@@ -0,0 +1,70 @@
++/* -*- C -*- */
++
++/**
++   @addtogroup fop
++   @{
++ */
++
++/** @file fop_md.ff
++ *
++ * <b>Colibri metatadata fop formats</b>
++ *
++ */
++
++DEF(c2_fop_fid, RECORD,
++    _(f_seq, U64),
++    _(f_oid, U64));
++
++DEF(c2_fop_name, SEQUENCE,
++    _(n_count, U32),
++    _(n_name, BYTE));
++
++DEF(c2_fop_body, RECORD,
++    _(b_index, U64),
++    _(b_flags, U32),
++    _(b_mode, U32),
++    _(b_uid, U32),
++    _(b_gid, U32),
++    _(b_sid, U32),
++    _(b_nid, U64),
++    _(b_pfid, c2_fop_fid),
++    _(b_tfid, c2_fop_fid));
++
++DEF(c2_fop_create, RECORD,
++    _(c_body, c2_fop_body),
++    _(c_name, c2_fop_name));
++
++DEF(c2_fop_link, RECORD,
++    _(l_body, c2_fop_body),
++    _(l_name, c2_fop_name));
++
++DEF(c2_fop_unlink, RECORD,
++    _(u_body, c2_fop_body),
++    _(u_name, c2_fop_name));
++
++DEF(c2_fop_rename, RECORD,
++    _(r_body, c2_fop_body),
++    _(r_src, c2_fop_name),
++    _(r_tgt, c2_fop_name));
++
++DEF(c2_fop_open, RECORD,
++    _(o_body, c2_fop_body));
++
++DEF(c2_fop_close, RECORD,
++    _(c_body, c2_fop_body));
++
++DEF(c2_fop_setattr, RECORD,
++    _(s_body, c2_fop_body),
++    _(s_time, U32));
++
++/** @} end of fop group */
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 48b3e4c..7a67cd4 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -32,3 +32,170 @@ void c2_md_store_fini(struct c2_md_store *md)
+ {
+         c2_cob_domain_fini(&md->md_cob);
+ }
++
++#if 0
++static void c2_fop_fid2stobid(struct c2_stob_id *id, struct c2_fop_fid *fid)
++{
++        id->si_bits.u_hi = fid->f_seq;
++        id->si_bits.u_lo = fid->f_oid;
++}
++
++static void make_nskey(struct c2_cob_nskey **keyh, struct c2_fop_fid *fid, 
++                       struct c2_fop_name *name)
++{
++        struct c2_cob_nskey *key;
++
++        key = c2_alloc(sizeof(*key) + name->n_count);
++        lustre_fid2stobid(&key->cnk_pfid, fid);
++        memcpy(c2_bitstring_buf_get(&key->cnk_name), 
++               name->n_name, name->n_count);
++        c2_bitstring_len_set(&key->cnk_name, name->n_count);
++        *keyh = key;
++}
++
++static int cob_create(struct c2_cob_domain *dom, struct c2_fop_create *cr,
++                      struct c2_db_tx *tx)
++{
++        struct c2_fop_body    *body = &cr->c_body;
++        struct c2_cob         *cob;
++        struct c2_cob_nskey   *key;
++        struct c2_cob_nsrec    nsrec;
++        struct c2_cob_fabrec   fabrec;
++        int                    rc;
++
++        make_nskey(&key, &body->b_pfid, &cr->c_name);
++        c2_fop_fid2stobid(&nsrec.cnr_stobid, &body->b_tfid);
++
++        /** 
++           @todo: Let it be domain id so far, may be useful. 
++        */
++        nsrec.cnr_dev = dom->cd_id.id;
++
++        /**
++           @todo: do we need ino?
++        */
++        nsrec.cnr_ino = 0;
++
++        nsrec.cnr_nlink = 1;
++        nsrec.cnr_uid = body->b_uid;
++        nsrec.cnr_gid = body->b_gid;
++        nsrec.cnr_sid = body->b_sid;
++        nsrec.cnr_nid = body->b_nid;
++
++        /**
++           Will be used for replicating. Others are not enoguh
++           to create objects right.
++        */
++        nsrec.cnr_mode = body->b_mode;
++        
++        /** 
++           @todo: do we need rdev support for specil files in
++           replicator? 
++        */
++        nsrec.cnr_rdev = 0;
++        
++        /** 
++           @todo: needs to be fixed. Before data replication
++           we don't need them.
++        */
++        nsrec.cnr_size = 0;
++        nsrec.cnr_blksize = 0;
++        nsrec.cnr_blocks = 0;
++
++        /** 
++           @todo: needs to be fixed. We do have 64 bit time stamp
++           in changelog rec and can use it. Still it may be not
++           needed as on target fs these fields may be updated in
++           create time.
++        */
++        nsrec.cnr_atime = 0;
++        nsrec.cnr_mtime = 0;
++        nsrec.cnr_ctime = 0;
++
++        rc = c2_cob_create(dom, key, &nsrec, &fabrec, 0, &cob, tx);
++        c2_cob_put(cob);
++        c2_free(key);
++
++        return rc;
++}
++
++static int cob_unlink(struct c2_cob_domai *dom, struct c2_fop_unlink *ul,
++                      struct c2_db_tx *tx)
++{
++        struct c2_stob_id  sid;
++        struct c2_cob     *cob;
++        int                rc;
++        
++        c2_fop_fid2stobid(&sid, &ul->u_body.b_tfid);
++        rc = c2_cob_locate(dom, &sid, &cob, tx);
++        if (rc)
++                return rc;
++        cob->cnr_nlink--;
++        rc = c2_cob_delete(cob, tx);
++        c2_cob_put(cob);
++        return rc;
++}
++#endif
++
++int c2_md_store_link(struct c2_md_store *md, struct c2_fop *fop, 
++                     struct c2_fop_ctx *ctx)
++{
++        struct c2_fop_link *link;
++        
++        link = c2_fop_data(fop);
++        return 0;
++}
++
++int c2_md_store_unlink(struct c2_md_store *md, struct c2_fop *fop,
++                       struct c2_fop_ctx *ctx)
++{
++        struct c2_fop_unlink *unlink;
++
++        unlink = c2_fop_data(fop);
++        return 0;
++}
++
++int c2_md_store_rename(struct c2_md_store *md, struct c2_fop *fop,
++                       struct c2_fop_ctx *ctx)
++{
++        struct c2_fop_rename *rename;
++
++        rename = c2_fop_data(fop);
++        return 0;
++}
++
++int c2_md_store_create(struct c2_md_store *md, struct c2_fop *fop,
++                       struct c2_fop_ctx *ctx)
++{
++        struct c2_fop_create *create;
++
++        create = c2_fop_data(fop);
++        return 0;
++}
++
++int c2_md_store_open(struct c2_md_store *md, struct c2_fop *fop,
++                     struct c2_fop_ctx *ctx)
++{
++        struct c2_fop_open *open;
++        
++        open = c2_fop_data(fop);
++        return 0;
++}
++
++int c2_md_store_close(struct c2_md_store *md, struct c2_fop *fop,
++                      struct c2_fop_ctx *ctx)
++{
++        struct c2_fop_close *close;
++        
++        close = c2_fop_data(fop);
++        return 0;
++}
++
++int c2_md_store_setattr(struct c2_md_store *md, struct c2_fop *fop,
++                        struct c2_fop_ctx *ctx)
++{
++        struct c2_fop_setattr *setattr;
++        
++        setattr = c2_fop_data(fop);
++        return 0;
++}
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index af483a0..adc63b4 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -5,7 +5,9 @@
+ 
+ struct c2_cob_domain_id;
+ struct c2_cob_domain;
++struct c2_fop_ctx;
+ struct c2_dbenv;
++struct c2_fop;
+ 
+ struct c2_md_store {
+         struct c2_cob_domain  md_cob;
+@@ -16,6 +18,38 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+ 
+ void c2_md_store_fini(struct c2_md_store *md);
+ 
++int c2_md_store_link(struct c2_md_store *md, struct c2_fop *fop, 
++                     struct c2_fop_ctx *ctx);
++                     
++int c2_md_store_unlink(struct c2_md_store *md, struct c2_fop *fop,
++                       struct c2_fop_ctx *ctx);
++                       
++int c2_md_store_rename(struct c2_md_store *md, struct c2_fop *fop,
++                       struct c2_fop_ctx *ctx);
++
++int c2_md_store_create(struct c2_md_store *md, struct c2_fop *fop,
++                       struct c2_fop_ctx *ctx);
++
++int c2_md_store_open(struct c2_md_store *md, struct c2_fop *fop,
++                     struct c2_fop_ctx *ctx);
++
++int c2_md_store_close(struct c2_md_store *md, struct c2_fop *fop,
++                      struct c2_fop_ctx *ctx);
++
++int c2_md_store_setattr(struct c2_md_store *md, struct c2_fop *fop,
++                        struct c2_fop_ctx *ctx);
++
++void c2_md_store_fop_fini(void);
++int c2_md_store_fop_init(void);
++
++extern struct c2_fop_type c2_fop_create_fopt;
++extern struct c2_fop_type c2_fop_link_fopt;
++extern struct c2_fop_type c2_fop_unlink_fopt;
++extern struct c2_fop_type c2_fop_rename_fopt;
++extern struct c2_fop_type c2_fop_open_fopt;
++extern struct c2_fop_type c2_fop_close_fopt;
++extern struct c2_fop_type c2_fop_setattr_fopt;
++
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+ 
+diff --git a/net/ut/Makefile.am b/net/ut/Makefile.am
+index f84547e..171b3a8 100644
+--- a/net/ut/Makefile.am
++++ b/net/ut/Makefile.am
+@@ -1,10 +1,12 @@
+-INCLUDES        	= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
++UT_SRCDIR               = @SRCDIR@/net/ut
++
+ noinst_LTLIBRARIES   	= libnet-ut.la
++INCLUDES        	= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
+ 
+ net_u.h net_u.c: net.ff \
+-                  $(top_builddir)/colibri/libcolibri.la \
++                  $(top_builddir)/fop/libfop2c.la \
+                   $(top_builddir)/fop/fop2c 
+-	$(top_builddir)/fop/fop2c -uk $<
++	sh $(top_builddir)/fop/fop2c -uk $<
+ 
+ libnet_ut_la_SOURCES	= net_u.h net_u.c client.c net_fop_init.c net_fop.h 
+ libnet_ut_la_LIBADD 	= $(top_builddir)/colibri/libcolibri.la
+@@ -12,5 +14,5 @@ libnet_ut_la_LIBADD 	= $(top_builddir)/colibri/libcolibri.la
+ EXTRA_DIST              = net.ff
+ 
+ clean-local:
+-	cd $(top_builddir)/net/ut ; \
++	cd $(UT_SRCDIR) ; \
+ 	rm -fr net_[uk].[hc]
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 0302f8d..544083e 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -4,8 +4,13 @@
+ 
+ #include "lib/assert.h"
+ #include "lib/misc.h"
+-#include "stob/stob.h"
++#include "lib/bitstring.h"
++#include "db/db.h"
+ #include "fop/fop.h"
++#include "stob/stob.h"
++#include "cob/cob.h"
++#include "mdstore/mdstore.h"
++#include "datastore/datastore.h"
+ #include "site/site.h"
+ 
+ #include "reqh.h"
+@@ -194,11 +199,26 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
+ #endif
+ 
+         struct c2_fop_ctx ctx;
++        struct c2_fop_env env;
++        struct c2_db_tx tx;
++        int rc;
+ 
+         C2_SET0(&ctx);
++        C2_SET0(&env);
++
++        c2_db_tx_init(&tx, reqh->rh_site->s_md->md_cob.cd_dbenv, 0);
++
+         ctx.ft_site = reqh->rh_site;
+         ctx.ft_fol  = reqh->rh_fol;
+-        fop->f_type->ft_ops->fto_execute(fop, &ctx);
++        ctx.ft_env = &env;
++        ctx.ft_tx = &tx;
++
++        rc = fop->f_type->ft_ops->fto_execute(fop, &ctx);
++
++        if (rc)
++                c2_db_tx_abort(&tx);
++        else 
++                c2_db_tx_commit(&tx);
+ }
+ 
+ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index c9b8937..7095187 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -63,7 +63,6 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop);
+ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
+ 			     struct c2_fop_sortkey *key);
+ 
+-
+ /** @} endgroup reqh */
+ 
+ /* __COLIBRI_REQH_REQH_H__ */
+diff --git a/site/Makefile.am b/site/Makefile.am
+new file mode 100644
+index 0000000..179189d
+--- /dev/null
++++ b/site/Makefile.am
+@@ -0,0 +1,6 @@
++sitedir                     = $(includedir)/site
++site_HEADERS                = site.h
++
++noinst_LTLIBRARIES          = libcolibri-site.la
++libcolibri_site_la_SOURCES  = site.c site.h
++INCLUDES                    = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+diff --git a/site/site.c b/site/site.c
+new file mode 100644
+index 0000000..8ca5616
+--- /dev/null
++++ b/site/site.c
+@@ -0,0 +1,65 @@
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++
++#include "lib/misc.h"   /* C2_SET0 */
++#include "lib/cdefs.h"
++#include "lib/arith.h"   /* C2_3WAY */
++#include "lib/errno.h"
++#include "lib/assert.h"
++#include "lib/memory.h"
++#include "lib/bitstring.h"
++#include "lib/rwlock.h"
++
++#include "addb/addb.h"
++#include "db/db.h"
++#include "fop/fop.h"
++#include "cob/cob.h"
++#include "mdstore/mdstore.h"
++#include "datastore/datastore.h"
++
++#include "site.h"
++
++/**
++   @addtogroup site
++   @{
++*/
++
++static struct c2_list c2_sites;
++ 
++int c2_site_init(struct c2_site *s, struct c2_md_store *md, 
++                 struct c2_data_store *data)
++{
++        s->s_md = md;
++        s->s_data = data;
++        c2_list_add(&c2_sites, &s->s_linkage);
++        return 0;
++}
++
++void c2_site_fini(struct c2_site *s)
++{
++        c2_list_del(&s->s_linkage);
++}
++
++int c2_sites_init(void)
++{
++	c2_list_init(&c2_sites);
++	return 0;
++}
++
++void c2_sites_fini(void)
++{
++	c2_list_fini(&c2_sites);
++}
++
++/** @} endgroup site */
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/site/site.h b/site/site.h
+new file mode 100644
+index 0000000..15f8ab8
+--- /dev/null
++++ b/site/site.h
+@@ -0,0 +1,44 @@
++/* -*- C -*- */
++
++#ifndef __COLIBRI_SITE_SITE_H__
++#define __COLIBRI_SITE_SITE_H__
++
++/**
++   @defgroup site Site
++
++   @{
++ */
++
++/* import */
++struct c2_md_store;
++struct c2_data_store;
++struct c2_list_link;
++
++struct c2_site {
++        struct c2_md_store     *s_md;
++        struct c2_data_store   *s_data;
++        struct c2_list_link     s_linkage;
++};
++
++int c2_site_init(struct c2_site *s, struct c2_md_store *md, 
++                 struct c2_data_store *data);
++
++void c2_site_fini(struct c2_site *s);
++
++int c2_sites_init(void);
++void c2_sites_fini(void);
++
++/** @} endgroup site */
++
++/* __COLIBRI_SITE_SITE_H__ */
++#endif
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stob/ut/Makefile.am b/stob/ut/Makefile.am
+index 18b5af3..7650f10 100644
+--- a/stob/ut/Makefile.am
++++ b/stob/ut/Makefile.am
+@@ -6,9 +6,9 @@ libstob_ut_la_SOURCES = adieu.c ad.c stobio.c
+ noinst_PROGRAMS       = server client
+ 
+ io_u.h io_u.c: io.ff \
+-                  $(top_builddir)/colibri/libcolibri.la \
++                  $(top_builddir)/fop/libfop2c.la \
+                   $(top_builddir)/fop/fop2c 
+-	$(top_builddir)/fop/fop2c -uk $<
++	sh $(top_builddir)/fop/fop2c -uk $<
+ 
+ server_SOURCES   = io_u.h io_u.c server.c io_fop_init.c io_fop.h
+ server_LDFLAGS   = -pthread
+-- 
+1.8.3.2
+

@@ -1,0 +1,26 @@
+From e1ab5eacb5962be0a1efbf53813c326c9ad7289b Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 13 Nov 2013 01:35:58 +0200
+Subject: [PATCH 01/13] configure.ac: -fno-omit-frame-pointer added to
+ M0_CFLAGS
+
+---
+ configure.ac | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index c425462..4d1df54 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -601,7 +601,7 @@ M0_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
+ # Prevents gcc from introducing common symbols in object files. These symbols
+ # are avoided because they break the compilation toolchain that Parallel
+ # Scientific is using.
+-M0_CFLAGS="-fno-common $M0_CFLAGS"
++M0_CFLAGS="-fno-common -fno-omit-frame-pointer $M0_CFLAGS"
+ 
+ M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
+ 
+-- 
+1.8.3.2
+

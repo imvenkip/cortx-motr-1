@@ -1,0 +1,115 @@
+From 3638cf61f2e73cc3dddb2e7c6c0684a235ff5e2e Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Tue, 11 Feb 2014 16:47:53 +0530
+Subject: [PATCH 23/50]  - Removed fom::fo_phase_stats_data and it ref.    and
+ it is replaced by fom::fo_sm_phase_stats.asc_data
+
+---
+ fop/fom.c                | 11 ++++++-----
+ fop/fom.h                |  5 -----
+ fop/ut/stats/stats_fom.c |  5 +++--
+ ioservice/io_foms.c      |  8 ++++----
+ 4 files changed, 13 insertions(+), 16 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 9c29fcb..08d20ee 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1124,11 +1124,12 @@ void m0_fom_fini(struct m0_fom *fom)
+ 		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
+ 				M0_FOM_ADDB_CTX_VEC(fom));
+ 		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
+-		if (fom->fo_phase_stats_data != NULL) {
+-			m0_free(fom->fo_phase_stats_data);
+-			m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
+-		}
+ 	}
++	if (fom->fo_sm_phase_stats.asc_data != NULL) {
++		m0_free(fom->fo_sm_phase_stats.asc_data);
++		m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
++	}
++	
+ 	m0_sm_fini(&fom->fo_sm_phase);
+ 	m0_sm_fini(&fom->fo_sm_state);
+ 	m0_addb_ctx_fini(&fom->fo_addb_ctx);
+@@ -1464,7 +1465,7 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
+ 		m0_sm_stats_enable(&fom->fo_sm_state,
+ 				   &fom->fo_sm_state_stats);
+ 
+-		if (fom->fo_phase_stats_data != NULL)
++		if (fom->fo_sm_phase_stats.asc_data != NULL)
+ 			m0_sm_stats_enable(&fom->fo_sm_phase,
+ 					   &fom->fo_sm_phase_stats);
+ 	}
+diff --git a/fop/fom.h b/fop/fom.h
+index 6be2017..d286561 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -554,11 +554,6 @@ struct m0_fom {
+ 
+ 	/** addb sm counter for phases statistics */
+ 	struct m0_addb_sm_counter fo_sm_phase_stats;
+-	/**
+-         * counter data for phases statistics
+-         * fo_addb_init() allocates it.
+-         */
+-	uint8_t                  *fo_phase_stats_data;
+ 
+ 	/** Thread executing current phase transition. */
+ 	struct m0_loc_thread     *fo_thread;
+diff --git a/fop/ut/stats/stats_fom.c b/fop/ut/stats/stats_fom.c
+index 9606113..4303076 100644
+--- a/fop/ut/stats/stats_fom.c
++++ b/fop/ut/stats/stats_fom.c
+@@ -95,16 +95,17 @@ static size_t fom_stats_home_locality(const struct m0_fom *fom)
+ static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+ {
+ 	struct fom_stats *fom_obj;
++	uint8_t          *cntr_data;
+ 	int trans_size = m0_fom_phase_trans_size(fom);
+ 	fom_obj = container_of(fom, struct fom_stats, fs_gen);
+ 
+ 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &fom->fo_addb_ctx, &m0_addb_ct_fop_mod,
+ 			 &m0_addb_proc_ctx);
+ 
+-	M0_ALLOC_ARR(fom->fo_phase_stats_data, trans_size);
++	M0_ALLOC_ARR(cntr_data, trans_size);
+ 	m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
+ 				&addb_rt_fom_phase_stats,
+-				fom->fo_phase_stats_data, trans_size);
++				cntr_data, trans_size);
+ }
+ 
+ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index d13e047..36047a6 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -2111,6 +2111,7 @@ static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+ 				       struct m0_addb_mc *mc)
+ {
+         struct m0_fop_cob_rw *rwfop;
++	uint8_t              *cntr_data;
+ 	int trans_size = m0_fom_phase_trans_size(fom);
+ 
+ 	rwfop = io_rw_get(fom->fo_fop);
+@@ -2122,13 +2123,12 @@ static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+ 
+ 	if (M0_FI_ENABLED("skip_counter_alloc"))
+ 		return;
+-	IOS_ALLOC_ARR(fom->fo_phase_stats_data, trans_size,
++	IOS_ALLOC_ARR(cntr_data, trans_size,
+ 		      &m0_ios_addb_ctx, FOM_COB_RW_ADDB_INIT);
+-	if (fom->fo_phase_stats_data != NULL) {
++	if (cntr_data != NULL)
+ 		m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
+ 					&m0_addb_rt_ios_io_fom_phase_stats,
+-					fom->fo_phase_stats_data, trans_size);
+-	}
++					cntr_data, trans_size);
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

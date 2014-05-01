@@ -1,0 +1,71 @@
+From d184bdfafc6c72a5b762e41b0ddb570df82ea6aa Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 20 Mar 2013 23:15:30 +0200
+Subject: [PATCH 47/63] rpc-ub: rename the fields of `ub_req'
+
+Use different prefixes for the fields of ub_req and ub_resp structures.
+---
+ rpc/ub/rpc_ub_fops.c | 4 ++--
+ rpc/ub/rpc_ub_fops.h | 4 ++--
+ rpc/ub/ub.c          | 8 ++++----
+ 3 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/rpc/ub/rpc_ub_fops.c b/rpc/ub/rpc_ub_fops.c
+index a0096d7..35a7e7c 100644
+--- a/rpc/ub/rpc_ub_fops.c
++++ b/rpc/ub/rpc_ub_fops.c
+@@ -97,8 +97,8 @@ static int ub_req_fom_tick(struct m0_fom *fom)
+ 	req  = m0_fop_data(fom->fo_fop);
+ 	resp = m0_fop_data(fom->fo_rep_fop);
+ 
+-	resp->ur_seqn = req->ur_seqn;
+-	rc = m0_buf_copy(&resp->ur_data, &req->ur_data);
++	resp->ur_seqn = req->uq_seqn;
++	rc = m0_buf_copy(&resp->ur_data, &req->uq_data);
+ 	M0_UB_ASSERT(rc == 0);
+ 
+ 	m0_fom_phase_move(fom, 0, M0_FOPH_SUCCESS);
+diff --git a/rpc/ub/rpc_ub_fops.h b/rpc/ub/rpc_ub_fops.h
+index c3e1008..0f776b0 100644
+--- a/rpc/ub/rpc_ub_fops.h
++++ b/rpc/ub/rpc_ub_fops.h
+@@ -28,8 +28,8 @@
+ 
+ /** RPC UB request. */
+ struct ub_req {
+-	uint64_t      ur_seqn; /*< Sequential number. */
+-	struct m0_buf ur_data; /*< Data buffer. */
++	uint64_t      uq_seqn; /*< Sequential number. */
++	struct m0_buf uq_data; /*< Data buffer. */
+ } M0_XCA_RECORD;
+ 
+ /** RPC UB response. */
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index ae570b0..a97bb43 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -270,8 +270,8 @@ static void ub_item_replied(struct m0_rpc_item *item)
+ 
+ 	req  = m0_fop_data(m0_rpc_item_to_fop(item));
+ 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+-	M0_UB_ASSERT(resp->ur_seqn == req->ur_seqn);
+-	M0_UB_ASSERT(m0_buf_eq(&resp->ur_data, &req->ur_data));
++	M0_UB_ASSERT(resp->ur_seqn == req->uq_seqn);
++	M0_UB_ASSERT(m0_buf_eq(&resp->ur_data, &req->uq_data));
+ }
+ 
+ static void fop_send(struct m0_rpc_session *session, size_t seqn)
+@@ -286,8 +286,8 @@ static void fop_send(struct m0_rpc_session *session, size_t seqn)
+ 	M0_UB_ASSERT(fop != NULL);
+ 
+ 	req = m0_fop_data(fop);
+-	req->ur_seqn = 0x12345678;
+-	m0_buf_init(&req->ur_data, strdup(data), strlen(data));
++	req->uq_seqn = 0x12345678;
++	m0_buf_init(&req->uq_data, strdup(data), strlen(data));
+ 
+ 	item = &fop->f_item;
+ 	item->ri_nr_sent_max = MAX_RETRIES;
+-- 
+1.8.3.2
+

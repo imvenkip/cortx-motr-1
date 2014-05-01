@@ -1,0 +1,183 @@
+From de00b4e114ed72e58814841cb758981dd9f82bfe Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 29 Nov 2013 18:29:14 +0530
+Subject: [PATCH 59/61] bigmemalloc.ut -UT runs successfully. -UB for
+ unrealistic memory allocation has been dropped. -UT has been tested through
+ valgrind and has zero errors and leaks.
+
+---
+ lib/ut/varr.c | 61 ++++++++++++++++++++---------------------------------------
+ lib/varr.c    |  5 +----
+ 2 files changed, 22 insertions(+), 44 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index cb7da4f..ea29963 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -51,10 +51,17 @@ enum misc_params {
+ 	DT_POWTWO_SHIFT     = 4,
+ 	DT_NON_POWTWO_SHIFT = BUFF_SHIFT,
+ 	MAX_OBJ_NR          = 26000,
++/* Following expression has been used to compute the maximum allowable tree
++ * depth under given constraints. In actual computation SYSTEM_MEMORY has been
++ * assumed to be 1GB.
++   max_depth = log(SYSTEM_MEMORY *
++		(BUFF_SIZE - M0_VA_TNODEPTR_SIZE)/
++		(BUFF_SIZE * M0_VA_TNODEPTR_SIZE*M0_VA_TNODE_NR) + 1))/
++		log (BUFF_SIZE/M0_VA_TNODEPTR_SIZE) + 1;
++*/
+ 	MAX_DEPTH	    = 11,
+ 	MAX_TEST_DEPTH      = 6,
+-	//MAX_BUFFERS	= 22369536, 
+-	MAX_BUFFERS	= 4096, 
++	MAX_BUFFERS	    = 4096,
+ };
+ 
+ M0_BASSERT(BUFF_SIZE == M0_BITS(BUFF_SHIFT));
+@@ -85,7 +92,8 @@ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+ 	 M0_ASSERT(__shift < CHAR_BIT * sizeof __num);			     \
+ 	 __num operator __shift;					     \
+ 	 })
+-
++/* Iterates over arrays with various sizes of objects of type 'dt'. Max
++ * possible number of elements from array get decided by depth. */
+ #define test_iterate(varr, ele, dt, depth)				      \
+ ({									      \
+ 	 struct m0_varr *__varr_ = (varr);				      \
+@@ -113,7 +121,8 @@ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+ 		m0_varr_for (__varr_, typeof(__ele), i, obj) {		      \
+ 			obj_sanity_check(obj, i, dt);			      \
+ 		} m0_varr_end_for;					      \
+-		for (__step = 2; __step <= MAX_OBJ_NR && __d == __depth; ++__step) {	      \
++		for (__step = 2; __step <= MAX_OBJ_NR && __d == __depth;      \
++		     ++__step) {					      \
+ 			m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,	      \
+ 				     m0_varr_size(__varr_), __step) {	      \
+ 				obj_sanity_check((void *)obj, i, dt);	      \
+@@ -130,26 +139,18 @@ static void test_size(void);
+ static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth);
+ static void test_depth(uint32_t max_depth);
+ static void test_cache(void);
+-static void test_iterations(void);
++static void test_ut_iterate(void);
+ static uint16_t int_summation(uint8_t n);
+ uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt);
+ uint32_t shift_get(enum data_types dt);
+-static void test_init_ub(void);
+-static void useless(void)
+-{
+-	struct po2 po2_obj;
+-	obj_init(&po2_obj, 5, DT_POWTWO);
+-	obj_sanity_check(&po2_obj, 5, DT_POWTWO);
+-}
++
+ void test_varr(void)
+ {
+-	useless();
+-	test_init_ub();
+ 	test_init();
+ 	test_size();
+ 	test_depth(MAX_TEST_DEPTH);
+ 	test_cache();
+-	test_iterations();
++	test_ut_iterate();
+ }
+ 
+ static void test_init(void)
+@@ -249,15 +250,7 @@ static void test_depth(uint32_t max_depth)
+ 
+ 	M0_SET0(&varr);
+ 	M0_UT_ASSERT(max_depth > 1);
+-/*
+- * Following expression has been used to compute the maximum allowable tree
+- * depth under given constraints. The expression can easily be derived by
+- * computing total number of buffers in a tree.
+-	max_depth = log(SYSTEM_MEMORY *
+-			(BUFF_SIZE - M0_VA_TNODEPTR_SIZE)/
+-			(BUFF_SIZE * M0_VA_TNODEPTR_SIZE*M0_VA_TNODE_NR) + 1))/
+-		log (BUFF_SIZE/M0_VA_TNODEPTR_SIZE) + 1;
+-*/
++
+ 
+ 	for (buff_nr = M0_VA_TNODE_NR; depth <= max_depth;
+ 	     buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE), ++depth) {
+@@ -294,7 +287,7 @@ static void test_cache(void)
+ 	m0_varr_fini(&varr);
+ }
+ 
+-static void test_iterations(void)
++static void test_ut_iterate(void)
+ {
+ 	struct m0_varr varr;
+ 	struct po2     obj_po2;
+@@ -309,24 +302,14 @@ static uint16_t int_summation(uint8_t n)
+ 	return n * (n + 1) / 2;
+ }
+ 
+-static void test_init_ub(void)
+-{
+-	struct m0_varr varr;
+-	struct non_po2 obj_non_po2;
+-	int	       rc;
+-
+-	M0_SET0(&varr);
+-	rc = m0_varr_init(&varr, 134217728, sizeof obj_non_po2, BUFF_SIZE);
+-	M0_UB_ASSERT(rc != 0);
+-}
+-
+-void  test_iterate_ub(void)
++void  test_ub_iterate(void)
+ {
+ 	struct po2     obj_po2;
+ 	struct non_po2 obj_non_po2;
+ 	uint8_t        atomic8_obj;
+ 	uint64_t       atomic64_obj;
+ 	struct m0_varr varr;
++
+ 	test_iterate(&varr, obj_po2, DT_POWTWO, MAX_DEPTH);
+ 	test_iterate(&varr, obj_non_po2, DT_NON_POWTWO, MAX_DEPTH);
+ 	test_iterate(&varr, atomic8_obj, DT_ATOMIC_8, MAX_TEST_DEPTH);
+@@ -355,7 +338,6 @@ uint32_t shift_get(enum data_types dt)
+ 	return 0;
+ }
+ 
+-
+ static void obj_init(void *obj, uint64_t data, enum data_types dt)
+ {
+ 	int	        i;
+@@ -416,8 +398,7 @@ enum {
+ 
+ static void varr_ub(int i)
+ {
+-//	test_iterate_ub();
+-	test_init_ub();
++	test_ub_iterate();
+ }
+ 
+ struct m0_ub_set m0_varr_ub = {
+diff --git a/lib/varr.c b/lib/varr.c
+index fab476e..30efe7a 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -236,7 +236,7 @@ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ {
+ 	struct m0_varr_cursor cursor;
+-	int		      rc;
++	int		      rc = 0;
+ 	void		     *holder;
+ 	uint32_t	      i;
+ 
+@@ -247,9 +247,6 @@ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ 		do {
+ 			holder = m0_varr_buf_alloc(arr->va_bufsize);
+ 			if (holder == NULL) {
+-#ifndef __KERNEL__
+-				printf("\ncurrent depth = %u", i);
+-#endif
+ 				rc = -ENOMEM;
+ 				arr->va_failure_depth = cursor.vc_done == 0 ?
+ 				 cursor.vc_depth : cursor.vc_depth + 1;
+-- 
+1.8.3.2
+

@@ -1,0 +1,597 @@
+From f34d201cd796b45751f1e7d5ce6fa9352741f530 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 6 Apr 2011 08:43:42 -0600
+Subject: [PATCH 040/177] - fixes about creating diretories in mdstore (nlink++
+ should be done after first cob create, so that adding "." and ".." does npt
+ cause -EEXIST); - created simlistic mkfs for colibri that creates initial
+ state (root dir only so far); - open root dir in mdstore init.
+
+---
+ cob/cob.c            |   2 +-
+ mdstore/mdstore.c    | 196 ++++++++++++++++++++++++++++-----------------------
+ mdstore/mdstore.h    |  59 ++++++++++++++--
+ utils/Makefile.am    |   7 +-
+ utils/mkfs.colibri.c | 179 ++++++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 345 insertions(+), 98 deletions(-)
+ create mode 100644 utils/mkfs.colibri.c
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 78e8322..7005719 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -739,7 +739,7 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         C2_PRE(c2_cob_is_valid(cob));
+ 
+         /*
+-         * This is nsrec or new created namespace name. Let's copy
++         * This is nsrec or newly created namespace name. Let's copy
+          * stat data rec to it and adjust it later.
+          */
+         nsrec = cob->co_nsrec;
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index f2cd35d..c9ec4ea 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -31,21 +31,21 @@ static const struct c2_addb_loc mdstore_addb_loc = {
+ 	.al_name = "mdstore"
+ };
+ 
+-static struct c2_fid C2_MD_ROOTID = {
+-        .f_container = 1024ULL, 
+-        .f_key       = 1ULL
++struct c2_fid C2_MD_ROOT_FID = {
++        .f_container = 0x1024ULL, 
++        .f_key       = 0x1ULL
+ };
+ 
+-static void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
+-                                   struct c2_fid *fid)
++void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
++                            struct c2_fid *fid)
+ {
+         oikey->cok_fid = *fid;
+         oikey->cok_linkno = 0;
+ }
+ 
+-static void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
+-                                   struct c2_fid *pfid,
+-                                   const char *name, int nlen)
++void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
++                            struct c2_fid *pfid,
++                            const char *name, int nlen)
+ {
+         struct c2_cob_nskey *key;
+ 
+@@ -56,23 +56,8 @@ static void c2_md_store_make_nskey(struct c2_cob_nskey **keyh,
+         *keyh = key;
+ }
+ 
+-static int md_store_add_name(struct c2_cob *cob,
+-                             struct c2_fid *pfid,
+-                             const char *name,
+-                             int nlen,
+-                             struct c2_db_tx *tx)
+-{
+-        struct c2_cob_nskey   *nskey;
+-        int                    rc;
+-        
+-        c2_md_store_make_nskey(&nskey, pfid, name, nlen);
+-        rc = c2_cob_add_name(cob, nskey, tx);
+-        c2_free(nskey);
+-        return rc;
+-}
+-
+ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+-                     struct c2_dbenv *db)
++                     struct c2_dbenv *db, int locate_root)
+ {
+         struct c2_db_tx tx;
+         int             rc;
+@@ -84,17 +69,21 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+         if (rc) {
+                 C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                             c2_addb_func_fail, "cob_domain_init", rc);
++	        c2_addb_ctx_fini(&md->md_addb);
+                 return rc;
+         }
+-        c2_db_tx_init(&tx, db, 0);
+-        rc = c2_md_store_locate(md, &C2_MD_ROOTID, &md->md_root, 0, &tx);
+-        if (rc) {
+-                c2_db_tx_abort(&tx);
+-        } else {
+-                c2_db_tx_commit(&tx);
++        if (locate_root) {
++                c2_db_tx_init(&tx, db, 0);
++                rc = c2_md_store_locate(md, &C2_MD_ROOT_FID, &md->md_root, 
++                                        C2_MD_STORE_LOCATE_STORE, &tx);
++                if (rc) {
++                        c2_db_tx_abort(&tx);
++                } else {
++                        c2_db_tx_commit(&tx);
++                }
+         }
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+-                    c2_addb_func_fail, "md_root_locate", rc);
++                    c2_addb_func_fail, "md_store_init", rc);
+         if (rc) {
+ 	        c2_addb_ctx_fini(&md->md_addb);
+                 c2_cob_domain_fini(&md->md_dom);
+@@ -104,15 +93,75 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+ 
+ void c2_md_store_fini(struct c2_md_store *md)
+ {
+-        c2_cob_put(md->md_root);
++        if (md->md_root)
++                c2_cob_put(md->md_root);
+         c2_cob_domain_fini(&md->md_dom);
+ 	c2_addb_ctx_fini(&md->md_addb);
+ }
+ 
+-int c2_md_store_create(struct c2_md_store *md, 
++int c2_md_store_create_attr(struct c2_md_store *md,
++                            struct c2_cob *cob,
++                            struct c2_cob_nskey *nskey,
++                            struct c2_cob_nsrec *nsrec,
++                            struct c2_cob_fabrec *fabrec,
++                            struct c2_cob_omgrec *omgrec,
++                            struct c2_db_tx *tx)
++{
++        struct c2_cob         *pcob;
++        int                    rc;
++        
++        rc = c2_cob_create(cob, nskey, nsrec, fabrec, omgrec, 0, tx);
++        if (rc)
++                return rc;
++        cob->co_nsrec.cnr_nlink++;
++
++        if (S_ISDIR(omgrec->cor_mode)) {
++                /*
++                 * Add direntry "." to empty dir
++                 */
++                rc = c2_md_store_add_name(cob, &cob->co_fid, ".", 1, tx);
++                if (rc)
++                        return rc;
++
++                if (!c2_fid_eq(&cob->co_fid, &C2_MD_ROOT_FID)) {
++                        /*
++                         * Add direntry ".." to empty dir. To do so we 
++                         * need parent cob first.
++                         */
++                        rc = c2_md_store_locate(md, &nskey->cnk_pfid, &pcob, 0, tx);
++                        if (rc)
++                                return rc;
++
++                        rc = c2_md_store_add_name(pcob, &cob->co_fid, "..", 2, tx);
++                        if (rc) {
++                                c2_cob_put(pcob);
++                                return rc;
++                        }
++
++                        /*
++                         * Update on-store cob so that updated number of links
++                         * is saved.
++                         */
++                        rc = c2_cob_update(pcob, &pcob->co_nsrec,  NULL, NULL, tx);
++                        c2_cob_put(pcob);
++                } else {
++                        rc = c2_md_store_add_name(cob, &cob->co_fid, "..", 2, tx);
++                        if (rc)
++                                return rc;
++                }
++        }
++        /*
++         * Update on-store cob so that updated number of links
++         * is saved.
++         */
++        rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
++        return rc;
++}
++
++int c2_md_store_create(struct c2_md_store *md,
+                        struct c2_cob *cob,
+-                       struct c2_fop_create *req, 
+-                       struct c2_fop_create_rep *rep, 
++                       struct c2_fop_create *req,
++                       struct c2_fop_create_rep *rep,
+                        struct c2_fop_ctx *ctx)
+ {
+         struct c2_fop_cob     *body = &req->c_body;
+@@ -120,7 +169,6 @@ int c2_md_store_create(struct c2_md_store *md,
+         struct c2_cob_nsrec    nsrec;
+         struct c2_cob_fabrec   fabrec;
+         struct c2_cob_omgrec   omgrec;
+-        struct c2_cob         *pcob;
+         int                    rc;
+         
+         c2_md_make_nskey(&nskey, &body->b_pfid, &req->c_name);
+@@ -162,12 +210,13 @@ int c2_md_store_create(struct c2_md_store *md,
+         nsrec.cnr_mtime = 0;
+         nsrec.cnr_ctime = 0;
+ 
+-        /* @todo: Fill fabrec */
++        /* 
++         * @todo: Fill fabrec. 
++         */
+         C2_SET0(&fabrec);
+         
+         /* 
+-         * @todo: allocate omg or we can use F as key? Do we need
+-         * this id at all?
++         * @todo: allocate omg.
+          */
+         nsrec.cnr_omgid = 0;
+ 
+@@ -176,58 +225,27 @@ int c2_md_store_create(struct c2_md_store *md,
+         omgrec.cor_gid = body->b_gid;
+         omgrec.cor_mode = body->b_mode;
+ 
+-        rc = c2_cob_create(cob, nskey, &nsrec, &fabrec, &omgrec, 
+-                           0, &ctx->fc_tx->tx_dbtx);
+-        c2_free(nskey);
+-
+-        if (S_ISDIR(body->b_mode)) {
+-                /*
+-                 * Add direntry "." to empty dir
+-                 */
+-                rc = md_store_add_name(cob, &cob->co_fid, ".", 1, 
+-                                       &ctx->fc_tx->tx_dbtx);
+-                if (rc)
+-                        goto out;
+-
+-                /*
+-                 * Add direntry ".." to empty dir. To do so we need parent
+-                 * cob first.
+-                 */
+-                rc = c2_md_store_locate(md, &cob->co_nskey->cnk_pfid, 
+-                                        &pcob, 0, &ctx->fc_tx->tx_dbtx);
+-                if (rc)
+-                        goto out;
+-
+-                rc = md_store_add_name(pcob, &cob->co_fid, "..", 2, 
+-                                       &ctx->fc_tx->tx_dbtx);
+-                if (rc) {
+-                        c2_cob_put(pcob);
+-                        goto out;
+-                }
+-
+-                /*
+-                 * Add one more link to parent dir.
+-                 */
+-                pcob->co_nsrec.cnr_nlink++;
+-                rc = c2_cob_update(pcob, &pcob->co_nsrec, NULL, NULL,
+-                                   &ctx->fc_tx->tx_dbtx);
+-                c2_cob_put(pcob);
+-                if (rc)
+-                        goto out;
+-                
+-                /*
+-                 * Two links to cob is what we have now. Let's update
+-                 * on store cob.
+-                 */
+-                cob->co_nsrec.cnr_nlink += 2;
+-        } else {
+-                cob->co_nsrec.cnr_nlink++;
+-        }
+-        rc = c2_cob_update(cob, &cob->co_nsrec, NULL, NULL,
+-                           &ctx->fc_tx->tx_dbtx);
+-out:
++        rc = c2_md_store_create_attr(md, cob, nskey, &nsrec, &fabrec, 
++                                     &omgrec, &ctx->fc_tx->tx_dbtx);
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_create", rc);
++        c2_free(nskey);
++        return rc;
++}
++
++int c2_md_store_add_name(struct c2_cob *cob,
++                         struct c2_fid *pfid,
++                         const char *name,
++                         int namelen,
++                         struct c2_db_tx *tx)
++{
++        struct c2_cob_nskey   *nskey;
++        int                    rc;
++        
++        c2_md_store_make_nskey(&nskey, pfid, name, namelen);
++        rc = c2_cob_add_name(cob, nskey, tx);
++        cob->co_nsrec.cnr_nlink++;
++        c2_free(nskey);
+         return rc;
+ }
+ 
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index fad5ba5..dbb5ccb 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -30,12 +30,16 @@ enum c2_md_store_locate_flags {
+         C2_MD_STORE_LOCATE_ORPHANS = 1 << 2
+ };
+ 
++extern struct c2_fid C2_MD_ROOT_FID;
++
+ /**
+-   Initialize mdstore with passed cob comain id and database env.
++   Init mdstore and get it ready to work. If locate_root is
++   specified then also root cob is located on store.
+ */
+ int c2_md_store_init(struct c2_md_store *md, 
+                      struct c2_cob_domain_id *id,
+-                     struct c2_dbenv *db);
++                     struct c2_dbenv *db,
++                     int locate_root);
+ 
+ /**
+    Finalize mdstore instance.
+@@ -161,19 +165,60 @@ int c2_md_store_readdir(struct c2_md_store *md,
+ /**
+    Find cob by fid.
+ */
+-int c2_md_store_locate(struct c2_md_store *md, struct c2_fid *fid,
+-                       struct c2_cob **cob, int flags, struct c2_db_tx *tx);
++int c2_md_store_locate(struct c2_md_store *md, 
++                       struct c2_fid *fid,
++                       struct c2_cob **cob, 
++                       int flags, 
++                       struct c2_db_tx *tx);
+ 
+ /**
+    Find cob by parent and name.
+ */
+-int c2_md_store_lookup(struct c2_md_store *md, struct c2_cob *pcob,
+-                       const char *name, int nlen, struct c2_cob *cob, 
++int c2_md_store_lookup(struct c2_md_store *md, 
++                       struct c2_cob *pcob,
++                       const char *name, 
++                       int namelen, 
++                       struct c2_cob *cob, 
+                        struct c2_db_tx *tx);
+ /**
+    Allocate new cob on mdstore @md.
+ */
+-int c2_md_store_alloc(struct c2_md_store *md, struct c2_cob **cob);
++int c2_md_store_alloc(struct c2_md_store *md, 
++                      struct c2_cob **cob);
++
++/**
++   Add one more name refering to @cob.
++*/
++int c2_md_store_add_name(struct c2_cob *cob, 
++                         struct c2_fid *pfid,
++                         const char *name, 
++                         int namelen, 
++                         struct c2_db_tx *tx);
++
++/**
++   Create a cob using passed attributes and nskey.
++*/
++int c2_md_store_create_attr(struct c2_md_store *md, 
++                            struct c2_cob *cob, 
++                            struct c2_cob_nskey *nskey, 
++                            struct c2_cob_nsrec *nsrec, 
++                            struct c2_cob_fabrec *fabrec, 
++                            struct c2_cob_omgrec *omgrec, 
++                            struct c2_db_tx *tx);
++
++/**
++   Create oi key using passed fid.
++*/
++void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
++                            struct c2_fid *fid);
++
++/**
++   Create nskey using passed parent fid and name.
++*/
++void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
++                            struct c2_fid *pfid,
++                            const char *name, 
++                            int namelen);
+ 
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+diff --git a/utils/Makefile.am b/utils/Makefile.am
+index 513c148..6fb40f4 100644
+--- a/utils/Makefile.am
++++ b/utils/Makefile.am
+@@ -1,8 +1,13 @@
+ SUBDIRS      = ploss
+ 
++libstob_ut   = $(top_builddir)/stob/ut/libstob-ut.la
++
+ noinst_PROGRAMS = ut ub
++sbin_PROGRAMS   = mkfs.colibri
+ 
+-libstob_ut   = $(top_builddir)/stob/ut/libstob-ut.la
++mkfs_colibri_SOURCES   = mkfs.colibri.c
++mkfs_colibri_LDFLAGS   = -pthread
++mkfs_colibri_LDADD     = $(top_builddir)/colibri/libcolibri.la
+ 
+ ut_SOURCES   = ut_main.c common.c common.h
+ ut_LDFLAGS   = -pthread
+diff --git a/utils/mkfs.colibri.c b/utils/mkfs.colibri.c
+new file mode 100644
+index 0000000..18c82dd
+--- /dev/null
++++ b/utils/mkfs.colibri.c
+@@ -0,0 +1,179 @@
++/* -*- C -*- */
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE
++#endif
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <getopt.h>
++#if STDC_HEADERS
++#include <string.h>
++#endif /* STDC_HEADERS */
++#include <mntent.h>
++#include <errno.h>
++#include <pwd.h>
++#include <grp.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <dirent.h>
++#include <time.h>
++#include <ctype.h>
++
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <unistd.h>
++              
++#include "lib/misc.h"   /* C2_SET0 */
++#include "lib/cdefs.h"
++#include "lib/arith.h"   /* C2_3WAY */
++#include "lib/errno.h"
++#include "lib/assert.h"
++#include "lib/memory.h"
++#include "lib/bitstring.h"
++#include "lib/rwlock.h"
++
++#include "fid/fid.h"
++#include "fop/fop.h"
++#include "cob/cob.h"
++#include "site/site.h"
++#include "colibri/init.h"
++
++#include "mdservice/md_fops_u.h"
++#include "mdservice/md_fops.h"
++#include "mdservice/md_foms.h"
++
++#include "mdstore/mdstore.h"
++
++static void usage(char *progname)
++{
++        fprintf(stderr, "Usage: mkfs.colibri <fspath>\n");
++}
++
++static struct c2_cob_domain_id cdid = { 42 };
++static struct c2_md_store md;
++static struct c2_dbenv db;
++
++int main(int argc, char *argv[])
++{
++        struct option long_opts[] = {
++                {"help",  no_argument, 0, 'h'},
++                {0, 0, 0, 0}
++        };
++        
++        char                   short_opts[] = "h";
++        char                  *path;
++
++        struct c2_cob_nskey   *nskey;
++        struct c2_cob_nsrec    nsrec;
++        struct c2_cob_fabrec   fabrec;
++        struct c2_cob_omgrec   omgrec;
++        struct c2_db_tx        tx;
++        struct c2_cob         *cob;
++        int                    rc;
++        int                    c;
++        
++        optind = 0;
++        while ((c = getopt_long_only(argc, argv, short_opts,
++                                     long_opts, NULL)) >= 0) {
++                switch (c) {
++                case 'h':
++                case '?':
++                        usage(argv[0]);
++                        return 0;
++                default:
++                        break;
++                }
++        }
++        
++        if (argc < 2) {
++                usage(argv[0]);
++                return -1;
++        }
++
++        path = argv[1];
++
++        fprintf(stderr, "Creating colibri fs at %s\n", path); 
++
++        rc = c2_init();
++        if (rc) {
++                fprintf(stderr, "Can't init colibri, error %d\n", rc);
++                return rc;
++        }
++        
++	rc = c2_dbenv_init(&db, path, 0);
++	if (rc)
++	        goto out_free_c2;
++	        
++        rc = c2_md_store_init(&md, &cdid, &db, 0);
++        if (rc)
++                goto out_free_db;
++
++        C2_SET0(&nsrec);
++
++        c2_md_store_make_nskey(&nskey, &C2_MD_ROOT_FID, "ROOT", 4);
++
++        nsrec.cnr_fid = C2_MD_ROOT_FID;
++        nsrec.cnr_nlink = 0;
++        nsrec.cnr_ino = 1024;
++        nsrec.u.cnr_rdev = 0;
++        nsrec.u.cnr_size = 4096;
++        nsrec.cnr_blksize = 4096;
++        nsrec.cnr_blocks = 16;
++
++        nsrec.cnr_atime = 0;
++        nsrec.cnr_mtime = 0;
++        nsrec.cnr_ctime = 0;
++
++        /*
++         * @todo: allocate omg.
++         */        
++        nsrec.cnr_omgid = 0;
++
++        C2_SET0(&fabrec);
++
++        /*
++         * Root is owner of root dir and has corresponding permissions.
++         */
++        omgrec.cor_uid = 0;
++        omgrec.cor_gid = 0;
++        omgrec.cor_mode = S_IFDIR | 
++                          S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
++                          S_IRGRP | S_IXGRP |           /* r-x for group */
++                          S_IROTH | S_IXOTH;            /* r-x for others */
++
++        rc = c2_md_store_alloc(&md, &cob);
++        if (rc)
++                goto out_free_md;
++
++        c2_db_tx_init(&tx, &db, 0);
++        
++        rc = c2_md_store_create_attr(&md, cob, nskey, &nsrec, &fabrec, 
++                                     &omgrec, &tx);
++        if (rc)
++                c2_db_tx_abort(&tx);
++        else
++                c2_db_tx_commit(&tx);
++        c2_free(nskey);
++out_free_md:
++        c2_md_store_fini(&md);
++out_free_db:
++        c2_dbenv_fini(&db);
++out_free_c2:
++        c2_fini();
++        return rc;
++}
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+-- 
+1.8.3.2
+

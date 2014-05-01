@@ -1,0 +1,37 @@
+From 0f12044f7a02ba589b5c08bc1cf628dc6b909d4d Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 6 Jun 2013 16:36:22 +0300
+Subject: [PATCH 111/228] be/list: account only for l_head&l_tail pointers, not
+ for whole m0_be_list
+
+---
+ be/list.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index d1b93db..c1b4328 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -135,15 +135,15 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 	case M0_BLO_INSERT:
+ 	case M0_BLO_DELETE:
+ 		k.tc_reg_nr = 4;
+-		k.tc_reg_size = sizeof(struct m0_be_list) +
+-			2*sizeof(void *) + list->bl_descr->td_container_size;
++		k.tc_reg_size = 4*sizeof(void *) +
++			list->bl_descr->td_container_size;
+ 		m0_be_tx_credit_add(accum, &k);
+ 		break;
+ 	case M0_BLO_MOVE:
+ 	default:
+ 		k.tc_reg_nr = 6;
+-		k.tc_reg_size = sizeof(struct m0_be_list) +
+-			4*sizeof(void *) + list->bl_descr->td_container_size;
++		k.tc_reg_size = 6*sizeof(void *) +
++			list->bl_descr->td_container_size;
+ 		m0_be_tx_credit_add(accum, &k);
+ 		break;
+ 	}
+-- 
+1.8.3.2
+

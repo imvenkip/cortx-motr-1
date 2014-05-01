@@ -1,0 +1,395 @@
+From ec50f83e1bd1a3493a713c56c7d25c53fde890b0 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 24 Feb 2011 14:49:18 -0700
+Subject: [PATCH 013/158] - added c2_cob_setattr() and c2_md_store_setattr(); -
+ some fixes with error handling in c2_cob_rename(); - cleanups with addb error
+ loging in cob; - added more addb error case logs for all the operations and
+ some error codes;
+
+---
+ cob/cob.c         | 135 ++++++++++++++++++++++++++++++++++++++++++++----------
+ cob/cob.h         |   8 ++++
+ mdstore/mdstore.c |  37 +++++++++++++--
+ 3 files changed, 152 insertions(+), 28 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 3d90538..9afe638 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -459,7 +459,15 @@ int c2_cob_locate(struct c2_cob_domain *dom, const struct c2_stob_id *id,
+ 	return rc;
+ }
+ 
+-C2_ADDB_EV_DEFINE(cob_eexist, "md_exists", 0x1, C2_ADDB_INVAL);
++C2_ADDB_EV_DEFINE(cob_eexist,  "md_exist",   0x1, C2_ADDB_INVAL);
++C2_ADDB_EV_DEFINE(cob_enoent,  "md_noent",   0x2, C2_ADDB_INVAL);
++C2_ADDB_EV_DEFINE(cob_enomem,  "md_nomem",   0x3, C2_ADDB_INVAL);
++C2_ADDB_EV_DEFINE(cob_link,    "md_link",    0x4, C2_ADDB_FLAG);
++C2_ADDB_EV_DEFINE(cob_create,  "md_create",  0x5, C2_ADDB_FLAG);
++C2_ADDB_EV_DEFINE(cob_delete,  "md_delete",  0x6, C2_ADDB_FLAG);
++C2_ADDB_EV_DEFINE(cob_rename,  "md_rename",  0x7, C2_ADDB_FLAG);
++C2_ADDB_EV_DEFINE(cob_setattr, "md_setattr", 0x8, C2_ADDB_FLAG);
++
+ 
+ /**
+    Add a new cob name to the namespace. This takes a reference on 
+@@ -487,8 +495,10 @@ int c2_cob_link(struct c2_cob_domain *dom,
+         C2_PRE(c2_stob_id_is_set(&nskey->cnk_pfid));
+ 
+         rc = cob_alloc(dom, &cob);
+-        if (rc)
++        if (rc) {
++                C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_enomem, rc);
+                 return rc;
++        }
+ 
+         cob->co_nskey = nskey;
+ 
+@@ -504,8 +514,10 @@ int c2_cob_link(struct c2_cob_domain *dom,
+                  * Let's find zero statdata, we will need it. 
+                  */
+                 rc = c2_cob_locate(dom, &nsrec->cnr_stobid, &cob0, tx);
+-                if (rc)
++                if (rc) {
++                        C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_enoent, rc);
+                         goto out_free;
++                }
+ 
+                 /*
+                  * This is one more name for an existing file, its linkno
+@@ -566,8 +578,10 @@ int c2_cob_link(struct c2_cob_domain *dom,
+         rc = c2_table_insert(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+-	if (rc)
++	if (rc) {
++                C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
+                 goto out_free;
++        }
+ 
+         /* Cache the nsrec. */
+         cob->co_nsrec = *nsrec;
+@@ -575,8 +589,8 @@ int c2_cob_link(struct c2_cob_domain *dom,
+ 
+         /*
+          * Add to namespace table. Content of ->co_nsrec is not important
+-         * with only exception for stobid. Meaningful statdata is stored
+-         * in "zero" namespace entry.
++         * with only exception for stobid and linkno. Meaningful statdata
++         * is stored in "zero" namespace entry.
+          */
+         c2_db_pair_setup(&pair, &dom->cd_namespace,
+ 			 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
+@@ -585,15 +599,17 @@ int c2_cob_link(struct c2_cob_domain *dom,
+         rc = c2_table_insert(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+-	if (rc)
++	if (rc) {
++                C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
+                 goto out_free;
++        }
+                 
+         *out = cob;
+ 	return 0;
+ 
+ out_free:
+         c2_cob_put(cob);
+-        C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
++        C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_link, rc == 0);
+         return rc;
+ }
+ 
+@@ -653,18 +669,18 @@ int c2_cob_create(struct c2_cob_domain *dom,
+ 
+ out_free:
+         c2_cob_put(cob);
+-        C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
++        C2_ADDB_ADD(&dom->cd_addb, &cob_addb_loc, cob_create, rc == 0);
+         return rc;
+ }
+ 
+-/* For assertions only */
++/** 
++   For assertions only.
++*/
+ static bool c2_cob_is_valid(struct c2_cob *cob)
+ {
+         return c2_stob_id_is_set(&cob->co_stobid);
+ }
+ 
+-C2_ADDB_EV_DEFINE(cob_delete, "md_delete", 0x2, C2_ADDB_FLAG);
+-
+ /**
+    Unlink last link, kill statdata, file attrs, etc.
+  */
+@@ -678,8 +694,10 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+          * We need the name key. 
+          */
+         rc = cob_oi_lookup(cob, tx);
+-        if (rc)
+-                return rc;
++        if (rc) {
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_enoent, rc);
++                goto out;
++        }
+         C2_POST(cob->co_valid & CA_NSKEY);
+ 
+         /* 
+@@ -695,7 +713,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+         if (rc)
+-                return rc;
++                goto out;
+ 
+         /*
+          * Remove from the namespace table. 
+@@ -706,6 +724,8 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+         rc = c2_table_delete(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
++        if (rc)
++                goto out;
+ 
+         /* 
+          * Remove from the fileattr_basic table. 
+@@ -720,6 +740,8 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
+         c2_table_delete(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
++out:
++        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_delete, rc == 0);
+         return rc;
+ }
+ 
+@@ -748,8 +770,10 @@ int c2_cob_unlink(struct c2_cob        *cob,
+          * We need the name key. 
+          */
+         rc = cob_oi_lookup(cob, tx);
+-        if (rc)
++        if (rc) {
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_enoent, rc);
+                 goto out;
++        }
+         C2_POST(cob->co_valid & CA_NSKEY);
+ 
+         /*
+@@ -777,9 +801,11 @@ int c2_cob_unlink(struct c2_cob        *cob,
+         rc = c2_table_lookup(tx, &pair);
+         c2_db_pair_release(&pair);
+         c2_db_pair_fini(&pair);
+-        if (rc)
++        if (rc) {
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_enoent, rc);
+                 goto out;
+-
++        }
++        
+         /*
+          * Statdata name should always have linkno == 0. Other names
+          * have linkno > 0.
+@@ -806,10 +832,8 @@ int c2_cob_unlink(struct c2_cob        *cob,
+                 c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
+ 	                         &oikey, sizeof oikey, &nkey, sizeof nkey);
+ 
+-                rc = c2_db_cursor_get(&cursor, &pair);
++                c2_db_cursor_get(&cursor, &pair);
+                 c2_db_cursor_fini(&cursor);
+-                if (rc)
+-                        goto out;
+ 
+                 /*
+                  * Now let's move statdata itself using found namespace
+@@ -861,6 +885,7 @@ int c2_cob_unlink(struct c2_cob        *cob,
+                 rc = c2_table_update(tx, &pair);
+                 c2_db_pair_release(&pair);
+                 c2_db_pair_fini(&pair);
++                cob->co_valid |= CA_NSREC;
+         }
+                 
+ out:
+@@ -895,7 +920,7 @@ int c2_cob_rename(struct c2_cob        *cob,
+         rc = c2_db_cursor_init(&cursor, 
+                                &cob->co_dom->cd_namespace, tx);
+         if (rc)
+-                return rc;
++                goto out;
+ 
+         /* Let's check if tgt name already exists */
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+@@ -904,7 +929,9 @@ int c2_cob_rename(struct c2_cob        *cob,
+         rc = c2_db_cursor_get(&cursor, &pair);
+         if (rc == 0) {
+                 c2_db_cursor_fini(&cursor);
+-                return -EEXIST;
++                rc = -EEXIST;
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_eexist, rc);
++                goto out;
+         }
+ 
+         /* Let's check if src name exists */
+@@ -915,7 +942,9 @@ int c2_cob_rename(struct c2_cob        *cob,
+         rc = c2_db_cursor_get(&cursor, &pair);
+         if (rc) {
+                 c2_db_cursor_fini(&cursor);
+-                return -ENOENT;
++                rc = -ENOENT;
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_enoent, rc);
++                goto out;
+         }
+ 
+         /* Update name in namespace */
+@@ -924,6 +953,8 @@ int c2_cob_rename(struct c2_cob        *cob,
+ 		         &nsrec, sizeof nsrec);
+         rc = c2_db_cursor_set(&cursor, &pair);
+         c2_db_cursor_fini(&cursor);
++        if (rc)
++                goto out;
+ 
+         /* Update object index */
+         oikey.cok_stobid = cob->co_stobid;
+@@ -934,7 +965,63 @@ int c2_cob_rename(struct c2_cob        *cob,
+         rc = c2_table_update(tx, &pair);
+         c2_db_pair_release(&pair);
+         c2_db_pair_fini(&pair);
++out:
++        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_rename, rc == 0);
++        return rc;
++}
++
++/**
++   Update file attributes of passed cob with @nsrec and fabrec fields.
++*/
++int c2_cob_setattr(struct c2_cob        *cob,
++                   struct c2_cob_nsrec  *nsrec,
++                   struct c2_cob_fabrec *fabrec,
++                   struct c2_db_tx      *tx)
++{
++        struct c2_db_pair pair;
++        int               rc;
++        
++        C2_PRE(c2_cob_is_valid(cob));
++        C2_PRE(nsrec != NULL || fabrec != NULL);
++        
++        /*
++         * We need the name key. 
++         */
++        rc = cob_oi_lookup(cob, tx);
++        if (rc) {
++                C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_enoent, rc);
++                goto out;
++        }
+ 
++        C2_POST(cob->co_valid & CA_NSKEY);
++
++        if (nsrec != NULL) {
++                cob->co_nsrec = *nsrec;
++                cob->co_valid |= CA_NSREC;
++        
++                c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
++                                 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
++                                 &cob->co_nsrec, sizeof cob->co_nsrec);
++                rc = c2_table_update(tx, &pair);
++                c2_db_pair_release(&pair);
++                c2_db_pair_fini(&pair);
++                if (rc)
++                        goto out;
++        }
++        
++        if (fabrec != NULL) {
++                cob->co_fabrec = *fabrec;
++                cob->co_valid |= CA_FABREC;
++        
++                c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
++                                 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
++                                 &cob->co_fabrec, sizeof cob->co_fabrec);
++                rc = c2_table_update(tx, &pair);
++                c2_db_pair_release(&pair);
++                c2_db_pair_fini(&pair);
++        }
++out:
++        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_setattr, rc == 0);
+         return rc;
+ }
+ 
+diff --git a/cob/cob.h b/cob/cob.h
+index a30e031..f950a17 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -297,6 +297,14 @@ int c2_cob_rename(struct c2_cob        *cob,
+                   struct c2_cob_nskey  *srckey,
+                   struct c2_cob_nskey  *tgtkey,
+                   struct c2_db_tx      *tx);
++
++/**
++   Update file attributes of passed cob with @nsrec fields.
++*/
++int c2_cob_setattr(struct c2_cob        *cob,
++                   struct c2_cob_nsrec  *nsrec,
++                   struct c2_cob_fabrec *fabrec,
++                   struct c2_db_tx      *tx);
+                   
+ /**
+    Acquires an additional reference on the object.
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index abe4f29..92d8848 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -270,6 +270,7 @@ int c2_md_store_rename(struct c2_md_store *md, struct c2_fop *fop,
+                 return rc;
+                 
+         rc = c2_cob_rename(cob, srckey, tgtkey, ctx->ft_tx);
++        c2_cob_put(cob);
+         c2_free(srckey);
+         c2_free(tgtkey);
+         
+@@ -279,13 +280,41 @@ int c2_md_store_rename(struct c2_md_store *md, struct c2_fop *fop,
+ int c2_md_store_setattr(struct c2_md_store *md, struct c2_fop *fop,
+                         struct c2_fop_ctx *ctx)
+ {
+-        struct c2_fop_setattr *setattr;
+-        int rc;
++        struct c2_fop_setattr *setattr = c2_fop_data(fop);
++        struct c2_fop_body    *body = &setattr->s_body;
++        struct c2_cob_nsrec    nsrec;
++        struct c2_cob_fabrec   fabrec;
++        struct c2_stob_id      stobid;
++        struct c2_cob         *cob;
++        int                    rc;
+         
+         rc = c2_md_store_check_perm(md, fop, ctx);
+         if (rc)
+                 return rc;
++
++        fid2stobid(&stobid, &body->b_tfid);
++        rc = c2_cob_locate(&md->md_cob, &stobid, &cob, ctx->ft_tx);
++        if (rc)
++                return rc;
++
++        /* 
++         * @todo: these need to be fixed. We do have 64 bit time
++         * stamp in changelog rec and can use it. Still it may be
++         * not needed as on target fs these fields may be updated
++         * in create time.
++         */
++        nsrec = cob->co_nsrec;
++        nsrec.cnr_atime = 0;
++        nsrec.cnr_mtime = 0;
++        nsrec.cnr_ctime = 0;
++
++        /* @todo: Update fabrec version. */
++        fabrec = cob->co_fabrec;
++        fabrec.cfb_sid = body->b_sid;
++        fabrec.cfb_nid = body->b_nid;
++
++        rc = c2_cob_setattr(cob, &nsrec, &fabrec, ctx->ft_tx);
++        c2_cob_put(cob);
+         
+-        setattr = c2_fop_data(fop);
+-        return 0;
++        return rc;
+ }
+-- 
+1.8.3.2
+

@@ -1,0 +1,1849 @@
+From 0e387391febde529f6584d41d7da372d0e402d3d Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 7 May 2013 12:56:04 +0530
+Subject: [PATCH 131/172] Avoiding some code duplication and cleanup in the UT
+
+---
+ layout/list_enum.c         |   6 +-
+ layout/ut/composite.c      | 331 +++++++++++++++------------------------------
+ layout/ut/composite.h      |   2 -
+ layout/ut/layout.c         |   6 +-
+ layout/ut/layout.h         |   5 +-
+ layout/ut/layout_generic.c | 125 +++++++++++------
+ layout/ut/pdclust.c        | 226 +++++++++----------------------
+ 7 files changed, 262 insertions(+), 439 deletions(-)
+
+diff --git a/layout/list_enum.c b/layout/list_enum.c
+index 37c84bf..b086586 100644
+--- a/layout/list_enum.c
++++ b/layout/list_enum.c
+@@ -338,7 +338,7 @@ static int noninline_read(struct m0_fid *cob_list,
+ 	M0_ASSERT(lsd != NULL);
+ 
+ 	if (M0_FI_ENABLED("cursor_init_err"))
+-		{ rc = -ENOENT; goto err1_injected; }
++		{ rc = -EIO; goto err1_injected; }
+ 	rc = m0_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx, 0);
+ err1_injected:
+ 	if (rc != 0) {
+@@ -506,7 +506,7 @@ static int noninline_write(const struct m0_layout_enum *e,
+ 	M0_ASSERT(lsd != NULL);
+ 
+ 	if (M0_FI_ENABLED("cursor_init_err"))
+-		{ rc = -ENOENT; goto err1_injected; }
++		{ rc = -EIO; goto err1_injected; }
+ 	rc = m0_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx,
+ 			       M0_DB_CURSOR_RMW);
+ err1_injected:
+@@ -530,7 +530,7 @@ err1_injected:
+ 			rec.clr_cob_id = cob_list[i];
+ 
+ 			if (M0_FI_ENABLED("cursor_add_err"))
+-				{ rc = -ENOENT; goto err2_injected; }
++				{ rc = -EIO; goto err2_injected; }
+ 			rc = m0_db_cursor_add(&cursor, &pair);
+ err2_injected:
+ 			if (rc != 0) {
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 3a5e61d..2ef4c99 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -63,7 +63,7 @@ static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+ 	*sublayout = m0_pdl_to_layout(pl);
+ }
+ 
+-/*
++/**
+  * For the 'layers_nr number of layers' to be added to a composite layout,
+  * this function creates "layer_nr - 1" number of layouts with their
+  * respective lid. One layer that is the zeroth layer is already added to the
+@@ -106,7 +106,7 @@ static void sublayout_delete(struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(m0_layout_find(domain, sublayout_id) == NULL);
+ }
+ 
+-/*
++/**
+  * Deletes all the sublayouts including the one which is part of the zeroth
+  * layer.
+  */
+@@ -123,7 +123,7 @@ static void sublayouts_delete(struct m0_layout_domain *domain,
+ 	}
+ }
+ 
+-/* todo
++/** todo
+  * 1) Add tests for having the first layer spanning the whole namespace
+  * 2) Add test to cover the functioning of the ext lookup.
+  * 3) Add test to cover the NBA use case specifically.
+@@ -142,9 +142,6 @@ static void extentlist_build(struct m0_tl *extents,
+ 	m0_composite_layer_ext_tlist_init(extents);
+ 	M0_UT_ASSERT(m0_composite_layer_ext_tlist_is_empty(extents));
+ 
+-	if (M0_FI_ENABLED("extents_nr_zero"))
+-		return;
+-
+ 	delta = (END_OFFSET - START_OFFSET) / extents_nr;
+ 	for (i = 0; i < extents_nr; ++i) {
+ 		M0_ALLOC_PTR(lr_ext);
+@@ -204,16 +201,16 @@ static void composite_layout_verify(struct m0_layout *l,
+ 	M0_UT_ASSERT(l->l_type == &m0_composite_layout_type);
+ 
+ 	/* Verify the generic layout data. */
+-	cl = m0_layout_to_cl(l);
+ 	l_verify(l, composite_lid, is_user_count_incremented);
+ 
+ 	/* Verify the composite type specific data. */
+-	m0_uint128_init(&seed, "sublayouts_build");
++	cl = m0_layout_to_cl(l);
+ 	M0_UT_ASSERT(cl->cl_layers_nr == layers_nr);
+ 
+ 	/* Verify the layers */
+ 	i = 0;
+ 	extents_nr = min_extents_nr;
++	m0_uint128_init(&seed, "sublayouts_build");
+         m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_cl->l_id == cl->cl_base.l_id);
+ 		/* Verify the sublayout. */
+@@ -258,12 +255,10 @@ static struct m0_composite_layer *layer_find(
+ 	struct m0_composite_layer *layer = NULL;
+ 
+ 	M0_PRE(layer_idx < cl->cl_layers_nr);
+-
+ 	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+ 		if (layer->clr_idx == layer_idx)
+ 			break;
+ 	} m0_tl_endfor;
+-
+ 	M0_UT_ASSERT(layer != NULL);
+ 	return layer;
+ }
+@@ -340,7 +335,7 @@ static void composite_dump(const struct m0_composite_layout *cl)
+ }
+ #endif
+ 
+-/* Builds a layout object with COMPOSITE layout type. */
++/** Builds a layout object with COMPOSITE layout type. */
+ static int composite_build(uint64_t lid,
+ 			   struct m0_layout_domain *domain,
+ 			   uint32_t extents_nr,
+@@ -391,17 +386,17 @@ static int composite_build(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Adds layers to the provided composite layout.
+  * 'The number of extents' is varied (incremented by one) for each layer.
+  * Effectively, as of now, extents of one layer are overlapping to the extents
+  * of another layer.
+  */
+-static int composite_layers_add(struct m0_composite_layout *cl,
+-				uint32_t layers_nr,
+-				uint32_t min_extents_nr,
+-				bool is_contiguous_extents,
+-				bool layer_add_failure_test)
++static int layers_add(struct m0_composite_layout *cl,
++		      uint32_t layers_nr,
++		      uint32_t min_extents_nr,
++		      bool is_contiguous_extents,
++		      bool layer_add_failure_test)
+ {
+ 	uint64_t                          sublayout_id;
+ 	struct m0_layout                 *sublayout;
+@@ -432,11 +427,7 @@ static int composite_layers_add(struct m0_composite_layout *cl,
+ 		M0_UT_ASSERT(cl->cl_layers_nr == i);
+ 		rc = m0_composite_layer_add(cl, sublayout);
+ 		if (layer_add_failure_test) {
+-			//todo optimise the err list
+-			M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR ||
+-				     rc == -ENOMEM || rc == -EINVAL ||
+-				     rc == L_EMAP_PASTE_ERR ||
+-				     rc == L_EMAP_OBJ_INSERT_ERR);
++			M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+ 			M0_UT_ASSERT(cl->cl_layers_nr == i);
+ 			extentlist_free(&extents);
+ 			break;
+@@ -461,7 +452,7 @@ static int composite_layers_add(struct m0_composite_layout *cl,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Builds a layout object with COMPOSITE layout type and adds layers to it.
+  * The 'number of extents, start offset and end offset are varied (incremented
+  * by one) for each layer. Effectively, as of now, extents of one layer are
+@@ -485,12 +476,10 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 		return rc;
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+-
+-		rc = composite_layers_add(*cl, layers_nr, min_extents_nr,
+-					  is_contiguous_extents,
+-					  layer_add_failure_test);
++		rc = layers_add(*cl, layers_nr, min_extents_nr,
++				is_contiguous_extents,
++				layer_add_failure_test);
+ 		if (layer_add_failure_test)
+-			//todo rm M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM);
+ 			M0_UT_ASSERT(rc == -ENOMEM);
+ 		else
+ 			M0_UT_ASSERT(rc == 0);
+@@ -501,7 +490,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Tests the APIs supported for layout object build and 'layout destruction
+  * that happens using m0_layout_put()'. Verifies that the newly built layout
+  * object is added to the list of layout objects maintained in the domain
+@@ -548,7 +537,7 @@ int test_build_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* Builds a buffer containing serialised representation of a layout object. */
++/** Builds a buffer containing serialised representation of a layout object. */
+ static void composite_layout_buf_build(uint64_t composite_lid,
+ 				       struct m0_layout_domain *domain,
+ 				       uint32_t layers_nr,
+@@ -583,12 +572,12 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	nbytes = m0_bufvec_cursor_copyto(dcur, &cl_rec, sizeof cl_rec);
+ 	M0_UT_ASSERT(nbytes == sizeof cl_rec);
+ 
+-	/* Pre-create the sublayout to be used as the original layout. */
++	/* Pre-create the sublayout to be used for the zeroth layer. */
+ 	sublayout_build(composite_lid * 100, domain, &sublayout);
+ 	/* Pre-create the sublayouts to be used for layer 1 and above. */
+ 	sublayouts_precreate(composite_lid, domain, layers_nr);
+ 
+-	/* Write the sublayout identifiers in the buffer. */
++	/* Write the sublayout ids in the buffer. */
+ 	M0_UT_ASSERT(m0_bufvec_cursor_step(dcur) >=
+ 		     layers_nr * sizeof sublayout_id);
+ 	for (i = 0; i < layers_nr; ++i) {
+@@ -639,7 +628,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	}
+ }
+ 
+-/* Tests the API m0_layout_decode() for COMPOSITE layout type. */
++/** Tests the API m0_layout_decode() for COMPOSITE layout type. */
+ int test_decode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+@@ -665,11 +654,12 @@ int test_decode_composite(uint64_t lid,
+ 	/* Rewind the cursor. */
+ 	m0_bufvec_cursor_init(&cur, &bv);
+ 
++	/* Allocate layout object with the composite type. */
+ 	lt = &m0_composite_layout_type;
+ 	rc = lt->lt_ops->lto_allocate(domain, lid, &l);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	/* Decode the layout buffer into a layout object. */
++	/* Decode the layout buffer into the layout object. */
+ 	rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+@@ -704,7 +694,7 @@ int test_decode_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* Verifies layout buffer against the various input arguments. */
++/** Verifies layout buffer against the various input arguments. */
+ static void composite_layout_buf_verify(uint64_t lid,
+ 					struct m0_layout_domain *domain,
+ 					uint32_t layers_nr,
+@@ -776,7 +766,7 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 	}
+ }
+ 
+-/* Tests the API m0_layout_encode() for COMPOSITE layout type. */
++/** Tests the API m0_layout_encode() for COMPOSITE layout type. */
+ int test_encode_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+@@ -832,7 +822,7 @@ int test_encode_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* Compares two layout buffers provided as input arguments. */
++/** Compares two layout buffers provided as input arguments. */
+ static void composite_layout_buf_compare(struct m0_bufvec_cursor *cur1,
+ 					 struct m0_bufvec_cursor *cur2)
+ {
+@@ -898,7 +888,7 @@ static void composite_layout_buf_compare(struct m0_bufvec_cursor *cur1,
+ 	}
+ }
+ 
+-/*
++/**
+  * Tests the API sequence m0_layout_decode() followed by m0_layout_encode(),
+  * for the COMPOSITE layout type.
+  */
+@@ -981,7 +971,7 @@ int test_decode_encode_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Compares two layout objects with COMPOSITE layout type, provided as input
+  * arguments.
+  */
+@@ -1034,7 +1024,7 @@ static void composite_layout_compare(const struct m0_layout *l1,
+ 	} m0_tl_endfor;
+ }
+ 
+-/* Copies contents of one layout object to the other. */
++/** Copies contents of one layout object to the other. */
+ static void composite_layout_copy(const struct m0_layout *l_src,
+ 				  struct m0_layout **l_dest)
+ {
+@@ -1098,6 +1088,7 @@ static void composite_layout_copy_delete(struct m0_layout *l)
+ 			m0_composite_layer_ext_tlink_fini(lr_ext);
+ 			m0_free(lr_ext);
+ 		} m0_tl_endfor;
++		m0_composite_layer_ext_tlist_fini(&layer->clr_extents);
+ 		comp_layer_tlist_del(layer);
+ 		comp_layer_tlink_fini(layer);
+ 		m0_free(layer);
+@@ -1106,7 +1097,7 @@ static void composite_layout_copy_delete(struct m0_layout *l)
+ 	m0_free(cl);
+ }
+ 
+-/*
++/**
+  * Tests the API sequence m0_layout_encode() followed by m0_layout_decode(),
+  * for the COMPOSITE layout type.
+  */
+@@ -1185,7 +1176,7 @@ int test_encode_decode_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* Tests the APIs supported for m0_composite_instance object. */
++/** Tests the APIs supported for m0_composite_instance object. */
+ int test_instance_composite(uint64_t lid, struct m0_layout_domain *domain,
+ 			    bool failure_test)
+ {
+@@ -1270,20 +1261,16 @@ int test_layer_ops_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout with the default layer 'layer 0'. */
+-	rc = composite_build_and_layers_add(lid, domain, 1, min_extents_nr,
+-					    !CONTIGUOUS_EXTENTS,
+-					    !FAILURE_TEST,
+-					    !LAYER_ADD_FAILURE_TEST, &cl);
++	rc = composite_build(lid, domain, min_extents_nr,
++			     !CONTIGUOUS_EXTENTS, !FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Now, add layers to the layout. */
+-	rc = composite_layers_add(cl, layers_nr, min_extents_nr,
+-				  !CONTIGUOUS_EXTENTS, layer_add_failure_test);
++	rc = layers_add(cl, layers_nr, min_extents_nr,
++			!CONTIGUOUS_EXTENTS, layer_add_failure_test);
+ 
+ 	if (layer_add_failure_test) {
+-		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM ||
+-			     rc == -EINVAL || rc == L_EMAP_PASTE_ERR ||
+-			     rc == L_EMAP_OBJ_INSERT_ERR);
++		M0_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+ 		goto exit;
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+@@ -1334,9 +1321,8 @@ static void extent_to_be_operated(const struct m0_composite_layout *cl,
+ 	M0_UT_ASSERT(M0_IN(extent_kind, (EXACT_EXISTING, NON_EXISTING,
+ 					 OVERLAPPING_LEFT, OVERLAPPING_RIGHT,
+ 					 OVERLAPPING_COMPLETE,
+-					 CONTAINED_WITHIN,
+-					 WHOLE_OFFSET_SPACE, FIRST_HALF,
+-					 SECOND_HALF)));
++					 CONTAINED_WITHIN, WHOLE_OFFSET_SPACE,
++					 FIRST_HALF, SECOND_HALF)));
+ 	layer = layer_find(cl, layer_idx);
+ 	M0_UT_ASSERT(ergo(extent_kind == EXACT_EXISTING,
+ 			  extent_idx < layer->clr_extents_nr));
+@@ -1416,8 +1402,8 @@ static void extent_to_be_operated(const struct m0_composite_layout *cl,
+ }
+ 
+ /**
+- * Prepares for extent operation by creating a layout and by figuring out 'the
+- * extent and the offset to operate upon'.
++ * Prepares for an extent operation by creating a layout and by figuring out
++ * 'the extent and the offset to operate upon'.
+  */
+ static int ext_op_pre(enum extent_operation eop,
+ 		      uint64_t lid,
+@@ -1443,6 +1429,7 @@ static int ext_op_pre(enum extent_operation eop,
+ 	M0_UT_ASSERT(M0_IN(eop, (EXTENT_LOOKUP, EXTENT_ADD, EXTENT_UPDATE,
+ 				 EXTENT_DELETE)));
+ 
++	/* Build a layout and add layers to it. */
+ 	rc = composite_build_and_layers_add(lid, domain,
+ 					    layers_nr, min_extents_nr,
+ 					    is_contiguous_extents,
+@@ -1510,26 +1497,14 @@ static int ext_op_pre(enum extent_operation eop,
+ 					       &layer_id_lookup,
+ 					       ext_state_lookup,
+ 					       &sublayout_lookup);
+-	//todo Check if the following cond shud be based on failure_test
+-#if 1
+ 	if (extent_kind == NON_EXISTING ||
+ 	    (extent_kind == OVERLAPPING_LEFT && !is_contiguous_extents)) {
+-		//todo check if the later cond below is reqd
+-		M0_UT_ASSERT(rc_tmp == -ENOENT || rc_tmp == L_EMAP_LOOKUP_ERR);
++		M0_UT_ASSERT(rc_tmp == -ENOENT);
+ 		if (eop == EXTENT_LOOKUP)
+ 			rc = rc_tmp;
+ 	} else if (failure_test && eop == EXTENT_LOOKUP) {
+ 		M0_UT_ASSERT(rc_tmp == L_EXT_INMEM_LOOKUP_ERR);
+ 		rc = rc_tmp;
+-#endif
+-#if 0
+-	if (failure_test) {
+-		M0_UT_ASSERT(rc_tmp == -ENOENT ||
+-			     rc_tmp == L_EMAP_LOOKUP_ERR ||
+-			     rc_tmp == L_EXT_INMEM_LOOKUP_ERR);
+-		if (eop == EXTENT_LOOKUP)
+-			rc = rc_tmp;
+-#endif
+ 	} else {
+ 		M0_UT_ASSERT(rc_tmp == 0);
+ 		M0_UT_ASSERT(layer_id_lookup == (*cl)->cl_layers_nr - 1);
+@@ -1551,8 +1526,8 @@ static int ext_op_pre(enum extent_operation eop,
+ }
+ 
+ /**
+- * Post-processes an extent operation by comparing the in-memory and the
+- * in-DB layout, if applicable, and by deleting the layout.
++ * Post-processes an extent operation by comparing the original and the
++ * updated layout in the memory.
+  */
+ static void ext_op_post(enum extent_operation eop,
+ 			uint64_t lid,
+@@ -1561,19 +1536,15 @@ static void ext_op_post(enum extent_operation eop,
+ 			enum kind_of_extent extent_kind,
+ 			struct m0_composite_layout *cl,
+ 			struct m0_layout *l_copy_orig,
+-			bool layout_compare,
+ 			bool failure_test)
+ {
+-	bool              is_add_to_db = false;
+ 	struct m0_layout *l_copy_updated;
+-	struct m0_layout *l_from_DB;
+-	int               rc;
+ 
+ 	lid = cl->cl_base.l_id;
+ 	composite_layout_copy(&cl->cl_base, &l_copy_updated);
+ 
+ 	/* Verify the extent list in the in-memory layout. */
+-	if (failure_test && layout_compare)
++	if (failure_test)
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+ 	else if (eop == EXTENT_LOOKUP)
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+@@ -1591,25 +1562,9 @@ static void ext_op_post(enum extent_operation eop,
+ #endif
+ 	}
+ 
+-	/* Delete the in-memory composite layout. */
++	/* Delete the layout. */
+ 	m0_layout_put(&cl->cl_base);
+ 	M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
+-
+-	if (is_add_to_db && layout_compare) {
+-		/*
+-		 * Read the layout from the DB and compare it to the in-memory
+-		 * layout to verify that the DB version of the layout has been
+-		 * updated right.
+-		 */
+-		l_from_DB = NULL;
+-		rc = layout_lookup(lid, domain, &m0_composite_layout_type,
+-				   !FAILURE_TEST, &l_from_DB);
+-		M0_UT_ASSERT(rc == 0);
+-		composite_layout_compare(l_from_DB, l_copy_updated, false);
+-
+-		/* Release the reference incremented by m0_layout_lookup(). */
+-		m0_layout_put(l_from_DB);
+-	}
+ 	composite_layout_copy_delete(l_copy_orig);
+ 	composite_layout_copy_delete(l_copy_updated);
+ 
+@@ -1636,9 +1591,7 @@ static int ext_add(struct m0_composite_layout *cl,
+ 	rc = m0_composite_layer_ext_add(cl, cl->cl_layers_nr - 1,
+ 					ext_to_operate, ext_state);
+ 	if (failure_test) {
+-		//todo optimise the error list
+-		M0_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM ||
+-			     rc == L_EMAP_LOOKUP_ERR);
++		M0_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM);
+ 		my_console_printf("ext ADD failed, rc %d\n", rc);
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+@@ -1778,8 +1731,7 @@ static int test_ext_lookup(uint64_t lid,
+ 			failure_test, &cl, &ext_to_operate, &offset_to_operate,
+ 			&ext_state_lookup, &l_copy_orig);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == -ENOENT || rc == L_EXT_INMEM_LOOKUP_ERR ||
+-			     rc == L_EMAP_LOOKUP_ERR);
++		M0_UT_ASSERT(rc == -ENOENT);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+@@ -1791,8 +1743,7 @@ static int test_ext_lookup(uint64_t lid,
+ 			  (unsigned long long)offset_to_operate, rc,
+ 			  (rc == 0) ? (unsigned long long)ext_state_lookup : 0);
+ 	ext_op_post(EXTENT_LOOKUP, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, LAYOUTS_COMPARE,
+-		    failure_test);
++		    extent_kind, cl, l_copy_orig, failure_test);
+ 	return rc;
+ }
+ 
+@@ -1810,7 +1761,6 @@ static int test_ext_add(uint64_t lid,
+ 	struct m0_ext                      ext_to_operate;
+ 	m0_bindex_t                        offset_to_operate;
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+-	bool                               layout_compare = LAYOUTS_COMPARE;
+ 	int                                rc;
+ 
+ 	rc = ext_op_pre(EXTENT_ADD, lid, domain, layers_nr, min_extents_nr,
+@@ -1821,18 +1771,13 @@ static int test_ext_add(uint64_t lid,
+ 
+ 	rc = ext_add(cl, l_copy_orig, domain, extent_kind, &ext_to_operate,
+ 		     offset_to_operate, ext_state, failure_test);
+-	if (failure_test) {
+-		M0_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM ||
+-			     rc == L_EMAP_LOOKUP_ERR);
+-		if (rc == -ENOMEM)
+-			/* The layer may be in an inconsistent state. */
+-			layout_compare = !LAYOUTS_COMPARE;
+-	} else
++	if (failure_test)
++		M0_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM);
++	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_ADD, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, layout_compare,
+-		    failure_test);
++		    extent_kind, cl, l_copy_orig, failure_test);
+ 	return rc;
+ }
+ 
+@@ -1867,8 +1812,7 @@ static int test_ext_state_update(uint64_t lid,
+ 		M0_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_UPDATE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, LAYOUTS_COMPARE,
+-		    failure_test);
++		    extent_kind, cl, l_copy_orig, failure_test);
+ 	return rc;
+ }
+ 
+@@ -1885,8 +1829,6 @@ static int test_ext_delete(uint64_t lid,
+ 	struct m0_ext                      ext_to_operate;
+ 	m0_bindex_t                        offset_to_operate;
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+-	//struct m0_db_tx                    tx;
+-	//struct m0_db_tx                   *txptr;
+ 	struct m0_ext                      ext;
+ 	int                                rc;
+ 
+@@ -1898,7 +1840,6 @@ static int test_ext_delete(uint64_t lid,
+ 
+ 	if (M0_FI_ENABLED("ext_del_validation_err")) {
+ 		M0_UT_ASSERT(extent_kind == OVERLAPPING_COMPLETE);
+-		//tx_init(domain, &tx, &txptr);
+ 		ext.e_start = ext_to_operate.e_end - 1;
+ 		ext.e_end = ext_to_operate.e_end;
+ 		rc = m0_composite_layer_ext_state_update(cl,
+@@ -1906,7 +1847,6 @@ static int test_ext_delete(uint64_t lid,
+ 							 &ext,
+ 							 M0_CLRES_FLATTENING);
+ 		M0_UT_ASSERT(rc == 0);
+-		//tx_commit(domain, txptr);
+ 		/* Now that the layout is updated, update its copy. */
+ 		composite_layout_copy_delete(l_copy_orig);
+ 		composite_layout_copy(&cl->cl_base, &l_copy_orig);
+@@ -1921,20 +1861,23 @@ static int test_ext_delete(uint64_t lid,
+ 		M0_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_DELETE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, LAYOUTS_COMPARE,
+-		    failure_test);
++		    extent_kind, cl, l_copy_orig, failure_test);
+ 	return rc;
+ }
+ 
++/**
++ * Iterates over various extent kinds to perform a particular extent operation
++ * on each of those extent kinds, once with CONTIGUOUS_EXTENTS and then
++ * with !CONTIGUOUS_EXTENTS.
++ */
+ static int ext_ops(uint64_t base_lid,
+ 		   struct m0_layout_domain *domain,
+ 		   enum extent_operation eop)
+ {
+-
+ 	uint64_t            lid;
+ 	bool                is_contiguous;
+ 	enum kind_of_extent extent_kind;
+-	enum kind_of_extent extent_kind_it; /* iterator */
++	enum kind_of_extent extent_kind_it; /* For iterating over ext kinds. */
+ 	bool                failure_test;
+ 	uint32_t            i;
+ 	int                 rc;
+@@ -1977,28 +1920,22 @@ static int ext_ops(uint64_t base_lid,
+ 		else if (eop == EXTENT_DELETE)
+ 			rc = test_ext_delete(lid, domain, 4, 4,
+ 					     is_contiguous, extent_kind,
+-					     failure_test);
+-
+-		if (failure_test) {
+-			//todo
++					     !FAILURE_TEST);
++		if (failure_test)
+ 			M0_UT_ASSERT(rc != 0);
+-		} else
++		else
+ 			M0_UT_ASSERT(rc == 0);
+ 	}
+ 	return rc;
+ }
+ 
+-//todo Make sure to test the ext ops for the zeroth layer and for some layer in-between. Follwing tests for the top-most layer
++//todo Make sure to test the ext ops for the zeroth layer and for some layer in-between. Following tests for the top-most layer
+ void test_layer_ext_ops_composite(uint64_t base_lid,
+ 				  struct m0_layout_domain *domain)
+ {
+ 	uint32_t lid;
+ 	int      rc;
+ 
+-	/*
+-	 * Asserts of the following kind are placed to help during debugging to
+-	 * quickly associate which the test o/p to the tests called from here.
+-	 */
+ 	/* Test cases for extent lookup. */
+ 	lid = base_lid;
+ 	rc = ext_ops(lid, domain, EXTENT_LOOKUP);
+@@ -2137,7 +2074,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ }
+ 
+ #ifndef __KERNEL__
+-/* Tests the API m0_layout_lookup(), for the COMPOSITE layout type. */
++/** Tests the API m0_layout_lookup(), for the COMPOSITE layout type. */
+ int test_lookup_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+@@ -2170,8 +2107,9 @@ int test_lookup_composite(uint64_t lid,
+ 		if (!failure_test)
+ 			composite_layout_copy(l1, &l1_copy);
+ 
+-		/* Add the layout to hte DB. */
+-		layout_add(&cl->cl_base);
++		/* Add the layout to the DB. */
++		rc = layout_add(&cl->cl_base, !FAILURE_TEST);
++		M0_UT_ASSERT(rc == 0);
+ 
+ 		/* todo check if shud be after layout_update()
+ 		 * Lookup for the layout object to verify that the same object
+@@ -2222,7 +2160,7 @@ int test_lookup_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* Tests the API m0_layout_add(), for the COMPOSITE layout type. */
++/** Tests the API m0_layout_add(), for the COMPOSITE layout type. */
+ int test_add_composite(uint64_t lid,
+ 		       struct m0_layout_domain *domain,
+ 		       uint32_t layers_nr,
+@@ -2234,9 +2172,6 @@ int test_add_composite(uint64_t lid,
+ 	m0_bcount_t                 num_bytes;
+ 	void                       *area;
+ 	struct m0_composite_layout *cl;
+-	struct m0_db_pair           pair;
+-	struct m0_db_tx             tx;
+-	int                         rc_tmp;
+ 	int                         rc;
+ 
+ 	M0_UT_ASSERT(ergo(duplicate_test, !failure_test));
+@@ -2250,14 +2185,7 @@ int test_add_composite(uint64_t lid,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	//todo Use layout_add() below
+-	/* Add the layout object to the DB. */
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	pair_set(&pair, &lid, area, num_bytes);
+-
+-	rc = m0_layout_add(&cl->cl_base, &tx, &pair);
++	rc = layout_add(&cl->cl_base, failure_test);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_LOOKUP_ERR ||
+ 			     rc == L_TABLE_INSERT_ERR ||
+@@ -2266,25 +2194,15 @@ int test_add_composite(uint64_t lid,
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
+ 	/*
+ 	 * If duplicate_test is true, again try to add the same layout object
+ 	 * to the DB, to verify that it results into EEXIST error.
+ 	 */
+ 	if (duplicate_test) {
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-
+-		pair_set(&pair, &lid, area, num_bytes);
+-
+-		rc = m0_layout_add(&cl->cl_base, &tx, &pair);
++		rc = layout_add(&cl->cl_base, FAILURE_TEST);
+ 		M0_UT_ASSERT(rc == -EEXIST);
+-
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
++	/* Delete the layout. */
+ 	m0_layout_put(&cl->cl_base);
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 	/* Delete the precreated sublayouts. */
+@@ -2294,7 +2212,7 @@ int test_add_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* Tests the API m0_layout_update(), for the COMPOSITE layout type. */
++/** Tests the API m0_layout_update(), for the COMPOSITE layout type. */
+ int test_update_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+@@ -2302,26 +2220,22 @@ int test_update_composite(uint64_t lid,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test)
+ {
+-	m0_bcount_t                 num_bytes;
+-	void                       *area;
+-	struct m0_composite_layout *cl;
+-	struct m0_layout           *l1;
+-	struct m0_layout           *l1_original_copy;
+-	struct m0_layout           *l1_changed_copy;
+-	struct m0_layout           *l_from_db;
+-	struct m0_db_pair           pair;
+-	struct m0_db_tx             tx;
+-	struct m0_layout           *sublayout;
+-	uint64_t                    sublayout_id;
+-	struct m0_tl                extents;
+-	struct m0_ext               ext_to_operate;
+-	uint32_t                    layer_id_lookup;
+-	struct m0_ext               ext_lookup;
+-	enum m0_composite_layer_ext_state  ext_state_lookup; //todo indent
+-	struct m0_layout           *sublayout_lookup;
+-	uint32_t                    i;
+-	int                         rc_tmp;
+-	int                         rc;
++	struct m0_composite_layout       *cl;
++	struct m0_layout                 *l1;
++	struct m0_layout                 *l1_original_copy;
++	struct m0_layout                 *l1_changed_copy;
++	struct m0_layout                 *l_from_db;
++	struct m0_layout                  *sublayout;
++	uint64_t                           sublayout_id;
++	struct m0_tl                       extents;
++	struct m0_ext                      ext_to_operate;
++	uint32_t                           layer_id_lookup;
++	struct m0_ext                      ext_lookup;
++	enum m0_composite_layer_ext_state  ext_state_lookup;
++	struct m0_layout                  *sublayout_lookup;
++	uint32_t                           i;
++	int                                rc_tmp;
++	int                                rc;
+ 
+ 	/* Build a layout object and add layers to it only in memory. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+@@ -2333,7 +2247,8 @@ int test_update_composite(uint64_t lid,
+ 	l1 = &cl->cl_base;
+ 
+ 	/* Add the layout along with its layers to the DB. */
+-	layout_add(&cl->cl_base);
++	rc = layout_add(&cl->cl_base, !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Make a copy of 'the layout as has been added to the DB'. */
+ 	if (failure_test)
+@@ -2342,12 +2257,16 @@ int test_update_composite(uint64_t lid,
+ 	/* Verify the original user count is as expected. */
+ 	M0_UT_ASSERT(l1->l_user_count == 0);
+ 
+-	/* 1. Alter user count. */
++	/* Now, alter the in-memory layout. */
++	/* 1. Alter the user count. */
+ 	for (i = 0; i < 100; ++i)
+ 		m0_layout_user_count_inc(l1);
+ 	M0_UT_ASSERT(l1->l_user_count == 100);
+ 
+-	/* 2. Add an extent to its top-most layer. */
++	/*
++	 * 2. Add an extent to its top-most layer by first verifying that
++	 *    the lookup returns ENOENT error for it.
++	 */
+ 	extent_to_be_operated(cl, is_contiguous_extents, 1, 1,
+ 			      NON_EXISTING, &ext_to_operate);
+ 	rc = m0_composite_layer_ext_lookup(cl, ext_to_operate.e_start + 1,
+@@ -2390,28 +2309,13 @@ int test_update_composite(uint64_t lid,
+ #endif
+ 
+ 	/* Update the layout object in the DB. */
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-	pair_set(&pair, &lid, area, num_bytes);
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_layout_update(l1, &tx, &pair);
+-	if (failure_test) {
++	rc = layout_update(l1, failure_test);
++	if (failure_test)
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_UPDATE_ERR ||
+ 			     rc == L_TABLE_INSERT_ERR || rc == -EINVAL ||
+ 			     rc == L_EMAP_LOOKUP_ERR || rc == L_EMAP_PASTE_ERR);
+-		/*
+-		 * Abort the transaction. It is possible that some updates were
+-		 * made and then the error was encountered. Aborting the
+-		 * transaction ensures that the half way changes do not make it
+-		 * into the on-disk DB.
+-		 */
+-		rc_tmp = m0_db_tx_abort(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+-	} else {
++	else {
+ 		M0_UT_ASSERT(rc == 0);
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+ 		composite_layout_copy(l1, &l1_changed_copy);
+ 	}
+ 
+@@ -2437,8 +2341,9 @@ int test_update_composite(uint64_t lid,
+ 		composite_layout_copy_delete(l1_changed_copy);
+ 
+ 		/*
+-		 * Verify that the ext is updated right. This is actually
+-		 * verified by comparing the layouts. But still to be sure.
++		 * Verify that the ext is updated right. This in fact is
++		 * verified by comparing the layouts. But still, another level
++		 * of verification.
+ 		 */
+ 		cl = m0_layout_to_cl(l_from_db);
+ 		rc = m0_composite_layer_ext_lookup(cl,
+@@ -2460,12 +2365,10 @@ int test_update_composite(uint64_t lid,
+ 
+ 	/* Delete the precreated sublayouts. */
+ 	sublayouts_delete(domain, lid, layers_nr + 4);
+-
+-	m0_free(area);
+ 	return rc;
+ }
+ 
+-/* Tests the API m0_layout_delete(), for the COMPOSITE layout type. */
++/** Tests the API m0_layout_delete(), for the COMPOSITE layout type. */
+ int test_delete_composite(uint64_t lid,
+ 			  struct m0_layout_domain *domain,
+ 			  uint32_t layers_nr,
+@@ -2473,18 +2376,12 @@ int test_delete_composite(uint64_t lid,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test)
+ {
+-	m0_bcount_t                 num_bytes;
+-	void                       *area;
+ 	struct m0_composite_layout *cl;
+ 	struct m0_layout           *l_lookup;
+-	struct m0_db_pair           pair;
+-	struct m0_db_tx             tx;
+ 	struct m0_composite_layer  *layer;
+ 	int                         rc_tmp;
+ 	int                         rc;
+ 
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-
+ 	/* Build a layout object, add layers to it, add it to the DB. */
+ 	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+ 					    min_extents_nr,
+@@ -2493,8 +2390,9 @@ int test_delete_composite(uint64_t lid,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	/* Add the layout to hte DB. */
+-	layout_add(&cl->cl_base);
++	/* Add the layout to the DB. */
++	rc = layout_add(&cl->cl_base, !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Delete all the extents associated with the composite layout. */
+ 	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+@@ -2510,10 +2408,7 @@ int test_delete_composite(uint64_t lid,
+ 	} m0_tl_endfor;
+ 
+ 	/* Delete the composite layout from the DB. */
+-	pair_set(&pair, &lid, area, num_bytes);
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = m0_layout_delete(&cl->cl_base, &tx, &pair);
++	rc = layout_delete(&cl->cl_base, failure_test);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM ||
+ 			     rc == -EPROTO || rc == LO_ENCODE_ERR ||
+@@ -2521,8 +2416,6 @@ int test_delete_composite(uint64_t lid,
+ 			     rc == L_EMAP_OBJ_DEL_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+ 
+ 	/* Verify the user count of the sublayouts to be 0. */
+ 	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+@@ -2549,8 +2442,6 @@ int test_delete_composite(uint64_t lid,
+ 				       FAILURE_TEST, &l_lookup);
+ 		M0_UT_ASSERT(rc_tmp == -ENOENT);
+ 	}
+-
+-	m0_free(area);
+ 	return rc;
+ }
+ #endif /* __KERNEL__ */
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index b9a08ba..999567f 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -84,8 +84,6 @@ enum {
+         LAYER_ADD_FAILURE_TEST = true,
+ 	/* Failure injected for layer del op */
+         LAYER_DEL_FAILURE_TEST = true,
+-	/* In a few exceptional error cases, layout may not be restored back. */
+-	LAYOUTS_COMPARE        = true,
+ 	/* Start offset for the first extent from an extent map. */
+ 	START_OFFSET           = 0,
+ 	/* End offset for the last extent from an extent map. */
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index a911f51..0fb4641 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1598,7 +1598,7 @@ static void test_lookup_failure(void)
+ 	rc = test_lookup_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 EXISTING_TEST, FAILURE_TEST);
+-	M0_UT_ASSERT(rc == -ENOENT);
++	M0_UT_ASSERT(rc == -EIO);
+ 
+ 	/*
+ 	 * Simulate cursor get error in noninline_read() that is in the path
+@@ -1817,7 +1817,7 @@ static void test_add_failure(void)
+ 			      LIST_ENUM_ID, MORE_THAN_INLINE,
+ 			      LAYOUT_DESTROY, NULL,
+ 			      !DUPLICATE_TEST, FAILURE_TEST);
+-	M0_UT_ASSERT(rc == -ENOENT);
++	M0_UT_ASSERT(rc == -EIO);
+ 
+ 	/*
+ 	 * Simulate cursor add failure in noninline_write() that is in the
+@@ -1829,7 +1829,7 @@ static void test_add_failure(void)
+ 			      LIST_ENUM_ID, MORE_THAN_INLINE,
+ 			      LAYOUT_DESTROY, NULL,
+ 			      !DUPLICATE_TEST, FAILURE_TEST);
+-	M0_UT_ASSERT(rc == -ENOENT);
++	M0_UT_ASSERT(rc == -EIO);
+ 
+ 	/*
+ 	 * Try to add an entry with a layout id that already exists in the
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index a5c859d..d778213 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -67,8 +67,9 @@ int layout_lookup(uint64_t lid, struct m0_layout_domain *domain,
+ 		  const struct m0_layout_type *lt,
+ 		  bool failure_test,
+ 		  struct m0_layout **layout);
+-void layout_add(struct m0_layout *l);
+-void layout_update(struct m0_layout *l);
++int layout_add(struct m0_layout *l, bool failure_test);
++int layout_update(struct m0_layout *l, bool failure_test);
++int layout_delete(struct m0_layout *l, bool failure_test);
+ 
+ struct ghost_data {
+ 	uint64_t                 lid;
+diff --git a/layout/ut/layout_generic.c b/layout/ut/layout_generic.c
+index ccf9517..eb86b0a 100644
+--- a/layout/ut/layout_generic.c
++++ b/layout/ut/layout_generic.c
+@@ -31,7 +31,7 @@
+ 
+ #include "layout/ut/layout.h"
+ 
+-extern struct m0_layout_type m0_pdclust_layout_type; //Take this reqt out
++extern struct m0_layout_type m0_pdclust_layout_type; //todo Take this reqt out
+ 
+ struct m0_layout *list_lookup(struct m0_layout_domain *domain, uint64_t lid)
+ {
+@@ -43,7 +43,7 @@ struct m0_layout *list_lookup(struct m0_layout_domain *domain, uint64_t lid)
+ 	return l;
+ }
+ 
+-/* Verifies generic part of the layout object. */
++/** Verifies generic part of the layout object. */
+ void l_verify(struct m0_layout *l, uint64_t lid,
+ 	      bool is_user_count_incremented)
+ {
+@@ -58,7 +58,7 @@ void l_verify(struct m0_layout *l, uint64_t lid,
+ 	M0_UT_ASSERT(l->l_ops != NULL);
+ }
+ 
+-/* Builds part of the buffer representing generic part of the layout object. */
++/** Builds part of the buffer representing generic part of the layout object. */
+ void generic_buf_build(uint32_t lt_id, struct m0_bufvec_cursor *dcur)
+ {
+ 	struct m0_layout_rec rec;
+@@ -71,13 +71,13 @@ void generic_buf_build(uint32_t lt_id, struct m0_bufvec_cursor *dcur)
+ 	M0_UT_ASSERT(nbytes_copied == sizeof rec);
+ }
+ 
+-/*
++/**
+  * Allocates area with size returned by m0_layout_max_recsize() and with
+  * additional_bytes required if any.
+  * For example, additional_bytes are required for LIST enumeration type, and
+  * specifically when directly invoking 'm0_layout_encode() or
+- * m0_layout_decode()' (and not while invoking Layout DB APIs like
+- * m0_layout_add() etc).
++ * m0_layout_decode()' (and not while invoking the layout DB APIs like
++ * m0_layout_add()).
+  */
+ void allocate_area(struct m0_layout_domain *domain,
+ 		   m0_bcount_t additional_bytes,
+@@ -85,14 +85,12 @@ void allocate_area(struct m0_layout_domain *domain,
+ 		   void **area)
+ {
+ 	M0_UT_ASSERT(area != NULL);
+-
+ 	*num_bytes = m0_layout_max_recsize(domain) + additional_bytes;
+-
+ 	*area = m0_alloc(*num_bytes);
+ 	M0_UT_ASSERT(*area != NULL);
+ }
+ 
+-/*
++/**
+  * Verifies part of the layout buffer representing generic part of the layout
+  * object.
+  */
+@@ -101,18 +99,15 @@ void lbuf_verify(struct m0_bufvec_cursor *cur, uint32_t *lt_id)
+ 	struct m0_layout_rec *rec;
+ 
+ 	M0_UT_ASSERT(m0_bufvec_cursor_step(cur) >= sizeof *rec);
+-
+ 	rec = m0_bufvec_cursor_addr(cur);
+ 	M0_UT_ASSERT(rec != NULL);
+ 
+ 	*lt_id = rec->lr_lt_id;
+-
+ 	M0_UT_ASSERT(rec->lr_user_count == 0);
+-
+ 	m0_bufvec_cursor_move(cur, sizeof *rec);
+ }
+ 
+-/* Compares generic part of the layout buffers. */
++/** Compares generic part of the layout buffers. */
+ void lbuf_compare(struct m0_bufvec_cursor *cur1,
+ 		  struct m0_bufvec_cursor *cur2)
+ {
+@@ -132,7 +127,7 @@ void lbuf_compare(struct m0_bufvec_cursor *cur1,
+ 	m0_bufvec_cursor_move(cur2, sizeof *rec2);
+ }
+ 
+-/* Compares generic part of the layout objects. */
++/** Compares generic part of the layout objects. */
+ void layout_compare(const struct m0_layout *l1,
+ 		    const struct m0_layout *l2,
+ 		    bool l2_ref_elevated)
+@@ -150,7 +145,7 @@ void layout_compare(const struct m0_layout *l1,
+ 	M0_UT_ASSERT(l1->l_ops == l2->l_ops);
+ }
+ 
+-/* Copies generic part of the layout object. */
++/** Copies generic part of the layout object. */
+ void layout_copy(const struct m0_layout *l_src,
+ 		 struct m0_layout *l_dest)
+ {
+@@ -162,7 +157,7 @@ void layout_copy(const struct m0_layout *l_src,
+ 	m0_ref_init(&l_dest->l_ref, 1, l_src->l_ops->lo_fini);
+ }
+ 
+-/* Verifies the enum operations pointed by leo_nr and leo_get. */
++/** Verifies the enum operations pointed by leo_nr and leo_get. */
+ void enum_op_verify(struct m0_layout *l, uint64_t lid,
+ 		    uint32_t enum_id, uint32_t nr)
+ {
+@@ -204,7 +199,7 @@ void enum_op_verify(struct m0_layout *l, uint64_t lid,
+ 	}
+ }
+ 
+-/*
++/**
+  * Sets (or resets) the pair using the area pointer and the layout id provided
+  * as arguments.
+  */
+@@ -238,7 +233,7 @@ bool ghost_create(void *d)
+ 	return rc;
+ }
+ 
+-/* Wrapper that looks up for the layout object from the DB. */
++/** Wrapper that looks up for the layout object from the DB. */
+ int layout_lookup(uint64_t lid, struct m0_layout_domain *domain,
+ 		  const struct m0_layout_type *lt,
+ 		  bool failure_test,
+@@ -253,33 +248,28 @@ int layout_lookup(uint64_t lid, struct m0_layout_domain *domain,
+ 	int                rc;
+ 
+ 	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
++	pair_set(&pair, &lid, area, num_bytes);
+ 
+ 	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 	M0_UT_ASSERT(rc == 0);
+-
+-	pair_set(&pair, &lid, area, num_bytes);
+-
+ 	rc = m0_layout_lookup(domain, lid, lt, &tx, &pair, &l);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
+-			     rc == -EINVAL || rc == LO_DECODE_ERR ||
++		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EIO ||
++			     rc == -EPROTO || rc == -EINVAL ||
++			     rc == LO_DECODE_ERR ||
+ 			     rc == L_TABLE_LOOKUP_ERR ||
+ 			     rc == L_EMAP_LOOKUP_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+-
+ 	rc_tmp = m0_db_tx_commit(&tx);
+ 	M0_UT_ASSERT(rc_tmp == 0);
+-
+ 	m0_free(area);
+-
+-	if (rc == 0)
+-		*layout = l;
++	*layout = rc == 0 ? l : NULL;
+ 	return rc;
+ }
+ 
+-/* Wrapper that adds the layout to the DB. */
+-void layout_add(struct m0_layout *l)
++/** Wrapper that adds the layout to the DB. */
++int layout_add(struct m0_layout *l, bool failure_test)
+ {
+ 	m0_bcount_t        num_bytes;
+ 	void              *area;
+@@ -289,23 +279,31 @@ void layout_add(struct m0_layout *l)
+ 	int                rc;
+ 
+ 	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
++	pair_set(&pair, &l->l_id, area, num_bytes);
+ 
+ 	rc = m0_db_tx_init(&tx, l->l_dom->ld_dbenv, DBFLAGS);
+ 	M0_UT_ASSERT(rc == 0);
+-
+-	pair_set(&pair, &l->l_id, area, num_bytes);
+-
+ 	rc = m0_layout_add(l, &tx, &pair);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
++	if (failure_test) {
++		M0_UT_ASSERT(rc == -EEXIST || rc == -EIO ||
++			     rc == LO_ENCODE_ERR ||
++			     rc == L_TABLE_LOOKUP_ERR ||
++			     rc == L_TABLE_INSERT_ERR ||
++			     rc == L_EMAP_LOOKUP_ERR ||
++			     rc == L_EMAP_OBJ_INSERT_ERR);
++		rc_tmp = m0_db_tx_abort(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	} else {
++		M0_UT_ASSERT(rc == 0);
++		rc_tmp = m0_db_tx_commit(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	}
+ 	m0_free(area);
++	return rc;
+ }
+ 
+-/* Wrapper that updates the layout to the DB. */
+-void layout_update(struct m0_layout *l)
++/** Wrapper that updates the layout to the DB. */
++int layout_update(struct m0_layout *l, bool failure_test)
+ {
+ 	m0_bcount_t        num_bytes;
+ 	void              *area;
+@@ -315,19 +313,56 @@ void layout_update(struct m0_layout *l)
+ 	int                rc;
+ 
+ 	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
++	pair_set(&pair, &l->l_id, area, num_bytes);
+ 
+ 	rc = m0_db_tx_init(&tx, l->l_dom->ld_dbenv, DBFLAGS);
+ 	M0_UT_ASSERT(rc == 0);
++	rc = m0_layout_update(l, &tx, &pair);
++	if (rc != 0) {
++		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_UPDATE_ERR ||
++			     rc == L_TABLE_INSERT_ERR || rc == -EINVAL ||
++			     rc == L_EMAP_LOOKUP_ERR || rc == L_EMAP_PASTE_ERR);
++		rc_tmp = m0_db_tx_abort(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	} else {
++		M0_UT_ASSERT(rc == 0);
++		rc_tmp = m0_db_tx_commit(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	}
++	m0_free(area);
++	return rc;
++}
++
++/** Wrapper that deletes the layout from the DB. */
++int layout_delete(struct m0_layout *l, bool failure_test)
++{
++	m0_bcount_t        num_bytes;
++	void              *area;
++	struct m0_db_pair  pair;
++	struct m0_db_tx    tx;
++	int                rc_tmp;
++	int                rc;
+ 
++	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 	pair_set(&pair, &l->l_id, area, num_bytes);
+ 
+-	rc = m0_layout_update(l, &tx, &pair);
++	rc = m0_db_tx_init(&tx, l->l_dom->ld_dbenv, DBFLAGS);
+ 	M0_UT_ASSERT(rc == 0);
+-
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
++	rc = m0_layout_delete(l, &tx, &pair);
++	if (rc != 0) {
++		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM ||
++			     rc == -EPROTO || rc == LO_ENCODE_ERR ||
++			     rc == L_EMAP_LOOKUP_ERR ||
++			     rc == L_EMAP_OBJ_DEL_ERR);
++		rc_tmp = m0_db_tx_abort(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	} else {
++		M0_UT_ASSERT(rc == 0);
++		rc_tmp = m0_db_tx_commit(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	}
+ 	m0_free(area);
++	return rc;
+ }
+ 
+ 
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index e103829..dbc39ec 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -36,7 +36,7 @@
+ #include "layout/ut/pdclust.h"
+ #include "layout/ut/ldemo_internal.c" /* layout_demo() */
+ 
+-/*
++/**
+  * Builds a layout object with PDCLUST layout type and using the provided
+  * enumeration object.
+  */
+@@ -77,7 +77,7 @@ static int pdclust_l_build(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Builds a layout object with PDCLUST layout type, by first building an
+  * enumeration object with the specified enumeration type.
+  */
+@@ -158,7 +158,7 @@ int pdclust_layout_build(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Verifies generic part of the layout object and the PDCLUST layout type
+  * specific part of it.
+  */
+@@ -180,7 +180,7 @@ static void pdclust_l_verify(struct m0_pdclust_layout *pl,
+ 	M0_UT_ASSERT(m0_uint128_eq(&pl->pl_attr.pa_seed, seed));
+ }
+ 
+-/* Verifies the layout object against the various input arguments. */
++/** Verifies the layout object against the various input arguments. */
+ void pdclust_layout_verify(struct m0_layout *l, uint64_t lid, uint32_t enum_id,
+ 			   uint32_t N, uint32_t K, uint32_t P,
+ 			   struct m0_uint128 *seed,
+@@ -276,7 +276,7 @@ void NKP_assign(uint32_t enum_id,
+ 		*N = *P - (2 * (*K)) - 100;
+ }
+ 
+-/*
++/**
+  * Tests the APIs supported for enumeration object build, layout object build
+  * and layout destruction that happens using m0_layout_put(). Verifies that the
+  * newly built layout object is added to the list of layout objects maintained
+@@ -299,11 +299,7 @@ int test_build_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+ 	m0_uint128_init(&seed, "buildpdclustlayo");
+-
+-	NKP_assign(enum_id,
+-		   inline_test, 9, 109, 12000,
+-		   &N, &K, &P);
+-
++	NKP_assign(enum_id, inline_test, 9, 109, 12000, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+ 				  N, K, P, &seed,
+ 				  10, 20,
+@@ -335,7 +331,7 @@ int test_build_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Builds part of the buffer representing generic and PDCLUST layout type
+  * specific parts of the layout object.
+  */
+@@ -360,7 +356,7 @@ static void pdclust_buf_build(uint32_t let_id, uint64_t lid,
+ 	M0_UT_ASSERT(nbytes_copied == sizeof pl_rec);
+ }
+ 
+-/* Builds a buffer containing serialised representation of a layout object. */
++/** Builds a buffer containing serialised representation of a layout object. */
+ static int pdclust_layout_buf_build(uint64_t lid, uint32_t enum_id,
+ 				    uint32_t N, uint32_t K, uint32_t P,
+ 				    struct m0_uint128 *seed,
+@@ -414,7 +410,7 @@ static int pdclust_layout_buf_build(uint64_t lid, uint32_t enum_id,
+ 	return 0;
+ }
+ 
+-/* Tests the API m0_layout_decode() for PDCLUST layout type. */
++/** Tests the API m0_layout_decode() for PDCLUST layout type. */
+ int test_decode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			uint32_t enum_id, uint32_t inline_test,
+ 			bool failure_test)
+@@ -433,25 +429,18 @@ int test_decode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+-	m0_uint128_init(&seed, "decodepdclustlay");
+-
+ 	/* Build a layout buffer. */
++	m0_uint128_init(&seed, "decodepdclustlay");
+ 	if (enum_id == LIST_ENUM_ID)
+ 		allocate_area(domain, ADDITIONAL_BYTES_DEFAULT, &num_bytes,
+ 			      &area);
+ 	else
+ 		allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes,
+ 			      &area);
+-
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+-
+-	NKP_assign(enum_id,
+-		   inline_test, 5, 125, 1500,
+-		   &N, &K, &P);
+-
+-	rc = pdclust_layout_buf_build(lid, enum_id,
+-				      N, K, P, &seed,
++	NKP_assign(enum_id, inline_test, 5, 125, 1500, &N, &K, &P);
++	rc = pdclust_layout_buf_build(lid, enum_id, N, K, P, &seed,
+ 				      777, 888, &cur);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -490,7 +479,7 @@ int test_decode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Verifies part of the layout buffer representing PDCLUST layout type specific
+  * part of the layout object.
+  */
+@@ -515,7 +504,7 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K, uint32_t P,
+ 	m0_bufvec_cursor_move(cur, sizeof *pl_rec);
+ }
+ 
+-/* Verifies layout buffer against the various input arguments. */
++/** Verifies layout buffer against the various input arguments. */
+ static void pdclust_layout_buf_verify(uint64_t lid, uint32_t enum_id,
+ 				      uint32_t N, uint32_t K, uint32_t P,
+ 				      struct m0_uint128 *seed,
+@@ -576,7 +565,7 @@ static void pdclust_layout_buf_verify(uint64_t lid, uint32_t enum_id,
+ 	}
+ }
+ 
+-/* Tests the API m0_layout_encode() for PDCLUST layout type. */
++/** Tests the API m0_layout_encode() for PDCLUST layout type. */
+ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			uint32_t enum_id, uint32_t inline_test,
+ 			bool failure_test)
+@@ -596,12 +585,9 @@ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+-	m0_uint128_init(&seed, "encodepdclustlay");
+-
+ 	/* Build a layout object. */
+-	NKP_assign(enum_id,
+-		   inline_test, 10, 120, 120,
+-		   &N, &K, &P);
++	m0_uint128_init(&seed, "encodepdclustlay");
++	NKP_assign(enum_id, inline_test, 10, 120, 120, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+ 				  N, K, P, &seed,
+ 				  11, 21,
+@@ -633,8 +619,7 @@ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	/* Verify the layout buffer produced by m0_layout_encode(). */
+ 	if (!failure_test)
+-		pdclust_layout_buf_verify(lid, enum_id,
+-					  N, K, P, &seed,
++		pdclust_layout_buf_verify(lid, enum_id, N, K, P, &seed,
+ 					  11, 21, &cur);
+ 
+ 	/* Delete the layout object. */
+@@ -644,7 +629,7 @@ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/* Compares PDCLUST layout type specific part of the layout buffers. */
++/** Compares PDCLUST layout type specific part of the layout buffers. */
+ static void pdclust_lbuf_compare(struct m0_bufvec_cursor *cur1,
+ 				 struct m0_bufvec_cursor *cur2)
+ {
+@@ -669,7 +654,7 @@ static void pdclust_lbuf_compare(struct m0_bufvec_cursor *cur1,
+ 	m0_bufvec_cursor_move(cur2, sizeof *pl_rec2);
+ }
+ 
+-/* Compares two layout buffers provided as input arguments. */
++/** Compares two layout buffers provided as input arguments. */
+ static void pdclust_layout_buf_compare(uint32_t enum_id,
+ 				       struct m0_bufvec_cursor *cur1,
+ 				       struct m0_bufvec_cursor *cur2)
+@@ -732,7 +717,7 @@ static void pdclust_layout_buf_compare(uint32_t enum_id,
+ 	}
+ }
+ 
+-/*
++/**
+  * Tests the API sequence m0_layout_decode() followed by m0_layout_encode(),
+  * for the PDCLUST layout type.
+  */
+@@ -756,25 +741,18 @@ int test_decode_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+-	m0_uint128_init(&seed, "decodeencodepdcl");
+-
+ 	/* Build a layout buffer. */
++	m0_uint128_init(&seed, "decodeencodepdcl");
+ 	if (enum_id == LIST_ENUM_ID)
+ 		allocate_area(domain, ADDITIONAL_BYTES_DEFAULT, &num_bytes,
+ 			      &area1);
+ 	else
+ 		allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes,
+ 			      &area1);
+-
+ 	bv1 = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area1, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur1, &bv1);
+-
+-	NKP_assign(enum_id,
+-		   inline_test, 3, 103, 1510,
+-		   &N, &K, &P);
+-
+-	rc = pdclust_layout_buf_build(lid, LINEAR_ENUM_ID,
+-				      N, K, P, &seed,
++	NKP_assign(enum_id, inline_test, 3, 103, 1510, &N, &K, &P);
++	rc = pdclust_layout_buf_build(lid, LINEAR_ENUM_ID, N, K, P, &seed,
+ 				      777, 888, &cur1);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -832,7 +810,7 @@ int test_decode_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Compares two layout objects with PDCLUST layout type, provided as input
+  * arguments.
+  */
+@@ -899,7 +877,7 @@ static void pdclust_layout_compare(uint32_t enum_id,
+ 	}
+ }
+ 
+-/* Copies contents of one layout object to the other. */
++/** Copies contents of one layout object to the other. */
+ static void pdclust_layout_copy(uint32_t enum_id,
+ 				const struct m0_layout *l_src,
+ 				struct m0_layout **l_dest)
+@@ -985,7 +963,7 @@ static void pdclust_layout_copy_delete(uint32_t enum_id, struct m0_layout *l)
+ 	m0_free(pl);
+ }
+ 
+-/*
++/**
+  * Tests the API sequence m0_layout_encode() followed by m0_layout_decode(),
+  * for the PDCLUST layout type.
+  */
+@@ -1010,12 +988,9 @@ int test_encode_decode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+-	m0_uint128_init(&seed, "encodedecodepdcl");
+-
+ 	/* Build a layout object. */
+-	NKP_assign(enum_id,
+-		   inline_test, 13, 113, 1130,
+-		   &N, &K, &P);
++	m0_uint128_init(&seed, "encodedecodepdcl");
++	NKP_assign(enum_id, inline_test, 13, 113, 1130, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+ 				  N, K, P, &seed,
+ 				  10, 20,
+@@ -1078,7 +1053,7 @@ int test_encode_decode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Tests the API m0_layout_get() and m0_layout_put(), for the PDCLUST layout
+  * type.
+  */
+@@ -1097,13 +1072,9 @@ int test_ref_get_put_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+-	m0_uint128_init(&seed, "refgetputpdclust");
+-
+ 	/* Build a layout object. */
+-	NKP_assign(enum_id,
+-		   MORE_THAN_INLINE, 10, 1212, 1212,
+-		   &N, &K, &P);
+-
++	m0_uint128_init(&seed, "refgetputpdclust");
++	NKP_assign(enum_id, MORE_THAN_INLINE, 10, 1212, 1212, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, LIST_ENUM_ID,
+ 				  N, K, P, &seed,
+ 				  10, 20,
+@@ -1131,7 +1102,7 @@ int test_ref_get_put_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Tests the enum operations pointed by leo_nr and leo_get, for the PDCLUST
+  * layout type.
+  */
+@@ -1151,11 +1122,7 @@ int test_enum_ops_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	/* Build a layout object. */
+ 	m0_uint128_init(&seed, "enumopspdclustla");
+-
+-	NKP_assign(enum_id,
+-		   inline_test, 14, 1014, 1014,
+-		   &N, &K, &P);
+-
++	NKP_assign(enum_id, inline_test, 14, 1014, 1014, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+ 				  N, K, P, &seed,
+ 				  777, 888,
+@@ -1173,7 +1140,7 @@ int test_enum_ops_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/*
++/**
+  * Calculates the recsize by considering the sizes of the internal data
+  * structures and their values, as applicable. Then verifies that the recsize
+  * provided as an argument matches the calcualted one.
+@@ -1217,7 +1184,7 @@ static void pdclust_recsize_verify(uint32_t enum_id,
+ 	M0_UT_ASSERT(recsize == recsize_to_verify);
+ }
+ 
+-/* Tests the function lo_recsize(), for the PDCLUST layout type. */
++/** Tests the function lo_recsize(), for the PDCLUST layout type. */
+ int test_recsize_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			 uint32_t enum_id, uint32_t inline_test)
+ {
+@@ -1234,13 +1201,9 @@ int test_recsize_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+-	m0_uint128_init(&seed, "recsizepdclustla");
+-
+ 	/* Build a layout object. */
+-	NKP_assign(enum_id,
+-		   inline_test, 1, 1200, 1111,
+-		   &N, &K, &P);
+-
++	m0_uint128_init(&seed, "recsizepdclustla");
++	NKP_assign(enum_id, inline_test, 1, 1200, 1111, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+ 				  N, K, P, &seed,
+ 				  10, 20,
+@@ -1261,7 +1224,7 @@ int test_recsize_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/* Tests the APIs supported for m0_pdclust_instance object. */
++/** Tests the APIs supported for m0_pdclust_instance object. */
+ int test_instance_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			  uint32_t enum_id, uint32_t inline_test,
+ 			  bool failure_test)
+@@ -1281,12 +1244,9 @@ int test_instance_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
++	/* Build a layout object. */
+ 	m0_uint128_init(&seed, "buildpdclustlayo");
+-
+-	NKP_assign(enum_id,
+-		   inline_test, 13, 30, 31,
+-		   &N, &K, &P);
+-
++	NKP_assign(enum_id, inline_test, 13, 30, 31, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+ 				  N, K, P, &seed,
+ 				  10, 20,
+@@ -1341,7 +1301,7 @@ int test_instance_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ }
+ 
+ #ifndef __KERNEL__
+-/* Tests the API m0_layout_lookup(), for the PDCLUST layout type. */
++/** Tests the API m0_layout_lookup(), for the PDCLUST layout type. */
+ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			uint32_t enum_id, uint32_t inline_test,
+ 			bool existing_test,
+@@ -1393,8 +1353,8 @@ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	rc = layout_lookup(lid, domain, &m0_pdclust_layout_type,
+ 			   failure_test, &l3);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
+-			     rc == LO_DECODE_ERR);
++		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EIO ||
++			     rc == -EPROTO || rc == LO_DECODE_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+@@ -1497,25 +1457,20 @@ int test_lookup_pdclust_with_ghost_creation(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* Tests the API m0_layout_add(), for the PDCLUST layout type. */
++/** Tests the API m0_layout_add(), for the PDCLUST layout type. */
+ int test_add_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 		     uint32_t enum_id, uint32_t inline_test,
+ 		     bool layout_destroy, struct m0_layout **l_obj,
+ 		     bool duplicate_test,
+ 		     bool failure_test)
+ {
+-	m0_bcount_t                   num_bytes;
+ 	uint32_t                      N;
+ 	uint32_t                      K;
+ 	uint32_t                      P;
+-	void                         *area;
+ 	struct m0_pdclust_layout     *pl;
+-	struct m0_db_pair             pair;
+-	struct m0_db_tx               tx;
+ 	struct m0_uint128             seed;
+ 	struct m0_layout_list_enum   *list_enum;
+ 	struct m0_layout_linear_enum *lin_enum;
+-	int                           rc_tmp;
+ 	int                           rc;
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+@@ -1523,15 +1478,9 @@ int test_add_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(ergo(!layout_destroy, l_obj != NULL));
+ 	M0_UT_ASSERT(ergo(duplicate_test, !failure_test));
+ 
+-	m0_uint128_init(&seed, "addpdclustlayout");
+-
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-
+ 	/* Build a layout object. */
+-	NKP_assign(enum_id,
+-		   inline_test, 7, 1900, 1900,
+-		   &N, &K, &P);
+-
++	m0_uint128_init(&seed, "addpdclustlayout");
++	NKP_assign(enum_id, inline_test, 7, 1900, 1900, &N, &K, &P);
+ 	rc = pdclust_layout_build(lid, domain, enum_id,
+ 				  N, K, P, &seed,
+ 				  100, 200,
+@@ -1540,20 +1489,11 @@ int test_add_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Add the layout object to the DB. */
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	pair_set(&pair, &lid, area, num_bytes);
+-
+-	rc = m0_layout_add(&pl->pl_base.sl_base, &tx, &pair);
++	rc = layout_add(&pl->pl_base.sl_base, failure_test);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == -ENOENT || rc == LO_ENCODE_ERR);
++		M0_UT_ASSERT(rc == -EIO || rc == LO_ENCODE_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+-
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == &pl->pl_base.sl_base);
+ 
+ 	/*
+@@ -1561,16 +1501,8 @@ int test_add_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	 * to the DB, to verify that it results into EEXIST error.
+ 	 */
+ 	if (duplicate_test) {
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-
+-		pair_set(&pair, &lid, area, num_bytes);
+-
+-		rc = m0_layout_add(&pl->pl_base.sl_base, &tx, &pair);
++		rc = layout_add(&pl->pl_base.sl_base, FAILURE_TEST);
+ 		M0_UT_ASSERT(rc == -EEXIST);
+-
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+ 
+ 	if (layout_destroy) {
+@@ -1578,27 +1510,21 @@ int test_add_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 	} else
+ 		*l_obj = &pl->pl_base.sl_base;
+-
+-	m0_free(area);
+ 	return rc;
+ }
+ 
+-/* Tests the API m0_layout_update(), for the PDCLUST layout type. */
++/** Tests the API m0_layout_update(), for the PDCLUST layout type. */
+ int test_update_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			uint32_t enum_id, uint32_t inline_test,
+ 			bool failure_test)
+ {
+-	m0_bcount_t                   num_bytes;
+-	void                         *area;
+-	struct m0_db_pair             pair;
+-	struct m0_db_tx               tx;
+-	struct m0_layout             *l;
+-	struct m0_layout             *l_original_copy;
+-	struct m0_layout             *l_changed_copy;
+-	struct m0_layout             *l_from_db;
+-	uint32_t                      i;
+-	int                           rc_tmp;
+-	int                           rc;
++	struct m0_layout *l;
++	struct m0_layout *l_original_copy;
++	struct m0_layout *l_changed_copy;
++	struct m0_layout *l_from_db;
++	uint32_t          i;
++	int               rc_tmp;
++	int               rc;
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+ 
+@@ -1619,15 +1545,7 @@ int test_update_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(l->l_user_count == 100);
+ 
+ 	/* Update the layout object in the DB. */
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-	pair_set(&pair, &lid, area, num_bytes);
+-
+-	rc = m0_layout_update(l, &tx, &pair);
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
++	rc = layout_update(l, failure_test);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_UPDATE_ERR);
+ 	else {
+@@ -1671,20 +1589,15 @@ int test_update_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	/* Delete the in-memory layout. */
+ 	m0_layout_put(l_from_db);
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+-	m0_free(area);
+ 	return rc;
+ }
+ 
+-/* Tests the API m0_layout_delete(), for the PDCLUST layout type. */
++/** Tests the API m0_layout_delete(), for the PDCLUST layout type. */
+ int test_delete_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			uint32_t enum_id, uint32_t inline_test,
+ 			bool existing_test,
+ 			uint32_t failure_test)
+ {
+-	m0_bcount_t                   num_bytes;
+-	void                         *area;
+-	struct m0_db_pair             pair;
+-	struct m0_db_tx               tx;
+ 	struct m0_layout             *l;
+ 	struct m0_uint128             seed;
+ 	uint32_t                      N;
+@@ -1697,12 +1610,7 @@ int test_delete_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	int                           rc;
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+-
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-
+-	NKP_assign(enum_id,
+-		   inline_test, 12, 122, 1220,
+-		   &N, &K, &P);
++	NKP_assign(enum_id, inline_test, 12, 122, 1220, &N, &K, &P);
+ 	if (existing_test) {
+ 		/* Add a layout object to the DB. */
+ 		rc = test_add_pdclust(lid, domain,
+@@ -1728,21 +1636,13 @@ int test_delete_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 		m0_layout_user_count_inc(l);
+ 
+ 	/* Delete the layout object from the DB. */
+-	pair_set(&pair, &lid, area, num_bytes);
+-
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	rc = m0_layout_delete(l, &tx, &pair);
++	rc = layout_delete(l, failure_test);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM ||
+ 			     rc == -EPROTO || rc == LO_ENCODE_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
+ 	/* Destroy the layout object. */
+ 	m0_layout_put(l);
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+@@ -1756,8 +1656,6 @@ int test_delete_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 				       FAILURE_TEST, &l);
+ 		M0_UT_ASSERT(rc_tmp == -ENOENT);
+ 	}
+-
+-	m0_free(area);
+ 	return rc;
+ }
+ #endif /* __KERNEL__ */
+-- 
+1.8.3.2
+

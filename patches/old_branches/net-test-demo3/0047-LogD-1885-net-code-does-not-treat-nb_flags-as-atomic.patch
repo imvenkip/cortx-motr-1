@@ -1,0 +1,75 @@
+From 88e7aec51506ca8aa265f4c16dd9d0858eaec123 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 21:45:02 +0200
+Subject: [PATCH 47/99] LogD 1885: net code does not treat nb_flags as atomic
+
+---
+ net/test/node_bulk.c | 35 +++++++----------------------------
+ 1 file changed, 7 insertions(+), 28 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 140ecc3..6031004 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1225,35 +1225,14 @@ static void node_bulk_buf_dequeue(struct node_bulk_ctx *ctx)
+ 	}
+ }
+ 
+-static bool node_bulk_bufs_is_in_use(struct node_bulk_ctx *ctx)
++static bool node_bulk_bufs_unused_all(struct node_bulk_ctx *ctx)
+ {
+-	struct m0_net_test_network_ctx *net_ctx;
+-	struct m0_net_buffer	       *buf;
+-	uint64_t			flags;
+-	size_t				i;
+-	size_t				buf_ping_nr;
+-	size_t				buf_bulk_nr;
+-
+ 	M0_PRE(ctx != NULL);
+ 
+-	net_ctx = &ctx->nbc_net;
+-	buf_ping_nr = net_ctx->ntc_cfg.ntncfg_buf_ping_nr;
+-	buf_bulk_nr = net_ctx->ntc_cfg.ntncfg_buf_bulk_nr;
+-	for (i = 0; i < buf_ping_nr + buf_bulk_nr; ++i) {
+-		buf = i < buf_ping_nr ?
+-		      m0_net_test_network_buf(&ctx->nbc_net,
+-					      M0_NET_TEST_BUF_PING, i) :
+-		      net_buf_bulk_get(ctx, i - buf_ping_nr);
+-
+-		M0_CASSERT(sizeof(buf->nb_flags) == 8);
+-		M0_CASSERT(sizeof(struct m0_atomic64) == 8);
+-		flags = m0_atomic64_get((struct m0_atomic64 *) &buf->nb_flags);
+-		if (flags & (M0_NET_BUF_QUEUED | M0_NET_BUF_IN_USE |
+-			     M0_NET_BUF_CANCELLED |
+-			     M0_NET_BUF_TIMED_OUT | M0_NET_BUF_RETAIN))
+-			return true;
+-	}
+-	return false;
++	return m0_net_test_ringbuf_nr(&ctx->nbc_rb_ping_unused) ==
++	       ctx->nbc_buf_ping_nr &&
++	       m0_net_test_ringbuf_nr(&ctx->nbc_rb_bulk_unused) ==
++	       ctx->nbc_bs_nr;
+ }
+ 
+ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+@@ -1277,7 +1256,7 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 	m0_clink_add(&tm_chan, &tm_clink);
+ 	/* main loop */
+ 	stopping = false;
+-	while (!node_bulk_is_stopping(ctx) || node_bulk_bufs_is_in_use(ctx)) {
++	while (!node_bulk_is_stopping(ctx) || !node_bulk_bufs_unused_all(ctx)) {
+ 		if (!node_bulk_is_stopping(ctx)) {
+ 			if (ctx->nbc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
+ 				client_process_unused_bulk(ctx);
+@@ -1526,7 +1505,7 @@ static int node_bulk_cmd_init(void *ctx_,
+ 	ctx->nbc_buf_size_ping = icmd->ntci_bd_buf_size;
+ 	ctx->nbc_bd_nr_max     = icmd->ntci_bd_nr_max;
+ 	ctx->nbc_bs_nr	       = icmd->ntci_msg_concurrency;
+-	ctx->nbc_buf_bulk_nr   = ctx->nbc_bs_nr;
++	ctx->nbc_buf_bulk_nr   = icmd->ntci_msg_concurrency;
+ 
+ 	if (role_client) {
+ 		ctx->nbc_client_concurrency  = icmd->ntci_msg_concurrency;
+-- 
+1.8.3.2
+

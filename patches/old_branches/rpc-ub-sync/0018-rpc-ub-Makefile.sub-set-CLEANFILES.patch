@@ -1,0 +1,27 @@
+From e9079f99402bd3f5cb0ee32e612df215fb9a4405 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 13 Mar 2013 13:09:01 +0200
+Subject: [PATCH 18/63] rpc/ub (Makefile.sub): set CLEANFILES
+
+Update Makefile.sub: `make clean' should not leave
+rpc/ub/rpc_ub_fops{.gccxml,_xc.[hc]} files.
+---
+ rpc/ub/Makefile.sub | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/rpc/ub/Makefile.sub b/rpc/ub/Makefile.sub
+index 1abd737..1f14556 100644
+--- a/rpc/ub/Makefile.sub
++++ b/rpc/ub/Makefile.sub
+@@ -4,4 +4,8 @@ ut_libmero_ut_la_SOURCES += rpc/ub/ub.c \
+ 
+ XC_FILES += rpc/ub/rpc_ub_fops_xc.h
+ 
++CLEANFILES += rpc/ub/rpc_ub_fops.gccxml \
++              rpc/ub/rpc_ub_fops_xc.c \
++              rpc/ub/rpc_ub_fops_xc.h
++
+ EXTRA_DIST += rpc/ub/README
+-- 
+1.8.3.2
+

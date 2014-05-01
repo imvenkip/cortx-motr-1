@@ -1,0 +1,46 @@
+From 0bece15d6740e3df6eeb577a3b5698326a2cf1e6 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 13 Apr 2011 01:55:23 -0600
+Subject: [PATCH 057/158] - added nlink and size into dirent.
+
+---
+ mdservice/md_fops.ff | 1 +
+ mdstore/mdstore.c    | 3 +++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 604a655..b5c3c82 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -26,6 +26,7 @@ DEF(c2_fop_cob, RECORD,
+     _(b_size, U64),
+     _(b_blksize, U64),
+     _(b_blocks, U64),
++    _(b_nlink, U32),
+     _(b_uid, U32),
+     _(b_gid, U32),
+     _(b_sid, U32),
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index e74ffef..b067dfe 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -626,6 +626,7 @@ int c2_md_store_getattr(struct c2_md_store *md,
+         body->b_mtime = cob->co_nsrec.cnr_mtime;
+         body->b_blksize = cob->co_nsrec.cnr_blksize;
+         body->b_blocks = cob->co_nsrec.cnr_blocks;
++        body->b_nlink = cob->co_nsrec.cnr_nlink;
+ 
+         if (S_ISCHR(body->b_mode) || S_ISBLK(body->b_mode)) {
+                 body->b_rdev = cob->co_nsrec.u.cnr_rdev;
+@@ -678,6 +679,8 @@ int c2_md_store_readdir(struct c2_md_store *md,
+                        c2_bitstring_buf_get(&nskey->cnk_name),
+                        nskey->cnk_name.b_len);
+                 ent->d_name.n_count = nskey->cnk_name.b_len;
++                ent->d_body.b_nlink = nsrec->cnr_nlink;
++                ent->d_body.b_size = nsrec->u.cnr_size;
+         }
+         
+         vec->v_count = count;
+-- 
+1.8.3.2
+

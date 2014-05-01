@@ -1,0 +1,80 @@
+From ee71016f715860c7367b1caa2bb2b3509bce6af9 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 27 Mar 2012 01:16:17 +0300
+Subject: [PATCH 096/370] start writing lspec in prose
+
+---
+ conf/confc.c | 57 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 56 insertions(+), 1 deletion(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 7ba8ca5..8680add 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -173,7 +173,62 @@
+  * @e identities (identity of an object is its key and type) to memory
+  * addresses of these objects.  When new configuration data arrives
+  * from the confd, confc consults the registry prior to adding new
+- * objects to the cache.
++ * objects to the cache. This ensures that no duplicates are added to
++ * the confc cache.
++ *
++ * @subsection confc-dld-lspec-XXX XXX
++ *
++ * c2_confc_init() sets up configuration client instance, assigning
++ * fields of c2_confc structure.
++ *
++ * c2_confc_open() checks validity of `path' argument, copies it to
++ * c2_confc_ctx::fc_path, and posts an AST to c2_confc::cc_group.
++ *
++ * @note c2_sm_ast_post() signals group's clink. Current design of
++ *       confc assumes that some external thread will respond to this
++ *       event by calling c2_sm_asts_run().
++ *
++ * When the AST, posted by c2_confc_open(), is run, it moves the state
++ * machine (c2_confc_ctx::fc_mach) to S_CHECK state.  When S_CHECK
++ * state is entered, check_st_in() (c2_sm_state_descr::sd_in hook) is
++ * invoked. This function calls path_walk() and, depending on the
++ * value returned by the latter, switches the state machine to
++ * S_TERMINAL, S_WAIT_REPLY, S_WAIT_STATUS, or S_FAILURE state. No AST
++ * is needed as the group is locked already.
++ *
++ * path_walk() begins with locking the cache (c2_confc::cc_lock) and
++ * unlocks the cache before returning.  The function "moves" along the
++ * DAG of cached configuration objects, starting at the configuration
++ * object the path originates from and following the path.
++ * path_walk() stops when all of the path components are exhausted or
++ * when a stub is reached.
++ *
++ * @note Until confd is implemented, confc has no service to send
++ *       configuration requests to.  As a part of @ref confc-offline
++ *       workaround, path_walk() treats "stopped by a stub" situations
++ *       as failures and C2_ASSERT()s availability of the requested
++ *       object/directory in the configuration cache.
++ *
++ * A stub object lying on a path makes further progress impossible,
++ * because relations of a stub are not trustworthy.  If a stub is
++ * C2_CS_LOADING, path_walk() registers c2_confc_ctx::fc_clink with
++ * stub's channel and returns C2_CS_LOADING.  Otherwise it changes
++ * stub's status to C2_CS_LOADING, fills request fop
++ * (c2_confc_ctx::fc_req) by calling request_fill(), and returns
++ * C2_CS_MISSING.
++ *
++ * If path target is a C2_CS_READY object, path_walk() returns
++ * C2_CS_READY.  If path target is a directory, path_walk() checks
++ * whether all of the configuration objects in this directory are
++ * C2_CS_READY. If they are, path_walk() returns C2_CS_READY.  If at
++ * least one of the objects is C2_CS_MISSING, path_walk() sets the
++ * statuses of missing objects to C2_CS_LOADING and returns
++ * C2_CS_MISSING.  Otherwise the function registers
++ * c2_confc_ctx::fc_clink with the channel(s) of loading object(s) and
++ * returns C2_CS_LOADING.
++ *
++ * If one of path components is a key and the key is wrong, then
++ * path_walk() will return -ENOENT.
+  *
+  * @subsection confc-dld-lspec-state State Specification
+  *
+-- 
+1.8.3.2
+

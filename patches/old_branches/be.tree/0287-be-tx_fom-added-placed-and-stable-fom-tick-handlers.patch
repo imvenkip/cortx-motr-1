@@ -1,0 +1,213 @@
+From f16364bd995bdf82fc1eb4d7d3e96999f8224753 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 5 Jul 2013 14:24:08 +0300
+Subject: [PATCH 287/290] be: tx_fom, added "placed" and "stable" fom tick
+ handlers.
+
+---
+ be/tx.c     | 81 +++++++++++++++++++++++++++++++++++++++----------------------
+ be/tx.h     |  1 +
+ be/tx_fom.c | 38 ++++++++++++++++++++++++++---
+ 3 files changed, 87 insertions(+), 33 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 331fae1..9ee5c01 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -139,7 +139,6 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx    *tx,
+ 			       void               *datum)
+ {
+ 	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_PREPARE, sm_group);
+-	tx->t_ast.sa_cb = _tx_group;
+ 
+ 	tx->t_id = tid;
+ 	tx->t_be = be;
+@@ -517,48 +516,72 @@ static void tx_fail(struct m0_be_tx *tx, int err)
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+-static void _tx_group(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
++/*
++ * tx_group's fom and tx's sm may belong different sm_groups (e.g.,
++ * they may be processed by different localities).
++ *
++ *             locality
++ *             --------
++ *             sm_group     sm_group    sm_group
++ *                | |            |         | |
++ *                | |            |         | |
++ *      tx_group  | |            |         | |
++ *      --------  | |            |         | |
++ *           fom -' |            |         | |
++ *                  |  tx    tx  |     tx  | |  tx
++ *                  |  --    --  |     --  | |  --
++ *                  `- sm    sm -'     sm -' `- sm
++ *
++ * ->fo_tick() of tx_group's fom shall not assume that sm_group of
++ * tx's sm is locked. In order to advance tx's sm, ->fo_tick()
++ * implementation should post an AST to tx's sm_group.
++ */
++
++M0_INTERNAL void _tx_ast_post(struct m0_be_tx *tx, struct m0_ref *ref,
++			      void post(struct m0_sm_group *grp,
++					struct m0_sm_ast *ast))
++{
++	M0_ENTRY();
++
++	tx->t_ast.sa_cb = post;
++	tx->t_ast.sa_datum = ref;
++	m0_sm_ast_post(tx->t_sm.sm_grp, &tx->t_ast);
++
++	M0_LEAVE();
++}
++
++static void _ast_tx_state_set(struct m0_sm_group *grp M0_UNUSED,
++			      struct m0_sm_ast *ast, int state)
+ {
+ 	struct m0_be_tx *tx = container_of(ast, struct m0_be_tx, t_ast);
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(!tx->t_group->tg_opened);
+ 
+-	m0_be__tx_state_set(tx, M0_BTS_GROUPED);
++	m0_be__tx_state_set(tx, state);
+ 	m0_ref_put(ast->sa_datum);
+ 
+ 	M0_LEAVE();
+ }
+ 
+-M0_INTERNAL void m0_be__tx_group_post(struct m0_be_tx *tx, struct m0_ref *ref)
++static void _tx_group(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
+ {
+-	/*
+-	 * tx_group's fom and tx's sm may belong different sm_groups (e.g.,
+-	 * they may be processed by different localities).
+-	 *
+-	 *             locality
+-	 *             --------
+-	 *             sm_group     sm_group    sm_group
+-	 *                | |            |         | |
+-	 *                | |            |         | |
+-	 *      tx_group  | |            |         | |
+-	 *      --------  | |            |         | |
+-	 *           fom -' |            |         | |
+-	 *                  |  tx    tx  |     tx  | |  tx
+-	 *                  |  --    --  |     --  | |  --
+-	 *                  `- sm    sm -'     sm -' `- sm
+-	 *
+-	 * ->fo_tick() of tx_group's fom shall not assume that sm_group of
+-	 * tx's sm is locked. In order to advance tx's sm, ->fo_tick()
+-	 * implementation should post an AST to tx's sm_group.
+-	 */
+-	M0_ENTRY();
+-	M0_PRE(tx->t_ast.sa_cb == _tx_group);
++	_ast_tx_state_set(grp, ast, M0_BTS_GROUPED);
++}
+ 
+-	tx->t_ast.sa_datum = ref;
+-	m0_sm_ast_post(tx->t_sm.sm_grp, &tx->t_ast);
++static void _tx_placed(struct m0_sm_group *grp M0_UNUSED, struct m0_sm_ast *ast)
++{
++	_ast_tx_state_set(grp, ast, M0_BTS_PLACED);
++}
+ 
+-	M0_LEAVE();
++M0_INTERNAL void m0_be__tx_group_post(struct m0_be_tx *tx, struct m0_ref *ref)
++{
++	_tx_ast_post(tx, ref, _tx_group);
++}
++
++M0_INTERNAL void m0_be__tx_placed_post(struct m0_be_tx *tx, struct m0_ref *ref)
++{
++	_tx_ast_post(tx, ref, _tx_placed);
+ }
+ 
+ static struct m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx)
+diff --git a/be/tx.h b/be/tx.h
+index 5a8958a..15c1b05 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -446,6 +446,7 @@ M0_INTERNAL enum m0_be_tx_state m0_be__tx_state(const struct m0_be_tx *tx);
+  * M0_BTS_GROUPED state and decrement provided reference counter.
+  */
+ M0_INTERNAL void m0_be__tx_group_post(struct m0_be_tx *tx, struct m0_ref *ref);
++M0_INTERNAL void m0_be__tx_placed_post(struct m0_be_tx *tx, struct m0_ref *ref);
+ 
+ M0_TL_DESCR_DECLARE(tx, M0_EXTERN);
+ M0_TL_DECLARE(tx, M0_INTERNAL, struct m0_be_tx);
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 6705835..940a148 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -148,6 +148,8 @@ static enum m0_fom_phase_outcome       open_tick(struct m0_fom *fom);
+ static enum m0_fom_phase_outcome    logging_tick(struct m0_fom *fom);
+ static enum m0_fom_phase_outcome committing_tick(struct m0_fom *fom);
+ static enum m0_fom_phase_outcome    placing_tick(struct m0_fom *fom);
++static enum m0_fom_phase_outcome    placed_tick(struct m0_fom *fom);
++static enum m0_fom_phase_outcome    stable_tick(struct m0_fom *fom);
+ 
+ static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
+ #define _S(name, flags, allowed)  \
+@@ -211,9 +213,9 @@ static int tx_group_tick(struct m0_fom *fom)
+ 	case TGS_PLACING:
+ 		return placing_tick(fom);
+ 	case TGS_PLACED:
+-		M0_ASSERT(tx_group_fom(fom)->tgf_tx_to_place == NULL);
+-		/* fall through */
++		return placed_tick(fom);
+ 	case TGS_STABLE:
++		return stable_tick(fom);
+ 	case TGS_FINISH:
+ 	default:
+ 		M0_IMPOSSIBLE("XXX");
+@@ -467,10 +469,15 @@ static enum m0_fom_phase_outcome placing_tick(struct m0_fom *fom)
+ 
+ 	tx = m->tgf_tx_to_place;
+ 	if (tx == NULL) {
+-		m0_fom_phase_set(fom, TGS_PLACED);
++		m0_ref_init(&m->tgf_nr_ungrouped, gr_tlist_length(&gr->tg_txs),
++			    wake);
++		m0_tl_for(gr, &gr->tg_txs, tx) {
++			m0_be__tx_placed_post(tx, &m->tgf_nr_ungrouped);
++		} m0_tl_endfor;
+ 
++		m0_fom_phase_set(fom, TGS_PLACED);
+ 		M0_LEAVE();
+-		return M0_FSO_AGAIN;
++		return M0_FSO_WAIT;
+ 	}
+ 
+ 	/* perform IO */
+@@ -487,6 +494,29 @@ static enum m0_fom_phase_outcome placing_tick(struct m0_fom *fom)
+ 	return m0_be_op_tick_ret(op, fom, TGS_PLACING);
+ }
+ 
++static enum m0_fom_phase_outcome placed_tick(struct m0_fom *fom)
++{
++	struct tx_group_fom    *m   = tx_group_fom(fom);
++	struct m0_be_tx_engine *eng = m->tgf_engine;
++	struct m0_be_tx_group  *gr  = &eng->te_group;
++
++	M0_ENTRY();
++
++	M0_PRE(m->tgf_tx_to_place == NULL);
++	M0_PRE(m0_tl_forall(gr, tx, &gr->tg_txs,
++			    m0_be__tx_state(tx) == M0_BTS_PLACED));
++
++	m0_fom_phase_set(fom, TGS_STABLE);
++
++	M0_LEAVE();
++	return M0_FSO_WAIT;
++}
++
++static enum m0_fom_phase_outcome stable_tick(struct m0_fom *fom)
++{
++	m0_fom_phase_set(fom, TGS_OPEN);
++	return M0_FSO_WAIT;
++}
+ /** @} end of be group */
+ #undef M0_TRACE_SUBSYSTEM
+ 
+-- 
+1.8.3.2
+

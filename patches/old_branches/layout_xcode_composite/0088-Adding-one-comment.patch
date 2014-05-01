@@ -1,0 +1,27 @@
+From 7ecdcbf44bc7061de44da98c10779c30286baf26 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 14 Mar 2013 17:32:33 +0530
+Subject: [PATCH 088/157] Adding one comment.
+
+---
+ layout/composite.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 3d17a9d..2674d53 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -169,7 +169,9 @@ enum {
+ 	IN_UPDATE_PATH       = true,
+ 	EXT_MERGE_VALIDATION = 11, /* Some random number other than 0 and 1. */
+ 	EXT_DEL_VALIDATION   = 12, /* Another random number. */
+-	USER_COUNT_ADJUST    = true,
++	USER_COUNT_ADJUST    = true, /* Adjust user count only when the layer is
++				      * getting added as a part of composite
++				      * layout build or layer addition APIs. */
+ 	EXTLIST_FREE         = true /* Free extlist during layer delete op. */
+ };
+ 
+-- 
+1.8.3.2
+

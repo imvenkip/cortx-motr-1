@@ -1,0 +1,25 @@
+From 2aba36fb5ab01fddc9cb522ce1cd591b4f7ec52c Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 12 Feb 2014 11:57:19 +0200
+Subject: [PATCH 49/60] m0_rpc_fom_session_terminate_tick() minor fix:
+ uninitialized var
+
+---
+ rpc/session_foms.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/rpc/session_foms.c b/rpc/session_foms.c
+index c4dc83c..c5f143d 100644
+--- a/rpc/session_foms.c
++++ b/rpc/session_foms.c
+@@ -409,6 +409,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
+ 	M0_ASSERT(m0_rpc_conn_invariant(conn));
+ 	if (conn_state(conn) != M0_RPC_CONN_ACTIVE) {
+ 		rc = -EINVAL;
++		session = NULL;
+ 		goto out;
+ 	}
+ 
+-- 
+1.8.3.2
+

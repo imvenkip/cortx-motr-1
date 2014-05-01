@@ -1,0 +1,458 @@
+From f39c73ea9abb074dd9dc76ed27e5874b62f7e610 Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Mon, 26 Jul 2010 23:08:55 -0600
+Subject: [PATCH 15/34] - xdr c2_io_buf support for rdma
+
+---
+ c2t1fs/main.c         |  4 +--
+ fop/fop.c             | 20 +++++++++++++
+ fop/fop.h             |  3 +-
+ fop/fop2c.in          |  1 +
+ fop/fop_format.c      | 10 +++++++
+ fop/fop_format.h      |  1 +
+ fop/fop_format_c.c    |  1 +
+ fop/fop_format_def.h  |  1 +
+ lib/vec.h             | 14 ++++++---
+ net/ksunrpc/kxdr.c    | 81 +++++++++++++++++++++++++++++++++++++++++++++++----
+ net/usunrpc/uxdr.c    | 46 +++++++++++++++++++----------
+ stob/ut/io.ff         |  8 ++---
+ stob/ut/io_fop_init.c |  1 -
+ 13 files changed, 156 insertions(+), 35 deletions(-)
+
+diff --git a/c2t1fs/main.c b/c2t1fs/main.c
+index d012988..e726f01 100644
+--- a/c2t1fs/main.c
++++ b/c2t1fs/main.c
+@@ -152,7 +152,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
+ 		arg->siw_offset        = pos;
+ 		arg->siw_buf.cib_count = len;
+ 		arg->siw_buf.cib_pgoff = off;
+-		arg->siw_buf.cib_value = pages;
++		arg->siw_buf.cib_pages = pages;
+ 
+                 DBG("writing data to server(%llu/%d/%d/%ld/%lld)\n",
+                     objid, npages, off, len, pos);
+@@ -183,7 +183,7 @@ static int ksunrpc_read_write(struct c2_net_conn *conn,
+ 
+ 		ret->sirr_buf.cib_count = len;
+ 		ret->sirr_buf.cib_pgoff = off;
+-		ret->sirr_buf.cib_value = pages;
++		ret->sirr_buf.cib_pages = pages;
+ 
+                 DBG("reading data from server(%llu/%d/%d/%ld/%lld)\n",
+                     objid, npages, off, len, pos);
+diff --git a/fop/fop.c b/fop/fop.c
+index 8214c76..8f150bc 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -234,6 +234,24 @@ struct c2_fop_field_type C2_FOP_TYPE_U64 = {
+ };
+ C2_EXPORTED(C2_FOP_TYPE_U64);
+ 
++struct c2_fop_memlayout atom_iobuf_memlayout = {
++	.fm_uxdr   = (xdrproc_t)NULL,
++	.fm_sizeof = 0
++};
++
++struct c2_fop_field_type C2_FOP_TYPE_IOBUF = {
++	.fft_aggr = FFA_ATOM,
++	.fft_name = "c2_io_buf",
++	.fft_u = {
++		.u_atom = {
++			.a_type = FPF_IOBUF
++		}
++	},
++	.fft_layout = &atom_iobuf_memlayout
++};
++EXPORT_SYMBOL(C2_FOP_TYPE_IOBUF);
++
++
+ int c2_fops_init(void)
+ {
+ 	c2_list_init(&fop_types_list);
+@@ -243,11 +261,13 @@ int c2_fops_init(void)
+ 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
+ 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
+ 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U64);
++	c2_fop_field_type_prepare(&C2_FOP_TYPE_IOBUF);
+ 	return 0;
+ }
+ 
+ void c2_fops_fini(void)
+ {
++	c2_fop_field_type_unprepare(&C2_FOP_TYPE_IOBUF);
+ 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U64);
+ 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U32);
+ 	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
+diff --git a/fop/fop.h b/fop/fop.h
+index 3988081..8a6e3e4 100644
+--- a/fop/fop.h
++++ b/fop/fop.h
+@@ -201,7 +201,7 @@ enum c2_fop_field_primitive_type {
+ 	FPF_BYTE,
+ 	FPF_U32,
+ 	FPF_U64,
+-
++        FPF_IOBUF,
+ 	FPF_NR
+ };
+ 
+@@ -238,6 +238,7 @@ extern struct c2_fop_field_type C2_FOP_TYPE_VOID;
+ extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
+ extern struct c2_fop_field_type C2_FOP_TYPE_U32;
+ extern struct c2_fop_field_type C2_FOP_TYPE_U64;
++extern struct c2_fop_field_type C2_FOP_TYPE_IOBUF;
+ 
+ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+ 		       struct c2_db_tx *tx);
+diff --git a/fop/fop2c.in b/fop/fop2c.in
+index 843f653..42d2a35 100755
+--- a/fop/fop2c.in
++++ b/fop/fop2c.in
+@@ -142,6 +142,7 @@ void prefix(void)
+ 	printf(" */\n");
+ 	printf("\n");
+ 	printf("#include \"lib/cdefs.h\"\n");
++	printf("#include \"lib/vec.h\"\n");
+ 	printf("#include \"fop/fop.h\"\n");
+ 	if (todo == UDEF) 
+ 		printf("#include <rpc/rpc.h>\n");
+diff --git a/fop/fop_format.c b/fop/fop_format.c
+index 1e98b1f..f874a0c 100644
+--- a/fop/fop_format.c
++++ b/fop/fop_format.c
+@@ -302,6 +302,16 @@ const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt = {
+ };
+ C2_EXPORTED(C2_FOP_TYPE_FORMAT_U64_tfmt);
+ 
++const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_IOBUF_tfmt = {
++	.ftf_out   = &C2_FOP_TYPE_IOBUF,
++	.ftf_aggr  = FFA_ATOM,
++	.ftf_name  = "c2_io_buf",
++	.ftf_val   = FPF_IOBUF,
++	.ftf_child = { [0] = { .c_name = NULL } }
++};
++EXPORT_SYMBOL(C2_FOP_TYPE_FORMAT_IOBUF_tfmt);
++
++
+ /** @} end of fop group */
+ 
+ /*
+diff --git a/fop/fop_format.h b/fop/fop_format.h
+index dd4f31e..a9a0944 100644
+--- a/fop/fop_format.h
++++ b/fop/fop_format.h
+@@ -93,6 +93,7 @@ extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_VOID_tfmt;
+ extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
+ extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;
+ extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
++extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_IOBUF_tfmt;
+ 
+ #define __paste(x) x ## _tfmt
+ #ifndef __layout
+diff --git a/fop/fop_format_c.c b/fop/fop_format_c.c
+index c6c61ff..db7dd35 100644
+--- a/fop/fop_format_c.c
++++ b/fop/fop_format_c.c
+@@ -71,6 +71,7 @@ static const char *atom_name[] = {
+ 	[FPF_BYTE] = "char",
+ 	[FPF_U32]  = "uint32_t",
+ 	[FPF_U64]  = "uint64_t",
++        [FPF_IOBUF] = "struct c2_io_buf"
+ };
+ 
+ static void type_prefix(const char *name, char *buf)
+diff --git a/fop/fop_format_def.h b/fop/fop_format_def.h
+index 90d3725..1a8b296 100644
+--- a/fop/fop_format_def.h
++++ b/fop/fop_format_def.h
+@@ -23,6 +23,7 @@
+ #define U64 C2_FOP_TYPE_FORMAT_U64
+ #define BYTE C2_FOP_TYPE_FORMAT_BYTE
+ #define VOID C2_FOP_TYPE_FORMAT_VOID
++#define IOBUF C2_FOP_TYPE_FORMAT_IOBUF
+ 
+ #define RECORD FFA_RECORD
+ #define UNION FFA_UNION
+diff --git a/lib/vec.h b/lib/vec.h
+index d33c07c..4b2be2f 100644
+--- a/lib/vec.h
++++ b/lib/vec.h
+@@ -147,10 +147,16 @@ int         c2_diovec_register(struct c2_diovec *vec,
+   TODO: In RDMA, the c2_dbuf has to be encoded/decoded by a customized function,
+   we have to work out a mechanism to conform to fop_type_XYZ structure.
+  */
+-struct c2_dbuf {
+-        uint32_t db_alignment; /**< alignment of data buffer */
+-        uint32_t db_buflen;
+-        void    *db_buffer;
++struct c2_io_buf {
++        uint32_t      cib_align; /**< alignment of data buffer */
++        uint32_t      cib_count;
++#ifdef __KERNEL__
++        uint32_t      cib_pgoff;
++        uint32_t      cib_npages;
++        struct page **cib_pages;
++#else
++        char         *cib_value;
++#endif
+ };
+ 
+ /** @} end of vec group */
+diff --git a/net/ksunrpc/kxdr.c b/net/ksunrpc/kxdr.c
+index 9c76854..615179a 100644
+--- a/net/ksunrpc/kxdr.c
++++ b/net/ksunrpc/kxdr.c
+@@ -3,6 +3,8 @@
+ #include <linux/sunrpc/clnt.h>
+ 
+ #include "lib/cdefs.h"
++#include "lib/kdef.h"
++#include "lib/vec.h"
+ #include "fop/fop.h"
+ #include "ksunrpc.h"
+ 
+@@ -258,19 +260,88 @@ static int kxdr_typedef(struct kxdr_ctx *ctx, void *obj)
+ 	return ftype_subxdr(ctx, obj, 0, 0);
+ }
+ 
++static int kxdr_iobuf_enc(struct kxdr_ctx *ctx, void *obj)
++{
++        int result;
++        struct c2_io_buf *dbuf = obj;
++        int (*encode_u32)(struct xdr_stream *, void *);
++
++        encode_u32 = atom_kxdr[ctx->kc_what][FPF_U32];
++        result = encode_u32(ctx->kc_xdr, &dbuf->cib_align);
++        if (result)
++                return result;
++
++        result = encode_u32(ctx->kc_xdr, &dbuf->cib_count);
++        if (result)
++                return result;
++
++        xdr_write_pages(ctx->kc_xdr, dbuf->cib_pages, dbuf->cib_pgoff,
++                        dbuf->cib_npages);
++       return 0;
++}
++
++static int kxdr_iobuf_dec(struct kxdr_ctx *ctx, void *obj)
++{
++        struct c2_io_buf *dbuf = obj;
++	int      result;
++
++	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr,
++                                                  &dbuf->cib_align);
++        if (result)
++                return result;
++
++	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr,
++                                                  &dbuf->cib_count);
++	if (result != 0)
++		return result;
++
++	xdr_read_pages(ctx->kc_xdr, dbuf->cib_count);
++        return 0;
++}
++
++static int kxdr_iobuf_rep(struct kxdr_ctx *ctx, void *obj)
++{
++        struct c2_io_buf *dbuf = obj;
++        struct rpc_auth *auth;
++        uint32_t         offset;
++
++        *ctx->kc_nob += sizeof(dbuf->cib_align) + sizeof(dbuf->cib_count);
++        auth = ctx->kc_req->rq_task->tk_msg.rpc_cred->cr_auth;
++        offset = ((RPC_REPHDRSIZE + auth->au_rslack + 3) << 2) +
++                        *ctx->kc_nob;
++        xdr_inline_pages(&ctx->kc_req->rq_rcv_buf, offset,
++                         dbuf->cib_pages, dbuf->cib_pgoff, dbuf->cib_npages);
++        return 0;
++}
++
++static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
++{
++	*ctx->kc_nob += ctx->kc_type->fft_layout->fm_sizeof;
++	return 0;
++}
++
+ static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj) = {
+ 	[KENC] = {
+ 		[FPF_VOID] = (void *)&c2_kvoid_encode,
+ 		[FPF_BYTE] = NULL,
+ 		[FPF_U32]  = (void *)&c2_ku32_encode,
+-		[FPF_U64]  = (void *)&c2_ku64_encode
++		[FPF_U64]  = (void *)&c2_ku64_encode,
++                [FPF_IOBUF] = (void *)&kxdr_iobuf_enc
+ 	},
+ 	[KDEC] = {
+ 		[FPF_VOID] = (void *)&c2_kvoid_decode,
+ 		[FPF_BYTE] = NULL,
+ 		[FPF_U32]  = (void *)&c2_ku32_decode,
+-		[FPF_U64]  = (void *)&c2_ku64_decode
+-	}
++		[FPF_U64]  = (void *)&c2_ku64_decode,
++                [FPF_IOBUF] = (void *)&kxdr_iobuf_dec
++	},
++        [KREP] = {
++		[FPF_VOID] = (void *)&kxdr_atom_rep,
++		[FPF_BYTE] = (void *)&kxdr_atom_rep,
++		[FPF_U32]  = (void *)&kxdr_atom_rep,
++		[FPF_U64]  = (void *)&kxdr_atom_rep,
++                [FPF_IOBUF] = (void *)&kxdr_iobuf_rep
++        }
+ };
+ 
+ static int kxdr_atom(struct kxdr_ctx *ctx, void *obj)
+@@ -287,7 +358,7 @@ static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
+ 	return 0;
+ }
+ 
+-static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] =
++static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] = 
+ {
+ 	[KENC] = {
+ 		[FFA_RECORD]   = kxdr_record,
+@@ -308,7 +379,7 @@ static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR] =
+ 		[FFA_UNION]    = kxdr_union,
+ 		[FFA_SEQUENCE] = kxdr_sequence_rep,
+ 		[FFA_TYPEDEF]  = kxdr_typedef,
+-		[FFA_ATOM]     = kxdr_atom_rep
++		[FFA_ATOM]     = kxdr_atom
+ 	}
+ };
+ 
+diff --git a/net/usunrpc/uxdr.c b/net/usunrpc/uxdr.c
+index 3d7d68e..6d4c2ca 100644
+--- a/net/usunrpc/uxdr.c
++++ b/net/usunrpc/uxdr.c
+@@ -47,12 +47,28 @@
+ /*
+  * User level xdr code.
+  */
++static bool_t c2_xdr_io_buf(XDR *xdrs, void *obj);
++
++static const xdrproc_t atom_xdr[FPF_NR] = {
++	[FPF_VOID] = (xdrproc_t)&xdr_void,
++	[FPF_BYTE] = NULL,
++	[FPF_U32]  = (xdrproc_t)&xdr_uint32_t,
++	[FPF_U64]  = (xdrproc_t)&xdr_uint64_t,
++        [FPF_IOBUF] = (xdrproc_t)&c2_xdr_io_buf
++};
+ 
+ static xdrproc_t ftype_field_xdr(const struct c2_fop_field_type *ftype,
+ 				 int fieldno)
+ {
++        struct c2_fop_field_type *chd;
++        xdrproc_t xdrproc;
++
+ 	C2_ASSERT(fieldno < ftype->fft_nr);
+-	return ftype->fft_child[fieldno]->ff_type->fft_layout->fm_uxdr;
++        chd = ftype->fft_child[fieldno]->ff_type;
++        xdrproc = chd->fft_layout->fm_uxdr;
++        if (xdrproc == NULL && chd->fft_aggr == FFA_ATOM)
++                xdrproc = atom_xdr[chd->fft_u.u_atom.a_type];
++	return xdrproc;
+ }
+ 
+ static bool ftype_subxdr(const struct c2_fop_field_type *ftype,
+@@ -151,38 +167,36 @@ bool_t c2_fop_uxdrproc(XDR *xdrs, struct c2_fop *fop)
+ 	return c2_fop_type_uxdr(fop->f_type->ft_top, xdrs, c2_fop_data(fop));
+ }
+ 
+-static bool_t (*dbuf_xdrproc)(XDR *xdrs, void *obj, int objlen) = NULL;
+-void c2_dbuf_xdrproc_set(bool_t (*xdrproc)(XDR *, void *, int))
++typedef bool_t dbuf_xdrproc_t(XDR *, void *, int);
++static dbuf_xdrproc_t *dbuf_xdrproc = NULL;
++void c2_dbuf_xdrproc_set(dbuf_xdrproc_t xdrproc)
+ {
+         dbuf_xdrproc = xdrproc;
+ }
+ 
+-/*
+- */
+-bool_t xdr_dbuf(XDR *xdrs, void *obj)
++static bool_t c2_xdr_io_buf(XDR *xdrs, void *obj)
+ {
+-        struct c2_dbuf *dbuf = obj;
+-        bool_t (*xdrproc)(XDR *, void *, int);
++        struct c2_io_buf *dbuf = obj;
++        dbuf_xdrproc_t *xdrproc = dbuf_xdrproc;
+ 
+-        xdrproc = dbuf_xdrproc;
+         if (xdrproc == NULL)
+                 xdrproc = (typeof(xdrproc))xdr_opaque;
+ 
+-        if (!xdr_u_int(xdrs, &dbuf->db_alignment))
++        if (!xdr_u_int(xdrs, &dbuf->cib_align))
+                 return FALSE;
+-        if (!xdr_u_int(xdrs, &dbuf->db_buflen))
++        if (!xdr_u_int(xdrs, &dbuf->cib_count))
+                 return FALSE;
+ 
+         switch(xdrs->x_op) {
+         case XDR_DECODE:
+-                dbuf->db_buffer = c2_alloc_align(dbuf->db_buflen,
+-                                                 dbuf->db_alignment);
+-                if (dbuf->db_buffer == NULL)
++                dbuf->cib_value = c2_alloc_align(dbuf->cib_count,
++                                                  dbuf->cib_align);
++                if (dbuf->cib_value == NULL)
+                         return FALSE;
+         case XDR_ENCODE:
+-                return xdrproc(xdrs, dbuf->db_buffer, dbuf->db_buflen);
++                return xdrproc(xdrs, dbuf->cib_value, dbuf->cib_count);
+         case XDR_FREE:
+-                c2_free(dbuf->db_buffer);
++                c2_free(dbuf->cib_value);
+                 return TRUE;
+         }
+         return FALSE;
+diff --git a/stob/ut/io.ff b/stob/ut/io.ff
+index 8ff180e..e718181 100644
+--- a/stob/ut/io.ff
++++ b/stob/ut/io.ff
+@@ -19,10 +19,6 @@ DEF(c2_io_seg, RECORD,
+     _(f_offset, U64),
+     _(f_count, U64));
+ 
+-DEF(c2_io_buf, SEQUENCE,
+-    _(cib_count, U32),
+-    _(cib_value, BYTE));
+-
+ DEF(c2_io_vec, SEQUENCE,
+     _(civ_count, U32),
+     _(civ_seg, c2_io_seg));
+@@ -30,7 +26,7 @@ DEF(c2_io_vec, SEQUENCE,
+ DEF(c2_io_write, RECORD,
+     _(siw_object, c2_fop_fid),
+     _(siw_offset, U64),
+-    _(siw_buf, c2_io_buf));
++    _(siw_buf, IOBUF));
+ 
+ DEF(c2_io_write_rep, RECORD,
+     _(siwr_rc, U32),
+@@ -42,7 +38,7 @@ DEF(c2_io_read, RECORD,
+ 
+ DEF(c2_io_read_rep, RECORD,
+     _(sirr_rc, U32),
+-    _(sirr_buf, c2_io_buf));
++    _(sirr_buf, IOBUF));
+ 
+ DEF(c2_io_create, RECORD,
+     _(sic_object, c2_fop_fid));
+diff --git a/stob/ut/io_fop_init.c b/stob/ut/io_fop_init.c
+index 49cf465..e1d8276 100644
+--- a/stob/ut/io_fop_init.c
++++ b/stob/ut/io_fop_init.c
+@@ -71,7 +71,6 @@ static struct c2_fop_type *fops[] = {
+ static struct c2_fop_type_format *fmts[] = {
+ 	&c2_fop_fid_tfmt,
+ 	&c2_io_seg_tfmt,
+-	&c2_io_buf_tfmt,
+ 	&c2_io_vec_tfmt
+ };
+ 
+-- 
+1.8.3.2
+

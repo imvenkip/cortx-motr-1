@@ -1,0 +1,57 @@
+From 699ce506de9cedafa894c47f3351036b5c1de797 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Wed, 30 Oct 2013 16:18:32 +0530
+Subject: [PATCH 152/159]  - fop rate counter code added.
+
+---
+ fop/fom.c | 9 +++++++++
+ fop/fom.h | 6 ++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 22bfc98..768ea2e 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -942,6 +942,15 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	if (result != 0)
+ 		goto err1;
+ 
++	result = m0_addb_counter_init(&loc->fl_stat_fop_rate,
++				      &m0_addb_rt_fop_rate);
++	if (result != 0) {
++		m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
++		m0_addb_counter_fini(&loc->fl_stat_run_times);
++		m0_addb_ctx_fini(&loc->fl_addb_ctx);
++		return result;
++	}
++
+ 	runq_tlist_init(&loc->fl_runq);
+ 	loc->fl_runq_nr = 0;
+ 
+diff --git a/fop/fom.h b/fop/fom.h
+index a422ee3..c961805 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -260,6 +260,10 @@ struct m0_fom_locality {
+ 	 */
+ 	unsigned                     fl_foms;
+ 
++	/** fop rate stats */
++	uint64_t                     fl_fop_rate_count;
++	m0_time_t		     fl_fop_rate_next_update;
++
+ 	/** State Machine (SM) group for AST call-backs */
+ 	struct m0_sm_group	     fl_group;
+ 
+@@ -296,6 +300,8 @@ struct m0_fom_locality {
+ 	   fom_dequeue() counting by m0_fom::fo_sched_epoch.
+ 	 */
+ 	struct m0_addb_counter       fl_stat_sched_wait_times;
++	/** FOP rate conter. It is fop execution per sec. */
++	struct m0_addb_counter       fl_stat_fop_rate;
+ 
+ 	/** FOP rate counter. It is fop executed per sec. */
+ 	uint64_t                     fl_fop_rate_count;
+-- 
+1.8.3.2
+

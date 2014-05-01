@@ -1,0 +1,88 @@
+From 9fd2e61128d1d96d1a74909d9823af2356be1920 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Fri, 15 Nov 2013 00:12:37 +0200
+Subject: [PATCH 07/26] be/ut: be-ut:alloc-transactional removed
+
+---
+ be/ut/alloc.c | 37 -------------------------------------
+ be/ut/main.c  |  2 --
+ 2 files changed, 39 deletions(-)
+
+diff --git a/be/ut/alloc.c b/be/ut/alloc.c
+index cb70190..3ba6ab5 100644
+--- a/be/ut/alloc.c
++++ b/be/ut/alloc.c
+@@ -37,7 +37,6 @@ enum {
+ 	BE_UT_ALLOC_NR	     = 0x1000,
+ 	BE_UT_ALLOC_MT_NR    = 0x100,
+ 	BE_UT_ALLOC_THR_NR   = 0x10,
+-	BE_UT_ALLOC_TX_NR    = 0x400,
+ };
+ 
+ struct be_ut_alloc_thread_state {
+@@ -192,42 +191,6 @@ M0_INTERNAL void m0_be_ut_alloc_concurrent(void)
+ 	be_ut_alloc_mt(BE_UT_ALLOC_THR_NR);
+ }
+ 
+-M0_INTERNAL void m0_be_ut_alloc_transactional(void)
+-{
+-	struct m0_be_ut_backend *ut_be = &be_ut_alloc_backend;
+-	struct m0_be_ut_seg	 ut_seg;
+-	struct m0_be_allocator	*a = m0_be_seg_allocator(&ut_seg.bus_seg);
+-	void			*ptrs[BE_UT_ALLOC_PTR_NR];
+-	unsigned		 seed = 0;
+-	int			 i;
+-	int			 j;
+-
+-	m0_be_ut_backend_init(ut_be);
+-	m0_be_ut_seg_init(&ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
+-	m0_be_ut_seg_check_persistence(&ut_seg);
+-
+-	m0_be_ut_seg_allocator_init(&ut_seg, ut_be);
+-	m0_be_ut_seg_check_persistence(&ut_seg);
+-
+-	M0_SET_ARR0(ptrs);
+-	for (j = 0; j < BE_UT_ALLOC_TX_NR; ++j) {
+-		i = rand_r(&seed) % ARRAY_SIZE(ptrs);
+-		be_ut_alloc_ptr_handle(a, ut_be, &ptrs[i], &seed);
+-		m0_be_ut_seg_check_persistence(&ut_seg);
+-	}
+-	for (i = 0; i < ARRAY_SIZE(ptrs); ++i) {
+-		if (ptrs[i] != NULL)
+-			be_ut_alloc_ptr_handle(a, ut_be, &ptrs[i], &seed);
+-		m0_be_ut_seg_check_persistence(&ut_seg);
+-	}
+-
+-	m0_be_ut_seg_allocator_fini(&ut_seg, ut_be);
+-	m0_be_ut_seg_check_persistence(&ut_seg);
+-
+-	m0_be_ut_seg_fini(&ut_seg);
+-	m0_be_ut_backend_fini(ut_be);
+-}
+-
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/be/ut/main.c b/be/ut/main.c
+index 79a3eb5..23618a4 100644
+--- a/be/ut/main.c
++++ b/be/ut/main.c
+@@ -62,7 +62,6 @@ extern void m0_be_ut_alloc_init_fini(void);
+ extern void m0_be_ut_alloc_create_destroy(void);
+ extern void m0_be_ut_alloc_multiple(void);
+ extern void m0_be_ut_alloc_concurrent(void);
+-extern void m0_be_ut_alloc_transactional(void);
+ 
+ extern void m0_be_ut_list(void);
+ extern void m0_be_ut_btree_simple(void);
+@@ -104,7 +103,6 @@ const struct m0_test_suite be_ut = {
+ 		{ "alloc-create",        m0_be_ut_alloc_create_destroy },
+ 		{ "alloc-multiple",      m0_be_ut_alloc_multiple       },
+ 		{ "alloc-concurrent",    m0_be_ut_alloc_concurrent     },
+-		{ "alloc-transactional", m0_be_ut_alloc_transactional  },
+ 		{ "list",                m0_be_ut_list		       },
+ 		{ "btree",               m0_be_ut_btree_simple         },
+ 		{ "seg_dict",            m0_be_ut_seg_dict             },
+-- 
+1.8.3.2
+

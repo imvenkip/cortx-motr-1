@@ -1,0 +1,29 @@
+From bab86e5e139332d3b9bf0476f12fdf3284a6e4c4 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 15 Nov 2013 00:29:46 +0530
+Subject: [PATCH 137/159]  - Removed trailing white spaces.
+
+---
+ fop/fom.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 88b009f..6a6dfb0 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -223,9 +223,9 @@ static void fop_rate_monitor_watch(const struct m0_addb_monitor *monitor,
+ 		f_rate = FOP_RATE(sum_rec);
+ 		/*
+ 		 * fop_rate is ADDB counter.
+- 		 * rec->ar_data.au64s_data[1] is number of samples
+- 		 * rec->ar_data.au64s_data[2] is sum_samples
+- 		 */
++		 * rec->ar_data.au64s_data[1] is number of samples
++		 * rec->ar_data.au64s_data[2] is sum_samples
++		 */
+ 		f_rate->frssr_fop_rate =
+ 		rec->ar_data.au64s_data[2]/rec->ar_data.au64s_data[1];;
+ 		sum_rec->asr_dirty = true;
+-- 
+1.8.3.2
+

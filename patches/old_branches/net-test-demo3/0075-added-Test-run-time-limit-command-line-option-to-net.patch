@@ -1,0 +1,258 @@
+From 0cc2a688adbc4b5fc1435afbd7c1178ec075b932 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 21 Feb 2013 07:32:59 +0200
+Subject: [PATCH 75/99] added 'Test run time limit' command line option to
+ net-test console
+
+---
+ net/test/console.h              |  5 +++++
+ net/test/node.c                 | 13 ++++++++++++
+ net/test/node_ping.c            | 10 +++++++--
+ net/test/st/run-1x1.sh          |  1 +
+ net/test/st/st-bulk.sh          |  3 ++-
+ net/test/st/st-ping.sh          |  3 ++-
+ net/test/user_space/console_u.c | 45 +++++++++++++++++++++++++++++++----------
+ 7 files changed, 65 insertions(+), 15 deletions(-)
+
+diff --git a/net/test/console.h b/net/test/console.h
+index e3c22b4..1a20627 100644
+--- a/net/test/console.h
++++ b/net/test/console.h
+@@ -90,6 +90,11 @@ struct m0_net_test_console_cfg {
+ 	enum m0_net_test_type	 ntcc_test_type;
+ 	/** Number of test messages for the test client */
+ 	uint64_t		 ntcc_msg_nr;
++	/**
++	 * Test run time limit. The test will stop after
++	 * ntcc_msg_nr test messages or when time limit reached.
++	 */
++	m0_time_t		 ntcc_test_time_limit;
+ 	/** Test messages size */
+ 	m0_bcount_t		 ntcc_msg_size;
+ 	/**
+diff --git a/net/test/node.c b/net/test/node.c
+index dd9bed8..6adfff1 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -50,6 +50,7 @@
+    - @ref net-test-st
+    - @ref net-test-O
+    - @ref net-test-lim
++   - @ref net-test-issues
+    - @ref net-test-ref
+ 
+ 
+@@ -668,6 +669,18 @@ finished.up();\l", shape=box];
+      network buffers used in the corresponding structures;
+ 
+    <hr>
++   @section net-test-issues Know Issues
++
++   - Test console returns different number of transfers for
++     test clients and test servers if time limit reached.
++     It is because test node can't answer to STATUS command
++     after STOP command. Possible solution: split STOP command to
++     2 different commands - "stop sending test messages" and
++     "finalize test messages transfer machine" (now STOP command
++     handler performs these actions) - in this case STATUS command
++     can be sent after "stop sending test messages" command.
++
++   <hr>
+    @section net-test-ref References
+ 
+    @anchor net-test-hld
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index 88eb910..4a8ff84 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -590,6 +590,7 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
+ 	m0_time_t		  deadline;
+ 	struct m0_net_end_point	 *ep;
+ 	bool			  rb_is_empty;
++	ssize_t			  to_index;
+ 
+ 	M0_PRE(ctx != NULL);
+ 
+@@ -635,9 +636,14 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
+ 	/* wait for buffer callbacks */
+ 	for (i = 0; i < ctx->npc_buf_nr; ++i)
+ 		m0_semaphore_down(&ctx->npc_buf_q_sem);
+-	/* clear ringbuf, put() every saved endpoint */
++	/* clear timeouts list for the test client */
++	if (ctx->npc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
++		while ((to_index = node_ping_to_peek(ctx)) != -1)
++			node_ping_to_del(ctx, to_index);
++	}
+ 	/*
+-	 * use !m0_net_test_ringbuf_is_empty(&ctx->npc_buf_rb) instead of
++	 * Clear ringbuf, put() every saved endpoint.
++	 * Use !m0_net_test_ringbuf_is_empty(&ctx->npc_buf_rb) instead of
+ 	 * m0_semaphore_trydown(&ctx->npc_buf_rb_sem) because
+ 	 * ctx->npc_buf_rb_sem may not be up()'ed in buffer callback.
+ 	 */
+diff --git a/net/test/st/run-1x1.sh b/net/test/st/run-1x1.sh
+index e57c4e1..5966888 100644
+--- a/net/test/st/run-1x1.sh
++++ b/net/test/st/run-1x1.sh
+@@ -79,6 +79,7 @@ fi
+        -d "$ADDR_DATA_CLIENT" \
+        -t "$TEST_TYPE" \
+        -n "$MSG_NR" \
++       -T "$TEST_RUN_TIME" \
+        -s "$MSG_SIZE" \
+        -E "$CONCURRENCY_SERVER" \
+        -e "$CONCURRENCY_CLIENT" \
+diff --git a/net/test/st/st-bulk.sh b/net/test/st/st-bulk.sh
+index 7653a60..952549c 100644
+--- a/net/test/st/st-bulk.sh
++++ b/net/test/st/st-bulk.sh
+@@ -4,7 +4,8 @@ CWD=$(cd "$( dirname "$0")" && pwd)
+ 
+ source $CWD/st-config.sh
+ TEST_TYPE="bulk"
+-MSG_NR=1024
++MSG_NR=1048576
++TEST_RUN_TIME=10
+ MSG_SIZE=1m
+ CONCURRENCY_CLIENT=8
+ CONCURRENCY_SERVER=16
+diff --git a/net/test/st/st-ping.sh b/net/test/st/st-ping.sh
+index 635e59a..f5cb33d 100644
+--- a/net/test/st/st-ping.sh
++++ b/net/test/st/st-ping.sh
+@@ -4,7 +4,8 @@ CWD=$(cd "$( dirname "$0")" && pwd)
+ 
+ source $CWD/st-config.sh
+ TEST_TYPE="ping"
+-MSG_NR=1024
++MSG_NR=1048576
++TEST_RUN_TIME=10
+ MSG_SIZE=4k
+ CONCURRENCY_CLIENT=8
+ CONCURRENCY_SERVER=16
+diff --git a/net/test/user_space/console_u.c b/net/test/user_space/console_u.c
+index 2ffe4b4..f916449 100644
+--- a/net/test/user_space/console_u.c
++++ b/net/test/user_space/console_u.c
+@@ -25,8 +25,9 @@
+ #include "lib/errno.h"			/* EINVAL */
+ #include "lib/memory.h"			/* m0_alloc */
+ #include "lib/time.h"			/* m0_time_t */
++#include "lib/arith.h"			/* min_type */
+ 
+-#include "mero/init.h"		/* m0_init */
++#include "mero/init.h"			/* m0_init */
+ 
+ #include "net/test/user_space/common_u.h" /* m0_net_test_u_str_copy */
+ #include "net/test/slist.h"		/* m0_net_test_slist */
+@@ -118,6 +119,7 @@ DESCRIBE(test_type,	       't', "Test type, 'ping' or 'bulk'");
+ DESCRIBE(msg_nr,	       'n', "Number of test messages for the "
+ 				    "test client (for each server)");
+ DESCRIBE(msg_size,	       's', "Test message size");
++DESCRIBE(test_time_limit,      'T', "Test run time limit, seconds");
+ DESCRIBE(bd_buf_nr_server,     'B', "Number of message buffers for bulk buffer "
+ 				    "network descriptors for the test server");
+ DESCRIBE(bd_buf_nr_client,     'b', "Number of message buffers for bulk buffer "
+@@ -269,6 +271,14 @@ static int configure(int argc, char *argv[],
+ 		LAMBDA(void, (const char *str) {			\
+ 			cfg->ntcc_##name = m0_net_test_u_str_copy(str);	\
+ 		}))
++#define TIME_ARG(name)							\
++		M0_NUMBERARG(opt_##name, msg_##name,			\
++		LAMBDA(void, (int64_t nr) {				\
++			if (nr <= 0)					\
++				success = false;			\
++			else						\
++				cfg->ntcc_##name = M0_MKTIME(nr, 0);	\
++		}))
+ 
+ 	M0_GETOPTS("m0nettest", argc, argv,
+ 		ASCIIZ_ARG(addr_console4servers),
+@@ -287,6 +297,7 @@ static int configure(int argc, char *argv[],
+ 				success = false;
+ 		})),
+ 		NUMBER_ARG(msg_nr),
++		TIME_ARG(test_time_limit),
+ 		SCALED_ARG(msg_size),
+ 		NUMBER_ARG(bd_buf_nr_server),
+ 		NUMBER_ARG(bd_buf_nr_client),
+@@ -473,7 +484,7 @@ print_status_data_implementation(struct m0_net_test_cmd_status_data *sd,
+ 		{ .prefix_p = "mps_received",
+ 		  .prefix_v = ", MPS, received",
+ 		  .stats    = &sd->ntcsd_mps_recv.ntmps_stats },
+-		{ .prefix_p = "mps_rtt",
++		{ .prefix_p = "rtt",
+ 		  .prefix_v = ", RTT",
+ 		  .stats    = &sd->ntcsd_rtt },
+ 	};
+@@ -516,7 +527,9 @@ static int console_run(struct m0_net_test_console_ctx *ctx)
+ {
+ 	enum m0_net_test_role role;
+ 	enum m0_net_test_role role1;
++	/** @todo make command line parameter */
+ 	m0_time_t	      status_interval = M0_MKTIME(1, 0);
++	m0_time_t	      time_left;
+ 	bool		      good;
+ 	bool		      verbose;
+ 
+@@ -544,9 +557,14 @@ static int console_run(struct m0_net_test_console_ctx *ctx)
+ 	       M0_NET_TEST_ROLE_CLIENT : M0_NET_TEST_ROLE_SERVER;
+ 	role1 = role == M0_NET_TEST_ROLE_CLIENT ? M0_NET_TEST_ROLE_SERVER :
+ 						  M0_NET_TEST_ROLE_CLIENT;
+-	do {
++	time_left = ctx->ntcc_cfg->ntcc_test_time_limit;
++	ctx->ntcc_clients.ntcrc_sd->ntcsd_finished = false;
++	while (!ctx->ntcc_clients.ntcrc_sd->ntcsd_finished &&
++	       time_left != 0) {
+ 		/** @todo can be interrupted */
+-		m0_nanosleep(status_interval, NULL);
++		m0_nanosleep(min_check(status_interval, time_left), NULL);
++		time_left = time_left > status_interval ?
++			    time_left - status_interval : 0;
+ 		good = console_step(ctx, role, M0_NET_TEST_CMD_STATUS,
+ 				    NULL, NULL);
+ 		good = good ? console_step(ctx, role1, M0_NET_TEST_CMD_STATUS,
+@@ -559,9 +577,18 @@ static int console_run(struct m0_net_test_console_ctx *ctx)
+ 				            ctx->ntcc_servers.ntcrc_sd);
+ 			print_status_data(ctx);
+ 		}
+-	} while (!ctx->ntcc_clients.ntcrc_sd->ntcsd_finished);
++	}
++	good = console_step(ctx, M0_NET_TEST_ROLE_CLIENT,
++			    M0_NET_TEST_CMD_STATUS, NULL, NULL);
++	if (!good)
++		return -ENETUNREACH;
++	good = console_step(ctx, M0_NET_TEST_ROLE_CLIENT, M0_NET_TEST_CMD_STOP,
++			    "STOP => test clients",
++			    "test clients => STOP DONE");
++	if (!good)
++		return -ENETUNREACH;
+ 	good = console_step(ctx, M0_NET_TEST_ROLE_SERVER,
+-			  M0_NET_TEST_CMD_STATUS, NULL, NULL);
++			    M0_NET_TEST_CMD_STATUS, NULL, NULL);
+ 	if (!good)
+ 		return -ENETUNREACH;
+ 	good = console_step(ctx, M0_NET_TEST_ROLE_SERVER, M0_NET_TEST_CMD_STOP,
+@@ -569,11 +596,6 @@ static int console_run(struct m0_net_test_console_ctx *ctx)
+ 			    "test servers => STOP DONE");
+ 	if (!good)
+ 		return -ENETUNREACH;
+-	good = console_step(ctx, M0_NET_TEST_ROLE_CLIENT, M0_NET_TEST_CMD_STOP,
+-			    "STOP => test clients",
+-			    "test clients => STOP DONE");
+-	if (!good)
+-		return -ENETUNREACH;
+ 	verbose = m0_net_test_u_printf_verbose;
+ 	m0_net_test_u_printf_verbose = true;
+ 	m0_net_test_u_printf_v("clients total: ");
+@@ -605,6 +627,7 @@ int main(int argc, char *argv[])
+ 		.ntcc_buf_bulk_timeout     = M0_MKTIME(3, 0),
+ 		.ntcc_test_type		   = M0_NET_TEST_TYPE_PING,
+ 		.ntcc_msg_nr		   = 0,
++		.ntcc_test_time_limit	   = M0_TIME_NEVER,
+ 		.ntcc_msg_size		   = 0,
+ 		.ntcc_bd_buf_nr_client	   = 0,
+ 		.ntcc_bd_buf_nr_server	   = 0,
+-- 
+1.8.3.2
+

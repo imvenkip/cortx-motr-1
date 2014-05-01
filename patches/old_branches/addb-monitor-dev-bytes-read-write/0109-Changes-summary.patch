@@ -1,0 +1,98 @@
+From 3b1055599f44567f8efa0bd030c116fd5b5f4829 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Thu, 24 Oct 2013 19:15:54 +0530
+Subject: [PATCH 109/121] Changes summary : - 1. Fix Style issue in
+ m0_addb_monitor_summaries_post() viz, make    use of proper name
+ (s/fop/fop_data).
+
+---
+ addb/addb_monitor.c | 32 ++++++++++++++++----------------
+ 1 file changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 5a3056f..001ada8 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -478,7 +478,7 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,
+ 	struct m0_addb_monitoring_ctx *mon_ctx;
+ 	/* Continue scanning from the place we left last time */
+ 	struct m0_addb_monitor        *mon       = fom->pf_mon;
+-	struct m0_stats_update_fop    *fop       = NULL;
++	struct m0_stats_update_fop    *fop_data  = NULL;
+ 	uint32_t                       stats_nr  = 0;
+ 	uint32_t                       used      = 0;
+ 	uint32_t                       scanned   = 0;
+@@ -505,7 +505,7 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,
+ 			if (mon == NULL ||
+ 			/* if the entire list was scanned and not a single
+ 			 * dirty record found, stop. */
+-			    (scanned > 0 && fop == NULL))
++			    (scanned > 0 && fop_data == NULL))
+ 				break;
+ 		}
+ 		++scanned;
+@@ -514,10 +514,10 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,
+ 		if (sum == NULL || !sum->asr_dirty)
+ 			continue;
+ 		++stats_nr;
+-		if (fop == NULL) {
+-			M0_ALLOC_PTR(fop);
+-			if (fop != NULL)
+-				M0_ALLOC_ARR(fop->suf_stats.sf_stats,
++		if (fop_data == NULL) {
++			M0_ALLOC_PTR(fop_data);
++			if (fop_data != NULL)
++				M0_ALLOC_ARR(fop_data->suf_stats.sf_stats,
+ 					     stats_batch);
+ 		}
+ 		if (M0_FI_ENABLED("mem_err")) {
+@@ -526,14 +526,14 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,
+ 		}
+ 		data = m0_alloc(SUM_SIZE(sum));
+ err1_injected:
+-		if (fop == NULL || fop->suf_stats.sf_stats == NULL ||
++		if (fop_data == NULL || fop_data->suf_stats.sf_stats == NULL ||
+ 		    data == NULL) {
+ 			result = -ENOMEM;
+-			addb_mon_fop_free(fop, stats_nr);
+-			fop = NULL;
++			addb_mon_fop_free(fop_data, stats_nr);
++			fop_data = NULL;
+ 			break;
+ 		}
+-		rec = &fop->suf_stats.sf_stats[used++];
++		rec = &fop_data->suf_stats.sf_stats[used++];
+ 		rec->ss_id = sum->asr_rec.ss_id;
+ 		rec->ss_data.au64s_nr = sum->asr_rec.ss_data.au64s_nr;
+ 		rec->ss_data.au64s_data = data;
+@@ -551,21 +551,21 @@ err1_injected:
+ 					   cv, rec);
+ 		m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 		if (used == stats_batch) {
+-			fop->suf_stats.sf_nr = stats_batch;
++			fop_data->suf_stats.sf_nr = stats_batch;
+ 			result =
+-			addb_monitor_stats_fop_send(fop,
++			addb_monitor_stats_fop_send(fop_data,
+ 					            mon_ctx->amc_stats_conn);
+ 			if (result != 0)
+ 				goto out;
+ 			used     = 0;
+-			fop      = NULL;
++			fop_data = NULL;
+ 			stats_nr = 0;
+ 			++sent;
+ 		}
+ 	}
+-	if (fop != NULL) {
+-		fop->suf_stats.sf_nr = stats_nr;
+-		result = addb_monitor_stats_fop_send(fop,
++	if (fop_data != NULL) {
++		fop_data->suf_stats.sf_nr = stats_nr;
++		result = addb_monitor_stats_fop_send(fop_data,
+ 					             mon_ctx->amc_stats_conn);
+ 		if (result != 0)
+ 			goto out;
+-- 
+1.8.3.2
+

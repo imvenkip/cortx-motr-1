@@ -1,0 +1,140 @@
+From 40f1cc99f60d29a4149a9d082c8c8ab757aeff8c Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 20 Jun 2013 23:44:37 +0300
+Subject: [PATCH 193/290] be: Added seg-write test m0_be_seg_write_simple().
+
+    Warning: mem and resource leaks.
+    write currently can be tested with the following command:
+
+$ hexdump -C ut-sandbox/__seg_ut_stob/o/0000000000000000.000000000000002a
+00000000  41 42 43 44 45 46 47 48  49 4a 4b 4c 4d 4e 4f 50  |ABCDEFGHIJKLMNOP|
+00000010  51 52 53 54 55 56 57 58  00 00 00 00 00 00 00 00  |QRSTUVWX........|
+00000020  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
+
+    ut-sandbox has to kept for this.
+---
+ be/be.c     | 10 ++++++++++
+ be/seg.c    | 15 ++++++++-------
+ be/ut/seg.c | 32 ++++++++++++++++++++++++++++----
+ 3 files changed, 46 insertions(+), 11 deletions(-)
+
+diff --git a/be/be.c b/be/be.c
+index 7b52825..3a2bf17 100644
+--- a/be/be.c
++++ b/be/be.c
+@@ -134,6 +134,16 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
+ 	return M0_FSO_WAIT;
+ }
+ 
++M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op)
++{
++        m0_sm_group_lock(op->bo_sm.sm_grp);
++        m0_sm_timedwait(&op->bo_sm, M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
++			M0_TIME_NEVER);
++        m0_sm_group_unlock(op->bo_sm.sm_grp);
++
++        return op->bo_sm.sm_rc;
++}
++
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end of be group */
+ 
+diff --git a/be/seg.c b/be/seg.c
+index 1795f90..6b812be 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -315,7 +315,7 @@ static void iovec_prepare(struct m0_be_seg *seg, struct m0_be_reg_d *area,
+ 		bv->ov_buf[i]	      = area[i].rd_buf;
+ 
+ 		iv->iv_vec.v_count[i] = area[i].rd_reg.br_size;
+-		iv->iv_index[i]       = be_seg_blkno(seg, area[i].rd_buf);
++		iv->iv_index[i]       = be_seg_blkno(seg, area[i].rd_reg.br_addr);
+ 	}
+ }
+ 
+@@ -325,12 +325,15 @@ static bool be_seg_stobio_cb(struct m0_clink *link)
+ 					     bo_u.u_segio.si_clink);
+ 	struct m0_stob_io *io = &op->bo_u.u_segio.si_stobio;
+ 
+-	m0_clink_del_lock(link);
+-	m0_clink_fini(link);
+-	m0_stob_io_fini(io);
++/* XXX: This probably should be deleted, but most likely in m0_be_op_fini() or
++   ->sd_in() of M0_BOS_SUCCESS | M0_BOS_FAILURE states...
++ */
++/*        m0_clink_del_lock(link); */
++/*        m0_clink_fini(link); */
++/*        m0_stob_io_fini(io); */
+ 
+ 	op->bo_sm.sm_rc = io->si_rc;
+-	m0_be_op_state_set(op, io->si_rc == 0 ? M0_BOS_ACTIVE : M0_BOS_FAILURE);
++	m0_be_op_state_set(op, io->si_rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ 
+ 	return io->si_rc == 0;
+ }
+@@ -344,8 +347,6 @@ M0_INTERNAL void m0_be_seg_write_simple(struct m0_be_seg *seg,
+ 	struct m0_clink   *clink = &op->bo_u.u_segio.si_clink;
+ 	int                rc;
+ 
+-	M0_PRE(m0_be__seg_invariant(seg) && op != NULL);
+-
+ 	/* Set up op, clink and io structs for SEGIO write. */
+ 	op->bo_utype = M0_BOP_SEGIO;
+ 	m0_clink_init(clink, &be_seg_stobio_cb);
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index e14d41d..cdb0909 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -18,9 +18,10 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#include "be/seg.h"
+-#include "be/ut/helper.h"
+-#include "ut/ut.h"
++#include "be/seg.h"		/* m0_be_seg */
++#include "ut/ut.h"		/* M0_UT_ASSERT */
++#include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
++#include "lib/misc.h"		/* M0_BITS */
+ 
+ static struct m0_be_ut_seg_helper g_helper;
+ 
+@@ -34,11 +35,34 @@ M0_INTERNAL void m0_be_ut_seg_init_fini(void)
+ 	m0_be_ut_seg_storage_fini();
+ }
+ 
++static void seg_write(struct m0_be_seg *seg)
++{
++	char buf[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
++	struct m0_be_reg_d area[] = {
++		{ .rd_reg = { .br_size = 8, .br_addr = seg->bs_addr },
++		  .rd_buf = &buf[0]  },
++		{ .rd_reg = { .br_size = 8, .br_addr = seg->bs_addr + 8 },
++		  .rd_buf = &buf[8]  },
++		{ .rd_reg = { .br_size = 8, .br_addr = seg->bs_addr + 16 },
++		  .rd_buf = &buf[16] },
++	};
++	struct m0_be_op op;
++
++	m0_be_op_init(&op);
++
++	m0_be_seg_write_simple(seg, &op, area, ARRAY_SIZE(area));
++	m0_be_op_wait(&op);
++	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
++
++	m0_be_op_fini(&op);
++}
++
+ M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
+ {
+-	struct m0_be_seg seg;
++	struct m0_be_seg   seg;
+ 
+ 	m0_be_ut_seg_create(&g_helper, &seg);
++	seg_write(&seg);
+ 	m0_be_ut_seg_destroy(&g_helper, &seg);
+ }
+ 
+-- 
+1.8.3.2
+

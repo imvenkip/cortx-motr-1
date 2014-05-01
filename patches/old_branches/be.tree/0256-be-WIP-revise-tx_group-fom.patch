@@ -1,0 +1,544 @@
+From 53583295ca702efa1334605d159a08576bc80851 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 2 Jul 2013 01:58:28 +0300
+Subject: [PATCH 256/290] be: [WIP] revise tx_group fom
+
+Complete overhaul of tx_group state machine.
+
+Acked-by: Nikita Danilov
+
++ Move m0_fom_wakeup() call from tx_engine_got_closed() to tx_group_close().
++ Rename m0_tx_processing_start() to m0_be_tx_engine_start().
++ Delete m0_tx_processing_stop() -- a noop.
+---
+ be/tx.c       |   8 +-
+ be/tx_fom.c   | 310 +++++++++++++++++++++++++++++-----------------------------
+ be/tx_fom.h   |   9 +-
+ be/tx_group.c |   6 +-
+ be/tx_group.h |   1 -
+ be/ut/tx.c    |   4 +-
+ 6 files changed, 168 insertions(+), 170 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index ced1eb1..f937043 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -499,16 +499,14 @@ tx_engine_got_closed(struct m0_be_tx_engine *eng, struct m0_be_tx *tx)
+ 		else
+ 			tx_group_add(eng, gr, tx);
+ 	}
+-	/* XXX ANSWERME: What do we do if the group is closed? --vvv */
++	/* Note, that we do nothing when the group is closed. */
+ #else /* XXX: close group after every tx close, for now */
++	M0_PRE(tx_state(tx) == M0_BTS_CLOSED);
++
+ 	tx_group_init(gr);
+ 	tx_group_add(eng, gr, tx);
+ 	tx_group_close(eng, gr);
+ 
+-	M0_LOG(M0_DEBUG, "Posting \"wake up\" AST to engine->te_fom's"
+-	       " sm_group");
+-	m0_fom_wakeup(eng->te_fom);
+-
+ 	M0_POST(m0_be__tx_engine_invariant(eng));
+ #endif
+ }
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 8c73e06..0b2c2b8 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -14,7 +14,8 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>,
++ *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+  * Original creation date: 17-Jun-2013
+  */
+ 
+@@ -39,145 +40,149 @@
+  * State definitions
+  * ------------------------------------------------------------------ */
+ 
+-static int  group_closed_st_in(struct m0_sm *mach);
+-static void group_closed_st_ex(struct m0_sm *mach);
+-static bool group_closed_st_invariant(const struct m0_sm *mach);
+-static struct tx_fom *fom_to_txm(const struct m0_fom *fom);
+-
+-enum tx_fom_states {
+-	FS_STARTED,
+-	FS_FINISHED,
+-	FS_GROUP_CLOSED,
+-	FS_SUBMITTED_TO_LOG,
+-	FS_PAYLOAD_LOGGED,
+-	FS_GROUP_HEADER_LOGGED,
+-	FS_LOG_HEADER_LOGGED, /* XXX s/LOG_HEADER/COMMIT_BLOCK/ ? */
+-	FS_LOGGED,
+-	FS_SUBMITTED_TO_SEG,
+-	FS_PLACED,
+-	FS_STABLE,
+-	FS_FAILED
+-};
+-
+-struct tx_fom {
+-	struct m0_fom           tf_gen;
+-	struct m0_be_tx_engine *tf_engine;
+-	struct m0_be_op         tf_op;
++/**
++ * Phases of tx_group fom.
++ *
++ * @verbatim
++ *                 INIT
++ *                  |
++ *                  v [0]          [0] Send "Add itself to a tx_group" AST
++ *   ,------------ OPEN <------.       to all M0_BTS_CLOSED transactions
++ *   |              |          |       of the tx_engine.
++ *   |              | [1]      |   [1] Gets awoken by tx_group_close().
++ *   |              |          |
++ *   |              v [2]      |   [2] Initiate 1st log IO (tx_group and,
++ *   |            LOGGING      |       when the log is wrapped, log header).
++ *   |              | [3]      |   [3] 1st log IO completes.
++ *   |              |          |
++ *   |              v [4]      |   [4] Initiate 2nd log IO (commit block).
++ *   |           COMMITTING    |
++ *   |              | [5]      |   [5] 2nd log IO completes.
++ *   |              |          |
++ *   |              v [6]      |   [6] Initiate in-place IO.
++ *   |            PLACING      |
++ *   |              | [7]      |   [7] In-place IO completes.
++ *   |              |          |
++ *   |              v    [8]   |   [8] Gets awoken by m0_be_tx_stable().
++ *   |      ,---- PLACED ---.  |       The tx_group contains transactions
++ *   |      |       | ^     |  |       that are not M0_BTS_STABLE.
++ *   |      |   [9] | |     |  |   [9] Gets awoken by m0_be_tx_stable().
++ *   |      |       | `-----'  |       All transactions of the tx_group
++ *   |      |       v          |       are M0_BTS_STABLE.
++ *   |      |     STABLE ------'
++ *   |      |
++ *   | [10] |                     [10] XXX TODO: m0_backend_fini()?
++ *   |      |
++ *   `------`---> FINISH
++ *
++ * [0], [2], [4] and [6]   -- m0_sm_state_descr::sd_in();
++ * [1], [3], [5], [7]-[10] -- external events.
++ * @endverbatim
++ *
++ * Note the absence of "FAILED" state --- a tx_group is not allowed to fail.
++ */
++enum tx_group_state {
++	TGS_INIT   = M0_FOM_PHASE_INIT,
++	TGS_FINISH = M0_FOM_PHASE_FINISH,
++	/**
++	 * tx_group gets populated with transactions, that are added with
++	 * tx_group_add().
++	 */
++	TGS_OPEN   = M0_FOM_PHASE_NR,
++	/**
++	 * The first log stobio is in progress.
++	 *
++	 * Log representation of the tx_group is being written to the log.
++	 * If the log is wrapping around (i.e., when a record is known to
++	 * reach the end of the log), then this stobio will also include
++	 * log header.
++	 */
++	TGS_LOGGING,
++	/**
++	 * The second log stobio is in progress.
++	 *
++	 * Commit block is being written to the log.
++	 */
++	TGS_COMMITTING,
++	/** In-place (segment) stobio is in progress. */
++	TGS_PLACING,
++	TGS_PLACED,
++	/**
++	 * m0_be_tx_stable() has been called for all transactions of the
++	 * tx_group.
++	 */
++	TGS_STABLE,
++	TGS_NR
+ };
+ 
+-static struct m0_sm_state_descr tx_fom_states[] = {
+-#define _S(name, flags, allowed)       \
+-	[name] = {                     \
+-		.sd_flags   = (flags), \
+-		.sd_name    = #name,   \
+-		.sd_allowed = allowed  \
++static int       open_st_in(struct m0_sm *mach);
++static int    logging_st_in(struct m0_sm *mach);
++static int committing_st_in(struct m0_sm *mach);
++static int    placing_st_in(struct m0_sm *mach);
++
++static struct m0_sm_state_descr _tx_group_states[TGS_NR] = {
++#define _S(name, flags, in, allowed)  \
++	[name] = {                    \
++		.sd_flags   = flags,  \
++		.sd_name    = #name,  \
++		.sd_in      = in,     \
++		.sd_allowed = allowed \
+ 	}
+ 
+-	_S(FS_STARTED,  M0_SDF_INITIAL,  M0_BITS(FS_GROUP_CLOSED)),
+-	_S(FS_FINISHED, M0_SDF_TERMINAL, 0),
+-
+-	[FS_GROUP_CLOSED] = {
+-		.sd_name      = "FS_GROUP_CLOSED",
+-		.sd_in        = group_closed_st_in,
+-		.sd_ex        = group_closed_st_ex,
+-		.sd_invariant = group_closed_st_invariant,
+-		.sd_allowed   = M0_BITS(FS_SUBMITTED_TO_LOG)
+-	},
+-
+-	_S(FS_SUBMITTED_TO_LOG,    0, M0_BITS(FS_PAYLOAD_LOGGED)),
+-	_S(FS_PAYLOAD_LOGGED,      0, M0_BITS(FS_GROUP_HEADER_LOGGED)),
+-	_S(FS_GROUP_HEADER_LOGGED, 0, M0_BITS(FS_LOG_HEADER_LOGGED)),
+-	_S(FS_LOG_HEADER_LOGGED,   0, M0_BITS(FS_LOGGED)),
+-	_S(FS_LOGGED,              0, M0_BITS(FS_SUBMITTED_TO_SEG)),
+-	_S(FS_SUBMITTED_TO_SEG,    0, M0_BITS(FS_PLACED)),
+-	_S(FS_PLACED,              0, M0_BITS(FS_STABLE)),
+-	_S(FS_STABLE, M0_SDF_FINAL, M0_BITS(FS_FINISHED) | M0_BITS(FS_STARTED)),
+-	_S(FS_FAILED, M0_SDF_FAILURE, 0)
++	_S(TGS_INIT,   M0_SDF_INITIAL,  NULL, M0_BITS(TGS_OPEN)),
++	_S(TGS_FINISH, M0_SDF_TERMINAL, NULL, 0),
++	_S(TGS_OPEN,    0, open_st_in,    M0_BITS(TGS_LOGGING, TGS_FINISH)),
++	_S(TGS_LOGGING, 0, logging_st_in, M0_BITS(TGS_COMMITTING)),
++	_S(TGS_COMMITTING, 0, committing_st_in, M0_BITS(TGS_PLACING)),
++	_S(TGS_PLACING, 0, placing_st_in, M0_BITS(TGS_PLACED)),
++	_S(TGS_PLACED,  0, NULL, M0_BITS(TGS_PLACED, TGS_STABLE, TGS_FINISH)),
++	_S(TGS_STABLE,  0, NULL, M0_BITS(TGS_OPEN))
+ #undef _S
+ };
+ 
+-static struct m0_sm_conf tx_fom_conf = {
+-	.scf_name      = "tx_fom states",
+-	.scf_nr_states = ARRAY_SIZE(tx_fom_states),
+-	.scf_state     = tx_fom_states
++static const struct m0_sm_conf _tx_group_conf = {
++	.scf_name      = "phases of tx_group",
++	.scf_nr_states = ARRAY_SIZE(_tx_group_states),
++	.scf_state     = _tx_group_states
+ };
+ 
+ /* ------------------------------------------------------------------
+- * TX FOM operations
++ * FOM operations
+  * ------------------------------------------------------------------ */
+ 
+-/*
+- * XXX RENAMEME: Proper name of this function is tx_group_fom_tick() or
+- * tx_group_tick().
+- */
+-static int tx_fom_tick(struct m0_fom *fom)
++struct tx_group_fom {
++	struct m0_fom           tgf_gen;
++	struct m0_be_tx_engine *tgf_engine;
++	struct m0_be_op         tgf_op;
++};
++
++static int tx_group_tick(struct m0_fom *fom)
+ {
+-	struct m0_be_tx *tx = m0_fom_phase(fom) > FS_STARTED ?
+-		gr_tlist_head(&fom_to_txm(fom)->tf_engine->te_group.tg_tx) :
+-		NULL;
+-
+-	M0_LOG(M0_DEBUG, "phase=%u", m0_fom_phase(fom));
+-
+-	switch (m0_fom_phase(fom)) {
+-	case FS_STARTED:
+-		m0_fom_phase_set(fom, FS_GROUP_CLOSED);
+-		return M0_FSO_WAIT;
+-
+-	case FS_GROUP_CLOSED:
+-	case FS_SUBMITTED_TO_LOG:
+-	case FS_PAYLOAD_LOGGED:
+-	case FS_GROUP_HEADER_LOGGED:
+-		break;
+-
+-	case FS_LOG_HEADER_LOGGED:
+-		m0_be__tx_state_post(tx, M0_BTS_SUBMITTED);
+-		break;
+-
+-	case FS_LOGGED:
+-		m0_be__tx_state_post(tx, M0_BTS_LOGGED);
+-		break;
+-
+-	case FS_SUBMITTED_TO_SEG:
+-		{
+-			struct tx_fom         *f = fom_to_txm(fom);
+-			struct m0_be_reg_area *area = &tx->t_reg_area;
+-			struct m0_be_seg      *seg;
+-			struct m0_be_op       *op = &f->tf_op;
+-			size_t                 size;
+-
+-			size = m0_be_regmap_size(&area->bra_map);
+-			M0_ASSERT(size > 0);
+-
+-			seg = m0_be_regmap_first(&area->bra_map)->rd_reg.br_seg;
+-			m0_be_op_init(op);
+-			m0_be_seg_write_simple(seg, op, area);
+-
+-			return m0_be_op_tick_ret(op, fom, FS_PLACED);
+-		}
+-	case FS_PLACED:
+-		M0_ASSERT(m0_be_op_state(&fom_to_txm(fom)->tf_op) ==
+-			  M0_BOS_SUCCESS);
+-		m0_be_op_fini(&fom_to_txm(fom)->tf_op);
+-		m0_be__tx_state_post(tx, M0_BTS_PLACED);
+-		m0_fom_phase_set(fom, FS_STABLE);
+-		return M0_FSO_AGAIN;
+-
+-	case FS_STABLE:
+-		m0_be__tx_state_post(tx, M0_BTS_STABLE);
+-		gr_tlist_del(tx);
+-		tx_tlist_del(tx);
+-
+-		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+-		return M0_FSO_WAIT;
+-
+-	case FS_FINISHED:
+-	case FS_FAILED:
+-	default:
+-		M0_IMPOSSIBLE("XXX Just for now it's not possible...");
+-	}
++	static const enum tx_group_state next_state[TGS_NR] = {
++		[TGS_INIT]       = TGS_OPEN,
++		[TGS_FINISH]     = -1,
++		[TGS_OPEN]       = TGS_LOGGING,
++		[TGS_LOGGING]    = TGS_COMMITTING,
++		[TGS_COMMITTING] = TGS_PLACING,
++		[TGS_PLACING]    = TGS_PLACED,
++		[TGS_PLACED]     = TGS_STABLE, /* is conditioned */
++		[TGS_STABLE]     = TGS_OPEN
++	};
++	const int state = m0_fom_phase(fom);
++
++	M0_ENTRY("state=%u", state);
++	M0_PRE(IS_IN_ARRAY(state, next_state));
++
++	if (state == TGS_FINISH)
++		M0_IMPOSSIBLE("XXX Not implemented");
++	else if (state == TGS_PLACED &&
++	    !(XXX all transactions of this tx_group are M0_BTS_STABLE))
++		; /* Stay in TGS_PLACED state. */
++	else
++		m0_fom_phase_set(fom, next_state[state]);
+ 
+-	m0_fom_phase_set(fom, m0_fom_phase(fom) + 1);
+-	return M0_FSO_AGAIN;
++	M0_LEAVE();
++	return M0_FSO_WAIT;
+ }
+ 
+ static void tx_fom_fini(struct m0_fom *fom)
+@@ -187,61 +192,62 @@ static void tx_fom_fini(struct m0_fom *fom)
+ 	M0_LEAVE();
+ }
+ 
+-static size_t tx_fom_home_locality(const struct m0_fom *fom)
++static size_t tx_group_locality(const struct m0_fom *fom)
+ {
+ 	return 0; /* XXX TODO: reconsider */
+ }
+ 
+-static void tx_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
++static void
++tx_group_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc M0_UNUSED)
+ {
+ 	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
+ }
+ 
+ static const struct m0_fom_ops tx_fom_ops = {
+-	.fo_fini          = tx_fom_fini,
+-	.fo_tick          = tx_fom_tick,
+-	.fo_home_locality = tx_fom_home_locality,
+-	.fo_addb_init     = tx_fom_addb_init
++	.fo_fini          = tx_group_fom_fini,
++	.fo_tick          = tx_group_tick,
++	.fo_home_locality = tx_group_locality,
++	.fo_addb_init     = tx_group_addb_init
+ };
+ 
+-static struct m0_fom_type tx_fom_type;
++static struct m0_fom_type tx_group_fom_type;
+ 
+-static const struct m0_fom_type_ops tx_fom_type_ops = {
++static const struct m0_fom_type_ops tx_group_fom_type_ops = {
+ 	.fto_create = NULL
+ };
+ 
+ static struct m0_fom *
+-tx_fom_create(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
++tx_group_fom_create(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
+ {
+-	struct tx_fom *txm;
++	struct tx_group_fom *txm;
+ 	struct m0_fom *fom;
+ 
+ 	M0_ALLOC_PTR(txm);
+ 	if (txm == NULL)
+ 		return NULL;
+ 
+-	fom = &txm->tf_gen;
+-	m0_fom_init(fom, &tx_fom_type, &tx_fom_ops, NULL, NULL, reqh,
+-		    &m0_be_txs_stype);
++	fom = &txm->tgf_gen;
++	m0_fom_init(fom, &tx_group_fom_type, &tx_group_fom_ops, NULL, NULL,
++		    reqh, &m0_be_txs_stype);
+ 
+ 	engine->te_fom = fom;
+-	txm->tf_engine = engine;
++	txm->tgf_engine = engine;
+ 
+ 	return fom;
+ }
+ 
+ M0_INTERNAL int
+-m0_tx_processing_start(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
++m0_be_tx_engine_start(struct m0_be_tx_engine *engine, struct m0_reqh *reqh)
+ {
+ 	struct m0_fom *fom;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
+ 
+-	m0_fom_type_init(&tx_fom_type, &tx_fom_type_ops, &m0_be_txs_stype,
+-			 &tx_fom_conf);
++	m0_fom_type_init(&tx_group_fom_type, &tx_group_fom_type_ops,
++			 &m0_be_txs_stype, &_tx_group_conf);
+ 
+-	fom = tx_fom_create(reqh, engine);
++	fom = tx_group_fom_create(reqh, engine);
+ 	if (fom == NULL)
+ 		M0_RETURN(-ENOMEM);
+ 
+@@ -249,26 +255,20 @@ m0_tx_processing_start(struct m0_reqh *reqh, struct m0_be_tx_engine *engine)
+ 	M0_RETURN(0);
+ }
+ 
+-M0_INTERNAL void m0_tx_processing_stop(void)
+-{
+-	M0_ENTRY();
+-	M0_LEAVE();
+-}
+-
+ /* ------------------------------------------------------------------
+  * Casts
+  * ------------------------------------------------------------------ */
+ 
+ static const struct m0_fom *sm_to_fom(const struct m0_sm *sm)
+ {
+-	/* XXX TODO: Use bob_of(). */
++	/* XXX TODO bob_of() */
+ 	return container_of(sm, const struct m0_fom, fo_sm_phase);
+ }
+ 
+-static struct tx_fom *fom_to_txm(const struct m0_fom *fom)
++static struct tx_group_fom *tx_group_fom(const struct m0_fom *fom)
+ {
+-	/* XXX TODO: Use bob_of(). */
+-	return container_of(fom, struct tx_fom, tf_gen);
++	/* XXX TODO bob_of() */
++	return container_of(fom, struct tx_group_fom, tgf_gen);
+ }
+ 
+ /* ------------------------------------------------------------------
+@@ -289,7 +289,7 @@ static void group_closed_st_ex(struct m0_sm *mach)
+ static bool group_closed_st_invariant(const struct m0_sm *mach)
+ {
+ 	/* XXX DELETEME */
+-	return fom_to_txm(sm_to_fom(mach))->tf_engine->te_fom ==
++	return tx_group_fom(sm_to_fom(mach))->tf_engine->te_fom ==
+ 		sm_to_fom(mach);
+ }
+ 
+diff --git a/be/tx_fom.h b/be/tx_fom.h
+index 451aa52..d5d3a22 100644
+--- a/be/tx_fom.h
++++ b/be/tx_fom.h
+@@ -14,7 +14,8 @@
+  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+  * http://www.xyratex.com/contact
+  *
+- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>,
++ *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+  * Original creation date: 17-Jun-2013
+  */
+ 
+@@ -30,10 +31,8 @@ struct m0_be_tx_engine;
+  * @{
+  */
+ 
+-M0_INTERNAL int m0_tx_processing_start(struct m0_reqh *reqh,
+-				       struct m0_be_tx_engine *engine);
+-
+-M0_INTERNAL void m0_tx_processing_stop(void);
++M0_INTERNAL int m0_be_tx_engine_start(struct m0_be_tx_engine *engine,
++				      struct m0_reqh *reqh);
+ 
+ /** @} end of be group */
+ #endif /* __MERO_BE_TX_FOM_H__ */
+diff --git a/be/tx_group.c b/be/tx_group.c
+index 0ab2ece..04c051e 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -40,9 +40,9 @@ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr)
+ 	M0_SET0(gr);
+ #else /*XXX*/
+ 	gr->tg_lsn = 0ULL;
+-	gr->tg_opened = true;
+ 	m0_be_tx_credit_init(&gr->tg_used);
+ 	gr_tlist_init(&gr->tg_tx);
++	gr->tg_opened = true;
+ #endif
+ }
+ 
+@@ -124,6 +124,10 @@ tx_group_close(struct m0_be_tx_engine *eng, struct m0_be_tx_group *gr)
+ 	/* XXX TODO ... */
+ 
+ 	gr->tg_opened = false;
++
++	M0_LOG(M0_DEBUG, "Posting \"wake up\" AST to engine->te_fom's"
++	       " sm_group");
++	m0_fom_wakeup(eng->te_fom);
+ }
+ 
+ /** @} end of be group */
+diff --git a/be/tx_group.h b/be/tx_group.h
+index 7ffaabe..be2c886 100644
+--- a/be/tx_group.h
++++ b/be/tx_group.h
+@@ -56,7 +56,6 @@ struct m0_be_tx;
+  * by m0_stob, or by placing in the commit block a strong checksum of group
+  * representation (the latter approach allows to check whether the entire group
+  * made it to the log).
+- *
+  */
+ struct m0_be_tx_group {
+ 	/** lsn of transaction group header in the log. */
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index e2e637c..0023406 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -114,15 +114,13 @@ static void test_tx_svc(void)
+ 	reqh = m0_mero_to_rmach(&tx_svc.rsx_mero_ctx)->rm_reqh;
+ 	M0_UT_ASSERT(reqh != NULL);
+ 
+-	rc = m0_tx_processing_start(reqh, &be.b_tx);
++	rc = m0_be_tx_engine_start(&be.b_tx, reqh);
+ 	M0_UT_ASSERT(rc == 0);
+ 	sleep(2); /* give reqh some time to start */
+ 
+ 	tx_test(&be);
+ 
+-	m0_tx_processing_stop();
+ 	m0_rpc_server_stop(&tx_svc);
+-
+ 	M0_LEAVE();
+ }
+ 
+-- 
+1.8.3.2
+

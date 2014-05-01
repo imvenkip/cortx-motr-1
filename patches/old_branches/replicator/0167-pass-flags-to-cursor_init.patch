@@ -1,0 +1,72 @@
+From f6e9bfd8937eee6f859ad7952b55857c4c19cc66 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Sat, 23 Jul 2011 14:53:48 +0400
+Subject: [PATCH 167/177] - pass flags to cursor_init.
+
+---
+ db/db.c | 16 +++++++++++-----
+ db/db.h |  2 ++
+ 2 files changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/db/db.c b/db/db.c
+index 865227a..a003a16 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -224,8 +224,8 @@ static int dbenv_tol_set_lk_max_lockers[] = { 0 };
+ static int dbenv_tol_set_lk_max_locks[] = { 0 };
+ 
+ #define C2_DBENV_MAX_LOCKS      30000
+-#define C2_DBENV_MAX_OBJECTS    30000
+ #define C2_DBENV_MAX_LOCKERS    30000
++#define C2_DBENV_MAX_OBJECTS    30000
+ 
+ static void *never(void *ptr, size_t size)
+ {
+@@ -488,7 +488,7 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
+ 	DB_TXN *txn;
+ 
+ 	c2_db_common_tx_init(tx, env);
+-	if (flags == 0)
++        if (flags == 0)
+ 		flags = 0/*DB_READ_UNCOMMITTED*/|DB_TXN_NOSYNC;
+ 
+ 	result = DBENV_CALL(env, txn_begin, NULL, &tx->dt_i.dt_txn, flags);
+@@ -680,13 +680,19 @@ int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
+ 					  pair_key(pair), 0));
+ }
+ 
+-int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
+-		      struct c2_db_tx *tx)
++int c2_db_cursor_init_flags(struct c2_db_cursor *cursor, struct c2_table *table,
++		            struct c2_db_tx *tx, uint32_t flags)
+ {
+ 	cursor->c_table = table;
+ 	cursor->c_tx    = tx;
+ 	return TABLE_CALL(table, cursor, tx->dt_i.dt_txn,
+-			  &cursor->c_i.c_dbc, 0);
++			  &cursor->c_i.c_dbc, flags);
++}
++
++int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
++		      struct c2_db_tx *tx)
++{
++        return c2_db_cursor_init_flags(cursor, table, tx, 0);
+ }
+ 
+ static int cursor_tol_close[] = { 0 };
+diff --git a/db/db.h b/db/db.h
+index 7f9d217..3ea3460 100644
+--- a/db/db.h
++++ b/db/db.h
+@@ -380,6 +380,8 @@ struct c2_db_cursor {
+  */
+ int  c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
+ 		       struct c2_db_tx *tx);
++int c2_db_cursor_init_flags(struct c2_db_cursor *cursor, struct c2_table *table,
++		            struct c2_db_tx *tx, uint32_t flags);
+ 
+ /**
+    Release the resources associated with the cursor.
+-- 
+1.8.3.2
+

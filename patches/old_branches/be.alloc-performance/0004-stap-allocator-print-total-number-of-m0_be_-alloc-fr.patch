@@ -1,0 +1,44 @@
+From a8d7de67c9ad329c1b1267bb89ee6f8b8406b5ed Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Mon, 9 Dec 2013 17:13:36 +0200
+Subject: [PATCH 4/7] stap-allocator: print total number of
+ m0_be_{alloc,free}() calls
+
+---
+ scripts/systemtap/be-allocator-size-backtrace.stp | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/scripts/systemtap/be-allocator-size-backtrace.stp b/scripts/systemtap/be-allocator-size-backtrace.stp
+index a342ab8..58faab1 100644
+--- a/scripts/systemtap/be-allocator-size-backtrace.stp
++++ b/scripts/systemtap/be-allocator-size-backtrace.stp
+@@ -1,10 +1,18 @@
+ #!/usr/bin/env stap
+ 
+ global alloc_size_bt
++global alloc_hits
++global free_hits
+ 
+ probe m0_be_alloc
+ {
+ 	++alloc_size_bt[size, m0_bt()]
++	++alloc_hits
++}
++
++probe m0_be_free
++{
++	++free_hits
+ }
+ 
+ probe begin
+@@ -18,5 +26,7 @@ probe end
+ 		printf("size = %d, hits = %d, backtrace: \n%s",
+ 		       size, alloc_size_bt[size, bt], bt);
+ 	}
++	printf("m0_be_alloc() total hits = %d\n", alloc_hits)
++	printf("m0_be_free() total hits = %d\n", free_hits)
+ 	printf("end\n");
+ }
+-- 
+1.8.3.2
+

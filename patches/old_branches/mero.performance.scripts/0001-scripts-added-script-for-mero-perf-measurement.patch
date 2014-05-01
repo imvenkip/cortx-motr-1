@@ -1,0 +1,158 @@
+From 3026107ccbebece051c83471e108777caef5e619 Mon Sep 17 00:00:00 2001
+From: Dmytro Podgornyi <dmytro_podgornyi@xyratex.com>
+Date: Wed, 11 Dec 2013 03:20:31 -0800
+Subject: [PATCH] scripts: added script for mero perf measurement
+
+Measures mero performance with single mount point using dd
+---
+ scripts/mero_perf_test_single.sh | 138 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 138 insertions(+)
+ create mode 100755 scripts/mero_perf_test_single.sh
+
+diff --git a/scripts/mero_perf_test_single.sh b/scripts/mero_perf_test_single.sh
+new file mode 100755
+index 0000000..48f0d47
+--- /dev/null
++++ b/scripts/mero_perf_test_single.sh
+@@ -0,0 +1,138 @@
++#!/bin/bash
++
++#
++# Usage: sudo ./scripts/mero_perf_test_single.sh [COMMIT]
++# Results are stored at /var/mero/perf-test in separated directories
++#
++
++NAME="perf-test"
++MERO_DIR="/var/mero"
++TMP_DIR="$MERO_DIR/$NAME"
++# path to mero git repo (must be local path)
++REPO_PATH="/mnt/sandbox/dpodgornyi/mero"
++M0MOUNT_PATH="$REPO_PATH/scripts/m0mount.sh"
++M0MOUNT_FIFO="$TMP_DIR/m0mount.fifo"
++M0MOUNT_DIR="/mnt/m0"
++
++# build parameters
++CONFIGURE_ARGS="--enable-release"
++MAKE_ARGS="-j9"
++# mount parameters
++M0MOUNT_ARGS="-a -u 4194304 -d 4 -k 1 -p 12"
++# dd parameters
++DD_NR=12
++DD_ARGS="bs=32M count=48"
++# timeout of the test
++TIMEOUT=600
++# default commit if argument isn't passed
++COMMIT="master"
++
++# local variables
++WORK_DIR=""
++SRC_PATH=""
++
++function usage()
++{
++	echo "$0 [COMMIT]"
++}
++
++function prepare_sources()
++{
++	C=$1
++	shift
++	DESCR=`git --git-dir="$REPO_PATH/.git" describe $C`
++	WORK_DIR="$TMP_DIR/$DESCR"
++	SRC_PATH="$WORK_DIR/src"
++	if [ -d "$WORK_DIR" ]; then
++		echo "=== Remove $WORK_DIR"
++		rm -r "$WORK_DIR"
++	fi
++	mkdir -p "$WORK_DIR"
++	echo "=== Clone $REPO_PATH to $SRC_PATH"
++#	XXX git clone doesn't work because of external repos
++#	git clone --recursive "$REPO_PATH" "$SRC_PATH"
++#	cp -r "$REPO_PATH/extra-libs" "$SRC_PATH/"
++	cp -r "$REPO_PATH" "$SRC_PATH"
++	echo "=== Checkout required branch"
++	cd "$SRC_PATH" && git checkout -f $C
++	echo "=== Copy additional files"
++	cp "$M0MOUNT_PATH" "$SRC_PATH/scripts/m0mount.sh"
++}
++
++function m0_mount()
++{
++	if [ -z "$SRC_PATH" -o ! -d "$SRC_PATH" ]; then
++		echo "ERROR: SRC_PATH is incorrect"
++		exit 1
++	fi
++	cd $SRC_PATH && \
++	cat $M0MOUNT_FIFO | ./scripts/m0mount.sh $M0MOUNT_ARGS &
++}
++
++if [ $# -gt 0 ]; then
++	COMMIT=$1
++	shift
++	if [ "$COMMIT" == "--help" -o "$COMMIT" == "-h" ]; then
++		usage
++		exit 0
++	fi
++fi
++
++mkdir -p $MERO_DIR
++mkdir -p $TMP_DIR
++
++prepare_sources $COMMIT
++
++if [ -z "$WORK_DIR" ]; then
++	echo "ERROR: WORK_DIR isn't set"
++	exit 1
++fi
++if [ -z "$SRC_PATH" ]; then
++	echo "ERROR: SRC_PATH isn't set"
++	exit 1
++fi
++
++echo "=== Build mero"
++cd "$SRC_PATH" && ./autogen.sh && ./configure $CONFIGURE_ARGS && make $MAKE_ARGS
++if [ $? != 0 ]; then
++	echo "ERROR: building failed"
++	exit 1
++fi
++sync
++
++if [ -a $M0MOUNT_FIFO ]; then
++	rm $M0MOUNT_FIFO
++fi
++echo "=== Create fifo $M0MOUNT_FIFO"
++mkfifo $M0MOUNT_FIFO
++
++echo "=== Mount m0t1fs"
++m0_mount
++# XXX sleep instead of waiting for m0mount.sh
++# XXX 30 seconds enough for now
++sleep 30
++# TODO if mero isn't mounted this script should exit
++mount | grep $M0MOUNT_DIR >/dev/null 2>&1 || echo "ERROR: m0t1fs isn't mounted"
++
++echo "=== Run dd processes"
++DD_PIDS=""
++for i in `seq 1 $DD_NR`; do
++	DD_LOG="$WORK_DIR/dd.$i.log"
++	timeout -s USR1 $TIMEOUT dd if=/dev/zero of="$M0MOUNT_DIR/$i" $DD_ARGS >"$DD_LOG" 2>&1 &
++	DD_PIDS="$DD_PIDS $!"
++done
++
++sleep $((TIMEOUT+120)) && killall dd &
++SLEEP_PID=$!
++
++echo "=== Wait for PIDs: $DD_PIDS"
++wait $DD_PIDS
++kill $SLEEP_PID
++
++# sync, unmount can crash
++sync
++
++echo "=== Unmount m0t1fs"
++echo quit > $M0MOUNT_FIFO
++
++wait
+-- 
+1.8.3.2
+

@@ -1,0 +1,38 @@
+From 9d83d0f5f4dabb226f3f3022dd88beb515924845 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Tue, 28 Jun 2011 08:59:17 -0600
+Subject: [PATCH 154/177] - added missed cond fini to nrs.
+
+---
+ nrs/nrs.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/nrs/nrs.c b/nrs/nrs.c
+index d96df46..d51528a 100644
+--- a/nrs/nrs.c
++++ b/nrs/nrs.c
+@@ -72,14 +72,16 @@ int c2_nrs_init(struct c2_nrs *nrs, struct c2_nrs_policy *pol,
+ 
+ void c2_nrs_fini(struct c2_nrs *nrs)
+ {
+-	c2_mutex_lock(&nrs->s_guard);
+-	nrs->s_shutdown = true;
+-        c2_cond_signal(&nrs->s_gotwork, &nrs->s_guard);
+-	c2_mutex_unlock(&nrs->s_guard);
+-
+         if (nrs->s_thread.t_func != NULL) {
++	        c2_mutex_lock(&nrs->s_guard);
++	        nrs->s_shutdown = true;
++                c2_cond_signal(&nrs->s_gotwork, &nrs->s_guard);
++	        c2_mutex_unlock(&nrs->s_guard);
++
+                 c2_thread_join(&nrs->s_thread);
+                 c2_thread_fini(&nrs->s_thread);
++	        c2_cond_fini(&nrs->s_gotwork);
++	        c2_cond_fini(&nrs->s_flush);
+         }
+ }
+ 
+-- 
+1.8.3.2
+

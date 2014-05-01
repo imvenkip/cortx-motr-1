@@ -1,0 +1,29 @@
+From c9fc9d2b5eb79c61587f1a20d9887c626a155d0e Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 27 Jul 2011 15:31:49 +0400
+Subject: [PATCH 168/177] - return default values for locks, objects, etc;
+
+---
+ db/db.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/db/db.c b/db/db.c
+index a003a16..de854b4 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -223,9 +223,9 @@ static int dbenv_tol_set_lk_max_objects[] = { 0 };
+ static int dbenv_tol_set_lk_max_lockers[] = { 0 };
+ static int dbenv_tol_set_lk_max_locks[] = { 0 };
+ 
+-#define C2_DBENV_MAX_LOCKS      30000
+-#define C2_DBENV_MAX_LOCKERS    30000
+-#define C2_DBENV_MAX_OBJECTS    30000
++#define C2_DBENV_MAX_LOCKS      1000
++#define C2_DBENV_MAX_LOCKERS    1000
++#define C2_DBENV_MAX_OBJECTS    1000
+ 
+ static void *never(void *ptr, size_t size)
+ {
+-- 
+1.8.3.2
+

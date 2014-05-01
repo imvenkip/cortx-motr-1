@@ -1,0 +1,201 @@
+From c656618e97ff44b6b802d34df0221b9e1f088d0d Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Fri, 31 May 2013 15:09:02 +0300
+Subject: [PATCH 080/228] be: start documenting tx.[ch].
+
+---
+ be/tx.c |   9 +++++
+ be/tx.h | 124 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 129 insertions(+), 4 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index b938a02..6a53163 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -66,6 +66,8 @@ static void        tx_engine_got_space (struct m0_be_tx_engine *eng);
+ static void        tx_engine_got_closed(struct m0_be_tx_engine *eng);
+ static void        tx_group_fini       (struct m0_be_tx_group *gr);
+ static void        tx_group_init       (struct m0_be_tx_group *gr);
++static void        tx_reg_ext          (const struct m0_be_reg_d *reg,
++					struct m0_ext *out);
+ static void        index_add           (void **tree, struct m0_be_tx_reg *old,
+ 					struct m0_be_tx_reg *new,
+ 					struct m0_be_credit *delta);
+@@ -476,6 +478,13 @@ static void credit_mod(struct m0_be_tx_credit *cr,
+ 	M0_ASSERT((int64_t)cr->rc_reg_size >= 0);
+ }
+ 
++static void tx_reg_ext(const struct m0_be_reg_d *reg, struct m0_ext *out)
++{
++	struct m0_be_reg *reg = &rd->rd_reg;
++	*out->e_start = reg->br_addr - reg->br_seg->bs_addr;
++	*out->e_end   = out->e_start + reg->br_size - 1;
++}
++
+ M0_INTERNAL bool
+ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ {
+diff --git a/be/tx.h b/be/tx.h
+index 1305904..3f9e97b 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -22,18 +22,137 @@
+ #ifndef __MERO_BE_TX_H__
+ #define __MERO_BE_TX_H__
+ 
++/* import */
+ #include "lib/rwlock.h"
+ #include "lib/tlist.h"
++#include "lib/types.h"
++#include "sm/sm.h"
++
++struct m0_stob;
++struct m0_be;
++
++/* export */
++struct m0_be_tx_engine;
++struct m0_be_tx_credit;
++struct m0_be_tx;
++
++/* internal */
++struct m0_be_reg_d; /* tx.c */
++struct m0_be_tx_group;
+ 
+ /**
+  * @defgroup be
+  *
+  * Transaction engine.
+  *
++ * Main abstractions provided by this module are:
++ *
++ *     - transaction m0_be_tx: is a group of updates to BE segment memory,
++ *       atomic w.r.t. BE failures. A transaction can update memory within
++ *       multiple segments in the same m0_be instance. A BE user creates a
++ *       transaction and then updates segment memory. After each update, the
++ *       updated memory is "captured" in the transaction by calling
++ *       m0_be_tx_capture();
++ *
++ *     - transaction credit m0_be_tx_credit: an object describing an update to
++ *       segment memory that a transaction could make. Before a memory update
++ *       can be captured in a transaction, the transaction should be "prepared"
++ *       (m0_be_tx_prep()) for all forthcoming captures. This preparation
++ *       reserves internal transaction resources (log space and memory) to avoid
++ *       dead-locks;
++ *
++ *     - transaction engine m0_be_tx_engine: is a part of BE instance (m0_be)
++ *       that contains all transaction related state.
++ *
++ * Overview of operation.
++ *
++ * When a memory region is captured in a transaction, the contents of this
++ * region, i.e., new values placed in the memory by the user, are copied in a
++ * transaction-private memory buffer. Eventually a transaction is closed, i.e.,
++ * the user indicates that no more updates will be captured in the
++ * transaction. Closed transactions are collected in "transaction groups"
++ * (m0_be_tx_group), which are units of IO. When a group is formed it is written
++ * to the log. When log IO for the group completes, transactions from the group
++ * are written "in-place", that is, their captured updates are written to the
++ * corresponding places in the segment storage. Some time after a transaction is
++ * written in-place, it is discarded and the space it uses in the log is
++ * reclaimed.
++ *
++ * Notes:
++ *
++ *     - transaction engine implements redo-only WAL (write-ahead
++ *       logging). There is no way to abort a transaction;
++ *
++ *     - serializibility and concurrency concerns are delegated to a
++ *       user. Specifically, the user must call m0_be_tx_capture() while the
++ *       lock, protecting the memory being captured is held. In the current
++ *       implementation this lock must be held at least until the transaction is
++ *       closed, in the future this requirement will be weakened;
++ *
++ *     - currently, the transaction engine writes modified memory in place, as
++ *       described in the "Overview of operation" section. In the future, the
++ *       transaction engine would leave this task to the (currently non-exiting)
++ *       segment page daemon;
++ *
++ *     - transaction close call (m0_be_tx_close()) does not guarantee
++ *       transaction persistency. Transaction become persistent later. The user
++ *       can set a call-back m0_be_tx::t_persistent() that is called when the
++ *       transaction becomes persistent;
++ *
+  * @{
+  */
+ 
+ /**
++ * Transaction state machine.
++ *
++ * @verbatim
++ *
++ *                      INIT
++ *                        |
++ *                        | m0_be_tx_init()
++ *                        |
++ *                        V
++ *                     PREPARE------+
++ *                        | ^       | m0_be_tx_prep();
++ *        m0_be_tx_open() | |       |
++ *                        | +-------+
++ *                        V
++ *                     OPENING---------->FAILED
++ *                        |
++ *                        | open_tail()
++ *                        |
++ *                        V
++ *                      ACTIVE------+
++ *                        | ^       | m0_be_tx_capture();
++ *       m0_be_tx_close() | |       |
++ *                        | +-------+
++ *                        V
++ *                      CLOSED
++ *                        |
++ *                        | tx_group_add()
++ *                        |
++ *                        V
++ *                     GROUPPED
++ *                        |
++ *                        | log io completes
++ *                        |
++ *                        V
++ *                      LOGGED
++ *                        |
++ *                        | in-place io completes
++ *                        |
++ *                        V
++ *                      PLACED
++ *                        |
++ *                        | m0_be_tx_stable()
++ *                        |
++ *                        V
++ *                      STABLE
++ *
++ * @endverbatim
++ *
++ *
++ * @verbatim
+  *
+  *   transaction         log record
+  *      state               state
+@@ -90,6 +209,7 @@
+  * |  credits)          |                     |
+  * +--------------------+---------------------+
+  *
++ * @endverbatim
+  *
+  */
+ enum m0_be_tx_state {
+@@ -161,10 +281,6 @@ M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
+ /** c *= k */
+ M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
+ 
+-struct m0_be_txgroup {
+-	struct m0_tl tg_tx;
+-};
+-
+ typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
+ 
+ struct m0_be_tx {
+-- 
+1.8.3.2
+

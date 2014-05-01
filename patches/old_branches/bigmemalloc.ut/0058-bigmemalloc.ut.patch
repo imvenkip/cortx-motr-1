@@ -1,0 +1,329 @@
+From f950c55375fbf21061fc878610b05da47dbe8c85 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Thu, 28 Nov 2013 18:47:54 +0530
+Subject: [PATCH 58/61] bigmemalloc.ut -Fault injection from m0_alloc() has
+ been used. -Fault injection from original library has been removed. -By
+ disabling over-commit code now exits successfully when  memory asked for is
+ large enough. -Though ut.sh shows zero memory leakage, valgrind is showing
+ leakage  which needs to be fixed.
+
+---
+ lib/ut/varr.c   | 115 +++++++++++++++++++++++++++++++++++++++-----------------
+ lib/varr.c      |  10 +++--
+ lib/varr.h      |   5 ++-
+ utils/ub_main.c |   2 +
+ 4 files changed, 92 insertions(+), 40 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index 4a55808..cb7da4f 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -37,20 +37,22 @@
+ #endif
+ 
+ enum data_types {
+-	DT_ATOMIC,
++	DT_ATOMIC_8,
++	DT_ATOMIC_64,
+ 	DT_POWTWO,
+ 	DT_NON_POWTWO,
+ };
+ 
+ enum misc_params {
+-	BUFF_SIZE       = 32,
+-	BUFF_SHIFT      = 5,
+-	DT_POWTWO_SHIFT = 4,
++	BUFF_SIZE           = 32,
++	BUFF_SHIFT          = 5,
++	DT_ATOMIC_8_SHIFT   = 0,
++	DT_ATOMIC_64_SHIFT  = 3,
++	DT_POWTWO_SHIFT     = 4,
+ 	DT_NON_POWTWO_SHIFT = BUFF_SHIFT,
+-	DT_ATOMIC_SHIFT = 3,
+-	MAX_OBJ_NR      = 26000,
+-	MAX_DEPTH	= 11,
+-	MAX_TEST_DEPTH  = 8,
++	MAX_OBJ_NR          = 26000,
++	MAX_DEPTH	    = 11,
++	MAX_TEST_DEPTH      = 6,
+ 	//MAX_BUFFERS	= 22369536, 
+ 	MAX_BUFFERS	= 4096, 
+ };
+@@ -95,14 +97,14 @@ M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
+ 	 int		 __rc;						      \
+ 	 uint64_t	 __step;					      \
+ 									      \
+-	 M0_UT_ASSERT(size_get(dt) == sizeof __ele);			      \
++	 M0_ASSERT(size_get(dt) == sizeof __ele);		      \
+ 	 for (__buff_nr = M0_VA_TNODE_NR, __d = 2;			      \
+ 	      __d <= __depth; __buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE),   \
+ 	      ++__d) {							      \
+ 		__nr = array_len_compute(__buff_nr, dt);		      \
+ 		M0_SET0(__varr_);					      \
+ 		__rc = m0_varr_init(__varr_, __nr, size_get(dt), BUFF_SIZE);  \
+-		M0_UT_ASSERT(__rc == 0);				      \
++		M0_ASSERT(__rc == 0);			      \
+ 		test_tree_sanity(__varr_, __d);			              \
+ 		m0_varr_iter(__varr_, typeof(__ele), i, obj, 0,	              \
+ 		 m0_varr_size(__varr_), 1) {			              \
+@@ -132,9 +134,17 @@ static void test_iterations(void);
+ static uint16_t int_summation(uint8_t n);
+ uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt);
+ uint32_t shift_get(enum data_types dt);
+-
++static void test_init_ub(void);
++static void useless(void)
++{
++	struct po2 po2_obj;
++	obj_init(&po2_obj, 5, DT_POWTWO);
++	obj_sanity_check(&po2_obj, 5, DT_POWTWO);
++}
+ void test_varr(void)
+ {
++	useless();
++	test_init_ub();
+ 	test_init();
+ 	test_size();
+ 	test_depth(MAX_TEST_DEPTH);
+@@ -159,13 +169,13 @@ static void test_init(void)
+ 	seed = m0_time_now();
+ 	while (!!(n % 2))
+ 		n = m0_rnd(MAX_BUFFERS, &seed);
+-	m0_fi_enable_off_n_on_m("varr_buffers_alloc", "varr_alloc", n, 2);
++	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", n, 1);
+ 	M0_SET0(&varr);
+ 	rc = m0_varr_init(&varr, MAX_OBJ_NR, size_get(DT_POWTWO),
+ 			  BUFF_SIZE);
+ 	if (rc == 0)
+ 		m0_varr_fini(&varr);
+-	m0_fi_disable("varr_buffers_alloc", "varr_alloc");
++	m0_fi_disable("m0_alloc", "fail_allocation");
+ }
+ 
+ static void test_size(void)
+@@ -175,7 +185,7 @@ static void test_size(void)
+ 	enum data_types dt;
+ 	size_t		obj_size;
+ 	M0_SET0(&varr);
+-	for (dt = DT_ATOMIC; dt <= DT_NON_POWTWO; ++dt) {
++	for (dt = DT_ATOMIC_8; dt <= DT_NON_POWTWO; ++dt) {
+ 		obj_size = size_get(dt);
+ 		M0_SET0(&varr);
+ 		rc = m0_varr_init(&varr, M0_VA_TNODE_NR, obj_size,
+@@ -192,8 +202,18 @@ static void test_size(void)
+ 
+ static size_t size_get(enum data_types dt)
+ {
+-	return dt == DT_ATOMIC ? sizeof (uint8_t) : dt == DT_POWTWO ?
+-		sizeof (struct po2) : sizeof (struct non_po2);
++	switch (dt) {
++	case DT_ATOMIC_8:
++		return sizeof (uint8_t);
++	case DT_ATOMIC_64:
++		return sizeof (uint64_t);
++	case DT_POWTWO:
++		return sizeof (struct po2);
++	case DT_NON_POWTWO:
++		return sizeof (struct non_po2);
++	}
++	return 0;
++
+ }
+ 
+ static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth)
+@@ -208,15 +228,15 @@ static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth)
+ 	buff_nr = safe_bitshift((uint64_t)1, varr->va_bufptr_nr_shift *
+ 				(varr->va_depth - 2), <<);
+ 	buff_nr *= num_trees;
+-	M0_UT_ASSERT(varr->va_buff_nr <= buff_nr);
++	M0_ASSERT(varr->va_buff_nr <= buff_nr);
+ 	num_accomodated = safe_bitshift((uint64_t)1, varr->va_buf_shift -
+ 					varr->va_obj_shift, <<);
+ 	num_accomodated *= varr->va_buff_nr;
+-	M0_UT_ASSERT(num_accomodated >= varr->va_nr);
+-	M0_UT_ASSERT(num_accomodated - varr->va_nr <
++	M0_ASSERT(num_accomodated >= varr->va_nr);
++	M0_ASSERT(num_accomodated - varr->va_nr <
+ 			safe_bitshift((uint64_t)1, varr->va_buf_shift -
+ 				      varr->va_obj_shift, <<));
+-	M0_UT_ASSERT(varr->va_depth == depth);
++	M0_ASSERT(varr->va_depth == depth);
+ }
+ 
+ static void test_depth(uint32_t max_depth)
+@@ -289,12 +309,28 @@ static uint16_t int_summation(uint8_t n)
+ 	return n * (n + 1) / 2;
+ }
+ 
+-static void test_iterate_ub(void)
++static void test_init_ub(void)
+ {
+-	struct po2     obj_po2;
+ 	struct m0_varr varr;
++	struct non_po2 obj_non_po2;
++	int	       rc;
++
++	M0_SET0(&varr);
++	rc = m0_varr_init(&varr, 134217728, sizeof obj_non_po2, BUFF_SIZE);
++	M0_UB_ASSERT(rc != 0);
++}
+ 
++void  test_iterate_ub(void)
++{
++	struct po2     obj_po2;
++	struct non_po2 obj_non_po2;
++	uint8_t        atomic8_obj;
++	uint64_t       atomic64_obj;
++	struct m0_varr varr;
+ 	test_iterate(&varr, obj_po2, DT_POWTWO, MAX_DEPTH);
++	test_iterate(&varr, obj_non_po2, DT_NON_POWTWO, MAX_DEPTH);
++	test_iterate(&varr, atomic8_obj, DT_ATOMIC_8, MAX_TEST_DEPTH);
++	test_iterate(&varr, atomic64_obj, DT_ATOMIC_64, MAX_TEST_DEPTH);
+ }
+ 
+ uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt)
+@@ -307,8 +343,10 @@ uint64_t array_len_compute(uint64_t buff_nr, enum data_types dt)
+ uint32_t shift_get(enum data_types dt)
+ {
+ 	switch (dt) {
+-	case DT_ATOMIC:
+-		return DT_ATOMIC_SHIFT;
++	case DT_ATOMIC_8:
++		return DT_ATOMIC_8_SHIFT;
++	case DT_ATOMIC_64:
++		return DT_ATOMIC_64_SHIFT;
+ 	case DT_POWTWO:
+ 		return DT_POWTWO_SHIFT;
+ 	case DT_NON_POWTWO:
+@@ -317,6 +355,7 @@ uint32_t shift_get(enum data_types dt)
+ 	return 0;
+ }
+ 
++
+ static void obj_init(void *obj, uint64_t data, enum data_types dt)
+ {
+ 	int	        i;
+@@ -324,7 +363,10 @@ static void obj_init(void *obj, uint64_t data, enum data_types dt)
+ 	struct non_po2 *obj_non_po2;
+ 
+ 	switch (dt) {
+-	case DT_ATOMIC:
++	case DT_ATOMIC_8:
++		*(uint8_t *)obj = data % UINT8_MAX;
++		break;
++	case DT_ATOMIC_64:
+ 		*(uint64_t *)obj = data;
+ 		break;
+ 	case DT_POWTWO:
+@@ -350,31 +392,34 @@ static void obj_sanity_check(void *obj, uint64_t data, enum data_types dt)
+ 	struct non_po2 obj_non_po2;
+ 
+ 	switch (dt) {
+-	case DT_ATOMIC:
+-		M0_UT_ASSERT( *(uint64_t *)obj == data);
++	case DT_ATOMIC_8:
++		M0_ASSERT( *(uint8_t *)obj == data % UINT8_MAX);
++		break;
++	case DT_ATOMIC_64:
++		M0_ASSERT( *(uint64_t *)obj == data);
+ 		break;
+ 	case DT_POWTWO:
+ 		obj_po2 = *(struct po2 *)obj;
+-		M0_UT_ASSERT(obj_po2.p_x == data);
+-		M0_UT_ASSERT(obj_po2.p_y == data);
++		M0_ASSERT(obj_po2.p_x == data);
++		M0_ASSERT(obj_po2.p_y == data);
+ 		break;
+ 	case DT_NON_POWTWO:
+ 		obj_non_po2 = *(struct non_po2 *)obj;
+-		M0_UT_ASSERT(obj_non_po2.np_chksum == (data % UINT8_MAX)*
++		M0_ASSERT(obj_non_po2.np_chksum == (data % UINT8_MAX)*
+ 			     int_summation(ARRAY_SIZE(obj_non_po2.np_arr) -
+ 						      1));
+ 	}
+ }
++enum {
++	UB_ITER = 1,
++};
+ 
+ static void varr_ub(int i)
+ {
+-	test_iterate_ub();
++//	test_iterate_ub();
++	test_init_ub();
+ }
+ 
+-enum {
+-	UB_ITER = 1,
+-};
+-
+ struct m0_ub_set m0_varr_ub = {
+ 	.us_name = "varr-ub",
+ 	.us_init = NULL,
+diff --git a/lib/varr.c b/lib/varr.c
+index 02b2d6c..fab476e 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -30,6 +30,8 @@
+ #include "lib/varr_private.h"	/* m0_varr_buf_alloc(), m0_varr_buf_free */
+ #ifndef __KERNEL__
+ #include <limits.h>		/* CHAR_BIT */
++/*XXX*/
++#include <stdio.h>
+ #else
+ #include <linux/pagemap.h>	/* PAGE_CACHE_SIZE */
+ #include <linux/limits.h>
+@@ -243,9 +245,11 @@ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ 		if (rc != 0)
+ 			goto end;
+ 		do {
+-			if (!M0_FI_ENABLED("varr_alloc"))
+-				holder = m0_varr_buf_alloc(arr->va_bufsize);
+-			if (holder == NULL || M0_FI_ENABLED("varr_alloc")) {
++			holder = m0_varr_buf_alloc(arr->va_bufsize);
++			if (holder == NULL) {
++#ifndef __KERNEL__
++				printf("\ncurrent depth = %u", i);
++#endif
+ 				rc = -ENOMEM;
+ 				arr->va_failure_depth = cursor.vc_done == 0 ?
+ 				 cursor.vc_depth : cursor.vc_depth + 1;
+diff --git a/lib/varr.h b/lib/varr.h
+index f4bca3d..b2bcfdb 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -241,8 +241,9 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 	struct m0_varr_cursor __cursor;				       \
+ 								       \
+ 	M0_PRE(idx < __arr->va_nr && __end <= __arr->va_nr);	       \
+-	M0_PRE(sizeof *obj > M0_BITS(__arr->va_obj_shift - 1) &&       \
+-	       sizeof *obj <= M0_BITS(__arr->va_obj_shift));	       \
++	M0_PRE(ergo(__arr->va_obj_shift > 0,			       \
++		    sizeof *obj > M0_BITS(__arr->va_obj_shift - 1) &&  \
++	            sizeof *obj <= M0_BITS(__arr->va_obj_shift)));     \
+ 								       \
+         __rc = m0_varr_cursor_init(&__cursor, __arr, __arr->va_depth); \
+ 	M0_ASSERT(__rc == 0);					       \
+diff --git a/utils/ub_main.c b/utils/ub_main.c
+index 62c9e5f..ae007f1 100644
+--- a/utils/ub_main.c
++++ b/utils/ub_main.c
+@@ -43,6 +43,7 @@ extern struct m0_ub_set m0_thread_ub;
+ extern struct m0_ub_set m0_time_ub;
+ extern struct m0_ub_set m0_tlist_ub;
+ extern struct m0_ub_set m0_trace_ub;
++extern struct m0_ub_set m0_varr_ub;
+ 
+ #define UB_SANDBOX "./ub-sandbox"
+ 
+@@ -96,6 +97,7 @@ static void ub_add(const struct ub_args *args)
+ 	 * These benchmarks are executed in reverse order from the way
+ 	 * they are listed here.
+ 	 */
++	m0_ub_set_add(&m0_varr_ub);
+ 	m0_ub_set_add(&m0_trace_ub);
+ 	m0_ub_set_add(&m0_tlist_ub);
+ 	m0_ub_set_add(&m0_time_ub);
+-- 
+1.8.3.2
+

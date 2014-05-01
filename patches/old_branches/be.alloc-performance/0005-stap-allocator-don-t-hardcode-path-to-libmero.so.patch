@@ -1,0 +1,69 @@
+From 976d232be3ee4f924d389870b0f15e8abb01a5ca Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Mon, 9 Dec 2013 18:35:18 +0200
+Subject: [PATCH 5/7] stap-allocator: don't hardcode path to libmero.so
+
+---
+ configure.ac                                 |  1 +
+ scripts/systemtap/tapset/.gitignore          |  1 +
+ scripts/systemtap/tapset/be-allocator.stp    | 10 ----------
+ scripts/systemtap/tapset/be-allocator.stp.in | 10 ++++++++++
+ 4 files changed, 12 insertions(+), 10 deletions(-)
+ create mode 100644 scripts/systemtap/tapset/.gitignore
+ delete mode 100644 scripts/systemtap/tapset/be-allocator.stp
+ create mode 100644 scripts/systemtap/tapset/be-allocator.stp.in
+
+diff --git a/configure.ac b/configure.ac
+index e45c178..b02a1df 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -650,6 +650,7 @@ AC_CONFIG_FILES([net/test/m0nettestd.sh], [chmod +x net/test/m0nettestd.sh])
+ AC_CONFIG_FILES([net/test/test-user.sh], [chmod +x net/test/test-user.sh])
+ AC_CONFIG_FILES([net/test/st/st-config.sh], [chmod +x net/test/st/st-config.sh])
+ AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-config.sh])
++AC_CONFIG_FILES([scripts/systemtap/tapset/be-allocator.stp])
+ AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh;
+ 			        (cd utils/ && ${LN_S} ut.sh ub.sh)])
+ AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
+diff --git a/scripts/systemtap/tapset/.gitignore b/scripts/systemtap/tapset/.gitignore
+new file mode 100644
+index 0000000..08ae73b
+--- /dev/null
++++ b/scripts/systemtap/tapset/.gitignore
+@@ -0,0 +1 @@
++be-allocator.stp
+diff --git a/scripts/systemtap/tapset/be-allocator.stp b/scripts/systemtap/tapset/be-allocator.stp
+deleted file mode 100644
+index 26cd7de..0000000
+--- a/scripts/systemtap/tapset/be-allocator.stp
++++ /dev/null
+@@ -1,10 +0,0 @@
+-probe m0_be_alloc = process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_alloc_aligned")
+-{
+-	size = $size
+-	shift = $shift
+-}
+-
+-probe m0_be_free = process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_free_aligned")
+-{
+-	ptr = $ptr
+-}
+diff --git a/scripts/systemtap/tapset/be-allocator.stp.in b/scripts/systemtap/tapset/be-allocator.stp.in
+new file mode 100644
+index 0000000..b788fee
+--- /dev/null
++++ b/scripts/systemtap/tapset/be-allocator.stp.in
+@@ -0,0 +1,10 @@
++probe m0_be_alloc = process("@abs_top_srcdir@/mero/.libs/libmero-0.1.0.so").function("m0_be_alloc_aligned")
++{
++	size = $size
++	shift = $shift
++}
++
++probe m0_be_free = process("@abs_top_srcdir@/mero/.libs/libmero-0.1.0.so").function("m0_be_free_aligned")
++{
++	ptr = $ptr
++}
+-- 
+1.8.3.2
+

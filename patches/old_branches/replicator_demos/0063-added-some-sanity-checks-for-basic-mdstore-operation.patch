@@ -1,0 +1,591 @@
+From 4cda0ddfc1a2b7ab717669e6bbdabba197f65f89 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 14 Apr 2011 05:29:45 -0600
+Subject: [PATCH 63/91] - added some sanity checks for basic mdstore
+ operations.
+
+---
+ fop/fom.h           |  17 ++--
+ fop/fop.h           |   3 +-
+ ioservice/io_foms.c |   5 +-
+ ioservice/io_fops.c |  10 ++-
+ mdservice/md_foms.c | 233 +++++++++++++++++++++++++++++++++++-----------------
+ mdservice/md_foms.h |   7 +-
+ mdstore/mdstore.h   |  46 +++++++++++
+ reqh/reqh.c         |   7 +-
+ 8 files changed, 235 insertions(+), 93 deletions(-)
+
+diff --git a/fop/fom.h b/fop/fom.h
+index dcaff34..7242b73 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -250,16 +250,17 @@ struct c2_fom_ops {
+         */
+         void (*fo_fini)(struct c2_fom *fom);
+         /**
+-           Execute pre-state actions. Operation permissions check
+-           may be done this way in reqh and errors handled.
++           Execute pre-state actions. Operation sanity checks
++           may be done this way in reqh and errors handled before
++           calling fo_state()
+         */
+-        int  (*fo_perm)(struct c2_fom *fom);
+-	/**
+-	    Execute the next state transition.
++        int  (*fo_sanity)(struct c2_fom *fom);
++        /**
++            Execute the next state transition.
+ 
+-	    Returns value of enum c2_fom_state_outcome or error code.
+-	*/
+-	int  (*fo_state)(struct c2_fom *fom);
++            Returns value of enum c2_fom_state_outcome or error code.
++        */
++        int  (*fo_state)(struct c2_fom *fom);
+ };
+ 
+ /** Handler thread. */
+diff --git a/fop/fop.h b/fop/fop.h
+index d30bd17..c3d90d5 100644
+--- a/fop/fop.h
++++ b/fop/fop.h
+@@ -136,7 +136,8 @@ struct c2_fop_ctx {
+ /** fop type operations. */
+ struct c2_fop_type_ops {
+ 	/** Create a fom that will carry out operation described by the fop. */
+-	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
++	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fop_ctx *ctx,
++	                    struct c2_fom **fom);
+ 	/** XXX temporary entry point for threaded fop execution. */
+ 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
+ 	/** fol record type operations for this fop type, or NULL is standard
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index b225806..c15a297 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -106,7 +106,8 @@ static void c2_io_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
+  * Find the corresponding fom_type and associate it with c2_fom.
+  * Associate fop with fom type.
+  */
+-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
++int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fop_ctx *ctx, 
++                               struct c2_fom **m)
+ {
+ 	struct c2_fom			*fom;
+ 	struct c2_io_fom_cob_rwv	*fom_obj;
+@@ -123,6 +124,8 @@ int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
+ 	fop->f_type->ft_fom_type = *fom_type;
+ 	fom = &fom_obj->fcrw_gen;
+ 	fom->fo_type = fom_type;
++        fom->fo_phase = FOPH_INIT;
++        fom->fo_fop_ctx = ctx;
+ 
+ 	if (fop->f_type->ft_code == c2_io_service_readv_opcode) {
+ 		fom->fo_ops = &c2_io_fom_read_ops;
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index 911e7c8..83756b7 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -5,7 +5,8 @@
+ #include "io_fops.h"
+ #include "lib/errno.h"
+ 
+-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m);
++int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fop_ctx *ctx, 
++                               struct c2_fom **m);
+ 
+ /**
+  * readv FOP operation vector.
+@@ -25,7 +26,9 @@ struct c2_fop_type_ops c2_io_cob_writev_ops = {
+  * Init function to initialize readv and writev reply FOMs.
+  * Since there is no client side FOMs as of now, this is empty.
+  */
+-static int c2_io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
++static int c2_io_fop_cob_rwv_rep_fom_init(struct c2_fop *fop, 
++                                          struct c2_fop_ctx *ctx, 
++                                          struct c2_fom **m)
+ {
+ 	return 0;
+ }
+@@ -55,7 +58,8 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
+ #ifdef __KERNEL__
+ 
+ /** Placeholder API for c2t1fs build. */
+-int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fom **m)
++int c2_io_fop_cob_rwv_fom_init(struct c2_fop *fop, struct c2_fop_ctx *ctx, 
++                               struct c2_fom **m)
+ {
+ 	return 0;
+ }
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 6e5a7bb..c1ee3ef 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -56,8 +56,20 @@ void c2_md_make_oikey(struct c2_cob_oikey *oikey, struct c2_fop_fid *fid,
+         oikey->cok_linkno = linkno;
+ }
+ 
+-static int c2_md_create_fom_perm(struct c2_fom *fom)
++static int c2_md_create_fom_sanity(struct c2_fom *fom)
+ {
++        /*
++         * @todo:
++         * 1. MAY_WRITE and MAY_EXEC for parent;
++         * 2. uid/gid for parent.
++         */
++         
++        /*
++         * Sanity checks related for exsiting objects
++         * are done automatically in mdstore create
++         * code. If object is already existing then
++         * -EEXIST will be returned. Same for name.
++         */
+         return 0;
+ }
+ 
+@@ -126,9 +138,44 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_link_fom_perm(struct c2_fom *fom)
++static int c2_md_link_fom_sanity(struct c2_fom *fom)
+ {
+-        return 0;
++        struct c2_fom_md              *fom_obj;
++        struct c2_fop_link            *req;
++        struct c2_fop_ctx             *ctx;
++        struct c2_fid                  fid;
++        struct c2_cob                 *cob;
++        int                            rc;
++
++        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
++        req = c2_fop_data(fom_obj->fm_fop);
++        ctx = fom->fo_fop_ctx;
++
++        if (req->l_name.n_count > NAME_MAX)
++                return -ENAMETOOLONG;
++
++        /*
++         * Let's check for possible hardlink to a dir.
++         */
++        c2_md_make_fid(&fid, &req->l_body.b_tfid);
++
++        rc = c2_md_store_locate(ctx->fc_site->s_mdstore, &fid, 
++                                &cob, C2_MD_STORE_LOCATE_STORED,
++                                &ctx->fc_tx->tx_dbtx);
++        if (rc)
++                return rc;
++
++        if (S_ISDIR(cob->co_omgrec.cor_mode))
++                rc = -EPERM;
++        else if (cob->co_nsrec.cnr_nlink >= (unsigned short)~0 / 2)
++                rc = -EMLINK;
++                
++        /*
++         * @todo:
++         * 1. Check for MAY_WRITE and MAY_EXEC in parent.
++         */
++        c2_cob_put(cob);
++        return rc;
+ }
+ 
+ static int c2_md_link_fom_state(struct c2_fom *fom)
+@@ -198,8 +245,17 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_unlink_fom_perm(struct c2_fom *fom)
++static int c2_md_unlink_fom_sanity(struct c2_fom *fom)
+ {
++        /*
++         * @todo: Check for following:
++         * 1. MAY_WRITE and MAY_EXEC in parent;
++         * 2. Append-only parent;
++         * 3. Append-only child;
++         * 4. Sticky bit on child; 
++         * 5. Immutable child;
++         * 6. Empty child dir (if a dir).
++         */
+         return 0;
+ }
+ 
+@@ -270,8 +326,16 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_rename_fom_perm(struct c2_fom *fom)
++static int c2_md_rename_fom_sanity(struct c2_fom *fom)
+ {
++        /*
++         * @todo: Check for following:
++         * 1. MAY_WRITE and MAY_EXEC in parent;
++         * 2. Append-only parent;
++         * 3. Append-only child;
++         * 4. Sticky bit on child; 
++         * 5. Immutable child.
++         */
+         return 0;
+ }
+ 
+@@ -358,9 +422,45 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_open_fom_perm(struct c2_fom *fom)
++static int c2_md_open_fom_sanity(struct c2_fom *fom)
+ {
+-        return 0;
++        struct c2_fom_md              *fom_obj;
++        struct c2_fop_open            *req;
++        struct c2_fid                  fid;
++        struct c2_fop_ctx             *ctx;
++        struct c2_cob                 *cob;
++        int                            mode;
++        int                            rc;
++
++        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
++        req = c2_fop_data(fom_obj->fm_fop);
++        ctx = fom->fo_fop_ctx;
++
++        c2_md_make_fid(&fid, &req->o_body.b_tfid);
++
++        rc = c2_md_store_locate(ctx->fc_site->s_mdstore, &fid, 
++                                &cob, C2_MD_STORE_LOCATE_STORED,
++                                &ctx->fc_tx->tx_dbtx);
++        if (rc)
++                return rc;
++
++        if (S_ISLNK(cob->co_omgrec.cor_mode)) {
++                rc = -ELOOP;
++        } else {
++                mode = accmode(req->o_body.b_flags);
++                if (S_ISDIR(cob->co_omgrec.cor_mode) && 
++                   (mode & C2_MD_MAY_WRITE))
++                        rc = -EISDIR;
++        }
++        
++        /*
++         * @todo:
++         * 1. Check for open-create;
++         * 2. Check for appent-only files.
++         */
++        c2_cob_put(cob);
++
++        return rc;
+ }
+ 
+ static int c2_md_open_fom_state(struct c2_fom *fom)
+@@ -479,11 +579,6 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_setattr_fom_perm(struct c2_fom *fom)
+-{
+-        return 0;
+-}
+-
+ static int c2_md_setattr_fom_state(struct c2_fom *fom)
+ {
+         struct c2_fop_cob             *body;
+@@ -540,11 +635,6 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_getattr_fom_perm(struct c2_fom *fom)
+-{
+-        return 0;
+-}
+-
+ static int c2_md_getattr_fom_state(struct c2_fom *fom)
+ {
+         struct c2_fop_cob             *body;
+@@ -601,39 +691,29 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_readdir_fom_perm(struct c2_fom *fom)
++static int c2_md_readdir_fom_sanity(struct c2_fom *fom)
+ {
+         struct c2_fom_md              *fom_obj;
+         struct c2_fop_readdir         *req;
+-        struct c2_fop                 *fop;
+         struct c2_fid                  fid;
+-        struct c2_site                *site;
+         struct c2_fop_ctx             *ctx;
+         struct c2_cob                 *cob;
+         int                            rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+-
+-        fop = fom_obj->fm_fop;
+-        C2_ASSERT(fop != NULL);
+-        req = c2_fop_data(fop);
+-
++        req = c2_fop_data(fom_obj->fm_fop);
+         ctx = fom->fo_fop_ctx;
+-        C2_ASSERT(ctx != NULL);
+-
+-        site = ctx->fc_site;
+-        C2_ASSERT(site != NULL);
+ 
+         c2_md_make_fid(&fid, &req->r_body.b_tfid);
+ 
+-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORED,
++        rc = c2_md_store_locate(ctx->fc_site->s_mdstore, &fid, 
++                                &cob, C2_MD_STORE_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 return rc;
+ 
+         if (!S_ISDIR(cob->co_omgrec.cor_mode))
+-                rc = -EINVAL;
++                rc = -ENOTDIR;
+         c2_cob_put(cob);
+ 
+         return rc;
+@@ -753,33 +833,33 @@ static void c2_md_req_fom_fini(struct c2_fom *fom)
+ }
+ 
+ static struct c2_fom_ops c2_md_fom_create_ops = {
+-	.fo_state = c2_md_create_fom_state,
+-	.fo_perm  = c2_md_create_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_create_fom_state,
++	.fo_sanity = c2_md_create_fom_sanity,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_link_ops = {
+-	.fo_state = c2_md_link_fom_state,
+-	.fo_perm  = c2_md_link_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_link_fom_state,
++	.fo_sanity = c2_md_link_fom_sanity,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_unlink_ops = {
+-	.fo_state = c2_md_unlink_fom_state,
+-	.fo_perm  = c2_md_unlink_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_unlink_fom_state,
++	.fo_sanity = c2_md_unlink_fom_sanity,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_rename_ops = {
+-	.fo_state = c2_md_rename_fom_state,
+-	.fo_perm  = c2_md_rename_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_rename_fom_state,
++	.fo_sanity = c2_md_rename_fom_sanity,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_open_ops = {
+-	.fo_state = c2_md_open_fom_state,
+-	.fo_perm  = c2_md_open_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_open_fom_state,
++	.fo_sanity = c2_md_open_fom_sanity,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_close_ops = {
+@@ -788,51 +868,56 @@ static struct c2_fom_ops c2_md_fom_close_ops = {
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_setattr_ops = {
+-	.fo_state = c2_md_setattr_fom_state,
+-	.fo_perm  = c2_md_setattr_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_setattr_fom_state,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_getattr_ops = {
+-	.fo_state = c2_md_getattr_fom_state,
+-	.fo_perm  = c2_md_getattr_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_getattr_fom_state,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_ops c2_md_fom_readdir_ops = {
+-	.fo_state = c2_md_readdir_fom_state,
+-	.fo_perm  = c2_md_readdir_fom_perm,
+-	.fo_fini  = c2_md_req_fom_fini
++	.fo_state  = c2_md_readdir_fom_state,
++	.fo_sanity = c2_md_readdir_fom_sanity,
++	.fo_fini   = c2_md_req_fom_fini
+ };
+ 
+ static struct c2_fom_type c2_md_fom_type_pch = {0,};
+ 
+-int c2_md_rep_fom_init(struct c2_fop *fop, struct c2_fom **m)
++int c2_md_rep_fom_init(struct c2_fop *fop, 
++                       struct c2_fop_ctx *ctx, 
++                       struct c2_fom **m)
+ {
+         return 0;
+ }
+ 
+-int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fom **m)
++int c2_md_req_fom_init(struct c2_fop *fop, 
++                       struct c2_fop_ctx *ctx, 
++                       struct c2_fom **m)
+ {
+-	struct c2_fom           *fom;
+-	struct c2_fom_md        *fom_obj;
+-	struct c2_fom_type      *fom_type;
+-	struct c2_fop_type      *fop_type;
++        struct c2_fom           *fom;
++        struct c2_fom_md        *fom_obj;
++        struct c2_fom_type      *fom_type;
++        struct c2_fop_type      *fop_type;
+ 
+-	C2_PRE(fop != NULL);
+-	C2_PRE(m != NULL);
++        C2_PRE(fop != NULL);
++        C2_PRE(m != NULL);
+ 
+-	fom_obj= c2_alloc(sizeof(struct c2_fom_md));
+-	if (fom_obj == NULL)
+-	        return -ENOMEM;
++        fom_obj= c2_alloc(sizeof(struct c2_fom_md));
++        if (fom_obj == NULL)
++                return -ENOMEM;
+         
+-        /* To cheat a bit on foms generic code. */    
+-	fom_type = &c2_md_fom_type_pch;
+-	fop->f_type->ft_fom_type = *fom_type;
+-	fom = &fom_obj->fm_fom;
+-	fom->fo_type = fom_type;
+-	fom->fo_phase = FOPH_INIT;
+-
++        /* 
++         * To cheat a bit on foms generic code. 
++         */
++        fom_type = &c2_md_fom_type_pch;
++        fop->f_type->ft_fom_type = *fom_type;
++        fom = &fom_obj->fm_fom;
++        fom->fo_type = fom_type;
++        fom->fo_phase = FOPH_INIT;
++        fom->fo_fop_ctx = ctx;
++	
+         switch (fop->f_type->ft_code) {
+         case C2_FOP_CREATE:
+ 		fom->fo_ops = &c2_md_fom_create_ops;
+diff --git a/mdservice/md_foms.h b/mdservice/md_foms.h
+index 457553e..98702dc 100644
+--- a/mdservice/md_foms.h
++++ b/mdservice/md_foms.h
+@@ -7,6 +7,7 @@ struct c2_fom;
+ struct c2_fop;
+ struct c2_fid;
+ 
++struct c2_cob;
+ struct c2_fop_fid;
+ struct c2_cob_nskey;
+ struct c2_cob_oikey;
+@@ -23,12 +24,14 @@ struct c2_fom_md {
+ /**
+    Init request fom for all types of requests.
+ */
+-int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fom **m);
++int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fop_ctx *ctx, 
++                       struct c2_fom **m);
+ 
+ /**
+    Init reply fom.
+ */
+-int c2_md_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
++int c2_md_rep_fom_init(struct c2_fop *fop, struct c2_fop_ctx *ctx, 
++                       struct c2_fom **m);
+ 
+ /**
+    Make in-memory fid from wire fid (wid).
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 599b29c..8872879 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -58,6 +58,52 @@ enum c2_md_valid_flags {
+ 
+ extern struct c2_fid C2_MD_ROOT_FID;
+ 
++enum c2_md_fmode_flags {
++        C2_MD_FMODE_READ   = 1 << 0,
++        C2_MD_FMODE_WRITE  = 1 << 1,
++        C2_MD_FMODE_LSEEK  = 1 << 2,
++        C2_MD_FMODE_PREAD  = 1 << 3,
++        C2_MD_FMODE_PWRITE = 1 << 4,
++        C2_MD_FMODE_EXEC   = 1 << 5,
++
++        /**
++           Other flags from system fmode space are not of 
++           interest right now.
++         */
++        
++        /**
++           These are from Lustre open flags space. We need
++           this so far here because changelog records have
++           these flags.
++        */
++        C2_MD_OPEN_TRUNC   = 1 << 9,
++        C2_MD_OPEN_APPEND  = 1 << 10
++};
++
++enum c2_md_acc_flags {
++        C2_MD_MAY_EXEC     = 1 << 0,
++        C2_MD_MAY_WRITE    = 1 << 1,
++        C2_MD_MAY_READ     = 1 << 2,
++        C2_MD_MAY_APPEND   = 1 << 3,
++        C2_MD_MAY_ACCESS   = 1 << 4,
++        C2_MD_MAY_OPEN     = 1 << 5,
++        C2_MD_MAY_CHDIR    = 1 << 6
++};
++
++static inline int accmode(uint32_t flags)
++{
++        int result = 0;
++        
++        if (flags & C2_MD_FMODE_READ)
++                result |= C2_MD_MAY_READ;
++        if (flags & (C2_MD_FMODE_WRITE | C2_MD_OPEN_TRUNC | C2_MD_OPEN_APPEND))
++                result |= C2_MD_MAY_WRITE;
++        if (flags & C2_MD_FMODE_EXEC)
++                result |= C2_MD_MAY_EXEC;
++        return result;
++}
++
++
+ /**
+    Init mdstore and get it ready to work. Ifinit_root == !!1
+    then root cob is initialized.
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 8680cef..ce607f1 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -72,15 +72,14 @@ int c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
+         /*
+          * Init fom for the fop start handling it.
+          */
+-        result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
++        result = fop->f_type->ft_ops->fto_fom_init(fop, &ctx, &fom);
+         if (result)
+                 goto out;
+ 	        
+         C2_ASSERT(fom != NULL);
+-        fom->fo_fop_ctx = &ctx;
+ 
+-        if (fom->fo_ops->fo_perm) {
+-                result = fom->fo_ops->fo_perm(fom);
++        if (fom->fo_ops->fo_sanity) {
++                result = fom->fo_ops->fo_sanity(fom);
+                 if (result)
+                         goto out_fini;
+         }
+-- 
+1.8.3.2
+

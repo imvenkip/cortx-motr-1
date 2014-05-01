@@ -1,0 +1,141 @@
+From f32f2e9dc4511444ed9ced6ea1629cddb87c7d02 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 24 Mar 2014 21:21:29 +0800
+Subject: [PATCH 2/3] better error handling. Variables are used only in super.c
+
+---
+ m0t1fs/linux_kernel/m0t1fs.c | 21 +++------------------
+ m0t1fs/linux_kernel/m0t1fs.h |  4 ----
+ m0t1fs/linux_kernel/super.c  | 27 +++++++++++++++++++++++++--
+ 3 files changed, 28 insertions(+), 24 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index 0f963ec..5148b76 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -39,21 +39,6 @@ static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
+ module_param(node_uuid, charp, S_IRUGO);
+ MODULE_PARM_DESC(node_uuid, "UUID of Mero node");
+ 
+-char *local_addr = "0@lo:12345:45:";
+-
+-module_param(local_addr, charp, S_IRUGO);
+-MODULE_PARM_DESC(local_addr, "End-point address of m0t1fs "
+-		 "e.g. 172.18.50.40@o2ib1:12345:34:\n"
+-		 "the tmid will be generated and filled by every mount");
+-
+-uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+-module_param(tm_recv_queue_min_len , int, S_IRUGO);
+-MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
+-
+-uint32_t max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+-module_param(max_rpc_msg_size, int, S_IRUGO);
+-MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
+-
+ struct m0_addb_ctx m0t1fs_addb_ctx;
+ struct m0_bitmap   m0t1fs_client_ep_tmid;
+ struct m0_mutex    m0t1fs_mutex;
+@@ -104,7 +89,7 @@ M0_INTERNAL int m0t1fs_init(void)
+ 	m0t1fs_addb_mon_rw_io_size_key = m0_reqh_lockers_allot();
+ 	m0_mutex_init(&m0t1fs_mutex);
+ 	/*
+-	 * [0 - M0_NET_LNET_TMID_MAX / 2] for clients.
++	 * [1 - M0_NET_LNET_TMID_MAX / 2] for clients.
+ 	 * [M0_NET_LNET_TMID_MAX / 2 - M0_NET_LNET_TMID_MAX] for server ep.
+ 	 */
+ 	rc = m0_bitmap_init(&m0t1fs_client_ep_tmid, M0_NET_LNET_TMID_MAX / 2);
+@@ -114,7 +99,7 @@ M0_INTERNAL int m0t1fs_init(void)
+ 
+ 	rc = m0_ioservice_fop_init();
+ 	if (rc != 0)
+-		goto out_bitmap;
++		goto bitmap_fini;
+ 
+ 	rc = m0_mdservice_fop_init();
+ 	if (rc != 0)
+@@ -137,7 +122,7 @@ mdservice_fini:
+         m0_mdservice_fop_fini();
+ ioservice_fini:
+         m0_ioservice_fop_fini();
+-out_bitmap:
++bitmap_fini:
+ 	m0_bitmap_fini(&m0t1fs_client_ep_tmid);
+ 	m0_mutex_fini(&m0t1fs_mutex);
+ out:
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 6c461a5..b2b6c93 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -420,10 +420,6 @@ enum io_req_type {
+         IRT_TYPE_NR,
+ };
+ 
+-extern char *local_addr;
+-extern uint32_t tm_recv_queue_min_len;
+-extern uint32_t max_rpc_msg_size;
+-
+ /**
+    For each <mounted_fs, target_service> pair, there is one instance of
+    m0t1fs_service_context.
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 21a462a..74c46df 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -47,8 +47,21 @@ extern struct m0_bitmap    m0t1fs_client_ep_tmid;
+ extern struct m0_mutex     m0t1fs_mutex;
+ extern uint32_t            m0t1fs_addb_mon_rw_io_size_key;
+ 
+-M0_INTERNAL void io_bob_tlists_init(void);
++static char *local_addr = "0@lo:12345:45:";
++module_param(local_addr, charp, S_IRUGO);
++MODULE_PARM_DESC(local_addr, "End-point address of m0t1fs "
++		 "e.g. 172.18.50.40@o2ib1:12345:34:\n"
++		 "the tmid will be generated and filled by every mount");
++
++static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
++module_param(tm_recv_queue_min_len , int, S_IRUGO);
++MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
++
++static uint32_t max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
++module_param(max_rpc_msg_size, int, S_IRUGO);
++MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
+ 
++M0_INTERNAL void io_bob_tlists_init(void);
+ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf);
+ 
+ static const struct super_operations m0t1fs_super_operations = {
+@@ -999,13 +1012,16 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb)
+ 
+ 	M0_ENTRY();
+ 	laddr = m0_alloc(M0_NET_LNET_NIDSTR_SIZE * 2);
++	if (laddr == NULL)
++		return M0_RC(-ENOMEM);
+ 
+ 	csb->csb_xprt  = &m0_net_lnet_xprt;;
+ 	m0_mutex_lock(&m0t1fs_mutex);
+ 	csb->csb_tmid = m0_bitmap_ffz(&m0t1fs_client_ep_tmid);
+ 	if (csb->csb_tmid < 0) {
+ 		m0_mutex_unlock(&m0t1fs_mutex);
+-		goto out;
++		m0_free(laddr);
++		return M0_RC(-EMFILE);
+ 	}
+ 	m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, true);
+ 	m0_mutex_unlock(&m0t1fs_mutex);
+@@ -1026,6 +1042,13 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb)
+ 	if (rc != 0)
+ 		m0_net_xprt_fini(xprt);
+ out:
++	if (rc != 0) {
++		csb->csb_laddr = NULL;
++		m0_free(laddr);
++		m0_mutex_lock(&m0t1fs_mutex);
++		m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, false);
++		m0_mutex_unlock(&m0t1fs_mutex);
++	}
+ 	M0_LEAVE("rc: %d", rc);
+ 	return rc;
+ }
+-- 
+1.8.3.2
+

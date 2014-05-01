@@ -1,0 +1,107 @@
+From 6b6cf7de74d2bede293d8a51db2b28aab04ea15e Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 22 Nov 2013 14:35:27 +0530
+Subject: [PATCH 53/61] bigmemalloc.ut
+
+m0_varr_for is tested.
+---
+ lib/ut/varr.c | 18 ++++++++++--------
+ lib/varr.h    |  8 +++++---
+ 2 files changed, 15 insertions(+), 11 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index 988c457..f4cc456 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -45,6 +45,8 @@ enum misc_params {
+ };
+ 
+ M0_BASSERT(BUFF_SIZE == M0_BITS(BUFF_SHIFT));
++M0_BASSERT(M0_0VEC_ALIGN > BUFF_SIZE);
++M0_BASSERT(!(M0_0VEC_ALIGN & (M0_0VEC_ALIGN - 1)));
+ /* sizeof struct po2 is an integer power of two. */
+ struct po2 {
+ 	uint64_t p_x;
+@@ -89,17 +91,16 @@ static void test_obj_size(void)
+ 	int		rc;
+ 	enum data_types dt;
+ 	size_t		obj_size;
+-
+ 	M0_SET0(&varr);
+-
+ 	for (dt = DT_ATOMIC; dt <= DT_NON_POWTWO; ++dt) {
+ 		obj_size = size_get(dt);
+ 		M0_SET0(&varr);
+-		rc = m0_varr_init(&varr, 10, obj_size, M0_0VEC_ALIGN - 4);
++		rc = m0_varr_init(&varr, 10, obj_size, M0_0VEC_ALIGN - 1);
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(!(varr.va_obj_size & (varr.va_obj_size - 1)) &&
+ 			     obj_size <= varr.va_obj_size	          &&
+ 			     2 * obj_size > varr.va_obj_size);
++		M0_UT_ASSERT(varr.va_bufsize == M0_0VEC_ALIGN);
+ 		test_tree_sanity(&varr, 2);
+ 		m0_varr_fini(&varr);
+ 	}
+@@ -188,11 +189,11 @@ static void test_iterate(void)
+ 			obj->p_x = i;
+ 			obj->p_y = i;
+ 		} m0_varr_end_iter;
+-		m0_varr_iter(&varr, struct po2, i, obj, 0, varr.va_nr, 13) {
++		m0_varr_for (&varr, struct po2, i, obj) {
+ 			arr_ele = m0_varr_ele_get(&varr, i);
+ 			M0_UT_ASSERT(arr_ele == obj);
+ 			M0_UT_ASSERT(obj->p_x == obj->p_y && obj->p_x == i);
+-		} m0_varr_end_iter;
++		} m0_varr_end_for;
+ 		if (depth == 8) {
+ 			for (step = 2; step <= 26000; ++step) {
+ 				m0_varr_iter(&varr, struct po2, i, obj, 0,
+@@ -208,7 +209,8 @@ static void test_iterate(void)
+ 
+ 		nr = buff_nr;
+ 		M0_SET0(&varr);
+-		rc = m0_varr_init(&varr, nr, size_get(DT_NON_POWTWO), BUFF_SIZE);
++		rc = m0_varr_init(&varr, nr, size_get(DT_NON_POWTWO),
++				  BUFF_SIZE);
+ 		M0_UT_ASSERT(rc == 0);
+ 		test_tree_sanity(&varr, depth);
+ 		m0_varr_iter (&varr, struct non_po2, i, obj, 0, varr.va_nr, 1) {
+@@ -218,13 +220,13 @@ static void test_iterate(void)
+ 				obj->np_chksum += obj->np_arr[j];
+ 			}
+ 		} m0_varr_end_iter;
+-		m0_varr_iter (&varr, struct non_po2, i, obj, 0, varr.va_nr, 1) {
++		m0_varr_for (&varr, struct non_po2, i, obj) {
+ 			arr_ele = m0_varr_ele_get(&varr, i);
+ 			M0_UT_ASSERT(arr_ele == obj);
+ 			M0_UT_ASSERT(((struct non_po2 *)arr_ele)->np_chksum ==
+ 				     int_summation(ARRAY_SIZE(obj->np_arr) -
+ 							      1));
+-		} m0_varr_end_iter;
++		} m0_varr_end_for;
+ 		m0_varr_fini(&varr);
+ 	}
+ }
+diff --git a/lib/varr.h b/lib/varr.h
+index dd0c34e..e842f07 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -250,10 +250,12 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ #define m0_varr_end_iter } } )
+ 
+ /** Iterates over whole virtual array. */
+-#define m0_varr_for(arr, type, idx, obj)		    \
+-	m0_varr_iter(arr, type, idx, obj, 0, arr->va_nr, 1)
++#define m0_varr_for(arr, type, idx, obj)				    \
++({									    \
++	struct m0_varr *__arr__ = (arr);				    \
++	m0_varr_iter(__arr__, type, idx, obj, 0, m0_varr_size(__arr__), 1)
+ 
+-#define m0_varr_end_for m0_varr_end_iter
++#define m0_varr_end_for m0_varr_end_iter; })
+ 
+ /** @} end of varr group */
+ #endif /* __MERO_LIB_VIRTUAL_ARRAY_H__ */
+-- 
+1.8.3.2
+

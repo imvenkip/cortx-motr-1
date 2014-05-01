@@ -1,0 +1,449 @@
+From f5f99fd70e54c5ef26b8b5f433a39357614092c6 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 7 Sep 2012 04:30:33 +0300
+Subject: [PATCH 363/370] conf: fix erroneous documentation of
+ c2_conf_obj::co_mounted
+
++ parent_check(): Obtain the value of expected parent type from
+  a static array; remove `parent_type' argument.  Add more checks.
+
++ objs/profile.c: Extract adopt() function -- a candidate for
+  objs/common.c.
+
++ _generic_obj_invariant(): Validate the value of ->co_type.
+
++ ut/obj.c: Fix semantic errors. Separate test_obj_xtors() and
+  test_obj_fill().
+
+LogD #944
+
+*CAUTION*  conf-ut leaks memory!
+---
+ conf/confc.c           | 13 +++++-----
+ conf/obj.h             |  9 ++++---
+ conf/obj_ops.c         |  3 ++-
+ conf/objs/common.c     | 44 +++++++++++++++++++++++--------
+ conf/objs/common.h     |  3 +--
+ conf/objs/filesystem.c |  4 +--
+ conf/objs/nic.c        |  2 +-
+ conf/objs/node.c       |  3 ---
+ conf/objs/partition.c  |  2 +-
+ conf/objs/profile.c    | 23 +++++++++++------
+ conf/objs/sdev.c       |  2 +-
+ conf/objs/service.c    |  2 +-
+ conf/ut/Makefile.am    |  3 ++-
+ conf/ut/main.c         |  8 +++---
+ conf/ut/obj.c          | 70 +++++++++++++++++++++++++++++++-------------------
+ 15 files changed, 121 insertions(+), 70 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 2e94b10..01cf266 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -957,7 +957,7 @@ static inline struct c2_confc *registry_to_confc(struct c2_conf_reg *reg)
+ static int cache_add(struct c2_conf_reg *reg, const struct confx_object *onwire)
+ {
+ 	/*
+-	 * int                 ret;
++	 * int                 rc;
+ 	 * struct c2_conf_obj *obj;
+ 	 * struct c2_confc    *confc = registry_to_confc(reg);
+ 	 *
+@@ -968,12 +968,13 @@ static int cache_add(struct c2_conf_reg *reg, const struct confx_object *onwire)
+ 	 *     return -ENOMEM;
+ 	 * obj->co_confc = confc;
+ 	 *
+-	 * ret = c2_conf_obj_fill(obj, onwire, reg);
+-	 * ret = ret ?: c2_conf_reg_add(reg, obj);
++	 * rc = c2_conf_obj_fill(obj, onwire, reg);
++	 * if (rc == 0)
++	 *     c2_conf_reg_add(reg, obj);
++	 * else
++	 *     c2_conf_obj_delete(obj);
+ 	 *
+-	 * if (ret != 0)
+-	 *     c2_free(obj);
+-	 * return ret;
++	 * return rc;
+ 	 */
+ 	XXX;
+ }
+diff --git a/conf/obj.h b/conf/obj.h
+index f833e0b..e26458f 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -228,9 +228,12 @@ struct c2_conf_obj {
+ 	/**
+ 	 * Whether the object has been inserted into the DAG.
+ 	 *
+-	 * ->co_mounted is true iff all of object's relations -- both
+-	 * generic (->co_parent) and concrete (e.g.,
+-	 * c2_conf_service::cs_node) -- are established.
++	 * @todo XXX Property (to be verified):
++	 * ergo(obj->co_mounted,
++	 *      parent_check(obj) && (obj_is_stub(obj) || children_check(obj))),
++	 * where
++	 *   children_check(obj) verifies that `obj' has established
++	 *   relations with its children.
+ 	 *
+ 	 * @see @ref conf-lspec-comps
+ 	 */
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 8b018b7..c222b1e 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -65,7 +65,8 @@ static bool _generic_obj_invariant(const void *bob)
+ {
+ 	const struct c2_conf_obj *obj = bob;
+ 
+-	return buf_is_valid(&obj->co_id) && obj->co_ops != NULL &&
++	return 0 <= obj->co_type && obj->co_type < C2_CO_NR &&
++		buf_is_valid(&obj->co_id) && obj->co_ops != NULL &&
+ 		C2_IN(obj->co_status,
+ 		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
+ 		(obj->co_status == C2_CS_READY ? obj->co_mounted :
+diff --git a/conf/objs/common.c b/conf/objs/common.c
+index 265ae4b..8a21213 100644
+--- a/conf/objs/common.c
++++ b/conf/objs/common.c
+@@ -68,18 +68,40 @@ static bool mounted_as(const struct c2_conf_obj *obj, enum c2_conf_objtype type)
+ 	return obj->co_mounted && obj->co_type == type;
+ }
+ 
+-bool
+-parent_check(const struct c2_conf_obj *obj, enum c2_conf_objtype parent_type)
++bool parent_check(const struct c2_conf_obj *obj)
+ {
+-	const struct c2_conf_obj *parent = obj->co_parent;
+-
+-	C2_PRE(obj->co_mounted && obj->co_type != parent_type);
+-
+-	return mounted_as(parent, parent_type) &&
+-		parent->co_status == C2_CS_READY &&
+-		ergo(parent_type == C2_CO_DIR,
+-		     C2_CONF_CAST(parent, c2_conf_dir)->cd_item_type ==
+-		     obj->co_type);
++	static const enum c2_conf_objtype parent_type[C2_CO_NR] = {
++		[C2_CO_DIR]        = -9, /* filesystem | node | sdev */
++		[C2_CO_PROFILE]    = -1, /* NULL */
++		[C2_CO_FILESYSTEM] = C2_CO_PROFILE,
++		[C2_CO_SERVICE]    = C2_CO_DIR,
++		[C2_CO_NODE]       = -1, /* NULL */
++		[C2_CO_NIC]        = C2_CO_DIR,
++		[C2_CO_SDEV]       = C2_CO_DIR,
++		[C2_CO_PARTITION]  = C2_CO_DIR
++	};
++	const struct c2_conf_obj *parent   = obj->co_parent;
++	enum c2_conf_objtype      actual   = parent->co_type;
++	enum c2_conf_objtype      expected = parent_type[obj->co_type];
++
++	C2_PRE(obj->co_mounted && obj->co_type != actual);
++
++	return (parent == NULL) == C2_IN(obj->co_type,
++					 (C2_CO_PROFILE, C2_CO_NODE)) &&
++		ergo(parent != NULL, parent->co_mounted &&
++		     parent->co_status == C2_CS_READY &&
++		     0 <= actual && actual < C2_CO_NR &&
++		     (obj->co_type == C2_CO_DIR) == (actual != expected &&
++						     C2_IN(actual,
++							   (C2_CO_FILESYSTEM,
++							    C2_CO_NODE,
++							    C2_CO_SDEV))) &&
++		     ergo(actual == C2_CO_DIR,
++			  /* XXX TODO Get rid of recursion: concrete
++			   * invariant should not call another
++			   * concrete invariant. */
++			  C2_CONF_CAST(parent, c2_conf_dir)->cd_item_type ==
++			  obj->co_type));
+ }
+ 
+ bool child_check(const struct c2_conf_obj *obj, const struct c2_conf_obj *child,
+diff --git a/conf/objs/common.h b/conf/objs/common.h
+index 41738fa..54554bb 100644
+--- a/conf/objs/common.h
++++ b/conf/objs/common.h
+@@ -77,8 +77,7 @@ char *buf_strdup(const struct c2_buf *buf);
+ 
+ bool obj_is_stub(const struct c2_conf_obj *obj);
+ 
+-bool
+-parent_check(const struct c2_conf_obj *obj, enum c2_conf_objtype parent_type);
++bool parent_check(const struct c2_conf_obj *obj);
+ 
+ bool child_check(const struct c2_conf_obj *obj, const struct c2_conf_obj *child,
+ 		 enum c2_conf_objtype child_type);
+diff --git a/conf/objs/filesystem.c b/conf/objs/filesystem.c
+index e9a85bc..8fdf987 100644
+--- a/conf/objs/filesystem.c
++++ b/conf/objs/filesystem.c
+@@ -33,8 +33,8 @@ static bool filesystem_invariant(const void *bob)
+ 	C2_PRE(self_obj->co_type == C2_CO_FILESYSTEM);
+ 
+ 	return ergo(obj_is_stub(self_obj), self->cf_params == NULL) &&
+-		ergo(self_obj->co_mounted, /* check relations */
+-		     parent_check(self_obj, C2_CO_PROFILE) &&
++		ergo(self_obj->co_mounted,
++		     parent_check(self_obj) &&
+ 		     C2_CONF_CAST(self_obj->co_parent,
+ 				  c2_conf_profile)->cp_filesystem == self &&
+ 		     child_check(self_obj,
+diff --git a/conf/objs/nic.c b/conf/objs/nic.c
+index cc72055..baf2777 100644
+--- a/conf/objs/nic.c
++++ b/conf/objs/nic.c
+@@ -35,7 +35,7 @@ static bool nic_invariant(const void *bob)
+ 	return obj_is_stub(self_obj) == (self->ni_filename == NULL) &&
+ 		(self_obj->co_mounted ?
+ 		 /* check relations */
+-		 parent_check(self_obj, C2_CO_DIR) :
++		 parent_check(self_obj) :
+ 		 /* ensure the absence of relations */
+ 		 self_obj->co_parent == NULL);
+ }
+diff --git a/conf/objs/node.c b/conf/objs/node.c
+index 38d3c5d..e439b11 100644
+--- a/conf/objs/node.c
++++ b/conf/objs/node.c
+@@ -38,9 +38,6 @@ static bool node_invariant(const void *bob)
+ 		self_obj->co_parent == NULL &&
+ 		(self_obj->co_mounted ?
+ 		 /* check relations */
+-		 parent_check(self_obj, C2_CO_SERVICE) &&
+-		 C2_CONF_CAST(self_obj->co_parent,
+-			      c2_conf_service)->cs_node == self &&
+ 		 child_check(self_obj, MEMBER_PTR(self->cn_nics, cd_obj),
+ 			     C2_CO_DIR) &&
+ 		 child_check(self_obj, MEMBER_PTR(self->cn_sdevs, cd_obj),
+diff --git a/conf/objs/partition.c b/conf/objs/partition.c
+index 971369e..c319806 100644
+--- a/conf/objs/partition.c
++++ b/conf/objs/partition.c
+@@ -35,7 +35,7 @@ static bool partition_invariant(const void *bob)
+ 	return obj_is_stub(self_obj) == (self->pa_filename == NULL) &&
+ 		(self_obj->co_mounted ?
+ 		 /* check relations */
+-		 parent_check(self_obj, C2_CO_DIR) :
++		 parent_check(self_obj) :
+ 		 /* ensure the absence of relations */
+ 		 self_obj->co_parent == NULL);
+ }
+diff --git a/conf/objs/profile.c b/conf/objs/profile.c
+index 56208fd..85f39b7 100644
+--- a/conf/objs/profile.c
++++ b/conf/objs/profile.c
+@@ -41,12 +41,20 @@ static bool profile_invariant(const void *bob)
+ #endif
+ 		/* c2_conf_profile is the topmost object in the DAG */
+ 		self_obj->co_parent == NULL &&
+-		(self_obj->co_mounted ?
+-		 /* check relations */
+-		 child_check(self_obj, MEMBER_PTR(self->cp_filesystem, cf_obj),
+-			     C2_CO_FILESYSTEM) :
+-		 /* ensure the absence of relations */
+-			  self->cp_filesystem == NULL);
++		ergo(self_obj->co_mounted,
++		     child_check(self_obj,
++				 MEMBER_PTR(self->cp_filesystem, cf_obj),
++				 C2_CO_FILESYSTEM));
++}
++
++/* XXX conf/objs/common.c candidate. */
++static void adopt(struct c2_conf_obj *self, struct c2_conf_obj *child)
++{
++	C2_PRE(c2_conf_obj_invariant(self));
++	C2_PRE(!child->co_mounted && c2_conf_obj_invariant(child));
++
++	child->co_parent = self;
++	child->co_mounted = true;
+ }
+ 
+ static int profile_fill(struct c2_conf_obj *__dest,
+@@ -62,8 +70,7 @@ static int profile_fill(struct c2_conf_obj *__dest,
+ 	rc = obj_find(reg, C2_CO_FILESYSTEM, &src->xp_filesystem, &fs);
+ 	if (rc == 0) {
+ 		dest->cp_filesystem = C2_CONF_CAST(fs, c2_conf_filesystem);
+-		dest->cp_filesystem->cf_obj.co_parent = __dest;
+-		dest->cp_filesystem->cf_obj.co_mounted = true;
++		adopt(__dest, &dest->cp_filesystem->cf_obj);
+ 		__dest->co_mounted = true;
+ 	}
+ 	return rc;
+diff --git a/conf/objs/sdev.c b/conf/objs/sdev.c
+index 73d2396..11222c1 100644
+--- a/conf/objs/sdev.c
++++ b/conf/objs/sdev.c
+@@ -35,7 +35,7 @@ static bool sdev_invariant(const void *bob)
+ 	return obj_is_stub(self_obj) == (self->sd_filename == NULL) &&
+ 		(self_obj->co_mounted ?
+ 		 /* check relations */
+-		 parent_check(self_obj, C2_CO_DIR) &&
++		 parent_check(self_obj) &&
+ 		 child_check(self_obj, MEMBER_PTR(self->sd_partitions, cd_obj),
+ 			     C2_CO_DIR) :
+ 		 /* ensure the absence of relations */
+diff --git a/conf/objs/service.c b/conf/objs/service.c
+index 3c190b8..9beb979 100644
+--- a/conf/objs/service.c
++++ b/conf/objs/service.c
+@@ -39,7 +39,7 @@ static bool service_invariant(const void *bob)
+ 				      C2_CFG_SERVICE_DLM))) &&
+ 		(self_obj->co_mounted ?
+ 		 /* check relations */
+-		 parent_check(self_obj, C2_CO_DIR) &&
++		 parent_check(self_obj) &&
+ 		 child_check(self_obj, MEMBER_PTR(self->cs_node, cn_obj),
+ 			     C2_CO_NODE) :
+ 		 /* ensure the absence of relations */
+diff --git a/conf/ut/Makefile.am b/conf/ut/Makefile.am
+index b29dbf4..fc6f7c1 100644
+--- a/conf/ut/Makefile.am
++++ b/conf/ut/Makefile.am
+@@ -1,7 +1,8 @@
+ noinst_LTLIBRARIES    = libconf-ut.la
+ libconf_ut_la_SOURCES = main.c obj.c reg.c
+ libconf_ut_la_LIBADD  = $(top_builddir)/colibri/libcolibri.la
+-libconf_ut_la_CFLAGS = -DCOLIBRI_CONFX_OBJ_CFG=$(abs_top_builddir)/conf/ut/confx.txt
++libconf_ut_la_CFLAGS = \
++    -DCOLIBRI_CONFX_OBJ_CFG=$(abs_top_builddir)/conf/ut/confx.txt
+ 
+ 
+ # Preload parser (temporary target)
+diff --git a/conf/ut/main.c b/conf/ut/main.c
+index 41f4609..3e5cb89 100644
+--- a/conf/ut/main.c
++++ b/conf/ut/main.c
+@@ -23,7 +23,8 @@
+ #endif
+ #include "lib/ut.h"
+ 
+-extern void test_obj(void);
++extern void test_obj_fill(void);
++extern void test_obj_xtors(void);
+ extern void test_reg(void);
+ 
+ const struct c2_test_suite conf_ut = {
+@@ -31,8 +32,9 @@ const struct c2_test_suite conf_ut = {
+ 	.ts_init  = NULL,
+ 	.ts_fini  = NULL,
+ 	.ts_tests = {
+-		{ "obj", test_obj },
+-		{ "reg", test_reg },
++		{ "obj-fill",  test_obj_fill },
++		{ "obj-xtors", test_obj_xtors },
++		{ "reg",       test_reg },
+ 		{ NULL, NULL }
+ 	}
+ };
+diff --git a/conf/ut/obj.c b/conf/ut/obj.c
+index bb0fb46..58a73b4 100644
+--- a/conf/ut/obj.c
++++ b/conf/ut/obj.c
+@@ -22,61 +22,79 @@
+ #  include "config.h"
+ #endif
+ #include "conf/obj_ops.h"
+-#include "conf/preload.h"
+-#include "conf/onwire.h"
+ #include "conf/reg.h"
++#include "conf/preload.h"
++#include "conf/onwire.h"  /* confx_object */
+ #include "lib/ut.h"
+ #include <stdio.h>
+ 
+ #define QUOTE(s) QUOTE_(s)
+ #define QUOTE_(s) #s
+ 
++/* COLIBRI_CONFX_OBJ_CFG comes from CFLAGS; see conf/ut/Makefile.am */
+ #define CONFX_CFG QUOTE(COLIBRI_CONFX_OBJ_CFG)
+ 
+-static void confx_read(char *buf, int len)
++static void confx_read(char *buf, size_t buf_size)
+ {
+-	FILE *fi;
++	FILE *f;
+ 	int   n;
+ 
+-	fi = fopen(CONFX_CFG, "r");
+-	C2_UT_ASSERT(fi != NULL);
++	f = fopen(CONFX_CFG, "r");
++	C2_UT_ASSERT(f != NULL);
+ 
+-	n = fread(buf, 1, len, fi);
++	n = fread(buf, 1, buf_size, f);
+ 	C2_UT_ASSERT(n > 0);
+ 	buf[n] = '\0';
+ 
+-	fclose(fi);
++	fclose(f);
+ }
+ 
+-void test_obj(void)
++void test_obj_xtors(void)
+ {
+-	enum { KB = 1 << 10 };
+ 	struct c2_conf_obj  *obj;
+ 	enum c2_conf_objtype t;
+-	struct c2_conf_reg   reg;
+-	struct confx_object  conf[64];
+-	char                 buf[32*KB] = {0};
+-	int                  rc;
+-	int		     n;
+ 
+-	confx_read(buf, sizeof buf);
++	C2_UT_ASSERT(C2_CO_DIR == 0);
++	for (t = 0; t < C2_CO_NR; ++t) {
++		obj = c2_conf_obj_create(t, &(const struct c2_buf)
++					 C2_BUF_INITS("test"));
++		C2_UT_ASSERT(obj != NULL);
++		c2_conf_obj_delete(obj);
++	}
++}
++
++void test_obj_fill(void)
++{
++	enum { KB = 1 << 10 };
++	struct c2_conf_reg  reg;
++	char                buf[32 * KB] = {0};
++	struct confx_object xobjs[64];
++	int		    nr_objs;
++	int                 i;
++	struct c2_conf_obj *obj;
++	int                 rc;
+ 
+ 	c2_conf_reg_init(&reg);
+ 
+-	n = c2_conf_parse(buf, conf, ARRAY_SIZE(conf));
+-	C2_UT_ASSERT(n == 8);
++	confx_read(buf, sizeof buf);
+ 
+-	for (t = 0; t < 1; ++t) {
+-		obj = c2_conf_obj_create(t+1, &(const struct c2_buf)
+-					 C2_BUF_INITS("test-2"));
+-		C2_UT_ASSERT(obj != NULL);
++	nr_objs = c2_conf_parse(buf, xobjs, ARRAY_SIZE(xobjs));
++	/* Note, that nr_objs is the number of parsed object
++	 * descriptors, which only accidentally equals C2_CO_NR. */
++	C2_UT_ASSERT(nr_objs == 8);
+ 
+-		rc = c2_conf_obj_fill(obj, &conf[t], &reg);
+-		C2_UT_ASSERT(rc == 0);
++	for (i = 0; i < nr_objs; ++i) {
++		obj = c2_conf_obj_create(xobjs[i].o_conf.u_type,
++					 &xobjs[i].o_id);
++		C2_UT_ASSERT(obj != NULL);
+ 
+-		c2_conf_obj_delete(obj);
++		/* XXX Only profile_fill() has been implemented so far. */
++		if (xobjs[i].o_conf.u_type == C2_CO_PROFILE) {
++			rc = c2_conf_obj_fill(obj, &xobjs[i], &reg);
++			C2_UT_ASSERT(rc == 0);
++		}
+ 	}
+ 
+-	c2_confx_fini(conf, n);
++	c2_confx_fini(xobjs, nr_objs);
+ 	c2_conf_reg_fini(&reg);
+ }
+-- 
+1.8.3.2
+

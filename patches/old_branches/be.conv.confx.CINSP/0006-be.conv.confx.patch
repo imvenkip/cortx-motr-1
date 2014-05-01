@@ -1,0 +1,194 @@
+From 63bfcc47a63b305ccae46b79ba4c1a5d4e3895c0 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Tue, 11 Mar 2014 19:15:55 +0530
+Subject: [PATCH 6/8] be.conv.confx, - Modify m0_confx_free() to return int and
+ handle return code at callers. - Handle return code by m0_be_tx_open_sync().
+
+---
+ conf/confd.c   |  2 +-
+ conf/preload.c | 53 ++++++++++++++++++++++++++---------------------------
+ conf/preload.h |  4 ++--
+ conf/ut/db.c   |  9 ++++++---
+ 4 files changed, 35 insertions(+), 33 deletions(-)
+
+diff --git a/conf/confd.c b/conf/confd.c
+index c931b15..43da123 100644
+--- a/conf/confd.c
++++ b/conf/confd.c
+@@ -531,7 +531,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache,
+ 			m0_conf_obj_fill(obj, xobj, cache);
+ 	}
+ 
+-	m0_confx_free(enc, seg, tx);
++	rc = m0_confx_free(enc, seg, tx);
+ 	M0_RETURN(rc);
+ }
+ 
+diff --git a/conf/preload.c b/conf/preload.c
+index 6f9af44..4a0b3a6 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -47,9 +47,13 @@ struct confx_ctx {
+ 	struct m0_confx      cc_confx;
+ };
+ 
+-static void *__confx_ctx_alloc(struct confx_ctx *cctx, size_t nob)
++static void *__confx_alloc(struct m0_xcode_cursor *ctx, size_t nob)
+ {
+-	char *addr;
++	struct confx_ctx *cctx;
++	char             *addr;
++
++	cctx = container_of(container_of(ctx, struct m0_xcode_ctx, xcx_it),
++			    struct confx_ctx, cc_xctx);
+ 
+ 	M0_PRE(cctx->cc_ptr != NULL);
+ 	M0_PRE(cctx->cc_used + nob <= cctx->cc_total);
+@@ -60,25 +64,13 @@ static void *__confx_ctx_alloc(struct confx_ctx *cctx, size_t nob)
+ 	return addr;
+ }
+ 
+-static void *__confx_alloc(struct m0_xcode_cursor *ctx, size_t nob)
+-{
+-	struct confx_ctx *cctx;
+-	void             *addr;
+-
+-	cctx = container_of(container_of(ctx, struct m0_xcode_ctx, xcx_it),
+-			    struct confx_ctx, cc_xctx);
+-
+-	addr = __confx_ctx_alloc(cctx, nob);
+-	return addr;
+-}
+-
+-M0_INTERNAL void m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg,
+-			       struct m0_be_tx *tx)
++M0_INTERNAL int m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg,
++			      struct m0_be_tx *tx)
+ {
+ 	struct confx_ctx       *cctx;
+ 	struct m0_be_tx_credit  cred = {};
+ 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
+-	int                     rc;
++	int                     rc = 0;
+ 
+ 	M0_ENTRY();
+ 
+@@ -93,16 +85,17 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg,
+ 			m0_be_tx_init(tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+ 			m0_be_tx_prep(tx, &cred);
+ 			rc = m0_be_tx_open_sync(tx);
+-			M0_ASSERT(rc == 0);
+-			M0_BE_FREE_PTR_SYNC(cctx->cc_ptr, seg, tx);
+-			m0_be_tx_close_sync(tx);
++			if (rc == 0) {
++				M0_BE_FREE_PTR_SYNC(cctx->cc_ptr, seg, tx);
++				m0_be_tx_close_sync(tx);
++			}
+ 			m0_be_tx_fini(tx);
+ 			m0_sm_group_unlock(grp);
+ 			m0_free(cctx);
+ 		}
+ 	}
+ 
+-	M0_LEAVE();
++	M0_RETURN(rc);
+ }
+ 
+ static int confstr_be_mem_alloc(struct confx_ctx *cctx, struct m0_be_seg *seg,
+@@ -119,7 +112,7 @@ static int confstr_be_mem_alloc(struct confx_ctx *cctx, struct m0_be_seg *seg,
+ 	m0_be_tx_prep(tx, &cred);
+ 	rc = m0_be_tx_open_sync(tx);
+ 	if (rc != 0) {
+-		M0_ASSERT(rc == 0);
++		m0_be_tx_fini(tx);
+ 		M0_RETURN(rc);
+ 	}
+ 	M0_BE_OP_SYNC(__op,
+@@ -134,7 +127,7 @@ static int confstr_be_mem_alloc(struct confx_ctx *cctx, struct m0_be_seg *seg,
+ 	cctx->cc_total = size;
+ 	cctx->cc_used  = 0;
+ 
+-	return 0;
++	return rc;
+ }
+ 
+ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_be_seg *seg,
+@@ -190,16 +183,22 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_be_seg *seg,
+ 							      *out));
+ 			rc = m0_xcode_dup(dctx, &ctx);
+ 			if (rc == 0) {
+-				m0_confx_free(*out, NULL, NULL);
+-				*out = &cctx->cc_confx;
++				rc = m0_confx_free(*out, NULL, NULL);
++				if (rc == 0)
++					*out = &cctx->cc_confx;
+ 			}
+ 		}
+ 	}
+ 
+ cleanup:
+ 	if (rc != 0) {
+-		m0_confx_free(*out, NULL, NULL);
+-		*out = NULL;
++		rc = m0_confx_free(*out, NULL, NULL);
++		if (rc != 0)
++			M0_LOG(M0_NOTICE,
++			       "Cannot free configuration object, rc :\n%s %d",
++			       s, rc);
++		else
++			*out = NULL;
+ 	}
+ 
+ 	M0_RETURN(rc);
+diff --git a/conf/preload.h b/conf/preload.h
+index db7acf8..50eea14 100644
+--- a/conf/preload.h
++++ b/conf/preload.h
+@@ -144,8 +144,8 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_be_seg *seg,
+ 				 struct m0_be_tx *tx, struct m0_confx **out);
+ 
+ /** Frees the memory, dynamically allocated by m0_confstr_parse(). */
+-M0_INTERNAL void m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg,
+-			       struct m0_be_tx *tx);
++M0_INTERNAL int m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg,
++			      struct m0_be_tx *tx);
+ 
+ /** @} conf_dfspec_preload */
+ #endif /* __MERO_CONF_PRELOAD_H__ */
+diff --git a/conf/ut/db.c b/conf/ut/db.c
+index e6d271a..8315215 100644
+--- a/conf/ut/db.c
++++ b/conf/ut/db.c
+@@ -238,7 +238,8 @@ void __confstr_parse(char *buf, struct m0_be_tx *tx, uint32_t nr_objs)
+ 	rc = m0_confstr_parse(buf, seg, tx, &enc);
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(enc->cx_nr == nr_objs);
+-	m0_confx_free(enc, seg, tx);
++	rc = m0_confx_free(enc, seg, tx);
++	M0_UT_ASSERT(rc == 0);
+ }
+ 
+ void test_confstr_parse(void)
+@@ -294,7 +295,8 @@ void test_confdb(void)
+ 	rc = m0_confstr_parse("[0]", seg, &tx, &enc);
+         M0_UT_ASSERT(rc == 0);
+         M0_UT_ASSERT(enc->cx_nr == 0);
+-        m0_confx_free(enc, seg, &tx);
++        rc = m0_confx_free(enc, seg, &tx);
++	M0_UT_ASSERT(rc == 0);
+ 
+ 	M0_SET0(&tx);
+ 	rc = m0_confstr_parse(buf, seg, &tx, &enc);
+@@ -305,7 +307,8 @@ void test_confdb(void)
+ 	for (i = 0; i < ARRAY_SIZE(tests); ++i)
+ 		tests[i].check(&enc->cx_objs[i]);
+ 	M0_SET0(&tx);
+-	m0_confx_free(enc, seg, &tx);
++	rc = m0_confx_free(enc, seg, &tx);
++	M0_UT_ASSERT(rc == 0);
+ 	conf_ut_db_fini();
+ 
+ 	cleanup();
+-- 
+1.8.3.2
+

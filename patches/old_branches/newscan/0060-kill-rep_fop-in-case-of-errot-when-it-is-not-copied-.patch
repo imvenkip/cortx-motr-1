@@ -1,0 +1,84 @@
+From 2d850d2ca191648cd7ed441d94c016a18e3477eb Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 13 Apr 2011 07:42:15 -0600
+Subject: [PATCH 060/158] - kill rep_fop in case of errot when it is not copied
+ to reply otherwise it is lost.
+
+---
+ ioservice/io_foms.c | 33 +++++++++++++++++++++------------
+ 1 file changed, 21 insertions(+), 12 deletions(-)
+
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index ff09a47..b225806 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -186,19 +186,21 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
+ 	 */
+ 	fom_obj = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
+ 
+-	/* 
+-	 * Allocate and initialize stob io object 
+-	 */
+-	fom_obj->fcrw_st_io = c2_alloc(sizeof(struct c2_stob_io));
+-	if (fom_obj->fcrw_st_io == NULL)
+-		return -ENOMEM;
+-
+         ctx = fom->fo_fop_ctx;
+         C2_ASSERT(ctx != NULL);
+ 
+         site = ctx->fc_site;
+         C2_ASSERT(site != NULL);
+ 
++	/* 
++	 * Allocate and initialize stob io object 
++	 */
++	fom_obj->fcrw_st_io = c2_alloc(sizeof(struct c2_stob_io));
++	if (fom_obj->fcrw_st_io == NULL) {
++		result = -ENOMEM;
++		goto out;
++        }
++
+ 	/*
+ 	 * Retrieve the request and reply FOPs.
+ 	 * Extract the on-write FID from the FOPs.
+@@ -354,6 +356,7 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
+ 		C2_ASSERT(rc == 0);
+ 		/* This should go into FAILURE phase */
+ 		fom_obj->fcrw_gen.fo_phase = FOPH_FAILED;
++                c2_fop_free(fom_obj->fcrw_rep_fop);
+ 		return FSO_AGAIN;
+ 	}
+ 
+@@ -363,18 +366,24 @@ int c2_io_fom_cob_rwv_state(struct c2_fom *fom)
+ 	c2_net_reply_post(fom->fo_fop_ctx->fc_service, fom_obj->fcrw_rep_fop, 
+ 			  fom->fo_fop_ctx->fc_cookie);
+ 
+-	/* This goes into DONE phase */
+-	fom_obj->fcrw_gen.fo_phase = FOPH_DONE;
++out:
++        ctx->fc_retval = rc;
++        if (rc)
++                c2_fop_free(fom_obj->fcrw_rep_fop);
++	/* 
++	 * This goes into DONE phase if not a error 
++	 */
++	fom_obj->fcrw_gen.fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
+ 	return FSO_AGAIN;
+ }
+ 
+ /** Fini of read FOM object */
+ void c2_io_fom_cob_rwv_fini(struct c2_fom *fom)
+ {
+-	struct c2_io_fom_cob_rwv *fom_ctx;
++	struct c2_io_fom_cob_rwv *fom_obj;
+ 
+-	fom_ctx = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
+-	c2_free(fom_ctx);
++	fom_obj = container_of(fom, struct c2_io_fom_cob_rwv, fcrw_gen);
++	c2_free(fom_obj);
+ }
+ 
+ #endif
+-- 
+1.8.3.2
+

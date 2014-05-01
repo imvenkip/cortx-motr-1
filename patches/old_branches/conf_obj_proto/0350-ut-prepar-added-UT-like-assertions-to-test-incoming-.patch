@@ -1,0 +1,384 @@
+From f89c8d113e5ee19347e560d06b27f58bd8d76448 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 31 Aug 2012 16:45:41 +0300
+Subject: [PATCH 350/370] ut/prepar: added UT-like assertions to test incoming
+ confx objs.
+
+---
+ conf/preload.c    |  53 +++++++---------
+ conf/ut/confx.txt |   2 +-
+ conf/ut/prepar.c  | 185 +++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 205 insertions(+), 35 deletions(-)
+
+diff --git a/conf/preload.c b/conf/preload.c
+index 342fa28..1921f38 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -44,8 +44,9 @@ struct hunk {
+ 	const char *end;
+ };
+ 
+-#define HUNK_CP(p) { .begin = p->begin, .end = p->end }
+-#define HUNK_EMPTY { NULL, NULL }
++#define HUNK_CP(p)    { .begin = p->begin, .end = p->end }
++#define HUNK_EMPTY    { NULL, NULL }
++#define HUNK_INITS(s) { .begin = s, .end = &s[strlen(s) - 1] }
+ 
+ static bool hunk_is_empty(const struct hunk *p)
+ {
+@@ -243,7 +244,7 @@ static int entry_parse(struct hunk *unit, const struct hunk *buffer)
+ 
+ enum { C2_CO_INVALID_TYPE = C2_CO_NR };
+ 
+-static int parse_profile(const struct hunk *key, const struct hunk *val,
++static int profile_parse(const struct hunk *key, const struct hunk *val,
+ 			 struct confx_object *out)
+ {
+ 	hunk_pr(__FUNCTION__, key);
+@@ -287,7 +288,7 @@ static int rootfid_parse(struct fid *fid, const struct hunk *val)
+ 	return rc == -ENOENT ? 0 : -EINVAL;
+ }
+ 
+-static int parse_filesystem(const struct hunk *key, const struct hunk *val,
++static int filesystem_parse(const struct hunk *key, const struct hunk *val,
+ 			    struct confx_object *out)
+ {
+ 	hunk_pr(__FUNCTION__, key);
+@@ -314,7 +315,7 @@ static int parse_filesystem(const struct hunk *key, const struct hunk *val,
+ 	return 0;
+ }
+ 
+-static int parse_service(const struct hunk *key, const struct hunk *val,
++static int service_parse(const struct hunk *key, const struct hunk *val,
+ 			 struct confx_object *out)
+ {
+ 	hunk_pr(__FUNCTION__, key);
+@@ -342,7 +343,7 @@ static int parse_service(const struct hunk *key, const struct hunk *val,
+ 	return 0;
+ }
+ 
+-static int parse_node(const struct hunk *key, const struct hunk *val,
++static int node_parse(const struct hunk *key, const struct hunk *val,
+ 		      struct confx_object *out)
+ {
+ 	hunk_pr(__FUNCTION__, key);
+@@ -385,7 +386,7 @@ static int parse_node(const struct hunk *key, const struct hunk *val,
+ 	return 0;
+ }
+ 
+-static int parse_nic(const struct hunk *key, const struct hunk *val,
++static int nic_parse(const struct hunk *key, const struct hunk *val,
+ 		     struct confx_object *out)
+ {
+ 	hunk_pr(__FUNCTION__, key);
+@@ -420,23 +421,12 @@ static int parse_nic(const struct hunk *key, const struct hunk *val,
+ 	return 0;
+ }
+ 
+-static int parse_sdev(const struct hunk *key, const struct hunk *val,
++static int sdev_parse(const struct hunk *key, const struct hunk *val,
+ 		      struct confx_object *out)
+ {
+ 	hunk_pr(__FUNCTION__, key);
+ 	hunk_pr(__FUNCTION__, val);
+ 
+-	/*
+-	  @todo: no "filename":"/path/to/somewhere" in confstr!
+-	  @todo: allocate or what with this?
+-	  "partitions":["part0"]
+-	  struct arr_buf xd_partitions;
+-	  struct arr_buf {
+-		uint32_t       ab_count;
+-		struct c2_buf *ab_elems;
+-	  } ;
+-	*/
+-
+ 	if (hunk_str_eq(key, "id"))
+ 		c2_buf_init(&out->o_id, (void *)val->begin, hunk_len(val));
+ 
+@@ -474,7 +464,7 @@ static int parse_sdev(const struct hunk *key, const struct hunk *val,
+ 	return 0;
+ }
+ 
+-static int parse_partition(const struct hunk *key, const struct hunk *val,
++static int partition_parse(const struct hunk *key, const struct hunk *val,
+ 			   struct confx_object *out)
+ {
+ 	hunk_pr(__FUNCTION__, key);
+@@ -515,7 +505,7 @@ static int parse_partition(const struct hunk *key, const struct hunk *val,
+  * Bindings: generic parser is bound to concrete
+  * ------------------------------------------------------------------ */
+ 
+-static int parse_unused(const struct hunk *key, const struct hunk *val,
++static int unused_parse(const struct hunk *key, const struct hunk *val,
+ 			struct confx_object *out)
+ {
+ 	C2_IMPOSSIBLE("Wrong parser handler called");
+@@ -527,14 +517,14 @@ static const struct xstr_rec {
+ 	int (*r_parse)(const struct hunk *key, const struct hunk *val,
+ 		       struct confx_object *out);
+ } xstr[C2_CO_NR] = {
+-	[C2_CO_DIR]	   = { "unused"     , parse_unused     },
+-	[C2_CO_PROFILE]	   = { "profile"    , parse_profile    },
+-	[C2_CO_FILESYSTEM] = { "filesystem" , parse_filesystem },
+-	[C2_CO_SERVICE]	   = { "service"    , parse_service    },
+-	[C2_CO_NODE]	   = { "node"	    , parse_node       },
+-	[C2_CO_NIC]	   = { "nic"	    , parse_nic        },
+-	[C2_CO_SDEV]	   = { "sdev"	    , parse_sdev       },
+-	[C2_CO_PARTITION]  = { "partition"  , parse_partition  }
++	[C2_CO_DIR]	   = { "unused"     , unused_parse     },
++	[C2_CO_PROFILE]	   = { "profile"    , profile_parse    },
++	[C2_CO_FILESYSTEM] = { "filesystem" , filesystem_parse },
++	[C2_CO_SERVICE]	   = { "service"    , service_parse    },
++	[C2_CO_NODE]	   = { "node"	    , node_parse       },
++	[C2_CO_NIC]	   = { "nic"	    , nic_parse        },
++	[C2_CO_SDEV]	   = { "sdev"	    , sdev_parse       },
++	[C2_CO_PARTITION]  = { "partition"  , partition_parse  }
+ };
+ 
+ static size_t str_to_x(const struct hunk *key)
+@@ -598,7 +588,7 @@ int c2_conf_parse(const char *src, struct confx_object *dest, size_t n)
+ {
+ 	int rc;
+ 	size_t conf_index = 0;
+-	struct hunk str = { .begin = src, .end = &src[strlen(src) - 1] };
++	struct hunk str = HUNK_INITS(src);
+ 	struct hunk blk = HUNK_EMPTY;
+ 
+ 	for (; block_parse(&blk, &str) == 0; ) {
+@@ -609,8 +599,7 @@ int c2_conf_parse(const char *src, struct confx_object *dest, size_t n)
+ 			dest[conf_index].o_conf.u_type = C2_CO_INVALID_TYPE;
+ 
+ 			for (; entry_parse(&ent, &rec) == 0; ) {
+-				rc = x_parser_call(&ent,
+-						   &dest[conf_index]);
++				rc = x_parser_call(&ent, &dest[conf_index]);
+ 				if (rc != 0)
+ 					return rc;
+ 			}
+diff --git a/conf/ut/confx.txt b/conf/ut/confx.txt
+index 6db05fb..e097666 100644
+--- a/conf/ut/confx.txt
++++ b/conf/ut/confx.txt
+@@ -12,7 +12,7 @@
+ , { "type":"nic", "id":"nic0", "iface_type":5, "mtu":8192, "speed":10000,
+     "filename":"ib0", "last_state":3 }
+ , { "type":"sdev", "id":"sdev0", "iface":4, "media":1, "size":596000000000,
+-    "last_state":3, "flags":4, "partitions":["part0"] }
++    "last_state":3, "flags":4, "partitions":["part0"], "filename":"/dev/sdev0" }
+ , { "type":"partition", "id":"part0", "start":0, "size":596000000000, "index":0,
+     "pa_type":7, "filename":"sda1" } ]
+ 
+diff --git a/conf/ut/prepar.c b/conf/ut/prepar.c
+index 39a7cf8..b997854 100644
+--- a/conf/ut/prepar.c
++++ b/conf/ut/prepar.c
+@@ -1,15 +1,183 @@
+ #include "conf/preload.h"
+ #include "conf/onwire.h"
++#include "conf/obj.h"
+ #include "lib/assert.h"
+ #include "lib/errno.h"
+ #include "lib/misc.h"
++#include "lib/buf.h"
+ #include <stdio.h>
+ 
++
++static void profile_check(const struct confx_object *conf)
++{
++	/* parse_profile: ~id~ ~test-2~ */
++	/* parse_profile: ~filesystem~ ~c2t1fs~ */
++
++	const struct c2_buf id = C2_BUF_INITS("test-2");
++	const struct c2_buf fs = C2_BUF_INITS("c2t1fs");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_PROFILE);
++	C2_ASSERT(c2_buf_eq(&conf->o_conf.u.u_profile.xp_filesystem, &fs));
++}
++
++static void filesystem_check(const struct confx_object *conf)
++{
++	/* parse_filesystem: ~id~ ~c2t1fs~ */
++	/* parse_filesystem: ~rootfid~ ~[11, 22]~ */
++	/* parse_filesystem: ~params~ ~["50","60","70"]~ */
++	/* parse_filesystem: ~services~ ~["mds", "io"]~ */
++
++	const struct c2_buf id = C2_BUF_INITS("c2t1fs");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_FILESYSTEM);
++	C2_ASSERT(conf->o_conf.u.u_filesystem.xf_rootfid.f_container == 11);
++	C2_ASSERT(conf->o_conf.u.u_filesystem.xf_rootfid.f_key == 22);
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_partitions.ab_count == 0);
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_partitions.ab_count == 0);
++}
++
++static void service_check1(const struct confx_object *conf)
++{
++	/* parse_service: ~id~ ~mds~ */
++	/* parse_service: ~svc_type~ ~1~ */
++	/* parse_service: ~endpoints~ ~["addr0"]~ */
++	/* parse_service: ~node~ ~N~ */
++
++	const struct c2_buf id = C2_BUF_INITS("mds");
++	const struct c2_buf node = C2_BUF_INITS("N");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_SERVICE);
++	C2_ASSERT(conf->o_conf.u.u_service.xs_type == 1);
++	C2_ASSERT(conf->o_conf.u.u_service.xs_endpoints.ab_count == 0);
++	C2_ASSERT(c2_buf_eq(&conf->o_conf.u.u_service.xs_node, &node));
++}
++
++static void service_check2(const struct confx_object *conf)
++{
++	/* parse_service: ~id~ ~io~ */
++	/* parse_service: ~svc_type~ ~2~ */
++	/* parse_service: ~endpoints~ ~["addr1","addr2","addr3"]~ */
++	/* parse_service: ~node~ ~N~ */
++
++	const struct c2_buf id = C2_BUF_INITS("io");
++	const struct c2_buf node = C2_BUF_INITS("N");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_SERVICE);
++	C2_ASSERT(conf->o_conf.u.u_service.xs_type == 2);
++	C2_ASSERT(conf->o_conf.u.u_service.xs_endpoints.ab_count == 0);
++	C2_ASSERT(c2_buf_eq(&conf->o_conf.u.u_service.xs_node, &node));
++}
++
++static void node_check(const struct confx_object *conf)
++{
++	/* parse_node: ~id~ ~N~ */
++	/* parse_node: ~memsize~ ~8000~ */
++	/* parse_node: ~nr_cpu~ ~2~ */
++	/* parse_node: ~last_state~ ~3~ */
++	/* parse_node: ~flags~ ~2~ */
++	/* parse_node: ~pool_id~ ~0~ */
++	/* parse_node: ~nics~ ~["nic0"]~ */
++	/* parse_node: ~sdevs~ ~["sdev0"]~ */
++
++	const struct c2_buf id = C2_BUF_INITS("N");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_NODE);
++	C2_ASSERT(conf->o_conf.u.u_node.xn_memsize == 8000);
++	C2_ASSERT(conf->o_conf.u.u_node.xn_nr_cpu == 2);
++	C2_ASSERT(conf->o_conf.u.u_node.xn_last_state == 3);
++	C2_ASSERT(conf->o_conf.u.u_node.xn_flags == 2);
++	C2_ASSERT(conf->o_conf.u.u_node.xn_pool_id == 0);
++	C2_ASSERT(conf->o_conf.u.u_node.xn_nics.ab_count == 0);
++	C2_ASSERT(conf->o_conf.u.u_node.xn_sdevs.ab_count == 0);
++}
++
++static void nic_check(const struct confx_object *conf)
++{
++	/* parse_nic: ~id~ ~nic0~ */
++	/* parse_nic: ~iface_type~ ~5~ */
++	/* parse_nic: ~mtu~ ~8192~ */
++	/* parse_nic: ~speed~ ~10000~ */
++	/* parse_nic: ~filename~ ~ib0~ */
++	/* parse_nic: ~last_state~ ~3~ */
++
++	const struct c2_buf id = C2_BUF_INITS("nic0");
++	const struct c2_buf fn = C2_BUF_INITS("ib0");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_NIC);
++
++	C2_ASSERT(conf->o_conf.u.u_nic.xi_iface == 5);
++	C2_ASSERT(conf->o_conf.u.u_nic.xi_mtu == 8192);
++	C2_ASSERT(conf->o_conf.u.u_nic.xi_speed == 10000);
++	C2_ASSERT(c2_buf_eq(&conf->o_conf.u.u_nic.xi_filename, &fn));
++	C2_ASSERT(conf->o_conf.u.u_nic.xi_last_state == 3);
++}
++
++
++static void sdev_check(const struct confx_object *conf)
++{
++	/* parse_sdev: ~id~ ~sdev0~ */
++	/* parse_sdev: ~iface~ ~4~ */
++	/* parse_sdev: ~media~ ~1~ */
++	/* parse_sdev: ~size~ ~596000000000~ */
++	/* parse_sdev: ~last_state~ ~3~ */
++	/* parse_sdev: ~flags~ ~4~ */
++	/* parse_sdev: ~partitions~ ~["part0"]~ */
++	/* parse_sdev: ~filename~ ~/dev/sdev0~ */
++
++	const struct c2_buf id = C2_BUF_INITS("sdev0");
++	const struct c2_buf fn = C2_BUF_INITS("/dev/sdev0");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_SDEV);
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_iface == 4);
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_media == 1);
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_size == 596000000000);
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_last_state == 3);
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_flags == 4);
++	C2_ASSERT(c2_buf_eq(&conf->o_conf.u.u_sdev.xd_filename, &fn));
++	C2_ASSERT(conf->o_conf.u.u_sdev.xd_partitions.ab_count == 0);
++}
++
++static void partition_check(const struct confx_object *conf)
++{
++	/* parse_partition: ~id~ ~part0~ */
++	/* parse_partition: ~start~ ~0~ */
++	/* parse_partition: ~size~ ~596000000000~ */
++	/* parse_partition: ~index~ ~0~ */
++	/* parse_partition: ~pa_type~ ~7~ */
++	/* parse_partition: ~filename~ ~sda1~ */
++
++	const struct c2_buf id = C2_BUF_INITS("part0");
++	const struct c2_buf fn = C2_BUF_INITS("sda1");
++
++	C2_ASSERT(c2_buf_eq(&conf->o_id, &id));
++
++	C2_ASSERT(conf->o_conf.u_type == C2_CO_PARTITION);
++	C2_ASSERT(conf->o_conf.u.u_partition.xa_start == 0);
++	C2_ASSERT(conf->o_conf.u.u_partition.xa_size == 596000000000);
++	C2_ASSERT(conf->o_conf.u.u_partition.xa_index ==0);
++	C2_ASSERT(conf->o_conf.u.u_partition.xa_type == 7);
++	C2_ASSERT(c2_buf_eq(&conf->o_conf.u.u_partition.xa_file, &fn));
++}
++
+ int main(void)
+ {
+ 	enum { KB = 1 << 10 };
+ 	char                buf[32*KB] = {0};
+-	size_t              n;
++	int                 n;
+ 	struct confx_object conf[100];
+ 
+ 	n = fread(buf, 1, sizeof buf, stdin);
+@@ -17,6 +185,19 @@ int main(void)
+ 		return 1;
+ 	buf[n] = '\0';
+ 
+-	printf("entries: %d\n", c2_conf_parse(buf, conf, ARRAY_SIZE(conf)));
++	n = c2_conf_parse(buf, conf, ARRAY_SIZE(conf));
++	printf("entries: %d\n", n);
++
++	C2_ASSERT(n == 8);
++
++	profile_check(&conf[0]);
++	filesystem_check(&conf[1]);
++	service_check1(&conf[2]);
++	service_check2(&conf[3]);
++	node_check(&conf[4]);
++	nic_check(&conf[5]);
++	sdev_check(&conf[6]);
++	partition_check(&conf[7]);
++
+ 	return 0;
+ }
+-- 
+1.8.3.2
+

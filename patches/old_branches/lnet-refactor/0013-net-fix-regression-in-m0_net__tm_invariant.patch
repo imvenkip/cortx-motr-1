@@ -1,0 +1,169 @@
+From 19a2d8c6acf0b5b080901eef73735366d3108e5d Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 14 Jul 2013 13:50:09 +0300
+Subject: [PATCH 13/14] net: fix regression in m0_net__tm_invariant()
+
++ Use M0_IN().
+---
+ net/lnet/lnet_tm.c | 22 ++++++++++++++++------
+ net/lnet/lnet_xo.c | 12 +++---------
+ net/tm.c           | 16 ++++++----------
+ 3 files changed, 25 insertions(+), 25 deletions(-)
+
+diff --git a/net/lnet/lnet_tm.c b/net/lnet/lnet_tm.c
+index 2356b71..99afa4d 100644
+--- a/net/lnet/lnet_tm.c
++++ b/net/lnet/lnet_tm.c
+@@ -315,13 +315,22 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
+ 	/* Recover the transport space network buffer address from the
+ 	   opaque data set during registration.
+ 	 */
+-	nb = (struct m0_net_buffer *) lcbev->cbe_buffer_id;
++	nb = (struct m0_net_buffer *)lcbev->cbe_buffer_id;
++#if 1 /* XXX <<<<<<< */
++	if (nb == NULL) {
++		M0_LOG(M0_FATAL, "XXX lcbev->cbe_*: time=%lu status=%d"
++		       " length=%lu unlinked=%d",
++		       (unsigned long)lcbev->cbe_time, lcbev->cbe_status,
++		       (unsigned long)lcbev->cbe_length, !!lcbev->cbe_unlinked);
++	}
++#endif /* XXX >>>>>>> */
+ 	M0_ASSERT(m0_net__buffer_invariant(nb));
+ 
+ 	M0_SET0(nbev);
+ 	nbev->nbe_buffer = nb;
+ 	nbev->nbe_status = lcbev->cbe_status;
+ 	nbev->nbe_time   = m0_time_add(lcbev->cbe_time, nb->nb_add_time);
++
+ 	if (nbev->nbe_status != 0) {
+ 		if (nbev->nbe_status == -ECANCELED &&
+ 		    nb->nb_flags & M0_NET_BUF_TIMED_OUT)
+@@ -338,11 +347,12 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
+ 		}
+ 		nbev->nbe_offset = lcbev->cbe_offset;
+ 	}
+-	if (nb->nb_qtype == M0_NET_QT_MSG_RECV ||
+-	    nb->nb_qtype == M0_NET_QT_PASSIVE_BULK_RECV ||
+-	    nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV) {
++
++	if (M0_IN(nb->nb_qtype, (M0_NET_QT_MSG_RECV,
++				 M0_NET_QT_PASSIVE_BULK_RECV,
++				 M0_NET_QT_ACTIVE_BULK_RECV)))
+ 		nbev->nbe_length = lcbev->cbe_length;
+-	}
++
+ 	if (!lcbev->cbe_unlinked)
+ 		nb->nb_flags |= M0_NET_BUF_RETAIN;
+  done:
+@@ -355,8 +365,8 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
+ 	/* currently we only support RETAIN for received messages */
+ 	M0_POST(ergo(nb->nb_flags & M0_NET_BUF_RETAIN,
+ 		     nb->nb_qtype == M0_NET_QT_MSG_RECV));
+-	M0_POST(rc == 0 || rc == -ENOMEM);
+ 	M0_POST(m0_net__buffer_event_invariant(nbev));
++	M0_POST(M0_IN(rc, (0, -ENOMEM)));
+ 	return rc;
+ }
+ 
+diff --git a/net/lnet/lnet_xo.c b/net/lnet/lnet_xo.c
+index 99672a8..53710af 100644
+--- a/net/lnet/lnet_xo.c
++++ b/net/lnet/lnet_xo.c
+@@ -510,8 +510,7 @@ static void nlx_xo_bev_deliver_all(struct m0_net_transfer_mc *tm)
+ 
+ 	M0_PRE(nlx_tm_invariant(tm));
+ 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
+-	M0_PRE(tm->ntm_state == M0_NET_TM_STARTED ||
+-	       tm->ntm_state == M0_NET_TM_STOPPING);
++	M0_PRE(M0_IN(tm->ntm_state, (M0_NET_TM_STARTED, M0_NET_TM_STOPPING)));
+ 
+ 	while (nlx_core_buf_event_get(&tp->xtm_core, &cbev)) {
+ 		struct m0_net_buffer_event nbev;
+@@ -581,16 +580,14 @@ static void nlx_xo_bev_deliver_all(struct m0_net_transfer_mc *tm)
+ 		m0_mutex_lock(&tm->ntm_mutex);
+ 		tm->ntm_callback_counter--;
+ 
+-		M0_ASSERT(tm->ntm_state == M0_NET_TM_STARTED ||
+-			  tm->ntm_state == M0_NET_TM_STOPPING);
++		M0_ASSERT(M0_IN(tm->ntm_state,
++				(M0_NET_TM_STARTED, M0_NET_TM_STOPPING)));
+ 	}
+ 	NLXDBGP(tp,2,"%p: delivered %d events\n", tp, num_events);
+ 
+ 	/* if we ever left the mutex, wake up waiters on the TM channel */
+ 	if (num_events > 0 && tm->ntm_callback_counter == 0)
+ 		m0_chan_broadcast(&tm->ntm_chan);
+-
+-	return;
+ }
+ 
+ static int nlx_xo_bev_deliver_sync(struct m0_net_transfer_mc *tm)
+@@ -623,15 +620,12 @@ static void nlx_xo_bev_notify(struct m0_net_transfer_mc *tm,
+ 	/* set the notification channel and awaken nlx_tm_ev_worker() */
+ 	tp->xtm_ev_chan = chan;
+ 	m0_cond_signal(&tp->xtm_ev_cond);
+-
+-	return;
+ }
+ 
+ static m0_bcount_t nlx_xo_get_max_buffer_desc_size(const struct m0_net_domain
+ 						   *dom)
+ {
+ 	M0_PRE(nlx_dom_invariant(dom));
+-
+ 	return sizeof(struct nlx_core_buf_desc);
+ }
+ 
+diff --git a/net/tm.c b/net/tm.c
+index 8763815..d679e92 100644
+--- a/net/tm.c
++++ b/net/tm.c
+@@ -77,11 +77,9 @@ M0_INTERNAL bool m0_net__tm_invariant(const struct m0_net_transfer_mc *tm)
+ 	if (tm->ntm_state == M0_NET_TM_STARTED &&
+ 	    tm->ntm_ep == NULL)
+ 		return false;
+-	if (tm->ntm_state != M0_NET_TM_STARTED &&
+-	    tm->ntm_state != M0_NET_TM_STOPPING)
++	return M0_IN(tm->ntm_state, (M0_NET_TM_STARTED, M0_NET_TM_STOPPING)) ||
+ 		m0_forall(i, ARRAY_SIZE(tm->ntm_q),
+ 			  m0_net_tm_tlist_is_empty(&tm->ntm_q[i]));
+-	return true;
+ }
+ 
+ M0_INTERNAL void m0_net_tm_event_post(const struct m0_net_tm_event *ev)
+@@ -309,10 +307,8 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort)
+ 	M0_ENTRY("abort=%u", !!abort);
+ 	m0_mutex_lock(&tm->ntm_mutex);
+ 	M0_PRE(m0_net__tm_invariant(tm));
+-	M0_PRE(tm->ntm_state == M0_NET_TM_INITIALIZED ||
+-	       tm->ntm_state == M0_NET_TM_STARTING ||
+-	       tm->ntm_state == M0_NET_TM_STARTED);
+-
++	M0_PRE(M0_IN(tm->ntm_state, (M0_NET_TM_INITIALIZED, M0_NET_TM_STARTING,
++				     M0_NET_TM_STARTED)));
+ 	oldstate = tm->ntm_state;
+ 	tm->ntm_state = M0_NET_TM_STOPPING;
+ 	rc = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_stop(tm, abort);
+@@ -559,9 +555,8 @@ M0_INTERNAL void m0_net_tm_pool_length_set(struct m0_net_transfer_mc *tm,
+ 
+ 	m0_mutex_lock(&tm->ntm_mutex);
+ 	M0_PRE(m0_net__tm_invariant(tm));
+-	M0_PRE(tm->ntm_state == M0_NET_TM_INITIALIZED ||
+-	       tm->ntm_state == M0_NET_TM_STARTING ||
+-	       tm->ntm_state == M0_NET_TM_STARTED);
++	M0_PRE(M0_IN(tm->ntm_state, (M0_NET_TM_INITIALIZED, M0_NET_TM_STARTING,
++				     M0_NET_TM_STARTED)));
+ 	if (len > M0_NET_TM_RECV_QUEUE_DEF_LEN)
+ 		tm->ntm_recv_queue_min_length = len;
+ 	if (tm->ntm_recv_pool != NULL && tm->ntm_state == M0_NET_TM_STARTED) {
+@@ -569,6 +564,7 @@ M0_INTERNAL void m0_net_tm_pool_length_set(struct m0_net_transfer_mc *tm,
+ 		M0_CNT_INC(tm->ntm_callback_counter);
+ 	}
+ 	m0_mutex_unlock(&tm->ntm_mutex);
++
+ 	if (pool != NULL) {
+ 		m0_net__tm_provision_recv_q(tm);
+ 		m0_mutex_lock(&tm->ntm_mutex);
+-- 
+1.8.3.2
+

@@ -1,0 +1,131 @@
+From dbe55ae1fae2a6ecc03da88f5ee432b5fdb25480 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 17 Jan 2014 17:57:11 +0530
+Subject: [PATCH 03/20]  - Moved monitor from fom domain to locality.
+
+---
+ fop/fom.c              | 26 +++++++++++++-------------
+ fop/fom.h              |  7 +++++--
+ fop/fop_rate_monitor.c |  6 +++---
+ 3 files changed, 21 insertions(+), 18 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 174f16b..843fbd1 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -770,6 +770,9 @@ static void loc_fini(struct m0_fom_locality *loc)
+ 
+ 	m0_bitmap_fini(&loc->fl_processors);
+ 
++	m0_fop_rate_monitor_fini(loc->fl_dom->fd_reqh,
++				 &loc->fl_fop_rate_monitor,
++				 loc->fl_fop_rate_monitor_key);
+ 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+ 	m0_addb_counter_fini(&loc->fl_stat_run_times);
+ 	m0_addb_counter_fini(&loc->fl_stat_fop_rate);
+@@ -824,6 +827,14 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	if (result != 0)
+ 		goto err1;
+ 
++	loc->fl_fop_rate_monitor_key = 0;
++	result = m0_fop_rate_monitor_init(loc->fl_dom->fd_reqh,
++					  &loc->fl_fop_rate_monitor);
++	if (result < 0)
++		goto err0;
++
++	loc->fl_fop_rate_monitor_key = result;
++
+ 	runq_tlist_init(&loc->fl_runq);
+ 	loc->fl_runq_nr = 0;
+ 
+@@ -858,6 +869,8 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 
+ 	return result;
+ 
++err0:
++	m0_addb_counter_fini(&loc->fl_stat_fop_rate);
+ err1:
+ 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+ err2:
+@@ -907,7 +920,6 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
+ 
+ 	M0_PRE(dom != NULL);
+ 
+-	dom->fd_fop_rate_monitor_key = 0;
+ 	cpu_max = m0_processor_nr_max();
+ 	dom->fd_ops = &m0_fom_dom_ops;
+ 	result = m0_bitmap_init(&onln_cpu_map, cpu_max);
+@@ -957,12 +969,6 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
+ 	}
+ 
+ 	m0_bitmap_fini(&onln_cpu_map);
+-	result = m0_fop_rate_monitor_init(dom->fd_reqh,
+-					  &dom->fd_fop_rate_monitor);
+-	if (result < 0)
+-		m0_fom_domain_fini(dom);
+-	else
+-		dom->fd_fop_rate_monitor_key = result;
+ 
+ 	return result;
+ }
+@@ -984,12 +990,6 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
+ 		m0_free(dom->fd_localities[i]);
+ 	}
+ 	m0_free(dom->fd_localities);
+-
+-	if (m0_addb_monitor_is_initialised(&dom->fd_fop_rate_monitor)){
+-		m0_fop_rate_monitor_fini(dom->fd_reqh,
+-					 &dom->fd_fop_rate_monitor,
+-					 dom->fd_fop_rate_monitor_key);
+-	}
+ }
+ 
+ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
+diff --git a/fop/fom.h b/fop/fom.h
+index cde876e..465e214 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -302,6 +302,11 @@ struct m0_fom_locality {
+ 	m0_time_t		     fl_fop_rate_next_update;
+ 	struct m0_addb_counter       fl_stat_fop_rate;
+ 
++	/** fop rate monitor key */
++	uint32_t		     fl_fop_rate_monitor_key;
++	/** fop rate monitor */
++	struct m0_addb_monitor       fl_fop_rate_monitor;
++
+ 	/** AST which triggers the posting of statistics */
+ 	struct m0_sm_ast             fl_post_stats_ast;
+ 
+@@ -340,8 +345,6 @@ struct m0_fom_domain {
+ 	struct m0_reqh			*fd_reqh;
+ 	/** Addb context for fom */
+ 	struct m0_addb_ctx               fd_addb_ctx;
+-	/** fop rate monitor */
+-	struct m0_addb_monitor           fd_fop_rate_monitor;
+ };
+ 
+ /** Operations vector attached to a domain. */
+diff --git a/fop/fop_rate_monitor.c b/fop/fop_rate_monitor.c
+index b6153f2..3246f14 100644
+--- a/fop/fop_rate_monitor.c
++++ b/fop/fop_rate_monitor.c
+@@ -54,12 +54,12 @@ fop_rate_monitor_sum_rec(const struct m0_addb_monitor *mon,
+ 		         struct m0_reqh               *reqh)
+ {
+ 	struct m0_addb_sum_rec *sum_rec;
+-	uint32_t                key;
++	struct m0_fom_locality *fom_loc;
+ 
+ 	M0_PRE(reqh != NULL);
+-	key = reqh->rh_fom_dom.fd_fop_rate_monitor_key;
++	fom_loc = &(reqh->rh_fom_dom.fd_localities[m0_locality_here()->lo_idx]);
+ 
+-	sum_rec = m0_reqh_lockers_get(reqh, key);
++	sum_rec = m0_reqh_lockers_get(reqh, fom_loc->fl_fop_rate_monitor_key);
+ 
+ 	M0_ASSERT(sum_rec != NULL);
+ 
+-- 
+1.8.3.2
+

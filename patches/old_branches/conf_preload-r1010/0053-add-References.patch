@@ -1,0 +1,57 @@
+From ac5df08ff0b2e099b967da3b71ebc0b68a4d2c08 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 12 Mar 2012 21:43:35 +0200
+Subject: [PATCH 053/311] add References
+
+---
+ conf/confc.c | 27 ++++++++++++++++++++++++++-
+ 1 file changed, 26 insertions(+), 1 deletion(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index db4c952..4137657 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -44,7 +44,9 @@
+  *   - @ref confc-dld-lspec-numa
+  * - @ref confc-dld-conformance
+  * - @ref confc-dld-ut
+- * - XXX
++ * - @ref confc-dld-st
++ * - @ref confc-dld-O
++ * - @ref confc-dld-ref
+  *
+  * <hr> <!------------------------------------------------------------->
+  * @section confc-dld-ovw Overview
+@@ -268,6 +270,29 @@
+  *
+  * XXX
+  *
++ * <hr> <!------------------------------------------------------------->
++ * @section confc-dld-st System Tests
++ *
++ * XXX
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confc-dld-O Analysis
++ *
++ * XXX
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confc-dld-ref References
++ *
++ * - HLD of configuration caching
++ *   [https://docs.google.com/a/xyratex.com/document/d/1t8osSyFOsdTGYGbnMC3ynB1niVqtm6bCJSzJwh1IUw8/view]
++ * - HLD of configuration.schema
++ *   [https://docs.google.com/a/xyratex.com/document/d/1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/view]
++ * - Configuration one-pager
++ *   [https://docs.google.com/a/xyratex.com/document/d/1hnWm6x3UhWIB_9qiR69ScGF57Vcy0D38BBTdpFhe4Bo/view]
++ *
++ * (@b Hint: To open a document in read/write mode replace 'view' with
++ * 'edit' in its URL.)
++ *
+  * @see confc_dlspec
+  */
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,48 @@
+From 7414b163e6e490426b63ff2a100a7ff9bb63df2e Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 3 May 2013 10:31:41 +0530
+Subject: [PATCH 130/172] Minor doc change
+
+---
+ layout/composite.h    | 5 +++--
+ layout/ut/composite.c | 1 -
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/layout/composite.h b/layout/composite.h
+index 0d8ffbb..b4c654f 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -292,7 +292,8 @@ M0_INTERNAL void m0_composite_layer_delete(struct m0_composite_layout *cl);
+ 
+ /**
+  * @todo Shall we add an API that will delete 'the second from the top layer'
+- * and will rename the top-most as the second from the top (now top-most)?
++ * and will re-index the top-most layer as the second from the top (now the
++ * top-most)?
+  * If yes, shall we call it m0_composite_layer_delete_second_from_top()?
+  */
+ 
+@@ -337,7 +338,7 @@ M0_INTERNAL int m0_composite_layer_ext_lookup(
+  *                               M0_CLRES_FLATTENING)));
+  * @todo Adding an extent with the M0_CLRES_HOLE state, in fact means deleting
+  * the extent which could be performed using m0_composite_layer_ext_del() as
+- * well. So, shall we support ext_state = M0_CLRES_VALID here?
++ * well. So, shall we continue to support ext_state = M0_CLRES_VALID here?
+  *
+  * @note After this API has been used, the user needs to explicitly invoke
+  *       m0_layout_update() API so as to update the DB version of the layout.
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index e907de1..3a5e61d 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -2080,7 +2080,6 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	M0_ASSERT(rc == -ENOMEM);
+ 	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+ 
+-	
+ 	/*
+ 	 * Simulate memory allocation in ext_inmem_add_internal() that is in
+ 	 * the path of ext_inmem_add().
+-- 
+1.8.3.2
+

@@ -1,0 +1,105 @@
+From 71cfe170affaccc8a80e169f619f35c5e2337ecd Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 9 Aug 2013 18:19:39 +0530
+Subject: [PATCH 171/172] Test coverage for some error handling paths
+
+---
+ layout/ut/layout.c  | 47 +++++++++++++++++++++++++++++++++++++++++++++--
+ layout/ut/pdclust.c |  2 +-
+ 2 files changed, 46 insertions(+), 3 deletions(-)
+
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 6127f00..ffc7de4 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -700,15 +700,17 @@ static void test_decode_failure(void)
+ 				 LINEAR_ENUM_ID, INLINE_NOT_APPLICABLE,
+ 				 FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EPROTO);
++#endif
+ 
+-	/* Simulate memory allocation failure in list_decode(). */
++	/* Simulate memory allocation failure in list_copy_from_onwire(). */
+ 	lid = 4006;
+-	m0_fi_enable_once("list_decode", "alloc_arr_fail/cob_list");
++	m0_fi_enable_once("list_copy_from_onwire", "alloc_arr_fail/cob_list");
+ 	rc = test_decode_pdclust(lid, &domain,
+ 				 LIST_ENUM_ID, MORE_THAN_INLINE,
+ 				 FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 
++#if 0
+ 	/* Simulate fid invalid error in list_decode(). */
+ 	lid = 4007;
+ 	m0_fi_enable_once("list_decode", "fid_invalid_err");
+@@ -865,6 +867,23 @@ static void test_encode_failure(void)
+ 				 FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+ 
++	/* Simulate memory allocation failure in list_copy_to_onwire(). */
++	lid = 6003;
++	m0_fi_enable_once("list_copy_to_onwire", "alloc_ptr_fail/onwire");
++	rc = test_encode_pdclust(lid, &domain,
++				 LIST_ENUM_ID, MORE_THAN_INLINE,
++				 FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++
++	/* Simulate memory allocation failure in list_copy_to_onwire(). */
++	lid = 6004;
++	m0_fi_enable_once("list_copy_to_onwire",
++			  "alloc_arr_fail/onwire->lleo_cobs.llca_cob");
++	rc = test_encode_pdclust(lid, &domain,
++				 LIST_ENUM_ID, MORE_THAN_INLINE,
++				 FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++
+ 	/* Simulate m0_layout_encode() failure. */
+ 	lid = 6021;
+ 	m0_fi_enable_once("m0_layout_encode", "lo_encode_err");
+@@ -1573,6 +1592,30 @@ static void test_lookup_failure(void)
+ 				 EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EPROTO);
+ 
++	/* Simulate memory allocation failure in list_decode(). */
++	lid = 19009;
++	m0_fi_enable_once("list_decode", "alloc_arr_fail/cob_list");
++	rc = test_lookup_pdclust(lid, &domain,
++				 LIST_ENUM_ID, MORE_THAN_INLINE,
++				 EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -ENOMEM);
++
++	/* Simulate fid invalid error in list_decode(). */
++	lid = 19010;
++	m0_fi_enable_once("list_decode", "fid_invalid_err");
++	rc = test_lookup_pdclust(lid, &domain,
++				 LIST_ENUM_ID, MORE_THAN_INLINE,
++				 EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EPROTO);
++
++	/* Simulate invalid attributes error in list_populate(). */
++	lid = 19011;
++	m0_fi_enable_once("list_decode", "attr_err");
++	rc = test_lookup_pdclust(lid, &domain,
++				 LIST_ENUM_ID, MORE_THAN_INLINE,
++				 EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EPROTO);
++
+ 	/*
+ 	 * Simulate layer_add_internal() failure for its first invokation that
+ 	 * is in the path of composite_decode().
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index dc25778..30042e7 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -604,7 +604,7 @@ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			      NULL, &cur);
+ 	m0_mutex_unlock(&pl->pl_base.sl_base.l_lock);
+ 	if (failure_test)
+-		M0_UT_ASSERT(rc == LO_ENCODE_ERR);
++		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == -ENOMEM);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+-- 
+1.8.3.2
+

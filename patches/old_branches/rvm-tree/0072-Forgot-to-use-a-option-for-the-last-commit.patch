@@ -1,0 +1,3796 @@
+From 64a2396e56f0bc10a47934c1d41487acdc2a68ae Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Tue, 26 Mar 2013 04:05:52 -0700
+Subject: [PATCH 72/94] Forgot to use -a option for the last commit. Modified
+ files were missed from the commit.
+
+---
+ be/seg.c                  |   7 ++-
+ be/ut/be.c                |   7 ---
+ mero/init.c               |   3 +-
+ rvm/rds.h                 |   9 +--
+ rvm/rds_coalesce.c        |   2 +-
+ rvm/rds_free.c            |   2 +-
+ rvm/rds_init.c            |   7 +--
+ rvm/rds_malloc.c          |   2 +-
+ rvm/rds_maxblock.c        |   3 +-
+ rvm/rds_prealloc.c        |   2 +-
+ rvm/rds_private.h         |  23 +++----
+ rvm/rds_split.c           |   2 +-
+ rvm/rds_start.c           |   2 +-
+ rvm/rds_stats.c           |   2 +-
+ rvm/rds_util.c            |   2 +-
+ rvm/rds_zap.c             |   2 +-
+ rvm/rvm.h                 |  22 +++++--
+ rvm/rvm_createseg.c       |   6 +-
+ rvm/rvm_debug.c           |  64 +++++++++----------
+ rvm/rvm_init.c            |   2 +-
+ rvm/rvm_io.c              | 152 ++++++++++++++++++++++++++++++++++++++++++----
+ rvm/rvm_loadseg.c         |   6 +-
+ rvm/rvm_logflush.c        |  48 +++++++--------
+ rvm/rvm_logrecovr.c       | 126 +++++++++++++++++++-------------------
+ rvm/rvm_logstatus.c       |  78 ++++++++++++------------
+ rvm/rvm_map.c             |   6 +-
+ rvm/rvm_printers.c        |  30 ++++-----
+ rvm/rvm_private.h         | 110 +++++++++++++++++----------------
+ rvm/rvm_pthread.c         |   2 +-
+ rvm/rvm_releaseseg.c      |   6 +-
+ rvm/rvm_segment.h         |   9 +--
+ rvm/rvm_segment_private.h |   8 ++-
+ rvm/rvm_segutil.c         |   5 +-
+ rvm/rvm_status.c          |  22 +++----
+ rvm/rvm_trans.c           |  52 ++++++++--------
+ rvm/rvm_unmap.c           |   4 +-
+ rvm/rvm_utils.c           | 122 ++++++++++++++++++-------------------
+ rvm/ut/rvm.c              |  15 -----
+ utils/ut_main.c           |   2 +-
+ 39 files changed, 550 insertions(+), 424 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index aa0cda3..27c5b6f 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -166,7 +166,8 @@ M0_INTERNAL void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+ 
+         strncpy(seg->bs_impl.segment_name, name,
+                 sizeof(seg->bs_impl.segment_name));
+-        seg->bs_stob = stob;
++        seg->bs_stob         = stob;
++        seg->bs_rvm.seg_stob = stob;
+ 
+         sm_group = m0_be_domain_sm_group(seg->bs_dom);
+ 
+@@ -311,7 +312,7 @@ M0_INTERNAL void m0_be_seg_create_cb(void *cb_data)
+         struct m0_stob_domain    *stob_dom;
+         struct linux_stob        *lstob;
+         struct linux_domain      *ldom;
+-        bool                      stob_directio     = true;
++        bool                      stob_directio     = false;
+         int                       nbytes            = 0;
+         struct  m0_stob_id        stob_id;
+         char                     *static_addr       = NULL;
+@@ -368,6 +369,8 @@ M0_INTERNAL void m0_be_seg_create_cb(void *cb_data)
+                 goto exit;
+         }
+ 
++        seg->bs_rvm.seg_stob = seg->bs_stob;
++
+         result = be_rvm_rds_zap_heap(seg);
+         if (result < 0) {
+                 M0_LOG(M0_ERROR, "rds_zap_heap failed in m0_be_seg_create_cb");
+diff --git a/be/ut/be.c b/be/ut/be.c
+index c8b388e..f1732d4 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -181,13 +181,6 @@ const struct m0_test_suite be_ut = {
+         }
+ };
+ 
+-int main()
+-{
+-        ts_be_init();
+-        test_be_transaction();
+-        ts_be_fini();
+-        return 0;
+-}
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_ut */
+ 
+diff --git a/mero/init.c b/mero/init.c
+index 0683005..df0bfb5 100644
+--- a/mero/init.c
++++ b/mero/init.c
+@@ -128,9 +128,8 @@ struct init_fini_call subsystem[] = {
+ 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
+ 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
+ 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
+-#endif
+-        /* RVM must be initialized before using backend domain. */
+ 	{ &m0_be_init,         &m0_be_fini,         "back-end domain" },
++#endif
+ };
+ 
+ static void fini_nr(int i)
+diff --git a/rvm/rds.h b/rvm/rds.h
+index 3461ec1..785da89 100644
+--- a/rvm/rds.h
++++ b/rvm/rds.h
+@@ -19,12 +19,13 @@ Coda are listed in the file CREDITS.
+ /*
+  * Public definitions for the Recoverable Dynamic Storage package.
+  */
++#pragma once
+ 
+-#ifndef	_RDS_H_
+-#define	_RDS_H_
++#ifndef	__MERO_RVM_RDS_H__
++#define	__MERO_RVM_RDS_H__
+ 
+ #include <stdio.h>
+-#include "rvm.h"
++#include "rvm/rvm.h"
+ 
+ /* Error codes */
+ 
+@@ -166,4 +167,4 @@ extern int rds_trace_dump_heap();
+ } while (0) ;
+ 
+ 
+-#endif /* _RDS_H_ */
++#endif /* __MERO_RVM_RDS_H__ */
+diff --git a/rvm/rds_coalesce.c b/rvm/rds_coalesce.c
+index 6b59f8a..364f915 100644
+--- a/rvm/rds_coalesce.c
++++ b/rvm/rds_coalesce.c
+@@ -19,7 +19,7 @@ Coda are listed in the file CREDITS.
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ /*
+  * Coalescing has proven necessary. This approach is to invoke it rarely,
+diff --git a/rvm/rds_free.c b/rvm/rds_free.c
+index 93c39be..a343b66 100644
+--- a/rvm/rds_free.c
++++ b/rvm/rds_free.c
+@@ -20,7 +20,7 @@ Coda are listed in the file CREDITS.
+ #include <stdio.h>
+ #include <unistd.h>
+ #include <stdlib.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+               /************** NOTE: ***************/
+ /* we create our own transactions in the following routines, even
+diff --git a/rvm/rds_init.c b/rvm/rds_init.c
+index 9e9cf2c..82b391b 100644
+--- a/rvm/rds_init.c
++++ b/rvm/rds_init.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ /* This routine initializes a region of memory to contain the heap. The
+  * calling routine is assumed to have started a transaction and so assumes
+@@ -36,8 +36,7 @@ rds_init_heap(seg_hdr,base, length, chunk_size, nlists, tid, err)
+      unsigned long chunk_size;
+      unsigned long nlists;
+      rvm_tid_t *tid;
+-     int       *err;
+-{
++     int       *err; {
+     heap_header_t *hdrp = seg_hdr->heap_hdr->RecoverableHeapStartAddress = (heap_header_t *)base;
+     free_block_t *fbp;
+     int i, remaining_space;
+@@ -52,7 +51,7 @@ rds_init_heap(seg_hdr,base, length, chunk_size, nlists, tid, err)
+ 	(*err) = ENO_ROOM;
+ 	return -1;
+     }
+-    printf("head header size : %ld \n ", heap_hdr_len);
++
+     rvmret = rvm_set_range(seg_hdr,tid, base, heap_hdr_len);
+     if (rvmret != RVM_SUCCESS) {
+ 	(*err) = (int) rvmret;
+diff --git a/rvm/rds_malloc.c b/rvm/rds_malloc.c
+index 6b05314..083ee0b 100644
+--- a/rvm/rds_malloc.c
++++ b/rvm/rds_malloc.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+               /************** NOTE: ***************/
+ /* we create our own transactions in the following routines, even
+diff --git a/rvm/rds_maxblock.c b/rvm/rds_maxblock.c
+index 0f9f1dc..761a646 100644
+--- a/rvm/rds_maxblock.c
++++ b/rvm/rds_maxblock.c
+@@ -19,7 +19,7 @@ Coda are listed in the file CREDITS.
+ /* rds_maxblock - check if we will be able to allocate enough RVM data
+  * written by J. Michael German */
+ 
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ int rds_maxblock(rvm_seg_hdr_t *seg_hdr, unsigned long size)
+ {
+@@ -42,4 +42,3 @@ int rds_maxblock(rvm_seg_hdr_t *seg_hdr, unsigned long size)
+     }
+     return 0;
+ }
+-
+diff --git a/rvm/rds_prealloc.c b/rvm/rds_prealloc.c
+index 84cdb95..7964ce9 100644
+--- a/rvm/rds_prealloc.c
++++ b/rvm/rds_prealloc.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ 	    /************** NOTE: ***************/
+ /* we create our own transactions in the following routines, even
+diff --git a/rvm/rds_private.h b/rvm/rds_private.h
+index 2d25b37..c270d20 100644
+--- a/rvm/rds_private.h
++++ b/rvm/rds_private.h
+@@ -20,18 +20,19 @@ Coda are listed in the file CREDITS.
+ /*
+  * Internal type definitions for the Recoverable Dynamic Storage package.
+  */
++#pragma once
++
++#ifndef __MERO_RVM_RDS_PRIVATE_H__
++#define __MERO_RVM_RDS_PRIVATE_H__
+ 
+ #ifdef __STDC__
+ #include <string.h>
+-#include "assert.h"
++#include <assert.h>
+ #endif
+ 
+-#include "rvm.h"
+-#include "rvm_segment.h"
+-#include "rds.h"
+-
+-#ifndef _RDS_PRIVATE_H_
+-#define _RDS_PRIVATE_H_
++#include "rvm/rvm.h"
++#include "rvm/rvm_segment.h"
++#include "rvm/rds.h"
+ 
+ /********************
+  *Type definitions
+@@ -64,11 +65,11 @@ Coda are listed in the file CREDITS.
+  */
+ 
+ #ifdef RVM_USELWP	 /* special thread support for Coda */
+-#include "rvm_lwp.h"
++#include "rvm/rvm_lwp.h"
+ #elif defined(RVM_USEPT) /* special support for pthreads */
+-#include "rvm_pthread.h"
++#include "rvm/rvm_pthread.h"
+ #else			 /* normal: use Cthreads */
+-#include "cthreads.h"
++#include "rvm/cthreads.h"
+ 
+ /* define types symbolically to permit use of non-Cthread thread support */
+ #define RVM_MUTEX       struct mutex
+@@ -175,4 +176,4 @@ int merge_with_next_free(rvm_seg_hdr_t *seg_hdr, free_block_t *fbp, rvm_tid_t *t
+ void coalesce(rvm_seg_hdr_t *seg_hdr, rvm_tid_t *tid, int *err);
+ rvm_bool_t init_rvm_seg_region_tree(rvm_seg_hdr_t *seg_hdr);
+ void *rds_heap_addr(rvm_seg_hdr_t *seg_hdr);
+-#endif /* _RDS_PRIVATE_H_ */
++#endif /* __MERO_RVM_RDS_PRIVATE_H__ */
+diff --git a/rvm/rds_split.c b/rvm/rds_split.c
+index 62b9b95..24f2944 100644
+--- a/rvm/rds_split.c
++++ b/rvm/rds_split.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ /* Split the first block larger than size chunks into two objects.
+  * The object with the appropriate size is returned to the caller
+diff --git a/rvm/rds_start.c b/rvm/rds_start.c
+index b18b94f..2985f43 100644
+--- a/rvm/rds_start.c
++++ b/rvm/rds_start.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ #include <stdlib.h>
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+               /************** NOTE: ***************/
+ /* we create our own transactions in the following routines, even
+diff --git a/rvm/rds_stats.c b/rvm/rds_stats.c
+index 275c334..19385bc 100644
+--- a/rvm/rds_stats.c
++++ b/rvm/rds_stats.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ int rds_tracing = FALSE;
+ FILE *rds_tracing_file = NULL;
+diff --git a/rvm/rds_util.c b/rvm/rds_util.c
+index fdb429b..a5a80ab 100644
+--- a/rvm/rds_util.c
++++ b/rvm/rds_util.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ #ifndef ZERO
+ #define ZERO 0
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index 2fef7b7..1736e4c 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -18,7 +18,7 @@ Coda are listed in the file CREDITS.
+ 
+ #include <stdlib.h>
+ #include <stdio.h>
+-#include "rds_private.h"
++#include "rvm/rds_private.h"
+ 
+ /*
+  * Put the heap in the first, or lower address range, and the statics in the
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index f94a73e..664e06c 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -23,9 +23,10 @@ Coda are listed in the file CREDITS.
+ */
+ 
+ /*LINTLIBRARY*/
++#pragma once
+ 
+-/* permit multiple includes */
+-#ifndef RVM_VERSION
++#ifndef __MERO_RVM_RVM_H__
++#define __MERO_RVM_RVM_H__
+ 
+ /* Version string for initialization */
+ #define RVM_VERSION         "RVM Interface Version 1.3  7 Mar 1994"
+@@ -57,7 +58,7 @@ Coda are listed in the file CREDITS.
+    8/23/96 by tilt */
+ 
+ typedef enum { rvm_false = 0, rvm_true = 1 } rvm_bool_t;
+-
++
+ /*  structure identifiers: rvm_struct_id_t
+     codes placed in the first field of each
+     structure instance to identify the object.
+@@ -157,6 +158,14 @@ rvm_offset_t;
+ #define BZERO(x,n)       bzero((x),(n))
+ #endif
+ 
++/* Wrapper to map data anonymously in memory */
++#define mmap_anon(raddrptr, addrptr, len, prot) do { \
++    int fd = -1, flags = MAP_ANON | MAP_PRIVATE; \
++    if (addrptr) flags |= MAP_FIXED; \
++    if (!MAP_ANON) fd = open("/dev/zero", O_RDWR); \
++    raddrptr = mmap((char *)addrptr, len, prot, flags, fd, 0); \
++    if (fd != -1) close(fd); \
++} while(0);
+ 
+ /* construct offset from two rvm_length_t sized quantities x,y
+    -- this will construct an offset from two lengths even if
+@@ -186,7 +195,7 @@ rvm_offset_t;
+ 
+ /* return length x as rvm_offset_t */
+ #define RVM_LENGTH_TO_OFFSET(x) RVM_MK_OFFSET(0,(x))
+-
++
+ /* rvm_offset_t and rvm_length_t arithmetic support */
+ 
+ /* add rvm_offset to rvm_offset; returns result (x+y)
+@@ -237,7 +246,7 @@ rvm_offset_t;
+ #define RVM_OFFSET_EQL(x,y)     (((x).high == (y).high) && \
+                                  ((x).low == (y).low))
+ #define RVM_OFFSET_EQL_ZERO(x)  (((x).high == 0) && ((x).low == 0))
+-
++
+ /* page-size rounding macros */
+ 
+ /* return page size as rvm_length_t */
+@@ -379,6 +388,7 @@ typedef struct tree_root tree_root_t;
+ 
+ typedef struct rvm_seg_hdr
+     {
++        struct m0_stob         *seg_stob;
+         /* These are linked lists which maintains the mapped pages information,
+          * see rvm_register_page() for details
+          */
+@@ -515,4 +525,4 @@ extern rvm_length_t rvm_page_mask ();
+ extern rvm_offset_t rvm_rnd_offset_up_to_page(rvm_offset_t *x);
+ extern rvm_offset_t rvm_rnd_offset_dn_to_page(rvm_offset_t *x);
+ 
+-#endif /* RVM_VERSION */
++#endif /* __MERO_RVM_RVM_H__ */
+diff --git a/rvm/rvm_createseg.c b/rvm/rvm_createseg.c
+index c91e3e5..b0231c9 100644
+--- a/rvm/rvm_createseg.c
++++ b/rvm/rvm_createseg.c
+@@ -20,9 +20,9 @@ Coda are listed in the file CREDITS.
+ #include <string.h>
+ #include <assert.h>
+ 
+-#include "rvm.h"
+-#include "rvm_segment.h"
+-#include "rvm_segment_private.h"
++#include "rvm/rvm.h"
++#include "rvm/rvm_segment.h"
++#include "rvm/rvm_segment_private.h"
+ 
+ /* rvm_create_segment erases the old contents of the recoverable
+  * segment, and write a new structure to it. The arguments specify the
+diff --git a/rvm/rvm_debug.c b/rvm/rvm_debug.c
+index 224038a..17c490a 100644
+--- a/rvm/rvm_debug.c
++++ b/rvm/rvm_debug.c
+@@ -25,7 +25,7 @@ Coda are listed in the file CREDITS.
+ #include <sys/types.h>
+ #include <sys/uio.h>
+ #include <stdio.h>
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* globals */
+ 
+@@ -59,7 +59,7 @@ static rvm_length_t     type_sizes[NUM_TYPES]
+                             = {CACHE_TYPE_SIZES,OTHER_TYPE_SIZES};
+ #define SIZE(id)        (type_sizes[ID_INDEX(id)])
+ #define NAME(id)        (type_names[ID_INDEX(id)])
+-/* address is in a structure */
++/* address is in a structure */
+ #define IN_STRUCT(x,s,id) \
+                         (((x) >= (rvm_length_t)(s)) && \
+                          ((x) < (((rvm_length_t)(s))+SIZE(id))))
+@@ -78,7 +78,7 @@ void rvm_debug(val)
+     if (val != 0)
+         printf("\nAt rvm_debug: %ld (%lx)\n",val,val);
+     }
+-/* power of 2 table -- must be extended for machines with address
++/* power of 2 table -- must be extended for machines with address
+      spaces greater than 32 bits */
+ #define NUM_TWOS        30
+ static rvm_length_t     twos[NUM_TWOS] =
+@@ -111,7 +111,7 @@ rvm_bool_t in_heap(addr,buf,len)
+ 
+     return rvm_false;
+     }
+-/* list checker -- makes sure elements of list are valid */
++/* list checker -- makes sure elements of list are valid */
+ rvm_bool_t chk_list(hdr,silent)
+     list_entry_t        *hdr;           /* header of list to check */
+     rvm_bool_t          silent;         /* print only errors if true */
+@@ -146,7 +146,7 @@ rvm_bool_t chk_list(hdr,silent)
+         }
+     if (hdr->list.length < 0)
+         printf("  List length invalid, length = %ld\n",hdr->list.length);
+-    if (ADDR_INVALID_OR_NULL(hdr->nextentry))
++    if (ADDR_INVALID_OR_NULL(hdr->nextentry))
+         {
+         printf("  List header at %lx has invalid nextentry field, ",(long)hdr);
+ 	printf("hdr->nextentry = %lx\n",(long)hdr->nextentry);
+@@ -172,7 +172,7 @@ rvm_bool_t chk_list(hdr,silent)
+         }
+     if (!silent)
+         printf("  List length = %ld\n",hdr->list.length);
+-    /* check ptrs */
++    /* check ptrs */
+     if (ADDR_INVALID_OR_NULL(hdr->nextentry))
+         {
+         printf("  List header at %lx has invalid nextentry field, ",(long)hdr);
+@@ -216,7 +216,7 @@ rvm_bool_t chk_list(hdr,silent)
+         prev = entry;
+         entry = entry->nextentry;
+         }
+-    /* check results */
++    /* check results */
+     if (i != hdr->list.length)
+         {
+         printf("  List length wrong, length = %ld, actual length = %ld\n",
+@@ -235,7 +235,7 @@ rvm_bool_t chk_list(hdr,silent)
+ 
+     return retval;
+     }
+-/* structure cache free list checker */
++/* structure cache free list checker */
+ rvm_bool_t chk_free_list(struct_id)
+     struct_id_t     struct_id;          /* type of free list to check */
+     {
+@@ -260,7 +260,7 @@ void chk_all_free_lists()
+         chk_free_list(INDEX_ID(i));
+         }
+     }
+-/* locate an address in simple list */
++/* locate an address in simple list */
+ rvm_bool_t search_list(hdr,struct_id,addr)
+     list_entry_t    *hdr;               /* header of list to search */
+     struct_id_t     struct_id;          /* type of list to search */
+@@ -303,7 +303,7 @@ rvm_bool_t search_list(hdr,struct_id,addr)
+         }
+     return retval;
+     }
+-/* locate an address in free page list */
++/* locate an address in free page list */
+ rvm_bool_t in_free_page_list(addr)
+     rvm_length_t    addr;               /* address to search for */
+     {
+@@ -329,7 +329,7 @@ rvm_bool_t in_free_page_list(addr)
+ 
+     return retval;
+     }
+-/* locate an address in free list */
++/* locate an address in free list */
+ rvm_bool_t in_free_list(struct_id,addr)
+     struct_id_t     struct_id;          /* type of free list to search */
+     rvm_length_t    addr;               /* address to search for */
+@@ -359,7 +359,7 @@ rvm_bool_t in_free_lists(addr)
+ 
+     return retval;
+     }
+-/* mem_region_t tree node checks */
++/* mem_region_t tree node checks */
+ rvm_bool_t chk_mem_node(node)
+     mem_region_t    *node;
+     {
+@@ -403,7 +403,7 @@ rvm_bool_t chk_mem_node(node)
+ 	printf(" segment descriptor, seg = %lx\n",(long)region->seg);
+         return rvm_false;
+         }
+-    /* related structure and list checks */
++    /* related structure and list checks */
+     if (!chk_list(&seg_root,rvm_true))
+         return rvm_false;
+     FOR_ENTRIES_OF(seg_root,seg_t,seg)
+@@ -462,7 +462,7 @@ rvm_bool_t chk_mem_node(node)
+ 	printf(" segment descriptor, seg = %lx\n",(long)region->seg);
+         return rvm_false;
+         }
+-    /* related structure and list checks */
++    /* related structure and list checks */
+     if (!chk_list(&seg_root,rvm_true))
+         return rvm_false;
+     FOR_ENTRIES_OF(seg_root,seg_t,seg)
+@@ -511,7 +511,7 @@ rvm_bool_t chk_mem_node(node)
+ 
+     return retval;
+     }
+-/* validate dev_region node */
++/* validate dev_region node */
+ rvm_bool_t chk_dev_node(dev_region_t *node)
+ {
+     rvm_bool_t      retval = rvm_true;
+@@ -543,7 +543,7 @@ rvm_bool_t chk_dev_node(dev_region_t *node)
+ 
+     return retval;
+ }
+-/* check validity of tree node */
++/* check validity of tree node */
+ rvm_bool_t chk_node(tree_node_t *node, struct_id_t struct_id)
+ {
+     rvm_bool_t      retval = rvm_true;
+@@ -582,7 +582,7 @@ rvm_bool_t chk_node(tree_node_t *node, struct_id_t struct_id)
+ 
+     return retval;
+ }
+-/* search mem_region tree node */
++/* search mem_region tree node */
+ rvm_bool_t search_mem_region(addr,node)
+     rvm_length_t    addr;               /* address to search for */
+     mem_region_t    *node;              /* mem_region node to search */
+@@ -630,7 +630,7 @@ rvm_bool_t in_region_tree(addr)
+ 
+     return search_mem_region(addr,(mem_region_t *)region_tree);
+     }
+-/* */
++/* */
+ rvm_bool_t search_dev_region(addr,node)
+     rvm_length_t    addr;               /* address to search for */
+     dev_region_t    *node;              /* segment region node to search */
+@@ -669,7 +669,7 @@ rvm_bool_t search_dev_region(addr,node)
+ 
+     return retval;
+     }
+-/* search region descriptor */
++/* search region descriptor */
+ rvm_bool_t in_region(addr,region,n)
+     rvm_length_t    addr;               /* address to search for */
+     region_t        *region;            /* region descriptor to search */
+@@ -688,7 +688,7 @@ rvm_bool_t in_region(addr,region,n)
+ 
+     return retval;
+     }
+-/* search segment descriptor */
++/* search segment descriptor */
+ rvm_bool_t in_seg(addr,seg,n)
+     rvm_length_t    addr;               /* address to search for */
+     seg_t           *seg;               /* segment descriptor to search */
+@@ -765,7 +765,7 @@ rvm_bool_t in_seg(addr,seg,n)
+ 
+     return retval;
+     }
+-/* search segment list */
++/* search segment list */
+ rvm_bool_t in_seg_list(addr)
+     rvm_length_t    addr;               /* address to search for */
+     {
+@@ -788,7 +788,7 @@ rvm_bool_t in_seg_list(addr)
+ 
+     return retval;
+     }
+-/* locate an address in change tree */
++/* locate an address in change tree */
+ rvm_bool_t in_seg_dict(addr,seg_dict,n)
+     rvm_length_t    addr;               /* address to search for */
+     seg_dict_t      *seg_dict;          /* segment dictionary entry */
+@@ -828,7 +828,7 @@ rvm_bool_t in_seg_dict(addr,seg_dict,n)
+ 
+     return retval;
+     }
+-/* search log special function descriptor */
++/* search log special function descriptor */
+ rvm_bool_t in_log_special(addr,special,n)
+     rvm_length_t    addr;               /* address to search for */
+     log_special_t   *special;           /* log special descriptor to search */
+@@ -862,7 +862,7 @@ rvm_bool_t in_log_special(addr,special,n)
+ 
+     return retval;
+     }
+-/* search modification range descriptor */
++/* search modification range descriptor */
+ rvm_bool_t in_range(addr,range,n)
+     rvm_length_t    addr;               /* address to search for */
+     range_t         *range;
+@@ -907,7 +907,7 @@ rvm_bool_t in_range(addr,range,n)
+ 
+     return retval;
+     }
+-/* search transaction descriptor */
++/* search transaction descriptor */
+ rvm_bool_t in_tid(addr,tid,n)
+     rvm_length_t    addr;               /* address to search for */
+     int_tid_t       *tid;               /* transaction descriptor to search */
+@@ -951,7 +951,7 @@ rvm_bool_t in_tid(addr,tid,n)
+ 
+     return retval;
+     }
+-/* search a log descriptor */
++/* search a log descriptor */
+ rvm_bool_t in_log(addr,log,n)
+     rvm_length_t    addr;               /* address to search for */
+     log_t           *log;               /* log descriptor to search */
+@@ -987,7 +987,7 @@ rvm_bool_t in_log(addr,log,n)
+             retval = rvm_true;
+             }
+         }
+-    /* check i/o vector and pad buffer */
++    /* check i/o vector and pad buffer */
+     if (log->dev.iov_length != 0)
+         {
+         if (ADDR_INVALID_OR_NULL(log->dev.iov))
+@@ -1019,7 +1019,7 @@ rvm_bool_t in_log(addr,log,n)
+                 }
+             }
+         }
+-    /* check recovery buffers */
++    /* check recovery buffers */
+     if (ADDR_INVALID_OR_NULL(log->log_buf.buf))
+         printf("  Log descriptor at %lx has bad log_buf.malloc_buf ptr",
+                (long)log);
+@@ -1047,7 +1047,7 @@ rvm_bool_t in_log(addr,log,n)
+                 retval = rvm_true;
+                 }
+         }
+-    /* check tid and flush lists */
++    /* check tid and flush lists */
+     printf("  Checking uncommitted tids\n");
+     if (!chk_list(&log->tid_list,rvm_true))
+         printf("  Log at %lx has damaged uncommited tid list\n",(long)log);
+@@ -1114,7 +1114,7 @@ rvm_bool_t in_log(addr,log,n)
+ 
+     return retval;
+     }
+-/* search log list */
++/* search log list */
+ rvm_bool_t in_log_list(addr)
+     rvm_length_t    addr;               /* address to search for */
+     {
+@@ -1136,7 +1136,7 @@ rvm_bool_t in_log_list(addr)
+ 
+     return retval;
+     }
+-/* locate an address in RVM internal structures */
++/* locate an address in RVM internal structures */
+ void find_addr(addr)
+     rvm_length_t    addr;               /* address to search for */
+     {
+@@ -1157,7 +1157,7 @@ void find_addr(addr)
+         printf("\nAddress not found\n");
+ 
+     }
+-/* test if entry is on list -- more forgiving than chk_list */
++/* test if entry is on list -- more forgiving than chk_list */
+ void on_list(hdr,addr)
+     list_entry_t        *hdr;           /* header of list to search */
+     list_entry_t        *addr;          /* entry to search for */
+diff --git a/rvm/rvm_init.c b/rvm/rvm_init.c
+index 320db17..a09e8d9 100644
+--- a/rvm/rvm_init.c
++++ b/rvm/rvm_init.c
+@@ -22,7 +22,7 @@ Coda are listed in the file CREDITS.
+ *
+ */
+ 
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* global variables */
+ extern log_t        *default_log;       /* default log descriptor ptr */
+diff --git a/rvm/rvm_io.c b/rvm/rvm_io.c
+index c00af4f..a6094ce 100644
+--- a/rvm/rvm_io.c
++++ b/rvm/rvm_io.c
+@@ -31,7 +31,10 @@ Coda are listed in the file CREDITS.
+ #include <unistd.h>
+ #include <fcntl.h>
+ #include <stdlib.h>
+-#include "rvm_private.h"
++
++#include "rvm/rvm_private.h"
++#include "stob/stob.h"
++#include "lib/memory.h"
+ 
+ #ifndef UIO_MAXIOV
+ #define UIO_MAXIOV 16
+@@ -43,6 +46,9 @@ Coda are listed in the file CREDITS.
+ #define FSYNC(fd) fsync(fd)
+ #endif
+ 
++#define OP_READ     1 << 0
++#define OP_WRITE    1 << 1
++
+ /* global variables */
+ device_t            *rvm_errdev;        /* last device to have error */
+ int                 rvm_ioerrno=0;      /* also save the errno for I/O error */
+@@ -52,7 +58,7 @@ extern char         *rvm_errmsg;        /* internal error message buffer */
+ extern log_t        *default_log;       /* log descriptor */
+ extern rvm_bool_t   rvm_utlsw;          /* operating under rvmutl */
+ extern rvm_bool_t   rvm_no_update;      /* no segment or log update if true */
+-
++
+ 
+ /* static prototypes */
+ static rvm_bool_t in_wrt_buf(char *addr, rvm_length_t len);
+@@ -178,7 +184,7 @@ long set_dev_char(device_t *dev, rvm_offset_t *dev_length)
+ 
+     return 0;
+ }
+-/* open device or file */
++/* open device or file */
+ long open_dev(dev,flags,mode)
+     device_t        *dev;               /* device descriptor */
+     long            flags;              /* open option flags */
+@@ -205,7 +211,7 @@ long open_dev(dev,flags,mode)
+ 
+     return 0;
+     }
+-/* close device or file */
++/* close device or file */
+ long close_dev(dev)
+     device_t        *dev;               /* device descriptor */
+     {
+@@ -228,7 +234,129 @@ long close_dev(dev)
+ 
+     return retval;
+     }
+-/* read bytes from device or file */
++
++uint64_t launch_io(opcode, stob, offset, dest, length)
++    int                 opcode;
++    struct m0_stob     *stob;
++    rvm_length_t        offset;
++    char               *dest;
++    uint64_t            length;
++{
++    void                  **io_addr;
++    m0_bindex_t            *io_offset;
++    m0_bcount_t            *io_count;
++    uint32_t                io_bshift;
++    uint32_t                io_nr;
++    uint64_t                io_read_len;
++
++    struct m0_stob_io       io;
++    struct m0_clink         clink;
++    int                     rc;
++    int                     i = 0;
++    uint64_t                retval = 0;
++
++    io_bshift = stob->so_op->sop_block_shift(stob);
++    io_nr = (length + rvm_max_read_len - 1) / rvm_max_read_len;
++
++    M0_ALLOC_ARR(io_addr, io_nr);
++    M0_ASSERT(io_addr != NULL);
++
++    M0_ALLOC_ARR(io_count, io_nr);
++    M0_ASSERT(io_count != NULL);
++
++    M0_ALLOC_ARR(io_offset, io_nr);
++    M0_ASSERT(io_offset != NULL);
++
++    while(length > 0) {
++        if (length <= rvm_max_read_len)
++            io_read_len = length;
++        else
++            io_read_len = rvm_max_read_len;
++
++        io_addr[i]      = m0_stob_addr_pack(dest, io_bshift);
++        io_count[i]     = io_read_len >> io_bshift;
++        io_offset[i]    = offset >> io_bshift;
++
++        length      -= io_read_len;
++        offset      += io_read_len;
++        dest        += io_read_len;
++        retval      += io_read_len;
++        i           += 1;
++    }
++
++    m0_stob_io_init(&io);
++
++    if(opcode == OP_READ)
++        io.si_opcode = SIO_READ;
++
++    if(opcode == OP_WRITE)
++        io.si_opcode = SIO_WRITE;
++
++    io.si_user.ov_vec.v_nr    = io_nr;
++    io.si_user.ov_vec.v_count = io_count;
++    io.si_user.ov_buf         = io_addr;
++
++    io.si_stob.iv_vec.v_nr    = io_nr;
++    io.si_stob.iv_vec.v_count = io_count;
++    io.si_stob.iv_index       = io_offset;
++
++    io.si_flags               = 0;
++
++    m0_clink_init(&clink, NULL);
++    m0_clink_add(&io.si_wait, &clink);
++    rc = m0_stob_io_launch(&io, stob, NULL, NULL);
++
++    if (rc == 0)
++        m0_chan_wait(&clink);
++
++    m0_clink_del(&clink);
++    m0_clink_fini(&clink);
++    m0_stob_io_fini(&io);
++
++    m0_free(io_offset);
++    m0_free(io_count);
++    m0_free(io_addr);
++
++    return retval;
++}
++
++/* read bytes from device or file */
++long read_stob(dev,offset,dest,length)
++    device_t        *dev;               /* device descriptor */
++    rvm_offset_t    *offset;            /* device offset */
++    char            *dest;              /* address of data destination */
++    rvm_length_t    length;             /* length of transfer */
++{
++    rvm_offset_t    last_position;
++    rvm_length_t    retval;
++    rvm_length_t    nbytes = 0;
++
++    assert(dev->handle != ZERO);
++    assert(length != 0);
++    assert((dev->raw_io) ? (SECTOR_INDEX(length) == 0) : 1);
++    assert(((dev == &default_log->dev) && (!rvm_utlsw)) ?
++           (!LOCK_FREE(default_log->dev_lock)) : 1);
++
++    /* seek if necessary */
++    errno = 0;
++    if ((retval = chk_seek(dev,offset)) < 0)
++        return retval;
++    last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position, length);
++    assert(RVM_OFFSET_EQL_ZERO(*offset) ? 1
++           : RVM_OFFSET_LEQ(last_position,dev->num_bytes));
++
++    /* do read in larg-ish blocks to avoid kernel buffer availability problems
++ *      * also zero region if /dev/null being read */
++
++    nbytes = launch_io(OP_READ, dev->stob, offset->low, dest, length);
++
++    /* update position */
++    dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position, nbytes);
++
++    return nbytes;
++}
++
++/* read bytes from device or file */
+ long read_dev(dev,offset,dest,length)
+     device_t        *dev;               /* device descriptor */
+     rvm_offset_t    *offset;            /* device offset */
+@@ -289,7 +417,7 @@ long read_dev(dev,offset,dest,length)
+                                                   retval);
+     return retval;
+     }
+-/* write bytes to device or file */
++/* write bytes to device or file */
+ long write_dev(dev,offset,src,length,sync)
+     device_t        *dev;               /* device descriptor */
+     rvm_offset_t    *offset;            /* device offset */
+@@ -340,7 +468,7 @@ long write_dev(dev,offset,src,length,sync)
+                                                   wrt_len);
+     return wrt_len;
+ }
+-/* gather write for files */
++/* gather write for files */
+ static long gather_write_file(dev,offset,wrt_len)
+     device_t        *dev;               /* device descriptor */
+     rvm_offset_t    *offset;            /* disk position */
+@@ -392,7 +520,7 @@ static long gather_write_file(dev,offset,wrt_len)
+ 
+     return 0;
+     }
+-/* incremental write for gather-write to partitions */
++/* incremental write for gather-write to partitions */
+ static long incr_write_partition(dev,offset,start_addr,end_addr)
+     device_t        *dev;               /* device descriptor */
+     rvm_offset_t    *offset;            /* disk position (in/out) */
+@@ -427,7 +555,7 @@ static long incr_write_partition(dev,offset,start_addr,end_addr)
+ 
+     return length;
+     }
+-/* gather write for disk partitions */
++/* gather write for disk partitions */
+ static long gather_write_partition(dev,offset,wrt_len)
+     device_t        *dev;                 /* device descriptor */
+     rvm_offset_t    *offset;              /* disk position */
+@@ -475,7 +603,7 @@ static long gather_write_partition(dev,offset,wrt_len)
+                 iov[iov_index].iov_base =
+                     RVM_ADD_LENGTH_TO_ADDR(iov[iov_index].iov_base, bytes_left);
+                 }
+-            /* write what's in wrt_buf & re-init buffer */
++            /* write what's in wrt_buf & re-init buffer */
+             if (dev->buf_start != dev->buf_end)
+                 {
+                 retval=incr_write_partition(dev,&dev->sync_offset,
+@@ -491,7 +619,7 @@ static long gather_write_partition(dev,offset,wrt_len)
+     assert((retval >= 0) ? (*wrt_len == dev->io_length) : 1);
+     return retval;
+     }
+-/* gather write to device: accepts vector of any length
++/* gather write to device: accepts vector of any length
+    pointed to by device descriptor */
+ long gather_write_dev(dev,offset)
+     device_t        *dev;               /* device descriptor */
+@@ -516,7 +644,7 @@ long gather_write_dev(dev,offset)
+ 
+     return wrt_len;
+     }
+-/* sync file */
++/* sync file */
+ long sync_dev(dev)
+     device_t        *dev;               /* device descriptor */
+     {
+diff --git a/rvm/rvm_loadseg.c b/rvm/rvm_loadseg.c
+index 1390b4f..d1473f9 100644
+--- a/rvm/rvm_loadseg.c
++++ b/rvm/rvm_loadseg.c
+@@ -17,9 +17,9 @@ Coda are listed in the file CREDITS.
+ 
+ #include <stdlib.h>
+ #include <string.h>
+-#include "rvm.h"
+-#include "rvm_segment.h"
+-#include "rvm_segment_private.h"
++#include "rvm/rvm.h"
++#include "rvm/rvm_segment.h"
++#include "rvm/rvm_segment_private.h"
+ 
+ /* from rvm_private.h */
+ rvm_bool_t rvm_register_page(rvm_seg_hdr_t *seg_hdr, char *vmaddr, rvm_length_t length);
+diff --git a/rvm/rvm_logflush.c b/rvm/rvm_logflush.c
+index c36a5eb..0d834ee 100644
+--- a/rvm/rvm_logflush.c
++++ b/rvm/rvm_logflush.c
+@@ -24,7 +24,7 @@ Coda are listed in the file CREDITS.
+ 
+ #include <sys/time.h>
+ #include <sys/uio.h>
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* global variables */
+ 
+@@ -46,7 +46,7 @@ rvm_length_t        trans_elims_vec[trans_elims_len] =
+                                         {trans_elims_dist};
+ rvm_length_t        trans_coalesces_vec[trans_coalesces_len] =
+                                         {trans_coalesces_dist};
+-/* allocate variable sized log i/o vector */
++/* allocate variable sized log i/o vector */
+ static rvm_return_t make_iov(log,length)
+     log_t           *log;               /* log descriptor */
+     long            length;             /* entries needed */
+@@ -82,7 +82,7 @@ static long make_rec_num(log)
+         log->status.first_rec_num = log->status.next_rec_num;
+     return log->status.next_rec_num++;
+     }
+-/* allocate variable sized pad buffer */
++/* allocate variable sized pad buffer */
+ static void make_pad_buf(device_t *dev, long length)
+ {
+     assert((length >= 0) && (length < SECTOR_SIZE));
+@@ -97,7 +97,7 @@ static void make_pad_buf(device_t *dev, long length)
+ 	dev->pad_buf_len = length;
+     }
+ }
+-/* setup wrap marker i/o */
++/* setup wrap marker i/o */
+ static rvm_return_t write_log_wrap(log_t *log)
+ {
+     device_t        *dev = &log->dev;
+@@ -128,8 +128,8 @@ static rvm_return_t write_log_wrap(log_t *log)
+     if (gather_write_dev(&log->dev,&log->status.log_tail) < 0)
+         return RVM_EIO;
+ #ifdef RVM_LOG_TAIL_SHADOW
+-    /* 
+-     * If we've gotten this far, we're going to update the log_tail pointer, 
++    /*
++     * If we've gotten this far, we're going to update the log_tail pointer,
+      * so there is a log wrap that we can allow when writing out the status
+      * block.
+      */
+@@ -137,7 +137,7 @@ static rvm_return_t write_log_wrap(log_t *log)
+ #endif /* RVM_LOG_TAIL_SHADOW */
+     return update_log_tail(log, &wrap->rec_hdr);
+ }
+-/* setup header for nv log entry */
++/* setup header for nv log entry */
+ static void build_trans_hdr(tid,is_first,is_last)
+     int_tid_t       *tid;
+     rvm_bool_t      is_first;           /* true if 1st header written */
+@@ -172,7 +172,7 @@ static void build_trans_hdr(tid,is_first,is_last)
+     dev->iov_cnt = 1;
+ 
+     }
+-/* setup end marker for log entry */
++/* setup end marker for log entry */
+ static void build_rec_end(log,timestamp,rec_num,rec_type,back_link)
+     log_t           *log;               /* log descriptor */
+     struct timeval  *timestamp;         /* log record timestamp */
+@@ -198,7 +198,7 @@ static void build_rec_end(log,timestamp,rec_num,rec_type,back_link)
+ 
+     assert(dev->iov_cnt <= dev->iov_length);
+     }
+-/* setup nv_range record */
++/* setup nv_range record */
+ static void build_nv_range(log,tid,range)
+     log_t           *log;               /* log descriptor */
+     int_tid_t       *tid;               /* transaction descriptor */
+@@ -225,7 +225,7 @@ static void build_nv_range(log,tid,range)
+     dev->iov[dev->iov_cnt].iov_base = nv_range;
+     dev->iov[dev->iov_cnt++].iov_len = sizeof(nv_range_t);
+     assert(dev->iov_cnt <= dev->iov_length);
+-    
++
+     /* setup io for new values */
+     dev->iov[dev->iov_cnt].iov_base = range->nvaddr;
+     dev->iov[dev->iov_cnt++].iov_len = RANGE_LEN(range);
+@@ -234,7 +234,7 @@ static void build_nv_range(log,tid,range)
+     enter_histogram(nv_range->length,log->status.range_lengths,
+                     range_lengths_vec,range_lengths_len);
+     }
+-static void split_range(range,new_range,avail)
++static void split_range(range,new_range,avail)
+     range_t         *range;             /* range to split */
+     range_t         *new_range;         /* temporary range descriptor */
+     rvm_length_t    avail;              /* space available */
+@@ -268,7 +268,7 @@ static void build_nv_range(log,tid,range)
+     assert(BYTE_SKEW(range->nvaddr) == 0);
+     assert(BYTE_SKEW(RVM_OFFSET_TO_LENGTH(range->nv.offset)) == 0);
+     }
+-static rvm_bool_t write_range(int_tid_t *tid, range_t *range,
++static rvm_bool_t write_range(int_tid_t *tid, range_t *range,
+ 				rvm_offset_t *log_free)
+ {
+     log_t           *log = tid->log;    /* log descriptor */
+@@ -306,7 +306,7 @@ static void build_nv_range(log,tid,range)
+ 
+     return rvm_false;
+ }
+-static rvm_return_t write_tid(int_tid_t *tid)
++static rvm_return_t write_tid(int_tid_t *tid)
+ {
+     log_t           *log = tid->log;    /* log descriptor */
+     log_status_t    *status = &log->status; /* status block descriptor */
+@@ -388,7 +388,7 @@ static void build_nv_range(log,tid,range)
+         return RVM_EIO;
+     return update_log_tail(log, &log->trans_hdr.rec_hdr);
+ }
+-/* wait for a truncation to free space for log record
++/* wait for a truncation to free space for log record
+    -- assumes dev_lock is held */
+ static rvm_return_t wait_for_space(log,space_needed,log_free,did_wait)
+     log_t           *log;               /* log descriptor */
+@@ -419,7 +419,7 @@ static rvm_return_t wait_for_space(log,space_needed,log_free,did_wait)
+ 
+     return retval;
+     }
+-/* compute log entry size; truncate if necessary */
++/* compute log entry size; truncate if necessary */
+ static rvm_return_t log_tid(log_t *log, int_tid_t *tid)
+ {
+     rvm_offset_t    log_needed;
+@@ -460,7 +460,7 @@ err_exit:;
+ 
+     return retval;
+ }
+-/* set up special log entry i/o */
++/* set up special log entry i/o */
+ static void build_log_special(log_t *log, log_special_t *special)
+ {
+     device_t *dev = &log->dev;	/* log device descriptor */
+@@ -492,7 +492,7 @@ static void build_log_special(log_t *log, log_special_t *special)
+     }
+     assert(dev->iov_cnt <= dev->iov_length);
+ }
+-/* insure space available in log; truncate if necessary, and initiate
++/* insure space available in log; truncate if necessary, and initiate
+    i/o for special log entries; */
+ static rvm_return_t log_special(log_t *log, log_special_t *special)
+ {
+@@ -512,7 +512,7 @@ static rvm_return_t log_special(log_t *log, log_special_t *special)
+     /* be sure enough i/o vector slots available */
+     if ((retval=make_iov(log,LOG_SPECIAL_IOV_MAX))
+         != RVM_SUCCESS) return retval;
+-    
++
+     /* find out how much log available & wrap if necessary */
+     log_tail_sngl_w(log,&log_free);
+     if (RVM_OFFSET_LSS(log_free,special_size))
+@@ -530,12 +530,12 @@ static rvm_return_t log_special(log_t *log, log_special_t *special)
+         return RVM_EIO;
+     retval = update_log_tail(log, &special->rec_hdr);
+     if (retval != RVM_SUCCESS) return retval;
+-    
++
+     free_log_special(special);
+ 
+     return RVM_SUCCESS;
+ }
+-/* log immediate records flush -- log device locked by caller */
++/* log immediate records flush -- log device locked by caller */
+ rvm_return_t flush_log_special(log)
+     log_t           *log;
+     {
+@@ -561,7 +561,7 @@ rvm_return_t flush_log_special(log)
+ 
+     return retval;
+     }
+-/* internal log flush */
++/* internal log flush */
+ rvm_return_t flush_log(log,count)
+     log_t           *log;
+     long            *count;              /* statistics counter */
+@@ -593,7 +593,7 @@ rvm_return_t flush_log(log,count)
+                 ((int_tid_t *)(log->flush_list.preventry))->flags
+                     |= FLUSH_MARK;
+             });                         /* end flush_list_lock crit sec */
+-        /* flush all queued tid's */
++        /* flush all queued tid's */
+         DO_FOREVER
+             {
+             /* do tid's one at a time to allow no_flush commits while flushing */
+@@ -637,7 +637,7 @@ err_exit:;
+     }
+     return retval;
+ }
+-/* exported flush routine */
++/* exported flush routine */
+ rvm_return_t rvm_flush()
+     {
+     rvm_return_t    retval;
+@@ -653,7 +653,7 @@ rvm_return_t rvm_flush()
+ 
+     return RVM_SUCCESS;
+     }
+-/* special log entries enqueuing routine */
++/* special log entries enqueuing routine */
+ rvm_return_t queue_special(log,special)
+     log_t           *log;               /* log descriptor */
+     log_special_t   *special;           /* special entry descriptor */
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index 9de2c40..1768874 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -28,7 +28,7 @@ Coda are listed in the file CREDITS.
+ #include <sys/file.h>
+ #include <sys/time.h>
+ #include <errno.h>
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ #ifdef RVM_LOG_TAIL_BUG
+ #include <rvmtesting.h>
+@@ -72,7 +72,7 @@ static rvm_length_t     last_tree_apply_time;
+ 
+ #define NODES_PER_YIELD 1000000
+ static rvm_length_t num_nodes = NODES_PER_YIELD;
+-/* test if modification range will change monitored addresses */
++/* test if modification range will change monitored addresses */
+ static void monitor_vmaddr(nv_addr,nv_len,nv_data,nv_offset,rec_hdr,msg)
+     char            *nv_addr;           /* vm address */
+     rvm_length_t    nv_len;             /* length of vm range */
+@@ -113,7 +113,7 @@ static void monitor_vmaddr(nv_addr,nv_len,nv_data,nv_offset,rec_hdr,msg)
+ 
+     return;
+     }
+-/* allocate log recovery buffers */
++/* allocate log recovery buffers */
+ char                *tst_buf;           /* debug temp */
+ rvm_return_t alloc_log_buf(log)
+     log_t           *log;               /* log descriptor */
+@@ -175,7 +175,7 @@ void free_log_buf(log)
+         log_buf->aux_length = 0;
+         }
+     }
+-/* init log buffer with desired offset data from log */
++/* init log buffer with desired offset data from log */
+ rvm_return_t init_buffer(log,offset,direction,synch)
+     log_t           *log;               /* log descriptor */
+     rvm_offset_t    *offset;            /* offset in log to load */
+@@ -219,7 +219,7 @@ rvm_return_t init_buffer(log,offset,direction,synch)
+         length = log_buf->length;
+     else
+         length = RVM_OFFSET_TO_LENGTH(read_len);
+-    /* set offset of read for reverse fill */
++    /* set offset of read for reverse fill */
+     if (direction == REVERSE)
+         {
+         log_buf->offset = RVM_SUB_LENGTH_FROM_OFFSET(log_buf->offset,
+@@ -290,7 +290,7 @@ rvm_return_t init_buffer(log,offset,direction,synch)
+ 
+     return retval;
+     }
+-/* refill buffer in scan direction */
++/* refill buffer in scan direction */
+ static rvm_return_t refill_buffer(log,direction,synch)
+     log_t           *log;               /* log descriptor */
+     rvm_bool_t      direction;          /* true ==> forward */
+@@ -305,7 +305,7 @@ static rvm_return_t refill_buffer(log,direction,synch)
+     /* fill the buffer */
+     return init_buffer(log,&offset,direction,synch);
+     }
+-/* compare buf & shadow buf from gdb */
++/* compare buf & shadow buf from gdb */
+ #ifdef SPECIAL_DEBUG
+ int log_buf_cmp(disp)
+     int             disp;
+@@ -357,7 +357,7 @@ int disk_buf_cmp(buf,disp)
+     return -1;
+     }
+ #endif /* SPECIAL_DEBUG */
+-/* locate byte in buffer via gdb */
++/* locate byte in buffer via gdb */
+ int find_byte(chr,buf,disp,max_len)
+     char            chr;
+     char            *buf;
+@@ -400,7 +400,7 @@ int find_buf_word(wrd,disp)
+ 
+     return find_word(wrd, (rvm_length_t *)log_buf->buf,disp,log_buf->r_length);
+     }
+-/* load log auxillary buffer */
++/* load log auxillary buffer */
+ rvm_return_t load_aux_buf(log,log_offset,length,aux_ptr,
+                                  data_len,synch,pre_load)
+     log_t           *log;               /* log descriptor */
+@@ -448,7 +448,7 @@ rvm_return_t load_aux_buf(log,log_offset,length,aux_ptr,
+         read_len = log_buf->aux_length; /* yes, fill buffer */
+     else
+         read_len = length;              /* no, just do what requested */
+-    /* determine length and offset for log read */
++    /* determine length and offset for log read */
+     log_buf->aux_offset = CHOP_OFFSET_TO_SECTOR_SIZE(*log_offset);
+     high_offset = RVM_ADD_LENGTH_TO_OFFSET(*log_offset,read_len);
+     high_offset = ROUND_OFFSET_TO_SECTOR_SIZE(high_offset);
+@@ -517,7 +517,7 @@ void clear_aux_buf(log)
+     RVM_ZERO_OFFSET(log_buf->aux_offset);
+     log_buf->aux_rlength = 0;
+     }
+-/* record header type validation */
++/* record header type validation */
+ rvm_bool_t chk_hdr_type(rec_hdr)
+     rec_hdr_t       *rec_hdr;           /* generic record header */
+     {
+@@ -562,7 +562,7 @@ void reset_hdr_chks(log)
+     log_buf->prev_rec_num = 0;
+     ZERO_TIME(log_buf->prev_timestamp);
+     }
+-/* test if record is out of sequence in log */
++/* test if record is out of sequence in log */
+ rvm_bool_t chk_hdr_sequence(log,rec_hdr,direction)
+     log_t           *log;               /* log descriptor */
+     rec_hdr_t       *rec_hdr;           /* generic record header */
+@@ -588,7 +588,7 @@ rvm_bool_t chk_hdr_sequence(log,rec_hdr,direction)
+ 
+     return rvm_true;
+     }
+-/* record header validation */
++/* record header validation */
+ rvm_bool_t chk_hdr(log,rec_hdr,rec_end,direction)
+     log_t           *log;               /* log descriptor */
+     rec_hdr_t       *rec_hdr;           /* generic record header */
+@@ -623,7 +623,7 @@ rvm_bool_t chk_hdr(log,rec_hdr,rec_end,direction)
+ 
+     return rvm_true;
+     }
+-/* log record header validation */
++/* log record header validation */
+ rvm_bool_t validate_hdr(log,rec_hdr,rec_end,direction)
+     log_t           *log;               /* log descriptor */
+     rec_hdr_t       *rec_hdr;           /* generic record header */
+@@ -666,7 +666,7 @@ rvm_bool_t validate_hdr(log,rec_hdr,rec_end,direction)
+ 
+     return rvm_true;
+     }
+-/* get next new value range by forward scan of transaction record
++/* get next new value range by forward scan of transaction record
+    ptr points to next range header
+    exits with as much of range in buffer as will fit */
+ rvm_return_t scan_nv_forward(log,synch)
+@@ -707,7 +707,7 @@ rvm_return_t scan_nv_forward(log,synch)
+ 
+     return RVM_SUCCESS;
+     }
+-/* get previous new value range by reverse scan of transaction record
++/* get previous new value range by reverse scan of transaction record
+    ptr points to previous range header; exits with range in buffer */
+ rvm_return_t scan_nv_reverse(log,synch)
+     log_t          *log;                /* log descriptor */
+@@ -756,7 +756,7 @@ rvm_return_t scan_nv_reverse(log,synch)
+             }
+         }
+     else log_buf->ptr -= len;
+-    /* exit pointing to new header */
++    /* exit pointing to new header */
+     rec_hdr = (rec_hdr_t *)&log_buf->buf[log_buf->ptr];
+     if (rec_hdr->struct_id == trans_hdr_id)
+         return RVM_SUCCESS;
+@@ -764,7 +764,7 @@ rvm_return_t scan_nv_reverse(log,synch)
+ 
+     return RVM_SUCCESS;
+     }
+-/* validate record in buffer in forward scan */
++/* validate record in buffer in forward scan */
+ rvm_return_t validate_rec_forward(log,synch)
+     log_t           *log;               /* log descriptor */
+     rvm_bool_t      synch;              /* true ==> synchronization required */
+@@ -811,7 +811,7 @@ rvm_return_t validate_rec_forward(log,synch)
+         tmp_ptr = log_buf->ptr + rec_hdr->rec_length;
+         rec_end = (rec_end_t *)&log_buf->buf[tmp_ptr];
+         }
+-    else
++    else
+         {
+         /* no, won't fit -- read rec_end into aux buffer for validation */
+         end_offset = RVM_ADD_LENGTH_TO_OFFSET(log_buf->offset,
+@@ -838,7 +838,7 @@ rvm_return_t validate_rec_forward(log,synch)
+     log_buf->ptr = -1;
+     return RVM_SUCCESS;
+     }
+-/* scan forward from present position at a record structure
++/* scan forward from present position at a record structure
+    returns updated offset indexed by ptr; -1 ==> no next rec. */
+ rvm_return_t scan_forward(log,synch)
+     log_t           *log;               /* log descriptor */
+@@ -895,7 +895,7 @@ trans_done:
+     /* validate next record */
+     return validate_rec_forward(log,synch);
+     }
+-/* scan for wrap marker */
++/* scan for wrap marker */
+ rvm_return_t scan_wrap_reverse(log,synch)
+     rvm_bool_t      synch;              /* true ==> synchronization required */
+     log_t           *log;               /* log descriptor */
+@@ -951,7 +951,7 @@ rvm_return_t scan_wrap_reverse(log,synch)
+ 
+     return RVM_SUCCESS;
+     }
+-/* validate current record in buffer in reverse scan */
++/* validate current record in buffer in reverse scan */
+ rvm_return_t validate_rec_reverse(log,synch)
+      rvm_bool_t      synch;              /* true ==> synchronization required */
+      log_t           *log;               /* log descriptor */
+@@ -987,7 +987,7 @@ rvm_return_t validate_rec_reverse(log,synch)
+     rec_end = (rec_end_t *)&log_buf->buf[log_buf->ptr];
+     if (rec_end->rec_hdr.struct_id != rec_end_id)
+         goto no_record;             /* no next record */
+-    /* see if record will fit in buffer */
++    /* see if record will fit in buffer */
+     if ((ROUND_TO_SECTOR_SIZE(rec_end->rec_hdr.rec_length+sizeof(rec_end_t))
+         + SECTOR_SIZE) <= log_buf->length)
+         {
+@@ -1031,7 +1031,7 @@ no_record:
+     log_buf->ptr = -1;               /* no next record */
+     return RVM_SUCCESS;
+     }
+-/* scan backward from present position at a record structure
++/* scan backward from present position at a record structure
+    returns index of offset in ptr; -1 ==> no next rec. */
+ rvm_return_t scan_reverse(log,synch)
+     log_t           *log;               /* log descriptor */
+@@ -1073,7 +1073,7 @@ rvm_return_t scan_reverse(log,synch)
+             log_buf->ptr -= rec_hdr->rec_length;
+             break;
+             }
+-      case nv_range_id:                 /* scan past remaining ranges */
++      case nv_range_id:                 /* scan past remaining ranges */
+         DO_FOREVER
+             {
+             if ((retval=scan_nv_reverse(log,synch)) != RVM_SUCCESS)
+@@ -1097,7 +1097,7 @@ rvm_return_t scan_reverse(log,synch)
+     /* validate new record and set log_buf->ptr */
+     return validate_rec_reverse(log,synch);
+     }
+-/* Recovery: phase 1 -- locate current log tail from last status block
++/* Recovery: phase 1 -- locate current log tail from last status block
+      location */
+ 
+ /* log_wrap status update for tail location */
+@@ -1109,7 +1109,7 @@ static void set_wrap_status(status,rec_hdr)
+     status->n_special++;
+     status->tot_wrap++;
+     }
+-/* range checksum computation & check */
++/* range checksum computation & check */
+ static rvm_return_t range_chk_sum(log,nv,chk_val,synch)
+     log_t           *log;               /* log descriptor */
+     nv_range_t      *nv;                /* range header */
+@@ -1153,7 +1153,7 @@ static rvm_return_t range_chk_sum(log,nv,chk_val,synch)
+ 
+     return RVM_SUCCESS;
+     }
+-/* transaction validation & status update for tail location */
++/* transaction validation & status update for tail location */
+ static rvm_return_t set_trans_status(log,rec_hdr)
+     log_t           *log;               /* log descriptor */
+     rec_hdr_t        *rec_hdr;           /* current trans record in buffer */
+@@ -1191,7 +1191,7 @@ static rvm_return_t set_trans_status(log,rec_hdr)
+ 
+         num_ranges++;
+         }
+-    /* be sure all ranges are present */
++    /* be sure all ranges are present */
+     if (num_ranges != trans_hdr.num_ranges)
+         goto bad_record;                /* incomplete */
+ 
+@@ -1209,7 +1209,7 @@ bad_record:
+     log_buf->ptr = -1;
+     return RVM_SUCCESS;
+     }
+-/* Locate tail, update in-memory copy of status block; always reads forward */
++/* Locate tail, update in-memory copy of status block; always reads forward */
+ rvm_return_t locate_tail(log)
+     log_t           *log;               /* log descriptor */
+     {
+@@ -1278,7 +1278,7 @@ rvm_return_t locate_tail(log)
+         clear_log_status(log);
+         goto exit;
+         }
+-    /* update status block head info if necessary */
++    /* update status block head info if necessary */
+     if (status->first_rec_num == 0)
+         status->first_rec_num = rec_hdr->rec_num;
+     if (TIME_EQL_ZERO(status->first_write))
+@@ -1327,7 +1327,7 @@ rvm_return_t locate_tail(log)
+         != RVM_SUCCESS) goto err_exit;
+     assert(log->trunc_thread == cthread_self());
+     assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_FIND_TAIL);
+-    /* see if record at tail is valid, scan until bad record found */
++    /* see if record at tail is valid, scan until bad record found */
+     if ((retval=validate_rec_forward(log,NO_SYNCH)) != RVM_SUCCESS)
+         goto err_exit;
+     DO_FOREVER
+@@ -1377,7 +1377,7 @@ rvm_return_t locate_tail(log)
+         if (rvm_chk_sigint != NULL)     /* test for interrupt */
+             if ((*rvm_chk_sigint)(NULL)) goto err_exit;
+         }
+-    /* tail found, update in-memory status */
++    /* tail found, update in-memory status */
+ #ifdef RVM_LOG_TAIL_BUG
+     unprotect_page__Fi(ClobberAddress);
+ #endif /* RVM_LOG_TAIL_BUG */
+@@ -1413,7 +1413,7 @@ err_exit:
+     assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_FIND_TAIL);
+     return retval;
+     }
+-/* add segment short id to dictionary */
++/* add segment short id to dictionary */
+ rvm_return_t enter_seg_dict(log,seg_code)
+     log_t           *log;
+     long            seg_code;
+@@ -1447,7 +1447,7 @@ rvm_return_t enter_seg_dict(log,seg_code)
+         }
+     return RVM_SUCCESS;
+     }
+-/* complete definition of seg_dict entry */
++/* complete definition of seg_dict entry */
+ rvm_return_t def_seg_dict(log,rec_hdr)
+     log_t           *log;               /* log descriptor */
+     rec_hdr_t       *rec_hdr;           /* log segment definition descriptor
+@@ -1484,7 +1484,7 @@ rvm_return_t def_seg_dict(log,rec_hdr)
+ 
+     return RVM_SUCCESS;
+     }
+-/* change tree comparator for tree_insert */
++/* change tree comparator for tree_insert */
+ long cmp_partial_include(node1,node2)
+     dev_region_t    *node1;
+     dev_region_t    *node2;
+@@ -1504,7 +1504,7 @@ static void set_node_length(node)
+     node->length = RVM_OFFSET_TO_LENGTH(offset_temp);
+ 
+     }
+-rvm_return_t change_tree_insert(seg_dict,node)
++rvm_return_t change_tree_insert(seg_dict,node)
+     seg_dict_t      *seg_dict;          /* seg_dict for this nv */
+     dev_region_t    *node;              /* change tree node for this nv */
+     {
+@@ -1554,7 +1554,7 @@ static void set_node_length(node)
+                            "change_tree_insert: all values shadowed");
+         goto free_node;                 /* yes, all values shadowed */
+         }
+-    /* some shadowed, test if new values span existing node */
++    /* some shadowed, test if new values span existing node */
+     if ((cmpval=dev_total_include(&x_node->offset,&x_node->end_offset,
+                           &node->offset,&node->end_offset)) == 0)
+         if (RVM_OFFSET_LSS(node->offset,x_node->offset))
+@@ -1600,7 +1600,7 @@ static void set_node_length(node)
+             if ((retval=change_tree_insert(seg_dict,split_node))
+                 != RVM_SUCCESS) return retval;
+             }
+-    /* test if new values follow existing node */
++    /* test if new values follow existing node */
+     shadow_skew = BYTE_SKEW(RVM_OFFSET_TO_LENGTH(node->offset));
+     if (cmpval <= 0)
+         {
+@@ -1640,7 +1640,7 @@ static void set_node_length(node)
+                             RVM_ADD_LENGTH_TO_OFFSET(node->log_offset,
+                                           shadow_length+shadow_skew));
+         }
+-    /* insert modified node */
++    /* insert modified node */
+     if (rvm_chk_len != 0)               /* do monitoring */
+         {
+         if (shadow_length != 0)
+@@ -1656,7 +1656,7 @@ free_node:
+     free_dev_region(node);
+     return RVM_SUCCESS;
+     }
+-/* prepare new value record for seg_dict's mod_tree
++/* prepare new value record for seg_dict's mod_tree
+    if new values are <= nv_local_max, they must be in buffer */
+ static rvm_return_t do_nv(log,nv)
+     log_t           *log;
+@@ -1698,7 +1698,7 @@ static rvm_return_t do_nv(log,nv)
+     node->end_offset = RVM_ADD_LENGTH_TO_OFFSET(nv->offset,nv->length);
+     node->length = nv->length;
+     node->vmaddr = nv->vmaddr;
+-    /* see if mods small enough to keep in vm */
++    /* see if mods small enough to keep in vm */
+     if (nv->length <= NV_LOCAL_MAX)
+         {                               /* yes, get some space for nv */
+         aligned_len = ALIGNED_LEN(RVM_OFFSET_TO_LENGTH(nv->offset),
+@@ -1746,7 +1746,7 @@ static rvm_return_t do_nv(log,nv)
+ 
+     return RVM_SUCCESS;
+     }
+-/* scan modifications of transaction in reverse order & build tree */
++/* scan modifications of transaction in reverse order & build tree */
+ static rvm_return_t do_trans(log,skip_trans)
+     log_t           *log;               /* log descriptor */
+     rvm_bool_t      skip_trans;         /* scan, but ignore if true */
+@@ -1804,7 +1804,7 @@ static rvm_return_t do_trans(log,skip_trans)
+ 
+     return RVM_SUCCESS;
+     }
+-/* log wrap-around validation */
++/* log wrap-around validation */
+ static rvm_return_t chk_wrap(log,force_wrap_chk,skip_trans)
+     log_t           *log;               /* log descriptor */
+     rvm_bool_t      force_wrap_chk;     /* wrap check required if true */
+@@ -1851,7 +1851,7 @@ static rvm_return_t chk_wrap(log,force_wrap_chk,skip_trans)
+                                                 -rec_end->rec_hdr.rec_length];
+         }
+     else
+-        /* header is at start of aux_buf or recovery buffer */
++        /* header is at start of aux_buf or recovery buffer */
+         if (RVM_OFFSET_LSS(offset,log_buf->offset))
+             trans_hdr = (trans_hdr_t *)log_buf->aux_buf;
+         else
+@@ -1904,7 +1904,7 @@ static rvm_return_t chk_wrap(log,force_wrap_chk,skip_trans)
+     assert((long)log_buf->ptr >= 0);
+     rec_end = (rec_end_t *)&log_buf->buf[log_buf->ptr];
+     assert(rec_end->rec_hdr.struct_id == rec_end_id);
+-    /* check if the header is the first record of last transaction */
++    /* check if the header is the first record of last transaction */
+     offset = RVM_ADD_LENGTH_TO_OFFSET(log_buf->offset,log_buf->ptr);
+     offset = RVM_SUB_LENGTH_FROM_OFFSET(offset,rec_end->rec_hdr.rec_length);
+     if (RVM_OFFSET_LSS(offset,log_buf->offset))
+@@ -1941,7 +1941,7 @@ static rvm_return_t chk_wrap(log,force_wrap_chk,skip_trans)
+ 
+     return RVM_SUCCESS;
+     }
+-/* Recovery: phase 2 -- build modification trees, and
++/* Recovery: phase 2 -- build modification trees, and
+    construct dictionary of segment short names
+ */
+ #define X(a)
+@@ -2018,7 +2018,7 @@ X( trans_hdr_id: do_trans)
+ X( trans_hdr_id: end)
+                 trans_cnt++;
+                 break;
+-              case log_seg_id:          /* enter seg short id in dictionary */
++              case log_seg_id:          /* enter seg short id in dictionary */
+ X( log_seg_id: def_seg_dict)
+                 if ((retval=def_seg_dict(log,(rec_hdr_t *)
+                     RVM_SUB_LENGTH_FROM_ADDR(rec_end,
+@@ -2043,7 +2043,7 @@ X( log_seg_id: done)
+ 
+     return RVM_SUCCESS;
+     }
+-/* pre-scan change tree to see how much to read to read into buffer */
++/* pre-scan change tree to see how much to read to read into buffer */
+ static dev_region_t *pre_scan(log,tree)
+     log_t           *log;               /* log descriptor */
+     tree_root_t     *tree;              /* current tree root */
+@@ -2089,7 +2089,7 @@ static dev_region_t *pre_scan(log,tree)
+ 
+     return last_node;
+     }
+-/* merge large node disk-resident new values with segment data */
++/* merge large node disk-resident new values with segment data */
+ static rvm_return_t disk_merge(log,node,preload)
+     log_t           *log;               /* log descriptor */
+     dev_region_t    *node;              /* node to merge */
+@@ -2131,7 +2131,7 @@ static rvm_return_t disk_merge(log,node,preload)
+             if ((retval=load_aux_buf(log,&node->log_offset,rw_length,
+                                      &aux_ptr,&data_len,SYNCH,rvm_true))
+                 != RVM_SUCCESS) return retval;
+-            /* sanity checks and monitoring */
++            /* sanity checks and monitoring */
+             assert((aux_ptr+data_len) <= log_buf->aux_rlength);
+             assert((buf_ptr+data_len) <= log_buf->length);
+             assert(BYTE_SKEW(aux_ptr) == BYTE_SKEW(node->vmaddr));
+@@ -2187,7 +2187,7 @@ static rvm_return_t disk_merge(log,node,preload)
+             node->offset =
+                 RVM_ADD_LENGTH_TO_OFFSET(node->offset,data_len);
+             buf_ptr += data_len;
+-            /* if done, set final write length */
++            /* if done, set final write length */
+             if (node->length == 0)
+                 {
+                 assert(RVM_OFFSET_EQL(node->offset,
+@@ -2228,7 +2228,7 @@ static rvm_return_t disk_merge(log,node,preload)
+         assert(OFFSET_TO_SECTOR_INDEX(log_buf->offset) == 0);
+         }
+     }
+-/* merge node's new values with segment data in buffer */
++/* merge node's new values with segment data in buffer */
+ static rvm_return_t merge_node(log,node,preload)
+     log_t           *log;               /* log descriptor */
+     dev_region_t    *node;              /* current change tree node */
+@@ -2329,7 +2329,7 @@ static rvm_return_t update_seg(log,seg_dict,seg_dev)
+             log_buf->r_length = SECTOR_SIZE; /* very large node!! */
+             preload = rvm_false;
+             }
+-        /* allow reschedule & do the read */
++        /* allow reschedule & do the read */
+         if (!(log->in_recovery || rvm_utlsw || rvm_no_yield))
+             {
+             cthread_yield();
+@@ -2384,7 +2384,7 @@ static rvm_return_t update_seg(log,seg_dict,seg_dev)
+         assert((status->trunc_state & RVM_TRUNC_PHASES)
+                == RVM_TRUNC_APPLY);
+         assert(r_length == log_buf->r_length);
+-        /* do monitoring */
++        /* do monitoring */
+         if (rvm_chk_len != 0)
+             {
+             if (!RVM_OFFSET_EQL(temp,log_buf->offset))
+@@ -2410,7 +2410,7 @@ err_exit:
+         }
+     return retval;
+     }
+-/* Recovery: phase 3 -- apply modifications to segments */
++/* Recovery: phase 3 -- apply modifications to segments */
+ rvm_return_t apply_mods(log)
+     log_t           *log;               /* log descriptor */
+     {
+@@ -2481,7 +2481,7 @@ rvm_return_t apply_mods(log)
+ 
+     return retval;
+     }
+-/* Recovery: phase 4 -- update head/tail of log */
++/* Recovery: phase 4 -- update head/tail of log */
+ static rvm_return_t status_update(log, new_1st_rec_num)
+     log_t           *log;               /* log descriptor */
+     rvm_length_t    new_1st_rec_num;
+@@ -2552,7 +2552,7 @@ err_exit:;
+ 
+     return retval;
+     }
+-/* switch truncation epochs */
++/* switch truncation epochs */
+ static rvm_return_t new_epoch(log,count)
+     log_t           *log;               /* log descriptor */
+     rvm_length_t    *count;             /* ptr to statistics counter */
+@@ -2637,7 +2637,7 @@ X(in_recovery)
+             assert(log->trunc_thread == cthread_self());
+             if (rvm_chk_sigint != NULL) /* test for interrupt */
+                 if ((*rvm_chk_sigint)(NULL)) goto err_exit1;
+-            /* see if truncation actually needed */
++            /* see if truncation actually needed */
+             if (RVM_OFFSET_EQL(status->log_tail,status->log_head))
+                 status->log_empty = rvm_true;
+             else
+@@ -2669,7 +2669,7 @@ err_exit1:;
+         if (retval != RVM_SUCCESS) goto err_exit;
+         if (rvm_chk_sigint != NULL)     /* test for interrupt */
+             if ((*rvm_chk_sigint)(NULL)) goto err_exit;
+-        /* do log scan if truncation actually needed */
++        /* do log scan if truncation actually needed */
+         if (do_truncation)
+             {
+ X(do_trunc)
+@@ -2718,7 +2718,7 @@ X(status_upd)
+         assert(log->trunc_thread == cthread_self());
+         assert((status->trunc_state & RVM_TRUNC_PHASES)
+                == RVM_TRUNC_UPDATE);
+-        /* wake up any threads waiting on a truncation */
++        /* wake up any threads waiting on a truncation */
+ err_exit:
+         assert(log->trunc_thread == cthread_self());
+         CRITICAL(daemon->lock,          /* begin daemon->lock crit sec */
+@@ -2797,7 +2797,7 @@ rvm_bool_t initiate_truncation(log,threshold)
+ 
+     return did_init;
+ }
+-/* wait until truncation has processed all records up to time_stamp */
++/* wait until truncation has processed all records up to time_stamp */
+ rvm_return_t wait_for_truncation(log,time_stamp)
+     log_t           *log;               /* log descriptor */
+     struct timeval  *time_stamp;        /* time threshold */
+@@ -2852,7 +2852,7 @@ exit_crit_sec:;
+ 
+     return retval;
+     }
+-/* truncation daemon */
++/* truncation daemon */
+ void log_daemon(void *arg)
+     {
+     log_t           *log = arg;               /* log descriptor */
+diff --git a/rvm/rvm_logstatus.c b/rvm/rvm_logstatus.c
+index 226ef5b..96e041f 100644
+--- a/rvm/rvm_logstatus.c
++++ b/rvm/rvm_logstatus.c
+@@ -27,7 +27,7 @@ Coda are listed in the file CREDITS.
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <errno.h>
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ #ifdef RVM_LOG_TAIL_BUG
+ #include <rvmtesting.h>
+@@ -46,7 +46,7 @@ extern char         *rvm_errmsg;        /* internal error message buffer */
+ extern rvm_length_t page_size;          /* system page size */
+ extern rvm_length_t page_mask;          /* mask for rounding down to page size */
+ extern rvm_length_t flush_times_vec[flush_times_len]; /* flush timing histogram defs */
+-extern rvm_length_t truncation_times_vec[truncation_times_len]; /* truncation timing 
++extern rvm_length_t truncation_times_vec[truncation_times_len]; /* truncation timing
+                                                                    histogram defs */
+ extern rvm_length_t range_lengths_vec[range_lengths_len]; /* range length
+                                                              histogram defs */
+@@ -85,7 +85,7 @@ static rvm_offset_t raw_status_offset = /* log status area offset in partitions
+ 
+ static rvm_offset_t min_trans_size =    /* minimum usable log size as offset */
+     RVM_OFFSET_INITIALIZER(0,MIN_TRANS_SIZE);
+-/* log_root initialization */
++/* log_root initialization */
+ void init_log_list()
+     {
+     init_list_header(&log_root,log_id);
+@@ -94,10 +94,10 @@ void init_log_list()
+     }
+ 
+ /* enter new log in log list and establish default log if necessary */
+-/* 
++/*
+   if we are looking for the RVM_LOG_TAIL_BUG, there can only ever
+   be one log.  I *believe* that it is possibly to only have one log
+-  open at a time.  But, I'm not going to coda_assert that in the general 
++  open at a time.  But, I'm not going to coda_assert that in the general
+   case -bnoble 7/30/94
+ */
+ 
+@@ -118,9 +118,9 @@ void enter_log(log)
+         });
+ 
+ #ifdef RVM_LOG_TAIL_BUG
+-    /* 
++    /*
+       this is massively unportable: for the moment, coda_assert we are
+-      on pmax_mach. 
++      on pmax_mach.
+     */
+ #ifndef	__MACH__
+     assert(0);
+@@ -159,10 +159,10 @@ found:;
+ 
+     return log;
+     }
+-/* log daemon control */
++/* log daemon control */
+ 
+ /* create daemon */
+-static rvm_return_t fork_daemon(log_t *log) 
++static rvm_return_t fork_daemon(log_t *log)
+ {
+     log_daemon_t *daemon = &log->daemon; /* truncation daemon descriptor */
+ 
+@@ -211,7 +211,7 @@ static rvm_return_t join_daemon(log)
+ 
+     return retval;
+     }
+-/* set log truncation options */
++/* set log truncation options */
+ static rvm_return_t set_truncate_options(log,rvm_options)
+     log_t           *log;               /* log descriptor ptr */
+     rvm_options_t   *rvm_options;       /* optional options descriptor */
+@@ -236,7 +236,7 @@ static rvm_return_t set_truncate_options(log,rvm_options)
+ 
+     return retval;
+     }
+-/* close log device */
++/* close log device */
+ rvm_return_t close_log(log)
+     log_t           *log;
+     {
+@@ -289,7 +289,7 @@ rvm_return_t close_log(log)
+ 
+     return retval;
+     }
+-/* termination close of all log devices */
++/* termination close of all log devices */
+ rvm_return_t close_all_logs()
+     {
+     log_t           *log;               /* log device descriptor ptr */
+@@ -307,7 +307,7 @@ rvm_return_t close_all_logs()
+ 
+     return retval;
+     }
+-/* pre-load log raw i/o gather write buffer with tail log sector */
++/* pre-load log raw i/o gather write buffer with tail log sector */
+ static rvm_return_t preload_wrt_buf(log)
+     log_t           *log;               /* log descriptor */
+     {
+@@ -326,7 +326,7 @@ static rvm_return_t preload_wrt_buf(log)
+ 
+     return RVM_SUCCESS;
+     }
+-/* create log descriptor and open log device */
++/* create log descriptor and open log device */
+ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options)
+     char            *dev_name;          /* name of log storage device */
+     log_t           **log_ptr;          /* addr of log descriptor ptr */
+@@ -374,7 +374,7 @@ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options)
+     if (dev->raw_io) dev->num_bytes =   /* enought to read status area */
+         RVM_ADD_LENGTH_TO_OFFSET(raw_status_offset,
+                                  LOG_DEV_STATUS_SIZE);
+-    /* open status area */
++    /* open status area */
+     if ((retval=read_log_status(log,status_buf)) != RVM_SUCCESS)
+         {
+         if (rvm_utlsw) goto keep_log; /* keep damaged status */
+@@ -382,7 +382,7 @@ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options)
+         }
+     log->status.trunc_state = 0;
+     log->status.flush_state = 0;
+-        
++
+     /* create daemon truncation thread */
+     if ((retval=set_truncate_options(log,rvm_options))
+         != RVM_SUCCESS) goto err_exit;
+@@ -402,7 +402,7 @@ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options)
+             }
+         dev->buf_end = RVM_ADD_LENGTH_TO_ADDR(dev->wrt_buf,
+                                               dev->wrt_buf_len);
+-        
++
+         /* pre-load write buffer */
+         if ((retval=preload_wrt_buf(log)) != RVM_SUCCESS)
+             goto err_exit;
+@@ -421,7 +421,7 @@ err_exit2:
+     *log_ptr = (log_t *)NULL;
+     return retval;
+     }
+-/* log options processing */
++/* log options processing */
+ rvm_return_t do_log_options(log_ptr,rvm_options)
+     log_t           **log_ptr;          /* addr of log descriptor ptr */
+     rvm_options_t   *rvm_options;       /* ptr to rvm options descriptor */
+@@ -440,7 +440,7 @@ rvm_return_t do_log_options(log_ptr,rvm_options)
+         /* see if already have a log */
+         if (default_log != NULL)
+             return RVM_ELOG;
+-        
++
+         /* build log descriptor */
+         if ((retval=open_log(log_dev,&log,NULL,rvm_options))
+             != RVM_SUCCESS) {
+@@ -473,7 +473,7 @@ rvm_return_t do_log_options(log_ptr,rvm_options)
+ 
+     return retval;
+     }
+-/* accumulate running statistics totals */
++/* accumulate running statistics totals */
+ void copy_log_stats(log)
+     log_t           *log;
+     {
+@@ -522,7 +522,7 @@ void copy_log_stats(log)
+                                               status->log_size);
+     status->tot_log_written = RVM_SUB_OFFSETS(status->tot_log_written,
+                                               temp);
+-    /* sum cumulative histograms and zero current */
++    /* sum cumulative histograms and zero current */
+     for (i=0; i < flush_times_len; i++)
+         {
+         status->tot_flush_times[i] += status->flush_times[i];
+@@ -549,12 +549,12 @@ void copy_log_stats(log)
+         }
+     ZERO_TIME(status->flush_time);
+     }
+-/* clear non-permenant log status area fields */
++/* clear non-permenant log status area fields */
+ void clear_log_status(log)
+     log_t           *log;
+     {
+     log_status_t    *status = &log->status; /* status area descriptor */
+- 
++
+     assert(((&log->dev == &default_log->dev) && (!rvm_utlsw)) ?
+            (!LOCK_FREE(default_log->dev_lock)) : 1);
+ 
+@@ -574,7 +574,7 @@ void clear_log_status(log)
+ 
+     copy_log_stats(log);
+     }
+-/* log status block initialization */
++/* log status block initialization */
+ rvm_return_t init_log_status(log)
+     log_t           *log;               /* log descriptor */
+     {
+@@ -640,7 +640,7 @@ rvm_return_t init_log_status(log)
+     RVM_ZERO_OFFSET(status->tot_range_overlap);
+     RVM_ZERO_OFFSET(status->tot_trans_overlap);
+     RVM_ZERO_OFFSET(status->tot_log_written);
+-    /* clear timings and histograms */
++    /* clear timings and histograms */
+     ZERO_TIME(status->tot_flush_time);
+     ZERO_TIME(status->tot_truncation_time);
+     for (i=0; i < flush_times_len; i++)
+@@ -667,7 +667,7 @@ rvm_return_t init_log_status(log)
+     /* write the device areas */
+     return write_log_status(log,NULL);
+     }
+-/* read log status area from log device */
++/* read log status area from log device */
+ rvm_return_t read_log_status(log,status_buf)
+     log_t               *log;           /* log descriptor */
+     char                *status_buf;    /* optional i/o buffer */
+@@ -699,7 +699,7 @@ rvm_return_t read_log_status(log,status_buf)
+ 
+     /* copy to log descriptor */
+     (void)BCOPY(&dev_status->status,(char *)status,
+-                sizeof(log_status_t));  
++                sizeof(log_status_t));
+     status->valid = rvm_false;          /* status not valid until tail found */
+ 
+     /* compare checksum, struct_id, and version */
+@@ -720,7 +720,7 @@ rvm_return_t read_log_status(log,status_buf)
+     status->update_cnt = UPDATE_STATUS;
+     return RVM_SUCCESS;
+     }
+-/* write log status area on log device */
++/* write log status area on log device */
+ rvm_return_t write_log_status(log,dev)
+     log_t               *log;
+     device_t            *dev;           /* optional device */
+@@ -779,7 +779,7 @@ rvm_return_t write_log_status(log,dev)
+ 
+     return RVM_SUCCESS;
+     }
+-/* consistency check for log head/tail ptrs */
++/* consistency check for log head/tail ptrs */
+ static rvm_bool_t chk_tail(log)
+     log_t           *log;
+     {
+@@ -807,7 +807,7 @@ static rvm_bool_t chk_tail(log)
+         assert(RVM_OFFSET_EQL(status->prev_log_tail,
+                               status->log_head));
+         }
+-    /* current <==> previous epoch consistency checks */
++    /* current <==> previous epoch consistency checks */
+     if (RVM_OFFSET_GTR(status->log_head,status->log_tail))
+         {                               /* current epoch wrapped */
+         assert(RVM_OFFSET_GEQ(status->log_head,status->log_tail));
+@@ -850,7 +850,7 @@ static rvm_bool_t chk_tail(log)
+ 
+     return rvm_true;
+     }
+-rvm_return_t update_log_tail(log,rec_hdr)
++rvm_return_t update_log_tail(log,rec_hdr)
+     log_t           *log;
+     rec_hdr_t       *rec_hdr;           /* header of last record */
+     {
+@@ -925,7 +925,7 @@ static rvm_bool_t chk_tail(log)
+ 
+     return write_log_status(log,NULL);  /* update disk status block */
+     }
+-/* determine total length of log tail area */
++/* determine total length of log tail area */
+ void log_tail_length(log,tail_length)
+     log_t           *log;               /* log descriptor */
+     rvm_offset_t    *tail_length;       /* length [out] */
+@@ -956,7 +956,7 @@ void log_tail_length(log,tail_length)
+         *tail_length = RVM_SUB_OFFSETS(temp,status->log_tail);
+ 
+     }
+-/* determine length of log tail area usable in single write */
++/* determine length of log tail area usable in single write */
+ void log_tail_sngl_w(log_t *log, rvm_offset_t *tail_length)
+ {
+     log_status_t    *status = &log->status; /* status area descriptor */
+@@ -977,7 +977,7 @@ void log_tail_sngl_w(log_t *log, rvm_offset_t *tail_length)
+     *tail_length = RVM_SUB_OFFSETS(*tail_length,status->log_tail);
+     assert(chk_tail(log));
+ }
+-/* determine length of log currently in use */
++/* determine length of log currently in use */
+ void cur_log_length(log,length)
+     log_t           *log;               /* log descriptor */
+     rvm_offset_t    *length;            /* length [out] */
+@@ -1028,7 +1028,7 @@ long cur_log_percent(log,space_needed)
+ 
+     return cur_percent;
+     }
+-/* rvm_create_log application interface */
++/* rvm_create_log application interface */
+ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+     rvm_options_t   *rvm_options;       /* ptr to options record */
+     rvm_offset_t    *log_len;           /* length of log data area */
+@@ -1064,8 +1064,8 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+     if ((log=make_log(rvm_options->log_dev,&retval)) == NULL)
+         return retval;
+ #ifdef RVM_LOG_TAIL_BUG
+-    /* 
+-      We only need to track the log descriptor while we are 
++    /*
++      We only need to track the log descriptor while we are
+       building it.  It isn't going to be inserted into the list
+       until later, so ClobberAddress won't be set properly.
+     */
+@@ -1090,7 +1090,7 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+         retval = RVM_EIO;
+         goto err_exit;
+         }
+-    /* force file length to specified size by writting last byte */
++    /* force file length to specified size by writting last byte */
+     log->dev.num_bytes = offset;
+     offset = RVM_SUB_LENGTH_FROM_OFFSET(offset,strlen(end_mark));
+     if (write_dev(&log->dev,&offset,end_mark,
+@@ -1122,7 +1122,7 @@ err_exit:
+ 
+     return retval;
+     }
+-/* special routines for basher */
++/* special routines for basher */
+ rvm_offset_t rvm_log_head()
+     {
+     return default_log->status.log_head;
+diff --git a/rvm/rvm_map.c b/rvm/rvm_map.c
+index dd6ba5b..8e6ed81 100644
+--- a/rvm/rvm_map.c
++++ b/rvm/rvm_map.c
+@@ -42,7 +42,7 @@ Coda are listed in the file CREDITS.
+ #include <unistd.h>
+ #include <stdlib.h>
+ #include <errno.h>
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ #ifdef __CYGWIN32__
+ #include <windows.h>
+@@ -110,7 +110,6 @@ rvm_return_t bad_region(rvm_region)
+ #define PAGE_ALLOC_DEFINED
+ #include <sys/types.h>
+ #include <sys/mman.h>
+-#include "coda_mmap_anon.h"
+ 
+ /*
+  * Page table management code
+@@ -990,7 +989,7 @@ static rvm_return_t map_data(rvm_options,region)
+     if (!region->no_copy)
+         CRITICAL(seg->dev_lock,
+             {
+-            if (read_dev(&seg->dev,&region->offset,
++            if (read_stob(&seg->dev,&region->offset,
+                          region->vmaddr,region->length) < 0)
+                 retval = RVM_EIO;
+             });
+@@ -1060,6 +1059,7 @@ rvm_return_t rvm_map(rvm_seg_hdr_t *seg_hdr, rvm_region_t *rvm_region, rvm_optio
+         {                               /* must build a new segment */
+         if ((seg=build_seg(rvm_region,default_log,&retval))
+             == NULL) goto err_exit;
++            seg->dev.stob = seg_hdr->seg_stob;
+         }
+     else
+         /* test if segment closed by earlier (failing) rvm_terminate */
+diff --git a/rvm/rvm_printers.c b/rvm/rvm_printers.c
+index 91013dc..4bbceac 100644
+--- a/rvm/rvm_printers.c
++++ b/rvm/rvm_printers.c
+@@ -22,7 +22,7 @@ Coda are listed in the file CREDITS.
+ *
+ */
+ 
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* global variables */
+ 
+@@ -30,7 +30,7 @@ extern log_t        *default_log;       /* default log descriptor ptr */
+ extern rvm_bool_t   rvm_utlsw;          /* true if running in rvmutl */
+ extern char         *rvm_errmsg;        /* internal error message buffer */
+ extern rvm_length_t flush_times_vec[flush_times_len]; /* flush timing histogram defs */
+-extern rvm_length_t truncation_times_vec[truncation_times_len]; /* truncation timing 
++extern rvm_length_t truncation_times_vec[truncation_times_len]; /* truncation timing
+                                                                    histogram defs */
+ extern rvm_length_t range_lengths_vec[range_lengths_len]; /* range length
+                                                              histogram defs */
+@@ -44,8 +44,8 @@ extern rvm_length_t trans_elims_vec[trans_elims_len]; /* ranges eliminated by tr
+                                                          coalesce histogram defs */
+ extern rvm_length_t trans_coalesces_vec[trans_coalesces_len]; /* transactions
+                                                                  coalesed per flush */
+-/* print rvm_offset_t */
+-static int pr_offset(offset,stream)   
++/* print rvm_offset_t */
++static int pr_offset(offset,stream)
+     rvm_offset_t    *offset;
+     FILE            *stream;
+     {
+@@ -63,7 +63,7 @@ static int pr_offset(offset,stream)
+     return tot_chars;
+     }
+ 
+-/* histogram value printer -- handles placement of <= for definition values */
++/* histogram value printer -- handles placement of <= for definition values */
+ static int pr_histo_val(out_stream,val,width,is_def,gtr,us)
+     FILE            *out_stream;        /* target stream */
+     rvm_length_t    val;                /* histogram value */
+@@ -101,7 +101,7 @@ static int pr_histo_val(out_stream,val,width,is_def,gtr,us)
+     err = fprintf(out_stream,"%s",str);
+     return err;
+     }
+-/* histogram printer */
++/* histogram printer */
+ static int pr_histogram(out_stream,histo,histo_def,length,
+                         width,leading,gtr,us)
+     FILE            *out_stream;        /* target stream */
+@@ -149,7 +149,7 @@ static int pr_histogram(out_stream,histo,histo_def,length,
+     err = putc('\n',out_stream);
+     return err;
+     }
+-/* print transaction statistics */
++/* print transaction statistics */
+ static rvm_return_t pr_trans_stats(stats,out_stream,n_trans,tot_trans)
+     rvm_statistics_t    *stats;         /* ptr top statistics record */
+     FILE                *out_stream;    /* output stream */
+@@ -187,7 +187,7 @@ static rvm_return_t pr_trans_stats(stats,out_stream,n_trans,tot_trans)
+                   stats->n_no_flush_commit,
+                   stats->tot_no_flush_commit+stats->n_no_flush_commit);
+     if (err == EOF) return RVM_EIO;
+-    err = fprintf(out_stream,
++    err = fprintf(out_stream,
+                   "  Total committed:                %10ld %10ld\n",
+                   stats->n_no_flush_commit+stats->n_flush_commit,
+                   stats->tot_no_flush_commit+stats->tot_flush_commit
+@@ -218,7 +218,7 @@ static rvm_return_t pr_trans_stats(stats,out_stream,n_trans,tot_trans)
+ 
+     return RVM_SUCCESS;
+     }
+-/* print log statistics */
++/* print log statistics */
+ static rvm_return_t pr_log_stats(stats,out_stream,n_trans,tot_trans)
+     rvm_statistics_t    *stats;         /* ptr top statistics record */
+     FILE                *out_stream;    /* output stream */
+@@ -268,7 +268,7 @@ static rvm_return_t pr_log_stats(stats,out_stream,n_trans,tot_trans)
+                   "  Last flush time (msec):         %10ld\n\n",
+                   stats->last_flush_time);
+     if (err == EOF) return RVM_EIO;
+-    err = fprintf(out_stream,
++    err = fprintf(out_stream,
+                   "  rvm_truncate calls:                        %10ld\n",
+             stats->tot_rvm_truncate);
+     if (err == EOF) return RVM_EIO;
+@@ -310,7 +310,7 @@ static rvm_return_t pr_log_stats(stats,out_stream,n_trans,tot_trans)
+                   "  Last tree apply time (sec):                %10ld\n\n",
+                   stats->last_tree_apply_time);
+     if (err == EOF) return RVM_EIO;
+-    err = fprintf(out_stream,
++    err = fprintf(out_stream,
+                   "  Transaction records:            %10ld %10ld\n",
+                   n_trans,
+                   tot_trans+n_trans);
+@@ -348,7 +348,7 @@ static rvm_return_t pr_log_stats(stats,out_stream,n_trans,tot_trans)
+ 
+     return RVM_SUCCESS;
+     }
+-/* print timing histograms */
++/* print timing histograms */
+ static rvm_return_t pr_time_histos(stats,out_stream,n_trans,tot_trans)
+     rvm_statistics_t    *stats;         /* ptr top statistics record */
+     FILE                *out_stream;    /* output stream */
+@@ -391,7 +391,7 @@ static rvm_return_t pr_time_histos(stats,out_stream,n_trans,tot_trans)
+ 
+     return RVM_SUCCESS;
+     }
+-/* print transaction optimization statistics */
++/* print transaction optimization statistics */
+ static rvm_return_t pr_opt_stats(stats,out_stream,n_trans,tot_trans)
+     rvm_statistics_t    *stats;         /* ptr top statistics record */
+     FILE                *out_stream;    /* output stream */
+@@ -536,7 +536,7 @@ static rvm_return_t pr_opt_stats(stats,out_stream,n_trans,tot_trans)
+ 
+     return RVM_SUCCESS;
+     }
+-/* print transaction optimization histograms */
++/* print transaction optimization histograms */
+ static rvm_return_t pr_opt_histos(stats,out_stream,n_trans,tot_trans)
+     rvm_statistics_t    *stats;         /* ptr top statistics record */
+     FILE                *out_stream;    /* output stream */
+@@ -725,7 +725,7 @@ static rvm_return_t pr_opt_histos(stats,out_stream,n_trans,tot_trans)
+ 
+     return RVM_SUCCESS;
+     }
+-/* rvm_print_stats */
++/* rvm_print_stats */
+ rvm_return_t rvm_print_statistics(stats,out_stream)
+     rvm_statistics_t    *stats;         /* ptr top statistics record */
+     FILE                *out_stream;    /* output stream */
+diff --git a/rvm/rvm_private.h b/rvm/rvm_private.h
+index aa47e0f..85e3d22 100644
+--- a/rvm/rvm_private.h
++++ b/rvm/rvm_private.h
+@@ -22,26 +22,23 @@ Coda are listed in the file CREDITS.
+ *
+ */
+ 
++#pragma once
+ 
+ /* permit multiple includes */
+-#ifndef _RVM_PRIVATE_
+-#define _RVM_PRIVATE_ 1
++#ifndef __MERO_RVM_RVM_PRIVATE_H__
++#define __MERO_RVM_RVM_PRIVATE_H__
+ 
+ /* turn on debuging for now */
+ #ifndef DEBUG
+ #define DEBUG 1
+ #endif
+ 
+-#ifdef HAVE_CONFIG_H
+-/*#include "config.h"*/
+-#endif
+-
+ #include <sys/types.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <assert.h>
+-#include "rvm.h"
+-#include "rvm_statistics.h"
++#include "rvm/rvm.h"
++#include "rvm/rvm_statistics.h"
+ 
+ #include <fcntl.h>
+ #ifndef O_BINARY
+@@ -66,10 +63,10 @@ Coda are listed in the file CREDITS.
+ 
+ 
+ 
+-/* RVM Internal Error Messages */
++/* RVM Internal Error Messages */
+ 
+ #define ERR_DATE_SKEW       "Current time before last recorded - check kernel date"
+-/* timestamp arithmetic */
++/* timestamp arithmetic */
+ 
+ /* comparison macros */
+ #define TIME_LSS(x,y)       (((x).tv_sec < (y).tv_sec) || \
+@@ -111,7 +108,7 @@ typedef void rvm_monitor_call_t();
+     rvm_length_t    index;
+     char            *msg;
+ */
+-/*                    round up & down macros
++/*                    round up & down macros
+             **** all depend on sizes being a power of 2 ****
+ */
+ #define LENGTH_MASK          ((rvm_length_t)(~(sizeof(rvm_length_t)-1)))
+@@ -156,7 +153,7 @@ typedef void rvm_monitor_call_t();
+ #define OFFSET_TO_FLOAT(x) \
+     ((4.294967e+9)*((float)(RVM_OFFSET_HIGH_BITS_TO_LENGTH(x))) \
+      + (float)(RVM_OFFSET_TO_LENGTH(x)))
+-/* internal structure id's */
++/* internal structure id's */
+ typedef enum
+     {
+     struct_first_id = 9,                /* base for free list array length */
+@@ -195,7 +192,7 @@ typedef enum
+     struct_last_id                      /* marker for last structure id */
+    }
+ struct_id_t;
+-/* macros to use struct_id's as int's & vice versa
++/* macros to use struct_id's as int's & vice versa
+    for free list allocated structures only */
+ #define ID_INDEX(id)    ((rvm_length_t)(id)-(rvm_length_t)struct_first_id-1)
+ #define INDEX_ID(i)     ((struct_id_t)((i)+1+(long)struct_first_id))
+@@ -239,7 +236,7 @@ struct_id_t;
+     10,                                 /* mem_region nodes */ \
+     2000,                               /* dev_region nodes */ \
+     1                                   /* special log markers */
+-/* sizes and names of internal types
++/* sizes and names of internal types
+    must be in same order as above enum's
+ */
+ #define CACHE_TYPE_SIZES \
+@@ -271,7 +268,7 @@ struct_id_t;
+     sizeof(rw_qentry_t), \
+     sizeof(tree_root_t)/*, \
+     sizeof(mmapped_list_t)*/
+-
++
+ #define TYPE_NAMES \
+     "log_id", \
+     "int_tid_id", \
+@@ -299,7 +296,7 @@ struct_id_t;
+     "rw_qentry_id", \
+     "tree_root_id"/*, \
+     "mmapped_list_id"*/
+-/* doubly-linked list cell header
++/* doubly-linked list cell header
+    this structure serves as the link and struct_id carrier for larger
+    structures when declared as the 1st field of the structure.
+    it is also used as the root, or header, of a list when statically allocated,
+@@ -361,7 +358,7 @@ typedef struct
+     rvm_length_t        len;            /* length of free pages in bytes */
+     }
+ free_page_t;
+-/* Synchronization and Threads support */
++/* Synchronization and Threads support */
+ 
+ /*
+  * We can have one of three thread models:
+@@ -381,11 +378,11 @@ free_page_t;
+  */
+ 
+ #ifdef RVM_USELWP	 /* special thread support for Coda */
+-#include "rvm_lwp.h"
++#include "rvm/rvm_lwp.h"
+ #elif defined(RVM_USEPT) /* special support for pthreads */
+-#include "rvm_pthread.h"
++#include "rvm/rvm_pthread.h"
+ #else			 /* normal: use Cthreads */
+-#include "cthreads.h"
++#include "rvm/cthreads.h"
+ 
+ /* define types symbolically to permit use of non-Cthread thread support */
+ #define RVM_MUTEX       struct mutex
+@@ -407,7 +404,7 @@ free_page_t;
+     mutex_unlock(&(lck)); \
+     MACRO_END
+ 
+-/*  rw_lock (read/write) support
++/*  rw_lock (read/write) support
+     An rw_lock permits many readers of a structure, but only
+     if there is no writer pending.  Only a single writer is permitted,
+     and to get the write lock, there must be no readers.
+@@ -455,7 +452,7 @@ rw_qentry_t;
+ /* macro for testing if an rw_lock is free */
+ #define RW_LOCK_FREE(rwl) \
+     (((rwl).read_cnt+(rwl).write_cnt) == 0) && ((rwl).lock_mode == f)
+-/* tree node structures */
++/* tree node structures */
+ 
+ typedef struct tree_node_s              /* basic tree node */
+     {
+@@ -503,7 +500,7 @@ struct tree_root                         /* tree root structure */
+     };
+ 
+ #define TRAVERSE_LEN_INCR  15           /* allocate 15 slots at a time */
+-/* tree structure iterators
++/* tree structure iterators
+      -- nodes are delinked as traversed
+      -- do not use tree_insert or tree_delete or otherwise change
+         tree shape in body of iterators if iteration is to be continued
+@@ -544,9 +541,9 @@ struct tree_root                         /* tree root structure */
+          (ptr) != NULL; \
+          (ptr) = (type *)tree_predecessor(&(tree)) \
+          )
+-/* Structure to remember where we have/have not mmapped */
++/* Structure to remember where we have/have not mmapped */
+ 
+-/* vm buffers for dev_region_t nodes */
++/* vm buffers for dev_region_t nodes */
+ typedef struct
+     {
+     struct_id_t         struct_id;      /* self identifier */
+@@ -589,7 +586,7 @@ typedef long cmp_func_t();
+ /*  tree_node_t     *node1;
+     tree_node_t     *node2;
+ */
+-/* log records written by commit, and associated with new value records */
++/* log records written by commit, and associated with new value records */
+ /* generic record header; not actually allocated, but any record header
+    can be cast to this to get its type & length for detailed analysis
+ */
+@@ -629,7 +626,7 @@ typedef struct
+     rvm_bool_t      is_split;           /* is a range split for log wrap */
+     }
+ nv_range_t;
+-/* special log types -- these records are inserted into the log to
++/* special log types -- these records are inserted into the log to
+    record events not related to transaction commit and new value
+    recording.
+    These are generally used by the recovery algorithm to reconstruct the
+@@ -662,7 +659,7 @@ typedef struct
+         }           special;
+     }
+ log_special_t;
+-/* generic log entry types */
++/* generic log entry types */
+ 
+ /* log record end marker: rec_end_t -- a single copy in the log descriptor */
+ typedef struct
+@@ -682,7 +679,7 @@ typedef struct
+     }
+ log_wrap_t;
+ 
+-/* device descriptor -- included in log and segment descriptors */
++/* device descriptor -- included in log and segment descriptors */
+ typedef struct
+     {
+     char            *name;              /* print name of device */
+@@ -709,9 +706,10 @@ typedef struct
+ 
+     char            *pad_buf;           /* padding buffer */
+     long            pad_buf_len;        /* length of current pad buf */
++    struct m0_stob  *stob;              /* stob for the device */
+     }
+ device_t;
+-/* log structure macros */
++/* log structure macros */
+ 
+ #define RANGE_LEN(range)    (ALIGNED_LEN((range)->nv.vmaddr, \
+                                          (range)->nv.length))
+@@ -737,7 +735,7 @@ device_t;
+ /* largest log type header on disc */
+ #define MAX_HDR_SIZE        (ROUND_TO_LENGTH((sizeof(log_special_t) \
+                                              + MAXPATHLEN)))
+-/* other constants */
++/* other constants */
+ 
+ /* maximum size nv's kept in vm during recovery */
+ #define NV_LOCAL_MAX        (8*1024 - ROUND_TO_LENGTH(NV_BUF_SIZE( \
+@@ -752,7 +750,7 @@ device_t;
+ #define FILE_STATUS_OFFSET  0
+ 
+ #define UPDATE_STATUS       100         /* flushes before updating log status area */
+-/* log status descriptor -- included in the log descriptor */
++/* log status descriptor -- included in the log descriptor */
+ #ifdef RVM_LOG_TAIL_SHADOW
+ extern rvm_offset_t log_tail_shadow;
+ extern rvm_bool_t   has_wrapped;
+@@ -880,7 +878,7 @@ typedef struct
+     rvm_length_t    trunc_state;        /* truncation status */
+     }
+ log_status_t;
+-/* log status descriptor on log device: log_dev_status_t */
++/* log status descriptor on log device: log_dev_status_t */
+ typedef struct
+     {
+     struct_id_t     struct_id;          /* self identifier */
+@@ -916,7 +914,7 @@ log_dev_status_t;
+ #define RVM_TRUNC_PHASES    (RVM_TRUNC_FIND_TAIL | RVM_TRUNC_BUILD_TREE \
+                              | RVM_TRUNC_APPLY | RVM_TRUNC_UPDATE)
+ 
+-/* log recovery buffer descriptor -- single copy in log descriptor */
++/* log recovery buffer descriptor -- single copy in log descriptor */
+ typedef struct
+     {
+     char            *buf;               /* working recovery buffer base */
+@@ -944,7 +942,7 @@ log_buf_t;
+ 
+ #define SYNCH       rvm_true            /* synchronization required */
+ #define NO_SYNCH    rvm_false           /* synchronization not required */
+-/* log truncation daemon control structures */
++/* log truncation daemon control structures */
+ 
+ typedef enum
+     {
+@@ -969,7 +967,7 @@ typedef struct
+     long            truncate;           /* truncation threshold, as % of log */
+     }
+ log_daemon_t;
+-/* log descriptor */
++/* log descriptor */
+ typedef struct
+     {
+     list_entry_t    links;              /* list links and struct id -- points
+@@ -1010,7 +1008,7 @@ typedef struct
+     device_t        *cur_seg_dev;       /* current segment device in truncation */
+     }
+ log_t;
+-/* segment descriptor: seg_t */
++/* segment descriptor: seg_t */
+ typedef struct
+     {
+     list_entry_t    links;              /* list links and struct id */
+@@ -1044,7 +1042,7 @@ struct seg_dict_s
+ typedef struct seg_dict_s seg_dict_t;
+ 
+ #define SEG_DICT_INDEX(x)   ((x)-1)     /* index of segemnt in seg_dict_vec */
+-/* region descriptor: region_t */
++/* region descriptor: region_t */
+ typedef struct region_s
+     {
+     list_entry_t    links;              /* list links and struct id
+@@ -1079,7 +1077,7 @@ typedef struct
+     nv_range_t      nv;                 /* nv range record header for i/o */
+     }
+ range_t;
+-/* transaction id descriptor: int_tid_t */
++/* transaction id descriptor: int_tid_t */
+ typedef struct
+     {
+     list_entry_t    links;              /* list links and struct id; protected
+@@ -1114,7 +1112,7 @@ int_tid_t;
+ 
+ #define TID(x)              ((tid->flags & (x)) != 0)
+ #define TRANS_HDR(x)        ((trans_hdr->flags & (x)) != 0)
+-/* functions and structures for managing list of RVM-allocated
++/* functions and structures for managing list of RVM-allocated
+      regions of memory (added by tilt, Nov 19 1996) */
+ 
+ struct rvm_page_entry {
+@@ -1128,7 +1126,7 @@ rvm_bool_t rvm_register_page(rvm_seg_hdr_t *seg_hdr, char *vmaddr, rvm_length_t
+ rvm_bool_t rvm_unregister_page(rvm_seg_hdr_t *seg_hdr, char *vmaddr, rvm_length_t length);
+ rvm_bool_t mem_chk(rvm_seg_hdr_t *seg_hdr, char *vmaddr, rvm_length_t length);
+ rvm_page_entry_t *find_page_entry(rvm_seg_hdr_t *seg_hdr, char *vmaddr);
+-/* list management functions */
++/* list management functions */
+ 
+ extern
+ void init_list_header();                /* [rvm_utils.c] */
+@@ -1203,7 +1201,7 @@ log_special_t *make_log_special();      /* [rvm_utils.c] */
+ extern
+ void free_log_special();                /* [rvm_utils.c] */
+ /*  log_special_t   *special; */
+-extern
++extern
+ rvm_return_t dev_init();                /* [rvm_utils.c] */
+ /*  device_t        *dev;
+     char            *dev_str;
+@@ -1236,7 +1234,7 @@ dev_region_t *make_dev_region();        /* [rvm_utils.c] */
+ extern
+ void free_dev_region();                 /* [rvm_utils.c] */
+ /*  dev_region_t   *node; */
+-/* log management functions */
++/* log management functions */
+ 
+ extern
+ void init_log_list();                   /* [rvm_logstatus.c] */
+@@ -1284,7 +1282,7 @@ void clear_log_status();                /* [rvm_logstatus.c] */
+ extern
+ rvm_return_t init_log_status();         /* [rvm_logstatus.c] */
+ /*  log_t           *log; */
+-extern
++extern
+ rvm_return_t read_log_status();         /* [rvm_logstatus.c] */
+ /*  log_t           *log;
+     char            *status_buf;
+@@ -1358,7 +1356,7 @@ rvm_return_t load_aux_buf();            /* [rvm_logrecovr.c] */
+     rvm_bool_t      direction;
+     rvm_bool_t      synch;
+ */
+-extern
++extern
+ void reset_hdr_chks();                  /* [rvm_logrecovr.c] */
+ /*  log_t           *log; */
+ 
+@@ -1436,7 +1434,7 @@ rvm_return_t wait_for_truncation();     /* [rvm_logrecovr.c] */
+ /*  log_t           *log;
+     struct timeval  *time_stamp;
+ */
+-extern
++extern
+ rvm_return_t log_recover();             /* [rvm_logrecovr.c] */
+ /*  log_t           *log;
+     long            *count;
+@@ -1496,7 +1494,7 @@ rvm_return_t def_seg_dict();            /* [rvm_logrecovr.c] */
+ /*  log_t           *log;
+     rec_hdr_t       *rec_hdr;
+ */
+-/* I/O functions */
++/* I/O functions */
+ 
+ extern
+ long open_dev();                        /* [rvm_io.c] */
+@@ -1509,6 +1507,14 @@ long close_dev();                       /* [rvm_io.c] */
+ /*  device_t        *dev; */
+ 
+ extern
++long read_stob();                        /* [rvm_io.c] */
++/*  device_t        *dev;
++    rvm_offset_t    *offset;
++    char            *dest;
++    rvm_length_t    length;
++*/
++
++extern
+ long read_dev();                        /* [rvm_io.c] */
+ /*  device_t        *dev;
+     rvm_offset_t    *offset;
+@@ -1538,7 +1544,7 @@ long gather_write_dev();                /* [rvm_io.c] */
+ /* length is optional [rvm_io.c] */
+ extern long set_dev_char(device_t *dev,rvm_offset_t *dev_length);
+ 
+-/* read/write lock */
++/* read/write lock */
+ extern                                  /* [rvm_utils.c] */
+ void rw_lock();
+ /*  rw_lock_t       *rwl;
+@@ -1564,7 +1570,7 @@ void clear_tree_root();                 /* [rvm_utils.c] */
+ extern                                  /* [rvm_utils.c] */
+ void rw_lock_clear();
+ /*  rw_lock_t       *rwl; */
+-/* Binary Tree Functions */
++/* Binary Tree Functions */
+ 
+ extern
+ tree_node_t *tree_lookup();             /* [rvm_utils.c] */
+@@ -1606,7 +1612,7 @@ tree_node_t *tree_predecessor();        /* [rvm_utils.c] */
+ /*  tree_root_t     *tree;
+     rvm_bool_t      direction;
+ */
+-/* initialization, query, and structure checkers */
++/* initialization, query, and structure checkers */
+ 
+ extern rvm_bool_t bad_init();                  /* [rvm_init.c] */
+ 
+@@ -1625,7 +1631,7 @@ rvm_return_t bad_tid();                 /* [rvm_trans.c] */
+ extern
+ rvm_return_t do_rvm_options();          /* [rvm_status.c] */
+ /*  rvm_options_t   *rvm_options; */
+-/* make unique name */
++/* make unique name */
+ extern                                  /* [rvm_utils.c] */
+ void make_uname();
+ /*  struct timeval  *time; */
+@@ -1699,4 +1705,4 @@ void rvm_debug();                       /* [rvm_debug] */
+ /*  rvm_length_t    val; */
+ 
+ 
+-#endif /* _RVM_PRIVATE_ */
++#endif /* __MERO_RVM_RVM_PRIVATE_H__ */
+diff --git a/rvm/rvm_pthread.c b/rvm/rvm_pthread.c
+index 158f936..fdef818 100644
+--- a/rvm/rvm_pthread.c
++++ b/rvm/rvm_pthread.c
+@@ -17,7 +17,7 @@ Coda are listed in the file CREDITS.
+ #*/
+ 
+ #include <pthread.h>
+-#include "rvm.h"
++#include "rvm/rvm.h"
+ 
+ pthread_t       rvm_pthreadid;
+ void		*rvm_ptstat;
+diff --git a/rvm/rvm_releaseseg.c b/rvm/rvm_releaseseg.c
+index 8d68251..225ce21 100644
+--- a/rvm/rvm_releaseseg.c
++++ b/rvm/rvm_releaseseg.c
+@@ -19,9 +19,9 @@ Coda are listed in the file CREDITS.
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+-#include "rvm.h"
+-#include "rvm_segment.h"
+-#include "rvm_segment_private.h"
++#include "rvm/rvm.h"
++#include "rvm/rvm_segment.h"
++#include "rvm/rvm_segment_private.h"
+ 
+ /* release regions of a segment */
+ rvm_return_t
+diff --git a/rvm/rvm_segment.h b/rvm/rvm_segment.h
+index 6464973..5e61f20 100644
+--- a/rvm/rvm_segment.h
++++ b/rvm/rvm_segment.h
+@@ -19,11 +19,12 @@ Coda are listed in the file CREDITS.
+ /*
+  * Segment Loader public definitions
+  */
++#pragma once
+ 
+-#ifndef _RVM_SEGMENT_H_
+-#define _RVM_SEGMENT_H_
++#ifndef __MERO_RVM_RVM_SEGMENT_H__
++#define __MERO_RVM_RVM_SEGMENT_H__
+ 
+-#include "rvm.h"
++#include "rvm/rvm.h"
+ 
+ /* taken from rvm_segment_private.h */
+ #define RVM_SEGMENT_HDR_SIZE RVM_PAGE_SIZE /* length of segment header */
+@@ -74,4 +75,4 @@ extern rvm_return_t rvm_release_segment (
+     );
+ 
+ extern char *rvm_get_vm_addr(unsigned long length);
+-#endif /* _RVM_SEGMENT_H_ */
++#endif /* __MERO_RVM_RVM_SEGMENT_H__ */
+diff --git a/rvm/rvm_segment_private.h b/rvm/rvm_segment_private.h
+index 25711c6..a2c32f9 100644
+--- a/rvm/rvm_segment_private.h
++++ b/rvm/rvm_segment_private.h
+@@ -19,8 +19,10 @@ Coda are listed in the file CREDITS.
+ 
+ /* segment loader private declarations */
+ 
+-#ifndef _RVM_SEGMENT_PRIVATE_H_
+-#define _RVM_SEGMENT_PRIVATE_H_
++#pragma once
++
++#ifndef __MERO_RVM_RVM_SEGMENT_PRIVATE_H__
++#define __MERO_RVM_RVM_SEGMENT_PRIVATE_H__
+ /* Worker definitions */
+ 
+ extern rvm_return_t find_available_vm_addr(char **addr, unsigned long length);
+@@ -56,4 +58,4 @@ typedef struct
+     }
+ rvm_segment_hdr_t;
+ 
+-#endif /* _RVM_SEGMENT_PRIVATE_H_ */
++#endif /* __MERO_RVM_RVM_SEGMENT_PRIVATE_H__ */
+diff --git a/rvm/rvm_segutil.c b/rvm/rvm_segutil.c
+index 47ac983..6b07bf6 100644
+--- a/rvm/rvm_segutil.c
++++ b/rvm/rvm_segutil.c
+@@ -22,8 +22,8 @@ Coda are listed in the file CREDITS.
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ 
+-#include "rvm.h"
+-#include "rvm_segment.h"
++#include "rvm/rvm.h"
++#include "rvm/rvm_segment.h"
+ 
+ /* from rvm_private.h */
+ rvm_bool_t rvm_register_page(rvm_seg_hdr_t *seg_hdr, char *vmaddr, rvm_length_t length);
+@@ -75,7 +75,6 @@ int overlap(nregions, regionDefs)
+ 
+ #include <sys/types.h>
+ #include <sys/mman.h>
+-#include "coda_mmap_anon.h"
+ #include <errno.h>
+ #define ALLOCATE_VM_DEFINED
+ 
+diff --git a/rvm/rvm_status.c b/rvm/rvm_status.c
+index 064130e..c534a86 100644
+--- a/rvm/rvm_status.c
++++ b/rvm/rvm_status.c
+@@ -21,7 +21,7 @@ Coda are listed in the file CREDITS.
+ *
+ */
+ 
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* global variables */
+ extern log_t        *default_log;       /* default log descriptor ptr */
+@@ -61,7 +61,7 @@ char                rvm_release[RVM_VERSION_MAX] =
+ /* local macros */
+ #define TID_ARRAY_REALLOC_INCR  5       /* allocate tid_array 5 elements at a
+                                            time */
+-/* rvm_set_options */
++/* rvm_set_options */
+ rvm_return_t rvm_set_options(rvm_options)
+     rvm_options_t   *rvm_options;
+     {
+@@ -80,7 +80,7 @@ rvm_return_t rvm_set_options(rvm_options)
+     return do_rvm_options(rvm_options);
+ 
+     }
+-/* structure validation */
++/* structure validation */
+ rvm_return_t bad_statistics(rvm_statistics)
+     rvm_statistics_t   *rvm_statistics;
+     {
+@@ -107,7 +107,7 @@ rvm_return_t bad_options(rvm_options,chk_log_dev)
+ 
+     return RVM_SUCCESS;
+     }
+-/* rvm options processing */
++/* rvm options processing */
+ rvm_return_t do_rvm_options(rvm_options)
+     rvm_options_t   *rvm_options;
+     {
+@@ -139,7 +139,7 @@ rvm_return_t do_rvm_options(rvm_options)
+ 
+     return RVM_SUCCESS;
+     }
+-/* rvm_query */
++/* rvm_query */
+ rvm_return_t rvm_query(seg_hdr,rvm_options,rvm_region)
+     rvm_seg_hdr_t          *seg_hdr;
+     rvm_options_t       *rvm_options;
+@@ -188,7 +188,7 @@ rvm_return_t rvm_query(seg_hdr,rvm_options,rvm_region)
+                 if (RVM_OFFSET_EQL(status->log_head,status->log_tail))
+                     rvm_options->log_empty = rvm_true;
+             });                         /* end dev_lock crit sec */
+-        /* if region specified, look it up */
++        /* if region specified, look it up */
+         if (rvm_region != NULL)
+             {                           /* begin region_lock crit sect */
+             region = find_whole_range(seg_hdr, rvm_region->vmaddr,
+@@ -219,7 +219,7 @@ rvm_return_t rvm_query(seg_hdr,rvm_options,rvm_region)
+                                 }
+                         });             /* end tid lock crit sec */
+                     }
+-                /* copy uncommitted tid descriptions to uncommitted tid array */
++                /* copy uncommitted tid descriptions to uncommitted tid array */
+                 if (copy_tid)
+                     {
+                     rvm_options->n_uncommit++;
+@@ -261,7 +261,7 @@ err_exit:;
+ 
+     return retval;
+     }
+-/* rvm_statistics */
++/* rvm_statistics */
+ rvm_return_t rvm_statistics(const char *version, rvm_statistics_t *rvm_statistics)
+ {
+     log_t               *log;           /* log descriptor */
+@@ -286,7 +286,7 @@ rvm_return_t rvm_statistics(const char *version, rvm_statistics_t *rvm_statistic
+         return RVM_ELOG;
+     log = default_log;
+     status = &log->status;
+-    /* copy log and transaction statistics from log status area */
++    /* copy log and transaction statistics from log status area */
+     rvm_statistics->log_dev_cur = cur_log_percent(log,NULL);
+     CRITICAL(log->dev_lock,             /* begin dev_lock crit sec */
+         {
+@@ -336,7 +336,7 @@ rvm_return_t rvm_statistics(const char *version, rvm_statistics_t *rvm_statistic
+         rvm_statistics->last_truncation_time = status->last_truncation_time;
+         rvm_statistics->last_tree_build_time = status->last_tree_build_time;
+         rvm_statistics->last_tree_apply_time = status->last_tree_apply_time;
+-        /* copy histograms and timings */
++        /* copy histograms and timings */
+         for (i=0; i < flush_times_len; i++)
+             {
+             rvm_statistics->flush_times[i] = status->flush_times[i];
+@@ -382,7 +382,7 @@ rvm_return_t rvm_statistics(const char *version, rvm_statistics_t *rvm_statistic
+                 status->tot_truncation_times[i];
+             }
+         });                             /* end dev_lock crit sec */
+-    /* get non-status area statistics */
++    /* get non-status area statistics */
+     CRITICAL(log->tid_list_lock,
+         rvm_statistics->n_uncommit = log->tid_list.list.length);
+     CRITICAL(log->flush_list_lock,
+diff --git a/rvm/rvm_trans.c b/rvm/rvm_trans.c
+index a63de6c..6b047fe 100644
+--- a/rvm/rvm_trans.c
++++ b/rvm/rvm_trans.c
+@@ -23,7 +23,7 @@ Coda are listed in the file CREDITS.
+ */
+ 
+ #include <errno.h>
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* global variables */
+ 
+@@ -37,7 +37,7 @@ extern rvm_length_t rvm_optimizations;  /* optimization switches */
+ 
+ /* special search function signature type */
+ typedef rvm_bool_t bool_func_t();
+-/* rvm_tid checker */
++/* rvm_tid checker */
+ rvm_return_t bad_tid(rvm_tid)
+     rvm_tid_t           *rvm_tid;
+     {
+@@ -118,7 +118,7 @@ static range_t *build_range(region,dest,length)
+ 
+     return new_range;
+     }
+-/* save old values for a range */
++/* save old values for a range */
+ static char *save_ov(range)
+     range_t         *range;
+     {
+@@ -159,7 +159,7 @@ static void restore_ov(tid)
+         free_range(range);
+         }
+     }
+-/* range tree comparator function for chronological order insertion */
++/* range tree comparator function for chronological order insertion */
+ static long cmp_range_num(range1,range2)
+     range_t         *range1;
+     range_t         *range2;
+@@ -205,7 +205,7 @@ static rvm_return_t add_new_range(tid,new_range)
+ 
+     return RVM_SUCCESS;
+     }
+-/* range tree comparator for tree_insert by compound key:
++/* range tree comparator for tree_insert by compound key:
+    {region, segment displacement}
+    adjacent nodes within region are considered equivalent */
+ static long region_partial_include(range1,range2)
+@@ -254,7 +254,7 @@ static long segment_partial_include(range1,range2)
+         return 1;
+     return -1;
+     }
+-/* detect and form list of overlapping or adjacent ranges */
++/* detect and form list of overlapping or adjacent ranges */
+ static rvm_bool_t find_overlap(tid,new_range,cmp_func,elim,overlap,retval)
+     int_tid_t       *tid;               /* transaction descriptor to search */
+     range_t         *new_range;         /* descriptor for new range */
+@@ -296,7 +296,7 @@ static rvm_bool_t find_overlap(tid,new_range,cmp_func,elim,overlap,retval)
+                                                 new_range->nv.length);
+             return rvm_true;
+             }
+-        /* general case: merge all overlaping/adjacent ranges
++        /* general case: merge all overlaping/adjacent ranges
+            tally savings and save new bounds of composite range */
+ 
+         /* test if non-overlaping values preceed new range */
+@@ -330,7 +330,7 @@ static rvm_bool_t find_overlap(tid,new_range,cmp_func,elim,overlap,retval)
+ 
+     return rvm_false;
+     }
+-/* merge new range with existing range(s) */
++/* merge new range with existing range(s) */
+ static rvm_return_t merge_range(tid,region,new_range)
+     int_tid_t       *tid;
+     region_t        *region;
+@@ -382,7 +382,7 @@ static rvm_return_t merge_range(tid,region,new_range)
+             new_range->data = malloc(new_range->data_len);
+             if (range->data == NULL) return RVM_ENO_MEMORY;
+             }
+-        /* otherwise, merge existing old values into new node and put
++        /* otherwise, merge existing old values into new node and put
+            its data in 1st existing node in the tree; kill any others */
+         vmaddr = new_range->nv.vmaddr;
+         data_addr = new_range->data;
+@@ -435,7 +435,7 @@ static rvm_return_t merge_range(tid,region,new_range)
+                 free_range(range);
+                 }
+             }
+-        /* update ov buffer, merged range size */
++        /* update ov buffer, merged range size */
+         range = tid->x_ranges[0];
+         if (TID(RESTORE_FLAG))
+             {
+@@ -457,7 +457,7 @@ static rvm_return_t merge_range(tid,region,new_range)
+ 
+     return RVM_SUCCESS;
+     }
+-/* rvm_set_range */
++/* rvm_set_range */
+ rvm_return_t rvm_set_range(seg_hdr, rvm_tid,dest,length)
+     rvm_seg_hdr_t      *seg_hdr;
+     rvm_tid_t       *rvm_tid;           /* transaction affected */
+@@ -495,7 +495,7 @@ rvm_return_t rvm_set_range(seg_hdr, rvm_tid,dest,length)
+     rw_unlock(&tid->tid_lock,w);        /* end tid_lock critical section */
+     return retval;
+     }
+-/* rvm_modify_bytes */
++/* rvm_modify_bytes */
+ rvm_return_t rvm_modify_bytes(seg_hdr,rvm_tid,dest,src,length)
+     rvm_seg_hdr_t          *seg_hdr;
+     rvm_tid_t           *rvm_tid;       /* transaction affected */
+@@ -516,7 +516,7 @@ rvm_return_t rvm_modify_bytes(seg_hdr,rvm_tid,dest,src,length)
+ 
+     return RVM_SUCCESS;
+     }
+-/* calculate transaction's new value log entry size */
++/* calculate transaction's new value log entry size */
+ static void nv_size(tid,size)
+     int_tid_t       *tid;               /* transaction to size */
+     rvm_offset_t    *size;              /* compute length; double [out] */
+@@ -549,7 +549,7 @@ static rvm_return_t nv_io_size(tid,size)
+ 
+     return RVM_SUCCESS;
+     }
+-/* save new values for a range */
++/* save new values for a range */
+ static rvm_return_t save_nv(range)
+     range_t         *range;             /* modification range descriptor */
+     {
+@@ -597,7 +597,7 @@ static rvm_return_t save_all_nvs(tid)
+ 
+     return RVM_SUCCESS;
+     }
+-/* merge range into queued tid */
++/* merge range into queued tid */
+ static rvm_return_t merge_tid(q_tid,tid,new_range)
+     int_tid_t       *q_tid;             /* ptr to last queued tid */
+     int_tid_t       *tid;               /* ptr to new tid */
+@@ -635,7 +635,7 @@ static rvm_return_t merge_tid(q_tid,tid,new_range)
+         BCOPY(new_range->nv.vmaddr,nv_ptr,old_length);
+         goto exit;
+         }
+-    /* see if simply inserted */
++    /* see if simply inserted */
+     if (q_tid->x_ranges_len == 0)
+         {
+         q_tid->log_size =               /* update length of queued tid */
+@@ -681,7 +681,7 @@ static rvm_return_t merge_tid(q_tid,tid,new_range)
+                 return retval;
+         goto replace;
+         }
+-    /* do general merge: reallocate new value save buffer */
++    /* do general merge: reallocate new value save buffer */
+     if (new_range->data != NULL)
+         free(new_range->data);
+     data_off = RVM_OFFSET_TO_LENGTH(new_range->nv.offset);
+@@ -702,7 +702,7 @@ static rvm_return_t merge_tid(q_tid,tid,new_range)
+        since last commit; from now on, used only by rvmutl */
+     if (range->nv.vmaddr < new_range->nv.vmaddr)
+         new_range->nv.vmaddr = range->nv.vmaddr;
+-    /* merge new values from existing ranges
++    /* merge new values from existing ranges
+        copy leading bytes from 1st existing range */
+     if (RVM_OFFSET_GTR(old_offset,range->nv.offset))
+         {
+@@ -739,7 +739,7 @@ static rvm_return_t merge_tid(q_tid,tid,new_range)
+                <= new_range->data_len);
+         BCOPY(nv_ptr,new_nv_ptr,range_len);
+         }
+-    /* delete nodes now obsolete */
++    /* delete nodes now obsolete */
+     for (i = 1; i < q_tid->x_ranges_len; i++)
+         {
+         range = q_tid->x_ranges[i];
+@@ -778,7 +778,7 @@ static rvm_return_t merge_tid(q_tid,tid,new_range)
+         CRITICAL(region->count_lock,region->n_uncommit--);
+     return RVM_SUCCESS;
+     }
+-/* merge ranges of transaction with previous transactions */
++/* merge ranges of transaction with previous transactions */
+ static rvm_return_t coalesce_trans(tid,q_tid)
+     int_tid_t       *tid;               /* tid to log */
+     int_tid_t       *q_tid;             /* ptr to last queued tid */
+@@ -808,7 +808,7 @@ static rvm_return_t coalesce_trans(tid,q_tid)
+ 
+     return RVM_SUCCESS;
+     }
+-/* get address of queued tid that current tid can merge with */
++/* get address of queued tid that current tid can merge with */
+ static int_tid_t *get_queued_tid(tid)
+     int_tid_t       *tid;               /* tid to log */
+     {
+@@ -833,7 +833,7 @@ static int_tid_t *get_queued_tid(tid)
+ 
+     return q_tid;
+     }
+-/* establish log entry for committing tid */
++/* establish log entry for committing tid */
+ static rvm_return_t queue_tid(tid)
+     int_tid_t       *tid;               /* tid to log */
+     {
+@@ -881,7 +881,7 @@ static rvm_return_t queue_tid(tid)
+             retval = coalesce_trans(tid,q_tid);
+             goto exit;
+             }
+-        /* save new values if necessary and queue */
++        /* save new values if necessary and queue */
+         if (!flush_flag)
+             if (tid->range_tree.n_nodes != 0)
+                 if ((retval = save_all_nvs(tid)) != RVM_SUCCESS)
+@@ -901,7 +901,7 @@ exit:;
+ 
+     return retval;
+     }
+-/* rvm_begin_transaction */
++/* rvm_begin_transaction */
+ rvm_return_t rvm_begin_transaction(rvm_tid,mode)
+     rvm_tid_t           *rvm_tid;       /* ptr to rvm_tid */
+     rvm_mode_t          mode;           /* transaction's mode */
+@@ -933,7 +933,7 @@ rvm_return_t rvm_begin_transaction(rvm_tid,mode)
+     rvm_tid->tid = tid;
+     return RVM_SUCCESS;
+     }
+-/* rvm_abort_transaction */
++/* rvm_abort_transaction */
+ rvm_return_t rvm_abort_transaction(rvm_tid)
+     rvm_tid_t       *rvm_tid;           /* ptr to transaction to abort */
+     {
+@@ -962,7 +962,7 @@ rvm_return_t rvm_abort_transaction(rvm_tid)
+     free_tid(tid);                      /* free transaction descriptor */
+     return RVM_SUCCESS;
+     }
+-/* rvm_end_transaction */
++/* rvm_end_transaction */
+ rvm_return_t rvm_end_transaction(rvm_tid,mode)
+     rvm_tid_t       *rvm_tid;           /* ptr to transaction to commit */
+     rvm_mode_t      mode;               /* end mode */
+diff --git a/rvm/rvm_unmap.c b/rvm/rvm_unmap.c
+index 5b22580..e529680 100644
+--- a/rvm/rvm_unmap.c
++++ b/rvm/rvm_unmap.c
+@@ -22,7 +22,7 @@ Coda are listed in the file CREDITS.
+ *
+ */
+ 
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* global variables */
+ 
+@@ -31,7 +31,7 @@ extern char     *rvm_errmsg;            /* internal error message buffer */
+ 
+ /*extern rw_lock_t       region_tree_lock;       *//* lock for region tree */
+ /*extern tree_node_t     *region_tree;           *//* root of mapped region tree */
+-/* rvm_unmap */
++/* rvm_unmap */
+ rvm_return_t rvm_unmap(seg_hdr,rvm_region)
+     rvm_seg_hdr_t          *seg_hdr;
+     rvm_region_t        *rvm_region;    /* region to unmap */
+diff --git a/rvm/rvm_utils.c b/rvm/rvm_utils.c
+index dc7261a..667a8ee 100644
+--- a/rvm/rvm_utils.c
++++ b/rvm/rvm_utils.c
+@@ -35,7 +35,7 @@ Coda are listed in the file CREDITS.
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <sys/time.h>
+-#include "rvm_private.h"
++#include "rvm/rvm_private.h"
+ 
+ /* globals */
+ 
+@@ -43,7 +43,7 @@ extern rvm_length_t     page_size;
+ extern rvm_length_t     page_mask;
+ extern char             *rvm_errmsg;    /* internal error message buffer */
+ extern rvm_length_t rvm_optimizations;  /* optimization switches */
+-/* locals */
++/* locals */
+ 
+ /* locks for free lists */
+ RVM_MUTEX free_lists_locks[NUM_CACHE_TYPES];
+@@ -71,7 +71,7 @@ long cache_type_sizes[NUM_CACHE_TYPES] = {CACHE_TYPE_SIZES};
+ /* cannot be statically allocated if using pthreads */
+ static RVM_MUTEX        free_lists_init_lock = MUTEX_INITIALIZER;
+ static rvm_bool_t       free_lists_inited = rvm_false;
+-/*  Routines to allocate and manipulate the doubly-linked circular lists
++/*  Routines to allocate and manipulate the doubly-linked circular lists
+     used in RVM (derived from rpc2 routines)
+ 
+     List headers always use the list_entry_t structure and maintain a count of
+@@ -110,7 +110,7 @@ static list_entry_t *malloc_list_entry(id)
+ 
+     return cell;
+     }
+-/*  generic routine to move elements between lists
++/*  generic routine to move elements between lists
+     the types of lists must be the same if both from & to ptrs are not null.
+     if cell is NULL, the 1st entry in fromptr list is selected
+     if fromptr is NULL, victim must not be NULL.
+@@ -171,7 +171,7 @@ list_entry_t *move_list_entry(fromptr, toptr, victim)
+ 
+     return victim;
+     }
+-/* list insertion routine */
++/* list insertion routine */
+ void insert_list_entry(entry,new_entry)
+     register list_entry_t *entry;       /* existing list entry */
+     register list_entry_t *new_entry;   /* entry to insert after entry */
+@@ -206,7 +206,7 @@ void insert_list_entry(entry,new_entry)
+     list_hdr->list.length++;
+ 
+     }
+-/* internal types free lists support */
++/* internal types free lists support */
+ 
+ /* initialization -- call once at initialization
+    free lists will be initialized and be pre-allocated with the number of
+@@ -248,7 +248,7 @@ list_entry_t *alloc_list_entry(id)
+ 
+     return cell;
+     }
+-/* kill cell */
++/* kill cell */
+ static void kill_list_entry(cell)
+     list_entry_t    *cell;
+     {
+@@ -291,7 +291,7 @@ static void free_list_entry(cell)
+             kill_list_entry(cell);
+         });                             /* end free_list_lock crit sec */
+     }
+-/* clear free lists */
++/* clear free lists */
+ void clear_free_list(id)
+     struct_id_t     id;                 /* type of free list */
+     {
+@@ -314,7 +314,7 @@ void clear_free_lists()
+     for (i = 0; i < ID_INDEX(struct_last_cache_id); i++)
+         clear_free_list(INDEX_ID(i));
+     }
+-/* unique name generator */
++/* unique name generator */
+ /* Cannot be statically allocated in pthreads */
+ static RVM_MUTEX     uname_lock = MUTEX_INITIALIZER;
+ static struct timeval   uname = {0,0};
+@@ -372,7 +372,7 @@ long init_utils()
+ 
+     return init_unames();
+     }
+-/* time value arithmetic */
++/* time value arithmetic */
+ struct timeval add_times(x,y)
+     struct timeval  *x;
+     struct timeval  *y;
+@@ -415,7 +415,7 @@ long round_time(x)
+ 
+     return x->tv_sec;
+     }
+-/* region descriptor allocator/finalizer */
++/* region descriptor allocator/finalizer */
+ region_t *make_region()
+     {
+     region_t    *region;
+@@ -439,7 +439,7 @@ void free_region(region)
+     mutex_clear(&region->count_lock);
+     free_list_entry((list_entry_t *) region);
+     }
+-/* construct full path name for file names */
++/* construct full path name for file names */
+ char *make_full_name(dev_str,dev_name,retval)
+     char            *dev_str;           /* device name */
+     char            *dev_name;          /* device name buffer for descriptor */
+@@ -485,7 +485,7 @@ char *make_full_name(dev_str,dev_name,retval)
+ 
+     return dev_name;
+     }
+-/* device descriptor initializer */
++/* device descriptor initializer */
+ rvm_return_t dev_init(dev,dev_str)
+     device_t        *dev;               /* device descriptor */
+     char            *dev_str;           /* device name */
+@@ -514,7 +514,7 @@ rvm_return_t dev_init(dev,dev_str)
+ 
+     return RVM_SUCCESS;
+     }
+-/* segment descriptor allocator/finalizer */
++/* segment descriptor allocator/finalizer */
+ seg_t *make_seg(seg_dev_name,retval)
+     char            *seg_dev_name;      /* segment device name */
+     rvm_return_t    *retval;            /* return code */
+@@ -562,7 +562,7 @@ void free_seg(seg)
+         }
+     free_list_entry(&seg->links);
+     }
+-/* segemnt dictionary finalizer */
++/* segemnt dictionary finalizer */
+ void free_seg_dict_vec(log)
+     log_t           *log;
+     {
+@@ -579,7 +579,7 @@ void free_seg_dict_vec(log)
+         log->seg_dict_len = 0;
+         }
+     }
+-/* log descriptor finalizer */
++/* log descriptor finalizer */
+ void free_log(log)
+     log_t           *log;
+     {
+@@ -626,7 +626,7 @@ void free_log(log)
+ 
+     free_list_entry(&log->links);       /* free descriptor */
+     }
+-/* log descriptor allocation */
++/* log descriptor allocation */
+ log_t *make_log(log_dev_name,retval)
+     char            *log_dev_name;      /* device name */
+     rvm_return_t    *retval;            /* return code */
+@@ -695,7 +695,7 @@ log_t *make_log(log_dev_name,retval)
+ 
+     return log;
+     }
+-/* log special types allocation/deallocation */
++/* log special types allocation/deallocation */
+ log_special_t *make_log_special(special_id,length)
+     struct_id_t     special_id;         /* id of special type */
+     rvm_length_t    length;             /* length of type-specific allocation */
+@@ -729,7 +729,7 @@ log_special_t *make_log_special(special_id,length)
+ 
+     return special;
+     }
+-void free_log_special(special)
++void free_log_special(special)
+     log_special_t   *special;           /* ptr to descriptor allocated */
+     {
+     assert(special->links.struct_id == log_special_id);
+@@ -750,7 +750,7 @@ log_special_t *make_log_special(special_id,length)
+     free_list_entry((list_entry_t *)special);
+ 
+     }
+-/* range descriptor allocator/finalizer */
++/* range descriptor allocator/finalizer */
+ range_t *make_range()
+     {
+     register range_t    *range;
+@@ -787,7 +787,7 @@ void free_range(range)
+     range->links.entry.is_hdr = rvm_false;
+     free_list_entry(&range->links.entry);
+     }
+-/* internal transaction descriptor allocator/finalizer */
++/* internal transaction descriptor allocator/finalizer */
+ 
+ int_tid_t *make_tid(mode)
+     rvm_mode_t      mode;               /* transaction begin mode */
+@@ -841,7 +841,7 @@ void free_tid(tid)
+     /* free tid */
+     free_list_entry(&tid->links);
+     }
+-/* mem_region nodes for mapping */
++/* mem_region nodes for mapping */
+ mem_region_t *make_mem_region()
+     {
+     register mem_region_t  *node;
+@@ -865,7 +865,7 @@ void free_mem_region(node)
+     node->links.entry.is_hdr = rvm_false;
+     free_list_entry(&node->links.entry);
+     }
+-/* dev_region nodes for recovery */
++/* dev_region nodes for recovery */
+ dev_region_t *make_dev_region()
+     {
+     register dev_region_t  *node;
+@@ -901,7 +901,7 @@ void free_dev_region(node)
+         }
+     free_list_entry(&node->links.entry);
+     }
+-/* RVM exported structures support */
++/* RVM exported structures support */
+ 
+ static void free_export(cell,struct_id)
+     list_entry_t    *cell;
+@@ -938,7 +938,7 @@ void rvm_free_region(rvm_region)
+         (rvm_region->from_heap))
+         free_export((list_entry_t *)rvm_region,region_rvm_id);
+     }
+-void rvm_init_region(rvm_region)
++void rvm_init_region(rvm_region)
+     rvm_region_t    *rvm_region;
+     {
+         BZERO((char *) rvm_region,sizeof(rvm_region_t));
+@@ -962,7 +962,7 @@ rvm_region_t *rvm_copy_region(rvm_region)
+         }
+     return new_rvm_region;
+     }
+-/* rvm_statistics_t functions */
++/* rvm_statistics_t functions */
+ rvm_statistics_t *rvm_malloc_statistics()
+     {
+     rvm_statistics_t    *new_rvm_statistics;
+@@ -1012,7 +1012,7 @@ rvm_statistics_t *rvm_copy_statistics(rvm_statistics)
+         }
+     return new_rvm_statistics;
+     }
+-/* rvm_options_t functions */
++/* rvm_options_t functions */
+ 
+ rvm_options_t *rvm_malloc_options()
+     {
+@@ -1047,7 +1047,7 @@ void rvm_free_options(rvm_options)
+         free_export((list_entry_t *)rvm_options,options_rvm_id);
+         }
+     }
+-void rvm_init_options(rvm_options)
++void rvm_init_options(rvm_options)
+     rvm_options_t    *rvm_options;
+     {
+     if (rvm_options != NULL)
+@@ -1082,7 +1082,7 @@ rvm_options_t *rvm_copy_options(rvm_options)
+         }
+     return new_rvm_options;
+     }
+-/*      rvm_tid_t functions    */
++/*      rvm_tid_t functions    */
+ 
+ rvm_tid_t *rvm_malloc_tid()
+     {
+@@ -1131,7 +1131,7 @@ rvm_tid_t *rvm_copy_tid(rvm_tid)
+         }
+     return new_rvm_tid;
+     }
+-/* RVM User enumeration type print name support */
++/* RVM User enumeration type print name support */
+ static char *return_codes[(long)rvm_last_code-(long)rvm_first_code-1] =
+     {
+     "RVM_EINIT","RVM_EINTERNAL","RVM_EIO","RVM_EPLACEHOLDER","RVM_ELOG",
+@@ -1153,7 +1153,7 @@ static char *rvm_types[(long)rvm_last_struct_id-(long)rvm_first_struct_id-1] =
+     {
+     "rvm_region_t","rvm_options_t","rvm_tid_t","rvm_statistics_id"
+     };
+-/* RVM enumeration type print name routines */
++/* RVM enumeration type print name routines */
+ char *rvm_return(code)
+     rvm_return_t    code;
+     {
+@@ -1183,7 +1183,7 @@ char *rvm_type(id)
+     else
+         return "Invalid RVM structure type";
+     }
+-/* Byte-aligned checksum and move functions */
++/* Byte-aligned checksum and move functions */
+ 
+ /* zero-pad unused bytes of word */
+ rvm_length_t zero_pad_word(word,addr,leading)
+@@ -1209,7 +1209,7 @@ rvm_length_t zero_pad_word(word,addr,leading)
+ 
+     return word;
+     }
+-/* checksum function: forms checksum of arbitrarily aligned range
++/* checksum function: forms checksum of arbitrarily aligned range
+    by copying preceeding, trailing bytes to make length 0 mod length size */
+ rvm_length_t chk_sum(nvaddr,len)
+     char            *nvaddr;            /* address of 1st byte */
+@@ -1238,7 +1238,7 @@ rvm_length_t chk_sum(nvaddr,len)
+ 
+     return chk_sum;
+     }
+-/* copy arbitrarily aligned range, maintaining 1st src byte alignment */
++/* copy arbitrarily aligned range, maintaining 1st src byte alignment */
+ void src_aligned_bcopy(src,dest,len)
+     char            *src;               /* source address */
+     char            *dest;              /* destination address */
+@@ -1264,7 +1264,7 @@ void dest_aligned_bcopy(src,dest,len)
+                     dest,len);
+ 
+     }
+-/* rw_lock functions */
++/* rw_lock functions */
+ 
+ /* rw_lock initializer */
+ void init_rw_lock(rwl)
+@@ -1291,7 +1291,7 @@ void rw_lock_clear(rwl)
+ 
+     mutex_clear(&rwl->mutex);
+     }
+-void rw_lock(rwl,mode)
++void rw_lock(rwl,mode)
+     rw_lock_t       *rwl;               /* ptr to rw_lock structure */
+     rw_lock_mode_t  mode;               /* r or w */
+     {
+@@ -1341,7 +1341,7 @@ void rw_lock_clear(rwl)
+         });                             /* end rw_lock mutex crit sec */
+ #endif
+     }
+-void rw_unlock(rwl,mode)
++void rw_unlock(rwl,mode)
+     rw_lock_t       *rwl;               /* ptr to rw_lock structure */
+     rw_lock_mode_t  mode;               /* r or w (for consistency chk only) */
+     {
+@@ -1387,7 +1387,7 @@ void rw_lock_clear(rwl)
+                 else
+                     assert((rwl->lock_mode==r) && (rwl->write_cnt==0));
+                 }
+-            else
++            else
+                 do  /* wake up all readers before next writer */
+                     {
+                     old_q = q;          /* save entry ptr */
+@@ -1405,7 +1405,7 @@ void rw_lock_clear(rwl)
+         });                             /* end rw_lock mutex crit sec */
+ #endif
+     }
+-/*  binary tree functions
++/*  binary tree functions
+     all functions leave locking to caller
+     lookup requires a comparator function with signature:
+             int cmp(target,test)
+@@ -1500,7 +1500,7 @@ static int chk_balance(tree)
+     }
+ #endif
+ 
+-/* binary tree lookup -- returns ptr to node found (or NULL) */
++/* binary tree lookup -- returns ptr to node found (or NULL) */
+ tree_node_t *tree_lookup(tree,node,cmp)
+     tree_root_t     *tree;              /* root of tree */
+     tree_node_t     *node;              /* node w/ range to lookup */
+@@ -1531,7 +1531,7 @@ tree_node_t *tree_lookup(tree,node,cmp)
+ 
+     return NULL;                        /* not found */
+     }
+-/* insertion rotation function */
++/* insertion rotation function */
+ static void insert_rotate(tree,bal_pnt,bal_pnt_par,sub_root,new_bf)
+     tree_root_t     *tree;              /* ptr to root of tree */
+     tree_node_t     *bal_pnt;           /* balance point */
+@@ -1575,7 +1575,7 @@ static void insert_rotate(tree,bal_pnt,bal_pnt_par,sub_root,new_bf)
+             new_bal_pnt->bf = 0;
+             }
+         }
+-    else
++    else
+         {
+         /* left heavy */
+         if (sub_root->bf == -1)
+@@ -1619,7 +1619,7 @@ static void insert_rotate(tree,bal_pnt,bal_pnt_par,sub_root,new_bf)
+             if (bal_pnt == bal_pnt_par->lss)
+                 bal_pnt_par->lss = new_bal_pnt;
+     }
+-/* binary tree insertion - traverse vector left suitable for
++/* binary tree insertion - traverse vector left suitable for
+    successor iterator */
+ rvm_bool_t tree_insert(tree,node,cmp)
+     tree_root_t     *tree;              /* ptr to root of tree */
+@@ -1673,7 +1673,7 @@ rvm_bool_t tree_insert(tree,node,cmp)
+           default:  assert(rvm_false);
+             }
+         }
+-    /* insert node */
++    /* insert node */
+     if (val == 1)
+         par->gtr = node;
+     else
+@@ -1716,7 +1716,7 @@ rvm_bool_t tree_insert(tree,node,cmp)
+ 
+     return rvm_true;
+     }
+-/* deletion rotation function */
++/* deletion rotation function */
+ static rvm_bool_t delete_rotate(tree,bal_pnt,bal_pnt_par,sub_root,new_bf)
+     tree_root_t     *tree;              /* ptr to root of tree */
+     tree_node_t     *bal_pnt;           /* balance point */
+@@ -1766,7 +1766,7 @@ static rvm_bool_t delete_rotate(tree,bal_pnt,bal_pnt_par,sub_root,new_bf)
+             else new_bal_pnt->bf = 0;
+             }
+         }
+-    else
++    else
+         {                               /* left heavy */
+         if ((sub_root->bf == -1)
+             || ((sub_root->bf == 0) && (sub_root->gtr->bf == 1)))
+@@ -1804,7 +1804,7 @@ static rvm_bool_t delete_rotate(tree,bal_pnt,bal_pnt_par,sub_root,new_bf)
+             else new_bal_pnt->bf = 0;
+             }
+         }
+-    /* complete rotation by re-inserting balanced sub-tree */
++    /* complete rotation by re-inserting balanced sub-tree */
+     if (bal_pnt_par == NULL)
+         tree->root = new_bal_pnt;
+     else
+@@ -1819,7 +1819,7 @@ static rvm_bool_t delete_rotate(tree,bal_pnt,bal_pnt_par,sub_root,new_bf)
+         return rvm_true;
+     return rvm_false;
+     }
+-/* binary tree deletion -- does not free the node
++/* binary tree deletion -- does not free the node
+    traverse vector not left suitable for iterators */
+ rvm_bool_t tree_delete(tree,node,cmp)
+     tree_root_t     *tree;              /* ptr to root of tree */
+@@ -1862,7 +1862,7 @@ rvm_bool_t tree_delete(tree,node,cmp)
+         }
+ 
+         return rvm_false;               /* not found */
+-    /* see if simple delete: node has <= 1 child */
++    /* see if simple delete: node has <= 1 child */
+   delete:
+     tree->n_nodes--;
+     node_level = tree->level;
+@@ -1909,7 +1909,7 @@ rvm_bool_t tree_delete(tree,node,cmp)
+                 cur = cur->gtr;
+                 }
+             }
+-        /* unlink selected node */
++        /* unlink selected node */
+         if (tree->level == 0)
+             {
+             cur = tree->root;
+@@ -1946,7 +1946,7 @@ rvm_bool_t tree_delete(tree,node,cmp)
+         else
+             tree->traverse[node_level-1].ptr->gtr = cur;
+     tree->traverse[node_level].ptr = cur;
+-    /* rebalance as necessary up path */
++    /* rebalance as necessary up path */
+     while (--tree->level >= 0)
+         {
+         switch (tree->traverse[tree->level].state)
+@@ -1994,7 +1994,7 @@ rvm_bool_t tree_delete(tree,node,cmp)
+ 
+     return rvm_true;
+     }
+-/* forward order iteration generator: balance not maintained if nodes unlinked */
++/* forward order iteration generator: balance not maintained if nodes unlinked */
+ tree_node_t *tree_successor(tree)
+     tree_root_t     *tree;              /* ptr to tree root descriptor */
+     {
+@@ -2041,7 +2041,7 @@ tree_node_t *tree_successor(tree)
+             SET_TRAVERSE(tree,cur,lss);
+             }
+         }
+-    /* set next traverse node ptr */
++    /* set next traverse node ptr */
+   unlink:
+     assert(cur != NULL);
+     if (tree->unlink)
+@@ -2057,7 +2057,7 @@ tree_node_t *tree_successor(tree)
+     assert((cur->bf >= -1) && (cur->bf <= 1));
+     return cur;
+     }
+-/* reverse order iterator generator: balance not maintained if nodes unlinked */
++/* reverse order iterator generator: balance not maintained if nodes unlinked */
+ tree_node_t *tree_predecessor(tree)
+     tree_root_t     *tree;              /* ptr to tree root descriptor */
+     {
+@@ -2104,7 +2104,7 @@ tree_node_t *tree_predecessor(tree)
+             SET_TRAVERSE(tree,cur,gtr);
+             }
+         }
+-    /* set next traverse node ptr */
++    /* set next traverse node ptr */
+   unlink:
+     assert(cur != NULL);
+     if (tree->unlink)
+@@ -2120,7 +2120,7 @@ tree_node_t *tree_predecessor(tree)
+     assert((cur->bf >= -1) && (cur->bf <= 1));
+     return cur;
+     }
+-/* tree iteration initializers */
++/* tree iteration initializers */
+ tree_node_t *init_tree_generator(tree,direction,unlink)
+     tree_root_t     *tree;              /* ptr to tree root descriptor */
+     rvm_bool_t      direction;          /* FORWARD ==> lss -> gtr */
+@@ -2139,7 +2139,7 @@ tree_node_t *init_tree_generator(tree,direction,unlink)
+     else
+         return tree_predecessor(tree);
+     }
+-/* initilizer for iteration after insertion failure */
++/* initilizer for iteration after insertion failure */
+ tree_node_t *tree_iterate_insert(tree,node,cmp)
+     tree_root_t     *tree;              /* ptr to root of tree */
+     tree_node_t     *node;              /* node to insert */
+@@ -2180,7 +2180,7 @@ tree_node_t *tree_iterate_insert(tree,node,cmp)
+ 
+     return cur;
+     }
+-/* histogram data gathering function */
++/* histogram data gathering function */
+ void enter_histogram(val,histo,histo_def,length)
+     long            val;                /* value to log */
+     long            *histo;             /* histogram data */
+@@ -2200,7 +2200,7 @@ void enter_histogram(val,histo,histo_def,length)
+     histo[length-1]++;                  /* outsized */
+     return;
+     }
+-/* The following functions are needed only on machines without 64-bit
++/* The following functions are needed only on machines without 64-bit
+    integer operations and are used only within macros defined in rvm.h
+ */
+ /* rvm_offset_t constructor */
+@@ -2245,7 +2245,7 @@ rvm_offset_t rvm_sub_length_from_offset(offset,length)
+ 
+     return tmp;
+     }
+-/* add rvm_offset to rvm_offset; return (x+y) */
++/* add rvm_offset to rvm_offset; return (x+y) */
+ rvm_offset_t rvm_add_offsets(x,y)
+     rvm_offset_t    *x,*y;              /* operand ptrs */
+     {
+@@ -2273,7 +2273,7 @@ rvm_offset_t rvm_sub_offsets(x,y)
+ 
+     return tmp;
+     }
+-/* page rounding functions for rvm_offset; return offset rounded up/down
++/* page rounding functions for rvm_offset; return offset rounded up/down
+    to page boundrary: used only for rvm.h macro support */
+ rvm_offset_t rvm_rnd_offset_up_to_page(x)
+     rvm_offset_t    *x;                 /* operand ptr */
+diff --git a/rvm/ut/rvm.c b/rvm/ut/rvm.c
+index d501bb4..7b43045 100644
+--- a/rvm/ut/rvm.c
++++ b/rvm/ut/rvm.c
+@@ -37,8 +37,6 @@
+ #include <fcntl.h>
+ #include <errno.h>
+ #include "rvm/rds_private.h"
+-#include "rvmlib.h"
+-#include "util.h"
+ #include "rvm/rvm.h"
+ #include "rvm/rds.h"
+ #include "rvm/rvm_segment.h"
+@@ -48,7 +46,6 @@
+ #undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RVM
+ 
+-#undef M0_TRACE_SUBSYS_RVM
+ #ifdef M0_TRACE_SUBSYS_RVM
+ #define RVM_LOG  M0_LOG
+ #define RVM_DEBUG  M0_DEBUG
+@@ -312,18 +309,6 @@ const struct m0_test_suite rvm_ut = {
+         }
+ };
+ 
+-#if 1
+-int main()
+-{
+-        ts_be_init();
+-        test_seg_load();
+-        test_rvm();
+-        test_rds_stat();
+-        /*sleep(30);*/
+-        ts_be_fini();
+-        return 0;
+-}
+-#endif
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end group rvm_ut */
+ 
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index fa59a30..13367d0 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -98,7 +98,7 @@ void add_uts(void)
+         m0_ut_add(&adieu_ut);
+         /*m0_ut_add(&rvm_ut);*/
+         /*m0_ut_add(&be_hs_ut);*/
+-        /*m0_ut_add(&be_kv_store_ut);*/
++        m0_ut_add(&be_kv_store_ut);
+         /*m0_ut_add(&be_ut);*/
+ 	m0_ut_add(&balloc_ut);
+         m0_ut_add(&buffer_pool_ut);
+-- 
+1.8.3.2
+

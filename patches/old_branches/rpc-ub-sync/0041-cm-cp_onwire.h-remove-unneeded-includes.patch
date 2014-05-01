@@ -1,0 +1,79 @@
+From 63d1424e95abd0b146dad398a74951207976a28b Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 18 Mar 2013 22:47:27 +0200
+Subject: [PATCH 41/63] cm/cp_onwire.h: remove unneeded #includes
+
+---
+ cm/cp_onwire.h | 45 ++++++++++++++++++++-------------------------
+ 1 file changed, 20 insertions(+), 25 deletions(-)
+
+diff --git a/cm/cp_onwire.h b/cm/cp_onwire.h
+index 46c325c..af43a9c 100644
+--- a/cm/cp_onwire.h
++++ b/cm/cp_onwire.h
+@@ -23,42 +23,37 @@
+ #ifndef __MERO_CM_CP_ONWIRE_H__
+ #define __MERO_CM_CP_ONWIRE_H__
+ 
+-#include "lib/bitmap_xc.h"
+-#include "xcode/xcode.h"
+-#include "fid/fid.h"
+-#include "fid/fid_xc.h"
+-#include "net/net_otw_types.h"
+-#include "net/net_otw_types_xc.h"
+-#include "ioservice/io_fops.h"
+-#include "ioservice/io_fops_xc.h"
+-#include "cm/ag.h"
+-#include "cm/ag_xc.h"
++#include "lib/bitmap.h"            /* m0_bitmap */
++#include "lib/bitmap_xc.h"         /* m0_bitmap_xc */
++#include "ioservice/io_fops.h"     /* m0_io_descs */
++#include "ioservice/io_fops_xc.h"  /* m0_io_descs_xc */
++#include "cm/ag.h"                 /* m0_cm_ag_id */
++#include "cm/ag_xc.h"              /* m0_cm_ag_id_xc */
+ 
+ /** Onwire copy packet structure. */
+ struct m0_cpx {
+-        /** Copy packet priority. */
+-        uint32_t                  cpx_prio;
++	/** Copy packet priority. */
++	uint32_t           cpx_prio;
+ 
+-        /**
+-         * Aggregation group id corresponding to an aggregation group,
+-         * to which the copy packet belongs.
+-         */
+-        struct m0_cm_ag_id        cpx_ag_id;
++	/**
++	 * Aggregation group id corresponding to an aggregation group,
++	 * to which the copy packet belongs.
++	 */
++	struct m0_cm_ag_id cpx_ag_id;
+ 
+-        /** Global index of this copy packet in aggregation group. */
+-        uint64_t                  cpx_ag_cp_idx;
++	/** Global index of this copy packet in aggregation group. */
++	uint64_t           cpx_ag_cp_idx;
+ 
+-        /** Bitmap representing the accumulator information. */
+-        struct m0_bitmap          cpx_bm;
++	/** Bitmap representing the accumulator information. */
++	struct m0_bitmap   cpx_bm;
+ 
+-        /** Network buffer descriptors corresponding to copy packet data. */
+-        struct m0_io_descs        cpx_desc;
++	/** Network buffer descriptors corresponding to copy packet data. */
++	struct m0_io_descs cpx_desc;
+ } M0_XCA_RECORD;
+ 
+ /** Onwire copy packet reply. */
+ struct m0_cpx_reply {
+-        /** Operation status. */
+-        uint32_t cr_rc;
++	uint32_t cr_rc; /*< Operation status. */
+ } M0_XCA_RECORD;
+ 
+ #endif /*  __MERO_CM_CP_ONWIRE_H__ */
+-- 
+1.8.3.2
+

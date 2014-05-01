@@ -1,0 +1,83 @@
+From 96b9a5bf62fa78212f7e5b4a1dc6d233e6d3955b Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Thu, 11 Jul 2013 17:44:48 +0530
+Subject: [PATCH 082/159] Partial DLD for ADDB monitoring infrastructure.
+ Periodic posting of addb stats summary record infrastructure.
+
+---
+ addb/addb_svc.c              | 2 ++
+ m0t1fs/linux_kernel/m0t1fs.c | 7 ++++++-
+ m0t1fs/m0t1fs_addb.h         | 3 ---
+ mero/magic.h                 | 1 +
+ 4 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/addb/addb_svc.c b/addb/addb_svc.c
+index 9c4af4b..e4d27af 100644
+--- a/addb/addb_svc.c
++++ b/addb/addb_svc.c
+@@ -98,6 +98,7 @@ static bool addb_svc_invariant(const struct addb_svc *svc)
+ static int addb_svc_rso_start(struct m0_reqh_service *service)
+ {
+ 	struct addb_svc *svc;
++	int              rc;
+ 
+ 	M0_LOG(M0_DEBUG, "starting");
+ 	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+@@ -182,6 +183,7 @@ static int addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
+ 	m0_cond_init(&svc->as_cond, &(*service)->rs_mutex);
+ 	addb_svc_bob_init(svc);
+ 
++
+ 	M0_POST(addb_svc_invariant(svc));
+ 
+ 	return 0;
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index ee1b57f..ceae9f0 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -139,10 +139,15 @@ M0_INTERNAL int m0t1fs_init(void)
+ 	if (rc != 0)
+ 		goto net_fini;
+ 
+-	rc = m0t1fs_layout_init();
++	/* @todo: Need to give proper stats service endpoint */
++	rc = m0_addb_monitor_subsys_init(&m0t1fs_globals.g_reqh, "REPLACE-ME");
+ 	if (rc != 0)
+ 		goto rpc_fini;
+ 
++	rc = m0t1fs_layout_init();
++	if (rc != 0)
++		goto mon_fini;
++
+ 	rc = register_filesystem(&m0t1fs_fs_type);
+ 	if (rc != 0)
+ 		goto layout_fini;
+diff --git a/m0t1fs/m0t1fs_addb.h b/m0t1fs/m0t1fs_addb.h
+index c071310..cb6bc3d 100644
+--- a/m0t1fs/m0t1fs_addb.h
++++ b/m0t1fs/m0t1fs_addb.h
+@@ -24,9 +24,6 @@
+ 
+ #include "addb/addb.h"
+ #include "addb/addb_monitor.h"
+-#ifdef __KERNEL__
+-#include "fop/fom_simple.h"
+-#endif
+ 
+ /*
+  ******************************************************************************
+diff --git a/mero/magic.h b/mero/magic.h
+index e23b06f..3c74651 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -117,6 +117,7 @@ enum m0_magic_satchel {
+ 	/* ADDB monitor list's head (addb hellhole) */
+ 	M0_ADDB_MONITOR_LIST_HEAD_MAGIC = 0x33addb3704773477,
+ 
++	/* ADDB monitor (addb shoebill)*/
+ 	M0_ADDB_MONITOR_LIST_LINK_MAGIC = 0x33addb7719304577,
+ 
+ /* balloc */
+-- 
+1.8.3.2
+

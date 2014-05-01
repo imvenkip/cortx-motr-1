@@ -1,0 +1,359 @@
+From 7868159a69928d3995c48ae07024d0d908138f8d Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Fri, 8 Feb 2013 12:15:34 -0800
+Subject: [PATCH 3/7] clovis: partially document the interface prototype.
+
+---
+ clovis/clovis.h | 240 +++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 227 insertions(+), 13 deletions(-)
+
+diff --git a/clovis/clovis.h b/clovis/clovis.h
+index 718e88f..0a36641 100644
+--- a/clovis/clovis.h
++++ b/clovis/clovis.h
+@@ -28,7 +28,8 @@
+ /**
+  * @defgroup clovis
+  *
+- * Clovis overview.
++ * Overview.
++ * --------
+  *
+  * Clovis is *the* interface exported by Mero for use by Mero
+  * applications. Examples of Mero applications are:
+@@ -62,12 +63,11 @@
+  *       face of failures. All operations from a transaction belong to the same
+  *       domain.
+  *
+- * Objects, containers, domains (and internally transactions) have unique
+- * identifiers (m0_clovis_id) from disjoint name-spaces (that is, an object, a
+- * container and a domain might have the same identifier). Identifier management
+- * is up to the application, except for the single reserved identifier for
+- * "domain0", see below and for transaction identifiers, which are assigned by
+- * the clovis implementation.
++ * Objects, containers and domains have unique identifiers (m0_clovis_id) from
++ * disjoint name-spaces (that is, an object, a container and a domain might have
++ * the same identifier). Identifier management is up to the application, except
++ * for the single reserved identifier for "domain0", see below and for
++ * transaction identifiers, which are assigned by the clovis implementation.
+  *
+  * All clovis entry points are non-blocking: a structure representing object,
+  * container, domain, transaction or operation contains an embedded state
+@@ -77,6 +77,31 @@
+  * to wait for the state machine state changes using m0_sm interface. Errors are
+  * returned through m0_sm::sm_rc.
+  *
++ * Ownership.
++ * ---------
++ *
++ * Clovis data structures (domains, objects, containers, transactions and
++ * operations) are allocated by the application. The application may free a
++ * structure after completing the corresponding finalisation call.
++ *
++ * Data blocks (m0_clovis_data) used by scatter-gather-scatter lists
++ * (m0_clovis_sgsl) and key-value records (m0_clovis_rec) are allocated by the
++ * application. For queries ("read-only" operations: M0_COOT_READ,
++ * M0_CBOT_LOOKUP and M0_CBOT_CURSOR) the application may free the data blocks
++ * as soon as the operation completes or fails. For updating operations, the
++ * data blocks may be freed as soon as the transaction of which the operation is
++ * part, becomes stable.
++ *
++ * Concurrency.
++ * -----------
++ *
++ * Clovis implementation guarantees that concurrent calls to the same container
++ * are linearizable.
++ *
++ * All other concurrency control, including ordering of reads and writes to a
++ * clovis object, and distributed transaction serializability, is up to the
++ * application.
++ *
+  * @see https://docs.google.com/a/xyratex.com/document/d/sHUAUkByacMNkDBRAd8-AbA
+  *
+  * @{
+@@ -85,6 +110,7 @@
+ /* import */
+ #include "lib/types.h"
+ #include "lib/vec.h"
++#include "lib/buf.h"
+ #include "sm/sm.h"
+ #include "dtm/dtm.h"
+ 
+@@ -98,48 +124,189 @@ struct m0_clovis_bag_attr;
+ struct m0_clovis_id;
+ struct m0_clovis_sgsl;
+ struct m0_clovis_op;
++struct m0_clovis_rec;
+ 
++/**
++ * Unique identifier for various clovis entities.
++ *
++ * Domains, objects and containers have separate identifier
++ * name-spaces. Identifier allocation, assignment, recycling and reuse are up to
++ * the application, except for a pre-defined M0_CLOVIS_DOMAIN0_ID identifier in
++ * the domain name-space.
++ */
+ struct m0_clovis_id {
+ 	struct m0_uint128 cid_128;
+ };
+ 
++/**
++ * m0_clovis_common contains state common for domains, objects and containers.
++ */
+ struct m0_clovis_common {
+-	struct m0_sm        com_sm;
+-	struct m0_clovis_is com_id;
++	/**
++	 * State machine. Possible state are taken from enum m0_clovis_state.
++	 */
++	struct m0_sm          com_sm;
++	/**
++	 * Identifier of this entity.
++	 */
++	struct m0_clovis_is   com_id;
++	struct m0_clovis_attr com_attr;
++};
++
++/**
++ * Supported checksum algorithms.
++ */
++enum m0_clovis_chksum {
++	M0_CCHK_NONE,
++	M0_CCHK_NR
+ };
+ 
++/**
++ * Attributes common for objects (m0_clovis_obj_attr), domains and containers
++ * (m0_clovis_bag_attr).
++ *
++ * These attributed are provided by the application when a new object is created
++ * (m0_clovis_{obj,bag,domain}_create()) and returned by the implementation when
++ * an existing object is opened (m0_clovis_{bag,obj,domain}_open()).
++ */
++struct m0_clovis_attr {
++	enum m0_clovis_chksum cla_chksum_algorithm;
++};
++
++/**
++ * Possible entity states, where an entity is domain, object or container.
++ */
+ enum m0_clovis_state {
++	/**
++	 * Entity has been initialised.
++	 *
++	 * @see m0_clovis_domain_init(), m0_clovis_obj_init(), m0_clovis_bag_init().
++	 */
+ 	M0_CS_INIT = 1,
++	/**
++	 * Entity is being opened.
++	 *
++	 * @see m0_clovis_domain_open(), m0_clovis_obj_open(), m0_clovis_bag_open().
++	 */
+ 	M0_CS_OPENING,
++	/**
++	 * Not previously existing entity is being created.
++	 *
++	 * @see m0_clovis_domain_create(), m0_clovis_obj_create().
++	 * @see m0_clovis_bag_create().
++	 */
+ 	M0_CS_CREATING,
++	/**
++	 * Existing entity is being deleted.
++	 *
++	 * @see m0_clovis_domain_delete(), m0_clovis_obj_delete().
++	 * @see m0_clovis_bag_delete().
++	 */
+ 	M0_CS_DELETING,
++	/**
++	 * Opened entity is being closed.
++	 *
++	 * @see m0_clovis_domain_close(), m0_clovis_obj_close().
++	 * @see m0_clovis_bag_close().
++	 */
+ 	M0_CS_CLOSING,
++	/**
++	 * Entity has been opened and not yet closed. Operations can be executed
++	 * against the entity.
++	 */
+ 	M0_CS_ACTIVE,
++	/**
++	 * State transition failed. The entity is invalid and cannot be
++	 * used. m0_clovis_common::com_sm::sm_rc contains the error code.
++	 */
+ 	M0_CS_FAILED
+ };
+ 
++/**
++ * Supported domain types.
++ */
+ enum m0_clovis_domain_type {
+-	M0_CLOVIS_DOMAIN_TYPE_EXCL = 0,
++	/**
++	 * Exclusively owned domain.
++	 *
++	 * Such domain is, at any given moment, accessed by at most one
++	 * application. This application is called domain owner.
++	 *
++	 * It is up to the application to guaranatee that when an exclusively
++	 * owned domain is opened (m0_clovis_domain_open()), the previous user
++	 * of the clovis interface that opened the domain either successfully
++	 * completed the m0_clovis_domain_close() call or is somehow guaranteed
++	 * to make no more calls against this domain (the latter case typically
++	 * means that the previous user is known to be dead or was STONITHed).
++	 */
++	M0_CLOVIS_DOMAIN_TYPE_EXCL = 1,
+ 	M0_CLOVIS_DOMAIN_TYPE_NR
+ };
+ 
++/**
++ * Clovis domain is a collection of resources with certain guaranteed
++ * fault-tolerance properties and certain required restrictions on access
++ * patterns.
++ *
++ * Objects (m0_clovis_obj) and containers (m0_clovis_bag) are externally visible
++ * domain resources. Internally, clovis implementation manages other resources:
++ * free storage space, layouts, &c.
++ */
+ struct m0_clovis_domain {
+ 	struct m0_clovis_common    cdo_com;
+ 	enum m0_clovis_domain_type cdo_type;
+ };
+ 
++/**
++ * A distributed transaction is a group of operations (m0_clovis_op) which are
++ * guaranteed to survive a failure (from a certain class of failures)
++ * atomically.
++ *
++ * @see https://docs.google.com/a/xyratex.com/document/d/1RacseZooNnfbKiaD-s5rmTpLlpw_QlPomAX9iH4PlfI
++ */
+ struct m0_clovis_dtx {
+ 	struct m0_dtx cdt_dx;
+ };
+ 
++/**
++ * An object is an array of data blocks of equal size.
++ *
++ * Blocks can be read and written. An object has no meta-data, specifically, it
++ * has no size.
++ *
++ * An object, optionally, supports data-integrity checksums that can be
++ * calculated and verified by the application.
++ */
+ struct m0_clovis_obj {
+ 	struct m0_clovis_common   cob_com;
+ 	struct m0_clovis_obj_attr cob_attr;
+ };
+ 
++/**
++ * Object attributes.
++ *
++ * These attributed are provided by the application when a new object is created
++ * (m0_clovis_obj_create()) and returned by the implementation when an existing
++ * object is opened (m0_clovis_obj_open()).
++ */
+ struct m0_clovis_obj_attr {
++	/**
++	 * Binary logarithm of the block size.
++	 *
++	 * Block size is (1 << coa_bshift).
++	 */
++	uint32_t coa_bshift;
+ };
+ 
++/**
++ * A container is an ordered key-value store.
++ *
++ * A record (m0_clovis_rec) is a key-value pair. A new record can be inserted in
++ * a container, record with a given key can be looked for, updated or deleted.
++ *
++ * A container can be iterated starting from a given key. Keys are ordered in
++ * the lexicographical order of their bit-representations.
++ */
+ struct m0_clovis_bag {
+ 	struct m0_clovis_common   cba_com;
+ 	struct m0_clovis_bag_attr cba_attr;
+@@ -148,12 +315,48 @@ struct m0_clovis_bag {
+ struct m0_clovis_bag_attr {
+ };
+ 
++/**
++ * Data buffer.
++ *
++ * Data buffers are used for:
++ *
++ *     - application-supplied data which is to be written to an object;
++ *
++ *     - space for implementation-returned data read from an object;
++ *
++ *     - application-supplied key and value to be inserted in a container;
++ *
++ *     - key to be looked up, updated or deleted from a container;
++ *
++ *     - implementation-returned value of a record from a container;
++ *
++ *     - implementation-returned next key-value record in a container.
++ */
++struct m0_clovis_data {
++	/** Vector of buffers. */
++	struct m0_bufvec cda_buf;
++	/** Vector of checksum buffers. If the vector has size 0, the
++	    application is not interested in checksums. */
++	struct m0_bufvec cda_chk;
++};
++
++/**
++ * Scatter-gather-scatter list used by object operations.
++ */
+ struct m0_clovis_sgsl {
+-	struct m0_indexvec csg_ext;
+-	struct m0_bufvec   csg_buf;
+-	struct m0_bufvec   csg_chk;
++	/**
++	 * Vector of extents in the object offset space.
++	 */
++	struct m0_indexvec    csg_ext;
++	/**
++	 * Data buffer of the same size as total extent length.
++	 */
++	struct m0_clovis_data csg_buf;
+ };
+ 
++/**
++ * State of clovis operation (m0_clovis_op).
++ */
+ enum m0_clovis_op_state {
+ 	M0_CO_INIT = 1,
+ 	M0_CO_ONGOING,
+@@ -188,6 +391,11 @@ enum m0_clovis_bag_op_type {
+ 	M0_CBOT_CURSOR
+ };
+ 
++struct m0_clovis_rec {
++	struct m0_clovis_data cre_key;
++	struct m0_clovis_data cre_val;
++};
++
+ struct m0_clovis_bag_op {
+ 	struct m0_clovis_op  cbo_op;
+ 	struct m0_clovis_rec cbo_rec;
+@@ -204,11 +412,17 @@ void m0_clovis_domain_open  (struct m0_clovis_domain *dom);
+ void m0_clovis_domain_close (struct m0_clovis_domain *dom);
+ void m0_clovis_domain_delete(struct m0_clovis_domain *dom, struct m0_clovis_dtx *dx);
+ 
++void m0_clovis_dtx_init (struct m0_clovis_dtx *dx);
++void m0_clovis_dtx_fini (struct m0_clovis_dtx *dx);
+ void m0_clovis_dtx_open (struct m0_clovis_dtx *dx, struct m0_clovis_domain *dom);
+ void m0_clovis_dtx_close(struct m0_clovis_dtx *dx);
+ void m0_clovis_dtx_add  (struct m0_clovis_dtx *dx, struct m0_clovis_op *op);
+ void m0_clovis_dtx_force(struct m0_clovis_dtx *dx);
+ 
++void m0_clovis_op_init   (struct m0_clovis_obj_op *op, unsigned otype,
++			  struct m0_clovis_obj *obj, struct m0_clovis_dtx *dx);
++void m0_clovis_op_fini   (struct m0_clovis_obj_op *op);
++
+ void m0_clovis_obj_init  (struct m0_clovis_obj *obj, const struct m0_clovis_id *id);
+ void m0_clovis_obj_fini  (struct m0_clovis_obj *obj);
+ void m0_clovis_obj_create(struct m0_clovis_obj *obj, struct m0_clovis_dtx *dx);
+-- 
+1.8.3.2
+

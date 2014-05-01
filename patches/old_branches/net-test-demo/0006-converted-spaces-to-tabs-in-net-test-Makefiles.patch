@@ -1,0 +1,128 @@
+From 1d5372ca20b21a7ce779278e18b86add3ea21691 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 24 Jan 2013 16:22:05 +0200
+Subject: [PATCH 06/79] converted spaces to tabs in net-test Makefiles
+
+---
+ net/test/Makefile.sub            | 66 ++++++++++++++++++++--------------------
+ net/test/user_space/Makefile.sub |  8 ++---
+ net/test/ut/Makefile.sub         | 18 +++++------
+ 3 files changed, 46 insertions(+), 46 deletions(-)
+
+diff --git a/net/test/Makefile.sub b/net/test/Makefile.sub
+index 81e4974..619a0e4 100644
+--- a/net/test/Makefile.sub
++++ b/net/test/Makefile.sub
+@@ -1,36 +1,36 @@
+ net_test_libmero_net_test_la_SOURCES += net/test/commands.c \
+-                                        net/test/console.c \
+-                                        net/test/initfini.c \
+-                                        net/test/network.c \
+-                                        net/test/node.c \
+-                                        net/test/node_bulk.c \
+-                                        net/test/node_helper.c \
+-                                        net/test/node_ping.c \
+-                                        net/test/node_stub.c \
+-                                        net/test/ringbuf.c \
+-                                        net/test/serialize.c \
+-                                        net/test/service.c \
+-                                        net/test/slist.c \
+-                                        net/test/stats.c \
+-                                        net/test/str.c \
+-                                        net/test/commands.h \
+-                                        net/test/console.h \
+-                                        net/test/debug.h \
+-                                        net/test/initfini.h \
+-                                        net/test/network.h \
+-                                        net/test/node.h \
+-                                        net/test/node_bulk.h \
+-                                        net/test/node_helper.h \
+-                                        net/test/node_ping.h \
+-                                        net/test/node_stub.h \
+-                                        net/test/ringbuf.h \
+-                                        net/test/serialize.h \
+-                                        net/test/service.h \
+-                                        net/test/slist.h \
+-                                        net/test/stats.h \
+-                                        net/test/str.h \
+-                                        net/test/user_space/stats_u.c \
+-                                        net/test/user_space/stats_u.h
++					net/test/console.c \
++					net/test/initfini.c \
++					net/test/network.c \
++					net/test/node.c \
++					net/test/node_bulk.c \
++					net/test/node_helper.c \
++					net/test/node_ping.c \
++					net/test/node_stub.c \
++					net/test/ringbuf.c \
++					net/test/serialize.c \
++					net/test/service.c \
++					net/test/slist.c \
++					net/test/stats.c \
++					net/test/str.c \
++					net/test/commands.h \
++					net/test/console.h \
++					net/test/debug.h \
++					net/test/initfini.h \
++					net/test/network.h \
++					net/test/node.h \
++					net/test/node_bulk.h \
++					net/test/node_helper.h \
++					net/test/node_ping.h \
++					net/test/node_stub.h \
++					net/test/ringbuf.h \
++					net/test/serialize.h \
++					net/test/service.h \
++					net/test/slist.h \
++					net/test/stats.h \
++					net/test/str.h \
++					net/test/user_space/stats_u.c \
++					net/test/user_space/stats_u.h
+ 
+ EXTRA_DIST += net/test/test-user.sh.in \
+-              net/test/linux_kernel/node_k.c
++	      net/test/linux_kernel/node_k.c
+diff --git a/net/test/user_space/Makefile.sub b/net/test/user_space/Makefile.sub
+index 4775fb4..405fd5a 100644
+--- a/net/test/user_space/Makefile.sub
++++ b/net/test/user_space/Makefile.sub
+@@ -1,7 +1,7 @@
+ net_test_user_space_m0netperf_SOURCES  = net/test/user_space/common_u.c \
+-                                         net/test/user_space/common_u.h \
+-                                         net/test/user_space/console_u.c
++					 net/test/user_space/common_u.h \
++					 net/test/user_space/console_u.c
+ 
+ net_test_user_space_m0netperfd_SOURCES  = net/test/user_space/common_u.c \
+-                                          net/test/user_space/common_u.h \
+-                                          net/test/user_space/node_u.c
++					  net/test/user_space/common_u.h \
++					  net/test/user_space/node_u.c
+diff --git a/net/test/ut/Makefile.sub b/net/test/ut/Makefile.sub
+index 8cbfd6c..b4bbe8c 100644
+--- a/net/test/ut/Makefile.sub
++++ b/net/test/ut/Makefile.sub
+@@ -1,10 +1,10 @@
+ ut_libmero_ut_la_SOURCES += net/test/ut/client_server.c \
+-                               net/test/ut/commands.c \
+-                               net/test/ut/main.c \
+-                               net/test/ut/network.c \
+-                               net/test/ut/ringbuf.c \
+-                               net/test/ut/serialize.c \
+-                               net/test/ut/service.c \
+-                               net/test/ut/slist.c \
+-                               net/test/ut/stats.c \
+-                               net/test/ut/str.c
++			    net/test/ut/commands.c \
++			    net/test/ut/main.c \
++			    net/test/ut/network.c \
++			    net/test/ut/ringbuf.c \
++			    net/test/ut/serialize.c \
++			    net/test/ut/service.c \
++			    net/test/ut/slist.c \
++			    net/test/ut/stats.c \
++			    net/test/ut/str.c
+-- 
+1.8.3.2
+

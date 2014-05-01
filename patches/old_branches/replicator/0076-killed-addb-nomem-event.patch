@@ -1,0 +1,281 @@
+From 6e9664e47ea982e7596cffff4da09dc9ca03b37f Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 22 Apr 2011 06:48:28 -0600
+Subject: [PATCH 076/177] - killed addb nomem event; - make
+ cob_make_nskey_max() static and remove c2_ prefix; - fixed linkno number
+ assigning in c2_cob_add_name(). Idea is that, linkno should be unique, it is
+ not neccesarily shouuld be reused. To implement this, cnr_cntr is added to
+ stat data nsrec. This field is simple 32 bit counter for linkno and gets
+ bumped on every new hard link for a file. This approach is better than
+ looking for ~0 linkno in a file as it saves at least 2 lookups in cost of
+ storing additional 8 bytes (32 bit counter and 32 bit padding.); - cleanups
+ in cob/ut/*.c - changed site/Makefile position in configure as requested by
+ inspector.
+
+---
+ addb/addb.h  |  3 +--
+ cob/cob.c    | 51 +++++++++++++++++++++++++--------------------------
+ cob/cob.h    |  2 ++
+ cob/ut/cob.c | 22 ++++++----------------
+ configure.ac |  2 +-
+ 5 files changed, 35 insertions(+), 45 deletions(-)
+
+diff --git a/addb/addb.h b/addb/addb.h
+index ebe61ad..e579c39 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -193,8 +193,7 @@ enum c2_addb_event_id {
+ 	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
+ 
+ 	C2_ADDB_EVENT_EXIST                 = 0x21ULL,
+-	C2_ADDB_EVENT_NOENT                 = 0x22ULL,
+-	C2_ADDB_EVENT_NOMEM                 = 0x23ULL,
++	C2_ADDB_EVENT_NOENT                 = 0x22ULL
+ };
+ 
+ /**
+diff --git a/cob/cob.c b/cob/cob.c
+index 7ea8af3..2c294d3 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -75,10 +75,10 @@ int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
+    Make nskey for iterator. Allocate space for max possible name
+    but put real string len into the struct.
+ */
+-void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh, 
+-                           const struct c2_fid *pfid,
+-                           const char *name, 
+-                           int namelen)
++static void cob_make_nskey_max(struct c2_cob_nskey **keyh, 
++                               const struct c2_fid *pfid,
++                               const char *name, 
++                               int namelen)
+ {
+         static const char max_name_placeholder[NAME_MAX];
+         return c2_cob_make_nskey(keyh, pfid, max_name_placeholder, 
+@@ -90,7 +90,7 @@ void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh,
+    and want to allocate it for worst case scenario, that is, for max 
+    possible name len.
+  */
+-static int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
++static int cob_nskey_size_max(const struct c2_cob_nskey *cnk)
+ {
+         return sizeof(*cnk) + NAME_MAX;
+ }
+@@ -609,13 +609,13 @@ int c2_cob_iterator_init(struct c2_cob *cob, struct c2_cob_iterator *it,
+         /*
+          * Prepare entry key using passed started pos.
+          */
+-        c2_cob_make_nskey_max(&it->ci_key, cob->co_fid, name, namelen);
++        cob_make_nskey_max(&it->ci_key, cob->co_fid, name, namelen);
+ 
+         /*
+          * Init iterator cursor with max possible key size.
+          */
+         c2_db_pair_setup(&it->ci_pair, &cob->co_dom->cd_namespace,
+-			 it->ci_key, c2_cob_nskey_size_max(it->ci_key), 
++			 it->ci_key, cob_nskey_size_max(it->ci_key), 
+ 			 &it->ci_rec, sizeof it->ci_rec);
+ 
+         rc = c2_db_cursor_init(&it->ci_cursor, 
+@@ -945,6 +945,7 @@ out:
+                     c2_addb_func_fail, "cob_update", rc);
+         return rc;
+ }
++
+ /**
+    Add name to namespace and object index.
+       
+@@ -956,10 +957,10 @@ int c2_cob_add_name(struct c2_cob        *cob,
+                     struct c2_cob_nskey  *nskey,
+                     struct c2_db_tx      *tx)
+ {
+-        struct c2_cob_oikey oikey;
+-        struct c2_db_pair   pair;
+-        struct c2_cob_nsrec nsrec;
+-	int                 rc;
++        struct c2_cob_oikey  oikey;
++        struct c2_db_pair    pair;
++        struct c2_cob_nsrec  nsrec;
++	int                  rc;
+ 
+         C2_PRE(cob != NULL);
+         C2_PRE(nskey != NULL);
+@@ -967,23 +968,12 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         C2_PRE(c2_cob_is_valid(cob));
+ 
+         /*
+-         * This is nsrec or newly created namespace name. Let's copy
+-         * stat data rec to it and adjust it later.
+-         */
+-        nsrec = cob->co_nsrec;
+-
+-        /*
+-         * Linkno for new name is number of links in statdata.
+-         */
+-        nsrec.cnr_linkno = nsrec.cnr_nlink;
+-
+-        oikey.cok_fid = nsrec.cnr_fid;
+-        oikey.cok_linkno = nsrec.cnr_nlink;
+-
+-        /*
+          * Add new name to object index table. Table insert should fail
+          * if name already exists. 
+          */
++        oikey.cok_fid = cob->co_nsrec.cnr_fid;
++        oikey.cok_linkno = cob->co_nsrec.cnr_cntr;
++
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
+ 			 &oikey, sizeof oikey, nskey, 
+ 			 c2_cob_nskey_size(nskey));
+@@ -996,9 +986,13 @@ int c2_cob_add_name(struct c2_cob        *cob,
+ 
+         /*
+          * Add to namespace table. Content of ->co_nsrec is not important
+-         * with only exception for stobid and linkno. Meaningful statdata
++         * with only exception for fid and linkno. Meaningful statdata
+          * is stored in "zero" namespace entry.
+          */
++        C2_SET0(&nsrec);
++        nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
++        nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
++
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+ 			 nskey, c2_cob_nskey_size(nskey),
+ 			 &nsrec, sizeof nsrec);
+@@ -1006,6 +1000,11 @@ int c2_cob_add_name(struct c2_cob        *cob,
+         rc = c2_table_insert(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
++	
++	/*
++	 * Bump nlink counter. Will be updated on store by upper layer.
++	 */
++        cob->co_nsrec.cnr_cntr++;
+ out_free:
+         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+                     c2_addb_func_fail, "cob_add_name", rc);
+diff --git a/cob/cob.h b/cob/cob.h
+index 4578f57..a6eb276 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -206,6 +206,8 @@ struct c2_cob_nsrec {
+         struct c2_fid     cnr_fid;     /**< object fid */
+         uint32_t          cnr_linkno;  /**< number of link for the name */
+         uint32_t          cnr_nlink;   /**< number of hard links. */
++        uint32_t          cnr_cntr;    /**< linkno allocation counter. */
++        uint32_t          cnr_padding0;
+         uint64_t          cnr_ino;     /**< inode number. */
+         uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
+ 
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index 9ed2ed6..d061f01 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -9,6 +9,8 @@
+ 
+ static const char db_name[] = "ut-cob";
+ static const char test_name[] = "hello_world";
++static const char add_name[] = "add_name";
++static const char wrong_name[] = "wrong_name";
+ 
+ static struct c2_dbenv       db;
+ static struct c2_cob_domain  dom;
+@@ -89,26 +91,21 @@ static void test_add_name(void)
+         struct c2_cob_nskey *key;
+         struct c2_fid        pfid;
+         struct c2_db_tx      tx;
+-        char                 add_name[] = "add name";
+-        char                 wrong_name[] = "wrong name";
+ 
+         /* pfid, filename */
+         pfid.f_container = 0x123;
+         pfid.f_key = 0x456;
+-        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+ 
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+ 
+         /* lookup for cob created before using @test_name. */
++        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+         rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
+         C2_UT_ASSERT(rc == 0);
+         c2_free(key);
+ 
+         /* add new name to existing cob */
+-        pfid.f_container = 0x123;
+-        pfid.f_key = 0x456;
+         c2_cob_make_nskey(&key, &pfid, add_name, strlen(add_name));
+-
+         rc = c2_cob_add_name(cob, key, &tx);
+         C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
+@@ -119,11 +116,8 @@ static void test_add_name(void)
+         c2_cob_put(cob);
+         c2_free(key);
+ 
+-        pfid.f_container = 0x123;
+-        pfid.f_key = 0x456;
+-        c2_cob_make_nskey(&key, &pfid, wrong_name, strlen(wrong_name));
+-
+         /* lookup for wrong name, should fail. */
++        c2_cob_make_nskey(&key, &pfid, wrong_name, strlen(wrong_name));
+         rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
+         C2_UT_ASSERT(rc != 0);
+         c2_free(key);
+@@ -139,25 +133,21 @@ static void test_del_name(void)
+         struct c2_cob_nskey *key;
+         struct c2_fid        pfid;
+         struct c2_db_tx      tx;
+-        char                 add_name[] = "add name";
+ 
+         /* pfid, filename */
+         pfid.f_container = 0x123;
+         pfid.f_key = 0x456;
+-        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+ 
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+ 
+         /* lookup for cob created before using @test_name. */
++        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+         rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
+         C2_UT_ASSERT(rc == 0);
+         c2_free(key);
+ 
+         /* del name that we created in prev test */
+-        pfid.f_container = 0x123;
+-        pfid.f_key = 0x456;
+         c2_cob_make_nskey(&key, &pfid, add_name, strlen(add_name));
+-
+         rc = c2_cob_del_name(cob, key, &tx);
+         C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
+@@ -247,7 +237,7 @@ static void test_delete(void)
+ 
+         /* gets ref */
+         rc = test_locate_internal();
+-        C2_UT_ASSERT(rc == 0);
++        C2_ASSERT(rc == 0);
+ 
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+         /* drops ref */
+diff --git a/configure.ac b/configure.ac
+index 2ad3d2d..4b15fee 100755
+--- a/configure.ac
++++ b/configure.ac
+@@ -526,12 +526,12 @@ AC_CONFIG_FILES([
+                  patches/Makefile
+                  pool/Makefile
+                  reqh/Makefile
++                 site/Makefile
+                  sm/Makefile
+                  sns/Makefile
+                  sns/ut/Makefile
+                  stob/Makefile
+                  stob/ut/Makefile
+-                 site/Makefile
+                  mdstore/Makefile
+                  mdstore/ut/Makefile
+                  iostore/Makefile
+-- 
+1.8.3.2
+

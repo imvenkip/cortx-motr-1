@@ -1,0 +1,122 @@
+From 2e37bc9904f7aca871fa1f1f8693056aa304f756 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 19 Nov 2012 17:34:57 +0200
+Subject: [PATCH 05/71] removed DONE markers from net-test DLD
+
+---
+ net/test/node.c | 44 ++++++++++++++++++++++----------------------
+ 1 file changed, 22 insertions(+), 22 deletions(-)
+
+diff --git a/net/test/node.c b/net/test/node.c
+index 47646d3..cf98d5b 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -362,21 +362,21 @@ finished.up();\l", shape=box];
+ 
+    Bulk buffer pair state transitions
+    - UNUSED -> QUEUED
+-     - client_process_unused_bulk() -- DONE
++     - client_process_unused_bulk()
+        - add bulk buffer to passive bulk send queue, then add
+          another bulk buffer in pair to passive recv queue
+    - QUEUED -> BD_SENT
+-     - client_process_queued_bulk() -- DONE
++     - client_process_queued_bulk()
+        - send msg buffer with bulk buffer descriptors
+    - QUEUED -> FAILED
+-     - client_process_unused_bulk() -- DONE
++     - client_process_unused_bulk()
+        - addition to passive send queue failed
+    - QUEUED -> FAILED1
+-     - client_process_unused_bulk() -- DONE
++     - client_process_unused_bulk()
+        - addition to passive recv queue failed
+          - remove from passive send queue already queued buffer
+    - QUEUED -> FAILED2
+-     - client_process_queued_bulk() -- DONE
++     - client_process_queued_bulk()
+        - bulk buffer network descriptors to ping buffer encoding failed
+          - dequeue already queued bulk buffers
+        - addition msg with bulk buffer descriptors to network queue failed
+@@ -384,21 +384,21 @@ finished.up();\l", shape=box];
+    - BD_SENT -> CB_LEFT2
+    - CB_LEFT2 -> CB_LEFT1
+    - CB_LEFT1 -> TRANSFERRED
+-     - network buffer callback -- DONE
++     - network buffer callback
+        - ev->nbe_status == 0
+    - BD_SENT -> FAILED2
+    - CB_LEFT2 -> FAILED1
+    - CB_LEFT1 -> FAILED
+-     - network buffer callback -- DONE
++     - network buffer callback
+        - ev->nbe_status != 0
+    - FAILED2 -> FAILED1
+    - FAILED1 -> FAILED
+-     - network buffer callback -- DONE
++     - network buffer callback
+    - TRANSFERRED -> UNUSED
+-     - node_bulk_state_transition_auto_all() -- DONE
++     - node_bulk_state_transition_auto_all()
+        - stats: increase total number of number messages
+    - FAILED -> UNUSED
+-     - node_bulk_state_transition_auto_all() -- DONE
++     - node_bulk_state_transition_auto_all()
+        - stats: increase total number of test messages and
+          number of failed messages
+ 
+@@ -471,39 +471,39 @@ finished.up();\l", shape=box];
+    Bulk buffer state transitions
+ 
+    - UNUSED -> BD_RECEIVED
+-     - C2_NET_QT_MSG_RECV callback -- DONE
++     - C2_NET_QT_MSG_RECV callback
+        - message with buffer decriptors was received from the test client
+    - BD_RECEIVED -> BADMSG
+-     - C2_NET_QT_MSG_RECV callback -- DONE
++     - C2_NET_QT_MSG_RECV callback
+        - message with buffer decscriptors contains invalid data
+    - BD_RECEIVED -> RECEIVING
+-     - C2_NET_QT_MSG_RECV callback -- DONE
++     - C2_NET_QT_MSG_RECV callback
+        - bulk buffer was successfully added to active bulk receive queue.
+    - RECEIVING -> SENDING
+-     - C2_NET_QT_ACTIVE_BULK_RECV callback -- DONE
++     - C2_NET_QT_ACTIVE_BULK_RECV callback
+        - bulk buffer was successfully received from the test client.
+    - RECEIVING -> FAILED
+-     - C2_NET_QT_MSG_RECV callback -- DONE
++     - C2_NET_QT_MSG_RECV callback
+        - addition to the active bulk receive queue failed.
+-     - C2_NET_QT_ACTIVE_BULK_RECV callback -- DONE
++     - C2_NET_QT_ACTIVE_BULK_RECV callback
+        - bulk buffer receiving failed.
+    - SENDING -> TRANSFERRED
+-     - C2_NET_QT_ACTIVE_BULK_SEND callback -- DONE
++     - C2_NET_QT_ACTIVE_BULK_SEND callback
+        - bulk buffer was successfully sent to the test client.
+    - SENDING -> FAILED
+-     - C2_NET_QT_ACTIVE_BULK_RECV callback -- DONE
++     - C2_NET_QT_ACTIVE_BULK_RECV callback
+        - addition to the active bulk send queue failed.
+-     - C2_NET_QT_ACTIVE_BULK_SEND callback -- DONE
++     - C2_NET_QT_ACTIVE_BULK_SEND callback
+        - active bulk sending failed.
+    - TRANSFERRED -> UNUSED
+-     - node_bulk_state_transition_auto_all() -- DONE
++     - node_bulk_state_transition_auto_all()
+        - stats: increase total number of number messages
+    - FAILED -> UNUSED
+-     - node_bulk_state_transition_auto_all() -- DONE
++     - node_bulk_state_transition_auto_all()
+        - stats: increase total number of test messages and
+          number of failed messages
+    - BADMSG -> UNUSED
+-     - node_bulk_state_transition_auto_all() -- DONE
++     - node_bulk_state_transition_auto_all()
+        - stats: increase total number of test messages and
+          number of bad messages
+ 
+-- 
+1.8.3.2
+

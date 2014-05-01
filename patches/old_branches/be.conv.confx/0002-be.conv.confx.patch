@@ -1,0 +1,866 @@
+From acd30dda55adf40bce6917b0c61ba077b879b598 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Mon, 24 Feb 2014 19:35:31 +0530
+Subject: [PATCH 2/4] be.conv.confx,
+
+- Modify m0_confstr_parse to build configuration object in BE segment memory
+  from string.
+- Support for building configuration objects into BE segment memory as well
+  as general main memory (for confc).
+- Remove BE dependancy from m0_xcode_be_dup(), make it a generic xcode function.
+  Rename m0_xcode_be_dup() -> m0_xcode_dup(). Add UT test case for the same.
+- Remove conf/db.c (not needed anymore.
+---
+ conf/Makefile.sub |   1 -
+ conf/db.c         | 384 ------------------------------------------------------
+ conf/preload.c    |  43 ++----
+ conf/ut/db.c      |  48 ++-----
+ xcode/string.c    |   4 +-
+ xcode/ut/xcode.c  |  29 +++++
+ xcode/xcode.c     |  58 +++------
+ xcode/xcode.h     |   5 +-
+ 8 files changed, 73 insertions(+), 499 deletions(-)
+
+diff --git a/conf/Makefile.sub b/conf/Makefile.sub
+index e413118..c1579b2 100644
+--- a/conf/Makefile.sub
++++ b/conf/Makefile.sub
+@@ -20,7 +20,6 @@ mero_libmero_la_SOURCES += \
+                            conf/confc.c \
+                            conf/confd.c \
+                            conf/confd_fom.c \
+-                           conf/db.c \
+                            conf/fop.c \
+                            conf/obj.c \
+                            conf/obj_ops.c \
+diff --git a/conf/db.c b/conf/db.c
+index 5d50eee..d6a0de6 100644
+--- a/conf/db.c
++++ b/conf/db.c
+@@ -35,19 +35,6 @@
+ #include "lib/errno.h"       /* EINVAL */
+ #include "lib/misc.h"        /* M0_SET0 */
+ 
+-static int
+-confdb_objs_count(struct m0_be_btree *btrees[], size_t *result);
+-
+-/* ------------------------------------------------------------------
+- * xcoding: m0_confx_obj <--> raw buffer
+- * ------------------------------------------------------------------ */
+-
+-static void *
+-_conf_xcode_alloc(struct m0_xcode_cursor *ctx M0_UNUSED, size_t nob)
+-{
+-	return m0_alloc(nob);
+-}
+-
+ static enum m0_conf_objtype xobj_type(const struct m0_confx_obj *xobj)
+ {
+ 	uint32_t t = xobj->o_conf.u_type;
+@@ -140,377 +127,6 @@ enum {
+ 		CONFDB_SDEVS_MAX + CONFDB_PART_MAX)
+ };
+ 
+-/** XXX DOCUMENTME */
+-struct confdb_key {
+-	uint8_t cdk_len;
+-	char    cdk_key[CONFDB_UUID_SIZE];
+-};
+-
+-static int
+-confdb_key_cmp(const void *key0, const void *key1)
+-{
+-	const struct confdb_key *k0 = key0;
+-	const struct confdb_key *k1 = key1;
+-
+-	return memcmp(k0->cdk_key, k1->cdk_key,
+-		      min_check(k0->cdk_len, k1->cdk_len));
+-}
+-
+-static m0_bcount_t confdb_ksize(const void *key)
+-{
+-	return sizeof(struct confdb_key);
+-}
+-
+-static m0_bcount_t confdb_vsize(const void *val)
+-{
+-	return sizeof(struct m0_confx_u);
+-}
+-
+-static const struct m0_be_btree_kv_ops confdb_ops = {
+-	.ko_ksize   = confdb_ksize,
+-	.ko_vsize   = confdb_vsize,
+-	.ko_compare = confdb_key_cmp
+-};
+-
+-/**
+- * Database representation of a configuration object.
+- *
+- * confdb_obj can be stored in a database.
+- */
+-struct confdb_obj {
+-	struct m0_buf do_key; /*< Object identifier. */
+-	struct m0_buf do_rec; /*< Object fields. */
+-};
+-
+-static void confx_to_dbkey(struct m0_confx_obj *src, struct confdb_key *key)
+-{
+-	key->cdk_len = src->o_id.b_nob;
+-	memcpy(key->cdk_key, src->o_id.b_addr, key->cdk_len);
+-}
+-
+-/**
+- * Encodes m0_confx_obj into the corresponding database representation.
+- *
+- * If the call succeeds, the user is responsible for freeing allocated memory:
+- * @code
+- *         m0_buf_free(&dest->do_rec);
+- * @endcode
+- *
+- * @note  xcode API doesn't let `src' to be const.
+- */
+-static void confx_to_db(struct m0_confx_obj *src, struct confdb_key *key,
+-			struct confdb_obj *dest)
+-{
+-	M0_ENTRY();
+-
+-	m0_buf_init(&dest->do_key, key, sizeof(struct confdb_key));
+-	m0_buf_init(&dest->do_rec, &src->o_conf, sizeof(struct m0_confx_u));
+-}
+-
+-/**
+- * Decodes m0_confx_obj from its database representation.
+- *
+- * @note  XXX User is responsible for freeing `dest' array with
+- *        m0_confx_free().
+- */
+-static int confx_from_db(struct m0_confx_obj *dest, enum m0_conf_objtype type,
+-			 struct confdb_obj *src)
+-{
+-	struct confdb_key *key;
+-	struct m0_buf         buf;
+-	int                   rc;
+-	M0_ENTRY();
+-	M0_PRE(M0_CO_DIR < type && type < M0_CO_NR);
+-
+-	M0_SET0(&dest->o_id); /* to satisfy the precondition of m0_buf_copy() */
+-	key = (struct confdb_key *)src->do_key.b_addr;
+-	m0_buf_init(&buf, key->cdk_key, key->cdk_len);
+-	rc = m0_buf_copy(&dest->o_id, &buf);
+-	if (rc == 0)
+-		dest->o_conf = *(struct m0_confx_u *)src->do_rec.b_addr;
+-
+-	M0_RETURN(rc);
+-}
+-
+-/* ------------------------------------------------------------------
+- * Tables
+- * ------------------------------------------------------------------ */
+-/* XXX Consider using "The X macro":
+- * http://www.drdobbs.com/cpp/the-x-macro/228700289 */
+-
+-static const char *table_names[] = {
+-	[M0_CO_DIR]        = NULL,
+-	[M0_CO_PROFILE]    = "profile",
+-	[M0_CO_FILESYSTEM] = "filesystem",
+-	[M0_CO_SERVICE]    = "service",
+-	[M0_CO_NODE]       = "node",
+-	[M0_CO_NIC]        = "nic",
+-	[M0_CO_SDEV]       = "sdev",
+-	[M0_CO_PARTITION]  = "partition"
+-};
+-M0_BASSERT(ARRAY_SIZE(table_names) == M0_CO_NR);
+-
+-static void confdb_tables_fini(struct m0_be_seg *seg)
+-{
+-	struct m0_be_btree *btree;
+-	int                 i;
+-	int                 rc;
+-
+-	M0_ENTRY();
+-
+-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
+-		if (table_names[i] == NULL)
+-			continue;
+-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+-					   (void **)&btree);
+-		if (rc == 0)
+-			m0_be_btree_fini(btree);
+-	}
+-
+-	M0_LEAVE();
+-}
+-
+-static int
+-confdb_tables_init(struct m0_be_seg *seg, struct m0_be_btree *btrees[],
+-		   struct m0_be_tx *tx)
+-{
+-	int                 i;
+-	int                 rc = 0;
+-
+-	M0_ENTRY();
+-
+-	for (i = 0; i < M0_CO_NR; ++i) {
+-		if (table_names[i] == NULL)
+-			continue;
+-		M0_BE_ALLOC_PTR_SYNC(btrees[i], seg, tx);
+-		m0_be_btree_init(btrees[i], seg, &confdb_ops);
+-		M0_BE_OP_SYNC(op, m0_be_btree_create(btrees[i], tx, &op));
+-		rc = m0_be_seg_dict_insert(seg, tx, table_names[i], btrees[i]);
+-		if (rc != 0)
+-			break;
+-	}
+-
+-	if (M0_FI_ENABLED("ut_confdb_create_failure"))
+-		rc = -EINVAL;
+-	if (rc != 0) {
+-		confdb_tables_fini(seg);
+-		m0_confdb_destroy(seg, tx);
+-	}
+-
+-	M0_RETURN(rc);
+-}
+-
+-/* ------------------------------------------------------------------
+- * Database operations
+- * ------------------------------------------------------------------ */
+-static int confx_obj_dup(struct m0_confx_obj *dest, struct m0_confx_obj *src,
+-			 struct m0_be_seg *seg, struct m0_be_tx *tx)
+-{
+-	struct m0_xcode_obj    src_obj;
+-	struct m0_xcode_obj    dest_obj;
+-	int                    rc;
+-
+-	M0_BE_ALLOC_ARR_SYNC(dest->o_id.b_addr, src->o_id.b_nob, seg, tx);
+-	dest->o_id.b_nob = src->o_id.b_nob;
+-	memcpy(dest->o_id.b_addr, src->o_id.b_addr, src->o_id.b_nob);
+-	dest->o_conf.u_type = src->o_conf.u_type;
+-	rc = confx_to_xcode_obj(dest, &dest_obj, false) ?:
+-		confx_to_xcode_obj(src, &src_obj, false);
+-	if (M0_FI_ENABLED("ut_confx_obj_dup_failure"))
+-		rc = -EINVAL;
+-	if (rc == 0)
+-		rc = m0_xcode_be_dup(&dest_obj, &src_obj, seg, tx);
+-
+-	return rc;
+-}
+-
+-M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
+-					const struct m0_confx *conf,
+-					struct m0_be_tx_credit *accum)
+-{
+-	struct m0_be_btree   btree = { .bb_seg = seg };
+-	m0_bcount_t          len;
+-	m0_bcount_t          ksize;
+-	struct m0_confx_obj *obj;
+-	int                  rc;
+-	int                  i;
+-
+-	m0_be_btree_create_credit(&btree, ARRAY_SIZE(table_names), accum);
+-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
+-		if (table_names[i] == NULL)
+-			continue;
+-		M0_BE_ALLOC_CREDIT_PTR(&btree, seg, accum);
+-		m0_be_seg_dict_insert_credit(seg, table_names[i], accum);
+-	}
+-
+-	for (i = 0; i < conf->cx_nr; ++i) {
+-		obj = &conf->cx_objs[i];
+-		M0_ASSERT(IS_IN_ARRAY(xobj_type(obj), table_names));
+-		rc = confx_obj_measure(obj, &len);
+-		if (rc != 0)
+-			M0_RETURN(rc);
+-		len += sizeof(obj->o_conf.u_type);
+-		ksize = sizeof(struct confdb_key);
+-		m0_be_btree_insert_credit(&btree, 1, ksize, len, accum);
+-	}
+-
+-	M0_LOG(M0_FATAL, "total credits: %lu", (unsigned long)accum->tc_reg_size);
+-	M0_RETURN(0);
+-}
+-
+-M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
+-					 struct m0_be_tx_credit *accum)
+-{
+-	struct m0_be_btree *btree;
+-	int                 i;
+-	int                 rc = 0;
+-
+-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
+-		if (table_names[i] == NULL)
+-			continue;
+-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+-					   (void **)&btree);
+-		if (rc != 0)
+-			M0_RETURN(rc);
+-		m0_be_btree_destroy_credit(btree, 1, accum);
+-		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
+-	}
+-
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
+-{
+-	struct m0_be_btree     *btree;
+-	int                     i;
+-	int                     rc = 0;
+-
+-	/*
+-	 * FIXME: Does not free the internal be objects allocated during
+-	 *        confdb_create as part of xcode_dup operation.
+-	 */
+-
+-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
+-		if (table_names[i] == NULL)
+-			continue;
+-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+-					   (void **)&btree);
+-		if (rc != 0)
+-			M0_RETURN(rc);
+-		M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
+-		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
+-		rc = m0_be_seg_dict_delete(seg, tx, table_names[i]);
+-		if (rc != 0)
+-			M0_RETURN(rc);
+-	}
+-
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
+-{
+-	confdb_tables_fini(seg);
+-}
+-
+-M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+-				 const struct m0_confx *conf)
+-{
+-	struct m0_be_btree  *btrees[ARRAY_SIZE(table_names)];
+-	struct m0_be_btree  *btree;
+-	struct m0_confx_obj *confx_objs;
+-	struct confdb_key    db_key;
+-	struct confdb_obj    db_obj;
+-	m0_bcount_t          nr_objs;
+-	int                  i;
+-	int                  rc;
+-
+-	M0_ENTRY();
+-	M0_PRE(conf->cx_nr > 0);
+-
+-	rc = confdb_tables_init(seg, btrees, tx);
+-	if (rc != 0)
+-		return rc;
+-	M0_ALLOC_ARR(confx_objs, conf->cx_nr);
+-	for (i = 0; i < conf->cx_nr && rc == 0; ++i) {
+-		M0_ASSERT(IS_IN_ARRAY(xobj_type(&conf->cx_objs[i]),
+-				      table_names));
+-		rc = confx_obj_dup(&confx_objs[i], &conf->cx_objs[i], seg, tx);
+-		if (rc != 0)
+-			break;
+-		M0_SET0(&db_obj);
+-		confx_to_dbkey(&confx_objs[i], &db_key);
+-		confx_to_db(&confx_objs[i], &db_key, &db_obj);
+-		btree = btrees[xobj_type(&conf->cx_objs[i])];
+-		M0_BE_OP_SYNC(op, m0_be_btree_insert(btree, tx, &op,
+-						     &db_obj.do_key,
+-						     &db_obj.do_rec));
+-	}
+-	if (rc == 0) {
+-		rc = confdb_objs_count(btrees, &nr_objs);
+-		M0_ASSERT(rc == 0);
+-	}
+-	if (rc !=0) {
+-		confdb_tables_fini(seg);
+-		m0_confdb_destroy(seg, tx);
+-	}
+-	m0_free(confx_objs);
+-	M0_RETURN(rc);
+-}
+-
+-/* XXX FIXME: Other functions receive both `tables' and the number of tables.
+- * confdb_objs_count() shouldn't be different. */
+-static int
+-confdb_objs_count(struct m0_be_btree *btrees[], size_t *result)
+-{
+-	struct m0_be_btree_cursor  bcur;
+-	int                        t;
+-	int                        rc;
+-
+-	M0_ENTRY();
+-
+-	/* Too large to be allocated on stack. */
+-	*result = 0;
+-	for (t = M0_CO_PROFILE; t < M0_CO_NR; ++t) {
+-		m0_be_btree_cursor_init(&bcur, btrees[t]);
+-		for (rc = m0_be_btree_cursor_first_sync(&bcur); rc == 0;
+-		     rc = m0_be_btree_cursor_next_sync(&bcur)) {
+-			++*result;
+-		}
+-		m0_be_btree_cursor_fini(&bcur);
+-		/* Make sure we are at the end of the table. */
+-		M0_ASSERT(rc == -ENOENT);
+-		rc = 0;
+-	}
+-
+-	M0_RETURN(rc);
+-}
+-
+-static struct m0_confx *confx_alloc(size_t nr_objs)
+-{
+-	struct m0_confx *ret;
+-
+-	M0_PRE(nr_objs > 0);
+-
+-	M0_ALLOC_PTR(ret);
+-	if (ret == NULL)
+-		return NULL;
+-
+-	M0_ALLOC_ARR(ret->cx_objs, nr_objs);
+-	if (ret->cx_objs == NULL) {
+-		m0_free(ret);
+-		return NULL;
+-	}
+-
+-	ret->cx_nr = nr_objs;
+-	return ret;
+-}
+-
+-static void confx_free(struct m0_confx *enc)
+-{
+-	m0_free(enc->cx_objs);
+-	m0_free(enc);
+-}
+-
+ static int
+ confx_fill(struct m0_confx *dest, struct m0_be_btree *btrees[])
+ {
+diff --git a/conf/preload.c b/conf/preload.c
+index e80c1d1..82eaa1f 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -34,12 +34,9 @@
+ #include "be/tx_credit.h"
+ #include "be/alloc.h"
+ #include "be/op.h"
+-#ifndef __KERNEL__
+-#include <stdio.h>
+-#endif
+ 
+ struct confx_ctx {
+-	void                *cc_ptr;
++	char                *cc_ptr;
+ 	m0_bcount_t          cc_total;
+ 	m0_bcount_t          cc_used;
+ 	struct m0_xcode_ctx  cc_xctx;
+@@ -53,7 +50,7 @@ static void *__confx_ctx_alloc(struct confx_ctx *cctx, size_t nob)
+ 	M0_PRE(cctx->cc_ptr != NULL);
+ 	M0_PRE(cctx->cc_used + nob <= cctx->cc_total);
+ 
+-	addr = (char *)cctx->cc_ptr + cctx->cc_used;
++	addr = cctx->cc_ptr + cctx->cc_used;
+ 	cctx->cc_used += nob;
+ 
+ 	return addr;
+@@ -90,14 +87,12 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg)
+ 			m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
+ 			m0_be_tx_prep(&tx, &cred);
+ 			rc = m0_be_tx_open_sync(&tx);
+-			if (rc != 0) {
+-				M0_LOG(M0_FATAL, "rc: %d", rc);
+-				M0_ASSERT(rc == 0);
+-			}
+-			M0_BE_OP_SYNC(op, m0_be_free(m0_be_seg_allocator(seg), &tx, &op,
+-						     cctx->cc_ptr));
++			M0_ASSERT(rc == 0);
++			M0_BE_FREE_PTR_SYNC(cctx->cc_ptr, seg, &tx);
+ 			m0_be_tx_close_sync(&tx);
++			m0_be_tx_fini(&tx);
+ 			m0_sm_group_unlock(grp);
++			m0_free(cctx);
+ 		}
+ 	}
+ 
+@@ -133,10 +128,7 @@ static size_t confstr_to_obj_size(const char *s)
+ 		conf_objtype_size[0] = 0;
+ 		if (*s == '{') {
+ 			s++;
+-#ifndef __KERNEL__
+ 			sscanf(s, "%u\n", &type);
+-			printf("%u %u\n", type, conf_objtype_size[type]);
+-#endif
+ 			obj_size += conf_objtype_size[type];
+ 		}
+ 		if (*s == '[')
+@@ -145,24 +137,16 @@ static size_t confstr_to_obj_size(const char *s)
+ 			++s;
+ 			memset(buf, 0, 1024);
+ 			slen = 0;
+-#ifndef __KERNEL__
+ 			while (*s != '"') {
+ 				sscanf(s, "%c", &buf[slen]);
+ 				++slen;
+ 				++s;
+ 			}
+-			printf("%d %s\n", slen, buf);
+-#endif
+ 			obj_size += slen;
+ 		}
+-			//M0_LOG(M0_FATAL, "%s", (char *)&s[i]);
+ 		s++;
+-		//memset(buf, 0, 1024);
+-		//str += result;
+ 	}
+ 
+-	//if (obj_size != 0)
+-	//	obj_size += sizeof(struct m0_confx);
+ 	return obj_size;
+ }
+ 
+@@ -177,8 +161,7 @@ static int confstr_ctx_init(struct confx_ctx *cctx, const char *s,
+ 
+ 	obj_size = confstr_to_obj_size(s);
+ 	if (obj_size == 0)
+-		return -EINVAL;
+-	M0_LOG(M0_FATAL, "obj_size: %lu", obj_size);
++		return -ENOENT;
+ 	m0_be_allocator_credit(m0_be_seg_allocator(seg), M0_BAO_ALLOC,
+ 			       obj_size, 0, &cred);
+ 	m0_sm_group_lock(grp);
+@@ -186,14 +169,13 @@ static int confstr_ctx_init(struct confx_ctx *cctx, const char *s,
+ 	m0_be_tx_prep(&tx, &cred);
+ 	rc = m0_be_tx_open_sync(&tx);
+ 	if (rc != 0) {
+-		M0_LOG(M0_FATAL, "rc: %d", rc);
+ 		M0_ASSERT(rc == 0);
+ 		M0_RETURN(rc);
+ 	}
+-	M0_BE_OP_SYNC(op, m0_be_alloc(m0_be_seg_allocator(seg), &tx, &op,
+-		      &cctx->cc_ptr, obj_size));
++	M0_BE_ALLOC_ARR_SYNC(cctx->cc_ptr, obj_size, seg, &tx);
+ 	M0_ASSERT(cctx->cc_ptr != NULL);
+ 	m0_be_tx_close_sync(&tx);
++	m0_be_tx_fini(&tx);
+ 	m0_sm_group_unlock(grp);
+ 	if (cctx->cc_ptr == NULL)
+ 		return -ENOMEM;
+@@ -224,8 +206,8 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_be_seg *seg,
+ 			M0_RETURN(rc);
+ 		}
+ 		xctx = &cctx->cc_xctx;
+-		*out = &cctx->cc_confx;//__confx_ctx_alloc(cctx, sizeof(struct m0_confx));
+-		M0_LOG(M0_FATAL, "confx: %p cctx->cc_ptr: %p", *out, cctx->cc_ptr);
++		M0_SET0(xctx);
++		*out = &cctx->cc_confx;
+ 	} else {
+ 		xctx = &ctx;
+ 		M0_ALLOC_PTR(*out);
+@@ -241,9 +223,6 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_be_seg *seg,
+ 		m0_confx_free(*out, seg);
+ 		*out = NULL;
+ 	}
+-	if (rc == 0)
+-		M0_LOG(M0_FATAL, "total: %lu used: %lu", (unsigned long)cctx->cc_total,
+-			(unsigned long)cctx->cc_used);
+ 	M0_RETURN(rc);
+ }
+ 
+diff --git a/conf/ut/db.c b/conf/ut/db.c
+index 2a77673..92beedc 100644
+--- a/conf/ut/db.c
++++ b/conf/ut/db.c
+@@ -175,6 +175,8 @@ static void conf_ut_db_init()
+ 	struct m0_sm_group     *grp;
+ 	int                     rc;
+ 
++	M0_SET0(&ut_be);
++	M0_SET0(&ut_seg);
+         m0_be_ut_backend_init(&ut_be);
+         m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+         m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+@@ -194,6 +196,7 @@ static void conf_ut_db_fini()
+         m0_be_ut_backend_fini(&ut_be);
+ }
+ 
++/*
+ static int conf_ut_be_tx_create(struct m0_be_tx *tx,
+ 				struct m0_be_ut_backend *ut_be,
+ 				struct m0_be_tx_credit *accum)
+@@ -208,6 +211,8 @@ static void conf_ut_be_tx_fini(struct m0_be_tx *tx)
+         m0_be_tx_close_sync(tx);
+         m0_be_tx_fini(tx);
+ }
++*/
++
+ void test_confstr_parse(void)
+ {
+ 	struct m0_confx        *enc;
+@@ -224,15 +229,12 @@ void test_confstr_parse(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(enc->cx_nr == 8);
+ 	m0_confx_free(enc, seg);
+-	m0_confdb_fini(seg);
++	conf_ut_db_fini();
+ }
+ 
+ void test_confdb(void)
+ {
+ 	struct m0_confx        *enc;
+-	struct m0_confx        *dec;
+-	struct m0_be_tx_credit  accum = {};
+-	struct m0_be_tx         tx = {};
+ 	int                     i;
+ 	int                     rc;
+ 	char                    buf[1024] = {0};
+@@ -242,8 +244,8 @@ void test_confdb(void)
+ 	} tests[] = {
+ 		{ M0_CO_PROFILE,    profile_check     },
+ 		{ M0_CO_FILESYSTEM, filesystem_check  },
+-		{ M0_CO_SERVICE,    io_service_check  },
+ 		{ M0_CO_SERVICE,    md_service_check  },
++		{ M0_CO_SERVICE,    io_service_check  },
+ 		{ M0_CO_NODE,       node_check        },
+ 		{ M0_CO_NIC,        nic_check         },
+ 		{ M0_CO_SDEV,       sdev_check        },
+@@ -258,48 +260,16 @@ void test_confdb(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	rc = m0_confstr_parse("[0]", seg, &enc);
+-	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(enc->cx_nr == 0);
+-	m0_confx_free(enc, seg);
++	M0_UT_ASSERT(rc == -ENOENT);
+ 
+ 	rc = m0_confstr_parse(buf, seg, &enc);
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(enc->cx_nr == 8);
+ 
+-	rc = m0_confdb_create_credit(seg, enc, &accum);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	m0_fi_enable("confdb_tables_init", "ut_confdb_create_failure");
+-	rc = m0_confdb_create(seg, &tx, enc);
+-	M0_UT_ASSERT(rc < 0);
+-	m0_fi_disable("confdb_tables_init", "ut_confdb_create_failure");
+-
+-	m0_fi_enable("confx_obj_dup", "ut_confx_obj_dup_failure");
+-	rc = m0_confdb_create(seg, &tx, enc);
+-	M0_UT_ASSERT(rc < 0);
+-	m0_fi_disable("confx_obj_dup", "ut_confx_obj_dup_failure");
+-
+-	rc = m0_confdb_create(seg, &tx, enc);
+-	M0_UT_ASSERT(rc == 0);
+-	conf_ut_be_tx_fini(&tx);
+-
+-	rc = m0_confdb_read(seg, &dec);
+-	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(enc->cx_nr == ARRAY_SIZE(tests));
+ 	for (i = 0; i < ARRAY_SIZE(tests); ++i)
+-		tests[i].check(&dec->cx_objs[i]);
++		tests[i].check(&enc->cx_objs[i]);
+ 	m0_confx_free(enc, seg);
+-	m0_confdb_fini(seg);
+-	M0_SET0(&accum);
+-	rc = m0_confdb_destroy_credit(seg, &accum);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = m0_confdb_destroy(seg, &tx);
+-        M0_UT_ASSERT(rc == 0);
+-	conf_ut_be_tx_fini(&tx);
+ 	conf_ut_db_fini();
+ 
+ 	cleanup();
+diff --git a/xcode/string.c b/xcode/string.c
+index 8ff882a..a8df82f 100644
+--- a/xcode/string.c
++++ b/xcode/string.c
+@@ -132,8 +132,8 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_ctx *ctx, const char *str)
+ 	M0_CASSERT(sizeof(uint64_t) == sizeof(unsigned long));
+ 	M0_CASSERT(sizeof(uint32_t) == sizeof(unsigned));
+ 
+-	//m0_xcode_cursor_init(&it, obj);
+-
++	if (ctx->xcx_alloc == NULL)
++		ctx->xcx_alloc = m0_xcode_alloc;
+ 	while ((result = m0_xcode_next(it)) > 0) {
+ 		struct m0_xcode_cursor_frame *top  = m0_xcode_cursor_top(it);
+ 		struct m0_xcode_obj          *cur  = &top->s_obj;
+diff --git a/xcode/ut/xcode.c b/xcode/ut/xcode.c
+index bcdcd6c..ee48383 100644
+--- a/xcode/ut/xcode.c
++++ b/xcode/ut/xcode.c
+@@ -580,6 +580,34 @@ static void xcode_cmp_test(void)
+ 
+ #define OBJ(xt, ptr) (&(struct m0_xcode_obj){ .xo_type = (xt), .xo_ptr = (ptr) })
+ 
++static void xcode_dup_test(void)
++{
++	struct un  SU;
++	struct un  DU;
++	struct m0_xcode_ctx sctx;
++	struct m0_xcode_ctx dctx;
++	int    result;
++
++	M0_SET0(&SU);
++	M0_SET0(&DU);
++	M0_SET0(&sctx);
++	M0_SET0(&dctx);
++	m0_xcode_ctx_init(&sctx, OBJ(&xut_un.xt, &SU));
++	result = m0_xcode_read(&sctx, "{1| 42}");
++	M0_UT_ASSERT(result == 0);
++	M0_UT_ASSERT(SU.u_tag == 1);
++	M0_UT_ASSERT(SU.u.u_x == 42);
++	M0_SET0(&sctx);
++	m0_xcode_ctx_init(&sctx, OBJ(&xut_un.xt, &SU));
++	m0_xcode_ctx_init(&dctx, OBJ(&xut_un.xt, &DU));
++	result = m0_xcode_dup(&dctx, &sctx);
++	M0_UT_ASSERT(result == 0);
++	M0_UT_ASSERT(m0_xcode_cmp(OBJ(&xut_un.xt, &SU),
++				  OBJ(&xut_un.xt, &DU)) == 0);
++	M0_UT_ASSERT(DU.u_tag == 1);
++	M0_UT_ASSERT(DU.u.u_x == 42);
++}
++
+ static void xcode_read_test(void)
+ {
+ 	int        result;
+@@ -782,6 +810,7 @@ const struct m0_test_suite xcode_ut = {
+                 { "xcode-opaque", xcode_opaque_test },
+                 { "xcode-decode", xcode_decode_test },
+                 { "xcode-nonstandard", xcode_nonstandard_test },
++		{ "xcode-dup",    xcode_dup_test },
+                 { "xcode-cmp",    xcode_cmp_test },
+ 		{ "xcode-read",   xcode_read_test },
+ 		{ "xcode-find",   xcode_find_test },
+diff --git a/xcode/xcode.c b/xcode/xcode.c
+index b2d2057..82451e4 100644
+--- a/xcode/xcode.c
++++ b/xcode/xcode.c
+@@ -23,8 +23,6 @@
+ #include "lib/errno.h"
+ #include "lib/assert.h"
+ #include "lib/memory.h"
+-#include "be/op.h"
+-#include "be/alloc.h"
+ #include "xcode/xcode.h"
+ 
+ /**
+@@ -399,21 +397,6 @@ M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj)
+ 	}
+ }
+ 
+-static void xcode_be_alloc(struct m0_be_seg *seg, struct m0_be_tx *tx,
+-			   struct m0_xcode_obj *xobj, struct m0_xcode_cursor *it,
+-			   size_t *size)
+-{
+-	void **slot;
+-
+-	M0_PRE(xobj->xo_ptr == NULL);
+-
+-	slot = allocp(it, size);
+-	if (*size != 0 && *slot == NULL) {
+-		M0_BE_ALLOC_ARR_SYNC(*slot, *size, seg, tx);
+-		xobj->xo_ptr = *slot;
+-	}
+-}
+-
+ static bool is_xcode_cursor_at(struct m0_xcode_cursor *it,
+ 			       enum m0_xcode_cursor_flag flag,
+ 			       enum m0_xcode_aggr aggr)
+@@ -437,21 +420,20 @@ static void iff_at_array_xcode_cursor_skip(struct m0_xcode_cursor *it)
+ 	}
+ }
+ 
+-M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
+-				struct m0_xcode_obj *src, struct m0_be_seg *seg,
+-				struct m0_be_tx *tx)
++M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
++			     struct m0_xcode_ctx *src)
+ {
+-	struct m0_xcode_cursor  dit;
+-	struct m0_xcode_cursor  sit;
++	struct m0_xcode_cursor *dit;
++	struct m0_xcode_cursor *sit;
+ 	struct m0_xcode_obj    *src_obj;
+ 	struct m0_xcode_obj    *dest_obj;
+ 	int                     result;
+ 
+-	M0_PRE(dest->xo_type == src->xo_type);
+-
+-	m0_xcode_cursor_init(&sit, src);
+-	m0_xcode_cursor_init(&dit, dest);
+-	while ((result = m0_xcode_next(&sit)) > 0) {
++	sit = &src->xcx_it;
++	dit = &dest->xcx_it;
++	if (dest->xcx_alloc == NULL)
++		dest->xcx_alloc = m0_xcode_alloc;
++	while ((result = m0_xcode_next(sit)) > 0) {
+ 		struct m0_xcode_cursor_frame *sf;
+ 		struct m0_xcode_cursor_frame *df;
+ 		struct m0_xcode_obj          *sobj;
+@@ -459,32 +441,32 @@ M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
+ 		const struct m0_xcode_type   *xt;
+ 		size_t                        nob = 0;
+ 
+-		result = m0_xcode_next(&dit);
++		result = m0_xcode_next(dit);
+ 		M0_ASSERT(result > 0);
+ 
+-		sf = m0_xcode_cursor_top(&sit);
+-		df = m0_xcode_cursor_top(&dit);
++		sf = m0_xcode_cursor_top(sit);
++		df = m0_xcode_cursor_top(dit);
+ 		M0_ASSERT(sf->s_flag == df->s_flag);
+ 		sobj = &sf->s_obj;
+ 		dobj = &df->s_obj;
+ 		xt = sobj->xo_type;
+ 		M0_ASSERT(xt == dobj->xo_type);
+-		if (is_xcode_cursor_at(&sit, M0_XCODE_CURSOR_PRE, M0_XA_ATOM)) {
++		if (is_xcode_cursor_at(sit, M0_XCODE_CURSOR_PRE, M0_XA_ATOM)) {
+ 			if (dobj->xo_ptr == NULL )
+-				xcode_be_alloc(seg, tx, dobj, &dit, &nob);
++				m0_xcode_alloc_obj(dit, dest->xcx_alloc);
+ 			else
+ 				nob = sobj->xo_type->xct_sizeof;
+ 			memcpy(dobj->xo_ptr, sobj->xo_ptr, nob);
+-			iff_at_array_xcode_cursor_skip(&sit);
+-			iff_at_array_xcode_cursor_skip(&dit);
+-		} else if (is_xcode_cursor_at(&sit, M0_XCODE_CURSOR_PRE,
++			iff_at_array_xcode_cursor_skip(sit);
++			iff_at_array_xcode_cursor_skip(dit);
++		} else if (is_xcode_cursor_at(sit, M0_XCODE_CURSOR_PRE,
+ 					      M0_XA_SEQUENCE) &&
+ 			   dobj->xo_ptr == NULL)
+-			xcode_be_alloc(seg, tx, dobj, &dit, &nob);
++			m0_xcode_alloc_obj(dit, dest->xcx_alloc);
+ 	}
+ 
+-	dest_obj = &dit.xcu_stack[0].s_obj;
+-	src_obj = &sit.xcu_stack[0].s_obj;
++	dest_obj = &dit->xcu_stack[0].s_obj;
++	src_obj = &sit->xcu_stack[0].s_obj;
+ 
+ 	if (result >= 0)
+ 		result = 0;
+diff --git a/xcode/xcode.h b/xcode/xcode.h
+index 7cb2c64..5da4ca2 100644
+--- a/xcode/xcode.h
++++ b/xcode/xcode.h
+@@ -640,9 +640,8 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_ctx *ctx, const char *str);
+ M0_INTERNAL void m0_xcode_free(struct m0_xcode_obj *obj);
+ M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
+ 			     const struct m0_xcode_obj *o1);
+-M0_INTERNAL int m0_xcode_be_dup(struct m0_xcode_obj *dest,
+-				struct m0_xcode_obj *src, struct m0_be_seg *seg,
+-				struct m0_be_tx *tx);
++M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
++			     struct m0_xcode_ctx *src);
+ 
+ /**
+    Returns the address of a sub-object within an object.
+-- 
+1.8.3.2
+

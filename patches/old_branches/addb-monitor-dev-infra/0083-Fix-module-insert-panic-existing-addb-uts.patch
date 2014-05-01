@@ -1,0 +1,25 @@
+From fb8584dea458a9789a390a61e98630ed4c5dd031 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Wed, 28 Aug 2013 11:19:56 +0530
+Subject: [PATCH 083/107] Fix module insert panic & existing addb uts.
+
+---
+ m0t1fs/linux_kernel/m0t1fs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index 700f8e9..fe1d741 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -78,7 +78,7 @@ static int m0t1fs_addb_monitor_pfom_tick(struct m0_fom *fom, void *data,
+ 	/**
+ 	 * @todo: Implement ADDB summary record posting logic.
+ 	 */
+-	return 0;
++	return -1;
+ }
+ 
+ static struct file_system_type m0t1fs_fs_type = {
+-- 
+1.8.3.2
+

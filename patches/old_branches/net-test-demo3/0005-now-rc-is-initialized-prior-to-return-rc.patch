@@ -1,0 +1,70 @@
+From e4160701a063e985fbb6370183e1882f7c700a20 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 24 Jan 2013 15:15:45 +0200
+Subject: [PATCH 05/99] now rc is initialized prior to 'return rc;'
+
+---
+ net/test/console.c    | 4 +++-
+ net/test/node.c       | 6 +++++-
+ net/test/ut/network.c | 4 +++-
+ 3 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/net/test/console.c b/net/test/console.c
+index a1068ae..011e443 100644
+--- a/net/test/console.c
++++ b/net/test/console.c
+@@ -261,8 +261,10 @@ size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
+ 	       cmd_type == M0_NET_TEST_CMD_STATUS);
+ 
+ 	M0_ALLOC_PTR(cmd);
+-	if (cmd == NULL)
++	if (cmd == NULL) {
++		rc = -ENOMEM;
+ 		goto done;
++	}
+ 	cfg = ctx->ntcc_cfg;
+ 
+ 	if (cmd_type == M0_NET_TEST_CMD_INIT)
+diff --git a/net/test/node.c b/net/test/node.c
+index 7eeb7cf..a81c3c3 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -767,14 +767,18 @@ static void node_thread(struct m0_net_test_node_ctx *ctx)
+ 	/* wait for INIT command */
+ 	ctx->ntnc_errno = node_cmd_wait(ctx, cmd, M0_NET_TEST_CMD_INIT);
+ 	if (ctx->ntnc_exit_flag) {
++		rc = 0;
+ 		m0_net_test_commands_received_free(cmd);
+ 		goto done;
+ 	}
+-	if (ctx->ntnc_errno != 0)
++	if (ctx->ntnc_errno != 0) {
++		rc = ctx->ntnc_errno;
+ 		goto done;
++	}
+ 	/* we have configuration; initialize test service */
+ 	svc_ops = service_ops_get(cmd);
+ 	if (svc_ops == NULL) {
++		rc = -ENODATA;
+ 		m0_net_test_commands_received_free(cmd);
+ 		goto done;
+ 	}
+diff --git a/net/test/ut/network.c b/net/test/ut/network.c
+index 72761be..ae68c06 100644
+--- a/net/test/ut/network.c
++++ b/net/test/ut/network.c
+@@ -873,8 +873,10 @@ static size_t net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
+ 	       cmd_type == M0_NET_TEST_CMD_STATUS);
+ 
+ 	M0_ALLOC_PTR(cmd);
+-	if (cmd == NULL)
++	if (cmd == NULL) {
++		rc = -ENOMEM;
+ 		goto done;
++	}
+ 	cfg = ctx->ntcc_cfg;
+ 
+ 	if (cmd_type == M0_NET_TEST_CMD_INIT)
+-- 
+1.8.3.2
+

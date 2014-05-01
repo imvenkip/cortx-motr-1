@@ -1,0 +1,4781 @@
+From bf128288e666124cf6fe3b1ca68f7ce8f2fe8a2c Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 15 Nov 2012 01:30:41 +0200
+Subject: [PATCH 01/58] implemented net-test bulk testing
+
+---
+ build_kernel_modules/Makefile.in |    8 +-
+ desim/sim.h                      |    2 +-
+ fop/fom_generic.h                |    2 +-
+ lib/assert.c                     |    2 +-
+ lib/timer.h                      |    4 +-
+ net/test/Makefile.am             |    8 +-
+ net/test/commands.c              |   22 +-
+ net/test/commands.h              |   62 +-
+ net/test/console.c               |   90 ++-
+ net/test/console.h               |   43 +-
+ net/test/network.c               |  378 +++++-----
+ net/test/network.h               |  136 ++--
+ net/test/node.c                  |  232 +++++-
+ net/test/node_bulk.c             | 1479 +++++++++++++++++++++++++++++++++++++-
+ net/test/node_helper.c           |  175 +++++
+ net/test/node_helper.h           |  156 ++++
+ net/test/node_ping.c             |  220 +++---
+ net/test/ringbuf.c               |    7 +
+ net/test/ringbuf.h               |    8 +-
+ net/test/serialize.h             |    2 +-
+ net/test/service.h               |    2 +-
+ net/test/stats.c                 |    2 +-
+ net/test/stats.h                 |    2 +
+ net/test/user_space/console_u.c  |  156 ++--
+ net/test/ut/client_server.c      |  153 ++--
+ net/test/ut/commands.c           |   17 +-
+ net/test/ut/main.c               |   19 +-
+ net/test/ut/network.c            |   97 +--
+ net/test/ut/ringbuf.c            |   15 +-
+ utils/linux_kernel/main.c        |    2 +
+ 30 files changed, 2840 insertions(+), 661 deletions(-)
+ create mode 100644 net/test/node_helper.c
+ create mode 100644 net/test/node_helper.h
+
+diff --git a/build_kernel_modules/Makefile.in b/build_kernel_modules/Makefile.in
+index c1cabb8..57b0ac0 100644
+--- a/build_kernel_modules/Makefile.in
++++ b/build_kernel_modules/Makefile.in
+@@ -141,11 +141,11 @@ net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
+ net_lnet_ut_SOURCES             := lnet_ut.c
+ 
+ net_test_SOURCES		:= commands.c console.c network.c node_bulk.c \
+-				   node.c node_ping.c ringbuf.c serialize.c   \
+-				   service.c slist.c stats.c str.c
++				   node_helper.c node_ping.c node.c ringbuf.c \
++				   serialize.c service.c slist.c stats.c str.c
+ net_test_HEADERS		:= commands.h console.h network.h node_bulk.h \
+-				   node.h node_ping.h ringbuf.h serialize.h   \
+-				   service.h slist.h stats.h str.h
++				   node_helper.h node_ping.h node.h ringbuf.h \
++				   serialize.h service.h slist.h stats.h str.h
+ 
+ net_test_ut_SOURCES		:= client_server.c commands.c main.c	      \
+ 				   network.c ringbuf.c serialize.c service.c  \
+diff --git a/desim/sim.h b/desim/sim.h
+index ffe6dcc..75d0574 100644
+--- a/desim/sim.h
++++ b/desim/sim.h
+@@ -21,7 +21,7 @@
+  */
+ 
+ /**
+-   @defgroup desim Discreet Event Simulator
++   @defgroup desim Discrete Event Simulator
+ 
+    <b>Concepts</b>
+ 
+diff --git a/fop/fom_generic.h b/fop/fom_generic.h
+index fc566c9..ff58d4b 100644
+--- a/fop/fom_generic.h
++++ b/fop/fom_generic.h
+@@ -56,7 +56,7 @@ enum c2_fom_standard_phase {
+ 	C2_FOPH_AUTHORISATION_WAIT, /*< waiting for userdb cache miss. */
+ 	C2_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
+ 	C2_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
+-	C2_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
++	C2_FOPH_SUCCESS,            /*< fom execution completed successfully. */
+ 	C2_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
+ 	C2_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
+ 	C2_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
+diff --git a/lib/assert.c b/lib/assert.c
+index fb6eb83..77f0526 100644
+--- a/lib/assert.c
++++ b/lib/assert.c
+@@ -63,7 +63,7 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
+ 		backtrace_symbols_fd(trace, nr, 2);
+ 	}
+ #endif
+-	C2_LOG(C2_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
++	C2_LOG(C2_FATAL, "panic: %s at %s() (%s:%i)", expr, func, file, lineno);
+ 	abort();
+ }
+ 
+diff --git a/lib/timer.h b/lib/timer.h
+index 36a46a9..6c868c9 100644
+--- a/lib/timer.h
++++ b/lib/timer.h
+@@ -147,7 +147,7 @@ bool c2_timer_is_started(const struct c2_timer *timer);
+ /**
+    Destroy the timer.
+ 
+-   @pre c2_timer_init() for this timer was succesfully called.
++   @pre c2_timer_init() for this timer was successfully called.
+    @pre timer is not running.
+  */
+ int c2_timer_fini(struct c2_timer *timer);
+@@ -160,7 +160,7 @@ void c2_timer_locality_init(struct c2_timer_locality *loc);
+ /**
+    Fini timer locality.
+ 
+-   @pre c2_timer_locality_init() succesfully called.
++   @pre c2_timer_locality_init() successfully called.
+    @pre locality is empty
+  */
+ void c2_timer_locality_fini(struct c2_timer_locality *loc);
+diff --git a/net/test/Makefile.am b/net/test/Makefile.am
+index 3d9ca67..2c1466b 100644
+--- a/net/test/Makefile.am
++++ b/net/test/Makefile.am
+@@ -3,12 +3,12 @@ noinst_LTLIBRARIES		= libcolibri-net-test.la
+ INCLUDES			= -I. -I$(top_srcdir) -I$(top_srcdir)/include
+ 
+ net_test_SRC			= commands.c console.c network.c node_bulk.c  \
+-				  node.c node_ping.c ringbuf.c serialize.c    \
+-				  service.c slist.c stats.c str.c	      \
++				  node_helper.c node_ping.c node.c ringbuf.c  \
++				  serialize.c service.c slist.c stats.c str.c \
+ 				  user_space/stats_u.c
+ net_test_HDR			= commands.h console.h network.h node_bulk.h  \
+-				  node.h node_ping.h ringbuf.h serialize.h    \
+-				  service.h slist.h stats.h str.h	      \
++				  node_helper.h node_ping.h node.h ringbuf.h  \
++				  serialize.h service.h slist.h stats.h str.h \
+ 				  user_space/stats_u.h
+ 
+ libcolibri_net_test_la_SOURCES	= $(net_test_HDR) $(net_test_SRC)
+diff --git a/net/test/commands.c b/net/test/commands.c
+index ea396b1..fb01d9d 100644
+--- a/net/test/commands.c
++++ b/net/test/commands.c
+@@ -70,8 +70,12 @@ TYPE_DESCR(c2_net_test_cmd_init) = {
+ 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_type),
+ 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_msg_nr),
+ 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_msg_size),
+-	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_concurrency),
++	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_bd_buf_nr),
++	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_bd_buf_size),
++	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_bd_nr_max),
++	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_msg_concurrency),
+ 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_buf_send_timeout),
++	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_buf_bulk_timeout),
+ };
+ 
+ /* c2_net_test_msg_nr_descr */
+@@ -101,6 +105,9 @@ cmd_status_data_serialize(enum c2_net_test_serialize_op op,
+ 	const struct c2_net_test_msg_nr *msg_nr[] = {
+ 			&sd->ntcsd_msg_nr_send,
+ 			&sd->ntcsd_msg_nr_recv,
++			&sd->ntcsd_bulk_nr_send,
++			&sd->ntcsd_bulk_nr_recv,
++			&sd->ntcsd_transfers,
+ 	};
+ 	const struct c2_net_test_stats  *stats[] = {
+ 			&sd->ntcsd_mps_send.ntmps_stats,
+@@ -197,7 +204,7 @@ static int cmd_serialize(enum c2_net_test_serialize_op op,
+ }
+ 
+ /**
+-   Free c2_net_test_cmd after succesful
++   Free c2_net_test_cmd after successful
+    cmd_serialize(C2_NET_TEST_DESERIALIZE, ...).
+  */
+ static void cmd_free(struct c2_net_test_cmd *cmd)
+@@ -391,16 +398,13 @@ static int commands_initfini(struct c2_net_test_cmd_ctx *ctx,
+ 					  2 * ctx->ntcc_ep_nr,
+ 					  0, 0,
+ 					  ep_list->ntsl_nr,
+-					  &timeouts);
++					  &timeouts, false);
+ 	if (rc != 0)
+ 		goto free_buf_status;
+ 
+-	for (i = 0; i < ep_list->ntsl_nr; ++i) {
+-		rc = c2_net_test_network_ep_add(&ctx->ntcc_net,
+-						ep_list->ntsl_list[i]);
+-		if (rc < 0)
+-			goto free_net_ctx;
+-	}
++	rc = c2_net_test_network_ep_add_slist(&ctx->ntcc_net, ep_list);
++	if (rc != 0)
++		goto free_net_ctx;
+ 	for (i = 0; i < ctx->ntcc_ep_nr; ++i) {
+ 		rc = commands_recv_enqueue(ctx, ctx->ntcc_ep_nr + i);
+ 		if (rc != 0) {
+diff --git a/net/test/commands.h b/net/test/commands.h
+index 5bbce61..b7d60e1 100644
+--- a/net/test/commands.h
++++ b/net/test/commands.h
+@@ -91,27 +91,55 @@ struct c2_net_test_cmd_done {
+    @see c2_net_test_cmd
+  */
+ struct c2_net_test_cmd_init {
+-	/** node role */
++	/** Node role */
+ 	enum c2_net_test_role	 ntci_role;
+-	/** node type */
++	/** Node type */
+ 	enum c2_net_test_type	 ntci_type;
+-	/** number of test messages for the test client */
+-	unsigned long		 ntci_msg_nr;
+-	/** test message size */
++	/**
++	 * Number of test messages for the test client.
++	 * It is number of ping messages for the ping test and
++	 * number of bulk messages for the bulk test.
++	 */
++	uint64_t		 ntci_msg_nr;
++	/**
++	 * Test message size.
++	 * It is size of ping buffer for the ping test and
++	 * size for bulk buffer for the bulk test.
++	 */
+ 	c2_bcount_t		 ntci_msg_size;
+ 	/**
++	 * Number of message buffers for bulk buffer descriptors
++	 * in the bulk test.
++	 * @note Unused in ping test.
++	 */
++	c2_bcount_t		 ntci_bd_buf_nr;
++	/**
++	 * Size of message buffer for bulk buffer descriptors
++	 * in the bulk test.
++	 * @note Unused in ping test.
++	 */
++	c2_bcount_t		 ntci_bd_buf_size;
++	/**
++	 * Maximum number of bulk message descriptors in
++	 * the message buffer in the bulk test.
++	 * @note Unused in ping test.
++	 */
++	uint64_t		 ntci_bd_nr_max;
++	/**
+ 	 * Test messages concurrency.
+-	 * Test server will allocate ntci_concurrency buffers.
+-	 * Test client will allocate (ntci_concurrency * 2) buffers (one for
++	 * Test server will allocate ntci_msg_concurrency buffers.
++	 * Test client will allocate (ntci_msg_concurrency * 2) buffers (one for
+ 	 * sending and another for receiving) for each test server
+ 	 * from endpoints list ntci_ep.
+ 	 */
+-	size_t			 ntci_concurrency;
+-	/** buffer send timeout */
++	uint64_t		 ntci_msg_concurrency;
++	/** Buffer send timeout for C2_NET_QT_MSG_SEND queue */
+ 	c2_time_t		 ntci_buf_send_timeout;
+-	/** transfer machine endpoint for data transfers */
++	/** Bulk buffers timeout for all bulk queues */
++	c2_time_t		 ntci_buf_bulk_timeout;
++	/** Transfer machine endpoint for data transfers */
+ 	char			*ntci_tm_ep;
+-	/** endpoints list */
++	/** Endpoints list */
+ 	struct c2_net_test_slist ntci_ep;
+ };
+ 
+@@ -124,6 +152,12 @@ struct c2_net_test_cmd_status_data {
+ 	struct c2_net_test_msg_nr ntcsd_msg_nr_send;
+ 	/** number of received messages (total/failed/bad) */
+ 	struct c2_net_test_msg_nr ntcsd_msg_nr_recv;
++	/** number of sent bulk messages (total/failed/bad) */
++	struct c2_net_test_msg_nr ntcsd_bulk_nr_send;
++	/** number of received bulk messages (total/failed/bad) */
++	struct c2_net_test_msg_nr ntcsd_bulk_nr_recv;
++	/** number of transfers (in both directions) (total/failed/bad) */
++	struct c2_net_test_msg_nr ntcsd_transfers;
+ 	/** Test start time */
+ 	c2_time_t		  ntcsd_time_start;
+ 	/** Test finish time */
+@@ -132,9 +166,9 @@ struct c2_net_test_cmd_status_data {
+ 	c2_time_t		  ntcsd_time_now;
+ 	/** Test was finished */
+ 	bool			  ntcsd_finished;
+-	/** 'send' packets per second statistics with 1s interval */
++	/** 'send' messages per second statistics with 1s interval */
+ 	struct c2_net_test_mps	  ntcsd_mps_send;
+-	/** 'receive' packets per second statistics with 1s interval */
++	/** 'receive' messages per second statistics with 1s interval */
+ 	struct c2_net_test_mps	  ntcsd_mps_recv;
+ 	/** RTT statistics (without lost messages) (test client only) */
+ 	struct c2_net_test_stats  ntcsd_rtt;
+@@ -251,7 +285,7 @@ struct c2_net_test_cmd_ctx {
+      call to c2_net_test_commands_recv();
+    - c2_net_test_commands_recv() can allocate resources while decoding
+      command from buffer, so c2_net_test_received_free() must be called
+-     for command after succesful c2_net_test_commads_recv().
++     for command after successful c2_net_test_commads_recv().
+  */
+ int c2_net_test_commands_init(struct c2_net_test_cmd_ctx *ctx,
+ 			      const char *cmd_ep,
+diff --git a/net/test/console.c b/net/test/console.c
+index 9650311..629077a 100644
+--- a/net/test/console.c
++++ b/net/test/console.c
+@@ -33,6 +33,7 @@
+ #define LOGD(format, ...) do {} while (0)
+ #endif
+ 
++#include "lib/arith.h"		/* min_check */
+ #include "lib/memory.h"		/* C2_ALLOC_PTR */
+ #include "lib/misc.h"		/* C2_SET0 */
+ #include "lib/errno.h"		/* ETIMEDOUT */
+@@ -143,10 +144,17 @@ static void console_cmd_init_fill(struct c2_net_test_console_cfg *cfg,
+ 	cinit->ntci_type	     = cfg->ntcc_test_type;
+ 	cinit->ntci_msg_nr	     = cfg->ntcc_msg_nr;
+ 	cinit->ntci_msg_size	     = cfg->ntcc_msg_size;
+-	cinit->ntci_concurrency      = role == C2_NET_TEST_ROLE_CLIENT ?
++	cinit->ntci_bd_buf_nr	     = role == C2_NET_TEST_ROLE_CLIENT ?
++				       cfg->ntcc_bd_buf_nr_client :
++				       cfg->ntcc_bd_buf_nr_server;
++	cinit->ntci_bd_buf_size	     = cfg->ntcc_bd_buf_size;
++	cinit->ntci_bd_nr_max	     = cfg->ntcc_bd_nr_max;
++	cinit->ntci_msg_concurrency  = role == C2_NET_TEST_ROLE_CLIENT ?
+ 				       cfg->ntcc_concurrency_client :
+ 				       cfg->ntcc_concurrency_server;
++	/** @todo other timeouts */
+ 	cinit->ntci_buf_send_timeout = cfg->ntcc_buf_send_timeout;
++	cinit->ntci_buf_bulk_timeout = cfg->ntcc_buf_bulk_timeout;
+ 	cinit->ntci_ep		     = role == C2_NET_TEST_ROLE_CLIENT ?
+ 				       cfg->ntcc_data_servers :
+ 				       cfg->ntcc_data_clients;
+@@ -154,12 +162,25 @@ static void console_cmd_init_fill(struct c2_net_test_console_cfg *cfg,
+ 
+ static void status_data_reset(struct c2_net_test_cmd_status_data *sd)
+ {
++	struct c2_net_test_msg_nr * const msg_nr[] = {
++		&sd->ntcsd_msg_nr_send,
++		&sd->ntcsd_msg_nr_recv,
++		&sd->ntcsd_bulk_nr_send,
++		&sd->ntcsd_bulk_nr_recv,
++		&sd->ntcsd_transfers,
++	};
++	struct c2_net_test_stats * const stats[] = {
++		&sd->ntcsd_mps_send.ntmps_stats,
++		&sd->ntcsd_mps_recv.ntmps_stats,
++		&sd->ntcsd_rtt,
++	};
++	size_t i;
++
+ 	C2_SET0(sd);
+-	c2_net_test_msg_nr_reset(&sd->ntcsd_msg_nr_send);
+-	c2_net_test_msg_nr_reset(&sd->ntcsd_msg_nr_recv);
+-	c2_net_test_stats_reset(&sd->ntcsd_mps_send.ntmps_stats);
+-	c2_net_test_stats_reset(&sd->ntcsd_mps_recv.ntmps_stats);
+-	c2_net_test_stats_reset(&sd->ntcsd_rtt);
++	for (i = 0; i < ARRAY_SIZE(msg_nr); ++i)
++		c2_net_test_msg_nr_reset(msg_nr[i]);
++	for (i = 0; i < ARRAY_SIZE(stats); ++i)
++		c2_net_test_stats_reset(stats[i]);
+ 	sd->ntcsd_finished    = true;
+ 	sd->ntcsd_time_start  = C2_TIME_NEVER;
+ 	sd->ntcsd_time_finish = C2_MKTIME(0, 0);
+@@ -167,37 +188,60 @@ static void status_data_reset(struct c2_net_test_cmd_status_data *sd)
+ 
+ static c2_time_t time_min(c2_time_t t1, c2_time_t t2)
+ {
+-	return t1 < t2 ? t1 : t2;
++	return min_check(t1, t2);
+ }
+ 
+ static c2_time_t time_max(c2_time_t t1, c2_time_t t2)
+ {
+-	return t1 > t2 ? t1 : t2;
++	return max_check(t1, t2);
+ }
+ 
+-static void status_data_add(struct c2_net_test_cmd_status_data *sd,
++static void status_data_add(struct c2_net_test_cmd_status_data *all_sd,
+ 			    const struct c2_net_test_cmd_status_data *cmd_sd)
+ {
++	const struct {
++		struct c2_net_test_msg_nr	*nr_all;
++		const struct c2_net_test_msg_nr *nr_node;
++	} msg_nr[] = {
++		{	.nr_all  = &all_sd->ntcsd_msg_nr_send,
++			.nr_node = &cmd_sd->ntcsd_msg_nr_send	},
++		{	.nr_all  = &all_sd->ntcsd_msg_nr_recv,
++			.nr_node = &cmd_sd->ntcsd_msg_nr_recv	},
++		{	.nr_all  = &all_sd->ntcsd_bulk_nr_send,
++			.nr_node = &cmd_sd->ntcsd_bulk_nr_send	},
++		{	.nr_all  = &all_sd->ntcsd_bulk_nr_recv,
++			.nr_node = &cmd_sd->ntcsd_bulk_nr_recv	},
++		{	.nr_all  = &all_sd->ntcsd_transfers,
++			.nr_node = &cmd_sd->ntcsd_transfers	},
++	};
++	const struct {
++		struct c2_net_test_stats       *s_all;
++		const struct c2_net_test_stats *s_node;
++	} stats[] = {
++		{	.s_all  = &all_sd->ntcsd_mps_send.ntmps_stats,
++			.s_node = &cmd_sd->ntcsd_mps_send.ntmps_stats	},
++		{	.s_all  = &all_sd->ntcsd_mps_recv.ntmps_stats,
++			.s_node = &cmd_sd->ntcsd_mps_recv.ntmps_stats	},
++		{	.s_all  = &all_sd->ntcsd_rtt,
++			.s_node = &cmd_sd->ntcsd_rtt,			},
++	};
++	size_t i;
++
+ 	LOGD("new STATUS_DATA:\n");
+ 	LOGD("send total = %lu\n", cmd_sd->ntcsd_msg_nr_send.ntmn_total);
+ 	LOGD("recv total = %lu\n", cmd_sd->ntcsd_msg_nr_recv.ntmn_total);
+ 	LOGD("finished = %d\n", cmd_sd->ntcsd_finished);
+ 	LOGD("end of STATUS_DATA\n");
+-	c2_net_test_msg_nr_add(&sd->ntcsd_msg_nr_send,
+-			       &cmd_sd->ntcsd_msg_nr_send);
+-	c2_net_test_msg_nr_add(&sd->ntcsd_msg_nr_recv,
+-			       &cmd_sd->ntcsd_msg_nr_recv);
+-	c2_net_test_stats_add_stats(&sd->ntcsd_mps_send.ntmps_stats,
+-				    &cmd_sd->ntcsd_mps_send.ntmps_stats);
+-	c2_net_test_stats_add_stats(&sd->ntcsd_mps_recv.ntmps_stats,
+-				    &cmd_sd->ntcsd_mps_recv.ntmps_stats);
+-	c2_net_test_stats_add_stats(&sd->ntcsd_rtt, &cmd_sd->ntcsd_rtt);
+-	sd->ntcsd_finished &= cmd_sd->ntcsd_finished;
++	for (i = 0; i < ARRAY_SIZE(msg_nr); ++i)
++		c2_net_test_msg_nr_add(msg_nr[i].nr_all, msg_nr[i].nr_node);
++	for (i = 0; i < ARRAY_SIZE(stats); ++i)
++		c2_net_test_stats_add_stats(stats[i].s_all, stats[i].s_node);
++	all_sd->ntcsd_finished &= cmd_sd->ntcsd_finished;
+ 	if (cmd_sd->ntcsd_finished) {
+-		sd->ntcsd_time_start = time_min(sd->ntcsd_time_start,
+-						cmd_sd->ntcsd_time_start);
+-		sd->ntcsd_time_finish = time_max(sd->ntcsd_time_finish,
+-						 cmd_sd->ntcsd_time_finish);
++		all_sd->ntcsd_time_start = time_min(all_sd->ntcsd_time_start,
++						    cmd_sd->ntcsd_time_start);
++		all_sd->ntcsd_time_finish = time_max(all_sd->ntcsd_time_finish,
++						     cmd_sd->ntcsd_time_finish);
+ 	}
+ }
+ 
+diff --git a/net/test/console.h b/net/test/console.h
+index 893b882..9118016 100644
+--- a/net/test/console.h
++++ b/net/test/console.h
+@@ -73,30 +73,59 @@ struct c2_net_test_console_cfg {
+ 	 * @see c2_net_test_console_cfg.ntcc_data_servers
+ 	 */
+ 	struct c2_net_test_slist ntcc_data_clients;
+-	/** Commands send timeout for the test nodes */
++	/** Commands send timeout for the test nodes and test console */
+ 	c2_time_t		 ntcc_cmd_send_timeout;
+-	/** Commands receive timeout for the test nodes */
++	/** Commands receive timeout for the test nodes and test console */
+ 	c2_time_t		 ntcc_cmd_recv_timeout;
+ 	/** Test messages send timeout for the test nodes */
+ 	c2_time_t		 ntcc_buf_send_timeout;
+ 	/** Test messages receive timeout for the test nodes */
+ 	c2_time_t		 ntcc_buf_recv_timeout;
++	/**
++	 * Test messages receive timeout for the bulk transfers
++	 * in bulk testing on the test nodes
++	 */
++	c2_time_t		 ntcc_buf_bulk_timeout;
+ 	/** Test type */
+ 	enum c2_net_test_type	 ntcc_test_type;
+ 	/** Number of test messages for the test client */
+-	size_t			 ntcc_msg_nr;
++	uint64_t		 ntcc_msg_nr;
+ 	/** Test messages size */
+ 	c2_bcount_t		 ntcc_msg_size;
+ 	/**
++	 * Number of buffers for bulk buffer network descriptors
++	 * for the test server.
++	 * @note Used in bulk testing only.
++	 */
++	uint64_t		 ntcc_bd_buf_nr_server;
++	/**
++	 * Number of buffers for bulk buffer network descriptors
++	 * for the test client.
++	 * @note Used in bulk testing only.
++	 */
++	uint64_t		 ntcc_bd_buf_nr_client;
++	/**
++	 * Size of buffer for bulk buffer network descriptors.
++	 * @note Used in bulk testing only.
++	 */
++	c2_bcount_t		 ntcc_bd_buf_size;
++	/**
++	 * Maximum number of bulk buffer network descriptors in
++	 * msg buffer.
++	 * @see node_bulk_ctx.nbc_bd_nr_max
++	 * @note Used in bulk testing only.
++	 */
++	uint64_t		 ntcc_bd_nr_max;
++	/**
+ 	 * Test server concurrency.
+-	 * @see c2_net_test_cmd_init.ntci_concurrency
++	 * @see c2_net_test_cmd_init.ntci_msg_concurrency
+ 	 */
+-	size_t			 ntcc_concurrency_server;
++	uint64_t		 ntcc_concurrency_server;
+ 	/**
+ 	 * Test client concurrency.
+-	 * @see c2_net_test_cmd_init.ntci_concurrency
++	 * @see c2_net_test_cmd_init.ntci_msg_concurrency
+ 	 */
+-	size_t			 ntcc_concurrency_client;
++	uint64_t		 ntcc_concurrency_client;
+ };
+ 
+ /** Test console context for the node role */
+diff --git a/net/test/network.c b/net/test/network.c
+index ce324c7..e9bf038 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -30,6 +30,7 @@
+ #include "lib/memory.h"		/* C2_ALLOC_ARR */
+ #include "lib/misc.h"		/* C2_SET0 */
+ #include "lib/vec.h"		/* C2_SEG_SHIFT */
++#include "lib/trace.h"		/* C2_LOG */
+ 
+ #include "net/net.h"
+ #include "net/lnet/lnet.h"	/* c2_net_lnet_xprt */
+@@ -56,6 +57,7 @@
+ #endif
+ #endif
+ 
++#if 0
+ /* see buf_desc_decode() and c2_net_test_network_bd_encode() */
+ C2_BASSERT(sizeof(unsigned)	 == sizeof(uint32_t));
+ C2_BASSERT(sizeof(unsigned long) == sizeof(c2_bcount_t));
+@@ -63,6 +65,12 @@ C2_BASSERT(sizeof(unsigned long) == sizeof(c2_bcount_t));
+ enum {
+ 	C2_NET_TEST_STRLEN_NBD_HEADER = 32,
+ };
++#endif
++
++enum {
++	C2_NET_TEST_NETWORK_BD_MAGIC = 1,	/** @todo fix */
++	C2_NET_TEST_NETWORK_BDS_MAGIC = 2,
++};
+ 
+ int c2_net_test_network_init(void)
+ {
+@@ -288,10 +296,12 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
+ 				 uint32_t buf_bulk_nr,
+ 				 uint32_t ep_max,
+ 				 const struct c2_net_test_network_timeouts
+-				 *timeouts)
++				 *timeouts,
++				 bool sync)
+ {
+-	int		       rc;
+-	struct c2_clink        tmwait;
++	struct c2_clink tmwait;
++	int		rc;
++	int		rc1;
+ 
+ 	C2_PRE(ctx     != NULL);
+ 	C2_PRE(tm_addr != NULL);
+@@ -330,9 +340,13 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
+ 	if (rc != 0)
+ 		goto free_tm;
+ 
++	rc1 = sync ? c2_net_buffer_event_deliver_synchronously(ctx->ntc_tm) : 0;
++
+ 	c2_clink_init(&tmwait, NULL);
+ 	c2_clink_add(&ctx->ntc_tm->ntm_chan, &tmwait);
++	/* tm can't be fini'd if not started */
+ 	rc = c2_net_tm_start(ctx->ntc_tm, tm_addr);
++	rc = rc1 != 0 ? rc1 : rc;
+ 	c2_chan_wait(&tmwait);
+ 	c2_clink_del(&tmwait);
+ 	c2_clink_fini(&tmwait);
+@@ -430,6 +444,31 @@ int c2_net_test_network_ep_add(struct c2_net_test_network_ctx *ctx,
+ 	return rc;
+ }
+ 
++int c2_net_test_network_ep_add_slist(struct c2_net_test_network_ctx *ctx,
++				     const struct c2_net_test_slist *eps)
++{
++	int    rc = 0;
++	size_t i;
++	size_t j;
++
++	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
++	C2_PRE(c2_net_test_slist_invariant(eps));
++
++	for (i = 0; i < eps->ntsl_nr; ++i) {
++		rc = c2_net_test_network_ep_add(ctx, eps->ntsl_list[i]);
++		if (rc < 0)
++			break;
++	}
++	if (rc < 0) {
++		/** c2_net_end_point_put() for last i endpoints */
++		for (j = 0; j < i; ++j)
++			c2_net_end_point_put(ctx->ntc_ep[--ctx->ntc_ep_nr]);
++	}
++	C2_POST(c2_net_test_network_ctx_invariant(ctx));
++
++	return rc >= 0 ? 0 : rc;
++}
++
+ static int net_test_buf_queue(struct c2_net_test_network_ctx *ctx,
+ 			      struct c2_net_buffer *nb,
+ 			      enum c2_net_queue_type q)
+@@ -497,8 +536,7 @@ int c2_net_test_network_bulk_enqueue(struct c2_net_test_network_ctx *ctx,
+ 
+ 	buf = &ctx->ntc_buf_bulk[buf_bulk_index];
+ 	if (q == C2_NET_QT_PASSIVE_BULK_SEND ||
+-			q == C2_NET_QT_PASSIVE_BULK_RECV) {
+-
++	    q == C2_NET_QT_PASSIVE_BULK_RECV) {
+ 		C2_PRE(ep_index < ctx->ntc_ep_nr);
+ 		buf->nb_ep = ctx->ntc_ep[ep_index];
+ 	} else
+@@ -517,208 +555,204 @@ void c2_net_test_network_buffer_dequeue(struct c2_net_test_network_ctx *ctx,
+ 			  ctx->ntc_tm);
+ }
+ 
+-void c2_net_test_network_bd_reset(struct c2_net_test_network_ctx *ctx,
+-				  int32_t buf_ping_index)
+-{
+-	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
++/** Structure to help c2_net_buf_desc serialization */
++struct net_test_network_bd {
++	/** C2_NET_TEST_NETWORK_BD_MAGIC */
++	uint64_t    ntnbd_magic;
++	/** Passive buffer size */
++	c2_bcount_t ntnbd_buf_size;
++	/** c2_net_buf_desc.nbd_len */
++	uint32_t    ntnbd_len;
++};
+ 
+-	ctx->ntc_buf_ping[buf_ping_index].nb_length = 0;
+-}
++/** net_test_network_bd_descr */
++TYPE_DESCR(net_test_network_bd) = {
++	FIELD_DESCR(struct net_test_network_bd, ntnbd_magic),
++	FIELD_DESCR(struct net_test_network_bd, ntnbd_buf_size),
++	FIELD_DESCR(struct net_test_network_bd, ntnbd_len),
++};
+ 
+-static c2_bcount_t bufvec_append(struct c2_bufvec_cursor *dcur,
+-				 void *data,
+-				 c2_bcount_t length)
+-{
+-	struct c2_bufvec	data_bv = C2_BUFVEC_INIT_BUF(&data, &length);
+-	struct c2_bufvec_cursor data_cur;
++/** Header for ping buffer with serialized c2_net_buf_desc's */
++struct net_test_network_bds_header {
++	/** C2_NET_TEST_NETWORK_BDS_MAGIC */
++	uint64_t ntnbh_magic;
++	/** Number of buffer descriptors in ping buffer */
++	size_t	 ntnbh_nr;
++};
+ 
+-	c2_bufvec_cursor_init(&data_cur, &data_bv);
+-	return c2_bufvec_cursor_copy(dcur, &data_cur, length);
+-}
++/** net_test_network_bds_header_descr */
++TYPE_DESCR(net_test_network_bds_header) = {
++	FIELD_DESCR(struct net_test_network_bds_header, ntnbh_magic),
++	FIELD_DESCR(struct net_test_network_bds_header, ntnbh_nr),
++};
+ 
+-static c2_bcount_t bufvec_read(struct c2_bufvec_cursor *scur,
+-			       void *data,
+-			       c2_bcount_t length)
++/** @see c2_net_test_serialize() */
++static c2_bcount_t network_bd_serialize(enum c2_net_test_serialize_op op,
++					struct c2_net_buffer *buf,
++					struct c2_bufvec *bv,
++					c2_bcount_t bv_offset)
+ {
+-	struct c2_bufvec        data_bv = C2_BUFVEC_INIT_BUF(&data, &length);
+-	struct c2_bufvec_cursor data_cur;
++	struct net_test_network_bd bd;
++	c2_bcount_t		   len;
++	c2_bcount_t		   len_total;
+ 
+-	c2_bufvec_cursor_init(&data_cur, &data_bv);
+-	return c2_bufvec_cursor_copy(&data_cur, scur, length);
+-}
++	C2_PRE(buf != NULL);
++	C2_PRE(bv != NULL);
+ 
+-static bool buf_desc_decode(struct c2_bufvec_cursor *cur,
+-			    c2_bcount_t offset,
+-			    c2_bcount_t buf_len,
+-			    c2_bcount_t *passive_len,
+-			    int32_t *desc_len)
+-{
+-	char	    str[C2_NET_TEST_STRLEN_NBD_HEADER];
+-	c2_bcount_t rc_bcount;
+-	int	    rc;
+-
+-	if (offset + C2_NET_TEST_STRLEN_NBD_HEADER > buf_len)
+-		return false;
+-
+-	rc_bcount = bufvec_read(cur, str, C2_NET_TEST_STRLEN_NBD_HEADER);
+-	if (rc_bcount != C2_NET_TEST_STRLEN_NBD_HEADER)
+-		return false;
+-
+-	/* note Linux uses the LP64 standard */
+-	rc = sscanf(str, "%lu %u",
+-		    (unsigned long *) passive_len, desc_len);
+-#ifdef DEBUG_NET_TEST_NETWORK
+-	printf("rc = %d, passive_len = %"PRIu64", desc_len = %"PRIu32", "
+-		"str = %s\n", rc, *passive_len, *desc_len, str);
+-#endif
+-	return rc == 2 &&
+-		offset + C2_NET_TEST_STRLEN_NBD_HEADER + *desc_len <= buf_len;
++	bd.ntnbd_magic	  = C2_NET_TEST_NETWORK_BD_MAGIC;
++	bd.ntnbd_buf_size = buf->nb_length;
++	bd.ntnbd_len	  = buf->nb_desc.nbd_len;
++
++	len_total = len = c2_net_test_serialize(op, &bd,
++					USE_TYPE_DESCR(net_test_network_bd),
++						bv, bv_offset);
++	if (len == 0)
++		return 0;
++
++	/* optimizing memory allocation */
++	if (op == C2_NET_TEST_DESERIALIZE &&
++	    buf->nb_desc.nbd_len != bd.ntnbd_len) {
++		/* free old */
++		c2_free(buf->nb_desc.nbd_data);
++		buf->nb_desc.nbd_len = 0;
++		/* alloc new */
++		buf->nb_desc.nbd_data = c2_alloc(bd.ntnbd_len);
++		if (buf->nb_desc.nbd_data == NULL)
++			return 0;
++		buf->nb_desc.nbd_len = bd.ntnbd_len;
++	}
++
++	len = c2_net_test_serialize_data(op, buf->nb_desc.nbd_data,
++					 buf->nb_desc.nbd_len, true,
++					 bv, bv_offset + len_total);
++	return len == 0 ? 0 : len_total + len;
+ }
+ 
+-uint32_t c2_net_test_network_bd_count(struct c2_net_test_network_ctx *ctx,
+-				      int32_t buf_ping_index)
++static c2_bcount_t network_bds_serialize(enum c2_net_test_serialize_op op,
++					 size_t *nr,
++					 struct c2_bufvec *bv)
+ {
+-	struct c2_net_buffer   *buf_ping;
+-	struct c2_bufvec_cursor cur_buf;
+-	uint32_t		result = 0;
+-	c2_bcount_t		offset;
+-	c2_bcount_t		buf_len;
+-	c2_bcount_t		passive_len;
+-	int32_t			desc_len;
+-	bool			decoded;
++	struct net_test_network_bds_header header;
++	c2_bcount_t			   len;
+ 
+-	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
+-	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
++	C2_PRE(nr != NULL);
++	C2_PRE(bv != NULL);
++
++	if (op == C2_NET_TEST_SERIALIZE) {
++		header.ntnbh_magic = C2_NET_TEST_NETWORK_BDS_MAGIC;
++		header.ntnbh_nr	   = *nr;
++	}
+ 
+-	buf_ping = &ctx->ntc_buf_ping[buf_ping_index];
+-	c2_bufvec_cursor_init(&cur_buf, &buf_ping->nb_buffer);
+-	c2_bufvec_cursor_move(&cur_buf,  buf_ping->nb_offset);
++	len = c2_net_test_serialize(op, &header,
++				USE_TYPE_DESCR(net_test_network_bds_header),
++				    bv, 0);
+ 
+-	offset  = 0;
+-	buf_len = buf_ping->nb_length;
+-	while (offset < buf_len) {
+-		decoded = buf_desc_decode(&cur_buf, offset, buf_len,
+-					  &passive_len, &desc_len);
+-		if (!decoded)
+-			break;
+-		result++;
+-		c2_bufvec_cursor_move(&cur_buf, desc_len);
+-		offset += C2_NET_TEST_STRLEN_NBD_HEADER + desc_len;
++	if (op == C2_NET_TEST_DESERIALIZE) {
++		if (header.ntnbh_magic == C2_NET_TEST_NETWORK_BDS_MAGIC)
++			*nr = header.ntnbh_nr;
++		else
++			len = 0;
+ 	}
+ 
+-	return result;
++	return len;
+ }
+ 
+-int c2_net_test_network_bd_encode(struct c2_net_test_network_ctx *ctx,
+-				  int32_t buf_ping_index,
+-				  int32_t buf_bulk_index)
++c2_bcount_t
++c2_net_test_network_bd_serialize(enum c2_net_test_serialize_op op,
++				 struct c2_net_test_network_ctx *ctx,
++				 uint32_t buf_bulk_index,
++				 uint32_t buf_ping_index,
++				 c2_bcount_t offset)
+ {
+-	int			rc;
+-	c2_bcount_t		rc_bcount;
+-	struct c2_net_buffer   *buf_bulk;
+-	struct c2_net_buffer   *buf_ping;
+-	struct c2_bufvec_cursor cur_buf;
+-	c2_bcount_t	        desc_len;
+-	const c2_bcount_t	str_len = 20 + 1 + 10 + 1;
+-	/*				  ^    ^   ^    ^
+-		passive side buffer size -+   ' '  |  '\0'
+-		c2_net_buf_desc .nbd_len ----------+
+-	 */
+-	char			str[str_len];
+-
+-	C2_ASSERT(str_len == C2_NET_TEST_STRLEN_NBD_HEADER);
+-	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
++	struct c2_net_buffer *buf;
++	struct c2_bufvec     *bv;
++	c2_bcount_t	      len;
++	c2_bcount_t	      len_total;
++	size_t		      nr;
++	int		      rc;
++
++	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
++	C2_PRE(ctx != NULL);
+ 	C2_PRE(buf_bulk_index < ctx->ntc_buf_bulk_nr);
+ 	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
+ 
+-	buf_bulk = &ctx->ntc_buf_bulk[buf_bulk_index];
+-	buf_ping = &ctx->ntc_buf_ping[buf_ping_index];
+-
+-	desc_len = buf_bulk->nb_desc.nbd_len;
++	/*
++	C2_LOG(C2_DEBUG, "%d %s", op, ctx->ntc_tm->ntm_ep->nep_addr);
++	C2_LOG(C2_DEBUG, "bd_serialize: op = %d, tm_addr = %s, "
++			 "buf_bulk_index = %u, buf_ping_index = %u, "
++			 "offset = %lu",
++			 op, ctx->ntc_tm->ntm_ep->nep_addr,
++			 buf_bulk_index, buf_ping_index,
++			 (long unsigned) offset);
++	*/
++
++	bv = &c2_net_test_network_buf(ctx, C2_NET_TEST_BUF_PING,
++				      buf_ping_index)->nb_buffer;
++	C2_ASSERT(bv != NULL);
++	buf = c2_net_test_network_buf(ctx, C2_NET_TEST_BUF_BULK,
++				      buf_bulk_index);
++	C2_ASSERT(buf != NULL);
+ 
+-	c2_bufvec_cursor_init(&cur_buf, &buf_ping->nb_buffer);
+-	c2_bufvec_cursor_move(&cur_buf, buf_ping->nb_offset +
+-					buf_ping->nb_length);
++	if (offset == 0) {
++		nr = 0;
++		/* include header length to the first descriptor length */
++		len_total = len = network_bds_serialize(op, &nr, bv);
++		if (len == 0)
++			return 0;
++	} else {
++		len_total = 0;
++	}
++	len = network_bd_serialize(op, buf, bv, offset + len_total);
++	len_total = len == 0 ? 0 : len + len_total;
++	/* increase number of descriptors for 'serialize' operation */
++	if (len != 0 && op == C2_NET_TEST_SERIALIZE) {
++		nr = c2_net_test_network_bd_nr_get(ctx, buf_ping_index);
++		++nr;
++		rc = c2_net_test_network_bd_nr_set(ctx, buf_ping_index, nr);
++		if (rc != 0)
++			return 0;
++	}
+ 
+-	/* check for space left in buf_ping */
+-	if (c2_vec_count(&buf_ping->nb_buffer.ov_vec) <
+-	    buf_ping->nb_offset + buf_ping->nb_length + str_len + desc_len)
+-		return -E2BIG;
+ 
+-	/* fill str[] */
+-	/* note Linux uses the LP64 standard */
+-	rc = snprintf(str, str_len, "%020lu %010u",
+-		      (unsigned long) buf_bulk->nb_length,
+-		      buf_bulk->nb_desc.nbd_len);
+-	C2_ASSERT(rc == str_len - 1);
+-	/* copy str[] to buf_ping */
+-	rc_bcount = bufvec_append(&cur_buf, str, str_len);
+-	if (rc_bcount != str_len)
+-		return -E2BIG;
+-	/* copy c2_net_buf_desc .nbd_data to buf_ping */
+-	rc_bcount = bufvec_append(&cur_buf, buf_bulk->nb_desc.nbd_data,
+-				  desc_len);
+-	if (rc_bcount != desc_len)
+-		return -E2BIG;
+-	/* adjust buf_ping .nb_length */
+-	buf_ping->nb_length += str_len + desc_len;
+-	return 0;
++	/*
++	C2_LOG(C2_DEBUG, "bd_serialize: len_total = %lu",
++	       (long unsigned) len_total);
++	*/
++	return len_total;
+ }
+ 
+-/* see c2_net_test_network_bd_encode() */
+-int c2_net_test_network_bd_decode(struct c2_net_test_network_ctx *ctx,
+-				  int32_t buf_ping_index,
+-				  int32_t buf_bulk_index)
++size_t c2_net_test_network_bd_nr_get(struct c2_net_test_network_ctx *ctx,
++				     uint32_t buf_ping_index)
+ {
+-	struct c2_net_buffer   *buf_bulk;
+-	struct c2_net_buffer   *buf_ping;
+-	struct c2_bufvec_cursor cur_buf;
+-	c2_bcount_t		buf_ping_len;
+-	c2_bcount_t		passive_len;
+-	c2_bcount_t		offset;
+-	int32_t			desc_len;
+-	c2_bcount_t		rc_bcount;
+-	bool			decoded;
++	struct c2_bufvec *bv;
++	c2_bcount_t	  len;
++	size_t		  nr;
+ 
+-	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
+-	C2_PRE(buf_bulk_index < ctx->ntc_buf_bulk_nr);
++	C2_PRE(ctx != NULL);
+ 	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
+ 
+-	buf_bulk = &ctx->ntc_buf_bulk[buf_bulk_index];
+-	buf_ping = &ctx->ntc_buf_ping[buf_ping_index];
+-
+-	c2_bufvec_cursor_init(&cur_buf, &buf_ping->nb_buffer);
+-	c2_bufvec_cursor_move(&cur_buf, buf_ping->nb_offset +
+-					buf_ping->nb_length);
++	bv = &c2_net_test_network_buf(ctx, C2_NET_TEST_BUF_PING,
++				      buf_ping_index)->nb_buffer;
++	len = network_bds_serialize(C2_NET_TEST_DESERIALIZE, &nr, bv);
+ 
+-	offset  = buf_ping->nb_offset + buf_ping->nb_length;
+-	buf_ping_len = c2_vec_count(&buf_ping->nb_buffer.ov_vec);
+-	decoded = buf_desc_decode(&cur_buf, offset, buf_ping_len,
+-				  &passive_len, &desc_len);
+-	if (!decoded)
+-		return -EBADMSG;
++	return len == 0 ? 0 : nr;
++}
+ 
+-	if (passive_len > c2_vec_count(&buf_bulk->nb_buffer.ov_vec))
+-		return -E2BIG;
++int c2_net_test_network_bd_nr_set(struct c2_net_test_network_ctx *ctx,
++				  uint32_t buf_ping_index,
++				  size_t nr)
++{
++	struct c2_bufvec *bv;
++	c2_bcount_t	  len;
+ 
+-	/* optimizing memory allocation */
+-	if (buf_bulk->nb_desc.nbd_len != desc_len) {
+-		/* free old */
+-		c2_free(buf_bulk->nb_desc.nbd_data);
+-		buf_bulk->nb_desc.nbd_len = 0;
+-		/* alloc new */
+-		buf_bulk->nb_desc.nbd_data = c2_alloc(desc_len);
+-		if (buf_bulk->nb_desc.nbd_data == NULL)
+-			return -ENOMEM;
+-		buf_bulk->nb_desc.nbd_len = desc_len;
+-	}
++	C2_PRE(ctx != NULL);
++	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
+ 
+-	rc_bcount = bufvec_read(&cur_buf, buf_bulk->nb_desc.nbd_data, desc_len);
+-	if (rc_bcount != desc_len)
+-		return -EBADMSG;
++	bv = &c2_net_test_network_buf(ctx, C2_NET_TEST_BUF_PING,
++				      buf_ping_index)->nb_buffer;
++	len = network_bds_serialize(C2_NET_TEST_SERIALIZE, &nr, bv);
+ 
+-	buf_ping->nb_length += C2_NET_TEST_STRLEN_NBD_HEADER + desc_len;
+-	return 0;
++	return len == 0 ? -ENOBUFS : 0;
+ }
+ 
+ struct c2_net_buffer *
+diff --git a/net/test/network.h b/net/test/network.h
+index bd1bb2c..6148705 100644
+--- a/net/test/network.h
++++ b/net/test/network.h
+@@ -24,6 +24,8 @@
+ #define __COLIBRI_NET_TEST_NETWORK_H__
+ 
+ #include "net/net.h"
++#include "net/test/serialize.h"		/* c2_net_test_serialize_op */
++#include "net/test/slist.h"		/* c2_net_test_slist */
+ 
+ /**
+    @defgroup NetTestNetworkDFS Network
+@@ -129,6 +131,10 @@ void c2_net_test_network_fini(void);
+    Allocate ping and bulk buffers.
+    @note timeouts parameter can be NULL, in this case it is assumed
+    that all timeouts is C2_TIME_NEVER.
++   @note if sync parameter is set, then
++   c2_net_buffer_event_deliver_synchronously() will be called for transfer
++   machine and c2_net_buffer_event_deliver_all() should be used for buffer
++   event delivery.
+    @see c2_net_test_network_ctx
+    @pre ctx     != NULL
+    @pre tm_addr != NULL
+@@ -138,6 +144,7 @@ void c2_net_test_network_fini(void);
+    @return 0 (success)
+    @return -ECONNREFUSED c2_net_tm_start() failed.
+    @return -errno (failire)
++   @todo create configuration structure instead a lot of parameters
+  */
+ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
+ 				 const char *tm_addr,
+@@ -150,15 +157,18 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
+ 				 uint32_t buf_bulk_nr,
+ 				 uint32_t ep_max,
+ 				 const struct c2_net_test_network_timeouts
+-				 *timeouts);
++				 *timeouts,
++				 bool sync);
+ void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx);
+ bool c2_net_test_network_ctx_invariant(struct c2_net_test_network_ctx *ctx);
+ 
+ /**
+-   Add entry point to c2_net_test_network_ctx structure.
+-   @return entry point number.
++   Add endpoint to c2_net_test_network_ctx structure.
++   @return endpoint number.
+    @return -E2BIG ctx->ntc_ep already contains maximum number of endpoints.
+    @return -errno (if failure)
++   @pre c2_net_test_network_ctx_invariant(ctx)
++   @pre ep_addr != NULL
+ 
+    @see c2_net_test_network_init()
+  */
+@@ -166,6 +176,18 @@ int c2_net_test_network_ep_add(struct c2_net_test_network_ctx *ctx,
+ 			       const char *ep_addr);
+ 
+ /**
++   Add endpoints to c2_net_test_network_ctx structure.
++   If some endpoint addition fails, then no endpoints will be added to
++   network context and all added endpoints will be c2_net_end_point_put()'ed.
++   @return -E2BIG ctx->ntc_ep already contains maximum number of endpoints.
++   @pre c2_net_test_network_ctx_invariant(ctx)
++   @pre c2_net_test_slist_invariant(eps)
++   @post c2_net_test_network_ctx_invariant(ctx)
++ */
++int c2_net_test_network_ep_add_slist(struct c2_net_test_network_ctx *ctx,
++				     const struct c2_net_test_slist *eps);
++
++/**
+    Add message buffer to network messages send queue.
+    @param ctx Net-test network context.
+    @param buf_ping_index Index of buffer in ctx->ntc_buf_ping array.
+@@ -220,53 +242,79 @@ void c2_net_test_network_buffer_dequeue(struct c2_net_test_network_ctx *ctx,
+ 					int32_t buf_index);
+ 
+ /**
+-   Reset to 0 number of network buffer descriptors in the message buffer.
+-   @see @ref c2_net_test_network_bd_encode().
+- */
+-void c2_net_test_network_bd_reset(struct c2_net_test_network_ctx *ctx,
+-				  int32_t buf_ping_index);
+-/**
+-   Get the number of network buffer descriptors in the message buffer.
+-   @see @ref c2_net_test_network_bd_encode().
++   Serialize or deserialize bulk buffer network transport descriptor
++   to/from ping buffer.
++
++   Usage pattern for passive side:
++   @code
++   c2_bcount_t offset = 0;
++   c2_bcount_t len;
++   <...>
++   for (bulk buffers) {
++	<add bulk buffer to passive bulk queue>
++	using c2_net_test_network_bulk_enqueue()>
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++					       ctx, <buf_bulk_index>,
++					       buf_ping_index, offset);
++	<check for len == 0>
++	offset += len;
++   }
++   @endcode
++   Usage pattern for active side:
++   @code
++   c2_bcount_t offset = 0;
++   c2_bcount_t len;
++   size_t desc_nr;
++   <...>
++   desc_nr = c2_net_test_network_bd_nr_get(ctx, buf_ping_index);
++   for (i = 0; i < desc_nr; ++i) {
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
++					       ctx, <buf_bulk_index>,
++					       buf_ping_index, offset);
++	<check for len == 0>
++	offset += len;
++	<add bulk buffer to active bulk queue>
++   }
++   @endcode
++   @param op Serialization operation.
++   @param ctx Net-test network context.
++   @param buf_bulk_index Bulk buffer index. Buffer descriptor will be taken
++			 from this buffer for serialization and set for this
++			 buffer after deserialization.
++   @param buf_ping_index Ping buffer index. This buffer will be used as
++			 container to serialized buffer descriptors.
++   @param offset Offset in the ping buffer to serialize/deserialize
++		 network descriptor. Should have value 0 for the first
++		 descriptor when serializing/deserializing.
++   @return length of serialized/deserialized buffer descriptor.
++   @pre op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE
++   @pre ctx != NULL
++   @pre buf_bulk_index < ctx->ntc_buf_bulk_nr
++   @pre buf_ping_index < ctx->ntc_buf_ping_nr
++   @todo possible security vulnerability because bounds are not checked
+  */
+-uint32_t c2_net_test_network_bd_count(struct c2_net_test_network_ctx *ctx,
+-				      int32_t buf_ping_index);
++c2_bcount_t
++c2_net_test_network_bd_serialize(enum c2_net_test_serialize_op op,
++				 struct c2_net_test_network_ctx *ctx,
++				 uint32_t buf_bulk_index,
++				 uint32_t buf_ping_index,
++				 c2_bcount_t offset);
+ 
+ /**
+-   Store network buffer descriptor (c2_net_buf_desc) in the message buffer.
+-   c2_net_buf_desc is serialized and is stored in the message buffer
+-   one after the other. Buffer length is adjusted on every encoding.
+-   So, to send some number of network descriptors over the network
+-   there is a simple steps:
+-   - @b passive: call c2_net_test_network_bd_reset() to reset to 0 number of
+-     network descriptors in the ping buffer;
+-   - @b passive: call c2_net_test_network_bd_encode() as many times as needed
+-     to serialize bulk buffer descriptors (from buffers, previously added
+-     to passive bulk queues) to ping buffer;
+-   - @b passive: send ping buffer to active side;
+-   - @b active: receive ping buffer;
+-   - @b active: determine number of network buffer descriptors inside ping
+-     buffer using c2_net_test_network_bd_count();
+-   - @b active: reset number of network buffer desriptors in the ping buffer
+-     using c2_net_test_network_bd_reset();
+-   - @b active: sequentially call c2_net_test_network_bd_encode() as many times
+-     as there is network buffer descriptors, encoded in this ping buffer,
+-     to set appropriate network buffer descriptors for a bulk buffers to
+-     perform active send/receive.
+-   @param ctx Net-test network context.
+-   @param buf_ping_index Index of message buffer in ctx->ntc_buf_ping array.
+-   @param buf_bulk_index Index of bulk buffer in ctx->ntc_buf_bulk array.
++   Get number of stored network buffer descriptors in ping buffer.
++   @see c2_net_test_network_bd_serialize().
++   @pre ctx != NULL
++   @pre buf_ping_index < ctx->ntc_buf_ping_nr
+  */
+-int c2_net_test_network_bd_encode(struct c2_net_test_network_ctx *ctx,
+-				  int32_t buf_ping_index,
+-				  int32_t buf_bulk_index);
++size_t c2_net_test_network_bd_nr_get(struct c2_net_test_network_ctx *ctx,
++				     uint32_t buf_ping_index);
++
+ /**
+-   Recover a network descriptor from the message buffer.
+-   @see @ref c2_net_test_network_bd_encode().
++   Set number of network buffer descriptors in ping buffer.
+  */
+-int c2_net_test_network_bd_decode(struct c2_net_test_network_ctx *ctx,
+-				  int32_t buf_ping_index,
+-				  int32_t buf_bulk_index);
++int c2_net_test_network_bd_nr_set(struct c2_net_test_network_ctx *ctx,
++				  uint32_t buf_ping_index,
++				  size_t nr);
+ 
+ /**
+    Accessor to buffers in net-test network context.
+diff --git a/net/test/node.c b/net/test/node.c
+index f3e6e32..47646d3 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -132,8 +132,10 @@
+    - @ref net-test-lspec-comps
+      - @ref net-test-lspec-ping
+      - @ref net-test-lspec-bulk
+-     - @ref net-test-lspec-algo-client
+-     - @ref net-test-lspec-algo-server
++     - @ref net-test-lspec-algo-client-ping
++     - @ref net-test-lspec-algo-client-bulk
++     - @ref net-test-lspec-algo-server-ping
++     - @ref net-test-lspec-algo-server-bulk
+      - @ref net-test-lspec-console
+      - @ref net-test-lspec-misc
+    - @ref net-test-lspec-state
+@@ -151,6 +153,7 @@
+      stats	[label="stats.c"];
+      node_ping	[label="node_ping.c"];
+      node_bulk	[label="node_bulk.c"];
++     node_help	[label="node_helper.c"];
+      node_	[label="node.c"];
+      node_u	[label="user_space/node_u.c"];
+      node_k	[label="linux_kernel/node_k.c"];
+@@ -162,12 +165,15 @@
+      node_ping	-> network;
+      node_ping	-> service;
+      node_ping	-> stats;
++     node_ping	-> node_help;
+      node_bulk	-> network;
+      node_bulk	-> service;
+      node_bulk	-> stats;
++     node_bulk	-> node_help;
+      node_	-> node_ping;
+      node_	-> node_bulk;
+      node_	-> commands;
++     node_	-> service;
+      node_u	-> node_;
+      node_k	-> node_;
+      console	-> commands;
+@@ -244,7 +250,7 @@
+    |||;
+    @endmsc
+ 
+-   @subsubsection net-test-lspec-algo-client Test Client Algorithm
++   @subsubsection net-test-lspec-algo-client-ping Ping Test Client Algorithm
+ 
+    @todo Outdated and not used now.
+ 
+@@ -295,25 +301,108 @@ finished.up();\l", shape=box];
+      - update stats
+      - buf_free.up()
+ 
+-   Callbacks for bulk test
+-   - C2_NET_QT_MSG_SEND
+-     - nothing
+-   - C2_NET_QT_PASSIVE_BULK_SEND
+-     - update stats
+-   - C2_NET_QT_PASSIVE_BULK_RECV
+-     - update stats
+-     - buf_free.up()
++   @subsubsection net-test-lspec-algo-sm-legend State Machine Legend
++   - Red arrow - state transition to "error" states.
++   - Green arrow - state transition for "successful" operation.
++   - Black arrow - auto state transition (shouldn't be explicit).
++   - State name in double oval - final state.
++
++   @subsubsection net-test-lspec-algo-client-bulk Bulk Test Client Algorithm
+ 
+-   External variables and interrupts
+-   - semaphore stop = 0;
+-   - semaphore finished = 0;
+-   - client_stop()
+-     - stop.up()
+-   - stop and block until finish
+-     - client_stop()
+-     - finished.down()
++   @dot
++   digraph {
++	label = "Bulk Test Client Buffer States";
++	unused	    [label="UNUSED"];
++	queued	    [label="QUEUED"];
++	bd_sent	    [label="BD_SENT"];
++	cb_left2    [label="CB_LEFT2"];
++	cb_left1    [label="CB_LEFT1"];
++	failed2	    [label="FAILED2", color="red"];
++	failed1	    [label="FAILED1", color="red"];
++	transferred [label="TRANSFERRED", peripheries=2];
++	failed	    [label="FAILED", peripheries=2];
++
++	unused	    -> queued	   [color="green"];
++	queued	    -> bd_sent	   [color="green"];
++	queued	    -> failed	   [color="red"];
++	queued	    -> failed1	   [color="red"];
++	queued	    -> failed2	   [color="red"];
++	bd_sent	    -> cb_left2	   [color="green"];
++	bd_sent	    -> failed2	   [color="red"];
++	cb_left2    -> cb_left1	   [color="green"];
++	cb_left2    -> failed1	   [color="red"];
++	cb_left1    -> transferred [color="green"];
++	cb_left1    -> failed	   [color="red"];
++	failed2	    -> failed1	   [color="red"];
++	failed1	    -> failed	   [color="red"];
++	transferred -> unused	   [color="black"];
++	failed	    -> unused	   [color="black"];
++   }
++   @enddot
+ 
+-   @subsubsection net-test-lspec-algo-server Test Server Algorithm
++   @see @ref net-test-lspec-algo-sm-legend
++
++   Bulk buffer pair states
++   - UNUSED - buffer pair is not used in buffer operations now.
++     It is initial state of buffer pair.
++   - QUEUED - buffer pair is queued or almost added to network bulk queue.
++   - BD_SENT - buffer descriptors for bulk buffer pair are sent or almost sent
++     to the test server.
++   - CB_LEFT2(CB_LFET1) - there is 2 (or 1) network buffer callback(s) left
++     for this buffer pair (including network buffer callback for the message
++     with buffer descriptor).
++   - TRANSFERRED - all buffer for this buffer pair and message with buffer
++     descriptors was successfully executed.
++   - FAILED2(FAILED1, FAILED) - some operation failed. Also 2 (1, 0) callbacks
++     left for this buffer pair (like CB_LEFT2, CB_LEFT1).
++
++   Initial state: UNUSED.
++
++   Final states: TRANSFERRED, FAILED.
++
++   Bulk buffer pair state transitions
++   - UNUSED -> QUEUED
++     - client_process_unused_bulk() -- DONE
++       - add bulk buffer to passive bulk send queue, then add
++         another bulk buffer in pair to passive recv queue
++   - QUEUED -> BD_SENT
++     - client_process_queued_bulk() -- DONE
++       - send msg buffer with bulk buffer descriptors
++   - QUEUED -> FAILED
++     - client_process_unused_bulk() -- DONE
++       - addition to passive send queue failed
++   - QUEUED -> FAILED1
++     - client_process_unused_bulk() -- DONE
++       - addition to passive recv queue failed
++         - remove from passive send queue already queued buffer
++   - QUEUED -> FAILED2
++     - client_process_queued_bulk() -- DONE
++       - bulk buffer network descriptors to ping buffer encoding failed
++         - dequeue already queued bulk buffers
++       - addition msg with bulk buffer descriptors to network queue failed
++         - dequeue already queued bulk buffers
++   - BD_SENT -> CB_LEFT2
++   - CB_LEFT2 -> CB_LEFT1
++   - CB_LEFT1 -> TRANSFERRED
++     - network buffer callback -- DONE
++       - ev->nbe_status == 0
++   - BD_SENT -> FAILED2
++   - CB_LEFT2 -> FAILED1
++   - CB_LEFT1 -> FAILED
++     - network buffer callback -- DONE
++       - ev->nbe_status != 0
++   - FAILED2 -> FAILED1
++   - FAILED1 -> FAILED
++     - network buffer callback -- DONE
++   - TRANSFERRED -> UNUSED
++     - node_bulk_state_transition_auto_all() -- DONE
++       - stats: increase total number of number messages
++   - FAILED -> UNUSED
++     - node_bulk_state_transition_auto_all() -- DONE
++       - stats: increase total number of test messages and
++         number of failed messages
++
++   @subsubsection net-test-lspec-algo-server-ping Ping Test Server Algorithm
+ 
+    @todo Outdated and not used now.
+ 
+@@ -327,15 +416,96 @@ finished.up();\l", shape=box];
+    - C2_NET_QT_MSG_SEND
+      - add buffer to msg recv queue
+ 
+-   Bulk test callbacks
+-   - C2_NET_QT_MSG_RECV
+-     - add first buffer descriptor to ACTIVE_BULK_RECV queue
+-     - add msg buffer to MSG_RECV queue
+-   - C2_NET_QT_ACTIVE_BULK_RECV
+-     - add second buffer descriptor to ACTIVE_BULK_SEND queue
+-     (to send just received buffer)
+-   - C2_NET_QT_ACTIVE_BULK_SEND
+-     - add sent buffer to ACTIVE_BULK_RECV queue
++   @subsubsection net-test-lspec-algo-server-bulk Bulk Test Server Algorithm
++
++   - Every bulk buffer have its own state.
++   - Bulk test server maintains unused bulk buffers queue - the bulk buffer
++     for messages transfer will be taken from this queue when buffer
++     descriptor arrives. If there is no buffers in queue -
++     then buffer descriptor will be discarded, and number of failed and total
++     test messages will be increased.
++
++   @dot
++   digraph {
++	label = "Bulk Test Server Buffer States";
++	unused	    [label="UNUSED"];
++	bd_received [label="BD_RECEIVED"];
++	receiving   [label="RECEIVING"];
++	sending	    [label="SENDING"];
++	transferred [label="TRANSFERRED", peripheries=2];
++	failed	    [label="FAILED", peripheries=2];
++	badmsg	    [label="BADMSG", peripheries=2];
++
++	unused	    -> bd_received [color="green"];
++	bd_received -> badmsg	   [color="red"];
++	bd_received -> receiving   [color="green"];
++	receiving   -> sending	   [color="green"];
++	receiving   -> failed	   [color="red"];
++	sending	    -> transferred [color="green"];
++	sending	    -> failed	   [color="red"];
++	transferred -> unused	   [color="black"];
++	failed	    -> unused	   [color="black"];
++	badmsg	    -> unused	   [color="black"];
++   }
++   @enddot
++
++   @see @ref net-test-lspec-algo-sm-legend
++
++   Bulk buffer states
++   - UNUSED - bulk buffer isn't currenly used in network operations and
++     can be used when passive bulk buffer decriptors arrive.
++   - BD_RECEIVED - message with buffer descriptors was received from the test
++     client.
++   - RECEIVING - bulk buffer added (or almost added) to the active bulk
++     receive queue.
++   - SENDING - bulk buffer added (or almost added) to the active bulk
++     send queue.
++   - TRANSFERRED - bulk buffer was successfully received and sent.
++   - FAILED - some operation failed.
++   - BADMSG - message with buffer descriptors contains invalid data.
++
++   Initial state: UNUSED.
++
++   Final states: TRANSFERRED, FAILED, BADMSG.
++
++   Bulk buffer state transitions
++
++   - UNUSED -> BD_RECEIVED
++     - C2_NET_QT_MSG_RECV callback -- DONE
++       - message with buffer decriptors was received from the test client
++   - BD_RECEIVED -> BADMSG
++     - C2_NET_QT_MSG_RECV callback -- DONE
++       - message with buffer decscriptors contains invalid data
++   - BD_RECEIVED -> RECEIVING
++     - C2_NET_QT_MSG_RECV callback -- DONE
++       - bulk buffer was successfully added to active bulk receive queue.
++   - RECEIVING -> SENDING
++     - C2_NET_QT_ACTIVE_BULK_RECV callback -- DONE
++       - bulk buffer was successfully received from the test client.
++   - RECEIVING -> FAILED
++     - C2_NET_QT_MSG_RECV callback -- DONE
++       - addition to the active bulk receive queue failed.
++     - C2_NET_QT_ACTIVE_BULK_RECV callback -- DONE
++       - bulk buffer receiving failed.
++   - SENDING -> TRANSFERRED
++     - C2_NET_QT_ACTIVE_BULK_SEND callback -- DONE
++       - bulk buffer was successfully sent to the test client.
++   - SENDING -> FAILED
++     - C2_NET_QT_ACTIVE_BULK_RECV callback -- DONE
++       - addition to the active bulk send queue failed.
++     - C2_NET_QT_ACTIVE_BULK_SEND callback -- DONE
++       - active bulk sending failed.
++   - TRANSFERRED -> UNUSED
++     - node_bulk_state_transition_auto_all() -- DONE
++       - stats: increase total number of number messages
++   - FAILED -> UNUSED
++     - node_bulk_state_transition_auto_all() -- DONE
++       - stats: increase total number of test messages and
++         number of failed messages
++   - BADMSG -> UNUSED
++     - node_bulk_state_transition_auto_all() -- DONE
++       - stats: increase total number of test messages and
++         number of bad messages
+ 
+    @subsubsection net-test-lspec-console Test Console
+    @msc
+@@ -394,12 +564,12 @@ finished.up();\l", shape=box];
+    @dot
+    digraph {
+      node [style=box];
+-     label = "Test Client and Test Server States";
++     label = "Test Service States";
+      S0 [label="Uninitialized"];
+      S1 [label="Ready"];
+      S2 [label="Finished"];
+      S3 [label="Failed"];
+-     S0 -> S1 [label="succesful c2_net_test_service_init()"];
++     S0 -> S1 [label="successful c2_net_test_service_init()"];
+      S1 -> S0 [label="c2_net_test_service_fini()"];
+      S1 -> S2 [label="service state change: service was finished"];
+      S1 -> S3 [label="service state change: service was failed"];
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 406d62e..0898d35 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -18,11 +18,17 @@
+  * Original creation date: 09/03/2012
+  */
+ 
+-#include "lib/errno.h"		/* ENOSYS */
++#include "lib/arith.h"			/* C2_SWAP */
++#include "lib/errno.h"			/* EALREADY */
++#include "lib/memory.h"			/* C2_ALLOC_PTR */
++#include "lib/cdefs.h"			/* ergo */
++#include "lib/trace.h"			/* C2_LOG */
+ 
+-#include "net/test/network.h"	/* c2_net_test_network_ctx */
+-#include "net/test/node.h"	/* c2_net_test_node_ctx */
+-#include "net/test/service.h"	/* c2_net_test_service */
++#include "net/test/network.h"		/* c2_net_test_network_ctx */
++#include "net/test/node.h"		/* c2_net_test_node_ctx */
++#include "net/test/node_helper.h"	/* c2_net_test_node_ctx */
++#include "net/test/service.h"		/* c2_net_test_service */
++#include "net/test/ringbuf.h"		/* c2_net_test_ringbuf */
+ 
+ #include "net/test/node_bulk.h"
+ 
+@@ -30,9 +36,262 @@
+    @defgroup NetTestBulkNodeInternals Bulk Node
+    @ingroup NetTestInternals
+ 
++   Bulk node service c2_net_test_service_ops:
++   - ntso_init
++     - allocalte bulk node context
++   - ntso_fini
++     - finalize network context if it was initialized;
++     - free bulk node context
++   - ntso_step
++     - the same as node_ping
++   - ntso_cmd_handler
++     - C2_NET_TEST_CMD_INIT
++       - initialize network context
++       - reset statistics
++       - send C2_NET_TEST_CMD_INIT_DONE reply
++     - C2_NET_TEST_CMD_START
++       - the same as node_ping
++     - C2_NET_TEST_CMD_STOP
++       - the same as node_ping
++     - C2_NET_TEST_CMD_STATUS
++       - fill and send C2_NET_TEST_CMD_STATUS_DATA reply
++
++  Test client:
++  - bulk-buffer-not-in-net-queue queue
++  - ping-buffer-not-in-net-queue queue
++  - enqueue pair <send buf, recv buf> (with c2_net level timeouts)
++  - max_bd_in_one_message (parameter)
++  - send bd list to the test server without waiting for reply
++    or delivery confirmation
++  - number of ping buffers
++  - number of bulk buffers
++
++  Test server:
++  - number of ping buffers
++  - number of bulk buffers
++  - all bulk and ping buffers in recv queue with C2_TIME_NEVER timeout
++
+    @{
+  */
+ 
++/**
++ * Test message transfer state.
++ * @see @ref net-test-lspec-algo-client-bulk,
++ *	@ref net-test-lspec-algo-server-bulk.
++ */
++enum transfer_state {
++	TS_UNUSED = 0,		/**< client & server state */
++	TS_QUEUED,		/**< client state */
++	TS_BD_SENT,		/**< client state */
++	TS_CB_LEFT2,		/**< client state */
++	TS_CB_LEFT1,		/**< client state */
++	TS_FAILED2,		/**< client state */
++	TS_FAILED1,		/**< client state */
++	TS_BD_RECEIVED,		/**< server state */
++	TS_SENDING,		/**< server state */
++	TS_RECEIVING,		/**< server state */
++	TS_BADMSG,		/**< client & server state */
++	TS_FAILED,		/**< client & server state */
++	TS_TRANSFERRED,		/**< client & server state */
++};
++
++enum {
++	C2_NET_TEST_BSB_MAGIC = 3,	/** @todo FIXME */
++	C2_NET_TEST_BSB_HEAD_MAGIC = 4,	/** @todo FIXME */
++	C2_NET_TEST_SSB_MAGIC = 3,	/** @todo FIXME */
++	C2_NET_TEST_SSB_HEAD_MAGIC = 4,	/** @todo FIXME */
++	C2_NET_TEST_BSP_MAGIC = 3,	/** @todo FIXME */
++	C2_NET_TEST_BSP_HEAD_MAGIC = 4,	/** @todo FIXME */
++
++};
++
++/**
++ * Return values for network operations.
++ * @todo add timestamp
++ */
++struct buf_status_errno {
++	int bsn_func;	/**< Network buffer addition to queue */
++	int bsn_cb;	/**< Network buffer callback */
++};
++
++/** Bulk transfer status */
++struct buf_status_bulk {
++	/** State of bulk transfer */
++	enum transfer_state	bsb_ts;
++	/**
++	 * Bulk buffer index for the test server and
++	 * bulk buffer pair index for the test client.
++	 */
++	size_t			bsb_index;
++	/** Link for server_status_bulk.ssb_buffers */
++	struct c2_tlink		bsb_tlink;
++	/** Magic for bsb_tlink */
++	uint64_t		bsb_magic;
++	/** C2_NET_QT_MSG_SEND, C2_NET_QT_MSG_RECV functions and callbacks. */
++	struct buf_status_errno bsb_msg;
++	/**
++	 * C2_NET_QT_ACTIVE_SEND, C2_NET_QT_PASSIVE_SEND
++	 * functions and callbacks.
++	 */
++	struct buf_status_errno bsb_send;
++	/**
++	 * C2_NET_QT_ACTIVE_RECV, C2_NET_QT_PASSIVE_RECV
++	 * functions and callbacks.
++	 */
++	struct buf_status_errno bsb_recv;
++	/**
++	 * Bulk buffer network descriptor for C2_NET_QT_ACTIVE_BULK_SEND
++	 * network queue (test server).
++	 */
++	struct c2_net_buf_desc  bsb_desc_send;
++	/** Transfer start time */
++	c2_time_t		bsb_time_start;
++	/** Transfer finish time */
++	c2_time_t		bsb_time_finish;
++};
++
++/** Buffer of message with bulk buffer network descriptors status */
++struct buf_status_ping {
++	/** Ping buffer index */
++	size_t		bsp_index;
++	/**
++	 * Message contains network descriptors for the buffer
++	 * pairs for the test client (or buffers for the test server)
++	 * from this list.
++	 */
++	struct c2_tl	bsp_buffers;
++	/** Link for ping buffer list */
++	struct c2_tlink bsp_tlink;
++	/** Magic for bsp_tlink */
++	uint64_t	bsp_magic;
++};
++
++/** Server status for the test client */
++struct server_status_bulk {
++	/** Server index */
++	size_t		ssb_index;
++	/** Link for list of servers */
++	struct c2_tlink ssb_tlink;
++	/** Magic for ssb_tlink */
++	uint64_t	ssb_magic;
++	/** List of queued buffers for this server */
++	struct c2_tl	ssb_buffers;
++};
++
++/**
++ * State transition. Used in state transition checks instead of
++ * transition matrix because number of allowed state transitions is
++ * less than total number of possible state transitions in a few times.
++ * @see transfer_state
++ */
++struct state_transition {
++	enum transfer_state sta_from;	/**< Current state */
++	enum transfer_state sta_to;	/**< New state */
++};
++
++C2_TL_DESCR_DEFINE(bsb, "buf_status_bulk", static,
++		   struct buf_status_bulk, bsb_tlink, bsb_magic,
++		   C2_NET_TEST_BSB_MAGIC, C2_NET_TEST_BSB_HEAD_MAGIC);
++C2_TL_DEFINE(bsb, static, struct buf_status_bulk);
++
++C2_TL_DESCR_DEFINE(ssb, "server_status_bulk", static,
++		   struct server_status_bulk, ssb_tlink, ssb_magic,
++		   C2_NET_TEST_SSB_MAGIC, C2_NET_TEST_SSB_HEAD_MAGIC);
++C2_TL_DEFINE(ssb, static, struct server_status_bulk);
++
++C2_TL_DESCR_DEFINE(bsp, "buf_status_ping", static,
++		   struct buf_status_ping, bsp_tlink, bsp_magic,
++		   C2_NET_TEST_BSP_MAGIC, C2_NET_TEST_BSP_HEAD_MAGIC);
++C2_TL_DEFINE(bsp, static, struct buf_status_ping);
++
++/**
++ * Bulk test context.
++ * Buffer mapping for the test client:
++ * even buffers - for sending
++ * odd buffers - for receiving
++ * first (nbc_client_concurrency * 2) buffers for server #0, next
++ * (nbc_client_concurrency * 2) buffers for server #1 and so on.
++ * Buffer mapping for the test server:
++ * All buffers are used for receiving and sending.
++ * @todo move equal parts from node_bulk_ctx & node_ping_ctx to single struct
++ */
++struct node_bulk_ctx {
++	/** Node helper */
++	struct c2_net_test_nh		   nbc_nh;
++	/** Network context for testing */
++	struct c2_net_test_network_ctx	   nbc_net;
++	/** Test service. Used when changing service state. */
++	struct c2_net_test_service	  *nbc_svc;
++	/* Worker thread */
++	struct c2_thread		   nbc_thread;
++	/** Number of ping buffers */
++	size_t				   nbc_buf_ping_nr;
++	/** Number of bulk buffers */
++	size_t				   nbc_buf_bulk_nr;
++	/** Ping buffer size */
++	c2_bcount_t			   nbc_buf_size_ping;
++	/** Bulk buffer size */
++	c2_bcount_t			   nbc_buf_size_bulk;
++	/** Maximum number of buffer descriptors, stored to ping buffer */
++	size_t				   nbc_bd_nr_max;
++	/** Bulk buffer states */
++	struct buf_status_bulk		  *nbc_bs;
++	/** Number of bulk buffer states */
++	size_t				   nbc_bs_nr;
++	/** Ping buffer states */
++	struct buf_status_ping		  *nbc_bsp;
++	/** List of unused message buffers */
++	struct c2_net_test_ringbuf	   nbc_rb_ping_unused;
++	/** List of unused bulk buffers */
++	struct c2_net_test_ringbuf	   nbc_rb_bulk_unused;
++	/**
++	 * List of added to passive network queue buffers.
++	 * Network buffer descriptors wasn't sent yet for these buffers.
++	 */
++	struct c2_net_test_ringbuf	   nbc_rb_bulk_queued;
++	/**
++	 * List of bulk transfers, that are in final state.
++	 */
++	struct c2_net_test_ringbuf	   nbc_rb_bulk_final;
++	/**
++	 * Test client concurrency.
++	 * Test client will send nbc_client_concurrency test messages to
++	 * every server simultaneously.
++	 */
++	size_t				   nbc_client_concurrency;
++	/** Per server status for the test client */
++	struct server_status_bulk	  *nbc_sstatus;
++	/**
++	 * Channel for bulk testing inner loop.
++	 * STOP command will send signal to this channel.
++	 */
++	struct c2_chan			   nbc_stop_chan;
++	/**
++	 * Clink for bulk testing inner loop.
++	 * This clink is head for clink group, consists of this clink
++	 * and network transfer machine notification clink.
++	 */
++	struct c2_clink			   nbc_stop_clink;
++	/** Stop flag */
++	bool				   nbc_stop_flag;
++	/**
++	 * At least one callback was executed.
++	 * Set to true in every callback.
++	 */
++	bool				   nbc_callback_executed;
++};
++
++static const c2_time_t zero_time = C2_MKTIME(0, 0);
++
++/** Wrapper for c2_net_test_nh_sd_update() with smaller name */
++static void sd_update(struct node_bulk_ctx *ctx,
++		      enum c2_net_test_nh_msg_type type,
++		      enum c2_net_test_nh_msg_status status,
++		      enum c2_net_test_nh_msg_direction direction)
++{
++	c2_net_test_nh_sd_update(&ctx->nbc_nh, type, status, direction);
++}
++
+ static void node_bulk_tm_event_cb(const struct c2_net_tm_event *ev)
+ {
+ 	/* nothing for now */
+@@ -42,32 +301,1089 @@ static const struct c2_net_tm_callbacks node_bulk_tm_cb = {
+ 	.ntc_event_cb = node_bulk_tm_event_cb
+ };
+ 
+-static void node_bulk_msg_cb(struct c2_net_test_network_ctx *net_ctx,
+-			     const uint32_t buf_index,
+-			     enum c2_net_queue_type q,
+-			     const struct c2_net_buffer_event *ev)
++static struct node_bulk_ctx *
++node_bulk_ctx_from_net_ctx(struct c2_net_test_network_ctx *net_ctx)
++{
++	return (struct node_bulk_ctx *)
++	       ((char *) net_ctx - offsetof(struct node_bulk_ctx, nbc_net));
++}
++
++static bool
++node_bulk_state_change_allowed(enum transfer_state from,
++			       enum transfer_state to,
++			       const struct state_transition allowed[],
++			       size_t allowed_size)
++{
++	size_t i;
++
++	C2_PRE(allowed != NULL);
++	C2_PRE(allowed_size > 0);
++
++	for (i = 0; i < allowed_size; ++i) {
++		if (allowed[i].sta_from == from && allowed[i].sta_to == to)
++			break;
++	}
++	return i < allowed_size;
++}
++
++static void node_bulk_state_change(struct node_bulk_ctx *ctx,
++				   size_t bs_index,
++				   enum transfer_state state)
++{
++	static const struct state_transition allowed_client[] = {
++		{ .sta_from = TS_UNUSED,	.sta_to = TS_QUEUED },
++		{ .sta_from = TS_QUEUED,	.sta_to = TS_BD_SENT },
++		{ .sta_from = TS_QUEUED,	.sta_to = TS_FAILED },
++		{ .sta_from = TS_QUEUED,	.sta_to = TS_FAILED1 },
++		{ .sta_from = TS_QUEUED,	.sta_to = TS_FAILED2 },
++		{ .sta_from = TS_BD_SENT,	.sta_to = TS_CB_LEFT2 },
++		{ .sta_from = TS_BD_SENT,	.sta_to = TS_FAILED2 },
++		{ .sta_from = TS_CB_LEFT2,	.sta_to = TS_CB_LEFT1 },
++		{ .sta_from = TS_CB_LEFT2,	.sta_to = TS_FAILED1 },
++		{ .sta_from = TS_CB_LEFT1,	.sta_to = TS_TRANSFERRED },
++		{ .sta_from = TS_CB_LEFT1,	.sta_to = TS_FAILED },
++		{ .sta_from = TS_FAILED2,	.sta_to = TS_FAILED1 },
++		{ .sta_from = TS_FAILED1,	.sta_to = TS_FAILED },
++		{ .sta_from = TS_TRANSFERRED,	.sta_to = TS_UNUSED },
++		{ .sta_from = TS_FAILED,	.sta_to = TS_UNUSED },
++	};
++	static const struct state_transition allowed_server[] = {
++		{ .sta_from = TS_UNUSED,	.sta_to = TS_BD_RECEIVED },
++		{ .sta_from = TS_BD_RECEIVED,	.sta_to = TS_BADMSG },
++		{ .sta_from = TS_BD_RECEIVED,	.sta_to = TS_RECEIVING },
++		{ .sta_from = TS_RECEIVING,	.sta_to = TS_SENDING },
++		{ .sta_from = TS_RECEIVING,	.sta_to = TS_FAILED },
++		{ .sta_from = TS_SENDING,	.sta_to = TS_TRANSFERRED },
++		{ .sta_from = TS_SENDING,	.sta_to = TS_FAILED },
++		{ .sta_from = TS_TRANSFERRED,	.sta_to = TS_UNUSED },
++		{ .sta_from = TS_FAILED,	.sta_to = TS_UNUSED },
++		{ .sta_from = TS_BADMSG,	.sta_to = TS_UNUSED },
++	};
++	enum c2_net_test_role	role;
++	struct buf_status_bulk *bs;
++	bool			can_change;
++	bool			role_client;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(bs_index < ctx->nbc_bs_nr);
++	C2_PRE(ctx->nbc_bs != NULL);
++
++	/*
++	C2_LOG(C2_DEBUG, "state_change: role = %d, bs_index = %lu, state = %d",
++	       ctx->nbc_nh.ntnh_role, bs_index, state);
++	*/
++
++	role = ctx->nbc_nh.ntnh_role;
++	bs = &ctx->nbc_bs[bs_index];
++	role_client = role == C2_NET_TEST_ROLE_CLIENT;
++	can_change = node_bulk_state_change_allowed(bs->bsb_ts, state,
++			role_client ? allowed_client : allowed_server,
++			role_client ? ARRAY_SIZE(allowed_client) :
++				      ARRAY_SIZE(allowed_server));
++	C2_ASSERT(can_change);
++	bs->bsb_ts = state;
++
++	/** add to ringbufs if needed */
++	if (state == TS_UNUSED)
++		c2_net_test_ringbuf_push(&ctx->nbc_rb_bulk_unused, bs_index);
++	if (state == TS_FAILED || state == TS_TRANSFERRED || state == TS_BADMSG)
++		c2_net_test_ringbuf_push(&ctx->nbc_rb_bulk_final, bs_index);
++	/** set start & finish timestamp */
++	if (state == TS_RECEIVING || state == TS_QUEUED)
++		bs->bsb_time_start = c2_time_now();
++	if (state == TS_TRANSFERRED)
++		bs->bsb_time_finish = c2_time_now();
++	/** reset buf_status_errno if needed */
++	if (state == TS_UNUSED) {
++		C2_SET0(&bs->bsb_msg);
++		C2_SET0(&bs->bsb_send);
++		C2_SET0(&bs->bsb_recv);
++	}
++}
++
++static enum transfer_state
++node_bulk_state_search(enum transfer_state state,
++		       const struct state_transition state_list[],
++		       size_t state_nr)
++{
++	size_t i;
++	size_t j;
++
++	/** Check for unique "from" state in the list */
++	for (i = 0; i < state_nr; ++i) {
++		for (j = i + 1; j < state_nr; ++j) {
++			C2_ASSERT(state_list[i].sta_from !=
++				  state_list[j].sta_from);
++		}
++	}
++	for (i = 0; i < state_nr; ++i) {
++		if (state_list[i].sta_from == state)
++			return state_list[i].sta_to;
++	}
++	C2_IMPOSSIBLE("Invalid 'from' state in net-test bulk testing.");
++}
++
++static void node_bulk_state_change_cb(struct node_bulk_ctx *ctx,
++				      size_t bs_index,
++				      bool success)
++{
++	static const struct state_transition client_success[] = {
++		{ .sta_from = TS_BD_SENT,	.sta_to = TS_CB_LEFT2 },
++		{ .sta_from = TS_CB_LEFT2,	.sta_to = TS_CB_LEFT1 },
++		{ .sta_from = TS_CB_LEFT1,	.sta_to = TS_TRANSFERRED },
++		{ .sta_from = TS_FAILED2,	.sta_to = TS_FAILED1 },
++		{ .sta_from = TS_FAILED1,	.sta_to = TS_FAILED },
++	};
++	static const struct state_transition client_failure[] = {
++		{ .sta_from = TS_BD_SENT,	.sta_to = TS_FAILED2 },
++		{ .sta_from = TS_CB_LEFT2,	.sta_to = TS_FAILED1 },
++		{ .sta_from = TS_CB_LEFT1,	.sta_to = TS_FAILED },
++		{ .sta_from = TS_FAILED2,	.sta_to = TS_FAILED1 },
++		{ .sta_from = TS_FAILED1,	.sta_to = TS_FAILED },
++	};
++	static const struct state_transition server_success[] = {
++		{ .sta_from = TS_RECEIVING,	.sta_to = TS_SENDING },
++		{ .sta_from = TS_SENDING,	.sta_to = TS_TRANSFERRED },
++	};
++	static const struct state_transition server_failure[] = {
++		{ .sta_from = TS_RECEIVING,	.sta_to = TS_FAILED },
++		{ .sta_from = TS_SENDING,	.sta_to = TS_FAILED },
++	};
++	const struct state_transition *transition;
++	size_t			       transition_size;
++	enum transfer_state	       state;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(bs_index < ctx->nbc_bs_nr);
++	C2_PRE(ctx->nbc_bs != NULL);
++
++	if (ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
++		transition	= success ? client_success : client_failure;
++		transition_size = success ? ARRAY_SIZE(client_success) :
++					    ARRAY_SIZE(client_failure);
++	} else if (ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_SERVER) {
++		transition	= success ? server_success : server_failure;
++		transition_size = success ? ARRAY_SIZE(server_success) :
++					    ARRAY_SIZE(server_failure);
++	} else {
++		C2_IMPOSSIBLE("Invalid node role in net-test bulk testing");
++	}
++	state = node_bulk_state_search(ctx->nbc_bs[bs_index].bsb_ts,
++				       transition, transition_size);
++	node_bulk_state_change(ctx, bs_index, state);
++}
++
++void node_bulk_state_transition_auto(struct node_bulk_ctx *ctx,
++				     size_t bs_index)
+ {
++	struct buf_status_bulk *bs;
++	bool			role_client;
++	c2_time_t		rtt;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(bs_index < ctx->nbc_bs_nr);
++
++	role_client = ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT;
++	bs = &ctx->nbc_bs[bs_index];
++	/** Check final states */
++	C2_ASSERT(bs->bsb_ts == TS_TRANSFERRED || bs->bsb_ts == TS_FAILED ||
++		  (!role_client && bs->bsb_ts == TS_BADMSG));
++	switch (bs->bsb_ts) {
++	case TS_TRANSFERRED:
++		rtt = ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT ?
++		      zero_time : c2_time_sub(bs->bsb_time_finish,
++					      bs->bsb_time_start);
++		sd_update(ctx, MT_TRANSFER, MS_SUCCESS, MD_BOTH);
++		c2_net_test_nh_sd_update_rtt(&ctx->nbc_nh, rtt);
++		break;
++	case TS_FAILED:
++		sd_update(ctx, MT_TRANSFER, MS_FAILED, MD_BOTH);
++		break;
++	case TS_BADMSG:
++		sd_update(ctx, MT_MSG, MS_BAD, MD_RECV);
++		break;
++	default:
++		C2_IMPOSSIBLE("Impossible final state in "
++			      "net-test bulk testing");
++	}
++	node_bulk_state_change(ctx, bs_index, TS_UNUSED);
++}
++
++void node_bulk_state_transition_auto_all(struct node_bulk_ctx *ctx)
++{
++	size_t			   bs_index;
++	size_t			   i;
++	size_t			   nr;
++
++	C2_PRE(ctx != NULL);
++
++	nr = c2_net_test_ringbuf_nr(&ctx->nbc_rb_bulk_final);
++	for (i = 0; i < nr; ++i) {
++		bs_index = c2_net_test_ringbuf_pop(&ctx->nbc_rb_bulk_final);
++		node_bulk_state_transition_auto(ctx, bs_index);
++	}
++	C2_POST(c2_net_test_ringbuf_is_empty(&ctx->nbc_rb_bulk_final));
++}
++
++static void server_process_unused_ping(struct node_bulk_ctx *ctx)
++{
++	size_t index;
++	size_t i;
++	size_t nr;
++	int    rc;
++
++	C2_PRE(ctx != NULL);
++
++	nr = c2_net_test_ringbuf_nr(&ctx->nbc_rb_ping_unused);
++	for (i = 0; i < nr; ++i) {
++		index = c2_net_test_ringbuf_pop(&ctx->nbc_rb_ping_unused);
++		rc = c2_net_test_network_msg_recv(&ctx->nbc_net, index);
++		if (rc != 0) {
++			sd_update(ctx, MT_MSG, MS_FAILED, MD_RECV);
++			c2_net_test_ringbuf_push(&ctx->nbc_rb_ping_unused,
++						 index);
++		}
++	}
++}
++
++static struct c2_net_buffer *net_buf_bulk_get(struct node_bulk_ctx *ctx,
++					      size_t buf_bulk_index)
++{
++	return c2_net_test_network_buf(&ctx->nbc_net, C2_NET_TEST_BUF_BULK,
++				       buf_bulk_index);
++}
++
++static void buf_desc_set0(struct node_bulk_ctx *ctx,
++			  size_t buf_bulk_index)
++{
++	C2_PRE(ctx != NULL);
++	C2_PRE(buf_bulk_index < ctx->nbc_buf_bulk_nr);
++
++	C2_SET0(&net_buf_bulk_get(ctx, buf_bulk_index)->nb_desc);
++	C2_SET0(&ctx->nbc_bs[buf_bulk_index].bsb_desc_send);
+ }
+ 
+ /**
+-@todo static
+-*/
+-struct c2_net_test_network_buffer_callbacks node_bulk_buf_cb = {
++ * Swap contents of network buf descriptors for bulk network buffer
++ * buf_index and buf_status_bulk.bsb_desc_send for this buffer.
++ */
++static void buf_desc_swap(struct node_bulk_ctx *ctx,
++			  size_t buf_bulk_index)
++{
++	C2_PRE(ctx != NULL);
++	C2_PRE(buf_bulk_index < ctx->nbc_buf_bulk_nr);
++
++	C2_SWAP(net_buf_bulk_get(ctx, buf_bulk_index)->nb_desc,
++		ctx->nbc_bs[buf_bulk_index].bsb_desc_send);
++}
++
++static void buf_desc_free(struct node_bulk_ctx *ctx,
++			  size_t buf_bulk_index)
++{
++	C2_PRE(ctx != NULL);
++	C2_PRE(buf_bulk_index < ctx->nbc_buf_bulk_nr);
++
++	c2_net_desc_free(&net_buf_bulk_get(ctx, buf_bulk_index)->nb_desc);
++	c2_net_desc_free(&ctx->nbc_bs[buf_bulk_index].bsb_desc_send);
++}
++
++static c2_bcount_t buf_desc_deserialize(struct node_bulk_ctx *ctx,
++					size_t buf_bulk_index,
++					size_t buf_ping_index,
++					c2_bcount_t offset)
++{
++	c2_bcount_t len;
++	c2_bcount_t len_total;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(buf_ping_index < ctx->nbc_buf_ping_nr);
++	C2_PRE(buf_bulk_index < ctx->nbc_buf_bulk_nr);
++
++	buf_desc_set0(ctx, buf_bulk_index);
++	/** decode network buffer descriptors for active bulk receiving */
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
++					       &ctx->nbc_net, buf_bulk_index,
++					       buf_ping_index, offset);
++	if (len == 0)
++		return 0;
++	len_total = len;
++
++	/**
++	 * buf->nb_desc = zero descriptor
++	 * bs->bsb_desc_send = descriptor for active bulk receiving
++	 */
++	buf_desc_swap(ctx, buf_bulk_index);
++
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
++					       &ctx->nbc_net, buf_bulk_index,
++					       buf_ping_index, offset + len);
++	if (len == 0) {
++		/** free already allocated network descriptor */
++		buf_desc_free(ctx, buf_bulk_index);
++		return 0;
++	}
++	len_total += len;
++
++	/**
++	 * buf->nb_desc = descriptor for active bulk receiving
++	 * bs->bsb_desc_send = descriptor for active bulk sending
++	 */
++	buf_desc_swap(ctx, buf_bulk_index);
++
++	return len_total;
++}
++
++/**
++ * Start network transfer. Take two network buffer descriptors from
++ * buf_ping_index in ctx->nbc_net with given offset in buffer.
++ * @return number of bytes read.
++ * @return 0 if no free bulk buffer found or deserializing failed.
++ */
++static c2_bcount_t node_bulk_server_transfer_start(struct node_bulk_ctx *ctx,
++						   size_t buf_ping_index,
++						   c2_bcount_t offset)
++{
++	struct buf_status_bulk *bs;
++	struct c2_net_buffer   *buf;
++	c2_bcount_t		len;
++	size_t			buf_bulk_index;
++	bool			no_unused_buf;
++	int			rc;
++
++	no_unused_buf = c2_net_test_ringbuf_is_empty(&ctx->nbc_rb_bulk_unused);
++	if (no_unused_buf) {
++		C2_LOG(C2_DEBUG, "--- NO UNUSED BUFS");
++		sd_update(ctx, MT_TRANSFER, MS_FAILED, MD_BOTH);
++		return 0;
++	}
++
++	/** get unused buf */
++	buf_bulk_index = c2_net_test_ringbuf_pop(&ctx->nbc_rb_bulk_unused);
++	C2_ASSERT(buf_bulk_index < ctx->nbc_buf_bulk_nr);
++	node_bulk_state_change(ctx, buf_bulk_index, TS_BD_RECEIVED);
++	/** deserialize network buffer descriptors */
++	len = buf_desc_deserialize(ctx, buf_bulk_index, buf_ping_index, offset);
++	if (len == 0) {
++		C2_LOG(C2_DEBUG, "BADMSG: buf_bulk_index = %lu, "
++				 "buf_ping_index = %lu, "
++				 "offset = %lu",
++				 buf_bulk_index, buf_ping_index,
++				 (unsigned long) offset);
++		/** ping buffer contains invalid data */
++		node_bulk_state_change(ctx, buf_bulk_index, TS_BADMSG);
++		return 0;
++	}
++	node_bulk_state_change(ctx, buf_bulk_index, TS_RECEIVING);
++	/** start active bulk receiving */
++	rc = c2_net_test_network_bulk_enqueue(&ctx->nbc_net, buf_bulk_index, 0,
++					      C2_NET_QT_ACTIVE_BULK_RECV);
++	bs = &ctx->nbc_bs[buf_bulk_index];
++	buf = c2_net_test_network_buf(&ctx->nbc_net, C2_NET_TEST_BUF_BULK,
++				      buf_bulk_index);
++	bs->bsb_recv.bsn_func = rc;
++	if (rc != 0) {
++		/**
++		 * Addition buffer to network queue failed.
++		 * Free allocated (when deserialized) network descriptors.
++		 */
++		node_bulk_state_change(ctx, buf_bulk_index, TS_FAILED);
++		c2_net_desc_free(&bs->bsb_desc_send);
++		c2_net_desc_free(&buf->nb_desc);
++		sd_update(ctx, MT_BULK, MS_FAILED, MD_RECV);
++	}
++	return rc == 0 ? len : 0;
++}
++
++static void node_bulk_cb_server(struct node_bulk_ctx *ctx,
++				size_t buf_index,
++				enum c2_net_queue_type q,
++				const struct c2_net_buffer_event *ev)
++{
++	c2_bcount_t offset;
++	c2_bcount_t len;
++	size_t	    nr;
++	size_t	    i;
++	int	    rc;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_SERVER);
++	C2_PRE(ergo(q == C2_NET_QT_MSG_RECV, buf_index < ctx->nbc_buf_ping_nr));
++	C2_PRE(ergo(q == C2_NET_QT_ACTIVE_BULK_RECV ||
++		    q == C2_NET_QT_ACTIVE_BULK_SEND,
++		    buf_index < ctx->nbc_buf_bulk_nr));
++
++	if (q == C2_NET_QT_MSG_RECV) {
++		if (ev->nbe_status != 0)
++			return;
++		nr = c2_net_test_network_bd_nr_get(&ctx->nbc_net, buf_index);
++		if (nr % 2 != 0) {
++			C2_LOG(C2_DEBUG, "MS_BAD: nr = %lu", nr);
++			sd_update(ctx, MT_MSG, MS_BAD, MD_RECV);
++			return;
++		}
++		nr /= 2;
++		offset = 0;
++		for (i = 0; i < nr; ++i) {
++			len = node_bulk_server_transfer_start(ctx, buf_index,
++							      offset);
++			offset += len;
++		}
++	} else if (q == C2_NET_QT_ACTIVE_BULK_RECV) {
++		if (ev->nbe_status != 0) {
++			C2_LOG(C2_DEBUG, "--- active bulk recv FAILED!");
++			buf_desc_free(ctx, buf_index);
++			return;
++		}
++		/**
++		 * Don't free c2_net_buf_desc here to avoid
++		 * memory allocator delays.
++		 */
++		buf_desc_swap(ctx, buf_index);
++		rc = c2_net_test_network_bulk_enqueue(&ctx->nbc_net,
++						      buf_index, 0,
++						C2_NET_QT_ACTIVE_BULK_SEND);
++		ctx->nbc_bs[buf_index].bsb_send.bsn_func = rc;
++		if (rc != 0) {
++			C2_LOG(C2_DEBUG, "--- active bulk send FAILED!");
++			buf_desc_free(ctx, buf_index);
++			node_bulk_state_change(ctx, buf_index, TS_FAILED);
++			sd_update(ctx, MT_BULK, MS_FAILED, MD_SEND);
++		}
++	} else if (q == C2_NET_QT_ACTIVE_BULK_SEND) {
++		buf_desc_free(ctx, buf_index);
++	}
++}
++
++static void node_bulk_cb(struct c2_net_test_network_ctx *net_ctx,
++			 const uint32_t buf_index,
++			 enum c2_net_queue_type q,
++			 const struct c2_net_buffer_event *ev)
++{
++	struct buf_status_bulk	*bs;
++	size_t			 bs_index;
++	struct buf_status_errno *bs_e;
++	struct node_bulk_ctx	*ctx = node_bulk_ctx_from_net_ctx(net_ctx);
++	bool			 role_client;
++	bool			 buf_send;
++	bool			 buf_bulk;
++
++	/*
++	C2_LOG(C2_DEBUG, "node_bulk_cb: tm_addr = %s, buf_index = %u, q = %d"
++			 ", ev-nbe_status = %d",
++	       net_ctx->ntc_tm->ntm_ep->nep_addr, buf_index, q, ev->nbe_status);
++	*/
++	C2_PRE(net_ctx != NULL);
++	role_client = ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT;
++	C2_PRE(ergo(q == C2_NET_QT_MSG_RECV, !role_client));
++	C2_PRE(ergo(q == C2_NET_QT_MSG_SEND, role_client));
++	C2_PRE(ergo(q == C2_NET_QT_PASSIVE_BULK_RECV, role_client));
++	C2_PRE(ergo(q == C2_NET_QT_PASSIVE_BULK_SEND, role_client));
++	C2_PRE(ergo(q == C2_NET_QT_ACTIVE_BULK_RECV, !role_client));
++	C2_PRE(ergo(q == C2_NET_QT_ACTIVE_BULK_SEND, !role_client));
++	C2_PRE(ergo(q == C2_NET_QT_MSG_RECV || q == C2_NET_QT_MSG_SEND,
++		    buf_index < ctx->nbc_buf_ping_nr));
++
++	if (ev->nbe_status != 0 && ev->nbe_status != -ECANCELED) {
++		C2_LOG(C2_DEBUG, "--CALLBACK ERROR! errno = %d",
++		       ev->nbe_status);
++		C2_LOG(C2_DEBUG, "node_bulk_cb: tm_addr = %s, "
++				 "buf_index = %u, q = %d"
++				 ", ev-nbe_status = %d",
++	       net_ctx->ntc_tm->ntm_ep->nep_addr, buf_index, q, ev->nbe_status);
++	}
++
++	ctx->nbc_callback_executed = true;
++	buf_bulk = false;
++	if (q == C2_NET_QT_PASSIVE_BULK_RECV ||
++	    q == C2_NET_QT_ACTIVE_BULK_RECV ||
++	    q == C2_NET_QT_PASSIVE_BULK_SEND ||
++	    q == C2_NET_QT_ACTIVE_BULK_SEND) {
++		buf_bulk = true;
++		bs_index = role_client ? buf_index / 2 : buf_index;
++		C2_ASSERT(bs_index < ctx->nbc_bs_nr);
++		bs = &ctx->nbc_bs[bs_index];
++		bs_e = q == C2_NET_QT_PASSIVE_BULK_RECV ||
++		       q == C2_NET_QT_ACTIVE_BULK_RECV ? &bs->bsb_recv :
++		       q == C2_NET_QT_PASSIVE_BULK_SEND ||
++		       q == C2_NET_QT_ACTIVE_BULK_SEND ? &bs->bsb_send : NULL;
++		C2_ASSERT(bs_e != NULL);
++		bs_e->bsn_cb = ev->nbe_status;
++		node_bulk_state_change_cb(ctx, bs_index, ev->nbe_status == 0);
++	}
++	if (role_client && q == C2_NET_QT_MSG_SEND) {
++		/**
++		 * Change state for every bulk buffer, which
++		 * descriptor is stored in current message.
++		 */
++		c2_tl_for(bsb, &ctx->nbc_bsp[buf_index].bsp_buffers, bs) {
++			bs->bsb_msg.bsn_cb = ev->nbe_status;
++			node_bulk_state_change_cb(ctx, bs->bsb_index,
++						  ev->nbe_status == 0);
++			bsb_tlist_del(bs);
++		} c2_tl_endfor;
++	}
++	if (!role_client)
++		node_bulk_cb_server(ctx, buf_index, q, ev);
++	if (q == C2_NET_QT_MSG_SEND || q == C2_NET_QT_MSG_RECV) {
++		/* ping buffer can be reused now */
++		c2_net_test_ringbuf_push(&ctx->nbc_rb_ping_unused, buf_index);
++	}
++	if (!role_client && q == C2_NET_QT_MSG_RECV) {
++		C2_ASSERT(!role_client);
++		/**
++		 * @todo nbc_stop_flag isn't protected here with lock.
++		 * is it safe?
++		 */
++		if (!ctx->nbc_stop_flag)
++			server_process_unused_ping(ctx);
++	}
++	/* update stats */
++	buf_send = q == C2_NET_QT_PASSIVE_BULK_SEND ||
++		   q == C2_NET_QT_ACTIVE_BULK_SEND || q == C2_NET_QT_MSG_SEND;
++	sd_update(ctx, buf_bulk ? MT_BULK : MT_MSG,
++		  ev->nbe_status == 0 ? MS_SUCCESS : MS_FAILED,
++		  buf_send ? MD_SEND : MD_RECV);
++	/* state transitions from final states */
++	node_bulk_state_transition_auto_all(ctx);
++	/* reuse ping buffer on the test server */
++}
++
++static struct c2_net_test_network_buffer_callbacks node_bulk_buf_cb = {
+ 	.ntnbc_cb = {
+-		[C2_NET_QT_MSG_RECV]		= node_bulk_msg_cb,
+-		[C2_NET_QT_MSG_SEND]		= node_bulk_msg_cb,
+-		[C2_NET_QT_PASSIVE_BULK_RECV]	= node_bulk_msg_cb,
+-		[C2_NET_QT_PASSIVE_BULK_SEND]	= node_bulk_msg_cb,
+-		[C2_NET_QT_ACTIVE_BULK_RECV]	= node_bulk_msg_cb,
+-		[C2_NET_QT_ACTIVE_BULK_SEND]	= node_bulk_msg_cb,
++		[C2_NET_QT_MSG_RECV]		= node_bulk_cb,
++		[C2_NET_QT_MSG_SEND]		= node_bulk_cb,
++		[C2_NET_QT_PASSIVE_BULK_RECV]	= node_bulk_cb,
++		[C2_NET_QT_PASSIVE_BULK_SEND]	= node_bulk_cb,
++		[C2_NET_QT_ACTIVE_BULK_RECV]	= node_bulk_cb,
++		[C2_NET_QT_ACTIVE_BULK_SEND]	= node_bulk_cb,
+ 	}
+ };
+ 
++/** Get server index for a given buffer index */
++static size_t client_server_index(struct node_bulk_ctx *ctx, size_t buf_index)
++{
++	C2_PRE(ctx != NULL);
++	C2_PRE(ctx->nbc_client_concurrency > 0);
++
++	return buf_index / (2 * ctx->nbc_client_concurrency);
++}
++
++/** Enqueue passive send/recv buffers for the test client */
++static int client_bulk_enqueue(struct node_bulk_ctx *ctx,
++			       size_t buf_index)
++{
++	enum c2_net_queue_type q;
++	size_t		       server_index;
++
++	q = buf_index % 2 == 0 ? C2_NET_QT_PASSIVE_BULK_SEND :
++				 C2_NET_QT_PASSIVE_BULK_RECV;
++	server_index = client_server_index(ctx, buf_index / 2);
++	return c2_net_test_network_bulk_enqueue(&ctx->nbc_net, buf_index,
++						server_index, q);
++}
++
++static void client_bulk_dequeue(struct node_bulk_ctx *ctx,
++				size_t buf_index)
++{
++	c2_net_test_network_buffer_dequeue(&ctx->nbc_net, C2_NET_TEST_BUF_BULK,
++					   buf_index);
++}
++
++static void client_transfer_start(struct node_bulk_ctx *ctx,
++				  size_t bs_index)
++{
++	struct buf_status_bulk *bs;
++	int			rc;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(bs_index < ctx->nbc_bs_nr);
++
++	bs = &ctx->nbc_bs[bs_index];
++	node_bulk_state_change(ctx, bs_index, TS_QUEUED);
++	bs->bsb_time_start = c2_time_now();
++	rc = client_bulk_enqueue(ctx, bs_index * 2);
++	bs->bsb_send.bsn_func = rc;
++	if (rc != 0) {
++		C2_LOG(C2_DEBUG, "123");
++		node_bulk_state_change(ctx, bs_index, TS_FAILED);
++		sd_update(ctx, MT_BULK, MS_FAILED, MD_SEND);
++		return;
++	}
++	rc = client_bulk_enqueue(ctx, bs_index * 2 + 1);
++	bs->bsb_recv.bsn_func = rc;
++	if (rc != 0) {
++		C2_LOG(C2_DEBUG, "456");
++		node_bulk_state_change(ctx, bs_index, TS_FAILED1);
++		client_bulk_dequeue(ctx, bs_index * 2);
++		sd_update(ctx, MT_BULK, MS_FAILED, MD_RECV);
++		return;
++	}
++	c2_net_test_ringbuf_push(&ctx->nbc_rb_bulk_queued, bs_index);
++}
++
++static void client_process_unused_bulk(struct node_bulk_ctx *ctx)
++{
++	size_t i;
++	size_t nr;
++	size_t bs_index;
++	bool   transfer_next;
++
++	C2_PRE(ctx != NULL);
++
++	nr = c2_net_test_ringbuf_nr(&ctx->nbc_rb_bulk_unused);
++	for (i = 0; i < nr; ++i) {
++		/** Check stop conditions */
++		transfer_next = c2_net_test_nh_transfer_next(&ctx->nbc_nh);
++		/*
++		C2_LOG(C2_DEBUG, "client: transfer_next = %s",
++		       transfer_next ? (char *) "true" : (char *) "false");
++		*/
++		if (!transfer_next)
++			break;
++		/** Start next transfer */
++		bs_index = c2_net_test_ringbuf_pop(&ctx->nbc_rb_bulk_unused);
++		/*
++		C2_LOG(C2_DEBUG, "client: next transfer bs_index = %lu",
++		       bs_index);
++		*/
++		client_transfer_start(ctx, bs_index);
++	}
++}
++
++static c2_bcount_t client_bds_serialize2(struct c2_net_test_network_ctx *net,
++					 size_t bsb_index,
++					 size_t msg_buf_index,
++					 c2_bcount_t offset)
++{
++	c2_bcount_t len;
++	c2_bcount_t len_total;
++	size_t	    nr;
++
++	len_total = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++						     net, bsb_index * 2,
++						     msg_buf_index, offset);
++	if (len_total == 0)
++		return 0;
++
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++					       net, bsb_index * 2 + 1,
++					       msg_buf_index,
++					       offset + len_total);
++	if (len == 0) {
++		nr = c2_net_test_network_bd_nr_get(net, msg_buf_index);
++		--nr;
++		c2_net_test_network_bd_nr_set(net, msg_buf_index, nr);
++	}
++	return len == 0 ? 0 : len_total + len;
++}
++
++
++static void client_bulk_bufs_dequeue(struct node_bulk_ctx *ctx,
++				     struct buf_status_bulk *bs)
++{
++	client_bulk_dequeue(ctx, bs->bsb_index * 2);
++	client_bulk_dequeue(ctx, bs->bsb_index * 2 + 1);
++}
++
++static void client_bds_send(struct node_bulk_ctx *ctx,
++			    struct server_status_bulk *ss)
++{
++	struct c2_net_test_ringbuf *rb_ping = &ctx->nbc_rb_ping_unused;
++	struct buf_status_bulk	   *bs;
++	/** Message buffer was taken from unused list */
++	bool			   msg_taken;
++	/** Message buffer index, makes sense iff (msg_taken) */
++	size_t			   msg_index;
++	/** Number of buffer descriptors in selected message buffer */
++	size_t			   msg_bd_nr;
++	struct buf_status_ping	  *msg_bs;
++	c2_bcount_t		   msg_offset;
++	c2_bcount_t		   len;
++	bool			   buf_last;
++	int			   rc;
++	struct c2_tl		   messages;
++	bool			   list_is_empty;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(ss != NULL);
++	C2_PRE(ctx->nbc_bd_nr_max > 0 && ctx->nbc_bd_nr_max % 2 == 0);
++
++	bsp_tlist_init(&messages);
++	msg_taken = false;
++	c2_tl_for(bsb, &ss->ssb_buffers, bs) {
++take_msg:
++		if (!msg_taken && c2_net_test_ringbuf_is_empty(rb_ping)) {
++			/**
++			 * No free message to transfer bulk buffer
++			 * network descriptors. Cancel tranfers.
++			 */
++			node_bulk_state_change(ctx, bs->bsb_index, TS_FAILED2);
++			client_bulk_bufs_dequeue(ctx, bs);
++			sd_update(ctx, MT_MSG, MS_FAILED, MD_SEND);
++			bsb_tlist_del(bs);
++			continue;
++		}
++		/** Take unused msg buf number if it wasn't taken before */
++		if (!msg_taken) {
++			msg_index     = c2_net_test_ringbuf_pop(rb_ping);
++			msg_taken     = true;
++			msg_bd_nr     = 0;
++			msg_offset    = 0;
++			msg_bs	      = &ctx->nbc_bsp[msg_index];
++			list_is_empty =
++				bsb_tlist_is_empty(&msg_bs->bsp_buffers);
++			C2_ASSERT(list_is_empty);
++		}
++		/** Try to serialize two buffer descriptors */
++		len = client_bds_serialize2(&ctx->nbc_net, bs->bsb_index,
++					    msg_index, msg_offset);
++		/*
++		C2_LOG(C2_DEBUG, "msg_index = %lu, len = %lu, msg_offset = %lu",
++		       (unsigned long ) msg_index, (unsigned long ) len,
++		       (unsigned long ) msg_offset);
++		*/
++		msg_offset += len;
++		if (len == 0) {
++			if (msg_bd_nr > 0) {
++				/** No free space in ping buffer */
++				bsp_tlist_add_tail(&messages, msg_bs);
++				msg_taken = false;
++				goto take_msg;
++			} else {
++				/**
++				 * Serializing failed for unknown reason
++				 * (or ping buffer is smaller than
++				 * size of two serialized bulk
++				 * network buffer descriptors)
++				 */
++				node_bulk_state_change(ctx, bs->bsb_index,
++						       TS_FAILED2);
++				client_bulk_bufs_dequeue(ctx, bs);
++				bsb_tlist_del(bs);
++				msg_taken = false;
++			}
++		} else {
++			buf_last = bsb_tlist_next(&ss->ssb_buffers, bs) == NULL;
++			bsb_tlist_del(bs);
++			bsb_tlist_add_tail(&msg_bs->bsp_buffers, bs);
++			msg_bd_nr += 2;
++			if (msg_bd_nr == ctx->nbc_bd_nr_max || buf_last) {
++				bsp_tlist_add_tail(&messages, msg_bs);
++				msg_taken = false;
++			}
++		}
++	} c2_tl_endfor;
++	C2_ASSERT(!msg_taken);
++	c2_tl_for(bsp, &messages, msg_bs) {
++		list_is_empty = bsb_tlist_is_empty(&msg_bs->bsp_buffers);
++		C2_ASSERT(!list_is_empty);
++		/**
++		 * Change state to BD_SENT for every bulk buffer, which
++		 * descriptor is stored in current message.
++		 */
++		c2_tl_for(bsb, &msg_bs->bsp_buffers, bs) {
++			node_bulk_state_change(ctx, bs->bsb_index, TS_BD_SENT);
++		} c2_tl_endfor;
++		rc = c2_net_test_network_msg_send(&ctx->nbc_net,
++						  msg_bs->bsp_index,
++						  ss->ssb_index);
++		if (rc != 0) {
++			C2_LOG(C2_DEBUG, "--- msg send FAILED!");
++			sd_update(ctx, MT_MSG, MS_FAILED, MD_SEND);
++		}
++		/** Save rc for future analysis */
++		c2_tl_for(bsb, &msg_bs->bsp_buffers, bs) {
++			bs->bsb_msg.bsn_func = rc;
++			/** Change state if msg sending failed */
++			if (rc != 0) {
++				node_bulk_state_change(ctx, bs->bsb_index,
++						       TS_FAILED2);
++				client_bulk_bufs_dequeue(ctx, bs);
++				bsb_tlist_del(bs);
++			}
++		} c2_tl_endfor;
++		bsp_tlist_del(msg_bs);
++	} c2_tl_endfor;
++	bsp_tlist_fini(&messages);
++}
++
++static void client_process_queued_bulk(struct node_bulk_ctx *ctx)
++{
++	struct server_status_bulk *ss;
++	struct buf_status_bulk	  *bs;
++	struct c2_tl		   servers;
++	size_t			   index;
++	size_t			   i;
++	size_t			   nr;
++
++	C2_PRE(ctx != NULL);
++
++	ssb_tlist_init(&servers);
++	nr = c2_net_test_ringbuf_nr(&ctx->nbc_rb_bulk_queued);
++	/** Add queued buffer to per server list of queued buffers */
++	for (i = 0; i < nr; ++i) {
++		index = c2_net_test_ringbuf_pop(&ctx->nbc_rb_bulk_queued);
++		bs = &ctx->nbc_bs[index];
++		ss = &ctx->nbc_sstatus[client_server_index(ctx, index)];
++		bsb_tlist_add_tail(&ss->ssb_buffers, bs);
++		if (!ssb_tlink_is_in(ss))
++			ssb_tlist_add_tail(&servers, ss);
++	}
++	/** Send message with buffer descriptors to every server */
++	c2_tl_for(ssb, &servers, ss) {
++		client_bds_send(ctx, ss);
++		ssb_tlist_del(ss);
++	} c2_tl_endfor;
++	ssb_tlist_fini(&servers);
++}
++
++static void node_bulk_buf_unused(struct node_bulk_ctx *ctx)
++{
++	size_t i;
++
++	C2_PRE(ctx != NULL);
++
++	for (i = 0; i < ctx->nbc_bs_nr; ++i) {
++		ctx->nbc_bs[i].bsb_ts = TS_UNUSED;
++		c2_net_test_ringbuf_push(&ctx->nbc_rb_bulk_unused, i);
++	}
++	for (i = 0; i < ctx->nbc_buf_ping_nr; ++i)
++		c2_net_test_ringbuf_push(&ctx->nbc_rb_ping_unused, i);
++}
++
++static void node_bulk_buf_dequeue(struct node_bulk_ctx *ctx)
++{
++	size_t i;
++
++	C2_PRE(ctx != NULL);
++	for (i = 0; i < ctx->nbc_buf_ping_nr; ++i) {
++		c2_net_test_network_buffer_dequeue(&ctx->nbc_net,
++						   C2_NET_TEST_BUF_PING, i);
++	}
++	for (i = 0; i < ctx->nbc_buf_bulk_nr; ++i) {
++		c2_net_test_network_buffer_dequeue(&ctx->nbc_net,
++						   C2_NET_TEST_BUF_BULK, i);
++	}
++}
++
++static void node_bulk_worker(struct node_bulk_ctx *ctx)
++{
++	struct c2_clink	tm_clink;
++	struct c2_chan	tm_chan;
++	bool		notify;
++
++	C2_LOG(C2_DEBUG, "enter node_bulk_worker");
++	C2_PRE(ctx != NULL);
++
++	/* all buffers are unused */
++	node_bulk_buf_unused(ctx);
++	/* attach tm_clink to clink group to wait for two signals at once */
++	c2_clink_attach(&tm_clink, &ctx->nbc_stop_clink, NULL);
++	/*
++	 * Init wait channel and clink.
++	 * Transfer machine will signal to this channel.
++	 */
++	c2_chan_init(&tm_chan);
++	c2_clink_add(&tm_chan, &tm_clink);
++	/* main loop */
++	notify = true;
++	while (1) {
++		if (ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
++			client_process_unused_bulk(ctx);
++			client_process_queued_bulk(ctx);
++		} else {
++			server_process_unused_ping(ctx);
++		}
++		/* notification for buffer events */
++		if (notify) {
++			c2_net_buffer_event_notify(ctx->nbc_net.ntc_tm,
++						   &tm_chan);
++			notify = false;
++		}
++		ctx->nbc_callback_executed = false;
++		/* execute network buffer callbacks in this thread context */
++		c2_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
++		/* state transitions from final states */
++		node_bulk_state_transition_auto_all(ctx);
++		/* update copy of statistics */
++		c2_net_test_nh_sd_copy_lock(&ctx->nbc_nh);
++		/* wait for STOP command or buffer event */
++		if (!ctx->nbc_callback_executed)
++			c2_chan_wait(&ctx->nbc_stop_clink);
++		/* it was STOP command */
++		if (ctx->nbc_stop_flag)
++			break;
++		if (!ctx->nbc_callback_executed)
++			notify = true;
++	}
++	/* dequeue all queued network buffers */
++	node_bulk_buf_dequeue(ctx);
++	c2_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
++	node_bulk_state_transition_auto_all(ctx);
++	c2_net_test_nh_sd_copy_lock(&ctx->nbc_nh);
++	C2_LOG(C2_DEBUG, "leave node_bulk_worker");
++}
++
+ static void *node_bulk_init_fini(struct c2_net_test_service *svc,
+ 				 void *ctx_,
+ 				 bool init)
+ {
+-	return NULL;
++	struct node_bulk_ctx *ctx;
++
++	C2_PRE(ergo(init, ctx_ == NULL));
++	C2_PRE(ergo(init, svc != NULL));
++	if (init) {
++		C2_ALLOC_PTR(ctx);
++		if (ctx != NULL) {
++			ctx->nbc_svc			  = svc;
++			ctx->nbc_nh.ntnh_test_initialized = false;
++		}
++	} else {
++		ctx = NULL;
++	}
++	return ctx;
++}
++
++static int node_bulk_test_init_fini(struct node_bulk_ctx *ctx,
++				    const struct c2_net_test_cmd *cmd,
++				    bool init)
++{
++	struct c2_net_test_network_timeouts timeouts;
++	const struct c2_net_test_cmd_init  *icmd;
++	struct server_status_bulk	   *ss;
++	struct buf_status_ping		   *msg_bs;
++	int				    rc;
++	size_t				    i;
++	bool				    role_client;
++	c2_time_t			    to_send;
++	c2_time_t			    to_bulk;
++	size_t				    nr;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(equi(init, cmd != NULL));
++
++	if (!init)
++		goto fini;
++	icmd	    = &cmd->ntc_init;
++	role_client = icmd->ntci_role == C2_NET_TEST_ROLE_CLIENT;
++
++	C2_ALLOC_ARR(ctx->nbc_bs, ctx->nbc_bs_nr);
++	if (ctx->nbc_bs == NULL)
++		goto fail;
++	for (i = 0; i < ctx->nbc_bs_nr; ++i) {
++		ctx->nbc_bs[i].bsb_index = i;
++		bsb_tlink_init(&ctx->nbc_bs[i]);
++		C2_SET0(&ctx->nbc_bs[i].bsb_desc_send);
++	}
++
++	if (role_client) {
++		C2_ALLOC_ARR(ctx->nbc_sstatus, icmd->ntci_ep.ntsl_nr);
++		if (ctx->nbc_sstatus == NULL)
++			goto free_bs_bulk;
++		for (i = 0; i < icmd->ntci_ep.ntsl_nr; ++i) {
++			ss = &ctx->nbc_sstatus[i];
++			ss->ssb_index = i;
++			bsb_tlist_init(&ss->ssb_buffers);
++			ssb_tlink_init(ss);
++		}
++		C2_ALLOC_ARR(ctx->nbc_bsp, ctx->nbc_buf_ping_nr);
++		if (ctx->nbc_bsp == NULL)
++			goto free_sstatus;
++		for (i = 0; i < ctx->nbc_buf_ping_nr; ++i) {
++			msg_bs = &ctx->nbc_bsp[i];
++			msg_bs->bsp_index = i;
++			bsb_tlist_init(&msg_bs->bsp_buffers);
++			bsp_tlink_init(msg_bs);
++		}
++	}
++
++	C2_ASSERT(equi(role_client, ctx->nbc_sstatus != NULL));
++
++	rc = c2_net_test_ringbuf_init(&ctx->nbc_rb_ping_unused,
++				      ctx->nbc_buf_ping_nr);
++	if (rc != 0)
++		goto free_bsp;
++	rc = c2_net_test_ringbuf_init(&ctx->nbc_rb_bulk_unused,
++				      ctx->nbc_bs_nr);
++	if (rc != 0)
++		goto free_rb_ping_unused;
++	rc = c2_net_test_ringbuf_init(&ctx->nbc_rb_bulk_queued,
++				      ctx->nbc_bs_nr);
++	if (rc != 0)
++		goto free_rb_bulk_unused;
++	rc = c2_net_test_ringbuf_init(&ctx->nbc_rb_bulk_final,
++				      ctx->nbc_bs_nr);
++	if (rc != 0)
++		goto free_rb_bulk_queued;
++
++	to_send  = icmd->ntci_buf_send_timeout;
++	to_bulk  = icmd->ntci_buf_bulk_timeout;
++	timeouts = c2_net_test_network_timeouts_never();
++	timeouts.ntnt_timeout[C2_NET_QT_MSG_SEND]	   = to_send;
++	timeouts.ntnt_timeout[C2_NET_QT_PASSIVE_BULK_RECV] = to_bulk;
++	timeouts.ntnt_timeout[C2_NET_QT_PASSIVE_BULK_SEND] = to_bulk;
++	timeouts.ntnt_timeout[C2_NET_QT_ACTIVE_BULK_RECV]  = to_bulk;
++	timeouts.ntnt_timeout[C2_NET_QT_ACTIVE_BULK_SEND]  = to_bulk;
++
++	rc = c2_net_test_network_ctx_init(&ctx->nbc_net,
++					  icmd->ntci_tm_ep,
++					  &node_bulk_tm_cb,
++					  &node_bulk_buf_cb,
++					  ctx->nbc_buf_size_ping,
++					  ctx->nbc_buf_ping_nr,
++					  ctx->nbc_buf_size_bulk,
++					  ctx->nbc_buf_bulk_nr,
++					  icmd->ntci_ep.ntsl_nr,
++					  &timeouts, true);
++	if (rc != 0)
++		goto free_rb_bulk_final;
++	rc = c2_net_test_network_ep_add_slist(&ctx->nbc_net, &icmd->ntci_ep);
++	if (rc != 0)
++		goto fini;
++	c2_chan_init(&ctx->nbc_stop_chan);
++	c2_clink_init(&ctx->nbc_stop_clink, NULL);
++	c2_clink_add(&ctx->nbc_stop_chan, &ctx->nbc_stop_clink);
++	goto success;
++fini:
++	rc = 0;
++	c2_clink_del(&ctx->nbc_stop_clink);
++	c2_clink_fini(&ctx->nbc_stop_clink);
++	c2_chan_fini(&ctx->nbc_stop_chan);
++	c2_net_test_network_ctx_fini(&ctx->nbc_net);
++free_rb_bulk_final:
++	c2_net_test_ringbuf_fini(&ctx->nbc_rb_bulk_final);
++free_rb_bulk_queued:
++	c2_net_test_ringbuf_fini(&ctx->nbc_rb_bulk_queued);
++free_rb_bulk_unused:
++	c2_net_test_ringbuf_fini(&ctx->nbc_rb_bulk_unused);
++free_rb_ping_unused:
++	c2_net_test_ringbuf_fini(&ctx->nbc_rb_ping_unused);
++free_bsp:
++	if (ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
++		for (i = 0; i < ctx->nbc_buf_ping_nr; ++i) {
++			msg_bs = &ctx->nbc_bsp[i];
++			bsp_tlink_init(msg_bs);
++			bsb_tlist_fini(&msg_bs->bsp_buffers);
++		}
++		c2_free(ctx->nbc_bsp);
++	}
++free_sstatus:
++	if (ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
++		nr = init ? icmd->ntci_ep.ntsl_nr : ctx->nbc_net.ntc_ep_nr;
++		for (i = 0; i < nr; ++i) {
++			ss = &ctx->nbc_sstatus[i];
++			ssb_tlink_fini(ss);
++			bsb_tlist_fini(&ss->ssb_buffers);
++		}
++		c2_free(ctx->nbc_sstatus);
++	}
++free_bs_bulk:
++	for (i = 0; i < ctx->nbc_bs_nr; ++i)
++		bsb_tlink_fini(&ctx->nbc_bs[i]);
++	c2_free(ctx->nbc_bs);
++fail:
++success:
++	return rc;
+ }
+ 
+ static void *node_bulk_init(struct c2_net_test_service *svc)
+@@ -83,35 +1399,146 @@ static void node_bulk_fini(void *ctx_)
+ 
+ static int node_bulk_step(void *ctx_)
+ {
+-	return -ENOSYS;
++	return 0;
+ }
+ 
+ static int node_bulk_cmd_init(void *ctx_,
+ 			      const struct c2_net_test_cmd *cmd,
+ 			      struct c2_net_test_cmd *reply)
+ {
+-	return -ENOSYS;
++	const struct c2_net_test_cmd_init *icmd;
++	struct node_bulk_ctx		  *ctx = ctx_;
++	int				   rc;
++	bool				   role_client;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(cmd != NULL);
++	C2_PRE(reply != NULL);
++
++	if (ctx->nbc_nh.ntnh_test_initialized) {
++		rc = -EALREADY;
++		goto reply;
++	}
++	icmd		       = &cmd->ntc_init;
++	c2_net_test_nh_init(&ctx->nbc_nh, icmd);
++	role_client	       = icmd->ntci_role == C2_NET_TEST_ROLE_CLIENT;
++	ctx->nbc_buf_size_bulk = icmd->ntci_msg_size;
++	ctx->nbc_buf_ping_nr   = icmd->ntci_bd_buf_nr;
++	ctx->nbc_buf_size_ping = icmd->ntci_bd_buf_size;
++	ctx->nbc_bd_nr_max     = icmd->ntci_bd_nr_max;
++	ctx->nbc_bs_nr	       = icmd->ntci_msg_concurrency;
++	ctx->nbc_buf_bulk_nr   = ctx->nbc_bs_nr;
++
++	if (role_client) {
++		ctx->nbc_client_concurrency  = icmd->ntci_msg_concurrency;
++		ctx->nbc_buf_bulk_nr	    *= 2 * icmd->ntci_ep.ntsl_nr;
++		ctx->nbc_bs_nr		     = ctx->nbc_buf_bulk_nr / 2;
++	}
++
++	/* do sanity check */
++	rc = -EINVAL;
++	if (!ergo(role_client, ctx->nbc_buf_bulk_nr % 2 == 0) ||
++	    ctx->nbc_buf_bulk_nr < 1 || ctx->nbc_buf_size_bulk < 1 ||
++	    ctx->nbc_buf_ping_nr < 1 || ctx->nbc_buf_size_ping < 1 ||
++	    ctx->nbc_bd_nr_max < 1 || ctx->nbc_bs_nr < 1 ||
++	    (ctx->nbc_nh.ntnh_role != C2_NET_TEST_ROLE_CLIENT &&
++	     ctx->nbc_nh.ntnh_role != C2_NET_TEST_ROLE_SERVER) ||
++	    !ergo(role_client, ctx->nbc_client_concurrency != 0) ||
++	    !ergo(!role_client, ctx->nbc_bs_nr == ctx->nbc_buf_bulk_nr) ||
++	    !ergo(role_client, 2 * ctx->nbc_bs_nr == ctx->nbc_buf_bulk_nr))
++		goto reply;
++
++	rc = node_bulk_test_init_fini(ctx, cmd, true);
++reply:
++	/* fill reply */
++	reply->ntc_type = C2_NET_TEST_CMD_INIT_DONE;
++	reply->ntc_done.ntcd_errno = rc;
++	return rc;
+ }
+ 
+-static int node_bulk_cmd_start(void *ctx,
++/** @todo copy-paste from node_ping.c. refactor it. */
++static int node_bulk_cmd_start(void *ctx_,
+ 			       const struct c2_net_test_cmd *cmd,
+ 			       struct c2_net_test_cmd *reply)
+ {
+-	return -ENOSYS;
++	struct c2_net_test_cmd_status_data *sd;
++	int				    rc;
++	struct node_bulk_ctx		   *ctx = ctx_;
++	const c2_time_t			    _1s = C2_MKTIME(1, 0);
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(cmd != NULL);
++	C2_PRE(reply != NULL);
++
++	sd = &ctx->nbc_nh.ntnh_sd;
++
++	/** @todo copy-paste from node_ping.c */
++	/* fill test start time */
++	sd->ntcsd_time_start = c2_time_now();
++	/* initialize stats */
++	c2_net_test_mps_init(&sd->ntcsd_mps_send, 0, sd->ntcsd_time_start, _1s);
++	c2_net_test_mps_init(&sd->ntcsd_mps_recv, 0, sd->ntcsd_time_start, _1s);
++	ctx->nbc_stop_flag = false;
++	rc = C2_THREAD_INIT(&ctx->nbc_thread, struct node_bulk_ctx *, NULL,
++			    &node_bulk_worker, ctx,
++			    "net-test-bulk-worker#%s",
++			    ctx->nbc_net.ntc_tm->ntm_ep->nep_addr);
++	if (rc != 0) {
++		/* change service state */
++		c2_net_test_service_state_change(ctx->nbc_svc,
++						 C2_NET_TEST_SERVICE_FAILED);
++	}
++	/* fill reply */
++	reply->ntc_type = C2_NET_TEST_CMD_START_DONE;
++	reply->ntc_done.ntcd_errno = rc;
++	return rc;
+ }
+ 
+-static int node_bulk_cmd_stop(void *ctx,
++/** @todo copy-paste from node_ping.c. refactor it. */
++static int node_bulk_cmd_stop(void *ctx_,
+ 			      const struct c2_net_test_cmd *cmd,
+ 			      struct c2_net_test_cmd *reply)
+ {
+-	return -ENOSYS;
++	struct node_bulk_ctx *ctx = ctx_;
++	int		      rc;
++
++	C2_PRE(ctx != NULL);
++	C2_PRE(cmd != NULL);
++	C2_PRE(reply != NULL);
++
++	if (!ctx->nbc_nh.ntnh_test_initialized) {
++		reply->ntc_done.ntcd_errno = -EINVAL;
++		goto reply;
++	}
++	/* stop worker thread */
++	ctx->nbc_stop_flag = true;
++	c2_chan_signal(&ctx->nbc_stop_chan);
++	rc = c2_thread_join(&ctx->nbc_thread);
++	C2_ASSERT(rc == 0);
++	c2_thread_fini(&ctx->nbc_thread);
++	/* finalize test structures */
++	rc = node_bulk_test_init_fini(ctx, NULL, false);
++	C2_ASSERT(rc == 0);
++	/* change service state */
++	c2_net_test_service_state_change(ctx->nbc_svc,
++					 C2_NET_TEST_SERVICE_FINISHED);
++	/* fill reply */
++	reply->ntc_done.ntcd_errno = 0;
++reply:
++	reply->ntc_type = C2_NET_TEST_CMD_STOP_DONE;
++	return 0;
+ }
+ 
+-static int node_bulk_cmd_status(void *ctx,
++static int node_bulk_cmd_status(void *ctx_,
+ 				const struct c2_net_test_cmd *cmd,
+ 				struct c2_net_test_cmd *reply)
+ {
+-	return -ENOSYS;
++	struct node_bulk_ctx *ctx = ctx_;
++
++	C2_PRE(ctx != NULL);
++
++	c2_net_test_nh_cmd_status(&ctx->nbc_nh, cmd, reply);
++	return 0;
+ }
+ 
+ static struct c2_net_test_service_cmd_handler node_bulk_cmd_handler[] = {
+diff --git a/net/test/node_helper.c b/net/test/node_helper.c
+new file mode 100644
+index 0000000..0f71d13
+--- /dev/null
++++ b/net/test/node_helper.c
+@@ -0,0 +1,175 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <max_medved@xyratex.com>
++ * Original creation date: 11/07/2012
++ */
++
++#include "lib/trace.h"			/* C2_LOG */
++
++#include "net/test/node_helper.h"
++
++/**
++   @defgroup NetTestNodeHelperInternals Node helper
++   @ingroup NetTestInternals
++
++   @{
++ */
++
++void c2_net_test_nh_init(struct c2_net_test_nh *nh,
++			 const struct c2_net_test_cmd_init *icmd)
++{
++	C2_PRE(nh != NULL);
++	C2_PRE(!nh->ntnh_test_initialized);
++
++	C2_SET0(nh);
++	c2_mutex_init(&nh->ntnh_sd_copy_lock);
++	nh->ntnh_role		  = icmd->ntci_role;
++	nh->ntnh_type		  = icmd->ntci_type;
++	nh->ntnh_test_initialized = true;
++	nh->ntnh_transfers_max_nr = icmd->ntci_msg_nr;
++	/** @todo reset all stats */
++	c2_net_test_stats_reset(&nh->ntnh_sd.ntcsd_rtt);
++}
++
++bool c2_net_test_nh__invariant(struct c2_net_test_nh *nh)
++{
++	return nh != NULL;
++}
++
++void c2_net_test_nh_fini(struct c2_net_test_nh *nh)
++{
++	C2_PRE(c2_net_test_nh__invariant(nh));
++
++	c2_mutex_fini(&nh->ntnh_sd_copy_lock);
++}
++
++void c2_net_test_nh_sd_copy_lock(struct c2_net_test_nh *nh)
++{
++	C2_PRE(c2_net_test_nh__invariant(nh));
++
++	c2_mutex_lock(&nh->ntnh_sd_copy_lock);
++	nh->ntnh_sd_copy = nh->ntnh_sd;
++	c2_mutex_unlock(&nh->ntnh_sd_copy_lock);
++}
++
++void c2_net_test_nh_sd_get_lock(struct c2_net_test_nh *nh,
++				struct c2_net_test_cmd_status_data *sd)
++{
++	C2_PRE(c2_net_test_nh__invariant(nh));
++
++	c2_mutex_lock(&nh->ntnh_sd_copy_lock);
++	*sd = nh->ntnh_sd_copy;
++	sd->ntcsd_time_now = c2_time_now();
++	c2_mutex_unlock(&nh->ntnh_sd_copy_lock);
++}
++
++void c2_net_test_nh_sd_update(struct c2_net_test_nh *nh,
++			      enum c2_net_test_nh_msg_type type,
++			      enum c2_net_test_nh_msg_status status,
++			      enum c2_net_test_nh_msg_direction direction)
++{
++	struct c2_net_test_cmd_status_data *sd = &nh->ntnh_sd;
++	struct c2_net_test_msg_nr	   *msg_nr;
++	struct c2_net_test_mps		   *mps;
++
++	C2_PRE(c2_net_test_nh__invariant(nh));
++	C2_PRE(type == MT_MSG || type == MT_BULK || type == MT_TRANSFER);
++	C2_PRE(status == MS_SUCCESS || status == MS_FAILED || status == MS_BAD);
++	C2_PRE(direction == MD_SEND || direction == MD_RECV ||
++	       direction == MD_BOTH);
++	C2_PRE(equi(type == MT_TRANSFER, direction == MD_BOTH));
++
++	if (type == MT_MSG) {
++		msg_nr = direction == MD_SEND ? &sd->ntcsd_msg_nr_send :
++						&sd->ntcsd_msg_nr_recv;
++	} else if (type == MT_BULK) {
++		msg_nr = direction == MD_SEND ? &sd->ntcsd_bulk_nr_send :
++						&sd->ntcsd_bulk_nr_recv;
++	} else {
++		msg_nr = &sd->ntcsd_transfers;
++	}
++
++	/** update 'number of messages' statistics */
++	++msg_nr->ntmn_total;
++	msg_nr->ntmn_failed += status == MS_FAILED;
++	msg_nr->ntmn_bad    += status == MS_BAD;
++	/** update 'messages per second' statistics */
++	if (type != MT_TRANSFER &&
++	    equi(type == MT_MSG, nh->ntnh_type == C2_NET_TEST_TYPE_PING)) {
++		mps = direction == MD_SEND ? &sd->ntcsd_mps_send :
++					     &sd->ntcsd_mps_recv;
++		c2_net_test_mps_add(mps, msg_nr->ntmn_total, c2_time_now());
++	}
++	if (type == MT_TRANSFER && nh->ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
++		/** update 'finished' flag */
++		C2_ASSERT(msg_nr->ntmn_total <= nh->ntnh_transfers_max_nr);
++		if (msg_nr->ntmn_total == nh->ntnh_transfers_max_nr) {
++			sd->ntcsd_time_finish = c2_time_now();
++			sd->ntcsd_finished = true;
++		}
++	}
++}
++
++void c2_net_test_nh_sd_update_rtt(struct c2_net_test_nh *nh, c2_time_t rtt)
++{
++	C2_PRE(c2_net_test_nh__invariant(nh));
++
++	c2_net_test_stats_time_add(&nh->ntnh_sd.ntcsd_rtt, rtt);
++}
++
++bool c2_net_test_nh_transfer_next(struct c2_net_test_nh *nh)
++{
++	size_t max;
++	size_t started;
++
++	C2_PRE(c2_net_test_nh__invariant(nh));
++
++	max	= nh->ntnh_transfers_max_nr;
++	started = nh->ntnh_transfers_started_nr;
++	C2_PRE(ergo(max != 0, started <= max));
++
++	if (max != 0 && started == max)
++		return false;
++	++nh->ntnh_transfers_started_nr;
++	return true;
++}
++
++void c2_net_test_nh_cmd_status(struct c2_net_test_nh *nh,
++			       const struct c2_net_test_cmd *cmd,
++			       struct c2_net_test_cmd *reply)
++{
++	C2_PRE(c2_net_test_nh__invariant(nh));
++	C2_PRE(cmd != NULL && cmd->ntc_type == C2_NET_TEST_CMD_STATUS);
++	C2_PRE(reply != NULL);
++
++	reply->ntc_type = C2_NET_TEST_CMD_STATUS_DATA;
++	c2_net_test_nh_sd_get_lock(nh, &reply->ntc_status_data);
++}
++
++/**
++   @} end of NetTestNodeHelperInternals group
++ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 79
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/net/test/node_helper.h b/net/test/node_helper.h
+new file mode 100644
+index 0000000..50e5bae
+--- /dev/null
++++ b/net/test/node_helper.h
+@@ -0,0 +1,156 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <max_medved@xyratex.com>
++ * Original creation date: 11/07/2012
++ */
++
++#pragma once
++
++#ifndef __COLIBRI_NET_TEST_NODE_HELPER_H__
++#define __COLIBRI_NET_TEST_NODE_HELPER_H__
++
++#include "net/test/commands.h"		/* c2_net_test_role */
++
++/**
++   @defgroup NetTestNodeHelperDFS Node helper
++   @ingroup NetTestDFS
++
++   Naming in enum is without C2_xxx_xxx prefix because this file
++   should be included in .c files only, and long prefixes will destroy
++   usability of c2_net_test_nh_sd_update() function.
++
++   @{
++ */
++
++/** Test message status */
++enum c2_net_test_nh_msg_status {
++	MS_SUCCESS,	/**< message was successfully sent&received */
++	MS_FAILED,	/**< message transfer failed */
++	MS_BAD,		/**< received message contains invalid data */
++};
++
++enum c2_net_test_nh_msg_type {
++	MT_MSG,		/**< message with buffer descriptors */
++	MT_BULK,	/**< bulk test message */
++	MT_TRANSFER,
++};
++
++/** Single test message transfer direction */
++enum c2_net_test_nh_msg_direction {
++	MD_SEND,	/**< message was sent */
++	MD_RECV,	/**< message was received */
++	MD_BOTH,	/**< test message transfer in both directions */
++};
++
++/** Node helper */
++struct c2_net_test_nh {
++	/** Node role */
++	enum c2_net_test_role		   ntnh_role;
++	/** Test type */
++	enum c2_net_test_type		   ntnh_type;
++	/**
++	 * Node stats.
++	 * Usage pattern: use ntnh_sd as primary status data structure.
++	 * All statistics should go directly to this structure
++	 * in thread-safe manner (from one thread or using external lock).
++	 * In some inner loop c2_net_test_nh_sd_copy_lock() should be called
++	 * periodically to copy ntnh_sd to ntnh_sd_copy with ntnh_sd_copy_lock
++	 * locked. When status data is requested (in other thread etc.)
++	 * c2_net_test_nh_sd_get_lock() should be called. It will
++	 * copy ntnh_sd_copy to provided structure while holding
++	 * ntnh_sd_copy_lock.  This pattern will eliminate locking when
++	 * updating statistics in critical testing paths at cost
++	 * of delayed live stats.
++	 * @todo XXX check grammar
++	 */
++	struct c2_net_test_cmd_status_data ntnh_sd;
++	/** Copy of stats */
++	struct c2_net_test_cmd_status_data ntnh_sd_copy;
++	/** Lock for the copy of stats ntnh_sd_copy */
++	struct c2_mutex			   ntnh_sd_copy_lock;
++	/** Test was initialized. Set to true in c2_net_test_nh_init() */
++	bool				   ntnh_test_initialized;
++	/**
++	 * Maximum number of message transfers (in both direction).
++	 * Value 0 means no limit.
++	 */
++	size_t				   ntnh_transfers_max_nr;
++	/**
++	 * Number of started transfers (including failed).
++	 * Should not exceed c2_net_test_nh.ntnh_transfers_max_nr if
++	 * it is >0.
++	 */
++	size_t				   ntnh_transfers_started_nr;
++};
++
++/** Initialize node helper structure. Take some information from icmd */
++void c2_net_test_nh_init(struct c2_net_test_nh *nh,
++			 const struct c2_net_test_cmd_init *icmd);
++/** Invariant for c2_net_test_nh */
++bool c2_net_test_nh__invariant(struct c2_net_test_nh *nh);
++/** Finalize node helper structure */
++void c2_net_test_nh_fini(struct c2_net_test_nh *nh);
++
++/**
++ * nh->ntnh_sd_copy = nh->ntnh_sd while holding nh->ntnh_sd_copy_lock.
++ * @see c2_net_test_nh.ntnh_sd
++ */
++void c2_net_test_nh_sd_copy_lock(struct c2_net_test_nh *nh);
++/**
++ * *sd = nh->ntnh_sd_copy while holding nh->ntnh_sd_copy_lock.
++ * Also set sd->ntcsd_time_now to the current time.
++ * @see c2_net_test_nh.ntnh_sd
++ */
++void c2_net_test_nh_sd_get_lock(struct c2_net_test_nh *nh,
++				struct c2_net_test_cmd_status_data *sd);
++
++/**
++ * Update statistics for message numbers.
++ */
++void c2_net_test_nh_sd_update(struct c2_net_test_nh *nh,
++			      enum c2_net_test_nh_msg_type type,
++			      enum c2_net_test_nh_msg_status status,
++			      enum c2_net_test_nh_msg_direction direction);
++/** Update round-trip statistics */
++void c2_net_test_nh_sd_update_rtt(struct c2_net_test_nh *nh, c2_time_t rtt);
++/**
++ * Increase number of started transfers.
++ * @return false if transfers limit reached
++ * @return true otherwise
++ */
++bool c2_net_test_nh_transfer_next(struct c2_net_test_nh *nh);
++
++/** C2_NET_TEST_CMD_STATUS handler */
++void c2_net_test_nh_cmd_status(struct c2_net_test_nh *nh,
++			       const struct c2_net_test_cmd *cmd,
++			       struct c2_net_test_cmd *reply);
++
++/**
++   @} end of NetTestNodeHelperDFS group
++ */
++
++#endif /*  __COLIBRI_NET_TEST_NODE_HELPER_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 79
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index 2829610..c2d0617 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -33,15 +33,16 @@
+ #define LOGD(format, ...) do {} while (0)
+ #endif
+ 
+-#include "lib/memory.h"		/* C2_ALLOC_PTR */
+-#include "lib/misc.h"		/* C2_SET0 */
+-#include "lib/time.h"		/* c2_time_t */
+-#include "lib/errno.h"		/* ENOMEM */
+-#include "lib/thread.h"		/* C2_THREAD_INIT */
+-#include "lib/tlist.h"		/* c2_tlist */
++#include "lib/memory.h"			/* C2_ALLOC_PTR */
++#include "lib/misc.h"			/* C2_SET0 */
++#include "lib/time.h"			/* c2_time_t */
++#include "lib/errno.h"			/* ENOMEM */
++#include "lib/thread.h"			/* C2_THREAD_INIT */
++#include "lib/tlist.h"			/* c2_tlist */
+ 
+-#include "net/test/network.h"	/* c2_net_test_network_ctx */
+-#include "net/test/node.h"	/* c2_net_test_node_ctx */
++#include "net/test/network.h"		/* c2_net_test_network_ctx */
++#include "net/test/node.h"		/* c2_net_test_node_ctx */
++#include "net/test/node_helper.h"	/* c2_net_test_node_ctx */
+ 
+ #include "net/test/node_ping.h"
+ 
+@@ -144,8 +145,6 @@ C2_TL_DEFINE(buf_state, static, struct buf_state);
+  *   server with index 1 etc.).
+  */
+ struct node_ping_client_ctx {
+-	/** Number of added to send queue messages */
+-	size_t	     npcc_msg_sent;
+ 	/**
+ 	 * Number of test messages sent to test server and received back
+ 	 * (including failed) for the test client.
+@@ -169,12 +168,12 @@ struct node_ping_server_ctx {
+ 
+ /** Ping node context */
+ struct node_ping_ctx {
++	/** Node helper */
++	struct c2_net_test_nh		    npc_nh;
+ 	/** Network context for testing */
+ 	struct c2_net_test_network_ctx	    npc_net;
+ 	/** Test service. Used when changing service state. */
+ 	struct c2_net_test_service	   *npc_svc;
+-	/** Node role */
+-	enum c2_net_test_role		    npc_node_role;
+ 	/**
+ 	   Number of network buffers to send/receive test messages.
+ 	   @see c2_net_test_cmd_init.ntci_concurrency
+@@ -184,25 +183,17 @@ struct node_ping_ctx {
+ 	c2_bcount_t			    npc_buf_size;
+ 	/** Timeout for test message sending */
+ 	c2_time_t			    npc_buf_send_timeout;
+-	/** Test was initialized (succesful node_ping_cmd_start() */
++	/** Test was initialized (successful node_ping_cmd_start()) */
+ 	bool				    npc_test_initialized;
+-	/** All needed statistics */
+-	struct c2_net_test_cmd_status_data  npc_status_data;
+-	/** @todo use spinlock instead of mutex
+-	 *  @todo make copy of status data, protect it with mutex.
+-	 *  N times per secound update this copy from original status data,
+-	 *  but leave original status data updates without mutex.
+-	 */
+-	struct c2_mutex			    npc_status_data_lock;
+ 	/**
+ 	 * Buffer enqueue semaphore.
+ 	 * - initial value - number of buffers;
+ 	 * - up() in network buffer callback;
+ 	 * - (down() * number_of_buffers) in node_ping_cmd_stop();
+-	 * - down() after succesful addition to network buffer queue;
++	 * - down() after successful addition to network buffer queue;
+ 	 * - trydown() before addition to queue. if failed -
+ 	 *   then don't add to queue;
+-	 * - up() after unsuccesful addition to queue.
++	 * - up() after unsuccessful addition to queue.
+ 	 * @todo problem with semaphore max value can be here
+ 	 */
+ 	struct c2_semaphore		    npc_buf_q_sem;
+@@ -231,6 +222,15 @@ struct node_ping_ctx {
+ 	struct node_ping_server_ctx	   *npc_server;
+ };
+ 
++/** Wrapper for c2_net_test_nh_sd_update() with smaller name */
++static void sd_update(struct node_ping_ctx *ctx,
++		      enum c2_net_test_nh_msg_type type,
++		      enum c2_net_test_nh_msg_status status,
++		      enum c2_net_test_nh_msg_direction direction)
++{
++	c2_net_test_nh_sd_update(&ctx->npc_nh, type, status, direction);
++}
++
+ static void node_ping_tm_event_cb(const struct c2_net_tm_event *ev)
+ {
+ 	/* nothing for now */
+@@ -380,6 +380,7 @@ static void node_ping_client_send(struct node_ping_ctx *ctx,
+ 	struct buf_state	    *bs;
+ 	size_t			     ep_index;
+ 	c2_time_t		     begin;
++	bool			     transfer_next;
+ 
+ 	C2_PRE(ctx != NULL && ctx->npc_client != NULL);
+ 	C2_PRE(buf_index < ctx->npc_buf_nr / 2);
+@@ -388,10 +389,11 @@ static void node_ping_client_send(struct node_ping_ctx *ctx,
+ 	cctx	 = ctx->npc_client;
+ 	ep_index = buf_index / cctx->npcc_concurrency;
+ 	/* check for max number of messages */
+-	if (cctx->npcc_msg_sent >= cctx->npcc_msg_rt_max)
++	transfer_next = c2_net_test_nh_transfer_next(&ctx->npc_nh);
++	if (!transfer_next)
+ 		return;
+ 	/* put timestamp and sequence number */
+-	bs->bs_seq   = ++cctx->npcc_msg_sent;
++	bs->bs_seq   = ctx->npc_nh.ntnh_transfers_started_nr;
+ 	bs->bs_cb_nr = 0;
+ 	begin = node_ping_timestamp_put(&ctx->npc_net, buf_index, bs->bs_seq);
+ 	bs->bs_deadline = c2_time_add(begin, ctx->npc_buf_send_timeout);
+@@ -399,7 +401,7 @@ static void node_ping_client_send(struct node_ping_ctx *ctx,
+ 	node_ping_buf_enqueue(ctx, buf_index, C2_NET_QT_MSG_SEND,
+ 			      NULL, ep_index);
+ 	if (bs->bs_errno != 0)
+-		--cctx->npcc_msg_sent;
++		sd_update(ctx, MT_MSG, MS_FAILED, MD_SEND);
+ }
+ 
+ static void node_ping_client_cb2(struct node_ping_ctx *ctx,
+@@ -429,7 +431,7 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
+ 	ssize_t			      server_index;
+ 	ssize_t			      buf_index_send;
+ 	bool			      decoded;
+-	bool			      finished;
++	c2_time_t		      rtt;
+ 
+ 	C2_PRE(ctx != NULL && ctx->npc_client != NULL);
+ 	C2_PRE(buf_index >= ctx->npc_buf_nr / 2 &&
+@@ -461,24 +463,13 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
+ 	bs_send->bs_index_pair = buf_index;
+ 	bs->bs_index_pair      = buf_index_send;
+ 	/* successfully received message */
+-	++ctx->npc_client->npcc_msg_rt;
+-	finished = ctx->npc_client->npcc_msg_rt >=
+-		   ctx->npc_client->npcc_msg_rt_max;
+-	c2_mutex_lock(&ctx->npc_status_data_lock);
++	sd_update(ctx, MT_TRANSFER, MS_SUCCESS, MD_BOTH);
+ 	/* update RTT statistics */
+-	c2_net_test_stats_time_add(&ctx->npc_status_data.ntcsd_rtt,
+-				   c2_time_sub(bs->bs_time, ts.ntt_time));
+-	/* set 'client is finished' flag */
+-	if (equi(finished, !ctx->npc_status_data.ntcsd_finished)) {
+-		ctx->npc_status_data.ntcsd_finished = true;
+-		ctx->npc_status_data.ntcsd_time_finish = c2_time_now();
+-	}
+-	c2_mutex_unlock(&ctx->npc_status_data_lock);
++	rtt = c2_time_sub(bs->bs_time, ts.ntt_time);
++	c2_net_test_nh_sd_update_rtt(&ctx->npc_nh, rtt);
+ 	goto good_buf;
+ bad_buf:
+-	c2_mutex_lock(&ctx->npc_status_data_lock);
+-	++ctx->npc_status_data.ntcsd_msg_nr_recv.ntmn_bad;
+-	c2_mutex_unlock(&ctx->npc_status_data_lock);
++	sd_update(ctx, MT_TRANSFER, MS_BAD, MD_BOTH);
+ good_buf:
+ 	/* enqueue recv buffer */
+ 	if (bs_send == NULL) {
+@@ -502,7 +493,7 @@ static void node_ping_msg_cb(struct c2_net_test_network_ctx *net_ctx,
+ 	bs = &ctx->npc_buf_state[buf_index];
+ 
+ 	LOGD("%s,      role = %d, buf_index = %u, nbe_status = %d, q = %d",
+-	     __FUNCTION__, ctx->npc_node_role, buf_index, ev->nbe_status, q);
++	     __FUNCTION__, ctx->npc_nh.ntnh_role, buf_index, ev->nbe_status, q);
+ 	LOGD(", ev->nbe_length = %lu", ev->nbe_length);
+ 
+ 	if (q == C2_NET_QT_MSG_RECV && ev->nbe_status == 0)
+@@ -612,7 +603,6 @@ static void node_ping_server_handle(struct node_ping_ctx *ctx,
+ 
+ static void node_ping_worker(struct node_ping_ctx *ctx)
+ {
+-	struct c2_net_test_msg_nr *msg_nr;
+ 	struct buf_state	  *bs;
+ 	size_t			  buf_index;
+ 	bool			  failed;
+@@ -624,15 +614,15 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
+ 
+ 	C2_PRE(ctx != NULL);
+ 
+-	c2_time_set(&to_check_interval, TO_CHECK_INTERVAL / 1000,
+-					TO_CHECK_INTERVAL * 1000000);
++	to_check_interval = C2_MKTIME(TO_CHECK_INTERVAL / 1000,
++				      TO_CHECK_INTERVAL * 1000000);
+ 	while (1) {
+ 		/* get buffer index from ringbuf */
+ 		deadline = c2_time_add(c2_time_now(), to_check_interval);
+ 		rb_is_empty = !c2_semaphore_timeddown(&ctx->npc_buf_rb_sem,
+ 						      deadline);
+ 		/* check timeout list */
+-		if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT)
++		if (ctx->npc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT)
+ 			node_ping_to_check(ctx);
+ 		if (rb_is_empty)
+ 			continue;
+@@ -641,25 +631,22 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
+ 		buf_index = c2_net_test_ringbuf_pop(&ctx->npc_buf_rb);
+ 		bs = &ctx->npc_buf_state[buf_index];
+ 		LOGD("POP from ringbuf: %lu, role = %d\n",
+-		     buf_index, ctx->npc_node_role);
++		     buf_index, ctx->npc_nh.ntnh_role);
+ 		/* update total/failed stats */
+ 		failed = bs->bs_errno != 0 || bs->bs_ev.nbe_status != 0;
+-		msg_nr = bs->bs_q == C2_NET_QT_MSG_RECV ?
+-			 &ctx->npc_status_data.ntcsd_msg_nr_recv :
+-			 &ctx->npc_status_data.ntcsd_msg_nr_send;
+-		c2_mutex_lock(&ctx->npc_status_data_lock);
+-		++msg_nr->ntmn_total;
+-		msg_nr->ntmn_failed += failed;
+-		c2_mutex_unlock(&ctx->npc_status_data_lock);
++		sd_update(ctx, MT_MSG, failed ? MS_FAILED : MS_SUCCESS,
++			  bs->bs_q == C2_NET_QT_MSG_RECV ? MD_RECV : MD_SEND);
+ 		ep = bs->bs_errno == 0 && bs->bs_ev.nbe_status == 0 &&
+ 		     bs->bs_q == C2_NET_QT_MSG_RECV ? bs->bs_ev.nbe_ep : NULL;
+ 		/* handle buffer */
+-		if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT)
++		if (ctx->npc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT)
+ 			node_ping_client_handle(ctx, bs, buf_index);
+ 		else
+ 			node_ping_server_handle(ctx, bs, buf_index);
+ 		if (ep != NULL)
+ 			c2_net_end_point_put(ep);
++		/* update copy of statistics */
++		c2_net_test_nh_sd_copy_lock(&ctx->npc_nh);
+ 	}
+ 	/* dequeue all buffers */
+ 	for (i = 0; i < ctx->npc_buf_nr; ++i) {
+@@ -689,7 +676,7 @@ static void node_ping_rb_fill(struct node_ping_ctx *ctx)
+ 	size_t i;
+ 	size_t half_buf = ctx->npc_buf_nr / 2;
+ 
+-	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT) {
++	if (ctx->npc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
+ 		C2_ASSERT(ctx->npc_buf_nr % 2 == 0);
+ 		/* add recv buffers */
+ 		for (i = 0; i < half_buf; ++i)
+@@ -706,14 +693,13 @@ static void node_ping_rb_fill(struct node_ping_ctx *ctx)
+ static int node_ping_test_init_fini(struct node_ping_ctx *ctx,
+ 				    const struct c2_net_test_cmd *cmd)
+ {
+-	struct c2_net_test_network_timeouts  timeouts;
+-	int				     rc;
+-	int				     i;
+-	char				    *ep_addr;
++	struct c2_net_test_network_timeouts timeouts;
++	int				    rc;
++	int				    i;
+ 
+ 	if (cmd == NULL) {
+ 		rc = 0;
+-		if (ctx->npc_test_initialized)
++		if (ctx->npc_nh.ntnh_test_initialized)
+ 			goto fini;
+ 		else
+ 			goto exit;
+@@ -743,26 +729,23 @@ static int node_ping_test_init_fini(struct node_ping_ctx *ctx,
+ 					  ctx->npc_buf_nr,
+ 					  0, 0,
+ 					  cmd->ntc_init.ntci_ep.ntsl_nr,
+-					  &timeouts);
++					  &timeouts, false);
+ 	if (rc != 0)
+ 		goto free_buf_state;
+ 	/* add test node endpoints to the network context endpoint list */
+-	for (i = 0; i < cmd->ntc_init.ntci_ep.ntsl_nr; ++i) {
+-		ep_addr = cmd->ntc_init.ntci_ep.ntsl_list[i];
+-		rc = c2_net_test_network_ep_add(&ctx->npc_net, ep_addr);
+-		if (rc < 0)
+-			goto fini;
+-	}
+-	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT) {
++	rc = c2_net_test_network_ep_add_slist(&ctx->npc_net,
++					      &cmd->ntc_init.ntci_ep);
++	if (rc != 0)
++		goto fini;
++	if (ctx->npc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
+ 		buf_state_tlist_init(&ctx->npc_client->npcc_to);
+ 		for (i = 0; i < ctx->npc_buf_nr; ++i)
+ 			buf_state_tlink_init(&ctx->npc_buf_state[i]);
+ 	}
+-	ctx->npc_test_initialized = true;
+ 	rc = 0;
+ 	goto exit;
+ fini:
+-	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT) {
++	if (ctx->npc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
+ 		for (i = 0; i < ctx->npc_buf_nr; ++i)
+ 			buf_state_tlink_fini(&ctx->npc_buf_state[i]);
+ 		buf_state_tlist_fini(&ctx->npc_client->npcc_to);
+@@ -793,11 +776,9 @@ static void *node_ping_init_fini(void *ctx_,
+ 		C2_ALLOC_PTR(ctx);
+ 		if (ctx != NULL) {
+ 			ctx->npc_svc = svc;
+-			c2_mutex_init(&ctx->npc_status_data_lock);
+ 		}
+ 	} else {
+ 		node_ping_test_init_fini(ctx, NULL);
+-		c2_mutex_fini(&ctx->npc_status_data_lock);
+ 		c2_free(ctx);
+ 	}
+ 	return init ? ctx : NULL;
+@@ -816,36 +797,6 @@ static void node_ping_fini(void *ctx_)
+ 
+ static int node_ping_step(void *ctx_)
+ {
+-	struct c2_net_test_cmd_status_data *sd;
+-	struct c2_net_test_msg_nr	    msg_send;
+-	struct c2_net_test_msg_nr	    msg_recv;
+-	struct node_ping_ctx		   *ctx = ctx_;
+-	c2_time_t			    now;
+-	bool				    finished;
+-
+-	C2_PRE(ctx != NULL);
+-	sd = &ctx->npc_status_data;
+-
+-	/* update MPS stats */
+-	c2_mutex_lock(&ctx->npc_status_data_lock);
+-	msg_send = sd->ntcsd_msg_nr_send;
+-	msg_recv = sd->ntcsd_msg_nr_recv;
+-	now	 = c2_time_now();
+-	finished = sd->ntcsd_finished;
+-	c2_mutex_unlock(&ctx->npc_status_data_lock);
+-
+-	if (!finished) {
+-		/*
+-		 * MPS stats can be updated without lock because
+-		 * they are used in node_ping_step() and
+-		 * node_ping_cmd_status(), which are serialized.
+-		 */
+-		c2_net_test_mps_add(&sd->ntcsd_mps_send,
+-				    msg_send.ntmn_total, now);
+-		c2_net_test_mps_add(&sd->ntcsd_mps_recv,
+-				    msg_recv.ntmn_total, now);
+-	}
+-
+ 	return 0;
+ }
+ 
+@@ -853,8 +804,10 @@ static int node_ping_cmd_init(void *ctx_,
+ 			      const struct c2_net_test_cmd *cmd,
+ 			      struct c2_net_test_cmd *reply)
+ {
+-	struct node_ping_ctx *ctx = ctx_;
+-	int		      rc;
++	const struct c2_net_test_cmd_init *icmd;
++	struct node_ping_ctx		  *ctx = ctx_;
++	int				   rc;
++	bool				   role_client;
+ 
+ 	C2_PRE(ctx != NULL);
+ 	C2_PRE(cmd != NULL);
+@@ -862,37 +815,36 @@ static int node_ping_cmd_init(void *ctx_,
+ 
+ 	LOGD("%s\n", __FUNCTION__);
+ 
++	icmd	    = &cmd->ntc_init;
++	role_client = icmd->ntci_role == C2_NET_TEST_ROLE_CLIENT;
++
+ 	/* ep wasn't recognized */
+ 	if (cmd->ntc_ep_index == -1) {
+ 		rc = -ENOENT;
+ 		goto reply;
+ 	}
+ 	/* network context already initialized */
+-	if (ctx->npc_test_initialized) {
++	if (ctx->npc_nh.ntnh_test_initialized) {
+ 		rc = -EALREADY;
+ 		goto reply;
+ 	}
+ 	/* check command type */
+-	C2_ASSERT(cmd->ntc_init.ntci_type == C2_NET_TEST_TYPE_PING);
++	C2_ASSERT(icmd->ntci_type == C2_NET_TEST_TYPE_PING);
+ 	/* parse INIT command */
+-	ctx->npc_node_role	  = cmd->ntc_init.ntci_role;
+-	ctx->npc_buf_size	  = cmd->ntc_init.ntci_msg_size;
+-	ctx->npc_buf_send_timeout = cmd->ntc_init.ntci_buf_send_timeout;
++	c2_net_test_nh_init(&ctx->npc_nh, icmd);
++	ctx->npc_buf_size	  = icmd->ntci_msg_size;
++	ctx->npc_buf_send_timeout = icmd->ntci_buf_send_timeout;
+ 
+-	ctx->npc_buf_nr	 = cmd->ntc_init.ntci_concurrency;
+-	ctx->npc_buf_nr *= ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT ?
+-			   2 * cmd->ntc_init.ntci_ep.ntsl_nr : 1;
++	ctx->npc_buf_nr	 = icmd->ntci_msg_concurrency;
++	ctx->npc_buf_nr *= role_client ?  2 * icmd->ntci_ep.ntsl_nr : 1;
+ 
+-	ctx->npc_client = ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT ?
+-			  &ctx->npc__client : NULL;
+-	ctx->npc_server = ctx->npc_node_role == C2_NET_TEST_ROLE_SERVER ?
+-			  &ctx->npc__server : NULL;
++	ctx->npc_client = role_client  ? &ctx->npc__client : NULL;
++	ctx->npc_server = !role_client ? &ctx->npc__server : NULL;
+ 
+-	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT) {
++	if (role_client) {
+ 		C2_SET0(ctx->npc_client);
+-		ctx->npc_client->npcc_msg_rt_max = cmd->ntc_init.ntci_msg_nr;
+-		ctx->npc_client->npcc_concurrency =
+-			cmd->ntc_init.ntci_concurrency;
++		ctx->npc_client->npcc_msg_rt_max  = icmd->ntci_msg_nr;
++		ctx->npc_client->npcc_concurrency = icmd->ntci_msg_concurrency;
+ 	}
+ 
+ 	/* do sanity check */
+@@ -922,7 +874,7 @@ static int node_ping_cmd_start(void *ctx_,
+ 	struct c2_net_test_cmd_status_data *sd;
+ 	struct node_ping_ctx		   *ctx = ctx_;
+ 	int				    rc;
+-	c2_time_t			    _1s = C2_MKTIME(1, 0);
++	const c2_time_t			    _1s = C2_MKTIME(1, 0);
+ 
+ 	C2_PRE(ctx != NULL);
+ 	C2_PRE(cmd != NULL);
+@@ -930,7 +882,7 @@ static int node_ping_cmd_start(void *ctx_,
+ 
+ 	LOGD("%s\n", __FUNCTION__);
+ 
+-	sd = &ctx->npc_status_data;
++	sd = &ctx->npc_nh.ntnh_sd;
+ 	C2_SET0(sd);
+ 
+ 	/* fill test start time */
+@@ -938,14 +890,13 @@ static int node_ping_cmd_start(void *ctx_,
+ 	/* initialize stats */
+ 	c2_net_test_mps_init(&sd->ntcsd_mps_send, 0, sd->ntcsd_time_start, _1s);
+ 	c2_net_test_mps_init(&sd->ntcsd_mps_recv, 0, sd->ntcsd_time_start, _1s);
+-	c2_net_test_stats_reset(&sd->ntcsd_rtt);
+ 	/* add buffer indexes to ringbuf */
+ 	node_ping_rb_fill(ctx);
+ 	/* start test */
+ 	ctx->npc_buf_rb_done = false;
+ 	rc = C2_THREAD_INIT(&ctx->npc_thread, struct node_ping_ctx *, NULL,
+ 			    &node_ping_worker, ctx,
+-			    "net-test-worker#%s",
++			    "net-test-ping-worker#%s",
+ 			    ctx->npc_net.ntc_tm->ntm_ep->nep_addr);
+ 	if (rc != 0) {
+ 		/* change service state */
+@@ -990,24 +941,13 @@ static int node_ping_cmd_status(void *ctx_,
+ 				const struct c2_net_test_cmd *cmd,
+ 				struct c2_net_test_cmd *reply)
+ {
+-	struct c2_net_test_cmd_status_data *sd;
+-	struct node_ping_ctx		   *ctx = ctx_;
++	struct node_ping_ctx *ctx = ctx_;
+ 
+ 	C2_PRE(ctx != NULL);
+-	C2_PRE(cmd != NULL);
+-	C2_PRE(reply != NULL);
+-
+-	sd  = &reply->ntc_status_data;
+-
+-	reply->ntc_type = C2_NET_TEST_CMD_STATUS_DATA;
+-
+-	c2_mutex_lock(&ctx->npc_status_data_lock);
+-	*sd = ctx->npc_status_data;
+-	c2_mutex_unlock(&ctx->npc_status_data_lock);
+ 
+-	sd->ntcsd_time_now = c2_time_now();
++	c2_net_test_nh_cmd_status(&ctx->npc_nh, cmd, reply);
+ 
+-	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT) {
++	if (ctx->npc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT) {
+ 		LOGD("ctx->npc_client->npcc_msg_rt = %lu\n",
+ 		     ctx->npc_client->npcc_msg_rt);
+ 		LOGD("ctx->npc_client->npcc_msg_sent = %lu\n",
+diff --git a/net/test/ringbuf.c b/net/test/ringbuf.c
+index b680446..ead6d5d 100644
+--- a/net/test/ringbuf.c
++++ b/net/test/ringbuf.c
+@@ -101,6 +101,13 @@ bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb)
+ 	return c2_atomic64_get(&rb->ntr_end) == c2_atomic64_get(&rb->ntr_start);
+ }
+ 
++size_t c2_net_test_ringbuf_nr(struct c2_net_test_ringbuf *rb)
++{
++	C2_PRE(c2_net_test_ringbuf_invariant(rb));
++
++	return c2_atomic64_get(&rb->ntr_end) - c2_atomic64_get(&rb->ntr_start);
++}
++
+ /**
+    @} end of NetTestRingbufInternals group
+  */
+diff --git a/net/test/ringbuf.h b/net/test/ringbuf.h
+index cb6b3c7..5215e39 100644
+--- a/net/test/ringbuf.h
++++ b/net/test/ringbuf.h
+@@ -39,7 +39,7 @@
+    absolute indices.
+  */
+ struct c2_net_test_ringbuf {
+-	size_t		    ntr_size;	/**< Number of elements in ringbuf */
++	size_t		    ntr_size;	/**< Maximum number of elements */
+ 	size_t		   *ntr_buf;	/**< Ringbuf array */
+ 	struct c2_atomic64  ntr_start;	/**< Start pointer */
+ 	struct c2_atomic64  ntr_end;	/**< End pointer */
+@@ -82,6 +82,12 @@ size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb);
+ bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb);
+ 
+ /**
++   Get current number of elements in the ring buffer.
++   @pre c2_net_test_ringbuf_invariant(rb)
++ */
++size_t c2_net_test_ringbuf_nr(struct c2_net_test_ringbuf *rb);
++
++/**
+    @} end of NetTestRingbufDFS group
+  */
+ 
+diff --git a/net/test/serialize.h b/net/test/serialize.h
+index 64b85bd..c65aa49 100644
+--- a/net/test/serialize.h
++++ b/net/test/serialize.h
+@@ -91,7 +91,7 @@ c2_bcount_t c2_net_test_serialize_data(enum c2_net_test_serialize_op op,
+    @param descr_nr Described fields number in descr.
+    @param bv c2_bufvec. Can be NULL - in this case bv_offset is ignored.
+    @param bv_offset Offset in bv.
+-   @return 0 No space in buffer or descr_nr == 0.
++   @return 0 No free space in buffer or descr_nr == 0.
+    @return >0 Number of bytes read/written/will be written to/from buffer.
+    @pre op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE
+    @pre obj != NULL
+diff --git a/net/test/service.h b/net/test/service.h
+index a9d3544..c099ae8 100644
+--- a/net/test/service.h
++++ b/net/test/service.h
+@@ -111,7 +111,7 @@ struct c2_net_test_service {
+    c2_net_test_service_fini();
+    @endcode
+ 
+-   @note Service state will not be changed it ops->ntso_init returns
++   @note Service state will not be changed if ops->ntso_init returns
+    non-zero result and will be changed to C2_NET_TEST_SERVICE_READY
+    otherwise.
+ 
+diff --git a/net/test/stats.c b/net/test/stats.c
+index c8319c4..2badaf1 100644
+--- a/net/test/stats.c
++++ b/net/test/stats.c
+@@ -321,7 +321,7 @@ c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
+  */
+ 
+ /**
+-   @defgroup NetTestStatsMsgNRInternals Messages Per Second Statistics
++   @defgroup NetTestStatsMsgNRInternals Messages Number
+    @ingroup NetTestInternals
+ 
+    @{
+diff --git a/net/test/stats.h b/net/test/stats.h
+index 32e1ea2..3abbe24 100644
+--- a/net/test/stats.h
++++ b/net/test/stats.h
+@@ -199,6 +199,8 @@ c2_time_t c2_net_test_stats_time_max(struct c2_net_test_stats *stats);
+ 
+    Used to transmit c2_time_t value in ping/bulk buffers.
+    @see c2_net_test_timestamp_init(), c2_net_test_timestamp_serialize().
++
++   @{
+  */
+ struct c2_net_test_timestamp {
+ 	/** Current time. Set in c2_net_test_timestamp_init() */
+diff --git a/net/test/user_space/console_u.c b/net/test/user_space/console_u.c
+index 946353e..835ad99 100644
+--- a/net/test/user_space/console_u.c
++++ b/net/test/user_space/console_u.c
+@@ -81,7 +81,7 @@
+    --remote-path=$HOME/net-test --live=1
+    @endcode
+    Run bulk test with host1 as test client and host2 as test server. Number of
+-   bulk packets is one million, size is 1 MiB. Test statistics should be updated
++   bulk messages is one million, size is 1 MiB. Test statistics should be updated
+    every second.
+ 
+    @see @ref net-test
+@@ -96,6 +96,36 @@
+    @{
+  */
+ 
++#define DESCRIBE(field, name, description) \
++	static const char *msg_##field = description; \
++	static const char opt_##field = name
++
++
++/* Description messages for c2_net_test_console_cfg fields */
++DESCRIBE(addr_console4servers, 'A', "Console command endpoint address "
++				    "for the test servers");
++DESCRIBE(addr_console4clients, 'a', "Console command endpoint address "
++				    "for the test clients");
++DESCRIBE(servers,	       'C', "List of test server command endpoints");
++DESCRIBE(clients,	       'c', "List of test client command endpoints");
++DESCRIBE(data_servers,	       'D', "List of test server data endpoints");
++DESCRIBE(data_clients,	       'd', "List of test client data endpoints");
++DESCRIBE(test_type,	       't', "Test type, 'ping' or 'bulk'");
++DESCRIBE(msg_nr,	       'n', "Number of test messages for the "
++				    "test client (for each server)");
++DESCRIBE(msg_size,	       's', "Test message size");
++DESCRIBE(bd_buf_nr_client,     'B', "Number of message buffers for bulk buffer "
++				    "network descriptors for the test client");
++DESCRIBE(bd_buf_nr_server,     'b', "Number of message buffers for bulk buffer "
++				    "network descriptors for the test client");
++DESCRIBE(bd_buf_size,	       'f', "Size of buffer for bulk buffer"
++				    "network descriptors");
++DESCRIBE(bd_nr_max,	       'g', "Maximum number of bulk buffer"
++				    "network descriptors in msg buffer");
++DESCRIBE(concurrency_server,   'E', "Test server concurrency");
++DESCRIBE(concurrency_client,   'e', "Test client concurrency");
++
++
+ /** Console printf */
+ static bool addr_check(const char *addr)
+ {
+@@ -140,6 +170,12 @@ static bool config_check(struct c2_net_test_console_cfg *cfg)
+ 	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_BULK))
+ 		return false;
+ 	if (cfg->ntcc_msg_nr == 0 || cfg->ntcc_msg_size == 0)
++		return false;
++	if (cfg->ntcc_bd_buf_nr_server == 0 ||
++	    cfg->ntcc_bd_buf_nr_client == 0 ||
++	    cfg->ntcc_bd_buf_size == 0 ||
++	    cfg->ntcc_bd_nr_max == 0)
++		return false;
+ 	if (cfg->ntcc_concurrency_server == 0 ||
+ 	    cfg->ntcc_concurrency_client == 0)
+ 		return false;
+@@ -195,9 +231,44 @@ static int configure(int argc, char *argv[],
+ {
+ 	bool list_if = false;
+ 	bool success = true;
+-	/** @todo single-letter options is very bad */
++
++#define NUMBER_ARG(name)						\
++		C2_NUMBERARG(opt_##name, msg_##name,			\
++		LAMBDA(void, (int64_t nr) {				\
++			if (nr <= 0)					\
++				success = false;			\
++			else						\
++				cfg->ntcc_##name = nr;			\
++		}))
++#define SCALED_ARG(name)						\
++		C2_SCALEDARG(opt_##name, msg_##name,			\
++		LAMBDA(void, (c2_bcount_t size) {			\
++			if (size <= 0)					\
++				success = false;			\
++			else						\
++				cfg->ntcc_##name = size;		\
++		}))
++#define SLIST_ARG(name)							\
++		C2_STRINGARG(opt_##name, msg_##name,			\
++		LAMBDA(void, (const char *str) {			\
++			success &=					\
++			c2_net_test_slist_init(&cfg->ntcc_##name,	\
++					       str, ',') == 0;		\
++		}))
++#define ASCIIZ_ARG(name)						\
++		C2_STRINGARG(opt_##name, msg_##name,			\
++		LAMBDA(void, (const char *str) {			\
++			cfg->ntcc_##name = c2_net_test_u_str_copy(str);	\
++		}))
++
+ 	C2_GETOPTS("ntc", argc, argv,
+-		C2_STRINGARG('t', "Test type, {ping|bulk}",
++		ASCIIZ_ARG(addr_console4servers),
++		ASCIIZ_ARG(addr_console4clients),
++		SLIST_ARG(servers),
++		SLIST_ARG(clients),
++		SLIST_ARG(data_servers),
++		SLIST_ARG(data_clients),
++		C2_STRINGARG(opt_test_type, msg_test_type,
+ 		LAMBDA(void, (const char *type) {
+ 			if (strncmp(type, "ping", 5) == 0)
+ 				cfg->ntcc_test_type = C2_NET_TEST_TYPE_PING;
+@@ -206,69 +277,14 @@ static int configure(int argc, char *argv[],
+ 			else
+ 				success = false;
+ 		})),
+-		C2_NUMBERARG('n', "Number of test messages "
+-			      "for the test client",
+-		LAMBDA(void, (int64_t nr) {
+-			if (nr <= 0)
+-				success = false;
+-			else
+-				cfg->ntcc_msg_nr = nr;
+-		})),
+-		C2_SCALEDARG('s', "Test message size",
+-		LAMBDA(void, (c2_bcount_t size) {
+-			if (size <= 0)
+-				success = false;
+-			else
+-				cfg->ntcc_msg_size = size;
+-		})),
+-		C2_STRINGARG('a', "Console command endpoint address "
+-				  "for the test servers",
+-		LAMBDA(void, (const char *str) {
+-			cfg->ntcc_addr_console4servers =
+-				c2_net_test_u_str_copy(str);
+-		})),
+-		C2_STRINGARG('b', "Console command endpoint address "
+-				  "for the test clients",
+-		LAMBDA(void, (const char *str) {
+-			cfg->ntcc_addr_console4clients =
+-				c2_net_test_u_str_copy(str);
+-		})),
+-		C2_STRINGARG('c', "List of test server command endpoints",
+-		LAMBDA(void, (const char *str) {
+-			success &= c2_net_test_slist_init(&cfg->ntcc_servers,
+-							  str, ',') == 0;
+-		})),
+-		C2_STRINGARG('d', "List of test client command endpoints",
+-		LAMBDA(void, (const char *str) {
+-			success &= c2_net_test_slist_init(&cfg->ntcc_clients,
+-							  str, ',') == 0;
+-		})),
+-		C2_STRINGARG('e', "List of test server data endpoints",
+-		LAMBDA(void, (const char *str) {
+-			success &=
+-			c2_net_test_slist_init(&cfg->ntcc_data_servers,
+-					       str, ',') == 0;
+-		})),
+-		C2_STRINGARG('f', "List of test client data endpoints",
+-		LAMBDA(void, (const char *str) {
+-			success &=
+-			c2_net_test_slist_init(&cfg->ntcc_data_clients,
+-					       str, ',') == 0;
+-		})),
+-		C2_NUMBERARG('g', "Test server concurrency",
+-		LAMBDA(void, (int64_t nr) {
+-			if (nr <= 0)
+-				success = false;
+-			else
+-				cfg->ntcc_concurrency_server = nr;
+-		})),
+-		C2_NUMBERARG('h', "Test client concurrency",
+-		LAMBDA(void, (int64_t nr) {
+-			if (nr <= 0)
+-				success = false;
+-			else
+-				cfg->ntcc_concurrency_client = nr;
+-		})),
++		NUMBER_ARG(msg_nr),
++		SCALED_ARG(msg_size),
++		NUMBER_ARG(bd_buf_nr_server),
++		NUMBER_ARG(bd_buf_nr_client),
++		SCALED_ARG(bd_buf_size),
++		NUMBER_ARG(bd_nr_max),
++		NUMBER_ARG(concurrency_server),
++		NUMBER_ARG(concurrency_client),
+ 		C2_VERBOSEFLAGARG,
+ 		C2_IFLISTARG(&list_if),
+ 		C2_HELPARG('?'),
+@@ -326,6 +342,9 @@ static void print_status_data_v(struct c2_net_test_cmd_status_data *sd)
+ 	c2_net_test_u_printf_v("messages total/failed/bad: ");
+ 	print_msg_nr("sent", &sd->ntcsd_msg_nr_send);
+ 	print_msg_nr(", received", &sd->ntcsd_msg_nr_recv);
++	print_msg_nr(", bulk sent", &sd->ntcsd_bulk_nr_send);
++	print_msg_nr(", bulk received", &sd->ntcsd_bulk_nr_recv);
++	print_msg_nr(", transfers", &sd->ntcsd_transfers);
+ 	c2_net_test_u_printf_v("; count/min/max/avg/stddev: ");
+ 	print_stats("MPS, sent", &sd->ntcsd_mps_send.ntmps_stats);
+ 	print_stats(", MPS, received", &sd->ntcsd_mps_recv.ntmps_stats);
+@@ -453,9 +472,14 @@ int main(int argc, char *argv[])
+ 		.ntcc_cmd_recv_timeout     = C2_MKTIME(3, 0),
+ 		.ntcc_buf_send_timeout     = C2_MKTIME(3, 0),
+ 		.ntcc_buf_recv_timeout     = C2_MKTIME(3, 0),
++		.ntcc_buf_bulk_timeout     = C2_MKTIME(3, 0),
+ 		.ntcc_test_type		   = C2_NET_TEST_TYPE_PING,
+ 		.ntcc_msg_nr		   = 0,
+ 		.ntcc_msg_size		   = 0,
++		.ntcc_bd_buf_nr_client	   = 0,
++		.ntcc_bd_buf_nr_server	   = 0,
++		.ntcc_bd_buf_size	   = 0,
++		.ntcc_bd_nr_max		   = 0,
+ 		.ntcc_concurrency_server   = 0,
+ 		.ntcc_concurrency_client   = 0,
+ 	};
+diff --git a/net/test/ut/client_server.c b/net/test/ut/client_server.c
+index a17a6e2..d122074 100644
+--- a/net/test/ut/client_server.c
++++ b/net/test/ut/client_server.c
+@@ -18,38 +18,34 @@
+  * Original creation date: 05/19/2012
+  */
+ 
+-/* @todo remove */
+-#ifndef __KERNEL__
+-#include <stdio.h>		/* printf */
+-#endif
+-
+-/* @todo debug only, remove it */
+-#ifndef __KERNEL__
+-/*
+-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+-*/
+-#define LOGD(format, ...) do {} while (0)
+-#else
+-#define LOGD(format, ...) do {} while (0)
+-#endif
+-
+-#include "net/test/node.h"		/* c2_net_test_node_ctx */
+-#include "net/test/console.h"		/* c2_net_test_console_ctx */
+-
+ #include "lib/ut.h"			/* C2_UT_ASSERT */
+ #include "lib/memory.h"			/* c2_free */
+ #include "lib/thread.h"			/* C2_THREAD_INIT */
+ #include "lib/semaphore.h"		/* c2_semaphore_down */
+ #include "lib/misc.h"			/* C2_SET0 */
++#include "lib/trace.h"			/* C2_LOG */
++
+ #include "net/lnet/lnet.h"		/* C2_NET_LNET_PID */
+ 
++#include "net/test/node.h"		/* c2_net_test_node_ctx */
++#include "net/test/console.h"		/* c2_net_test_console_ctx */
++
+ enum {
+ 	NTCS_PID		  = C2_NET_LNET_PID,
+ 	NTCS_PORTAL		  = 42,
+ 	NTCS_NODES_MAX		  = 128,
+ 	NTCS_NODE_ADDR_MAX	  = 0x100,
+-	NTCS_TIMEOUT_SEND_MS	  = 10000,
+-	NTCS_TIMEOUT_RECV_MS	  = 10000,
++	/** @todo 10min for debugging in gdb */
++	/*
++	NTCS_TIMEOUT_CMD_MS	  = 600000,
++	NTCS_TIMEOUT_SEND_MS	  = 600000,
++	NTCS_TIMEOUT_RECV_MS	  = 600000,
++	NTCS_TIMEOUT_BULK_MS	  = 600000,
++	*/
++	NTCS_TIMEOUT_CMD_MS	  = 20000,
++	NTCS_TIMEOUT_SEND_MS	  = 20000,
++	NTCS_TIMEOUT_RECV_MS	  = 20000,
++	NTCS_TIMEOUT_BULK_MS	  = 20000,
+ 	NTCS_TMID_CONSOLE4CLIENTS = 2998,
+ 	NTCS_TMID_CONSOLE4SERVERS = 2999,
+ 	NTCS_TMID_NODES		  = 3000,
+@@ -69,8 +65,11 @@ static char  clients[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
+ static char  servers[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
+ static char  clients_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
+ static char  servers_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
+-c2_time_t    timeout_send;
+-c2_time_t    timeout_recv;
++
++static c2_time_t timeout_cmd;
++static c2_time_t timeout_send;
++static c2_time_t timeout_recv;
++static c2_time_t timeout_bulk;
+ 
+ static char *addr_get(const char *nid, int tmid)
+ {
+@@ -131,7 +130,7 @@ static void node_cfg_fill(struct c2_net_test_node_cfg *ncfg,
+ {
+ 	ncfg->ntnc_addr		= addr_cmd;
+ 	ncfg->ntnc_addr_console = addr_console;
+-	ncfg->ntnc_send_timeout = timeout_send;
++	ncfg->ntnc_send_timeout = timeout_cmd;
+ 
+ 	strncat(addr_cmd_list, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX);
+ 	strncat(addr_cmd_list, last_node ? "" : ",", 2);
+@@ -144,8 +143,8 @@ static void node_cfg_fill(struct c2_net_test_node_cfg *ncfg,
+ static void msg_nr_print(const char *prefix,
+ 			 const struct c2_net_test_msg_nr *msg_nr)
+ {
+-	LOGD("%s total/failed/bad = %lu/%lu/%lu\n", prefix,
+-	     msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
++	C2_LOG(C2_DEBUG, "%-21s total/failed/bad = %lu/%lu/%lu", prefix,
++	       msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
+ }
+ 
+ /*
+@@ -159,22 +158,31 @@ static void net_test_client_server(const char *nid,
+ 				   size_t concurrency_client,
+ 				   size_t concurrency_server,
+ 				   size_t msg_nr,
+-				   c2_bcount_t msg_size)
++				   c2_bcount_t msg_size,
++				   size_t bd_buf_nr_client,
++				   size_t bd_buf_nr_server,
++				   c2_bcount_t bd_buf_size,
++				   size_t bd_nr_max)
+ {
+-	struct c2_net_test_console_cfg console_cfg;
+-	struct c2_net_test_console_ctx console;
+-	int			       rc;
+-	int			       i;
+-	c2_time_t		       _1s = C2_MKTIME(1, 0);
++	struct c2_net_test_cmd_status_data *sd_servers;
++	struct c2_net_test_cmd_status_data *sd_clients;
++	struct c2_net_test_console_cfg	    console_cfg;
++	struct c2_net_test_console_ctx	    console;
++	int				    rc;
++	int				    i;
++	c2_time_t			    _1s = C2_MKTIME(1, 0);
+ 
+ 	C2_PRE(clients_nr <= NTCS_NODES_MAX);
+ 	C2_PRE(servers_nr <= NTCS_NODES_MAX);
+ 	/* prepare config for test clients and test servers */
++	timeout_cmd  = ms2time(NTCS_TIMEOUT_CMD_MS);
+ 	timeout_send = ms2time(NTCS_TIMEOUT_SEND_MS);
+ 	timeout_recv = ms2time(NTCS_TIMEOUT_RECV_MS);
++	timeout_bulk = ms2time(NTCS_TIMEOUT_BULK_MS);
+ 	addr_console4clients = addr_get(nid, NTCS_TMID_CONSOLE4CLIENTS);
+ 	addr_console4servers = addr_get(nid, NTCS_TMID_CONSOLE4SERVERS);
+ 	clients[0] = '\0';
++	clients_data[0] = '\0';
+ 	for (i = 0; i < clients_nr; ++i) {
+ 		node_cfg_fill(&node_cfg[i],
+ 			      addr_get(nid, NTCS_TMID_CMD_CLIENTS + i), clients,
+@@ -183,6 +191,7 @@ static void net_test_client_server(const char *nid,
+ 			      i == clients_nr - 1);
+ 	}
+ 	servers[0] = '\0';
++	servers_data[0] = '\0';
+ 	for (i = 0; i < servers_nr; ++i) {
+ 		node_cfg_fill(&node_cfg[clients_nr + i],
+ 			      addr_get(nid, NTCS_TMID_CMD_SERVERS + i), servers,
+@@ -206,12 +215,12 @@ static void net_test_client_server(const char *nid,
+ 	/* prepare console config */
+ 	console_cfg.ntcc_addr_console4servers = addr_console4servers;
+ 	console_cfg.ntcc_addr_console4clients = addr_console4clients;
+-	LOGD("\naddr_console4servers = %s\n", addr_console4servers);
+-	LOGD("addr_console4clients = %s\n", addr_console4clients);
+-	LOGD("clients		   = %s\n", clients);
+-	LOGD("servers		   = %s\n", servers);
+-	LOGD("clients_data	   = %s\n", clients_data);
+-	LOGD("servers_data	   = %s\n", servers_data);
++	C2_LOG(C2_DEBUG, "addr_console4servers = %s", addr_console4servers);
++	C2_LOG(C2_DEBUG, "addr_console4clients = %s", addr_console4clients);
++	C2_LOG(C2_DEBUG, "clients      = %s", (char *) clients);
++	C2_LOG(C2_DEBUG, "servers      = %s", (char *) servers);
++	C2_LOG(C2_DEBUG, "clients_data = %s", (char *) clients_data);
++	C2_LOG(C2_DEBUG, "servers_data = %s", (char *) servers_data);
+ 	rc = c2_net_test_slist_init(&console_cfg.ntcc_clients, clients, ',');
+ 	C2_UT_ASSERT(rc == 0);
+ 	rc = c2_net_test_slist_init(&console_cfg.ntcc_servers, servers, ',');
+@@ -222,13 +231,18 @@ static void net_test_client_server(const char *nid,
+ 	rc = c2_net_test_slist_init(&console_cfg.ntcc_data_servers,
+ 				    servers_data, ',');
+ 	C2_UT_ASSERT(rc == 0);
+-	console_cfg.ntcc_cmd_send_timeout   = timeout_send;
+-	console_cfg.ntcc_cmd_recv_timeout   = timeout_recv;
++	console_cfg.ntcc_cmd_send_timeout   = timeout_cmd;
++	console_cfg.ntcc_cmd_recv_timeout   = timeout_cmd;
+ 	console_cfg.ntcc_buf_send_timeout   = timeout_send;
+ 	console_cfg.ntcc_buf_recv_timeout   = timeout_recv;
++	console_cfg.ntcc_buf_bulk_timeout   = timeout_bulk;
+ 	console_cfg.ntcc_test_type	    = type;
+ 	console_cfg.ntcc_msg_nr		    = msg_nr;
+ 	console_cfg.ntcc_msg_size	    = msg_size;
++	console_cfg.ntcc_bd_buf_nr_server   = bd_buf_nr_server;
++	console_cfg.ntcc_bd_buf_nr_client   = bd_buf_nr_client;
++	console_cfg.ntcc_bd_buf_size	    = bd_buf_size;
++	console_cfg.ntcc_bd_nr_max	    = bd_nr_max;
+ 	console_cfg.ntcc_concurrency_server = concurrency_server;
+ 	console_cfg.ntcc_concurrency_client = concurrency_client;
+ 	/* initialize console */
+@@ -257,21 +271,34 @@ static void net_test_client_server(const char *nid,
+ 					     C2_NET_TEST_CMD_STATUS);
+ 		C2_UT_ASSERT(rc == clients_nr);
+ 	} while (!console.ntcc_clients.ntcrc_sd->ntcsd_finished);
++	/* send STATUS command to the test clients */
++	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
++				     C2_NET_TEST_CMD_STATUS);
++	C2_UT_ASSERT(rc == clients_nr);
+ 	/* send STATUS command to the test servers */
+ 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
+ 				     C2_NET_TEST_CMD_STATUS);
+ 	C2_UT_ASSERT(rc == servers_nr);
+-	msg_nr_print("client sent\t",
++	msg_nr_print("client msg sent",
+ 		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send);
+-	msg_nr_print("client received\t",
++	msg_nr_print("client msg received",
+ 		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv);
+-	msg_nr_print("server sent\t",
++	msg_nr_print("client bulk sent",
++		     &console.ntcc_clients.ntcrc_sd->ntcsd_bulk_nr_send);
++	msg_nr_print("client bulk received",
++		     &console.ntcc_clients.ntcrc_sd->ntcsd_bulk_nr_recv);
++	msg_nr_print("client transfers",
++		     &console.ntcc_clients.ntcrc_sd->ntcsd_transfers);
++	msg_nr_print("server msg sent",
+ 		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send);
+-	msg_nr_print("server received\t",
++	msg_nr_print("server msg received",
+ 		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv);
+-	C2_UT_ASSERT(
+-		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send.ntmn_total ==
+-		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_total);
++	msg_nr_print("server bulk sent",
++		     &console.ntcc_servers.ntcrc_sd->ntcsd_bulk_nr_send);
++	msg_nr_print("server bulk received",
++		     &console.ntcc_servers.ntcrc_sd->ntcsd_bulk_nr_recv);
++	msg_nr_print("server transfers",
++		     &console.ntcc_servers.ntcrc_sd->ntcsd_transfers);
+ 	/* send STOP command to the test clients */
+ 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
+ 				     C2_NET_TEST_CMD_STOP);
+@@ -280,9 +307,30 @@ static void net_test_client_server(const char *nid,
+ 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
+ 				     C2_NET_TEST_CMD_STOP);
+ 	C2_UT_ASSERT(rc == servers_nr);
++	sd_servers = console.ntcc_servers.ntcrc_sd;
++	sd_clients = console.ntcc_clients.ntcrc_sd;
++	/* check stats */
++	if (type == C2_NET_TEST_TYPE_BULK) {
++		/*
++		 * number of transfers are not measured on the test server
++		 * for ping test.
++		 */
++		C2_ASSERT(sd_servers->ntcsd_transfers.ntmn_total ==
++			  sd_clients->ntcsd_transfers.ntmn_total);
++	}
++	C2_ASSERT(sd_servers->ntcsd_msg_nr_send.ntmn_total ==
++		  sd_clients->ntcsd_msg_nr_recv.ntmn_total);
++	C2_ASSERT(sd_servers->ntcsd_msg_nr_recv.ntmn_total ==
++		  sd_clients->ntcsd_msg_nr_send.ntmn_total);
++	C2_ASSERT(sd_servers->ntcsd_bulk_nr_send.ntmn_total ==
++		  sd_clients->ntcsd_bulk_nr_recv.ntmn_total);
++	C2_ASSERT(sd_servers->ntcsd_bulk_nr_recv.ntmn_total ==
++		  sd_clients->ntcsd_bulk_nr_send.ntmn_total);
+ 	/* finalize console */
+ 	c2_net_test_slist_fini(&console_cfg.ntcc_servers);
+ 	c2_net_test_slist_fini(&console_cfg.ntcc_clients);
++	c2_net_test_slist_fini(&console_cfg.ntcc_data_servers);
++	c2_net_test_slist_fini(&console_cfg.ntcc_data_clients);
+ 	c2_net_test_console_fini(&console);
+ 	/* finalize test clients and test servers */
+ 	for (i = 0; i < clients_nr + servers_nr; ++i) {
+@@ -298,7 +346,8 @@ static void net_test_client_server(const char *nid,
+ void c2_net_test_client_server_ping_ut(void)
+ {
+ 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
+-			       8, 8, 8, 128, 0x1000, 0x1000);
++			       8, 8, 8, 128, 0x1000, 0x1000,
++			       0, 0, 0, 0);
+ 	/*
+ 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
+ 			       8, 8, 4, 16, 0x100, 0x100);
+@@ -307,10 +356,14 @@ void c2_net_test_client_server_ping_ut(void)
+ 
+ void c2_net_test_client_server_bulk_ut(void)
+ {
+-	/*
++	/**
++	 * @todo investigate strange c2_net_tm_stop() time
++	 * on the bulk test client.
++	 */
+ 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_BULK,
+-			       8, 8, 4, 16, 0x100, 0x10000);
+-	*/
++			       1, 1, 1, 2,
++			       0x1000, 0x1000,
++			       1, 2, 0x1000, 0x10000);
+ }
+ 
+ /*
+diff --git a/net/test/ut/commands.c b/net/test/ut/commands.c
+index 3df7d3c..5e97bcb 100644
+--- a/net/test/ut/commands.c
++++ b/net/test/ut/commands.c
+@@ -284,7 +284,8 @@ static void commands_ut_recv_type(struct net_test_cmd_node *node,
+ 					 C2_NET_TEST_TYPE_BULK);
+ 		commands_ut_assert(node, cmd_init->ntci_msg_nr	 == 0x10000);
+ 		commands_ut_assert(node, cmd_init->ntci_msg_size == 0x100000);
+-		commands_ut_assert(node, cmd_init->ntci_concurrency == 0x100);
++		commands_ut_assert(node,
++				   cmd_init->ntci_msg_concurrency == 0x100);
+ 		timeout = cmd_init->ntci_buf_send_timeout;
+ 		commands_ut_assert(node, c2_time_seconds(timeout) == 2);
+ 		commands_ut_assert(node, c2_time_nanoseconds(timeout) == 3);
+@@ -393,14 +394,14 @@ static void commands_ut_send_all_type(size_t nr,
+ 	C2_SET0(&cmd);
+ 	cmd.ntc_type = type;
+ 	if (type == C2_NET_TEST_CMD_INIT) {
+-		cmd_init		   = &cmd.ntc_init;
+-		cmd_init->ntci_role	   = C2_NET_TEST_ROLE_SERVER;
+-		cmd_init->ntci_type	   = C2_NET_TEST_TYPE_BULK;
+-		cmd_init->ntci_msg_nr	   = 0x10000;
+-		cmd_init->ntci_msg_size	   = 0x100000;
+-		cmd_init->ntci_concurrency = 0x100;
++		cmd_init			= &cmd.ntc_init;
++		cmd_init->ntci_role		= C2_NET_TEST_ROLE_SERVER;
++		cmd_init->ntci_type		= C2_NET_TEST_TYPE_BULK;
++		cmd_init->ntci_msg_nr		= 0x10000;
++		cmd_init->ntci_msg_size		= 0x100000;
++		cmd_init->ntci_msg_concurrency  = 0x100;
+ 		cmd_init->ntci_buf_send_timeout = C2_MKTIME(2, 3);
+-		cmd_init->ntci_tm_ep	   = "0@lo:1:2:3";
++		cmd_init->ntci_tm_ep		= "0@lo:1:2:3";
+ 		c2_net_test_slist_init(&cmd_init->ntci_ep, "1,2,3", ',');
+ 	} else if (type != C2_NET_TEST_CMD_START &&
+ 		   type != C2_NET_TEST_CMD_STOP &&
+diff --git a/net/test/ut/main.c b/net/test/ut/main.c
+index b789234..632b84d 100644
+--- a/net/test/ut/main.c
++++ b/net/test/ut/main.c
+@@ -30,6 +30,11 @@ extern void c2_net_test_str_ut(void);
+ 
+ extern void c2_net_test_slist_ut(void);
+ 
++extern void c2_net_test_stats_ut(void);
++extern void c2_net_test_timestamp_ut(void);
++
++extern void c2_net_test_service_ut(void);
++
+ extern void c2_net_test_network_ut_buf_desc(void);
+ extern void c2_net_test_network_ut_ping(void);
+ extern void c2_net_test_network_ut_bulk(void);
+@@ -37,11 +42,6 @@ extern void c2_net_test_network_ut_bulk(void);
+ extern void c2_net_test_cmd_ut_single(void);
+ extern void c2_net_test_cmd_ut_multiple(void);
+ 
+-extern void c2_net_test_stats_ut(void);
+-extern void c2_net_test_timestamp_ut(void);
+-
+-extern void c2_net_test_service_ut(void);
+-
+ extern void c2_net_test_client_server_ping_ut(void);
+ extern void c2_net_test_client_server_bulk_ut(void);
+ 
+@@ -65,19 +65,22 @@ const struct c2_test_suite c2_net_test_ut = {
+ 		{ "serialize",		c2_net_test_serialize_ut	  },
+ 		{ "str",		c2_net_test_str_ut		  },
+ 		{ "slist",		c2_net_test_slist_ut		  },
++		{ "stats",		c2_net_test_stats_ut		  },
++		{ "timestamp",		c2_net_test_timestamp_ut	  },
++		{ "service",		c2_net_test_service_ut		  },
+ 		{ "network-buf-desc",	c2_net_test_network_ut_buf_desc	  },
+ 		{ "network-ping",	c2_net_test_network_ut_ping	  },
+ 		{ "network-bulk",	c2_net_test_network_ut_bulk	  },
+ 		{ "cmd-single",		c2_net_test_cmd_ut_single	  },
++#ifndef __KERNEL__
+ 		{ "cmd-multiple",	c2_net_test_cmd_ut_multiple	  },
+-		{ "stats",		c2_net_test_stats_ut		  },
+-		{ "timestamp",		c2_net_test_timestamp_ut	  },
+-		{ "service",		c2_net_test_service_ut		  },
+ 		{ "client-server-ping",	c2_net_test_client_server_ping_ut },
+ 		{ "client-server-bulk",	c2_net_test_client_server_bulk_ut },
++#endif
+ 		{ NULL,			NULL				  }
+ 	}
+ };
++C2_EXPORTED(c2_net_test_ut);
+ 
+ /*
+  *  Local variables:
+diff --git a/net/test/ut/network.c b/net/test/ut/network.c
+index 6ca69aa..542daf6 100644
+--- a/net/test/ut/network.c
++++ b/net/test/ut/network.c
+@@ -157,14 +157,14 @@ void c2_net_test_network_ut_ping(void)
+ 					  &ping_tm_cb, &ping_buf_cb,
+ 					  buf_size, 1,
+ 					  0, 0,
+-					  1, NULL);
++					  1, NULL, false);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	rc = c2_net_test_network_ctx_init(&recv, "0@lo:12345:42:4001",
+ 					  &ping_tm_cb, &ping_buf_cb,
+ 					  buf_size, 1,
+ 					  0, 0,
+-					  1, NULL);
++					  1, NULL, false);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	rc = c2_net_test_network_ep_add(&send, "0@lo:12345:42:4001");
+@@ -251,8 +251,10 @@ void c2_net_test_network_ut_bulk(void)
+ {
+ 	static struct c2_net_test_network_ctx client;
+ 	static struct c2_net_test_network_ctx server;
++	c2_bcount_t			      offset;
++	c2_bcount_t			      bcount;
+ 	int				      rc;
+-	int				      rc_u32;
++	size_t				      rc_size;
+ 	int				      i;
+ 	bool				      rc_bool;
+ 
+@@ -260,13 +262,13 @@ void c2_net_test_network_ut_bulk(void)
+ 					  &bulk_tm_cb, &bulk_buf_cb,
+ 					  NET_TEST_PING_BUF_SIZE, 1,
+ 					  NET_TEST_BULK_BUF_SIZE, 2,
+-					  1, NULL);
++					  1, NULL, false);
+ 	C2_UT_ASSERT(rc == 0);
+ 	rc = c2_net_test_network_ctx_init(&server, "0@lo:12345:42:4001",
+ 					  &bulk_tm_cb, &bulk_buf_cb,
+ 					  NET_TEST_PING_BUF_SIZE, 1,
+ 					  NET_TEST_BULK_BUF_SIZE, 1,
+-					  1, NULL);
++					  1, NULL, false);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	rc = c2_net_test_network_ep_add(&client, "0@lo:12345:42:4001");
+@@ -301,13 +303,16 @@ void c2_net_test_network_ut_bulk(void)
+ 			C2_NET_QT_PASSIVE_BULK_RECV);
+ 	C2_UT_ASSERT(rc == 0);
+ 	/* client: add buffer descriptors to ping buf */
+-	c2_net_test_network_bd_reset(&client, 0);
+-	rc = c2_net_test_network_bd_encode(&client, 0, 0);
+-	C2_UT_ASSERT(rc == 0);
+-	rc = c2_net_test_network_bd_encode(&client, 0, 1);
+-	C2_UT_ASSERT(rc == 0);
+-	rc_u32 = c2_net_test_network_bd_count(&client, 0);
+-	C2_UT_ASSERT(rc_u32 == 2);
++	offset = 0;
++	bcount = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++						  &client, 0, 0, offset);
++	C2_UT_ASSERT(bcount != 0);
++	offset += bcount;
++	bcount = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++						  &client, 1, 0, offset);
++	C2_UT_ASSERT(bcount != 0);
++	rc_size = c2_net_test_network_bd_nr_get(&client, 0);
++	C2_UT_ASSERT(rc_size == 2);
+ 	/* client: send ping buf */
+ 	rc = c2_net_test_network_msg_send(&client, 0, 0);
+ 	C2_UT_ASSERT(rc == 0);
+@@ -317,23 +322,26 @@ void c2_net_test_network_ut_bulk(void)
+ 	rc_bool = net_buf_data_eq(C2_NET_TEST_BUF_PING, &client, 0, &server, 0);
+ 	C2_ASSERT(rc_bool);
+ 	/* server: extract buf descriptor for active recv */
+-	rc_u32 = c2_net_test_network_bd_count(&server, 0);
+-	C2_UT_ASSERT(rc_u32 == 2);
+-	c2_net_test_network_bd_reset(&server, 0);
+-	rc = c2_net_test_network_bd_decode(&server, 0, 0);
+-	C2_UT_ASSERT(rc == 0);
++	rc_size = c2_net_test_network_bd_nr_get(&server, 0);
++	C2_UT_ASSERT(rc_size == 2);
++	offset = 0;
++	bcount = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
++						  &server, 0, 0, offset);
++	C2_UT_ASSERT(bcount != 0);
++	offset += bcount;
+ 	/* server: do active recv */
+ 	rc = c2_net_test_network_bulk_enqueue(&server, 0, 0,
+-			C2_NET_QT_ACTIVE_BULK_RECV);
++					      C2_NET_QT_ACTIVE_BULK_RECV);
+ 	C2_UT_ASSERT(rc == 0);
+ 	/* server: wait for active recv callback */
+ 	c2_semaphore_down(&bulk_cb_sem[C2_NET_QT_ACTIVE_BULK_RECV]);
+ 	/* server: extract buf descriptor for active send */
+-	rc = c2_net_test_network_bd_decode(&server, 0, 0);
+-	C2_UT_ASSERT(rc == 0);
++	bcount = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
++						  &server, 0, 0, offset);
++	C2_UT_ASSERT(bcount != 0);
+ 	/* server: do active send */
+ 	rc = c2_net_test_network_bulk_enqueue(&server, 0, 0,
+-			C2_NET_QT_ACTIVE_BULK_SEND);
++					      C2_NET_QT_ACTIVE_BULK_SEND);
+ 	C2_UT_ASSERT(rc == 0);
+ 	/* server: wait for active send callbacks */
+ 	c2_semaphore_down(&bulk_cb_sem[C2_NET_QT_ACTIVE_BULK_SEND]);
+@@ -413,33 +421,32 @@ static bool buf_desc_eq(struct c2_net_test_network_ctx *ctx1,
+ static void multiple_buf_desc_encode_decode(struct c2_net_test_network_ctx *ctx,
+ 					    int count)
+ {
+-	int i;
+-	bool rc_bool;
+-	uint32_t rc_u32;
+-	int rc;
+-
+-	c2_net_test_network_bd_reset(ctx, 0);
+-	rc_u32 = c2_net_test_network_bd_count(ctx, 0);
+-	C2_UT_ASSERT(rc_u32 == 0);
++	c2_bcount_t bcount;
++	c2_bcount_t offset;
++	size_t	    rc_size;
++	int	    i;
++	bool	    rc_bool;
++
++	offset = 0;
+ 	for (i = 0; i < count; ++i) {
+ 		/* encode */
+-		rc = c2_net_test_network_bd_encode(ctx, 0, i % 2);
+-		C2_UT_ASSERT(rc == 0);
++		bcount = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++							 ctx, i % 2, 0, offset);
++		C2_UT_ASSERT(bcount != 0);
++		offset += bcount;
+ 		/* check number of buf descriptors in the ping buffer */
+-		rc_u32 = c2_net_test_network_bd_count(ctx, 0);
+-		C2_UT_ASSERT(rc_u32 == i + 1);
++		rc_size = c2_net_test_network_bd_nr_get(ctx, 0);
++		C2_UT_ASSERT(rc_size == i + 1);
+ 	}
+ 	/* prepare to decode */
+-	c2_net_test_network_bd_reset(ctx, 0);
+-	rc_u32 = c2_net_test_network_bd_count(ctx, 0);
+-	C2_UT_ASSERT(rc_u32 == 0);
++	offset = 0;
+ 	for (i = 0; i < count; ++i) {
+ 		/* decode */
+-		rc = c2_net_test_network_bd_decode(ctx, 0, 2 + i % 2);
+-		C2_UT_ASSERT(rc == 0);
+-		/* check number of buf descriptors in the ping buffer */
+-		rc_u32 = c2_net_test_network_bd_count(ctx, 0);
+-		C2_UT_ASSERT(rc_u32 == i + 1);
++		bcount = c2_net_test_network_bd_serialize(
++				C2_NET_TEST_DESERIALIZE,
++				ctx, 2 + i % 2, 0, offset);
++		C2_UT_ASSERT(bcount != 0);
++		offset += bcount;
+ 		/* compare c2_net_buf_desc's */
+ 		rc_bool = buf_desc_eq(ctx, i % 2, ctx, 2 + i % 2);
+ 		C2_UT_ASSERT(rc_bool);
+@@ -449,15 +456,15 @@ static void multiple_buf_desc_encode_decode(struct c2_net_test_network_ctx *ctx,
+ void c2_net_test_network_ut_buf_desc(void)
+ {
+ 	static struct c2_net_test_network_ctx ctx;
+-	int i;
+-	int rc;
+-	static struct c2_clink tmwait;
++	static struct c2_clink		      tmwait;
++	int				      i;
++	int				      rc;
+ 
+ 	rc = c2_net_test_network_ctx_init(&ctx, "0@lo:12345:42:*",
+ 					  &tm_cb_empty, &buf_cb_empty,
+ 					  NET_TEST_PING_BUF_SIZE, 2,
+ 					  NET_TEST_BULK_BUF_SIZE, 4,
+-					  1, NULL);
++					  1, NULL, false);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	/* add some ep - tranfer machine ep */
+diff --git a/net/test/ut/ringbuf.c b/net/test/ut/ringbuf.c
+index d07f1d2..caba8cf 100644
+--- a/net/test/ut/ringbuf.c
++++ b/net/test/ut/ringbuf.c
+@@ -31,14 +31,20 @@ static void ringbuf_push_pop(struct c2_net_test_ringbuf *rb, size_t nr)
+ {
+ 	size_t i;
+ 	size_t value;
++	size_t len;
+ 
+ 	C2_PRE(rb != NULL);
+ 
+-	for (i = 0; i < nr; ++i)
++	for (i = 0; i < nr; ++i) {
+ 		c2_net_test_ringbuf_push(rb, i);
++		len = c2_net_test_ringbuf_nr(rb);
++		C2_UT_ASSERT(len == i + 1);
++	}
+ 	for (i = 0; i < nr; ++i) {
+ 		value = c2_net_test_ringbuf_pop(rb);
+ 		C2_UT_ASSERT(value == i);
++		len = c2_net_test_ringbuf_nr(rb);
++		C2_UT_ASSERT(len == nr - i - 1);
+ 	}
+ }
+ 
+@@ -48,14 +54,21 @@ void c2_net_test_ringbuf_ut(void)
+ 	int			   rc;
+ 	int			   i;
+ 	size_t			   value;
++	size_t			   nr;
+ 
+ 	/* init */
+ 	rc = c2_net_test_ringbuf_init(&rb, NET_TEST_RB_SIZE);
+ 	C2_UT_ASSERT(rc == 0);
++	nr = c2_net_test_ringbuf_nr(&rb);
++	C2_UT_ASSERT(nr == 0);
+ 	/* test #1: single value push, single value pop */
+ 	c2_net_test_ringbuf_push(&rb, 42);
++	nr = c2_net_test_ringbuf_nr(&rb);
++	C2_UT_ASSERT(nr == 1);
+ 	value = c2_net_test_ringbuf_pop(&rb);
+ 	C2_UT_ASSERT(value == 42);
++	nr = c2_net_test_ringbuf_nr(&rb);
++	C2_UT_ASSERT(nr == 0);
+ 	/* test #2: multiple values push, multiple values pop */
+ 	ringbuf_push_pop(&rb, NET_TEST_RB_SIZE);
+ 	/*
+diff --git a/utils/linux_kernel/main.c b/utils/linux_kernel/main.c
+index 21de49f..90ea48f 100644
+--- a/utils/linux_kernel/main.c
++++ b/utils/linux_kernel/main.c
+@@ -36,6 +36,7 @@ extern const struct c2_test_suite bulkio_client_ut;
+ extern const struct c2_test_suite c2_net_bulk_if_ut;
+ extern const struct c2_test_suite c2_net_bulk_mem_ut;
+ extern const struct c2_test_suite c2_net_lnet_ut;
++extern const struct c2_test_suite c2_net_test_ut;
+ extern const struct c2_test_suite c2_net_tm_prov_ut;
+ extern const struct c2_test_suite xcode_ut;
+ extern const struct c2_test_suite rpc_service_ut;
+@@ -59,6 +60,7 @@ static void run_kernel_ut(int ignored)
+ 	c2_ut_add(&c2_net_bulk_if_ut);
+ 	c2_ut_add(&c2_net_bulk_mem_ut);
+ 	c2_ut_add(&c2_net_lnet_ut);
++	c2_ut_add(&c2_net_test_ut);
+ 	c2_ut_add(&c2_net_tm_prov_ut);
+ 	c2_ut_add(&xcode_ut);
+ 	c2_ut_add(&rpc_service_ut);
+-- 
+1.8.3.2
+

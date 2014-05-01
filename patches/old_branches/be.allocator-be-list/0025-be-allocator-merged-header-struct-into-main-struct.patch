@@ -1,0 +1,727 @@
+From e9e6c2724f66549685b07a800de956fe334306d3 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 12 Dec 2013 04:02:05 +0200
+Subject: [PATCH 25/26] be/allocator: merged header struct into main struct
+
+---
+ be/alloc.c          | 110 +++++++++++++++++++++++++++-------------------------
+ be/alloc.h          |  31 ++++++++++-----
+ be/alloc_internal.h |  21 +---------
+ be/list.c           |  12 +++---
+ be/list.h           |   7 ++--
+ be/seg.c            |   3 +-
+ be/seg.h            |   6 +--
+ be/seg_internal.h   |  10 ++---
+ be/tx_credit.h      |   2 +-
+ be/ut/alloc.c       |  12 +++---
+ be/ut/helper.c      |   4 +-
+ be/ut/list.c        |   4 +-
+ db/db.c             |   2 +-
+ mero/magic.h        |   4 +-
+ 14 files changed, 115 insertions(+), 113 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 86acf27..7ad7a12 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -81,8 +81,8 @@
+  * - user data in chunk located just after allocator data;
+  *
+  * Two lists of chunks are maintained:
+- * - m0_be_allocator_header.bah_chunks contains all chunks - the chunks list;
+- * - m0_be_allocator_header.bah_free contains free chunks - the free list.
++ * - m0_be_allocator.bah_chunks contains all chunks - the chunks list;
++ * - m0_be_allocator.bah_free contains free chunks - the free list.
+  *
+  * Lists of chunks restrictions:
+  * - all chunks in a list are ordered by address;
+@@ -158,7 +158,7 @@
+  */
+ 
+ enum {
+-	/** alignment for m0_be_allocator_header inside segment */
++	/** alignment for m0_be_allocator inside segment */
+ 	BE_ALLOC_HEADER_SHIFT = 3,
+ };
+ 
+@@ -176,12 +176,12 @@ M0_TL_DEFINE(chunks_free, static, struct be_alloc_chunk);
+ /* XXX use these accessors everywhere */
+ static struct m0_be_list *be_alloc_list_chunks(struct m0_be_allocator *a)
+ {
+-	return &a->ba_h->bah_chunks;
++	return &a->ba_chunks;
+ }
+ 
+ static struct m0_be_list *be_alloc_list_free(struct m0_be_allocator *a)
+ {
+-	return &a->ba_h->bah_free;
++	return &a->ba_free;
+ }
+ 
+ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
+@@ -200,7 +200,9 @@ static void be_alloc_head_capture(struct m0_be_allocator *a,
+ {
+ 	if (tx == NULL)
+ 		return;
+-	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, a->ba_h);
++	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &a->ba_size);
++	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &a->ba_addr);
++	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &a->ba_stats);
+ }
+ 
+ static void be_alloc_free_flag_capture(struct m0_be_allocator *a,
+@@ -220,8 +222,8 @@ static void be_alloc_size_capture(struct m0_be_allocator *a,
+ static bool be_alloc_is_mem_in_allocator(struct m0_be_allocator *a,
+ 					 m0_bcount_t size, const void *ptr)
+ {
+-	return ptr >= a->ba_h->bah_addr &&
+-	       ptr + size <= a->ba_h->bah_addr + a->ba_h->bah_size;
++	return ptr >= a->ba_addr &&
++	       ptr + size <= a->ba_addr + a->ba_size;
+ }
+ 
+ static bool be_alloc_is_chunk_in_allocator(struct m0_be_allocator *a,
+@@ -245,11 +247,11 @@ static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
+ 	struct be_alloc_chunk *fprev;
+ 	struct be_alloc_chunk *fnext;
+ 
+-	cprev = chunks_all_tlist_prev(&a->ba_h->bah_chunks.bl_list, c);
+-	cnext = chunks_all_tlist_next(&a->ba_h->bah_chunks.bl_list, c);
++	cprev = chunks_all_tlist_prev(&a->ba_chunks.bl_list, c);
++	cnext = chunks_all_tlist_next(&a->ba_chunks.bl_list, c);
+ 	if (c->bac_free) {
+-		fprev = chunks_free_tlist_prev(&a->ba_h->bah_free.bl_list, c);
+-		fnext = chunks_free_tlist_next(&a->ba_h->bah_free.bl_list, c);
++		fprev = chunks_free_tlist_prev(&a->ba_free.bl_list, c);
++		fnext = chunks_free_tlist_next(&a->ba_free.bl_list, c);
+ 	} else {
+ 		fprev = NULL;
+ 		fnext = NULL;
+@@ -325,7 +327,7 @@ static struct be_alloc_chunk *be_alloc_chunk_prev(struct m0_be_allocator *a,
+ {
+ 	struct be_alloc_chunk *r;
+ 
+-	r = chunks_all_tlist_prev(&a->ba_h->bah_chunks.bl_list, c);
++	r = chunks_all_tlist_prev(&a->ba_chunks.bl_list, c);
+ 	M0_ASSERT(ergo(r != NULL, be_alloc_chunk_invariant(a, r)));
+ 	return r;
+ }
+@@ -335,7 +337,7 @@ static struct be_alloc_chunk *be_alloc_chunk_next(struct m0_be_allocator *a,
+ {
+ 	struct be_alloc_chunk *r;
+ 
+-	r = chunks_all_tlist_next(&a->ba_h->bah_chunks.bl_list, c);
++	r = chunks_all_tlist_next(&a->ba_chunks.bl_list, c);
+ 	M0_ASSERT(ergo(r != NULL, be_alloc_chunk_invariant(a, r)));
+ 	return r;
+ }
+@@ -369,7 +371,7 @@ static void be_alloc_chunk_mark_free(struct m0_be_allocator *a,
+ static uintptr_t be_alloc_chunk_after(struct m0_be_allocator *a,
+ 				      struct be_alloc_chunk *c)
+ {
+-	return c == NULL ? (uintptr_t) a->ba_h->bah_addr :
++	return c == NULL ? (uintptr_t) a->ba_addr :
+ 			   (uintptr_t) &c->bac_mem[c->bac_size];
+ }
+ 
+@@ -391,11 +393,11 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 	M0_PRE(size_total > sizeof *new);
+ 
+ 	new = c == NULL ? (struct be_alloc_chunk *)
+-			  ((uintptr_t) a->ba_h->bah_addr + offset) :
++			  ((uintptr_t) a->ba_addr + offset) :
+ 			  (struct be_alloc_chunk *) be_alloc_chunk_after(a, c);
+ 	be_alloc_chunk_init(a, tx, new, size_total - sizeof(*new), free);
+ 
+-	/** add chunk to m0_be_allocator_header.bac_chunks list */
++	/** add chunk to m0_be_allocator.bac_chunks list */
+ 	if (c != NULL) {
+ 		M0_BE_OP_SYNC(op,
+ 			      m0_be_list_add_after(chunks, &op, tx, c, new));
+@@ -403,7 +405,7 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 		M0_BE_OP_SYNC(op, m0_be_list_add(chunks, &op, tx, new));
+ 	}
+ 	if (free) {
+-		/** add chunk to m0_be_allocator_header.bac_free list */
++		/** add chunk to m0_be_allocator.bac_free list */
+ 		if (f != NULL) {
+ 			M0_BE_OP_SYNC(op, m0_be_list_add_after(cfree, &op,
+ 							       tx, f, new));
+@@ -437,7 +439,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 	M0_PRE(c->bac_free);
+ 
+ 	prev	  = be_alloc_chunk_prev(a, c);
+-	prev_free = chunks_free_tlist_prev(&a->ba_h->bah_free.bl_list, c);
++	prev_free = chunks_free_tlist_prev(&a->ba_free.bl_list, c);
+ 
+ 	start0	    = be_alloc_chunk_after(a, prev);
+ 	start1	    = start_new + chunk_size + size;
+@@ -541,12 +543,17 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
+ 	return chunks_were_merged;
+ }
+ 
+-M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a)
++M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
++				     struct m0_be_seg *seg)
+ {
+ 	m0_mutex_init(&a->ba_lock);
+ 
+-	m0_be_list_init(be_alloc_list_chunks(a));
+-	m0_be_list_init(be_alloc_list_free(a));
++	a->ba_seg = seg;
++	m0_be_list_init(be_alloc_list_chunks(a), seg);
++	m0_be_list_init(be_alloc_list_free(a), seg);
++
++	/* XXX temporary solution to make capturing checkers pass */
++	m0_be_reg__write(&M0_BE_REG_PTR(a->ba_seg, a));	/* XXX */
+ 
+ 	return 0;
+ }
+@@ -556,6 +563,9 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a)
+ 	m0_be_list_fini(be_alloc_list_free(a));
+ 	m0_be_list_fini(be_alloc_list_chunks(a));
+ 	m0_mutex_fini(&a->ba_lock);
++
++	/* XXX temporary solution to make capturing checkers pass */
++	m0_be_reg__write(&M0_BE_REG_PTR(a->ba_seg, a));	/* XXX */
+ }
+ 
+ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a)
+@@ -565,13 +575,13 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a)
+ 
+ 	m0_mutex_lock(&a->ba_lock);
+ 
+-	m0_tl_for(chunks_all, &a->ba_h->bah_chunks.bl_list, iter) {
++	m0_tl_for(chunks_all, &a->ba_chunks.bl_list, iter) {
+ 		if (!be_alloc_chunk_invariant(a, iter)) {
+ 			success = false;
+ 			break;
+ 		}
+ 	} m0_tl_endfor;
+-	m0_tl_for(chunks_free, &a->ba_h->bah_free.bl_list, iter) {
++	m0_tl_for(chunks_free, &a->ba_free.bl_list, iter) {
+ 		if (!be_alloc_chunk_invariant(a, iter) && !success) {
+ 			success = false;
+ 			break;
+@@ -587,19 +597,12 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+ 				       struct m0_be_tx *tx,
+ 				       struct m0_be_seg *seg)
+ {
+-	struct m0_be_allocator_header *h;
+-	struct be_alloc_chunk	      *c;
+-	m0_bcount_t		       overhead;
+-	m0_bcount_t		       free_space;
++	struct be_alloc_chunk *c;
++	m0_bcount_t	       overhead;
++	m0_bcount_t	       free_space;
+ 
+ 	M0_PRE(m0_be_seg__invariant(seg));
+ 
+-	a->ba_seg = seg;
+-	a->ba_h = &((struct m0_be_seg_hdr *) seg->bs_addr)->bh_alloc;
+-	M0_ASSERT(m0_addr_is_aligned(a->ba_h, BE_ALLOC_HEADER_SHIFT));
+-
+-	h = a->ba_h;
+-	/** @todo GET_PTR h */
+ 	overhead   = seg->bs_reserved;
+ 	free_space = seg->bs_size - overhead;
+ 
+@@ -609,21 +612,22 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+ 
+ 	m0_mutex_lock(&a->ba_lock);
+ 
+-	h->bah_size  = free_space;
+-	h->bah_addr  = (void *) ((uintptr_t) a->ba_seg->bs_addr + overhead);
+-	h->bah_stats = (struct m0_be_allocator_stats) {
++	a->ba_seg   = seg;
++	a->ba_size  = free_space;
++	a->ba_addr  = (void *) ((uintptr_t) a->ba_seg->bs_addr + overhead);
++	a->ba_stats = (struct m0_be_allocator_stats) {
+ 		.bas_free_space = free_space,
+ 	};
+ 	M0_BE_OP_SYNC(op, m0_be_list_create(be_alloc_list_chunks(a), tx, &op,
+ 					    seg, &chunks_all_tl));
+ 	M0_BE_OP_SYNC(op, m0_be_list_create(be_alloc_list_free(a), tx, &op,
+ 					    seg, &chunks_free_tl));
+-	be_alloc_head_capture(a, tx);
+-
+ 	/* init main chunk */
+ 	c = be_alloc_chunk_add_after(a, tx, NULL, NULL, 0, free_space, true);
+ 	M0_ASSERT(c != NULL);
+ 
++	be_alloc_head_capture(a, tx);
++
+ 	m0_mutex_unlock(&a->ba_lock);
+ 
+ 	/** @todo PUT_PTR h */
+@@ -635,21 +639,22 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+ M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
+ 					 struct m0_be_tx *tx)
+ {
+-	struct m0_be_allocator_header *h;
+-	struct be_alloc_chunk	      *c;
++	struct be_alloc_chunk *c;
+ 
+ 	M0_PRE_EX(m0_be_allocator__invariant(a));
+ 
+-	h = a->ba_h;
+-	c = chunks_all_tlist_head(&h->bah_chunks.bl_list);
+ 	/** @todo GET_PTR h */
+ 	m0_mutex_lock(&a->ba_lock);
++	c = chunks_all_tlist_head(&a->ba_chunks.bl_list);
+ 
+ 	be_alloc_chunk_del_fini(a, tx, c);
+ 
+ 	M0_BE_OP_SYNC(op, m0_be_list_destroy(be_alloc_list_chunks(a), tx, &op));
+ 	M0_BE_OP_SYNC(op, m0_be_list_destroy(be_alloc_list_free(a), tx, &op));
+ 
++	a->ba_size = 0;
++	be_alloc_head_capture(a, tx);
++
+ 	m0_mutex_unlock(&a->ba_lock);
+ 	/** @todo PUT_PTR h */
+ }
+@@ -662,7 +667,6 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ {
+ 	struct m0_be_tx_credit cred_list_create = {};
+ 	struct m0_be_tx_credit cred_list_destroy = {};
+-	struct m0_be_tx_credit capture_around_credit = {};
+ 	struct m0_be_tx_credit chunk_add_after_credit = {};
+ 	struct m0_be_tx_credit chunk_del_fini_credit = {};
+ 	struct m0_be_tx_credit chunk_trymerge_credit = {};
+@@ -670,7 +674,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	struct m0_be_tx_credit cred_split = {};
+ 	struct m0_be_tx_credit mem_zero_credit = {};
+ 	struct m0_be_tx_credit chunk_credit;
+-	struct m0_be_tx_credit header_credit;
++	struct m0_be_tx_credit cred_allocator = {};
+ 	struct m0_be_tx_credit cred_free_flag;
+ 	struct m0_be_tx_credit cred_chunk_size;
+ 	struct m0_be_tx_credit tmp;
+@@ -679,19 +683,20 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	struct m0_be_list      *free   = be_alloc_list_free(a);
+ 
+ 	chunk_credit	= M0_BE_TX_CREDIT_TYPE(struct be_alloc_chunk);
+-	header_credit	= M0_BE_TX_CREDIT_TYPE(struct m0_be_allocator_header);
+ 	cred_free_flag	= M0_BE_TX_CREDIT_PTR(&chunk.bac_free);
+ 	cred_chunk_size = M0_BE_TX_CREDIT_PTR(&chunk.bac_size);
+ 
++	m0_be_tx_credit_add(&cred_allocator, &M0_BE_TX_CREDIT_PTR(&a->ba_size));
++	m0_be_tx_credit_add(&cred_allocator, &M0_BE_TX_CREDIT_PTR(&a->ba_addr));
++	m0_be_tx_credit_add(&cred_allocator,
++			    &M0_BE_TX_CREDIT_PTR(&a->ba_stats));
++
+ 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
+ 	mem_zero_credit = M0_BE_TX_CREDIT(1, size);
+ 
+ 	m0_be_list_credit(NULL, M0_BLO_CREATE,	1, &cred_list_create);
+ 	m0_be_list_credit(NULL, M0_BLO_DESTROY, 1, &cred_list_destroy);
+ 
+-	m0_be_tx_credit_add(&capture_around_credit, &header_credit);
+-	m0_be_tx_credit_mac(&capture_around_credit, &chunk_credit, 3);
+-
+ 	tmp = M0_BE_TX_CREDIT(0, 0);
+ 	m0_be_list_credit(free,	  M0_BLO_TLINK_CREATE, 1, &tmp);
+ 	m0_be_list_credit(chunks, M0_BLO_TLINK_CREATE, 1, &tmp);
+@@ -721,11 +726,12 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 		case M0_BAO_CREATE:
+ 			m0_be_tx_credit_mac(accum, &cred_list_create, 2);
+ 			m0_be_tx_credit_add(accum, &chunk_add_after_credit);
+-			m0_be_tx_credit_add(accum, &header_credit);
++			m0_be_tx_credit_add(accum, &cred_allocator);
+ 			break;
+ 		case M0_BAO_DESTROY:
+ 			m0_be_tx_credit_add(accum, &chunk_del_fini_credit);
+ 			m0_be_tx_credit_mac(accum, &cred_list_destroy, 2);
++			m0_be_tx_credit_add(accum, &cred_allocator);
+ 			break;
+ 		case M0_BAO_ALLOC_ALIGNED:
+ 			m0_be_tx_credit_add(accum, &cred_split);
+@@ -766,7 +772,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+ 
+ 	m0_mutex_lock(&a->ba_lock);
+ 	/* algorithm starts here */
+-	m0_tl_for(chunks_free, &a->ba_h->bah_free.bl_list, iter) {
++	m0_tl_for(chunks_free, &a->ba_free.bl_list, iter) {
+ 		c = be_alloc_chunk_trysplit(a, tx, iter, size, shift);
+ 		if (c != NULL)
+ 			break;
+@@ -866,7 +872,7 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
+ 
+ 	/** @todo GET_PTR a->ba_h */
+ 	m0_mutex_lock(&a->ba_lock);
+-	*out = a->ba_h->bah_stats;
++	*out = a->ba_stats;
+ 	m0_mutex_unlock(&a->ba_lock);
+ 	/** @todo PUT_PTR a->ba_h */
+ }
+diff --git a/be/alloc.h b/be/alloc.h
+index f55a97b..9e11c2f 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -25,6 +25,8 @@
+ #include "lib/types.h"  /* m0_bcount_t */
+ #include "lib/mutex.h"
+ 
++#include "be/list.h"	/* m0_be_list */
++
+ struct m0_be_op;
+ struct m0_be_seg;
+ struct m0_be_tx;
+@@ -48,15 +50,21 @@ enum {
+ /**
+  * @brief Allocator statistics
+  *
+- * It is embedded into m0_be_allocator_header.
++ * It is embedded into m0_be_allocator.
+  */
+ struct m0_be_allocator_stats {
+ 	m0_bcount_t bas_free_space;
+ };
+ 
+-struct m0_be_allocator_header;
+-
+-/** @brief Allocator */
++/**
++ * @brief Allocator.
++ *
++ * - allocator space begins at m0_be_allocator.bah_addr and have size
++ *   m0_be_allocator.bah_size bytes;
++ * - resides in a segment address space;
++ * - is a part of a segment header. It may be changed in the future;
++ * - contains list headers for chunks lists.
++ */
+ struct m0_be_allocator {
+ 	/**
+ 	 * Memory is allocated from the segment using first-fit algorithm.
+@@ -69,16 +77,20 @@ struct m0_be_allocator {
+ 	 * (but not allocated memory).
+ 	 */
+ 	struct m0_mutex		       ba_lock;
+-	/** Internal allocator data. It is stored inside the segment. */
+-	struct m0_be_allocator_header *ba_h;
++	struct m0_be_list	       ba_chunks;	/**< all chunks */
++	struct m0_be_list	       ba_free;		/**< free chunks */
++	struct m0_be_allocator_stats   ba_stats;	/**< XXX not used now */
++	m0_bcount_t		       ba_size;		/**< memory size */
++	void			      *ba_addr;		/**< memory address */
+ };
+ 
+ /**
+  * Initialize allocator structure.
+  *
+- * @see m0_be_allocator_header.
++ * @see m0_be_allocator.
+  */
+-M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a);
++M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
++				     struct m0_be_seg *seg);
+ 
+ /**
+  * Finalize allocator structure.
+@@ -98,8 +110,7 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a);
+ /**
+  * Create allocator on the segment.
+  *
+- * @see m0_be_allocator.ba_seg, m0_be_allocator_init(),
+- * m0_be_allocator_header.
++ * @see m0_be_allocator.ba_seg, m0_be_allocator_init(), m0_be_allocator.
+  */
+ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
+ 				       struct m0_be_tx *tx,
+diff --git a/be/alloc_internal.h b/be/alloc_internal.h
+index 4dfbc57..76e8867 100644
+--- a/be/alloc_internal.h
++++ b/be/alloc_internal.h
+@@ -47,11 +47,11 @@ struct be_alloc_chunk {
+ 	 * Used to find invalid memory access after allocated chunk.
+ 	 */
+ 	uint64_t	bac_magic0;
+-	/** for m0_be_allocator_header.ba_chunks list */
++	/** for m0_be_allocator.ba_chunks list */
+ 	struct m0_tlink bac_linkage;
+ 	/** magic for bac_linkage */
+ 	uint64_t	bac_magic;
+-	/** for m0_be_allocator_header.ba_free list */
++	/** for m0_be_allocator.ba_free list */
+ 	struct m0_tlink bac_linkage_free;
+ 	/** magic for bac_linkage_free */
+ 	uint64_t	bac_magic_free;
+@@ -72,23 +72,6 @@ struct be_alloc_chunk {
+ 	char		bac_mem[0];
+ };
+ 
+-/**
+- * @brief Allocator header.
+- *
+- * - allocator space begins at m0_be_allocator_header.bah_addr and have size
+- *   m0_be_allocator_header.bah_size bytes;
+- * - resides in a segment address space;
+- * - is a part of a segment header. It may be changed in the future;
+- * - contains list headers for chunks lists.
+- */
+-struct m0_be_allocator_header {
+-	struct m0_be_list	      bah_chunks;	/**< all chunks */
+-	struct m0_be_list	      bah_free;		/**< free chunks */
+-	struct m0_be_allocator_stats  bah_stats;	/**< XXX not used now */
+-	m0_bcount_t		      bah_size;		/**< memory size */
+-	void			     *bah_addr;		/**< memory address */
+-};
+-
+ /** @} end of be group */
+ 
+ #endif /* __MERO_BE_ALLOC_INTERNAL_H__ */
+diff --git a/be/list.c b/be/list.c
+index ddfd9d4..0a6df23 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -88,8 +88,10 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ }
+ 
+ 
+-M0_INTERNAL void m0_be_list_init(struct m0_be_list *list)
++M0_INTERNAL void m0_be_list_init(struct m0_be_list *list,
++				 struct m0_be_seg *seg)
+ {
++	list->bl_seg = seg;
+ }
+ 
+ M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list)
+@@ -291,18 +293,18 @@ M0_INTERNAL void m0_be_list_add_after(struct m0_be_list *list,
+ 				      struct m0_be_op   *op,
+ 				      struct m0_be_tx   *tx,
+ 				      void              *obj,
+-				      void              *new)
++				      void              *obj_new)
+ {
+-	be_list_add_pos(list, op, tx, obj, new, m0_tlist_add_after);
++	be_list_add_pos(list, op, tx, obj, obj_new, m0_tlist_add_after);
+ }
+ 
+ M0_INTERNAL void m0_be_list_add_before(struct m0_be_list *list,
+ 				       struct m0_be_op   *op,
+ 				       struct m0_be_tx   *tx,
+ 				       void              *obj,
+-				       void              *new)
++				       void              *obj_new)
+ {
+-	be_list_add_pos(list, op, tx, obj, new, m0_tlist_add_before);
++	be_list_add_pos(list, op, tx, obj, obj_new, m0_tlist_add_before);
+ }
+ 
+ M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
+diff --git a/be/list.h b/be/list.h
+index 1fce69d..3b83e7a 100644
+--- a/be/list.h
++++ b/be/list.h
+@@ -66,7 +66,8 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ /* -------------------------------------------------------------------------
+  * Construction/Destruction:
+  * ------------------------------------------------------------------------- */
+-M0_INTERNAL void m0_be_list_init(struct m0_be_list *list);
++M0_INTERNAL void m0_be_list_init(struct m0_be_list *list,
++				 struct m0_be_seg *seg);
+ 
+ M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list);
+ 
+@@ -124,13 +125,13 @@ M0_INTERNAL void    m0_be_list_add_after(struct m0_be_list *list,
+ 					 struct m0_be_op   *op,
+ 					 struct m0_be_tx   *tx,
+ 					 void              *obj,
+-					 void              *new);
++					 void              *obj_new);
+ 
+ M0_INTERNAL void   m0_be_list_add_before(struct m0_be_list *list,
+ 					 struct m0_be_op   *op,
+ 					 struct m0_be_tx   *tx,
+ 					 void              *obj,
+-					 void              *new);
++					 void              *obj_new);
+ 
+ M0_INTERNAL void     m0_be_list_add_tail(struct m0_be_list *list,
+ 					 struct m0_be_op   *op,
+diff --git a/be/seg.c b/be/seg.c
+index d3c846a..aafcba9 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -190,7 +190,8 @@ M0_INTERNAL m0_bcount_t m0_be_seg_reserved(struct m0_be_seg *seg)
+ 
+ M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)
+ {
+-	return &seg->bs_allocator;
++	return &(((struct m0_be_seg_hdr *)
++		 (seg->bs_addr + M0_BE_SEG_HEADER_OFFSET))->bh_allocator);
+ }
+ 
+ static int
+diff --git a/be/seg.h b/be/seg.h
+index b5265d6..84c90db 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -59,11 +59,6 @@ struct m0_be_seg {
+ 	/** Size at the start of segment which is used by segment internals. */
+ 	/** XXX use it in all UTs */
+ 	m0_bcount_t	       bs_reserved;
+-	/**
+-	 * Segment allocator.
+-	 * m0_be_seg_allocator() should be used to access segment allocator.
+-	 */
+-	struct m0_be_allocator bs_allocator;
+ 	struct m0_be_domain   *bs_domain;
+ 	int                    bs_state;
+ };
+@@ -93,6 +88,7 @@ M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
+ /** XXX @todo s/bs_reserved/m0_be_seg_reserved/ everywhere */
+ M0_INTERNAL m0_bcount_t m0_be_seg_reserved(struct m0_be_seg *seg);
+ M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg);
++/** XXX @todo add m0_be_seg_dictinary() */
+ 
+ struct m0_be_reg {
+ 	struct m0_be_seg *br_seg;
+diff --git a/be/seg_internal.h b/be/seg_internal.h
+index 7449280..140e3eb 100644
+--- a/be/seg_internal.h
++++ b/be/seg_internal.h
+@@ -22,7 +22,7 @@
+ #ifndef __MERO_BE_SEG_INTERNAL_H__
+ #define __MERO_BE_SEG_INTERNAL_H__
+ 
+-#include "be/alloc_internal.h"	/* m0_be_allocator_header */
++#include "be/alloc_internal.h"	/* m0_be_allocator */
+ #include "be/btree.h"		/* m0_be_btree */
+ 
+ /**
+@@ -33,10 +33,10 @@
+ 
+ /** "On-disk" header for segment, stored in STOB at zero offset */
+ struct m0_be_seg_hdr {
+-	void                         *bh_addr;  /**< Segment address in RAM. */
+-	m0_bcount_t                   bh_size;  /**< Segment size. */
+-	struct m0_be_allocator_header bh_alloc;
+-	struct m0_be_btree            bs_dict; 	/**< Segment dictionary */
++	void                   *bh_addr;	/**< Segment address in RAM. */
++	m0_bcount_t             bh_size;	/**< Segment size. */
++	struct m0_be_allocator	bh_allocator;	/**< Segment allocator */
++	struct m0_be_btree      bs_dict;	/**< Segment dictionary */
+ };
+ 
+ /** @} end of be group */
+diff --git a/be/tx_credit.h b/be/tx_credit.h
+index 63ae8ca..be4c5ee 100644
+--- a/be/tx_credit.h
++++ b/be/tx_credit.h
+@@ -75,7 +75,7 @@ extern const struct m0_be_tx_credit m0_be_tx_credit_invalid;
+ 	(struct m0_be_tx_credit){ .tc_reg_nr = (nr), .tc_reg_size = (size) }
+ 
+ #define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof(type))
+-#define M0_BE_TX_CREDIT_PTR(ptr) M0_BE_TX_CREDIT(1, sizeof(*ptr))
++#define M0_BE_TX_CREDIT_PTR(ptr) M0_BE_TX_CREDIT(1, sizeof *(ptr))
+ 
+ /** Format for the printf() family functions. @see BETXCR_P */
+ #define BETXCR_F "(%lu, %lu)"
+diff --git a/be/ut/alloc.c b/be/ut/alloc.c
+index b9975c0..1928bf3 100644
+--- a/be/ut/alloc.c
++++ b/be/ut/alloc.c
+@@ -57,14 +57,16 @@ static struct be_ut_alloc_thread_state be_ut_ts[BE_UT_ALLOC_THR_NR];
+ 
+ M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
+ {
+-	struct m0_be_ut_seg    ut_seg;
+-	struct m0_be_allocator a;
+-	int		       rc;
++	struct m0_be_ut_seg	ut_seg;
++	struct m0_be_seg       *seg = &ut_seg.bus_seg;
++	struct m0_be_allocator *a;
++	int			rc;
+ 
+ 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
+-	rc = m0_be_allocator_init(&a);
++	a = m0_be_seg_allocator(seg);
++	rc = m0_be_allocator_init(a, seg);
+ 	M0_UT_ASSERT(rc == 0);
+-	m0_be_allocator_fini(&a);
++	m0_be_allocator_fini(a);
+ 	m0_be_ut_seg_fini(&ut_seg);
+ }
+ 
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index f5fb6b5..ab802fa 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -589,7 +589,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
+ 	int                     rc;
+ 
+ 	ut_seg->bus_allocator = m0_be_seg_allocator(seg);
+-	a = ut_seg->bus_allocator;
++	a = m0_be_seg_allocator(seg);
+ 
+ 	if (ut_be != NULL) {
+ 		m0_be_ut_tx_init(&tx, ut_be);
+@@ -602,7 +602,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_ut_seg *ut_seg,
+ 	}
+ 
+ 	if (init) {
+-		rc = m0_be_allocator_init(a);
++		rc = m0_be_allocator_init(a, seg);
+ 		M0_ASSERT(rc == 0);
+ 		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx, seg);
+ 		M0_ASSERT(rc == 0);
+diff --git a/be/ut/list.c b/be/ut/list.c
+index 6ad5c4e..57585ac 100644
+--- a/be/ut/list.c
++++ b/be/ut/list.c
+@@ -75,7 +75,7 @@ M0_INTERNAL void m0_be_ut_list(void)
+ 	for (i = 0; i < ARRAY_SIZE(elem); ++i)
+ 		M0_BE_UT_ALLOC_PTR(&ut_be, &ut_seg, elem[i]);
+ 
+-	m0_be_list_init(list);
++	m0_be_list_init(list, seg);
+ 	M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+ 		  m0_be_list_credit(list, M0_BLO_CREATE, 1, &cred),
+ 		  M0_BE_OP_SYNC(op, m0_be_list_create(list, &tx, &op,
+@@ -142,7 +142,7 @@ M0_INTERNAL void m0_be_ut_list(void)
+ 		m0_be_tlink_fini(elem[i], list);
+ 	m0_be_list_fini(list);
+ 	m0_be_ut_seg_reload(&ut_seg);
+-	m0_be_list_init(list);
++	m0_be_list_init(list, seg);
+ 	for (i = 0; i < ARRAY_SIZE(elem); ++i)
+ 		m0_be_tlink_init(elem[i], list);
+ 
+diff --git a/db/db.c b/db/db.c
+index a115902..9023413 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -170,7 +170,7 @@ static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
+ 		m0_be_seg_init(seg, stob, &ut_be->but_dom);
+ 		rc = m0_be_seg_open(&ut_seg->bus_seg);
+ 		M0_ASSERT(rc == 0);
+-		m0_be_allocator_init(m0_be_seg_allocator(seg));
++		m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
+ 		m0_be_seg_dict_init(seg);
+ 
+ 		ut_seg->bus_copy = NULL;
+diff --git a/mero/magic.h b/mero/magic.h
+index 2b33760..514fda1 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -134,13 +134,13 @@ enum m0_magic_satchel {
+ 	/* be_alloc_chunk::bac_magic1 (codices bad id) */
+ 	M0_BE_ALLOC_MAGIC1 = 0xc0d1ce5bad1d,
+ 
+-	/* m0_be_allocator_header::bah_chunks (alcaaba solod) */
++	/* m0_be_allocator::bah_chunks (alcaaba solod) */
+ 	M0_BE_ALLOC_ALL_MAGIC = 0xa1caaba5010d,
+ 
+ 	/* be_alloc_chunk::bac_magic (official feis) */
+ 	M0_BE_ALLOC_ALL_LINK_MAGIC = 0x0ff1c1a1fe15,
+ 
+-	/* m0_be_allocator_header::bah_free (cascadia aloe) */
++	/* m0_be_allocator::bah_free (cascadia aloe) */
+ 	M0_BE_ALLOC_FREE_MAGIC = 0xca5cad1aa10e,
+ 
+ 	/* be_alloc_chunk::bac_magic_free (edifice faded) */
+-- 
+1.8.3.2
+

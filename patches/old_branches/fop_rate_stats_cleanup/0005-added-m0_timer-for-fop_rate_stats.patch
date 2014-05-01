@@ -1,0 +1,160 @@
+From 666b729c9c094084e1a15fb1bac967e1be187b72 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 23 Jan 2014 16:00:14 +0530
+Subject: [PATCH 05/20]  - added m0_timer for fop_rate_stats
+
+---
+ fop/fom.c              | 37 +++++++++++++++++++++++--------------
+ fop/fom.h              |  1 +
+ fop/fop_rate_monitor.c |  2 --
+ fop/fop_rate_monitor.h |  4 ++++
+ 4 files changed, 28 insertions(+), 16 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 5fcaa45..206422f 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -157,8 +157,6 @@ struct m0_loc_thread {
+ 	uint64_t                lt_magix;
+ };
+ 
+-extern m0_time_t fop_rate_interval;
+-
+ M0_TL_DESCR_DEFINE(thr, "fom thread", static, struct m0_loc_thread, lt_linkage,
+ 		   lt_magix, M0_FOM_THREAD_MAGIC, M0_FOM_THREAD_HEAD_MAGIC);
+ M0_TL_DEFINE(thr, static, struct m0_loc_thread);
+@@ -766,9 +764,20 @@ static void loc_fini(struct m0_fom_locality *loc)
+ 	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+ 	m0_addb_counter_fini(&loc->fl_stat_run_times);
+ 	m0_addb_counter_fini(&loc->fl_stat_fop_rate);
++	m0_timer_stop(&loc->fl_fop_rate_timer);
++	m0_timer_fini(&loc->fl_fop_rate_timer);
+ 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
+ }
+ 
++static unsigned long fop_rate_timer_callback(unsigned long arg)
++{
++	struct m0_fom_locality *loc = (struct m0_fom_locality *)arg;
++
++	m0_addb_counter_update(&loc->fl_stat_fop_rate, loc->fl_fop_rate_count);
++	loc->fl_fop_rate_count = 0;
++	return 0;
++}
++
+ /**
+  * Initialises a locality in fom domain.  Creates and adds threads to locality,
+  * every thread is confined to the cpus represented by the
+@@ -788,6 +797,7 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ {
+ 	int                result;
+ 	struct m0_addb_mc *addb_mc;
++	m0_time_t          expire;
+ 
+ 	M0_PRE(loc != NULL);
+ 
+@@ -801,6 +811,13 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	M0_ADDB_CTX_INIT(addb_mc, &loc->fl_addb_ctx, &m0_addb_ct_fom_locality,
+ 			 &loc->fl_dom->fd_reqh->rh_addb_ctx, cpu);
+ 
++	expire = m0_time_from_now(M0_FOP_RATE_INTERVAL_SECOND, 0);
++	result = m0_timer_init(&loc->fl_fop_rate_timer, M0_TIMER_SOFT, expire,
++			       fop_rate_timer_callback, (unsigned long)loc);
++	result = result != 0 ? :  m0_timer_start(&loc->fl_fop_rate_timer);
++	if (result != 0)
++		goto err4;
++
+ 	result = m0_addb_counter_init(&loc->fl_stat_run_times,
+ 				      &m0_addb_rt_fl_run_times);
+ 	if (result != 0)
+@@ -811,7 +828,6 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
+ 	if (result != 0)
+ 		goto err2;
+ 
+-	loc->fl_fop_rate_next_update = 0;
+ 	result = m0_addb_counter_init(&loc->fl_stat_fop_rate,
+ 				      &m0_addb_rt_fop_rate_cntr);
+ 	if (result != 0)
+@@ -866,6 +882,9 @@ err1:
+ err2:
+ 	m0_addb_counter_fini(&loc->fl_stat_run_times);
+ err3:
++	m0_timer_stop(&loc->fl_fop_rate_timer);
++	m0_timer_fini(&loc->fl_fop_rate_timer);
++err4:
+ 	m0_addb_ctx_fini(&loc->fl_addb_ctx);
+ 	return result;
+ }
+@@ -1013,22 +1032,11 @@ void m0_fom_fini(struct m0_fom *fom)
+ 	reqh = loc->fl_dom->fd_reqh;
+ 	fom_state_set(fom, M0_FOS_FINISH);
+ 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx)) {
+-		m0_time_t        now = m0_time_now();
+-
+ 		m0_sm_stats_post(&fom->fo_sm_phase, &reqh->rh_addb_mc,
+ 				M0_FOM_ADDB_CTX_VEC(fom));
+ 		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
+ 				M0_FOM_ADDB_CTX_VEC(fom));
+ 		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
+-
+-                ++loc->fl_fop_rate_count;
+-                if (now >= loc->fl_fop_rate_next_update) {
+-                        m0_addb_counter_update(&loc->fl_stat_fop_rate,
+-                                               loc->fl_fop_rate_count);
+-                        loc->fl_fop_rate_next_update =
+-                                m0_time_add(now, fop_rate_interval);
+-                        loc->fl_fop_rate_count = 0;
+-                }
+ 	}
+ 	if (fom->fo_sm_state_stats.asc_data != NULL)
+ 		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
+@@ -1051,6 +1059,7 @@ void m0_fom_fini(struct m0_fom *fom)
+ 	fop_fini(fom->fo_rep_fop, fom->fo_local);
+ 
+ 	M0_CNT_DEC(loc->fl_foms);
++        M0_CNT_INC(loc->fl_fop_rate_count);
+ 	if (loc->fl_foms == 0)
+ 		m0_chan_signal_lock(&reqh->rh_sd_signal);
+ }
+diff --git a/fop/fom.h b/fop/fom.h
+index 465e214..287cb60 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -300,6 +300,7 @@ struct m0_fom_locality {
+ 	/** FOP rate counter. It is fop executed per sec. */
+ 	uint64_t                     fl_fop_rate_count;
+ 	m0_time_t		     fl_fop_rate_next_update;
++	struct m0_timer		     fl_fop_rate_timer;
+ 	struct m0_addb_counter       fl_stat_fop_rate;
+ 
+ 	/** fop rate monitor key */
+diff --git a/fop/fop_rate_monitor.c b/fop/fop_rate_monitor.c
+index fe9925e..2f6f96c 100644
+--- a/fop/fop_rate_monitor.c
++++ b/fop/fop_rate_monitor.c
+@@ -43,8 +43,6 @@
+  * @addtogroup fom
+  * @{
+  */
+-m0_time_t fop_rate_interval = M0_MKTIME(1, 0);
+-
+ static struct fop_rate_stats_sum_rec {
+ 	uint64_t ssr_loc_id;
+ 	uint64_t ssr_fop_rate;
+diff --git a/fop/fop_rate_monitor.h b/fop/fop_rate_monitor.h
+index 86e8bf7..96ab4e2 100644
+--- a/fop/fop_rate_monitor.h
++++ b/fop/fop_rate_monitor.h
+@@ -30,6 +30,10 @@
+    @{
+  */
+ 
++enum {
++	M0_FOP_RATE_INTERVAL_SECOND = 1,
++};
++
+ /*
+  * It initialise fop rate monitor.
+  * @param reqh pointer to request handler.
+-- 
+1.8.3.2
+

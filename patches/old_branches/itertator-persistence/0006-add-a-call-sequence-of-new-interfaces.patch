@@ -1,0 +1,70 @@
+From def88c126c68829d6e4371ab5d89db16a0136a43 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 17 Oct 2013 10:47:55 +0800
+Subject: [PATCH 6/8] add a call sequence of new interfaces.
+
+---
+ cm/cm.c | 47 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 47 insertions(+)
+
+diff --git a/cm/cm.c b/cm/cm.c
+index d521a34..e5488b0 100644
+--- a/cm/cm.c
++++ b/cm/cm.c
+@@ -277,6 +277,53 @@
+    node failure happens at this time, and then restarts again, it loads from
+    storage, and -ENOENT indicates no pending copy machine operation is progress.
+ 
++   The call sequence of these interfaces is:
++
++   @code
++                                         |
++                                         |
++                                         V
++                             --------------------------
++                             | m0_cm_sw_store_load()? |
++                             --------------------------
++                                   /         \
++                                  /           \
++                  ret == 0       /             \ ret == -ENOENT
++         A restart from failure /               \ A fresh new operation
++         A valid sw is returned/                 \ No sw info on storage.
++                              /                   \
++                             V                     V
++         -----------------------------     ----------------------------
++         | setup sliding window with |     | m0_cm_sw_store_init():   |
++         | the returned sw.          |     | Allocate a persistent sw |
++         | CM operation will start   |     | and init it to zero. CM  |
++         | from this sw.             |     | starts from scrach       |
++         -----------------------------     ----------------------------
++                            \                        /
++                             \                      /
++                              \                    /
++                               \                  /
++                                \                /
++                                 V              V
++                            ---------------------------     operation completed
++                   -------> | m0_cm_sw_store_update() |----------------------->
++                   |        ---------------------------                       |
++                   |                    |                                     |
++                   |                    |                                     |
++                   |                    |                                     |
++                   <--------------------V                                     |
++                     operation continue                                       |
++                                                                              V
++                                                     --------------------------
++                                                     |m0_cm_sw_store_finish():|
++                                                     |delete sw info from     |
++                                                     |persistent storage.     |
++                                                     |m0_cm_sw_store_load()   |
++                                                     |returns -ENOENT after   |
++                                                     |this.                   |
++                                                     --------------------------
++   @endcode
++
+    @subsection CMDLD-lspec-cm-stop Copy machine stop
+    Once operation completes successfully, copy machine performs required tasks,
+    (e.g. updating layouts, etc.) by invoking m0_cm_stop(), this transitions copy
+-- 
+1.8.3.2
+

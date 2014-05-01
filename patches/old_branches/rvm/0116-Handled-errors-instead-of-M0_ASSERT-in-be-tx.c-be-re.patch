@@ -1,0 +1,367 @@
+From f7fb89cecf8822498d83afab5742a7468ac7f806 Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Tue, 4 Jun 2013 08:15:33 -0700
+Subject: [PATCH 116/121] Handled errors instead of M0_ASSERT in be/tx.c
+ be/reg.c be/seg.c.
+
+---
+ be/be_common.h |  1 +
+ be/reg.c       | 14 ++++------
+ be/seg.c       | 86 ++++++++++++++++++++++++++++++++++++++++++----------------
+ be/tx.c        | 35 ++++++++++++++++++------
+ 4 files changed, 96 insertions(+), 40 deletions(-)
+
+diff --git a/be/be_common.h b/be/be_common.h
+index cd254ff..57b863b 100644
+--- a/be/be_common.h
++++ b/be/be_common.h
+@@ -43,6 +43,7 @@ enum m0_be_msg_type {
+         M0_BE_SEG_DUP_NAME,
+         M0_BE_SEG_NAME_ERR,
+         M0_BE_STOB_FAILED,
++        M0_BE_TX_DONE_FAILED,
+         M0_BE_HANDLER_THREAD_INIT_FAILED,
+         M0_BE_RVM_INIT_FAILED
+ };
+diff --git a/be/reg.c b/be/reg.c
+index c5107ed..c62d434 100644
+--- a/be/reg.c
++++ b/be/reg.c
+@@ -97,9 +97,7 @@ M0_INTERNAL void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+                                 struct m0_be_seg *seg,  struct m0_be_buf *buf)
+ {
+         M0_ENTRY("reg: %p, tx: %p, seg: %p", reg, tx, seg);
+-        M0_ASSERT(reg != NULL);
+-        M0_ASSERT(seg != NULL);
+-        M0_ASSERT(buf != NULL);
++	M0_PRE(reg != NULL && seg != NULL && buf != NULL);
+ 
+         m0_be_reg_bob_init(reg);
+         reg->br_seg   = seg;
+@@ -212,15 +210,13 @@ M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
+         enum m0_be_reg_state     reg_st;
+ 
+         M0_ENTRY("reg: %p", reg);
+-        M0_PRE(m0_be_reg_invariant(reg));
+-        M0_ASSERT(reg != NULL);
+-        M0_ASSERT(reg->br_tx != NULL);
++
++        M0_PRE(reg != NULL && reg->br_tx != NULL && m0_be_reg_invariant(reg));
+ 
+         M0_PRE(M0_IN(m0_be_reg_state(reg), (M0_BEREG_INIT,
+                                             M0_BEREG_ALLOCATED)));
+ 
+         sm_group = m0_be_domain_sm_group(reg->br_seg->bs_dom);
+-        M0_ASSERT(sm_group != NULL);
+ 
+         ret = rvm_set_range(&reg->br_seg->bs_rvm, reg->br_tx->bt_impl.tx_id,
+                             reg->br_buf.b_addr, reg->br_buf.b_nob);
+@@ -253,7 +249,7 @@ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+         struct m0_be_buf buf;
+ 
+         M0_ENTRY("reg: %p, seg: %p, tx: %p", reg, seg, tx);
+-        M0_ASSERT(seg->bs_static_addr != NULL);
++        M0_PRE(seg->bs_static_addr != NULL);
+ 
+         buf.b_nob = sizeof(struct m0_uint128);
+         buf.b_addr = seg->bs_static_addr + offset;
+@@ -269,7 +265,7 @@ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+ M0_INTERNAL void *m0_be_static_reg_get_handle_addr(struct m0_be_seg *seg,
+                                                    uint64_t offset)
+ {
+-        M0_ASSERT(seg->bs_static_addr != NULL);
++        M0_PRE(seg->bs_static_addr != NULL);
+         return (seg->bs_static_addr + offset);
+ }
+ 
+diff --git a/be/seg.c b/be/seg.c
+index b07df5d..8c4f40c 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -115,7 +115,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+                                 uint64_t flags)
+ {
+         M0_ENTRY("dom: %p, seg: %p", dom, seg);
+-        M0_ASSERT(dom != NULL);
++        M0_PRE(dom != NULL);
+ 
+         m0_be_seg_bob_init(seg);
+         /* Initialise domain structure with required values. */
+@@ -290,7 +290,7 @@ M0_INTERNAL void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+         M0_ENTRY("seg: %p, tx: %p", seg, tx);
+         M0_PRE(m0_be_seg_invariant(seg) &&
+                m0_be_seg_state(seg) == M0_BESEG_CLOSED);
+-        M0_ASSERT(tx != NULL);
++        M0_PRE(tx != NULL);
+ 
+         m0_be_seg_state_change(seg, M0_BESEG_DELETING);
+ 
+@@ -315,7 +315,7 @@ M0_INTERNAL void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ {
+         M0_ENTRY("seg: %p, tx: %p", seg, tx);
+         M0_PRE(m0_be_seg_invariant(seg));
+-        M0_ASSERT(tx != NULL);
++        M0_PRE(tx != NULL);
+ 
+         /* @todo - not clear idea about what to do in this at the moment. */
+         M0_POST(m0_be_seg_invariant(seg));
+@@ -355,17 +355,20 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_be_cbinfo *cbinfo, int status,
+         long                      rds_static_len;
+         struct  m0_stob_id        stob_id;
+         int                       result;
+-        int                       err;
+-
+-        M0_ASSERT(cbinfo != NULL);
++	int                       err;
+ 
++        M0_PRE(cbinfo != NULL);
+         bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
+ 
+         if(status != 0)
+                 goto exit;
+ 
+         seg = bs_cbdata->bsc_seg;
+-        M0_ASSERT(seg != NULL);
++        if (seg == NULL) {
++		status   = -1;
++		msg_type = -ENOENT;
++		goto exit;
++	}
+ 
+         stob_id.si_bits.u_hi    = 0;
+         stob_id.si_bits.u_lo    = seg->bs_impl.segment_id;
+@@ -374,15 +377,32 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_be_cbinfo *cbinfo, int status,
+         result = m0_stob_domain_locate(&m0_linux_stob_type,
+                                        "/tmp/__be",
+                                        &stob_dom);
+-        M0_ASSERT(result == 0);
++	if (result != 0) {
++		status 	 = -1;
++		msg_type = -ENOENT;
++		goto exit;
++	}
+ 
+         result = m0_linux_stob_setup(stob_dom, stob_directio);
+-        M0_ASSERT(result == 0);
++	if (result != 0) {
++		status 	 = -1;
++		msg_type = -ENOENT;
++		goto exit;
++	}
+ 
+         result = m0_stob_find(stob_dom, &stob_id, &seg->bs_stob);
+-        M0_ASSERT(result == 0);
+-        M0_ASSERT(seg->bs_stob->so_state == CSS_UNKNOWN);
++	if (result != 0 || seg->bs_stob->so_state != CSS_UNKNOWN) {
++		status 	 = -1;
++		msg_type = -ENOENT;
++		goto exit;
++	}
++
+         result = m0_stob_create(seg->bs_stob, NULL);
++	if (result != 0) {
++		status 	 = -1;
++		msg_type = -ENOENT;
++		goto exit;
++	}
+ 
+         if (result < 0) {
+                 M0_LOG(M0_ERROR, "Failed to creat stob in m0_be_seg_create_cb");
+@@ -393,7 +413,11 @@ M0_INTERNAL void m0_be_seg_create_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 
+         lstob = stob2linux(seg->bs_stob);
+ 
+-        M0_ASSERT(lstob != NULL);
++	if (lstob == NULL) {
++		status   = -1;
++		msg_type = -ENOENT;
++		goto exit;
++	}
+ 
+         ldom = domain2linux(seg->bs_stob->so_domain);
+         snprintf(seg->bs_impl.path_name, ARRAY_SIZE(seg->bs_impl.path_name),
+@@ -433,14 +457,18 @@ M0_INTERNAL void m0_bs_create_rds_zap_cb(struct m0_be_cbinfo *cbinfo,
+         char                     *static_addr = NULL;
+         int                       err;
+ 
++	M0_PRE(cbinfo != NULL);
++        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
++
+         if(status != 0)
+                 goto exit;
+ 
+-        M0_ASSERT(cbinfo != NULL);
+-
+-        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
+-        seg       = bs_cbdata->bsc_seg;
+-        if (seg != NULL);
++        seg = bs_cbdata->bsc_seg;
++        if (seg == NULL) {
++		status 	 = -1;
++		msg_type = -ENOENT;
++		goto exit;
++	}
+ 
+         cbinfo->bc_cb = m0_bs_create_rds_load_cb;
+ 
+@@ -463,10 +491,12 @@ M0_INTERNAL void m0_bs_create_rds_load_cb(struct m0_be_cbinfo *cbinfo,
+         struct m0_be_seg_cbdata  *bs_cbdata;
+         struct m0_be_seg         *seg;
+ 
++	M0_PRE(cbinfo != NULL);
++        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
++
+         if(status != 0)
+                 goto exit;
+ 
+-        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
+         seg       = bs_cbdata->bsc_seg;
+ 	if (seg == NULL) {
+ 		status   = -1;
+@@ -497,16 +527,19 @@ M0_INTERNAL void m0_be_seg_open_rds_load_heap_cb(struct m0_be_cbinfo *cbinfo,
+         struct m0_be_seg         *seg;
+         enum m0_be_seg_state      seg_state;
+ 
++	M0_PRE(cbinfo != NULL);
++        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
++
+         if (status != 0) {
+                 seg_state = M0_BESEG_FAILED;
+                 goto exit;
+         }
+ 
+-        bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
+         seg       = bs_cbdata->bsc_seg;
+ 	if (seg == NULL) {
+ 		status   = -1;
+-		msg_type =  M0_BE_INTERNAL;
++                seg_state = M0_BESEG_FAILED;
++		msg_type =  -ENOENT;
+ 		goto exit;
+ 	}
+ 
+@@ -541,8 +574,7 @@ M0_INTERNAL void m0_be_seg_open_cb(struct m0_be_cbinfo *cbinfo, int status,
+         int                       result;
+         enum m0_be_seg_state      seg_state;
+ 
+-        M0_ASSERT(cbinfo != NULL);
+-
++        M0_PRE(cbinfo != NULL);
+         bs_cbdata = container_of(cbinfo, struct m0_be_seg_cbdata, bsc_cbinfo);
+         if(status != 0)
+                 goto exit;
+@@ -551,16 +583,24 @@ M0_INTERNAL void m0_be_seg_open_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	if (seg == NULL) {
+ 		result = status = -1;
+ 		msg_type 	=  M0_BE_INTERNAL;
++                seg_state = M0_BESEG_FAILED;
+ 		goto exit;
+ 	}
+ 
+         if (seg->bs_stob->so_state == CSS_UNKNOWN) {
++		status = -1;
++		msg_type = -ENOENT;
+                 seg_state = M0_BESEG_FAILED;
+                 M0_LOG(M0_ERROR, "Invalid stob state in seg_open_cb");
+                 goto exit;
+         }
+         lstob = stob2linux(seg->bs_stob);
+-        M0_ASSERT(lstob != NULL);
++        if (lstob == NULL) {
++		status = -1;
++		msg_type = -ENOENT;
++                seg_state = M0_BESEG_FAILED;
++		goto exit;
++	}
+ 
+         /* Get fle-path for segment stob. */
+         /* @note - can not use linux_stob_path as its declared as static. */
+diff --git a/be/tx.c b/be/tx.c
+index 49481a3..0a8aafe 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -29,6 +29,7 @@
+ #include "be/helper.h"
+ #include "be/domain.h"
+ #include "lib/memory.h"
++#include "lib/errno.h"
+ 
+ #include <stdio.h>
+ #include <unistd.h>
+@@ -104,9 +105,8 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, struct m0_be_domain *dom,
+         rvm_return_t          ret;
+ 
+         M0_ENTRY("dom: %p, tx: %p", dom, tx);
+-        M0_ASSERT(tx != NULL &&
+-                  dom != NULL &&
+-                  &dom->bd_impl.sm_group != NULL);
++
++        M0_PRE(tx != NULL && dom != NULL && &dom->bd_impl.sm_group != NULL);
+ 
+         m0_be_tx_bob_init(tx);
+         tx->bt_dom   = dom;
+@@ -201,12 +201,22 @@ M0_INTERNAL void m0_be_tx_done(struct m0_be_tx *tx, struct m0_be_cbinfo *cbinfo)
+         sm_group = m0_be_domain_sm_group(tx->bt_dom);
+ 
+         M0_ALLOC_PTR(bt_cbdata);
+-        M0_ASSERT(bt_cbdata != NULL);
++	if (bt_cbdata == NULL) {
++		status   = -1;
++		msg_type = -ENOMEM;
++		goto exit;
++	}
+ 
+         bt_cbdata->btc_tx = tx;
+         bt_cbinfo         = &bt_cbdata->btc_cbinfo;
+ 	m0_be_cbinfo_copy_helper(cbinfo, bt_cbinfo, m0_be_tx_done_cb);
+         m0_be_handler_post(bt_cbinfo, status, msg_type);
++
++	return;
++exit:
++        if (status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, status, msg_type);
++        }
+ }
+ 
+ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+@@ -255,7 +265,12 @@ M0_INTERNAL void td_rvm_end_transaction_cb(struct m0_be_cbinfo *cbinfo,
+                 goto tx_exit;
+ 
+         tx = bt_cbdata->btc_tx;
+-        M0_ASSERT(tx != NULL);
++        if (tx == NULL) {
++		status   = -1;
++		msg_type = M0_BE_TX_DONE_FAILED;
++		tx_state = M0_BETX_FAILED;
++		goto tx_exit;
++	}
+ 
+         m0_sm_group_lock(cbinfo->bc_sm_group);
+         for_each_reg_in_tx(reg_it, tx) {
+@@ -289,7 +304,12 @@ M0_INTERNAL void m0_be_tx_done_cb(struct m0_be_cbinfo *cbinfo, int status,
+                 goto tx_exit;
+ 
+         tx = bt_cbdata->btc_tx;
+-        M0_ASSERT(tx != NULL);
++	if (tx == NULL) {
++		status 	 = -1;
++		msg_type = M0_BE_TX_DONE_FAILED;
++		goto tx_exit;
++	}
++
+ 	/*bt_cbinfo              = &bt_cbdata->btc_cbinfo;*/
+         cbinfo->bc_cb       = td_rvm_end_transaction_cb;
+ 	/*bt_cbinfo->bc_pcbinfo  = cbinfo;*/
+@@ -314,8 +334,7 @@ M0_INTERNAL void m0_be_tx_add_cred(struct m0_be_tx *tx,
+                                    struct m0_be_reg *reg)
+ {
+         M0_ENTRY("tx: %p, reg: %p", tx, reg);
+-        M0_PRE(m0_be_tx_invariant(tx));
+-        M0_ASSERT(reg != NULL);
++        M0_PRE(reg != NULL && m0_be_tx_invariant(tx));
+ 
+         m0_be_reg_tlink_init(reg);
+         m0_be_reg_tlist_add_tail(&tx->bt_impl.bc_tl, reg);
+-- 
+1.8.3.2
+

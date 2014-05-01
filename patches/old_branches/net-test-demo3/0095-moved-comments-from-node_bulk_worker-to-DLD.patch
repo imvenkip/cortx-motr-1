@@ -1,0 +1,50 @@
+From 2284f5f5d69a8f02d1c4ea6d3dfd95f44251cc4b Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 5 Mar 2013 03:51:15 +0200
+Subject: [PATCH 95/99] moved comments from node_bulk_worker() to DLD
+
+---
+ net/test/node.c      | 6 ++++++
+ net/test/node_bulk.c | 9 +--------
+ 2 files changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/net/test/node.c b/net/test/node.c
+index 6adfff1..d0ec883 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -679,6 +679,12 @@ finished.up();\l", shape=box];
+      "finalize test messages transfer machine" (now STOP command
+      handler performs these actions) - in this case STATUS command
+      can be sent after "stop sending test messages" command.
++   - Bulk test worker thread (node_bulk_worker()): it is possible
++     for the test server to have all work done in single
++     m0_net_buffer_event_deliver_all(), especially if number of
++     concurrent buffers is high.  STATUS command will give
++     inconsistent results for test clients and test servers in this case.
++     Workaround: use stats from the test client in bulk test.
+ 
+    <hr>
+    @section net-test-ref References
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 3468b2f..77ffa50 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1284,14 +1284,7 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 		M0_ASSERT(ergo(pending, ctx->nbc_callback_executed));
+ 		/* state transitions from final states */
+ 		node_bulk_state_transition_auto_all(ctx);
+-		/*
+-		 * Update copy of statistics.
+-		 * @todo It is possible to have all work done in
+-		 * single m0_net_buffer_event_deliver_all(),
+-		 * especially if number of concurrent buffers is high.
+-		 * STATUS command will give inconsistent results for
+-		 * test clients and test servers in this case.
+-		 */
++		/* update copy of statistics */
+ 		m0_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
+ 		/* wait for STOP command or buffer event */
+ 		if (!ctx->nbc_callback_executed)
+-- 
+1.8.3.2
+

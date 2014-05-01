@@ -1,0 +1,2149 @@
+From 28b5486ce8b3676d194f90221569501097865036 Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Fri, 23 Jul 2010 16:17:34 -0600
+Subject: [PATCH 13/34] - fixed the problem mentioned by nikita
+
+---
+ lib/refs.c                              |  15 +-
+ lib/refs.h                              |   6 +-
+ lib/ut/memory.c                         |  13 +
+ net/usunrpc/rfc5666/svc_rdma.c          | 964 +++++++++++++++++---------------
+ net/usunrpc/rfc5666/svc_rdma.h          |   4 +-
+ net/usunrpc/rfc5666/svc_rdma_internal.h | 224 ++++----
+ 6 files changed, 657 insertions(+), 569 deletions(-)
+
+diff --git a/lib/refs.c b/lib/refs.c
+index 0451898..146dad8 100644
+--- a/lib/refs.c
++++ b/lib/refs.c
+@@ -14,20 +14,17 @@ void c2_ref_get(struct c2_ref *ref)
+ }
+ C2_EXPORTED(c2_ref_get);
+ 
+-int c2_ref_put(struct c2_ref *ref)
++void c2_ref_put(struct c2_ref *ref)
+ {
+-        int ret = c2_atomic64_sub_return(&ref->ref_cnt, 1);
+-
+-        C2_ASSERT(ret >= 0);
+-	if (ret == 0 && ref->release)
+-		ref->release(ref);
+-        return ret;
++        if (c2_atomic64_dec_and_test(&ref->ref_cnt)) {
++                ref->release(ref);
++        }
+ }
+ C2_EXPORTED(c2_ref_put);
+ 
+-int c2_ref_read(struct c2_ref *ref)
++uint64_t c2_ref_read(struct c2_ref *ref)
+ {
+-	return (int)c2_atomic64_get(&ref->ref_cnt);
++	return c2_atomic64_get(&ref->ref_cnt);
+ }
+ C2_EXPORTED(c2_ref_read);
+ 
+diff --git a/lib/refs.h b/lib/refs.h
+index b059f63..e824d46 100644
+--- a/lib/refs.h
++++ b/lib/refs.h
+@@ -47,9 +47,9 @@ void c2_ref_get(struct c2_ref *ref);
+ 
+  @param ref pointer to c2_ref object
+ 
+- @return refcount after descreased
++ @return none
+ */
+-int c2_ref_put(struct c2_ref *ref);
++void c2_ref_put(struct c2_ref *ref);
+ 
+ /**
+  return the current refcount of c2_ref.
+@@ -58,7 +58,7 @@ int c2_ref_put(struct c2_ref *ref);
+ 
+  @return current refcount 
+ */
+-int c2_ref_read(struct c2_ref *ref);
++uint64_t c2_ref_read(struct c2_ref *ref);
+ 
+ 
+ #endif
+diff --git a/lib/ut/memory.c b/lib/ut/memory.c
+index 272ae3e..a4c384f 100644
+--- a/lib/ut/memory.c
++++ b/lib/ut/memory.c
+@@ -68,6 +68,11 @@ static void ub_huge(int i)
+ 	ubx[i] = c2_alloc(UB_HUGE);
+ }
+ 
++static void ub_alloc_align(int i)
++{
++	ubx[i] = c2_alloc_align(i, 4096);
++}
++
+ #if 0
+ static void ub_free_all(void)
+ {
+@@ -115,6 +120,14 @@ struct c2_ub_set c2_memory_ub = {
+ 		  .ut_iter  = UB_ITER/1000, 
+ 		  .ut_round = ub_free },
+ 
++                { .ut_name  = "alloc-align",
++                  .ut_iter  = UB_ITER/1000,
++                  .ut_round = ub_alloc_align },
++
++                { .ut_name  = "free-align",
++                  .ut_iter  = UB_ITER/1000,
++                  .ut_round = ub_free },
++
+ 		{ .ut_name = NULL }
+ 	}
+ };
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index abbb5ec..c78cadf 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -7,6 +7,29 @@
+ #include "svc_rdma_internal.h"
+ #include "svc_rdma.h"
+ 
++/*
++  Call convention for functions in this file:
++  return 0 means OK; otherwise, errno is returned.
++ */
++
++/*
++ * DRR: Delay Request Repost - for simplicity, we use DRR in this version.
++ * DRR means reposting request buffer after the reply message has been sent.
++ * In this way, we can make sure that the # of reply buffer is limited, also
++ * it's impossible to not post a reply message because of short of WRs.
++ *
++ * Of course, we'd like to repost the request buffer as soon as possible,
++ * because this means there're more credits to be returned to client side.
++ * However, this brings some implementation difficluties - we need to handle:
++ * - unlimited # of reply buffers, this means dynamically allocating reply
++ *   buffers;
++ * - post reply message may fail. This is because WRs on each queue is limited,
++ *   in this case, the reply sending thread has to put into sleep, until there
++ *   is reply posting finished.
++ *
++ * Please see comments started with DRR.
++ */
++
+ /* internal function forward declaration */
+ static int svcrdma_buffer_create(struct svcrdma_xprt *xprt);
+ static void svcrdma_buffer_destroy(struct svcrdma_xprt *xprt);
+@@ -14,12 +37,12 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+                                 struct ibv_wc *wc,
+                                 struct rpc_msg *rpcmsg);
+ static void rdma_completion_one(struct rdma_context *ctxt, enum ibv_wc_status);
+-static void rdma_fixup_write_chunks(struct rdma_reply *reply);
+-static void rdma_repost_req(struct rdma_request *req);
+-static int rdma_send_reply(struct rdma_reply *reply);
+-static void rdma_put_reply(struct rdma_reply *reply);
+-static struct rdma_reply *svcrdma_get_reply(struct svcrdma_xprt *xprt);
+-static int rdma_read_chunks(struct rdma_request *req, char *buffer, int buflen);
++static void rdma_write_chunks_fixup(struct rdma_reply *reply);
++static void rdma_request_repost(struct rdma_request *req);
++static int rdma_reply_send(struct rdma_reply *reply);
++static void rdma_reply_put(struct rdma_reply *reply);
++static struct rdma_reply *rdma_reply_get(struct svcrdma_xprt *xprt);
++static int rdma_chunks_read(struct rdma_request *req, char *buffer, int buflen);
+ 
+ /* SVCXPRT callbacks */
+ static void svcrdma_xprt_destroy (struct svcrdma_xprt *xprt);
+@@ -31,27 +54,27 @@ static bool_t svcrdma_freeargs (SVCXPRT *, xdrproc_t, caddr_t);
+ static void svcrdma_destroy (SVCXPRT *);
+ 
+ static const struct xp_ops svcrdma_op = {
+-        svcrdma_recv,
+-        svcrdma_stat,
+-        svcrdma_getargs,
+-        svcrdma_reply,
+-        svcrdma_freeargs,
+-        svcrdma_destroy
++        .xp_recv     = svcrdma_recv,
++        .xp_stat     = svcrdma_stat,
++        .xp_getargs  = svcrdma_getargs,
++        .xp_reply    = svcrdma_reply,
++        .xp_freeargs = svcrdma_freeargs,
++        .xp_destroy  = svcrdma_destroy
+ };
+ 
+ /* SVCXPRT rendezvous callbacks */
+ static bool_t rendezvous_request (SVCXPRT *, struct rpc_msg *);
+ static enum xprt_stat rendezvous_stat (SVCXPRT *);
+ static void rendezvous_abort (void) __attribute__ ((__noreturn__));
+-static void rendezvous_destroy(SVCXPRT *xprt);
++static void rendezvous_destroy(SVCXPRT *);
+ 
+ static const struct xp_ops svcrdma_rendezvous_op = {
+-        rendezvous_request,
+-        rendezvous_stat,
+-        (bool_t (*) (SVCXPRT *, xdrproc_t, caddr_t)) rendezvous_abort,
+-        (bool_t (*) (SVCXPRT *, struct rpc_msg *)) rendezvous_abort,
+-        (bool_t (*) (SVCXPRT *, xdrproc_t, caddr_t)) rendezvous_abort,
+-        rendezvous_destroy
++        .xp_recv     = rendezvous_request,
++        .xp_stat     = rendezvous_stat,
++        .xp_getargs  = (bool_t (*)(SVCXPRT*, xdrproc_t, caddr_t)) rendezvous_abort,
++        .xp_reply    = (bool_t (*)(SVCXPRT*, struct rpc_msg *)) rendezvous_abort,
++        .xp_freeargs = (bool_t (*)(SVCXPRT*, xdrproc_t, caddr_t)) rendezvous_abort,
++        .xp_destroy = rendezvous_destroy
+ };
+ 
+ /**
+@@ -60,85 +83,86 @@ static const struct xp_ops svcrdma_rendezvous_op = {
+ SVCXPRT *svcrdma_create (struct sockaddr_in *sa, struct svcrdma_config *cfg)
+ {
+         SVCXPRT *svcxprt;
+-        struct svcrndzv_xprt *xp;
++        struct svcrndzv_xprt *vxp;
+         struct ibv_device_attr devattr;
+ 
+-        C2_ALLOC_PTR(xp);
+-        if (xp == NULL) {
++        C2_ALLOC_PTR(vxp);
++        if (vxp == NULL) {
+                 svcrdma_errx("no memory\n");
+                 return NULL;
+         }
+-        memset(xp, 0, sizeof(*xp));
+-        c2_list_init(&xp->xprts);
+-        c2_mutex_init(&xp->xprts_lock);
+-        xp->status = RDMA_XPRT_LISTEN;
+ 
+-        xp->channel = rdma_create_event_channel();
+-        if (xp->channel == NULL) {
++        c2_list_init(&vxp->vx_xprts);
++        c2_mutex_init(&vxp->vx_xprts_lock);
++        vxp->vx_status = RDMA_XPRT_LISTEN;
++
++        vxp->vx_channel = rdma_create_event_channel();
++        if (vxp->vx_channel == NULL) {
+                 svcrdma_errx("rdma_create_event channel failed\n");
+                 goto out;
+         }
+ 
+-        if (rdma_create_id(xp->channel, &xp->cmid, 0, RDMA_PS_TCP)) {
++        if (rdma_create_id(vxp->vx_channel, &vxp->vx_cmid, 0, RDMA_PS_TCP)) {
+                 svcrdma_errx("rdma_create_id failed\n");
+                 goto out;
+         }
+ 
+         /* get attribute of before doing anything else */
+-        if (ibv_query_device(xp->cmid->verbs, &devattr)) {
++        if (ibv_query_device(vxp->vx_cmid->verbs, &devattr)) {
+                 svcrdma_errx("query device error\n");
+                 goto out;
+         }
+ 
+         /* XXX: Only RC mode is supported right now */
+-        xp->trans = IBV_QPT_RC;
+-        xp->port  = ntohs(sa->sin_port);
+-        xp->max_send_sge = 2;
+-        xp->max_recv_sge = 2;
+-        xp->rc_retry_cnt = 8;
+-        xp->rc_rnr_retry_cnt = 8;
+-        xp->max_send_wr = devattr.max_qp_wr;
+-        xp->max_recv_wr = devattr.max_qp_wr;
+-        xp->credits = devattr.max_qp_wr - 1;
++        vxp->vx_trans = IBV_QPT_RC;
++        vxp->vx_port  = ntohs(sa->sin_port);
++        vxp->vx_max_send_sge = RDMA_MAX_SEND_SGE;
++        vxp->vx_max_recv_sge = RDMA_MAX_RECV_SGE;
++        vxp->vx_retry_cnt = cfg->retry_count;
++        vxp->vx_rnr_retry_cnt = cfg->rnr_retry_count;
++        vxp->vx_max_send_wr = devattr.max_qp_wr;
++        vxp->vx_max_recv_wr = devattr.max_qp_wr;
++        vxp->vx_credits = devattr.max_qp_wr - 1;
+ 
+         /* suppose the maximum message size is 1 page. */
+-        xp->page_size    = sysconf(_SC_PAGESIZE);
+-        xp->max_msg_size = xp->page_size; /* XXX: will negotiate with client */
+-
+-        xp->rcv_wr_flags = IBV_ACCESS_LOCAL_WRITE |
+-                           IBV_ACCESS_REMOTE_READ |
+-                           IBV_ACCESS_REMOTE_WRITE;
+-        xp->snd_wr_flags = IBV_ACCESS_LOCAL_WRITE |
+-                           IBV_ACCESS_REMOTE_READ |
+-                           IBV_ACCESS_REMOTE_WRITE;
+-
+-        if (rdma_bind_addr(xp->cmid, (struct sockaddr *)&sa)) {
++        vxp->vx_page_size    = sysconf(_SC_PAGESIZE);
++        vxp->vx_mms = vxp->vx_page_size; /* XXX:negotiate with client */
++        /* vxp->vx_mms = cfg->max_msg_size; */
++
++        vxp->vx_rcv_wr_flags = IBV_ACCESS_LOCAL_WRITE |
++                               IBV_ACCESS_REMOTE_READ |
++                               IBV_ACCESS_REMOTE_WRITE;
++        vxp->vx_snd_wr_flags = IBV_ACCESS_LOCAL_WRITE |
++                               IBV_ACCESS_REMOTE_READ |
++                               IBV_ACCESS_REMOTE_WRITE;
++
++        if (rdma_bind_addr(vxp->vx_cmid, (struct sockaddr *)&sa)) {
+                 svcrdma_errx("bind address error\n");
+                 goto out;
+         }
+ 
+-        xp->status = RDMA_XPRT_LISTEN;
+-        if (rdma_listen(xp->cmid, 0)) {
++        vxp->vx_status = RDMA_XPRT_LISTEN;
++        if (rdma_listen(vxp->vx_cmid, 0)) {
+                 svcrdma_errx("listen error\n");
+                 goto out;
+         }
+ 
+         /* Now initiate SVCXPRT stuffs. */
+-        svcxprt = &xp->svcxprt;
+-        svcxprt->xp_p1 = (caddr_t)xp;
++        svcxprt = &vxp->vx_svcxprt;
++        svcxprt->xp_p1 = (caddr_t)vxp;
+         svcxprt->xp_ops = &svcrdma_rendezvous_op;
+-        svcxprt->xp_port = xp->port;
+-        svcxprt->xp_sock = xp->channel->fd;
++        svcxprt->xp_port = vxp->vx_port;
++        svcxprt->xp_sock = vxp->vx_channel->fd;
+ 
+         xprt_register(svcxprt);
+         return svcxprt;
+ 
+ out:
+-        if (xp->cmid)
+-                rdma_destroy_id(xp->cmid);
+-        if (xp->channel)
+-                rdma_destroy_event_channel(xp->channel);
+-        c2_free(xp);
++        if (vxp->vx_cmid)
++                rdma_destroy_id(vxp->vx_cmid);
++        if (vxp->vx_channel)
++                rdma_destroy_event_channel(vxp->vx_channel);
++        c2_free(vxp);
+         return NULL;
+ }
+ 
+@@ -155,7 +179,7 @@ out:
+  * queue pair. That's to say, for the events belonging to the accepted cmid
+  * still notify rendezvous_exprt's event channel.
+  */
+-static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
++static int svcrdma_handle_connection(struct svcrndzv_xprt *vxp,
+                                      struct rdma_cm_event *ev)
+ {
+         SVCXPRT *svcxprt;
+@@ -164,92 +188,104 @@ static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
+         struct ibv_context *verbs = cmid->verbs;
+         struct ibv_qp_init_attr attr = { 0 };
+         struct rdma_conn_param param = { 0 };
++        int rc;
+ 
+         C2_ALLOC_PTR(xprt);
+         if (xprt == NULL)
+-                return -ENOMEM;
++                return ENOMEM;
+ 
+-        memset(xprt, 0, sizeof *xprt);
+-        c2_list_link_init(&xprt->link);
+-        c2_list_init(&xprt->requests);
+-        c2_list_init(&xprt->replies);
+-        c2_mutex_init(&xprt->bufs_mutex);
+-        xprt->rndzv = xp;
+-        xprt->cmid  = cmid;
++        c2_list_link_init(&xprt->rx_link);
++        c2_list_init(&xprt->rx_reqs);
++        c2_list_init(&xprt->rx_replies);
++        c2_mutex_init(&xprt->rx_lock);
++        xprt->rx_rndzv = vxp;
++        xprt->rx_cmid  = cmid;
+ 
+         /* create queue pair */
+-        xprt->channel = ibv_create_comp_channel(verbs);
+-        if (xprt->channel == NULL)
++        xprt->rx_channel = ibv_create_comp_channel(verbs);
++        if (xprt->rx_channel == NULL) {
++                rc = errno ? : ENOMEM;
+                 goto out;
++        }
+ 
+-        xprt->pd = ibv_alloc_pd(verbs);
+-        if (xprt->pd == NULL)
++        xprt->rx_pd = ibv_alloc_pd(verbs);
++        if (xprt->rx_pd == NULL) {
++                rc = errno ? : ENOMEM;
+                 goto out;
++        }
+ 
+-        xprt->cq = ibv_create_cq(verbs, xp->max_send_wr + xp->max_recv_wr,
+-                                 (void*)xprt, xprt->channel, 0);
+-        if (xprt->cq == NULL)
++        xprt->rx_cq = ibv_create_cq(verbs,
++                                 vxp->vx_max_send_wr + vxp->vx_max_recv_wr,
++                                 (void*)xprt, xprt->rx_channel, 0);
++        if (xprt->rx_cq == NULL) {
++                rc = errno ? : ENOMEM;
+                 goto out;
++        }
+ 
+         /* notify the completion channel if new event comes. */
+-        if (ibv_req_notify_cq(xprt->cq, 0))
++        if ((rc = ibv_req_notify_cq(xprt->rx_cq, 0)))
+                 goto out;
+ 
+-        attr.send_cq = xprt->cq;
+-        attr.recv_cq = xprt->cq;
+-        attr.cap.max_send_wr = xp->max_send_wr;
+-        attr.cap.max_recv_wr = xp->max_recv_wr;
+-        attr.cap.max_send_sge = xp->max_send_sge;
+-        attr.cap.max_recv_sge = xp->max_recv_sge;
+-        attr.qp_type = xp->trans;
+-        if (rdma_create_qp(cmid, xprt->pd, &attr) != 0)
++        attr.send_cq = xprt->rx_cq;
++        attr.recv_cq = xprt->rx_cq;
++        attr.cap.max_send_wr = vxp->vx_max_send_wr;
++        attr.cap.max_recv_wr = vxp->vx_max_recv_wr;
++        attr.cap.max_send_sge = vxp->vx_max_send_sge;
++        attr.cap.max_recv_sge = vxp->vx_max_recv_sge;
++        attr.qp_type = vxp->vx_trans;
++        if (rdma_create_qp(cmid, xprt->rx_pd, &attr)) {
++                rc = errno;
+                 goto out;
++        }
+ 
+-        if (svcrdma_buffer_create(xprt) != 0)
++        if ((rc = svcrdma_buffer_create(xprt)))
+                 goto out;
+ 
+-        svcrdma_assert(xp->trans == IBV_QPT_RC);
++        C2_ASSERT(vxp->vx_trans == IBV_QPT_RC);
+         param.responder_resources = 1;
+         param.initiator_depth = 1;
+-        param.rnr_retry_count = xp->rc_rnr_retry_cnt;
+-        param.retry_count = xp->rc_retry_cnt;
+-        if (rdma_accept(cmid, &param) != 0)
++        param.rnr_retry_count = vxp->vx_rnr_retry_cnt;
++        param.retry_count = vxp->vx_retry_cnt;
++        if (rdma_accept(cmid, &param) != 0) {
++                rc = errno;
+                 goto out;
++        }
+ 
+         /* great, everything sounds ok, register an xprt to svc */
+-        svcxprt = &xprt->svcxprt;
++        svcxprt = &xprt->rx_svcxprt;
+         svcxprt->xp_p1 = (caddr_t)xprt;
+         svcxprt->xp_ops = &svcrdma_op;
+-        svcxprt->xp_sock = xprt->channel->fd;
++        svcxprt->xp_sock = xprt->rx_channel->fd;
+         xprt_register(svcxprt);
+ 
+         /* add the xprt into linked list of listener */
+-        xprt->status = RDMA_XPRT_CONNECTING;
+-        c2_mutex_lock(&xp->xprts_lock);
+-        c2_list_add_tail(&xp->xprts, &xprt->link);
+-        c2_mutex_unlock(&xp->xprts_lock);
++        xprt->rx_status = RDMA_XPRT_CONNECTING;
++        c2_mutex_lock(&vxp->vx_xprts_lock);
++        c2_list_add_tail(&vxp->vx_xprts, &xprt->rx_link);
++        c2_mutex_unlock(&vxp->vx_xprts_lock);
+ 
+         return 0;
+ 
+ out:
+         svcrdma_xprt_destroy(xprt);
+-        return -errno; 
++        return rc; 
+ }
+ 
+-static inline struct svcrdma_xprt *xprt_find(struct svcrndzv_xprt *xp,
++static inline struct svcrdma_xprt *xprt_find(struct svcrndzv_xprt *vxp,
+                                              struct rdma_cm_id *id)
+ {
+-        struct svcrdma_xprt *xprt;
++        struct svcrdma_xprt *xp;
+         struct svcrdma_xprt *found = NULL;
+ 
+-        c2_mutex_lock(&xp->xprts_lock);
+-        c2_list_for_each_entry(&xp->xprts, xprt, struct svcrdma_xprt, link) {
+-                if (xprt->cmid == id) {
+-                        found = xprt;
++        c2_mutex_lock(&vxp->vx_xprts_lock);
++        c2_list_for_each_entry(&vxp->vx_xprts, xp, struct svcrdma_xprt,
++                               rx_link) {
++                if (xp->rx_cmid == id) {
++                        found = xp;
+                         break;
+                 }
+         }
+-        c2_mutex_unlock(&xp->xprts_lock);
++        c2_mutex_unlock(&vxp->vx_xprts_lock);
+         return found;
+ }
+ 
+@@ -257,29 +293,31 @@ static inline struct svcrdma_xprt *xprt_find(struct svcrndzv_xprt *xp,
+  * rendezvous_request() is called whenever there is new request pending for
+  * listening xprt AND accepted xprt. 
+  **/
+-static bool_t rendezvous_request (SVCXPRT *xprt, struct rpc_msg *errmsg)
++static bool_t rendezvous_request(SVCXPRT *svcxprt, struct rpc_msg *errmsg)
+ {
+-        struct svcrndzv_xprt *xp = (struct svcrndzv_xprt *)xprt->xp_p1;
++        struct svcrndzv_xprt *vxp = (struct svcrndzv_xprt *)svcxprt->xp_p1;
++        struct svcrdma_xprt  *xprt;
+         struct rdma_cm_event *ev;
+         const char *msg;
+         int rc = 0;
+ 
+-        if (rdma_get_cm_event(xp->channel, &ev)) {
++        if (rdma_get_cm_event(vxp->vx_channel, &ev)) {
+                 svcrdma_errx("get_cm_event error\n");
+                 /* what can I do? */
+-                svcrdma_assert(0);
++                return FALSE;
+         }
+ 
+         /* disconnect is special, handle it first. */
+         if (ev->event == RDMA_CM_EVENT_DISCONNECTED) {
+-                struct svcrdma_xprt *xprt = xprt_find(xp, ev->id);
++                xprt = xprt_find(vxp, ev->id);
++                C2_ASSERT(ev->id != vxp->vx_cmid);
++                (void)rdma_ack_cm_event(ev);
+ 
+-                svcrdma_assert(ev->id != xp->cmid);
+-                svcrdma_assert(xprt != NULL);
++                if (xprt == NULL)
++                        return FALSE;
+ 
+-                (void)rdma_ack_cm_event(ev);
+-                if (xprt->svcxprt.xp_p1 == (caddr_t)xprt)
+-                        xprt_unregister(&xprt->svcxprt);
++                if (xprt->rx_svcxprt.xp_p1 == (caddr_t)xprt)
++                        xprt_unregister(&xprt->rx_svcxprt);
+                 svcrdma_xprt_destroy(xprt);
+                 return FALSE;
+         }
+@@ -287,18 +325,16 @@ static bool_t rendezvous_request (SVCXPRT *xprt, struct rpc_msg *errmsg)
+         msg = rdma_event_str(ev->event);
+         switch(ev->event) {
+         case RDMA_CM_EVENT_CONNECT_REQUEST:
+-                svcrdma_assert(ev->listen_id == xp->cmid);
+-                svcrdma_assert(xp->status == RDMA_XPRT_LISTEN);
+-                rc = svcrdma_handle_connection(xp, ev);
++                C2_ASSERT(ev->listen_id == vxp->vx_cmid);
++                C2_ASSERT(vxp->vx_status == RDMA_XPRT_LISTEN);
++                rc = svcrdma_handle_connection(vxp, ev);
+                 break;
+ 
+         case RDMA_CM_EVENT_ESTABLISHED: {
+-                struct svcrdma_xprt *xprt = xprt_find(xp, ev->id);
+-
+-                svcrdma_assert(ev->id != xp->cmid);
+-                svcrdma_assert(xprt != NULL);
+-                svcrdma_assert(xprt->status == RDMA_XPRT_CONNECTING);
+-                xprt->status = RDMA_XPRT_ESTABLISHED;
++                xprt = xprt_find(vxp, ev->id);
++                C2_ASSERT(ev->id != vxp->vx_cmid);
++                if (xprt && xprt->rx_status == RDMA_XPRT_CONNECTING)
++                        xprt->rx_status = RDMA_XPRT_ESTABLISHED;
+                 break;
+         }
+ 
+@@ -319,33 +355,34 @@ static bool_t rendezvous_request (SVCXPRT *xprt, struct rpc_msg *errmsg)
+         return FALSE;
+ }
+ 
+-static enum xprt_stat rendezvous_stat (SVCXPRT *xprt)
++static enum xprt_stat rendezvous_stat(SVCXPRT *xprt)
+ {
+         return XPRT_IDLE;
+ }
+ 
+-static void rendezvous_destroy(SVCXPRT *xprt)
++static void rendezvous_destroy(SVCXPRT *svcxprt)
+ {
+-        struct svcrndzv_xprt *xp = (struct svcrndzv_xprt *)xprt->xp_p1;
+-
+-        svcrdma_assert(c2_list_is_empty(&xp->xprts));
+-        c2_mutex_fini(&xp->xprts_lock);
+-        xprt_unregister(xprt);
+-        rdma_destroy_id(xp->cmid);
+-        rdma_destroy_event_channel(xp->channel);
+-        c2_free(xp);
++        struct svcrndzv_xprt *vxp = (struct svcrndzv_xprt *)svcxprt->xp_p1;
++
++        C2_ASSERT(c2_list_is_empty(&vxp->vx_xprts));
++        c2_mutex_fini(&vxp->vx_xprts_lock);
++        c2_list_fini(&vxp->vx_xprts);
++        xprt_unregister(svcxprt);
++        rdma_destroy_id(vxp->vx_cmid);
++        rdma_destroy_event_channel(vxp->vx_channel);
++        c2_free(vxp);
+ }
+ 
+-static enum xprt_stat svcrdma_stat (SVCXPRT *xprt)
++static enum xprt_stat svcrdma_stat(SVCXPRT *svcxprt)
+ {
+         return XPRT_IDLE;
+ }
+ 
+ /* This function makes sure abort() relocation goes through PLT
+    and thus can be lazy bound.  */
+-static void rendezvous_abort (void)
++static void rendezvous_abort(void)
+ {
+-        svcrdma_assert(0);
++        C2_ASSERT(0);
+ };
+ 
+ /**
+@@ -353,29 +390,35 @@ static void rendezvous_abort (void)
+  * completion channel. This means a send wr has been finished, or recv wr
+  * has come.
+  */
+-static bool_t svcrdma_recv (SVCXPRT *xprt, struct rpc_msg *msg)
++static bool_t svcrdma_recv(SVCXPRT *svcxprt, struct rpc_msg *msg)
+ {
+-        struct svcrdma_xprt *xp = (struct svcrdma_xprt *)xprt->xp_p1;
++        struct svcrdma_xprt *xp = (struct svcrdma_xprt *)svcxprt->xp_p1;
+         struct ibv_cq *ecq;
+         void          *ectx;
+         struct ibv_wc  wc;
+         int            rc = 0;
+ 
+-        if (ibv_get_cq_event(xp->channel, &ecq, &ectx) != 0) {
++        if (ibv_get_cq_event(xp->rx_channel, &ecq, &ectx) != 0) {
+                 svcrdma_errx("get cq_event for xprt %p\n", xp);
+                 return FALSE;
+         }
+ 
+-        svcrdma_assert(ecq == xp->cq && ectx == xp);
+-        if (ibv_req_notify_cq(xp->cq, 0))
+-                svcrdma_errx("failed to set up notification");
+-        ibv_ack_cq_events(xp->cq, 1);
++        C2_ASSERT(ecq == xp->rx_cq && ectx == xp);
++        rc = ibv_req_notify_cq(xp->rx_cq, 0);
++        if (rc)
++                svcrdma_errx("failed to set up notification(%d)\n", rc);
++        ibv_ack_cq_events(xp->rx_cq, 1);
++
++        if (xp->rx_status != RDMA_XPRT_ESTABLISHED) {
++                svcrdma_errx("Received a message but the export is not establised!\n");
++                return FALSE;
++        }
+ 
+         /* handle all events which are pending on this transport.
+          * this may cause fairness and starvation problem since we have a
+          * infinite loop here. */
+         while (1) {
+-                rc = ibv_poll_cq(xp->cq, 1, &wc);
++                rc = ibv_poll_cq(xp->rx_cq, 1, &wc);
+                 if (!rc) {         /* no event pending any more */
+                         break;
+                 } else if (rc < 0) { /* error occurs */
+@@ -383,7 +426,7 @@ static bool_t svcrdma_recv (SVCXPRT *xprt, struct rpc_msg *msg)
+                         break;
+                 }
+ 
+-                svcrdma_assert(rc == 1);
++                C2_ASSERT(rc == 1);
+                 if (wc.status != IBV_WC_SUCCESS) {
+                         svcrdma_errx("get a wc with error(%s), op/id: %d/%lx",
+                                      ibv_wc_status_str(wc.status),
+@@ -404,7 +447,7 @@ static bool_t svcrdma_recv (SVCXPRT *xprt, struct rpc_msg *msg)
+ 
+                         /* XXX: impossible to get this event from here because
+                          * RDMA event handling is sync. */
+-                        svcrdma_assert(0);
++                        C2_ASSERT(0);
+                         ctxt = (struct rdma_context *)wc.wr_id;
+                         rdma_completion_one(ctxt, wc.status);
+                         break;
+@@ -419,27 +462,27 @@ static bool_t svcrdma_recv (SVCXPRT *xprt, struct rpc_msg *msg)
+         return (rc == 0) ? TRUE : FALSE;
+ }
+ 
+-static bool_t svcrdma_getargs(SVCXPRT *xprt, xdrproc_t xdr_args,
++static bool_t svcrdma_getargs(SVCXPRT *svcxprt, xdrproc_t xdr_args,
+                               caddr_t args_ptr)
+ {
+-        struct svcrdma_xprt *xp = (struct svcrdma_xprt *)xprt->xp_p1;
++        struct svcrdma_xprt *xp = (struct svcrdma_xprt *)svcxprt->xp_p1;
+         XDR *xdrs;
+ 
+-        svcrdma_assert(xp->curreq != NULL);
+-        xdrs = &xp->curreq->xdrs;
+-        svcrdma_assert(xdrs->x_public == (caddr_t)xp->curreq);
+-        return ((*xdr_args) (&xp->curreq->xdrs, args_ptr));
++        C2_ASSERT(xp->rx_curreq != NULL);
++        xdrs = &xp->rx_curreq->rq_xdrs;
++        C2_ASSERT(xdrs->x_public == (caddr_t)xp->rx_curreq);
++        return ((*xdr_args) (xdrs, args_ptr));
+ }
+ 
+-static bool_t svcrdma_freeargs(SVCXPRT *xprt, xdrproc_t xdr_args,
++static bool_t svcrdma_freeargs(SVCXPRT *svcxprt, xdrproc_t xdr_args,
+                                caddr_t args_ptr)
+ {
+-        struct svcrdma_xprt *xp = (struct svcrdma_xprt *)xprt->xp_p1;
++        struct svcrdma_xprt *xp = (struct svcrdma_xprt *)svcxprt->xp_p1;
+         XDR *xdrs;
+ 
+-        svcrdma_assert(xp->curreq != NULL);
+-        xdrs = &xp->curreq->xdrs;
+-        svcrdma_assert(xdrs->x_public == (caddr_t)xp->curreq);
++        C2_ASSERT(xp->rx_curreq != NULL);
++        xdrs = &xp->rx_curreq->rq_xdrs;
++        C2_ASSERT(xdrs->x_public == (caddr_t)xp->rx_curreq);
+         xdrs->x_op = XDR_FREE;
+         return ((*xdr_args) (xdrs, args_ptr));
+ }
+@@ -447,62 +490,64 @@ static bool_t svcrdma_freeargs(SVCXPRT *xprt, xdrproc_t xdr_args,
+ static bool_t svcrdma_reply(SVCXPRT *svcxprt, struct rpc_msg *rpcmsg)
+ {
+         struct svcrdma_xprt *xprt = (struct svcrdma_xprt *)svcxprt->xp_p1;
+-        int bufsize = xprt->rndzv->max_msg_size;
+-        struct rdma_request *req;
++        int bufsize = xprt->rx_rndzv->vx_mms;
+         struct rdma_reply *reply;
+         XDR xdrs;
+         bool_t rc;
+ 
+         /* XXX: there is no way to get request in current implementation of
+          * sunrpc since it just pass SVCXPRT in */
+-        svcrdma_assert(xprt->curreq != NULL);
+-        req = xprt->curreq;
+-        reply = req->reply;
+-        req->reply = NULL;
++        C2_ASSERT(xprt->rx_curreq != NULL);
++        reply = xprt->rx_curreq->rq_reply;
++        C2_ASSERT(reply->rp_request == xprt->rx_curreq);
+ 
+-        /* anyway, free request first */
+-        rdma_repost_req(req);
++        /* DRR: We'd like to repost request buffer here. */
++        /* rdma_request_repost(req); */
+ 
+-        rpcmsg->rm_xid = reply->xid;
+-        xdrmem_create(&xdrs, reply->rpc_buf, bufsize, XDR_ENCODE);
++        rpcmsg->rm_xid = reply->rp_xid;
++        xdrmem_create(&xdrs, reply->rp_rpc_buf, bufsize, XDR_ENCODE);
+         if (!xdr_replymsg(&xdrs, rpcmsg)) {
+                 /* this is probably because of not having enough buffer space */
+                 return FALSE;
+         }
+-        reply->rpc_buflen = XDR_GETPOS(&xdrs);
++        reply->rp_rpc_buflen = XDR_GETPOS(&xdrs);
+ 
+         /* it looks all right, post reply buffer */
+-        rc = rdma_send_reply(reply);
++        rc = rdma_reply_send(reply);
+         if (rc) {
+                 /* if error, reply is not freed */
+-                rdma_put_reply(reply);
++                rdma_reply_put(reply);
+                 return FALSE;
+         }
+         return TRUE;
+ }
+ 
+-static void svcrdma_xprt_destroy (struct svcrdma_xprt *xprt)
++static void svcrdma_xprt_destroy(struct svcrdma_xprt *xprt)
+ {
+-        c2_mutex_lock(&xprt->rndzv->xprts_lock);
+-        c2_list_del(&xprt->link);
+-        c2_mutex_unlock(&xprt->rndzv->xprts_lock);
+-
+-        if (xprt->cmid->qp)
+-                rdma_destroy_qp(xprt->cmid);
+-        if (xprt->cq)
+-                ibv_destroy_cq(xprt->cq);
+-        if (xprt->pd)
+-                ibv_dealloc_pd(xprt->pd);
+-        if (xprt->channel)
+-                ibv_destroy_comp_channel(xprt->channel);
+-        rdma_destroy_id(xprt->cmid);
++        c2_mutex_lock(&xprt->rx_rndzv->vx_xprts_lock);
++        c2_list_del(&xprt->rx_link);
++        c2_mutex_unlock(&xprt->rx_rndzv->vx_xprts_lock);
++
++        c2_list_link_fini(&xprt->rx_link);
++        c2_list_fini(&xprt->rx_reqs);
++        c2_list_fini(&xprt->rx_replies);
++
++        if (xprt->rx_cmid->qp)
++                rdma_destroy_qp(xprt->rx_cmid);
++        if (xprt->rx_cq)
++                ibv_destroy_cq(xprt->rx_cq);
++        if (xprt->rx_pd)
++                ibv_dealloc_pd(xprt->rx_pd);
++        if (xprt->rx_channel)
++                ibv_destroy_comp_channel(xprt->rx_channel);
++        rdma_destroy_id(xprt->rx_cmid);
+         c2_free(xprt);
+ }
+ 
+-static void svcrdma_destroy(SVCXPRT *xprt)
++static void svcrdma_destroy(SVCXPRT *svcxprt)
+ {
+-        xprt_unregister(xprt);
+-        svcrdma_xprt_destroy((struct svcrdma_xprt *)xprt->xp_p1);
++        xprt_unregister(svcxprt);
++        svcrdma_xprt_destroy((struct svcrdma_xprt *)svcxprt->xp_p1);
+ }
+ 
+ static void svcrdma_buffer_destroy(struct svcrdma_xprt *xprt)
+@@ -511,37 +556,41 @@ static void svcrdma_buffer_destroy(struct svcrdma_xprt *xprt)
+         int i;
+         int count;
+ 
+-        count = xprt->rndzv->max_recv_wr;
+-        if (xprt->rcv_bufs) {
++        count = xprt->rx_rndzv->vx_max_recv_wr;
++        if (xprt->rx_rcv_bufs) {
+                 for (i = 0; i < count; i++) {
+-                        struct rdma_request *r = &xprt->rcv_bufs[i];
++                        struct rdma_request *r = &xprt->rx_rcv_bufs[i];
+ 
+-                        if (r->buffer == NULL)
++                        if (r->rq_buffer == NULL)
+                                 break;
+-                        c2_free(r->buffer);
++                        c2_free(r->rq_buffer);
+ 
+-                        if (r->mr == NULL)
++                        if (r->rq_mr == NULL)
+                                 break;
+-                        ibv_dereg_mr(r->mr);
++                        ibv_dereg_mr(r->rq_mr);
+                 }
+-                c2_free(xprt->rcv_bufs);
++                c2_free(xprt->rx_rcv_bufs);
+         }
+ 
+-        reply = xprt->snd_bufs;
++        reply = xprt->rx_snd_bufs;
+         while (reply) {
+-                struct rdma_reply *tmp = reply->next;
+-
+-                if (reply->rpc_mr)
+-                        ibv_dereg_mr(reply->rpc_mr);
+-                if (reply->rdma_mr)
+-                        ibv_dereg_mr(reply->rdma_mr);
+-                if (reply->buffer)
+-                        c2_free(reply->buffer);
++                struct rdma_reply *tmp = reply->rp_next;
++
++                if (reply->rp_rpc_mr)
++                        ibv_dereg_mr(reply->rp_rpc_mr);
++                if (reply->rp_rdma_mr)
++                        ibv_dereg_mr(reply->rp_rdma_mr);
++                if (reply->rp_buffer)
++                        c2_free(reply->rp_buffer);
+                 c2_free(reply);
+                 reply = tmp;
+         }
+ }
+ 
++/**
++  @return 0 means ok
++  @return errno for error occurs
++ */
+ static int svcrdma_buffer_create(struct svcrdma_xprt *xprt)
+ {
+         struct rdma_request *req;
+@@ -552,54 +601,46 @@ static int svcrdma_buffer_create(struct svcrdma_xprt *xprt)
+         int i;
+ 
+         /* for receive buffers. */
+-        count = xprt->rndzv->max_recv_wr;
++        count = xprt->rx_rndzv->vx_max_recv_wr;
+         C2_ALLOC_ARR(req, count);
+         if (req == NULL)
+-                return -ENOMEM;
++                return ENOMEM;
+ 
+-        memset(req, 0, count * sizeof(*req));
+-        xprt->rcv_bufs = req;
++        xprt->rx_rcv_bufs = req;
+ 
+-        rc = -ENOMEM;
+-        alignment = xprt->rndzv->page_size;
+-        bufsize = xprt->rndzv->max_msg_size;
+-        for (i = 0; i < count; i++) {
++        rc = ENOMEM;
++        alignment = xprt->rx_rndzv->vx_page_size;
++        bufsize = xprt->rx_rndzv->vx_mms;
++        for (i = 0; i < count; i++, rc = ENOMEM) {
+                 struct rdma_request *r = &req[i];
+                 struct ibv_recv_wr     *badwr;
+ 
+-                C2_ALLOC_ALIGN(r->buffer, bufsize, alignment);
+-                if (r->buffer == NULL)
++                C2_ALLOC_ALIGN(r->rq_buffer, bufsize, alignment);
++                if (r->rq_buffer == NULL)
+                         goto out;
+ 
+-                r->mr = ibv_reg_mr(xprt->pd, r->buffer, bufsize,
+-                                   xprt->rndzv->rcv_wr_flags);
+-                if (!r->mr) {
+-                        c2_free(r->buffer);
+-                        r->buffer = NULL;
+-                        rc = -errno;
++                r->rq_mr = ibv_reg_mr(xprt->rx_pd, r->rq_buffer, bufsize,
++                                      xprt->rx_rndzv->vx_rcv_wr_flags);
++                if (!r->rq_mr) {
++                        rc = errno;
+                         goto out;
+                 }
+ 
+                 /* register receive buffer */
+-                r->xprt       = xprt;
+-                r->sge.addr   = (uint64_t)r->buffer;
+-                r->sge.length = (uint32_t)bufsize;
+-                r->sge.lkey   = r->mr->lkey;
+-                r->wr.wr_id   = (uint64_t)r;
+-                r->wr.sg_list = &r->sge;
+-                r->wr.num_sge = 1;
+-                rc = ibv_post_recv(xprt->qp, &r->wr, &badwr);
+-                if (rc) {
+-                        ibv_dereg_mr(r->mr);
+-                        c2_free(r->buffer);
+-                        r->buffer = NULL;
+-                        rc = -errno;
++                r->rq_xprt       = xprt;
++                r->rq_sge.addr   = (uint64_t)r->rq_buffer;
++                r->rq_sge.length = (uint32_t)bufsize;
++                r->rq_sge.lkey   = r->rq_mr->lkey;
++                r->rq_wr.wr_id   = (uint64_t)r;
++                r->rq_wr.sg_list = &r->rq_sge;
++                r->rq_wr.num_sge = 1;
++                rc = ibv_post_recv(xprt->rx_qp, &r->rq_wr, &badwr);
++                if (rc)
+                         goto out;
+-                }
+         }
+ 
+         /* for send buffers. */
+-        count = xprt->rndzv->max_send_wr;
++        count = xprt->rx_rndzv->vx_max_send_wr;
+         for (i = 0; i < count; i++) {
+                 struct rdma_reply *reply;
+ 
+@@ -607,36 +648,31 @@ static int svcrdma_buffer_create(struct svcrdma_xprt *xprt)
+                 if (!reply)
+                         goto out;
+ 
+-                C2_ALLOC_ALIGN(reply->buffer, bufsize * 2, alignment);
+-                if (reply->buffer == NULL) {
+-                        c2_free(reply);
++                reply->rp_xprt = xprt;
++
++                /* add the reply buffer into xprt's reply list first so
++                 * that svcrdma_buffer_destroy can do its work. */
++                reply->rp_next = xprt->rx_snd_bufs;
++                xprt->rx_snd_bufs = reply;
++
++                C2_ALLOC_ALIGN(reply->rp_buffer, bufsize * 2, alignment);
++                if (reply->rp_buffer == NULL)
+                         goto out;
+-                }
+ 
+-                reply->rdma_mr = ibv_reg_mr(xprt->pd, reply->buffer, bufsize,
+-                                            xprt->rndzv->snd_wr_flags);
+-                if (!reply->rdma_mr) {
+-                        c2_free(reply);
+-                        c2_free(reply->buffer);
+-                        rc = -errno;
++                reply->rp_rdma_mr = ibv_reg_mr(xprt->rx_pd, reply->rp_buffer, bufsize,
++                                            xprt->rx_rndzv->vx_snd_wr_flags);
++                if (!reply->rp_rdma_mr) {
++                        rc = errno;
+                         goto out;
+                 }
+ 
+-                reply->rpc_mr = ibv_reg_mr(xprt->pd, reply->buffer + bufsize,
+-                                           bufsize, xprt->rndzv->snd_wr_flags);
+-                if (!reply->rpc_mr) {
+-                        ibv_dereg_mr(reply->rdma_mr);
+-                        c2_free(reply);
+-                        c2_free(reply->buffer);
+-                        rc = -errno;
++                reply->rp_rpc_mr = ibv_reg_mr(xprt->rx_pd,
++                                           reply->rp_buffer + bufsize, bufsize,
++                                           xprt->rx_rndzv->vx_snd_wr_flags);
++                if (!reply->rp_rpc_mr) {
++                        rc = errno;
+                         goto out;
+                 }
+-
+-                reply->xprt = xprt;
+-
+-                /* add the reply buffer into xprt's reply list */
+-                reply->next = xprt->snd_bufs;
+-                xprt->snd_bufs = reply;
+         }
+ 
+         return 0;
+@@ -646,48 +682,56 @@ out:
+         return rc;
+ }
+ 
+-static void rdma_put_reply(struct rdma_reply *reply)
++static void rdma_reply_put(struct rdma_reply *reply)
+ {
+-        struct svcrdma_xprt *xprt = reply->xprt;
++        struct svcrdma_xprt *xprt = reply->rp_xprt;
+         XDR xdrs;
+ 
++        /* DRR: We repost the request after reply message has been sent. */
++        C2_ASSERT(reply->rp_request->rq_reply == reply);
++        reply->rp_request->rq_reply = NULL;
++        rdma_request_repost(reply->rp_request);
++        reply->rp_request = NULL;
++
+         xdrmem_create(&xdrs, NULL, 0, XDR_FREE);
+-        (void)xdr_svcrdma_msg(&xdrs, &reply->msg);
++        (void)xdr_svcrdma_msg(&xdrs, &reply->rp_msg);
+ 
+-        c2_mutex_lock(&xprt->bufs_mutex);
+-        reply->next = xprt->snd_bufs;
+-        xprt->snd_bufs = reply;
+-        c2_list_del(&reply->link);
+-        c2_mutex_unlock(&xprt->bufs_mutex);
++        c2_mutex_lock(&xprt->rx_lock);
++        reply->rp_next = xprt->rx_snd_bufs;
++        xprt->rx_snd_bufs = reply;
++        c2_list_del(&reply->rp_link);
++        c2_mutex_unlock(&xprt->rx_lock);
+ }
+ 
+-static struct rdma_reply *svcrdma_get_reply(struct svcrdma_xprt *xprt)
++static struct rdma_reply *rdma_reply_get(struct svcrdma_xprt *xprt)
+ {
+         struct rdma_reply *reply;
+ 
+-        c2_mutex_lock(&xprt->bufs_mutex);
+-        reply = xprt->snd_bufs;
+-        if (reply)
+-                xprt->snd_bufs = reply->next;
+-        c2_list_add(&xprt->replies, &reply->link);
+-        c2_mutex_unlock(&xprt->bufs_mutex);
++        c2_mutex_lock(&xprt->rx_lock);
++        reply = xprt->rx_snd_bufs;
++        if (reply) {
++                xprt->rx_snd_bufs = reply->rp_next;
++                reply->rp_next = NULL;
++                c2_list_add(&xprt->rx_replies, &reply->rp_link);
++        }
++        c2_mutex_unlock(&xprt->rx_lock);
+ 
+         return reply;
+ }
+ 
+-static void rdma_repost_req(struct rdma_request *req)
++static void rdma_request_repost(struct rdma_request *req)
+ {
+         struct ibv_recv_wr *badwr;
+         int rc;
+ 
+-        c2_mutex_lock(&req->xprt->bufs_mutex);
+-        c2_list_del(&req->link);
+-        c2_mutex_unlock(&req->xprt->bufs_mutex);
++        c2_mutex_lock(&req->rq_xprt->rx_lock);
++        c2_list_del(&req->rq_link);
++        c2_mutex_unlock(&req->rq_xprt->rx_lock);
+ 
+-        svcrdma_assert(req->reply == NULL);
+-        xdrmem_create(&req->xdrs, NULL, 0, XDR_FREE);
+-        xdr_svcrdma_msg(&req->xdrs, &req->msg);
+-        rc = ibv_post_recv(req->xprt->qp, &req->wr, &badwr);
++        C2_ASSERT(req->rq_reply == NULL);
++        xdrmem_create(&req->rq_xdrs, NULL, 0, XDR_FREE);
++        xdr_svcrdma_msg(&req->rq_xdrs, &req->rq_msg);
++        rc = ibv_post_recv(req->rq_xprt->rx_qp, &req->rq_wr, &badwr);
+         if (rc)
+                 svcrdma_errx("repost recv buffer error");
+ }
+@@ -703,22 +747,23 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+                                 struct rpc_msg *rpcmsg)
+ {
+         struct rdma_request *req;
+-        struct rdma_reply   *reply;
++        struct rdma_reply   *reply = NULL;
+         struct svcrdma_msg *msg;
+         struct ibv_recv_wr *badwr;
+         XDR                 xdrs;
+         int                 pos = 0;
+         int                 rc = 0;
+         int                 reqlen;
++        enum rdma_errcode   errcode = RDMA_OK;
+ 
+-        svcrdma_assert(wc->opcode == IBV_WC_RECV);
++        C2_ASSERT(wc->opcode == IBV_WC_RECV);
+         req = (struct rdma_request *)wc->wr_id;
+-        svcrdma_assert(req->xprt == xprt);
++        C2_ASSERT(req->rq_xprt == xprt);
+ 
+         /* handle error message first */
+         if (wc->status != IBV_WC_SUCCESS) {
+                 /* what can we do? Just reregister the buffer */
+-                rc = ibv_post_recv(xprt->qp, &req->wr, &badwr);
++                rc = ibv_post_recv(xprt->rx_qp, &req->rq_wr, &badwr);
+                 if (rc)
+                         svcrdma_errx("fatal error on registering recv buffer");
+                 return rc;
+@@ -729,46 +774,53 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+         /* Right now, the sunrpc library is sync, this means only one request
+          * is pending at a time.
+          * After we have modified sunrpc library to support async requests,
+-         * we can remove this check and use xprt->requests to track all pending
++         * we can remove this check and use xprt->rx_reqs to track all pending
+          * requests.
+          */
+-        memset(&req->msg, 0, sizeof req->msg);
++        memset(&req->rq_msg, 0, sizeof req->rq_msg);
+         reqlen = wc->byte_len;
+-        svcrdma_assert(xprt->curreq == NULL);
+-        svcrdma_assert(req->reply == NULL);
+-        xprt->curreq = req;
+-        c2_mutex_lock(&xprt->bufs_mutex);
+-        c2_list_add(&xprt->requests, &xprt->link);
+-        c2_mutex_unlock(&xprt->bufs_mutex);
+-
+-        reply = svcrdma_get_reply(xprt);
+-        svcrdma_assert(reply != NULL);
+-        reply->xid         = 0;
+-        reply->rdma_buflen = 0;
+-        reply->rpc_buflen  = 0;
+-        reply->errcode     = RDMA_OK;
+-        reply->orig_writes = NULL;
+-        reply->writes      = NULL;
+-        reply->reply       = NULL;
+-
+-        msg = &req->msg;
+-        xdrmem_create(&xdrs, req->buffer, reqlen, XDR_DECODE);
++        C2_ASSERT(xprt->rx_curreq == NULL);
++        C2_ASSERT(req->rq_reply == NULL);
++        xprt->rx_curreq = req;
++        c2_mutex_lock(&xprt->rx_lock);
++        c2_list_add(&xprt->rx_reqs, &req->rq_link);
++        c2_mutex_unlock(&xprt->rx_lock);
++
++        reply = rdma_reply_get(xprt);
++        /* DRR: this is absolutely true.
++         * Right now, the # of request buffer equals to the # of reply buffer,
++         * and a reply buffer can only be consumed by a request buffer.
++         * By this means, if we repost the request buffer AFTER finishing the
++         * reply message, it is absolutely ok.
++         */
++        C2_ASSERT(reply != NULL);
++        reply->rp_request  = req;
++        reply->rp_xid         = 0;
++        reply->rp_rdma_buflen = 0;
++        reply->rp_rpc_buflen  = 0;
++        reply->rp_errcode     = RDMA_OK;
++        reply->rp_orig_writes = NULL;
++        reply->rp_writes      = NULL;
++        reply->rp_reply       = NULL;
++
++        msg = &req->rq_msg;
++        xdrmem_create(&xdrs, req->rq_buffer, reqlen, XDR_DECODE);
+         if (xdr_svcrdma_msg(&xdrs, msg)) {
+                 svcrdma_errx("message corrupted, decode rdma header failed");
+-                reply->xid = msg->rdma_xid; /* XXX: XID still wasn't decoded? */
+-                rc = RDMA_ERR_CHUNK;
++                reply->rp_xid = msg->rdma_xid; /* XXX: XID still wasn't decoded? */
++                errcode = RDMA_ERR_CHUNK;
+                 goto out;
+         }
+         pos = XDR_GETPOS(&xdrs);
+-        svcrdma_assert(pos <= reqlen);
+-        reply->xid = msg->rdma_xid;
++        C2_ASSERT(pos <= reqlen);
++        reply->rp_xid = msg->rdma_xid;
+ 
+         /* version check */
+-        msg = &req->msg;
++        msg = &req->rq_msg;
+         if (msg->rdma_vers != RDMA_VERS) {
+                 svcrdma_errx("version mismatched, %d/%d",
+                          msg->rdma_vers, RDMA_VERS);
+-                rc = RDMA_ERR_VERS;
++                errcode = RDMA_ERR_VERS;
+                 goto out;
+         }
+ 
+@@ -778,12 +830,12 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+                 struct rdma_header_msg *header_msg;
+ 
+                 header_msg = &msg->rdma_body.u.rdma_msg;
+-                req->reads = header_msg->rdma_reads;
+-                req->writes = header_msg->rdma_writes;
++                req->rq_reads = header_msg->rdma_reads;
++                req->rq_writes = header_msg->rdma_writes;
+ 
+                 /* setup rpc message base */
+-                req->rpcbuf_len  = reqlen - pos;
+-                req->rpcbuf_base = req->buffer + pos;
++                req->rq_rpcbuf_len  = reqlen - pos;
++                req->rq_rpcbuf_base = req->rq_buffer + pos;
+                 break;
+         }
+         case RDMA_NOMSG: {
+@@ -792,21 +844,21 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+                 int length;
+ 
+                 header_nomsg = &msg->rdma_body.u.rdma_nomsg;
+-                req->reads = header_nomsg->rdma_reads;
+-                req->writes = header_nomsg->rdma_writes;
++                req->rq_reads = header_nomsg->rdma_reads;
++                req->rq_writes = header_nomsg->rdma_writes;
+ 
+-                rl = req->reads;
+-                svcrdma_assert(rl->rrl_entry.rrc_position == 0);
++                rl = req->rq_reads;
++                C2_ASSERT(rl->rrl_entry.rrc_position == 0);
+                 length = rl->rrl_entry.rrc_target.rs_length;
+-                req->rpcbuf_len = length;
+-                req->rpcbuf_base = c2_alloc(length);
+-
+-                rc = -ENOMEM;
+-                if (req->rpcbuf_base) {
+-                        rc = rdma_read_chunks(req, req->rpcbuf_base,
+-                                              req->rpcbuf_len);
+-                        if (rc < 0)
+-                                c2_free(req->rpcbuf_base);
++                req->rq_rpcbuf_len = length;
++                req->rq_rpcbuf_base = c2_alloc(length);
++
++                rc = ENOMEM;
++                if (req->rq_rpcbuf_base) {
++                        rc = rdma_chunks_read(req, req->rq_rpcbuf_base,
++                                              req->rq_rpcbuf_len);
++                        if (rc)
++                                c2_free(req->rq_rpcbuf_base);
+                 }
+                 break;
+         }
+@@ -815,51 +867,52 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+                 /* fall through */
+         case RDMA_DONE:
+                 /* reply chunk finished, not support */
+-                svcrdma_assert(0);
++                C2_ASSERT(0);
+                 break;
+         case RDMA_ERROR:
+         default:
+                 /* TODO: destroy the export */
+                 break;
+         }
+-        if (rc < 0)
++        if (rc)
+                 goto out;
+ 
+         /* get total length of rdma chunks. */
+-        if (req->reads) {
+-                struct rdma_read_list *list = req->reads;
++        if (req->rq_reads) {
++                struct rdma_read_list *list = req->rq_reads;
+                 struct rdma_read_chunk *chunk = &list->rrl_entry;
+ 
+-                svcrdma_assert(chunk->rrc_position != 0);
+-                req->chunk_start = chunk->rrc_position;
+-                req->chunk_len   = chunk->rrc_target.rs_length;
++                C2_ASSERT(chunk->rrc_position != 0);
++                req->rq_chunk_start = chunk->rrc_position;
++                req->rq_chunk_len   = chunk->rrc_target.rs_length;
+                 while (list->rrl_next) {
+                         list = list->rrl_next;
+                         chunk = &list->rrl_entry;
+-                        req->chunk_len += chunk->rrc_target.rs_length;
++                        req->rq_chunk_len += chunk->rrc_target.rs_length;
+                 }
+         }
+ 
+         /* initiate reply message */
+-        reply->orig_writes = reply->writes = req->writes;
+-        reply->writes_index = 0;
+-        req->writes = NULL;
+-        req->reply  = reply;
++        reply->rp_orig_writes = reply->rp_writes = req->rq_writes;
++        reply->rp_writes_index = 0;
++        req->rq_writes = NULL;
++        req->rq_reply  = reply;
+ 
+         /* the header of RDMA chunks looks fine, just set the XDR stream */
+-        xdrmem_create(&req->xdrs, req->rpcbuf_base, req->rpcbuf_len,
++        xdrmem_create(&req->rq_xdrs, req->rq_rpcbuf_base, req->rq_rpcbuf_len,
+                       XDR_DECODE);
+-        req->xdrs.x_public = (void *)req;
++        req->rq_xdrs.x_public = (void *)req;
+         return 0;
+ 
+ out:
+-        /* anyway, free request first */
+-        rdma_repost_req(req);
+-        if (rc > 0) { /* something wrong */
+-                reply->errcode = rc;
+-                rdma_send_reply(reply);
+-                rdma_put_reply(reply);
++        /* DRR: We'd like to repost request here. */
++        /* rdma_request_repost(req); */
++        if (errcode != RDMA_OK) { /* something wrong */
++                reply->rp_errcode = errcode;
++                rdma_reply_send(reply);
++                rc = 88; /* XXX: what error code should be returned? */
+         }
++        rdma_reply_put(reply);
+         return rc;
+ }
+ 
+@@ -868,9 +921,9 @@ static void rdma_context_init(struct rdma_context *ctxt,
+                               void (*comp)(struct rdma_context *, void *),
+                               void *ctx)
+ {
+-        svcrdma_assert(comp != NULL);
++        C2_ASSERT(comp != NULL);
+         memset(ctxt, 0, sizeof *ctxt);
+-        c2_ref_init(&ctxt->ref, 0, NULL);
++        c2_atomic64_set(&ctxt->refcnt, 0);
+         ctxt->xprt       = xprt;
+         ctxt->status     = IBV_WC_SUCCESS;
+         ctxt->completion = comp;
+@@ -899,7 +952,7 @@ static void rdma_completion_one(struct rdma_context *ctxt,
+                 svcrdma_errx("ctxt(%p) cq error %s\n",
+                              ctxt, ibv_wc_status_str(rc));
+         }
+-        if (c2_ref_put(&ctxt->ref) == 0) {
++        if (c2_atomic64_dec_and_test(&ctxt->refcnt) == 0) {
+                 ctxt->completion(ctxt, ctxt->ctx);
+                 /* TODO: need to wake up threads in multiple thread env */
+         }
+@@ -917,30 +970,31 @@ static int rdma_wait_for_completion(struct rdma_context *ctxt)
+         if (ncount == 0)
+                 return 0;
+ 
+-        svcrdma_assert(ncount <= ctxt->max_index);
++        C2_ASSERT(ncount <= ctxt->max_index);
+ 
+ again:
+-        if (ibv_get_cq_event(xprt->channel, &ecq, &ectx) != 0) {
++        if ((rc = ibv_get_cq_event(xprt->rx_channel, &ecq, &ectx))) {
+                 svcrdma_errx("get cq_event for xprt %p\n", xprt);
+-                return -errno;
++                return rc;
+         }
+-        svcrdma_assert(ecq == xprt->cq && ectx == xprt);
+-        if (ibv_req_notify_cq(xprt->cq, 0))
+-                svcrdma_errx("failed to set up notification");
+-        ibv_ack_cq_events(xprt->cq, 1);
++        C2_ASSERT(ecq == xprt->rx_cq && ectx == xprt);
++        if ((rc = ibv_req_notify_cq(xprt->rx_cq, 0)))
++                svcrdma_errx("failed to set up notification %d", rc);
++        ibv_ack_cq_events(xprt->rx_cq, 1);
+ 
+         while (1) {
+-                rc = ibv_poll_cq(xprt->cq, 1, &wc);
++                rc = ibv_poll_cq(xprt->rx_cq, 1, &wc);
+                 if (rc == 0) {         /* no event pending any more */
+                         break;
+                 } else if (rc < 0) {   /* error occurs */
++                        rc = errno;
+                         svcrdma_errx("error occurs polling cq");
+                         break;
+                 }
+ 
+                 ncount--;
+-                svcrdma_assert(rc == 1);
+-                svcrdma_assert(wc.wr_id == (uint64_t)ctxt);
++                C2_ASSERT(rc == 1);
++                C2_ASSERT(wc.wr_id == (uint64_t)ctxt);
+                 rdma_completion_one(ctxt, wc.status);
+         }
+         if (rc == 0 && ncount)
+@@ -948,10 +1002,9 @@ again:
+         return rc;
+ }
+ 
+-static struct ibv_mr *do_rdma_post(struct rdma_context *ctxt,
+-                                   struct rdma_segment *seg,
+-                                   char *buffer,
+-                                   enum ibv_wr_opcode opc)
++static int do_rdma_post(struct rdma_context *ctxt, struct rdma_segment *seg,
++                        char *buffer, enum ibv_wr_opcode opc,
++                        struct ibv_mr **mrp)
+ {
+         struct ibv_sge sge = {
+                 .addr   = (uint64_t)buffer,
+@@ -975,60 +1028,60 @@ static struct ibv_mr *do_rdma_post(struct rdma_context *ctxt,
+         int flags;
+         int rc;
+ 
+-        svcrdma_assert(opc == IBV_WR_RDMA_READ || opc == IBV_WR_RDMA_WRITE);
++        C2_ASSERT(opc == IBV_WR_RDMA_READ || opc == IBV_WR_RDMA_WRITE);
+         flags = IBV_ACCESS_REMOTE_WRITE|IBV_ACCESS_REMOTE_READ;
+-        mr = ibv_reg_mr(ctxt->xprt->pd, buffer, seg->rs_length, flags);
+-        if (mr == NULL) {
+-                svcrdma_errx("register memory error, this may be due to not"
+-                             " locking enough memory");
+-                return NULL;
+-        }
++        mr = ibv_reg_mr(ctxt->xprt->rx_pd, buffer, seg->rs_length, flags);
++        if (mr == NULL)
++                return ENOMEM;
+ 
+         sge.lkey = mr->lkey;
+-        rc = ibv_post_send(ctxt->xprt->qp, &wr, &badwr);
++        rc = ibv_post_send(ctxt->xprt->rx_qp, &wr, &badwr);
+         if (rc != IBV_WC_SUCCESS) {
+                 svcrdma_errx("post RDMA buffer error %s\n",
+                              ibv_wc_status_str(rc));
+                 ibv_dereg_mr(mr);
+-                return NULL;
++                return rc;
+         }
+-        return mr;
++
++        *mrp = mr;
++        return 0;
+ }
+ 
+ /**
+- * rdma_read_chunks: decode the XDR stream, we return the corresponding
++ * rdma_chunks_read: decode the XDR stream, we return the corresponding
+  * buffer address by the position of XDR stream - if the position happens to
+  * be in the RDMA chunks, RDMA transfer will be used to copy data into the
+  * buffer directly.
+  */
+-static int rdma_read_chunks(struct rdma_request *req, char *buffer, int buflen)
++static int rdma_chunks_read(struct rdma_request *req, char *buffer, int buflen)
+ {
+-        struct rdma_context *ctxt;
++        struct rdma_context  ctxt_static;
++        struct rdma_context *ctxt = &ctxt_static;
+         struct rdma_read_list *rl;
+         struct ibv_mr *mr;
+         struct rdma_segment *seg;
+-        int ncount = buflen;
+         int rc = 0;
+ 
+-        ctxt = alloca(sizeof(*ctxt));
+-        rdma_context_init(ctxt, req->xprt, rdma_completion_rw, (void *)req);
++        rdma_context_init(ctxt, req->rq_xprt, rdma_completion_rw, (void *)req);
+ 
+-        rl= req->reads;
++        rl= req->rq_reads;
+         while (rl && buflen) {
+                 seg = &rl->rrl_entry.rrc_target;
+-                svcrdma_assert(buflen >= seg->rs_length);
+-                mr = do_rdma_post(ctxt, seg, buffer, IBV_WR_RDMA_READ);
+-                if (mr == NULL) {
++                C2_ASSERT(buflen >= seg->rs_length);
++                rc = do_rdma_post(ctxt, seg, buffer, IBV_WR_RDMA_READ, &mr);
++                if (rc) {
+                         int retry = !!ctxt->index;
+-
+-                        rc = rdma_wait_for_completion(ctxt);
+-                        if (rc) {
++                        int rc2;
++                        
++                        rc2 = rdma_wait_for_completion(ctxt);
++                        if (rc2) {
+                                 svcrdma_errx("wait for RDMA read failed");
+                                 break;
+                         }
+-                        svcrdma_assert(c2_ref_read(&ctxt->ref) == 0);
++                        C2_ASSERT(c2_atomic64_get(&ctxt->refcnt) == 0);
+ 
+-                        rc = -EAGAIN;
++                        /* XXX: check rc to see if need to retry */
++                        rc = EAGAIN;
+                         if (retry)
+                                 continue;
+                 }
+@@ -1036,7 +1089,7 @@ static int rdma_read_chunks(struct rdma_request *req, char *buffer, int buflen)
+                         break;
+ 
+                 ctxt->mrs[ctxt->index] = mr;
+-                c2_ref_get(&ctxt->ref);
++                c2_atomic64_inc(&ctxt->refcnt);
+                 ++ctxt->index;
+                 if (ctxt->index == ctxt->max_index - 1) {
+                         rc = rdma_wait_for_completion(ctxt);
+@@ -1044,33 +1097,34 @@ static int rdma_read_chunks(struct rdma_request *req, char *buffer, int buflen)
+                                 svcrdma_errx("wait for RDMA read failed");
+                                 break;
+                         }
+-                        svcrdma_assert(c2_ref_read(&ctxt->ref) == 0);
++                        C2_ASSERT(c2_atomic64_get(&ctxt->refcnt) == 0);
+                 }
+ 
+                 buffer += seg->rs_length;
+                 buflen -= seg->rs_length;
+-                svcrdma_assert(ncount >= 0);
++                C2_ASSERT(buflen >= 0);
+                 rl = rl->rrl_next;
+         }
+         if (rc)
+                 goto out;
+ 
+-        svcrdma_assert(buflen == 0);
++        C2_ASSERT(buflen == 0);
+         if (ctxt->index)
+                 rc = rdma_wait_for_completion(ctxt);
+         if (rc == 0)
+-                req->reads = rl;
++                req->rq_reads = rl;
+ 
+ out:
+         return rc;
+ }
+ 
+ /**
+- * rdma_write_chunks: Write chunks to reply stream.
++ * rdma_chunks_write: Write chunks to reply stream.
+  */
+-int rdma_write_chunks(struct rdma_reply *reply, char *buffer, int buflen)
++int rdma_chunks_write(struct rdma_reply *reply, char *buffer, int buflen)
+ {
+-        struct rdma_context *ctxt;
++        struct rdma_context  ctxt_static;
++        struct rdma_context *ctxt = &ctxt_static;
+         struct rdma_write_list *wl;
+         struct rdma_write_chunk *chunk;
+         struct rdma_segment *seg;
+@@ -1078,11 +1132,10 @@ int rdma_write_chunks(struct rdma_reply *reply, char *buffer, int buflen)
+         int start_index;
+         int rc = 0;
+ 
+-        ctxt = alloca(sizeof(*ctxt));
+-        rdma_context_init(ctxt, reply->xprt, rdma_completion_rw, (void*)reply);
++        rdma_context_init(ctxt, reply->rp_xprt, rdma_completion_rw, (void*)reply);
+ 
+-        wl = reply->writes;
+-        start_index = reply->writes_index;
++        wl = reply->rp_writes;
++        start_index = reply->rp_writes_index;
+         while (wl && buflen) {
+                 int i;
+ 
+@@ -1093,18 +1146,21 @@ int rdma_write_chunks(struct rdma_reply *reply, char *buffer, int buflen)
+                                 buflen = 0;
+                                 seg->rs_length = buflen;
+                         }
+-                        mr = do_rdma_post(ctxt, seg, buffer, IBV_WR_RDMA_WRITE);
+-                        if (mr == NULL) {
++                        rc = do_rdma_post(ctxt, seg, buffer, IBV_WR_RDMA_WRITE,
++                                          &mr);
++                        if (rc) {
+                                 int retry = !!ctxt->index;
++                                int rc2;
+ 
+-                                rc = rdma_wait_for_completion(ctxt);
+-                                if (rc) {
++                                rc2 = rdma_wait_for_completion(ctxt);
++                                if (rc2) {
+                                         svcrdma_errx("RDMA write failed");
+                                         break;
+                                 }
+-                                svcrdma_assert(c2_ref_read(&ctxt->ref) == 0);
++                                C2_ASSERT(!c2_atomic64_get(&ctxt->refcnt));
+ 
+-                                rc = -EAGAIN;
++                                /* XXX: check rc to see if need to retry */
++                                rc = EAGAIN;
+                                 if (!retry)
+                                         break;
+ 
+@@ -1115,7 +1171,7 @@ int rdma_write_chunks(struct rdma_reply *reply, char *buffer, int buflen)
+ 
+                         /* update rdma context */
+                         ctxt->mrs[ctxt->index] = mr;
+-                        c2_ref_get(&ctxt->ref);
++                        c2_atomic64_get(&ctxt->refcnt);
+                         ++ctxt->index;
+                         if (ctxt->index == ctxt->max_index - 1) {
+                                 rc = rdma_wait_for_completion(ctxt);
+@@ -1127,42 +1183,42 @@ int rdma_write_chunks(struct rdma_reply *reply, char *buffer, int buflen)
+ 
+                         buffer += seg->rs_length;
+                         buflen -= seg->rs_length;
+-                        svcrdma_assert(buflen >= 0);
++                        C2_ASSERT(buflen >= 0);
+                 }
+                 if (rc)
+                         break;
+ 
+                 if (!buflen) {
+                         if (i == chunk->rwc_nr_segs) {
+-                                reply->writes_index = 0;
++                                reply->rp_writes_index = 0;
+                                 wl = wl->rwl_next;
+                         } else {
+-                                reply->writes_index = i;
++                                reply->rp_writes_index = i;
+                         }
+                         break;
+                 }
+ 
+-                reply->writes_index = 0;
++                reply->rp_writes_index = 0;
+                 wl = wl->rwl_next;
+         }
+         if (rc)
+                 goto out;
+ 
+-        svcrdma_assert(buflen == 0);
++        C2_ASSERT(buflen == 0);
+         if (ctxt->index)
+                 rc = rdma_wait_for_completion(ctxt);
+         if (rc == 0)
+-                reply->writes = wl;
++                reply->rp_writes = wl;
+ 
+ out:
+         return rc;
+ }
+ 
+-static void rdma_fixup_write_chunks(struct rdma_reply *reply)
++static void rdma_write_chunks_fixup(struct rdma_reply *reply)
+ {
+         struct rdma_segment *seg;
+-        struct rdma_write_list *wl = reply->writes;
+-        int index = reply->writes_index;
++        struct rdma_write_list *wl = reply->rp_writes;
++        int index = reply->rp_writes_index;
+         int i;
+ 
+         while (wl) {
+@@ -1175,14 +1231,14 @@ static void rdma_fixup_write_chunks(struct rdma_reply *reply)
+         }
+ }
+ 
+-static int rdma_encode_reply(struct rdma_reply *reply)
++static int rdma_reply_encode(struct rdma_reply *reply)
+ {
+-        struct svcrdma_msg *msg = &reply->msg;
++        struct svcrdma_msg *msg = &reply->rp_msg;
+         int bufsize;
+         XDR xdrs;
+ 
+         memset(msg, 0, sizeof(*msg));
+-        msg->rdma_xid  = reply->xid;
++        msg->rdma_xid  = reply->rp_xid;
+         msg->rdma_vers = RDMA_VERS;
+         /* always 1 right now since we do not support async sunrpc request.
+          * Please notice that from rfc5666, if there is no outstanding request
+@@ -1190,13 +1246,13 @@ static int rdma_encode_reply(struct rdma_reply *reply)
+          * it from deadlocking. */
+         msg->rdma_credit = 1;
+ 
+-        if (reply->errcode != RDMA_OK) {
++        if (reply->rp_errcode != RDMA_OK) {
+                 /* encode a RDMA_ERROR message. */
+-                svcrdma_assert(reply->writes == NULL);
+-                svcrdma_assert(reply->reply == NULL);
++                C2_ASSERT(reply->rp_writes == NULL);
++                C2_ASSERT(reply->rp_reply == NULL);
+                 msg->rdma_body.rdma_proc = RDMA_ERROR;
+-                msg->rdma_body.u.rdma_error.errcode = reply->errcode;
+-                if (reply->errcode == RDMA_ERR_VERS) {
++                msg->rdma_body.u.rdma_error.errcode = reply->rp_errcode;
++                if (reply->rp_errcode == RDMA_ERR_VERS) {
+                         struct rdma_vers_error *err;
+                         err = &msg->rdma_body.u.rdma_error.u.rdma_vers;
+                         err->rdma_vers_low = RDMA_VERS;
+@@ -1205,7 +1261,7 @@ static int rdma_encode_reply(struct rdma_reply *reply)
+         } else {
+                 /* By rfc5666, the write chunks must have precise bytes it
+                    filled */
+-                rdma_fixup_write_chunks(reply);
++                rdma_write_chunks_fixup(reply);
+ 
+                 /* prepare to encode rdma chunks information */
+                 {
+@@ -1217,24 +1273,24 @@ static int rdma_encode_reply(struct rdma_reply *reply)
+                         msg->rdma_body.rdma_proc = RDMA_MSG;
+                         rdma_msg = &msg->rdma_body.u.rdma_msg;
+                         rdma_msg->rdma_reads = NULL;
+-                        rdma_msg->rdma_writes = reply->orig_writes;
++                        rdma_msg->rdma_writes = reply->rp_orig_writes;
+                         rdma_msg->rdma_reply = NULL;
+                 }
+         }
+ 
+-        bufsize = reply->xprt->rndzv->max_msg_size;
+-        xdrmem_create(&xdrs, reply->rdma_buf, bufsize, XDR_ENCODE);
++        bufsize = reply->rp_xprt->rx_rndzv->vx_mms;
++        xdrmem_create(&xdrs, reply->rp_rdma_buf, bufsize, XDR_ENCODE);
+         if (!xdr_svcrdma_msg(&xdrs, msg)) {
+                 /* impossible! the bufsize is not enough for even rdma
+                  * chunks - this is not my fault :-) */
+-                svcrdma_assert(0);
++                C2_ASSERT(0);
+         }
+-        reply->rdma_buflen = XDR_GETPOS(&xdrs);
++        reply->rp_rdma_buflen = XDR_GETPOS(&xdrs);
+ 
+-        if (reply->rdma_buflen + reply->rpc_buflen > bufsize) {
++        if (reply->rp_rdma_buflen + reply->rp_rpc_buflen > bufsize) {
+                 /* we need to fill in reply chunk and redo encoding. */
+                 /* TODO: fill in reply chunk */
+-                svcrdma_assert(0);
++                C2_ASSERT(0);
+         }
+ 
+         return 0;
+@@ -1242,37 +1298,37 @@ static int rdma_encode_reply(struct rdma_reply *reply)
+ 
+ static void rdma_reply_completion(struct rdma_context *ctxt, void *args)
+ {
+-        rdma_put_reply((struct rdma_reply *)args);
++        rdma_reply_put((struct rdma_reply *)args);
+         ctxt->index = 0;
+ }
+ 
+-static int rdma_send_reply(struct rdma_reply *reply)
++static int rdma_reply_send(struct rdma_reply *reply)
+ {
+-        struct rdma_context *ctxt;
++        struct rdma_context  ctxt_static;
++        struct rdma_context *ctxt = &ctxt_static;
+         struct ibv_sge       sge[2];
+         struct ibv_send_wr   wr;
+         struct ibv_send_wr  *badwr;
+         int nr_sges = 1;
+         int rc;
+ 
+-        rc = rdma_encode_reply(reply);
++        rc = rdma_reply_encode(reply);
+         if (rc)
+                 return rc;
+ 
+-        svcrdma_assert(reply->rdma_buflen != 0);
+-        sge[0].addr   = (uint64_t)reply->rdma_buf;
+-        sge[0].length = reply->rdma_buflen;
+-        sge[0].lkey   = reply->rdma_mr->lkey;
++        C2_ASSERT(reply->rp_rdma_buflen != 0);
++        sge[0].addr   = (uint64_t)reply->rp_rdma_buf;
++        sge[0].length = reply->rp_rdma_buflen;
++        sge[0].lkey   = reply->rp_rdma_mr->lkey;
+ 
+-        if (reply->rpc_buflen) {
+-                sge[1].addr   = (uint64_t)reply->rpc_buf;
+-                sge[1].length = reply->rpc_buflen;
+-                sge[1].lkey   = reply->rpc_mr->lkey;
++        if (reply->rp_rpc_buflen) {
++                sge[1].addr   = (uint64_t)reply->rp_rpc_buf;
++                sge[1].length = reply->rp_rpc_buflen;
++                sge[1].lkey   = reply->rp_rpc_mr->lkey;
+                 nr_sges++;
+         }
+ 
+-        ctxt = alloca(sizeof(*ctxt));
+-        rdma_context_init(ctxt, reply->xprt,
++        rdma_context_init(ctxt, reply->rp_xprt,
+                           rdma_reply_completion, (void*)reply);
+ 
+         wr.wr_id = (uint64_t)ctxt;
+@@ -1280,7 +1336,7 @@ static int rdma_send_reply(struct rdma_reply *reply)
+         wr.num_sge = nr_sges;
+         wr.opcode = IBV_WR_SEND;
+         wr.send_flags = IBV_SEND_SIGNALED;
+-        rc = ibv_post_send(reply->xprt->qp, &wr, &badwr);
++        rc = ibv_post_send(reply->rp_xprt->rx_qp, &wr, &badwr);
+         if (rc) {
+                 svcrdma_errx("post reply buffer error\n");
+                 return rc;
+@@ -1297,15 +1353,15 @@ bool_t xdr_rdma_chunks(XDR *xdrs, char *buffer, int buflen)
+ {
+         int rc;
+ 
+-        svcrdma_assert(xdrs->x_op == XDR_ENCODE || xdrs->x_op == XDR_DECODE);
++        C2_ASSERT(xdrs->x_op == XDR_ENCODE || xdrs->x_op == XDR_DECODE);
+         if (xdrs->x_op == XDR_DECODE) {
+                 struct rdma_request *req;
+                 req = (struct rdma_request *)xdrs->x_public;
+-                rc = rdma_read_chunks(req, buffer, buflen);
++                rc = rdma_chunks_read(req, buffer, buflen);
+         } else {
+                 struct rdma_reply *reply;
+                 reply = (struct rdma_reply *)xdrs->x_public;
+-                rc = rdma_write_chunks(reply, buffer, buflen);
++                rc = rdma_chunks_write(reply, buffer, buflen);
+         }
+ 
+         return rc == 0 ? TRUE : FALSE;
+diff --git a/net/usunrpc/rfc5666/svc_rdma.h b/net/usunrpc/rfc5666/svc_rdma.h
+index 2a43a6c..249451d 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.h
++++ b/net/usunrpc/rfc5666/svc_rdma.h
+@@ -20,7 +20,9 @@ struct svcrdma_config {
+           maximum buffer size of one request. Server should negotiate this
+           value with clients.
+          */
+-        int max_buf_size;
++        int max_msg_size;
++        int retry_count;
++        int rnr_retry_count;
+ };
+ 
+ /* external interfaces */
+diff --git a/net/usunrpc/rfc5666/svc_rdma_internal.h b/net/usunrpc/rfc5666/svc_rdma_internal.h
+index ddff91e..adc9a5b 100644
+--- a/net/usunrpc/rfc5666/svc_rdma_internal.h
++++ b/net/usunrpc/rfc5666/svc_rdma_internal.h
+@@ -121,7 +121,16 @@
+  */
+ 
+ /** RFC5666 has only version 1 supported. */
+-#define RDMA_VERS       1
++enum {
++        RDMA_VERS = 1
++};
++
++/** maximum sge in send_wr. The current maximum is 2 where an rdma buffer
++    and an rpc buffer are to be sent. */
++enum {
++        RDMA_MAX_SEND_SGE = 2,
++        RDMA_MAX_RECV_SGE = 1
++};
+ 
+ enum rdma_xprt_status {
+         RDMA_XPRT_INIT   = 0, /**< init state */
+@@ -139,20 +148,20 @@ enum rdma_xprt_status {
+   parameters and buffers. 
+  */
+ struct svcrndzv_xprt {
+-        SVCXPRT                    svcxprt;
+-        enum rdma_xprt_status      status;
++        SVCXPRT                    vx_svcxprt;
++        enum rdma_xprt_status      vx_status;
+ 
+         /**
+           rdma connection id the listener is listening on. cmid is similar
+           to a TCP socket in TCP/IP. rdma_listen and rdma_accept will take
+           it as an argument.
+          */
+-        struct rdma_cm_id         *cmid;
+-        struct rdma_event_channel *channel;
++        struct rdma_cm_id         *vx_cmid;
++        struct rdma_event_channel *vx_channel;
+ 
+         /** exports have been accepted. */
+-        struct c2_list             xprts;
+-        struct c2_mutex            xprts_lock;
++        struct c2_list             vx_xprts;
++        struct c2_mutex            vx_xprts_lock;
+ 
+         /**
+           Credits management.
+@@ -160,8 +169,8 @@ struct svcrndzv_xprt {
+           by hardware. Then, for connecting clients, we have to reserve
+           1 credit for each.
+          */
+-        int                       credits; /**< total avail credits */
+-        int                       clients; /**< # of living clients */
++        int                       vx_credits; /**< total avail credits */
++        int                       vx_clients; /**< # of living clients */
+ 
+         /**
+            rdma parameters which are assigned at initialization time.
+@@ -170,35 +179,40 @@ struct svcrndzv_xprt {
+            BTW, server has to negotiate some of these parameters with client.
+            The detailed process of negotiation is out of scope.
+         */
+-        int trans;              /**< transport type of rdma, RC, UC, etc */
+-        int port;               /**< port of ipoib, infiniband needs it to
+-                                     be addressed */
+-        int max_send_wr;        /**< how many paralleling sending(reply)
+-                                     requests */
+-        int max_recv_wr;        /**< how many requests can be received
+-                                     simultaneously. This value represents the
+-                                     capability of hardware, and should be
+-                                     distributed to each clients by credits. */
+-        int max_send_sge;       /**< maximum num of sges in a sending rqst */
+-        int max_recv_sge;       /**< maximum num of sges for a recv rqst */
+-        int rc_retry_cnt;
+-        int rc_rnr_retry_cnt;
+-        int max_msg_size;       /**< maximum size of each request & reply */
+-        int page_size;
+-        int rcv_wr_flags;
+-        int snd_wr_flags;
++        /** transport type of rdma, RC, UC, etc */
++        int vx_trans;
++        /** port of ipoib, infiniband needs it to be addressed */
++        int vx_port;
++        /** how many paralleling sending(reply) requests */
++        int vx_max_send_wr;
++        /**
++          How many requests can be received simultaneously.
++          This value represents the capability of hardware, and should be
++          distributed to each clients by credits.
++         */
++        int vx_max_recv_wr;
++        /** maximum num of sges in a sending rqst */
++        int vx_max_send_sge;
++        /** maximum num of sges for a recv rqst */
++        int vx_max_recv_sge;
++        int vx_retry_cnt;
++        int vx_rnr_retry_cnt;
++        int vx_mms;       /**< maximum size of each request & reply */
++        int vx_page_size;
++        int vx_rcv_wr_flags;
++        int vx_snd_wr_flags;
+ };
+ 
+ /**
+    A connection to a client.
+  */
+ struct svcrdma_xprt {
+-        struct c2_list_link   link;     /**< link list to listener */
+-        SVCXPRT               svcxprt;
+-        struct svcrndzv_xprt *rndzv;
+-        struct rdma_cm_id    *cmid;
+-        struct c2_mutex       bufs_mutex; /**< mutex to protect allocation
+-                                                   and free of bufs */
++        struct c2_list_link   rx_link;     /**< link list to listener */
++        SVCXPRT               rx_svcxprt;
++        struct svcrndzv_xprt *rx_rndzv;
++        struct rdma_cm_id    *rx_cmid;
++        struct c2_mutex       rx_lock; /**< mutex to protect allocation
++                                            and free of bufs */
+ 
+         /**
+            queue pair information.
+@@ -208,16 +222,16 @@ struct svcrdma_xprt {
+           each connection has an independent pair queue and completion
+           channel which will be notified if there is new events coming.
+          */
+-        struct ibv_comp_channel *channel;
+-        struct ibv_pd           *pd;
+-        struct ibv_cq           *cq;
+-        struct ibv_qp           *qp;
++        struct ibv_comp_channel *rx_channel;
++        struct ibv_pd           *rx_pd;
++        struct ibv_cq           *rx_cq;
++        struct ibv_qp           *rx_qp;
+ 
+         /**
+           Preallocated buffers used by this xprt.
+          */
+-        struct rdma_request      *rcv_bufs;
+-        struct rdma_reply        *snd_bufs;
++        struct rdma_request      *rx_rcv_bufs;
++        struct rdma_reply        *rx_snd_bufs;
+ 
+         /**
+           the following information records the requests and replies this
+@@ -227,107 +241,68 @@ struct svcrdma_xprt {
+           XXX: this is a workaround for single-thread sunrpc since we have
+           no way to get the current request from SVCXPRT
+          */
+-        struct rdma_request     *curreq;
++        struct rdma_request     *rx_curreq;
+         /**
+           requests which are being processed, prepared for future use
+          */
+-        struct c2_list           requests;
++        struct c2_list           rx_reqs;
+         /**
+           Pending replies for this export.
+           We need to track replies because of async attribute of RDMA
+          */
+-        struct c2_list           replies;
++        struct c2_list           rx_replies;
+ 
+         /**
+           credits management
+          */
+-        int                      credits;   /**< credits occupied */
+-        int                      cred_used; /**< credits being used */
++        int                      rx_credits;   /**< credits occupied */
++        int                      rx_cred_used; /**< credits being used */
+ 
+         /** attribute of this xprt */
+-        enum rdma_xprt_status    status;
+-};
+-
+-/**
+-  rdma_reply describes a reply message of request.
+- */
+-struct rdma_reply {
+-        struct rdma_reply    *next; /**< global linked list */
+-        struct svcrdma_xprt  *xprt;
+-
+-        struct c2_list_link   link; /**< replies belonging to the same xprt. */
+-
+-        uint32_t              xid;  /* rpc/rdma xid, for ease to compose reply */
+-        enum rdma_errcode     errcode;
+-
+-        /**
+-          Information to encode the reply message
+-         */
+-        struct svcrdma_msg       msg;    /**< reply encode message */
+-        struct rdma_write_list  *orig_writes;
+-        struct rdma_write_list  *writes; /**< write chunks, copied from rqst */
+-        struct rdma_write_chunk *reply;  /**< reply chunks */
+-        int                      writes_index;
+-        XDR                      xdrs;   /**< used for encoding message */
+-
+-        /**
+-          Preallocated buffers for reply message.
+-          Reply messages are a bit more complex than request, because for ease to
+-          to implement, reply message is composed of independent two parts:
+-          rdma header and rpc message. We do not know the exact rdma header length
+-          before rpc message is composed.
+-         */
+-        void              *rdma_buf;    /**< buffer to store rdma header */
+-        void              *rpc_buf;     /**< buffer to store rpc message */
+-        int                rdma_buflen; /**< rdma header for the reply msg */
+-        int                rpc_buflen;  /**< rpc message buffer */
+-        struct ibv_mr     *rdma_mr;     /**< memory region for rdma buffer */
+-        struct ibv_mr     *rpc_mr;      /**< memory region for rpc msg */
+-        struct ibv_send_wr wr;
+-        void              *buffer;      /**< preallocated buffer, bufsize
+-                                             is 2*max_msg_size */
++        enum rdma_xprt_status    rx_status;
+ };
+ 
+ /**
+   rdma_request: describe a request from client side.
+  */
++struct rdma_reply;
+ struct rdma_request {
+-        struct svcrdma_xprt  *xprt;
+-        struct rdma_reply    *reply;
++        struct svcrdma_xprt  *rq_xprt;
++        struct rdma_reply    *rq_reply;
+ 
+         /**
+           Active repquests belong to this export.
+           Sunrpc works sync right now, but we maintain requests assuming that
+           multiple requests are handled simultaneously.
+          */
+-        struct c2_list_link   link;
++        struct c2_list_link   rq_link;
+ 
+         /**
+           RDMA decoding information
+          */
+-        struct svcrdma_msg    msg;
++        struct svcrdma_msg    rq_msg;
+         /**
+           rpcbuf_base points to the start address of rpc message.
+           It may point to the buffer in svcrdma_msg, or an external buffer, if
+           the rpcmsg was transferred via read chunk.
+          */
+-        void                 *rpcbuf_base;
+-        int                   rpcbuf_len;
++        void                 *rq_rpcbuf_base;
++        int                   rq_rpcbuf_len;
+ 
+         /**
+           Read chunks start offset and total chunks' length in the XDR stream
+          */
+-        int                   chunk_start;
+-        int                   chunk_len;
++        int                   rq_chunk_start;
++        int                   rq_chunk_len;
+ 
+-        XDR                   xdrs;
++        XDR                   rq_xdrs;
+ 
+         /**
+           Helper information. After the XDR message has been decoded, these
+           pointers will be assigned to the lists in svcrdma_msg.
+          */
+-        struct rdma_read_list   *reads;
+-        struct rdma_write_list  *writes;
++        struct rdma_read_list   *rq_reads;
++        struct rdma_write_list  *rq_writes;
+ 
+         /**
+           For each request, the rpcbuf is preregistered and the length of the
+@@ -335,14 +310,60 @@ struct rdma_request {
+           The follow fileds are preallocated buffer and related information
+           to register buffer to rdma engine.
+          */
+-        void                 *buffer;
+-        struct ibv_mr        *mr;
+-        struct ibv_recv_wr    wr;
+-        struct ibv_sge        sge;
++        void                 *rq_buffer;
++        struct ibv_mr        *rq_mr;
++        struct ibv_recv_wr    rq_wr;
++        struct ibv_sge        rq_sge;
++};
++
++/**
++  rdma_reply describes a reply message of request.
++ */
++struct rdma_reply {
++        struct rdma_reply    *rp_next; /**< global linked list */
++        struct svcrdma_xprt  *rp_xprt;
++        struct rdma_request  *rp_request;
++
++        /** replies belonging to the same xprt. */
++        struct c2_list_link   rp_link;
++
++        /** rpc/rdma xid, for ease to compose reply */
++        uint32_t              rp_xid;
++        enum rdma_errcode     rp_errcode;
++
++        /**
++          Information to encode the reply message
++         */
++        struct svcrdma_msg       rp_msg;    /**< reply encode message */
++        struct rdma_write_list  *rp_orig_writes;
++        /** write chunks, copied from rqst */
++        struct rdma_write_list  *rp_writes;
++        struct rdma_write_chunk *rp_reply;  /**< reply chunks */
++        int                      rp_writes_index;
++        XDR                      rp_xdrs;   /**< used for encoding message */
++
++        /**
++          Preallocated buffers for reply message.
++          Reply messages are a bit more complex than request, because for ease
++          to implement, reply message is composed of independent two parts:
++          rdma header and rpc message. We do not know the exact rdma header
++          length before rpc message is composed.
++         */
++        void              *rp_rdma_buf;    /**< buffer to store rdma header */
++        int                rp_rdma_buflen; /**< rdma header for the reply msg */
++        struct ibv_mr     *rp_rdma_mr;     /**< memory region for rdma buffer */
++        void              *rp_rpc_buf;     /**< buffer to store rpc message */
++        int                rp_rpc_buflen;  /**< rpc message buffer */
++        struct ibv_mr     *rp_rpc_mr;      /**< memory region for rpc msg */
++        struct ibv_send_wr rp_wr;
++        void              *rp_buffer;      /**< preallocated buffer, bufsize
++                                                is 2*max_msg_size */
+ };
+ 
+ /* context to track rdma read and write */
+-#define CTXT_MAX_MRS    256
++enum {
++        CTXT_MAX_MRS = 256
++};
+ 
+ /**
+   Data structure handles async completion event for rdma write/send.
+@@ -351,7 +372,7 @@ struct rdma_request {
+   in this way, it's easy to cleanup things after an rdma write/send finishes.
+  */
+ struct rdma_context {
+-        struct c2_ref        ref;
++        struct c2_atomic64   refcnt;
+         void               (*completion)(struct rdma_context *, void *);
+         void                *ctx;
+         struct svcrdma_xprt *xprt;
+@@ -363,7 +384,6 @@ struct rdma_context {
+ 
+ #include <err.h>
+ #define svcrdma_errx(fmt, args...)      errx(1, fmt, ##args)
+-#define svcrdma_assert(expr)            C2_ASSERT(expr)
+ 
+ /** @} end group svcrdma */
+ 
+-- 
+1.8.3.2
+

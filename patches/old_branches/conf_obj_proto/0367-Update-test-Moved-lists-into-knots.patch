@@ -1,0 +1,478 @@
+From 36823b8cc6e2143f27e3969798ef56b1d1f5eac0 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Sat, 15 Sep 2012 16:44:25 +0300
+Subject: [PATCH 367/370] Update test, Moved lists into knots.
+
+---
+ conf/Makefile.am  |   2 +-
+ conf/knot.c       | 124 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/knot.h       |  47 +++++++++++++++++++++
+ conf/list.c       |  77 ---------------------------------
+ conf/list.h       |  26 ------------
+ conf/ut/oddlist.c | 119 +++++++++++++++++++++++++++++++++++++++++++++++----
+ 6 files changed, 283 insertions(+), 112 deletions(-)
+ create mode 100644 conf/knot.c
+ create mode 100644 conf/knot.h
+ delete mode 100644 conf/list.c
+ delete mode 100644 conf/list.h
+
+diff --git a/conf/Makefile.am b/conf/Makefile.am
+index 4a8e4a7..b8a9311 100644
+--- a/conf/Makefile.am
++++ b/conf/Makefile.am
+@@ -7,7 +7,7 @@ _OBJS_SRC = objs/common.h objs/common.c objs/dir.c objs/profile.c   \
+ noinst_LTLIBRARIES = libcolibri-conf.la
+ libcolibri_conf_la_SOURCES = obj.h obj.c reg.h reg.c obj_ops.h obj_ops.c \
+                              onwire.h preload.h preload.c $(_OBJS_SRC) \
+-                             link.h link.c list.c list.h
++                             link.h link.c knot.c knot.h
+ 
+ INCLUDES = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include \
+            -iquote /usr/include
+diff --git a/conf/knot.c b/conf/knot.c
+new file mode 100644
+index 0000000..ae477f7
+--- /dev/null
++++ b/conf/knot.c
+@@ -0,0 +1,124 @@
++
++#include "conf/knot.h"
++#include "lib/errno.h"
++#include "lib/memory.h"
++
++/* ----------------------------------------------------------------------
++			      knot_list implementation:
++   ---------------------------------------------------------------------- */
++
++struct c2_knot_list_item {
++	struct c2_list_link  oli_link;
++	struct c2_knot      *oli_data;
++};
++
++void c2_knot_list_init(struct c2_knot_list *list)
++{
++	c2_list_init(&list->ol_list);
++}
++
++void c2_knot_list_fini(struct c2_knot_list *list)
++{
++	c2_list_fini(&list->ol_list);
++}
++
++int  c2_knot_list_add(struct c2_knot_list *list, struct c2_knot *data)
++{
++	struct c2_knot_list_item *item;
++
++	C2_ALLOC_PTR(item);
++	if (item == NULL)
++		return -ENOMEM;
++
++	item->oli_data = data;
++	c2_list_link_init(&item->oli_link);
++
++	c2_list_add_tail(&list->ol_list, &item->oli_link);
++
++	return 0;
++}
++
++void c2_knot_list_del(struct c2_knot_list *li, struct c2_knot *data)
++{
++	struct c2_knot_list_item *item;
++	struct c2_list_link     *pos;
++	struct c2_list          *list = &li->ol_list;
++
++	c2_list_for_each(list, pos) {
++		item = c2_list_entry(pos, struct c2_knot_list_item, oli_link);
++		if (item->oli_data == data) {
++			c2_list_del(&item->oli_link);
++			c2_list_link_fini(&item->oli_link);
++			c2_free(item);
++			return;
++		}
++	}
++
++	C2_IMPOSSIBLE("No item with given data found!");
++}
++
++size_t c2_knot_list_length(struct c2_knot_list *list)
++{
++	return c2_list_length(&list->ol_list);
++}
++
++struct c2_knot *c2_knot_list_entry(struct c2_knot_list *li, size_t n)
++{
++	struct c2_knot_list_item *item;
++	struct c2_list_link      *pos;
++	struct c2_list           *list = &li->ol_list;
++	size_t			  i = 0;
++
++	c2_list_for_each(list, pos) {
++		item = c2_list_entry(pos, struct c2_knot_list_item, oli_link);
++		if (n == i)
++			return item->oli_data;
++
++		i++;
++	}
++
++	return NULL;
++}
++
++/* ----------------------------------------------------------------------
++			      knot implementation:
++   ---------------------------------------------------------------------- */
++
++int  c2_knot_link  (struct c2_knot *this, struct c2_knot *what)
++{
++	int rc;
++
++	rc = c2_knot_list_add(&this->k_children, what);
++	if (rc != 0)
++		return rc;
++
++	what->k_parent = this;
++
++	return 0;
++}
++
++void c2_knot_unlink(struct c2_knot *this, struct c2_knot *what)
++{
++	c2_knot_list_del(&this->k_children, what);
++	what->k_parent = NULL;
++}
++
++struct c2_knot *c2_knot_child(struct c2_knot *this, size_t child)
++{
++	return c2_knot_list_entry(&this->k_children, child);
++}
++
++struct c2_knot *c2_knot_parent(struct c2_knot *this)
++{
++	return this->k_parent;
++}
++
++void c2_knot_init(struct c2_knot *this)
++{
++	c2_knot_list_init(&this->k_children);
++}
++
++void c2_knot_fini(struct c2_knot *this)
++{
++	c2_knot_list_fini(&this->k_children);
++}
+diff --git a/conf/knot.h b/conf/knot.h
+new file mode 100644
+index 0000000..84399ff
+--- /dev/null
++++ b/conf/knot.h
+@@ -0,0 +1,47 @@
++#pragma once
++#ifndef __COLIBRI_KNOT_H__
++#define __COLIBRI_KNOT_H__
++
++#include "lib/list.h"
++
++struct c2_knot_list {
++	struct c2_list ol_list;
++};
++
++/* ----------------------------------------------------------------------
++			      knot interfaces:
++   ---------------------------------------------------------------------- */
++struct c2_knot_whoami {
++	const char *name;
++	int	    id;
++};
++
++struct c2_knot {
++	struct c2_knot       *k_parent;
++	struct c2_knot_list   k_children;
++	struct c2_knot_whoami k_who;
++};
++
++void c2_knot_init(struct c2_knot *this);
++void c2_knot_fini(struct c2_knot *this);
++
++int  c2_knot_link  (struct c2_knot *this, struct c2_knot *what);
++void c2_knot_unlink(struct c2_knot *this, struct c2_knot *what);
++
++struct c2_knot *c2_knot_child(struct c2_knot *this, size_t child);
++struct c2_knot *c2_knot_parent(struct c2_knot *this);
++
++/* ----------------------------------------------------------------------
++			    knot_list interfaces:
++   ---------------------------------------------------------------------- */
++void c2_knot_list_init(struct c2_knot_list *list);
++void c2_knot_list_fini(struct c2_knot_list *list);
++
++int  c2_knot_list_add(struct c2_knot_list *list, struct c2_knot *data);
++void c2_knot_list_del(struct c2_knot_list *list, struct c2_knot *data);
++
++size_t c2_knot_list_length(struct c2_knot_list *list);
++struct c2_knot *c2_knot_list_entry(struct c2_knot_list *list, size_t n);
++
++
++#endif /* __COLIBRI_KNOT_H__  */
+diff --git a/conf/list.c b/conf/list.c
+deleted file mode 100644
+index 612bbcd..0000000
+--- a/conf/list.c
++++ /dev/null
+@@ -1,77 +0,0 @@
+-
+-#include "conf/list.h"
+-#include "lib/errno.h"
+-#include "lib/memory.h"
+-
+-struct c2_knot_list_item {
+-	struct c2_list_link  oli_link;
+-	struct c2_knot      *oli_data;
+-};
+-
+-void c2_knot_list_init(struct c2_knot_list *list)
+-{
+-	c2_list_init(&list->ol_list);
+-}
+-
+-void c2_knot_list_fini(struct c2_knot_list *list)
+-{
+-	c2_list_fini(&list->ol_list);
+-}
+-
+-int  c2_knot_list_add(struct c2_knot_list *list, struct c2_knot *data)
+-{
+-	struct c2_knot_list_item *item;
+-
+-	C2_ALLOC_PTR(item);
+-	if (item == NULL)
+-		return -ENOMEM;
+-
+-	item->oli_data = data;
+-	c2_list_link_init(&item->oli_link);
+-
+-	c2_list_add_tail(&list->ol_list, &item->oli_link);
+-
+-	return 0;
+-}
+-
+-void c2_knot_list_del(struct c2_knot_list *li, struct c2_knot *data)
+-{
+-	struct c2_knot_list_item *item;
+-	struct c2_list_link     *pos;
+-	struct c2_list          *list = &li->ol_list;
+-
+-	c2_list_for_each(list, pos) {
+-		item = c2_list_entry(pos, struct c2_knot_list_item, oli_link);
+-		if (item->oli_data == data) {
+-			c2_list_del(&item->oli_link);
+-			c2_list_link_fini(&item->oli_link);
+-			c2_free(item);
+-			return;
+-		}
+-	}
+-
+-	C2_IMPOSSIBLE("No item with given data found!");
+-}
+-
+-size_t c2_knot_list_length(struct c2_knot_list *list)
+-{
+-	return c2_list_length(&list->ol_list);
+-}
+-
+-struct c2_knot *c2_knot_list_entry(struct c2_knot_list *li, size_t n)
+-{
+-	struct c2_knot_list_item *item;
+-	struct c2_list_link      *pos;
+-	struct c2_list           *list = &li->ol_list;
+-	size_t			  i = 0;
+-
+-	c2_list_for_each(list, pos) {
+-		item = c2_list_entry(pos, struct c2_knot_list_item, oli_link);
+-		if (n == i)
+-			return item->oli_data;
+-
+-		i++;
+-	}
+-
+-	return NULL;
+-}
+diff --git a/conf/list.h b/conf/list.h
+deleted file mode 100644
+index 28497d8..0000000
+--- a/conf/list.h
++++ /dev/null
+@@ -1,26 +0,0 @@
+-#pragma once
+-#ifndef __COLIBRI_KNOT_LIST_H__
+-#define __COLIBRI_KNOT_LIST_H__
+-
+-#include "lib/list.h"
+-
+-struct c2_knot_list {
+-	struct c2_list ol_list;
+-};
+-
+-struct c2_knot {
+-	struct c2_knot      *k_parent;
+-	struct c2_knot_list  k_children;
+-};
+-
+-void c2_knot_list_init(struct c2_knot_list *list);
+-void c2_knot_list_fini(struct c2_knot_list *list);
+-
+-int  c2_knot_list_add(struct c2_knot_list *list, struct c2_knot *data);
+-void c2_knot_list_del(struct c2_knot_list *list, struct c2_knot *data);
+-
+-size_t c2_knot_list_length(struct c2_knot_list *list);
+-struct c2_knot *c2_knot_list_entry(struct c2_knot_list *list, size_t n);
+-
+-
+-#endif /* __COLIBRI_KNOT_LIST_H__  */
+diff --git a/conf/ut/oddlist.c b/conf/ut/oddlist.c
+index e1d77cc..fd12728 100644
+--- a/conf/ut/oddlist.c
++++ b/conf/ut/oddlist.c
+@@ -1,15 +1,15 @@
+-#include "conf/list.h"
++#include "conf/knot.h"
+ #include <stdio.h>
+ 
+ 
+-struct c2_knot {
+-	int i;
+-};
+-
+-int main(void)
++void knot_test(void)
+ {
+ 	struct c2_knot_list list;
+-	struct c2_knot data[] = { {0}, {1}, {2}, {3}, {4} };
++	struct c2_knot data[] = { { .k_who = {"",10} },
++				  { .k_who = {"",21} },
++				  { .k_who = {"",32} },
++				  { .k_who = {"",43} },
++				  { .k_who = {"",54} }};
+ 	int i;
+ 
+ 	c2_knot_list_init(&list);
+@@ -21,7 +21,7 @@ int main(void)
+ 	printf("len: %lu\n", c2_knot_list_length(&list));
+ 
+ 	for (i = 0; i < ARRAY_SIZE(data); ++i)
+-		printf("[%d]: %d\n", i, c2_knot_list_entry(&list, i)->i);
++		printf("[%d]: %d\n", i, c2_knot_list_entry(&list, i)->k_who.id);
+ 
+ 	printf("NULL: %p\n", c2_knot_list_entry(&list, 100));
+ 
+@@ -30,6 +30,109 @@ int main(void)
+ 
+ 
+ 	c2_knot_list_fini(&list);
++}
++
++enum types {
++	BIOS,
++	MEM,
++	CPU,
++	CACHE,
++	REG,
++	MB
++};
++
++void knot_struct_test()
++{
++/*
++        mb0
++         |
++   +-----+------+-------+----------------------+
++   |     |      |       |                      |
++ bios0  mem0   mem1    cpu0-------+-----------cpu1
++                        |         |            |
++                      +-+-+       |          +-+-+
++                      |   |       |          |   |
++                    reg0 reg1     |        reg0 reg1
++                               +--+--+
++                               |     |
++                           cache0  cache1
++ */
++
++	struct c2_knot r20 = { .k_who = { "cache0", CACHE } };
++	struct c2_knot r21 = { .k_who = { "cache1", CACHE } };
++	struct c2_knot r22 = { .k_who = { "reg0"  , REG   } };
++	struct c2_knot r23 = { .k_who = { "reg1"  , REG   } };
++	struct c2_knot r24 = { .k_who = { "reg2"  , REG   } };
++	struct c2_knot r25 = { .k_who = { "reg3"  , REG   } };
++
++	struct c2_knot r13 = { .k_who = { "bios0" , BIOS  } };
++	struct c2_knot r12 = { .k_who = { "mem0"  , MEM   } };
++	struct c2_knot r11 = { .k_who = { "mem1"  , MEM   } };
++	struct c2_knot r10 = { .k_who = { "cpu0"  , CPU   } };
++
++	struct c2_knot r00 = { .k_who = { "mb0"   , MB    } };
++
++	int rc;
++
++	c2_knot_init(&r20);
++	c2_knot_init(&r21);
++	c2_knot_init(&r22);
++	c2_knot_init(&r23);
++	c2_knot_init(&r24);
++	c2_knot_init(&r25);
++	c2_knot_init(&r13);
++	c2_knot_init(&r12);
++	c2_knot_init(&r11);
++	c2_knot_init(&r10);
++	c2_knot_init(&r00);
++
++
++	rc = c2_knot_link(&r00, &r10);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r00, &r11);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r00, &r12);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r00, &r13);  C2_ASSERT(rc == 0);
++
++	rc = c2_knot_link(&r10, &r20);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r10, &r21);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r10, &r22);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r10, &r23);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r10, &r24);  C2_ASSERT(rc == 0);
++	rc = c2_knot_link(&r10, &r25);  C2_ASSERT(rc == 0);
++
++
++
++	c2_knot_unlink(&r10, &r20);
++	c2_knot_unlink(&r10, &r21);
++	c2_knot_unlink(&r10, &r22);
++	c2_knot_unlink(&r10, &r23);
++	c2_knot_unlink(&r10, &r24);
++	c2_knot_unlink(&r10, &r25);
++
++	c2_knot_unlink(&r00, &r10);
++	c2_knot_unlink(&r00, &r11);
++	c2_knot_unlink(&r00, &r12);
++	c2_knot_unlink(&r00, &r13);
++
++
++	c2_knot_fini(&r20);
++	c2_knot_fini(&r21);
++	c2_knot_fini(&r22);
++	c2_knot_fini(&r23);
++	c2_knot_fini(&r24);
++	c2_knot_fini(&r25);
++	c2_knot_fini(&r13);
++	c2_knot_fini(&r12);
++	c2_knot_fini(&r11);
++	c2_knot_fini(&r10);
++	c2_knot_fini(&r00);
++
++}
++
++
++int main(void)
++{
++	knot_test();
++	knot_struct_test();
+ 
+ 	return 0;
+ }
+-- 
+1.8.3.2
+

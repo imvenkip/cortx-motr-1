@@ -1,0 +1,265 @@
+From 23b5a66d51b2aa5d8a8c92bdaa34ba44bfa57cea Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 27 Jun 2013 15:46:57 +0530
+Subject: [PATCH 024/107] - Stats service DLD   - some fixes to logical specs  
+ - doxygen style issues
+
+---
+ addb/stats_srv.c | 71 ++++++++++++++++++++++++++++++++++----------------------
+ addb/stats_srv.h | 58 +++++++++++++++++++++++++--------------------
+ 2 files changed, 76 insertions(+), 53 deletions(-)
+
+diff --git a/addb/stats_srv.c b/addb/stats_srv.c
+index 50ede51..70a22dd 100644
+--- a/addb/stats_srv.c
++++ b/addb/stats_srv.c
+@@ -24,8 +24,9 @@
+    - @ref DLD-stats-svc-ovw
+    - @ref DLD-stats-svc-def
+    - @ref DLD-stats-svc-req
+-   - @ref DLD-stats-svc-fspecs
++   - @subpage DLD-stats-svc-fspecs
+    - @ref DLD-stats-svc-lspecs
++      - @ref DLD-stats-svc-lspecs-stats_list
+       - @ref DLD-stats-svc-lspec-state
+       - @ref DLD-stats-svc-lspec-thread
+       - @ref DLD-stats-svc-lspec-service-registration
+@@ -40,7 +41,7 @@
+ 
+    <hr>
+    @section DLD-stats-svc-ovw Overview
+-   This design relates to stats service. Stats service provides the follwoing
++   This design related to stats service. Stats service provides the follwoing
+    functionality:
+    - Updates of in-memory stats objects on requests from mero nodes
+    - Provides stats information from in-memroy stats objects to cluster
+@@ -52,32 +53,41 @@
+      update/query requests.
+    - <b>Stats Object</b> Stats in-memory object which represents a statitics
+      matrix.
+-   - <b>Stats Update<b> Stats update request which updates Stats object values.
+-   - <b>Stats Query<b> Stats query request which returns latest updated
++   - <b>Stats Update</b> Stats update request which updates Stats object values.
++   - <b>Stats Query</b> Stats query request which returns latest updated
+      stats objects values.
+ 
+    <hr>
+    @section DLD-stats-svc-req Requirements
+-   - <b>r.stats-service.in-memory-objects</b> Maintains in-memory statistic
++   - <b>r.stats_service.in_memory_objects</b> Maintains in-memory statistic
+      objects up to date from stats update got from mero nodes.
+-   - <b>r.stats-service.update</b> It updates Stats Objects values.
+-   - <b>r.stats-service.query</b> It returns Stats Object values to mero
++   - <b>r.stats_service.update</b> It updates Stats Objects values.
++   - <b>r.stats_service.query</b> It returns Stats Object values to mero
+       monitoring console, utilities etc.
+ 
+    <hr>
+    @section DLD-stats-svc-lspecs Logical Specification
+-   @subsection DLD-stats-svc-lspec-state State Transitions
+ 
++   @subsection DLD-stats-svc-lspecs-stats_list Stats Object List
++   In memory stats object list does not contains any object initially. When the
++   first update request comes for respective stats, stats update FOM creates it
++   update it's stats values. If stats object already allocated stats update FOM
++   update respective object direcly.
++
++   @subsection DLD-stats-svc-lspec-state State Transitions
+    State diagram for stats_update FOM:
+    @dot
+    digraph {
+ 	size = "5,10"
+ 	node [shape=record, fontsize=10]
+ 	S0 [label="Init Update FOM"]
+-	S1 [label="Update Stats object"]
+-	S2 [label="Finliase FOM"]
++        S1 [label="Create stats object"]
++	S2 [label="Update Stats object"]
++	S3 [label="Finliase FOM"]
+ 	S0 -> S1 [label="FOM initialised"]
+-	S1 -> S2 [label="Stats object updated]
++	S0 -> S2 [label="Stats object found"]
++	S1 -> S2 [label="Stats object created"]
++	S2 -> S3 [label="Stats object updated"]
+    }
+    @enddot
+ 
+@@ -95,36 +105,36 @@
+    @enddot
+ 
+    @subsection DLD-stats-svc-lspec-thread Threading and Concurrency Model
+-   - Since stats service runs by request handler and all stats service FOMs
+-     locality is same, all the stats services requests (updates/query) executes
+-     by same thread. All stats service operation executes serially.
++   Since stats service runs by request handler and all stats service FOMs
++   locality is same, all the stats services requests (updates/query) executes
++   by same thread. All stats service operation executes serially.
+ 
+    @subsection DLD-stats-svc-lspec-service-registration Service Registration
+-   - Stats service type defination :
++   Stats service type defination :
+ 
+    M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
+                             M0_STATS_SVC_NAME, &m0_addb_ct_stats_service);
+ 
+-   - Stats service type registration/unregistration :
++   Stats service type registration/unregistration :
+ 
+    Stats service registers/unregistrs its service type with request handler
+-   using interfaces m0_stats_svc_register()/m0_stats_svc_unregister() during
+-   Mero system initialization and finalization (m0_init()/m0_fini()).
++   using interfaces m0_stats_svc_register()/ m0_stats_svc_unregister() during
++   Mero system initialization and finalization (m0_init()/ m0_fini()).
+ 
+    @subsection DLD-stats-svc-lspec-numa NUMA optimizations
+    Update FOM and query FOM puts in same locality thread.
+ 
+    @subsection DLD-stats-svc-lspec-depends Dependencies
+-   - <b> r.reqh<b> : Request handler to execute stats service FOMs.
+-   - <b> r.addb<b> : ADDB subsystem is the dependancy for stats service since
++   - <b>r.reqh</b> : Request handler to execute stats service FOMs.
++   - <b>r.addb</b> : ADDB subsystem is the dependancy for stats service since
+      these stats object are in the form of ADDB records. And ADDB subsystem
+      required to recognise that objects.
+ 
+    @subsection DLD-stats-svc-lspec-conformance Conformance
+-   - <b>i.stats-service.in-memory-objects</b> It implements list of ADDB records
++   - <b>i.stats_service.in_memory_objects</b> It implements list of ADDB records
+      to keep stats run time.
+-   - <b>i.stats-service.update</b> It implements stats_update FOM.
+-   - <b>i.stats-service.query</b> It implements stats_query FOM.
++   - <b>i.stats_service.update</b> It implements stats_update FOM.
++   - <b>i.stats_service.query</b> It implements stats_query FOM.
+ 
+    <hr>
+    @section DLD-stats-svc-ut Unit Tests
+@@ -172,7 +182,12 @@ static const struct m0_bob_type stats_svc_bob = {
+ 
+ M0_BOB_DEFINE(static, &stats_svc_bob, stats_svc);
+ 
+-/* List of statistic objects. */
++/**
++ * List of statistic objects.
++ * Initially this list not contains any stats. As stats_update request recieved
++ * stats_update FOM creates new entry for respetive stats otherwise update
++ * existing stats object.
++ */
+ static struct m0_tl stats_list;
+ 
+ /*
+@@ -289,7 +304,7 @@ static void stats_update_fom_fini(struct m0_fom *fom)
+ /**
+  * Get stats update FOM locality.
+  */
+-static size_t stats_update_fom_locality(const struct m0_fom *fom)
++static size_t stats_update_fom_home_locality(const struct m0_fom *fom)
+ {
+ 	return 1; /* all stats update FOM run in same locality */
+ }
+@@ -307,7 +322,7 @@ static void stats_update_fom_addb_init(struct m0_fom     *fom,
+  */
+ static const struct m0_fom_ops stats_update_fom_ops = {
+ 	.fo_tick          = stats_update_fom_tick,
+-	.fo_home_locality = stats_update_fom_locality,
++	.fo_home_locality = stats_update_fom_home_locality,
+ 	.fo_addb_init     = stats_update_fom_addb_init,
+ 	.fo_fini          = stats_update_fom_fini
+ };
+@@ -356,7 +371,7 @@ static void stats_query_fom_fini(struct m0_fom *fom)
+ /**
+  * Get stats query FOM locality.
+  */
+-static size_t stats_query_fom_locality(const struct m0_fom *fom)
++static size_t stats_query_fom_home_locality(const struct m0_fom *fom)
+ {
+ 	return 1; /* all stats query FOM run in same locality */
+ }
+@@ -374,7 +389,7 @@ static void stats_query_fom_addb_init(struct m0_fom     *fom,
+  */
+ static const struct m0_fom_ops stats_query_fom_ops = {
+ 	.fo_tick          = stats_query_fom_tick,
+-	.fo_home_locality = stats_query_fom_locality,
++	.fo_home_locality = stats_query_fom_home_locality,
+ 	.fo_addb_init     = stats_query_fom_addb_init,
+ 	.fo_fini          = stats_query_fom_fini
+ };
+diff --git a/addb/stats_srv.h b/addb/stats_srv.h
+index 08c56dd..c516eb6 100644
+--- a/addb/stats_srv.h
++++ b/addb/stats_srv.h
+@@ -28,39 +28,47 @@
+ #include "reqh/reqh_service.h"
+ 
+ /**
+-   @defgtoup stats_svc Stats Service Internal Interfaces
+-   @{
++   @page DLD-stats-svc-fspecs Functional Specification
+ 
+-   @section DLD-stats-svc-fspecs Functioanl Specification
+-   @subsection DLD-stats-svc-fspecs-ds
++   - @ref DLD-stats-svc-fspecs-ds
++   - @ref DLD-stats-svc-fspecs-int-if
++   - @ref DLD-stats-svc-fspecs-ext-if
++
++   <hr>
++   @section DLD-stats-svc-fspecs-ds Data Structures
+    - m0_mon_stats
+    - stats_svc
++   - stats_list
+    - stats_update_fom
+    - stats_query_fom
+ 
+-   @subsection DLD-stats-svc-fspecs-int-if
+-   - stats_svc_rso_start
+-   - stats_svc_rso_stop
+-   - stats_svc_rso_fini
+-   - stats_svc_rsto_service_allocate
+-
+-   - stats_update_fom_create
+-   - stats_update_fom_tick
+-   - stats_update_fom_home_locality
+-   - stats_update_fom_addb_init
+-   - stats_update_fom_fini
+-
+-   - stats_query_fom_create
+-   - stats_query_fom_tick
+-   - stats_query_fom_home_locality
+-   - stats_query_fom_addb_init
+-   - stats_query_fom_fini
+-
+-   @subsection DLD-stats-svc-fspecs-ext-if
+-   - m0_stats_svc_register,
+-   - m0_stats_svc_unregister
++   @section DLD-stats-svc-fspecs-int-if Internal Interfaces
++   - stats_svc_rso_start()
++   - stats_svc_rso_stop()
++   - stats_svc_rso_fini()
++   - stats_svc_rsto_service_allocate()
++
++   - stats_update_fom_create()
++   - stats_update_fom_tick()
++   - stats_update_fom_home_locality()
++   - stats_update_fom_addb_init()
++   - stats_update_fom_fini()
++
++   - stats_query_fom_create()
++   - stats_query_fom_tick()
++   - stats_query_fom_home_locality()
++   - stats_query_fom_addb_init()
++   - stats_query_fom_fini()
++
++   @section DLD-stats-svc-fspecs-ext-if External Interfaces
++   - m0_stats_svc_register()
++   - m0_stats_svc_unregister()
+ */
+ 
++/**
++ * @defgroup stats_svc Stats Service
++ * @{
++ */
+ #define M0_STATS_SVC_NAME "stats"
+ extern struct m0_reqh_service_type m0_stats_svc_type;
+ 
+-- 
+1.8.3.2
+

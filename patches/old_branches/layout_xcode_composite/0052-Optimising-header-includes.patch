@@ -1,0 +1,198 @@
+From 8ee85c8e702cfc3900705215160e086c76c7633d Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 16 Jan 2013 11:12:46 +0530
+Subject: [PATCH 052/157] Optimising header includes
+
+---
+ layout/ut/composite.c |  7 ++++---
+ layout/ut/layout.c    | 16 +++++-----------
+ layout/ut/layout.h    |  6 ------
+ layout/ut/pdclust.c   | 24 ++++++++++--------------
+ 4 files changed, 19 insertions(+), 34 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 9655266..255e6a3 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -30,12 +30,13 @@
+ #include "layout/composite_internal.h"
+ 
+ #include "layout/ut/layout.h"
+-#include "layout/ut/pdclust.h"      /* pdclust_layout_build(),
++#include "layout/ut/pdclust.h"      /* NKP_assign(), pdclust_layout_build(),
+ 				     * pdclust_layout_verify */
+ #include "layout/ut/composite.h"
+ 
+ M0_TL_DESCR_DECLARE(comp_layer, extern);
+ M0_TL_DESCR_DECLARE(m0_composite_layer_ext, extern);
++
+ static int rc;
+ 
+ static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+@@ -66,7 +67,7 @@ static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+ 
+ /*
+  * For the layer_nr number of layers to be added to a composite layout,
+- * this function creates "layer_nr - 1"  number of layouts with their
++ * this function creates "layer_nr - 1" number of layouts with their
+  * respective lid. One layer that is the zeroth layer is already added to the
+  * composite layout when the composite layout got created.
+  *
+@@ -74,7 +75,7 @@ static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+  * - Layout with lid "composite_lid * 100" is used as a part of the zeroth
+  *   layer (that gets added while the composite layout is created).
+  * - Layout with lid "composite_lid * 100 + layer_idx" is used as a part of
+- *   layer_idx'th layer.
++ *   the layer_idx'th layer.
+  */
+ static void sublayouts_precreate(uint64_t composite_lid,
+ 				 struct m0_layout_domain *domain,
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 569e268..a80f502 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -33,13 +33,15 @@
+ #include "layout/layout_internal.h"      /* *_ERR */
+ #include "layout/layout_db.h"            /* m0_layout_lookup() */
+ #include "layout/pdclust.h"              /* m0_layout_pdclust_rec */
+-#include "layout/list_enum.h"            /* cob_entries_header */
+-#include "layout/linear_enum.h"          /* m0_layout_linear_enum */
++#include "layout/list_enum.h"
++#include "layout/linear_enum.h"
+ 
+ #include "layout/ut/layout.h"
+ #include "layout/ut/pdclust.h"
+ #include "layout/ut/composite.h"
+ 
++extern struct m0_layout_type m0_composite_layout_type;
++
+ static struct m0_dbenv         dbenv;
+ static const char              db_name[] = "ut-layout";
+ static struct m0_layout_domain domain;
+@@ -1463,14 +1465,6 @@ void pair_set(struct m0_db_pair *pair, uint64_t *lid,
+ 	pair->dp_rec.db_buf.b_nob  = num_bytes;
+ }
+ 
+-#if 0 //todo rm
+-struct ghost_data {
+-	uint64_t                 lid;
+-	struct m0_layout        *l;
+-	struct m0_bufvec_cursor *cur;
+-};
+-#endif
+-
+ bool ghost_create(void *d)
+ {
+ 	struct ghost_data     *data = d;
+@@ -1490,6 +1484,7 @@ bool ghost_create(void *d)
+ 	m0_mutex_unlock(&data->l->l_lock);
+ 	return rc;
+ }
++
+ /* Tests the API m0_layout_lookup(). */
+ static void test_lookup(void)
+ {
+@@ -2382,7 +2377,6 @@ static void test_composite_layer_ops(void)
+ 				       !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ }
+-
+ #endif /* __KERNEL__ */
+ 
+ const struct m0_test_suite layout_ut = {
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index ccfa383..e4ec2ab 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -42,12 +42,6 @@ enum {
+ 	CONTIGUOUS_EXTENTS       = true  /* For extents of a sub-layout */
+ };
+ 
+-//todo Take out the following
+-extern struct m0_layout_type m0_pdclust_layout_type;
+-extern struct m0_layout_type m0_composite_layout_type;
+-extern struct m0_layout_enum_type m0_list_enum_type;
+-extern struct m0_layout_enum_type m0_linear_enum_type;
+-
+ void allocate_area(void **area, m0_bcount_t additional_bytes,
+ 		   m0_bcount_t *num_bytes);
+ void l_verify(struct m0_layout *l, uint64_t lid,
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index 20f62db..fb68a79 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -15,16 +15,13 @@
+  * http://www.xyratex.com/contact
+  *
+  * Original author: Trupti Patil <trupti_patil@xyratex.com>
+- * Original creation date: 12/21/2011
++ * Original creation date: 01/15/2013
+  */
+ 
+ #include "lib/ut.h"                   /* M0_UT_ASSERT() */
+-#include "lib/memory.h"
+-#include "lib/misc.h"                 /* M0_SET0 */
+-#include "lib/bitstring.h"
+-#include "lib/vec.h"
++#include "lib/memory.h"               /* M0_ALLOC_PTR(), M0_ALLOC_ARR() */
++#include "lib/vec.h"                  /* m0_bufvec_cursor */
+ #include "lib/errno.h"
+-
+ #include "lib/finject.h"
+ 
+ #include "fid/fid.h"                  /* m0_fid_set() */
+@@ -35,9 +32,13 @@
+ #include "layout/list_enum.h"
+ #include "layout/linear_enum.h"
+ 
+-#include "layout/ut/ldemo_internal.c" /* layout_demo() */
+ #include "layout/ut/layout.h"
+ #include "layout/ut/pdclust.h"
++#include "layout/ut/ldemo_internal.c" /* layout_demo() */
++
++extern struct m0_layout_type m0_pdclust_layout_type;
++extern struct m0_layout_enum_type m0_list_enum_type;
++extern struct m0_layout_enum_type m0_linear_enum_type;
+ 
+ static int rc;
+ 
+@@ -144,8 +145,7 @@ int pdclust_layout_build(uint64_t lid, struct m0_layout_domain *domain,
+ 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
+ 		m0_layout_enum_fini(e);
+ 		return rc;
+-	}
+-	else {
++	} else {
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(list_lookup(lid) == &(*pl)->pl_base.sl_base);
+ 	}
+@@ -1323,8 +1323,6 @@ int test_pdclust_instance_obj(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-//todo Jan 14 Continue from following
+-
+ #ifndef __KERNEL__
+ /* Tests the API m0_layout_lookup(), for the PDCLUST layout type. */
+ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+@@ -1410,7 +1408,6 @@ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	return rc;
+ }
+ 
+-/* todo Make the name pdclust specific */
+ int test_lookup_pdclust_with_ghost_creation(uint64_t lid,
+ 					    struct m0_layout_domain *domain,
+ 					    uint32_t enum_id,
+@@ -1592,8 +1589,7 @@ int test_add_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	if (layout_destroy) {
+ 		m0_layout_put(&pl->pl_base.sl_base);
+ 		M0_UT_ASSERT(list_lookup(lid) == NULL);
+-	}
+-	else
++	} else
+ 		*l_obj = &pl->pl_base.sl_base;
+ 
+ 	m0_free(area);
+-- 
+1.8.3.2
+

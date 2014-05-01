@@ -1,0 +1,1110 @@
+From 81165b22de67a7f63e232735f0bab45fc81ba25c Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 26 Mar 2014 21:40:26 +0200
+Subject: [PATCH 01/11] seg0: added log0 and seg0 types for fake-mkfs utility;
+ updated m0_be_domain.
+
+---
+ be/Makefile.sub   |   2 +
+ be/domain.c       | 184 ++++++++++++++++++++++++++++++++++++++--
+ be/domain.h       |  12 ++-
+ be/engine.c       |  82 +++++++++++++-----
+ be/engine.h       |   3 +
+ be/seg.c          |   5 +-
+ be/seg.h          |   4 +
+ be/seg0.c         | 109 ++++++++++++++++++++++++
+ be/seg0.h         | 248 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ be/seg_dict.c     |  54 +++++++++++-
+ be/seg_dict.h     |   9 ++
+ be/ut/helper.c    |  12 ++-
+ be/ut/helper.h    |   1 +
+ be/ut/seg_dict.c  |  30 ++++++-
+ mero/magic.h      |   6 ++
+ mero/mero-pub.api |   4 +
+ 16 files changed, 729 insertions(+), 36 deletions(-)
+ create mode 100644 be/seg0.c
+ create mode 100644 be/seg0.h
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 6be105e..c3807ef 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -12,6 +12,7 @@ nobase_mero_include_HEADERS += be/alloc.h           \
+ 			       be/log_store.h       \
+ 			       be/op.h              \
+                                be/seg.h             \
++                               be/seg0.h             \
+                                be/seg_dict.h        \
+                                be/seg_internal.h    \
+                                be/tx.h              \
+@@ -38,6 +39,7 @@ mero_libmero_la_SOURCES += be/alloc.c     	\
+ 			   be/log_store.c 	\
+ 			   be/op.c 		\
+ 			   be/seg.c       	\
++			   be/seg0.c       	\
+ 			   be/seg_dict.c       	\
+ 			   be/tx.c        	\
+ 			   be/tx_credit.c 	\
+diff --git a/be/domain.c b/be/domain.c
+index b3ec165..7d2803a 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -18,34 +18,193 @@
+  * Original creation date: 18-Jul-2013
+  */
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++#include "lib/errno.h"
+ #include "be/domain.h"
++#include "be/seg0.h"
++#include "be/seg.h"
++
++M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0type_list[]", M0_INTERNAL,
++			   struct m0_be_0type, b0_linkage, b0_magic,
++			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
++M0_TL_DEFINE(zt, M0_INTERNAL, struct m0_be_0type);
++
++M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_seg_list[]", M0_INTERNAL,
++			   struct m0_be_seg, bs_linkage, bs_magic,
++			   M0_BE_SEG_MAGIC, M0_BE_SEG_MAGIC);
++M0_TL_DEFINE(seg, M0_INTERNAL, struct m0_be_seg);
++
+ 
+ /**
+  * @addtogroup be
+  *
+  * @{
+  */
++static void m0_be_domain__0types_fini(struct m0_be_domain *dom);
++static int m0_be_domain__0types_init(struct m0_be_domain *dom);
++
++static int segobj_opt_begin(/* const */ struct m0_be_seg    *dict,
++			    const struct m0_be_0type  *objtype,
++			    const struct m0_buf       *opt,
++			    char                     **suffix)
++{
++	int         rc;
++	char        key[512];
++	const char *prefix = "M0_BE:";
++
++	if (strstr(objtype->b0_name, "M0_BE_MKFS:") == objtype->b0_name)
++		return +1;
++
++	M0_PRE(strlen(objtype->b0_name) + strlen(prefix) + 1 < ARRAY_SIZE(key));
++	(void) strcat(key, prefix);
++	(void) strcat(key, objtype->b0_name);
++
++	rc = m0_be_seg_dict_begin(dict, key, (const char **)suffix,
++				  (void**) &opt);
++
++	if (rc == -ENOENT)
++		return 0;
++	else if (rc == 0)
++		return +1;
++
++	return rc;
++}
++
++static int segobj_opt_next(/* const */ struct m0_be_seg    *dict,
++			   const struct m0_be_0type  *objtype,
++			   const struct m0_buf       *opt,
++			   char                     **suffix)
++{
++	int rc;
++	char        key[512];
++	const char *prefix = "M0_BE:";
++
++	if (strstr(objtype->b0_name, "M0_BE_MKFS:") == objtype->b0_name)
++		return 0;
++
++	M0_PRE(strlen(objtype->b0_name) + strlen(prefix) + 1 < ARRAY_SIZE(key));
++	(void) strcat(key, prefix);
++	(void) strcat(key, objtype->b0_name);
++
++
++	rc = m0_be_seg_dict_next(dict, key, *suffix, (const char**) suffix,
++				 (void**) &opt);
++
++	if (rc == -ENOENT)
++		return 0;
++	else if (rc == 0)
++		return +1;
++
++	return rc;
++}
++
++static int _0types_visit(struct m0_be_domain *dom, bool init)
++{
++	int		    rc = 0;
++	int                 left;
++	struct m0_buf       opt;
++	struct m0_be_seg   *dict;
++	struct m0_be_0type *objtype;
++	char               *suffix;
++
++	dict = m0_be_domain_seg0_get(dom);
++
++        m0_tl_for(zt, &dom->bd_0type_list, objtype) {
++		for (left = segobj_opt_begin(dict, objtype, &opt, &suffix);
++		     left > 0 && rc == 0;
++		     left = segobj_opt_next(dict, objtype, &opt, &suffix)) {
++			rc = init ? objtype->b0_init(dom, suffix, &opt) :
++				(objtype->b0_fini(dom, suffix, &opt), 0);
++
++		}
++	} m0_tl_endfor;
++
++	return rc;
++}
++
++static int m0_be_domain__0types_init(struct m0_be_domain *dom)
++{
++	int		    rc;
+ 
+-M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
+-				  struct m0_be_domain_cfg *cfg)
++	M0_PRE(m0_be_domain_is_locked(dom));
++
++	rc = _0types_visit(dom, true);
++	if (rc != 0)
++		m0_be_domain__0types_fini(dom);
++
++	return rc;
++}
++
++static void m0_be_domain__0types_fini(struct m0_be_domain *dom)
++{
++	M0_PRE(m0_be_domain_is_locked(dom));
++
++	(void) _0types_visit(dom, false);
++}
++
++M0_UNUSED static struct m0_be_0type *m0_be_domain__0type_lookup(struct m0_be_domain *dom,
++						      const char *name)
++{
++	struct m0_be_0type *type;
++
++	m0_tl_for(zt, &dom->bd_0type_list, type) {
++		if (strcmp(type->b0_name, name) == 0)
++			return type;
++	} m0_tl_endfor;
++
++	return NULL;
++}
++
++M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom)
++{
++	zt_tlist_init(&dom->bd_0type_list);
++	seg_tlist_init(&dom->bd_seg_list);
++
++	return 0;
++}
++
++M0_INTERNAL int m0_be_domain_start(struct m0_be_domain *dom,
++				   struct m0_be_domain_cfg *cfg)
+ {
+ 	struct m0_be_engine *en = &dom->bd_engine;
+ 	int		     rc;
+ 
+ 	dom->bd_cfg = *cfg;
++	M0_SET0(en);
++
++	rc = m0_be_domain__0types_init(dom);
++	if (rc != 0)
++		return rc;
++
+ 	rc = m0_be_engine_init(en, &dom->bd_cfg.bc_engine);
+-	if (rc == 0) {
+-		rc = m0_be_engine_start(en);
+-		if (rc != 0)
+-			m0_be_engine_fini(en);
++	if (rc != 0) {
++		m0_be_domain__0types_fini(dom);
++		return rc;
+ 	}
++
++	m0_be_engine_start(en);
++
+ 	return rc;
+ }
+ 
+ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+ {
++	struct m0_be_0type *zt;
++	struct m0_be_seg   *seg;
++
+ 	m0_be_engine_stop(&dom->bd_engine);
+ 	m0_be_engine_fini(&dom->bd_engine);
++	m0_be_domain__0types_fini(dom);
++
++	while((zt = zt_tlist_head(&dom->bd_0type_list)) != NULL)
++		zt_tlist_del(zt);
++
++	while((seg = seg_tlist_head(&dom->bd_seg_list)) != NULL)
++		seg_tlist_del(seg);
++
++	zt_tlist_fini(&dom->bd_0type_list);
++	seg_tlist_fini(&dom->bd_seg_list);
+ }
+ 
+ M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom)
+@@ -53,6 +212,19 @@ M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom)
+ 	return &dom->bd_engine;
+ }
+ 
++M0_INTERNAL
++struct m0_be_seg *m0_be_domain_seg0_get(const struct m0_be_domain *dom)
++{
++	return seg_tlist_head(&dom->bd_seg_list);
++}
++
++M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom)
++{
++	/* XXX: return m0_mutex_is_locked(&dom->bd_engine.eng_lock); */
++	return true;
++}
++
++#undef M0_TRACE_SUBSYSTEM
+ /** @} end of be group */
+ 
+ /*
+diff --git a/be/domain.h b/be/domain.h
+index 24bbe00..ae17580 100644
+--- a/be/domain.h
++++ b/be/domain.h
+@@ -24,6 +24,7 @@
+ #define __MERO_BE_DOMAIN_H__
+ 
+ #include "be/engine.h"
++#include "lib/tlist.h"
+ 
+ /**
+  * @defgroup be
+@@ -33,20 +34,27 @@
+ 
+ struct m0_be_domain_cfg {
+ 	struct m0_be_engine_cfg bc_engine;
++	uint64_t                bc_seg0_size;
+ };
+ 
+ struct m0_be_domain {
+ 	struct m0_be_domain_cfg	bd_cfg;
+ 	struct m0_be_engine	bd_engine;
++	struct m0_tl            bd_0type_list;
++	/** List of segments in this domain. First segment in which is seg0. */
++	struct m0_tl            bd_seg_list;
+ };
+ 
+-M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom,
++M0_INTERNAL int m0_be_domain_start(struct m0_be_domain *dom,
+ 				  struct m0_be_domain_cfg *cfg);
++M0_INTERNAL int m0_be_domain_init(struct m0_be_domain *dom);
+ 
+ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom);
+ 
+ M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom);
+-
++M0_INTERNAL
++struct m0_be_seg *m0_be_domain_seg0_get(const struct m0_be_domain *dom);
++M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom);
+ /** @} end of be group */
+ #endif /* __MERO_BE_DOMAIN_H__ */
+ 
+diff --git a/be/engine.c b/be/engine.c
+index 455ba94..dd7bfe0 100644
+--- a/be/engine.c
++++ b/be/engine.c
+@@ -29,6 +29,7 @@
+ 
+ #include "be/tx_group.h"	/* m0_be_tx_group */
+ #include "be/tx_internal.h"	/* m0_be_tx__state_post */
++#include "be/seg0.h"		/* m0_be_0type */
+ 
+ /**
+  * @addtogroup be
+@@ -56,10 +57,8 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
+ 
+ 	M0_ENTRY();
+ 
+-	*en = (struct m0_be_engine) {
+-		.eng_cfg      = en_cfg,
+-		.eng_group_nr = en_cfg->bec_group_nr,
+-	};
++	en->eng_cfg      = en_cfg;
++	en->eng_group_nr = en_cfg->bec_group_nr;
+ 
+ 	M0_ASSERT_INFO(m0_be_tx_credit_le(&en_cfg->bec_tx_size_max,
+ 					  &en_cfg->bec_group_size_max),
+@@ -68,16 +67,9 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
+ 		       "tx_size_max = " BETXCR_F ", group_size_max = " BETXCR_F,
+ 		       BETXCR_P(&en_cfg->bec_tx_size_max),
+ 		       BETXCR_P(&en_cfg->bec_group_size_max));
+-	M0_ASSERT_INFO(en_cfg->bec_log_size >=
+-		       en_cfg->bec_group_size_max.tc_reg_size,
+-		       "Log size shouldn't be less than maximum group size: "
+-		       "log_size = %lu, group_size_max = %lu",
+-		       en_cfg->bec_log_size,
+-		       en_cfg->bec_group_size_max.tc_reg_size);
+ 	M0_ASSERT_INFO(en_cfg->bec_group_nr == 1,
+ 		       "Only one group is supported at the moment, "
+ 		       "but group_nr = %zu", en_cfg->bec_group_nr);
+-	M0_ASSERT_INFO(!en_cfg->bec_log_replay, "Recovery is not implemented");
+ 
+ 	M0_ALLOC_ARR(en->eng_group, en_cfg->bec_group_nr);
+ 	if (en->eng_group == NULL) {
+@@ -85,12 +77,6 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
+ 		goto err;
+ 	}
+ 
+-	m0_be_log_init(&en->eng_log, en_cfg->bec_log_stob,
+-		       be_engine_got_log_space_cb);
+-	rc = m0_be_log_create(&en->eng_log, en_cfg->bec_log_size);
+-	if (rc != 0)
+-		goto log_fini;
+-
+ 	m0_forall(i, ARRAY_SIZE(en->eng_groups),
+ 		  (egr_tlist_init(&en->eng_groups[i]), true));
+ 	for (i = 0; i < en->eng_group_nr; ++i) {
+@@ -108,15 +94,11 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
+ 		  (etx_tlist_init(&en->eng_txs[i]), true));
+ 	m0_mutex_init(&en->eng_lock);
+ 
+-	M0_ASSERT(rc == 0);
+ 	M0_POST(m0_be_engine__invariant(en));
+ 	return M0_RC(0);
+ 
+-log_fini:
+-	m0_be_log_fini(&en->eng_log);
+ 	m0_free(en->eng_group);
+ err:
+-	M0_ASSERT(rc != 0);
+ 	return M0_RC(rc);
+ }
+ 
+@@ -457,6 +439,64 @@ static void be_engine_got_log_space_cb(struct m0_be_log *log)
+ 	be_engine_unlock(en);
+ }
+ 
++/* ------------------------------------------------------------------
++ * 0types definitions
++ * ------------------------------------------------------------------ */
++
++static int ut_log0_init(const struct m0_be_domain *dom, const char *suffix,
++			const struct m0_buf *data)
++{
++	const struct m0_be_engine_cfg *en_cfg = &dom->bd_cfg.bc_engine;
++	struct m0_be_engine *en = (struct m0_be_engine*) &dom->bd_engine;
++
++	M0_ENTRY();
++
++	M0_ASSERT_INFO(en_cfg->bec_log_size >=
++		       en_cfg->bec_group_size_max.tc_reg_size,
++		       "Log size shouldn't be less than maximum group size: "
++		       "log_size = %lu, group_size_max = %lu",
++		       en_cfg->bec_log_size,
++		       en_cfg->bec_group_size_max.tc_reg_size);
++	M0_ASSERT_INFO(!en_cfg->bec_log_replay, "Recovery is not implemented");
++
++	m0_be_log_init(&en->eng_log, en_cfg->bec_log_stob,
++		       be_engine_got_log_space_cb);
++	return M0_RC(m0_be_log_create(&en->eng_log, en_cfg->bec_log_size));
++}
++
++static void ut_log0_fini(const struct m0_be_domain *dom, const char *suffix,
++			 const struct m0_buf *data)
++{
++	struct m0_be_engine *en = (struct m0_be_engine*) &dom->bd_engine;
++
++	M0_ENTRY();
++	m0_be_log_fini(&en->eng_log);
++	M0_LEAVE();
++}
++
++struct m0_be_0type m0_be_ut_log0 = {
++	.b0_name = "M0_BE_MKFS:LOG",
++	.b0_init = ut_log0_init,
++	.b0_fini = ut_log0_fini
++};
++
++static int seg0_init(const struct m0_be_domain *dom, const char *suffix,
++		     const struct m0_buf *data)
++{
++	return -1;
++}
++
++static void seg0_fini(const struct m0_be_domain *dom, const char *suffix,
++		      const struct m0_buf *data)
++{
++}
++
++struct m0_be_0type m0_be_ut_seg0 = {
++	.b0_name = "M0_BE_MKFS:SEG0",
++	.b0_init = seg0_init,
++	.b0_fini = seg0_fini
++};
++
+ /** @} end of be group */
+ #undef M0_TRACE_SUBSYSTEM
+ 
+diff --git a/be/engine.h b/be/engine.h
+index 0f696cb..a1afdf8 100644
+--- a/be/engine.h
++++ b/be/engine.h
+@@ -109,6 +109,9 @@ M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
+ M0_INTERNAL void m0_be_engine__tx_group_close(struct m0_be_engine *en,
+ 					      struct m0_be_tx_group *gr);
+ 
++extern struct m0_be_0type m0_be_ut_log0;
++extern struct m0_be_0type m0_be_ut_seg0;
++
+ /** @} end of be group */
+ #endif /* __MERO_BE_ENGINE_H__ */
+ 
+diff --git a/be/seg.c b/be/seg.c
+index a393cda..c0caa68 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -58,8 +58,7 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
+ 		.bh_size = size,
+ 	};
+ 	return M0_RC(m0_be_io_single(seg->bs_stob, SIO_WRITE,
+-				      &hdr, M0_BE_SEG_HEADER_OFFSET,
+-				      sizeof hdr));
++				     &hdr, M0_BE_SEG_HEADER_OFFSET, sizeof hdr));
+ }
+ 
+ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
+@@ -84,6 +83,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+ 		.bs_stob     = stob,
+ 		.bs_state    = M0_BSS_INIT,
+ 	};
++	seg_tlink_init(seg);
+ 	M0_LEAVE();
+ }
+ 
+@@ -91,6 +91,7 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+ {
+ 	M0_ENTRY("seg=%p", seg);
+ 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
++	seg_tlink_fini(seg);
+ 	M0_LEAVE();
+ }
+ 
+diff --git a/be/seg.h b/be/seg.h
+index b5265d6..31da93e 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -25,6 +25,7 @@
+ #include "be/alloc.h"		/* m0_be_allocator */
+ #include "be/seg_dict.h"	/* m0_be_seg_dict_init */	/* XXX */
+ 
++#include "lib/list.h"
+ #include "stob/stob.h"  /* m0_stob */
+ 
+ struct m0_be;
+@@ -66,8 +67,11 @@ struct m0_be_seg {
+ 	struct m0_be_allocator bs_allocator;
+ 	struct m0_be_domain   *bs_domain;
+ 	int                    bs_state;
++	uint64_t               bs_magic;
++	struct m0_tlink        bs_linkage;
+ };
+ 
++M0_TL_DECLARE(seg, M0_INTERNAL, struct m0_be_seg);
+ 
+ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+ 				struct m0_stob *stob,
+diff --git a/be/seg0.c b/be/seg0.c
+new file mode 100644
+index 0000000..8cb4ec0
+--- /dev/null
++++ b/be/seg0.c
+@@ -0,0 +1,109 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original creation date: 11-Feb-2014
++ */
++
++#include "be/domain.h"
++#include "be/seg0.h"
++#include "be/seg.h"
++
++#include "lib/mutex.h"
++#include "lib/buf.h"
++
++
++static bool be_0type_invarinat(const struct m0_be_0type *zt, bool registered)
++{
++	return ergo(registered, zt_tlink_is_in(zt)  &&
++				zt->b0_dom != NULL) &&
++		zt->b0_name != NULL &&
++		zt->b0_init != NULL &&
++		zt->b0_fini != NULL;
++}
++
++static bool dom_is_locked(const struct m0_be_domain *dom)
++{
++	return m0_be_domain_is_locked(dom);
++}
++
++static struct m0_be_seg *seg0_get(const struct m0_be_domain *dom)
++{
++	return m0_be_domain_seg0_get(dom);
++}
++
++static void keyname_format(const struct m0_be_0type *zt,
++			   const char *suffix, char *keyname)
++{
++	const char *prefix = "M0_BE:";
++
++	M0_PRE(strlen(prefix) + strlen(zt->b0_name) + strlen(suffix) <
++	       ARRAY_SIZE(keyname) - sizeof('\0'));
++
++	strcat(keyname, prefix);
++	strcat(keyname, zt->b0_name);
++	strcat(keyname, suffix);
++}
++
++void m0_be_0type_register(struct m0_be_domain *dom, struct m0_be_0type *zt)
++{
++	M0_PRE(be_0type_invarinat(zt, false));
++	M0_PRE(dom_is_locked(dom));
++
++	zt_tlink_init_at(zt, &dom->bd_0type_list);
++	zt->b0_dom = dom;
++}
++
++int m0_be_0type_add(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		    const char *suffix, const struct m0_buf *data)
++{
++	struct m0_be_seg *seg;
++	char              keyname[1024] = {};
++
++	M0_PRE(dom_is_locked(zt->b0_dom));
++	M0_PRE(be_0type_invarinat(zt, true));
++
++	seg = seg0_get(zt->b0_dom);
++	keyname_format(zt, suffix, keyname);
++	return m0_be_seg_dict_insert(seg, tx, keyname, data->b_addr);
++}
++
++int m0_be_0type_del(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		    const char *suffix)
++{
++	struct m0_be_seg *seg;
++	char              keyname[1024] = {};
++
++	M0_PRE(dom_is_locked(zt->b0_dom));
++	M0_PRE(be_0type_invarinat(zt, true));
++
++	seg = seg0_get(zt->b0_dom);
++	keyname_format(zt, suffix, keyname);
++	return m0_be_seg_dict_delete(seg, tx, keyname);
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/seg0.h b/be/seg0.h
+new file mode 100644
+index 0000000..db3a26f
+--- /dev/null
++++ b/be/seg0.h
+@@ -0,0 +1,248 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original creation date: 10-Feb-2014
++ */
++
++#pragma once
++#ifndef __MERO_BE_SEG0_H__
++#define __MERO_BE_SEG0_H__
++
++#include "lib/tlist.h"
++
++/* import */
++struct m0_buf;
++struct m0_be_tx;
++struct m0_be_domain;
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++/** seg0 object type. */
++struct m0_be_0type {
++
++	/** unique prefix: "SEG", "LOG", "AD", "MD", etc. */
++	const char  *b0_name;
++
++	/**
++	 * Initialisation call-back invoked by BE when seg0 is loaded. This
++	 * call-back sets volatile BE-related parameters according to given
++	 * @data, which stores options. These options describe BE-objects
++	 * configuration. For example options may have an information that
++	 * mdservice related trees are stored inside segment with #0102 id.
++	 *
++	 * @note after b0_init() call there's no need for concrete modules, like
++	 * balloc or adstob to access segment dictionary.
++	 *
++	 * @param suffix distinguishes multiple instances of the same type,
++	 * e.g., M0_BE:SEG1, M0_BE:SEG2.
++	 *
++	 * @param data is an opaque pointer and size to the options
++	 *             this type needs to perform startup.
++	 */
++	int       (*b0_init)(const struct m0_be_domain *dom, const char *suffix,
++			     const struct m0_buf *data);
++
++	void      (*b0_fini)(const struct m0_be_domain *dom, const char *suffix,
++			     const struct m0_buf *data);
++
++	/** linkage in a list of 0types into m0_be_domain. */
++	struct m0_tlink      b0_linkage;
++	uint64_t             b0_magic;
++
++	/** domain which contains this 0type instance */
++	struct m0_be_domain *b0_dom;
++};
++
++M0_TL_DECLARE(zt, M0_INTERNAL, struct m0_be_0type);
++
++/**
++ * Registers new 0type.
++ */
++void m0_be_0type_register(struct m0_be_domain *dom, struct m0_be_0type *zt);
++/**
++ * Adds a record about 0type instance to the seg0 dictionary.
++ */
++int  m0_be_0type_add(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		     const char *suffix, const struct m0_buf *data);
++/**
++ * Deletes a record about 0type instance from the seg0 dictionary.
++ */
++int  m0_be_0type_del(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		     const char *suffix);
++
++/**
++ * <hr> <!------------------------------------------------------------>
++ * @section seg0-metadata Meta-segment (seg0), systematic BE storage startup.
++ * <b>Overview.</b>
++ *
++ * Seg0 stores an information to bring all BE subsystems up. It may include
++ * different hierarchies of objects which have to be brought up and initialized
++ * systematically. So the goal of metadata is to store an information which is
++ * used to specify an order and some options for BE subsystem initialization
++ * and startup.
++ *
++ * It's supposed that BE objects like segment or different structures stored
++ * inside it, have no mutual dependencies, so the initialization order and
++ * metadata may have trivial format.
++ *
++ * It's assumed that different BE objects of the same type can be brought up
++ * independently. This assumption makes initialization routines straightforward.
++ *
++ * Concrete BE-object initialization depends on a tier of BE-objects which have
++ * to be started before it. Type of this object has to be registered after types
++ * from which initialization of this object depends on.
++ *
++ * The example hierarchiy below has the following startup ordering:
++ * M0_BE:SEG, M0_BE:COB, M0_BE:MDS, M0_BE:AD, M0_BE:BALLOC.
++ *
++ * @dot
++ *  digraph conf_fetch_phase {
++ *      node [fontsize=9];
++ *      edge [fontsize=9];
++ *      "M0_BE:SEG0"    [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:SEG1"    [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:SEG2"    [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:SEGN"    [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:COB1"    [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:COB0"    [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:MDS"     [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:AD0"     [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:AD1"     [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:BALLOC0" [shape=rect, style=filled, fillcolor=lightgrey];
++ *      "M0_BE:BALLOC1" [shape=rect, style=filled, fillcolor=lightgrey];
++ *
++ *      "M0_BE:SEG0" -> "M0_BE:SEG1"
++ *      "M0_BE:SEG0" -> "M0_BE:SEG2"
++ *      "M0_BE:SEG0" -> "M0_BE:SEGN"
++ *      "M0_BE:SEG1" -> "M0_BE:COB0"
++ *      "M0_BE:SEG2" -> "M0_BE:COB0"
++ *      "M0_BE:SEG2" -> "M0_BE:COB1"
++ *      "M0_BE:COB1" -> "M0_BE:MDS"
++ *      "M0_BE:COB0" -> "M0_BE:MDS"
++ *      "M0_BE:SEGN" -> "M0_BE:AD0"
++ *      "M0_BE:SEGN" -> "M0_BE:AD1"
++ *      "M0_BE:AD1"  -> "M0_BE:BALLOC0"
++ *      "M0_BE:AD0"  -> "M0_BE:BALLOC1"
++ *  }
++ * @enddot
++ *
++ * <b> Highlights </b>
++ *
++ * - While BE initialization, seg0 dictionary is scanned for a special records
++ *   started with "M0_BE:". Values of these records are structures which have a
++ *   special m0_be_0type stored inside, which is extracted and
++ *   m0_be_0type::b0_init() is called on every such type. Metadata associated
++ *   with m0_be_0type is not somehow related to confd but it can be node- or
++ *   segment- related.
++ *
++ * - m0_be_0type::b0_init() initializes BE-internal objects like all segments
++ *   and log and the sets volatile-only variables inside other subsystems for which
++ *   m0_be_0types are defined.
++ *
++ * - In cases when subsystem needs to change one of its configuration parameters
++ *   it calls  m0_be_0type_add() to peform changes in seg0 dictionary.
++ *
++ * <b> BE domain initialization </b>
++ *
++ * mkfs.be would use m0_be_0type_add() to populate the seg0 dictionary. BE
++ * domain initialisation has to be split in 2 levels (in lib/module.h sense):
++ *
++ * @code
++ * // level n
++ * m0_be_domain_init(&dom);
++ * m0_be_0type_register(&dom, foo);
++ * m0_be_0type_register(&dom, bar);
++ *
++ * // level m (m > n)
++ * dom.seg0_stob = stob;
++ * m0_be_domain_start(&dom);
++ * @endcode
++ *
++ * <b>BE-internal objects: segments and log</b>
++ *
++ * Segments and log configuration options are stored inside seg0. Initialization
++ * of these BE objects are more than just their volatile-only fields assignment and
++ * it includes corresponding m0_stob lookup and steps needed to bring on-disk
++ * and in-memory parts of these objects up.
++ *
++ * To perform such startup sequences the following functions are used for all
++ * segments: m0_be_seg_init(), m0_be_seg_open(); and for log: m0_be_log_init(),
++ * m0_be_log_open().  Accoringly to given interfaces, each segment has to have
++ * the following set of metadata options: underlying stob options, domain
++ * options, segment options; and log should have the following: underlying stob
++ * options.
++ *
++ * <b> Metadata format </b>
++ * Related metadata is stored inside seg0 dictionary and retrieved from it by
++ * iteration of all records in dictionary with predefined prefix in its
++ * keys (@todo dictionary has to be updated a little bit to do this).
++ * Format of the key is the following:
++ * "{ prefix } { separator } { 0type } { objname }"
++ * Example: "M0_BE:COB1"
++ *
++ * The value of such dictionary record contains struct m0_buf representing a
++ * pointer and size of an object which is being brought up. It has to be casted
++ * inside concrete ->b0_init() and used as options for concrete m0_be_0type to
++ * perform initialization.
++ *
++ *
++ * <b>BE-object startup pseudocode (top-level).</b>
++ *
++ * @code
++ * struct m0_be_domain      *dom = ...;
++ *
++ * struct m0_buf      *opt;
++ * struct m0_be_0type *objtype;
++ *
++ *  m0_tlist_for(&be_0type_list, &dom->bd_0types, objtype) {
++ *      for (opt = segobj_opt_begin(dict, objtype);
++ *           opt != NULL && rc != 0;
++ *           opt = segobj_opt_next(dict, opt, objtype))
++ *              rc = be_obj_up(dom, opt);
++ * } m0_tlist_endfor;
++ * @endcode
++ *
++ * <b>Iterator-like interface used while startup.</b>
++ * @code
++ * const struct m0_buf *segobj_opt_begin(const struct m0_be_seg   *dict,
++ *                                       const struct m0_be_0type *objtype);
++ *
++ * const struct m0_buf *segobj_opt_next(const struct m0_be_seg    *dict,
++ *                                      const struct m0_be_buf    *opt,
++ *                                      const struct m0_be_0type  *objtype);
++ * @endcode
++ *
++ * <b>Pseudocode bringing BE-object up.</b>
++ * @code
++ * int be_obj_up(struct m0_be_domain *dom, struct m0_be_buf *opt)
++ * {
++ *      char suffix[] = ...;
++ *
++ *      return type->b0_init(dom, suffix, opt);
++ * }
++ * @endcode
++ *
++ * <hr> <!------------------------------------------------------------>
++ */
++
++/** @} end of be group */
++#endif /* __MERO_BE_SEG0_H__ */
++
+diff --git a/be/seg_dict.c b/be/seg_dict.c
+index 8dd69ad..694db17 100644
+--- a/be/seg_dict.c
++++ b/be/seg_dict.c
+@@ -150,9 +150,57 @@ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
+ 
+ 	M0_ENTRY("seg=%p name='%s'", seg, name);
+ 	return M0_RC(M0_BE_OP_SYNC_RET(op,
+-				        m0_be_btree_lookup(tree, &op, &key,
+-							   &val),
+-				        bo_u.u_btree.t_rc));
++				    m0_be_btree_lookup(tree, &op, &key, &val),
++				    bo_u.u_btree.t_rc));
++}
++
++M0_INTERNAL int _seg_dict_iterate(struct m0_be_seg *seg,
++				  const char *prefix,
++				  const char *start_key,
++				  const char **this_key,
++				  void **this_rec,
++				  bool next)
++{
++	struct m0_be_btree_cursor  cursor;
++	struct m0_be_btree        *tree = dict_get(seg);
++	struct m0_buf		   start = M0_BUF_INITS((char*)start_key);
++	struct m0_buf		   key;
++	struct m0_buf              val;
++	int                        rc;
++
++	m0_be_btree_cursor_init(&cursor, tree);
++
++	rc = m0_be_btree_cursor_get_sync(&cursor, &start, !next) ?:
++		(!next ? 0 : m0_be_btree_cursor_next_sync(&cursor));
++	if (rc == 0) {
++		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
++		*this_key = (const char*)key.b_addr;
++		*this_rec = (void *) *(uint64_t *)val.b_addr; /* XXX */
++		rc = strstr(*this_key, "M0_BE:") ? 0 : -ENOENT;
++	}
++
++	m0_be_btree_cursor_fini(&cursor);
++
++	return rc;
++}
++
++M0_INTERNAL int m0_be_seg_dict_begin(struct m0_be_seg *seg,
++				     const char *start_key,
++				     const char **this_key,
++				     void **this_rec)
++{
++	return _seg_dict_iterate(seg, start_key, start_key,
++				 this_key, this_rec, false);
++}
++
++M0_INTERNAL int m0_be_seg_dict_next(struct m0_be_seg *seg,
++				    const char *prefix,
++				    const char *start_key,
++				    const char **this_key,
++				    void **this_rec)
++{
++	return _seg_dict_iterate(seg, prefix, start_key,
++				 this_key, this_rec, true);
+ }
+ 
+ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
+diff --git a/be/seg_dict.h b/be/seg_dict.h
+index 502c68b..48d2ae9 100644
+--- a/be/seg_dict.h
++++ b/be/seg_dict.h
+@@ -37,6 +37,15 @@ struct m0_be_tx_credit;
+ M0_INTERNAL void m0_be_seg_dict_init(struct m0_be_seg *seg);
+ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg,
+ 				      const char *name,	void **out);
++M0_INTERNAL int m0_be_seg_dict_begin(struct m0_be_seg *seg,
++				     const char *start_key,
++				     const char **this_key,
++				     void **this_rec);
++M0_INTERNAL int m0_be_seg_dict_next(struct m0_be_seg *seg,
++				    const char *prefix,
++				    const char *start_key,
++				    const char **this_key,
++				    void **this_rec);
+ 
+ /* tx based dictionary interface */
+ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 6d46896..9a78451 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -39,6 +39,7 @@
+ #include "ut/ast_thread.h"
+ #include "be/ut/helper.h"	/* m0_be_ut_backend */
+ #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
++#include "be/seg0.h"            /* m0_be_0type_register */
+ 
+ #define BE_UT_H_STORAGE_DIR "./__seg_ut_stob"
+ 
+@@ -278,7 +279,7 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+ 		ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
+ 	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_be_ut_stob_get(true);
+ 	m0_mutex_init(&ut_be->but_sgt_lock);
+-	rc = m0_be_domain_init(&ut_be->but_dom, &ut_be->but_dom_cfg);
++	rc = m0_be_domain_start(&ut_be->but_dom, &ut_be->but_dom_cfg);
+ 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
+ 	if (rc != 0)
+ 		m0_mutex_fini(&ut_be->but_sgt_lock);
+@@ -286,6 +287,15 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+ 
+ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
+ {
++	(void)m0_be_domain_init(&ut_be->but_dom);
++	m0_be_ut_backend_init_cfg(ut_be, NULL);
++}
++
++void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be)
++{
++	(void)m0_be_domain_init(&ut_be->but_dom);
++	m0_be_0type_register(&ut_be->but_dom, &m0_be_ut_log0);
++	//m0_be_0type_register(&ut_be->but_dom, &m0_be_ut_seg0);
+ 	m0_be_ut_backend_init_cfg(ut_be, NULL);
+ }
+ 
+diff --git a/be/ut/helper.h b/be/ut/helper.h
+index 0db6205..3570770 100644
+--- a/be/ut/helper.h
++++ b/be/ut/helper.h
+@@ -49,6 +49,7 @@ struct m0_be_ut_backend {
+ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
+ 
+ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
++void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be);
+ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
+ 
+ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
+diff --git a/be/ut/seg_dict.c b/be/ut/seg_dict.c
+index ecb8053..4cc67ab 100644
+--- a/be/ut/seg_dict.c
++++ b/be/ut/seg_dict.c
+@@ -102,6 +102,7 @@ void m0_be_ut_seg_dict(void)
+ 	struct m0_sm_group     *grp;
+ 	struct m0_be_seg       *seg = &ut_seg.bus_seg;
+ 	struct m0_be_tx         tx;
++	const char             *next_key;
+ 	void                   *p;
+ 	int                     i;
+ 	int                     rc;
+@@ -116,10 +117,16 @@ void m0_be_ut_seg_dict(void)
+ 		{ "d00d", (void*)0xd00d },
+ 		{ "8bad", (void*)0x8bad },
+ 		{ "f00d", (void*)0xf00d },
++
++		{ "M0_BE:opt1", (void*)0xf00d0001 },
++		{ "M0_BE:opt2", (void*)0xf00d0002 },
++		{ "M0_BE:opt3", (void*)0xf00d0003 },
++		{ "M0_BE:opt4", (void*)0xf00d0004 },
++		{ "M0_BE:end0", (void*)0xf00d0000 },
+ 	};
+ 
+ 	M0_SET0(&ut_be);
+-	m0_be_ut_backend_init(&ut_be);
++	m0_be_ut_backend_mkfs_init(&ut_be);
+ 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
+ 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+ 	m0_be_ut_tx_init(&tx, &ut_be);
+@@ -146,6 +153,27 @@ void m0_be_ut_seg_dict(void)
+ 		M0_UT_ASSERT(rc == 0 && dict[i].value == p);
+ 	}
+ 
++
++	rc = m0_be_seg_dict_begin(seg, "M0_BE:opt", &next_key, &p);
++	M0_UT_ASSERT(rc == 0 && p == (void*)0xf00d0001 &&
++		     strcmp(next_key, "M0_BE:opt1") == 0);
++
++	rc = m0_be_seg_dict_next(seg, "M0_BE:opt", next_key, &next_key, &p);
++	M0_UT_ASSERT(rc == 0 && p == (void*)0xf00d0002 &&
++		     strcmp(next_key, "M0_BE:opt2") == 0);
++
++	rc = m0_be_seg_dict_next(seg, "M0_BE:opt", next_key, &next_key, &p);
++	M0_UT_ASSERT(rc == 0 && p == (void*)0xf00d0003 &&
++		     strcmp(next_key, "M0_BE:opt3") == 0);
++
++	rc = m0_be_seg_dict_next(seg, "M0_BE:opt", next_key, &next_key, &p);
++	M0_UT_ASSERT(rc == 0 && p == (void*)0xf00d0004 &&
++		     strcmp(next_key, "M0_BE:opt4") == 0);
++
++	rc = m0_be_seg_dict_next(seg, "M0_BE:opt", next_key, &next_key, &p);
++	M0_UT_ASSERT(rc != 0);
++
++
+ 	for (i = 0; i < ARRAY_SIZE(dict); i+=2) {
+ 		rc = m0_be_seg_dict_delete(seg, &tx, dict[i].name);
+ 		M0_UT_ASSERT(rc == 0);
+diff --git a/mero/magic.h b/mero/magic.h
+index b6446d3..ee97ad2 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -155,6 +155,12 @@ enum m0_magic_satchel {
+ 	/* be_alloc_chunk::bac_magic_free (edifice faded) */
+ 	M0_BE_ALLOC_FREE_LINK_MAGIC = 0xed1f1cefaded,
+ 
++	/* m0_be_tx::t_magic (badabooooooo) */
++	M0_BE_0TYPE_MAGIC = 0x33badab000000177,
++
++	/* m0_be_tx::t_magic (badabooooooo) */
++	M0_BE_SEG_MAGIC = 0x33badab000000177,
++
+ /* m0t1fs */
+ 	/* m0t1fs_sb::s_magic (cozie filesis) */
+ 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,
+diff --git a/mero/mero-pub.api b/mero/mero-pub.api
+index dde0a51..2f41d9c 100644
+--- a/mero/mero-pub.api
++++ b/mero/mero-pub.api
+@@ -174,3 +174,7 @@ m0_xc_u32_init
+ m0_xc_u64_init
+ m0_xc_u8_init
+ m0_xc_void_init
++m0_be_0type_add
++m0_be_0type_del
++m0_be_0type_register
++m0_be_ut_backend_mkfs_init
+-- 
+1.8.3.2
+

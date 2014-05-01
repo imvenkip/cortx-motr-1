@@ -1,0 +1,387 @@
+From 40aee3b1ed8faf405dc446345fd478ff3bd62056 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 30 Mar 2011 06:42:56 -0600
+Subject: [PATCH 030/177] - mdstore CODEINSP fixes; - cob changes CODEINSP
+ fixes; - related changes.
+
+---
+ cob/cob.c           |  9 ++++---
+ mdservice/md_foms.c | 74 ++++++++++++++++++++++++++---------------------------
+ mdservice/md_foms.h |  6 ++---
+ mdstore/mdstore.c   | 59 ++++++++++++++++++++++++++++++++++++++++++
+ mdstore/mdstore.h   | 17 ++++++++++++
+ 5 files changed, 121 insertions(+), 44 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 37be731..95cf465 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -605,10 +605,6 @@ int c2_cob_create(struct c2_cob        *cob,
+         rc = c2_table_insert(tx, &pair);
+         c2_db_pair_release(&pair);
+ 	c2_db_pair_fini(&pair);
+-	if (rc)
+-                goto out;
+-
+-	return 0;
+ out:
+         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, cob_create, rc == 0);
+         return rc;
+@@ -681,6 +677,11 @@ int c2_cob_update(struct c2_cob *cob, struct c2_db_tx *tx)
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+                          cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
+                          &cob->co_nsrec, sizeof cob->co_nsrec);
++        /*
++         * If update fails, we can't trust to cached value. We mark
++         * it invalid so that caller may want to get it from store
++         * once again.
++         */
+         rc = c2_table_update(tx, &pair);
+         if (rc == 0)
+                 cob->co_valid |= CA_NSREC;
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 0bf8b39..a5c8037 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -24,12 +24,12 @@
+ void c2_md_req_fom_fini(struct c2_fom *fom);
+ 
+ /**
+-   Make in-memory fid from fop fid.
++   Make in-memory fid from wire fid (wid).
+ */
+-void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *ffid)
++void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *wid)
+ {
+-        fid->f_container = ffid->f_seq;
+-        fid->f_key = ffid->f_oid;
++        fid->f_container = wid->f_seq;
++        fid->f_key = wid->f_oid;
+ }
+ 
+ /**
+@@ -55,7 +55,7 @@ void c2_md_make_oikey(struct c2_cob_oikey *oikey, struct c2_fop_fid *fid,
+                       int linkno)
+ {
+         c2_md_make_fid(&oikey->cok_fid, fid);
+-        oikey->cok_linkno = 0;
++        oikey->cok_linkno = linkno;
+ }
+ 
+ static int c2_md_create_permissions(struct c2_fop_create *req, 
+@@ -92,7 +92,7 @@ static int c2_md_fom_create_state(struct c2_fom *fom)
+ 
+         rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+-                rc = c2_cob_alloc(&site->s_mdstore->md_dom, &cob);
++                rc = c2_md_store_alloc(site->s_mdstore, &cob);
+                 if (rc)
+                         goto out;
+ 
+@@ -130,7 +130,7 @@ static int c2_md_fom_link_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -156,10 +156,10 @@ static int c2_md_fom_link_state(struct c2_fom *fom)
+                 if (rc)
+                         goto out;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
+-                                   &cob, &ctx->ft_tx->tx_dbtx);
++                rc = c2_md_store_locate(site->s_mdstore, &fid, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -191,7 +191,7 @@ static int c2_md_fom_unlink_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -217,10 +217,10 @@ static int c2_md_fom_unlink_state(struct c2_fom *fom)
+                 if (rc)
+                         goto out;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
+-                                   &cob, &ctx->ft_tx->tx_dbtx);
++                rc = c2_md_store_locate(site->s_mdstore, &fid, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -252,7 +252,7 @@ static int c2_md_fom_rename_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -278,10 +278,10 @@ static int c2_md_fom_rename_state(struct c2_fom *fom)
+                 if (rc)
+                         goto out;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
+-                                   &cob, &ctx->ft_tx->tx_dbtx);
++                rc = c2_md_store_locate(site->s_mdstore, &fid, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -313,7 +313,7 @@ static int c2_md_fom_open_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -339,10 +339,10 @@ static int c2_md_fom_open_state(struct c2_fom *fom)
+                 if (rc)
+                         goto out;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
+-                                   &cob, &ctx->ft_tx->tx_dbtx);
++                rc = c2_md_store_locate(site->s_mdstore, &fid, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc == -ENOENT) {
+                         /*
+                          * @todo: create file if open mode says so.
+@@ -373,7 +373,7 @@ static int c2_md_fom_close_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -395,11 +395,11 @@ static int c2_md_fom_close_state(struct c2_fom *fom)
+                 req = c2_fop_data(fop);
+                 body = &req->c_body;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+ #if 0
+                 /** @todo: Find a cob in open files table. */
+-                rc = c2_cob_open_locate(&site->s_mdstore->md_dom, &oikey, 
++                rc = c2_md_store_opened(site->s_mdstore, &fid, 
+                                         &cob, &ctx->ft_tx->tx_dbtx);
+ #endif
+                 if (rc)
+@@ -432,7 +432,7 @@ static int c2_md_fom_setattr_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -458,10 +458,10 @@ static int c2_md_fom_setattr_state(struct c2_fom *fom)
+                 if (rc)
+                         goto out;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
+-                                   &cob, &ctx->ft_tx->tx_dbtx);
++                rc = c2_md_store_locate(site->s_mdstore, &fid, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -493,7 +493,7 @@ static int c2_md_fom_getattr_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -519,10 +519,10 @@ static int c2_md_fom_getattr_state(struct c2_fom *fom)
+                 if (rc)
+                         goto out;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
+-                                   &cob, &ctx->ft_tx->tx_dbtx);
++                rc = c2_md_store_locate(site->s_mdstore, &fid, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -554,7 +554,7 @@ static int c2_md_fom_readdir_state(struct c2_fom *fom)
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+         struct c2_fop_ctx        *ctx;
+-        struct c2_cob_oikey       oikey;
++        struct c2_fid             fid;
+         int                       rc;
+ 
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+@@ -580,10 +580,10 @@ static int c2_md_fom_readdir_state(struct c2_fom *fom)
+                 if (rc)
+                         goto out;
+ 
+-                c2_md_make_oikey(&oikey, &body->b_tfid, 0);
++                c2_md_make_fid(&fid, &body->b_tfid);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
+-                                   &cob, &ctx->ft_tx->tx_dbtx);
++                rc = c2_md_store_locate(site->s_mdstore, &fid, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+diff --git a/mdservice/md_foms.h b/mdservice/md_foms.h
+index 68f4a16..457553e 100644
+--- a/mdservice/md_foms.h
++++ b/mdservice/md_foms.h
+@@ -31,9 +31,9 @@ int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fom **m);
+ int c2_md_rep_fom_init(struct c2_fop *fop, struct c2_fom **m);
+ 
+ /**
+-   Make in-memory fid from fop fid.
++   Make in-memory fid from wire fid (wid).
+ */
+-void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *ffid);
++void c2_md_make_fid(struct c2_fid *fid, struct c2_fop_fid *wid);
+ 
+ /**
+    Make nskey from passed parent fid and child name.
+@@ -42,7 +42,7 @@ void c2_md_make_nskey(struct c2_cob_nskey **keyh, struct c2_fop_fid *fid,
+                       struct c2_fop_name *name);
+ 
+ /**
+-   Make oikey from passed child fid and liunk number.
++   Make oikey from passed child fid and link number.
+ */
+ void c2_md_make_oikey(struct c2_cob_oikey *oikey, struct c2_fop_fid *fid,
+                       int linkno);
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 874ea63..3e189f2 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -407,3 +407,62 @@ int c2_md_store_readdir(struct c2_md_store *md,
+         
+         return 0;
+ }
++
++static void c2_md_store_make_oikey(struct c2_cob_oikey *oikey, 
++                                   struct c2_fid *fid)
++{
++        oikey->cok_fid = *fid;
++        oikey->cok_linkno = 0;
++}
++
++static void c2_md_store_make_nskey(struct c2_cob_nskey **keyh, 
++                                   struct c2_fid *pfid,
++                                   const char *name, int nlen)
++{
++        struct c2_cob_nskey *key;
++
++        key = c2_alloc(sizeof(*key) + nlen);
++        key->cnk_pfid = *pfid;
++        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, nlen);
++        c2_bitstring_len_set(&key->cnk_name, nlen);
++        *keyh = key;
++}
++
++/**
++   Find cob by fid.
++*/
++int c2_md_store_locate(struct c2_md_store *md, struct c2_fid *fid,
++                       struct c2_cob **cob, struct c2_db_tx *tx)
++{
++        struct c2_cob_oikey oikey;
++        int                 rc;
++
++        c2_md_store_make_oikey(&oikey, fid);
++        rc = c2_cob_locate(&md->md_dom, &oikey, cob, tx);
++
++        return rc;
++}
++
++/**
++   Find cob by parent and name.
++*/
++int c2_md_store_lookup(struct c2_md_store *md, struct c2_cob *pcob,
++                       const char *name, int nlen, struct c2_cob *cob, 
++                       struct c2_db_tx *tx)
++{
++        struct c2_cob_nskey *nskey;
++        int                  rc;
++        
++        c2_md_store_make_nskey(&nskey, &pcob->co_fid, name, nlen);
++        rc = c2_cob_lookup(&md->md_dom, nskey, CA_NSKEY_FREE, &cob, tx);
++
++        return rc;
++}
++
++/**
++   Allocate new cob on mdstore @md.
++*/
++int c2_md_store_alloc(struct c2_md_store *md, struct c2_cob **cob)
++{
++        return c2_cob_alloc(&md->md_dom, cob);
++}
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 97f91d8..83e4e3b 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -146,6 +146,23 @@ int c2_md_store_readdir(struct c2_md_store *md,
+                         struct c2_fop_readdir_rep *rep, 
+                         struct c2_fop_ctx *ctx);
+ 
++/**
++   Find cob by fid.
++*/
++int c2_md_store_locate(struct c2_md_store *md, struct c2_fid *fid,
++                       struct c2_cob **cob, struct c2_db_tx *tx);
++
++/**
++   Find cob by parent and name.
++*/
++int c2_md_store_lookup(struct c2_md_store *md, struct c2_cob *pcob,
++                       const char *name, int nlen, struct c2_cob *cob, 
++                       struct c2_db_tx *tx);
++/**
++   Allocate new cob on mdstore @md.
++*/
++int c2_md_store_alloc(struct c2_md_store *md, struct c2_cob **cob);
++
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+ 
+-- 
+1.8.3.2
+

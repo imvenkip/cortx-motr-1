@@ -1,0 +1,135 @@
+From 1e00addcbede4d81fd68272b7105938b0eaf38a2 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Thu, 5 Apr 2012 15:58:01 +0530
+Subject: [PATCH 09/10] * some more code restructuring
+
+---
+ c2t1fs/linux_kernel/c2t1fs.h |  6 ++++++
+ c2t1fs/linux_kernel/dir.c    | 32 ++++++++++++--------------------
+ c2t1fs/linux_kernel/inode.c  | 33 ++++++++++++++++++++++++++++++++-
+ 3 files changed, 50 insertions(+), 21 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/c2t1fs.h b/c2t1fs/linux_kernel/c2t1fs.h
+index d145907..ae62ce3 100644
+--- a/c2t1fs/linux_kernel/c2t1fs.h
++++ b/c2t1fs/linux_kernel/c2t1fs.h
+@@ -443,4 +443,10 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
+ 
+ void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+ 
++struct c2_rpc_session *
++c2t1fs_inode_get_tgt_session(const struct inode *inode);
++
++uint64_t
++c2t1fs_inode_get_container_id(const struct inode *inode);
++
+ #endif /* __COLIBRI_C2T1FS_H */
+diff --git a/c2t1fs/linux_kernel/dir.c b/c2t1fs/linux_kernel/dir.c
+index 7760009..56dcc65 100644
+--- a/c2t1fs/linux_kernel/dir.c
++++ b/c2t1fs/linux_kernel/dir.c
+@@ -267,23 +267,10 @@ int fop_create_prepare(struct inode        *dir,
+ 	return rc;
+ }
+ 
+-static int make_create_rpc_call(struct inode *dir,
+-				struct inode *inode,
+-				struct c2_fop *fop)
++static int make_create_rpc_call(struct c2_fop         *fop,
++				struct c2_rpc_session *session)
+ {
+-	struct c2_rpc_session *session;
+-	struct c2t1fs_inode   *file_ci;
+-	struct c2t1fs_sb      *csb;
+-	int                    rc;
+-
+-	csb = C2T1FS_SB(dir->i_sb);
+-
+-	file_ci = C2T1FS_I(inode);
+-	C2_ASSERT(file_ci->ci_fid.f_container == 0);
+-
+-	session = c2t1fs_container_id_to_session(csb,
+-				file_ci->ci_fid.f_container);
+-	C2_ASSERT(session != NULL);
++	int rc;
+ 
+ 	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+ 				C2T1FS_RPC_TIMEOUT);
+@@ -317,8 +304,9 @@ int c2t1fs_gob_create(struct inode        *dir,
+ 		      const unsigned char *name,
+ 		      int                  namelen)
+ {
+-	struct c2_fop *fop;
+-	int            rc;
++	struct c2_rpc_session *session;
++	struct c2_fop         *fop;
++	int                    rc;
+ 
+ 	C2_ENTRY("name=\"%s\" namelen=%d", name, namelen);
+ 
+@@ -327,8 +315,12 @@ int c2t1fs_gob_create(struct inode        *dir,
+ 	} else if (namelen >= C2T1FS_MAX_NAME_LEN) {
+ 		rc =  -ENAMETOOLONG;
+ 	} else {
+-		rc = fop_create_prepare(dir, inode, name, namelen, &fop) ?:
+-		     make_create_rpc_call(dir, inode, fop);
++		rc = fop_create_prepare(dir, inode, name, namelen, &fop);
++		if (rc == 0) {
++			session = c2t1fs_inode_get_tgt_session(dir);
++			C2_ASSERT(session != NULL);
++			rc = make_create_rpc_call(fop, session);
++		}
+ 	}
+ 
+ 	C2_LEAVE("rc: %d", rc);
+diff --git a/c2t1fs/linux_kernel/inode.c b/c2t1fs/linux_kernel/inode.c
+index bdda961..89288c8 100644
+--- a/c2t1fs/linux_kernel/inode.c
++++ b/c2t1fs/linux_kernel/inode.c
+@@ -235,6 +235,38 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
+ 	return 0;
+ }
+ 
++uint64_t
++c2t1fs_inode_get_container_id(const struct inode *inode)
++{
++	uint64_t container_id;
++
++	C2_PRE(inode != NULL);
++
++	container_id = C2T1FS_I(inode)->ci_fid.f_container;
++
++	/*
++	 * See "Containers and component objects" section in
++	 * c2t1fs/linux_kernel/c2t1fs.h for more info on
++	 * following assertion.
++	 */
++	C2_ASSERT(container_id == 0);
++
++	return container_id;
++}
++
++struct c2_rpc_session *
++c2t1fs_inode_get_tgt_session(const struct inode *inode)
++{
++	uint64_t container_id;
++
++	C2_PRE(inode != NULL && inode->i_sb != NULL);
++
++	container_id = c2t1fs_inode_get_container_id(inode);
++
++	return c2t1fs_container_id_to_session(C2T1FS_SB(inode->i_sb),
++					      container_id);
++}
++
+ static int c2t1fs_inode_refresh(struct inode *inode)
+ {
+ 	C2_ENTRY();
+@@ -390,4 +422,3 @@ out:
+ 	C2_ASSERT(rc != 0);
+ 	return rc;
+ }
+-
+-- 
+1.8.3.2
+

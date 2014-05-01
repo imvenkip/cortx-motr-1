@@ -1,0 +1,40 @@
+From a77b96a3a0d0562d82d0281366e294514b19ffc7 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Tue, 11 Feb 2014 19:45:03 +0530
+Subject: [PATCH 49/50]  - Added assert for m0_sm_conf_trans_extend().
+
+---
+ fop/fom.c | 2 +-
+ sm/sm.c   | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 5c5b64b..c18ca37 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1129,7 +1129,7 @@ void m0_fom_fini(struct m0_fom *fom)
+ 		m0_free(fom->fo_sm_phase_stats.asc_data);
+ 		m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
+ 	}
+-	
++
+ 	m0_sm_fini(&fom->fo_sm_phase);
+ 	m0_sm_fini(&fom->fo_sm_state);
+ 	m0_addb_ctx_fini(&fom->fo_addb_ctx);
+diff --git a/sm/sm.c b/sm/sm.c
+index 13bb92e..0e21129 100644
+--- a/sm/sm.c
++++ b/sm/sm.c
+@@ -659,7 +659,8 @@ M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
+ 		const struct m0_sm_trans_descr *b = &base->scf_trans[i];
+ 
+ 		if (!trans_exists(sub, b->td_src, b->td_tgt)) {
+-			M0_ASSERT(i < sub->scf_trans_nr);
++			M0_ASSERT(j < sub->scf_trans_nr);
++			M0_ASSERT(sub->scf_trans[j].td_cause == NULL);
+ 			sub->scf_trans[j++] = *b;
+ 		}
+ 	}
+-- 
+1.8.3.2
+

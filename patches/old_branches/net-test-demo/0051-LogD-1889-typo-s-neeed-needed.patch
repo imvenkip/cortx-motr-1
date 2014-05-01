@@ -1,0 +1,25 @@
+From ea5869d49ea3e93b498989764ac1b904c097cd66 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 5 Feb 2013 15:42:53 +0200
+Subject: [PATCH 51/79] LogD 1889: typo: s/neeed/needed/
+
+---
+ net/test/debug.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/debug.h b/net/test/debug.h
+index ec7b769..98423b5 100644
+--- a/net/test/debug.h
++++ b/net/test/debug.h
+@@ -38,7 +38,7 @@
+       Debug output is disabled by default.
+ 
+    Macro names used: LOGD, NET_TEST_MODULE_NAME, LOGD_VAR_DECLARE, LOGD_VAR_NAME
+-   @note Include guards are not neeed in this file because
++   @note Include guards are not needed in this file because
+    LOGD_VAR_NAME(NET_TEST_MODULE_NAME) variable should be defined
+    for each module that includes this file.
+ 
+-- 
+1.8.3.2
+

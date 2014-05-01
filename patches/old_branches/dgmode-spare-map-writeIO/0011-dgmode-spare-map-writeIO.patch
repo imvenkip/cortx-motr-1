@@ -1,0 +1,123 @@
+From 8233a209444fbf11cfc6b136c30c5c5dfb2ee2a9 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Mon, 17 Feb 2014 13:46:55 +0530
+Subject: [PATCH 11/14] dgmode-spare-map-writeIO
+
+-Code ready for inspection.
+-Fragmented IO is not part of this testing.
+---
+ m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh | 38 ++++++++----------------------
+ 1 file changed, 10 insertions(+), 28 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh b/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh
+index 8d3f78b..f36b5be 100755
+--- a/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh
+@@ -9,7 +9,7 @@
+ . `dirname $0`/m0t1fs_sns_common_inc.sh
+ 
+ 
+-dgwrite_test_module()
++dgio_test_module()
+ {
+ 	$@ \
+ 	   if=./sandbox/source of=./sandbox/file_to_compare >> $MERO_TEST_LOGFILE || {
+@@ -27,7 +27,7 @@ dgwrite_test_module()
+ 	echo $?
+ }
+ 
+-dgwrite_test()
++dgio_test()
+ {
+ 	local rc=0
+ 	local fail_device1=1
+@@ -36,7 +36,7 @@ dgwrite_test()
+ 	local N=3
+ 	local K=3
+ 	local P=9
+-	local stride=4
++	local stride=32
+ 	local unit_size=$((stride * 1024))
+ 
+ 	echo "Starting SNS repair testing ..."
+@@ -53,7 +53,7 @@ dgwrite_test()
+ 		return 1
+ 	}
+ 	echo "Creating files"
+-	dgwrite_test_module dd bs=$unit_size count=50
++	dgio_test_module dd bs=$unit_size count=50
+ 
+ 	for ((i=1; i < ${#EP[*]}; i++)) ; do
+ 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
+@@ -66,7 +66,7 @@ dgwrite_test()
+ 		return $?
+ 	fi
+ 	echo "dgmode test1: IO after first failure"
+-	dgwrite_test_module dd bs=$unit_size count=7 seek=13
++	dgio_test_module dd bs=$unit_size count=20 conv=notrunc
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+@@ -91,7 +91,7 @@ dgwrite_test()
+ 	echo $?
+ 
+ 	echo "dgmode test 4: IO after second failure"
+-	dgwrite_test_module dd bs=$unit_size count=5 seek=25
++	dgio_test_module dd bs=$unit_size count=60
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+@@ -109,19 +109,7 @@ dgwrite_test()
+ 	echo $?
+ 
+ 	echo "dgmode test 6: IO after second repair"
+-	dgwrite_test_module dd bs=$unit_size count=40
+-
+-	for ((i=8; i < 9; i++)) ; do
+-		for ((j=0; j < 3; j++)); do
+-			cp ./sandbox/file_to_compare_orig ./sandbox/file_to_compare
+-			dd if=$MERO_M0T1FS_MOUNT_DIR/file_to_compare of=./sandbox/file_to_compare \
+-			bs=$unit_size count=1 ibs=$unit_size skip=`expr 3 \* $i \+ $j` obs=$unit_size seek=`expr 3 \* $i \+ $j` conv=notrunc
+-			du -sh ./sandbox/file_to_compare
+-			echo "comparing ["$i", "$j"]"
+-			diff ./sandbox/file_to_compare ./sandbox/file_to_compare_orig
+-			echo $?
+-		done
+-	done
++	dgio_test_module dd bs=$unit_size count=40
+ 
+ 	pool_mach_set_failure $fail_device3
+ 	if [ $? -ne "0" ]
+@@ -133,7 +121,7 @@ dgwrite_test()
+ 	echo $?
+ 
+ 	echo "dgmode test 8: IO after third failure"
+-	dgwrite_test_module dd bs=$unit_size count=5 seek=25
++	dgio_test_module dd bs=$unit_size count=10
+ 
+ 	echo "unmounting and cleaning.."
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+@@ -152,12 +140,8 @@ main()
+ 	fi
+ 
+ 	rc=0
+-#	dgread_test || {
+-#		echo "Failed: SNS repair failed.."
+-#		rc=1
+-#	}
+-#
+-	dgwrite_test || {
++
++	dgio_test || {
+ 		echo "Failed: SNS repair failed.."
+ 		rc=1
+ 	}
+@@ -174,5 +158,3 @@ main()
+ }
+ 
+ trap unprepare EXIT
+-
+-main
+-- 
+1.8.3.2
+

@@ -1,0 +1,110 @@
+From c50c793bae425f5ea3cec4637dfa8354e154fef2 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 30 Oct 2013 15:55:57 +0200
+Subject: [PATCH 15/17] stob/linux_adieu.c: use *vec_pack() routines
+
+The usage of m0_{buf,index}vec_cursor_cstep() routines
+in the loop is not optimal, since each cstep() routine
+has its own loop which could be traversed many excess
+times.
+
+Instead, m0_{buf,index}vec_pack() routines should be
+used one time to squash the contiguous vector segments.
+
+m0_bufvec_cursor_cstep() routine was dropped.
+---
+ lib/vec.c          | 19 -------------------
+ lib/vec.h          | 13 -------------
+ stob/linux_adieu.c | 10 ++++++----
+ 3 files changed, 6 insertions(+), 36 deletions(-)
+
+diff --git a/lib/vec.c b/lib/vec.c
+index 0d1e556..d2a8f4b 100644
+--- a/lib/vec.c
++++ b/lib/vec.c
+@@ -405,25 +405,6 @@ m0_bufvec_cursor_step(const struct m0_bufvec_cursor *cur)
+ }
+ M0_EXPORTED(m0_bufvec_cursor_step);
+ 
+-M0_INTERNAL m0_bcount_t
+-m0_bufvec_cursor_cstep(const struct m0_bufvec_cursor *cur)
+-{
+-        struct m0_bufvec	*bvec;
+-	m0_bcount_t		 cstep	= m0_bufvec_cursor_step(cur);
+-	uint32_t		 seg;
+-
+-	bvec = container_of(cur->bc_vc.vc_vec, struct m0_bufvec, ov_vec);
+-
+-	for (seg = cur->bc_vc.vc_seg;
+-	     seg < bvec->ov_vec.v_nr - 1 &&
+-	       bvec->ov_buf[seg] + bvec->ov_vec.v_count[seg] ==
+-	       bvec->ov_buf[seg + 1];
+-	     seg++)
+-		cstep += bvec->ov_vec.v_count[seg + 1];
+-
+-	return cstep;
+-}
+-
+ M0_INTERNAL void *m0_bufvec_cursor_addr(struct m0_bufvec_cursor *cur)
+ {
+ 	struct m0_vec_cursor *vc = &cur->bc_vc;
+diff --git a/lib/vec.h b/lib/vec.h
+index 54cfc3e..c1044a1 100644
+--- a/lib/vec.h
++++ b/lib/vec.h
+@@ -326,19 +326,6 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_step(const struct m0_bufvec_cursor
+ 					      *cur);
+ 
+ /**
+-   Return number of bytes that the cursor have to be moved to reach the next
+-   non-contiguous segment in its vector (or to move into end of the vector
+-   position, when the cursor is already at the last segment).
+-
+-   @pre !m0_bufvec_cursor_move(cur, 0)
+-   @see m0_bufvec_cursor_step()
+-   @param cur Pointer to the struct m0_bufvec_cursor.
+-   @retval Count
+- */
+-M0_INTERNAL m0_bcount_t m0_bufvec_cursor_cstep(const struct m0_bufvec_cursor
+-					       *cur);
+-
+-/**
+    Return the buffer address at the cursor's current position.
+    @pre !m0_bufvec_cursor_move(cur, 0)
+    @see m0_bufvec_cursor_copy()
+diff --git a/stob/linux_adieu.c b/stob/linux_adieu.c
+index 66662dc..3e699b2 100644
+--- a/stob/linux_adieu.c
++++ b/stob/linux_adieu.c
+@@ -221,13 +221,15 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
+ 	M0_PRE(m0_vec_count(&io->si_user.ov_vec) > 0);
+ 
++	m0_bufvec_pack(&io->si_user);
++	m0_indexvec_pack(&io->si_stob);
+ 	m0_bufvec_cursor_init(&src, &io->si_user);
+ 	m0_ivec_cursor_init(&dst, &io->si_stob);
+ 
+ 	frags = 0;
+ 	do {
+-		frag_size = min_check(m0_bufvec_cursor_cstep(&src),
+-				      m0_ivec_cursor_cstep(&dst));
++		frag_size = min_check(m0_bufvec_cursor_step(&src),
++				      m0_ivec_cursor_step(&dst));
+ 		M0_ASSERT(frag_size > 0);
+ 		frags++;
+ 		eosrc = m0_bufvec_cursor_move(&src, frag_size);
+@@ -249,8 +251,8 @@ static int linux_stob_io_launch(struct m0_stob_io *io)
+ 			m0_bindex_t  off;
+ 			struct iocb *iocb;
+ 
+-			frag_size = min_check(m0_bufvec_cursor_cstep(&src),
+-					      m0_ivec_cursor_cstep(&dst));
++			frag_size = min_check(m0_bufvec_cursor_step(&src),
++					      m0_ivec_cursor_step(&dst));
+ 			if (frag_size > (size_t)~0ULL) {
+ 				M0_STOB_FUNC_FAIL(LAD_STOB_IO_LAUNCH_1,
+ 						  -EOVERFLOW);
+-- 
+1.8.3.2
+

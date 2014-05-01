@@ -1,0 +1,40 @@
+From bc22dd03e6dd8480f1dcd88315df7df0577452a9 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 8 Jul 2013 16:33:14 +0300
+Subject: [PATCH 290/290] be: added additional capturing of root node after
+ delete operation.
+
+---
+ be/btree.c | 2 ++
+ be/ut/tx.c | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index 93c34eb..b4bc40f 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -1272,6 +1272,8 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
+ 
+ 	rc = btree_delete_key(tree, tx, tree->bb_root, key->b_addr);
+ 
++	node_update(tree->bb_root, tree, tx);
++
+ 	m0_rwlock_write_unlock(&tree->bb_lock);
+ 	m0_be_op_state_set(op, rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
+ }
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 3d29359..3a50ed2 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -320,7 +320,7 @@ void loader(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	tree.bb_ops  = &kv_ops;
+-	tree.bb_root = (struct m0_be_bnode *) 0x4000000054f0;
++	tree.bb_root = (struct m0_be_bnode *) 0x4000000033e8;
+ 	tree.bb_seg  = &be_ut_tx_h.buh_seg;
+ 
+ 	btree_dbg_print(&tree);
+-- 
+1.8.3.2
+

@@ -1,0 +1,1134 @@
+From 7c26565fa1219f13108ab20b01ce263643cc5644 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 29 May 2013 11:19:46 +0300
+Subject: [PATCH 028/290] be: assign modules to functions and structures
+
+---
+ be/alloc.c |  44 +++++++++
+ be/alloc.h |  77 ++++++++++++++++
+ be/be.h    |  95 ++++++++++++++++++++
+ be/btree.c |  44 +++++++++
+ be/btree.h | 136 ++++++++++++++++++++++++++++
+ be/list.c  |  44 +++++++++
+ be/list.h  |  78 ++++++++++++++++
+ be/seg.c   |  44 +++++++++
+ be/seg.h   | 296 ++-----------------------------------------------------------
+ be/tx.c    |  44 +++++++++
+ be/tx.h    | 115 ++++++++++++++++++++++++
+ 11 files changed, 728 insertions(+), 289 deletions(-)
+ create mode 100644 be/alloc.c
+ create mode 100644 be/alloc.h
+ create mode 100644 be/be.h
+ create mode 100644 be/btree.c
+ create mode 100644 be/btree.h
+ create mode 100644 be/list.c
+ create mode 100644 be/list.h
+ create mode 100644 be/seg.c
+ create mode 100644 be/tx.c
+ create mode 100644 be/tx.h
+
+diff --git a/be/alloc.c b/be/alloc.c
+new file mode 100644
+index 0000000..e6fd384
+--- /dev/null
++++ b/be/alloc.c
+@@ -0,0 +1,44 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++
++/**
++ * @addtogroup XXX
++ *
++ * @{
++ */
++
++
++
++/** @} end of XXX group */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/alloc.h b/be/alloc.h
+new file mode 100644
+index 0000000..cb90618
+--- /dev/null
++++ b/be/alloc.h
+@@ -0,0 +1,77 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_ALLOC_H__
++#define __MERO_BE_ALLOC_H__
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++struct m0_be_allocator {
++	struct m0_be_seg *ba_seg;
++};
++
++int m0_be_allocator_init(struct m0_be_allocator *a, struct m0_be_seg *seg);
++
++void m0_be_allocator_fini(struct m0_be_allocator *a);
++
++int m0_be_allocator_create(struct m0_be_allocator *a);
++int m0_be_allocator_destroy(struct m0_be_allocator *a);
++
++enum m0_be_allocator_op {
++	M0_BAO_ALLOC,
++	M0_BAO_FREE
++};
++
++void m0_be_allocator_credit(const struct m0_be_allocator *a,
++			    enum m0_be_allocator_op optype, m0_bcount_t size,
++			    unsigned shift, struct m0_be_tx_credit *accum);
++
++void *m0_be_alloc(struct m0_be_allocator *a, struct m0_be_tx *tx,
++		  m0_bcount_t size, unsigned shift);
++
++void m0_be_free(struct m0_be_allocator *a, struct m0_be_tx *tx, void *ptr);
++
++struct m0_be_allocator_stats {
++	m0_bcount_t bas_free_space;
++};
++
++void m0_be_alloc_stats(const struct m0_be_allocator *a,
++		       struct m0_be_allocator_stats *out);
++
++/** @} end of be group */
++#endif /* __MERO_BE_ALLOC_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/be.h b/be/be.h
+new file mode 100644
+index 0000000..280034d
+--- /dev/null
++++ b/be/be.h
+@@ -0,0 +1,95 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_BE_H__
++#define __MERO_BE_BE_H__
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++struct m0_be {
++	struct m0_be_tx_engine b_tx;
++	struct m0_be_seg       b_seg0;
++	struct m0_be_log      *b_log;
++};
++
++enum m0_be_op_state {
++	M0_BOS_INIT,
++	M0_BOS_ACTIVE,
++	M0_BOS_SUCCESS,
++	M0_BOS_FAILURE,
++	M0_BOS_NR
++};
++
++struct m0_be_op {
++	struct m0_sm   bo_sm;
++	struct m0_fom *bo_fom;
++
++	union {
++		/* Used by m0_be_reg_get(). */
++		const struct m0_be_reg *u_reg;
++
++		/* Used by m0_be_list_get(). */
++		struct {
++			const struct m0_be_list *l_list;
++			m0_bcount_t              l_nelems;
++		} u_list;
++
++		struct {
++			struct m0_be_btree        *t_tree;
++			struct m0_be_tx           *t_tx;
++			/* XXX to be defined in btree.c */
++			unsigned int               t_op;
++			const struct m0_buf       *t_in;
++			struct m0_buf             *t_out;
++			struct m0_be_btree_anchor *t_anchor;
++		} u_btree;
++	} bo_u;
++};
++
++/** Waits for the operation to complete and returns its rc. */
++int m0_be_op_wait(struct m0_be_op *op);
++
++/**
++ * Moves the fom to the "next_state" and arranges for state transitions to
++ * continue when "op" completes. Returns value suitable to be returned from
++ * m0_fom_ops::fo_tick() implementation.
++ */
++int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom, int next_state);
++
++/** @} end of be group */
++#endif /* __MERO_BE_BE_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/btree.c b/be/btree.c
+new file mode 100644
+index 0000000..e6fd384
+--- /dev/null
++++ b/be/btree.c
+@@ -0,0 +1,44 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++
++/**
++ * @addtogroup XXX
++ *
++ * @{
++ */
++
++
++
++/** @} end of XXX group */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/btree.h b/be/btree.h
+new file mode 100644
+index 0000000..7a3232d
+--- /dev/null
++++ b/be/btree.h
+@@ -0,0 +1,136 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_BTREE_H__
++#define __MERO_BE_BTREE_H__
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++struct m0_be_btree {
++	struct m0_rwlock    bb_lock;
++	struct m0_be_seg   *bb_seg;
++	struct m0_be_bnode *bb_root;
++};
++
++void m0_be_btree_init(struct m0_be_btree *tree, struct m0_be_seg *seg,
++		      struct m0_be_bnode *root);
++
++void m0_be_btree_fini(struct m0_be_btree *tree);
++
++/*
++ * Use case:
++ *     m0_be_btree_init(&tree, seg, NULL);
++ *     m0_be_btree_create(&tree, tx, op);
++ */
++void m0_be_btree_create(struct m0_be_btree *tree, struct m0_be_tx *tx,
++			struct m0_be_op *op);
++
++void m0_be_btree_destroy(struct m0_be_btree *tree, struct m0_be_tx *tx,
++			 struct m0_be_op *op);
++
++struct m0_be_btree_cursor {
++	struct m0_be_btree *bc_tree;
++	struct m0_be_op     bc_op;
++	struct m0_buf       bc_current;
++};
++
++void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
++			     struct m0_be_btree *tree);
++
++void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
++
++void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
++			    const struct m0_buf *key);
++
++void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
++
++void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
++
++struct m0_be_btree_anchor {
++	struct m0_be_btree *ba_tree;
++	struct m0_buf       ba_buf;
++	bool                ba_write; /**< Is write lock being held? */
++};
++
++void m0_be_btree_maxkey(const struct m0_be_btree *tree, struct m0_be_op *op,
++			struct m0_buf *out);
++
++void m0_be_btree_lookup(struct m0_be_btree *tree, struct m0_be_op *op,
++			const struct m0_buf *key, struct m0_buf *dest_buf);
++
++void m0_be_btree_lookup_inplace(struct m0_be_btree *tree, struct m0_be_op *op,
++				const struct m0_buf *key,
++				struct m0_be_btree_anchor *anchor);
++
++enum m0_be_btree_op {
++	M0_BBO_CREATE,
++	M0_BBO_DESTROY,
++	M0_BBO_INSERT,
++	M0_BBO_DELETE,
++	M0_BBO_UPDATE
++};
++
++void m0_be_btree_credit(const struct m0_be_btree *tree,
++			enum m0_be_btree_op optype, m0_bcount_t nr,
++			struct m0_be_tx_credit *accum);
++
++void m0_be_btree_insert(struct m0_be_btree *tree, struct m0_be_tx *tx,
++			struct m0_be_op *op, const struct m0_buf *key,
++			const struct m0_buf *value);
++
++void m0_be_btree_insert_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
++				struct m0_be_op *op, const struct m0_buf *key,
++				struct m0_be_btree_anchor *anchor);
++
++void m0_be_btree_update(struct m0_be_btree *tree, struct m0_be_tx *tx,
++			struct m0_be_op *op, const struct m0_buf *key,
++			const struct m0_buf *value);
++
++void m0_be_btree_update_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
++				struct m0_be_op *op, const struct m0_buf *key,
++				struct m0_be_btree_anchor *anchor);
++
++void m0_be_btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx,
++			struct m0_be_op *op, const struct m0_buf *key);
++
++/** Completes m0_be_btree_*_inplace() operation. */
++void m0_be_btree_release(struct m0_be_btree *tree,
++			 const struct m0_be_btree_anchor *anchor);
++
++/** @} end of be group */
++#endif /* __MERO_BE_BTREE_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/list.c b/be/list.c
+new file mode 100644
+index 0000000..e6fd384
+--- /dev/null
++++ b/be/list.c
+@@ -0,0 +1,44 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++
++/**
++ * @addtogroup XXX
++ *
++ * @{
++ */
++
++
++
++/** @} end of XXX group */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/list.h b/be/list.h
+new file mode 100644
+index 0000000..94c7468
+--- /dev/null
++++ b/be/list.h
+@@ -0,0 +1,78 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_LIST_H__
++#define __MERO_BE_LIST_H__
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++struct m0_be_list {
++	struct m0_tl      bl_list;
++	struct m0_be_seg *bl_seg;
++};
++
++void m0_be_list_init(struct m0_be_list *list, struct m0_be_seg *seg);
++void m0_be_list_fini(struct m0_be_list *list);
++
++void m0_be_list_create(struct m0_be_list *list);
++void m0_be_list_destroy(struct m0_be_list *list);
++
++void m0_be_list_get(const struct m0_be_list *list, m0_bcount_t nelems,
++		    struct m0_be_op *op);
++
++void m0_be_list_put(const struct m0_be_list *list, m0_bcount_t nelems);
++
++/**
++ * Captures (origin - left)-th .. (origin + right)-th elements of the list.
++ */
++void m0_be_list_capture(const struct m0_be_list *list, struct m0_be_tx *tx,
++			const struct m0_tlink *origin, m0_bcount_t left,
++			m0_bcount_t right);
++
++enum m0_be_list_op {
++	M0_BLO_INSERT,
++	M0_BLO_DELETE,
++	M0_BLO_MOVE
++};
++
++void m0_be_list_credit(const struct m0_be_list *list,
++		       enum m0_be_list_op optype, m0_bcount_t nr,
++		       struct m0_be_tx_credit *accum);
++
++/** @} end of be group */
++#endif /* __MERO_BE_LIST_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/seg.c b/be/seg.c
+new file mode 100644
+index 0000000..e6fd384
+--- /dev/null
++++ b/be/seg.c
+@@ -0,0 +1,44 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++
++/**
++ * @addtogroup XXX
++ *
++ * @{
++ */
++
++
++
++/** @} end of XXX group */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/seg.h b/be/seg.h
+index ca8f685..da2fad1 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -23,157 +23,11 @@
+ #define __MERO_BE_SEG_H__
+ 
+ /**
+- * @defgroup seg
++ * @defgroup be
+  *
+  * @{
+  */
+ 
+-struct m0_be_allocator {
+-	struct m0_be_seg *ba_seg;
+-};
+-
+-int m0_be_allocator_init(struct m0_be_allocator *a, struct m0_be_seg *seg);
+-
+-void m0_be_allocator_fini(struct m0_be_allocator *a);
+-
+-int m0_be_allocator_create(struct m0_be_allocator *a);
+-int m0_be_allocator_destroy(struct m0_be_allocator *a);
+-
+-enum m0_be_allocator_op {
+-	M0_BAO_ALLOC,
+-	M0_BAO_FREE
+-};
+-
+-void m0_be_allocator_credit(struct m0_be_allocator *a,
+-			    enum m0_be_allocator_op optype, m0_bcount_t size,
+-			    unsigned shift, struct m0_be_tx_credit *accum);
+-
+-void *m0_be_alloc(struct m0_be_allocator *a, struct m0_be_tx *tx,
+-		  m0_bcount_t size, unsigned shift);
+-
+-void m0_be_free(struct m0_be_allocator *a, struct m0_be_tx *tx, void *ptr);
+-
+-struct m0_be_allocator_stats {
+-	m0_bcount_t bas_free_space;
+-};
+-
+-void m0_be_alloc_stats(struct m0_be_allocator *a,
+-		       struct m0_be_allocator_stats *out);
+-
+-/* ---------------------------------------------------------------- */
+-
+-enum m0_be_op_state {
+-	M0_BOS_INIT,
+-	M0_BOS_ACTIVE,
+-	M0_BOS_SUCCESS,
+-	M0_BOS_FAILURE,
+-	M0_BOS_NR
+-};
+-
+-struct m0_be_op {
+-	struct m0_sm   bo_sm;
+-	struct m0_fom *bo_fom;
+-
+-	union {
+-		/* Used by m0_be_reg_get(). */
+-		const struct m0_be_reg *u_reg;
+-
+-		/* Used by m0_be_list_get(). */
+-		struct {
+-			const struct m0_be_list *l_list;
+-			m0_bcount_t              l_nelems;
+-		} u_list;
+-
+-		struct {
+-			struct m0_be_btree        *t_tree;
+-			struct m0_be_tx           *t_tx;
+-			/* XXX to be defined in btree.c */
+-			unsigned int               t_op;
+-			const struct m0_buf       *t_in;
+-			struct m0_buf             *t_out;
+-			struct m0_be_btree_anchor *t_anchor;
+-		} u_btree;
+-	} bo_u;
+-};
+-
+-enum m0_be_tx_state {
+-	XXX,
+-	M0_BTS_NR
+-};
+-
+-struct m0_be_tx_engine {
+-	struct m0_tl     te_txs[M0_BTS_NR];
+-	struct m0_rwlock te_lock;
+-};
+-
+-typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
+-
+-struct m0_be_tx {
+-	enum m0_be_tx_state t_state;
+-	struct m0_be       *t_be;
+-	struct m0_tlink     t_linkage;
+-	m0_be_tx_cb_t       t_persistent;
+-	m0_be_tx_cb_t       t_discarded;
+-};
+-
+-void m0_be_tx_init(struct m0_be_tx *tx, struct m0_be *be,
+-		   m0_be_tx_cb_t persistent);
+-
+-void m0_be_tx_fini(struct m0_be_tx *tx);
+-
+-void m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit);
+-
+-void m0_be_tx_open(struct m0_be_tx *tx);
+-
+-void m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg);
+-
+-/** XXX */
+-void m0_be_tx_close(struct m0_be_tx *tx, m0_bcount_t payload_size,
+-		    void (*filler)(struct m0_be_tx *tx, void *payload,
+-				   void *datum), void *datum);
+-
+-int m0_be_tx_timedwait(struct m0_be_tx *tx, m0_time_t timeout);
+-
+-/** Forces the transaction to storage. */
+-void m0_be_tx_force(struct m0_be_tx *tx);
+-
+-/**
+- * Notifies backend that the transaction is no longer needed for recovery.
+- */
+-void m0_be_tx_stable(struct m0_be_tx *tx);
+-
+-struct m0_be_tx_credit {
+-	/**
+-	 * The number of regions needed for operation representation in the
+-	 * transaction.
+-	 */
+-	m0_bcount_t tc_reg_nr;
+-
+-	/** Total size of memory needed for the same. */
+-	m0_bcount_t tc_reg_size;
+-};
+-
+-void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
+-
+-/** c0 += c1 */
+-void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
+-			 const struct m0_be_tx_credit *c1);
+-
+-/** c *= k */
+-void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
+-
+-/* ---------------------------------------------------------------- */
+-
+-struct m0_be_log {
+-	XXX;
+-};
+-
+-struct m0_be {
+-	struct m0_be_tx_engine b_tx;
+-	struct m0_be_seg       b_seg0;
+-	struct m0_be_log      *b_log;
+-};
+-
+ struct m0_be_seg {
+ 	struct m0_stob        *bs_stob;
+ 	m0_bcount_t            bs_size;
+@@ -207,151 +61,15 @@ struct m0_be_reg {
+ 		.br_size = (size), \
+ 		.br_addr = (addr) })
+ 
+-void m0_be_reg_get(const struct m0_be_reg *reg, struct m0_be_op *op);
+-void m0_be_reg_get_fast(const struct m0_be_seg *reg);
+-
+-void m0_be_reg_put(const struct m0_be_reg *reg);
+-
+-/* ---------------------------------------------------------------- */
+-
+-struct m0_be_list {
+-	struct m0_tl      bl_list;
+-	struct m0_be_seg *bl_seg;
+-};
+-
+-void m0_be_list_init(struct m0_be_list *list, struct m0_be_seg *seg);
+-void m0_be_list_fini(struct m0_be_list *list);
+-
+-void m0_be_list_create(struct m0_be_list *list);
+-void m0_be_list_destroy(struct m0_be_list *list);
+-
+-void m0_be_list_get(const struct m0_be_list *list, m0_bcount_t nelems,
+-		    struct m0_be_op *op);
+-
+-void m0_be_list_put(const struct m0_be_list *list, m0_bcount_t nelems);
+-
+-/**
+- * Captures (origin - left)-th .. (origin + right)-th elements of the list.
+- */
+-void m0_be_list_capture(const struct m0_be_list *list, struct m0_be_tx *tx,
+-			const struct m0_tlink *origin, m0_bcount_t left,
+-			m0_bcount_t right);
+-
+-enum m0_be_list_op {
+-	M0_BLO_INSERT,
+-	M0_BLO_DELETE,
+-	M0_BLO_MOVE
+-};
+-
+-void m0_be_list_credit(const struct m0_be_list *list,
+-		       enum m0_be_list_op optype, m0_bcount_t nr,
+-		       struct m0_be_tx_credit *accum);
+-
+-
+-/* ---------------------------------------------------------------- */
+-
+-struct m0_be_btree {
+-	struct m0_rwlock    bb_lock;
+-	struct m0_be_seg   *bb_seg;
+-	struct m0_be_bnode *bb_root;
+-};
+-
+-void m0_be_btree_init(struct m0_be_btree *tree, struct m0_be_seg *seg,
+-		      struct m0_be_bnode *root);
+-
+-void m0_be_btree_fini(struct m0_be_btree *tree);
+-
+ /*
+- * Use case:
+- *     m0_be_btree_init(&tree, seg, NULL);
+- *     m0_be_btree_create(&tree, tx, op);
++ * `reg' parameter is not const, because stob IO will update
++ * m0_be_reg::br_addr when a region is loaded/stored.
+  */
+-void m0_be_btree_create(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op);
+-
+-void m0_be_btree_destroy(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			 struct m0_be_op *op);
+-
+-struct m0_be_btree_cursor {
+-	struct m0_be_btree *bc_tree;
+-	struct m0_op        bc_op;
+-	struct m0_buf       bc_current;
+-};
++void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
+ 
+-void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
+-			     struct m0_be_btree *tree);
+-
+-void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
+-
+-void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
+-			    const struct m0_buf *key);
+-
+-void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
+-
+-void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
+-
+-struct m0_be_btree_anchor {
+-	struct m0_be_btree *ba_tree;
+-	struct m0_buf       ba_buf;
+-	bool                ba_write; /**< Is write lock being held? */
+-};
+-
+-void m0_be_btree_maxkey(const struct m0_be_btree *tree, struct m0_be_op *op,
+-			struct m0_buf *out);
+-
+-void m0_be_btree_lookup(struct m0_be_btree *tree, struct m0_be_op *op,
+-			const struct m0_buf *key, struct m0_buf *dest_buf);
+-
+-void m0_be_btree_lookup_inplace(struct m0_be_btree *tree, struct m0_be_op *op,
+-				const struct m0_buf *key,
+-				struct m0_be_btree_anchor *anchor);
+-
+-enum m0_be_btree_op {
+-	M0_BBO_CREATE,
+-	M0_BBO_DESTROY,
+-	M0_BBO_INSERT,
+-	M0_BBO_DELETE,
+-	M0_BBO_UPDATE
+-};
+-
+-void m0_be_btree_credit(const struct m0_be_btree *tree,
+-			enum m0_be_btree_op optype, m0_bcount_t nr,
+-			struct m0_be_tx_credit *accum);
+-
+-void m0_be_btree_insert(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op, const struct m0_buf *key,
+-			const struct m0_buf *value);
+-
+-void m0_be_btree_insert_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-				struct m0_be_op *op, const struct m0_buf *key,
+-				struct m0_be_btree_anchor *anchor);
+-
+-void m0_be_btree_update(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op, const struct m0_buf *key,
+-			const struct m0_buf *value);
+-
+-void m0_be_btree_update_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-				struct m0_be_op *op, const struct m0_buf *key,
+-				struct m0_be_btree_anchor *anchor);
+-
+-void m0_be_btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op, const struct m0_buf *key);
+-
+-/** Completes m0_be_btree_*_inplace() operation. */
+-void m0_be_btree_release(struct m0_be_btree *tree,
+-			 const struct m0_be_btree_anchor *anchor);
+-
+-/* ---------------------------------------------------------------- */
+-
+-/** Waits for the operation to complete and returns its rc. */
+-int m0_be_op_wait(struct m0_be_op *op);
++void m0_be_reg_get_fast(const struct m0_be_seg *reg);
+ 
+-/**
+- * Moves the fom to the "next_state" and arranges for state transitions to
+- * continue when "op" completes. Returns value suitable to be returned from
+- * m0_fom_ops::fo_tick() implementation.
+- */
+-int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom, int next_state);
++void m0_be_reg_put(const struct m0_be_reg *reg);
+ 
+-/** @} end of seg group */
++/** @} end of be group */
+ #endif /* __MERO_BE_SEG_H__ */
+diff --git a/be/tx.c b/be/tx.c
+new file mode 100644
+index 0000000..e6fd384
+--- /dev/null
++++ b/be/tx.c
+@@ -0,0 +1,44 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++
++/**
++ * @addtogroup XXX
++ *
++ * @{
++ */
++
++
++
++/** @} end of XXX group */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/tx.h b/be/tx.h
+new file mode 100644
+index 0000000..ca48dc9
+--- /dev/null
++++ b/be/tx.h
+@@ -0,0 +1,115 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 29-May-2013
++ */
++
++#pragma once
++#ifndef __MERO_BE_TX_H__
++#define __MERO_BE_TX_H__
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++struct m0_be_log {
++	XXX;
++};
++
++enum m0_be_tx_state {
++	XXX,
++	M0_BTS_NR
++};
++
++struct m0_be_tx_engine {
++	struct m0_tl     te_txs[M0_BTS_NR];
++	struct m0_rwlock te_lock;
++};
++
++typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
++
++struct m0_be_tx {
++	enum m0_be_tx_state t_state;
++	struct m0_be       *t_be;
++	struct m0_tlink     t_linkage;
++	m0_be_tx_cb_t       t_persistent;
++	m0_be_tx_cb_t       t_discarded;
++};
++
++void m0_be_tx_init(struct m0_be_tx *tx, struct m0_be *be,
++		   m0_be_tx_cb_t persistent);
++
++void m0_be_tx_fini(struct m0_be_tx *tx);
++
++void m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit);
++
++void m0_be_tx_open(struct m0_be_tx *tx);
++
++void m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg);
++
++/** XXX */
++void m0_be_tx_close(struct m0_be_tx *tx, m0_bcount_t payload_size,
++		    void (*filler)(struct m0_be_tx *tx, void *payload,
++				   void *datum), void *datum);
++
++int m0_be_tx_timedwait(struct m0_be_tx *tx, m0_time_t timeout);
++
++/** Forces the transaction to storage. */
++void m0_be_tx_force(struct m0_be_tx *tx);
++
++/**
++ * Notifies backend that the transaction is no longer needed for recovery.
++ */
++void m0_be_tx_stable(struct m0_be_tx *tx);
++
++struct m0_be_tx_credit {
++	/**
++	 * The number of regions needed for operation representation in the
++	 * transaction.
++	 */
++	m0_bcount_t tc_reg_nr;
++
++	/** Total size of memory needed for the same. */
++	m0_bcount_t tc_reg_size;
++};
++
++void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
++
++/** c0 += c1 */
++void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
++			 const struct m0_be_tx_credit *c1);
++
++/** c *= k */
++void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
++
++/** @} end of be group */
++#endif /* __MERO_BE_TX_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+-- 
+1.8.3.2
+

@@ -1,0 +1,40 @@
+From 8dcf600448621b89d1564b82db2e5f990847701a Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 6 Jun 2013 17:27:13 +0300
+Subject: [PATCH 116/228] be/list: check list first, then initialize l_reg
+
+---
+ be/list.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index d149cb7..97ae6a1 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -102,10 +102,12 @@ M0_INTERNAL void m0_be_list_put(const struct m0_be_list *list,
+ 	struct m0_list_link *ll;
+ 	struct m0_list_link *prvll;
+ 	uint64_t            *ll_magic;
+-	struct m0_be_reg     l_reg = M0_BE_REG(list->bl_seg, list->bl_descr->
+-					       td_container_size, 0);
++	struct m0_be_reg     l_reg;
+ 
+ 	M0_PRE(list != NULL);
++
++       	l_reg = M0_BE_REG(list->bl_seg, list->bl_descr->td_container_size, 0);
++
+ 	for (ll = list->bl_list.t_head.l_head;
+ 	     ll != NULL && (void*)ll != &list->bl_list.t_head
+ 	     && nelems > 0;
+@@ -113,7 +115,7 @@ M0_INTERNAL void m0_be_list_put(const struct m0_be_list *list,
+ 		l_reg.br_addr = (void *)ll - list->bl_descr->td_link_offset;
+ 		ll_magic = l_reg.br_addr +
+ 			list->bl_descr->td_link_magic_offset;
+-		/* Check ll's reg before doing mem access. */
++		/* Check list node's reg before doing mem access. */
+ 		M0_ASSERT(m0_be__reg_is_pinned(&l_reg));
+ 		M0_ASSERT(list->bl_descr->td_link_magic == 0
+ 			  || *ll_magic == list->bl_descr->td_link_magic);
+-- 
+1.8.3.2
+

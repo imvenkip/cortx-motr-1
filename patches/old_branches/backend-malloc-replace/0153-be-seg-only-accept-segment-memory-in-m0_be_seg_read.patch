@@ -1,0 +1,89 @@
+From f32dd73809f879826dac7ee0419cdc66e3d6da59 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 13 Jun 2013 17:06:12 +0300
+Subject: [PATCH 153/161] be/seg: only accept segment memory in
+ m0_be_seg_read().
+
+* add asserts to check that bufvec points to segment memory
+  in m0_be_seg_read()
+* use m0_stobio_addr_open() instead of doing << manually
+* add be/be.h to the commit:
+  - add SEGIO optype
+  - add u_segio field to m0_be_op
+---
+ be/be.h  |  9 +++++++++
+ be/seg.c | 17 ++++++++++++-----
+ 2 files changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index 567a97b..7b593b8 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -57,6 +57,7 @@ enum m0_be_op_state {
+ 
+ enum m0_be_op_type {
+ 	M0_BOP_REG,
++	M0_BOP_SEGIO,
+ 	M0_BOP_TREE,
+ 	M0_BOP_LIST,
+ 	M0_BOP_NR
+@@ -73,6 +74,14 @@ struct m0_be_op {
+ 		/* Used by m0_be_reg_get(). */
+ 		struct m0_be_reg                   u_reg;
+ 
++		/* Used by m0_be_seg_read(). */
++		struct {
++			/* STOB i/o structure with allocated si_stob.iv_index
++			 * array. */
++			struct m0_stob_io          si_stobio;
++			struct m0_clink            si_clink;
++		} u_segio;
++
+ 		/* Used by m0_be_list_get() and its callback. */
+ 		struct {
+ 			const struct m0_be_list   *l_list;
+diff --git a/be/seg.c b/be/seg.c
+index 918da1f..6fbec6e 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -220,7 +220,6 @@ M0_INTERNAL int m0_be_seg_read(struct m0_be_seg *seg,
+ 	struct m0_stob_io  *io;
+ 	struct m0_clink    *clink;
+ 	struct m0_indexvec *iv;
+-	void               *seg_addr0_packed;
+ 	m0_bcount_t         i;
+ 
+ 	M0_PRE(m0_be__seg_invariant(seg) && op != NULL);
+@@ -237,7 +236,7 @@ M0_INTERNAL int m0_be_seg_read(struct m0_be_seg *seg,
+ 	iv             = &io->si_stob;
+ 	iv->iv_vec     = bv->ov_vec;
+ 	/* XXX: iv_index needs to be allocated, but in case of -ENOMEM
+-	 * it's probably possible to do i/o one buf at a time. */
++	 * it's probably possible to do i/o in one-buf-at-a-time mode. */
+ 	iv->iv_index   = m0_alloc((sizeof *(iv->iv_index)) * iv->iv_vec.v_nr);
+ 	if (iv->iv_index == NULL) {
+ 		op->bo_sm.sm_rc = -ENOMEM;
+@@ -245,9 +244,17 @@ M0_INTERNAL int m0_be_seg_read(struct m0_be_seg *seg,
+ 		return op->bo_sm.sm_rc;
+ 	}
+ 	/* Calculate iv indexes from addresses relative to seg->bs_addr. */
+-	seg_addr0_packed = m0_stob_addr_pack(seg->bs_addr, seg->bs_bshift);
+-	for (i = 0; i < iv->iv_vec.v_nr; i++)
+-		iv->iv_index[i] = bv->ov_buf[i] - seg_addr0_packed;
++	for (i = 0; i < iv->iv_vec.v_nr; i++) {
++		void *b0 = m0_stob_addr_open(bv->ov_buf[i], seg->bs_bshift);
++		void *b1 = m0_stob_addr_open(bv->ov_buf[i] +
++					     bv->ov_vec.v_count[i] - 1,
++					     seg->bs_bshift);
++		M0_ASSERT(m0_be_seg_contains(seg, b0) &&
++			  m0_be_seg_contains(seg, b1));
++		iv->iv_index[i] = (m0_bcount_t)
++			m0_stob_addr_pack((void *)(b0 - seg->bs_addr),
++					  seg->bs_bshift);
++	}
+ 	/* Add clink and start STOB i/o. */
+ 	m0_clink_add_lock(&io->si_wait, clink);
+ 	op->bo_sm.sm_rc = m0_stob_io_launch(io, seg->bs_stob, NULL, NULL);
+-- 
+1.8.3.2
+

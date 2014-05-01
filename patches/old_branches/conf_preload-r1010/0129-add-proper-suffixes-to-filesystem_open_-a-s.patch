@@ -1,0 +1,35 @@
+From c9426485358c581caf4329d31413b2b7b36196dd Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 11 Apr 2012 16:33:14 +0300
+Subject: [PATCH 129/311] add proper suffixes to filesystem_open_{a,s}()
+
+Use filesystem_open_{a,}sync() instead, as suggested by Nikita.
+---
+ conf/confc.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index f7587fa..452e74f 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -161,7 +161,7 @@
+  *
+  * struct c2_confc *confc = ...;
+  *
+- * static int filesystem_open_a(struct c2_conf_filesystem **fs)
++ * static int filesystem_open_async(struct c2_conf_filesystem **fs)
+  * {
+  *     struct c2_confc_ctx ctx;
+  *     struct c2_clink     clink;
+@@ -185,7 +185,7 @@
+  *     return rc;
+  * }
+  *
+- * static int filesystem_open_s(struct c2_conf_filesystem **fs)
++ * static int filesystem_open_sync(struct c2_conf_filesystem **fs)
+  * {
+  *     return c2_confc_open_sync(fs, confc, NULL,
+  *                               C2_CONF_REL(C2_CO_FILESYSTEM));
+-- 
+1.8.3.2
+

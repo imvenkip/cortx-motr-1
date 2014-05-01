@@ -1,0 +1,456 @@
+From 273e6afd820bf8dbbbc5e9a9efe742f09f23493d Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 7 Feb 2013 21:06:54 +0800
+Subject: [PATCH 08/11] fixes after codeinsp.
+
+---
+ cob/cob.h                                   | 36 ++++++++---------
+ m0t1fs/linux_kernel/dir.c                   | 60 +++++++++++++++++------------
+ m0t1fs/linux_kernel/inode.c                 | 18 ++++-----
+ m0t1fs/linux_kernel/m0t1fs.h                |  3 +-
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh |  2 +-
+ m0t1fs/linux_kernel/super.c                 | 54 ++++----------------------
+ mdservice/md_foms.c                         | 10 ++---
+ mdservice/md_fops.h                         |  5 ++-
+ 8 files changed, 81 insertions(+), 107 deletions(-)
+
+diff --git a/cob/cob.h b/cob/cob.h
+index 23b1c35..d73946a 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -318,24 +318,24 @@ enum m0_cob_valid_flags {
+  * should not be dealing with fop request or response.
+  */
+ struct m0_cob_attr {
+-        struct m0_fid       ca_pfid;    /**< parent fid */
+-        struct m0_fid       ca_tfid;    /**< object fid */
+-        uint32_t            ca_valid;   /**< valid bits (enum m0_cob_valid_flags) */
+-        uint32_t            ca_mode;    /**< protection. */
+-        uint32_t            ca_uid;     /**< user ID of owner. */
+-        uint32_t            ca_gid;     /**< group ID of owner. */
+-        uint64_t            ca_atime;   /**< time of last access. */
+-        uint64_t            ca_mtime;   /**< time of last modification. */
+-        uint64_t            ca_ctime;   /**< time of last status change. */
+-        uint64_t            ca_rdev;    /**< devid for special devices */
+-        uint32_t            ca_nlink;   /**< number of hard links. */
+-        uint64_t            ca_size;    /**< total size, in bytes. */
+-        uint64_t            ca_blksize; /**< blocksize for filesystem I/O. */
+-        uint64_t            ca_blocks;  /**< number of blocks allocated. */
+-        uint64_t            ca_version; /**< object version */
+-        uint64_t            ca_lid;     /**< layout id */
+-        struct m0_buf       ca_name;    /**< object name */
+-        struct m0_buf       ca_link;    /**< symlink body */
++        struct m0_fid ca_pfid;    /**< parent fid */
++        struct m0_fid ca_tfid;    /**< object fid */
++        uint32_t      ca_valid;   /**< valid bits (enum m0_cob_valid_flags) */
++        uint32_t      ca_mode;    /**< protection. */
++        uint32_t      ca_uid;     /**< user ID of owner. */
++        uint32_t      ca_gid;     /**< group ID of owner. */
++        uint64_t      ca_atime;   /**< time of last access. */
++        uint64_t      ca_mtime;   /**< time of last modification. */
++        uint64_t      ca_ctime;   /**< time of last status change. */
++        uint64_t      ca_rdev;    /**< devid for special devices */
++        uint32_t      ca_nlink;   /**< number of hard links. */
++        uint64_t      ca_size;    /**< total size, in bytes. */
++        uint64_t      ca_blksize; /**< blocksize for filesystem I/O. */
++        uint64_t      ca_blocks;  /**< number of blocks allocated. */
++        uint64_t      ca_version; /**< object version */
++        uint64_t      ca_lid;     /**< layout id */
++        struct m0_buf ca_name;    /**< object name */
++        struct m0_buf ca_link;    /**< symlink body */
+ };
+ 
+ /**
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index 49535a6..1959e1c0 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -226,7 +226,7 @@ static int m0t1fs_create(struct inode     *dir,
+                                    M0_COB_BLOCKS | M0_COB_SIZE  | M0_COB_LID   |
+                                    M0_COB_NLINK);
+         m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
+-			dentry->d_name.len);
++		    dentry->d_name.len);
+ 
+         rc = m0t1fs_mds_cob_create(csb, &mo, &rep);
+         if (rc != 0)
+@@ -608,6 +608,18 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
+         if (rc != 0)
+                 goto out;
+ 
++	if (!m0t1fs_inode_is_root(&ci->ci_inode) &&
++	    ci->ci_layout_id != getattr_rep->g_body.b_lid) {
++                /* layout for this file is changed. */
++
++                M0_ASSERT(ci->ci_layout_instance != NULL);
++                m0_layout_instance_fini(ci->ci_layout_instance);
++
++                ci->ci_layout_id = getattr_rep->g_body.b_lid;
++                rc = m0t1fs_inode_layout_init(ci);
++                M0_ASSERT(rc == 0);
++        }
++
+         /** Now its time to return inode stat data to user. */
+         stat->dev = inode->i_sb->s_dev;
+         stat->ino = inode->i_ino;
+@@ -719,10 +731,13 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
+                 mo.mo_attr.ca_gid = attr->ia_gid;
+                 mo.mo_attr.ca_valid |= M0_COB_GID;
+         }
+-	/* XXX
+-	 * Layout can be changed explicitly here?
+-	 * By administrator?
+-	 * For internal use? e.g. NBA
++
++	/*
++	 * Layout can be changed explicitly in setattr()
++	 * to a new layout, e.g. to a composite layout in NBA.
++	 * Check for that use case and update layout id for this
++	 * file. When that happens, a special setattr() with
++	 * valid layout id should be called.
+ 	 */
+ 
+         rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep);
+@@ -904,10 +919,14 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
+ 		layout->l_op  = mo->mo_layout_op;
+ 		layout->l_lid = mo->mo_layout_id;
+ 
+-		if (layout->l_op == M0_LAYOUT_OP_CREATE ||
++		if (layout->l_op == M0_LAYOUT_OP_ADD ||
+ 		    layout->l_op == M0_LAYOUT_OP_DELETE) {
+ 			M0_ASSERT(l != NULL);
+ 
++			/* TODO m0_layout_size(const struct *l) should be used
++			 * in the future to calculate buffer size large enough
++			 * for any type of layout.
++			 */
+ 			layout->l_buf.b_count = m0_layout_max_recsize(
+ 						&m0t1fs_globals.g_layout_dom);
+ 			layout->l_buf.b_addr = m0_alloc(layout->l_buf.b_count);
+@@ -922,7 +941,7 @@ static int m0t1fs_mds_cob_fop_populate(const struct m0t1fs_mdop *mo,
+ 			m0_bufvec_cursor_init(&cur, &bv);
+ 
+ 			m0_mutex_lock(&l->l_lock);
+-			rc  = m0_layout_encode(l, M0_LXO_BUFFER_OP, NULL, &cur);
++			rc = m0_layout_encode(l, M0_LXO_BUFFER_OP, NULL, &cur);
+ 			m0_mutex_unlock(&l->l_lock);
+ 		}
+ 		break;
+@@ -999,76 +1018,63 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
+                                 0 /* deadline */,
+ 				m0_time_from_now(M0T1FS_RPC_TIMEOUT, 0));
+ 
+-        M0_LOG(M0_DEBUG, "Got rep for operation %u to session %lu rc=%d",
+-                m0_fop_opcode(fop), (unsigned long)session->s_session_id, rc);
+         if (rc != 0) {
+-                M0_LOG(M0_ERROR,
+-                       "m0_rpc_client_call(%x) failed with %d", m0_fop_opcode(fop), rc);
++                M0_LOG(M0_ERROR, "m0_rpc_client_call(%x) failed with %d",
++		       m0_fop_opcode(fop), rc);
+                 goto out;
+         }
+ 
+         reply_fop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
++        *rep = reply_fop;
+ 
+         switch (m0_fop_opcode(fop)) {
+         case M0_MDSERVICE_CREATE_OPCODE:
+                 create_rep = reply_fop;
+                 rc = create_rep->c_body.b_rc;
+-                *rep = create_rep;
+                 break;
+         case M0_MDSERVICE_STATFS_OPCODE:
+                 statfs_rep = reply_fop;
+                 rc = statfs_rep->f_rc;
+-                *rep = statfs_rep;
+                 break;
+         case M0_MDSERVICE_LOOKUP_OPCODE:
+                 lookup_rep = reply_fop;
+                 rc = lookup_rep->l_body.b_rc;
+-                *rep = lookup_rep;
+                 break;
+         case M0_MDSERVICE_LINK_OPCODE:
+                 link_rep = reply_fop;
+                 rc = link_rep->l_body.b_rc;
+-                *rep = link_rep;
+                 break;
+         case M0_MDSERVICE_UNLINK_OPCODE:
+                 unlink_rep = reply_fop;
+                 rc = unlink_rep->u_body.b_rc;
+-                *rep = unlink_rep;
+                 break;
+         case M0_MDSERVICE_RENAME_OPCODE:
+                 rename_rep = reply_fop;
+                 rc = rename_rep->r_body.b_rc;
+-                *rep = rename_rep;
+                 break;
+         case M0_MDSERVICE_SETATTR_OPCODE:
+                 setattr_rep = reply_fop;
+                 rc = setattr_rep->s_body.b_rc;
+-                *rep = setattr_rep;
+                 break;
+         case M0_MDSERVICE_GETATTR_OPCODE:
+                 getattr_rep = reply_fop;
+                 rc = getattr_rep->g_body.b_rc;
+-                *rep = getattr_rep;
+                 break;
+         case M0_MDSERVICE_OPEN_OPCODE:
+                 open_rep = reply_fop;
+                 rc = open_rep->o_body.b_rc;
+-                *rep = open_rep;
+                 break;
+         case M0_MDSERVICE_CLOSE_OPCODE:
+                 close_rep = reply_fop;
+                 rc = close_rep->c_body.b_rc;
+-                *rep = close_rep;
+                 break;
+         case M0_MDSERVICE_READDIR_OPCODE:
+                 readdir_rep = reply_fop;
+                 rc = readdir_rep->r_body.b_rc;
+-                *rep = readdir_rep;
+                 break;
+          case M0_LAYOUT_OPCODE:
+                 layout_rep = reply_fop;
+                 rc = layout_rep->lr_rc;
+-                *rep = layout_rep;
+                 break;
+         default:
+                 M0_LOG(M0_ERROR, "Unexpected fop opcode %x", m0_fop_opcode(fop));
+@@ -1096,7 +1102,7 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
+ 	M0_ENTRY();
+ 
+ 	M0_LOG(M0_DEBUG, "layout op = %u lid = %llu", op, lid);
+-	if (op == M0_LAYOUT_OP_CREATE || op == M0_LAYOUT_OP_DELETE) {
++	if (op == M0_LAYOUT_OP_ADD || op == M0_LAYOUT_OP_DELETE) {
+ 		layout = m0_layout_find(ldom, lid);
+ 		if (layout == NULL)
+ 			M0_RETURN(-ENOENT);
+@@ -1123,11 +1129,15 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
+ 					   (m0_bcount_t*)&rep->lr_buf.b_count);
+ 			m0_bufvec_cursor_init(&cur, &bv);
+ 
++			/* FIXME This hard coding of 'lt' will be gotten rid of
++			 * once we enhance the layout id to contain the layout
++			 * type as well.
++			 */
+ 			lt = &m0_pdclust_layout_type;
+ 			rc = lt->lt_ops->lto_allocate(ldom, lid, &l);
+ 			if (rc == 0) {
+ 				rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP,
+-							NULL);
++						      NULL);
+ 				/* release lock held by ->lto_allocate() */
+ 				m0_mutex_unlock(&l->l_lock);
+ 				if (rc == 0) {
+diff --git a/m0t1fs/linux_kernel/inode.c b/m0t1fs/linux_kernel/inode.c
+index e8d0077..5a7633d 100644
+--- a/m0t1fs/linux_kernel/inode.c
++++ b/m0t1fs/linux_kernel/inode.c
+@@ -256,8 +256,6 @@ M0_INTERNAL int m0t1fs_inode_update(struct inode *inode,
+         if (body->b_valid & M0_COB_MODE)
+ 	        inode->i_mode = body->b_mode;
+ 
+-	/* XXX Can layout change at this time? if yes, update layout here */
+-
+ 	M0_LEAVE("rc: %d", rc);
+ 	return rc;
+ }
+@@ -356,20 +354,22 @@ static int m0t1fs_build_layout_instance(struct m0t1fs_sb           *csb,
+ 					const struct m0_fid        *fid,
+ 					struct m0_layout_instance **linst)
+ {
+-	struct m0_layout           *layout;
+-	int                         rc;
++	struct m0_layout *layout;
++	int               rc;
+ 
+ 	M0_ENTRY();
+-	M0_PRE(fid != NULL && linst != NULL);
++	M0_PRE(fid != NULL);
++	M0_PRE(linst != NULL);
+ 
+-	layout   = m0_layout_find(&m0t1fs_globals.g_layout_dom, layout_id);
++	layout = m0_layout_find(&m0t1fs_globals.g_layout_dom, layout_id);
+ 	if (layout == NULL) {
+-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, layout_id, &layout);
++		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP,
++				      layout_id, &layout);
+ 		if (rc != 0)
+ 			goto out;
+ 	}
+ 
+-	*linst   = NULL;
++	*linst = NULL;
+ 	rc = m0_layout_instance_build(layout, fid, linst);
+ 	m0_layout_put(layout);
+ 
+@@ -380,7 +380,7 @@ out:
+ 
+ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
+ {
+-	struct m0t1fs_sb  *csb;
++	struct m0t1fs_sb          *csb;
+ 	struct m0_layout_instance *linst;
+ 	int                        rc;
+ 
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 96b7ba4..252867a 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -747,7 +747,8 @@ M0_INTERNAL int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
+                                        const struct m0t1fs_mdop   *mo,
+                                        struct m0_fop_readdir_rep **rep);
+ 
+-/** layout operation from client to mds.
++/**
++ * layout operation from client to mds.
+  * @param op in {CREATE/DELETE/LOOKUP}
+  * @param lid layout id
+  * @param l_out if op is LOOKUP, new layout is returned here. If *l_out is
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 6e6478d..501c145 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -307,7 +307,7 @@ file_creation_test()
+ 	    >> $MERO_TEST_LOGFILE
+ 	for ((i=0; i<$nr_files; ++i)); do
+ 		touch $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+-		ls -li $MERO_M0T1FS_MOUNT_DIR/file$i >>$MERO_TEST_LOGFILE || break
++		ls -li $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+ 	done
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 	echo -n "Test: file creation: " >> $MERO_TEST_LOGFILE
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 94fdbc9..2985079 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -698,55 +698,11 @@ static int m0t1fs_root_alloc(struct super_block *sb)
+ 		M0_RETURN(rc);
+ 
+ 	/* create the new layout on mds: -EEXIST is OK */
+-	rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_CREATE, csb->csb_layout_id,
++	rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_ADD, csb->csb_layout_id,
+ 				NULL);
+ 	if (rc != 0 && rc != -EEXIST)
+ 		M0_RETURN(rc);
+ 
+-	/* testing code
+-	if (0) {
+-		uint64_t lid1 = 1234;
+-		uint64_t lid2 = 5678;
+-		struct m0_layout *l1;
+-		struct m0_layout *l2;
+-		struct m0_layout *tmp = NULL;
+-		struct m0_layout_enum *layout_enum;
+-
+-		m0t1fs_cob_id_enum_build(10, &layout_enum);
+-		rc = m0t1fs_layout_build(lid1,
+-					 4,
+-					 1,
+-					 10,
+-					 4096, layout_enum,
+-					 &l1);
+-		M0_ASSERT(rc == 0 && l1 != NULL);
+-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_CREATE, lid1, NULL);
+-		M0_ASSERT(rc == 0);
+-		m0_layout_put(l1);
+-
+-		m0t1fs_cob_id_enum_build(20, &layout_enum);
+-		rc = m0t1fs_layout_build(lid2,
+-					 6,
+-					 2,
+-					 20,
+-					 4096 * 16, layout_enum,
+-					 &l2);
+-		M0_ASSERT(rc == 0 && l2 != NULL);
+-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_CREATE, lid2, NULL);
+-		M0_ASSERT(rc == 0);
+-		m0_layout_put(l2);
+-
+-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, lid1, &tmp);
+-		M0_ASSERT(rc == 0);
+-		m0_layout_put(tmp);
+-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, lid2, &tmp);
+-		M0_ASSERT(rc == 0);
+-		m0_layout_put(tmp);
+-		rc = m0t1fs_layout_op(csb, M0_LAYOUT_OP_LOOKUP, lid2 + lid1, &tmp);
+-		M0_ASSERT(rc != 0);
+-	}
+-	*/
+-
+ 	sb->s_magic = rep->f_type;
+ 	csb->csb_namelen = rep->f_namelen;
+ 
+@@ -966,7 +922,13 @@ m0t1fs_sb_layout_init(struct m0t1fs_sb *csb, const struct fs_params *fs_params)
+ 	if (rc == 0) {
+ 		uint64_t random = m0_time_nanoseconds(m0_time_now());
+ 
+-		csb->csb_layout_id = m0_rnd(~0ULL >> 16, &random);
++		/* A new and unique layout id is needed here. The uniqueness
++		 * in cluster, and in history. FIXME later.
++		 */
++		do {
++			csb->csb_layout_id = m0_rnd(~0ULL >> 16, &random);
++		} while (csb->csb_layout_id == 0);
++
+ 		rc = m0t1fs_layout_build(csb->csb_layout_id,
+ 					 fs_params->fs_nr_data_units,
+ 					 fs_params->fs_nr_parity_units,
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 46b7218..09d4838 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -1057,7 +1057,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
+ 
+ 	m0_fom_block_enter(fom);
+ 	switch (req->l_op) {
+-	case M0_LAYOUT_OP_CREATE:
++	case M0_LAYOUT_OP_ADD:
+ 	case M0_LAYOUT_OP_DELETE:
+ 		bv = (struct m0_bufvec)
+ 			M0_BUFVEC_INIT_BUF((void**)&req->l_buf.b_addr,
+@@ -1066,7 +1066,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
+ 		lt = &m0_pdclust_layout_type;
+ 
+ 		rc = lt->lt_ops->lto_allocate(&serv_obj->rmds_layout_dom,
+-						req->l_lid, &l);
++					      req->l_lid, &l);
+ 		if (rc != 0)
+ 			break;
+ 
+@@ -1077,12 +1077,12 @@ static int m0_md_tick_layout(struct m0_fom *fom)
+ 			layout_pair_set(&pair, &req->l_lid,
+ 					req->l_buf.b_addr,
+ 					req->l_buf.b_count);
+-			if (req->l_op == M0_LAYOUT_OP_CREATE)
++			if (req->l_op == M0_LAYOUT_OP_ADD)
+ 				rc = m0_layout_add(l, &fom->fo_tx.tx_dbtx,
+-							&pair);
++						   &pair);
+ 			else if (req->l_op == M0_LAYOUT_OP_DELETE)
+ 				rc = m0_layout_delete(l, &fom->fo_tx.tx_dbtx,
+-							&pair);
++						      &pair);
+ 			M0_LOG(M0_DEBUG, "Done");
+ 		}
+ 		m0_layout_put(l); /* ref from ->lto_allocate() */
+diff --git a/mdservice/md_fops.h b/mdservice/md_fops.h
+index 954cd62..37e916f 100644
+--- a/mdservice/md_fops.h
++++ b/mdservice/md_fops.h
+@@ -210,9 +210,10 @@ struct m0_fop_statfs_rep {
+ 
+ enum m0_layout_opcode {
+         M0_LAYOUT_OP_NOOP   = 0,
+-        M0_LAYOUT_OP_CREATE = 1,
++        M0_LAYOUT_OP_ADD    = 1,
+         M0_LAYOUT_OP_DELETE = 2,
+-        M0_LAYOUT_OP_LOOKUP = 3
++        M0_LAYOUT_OP_LOOKUP = 3,
++        M0_LAYOUT_OP_UPDATE = 4
+ };
+ 
+ struct m0_fop_layout {
+-- 
+1.8.3.2
+

@@ -1,0 +1,143 @@
+From e30e8bf03bbef64010e21582cff55711eaddd909 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 14 Mar 2014 19:46:06 +0800
+Subject: [PATCH 22/26] Allocate m0_fom_locality one by one, instead of a large
+ array of m0_fom_locality. Allocation of large chunk of contiguous memory from
+ kernel is prune to fail.
+
+---
+ fop/fom.c   | 35 +++++++++++++++++++++++++++--------
+ fop/fom.h   |  2 +-
+ reqh/reqh.c |  2 +-
+ 3 files changed, 29 insertions(+), 10 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index c1749f2..e5baeac 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -334,7 +334,9 @@ static bool thread_invariant(const struct m0_loc_thread *t)
+ 
+ M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom)
+ {
++	size_t cpu_max = m0_processor_nr_max();
+ 	return dom != NULL && dom->fd_localities != NULL &&
++	       m0_forall(i, cpu_max, dom->fd_localities[i] != NULL) &&
+ 		dom->fd_ops != NULL;
+ }
+ 
+@@ -552,7 +554,7 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom, struct m0_reqh *reqh)
+ 	dom = &reqh->rh_fom_dom;
+ 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
+ 	M0_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
+-	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
++	fom->fo_loc = reqh->rh_fom_dom.fd_localities[loc_idx];
+ 	m0_fom_sm_init(fom);
+ 	fom->fo_cb.fc_ast.sa_cb = queueit;
+ 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
+@@ -1012,8 +1014,8 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
+ 	int                     result;
+ 	size_t                  cpu;
+ 	size_t                  cpu_max;
+-	struct m0_fom_locality *localities;
+ 	struct m0_bitmap        onln_cpu_map;
++	int                     i;
+ 
+ 
+ 	M0_PRE(dom != NULL);
+@@ -1025,20 +1027,33 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
+ 		return result;
+ 
+ 	m0_processors_online(&onln_cpu_map);
+-	FOP_ALLOC_ARR(dom->fd_localities, cpu_max, FOM_DOMAIN_INIT,
+-			&m0_fop_addb_ctx);
++	M0_LOG(M0_DEBUG, "sizeof struct m0_fom_locality = %d cpu_max = %d",
++			 (int)(sizeof **dom->fd_localities), (int)cpu_max);
++	dom->fd_localities = m0_alloc(sizeof(*dom->fd_localities) * cpu_max);
+ 	if (dom->fd_localities == NULL) {
+ 		m0_bitmap_fini(&onln_cpu_map);
+ 		return -ENOMEM;
+ 	}
++	for (i = 0; i < cpu_max; i++) {
++		FOP_ALLOC_PTR(dom->fd_localities[i], FOM_DOMAIN_INIT,
++			      &m0_fop_addb_ctx);
++		if (dom->fd_localities[i] == NULL) {
++			int j;
++			for (j = 0; j <= i; j++) {
++				m0_free(dom->fd_localities[j]);
++			}
++			m0_free(dom->fd_localities);
++			m0_bitmap_fini(&onln_cpu_map);
++			return -ENOMEM;
++		}
++	}
+ 
+-	localities = dom->fd_localities;
+ 	for (cpu = 0; cpu < cpu_max; ++cpu) {
+ 		struct m0_fom_locality *loc;
+ 
+ 		if (!m0_bitmap_get(&onln_cpu_map, cpu))
+ 			continue;
+-		loc = &localities[dom->fd_localities_nr];
++		loc = dom->fd_localities[dom->fd_localities_nr];
+ 		loc->fl_dom = dom;
+ 		result = loc_init(loc, cpu, cpu_max);
+ 		if (result != 0) {
+@@ -1061,15 +1076,19 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
+ static void __fom_domain_fini(struct m0_fom_domain *dom)
+ {
+ 	int fd_loc_nr;
++	int i;
+ 
+ 	M0_ASSERT(m0_fom_domain_invariant(dom));
+ 
+ 	fd_loc_nr = dom->fd_localities_nr;
+ 	while (fd_loc_nr > 0) {
+-		loc_fini(&dom->fd_localities[fd_loc_nr - 1]);
++		loc_fini(dom->fd_localities[fd_loc_nr - 1]);
+ 		--fd_loc_nr;
+ 	}
+ 
++	for (i = 0; i < m0_processor_nr_max(); i++) {
++		m0_free(dom->fd_localities[i]);
++	}
+ 	m0_free(dom->fd_localities);
+ }
+ 
+@@ -1084,7 +1103,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
+ M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
+ {
+ 	return m0_forall(i, dom->fd_localities_nr,
+-			 dom->fd_localities[i].fl_foms == 0);
++			 dom->fd_localities[i]->fl_foms == 0);
+ }
+ 
+ static void fop_fini(struct m0_fop *fop, bool local)
+diff --git a/fop/fom.h b/fop/fom.h
+index 2c79a09..2f319ca 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -331,7 +331,7 @@ M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc);
+  */
+ struct m0_fom_domain {
+ 	/** An array of localities. */
+-	struct m0_fom_locality		*fd_localities;
++	struct m0_fom_locality	       **fd_localities;
+ 	/** Number of localities in the domain. */
+ 	size_t				 fd_localities_nr;
+ 	/** Domain operations. */
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 52a6217..74594d3 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -776,7 +776,7 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
+ 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
+ 
+ 	for (i = 0; i < m0_reqh_nr_localities(reqh); i++)
+-		m0_fom_locality_post_stats(&reqh->rh_fom_dom.fd_localities[i]);
++		m0_fom_locality_post_stats(reqh->rh_fom_dom.fd_localities[i]);
+ }
+ 
+ M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)
+-- 
+1.8.3.2
+

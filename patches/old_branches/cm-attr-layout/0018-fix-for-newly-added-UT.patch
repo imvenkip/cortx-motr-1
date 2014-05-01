@@ -1,0 +1,49 @@
+From 2aceffa0a25f7a0698e78a038e1fbc604f2a0397 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sat, 6 Apr 2013 00:49:12 +0800
+Subject: [PATCH 18/18] fix for newly added UT
+
+---
+ fop/ut/stats/stats_ut.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/fop/ut/stats/stats_ut.c b/fop/ut/stats/stats_ut.c
+index efff0c2..f1de7df 100644
+--- a/fop/ut/stats/stats_ut.c
++++ b/fop/ut/stats/stats_ut.c
+@@ -84,11 +84,13 @@ M0_REQH_SERVICE_TYPE_DEFINE(ut_stats_service_type,
+ 			    &ut_stats_service_type_ops,
+ 			    "ut-stats-service",
+                             &m0_addb_ct_ut_service);
+-
++static struct m0_dbenv dbenv;
+ static int test_stats_init(void)
+ {
+ 	int rc;
+ 
++	rc = m0_dbenv_init(&dbenv, "something", 0);
++	M0_ASSERT(rc == 0);
+ 	m0_sm_conf_init(&fom_phases_conf);
+ 	m0_addb_rec_type_register(&addb_rt_fom_phase_stats);
+ 	rc = m0_reqh_service_type_register(&ut_stats_service_type);
+@@ -104,7 +106,7 @@ static int test_stats_init(void)
+ 	 */
+ 	rc = M0_REQH_INIT(&reqh,
+ 			  .rhia_dtm       = (void *)1,
+-			  .rhia_db        = (void *)1,
++			  .rhia_db        = &dbenv,
+ 			  .rhia_mdstore   = (void *)1,
+ 			  .rhia_fol       = (void *)1,
+ 			  .rhia_svc       = NULL,
+@@ -127,7 +129,7 @@ static int test_stats_fini(void)
+ 	m0_reqh_fini(&reqh);
+ 
+ 	m0_reqh_service_type_unregister(&ut_stats_service_type);
+-
++	m0_dbenv_fini(&dbenv);
+ 	return 0;
+ }
+ 
+-- 
+1.8.3.2
+

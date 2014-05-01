@@ -1,0 +1,376 @@
+From a556d4bd747db3779fc45c52253998f500e57148 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 11 Dec 2012 21:00:38 +0800
+Subject: [PATCH 2/6] io after SNS repaired: When a device is failed and then
+ SNS repaired, its I/O is re-directed to corresponding spare space.
+
+---
+ m0t1fs/linux_kernel/dir.c           |   6 +-
+ m0t1fs/linux_kernel/file.c          | 113 ++++++++++++++++++++++++------------
+ m0t1fs/linux_kernel/file_internal.h |  15 ++---
+ m0t1fs/linux_kernel/ut/file.c       |  17 ++++--
+ pool/pool.c                         |   3 +-
+ pool/ut/test_pm.c                   |   6 +-
+ stob/ut/stobio.c                    |   1 +
+ 7 files changed, 110 insertions(+), 51 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index 76bc1a2..ee4b8fe 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -744,8 +744,10 @@ M0_INTERNAL struct m0_fid m0t1fs_ios_cob_fid(const struct m0t1fs_inode *ci,
+ 
+ 	m0_layout_enum_get(le, index, &ci->ci_fid, &fid);
+ 
+-	M0_LEAVE("fid: [%lu:%lu]", (unsigned long)fid.f_container,
+-				   (unsigned long)fid.f_key);
++	M0_LOG(M0_DEBUG, "gob fid [%llu:%llu] @%d = cob fid [%llu:%llu]",
++			ci->ci_fid.f_container, ci->ci_fid.f_key, index,
++			fid.f_container, fid.f_key);
++
+ 	return fid;
+ }
+ 
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index 5183e4e..87c5f17 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -27,6 +27,7 @@
+ #include "lib/bob.h"        /* m0_bob_type */
+ #include "lib/ext.h"        /* m0_ext */
+ #include "lib/arith.h"      /* min_type() */
++#include "lib/finject.h"    /* M0_FI_ENABLED() */
+ #include "layout/pdclust.h" /* M0_PUT_*, m0_layout_to_pdl(),
+ 			     * m0_pdclust_instance_map */
+ #include "lib/bob.h"        /* m0_bob_type */
+@@ -594,7 +595,7 @@ static int  nw_xfer_req_dispatch(struct nw_xfer_request *xfer);
+ static int  nw_xfer_tioreq_map	(struct nw_xfer_request	          *xfer,
+ 				 const struct m0_pdclust_src_addr *src,
+ 				 struct m0_pdclust_tgt_addr       *tgt,
+-				 struct target_ioreq	         **out);
++				 struct target_ioreq             **out);
+ 
+ static int  nw_xfer_tioreq_get	(struct nw_xfer_request *xfer,
+ 				 struct m0_fid		*fid,
+@@ -651,13 +652,13 @@ static void target_ioreq_fini	      (struct target_ioreq *ti);
+ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
+ 				       enum page_attr       filter);
+ 
+-static void target_ioreq_seg_add      (struct target_ioreq *ti,
+-				       uint64_t		    frame,
+-				       m0_bindex_t	    gob_offset,
+-				       m0_bindex_t	    par_offset,
+-				       m0_bcount_t	    count,
+-				       uint64_t		    unit,
+-				       struct pargrp_iomap *map);
++static void target_ioreq_seg_add(struct target_ioreq              *ti,
++				 const struct m0_pdclust_src_addr *src,
++				 const struct m0_pdclust_tgt_addr *tgt,
++				 m0_bindex_t	                   gob_offset,
++				 m0_bindex_t	                   par_offset,
++				 m0_bcount_t	                   count,
++				 struct pargrp_iomap              *map);
+ 
+ static const struct target_ioreq_ops tioreq_ops = {
+ 	.tio_seg_add	    = target_ioreq_seg_add,
+@@ -2093,9 +2094,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
+ 			if (rc != 0)
+ 				goto err;
+ 
+-			ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
++			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
+ 						0, m0_ext_length(&r_ext),
+-						src.sa_unit,
+ 						req->ir_iomaps[map]);
+ 		}
+ 
+@@ -2110,19 +2110,22 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
+ 			for (unit = 0; unit < 2 * layout_k(play); ++unit) {
+ 
+ 				src.sa_unit = layout_n(play) + unit;
+-				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
+-								   &tgt, &ti);
+-				if (rc != 0)
+-					goto err;
+ 
+ 				if (m0_pdclust_unit_classify(play,
+-				    src.sa_unit) == M0_PUT_PARITY)
++				    src.sa_unit) == M0_PUT_PARITY) {
++					rc = xfer->nxr_ops->nxo_tioreq_map(xfer,
++									   &src,
++									   &tgt,
++									   &ti);
++					if (rc != 0)
++						goto err;
++
+ 					ti->ti_ops->tio_seg_add(ti,
+-							tgt.ta_frame, pgstart,
++							&src, &tgt, pgstart,
+ 							0,
+ 							layout_unit_size(play),
+-							src.sa_unit,
+ 							req->ir_iomaps[map]);
++				}
+ 			}
+ 		}
+ 	}
+@@ -2401,16 +2404,21 @@ static void data_buf_fini(struct data_buf *buf)
+ 	buf->db_flags = PA_NONE;
+ }
+ 
+-static int nw_xfer_tioreq_map(struct nw_xfer_request	       *xfer,
++static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 			      const struct m0_pdclust_src_addr *src,
+ 			      struct m0_pdclust_tgt_addr       *tgt,
+-			      struct target_ioreq	      **out)
++			      struct target_ioreq             **out)
+ {
+-	int			  rc;
+-	struct m0_fid		  tfid;
+-	struct io_request	 *req;
+-	struct m0_rpc_session	 *session;
+-	struct m0_pdclust_layout *play;
++	struct m0_fid		    tfid;
++	struct io_request	   *req;
++	struct m0_rpc_session	   *session;
++	struct m0_pdclust_layout   *play;
++	struct m0_pdclust_instance *play_instance;
++	struct m0t1fs_sb           *csb;
++	enum m0_pool_nd_state       device_state;
++	uint32_t                    spare_slot;
++	struct m0_pdclust_src_addr  src_spare = *src;
++	int			    rc;
+ 
+ 	M0_ENTRY("nw_xfer_request %p", xfer);
+ 	M0_PRE(nw_xfer_request_invariant(xfer));
+@@ -2419,17 +2427,40 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request	       *xfer,
+ 
+ 	req  = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+ 	play = pdlayout_get(req);
++	play_instance = pdlayout_instance(layout_instance(req));
+ 
+-	m0_pdclust_instance_map(pdlayout_instance(layout_instance(req)),
+-				src, tgt);
++	m0_pdclust_instance_map(play_instance, src, tgt);
+ 	tfid	= target_fid(req, tgt);
+-	session = target_session(req, tfid);
+ 
+ 	M0_LOG(M0_DEBUG, "[%llu:%llu] -> [%llu:%llu] @ tfid [%llu:%llu]",
+ 			 src->sa_group, src->sa_unit,
+ 			 tgt->ta_frame, tgt->ta_obj,
+ 			 tfid.f_container, tfid.f_key);
+ 
++	csb = file_to_sb(req->ir_file);
++	rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
++				      tfid.f_container, &device_state);
++	if (rc)
++		M0_RETURN(rc);
++
++	if (device_state == M0_PNDS_SNS_REPAIRED) {
++		rc = m0_poolmach_sns_repair_spare_query(csb->csb_pool.po_mach,
++							tfid.f_container,
++							&spare_slot);
++		if (rc)
++			M0_RETURN(rc);
++		src_spare.sa_unit = layout_n(play) + layout_k(play) +spare_slot;
++		m0_pdclust_instance_map(play_instance, &src_spare, tgt);
++		tfid = target_fid(req, tgt);
++		M0_LOG(M0_DEBUG, "REPAIRED: [%llu:%llu] -> [%llu:%llu] @ tfid "
++				 "[%llu:%llu]",
++				 src_spare.sa_group, src_spare.sa_unit,
++				 tgt->ta_frame, tgt->ta_obj,
++				 tfid.f_container, tfid.f_key);
++	}
++
++	session = target_session(req, tfid);
++
+ 	rc = nw_xfer_tioreq_get(xfer, &tfid, session,
+ 				layout_unit_size(play) * req->ir_iomap_nr,
+ 				out);
+@@ -2639,13 +2670,13 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
+ 	M0_LEAVE();
+ }
+ 
+-static void target_ioreq_seg_add(struct target_ioreq *ti,
+-				 uint64_t	      frame,
+-				 m0_bindex_t	      gob_offset,
+-				 m0_bindex_t	      par_offset,
+-				 m0_bcount_t	      count,
+-				 uint64_t	      unit,
+-				 struct pargrp_iomap *map)
++static void target_ioreq_seg_add(struct target_ioreq              *ti,
++				 const struct m0_pdclust_src_addr *src,
++				 const struct m0_pdclust_tgt_addr *tgt,
++				 m0_bindex_t	                   gob_offset,
++				 m0_bindex_t	                   par_offset,
++				 m0_bcount_t	                   count,
++				 struct pargrp_iomap              *map)
+ {
+ 	uint32_t		   seg;
+ 	m0_bindex_t		   toff;
+@@ -2655,6 +2686,8 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
+ 	struct data_buf		  *buf;
+ 	struct io_request	  *req;
+ 	struct m0_pdclust_layout  *play;
++	uint64_t	           frame = tgt->ta_frame;
++	uint64_t	           unit  = src->sa_unit;
+ 	enum m0_pdclust_unit_type  unit_type;
+ 
+ 	M0_ENTRY("tio req %p, gob_offset %llu, count %llu frame %llu unit %llu",
+@@ -2673,6 +2706,12 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
+ 	pgstart = toff;
+ 	goff    = unit_type == M0_PUT_DATA ? gob_offset : par_offset;
+ 
++	M0_LOG(M0_DEBUG, "[gpos %llu, count %llu] [%llu,%llu]->[%llu,%llu] %c",
++			  gob_offset, count, src->sa_group, src->sa_unit,
++			  tgt->ta_frame, tgt->ta_obj,
++			  unit_type == M0_PUT_DATA ? 'D' :
++				unit_type == M0_PUT_PARITY ? 'P': 'S' );
++
+ 	while (pgstart < toff + count) {
+ 		pgend = min64u(pgstart + PAGE_CACHE_SIZE, toff + count);
+ 		seg   = SEG_NR(&ti->ti_ivec);
+@@ -2701,11 +2740,12 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
+ 		ti->ti_bufvec.ov_buf[seg]  = buf->db_buf.b_addr;
+ 		ti->ti_pageattrs[seg] |= buf->db_flags;
+ 
+-		M0_LOG(M0_INFO, "Seg id %d [%llu, %llu] added to target_ioreq "
+-		       "with fid %llu:%llu with flags 0x%x", seg,
++		M0_LOG(M0_DEBUG, "Seg id %d [%llu, %llu] added to target_ioreq "
++		       "with fid [%llu:%llu] with flags 0x%x: ", seg,
+ 		       INDEX(&ti->ti_ivec, seg), COUNT(&ti->ti_ivec, seg),
+ 		       ti->ti_fid.f_container, ti->ti_fid.f_key,
+ 		       ti->ti_pageattrs[seg]);
++
+ 		goff += COUNT(&ti->ti_ivec, seg);
+ 		++ti->ti_ivec.iv_vec.v_nr;
+ 		pgstart = pgend;
+@@ -2825,6 +2865,7 @@ M0_INTERNAL ssize_t m0t1fs_aio(struct kiocb *kcb,
+ 	rc = req->ir_nwxfer.nxr_ops->nxo_prepare(&req->ir_nwxfer);
+ 	if (rc != 0) {
+ 		req->ir_ops->iro_iomaps_destroy(req);
++		req->ir_nwxfer.nxr_state = NXS_COMPLETE;
+ 		io_request_fini(req);
+ 		count = 0;
+ 		goto last;
+diff --git a/m0t1fs/linux_kernel/file_internal.h b/m0t1fs/linux_kernel/file_internal.h
+index 3b00bdc..9eb744e 100644
+--- a/m0t1fs/linux_kernel/file_internal.h
++++ b/m0t1fs/linux_kernel/file_internal.h
+@@ -1097,13 +1097,14 @@ struct target_ioreq_ops {
+ 	 * @pre   ti != NULL && count > 0.
+ 	 * @post  m0_vec_count(&ti->ti_ivec.iv_vec) > 0.
+          */
+-        void (*tio_seg_add)        (struct target_ioreq *ti,
+-                                    uint64_t             frame,
+-                                    m0_bindex_t          gob_offset,
+-                                    m0_bindex_t          par_offset,
+-                                    m0_bcount_t          count,
+-                                    uint64_t             unit,
+-				    struct pargrp_iomap *map);
++	void (*tio_seg_add)     (struct target_ioreq              *ti,
++				 const struct m0_pdclust_src_addr *src,
++				 const struct m0_pdclust_tgt_addr *tgt,
++				 m0_bindex_t	                   gob_offset,
++				 m0_bindex_t	                   par_offset,
++				 m0_bcount_t	                   count,
++				 struct pargrp_iomap              *map);
++
+ 
+         /**
+ 	 * Prepares io fops from index vector and buffer vector.
+diff --git a/m0t1fs/linux_kernel/ut/file.c b/m0t1fs/linux_kernel/ut/file.c
+index 27438ad..1cc7dea 100644
+--- a/m0t1fs/linux_kernel/ut/file.c
++++ b/m0t1fs/linux_kernel/ut/file.c
+@@ -689,6 +689,8 @@ static void target_ioreq_test(void)
+ 	uint32_t              row;
+ 	uint32_t              col;
+ 	struct data_buf      *buf;
++	struct m0_pdclust_src_addr src;
++	struct m0_pdclust_tgt_addr tgt;
+ 
+ 	/* Checks working of target_ioreq_iofops_prepare() */
+ 
+@@ -777,7 +779,12 @@ static void target_ioreq_test(void)
+ 	for (cnt = 0; cnt < IOVEC_NR; ++cnt)
+ 		ti.ti_pageattrs[cnt] &= ~(PA_DATA | PA_PARITY);
+ 
+-	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, 0, map);
++	src.sa_group = 0;
++	src.sa_unit  = 0;
++	tgt.ta_frame = 0;
++	tgt.ta_obj   = 0;
++
++	target_ioreq_seg_add(&ti, &src, &tgt, 0, 0, PAGE_CACHE_SIZE, map);
+ 	M0_UT_ASSERT(1 == SEG_NR(&ti.ti_ivec));
+ 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
+ 	M0_UT_ASSERT(ti.ti_pageattrs[0] & PA_DATA);
+@@ -786,8 +793,8 @@ static void target_ioreq_test(void)
+ 	page_pos_get(map, COUNT(&ti.ti_ivec, 0), &row, &col);
+ 	buf = map->pi_databufs[row][col];
+ 
+-	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, 0), 0,
+-			     PAGE_CACHE_SIZE, 0, map);
++	target_ioreq_seg_add(&ti, &src, &tgt, COUNT(&ti.ti_ivec, 0), 0,
++			     PAGE_CACHE_SIZE, map);
+ 	M0_UT_ASSERT(2 == SEG_NR(&ti.ti_ivec));
+ 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[1] == buf->db_buf.b_addr);
+ 	M0_UT_ASSERT(ti.ti_pageattrs[1] & PA_DATA);
+@@ -795,7 +802,9 @@ static void target_ioreq_test(void)
+ 	/* Addition of parity buffer */
+ 	buf = map->pi_paritybufs[page_id(0)]
+ 		[LAY_N % data_col_nr(pdlay)];
+-	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, LAY_N, map);
++
++	tgt.ta_frame = LAY_N;
++	target_ioreq_seg_add(&ti, &src, &tgt, 0, 0, PAGE_CACHE_SIZE, map);
+ 	M0_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
+ 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
+ 	M0_UT_ASSERT(ti.ti_pageattrs[2] & PA_PARITY);
+diff --git a/pool/pool.c b/pool/pool.c
+index b1c0517..fada933 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -104,7 +104,8 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+ 	pm->pm_state.pst_version.pvn_version[PVE_READ]  = 0;
+ 	pm->pm_state.pst_version.pvn_version[PVE_WRITE] = 0;
+ 	pm->pm_state.pst_nr_nodes = nr_nodes;
+-	pm->pm_state.pst_nr_devices = nr_devices;
++	/* nr_devices io devices and 1 md device. md uses container 0 */
++	pm->pm_state.pst_nr_devices = nr_devices + 1;
+ 	pm->pm_state.pst_max_node_failures = max_node_failures;
+ 	pm->pm_state.pst_max_device_failures = max_device_failures;
+ 	pm->pm_state.pst_nodes_array = m0_alloc(pm->pm_state.pst_nr_nodes *
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index e4973cf..6c82f6b 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -412,7 +412,11 @@ static void pm_test_spare_slot(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(state_out == target_state);
+ 
+-	rc = m0_poolmach_device_state(&pm, 10, &state_out);
++	rc = m0_poolmach_device_state(&pm, PM_TEST_DEFAULT_DEVICE_NUMBER,
++					&state_out);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_poolmach_device_state(&pm, PM_TEST_DEFAULT_DEVICE_NUMBER + 1,
++					&state_out);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 	rc = m0_poolmach_device_state(&pm, 100, &state_out);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+diff --git a/stob/ut/stobio.c b/stob/ut/stobio.c
+index 81c5156..207de57 100644
+--- a/stob/ut/stobio.c
++++ b/stob/ut/stobio.c
+@@ -161,6 +161,7 @@ static void stob_dev_fini(const struct stobio_test *test)
+ 	if(strcmp(test->st_dev_path, test_blkdev))
+ 		return;
+ 
++	system("sleep 1");
+ 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
+ 	result = system(sysbuf);
+ 	M0_UT_ASSERT(result == 0);
+-- 
+1.8.3.2
+

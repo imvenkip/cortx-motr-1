@@ -1,0 +1,27 @@
+From 115cb596b1f2b92014a7c6bbde381cc44d847126 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 9 Jan 2014 06:10:36 +0200
+Subject: [PATCH 39/96] be/alloc: grammar fix
+
+---
+ be/alloc.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/be/alloc.h b/be/alloc.h
+index 7abddbb..ce6ad49 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -159,8 +159,8 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a);
+ /**
+  * Allocator invariant.
+  *
+- * It will perform detailed verification of allocator data structures.
+- * It will ignore all user data.
++ * It performs detailed verification of allocator data structures.
++ * It ignores all user data.
+  */
+ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a);
+ 
+-- 
+1.8.3.2
+

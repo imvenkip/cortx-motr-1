@@ -1,0 +1,25 @@
+From 668dd424aea84ec2fb11365388870b1801d1c236 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 26 Sep 2013 05:00:43 +0300
+Subject: [PATCH 1/5] dtm: added missing forward declaration
+
+---
+ dtm/dtm.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/dtm/dtm.h b/dtm/dtm.h
+index ffb314f..97272dd 100644
+--- a/dtm/dtm.h
++++ b/dtm/dtm.h
+@@ -36,6 +36,8 @@
+ struct m0_dtm;
+ struct m0_dtx;
+ 
++struct m0_sm_group;
++
+ struct m0_dtm {};
+ 
+ enum m0_dtx_state {
+-- 
+1.8.3.2
+

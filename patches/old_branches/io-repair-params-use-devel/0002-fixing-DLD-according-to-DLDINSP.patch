@@ -1,0 +1,133 @@
+From 3882505b82732d898371ed5e89c692fed35cc651 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 26 Oct 2012 17:16:00 +0800
+Subject: [PATCH 02/10] fixing DLD according to DLDINSP: - Use
+ repair/repairing/repaired instead of recover/recovering/recovered. -
+ Read/write to the new layout or spare spare in old layout is determined by
+ NBA. - read into OFFLINE will handled the same as FAILED: reconstruct data
+ from parity.
+
+---
+ c2t1fs/linux_kernel/file.c | 63 +++++++++++++++++++++++++++++++---------------
+ 1 file changed, 43 insertions(+), 20 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/file.c b/c2t1fs/linux_kernel/file.c
+index 4096e5e..53a1117 100644
+--- a/c2t1fs/linux_kernel/file.c
++++ b/c2t1fs/linux_kernel/file.c
+@@ -69,7 +69,7 @@
+    This DLD describes how the c2t1fs does I/O with SNS in normal condition, in
+    de-graded mode, and when SNS repair is completed.
+ 
+-   A file (or called global object) in Colibri is stored in multiple component
++   A file (also known as global object) in Colibri is stored in multiple component
+    objects, spreading on multiple servers. This is usually also called Server
+    Network Striping, a.k.a SNS. Layout is used to describe the mapping of a
+    file to its objects. A read request to some specific offset within a file
+@@ -89,7 +89,7 @@
+    cooperated with SNS repair and NBA (Non-Blocking Availability). Now it is
+    out of the scope of this DLD.
+ 
+-   Clients keep a cache of Failure Vectors of a pool. With failure vector
++   Each client has a cache of Failure Vectors of a pool. With failure vector
+    information, clients know whether to re-construct data from other data units
+    and parity units, or read from spare units (which contains repaired data).
+    The detailed will be discussed in the following logical specification.
+@@ -137,35 +137,58 @@
+    checks its cached failure vector to see the status of pool nodes and devices.
+    A read or write request will span some node(s) or device(s). If these node(s)
+    or device(s) are ONLINE, this is the normal case. If some node or device is
+-   FAILED or RECOVERING or RECOVERED, special action is taken to serve this
++   FAILED or REPAIRING or REPAIRED, it will change the state of a pool. When
++   all nodes and devices are in ONLINE status, the pool is ONLINE. I/O requests
++   are handled normally. If less than or equal failures happen than the pool is
++   configured to sustain, the pool is DEGRADED. I/O requests will be handled
++   with the help of parity information or spare units. If more failures happen
++   than the pool is configured to sustain , the pool is in DUD state, where all
++   I/O requests will fail with -EIO error. The pool states define how client IO
++   is made, specifically whether writes use NBA and whether read and writes use
++   degraded mode. The pool states can be calculated from the failure vector.
++
++   If the special action is taken to serve this
+    request. The following table illustrate the actions:
+ 
+-                           Table 1 I/O request handling
++                           Table 1   I/O request handling
+    -----------------------------------------------------------------------------
+    |      |  ONLINE    | read from the target device                           |
+    |      |------------|-------------------------------------------------------|
+-   |      |  OFFLINE   | return -EIO ?                                         |
++   |      |  OFFLINE   | same as FAILED                                        |
+    |      |------------|-------------------------------------------------------|
+    | read |  FAILED    | read from other data unit(s) and parity unit(s) and   |
+-   |      |  RECOVERING| re-construct the data                                 |
++   |      |  REPAIRING | re-construct the datai.  If NBA** exists, use new     |
++   |      |            | layout to do reading if necessary.                    |
+    |      |------------|-------------------------------------------------------|
+-   |      |  RECOVERED | read from the recovered spare unit                    |
++   |      |  REPAIRED  | read from the repaired spare unit or use new layout   |
++   |      |            | if NBA**                                              |
+    |------|------------|-------------------------------------------------------|
+    |      |  ONLINE    | write to the target device                            |
+    |      |------------|-------------------------------------------------------|
+-   |      |  OFFLINE   | return -EIO ?                                         |
++   |      |  OFFLINE   | same as FAILED                                        |
+    |      |------------|-------------------------------------------------------|
+-   |write |  FAILED    | write to spare unit? How to tell SNS these data?      |
++   |write |  FAILED    | NBA** determines to use new layout or write to spare  |
++   |      |            | unit.                                                 |
+    |      |------------|-------------------------------------------------------|
+-   |      |  RECOVERING| block the request and wait? -EAGAIN? -EIO? @TODO XXX  |
++   |      |  REPAIRING | Cocurrent++ write I/O and sns repairing is out of the |
++   |      |            | scope of this DLD                          @TODO XXX  |
+    |      |------------|-------------------------------------------------------|
+-   |      |  RECOVERED | write to the recovered spare unit                     |
++   |      |  REPAIRED  | write to the repaired spare unit or new layout        |
++   |      |            | if NBA**                                              |
+    ----------------------------------------------------------------------------|
+-
+-   Question: When a device changes its state from RECOVERED to ONLINE, what to
+-             do with the I/O request?
+-
+-   A read request target for FAILED/RECOVERING device is handled with the
++   NBA** Non-Blocking Availability. When a device/node is not available for
++   a write request, the system switches the file to use a new layout, and so the
++   data is written to devices in new layout. By such means, the writing request
++   will not be blocked waiting the device to be fixed, or SNS repaire to be
++   completed. Device/node becomes un-avaailable when it is OFFLINE or FAILED.
++   Cocurrent++ This should be designed in other module.
++
++   A device never goes from repaired to online. When the re-balancing process
++   that moves data from space space to a new device completes, the *new* device
++   goes from REBALANCING to ONLINE state. If the old device is ever "fixed"
++   somehow, it becomes a new device in ONLINE state.
++
++   A read request target for FAILED/REPAIRING device is handled with the
+    following steps:
+    (1) Calculate its parity group, find out related data units and parity units.
+        This needs help from the file's layout.
+@@ -213,8 +236,8 @@
+    <hr>
+    @section iosnsrepair-ut Unit Tests
+    Unit tests for read and write requests in different devices state are
+-   needed. These states includes: ONLINE, OFFLINE, FAILED, RECOVERING,
+-   RECOVERED.
++   needed. These states includes: ONLINE, OFFLINE, FAILED, REPAIRING,
++   REPAIRED.
+ 
+    <hr>
+    @section iosnsrepair-st System Tests
+@@ -223,8 +246,8 @@
+    to another. For example:
+    - read/write requests in normal case.
+    - read/write requests when a device changes from ONLINE to FAILED.
+-   - read/write requests when a device changes from FAILED to RECOVERING.
+-   - read/write requests when a device changes from RECOVERING to RECOVERED.
++   - read/write requests when a device changes from FAILED to REPAIRING.
++   - read/write requests when a device changes from REPAIRING to REPAIRED.
+ 
+    <hr>
+    @section iosnsrepair-O Analysis
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From d23e27d78939528f1993e048fb3041bcfa99f106 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 03:43:08 +0200
+Subject: [PATCH 13/58] LogD 1484: c2_bcount_t is "byte count" only
+
+---
+ net/test/commands.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/commands.h b/net/test/commands.h
+index b7d60e1..f99dc6e 100644
+--- a/net/test/commands.h
++++ b/net/test/commands.h
+@@ -112,7 +112,7 @@ struct c2_net_test_cmd_init {
+ 	 * in the bulk test.
+ 	 * @note Unused in ping test.
+ 	 */
+-	c2_bcount_t		 ntci_bd_buf_nr;
++	uint64_t		 ntci_bd_buf_nr;
+ 	/**
+ 	 * Size of message buffer for bulk buffer descriptors
+ 	 * in the bulk test.
+-- 
+1.8.3.2
+

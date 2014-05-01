@@ -1,0 +1,590 @@
+From 60d67b133e13eb413b125ee4c2a04218dceaddfe Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 14 Mar 2013 14:13:51 +0530
+Subject: [PATCH 086/157] Avoiding some code duplication in the UT.
+
+---
+ layout/ut/composite.c | 350 ++++++++++++++++++++++++--------------------------
+ layout/ut/layout.h    |   1 +
+ 2 files changed, 167 insertions(+), 184 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 27d9c81..e81015e 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -390,7 +390,6 @@ static int composite_build(uint64_t lid,
+ 	return 0;
+ }
+ 
+-//todo layout add now adds the layers as well. Make related changes to UT
+ /*
+  * Adds layers to the provided composite layout.
+  * 'The number of extents' is varied (incremented by one) for each layer.
+@@ -411,6 +410,10 @@ static int composite_layers_add(struct m0_composite_layout *cl,
+ 	uint32_t          i;
+ 	int               rc;
+ 
++	M0_UT_ASSERT(cl->cl_layers_nr >= 1);
++	if (layers_nr == 1)
++		return 0;
++
+ 	/* Pre-create the sublayouts to be used for the layer 1 and above. */
+ 	sublayouts_precreate(cl->cl_base.l_id, cl->cl_base.l_dom, layers_nr);
+ 
+@@ -453,22 +456,60 @@ static int composite_layers_add(struct m0_composite_layout *cl,
+  */
+ static int composite_build_and_layers_add(uint64_t lid,
+ 					  struct m0_layout_domain *domain,
+-					  struct m0_db_tx *tx,
+-					  struct m0_composite_layout **cl,
+ 					  uint32_t layers_nr,
+ 					  uint32_t min_extents_nr,
+ 					  bool if_contiguous_extents,
++					  bool is_add_to_db,
+ 					  bool failure_test,
+-					  bool layer_add_failure_test)
++					  bool layer_add_failure_test,
++					  struct m0_composite_layout **cl)
+ {
+-	int rc;
++	m0_bcount_t        num_bytes;
++	void              *area;
++	struct m0_db_pair  pair;
++	struct m0_db_tx    tx;
++	struct m0_db_tx   *txptr;
++#ifndef __KERNEL__
++	bool               domain_available_altered = false;
++#endif
++	int                rc_tmp;
++	int                rc;
+ 
+-	M0_UT_ASSERT(cl != NULL);
+ 	rc = composite_build(lid, domain, min_extents_nr,
+ 			     if_contiguous_extents, cl, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	rc = composite_layers_add(*cl, tx, layers_nr, min_extents_nr,
++	if (is_add_to_db) {
++		if (domain->ld_is_db_available) {
++			allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes,
++				      &area);
++			rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
++			M0_UT_ASSERT(rc == 0);
++			pair_set(&pair, &lid, area, num_bytes);
++			rc = m0_layout_add(&(*cl)->cl_base, &tx, &pair);
++			if (failure_test)
++				M0_UT_ASSERT(rc == LO_ENCODE_ERR);
++				/*
++				 * todo rc == -ENOENT when cursor_init error is
++				 * injected.
++				 */
++			else
++				M0_UT_ASSERT(rc == 0);
++			m0_free(area);
++			txptr = &tx;
++		} else
++			txptr = NULL;
++	} else {
++		txptr = NULL;
++#ifndef __KERNEL__
++		if (domain->ld_is_db_available) {
++			domain_ldb_available_set(domain, false);
++			domain_available_altered = true;
++		}
++#endif
++	}
++
++	rc = composite_layers_add(*cl, txptr, layers_nr, min_extents_nr,
+ 				  if_contiguous_extents,
+ 				  layer_add_failure_test);
+ 	if (layer_add_failure_test)
+@@ -476,6 +517,17 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
++	if (is_add_to_db) {
++		if (domain->ld_is_db_available) {
++			rc_tmp = m0_db_tx_commit(txptr);
++			M0_UT_ASSERT(rc_tmp == 0);
++		}
++	} else {
++#ifndef __KERNEL__
++		 if (domain_available_altered)
++			domain_ldb_available_set(domain, true);
++#endif
++	}
+ #if 0
+ 	composite_dump(*cl);
+ #endif
+@@ -499,11 +551,12 @@ int test_build_composite(uint64_t lid,
+ 	struct m0_layout           *l;
+ 	int                         rc;
+ 
+-	rc = composite_build_and_layers_add(lid, domain, NULL, &cl, layers_nr,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+ 					    min_extents_nr,
+ 					    if_contiguous_extents,
++					    !ADD_TO_DB,
+ 					    failure_test,
+-					    !LAYER_ADD_FAILURE_TEST);
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOMEM);
+ 	else {
+@@ -528,9 +581,7 @@ int test_build_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/**
+- * Depending upon 'the kind of the extent to be operated', define the extent.
+- */
++/** Depending upon 'the kind of the extent', define the extent. */
+ //todo placement
+ static void extent_to_be_operated(const struct m0_composite_layout *cl,
+ 				  bool if_contiguous_extents,
+@@ -657,7 +708,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	M0_UT_ASSERT(dcur != NULL);
+ 	M0_UT_ASSERT(layers_nr > 0);
+ 
+-	start_offset = 0;
++	start_offset = 0; //todo Define these as enums
+ 	end_offset   = M0_BINDEX_MAX + 1;
+ 
+ 	/* Build part of the buffer representing generic part of the layout. */
+@@ -879,11 +930,12 @@ int test_encode_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout object. */
+-	rc = composite_build_and_layers_add(lid, domain, NULL, &cl, layers_nr,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+ 					    min_extents_nr,
+ 					    if_contiguous_extents,
++					    !ADD_TO_DB,
+ 					    !FAILURE_TEST,
+-					    !LAYER_ADD_FAILURE_TEST);
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+@@ -1217,11 +1269,12 @@ int test_encode_decode_composite(uint64_t lid,
+ 	int                         rc;
+ 
+ 	/* Build a layout object. */
+-	rc = composite_build_and_layers_add(lid, domain, NULL, &cl, layers_nr,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr,
+ 					    min_extents_nr,
+ 					    if_contiguous_extents,
++					    !ADD_TO_DB,
+ 					    !FAILURE_TEST,
+-					    !LAYER_ADD_FAILURE_TEST);
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	composite_layout_copy(&cl->cl_base, &l_copy);
+@@ -1288,11 +1341,11 @@ int test_instance_composite(uint64_t lid, struct m0_layout_domain *domain,
+ 	int                           rc;
+ 
+ 	layers_nr = 5;
+-	rc = composite_build_and_layers_add(lid, domain, NULL, &cl,
+-					    layers_nr, 8,
++	rc = composite_build_and_layers_add(lid, domain, layers_nr, 8,
+ 					    CONTIGUOUS_EXTENTS,
++					    !ADD_TO_DB,
+ 					    !FAILURE_TEST,
+-					    !LAYER_ADD_FAILURE_TEST);
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Build composite instance. */
+@@ -1357,45 +1410,36 @@ int test_layer_op_composite(uint64_t lid,
+ 			    uint32_t min_extents_nr,
+ 			    bool failure_test)
+ {
+-	struct m0_layout                 *l;
+-	struct m0_layout                 *l_copy_orig;
+-	struct m0_layout                 *l_copy_updated;
+-	struct m0_composite_layout       *cl;
+-	struct m0_db_tx                  *txptr;
+-	struct m0_db_tx                   tx;
+-	struct m0_layout                 *l_from_DB;
+-	struct m0_composite_layer        *layer;
+-	int                               rc_tmp;
+-	int                               rc;
++	bool                        is_add_to_db;
++	struct m0_layout           *l;
++	struct m0_layout           *l_copy_orig;
++	struct m0_layout           *l_copy_updated;
++	struct m0_composite_layout *cl;
++	struct m0_db_tx            *txptr;
++	struct m0_db_tx             tx;
++	struct m0_layout           *l_from_DB;
++	struct m0_composite_layer  *layer;
++	int                         rc_tmp;
++	int                         rc;
+ 
+-	if (!domain->ld_is_db_available) {
+-		/* Build a composite layout and add some layers to it. */
+-		rc = composite_build_and_layers_add(lid, domain,
+-						    NULL, &cl,
+-						    layers_nr, min_extents_nr,
+-						    !CONTIGUOUS_EXTENTS,
+-						    !FAILURE_TEST,
+-						    !LAYER_ADD_FAILURE_TEST);
+-		l = m0_cl_to_layout(cl);
+-	} else {
+-		/*
+-		 * Build a composite layout, add it to the DB and add some
+-		 * layers to it.
+-		 */
+-		rc = test_add_composite(lid, domain, layers_nr,
+-					min_extents_nr,
+-					!CONTIGUOUS_EXTENTS,
+-					!LAYOUT_DESTROY, &l,
+-					!DUPLICATE_TEST, !FAILURE_TEST,
+-					!LAYER_ADD_FAILURE_TEST);
+-		M0_UT_ASSERT(rc == 0);
+-		cl = m0_layout_to_cl(l);
+-	}
++	is_add_to_db = domain->ld_is_db_available ? true : false;
++	rc = composite_build_and_layers_add(lid, domain,
++					    layers_nr, min_extents_nr,
++					    !CONTIGUOUS_EXTENTS,
++					    is_add_to_db, !FAILURE_TEST,
++					    !LAYER_ADD_FAILURE_TEST, &cl);
++	M0_UT_ASSERT(rc == 0);
++	l = m0_cl_to_layout(cl);
+ 
+ 	composite_layout_copy(l, &l_copy_orig);
+ 	composite_layout_verify(l, lid, layers_nr, min_extents_nr,
+ 				!CONTIGUOUS_EXTENTS);
+ 
++	/*
++	 * Try to delete the top-most layer from the composite layout while
++	 * there are some extents associated with that layer, to verify that it
++	 * results into an error.
++	 */
+ 	if (domain->ld_is_db_available) {
+ 		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 		M0_UT_ASSERT(rc == 0);
+@@ -1410,6 +1454,7 @@ int test_layer_op_composite(uint64_t lid,
+ 	layer = layer_find(cl, cl->cl_layers_nr - 1);
+ 	layer_extents_delete(cl, layer, txptr);
+ 
++	/* Now, delete the layer. */
+ 	rc = m0_composite_layer_delete(cl, txptr);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+@@ -1539,6 +1584,7 @@ static int ext_operate(enum extent_operation eop,
+ 		       uint64_t ext_state,
+ 		       bool failure_test)
+ {
++	bool                        is_add_to_db;
+ 	struct m0_layout           *l;
+ 	struct m0_layout           *l_copy_orig;
+ 	struct m0_layout           *l_copy_updated;
+@@ -1558,29 +1604,14 @@ static int ext_operate(enum extent_operation eop,
+ 	M0_UT_ASSERT(M0_IN(eop, (EXTENT_LOOKUP, EXTENT_ADD, EXTENT_UPDATE,
+ 				 EXTENT_DELETE)));
+ 
+-	if (!domain->ld_is_db_available) {
+-		/* Build a composite layout and add some layers to it. */
+-		rc = composite_build_and_layers_add(lid, domain,
+-						    NULL, &cl,
+-						    layers_nr, min_extents_nr,
+-						    if_contiguous_extents,
+-						    !FAILURE_TEST,
+-						    !LAYER_ADD_FAILURE_TEST);
+-		l = m0_cl_to_layout(cl);
+-	} else {
+-		/*
+-		 * Build a composite layout, add it to the DB and add some
+-		 * layers to it.
+-		 */
+-		rc = test_add_composite(lid, domain, layers_nr,
+-					min_extents_nr, if_contiguous_extents,
+-					!LAYOUT_DESTROY, &l,
+-					!DUPLICATE_TEST, !FAILURE_TEST,
+-					!LAYER_ADD_FAILURE_TEST);
+-		M0_UT_ASSERT(rc == 0);
+-		cl = m0_layout_to_cl(l);
+-	}
+-
++	is_add_to_db = domain->ld_is_db_available ? true : false;
++	rc = composite_build_and_layers_add(lid, domain,
++					    layers_nr, min_extents_nr,
++					    if_contiguous_extents,
++					    is_add_to_db, !FAILURE_TEST,
++					    !LAYER_ADD_FAILURE_TEST, &cl);
++	M0_UT_ASSERT(rc == 0);
++	l = m0_cl_to_layout(cl);
+ 	composite_layout_copy(l, &l_copy_orig);
+ 
+ 	/* Define an extent to be operated. */
+@@ -1894,12 +1925,18 @@ int test_add_composite(uint64_t lid,
+ 	M0_UT_ASSERT(ergo(layout_destroy, l_obj == NULL));
+ 	M0_UT_ASSERT(ergo(!layout_destroy, l_obj != NULL));
+ 	M0_UT_ASSERT(ergo(duplicate_test, !failure_test));
++	M0_UT_ASSERT(ergo(failure_test, !layer_add_failure_test));
++	M0_UT_ASSERT(ergo(layer_add_failure_test, !failure_test));
+ 
+ 	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 
+-	/* Build a layout object. */
+-	rc = composite_build(lid, domain, min_extents_nr,
+-			     if_contiguous_extents, &cl, !FAILURE_TEST);
++	/* Build a layout object and add layers to it only in memory. */
++	rc = composite_build_and_layers_add(lid, domain, layers_nr,
++					    min_extents_nr,
++					    if_contiguous_extents,
++					    !ADD_TO_DB,
++					    !FAILURE_TEST,
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Add the layout object to the DB. */
+@@ -1912,22 +1949,11 @@ int test_add_composite(uint64_t lid,
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+ 		//todo rc == -ENOENT when cursor_init error is injected
+-	else
+-		M0_UT_ASSERT(rc == 0);
+-
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
+-	/* Add layers to the composite layout. */
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = composite_layers_add(cl, &tx, layers_nr, min_extents_nr,
+-				  if_contiguous_extents,
+-				  layer_add_failure_test);
+-	if (layer_add_failure_test)
++	else if (layer_add_failure_test)
+ 		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
++
+ 	rc_tmp = m0_db_tx_commit(&tx);
+ 	M0_UT_ASSERT(rc_tmp == 0);
+ 
+@@ -1948,7 +1974,7 @@ int test_add_composite(uint64_t lid,
+ 		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+ 
+-	M0_UT_ASSERT(list_lookup(domain, lid) == &cl->cl_base);
++	//todo Check if the following is req'd
+ 	if (layout_destroy) {
+ 		m0_layout_put(&cl->cl_base);
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+@@ -1971,84 +1997,62 @@ int test_update_composite(uint64_t lid,
+ 			  bool existing_test,
+ 			  bool failure_test)
+ {
+-	m0_bcount_t                       num_bytes;
+-	void                             *area;
+-	struct m0_composite_layout       *cl;
+-	struct m0_layout                 *l1;
+-	struct m0_layout                 *l1_copy;
+-	struct m0_layout                 *l2;
+-	struct m0_db_pair                 pair;
+-	struct m0_db_tx                   tx;
+-	struct m0_ext                     ext_to_operate;
+-	uint32_t                          layer_id_lookup;
+-	struct m0_ext                     ext_lookup;
+-	uint64_t                          ext_state_lookup;
+-	struct m0_layout                 *sublayout_lookup;
+-	uint64_t                          sublayout_id;
+-	struct m0_layout                 *sublayout;
+-	struct m0_tl                      extents;
+-	uint32_t                          i;
+-	int                               rc_tmp;
+-	int                               rc;
+-
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
++	m0_bcount_t                 num_bytes;
++	void                       *area;
++	struct m0_composite_layout *cl;
++	struct m0_layout           *l1;
++	struct m0_layout           *l1_copy;
++	struct m0_layout           *l2;
++	struct m0_db_pair           pair;
++	struct m0_db_tx             tx;
++	struct m0_layout           *sublayout;
++	uint64_t                    sublayout_id;
++	struct m0_tl                extents;
++	struct m0_ext               ext_to_operate;
++	uint32_t                    layer_id_lookup;
++	struct m0_ext               ext_lookup;
++	uint64_t                    ext_state_lookup;
++	struct m0_layout           *sublayout_lookup;
++	uint32_t                    i;
++	int                         rc_tmp;
++	int                         rc;
+ 
+-	/* Build a layout object. */
+-	rc = composite_build(lid, domain, min_extents_nr,
+-			     if_contiguous_extents, &cl, !FAILURE_TEST);
++	/* Build a layout object and add layers to it only in memory. */
++	rc = composite_build_and_layers_add(lid, domain, layers_nr,
++					    min_extents_nr,
++					    if_contiguous_extents,
++					    !ADD_TO_DB,
++					    !FAILURE_TEST,
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(list_lookup(domain, lid) == &cl->cl_base);
++	l1 = &cl->cl_base;
++
++	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 
+ 	if (existing_test) {
+-		/* Add the layout object to the DB. */
++		/* Add the layout along with its layers to the DB. */
+ 		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 		M0_UT_ASSERT(rc == 0);
+ 		pair_set(&pair, &lid, area, num_bytes);
+ 		rc = m0_layout_add(&cl->cl_base, &tx, &pair);
+-		if (failure_test)
+-			M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+-			//todo rc == -ENOENT when cursor_init error is injected
+-		else
+-			M0_UT_ASSERT(rc == 0);
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+-
+-		//todo See how to exercise having added a few layers to the cl
+-		//without writing those in the DB.
+-		/* Add layers to the composite layout. */
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-		rc = composite_layers_add(cl, &tx, layers_nr, min_extents_nr,
+-					  if_contiguous_extents,
+-					  !LAYER_ADD_FAILURE_TEST);
+ 		M0_UT_ASSERT(rc == 0);
+ 		rc_tmp = m0_db_tx_commit(&tx);
+ 		M0_UT_ASSERT(rc_tmp == 0);
+-	} else {
+-		/* Add layers only in memory. */
+-		M0_UT_ASSERT(domain->ld_is_db_available == true);
+-		domain_ldb_available_set(domain, false);
+-		rc = composite_layers_add(cl, NULL, layers_nr, min_extents_nr,
+-					  if_contiguous_extents,
+-					  !LAYER_ADD_FAILURE_TEST);
+-		M0_UT_ASSERT(rc == 0);
+-		domain_ldb_available_set(domain, true);
+ 	}
+ 
+-	l1 = &cl->cl_base;
+-
+ 	/* Verify the original user count is as expected. */
+ 	M0_UT_ASSERT(l1->l_user_count == 0);
+ 
+-	/* Alter the in-memory layout object. */
+-	/* 1. Alter its user count. */
++	/* Alter the in-memory layout. */
++	M0_UT_ASSERT(domain->ld_is_db_available == true);
++	domain_ldb_available_set(domain, false);
++
++	/* 1. Alter user count. */
+ 	for (i = 0; i < 100; ++i)
+ 		m0_layout_user_count_inc(l1);
+ 	M0_UT_ASSERT(l1->l_user_count == 100);
+ 
+ 	/* 2. Add an extent to its top-most layer - only in in-memory layout. */
+-	M0_UT_ASSERT(domain->ld_is_db_available == true);
+-	domain_ldb_available_set(domain, false);
+ 	extent_to_be_operated(cl, if_contiguous_extents, 1, 1,
+ 			      NON_EXISTING, &ext_to_operate);
+ 	rc = m0_composite_layer_ext_lookup(cl, ext_to_operate.e_start + 1,
+@@ -2065,7 +2069,6 @@ int test_update_composite(uint64_t lid,
+ 					   &ext_state_lookup,
+ 					   &sublayout_lookup);
+ 	M0_UT_ASSERT(rc == 0);
+-	domain_ldb_available_set(domain, true);
+ 
+ 	/*
+ 	 * todo Ensure to lookup only in the in-DB layout to verify the
+@@ -2080,8 +2083,6 @@ int test_update_composite(uint64_t lid,
+ 	M0_UT_ASSERT(rc == -ENOENT);
+ #endif
+ 
+-	domain_ldb_available_set(domain, false);
+-
+ 	/* 3. Add layers to it. */
+ 	M0_ASSERT(cl->cl_layers_nr == layers_nr);
+ 	for (i = 0; i < 4; ++i) {
+@@ -2197,38 +2198,19 @@ int test_delete_composite(uint64_t lid,
+ 
+ 	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 
+-	/* Build a layout object. */
+-	rc = composite_build(lid, domain, min_extents_nr,
+-			     if_contiguous_extents, &cl, !FAILURE_TEST);
+-	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(list_lookup(domain, lid) == &cl->cl_base);
+-
+-	/* Add the layout object to the DB. */
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-	pair_set(&pair, &lid, area, num_bytes);
+-	rc = m0_layout_add(&cl->cl_base, &tx, &pair);
+-	if (failure_test)
+-		M0_UT_ASSERT(rc == LO_ENCODE_ERR);
+-		//todo rc == -ENOENT when cursor_init error is injected
+-	else
+-		M0_UT_ASSERT(rc == 0);
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
+-	/* Add layers to the composite layout. */
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
++	/* Build a layout object, add layers to it, add it to the DB. */
++	rc = composite_build_and_layers_add(lid, domain, layers_nr,
++					    min_extents_nr,
++					    if_contiguous_extents,
++					    ADD_TO_DB,
++					    !FAILURE_TEST,
++					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
+-	rc = composite_layers_add(cl, &tx, layers_nr, min_extents_nr,
+-				  if_contiguous_extents,
+-				  !LAYER_ADD_FAILURE_TEST);
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+ 
+ 	/*
+-	 * Try to delete the composite layout from the DB and verify that the
+-	 * operation fails since there are some extents associated with all
+-	 * the layers except the zeroth one.
++	 * Try to delete the composite layout from the DB while there are some
++	 * extents associated with all the layers to verify that it results into
++	 * an error.
+ 	 */
+ 	pair_set(&pair, &lid, area, num_bytes);
+ 	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+@@ -2248,8 +2230,8 @@ int test_delete_composite(uint64_t lid,
+ 	M0_UT_ASSERT(rc_tmp == 0);
+ 
+ 	/*
+-	 * Verify the user count of the sublayouts to be 1 since one user
+-	 * count is added with the respective layer addition.
++	 * Verify the user count of the sublayouts to be 1 since the user
++	 * count has been incremented by one with every layer addition.
+ 	 */
+ 	m0_tl_for(comp_layer, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_sl->l_user_count == 1);
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index bde6939..26d4fff 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -37,6 +37,7 @@ enum {
+ 	EXISTING_TEST            = true, /* Add a layout to the DB */
+ 	DUPLICATE_TEST           = true, /* Try to re-add a layout */
+ 	FAILURE_TEST             = true, /* Failure injected */
++	ADD_TO_DB                = true, /* Add layout/layer/ext to the DB */
+ 	LAYER_ADD_FAILURE_TEST   = true, /* Failure injected for layer add op */
+ 	LAYOUT_DESTROY           = true, /* Delete layout object */
+ 	UNIT_SIZE                = 4096, /* For pdclust layout type */
+-- 
+1.8.3.2
+

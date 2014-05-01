@@ -1,0 +1,25 @@
+From 0fe6319d5e031a5f16859982955da027c6106298 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 09:30:07 +0200
+Subject: [PATCH 34/58] LogD 1510: added note about order importance in
+ statistics resetting
+
+---
+ net/test/console.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/test/console.c b/net/test/console.c
+index 629077a..b7a6e45 100644
+--- a/net/test/console.c
++++ b/net/test/console.c
+@@ -162,6 +162,7 @@ static void console_cmd_init_fill(struct c2_net_test_console_cfg *cfg,
+ 
+ static void status_data_reset(struct c2_net_test_cmd_status_data *sd)
+ {
++	/* Statistics reset order is not important here */
+ 	struct c2_net_test_msg_nr * const msg_nr[] = {
+ 		&sd->ntcsd_msg_nr_send,
+ 		&sd->ntcsd_msg_nr_recv,
+-- 
+1.8.3.2
+

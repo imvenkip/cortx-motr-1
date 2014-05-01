@@ -1,0 +1,1815 @@
+From 633f4f9ea88244a8361f520e7c527234c57bede6 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Tue, 11 Dec 2012 04:29:39 -0800
+Subject: [PATCH 004/121] be tlist implementation in core/be/lib and reverting
+ m0_buf and types header
+
+---
+ be/Makefile.sub   |  15 +-
+ be/lib/be_buf.c   |  51 +++++
+ be/lib/be_buf.h   |  60 +++++
+ be/lib/be_list.c  | 233 ++++++++++++++++++++
+ be/lib/be_list.h  | 280 ++++++++++++++++++++++++
+ be/lib/be_tlist.c | 293 +++++++++++++++++++++++++
+ be/lib/be_tlist.h | 645 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ be/lib/be_types.h |  62 ++++++
+ lib/buf.c         |  13 --
+ lib/buf.h         |  14 --
+ lib/types.h       |  20 --
+ 11 files changed, 1633 insertions(+), 53 deletions(-)
+ create mode 100644 be/lib/be_buf.c
+ create mode 100644 be/lib/be_buf.h
+ create mode 100644 be/lib/be_list.c
+ create mode 100644 be/lib/be_list.h
+ create mode 100644 be/lib/be_tlist.c
+ create mode 100644 be/lib/be_tlist.h
+ create mode 100644 be/lib/be_types.h
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 2618456..ffb52dc 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -1,18 +1,21 @@
+-nobase_mero_include_HEADERS +=  be/be.h	
+-
+-
++nobase_mero_include_HEADERS +=  be/be.h			\
++				be/lib/be_buf.h		\
++				be/lib/be_list.h	\
++				be/lib/be_tlist.h	\
++				be/lib/be_types.h
+ 
+ mero_libmero_la_SOURCES  += be/be.c		\
+ 			    be/be_domain.c	\
+ 			    be/be_seg.c		\
+ 			    be/be_rvm.c		\
+-			    be/be_tx.c		
++			    be/be_tx.c		\
++			    be/lib/be_buf.c 	\
++			    be/lib/be_list.c	\
++			    be/lib/be_tlist.c
+ 
+ #AM_LDFLAGS		+= -lrvm -lrds -lseg
+ 
+ #AM_CFLAGS                       = -g
+ 
+-#noinst_LTLIBRARIES              += libcolibri-be.la
+-#libcolibri_be_la_SOURCES        += be_domain.c be_seg.c be.c be_tx.c be_rvm.c
+ 
+ #INCLUDES                        += -I. -I$(top_srcdir)/include
+diff --git a/be/lib/be_buf.c b/be/lib/be_buf.c
+new file mode 100644
+index 0000000..7b5adb2
+--- /dev/null
++++ b/be/lib/be_buf.c
+@@ -0,0 +1,51 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date: 12/04/2012
++ */
++
++#include "lib/cdefs.h"
++#include "be/lib/be_buf.h"
++
++/**
++   @addtogroup be_buf Basic buffer type
++   @{
++*/
++
++void m0_be_buf_init(struct m0_be_buf *buf, void *data, uint32_t nob,
++                    uint64_t segment_id, uint64_t segment_offset,
++                    void *virtual_addr)
++{
++	buf->b_addr = data;
++	buf->b_nob  = nob;
++
++        buf->logical_address.segid_offset.u_hi = segment_id;
++        buf->logical_address.segid_offset.u_lo = segment_offset;
++        buf->logical_address.virtual_address   = virtual_addr;
++}
++
++/** @} end of be_buf group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_buf.h b/be/lib/be_buf.h
+new file mode 100644
+index 0000000..07bc9b8
+--- /dev/null
++++ b/be/lib/be_buf.h
+@@ -0,0 +1,60 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author   	  : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date : 12/04/2012
++ */
++#pragma once
++#ifndef __MERO_BE_LIB_BE_BUF_H__
++#define __MERO_BE_LIB_BE_BUF_H__
++
++#include "be/lib/be_types.h"
++#include "lib/cdefs.h"
++
++/**
++   @defgroup be_buf Basic buffer type
++   @{
++*/
++
++/* Backend domain type buffer */
++struct m0_be_buf {
++        m0_bcount_t b_nob;
++        union {
++                void       *b_addr;
++                /* holds the m0_reference for the object */
++                struct m0_reference logical_address;
++        };
++};
++
++/* Backend domain type buffer initialization */
++void m0_be_buf_init(struct m0_be_buf *buf, void *data, uint32_t nob,
++                    uint64_t segment_id, uint64_t segment_offset,
++                    void *virtual_addr);
++
++/** @} end of be_buf group */
++
++/* __MERO_BE_LIB_BE_BUF_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_list.c b/be/lib/be_list.c
+new file mode 100644
+index 0000000..571a48e
+--- /dev/null
++++ b/be/lib/be_list.c
+@@ -0,0 +1,233 @@
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author  	  : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date : 12/04/2012
++ */
++#include "lib/assert.h"
++#include "be/lib/be_list.h"
++
++/** @addtogroup be_list @{ */
++
++void m0_be_list_init(struct m0_be_list *head)
++{
++	head->l_head.virtual_address = (struct m0_be_list_link *)head;
++	head->l_tail.virtual_address = (struct m0_be_list_link *)head;
++}
++M0_EXPORTED(m0_be_list_init);
++
++void m0_be_list_fini(struct m0_be_list *head)
++{
++	M0_ASSERT(m0_be_list_is_empty(head));
++}
++M0_EXPORTED(m0_be_list_fini);
++
++bool m0_be_list_is_empty(const struct m0_be_list *head)
++{
++	return head->l_head.virtual_address == (void *)head;
++}
++M0_EXPORTED(m0_be_list_is_empty);
++
++bool m0_be_list_link_invariant(const struct m0_be_list_link *link)
++{
++        struct m0_be_list_link *scan;
++        struct m0_be_list_link *next_temp;
++        struct m0_be_list_link *prev_temp;
++
++        if ((link->ll_next.virtual_address == link) !=
++     	    (link->ll_prev.virtual_address == link))
++                	return false;
++
++        for (scan = link->ll_next.virtual_address;
++             scan != link;
++             scan = scan->ll_next.virtual_address) {
++                next_temp = scan->ll_next.virtual_address;
++                prev_temp = scan->ll_prev.virtual_address;
++
++		if (next_temp->ll_prev.virtual_address != scan ||
++                    prev_temp->ll_next.virtual_address != scan)
++			return false;
++        }
++        return true;
++}
++
++bool m0_be_list_invariant(const struct m0_be_list *head)
++{
++	return m0_be_list_link_invariant((void *)head);
++}
++
++size_t m0_be_list_length(const struct m0_be_list *list)
++{
++	size_t                 length;
++	struct m0_be_list_link *scan;
++
++	M0_ASSERT(m0_be_list_invariant(list));
++	length = 0;
++
++	for (scan = list->l_head.virtual_address;
++	     scan != (void *)list;
++	     scan = scan->ll_next.virtual_address)
++        		length++;
++
++        return length;
++}
++
++bool m0_be_list_contains(const struct m0_be_list *list,
++  		         const struct m0_be_list_link *link)
++{
++	struct m0_be_list_link *scan;
++
++	M0_ASSERT(m0_be_list_invariant(list));
++
++	for (scan = list->l_head.virtual_address;
++	     scan != (void *)list;
++	     scan = scan->ll_next.virtual_address)
++        		if (scan == link)
++	        		return true;
++	return false;
++}
++
++static inline void __m0_be_list_add(struct m0_be_list_link *next,
++				    struct m0_be_list_link *prev,
++			            struct m0_be_list_link *new)
++{
++	M0_ASSERT(prev->ll_next.virtual_address == (void *)next &&
++		  next->ll_prev.virtual_address == (void *)prev);
++	M0_ASSERT(m0_be_list_link_invariant(next));
++
++	new->ll_next.virtual_address  = (void *)next;
++	new->ll_prev.virtual_address  = (void *)prev;
++
++	next->ll_prev.virtual_address = (void *)new;
++	prev->ll_next.virtual_address = (void *)new;
++
++	M0_ASSERT(m0_be_list_link_invariant(next));
++}
++
++void m0_be_list_add(struct m0_be_list *head, struct m0_be_list_link *new)
++{
++	__m0_be_list_add(head->l_head.virtual_address, (void *)head, new);
++}
++M0_EXPORTED(m0_be_list_add);
++
++void m0_be_list_add_tail(struct m0_be_list *head, struct m0_be_list_link *new)
++{
++	__m0_be_list_add((void *)head, head->l_tail.virtual_address, new);
++}
++M0_EXPORTED(m0_be_list_add_tail);
++
++void m0_be_list_add_after(struct m0_be_list_link *anchor,
++			  struct m0_be_list_link *new)
++{
++	__m0_be_list_add(anchor->ll_next.virtual_address, anchor, new);
++}
++M0_EXPORTED(m0_be_list_add_after);
++
++void m0_be_list_add_before(struct m0_be_list_link *anchor,
++			   struct m0_be_list_link *new)
++{
++	__m0_be_list_add(anchor, anchor->ll_prev.virtual_address, new);
++}
++M0_EXPORTED(m0_be_list_add_before);
++
++static void __m0_be_list_del(struct m0_be_list_link *old)
++{
++	M0_ASSERT(m0_be_list_link_invariant(old));
++	struct m0_be_list_link *prev_temp;
++	struct m0_be_list_link *next_temp;
++
++        prev_temp = old->ll_prev.virtual_address;
++	next_temp = old->ll_next.virtual_address;
++
++	prev_temp->ll_next.virtual_address = next_temp;
++        next_temp->ll_prev.virtual_address = prev_temp;
++}
++
++void m0_be_list_del(struct m0_be_list_link *old)
++{
++	__m0_be_list_del(old);
++	m0_be_list_link_init(old, NULL);
++}
++M0_EXPORTED(m0_be_list_del);
++
++void m0_be_list_move(struct m0_be_list *head, struct m0_be_list_link *old)
++{
++	__m0_be_list_del(old);
++	m0_be_list_add(head, old);
++	M0_ASSERT(m0_be_list_invariant(head));
++}
++
++void m0_be_list_move_tail(struct m0_be_list *head, struct m0_be_list_link *old)
++{
++	__m0_be_list_del(old);
++	m0_be_list_add_tail(head, old);
++	M0_ASSERT(m0_be_list_invariant(head));
++}
++
++void m0_be_list_link_init(struct m0_be_list_link *link,
++                          struct m0_reference *ref)
++{
++	uint64_t 	  seg_id;
++	uint64_t 	  offset;
++        struct m0_uint128 *next_temp;
++        struct m0_uint128 *prev_temp;
++
++	link->ll_prev.virtual_address = (void *)link;
++	link->ll_next.virtual_address = (void *)link;
++
++	if (ref != NULL) {
++		seg_id    = ref->segid_offset.u_hi;
++		offset    = ref->segid_offset.u_lo;
++
++                next_temp = &(link->ll_next.logical_address.segid_offset);
++                prev_temp = &(link->ll_prev.logical_address.segid_offset);
++
++		next_temp->u_hi = seg_id;
++		next_temp->u_lo = offset;
++
++		prev_temp->u_hi = seg_id;
++		prev_temp->u_lo = offset;
++	}
++}
++M0_EXPORTED(m0_be_list_link_init);
++
++
++void m0_be_list_link_fini(struct m0_be_list_link *link)
++{
++	M0_ASSERT(!m0_be_list_link_is_in(link));
++}
++
++bool m0_be_list_link_is_in(const struct m0_be_list_link *link)
++{
++	return link->ll_prev.virtual_address != (void *)link;
++}
++
++bool m0_be_list_link_is_last(const struct m0_be_list_link	*link,
++                             const struct m0_be_list		*head)
++{
++	return link->ll_next.virtual_address == (void *)head;
++}
++
++/** @} end of be_list group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_list.h b/be/lib/be_list.h
+new file mode 100644
+index 0000000..7a317f9
+--- /dev/null
++++ b/be/lib/be_list.h
+@@ -0,0 +1,280 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author  	  : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date : 11/28/2012
++ */
++#pragma once
++
++#ifndef __MERO_BE_LIB_BE_LIST_H__
++#define __MERO_BE_LIB_BE_LIST_H__
++
++#include "be/lib/be_types.h"
++#include "lib/cdefs.h"
++#include "lib/assert.h"
++
++struct m0_be_list_link;
++
++/**
++ *	Structure to support the linkage in tlist and store the logical address
++ *	details of the object
++ */
++struct m0_reference_ll {
++	union {
++		struct m0_be_list_link *virtual_address;
++	        struct m0_reference logical_address;
++	};
++};
++
++/**
++   @defgroup be_list Double-linked list.
++
++   @{
++ */
++
++/**
++   List entry.
++   Modified to support traversal in tlist via references
++ */
++
++struct m0_be_list_link {
++	/* Next entry in the list */
++	struct m0_reference_ll ll_next;
++	/* Previous entry in the list */
++	struct m0_reference_ll ll_prev;
++};
++
++/**
++ initialize list link entry for be domain
++
++ @param link - pointer to link entry
++ @param ref  - pointer to struct m0_reference in m0_buf
++*/
++void m0_be_list_link_init(struct m0_be_list_link *link,
++                          struct m0_reference *ref);
++
++/**
++ free resources associated with link entry
++
++ @param link - pointer to link enty
++*/
++void m0_be_list_link_fini(struct m0_be_list_link *link);
++
++bool m0_be_list_link_invariant(const struct m0_be_list_link *link);
++
++/**
++   List head.
++ */
++struct m0_be_list {
++	/**
++	 * Pointer to the first entry in the list.
++	 */
++	struct m0_reference_ll l_head;
++	/**
++	 * Pointer to the last entry in the list.
++	 */
++	struct m0_reference_ll l_tail;
++};
++
++/*
++   It is necessary that m0_list and m0_list_link structures have exactly the
++   same layout as.
++ */
++
++
++M0_BASSERT(offsetof(struct m0_be_list, l_head) ==
++	   offsetof(struct m0_be_list_link, ll_next));
++M0_BASSERT(offsetof(struct m0_be_list, l_tail) ==
++	   offsetof(struct m0_be_list_link, ll_prev));
++
++
++/**
++   Initializes list head.
++ */
++void m0_be_list_init(struct m0_be_list *head);
++
++/**
++   Finalizes the list.
++ */
++void m0_be_list_fini(struct m0_be_list *head);
++
++/**
++ check list is empty
++
++ @param head pointer to list head
++ */
++bool m0_be_list_is_empty(const struct m0_be_list *head);
++
++/**
++   Returns true iff @link is in @list.
++ */
++bool m0_be_list_contains(const struct m0_be_list      *list,
++                         const struct m0_be_list_link *link);
++
++/**
++ This function iterates over the argument list checking that double-linked
++ list invariant holds (x->ll_prev->ll_next == x && x->ll_next->ll_prev == x).
++
++ @return true if @list isn't corrupted
++*/
++bool m0_be_list_invariant(const struct m0_be_list *list);
++
++size_t m0_be_list_length(const struct m0_be_list *list);
++
++/**
++ add list to top on the list
++
++ This function can be called on an uninitialised @new link. All @new fields are
++ overwritten.
++
++ @param head pointer to list head
++ @param new  pointer to list entry
++
++ */
++void m0_be_list_add(struct m0_be_list *head, struct m0_be_list_link *new);
++
++/**
++ add list to tail on the list
++
++ This function can be called on an uninitialised @new link. All @new fields are
++ overwritten.
++
++ @param head pointer to list head
++ @param new  pointer to list entry
++ */
++void m0_be_list_add_tail(struct m0_be_list *head, struct m0_be_list_link *new);
++
++/**
++   Adds an element to the list right after the specified element.
++
++   This function can be called on an uninitialised @new link. All @new fields
++   are overwritten.
++ */
++void m0_be_list_add_after (struct m0_be_list_link *anchor,
++			   struct m0_be_list_link *new);
++
++/**
++   Adds an element to the list right before the specified element.
++
++   This function can be called on an uninitialised @new link. All @new fields
++   are overwritten.
++ */
++void m0_be_list_add_before(struct m0_be_list_link *anchor,
++			   struct m0_be_list_link *new);
++
++/**
++   Deletes an entry from the list and re-initializes the entry.
++ */
++void m0_be_list_del(struct m0_be_list_link *old);
++
++/**
++   Moves an entry to head of the list.
++ */
++void m0_be_list_move(struct m0_be_list *head, struct m0_be_list_link *new);
++
++/**
++   Moves an entry to tail of the list.
++ */
++void m0_be_list_move_tail(struct m0_be_list *head, struct m0_be_list_link *new);
++
++/**
++ * return first entry from the list
++ *
++ * @param head pointer to list head
++ *
++ * @return pointer to first list entry or NULL if list empty
++ */
++static inline struct m0_be_list_link
++*m0_be_list_first(const struct m0_be_list *head)
++{
++	return head->l_head.virtual_address !=
++	       (void *)head ? head->l_head.virtual_address : NULL;
++}
++
++
++/**
++ is link entry connected to the list
++
++ @param link - pointer to link entry
++
++ @retval true - entry connected to a list
++ @retval false - entry disconnected from a list
++*/
++bool m0_be_list_link_is_in(const struct m0_be_list_link *link);
++
++bool m0_be_list_link_is_last(const struct m0_be_list_link *link,
++			     const struct m0_be_list      *head);
++
++size_t m0_be_list_length(const struct m0_be_list *list);
++
++/**
++ * get pointer to object from pointer to list link entry
++ */
++#define m0_list_entry(link, type, member) \
++	container_of(link, type, member)
++
++/**
++ * Iterates over a list
++ *
++ * @param head	the head of list.
++ * @param pos	the pointer to list_link to use as a loop counter.
++ */
++#define m0_be_list_for_each(head, pos) \
++	for (pos = (head)->l_head.virtual_address; pos != (void *)(head); \
++	     pos = (pos)->ll_next.virtual_address)
++
++/**
++   Read-only iterates over a "typed" list.
++
++   The loop body is not allowed to modify the list.
++ */
++#define m0_be_list_for_each_entry(head, pos, type, member) \
++	for (pos = m0_list_entry((head)->l_head.virtual_address, type, member);\
++	     &(pos->member) != (void *)head; \
++	     pos = m0_list_entry((pos)->member.ll_next.virtual_address,        \
++	                         type, member))
++
++/**
++   Iterates over a "typed" list safely: the loop body is allowed to remove the
++   current element.
++
++   @param head	the head of list.
++   @param pos	the pointer to list_link to use as a loop counter.
++ */
++#define m0_be_list_for_each_entry_safe(head, pos, next, type, member)	\
++	for (pos = m0_list_entry((head)->l_head.virtual_address, type, member),\
++	     next = m0_list_entry((pos)->member.ll_next.virtual_address, \
++	  		         type, member);                         \
++	     &(pos)->member != (void *)head;				\
++	     pos = next,						\
++	     next = m0_list_entry((next)->member.ll_next.virtual_address, \
++	     			  type, member))
++
++
++/** @} end of be_list group */
++
++/* __MERO_BE_LIB_BE_LIST_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_tlist.c b/be/lib/be_tlist.c
+new file mode 100644
+index 0000000..f6bef6d
+--- /dev/null
++++ b/be/lib/be_tlist.c
+@@ -0,0 +1,293 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author        : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date : 12/04/2012
++ */
++
++#include "be/lib/be_tlist.h"
++/**
++   @addtogroup be_tlist
++   @{
++ */
++
++/**
++   Returns the address of a link embedded in an ambient object.
++ */
++static struct m0_be_list_link *be_link(const struct m0_be_tl_descr *d,
++				       const void *obj);
++/**
++   Returns the value of the magic field in an ambient object
++ */
++static uint64_t be_magic(const struct m0_be_tl_descr *d, const void *obj);
++
++/**
++   Casts a link to its ambient object.
++ */
++static void *be_amb(const struct m0_be_tl_descr *d,
++                    struct m0_be_list_link *link);
++
++void m0_be_tlist_init(const struct m0_be_tl_descr *d, struct m0_be_tl *list)
++{
++	list->t_magic = d->td_head_magic;
++	m0_be_list_init(&list->t_head);
++	M0_POST(m0_be_tlist_invariant(d, list));
++}
++
++void m0_be_tlist_fini(const struct m0_be_tl_descr *d, struct m0_be_tl *list)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	m0_be_list_fini(&list->t_head);
++}
++
++void m0_be_tlink_init(const struct m0_be_tl_descr *d, struct m0_reference ref)
++{
++	void *obj = ref.virtual_address;
++	m0_be_list_link_init(be_link(d,obj), &ref);
++	if (d->td_link_magic != 0)
++		*(uint64_t *)(obj + d->td_link_magic_offset) = d->td_link_magic;
++	M0_POST(m0_be_tlink_invariant(d, obj));
++}
++
++void m0_be_tlink_init_at(const struct m0_be_tl_descr *d, struct m0_be_tl *list,
++		         struct m0_reference ref)
++{
++	void *obj = ref.virtual_address;
++	m0_be_tlink_init(d, ref);
++	m0_be_tlist_add(d, list, obj);
++}
++
++void m0_be_tlink_init_at_tail(const struct m0_be_tl_descr *d,
++                              struct m0_be_tl *list, struct m0_reference ref)
++{
++	void *obj = ref.virtual_address;
++	m0_be_tlink_init(d, ref);
++	m0_be_tlist_add_tail(d, list, obj);
++}
++
++void m0_be_tlink_fini(const struct m0_be_tl_descr *d, void *obj)
++{
++	m0_be_list_link_fini(be_link(d, obj));
++}
++
++void m0_be_tlink_del_fini(const struct m0_be_tl_descr *d, void *obj)
++{
++	m0_be_tlist_del(d, obj);
++	m0_be_tlink_fini(d, obj);
++}
++
++bool m0_be_tlist_is_empty(const struct m0_be_tl_descr *d,
++			  const struct m0_be_tl *list)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	return m0_be_list_is_empty(&list->t_head);
++}
++
++bool m0_be_tlink_is_in(const struct m0_be_tl_descr *d, const void *obj)
++{
++	M0_PRE(m0_be_tlink_invariant(d, obj));
++	return m0_be_list_link_is_in(be_link(d, obj));
++}
++
++bool m0_be_tlist_contains(const struct m0_be_tl_descr *d,
++			  const struct m0_be_tl *list,
++		          const void *obj)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	M0_PRE(m0_be_tlink_invariant(d, obj));
++	return m0_be_list_contains(&list->t_head, be_link(d, obj));
++}
++
++size_t m0_be_tlist_length(const struct m0_be_tl_descr *d,
++			  const struct m0_be_tl *list)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	return m0_be_list_length(&list->t_head);
++}
++M0_EXPORTED(m0_be_tlist_length);
++
++void m0_be_tlist_add(const struct m0_be_tl_descr *d, struct m0_be_tl *list,
++		     void *obj)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	M0_PRE(!m0_be_tlink_is_in(d, obj));
++	m0_be_list_add(&list->t_head, be_link(d, obj));
++}
++
++void m0_be_tlist_add_tail(const struct m0_be_tl_descr *d,
++		       struct m0_be_tl *list, void *obj)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	M0_PRE(!m0_be_tlink_is_in(d, obj));
++	m0_be_list_add_tail(&list->t_head, be_link(d, obj));
++}
++
++void m0_be_tlist_add_after(const struct m0_be_tl_descr *d, void *obj, void *new)
++{
++	M0_PRE(m0_be_tlink_is_in(d, obj));
++	M0_PRE(!m0_be_tlink_is_in(d, new));
++	m0_be_list_add_after(be_link(d, obj), be_link(d, new));
++}
++
++void m0_be_tlist_add_before(const struct m0_be_tl_descr *d, void *obj,
++                            void *new)
++{
++	M0_PRE(m0_be_tlink_is_in(d, obj));
++	M0_PRE(!m0_be_tlink_is_in(d, new));
++	m0_be_list_add_before(be_link(d, obj), be_link(d, new));
++}
++
++void m0_be_tlist_del(const struct m0_be_tl_descr *d, void *obj)
++{
++	M0_PRE(m0_be_tlink_invariant(d, obj));
++	M0_PRE(m0_be_tlink_is_in(d, obj));
++	m0_be_list_del(be_link(d, obj));
++	M0_PRE(!m0_be_tlink_is_in(d, obj));
++}
++
++void m0_be_tlist_move(const struct m0_be_tl_descr *d, struct m0_be_tl *list,
++		      void *obj)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	M0_PRE(m0_be_tlink_is_in(d, obj));
++
++	m0_be_list_move(&list->t_head, be_link(d, obj));
++}
++
++void m0_be_tlist_move_tail(const struct m0_be_tl_descr *d,
++			   struct m0_be_tl *list, void *obj)
++{
++	M0_PRE(m0_be_tlist_invariant(d, list));
++	M0_PRE(m0_be_tlink_is_in(d, obj));
++
++	m0_be_list_move_tail(&list->t_head, be_link(d, obj));
++}
++
++void *m0_be_tlist_head(const struct m0_be_tl_descr *d,
++                       const struct m0_be_tl *list)
++{
++	const struct m0_be_list *head;
++
++	M0_PRE(m0_be_tlist_invariant(d, list));
++
++	head = &list->t_head;
++	return (head->l_head.virtual_address !=
++	       (void *)head ? be_amb(d, head->l_head.virtual_address) : NULL);
++}
++
++void *m0_be_tlist_tail(const struct m0_be_tl_descr *d,
++                       const struct m0_be_tl *list)
++{
++	const struct m0_be_list *head;
++
++	M0_PRE(m0_be_tlist_invariant(d, list));
++
++	head = &list->t_head;
++	return (head->l_tail.virtual_address !=
++	       (void *)head ? be_amb(d, head->l_tail.virtual_address) : NULL);
++}
++
++void *m0_be_tlist_next(const struct m0_be_tl_descr *d,
++		    const struct m0_be_tl *list, void *obj)
++{
++	struct m0_be_list_link *next;
++
++	M0_PRE(m0_be_tlist_contains(d, list, obj));
++
++	next = (struct m0_be_list_link *)
++                be_link(d, obj)->ll_next.virtual_address;
++	return (void *)next != &list->t_head ? be_amb(d, next) : NULL;
++}
++
++void *m0_be_tlist_prev(const struct m0_be_tl_descr *d,
++ 		       const struct m0_be_tl *list, void *obj)
++{
++	struct m0_be_list_link *prev;
++
++	M0_PRE(m0_be_tlist_contains(d, list, obj));
++
++	prev = (struct m0_be_list_link *)
++                be_link(d, obj)->ll_prev.virtual_address;
++	return (void *)prev != &list->t_head ? be_amb(d, prev) : NULL;
++}
++
++bool m0_be_tlist_invariant(const struct m0_be_tl_descr *d,
++			   const struct m0_be_tl *list)
++{
++	struct m0_be_list_link *head;
++	struct m0_be_list_link *scan;
++	struct m0_be_list_link *next_temp;
++	struct m0_be_list_link *prev_temp;
++
++        head = (void *)&list->t_head;
++
++	if (list->t_magic != d->td_head_magic)
++		return false;
++	if ((head->ll_next.virtual_address == (void *)head) !=
++   	    (head->ll_prev.virtual_address == (void *)head))
++		return false;
++
++	for (scan = head->ll_next.virtual_address;
++	     scan != head; scan = scan->ll_next.virtual_address) {
++
++                next_temp = scan->ll_next.virtual_address;
++                prev_temp = scan->ll_prev.virtual_address;
++
++                if (next_temp->ll_prev.virtual_address != scan ||
++                    prev_temp->ll_next.virtual_address != scan)
++	                        return false;
++
++                if (!m0_be_tlink_invariant(d, be_amb(d, scan)))
++	                        return false;
++        }
++
++	return true;
++}
++
++bool m0_be_tlink_invariant(const struct m0_be_tl_descr *d, const void *obj)
++{
++	return d->td_link_magic == 0 || be_magic(d, obj) == d->td_link_magic;
++}
++
++static struct m0_be_list_link *be_link(const struct m0_be_tl_descr *d,
++				       const void *obj)
++{
++	return &((struct m0_be_tlink *)(obj + d->td_link_offset))->t_link;
++}
++
++static uint64_t be_magic(const struct m0_be_tl_descr *d, const void *obj)
++{
++	return *(uint64_t *)(obj + d->td_link_magic_offset);
++}
++
++static void *be_amb(const struct m0_be_tl_descr *d,
++                    struct m0_be_list_link *link)
++{
++	return (void *)container_of(link, struct m0_be_tlink,
++				    t_link) - d->td_link_offset;
++}
++
++/** @} end of be_tlist group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_tlist.h b/be/lib/be_tlist.h
+new file mode 100644
+index 0000000..f38b983
+--- /dev/null
++++ b/be/lib/be_tlist.h
+@@ -0,0 +1,645 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author  	  : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date : 12/04/2012
++ */
++#pragma once
++
++#ifndef __MERO_BE_LIB_BE_TLIST_H__
++#define __MERO_BE_LIB_BE_TLIST_H__
++
++#include "be/lib/be_list.h"
++#include "be/lib/be_types.h"                    /* uint64_t */
++
++/**
++   @defgroup be_tlist Typed lists.
++
++   Typed list module provides a double-linked list implementation that
++   eliminates some chores and sources of errors typical for the "raw" m0_be_list
++   interface.
++
++   Typed list is implemented on top of m0_list and adds the following features:
++
++       - a "list descriptor" (m0_be_tl_descr) object holding information about
++         this
++         list type, including its human readable name;
++
++       - "magic" numbers embedded in list header and list links and checked by
++         the code to catch corruptions;
++
++       - automatic conversion to and from list links and ambient objects they
++         are embedded to, obviating the need in container_of() and
++         m0_be_list_entry() calls. In fact, links (m0_be_tlink) are not
++         mentioned in tlist interface at all;
++
++       - gdb (7.0) pretty-printer for lists (not yet implemented).
++
++   tlist is a safe and more convenient alternative to m0_list. As a general
++   rule, m0_list should be used only when performance is critical or some
++   flexibility beyond what tlist provides (e.g., a cyclic list without a head
++   object) is necessary.
++
++   Similarly to m0_list, tlist is a purely algorithmic module: it deals with
++   neither concurrency nor liveness nor with any similar issues that its callers
++   are supposed to handle.
++
++   To describe a typical tlist usage pattern, suppose that one wants a list of
++   objects of type foo hanging off every object of type bar.
++
++   First, two things have to be done:
++
++   - "list link" has to be embedded in foo:
++
++     @code
++     struct foo {
++             ...
++	     // linkage into a list of foo-s hanging off bar::b_list
++	     struct m0_be_tlink f_linkage;
++	     ...
++     };
++     @endcode
++
++   - then, a "list head" has to be embedded in bar:
++
++     @code
++     struct bar {
++             ...
++	     // list of foo-s, linked through foo::f_linkage
++	     struct m0_be_tl b_list;
++	     ...
++     };
++     @endcode
++
++   - now, define a tlist type:
++
++     @code
++     static const struct m0_be_tl_descr foobar_list = {
++             .td_name        = "foo-s of bar",
++	     .td_link_offset = offsetof(struct foo, f_linkage),
++	     .td_head_magic  = 0x666f6f6261726865 // "foobarhe"
++     };
++     @endcode
++
++   This defines the simplest form of tlist without magic checking in list links
++   (the magic embedded in a list head is checked anyway). To add magic checking,
++   place a magic field in foo:
++
++   @code
++   struct foo {
++           ...
++	   uint64_t f_magic;
++	   ...
++   };
++
++   static const struct m0_be_tl_descr foobar_list = {
++           ...
++	   .td_link_magic_offset = offsetof(struct foo, f_magic),
++	   .td_link_magic        = 0x666f6f6261726c69 // "foobarli"
++   };
++   @endcode
++
++   Magic field can be shared by multiple tlist links embedded in the same object
++   and can be used for other sanity checking. An "outermost" finaliser function
++   must clear the magic as its last step to catch use-after-fini errors.
++
++   Now, one can populate and manipulate foo-bar lists:
++
++   @code
++   struct bar  B;
++   struct foo  F;
++   struct foo *scan;
++
++   m0_be_tlist_init(&B.b_list);
++   m0_be_tlink_init(&F.f_linkage);
++
++   m0_be_tlist_add(&foobar_list, &B.b_list, &F);
++   M0_ASSERT(m0_be_tl_contains(&foobar_list, &B.b_list, &F));
++
++   m0_be_tlist_for(&foobar_list, &B.b_list, scan)
++           m0_ASSERT(scan == &F);
++   m0_be_tlist_endfor;
++   @endcode
++
++   @note Differently from m0_be_list, tlist heads and links must be initialised
++   before use, even when first usage overwrites the entity completely. This
++   allows stronger checking in tlist manipulation functions.
++
++   <b>Type-safe macros.</b>
++
++   M0_BE_TL_DESCR_DECLARE(), M0_BE_TL_DECLARE(), M0_BE_TL_DESCR_DEFINE() and
++   M0_BE_TL_DEFINE() macros generate versions of tlist interface tailored for a
++   particular use case.
++
++   4 separate macros are necessary for flexibility. They should be used in
++   exactly one of the following ways for any given typed list:
++
++       - static tlist, used in a single module only: M0_BE_TL_DEFINE() and
++         M0_BE_TL_DESCR_DEFINE() with scope "static" in the module .c file;
++
++       - tlist exported from a module: M0_BE_TL_DEFINE() and
++         M0_BE_TL_DESCR_DEFINE()with scope "" in .c file and
++         M0_BE_TL_DESCR_DECLARE(), M0_BE_TL_DECLARE() with scope "extern"
++         in .h file;
++
++       - tlist exported from a module as a collection of inline functions:
++         M0_BE_TL_DESCR_DEFINE() in .c file and M0_BE_TL_DESCR_DECLARE()
++         with scope "extern" followed by M0_BE_TL_DEFINE() with scope
++         "static inline" in .h file.
++   @{
++ */
++
++struct m0_be_tl_descr;
++struct m0_be_tl;
++struct m0_be_tlink;
++
++/**
++   An instance of this type must be defined for each "tlist type", specifically
++   for each link embedded in an ambient type.
++
++   @verbatim
++			      ambient object
++                          +  +-----------+  +
++     td_link_magic_offset |  |           |  |
++                          v  |           |  |
++                             |-----------|  |
++                             |link magic |  | td_link_offset
++                             |-----------|  |
++                             |           |  |
++        head                 |           |  |
++    +->+----------+          |           |  |
++    |  |head magic|          |           |  v
++    |  |----------|          |-----------|
++    |  |        +----------->|link     +------------> . . . ---+
++    |  +----------+          |-----------|                     |
++    |                        |           |                     |
++    |                        |           |                     |
++    |                        |           |                     |
++    |                        |           |                     |
++    |                        +-----------+                     |
++    |                                                          |
++    +----------------------------------------------------------+
++
++   @endverbatim
++ */
++struct m0_be_tl_descr {
++	/** Human-readable list name, used for error messages. */
++	const char *td_name;
++	/** Offset of list link (m0_tlink) in the ambient object. */
++	int         td_link_offset;
++	/**
++	    Offset of magic field in the ambient object.
++	    This is used only when link magic checking is on.
++
++	    @see m0_be_tl_descr::td_link_magic
++	 */
++	int         td_link_magic_offset;
++	/**
++	    Magic stored in an ambient object.
++
++	    If this field is 0, link magic checking is disabled.
++	 */
++	uint64_t    td_link_magic;
++	/**
++	    Magic stored in m0_tl::t_magic and checked on all tlist
++	    operations.
++	 */
++	uint64_t    td_head_magic;
++};
++
++#define M0_BE_TL_DESCR(name, ambient_type, link_field, link_magic_field,\
++                       link_magic, head_magic)				\
++{									\
++	.td_name              = name,					\
++	.td_link_offset       = offsetof(ambient_type, link_field),	\
++	.td_link_magic_offset = offsetof(ambient_type, link_magic_field), \
++	.td_link_magic        = link_magic,				\
++	.td_head_magic        = head_magic				\
++};									\
++									\
++M0_BASSERT(M0_HAS_TYPE(M0_FIELD_VALUE(ambient_type, link_field),	\
++		       struct m0_be_tlink));				\
++M0_BASSERT(M0_HAS_TYPE(M0_FIELD_VALUE(ambient_type, link_magic_field),	\
++		       uint64_t))
++
++/**
++ * tlist head tp support back-end domain
++ */
++struct m0_be_tl {
++	/**
++	   Head magic. This is set to m0_tl::td_head_magic and verified by the
++	   list invariant.
++	 */
++	uint64_t          t_magic;
++	/** Underlying m0_list. */
++	struct m0_be_list t_head;
++};
++
++
++/**
++ * tlist link to support back-end domain
++ */
++struct m0_be_tlink {
++	/** Underlying m0_list link. */
++	struct m0_be_list_link t_link;
++};
++
++void m0_be_tlist_init(const struct m0_be_tl_descr *d, struct m0_be_tl *list);
++
++void m0_be_tlist_fini(const struct m0_be_tl_descr *d, struct m0_be_tl *list);
++
++void m0_be_tlink_init(const struct m0_be_tl_descr *d, struct m0_reference ref);
++
++void m0_be_tlink_fini(const struct m0_be_tl_descr *d, void *obj);
++
++void m0_be_tlink_init_at(const struct m0_be_tl_descr *d, struct m0_be_tl *list,
++		         struct m0_reference ref);
++
++void m0_be_tlink_init_at_tail(const struct m0_be_tl_descr *d,
++                              struct m0_be_tl *list,
++			      struct m0_reference ref);
++
++void m0_be_tlink_del_fini    (const struct m0_be_tl_descr *d, void *obj);
++
++bool m0_be_tlist_invariant (const struct m0_be_tl_descr *d,
++			    const struct m0_be_tl *list);
++
++bool m0_be_tlink_invariant  (const struct m0_be_tl_descr *d, const void *obj);
++
++bool   m0_be_tlist_is_empty (const struct m0_be_tl_descr *d,
++			     const struct m0_be_tl *list);
++
++bool   m0_be_tlink_is_in   (const struct m0_be_tl_descr *d, const void *obj);
++
++bool   m0_be_tlist_contains (const struct m0_be_tl_descr *d,
++			     const struct m0_be_tl *list,
++ 			     const void *obj);
++
++size_t m0_be_tlist_length  (const struct m0_be_tl_descr *d,
++			    const struct m0_be_tl *list);
++
++/**
++   Adds an element to the beginning of a list.
++
++   @pre !m0_tlink_is_in(d, obj)
++   @post m0_tlink_is_in(d, obj)
++ */
++void   m0_be_tlist_add  (const struct m0_be_tl_descr *d, struct m0_be_tl *list,
++	 	         void *obj);
++
++/**
++   Adds an element to the end of a list.
++
++   @pre !m0_tlink_is_in(d, obj)
++   @post m0_tlink_is_in(d, obj)
++ */
++void   m0_be_tlist_add_tail (const struct m0_be_tl_descr *d,
++		  	     struct m0_be_tl *list, void *obj);
++
++/**
++   Adds an element after another element of the list.
++
++   @pre !m0_tlink_is_in(d, new)
++   @post m0_tlink_is_in(d, new)
++ */
++void   m0_be_tlist_add_after(const struct m0_be_tl_descr *d, void *obj,
++                             void *new);
++
++/**
++   Adds an element before another element of the list.
++
++   @pre !m0_tlink_is_in(d, new)
++   @post m0_tlink_is_in(d, new)
++ */
++void   m0_be_tlist_add_before(const struct m0_be_tl_descr *d, void *obj,
++                              void *new);
++
++/**
++   Deletes an element from the list.
++
++   @pre   m0_tlink_is_in(d, obj)
++   @post !m0_tlink_is_in(d, obj)
++ */
++void   m0_be_tlist_del (const struct m0_be_tl_descr *d, void *obj);
++
++/**
++   Moves an element from a list to the head of (possibly the same) list.
++
++   @pre  m0_tlink_is_in(d, obj)
++   @post m0_tlink_is_in(d, obj)
++ */
++void   m0_be_tlist_move (const struct m0_be_tl_descr *d, struct m0_be_tl *list,
++			 void *obj);
++
++/**
++   Moves an element from a list to the tail of (possibly the same) list.
++
++   @pre  m0_tlink_is_in(d, obj)
++   @post m0_tlink_is_in(d, obj)
++ */
++void   m0_be_tlist_move_tail (const struct m0_be_tl_descr *d,
++			      struct m0_be_tl *list, void *obj);
++
++/**
++   Returns the first element of a list or NULL if the list is empty.
++ */
++void  *m0_be_tlist_head(const struct m0_be_tl_descr *d,
++			const struct m0_be_tl *list);
++
++/**
++   Returns the last element of a list or NULL if the list is empty.
++ */
++void  *m0_be_tlist_tail(const struct m0_be_tl_descr *d,
++			const struct m0_be_tl *list);
++
++/**
++   Returns the next element of a list or NULL if @obj is the last element.
++
++   @pre m0_tlist_contains(d, list, obj)
++ */
++void  *m0_be_tlist_next (const struct m0_be_tl_descr *d,
++		         const struct m0_be_tl *list, void *obj);
++
++
++/**
++   Returns the previous element of a list or NULL if @obj is the first element.
++
++   @pre m0_tlist_contains(d, list, obj)
++ */
++void  *m0_be_tlist_prev (const struct m0_be_tl_descr *d,
++		         const struct m0_be_tl    *list, void *obj);
++
++
++/**
++   Iterates over elements of list @head of type @descr, assigning them in order
++   (from head to tail) to @obj.
++
++   It is safe to delete the "current" object in the body of the loop or modify
++   the portion of the list preceding the current element. It is *not* safe to
++   modify the list after the current point.
++
++   @code
++   m0_be_tlist_for(&foobar_list, &B.b_list, foo)
++           sum += foo->f_value;
++   m0_be_tlist_endfor;
++
++   m0_be_tlist_for(&foobar_list, &B.b_list, foo) {
++           if (foo->f_value % sum == 0)
++	           m0_tlist_del(&foobar_list, foo);
++   } m0_be_tlist_endfor;
++   @endcode
++
++   m0_be_tlist_for() macro has a few points of technical interest:
++
++       - it introduces a scope to declare a temporary variable to hold the
++         pointer to a "next" list element. The undesirable result of this is
++         that the loop has to be terminated by the matching m0_be_tlist_endfor
++         macro, closing the hidden scope. An alternative would be to use C99
++         syntax for iterative statement, which allows a declaration in the
++         for-loop header. Unfortunately, even though C99 mode can be enforced
++         for compilation of linux kernel modules (by means of CFLAGS_MODULE),
++         the kernel doesn't compile correctly in this mode;
++
++       - "inventive" use of comma expression in the loop condition allows to
++         calculate next element only once and only when the current element is
++         not NULL.
++
++   @see m0_be_tlist_endfor
++ */
++
++#define m0_be_tlist_for(descr, head, obj)				\
++do {									\
++	void *__be_tl;							\
++									\
++	for (obj = m0_be_tlist_head(descr, head);			\
++	     obj != NULL &&						\
++             ((void)(__be_tl = m0_be_tlist_next(descr, head, obj)), true);\
++	     obj = __be_tl)
++
++/**
++   Terminates m0_tlist_for() loop.
++ */
++#define m0_be_tlist_endfor ; (void)__be_tl; } while (0)
++
++/**
++   Declares a version of tlist interface with definitions adjusted to take
++   parameters of a specified ambient type (rather than void) and to hide
++   m0_be_tl_descr from signatures.
++
++   @code
++   M0_BE_TL_DECLARE(foo, static, struct foo);
++   @endcode
++
++   declares
++
++   @code
++   static void foo_tlist_init(struct m0_tl *head);
++   static void foo_tlink_init(struct foo *amb);
++   static void foo_tlist_move(struct m0_tl *list, struct foo *amb);
++   static struct foo *foo_tlist_head(const struct m0_tl *list);
++   @endcode
++
++   &c.
++
++   @see M0_BE_TL_DEFINE()
++   @see M0_BE_TL_DESCR_DEFINE()
++ */
++#define M0_BE_TL_DECLARE(name, scope, amb_type)				\
++									\
++scope void name ## _be_tlist_init(struct m0_be_tl *head);		\
++scope void name ## _be_tlist_fini(struct m0_be_tl *head);		\
++scope void name ## _be_tlink_init(struct m0_reference ref);		\
++scope void name ## _be_tlink_init_at(struct m0_reference ref,		\
++				     struct m0_be_tl *head);\
++scope void name ## _be_tlink_init_at_tail(struct m0_reference ref, 	\
++					  struct m0_be_tl *head);\
++scope void name ## _be_tlink_fini(amb_type *amb);			\
++scope void name ## _be_tlink_del_fini(amb_type *amb);			\
++scope bool   name ## _be_tlist_is_empty(const struct m0_be_tl *list);	\
++scope bool   name ## _be_tlink_is_in   (const amb_type *amb);		\
++scope bool   name ## _be_tlist_contains(const struct m0_be_tl *list,	\
++				        const amb_type *amb);		\
++scope size_t name ## _be_tlist_length(const struct m0_be_tl *list);	\
++scope void   name ## _be_tlist_add(struct m0_be_tl *list, amb_type *amb); \
++scope void   name ## _be_tlist_add_tail(struct m0_be_tl *list, amb_type *amb); \
++scope void   name ## _be_tlist_add_after(amb_type *amb, amb_type *new);	\
++scope void   name ## _be_tlist_add_before(amb_type *amb, amb_type *new); \
++scope void   name ## _be_tlist_del(amb_type *amb);			  \
++scope void   name ## _be_tlist_move(struct m0_be_tl *list, amb_type *amb); \
++scope void   name ## _be_tlist_move_tail(struct m0_be_tl *list, amb_type *amb);\
++scope amb_type *name ## _be_tlist_head(const struct m0_be_tl *list);	\
++scope amb_type *name ## _be_tlist_tail(const struct m0_be_tl *list);	\
++scope amb_type *name ## _be_tlist_next(const struct m0_be_tl *list, 	\
++				       amb_type *amb);	\
++scope amb_type *name ## _be_tlist_prev(const struct m0_be_tl *list, \
++                                       amb_type *amb)
++
++#define __AUN __attribute__((unused))
++
++
++/**
++   Defines a tlist descriptor (m0_be_tl_descr) for a particular ambient type.
++ */
++#define M0_BE_TL_DESCR_DEFINE(name, hname, scope, amb_type, amb_link_field, \
++		     amb_magic_field, amb_magic, head_magic)		\
++scope const struct m0_be_tl_descr name ## _tl = m0_BE_TL_DESCR(hname,	\
++							 amb_type,	\
++							 amb_link_field, \
++							 amb_magic_field, \
++							 amb_magic,	  \
++							 head_magic)
++
++
++/**
++   Defines functions declared by M0_BE_TL_DECLARE().
++
++   The definitions generated assume that tlist descriptor, defined by
++   M0_BE_TL_DESC_DEFINE() is in scope.
++ */
++#define M0_BE_TL_DEFINE(name, scope, amb_type)				\
++									\
++scope __AUN void name ## _tlist_init(struct m0_be_tl *head)		\
++{									\
++	m0_be_tlist_init(&name ## _tl, head);			        \
++}									\
++									\
++scope __AUN void name ## _tlist_fini(struct m0_be_tl *head)		\
++{									\
++	m0_be_tlist_fini(&name ## _tl, head);			        \
++}									\
++									\
++scope __AUN void name ## _tlink_init(struct m0_reference ref)		\
++{									\
++	m0_be_tlink_init(&name ## _tl, ref);				\
++}									\
++									\
++scope __AUN void name ## _tlink_init_at(struct m0_reference  ref,	\
++					   struct m0_be_tl *head)       \
++{									\
++	m0_be_tlink_init_at(&name ## _tl,  head, ref);		        \
++}									\
++									\
++scope __AUN void name ## _tlink_init_at_tail(struct m0_reference ref,   \
++						struct m0_be_tl *head)  \
++{									\
++	m0_be_tlink_init_at_tail(&name ## _tl, head, ref);		\
++}									\
++									\
++scope __AUN void name ## _tlink_fini(amb_type *amb)			\
++{									\
++	m0_be_tlink_fini(&name ## _tl, amb);				\
++}									\
++									\
++scope __AUN void name ## _tlink_del_fini(amb_type *amb)		        \
++{									\
++	m0_be_tlink_del_fini(&name ## _tl, amb);			\
++}									\
++									\
++scope __AUN bool   name ## _tlist_is_empty(const struct m0_be_tl *list) \
++{									\
++	return m0_be_tlist_is_empty(&name ## _tl, list);		\
++}									\
++									\
++scope __AUN bool   name ## _tlink_is_in   (const amb_type *amb)	        \
++{									\
++	return m0_be_tlink_is_in(&name ## _tl, amb);			\
++}									\
++									\
++scope __AUN bool   name ## _tlist_contains(const struct m0_be_tl *list, \
++				     const amb_type *amb)		\
++{									\
++	return m0_be_tlist_contains(&name ## _tl, list, amb);	        \
++}									\
++									\
++scope __AUN size_t name ## _tlist_length(const struct m0_be_tl *list)   \
++{									\
++	return m0_be_tlist_length(&name ## _tl, list);		        \
++}									\
++									\
++scope __AUN void   name ## _tlist_add(struct m0_be_tl *list, amb_type *amb) \
++{									\
++	m0_be_tlist_add(&name ## _tl, list, amb);			\
++}									\
++									\
++scope __AUN void   name ## _tlist_add_tail(struct m0_be_tl *list, 	\
++					      amb_type *amb)            \
++{									\
++	m0_be_tlist_add_tail(&name ## _tl, list, amb);		        \
++}									\
++									\
++scope __AUN void   name ## _tlist_add_after(amb_type *amb, amb_type *new) \
++{									\
++	m0_be_tlist_add_after(&name ## _tl, amb, new);		        \
++}									\
++									\
++scope __AUN void   name ## _tlist_add_before(amb_type *amb, amb_type *new) \
++{									\
++	m0_be_tlist_add_before(&name ## _tl, amb, new);		        \
++}									\
++									\
++scope __AUN void   name ## _tlist_del(amb_type *amb)			\
++{									\
++	m0_be_tlist_del(&name ## _tl, amb);				\
++}									\
++									\
++scope __AUN void   name ## _tlist_move(struct m0_be_tl *list, amb_type *amb)\
++{									\
++	m0_be_tlist_move(&name ## _tl, list, amb);			\
++}									\
++									\
++scope __AUN void   name ## _tlist_move_tail(struct m0_be_tl *list, 	\
++					       amb_type *amb)           \
++{									\
++	m0_be_tlist_move_tail(&name ## _tl, list, amb);		        \
++}									\
++									\
++scope __AUN amb_type *name ## _tlist_head(const struct m0_be_tl *list)  \
++{									\
++	return m0_be_tlist_head(&name ## _tl, list);			\
++}									\
++									\
++scope __AUN amb_type *name ## _tlist_tail(const struct m0_be_tl *list)  \
++{									\
++	return m0_be_tlist_tail(&name ## _tl, list);			\
++}									\
++									\
++scope __AUN amb_type *name ## _tlist_next(const struct m0_be_tl *list,  \
++				     amb_type *amb)			\
++{									\
++	return m0_be_tlist_next(&name ## _tl, list, amb);		\
++}									\
++									\
++scope __AUN amb_type *name ## _tlist_prev(const struct m0_be_tl *list,  \
++				     amb_type *amb)                     \
++{									\
++	return m0_be_tlist_prev(&name ## _tl, list, amb);		\
++}									\
++									\
++struct __ ## name ## _terminate_me_with_a_semicolon { ; }
++/** @} end of be_tlist group */
++
++/* __MERO_BE_LIB_BE_TLIST_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_types.h b/be/lib/be_types.h
+new file mode 100644
+index 0000000..f97ff9f
+--- /dev/null
++++ b/be/lib/be_types.h
+@@ -0,0 +1,62 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author              : Zishan Shaikh <zishan_shaikh@xyratex.com>
++ * Original creation date       : 12/04/2012
++ */
++#pragma once
++
++
++
++
++#ifndef __MERO_BE_LIB_BE_TYPES_H__
++#define __MERO_BE_LIB_BE_TYPES_H__
++
++#include "lib/types.h"
++
++/**
++ *      Structure added to support back-end domain wide reference pointer
++ */
++struct m0_reference {
++        /*
++         * Should always be the first field of this structure, stores the
++         * virtual address of the object.
++         */
++        void *virtual_address;
++        /* Higher 64 bit segment id & lower 64 bit offset within the segment */
++        struct m0_uint128 segid_offset;
++
++        /* usage : TBD */
++        uint64_t magic;
++
++        /* usage : TBD */
++        uint64_t magic_offset;
++};
++
++
++
++/* __MERO_BE_LIB_BE_TYPES_H_ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/lib/buf.c b/lib/buf.c
+index 8b56035..85dc4b6 100644
+--- a/lib/buf.c
++++ b/lib/buf.c
+@@ -35,19 +35,6 @@ M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob)
+ 	buf->b_nob  = nob;
+ }
+ 
+-/* Initialize Backend Domain buffer */
+-M0_INTERNAL void m0_be_buf_init(struct m0_be_buf *buf, void *data, uint32_t nob,
+-                    uint64_t segment_id, uint64_t segment_offset,
+-                    void *virtual_addr)
+-{
+-        buf->b_addr = data;
+-        buf->b_nob  = nob;
+-
+-        buf->logical_address.segid_offset.u_hi = segment_id;
+-        buf->logical_address.segid_offset.u_lo = segment_offset;
+-        buf->logical_address.virtual_address   = virtual_addr;
+-}
+-
+ M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
+ {
+ 	m0_free(buf->b_addr);
+diff --git a/lib/buf.h b/lib/buf.h
+index 201fae1..b397548 100644
+--- a/lib/buf.h
++++ b/lib/buf.h
+@@ -37,16 +37,6 @@ struct m0_buf {
+ 	void       *b_addr;
+ } M0_XCA_SEQUENCE;
+ 
+-/* Backend domain type buffer */
+-struct m0_be_buf {
+-        m0_bcount_t b_nob;
+-        union {
+-                void       *b_addr;
+-                /* holds the m0_reference for the object */
+-                struct m0_reference logical_address;
+-        };
+-};
+-
+ /**
+  * Initialisers for struct m0_buf.
+  *
+@@ -83,10 +73,6 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
+ /** Initialises struct m0_buf */
+ M0_INTERNAL void m0_buf_init(struct m0_buf *buf, void *data, uint32_t nob);
+ 
+-/** Backend domain type buffer initialization */
+-M0_INTERNAL void m0_be_buf_init(struct m0_be_buf *buf, void *data, uint32_t nob,
+-                    uint64_t segment_id, uint64_t segment_offset,
+-                    void *virtual_addr);
+ 
+ /**
+  * Frees the contents of the buffer and zeroes its fields.
+diff --git a/lib/types.h b/lib/types.h
+index 8c8497b..6070cb4 100644
+--- a/lib/types.h
++++ b/lib/types.h
+@@ -61,26 +61,6 @@ enum {
+ 	M0_BSIGNED_MAX = 0x7fffffffffffffff
+ };
+ 
+-/**
+- *      Structure added to support back-end domain wide reference pointer
+- */
+-struct m0_reference {
+-        /*
+-         * Should always be the first field of this structure, stores the 
+-         * virtual address of the object.
+-         */
+-        void *virtual_address;
+-        /* Higher 64 bit segment id & lower 64 bit offset within the segment */
+-        struct m0_uint128 segid_offset;
+-
+-        /* usage : TBD */
+-        uint64_t magic;
+-
+-        /* usage : TBD */
+-        uint64_t magic_offset;
+-};
+-
+-
+ /* __MERO_LIB_TYPES_H__ */
+ #endif
+ 
+-- 
+1.8.3.2
+

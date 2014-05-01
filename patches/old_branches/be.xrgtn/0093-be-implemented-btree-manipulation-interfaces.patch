@@ -1,0 +1,1230 @@
+From e29c6589af62c1109ff5d38a4bc89fe82d37a392 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 4 Jun 2013 07:47:42 +0300
+Subject: [PATCH 093/228] be: implemented btree manipulation interfaces.
+
+---
+ be/Makefile.sub |   2 +-
+ be/be.c         | 109 ++++++++++++
+ be/be.h         |  15 +-
+ be/btree.c      | 530 ++++++++++++++++++++++++++++++++++++++------------------
+ be/btree.h      |  11 +-
+ be/tx.h         |  93 +++++-----
+ 6 files changed, 543 insertions(+), 217 deletions(-)
+ create mode 100644 be/be.c
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 090d254..389db64 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -1,3 +1,3 @@
+ nobase_mero_include_HEADERS += be/alloc.h be/list.h be/seg.h
+ 
+-mero_libmero_la_SOURCES += be/alloc.c be/list.c be/seg.c be/btree.c
++mero_libmero_la_SOURCES += be/alloc.c be/list.c be/seg.c be/be.c be/btree.c
+diff --git a/be/be.c b/be/be.c
+new file mode 100644
+index 0000000..9f41958
+--- /dev/null
++++ b/be/be.c
+@@ -0,0 +1,109 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original creation date: 3-Jun-2013
++ */
++
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
++#include "lib/cdefs.h" /* container_of */
++#include "lib/misc.h" /* M0_BITS */
++#include "be/btree.h"
++#include "be/be.h"
++#include "sm/sm.h"
++
++/**
++ * @addtogroup be
++ *
++ * @{
++ */
++
++static const struct m0_be_op *csm2op(const struct m0_sm *sm)
++{
++	/* XXX: use bob_of instead of container_of */
++	return container_of(sm, const struct m0_be_op, bo_sm);
++}
++
++static bool op_invariant(const struct m0_sm *sm)
++{
++	M0_UNUSED const struct m0_be_op *op = csm2op(sm);
++
++	return true; /* XXX: formulate invariant for this sm state */
++}
++
++static struct m0_sm_state_descr op_states[M0_BOS_NR] = {
++	[M0_BOS_INIT] = {
++		.sd_flags     = M0_SDF_INITIAL,
++		.sd_name      = "M0_SDF_INITIAL",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = op_invariant,
++		.sd_allowed   = M0_BITS(M0_BOS_ACTIVE)
++	},
++	[M0_BOS_ACTIVE] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BOS_ACTIVE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = op_invariant,
++		.sd_allowed   = M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
++	},
++	[M0_BOS_SUCCESS] = {
++		.sd_flags     = M0_SDF_TERMINAL,
++		.sd_name      = "M0_BOS_SUCCESS",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = op_invariant,
++		.sd_allowed   = 0
++	},
++	[M0_BOS_FAILURE] = {
++		.sd_flags     = M0_SDF_FAILURE,
++		.sd_name      = "M0_BOS_FAILURE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = op_invariant,
++		.sd_allowed   = 0
++	}
++};
++
++static const struct m0_sm_conf op_states_conf = {
++	.scf_name      = "m0_be_op::bo_sm",
++	.scf_nr_states = M0_BOS_NR,
++	.scf_state     = op_states
++};
++
++M0_INTERNAL enum m0_be_op_state m0_be_op_state(struct m0_be_op *op)
++{
++	return op->bo_sm.sm_state;
++}
++
++#undef M0_TRACE_SUBSYSTEM
++/** @} end of be group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/be.h b/be/be.h
+index c259840..acf154b 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -24,6 +24,7 @@
+ 
+ #include "sm/sm.h"
+ #include "be/tx.h"
++#include "be/seg.h"
+ 
+ /**
+  * @defgroup be
+@@ -54,10 +55,18 @@ enum m0_be_op_state {
+ 	M0_BOS_NR
+ };
+ 
++enum m0_be_op_type {
++	M0_BOP_REG,
++	M0_BOP_TREE,
++	M0_BOP_LIST,
++	M0_BOP_NR
++};
++
+ struct m0_be_op {
+-	struct m0_sm   bo_sm;
+-	struct m0_fom *bo_fom;
++	struct m0_sm        bo_sm;
++	struct m0_fom      *bo_fom;
+ 
++	enum m0_be_op_type  bo_utype; /* bo_u type */
+ 	union {
+ 		/* Used by m0_be_reg_get(). */
+ 		const struct m0_be_reg *u_reg;
+@@ -80,6 +89,8 @@ struct m0_be_op {
+ 	} bo_u;
+ };
+ 
++M0_INTERNAL enum m0_be_op_state m0_be_op_state(struct m0_be_op *op);
++
+ /** Waits for the operation to complete and returns its rc. */
+ M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op);
+ 
+diff --git a/be/btree.c b/be/btree.c
+index b1046c2..c87e82b 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -31,6 +31,7 @@
+ #include "be/btree.h"
+ #include "be/alloc.h"
+ #include "be/seg.h"
++#include <math.h> /* pow */
+ 
+ 
+ /* XXX: make things compile */
+@@ -159,13 +160,15 @@ static int node_update(struct m0_be_bnode	    *node,
+ }
+ 
+ /**
+- *	Used to create a btree with just the root node
+- *	@param order The order of the B-tree
+- *	@return The an empty B-tree
++ * Used to create a btree with just the root node
+  */
+ static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
+ {
+ 	btree->bb_root = allocate_btree_node(btree, tx);
++
++	/* memory for the node has to be reserved by m0_be_tx_open() */
++	M0_ASSERT(btree->bb_root != NULL);
++
+ 	btree->bb_root->leaf = true;
+ 	btree->bb_root->nr_active = 0;
+ 	btree->bb_root->next = NULL;
+@@ -181,42 +184,39 @@ static struct m0_be_bnode *allocate_btree_node(const struct m0_be_btree *btree,
+ {
+ 	struct m0_be_bnode *node;
+ 
+-	// Allocate memory for the node
++	/*  Allocate memory for the node */
+ 	node = (struct m0_be_bnode *)MEM_ALLOC(tx, sizeof(struct m0_be_bnode));
+ 	M0_ASSERT(node != NULL);	/* @todo: analyse return code */
+ 
+-	// Initialize the number of active nodes
++	/*  Initialize the number of active nodes */
+ 	node->nr_active = 0;
+ 
+-	// Initialize the keys
++	/*  Initialize the keys */
+ 	node->key_vals = (struct bt_key_val **)MEM_ALLOC(tx, KV_SIZE(btree));
+ 	M0_ASSERT(node->key_vals != NULL); /* @todo: analyse return code */
+ 
+-	// Initialize the child pointers
++	/*  Initialize the child pointers */
+ 	node->children = (struct m0_be_bnode **)MEM_ALLOC(tx, CHILDREN_SIZE(btree));
+ 	M0_ASSERT(node->children != NULL); /* @todo: analyse return code */
+ 
+-	// Use to determine whether it is a leaf
++	/*  Use to determine whether it is a leaf */
+ 	node->leaf = true;
+ 
+-	// Use to determine the level in the tree
++	/*  Use to determine the level in the tree */
+ 	node->level = 0;
+ 
+-	//Initialize the linked list pointer to NULL
++	/* Initialize the linked list pointer to NULL */
+ 	node->next = NULL;
+ 
+ 	return node;
+ }
+ 
+ /**
+- *       Function used to free the memory allocated to the b-tree
+- *       @param node The node to be freed
+- *       @param order Order of the B-Tree
+- *       @return The allocated B-tree node
++ * Function used to free the memory allocated to the b-tree
+  */
+-static int free_btree_node(struct m0_be_bnode	 *node,
+-			   const struct m0_be_btree	 *btree,
+-			   struct m0_be_tx	 *tx)
++static int free_btree_node(struct m0_be_bnode	    *node,
++			   const struct m0_be_btree *btree,
++			   struct m0_be_tx	    *tx)
+ {
+ 	MEM_FREE(tx, node->children, CHILDREN_SIZE(btree));
+ 	MEM_FREE(tx, node->key_vals, KV_SIZE(btree));
+@@ -226,18 +226,13 @@ static int free_btree_node(struct m0_be_bnode	 *node,
+ }
+ 
+ /**
+- *	Used to split the child node and adjust the parent so that
+- *	it has two children
+- *	@param parent Parent Node
+- *	@param index Index of the child node
+- *	@param child  Full child node
+- *
++ * Used to split the child node and adjust the parent so that it has two children
+  */
+-static void btree_split_child(struct m0_be_btree		 *btree,
++static void btree_split_child(struct m0_be_btree *btree,
+ 			      struct m0_be_tx	 *tx,
+-			      struct m0_be_bnode		 *parent,
+-			      unsigned int		  index,
+-			      struct m0_be_bnode		 *child)
++			      struct m0_be_bnode *parent,
++			      unsigned int	  index,
++			      struct m0_be_bnode *child)
+ {
+ 	int rc;
+ 	int i = 0;
+@@ -248,7 +243,7 @@ static void btree_split_child(struct m0_be_btree		 *btree,
+ 	new_child->level = child->level;
+ 	new_child->nr_active = BTREE_FAN_OUT - 1;
+ 
+-	// Copy the higher order keys to the new child
++	/*  Copy the higher order keys to the new child */
+ 	for (i = 0; i < order - 1; i++) {
+ 		new_child->key_vals[i] = child->key_vals[i + order];
+ 		if (!child->leaf) {
+@@ -256,7 +251,7 @@ static void btree_split_child(struct m0_be_btree		 *btree,
+ 		}
+ 	}
+ 
+-	// Copy the last child pointer
++	/*  Copy the last child pointer */
+ 	if (!child->leaf) {
+ 		new_child->children[i] = child->children[i + order];
+ 	}
+@@ -284,17 +279,12 @@ static void btree_split_child(struct m0_be_btree		 *btree,
+ }
+ 
+ /**
+- *	Used to insert a key in the non-full node
+- *	@param btree The btree
+- *	@param node The node to which the key will be added
+- *	@param the key value pair
+- *	@return void
++ * Used to insert a key in the non-full node
+  */
+-
+-static void btree_insert_nonfull(struct m0_be_btree		 *btree,
+-				 struct m0_be_tx	 *tx,
+-				 struct m0_be_bnode		 *parent_node,
+-				 struct bt_key_val	 *key_val)
++static void btree_insert_nonfull(struct m0_be_btree *btree,
++				 struct m0_be_tx    *tx,
++				 struct m0_be_bnode *parent_node,
++				 struct bt_key_val  *key_val)
+ {
+ 	void *key = key_val->key;
+ 	int i;
+@@ -333,18 +323,13 @@ static void btree_insert_nonfull(struct m0_be_btree		 *btree,
+ }
+ 
+ /**
+- *       Function used to insert node into a B-Tree
+- *       @param root Root of the B-Tree
+- *       @param node The node to be inserted
+- *       @param compare Function used to compare the two nodes of the tree
+- *       @return success or failure
++ * Function used to insert node into a B-Tree
+  */
+-M0_UNUSED static int btree_insert_key(struct m0_be_btree *btree,
+-				 struct m0_be_tx	 *tx,
+-				 struct bt_key_val	 *key_val)
++static void btree_insert_key(struct m0_be_btree *btree,
++			     struct m0_be_tx	*tx,
++			     struct bt_key_val	*key_val)
+ {
+ 	struct m0_be_bnode *rnode;
+-	/* int rc; */
+ 
+ 	rnode = btree->bb_root;
+ 	if (rnode->nr_active == (2 * BTREE_FAN_OUT - 1)) {
+@@ -361,19 +346,16 @@ M0_UNUSED static int btree_insert_key(struct m0_be_btree *btree,
+ 		btree_insert_nonfull(btree, tx, rnode, key_val);
+ 
+ 	/* Update tree structure itself */
+-	/*rc =*/ MEM_UPDATE(tx, btree, sizeof(struct m0_be_btree));
+-	/* M0_ASSERT(rc == 0); */
+-
+-	return 0;
++	MEM_UPDATE(tx, btree, sizeof(struct m0_be_btree));
+ }
+ 
+ /**
+  *	Used to get the position of the MAX key within the subtree
+  *	@param btree The btree
+  *	@param subtree The subtree to be searched
+- *	@return The node containing the key and position of the key
++ *	@return The node_pos containing the key and position of the key
+  */
+-static struct node_pos get_max_key_pos(struct m0_be_btree   *btree,
++static struct node_pos get_max_key_pos(struct m0_be_btree *btree,
+ 				       struct m0_be_bnode *subtree)
+ {
+ 	struct node_pos node_pos;
+@@ -401,9 +383,9 @@ static struct node_pos get_max_key_pos(struct m0_be_btree   *btree,
+  *	Used to get the position of the MAX key within the subtree
+  *	@param btree The btree
+  *	@param subtree The subtree to be searched
+- *	@return The node containing the key and position of the key
++ *	@return The node_pos containing the key and position of the key
+  */
+-static struct node_pos get_min_key_pos(struct m0_be_btree   *btree,
++static struct node_pos get_min_key_pos(struct m0_be_btree *btree,
+ 				       struct m0_be_bnode *subtree)
+ {
+ 	struct node_pos node_pos;
+@@ -433,13 +415,12 @@ static struct node_pos get_min_key_pos(struct m0_be_btree   *btree,
+  *	@param node The parent node
+  *	@param index of the child
+  *	@param pos left or right
+- *	@return none
+  */
+-static struct m0_be_bnode *merge_siblings(struct m0_be_btree	   *btree,
+-				      struct m0_be_tx *tx,
+-				      struct m0_be_bnode	   *parent,
+-				      unsigned int	    index,
+-				      enum position_t	    pos)
++static struct m0_be_bnode *merge_siblings(struct m0_be_btree *btree,
++					  struct m0_be_tx    *tx,
++					  struct m0_be_bnode *parent,
++					  unsigned int	      index,
++					  enum position_t     pos)
+ {
+ 	int rc;
+ 	unsigned int i, j;
+@@ -455,7 +436,7 @@ static struct m0_be_bnode *merge_siblings(struct m0_be_btree	   *btree,
+ 		n2 = parent->children[index + 1];
+ 	}
+ 
+-	//Merge the current node with the left node
++	/* Merge the current node with the left node */
+ 	new_node = allocate_btree_node(btree, tx);
+ 	new_node->level = n1->level;
+ 	new_node->leaf = n1->leaf;
+@@ -509,15 +490,14 @@ static struct m0_be_bnode *merge_siblings(struct m0_be_btree	   *btree,
+ }
+ 
+ /**
+- *	Move the key from node to another
+- *	@param btree The B-Tree
+- *	@param node The parent node
+- *	@param index of the key to be moved done
+- *	@param pos the position of the child to receive the key
+- *	@return none
++ * Move the key from node to another
++ * @param btree The B-Tree
++ * @param node The parent node
++ * @param index of the key to be moved done
++ * @param pos the position of the child to receive the key
+  */
+ static void move_key(struct m0_be_btree	  *btree,
+-		     struct m0_be_tx *tx,
++		     struct m0_be_tx	  *tx,
+ 		     struct m0_be_bnode	  *node,
+ 		     unsigned int	   index,
+ 		     enum position_t	   pos)
+@@ -533,7 +513,7 @@ static void move_key(struct m0_be_btree	  *btree,
+ 	lchild = node->children[index];
+ 	rchild = node->children[index + 1];
+ 
+-	// Move the key from the parent to the left child
++	/*  Move the key from the parent to the left child */
+ 	if (pos == P_LEFT) {
+ 		lchild->key_vals[lchild->nr_active] = node->key_vals[index];
+ 		lchild->children[lchild->nr_active + 1] = rchild->children[0];
+@@ -551,7 +531,7 @@ static void move_key(struct m0_be_btree	  *btree,
+ 		    rchild->children[rchild->nr_active];
+ 		rchild->nr_active--;
+ 	} else {
+-		// Move the key from the parent to the right child
++		/*  Move the key from the parent to the right child */
+ 		for (i = rchild->nr_active; i > 0; i--) {
+ 			rchild->key_vals[i] = rchild->key_vals[i - 1];
+ 			rchild->children[i + 1] = rchild->children[i];
+@@ -583,10 +563,8 @@ static void move_key(struct m0_be_btree	  *btree,
+ }
+ 
+ /**
+- *	Merge nodes n1 and n2
+- *	@param n1 First node
+- *	@param n2 Second node
+- *	@return combined node
++ * Merge nodes n1 and n2
++ * @return combined node
+  */
+ static struct m0_be_bnode *merge_nodes(struct m0_be_btree *btree,
+ 				   struct m0_be_tx *tx,
+@@ -624,14 +602,10 @@ static struct m0_be_bnode *merge_nodes(struct m0_be_btree *btree,
+ }
+ 
+ /**
+- *	Used to delete a key from the B-tree node
+- *	@param btree The btree
+- *	@param node The node from which the key is to be deleted
+- *	@param key The key to be deleted
+- *	@return 0 on success -1 on error
++ * Used to delete a key from the B-tree node
++ * @return 0 on success -1 on error
+  */
+-
+-int delete_key_from_node(struct m0_be_btree		 *btree,
++int delete_key_from_node(struct m0_be_btree	 *btree,
+ 			 struct m0_be_tx	 *tx,
+ 			 struct node_pos	 *node_pos)
+ {
+@@ -674,18 +648,12 @@ int delete_key_from_node(struct m0_be_btree		 *btree,
+ }
+ 
+ /**
+- *       Function used to delete a node from a  B-Tree
+- *       @param btree The B-Tree
+- *       @param key Key of the node to be deleted
+- *       @param value function to map the key to an unique integer value
+- *       @param compare Function used to compare the two nodes of the tree
+- *       @return success or failure
++ * Function used to delete a node from a  B-Tree
+  */
+-
+-M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+-				 struct m0_be_tx	 *tx,
+-				 struct m0_be_bnode	 *subtree,
+-				 void			 *key)
++static int btree_delete_key(struct m0_be_btree   *btree,
++			    struct m0_be_tx      *tx,
++			    struct m0_be_bnode   *subtree,
++			    void                 *key)
+ {
+ 	int rc;
+ 	unsigned int i, index;
+@@ -701,12 +669,12 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ 
+  del_loop:for (i = 0;; i = 0) {
+ 
+-		//If there are no keys simply return
++		/* If there are no keys simply return */
+ 		if (!node->nr_active)
+ 			return -1;
+ 
+-		// Fix the index of the key greater than or equal
+-		// to the key that we would like to search
++		/*  Fix the index of the key greater than or equal */
++		/*  to the key that we would like to search */
+ 
+ 		while (i < node->nr_active &&
+ 		       KEY_GT(kv, node->key_vals[i]->key)) {
+@@ -714,20 +682,20 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ 		}
+ 		index = i;
+ 
+-		// If we find such key break
++		/*  If we find such key break */
+ 		if (i < node->nr_active && KEY_EQ(kv, node->key_vals[i]->key)) {
+ 			break;
+ 		}
+ 		if (node->leaf)
+ 			return -1;
+ 
+-		//Store the parent node
++		/* Store the parent node */
+ 		parent = node;
+ 
+-		// To get a child node
++		/*  To get a child node */
+ 		node = node->children[i];
+ 
+-		//If NULL not found
++		/* If NULL not found */
+ 		if (node == NULL)
+ 			return -1;
+ 
+@@ -743,25 +711,25 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ 		}
+ 
+ 		if (node->nr_active == BTREE_FAN_OUT - 1 && parent) {
+-			// The current node has (t - 1) keys but the
+-			// right sibling has > (t - 1) keys
++			/*  The current node has (t - 1) keys but the */
++			/*  right sibling has > (t - 1) keys */
+ 			if (rsibling
+ 			    && (rsibling->nr_active > BTREE_FAN_OUT - 1)) {
+ 				move_key(btree, tx, parent, i, P_LEFT);
+ 			} else
+-			// The current node has (t - 1) keys but the
+-			// left sibling has (t - 1) keys
++			/*  The current node has (t - 1) keys but the */
++			/*  left sibling has (t - 1) keys */
+ 			if (lsibling
+ 				    && (lsibling->nr_active >
+ 						BTREE_FAN_OUT - 1)) {
+ 				move_key(btree, tx, parent, i, P_RIGHT);
+ 			} else
+-			// Left sibling has (t - 1) keys
++			/*  Left sibling has (t - 1) keys */
+ 			if (lsibling  &&
+ 			    (lsibling->nr_active == BTREE_FAN_OUT - 1)) {
+ 				node = merge_siblings(btree, tx, parent, i, P_LEFT);
+ 			} else
+-			// Right sibling has (t - 1) keys
++			/*  Right sibling has (t - 1) keys */
+ 			if (rsibling &&
+ 			    (rsibling->nr_active ==BTREE_FAN_OUT - 1)) {
+ 				node = merge_siblings(btree, tx, parent, i, P_RIGHT);
+@@ -769,9 +737,9 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ 		}
+ 	}
+ 
+-	//Case 1 : The node containing the key is found and is the leaf node.
+-	//Also the leaf node has keys greater than the minimum required.
+-	//Simply remove the key
++	/* Case 1 : The node containing the key is found and is the leaf node. */
++	/* Also the leaf node has keys greater than the minimum required. */
++	/* Simply remove the key */
+ 	if (node->leaf && (node->nr_active > BTREE_FAN_OUT - 1)) {
+ 		node_pos.node = node;
+ 		node_pos.index = index;
+@@ -784,8 +752,8 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ 
+ 		return 0;
+ 	}
+-	//If the leaf node is the root permit deletion even if the
+-	//number of keys is less than (t - 1)
++	/* If the leaf node is the root permit deletion even if the */
++	/* number of keys is less than (t - 1) */
+ 	if (node->leaf && (node == btree->bb_root)) {
+ 		node_pos.node = node;
+ 		node_pos.index = index;
+@@ -798,7 +766,7 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ 		return 0;
+ 	}
+ 
+-	//Case 2: The node containing the key is found and is an internal node
++	/* Case 2: The node containing the key is found and is an internal node */
+ 	if (node->leaf == false) {
+ 		if (node->children[index]->nr_active > BTREE_FAN_OUT - 1) {
+ 			sub_node_pos =
+@@ -876,11 +844,11 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ 			goto del_loop;
+ 		}
+ 	}
+-	// Case 3:
+-	// In this case start from the top of the tree and continue
+-	// moving to the leaf node making sure that each node that
+-	// we encounter on the way has atleast 't' (order of the tree)
+-	// keys
++	/*  Case 3: */
++	/*  In this case start from the top of the tree and continue */
++	/*  moving to the leaf node making sure that each node that */
++	/*  we encounter on the way has atleast 't' (order of the tree) */
++	/*  keys */
+ 	if (node->leaf && (node->nr_active > BTREE_FAN_OUT - 1)) {
+ 		node_pos.node = node;
+ 		node_pos.index = index;
+@@ -895,10 +863,10 @@ M0_UNUSED static int btree_delete_key(struct m0_be_btree *btree,
+ }
+ 
+ /**
+- *	Function used to get the node containing the given key
+- *	@param btree The btree to be searched
+- *	@param key The the key to be searched
+- *	@return The node and position of the key within the node
++ * Function used to get the node containing the given key
++ * @param btree The btree to be searched
++ * @param key The the key to be searched
++ * @return The node and position of the key within the node
+  */
+ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key)
+ {
+@@ -911,36 +879,35 @@ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key)
+ 
+ 	for (;; i = 0) {
+ 
+-		// Fix the index of the key greater than or equal
+-		// to the key that we would like to search
++		/*  Fix the index of the key greater than or equal */
++		/*  to the key that we would like to search */
+ 
+ 		while (i < node->nr_active &&
+ 		       KEY_GT(key_val, node->key_vals[i]->key)) {
+ 			i++;
+ 		}
+ 
+-		// If we find such key return the key-value pair
++		/*  If we find such key return the key-value pair */
+ 		if (i < node->nr_active &&
+ 		    KEY_EQ(key_val, node->key_vals[i]->key)) {
+ 			kp.node = node;
+ 			kp.index = i;
+ 			return kp;
+ 		}
+-		// If the node is leaf and if we did not find the key
+-		// return NULL
++		/*  If the node is leaf and if we did not find the key */
++		/*  return NULL */
+ 		if (node->leaf) {
+ 			return kp;
+ 		}
+-		// To got a child node
++		/*  To got a child node */
+ 		node = node->children[i];
+ 	}
+ 	return kp;
+ }
+ 
+ /**
+- *       Used to destory btree
+- *       @param btree The B-tree
+- *       @return none
++ * Used to destory btree
++ * @param btree The B-tree
+  */
+ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
+ {
+@@ -975,18 +942,17 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
+ 		head = head->next;
+ 		free_btree_node(del_node, btree, tx);
+ 	}
+-	// @todo: Seems btree has to be deleted also...
+-	//        And this shall be done near by this line.
++	/*  @todo: Seems btree has to be deleted also... */
++	/*         And this shall be done near by this line. */
+ }
+ 
+ /**
+- *       Function used to search a node in a B-Tree
+- *       @param btree The B-tree to be searched
+- *       @param key Key of the node to be search
+- *       @return The key-value pair
++ * Function used to search a node in a B-Tree
++ * @param btree The B-tree to be searched
++ * @param key Key of the node to be search
++ * @return The key-value pair
+  */
+-M0_UNUSED static struct bt_key_val *btree_search(struct m0_be_btree *btree,
+-						 void *key)
++static struct bt_key_val *btree_search(struct m0_be_btree *btree, void *key)
+ {
+ 
+ 	struct bt_key_val *key_val = NULL;
+@@ -999,15 +965,14 @@ M0_UNUSED static struct bt_key_val *btree_search(struct m0_be_btree *btree,
+ }
+ 
+ /**
+- *       Used to copy key value from source to destination
+- *       @param src The source key value
+- *       @param dst The dest key value
+- *       @return none
++ * Used to copy key value from source to destination
++ * @param src The source key value
++ * @param dst The dest key value
+  */
+-static void copy_key_val(struct m0_be_btree		 *btree,
+-			 struct m0_be_tx	 *tx,
+-			 struct bt_key_val	 *src,
+-			 struct bt_key_val	 *dst)
++static void copy_key_val(struct m0_be_btree *btree,
++			 struct m0_be_tx    *tx,
++			 struct bt_key_val  *src,
++			 struct bt_key_val  *dst)
+ {
+ 	unsigned int keysize;
+ 	unsigned int datasize;
+@@ -1031,11 +996,11 @@ static void copy_key_val(struct m0_be_btree		 *btree,
+ }
+ 
+ /**
+- *	Get the max key in the btree
+- *	@param btree The btree
+- *	@return The max key
++ * Get the max key in the btree
++ * @param btree The btree
++ * @return The max key
+  */
+-M0_UNUSED static void *btree_get_max_key(struct m0_be_btree *btree)
++static void *btree_get_max_key(struct m0_be_btree *btree)
+ {
+ 	struct node_pos node_pos;
+ 	node_pos = get_max_key_pos(btree, btree->bb_root);
+@@ -1043,18 +1008,18 @@ M0_UNUSED static void *btree_get_max_key(struct m0_be_btree *btree)
+ }
+ 
+ /**
+- *	Get the min key in the btree
+- *	@param btree The btree
+- *	@return The max key
++ * Get the min key in the btree
++ * @param btree The btree
++ * @return The max key
+  */
+-M0_UNUSED static void *btree_get_min_key(struct m0_be_btree *btree)
++static void *btree_get_min_key(struct m0_be_btree *btree)
+ {
+ 	struct node_pos node_pos;
+ 	node_pos = get_min_key_pos(btree, btree->bb_root);
+ 	return node_pos.node->key_vals[node_pos.index]->key;
+ }
+ 
+-M0_UNUSED static void btree_pair_release(struct m0_be_btree *btree,
++static void btree_pair_release(struct m0_be_btree *btree,
+ 					 struct m0_be_tx *tx,
+ 					 struct bt_key_val *kv)
+ {
+@@ -1063,10 +1028,10 @@ M0_UNUSED static void btree_pair_release(struct m0_be_btree *btree,
+ 	MEM_FREE(tx, kv, sizeof(struct bt_key_val));
+ }
+ 
+-M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
+-						     struct m0_be_tx    *tx,
+-						     void *key, size_t key_size,
+-						     void *val, size_t val_size)
++static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
++					   struct m0_be_tx    *tx,
++					   void *key, size_t key_size,
++					   void *val, size_t val_size)
+ {
+ 	struct bt_key_val *kv;
+ 
+@@ -1116,22 +1081,259 @@ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
+ 
+ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
+ 				    struct m0_be_tx *tx,
+-				    struct m0_be_op *op) /* XXX: op is ignored for now */
++				    struct m0_be_op *op)
+ {
+-	/* Make sure we called m0_be_btree_init() */
+ 	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++	/* M0_PRE(m0_rwlock_is_locked(tx->t_be.b_tx.te_lock)); */
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = tree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_CREATE;
++	op->bo_u.u_btree.t_tx     = tx;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_write_lock(&tree->bb_lock);
+ 
+ 	btree_create(tree, tx);
++
++	m0_rwlock_write_unlock(&tree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
+ 				     struct m0_be_tx *tx,
+-				     struct m0_be_op *op) /* XXX: op is ignored for now */
++				     struct m0_be_op *op)
+ {
+-	/* Make sure we called m0_be_btree_init() */
+ 	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = tree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_DESTROY;
++	op->bo_u.u_btree.t_tx     = tx;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_write_lock(&tree->bb_lock);
+ 
+ 	btree_destroy(tree, tx);
++
++	m0_rwlock_write_unlock(&tree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++}
++
++M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
++				    enum m0_be_btree_op optype,
++				    m0_bcount_t nr,
++				    struct m0_be_tx_credit *accum)
++{
++	struct m0_be_tx_credit node_credit = {
++		.tc_reg_nr   = 1 + (2*BTREE_FAN_OUT) + (2*BTREE_FAN_OUT - 1),
++		.tc_reg_size = sizeof(struct m0_be_bnode) + KV_SIZE(tree) +
++			       CHILDREN_SIZE(tree)
++	};
++	uint32_t height = tree->bb_root->level;
++
++	m0_be_tx_credit_add(accum, &node_credit);
++	switch (optype) {
++	case M0_BBO_CREATE:
++		break;
++	case M0_BBO_DESTROY:
++		m0_be_tx_credit_mul(accum, pow(height, BTREE_FAN_OUT));
++		break;
++	case M0_BBO_INSERT:
++	case M0_BBO_DELETE:
++	case M0_BBO_UPDATE:
++	default:
++		m0_be_tx_credit_mul(accum, 2*height + 1);
++	}
++}
++
++M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
++				    struct m0_be_tx *tx,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key,
++				    const struct m0_buf *val)
++{
++	struct bt_key_val kv;
++
++	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++	M0_PRE(key->b_nob == tree->bb_ops->ko_ksize(key->b_addr));
++	M0_PRE(val->b_nob == tree->bb_ops->ko_dsize(val->b_addr));
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = tree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_INSERT;
++	op->bo_u.u_btree.t_tx     = tx;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_write_lock(&tree->bb_lock);
++
++	kv.key = key->b_addr;
++	kv.val = val->b_addr;
++	btree_insert_key(tree, tx, &kv);
++
++	m0_rwlock_write_unlock(&tree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++}
++
++M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
++				    struct m0_be_tx *tx,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key,
++				    const struct m0_buf *val)
++{
++	struct bt_key_val *kv;
++
++	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++	M0_PRE(key->b_nob == btree->bb_ops->ko_ksize(key->b_addr));
++	M0_PRE(val->b_nob == btree->bb_ops->ko_dsize(val->b_addr));
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = btree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_UPDATE;
++	op->bo_u.u_btree.t_tx     = tx;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_write_lock(&btree->bb_lock);
++
++	kv = btree_search(btree, key->b_addr);
++	if (kv != NULL) {
++		MEM_FREE(tx, kv->val, btree->bb_ops->ko_dsize(kv->val));
++		kv->val = MEM_ALLOC(tx, val->b_nob);
++		MEM_UPDATE(tx, kv, sizeof(struct bt_key_val));
++	}
++
++	m0_rwlock_write_unlock(&btree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
++}
++
++M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
++				    struct m0_be_tx *tx,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key)
++{
++	int rc;
++
++	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = tree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_DELETE;
++	op->bo_u.u_btree.t_tx     = tx;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_write_lock(&tree->bb_lock);
++
++	rc = btree_delete_key(tree, tx, tree->bb_root, key->b_addr);
++
++	m0_rwlock_write_unlock(&tree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, rc == 0 ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
++}
++
++M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key,
++				    struct m0_buf *dest_value)
++{
++	struct bt_key_val *kv;
++
++	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = btree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_LOOKUP;
++	op->bo_u.u_btree.t_tx     = NULL;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_read_lock(&btree->bb_lock);
++
++	kv = btree_search(btree, key->b_addr);
++	if (kv != NULL) {
++		op->bo_u.u_btree.t_out->b_addr = kv->val;
++		op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_dsize(kv->val);
++	}
++
++	m0_rwlock_read_unlock(&btree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
++}
++
++M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
++				    struct m0_be_op *op,
++				    struct m0_buf *out)
++{
++	void *key;
++
++	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = btree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_MAXKEY;
++	op->bo_u.u_btree.t_tx     = NULL;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_read_lock(&btree->bb_lock);
++
++	key = btree_get_max_key(btree);
++	op->bo_u.u_btree.t_out->b_addr = key;
++	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_dsize(key);
++
++	m0_rwlock_read_unlock(&btree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++}
++
++M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
++				    struct m0_be_op *op,
++				    struct m0_buf *out)
++{
++	void *key;
++
++	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
++
++	op->bo_u.u_btree.t_anchor = NULL;
++	op->bo_u.u_btree.t_tree   = btree;
++	op->bo_u.u_btree.t_out    = NULL;
++	op->bo_u.u_btree.t_in     = NULL;
++	op->bo_u.u_btree.t_op     = M0_BBO_MAXKEY;
++	op->bo_u.u_btree.t_tx     = NULL;
++	op->bo_utype              = M0_BOP_TREE;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_rwlock_read_lock(&btree->bb_lock);
++
++	key = btree_get_min_key(btree);
++	op->bo_u.u_btree.t_out->b_addr = key;
++	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_dsize(key);
++
++	m0_rwlock_read_unlock(&btree->bb_lock);
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+ }
+ 
+ #undef M0_TRACE_SUBSYSTEM
+diff --git a/be/btree.h b/be/btree.h
+index bfd95f6..10788eb 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -61,7 +61,10 @@ enum m0_be_btree_op {
+ 	M0_BBO_DESTROY, /**< credit taken for m0_be_btree_destroy() */
+ 	M0_BBO_INSERT,  /**< credit taken for m0_be_btree_{inplace_|}insert() */
+ 	M0_BBO_DELETE,  /**< credit taken for m0_be_btree_{inplace_|}delete() */
+-	M0_BBO_UPDATE   /**< credit taken for m0_be_btree_{inplace_|}update() */
++	M0_BBO_UPDATE,  /**< credit taken for m0_be_btree_{inplace_|}update() */
++	M0_BBO_LOOKUP,
++	M0_BBO_MAXKEY,
++	M0_BBO_MINKEY,
+ };
+ 
+ /**
+@@ -180,7 +183,7 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
+ 				    const struct m0_buf *value);
+ 
+ /**
+- * Deletes @key and @value into btree. Operation is asynchronous.
++ * Deletes @key and @value from btree. Operation is asynchronous.
+  *
+  * @see m0_be_btree_insert()
+  */
+@@ -204,7 +207,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
+  *
+  * @see m0_be_btree_create() regarding @op structure "mission".
+  */
+-M0_INTERNAL void m0_be_btree_maxkey(const struct m0_be_btree *tree,
++M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *tree,
+ 				    struct m0_be_op *op,
+ 				    struct m0_buf *out);
+ 
+@@ -213,7 +216,7 @@ M0_INTERNAL void m0_be_btree_maxkey(const struct m0_be_btree *tree,
+  *
+  * @see m0_be_btree_create() regarding @op structure "mission".
+  */
+-M0_INTERNAL void m0_be_btree_minkey(const struct m0_be_btree *tree,
++M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
+ 				    struct m0_be_op *op,
+ 				    struct m0_buf *out);
+ 
+diff --git a/be/tx.h b/be/tx.h
+index 9777170..9ffb3ac 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -39,6 +39,7 @@ struct m0_be_tx;
+ /* internal */
+ struct m0_be_reg_d; /* tx.c */
+ struct m0_be_tx_group;
++struct m0_be_reg;
+ 
+ /**
+  * @defgroup be
+@@ -319,10 +320,55 @@ struct m0_be_log {
+ 	/**
+ 	 * lsn to be used for the next log element.
+ 	 */
+-	m0_bindex_lsn    lg_lsn;
++	m0_bindex_t      lg_lsn;
+ };
+ 
+ /**
++ * Credit represents resources that a transaction could consume:
++ *
++ *     - for each region captured by an active transaction, contents of captured
++ *       region must be stored somewhere (to be written to the log later). That
++ *       requires memory, which must be pre-allocated before transaction
++ *       captures anything to avoid dead-locks;
++ *
++ *     - similarly, for each captured region, a fixed size region descriptor
++ *       (m0_be_reg_d) should be stored. The memory for the descriptor must be
++ *       pre-allocated;
++ *
++ *     - finally, before transaction captures anything, transaction engine must
++ *       assure that there is enough free space in the log to write
++ *       transaction's updates. The space required is proportional to total
++ *       number of regions captured by the transaction and to total size of
++ *       these regions.
++ *
++ * Hence, the user should inform the engine about amount and size of regions
++ * that the transaction would modify. This is achieved by calling
++ * m0_be_tx_prep() (possibly multiple times), while the transaction is in
++ * PREPARE state. The calls to m0_be_tx_prep() must be conservative: it is fine
++ * to prepare for more updates than the transaction will actually make (the
++ * latter quantity is usually impossible to know beforehand anyway), but the
++ * transaction must never capture more than it prepared.
++ */
++struct m0_be_tx_credit {
++	/**
++	 * The number of regions needed for operation representation in the
++	 * transaction.
++	 */
++	m0_bcount_t tc_reg_nr;
++	/** Total size of memory needed for the same. */
++	m0_bcount_t tc_reg_size;
++};
++
++M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
++
++/** c0 += c1 */
++M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
++				     const struct m0_be_tx_credit *c1);
++
++/** c *= k */
++M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
++
++/**
+  * Transaction group is a collection of transactions, consecutive in closing
+  * order, that are written to the log and recovered together.
+  *
+@@ -400,51 +446,6 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine);
+ M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine);
+ M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine);
+ 
+-/**
+- * Credit represents resources that a transaction could consume:
+- *
+- *     - for each region captured by an active transaction, contents of captured
+- *       region must be stored somewhere (to be written to the log later). That
+- *       requires memory, which must be pre-allocated before transaction
+- *       captures anything to avoid dead-locks;
+- *
+- *     - similarly, for each captured region, a fixed size region descriptor
+- *       (m0_be_reg_d) should be stored. The memory for the descriptor must be
+- *       pre-allocated;
+- *
+- *     - finally, before transaction captures anything, transaction engine must
+- *       assure that there is enough free space in the log to write
+- *       transaction's updates. The space required is proportional to total
+- *       number of regions captured by the transaction and to total size of
+- *       these regions.
+- *
+- * Hence, the user should inform the engine about amount and size of regions
+- * that the transaction would modify. This is achieved by calling
+- * m0_be_tx_prep() (possibly multiple times), while the transaction is in
+- * PREPARE state. The calls to m0_be_tx_prep() must be conservative: it is fine
+- * to prepare for more updates than the transaction will actually make (the
+- * latter quantity is usually impossible to know beforehand anyway), but the
+- * transaction must never capture more than it prepared.
+- */
+-struct m0_be_tx_credit {
+-	/**
+-	 * The number of regions needed for operation representation in the
+-	 * transaction.
+-	 */
+-	m0_bcount_t tc_reg_nr;
+-	/** Total size of memory needed for the same. */
+-	m0_bcount_t tc_reg_size;
+-};
+-
+-M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
+-
+-/** c0 += c1 */
+-M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
+-				     const struct m0_be_tx_credit *c1);
+-
+-/** c *= k */
+-M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
+-
+ typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
+ 
+ /**
+-- 
+1.8.3.2
+

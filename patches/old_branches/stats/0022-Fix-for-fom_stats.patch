@@ -1,0 +1,58 @@
+From 069237947d727e811bc4c430914352c00e9edc82 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Mon, 10 Feb 2014 18:02:01 +0530
+Subject: [PATCH 22/50]  - Fix for fom_stats.
+
+---
+ fop/ut/stats/stats_fom.c | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/fop/ut/stats/stats_fom.c b/fop/ut/stats/stats_fom.c
+index 511ff14..9606113 100644
+--- a/fop/ut/stats/stats_fom.c
++++ b/fop/ut/stats/stats_fom.c
+@@ -127,6 +127,12 @@ static int stats_fom_create(struct m0_fom **m, struct m0_reqh *reqh)
+ 
+ static void fop_stats_fom_fini(struct m0_fom *fom)
+ {
++#undef UT_SM_ADDB_CTR_PTR
++#define UT_SM_ADDB_CTR_PTR(idx)					\
++	((struct m0_addb_counter_data *)			\
++	 ((void *)sm->sm_addb_stats->asc_data +			\
++	  sm->sm_addb_stats->asc_cntr_data_sz * idx))		\
++
+ 	struct fom_stats *fom_obj;
+ 	struct m0_sm *sm;
+ 
+@@ -139,14 +145,14 @@ static void fop_stats_fom_fini(struct m0_fom *fom)
+ 
+ 	M0_UT_ASSERT(sm->sm_addb_stats->asc_data != NULL);
+ 	/* init -> run */
+-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[0].acd_nr == 1);
+-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[0].acd_total >= 10);
++	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(0)->acd_nr == 1);
++	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(0)->acd_total >= 10);
+ 	/* init -> fail: we don't use this transition */
+-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[1].acd_nr == 0);
+-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[1].acd_total == 0);
++	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(1)->acd_nr == 0);
++	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(1)->acd_total == 0);
+ 	/* run -> fini */
+-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[2].acd_nr == 1);
+-	M0_UT_ASSERT(sm->sm_addb_stats->asc_data[2].acd_total >= 10);
++	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(2)->acd_nr == 1);
++	M0_UT_ASSERT(UT_SM_ADDB_CTR_PTR(2)->acd_total >= 10);
+ 
+ 	m0_fom_fini(fom);
+ 	m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
+@@ -155,6 +161,7 @@ static void fop_stats_fom_fini(struct m0_fom *fom)
+ 	m0_chan_signal_lock(&chan);
+ 
+ 	return;
++#undef UT_SM_ADDB_CTR_PTR
+ }
+ 
+ static int fom_stats_tick(struct m0_fom *fom)
+-- 
+1.8.3.2
+

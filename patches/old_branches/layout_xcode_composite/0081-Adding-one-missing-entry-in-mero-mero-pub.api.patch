@@ -1,0 +1,24 @@
+From 008657c1af3c43111cff09e6dc551e0431861dbd Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 11 Mar 2013 10:10:27 +0530
+Subject: [PATCH 081/157] Adding one missing entry in mero/mero-pub.api
+
+---
+ mero/mero-pub.api | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mero/mero-pub.api b/mero/mero-pub.api
+index 660ce4c..b80df38 100644
+--- a/mero/mero-pub.api
++++ b/mero/mero-pub.api
+@@ -58,6 +58,7 @@ m0_reqh_rpc_mach_tlist_head
+ m0_reqh_rpc_mach_tlist_init
+ m0_reqh_rpc_mach_tlist_is_empty
+ m0_reqh_rpc_mach_tlist_length
++m0_reqh_rpc_mach_tlist_splice
+ m0_reqh_rpc_mach_tlist_move
+ m0_reqh_rpc_mach_tlist_move_tail
+ m0_reqh_rpc_mach_tlist_next
+-- 
+1.8.3.2
+

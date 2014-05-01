@@ -1,0 +1,196 @@
+From a672f2865a577d07d385c05a9166d653a2cd5a21 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Mon, 21 May 2012 16:56:59 +0530
+Subject: [PATCH 10/11] - Changes in addb_console to print ADDB records. - UT
+ passing.
+
+---
+ addb/addb.c         | 13 ++++-------
+ addb/addb.h         |  4 +++-
+ addb/addb_console.c | 67 ++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ addb/ut/addb.c      |  2 +-
+ lib/trace.h         |  4 ++--
+ 5 files changed, 76 insertions(+), 14 deletions(-)
+
+diff --git a/addb/addb.c b/addb/addb.c
+index c9337b4..8fc7d3e 100644
+--- a/addb/addb.c
++++ b/addb/addb.c
+@@ -45,6 +45,7 @@
+    @{
+  */
+ 
++struct __addb_ev_body;
+ 
+ C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, AEL_NOTE,
+ 			 C2_ADDB_STAMP);
+@@ -60,7 +61,7 @@ C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_trace, "trace", C2_ADDB_EVENT_TRACE,
+  * This can be changed.
+  */
+ enum c2_addb_ev_level	c2_addb_level_default	      = AEL_NOTE;
+-enum c2_addb_ev_level	c2_addb_level_default_console = AEL_WARN;
++enum c2_addb_ev_level	c2_addb_level_default_console = AEL_NONE;
+ 
+ /**
+    ADDB record store type.
+@@ -187,15 +188,9 @@ int c2_addb_var_msg_add(struct c2_addb_ctx       *ctx,
+ 
+ int c2_addb_set_data(struct c2_addb_dp *dp, const void *body)
+ {
+-	int 		i;
+-	uint32_t	data_size = 0;
++	dp->ad_data = (char *)c2_alloc(dp->ad_size);
+ 
+-	for (i = 0; i <= dp->ad_nargs; i++)
+-		data_size += dp->ad_sizeof[i];
+-
+-	dp->ad_data = (char *)c2_alloc(data_size);
+-
+-	memcpy((void *)dp->ad_data, body, data_size);
++	memcpy((void *)dp->ad_data, body, dp->ad_size);
+ 
+ 	return 0;
+ }
+diff --git a/addb/addb.h b/addb/addb.h
+index 933145a..8d0bfea 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -284,6 +284,7 @@ struct c2_addb_dp {
+ 	const struct c2_addb_loc *ad_loc;
+ 	const struct c2_addb_ev  *ad_ev;
+ 	enum c2_addb_ev_level     ad_level;
++	int			  ad_size;
+ 	int 			  ad_nargs;
+ 	const int		 *ad_offset;
+ 	const int		 *ad_sizeof;
+@@ -386,7 +387,8 @@ const struct c2_addb_ev var = {						\
+ 	__dp.ad_loc    = (loc);					\
+ 	__dp.ad_ev     = &(ev);					\
+ 	__dp.ad_level  = (c2_addb_level_default);		\
+-	__dp.ad_nargs  = (C2_COUNT_PARAMS(__VA_ARGS__));	\
++	__dp.ad_size   = sizeof(struct __addb_ev_body);		\
++	__dp.ad_nargs  = (C2_COUNT_PARAMS(__addb_ev_body, ## __VA_ARGS__));	\
+ 	__dp.ad_offset = _offset;				\
+ 	__dp.ad_sizeof = _sizeof;				\
+ 								\
+diff --git a/addb/addb_console.c b/addb/addb_console.c
+index fd12579..e64e2fd 100644
+--- a/addb/addb_console.c
++++ b/addb/addb_console.c
+@@ -38,12 +38,77 @@ void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp)
+ {
+ 	struct c2_addb_ctx       *ctx;
+ 	const struct c2_addb_ev  *ev;
++        int 			  i;
++        union {
++                uint8_t  v8;
++                uint16_t v16;
++                uint32_t v32;
++                uint64_t v64;
++        } v[10];
+ 
+ 	ctx = dp->ad_ctx;
+ 	ev  = dp->ad_ev;
+-	printf("addb: ctx: %s/%p, loc: %s, ev: %s\n",
++	printf("addb: ctx: %s/%p, loc: %s, ev: %s ",
+ 	       ctx->ac_type->act_name, ctx, dp->ad_loc->al_name,
+ 	       ev->ae_name);
++
++        for (i = 0; i < dp->ad_nargs; ++i) {
++                const char *addr;
++
++                addr = dp->ad_data + dp->ad_offset[i];
++                switch (dp->ad_sizeof[i]) {
++                case 0:
++                        break;
++                case 1:
++                        v[i].v8 = *(uint8_t *)addr;
++                        break;
++                case 2:
++                        v[i].v16 = *(uint16_t *)addr;
++                        break;
++                case 4:
++                        v[i].v32 = *(uint32_t *)addr;
++                        break;
++                case 8:
++                        v[i].v64 = *(uint64_t *)addr;
++                        break;
++                default:
++                        C2_IMPOSSIBLE("sizeof");
++                }
++        }
++
++	switch (ev->ae_id){
++		case C2_ADDB_EVENT_FUNC_FAIL:
++		case C2_ADDB_EVENT_CS_FUNC_FAIL:
++		case C2_ADDB_EVENT_CREATE_COB_FUNC_FAIL:
++		case C2_ADDB_EVENT_DELETE_COB_FUNC_FAIL:
++		case C2_ADDB_EVENT_COBFID_FUNC_FAIL:
++		case C2_ADDB_EVENT_BULKCLIENT_FUNC_FAIL:
++		case C2_ADDB_EVENT_FORMATION_FUNC_FAIL:
++		case C2_ADDB_EVENT_RPCM_FUNC_FAIL:
++		case C2_ADDB_EVENT_YAML2DB_FUNC_FAIL:
++			printf("function name : %s rc : %d\n", (char *)v[0].v64, v[1].v32);
++			break;
++		case C2_ADDB_EVENT_TRACE:
++		case C2_ADDB_EVENT_UT_TRACE:
++			printf("msg : %s\n", (char *)v[0].v64);
++			break;
++		case C2_ADDB_EVENT_USUNRPC_REQ:
++		case C2_ADDB_EVENT_USUNRPC1_REQ:
++		case C2_ADDB_EVENT_NET_SEND:
++		case C2_ADDB_EVENT_NET_CALL:
++		case C2_ADDB_EVENT_OOM:
++		case C2_ADDB_EVENT_NRS:
++			printf("\n");
++			break;
++		case C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT:
++		case C2_ADDB_EVENT_USUNRPC1_OPNOTSURPPORT:
++		case C2_ADDB_EVENT_COB_MDEXISTS:
++			printf("val : %lu\n", v[0].v64);
++			break;
++		case C2_ADDB_EVENT_COB_MDDELETE:
++			printf("flag : %d\n", v[0].v8);
++		   	break;
++	}
+ }
+ 
+ /** @} end of addb group */
+diff --git a/addb/ut/addb.c b/addb/ut/addb.c
+index b257d38..d7d9887 100644
+--- a/addb/ut/addb.c
++++ b/addb/ut/addb.c
+@@ -67,7 +67,7 @@ static void test_addb()
+ 
+ 	c2_addb_choose_default_level_console(AEL_NONE);
+ 
+-//	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, custom_trace_ut, (message));
++	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, custom_trace_ut, (const char *)(message));
+ 
+ 	rewind(stdout);
+ 
+diff --git a/lib/trace.h b/lib/trace.h
+index 972e14a..95eec98 100644
+--- a/lib/trace.h
++++ b/lib/trace.h
+@@ -240,7 +240,7 @@ struct c2_trace_descr {
+ 	uint64_t    td_subsys;
+ 	int         td_line;
+ 	int         td_size;
+-	int         td_nr;
++	const int   td_nr;
+ 	const int  *td_offset;
+ 	const int  *td_sizeof;
+ };
+@@ -283,7 +283,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
+ 		.td_line   = __LINE__,					\
+ 		.td_subsys = C2_TRACE_SUBSYSTEM,			\
+ 		.td_size   = sizeof(struct t_body),			\
+-		.td_nr     = (C2_COUNT_PARAMS(__VA_ARGS__)),		\
++		.td_nr     = C2_COUNT_PARAMS(FMT,## __VA_ARGS__),	\
+ 		.td_offset = _offset,					\
+ 		.td_sizeof = _sizeof					\
+ 	};								\
+-- 
+1.8.3.2
+

@@ -1,0 +1,26 @@
+From d4bec911cd6f9ce9de9959cd843a5ca546799b4d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 16 Feb 2014 18:29:22 +0200
+Subject: [PATCH 80/96] be/alloc: style fix
+
+---
+ be/alloc.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index f66fb9f..43d611c 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -349,7 +349,8 @@ static struct be_alloc_chunk *
+ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 		     struct m0_be_tx *tx,
+ 		     struct be_alloc_chunk *c,
+-		     uintptr_t start_new, m0_bcount_t size)
++		     uintptr_t start_new,
++		     m0_bcount_t size)
+ {
+ 	struct be_alloc_chunk *prev;
+ 	struct be_alloc_chunk *new;
+-- 
+1.8.3.2
+

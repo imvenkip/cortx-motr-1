@@ -1,0 +1,28 @@
+From 3e94801974dff8d470cbb0db35045f33998d72e4 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 24 Aug 2012 23:00:13 +0300
+Subject: [PATCH 298/370] conf: improve documentation of c2_conf_reg_delete()
+
+Minor edit.
+---
+ conf/reg.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/conf/reg.h b/conf/reg.h
+index 14200e8..ddd9464 100644
+--- a/conf/reg.h
++++ b/conf/reg.h
+@@ -95,8 +95,8 @@ void c2_conf_reg_fini(struct c2_conf_reg *reg);
+ void c2_conf_reg_add(struct c2_conf_reg *reg, struct c2_conf_obj *obj);
+ 
+ /**
+- * Removes configuration object from the registry and finalises this
+- * object with c2_conf_obj_ops::coo_fini().
++ * Un-registers configuration object and calls its destructor
++ * (c2_conf_obj_ops::coo_fini()).
+  *
+  * @pre  obj is registered
+  * @pre  obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING
+-- 
+1.8.3.2
+

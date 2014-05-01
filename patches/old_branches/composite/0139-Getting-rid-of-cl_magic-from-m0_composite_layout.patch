@@ -1,0 +1,89 @@
+From 2b347467991465ffab839e15131cefb2b8e5e1d6 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 22 May 2013 11:26:40 +0530
+Subject: [PATCH 139/172] Getting rid of cl_magic from m0_composite_layout
+
+---
+ layout/composite.c | 10 ++++------
+ layout/composite.h |  5 +++--
+ mero/magic.h       |  3 ---
+ 3 files changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 131b17f..3c54888 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -41,11 +41,12 @@ extern struct m0_addb_ctx layout_global_ctx;
+ 
+ static const struct m0_bob_type composite_bob = {
+ 	.bt_name         = "composite",
+-	.bt_magix_offset = offsetof(struct m0_composite_layout, cl_magic),
+-	.bt_magix        = M0_LAYOUT_COMPOSITE_MAGIC,
++	.bt_magix_offset = offsetof(struct m0_composite_layout,
++				    cl_layers.t_magic),
++	.bt_magix        = LAYER_LIST_HEAD_MAGIC,
+ 	.bt_check        = NULL
+ };
+-M0_BOB_DEFINE(static, &composite_bob, m0_composite_layout);
++M0_BOB_DEFINE(M0_INTERNAL, &composite_bob, m0_composite_layout);
+ 
+ static const struct m0_bob_type composite_instance_bob = {
+ 	.bt_name         = "composite_instance",
+@@ -272,7 +273,6 @@ static int composite_allocate(struct m0_layout_domain *dom,
+ 			(struct m0_layout_type *)&m0_composite_layout_type,
+ 			&composite_ops);
+ 	comp_layer_tlist_init(&cl->cl_layers);
+-	m0_composite_layout_bob_init(cl);
+ 	m0_mutex_lock(&cl->cl_base.l_lock);
+ 
+ 	*out = &cl->cl_base;
+@@ -291,7 +291,6 @@ static void composite_delete(struct m0_layout *l)
+ 
+ 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	m0_mutex_unlock(&l->l_lock);
+-	m0_composite_layout_bob_fini(cl);
+ 	m0_layout__delete(&cl->cl_base);
+ 	comp_layer_tlist_fini(&cl->cl_layers);
+ 	m0_free(cl);
+@@ -490,7 +489,6 @@ static void composite_fini(struct m0_ref *ref)
+ 	layers_inmem_delete(cl);
+ 	comp_layer_tlist_fini(&cl->cl_layers);
+ 
+-	m0_composite_layout_bob_fini(cl);
+ 	m0_layout__fini(&cl->cl_base);
+ 	m0_free(cl);
+ 	M0_LEAVE();
+diff --git a/layout/composite.h b/layout/composite.h
+index f7a7815..e0d39b8 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -101,9 +101,10 @@ struct m0_composite_layout {
+ 	struct m0_tl      cl_layers;
+ 
+ 	/**
+-	 * Magic number set while m0_composite_layout object is initialised.
++	 * @note A magic number is not intentionally embedded into this
++	 * structure and instead m0_composite_layout::cl_layers::t_magic is
++	 * used as a part of the composite_bob.
+ 	 */
+-	uint64_t          cl_magic;
+ };
+ 
+ /** Layer of a composite layout. */
+diff --git a/mero/magic.h b/mero/magic.h
+index b57c72b..120ed3b 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -370,9 +370,6 @@ enum m0_magic_satchel {
+ 	/* m0_layout_linear_enum::lla_magic (boldface blob) */
+ 	M0_LAYOUT_LINEAR_ENUM_MAGIC = 0x33b01dfaceb10b77,
+ 
+-	/* m0_composite_layout::cl_magic (balolo access) */
+-	M0_LAYOUT_COMPOSITE_MAGIC = 0x33ba1010acce5577,
+-
+ 	/* m0_composite_instance::ci_magic (blob saleable) */
+ 	M0_LAYOUT_COMPOSITE_INSTANCE_MAGIC = 0x33b10b5a1eab1e77,
+ 
+-- 
+1.8.3.2
+

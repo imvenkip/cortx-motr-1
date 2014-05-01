@@ -1,0 +1,263 @@
+From 92f023b98a82a931239c13d800a4badf89107274 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 23 Dec 2013 20:28:26 +0800
+Subject: [PATCH 08/11] fixing cm and sns UTs related to new BE based pool.
+
+---
+ cm/ut/cm.c             | 20 ++++++++++++++++++++
+ cm/ut/cp.c             | 14 ++++++++++++++
+ sns/cm/cm.c            | 30 +++++++++++++++++++++---------
+ sns/cm/iter.c          |  1 +
+ sns/cm/iter.h          |  1 +
+ sns/cm/repair/ut/cm.c  | 27 +++++++++++++++++++--------
+ sns/cm/repair/ut/net.c | 16 ++++++++++++++++
+ 7 files changed, 92 insertions(+), 17 deletions(-)
+
+diff --git a/cm/ut/cm.c b/cm/ut/cm.c
+index 22fe6bf..2ccac28 100644
+--- a/cm/ut/cm.c
++++ b/cm/ut/cm.c
+@@ -38,6 +38,14 @@
+ #include "cm/ut/common_service.h"
+ 
+ #include <unistd.h>			/* usleep */
++#include "lib/locality.h"
++
++/* import from pool/pool_store.c */
++M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
++					  struct m0_be_seg   *be_seg,
++					  struct m0_sm_group *sm_grp,
++					  struct m0_dtm      *dtm);
++
+ 
+ static int cm_ut_init(void)
+ {
+@@ -65,6 +73,9 @@ static int cm_ut_fini(void)
+ 
+ static void cm_setup_ut(void)
+ {
++	struct m0_reqh     *reqh;
++	struct m0_poolmach *pm;
++	struct m0_sm_group *grp;
+ 	struct m0_cm *cm = &cm_ut[0].ut_cm;
+ 	int           rc;
+ 
+@@ -100,6 +111,15 @@ static void cm_setup_ut(void)
+ 	rc = m0_cm_stop(cm);
+ 	M0_UT_ASSERT(rc == 0);
+ 	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
++
++	reqh = cm_ut_service->rs_reqh;
++	pm = m0_ios_poolmach_get(reqh);
++	grp  = m0_locality0_get()->lo_grp;
++
++	m0_sm_group_lock(grp);
++	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
++	m0_sm_group_unlock(grp);
++
+ 	m0_ios_poolmach_fini(cm_ut_service);
+ 	cm_ut_service_cleanup();
+ }
+diff --git a/cm/ut/cp.c b/cm/ut/cp.c
+index 7027917..da7562e 100644
+--- a/cm/ut/cp.c
++++ b/cm/ut/cp.c
+@@ -28,6 +28,13 @@
+ #include "sns/cm/cp.h"
+ #include "cm/ag.h"
+ #include "cm/ut/common_service.h"
++#include "lib/locality.h"
++
++/* import from pool/pool_store.c */
++M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
++					  struct m0_be_seg   *be_seg,
++					  struct m0_sm_group *sm_grp,
++					  struct m0_dtm      *dtm);
+ 
+ static struct m0_semaphore     sem;
+ 
+@@ -299,6 +306,13 @@ static int cm_cp_init(void)
+ /* Finalises the request handler. */
+ static int cm_cp_fini(void)
+ {
++	struct m0_reqh     *reqh = cm_ut_service->rs_reqh;
++	struct m0_poolmach *pm = m0_ios_poolmach_get(reqh);
++	struct m0_sm_group *grp  = m0_locality0_get()->lo_grp;
++
++	m0_sm_group_lock(grp);
++	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
++	m0_sm_group_unlock(grp);
+ 	m0_ios_poolmach_fini(cm_ut_service);
+ 	cm_ut_service_cleanup();
+ 	m0_cm_type_deregister(&cm_ut_cmt);
+diff --git a/sns/cm/cm.c b/sns/cm/cm.c
+index 68bb1a2..6089953 100644
+--- a/sns/cm/cm.c
++++ b/sns/cm/cm.c
+@@ -47,6 +47,7 @@
+ #include "sns/cm/cp.h"
+ #include "sns/cm/ag.h"
+ #include "sns/cm/sw_onwire_fop.h"
++#include "lib/locality.h"
+ 
+ /**
+   @page SNSCMDLD SNS copy machine DLD
+@@ -515,9 +516,6 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
+ 	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
+ 	struct m0_pool_spare_usage *spare_array;
+ 	struct m0_pooldev          *dev_array;
+-	struct m0_pool_event        pme;
+-	struct m0_dbenv            *dbenv = scm->sc_it.si_dbenv;
+-	struct m0_db_tx             tx;
+ 	uint32_t                    dev_id;
+ 	bool                        transit;
+ 	int                         i;
+@@ -552,16 +550,30 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
+ 			break;
+ 		}
+ 		if (transit) {
+-			rc = m0_db_tx_init(&tx, dbenv, 0);
+-			if (rc != 0)
+-				return rc;
++			struct m0_pool_event   pme;
++			struct m0_be_tx_credit cred = {};
++			struct m0_be_tx        tx;
++			struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
++
+ 			M0_SET0(&pme);
+ 			pme.pe_type  = et;
+ 			pme.pe_index = dev_id;
+ 			pme.pe_state = state;
+-			rc = m0_poolmach_state_transit(scm->sc_base.cm_pm, &pme,
+-						       NULL);
+-			m0_db_tx_commit(&tx);
++
++			m0_sm_group_lock(grp);
++			m0_be_tx_init(&tx, 0, scm->sc_it.si_beseg->bs_domain, grp,
++					      NULL, NULL, NULL, NULL);
++			m0_poolmach_store_credit(scm->sc_base.cm_pm, &cred);
++
++			m0_be_tx_prep(&tx, &cred);
++			rc = m0_be_tx_open_sync(&tx);
++			if (rc == 0) {
++				rc = m0_poolmach_state_transit(scm->sc_base.cm_pm,
++							       &pme, &tx);
++				m0_be_tx_close_sync(&tx);
++			}
++			m0_be_tx_fini(&tx);
++			m0_sm_group_unlock(grp);
+ 			if (rc != 0)
+ 				break;
+ 		}
+diff --git a/sns/cm/iter.c b/sns/cm/iter.c
+index 102776a..d8affa5 100644
+--- a/sns/cm/iter.c
++++ b/sns/cm/iter.c
+@@ -899,6 +899,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
+ 
+ 	cm = &scm->sc_base;
+ 	it->si_dbenv = cm->cm_service.rs_reqh->rh_dbenv;
++	it->si_beseg = cm->cm_service.rs_reqh->rh_beseg;
+         rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom);
+         if (rc != 0) {
+ 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_CDOM_GET);
+diff --git a/sns/cm/iter.h b/sns/cm/iter.h
+index 86487f4..ad0ee78 100644
+--- a/sns/cm/iter.h
++++ b/sns/cm/iter.h
+@@ -117,6 +117,7 @@ struct m0_sns_cm_iter {
+ 	struct m0_sm                     si_sm;
+ 
+ 	struct m0_dbenv                 *si_dbenv;
++	struct m0_be_seg                *si_beseg;
+ 
+ 	struct m0_cob_domain            *si_cob_dom;
+ 
+diff --git a/sns/cm/repair/ut/cm.c b/sns/cm/repair/ut/cm.c
+index e8426bb..26cf38f 100644
+--- a/sns/cm/repair/ut/cm.c
++++ b/sns/cm/repair/ut/cm.c
+@@ -86,20 +86,31 @@ static void service_start_failure(void)
+ static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
+ 			      enum m0_pool_nd_state state)
+ {
+-	struct m0_pool_event pme;
+-	struct m0_db_tx      tx;
+-	int                  rc;
++	struct m0_pool_event   pme;
++	int                    rc;
++	struct m0_be_tx_credit cred = {};
++	struct m0_be_tx        tx;
++	struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
+ 
+ 	M0_SET0(&pme);
+ 	pme.pe_type  = M0_POOL_DEVICE;
+ 	pme.pe_index = fd;
+ 	pme.pe_state = state;
+-        rc = m0_db_tx_init(&tx, scm->sc_it.si_dbenv, 0);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = m0_poolmach_state_transit(cm->cm_pm, &pme,
+-				       NULL);
++
++	m0_sm_group_lock(grp);
++	m0_be_tx_init(&tx, 0, reqh->rh_beseg->bs_domain, grp,
++			      NULL, NULL, NULL, NULL);
++	m0_poolmach_store_credit(pm, &cred);
++
++	m0_be_tx_prep(&tx, &cred);
++	rc = m0_be_tx_open_sync(&tx);
++	M0_ASSERT(rc == 0);
++
++	rc = m0_poolmach_state_transit(cm->cm_pm, &pme, &tx);
++	m0_be_tx_close_sync(&tx);
++	m0_be_tx_fini(&tx);
+ 	M0_UT_ASSERT(rc == 0);
+-	m0_db_tx_commit(&tx);
++	m0_sm_group_unlock(grp);
+ }
+ 
+ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
+diff --git a/sns/cm/repair/ut/net.c b/sns/cm/repair/ut/net.c
+index ce51d72..2c243cc 100644
+--- a/sns/cm/repair/ut/net.c
++++ b/sns/cm/repair/ut/net.c
+@@ -33,6 +33,12 @@
+ #include "ut/ut_rpc_machine.h"
+ #include <unistd.h>			/* usleep */
+ 
++/* import from pool/pool_store.c */
++M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
++					  struct m0_be_seg   *be_seg,
++					  struct m0_sm_group *sm_grp,
++					  struct m0_dtm      *dtm);
++
+ #define DUMMY_DBNAME      "dummy-db"
+ #define DUMMY_COB_ID      20
+ #define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
+@@ -742,6 +748,9 @@ static void receiver_fini()
+ 
+ static void sender_fini()
+ {
++	struct m0_reqh     *reqh;
++	struct m0_poolmach *pm;
++	struct m0_sm_group *grp;
+         int rc;
+         int i;
+ 
+@@ -755,6 +764,13 @@ static void sender_fini()
+         M0_UT_ASSERT(rc == 0);
+         m0_net_domain_fini(&client_net_dom);
+ 	m0_reqh_fom_domain_idle_wait(&rmach_ctx.rmc_reqh);
++	reqh = sender_cm_service->rs_reqh;
++	pm = m0_ios_poolmach_get(reqh);
++	grp  = m0_locality0_get()->lo_grp;
++
++	m0_sm_group_lock(grp);
++	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
++	m0_sm_group_unlock(grp);
+         m0_ios_poolmach_fini(sender_cm_service);
+         m0_reqh_service_stop(sender_cm_service);
+         m0_reqh_service_fini(sender_cm_service);
+-- 
+1.8.3.2
+

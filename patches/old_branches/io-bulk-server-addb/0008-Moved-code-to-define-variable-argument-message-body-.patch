@@ -1,0 +1,378 @@
+From f23051fbb579f3f8d3254b15acdbafbb1f38ca82 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 3 May 2012 17:07:01 +0530
+Subject: [PATCH 08/11] Moved code to define variable argument message body to
+ param.h
+
+---
+ lib/param.h | 181 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ lib/trace.h | 136 ++-------------------------------------------
+ 2 files changed, 186 insertions(+), 131 deletions(-)
+ create mode 100644 lib/param.h
+
+diff --git a/lib/param.h b/lib/param.h
+new file mode 100644
+index 0000000..7d0c528
+--- /dev/null
++++ b/lib/param.h
+@@ -0,0 +1,181 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 25/04/2012
++ */
++
++#ifndef __COLIBRI_LIB_PARAM_H__
++#define __COLIBRI_LIB_PARAM_H__
++
++#include <stdarg.h>
++#include <stddef.h>
++
++#define C2_ARG_DECL(...)						\
++	C2_CAT(C2_ARG_DECL, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
++
++#define __ARG_DECL(name, NR, DECL, OFFSET, SIZEOF)			\
++	struct name DECL; 						\
++	static const int _offset[NR] = OFFSET;				\
++	static const int _sizeof[NR] = SIZEOF;
++
++#define PARAM_TYPEOF(a, v) typeof(a) v
++#define PARAM_OFFSETOF(v) offsetof(struct t_body, v)
++#define PARAM_SIZEOF(a) sizeof(a)
++
++#define PARAM_CHECK(a) 							\
++C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
++	   (sizeof(a) == 1 || sizeof(a) == 2 || sizeof(a) == 4 ||	\
++	    sizeof(a) == 8))
++
++/**
++ * PARAM_GROUP() is used to pass { x0, ..., xn } as a single argument to
++ * __ARG_DECL().
++ */
++#define PARAM_GROUP(...) __VA_ARGS__
++
++#define C2_ARG_DECL0(name) __ARG_DECL(name, 0, { ; }, {}, {});
++
++#define C2_ARG_DECL1(name, a0)						\
++   __ARG_DECL(name, 1,							\
++   { PARAM_TYPEOF(a0, v0); },						\
++   { PARAM_OFFSETOF(v0) },						\
++   { PARAM_SIZEOF(a0) });						\
++   PARAM_CHECK(a0);
++
++#define C2_ARG_DECL2(name, a0, a1)					\
++   __ARG_DECL(name, 2,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1); },			\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1) }),		\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1) }));		\
++   PARAM_CHECK(a0); PARAM_CHECK(a1);
++
++#define C2_ARG_DECL3(name, a0, a1, a2)					\
++   __ARG_DECL(name, 3,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
++     PARAM_TYPEOF(a2, v2); },						\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
++		 PARAM_OFFSETOF(v2) }),					\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
++		 PARAM_SIZEOF(a2) }));					\
++   PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2);
++
++#define C2_ARG_DECL4(name, a0, a1, a2, a3)				\
++   __ARG_DECL(name, 4,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
++     PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3); },			\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
++		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3) }),		\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1), 			\
++		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3) }));		\
++   PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2); PARAM_CHECK(a3);
++
++#define C2_ARG_DECL5(name, a0, a1, a2, a3, a4)				\
++   __ARG_DECL(name, 5,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
++     PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3);			\
++     PARAM_TYPEOF(a4, v4); },						\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
++		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
++                 PARAM_OFFSETOF(v4) }),					\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
++		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
++                 PARAM_SIZEOF(a4) }));		\
++   PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2); PARAM_CHECK(a3);	\
++   PARAM_CHECK(a4);
++
++#define C2_ARG_DECL6(name, a0, a1, a2, a3, a4, a5)			\
++   __ARG_DECL(name, 6,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
++     PARAM_TYPEOF(a2, v2);PARAM_TYPEOF(a3, v3);				\
++     PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5); },			\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
++		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
++                 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5) }),		\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
++		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
++                 PARAM_SIZEOF(a4), PARAM_SIZEOF(a5) }));		\
++   PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2); PARAM_CHECK(a3);	\
++   PARAM_CHECK(a4); PARAM_CHECK(a5);
++
++#define C2_ARG_DECL7(name, a0, a1, a2, a3, a4, a5, a6)			\
++   __ARG_DECL(name, 7,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
++     PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3);			\
++     PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5);			\
++     PARAM_TYPEOF(a6, v6); },						\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
++		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
++                 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5),		\
++                 PARAM_OFFSETOF(v6) }),					\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
++		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
++                 PARAM_SIZEOF(a4), PARAM_SIZEOF(a5),			\
++                 PARAM_SIZEOF(a6) }));					\
++   PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2); PARAM_CHECK(a3);	\
++   PARAM_CHECK(a4); PARAM_CHECK(a5); PARAM_CHECK(a6);
++
++#define C2_ARG_DECL8(name, a0, a1, a2, a3, a4, a5, a6, a7)		\
++   __ARG_DECL(name, 8,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
++     PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3);			\
++     PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5);			\
++     PARAM_TYPEOF(a6, v6); PARAM_TYPEOF(a7, v7); },			\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
++		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
++                 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5),		\
++                 PARAM_OFFSETOF(v6), PARAM_OFFSETOF(v7) }),		\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
++		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
++                 PARAM_SIZEOF(a4), PARAM_SIZEOF(a5),			\
++                 PARAM_SIZEOF(a6), PARAM_SIZEOF(a7) }));		\
++   PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2); PARAM_CHECK(a3);	\
++   PARAM_CHECK(a4); PARAM_CHECK(a5); PARAM_CHECK(a6); PARAM_CHECK(a7);
++
++#define C2_ARG_DECL9(name, a0, a1, a2, a3, a4, a5, a6, a7, a8)		\
++   __ARG_DECL(name, 9,							\
++   { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1); 			\
++     PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3); 			\
++     PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5);			\
++     PARAM_TYPEOF(a6, v6); PARAM_TYPEOF(a7, v7);			\
++     PARAM_TYPEOF(a8, v8); PARAM_TYPEOF(a9, v9); },			\
++   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
++		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
++               	 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5),		\
++		 PARAM_OFFSETOF(v6), PARAM_OFFSETOF(v7),		\
++                 PARAM_OFFSETOF(v8) }),					\
++   PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
++		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
++               	 PARAM_SIZEOF(a4), PARAM_SIZEOF(a5),			\
++                 PARAM_SIZEOF(a6), PARAM_SIZEOF(a7),			\
++		 PARAM_SIZEOF(a8) }));					\
++   PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2); PARAM_CHECK(a3);	\
++   PARAM_CHECK(a4); PARAM_CHECK(a5); PARAM_CHECK(a6); PARAM_CHECK(a7);	\
++   PARAM_CHECK(a8);
++
++
++/* __COLIBRI_LIB_PARAM_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/lib/trace.h b/lib/trace.h
+index f244c5f..972e14a 100644
+--- a/lib/trace.h
++++ b/lib/trace.h
+@@ -27,6 +27,7 @@
+ #  include <config.h> /* ENABLE_DEBUG */
+ #endif
+ 
++#include "lib/param.h"
+ #include "lib/types.h"
+ #include "lib/arith.h"
+ 
+@@ -160,8 +161,7 @@
+ 
+    C2_LOG() counts the number of arguments and calls correspondent C2_LOGx().
+  */
+-#define C2_LOG(...) \
+-	C2_CAT(C2_LOG, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
++#define C2_LOG(...) C2_TRACE_POINT(__VA_ARGS__)
+ 
+ #define C2_ENTRY(...) C2_LOG("> " __VA_ARGS__)
+ #define C2_LEAVE(...) C2_LOG("< " __VA_ARGS__)
+@@ -273,11 +273,9 @@ void c2_console_vprintf(const char *fmt, va_list ap);
+  * @note The variadic arguments must match the number
+  *       and types of fields in the format.
+  */
+-#define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
++#define C2_TRACE_POINT(FMT, ...)		\
+ ({									\
+-	struct t_body DECL;						\
+-	static const int _offset[NR] = OFFSET;				\
+-	static const int _sizeof[NR] = SIZEOF;				\
++	C2_ARG_DECL(t_body,##  __VA_ARGS__)				\
+ 	static const struct c2_trace_descr td = {			\
+                 .td_fmt    = (FMT),					\
+ 		.td_func   = __func__,					\
+@@ -285,7 +283,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
+ 		.td_line   = __LINE__,					\
+ 		.td_subsys = C2_TRACE_SUBSYSTEM,			\
+ 		.td_size   = sizeof(struct t_body),			\
+-		.td_nr     = (NR),					\
++		.td_nr     = (C2_COUNT_PARAMS(__VA_ARGS__)),		\
+ 		.td_offset = _offset,					\
+ 		.td_sizeof = _sizeof					\
+ 	};								\
+@@ -301,130 +299,6 @@ enum {
+ 	C2_TRACE_ARGC_MAX = 9
+ };
+ 
+-/*
+- *  Helpers for C2_LOG{n}().
+- */
+-#define LOG_TYPEOF(a, v) typeof(a) v
+-#define LOG_OFFSETOF(v) offsetof(struct t_body, v)
+-#define LOG_SIZEOF(a) sizeof(a)
+-
+-#define LOG_CHECK(a)							\
+-C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+-	   (sizeof(a) == 1 || sizeof(a) == 2 || sizeof(a) == 4 ||	\
+-	    sizeof(a) == 8))
+-
+-/**
+- * LOG_GROUP() is used to pass { x0, ..., xn } as a single argument to
+- * C2_TRACE_POINT().
+- */
+-#define LOG_GROUP(...) __VA_ARGS__
+-
+-#define C2_LOG0(fmt)     C2_TRACE_POINT(0, { ; }, {}, {}, fmt)
+-
+-#define C2_LOG1(fmt, a0)						\
+-({ C2_TRACE_POINT(1,							\
+-   { LOG_TYPEOF(a0, v0); },						\
+-   { LOG_OFFSETOF(v0) },						\
+-   { LOG_SIZEOF(a0) },							\
+-   fmt, a0);								\
+-   LOG_CHECK(a0); })
+-
+-#define C2_LOG2(fmt, a0, a1)						\
+-({ C2_TRACE_POINT(2,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); },				\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1) }),			\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1) }),			\
+-   fmt, a0, a1);							\
+-   LOG_CHECK(a0); LOG_CHECK(a1); })
+-
+-#define C2_LOG3(fmt, a0, a1, a2)					\
+-({ C2_TRACE_POINT(3,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2); },	\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2) }),	\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2) }),	\
+-   fmt, a0, a1, a2);							\
+-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); })
+-
+-#define C2_LOG4(fmt, a0, a1, a2, a3)					\
+-({ C2_TRACE_POINT(4,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
+-     LOG_TYPEOF(a3, v3); },						\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
+-               LOG_OFFSETOF(v3) }),					\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
+-               LOG_SIZEOF(a3) }),					\
+-   fmt, a0, a1, a2, a3);						\
+-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3); })
+-
+-#define C2_LOG5(fmt, a0, a1, a2, a3, a4)				\
+-({ C2_TRACE_POINT(5,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
+-     LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); },				\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
+-               LOG_OFFSETOF(v3), LOG_OFFSETOF(v4) }),			\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
+-               LOG_SIZEOF(a3), LOG_SIZEOF(a4) }),			\
+-   fmt, a0, a1, a2, a3, a4);						\
+-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
+-   LOG_CHECK(a4); })
+-
+-#define C2_LOG6(fmt, a0, a1, a2, a3, a4, a5)				\
+-({ C2_TRACE_POINT(6,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
+-     LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5); },	\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
+-               LOG_OFFSETOF(v3), LOG_OFFSETOF(v4), LOG_OFFSETOF(v5) }),	\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
+-               LOG_SIZEOF(a3), LOG_SIZEOF(a4), LOG_SIZEOF(a5) }),	\
+-   fmt, a0, a1, a2, a3, a4, a5);					\
+-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
+-   LOG_CHECK(a4); LOG_CHECK(a5); })
+-
+-#define C2_LOG7(fmt, a0, a1, a2, a3, a4, a5, a6)			\
+-({ C2_TRACE_POINT(7,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
+-     LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
+-     LOG_TYPEOF(a6, v6); },						\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
+-               LOG_OFFSETOF(v3), LOG_OFFSETOF(v4),			\
+-               LOG_OFFSETOF(v5), LOG_OFFSETOF(v6) }),			\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
+-               LOG_SIZEOF(a3), LOG_SIZEOF(a4),				\
+-               LOG_SIZEOF(a5), LOG_SIZEOF(a6) }),			\
+-   fmt, a0, a1, a2, a3, a4, a5, a6);					\
+-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
+-   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); })
+-
+-#define C2_LOG8(fmt, a0, a1, a2, a3, a4, a5, a6, a7)			\
+-({ C2_TRACE_POINT(8,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
+-     LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
+-     LOG_TYPEOF(a6, v6); LOG_TYPEOF(a7, v7); },				\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
+-               LOG_OFFSETOF(v3), LOG_OFFSETOF(v4), LOG_OFFSETOF(v5),	\
+-               LOG_OFFSETOF(v6), LOG_OFFSETOF(v7) }),			\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
+-               LOG_SIZEOF(a3), LOG_SIZEOF(a4), LOG_SIZEOF(a5),		\
+-               LOG_SIZEOF(a6), LOG_SIZEOF(a7) }),			\
+-   fmt, a0, a1, a2, a3, a4, a5, a6, a7);				\
+-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
+-   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); })
+-
+-#define C2_LOG9(fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)		\
+-({ C2_TRACE_POINT(9,							\
+-   { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
+-     LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
+-     LOG_TYPEOF(a6, v6); LOG_TYPEOF(a7, v7); LOG_TYPEOF(a8, v8); },	\
+-   LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
+-               LOG_OFFSETOF(v3), LOG_OFFSETOF(v4), LOG_OFFSETOF(v5),	\
+-               LOG_OFFSETOF(v6), LOG_OFFSETOF(v7), LOG_OFFSETOF(v8) }),	\
+-   LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2),		\
+-               LOG_SIZEOF(a3), LOG_SIZEOF(a4), LOG_SIZEOF(a5),		\
+-               LOG_SIZEOF(a6), LOG_SIZEOF(a7), LOG_SIZEOF(a8) }),	\
+-   fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8);				\
+-   LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
+-   LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); LOG_CHECK(a8); })
+-
+ /** @} end of trace group */
+ 
+ /* __COLIBRI_LIB_TRACE_H__ */
+-- 
+1.8.3.2
+

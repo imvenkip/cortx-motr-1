@@ -1,0 +1,588 @@
+From 4539052d98a5dc4608ef2e3447fd2948a436b6f0 Mon Sep 17 00:00:00 2001
+From: Nathan Rutman <nathan_rutman@xyratex.com>
+Date: Mon, 6 Dec 2010 15:36:02 -0800
+Subject: [PATCH 1/5] network utilization
+
+---
+ lib/arith.h                    |   2 +-
+ net/connection.c               |  10 ++--
+ net/net.h                      |  63 +++++++++++++++++++++---
+ net/net_utils.c                | 106 +++++++++++++++++++++++++++++++++++++++++
+ net/usunrpc/client.c           |  12 +++--
+ net/usunrpc/domain.c           |   2 +-
+ net/usunrpc/server.c           |  32 ++++++++-----
+ net/usunrpc/usunrpc_internal.h |   2 +-
+ stob/ut/server.c               |  14 +++---
+ 9 files changed, 207 insertions(+), 36 deletions(-)
+
+diff --git a/lib/arith.h b/lib/arith.h
+index f7ebf3c..7c67904 100644
+--- a/lib/arith.h
++++ b/lib/arith.h
+@@ -47,7 +47,7 @@ static inline uint64_t min64u(uint64_t a, uint64_t b)
+ 	return a < b ? a : b;
+ }
+ 
+-static inline uint64_t max64u(uint32_t a, uint64_t b)
++static inline uint64_t max64u(uint64_t a, uint64_t b)
+ {
+ 	return a > b ? a : b;
+ }
+diff --git a/net/connection.c b/net/connection.c
+index 85d1875..545bc96 100644
+--- a/net/connection.c
++++ b/net/connection.c
+@@ -85,7 +85,7 @@ struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid)
+ 	dom = nid->si_domain;
+ 
+ 	c2_rwlock_read_lock(&dom->nd_lock);
+-	c2_list_for_each_entry(&dom->nd_conn, conn, 
++	c2_list_for_each_entry(&dom->nd_conn, conn,
+ 			       struct c2_net_conn, nc_link) {
+ 		C2_ASSERT(conn->nc_domain == dom);
+ 		if (c2_services_are_same(conn->nc_id, nid)) {
+@@ -127,8 +127,9 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
+ 	c2_list_init(&dom->nd_conn);
+ 	c2_list_init(&dom->nd_service);
+ 	c2_rwlock_init(&dom->nd_lock);
+-	dom->nd_xprt = xprt;
+-	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, 
++        c2_net_domain_stats_init(dom);
++ 	dom->nd_xprt = xprt;
++	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx,
+ 			 &c2_addb_global_ctx);
+ 	return xprt->nx_ops->xo_dom_init(xprt, dom);
+ }
+@@ -137,6 +138,7 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
+ {
+ 	dom->nd_xprt->nx_ops->xo_dom_fini(dom);
+ 	c2_addb_ctx_fini(&dom->nd_addb);
++        c2_net_domain_stats_fini(dom);
+ 	c2_rwlock_fini(&dom->nd_lock);
+ 	c2_list_fini(&dom->nd_service);
+ 	c2_list_fini(&dom->nd_conn);
+@@ -144,7 +146,7 @@ void c2_net_domain_fini(struct c2_net_domain *dom)
+ 
+ /** @} end of net group */
+ 
+-/* 
++/*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+  *  c-basic-offset: 8
+diff --git a/net/net.h b/net/net.h
+index c23b1bf..3e1fe53 100644
+--- a/net/net.h
++++ b/net/net.h
+@@ -59,7 +59,7 @@ struct c2_net_xprt_ops {
+ 	   Initialise transport specific part of a domain (e.g., start threads,
+ 	   initialise portals).
+ 	 */
+-	int  (*xo_dom_init)(struct c2_net_xprt *xprt, 
++	int  (*xo_dom_init)(struct c2_net_xprt *xprt,
+ 			    struct c2_net_domain *dom);
+ 	/**
+ 	   Finalise transport resources in a domain.
+@@ -79,6 +79,38 @@ struct c2_net_xprt_ops {
+ int  c2_net_xprt_init(struct c2_net_xprt *xprt);
+ void c2_net_xprt_fini(struct c2_net_xprt *xprt);
+ 
++enum c2_net_stats_direction {
++        NS_STATS_IN  = 0,
++        NS_STATS_OUT = 1,
++        NS_STATS_LAST
++};
++
++struct c2_net_stats {
++        struct c2_rwlock ns_lock;
++        /**
++         All counters are 64 bits wide and wrap naturally. We re-zero
++         the counters every time we examine the stats so that we have a known
++         timebase for rate calculations. */
++        struct timeval   ns_time;
++        /** Counts how many FOPs have been seen by the service workers */
++        uint64_t         ns_reqs;
++        /** Bytes inside FOPs, as determined by fop type layout */
++        uint64_t         ns_bytes;
++        /**
++         Counts how many times an idle thread is woken to try to
++         receive some data from a transport.
++
++         This statistic tracks the circumstance where incoming
++         network-facing work is being handled quickly, which is a good
++         thing.  The ideal rate of change for this counter will be close
++         to but less than the rate of change of the ns_reqs counter.
++         */
++        uint64_t         ns_threads_woken;
++        uint64_t         ns_queue_depth;
++        uint32_t         ns_max;      /**< Max load seen so far */
++        bool             ns_got_busy; /**< We can believe max rate */
++};
++
+ /**
+    Collection of network resources.
+ 
+@@ -97,6 +129,8 @@ struct c2_net_domain {
+ 	/** Transport private domain data. */
+ 	void               *nd_xprt_private;
+ 	struct c2_net_xprt *nd_xprt;
++        /** Domain network stats */
++        struct c2_net_stats nd_stats[NS_STATS_LAST];
+ 	/**
+ 	   ADDB context for events related to this domain
+ 	 */
+@@ -113,6 +147,23 @@ int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
+  */
+ void c2_net_domain_fini(struct c2_net_domain *dom);
+ 
++void c2_net_domain_stats_init(struct c2_net_domain *dom);
++void c2_net_domain_stats_fini(struct c2_net_domain *dom);
++
++/**
++ Collect values for stats.
++ */
++void c2_net_domain_stats_collect(struct c2_net_domain *dom,
++                                 enum c2_net_stats_direction dir,
++                                 uint64_t bytes,
++                                 bool *sleeping);
++/**
++ Report the network loading rate for a direction (in/out).
++ @returnval rate, in percent * 256 of maximum seen rate (e.g. 128 = 50%)
++ */
++int c2_net_domain_stats_get(struct c2_net_domain *dom,
++                            enum c2_net_stats_direction dir);
++
+ 
+ enum {
+ 	C2_SERVICE_UUID_SIZE = 40
+@@ -185,8 +236,8 @@ struct c2_service {
+ 	int                           (*s_handler)(struct c2_service *service,
+ 						   struct c2_fop *fop,
+ 						   void *cookie);
+-	/** 
+-	    linkage in the list of all services running in the domain 
++	/**
++	    linkage in the list of all services running in the domain
+ 	*/
+ 	struct c2_list_link             s_linkage;
+ 	/** pointer to transport private service data */
+@@ -205,7 +256,7 @@ struct c2_service_ops {
+    Client side of a logical network connection to a service.
+  */
+ struct c2_net_conn {
+-	/** 
++	/**
+ 	    A domain this connection originates at.
+ 	 */
+ 	struct c2_net_domain         *nc_domain;
+@@ -352,7 +403,7 @@ int c2_service_start(struct c2_service *service,
+  */
+ void c2_service_stop(struct c2_service *service);
+ 
+-void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop, 
++void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
+ 		       void *cookie);
+ /**
+  constructor for the network library
+@@ -369,7 +420,7 @@ void c2_net_fini(void);
+ 
+ #endif
+ 
+-/* 
++/*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+  *  c-basic-offset: 8
+diff --git a/net/net_utils.c b/net/net_utils.c
+index ad60753..7d87b15 100644
+--- a/net/net_utils.c
++++ b/net/net_utils.c
+@@ -19,7 +19,11 @@
+ #include "lib/errno.h"
+ #include "lib/memory.h"
+ #include "lib/rwlock.h"
++#include "lib/arith.h"
++#include "lib/misc.h"   /* C2_SET0 */
+ #include "net/net.h"
++#include "sys/time.h"
++
+ 
+ /**
+    @addtogroup net Networking.
+@@ -31,4 +35,106 @@ bool c2_services_are_same(const struct c2_service_id *c1,
+ 	return memcmp(c1, c2, sizeof *c1) == 0;
+ }
+ 
++void c2_net_domain_stats_init(struct c2_net_domain *dom)
++{
++        struct timeval now;
++        int i;
++
++        C2_SET0(&dom->nd_stats);
++
++        gettimeofday(&now, NULL);
++        for (i = 0; i < NS_STATS_LAST; i++) {
++                dom->nd_stats[i].ns_time = now;
++                /** @todo we could add a provision for storing max persistently
++                 */
++                dom->nd_stats[i].ns_max = 1;
++                c2_rwlock_init(&dom->nd_stats[i].ns_lock);
++        }
++}
++
++void c2_net_domain_stats_fini(struct c2_net_domain *dom)
++{
++        int i;
++
++        for (i = 0; i < NS_STATS_LAST; i++) {
++                c2_rwlock_fini(&dom->nd_stats[i].ns_lock);
++        }
++}
++
++/**
++ Collect some network loading stats
++ */
++void c2_net_domain_stats_collect(struct c2_net_domain *dom,
++                                 enum c2_net_stats_direction dir,
++                                 uint64_t bytes,
++                                 bool *sleeping)
++{
++        /* For the service worker threads, we serialize stats collection from
++           multiple services in the same domain via this lock. If this turns
++           out to affect performance, we could keep per-service (as opposed to
++           per-domain) stats here, and collect them at reporting time.
++           NS_STATS_OUT are added already serialized under the domain guard,
++           so this is not necessary (or harmful) for that. */
++        c2_rwlock_write_lock(&dom->nd_stats[dir].ns_lock);
++
++        dom->nd_stats[dir].ns_reqs++;
++        dom->nd_stats[dir].ns_bytes += bytes;
++        if (*sleeping == true) {
++                dom->nd_stats[dir].ns_threads_woken++;
++                *sleeping = false;
++        }
++
++        c2_rwlock_write_unlock(&dom->nd_stats[dir].ns_lock);
++}
++
++/**
++  Report the network loading rate for a direction (in/out).
++  Assume semi-regular calling of this function; timebase is simply the time
++  between calls.
++  @returnval rate, in percent * 256 of maximum seen rate (e.g. 128 = 50%)
++ */
++int c2_net_domain_stats_get(struct c2_net_domain *dom,
++                            enum c2_net_stats_direction dir)
++{
++        uint64_t interval_usec;
++        uint32_t rate;
++        struct timeval now;
++        int rv;
++
++        gettimeofday(&now, NULL);
++
++        c2_rwlock_read_lock(&dom->nd_stats[dir].ns_lock);
++
++        interval_usec = (now.tv_sec - dom->nd_stats[dir].ns_time.tv_sec) *
++            1000000 + now.tv_usec - dom->nd_stats[dir].ns_time.tv_usec;
++        interval_usec = max64u(interval_usec, 1);
++
++        /* Load based on data rate only, bytes/sec */
++        rate = (uint32_t)(dom->nd_stats[dir].ns_bytes * 1000000 /
++                          interval_usec);
++        dom->nd_stats[dir].ns_max = max32u(dom->nd_stats[dir].ns_max, rate);
++        dom->nd_stats[dir].ns_time = now;
++        rv = rate << 8 / dom->nd_stats[dir].ns_max;
++
++        /* At BOW we might think any data rate is the max. Instead we can use
++           threads_woken == reqs to calculate if we're not busy -- if the
++           req queues don't build up, there is probably more capacity.
++           The converse, high queue depth implies no more network capacity,
++           is not true, since queues may be limited by some other resource. */
++        if (!dom->nd_stats[dir].ns_got_busy) {
++                if (dom->nd_stats[dir].ns_threads_woken << 8 /
++                    dom->nd_stats[dir].ns_reqs > 230 /* 90% not busy */)
++                        rv = 1;
++                else
++                        /* Once we get a little busy, start trusting max */
++                        dom->nd_stats[dir].ns_got_busy = true;
++        }
++
++        c2_rwlock_read_unlock(&dom->nd_stats[dir].ns_lock);
++
++        return rv;
++}
++
++
++
+ /** @} end of net group */
+diff --git a/net/usunrpc/client.c b/net/usunrpc/client.c
+index 44756de..7118747 100644
+--- a/net/usunrpc/client.c
++++ b/net/usunrpc/client.c
+@@ -142,7 +142,7 @@ static int usunrpc_conn_init_one(struct usunrpc_service_id *id,
+ 	}
+ 
+ 	sock = -1;
+-	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog, 
++	xprt->nsx_client = clnttcp_create(&addr, id->ssi_prog,
+ 					  id->ssi_ver, &sock, 0, 0);
+ 	if (xprt->nsx_client != NULL) {
+ 		xprt->nsx_fd = sock;
+@@ -268,7 +268,7 @@ static int usunrpc_conn_send(struct c2_net_conn *conn, struct c2_net_call *call)
+ 	c2_queue_put(&xdom->sd_queue, &call->ac_linkage);
+ 	c2_cond_signal(&xdom->sd_gotwork, &xdom->sd_guard);
+ 	c2_mutex_unlock(&xdom->sd_guard);
+-	
++
+ 	return 0;
+ }
+ 
+@@ -308,16 +308,22 @@ void usunrpc_client_worker(struct c2_net_domain *dom)
+ 	struct c2_net_call        *call;
+ 	struct usunrpc_conn       *xconn;
+ 	struct usunrpc_xprt       *xprt;
++        bool                       sleeping = false;
+ 
+ 	xdom = dom->nd_xprt_private;
+ 	c2_mutex_lock(&xdom->sd_guard);
+ 	while (1) {
+-		while (!xdom->sd_shutown && c2_queue_is_empty(&xdom->sd_queue))
++		while (!xdom->sd_shutown && c2_queue_is_empty(&xdom->sd_queue)){
++                        sleeping = true;
+ 			c2_cond_wait(&xdom->sd_gotwork, &xdom->sd_guard);
++                }
+ 		if (xdom->sd_shutown)
+ 			break;
+ 		call = container_of(c2_queue_get(&xdom->sd_queue),
+ 				    struct c2_net_call, ac_linkage);
++                c2_net_domain_stats_collect(dom, NS_STATS_OUT,
++                        call->ac_arg->f_type->ft_top->fft_layout->fm_sizeof,
++                        &sleeping);
+ 		c2_mutex_unlock(&xdom->sd_guard);
+ 
+ 		xconn = call->ac_conn->nc_xprt_private;
+diff --git a/net/usunrpc/domain.c b/net/usunrpc/domain.c
+index 7b71431..cff0964 100644
+--- a/net/usunrpc/domain.c
++++ b/net/usunrpc/domain.c
+@@ -110,7 +110,7 @@ static const struct c2_net_xprt_ops usunrpc_xprt_ops = {
+ 	.xo_dom_init        = usunrpc_dom_init,
+ 	.xo_dom_fini        = usunrpc_dom_fini,
+ 	.xo_service_id_init = usunrpc_service_id_init,
+-	.xo_service_init    = usunrpc_service_init
++	.xo_service_init    = usunrpc_service_init,
+ };
+ 
+ struct c2_net_xprt c2_net_usunrpc_xprt = {
+diff --git a/net/usunrpc/server.c b/net/usunrpc/server.c
+index f1444b0..dd17560 100644
+--- a/net/usunrpc/server.c
++++ b/net/usunrpc/server.c
+@@ -139,7 +139,7 @@ struct usunrpc_service {
+ 
+ 	   A condition variable that the worker threads wait upon. It is
+ 	   signalled by the scheduler/dispatch after rpc arguments have been
+-	   parsed and work item queued. 
++	   parsed and work item queued.
+ 	*/
+ 	struct c2_cond s_gotwork;
+ 	/**
+@@ -219,18 +219,24 @@ static void usunrpc_service_worker(struct c2_service *service)
+ 	struct work_item        *wi;
+ 	struct c2_queue_link    *ql;
+ 	struct c2_fop           *ret;
++        bool                     sleeping = false;
+ 
+ 	xs = service->s_xport_private;
+ 
+ 	c2_mutex_lock(&xs->s_req_guard);
+ 	while (1) {
+-		while (!xs->s_shutdown && c2_queue_is_empty(&xs->s_requests))
++		while (!xs->s_shutdown && c2_queue_is_empty(&xs->s_requests)) {
++                        sleeping = true;
+ 			c2_cond_wait(&xs->s_gotwork, &xs->s_req_guard);
++                }
+ 		if (xs->s_shutdown)
+ 			break;
+ 		ql = c2_queue_get(&xs->s_requests);
+ 		wi = container_of(ql, struct work_item, wi_linkage);
+ 		c2_mutex_unlock(&xs->s_req_guard);
++                c2_net_domain_stats_collect(service->s_domain, NS_STATS_IN,
++                        wi->wi_arg->f_type->ft_top->fft_layout->fm_sizeof,
++                        &sleeping);
+ 
+ 		ret = NULL;
+ 		service->s_handler(service, wi->wi_arg, &ret);
+@@ -266,7 +272,7 @@ static void usunrpc_service_worker(struct c2_service *service)
+    item, puts it into the queue. After that it signals the worker thread to
+    handle this request concurrently.
+  */
+-static void usunrpc_op(struct c2_service *service, 
++static void usunrpc_op(struct c2_service *service,
+ 		       struct c2_fop_type *fopt, SVCXPRT *transp)
+ {
+ 	struct usunrpc_service *xs;
+@@ -285,7 +291,7 @@ static void usunrpc_op(struct c2_service *service,
+ 			wi->wi_transp = transp;
+ 			c2_mutex_lock(&xs->s_req_guard);
+ 			c2_queue_put(&xs->s_requests, &wi->wi_linkage);
+-			c2_cond_signal(&xs->s_gotwork, 
++			c2_cond_signal(&xs->s_gotwork,
+ 				       &xs->s_req_guard);
+ 			c2_mutex_unlock(&xs->s_req_guard);
+ 			result = 0;
+@@ -330,7 +336,7 @@ static void usunrpc_dispatch(struct svc_req *req, SVCXPRT *transp)
+ 
+ 	ADDB_ADD(service, usunrpc_addb_req);
+ 	tab = &service->s_table;
+-	if (tab->not_start <= req->rq_proc && 
++	if (tab->not_start <= req->rq_proc &&
+ 	    req->rq_proc < tab->not_start + tab->not_nr) {
+ 		fopt = tab->not_fopt[req->rq_proc - tab->not_start];
+ 		C2_ASSERT(fopt != NULL);
+@@ -366,7 +372,7 @@ static int usunrpc_scheduler_init(struct c2_service *service)
+         transp = svctcp_create(xservice->s_socket, 0, 0);
+         if (transp != NULL) {
+ 		xservice->s_transp = transp;
+-		if (svc_register(transp, xservice->s_progid, 
++		if (svc_register(transp, xservice->s_progid,
+ 				 xservice->s_version,
+ 				 usunrpc_dispatch, 0))
+ 			result = 0;
+@@ -449,12 +455,12 @@ static void usunrpc_service_stop(struct usunrpc_service *xs)
+ 	}
+ 
+ 	if (xs->s_scheduler_thread.t_func != NULL) {
+-		/* 
++		/*
+ 		 * Wait until scheduler sees the shutdown and exits. This might
+ 		 * wait for select(2) timeout. See
+ 		 * sunrpc_scheduler(). Alternatively, use a signal to kill
+ 		 * scheduler thread and call svc_exit() from the signal
+-		 * handler. 
++		 * handler.
+ 		 */
+ 		c2_thread_join(&xs->s_scheduler_thread);
+ 		c2_thread_fini(&xs->s_scheduler_thread);
+@@ -508,7 +514,7 @@ static int usunrpc_service_start(struct c2_service *service,
+ 
+         C2_SET0(&addr);
+         addr.sin_port = htons(xid->ssi_port);
+-        if (bind(xservice->s_socket, 
++        if (bind(xservice->s_socket,
+ 		 (struct sockaddr *)&addr, sizeof addr) == -1) {
+ 		ADDB_CALL(service, "bind", errno);
+ 		rc = -errno;
+@@ -534,8 +540,8 @@ static int usunrpc_service_start(struct c2_service *service,
+ 
+ 	/* create the worker threads */
+         for (i = 0; i < nr_workers; i++) {
+-                rc = C2_THREAD_INIT(&xservice->s_workers[i], 
+-				    struct c2_service *, NULL, 
++                rc = C2_THREAD_INIT(&xservice->s_workers[i],
++				    struct c2_service *, NULL,
+ 				    &usunrpc_service_worker, service);
+                 if (rc) {
+ 			ADDB_CALL(service, "worker_thread", rc);
+@@ -585,7 +591,7 @@ int usunrpc_service_init(struct c2_service *service)
+ 		C2_ASSERT(service->s_id->si_ops == &usunrpc_service_id_ops);
+ 		result = usunrpc_service_start(service, xid, SERVER_THR_NR);
+ 	} else {
+-		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server, 
++		C2_ADDB_ADD(&service->s_domain->nd_addb, &usunrpc_addb_server,
+ 			    c2_addb_oom);
+ 		result = -ENOMEM;
+ 	}
+@@ -595,7 +601,7 @@ int usunrpc_service_init(struct c2_service *service)
+ /**
+    Implementation of c2_service_ops::sio_reply_post.
+  */
+-static void usunrpc_reply_post(struct c2_service *service, 
++static void usunrpc_reply_post(struct c2_service *service,
+ 			       struct c2_fop *fop, void *cookie)
+ {
+ 	struct c2_fop **ret = cookie;
+diff --git a/net/usunrpc/usunrpc_internal.h b/net/usunrpc/usunrpc_internal.h
+index ed6ced8..49ed862 100644
+--- a/net/usunrpc/usunrpc_internal.h
++++ b/net/usunrpc/usunrpc_internal.h
+@@ -47,7 +47,7 @@ enum {
+ struct usunrpc_dom {
+ 	bool             sd_shutown;
+ 	/*
+-	 * Userspace llient side domain state.
++	 * Userspace client side domain state.
+ 	 */
+ 
+ 	struct c2_cond   sd_gotwork;
+diff --git a/stob/ut/server.c b/stob/ut/server.c
+index f453ee9..1023883 100644
+--- a/stob/ut/server.c
++++ b/stob/ut/server.c
+@@ -35,7 +35,7 @@
+ static struct c2_stob_domain *dom;
+ static struct c2_fol          fol;
+ 
+-static struct c2_stob *object_find(const struct c2_fop_fid *fid, 
++static struct c2_stob *object_find(const struct c2_fop_fid *fid,
+ 				   struct c2_dtx *tx)
+ {
+ 	struct c2_stob_id  id;
+@@ -114,7 +114,7 @@ int read_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
+ 
+ 		C2_ASSERT((in->sir_seg.f_count & bmask) == 0);
+ 		C2_ASSERT((in->sir_seg.f_offset & bmask) == 0);
+-		
++
+ 		C2_ALLOC_ARR(ex->sirr_buf.cib_value, in->sir_seg.f_count);
+ 		C2_ASSERT(ex->sirr_buf.cib_value != NULL);
+ 
+@@ -331,7 +331,7 @@ static int mock_balloc_alloc(struct ad_balloc *ballroom, struct c2_dtx *tx,
+ 	out->e_end   = mb->mb_next + giveout;
+ 	mb->mb_next += giveout + 1;
+ 	/*
+-	printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", giveout, count, 
++	printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n", giveout, count,
+ 	       out->e_start, out->e_end); */
+ 	c2_mutex_unlock(&mb->mb_lock);
+ 	return 0;
+@@ -407,7 +407,7 @@ int main(int argc, char **argv)
+ 					       exit(0);
+ 					       })),
+ 			    C2_STRINGARG('d', "path to object store",
+-				       LAMBDA(void, (const char *string) { 
++				       LAMBDA(void, (const char *string) {
+ 					       path = string; })),
+ 			    C2_FORMATARG('o', "back store object id", "%lu",
+ 					 &backid.si_bits.u_lo),
+@@ -421,7 +421,7 @@ int main(int argc, char **argv)
+ 
+ 	result = c2_init();
+ 	C2_ASSERT(result == 0);
+-	
++
+ 	result = io_fop_init();
+ 	C2_ASSERT(result == 0);
+ 
+@@ -448,7 +448,7 @@ int main(int argc, char **argv)
+ 	 * Locate and create (if necessary) the backing store object.
+ 	 */
+ 
+-	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type, 
++	result = linux_stob_type.st_op->sto_domain_locate(&linux_stob_type,
+ 							  path, &bdom);
+ 	C2_ASSERT(result == 0);
+ 
+@@ -514,7 +514,7 @@ int main(int argc, char **argv)
+ 
+ /** @} end group stob */
+ 
+-/* 
++/*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+  *  c-basic-offset: 8
+-- 
+1.8.3.2
+

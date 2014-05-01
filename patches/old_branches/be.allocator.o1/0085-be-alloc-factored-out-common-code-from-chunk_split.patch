@@ -1,0 +1,130 @@
+From b82a0ec29687e925574d0bdcb3f73c11334b1b23 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 18 Feb 2014 15:16:36 +0200
+Subject: [PATCH 85/96] be/alloc: factored out common code from chunk_split()
+
+---
+ be/alloc.c | 61 +++++++++++++++++++++++++++++++++----------------------------
+ 1 file changed, 33 insertions(+), 28 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 45df118..c639740 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -322,7 +322,8 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 			 struct m0_be_tx *tx,
+ 			 struct be_alloc_chunk *c,
+ 			 uintptr_t offset,
+-			 m0_bcount_t size_total, bool free)
++			 m0_bcount_t size_total,
++			 bool free)
+ {
+ 	struct be_alloc_chunk *new;
+ 
+@@ -359,6 +360,26 @@ static void be_alloc_chunk_resize(struct m0_be_allocator *a,
+ }
+ 
+ static struct be_alloc_chunk *
++be_alloc_chunk_tryadd_free_after(struct m0_be_allocator *a,
++				 struct m0_be_tx *tx,
++				 struct be_alloc_chunk *c,
++				 uintptr_t offset,
++				 m0_bcount_t size_total)
++{
++	if (size_total <= sizeof *c) {
++		if (c != NULL) {
++			be_alloc_chunk_resize(a, tx, c,
++					      c->bac_size + size_total);
++		} else
++			; /* space before the first chunk is temporary lost */
++	} else {
++		c = be_alloc_chunk_add_after(a, tx, c,
++					     offset, size_total, true);
++	}
++	return c;
++}
++
++static struct be_alloc_chunk *
+ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 		     struct m0_be_tx *tx,
+ 		     struct be_alloc_chunk *c,
+@@ -367,7 +388,6 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
+ {
+ 	struct be_alloc_chunk *prev;
+ 	struct be_alloc_chunk *new;
+-	const m0_bcount_t      chunk_sizeof = sizeof *c;
+ 	uintptr_t	       start0;
+ 	uintptr_t	       start1;
+ 	uintptr_t	       start_next;
+@@ -380,7 +400,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 	prev	    = be_alloc_chunk_prev(a, c);
+ 
+ 	start0	    = be_alloc_chunk_after(a, prev);
+-	start1	    = start_new + chunk_sizeof + size;
++	start1	    = start_new + sizeof *new + size;
+ 	start_next  = be_alloc_chunk_after(a, c);
+ 	chunk0_size = start_new - start0;
+ 	chunk1_size = start_next - start1;
+@@ -391,32 +411,12 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 	be_alloc_chunk_del_fini(a, tx, c);
+ 	/* c is not a valid chunk now */
+ 
+-	if (chunk0_size <= chunk_sizeof) {
+-		/* no space for chunk0 */
+-		if (prev != NULL) {
+-			be_alloc_chunk_resize(a, tx, prev,
+-					      prev->bac_size + chunk0_size);
+-		} else
+-			; /* space before the first chunk is temporary lost */
+-	} else {
+-		prev = be_alloc_chunk_add_after(a, tx, prev,
+-						0, chunk0_size, true);
+-	}
+-
+-	/* add the new chunk */
++	prev = be_alloc_chunk_tryadd_free_after(a, tx, prev, 0, chunk0_size);
+ 	new = be_alloc_chunk_add_after(a, tx, prev,
+ 				       prev == NULL ? chunk0_size : 0,
+-				       chunk_sizeof + size, false);
++				       sizeof *new + size, false);
+ 	M0_ASSERT(new != NULL);
+-
+-	if (chunk1_size <= chunk_sizeof) {
+-		/* no space for chunk1 */
+-		be_alloc_chunk_resize(a, tx, new,
+-				      new->bac_size + chunk1_size);
+-	} else {
+-		be_alloc_chunk_add_after(a, tx, new,
+-					 0, chunk1_size, true);
+-	}
++	be_alloc_chunk_tryadd_free_after(a, tx, new, 0, chunk1_size);
+ 
+ 	M0_POST(!new->bac_free);
+ 	M0_POST(new->bac_size >= size);
+@@ -583,6 +583,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	struct m0_be_tx_credit chunk_del_fini_credit = {};
+ 	struct m0_be_tx_credit chunk_trymerge_credit = {};
+ 	struct m0_be_tx_credit chunk_resize_credit = {};
++	struct m0_be_tx_credit tryadd_free_after_credit;
+ 	struct m0_be_tx_credit cred_mark_free = {};
+ 	struct m0_be_tx_credit cred_split = {};
+ 	struct m0_be_tx_credit mem_zero_credit = {};
+@@ -629,9 +630,13 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_del_fini_credit);
+ 	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_resize_credit);
+ 
++	m0_be_tx_credit_max(&tryadd_free_after_credit,
++			    &chunk_resize_credit,
++			    &chunk_add_after_credit);
++
+ 	m0_be_tx_credit_add(&cred_split, &chunk_del_fini_credit);
+-	m0_be_tx_credit_mac(&cred_split, &chunk_resize_credit, 2);
+-	m0_be_tx_credit_mac(&cred_split, &chunk_add_after_credit, 3);
++	m0_be_tx_credit_mac(&cred_split, &tryadd_free_after_credit, 2);
++	m0_be_tx_credit_mac(&cred_split, &chunk_add_after_credit, 1);
+ 
+ 	m0_be_tx_credit_add(&cred_mark_free, &cred_free_flag);
+ 
+-- 
+1.8.3.2
+

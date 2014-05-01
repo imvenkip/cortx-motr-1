@@ -1,0 +1,171 @@
+From f25170f047eaaa27316b1553b489c03e84b8d4db Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Mon, 25 Mar 2013 23:54:17 -0700
+Subject: [PATCH 069/121] Use member variable in seg_hdr_t and struct members
+ info
+
+---
+ be/be.h     |  3 ++-
+ be/be_rvm.c |  2 +-
+ be/reg.c    |  6 +++---
+ be/seg.c    | 10 +++++-----
+ be/ut/be.c  |  1 -
+ rvm/rvm.h   | 11 +++++++++--
+ 6 files changed, 20 insertions(+), 13 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index 7764cac..579c494 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -189,6 +189,7 @@ struct m0_be_sm_obj;
+ 
+ #include "be/be_impl.h"
+ #include "be/be_buf.h"
++#include "rvm/rvm.h"
+ 
+ /**
+  * Initialises the in-memory part of domain structure. This function does not
+@@ -471,7 +472,7 @@ struct m0_be_seg {
+         /** Implementation private fields. */
+         struct m0_be_seg_impl bs_impl;
+         /** RVM seg related info. */
+-        struct rvm_seg_hdr   *bs_rvm;
++        struct rvm_seg_hdr    bs_rvm;
+ };
+ 
+ /**
+diff --git a/be/be_rvm.c b/be/be_rvm.c
+index 72a832a..f30998a 100644
+--- a/be/be_rvm.c
++++ b/be/be_rvm.c
+@@ -54,7 +54,7 @@ void m0_be_rvm_init()
+ 
+ void *m0_be_rvm_get_heapaddr(struct m0_be_seg *seg)
+ {
+-        return rds_heap_addr(seg->bs_rvm);
++        return rds_heap_addr(&seg->bs_rvm);
+ }
+ /** @} end group be_rvm */
+ 
+diff --git a/be/reg.c b/be/reg.c
+index e044881..f91fe7d 100644
+--- a/be/reg.c
++++ b/be/reg.c
+@@ -137,7 +137,7 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
+         if (reg->br_tx != NULL)
+                 tid = reg->br_tx->bt_impl.tx_id;
+ 
+-        reg->br_buf.b_addr = (void *)rds_malloc(reg->br_seg->bs_rvm, reg->br_buf.b_nob, tid, &err);
++        reg->br_buf.b_addr = (void *)rds_malloc(&reg->br_seg->bs_rvm, reg->br_buf.b_nob, tid, &err);
+ 
+         /* Assign domain magic to reg reference magic  to identify references
+          * within the domain.
+@@ -173,7 +173,7 @@ M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+         if (reg->br_tx != NULL)
+                 tid = reg->br_tx->bt_impl.tx_id;
+ 
+-        rds_free(reg->br_seg->bs_rvm, (char *)reg->br_buf.b_addr, tid, &err);
++        rds_free(&reg->br_seg->bs_rvm, (char *)reg->br_buf.b_addr, tid, &err);
+ 
+         if (err != SUCCESS) {
+                 m0_be_reg_state_change(reg, M0_BEREG_FAILED);
+@@ -219,7 +219,7 @@ M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
+         sm_group = m0_be_domain_sm_group(reg->br_seg->bs_dom);
+         M0_ASSERT(sm_group != NULL);
+ 
+-        ret = rvm_set_range(reg->br_seg->bs_rvm, reg->br_tx->bt_impl.tx_id,
++        ret = rvm_set_range(&reg->br_seg->bs_rvm, reg->br_tx->bt_impl.tx_id,
+                             reg->br_buf.b_addr, reg->br_buf.b_nob);
+ 
+         if (RVM_SUCCESS == ret)
+diff --git a/be/seg.c b/be/seg.c
+index e263bc7..aa0cda3 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -295,7 +295,7 @@ static int be_rvm_rds_zap_heap(struct m0_be_seg *seg)
+                               nlist,
+                               chunk_size,
+                               &err,
+-                              seg->bs_rvm);
++                              &seg->bs_rvm);
+ 
+         return result;
+ }
+@@ -383,14 +383,14 @@ M0_INTERNAL void m0_be_seg_create_cb(void *cb_data)
+                                RVM_LENGTH_TO_OFFSET(dev_length),
+                                &static_addr,
+                                &err,
+-                               seg->bs_rvm);
++                               &seg->bs_rvm);
+ 
+         if (result < 0) {
+                 M0_LOG(M0_ERROR, "rds_load_heap failed in m0_be_seg_create_cb");
+                 goto exit;
+         }
+ 
+-        seg->bs_static_addr = (void *)(seg->bs_rvm->static_addr);
++        seg->bs_static_addr = (void *)(seg->bs_rvm.static_addr);
+         seg->bs_addr = (void *)m0_be_rvm_get_heapaddr(seg);
+         m0_be_seg_tlink_init(seg);
+         m0_be_seg_tlist_add(&seg->bs_dom->bd_seg, seg);
+@@ -455,7 +455,7 @@ M0_INTERNAL void m0_be_seg_open_cb(void *cb_data)
+                                RVM_LENGTH_TO_OFFSET(dev_length),
+                                &static_addr,
+                                &err,
+-                               seg->bs_rvm);
++                               &seg->bs_rvm);
+ 
+         if (result < 0) {
+                 M0_LOG(M0_ERROR, "rds_load_heap failed in m0_be_seg_open_cb");
+@@ -463,7 +463,7 @@ M0_INTERNAL void m0_be_seg_open_cb(void *cb_data)
+                 goto exit;
+         }
+ 
+-        seg->bs_static_addr = (void *)(seg->bs_rvm->static_addr);
++        seg->bs_static_addr = (void *)(seg->bs_rvm.static_addr);
+         seg->bs_addr = (void *)m0_be_rvm_get_heapaddr(seg);
+ 
+         seg_state = M0_BESEG_ACTIVE;
+diff --git a/be/ut/be.c b/be/ut/be.c
+index af39581..c8b388e 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -89,7 +89,6 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+ 
+         if (result == false) {
+                 M0_ALLOC_PTR(seg);
+-                seg->bs_rvm = (rvm_seg_hdr_t *)malloc(sizeof(rvm_seg_hdr_t));
+                 m0_be_seg_init(seg, dom, sm_group, 0);
+                 m0_be_seg_create(seg, NULL,  "first", NULL);
+         }
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index 742e562..b1e4c07 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -381,14 +381,21 @@ typedef struct rvm_seg_hdr
+     {
+         char                   *seg_name;
+         int                     seg_id;
++
++        /* These are linked lists which maintains the mapped pages information,
++         * see rvm_register_page() for details
++         */
+         rvm_page_entry_t       *rvm_allocations;
+         rvm_page_entry_t       *rvm_allocations_tail;
+ 
+-        rw_lock_t              *region_tree_lock;
++        /* region_tree, used to maintain regions which are to be captured
++         * using rvm_set_range()
++         */
+         tree_root_t            *region_tree;
++        rw_lock_t              *region_tree_lock;
+ 
+         void                   *static_addr;
+-        heap_def_t             *heap_hdr;
++        heap_def_t             *heap_hdr; /* rds heap globals */
+     } rvm_seg_hdr_t;
+ 
+ /*
+-- 
+1.8.3.2
+

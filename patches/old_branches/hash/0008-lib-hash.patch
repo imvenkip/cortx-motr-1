@@ -1,0 +1,25 @@
+From d28ba04821f305e8f4ca2e9e7894766a8e3ec06e Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Thu, 18 Jul 2013 01:47:40 -0700
+Subject: [PATCH 08/10] lib:hash - Fixed trailing whitespace.
+
+---
+ lib/hash.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/hash.c b/lib/hash.c
+index 39419aa..df64df3 100644
+--- a/lib/hash.c
++++ b/lib/hash.c
+@@ -78,7 +78,7 @@ static bool hbucket_invariant(const struct m0_ht_descr *desc,
+ 		bucket != NULL &&
+ 		desc != NULL &&
+ 		m0_hbucket_forall_ol(desc->hd_tldescr, amb, bucket,
+-			 	     index == desc->hd_hash_func(htable,
++				     index == desc->hd_hash_func(htable,
+ 				     obj_key(desc, amb)));
+ }
+ 
+-- 
+1.8.3.2
+

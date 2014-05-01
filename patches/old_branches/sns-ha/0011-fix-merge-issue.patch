@@ -1,0 +1,25 @@
+From 6d7127ebd2120a04394ce896803982e428d211d9 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 1 Jul 2013 14:42:09 +0800
+Subject: [PATCH 11/14] fix merge issue
+
+---
+ rpc/rpc_opcodes.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rpc/rpc_opcodes.h b/rpc/rpc_opcodes.h
+index 8080473..ee2a953 100644
+--- a/rpc/rpc_opcodes.h
++++ b/rpc/rpc_opcodes.h
+@@ -187,7 +187,7 @@ enum M0_RPC_OPCODES {
+ 	M0_MGMT_SERVICE_UT_FAKE_FOP_OPCODE  = 104,
+ 
+ 	/*SNS sliding window update fop. */
+-	M0_SNS_CM_SW_ONWIRE_FOP_OPCODE      = 105
++	M0_SNS_CM_SW_ONWIRE_FOP_OPCODE      = 105,
+ 
+ 	/* Pool */
+ 	M0_POOLMACHINE_QUERY_OPCODE         = 106,
+-- 
+1.8.3.2
+

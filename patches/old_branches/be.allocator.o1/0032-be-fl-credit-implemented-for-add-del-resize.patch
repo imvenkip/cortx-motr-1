@@ -1,0 +1,46 @@
+From 400a3d486a0a1a66e9d0110e11ecff52b342070f Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 17 Dec 2013 04:34:56 +0200
+Subject: [PATCH 32/96] be/fl: credit implemented for add/del/resize
+
+---
+ be/alloc.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index cee149b..5e45d45 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -435,16 +435,27 @@ M0_INTERNAL void m0_be_fl_credit(struct m0_be_fl *fl,
+ 				 enum m0_be_fl_op fl_op,
+ 				 struct m0_be_tx_credit *accum)
+ {
+-	/* XXX make proper credit calculation */
+ 	switch (fl_op) {
+ 	case M0_BFL_CREATE:
+ 	case M0_BFL_DESTROY:
++		/* XXX make proper credit calculation */
+ 		m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(0x1000, 0x10000));
+ 		break;
+ 	case M0_BFL_ADD:
++		m0_be_list_credit(&fl->bfl_free_list, M0_BLO_INSERT, 1, accum);
++		m0_be_list_credit(be_fl_list(fl, 0), M0_BLO_TLINK_CREATE, 1,
++				  accum);
++		m0_be_list_credit(be_fl_list(fl, 0), M0_BLO_INSERT, 1, accum);
++		break;
+ 	case M0_BFL_DEL:
++		m0_be_list_credit(be_fl_list(fl, 0), M0_BLO_DELETE, 1, accum);
++		m0_be_list_credit(be_fl_list(fl, 0), M0_BLO_TLINK_DESTROY, 1,
++				  accum);
++		m0_be_list_credit(&fl->bfl_free_list, M0_BLO_DELETE, 1, accum);
++		break;
+ 	case M0_BFL_RESIZE:
+-		m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(20, 0x100));
++		m0_be_fl_credit(fl, M0_BFL_DEL, accum);
++		m0_be_fl_credit(fl, M0_BFL_ADD, accum);
+ 		break;
+ 	default:
+ 		M0_ASSERT_INFO(false, "fl_op = %d", fl_op);
+-- 
+1.8.3.2
+

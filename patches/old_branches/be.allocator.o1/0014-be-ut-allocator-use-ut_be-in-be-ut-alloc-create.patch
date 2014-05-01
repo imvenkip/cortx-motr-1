@@ -1,0 +1,25 @@
+From 6191ce6fa6d2a57be2ee6f3d4c11337368518a64 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 20 Nov 2013 00:47:00 +0200
+Subject: [PATCH 14/96] be/ut/allocator: use ut_be in be-ut:alloc-create
+
+---
+ be/ut/alloc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/ut/alloc.c b/be/ut/alloc.c
+index bf6569e..f62d68b 100644
+--- a/be/ut/alloc.c
++++ b/be/ut/alloc.c
+@@ -70,7 +70,7 @@ M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
+ 	struct m0_be_ut_seg ut_seg;
+ 
+ 	m0_be_ut_backend_init(&be_ut_alloc_backend);
+-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
++	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, BE_UT_ALLOC_SEG_SIZE);
+ 	m0_be_ut_seg_check_persistence(&ut_seg);
+ 
+ 	m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
+-- 
+1.8.3.2
+

@@ -1,0 +1,307 @@
+From 963723b570746afd9e1036956a45ae3127b553af Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Thu, 6 Jun 2013 03:21:48 -0700
+Subject: [PATCH 119/121] Fixed an issue in rvm_create_log
+
+---
+ be/tx.c             |   5 --
+ rvm/rvm_logstatus.c | 247 ++++++++++++++++++++++++++++------------------------
+ 2 files changed, 131 insertions(+), 121 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 0a8aafe..53a5d5f 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -310,12 +310,7 @@ M0_INTERNAL void m0_be_tx_done_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 		goto tx_exit;
+ 	}
+ 
+-	/*bt_cbinfo              = &bt_cbdata->btc_cbinfo;*/
+         cbinfo->bc_cb       = td_rvm_end_transaction_cb;
+-	/*bt_cbinfo->bc_pcbinfo  = cbinfo;*/
+-	/*bt_cbinfo->bc_sm_group = cbinfo->bc_sm_group;*/
+-	/*bt_cbinfo->bc_hq       = &tx->bt_dom->bd_hq;*/
+-
+         ret = rvm_end_transaction(tx->bt_impl.tx_id, flush, cbinfo);
+         if (RVM_SUCCESS != ret) {
+                 M0_LOG(M0_DEBUG, "rvm_end_transaction failed in tx_done_cb");
+diff --git a/rvm/rvm_logstatus.c b/rvm/rvm_logstatus.c
+index 094971d..198f6e7 100644
+--- a/rvm/rvm_logstatus.c
++++ b/rvm/rvm_logstatus.c
+@@ -1358,141 +1358,156 @@ exit:
+ rvm_return_t rvm_create_log(rvm_options, log_len,mode, cbinfo)
+     rvm_options_t       *rvm_options;       /* ptr to options record */
+     rvm_offset_t        *log_len;           /* length of log data area */
+-    long                 mode;               /* file creation protection mode */
++    long                 mode;               /* file creation protection mode*/
+     struct m0_be_cbinfo *cbinfo;
+-    {
+-    log_t                   *log;               /* descriptor for log */
+-    rvm_offset_t             offset;             /* offset temporary */
+-    char                    *end_mark = "end";
+-    long                     save_errno;
+-    rvm_return_t             retval;
+-    int                      status = 0;
+-    rcl_cbdata_t            *rcl_cbdata;
+-    struct m0_be_cbinfo     *rclc_cbinfo;
+-    m0_be_msg_type_t         msg_type = M0_BE_SUCCESS;
+-
+-
+-    if ((retval = bad_options(rvm_options,rvm_true)) != RVM_SUCCESS)
+-        return retval;                  /* bad options ptr or record */
+-    if (rvm_options == NULL)
+-        return RVM_EOPTIONS;            /* must have an options record */
++{
++	log_t                   *log;               /* descriptor for log */
++	rvm_offset_t             offset;             /* offset temporary */
++	char                    *end_mark = "end";
++	long                     save_errno;
++	rvm_return_t             retval;
++	int                      status = 0;
++	rcl_cbdata_t            *rcl_cbdata;
++	struct m0_be_cbinfo     *rclc_cbinfo;
++	m0_be_msg_type_t         msg_type = M0_BE_SUCCESS;
++
++
++	if ((retval = bad_options(rvm_options,rvm_true)) != RVM_SUCCESS) {
++		msg_type = retval;
++		status   = -1;
++		goto exit;
++	}
++	if (rvm_options == NULL) {
++		msg_type = RVM_EOPTIONS;
++		status   = -1;
++		goto exit;
++	}
+ 
+-    /* check length of file name */
+-    if (strlen(rvm_options->log_dev) >= MAXPATHLEN)
+-        return RVM_ENAME_TOO_LONG;
++	/* check length of file name */
++	if (strlen(rvm_options->log_dev) >= MAXPATHLEN) {
++		msg_type = RVM_ENAME_TOO_LONG;
++		status   = -1;
++		goto exit;
++	}
+ 
+-    /* check that log file length is legal */
+-    offset = RVM_ADD_LENGTH_TO_OFFSET(*log_len,
+-    	    	 LOG_DEV_STATUS_SIZE+FILE_STATUS_OFFSET);
++	/* check that log file length is legal */
++	offset = RVM_ADD_LENGTH_TO_OFFSET(*log_len,
++		 LOG_DEV_STATUS_SIZE+FILE_STATUS_OFFSET);
+ 
+-    offset = CHOP_OFFSET_TO_SECTOR_SIZE(offset);
+-    if (RVM_OFFSET_HIGH_BITS_TO_LENGTH(offset) != 0)
+-        return RVM_ETOO_BIG;
++	offset = CHOP_OFFSET_TO_SECTOR_SIZE(offset);
++	if (RVM_OFFSET_HIGH_BITS_TO_LENGTH(offset) != 0) {
++		msg_type = RVM_ETOO_BIG;
++		status   = -1;
++		goto exit;
++	}
+ 
+-    /* be sure not an already declared log */
+-    if (find_log(rvm_options->log_dev) != NULL)
+-        return RVM_ELOG;
++	/* be sure not an already declared log */
++	if (find_log(rvm_options->log_dev) != NULL) {
++		msg_type = RVM_ELOG;
++		status   = -1;
++		goto exit;
++	}
+ 
+-    /* build a log descriptor and create log file*/
+-    if ((log=make_log(rvm_options->log_dev,&retval)) == NULL)
+-        return retval;
++	/* build a log descriptor and create log file*/
++	if ((log=make_log(rvm_options->log_dev,&retval)) == NULL) {
++		msg_type = retval;
++		status   = -1;
++		goto exit;
++	}
+ 
+-    if(rvm_options->log_stob != NULL) {
+-        log->dev.stob    = rvm_options->log_stob;
+-        log->dev.stob_io = rvm_true;
+-        log->dev.raw_io  = rvm_false;
+-    }
+-#ifdef RVM_LOG_TAIL_BUG
+-    /*
+-      We only need to track the log descriptor while we are
+-      building it.  It isn't going to be inserted into the list
+-      until later, so ClobberAddress won't be set properly.
+-    */
+-    ClobberAddress = &(log->status.log_tail.low);
+-    protect_page__Fi(ClobberAddress);
+-#endif /* RVM_LOG_TAIL_BUG */
+-#ifdef RVM_LOG_TAIL_SHADOW
+-    RVM_ASSIGN_OFFSET(log_tail_shadow,log->status.log_tail);
+-#endif /* RVM_LOG_TAIL_SHADOW */
+-    if(log->dev.stob_io == rvm_false) {
+-        if (open_dev(&log->dev,O_WRONLY,mode) == 0) /* don't allow create yet */
+-        {
+-           retval = RVM_ELOG;              /* error -- file already exists */
+-           status = -1;
+-           goto err_exit;
+-        }
++	if(rvm_options->log_stob != NULL) {
++		log->dev.stob    = rvm_options->log_stob;
++		log->dev.stob_io = rvm_true;
++		log->dev.raw_io  = rvm_false;
++	}
++	#ifdef RVM_LOG_TAIL_BUG
++	/*
++	We only need to track the log descriptor while we are
++	building it.  It isn't going to be inserted into the list
++	until later, so ClobberAddress won't be set properly.
++	*/
++	ClobberAddress = &(log->status.log_tail.low);
++	protect_page__Fi(ClobberAddress);
++	#endif /* RVM_LOG_TAIL_BUG */
++	#ifdef RVM_LOG_TAIL_SHADOW
++	RVM_ASSIGN_OFFSET(log_tail_shadow,log->status.log_tail);
++	#endif /* RVM_LOG_TAIL_SHADOW */
++	if(log->dev.stob_io == rvm_false) {
++	if (open_dev(&log->dev,O_WRONLY,mode) == 0) /* don't allow create yet */
++	{
++	   retval = RVM_ELOG;              /* error -- file already exists */
++	   status = -1;
++	   goto err_exit;
++	}
+ 
+-        if (errno != ENOENT)
+-        {
+-           retval = RVM_EIO;               /* other i/o error, errno specifies */
+-           status = -1;
+-           goto err_exit;
+-        }
+-        if(log->dev.stob_io == rvm_false) {
+-            if (open_dev(&log->dev,O_WRONLY | O_CREAT,mode) != 0)
+-            {                               // do real create
+-                retval = RVM_EIO;
+-                status = -1;
+-                goto err_exit;
+-            }
+-        }
+-    }
+-    if (status != 0)
+-            goto err_exit;
++	if (errno != ENOENT)
++	{
++	   retval = RVM_EIO;               /* other i/o error, errno specifies */
++	   status = -1;
++	   goto err_exit;
++	}
++	if(log->dev.stob_io == rvm_false) {
++	    if (open_dev(&log->dev,O_WRONLY | O_CREAT,mode) != 0)
++	    {                               // do real create
++		retval = RVM_EIO;
++		status = -1;
++		goto err_exit;
++	    }
++	}
++	}
++	if (status != 0)
++	    goto err_exit;
++
++	M0_ALLOC_PTR(rcl_cbdata);
++	if (rcl_cbdata == NULL) {
++		status    = -1;
++		msg_type  = -ENOMEM;
++		goto exit;
++	}
+ 
+-    M0_ALLOC_PTR(rcl_cbdata);
+-    if (rcl_cbdata == NULL) {
+-                status    = -1;
+-                msg_type  = -ENOMEM;
+-                goto exit;
+-    }
++	rcl_cbdata->rclc_log        = log;
++	rclc_cbinfo                 = &rcl_cbdata->rclc_cbinfo;
++	m0_be_cbinfo_copy_helper(cbinfo, rclc_cbinfo, rcl_write_dev_cb);
+ 
+-    rcl_cbdata->rclc_log        = log;
+-    rclc_cbinfo                 = &rcl_cbdata->rclc_cbinfo;
+-    rclc_cbinfo->bc_pcbinfo     = cbinfo;
+-    rclc_cbinfo->bc_cb 	        = rcl_write_dev_cb;
+-    rclc_cbinfo->bc_sm_group 	= cbinfo->bc_sm_group;
+-    rclc_cbinfo->bc_hq 		= cbinfo->bc_hq;
+-
+-    /* force file length to specified size by writting last byte */
+-    log->dev.num_bytes = offset;
+-    offset = RVM_SUB_LENGTH_FROM_OFFSET(offset, strlen(end_mark));
+-    if (write_dev(&log->dev,&offset,end_mark, strlen(end_mark),NO_SYNCH,
+-                  rclc_cbinfo) < 0)
+-        {
++	/* force file length to specified size by writting last byte */
++	log->dev.num_bytes = offset;
++	offset = RVM_SUB_LENGTH_FROM_OFFSET(offset, strlen(end_mark));
++	if (write_dev(&log->dev,&offset,end_mark, strlen(end_mark),NO_SYNCH,
++		  rclc_cbinfo) < 0)
++	{
+ 		retval = RVM_EIO;
+ 		status = -1;
+ 		goto err_exit;
+-        }
+-     goto exit;
+-    /*return retval;*/
+-        /* Need to remove this when write_dev made async. */
+-    /*rcl_write_dev_cb(rclc_cbinfo, status, msg_type);*/
++	}
++	goto exit;
++	/*return retval;*/
++	/* Need to remove this when write_dev made async. */
++	/*rcl_write_dev_cb(rclc_cbinfo, status, msg_type);*/
+ err_exit:
+-    if (log->dev.handle != 0)
+-        {
++	if (log->dev.handle != 0)
++	{
+ 		save_errno = errno;
+ 		(void)close_dev(&log->dev);
+ 		errno = save_errno;
+-        }
+-#ifdef RVM_LOG_TAIL_BUG
+-    /* drop the "temporary" clobber address */
+-    unprotect_page__Fi(ClobberAddress);
+-    ClobberAddress = 0;
+-#endif /* RVM_LOG_TAIL_BUG */
+-#ifdef RVM_LOG_TAIL_SHADOW
+-    RVM_ZERO_OFFSET(log_tail_shadow);
+-#endif /* RVM_LOG_TAIL_SHADOW */
+-    free_log(log);
++	}
++	#ifdef RVM_LOG_TAIL_BUG
++	/* drop the "temporary" clobber address */
++	unprotect_page__Fi(ClobberAddress);
++	ClobberAddress = 0;
++	#endif /* RVM_LOG_TAIL_BUG */
++	#ifdef RVM_LOG_TAIL_SHADOW
++	RVM_ZERO_OFFSET(log_tail_shadow);
++	#endif /* RVM_LOG_TAIL_SHADOW */
++	free_log(log);
+ 
+ exit:
+-    if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+-                       cbinfo->bc_pcbinfo->bc_cb != NULL) {
+-                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+-                m0_free(rcl_cbdata);
+-    }
+-    return retval;
+-    }
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++		       cbinfo->bc_pcbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(rcl_cbdata);
++	}
++	return retval;
++}
+ /* special routines for basher */
+ rvm_offset_t rvm_log_head()
+     {
+-- 
+1.8.3.2
+

@@ -1,0 +1,33 @@
+From 8ebd6af4282f5f29a271fcd59b631779de11310e Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 30 Nov 2012 22:31:34 +0200
+Subject: [PATCH 57/58] LogD 1539: comments for network_bd_nr_add()
+
+---
+ net/test/network.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/net/test/network.c b/net/test/network.c
+index 742dd68..6986424 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -645,6 +645,16 @@ static c2_bcount_t network_bds_serialize(enum c2_net_test_serialize_op op,
+ }
+ 
+ /**
++   Number of serialized network buffer descriptors in ping buffer
++   is stored inside ping buffer in serialized form. This function
++   modifies this number.
++   @param ctx Network context
++   @param buf_ping_index Index of ping buffer
++   @param value This value will be added to the number of serialized
++		network buffer descriptors. Can be -1, 0, 1. If it is
++		-1, then function will C2_ASSERT() that number will
++		not underflow.
++   @return New value of number of serialized network buffer descriptors.
+  */
+ static size_t network_bd_nr_add(struct c2_net_test_network_ctx *ctx,
+ 				uint32_t buf_ping_index,
+-- 
+1.8.3.2
+

@@ -1,0 +1,24 @@
+From b57578790628ded4088b0c6d93ea9c302aa19d39 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Thu, 7 Mar 2013 22:38:11 -0800
+Subject: [PATCH 061/121] Minor fix in kv_store UT
+
+---
+ be/ut/kv_store.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/be/ut/kv_store.c b/be/ut/kv_store.c
+index d8f7bd3..aed89f5 100644
+--- a/be/ut/kv_store.c
++++ b/be/ut/kv_store.c
+@@ -198,7 +198,6 @@ static int ts_kv_store_fini()
+         M0_ASSERT(rc == 0);
+ 
+         m0_free(cb_info);
+-        m0_free(operation_name);
+         return 0;
+ }
+ 
+-- 
+1.8.3.2
+

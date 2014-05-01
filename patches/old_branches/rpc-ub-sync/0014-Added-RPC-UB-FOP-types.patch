@@ -1,0 +1,239 @@
+From 13f4b984b5762a8e99da87e05bfe165990f25ef8 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 11 Mar 2013 14:53:52 +0200
+Subject: [PATCH 14/63] Added RPC UB FOP-types.
+
+---
+ rpc/rpc_opcodes.h    |   6 ++-
+ rpc/ub/Makefile.sub  |   6 ++-
+ rpc/ub/rpc_ub_fops.c | 117 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ rpc/ub/rpc_ub_fops.h |  63 +++++++++++++++++++++++++++
+ 4 files changed, 190 insertions(+), 2 deletions(-)
+ create mode 100644 rpc/ub/rpc_ub_fops.c
+ create mode 100644 rpc/ub/rpc_ub_fops.h
+
+diff --git a/rpc/rpc_opcodes.h b/rpc/rpc_opcodes.h
+index 7f1ab84..03854cf 100644
+--- a/rpc/rpc_opcodes.h
++++ b/rpc/rpc_opcodes.h
+@@ -173,7 +173,11 @@ enum M0_RPC_OPCODES {
+ 
+ 	/* SNS copy packet. */
+ 	M0_SNS_CM_CP_OPCODE                 = 96,
+-	M0_SNS_CM_CP_REP_OPCODE             = 97
++	M0_SNS_CM_CP_REP_OPCODE             = 97,
++
++	/* RPC UB */
++	M0_RPC_UB_REQ_OPCODE                = 98,
++	M0_RPC_UB_RESP_OPCODE               = 99
+ };
+ /** @} endgroup rpc_layer_core */
+ 
+diff --git a/rpc/ub/Makefile.sub b/rpc/ub/Makefile.sub
+index 2d7a5e2..1abd737 100644
+--- a/rpc/ub/Makefile.sub
++++ b/rpc/ub/Makefile.sub
+@@ -1,3 +1,7 @@
+-ut_libmero_ut_la_SOURCES += rpc/ub/ub.c
++ut_libmero_ut_la_SOURCES += rpc/ub/ub.c \
++                            rpc/ub/rpc_ub_fops_xc.c \
++                            rpc/ub/rpc_ub_fops.c
++
++XC_FILES += rpc/ub/rpc_ub_fops_xc.h
+ 
+ EXTRA_DIST += rpc/ub/README
+diff --git a/rpc/ub/rpc_ub_fops.c b/rpc/ub/rpc_ub_fops.c
+new file mode 100644
+index 0000000..f38579a
+--- /dev/null
++++ b/rpc/ub/rpc_ub_fops.c
+@@ -0,0 +1,117 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
++ * Original creation date: 07-Mar-2013
++ */
++
++#include "lib/memory.h"
++#include "fop/fop.h"
++#include "fop/fom.h"
++#include "fop/fom_generic.h"
++#include "rpc/rpc_opcodes.h"
++#include "rpc/ub/rpc_ub_fops_xc.h"
++
++/* extern struct m0_reqh_service_type m0_rpc_service_type; */
++
++static int ub_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
++			    struct m0_reqh *reqh);
++static void ub_req_fom_fini(struct m0_fom *fom);
++static int ub_req_fom_tick(struct m0_fom *fom);
++static size_t ub_req_fom_home_locality(const struct m0_fom *fom);
++
++struct m0_fop_type m0_rpc_ub_req_fopt;
++
++static const struct m0_fom_type_ops ub_req_fom_type_ops = {
++	.fto_create = ub_req_fom_create,
++};
++
++static void ub_req_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
++{
++	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
++}
++
++static const struct m0_fom_ops ub_req_fom_ops = {
++	.fo_addb_init     = ub_req_fom_addb_init,
++	.fo_fini          = ub_req_fom_fini,
++	.fo_tick          = ub_req_fom_tick,
++	.fo_home_locality = ub_req_fom_home_locality,
++};
++
++M0_INTERNAL void m0_rpc_ub_fops_init(void)
++{
++	int rc;
++
++	m0_xc_rpc_ub_fops_init();
++	rc = M0_FOP_TYPE_INIT(&m0_rpc_ub_req_fopt,
++		.name      = "RPC_UB_request",
++		.opcode    = M0_RPC_UB_REQ_OPCODE,
++		.xt        = ub_req_xc,
++		.rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
++		.fom_ops   = &ub_req_fom_type_ops,
++		.sm        = &m0_generic_conf,
++                /* @todo: register own service for UBs!!! */
++		.svc_type  = NULL /* &m0_rpc_service_type */);
++	M0_ASSERT(rc == 0);
++}
++
++M0_INTERNAL void m0_rpc_ub_fops_fini(void)
++{
++	m0_fop_type_fini(&m0_rpc_ub_req_fopt);
++	m0_xc_rpc_ub_fops_fini();
++}
++
++
++static int ub_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
++			    struct m0_reqh *reqh)
++{
++	struct m0_fom *fom;
++
++	M0_ALLOC_PTR(fom);
++	M0_ASSERT(fom != NULL);
++
++	m0_fom_init(fom, &m0_rpc_ub_req_fopt.ft_fom_type, &ub_req_fom_ops,
++		    fop, NULL, reqh, fop->f_type->ft_fom_type.ft_rstype);
++	*m = fom;
++	return 0;
++}
++
++static void ub_req_fom_fini(struct m0_fom *fom)
++{
++	m0_fom_fini(fom);
++	m0_free(fom);
++}
++
++static int ub_req_fom_tick(struct m0_fom *fom)
++{
++	m0_fom_phase_set(fom, M0_FOPH_FINISH);
++	return M0_FSO_WAIT;
++}
++
++static size_t ub_req_fom_home_locality(const struct m0_fom *fom)
++{
++	return 0;
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/rpc/ub/rpc_ub_fops.h b/rpc/ub/rpc_ub_fops.h
+new file mode 100644
+index 0000000..883742c
+--- /dev/null
++++ b/rpc/ub/rpc_ub_fops.h
+@@ -0,0 +1,63 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
++ * Original creation date: 07-Mar-2013
++ */
++
++
++#pragma once
++
++#ifndef __MERO_RPC_UT_RPC_UB_FOPS_H__
++#define __MERO_RPC_UT_RPC_UB_FOPS_H__
++
++#include <stdint.h>
++#include <sys/types.h>
++#include "xcode/xcode.h"
++#include "lib/buf.h"
++#include "lib/buf_xc.h"
++
++/* RPC UB request */
++struct ub_req {
++	uint64_t      ur_seqn; /* Sequential number */
++	struct m0_buf ur_data; /* Data buffer */
++} M0_XCA_RECORD;
++
++/* RPC UB response */
++struct ub_resp {
++	uint64_t      ur_seqn; /* Sequential number */
++	struct m0_buf ur_data; /* Data buffer */
++} M0_XCA_RECORD;
++
++extern struct m0_fop_type m0_rpc_ub_req_fopt;
++/* @todo: make new fop */
++/* extern struct m0_fop_type m0_rpc_ub_resp_fopt; */
++
++M0_INTERNAL void m0_rpc_ub_fops_init(void);
++M0_INTERNAL void m0_rpc_ub_fops_fini(void);
++
++#endif /* __MERO_RPC_UT_RPC_UB_FOPS_H__ */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+-- 
+1.8.3.2
+

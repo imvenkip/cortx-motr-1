@@ -1,0 +1,313 @@
+From cb876393cd57d5e37553d8dc704dcc7b91a3c710 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Tue, 14 Jan 2014 14:56:45 +0530
+Subject: [PATCH 06/14] dgmode-spare-map -Made changes appropriate for
+ write-IO. -Code fails to run.
+
+---
+ m0t1fs/linux_kernel/file.c                     | 162 ++++++++++++++-----------
+ m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh |  22 ++--
+ 2 files changed, 107 insertions(+), 77 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index a44fff0..518fcb4 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -650,6 +650,11 @@ M0_INTERNAL void io_bob_tlists_init(void)
+ 	M0_ASSERT(iofop_bobtype.bt_magix == M0_T1FS_IOFOP_MAGIC);
+ }
+ 
++static int io_spare_map(const struct pargrp_iomap *map,
++			const struct m0_pdclust_src_addr *src,
++			uint32_t *spare_slot, uint32_t *spare_slot_prev,
++			enum m0_pool_nd_state *eff_state);
++
+ static int state_of_unit(struct m0_pdclust_src_addr *src,
+ 			 struct io_request *req,
+ 			 enum m0_pool_nd_state *state);
+@@ -2228,23 +2233,19 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 			               uint32_t             count)
+ {
+ 	int                        rc = 0;
+-	uint32_t                   seg;
+ 	uint32_t                   row;
+ 	uint32_t                   col;
+ 	uint32_t                   tgt_id;
+ 	m0_bindex_t                goff;
+ 	struct m0_layout_enum     *le;
+-	struct m0_pdclust_layout  *play;
+-	struct m0_pdclust_instance *play_instance;
++	struct m0_pdclust_layout   *play;
+ 	struct m0_pdclust_src_addr src;
+-	struct m0_pdclust_src_addr spare;
+ 	struct m0_pdclust_tgt_addr tgt;
+ 	enum m0_pdclust_unit_type  unit_type;
+-	enum m0_pool_nd_state	    dev_state;
++	enum m0_pool_nd_state	   dev_state;
+ 	struct m0t1fs_sb	  *msb;
+-	const struct m0_fid	  *gfid;
+-	uint32_t		    spare_slot;
+-	uint32_t		    spare_slot_prev;
++	uint32_t		   spare_slot;
++	uint32_t		   spare_slot_prev;
+ 
+ 	M0_PRE_EX(pargrp_iomap_invariant(map));
+ 	M0_ENTRY("grpid = %llu, count = %u\n", map->pi_grpid, count);
+@@ -2261,73 +2262,52 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 				ir_file)->ci_layout_instance);
+ 	tgt_id = m0_layout_enum_find(le, file_to_fid(map->pi_ioreq->ir_file),
+ 			             &tio->ti_fid);
+-	play   = pdlayout_get(map->pi_ioreq);
+-	play_instance = pdlayout_instance(layout_instance(map->pi_ioreq));
+ 	msb = file_to_sb(map->pi_ioreq->ir_file);
+-	gfid = file_to_fid(map->pi_ioreq->ir_file);
+ 	rc = m0_poolmach_device_state(msb->csb_pool.po_mach,
+ 				      tio->ti_fid.f_container, &dev_state);
+-	for (seg = 0; seg < count; ++seg) {
+-
+-		tgt.ta_frame = index[seg] / layout_unit_size(play);
+-		tgt.ta_obj   = tgt_id;
++	play	      = pdlayout_get(map->pi_ioreq);
++	tgt.ta_frame = index[0] / layout_unit_size(play);
++	tgt.ta_obj   = tgt_id;
+ 
+-		/*
+-		 * Finds out reverse mapping of layout and gives
+-		 * the source object.
+-		 */
+-		m0_pdclust_instance_inv(pdlayout_instance(
+-					layout_instance(map->pi_ioreq)),
+-				        &tgt, &src);
+-		M0_ASSERT(src.sa_group == map->pi_grpid);
+-		M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
+-		unit_type = m0_pdclust_unit_classify(play, src.sa_unit);
+-		if (dev_state == M0_PNDS_SNS_REPAIRED) {
+-			rc = m0_sns_repair_spare_map(msb->csb_pool.po_mach,
+-						     gfid, play, play_instance,
+-						     src.sa_group, src.sa_unit,
+-						     &spare_slot,
+-						     &spare_slot_prev);
+-			if (rc != 0) {
+-				M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
+-						  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
+-						  rc, &m0t1fs_addb_ctx);
+-				M0_RETURN(rc);
+-			}
+-			spare.sa_group = src.sa_group;
+-			spare.sa_unit = spare_slot_prev;
+-			rc = state_of_unit(&spare, map->pi_ioreq, &dev_state);
+-			if (rc != 0) {
+-				M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
+-						  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
+-						  rc, &m0t1fs_addb_ctx);
+-				M0_RETURN(rc);
+-			}
+-			if (dev_state == M0_PNDS_SNS_REPAIRED) {
+-				rc = 0;
+-				goto end;
+-			}
+-			++map->pi_ioreq->ir_failed_nr;
++	/*
++	 * Finds out reverse mapping of layout and gives
++	 * the source object.
++	 */
++	m0_pdclust_instance_inv(pdlayout_instance(
++				layout_instance(map->pi_ioreq)),
++				&tgt, &src);
++	M0_ASSERT(src.sa_group == map->pi_grpid);
++	M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
++	unit_type = m0_pdclust_unit_classify(play, src.sa_unit);
++	if (dev_state == M0_PNDS_SNS_REPAIRED) {
++		rc = io_spare_map(map, &src, &spare_slot, &spare_slot_prev,
++			          &dev_state);
++		if (rc != 0) {
++			M0_RETERR(rc, "Failed to map a repaired unit to spare");
+ 		}
+-		map->pi_state = PI_DEGRADED;
+-		/* Segment belongs to a data unit. */
+-		if (src.sa_unit < layout_n(play)) {
+-			goff = gfile_offset(index[seg], map, play, &src);
+-			page_pos_get(map, goff, &row, &col);
+-			M0_ASSERT(map->pi_databufs[row][col] != NULL);
+-			map->pi_databufs[row][col]->db_flags |= PA_READ_FAILED;
+-		} else {
+-			/* Segment belongs to a parity unit. */
+-			M0_ASSERT(map->pi_paritybufs[page_nr(index[seg]) %
+-					page_nr(layout_unit_size(play))]
+-				  [src.sa_unit - layout_n(play)] != NULL);
+-			map->pi_paritybufs[(page_nr(index[seg]) %
+-					   page_nr(layout_unit_size(play)))]
+-				[src.sa_unit - layout_n(play)]->db_flags |=
+-				PA_READ_FAILED;
++		if (dev_state == M0_PNDS_SNS_REPAIRED) {
++			rc = 0;
++			goto end;
+ 		}
++		++map->pi_ioreq->ir_failed_nr;
++	}
++	map->pi_state = PI_DEGRADED;
++	/* Segment belongs to a data unit. */
++	if (src.sa_unit < layout_n(play)) {
++		goff = gfile_offset(index[0], map, play, &src);
++		page_pos_get(map, goff, &row, &col);
++		M0_ASSERT(map->pi_databufs[row][col] != NULL);
++		map->pi_databufs[row][col]->db_flags |= PA_READ_FAILED;
++	} else {
++		/* Segment belongs to a parity unit. */
++		M0_ASSERT(map->pi_paritybufs[page_nr(index[0]) %
++				page_nr(layout_unit_size(play))]
++				[src.sa_unit - layout_n(play)] != NULL);
++		map->pi_paritybufs[(page_nr(index[0]) %
++				page_nr(layout_unit_size(play)))]
++			[src.sa_unit - layout_n(play)]->db_flags |=
++			PA_READ_FAILED;
+ 	}
+-
+ 	/*
+ 	 * Since m0_parity_math_recover() API will recover one or more
+ 	 * _whole_ units, all pages from a failed unit can be marked as
+@@ -2376,6 +2356,46 @@ par_fail:
+ 	M0_RETERR(rc, "dgmode_process failed");
+ }
+ 
++static int io_spare_map(const struct pargrp_iomap *map,
++			const struct m0_pdclust_src_addr *src,
++			uint32_t *spare_slot, uint32_t *spare_slot_prev,
++			enum m0_pool_nd_state *eff_state)
++{
++
++	struct m0_pdclust_layout   *play;
++	struct m0_pdclust_instance *play_instance;
++	const struct m0_fid	   *gfid;
++	struct m0_pdclust_src_addr  spare;
++	struct m0t1fs_sb	   *msb;
++	int			    rc;
++
++	play	      = pdlayout_get(map->pi_ioreq);
++	play_instance = pdlayout_instance(layout_instance(map->pi_ioreq));
++	gfid = file_to_fid(map->pi_ioreq->ir_file);
++	msb = file_to_sb(map->pi_ioreq->ir_file);
++	rc = m0_sns_repair_spare_map(msb->csb_pool.po_mach,
++				     gfid, play, play_instance,
++				     src->sa_group, src->sa_unit,
++				     spare_slot, spare_slot_prev);
++	if (rc != 0) {
++		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
++				  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
++				  rc, &m0t1fs_addb_ctx);
++		M0_RETURN(rc);
++	}
++	/* Check if there is an effective failure of unit. */
++	spare.sa_group = src->sa_group;
++	spare.sa_unit = *spare_slot_prev;
++	rc = state_of_unit(&spare, map->pi_ioreq, eff_state);
++	if (rc != 0) {
++		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
++				  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
++				  rc, &m0t1fs_addb_ctx);
++		M0_RETURN(rc);
++	}
++	return 0;
++}
++
+ int state_of_unit(struct m0_pdclust_src_addr *src,
+ 		  struct io_request *req, enum m0_pool_nd_state *state)
+ {
+@@ -3829,6 +3849,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 			m0_pdclust_instance_map(play_instance, &spare, tgt);
+ 			tfid = target_fid(req, tgt);
+ 		}
++		device_state = device_state_prev;
+ 		M0_LOG(M0_DEBUG, "REPAIRED: [%llu:%llu] -> [%llu:%llu] @ tfid "
+ 		       FID_F,
+ 		       spare.sa_group, spare.sa_unit,
+@@ -3846,8 +3867,9 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
+ 						      &device_state_prev);
+ 		M0_LOG(M0_FATAL, "(nw-map)device state for fid %llu:%llu is %d",
+ 		       out[0]->ti_fid.f_container, out[0]->ti_fid.f_key, device_state_prev);
+-	if (ioreq_sm_state(req) == IRS_DEGRADED_READING &&
+-	    device_state != M0_PNDS_ONLINE && device_state != M0_PNDS_SNS_REPAIRED)
++	if (M0_IN(ioreq_sm_state(req), (IRS_DEGRADED_READING,
++					IRS_DEGRADED_WRITING)) &&
++	    device_state != M0_PNDS_SNS_REPAIRED)
+ 		(*out)->ti_state = device_state;
+ 	M0_RETURN(rc);
+ }
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
+index d097cd1..50e8dc5 100755
+--- a/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
+@@ -122,15 +122,23 @@ sns_repair_test()
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dg-mode test 1: Reading after first failure"
++	echo "IO dgmode-read test 1: Reading after first failure"
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 	sleep 2
++	echo "IO dgmode-write test 1: Writing after first failure"
++	dd if=/dev/urandom bs=$unit_size count=50 \
++	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++	sleep 2
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dg-mode test 2: Reading after repair"
++	echo "IO dgmode-read test 2: Reading after repair"
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 	sleep 2
+ ####### Query device state
+@@ -146,7 +154,7 @@ sns_repair_test()
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dg-mode test 3: Reading after failure post first repair."
++	echo "IO dgmode-read test 3: Reading after failure post first repair."
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 	sleep 2
+ 
+@@ -161,7 +169,7 @@ sns_repair_test()
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dg-mode test 4: Reading after second repair"
++	echo "IO dgmode-read test 4: Reading after second repair"
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 	sleep 2
+ 	pool_mach_set_failure $fail_device3
+@@ -170,7 +178,7 @@ sns_repair_test()
+ 		return $?
+ 	fi
+ 
+-	echo "IO dg-mode test 5: Reading after third failure"
++	echo "IO dgmode-read test 5: Reading after third failure"
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 
+ 	sns_repair
+@@ -179,7 +187,7 @@ sns_repair_test()
+ 		return $?
+ 	fi
+ 
+-	echo "IO dg-mode test 6: Reading after last repair"
++	echo "IO dgmode-read test 6: Reading after last repair"
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 	sleep 2
+  #       echo "Starting SNS Re-balance.."
+@@ -194,7 +202,7 @@ sns_repair_test()
+ 		return $?
+ 	fi
+ 
+-	echo "IO dg-mode test 7: Reading after rebalance"
++	echo "IO dgmode-read test 7: Reading after rebalance"
+ 	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 	sleep 2
+ 	echo "unmounting and cleaning.."
+-- 
+1.8.3.2
+

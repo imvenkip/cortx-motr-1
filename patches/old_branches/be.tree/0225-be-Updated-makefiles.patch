@@ -1,0 +1,34 @@
+From 5e5cd173c34a6dd8d4275dc4e3c7ba955cf6964f Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 26 Jun 2013 10:22:39 +0300
+Subject: [PATCH 225/290] be: Updated makefiles
+
+---
+ be/Makefile.sub | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index d4032d0..b951c5d 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -6,6 +6,7 @@ nobase_mero_include_HEADERS += be/alloc.h           \
+                                be/tx_fom.h          \
+                                be/tx_group.c        \
+                                be/tx_log.c          \
++                               be/tx_log_xc.c       \
+                                be/tx_regmap.c       \
+                                be/tx_service.h
+ 
+@@ -22,3 +23,9 @@ mero_libmero_la_SOURCES += be/alloc.c     \
+                            be/tx_log.c    \
+                            be/tx_regmap.c \
+                            be/tx_service.c
++
++XC_FILES += be/tx_log_xc.h
++
++CLEANFILES += be/tx_log_xc.h \
++              be/tx_log_xc.c \
++              be/onwire.gccxml
+-- 
+1.8.3.2
+

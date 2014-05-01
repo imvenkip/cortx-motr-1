@@ -1,0 +1,83 @@
+From 2218844937887def2d33ab5e82b9e184fb2aa2c0 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sat, 22 Jun 2013 13:26:30 +0300
+Subject: [PATCH 212/228] be/tx: rename b_tx field to b_txe (it's tx engine,
+ not tx).
+
+---
+ be/be.h    | 2 +-
+ be/btree.c | 2 +-
+ be/tx.c    | 2 +-
+ be/ut/tx.c | 6 +++---
+ 4 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index 70e0766..381e845 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -40,7 +40,7 @@ struct m0_be_btree_anchor;
+ 
+ 
+ struct m0_be {
+-	struct m0_be_tx_engine b_tx;
++	struct m0_be_tx_engine b_txe;
+ 	struct m0_be_seg       b_seg0;
+ 	struct m0_be_log      *b_log;
+ 	/* This value is used to assign m0_be_seg::bs_id. */
+diff --git a/be/btree.c b/be/btree.c
+index 41ea2af..b422ca9 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -1123,7 +1123,7 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
+ {
+ 	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+-	/* M0_PRE(m0_rwlock_is_locked(tx->t_be.b_tx.te_lock)); */
++	/* M0_PRE(m0_rwlock_is_locked(tx->t_be.b_txe.te_lock)); */
+ 
+ 	BTREE_OP_FILL(op, tree, tx, M0_BBO_CREATE, NULL);
+ 
+diff --git a/be/tx.c b/be/tx.c
+index d334ccf..21a5591 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -554,7 +554,7 @@ static void tx_link(struct m0_be_tx *tx)
+ 
+ static struct m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx)
+ {
+-	return &tx->t_be->b_tx;
++	return &tx->t_be->b_txe;
+ }
+ 
+ M0_INTERNAL bool
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index fc6b419..bd04f4c 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -47,12 +47,12 @@ static int seg_destroy(void)
+ 
+ static void be_init(struct m0_be *be)
+ {
+-	m0_be_tx_engine_init(&be->b_tx);
++	m0_be_tx_engine_init(&be->b_txe);
+ }
+ 
+ static void be_fini(struct m0_be *be)
+ {
+-	m0_be_tx_engine_fini(&be->b_tx);
++	m0_be_tx_engine_fini(&be->b_txe);
+ }
+ 
+ static void persistent(const struct m0_be_tx *tx) {}
+@@ -150,7 +150,7 @@ static void test_tx_svc(void)
+ 	reqh = m0_mero_to_rmach(&tx_svc.rsx_mero_ctx)->rm_reqh;
+ 	M0_UT_ASSERT(reqh != NULL);
+ 
+-	rc = m0_tx_processing_start(reqh, &be.b_tx);
++	rc = m0_tx_processing_start(reqh, &be.b_txe);
+ 	M0_UT_ASSERT(rc == 0);
+ 	sleep(2); /* give reqh some time to start */
+ 
+-- 
+1.8.3.2
+

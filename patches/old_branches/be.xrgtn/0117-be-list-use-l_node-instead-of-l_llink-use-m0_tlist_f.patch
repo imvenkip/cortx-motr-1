@@ -1,0 +1,98 @@
+From 6f839fd41bdb7d20aa0c21c2af6f01fb1f7c6d82 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 6 Jun 2013 17:46:06 +0300
+Subject: [PATCH 117/228] be/list: use l_node instead of l_llink, use
+ m0_tlist_for/endfor etc
+
+* Use l_node pointer instead of l_llink in list-specific part of m0_be_op.
+* Use m0_tlist_for and m0_tlist_endfor instead of regular for loop.
+* Initialize bo_u.u_reg.br_seg and bo_u.u_reg.br_size outside of loop.
+* Allocate lreg_op on stack instead of heap.
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+---
+ be/be.h   |  2 +-
+ be/list.c | 45 +++++++++++++++++++--------------------------
+ 2 files changed, 20 insertions(+), 27 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index fdef18f..567a97b 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -76,7 +76,7 @@ struct m0_be_op {
+ 		/* Used by m0_be_list_get() and its callback. */
+ 		struct {
+ 			const struct m0_be_list   *l_list;
+-			const struct m0_list_link *l_llink;
++			void                      *l_lnode;
+ 			m0_bcount_t                l_nelems;
+ 		} u_list;
+ 
+diff --git a/be/list.c b/be/list.c
+index 97ae6a1..82246f1 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -58,41 +58,34 @@ M0_INTERNAL void m0_be_list_get(const struct m0_be_list *list,
+ 				m0_bcount_t nelems,
+ 				struct m0_be_op *op)
+ {
+-	struct m0_list_link *ll;
+-	struct m0_be_op     *lreg_op;
++	struct m0_be_op      lreg_op;
++	void                *lnode;
+ 
+ 	M0_PRE(list != NULL && op != NULL);
+-	op->bo_utype              = M0_BOP_LIST;
+-	op->bo_u.u_list.l_list    = list;
+-	op->bo_u.u_list.l_nelems  = nelems;
++	op->bo_utype                = M0_BOP_LIST;
++	op->bo_u.u_list.l_list      = list;
++	op->bo_u.u_list.l_nelems    = nelems;
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 
+ 	/* Prepare sub-operation for m0_be_reg_get(). */
+-	lreg_op = m0_alloc(sizeof (struct m0_be_op));
+-	M0_ASSERT(lreg_op != NULL);
+-	lreg_op->bo_utype         = M0_BOP_REG;
+-	lreg_op->bo_fom           = NULL;
+-	lreg_op->bo_parent_op     = op;
+-	m0_sm_init(&lreg_op->bo_sm, op->bo_sm.sm_conf, M0_BOS_INIT,
++	lreg_op.bo_utype            = M0_BOP_REG;
++	lreg_op.bo_fom              = NULL;
++	lreg_op.bo_parent_op        = op;
++	lreg_op.bo_u.u_reg.br_seg   = list->bl_seg;
++	lreg_op.bo_u.u_reg.br_size  = list->bl_descr->td_container_size;
++	m0_sm_init(&lreg_op.bo_sm, op->bo_sm.sm_conf, M0_BOS_INIT,
+ 		   op->bo_sm.sm_grp);
+ 
+-	for (ll = list->bl_list.t_head.l_head;
+-	     ll != NULL && (void*)ll != &list->bl_list.t_head
+-	     && nelems > 0;
+-	     ll = ll->ll_next, nelems--) {
+-		op->bo_u.u_list.l_llink     = ll;
+-		op->bo_u.u_list.l_nelems    = nelems;
+-		lreg_op->bo_u.u_reg.br_seg  = list->bl_seg;
+-		lreg_op->bo_u.u_reg.br_size = list->bl_descr->
+-			td_container_size;
+-		lreg_op->bo_u.u_reg.br_addr = (void *)ll -
+-			list->bl_descr->td_link_offset;
+-		m0_be_reg_get(&lreg_op->bo_u.u_reg, lreg_op);
++	m0_tlist_for(list->bl_descr, &list->bl_list, lnode) {
++		if (--nelems == 0) break;
++		op->bo_u.u_list.l_lnode     = lnode;
++		op->bo_u.u_list.l_nelems    = nelems + 1;
++		lreg_op.bo_u.u_reg.br_addr  = lnode;
++		m0_be_reg_get(&lreg_op.bo_u.u_reg, &lreg_op);
+ 		/* XXX: for async completion we must must add clink/callback
+ 		 * to lreg_op->bo_sm.sm_chan. */
+-		M0_ASSERT(m0_be_op_state(lreg_op) == M0_BOS_SUCCESS);
+-	}
+-	m0_free(lreg_op); /* XXX: must be freed in lreg_op callback. */
++		M0_ASSERT(m0_be_op_state(&lreg_op) == M0_BOS_SUCCESS);
++	} m0_tlist_endfor;
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+ }
+ 
+-- 
+1.8.3.2
+

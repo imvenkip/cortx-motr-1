@@ -1,0 +1,57 @@
+From 23c8bd719dd9d1b9708cf851d69cebb797f0ee07 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 1 Mar 2013 03:40:13 +0200
+Subject: [PATCH 91/99] removed duplicates from DIR_NAME_ARR
+
+---
+ net/test/demo/demo.sh | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/net/test/demo/demo.sh b/net/test/demo/demo.sh
+index 08966cd..c0b4f72 100755
+--- a/net/test/demo/demo.sh
++++ b/net/test/demo/demo.sh
+@@ -144,6 +144,7 @@ GNUPLOT="gnuplot"
+ main()
+ {
+ 	. "$SCRIPT_CONFIG"
++	script_init_once
+ 	script_init
+ 	cmdline_parse "$@"
+ 	if [ $RESUME -eq 0 ]; then
+@@ -204,15 +205,19 @@ script_init()
+ {
+ 	local msg_size
+ 	local index=1
+-	local test_type
+-	local space_c
+-	local space_s
+ 
+ 	for msg_size in ${MSG_SIZE_ARR[@]}; do
+ 		((index++)) || true
+ 		MSG_SIZE_REVERSE["$msg_size"]="$index"
+ 	done
+-	DIR_NAME_ARR=
++}
++
++script_init_once()
++{
++	local test_type
++	local space_c
++	local space_s
++
+ 	for test_type in "ping" "bulk"; do
+ 		for space_c in "user" "kernel"; do
+ 			for space_s in "user" "kernel"; do
+@@ -1244,7 +1249,7 @@ gnuplot_run()
+ draw_graphs()
+ {
+ 	draw_graphs_2d
+-	draw_graphs_3d
++	# draw_graphs_3d
+ 	gnuplot_run
+ }
+ 
+-- 
+1.8.3.2
+

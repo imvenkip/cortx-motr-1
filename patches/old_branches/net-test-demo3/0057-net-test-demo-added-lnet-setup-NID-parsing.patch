@@ -1,0 +1,35 @@
+From 526f66ef0ddd92df612e1f12d198b4015f818051 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 13 Feb 2013 13:31:15 +0200
+Subject: [PATCH 57/99] net-test/demo: added lnet setup/NID parsing
+
+---
+ net/test/demo/demo.exp | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/net/test/demo/demo.exp b/net/test/demo/demo.exp
+index 9cb62b3..4dee554 100755
+--- a/net/test/demo/demo.exp
++++ b/net/test/demo/demo.exp
+@@ -92,7 +92,17 @@ proc init_hosts {shosts chosts} {
+     }
+     # execute "date" on initialized hosts and "exit":
+     foreach h $ihosts {
+-        exec_cmd $pid($h) $sid($h) date 10
++        foreach c [list "sudo lctl net down" "sudo rmmod lnet"\
++        "sudo modprobe lnet" "sudo lctl net up"] {
++            exec_cmd $pid($h) $sid($h) $c 10
++        }
++        set r [exec_cmd $pid($h) $sid($h) "sudo lctl list_nids" 10]
++        foreach l [split $r \n] {
++            if {[regexp {([0-9.]+)@([a-z0-9_]+)} $l a addr typ]} {
++                lappend nids($h) [list $addr $typ]
++            }
++        }
++        if {! [info exists nids($h)]} {error "no NIDs found on $h"}
+         exec_cmd $pid($h) $sid($h) exit 10 wait_eof
+     }
+ }
+-- 
+1.8.3.2
+

@@ -1,0 +1,42 @@
+From f598dbcdd9da5d6f2c206343f859f7da97546241 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sat, 23 Feb 2013 17:17:53 +0200
+Subject: [PATCH 01/17] lib: make m0_bitstring_cmp() work with empty strings
+
+---
+ lib/bitstring.c | 15 ++++-----------
+ 1 file changed, 4 insertions(+), 11 deletions(-)
+
+diff --git a/lib/bitstring.c b/lib/bitstring.c
+index f14f55e..c88ca44 100644
+--- a/lib/bitstring.c
++++ b/lib/bitstring.c
+@@ -76,21 +76,14 @@ M0_INTERNAL int m0_bitstring_cmp(const struct m0_bitstring *c1,
+         /* Compare the bytes as unsigned */
+         const unsigned char *s1 = (const unsigned char *)c1->b_data;
+         const unsigned char *s2 = (const unsigned char *)m0->b_data;
+-        uint32_t pos = 1, min_len;
++        uint32_t pos, min_len;
+         int rc;
+ 
+-        min_len = min_check(c1->b_len, m0->b_len);
+-        if (min_len == 0)
+-                return 0;
+-
+         /* Find the first differing char */
+-        while (*s1 == *s2 && pos < min_len) {
+-                s1++;
+-                s2++;
+-                pos++;
+-        }
++        for (min_len = min_check(c1->b_len, m0->b_len), pos = 0;
++	     pos < min_len && *s1 == *s2; s1++, s2++, pos++);
+ 
+-        if ((rc = M0_3WAY(*s1, *s2)))
++        if (pos < min_len && (rc = M0_3WAY(*s1, *s2)))
+                 return rc;
+ 
+         /* Everything matches through the shortest string, so compare length */
+-- 
+1.8.3.2
+

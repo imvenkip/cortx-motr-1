@@ -1,0 +1,28 @@
+From fa60ca78b6302d517eb33fa45ce9b82ce9e449e6 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 18 Jun 2013 19:07:31 +0300
+Subject: [PATCH 169/290] be/tx: check region index against transaction's
+ t_pos, not t_used.
+
+---
+ be/tx_regmap.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/be/tx_regmap.c b/be/tx_regmap.c
+index 6aa4c79..b288cee 100644
+--- a/be/tx_regmap.c
++++ b/be/tx_regmap.c
+@@ -45,8 +45,8 @@ M0_INTERNAL int tx_reg_cmp(const void *p0, const void *p1)
+ 	const struct m0_ext       e1   = REGD_EXT(r1);
+ 	struct m0_ext             intersection;
+ 
+-	M0_ASSERT(idx0 < t0->t_used.tc_reg_nr);
+-	M0_ASSERT(idx1 < t1->t_used.tc_reg_nr);
++	M0_ASSERT(idx0 <= t0->t_pos.tc_reg_nr);
++	M0_ASSERT(idx1 <= t1->t_pos.tc_reg_nr);
+ 	M0_ASSERT(idx0 == r0 - t0->t_reg_d_area);
+ 	M0_ASSERT(idx1 == r1 - t1->t_reg_d_area);
+ 
+-- 
+1.8.3.2
+

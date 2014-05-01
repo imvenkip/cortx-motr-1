@@ -1,0 +1,135 @@
+From 7d255edc599b868ef5db0ddb1c1b9600206ad865 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 1 Mar 2013 22:00:21 +0800
+Subject: [PATCH 11/24] pass ioservice end points to m0d.
+
+---
+ m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh |  4 ++++
+ mero/setup.c                                | 30 +++++++++++++++++++++++++----
+ mero/setup.h                                |  3 +++
+ 3 files changed, 33 insertions(+), 4 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+index 1fd8ad8..4e7ad38 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+@@ -12,6 +12,9 @@ mero_service()
+ 
+ 	start() {
+ 		prepare
++		for ((i=0; i < ${#EP[*]}; i++)) ; do
++			ios_eps="$ios_eps -i $XPT:${lnet_nid}:${EP[$i]} "
++		done
+ 
+ 		# spawn servers
+ 		for ((i=0; i < ${#EP[*]}; i++)) ; do
+@@ -30,6 +33,7 @@ mero_service()
+ 			 -D db -S stobs -A addb-stobs \
+ 			 -G $XPT:${lnet_nid}:${EP[0]} \
+ 			 -e $XPT:${lnet_nid}:${EP[$i]} \
++			 $ios_eps \
+ 			 -L $XPT:${lnet_nid}:${EPC2M[$i]} \
+ 			 $SNAME -m $MAX_RPC_MSG_SIZE \
+ 			 -q $TM_MIN_RECV_QUEUE_LEN"
+diff --git a/mero/setup.c b/mero/setup.c
+index d0978db..90d2941 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -346,7 +346,7 @@ err:
+    mero endpoint.
+    Mero endpoint is of 2 parts network xprt:network endpoint.
+  */
+-static int ep_and_xprt_append(struct m0_reqh_context *rctx, const char *ep)
++static int ep_and_xprt_append(struct m0_tl *head, const char *ep)
+ {
+ 	struct cs_endpoint_and_xprt *epx;
+ 	int                          rc;
+@@ -362,7 +362,7 @@ static int ep_and_xprt_append(struct m0_reqh_context *rctx, const char *ep)
+ 	if (rc != 0)
+ 		goto err;
+ 
+-	cs_eps_tlist_add_tail(&rctx->rc_eps, epx);
++	cs_eps_tlist_add_tail(head, epx);
+ 	return 0;
+ err:
+ 	m0_free(epx);
+@@ -1511,6 +1511,7 @@ static void cs_mero_init(struct m0_mero *cctx)
+ 	m0_bob_type_tlist_init(&astob_bob, &astob_tl);
+ 	m0_rwlock_init(&cctx->cc_rwlock);
+ 
++	cs_eps_tlist_init(&cctx->cc_ios_eps);
+ 	cctx->cc_args.ca_argc = 0;
+ }
+ 
+@@ -1521,8 +1522,20 @@ static void cs_mero_init(struct m0_mero *cctx)
+  */
+ static void cs_mero_fini(struct m0_mero *cctx)
+ {
++	struct cs_endpoint_and_xprt *ep;
+ 	M0_PRE(cctx != NULL);
+ 
++	m0_tl_for(cs_eps, &cctx->cc_ios_eps, ep) {
++		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
++		M0_ASSERT(ep->ex_scrbuf != NULL);
++		m0_free(ep->ex_scrbuf);
++		cs_eps_tlink_del_fini(ep);
++		cs_endpoint_and_xprt_bob_fini(ep);
++		m0_free(ep);
++	} m0_tl_endfor;
++
++	cs_eps_tlist_fini(&cctx->cc_ios_eps);
++
+ 	rhctx_tlist_fini(&cctx->cc_reqh_ctxs);
+ 	cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
+ 	ndom_tlist_fini(&cctx->cc_ndoms);
+@@ -1570,6 +1583,7 @@ static void cs_help(FILE *out)
+ "  -C addr  Endpoint address of confd service.\n"
+ "  -G addr  Endpoint address of mdservice service.\n"
+ "  -L addr  Client Endpoint address to mdservice service.\n"
++"  -i addr  ios endpoint list.\n"
+ "  -P str   Configuration profile.\n"
+ "\n"
+ "Request handler options:\n"
+@@ -1776,7 +1790,15 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
+ 				LAMBDA(void, (const char *s)
+ 				{
+ 					rc = ep_and_xprt_extract(&cctx->
+-								 cc_cli2mds_epx, s);
++							 cc_cli2mds_epx, s);
++				})),
++			M0_STRINGARG('i', "ioservice endpoints list",
++				LAMBDA(void, (const char *s)
++				{
++					rc = ep_and_xprt_append(
++							&cctx->cc_ios_eps, s);
++					M0_LOG(M0_DEBUG, "adding %s to ios "
++							 "ep list %d", s, rc);
+ 				})),
+ 
+ 			/* -------------------------------------------
+@@ -1858,7 +1880,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
+ 				LAMBDA(void, (const char *s)
+ 				{
+ 					_RETURN_EINVAL_UNLESS(rctx);
+-					rc = ep_and_xprt_append(rctx, s);
++					rc = ep_and_xprt_append(&rctx->rc_eps, s);
+ 				})),
+ 			M0_STRINGARG('s', "Services to be configured",
+ 				LAMBDA(void, (const char *s)
+diff --git a/mero/setup.h b/mero/setup.h
+index 2d4d986..776aaeb 100644
+--- a/mero/setup.h
++++ b/mero/setup.h
+@@ -250,6 +250,9 @@ struct m0_mero {
+ 	/** client endpoint to mdservice*/
+ 	struct cs_endpoint_and_xprt cc_cli2mds_epx;
+ 
++	/** list of ioservice end points */
++	struct m0_tl                cc_ios_eps;
++
+ 	/** command line arguments */
+ 	struct cs_args		 cc_args;
+ };
+-- 
+1.8.3.2
+

@@ -1,0 +1,40 @@
+From 396b27e10bb388724c8dffda204726eadc859f35 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Fri, 21 Jan 2011 07:12:58 -0700
+Subject: [PATCH 006/177] - added stat(2) fields to c2_cob.
+
+---
+ cob/cob.h | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/cob/cob.h b/cob/cob.h
+index 664e103..0f5fc06 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -98,8 +98,21 @@ int c2_cob_nskey_size(const struct c2_cob_nskey *);
+ 
+ struct c2_cob_nsrec {
+         struct c2_stob_id cnr_stobid;
+-        uint32_t          cnr_nlink;
+-        /** add other stat(2) data here: omg_ref, size, mactime */
++        uint32_t          cnr_dev;     /** ID of device containing file. */
++        uint64_t          cnr_ino;     /** inode number. */
++        uint32_t          cnr_mode;    /** protection. */
++        uint32_t          cnr_nlink;   /** number of hard links. */
++        uint32_t          cnr_uid;     /** user ID of owner. */
++        uint32_t          cnr_gid;     /** group ID of owner. */
++        uint32_t          cnr_sid;     /** stream id performed modification. */
++        uint32_t          cnr_nid;     /** node id performed modification. */
++        uint32_t          cnr_rdev;    /** device ID (if special file). */
++        uint64_t          cnr_size;    /** total size, in bytes. */
++        uint32_t          cnr_blksize; /** blocksize for filesystem I/O. */
++        uint32_t          cnr_blocks;  /** number of blocks allocated. */
++        uint32_t          cnr_atime;   /** time of last access. */
++        uint32_t          cnr_mtime;   /** time of last modification. */
++        uint32_t          cnr_ctime;   /** time of last status change. */
+ };
+ 
+ 
+-- 
+1.8.3.2
+

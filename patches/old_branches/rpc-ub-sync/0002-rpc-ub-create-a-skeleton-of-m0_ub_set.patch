@@ -1,0 +1,99 @@
+From ebda6f01e4cacda575f5939e6df2052fad3a4391 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 4 Mar 2013 14:58:48 +0200
+Subject: [PATCH 02/63] rpc-ub: create a skeleton of m0_ub_set
+
+---
+ Makefile.am         |  1 +
+ rpc/ub/Makefile.sub |  3 +++
+ rpc/ub/ub.c         | 35 +++++++++++++++++++++++++++++++++++
+ utils/ub_main.c     |  2 ++
+ 4 files changed, 41 insertions(+)
+ create mode 100644 rpc/ub/Makefile.sub
+ create mode 100644 rpc/ub/ub.c
+
+diff --git a/Makefile.am b/Makefile.am
+index afee04e..49aa67c 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -222,6 +222,7 @@ include $(top_srcdir)/net/ut/Makefile.sub
+ include $(top_srcdir)/pool/ut/Makefile.sub
+ include $(top_srcdir)/reqh/ut/Makefile.sub
+ include $(top_srcdir)/rm/ut/Makefile.sub
++include $(top_srcdir)/rpc/ub/Makefile.sub
+ include $(top_srcdir)/rpc/ut/Makefile.sub
+ include $(top_srcdir)/sm/ut/Makefile.sub
+ include $(top_srcdir)/sns/cm/ut/Makefile.sub
+diff --git a/rpc/ub/Makefile.sub b/rpc/ub/Makefile.sub
+new file mode 100644
+index 0000000..2d7a5e2
+--- /dev/null
++++ b/rpc/ub/Makefile.sub
+@@ -0,0 +1,3 @@
++ut_libmero_ut_la_SOURCES += rpc/ub/ub.c
++
++EXTRA_DIST += rpc/ub/README
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+new file mode 100644
+index 0000000..e0e96f0
+--- /dev/null
++++ b/rpc/ub/ub.c
+@@ -0,0 +1,35 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 04-Mar-2013
++ */
++
++#include "lib/ub.h"  /* m0_ub_set */
++
++static void XXX(int iter M0_UNUSED)
++{
++}
++
++struct m0_ub_set m0_rpc_ub = {
++	.us_name = "rpc-ub",
++	.us_run  = {
++		{ .ub_name  = "XXX",
++		  .ub_iter  = 1,
++		  .ub_round = XXX },
++		{ .ub_name = NULL }  /* terminator */
++	}
++};
+diff --git a/utils/ub_main.c b/utils/ub_main.c
+index 44b1a27..0cbf34e 100644
+--- a/utils/ub_main.c
++++ b/utils/ub_main.c
+@@ -41,6 +41,7 @@ extern struct m0_ub_set m0_list_ub;
+ extern struct m0_ub_set m0_memory_ub;
+ extern struct m0_ub_set m0_parity_math_ub;
+ extern struct m0_ub_set m0_rm_ub;
++extern struct m0_ub_set m0_rpc_ub;
+ extern struct m0_ub_set m0_thread_ub;
+ extern struct m0_ub_set m0_tlist_ub;
+ extern struct m0_ub_set m0_trace_ub;
+@@ -106,6 +107,7 @@ static void ub_add(const struct ub_args *args)
+ 	m0_ub_set_add(&m0_memory_ub);
+ 	m0_ub_set_add(&m0_parity_math_ub);
+ 	m0_ub_set_add(&m0_rm_ub);
++	m0_ub_set_add(&m0_rpc_ub);
+ 	m0_ub_set_add(&m0_thread_ub);
+ 	m0_ub_set_add(&m0_tlist_ub);
+ 	m0_ub_set_add(&m0_trace_ub);
+-- 
+1.8.3.2
+

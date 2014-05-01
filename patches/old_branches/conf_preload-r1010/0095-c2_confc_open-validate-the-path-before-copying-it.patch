@@ -1,0 +1,36 @@
+From 2e6949e16bd325ee5725c0db24a2cc516bfd0e08 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 27 Mar 2012 01:13:37 +0300
+Subject: [PATCH 095/311] c2_confc_open(): validate the path before copying it
+
+---
+ conf/confc.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 7957ea6..7ba8ca5 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -561,15 +561,15 @@ int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ 	C2_PRE(ctx->fc_origin == NULL && ctx->fc_path == NULL);
+ 	C2_PRE(path != NULL);
+ 
++	C2_ASSERT(c2_conf_path_is_valid(origin, path, &isdir));
++	if (isdir)
++		return -EISDIR;
++
+ 	ctx->fc_path = c2_conf_pathcomp_dup(path);
+ 	if (ctx->fc_path == NULL)
+ 		return -ENOMEM;
+ 	ctx->fc_origin = origin;
+ 
+-	C2_ASSERT(c2_conf_path_is_valid(ctx->fc_origin, ctx->fc_path, &isdir));
+-	if (isdir)
+-		return -EISDIR;
+-
+ 	ast_state_set(&ctx->fc_ast, S_CHECK);
+ 	return 0;
+ }
+-- 
+1.8.3.2
+

@@ -1,0 +1,91 @@
+From e32c76ae7591b27273d7824df9be5b7e878def3b Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 16 Jul 2012 23:11:33 +0300
+Subject: [PATCH 246/370] confc.c: add brief descriptions to the states
+
++ Use real identifiers for c2_sm_state_descr::sd_name.
+
+LogD #461
+RB: r/865/diff/1/?file=22713#file22713line96
+---
+ conf/confc.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index cb350f6..953bf68 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -36,6 +36,8 @@
+  *   - @ref confc-lspec-state-wait-reply
+  *   - @ref confc-lspec-state-wait-status
+  *   - @ref confc-lspec-state-grow-cache
++ *   - @ref confc-lspec-state-terminal
++ *   - @ref confc-lspec-state-failure
+  * - @ref confc-lspec-walk
+  * - @ref confc-lspec-grow
+  * - @ref confc-lspec-thread
+@@ -79,6 +81,8 @@
+  *
+  * @subsection confc-lspec-state-initial S_INITIAL
+  *
++ * Summary: c2_confc_ctx has just been initialized.
++ *
+  * c2_confc_open() populates c2_confc_ctx::fc_path array (path_store())
+  * and posts an AST to c2_confc::cc_group.
+  *
+@@ -91,6 +95,9 @@
+  *
+  * @subsection confc-lspec-state-check S_CHECK
+  *
++ * Summary: Traversing the path, checking whether the requested
++ * configuration object is accessible.
++ *
+  * When S_CHECK state is entered, check_st_in() callback is invoked.
+  * It calls path_walk() and, depending on the value returned by this
+  * call, moves the state machine to another state:
+@@ -111,6 +118,8 @@
+  *
+  * @subsection confc-lspec-state-wait-reply S_WAIT_REPLY
+  *
++ * Summary: Waiting for confd's reply to arrive.
++ *
+  * When a state machine is about to enter S_WAIT_REPLY state,
+  * wait_reply_st_in() callback is executed. This callback sends
+  * configuration request (c2_confc_ctx::fc_req) to the confd, using
+@@ -126,6 +135,9 @@
+  *
+  * @subsection confc-lspec-state-wait-status S_WAIT_STATUS
+  *
++ * Summary: Waiting for an object to be filled by another
++ * configuration request.
++ *
+  * A state machine in S_WAIT_STATUS state remains idle until the
+  * channel (c2_conf_obj::co_chan) that c2_confc_ctx::fc_clink is
+  * registered with is signaled.  Such an event triggers
+@@ -146,6 +158,8 @@
+  *
+  * @subsection confc-lspec-state-grow-cache S_GROW_CACHE
+  *
++ * Summary: Applying configuration data contained in confd's reply.
++ *
+  * When a state machine is entering S_GROW_CACHE state,
+  * grow_cache_st_in() callback is invoked.  If the error code
+  * contained in confd's response (c2_conf_fetch_resp::fr_rc) is zero,
+@@ -155,6 +169,14 @@
+  * succeeds, grow_cache_st_in() moves the state machine to S_CHECK
+  * state, otherwise --- to S_FAILURE state.
+  *
++ * @subsection confc-lspec-state-terminal S_TERMINAL
++ *
++ * Summary: Configuration retrieval succeeded.
++ *
++ * @subsection confc-lspec-state-failure S_FAILURE
++ *
++ * Summary: Configuration retrieval failed.
++ *
+  * <hr> <!------------------------------------------------------------>
+  * @section confc-lspec-walk Walking the DAG
+  *
+-- 
+1.8.3.2
+

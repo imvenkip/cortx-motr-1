@@ -1,0 +1,27 @@
+From 25cce13e1fcf016fee158add325bb8e420ca649c Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 19 Mar 2012 09:57:02 +0200
+Subject: [PATCH 076/311] rpc/rpc_opcodes.h: add configuration opcodes
+
+---
+ rpc/rpc_opcodes.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/rpc/rpc_opcodes.h b/rpc/rpc_opcodes.h
+index 5e53383..e1b9035 100644
+--- a/rpc/rpc_opcodes.h
++++ b/rpc/rpc_opcodes.h
+@@ -108,6 +108,10 @@ enum C2_RPC_OPCODES {
+ 
+ 	/** Xcode rpc opcodes */
+ 	C2_XCODE_UT_OPCODE = 50,
++
++	/** Configuration rpc opcodes */
++	C2_CONF_FETCH_OPCODE = 51,
++	C2_CONF_FETCH_RESP_OPCODE = 52,
+ };
+ /** @} endgroup rpc_layer_core */
+ 
+-- 
+1.8.3.2
+

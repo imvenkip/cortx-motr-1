@@ -1,0 +1,46 @@
+From 3b0d4b8e681e1de8d74003f32ecd6e26926cf52c Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 22 Mar 2012 19:01:42 +0200
+Subject: [PATCH 087/311] confc.h: describe c2_confc
+
+Rewrite the description of c2_confc_ctx; make it more "functional".
+---
+ conf/confc.h | 22 ++++++++++++++--------
+ 1 file changed, 14 insertions(+), 8 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index 25990f1..46eaf71 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -51,14 +51,20 @@
+  * <hr> <!------------------------------------------------------------->
+  * @section confc-dld-fspec-data  Data Structures
+  *
+- * c2_confc_ctx --- configuration retrieval context.  This object is
+- * passed as an argument to asynchronous "open" functions
+- * (c2_confc_open(), c2_confc_diropen()).  Only two of its members are
+- * supposed to be used by configuration consumers:
+- * - @c fc_complete: this channel is signaled when the retrieval
+- *   operation completes;
+- * - @c fc_result: result of the retrieval operation --- pointer to
+- *   the requested configuration object or directory.
++ * - c2_confc --- an instance of configuration client.
++ *   This structure contains configuration cache and a lock protecting
++ *   the cache from concurrent writes.  c2_confc also has a reference
++ *   to the state machine group that will own the state machines
++ *   created by this confc.
++ *
++ * - c2_confc_ctx --- configuration retrieval context.
++ *   This structure embodies the data needed by a confc state machine
++ *   to process configuration request.  Two of the members are of
++ *   interest of the application:
++ *   - @c fc_complete channel is signaled when the retrieval operation
++ *     completes;
++ *   - @c fc_result will contain the result of retrieval operation ---
++ *     pointer to the requested configuration object or directory.
+  *
+  * <hr> <!------------------------------------------------------------->
+  * @section confc-dld-fspec-sub  Subroutines
+-- 
+1.8.3.2
+

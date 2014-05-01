@@ -1,0 +1,39 @@
+From 8c4e423ee3efc56827fadc8694b9f064838c2344 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 20 Aug 2013 21:13:42 +0300
+Subject: [PATCH 12/34] be/ut: .c files was included by mistake
+
+---
+ be/ut/tx_group_ondisk.c | 2 +-
+ be/ut/tx_regmap.c       | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/be/ut/tx_group_ondisk.c b/be/ut/tx_group_ondisk.c
+index d618cff..ffbe14c 100644
+--- a/be/ut/tx_group_ondisk.c
++++ b/be/ut/tx_group_ondisk.c
+@@ -18,7 +18,7 @@
+  * Original creation date: 4-Jul-2013
+  */
+ 
+-#include "be/tx_group_ondisk.c"
++#include "be/tx_group_ondisk.h"
+ 
+ #include "ut/ut.h"
+ #include "be/ut/helper.h"
+diff --git a/be/ut/tx_regmap.c b/be/ut/tx_regmap.c
+index e91db02..4bd2538 100644
+--- a/be/ut/tx_regmap.c
++++ b/be/ut/tx_regmap.c
+@@ -24,7 +24,7 @@
+ #include "lib/cdefs.h"		/* ARRAY_SIZE */
+ #include "lib/misc.h"		/* M0_SET0 */
+ 
+-#include "be/ut/helper.c"	/* m0_be_ut_seg */
++#include "be/ut/helper.h"	/* m0_be_ut_seg */
+ 
+ #include <stdio.h>		/* fflush */
+ #include <stdlib.h>		/* rand_r */
+-- 
+1.8.3.2
+

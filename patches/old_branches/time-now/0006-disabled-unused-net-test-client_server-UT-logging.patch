@@ -1,0 +1,24 @@
+From 2018cee34b83adc186f9ee30a47d9157a68e7153 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 30 Apr 2013 01:13:48 +0300
+Subject: [PATCH 6/6] disabled unused net-test client_server UT logging
+
+---
+ net/test/ut/client_server.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/test/ut/client_server.c b/net/test/ut/client_server.c
+index 732afed..924b132 100644
+--- a/net/test/ut/client_server.c
++++ b/net/test/ut/client_server.c
+@@ -285,7 +285,6 @@ static void net_test_client_server(const char *nid,
+ 	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_SERVER,
+ 				     M0_NET_TEST_CMD_STATUS);
+ 	M0_UT_ASSERT(rc == servers_nr);
+-	LOGD_VAR_NAME(ut_client_server) = true;
+ 	msg_nr_print("client msg sent",
+ 		     &console->ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send);
+ 	msg_nr_print("client msg received",
+-- 
+1.8.3.2
+

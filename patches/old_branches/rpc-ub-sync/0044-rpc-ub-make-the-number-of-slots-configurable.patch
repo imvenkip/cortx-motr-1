@@ -1,0 +1,62 @@
+From a67368bbc48d605a67b27e9d7f21fea77f1da5d8 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 20 Mar 2013 21:52:12 +0200
+Subject: [PATCH 44/63] rpc-ub: make the number of slots configurable
+
+---
+ rpc/ub/ub.c | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index dcf38e1..d1a3a30 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -49,7 +49,7 @@ struct args {
+ static void args_init(struct args *args)
+ {
+ 	args->a_nr_conns = 1;
+-	args->a_nr_slots = 1;
++	args->a_nr_slots = 15;
+ 	args->a_msg_len  = 32;
+ 	args->a_use_lnet = false;
+ }
+@@ -116,7 +116,6 @@ static struct args g_args;
+ 
+ enum {
+ 	CLIENT_COB_DOM_ID  = 16,
+-	SESSION_SLOTS      = 15, /* XXX CONFIGUREME */
+ 	MAX_RPCS_IN_FLIGHT = 1,  /* XXX CONFIGUREME */
+ 	CONNECT_TIMEOUT    = 50,
+ 	MAX_RETRIES        = 5
+@@ -173,8 +172,7 @@ static const struct m0_rpc_item_ops ub_item_ops = {
+  * ---------------------------------------------------------------- */
+ 
+ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
+-			  const char *db_name, uint32_t nr_slots,
+-			  const char *ep)
++			  const char *db_name, const char *ep)
+ {
+ 	int rc;
+ 
+@@ -186,7 +184,7 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
+ 	client->rc_ctx.rcx_cob_dom_id            = cob_dom_id;
+ 	client->rc_ctx.rcx_dbenv                 = &client->rc_dbenv;
+ 	client->rc_ctx.rcx_db_name               = strdup(db_name);
+-	client->rc_ctx.rcx_nr_slots              = nr_slots;
++	client->rc_ctx.rcx_nr_slots              = g_args.a_nr_slots;
+ 	client->rc_ctx.rcx_local_addr            = strdup(ep);
+ 	client->rc_ctx.rcx_remote_addr           = SERVER_ENDPOINT_ADDR;
+ 	client->rc_ctx.rcx_timeout_s             = CONNECT_TIMEOUT;
+@@ -232,8 +230,7 @@ static int _start(const char *opts)
+ 		snprintf(db, ARRAY_SIZE(db), "rpc-ub.client-db_%d", i);
+ 		snprintf(ep, ARRAY_SIZE(ep), CLIENT_ENDPOINT_FMT,
+ 			 2 + i); /* 1 is server EP, so we start from 2 */
+-		_client_start(&g_client[i], CLIENT_COB_DOM_ID + i, db,
+-			      SESSION_SLOTS, ep);
++		_client_start(&g_client[i], CLIENT_COB_DOM_ID + i, db, ep);
+ 	}
+ 	m0_rpc_ub_fops_init();
+ 	return 0;
+-- 
+1.8.3.2
+

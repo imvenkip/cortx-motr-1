@@ -1,0 +1,205 @@
+From b33bb04e10239c4e8ecec0432ac8b2a69981bd48 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sun, 9 Mar 2014 11:07:52 +0800
+Subject: [PATCH 16/26] embed be_backend and be_seg into superblock. In kernel,
+ be is dummy.
+
+---
+ be/linux_kernel/stubs.c      |  2 ++
+ fop/fom.c                    |  3 +++
+ fop/fom_generic.c            | 27 ---------------------------
+ m0t1fs/linux_kernel/m0t1fs.h |  4 ++++
+ m0t1fs/linux_kernel/super.c  | 25 ++++++++++++++++++++-----
+ 5 files changed, 29 insertions(+), 32 deletions(-)
+
+diff --git a/be/linux_kernel/stubs.c b/be/linux_kernel/stubs.c
+index e243944..07e7917 100644
+--- a/be/linux_kernel/stubs.c
++++ b/be/linux_kernel/stubs.c
+@@ -111,6 +111,8 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
+ 				struct m0_stob *stob,
+ 				struct m0_be_domain *dom)
+ {
++	seg->bs_stob   = stob;
++	seg->bs_domain = dom;
+ }
+ 
+ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+diff --git a/fop/fom.c b/fop/fom.c
+index a638c82..c61403b 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1537,6 +1537,9 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
+ 	struct m0_fol_rec_desc *desc;
+ 	struct m0_fol          *fol;
+ 	int                     rc;
++#ifdef __KERNEL__
++	return 0;
++#endif
+ 
+ 	fol  = m0_fom_reqh(fom)->rh_fol;
+ 	desc = &fom->fo_tx.tx_fol_rec.fr_desc;
+diff --git a/fop/fom_generic.c b/fop/fom_generic.c
+index 40f4f63..7375fe6 100644
+--- a/fop/fom_generic.c
++++ b/fop/fom_generic.c
+@@ -232,8 +232,6 @@ static int fom_tx_init(struct m0_fom *fom)
+ 	struct m0_reqh *reqh;
+ 
+ 	reqh = m0_fom_reqh(fom);
+-	if (reqh->rh_beseg == NULL)
+-		return M0_FSO_AGAIN;
+ 
+ 	m0_dtx_init(&fom->fo_tx, reqh->rh_beseg->bs_domain,
+ 		    &fom->fo_loc->fl_group);
+@@ -254,9 +252,6 @@ static int fom_tx_open(struct m0_fom *fom)
+ 	struct m0_reqh *reqh = m0_fom_reqh(fom);
+ 	struct m0_dtx  *dtx  = &fom->fo_tx;
+ 
+-	if (reqh->rh_beseg == NULL)
+-		return M0_FSO_AGAIN;
+-
+ 	m0_fol_credit(reqh->rh_fol, M0_FO_REC_ADD, 1, m0_fom_tx_credit(fom));
+ 
+ 	if (!fom->fo_local) {
+@@ -277,12 +272,8 @@ static int fom_tx_open(struct m0_fom *fom)
+  */
+ static int fom_tx_wait(struct m0_fom *fom)
+ {
+-	struct m0_reqh *reqh = m0_fom_reqh(fom);
+ 	struct m0_be_tx *tx = m0_fom_tx(fom);
+ 
+-	if (reqh->rh_beseg == NULL)
+-		return M0_FSO_AGAIN;
+-
+ 	M0_ENTRY("fom=%p", fom);
+ 	M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING,
+ 					  M0_BTS_ACTIVE, M0_BTS_FAILED)));
+@@ -353,11 +344,6 @@ static int fom_success(struct m0_fom *fom)
+  */
+ static int fom_fol_rec_add(struct m0_fom *fom)
+ {
+-	struct m0_reqh  *reqh = m0_fom_reqh(fom);
+-
+-	if (reqh->rh_beseg == NULL)
+-		return M0_FSO_AGAIN;
+-
+ 	if (!fom->fo_local) {
+ 		int rc;
+ 
+@@ -377,10 +363,6 @@ static int fom_tx_commit(struct m0_fom *fom)
+ {
+ 	struct m0_dtx   *dtx = &fom->fo_tx;
+ 	struct m0_be_tx *tx  = m0_fom_tx(fom);
+-	struct m0_reqh  *reqh = m0_fom_reqh(fom);
+-
+-	if (reqh->rh_beseg == NULL)
+-		return M0_FSO_AGAIN;
+ 
+ 	M0_PRE(M0_IN(dtx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
+ 
+@@ -401,10 +383,6 @@ static int fom_tx_commit(struct m0_fom *fom)
+ static int fom_tx_commit_wait(struct m0_fom *fom)
+ {
+ 	struct m0_be_tx *tx = m0_fom_tx(fom);
+-	struct m0_reqh  *reqh = m0_fom_reqh(fom);
+-
+-	if (reqh->rh_beseg == NULL)
+-		return M0_FSO_AGAIN;
+ 
+ 	if (m0_be_tx_state(tx) == M0_BTS_DONE) {
+ 		m0_dtx_fini(&fom->fo_tx);
+@@ -443,11 +421,6 @@ static int fom_queue_reply(struct m0_fom *fom)
+  */
+ static int fom_queue_reply_wait(struct m0_fom *fom)
+ {
+-	struct m0_reqh  *reqh = m0_fom_reqh(fom);
+-
+-	if (reqh->rh_beseg == NULL)
+-		return M0_FSO_AGAIN;
+-
+ 	M0_PRE(M0_IN(fom->fo_tx.tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
+ 
+ 	if (fom->fo_tx.tx_state == M0_DTX_INIT) {
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 8063741..a4ef94c 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -41,6 +41,8 @@
+ #include "mdservice/md_fops.h"    /* m0_fop_create_fopt */
+ #include "conf/schema.h"          /* m0_conf_service_type */
+ #include "file/file.h"		  /* m0_file */
++#include "be/be.h"
++#include "be/ut/helper.h"
+ 
+ /**
+   @defgroup m0t1fs m0t1fs
+@@ -441,6 +443,8 @@ struct m0t1fs_globals {
+ 	struct m0_addb_monitor                  g_addb_mon_rw_io_size;
+ 	uint32_t                                g_addb_mon_rw_io_size_key;
+ 	struct m0t1fs_addb_mon_sum_data_io_size g_addb_mon_sum_data_rw_io_size;
++	struct m0_be_ut_backend                 g_ut_be;
++	struct m0_be_ut_seg                     g_ut_seg;
+ };
+ 
+ /**
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 99a7ade..a6f42fc 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -1056,6 +1056,13 @@ static int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
+ 
+ 	M0_ENTRY();
+ 
++	/* Init BE. */
++	m0_be_ut_backend_init(&csb->csb_m0t1fs_globals.g_ut_be);
++	m0_be_ut_seg_init(&csb->csb_m0t1fs_globals.g_ut_seg,
++			  &csb->csb_m0t1fs_globals.g_ut_be, 1ULL << 24);
++	m0_be_ut_seg_allocator_init(&csb->csb_m0t1fs_globals.g_ut_seg,
++				    &csb->csb_m0t1fs_globals.g_ut_be);
++
+ 	tms_nr	 = 1;
+ 	bufs_nr  = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+ 
+@@ -1069,11 +1076,11 @@ static int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
+ 		goto pool_fini;
+ 
+ 	rc = M0_REQH_INIT(reqh,
+-			  .rhia_dtm          = (void*)1,
+-			  .rhia_db           = NULL,
+-			  .rhia_mdstore      = (void*)1,
+-			  .rhia_fol          = fol,
+-			  .rhia_svc          = (void*)1);
++			  .rhia_dtm = (void*)1,
++			  .rhia_db = &csb->csb_m0t1fs_globals.g_ut_seg.bus_seg,
++			  .rhia_mdstore = (void*)1,
++			  .rhia_fol = fol,
++			  .rhia_svc = (void*)1);
+ 	if (rc != 0)
+ 		goto dbenv_fini;
+ 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,
+@@ -1096,6 +1103,10 @@ dbenv_fini:
+ 	m0_dbenv_fini(dbenv);
+ pool_fini:
+ 	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
++	m0_be_ut_seg_allocator_fini(&csb->csb_m0t1fs_globals.g_ut_seg,
++				    &csb->csb_m0t1fs_globals.g_ut_be);
++	m0_be_ut_seg_fini(&csb->csb_m0t1fs_globals.g_ut_seg);
++	m0_be_ut_backend_fini(&csb->csb_m0t1fs_globals.g_ut_be);
+ 	M0_LEAVE("rc: %d", rc);
+ 	M0_ASSERT(rc != 0);
+ 	return rc;
+@@ -1221,6 +1232,10 @@ static void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
+ 	m0_reqh_fini(&csb->csb_m0t1fs_globals.g_reqh);
+ 	m0_dbenv_fini(&csb->csb_m0t1fs_globals.g_dbenv);
+ 	m0_rpc_net_buffer_pool_cleanup(&csb->csb_m0t1fs_globals.g_buffer_pool);
++	m0_be_ut_seg_allocator_fini(&csb->csb_m0t1fs_globals.g_ut_seg,
++				    &csb->csb_m0t1fs_globals.g_ut_be);
++	m0_be_ut_seg_fini(&csb->csb_m0t1fs_globals.g_ut_seg);
++	m0_be_ut_backend_fini(&csb->csb_m0t1fs_globals.g_ut_be);
+ 
+ 	M0_LEAVE();
+ }
+-- 
+1.8.3.2
+

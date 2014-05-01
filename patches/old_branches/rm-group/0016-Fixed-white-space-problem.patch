@@ -1,0 +1,33 @@
+From a163f0ab708f5663a045bfc606c247581545d15d Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Mon, 2 Sep 2013 12:52:01 +0530
+Subject: [PATCH 16/24] Fixed white space problem.
+
+---
+ rm/rm.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/rm/rm.c b/rm/rm.c
+index e819f6f..1e9530b 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -1383,7 +1383,6 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
+ 
+ 	M0_ASSERT(brwd_loan != NULL);
+ 	M0_ASSERT(credit != NULL);
+-	/* Loan can be borrowed from only one creditor */
+ 
+ 	/*
+ 	 * Check if there is partial revoke.
+@@ -1454,7 +1453,7 @@ M0_EXPORTED(m0_rm_revoke_commit);
+ /** @{ */
+ 
+ static bool owner_group_conflict(struct m0_rm_owner    *o,
+-			   	 struct m0_rm_incoming *in)
++				 struct m0_rm_incoming *in)
+ {
+ 	return !m0_uint128_eq(&o->ro_group_id, &standalone_group_id) &&
+ 		m0_uint128_eq(&o->ro_group_id, &in->rin_want.cr_group_id);
+-- 
+1.8.3.2
+

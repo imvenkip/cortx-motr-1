@@ -1,0 +1,33 @@
+From 7c57db6d6d0ac6bfb7ab3f00c41a4ac07751ff48 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Mon, 10 Jun 2013 10:43:59 +0300
+Subject: [PATCH 134/161] be/list: capture originating list node too.
+
+---
+ be/list.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/be/list.c b/be/list.c
+index 66c9a52..a2e8396 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -166,11 +166,16 @@ M0_INTERNAL void m0_be_list_capture(const struct m0_be_list *list,
+ 	reg.br_size = d->td_container_size;
+ 	lnode0 = (void*)origin - d->td_link_offset;
+ 
++	/* Capture originating list node. */
++	reg.br_addr = lnode0;
++	m0_be_tx_capture(tx, &reg);
++	/* Capture list nodes to the left. */
+ 	for (lnode = lnode0; left != 0 &&
+ 	     (lnode = m0_tlist_prev(d, l, lnode)) != NULL; left--) {
+ 		reg.br_addr = lnode;
+ 		m0_be_tx_capture(tx, &reg);
+ 	}
++	/* Capture list nodes to the right. */
+ 	for (lnode = lnode0; right != 0 &&
+ 	     (lnode = m0_tlist_next(d, l, lnode)) != NULL; right--) {
+ 		reg.br_addr = lnode;
+-- 
+1.8.3.2
+

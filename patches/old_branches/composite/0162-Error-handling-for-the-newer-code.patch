@@ -1,0 +1,1169 @@
+From fa868f55b8dd689a2a79dd43a452030f7642eab9 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 30 Jul 2013 15:51:03 +0530
+Subject: [PATCH 162/172] Error handling for the newer code
+
+---
+ layout/composite.c         | 130 ++++++++++++++++++++++++++-------------------
+ layout/layout.c            |  52 ++++++++++--------
+ layout/layout.h            |   3 --
+ layout/layout_addb.h       |  62 ++++++++++++---------
+ layout/linear_enum.c       |  83 ++++++++++++++++-------------
+ layout/list_enum.c         | 118 ++++++++++++++++++++++++----------------
+ layout/pdclust.c           | 110 +++++++++++++++++++++++---------------
+ layout/ut/layout_generic.c |  12 ++---
+ 8 files changed, 330 insertions(+), 240 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 2e7e0bb..dd0faf4 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -146,7 +146,9 @@ static bool layer_invariant(const struct m0_composite_layer *layer)
+ 		    ext_tlist_length(&layer->clr_extents)) &&
+ 		m0_tl_forall(ext, ext1, &layer->clr_extents,
+ 			     _0C(!m0_ext_is_empty(&ext1->cle_ext)) &&
++			     /* Extents shall be back-to-back. */
+ 			     _0C(ext1->cle_ext.e_start == addr) &&
++			     /* Adjacent ext shall not have the same state. */
+ 			     _0C(ergo(prev != NULL,
+ 				      prev->cle_state != ext1->cle_state)) &&
+ 			     /* Intentional '=' below. */
+@@ -783,25 +785,30 @@ static int layers_indb_read(struct m0_composite_layout *cl,
+ 	M0_RETURN(rc);
+ }
+ 
++/**
++ * Deletes the single extent added by default when the layer got added.
++ */
++static void single_ext_del(struct m0_composite_layer *lr)
++{
++	struct m0_composite_layer_ext *ext;
++
++	ext = ext_tlist_head(&lr->clr_extents);
++	M0_ASSERT(ext->cle_ext.e_start == 0 &&
++		  ext->cle_ext.e_end == M0_BINDEX_MAX + 1);
++	ext_del(lr, ext);
++}
++
+ static int copy_extents_from_onwire(struct m0_layer_onwire *lr_onwire,
+ 				    struct m0_composite_layer *lr)
+ {
+-	struct m0_composite_layer_ext *ext;
+ 	struct m0_ext                  e;
+ 	struct m0_layer_ext_onwire    *ext_onwire;
+ 	m0_bindex_t                    scan = 0;
+ 	uint32_t                       i;
+ 	int                            rc;
+ 
+-	//todo code duplication below
+-	/*
+-	 * Delete the single extent added by default when the layer got added.
+-	 */
+-	ext = ext_tlist_head(&lr->clr_extents);
+-	M0_ASSERT(ext->cle_ext.e_start == 0 &&
+-		  ext->cle_ext.e_end == M0_BINDEX_MAX + 1);
+-	ext_del(lr, ext);
+-
++	M0_ENTRY();
++	single_ext_del(lr);
+ 	for (i = 0; i < lr_onwire->lro_extents.lea_nr; ++i) {
+ 		ext_onwire = &lr_onwire->lro_extents.lea_ext[i];
+ 		e.e_start = scan;
+@@ -810,13 +817,12 @@ static int copy_extents_from_onwire(struct m0_layer_onwire *lr_onwire,
+ 		rc = ext_add(&lr->clr_extents, lr->clr_cl, &e,
+ 			     ext_onwire->leo_state, ADD_AT_TAIL, NULL);
+ 		if (rc != 0)
+-			break; //todo
++			break;
+ 	}
+ 	lr->clr_extents_nr = ext_tlist_length(&lr->clr_extents);
+-	return rc; //todo
++	M0_RETURN(rc);
+ }
+ 
+-//todo make this part of op vector,
+ static int composite_copy_from_onwire(struct m0_composite_layout *cl,
+ 				      const struct m0_composite_onwire *onwire)
+ {
+@@ -827,6 +833,7 @@ static int composite_copy_from_onwire(struct m0_composite_layout *cl,
+ 	uint32_t                   i;
+ 	int                        rc;
+ 
++	M0_ENTRY();
+ 	for (i = 0; i < onwire->co_layers.lra_nr; ++i) {
+ 		lr_onwire = &onwire->co_layers.lra_layer[i];
+ 		sublayout = layout_find(cl->cl_base.l_dom,
+@@ -841,7 +848,6 @@ static int composite_copy_from_onwire(struct m0_composite_layout *cl,
+ 			break;
+ 		}
+ 		if (i == 0) { /* Zeroth layer */
+-			//todo Check if user count shall be passed this way
+ 			rc = composite_populate(cl, sublayout,
+ 						onwire->co_base.lo_user_count);
+ 			if (rc == 0) {
+@@ -883,7 +889,7 @@ static int composite_copy_from_onwire(struct m0_composite_layout *cl,
+ 		     cl->cl_layers_nr > 0));
+ 	M0_POST(ergo(rc != 0, m0_layout__allocated_invariant(&cl->cl_base) &&
+ 		     cl->cl_layers_nr == 0));
+-	return rc; //todo
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of lo_decode() for composite layout type. */
+@@ -916,14 +922,15 @@ static int composite_decode(struct m0_layout *l,
+ 		ctx.xcx_buf = *cur;
+ 		ctx.xcx_alloc = m0_xcode_alloc;
+ 		rc = m0_xcode_decode(&ctx);
+-		M0_ASSERT(rc == 0); //todo
+ 		if (rc == 0) {
+ 			onwire = m0_xcode_ctx_top(&ctx);
+ 			rc = composite_copy_from_onwire(cl, onwire);
+-			//if (rc != 0) todo
+-
+ 			m0_xcode_free(&COMPOSITE_XCODE_OBJ(onwire));
+-		}
++		} else
++			m0_layout__log("composite_decode",
++				       "m0_xcode_decode() failed",
++				       M0_LAYOUT_ADDB_LOC_COMP_DECODE,
++				       &l->l_addb_ctx, l->l_id, rc);
+ 	} else {
+ 		rc = sublayout_ids_read(cl, cur, &layers_nr, &sl_id_list);
+ 		if (rc == 0) {
+@@ -943,33 +950,41 @@ static int composite_decode(struct m0_layout *l,
+ 	M0_RETURN(rc);
+ }
+ 
+-//todo make this part of op vector
+-static int composite_copy_to_onwire(const struct m0_composite_layout *cl,
++/** Copies fields from in-memory structure to the onwire structure. */
++static int composite_copy_to_onwire(struct m0_composite_layout *cl,
+ 				    struct m0_composite_onwire **cl_onwire)
+ {
++	struct m0_layout              *l = &cl->cl_base;
+ 	struct m0_composite_layer     *layer;
+ 	struct m0_composite_layer_ext *ext1;
+ 	struct m0_composite_onwire    *onwire;
+ 	struct m0_layer_onwire        *lr_onwire;
+ 	struct m0_layer_ext_onwire    *ext_onwire;
+ 	uint32_t                       i;
++	int                            rc = 0;
+ 
++	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	M0_ALLOC_PTR(onwire);
+-	M0_ASSERT(onwire != NULL); //todo
++	if (onwire != NULL) {
++		M0_ALLOC_ARR(onwire->co_layers.lra_layer, cl->cl_layers_nr);
++		if (onwire->co_layers.lra_layer == NULL)
++			rc = -ENOMEM;
++	} else
++		rc = -ENOMEM;
++	if (rc == -ENOMEM)
++		goto out;
+ 
+ 	m0_layout__copy_to_onwire(&cl->cl_base, &onwire->co_base);
+-
+-	M0_ALLOC_ARR(onwire->co_layers.lra_layer, cl->cl_layers_nr);
+-	M0_ASSERT(onwire->co_layers.lra_layer!= NULL); //todo
+-
+ 	m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		lr_onwire = &onwire->co_layers.lra_layer[layer->clr_idx];
+ 		lr_onwire->lro_idx = layer->clr_idx;
+ 		lr_onwire->lro_sublayout_id = layer->clr_sl->l_id;
+ 		M0_ALLOC_ARR(lr_onwire->lro_extents.lea_ext,
+ 			     layer->clr_extents_nr);
+-		M0_ASSERT(lr_onwire->lro_extents.lea_ext != NULL); //todo
+-
++		if(lr_onwire->lro_extents.lea_ext == NULL) {
++			rc = -ENOMEM;
++			goto out;
++		}
+ 		i = 0;
+ 		m0_tl_for(ext, &layer->clr_extents, ext1) {
+ 			ext_onwire = &lr_onwire->lro_extents.lea_ext[i];
+@@ -981,7 +996,14 @@ static int composite_copy_to_onwire(const struct m0_composite_layout *cl,
+ 	} m0_tl_endfor;
+ 	onwire->co_layers.lra_nr = cl->cl_layers_nr;
+ 	*cl_onwire = onwire;
+-	return 0; //todo
++out:
++	if (rc != 0) {
++		M0_ASSERT(rc == -ENOMEM);
++		m0_layout__log("composite_copy_to_onwire", "M0_ALLOC() failed",
++			       M0_LAYOUT_ADDB_LOC_COMP_ENC_1,
++			       &l->l_addb_ctx, l->l_id, rc);
++	}
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of lo_encode() for composite layout type. */
+@@ -1011,14 +1033,17 @@ static int composite_encode(struct m0_layout *l,
+ 		 (unsigned long)op);
+ 	if (op == M0_LXO_BUFFER_OP) {
+ 		rc = composite_copy_to_onwire(cl, &onwire);
+-		M0_ASSERT(rc == 0); //todo
+-		m0_xcode_ctx_init(&ctx, &COMPOSITE_XCODE_OBJ(onwire));
+-		ctx.xcx_buf = *out;
+-		rc = m0_xcode_encode(&ctx);
+-		M0_ASSERT(rc == 0); //todo
+ 		if (rc == 0) {
+-			*out = ctx.xcx_buf;
+-			m0_xcode_free(&COMPOSITE_XCODE_OBJ(onwire));
++			m0_xcode_ctx_init(&ctx, &COMPOSITE_XCODE_OBJ(onwire));
++			ctx.xcx_buf = *out;
++			rc = m0_xcode_encode(&ctx);
++			if (rc == 0)
++				m0_xcode_free(&COMPOSITE_XCODE_OBJ(onwire));
++			else
++				m0_layout__log("composite_encode",
++					       "m0_xcode_encode() failed",
++					       M0_LAYOUT_ADDB_LOC_COMP_ENC_2,
++					       &l->l_addb_ctx, l->l_id, rc);
+ 		}
+ 	} else {
+ 		/*
+@@ -1086,7 +1111,7 @@ static int composite_encode(struct m0_layout *l,
+ static int ext_find(struct m0_composite_layer *layer,
+ 		    const struct m0_ext *e,
+ 		    enum m0_composite_layer_ext_state expected_state,
+-		    struct m0_composite_layer_ext **ext /* todo not reqd? */)
++		    struct m0_composite_layer_ext **ext)
+ {
+ 	struct m0_composite_layer_ext *ext1;
+ 	bool                           ext_encountered;
+@@ -1329,7 +1354,6 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 		     struct m0_composite_layer_ext *target)
+ {
+ 	struct preallocated_extents    prealloc;
+-	struct m0_composite_layer_ext *ext;
+ 	struct m0_composite_layer_ext *next;
+ 	struct m0_composite_layer_ext *delete; /* Ext to delete */
+ 	struct m0_composite_layer_ext *prev;
+@@ -1447,7 +1471,7 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 	 * has been handled above, let's add the ultimate whole extent.
+ 	 */
+ 	if (is_ultimate_ext_add) {
+-		M0_ASSERT(ext_find(layer, e, new_state, &ext) == -ENOENT);
++		M0_ASSERT(ext_find(layer, e, new_state, NULL) == -ENOENT);
+ 		if (e->e_start == 0) {
+ 			M0_ASSERT(prev == NULL);
+ 			ext_add_internal(&layer->clr_extents, &cl->cl_base,
+@@ -1456,7 +1480,7 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 		} else {
+ 			M0_ASSERT(prev != NULL);
+ 			M0_ASSERT(ext_find(layer, &prev->cle_ext,
+-					   prev->cle_state, &ext) == 0);
++					   prev->cle_state, NULL) == 0);
+ 			if (prev->cle_ext.e_end < e->e_start)
+ 				/*
+ 				 * It is possible that as a result of some
+@@ -1514,7 +1538,7 @@ static int ext_merge(struct m0_composite_layout *cl,
+ 	struct m0_composite_layer_ext *next;
+ 	int                            rc;
+ 
+-	//todo July24  Once ext_paste returns m0_composite_layer_ext, this becomes M0_PRE()
++	M0_ENTRY();
+ 	rc = ext_find(layer, e, state, &ext);
+ 	M0_PRE(rc == 0);
+ 
+@@ -1524,7 +1548,7 @@ static int ext_merge(struct m0_composite_layout *cl,
+ 	next = ext_tlist_next(&layer->clr_extents, ext);
+ 	if (next != NULL && next->cle_state == state)
+ 		merge(layer, ext, next);
+-	return rc; //todo
++	M0_RETURN(rc);
+ }
+ 
+ /**
+@@ -1556,7 +1580,7 @@ static int ext_write(struct m0_composite_layout *cl,
+ 	m0_tl_for(ext, &layer->clr_extents, ext1) {
+ 		if (e->e_start >= ext1->cle_ext.e_start)
+ 			nearest = ext1;
+-		if (e->e_start < ext1->cle_ext.e_end) //todo correct?
++		if (e->e_start < ext1->cle_ext.e_end)
+ 			break;
+ 	} m0_tl_endfor;
+ 	M0_ASSERT(nearest != NULL);
+@@ -1571,12 +1595,13 @@ static int ext_write(struct m0_composite_layout *cl,
+ 	if (rc == 0) {
+ 		/* Now, the exact extent has to be present in the list. */
+ 		M0_ASSERT(ext_find(layer, e, new_state, NULL) == 0);
+-
+-		//todo ext_paste() shall return m0_composite_layer_ext that can be passed to ext_merge
++		/*
++		 * Merge the extent with the adjacent ones if their states are
++		 * the same.
++		 */
+ 		rc = ext_merge(cl, layer, e, new_state);
+-		M0_ASSERT(rc == 0); //todo
+-		M0_POST(composite_invariant(cl));
+ 	}
++	M0_POST(ergo(rc == 0, composite_invariant(cl)));
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -1824,7 +1849,6 @@ static int extents_indb_read(struct m0_composite_layout *cl,
+ 			     struct m0_db_tx *tx)
+ {
+ 	struct m0_layout              *l;
+-	struct m0_composite_layer_ext *ext;
+ 	struct m0_emap                *emap;
+ 	struct m0_emap_cursor          it;
+ 	struct m0_emap_seg            *seg;
+@@ -1832,15 +1856,9 @@ static int extents_indb_read(struct m0_composite_layout *cl,
+ 
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+-	/*
+-	 * Delete the single extent added by default when the layer got added.
+-	 */
+-	ext = ext_tlist_head(&layer->clr_extents);
+-	M0_ASSERT(ext->cle_ext.e_start == 0 &&
+-		  ext->cle_ext.e_end == M0_BINDEX_MAX + 1);
+-	ext_del(layer, ext);
++	single_ext_del(layer);
+ 
+-	/* Now, sequentially, add the extents as read from the buffer. */
++	/* Sequentially, add the extents as read from the buffer. */
+ 	l = &cl->cl_base;
+ 	emap = emap_from_cl(cl);
+ 	rc = emap_iterator_set(cl, emap, layer->clr_idx, 0, tx, &it);
+diff --git a/layout/layout.c b/layout/layout.c
+index 954e06f..0083bf9 100644
+--- a/layout/layout.c
++++ b/layout/layout.c
+@@ -514,12 +514,13 @@ M0_INTERNAL int m0_layout__striped_copy_from_onwire(
+ 	struct m0_layout_enum      *e;
+ 	int                         rc;
+ 
++	M0_ENTRY("lid %llu", (unsigned long long)str_l->sl_base.l_id);
+ 	et = domain->ld_enum[let_id];
+ 	rc = et->let_ops->leto_copy_from_onwire(str_l->sl_base.l_dom,
+ 						enum_onwire, &e);
+-	M0_ASSERT(rc == 0); //todo Handle
+-	m0_layout__striped_populate(str_l, e, user_count);
+-	return rc;
++	if (rc == 0)
++		m0_layout__striped_populate(str_l, e, user_count);
++	M0_RETURN(rc);
+ }
+ 
+ M0_INTERNAL int m0_layout__striped_copy_to_onwire(
+@@ -530,12 +531,12 @@ M0_INTERNAL int m0_layout__striped_copy_to_onwire(
+ {
+ 	int rc;
+ 
+-	//todo
++	M0_ENTRY("lid %llu", (unsigned long long)str_l->sl_base.l_id);
+ 	rc = str_l->sl_enum->le_ops->leo_copy_to_onwire(str_l->sl_enum,
+ 							enum_onwire, let_id);
+-	M0_ASSERT(rc == 0); //todo Handle
+-	m0_layout__copy_to_onwire(&str_l->sl_base, l_onwire);
+-	return rc;
++	if (rc == 0)
++		m0_layout__copy_to_onwire(&str_l->sl_base, l_onwire);
++	M0_RETURN(rc);
+ }
+ 
+ /**
+@@ -1147,19 +1148,24 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
+ 	M0_PRE(m0_mutex_is_locked(&l->l_lock));
+ 	M0_PRE(list_lookup(l->l_dom, l->l_id) == NULL);
+ 	M0_PRE(cur != NULL);
+-	M0_PRE(m0_bufvec_cursor_step(cur) >= sizeof *rec);
+ 	M0_PRE(M0_IN(op, (M0_LXO_DB_LOOKUP, M0_LXO_BUFFER_OP)));
+ 	M0_PRE(ergo(op == M0_LXO_DB_LOOKUP, tx != NULL));
+ 
+ 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	if (op == M0_LXO_BUFFER_OP)
+-		/* todo
++		/*
+ 		 * In case of op = M0_LXO_DB_LOOKUP, the buffer will be
+ 		 * eventually decoded as a whole into the layout object. Hence,
+ 		 * the user_count is unknown at this point
+ 		 */
+ 		user_count = 0;
+ 	else {
++		if (m0_bufvec_cursor_step(cur) < sizeof *rec) {
++			m0_layout__log("m0_layout_decode", "Invalid buf size",
++				       M0_LAYOUT_ADDB_LOC_DECODE_1,
++				       &l->l_addb_ctx, l->l_id, -EPROTO);
++			return -EPROTO;
++		}
+ 		rec = m0_bufvec_cursor_addr(cur);
+ 		/*
+ 		 * Move the cursor to point to the layout type specific payload.
+@@ -1175,11 +1181,12 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
+ 		if (M0_FI_ENABLED("attr_err"))
+ 			{ rec->lr_lt_id = M0_LAYOUT_TYPE_MAX + 2; }
+ 		if (!IS_IN_ARRAY(rec->lr_lt_id, l->l_dom->ld_type)) {
++			rc = -EPROTO;
+ 			m0_layout__log("m0_layout_decode",
+ 				       "Invalid layout type",
+-				       M0_LAYOUT_ADDB_LOC_DECODE_1,
+-				       &l->l_addb_ctx, l->l_id, -EPROTO);
+-			return -EPROTO;
++				       M0_LAYOUT_ADDB_LOC_DECODE_2,
++				       &l->l_addb_ctx, l->l_id, rc);
++			M0_RETURN(rc);
+ 		}
+ 		M0_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
+ 		user_count = rec->lr_user_count;
+@@ -1190,14 +1197,13 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
+ err1_injected:
+ 	if (rc != 0)
+ 		m0_layout__log("m0_layout_decode", "lo_decode() failed",
+-			       M0_LAYOUT_ADDB_LOC_DECODE_2, &l->l_addb_ctx,
++			       M0_LAYOUT_ADDB_LOC_DECODE_3, &l->l_addb_ctx,
+ 			       l->l_id, rc);
+ 	M0_POST(ergo(rc == 0, m0_layout__invariant(l) &&
+ 		     list_lookup(l->l_dom, l->l_id) == l));
+ 	M0_POST(ergo(rc != 0, m0_layout__allocated_invariant(l)));
+ 	M0_POST(m0_mutex_is_locked(&l->l_lock));
+-	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
+@@ -1216,17 +1222,20 @@ M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
+ 			  M0_LXO_DB_DELETE, M0_LXO_BUFFER_OP)));
+ 	M0_PRE(ergo(op != M0_LXO_BUFFER_OP, tx != NULL));
+ 	M0_PRE(out != NULL);
+-	//M0_PRE(m0_bufvec_cursor_step(out) >= sizeof rec);
+ 
+ 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+-
+ 	if (op != M0_LXO_BUFFER_OP) {
+-#if 1 //todo
++		rc = -EPROTO;
++		if (m0_bufvec_cursor_step(out) < sizeof rec) {
++			m0_layout__log("m0_layout_encode", "Invalid buf size",
++				       M0_LAYOUT_ADDB_LOC_ENCODE_1,
++				       &l->l_addb_ctx, l->l_id, rc);
++			M0_RETURN(rc);
++		}
+ 		rec.lr_lt_id      = l->l_type->lt_id;
+ 		rec.lr_user_count = l->l_user_count;
+ 		nbytes = m0_bufvec_cursor_copyto(out, &rec, sizeof rec);
+ 		M0_ASSERT(nbytes == sizeof rec);
+-#endif
+ 	}
+ 
+ 	if (M0_FI_ENABLED("lo_encode_err"))
+@@ -1235,12 +1244,11 @@ M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
+ err1_injected:
+ 	if (rc != 0)
+ 		m0_layout__log("m0_layout_encode", "lo_encode() failed",
+-			       M0_LAYOUT_ADDB_LOC_ENCODE, &l->l_addb_ctx,
++			       M0_LAYOUT_ADDB_LOC_ENCODE_2, &l->l_addb_ctx,
+ 			       l->l_id, rc);
+ 
+ 	M0_POST(m0_mutex_is_locked(&l->l_lock));
+-	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ M0_INTERNAL m0_bcount_t m0_layout_max_recsize(
+diff --git a/layout/layout.h b/layout/layout.h
+index 5c46dc5..30e6aa7 100644
+--- a/layout/layout.h
++++ b/layout/layout.h
+@@ -394,9 +394,6 @@ struct m0_layout_ops {
+ 				 enum m0_layout_xcode_op op,
+ 				 struct m0_db_tx *tx,
+ 				 struct m0_bufvec_cursor *out);
+-
+-	/** todo */
+-	int         (*lo_copy_to_onwire)(struct m0_layout *l);
+ };
+ 
+ /**
+diff --git a/layout/layout_addb.h b/layout/layout_addb.h
+index 7ff5be5..cf29b85 100644
+--- a/layout/layout_addb.h
++++ b/layout/layout_addb.h
+@@ -56,13 +56,17 @@ enum {
+ 	M0_LAYOUT_ADDB_LOC_ADD_2                   = 11,
+ 	M0_LAYOUT_ADDB_LOC_DECODE_1                = 20,
+ 	M0_LAYOUT_ADDB_LOC_DECODE_2                = 21,
++	M0_LAYOUT_ADDB_LOC_DECODE_3                = 22,
+ 	M0_LAYOUT_ADDB_LOC_DELETE_1                = 30,
+ 	M0_LAYOUT_ADDB_LOC_DELETE_2                = 31,
+ 	M0_LAYOUT_ADDB_LOC_DOM_INIT                = 40,
+-	M0_LAYOUT_ADDB_LOC_ENCODE                  = 50,
++	M0_LAYOUT_ADDB_LOC_ENCODE_1                = 50,
++	M0_LAYOUT_ADDB_LOC_ENCODE_2                = 51,
+ 	M0_LAYOUT_ADDB_LOC_ET_REG                  = 60,
+-	M0_LAYOUT_ADDB_LOC_LIN_ALLOC               = 70,
+-	M0_LAYOUT_ADDB_LOC_LIST_ALLOC              = 80,
++	M0_LAYOUT_ADDB_LOC_LIN_ALLOC_1             = 70,
++	M0_LAYOUT_ADDB_LOC_LIN_ALLOC_2             = 71,
++	M0_LAYOUT_ADDB_LOC_LIST_ALLOC_1            = 80,
++	M0_LAYOUT_ADDB_LOC_LIST_ALLOC_2            = 81,
+ 	M0_LAYOUT_ADDB_LOC_LIST_DECODE             = 90,
+ 	M0_LAYOUT_ADDB_LOC_LIST_ENUM_BUILD         = 100,
+ 	M0_LAYOUT_ADDB_LOC_LIST_REG_1              = 110,
+@@ -82,29 +86,35 @@ enum {
+ 	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_4      = 153,
+ 	M0_LAYOUT_ADDB_LOC_PAIR_INIT               = 160,
+ 	M0_LAYOUT_ADDB_LOC_PDCLUST_ALLOC           = 170,
+-	M0_LAYOUT_ADDB_LOC_PDCLUST_INST_BUILD      = 180,
+-	M0_LAYOUT_ADDB_LOC_UPDATE_1                = 190,
+-	M0_LAYOUT_ADDB_LOC_UPDATE_2                = 191,
+-	M0_LAYOUT_ADDB_LOC_COMP_REG_1              = 200,
+-	M0_LAYOUT_ADDB_LOC_COMP_REG_2              = 201,
+-	M0_LAYOUT_ADDB_LOC_COMP_ALLOC              = 210,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EXT_ALLOC    = 220,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD          = 230,
+-	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ     = 240,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL   = 250,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD            = 260,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE         = 270,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_DELETE         = 280,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_1        = 290,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_2        = 291,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_3        = 292,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD     = 300,
+-	M0_LAYOUT_ADDB_LOC_COMP_EMAP_LOOKUP        = 310,
+-	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ          = 320,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_1   = 330,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_2   = 331,
+-	M0_LAYOUT_ADDB_LOC_COMP_EMAP_IT_SET        = 340,
+-	M0_LAYOUT_ADDB_LOC_COMP_INST_BUILD         = 350,
++	M0_LAYOUT_ADDB_LOC_PDCLUST_ONWIRE_ALLOC    = 180,
++	M0_LAYOUT_ADDB_LOC_PDCLUST_INST_BUILD      = 190,
++	M0_LAYOUT_ADDB_LOC_PDCLUST_DECODE          = 200,
++	M0_LAYOUT_ADDB_LOC_PDCLUST_ENC             = 210,
++	M0_LAYOUT_ADDB_LOC_UPDATE_1                = 220,
++	M0_LAYOUT_ADDB_LOC_UPDATE_2                = 221,
++	M0_LAYOUT_ADDB_LOC_COMP_REG_1              = 230,
++	M0_LAYOUT_ADDB_LOC_COMP_REG_2              = 231,
++	M0_LAYOUT_ADDB_LOC_COMP_ALLOC              = 240,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EXT_ALLOC    = 250,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD          = 260,
++	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ     = 270,
++	M0_LAYOUT_ADDB_LOC_COMP_DECODE             = 280,
++	M0_LAYOUT_ADDB_LOC_COMP_ENC_1              = 290,
++	M0_LAYOUT_ADDB_LOC_COMP_ENC_2              = 290,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL   = 300,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD            = 310,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE         = 320,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_DELETE         = 330,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_1        = 340,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_2        = 341,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_3        = 342,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD     = 350,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_LOOKUP        = 360,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ          = 370,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_1   = 380,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_2   = 381,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_IT_SET        = 390,
++	M0_LAYOUT_ADDB_LOC_COMP_INST_BUILD         = 400,
+ 
+ 	M0_LAYOUT_ADDB_LOC_NR
+ };
+diff --git a/layout/linear_enum.c b/layout/linear_enum.c
+index b1f3179..b475f9a 100644
+--- a/layout/linear_enum.c
++++ b/layout/linear_enum.c
+@@ -86,7 +86,7 @@ static int linear_allocate(struct m0_layout_domain *dom,
+ 	M0_ALLOC_PTR(lin_enum);
+ 	if (lin_enum == NULL) {
+ 		m0_layout__log("linear_allocate", "M0_ALLOC_PTR() failed",
+-			       M0_LAYOUT_ADDB_LOC_LIN_ALLOC, NULL,
++			       M0_LAYOUT_ADDB_LOC_LIN_ALLOC_1, NULL,
+ 			       LID_NONE, -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+@@ -152,8 +152,7 @@ M0_INTERNAL int m0_linear_enum_build(struct m0_layout_domain *dom,
+ 			linear_delete(e);
+ 	}
+ 	M0_POST(ergo(rc == 0, linear_invariant(lin_enum)));
+-	M0_LEAVE("domain %p, rc %d", dom, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ static struct m0_layout_linear_enum *
+@@ -223,35 +222,36 @@ static int linear_decode(struct m0_layout_enum *e,
+ 			 struct m0_db_tx *tx,
+ 			 struct m0_striped_layout *stl)
+ {
+-	uint64_t                      lid;
+ 	struct m0_layout_linear_enum *lin_enum;
+ 	struct m0_layout_linear_attr *lin_attr;
+ 	int                           rc;
+ 
+ 	M0_PRE(e != NULL);
+ 	M0_PRE(cur != NULL);
+-	M0_PRE(m0_bufvec_cursor_step(cur) >= sizeof *lin_attr);
+ 	M0_PRE(op == M0_LXO_DB_LOOKUP);
+ 	M0_PRE(tx != NULL);
+ 	M0_PRE(m0_layout__striped_allocated_invariant(stl));
+ 
+-	lid = stl->sl_base.l_id;
+-	M0_ENTRY("lid %llu", (unsigned long long)lid);
++	M0_ENTRY("lid %llu", (unsigned long long)stl->sl_base.l_id);
+ 	lin_enum = bob_of(e, struct m0_layout_linear_enum,
+ 			  lle_base, &linear_bob);
+ 	M0_ASSERT(linear_allocated_invariant(lin_enum));
+ 
+-	lin_attr = m0_bufvec_cursor_addr(cur);
+-	m0_bufvec_cursor_move(cur, sizeof *lin_attr);
+-
+-	if (M0_FI_ENABLED("attr_err")) { lin_attr->lla_nr = 0; }
+-	rc = linear_populate(lin_enum, lin_attr);
+-	if (rc != 0)
+-		M0_LOG(M0_ERROR, "linear_populate() failed");
++	if (m0_bufvec_cursor_step(cur) >= sizeof *lin_attr) {
++		lin_attr = m0_bufvec_cursor_addr(cur);
++		m0_bufvec_cursor_move(cur, sizeof *lin_attr);
++
++		if (M0_FI_ENABLED("attr_err")) { lin_attr->lla_nr = 0; }
++		rc = linear_populate(lin_enum, lin_attr);
++		if (rc != 0)
++			M0_LOG(M0_ERROR, "linear_populate() failed");
++	} else {
++		rc = -EPROTO;
++		M0_LOG(M0_ERROR, "Invalid buf size, rc %d", rc);
++	}
+ 	M0_POST(ergo(rc == 0, linear_invariant(lin_enum)));
+ 	M0_POST(ergo(rc != 0, linear_allocated_invariant(lin_enum)));
+-	M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leo_encode() for linear enumeration type. */
+@@ -262,22 +262,25 @@ static int linear_encode(const struct m0_layout_enum *e,
+ {
+ 	struct m0_layout_linear_enum *lin_enum;
+ 	m0_bcount_t                   nbytes;
+-	uint64_t                      lid;
++	int                           rc = 0;
+ 
+ 	M0_PRE(e != NULL);
+ 	M0_PRE(M0_IN(op, (M0_LXO_DB_ADD, M0_LXO_DB_UPDATE, M0_LXO_DB_DELETE)));
+ 	M0_PRE(tx != NULL);
+ 	M0_PRE(out != NULL);
+-	M0_PRE(m0_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);
+ 
+ 	lin_enum = enum_to_linear_enum(e);
+-	lid = lin_enum->lle_base.le_sl->sl_base.l_id;
+-	M0_ENTRY("lid %llu", (unsigned long long)lid);
+-	nbytes = m0_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
+-					 sizeof lin_enum->lle_attr);
+-	M0_ASSERT(nbytes == sizeof lin_enum->lle_attr);
+-	M0_LEAVE("lid %llu", (unsigned long long)lid);
+-	return 0;
++	M0_ENTRY("lid %llu",
++		 (unsigned long long)lin_enum->lle_base.le_sl->sl_base.l_id);
++	if (m0_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr) {
++		nbytes = m0_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
++						 sizeof lin_enum->lle_attr);
++		M0_ASSERT(nbytes == sizeof lin_enum->lle_attr);
++	} else {
++		rc = -EPROTO;
++		M0_LOG(M0_ERROR, "Invalid buf size, rc %d", rc);
++	}
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leto_copy_from_onwire() for LINEAR enumeration type. */
+@@ -289,11 +292,11 @@ static int linear_copy_from_onwire(struct m0_layout_domain *domain,
+ 	struct m0_layout_linear_enum        *e;
+ 	int                                  rc;
+ 
+-	//todo M0_LOG() etc.
++	M0_ENTRY();
+ 	rc = m0_linear_enum_build(domain, &onwire->lleo_attr, &e);
+-	M0_ASSERT(rc == 0); //todo handle
+-	*out = &e->lle_base;
+-	return rc;
++	if (rc == 0)
++		*out = &e->lle_base;
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leo_copy_to_onwire() for LINEAR enumeration type. */
+@@ -302,15 +305,23 @@ static int linear_copy_to_onwire(const struct m0_layout_enum *lenum,
+ {
+ 	struct m0_layout_linear_enum        *e;
+ 	struct m0_layout_linear_enum_onwire *onwire;
++	int                                  rc = 0;
+ 
++	M0_ENTRY();
+ 	M0_ALLOC_PTR(onwire);
+-	M0_ASSERT(onwire != NULL); //todo
+-
+-	e = enum_to_linear_enum(lenum);
+-	onwire->lleo_attr = e->lle_attr;
+-	*enum_onwire = onwire;
+-	*let_id = m0_linear_enum_type.let_id;
+-	return 0; //todo
++	if (onwire != NULL) {
++		e = enum_to_linear_enum(lenum);
++		onwire->lleo_attr = e->lle_attr;
++		*enum_onwire = onwire;
++		*let_id = m0_linear_enum_type.let_id;
++	} else {
++		rc = -ENOMEM;
++		m0_layout__log("linear_copy_to_onwire",
++			       "M0_ALLOC_PTR() failed",
++			       M0_LAYOUT_ADDB_LOC_LIN_ALLOC_2, NULL,
++			       LID_NONE, rc);
++	}
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leo_nr for LINEAR enumeration. */
+diff --git a/layout/list_enum.c b/layout/list_enum.c
+index 4e54b7a..f0f6fd3 100644
+--- a/layout/list_enum.c
++++ b/layout/list_enum.c
+@@ -139,7 +139,7 @@ static int list_allocate(struct m0_layout_domain *dom,
+ 	M0_ALLOC_PTR(list_enum);
+ 	if (list_enum == NULL) {
+ 		m0_layout__log("list_allocate", "M0_ALLOC_PTR() failed",
+-			       M0_LAYOUT_ADDB_LOC_LIST_ALLOC, NULL, LID_NONE,
++			       M0_LAYOUT_ADDB_LOC_LIST_ALLOC_1, NULL, LID_NONE,
+ 			       -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+@@ -396,8 +396,7 @@ err3_injected:
+ out:
+ 	m0_db_pair_fini(&pair);
+ 	m0_db_cursor_fini(&cursor);
+-	M0_LEAVE("lid %llu, rc %d", (unsigned long long)stl->sl_base.l_id, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leo_decode() for LIST enumeration type. */
+@@ -419,16 +418,22 @@ static int list_decode(struct m0_layout_enum *e,
+ 
+ 	M0_PRE(e != NULL);
+ 	M0_PRE(cur != NULL);
+-	M0_PRE(m0_bufvec_cursor_step(cur) >= sizeof *ce_header);
+ 	M0_PRE(op == M0_LXO_DB_LOOKUP);
+ 	M0_PRE(tx != NULL);
+ 	M0_PRE(m0_layout__striped_allocated_invariant(stl));
+ 
+ 	lid = stl->sl_base.l_id;
++	M0_ENTRY("lid %llu", (unsigned long long)lid);
++
++	if (m0_bufvec_cursor_step(cur) < sizeof *ce_header) {
++		rc = -EPROTO;
++		M0_LOG(M0_ERROR, "lid %llu, Invalid buf size, rc %d",
++		       (unsigned long long)lid, rc);
++		goto out;
++	}
+ 	ce_header = m0_bufvec_cursor_addr(cur);
+ 	m0_bufvec_cursor_move(cur, sizeof *ce_header);
+-	M0_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
+-		 (unsigned long)ce_header->ceh_nr);
++	M0_LOG(M0_DEBUG, "nr %lu", (unsigned long)ce_header->ceh_nr);
+ 	list_enum = bob_of(e, struct m0_layout_list_enum,
+ 			   lle_base, &list_bob);
+ 	M0_ASSERT(list_allocated_invariant(list_enum));
+@@ -444,8 +449,12 @@ static int list_decode(struct m0_layout_enum *e,
+ 	rc = 0;
+ 	num_inline = min_check(ce_header->ceh_nr,
+ 			       (uint32_t)M0_LIST_INLINE_COB_ENTRIES_MAX);
+-	M0_ASSERT(m0_bufvec_cursor_step(cur) >= num_inline * sizeof *cob_id);
+-
++	if (m0_bufvec_cursor_step(cur) < num_inline * sizeof *cob_id) {
++		rc = -EPROTO;
++		M0_LOG(M0_ERROR, "lid %llu, Invalid buf size, rc %d",
++		       (unsigned long long)lid, rc);
++		goto out;
++	}
+ 	M0_LOG(M0_DEBUG, "lid %llu, nr %lu, Start reading inline entries",
+ 	       (unsigned long long)lid, (unsigned long)ce_header->ceh_nr);
+ 	for (i = 0; i < num_inline; ++i) {
+@@ -483,8 +492,7 @@ out:
+ 		m0_free(cob_list);
+ 	M0_POST(ergo(rc == 0, list_invariant(list_enum)));
+ 	M0_POST(ergo(rc != 0, list_allocated_invariant(list_enum)));
+-	M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ static int noninline_write(const struct m0_layout_enum *e,
+@@ -584,9 +592,7 @@ err4_injected:
+ out:
+ 	m0_db_pair_fini(&pair);
+ 	m0_db_cursor_fini(&cursor);
+-	M0_LEAVE("lid %llu, rc %d",
+-		 (unsigned long long)e->le_sl->sl_base.l_id, rc);
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leo_encode() for LIST enumeration type. */
+@@ -608,22 +614,32 @@ static int list_encode(const struct m0_layout_enum *e,
+ 	M0_PRE(M0_IN(op, (M0_LXO_DB_ADD, M0_LXO_DB_UPDATE, M0_LXO_DB_DELETE)));
+ 	M0_PRE(tx != NULL);
+ 	M0_PRE(out != NULL);
+-	M0_PRE(m0_bufvec_cursor_step(out) >= sizeof ce_header);
+ 
+-	list_enum = enum_to_list_enum(e);
+ 	lid = e->le_sl->sl_base.l_id;
++	list_enum = enum_to_list_enum(e);
+ 	M0_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
+ 		 (unsigned long)list_enum->lle_nr);
+ 
++	if (m0_bufvec_cursor_step(out) < sizeof ce_header) {
++		rc = -EPROTO;
++		M0_LOG(M0_ERROR, "lid %llu, Invalid buf size, rc %d",
++		       (unsigned long long)lid, rc);
++		goto out;
++	}
++
+ 	ce_header.ceh_nr = list_enum->lle_nr;
+ 	nbytes = m0_bufvec_cursor_copyto(out, &ce_header, sizeof ce_header);
+ 	M0_ASSERT(nbytes == sizeof ce_header);
+ 
+ 	num_inline = min_check(list_enum->lle_nr,
+ 			       (uint32_t)M0_LIST_INLINE_COB_ENTRIES_MAX);
+-	M0_ASSERT(m0_bufvec_cursor_step(out) >= num_inline *
+-					sizeof list_enum->lle_list_of_cobs[0]);
+-
++	if (m0_bufvec_cursor_step(out) <
++	    num_inline * sizeof list_enum->lle_list_of_cobs[0]) {
++		rc = -EPROTO;
++		M0_LOG(M0_ERROR, "lid %llu, Invalid buf size, rc %d",
++		       (unsigned long long)lid, rc);
++		goto out;
++	}
+ 	M0_LOG(M0_DEBUG, "lid %llu, nr %lu, Start accepting inline entries",
+ 	       (unsigned long long)lid, (unsigned long)list_enum->lle_nr);
+ 	for (i = 0; i < num_inline; ++i) {
+@@ -640,15 +656,14 @@ static int list_encode(const struct m0_layout_enum *e,
+ 	 */
+ 	if (list_enum->lle_nr > num_inline && op != M0_LXO_DB_UPDATE) {
+ 		M0_LOG(M0_DEBUG,
+-			"lid %llu, nr %lu, Start writing noninline entries",
+-		       (unsigned long long)lid,
+-		       (unsigned long)list_enum->lle_nr);
++		       "lid %llu, nr %lu, Start writing noninline entries",
++		       (unsigned long long)lid, (unsigned long)list_enum->lle_nr);
+ 		rc = noninline_write(e, tx, op, i);
+ 		if (rc != 0)
+ 			M0_LOG(M0_ERROR, "noninline_write() failed");
+ 	}
+-	M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
+-	return rc;
++out:
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leto_copy_from_onwire() for LIST enumeration type. */
+@@ -662,17 +677,22 @@ static int list_copy_from_onwire(struct m0_layout_domain *domain,
+ 	uint32_t                           i;
+ 	int                                rc;
+ 
+-	//todo M0_LOG() etc.
++	M0_ENTRY();
+ 	M0_ALLOC_ARR(cob_list, onwire->lleo_cobs.llca_nr);
+-	M0_ASSERT(cob_list != NULL); //todo Handle
+-
+-	for (i = 0; i < onwire->lleo_cobs.llca_nr; ++i) {
+-		cob_list[i] = onwire->lleo_cobs.llca_cob[i];
++	if (cob_list != NULL) {
++		for (i = 0; i < onwire->lleo_cobs.llca_nr; ++i) {
++			cob_list[i] = onwire->lleo_cobs.llca_cob[i];
++		}
++		rc = m0_list_enum_build(domain, cob_list, i, &e);
++		if (rc == 0)
++			*out = &e->lle_base;
++	} else {
++		rc = -ENOMEM;
++		m0_layout__log("list_copy_from_onwire", "M0_ALLOC_ARR() failed",
++			       M0_LAYOUT_ADDB_LOC_LIST_ALLOC_2, NULL, LID_NONE,
++			       rc);
+ 	}
+-	rc = m0_list_enum_build(domain, cob_list, i, &e);
+-	M0_ASSERT(rc == 0); //todo handle
+-	*out = &e->lle_base;
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leo_copy_to_onwire() for LIST enumeration type. */
+@@ -684,21 +704,29 @@ static int list_copy_to_onwire(const struct m0_layout_enum *lenum,
+ 	struct m0_layout_list_enum_onwire *onwire;
+ 	struct m0_fid                     *cobs;
+ 	uint32_t                           i;
++	int                                rc = 0;
+ 
++	M0_ENTRY();
+ 	M0_ALLOC_PTR(onwire);
+-	M0_ASSERT(onwire != NULL); //todo
+-
+-	e = enum_to_list_enum(lenum);
+-	M0_ALLOC_ARR(onwire->lleo_cobs.llca_cob, e->lle_nr);
+-	M0_ASSERT(onwire->lleo_cobs.llca_cob != NULL); //todo Handle
+-	onwire->lleo_cobs.llca_nr = e->lle_nr;
+-
+-	cobs = onwire->lleo_cobs.llca_cob;
+-	for (i = 0; i < e->lle_nr; ++i)
+-		cobs[i] = e->lle_list_of_cobs[i];
+-	*enum_onwire = onwire;//todo
+-	*let_id = m0_list_enum_type.let_id;
+-	return 0; //todo
++	if (onwire != NULL) {
++		e = enum_to_list_enum(lenum);
++		M0_ALLOC_ARR(onwire->lleo_cobs.llca_cob, e->lle_nr);
++		if (onwire->lleo_cobs.llca_cob != NULL) {
++			onwire->lleo_cobs.llca_nr = e->lle_nr;
++			cobs = onwire->lleo_cobs.llca_cob;
++			for (i = 0; i < e->lle_nr; ++i)
++				cobs[i] = e->lle_list_of_cobs[i];
++			*enum_onwire = onwire;
++			*let_id = m0_list_enum_type.let_id;
++		} else
++			rc = -ENOMEM;
++	} else
++		rc = -ENOMEM;
++	if (rc == -ENOMEM)
++		m0_layout__log("list_copy_to_onwire", "M0_ALLOC failed",
++			       M0_LAYOUT_ADDB_LOC_LIST_ALLOC_2, NULL, LID_NONE,
++			       rc);
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of leo_nr for LIST enumeration. */
+diff --git a/layout/pdclust.c b/layout/pdclust.c
+index 641d08b..d2a2271 100644
+--- a/layout/pdclust.c
++++ b/layout/pdclust.c
+@@ -292,8 +292,7 @@ static int pdclust_populate(struct m0_pdclust_layout *pl,
+ 
+ 	M0_POST(pdclust_invariant(pl));
+ 	M0_POST(m0_mutex_is_locked(&pl->pl_base.sl_base.l_lock));
+-	M0_LEAVE("lid %llu", (unsigned long long)lid);
+-	return 0;
++	M0_RETURN(0);
+ }
+ 
+ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
+@@ -413,19 +412,18 @@ static m0_bcount_t pdclust_max_recsize(struct m0_layout_domain *dom)
+ 		m0_layout__enum_max_recsize(dom);
+ }
+ 
+-//todo make this part of op vector
+ static int pdclust_copy_from_onwire(struct m0_pdclust_layout *pl,
+ 				    const struct m0_pdclust_onwire *onwire)
+ {
+ 	int rc;
+ 
++	M0_ENTRY("lid %llu", (unsigned long long)pl->pl_base.sl_base.l_id);
+ 	pl->pl_attr = onwire->po_attr;
+ 	rc = m0_layout__striped_copy_from_onwire(&pl->pl_base,
+ 						 onwire->po_let_id,
+ 						 onwire->po_enum,
+ 						 onwire->po_base.lo_user_count);
+-	M0_ASSERT(rc == 0); //todo Handle
+-	return rc;
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of lo_decode() for pdclust layout type. */
+@@ -458,18 +456,22 @@ static int pdclust_decode(struct m0_layout *l,
+ 		ctx.xcx_buf = *cur;
+ 		ctx.xcx_alloc = m0_xcode_alloc;
+ 		rc = m0_xcode_decode(&ctx);
+-		M0_ASSERT(rc == 0); //todo
+ 		if (rc == 0) {
+ 			onwire = m0_xcode_ctx_top(&ctx);
+ 			rc = pdclust_copy_from_onwire(pl, onwire);
+-			M0_ASSERT(rc == 0); //todo Handle
+-			user_count = pl->pl_base.sl_base.l_user_count;
+ 			m0_xcode_free(&PDCLUST_XCODE_OBJ(onwire));
+-		}
++		} else
++			m0_layout__log("pdclust_decode",
++				       "m0_xcode_decode() failed",
++				       M0_LAYOUT_ADDB_LOC_PDCLUST_DECODE,
++				       &l->l_addb_ctx, l->l_id, rc);
+ 	} else {
+-		//todo Move to a fn ?
+-		//todo Handle the following error
+-		M0_PRE(m0_bufvec_cursor_step(cur) >= sizeof *pl_rec);
++		if (m0_bufvec_cursor_step(cur) < sizeof *pl_rec) {
++			rc = -EPROTO;
++			M0_LOG(M0_ERROR, "lid %llu, Invalid buf size, rc %d",
++			       (unsigned long long)l->l_id, rc);
++			goto out;
++		}
+ 		/*
+ 		 * pl_rec can not be NULL since the buffer size is already
+ 		 * verified.
+@@ -520,25 +522,35 @@ out:
+ 	M0_RETURN(rc);
+ }
+ 
+-//todo make this part of op vector
+-static int pdclust_copy_to_onwire(const struct m0_pdclust_layout *pl,
++/** Copies fields from in-memory structure to the onwire structure. */
++static int pdclust_copy_to_onwire(struct m0_pdclust_layout *pl,
+ 				  struct m0_pdclust_onwire **pl_onwire)
+ {
++	struct m0_layout         *l = &pl->pl_base.sl_base;
+ 	struct m0_pdclust_onwire *onwire;
+ 	uint32_t                  let_id;
+ 	int                       rc;
+ 
++	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	M0_ALLOC_PTR(onwire);
+-	M0_ASSERT(onwire != NULL); //todo
+-
+-	onwire->po_attr = pl->pl_attr;
+-	rc = m0_layout__striped_copy_to_onwire(&pl->pl_base,
+-					       &onwire->po_base,
+-					       &onwire->po_enum, &let_id);
+-	M0_ASSERT(rc == 0); //todo handle
+-	onwire->po_let_id = let_id;
+-	*pl_onwire = onwire;
+-	return rc;
++	if (onwire != NULL) {
++		onwire->po_attr = pl->pl_attr;
++		rc = m0_layout__striped_copy_to_onwire(&pl->pl_base,
++						       &onwire->po_base,
++						       &onwire->po_enum,
++						       &let_id);
++		if (rc == 0) {
++			onwire->po_let_id = let_id;
++			*pl_onwire = onwire;
++		}
++	} else {
++		rc = -ENOMEM;
++		m0_layout__log("pdclust_copy_to_onwire",
++			       "M0_ALLOC_PTR() failed",
++			       M0_LAYOUT_ADDB_LOC_PDCLUST_ONWIRE_ALLOC,
++			       &l->l_addb_ctx, l->l_id, rc);
++	}
++	M0_RETURN(rc);
+ }
+ 
+ /** Implementation of lo_encode() for pdclust layout type. */
+@@ -564,38 +576,48 @@ static int pdclust_encode(struct m0_layout *l,
+ 		          M0_LXO_DB_DELETE)));
+ 	M0_PRE(ergo(op != M0_LXO_BUFFER_OP, tx != NULL));
+ 	M0_PRE(out != NULL);
+-	M0_PRE(m0_bufvec_cursor_step(out) >= sizeof pl_rec);
+ 
+ 	M0_ENTRY("%llu", (unsigned long long)l->l_id);
+ 	pl = m0_layout_to_pdl(l);
+ 	if (op == M0_LXO_BUFFER_OP) {
+ 		rc = pdclust_copy_to_onwire(pl, &onwire);
+-		M0_ASSERT(rc == 0); //todo
+-		m0_xcode_ctx_init(&ctx, &PDCLUST_XCODE_OBJ(onwire));
+-		ctx.xcx_buf = *out;
+-		rc = m0_xcode_encode(&ctx);
+-		M0_ASSERT(rc == 0); //todo
+ 		if (rc == 0) {
+-			*out = ctx.xcx_buf; //todo Is this reqd?
+-			m0_xcode_free(&PDCLUST_XCODE_OBJ(onwire));
++			m0_xcode_ctx_init(&ctx, &PDCLUST_XCODE_OBJ(onwire));
++			ctx.xcx_buf = *out;
++			rc = m0_xcode_encode(&ctx);
++			if (rc == 0)
++				m0_xcode_free(&PDCLUST_XCODE_OBJ(onwire));
++			else
++				m0_layout__log("pdclust_encode",
++					       "m0_xcode_encode() failed",
++					       M0_LAYOUT_ADDB_LOC_PDCLUST_ENC,
++					       &l->l_addb_ctx, l->l_id, rc);
+ 		}
+ 	} else {
+-		pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
+-		pl_rec.pr_attr = pl->pl_attr;
+-
+-		nbytes = m0_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
+-		M0_ASSERT(nbytes == sizeof pl_rec);
+-
+-		e = pl->pl_base.sl_enum;
+-		rc = e->le_ops->leo_encode(e, op, tx, out);
+-		if (rc != 0)
+-			M0_LOG(M0_ERROR, "lid %llu, leo_encode() failed, rc %d",
+-			       (unsigned long long)l->l_id, rc);
++		if (m0_bufvec_cursor_step(out) >= sizeof pl_rec) {
++			pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
++			pl_rec.pr_attr = pl->pl_attr;
++
++			nbytes = m0_bufvec_cursor_copyto(out, &pl_rec,
++							 sizeof pl_rec);
++			M0_ASSERT(nbytes == sizeof pl_rec);
++
++			e = pl->pl_base.sl_enum;
++			rc = e->le_ops->leo_encode(e, op, tx, out);
++			if (rc != 0)
++				M0_LOG(M0_ERROR, "lid %llu, leo_encode() "
++				       "failed, rc %d",
++				       (unsigned long long)l->l_id, rc);
++		} else {
++			rc = -EPROTO;
++			M0_LOG(M0_ERROR, "lid %llu, Invalid buf size, "
++			       "rc %d", (unsigned long long)l->l_id, rc);
++		}
+ 	}
+ 	M0_RETURN(rc);
+ }
+ 
+-/** todo. */
++/** Returns let_id for the given pdclust onwire object. */
+ M0_INTERNAL uint32_t m0_pdclust__onwire_to_let_id(
+ 					const struct m0_xcode_obj *obj)
+ {
+diff --git a/layout/ut/layout_generic.c b/layout/ut/layout_generic.c
+index fadae22..18b82a5 100644
+--- a/layout/ut/layout_generic.c
++++ b/layout/ut/layout_generic.c
+@@ -253,8 +253,7 @@ int layout_lookup(uint64_t lid, struct m0_layout_domain *domain,
+ 	int                rc_tmp;
+ 	int                rc;
+ 
+-	//todo allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE + 2000, &num_bytes, &area);
++	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 	pair_set(&pair, &lid, area, num_bytes);
+ 
+ 	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+@@ -285,8 +284,7 @@ int layout_add(struct m0_layout *l, bool failure_test)
+ 	int                rc_tmp;
+ 	int                rc;
+ 
+-	//todo allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE + 2000, &num_bytes, &area);
++	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 	pair_set(&pair, &l->l_id, area, num_bytes);
+ 
+ 	rc = m0_db_tx_init(&tx, l->l_dom->ld_dbenv, DBFLAGS);
+@@ -320,8 +318,7 @@ int layout_update(struct m0_layout *l, bool failure_test)
+ 	int                rc_tmp;
+ 	int                rc;
+ 
+-	//todo allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE + 2000, &num_bytes, &area);
++	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 	pair_set(&pair, &l->l_id, area, num_bytes);
+ 
+ 	rc = m0_db_tx_init(&tx, l->l_dom->ld_dbenv, DBFLAGS);
+@@ -352,8 +349,7 @@ int layout_delete(struct m0_layout *l, bool failure_test)
+ 	int                rc_tmp;
+ 	int                rc;
+ 
+-	//todo allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE + 2000, &num_bytes, &area);
++	allocate_area(l->l_dom, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+ 	pair_set(&pair, &l->l_id, area, num_bytes);
+ 
+ 	rc = m0_db_tx_init(&tx, l->l_dom->ld_dbenv, DBFLAGS);
+-- 
+1.8.3.2
+

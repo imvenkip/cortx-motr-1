@@ -1,0 +1,691 @@
+From 34cdad3d16c963b03b20c7903988bbf71975874c Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Mon, 9 Sep 2013 01:04:24 +0530
+Subject: [PATCH 25/50] bigmemalloc.mf
+
+-All comments from reviewboard have been addressed.
+-Code compiles. UT not written.
+---
+ lib/Makefile.sub        |   1 +
+ lib/linux_kernel/varr.c |   2 +-
+ lib/varr.c              | 304 ++++++++++++++++++++++++------------------------
+ lib/varr.h              | 101 +++++++---------
+ 4 files changed, 194 insertions(+), 214 deletions(-)
+
+diff --git a/lib/Makefile.sub b/lib/Makefile.sub
+index 45e6437..ca808f1 100644
+--- a/lib/Makefile.sub
++++ b/lib/Makefile.sub
+@@ -41,6 +41,7 @@ nobase_mero_include_HEADERS += lib/adt.h \
+                                lib/ub.h \
+                                lib/uuid.h \
+                                lib/varr.h \
++			       lib/varr_private.h \
+                                lib/vec.h \
+                                lib/vec_xc.h \
+                                lib/user_space/cdefs.h \
+diff --git a/lib/linux_kernel/varr.c b/lib/linux_kernel/varr.c
+index b43e8b2..d576d28 100644
+--- a/lib/linux_kernel/varr.c
++++ b/lib/linux_kernel/varr.c
+@@ -26,7 +26,7 @@
+ M0_EXTERN void *m0_varr_buf_alloc(size_t bufsize)
+ {
+ 	if (bufsize == PAGE_CACHE_SIZE);
+-		return (void *)get_zeroed_page(GFP_KERNEL);
++	return (void *)get_zeroed_page(GFP_KERNEL);
+ 	else
+ 		return m0_alloc(bufsize);
+ }
+diff --git a/lib/varr.c b/lib/varr.c
+index f33f541..958b35b 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -18,46 +18,41 @@
+  * Original creation date: 12/17/2012
+  */
+ 
+-#include "lib/varr.h"	/* m0_varr */
+-#include "lib/bob.h"	/* m0_bob_type */
+-#include "lib/memory.h" /* M0_ALLOC_ARR */
+-#include "lib/misc.h"	/* m0_forall */
+-#include "lib/errno.h"	/* Includes appropriate errno header. */
+-#include "lib/types.h"	/* Includes appropriate types header. */
+-#include "lib/trace.h"	/* M0_ENTRY() */
++#include "lib/varr_private.h"	/* m0_varr_buf_alloc(), m0_varr_buf_free */
++#include "lib/varr.h"		/* m0_varr */
++#include "lib/bob.h"		/* m0_bob_type */
++#include "lib/memory.h"		/* M0_ALLOC_ARR */
++#include "lib/misc.h"		/* m0_forall */
++#include "lib/errno.h"		/* Includes appropriate errno header. */
++#include "lib/types.h"		/* Includes appropriate types header. */
++#include "lib/trace.h"		/* M0_ENTRY() */
+ 
+-static const struct m0_bob_type varr_bobtype;
++M0_INTERNAL const struct m0_bob_type varr_bobtype;
+ 
+-M0_BOB_DEFINE(static, &varr_bobtype, m0_varr);
++M0_BOB_DEFINE(M0_INTERNAL, &varr_bobtype, m0_varr);
+ 
+-static const struct m0_bob_type varr_bobtype = {
++M0_INTERNAL const struct m0_bob_type varr_bobtype = {
+ 	.bt_name         = "generic_array_bobtype",
+ 	.bt_magix_offset = offsetof(struct m0_varr, va_magic),
+ 	.bt_magix        = M0_LIB_GENARRAY_MAGIC,
+ 	.bt_check        = NULL,
+ };
+ 
+-M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr, uint64_t pg);
+-static bool varr_invariant(const struct m0_varr *arr);
+-static int varr_buffers_alloc(struct m0_varr *arr,
+-			      uint64_t        buff_nr);
+-static void varr_buffers_dealloc(struct m0_varr *arr,
+-				 uint64_t        buff_nr);
+-static uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+-					  uint32_t              level);
+-M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
+-M0_INTERNAL uint64_t cont_nr_for_objs(unsigned long nr,
+-				      unsigned long obj_nr_in_1_cont);
++M0_INTERNAL bool varr_invariant(const struct m0_varr *arr);
++M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr,
++				   uint64_t buff_nr);
++M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr,
++				      uint64_t buff_nr);
+ 
+ /* Shifts a given number to left/right by taking into account sizeof(number) */
+-#define safe_bitshift(num, type, shifti, operator)			     \
+-({									     \
+-	uint8_t __shift = (shift);					     \
+-	type    __num   = (num);					     \
+-	M0_BASSERT(operator == "<<" || operator == ">>");		     \
+-	M0_ASSERT(__shift < 8 * sizeof __num);				     \
+-	operator == "<<" ? __num << __shift : __num >> __shift;		     \
+- })
++#define safe_bitshift(num, type, shift, operator)			     \
++	({								     \
++	 uint8_t __shift = (shift);					     \
++	 type    __num   = (num);					     \
++	 M0_BASSERT(operator == "<<" || operator == ">>");		     \
++	 M0_ASSERT(__shift < 8 * sizeof __num);				     \
++	 operator == "<<" ? __num << __shift : __num >> __shift;	     \
++	 })
+ 
+ /* A record in a stack holding address, and index associated with that address
+  * within a buffer */
+@@ -145,6 +140,34 @@ M0_INTERNAL int pop(struct m0_varr *arr, void **addr, uint64_t *index)
+ 	return 0;
+ }
+ 
++M0_INTERNAL bool cache_fetch(const struct m0_varr *arr, uint64_t index,
++			     unsigned long **holder)
++{
++	return arr->va_cache->vc_buff != NULL				 &&
++		arr->va_cache->vc_first_index <= index		         &&
++		index <= (arr->va_cache->vc_last_index)			 &&
++		/* Deliberately put single '=' sign. */
++		(*holder = arr->va_cache->vc_buff + index -
++		 arr->va_cache->vc_first_index);
++}
++
++M0_INTERNAL void cache_update(struct m0_varr *arr, unsigned long holder,
++			      uint64_t start_index)
++{
++	M0_PRE(arr != NULL);
++	M0_PRE(start_index < arr->va_nr - 1);
++
++	arr->va_cache->vc_buff = holder;
++	arr->va_cache->vc_first_index = start_index;
++	arr->va_cache->vc_last_index = min64u(start_index +
++					      safe_bitshift((uint64_t)1,
++							    uint64_t,
++							    arr->va_buf_shift -
++							    arr->va_obj_shift,
++							    "<<"),
++					     arr->va_nr - 1);
++}
++
+ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr)
+ {
+ 	M0_PRE(arr != NULL);
+@@ -162,45 +185,80 @@ M0_INTERNAL uint64_t cont_nr_for_objs(unsigned long nr,
+ 		(nr & (obj_nr_in_1_cont - 1) == 0 ? 0 : 1);
+ }
+ 
+-M0_INTERNAL bool within_tree_height(const struct m0_varr *arr, int level)
++/*
++ * Returns max possible number of buffers for only a single tree node,
++ * that can fit till given level in virtual array.
++ * The acronym _pn in API name stands for "per node".
++ * Lower level number contains more buffers than higher level number.
++ * Level 0 is ancestor of level n (n > 0).
++ */
++M0_INTERNAL uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
++					       uint32_t level)
+ {
+-	return level > 0 && level < arr->va_depth;
++	M0_PRE(level <= arr->va_depth);
++
++	/*return m0_pow(arr->va_bufsize / VA_TNODEPTR_SIZE,
++	  arr->va_depth - level);*/
++	return safe_bitshift((uint64_t)1, uint64_t, (arr->va_bufptr_nr_shift *
++						     (arr->va_depth - level)),
++			     "<<");
+ }
+ 
+-M0_INTERNAL bool within_tree_width(const struct m0_varr *arr, uint64_t child_id)
++/* All trees that hold objects will have same depth. This depth is a many to
++ * one function of total number of objects to be stored in the array.
++ * For example, suppose one buffer can hold k objects, then an array of k
++ * objects can fit into a single leaf node of a tree. Then in order to store an
++ * array with k + 1 objects, instead of using a tree with depth 2, we use two
++ * trees each having depth one. Thus, if total number of available trees is
++ * VA_TNODE_NR then for *all* arrays with total objects less than or equal to
++ * k * VA_TNODE_NR, depth of trees holding object(s) will be one.
++ * When total objects in an array exceed k * VA_TNODE_NR, we increase
++ * depth by one and calculate the total number of trees with depth 2 that can
++ * hold the given number of objects. If buf_size represents size of a buffer,
++ * ptr_size represents size of a pointer and obj_size represents size of an
++ * object, then following table summarizes mapping between total number of
++ * objects and depth of trees holding objects.
++ * @verbatim
++ ___________________________________________________________________
++ | Max. number of objects                                  | Depth   |
++ |_________________________________________________________|_________|
++ | VA_TNODE_NR * (bufsize/obj_size)                        |   1     |
++ |_________________________________________________________|_________|
++ | VA_TNODE_NR * (buffsize/ptr_size)  * (buf_size/obj_size)|   2     |
++ |_________________________________________________________|_________|
++ | VA_TNODE_NR * (bufsize/ptr_size)^2 * (buf_size/obj_size)|   3     |
++ |_________________________________________________________|_________|
++ * @endverbatim
++ */
++M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
++				uint64_t pg)
+ {
+-	return child_id < arr->va_bufptr_nr;
++	bool     found = false;
++	uint32_t level;
++
++	M0_PRE(arr != NULL);
++	M0_PRE(pg > 0);
++
++	for (level = 0; !found; ++level)
++		if (pg <= safe_bitshift((uint32_t)1, uint32_t,
++					arr->va_bufptr_nr_shift*level +
++					VA_NODE_SHIFT, "<<"))
++			found = true;
++	return level + 1;
+ }
+ 
+-M0_INTERNAL bool cache_fetch(const struct m0_varr *arr, uint64_t index,
+-			     unsigned long **holder)
++M0_INTERNAL bool within_tree_height(const struct m0_varr *arr, int level)
+ {
+-	return arr->va_cache->vc_buff != NULL				 &&
+-	       arr->va_cache->vc_first_index <= index		         &&
+-	       index <= (arr->va_cache->vc_last_index)			 &&
+-	       /* Deliberately put single '=' sign. */
+-	       (*holder = arr->va_cache->vc_buff + index -
+-		arr->va_cache->vc_first_index);
++	return level > 0 && level < arr->va_depth;
+ }
+ 
+-M0_INTERNAL void cache_update(struct m0_varr *arr, unsigned long holder,
+-			      uint64_t start_index)
++M0_INTERNAL bool within_tree_width(const struct m0_varr *arr,
++				   uint64_t child_id)
+ {
+-	M0_PRE(arr != NULL);
+-	M0_PRE(start_index < arr->va_nr - 1);
+-
+-	arr->va_cache->vc_buff = holder;
+-	arr->va_cache->vc_first_index = start_index;
+-	arr->va_cache->vc_last_index = min64u(start_index +
+-					      safe_bitshift((uint64_t)1,
+-							    uint64_t,
+-						            arr->va_buf_shift -
+-							    arr->va_obj_shift,
+-							    "<<"),
+-					      arr->va_nr - 1);
++	return child_id < arr->va_bufptr_nr;
+ }
+ 
+-static bool varr_invariant(const struct m0_varr *arr)
++M0_INTERNAL bool varr_invariant(const struct m0_varr *arr)
+ {
+ 	return  m0_varr_bob_check(arr) &&
+ 		arr->va_nr > 0         &&
+@@ -209,21 +267,18 @@ static bool varr_invariant(const struct m0_varr *arr)
+ 		arr->va_buf_shift >= arr->va_obj_shift;
+ }
+ 
+-M0_INTERNAL int m0_varr_init(struct m0_varr *arr,
+-			     uint64_t        nr,
+-			     size_t          size,
+-			     size_t          bufsize)
++M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
++			     size_t bufsize)
+ {
+ 	int      i;
+ 	int      rc = 0;
+ 	uint64_t buff_nr;
+ 
+ 	M0_PRE(arr != NULL);
+-	M0_PRE(nr   > 0);
++	M0_PRE(nr > 0);
+ 	M0_PRE(size > 0);
+ 
+ 	arr->va_nr              = nr;
+-	arr->va_alloc           = arr->va_dealloc = 0;
+ 	/* Can result into padding if object and buffer sizes are not integer
+ 	 * powers of two. */
+ 	arr->va_obj_shift       = nearest_power_of_two(size);
+@@ -282,11 +337,10 @@ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr)
+ 	arr->va_nr     = arr->va_bufsize = 0;
+ 	arr->va_depth  = 0;
+ 	arr->va_sizeof = 0;
+-	arr->va_alloc  = arr->va_dealloc = 0;
+ }
+ 
+-M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+-				      uint64_t index)
++M0_INTERNAL unsigned long *m0_varr_ele_get(const struct m0_varr *arr,
++					   uint64_t index)
+ {
+ 	uint32_t       level;
+ 	uint64_t       obj_mask;
+@@ -294,11 +348,11 @@ M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+ 	unsigned long *holder;
+ 	uint64_t       index_local;
+ 
+-	M0_PRE(arr   != NULL);
+-	M0_PRE(index <  arr->va_nr);
++	M0_PRE(arr != NULL);
++	M0_PRE(index < arr->va_nr);
+ 
+ 	if (cache_fetch(arr, index, &holder))
+-		return holder;
++		goto end;
+ 	obj_mask    = last_nbits_set(arr->va_obj_shift);
+ 	buff_mask   = last_nbits_set(arr->va_buff_shift);
+ 	index_local = safe_bitshift(index, uint64_t,
+@@ -308,7 +362,7 @@ M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+ 	for (level = 1; level <= arr->va_depth - 1; ++level) {
+ 		index_local = safe_bitshift(index, uint64_t,
+ 					    arr->va_obj_shif +
+-					    (arr->va_depth - level - 1) *
++					    (arr->va_depth - 1 - level) *
+ 					    arr->va_buf_shift, ">>");
+ 		index_local &= buff_mask;
+ 		holder += index;
+@@ -318,21 +372,22 @@ M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+ 	}
+ 	cache_update(arr, holder, index & (~obj_mask));
+ 	M0_POST_EX(varr_invariant(arr));
+-	return holder;
++end:
++	/* Adds to holder the value of last arr->va_obj_shift bits
++	 * from index. */
++	return holder + index & (varr_obj_nr_in_buff(arr) - 1);
+ }
+ 
+ /* A helper function to factor out one or multiple buffer (de)allocation(s). */
+-static int buffers_helper(struct m0_varr     *arr,
+-			  void               *holder,
+-			  uint64_t            nr,
+-			  enum buffer_action  act)
++M0_INTERNAL int buffers_helper(struct m0_varr *arr, void *holder, uint64_t nr,
++			       enum buffer_action  act)
+ {
+ 	uint64_t       i;
+ 	unsigned long *h;
+ 
+-	M0_PRE(arr    != NULL);
++	M0_PRE(arr != NULL);
+ 	M0_PRE(holder != NULL);
+-	M0_PRE(nr  > 0);
++	M0_PRE(nr > 0);
+ 	M0_PRE(act < BA_NR);
+ 	M0_CASSERT(sizeof h == sizeof holder);
+ 
+@@ -356,15 +411,14 @@ static int buffers_helper(struct m0_varr     *arr,
+  * While deallocating buffers, the leaf node buffers are deallocated first
+  * since during indexing these pages account for initial members of
+  * virtual array.
+- * The approach is centered towards maintaining a LIFO stack per iteration 
++ * The approach is centered towards maintaining a stack per iteration
+  * which will store parent of a given level while traversing from top down.
+  * The whole approach is taken in order to implement tree traversal in an
+  * iterative manner rather than using recursive functions.
+  * This approach is a bit similar to inorder traversal of a tree but
+  * not exactly the same.
+  */
+-static void varr_buffers_dealloc(struct m0_varr *arr,
+-				 uint64_t buff_nr)
++M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr, uint64_t buff_nr)
+ {
+ 	int            rc;
+ 	int            node;
+@@ -376,10 +430,10 @@ static void varr_buffers_dealloc(struct m0_varr *arr,
+ 	uint64_t       buff_nr_pn;
+ 	unsigned long *holder;
+ 
+-	M0_PRE(arr     != NULL);
+-	M0_PRE(buff_nr  > 0);
++	M0_PRE(arr != NULL);
++	M0_PRE(buff_nr > 0);
+ 
+-	arr->va_stack->vs_sp == -1;
++	arr->va_stack->vs_sp = -1;
+ 	for (done = 0, done_pt = 0, node = 0, child_id = 0, level = 1;
+ 	     node < VA_TNODE_NR && done < buff_nr;
+ 	     ++node, done_pt = 0, level = 1, child_id = 0) {
+@@ -397,6 +451,8 @@ static void varr_buffers_dealloc(struct m0_varr *arr,
+ 			M0_ASSERT(rc == 0);
+ 		}
+ 		while (within_tree_height(arr, level)) {
++			/*Keep going down the tree unless end (tree-depth or
++			 * NULL address) is reached. */
+ 			while (done_pt < buff_nr_pn &&
+ 			       within_tree_width(arr, child_id) &&
+ 			       (unsigned long *)*holder != NULL) {
+@@ -410,8 +466,7 @@ static void varr_buffers_dealloc(struct m0_varr *arr,
+ 					done_pt += nr;
+ 					break;
+ 				} else {
+-					rc = push(arr, holder,
+-						  child_id);
++					rc = push(arr, holder, child_id);
+ 					M0_ASSERT(rc == 0);
+ 					holder = (unsigned long *)*holder;
+ 					++level;
+@@ -433,8 +488,7 @@ static void varr_buffers_dealloc(struct m0_varr *arr,
+ }
+ 
+ /* Allocates buffers for given virtual array from level 0 to varr::va_depth. */
+-static int varr_buffers_alloc(struct m0_varr *arr,
+-			      uint64_t buff_nr)
++M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr, uint64_t buff_nr)
+ {
+ 	int            rc;
+ 	int            node;
+@@ -446,12 +500,13 @@ static int varr_buffers_alloc(struct m0_varr *arr,
+ 	uint64_t       buff_nr_pn;
+ 	unsigned long *holder;
+ 
+-	M0_PRE(arr     != NULL);
+-	M0_PRE(buff_nr  > 0);
++	M0_PRE(arr != NULL);
++	M0_PRE(buff_nr > 0);
+ 
++	arr->va_stack->vs_sp = -1;
+ 	for (done = 0, done_pt = 0, node = 0, child_id = 0, level = 1;
+ 	     node < VA_TNODE_NR && done < buff_nr;
+-	     ++node, done_pt = 0, level = 1) {
++	     ++node, done_pt = 0, level = 1, child_id = 0) {
+ 		buff_nr_pn = min64u(max_buff_nr_till_lev_n_pn(arr, 1),
+ 				    buff_nr - done);
+ 		rc = buffers_helper(arr, arr->va_tree[node], 1, BA_ALLOC);
+@@ -482,8 +537,7 @@ static int varr_buffers_alloc(struct m0_varr *arr,
+ 					done_pt += nr;
+ 					break;
+ 				} else {
+-					rc = push(arr, holder,
+-					          child_id);
++					rc = push(arr, holder, child_id);
+ 					if (rc != 0)
+ 						goto end;
+ 					holder = (unsigned long *)*holder;
+@@ -500,7 +554,7 @@ static int varr_buffers_alloc(struct m0_varr *arr,
+ 			M0_ASSERT(arr->va_stack->vs_sp == level - 1);
+ 		}
+ 		done += done_pt;
+-		/* Reset the stack pointer before parsing next tree. */
++		/* Reset the stack pointer before parsing the next tree. */
+ 		arr->va_stack->vs_sp = -1;
+ 	}
+ end:
+@@ -509,63 +563,11 @@ end:
+ }
+ 
+ /*
+- * Returns max possible number of buffers for only a single tree node,
+- * that can fit till given level in virtual array.
+- * The acronym _pn in API name stands for "per node".
+- * Lower level number contains more buffers than higher level number.
+- * Level 0 is ancestor of level n (n > 0).
+- */
+-static uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+-					  uint32_t              level)
+-{
+-	M0_PRE(level <= arr->va_depth);
+-
+-	/*return m0_pow(arr->va_bufsize / VA_TNODEPTR_SIZE,
+-		      arr->va_depth - level);*/
+-	return safe_bitshift((uint64_t)1, uint64_t, (arr->va_bufptr_nr_shift *
+-						     (arr->va_depth - level)),
+-			     "<<");
+-}
+-
+-/* All trees that hold objects will have same depth. This depth is a many to
+- * one function of total number of objects to be stored in the array.
+- * For example, suppose one buffer can hold k objects, then an array of k
+- * objects can fit into a single leaf node of a tree. Then in order to store an
+- * array with k + 1 objects, instead of using a tree with depth 2, we use two
+- * trees each having depth one. Thus, if total number of available trees is
+- * VA_TNODE_NR then for *all* arrays with total objects less than or equal to
+- * k * VA_TNODE_NR, depth of trees holding object(s) will be one.
+- * When total objects in an array exceed k * VA_TNODE_NR, we increase
+- * depth by one and calculate the total number of trees with depth 2 that can
+- * hold the given number of objects. If buf_size represents size of a buffer,
+- * ptr_size represents size of a pointer and obj_size represents size of an
+- * object, then following table summarizes mapping between total number of
+- * objects and depth of trees holding objects.
+- * @verbatim
+-	___________________________________________________________________
+-       | Max. number of objects                                  | Depth   |
+-       |_________________________________________________________|_________|
+-       | VA_TNODE_NR * (bufsize/obj_size)                        |   1     |
+-       |_________________________________________________________|_________|
+-       | VA_TNODE_NR * (buffsize/ptr_size)  * (buf_size/obj_size)|   2     |
+-       |_________________________________________________________|_________|
+-       | VA_TNODE_NR * (bufsize/ptr_size)^2 * (buf_size/obj_size)|   3     |
+-       |_________________________________________________________|_________|
+- * @endverbatim
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
+  */
+-M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+-				uint64_t              pg)
+-{
+-	bool     found = false;
+-	uint32_t level;
+-
+-	M0_PRE(arr != NULL);
+-	M0_PRE(pg > 0);
+-
+-	for (level = 0; !found; ++level)
+-		if (pg <= safe_bitshift((uint32_t)1, uint32_t,
+-					arr->va_bufptr_nr_shift*level +
+-					VA_NODE_SHIFT, "<<"))
+-			found = true;
+-	return level + 1;
+-}
+diff --git a/lib/varr.h b/lib/varr.h
+index 7907a5e..dba6fba 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -61,12 +61,12 @@
+  * rc = m0_varr_init(&varr, OBJ_NR, sizeof(unsigned long), M0_0VEC_ALIGN);
+  *
+  * for (id = 0; id < OBJ_NR; ++id) {
+- *         ptr = m0_varr_ele_get(&varr, unsigned long, id);
++ *         ptr = m0_varr_ele_get(&varr, id);
+  *         *ptr = id;
+  * }
+  *
+  * for (id = 0; id < OBJ_NR; ++id) {
+- *         ptr = m0_varr_ele_get(&varr, unsigned long, id);
++ *         ptr = m0_varr_ele_get(&varr, id);
+  *         M0_ASSERT(*ptr == id);
+  *         *ptr = id + 1;
+  * }
+@@ -78,10 +78,8 @@
+ 
+ struct m0_varr;
+ struct varr_stack;
++struct varr_cache;
+ 
+-M0_EXTERN void *m0_varr_buf_alloc(size_t bufsize);
+-M0_EXTERN void  m0_varr_buf_free(void *buf, size_t bufsize);
+-M0_EXTERN bool  m0_varr_size_is_valid(const struct m0_varr *arr);
+ 
+ enum {
+ 	/* Number of nodes which originate from root of radix tree. */
+@@ -95,18 +93,18 @@ enum {
+ 
+ struct m0_varr {
+ 	/** Number of elements in array. */
+-	uint64_t         va_nr;
++	uint64_t          va_nr;
+ 
+ 	/** Log of object-size to the base two. */
+-	uint8_t          va_obj_shift;
++	uint8_t           va_obj_shift;
+ 
+ 	/** Size of buffer which is used to store objects from array. */
+-	size_t		 va_bufsize;
++	size_t		  va_bufsize;
+ 	/** Log of va_bufsize to the base 2. */
+-	uint8_t          va_buf_shift;
++	uint8_t           va_buf_shift;
+ 
+ 	/** Level depth of tree proportional to number of objects stored. */
+-	uint32_t         va_depth;
++	uint32_t          va_depth;
+ 
+ 	/**
+ 	 * Number of pointer to buffer that can be accommodated in one
+@@ -117,8 +115,8 @@ struct m0_varr {
+ 	 * significant and _exactly same_ compute operations which can be
+ 	 * easily avoided by maintaining it as a member.
+ 	 */
+-	uint64_t	  va_bufptr_nr;
+-	uint8_t           va_bufptr_nr_shift;
++	uint64_t	   va_bufptr_nr;
++	uint8_t            va_bufptr_nr_shift;
+ 
+ 	/**
+ 	 * Array of radix tree nodes, each of which represents an abstraction
+@@ -135,14 +133,11 @@ struct m0_varr {
+ 	 */
+ 	struct varr_stack *va_stack;
+ 
++	/**
++	 * Holds address of buffer holding recently accessed object.
++	 */
+ 	struct varr_cache *va_cache;
+ 
+-	/** Debug field - Number of buffers allocated. */
+-	uint64_t           va_alloc;
+-
+-	/** Debug field - Number of buffers deallocated. */
+-	uint64_t           va_dealloc;
+-
+ 	/** Magic field to cross check sanity of structure. */
+ 	uint64_t           va_magic;
+ };
+@@ -156,59 +151,41 @@ struct m0_varr {
+  * @post  varr_invariant(arr) == true.
+  */
+ M0_INTERNAL int m0_varr_init(struct m0_varr *arr,
+-			     uint64_t        nr,
+-			     size_t          size,
+-			     int             bufsize);
+-
+-/** Returns number of objects that can fit in one buffer. */
+-M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr);
++		uint64_t        nr,
++		size_t          size,
++		int             bufsize);
+ 
+-/** Returns the level till which objects are accommodated in m0_varr. */
+-M0_INTERNAL uint32_t level_find(const struct m0_varr *arr, uint64_t pg);
++/**
++ * Finalises a virtual array.
++ * @pre varr_invariant(arr) == true
++ */
++M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
+ 
+ /**
+- * Returns address of an object with having index as 'index'.
++ * Returns address of an object having index as 'index'.
+  * @pre  arr != NULL && index < arr->va_nr.
+  * @post varr_invariant(arr).
+  */
+-M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+-				       uint64_t              index);
+-
+-#define m0_varr_ele_get(arr, type, index)			\
+-({								\
+-	type *__ptr;						\
+-								\
+-	__ptr  = (type *)varr_buffer(arr, index);		\
+-	__ptr += index & (varr_obj_nr_in_buff(arr) - 1);		\
+-	__ptr;							\
+-})
++M0_INTERNAL unsigned long *m0_varr_ele_get(const struct m0_varr *arr,
++					   uint64_t index);
+ 
+-/**
+- * Finalises a virtual array.
+- * @pre varr_invariant(arr) == true
+- */
+-M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
++/* Iterates over an arbitrary arithmetic progression of indices */
++#define m0_varr_for_arith_prog(arr, type, obj, start, end, inc) \
++	({								 \
++	 uint64_t oi;						 \
++	 type    *obj;						 \
++	 M0_PRE(start < arr->va_nr && end < arr->va_nr)		 \
++	 \
++	 for (oi = start; oi <= end; oi += inc) {			 \
++	 obj = (type*)m0_ele_get(arr, oi);		 \
++
++#define m0_varr_end for_arith_prog } } )
+ 
+ /** Iterates over whole virtual array. */
+-#define m0_varr_for(arr, type, obj)				\
+-({								\
+-	uint64_t       buff_nr;					\
+-	uint64_t       cnt;					\
+-	uint64_t       oi;					\
+-	uint64_t       done = 0;				\
+-	type          *ptr;					\
+-	unsigned long *buffer;					\
+-								\
+-	for (oi = 0; oi < arr->va_nr; ++oi) {			\
+-								\
+-		ptr  = (type*)m0_varr_buffer(arr, cnt);		\
+-		ptr += index & varr_obj_nr_in_buff(arr)		\
+-		for (oi = 0; oi < min64u(varr_obj_nr_in_buff(arr),\
+-		     arr->va_nr - done); ++oi, ++done) {	\
+-			ptr = (type *)buffer;			\
+-			ptr += oi;				\
+-
+-#define m0_varr_endfor } } )
++#define m0_varr_for(arr, type, obj)			 \
++	m0_varr_for_arith_prog(arr, type, obj, 0, arr->va_nr, 1)
++
++#define m0_varr_end_for m0_varr_end_for_arith_prog
+ 
+ #endif /* __MERO_LIB_VIRTUAL_ARRAY_H__ */
+ 
+-- 
+1.8.3.2
+

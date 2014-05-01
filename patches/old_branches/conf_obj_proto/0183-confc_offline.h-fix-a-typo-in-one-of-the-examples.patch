@@ -1,0 +1,40 @@
+From 2c50e30ae9c82b89a32163e16cce1595da1dd306 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 16 May 2012 12:50:16 +0300
+Subject: [PATCH 183/370] confc_offline.h: fix a typo in one of the examples
+
++ confc.c: fix the name of @dot digraph
+---
+ conf/confc.c         | 2 +-
+ conf/confc_offline.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index cbaf40f..f2c8ed1 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -49,7 +49,7 @@
+  * S_INITIAL.
+  *
+  * @dot
+- * digraph confd_states {
++ * digraph confc_states {
+  *     node [fontsize=9];
+  *     edge [fontsize=9];
+  *     S_INITIAL  [style=filled, fillcolor=lightgrey];
+diff --git a/conf/confc_offline.h b/conf/confc_offline.h
+index baf20b7..f1de07a 100644
+--- a/conf/confc_offline.h
++++ b/conf/confc_offline.h
+@@ -56,7 +56,7 @@
+  * E.g., this configuration string
+  *
+ @verbatim
+-(prof:"test","c2t1fs") (fs:"c2t1fs",[11,22][50,60,70],[])
++(prof:"test","c2t1fs") (fs:"c2t1fs",[11,22],[50,60,70],[])
+ @endverbatim
+  *
+  * describes two confx_objects:
+-- 
+1.8.3.2
+

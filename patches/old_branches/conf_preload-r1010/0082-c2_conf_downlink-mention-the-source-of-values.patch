@@ -1,0 +1,27 @@
+From 3750a92c2fef2c258d10cc4ac07a5990fda84ad4 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 20 Mar 2012 12:19:25 +0200
+Subject: [PATCH 082/311] c2_conf_downlink(): mention the source of values
+
+---
+ conf/path.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/conf/path.h b/conf/path.h
+index 436d8fb..d0d5829 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -80,8 +80,8 @@ struct c2_conf_relation {
+  * Returns description of a downlink, given types of source and target
+  * objects. Returns NULL if there is no such downlink.
+  *
+- * @param src  Type of object the downlink originates from.
+- * @param tgt  Type of downlink's target object(s).
++ * @param src Type of object the downlink originates from.  See c2_conf_objtype.
++ * @param tgt Type of downlink's target object(s).  See c2_conf_objtype.
+  *
+  * @pre  src < C2_CO_NR && tgt < C2_CO_NR
+  */
+-- 
+1.8.3.2
+

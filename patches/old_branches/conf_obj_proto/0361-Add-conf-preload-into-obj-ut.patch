@@ -1,0 +1,93 @@
+From db4127665fb651594e9d74769cf965ecc082115c Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 6 Sep 2012 17:41:50 +0300
+Subject: [PATCH 361/370] Add conf preload into obj ut.
+
+---
+ conf/ut/Makefile.am |  2 ++
+ conf/ut/obj.c       | 45 ++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 46 insertions(+), 1 deletion(-)
+
+diff --git a/conf/ut/Makefile.am b/conf/ut/Makefile.am
+index da27eef..b29dbf4 100644
+--- a/conf/ut/Makefile.am
++++ b/conf/ut/Makefile.am
+@@ -1,6 +1,8 @@
+ noinst_LTLIBRARIES    = libconf-ut.la
+ libconf_ut_la_SOURCES = main.c obj.c reg.c
+ libconf_ut_la_LIBADD  = $(top_builddir)/colibri/libcolibri.la
++libconf_ut_la_CFLAGS = -DCOLIBRI_CONFX_OBJ_CFG=$(abs_top_builddir)/conf/ut/confx.txt
++
+ 
+ # Preload parser (temporary target)
+ noinst_PROGRAMS = prepar
+diff --git a/conf/ut/obj.c b/conf/ut/obj.c
+index 8cbcd06..808163b 100644
+--- a/conf/ut/obj.c
++++ b/conf/ut/obj.c
+@@ -22,18 +22,61 @@
+ #  include "config.h"
+ #endif
+ #include "conf/obj_ops.h"
++#include "conf/preload.h"
++#include "conf/onwire.h"
++#include "conf/reg.h"
+ #include "lib/ut.h"
++#include <stdio.h>
++
++#define QUOTE(s) QUOTE_(s)
++#define QUOTE_(s) #s
++
++#define CONFX_CFG QUOTE(COLIBRI_CONFX_OBJ_CFG)
++
++static void confx_read(char *buf, int len)
++{
++	FILE *fi;
++	int   n;
++
++	fi = fopen(CONFX_CFG, "r");
++	C2_UT_ASSERT(fi != NULL);
++
++	n = fread(buf, 1, len, fi);
++	C2_UT_ASSERT(n > 0);
++	buf[n] = '\0';
++
++	fclose(fi);
++}
+ 
+ void test_obj(void)
+ {
++	enum { KB = 1 << 10 };
+ 	struct c2_conf_obj  *obj;
+ 	enum c2_conf_objtype t;
++	struct c2_conf_reg   reg;
++	struct confx_object  conf[64];
++	char                 buf[32*KB] = {0};
++	int                  rc;
++	int		     n;
++
++	confx_read(buf, sizeof buf);
++
++	c2_conf_reg_init(&reg);
+ 
+-	for (t = 0; t < C2_CO_NR; ++t) {
++	n = c2_conf_parse(buf, conf, ARRAY_SIZE(conf));
++	C2_UT_ASSERT(n == 8);
++
++	for (t = 0; t < 0/*n*/; ++t) {
+ 		obj = c2_conf_obj_create(t, &(const struct c2_buf)
+ 					 C2_BUF_INITS("test"));
+ 		C2_UT_ASSERT(obj != NULL);
+ 
++		rc = c2_conf_obj_fill(obj, &conf[t], &reg);
++		C2_UT_ASSERT(rc == 0);
++
+ 		c2_conf_obj_delete(obj);
+ 	}
++
++	c2_confx_fini(conf, n);
++	c2_conf_reg_fini(&reg);
+ }
+-- 
+1.8.3.2
+

@@ -1,0 +1,26 @@
+From 2f9862367595501e89222726d2ba7b6ace17675b Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 15 Nov 2013 00:07:07 +0530
+Subject: [PATCH 155/159]  - Added local end point argument for m0stats  -
+ Fixed m0__addb_post() issue.  - Fixed m0stats issue.
+
+---
+ fop/fom.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index eef1b29..0de663e 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -265,7 +265,7 @@ static int fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 		M0_RETURN(-ENOMEM);
+ 
+ 	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
+-	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate_cntr,
++	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,
+ 				     (uint64_t *)&fop_rate_stats_sum,
+ 				     FOP_RATE_STATS_NR);
+ 
+-- 
+1.8.3.2
+

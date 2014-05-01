@@ -1,0 +1,86 @@
+From 22edf91f59217883f067c945d4c9dc207f5f3068 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Tue, 11 Feb 2014 17:18:53 +0530
+Subject: [PATCH 24/50]  - Removed function m0_fom_phase_trans_size()    and
+ replaced it by m0_addb_sm_counter_data_size().
+
+---
+ fop/fom.c                |  9 ---------
+ fop/fom.h                | 12 ------------
+ fop/ut/stats/stats_fom.c |  2 +-
+ ioservice/io_foms.c      |  3 ++-
+ 4 files changed, 3 insertions(+), 23 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 08d20ee..5c5b64b 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1541,15 +1541,6 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
+ 	return rc;
+ }
+ 
+-M0_INTERNAL int m0_fom_phase_trans_size(struct m0_fom *fom)
+-{
+-	M0_PRE(fom != NULL);
+-	M0_PRE(fom->fo_type != NULL);
+-	M0_PRE(fom->fo_type->ft_conf != NULL);
+-
+-	return M0_FOM_STATS_CNTR_DATA * fom->fo_type->ft_conf->scf_trans_nr;
+-}
+-
+ /** @} endgroup fom */
+ #undef FOM_RATE_KEY
+ /*
+diff --git a/fop/fom.h b/fop/fom.h
+index d286561..a8f8e25 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -919,18 +919,6 @@ M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
+  */
+ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
+ 
+-/**
+- * Returns size of counter data depending on number of possible transitions.
+- *
+- * @pre fom != NULL
+- * @pre fom->fo_type != NULL
+- * @pre fom->fo_type->ft_conf != NULL
+- *
+- * @param fom pointer to FOM structure.
+- * @return size of counter data on success.
+- */
+-M0_INTERNAL int m0_fom_phase_trans_size(struct m0_fom *fom);
+-
+ #endif /* __MERO_FOP_FOM_H__ */
+ /** @} end of fom group */
+ 
+diff --git a/fop/ut/stats/stats_fom.c b/fop/ut/stats/stats_fom.c
+index 4303076..521bde8 100644
+--- a/fop/ut/stats/stats_fom.c
++++ b/fop/ut/stats/stats_fom.c
+@@ -96,7 +96,7 @@ static void fom_stats_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
+ {
+ 	struct fom_stats *fom_obj;
+ 	uint8_t          *cntr_data;
+-	int trans_size = m0_fom_phase_trans_size(fom);
++	int trans_size = m0_addb_sm_counter_data_size(&addb_rt_fom_phase_stats);
+ 	fom_obj = container_of(fom, struct fom_stats, fs_gen);
+ 
+ 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &fom->fo_addb_ctx, &m0_addb_ct_fop_mod,
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 36047a6..f9ef013 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -2112,7 +2112,8 @@ static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+ {
+         struct m0_fop_cob_rw *rwfop;
+ 	uint8_t              *cntr_data;
+-	int trans_size = m0_fom_phase_trans_size(fom);
++	int                   trans_size = m0_addb_sm_counter_data_size(
++					   &m0_addb_rt_ios_io_fom_phase_stats);
+ 
+ 	rwfop = io_rw_get(fom->fo_fop);
+ 	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_cob_io_rw_fom,
+-- 
+1.8.3.2
+

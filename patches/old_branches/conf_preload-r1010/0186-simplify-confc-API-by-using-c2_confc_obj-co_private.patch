@@ -1,0 +1,294 @@
+From 73c70150dc8de362c3890d4aa0f9ebb2267ce326 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 17 May 2012 00:53:19 +0300
+Subject: [PATCH 186/311] simplify confc API by using c2_confc_obj::co_private
+
+- Add c2_confc_obj::co_private field.
+- Remove c2_confc argument from c2_confc_{,dir}close(),
+  c2_{,_}confc_diropen_sync().
+- s/__VA_ARGS/__VA_ARGS__/
+
+LogD: #1331
+RB: r/714
+---
+ conf/confc.c | 28 ++++++++++++++++++----------
+ conf/confc.h | 50 +++++++++++++++++++++-----------------------------
+ conf/obj.h   |  6 ++++--
+ 3 files changed, 43 insertions(+), 41 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index e92e11f..2563f2a 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -622,9 +622,10 @@ int c2_confc_init(struct c2_confc *client, const char *conf_source,
+ 	 * client->cc_group = sm_group;
+ 	 * client->cc_lock = lock;
+ 	 *
+-	 * c2_conf_map_init(&client->cc_registry);
+ 	 * root = c2_conf_obj_new(C2_CO_PROFILE, &(const struct c2_conf_buf)
+ 	 *                        C2_CONF_BUF_INIT(strlen(profile), profile));
++	 * root->co_private = client;
++	 * c2_conf_map_init(&client->cc_registry);
+ 	 * c2_conf_map_add(&client->cc_registry, root);
+ 	 * client->cc_root = root;
+ 	 *
+@@ -724,10 +725,13 @@ int c2__confc_open_sync(void **obj, struct c2_confc *client,
+ 	return rc;
+ }
+ 
+-void c2_confc_close(void *obj, struct c2_confc *client)
++void c2_confc_close(void *obj)
+ {
+ 	if (obj != NULL) {
+-		struct c2_conf_obj *x = obj;
++		struct c2_conf_obj   *x = obj;
++		C2_ASSERT(XXX_bob_check(x));
++		const struct c2_confc *client = x->co_private;
++		C2_ASSERT(XXX_bob_check(client));
+ 
+ 		c2_mutex_lock(client->cc_lock);
+ 		C2_CNT_DEC(x->co_nrefs);
+@@ -752,8 +756,6 @@ struct c2_confc_dir {
+ 	struct c2_conf_obj       *d_cursor;
+ 	/** List descriptor. */
+ 	const struct c2_tl_descr *d_descr;
+-	/** The confc instance this collection relates to. */
+-	struct c2_confc          *d_client;
+ };
+ 
+ static int confc_dir_invariant(const struct c2_confc_dir *dir)
+@@ -767,7 +769,7 @@ int c2__confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ 	return _open(ctx, origin, path, true);
+ }
+ 
+-int c2__confc_diropen_sync(struct c2_confc_dir **dir, struct c2_confc *client,
++int c2__confc_diropen_sync(struct c2_confc_dir **dir,
+ 			   struct c2_conf_obj *origin,
+ 			   const struct c2_conf_pathcomp *path)
+ {
+@@ -804,13 +806,13 @@ const void * c2_confc_dirnext(struct c2_confc_dir *dir)
+ 	XXX;
+ }
+ 
+-void c2_confc_dirclose(struct c2_confc_dir *dir, struct c2_confc *client)
++void c2_confc_dirclose(struct c2_confc_dir *dir)
+ {
+ 	/*
+ 	 * if (dir != NULL) {
+ 	 *     C2_PRE(dir->d_parent->co_nrefs > 0);
+ 	 *     c2_confc_close() previously opened object;
+-	 *     c2_confc_close(dir->d_parent, client);
++	 *     c2_confc_close(dir->d_parent);
+ 	 * }
+ 	 */
+ 	XXX;
+@@ -1091,12 +1093,14 @@ static int cache_add(struct c2_conf_map *cache, const struct confx_object *src)
+ 	/*
+ 	 * struct c2_conf_obj *obj;
+ 	 * int                 ret;
++	 * struct c2_confc    *client = registry_to_client(cache);
+ 	 *
+-	 * C2_PRE(c2_mutex_is_locked(registry_to_client(cache)->cc_lock));
++	 * C2_PRE(c2_mutex_is_locked(client->cc_lock));
+ 	 *
+ 	 * obj = c2_conf_obj_new(src->o_val.ov_type, &src->o_key);
+ 	 * if (obj == NULL)
+ 	 *     return -ENOMEM;
++	 * obj->co_private = client;
+ 	 *
+ 	 * ret = c2_conf_obj_fill(obj, src, cache);
+ 	 * ret = ?: c2_conf_map_add(cache, obj);
+@@ -1201,7 +1205,7 @@ static int cache_preload(struct c2_confc *client, const char *conf_str)
+ }
+ 
+ /* ------------------------------------------------------------------
+- * misc
++ * c2_confc_ctx
+  * ------------------------------------------------------------------ */
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *client)
+@@ -1243,6 +1247,10 @@ static bool ctx_invariant(const struct c2_confc_ctx *ctx)
+ 		equi(ctx->fc_extra == NULL, ctx->fc_nr_extra == 0);
+ }
+ 
++/* ------------------------------------------------------------------
++ * misc
++ * ------------------------------------------------------------------ */
++
+ static enum c2_conf_status
+ list_status(const struct c2_tl_descr *descr, const struct c2_tl *list,
+ 	    int *nr_loading)
+diff --git a/conf/confc.h b/conf/confc.h
+index d8810be..ae516b2 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -206,16 +206,13 @@
+  * #include "conf/confc.h"
+  * #include "conf/obj.h" // c2_conf_service
+  *
+- * struct c2_confc *confc = ...;
+- *
+  * static int service_by_type(enum c2_cfg_service_type tos)
+  * {
+  *     struct c2_confc_dir    *d;
+  *     struct c2_conf_service *svc;
+  *     int rc;
+  *
+- *     rc = c2_confc_diropen_sync(&d, confc, NULL,
+- *                                C2_CONF_REL(C2_CO_FILESYSTEM),
++ *     rc = c2_confc_diropen_sync(&d, NULL, C2_CONF_REL(C2_CO_FILESYSTEM),
+  *                                C2_CONF_REL(C2_CO_SERVICE));
+  *     if (rc != 0)
+  *         return rc;
+@@ -226,7 +223,7 @@
+  *         }
+  *     }
+  *
+- *     c2_confc_dirclose(d, confc);
++ *     c2_confc_dirclose(d);
+  *     return 0;
+  * }
+  * @endcode
+@@ -253,7 +250,7 @@
+  *     struct c2_conf_sdev    *sdev;
+  *     int ret;
+  *
+- *     ret = c2_confc_diropen_sync(&services, confc, NULL,  // /fs/services
++ *     ret = c2_confc_diropen_sync(&services, NULL,  // /fs/services
+  *                                 C2_CONF_REL(C2_CO_FILESYSTEM),
+  *                                 C2_CONF_REL(C2_CO_SERVICE));
+  *     if (ret != 0)
+@@ -269,37 +266,36 @@
+  *             break;
+  *
+  *         if (!c2_conf_buf_eq(node->cn_obj.co_key, node_key)) {
+- *             c2_confc_close(node, confc);
++ *             c2_confc_close(node);
+  *             continue;
+  *         }
+  *
+  *         // node/nics
+- *         ret = c2_confc_diropen_sync(&d, confc, node, C2_CONF_REL(C2_CO_NIC));
++ *         ret = c2_confc_diropen_sync(&d, node, C2_CONF_REL(C2_CO_NIC));
+  *         if (ret != 0) {
+- *             c2_confc_close(node, confc);
++ *             c2_confc_close(node);
+  *             break;
+  *         }
+  *         while ((nic = c2_confc_dirnext(d)) != NULL) {
+  *             // ... Use `nic' ...
+  *         }
+- *         c2_confc_dirclose(d, confc);
++ *         c2_confc_dirclose(d);
+  *
+  *         // node/sdevs
+- *         ret = c2_confc_diropen_sync(&d, confc, node,
+- *                                     C2_CONF_REL(C2_CO_SDEV));
++ *         ret = c2_confc_diropen_sync(&d, node, C2_CONF_REL(C2_CO_SDEV));
+  *         if (ret != 0) {
+- *             c2_confc_close(node, confc);
++ *             c2_confc_close(node);
+  *             break;
+  *         }
+  *         while ((sdev = c2_confc_dirnext(d)) != NULL) {
+  *             // ... Use `sdev' ...
+  *         }
+- *         c2_confc_dirclose(d, confc);
++ *         c2_confc_dirclose(d);
+  *
+- *         c2_confc_close(node, confc);
++ *         c2_confc_close(node);
+  *     }
+  *
+- *     c2_confc_dirclose(services, confc);
++ *     c2_confc_dirclose(services);
+  *     return ret;
+  * }
+  * @endcode
+@@ -492,14 +488,11 @@ int c2__confc_open_sync(void **obj, struct c2_confc *client,
+  * Closes configuration object opened with c2_confc_open() or
+  * c2_confc_open_sync().
+  *
+- * @param obj     Opened configuration object.
+- * @param client  The instance of confc this object was opened with.
+- *
+- * @note  c2_confc_close(NULL,...) is a noop.
++ * @note  c2_confc_close(NULL) is a noop.
+  *
+  * @pre  ergo(obj != NULL, ((struct c2_conf_obj *)obj)->co_nrefs > 0)
+  */
+-void c2_confc_close(void *obj, struct c2_confc *client);
++void c2_confc_close(void *obj);
+ 
+ /**
+  * Requests an asynchronous opening of a collection of configuration objects.
+@@ -514,7 +507,7 @@ void c2_confc_close(void *obj, struct c2_confc *client);
+  */
+ #define c2_confc_diropen(ctx, origin, ...)                                    \
+ 	c2__confc_diropen((ctx), (origin, (const struct c2_conf_pathcomp []){ \
+-			__VA_ARGS, C2_CONF_EOP })
++			__VA_ARGS__, C2_CONF_EOP })
+ int c2__confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ 		      const struct c2_conf_pathcomp *path);
+ 
+@@ -530,18 +523,17 @@ int c2__confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+  * int rc;
+  *
+  * // open `/filesystem/services'
+- * rc = c2_confc_diropen_sync(&dir, confc, NULL,
+- *                            C2_CONF_REL(C2_CONF_FILESYSTEM),
++ * rc = c2_confc_diropen_sync(&dir, NULL, C2_CONF_REL(C2_CONF_FILESYSTEM),
+  *                            C2_CONF_REL(C2_CONF_SERVICE));
+  * @endcode
+  *
+  * @see c2_confc_diropen()
+  */
+-#define c2_confc_diropen_sync(dir, client, origin, ...)            \
+-	c2__confc_diropen_sync((dir), (client), (origin),          \
++#define c2_confc_diropen_sync(dir, origin, ...)                    \
++	c2__confc_diropen_sync((dir), (origin),                    \
+ 			       (const struct c2_conf_pathcomp []){ \
+ 				       __VA_ARGS__, C2_CONF_EOP })
+-int c2__confc_diropen_sync(struct c2_confc_dir **dir, struct c2_confc *client,
++int c2__confc_diropen_sync(struct c2_confc_dir **dir,
+ 			   struct c2_conf_obj *origin,
+ 			   const struct c2_conf_pathcomp *path);
+ 
+@@ -569,11 +561,11 @@ const void * c2_confc_dirnext(struct c2_confc_dir *dir);
+  * Closes directory opened with c2_confc_diropen() or
+  * c2_confc_diropen_sync().
+  *
+- * @note  c2_confc_dirclose(NULL,...) is a noop.
++ * @note  c2_confc_dirclose(NULL) is a noop.
+  *
+  * @pre  ergo(dir != NULL, dir->d_parent->co_nrefs > 0)
+  */
+-void c2_confc_dirclose(struct c2_confc_dir *dir, struct c2_confc *client);
++void c2_confc_dirclose(struct c2_confc_dir *dir);
+ 
+ /** @} confc_dfspec */
+ #endif /* __COLIBRI_CONF_CONFC_H__ */
+diff --git a/conf/obj.h b/conf/obj.h
+index 7eec168..3707b3e 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -174,12 +174,14 @@ struct c2_conf_obj {
+ 	 *
+ 	 * The object is "pinned" if this value is non-zero.
+ 	 */
+-	uint64_t co_nrefs;
++	uint64_t             co_nrefs;
+ 	/**
+ 	 * Channel on which "object loading completed" and "object
+ 	 * unpinned" events are announced.
+ 	 */
+-	struct c2_chan co_chan;
++	struct c2_chan       co_chan;
++	/** This field is reserved for confc and confd. */
++	const void          *co_private;
+ };
+ 
+ struct c2_conf_filesystem;
+-- 
+1.8.3.2
+

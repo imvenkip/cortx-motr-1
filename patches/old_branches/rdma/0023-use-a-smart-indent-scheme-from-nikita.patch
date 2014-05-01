@@ -1,0 +1,56 @@
+From 63cc182cddcf32f3c203819a260d5bf1f5804c6f Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Sun, 1 Aug 2010 09:52:03 -0600
+Subject: [PATCH 23/34] - use a smart indent scheme from nikita - fix a bug
+
+---
+ net/usunrpc/rfc5666/rfc5666_xdr.c | 9 ++++-----
+ net/usunrpc/rfc5666/svc_rdma.c    | 4 +++-
+ 2 files changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/net/usunrpc/rfc5666/rfc5666_xdr.c b/net/usunrpc/rfc5666/rfc5666_xdr.c
+index b448b88..77107f0 100644
+--- a/net/usunrpc/rfc5666/rfc5666_xdr.c
++++ b/net/usunrpc/rfc5666/rfc5666_xdr.c
+@@ -215,18 +215,17 @@ static const char *proc_name[] = {
+         [RDMA_DONE]  = "done msg",
+         [RDMA_ERROR] = "error msg"
+ };
++const char tabs[] = { [0 ... 15] = '\t' };
+ 
+ static void wchunks_dump(int col, struct rdma_write_chunk *chunk, dfunc_t dfunc)
+ {
+         int i;
+-        char tabs[] = { [0 ... 15] = '\t' };
+ 
+-        tabs[col] = 0;
+         for (i = 0; i < chunk->rwc_nr_segs; i++) {
+                 struct rdma_segment *rs = &chunk->rwc_segs[i];
+-                dfunc("%slen %8d|off %8lx|hand %8x\n",
+-                        tabs, rs->rs_length, rs->rs_offset,
+-                        rs->rs_handle);
++                dfunc("%*.*slen %8d|off %8lx|hand %8x\n",
++                        col, col, tabs,
++                        rs->rs_length, rs->rs_offset, rs->rs_handle);
+         }
+ }
+ 
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index dc112b8..0aa3a31 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -1464,8 +1464,10 @@ static int rdma_reply_send(struct rdma_reply *reply)
+         wr.opcode     = IBV_WR_SEND;
+         wr.send_flags = IBV_SEND_SIGNALED;
+         rc = ibv_post_send(reply->rp_xprt->rx_qp, &wr, &badwr);
+-        if (rc)
++        if (rc) {
+                 rdma_errx(rc, "post reply buffer error\n");
++                rdma_context_drop(ctxt);
++        }
+ 
+         /* reply put will be called in rdma_reply_completion */
+         rdma_context_put(ctxt);
+-- 
+1.8.3.2
+

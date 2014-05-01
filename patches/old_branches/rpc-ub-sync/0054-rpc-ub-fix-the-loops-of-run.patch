@@ -1,0 +1,81 @@
+From 0cadb154240c527b23d8613d8551881cf5c120ec Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 22 Mar 2013 13:00:46 +0200
+Subject: [PATCH 54/63] rpc-ub: fix the loops of run()
+
+Fix defects of the inner loop:
+- wait for every session to terminate (or fail), not just the last one;
+- don't wait for sessions that have already terminated;
+- use M0_TIME_NEVER instead of an endless sequence of 3 sec intervals.
+
+Introduce _session() to improve readability.
+
+Rename loop variables: `n' stands for message number, `k' for connection.
+This improves clarity, because i and j are pretty much similar.
+---
+ rpc/ub/ub.c | 38 +++++++++++++++++++-------------------
+ 1 file changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index fce7416..8217d48 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -300,12 +300,17 @@ static void fop_send(struct m0_rpc_session *session, size_t nr)
+  * Benchmark
+  * ---------------------------------------------------------------- */
+ 
++static struct m0_rpc_session *_session(unsigned int i)
++{
++	M0_PRE(i < g_args.a_nr_conns);
++	return &g_clients[i].rc_ctx.rcx_session;
++}
++
+ static void run(int iter M0_UNUSED)
+ {
+-	int                    i;
+-	int                    j;
+-	struct m0_rpc_session *session = NULL;
+-	int                    rc = 1;
++	int n;
++	int k;
++	int rc;
+ 
+ 	M0_PRE(g_args.a_nr_msgs > 0 && g_args.a_nr_conns > 0);
+ 
+@@ -313,23 +318,18 @@ static void run(int iter M0_UNUSED)
+ 	   mero: NOTICE : [rpc/slot.c:584:m0_rpc_slot_reply_received] < rc=-71.
+ 	   Needs investigation!
+ 	 */
+-	for (i = 0; i < g_args.a_nr_msgs; ++i) {
+-		for (j = 0; j < g_args.a_nr_conns; ++j) {
+-			session = &g_clients[j].rc_ctx.rcx_session;
+-			fop_send(session, i);
+-		}
++	for (n = 0; n < g_args.a_nr_msgs; ++n) {
++		for (k = 0; k < g_args.a_nr_conns; ++k)
++			fop_send(_session(k), n);
+ 	}
+ 
+-	do {
+-		for (i = 0; i < g_args.a_nr_conns; ++i) {
+-			rc = m0_rpc_session_timedwait(
+-				session, M0_BITS(M0_RPC_SESSION_IDLE,
+-						 M0_RPC_SESSION_FAILED),
+-				m0_time(3, 0));
+-			if (rc != 0)
+-				return;
+-		}
+-	} while (rc != 0);
++	for (k = 0; k < g_args.a_nr_conns; ++k) {
++		rc = m0_rpc_session_timedwait(_session(k),
++					      M0_BITS(M0_RPC_SESSION_IDLE,
++						      M0_RPC_SESSION_FAILED),
++					      M0_TIME_NEVER);
++		M0_UB_ASSERT(rc == 0);
++	}
+ }
+ 
+ struct m0_ub_set m0_rpc_ub = {
+-- 
+1.8.3.2
+

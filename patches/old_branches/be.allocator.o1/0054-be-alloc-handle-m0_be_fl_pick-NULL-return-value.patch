@@ -1,0 +1,35 @@
+From 601ff9312ff671e5e5854275cfa480b47d1e0467 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 14 Jan 2014 18:53:20 +0200
+Subject: [PATCH 54/96] be/alloc: handle m0_be_fl_pick() NULL return value
+
+---
+ be/alloc.c | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 27dd5ed..51596c1 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -709,11 +709,13 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+ 	aligned_size = shift == M0_BE_ALLOC_SHIFT_MIN ? size :
+ 		       size * 2 + (1U << shift);
+ 	c = m0_be_fl_pick(be_fl(a), aligned_size);
+-	c = be_alloc_chunk_trysplit(a, tx, c, size, shift);
+-	M0_ASSERT(c != NULL);	/* XXX */
+-	if (c != NULL && tx != NULL) {
+-		memset(&c->bac_mem, 0, size);
+-		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size, &c->bac_mem));
++	if (c != NULL) {
++		c = be_alloc_chunk_trysplit(a, tx, c, size, shift);
++		M0_ASSERT(c != NULL);
++		if (tx != NULL) {
++			memset(&c->bac_mem, 0, size);
++			m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size, &c->bac_mem));
++		}
+ 	}
+ 	op->bo_u.u_allocator.a_ptr = c == NULL ?    NULL : &c->bac_mem;
+ 	op->bo_u.u_allocator.a_rc  = c == NULL ? -ENOMEM : 0;
+-- 
+1.8.3.2
+

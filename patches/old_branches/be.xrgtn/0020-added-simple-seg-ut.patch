@@ -1,0 +1,98 @@
+From 8c7993df38d4ffa0f16522082eaca840421d245e Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 28 May 2013 22:37:29 +0300
+Subject: [PATCH 020/228] added simple seg ut
+
+---
+ be/ut/seg.c | 73 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 73 insertions(+)
+
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index d8b853c..42ccc83 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -21,8 +21,81 @@
+ #include "be/seg.h"
+ #include "ut/ut.h"
+ 
++#include "dtm/dtm.h"
++
++enum {
++	BE_SEG_UT_DOM_ID = 42,
++	BE_SEG_UT_STOB_ID = 42,
++};
++
++static struct m0_stob_domain	dom;
++static static struct m0_stob_id id = {
++	.si_bits = M0_UINT128(0, BE_SEG_STOB_ID),
++};
++static struct m0_dtx		dtx;
++static struct m0_stob	       *stob;
++static struct m0_be		be;
++
++static void seg_init_helper(struct m0_be_seg *seg)
++{
++	int rc;
++
++	rc = m0_stob_domain_init(&dom, &m0_linux_stob_type, BE_SEG_UT_DOM_ID);
++	M0_UT_ASSERT(rc == 0);
++	m0_dtx_init(&dtx);
++	rc = m0_stob_create_helper(&dom, &dtx, &id, &stob);
++	M0_UT_ASSERT(rc == 0);
++	m0_be_seg_init(&seg, &stob, &be);
++}
++
++static void seg_fini_helper(struct m0_be_seg *seg)
++{
++	m0_be_seg_fini(&seg);
++	m0_stob_put(stob);
++	m0_dtx_fini(&tx);
++	m0_stob_domain_fini(&dom);
++}
++
++static void test_init_fini(void)
++{
++	struct m0_be_seg seg;
++
++	seg_init_helper(&seg);
++	seg_fini_helper(&seg);
++}
++
++static void test_create_destroy(void)
++{
++	struct m0_be_seg seg;
++
++	seg_init_helper(&seg);
++	rc = m0_be_seg_create(&seg);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_be_seg_destroy(&seg);
++	M0_UT_ASSERT(rc == 0);
++	seg_fini_helper(&seg);
++}
++
++static void test_open_close(void)
++{
++	struct m0_be_seg seg;
++
++	seg_init_helper(&seg);
++	rc = m0_be_seg_create(&seg);
++	M0_UT_ASSERT(rc == 0);
++	rc = m0_be_seg_open(&seg);
++	M0_UT_ASSERT(rc == 0);
++	m0_be_seg_close(&seg);
++	rc = m0_be_seg_destroy(&seg);
++	M0_UT_ASSERT(rc == 0);
++	seg_fini_helper(&seg);
++}
++
+ static void test_seg(void)
+ {
++	test_init_fini();
++	test_create_destroy();
++	test_open_close();
+ }
+ 
+ const struct m0_test_suite be_ut = {
+-- 
+1.8.3.2
+

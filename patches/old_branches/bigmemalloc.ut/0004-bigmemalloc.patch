@@ -1,0 +1,62 @@
+From be0c10629d7649e2ddf9d051887494fd4c6b8e13 Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Fri, 5 Jul 2013 02:11:32 -0700
+Subject: [PATCH 04/61] bigmemalloc: - Fixed some trailing whitespaces.
+
+---
+ lib/linux_kernel/genarray.c | 2 +-
+ lib/linux_kernel/genarray.h | 4 ++--
+ lib/ut/genarray.c           | 2 +-
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/lib/linux_kernel/genarray.c b/lib/linux_kernel/genarray.c
+index a23b57b..cccaba5 100644
+--- a/lib/linux_kernel/genarray.c
++++ b/lib/linux_kernel/genarray.c
+@@ -78,7 +78,7 @@ static void genarray_l1_free(struct genarray *arr,
+ 
+ 	if (*addr != 0) {
+ 		for (id = 0; id < M0_0VEC_ALIGN / sizeof id; ++id) {
+-		       	ptr = (unsigned long *)*addr;
++			ptr = (unsigned long *)*addr;
+ 			ptr += id;
+ 			genarray_l0_free(arr, ptr);
+ 		}
+diff --git a/lib/linux_kernel/genarray.h b/lib/linux_kernel/genarray.h
+index f1f0b8d..21ff365 100644
+--- a/lib/linux_kernel/genarray.h
++++ b/lib/linux_kernel/genarray.h
+@@ -171,7 +171,7 @@ M0_INTERNAL unsigned long *genarray_page(const struct genarray *arr,
+ #define cont_nr_for_objs(nr, obj_nr_in_1_cont)				\
+ ({									\
+ 	M0_PRE(obj_nr_in_1_cont > 0);					\
+-								    	\
++									\
+ 	nr / obj_nr_in_1_cont + (nr % obj_nr_in_1_cont == 0 ? 0 : 1);	\
+ })
+ 
+@@ -195,7 +195,7 @@ cont_nr_for_objs(nr, genarray_obj_nr_in_ln(arr, level))
+ ({									\
+ 	uint64_t       l   = 0;						\
+ 	uint64_t       _t1 = 0;						\
+-	uint64_t       _nr = 0; 					\
++	uint64_t       _nr = 0;						\
+ 	unsigned long *_l0 = (unsigned long *)(addr);			\
+ 	unsigned long *_l1;						\
+ 									\
+diff --git a/lib/ut/genarray.c b/lib/ut/genarray.c
+index eb4c916..25984a6 100644
+--- a/lib/ut/genarray.c
++++ b/lib/ut/genarray.c
+@@ -127,7 +127,7 @@ void test_genarray(void)
+ 
+ 	for (id = page_id_in_l2 + 1; id < ele_nr_in_page; ++id) {
+ 		tier1  = (unsigned long *)arr.ga_levels[GA_LEVEL2];
+-	       	tier1 += id;
++		tier1 += id;
+ 		M0_UT_ASSERT(*tier1 == 0);
+ 	}
+ 
+-- 
+1.8.3.2
+

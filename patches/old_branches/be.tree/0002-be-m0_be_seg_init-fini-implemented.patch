@@ -1,0 +1,63 @@
+From 04bb9c259a1b1dc6eb6ff66518dc5f4db4d2024f Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 29 May 2013 11:40:55 +0300
+Subject: [PATCH 002/290] be: m0_be_seg_init/fini() implemented
+
+---
+ be/seg.c | 19 +++++++++++++++++--
+ be/seg.h |  3 ++-
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index e6fd384..e3a05fd 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -20,14 +20,29 @@
+ 
+ 
+ /**
+- * @addtogroup XXX
++ * @addtogroup be
+  *
+  * @{
+  */
+ 
++void m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob,
++					   struct m0_be   *be)
++{
++	seg->bs_be   = be;
++	seg->bs_stob = stob;
++	seg->bs_size = 0;
++	seg->bs_addr = NULL;
++	m0_be_allocator_init(&seg->bs_allocator, seg);
++}
+ 
++void m0_be_seg_fini(struct m0_be_seg *seg)
++{
++	m0_be_allocator_fini(&seg->bs_allocator);
++}
+ 
+-/** @} end of XXX group */
++
++
++/** @} end of be group */
+ 
+ 
+ /*
+diff --git a/be/seg.h b/be/seg.h
+index da2fad1..768eebe 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -36,7 +36,8 @@ struct m0_be_seg {
+ 	struct m0_be          *bs_be;
+ };
+ 
+-void m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob);
++void m0_be_seg_init(struct m0_be_seg *seg, struct m0_stob *stob,
++					   struct m0_be   *be);
+ void m0_be_seg_fini(struct m0_be_seg *seg);
+ 
+ /** Opens existing stob, reads segment header from it, etc. */
+-- 
+1.8.3.2
+

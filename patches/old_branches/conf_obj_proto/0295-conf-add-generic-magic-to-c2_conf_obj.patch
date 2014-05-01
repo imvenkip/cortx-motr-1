@@ -1,0 +1,88 @@
+From ff24f59947a8fc6318abe5d20c703b0431bc6105 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 24 Aug 2012 22:35:52 +0300
+Subject: [PATCH 295/370] conf: add generic magic to c2_conf_obj
+
+This change is *part* of commit 19d5e22, which belongs `conf_obj'
+branch currently.
+---
+ conf/obj.h | 36 +++++++++++++++++++++++++++++-------
+ 1 file changed, 29 insertions(+), 7 deletions(-)
+
+diff --git a/conf/obj.h b/conf/obj.h
+index 99f6d54..faa887c 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -172,21 +172,16 @@ struct c2_conf_obj_ops;
+ struct c2_confc; /* defined in "conf/confc.h" */
+ 
+ /**
+- * Base configuration object.
++ * Generic configuration object.
+  *
+  * The fields of struct c2_conf_obj are common to all configuration
+  * objects.  c2_conf_obj is embedded into each concrete configuration
+  * object.
+  */
+ struct c2_conf_obj {
+-	/** Type of the ambient concrete configuration object. */
++	/** Type of the ambient (concrete) configuration object. */
+ 	enum c2_conf_objtype          co_type;
+ 	/**
+-	 * Magic value.
+-	 * Different concrete object types have different magic values.
+-	 */
+-	uint64_t                      co_magix;
+-	/**
+ 	 * Object identifier.
+ 	 * This value is unique among the object of given ->co_type.
+ 	 */
+@@ -212,11 +207,37 @@ struct c2_conf_obj {
+ 	 * "object unpinned" events are announced.
+ 	 */
+ 	struct c2_chan                co_chan;
++	/** Linkage to c2_conf_reg::r_objs. */
++	struct c2_tlink               co_reg_link;
++	/** Linkage to c2_conf_dir::cd_items. */
++	struct c2_tlink               co_dir_link;
+ 	/**
+ 	 * Private data of confc implementation.
+ 	 * NULL at confd side.
+ 	 */
+ 	struct c2_confc              *co_confc;
++	/** Magic values. */
++	struct {
++		/**
++		 * Generic magic.
++		 *
++		 * All configuration objects have the same value of
++		 * ->co_magic.generic.
++		 *
++		 * This magic is used for list operations.
++		 */
++		uint64_t generic;
++		/**
++		 * Concrete magic.
++		 *
++		 * Different concrete object types have different
++		 * values of ->co_magic.concrete.
++		 *
++		 * This magic is used for generic-to-concrete casting
++		 * (see C2_CONF_CAST()).
++		 */
++		uint64_t concrete;
++	}                             co_magic;
+ };
+ 
+ /**
+@@ -263,6 +284,7 @@ void c2_conf__obj_put(struct c2_conf_obj *obj);
+ /** Directory object --- container for configuration objects. */
+ struct c2_conf_dir {
+ 	struct c2_conf_obj   cd_obj;
++	/** List of c2_conf_obj-s, linked through c2_conf_obj::co_dir_link. */
+ 	struct c2_tl         cd_items;
+ 	/**
+ 	 * Type of items.
+-- 
+1.8.3.2
+

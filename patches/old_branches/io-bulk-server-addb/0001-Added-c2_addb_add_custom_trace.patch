@@ -1,0 +1,242 @@
+From c69ed40812dd719fbaf5a2415af06abf29de7312 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Wed, 21 Mar 2012 02:00:48 +0530
+Subject: [PATCH 01/11] - Added c2_addb_add_custom_trace() - Added addb trace
+ for io_foms.
+
+---
+ addb/addb.c         | 31 +++++++++++++++++++++++++-
+ addb/addb.h         |  9 +++++++-
+ ioservice/io_foms.c | 63 +++++++++++++++++++++++++++++++++++++++++++++++------
+ 3 files changed, 94 insertions(+), 9 deletions(-)
+
+diff --git a/addb/addb.c b/addb/addb.c
+index bef5eca..9f4cadb 100644
+--- a/addb/addb.c
++++ b/addb/addb.c
+@@ -48,7 +48,7 @@
+  * This can be changed.
+  */
+ enum c2_addb_ev_level	c2_addb_level_default	      = AEL_NOTE;
+-enum c2_addb_ev_level	c2_addb_level_default_console = AEL_WARN;
++enum c2_addb_ev_level	c2_addb_level_default_console = AEL_NONE;
+ 
+ /**
+    ADDB record store type.
+@@ -159,6 +159,35 @@ void c2_addb_add(struct c2_addb_dp *dp)
+ 	}
+ }
+ 
++void c2_addb_add_custom_trace(struct c2_addb_ctx *ctx,
++                              const struct c2_addb_loc *loc,
++                              const char *fmt, ...)
++{
++	va_list        ap;
++	char          *trace_msg = NULL;
++	int            rc;
++	int            msg_size = ADDB_CUSTOM_MSG_SIZE;
++	int            retry = 1;
++
++	while (retry == 1) {
++		trace_msg = c2_alloc(msg_size);
++		if (trace_msg != NULL) {
++			va_start(ap, fmt);
++			rc = vsnprintf(trace_msg, msg_size, fmt, ap);
++			va_end(ap);
++			if (rc < 0 || rc <=  msg_size)
++				retry = 0;
++			else {
++				msg_size = rc;
++                                c2_free(trace_msg);
++                        }
++		}
++	}
++
++        if (trace_msg != NULL)
++		C2_ADDB_ADD(ctx, loc, c2_addb_trace, trace_msg);
++}
++
+ static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
+ {
+ 	dp->ad_name = name;
+diff --git a/addb/addb.h b/addb/addb.h
+index 26933af..8b72413 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -102,7 +102,14 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
+ 
+ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
+ 
+-
++/*
++ * Adds custom made addb trace messages.
++ * @note This interfase only adds addb trace event messages.
++ * @param fmt formatted string representing custom made message.
++ */
++void c2_addb_add_custom_trace(struct c2_addb_ctx *ctx,
++                              const struct c2_addb_loc *loc,
++                              const char *fmt, ...);
+ 
+ /**
+    Activity in context on which addb event happens.
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index e7b21ed..d3d0386 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -917,6 +917,25 @@ static int  io_fom_cob_rw_indexvec_wire2mem(struct c2_fom         *fom,
+         return 0;
+ }
+ 
++static int io_fom_cob_rw_indexvec_size(struct c2_fop *fop)
++{
++        int                      i,j;
++        c2_bcount_t              size = 0;
++        struct c2_fop_cob_rw    *rwfop;
++
++        C2_PRE(fop != NULL);
++
++        rwfop = io_rw_get(fop);
++        for (i = 0; i < rwfop->crw_desc.id_nr; i++) {
++        	struct c2_io_indexvec wire_ivec = rwfop->crw_ivecs.cis_ivecs[i];
++        	for (j = 0; j < wire_ivec.ci_nr; j++) {
++                	size += wire_ivec.ci_iosegs[j].ci_count;
++        	}
++        }
++
++        return size;
++}
++
+ /**
+  * Copy aligned bufvec segments addresses from net buffer to stob bufvec.
+  * STOB I/O expects exact same number of bufvec as index vecs for I/O
+@@ -1007,6 +1026,8 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
+         struct c2_fom           *fom;
+         struct c2_io_fom_cob_rw *fom_obj;
+         struct c2_fop_cob_rw    *rwfop;
++        const char              *fom_type_string;
++        c2_bcount_t              size;
+ 
+         C2_PRE(fop != NULL);
+         C2_PRE(c2_is_io_fop(fop));
+@@ -1056,9 +1077,13 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
+         stobio_tlist_init(&fom_obj->fcrw_stio_list);
+         c2_mutex_init(&fom_obj->fcrw_stio_mutex);
+ 
+-        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
+-		    "FOM created : type=rw.");
+-
++	fom_type_string = c2_is_read_fop(fop) ? "I/O READ" : "I/O WRITE";
++        size = io_fom_cob_rw_indexvec_size(fop);
++        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: created/type=%s, fid=%lu:%lu, ndesc=%d, "
++                                 "size=%d", fom_type_string,
++                                 rwfop->crw_fid.f_seq, rwfop->crw_fid.f_oid,
++                                 fom_obj->fcrw_ndesc, size);
+         return rc;
+ }
+ 
+@@ -1155,6 +1180,10 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+ 
+                     fom->fo_phase = FOPH_IO_FOM_BUFFER_WAIT;
+                     c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
++                    c2_addb_add_custom_trace(&fom->fo_fop->f_addb,
++                                             &io_fom_addb_loc,
++		                             "FOM: net_buffs_acquire/"
++                                             "waiting\n");
+ 
+                     return  FSO_WAIT;
+             } else if (nb == NULL) {
+@@ -1181,7 +1210,9 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+         }
+ 
+         fom_obj->fcrw_batch_size = acquired_net_bufs;
+-
++        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: net_buffs_acquire/batch_size=%d\n",
++                                 fom_obj->fcrw_batch_size);
+         return FSO_AGAIN;
+ }
+ 
+@@ -1237,6 +1268,9 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
+         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+ 
+         fom_obj->fcrw_batch_size = acquired_net_bufs;
++        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: net_buffs_release/batch_size=%d\n",
++                                 fom_obj->fcrw_batch_size);
+ 
+         if (required_net_bufs == 0)
+                fom->fo_phase = FOPH_SUCCESS;
+@@ -1342,6 +1376,9 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
+                 return FSO_AGAIN;
+         }
+ 
++        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: zero_copy_initiated/batch_size=%d\n",
++                                 fom_obj->fcrw_batch_size);
+         return FSO_WAIT;
+ }
+ 
+@@ -1383,6 +1420,9 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
+         c2_mutex_unlock(&rbulk->rb_mutex);
+         c2_rpc_bulk_fini(rbulk);
+ 
++        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: zero_copy_finished\n");
++
+         return FSO_AGAIN;
+ }
+ 
+@@ -1588,6 +1628,10 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
+ 
+                 c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
+ 
++                c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                         "FOM: stob_io_launched/n_iocount=%d\n",
++                                         fom_obj->fcrw_num_stobio_launched);
++
+ 	        return FSO_WAIT;
+         }
+ 
+@@ -1660,6 +1704,8 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
+                             fom->fo_rc);
+ 	        return FSO_AGAIN;
+         }
++        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: stob_io_finished.\n");
+ 
+         return FSO_AGAIN;
+ }
+@@ -1706,6 +1752,9 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
+                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
+                 rwrep->rwr_rc = fom->fo_rc;
+                 rwrep->rwr_count = fom_obj->fcrw_bytes_transfered;
++                c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: set reply/io_count=%lu, rc=%d\n",
++                                 rwrep->rwr_count, rwrep->rwr_rc);
+                 return rc;
+         }
+ 
+@@ -1738,9 +1787,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
+ 
+         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+ 
+-        C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
+-		    "FOM finished : type=rw.");
+-
+         tm     = fop->f_item.ri_session->s_conn->c_rpcmachine->cr_tm;
+         colour = c2_net_tm_colour_get(&tm);
+ 
+@@ -1778,6 +1824,9 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
+ 
+         c2_mutex_fini(&fom_obj->fcrw_stio_mutex);
+ 
++        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		                 "FOM: finished/size=%lu, rc=%d",
++                                 fom_obj->fcrw_bytes_transfered, fom->fo_rc);
+         c2_fom_fini(fom);
+ 
+         c2_free(fom_obj);
+-- 
+1.8.3.2
+

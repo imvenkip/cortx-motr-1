@@ -1,0 +1,138 @@
+From 27dc021a0ab0508ba88607c6edfea554cd4c2e1e Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 21 Jun 2013 14:57:04 +0300
+Subject: [PATCH 202/290] be: insert Nikita's comments into m0_be_tx_capture()
+
+---
+ be/tx.c | 70 +++++++++++++++++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 60 insertions(+), 10 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 72eec7d..fc42148 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -18,7 +18,6 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+ 
+@@ -281,8 +280,8 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 	struct m0_be_tx_credit *pos = &tx->t_pos;
+ 	m0_bindex_t             idx = pos->tc_reg_nr;
+ 	struct m0_be_reg_d     *new = &tx->t_reg_d_area[idx];
+-	M0_UNUSED struct m0_be_reg_d     *old;
+-	M0_UNUSED struct m0_be_reg_d     *prev = NULL;
++	struct m0_be_reg_d     *old;
++	struct m0_be_reg_d     *prev = NULL;
+ 
+ 	M0_PRE(m0_be__tx_invariant(tx));
+ 	M0_PRE(tx_state(tx) == M0_BTS_ACTIVE);
+@@ -295,10 +294,15 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 	M0_LOG(M0_DEBUG, "capture %p: [%p, %p)", new, new->rd_reg.br_addr,
+ 	       new->rd_reg.br_addr + new->rd_reg.br_size);
+ 	credit_mod(&tx->t_captured, new, +1);
+-
+-	/* Cut pieces off the new region and store them into old regions'
+-	 * buffers, until the new region either do not intersect any of the
+-	 * old ones or is completely stuffed into old buffers. */
++	/*
++	 * A transaction keeps a tree of captured regions in tx->t_tree. Key
++	 * comparison function in this address is tx_reg_cmp(), which pretends
++	 * that overlapping regions are equal. As a result, the tree contains
++	 * disjoint regions, which are sorted by their starting address.
++	 *
++	 * The loop below iterates over all already captured regions
++	 * intersecting with the new one.
++	 */
+ 	while (new->rd_reg.br_size > 0) {
+ 		struct m0_ext               enew;
+ 		struct m0_ext               eold;
+@@ -308,8 +312,14 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 		oldnode = tsearch(new, &tx->t_root, &tx_reg_cmp);
+ 		M0_ASSERT(oldnode != NULL);
+ 		old = oldnode->bn_reg_d;
+-		M0_ASSERT(old != prev);
+-
++		M0_ASSERT(old != prev); /* check that we are not stuck. */
++
++		/*
++		 * tsearch() returns either an existing tree element with the
++		 * key equal to the key of the new element (i.e., an
++		 * intersecting region), or the new element. In the latter case,
++		 * "new" is inserted in the tree.
++		 */
+ 		if (old == new) {
+ 			/* no intersection */
+ 			memcpy(new->rd_buf,
+@@ -326,24 +336,64 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 			tdelete(old, &tx->t_root, &tx_reg_cmp);
+ 			M0_SET0(old);
+ 		} else {
++			/*
++			 * New and old regions partially overlap.
++			 */
+ 			m0_bcount_t oleft;
+ 			m0_bcount_t nleft;
+ 			m0_bcount_t nright;
+ 			m0_bcount_t common;
+ 
++			/*
++			 * First, replace common intersection of new and old
++			 * with the new data.
++			 */
+ 			m0_ext_intersection(&eold, &enew, &intersection);
+ 			M0_ASSERT(!m0_ext_is_empty(&intersection));
+ 			oleft  = intersection.e_start - eold.e_start;
+ 			nleft  = intersection.e_start - enew.e_start;
+ 			nright = enew.e_end - intersection.e_end;
+ 			common = m0_ext_length(&intersection);
+-
++			/*
++			 * Following cases are possible:
++			 *
++			 *    nright == 0, oleft == 0, nright > 0
++			 *
++			 *                  nleft    common
++			 *    new:        [--------+--------]
++			 *    old:                 [--------+----]
++			 *
++			 *
++			 *    nleft == 0, nright > 0
++			 *
++			 *                           common   nright
++			 *    new:                 [--------+--------]
++			 *    old:    [------------+--------]
++			 *                oleft
++			 *
++			 *
++			 *    nright == 0 && nleft == 0
++			 *
++			 *                           common
++			 *    new:                 [--------]
++			 *    old:    [------------+--------+--------]
++			 *                oleft
++			 */
+ 			memcpy(old->rd_buf + oleft, new->rd_reg.br_addr + nleft,
+ 			       common);
+ 			if (nleft == 0 && nright == 0)
+ 				/* old completely covers new. */
+ 				break;
++			/*
++			 * New can extend beyond intersection only in one
++			 * direction, because otherwise it would completely
++			 * cover old and this was checked above.
++			 */
+ 			M0_ASSERT((nleft > 0) != (nright > 0));
++			/*
++			 * Shrink the new region and repeat the loop to check
++			 * for intersection with another existing region.
++			 */
+ 			new->rd_reg.br_size -= common;
+ 			if (nright > 0)
+ 				new->rd_reg.br_addr += common;
+-- 
+1.8.3.2
+

@@ -1,0 +1,200 @@
+From 88fdf92d29d6a14acff96f4150b6fc3dd9102720 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 25 Feb 2014 20:39:24 +0200
+Subject: [PATCH 58/60] m0_fop_rpc_{lock,unlock}() and m0_fop_put_lock()
+ helpers added
+
+---
+ console/ut/console.c     |  4 +---
+ fop/fop.c                | 18 ++++++++++++++++++
+ fop/fop.h                | 15 +++++++++++++++
+ ioservice/ut/bulkio_ut.c |  8 ++------
+ mero/ut/cs_ut_main.c     |  8 ++------
+ reqh/ut/reqh_fom_ut.c    |  4 +---
+ rpc/rpc_machine.c        |  4 ----
+ 7 files changed, 39 insertions(+), 22 deletions(-)
+
+diff --git a/console/ut/console.c b/console/ut/console.c
+index 3216d19..710b24f 100644
+--- a/console/ut/console.c
++++ b/console/ut/console.c
+@@ -539,9 +539,7 @@ static void mesg_send_client(int dummy)
+ 	M0_UT_ASSERT(result == 0);
+ 	result = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
+ 	M0_UT_ASSERT(result == 0);
+-	m0_sm_group_lock(&fop->f_item.ri_rmachine->rm_sm_grp);
+-	m0_fop_put(fop);
+-	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
++	m0_fop_put_lock(fop);
+ 	cons_client_fini(&cctx);
+ }
+ 
+diff --git a/fop/fop.c b/fop/fop.c
+index e55f03e..2e0e6ac 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -31,6 +31,7 @@
+ #include "lib/misc.h" /* M0_SET0 */
+ #include "lib/errno.h"
+ #include "mero/magic.h"
++#include "rpc/rpc_machine.h" /* for ri_rmachine */
+ #include "fop/fop.h"
+ #include "fop/fop_xc.h"
+ #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
+@@ -62,6 +63,16 @@ static size_t fop_data_size(const struct m0_fop *fop)
+ 	return fop->f_type->ft_xt->xct_sizeof;
+ }
+ 
++M0_INTERNAL void m0_fop_rpc_lock(struct m0_fop *fop)
++{
++	m0_sm_group_lock(&fop->f_item.ri_rmachine->rm_sm_grp);
++}
++
++M0_INTERNAL void m0_fop_rpc_unlock(struct m0_fop *fop)
++{
++	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
++}
++
+ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop)
+ {
+ 	M0_PRE(fop->f_data.fd_data == NULL && fop->f_type != NULL);
+@@ -163,6 +174,13 @@ void m0_fop_put(struct m0_fop *fop)
+ }
+ M0_EXPORTED(m0_fop_put);
+ 
++M0_INTERNAL void m0_fop_put_lock(struct m0_fop *fop)
++{
++	m0_fop_rpc_lock(fop);
++	m0_fop_put(fop);
++	m0_fop_rpc_unlock(fop);
++}
++
+ void *m0_fop_data(const struct m0_fop *fop)
+ {
+ 	return fop->f_data.fd_data;
+diff --git a/fop/fop.h b/fop/fop.h
+index e7ab9db..392d16b 100644
+--- a/fop/fop.h
++++ b/fop/fop.h
+@@ -132,6 +132,21 @@ struct m0_fop *m0_fop_get(struct m0_fop *fop);
+ void m0_fop_put(struct m0_fop *fop);
+ 
+ /**
++ * Same as m0_fop_put() but also locks/unlocks rpc machine.
++ */
++M0_INTERNAL void m0_fop_put_lock(struct m0_fop *fop);
++
++/**
++ * Takes rpc machine lock.
++ */
++M0_INTERNAL void m0_fop_rpc_lock(struct m0_fop *fop);
++
++/**
++ * Releases rpc machine lock.
++ */
++M0_INTERNAL void m0_fop_rpc_unlock(struct m0_fop *fop);
++
++/**
+    Allocates and initialises fop object
+ 
+    @param fopt fop type to assign to this fop object
+diff --git a/ioservice/ut/bulkio_ut.c b/ioservice/ut/bulkio_ut.c
+index 47e5485..5bca7ea 100644
+--- a/ioservice/ut/bulkio_ut.c
++++ b/ioservice/ut/bulkio_ut.c
+@@ -1716,9 +1716,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
+ 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(wfop->f_item.ri_reply));
+ 	M0_UT_ASSERT(rw_reply->rwr_rc ==
+ 			M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
+-	m0_sm_group_lock(&wfop->f_item.ri_rmachine->rm_sm_grp);
+-	m0_fop_put(wfop);
+-	m0_sm_group_unlock(&wfop->f_item.ri_rmachine->rm_sm_grp);
++	m0_fop_put_lock(wfop);
+ 
+ 	rfop = m0_fop_alloc(&m0_fop_cob_readv_fopt, NULL);
+ 	M0_UT_ASSERT(rfop != NULL);
+@@ -1733,9 +1731,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
+ 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(rfop->f_item.ri_reply));
+ 	M0_UT_ASSERT(rw_reply->rwr_rc ==
+ 			M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
+-	m0_sm_group_lock(&rfop->f_item.ri_rmachine->rm_sm_grp);
+-	m0_fop_put(rfop);
+-	m0_sm_group_unlock(&rfop->f_item.ri_rmachine->rm_sm_grp);
++	m0_fop_put_lock(rfop);
+ }
+ 
+ static void bulkio_init(void)
+diff --git a/mero/ut/cs_ut_main.c b/mero/ut/cs_ut_main.c
+index c7694ad..d129cfb 100644
+--- a/mero/ut/cs_ut_main.c
++++ b/mero/ut/cs_ut_main.c
+@@ -279,9 +279,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
+ 						&cs_ds_req_fop_rpc_item_ops,
+ 						0 /* deadline */);
+ 			M0_UT_ASSERT(rc == 0);
+-			m0_sm_group_lock(&fop[i]->f_item.ri_rmachine->rm_sm_grp);
+-			m0_fop_put(fop[i]);
+-			m0_sm_group_unlock(&fop[i]->f_item.ri_rmachine->rm_sm_grp);
++			m0_fop_put_lock(fop[i]);
+ 		}
+ 		break;
+ 	case CS_UT_SERVICE2:
+@@ -293,9 +291,7 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
+ 						&cs_ds_req_fop_rpc_item_ops,
+ 						0 /* deadline */);
+ 			M0_UT_ASSERT(rc == 0);
+-			m0_sm_group_lock(&fop[i]->f_item.ri_rmachine->rm_sm_grp);
+-			m0_fop_put(fop[i]);
+-			m0_sm_group_unlock(&fop[i]->f_item.ri_rmachine->rm_sm_grp);
++			m0_fop_put_lock(fop[i]);
+ 		}
+ 		break;
+ 	default:
+diff --git a/reqh/ut/reqh_fom_ut.c b/reqh/ut/reqh_fom_ut.c
+index e994968..0bcf5d7 100644
+--- a/reqh/ut/reqh_fom_ut.c
++++ b/reqh/ut/reqh_fom_ut.c
+@@ -336,9 +336,7 @@ static void fop_send(struct m0_fop *fop, struct m0_rpc_session *session)
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(fop->f_item.ri_error == 0);
+ 	M0_UT_ASSERT(fop->f_item.ri_reply != 0);
+-	m0_sm_group_lock(&fop->f_item.ri_rmachine->rm_sm_grp);
+-	m0_fop_put(fop);
+-	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
++	m0_fop_put_lock(fop);
+ }
+ 
+ /** Sends create fop request. */
+diff --git a/rpc/rpc_machine.c b/rpc/rpc_machine.c
+index 92468bc..07d1058 100644
+--- a/rpc/rpc_machine.c
++++ b/rpc/rpc_machine.c
+@@ -803,9 +803,7 @@ static void packet_received(struct m0_rpc_packet    *p,
+ 		m0_rpc_item_get(item);
+ 		m0_rpc_machine_lock(machine);
+ 		m0_rpc_packet_remove_item(p, item);
+-		m0_rpc_machine_unlock(machine);
+ 		item_received(item, from_ep);
+-		m0_rpc_machine_lock(machine); /* protect ri_sm fini() */
+ 		m0_rpc_item_put(item);
+ 		m0_rpc_machine_unlock(machine);
+ 	} end_for_each_item_in_packet;
+@@ -863,7 +861,6 @@ static void item_received(struct m0_rpc_item      *item,
+ 
+ 	item->ri_rpc_time = m0_time_now();
+ 
+-	m0_rpc_machine_lock(machine);
+ 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_INCOMING);
+ 	rc = m0_rpc_item_received(item, machine);
+ 	if (rc == 0) {
+@@ -874,7 +871,6 @@ static void item_received(struct m0_rpc_item      *item,
+ 		       item->ri_type->rit_opcode);
+ 		machine->rm_stats.rs_nr_dropped_items++;
+ 	}
+-	m0_rpc_machine_unlock(machine);
+ 
+ 	M0_LEAVE();
+ }
+-- 
+1.8.3.2
+

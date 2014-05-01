@@ -1,0 +1,47 @@
+From 4e433e882a86c63ffc3fc781e7cd105c7ea20e14 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Sun, 3 Jul 2011 08:39:34 -0600
+Subject: [PATCH 155/177] - added comment in setattr fop handler.
+
+---
+ addb/addb.c         |  2 +-
+ mdservice/md_foms.c | 10 ++++++++++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/addb/addb.c b/addb/addb.c
+index a282801..3f35226 100644
+--- a/addb/addb.c
++++ b/addb/addb.c
+@@ -47,7 +47,7 @@
+ /*
+  * This can be changed.
+  */
+-enum c2_addb_ev_level c2_addb_level_default = AEL_NONE;
++enum c2_addb_ev_level c2_addb_level_default = AEL_ERROR;
+ C2_EXPORTED(c2_addb_level_default);
+ 
+ /**
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 47d301b..1f94155 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -999,6 +999,16 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
+ 
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
++        /*
++         * Setattr fop does not carry enough information to create
++         * an object in case there is no target yet. This is why
++         * we return quickly if no object is found. One more reason
++         * to do so is that, object may be missed only in time of
++         * initial scan when it did not find an object yet but we
++         * got changege log rec. In this case we skip attributes
++         * update but correct attributes will anyways be set when
++         * scan finds the object and we create it in db.
++         */
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+                                 C2_MD_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+-- 
+1.8.3.2
+

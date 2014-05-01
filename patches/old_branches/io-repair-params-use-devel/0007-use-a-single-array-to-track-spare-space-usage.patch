@@ -1,0 +1,276 @@
+From e993abf2c6b976f7d4fd7feaa8dfa046a125cf0c Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 16 Nov 2012 20:12:47 +0800
+Subject: [PATCH 07/10] use a single array to track spare space usage. add
+ spare space alloc and free algorithm in state transition upon event.
+
+---
+ pool/pool.c | 125 +++++++++++++++++++++++++++++++++++++++++++++---------------
+ pool/pool.h |  26 +++++--------
+ 2 files changed, 103 insertions(+), 48 deletions(-)
+
+diff --git a/pool/pool.c b/pool/pool.c
+index 58e1dfa..0d45261 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -100,21 +100,16 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+ 	pm->pm_state.pst_devices_array = c2_alloc(pm->pm_state.pst_nr_devices *
+ 						  sizeof (struct c2_pooldev));
+ 
+-	pm->pm_state.pst_repair_spare_list
++	pm->pm_state.pst_spare_usage_array
+ 			= c2_alloc(pm->pm_state.pst_max_device_failures *
+-				   sizeof (struct c2_pool_spare_pair));
+-	pm->pm_state.pst_rebalance_spare_list
+-			= c2_alloc(pm->pm_state.pst_max_device_failures *
+-				   sizeof (struct c2_pool_spare_pair));
++				   sizeof (struct c2_pool_spare_usage));
+ 	if (pm->pm_state.pst_nodes_array == NULL ||
+ 	    pm->pm_state.pst_devices_array == NULL ||
+-	    pm->pm_state.pst_repair_spare_list == NULL ||
+-	    pm->pm_state.pst_rebalance_spare_list == NULL) {
++	    pm->pm_state.pst_spare_usage_array == NULL) {
+ 		/* c2_free(NULL) is valid */
+ 		c2_free(pm->pm_state.pst_nodes_array);
+ 		c2_free(pm->pm_state.pst_devices_array);
+-		c2_free(pm->pm_state.pst_repair_spare_list);
+-		c2_free(pm->pm_state.pst_rebalance_spare_list);
++		c2_free(pm->pm_state.pst_spare_usage_array);
+ 		return -ENOMEM;
+ 	}
+ 
+@@ -132,13 +127,7 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+ 	}
+ 
+ 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-		pm->pm_state.pst_repair_spare_list[i].psp_device_index = 0xFFFFFFFF;
+-		pm->pm_state.pst_repair_spare_list[i].psp_spare_slot   = 0xFFFFFFFF;
+-	}
+-
+-	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-		pm->pm_state.pst_rebalance_spare_list[i].psp_device_index = 0xFFFFFFFF;
+-		pm->pm_state.pst_rebalance_spare_list[i].psp_spare_slot   = 0xFFFFFFFF;
++		pm->pm_state.pst_spare_usage_array[i].psp_device_index = 0xFFFFFFFF;
+ 	}
+ 
+ 	poolmach_events_tlist_init(&pm->pm_state.pst_events_list);
+@@ -163,8 +152,7 @@ void c2_poolmach_fini(struct c2_poolmach *pm)
+ 		c2_free(scan);
+ 	} c2_tl_endfor;
+ 
+-	c2_free(pm->pm_state.pst_rebalance_spare_list);
+-	c2_free(pm->pm_state.pst_repair_spare_list);
++	c2_free(pm->pm_state.pst_spare_usage_array);
+ 	c2_free(pm->pm_state.pst_devices_array);
+ 	c2_free(pm->pm_state.pst_nodes_array);
+ 	c2_rwlock_write_unlock(&pm->pm_lock);
+@@ -197,10 +185,12 @@ void c2_poolmach_fini(struct c2_poolmach *pm)
+ int c2_poolmach_state_transit(struct c2_poolmach *pm,
+ 			      struct c2_pool_event *event)
+ {
+-	struct c2_poolmach_state  *pm_state;
+-	struct c2_pool_event_link *event_link;
+-	enum c2_pool_nd_state      old_state;
+-	int                        rc = 0;
++	struct c2_poolmach_state   *pm_state;
++	struct c2_pool_spare_usage *spare_array;
++	struct c2_pool_event_link  *event_link;
++	enum c2_pool_nd_state       old_state;
++	int                         rc = 0;
++	int                         i;
+ 	C2_PRE(pm != NULL);
+ 	C2_PRE(event != NULL);
+ 
+@@ -297,8 +287,61 @@ int c2_poolmach_state_transit(struct c2_poolmach *pm,
+ 	poolmach_events_tlink_init_at_tail(event_link,
+ 					   &pm_state->pst_events_list);
+ 
++	/* Step 5: Alloc or free a spare slot if necessary.*/
++	spare_array = pm->pm_state.pst_spare_usage_array;
++	switch (event->pe_state) {
++	case C2_PNDS_ONLINE:
++		/* clear spare slot usage if it is from rebalanced */
++		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
++			if (spare_array[i].psp_device_index == event->pe_index){
++				C2_ASSERT(C2_IN(spare_array[i].psp_device_state,
++						     (C2_PNDS_SNS_REBALANCED)));
++				spare_array[i].psp_device_index = 0xFFFFFFFF;
++			break;
++			}
++		}
++		break;
++	case C2_PNDS_SNS_REPAIRING:
++		/* alloc a sns repare spare slot */
++		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
++			if (spare_array[i].psp_device_index == 0xFFFFFFFF) {
++				spare_array[i].psp_device_index =
++							event->pe_index;
++				spare_array[i].psp_device_state =
++							C2_PNDS_SNS_REPAIRING;
++				break;
++			}
++		}
++		if (i == pm->pm_state.pst_max_device_failures) {
++			/* No free spare space slot is found!!
++			 * The pool is in DUD state!!
++			 */
++			/* TODO add ADDB error message here */
++		}
++		break;
++	case C2_PNDS_SNS_REPAIRED:
++	case C2_PNDS_SNS_REBALANCING:
++	case C2_PNDS_SNS_REBALANCED:
++		/* change the repair spare slot usage */
++		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
++			if (spare_array[i].psp_device_index == event->pe_index){
++				spare_array[i].psp_device_state =
++							event->pe_state;
++				break;
++			}
++		}
++		/* must found */
++		C2_ASSERT(i < pm->pm_state.pst_max_device_failures);
++		break;
++	default:
++		/* Do nothing */
++		;
++	}
++
++
++
+ out_unlock:
+-	/* Step 5: unlock the poolmach */
++	/* Finally: unlock the poolmach */
+ 	c2_rwlock_write_unlock(&pm->pm_lock);
+ 	return rc;
+ }
+@@ -406,7 +449,8 @@ int c2_poolmach_sns_repair_spare_query(struct c2_poolmach *pm,
+ 				       uint32_t device_index,
+ 				       uint32_t *spare_slot_out)
+ {
+-	struct c2_pool_spare_pair *repair_spare_list;
++	struct c2_pool_spare_usage *spare_usage_array;
++	enum c2_pool_nd_state       device_state;
+ 	uint32_t i;
+ 	int      rc;
+ 	C2_PRE(pm != NULL && spare_slot_out != NULL);
+@@ -415,15 +459,23 @@ int c2_poolmach_sns_repair_spare_query(struct c2_poolmach *pm,
+ 		return -EINVAL;
+ 
+ 	rc = -ENOENT;
+-	repair_spare_list = pm->pm_state.pst_repair_spare_list;
+ 	c2_rwlock_read_lock(&pm->pm_lock);
++	device_state = pm->pm_state.pst_devices_array[device_index].pd_state;
++	if (!C2_IN(device_state, (C2_PNDS_SNS_REPAIRING, C2_PNDS_SNS_REPAIRED)))
++		goto out;
++
++	spare_usage_array = pm->pm_state.pst_spare_usage_array;
+ 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-		if (repair_spare_list[i].psp_device_index == device_index) {
+-			*spare_slot_out = repair_spare_list[i].psp_spare_slot;
++		if (spare_usage_array[i].psp_device_index == device_index) {
++			C2_ASSERT(C2_IN(spare_usage_array[i].psp_device_state,
++						(C2_PNDS_SNS_REPAIRING,
++						 C2_PNDS_SNS_REPAIRED)));
++			*spare_slot_out = i;
+ 			rc = 0;
+ 			break;
+ 		}
+ 	}
++out:
+ 	c2_rwlock_read_unlock(&pm->pm_lock);
+ 
+ 	return rc;
+@@ -433,7 +485,8 @@ int c2_poolmach_sns_rebalance_spare_query(struct c2_poolmach *pm,
+ 					  uint32_t device_index,
+ 					  uint32_t *spare_slot_out)
+ {
+-	struct c2_pool_spare_pair *rebalance_spare_list;
++	struct c2_pool_spare_usage *spare_usage_array;
++	enum c2_pool_nd_state       device_state;
+ 	uint32_t i;
+ 	int      rc;
+ 	C2_PRE(pm != NULL && spare_slot_out != NULL);
+@@ -442,18 +495,28 @@ int c2_poolmach_sns_rebalance_spare_query(struct c2_poolmach *pm,
+ 		return -EINVAL;
+ 
+ 	rc = -ENOENT;
+-	rebalance_spare_list = pm->pm_state.pst_rebalance_spare_list;
+ 	c2_rwlock_read_lock(&pm->pm_lock);
++	device_state = pm->pm_state.pst_devices_array[device_index].pd_state;
++	if (!C2_IN(device_state, (C2_PNDS_SNS_REBALANCING,
++				  C2_PNDS_SNS_REBALANCED)))
++		goto out;
++
++	spare_usage_array = pm->pm_state.pst_spare_usage_array;
+ 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-		if (rebalance_spare_list[i].psp_device_index == device_index) {
+-			*spare_slot_out = rebalance_spare_list[i].psp_spare_slot;
++		if (spare_usage_array[i].psp_device_index == device_index) {
++			C2_ASSERT(C2_IN(spare_usage_array[i].psp_device_state,
++						(C2_PNDS_SNS_REBALANCING,
++						 C2_PNDS_SNS_REBALANCED)));
++			*spare_slot_out = i;
+ 			rc = 0;
+ 			break;
+ 		}
+ 	}
++out:
+ 	c2_rwlock_read_unlock(&pm->pm_lock);
+ 
+ 	return rc;
++
+ }
+ 
+ int c2_poolmach_current_state_get(struct c2_poolmach *pm,
+diff --git a/pool/pool.h b/pool/pool.h
+index 1c39f8b..aa93137 100644
+--- a/pool/pool.h
++++ b/pool/pool.h
+@@ -223,17 +223,15 @@ struct c2_pool_event_link {
+ };
+ 
+ /**
+- * A pair of device and spare slot, used to track device in repair or rebalance
+- * state. Unused pair is filled with {-1, -1};
++ * Tracking spare slot usage.
++ * If spare slot is not used for repair/rebalance, its :psp_device_index is -1.
+  */
+-struct c2_pool_spare_pair {
+-	/** device index to track */
++struct c2_pool_spare_usage {
++	/** index of the device to use this spare slot */
+ 	uint32_t psp_device_index;
+ 
+-	/** its corresponding spare slot. Valid spare slots are in the range of
+-	 * [0, c2_poolmach_state::pst_max_device_failures - 1];
+-	 */
+-	uint32_t psp_spare_slot;
++	/** state of the device to use this spare slot */
++	enum c2_pool_nd_state psp_device_state;
+ };
+ 
+ /**
+@@ -271,16 +269,10 @@ struct c2_poolmach_state {
+ 	uint32_t                       pst_max_device_failures;
+ 
+ 	/**
+-	 * {repair device, spare slot} pair lists. This size of this array is
+-	 * pst_max_device_failures;
+-	 */
+-	struct c2_pool_spare_pair     *pst_repair_spare_list;
+-
+-	/**
+-	 * {rebalace device, spare slot} pair lists. This size of this array is
+-	 * pst_max_device_failures;
++	 * Spare slot usage array.
++	 * The size of this array is pst_max_device_failures;
+ 	 */
+-	struct c2_pool_spare_pair     *pst_rebalance_spare_list;
++	struct c2_pool_spare_usage    *pst_spare_usage_array;
+ 
+ 	/**
+ 	 * All Events ever happened to this pool machine, ordered by time.
+-- 
+1.8.3.2
+

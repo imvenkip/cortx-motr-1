@@ -1,0 +1,173 @@
+From e9610b93cfab954d59c42fed74022bab64183829 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 26 Jun 2013 19:48:40 +0800
+Subject: [PATCH 06/14] init pool machine fops in m0_pools_init(); use opcode
+ to check fop type.
+
+---
+ ioservice/io_service.c |  9 +--------
+ mero/init.c            |  2 +-
+ pool/pool.c            |  8 ++++++++
+ pool/pool_foms.c       | 22 ++++++++++++++++++----
+ 4 files changed, 28 insertions(+), 13 deletions(-)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 2efc83c..07e5338 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -171,8 +171,6 @@ static struct m0_addb_rec_type *ios_rwfom_cntr_rts[] = {
+ 	&m0_addb_rt_ios_wfom_times,
+ };
+ 
+-M0_INTERNAL void m0_poolmach_fop_fini(void);
+-M0_INTERNAL int m0_poolmach_fop_init(void);
+ /**
+  * Registers I/O service with mero node.
+  * Mero setup calls this function.
+@@ -180,7 +178,6 @@ M0_INTERNAL int m0_poolmach_fop_init(void);
+ M0_INTERNAL int m0_ios_register(void)
+ {
+ 	int i;
+-	int rc;
+ 
+ 	/* The onwire version-number structure is declared as a struct,
+ 	 * not a sequence (which is more like an array.
+@@ -210,10 +207,7 @@ M0_INTERNAL int m0_ios_register(void)
+ 	ios_cdom_key = m0_reqh_lockers_allot();
+ 	poolmach_key = m0_reqh_lockers_allot();
+ 	ios_mds_conn_key = m0_reqh_lockers_allot();
+-	rc = m0_ioservice_fop_init();
+-	if (rc == 0)
+-		rc = m0_poolmach_fop_init();
+-	return rc;
++	return m0_ioservice_fop_init();
+ }
+ 
+ /**
+@@ -223,7 +217,6 @@ M0_INTERNAL void m0_ios_unregister(void)
+ {
+ 	m0_reqh_service_type_unregister(&m0_ios_type);
+ 	m0_ioservice_fop_fini();
+-	m0_poolmach_fop_fini();
+ }
+ 
+ M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
+diff --git a/mero/init.c b/mero/init.c
+index 53ffe80..88bd0dc 100644
+--- a/mero/init.c
++++ b/mero/init.c
+@@ -117,7 +117,6 @@ struct init_fini_call subsystem[] = {
+ 	{ &m0_dtm_init,         &m0_dtm_fini,         "dtm" },
+ 	{ &m0_fols_init,        &m0_fols_fini,        "fol" },
+ 	{ &m0_layouts_init,     &m0_layouts_fini,     "layout" },
+-	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
+ 	/* fops must be initialised before network, because network build fop
+ 	   type for network descriptors. */
+ 	{ &m0_fops_init,        &m0_fops_fini,        "fop" },
+@@ -146,6 +145,7 @@ struct init_fini_call subsystem[] = {
+ #ifdef __KERNEL__
+ 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
+ #else
++	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
+ 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
+ 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
+ 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
+diff --git a/pool/pool.c b/pool/pool.c
+index ba2a657..8d15480 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -24,6 +24,7 @@
+ #include "lib/memory.h"
+ #include "stob/stob.h"
+ #include "pool/pool.h"
++#include "pool/pool_fops.h"
+ #include "lib/misc.h"
+ 
+ /**
+@@ -228,11 +229,18 @@ M0_INTERNAL void m0_pool_put(struct m0_pool *pool, struct m0_stob_id *id)
+ 
+ M0_INTERNAL int m0_pools_init(void)
+ {
++#ifndef __KERNEL__
++	return m0_poolmach_fop_init();
++#else
+ 	return 0;
++#endif
+ }
+ 
+ M0_INTERNAL void m0_pools_fini(void)
+ {
++#ifndef __KERNEL__
++	m0_poolmach_fop_fini();
++#endif
+ }
+ 
+ M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_pool_version_numbers
+diff --git a/pool/pool_foms.c b/pool/pool_foms.c
+index e514118..7d97519 100644
+--- a/pool/pool_foms.c
++++ b/pool/pool_foms.c
+@@ -31,6 +31,7 @@
+ #include "pool/pool_foms.h"
+ #include "pool/pool_fops.h"
+ #include "ioservice/io_device.h"
++#include "rpc/rpc_opcodes.h"
+ 
+ static const struct m0_fom_ops poolmach_ops;
+ 
+@@ -47,12 +48,16 @@ static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,
+ 	if (fom == NULL)
+ 		return -ENOMEM;
+ 
+-	if (fop->f_type == &m0_fop_poolmach_query_fopt) {
++	if (fop->f_item.ri_type->rit_opcode == M0_POOLMACHINE_QUERY_OPCODE) {
+ 		rep_fop = m0_fop_alloc(&m0_fop_poolmach_query_rep_fopt, NULL);
+ 		M0_LOG(M0_DEBUG, "create Query fop");
+-	} else {
++	} else if (fop->f_item.ri_type->rit_opcode ==
++		   M0_POOLMACHINE_SET_OPCODE) {
+ 		rep_fop = m0_fop_alloc(&m0_fop_poolmach_set_rep_fopt, NULL);
+ 		M0_LOG(M0_DEBUG, "create set fop");
++	} else {
++		m0_free(fom);
++		return -EINVAL;
+ 	}
+ 	if (rep_fop == NULL) {
+ 		m0_free(fom);
+@@ -83,7 +88,8 @@ static int poolmach_fom_tick(struct m0_fom *fom)
+ 	req_fop = fom->fo_fop;
+ 	rep_fop = fom->fo_rep_fop;
+ 
+-	if (req_fop->f_type == &m0_fop_poolmach_query_fopt) {
++	switch (req_fop->f_item.ri_type->rit_opcode) {
++	case M0_POOLMACHINE_QUERY_OPCODE: {
+ 		struct m0_fop_poolmach_query     *query_fop;
+ 		struct m0_fop_poolmach_query_rep *query_fop_rep;
+ 
+@@ -100,7 +106,9 @@ static int poolmach_fom_tick(struct m0_fom *fom)
+ 			m0_poolmach_device_state(poolmach,
+ 						 query_fop->fpq_index,
+ 						 &query_fop_rep->fpq_state);
+-	} else {
++		break;
++	}
++	case M0_POOLMACHINE_SET_OPCODE: {
+ 		struct m0_fop_poolmach_set     *set_fop;
+ 		struct m0_fop_poolmach_set_rep *set_fop_rep;
+ 		struct m0_pool_event            pme;
+@@ -117,6 +125,12 @@ static int poolmach_fom_tick(struct m0_fom *fom)
+ 		pme.pe_index = set_fop->fps_index;
+ 		pme.pe_state = set_fop->fps_state;
+ 		set_fop_rep->fps_rc = m0_poolmach_state_transit(poolmach, &pme);
++		break;
++	}
++	default:
++		M0_IMPOSSIBLE("Invalid opcode");
++		m0_fom_phase_move(fom, -EINVAL, M0_FOPH_FAILURE);
++		return M0_FSO_AGAIN;
+ 	}
+ 
+ 	m0_fom_phase_move(fom, 0, M0_FOPH_SUCCESS);
+-- 
+1.8.3.2
+

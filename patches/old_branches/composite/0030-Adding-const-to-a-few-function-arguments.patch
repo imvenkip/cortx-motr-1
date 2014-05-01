@@ -1,0 +1,250 @@
+From 74f3924b22c82a2e7fa6fc71e014315377e276a7 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 13 Dec 2012 23:46:19 +0530
+Subject: [PATCH 030/172] Adding const to a few function arguments
+
+---
+ layout/composite.c    | 26 +++++++++++++++++++-------
+ layout/composite.h    | 40 +++++++++++++++++++---------------------
+ layout/ut/composite.c | 11 +++--------
+ 3 files changed, 41 insertions(+), 36 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 659ca61..6821c70 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -292,7 +292,7 @@ static void composite_delete(struct c2_layout *l)
+ /** Adds a layer to the inmemory layout. */
+ static int layer_in_memory_write(struct c2_composite_layout *cl,
+ 				 struct c2_layout *sublayout,
+-				 struct c2_tl *extlist,
++				 const struct c2_tl *extlist,
+ 				 uint32_t ext_nr,
+ 				 struct c2_composite_layer **lr)
+ {
+@@ -309,7 +309,7 @@ static int layer_in_memory_write(struct c2_composite_layout *cl,
+ 	layer->clr_l = sublayout;
+ 	layer->clr_idx = cl->cl_layers_nr++;
+ 	layer->clr_extents_nr = ext_nr;
+-	layer->clr_extents = extlist;
++	layer->clr_extents = (struct c2_tl *)extlist;
+ 	c2_layout_get(layer->clr_l);
+ 	c2_layout_user_count_inc(layer->clr_l);
+ 	c2_layer_tlink_init_at_tail(layer, cl->cl_layers);
+@@ -398,7 +398,7 @@ static void composite_fini(struct c2_ref *ref)
+ 		/*
+ 		 * Decrement the user count incremented by
+ 		 * layer_in_memory_write().
+-		 * todo No, this shall not happne here byt when a layer gets
++		 * todo No, this shall not happen here but when a layer gets
+ 		 * dissociated from within DB.
+ 		 * todo Need to add layer delete API.
+ 		 */
+@@ -520,7 +520,7 @@ static void prefix_set(struct layout_prefix *prefix,
+ 	prefix->lp_filler = 0;
+ }
+ 
+-//todo look for the strings sub-layout, sub_layout, sublayouts and similar instances and remove those. Also from the ut/composite.c.
++//todo look for the strings sub-layout, sub_layout, sublayouts and similar instances and make those consistent. Also from the ut/composite.c.
+ 
+ /* todo */
+ enum extent_op {
+@@ -1014,7 +1014,7 @@ static int layer_in_db_write(struct c2_composite_layout *cl,
+ 
+ int c2_composite_layer_add(struct c2_composite_layout *cl,
+ 			   struct c2_layout *sublayout,
+-			   struct c2_tl *extlist,
++			   const struct c2_tl *extlist,
+ 			   uint32_t ext_nr,
+ 			   struct c2_db_tx *tx)
+ {
+@@ -1565,7 +1565,7 @@ int c2_composite_layer_ext_lookup(const struct c2_composite_layout *cl,
+ /* todo Handle extent updation and val updation. */
+ int c2_composite_layer_ext_add(struct c2_composite_layout *cl,
+ 			       uint32_t layer_idx,
+-			       struct c2_ext *ext,
++			       const struct c2_ext *ext,
+ 			       struct c2_db_tx *tx)
+ {
+ 	struct composite_schema_data *csd;
+@@ -1610,11 +1610,23 @@ int c2_composite_layer_ext_add(struct c2_composite_layout *cl,
+ 	return rc;
+ }
+ 
++int
++c2_composite_layer_ext_state_update(struct c2_composite_layout *cl,
++				    uint32_t layer_idx,
++				    const struct c2_ext *ext,
++				    enum c2_composite_layer_ext_state state,
++				    struct c2_db_tx *tx)
++{
++	//todo Dec 13 Provide implementation
++	return 0;
++}
++
+ int c2_composite_layer_ext_delete(struct c2_composite_layout *cl,
+ 				  uint32_t layer_idx,
+-				  struct c2_ext *ext,
++				  const struct c2_ext *ext,
+ 				  struct c2_db_tx *tx)
+ {
++	//todo Dec 13 Provide implementation
+ 	return 0;
+ }
+ 
+diff --git a/layout/composite.h b/layout/composite.h
+index e9dd986..90986eb 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -47,6 +47,10 @@
+  * 4) Recoverable data is migrated from old server to new.
+  * 5) Eventually, “layout flattening” will be invoked that will convert
+  *    composite layouts to new non-composite layouts. (Future)
++ *
++ * @todo Is it necessary that the extents owned by various layers are exclusive
++ * of each other?
++ *
+  * @{
+  */
+ 
+@@ -223,7 +227,7 @@ int c2_composite_build(struct c2_layout_domain *dom,
+  */
+ int c2_composite_layer_add(struct c2_composite_layout *cl,
+ 			   struct c2_layout *sublayout,
+-			   struct c2_tl *extlist,
++			   const struct c2_tl *extlist,
+ 			   uint32_t ext_nr,
+ 			   struct c2_db_tx *tx);
+ 
+@@ -249,38 +253,34 @@ int c2_composite_layer_ext_lookup(const struct c2_composite_layout *cl,
+ 
+ /**
+  * Adds an extent to the specified layer of the specified composite layout,
+- * by right away updating the extents list in te DB.
++ * by right away updating the extents list in the DB.
+  *
+  * @todo The extents is added with the C2_CLRES_VALID state. Do we need to
+- * support adding the extents with supplied extent state?
++ * support adding the extents with any specific extent state?
+  */
+ int c2_composite_layer_ext_add(struct c2_composite_layout *cl,
+ 			       uint32_t layer_idx,
+-			       struct c2_ext *ext,
++			       const struct c2_ext *ext,
+ 			       struct c2_db_tx *tx);
+ 
+ /**
+  * Updates state of an extent owned by a specified layer of a specified
+- * composite layout, by right away updating it in te DB.
+- *
+- * todo Dec 13 Provide implementation
++ * composite layout, by right away updating it in the DB.
+  */
+-int c2_composite_layer_ext_state_update(struct c2_composite_layout *cl,
+-					uint32_t layer_idx,
+-					struct c2_ext *ext,
+-					struct c2_db_tx *tx);
+-
+-/* todo Dec 13 Check where const is applicable to the args. */
++int
++c2_composite_layer_ext_state_update(struct c2_composite_layout *cl,
++				    uint32_t layer_idx,
++				    const struct c2_ext *ext,
++				    enum c2_composite_layer_ext_state state,
++				    struct c2_db_tx *tx);
+ 
+ /**
+  * Deletes an extent from the specified layer of the specified composite
+- * layout, by right away updating the extents list in te DB.
+- *
+- * todo Dec 13 Provide implementation
++ * layout, by right away updating the extents list in the DB.
+  */
+ int c2_composite_layer_ext_delete(struct c2_composite_layout *cl,
+ 				  uint32_t layer_idx,
+-				  struct c2_ext *ext,
++				  const struct c2_ext *ext,
+ 				  struct c2_db_tx *tx);
+ 
+ struct c2_composite_layout *c2_layout_to_cl(const struct c2_layout *l);
+@@ -299,8 +299,7 @@ extern struct c2_layout_type c2_composite_layout_type;
+  * number of layers in it. It is used in the buffer representation of a
+  * composite layout.
+  *
+- * @note This structure needs to be maintained as 8 bytes aligned. (todo
+- * required only if this is to be stored in the layouts table from the LDB.)
++ * @note This structure needs to be maintained as 8 bytes aligned.
+  */
+ struct composite_header {
+ 	/** Total number of layers in a specific composite layout. */
+@@ -316,8 +315,7 @@ C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct composite_header)));
+  * layout' like the number of extents in it. It is used in the buffer
+  * representation of a composite layout.
+  *
+- * @note This structure needs to be maintained as 8 bytes aligned. (todo
+- * required only if this is to be stored in the layouts table from the LDB.)
++ * @note This structure needs to be maintained as 8 bytes aligned.
+  */
+ struct composite_layer_header {
+ 	/** Layout id for the layout used for this layer (sub-layout). */
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 0006e80..979ab40 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1391,9 +1391,9 @@ static void extent_to_be_operated(const struct c2_composite_layout *cl,
+ 
+ 	C2_UT_ASSERT(ergo(kind_of_extent_to_add == EXACT_EXISTING,
+ 			  extent_idx < layer->clr_extents_nr));
+-	/* todo Optimise the asserts. */
++	C2_UT_ASSERT(ergo(kind_of_extent_to_add == NON_EXISTING,
++			  if_contiguous_extents == false));
+ 	C2_UT_ASSERT(ergo(kind_of_extent_to_add != EXACT_EXISTING,
+-		          //todo Dec 12 Add for NON_EXISTING if_contiguous_extents == false &&
+ 			  layer->clr_extents_nr >= 3 &&
+ 			  layer->clr_extents_nr >= extent_idx + 1));
+ 
+@@ -1489,7 +1489,6 @@ int test_ext_lookup_composite(uint64_t lid,
+ 	rc = c2_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+-	//Dec 05 Continue from here.
+ 	ext.e_start = 0;
+ 	ext.e_end = 0;
+ 	rc = c2_composite_layer_ext_lookup(cl, ext_to_lookup.e_start, &tx,
+@@ -1508,7 +1507,7 @@ int test_ext_lookup_composite(uint64_t lid,
+ 		rc = 0;
+ 	}
+ 
+-	//todo Cover the other cases with kind_of_extent_to_add
++	//todo Cover the other cases with kind_of_extent_to_lookup
+ 
+ 	/* Delete the composite layout object. */
+ 	c2_layout_put(&cl->cl_base);
+@@ -1561,7 +1560,6 @@ static int layout_lookup(uint64_t lid,
+ 	return rc;
+ }
+ 
+-/* todo */
+ int test_ext_add_composite(uint64_t lid,
+ 			   struct c2_layout_domain *domain,
+ 			   uint32_t layers_nr,
+@@ -1606,7 +1604,6 @@ int test_ext_add_composite(uint64_t lid,
+ 
+ 	composite_layout_copy(l, &l_copy_updated);
+ 
+-	/* todo Optimize this code once it is functioning. */
+ 	/* Verify the extent list in the in-memory layout. */
+ 	if (kind_of_extent_to_add == EXACT_EXISTING) {
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+@@ -1630,8 +1627,6 @@ int test_ext_add_composite(uint64_t lid,
+ 	/* Read the layout from the DB and compare. */
+ 	rc = layout_lookup(lid, domain, !FAILURE_TEST, &l_from_DB);
+ 	C2_UT_ASSERT(rc == 0);
+-
+-	/* Following should succeed eventually. */
+ 	composite_layout_compare(l_from_DB, l_copy_updated, false);
+ 
+ 	/* Release the reference incremented by c2_layout_lookup(). */
+-- 
+1.8.3.2
+

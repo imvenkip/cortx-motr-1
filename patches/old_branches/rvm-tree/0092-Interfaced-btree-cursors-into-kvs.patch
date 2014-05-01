@@ -1,0 +1,154 @@
+From 0a22a4e8d24d2e53014e69bc648966006148a3e9 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 26 Apr 2013 08:44:50 +0300
+Subject: [PATCH 92/94] Interfaced btree cursors into kvs.
+
+---
+ be/kvs.c | 54 +++++++++++++++++++++++++++++++++++++++++++++++-------
+ be/kvs.h | 19 ++++++++++++++++++-
+ 2 files changed, 65 insertions(+), 8 deletions(-)
+
+diff --git a/be/kvs.c b/be/kvs.c
+index 461d6e3..e7b2ca0 100644
+--- a/be/kvs.c
++++ b/be/kvs.c
+@@ -172,12 +172,12 @@ static int kvs_seg_restore(struct m0_be_kvs *ks)
+ 	return 0;
+ }
+ 
+-struct btree *handle_restore(struct m0_be_seg *seg, uint64_t index,
++struct btree *handle_restore(struct m0_be_seg *seg, uint64_t offset,
+ 			     const struct btree_ops *ops)
+ {
+ 	struct btree     **tree;
+ 
+-	tree = (struct btree**) m0_be_static_reg_get_handle_addr(seg, index);
++	tree = (struct btree**) m0_be_static_reg_get_handle_addr(seg, offset);
+ 	if (tree == NULL)
+ 		return NULL;
+ 
+@@ -216,7 +216,7 @@ static int static_handle_store(struct m0_be_kvs *ks, struct btree *tree,
+ 	return rc;
+ }
+ 
+-struct btree *handle_create(struct m0_be_kvs *ks, uint64_t index,
++struct btree *handle_create(struct m0_be_kvs *ks, uint64_t offset,
+ 			    const struct btree_ops *ops)
+ {
+ 	struct m0_be_tx *tx;
+@@ -235,7 +235,7 @@ struct btree *handle_create(struct m0_be_kvs *ks, uint64_t index,
+ 	rc = __be_tx_commit(tx, true);
+ 	__be_tx_fini(tx);
+ 
+-	static_handle_store(ks, tree, index);
++	static_handle_store(ks, tree, offset);
+ 
+ 	return rc == 0 ? tree : NULL;
+ }
+@@ -247,7 +247,7 @@ M0_INTERNAL int m0_be_kvs_init(struct m0_be_kvs		*ks,
+ 			       struct m0_be_domain	*dom,
+ 			       const struct btree_ops	*ops,
+ 			       enum m0_be_kvs_mode	 mode,
+-			       uint64_t			 index)
++			       uint64_t			 offset)
+ {
+ 	int rc;
+ 
+@@ -265,11 +265,12 @@ M0_INTERNAL int m0_be_kvs_init(struct m0_be_kvs		*ks,
+ 	if (rc != 0)
+ 		goto err;
+ 
++	/* XXX */
+ 	pool.tp_seg = ks->bk_seg;
+ 
+ 	ks->bk_tree = mode == M0_BE_KVS_RESTORE
+-		? handle_restore(ks->bk_seg, index, ops)
+-		: handle_create(ks, index, ops);
++		? handle_restore(ks->bk_seg, offset, ops)
++		: handle_create(ks, offset, ops);
+ 
+ 	if (ks->bk_tree == NULL) {
+ 		rc = -ENOMEM;
+@@ -336,3 +337,42 @@ M0_INTERNAL struct bt_key_val *m0_be_kvs_pair_setup(const struct m0_be_kvs *ks,
+ {
+ 	return btree_pair_setup(ks->bk_tree, tx, key, key_size, val, val_size);
+ }
++
++
++/* -------------------------------------------------------------------------
++ * Interfaces implementation: Cursors.
++ * ----------------------------------------------------------------------- */
++
++struct m0_be_kvs_cursor {
++	struct btree_cursor cursor;
++};
++
++/*  */
++M0_INTERNAL void m0_be_kvs_cur_init(struct m0_be_kvs *kvs,
++				    struct m0_be_kvs_cursor *cur)
++{
++	btree_cur_init(kvs->bk_tree, &cur->cursor);
++}
++
++/*  */
++M0_INTERNAL int m0_be_kvs_cur_get(struct m0_be_kvs_cursor *cur, void *key)
++{
++	return 	btree_cur_get(&cur->cursor, key);
++}
++
++
++/*  */
++M0_INTERNAL int m0_be_kvs_cur_next(struct m0_be_kvs_cursor *cur,
++				   struct bt_key_val **kv)
++{
++	return 	btree_cur_next(&cur->cursor, kv);
++}
++
++
++/*  */
++M0_INTERNAL int m0_be_kvs_cur_prev(struct m0_be_kvs_cursor *cur,
++				   struct bt_key_val **kv)
++{
++	return 	btree_cur_prev(&cur->cursor, kv);
++}
++
+diff --git a/be/kvs.h b/be/kvs.h
+index 5525a56..d37e49d 100644
+--- a/be/kvs.h
++++ b/be/kvs.h
+@@ -52,7 +52,7 @@ M0_INTERNAL int m0_be_kvs_init(struct m0_be_kvs		*ks,
+ 			       struct m0_be_domain	*dom,
+ 			       const struct btree_ops	*ops,
+ 			       enum m0_be_kvs_mode	 mode,
+-			       uint64_t			 index);
++			       uint64_t			 offset);
+ /*  */
+ M0_INTERNAL void m0_be_kvs_fini(struct m0_be_kvs *ks);
+ 
+@@ -83,6 +83,23 @@ M0_INTERNAL struct bt_key_val *m0_be_kvs_pair_setup(const struct m0_be_kvs *ks,
+ 						    void *key, size_t key_size,
+ 						    void *val, size_t val_size);
+ 
++/* Have to hide some btree interfaces, kvs will be used instead */
++struct m0_be_kvs_cursor;
++
++/*  */
++M0_INTERNAL void m0_be_kvs_cur_init(struct m0_be_kvs *kvs,
++				    struct m0_be_kvs_cursor *cur);
++/*  */
++M0_INTERNAL int m0_be_kvs_cur_get(struct m0_be_kvs_cursor *cur, void *key);
++
++/*  */
++M0_INTERNAL int m0_be_kvs_cur_next(struct m0_be_kvs_cursor *cur,
++				   struct bt_key_val **kv);
++
++/*  */
++M0_INTERNAL int m0_be_kvs_cur_prev(struct m0_be_kvs_cursor *cur,
++				   struct bt_key_val **kv);
++
+ #endif /* __MERO_BE_KVS_H__ */
+ 
+ /*
+-- 
+1.8.3.2
+

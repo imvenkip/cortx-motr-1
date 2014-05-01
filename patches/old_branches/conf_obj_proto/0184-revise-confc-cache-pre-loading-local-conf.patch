@@ -1,0 +1,137 @@
+From 084d9f54a2c124140a527652a1193b5875822d89 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 16 May 2012 14:42:08 +0300
+Subject: [PATCH 184/370] revise confc cache pre-loading ("local-conf:")
+
+- confc_offline.h: Mention the use cases of cache pre-loading.
+- Rename `confd_addr' parameter of c2_confc_init() to `conf_source'
+  and document "local-conf:" prefix.
+
+The mechanism of cache pre-loading will be used in the full system.
+
+LogD: #1329
+RB: r/714
+---
+ conf/confc.c         | 14 +++++++++-----
+ conf/confc.h         | 25 ++++++++++++-------------
+ conf/confc_offline.h | 18 ++++++++++--------
+ 3 files changed, 31 insertions(+), 26 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index f2c8ed1..7d9f784 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -22,8 +22,9 @@
+ #  include <config.h>
+ #endif
+ #include "conf/confc.h"
+-#include "lib/cdefs.h"   /* container_of, C2_HAS_TYPE, equi */
+-#include "lib/arith.h"   /* C2_CNT_INC, C2_CNT_DEC */
++#include "conf/confc_offline.h"  /* c2_conf_parse */
++#include "lib/cdefs.h"           /* container_of, C2_HAS_TYPE, equi */
++#include "lib/arith.h"           /* C2_CNT_INC, C2_CNT_DEC */
+ 
+ /**
+  * @page confc-lspec confc Internals
+@@ -603,7 +604,7 @@ static bool confc_is_initialized(const struct c2_confc *client)
+ 	return client->cc_root != NULL;
+ }
+ 
+-int c2_confc_init(struct c2_confc *client, const char *confd_addr,
++int c2_confc_init(struct c2_confc *client, const char *conf_source,
+ 		  const char *profile, struct c2_sm_group *sm_group,
+ 		  struct c2_mutex *lock)
+ {
+@@ -613,7 +614,7 @@ int c2_confc_init(struct c2_confc *client, const char *confd_addr,
+ 	 *
+ 	 * C2_PRE(c2_mutex_is_locked(lock));
+ 	 * C2_PRE(!confc_is_initialized(client));
+-	 * C2_PRE(confd_addr != NULL && *confd_addr != 0);
++	 * C2_PRE(conf_source != NULL && *conf_source != 0);
+ 	 * C2_PRE(profile != NULL && *profile != 0);
+ 	 * C2_PRE(sm_group != NULL);
+ 	 *
+@@ -627,7 +628,10 @@ int c2_confc_init(struct c2_confc *client, const char *confd_addr,
+ 	 * c2_conf_map_add(&client->cc_registry, root);
+ 	 * client->cc_root = root;
+ 	 *
+-	 * cache_preload(client, confd_addr);
++	 * if (conf_source starts with "local-conf:")
++	 *     cache_preload(client, conf_source + strlen("local-conf:"));
++	 * else
++	 *     XXX @todo setup confd connection;
+ 	 *
+ 	 * c2_mutex_unlock(&sm_group->s_lock);
+ 	 * C2_POST(equi(rc == 0, confc_is_initialized(client) &&
+diff --git a/conf/confc.h b/conf/confc.h
+index 008d0e5..0858b54 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -339,23 +339,22 @@ struct c2_confc {
+ /**
+  * Initializes configuration client.
+  *
+- * @param client      A confc instance to be initialized.
+- * @param confd_addr  See the note below. @todo Configuration server's
+- *                    end point address.
+- * @param profile     Name of profile used by this confc.
+- * @param sm_group    State machine group to be associated with confc
+- *                    configuration cache.
+- * @param lock        A mutex that will protect this c2_confc instance and
+- *                    its configuration cache from concurrent modifications.
+- *
+- * @note  Until confd service is implemented, `confd_addr' is a string
+- *        with configuration data (see @ref conf-fspec-preload). This
+- *        string is used to pre-load confc cache.
++ * @param client       A confc instance to be initialized.
++ * @param conf_source  End point address of configuration server (confd).
++ *                     If the value is prefixed with "local-conf:", it
++ *                     is a configuration string --- ASCII description
++ *                     of configuration data to pre-load the cache with
++ *                     (see @ref conf-fspec-preload).
++ * @param profile      Name of profile used by this confc.
++ * @param sm_group     State machine group to be associated with confc
++ *                     configuration cache.
++ * @param lock         A mutex that will protect this c2_confc instance and
++ *                     its configuration cache from concurrent modifications.
+  *
+  * @pre   c2_mutex_is_locked(lock) && client->cc_lock == NULL
+  * @post  equi(retval == 0, client->cc_lock == lock)
+  */
+-int c2_confc_init(struct c2_confc *client, const char *confd_addr,
++int c2_confc_init(struct c2_confc *client, const char *conf_source,
+ 		  const char *profile, struct c2_sm_group *sm_group,
+ 		  struct c2_mutex *lock);
+ 
+diff --git a/conf/confc_offline.h b/conf/confc_offline.h
+index f1de07a..2720833 100644
+--- a/conf/confc_offline.h
++++ b/conf/confc_offline.h
+@@ -28,14 +28,16 @@
+  *   - @ref conf-fspec-preload-string-examples
+  * - @ref conf_dfspec_preload "Detailed Functional Specification"
+  *
+- * Until confd is ready, confc cannot obtain configuration by sending
+- * fops.  In order for confc to be operational, its cache needs to be
+- * pre-loaded.
+- *
+- * Configuration data, represented as an ASCII string, is conveyed to
+- * confc through `confd_addr' parameter of c2_confc_init() function
+- * (`confd_addr' is not used anyway, because there is no confd to
+- * communicate with).
++ * Confc cache can be created pre-loaded with configuration data. This
++ * can be useful in situations like testing, boot-strapping, and
++ * manual control, when confc cannot or should not communicate with
++ * confd.
++ *
++ * The application pre-loads confc cache by passing textual
++ * description of configuration objects -- so called configuration
++ * string -- to c2_confc_init() via `conf_source' parameter. The value
++ * of this parameter should start with "local-conf:", otherwise it
++ * will be treated as an end point address of confd.
+  *
+  * When confc API is used by a kernel module, the configuration string
+  * is specified as a module parameter. User-space application obtains
+-- 
+1.8.3.2
+

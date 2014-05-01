@@ -1,0 +1,25 @@
+From 1cfcedf01c88f02aef397d18a8d2291bb18f64a0 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 19:10:06 +0200
+Subject: [PATCH 32/79] LogD 1873: removed unnecessary line from
+ m0_net_test_network_cfg doc
+
+---
+ net/test/network.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/test/network.h b/net/test/network.h
+index 804895a..efa1ea1 100644
+--- a/net/test/network.h
++++ b/net/test/network.h
+@@ -72,7 +72,6 @@ struct m0_net_test_network_timeouts {
+ /**
+  * Net-test network context configuration.
+  * This structure is embedded into m0_net_test_network_ctx.
+- * m0_net_test_network_ctx_init() will make copy of this structure, so
+  */
+ struct m0_net_test_network_cfg {
+ 	/** transfer machine callbacks */
+-- 
+1.8.3.2
+

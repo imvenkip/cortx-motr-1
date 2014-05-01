@@ -1,0 +1,1073 @@
+From 15ddb78190d5990cb27b3e4e1fa85c067eccea18 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 30 Mar 2011 03:43:08 -0600
+Subject: [PATCH 028/158] - lots of fixes in mdervice and related components.
+ Code is buildanle now.
+
+---
+ cob/ut/cob.c          | 13 +++++---
+ colibri/Makefile.am   |  6 ++--
+ colibri/init.c        |  4 +--
+ datastore/datastore.c |  2 +-
+ datastore/datastore.h |  2 +-
+ fop/fop.h             |  4 +--
+ ioservice/io_foms.c   | 38 +++++++++++++----------
+ mdservice/md_foms.c   | 84 +++++++++++++++++++++++++++++++--------------------
+ mdservice/md_fops.c   | 76 +++++++++++++++++++++++++++++++++++++++-------
+ mdservice/md_fops.ff  |  1 +
+ mdservice/md_fops.h   | 23 ++++++++++++++
+ mdstore/md.c          | 55 ---------------------------------
+ mdstore/mdstore.c     | 55 ++++++++++++++++-----------------
+ mdstore/mdstore.h     | 11 +++----
+ reqh/reqh.c           | 14 ++++-----
+ reqh/reqh.h           |  2 +-
+ stob/ut/server.c      |  9 +++---
+ 17 files changed, 224 insertions(+), 175 deletions(-)
+ delete mode 100644 mdstore/md.c
+
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index d1ea8c9..d24e56e 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -72,8 +72,10 @@ static void test_create(void)
+         nsrec.cnr_nlink = 1;
+ 
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+-	rc = c2_cob_create(&dom, key, &nsrec, &fabrec, &omgrec, 
+-	                   0 /* we'll free below */, &cob, &tx);
++        rc = c2_cob_alloc(&dom, &cob);
++        C2_UT_ASSERT(rc == 0);
++	rc = c2_cob_create(cob, key, &nsrec, &fabrec, &omgrec, 
++	                   0 /* we'll free below */, &tx);
+ 	C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
+ 
+@@ -246,8 +248,11 @@ static void ub_create(int i)
+         nsrec.cnr_fid.f_key = i;
+         nsrec.cnr_nlink = 1;
+ 
+-	rc = c2_cob_create(&dom, key, &nsrec, &fabrec, &omgrec, 
+-	                   CA_NSKEY_FREE, &cob, &cob_ub_tx);
++        rc = c2_cob_alloc(&dom, &cob);
++        C2_UT_ASSERT(rc == 0);
++
++	rc = c2_cob_create(cob, key, &nsrec, &fabrec, &omgrec, 
++	                   CA_NSKEY_FREE, &cob_ub_tx);
+ 	C2_UB_ASSERT(rc == 0);
+ 
+         c2_cob_put(cob);
+diff --git a/colibri/Makefile.am b/colibri/Makefile.am
+index 14c65d2..4e431d6 100644
+--- a/colibri/Makefile.am
++++ b/colibri/Makefile.am
+@@ -28,9 +28,9 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @C
+                             $(top_builddir)/stob/libcolibri-stob.la \
+                             $(top_builddir)/udb/libcolibri-udb.la \
+                             $(top_builddir)/site/libcolibri-site.la \
+-                            $(top_builddir)/mdstore/libcolibri-mdstore.la \
+-                            $(top_builddir)/datastore/libcolibri-datastore.la \
+                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
+-                            $(top_builddir)/ioservice/libcolibri-mdservice.la
++                            $(top_builddir)/mdservice/libcolibri-mdservice.la \
++                            $(top_builddir)/mdstore/libcolibri-mdstore.la \
++                            $(top_builddir)/datastore/libcolibri-datastore.la
+ 
+ #                            $(top_builddir)/rpc/libcolibri-rpc.la
+diff --git a/colibri/init.c b/colibri/init.c
+index 9ca3ebb..a11d00c 100644
+--- a/colibri/init.c
++++ b/colibri/init.c
+@@ -21,7 +21,7 @@
+ #include "desim/sim.h"
+ #include "site/site.h"
+ #include "cob/cob.h"
+-#include "mdstore/mdstore.h"
++#include "mdservice/md_fops.h"
+ 
+ #include "colibri/init.h"
+ 
+@@ -54,7 +54,7 @@ struct init_fini_call subsystem[] = {
+ 	{ &c2_fols_init,         &c2_fols_fini,         "fol" },
+ 	{ &sim_global_init,      &sim_global_fini,      "desim" },
+ 	{ &c2_sites_init,        &c2_sites_fini,        "sites" },
+-	{ &c2_md_store_fop_init, &c2_md_store_fop_fini, "mdstore"}
++	{ &c2_md_fop_init,       &c2_md_fop_fini,       "mdservice"}
+ };
+ 
+ static void fini_nr(int i)
+diff --git a/datastore/datastore.c b/datastore/datastore.c
+index 130aff0..336b56f 100644
+--- a/datastore/datastore.c
++++ b/datastore/datastore.c
+@@ -10,7 +10,7 @@
+ 
+ int c2_data_store_init(struct c2_data_store *data, struct c2_stob_domain *stob)
+ {
+-        data->ds_stob = stob;
++        data->ds_dom = stob;
+         return 0;
+ }
+ 
+diff --git a/datastore/datastore.h b/datastore/datastore.h
+index 8e8b81c..a68fb34 100644
+--- a/datastore/datastore.h
++++ b/datastore/datastore.h
+@@ -6,7 +6,7 @@
+ struct c2_stob_domain;
+ 
+ struct c2_data_store {
+-        struct c2_stob_domain  *ds_stob;
++        struct c2_stob_domain  *ds_dom;
+ };
+ 
+ int c2_data_store_init(struct c2_data_store *data, struct c2_stob_domain *stob);
+diff --git a/fop/fop.h b/fop/fop.h
+index 8c34d89..5c790fa 100644
+--- a/fop/fop.h
++++ b/fop/fop.h
+@@ -115,7 +115,7 @@ struct c2_fop_ctx {
+         /**
+            Transaction handle.
+         */
+-        struct c2_db_tx    *ft_tx;
++        struct c2_dtx      *ft_tx;
+         /**
+            Fop handling environment.
+         */
+@@ -135,8 +135,6 @@ struct c2_fop_type_ops {
+ 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
+ 	/** XXX temporary entry point for threaded fop execution. */
+ 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
+-        /** Free some fop fields if needed. */
+-	void (*fto_free) (struct c2_fop *fop);
+ 	/** fol record type operations for this fop type, or NULL is standard
+ 	    operations are to be used. */
+ 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 435add7..35958f8 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -5,6 +5,8 @@
+ #include "stob/stob.h"
+ #include "lib/errno.h"
+ #include "net/net.h"
++#include "site/site.h"
++#include "datastore/datastore.h"
+ 
+ #ifdef __KERNEL__
+ #include "io_fops_k.h"
+@@ -134,8 +136,6 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
+ 	struct c2_fid 			 fid;
+ 	struct c2_fom_cob_rwv 		*fom_obj;
+ 	struct c2_stob_id		 stobid;
+-	struct c2_db_tx                 *tx;
+-	struct c2_dtx                    dtx;
+ 	uint32_t			 bshift;
+ 	uint64_t			 bmask;
+ 	int 				 result;
+@@ -167,6 +167,7 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
+ 
+         ctx = fom->fo_fop_ctx;
+         C2_ASSERT(ctx != NULL);
++
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+@@ -207,26 +208,31 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
+ 	 * This is a transaction IO and should be a separate phase 
+ 	 * with full fledged FOM. 
+ 	 */
+-	C2_ASSERT(ctx != NULL && ctx->ft_tx);
+-	dtx.tx_dbtx = tx = ctx->ft_tx;
+-	
++	 
++	/*
++	 * @todo: Use ctx->ft_tx prepared by reqh.
++	 */
++	result = site->s_datastore->ds_dom->sd_ops->sdo_tx_make(
++	        site->s_datastore->ds_dom, ctx->ft_tx);
++	C2_ASSERT(result == 0);
+ 
+-	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode) {
++	if(fom_obj->fcrw_fop->f_type->ft_code == c2_io_service_writev_opcode)
++	{
+ 		/* 
+ 		 * Make an FOL transaction record.
+ 		 */
+ 		result = c2_fop_fol_rec_add(fom_obj->fcrw_fop, 
+-				            ctx->ft_fol, tx);
++				            ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+ 		C2_ASSERT(result == 0);
+ 	}
+ 
+ 	/*
+ 	 * Allocate and find out the c2_stob object from given domain. 
+ 	 */
+-	result = c2_stob_find(site->s_datastore->ds_stob, 
+-	                      (const struct c2_stob_id *)&stobid, &fom_obj->fcrw_stob);
++	result = c2_stob_find(site->s_datastore->ds_dom, 
++	        (const struct c2_stob_id*)&stobid, &fom_obj->fcrw_stob);
+ 	C2_ASSERT(result == 0);
+-	result = c2_stob_locate(fom_obj->fcrw_stob, &dtx);
++	result = c2_stob_locate(fom_obj->fcrw_stob, ctx->ft_tx);
+ 	C2_ASSERT(result == 0);
+ 
+ 	/*
+@@ -299,7 +305,8 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
+ 	/*
+ 	 * Launch IO and wait for status. 
+ 	 */
+-	result = c2_stob_io_launch(fom_obj->fcrw_st_io, fom_obj->fcrw_stob, &tx, NULL);
++	result = c2_stob_io_launch(fom_obj->fcrw_st_io, fom_obj->fcrw_stob, 
++	                           ctx->ft_tx, NULL);
+ 	if(result == 0)
+ 		c2_chan_wait(&clink);
+ 
+@@ -328,11 +335,11 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
+ 	c2_stob_put(fom_obj->fcrw_stob);
+ 
+ 	if(result != -EDEADLK)	{
+-		rc = c2_db_tx_commit(&tx.tx_dbtx);
++		rc = c2_db_tx_commit(&ctx->ft_tx->tx_dbtx);
+ 		C2_ASSERT(rc == 0);
+ 	}
+ 	else {
+-		rc = c2_db_tx_abort(&tx.tx_dbtx);
++		rc = c2_db_tx_abort(&ctx->ft_tx->tx_dbtx);
+ 		C2_ASSERT(rc == 0);
+ 		/* This should go into FAILURE phase */
+ 		fom_obj->fcrw_gen.fo_phase = FOPH_FAILED;
+@@ -342,8 +349,8 @@ int c2_fom_cob_rwv_state(struct c2_fom *fom)
+ 	/*
+ 	 * Send reply FOP
+ 	 */
+-	c2_net_reply_post(ctx->ft_service, fom_obj->fcrw_rep_fop, 
+-			  ctx->fc_cookie);
++	c2_net_reply_post(fom->fo_fop_ctx->ft_service, fom_obj->fcrw_rep_fop, 
++			  fom->fo_fop_ctx->fc_cookie);
+ 
+ 	/* This goes into DONE phase */
+ 	fom_obj->fcrw_gen.fo_phase = FOPH_DONE;
+@@ -393,7 +400,6 @@ int c2_dummy_req_handler(struct c2_service *s, struct c2_fop *fop,
+ 	result = fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+ 	C2_ASSERT(fom != NULL);
+ 
+-	fom->fo_domain = dom;
+ 	fom->fo_fop_ctx = &ctx;
+ 
+ 	/* 
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 30fc654..b1fc9ae 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -14,11 +14,12 @@
+ #include "fop/fop.h"
+ #include "cob/cob.h"
+ #include "site/site.h"
+-#include "mdstore/mdstore.h"
+ 
+-#include "md_fops_u.h"
+-#include "fop/fop_format_def.h"
+-#include "md_fops.ff"
++#include "mdservice/md_fops_u.h"
++#include "mdservice/md_fops.h"
++#include "mdservice/md_foms.h"
++
++#include "mdstore/mdstore.h"
+ 
+ /**
+    Make in-memory fid from fop fid.
+@@ -87,9 +88,9 @@ static int c2_md_fom_create_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+-                rc = c2_cob_alloc(md->md_cob, &cob);
++                rc = c2_cob_alloc(&site->s_mdstore->md_dom, &cob);
+                 if (rc)
+                         goto out;
+ 
+@@ -143,7 +144,7 @@ static int c2_md_fom_link_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->l_body;
+@@ -154,8 +155,8 @@ static int c2_md_fom_link_state(struct c2_fom *fom)
+ 
+                 c2_md_make_oikey(&oikey, &body->b_tfid, 0);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                   &cob, ctx->ft_tx);
++                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
++                                   &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -203,7 +204,7 @@ static int c2_md_fom_unlink_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->u_body;
+@@ -214,8 +215,8 @@ static int c2_md_fom_unlink_state(struct c2_fom *fom)
+ 
+                 c2_md_make_oikey(&oikey, &body->b_tfid, 0);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                   &cob, ctx->ft_tx);
++                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
++                                   &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -241,7 +242,7 @@ static int c2_md_fom_rename_state(struct c2_fom *fom)
+         struct c2_site           *site;
+         struct c2_cob            *cob;
+         struct c2_fop_rename     *req;
+-        struct c2_fop_reanme_rep *rep;
++        struct c2_fop_rename_rep *rep;
+         struct c2_fom_md         *fom_obj;
+         struct c2_fop            *fop;
+         struct c2_fop            *fop_rep;
+@@ -263,7 +264,7 @@ static int c2_md_fom_rename_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->r_sbody;
+@@ -274,8 +275,8 @@ static int c2_md_fom_rename_state(struct c2_fom *fom)
+ 
+                 c2_md_make_oikey(&oikey, &body->b_tfid, 0);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                   &cob, ctx->ft_tx);
++                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
++                                   &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -323,7 +324,7 @@ static int c2_md_fom_open_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->o_body;
+@@ -334,8 +335,8 @@ static int c2_md_fom_open_state(struct c2_fom *fom)
+ 
+                 c2_md_make_oikey(&oikey, &body->b_tfid, 0);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                   &cob, ctx->ft_tx);
++                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
++                                   &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc == -ENOENT) {
+                         /*
+                          * @todo: create file if open mode says so.
+@@ -382,7 +383,7 @@ static int c2_md_fom_close_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->c_body;
+@@ -391,11 +392,11 @@ static int c2_md_fom_close_state(struct c2_fom *fom)
+ 
+ #if 0
+                 /** @todo: Find a cob in open files table. */
+-                rc = c2_cob_open_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                        &cob, ctx->ft_tx);
++                rc = c2_cob_open_locate(&site->s_mdstore->md_dom, &oikey, 
++                                        &cob, &ctx->ft_tx->tx_dbtx);
++#endif
+                 if (rc)
+                         goto out;
+-#endif
+                 rep = c2_fop_data(fop_rep);
+ 
+                 rc = c2_md_store_close(site->s_mdstore, cob, req, rep, ctx);
+@@ -440,7 +441,7 @@ static int c2_md_fom_setattr_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->s_body;
+@@ -451,8 +452,8 @@ static int c2_md_fom_setattr_state(struct c2_fom *fom)
+ 
+                 c2_md_make_oikey(&oikey, &body->b_tfid, 0);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                   &cob, ctx->ft_tx);
++                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
++                                   &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -500,7 +501,7 @@ static int c2_md_fom_getattr_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->g_body;
+@@ -511,8 +512,8 @@ static int c2_md_fom_getattr_state(struct c2_fom *fom)
+ 
+                 c2_md_make_oikey(&oikey, &body->b_tfid, 0);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                   &cob, ctx->ft_tx);
++                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
++                                   &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -560,7 +561,7 @@ static int c2_md_fom_readdir_state(struct c2_fom *fom)
+         site = ctx->ft_site;
+         C2_ASSERT(site != NULL);
+ 
+-        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, &ctx->ft_tx->tx_dbtx);
+         if (rc == 0) {
+                 req = c2_fop_data(fop);
+                 body = &req->r_body;
+@@ -571,8 +572,8 @@ static int c2_md_fom_readdir_state(struct c2_fom *fom)
+ 
+                 c2_md_make_oikey(&oikey, &body->b_tfid, 0);
+ 
+-                rc = c2_cob_locate(&site->s_mdstore->md_cob, &oikey, 
+-                                   &cob, ctx->ft_tx);
++                rc = c2_cob_locate(&site->s_mdstore->md_dom, &oikey, 
++                                   &cob, &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+ 
+@@ -614,6 +615,10 @@ struct c2_fom_ops c2_md_fom_setattr_ops = {
+ 	.fo_state = c2_md_fom_setattr_state
+ };
+ 
++struct c2_fom_ops c2_md_fom_getattr_ops = {
++	.fo_state = c2_md_fom_getattr_state
++};
++
+ struct c2_fom_ops c2_md_fom_readdir_ops = {
+ 	.fo_state = c2_md_fom_readdir_state
+ };
+@@ -631,6 +636,7 @@ int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fom **m)
+ 	struct c2_fom           *fom;
+ 	struct c2_fom_md        *fom_obj;
+ 	struct c2_fom_type      *fom_type;
++	struct c2_fop_type      *fop_type;
+ 
+ 	C2_PRE(fop != NULL);
+ 	C2_PRE(m != NULL);
+@@ -649,34 +655,46 @@ int c2_md_req_fom_init(struct c2_fop *fop, struct c2_fom **m)
+         switch (fop->f_type->ft_code) {
+         case C2_FOP_CREATE:
+ 		fom->fo_ops = &c2_md_fom_create_ops;
++		fop_type = &c2_fop_create_rep_fopt;
+ 	        break;
+         case C2_FOP_LINK:
+ 		fom->fo_ops = &c2_md_fom_link_ops;
++		fop_type = &c2_fop_link_rep_fopt;
+ 	        break;
+         case C2_FOP_UNLINK:
+ 		fom->fo_ops = &c2_md_fom_unlink_ops;
++		fop_type = &c2_fop_unlink_rep_fopt;
+ 	        break;
+         case C2_FOP_RENAME:
+ 		fom->fo_ops = &c2_md_fom_rename_ops;
++		fop_type = &c2_fop_rename_rep_fopt;
+ 	        break;
+         case C2_FOP_OPEN:
+ 		fom->fo_ops = &c2_md_fom_open_ops;
++		fop_type = &c2_fop_open_rep_fopt;
+ 	        break;
+         case C2_FOP_CLOSE:
+ 		fom->fo_ops = &c2_md_fom_close_ops;
++		fop_type = &c2_fop_close_rep_fopt;
+ 	        break;
+         case C2_FOP_SETATTR:
+ 		fom->fo_ops = &c2_md_fom_setattr_ops;
++		fop_type = &c2_fop_setattr_rep_fopt;
++	        break;
++        case C2_FOP_GETATTR:
++		fom->fo_ops = &c2_md_fom_getattr_ops;
++		fop_type = &c2_fop_getattr_rep_fopt;
+ 	        break;
+         case C2_FOP_READDIR:
+ 		fom->fo_ops = &c2_md_fom_readdir_ops;
++		fop_type = &c2_fop_readdir_rep_fopt;
+ 	        break;
+         default:
+                 c2_free(fom_obj);
+                 return -EINVAL;
+         }
+ 
+-        fom_obj->fm_fop_rep = c2_fop_alloc(&c2_md_rep_fopt, NULL);
++        fom_obj->fm_fop_rep = c2_fop_alloc(fop_type, NULL);
+ 	if (fom_obj->fm_fop_rep == NULL) {
+                 c2_free(fom_obj);
+ 	        return -ENOMEM;
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 030bb8f..7ee35bc 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -2,6 +2,15 @@
+ #  include <config.h>
+ #endif
+ 
++#include "fop/fop.h"
++
++#include "mdservice/md_fops_u.h"
++#include "fop/fop_format_def.h"
++#include "mdservice/md_fops.ff"
++
++#include "mdservice/md_foms.h"
++#include "mdservice/md_fops.h"
++
+ static struct c2_fop_type_ops c2_md_req_ops = {
+         .fto_fom_init = c2_md_req_fom_init
+ };
+@@ -27,28 +36,73 @@ C2_FOP_TYPE_DECLARE(c2_fop_getattr, "Getattr request",
+                     C2_FOP_GETATTR, &c2_md_req_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_rename,  "Rename request",
+                     C2_FOP_RENAME,  &c2_md_req_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_rename,  "Readdir request",   
++C2_FOP_TYPE_DECLARE(c2_fop_readdir, "Readdir request",   
+                     C2_FOP_READDIR, &c2_md_req_ops);
+ 
+ /** Reply fops. */
+ C2_FOP_TYPE_DECLARE(c2_fop_create_rep,  "Create reply",    
+-                    C2_FOP_CREATE_REP,  &md_rep_ops);
++                    C2_FOP_CREATE_REP,  &c2_md_rep_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_link_rep,    "Hardlink reply",  
+-                    C2_FOP_LINK_REP,    &md_rep_ops);
++                    C2_FOP_LINK_REP,    &c2_md_rep_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_unlink_rep,  "Unlink reply",
+-                    C2_FOP_UNLINK_REP,  &md_rep_ops);
++                    C2_FOP_UNLINK_REP,  &c2_md_rep_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_open_rep,    "Open reply",
+-                    C2_FOP_OPEN_REP,    &md_rep_ops);
++                    C2_FOP_OPEN_REP,    &c2_md_rep_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_close_rep,   "Close reply",     
+-                    C2_FOP_CLOSE_REP,   &md_rep_ops);
++                    C2_FOP_CLOSE_REP,   &c2_md_rep_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_setattr_rep, "Setattr reply",   
+-                    C2_FOP_SETATTR_REP, &md_rep_ops);
++                    C2_FOP_SETATTR_REP, &c2_md_rep_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_getattr_rep, "Getattr reply",   
+-                    C2_FOP_GETATTR_REP, &md_rep_ops);
++                    C2_FOP_GETATTR_REP, &c2_md_rep_ops);
+ C2_FOP_TYPE_DECLARE(c2_fop_rename_rep,  "Rename reply",
+-                    C2_FOP_RENAME_REP,  &md_rep_ops);
+-C2_FOP_TYPE_DECLARE(c2_fop_rename_rep,  "Readdir reply",   
+-                    C2_FOP_READDIR_REP, &md_rep_ops);
++                    C2_FOP_RENAME_REP,  &c2_md_rep_ops);
++C2_FOP_TYPE_DECLARE(c2_fop_readdir_rep, "Readdir reply",   
++                    C2_FOP_READDIR_REP, &c2_md_rep_ops);
++
++static struct c2_fop_type *c2_md_fop_fops[] = {
++        &c2_fop_create_fopt,
++        &c2_fop_link_fopt,
++        &c2_fop_unlink_fopt,
++        &c2_fop_rename_fopt,
++        &c2_fop_readdir_fopt,
++        &c2_fop_open_fopt,
++        &c2_fop_close_fopt,
++        &c2_fop_setattr_fopt,
++        &c2_fop_getattr_fopt,
++        &c2_fop_create_rep_fopt,
++        &c2_fop_link_rep_fopt,
++        &c2_fop_unlink_rep_fopt,
++        &c2_fop_rename_rep_fopt,
++        &c2_fop_readdir_rep_fopt,
++        &c2_fop_open_rep_fopt,
++        &c2_fop_close_rep_fopt,
++        &c2_fop_setattr_rep_fopt,
++        &c2_fop_getattr_rep_fopt
++};
++
++static struct c2_fop_type_format *c2_md_fop_fmts[] = {
++        &c2_fop_fid_tfmt,
++        &c2_fop_name_tfmt,
++        &c2_fop_cob_tfmt
++};
++
++void c2_md_fop_fini(void)
++{
++        c2_fop_type_fini_nr(c2_md_fop_fops, ARRAY_SIZE(c2_md_fop_fops));
++        c2_fop_type_format_fini_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
++}
++
++int c2_md_fop_init(void)
++{
++	int rc;
++
++	rc = c2_fop_type_format_parse_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
++	if (rc == 0)
++		rc = c2_fop_type_build_nr(c2_md_fop_fops, ARRAY_SIZE(c2_md_fop_fops));
++	if (rc != 0)
++		c2_md_fop_fini();
++	return rc;
++}
+ 
+ /* 
+  *  Local variables:
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 7aa90ec..579ed3d 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -95,6 +95,7 @@ DEF(c2_fop_dirent, RECORD,
+     _(d_name, c2_fop_name));
+ 
+ DEF(c2_fop_readdir_rep, RECORD,
++    _(r_body, c2_fop_cob),
+     _(r_count, U32),
+     _(r_entry, c2_fop_dirent));
+ 
+diff --git a/mdservice/md_fops.h b/mdservice/md_fops.h
+index bb5c314..6355105 100644
+--- a/mdservice/md_fops.h
++++ b/mdservice/md_fops.h
+@@ -3,6 +3,26 @@
+ #ifndef __COLIBRI_MDSERVICE_MD_FOPS_H__
+ #define __COLIBRI_MDSERVICE_MD_FOPS_H__
+ 
++extern struct c2_fop_type c2_fop_create_fopt;
++extern struct c2_fop_type c2_fop_link_fopt;  
++extern struct c2_fop_type c2_fop_unlink_fopt;
++extern struct c2_fop_type c2_fop_open_fopt;
++extern struct c2_fop_type c2_fop_close_fopt;
++extern struct c2_fop_type c2_fop_setattr_fopt;
++extern struct c2_fop_type c2_fop_getattr_fopt;
++extern struct c2_fop_type c2_fop_rename_fopt;
++extern struct c2_fop_type c2_fop_readdir_fopt;
++
++extern struct c2_fop_type c2_fop_create_rep_fopt;
++extern struct c2_fop_type c2_fop_link_rep_fopt;  
++extern struct c2_fop_type c2_fop_unlink_rep_fopt;
++extern struct c2_fop_type c2_fop_open_rep_fopt;
++extern struct c2_fop_type c2_fop_close_rep_fopt;
++extern struct c2_fop_type c2_fop_setattr_rep_fopt;
++extern struct c2_fop_type c2_fop_getattr_rep_fopt;
++extern struct c2_fop_type c2_fop_rename_rep_fopt;
++extern struct c2_fop_type c2_fop_readdir_rep_fopt;
++
+ enum c2_fop_metadata_code {
+         C2_FOP_FIRST,
+         C2_FOP_CREATE = C2_FOP_FIRST,
+@@ -26,6 +46,9 @@ enum c2_fop_metadata_code {
+         C2_FOP_LAST
+ };
+ 
++void c2_md_fop_fini(void);
++int c2_md_fop_init(void);
++
+ #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
+ /* 
+  *  Local variables:
+diff --git a/mdstore/md.c b/mdstore/md.c
+deleted file mode 100644
+index fb97051..0000000
+--- a/mdstore/md.c
++++ /dev/null
+@@ -1,55 +0,0 @@
+-#ifdef HAVE_CONFIG_H
+-#  include <config.h>
+-#endif
+-
+-#include "lib/misc.h"   /* C2_SET0 */
+-#include "lib/cdefs.h"
+-#include "lib/arith.h"   /* C2_3WAY */
+-#include "lib/errno.h"
+-#include "lib/assert.h"
+-#include "lib/memory.h"
+-#include "lib/bitstring.h"
+-#include "lib/rwlock.h"
+-
+-#include <fop/fop.h>
+-#include <cob/cob.h>
+-#include <mdstore/mdstore.h>
+-#include <site/site.h>
+-
+-#include "mdstore/md_u.h"
+-#include <fop/fop_format_def.h>
+-#include "mdstore/md.ff"
+-
+-static struct c2_fop_type *c2_fop_fops[] = {
+-        &c2_fop_create_fopt,
+-        &c2_fop_link_fopt,
+-        &c2_fop_unlink_fopt,
+-        &c2_fop_rename_fopt,
+-        &c2_fop_open_fopt,
+-        &c2_fop_close_fopt,
+-        &c2_fop_setattr_fopt
+-};
+-
+-static struct c2_fop_type_format *c2_fop_fmts[] = {
+-        &c2_fop_fid_tfmt,
+-        &c2_fop_name_tfmt,
+-        &c2_fop_body_tfmt
+-};
+-
+-void c2_md_store_fop_fini(void)
+-{
+-        c2_fop_type_fini_nr(c2_fop_fops, ARRAY_SIZE(c2_fop_fops));
+-        c2_fop_type_format_fini_nr(c2_fop_fmts, ARRAY_SIZE(c2_fop_fmts));
+-}
+-
+-int c2_md_store_fop_init(void)
+-{
+-	int rc;
+-
+-	rc = c2_fop_type_format_parse_nr(c2_fop_fmts, ARRAY_SIZE(c2_fop_fmts));
+-	if (rc == 0)
+-		rc = c2_fop_type_build_nr(c2_fop_fops, ARRAY_SIZE(c2_fop_fops));
+-	if (rc != 0)
+-		c2_md_store_fop_fini();
+-	return rc;
+-}
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 7998ab9..874ea63 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -19,8 +19,7 @@
+ #include "mdstore/mdstore.h"
+ 
+ #include "mdservice/md_fops_u.h"
+-#include "fop/fop_format_def.h"
+-#include "mdservice/md_fops.ff"
++#include "mdservice/md_foms.h"
+ 
+ static const struct c2_fid C2_MD_ROOTID = {
+         .f_container = 1024ULL, 
+@@ -33,7 +32,7 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+         int rc;
+         
+         C2_SET0(md);
+-        rc = c2_cob_domain_init(&md->md_cob, db, id);
++        rc = c2_cob_domain_init(&md->md_dom, db, id);
+         if (rc)
+                 return rc;
+         md->md_rootid = C2_MD_ROOTID;
+@@ -42,7 +41,7 @@ int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
+ 
+ void c2_md_store_fini(struct c2_md_store *md)
+ {
+-        c2_cob_domain_fini(&md->md_cob);
++        c2_cob_domain_fini(&md->md_dom);
+ }
+ 
+ int c2_md_store_create(struct c2_md_store *md, 
+@@ -58,8 +57,8 @@ int c2_md_store_create(struct c2_md_store *md,
+         struct c2_cob_omgrec   omgrec;
+         int                    rc;
+         
+-        md_store_make_nskey(&nskey, &body->b_pfid, &req->c_name);
+-        md_store_make_fid(&nsrec.cnr_fid, &body->b_tfid);
++        c2_md_make_nskey(&nskey, &body->b_pfid, &req->c_name);
++        c2_md_make_fid(&nsrec.cnr_fid, &body->b_tfid);
+ 
+         /*
+          * Create case, nlink == 0, will be bumped by c2_cob_create()
+@@ -112,8 +111,8 @@ int c2_md_store_create(struct c2_md_store *md,
+         omgrec.cor_mode = body->b_mode;
+ 
+         rc = c2_cob_create(cob, nskey, &nsrec, &fabrec, &omgrec, 0,
+-                           ctx->ft_tx);
+-        c2_free(key);
++                           &ctx->ft_tx->tx_dbtx);
++        c2_free(nskey);
+         return rc;
+ }
+ 
+@@ -132,15 +131,15 @@ int c2_md_store_link(struct c2_md_store *md,
+         /*
+          * Link @nskey to a file described with @cob
+          */        
+-        md_store_make_nskey(&nskey, &body->b_pfid, &link->l_name);
+-        rc = c2_cob_add_name(cob, nskey, ctx->ft_tx);
++        c2_md_make_nskey(&nskey, &body->b_pfid, &req->l_name);
++        rc = c2_cob_add_name(cob, nskey, &ctx->ft_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+         /*
+          * Update nlink in statdata and save it to storage. 
+          */
+         cob->co_nsrec.cnr_nlink++;
+-        rc = c2_cob_update(cob, ctx->ft_tx);
++        rc = c2_cob_update(cob, &ctx->ft_tx->tx_dbtx);
+ out:
+         c2_free(nskey);
+         return rc;
+@@ -148,8 +147,8 @@ out:
+ 
+ int c2_md_store_unlink(struct c2_md_store *md, 
+                        struct c2_cob *cob,
+-                       struct c2_fop_unink *req, 
+-                       struct c2_fop_unink_rep *rep, 
++                       struct c2_fop_unlink *req, 
++                       struct c2_fop_unlink_rep *rep, 
+                        struct c2_fop_ctx *ctx)
+ {
+         struct c2_fop_cob     *body = &req->u_body;
+@@ -160,7 +159,7 @@ int c2_md_store_unlink(struct c2_md_store *md,
+         int                    rc;
+     
+         C2_ASSERT(cob != NULL);
+-        md_store_make_nskey(&nskey, &body->b_pfid, &unlink->u_name);
++        c2_md_make_nskey(&nskey, &body->b_pfid, &req->u_name);
+ 
+         /*
+          * Copy "working copy" of stat data.
+@@ -176,7 +175,7 @@ int c2_md_store_unlink(struct c2_md_store *md,
+                 /*
+                  * @todo: orphans handling.
+                  */
+-                rc = c2_cob_delete(cob, ctx->ft_tx);
++                rc = c2_cob_delete(cob, &ctx->ft_tx->tx_dbtx);
+                 goto out;
+         }
+         
+@@ -191,7 +190,8 @@ int c2_md_store_unlink(struct c2_md_store *md,
+                  */
+                 oikey.cok_linkno++;
+                 
+-                rc = c2_cob_locate(&md->md_cob, &oikey, &ncob, ctx->ft_tx);
++                rc = c2_cob_locate(&md->md_dom, &oikey, &ncob, 
++                                   &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+                 cob = ncob;
+@@ -201,14 +201,14 @@ int c2_md_store_unlink(struct c2_md_store *md,
+          * Update stat data on store. 
+          */
+         cob->co_nsrec = nsrec;
+-        rc = c2_cob_update(cob, ctx->ft_tx);
++        rc = c2_cob_update(cob, &ctx->ft_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+ 
+         /*
+          * Kill name whatever it was.
+          */
+-        rc = c2_cob_del_name(cob, nskey, ctx->ft_tx);
++        rc = c2_cob_del_name(cob, nskey, &ctx->ft_tx->tx_dbtx);
+ out:
+         if (ncob)
+                 c2_cob_put(ncob);
+@@ -258,8 +258,8 @@ static int c2_md_store_rename_sanity(struct c2_md_store *md,
+         struct c2_cob       *tgt;
+         int                  rc;
+ 
+-        c2_md_store_make_fid(&srcfid, &rename->r_sbody.b_tfid);
+-        c2_md_store_make_fid(&tgtfid, &rename->r_tbody.b_tfid);
++        c2_md_make_fid(&srcfid, &rename->r_sbody.b_tfid);
++        c2_md_make_fid(&tgtfid, &rename->r_tbody.b_tfid);
+         
+         /*
+          * Going up from the target starting point until root is
+@@ -276,7 +276,8 @@ static int c2_md_store_rename_sanity(struct c2_md_store *md,
+                 oikey.cok_fid = tgtfid;
+                 oikey.cok_linkno = 0;
+ 
+-                rc = c2_cob_locate(&md->md_cob, &oikey, &tgt, ctx->ft_tx);
++                rc = c2_cob_locate(&md->md_dom, &oikey, &tgt, 
++                                   &ctx->ft_tx->tx_dbtx);
+                 if (rc)
+                         return rc;
+                 /*
+@@ -309,7 +310,6 @@ int c2_md_store_rename(struct c2_md_store *md,
+         struct c2_fop_cob    *tbody = &req->r_tbody;
+         struct c2_cob_nskey  *srckey;
+         struct c2_cob_nskey  *tgtkey;
+-        struct c2_cob_oikey   oikey;
+         int                   rc;
+ 
+ 
+@@ -319,17 +319,17 @@ int c2_md_store_rename(struct c2_md_store *md,
+          * Perform rename sanity checks (source should not be ancestor
+          * of target dir, etc).
+          */
+-        rc = c2_md_store_rename_sanity(md, rename, ctx);
++        rc = c2_md_store_rename_sanity(md, req, ctx);
+         if (rc)
+                 return rc;
+ 
+         /*
+          * Prepare src and dst keys.
+          */                
+-        md_store_make_nskey(&srckey, &sbody->b_pfid, &rename->r_sname);
+-        md_store_make_nskey(&tgtkey, &tbody->b_pfid, &rename->r_tname);
++        c2_md_make_nskey(&srckey, &sbody->b_pfid, &req->r_sname);
++        c2_md_make_nskey(&tgtkey, &tbody->b_pfid, &req->r_tname);
+ 
+-        rc = c2_cob_update_name(cob, srckey, tgtkey, ctx->ft_tx);
++        rc = c2_cob_update_name(cob, srckey, tgtkey, &ctx->ft_tx->tx_dbtx);
+         c2_free(srckey);
+         c2_free(tgtkey);
+         
+@@ -370,7 +370,8 @@ int c2_md_store_setattr(struct c2_md_store *md,
+         /* @todo: Fill omgrec */
+         C2_SET0(&omgrec);
+ 
+-        rc = c2_cob_setattr(cob, &nsrec, &fabrec, &omgrec, ctx->ft_tx);
++        rc = c2_cob_setattr(cob, &nsrec, &fabrec, &omgrec, 
++                            &ctx->ft_tx->tx_dbtx);
+         
+         return rc;
+ }
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 9c860c4..97f91d8 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -3,6 +3,8 @@
+ #ifndef __COLIBRI_MDSTORE_MDSTORE_H__
+ #define __COLIBRI_MDSTORE_MDSTORE_H__
+ 
++#include "mdservice/md_fops_u.h"
++
+ struct c2_cob_domain_id;
+ struct c2_cob_domain;
+ struct c2_stob_id;
+@@ -12,7 +14,7 @@ struct c2_fid;
+ struct c2_fop;
+ 
+ struct c2_md_store {
+-        struct c2_cob_domain  md_cob;
++        struct c2_cob_domain  md_dom;
+         struct c2_fid         md_rootid;
+ };
+ 
+@@ -50,8 +52,8 @@ int c2_md_store_link(struct c2_md_store *md,
+ */
+ int c2_md_store_unlink(struct c2_md_store *md, 
+                        struct c2_cob *cob,
+-                       struct c2_fop_unink *req, 
+-                       struct c2_fop_unink_rep *rep, 
++                       struct c2_fop_unlink *req, 
++                       struct c2_fop_unlink_rep *rep, 
+                        struct c2_fop_ctx *ctx);
+                        
+ /**
+@@ -144,9 +146,6 @@ int c2_md_store_readdir(struct c2_md_store *md,
+                         struct c2_fop_readdir_rep *rep, 
+                         struct c2_fop_ctx *ctx);
+ 
+-void c2_md_store_fop_fini(void);
+-int c2_md_store_fop_init(void);
+-
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+ 
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index 335ed91..f3ad41c 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -33,25 +33,25 @@ void c2_reqh_fini(struct c2_reqh *reqh)
+ {
+ }
+ 
+-void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
++int c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
+ {
+ 	struct c2_fop_ctx 	ctx;
+ 	int			result;
+         struct c2_fop_env       env;
+-        struct c2_db_tx         tx;
++        struct c2_dtx           tx;
+ 	struct c2_fom	       *fom = NULL;
+ 
+         C2_SET0(&ctx);
+         C2_SET0(&env);
+ 
+-        c2_db_tx_init(&tx, reqh->rh_site->s_md->md_cob.cd_dbenv, 0);
++        c2_db_tx_init(&tx.tx_dbtx, reqh->rh_site->s_mdstore->md_dom.cd_dbenv, 0);
+ 
+         ctx.ft_site = reqh->rh_site;
+         ctx.ft_fol  = reqh->rh_fol;
+         ctx.ft_env = &env;
+         ctx.ft_tx = &tx;
+-	ctx.ft_service = s;
+-	ctx.fc_cookie  = cookie;
++//	ctx.ft_service = s;
++//	ctx.fc_cookie  = cookie;
+ 
+ 	/*
+ 	 * Reqh generic phases will be run here that will do 
+@@ -73,9 +73,9 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
+ 
+ out:
+         if (result)
+-                c2_db_tx_abort(&tx);
++                c2_db_tx_abort(&tx.tx_dbtx);
+         else 
+-                c2_db_tx_commit(&tx);
++                c2_db_tx_commit(&tx.tx_dbtx);
+         
+         return result;
+ }
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index 498b4cd..6178636 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -54,7 +54,7 @@ struct c2_fop_sortkey {
+    fop processing results are reported by other means (ADDB, reply fops, error
+    messages, etc.) so this function returns nothing.
+  */
+-void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop);
++int c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop);
+ 
+ /**
+    Assign a sort-key to a fop.
+diff --git a/stob/ut/server.c b/stob/ut/server.c
+index f996515..e1af5b2 100644
+--- a/stob/ut/server.c
++++ b/stob/ut/server.c
+@@ -30,6 +30,8 @@
+ #include "ioservice/io_foms.h"
+ #include "ioservice/io_fops.h"
+ 
++#include "reqh/reqh.h"
++
+ /**
+    @addtogroup stob
+    @{
+@@ -290,11 +292,8 @@ static int io_handler(struct c2_service *service, struct c2_fop *fop,
+ 	 */
+ 	if((fop->f_type->ft_code >= c2_io_service_readv_opcode))
+ 	{
+-		/*
+-		 * A dummy request handler API to handle incoming FOPs.
+-		 * Actual reqh will be used in future.
+-		 */
+-		result = c2_dummy_req_handler(service, fop, cookie, &fol, dom);
++	        result = c2_reqh_fop_handle(NULL/*reqh*/, fop);
++//		result = c2_dummy_req_handler(service, fop, cookie, &fol, dom);
+ 		return result;
+ 	}
+ 	else
+-- 
+1.8.3.2
+

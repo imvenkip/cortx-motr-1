@@ -1,0 +1,89 @@
+From 39851ad2ac40c8a6886c9f471a4692275ec9497b Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 8 Jun 2011 08:04:29 -0600
+Subject: [PATCH 116/177] - added spath and tpath to link fop.
+
+---
+ mdservice/md_fops.c  | 12 ++++++++----
+ mdservice/md_fops.ff |  3 ++-
+ mdstore/ut/lustre.c  |  6 ++++--
+ 3 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 648bc97..a9ad60e 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -16,6 +16,7 @@
+  * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
+  * Original creation date: 03/29/2011
+  */
++
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+@@ -42,8 +43,9 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
+ 		break;
+ 	case C2_FOP_LINK:
+ 	        len += ((struct c2_fop_link *)data)->l_name.s_len;
+-		len += ((struct c2_fop_link *)data)->l_path.s_len;
+-		 break;
++		len += ((struct c2_fop_link *)data)->l_spath.s_len;
++		len += ((struct c2_fop_link *)data)->l_tpath.s_len;
++		break;
+ 	case C2_FOP_UNLINK:
+ 	        len += ((struct c2_fop_unlink *)data)->u_name.s_len;
+ 		len += ((struct c2_fop_unlink *)data)->u_path.s_len;
+@@ -93,7 +95,8 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
+ 		break;
+ 	case C2_FOP_LINK:
+ 	        copy(&ptr, &((struct c2_fop_link *)data)->l_name);
+-		copy(&ptr, &((struct c2_fop_link *)data)->l_path);
++		copy(&ptr, &((struct c2_fop_link *)data)->l_spath);
++		copy(&ptr, &((struct c2_fop_link *)data)->l_tpath);
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        copy(&ptr, &((struct c2_fop_unlink *)data)->u_name);
+@@ -142,7 +145,8 @@ static int c2_md_fol_open(const struct c2_fol_rec_type *type,
+ 	case C2_FOP_LINK:
+ 	        ptr = (char *)((struct c2_fop_link *)data + 1);
+ 		map(&ptr, &((struct c2_fop_link *)data)->l_name);
+-		map(&ptr, &((struct c2_fop_link *)data)->l_path);
++		map(&ptr, &((struct c2_fop_link *)data)->l_spath);
++		map(&ptr, &((struct c2_fop_link *)data)->l_tpath);
+ 		break;
+ 	case C2_FOP_UNLINK:
+ 	        ptr = (char *)((struct c2_fop_unlink *)data + 1);
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index d8ee9a4..d6eb8b6 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -70,7 +70,8 @@ DEF(c2_fop_create_rep, RECORD,
+ 
+ DEF(c2_fop_link, RECORD,
+     _(l_body, c2_fop_cob),
+-    _(l_path, c2_fop_str),
++    _(l_spath, c2_fop_str),
++    _(l_tpath, c2_fop_str),
+     _(l_name, c2_fop_str));
+ 
+ DEF(c2_fop_link_rep, RECORD,
+diff --git a/mdstore/ut/lustre.c b/mdstore/ut/lustre.c
+index b073e67..c100b04 100644
+--- a/mdstore/ut/lustre.c
++++ b/mdstore/ut/lustre.c
+@@ -299,8 +299,10 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
+                 link = c2_fop_data(fop);
+                 if (link->l_name.s_len != 0)
+                         c2_free(link->l_name.s_buf);
+-                if (link->l_path.s_len != 0)
+-                        c2_free(link->l_path.s_buf);
++                if (link->l_spath.s_len != 0)
++                        c2_free(link->l_spath.s_buf);
++                if (link->l_tpath.s_len != 0)
++                        c2_free(link->l_tpath.s_buf);
+                 break;
+         case C2_FOP_UNLINK:
+                 unlink = c2_fop_data(fop);
+-- 
+1.8.3.2
+

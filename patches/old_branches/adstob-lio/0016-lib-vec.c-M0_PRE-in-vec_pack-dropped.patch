@@ -1,0 +1,32 @@
+From 952281e6b976f173e724dff29cab1643184bddca Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Thu, 31 Oct 2013 10:52:33 +0200
+Subject: [PATCH 16/17] lib/vec.c: M0_PRE() in vec_pack() dropped
+
+M0_PRE(vec->v_nr > 0) in vec_pack() dropped in favor of
+return if case vector is empty.
+
+Suggested by Nikita.
+
+References: http://reviewboard.clusterstor.com/r/1560
+---
+ lib/vec.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lib/vec.c b/lib/vec.c
+index d2a8f4b..a2d3079 100644
+--- a/lib/vec.c
++++ b/lib/vec.c
+@@ -313,7 +313,8 @@ static uint32_t vec_pack(struct m0_vec *vec, m0_bindex_t *idx)
+ 	uint32_t i = 0;
+ 	uint32_t j;
+ 
+-	M0_PRE(vec->v_nr > 0);
++	if (vec->v_nr == 0)
++		return 0;
+ 
+ 	for (j = i + 1; j < vec->v_nr; ++j) {
+ 		if (idx[i] + vec->v_count[i] == idx[j]) {
+-- 
+1.8.3.2
+

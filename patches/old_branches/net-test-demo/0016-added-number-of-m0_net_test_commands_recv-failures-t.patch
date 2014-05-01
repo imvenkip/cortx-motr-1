@@ -1,0 +1,44 @@
+From 00204ce05bdc30b00e449f55d99fce5261be46c2 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 25 Jan 2013 20:18:19 +0200
+Subject: [PATCH 16/79] added number of m0_net_test_commands_recv() failures to
+ console
+
+---
+ net/test/console.c | 5 +++--
+ net/test/console.h | 2 ++
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/net/test/console.c b/net/test/console.c
+index 749d120..bc9eba1 100644
+--- a/net/test/console.c
++++ b/net/test/console.c
+@@ -317,9 +317,10 @@ size_t m0_net_test_console_cmd(struct m0_net_test_console_ctx *ctx,
+ 		/* deadline reached */
+ 		if (rc == -ETIMEDOUT)
+ 			break;
+-		/** @todo possible spinlock if all recv fails instantly? */
+-		if (rc != 0)
++		if (rc != 0) {
++			++rctx->ntcrc_recv_errors;
+ 			continue;
++		}
+ 		rcvd_nr++;
+ 		/* reject unknown sender */
+ 		j = cmd->ntc_ep_index;
+diff --git a/net/test/console.h b/net/test/console.h
+index 814c6f4..e954ae8 100644
+--- a/net/test/console.h
++++ b/net/test/console.h
+@@ -140,6 +140,8 @@ struct m0_net_test_console_role_ctx {
+ 	int				   *ntcrc_errno;
+ 	/** status of last received *_DONE command */
+ 	int				   *ntcrc_status;
++	/** number of m0_net_test_commands_recv() failures */
++	size_t				    ntcrc_recv_errors;
+ 	/** number of m0_net_test_commands_recv_enqueue() failures */
+ 	size_t				    ntcrc_recv_enqueue_errors;
+ };
+-- 
+1.8.3.2
+

@@ -1,0 +1,24 @@
+From eda4ff6e121fcfe01a89b8e9faa336d6e64d5104 Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Tue, 3 Aug 2010 14:25:42 -0600
+Subject: [PATCH 27/34] - fixed a small bug, where a shadow variable is defined
+
+---
+ net/usunrpc/rfc5666/svc_rdma.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index 4a015f1..773c11d 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -1702,7 +1702,6 @@ static void svcrdma_thread_modify(struct svcrndzv_xprt *xp, int fd, int is_add)
+                 if (fd > xp->vx_maxfd)
+                         xp->vx_maxfd = fd;
+         } else { /* remove */
+-                int fd;
+                 FD_CLR(fd, &xp->vx_fds);
+                 if (xp->vx_maxfd == fd) {
+                         int i;
+-- 
+1.8.3.2
+

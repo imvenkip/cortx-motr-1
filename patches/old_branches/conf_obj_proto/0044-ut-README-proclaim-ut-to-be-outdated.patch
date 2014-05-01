@@ -1,0 +1,29 @@
+From 6841579f6672cbc6cea5c18954ff75a6cdcc5ac7 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 7 Mar 2012 21:22:10 +0200
+Subject: [PATCH 044/370] ut/README: proclaim ut/* to be outdated
+
+---
+ conf/ut/README | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 conf/ut/README
+
+diff --git a/conf/ut/README b/conf/ut/README
+new file mode 100644
+index 0000000..3bcdca3
+--- /dev/null
++++ b/conf/ut/README
+@@ -0,0 +1,10 @@
++Please ignore the contents of conf/ut/ directory (make exception for
++this README, though).
++
++The conf/* files are quite unstable at the moment, and symbols are
++frequently renamed.  Maintaining of conf/ut/* files is hard and rather
++pointless in such circumstances.
++
++I will update conf/ut/* when conf/* are more stable.
++
++ --vvv, 2012-02-07
+-- 
+1.8.3.2
+

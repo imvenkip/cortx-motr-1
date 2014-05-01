@@ -1,0 +1,31 @@
+From 6721c2c79eba8f011af670403cd71bae3038c307 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 26 Jun 2013 20:21:38 +0800
+Subject: [PATCH 07/14] add more description about HA and pool machine and SNS
+ repair.
+
+---
+ pool/pool.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/pool/pool.c b/pool/pool.c
+index 8d15480..ba6c420 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -92,6 +92,13 @@
+    nodes are persistent and identical.
+ 
+    HA component broadcasts every event to all the pool machines in the cluster
++   using m0poolmach utility. HA components can also use m0poolmach utility to
++   query the current status of pool machine.
++
++   HA component or Administrator may trigger SNS repair and/or SNS rebalance
++   operation using m0repair utility. HA component or Administrator decide
++   when to trigger these operations upon various conditions, like failure
++   type, the elapsed time from failure detected, etc.
+ 
+    <hr>
+    @section pool_mach_store_replica-lspec Logical Specification
+-- 
+1.8.3.2
+

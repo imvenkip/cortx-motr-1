@@ -1,0 +1,306 @@
+From 1c4d5cf0c1a9219c629297b0abf79e31085f4e91 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 9 Mar 2012 14:26:12 +0200
+Subject: [PATCH 047/311] obj_ops.{h,c}: operations with cached objects
+
+---
+ conf/cache.h   |   7 ++++
+ conf/confc.c   |  29 ++++----------
+ conf/obj_ops.c | 122 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/obj_ops.h |  52 ++++++++++++++++++++++++
+ 4 files changed, 189 insertions(+), 21 deletions(-)
+ create mode 100644 conf/obj_ops.c
+ create mode 100644 conf/obj_ops.h
+
+diff --git a/conf/cache.h b/conf/cache.h
+index 380d93f..fa01e8e 100644
+--- a/conf/cache.h
++++ b/conf/cache.h
+@@ -22,6 +22,7 @@
+ 
+ #include "conf/map.h"  /* c2_conf_map */
+ #include "lib/mutex.h" /* c2_mutex */
++#include "lib/cdefs.h" /* container_of */
+ 
+ struct c2_sm_group;
+ 
+@@ -41,4 +42,10 @@ struct c2_conf_cache {
+ void c2_conf_cache_init(struct c2_conf_cache *cache);
+ void c2_conf_cache_fini(struct c2_conf_cache *cache);
+ 
++static inline struct c2_conf_cache *
++c2_conf_map_to_cache(struct c2_conf_map *map)
++{
++	return container_of(map, struct c2_conf_cache, cc_registry);
++}
++
+ #endif /* __COLIBRI_CONF_CACHE_H__ */
+diff --git a/conf/confc.c b/conf/confc.c
+index 67a530b..e3878c6 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -588,7 +588,7 @@ static void grow_cache_st_in(struct c2_sm *mach)
+ 	 * struct c2_confc_ctx       *ctx  = to_ctx(mach);
+ 	 * struct c2_rpc_item        *item = c2_fop_to_rpc_item(&ctx->fc_fop);
+ 	 * struct c2_conf_fetch_resp *resp;
+-	 * struct c2_confx_obj       *fetched;
++	 * struct c2_confx_object    *fetched;
+ 	 * struct c2_conf_obj        *cached;
+ 	 * int                        rc = 0;
+ 	 *
+@@ -741,7 +741,7 @@ static struct c2_sm_conf confc_states_conf = {
+  * ------------------------------------------------------------------ */
+ 
+ static int
+-object_enrich(struct c2_conf_obj *dest, const struct c2_confx_obj *src)
++object_enrich(struct c2_conf_obj *dest, const struct c2_confx_object *src)
+ {
+ 	/*
+ 	 * int ret = 0;
+@@ -749,11 +749,11 @@ object_enrich(struct c2_conf_obj *dest, const struct c2_confx_obj *src)
+ 	 * c2_mutex_lock(cache_lock());
+ 	 * C2_PRE(dest->co_type == src->fo_val.v_type);
+ 	 *
+-	 * if (!object_ops[dest->co_type].oo_match(dest, src)) {
++	 * if (c2_conf_obj_mismatch(dest, src)) {
+ 	 *     c2_addb(report inconsistency);
+ 	 *     ret = -EMISMATCH; // XXX Can we use non-standard errno?
+ 	 * } else if (dest->co_status != C2_CS_READY) {
+-	 *     ret = object_ops[dest->co_type].oo_enrich(dest, src);
++	 *     ret = c2_conf_obj_enrich(dest, src, &g_confc.cache.cc_registry);
+ 	 * }
+ 	 *
+ 	 * obj->co_status = rc == 0 ? C2_CS_READY : C2_CS_MISSING;
+@@ -785,13 +785,14 @@ static bool ctx_invariant(struct c2_confc_ctx *ctx)
+  * ------------------------------------------------------------------ */
+ 
+ /**
+- * Allocates new configuration object and sets its fields from on-wire data.
++ * Allocates new configuration object and sets its fields from the
++ * on-wire data.
+  *
+  * @param registry  Objid-to-address mapping.
+  * @param src       Configuration object as received from confd.
+  */
+ static int
+-cache_add(struct c2_conf_map *registry, const struct c2_confx_obj *src)
++cache_add(struct c2_conf_map *registry, const struct c2_confx_object *src)
+ {
+ 	/*
+ 	 * struct c2_conf_obj *obj;
+@@ -801,7 +802,7 @@ cache_add(struct c2_conf_map *registry, const struct c2_confx_obj *src)
+ 	 * C2_ASSERT(IS_IN_ARRAY(src->fo_val.v_type, object_ops));
+ 	 * ops = object_ops + src->fo_val.v_type;
+ 	 *
+-	 * obj = c2_alloc(ops->oo_size());
++	 * obj = c2_conf_obj_new(src->o_val.ov_type, src->o_key);
+ 	 * if (obj == NULL)
+ 	 * 	return -ENOMEM;
+ 	 *
+@@ -814,17 +815,3 @@ cache_add(struct c2_conf_map *registry, const struct c2_confx_obj *src)
+ 	 */
+ 	XXX;
+ }
+-
+-struct _object_ops {
+-	/** Returns the size of object in bytes. */
+-	size_t (*oo_size)(const struct c2_conf_obj *a);
+-	bool   (*oo_match)(const struct c2_conf_obj *a,
+-			   const struct c2_confx_obj *b);
+-	int    (*oo_enrich)(struct c2_conf_obj *dest,
+-			    const struct c2_confx_obj *src);
+-};
+-
+-struct _object_ops object_ops[C2_CO_NR];
+-
+-/** Duplicates a string into c2_conf_buf. */
+-int c2_conf_buf_strdup(struct c2_conf_buf *dest, const char *src);
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+new file mode 100644
+index 0000000..45e9b55
+--- /dev/null
++++ b/conf/obj_ops.c
+@@ -0,0 +1,122 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 09-Feb-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++#include "conf/obj_ops.h"
++#include "lib/assert.h" /* C2_IMPOSSIBLE */
++#include "lib/cdefs.h"  /* IS_IN_ARRAY */
++
++static const struct {
++	/**
++	 * Tests equality of the cached configuration object and its
++	 * on-wire representation.
++	 *
++	 * @pre  cached->co_status == C2_CS_READY
++	 * @pre  cached->co_type == onwire->o_val.ov_type
++	 * @pre  c2_conf_buf_eq(cached->co_key, onwire->o_key)
++	 */
++	bool (*oo_equal)(const struct c2_conf_obj *cached,
++			 const struct c2_confx_object *onwire);
++} obj_ops[C2_CO_NR] = {
++	XXX
++};
++
++static size_t obj_size(enum c2_conf_objtype t)
++{
++	switch (t) {
++	case C2_CO_PROFILE:
++		return sizeof c2_conf_profile;
++	case C2_CO_FILESYSTEM:
++		return sizeof c2_conf_filesystem;
++	case C2_CO_SERVICE:
++		return sizeof c2_conf_service;
++	case C2_CO_NODE:
++		return sizeof c2_conf_node;
++	case C2_CO_NIC:
++		return sizeof c2_conf_nic;
++	case C2_CO_SDEV:
++		return sizeof c2_conf_sdev;
++	case C2_CO_PARTITION:
++		return sizeof c2_conf_partition;
++	default:
++		C2_IMPOSSIBLE("Invalid objtype");
++	}
++	return 0; /* never reached */
++}
++
++struct c2_conf_obj *
++c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *key)
++{
++	int rc;
++	struct c2_conf_obj *ret = c2_alloc(obj_size(type));
++
++	if (ret == NULL)
++		return NULL;
++
++	ret->co_type = type;
++	ret->co_status = C2_CS_MISSING;
++	C2_ASSERT(ret->co_nrefs == 0);
++	c2_chan_init(&ret->co_chan);
++
++	rc = c2_conf_buf_copy(&ret->co_key, key);
++	if (rc != 0) {
++		c2_free(ret);
++		return NULL;
++	}
++	return ret;
++}
++C2_EXPORTED(c2_conf_obj_new);
++
++bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
++			  const struct c2_confx_object *onwire)
++{
++	if (cached->co_type != onwire->co_type
++	    || !c2_conf_buf_eq(cached->co_key, onwire->co_key))
++		return true;
++
++	if (cached->co_status != C2_CS_READY)
++		return false; /* a stub corresponds to the on-wire object */
++
++	C2_ASSERT(IS_IN_ARRAY(cached->co_type, obj_ops));
++	return !obj_ops[cached->co_type].oo_equal(a, b);
++}
++C2_EXPORTED(c2_conf_obj_mismatch);
++
++int c2_conf_obj_enrich(struct c2_conf_obj *dest,
++		       const struct c2_confx_object *src,
++		       struct c2_conf_map *registry)
++{
++	/*
++	 * C2_PRE(...);
++	 *
++	 * Sets fields of `dest', copying data from `src'.
++	 *
++	 * For "foreign key" fields (aka relations):
++	 *   - If the target object doesn't exist in cache, create a
++	 *     stub for it;
++	 *   - Assign dest's relation: make it point to the target object.
++	 *
++	 * C2_POST(...);
++	 */
++	XXX;
++}
++C2_EXPORTED(c2_conf_obj_enrich);
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+new file mode 100644
+index 0000000..b6ed515
+--- /dev/null
++++ b/conf/obj_ops.h
+@@ -0,0 +1,52 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 09-Mar-2012
++ */
++#ifndef __COLIBRI_CONF_OBJOPS_H__
++#define __COLIBRI_CONF_OBJOPS_H__
++
++#include "conf/obj.h" /* c2_conf_objtype */
++
++/** Allocates and initiates configuration object of given type. */
++struct c2_conf_obj * c2_conf_obj_new(enum c2_conf_objtype type,
++				     const struct c2_conf_buf *key);
++
++/**
++ * Returns true iff two objects have conflicting data.
++ *
++ * @param cached  Cached object.
++ * @param onwire  On-wire object.
++ */
++bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
++			  const struct c2_confx_object *onwire);
++
++/**
++ * Enriches contents of cached configuration object using on-wire data.
++ *
++ * @pre   c2_mutex_is_locked(&c2_conf_map_to_cache(registry)->cc_lock)
++ * @pre   dest->co_status != C2_CS_READY
++ * @pre   dest->co_type == src->o_val.ov_type
++ * @pre   c2_conf_buf_eq(dest->co_key, src->o_key)
++ * @post  dest->co_status != C2_CS_READY  // the status is set by the caller
++ * @post  c2_mutex_is_locked(&c2_conf_map_to_cache(registry)->cc_lock)
++ */
++int c2_conf_obj_enrich(struct c2_conf_obj *dest,
++		       const struct c2_confx_object *src,
++		       struct c2_conf_map *registry);
++
++#endif /* __COLIBRI_CONF_OBJOPS_H__ */
+-- 
+1.8.3.2
+

@@ -1,0 +1,1090 @@
+From 04d2c23d788e29a32128d1c64b7ce8d6e058614a Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Tue, 18 Dec 2012 07:37:34 -0800
+Subject: [PATCH 11/94] Added M0_INTERNAL for be functions, changes to be_tx
+ functions
+
+---
+ be/be.c        |  16 ++---
+ be/be.h        |  76 ++++++++++----------
+ be/be_domain.c |  16 ++---
+ be/be_seg.c    |  76 ++++++++++----------
+ be/be_seg.h    |  14 ++--
+ be/be_tx.c     | 216 ++++++++++++++++++++++++++++++++++-----------------------
+ be/be_tx.h     |  22 ++++--
+ be/ut/be.c     |  17 ++++-
+ 8 files changed, 263 insertions(+), 190 deletions(-)
+
+diff --git a/be/be.c b/be/be.c
+index 598ba4d..5c65b0c 100644
+--- a/be/be.c
++++ b/be/be.c
+@@ -29,8 +29,8 @@
+ /**
+  * @post reg->br_sm.sm_state == M0_BEREG_INIT
+  */
+-void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+-                    struct m0_be_seg *seg, struct m0_be_buf *buf)
++M0_INTERNAL void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
++                                struct m0_be_seg *seg, struct m0_be_buf *buf)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(reg != NULL);
+@@ -64,7 +64,7 @@ void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+  *                                   M0_BEREG_FAILED))
+  */
+ 
+-void m0_be_alloc(struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
+ {
+         int err;
+         rvm_tid_t               *tid;
+@@ -118,7 +118,7 @@ void m0_be_alloc(struct m0_be_reg *reg)
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_free(struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
+ {
+         int err;
+ 
+@@ -155,7 +155,7 @@ void m0_be_free(struct m0_be_reg *reg)
+  * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+  * @pre reg->br_buf.b_addr != NULL
+  */
+-void m0_be_prefetch(const struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_prefetch(const struct m0_be_reg *reg)
+ {
+ 
+         return;
+@@ -170,7 +170,7 @@ void m0_be_prefetch(const struct m0_be_reg *reg)
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_put(const struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_put(const struct m0_be_reg *reg)
+ {
+ 
+         return;
+@@ -184,7 +184,7 @@ void m0_be_put(const struct m0_be_reg *reg)
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_reg_capture(struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
+ {
+         rvm_return_t ret;
+ 
+@@ -214,7 +214,7 @@ void m0_be_reg_capture(struct m0_be_reg *reg)
+ /**
+  * @pre reg->br_sm.sm_state != M0_BEREG_INPROGRESS
+  */
+-void m0_be_reg_fini(struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_reg_fini(struct m0_be_reg *reg)
+ {
+ 
+         /* Asserting on required pointers */
+diff --git a/be/be.h b/be/be.h
+index 889afaf..1dd69e2 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -210,16 +210,16 @@ struct m0_be_buf;
+  * @post dom->bd_data.bs_sm.sm_state == M0_BESEG_CLOSED
+  */
+ //void m0_be_domain_init  (struct m0_be_domain *dom, struct m0_stob *stob);
+-void m0_be_domain_init(struct m0_be_domain *dom,
+-                       struct m0_stob *stob,
+-                       struct m0_stob *log_stob);
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
++                                   struct m0_stob *stob,
++                                   struct m0_stob *log_stob);
+ 
+ /**
+  * Finalises the in-memory part of domain structure.
+  *
+  * @pre M0_IN(dom->bd_data.bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))
+  */
+-void m0_be_domain_fini(struct m0_be_domain *dom);
++M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom);
+ 
+ /**
+  * Initialises creation of a domain.
+@@ -231,7 +231,7 @@ void m0_be_domain_fini(struct m0_be_domain *dom);
+  *                                          M0_BESEG_ACTIVE, M0_BESEG_CREATING))
+  */
+ /* void m0_be_domain_create(struct m0_be_domain *dom, struct m0_stob *stob); */
+-void m0_be_domain_create(struct m0_be_domain **dom);
++M0_INTERNAL void m0_be_domain_create(struct m0_be_domain **dom);
+ 
+ /**
+  * Searches a domain for the existing segment with a given name.
+@@ -246,9 +246,9 @@ void m0_be_domain_create(struct m0_be_domain **dom);
+ /* void m0_be_domain_lookup(struct m0_be_domain *dom, const char *name,
+                          struct m0_be_seg *out); */
+ 
+-void m0_be_domain_lookup(struct m0_be_domain *dom,
+-                         const uint64_t segment_id,
+-                         struct m0_be_seg **out);
++M0_INTERNAL void m0_be_domain_lookup(struct m0_be_domain *dom,
++                                     const uint64_t segment_id,
++                                     struct m0_be_seg **out);
+ 
+ 
+ /**
+@@ -256,8 +256,8 @@ void m0_be_domain_lookup(struct m0_be_domain *dom,
+  *
+  * @post seg->bs_sm.sm_state == M0_BESEG_CLOSED
+  */
+-void m0_be_seg_init(struct m0_be_seg *seg, struct m0_be_domain *dom,
+-                    struct m0_sm_group *sm_group, uint64_t flags);
++M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg, struct m0_be_domain *dom,
++                                struct m0_sm_group *sm_group, uint64_t flags);
+ 
+ /**
+  * Initialises segment opening.
+@@ -267,12 +267,12 @@ void m0_be_seg_init(struct m0_be_seg *seg, struct m0_be_domain *dom,
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_OPENING,
+  *                                   M0_BESEG_ACTIVE, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_open(struct m0_be_seg *seg);
++M0_INTERNAL void m0_be_seg_open(struct m0_be_seg *seg);
+ 
+ /**
+  * @pre M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_fini(struct m0_be_seg *seg);
++M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg);
+ 
+ /**
+  * Starts creation of a new segment in the domain.
+@@ -283,8 +283,8 @@ void m0_be_seg_fini(struct m0_be_seg *seg);
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CREATING,
+  *                                   M0_BESEG_ACTIVE, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+-                      struct m0_stob *stob);
++M0_INTERNAL void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
++                                  struct m0_stob *stob);
+ 
+ /**
+  * Starts segment consistency check.
+@@ -293,7 +293,7 @@ void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+  *                                   M0_BESEG_CHECKING, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_check (struct m0_be_seg *seg, struct m0_be_tx *tx);
++M0_INTERNAL void m0_be_seg_check (struct m0_be_seg *seg, struct m0_be_tx *tx);
+ 
+ /**
+  * Starts segment deletion.
+@@ -302,7 +302,7 @@ void m0_be_seg_check (struct m0_be_seg *seg, struct m0_be_tx *tx);
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+  *                                   M0_BESEG_DELETING, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx);
++M0_INTERNAL void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx);
+ 
+ /**
+  * Starts segment closing.
+@@ -311,25 +311,25 @@ void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx);
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+  *                                   M0_BESEG_CLOSING, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_done(struct m0_be_seg *seg);
++M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg);
+ 
+ /**
+  * Marks the segment as failed.
+  *
+  * @post seg->bs_sm.sm_state == M0_BESEG_FAILED
+  */
+-void m0_be_seg_fail(struct m0_be_seg *seg);
++M0_INTERNAL void m0_be_seg_fail(struct m0_be_seg *seg);
+ 
+ /**
+  * @post reg->br_sm.sm_state == M0_BEREG_INIT
+  */
+-void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
+-                    struct m0_be_seg *seg, struct m0_be_buf *buf);
++M0_INTERNAL void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
++                                struct m0_be_seg *seg, struct m0_be_buf *buf);
+ 
+ /**
+  * @pre reg->br_sm.sm_state != M0_BEREG_INPROGRESS
+  */
+-void m0_be_reg_fini(struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_reg_fini(struct m0_be_reg *reg);
+ 
+ /**
+  * Initialises the transaction structure.
+@@ -338,25 +338,25 @@ void m0_be_reg_fini(struct m0_be_reg *reg);
+  * @post tx->bt_sm.sm_state == M0_BETX_PREPARING
+  * @post tx->bt_dom == dom
+  */
+-void m0_be_tx_init(struct m0_be_tx *tx,
+-                   struct m0_be_domain *dom,
+-                   uint64_t flags);
++M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx,
++                               struct m0_be_domain *dom,
++                               uint64_t flags);
+ 
+ /**
+  * Indicates that a transaction will use certain amount of resources.
+  *
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+  */
+-void m0_be_tx_prep(struct m0_be_tx *tx, struct m0_be_credit *cred);
++M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx, struct m0_be_credit *cred);
+ 
+ /**
+  * Starts a prepared transaction.
+  *
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+- * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_OPENING, M0_BETX_OPEN,
++ * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_PREPARED, M0_BETX_OPEN,
+  *                                  M0_BETX_FAILED))
+  */
+-void m0_be_tx_start(struct m0_be_tx *tx);
++M0_INTERNAL void m0_be_tx_start(struct m0_be_tx *tx);
+ 
+ /**
+  * Closes a transaction.
+@@ -365,14 +365,14 @@ void m0_be_tx_start(struct m0_be_tx *tx);
+  * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_CLOSED, M0_BETX_COMMITTED,
+  *                                  M0_BETX_DONE, M0_BETX_FAILED))
+  */
+-void m0_be_tx_done(struct m0_be_tx *tx);
++M0_INTERNAL void m0_be_tx_done(struct m0_be_tx *tx);
+ 
+ /**
+  * Finalises transaction structure.
+  *
+  * @pre M0_IN(tx->bt_sm.sm_state, (M0_BETX_DONE, M0_BETX_FAILED))
+  */
+-void m0_be_tx_fini(struct m0_be_tx *tx);
++M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
+ 
+ /**
+  * Captures a region in a transaction.
+@@ -382,7 +382,7 @@ void m0_be_tx_fini(struct m0_be_tx *tx);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_reg_capture(struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg);
+ 
+ 
+ /**
+@@ -393,7 +393,7 @@ void m0_be_reg_capture(struct m0_be_reg *reg);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_alloc(struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg);
+ 
+ /**
+  * Frees a region.
+@@ -404,7 +404,7 @@ void m0_be_alloc(struct m0_be_reg *reg);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_free(struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_free(struct m0_be_reg *reg);
+ 
+ /**
+  * Pre-fetches a region.
+@@ -415,7 +415,7 @@ void m0_be_free(struct m0_be_reg *reg);
+  * @pre reg->br_sm.sm_state == M0_BEREG_INIT
+  * @pre reg->br_buf.b_addr != NULL
+  */
+-void m0_be_prefetch(const struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_prefetch(const struct m0_be_reg *reg);
+ 
+ /**
+  * Pins the region in memory, fetching it in first, if necessary.
+@@ -425,7 +425,7 @@ void m0_be_prefetch(const struct m0_be_reg *reg);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_get(const struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_get(const struct m0_be_reg *reg);
+ 
+ /**
+  * Un-pins the region, pinned by m0_be_get().
+@@ -435,7 +435,7 @@ void m0_be_get(const struct m0_be_reg *reg);
+  * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
+  *                                   M0_BEREG_FAILED))
+  */
+-void m0_be_put(const struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_put(const struct m0_be_reg *reg);
+ 
+ /**
+  * A page in a segment.
+@@ -561,9 +561,11 @@ enum m0_be_seg_state {
+         M0_BESEG_FAILED
+ };
+ 
++
+ enum m0_be_tx_state {
+         M0_BETX_PREPARING,
+-        M0_BETX_OPENING,
++        /* M0_BETX_OPENING renamed to M0_BETX_PREPARED */
++        M0_BETX_PREPARED,
+         M0_BETX_OPEN,
+         M0_BETX_CLOSED,
+         M0_BETX_COMMITTED,
+@@ -600,7 +602,7 @@ M0_TL_DESCR_DEFINE(m0_be_tx, "m0_be_tx", static, struct m0_be_tx, bt_linkage,
+ M0_TL_DEFINE(m0_be_tx, static, struct m0_be_tx);
+ 
+ /* m0_tlist definition for credit list - m0_be_crd_tlist */
+-M0_TL_DESCR_DEFINE(m0_be_reg, "m0_be_crd", static, struct m0_be_reg, bc_linkage,
++M0_TL_DESCR_DEFINE(m0_be_reg, "m0_be_reg", static, struct m0_be_reg, bc_linkage,
+                    bc_magic, 0xc2be3248c1be3248, 0x8423eb1c8423eb2c);
+ M0_TL_DEFINE(m0_be_reg, static, struct m0_be_reg);
+ 
+diff --git a/be/be_domain.c b/be/be_domain.c
+index ddca66d..4f92615 100644
+--- a/be/be_domain.c
++++ b/be/be_domain.c
+@@ -39,7 +39,7 @@
+  *
+  */
+ 
+-void m0_be_domain_create(struct m0_be_domain **out)
++M0_INTERNAL void m0_be_domain_create(struct m0_be_domain **out)
+ {
+         struct m0_be_domain *dom = NULL;
+ 
+@@ -59,9 +59,9 @@ void m0_be_domain_create(struct m0_be_domain **out)
+  *
+  * @post dom->bd_data.bs_sm.sm_state == M0_BESEG_CLOSED
+  */
+-void m0_be_domain_init(struct m0_be_domain *dom,
+-                       struct m0_stob *stob,
+-                       struct m0_stob *log_stob)
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
++                                   struct m0_stob *stob,
++                                   struct m0_stob *log_stob)
+ {
+ 
+         /* Asserting on required pointers */
+@@ -112,9 +112,9 @@ void m0_be_domain_init(struct m0_be_domain *dom,
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_OPENING, M0_BESEG_ACTIVE,
+  *                                   M0_BESEG_FAILED))
+  */
+-void m0_be_domain_lookup(struct m0_be_domain *dom,
+-                         const uint64_t segment_id,
+-                         struct m0_be_seg **out)
++M0_INTERNAL void m0_be_domain_lookup(struct m0_be_domain *dom,
++                                     const uint64_t segment_id,
++                                     struct m0_be_seg **out)
+ {
+         struct m0_be_seg *seg_it;
+         struct m0_stob *stob;
+@@ -190,7 +190,7 @@ void m0_be_domain_lookup(struct m0_be_domain *dom,
+  *
+  * @pre M0_IN(dom->bd_data.bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))
+  */
+-void m0_be_domain_fini(struct m0_be_domain *dom)
++M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+ {
+         struct m0_be_seg         *seg_it;
+         struct m0_be_tx          *tx_it;
+diff --git a/be/be_seg.c b/be/be_seg.c
+index cc1dc04..7f0f4ff 100644
+--- a/be/be_seg.c
++++ b/be/be_seg.c
+@@ -157,9 +157,9 @@ static const struct m0_sm_conf seg_conf = {
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CREATING,
+  *                                   M0_BESEG_CREATED, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_create(struct m0_be_seg *seg,
+-                      struct m0_be_tx *tx,
+-                      struct m0_stob *stob)
++M0_INTERNAL void m0_be_seg_create(struct m0_be_seg *seg,
++                                  struct m0_be_tx *tx,
++                                  struct m0_stob *stob)
+ {
+         M0_PRE(seg->bs_sm.sm_state == M0_BESEG_CLOSED);
+ 
+@@ -192,10 +192,10 @@ void m0_be_seg_create(struct m0_be_seg *seg,
+  * @post seg->bs_sm.sm_state == M0_BESEG_CLOSED
+  * @todo - Need to understand use of  arguments - m0_sm_group and flags
+  */
+-void m0_be_seg_init(struct m0_be_seg *seg,
+-                    struct m0_be_domain *dom,
+-                    struct m0_sm_group *sm_group,
+-                    uint64_t flags)
++M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
++                                struct m0_be_domain *dom,
++                                struct m0_sm_group *sm_group,
++                                uint64_t flags)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(seg != NULL);
+@@ -232,7 +232,7 @@ void m0_be_seg_init(struct m0_be_seg *seg,
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_OPENING,
+  *                                   M0_BESEG_ACTIVE, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_open(struct m0_be_seg *seg)
++M0_INTERNAL void m0_be_seg_open(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(seg != NULL);
+@@ -275,7 +275,7 @@ void m0_be_seg_open(struct m0_be_seg *seg)
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+  *                                   M0_BESEG_CLOSING, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_done(struct m0_be_seg *seg)
++M0_INTERNAL void m0_be_seg_done(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(seg != NULL);
+@@ -304,7 +304,7 @@ void m0_be_seg_done(struct m0_be_seg *seg)
+ /**
+  * @pre M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_fini(struct m0_be_seg *seg)
++M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(seg != NULL);
+@@ -329,7 +329,7 @@ void m0_be_seg_fini(struct m0_be_seg *seg)
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+  *                                   M0_BESEG_DELETING, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
++M0_INTERNAL void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ {
+         uint64_t segment_id;
+         struct m0_be_domain *dom;
+@@ -382,7 +382,7 @@ void m0_be_seg_delete(struct m0_be_seg *seg, struct m0_be_tx *tx)
+  * @post M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+  *                                   M0_BESEG_CHECKING, M0_BESEG_FAILED))
+  */
+-void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
++M0_INTERNAL void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(seg != NULL);
+@@ -391,7 +391,7 @@ void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+         /* @todo - not clear idea about what to do in this at the moment */
+ 
+         /* M0_POST(M0_IN(seg->bs_sm.sm_state, (M0_BESEG_CLOSED,
+-                                        M0_BESEG_CHECKING, M0_BESEG_FAILED))); */
++                                       M0_BESEG_CHECKING, M0_BESEG_FAILED))); */
+ 
+         M0_POST( (seg->bs_sm.sm_state == M0_BESEG_CLOSED)   ||
+                  (seg->bs_sm.sm_state == M0_BESEG_CHECKING) ||
+@@ -404,7 +404,7 @@ void m0_be_seg_check(struct m0_be_seg *seg, struct m0_be_tx *tx)
+  *
+  * @post seg->bs_sm.sm_state == M0_BESEG_FAILED
+  */
+-void m0_be_seg_fail(struct m0_be_seg *seg)
++M0_INTERNAL void m0_be_seg_fail(struct m0_be_seg *seg)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(seg != NULL);
+@@ -430,7 +430,7 @@ void m0_be_seg_fail(struct m0_be_seg *seg)
+ /**
+  * Initializes segment state machine data structures
+  */
+-void m0_bs_sm_init(struct m0_be_domain  *dom)
++M0_INTERNAL void m0_bs_sm_init(struct m0_be_domain  *dom)
+ {
+         int result;
+ 
+@@ -448,7 +448,7 @@ void m0_bs_sm_init(struct m0_be_domain  *dom)
+ /**
+  * Thread handler which listen's on channel for incomming requests
+  */
+-void m0_bs_handler_thread(struct m0_sm_group *sm_group)
++M0_INTERNAL void m0_bs_handler_thread(struct m0_sm_group *sm_group)
+ {
+         while(1) {
+                 /**
+@@ -476,7 +476,8 @@ void m0_bs_handler_thread(struct m0_sm_group *sm_group)
+  *
+  */
+ 
+-void m0_seg_req_post(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
++M0_INTERNAL void m0_seg_req_post(struct m0_sm_group *sm_group,
++                                 struct m0_sm_ast *sm_ast)
+ {
+         m0_sm_ast_post(sm_group, sm_ast);
+ }
+@@ -487,8 +488,8 @@ void m0_seg_req_post(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+  *
+  */
+ 
+-void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
+-                         struct m0_sm_ast *sm_ast)
++M0_INTERNAL void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
++                                     struct m0_sm_ast *sm_ast)
+ {
+         struct m0_be_seg *seg;
+ 
+@@ -513,21 +514,23 @@ void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
+         seg->bs_impl.segment_id = ++max_seg_id;
+ 
+         /* Create linux stob */
+-        /* @todo - Please revisit this when have better understanding of linux stob */
+-        struct  m0_stob_domain          *stob_dom;
+-        bool                             stob_directio = true;
+-        struct  m0_stob_id               stob_id = {{0, seg->bs_impl.segment_id}};
+-        int                              result;
+-        struct linux_stob               *lstob;
+-        struct linux_domain             *ldom;
+-        int                              nbytes = 0;
+-        int                              err;
+-        unsigned long                    dev_length        = SEGMENT_SIZE;
+-        unsigned long                    heap_length       = HEAP_SIZE;
+-        char                            *start_Addr        = (char *)0xbebd000;
+-        long                             rds_static_len    = RVM_ROUND_LENGTH_DOWN_TO_PAGE_SIZE(4096);
+-        long                             nlist             = 16;
+-        long                             chunk_size        = 64;
++        /* @todo - Please revisit this when have better understanding
++         * of linux stob
++         */
++        struct  m0_stob_domain   *stob_dom;
++        bool                      stob_directio = true;
++        struct  m0_stob_id        stob_id = {{0, seg->bs_impl.segment_id}};
++        int                       result;
++        struct linux_stob        *lstob;
++        struct linux_domain      *ldom;
++        int                       nbytes = 0;
++        int                       err;
++        unsigned long             dev_length        = SEGMENT_SIZE;
++        unsigned long             heap_length       = HEAP_SIZE;
++        char                     *start_Addr        = (char *)0xbebd000;
++        long                      rds_static_len    = 0;
++        long                      nlist             = 16;
++        long                      chunk_size        = 64;
+         /* initialize stob type */
+         m0_stob_type_init(&m0_linux_stob_type);
+ 
+@@ -572,6 +575,8 @@ void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
+         /* result = rds_zap_heap(DevName, DevLength, startAddr, staticLength,
+          *                       heapLength, nlists, chunkSize, err); */
+ 
++        rds_static_len    = RVM_ROUND_LENGTH_DOWN_TO_PAGE_SIZE(4096);
++
+         result = rds_zap_heap(seg->bs_impl.path_name,
+                               RVM_LENGTH_TO_OFFSET(dev_length),
+                               start_Addr,
+@@ -602,7 +607,8 @@ error:
+  *
+  */
+ 
+-void m0_be_seg_open_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
++M0_INTERNAL void m0_be_seg_open_cb(struct m0_sm_group *sm_group,
++                                   struct m0_sm_ast *sm_ast)
+ {
+         int                      nbytes;
+         int                      result;
+diff --git a/be/be_seg.h b/be/be_seg.h
+index 78caa8a..1cc8ba9 100644
+--- a/be/be_seg.h
++++ b/be/be_seg.h
+@@ -31,14 +31,16 @@
+ 
+ #include "be/be.h"
+ 
+-void m0_bs_sm_init(struct m0_be_domain  *dom);
+-void m0_bs_handler_thread(struct m0_sm_group *sm_group);
++M0_INTERNAL void m0_bs_sm_init(struct m0_be_domain  *dom);
++M0_INTERNAL void m0_bs_handler_thread(struct m0_sm_group *sm_group);
+ 
+-void m0_seg_req_post(struct m0_sm_group *sm_grp, struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_seg_req_post(struct m0_sm_group *sm_grp,
++                                 struct m0_sm_ast *sm_ast);
+ 
+-void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
+-                         struct m0_sm_ast *sm_ast);
+-void m0_be_seg_open_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_be_seg_create_cb(struct m0_sm_group *sm_group,
++                                     struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_be_seg_open_cb(struct m0_sm_group *sm_group,
++                                   struct m0_sm_ast *sm_ast);
+ 
+ #define HEAP_SIZE       (100*1024*1024)
+ 
+diff --git a/be/be_tx.c b/be/be_tx.c
+index fbe42c7..829a513 100644
+--- a/be/be_tx.c
++++ b/be/be_tx.c
+@@ -18,7 +18,6 @@
+  */
+ 
+ #include "be/be.h"
+-
+ /**
+   @addtogroup be_transaction
+ 
+@@ -58,19 +57,18 @@ static const struct m0_sm_state_descr tx_states[] = {
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_OPENING)     |
++                .sd_allowed   = (1 << M0_BETX_PREPARED)     |
+                                 (1 << M0_BETX_PREPARING)   |
+                                 (1 << M0_BETX_OPEN)        |
+                                 (1 << M0_BETX_FAILED)
+         },
+-
+-        [M0_BETX_OPENING] = {
++        [M0_BETX_PREPARED] = {
+                 .sd_flags     = 0,
+-                .sd_name      = "BE TX OPENING",
++                .sd_name      = "BE TX PREPARED",
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_OPENING)     |
++                .sd_allowed   = (1 << M0_BETX_PREPARED)     |
+                                 (1 << M0_BETX_OPEN)        |
+                                 (1 << M0_BETX_FAILED)
+         },
+@@ -96,13 +94,12 @@ static const struct m0_sm_state_descr tx_states[] = {
+                                 (1 << M0_BETX_FAILED)
+         },
+         [M0_BETX_CLOSED] = {
+-                .sd_flags     = 0,
++                .sd_flags     = M0_SDF_TERMINAL,
+                 .sd_name      = "BE TX CLOSED",
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = (1 << M0_BETX_PREPARING)   |
+-                                (1 << M0_BETX_FAILED)
++                .sd_allowed   = 0
+         },
+         [M0_BETX_COMMITTED] = {
+                 .sd_flags     = 0,
+@@ -114,12 +111,12 @@ static const struct m0_sm_state_descr tx_states[] = {
+                                 (1 << M0_BETX_FAILED)
+         },
+         [M0_BETX_FAILED] = {
+-                .sd_flags     = M0_SDF_TERMINAL,
++                .sd_flags     = M0_SDF_FAILURE,
+                 .sd_name      = "BE TX FAILED",
+                 .sd_in        = NULL,
+                 .sd_ex        = NULL,
+                 .sd_invariant = NULL,
+-                .sd_allowed   = 0
++                .sd_allowed   = (1 << M0_BETX_FAILED)
+         },
+ };
+ 
+@@ -136,8 +133,8 @@ static const struct m0_sm_conf tx_conf = {
+  * @post tx->bt_sm.sm_state == M0_BETX_PREPARING
+  * @post tx->bt_dom == dom
+  */
+-void m0_be_tx_init   (struct m0_be_tx *tx,
+-                      struct m0_be_domain *dom, uint64_t flags)
++M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx,
++                               struct m0_be_domain *dom, uint64_t flags)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(tx != NULL);
+@@ -157,8 +154,8 @@ void m0_be_tx_init   (struct m0_be_tx *tx,
+         m0_sm_group_lock(tx->bt_impl.sm_group);
+ 
+         /* Register the state machine of the tx into sm_group */
+-        m0_sm_init(&tx->bt_sm, &tx_conf, M0_BETX_PREPARING, tx->bt_impl.sm_group,
+-                        NULL);
++        m0_sm_init(&tx->bt_sm, &tx_conf, M0_BETX_PREPARING,
++                   tx->bt_impl.sm_group, NULL);
+ 
+         /* unlock locked sm group */
+         m0_sm_group_unlock(tx->bt_impl.sm_group);
+@@ -167,8 +164,6 @@ void m0_be_tx_init   (struct m0_be_tx *tx,
+         tx->bt_sm_ast.sa_datum = (void *)tx;
+ 
+         m0_tx_req_post(&(tx->bt_dom->bd_impl.sm_group), &(tx->bt_sm_ast));
+-
+-        M0_POST(M0_IN(tx->bt_sm.sm_state, (M0_BETX_PREPARING, M0_BETX_FAILED)));
+ }
+ 
+ /**
+@@ -177,7 +172,7 @@ void m0_be_tx_init   (struct m0_be_tx *tx,
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+  *
+  */
+-void m0_be_tx_prep   (struct m0_be_tx *tx, struct m0_be_credit *cred)
++M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx, struct m0_be_credit *cred)
+ {
+         struct m0_be_reg *reg_it;
+ 
+@@ -226,27 +221,21 @@ exit:
+  * Starts a prepared transaction.
+  *
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+- * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_OPENING, M0_BETX_OPEN,
++ * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_PREPARED, M0_BETX_OPEN,
+  *                                      M0_BETX_FAILED) )
+  */
+-void m0_be_tx_start  (struct m0_be_tx *tx)
++M0_INTERNAL void m0_be_tx_start(struct m0_be_tx *tx)
+ {
+ 
+         M0_ASSERT(tx != NULL);
+ 
+-        /* Is tx->bt_sm.sm_state in M0_BETX_OPENING state */
+-        M0_PRE(tx->bt_sm.sm_state == M0_BETX_PREPARING);
+-
+-        M0_TX_SM_STATE_SET(tx, M0_BETX_OPEN);
++        /* Is tx->bt_sm.sm_state in M0_BETX_PREPARED state */
++        M0_PRE(tx->bt_sm.sm_state == M0_BETX_PREPARED);
+ 
+-        /* Add this transaction to domain's active transaction list */
+-        m0_be_tx_tlink_init(tx);
+-
+-        m0_be_tx_tlist_add(&tx->bt_dom->bd_tx, tx);
++        tx->bt_sm_ast.sa_cb    = m0_be_tx_start_cb;
++        tx->bt_sm_ast.sa_datum = (void *)tx;
+ 
+-        M0_POST(M0_IN(tx->bt_sm.sm_state, (M0_BETX_OPENING,
+-                                           M0_BETX_OPEN,
+-                                           M0_BETX_FAILED)));
++        m0_tx_req_post(&(tx->bt_dom->bd_impl.sm_group), &(tx->bt_sm_ast));
+ }
+ 
+ /**
+@@ -256,45 +245,17 @@ void m0_be_tx_start  (struct m0_be_tx *tx)
+  * @post M0_IN(tx->bt_sm.sm_state, (M0_BETX_CLOSED, M0_BETX_COMMITTED,
+  *                                  M0_BETX_DONE, M0_BETX_FAILED))
+  */
+-void m0_be_tx_done   (struct m0_be_tx *tx)
++M0_INTERNAL void m0_be_tx_done(struct m0_be_tx *tx)
+ {
+-        struct m0_be_credit *cred;
+-        struct m0_be_reg *reg_it;
+-        rvm_return_t ret;
+-
+         /* Asserting on required pointers */
+         M0_ASSERT(tx != NULL);
+ 
+-        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush);
+-
+-        if (RVM_SUCCESS != ret) {
+-                /* TODO@ add error log message */
+-                goto exit_end_tx;
+-        }
+-
+-        /* set state of all the regions in the credit */
+-        cred = tx->bt_impl.tx_bc;
+-
+-        if (cred == NULL) {
+-                /* TODO@ add error log message */
+-                goto exit_end_tx;
+-        }
+-        /* Iterate credit list of regions */
+-        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
+-                /* Mark all regions for completion */
+-                /* TODO@ need to call function m0_sm_state_set() */
+-                reg_it->br_sm.sm_state = M0_BEREG_DONE;
+-
+-        } m0_tlist_endfor;
++        M0_PRE(tx->bt_sm.sm_state == M0_BETX_OPEN);
+ 
+-        M0_TX_SM_STATE_SET(tx, M0_BETX_DONE);
+-        goto exit;
++        tx->bt_sm_ast.sa_cb    = m0_be_tx_done_cb;
++        tx->bt_sm_ast.sa_datum = (void *)tx;
+ 
+-exit_end_tx:
+-        rvm_free_tid(tx->bt_impl.tx_id);
+-        M0_TX_SM_STATE_SET(tx, M0_BETX_FAILED);
+-exit:
+-        return;
++        m0_tx_req_post(&(tx->bt_dom->bd_impl.sm_group), &(tx->bt_sm_ast));
+ }
+ 
+ /**
+@@ -302,16 +263,17 @@ exit:
+  *
+  * @pre M0_IN(tx->bt_sm.sm_state, (M0_BETX_DONE, M0_BETX_FAILED))
+  */
+-void m0_be_tx_fini   (struct m0_be_tx *tx)
++M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(tx != NULL);
+ 
+-        M0_PRE(M0_IN(tx->bt_sm.sm_state, (M0_BETX_DONE,
+-                                          M0_BETX_FAILED)));
++        M0_PRE(tx->bt_sm.sm_state == M0_BETX_DONE);
+ 
+         rvm_free_tid(tx->bt_impl.tx_id);
+ 
++        M0_TX_SM_STATE_SET(tx, M0_BETX_CLOSED);
++
+         /* Remove entry from in memory active transaction list if present */
+         if (m0_be_tx_tlink_is_in(tx))
+                 m0_be_tx_tlink_del_fini(tx);
+@@ -323,7 +285,8 @@ void m0_be_tx_fini   (struct m0_be_tx *tx)
+ /*
+  *    m0_be_tx_init callback function
+  */
+-void m0_be_tx_init_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
++M0_INTERNAL void m0_be_tx_init_cb(struct m0_sm_group *sm_group,
++                                  struct m0_sm_ast *sm_ast)
+ {
+         struct m0_be_tx         *tx;
+         rvm_return_t             ret;
+@@ -364,7 +327,8 @@ exit:
+ /*
+  *    m0_be_tx_prep callback function
+  */
+-void m0_be_tx_prep_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
++M0_INTERNAL void m0_be_tx_prep_cb(struct m0_sm_group *sm_group,
++                                  struct m0_sm_ast *sm_ast)
+ {
+         struct m0_be_tx         *tx;
+         struct m0_be_reg        *reg_it;
+@@ -386,23 +350,100 @@ void m0_be_tx_prep_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
+                 reg_it->br_tx = tx;
+ 
+                 /* check reg_it->br_sm.sm_state for region state */
+-                if (reg_it->br_sm.sm_state == M0_BEREG_INIT) {
+-                        m0_be_alloc(reg_it);
+-                }
+-
+-                if (reg_it->br_sm.sm_state == M0_BEREG_DONE) {
+-                        /*
+-                         * Capture region function which changes the region
+-                         * state to InProgress
+-                         */
+-                        m0_be_reg_capture(reg_it);
++                switch (reg_it->br_sm.sm_state) {
++                case M0_BEREG_INIT: 
++                       m0_be_alloc(reg_it);
++                       /* do not break, add allocated
++                        * region to transaction
++                        */
++
++                case M0_BEREG_DONE:
++                       /*
++                        * Capture region function which changes
++                        * the region state to InProgress
++                        */
++                       m0_be_reg_capture(reg_it);
++                       break;
++
++                default:
++                       M0_ASSERT(!"invalid region state");
+                 }
+ 
+         } m0_tlist_endfor;
++
++        m0_sm_state_set(&(tx->bt_sm), M0_BETX_PREPARED);
+ }
+ 
++/*
++ *    m0_be_tx_start callback function
++ */
++M0_INTERNAL void m0_be_tx_start_cb(struct m0_sm_group *sm_group,
++                                   struct m0_sm_ast *sm_ast)
++{
++        struct m0_be_tx         *tx;
+ 
+-void m0_be_credit_init(struct m0_be_credit *cred)
++        /* Asserting on required pointers */
++        M0_ASSERT(sm_group != NULL);
++        M0_ASSERT(sm_ast != NULL);
++
++        tx = (struct m0_be_tx *) sm_ast->sa_datum;
++
++        /* Add this transaction to domain's active transaction list */
++        m0_be_tx_tlink_init(tx);
++
++        m0_be_tx_tlist_add(&tx->bt_dom->bd_tx, tx);
++
++        m0_sm_state_set(&(tx->bt_sm), M0_BETX_OPEN);
++}
++
++/*
++ *    m0_be_tx_done callback function
++ */
++M0_INTERNAL void m0_be_tx_done_cb(struct m0_sm_group *sm_group,
++                                  struct m0_sm_ast *sm_ast)
++{
++        struct m0_be_tx         *tx;
++        struct m0_be_credit *cred;
++        struct m0_be_reg *reg_it;
++        rvm_return_t ret;
++
++        /* Asserting on required pointers */
++        M0_ASSERT(sm_group != NULL);
++        M0_ASSERT(sm_ast != NULL);
++
++        tx = (struct m0_be_tx *) sm_ast->sa_datum;
++
++        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush);
++
++        if (RVM_SUCCESS != ret) {
++                /* TODO@ add error log message */
++                goto exit_end_tx;
++        }
++
++        /* set state of all the regions in the credit */
++        cred = tx->bt_impl.tx_bc;
++
++        M0_ASSERT(cred != NULL);
++
++        /* Iterate credit list of regions */
++        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++                /* Mark all regions for completion */
++                /* TODO@ need to call function m0_sm_state_set() */
++                reg_it->br_sm.sm_state = M0_BEREG_DONE;
++
++        } m0_tlist_endfor;
++
++        m0_sm_state_set(&(tx->bt_sm), M0_BETX_DONE);
++        goto exit;
++
++exit_end_tx:
++        rvm_free_tid(tx->bt_impl.tx_id);
++        m0_sm_state_set(&(tx->bt_sm), M0_BETX_FAILED);
++exit:
++        return;
++}
++
++M0_INTERNAL void m0_be_credit_init(struct m0_be_credit *cred)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(cred != NULL);
+@@ -411,21 +452,20 @@ void m0_be_credit_init(struct m0_be_credit *cred)
+         m0_be_reg_tlist_init(&(cred->bc_tl));
+ }
+ 
+-
+-void m0_be_credit_add(struct m0_be_credit *cred, struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_credit_add(struct m0_be_credit *cred,
++                                  struct m0_be_reg *reg)
+ {
+         /* Asserting on required pointers */
+         M0_ASSERT(cred != NULL);
+         M0_ASSERT(reg != NULL);
+ 
+-        /* Add reg to credit list */
++        /* Add reg to credit list, default would be add to tail */
+         m0_be_reg_tlink_init(reg);
+ 
+-        m0_be_reg_tlist_add(&(cred->bc_tl), reg);
++        m0_be_reg_tlist_add_tail(&(cred->bc_tl), reg);
+ }
+ 
+-
+-void m0_be_credit_fini(struct m0_be_credit *cred)
++M0_INTERNAL void m0_be_credit_fini(struct m0_be_credit *cred)
+ {
+         struct m0_be_reg *reg_it;
+ 
+@@ -444,12 +484,12 @@ void m0_be_credit_fini(struct m0_be_credit *cred)
+         m0_be_reg_tlist_fini(&(cred->bc_tl));
+ }
+ 
+-
+ /**
+  * The function posts tx request to state machine thread
+  *
+  */
+-void m0_tx_req_post(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast)
++M0_INTERNAL void m0_tx_req_post(struct m0_sm_group *sm_group,
++                                struct m0_sm_ast *sm_ast)
+ {
+         m0_sm_ast_post(sm_group, sm_ast);
+ }
+diff --git a/be/be_tx.h b/be/be_tx.h
+index acedee7..7578f6c 100644
+--- a/be/be_tx.h
++++ b/be/be_tx.h
+@@ -33,14 +33,24 @@
+         m0_sm_state_set(&((tx)->bt_sm), state);                       \
+         m0_sm_group_unlock((tx)->bt_impl.sm_group);
+ 
+-void m0_be_credit_init(struct m0_be_credit *cred);
+-void m0_be_credit_add(struct m0_be_credit *cred, struct m0_be_reg *reg);
+-void m0_be_credit_fini(struct m0_be_credit *cred);
++M0_INTERNAL void m0_be_credit_init(struct m0_be_credit *cred);
++M0_INTERNAL void m0_be_credit_add(struct m0_be_credit *cred,
++                                  struct m0_be_reg *reg);
++M0_INTERNAL void m0_be_credit_fini(struct m0_be_credit *cred);
+ 
+-void m0_be_tx_init_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast);
+-void m0_be_tx_prep_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_be_tx_init_cb(struct m0_sm_group *sm_group,
++                                  struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_be_tx_prep_cb(struct m0_sm_group *sm_group,
++                                  struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_be_tx_start_cb(struct m0_sm_group *sm_group,
++                                   struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_be_tx_done_cb(struct m0_sm_group *sm_group,
++                                  struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_be_tx_fini_cb(struct m0_sm_group *sm_group,
++                                  struct m0_sm_ast *sm_ast);
+ 
+-void m0_tx_req_post(struct m0_sm_group *sm_group, struct m0_sm_ast *sm_ast);
++M0_INTERNAL void m0_tx_req_post(struct m0_sm_group *sm_group,
++                                struct m0_sm_ast *sm_ast);
+ /** @} end of be group */
+ 
+ /* __MERO_BE_BE_TX_H__ */
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 0b28d5d..5862b33 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -107,7 +107,7 @@ int main()
+ 
+ 
+         m0_be_buf_init(&buf, NULL, 1024, 0, 0, 0);
+-        m0_be_reg_init(&reg, &tx, &seg, &buf);
++        m0_be_reg_init(&reg, NULL, &seg, &buf);
+ 
+         m0_be_credit_add(&cred, &reg);
+ 
+@@ -116,12 +116,17 @@ int main()
+ 
+         m0_sm_group_lock(tx.bt_impl.sm_group);
+         m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_PREPARING) | (1 << M0_BETX_FAILED),
++                        (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED),
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(tx.bt_impl.sm_group);
+         printf("\nTx is Opening\n");
+ 
+         m0_be_tx_start(&tx);
++        m0_sm_group_lock(tx.bt_impl.sm_group);
++        m0_sm_timedwait(&tx.bt_sm,
++                        (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(tx.bt_impl.sm_group);
+         printf("\nTx Opened\n");
+ 
+         strcpy(reg.br_buf.logical_address.virtual_address, "VIRTUAL WORLD");
+@@ -137,12 +142,20 @@ int main()
+ 
+         strcpy(reg.br_buf.logical_address.virtual_address, "START --> END");
+         m0_be_tx_done(&tx);
++        m0_sm_group_lock(tx.bt_impl.sm_group);
++        m0_sm_timedwait(&tx.bt_sm,
++                        (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(tx.bt_impl.sm_group);
++
+         printf("\ndata : [%s]\n",
+                         (char *)reg.br_buf.logical_address.virtual_address);
+ 
+         rvm_truncate();
+         m0_be_credit_fini(&cred);
+ 
++        m0_be_tx_fini(&tx);
++
+         /* m0_be_seg_fini(&seg); */
+ 
+         printf("\nExiting from Backend UT\n");
+-- 
+1.8.3.2
+

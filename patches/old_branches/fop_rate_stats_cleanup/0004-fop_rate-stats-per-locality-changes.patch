@@ -1,0 +1,139 @@
+From 4ffb783890c69a8e1e9f23e48c857bc3b9804783 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Wed, 22 Jan 2014 16:06:19 +0530
+Subject: [PATCH 04/20]  - fop_rate stats per locality changes.
+
+---
+ fop/Kbuild.sub         |  3 ++-
+ fop/fom.c              | 39 +++++++++++++++++++--------------------
+ fop/fop_addb.h         |  3 ++-
+ fop/fop_rate_monitor.c |  2 ++
+ 4 files changed, 25 insertions(+), 22 deletions(-)
+
+diff --git a/fop/Kbuild.sub b/fop/Kbuild.sub
+index ae61b61..6a18413 100644
+--- a/fop/Kbuild.sub
++++ b/fop/Kbuild.sub
+@@ -5,4 +5,5 @@ m0mero_objects += fop/fop.o \
+                   fop/fom_generic.o \
+                   fop/fom_simple.o \
+                   fop/fom_generic_xc.o \
+-                  fop/fom_long_lock.o
++                  fop/fom_long_lock.o \
++		  fop/fop_rate_monitor.o
+diff --git a/fop/fom.c b/fop/fom.c
+index 843fbd1..5fcaa45 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -540,8 +540,6 @@ static void fom_exec(struct m0_fom *fom)
+ 				exec_time >> 10); /* ~usec */
+ 
+ 	if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH) {
+-		m0_time_t        now = m0_time_now();
+-
+                 /*
+                  * Finish fom itself.
+                  */
+@@ -549,14 +547,6 @@ static void fom_exec(struct m0_fom *fom)
+ 		/*
+ 		 * Don't touch the fom after this point.
+ 		 */
+-		++loc->fl_fop_rate_count;
+-		if (now >= loc->fl_fop_rate_next_update) {
+-			m0_addb_counter_update(&loc->fl_stat_fop_rate,
+-					       loc->fl_fop_rate_count);
+-			loc->fl_fop_rate_next_update =
+-				m0_time_add(now, fop_rate_interval);
+-			loc->fl_fop_rate_count = 0;
+-		}
+ 	} else {
+ 		struct m0_fom_callback *cb;
+ 
+@@ -885,20 +875,17 @@ static void loc_ast_post_stats(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+ 	struct m0_fom_locality *loc = container_of(ast, struct m0_fom_locality,
+ 						   fl_post_stats_ast);
+ 	struct m0_addb_ctx *cv[] = {&loc->fl_addb_ctx, NULL};
++	struct m0_addb_mc  *mc   = &loc->fl_dom->fd_reqh->rh_addb_mc;
+ 
+ 	if (m0_addb_counter_nr(&loc->fl_stat_run_times) > 0)
+-		M0_ADDB_POST_CNTR(&loc->fl_dom->fd_reqh->rh_addb_mc, cv,
+-				  &loc->fl_stat_run_times);
++		M0_ADDB_POST_CNTR(mc, cv, &loc->fl_stat_run_times);
+ 	if (m0_addb_counter_nr(&loc->fl_stat_sched_wait_times) > 0)
+-		M0_ADDB_POST_CNTR(&loc->fl_dom->fd_reqh->rh_addb_mc, cv,
+-				  &loc->fl_stat_sched_wait_times);
++		M0_ADDB_POST_CNTR(mc, cv, &loc->fl_stat_sched_wait_times);
+ 	if (m0_addb_counter_nr(&loc->fl_stat_fop_rate) > 0)
+-		M0_ADDB_POST_CNTR(&loc->fl_dom->fd_reqh->rh_addb_mc, cv,
+-				  &loc->fl_stat_fop_rate);
+-	M0_ADDB_POST(&loc->fl_dom->fd_reqh->rh_addb_mc, &m0_addb_rt_fl_runq_nr,
+-		     cv, loc->fl_runq_nr);
+-	M0_ADDB_POST(&loc->fl_dom->fd_reqh->rh_addb_mc, &m0_addb_rt_fl_wail_nr,
+-		     cv, loc->fl_wail_nr);
++		M0_ADDB_POST_CNTR(mc, cv, &loc->fl_stat_fop_rate);
++
++	M0_ADDB_POST(mc, &m0_addb_rt_fl_runq_nr, cv, loc->fl_runq_nr);
++	M0_ADDB_POST(mc, &m0_addb_rt_fl_wail_nr, cv, loc->fl_wail_nr);
+ }
+ 
+ M0_INTERNAL void m0_fom_locality_post_stats(struct m0_fom_locality *loc)
+@@ -1026,10 +1013,22 @@ void m0_fom_fini(struct m0_fom *fom)
+ 	reqh = loc->fl_dom->fd_reqh;
+ 	fom_state_set(fom, M0_FOS_FINISH);
+ 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx)) {
++		m0_time_t        now = m0_time_now();
++
+ 		m0_sm_stats_post(&fom->fo_sm_phase, &reqh->rh_addb_mc,
+ 				M0_FOM_ADDB_CTX_VEC(fom));
+ 		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
+ 				M0_FOM_ADDB_CTX_VEC(fom));
++		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
++
++                ++loc->fl_fop_rate_count;
++                if (now >= loc->fl_fop_rate_next_update) {
++                        m0_addb_counter_update(&loc->fl_stat_fop_rate,
++                                               loc->fl_fop_rate_count);
++                        loc->fl_fop_rate_next_update =
++                                m0_time_add(now, fop_rate_interval);
++                        loc->fl_fop_rate_count = 0;
++                }
+ 	}
+ 	if (fom->fo_sm_state_stats.asc_data != NULL)
+ 		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
+diff --git a/fop/fop_addb.h b/fop/fop_addb.h
+index 3755c08..a7639bc 100644
+--- a/fop/fop_addb.h
++++ b/fop/fop_addb.h
+@@ -138,7 +138,8 @@ M0_ADDB_RT_DP(m0_addb_rt_fl_runq_nr, M0_ADDB_RECID_FL_RUNQ_NR, "runq_nr");
+ /** Locality wait queue (list) length */
+ M0_ADDB_RT_DP(m0_addb_rt_fl_wail_nr, M0_ADDB_RECID_FL_WAIL_NR, "wail_nr");
+ /** ADDB summary record for fop rate stats */
+-M0_ADDB_RT_STATS(m0_addb_rt_fop_rate, M0_ADDB_RECID_FOP_RATE, "fop_rate");
++M0_ADDB_RT_STATS(m0_addb_rt_fop_rate, M0_ADDB_RECID_FOP_RATE,
++		 "locality", "fop_rate");
+ 
+ /** @} end of fom group */
+ 
+diff --git a/fop/fop_rate_monitor.c b/fop/fop_rate_monitor.c
+index 3246f14..fe9925e 100644
+--- a/fop/fop_rate_monitor.c
++++ b/fop/fop_rate_monitor.c
+@@ -46,6 +46,7 @@
+ m0_time_t fop_rate_interval = M0_MKTIME(1, 0);
+ 
+ static struct fop_rate_stats_sum_rec {
++	uint64_t ssr_loc_id;
+ 	uint64_t ssr_fop_rate;
+ } fop_rate_stats_sum;
+ 
+@@ -120,6 +121,7 @@ int m0_fop_rate_monitor_init(struct m0_reqh         *reqh,
+ 		M0_RETURN(-ENOMEM);
+ 
+ 	m0_addb_monitor_init(monitor, &fop_rate_monitor_ops);
++	fop_rate_stats_sum.ssr_loc_id = (uint64_t)(m0_locality_here()->lo_idx);
+ 	m0_addb_monitor_sum_rec_init(sum_rec, &m0_addb_rt_fop_rate,
+ 				     (uint64_t *)&fop_rate_stats_sum,
+ 				     fop_rate_stats_nr);
+-- 
+1.8.3.2
+

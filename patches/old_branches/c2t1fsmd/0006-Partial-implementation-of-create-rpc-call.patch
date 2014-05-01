@@ -1,0 +1,252 @@
+From f4088ee99a3e2de967c88e00bb30dba7f069667a Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Fri, 16 Mar 2012 14:59:36 +0530
+Subject: [PATCH 06/10] * Partial implementation of create rpc call.
+
+---
+ c2t1fs/linux_kernel/dir.c | 154 ++++++++++++++++++++++++++++++++++++++++++++++
+ mdservice/md_fops.c       |   2 -
+ mdservice/md_fops.h       |  25 +++++++-
+ 3 files changed, 176 insertions(+), 5 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/dir.c b/c2t1fs/linux_kernel/dir.c
+index e4d26e4..5f400cb 100644
+--- a/c2t1fs/linux_kernel/dir.c
++++ b/c2t1fs/linux_kernel/dir.c
+@@ -22,8 +22,10 @@
+ #include "c2t1fs.h"
+ #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
+ #include "lib/trace.h"     /* C2_LOG and C2_ENTRY */
++#include "fop/fop.h"
+ #include "mdservice/md_fops_k.h"
+ #include "mdservice/md_fops.h"
++#include "rpc/rpclib.h"
+ 
+ static int c2t1fs_create(struct inode     *dir,
+ 			 struct dentry    *dentry,
+@@ -153,6 +155,158 @@ out:
+ 	return rc;
+ }
+ 
++static void to_fop_fid(const struct c2_fid  *fid,
++		       struct c2_md_fop_fid *fop_fid)
++{
++	fop_fid->f_seq = fid->f_container;
++	fop_fid->f_oid = fid->f_key;
++}
++
++static void inode_to_fop_cob(const struct inode *inode,
++			     struct c2_fop_cob  *fop_cob)
++{
++	struct c2t1fs_inode *ci;
++
++	void mark_valid(enum c2_md_valid_flags flag)
++	{
++		fop_cob->b_valid |= flag;
++	}
++
++	fop_cob->b_mode  = inode->i_mode;
++	fop_cob->b_uid   = inode->i_uid;
++	fop_cob->b_gid   = inode->i_gid;
++
++	fop_cob->b_nlink = inode->i_nlink;
++	fop_cob->b_size  = inode->i_size;
++
++	fop_cob->b_valid = 0;
++
++	mark_valid(C2_MD_MODE);
++	mark_valid(C2_MD_UID);
++	mark_valid(C2_MD_GID);
++
++	mark_valid(C2_MD_NLINK);
++	mark_valid(C2_MD_SIZE);
++
++	ci = C2T1FS_I(inode);
++	to_fop_fid(&ci->ci_fid, &fop_cob->b_tfid);
++}
++
++static int to_fop_str(const unsigned char *name,
++		      int                  namelen,
++		      struct c2_fop_str   *fop_str)
++{
++	struct page **ppage;
++
++	C2_ENTRY();
++
++	C2_ALLOC_PTR(ppage);
++	if (ppage == NULL) {
++		C2_LEAVE("rc: -ENOMEM");
++		return -ENOMEM;
++	}
++
++	*ppage             = virt_to_page(name);
++	fop_str->s_buf     = ppage;
++	fop_str->cfs_pgoff = (uint32_t)(
++				(unsigned long)name & (PAGE_CACHE_SIZE - 1));
++	fop_str->s_len     = namelen;
++
++	C2_LEAVE("rc: 0");
++	return 0;
++}
++
++int fop_create_prepare(struct inode        *dir,
++		       struct inode        *inode,
++		       const unsigned char *name,
++		       int                  namelen,
++		       struct c2_fop      **out)
++{
++	struct c2t1fs_inode  *dir_ci;
++	struct c2_fop_create *req;
++	struct c2_fop        *fop;
++	int                   rc;
++
++	C2_ENTRY();
++
++	C2_ASSERT(dir != NULL && inode != NULL && name != NULL &&
++		  out != NULL);
++
++	*out = NULL;
++	fop = c2_fop_alloc(&c2_fop_create_fopt, NULL);
++	if (fop == NULL) {
++		C2_LEAVE("-ENOMEM");
++		return -ENOMEM;
++	}
++
++	req = c2_fop_data(fop);
++	C2_ASSERT(req != NULL);
++
++	inode_to_fop_cob(inode, &req->c_body);
++
++	dir_ci = C2T1FS_I(dir);
++	to_fop_fid(&dir_ci->ci_fid, &req->c_body.b_pfid);
++
++	rc = to_fop_str(name, namelen, &req->c_name);
++
++	if (rc != 0) {
++		c2_fop_free(fop);
++	} else {
++		*out = fop;
++	}
++
++	C2_LEAVE("rc: %d", rc);
++	return rc;
++}
++
++static int make_create_rpc_call(struct inode *dir,
++				struct inode *inode,
++				struct c2_fop *fop)
++{
++	struct c2_rpc_session *session;
++	struct c2t1fs_inode   *file_ci;
++	struct c2t1fs_sb      *csb;
++	int                    rc;
++
++	csb = C2T1FS_SB(dir->i_sb);
++
++	file_ci = C2T1FS_I(inode);
++	C2_ASSERT(file_ci->ci_fid.f_container == 0);
++
++	session = c2t1fs_container_id_to_session(csb,
++				file_ci->ci_fid.f_container);
++	C2_ASSERT(session != NULL);
++
++	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
++				C2T1FS_RPC_TIMEOUT);
++	if (rc == 0) {
++
++	}
++	return rc;
++}
++
++int c2t1fs_gob_create(struct inode        *dir,
++		      struct inode        *inode,
++		      const unsigned char *name,
++		      int                  namelen)
++{
++	struct c2_fop *fop;
++	int            rc;
++
++	C2_ENTRY("name=\"%s\" namelen=%d", name, namelen);
++
++	rc = namelen == 0 ? -EINVAL
++			  : namelen >= C2T1FS_MAX_NAME_LEN ? -ENAMETOOLONG
++							   : 0;
++	if (rc == 0) {
++		rc = fop_create_prepare(dir, inode, name, namelen, &fop) ?:
++		     make_create_rpc_call(dir, inode, fop);
++	}
++
++	C2_LEAVE("rc: %d", rc);
++	return rc;
++}
++
+ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
+ 			 const unsigned char   *name,
+ 			 int                    namelen,
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 431a0c0..c997ad2 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -2,8 +2,6 @@
+ #  include <config.h>
+ #endif
+ 
+-//#include "fop/fop.h"
+-
+ #ifndef __KERNEL__
+ #   include "mdservice/md_fops_u.h"
+ #else
+diff --git a/mdservice/md_fops.h b/mdservice/md_fops.h
+index 287848c..f04a40c 100644
+--- a/mdservice/md_fops.h
++++ b/mdservice/md_fops.h
+@@ -22,7 +22,7 @@
+ #define __COLIBRI_MDSERVICE_MD_FOPS_H__
+ 
+ extern struct c2_fop_type c2_fop_create_fopt;
+-extern struct c2_fop_type c2_fop_link_fopt;  
++extern struct c2_fop_type c2_fop_link_fopt;
+ extern struct c2_fop_type c2_fop_unlink_fopt;
+ extern struct c2_fop_type c2_fop_open_fopt;
+ extern struct c2_fop_type c2_fop_close_fopt;
+@@ -32,7 +32,7 @@ extern struct c2_fop_type c2_fop_rename_fopt;
+ extern struct c2_fop_type c2_fop_readdir_fopt;
+ 
+ extern struct c2_fop_type c2_fop_create_rep_fopt;
+-extern struct c2_fop_type c2_fop_link_rep_fopt;  
++extern struct c2_fop_type c2_fop_link_rep_fopt;
+ extern struct c2_fop_type c2_fop_unlink_rep_fopt;
+ extern struct c2_fop_type c2_fop_open_rep_fopt;
+ extern struct c2_fop_type c2_fop_close_rep_fopt;
+@@ -41,8 +41,27 @@ extern struct c2_fop_type c2_fop_getattr_rep_fopt;
+ extern struct c2_fop_type c2_fop_rename_rep_fopt;
+ extern struct c2_fop_type c2_fop_readdir_rep_fopt;
+ 
++/**
++   Valid flags attribute updates.
++*/
++enum c2_md_valid_flags {
++	C2_MD_ATIME   = 1 << 0,
++	C2_MD_MTIME   = 1 << 1,
++	C2_MD_CTIME   = 1 << 2,
++	C2_MD_SIZE    = 1 << 3,
++	C2_MD_MODE    = 1 << 4,
++	C2_MD_UID     = 1 << 5,
++	C2_MD_GID     = 1 << 6,
++	C2_MD_BLOCKS  = 1 << 7,
++	C2_MD_TYPE    = 1 << 8,
++	C2_MD_FLAGS   = 1 << 9,
++	C2_MD_NLINK   = 1 << 10,
++	C2_MD_RDEV    = 1 << 11,
++	C2_MD_BLKSIZE = 1 << 12
++};
++
+ #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
+-/* 
++/*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+  *  c-basic-offset: 8
+-- 
+1.8.3.2
+

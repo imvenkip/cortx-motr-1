@@ -1,0 +1,92 @@
+From 596dbfff0347fea363a89776586bca81566c9dab Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 1 Mar 2012 19:56:35 +0200
+Subject: [PATCH 030/311] describe cache_add()
+
++ add _object_ops::oo_size()
+---
+ conf/confc.c | 51 +++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 41 insertions(+), 10 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 21b7f8e..95590a0 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -810,11 +810,11 @@ object_enrich(struct c2_conf_obj *dest, const struct c2_confop_obj *src)
+ 	 * c2_mutex_lock(cache_lock());
+ 	 * C2_PRE(dest->co_type == src->fo_val.v_type);
+ 	 *
+-	 * if (!confc_object_ops[dest->co_type].oo_match(dest, src)) {
++	 * if (!object_ops[dest->co_type].oo_match(dest, src)) {
+ 	 *     c2_addb(report inconsistency);
+ 	 *     ret = -EMISMATCH; // XXX Can we use non-standard errno?
+ 	 * } else if (dest->co_status != C2_CS_READY) {
+-	 *     ret = confc_object_ops[dest->co_type].oo_enrich(dest, src);
++	 *     ret = object_ops[dest->co_type].oo_enrich(dest, src);
+ 	 * }
+ 	 *
+ 	 * obj->co_status = rc == 0 ? C2_CS_READY : C2_CS_MISSING;
+@@ -852,21 +852,52 @@ map_fini();
+  *
+  * @pre  The mapping does not contain given object.
+  */
+-static int map_add(const struct c2_conf_obj *obj);
++static int map_add(struct XXX_map *registry, const struct c2_conf_obj *obj);
+ 
+ static struct c2_confop_obj * map_lookup(const struct c2_conf_buf *key,
+ 					 uint8_t type);
+ 
+-static int cache_add(const struct c2_confop_obj *obj);
++/**
++ * Allocates new configuration object and sets its fields from on-wire data.
++ *
++ * @param registry  Key-to-address mapping.
++ * @param onwire    On-wire configuration object.
++ */
++static int cache_add(struct XXX_map *registry,
++		     const struct c2_confop_obj *onwire)
++{
++	/*
++	 * struct c2_conf_obj *obj;
++	 * struct _object_ops *ops;
++	 * int rc;
++	 *
++	 * C2_ASSERT(IS_IN_ARRAY(onwire->fo_val.v_type, object_ops));
++	 * ops = object_ops + onwire->fo_val.v_type;
++	 *
++	 * obj = c2_alloc(ops->oo_size());
++	 * if (obj == NULL)
++	 * 	return -ENOMEM;
++	 *
++	 * rc = ops->oo_enrich(obj, onwire);
++	 * rc = ?: map_add(registry, obj);
++	 *
++	 * if (rc != 0)
++	 * 	c2_free(obj);
++	 * return rc;
++	 */
++	XXX;
++}
+ 
+-struct object_ops {
+-	bool (*oo_match)(const struct c2_conf_obj *a,
+-			 const struct c2_confop_obj *b);
+-	int  (*oo_enrich)(struct c2_conf_obj *dest,
+-			  const struct c2_confop_obj *src);
++struct _object_ops {
++	/** Returns the size of object in bytes. */
++	size_t (*oo_size)(const struct c2_conf_obj *a);
++	bool   (*oo_match)(const struct c2_conf_obj *a,
++			   const struct c2_confop_obj *b);
++	int    (*oo_enrich)(struct c2_conf_obj *dest,
++			    const struct c2_confop_obj *src);
+ };
+ 
+-struct object_ops confc_object_ops[C2_CO_NR];
++struct _object_ops object_ops[C2_CO_NR];
+ 
+ /** Duplicates a string into c2_conf_buf. */
+ int c2_conf_buf_strdup(struct c2_conf_buf *dest, const char *src);
+-- 
+1.8.3.2
+

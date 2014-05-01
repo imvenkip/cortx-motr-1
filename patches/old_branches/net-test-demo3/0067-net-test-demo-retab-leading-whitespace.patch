@@ -1,0 +1,249 @@
+From baf322552ae0b8479e6308abc20b2a4a4b7ce980 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 13 Feb 2013 21:14:52 +0200
+Subject: [PATCH 67/99] net-test/demo: retab leading whitespace
+
+---
+ net/test/demo/demo.exp | 154 ++++++++++++++++++++++++-------------------------
+ 1 file changed, 77 insertions(+), 77 deletions(-)
+
+diff --git a/net/test/demo/demo.exp b/net/test/demo/demo.exp
+index 328d346..1cc1946 100755
+--- a/net/test/demo/demo.exp
++++ b/net/test/demo/demo.exp
+@@ -8,8 +8,8 @@ proc terminate {pid sid} {
+ proc finish {pid sid} {
+     send -i $sid \x03  ;# ^C
+     expect -i $sid -timeout 2 eof {} -re {^([^\r\n]*)[#>$] $} {
+-        send -i $sid exit\r  ;# got to shell prompt -- do exit
+-        expect -i $sid -timeout 2 eof {} timeout {terminate $pid $sid}
++	send -i $sid exit\r  ;# got to shell prompt -- do exit
++	expect -i $sid -timeout 2 eof {} timeout {terminate $pid $sid}
+     } timeout {terminate $pid $sid}
+ }
+ 
+@@ -20,13 +20,13 @@ proc exec_cmd {pid sid cmd {tmout 10} {e 0}} {
+     set r ""
+     set t0 [timestamp]
+     expect -i $sid -timeout $tmout -re {^([^\r\n]*\r*\n)} {
+-        append r $expect_out(1,string)
+-        exp_continue -continue_timer
++	append r $expect_out(1,string)
++	exp_continue -continue_timer
+     } -re {^(([^\r\n]*)[#>$] )$} {
+-        # got shell prompt
+-        if {"z$e" != "zwait_eof"} {return $r}
+-        append r $expect_out(1,string)
+-        exp_continue
++	# got shell prompt
++	if {"z$e" != "zwait_eof"} {return $r}
++	append r $expect_out(1,string)
++	exp_continue
+     } timeout {finish $pid $sid; error timeout
+     } eof {if {"z$e" == "zwait_eof"} {return $r} {error eof}}
+ }
+@@ -34,24 +34,24 @@ proc exec_cmd {pid sid cmd {tmout 10} {e 0}} {
+ # initialize a host and return [pid, spawn id] of ssh
+ proc init_host {addr {tmout 10}} {
+     if {"z$addr" == "zlocalhost"} {
+-        set pid [spawn bash]
++	set pid [spawn bash]
+     } else {
+-        set pid [spawn ssh $addr]
++	set pid [spawn ssh $addr]
+     }
+     set sid $spawn_id
+     set t0 [timestamp]
+     expect -i $sid -timeout $tmout -re {^[^\r\n]*\r*\n} {
+-        exp_continue -continue_timer
++	exp_continue -continue_timer
+     } -re {^([^\r\n]*\(yes/no\)\?) ?$} {
+-        send -i $sid yes\r
+-        exp_continue -continue_timer
++	send -i $sid yes\r
++	exp_continue -continue_timer
+     } -re {^([^\r\n]*([Pp]assword:|\(yes/no\)\?)) ?$} {
+-        set err $expect_out(1,string)
+-        finish $pid $sid
+-        error $err
++	set err $expect_out(1,string)
++	finish $pid $sid
++	error $err
+     } -re {^([^\r\n]*)[#>$] $} {
+-        # got shell prompt
+-        return [list $pid $sid]
++	# got shell prompt
++	return [list $pid $sid]
+     } timeout {finish $pid $sid; error timeout
+     } eof {error eof}
+ }
+@@ -69,107 +69,107 @@ proc init_hosts {consoles chosts shosts ntopts_al} {
+     # create list of unique addresses:
+     set hosts ""
+     foreach h [concat $consoles $chosts $shosts] {
+-        if {! [info exists u($h)]} {
+-            set u($h) 1
+-            lappend hosts $h
+-        }
++	if {! [info exists u($h)]} {
++	    set u($h) 1
++	    lappend hosts $h
++	}
+     }
+     # now initialize them serially:
+     set ihosts ""
+     set ehosts ""
+     foreach h $hosts {
+-        if {[catch {
+-            set r [init_host $h $ntopts(w)]
+-            set pid($h) [lindex $r 0]
+-            set sid($h) [lindex $r 1]
+-            lappend ihosts $h
+-        } err]} {
+-            # exception:
+-            regsub {[ \t\r\n]*$} $err \n err
+-            send_error "ERROR: $h: $err\n"
+-            lappend ehosts $h
+-        }
++	if {[catch {
++	    set r [init_host $h $ntopts(w)]
++	    set pid($h) [lindex $r 0]
++	    set sid($h) [lindex $r 1]
++	    lappend ihosts $h
++	} err]} {
++	    # exception:
++	    regsub {[ \t\r\n]*$} $err \n err
++	    send_error "ERROR: $h: $err\n"
++	    lappend ehosts $h
++	}
+     }
+     # execute "date" on initialized hosts and "exit":
+     foreach h $ihosts {
+-        foreach c [list "sudo lctl net down"\
+-        "sudo rmmod ksocklnd lnet"\
+-        "sudo modprobe lnet"\
+-        "sudo lctl net up"] {
+-            exec_cmd $pid($h) $sid($h) $c $ntopts(w)
+-        }
+-        set r [exec_cmd $pid($h) $sid($h) "sudo lctl list_nids"\
+-            $ntopts(w)]
+-        foreach l [split $r \n] {
+-            if {[regexp {([0-9.]+)@([a-z0-9_]+)} $l a addr typ]
+-            && "z$typ" == "z$ntopts(t)"} {
+-                lappend nids($h) $addr
+-            }
+-        }
+-        if {! [info exists nids($h)]} {error "no NIDs found on $h"}
+-        set nid($h) [lindex $nids($h) 0]  ;# XXX: use 1st NID
++	foreach c [list "sudo lctl net down"\
++	"sudo rmmod ksocklnd lnet"\
++	"sudo modprobe lnet"\
++	"sudo lctl net up"] {
++	    exec_cmd $pid($h) $sid($h) $c $ntopts(w)
++	}
++	set r [exec_cmd $pid($h) $sid($h) "sudo lctl list_nids"\
++	    $ntopts(w)]
++	foreach l [split $r \n] {
++	    if {[regexp {([0-9.]+)@([a-z0-9_]+)} $l a addr typ]
++	    && "z$typ" == "z$ntopts(t)"} {
++		lappend nids($h) $addr
++	    }
++	}
++	if {! [info exists nids($h)]} {error "no NIDs found on $h"}
++	set nid($h) [lindex $nids($h) 0]  ;# XXX: use 1st NID
+     }
+     # assign pair of endpoints to each server, client and console:
+     set tmid $ntopts(e)  ;# counter
+     array set role {consoles con chosts clnt shosts srv}
+     foreach l {consoles chosts shosts} {
+-        set r $role($l)
+-        foreach h [set $l] {  ;# contents of the list named by $l
+-            if {[info exists nid($h)]} {
+-                set cep($h,$r) $nid($h):$ntopts(p):$ntopts(o):$tmid
+-                incr tmid
+-                set dep($h,$r) $nid($h):$ntopts(p):$ntopts(o):$tmid
+-                incr tmid
+-            }
+-        }
++	set r $role($l)
++	foreach h [set $l] {  ;# contents of the list named by $l
++	    if {[info exists nid($h)]} {
++		set cep($h,$r) $nid($h):$ntopts(p):$ntopts(o):$tmid
++		incr tmid
++		set dep($h,$r) $nid($h):$ntopts(p):$ntopts(o):$tmid
++		incr tmid
++	    }
++	}
+     }
+     return [list $ihosts $ehosts [array get pid] [array get sid]\
+-        [array get nid] [array get cep] [array get dep]]
++	[array get nid] [array get cep] [array get dep]]
+ }
+ 
+ proc fini_hosts {ihosts pid_al sid_al tmout} {
+     array set pid $pid_al
+     array set sid $sid_al
+     foreach h $ihosts {catch {
+-        exec_cmd $pid($h) $sid($h) "sudo lctl net down" $tmout
+-        exec_cmd $pid($h) $sid($h) "sudo rmmod ksocklnd lnet" $tmout
+-        exec_cmd $pid($h) $sid($h) exit $tmout wait_eof
++	exec_cmd $pid($h) $sid($h) "sudo lctl net down" $tmout
++	exec_cmd $pid($h) $sid($h) "sudo rmmod ksocklnd lnet" $tmout
++	exec_cmd $pid($h) $sid($h) exit $tmout wait_eof
+     }}
+ }
+ 
+ proc main {argv0 argv} {
+     package require cmdline
+     set optdesc {
+-        {e.arg    3000      "starting TMID for endpoints"}
+-        {o.arg    42        "portal"}
+-        {p.arg    12345     "LNET pid"}
+-        {t.arg    tcp       "network type: tcp or o2ib"}
+-        {v                  "turn on verbose mode"}
+-        {w.arg    10        "ssh and commands' timeout"}
++	{e.arg	  3000	    "starting TMID for endpoints"}
++	{o.arg	  42	    "portal"}
++	{p.arg	  12345     "LNET pid"}
++	{t.arg	  tcp	    "network type: tcp or o2ib"}
++	{v		    "turn on verbose mode"}
++	{w.arg	  10	    "ssh and commands' timeout"}
+     }
+     set usg "\[options\] clnt1\[,clnt2...\] srv1\[,...\] \[con1...\]"
+     if {[catch {
+-        array set ntopts [::cmdline::getoptions argv $optdesc $usg]
+-        if {[llength $argv] < 2 || [llength $argv] > 3} {
+-            error [::cmdline::usage $optdesc $usg]}
++	array set ntopts [::cmdline::getoptions argv $optdesc $usg]
++	if {[llength $argv] < 2 || [llength $argv] > 3} {
++	    error [::cmdline::usage $optdesc $usg]}
+     } err]} {
+-        send_error "USAGE: $err"
+-        exit 1
++	send_error "USAGE: $err"
++	exit 1
+     }
+     set chosts [split [lindex $argv 0] ,]
+     set shosts [split [lindex $argv 1] ,]
+     if {[llength $argv] == 3} {set console [lindex $argv 2]} {
+-        set console localhost}
++	set console localhost}
+     set r [init_hosts [list $console] $chosts $shosts [array get ntopts]]
+     array set cep [lindex $r 5]
+     array set dep [lindex $r 6]
+     send_user "\n"
+     foreach h_r [lsort [array names cep]] {
+-        send_user "$h_r ctrl EP = $cep($h_r)\n"
+-        send_user "$h_r data EP = $dep($h_r)\n"
++	send_user "$h_r ctrl EP = $cep($h_r)\n"
++	send_user "$h_r data EP = $dep($h_r)\n"
+     }
+     fini_hosts [lindex $r 0] [lindex $r 2] [lindex $r 3] $ntopts(w)
+ }
+ 
+ main $argv0 $argv
+-# vi:set sw=4 et tw=72 ft=tcl si:
++# vi:set sw=4 noet tw=72 ft=tcl si:
+-- 
+1.8.3.2
+

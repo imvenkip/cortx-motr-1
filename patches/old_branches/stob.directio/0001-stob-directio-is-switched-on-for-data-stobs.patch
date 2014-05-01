@@ -1,0 +1,69 @@
+From db6e13f39d49b7769737be47acc5e9a785ce8345 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 24 Dec 2013 15:20:17 +0200
+Subject: [PATCH] stob: directio is switched on for data stobs
+
+---
+ mero/setup.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/mero/setup.c b/mero/setup.c
+index 8501ed3..d485f74 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -915,10 +915,11 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
+ /**
+    Initialises linux type stob.
+  */
+-static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
++static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob,
++			      bool directio)
+ {
+ 	return m0_linux_stob_domain_locate(stob_path, &stob->s_ldom) ?:
+-	       m0_linux_stob_setup(stob->s_ldom, false);
++	       m0_linux_stob_setup(stob->s_ldom, directio);
+ }
+ 
+ static void cs_ad_stob_fini(struct cs_stobs *stob)
+@@ -991,7 +992,8 @@ M0_INTERNAL struct m0_stob_domain *m0_cs_stob_domain_find(struct m0_reqh *reqh,
+    @todo Use generic mechanism to generate stob ids
+  */
+ static int cs_storage_init(const char *stob_type, const char *stob_path,
+-			   struct cs_stobs *stob, struct m0_be_seg *db)
++			   struct cs_stobs *stob, struct m0_be_seg *db,
++			   bool data_io)
+ {
+ 	int               rc;
+ 	int               slen;
+@@ -1028,8 +1030,8 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
+ 		goto out;
+ 	}
+ 
+-	rc = cs_linux_stob_init(stob_path, stob);
+-	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0)
++	rc = cs_linux_stob_init(stob_path, stob, data_io);
++	if (rc == 0 && stob->s_stype == M0_AD_STOB)
+ 		rc = cs_ad_stob_init(stob, db);
+ out:
+ 	m0_free(objpath);
+@@ -1303,7 +1305,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx)
+ 
+ 	/** @todo allow different stob type for data stobs & ADDB stobs? */
+ 	rc = cs_storage_init(stype, rctx->rc_addb_stpath,
+-			     &addb_stob->cas_stobs, rctx->rc_beseg);
++			     &addb_stob->cas_stobs, rctx->rc_beseg, false);
+ 	if (rc != 0)
+ 		M0_RETURN(rc);
+ 
+@@ -1384,7 +1386,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
+ 	}
+ 
+ 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
+-			     &rctx->rc_stob, rctx->rc_beseg);
++			     &rctx->rc_stob, rctx->rc_beseg, true);
+ 	if (rc != 0) {
+ 		M0_LOG(M0_ERROR, "cs_storage_init");
+ 		goto cleanup_stob;
+-- 
+1.8.3.2
+

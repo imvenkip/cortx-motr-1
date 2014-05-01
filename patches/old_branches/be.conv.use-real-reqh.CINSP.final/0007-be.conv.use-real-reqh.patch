@@ -1,0 +1,87 @@
+From 5877a7b1d459be58926785e0825dacd0ca6e7659 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Fri, 7 Feb 2014 14:54:10 +0530
+Subject: [PATCH 7/9] be.conv.use-real-reqh, - Handle blocking pool machine
+ transitions. To be fixed in a separate task. - Add documentation.
+
+---
+ sns/cm/cm.c          | 10 +++++++---
+ sns/cm/trigger_fom.c |  6 ++++++
+ ut/be.h              |  5 +++++
+ 3 files changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/sns/cm/cm.c b/sns/cm/cm.c
+index 10d45ba..ea11587 100644
+--- a/sns/cm/cm.c
++++ b/sns/cm/cm.c
+@@ -553,18 +553,22 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
+ 			struct m0_pool_event   pme;
+ 			struct m0_be_tx_credit cred = {};
+ 			struct m0_be_tx        tx;
+-			struct m0_sm_group    *grp  = m0_locality_here()->lo_grp;
++			struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
+ 
+ 			M0_SET0(&pme);
+ 			pme.pe_type  = et;
+ 			pme.pe_index = dev_id;
+ 			pme.pe_state = state;
+-			//m0_sm_group_lock(grp);
++			m0_sm_group_lock(grp);
+ 			m0_be_tx_init(&tx, 0, scm->sc_it.si_beseg->bs_domain, grp,
+ 					      NULL, NULL, NULL, NULL);
+ 			m0_poolmach_store_credit(scm->sc_base.cm_pm, &cred);
+ 
+ 			m0_be_tx_prep(&tx, &cred);
++			/*
++			 * XXX FIX ME: Replace m0_be_tx_{open, close}_sync()
++			 * calls with corresponding async versions.
++			 */
+ 			rc = m0_be_tx_open_sync(&tx);
+ 			if (rc == 0) {
+ 				rc = m0_poolmach_state_transit(scm->sc_base.cm_pm,
+@@ -572,7 +576,7 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
+ 				m0_be_tx_close_sync(&tx);
+ 			}
+ 			m0_be_tx_fini(&tx);
+-			//m0_sm_group_unlock(grp);
++			m0_sm_group_unlock(grp);
+ 			if (rc != 0)
+ 				break;
+ 		}
+diff --git a/sns/cm/trigger_fom.c b/sns/cm/trigger_fom.c
+index a15d4a3..4a69c23 100644
+--- a/sns/cm/trigger_fom.c
++++ b/sns/cm/trigger_fom.c
+@@ -211,7 +211,13 @@ static int trigger_fom_tick(struct m0_fom *fom)
+ 			case TPH_PREPARE_INIT:
+ 				treq = m0_fop_data(fom->fo_fop);
+ 				scm->sc_op = treq->op;
++				/*
++				 * To handle blocking pool machine state
++				 * transitions.
++				 */
++				m0_fom_block_enter(fom);
+ 				rc = m0_cm_prepare_init(cm);
++				m0_fom_block_leave(fom);
+ 				if (rc != 0)
+ 					goto fail;
+ 				rc = m0_cm_prepare_sw_store_init(cm, grp);
+diff --git a/ut/be.h b/ut/be.h
+index 6bead93..d15139d 100644
+--- a/ut/be.h
++++ b/ut/be.h
+@@ -69,6 +69,11 @@ M0_INTERNAL void m0_ut_be_free(void *ptr, m0_bcount_t size,
+ 			       struct m0_be_seg *seg,
+ 			       struct m0_be_ut_backend *ut_be);
+ 
++/**
++ * Blocks until all the FOMs are completed except the be tx_group_fom.
++ * @note This is a temporary solution and will be replaced by per service
++ * FOM completion notification mechanism.
++ */
+ M0_INTERNAL void m0_ut_be_fom_domain_idle_wait(struct m0_reqh *reqh);
+ 
+ /** @} end of ut group */
+-- 
+1.8.3.2
+

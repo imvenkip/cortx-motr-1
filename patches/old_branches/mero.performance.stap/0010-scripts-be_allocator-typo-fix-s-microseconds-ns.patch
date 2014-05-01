@@ -1,0 +1,25 @@
+From 4d5730ab2087524606677b8877e510532d7a4a30 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 28 Nov 2013 01:29:07 +0200
+Subject: [PATCH 10/13] scripts/be_allocator: typo fix: s/microseconds/ns/
+
+---
+ scripts/be_allocator.stp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/be_allocator.stp b/scripts/be_allocator.stp
+index 3f360f7..40d8d04 100644
+--- a/scripts/be_allocator.stp
++++ b/scripts/be_allocator.stp
+@@ -29,7 +29,7 @@ probe	process(@1).function("m0_be_alloc_aligned").return,
+ @define PRINT_STATS(tag, stats)
+ %(
+ 	if (@count(@stats) > 0) {
+-		printf("%s: min/max/avg/count/sum %d/%d/%d/%d/%d microseconds\n",
++		printf("%s: min/max/avg/count/sum %d/%d/%d/%d/%d ns\n",
+ 		       @tag, @min(@stats), @max(@stats),
+ 		       @avg(@stats), @count(@stats), @sum(@stats));
+ 		print(@hist_log(@stats))
+-- 
+1.8.3.2
+

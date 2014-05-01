@@ -1,0 +1,233 @@
+From 4a22720ecf11da65edbd92e26770597116c7ae4e Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 6 Sep 2013 23:49:35 +0530
+Subject: [PATCH 21/50] bigmemalloc.mf
+
+1. Backing up before introducing macro safe_bitshift throughout the
+   code.
+---
+ lib/linux_kernel/varr.c |  5 +--
+ lib/varr.c              | 98 +++++++++++++++++++++++++++++++++----------------
+ lib/varr.h              |  3 +-
+ 3 files changed, 69 insertions(+), 37 deletions(-)
+
+diff --git a/lib/linux_kernel/varr.c b/lib/linux_kernel/varr.c
+index c6e2190..6205836 100644
+--- a/lib/linux_kernel/varr.c
++++ b/lib/linux_kernel/varr.c
+@@ -45,10 +45,7 @@ M0_EXTERN bool m0_varr_size_is_valid(const struct m0_varr *arr)
+ {
+ 	M0_PRE(arr != NULL);
+ 
+-	return
+-		arr->va_sizeof  <  arr->va_bufsize &&
+-		arr->va_bufsize == PAGE_CACHE_SIZE &&
+-		arr->va_bufsize %  arr->va_sizeof == 0;
++	return arr->va_obj_shift  <=  arr->va_buf_shift
+ }
+ 
+ /*
+diff --git a/lib/varr.c b/lib/varr.c
+index 1334c8e..1729853 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -48,7 +48,15 @@ static uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
+ M0_INTERNAL uint64_t cont_nr_for_objs(unsigned long nr,
+ 				      unsigned long obj_nr_in_1_cont);
+-
++/* Shifts a given number to left/right by taking into account sizeof (number) */
++#define safe_bitshift(num, type, shift)					     \
++({									     \
++	int   __shift = (shift);					     \
++	type  __num   = (num);						     \
++	(__shift >= 0 ? (__shift < 8 * sizeof __num ?			     \
++			 __num << __shift : 0 ) :			     \
++	 (0 - __shift) < 8 * sizeof __num ? __num >> (0 - __shift) : 0)	     \
++ })
+ /*
+  * A LIFO stack which maintains the backlink to parent node as well as
+  * the index of parent node in given buffer.
+@@ -77,9 +85,11 @@ struct varr_stack {
+  * objects that reside in it.
+  */
+ struct varr_cache {
+-	void    *buff;
+-	uint64_t start_index;
++	void    *c_buff;
++	uint64_t c_first_index;
++	uint64_t c_last_index;
+ }
++
+ /* Enumeration for action to be taken on a set of buffers. */
+ enum buffer_action {
+ 	BA_ALLOC,
+@@ -87,13 +97,24 @@ enum buffer_action {
+ 	BA_NR
+ };
+ 
++M0_INTERNAL int stack_init(struct m0_varr *arr)
++{
++	M0_ALLOC_PTR(arr->va_stack);
++	if (arr->va_stack == NULL)
++		return -ENOMEM;
++	M0_ALLOC_ARR(arr->va_stack->ls_rec, arr->va_depth - 1);
++	if (arr->va_stack->ls_rec == NULL)
++		return -ENOMEM;
++	arr->va_stack->ls_sp = -1;
++}
++
+ M0_INTERNAL int push(struct m0_varr *arr, void *addr, uint64_t index)
+ {
+ 	++arr->va_stack->ls_sp;
+ 	if (arr->va_stack->ls_sp == arr->va_depth - 1)
+ 		return -EPERM;
+-	arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_addr   = addr;
+-	arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_index  = index;
++	arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_addr  = addr;
++	arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_index = index;
+ 	return 0;
+ }
+ 
+@@ -107,24 +128,37 @@ M0_INTERNAL int pop(struct m0_varr *arr, void **addr, uint64_t *index)
+ 	return 0;
+ }
+ 
+-/* Returns logarithm to the base two, for nearest power of two
++/* Returns logarithm to the base two, for the nearest power of two
+  * which is not lesser than 'size'*/
+ M0_INTERNAL uint8_t nearest_power_of_two(size_t size)
+ {
+-	uint32_t aligned_size = 1;
+-	uint8_t  aligned_shift = 0;
++	size_t  aligned_size  = 1;
++	uint8_t aligned_shift = 0;
+ 
+-	while (size <= aligned_size) {
+-		aligned_size<<1;
++	while (size > aligned_size) {
++		safe_bitshift(aligned_size, size_t, 1);
+ 		++aligned_shift;
+ 	}
+ 	return aligned_shift;
+ }
+ 
++M0_INTERNAL bool is_power_of_two(size_t size)
++{
++	return size && !(size & (size - 1));
++}
++
++/* Returns a 64-bit integer whose last n bits are set, rest are zero */
++M0_INTERNAL uint64_t last_nbits_set(uint8_t n)
++{
++	return n < 64 ? ~safe_bitshift(~(uint64_t)0, uint64_t, n) :
++		~(uint64_t)0;
++}
++
+ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr)
+ {
+ 	M0_PRE(arr != NULL);
+-	return 1<<(arr->va_buf_shift - arr->va_obj_shift);
++	return	safe_bitshift((unsigned long)1, unsigned long,
++			      (int)(arr->va_buf_shift - arr->va_obj_shift));
+ }
+ 
+ M0_INTERNAL uint64_t cont_nr_for_objs(unsigned long nr,
+@@ -142,12 +176,16 @@ M0_INTERNAL bool within_tree_height(const struct m0_varr *arr, int level)
+ 
+ M0_INTERNAL bool within_tree_width(const struct m0_varr *arr, uint64_t child_id)
+ {
+-	return child_id < arr->va_buf_ptr_nr;
++	return child_id < arr->va_bufptr_nr;
+ }
+ 
+-M0_INTERNAL uint64_t last_nbits_set(uint8_t n)
++M0_INTERNAL bool cache_fetch(struct m0_varr *arr, uint64_t index, void *holder)
+ {
+-	return n < 64 ? ~(~0<<n) : ~0;
++	return arr->va_cache->c_buff != NULL				 &&
++	       arr->va_cache->c_first_index <= index		         &&
++	       index <= (arr->va_cache->c_last_index) &&
++	       (unsigned long *)*holder = arr->va_cache->c_buff + index -
++			arr->va_cache->c_first_index;
+ }
+ 
+ static bool varr_invariant(const struct m0_varr *arr)
+@@ -172,8 +210,15 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr,
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE(nr   > 0);
+ 	M0_PRE(size > 0);
+-	M0_PRE(bufsize > 0);
+-	M0_PRE(bufsize % size == 0);
++
++	arr->va_nr              = nr;
++	arr->va_alloc           = arr->va_dealloc = 0;
++	arr->va_obj_shift       = nearest_power_of_two(size);
++	arr->va_buf_shift       = nearest_power_of_two(bufsize);
++	arr->va_bufptr_nr_shift = arr->va_buf_shift -
++		neares_power_of_two(VA_TNODEPTR_SIZE);
++	arr->va_bufptr_nr       = safely_shift((uint64_t) 1,
++						arr->va_bufptr_nr_shift);
+ 
+ 	/*
+ 	 * Since two successive buffs are not guaranteed to be contiguous,
+@@ -184,13 +229,6 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr,
+ 	if (!m0_varr_size_is_valid(arr))
+ 		return -EINVAL;
+ 
+-	arr->va_nr              = nr;
+-	arr->va_alloc           = arr->va_dealloc = 0;
+-	arr->va_size_shift      = nearest_power_of_two(size);
+-	arr->va_buf_shift       = nearest_power_of_two(bufsize);
+-	arr->va_bufptr_nr_shift = arr->va_buf_shift -
+-		neares_power_of_two(VA_TNODEPTR_SIZE);
+-	arr->va_bufptr_nr       = 1<<arr->va_bufptr_nr_shift;
+ 	m0_varr_bob_init(arr);
+ 	for (i = 0; i < VA_TNODE_NR; ++i)
+ 		arr->va_tree[i] = NULL;
+@@ -198,15 +236,11 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr,
+ 	buff_nr         = cont_nr_for_objs(nr, varr_obj_nr_in_buff(arr));
+ 	arr->va_depth   = level_find(arr, buff_nr);
+ 	if (arr->va_depth > 1) {
+-		M0_ALLOC_PTR(arr->va_stack);
+-		if (arr->va_stack == NULL)
+-			rc = -ENOMEM;
+-		M0_ALLOC_ARR(arr->va_stack->ls_rec, arr->va_depth - 1);
+-		if (arr->va_stack->ls_rec == NULL)
+-			rc = -ENOMEM;
+-		arr->va_stack->ls_sp = -1;
++		rc = stack_init(arr);
+ 	}
+-
++	M0_ALLOC_PTR(arr->va_cache);
++	if (arr->va_cache == NULL)
++		rc = -ENOMEM;
+ 	if (rc == 0)
+ 		rc = varr_buffers_alloc(arr, buff_nr);
+ 
+@@ -226,7 +260,7 @@ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr)
+ 			     varr_obj_nr_in_buff(arr)));
+ 	m0_free(arr->va_stack->ls_rec);
+ 	m0_free(arr->va_stack);
+-	m0_lookup_table_fini(&arr->va_lktable);
++	m0_free(arr->va_cache);
+ 	M0_POST(arr->va_alloc == arr->va_dealloc);
+ 	m0_varr_bob_fini(arr);
+ 	arr->va_nr     = arr->va_bufsize = 0;
+diff --git a/lib/varr.h b/lib/varr.h
+index 0b7f786..7f21976 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -115,7 +115,8 @@ struct m0_varr {
+ 	 * significant and _exactly same_ compute operations which can be
+ 	 * easily avoided by maintaining it as a member.
+ 	 */
+-	uint64_t          va_bufptr_nr_shift;
++	uint64_t	  va_bufptr_nr;
++	uint8_t           va_bufptr_nr_shift;
+ 
+ 	/**
+ 	 * Array of radix tree nodes, each of which represents an abstraction
+-- 
+1.8.3.2
+

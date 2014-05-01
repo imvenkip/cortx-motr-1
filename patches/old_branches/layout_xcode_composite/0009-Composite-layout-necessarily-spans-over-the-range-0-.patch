@@ -1,0 +1,398 @@
+From 157f74bf87766d9148a85bc20ef4c16f1af151c9 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 26 Oct 2012 15:46:30 +0530
+Subject: [PATCH 009/157] Composite layout necessarily spans over the range 0
+ to C2_BINDEX_MAX
+
+---
+ layout/composite.c |  17 ++----
+ layout/ut/layout.c | 153 ++++++++++++++++++++++++++++++++++++-----------------
+ 2 files changed, 110 insertions(+), 60 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 38a640d..3277adf 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -167,7 +167,7 @@ static void composite_populate(struct c2_composite_layout *cl,
+ 	C2_PRE(composite_allocated_invariant(cl));
+ 	/*
+ 	 * The sub-layout list has been validated by the caller and a reference
+-	 * has been added on each sub-layout.
++	 * has been added to each sub-layout.
+ 	 */
+ 
+ 	C2_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+@@ -422,7 +422,7 @@ static int composite_decode(struct c2_layout *l,
+ 
+ 		/*
+ 		 * The reference acquired here using c2_layout_find() and the
+-		 * addition of user count on each  sub-layout will be undoen
++		 * addition of user count on each sub-layout will be undoen
+ 		 * by composite_fini().
+ 		 */
+ 		sl->csl_l = c2_layout_find(cl->cl_base.l_dom,
+@@ -499,7 +499,6 @@ static int sublayouts_write(struct c2_layout *l,
+ 	prefix.lp_l_id = l->l_id;
+ 	prefix_addr = (struct c2_uint128 *)&prefix;
+ 
+-	// todo Handle the first sub-layout case carefully
+ 	if (op == C2_LXO_DB_ADD)
+ 		rc = c2_emap_obj_insert(emap, tx, prefix_addr, 0);
+ 	C2_ASSERT(rc == 0); //todo handle err
+@@ -514,20 +513,14 @@ static int sublayouts_write(struct c2_layout *l,
+ 	total = 0;
+ 	sublayouts_nr = 0;
+ 	c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+-		len[sublayouts_nr] = sl->csl_ext.e_end - sl->csl_ext.e_start;
++		len[sublayouts_nr] = sl->csl_ext.e_end -
++				     sl->csl_ext.e_start + 1;
+ 		val[sublayouts_nr] = sl->csl_l->l_id;
+ 		total = total + len[sublayouts_nr];
+ 		++sublayouts_nr;
+ 	} c2_tl_endfor;
+ 	C2_ASSERT(sublayouts_nr == cl->cl_nr);
+-	/*
+-	 * Since the name-space of an extent map table is a set of all the
+-	 * 64-bit unsigned numbers from 0 to C2_BINDEX_MAX, the length of the
+-	 * last segment is set to "C2_BINDEX_MAX - total length of all the
+-	 * earlier segments".
+-	 */
+-	//todo Eventually C2_ASSERT(total == seg_len);
+-	len[ARRAY_SIZE(len) - 1] = seg_len + len[ARRAY_SIZE(len) - 1] - total;
++	C2_ASSERT(total == seg_len);
+ 
+ 	if (op == C2_LXO_DB_ADD)
+ 		rc = c2_emap_split(&it, &vec);
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index a6da37c..ff5f98b 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -796,24 +796,28 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
+  * Builds num_sublayouts number of sub-layouts and stores those in
+  * sub_layout_list.
+  */
++#ifndef __KERNEL__
++#include <stdlib.h>      /* printf() */ //todo
++#endif
+ static void sub_layouts_build(uint64_t composite_lid,
+ 			      struct c2_tl **sub_layout_list,
+-			      uint32_t num_sublayouts,
+-			      c2_bindex_t end_offset)
++			      uint32_t num_sublayouts)
+ {
++	bool                            inline_test;
+ 	uint32_t                        sublayout_lid;
+ 	uint32_t                        enum_id;
+-	bool                            inline_test;
+-	struct c2_uint128               seed;
+ 	uint32_t                        N;
+ 	uint32_t                        K;
+ 	uint32_t                        P;
+ 	struct c2_pdclust_layout       *pl;
+ 	struct c2_layout_list_enum     *list_enum;
+ 	struct c2_layout_linear_enum   *lin_enum;
+-	struct c2_composite_sub_layout *sub_layout;
++	struct c2_composite_sub_layout *sl;
++	struct c2_uint128               seed;
++	c2_bindex_t                     delta;
++	c2_bindex_t                     where;
++	c2_bindex_t                     total;
+ 	uint32_t                        i;
+-	c2_bindex_t                     delta = end_offset / num_sublayouts;
+ 
+ 	/* Initialise a c2_tl for storing the sub-layouts to be built. */
+ 	C2_ALLOC_PTR(*sub_layout_list);
+@@ -821,8 +825,16 @@ static void sub_layouts_build(uint64_t composite_lid,
+ 	c2_sub_layout_tlist_init(*sub_layout_list);
+ 	C2_UT_ASSERT(c2_sub_layout_tlist_is_empty(*sub_layout_list));
+ 
++	/*
++	 * The name-space of an extent map is a set of all the 64-bit
++	 * unsigned numbers from 0 to C2_BINDEX_MAX. Let's spread that
++	 * namespace over the number of sub-layouts.
++	 */
+ 	/* todo Check why the last seg shows the first sublayout-id n so on. */
+ 	c2_uint128_init(&seed, "sub_layouts_buil");
++	delta = C2_BINDEX_MAX / num_sublayouts;
++	where = 0;
++	total = 0;
+ 	for (i = 0; i < num_sublayouts; ++i) {
+ 		/* Build a sub-layout. */
+ 		sublayout_lid = composite_lid * 100 + i;
+@@ -836,35 +848,66 @@ static void sub_layouts_build(uint64_t composite_lid,
+ 					  false);
+ 		C2_UT_ASSERT(rc == 0);
+ 
+-		/* Add the sub-layout to the sub-layout-list. */
+-		C2_ALLOC_PTR(sub_layout);
+-		C2_UT_ASSERT(sub_layout != NULL);
+-		sub_layout->csl_l           = c2_pdl_to_layout(pl);
+-		sub_layout->csl_ext.e_start = i * delta;
+-		sub_layout->csl_ext.e_end   = sub_layout->csl_ext.e_start +
+-					      delta - 1;
+-		c2_sub_layout_tlink_init_at(sub_layout, *sub_layout_list);
++		/*
++		 * Add the sub-layout to the sub-layout-list by associating it
++		 * with a particular segment.
++		 */
++		C2_ALLOC_PTR(sl);
++		C2_UT_ASSERT(sl != NULL);
++		sl->csl_l           = c2_pdl_to_layout(pl);
++		sl->csl_ext.e_start = where;
++		sl->csl_ext.e_end   = sl->csl_ext.e_start + delta - 1;
++		total               = total + delta;
++		where               = sl->csl_ext.e_end + 1;
++		c2_sub_layout_tlink_init_at(sl, *sub_layout_list);
++
++#ifndef __KERNEL__
++		printf("sl_lid %llu, e_start %llu, e_end %llu, "
++			"total %llu, where %llu \n",
++			(unsigned long long)sublayout_lid,
++			(unsigned long long)sl->csl_ext.e_start,
++			(unsigned long long)sl->csl_ext.e_end,
++			(unsigned long long)total,
++			(unsigned long long)where);
++#endif
+ 	}
+ 
++	/*
++	 * C2_BINDEX_MAX is not necessarily multiple delta. Hence adjust the
++	 * csl_ext.e_end for the last sub-layout.
++	 */
++	sl->csl_ext.e_end = C2_BINDEX_MAX;
++	total = total - delta + sl->csl_ext.e_end - sl->csl_ext.e_start;
++#ifndef __KERNEL__
++		printf("Revised last segment\n sl_lid %llu, "
++			"e_start %llu, e_end %llu, "
++			"total %llu, where %llu \n\n",
++			(unsigned long long)sublayout_lid,
++			(unsigned long long)sl->csl_ext.e_start,
++			(unsigned long long)sl->csl_ext.e_end,
++			(unsigned long long)total,
++			(unsigned long long)where);
++#endif
++	C2_UT_ASSERT(total == C2_BINDEX_MAX);
+ 	C2_UT_ASSERT(!c2_sub_layout_tlist_is_empty(*sub_layout_list));
+ }
+ 
+ static void composite_layout_verify(struct c2_layout *l,
+ 				    uint64_t composite_lid,
+-				    uint32_t num_sublayouts,
+-				    c2_bindex_t end_offset)
++				    uint32_t num_sublayouts)
+ {
++	bool                            inline_test;
++	uint64_t                        sublayout_lid;
+ 	struct c2_composite_layout     *cl;
+ 	struct c2_composite_sub_layout *sl;
+-	uint64_t                        sub_layout_lid;
+-	uint32_t                        enum_id;
+-	bool                            inline_test;
+ 	struct c2_uint128               seed;
++	uint32_t                        enum_id;
+ 	uint32_t                        N;
+ 	uint32_t                        K;
+ 	uint32_t                        P;
+-	int                             i = num_sublayouts - 1;
+-	c2_bindex_t                     delta = end_offset / num_sublayouts;
++	int                             i;
++	c2_bindex_t                     delta = C2_BINDEX_MAX / num_sublayouts;
++	c2_bindex_t                     where;
+ 
+ 	C2_UT_ASSERT(l != NULL);
+ 	C2_UT_ASSERT(l->l_type == &c2_composite_layout_type);
+@@ -873,22 +916,38 @@ static void composite_layout_verify(struct c2_layout *l,
+ 	l_verify(l, composite_lid, !USER_COUNT_INCREMENTED);
+ 
+ 	c2_uint128_init(&seed, "sub_layouts_buil");
++	i = num_sublayouts - 1;
++	where = C2_BINDEX_MAX;
+         c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+ 		/* Verify the sub-layout. */
+-		sub_layout_lid = composite_lid * 100 + i;
++		sublayout_lid = composite_lid * 100 + i;
+ 		enum_id        = i % 2 ? LIST_ENUM_ID : LINEAR_ENUM_ID;
+ 		inline_test    = i % 5 ? LESS_THAN_INLINE : MORE_THAN_INLINE;
+ 		NKP_assign(enum_id, inline_test, 9, 109, 1200, &N, &K, &P);
+-		pdclust_layout_verify(enum_id, sl->csl_l, sub_layout_lid,
++		pdclust_layout_verify(enum_id, sl->csl_l, sublayout_lid,
+ 				      N, K, P, &seed, 10, 20,
+ 				      USER_COUNT_INCREMENTED);
+ 		C2_UT_ASSERT(sl->csl_l->l_user_count == 1);
+ 
+-		/* Verify sl->csl_ext. */
+-		C2_UT_ASSERT(sl->csl_ext.e_start == i * delta);
+-		C2_UT_ASSERT(sl->csl_ext.e_end ==
+-			     sl->csl_ext.e_start + delta - 1);
++#ifndef __KERNEL__
++		printf("sl_lid %llu, e_start %llu, e_end %llu, "
++			"delta %llu, where %llu \n",
++			(unsigned long long)sublayout_lid,
++			(unsigned long long)sl->csl_ext.e_start,
++			(unsigned long long)sl->csl_ext.e_end,
++			(unsigned long long)delta,
++			(unsigned long long)where);
++#endif
+ 
++		/* Verify sl->csl_ext. */
++		C2_UT_ASSERT(sl->csl_ext.e_end == where);
++		if (i == num_sublayouts - 1)
++			C2_UT_ASSERT(sl->csl_ext.e_start == C2_BINDEX_MAX -
++					delta - (C2_BINDEX_MAX % delta));
++		else
++			C2_UT_ASSERT(sl->csl_ext.e_start ==
++				     sl->csl_ext.e_end - delta + 1);
++		where = sl->csl_ext.e_start - 1;
+ 		--i;
+         } c2_tl_endfor;
+ 	C2_UT_ASSERT(i == -1);
+@@ -901,7 +960,6 @@ static void composite_layout_verify(struct c2_layout *l,
+ static int composite_layout_build(uint64_t lid,
+ 				  struct c2_composite_layout **cl,
+ 				  uint32_t num_sublayouts,
+-				  c2_bindex_t end_offset,
+ 				  bool failure_test)
+ {
+ 
+@@ -912,7 +970,7 @@ static int composite_layout_build(uint64_t lid,
+ 	C2_UT_ASSERT(cl != NULL);
+ 
+ 	/* Build sub-layouts. */
+-	sub_layouts_build(lid, &sub_layout_list, num_sublayouts, end_offset);
++	sub_layouts_build(lid, &sub_layout_list, num_sublayouts);
+ 
+ 	/* Build composite layout. */
+ 	rc = c2_composite_build(&domain, lid, sub_layout_list, cl);
+@@ -936,8 +994,7 @@ static int composite_layout_build(uint64_t lid,
+ 		C2_UT_ASSERT(l_from_cl == &(*cl)->cl_base);
+ 
+ 		/* Verify the composite layout object contents. */
+-		composite_layout_verify(l_from_cl, lid,
+-					num_sublayouts, end_offset);
++		composite_layout_verify(l_from_cl, lid, num_sublayouts);
+ 	}
+ 
+ 	return rc;
+@@ -954,10 +1011,10 @@ static int test_build_composite(uint64_t lid,
+ {
+ 	struct c2_composite_layout *cl;
+ 	struct c2_layout           *l;
+-	uint32_t                    sub_layout_lid;
++	uint32_t                    sublayout_lid;
+ 	uint32_t                    i;
+ 
+-	rc = composite_layout_build(lid, &cl, 5, 500, failure_test);
++	rc = composite_layout_build(lid, &cl, 5, failure_test);
+ 	if (failure_test)
+ 		C2_UT_ASSERT(rc == -ENOMEM);
+ 	else {
+@@ -973,8 +1030,8 @@ static int test_build_composite(uint64_t lid,
+ 
+ 		/* Delete all the sub-layouts. */
+ 		for (i = 0; i < 5; ++i) {
+-			sub_layout_lid = lid * 100 + i;
+-			l = c2_layout_find(&domain, sub_layout_lid);
++			sublayout_lid = lid * 100 + i;
++			l = c2_layout_find(&domain, sublayout_lid);
+ 			C2_UT_ASSERT(l->l_user_count == 0);
+ 			c2_layout_put(l);
+ 			c2_layout_put(l);
+@@ -1318,7 +1375,7 @@ static int composite_layout_buf_build(uint64_t lid,
+ 	buf_build(c2_composite_layout_type.lt_id, dcur);
+ 
+ 	/* Build sub-layouts. */
+-	sub_layouts_build(lid, &sub_layout_list, num_sublayouts, end_offset);
++	sub_layouts_build(lid, &sub_layout_list, num_sublayouts);
+ 
+ 	/*
+ 	 * Build part of the buffer representing composite type specific part
+@@ -1357,7 +1414,7 @@ static int test_decode_composite(uint64_t lid, bool failure_test)
+ 	struct c2_bufvec_cursor  cur;
+ 	struct c2_layout        *l;
+ 	struct c2_layout_type   *lt;
+-	uint64_t                 sub_layout_lid;
++	uint64_t                 sublayout_lid;
+ 	uint32_t                 i;
+ 
+ 	C2_ENTRY();
+@@ -1386,7 +1443,7 @@ static int test_decode_composite(uint64_t lid, bool failure_test)
+ 		C2_UT_ASSERT(list_lookup(lid) == l);
+ #if 0
+ 		/* Verify the layout object built by c2_layout_decode(). */
+-		composite_layout_verify(l, lid, 6, 600);
++		composite_layout_verify(l, lid, 6);
+ #endif
+ 	}
+ 
+@@ -1403,8 +1460,8 @@ static int test_decode_composite(uint64_t lid, bool failure_test)
+ 
+ 	/* Delete all the sub-layouts. */
+ 	for (i = 0; i < 60; ++i) {
+-		sub_layout_lid = lid * 100 + i;
+-		l = c2_layout_find(&domain, sub_layout_lid);
++		sublayout_lid = lid * 100 + i;
++		l = c2_layout_find(&domain, sublayout_lid);
+ 		c2_layout_put(l);
+ 		c2_layout_put(l);
+ 	}
+@@ -1713,7 +1770,7 @@ static int test_encode_composite(uint64_t lid, bool failure_test)
+ 	c2_bcount_t                   num_bytes;
+ 	struct c2_bufvec              bv;
+ 	struct c2_bufvec_cursor       cur;
+-	uint64_t                      sub_layout_lid;
++	uint64_t                      sublayout_lid;
+ 	struct c2_layout             *l;
+ 	uint32_t                      i;
+ #if 0
+@@ -1727,7 +1784,7 @@ static int test_encode_composite(uint64_t lid, bool failure_test)
+ 
+ 	/* Build a layout object. */
+ 	allocate_area(&area, ADDITIONAL_BYTES_DEFAULT, &num_bytes);
+-	rc = composite_layout_build(lid, &cl, 50, 5000, failure_test);
++	rc = composite_layout_build(lid, &cl, 50, failure_test);
+ 	if (failure_test)
+ 		C2_UT_ASSERT(rc == -ENOMEM);
+ 	else
+@@ -1770,8 +1827,8 @@ static int test_encode_composite(uint64_t lid, bool failure_test)
+ 
+ 	/* Delete all the sub-layouts. */
+ 	for (i = 0; i < 50; ++i) {
+-		sub_layout_lid = lid * 100 + i;
+-		l = c2_layout_find(&domain, sub_layout_lid);
++		sublayout_lid = lid * 100 + i;
++		l = c2_layout_find(&domain, sublayout_lid);
+ 		c2_layout_put(l);
+ 		c2_layout_put(l);
+ 	}
+@@ -3544,7 +3601,7 @@ static int test_add_composite(uint64_t lid,
+ 	struct c2_db_pair             pair;
+ 	struct c2_db_tx               tx;
+ 	struct c2_layout             *l;
+-	uint64_t                      sub_layout_lid;
++	uint64_t                      sublayout_lid;
+ 	uint32_t                      i;
+ 	int                           rc_tmp;
+ 
+@@ -3556,7 +3613,7 @@ static int test_add_composite(uint64_t lid,
+ 	allocate_area(&area, ADDITIONAL_BYTES_NONE, &num_bytes);
+ 
+ 	/* Build a layout object. */
+-	rc = composite_layout_build(lid, &cl, 10, 400, failure_test);
++	rc = composite_layout_build(lid, &cl, 10, failure_test);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	/* Add the layout object to the DB. */
+@@ -3600,8 +3657,8 @@ static int test_add_composite(uint64_t lid,
+ 
+ 		/* Delete all the sub-layouts. */
+ 		for (i = 0; i < 10; ++i) {
+-			sub_layout_lid = lid * 100 + i;
+-			l = c2_layout_find(&domain, sub_layout_lid);
++			sublayout_lid = lid * 100 + i;
++			l = c2_layout_find(&domain, sublayout_lid);
+ 			c2_layout_put(l);
+ 			c2_layout_put(l);
+ 		}
+-- 
+1.8.3.2
+

@@ -1,0 +1,198 @@
+From 396b3830a14b7b5009e319e1eb28018cfa7123cf Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 10:34:03 +0200
+Subject: [PATCH 40/58] LogD 1516: move usage recipes to DLD
+
+---
+ net/test/network.h   | 38 ++++--------------------------
+ net/test/node.h      | 65 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ net/test/serialize.h | 26 +--------------------
+ 3 files changed, 71 insertions(+), 58 deletions(-)
+
+diff --git a/net/test/network.h b/net/test/network.h
+index 6148705..3269712 100644
+--- a/net/test/network.h
++++ b/net/test/network.h
+@@ -244,38 +244,7 @@ void c2_net_test_network_buffer_dequeue(struct c2_net_test_network_ctx *ctx,
+ /**
+    Serialize or deserialize bulk buffer network transport descriptor
+    to/from ping buffer.
+-
+-   Usage pattern for passive side:
+-   @code
+-   c2_bcount_t offset = 0;
+-   c2_bcount_t len;
+-   <...>
+-   for (bulk buffers) {
+-	<add bulk buffer to passive bulk queue>
+-	using c2_net_test_network_bulk_enqueue()>
+-	len = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
+-					       ctx, <buf_bulk_index>,
+-					       buf_ping_index, offset);
+-	<check for len == 0>
+-	offset += len;
+-   }
+-   @endcode
+-   Usage pattern for active side:
+-   @code
+-   c2_bcount_t offset = 0;
+-   c2_bcount_t len;
+-   size_t desc_nr;
+-   <...>
+-   desc_nr = c2_net_test_network_bd_nr_get(ctx, buf_ping_index);
+-   for (i = 0; i < desc_nr; ++i) {
+-	len = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
+-					       ctx, <buf_bulk_index>,
+-					       buf_ping_index, offset);
+-	<check for len == 0>
+-	offset += len;
+-	<add bulk buffer to active bulk queue>
+-   }
+-   @endcode
++   @see @ref net-test-fspec-usecases-bd
+    @param op Serialization operation.
+    @param ctx Net-test network context.
+    @param buf_bulk_index Bulk buffer index. Buffer descriptor will be taken
+@@ -302,7 +271,8 @@ c2_net_test_network_bd_serialize(enum c2_net_test_serialize_op op,
+ 
+ /**
+    Get number of stored network buffer descriptors in ping buffer.
+-   @see c2_net_test_network_bd_serialize().
++   @see @ref net-test-fspec-usecases-bd
++   @see c2_net_test_network_bd_serialize()
+    @pre ctx != NULL
+    @pre buf_ping_index < ctx->ntc_buf_ping_nr
+  */
+@@ -311,6 +281,8 @@ size_t c2_net_test_network_bd_nr_get(struct c2_net_test_network_ctx *ctx,
+ 
+ /**
+    Set number of network buffer descriptors in ping buffer.
++   @see @ref net-test-fspec-usecases-bd
++   @see c2_net_test_network_bd_serialize()
+  */
+ int c2_net_test_network_bd_nr_set(struct c2_net_test_network_ctx *ctx,
+ 				  uint32_t buf_ping_index,
+diff --git a/net/test/node.h b/net/test/node.h
+index f682fbd..3cc5681 100644
+--- a/net/test/node.h
++++ b/net/test/node.h
+@@ -36,6 +36,8 @@
+      - @subpage net-test-fspec-cli-node-user "Userspace node"
+      - @subpage net-test-fspec-cli-console "Console"
+    - @ref net-test-fspec-usecases
++     - @ref net-test-fspec-usecases-bd
++     - @ref net-test-fspec-usecases-serialize
+      - @ref net-test-fspec-usecases-kernel
+      - @ref net-test-fspec-usecases-console "Console"
+    - @ref NetTestDFS "Detailed Functional Specification"
+@@ -78,7 +80,70 @@
+ 
+    @section net-test-fspec-usecases Recipes
+ 
++   @subsection net-test-fspec-usecases-bd Using bulk buffer network descriptors
++
++   Usage pattern for passive side:
++   @code
++   c2_bcount_t offset = 0;
++   c2_bcount_t len;
++   <...>
++   for (bulk buffers) {
++	<add bulk buffer to passive bulk queue>
++	using c2_net_test_network_bulk_enqueue()>
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_SERIALIZE,
++					       ctx, <buf_bulk_index>,
++					       buf_ping_index, offset);
++	<check for len == 0>
++	offset += len;
++   }
++   @endcode
++   Usage pattern for active side:
++   @code
++   c2_bcount_t offset = 0;
++   c2_bcount_t len;
++   size_t desc_nr;
++   <...>
++   desc_nr = c2_net_test_network_bd_nr_get(ctx, buf_ping_index);
++   for (i = 0; i < desc_nr; ++i) {
++	len = c2_net_test_network_bd_serialize(C2_NET_TEST_DESERIALIZE,
++					       ctx, <buf_bulk_index>,
++					       buf_ping_index, offset);
++	<check for len == 0>
++	offset += len;
++	<add bulk buffer to active bulk queue>
++   }
++   @endcode
++
++   @subsection net-test-fspec-usecases-serialize Complex serialization
++
++   Usage pattern:
++   @code
++	c2_bcount_t len;
++	c2_bcount_t len_total;
++
++	len = serialize_first_part(...);
++	if (len == 0)
++		return 0;
++	len_total = c2_net_test_serialize_len_total(0, len);
++	len = serialize_second_part(...);
++	if (len == 0)
++		return 0;
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	...
++	for (i = 0; i < number_of_items && len_total != 0; ++i) {
++		len = serialize_item(i, ...);
++		len_total = c2_net_test_serialize_len_total(len_total, len);
++	}
++	if (len_total == 0)
++		return 0;
++	...
++	len = serialize_last_part(...);
++	len_total = c2_net_test_serialize_len_total(len_total, len);
++	return len_total;
++   @endcode
++
+    @subsection net-test-fspec-usecases-kernel Kernel module parameters example
++   @todo Outdated and not used now
+ 
+    @code
+    node_role=client test_type=ping count=10 target=s1,s2,s3
+diff --git a/net/test/serialize.h b/net/test/serialize.h
+index d872c40..74e0d4f 100644
+--- a/net/test/serialize.h
++++ b/net/test/serialize.h
+@@ -109,31 +109,7 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
+ 
+ /**
+    Get new len_total value after serializing part of data.
+-   Usage pattern:
+-   @code
+-	c2_bcount_t len;
+-	c2_bcount_t len_total;
+-
+-	len = serialize_first_part(...);
+-	if (len == 0)
+-		return 0;
+-	len_total = c2_net_test_serialize_len_total(0, len);
+-	len = serialize_second_part(...);
+-	if (len == 0)
+-		return 0;
+-	len_total = c2_net_test_serialize_len_total(len_total, len);
+-	...
+-	for (i = 0; i < number_of_items && len_total != 0; ++i) {
+-		len = serialize_item(i, ...);
+-		len_total = c2_net_test_serialize_len_total(len_total, len);
+-	}
+-	if (len_total == 0)
+-		return 0;
+-	...
+-	len = serialize_last_part(...);
+-	len_total = c2_net_test_serialize_len_total(len_total, len);
+-	return len_total;
+-   @endcode
++   @see @ref net-test-fspec-usecases-serialize
+    @param len_total Total serialized length before serializing current
+ 		    part of data.
+    @param len Length of serialized current part of data.
+-- 
+1.8.3.2
+

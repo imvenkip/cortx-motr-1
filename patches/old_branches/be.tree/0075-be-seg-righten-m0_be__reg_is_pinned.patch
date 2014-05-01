@@ -1,0 +1,110 @@
+From 3c638bd7df44e50885d882dfa9b62939bf9c9024 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 30 May 2013 23:52:34 +0300
+Subject: [PATCH 075/290] be (seg): righten m0_be__reg_is_pinned()
+
+- m0_be__reg_is_pinned() is "internal" interface, let it have `m0_be__'
+  prefix.
+- m0_be_reg_put(): There should be `@pre' in the doxygen, not `@post'.
+- be/seg.c: Remove `#ifndef __KERNEL__' since the file does not get
+  compiled for the kernel anyway.
+---
+ be/seg.c | 23 ++++++++++++-----------
+ be/seg.h |  7 +++----
+ 2 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 92d4472..090d245 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -18,9 +18,7 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#ifndef __KERNEL__
+-#  include <sys/mman.h>  /* mmap */
+-#endif
++#include <sys/mman.h>    /* mmap */
+ #include "be/seg.h"
+ #include "lib/assert.h"
+ #include "lib/memory.h"  /* m0_alloc_aligned */
+@@ -212,9 +210,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ 	m0_bcount_t        hdrblocks;   /* number of sectors */
+ 	void              *seg_addr0;
+ 	m0_bcount_t        seg_size;
+-#ifndef __KERNEL__
+ 	void              *p;
+-#endif
+ 
+ 	/* Allocate buffer for segment header. */
+ 	st_block_shift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
+@@ -239,7 +235,6 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ 	if (rc != 0)
+ 		return rc;
+ 
+-#ifndef __KERNEL__
+ 	/* mmap an area at bh_addr of bh_size. */
+ 	p = mmap(seg_addr0, seg_size, PROT_READ|PROT_WRITE,
+ 		 MAP_FIXED|MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+@@ -253,9 +248,6 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ 	if (rc == 0)
+ 		seg->bs_state = M0_BSS_OPENED;
+ 	return rc;
+-#else
+-	return -EOPNOTSUPP;
+-#endif
+ }
+ 
+ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
+@@ -273,12 +265,21 @@ M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op)
+ 
+ M0_INTERNAL void m0_be_reg_get_fast(const struct m0_be_reg *reg)
+ {
+-	M0_PRE(m0_be__reg_invariant(reg));
++	M0_PRE(m0_be__reg_invariant(reg) && m0_be__reg_is_pinned(reg));
+ }
+ 
+ M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg)
+ {
+-	M0_PRE(m0_be__reg_invariant(reg));
++	M0_PRE(m0_be__reg_invariant(reg) && m0_be__reg_is_pinned(reg));
++}
++
++M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg)
++{
++	/**
++	 * @todo To be implemented later, along with m0_be_reg_get(),
++	 *       m0_be_reg_get_fast(), and m0_be_reg_put().
++	 */
++	return true;
+ }
+ 
+ M0_INTERNAL int m0_be__reg_read(struct m0_be_seg *seg, struct m0_be_op *op,
+diff --git a/be/seg.h b/be/seg.h
+index a422bc0..527764a 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -88,17 +88,16 @@ M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
+ /**
+  * XXX DOCUMENTME
+  *
+- * @pre m0_be_reg_is_pinned(reg)
++ * @pre m0_be__reg_is_pinned(reg)
+  */
+ M0_INTERNAL void m0_be_reg_get_fast(const struct m0_be_reg *reg);
+ 
+ /**
+- * @post m0_be_reg_is_pinned(reg)
++ * @pre m0_be__reg_is_pinned(reg)
+  */
+ M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg);
+ 
+-/* XXX FUTURE */
+-bool m0_be_reg_is_pinned(const struct m0_be_reg *reg);
++M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg);
+ 
+ M0_INTERNAL bool m0_be__reg_invariant(const struct m0_be_reg *reg);
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,100 @@
+From 2a3b1f9f4e52ca469b36e43b01ed424b7ad60ef0 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 15 May 2012 17:08:26 +0300
+Subject: [PATCH 179/311] confc.c: rename act() to walk_complete()
+
+Rationale:
+> "act", along with "do" and "handle", are the most generic and,
+> hence, least informative, verbs possible.
+
+LogD: #1320
+RB: r/714
+---
+ conf/confc.c | 38 +++++++++++++++++++-------------------
+ 1 file changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index f227909..cbaf40f 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -185,9 +185,9 @@
+  *      status" of the objects belonging the path or negative error
+  *      code.
+  *   -#
+- *      act() applies the results of path walking. The arguments are
+- *      c2_confc_ctx, path position reached by walk(), and status
+- *      value returned by walk().
++ *      walk_complete() applies the results of path walking. The
++ *      arguments are c2_confc_ctx, path position reached by walk(),
++ *      and status value returned by walk().
+  *
+  * @note According to "confc offline" workaround (see @ref
+  *       conf-fspec-preload), the situations when configuration data
+@@ -449,31 +449,31 @@ static int walk(struct walk_ctx *wx)
+  *
+  * <b>1. C2_CS_READY</b>
+  *
+- * act() assigns c2_confc_ctx::fc_result.  It also increments
+- * reference counter (c2_conf_obj::co_nrefs) of the requested
+- * configuration object or, in case of directory, of the object this
+- * directory originates from.
++ * walk_complete() assigns c2_confc_ctx::fc_result.  It also
++ * increments reference counter (c2_conf_obj::co_nrefs) of the
++ * requested configuration object or, in case of directory, of the
++ * object this directory originates from.
+  *
+  * <b>2. C2_CS_MISSING</b>
+  *
+- * act() fills configuration fetch request (c2_confc_ctx::fc_req) and
+- * sets status of the object reached by walk() to C2_CS_LOADING.  Or,
+- * if a directory is reached, act() C2_ASSERT()s that there are no
+- * C2_CS_MISSING objects in this directory and that the number of
+- * C2_CS_LOADING objects is > 0 (thus verifying that walk() did its
+- * job properly).
++ * walk_complete() fills configuration fetch request
++ * (c2_confc_ctx::fc_req) and sets status of the object reached by
++ * walk() to C2_CS_LOADING.  Or, if a directory is reached,
++ * walk_complete() C2_ASSERT()s that there are no C2_CS_MISSING
++ * objects in this directory and that the number of C2_CS_LOADING
++ * objects is > 0 (thus verifying that walk() did its job properly).
+  *
+  * <b>3. Single C2_CS_LOADING object</b>
+  *
+- * act() registers c2_confc_ctx::fc_clink with the channel of reached
+- * object (c2_conf_obj::co_chan).
++ * walk_complete() registers c2_confc_ctx::fc_clink with the channel
++ * of reached object (c2_conf_obj::co_chan).
+  *
+  * <b>4. Directory with C2_CS_LOADING objects</b>
+  *
+  * Let 1 + N be the number of C2_CS_LOADING objects in this directory:
+  * N = wx->w_nload - 1.
+  *
+- * If N > 0, then act() allocates an array of N clinks, sets
++ * If N > 0, then walk_complete() allocates an array of N clinks, sets
+  * ->fc_extra and ->fc_nr_extra members of c2_confc_ctx, attaches
+  * (c2_clink_attach()) ->fc_extra clinks to ->fc_clink, and registers
+  * a group of clinks with object's channels. ->fc_clink is a "group
+@@ -481,8 +481,8 @@ static int walk(struct walk_ctx *wx)
+  *
+  * If N = 0, then only ->fc_clink is registered (c2_clink_add()).
+  */
+-static int act(struct c2_confc_ctx *cx, const struct walk_ctx *wx,
+-	       enum c2_conf_status status)
++static int walk_complete(struct c2_confc_ctx *cx, const struct walk_ctx *wx,
++			 enum c2_conf_status status)
+ {
+ 	C2_PRE(ctx_invariant(cx));
+ 	C2_PRE(walk_ctx_invariant(wx));
+@@ -583,7 +583,7 @@ static int path_walk(struct c2_confc_ctx *ctx)
+ 	 */
+ 	C2_ASSERT(ret == C2_CS_READY);
+ 	if (ret >= 0)
+-		ret = act(ctx, &wx, ret);
++		ret = walk_complete(ctx, &wx, ret);
+ 
+ 	c2_mutex_unlock(confc_lock(ctx));
+ 	C2_POST(c2_mutex_is_locked(group_lock(ctx)));
+-- 
+1.8.3.2
+

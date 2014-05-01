@@ -1,0 +1,35 @@
+From d9a4a5da090c1d910970de3c9dc9f8bb564739ae Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 26 Feb 2013 11:52:12 +0200
+Subject: [PATCH 11/17] mds/readdir: don't treat "." and "" rdpg->r_pos the
+ same
+
+---
+ mdstore/mdstore.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index d51c500..09dbd69 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -728,7 +728,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 	}
+ 
+ 	/* Emulate "." and ".." entries at the 1st and 2nd positions. */
+-	if (pos_len == 0 || (pos_len == 1 && pos_buf[0] == '.')) {
++	if (pos_len == 1 && pos_buf[0] == '.') {
+ 		dot = 1;
+ 	} else if (pos_len == 2 && strncmp(pos_buf, "..", 2) == 0) {
+ 		dot = 2;
+@@ -750,7 +750,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 	rc = m0_cob_iterator_get(&it);
+ 	while (rc == 0 || dot) {
+ 		if (dot == 1) {
+-			m0_bitstring_copy(rdpg->r_pos, ".", 1);
++			/* rdpg->r_pos already contains "." */
+ 		} else if (dot == 2) {
+ 			m0_bitstring_copy(rdpg->r_pos, "..", 2);
+ 		} else {
+-- 
+1.8.3.2
+

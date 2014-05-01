@@ -1,0 +1,124 @@
+From ca28e75b0a29f30581f52dc0d2feffbbf5261f14 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 21 Mar 2013 16:10:46 +0200
+Subject: [PATCH 50/63] Add number of messages option: msg_nr. Update server
+ side rpc settings
+
+    - Added '-q' option into rpc server argv settings.
+    - Use the following command to test:
+      ./utils/ub.sh -t rpc-ub \
+       -o nr_conns=3,nr_slots=15,msg_len=32,msg_nr=1000
+---
+ rpc/ub/ub.c | 30 ++++++++++++++++++------------
+ 1 file changed, 18 insertions(+), 12 deletions(-)
+
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index 0dffd68..5eb2683 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -42,6 +42,7 @@ struct args {
+ 	unsigned int a_nr_conns;
+ 	unsigned int a_nr_slots;
+ 	unsigned int a_msg_len; /* XXX USEME */
++	unsigned int a_msg_nr;
+ };
+ 
+ /** Assigns default values to the arguments. */
+@@ -50,12 +51,14 @@ static void args_init(struct args *args)
+ 	args->a_nr_conns = 1;
+ 	args->a_nr_slots = 15;
+ 	args->a_msg_len  = 32;
++	args->a_msg_nr   = 100;
+ }
+ 
+ enum { /* XXX TODO: Revise these values. */
+ 	MAX_NR_CONNS = 10000,
+ 	MAX_NR_SLOTS = 100,
+-	MAX_MSG_LEN  = 8192
++	MAX_MSG_LEN  = 8192,
++	MAX_MSG_NR   = 1000
+ };
+ 
+ static int args_format_error(void)
+@@ -69,14 +72,16 @@ static int args_check_limits(const struct args *args)
+ {
+ 	if (0 < args->a_nr_conns && args->a_nr_conns <= MAX_NR_CONNS &&
+ 	    0 < args->a_nr_slots && args->a_nr_slots <= MAX_NR_SLOTS &&
+-	    0 < args->a_msg_len && args->a_msg_len <= MAX_MSG_LEN)
++	    0 < args->a_msg_len && args->a_msg_len <= MAX_MSG_LEN &&
++	    0 < args->a_msg_nr && args->a_msg_nr <= MAX_MSG_NR)
+ 		return 0;
+ 
+ 	fprintf(stderr, "**ERROR** Parameter is out of limits, which are:\n"
+ 		"  nr_conns: 1..%u\n"
+ 		"  nr_slots: 1..%u\n"
+-		"  msg_len:  1..%u\n", MAX_NR_CONNS, MAX_NR_SLOTS,
+-		MAX_MSG_LEN);
++		"  msg_len:  1..%u\n"
++		"  msg_nr:   1..%u\n", MAX_NR_CONNS, MAX_NR_SLOTS, MAX_MSG_LEN,
++		MAX_MSG_NR);
+ 	return -EINVAL;
+ }
+ 
+@@ -84,9 +89,10 @@ static int args_parse(const char *src, struct args *dest)
+ {
+ 	if (src == NULL || *src == 0)
+ 		return 0;
+-	int rc = sscanf(src, "nr_conns=%u,nr_slots=%u,msg_len=%u",
+-			&dest->a_nr_conns, &dest->a_nr_slots, &dest->a_msg_len);
+-	return rc == 3 ? args_check_limits(dest) : args_format_error();
++	int rc = sscanf(src, "nr_conns=%u,nr_slots=%u,msg_len=%u,msg_nr=%u",
++			&dest->a_nr_conns, &dest->a_nr_slots,
++			&dest->a_msg_len, &dest->a_msg_nr);
++	return rc == 4 ? args_check_limits(dest) : args_format_error();
+ }
+ 
+ static struct args g_args;
+@@ -99,7 +105,7 @@ enum {
+ 	CLIENT_COB_DOM_ID  = 16,
+ 	MAX_RPCS_IN_FLIGHT = 1,  /* XXX CONFIGUREME */
+ 	CONNECT_TIMEOUT    = 50,
+-	MAX_RETRIES        = 5
++	MAX_RETRIES        = 500
+ };
+ 
+ /* #define UB_USE_LNET_XPORT */
+@@ -128,7 +134,7 @@ static struct ub_rpc_client *g_clients;
+ static char *g_argv[] = {
+ 	NAME(""), "-w", "10", "-r", "-p", "-T", "AD", "-D", NAME(".db"),
+ 	"-S", NAME(".stob"), "-A", NAME(".addb-stob"), "-e", SERVER_ENDPOINT,
+-	"-s", "ds1"
++	"-s", "ds1", "-q", "200"
+ };
+ 
+ static struct m0_rpc_server_ctx g_sctx = {
+@@ -170,7 +176,7 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
+ 	client->rc_ctx.rcx_remote_addr           = SERVER_ENDPOINT_ADDR;
+ 	client->rc_ctx.rcx_timeout_s             = CONNECT_TIMEOUT;
+ 	client->rc_ctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
+-	client->rc_ctx.rcx_recv_queue_min_length = M0_NET_TM_RECV_QUEUE_DEF_LEN;
++	client->rc_ctx.rcx_recv_queue_min_length = 200; /* M0_NET_TM_RECV_QUEUE_DEF_LEN; */
+ 
+ 	rc = m0_rpc_client_start(&client->rc_ctx);
+ 	if (rc != 0)
+@@ -299,7 +305,7 @@ static void run(int iter M0_UNUSED)
+ 	   mero: NOTICE : [rpc/slot.c:584:m0_rpc_slot_reply_received] < rc=-71.
+ 	   Needs investigation!
+ 	 */
+-	for (i = 0; i < 3; ++i) { /* XXX CONFIGUREME */
++	for (i = 0; i < g_args.a_msg_nr; ++i) {
+ 		for (j = 0; j < g_args.a_nr_conns; ++j) {
+ 			session = &g_clients[j].rc_ctx.rcx_session;
+ 			fop_send(session, i);
+@@ -312,7 +318,7 @@ static void run(int iter M0_UNUSED)
+ 			rc = m0_rpc_session_timedwait(session, M0_BITS
+ 						      (M0_RPC_SESSION_IDLE,
+ 						       M0_RPC_SESSION_FAILED),
+-						      3ULL*M0_TIME_ONE_BILLION);
++						      m0_time(3, 0));
+ 			if (rc != 0)
+ 				break;
+ 		}
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From b2a0fee80cd36b272bc170be69444da5a2016261 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 9 Jan 2014 07:51:23 +0200
+Subject: [PATCH 47/96] be/alloc: idiomatic doc fix
+
+---
+ be/alloc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index e0179cc..1ba1fd1 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -88,7 +88,7 @@
+  * - m0_be_allocator.ba_chunks contains all chunks - the chunks list;
+  * - m0_be_allocator.ba_free contains free chunks - the free list.
+  *
+- * Lists of chunks restrictions:
++ * Chunk lists invariants:
+  * - all chunks in a list are ordered by address;
+  * - every chunk is in the chunks list;
+  * - every free chunk is in the free list;
+-- 
+1.8.3.2
+

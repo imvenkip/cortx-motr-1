@@ -1,0 +1,43 @@
+From 6482be2ec1847155dc9eadbc289d92cf1e61a1b2 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 31 Mar 2012 00:25:01 +0300
+Subject: [PATCH 109/311] describe S_WAIT_STATUS state
+
+---
+ conf/confc.c | 20 ++++++++++++++++++--
+ 1 file changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 8208fea..97a67fc 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -322,8 +322,24 @@
+  *
+  * - S_WAIT_STATUS
+  *
+- * Before returning C2_CS_LOADING, path_walk() registers
+- * c2_confc_ctx::fc_clink with the channel(s) of loading object(s) XXX
++ * A state machine in S_WAIT_STATUS state remains idle until any of
++ * the channels (c2_conf_obj::co_chan) that clinks of c2_confc_ctx are
++ * registered with is signaled.  Such an event triggers
++ * on_object_updated() callback, which de-registers clinks (->fc_extra
++ * and ->fc-clink) and posts an AST that will eventually move the
++ * state machine to S_CHECK state.
++ *
++ * @note Object's channel (c2_conf_obj::co_chan) is signaled
++ *       (c2_chan_broadcast()) 1) when object_enrich() completes
++ *       loading of configuration data into this object and changes
++ *       status of this object to C2_CS_READY (loading succeeded) or
++ *       C2_CS_MISSING (loading failed); 2) when the object is closed
++ *       and its number of references becomes zero.  Of these cases
++ *       only the first one is applicable to S_WAIT_STATUS state.
++ *
++ * - S_GROW_CACHE
++ *
++ * XXX
+  *
+  * @dot
+  * digraph confd_states {
+-- 
+1.8.3.2
+

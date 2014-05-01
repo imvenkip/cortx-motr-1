@@ -1,0 +1,349 @@
+From 637106aae103d660b3ad3d5161868950563e0e43 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 27 Jun 2013 18:33:18 +0300
+Subject: [PATCH 247/290] be: introduce m0_backend_{init,fini}(); refactor be.c
+
+- Rename the functions called from mero/init.c ==> m0_backend_{init,fini}().
+- Add normal m0_be_{init,fini}().
+- Get rid of exported `m0_be_instance' object.
+- Refactor be/be.c.
+---
+ be/be.c         | 127 ++++++++++++++++++++++++++------------------------------
+ be/be.h         |  25 +++++------
+ be/tx_service.c |   2 -
+ be/ut/tx.c      |   4 +-
+ mero/init.c     |   2 +-
+ 5 files changed, 75 insertions(+), 85 deletions(-)
+
+diff --git a/be/be.c b/be/be.c
+index ed4dc9a..c6e835d 100644
+--- a/be/be.c
++++ b/be/be.c
+@@ -18,17 +18,12 @@
+  * Original creation date: 3-Jun-2013
+  */
+ 
+-#undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+-#include "lib/cdefs.h" /* container_of */
+-#include "lib/misc.h" /* M0_BITS */
+-#include "lib/memory.h"	/* m0_alloc */
+-#include "be/btree.h"
+-#include "fop/fom.h"
+-#include "be/be.h"
+-#include "sm/sm.h"
+ 
++#include "be/be.h"
++#include "lib/misc.h"  /* M0_BITS */
++#include "fop/fom.h"   /* m0_fom_phase_outcome */
+ 
+ /**
+  * @addtogroup be
+@@ -36,55 +31,40 @@
+  * @{
+  */
+ 
+-/* XXX: this will be deleted from here! */
+-struct m0_be m0_be_instance;
+-static struct m0_sm_group be_sm_grp;
++/* XXX Shouldn't we pass a pointer to m0_sm_group via m0_be_op_init()
++ * parameter? */
++static struct m0_sm_group g_grp;
+ 
+-static const struct m0_be_op *csm2op(const struct m0_sm *sm)
++static void grp_lock(const struct m0_be_op *op)
+ {
+-	/* XXX: use bob_of instead of container_of */
+-	return container_of(sm, const struct m0_be_op, bo_sm);
++	m0_sm_group_lock(op->bo_sm.sm_grp);
+ }
+ 
+-static bool op_invariant(const struct m0_sm *sm)
++static void grp_unlock(const struct m0_be_op *op)
+ {
+-	M0_UNUSED const struct m0_be_op *op = csm2op(sm);
+-
+-	return true; /* XXX: formulate invariant for this sm state */
++	m0_sm_group_unlock(op->bo_sm.sm_grp);
+ }
+ 
+ static struct m0_sm_state_descr op_states[M0_BOS_NR] = {
+ 	[M0_BOS_INIT] = {
+-		.sd_flags     = M0_SDF_INITIAL,
+-		.sd_name      = "M0_SDF_INITIAL",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = op_invariant,
+-		.sd_allowed   = M0_BITS(M0_BOS_ACTIVE)
++		.sd_flags   = M0_SDF_INITIAL,
++		.sd_name    = "M0_SDF_INITIAL",
++		.sd_allowed = M0_BITS(M0_BOS_ACTIVE)
+ 	},
+ 	[M0_BOS_ACTIVE] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BOS_ACTIVE",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = op_invariant,
+-		.sd_allowed   = M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
++		.sd_flags   = 0,
++		.sd_name    = "M0_BOS_ACTIVE",
++		.sd_allowed = M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
+ 	},
+ 	[M0_BOS_SUCCESS] = {
+-		.sd_flags     = M0_SDF_TERMINAL,
+-		.sd_name      = "M0_BOS_SUCCESS",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = op_invariant,
+-		.sd_allowed   = 0
++		.sd_flags   = M0_SDF_TERMINAL,
++		.sd_name    = "M0_BOS_SUCCESS",
++		.sd_allowed = 0
+ 	},
+ 	[M0_BOS_FAILURE] = {
+-		.sd_flags     = M0_SDF_FAILURE,
+-		.sd_name      = "M0_BOS_FAILURE",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = op_invariant,
+-		.sd_allowed   = 0
++		.sd_flags   = M0_SDF_FAILURE,
++		.sd_name    = "M0_BOS_FAILURE",
++		.sd_allowed = 0
+ 	}
+ };
+ 
+@@ -94,72 +74,83 @@ static const struct m0_sm_conf op_states_conf = {
+ 	.scf_state     = op_states
+ };
+ 
+-M0_INTERNAL enum m0_be_op_state m0_be_op_state(struct m0_be_op *op)
++M0_INTERNAL void m0_be_init(struct m0_be *be)
++{
++	m0_be_tx_engine_init(&be->b_tx);
++}
++
++M0_INTERNAL void m0_be_fini(struct m0_be *be)
++{
++	m0_be_tx_engine_fini(&be->b_tx);
++}
++
++M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op)
+ {
+ 	return op->bo_sm.sm_state;
+ }
+ 
+ M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
+ {
+-	m0_sm_init(&op->bo_sm, &op_states_conf, M0_BOS_INIT, &be_sm_grp);
++	m0_sm_init(&op->bo_sm, &op_states_conf, M0_BOS_INIT, &g_grp);
+ }
+ 
+ M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
+ {
+-	m0_sm_group_lock(op->bo_sm.sm_grp);
++	grp_lock(op);
+ 	m0_sm_fini(&op->bo_sm);
+-	m0_sm_group_unlock(op->bo_sm.sm_grp);
++	grp_unlock(op);
+ }
+ 
+-M0_INTERNAL void m0_be_op_state_set(struct m0_be_op *op,
+-				    enum m0_be_op_state state)
++M0_INTERNAL void
++m0_be_op_state_set(struct m0_be_op *op, enum m0_be_op_state state)
+ {
+-	m0_sm_group_lock(op->bo_sm.sm_grp);
++	grp_lock(op);
+ 	m0_sm_state_set(&op->bo_sm, state);
+-	m0_sm_group_unlock(op->bo_sm.sm_grp);
++	grp_unlock(op);
+ }
+ 
+-M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
+-				  int next_state)
++M0_INTERNAL int
++m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom, int next_state)
+ {
+-	m0_sm_group_lock(op->bo_sm.sm_grp);
++	enum m0_fom_phase_outcome ret = M0_FSO_AGAIN;
+ 
+-	if (M0_IN(op->bo_sm.sm_state, (M0_BOS_SUCCESS, M0_BOS_FAILURE))) {
+-		m0_sm_group_unlock(op->bo_sm.sm_grp);
+-		m0_fom_phase_set(fom, next_state);
+-		return M0_FSO_AGAIN;
+-	}
++	grp_lock(op);
++	M0_PRE(M0_IN(op->bo_sm.sm_state,
++		     (M0_BOS_ACTIVE, M0_BOS_SUCCESS, M0_BOS_FAILURE)));
+ 
+-	m0_fom_wait_on(fom, &op->bo_sm.sm_chan, &fom->fo_cb);
+-	m0_sm_group_unlock(op->bo_sm.sm_grp);
++	if (op->bo_sm.sm_state == M0_BOS_ACTIVE) {
++		ret = M0_FSO_WAIT;
++		m0_fom_wait_on(fom, &op->bo_sm.sm_chan, &fom->fo_cb);
++	}
++	grp_unlock(op);
+ 
+ 	m0_fom_phase_set(fom, next_state);
+-	return M0_FSO_WAIT;
++	return ret;
+ }
+ 
+ M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op)
+ {
+-        m0_sm_group_lock(op->bo_sm.sm_grp);
++        grp_lock(op);
+         m0_sm_timedwait(&op->bo_sm, M0_BITS(M0_BOS_SUCCESS, M0_BOS_FAILURE),
+ 			M0_TIME_NEVER);
+-        m0_sm_group_unlock(op->bo_sm.sm_grp);
++        grp_unlock(op);
+ 
+         return op->bo_sm.sm_rc;
+ }
+ 
+-M0_INTERNAL int  m0_be_init(void)
++M0_INTERNAL int m0_backend_init(void)
+ {
+-	m0_sm_group_init(&be_sm_grp);
++	m0_sm_group_init(&g_grp);
+ 	return 0;
+ }
+ 
+-M0_INTERNAL void m0_be_fini(void)
++M0_INTERNAL void m0_backend_fini(void)
+ {
+-	m0_sm_group_fini(&be_sm_grp);
++	m0_sm_group_fini(&g_grp);
+ }
+ 
+-#undef M0_TRACE_SUBSYSTEM
+ /** @} end of be group */
++#undef M0_TRACE_SUBSYSTEM
+ 
+ /*
+  *  Local variables:
+diff --git a/be/be.h b/be/be.h
+index 881929b..03d40af 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -22,7 +22,6 @@
+ #ifndef __MERO_BE_BE_H__
+ #define __MERO_BE_BE_H__
+ 
+-#include "sm/sm.h"
+ #include "be/tx.h"
+ #include "be/seg.h"
+ 
+@@ -38,7 +37,6 @@ struct m0_be_tx;
+ struct m0_be_btree;
+ struct m0_be_btree_anchor;
+ 
+-
+ struct m0_be {
+ 	struct m0_be_tx_engine b_tx;
+ 	struct m0_be_seg       b_seg0;
+@@ -47,6 +45,9 @@ struct m0_be {
+ 	uint64_t               b_next_segid;
+ };
+ 
++M0_INTERNAL void m0_be_init(struct m0_be *be);
++M0_INTERNAL void m0_be_fini(struct m0_be *be);
++
+ enum m0_be_op_state {
+ 	M0_BOS_INIT,
+ 	M0_BOS_ACTIVE,
+@@ -101,7 +102,13 @@ struct m0_be_op {
+ 	} bo_u;
+ };
+ 
+-M0_INTERNAL enum m0_be_op_state m0_be_op_state(struct m0_be_op *op);
++M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
++M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op);
++
++M0_INTERNAL enum m0_be_op_state m0_be_op_state(const struct m0_be_op *op);
++
++M0_INTERNAL void m0_be_op_state_set(struct m0_be_op *op,
++				    enum m0_be_op_state state);
+ 
+ /** Waits for the operation to complete and returns its rc. */
+ M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op);
+@@ -114,15 +121,9 @@ M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op);
+ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
+ 				  int next_state);
+ 
+-extern struct m0_be m0_be_instance; /* XXX FIXME: This is quite inelegant. */
+-
+-M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
+-M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op);
+-M0_INTERNAL void m0_be_op_state_set(struct m0_be_op *op,
+-				    enum m0_be_op_state state);
+-
+-M0_INTERNAL int  m0_be_init(void);
+-M0_INTERNAL void m0_be_fini(void);
++/* These two are called from mero/init.c. */
++M0_INTERNAL int  m0_backend_init(void);
++M0_INTERNAL void m0_backend_fini(void);
+ 
+ /** @} end of be group */
+ #endif /* __MERO_BE_BE_H__ */
+diff --git a/be/tx_service.c b/be/tx_service.c
+index 35502e7..43414fa 100644
+--- a/be/tx_service.c
++++ b/be/tx_service.c
+@@ -64,7 +64,6 @@ static void _addb_fini(void)
+ /** Transaction service. */
+ struct tx_service {
+ 	struct m0_reqh_service ts_reqh;
+-	struct m0_be          *ts_be;
+ };
+ 
+ static int txs_allocate(struct m0_reqh_service **out,
+@@ -116,7 +115,6 @@ static int txs_allocate(struct m0_reqh_service **service,
+ 	(*service)->rs_ops = &txs_ops;
+ 	_addb_init();
+ 
+-	s->ts_be = &m0_be_instance;
+ 	M0_RETURN(0);
+ }
+ 
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 1b3f79e..0f4d510 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -67,7 +67,7 @@ static void tx_test(struct m0_be *be)
+ 
+ 	M0_ENTRY();
+ 
+-	be_init(be);
++	m0_be_init(be);
+ 	m0_be_op_init(&op);
+ 	m0_be_tx_credit_init(&cred);
+ 
+@@ -103,7 +103,7 @@ static void tx_test(struct m0_be *be)
+ 	m0_sm_group_unlock(&g_grp);
+ 
+ 	m0_be_op_fini(&op);
+-	be_fini(be);
++	m0_be_fini(be);
+ 
+ 	M0_LEAVE();
+ }
+diff --git a/mero/init.c b/mero/init.c
+index f66ec04..cbc373b 100644
+--- a/mero/init.c
++++ b/mero/init.c
+@@ -144,7 +144,7 @@ struct init_fini_call subsystem[] = {
+ #ifdef __KERNEL__
+ 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
+ #else
+-	{ &m0_be_init,          &m0_be_fini,           "be" },
++	{ &m0_backend_init,     &m0_backend_fini,      "be" },
+ 	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
+ 	{ &m0_confd_register,   &m0_confd_unregister,  "confd" },
+ 	{ &m0_ios_register,     &m0_ios_unregister,    "ioservice" },
+-- 
+1.8.3.2
+

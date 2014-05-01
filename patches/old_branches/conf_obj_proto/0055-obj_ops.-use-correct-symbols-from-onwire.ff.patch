@@ -1,0 +1,84 @@
+From af57ebecff8f73b6e532b27f5746d856afe2a0b6 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 13 Mar 2012 17:12:08 +0200
+Subject: [PATCH 055/370] obj_ops.*: use correct symbols from onwire.ff
+
+---
+ conf/obj_ops.c | 15 +++++++--------
+ conf/obj_ops.h |  5 ++---
+ 2 files changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 45e9b55..d439b66 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -35,7 +35,7 @@ static const struct {
+ 	 * @pre  c2_conf_buf_eq(cached->co_key, onwire->o_key)
+ 	 */
+ 	bool (*oo_equal)(const struct c2_conf_obj *cached,
+-			 const struct c2_confx_object *onwire);
++			 const struct confx_object *onwire);
+ } obj_ops[C2_CO_NR] = {
+ 	XXX
+ };
+@@ -87,10 +87,10 @@ c2_conf_obj_new(enum c2_conf_objtype type, const struct c2_conf_buf *key)
+ C2_EXPORTED(c2_conf_obj_new);
+ 
+ bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+-			  const struct c2_confx_object *onwire)
++			  const struct confx_object *onwire)
+ {
+-	if (cached->co_type != onwire->co_type
+-	    || !c2_conf_buf_eq(cached->co_key, onwire->co_key))
++	if (cached->co_type != onwire->o_val.ov_type
++	    || !c2_conf_buf_eq(cached->co_key, onwire->o_key))
+ 		return true;
+ 
+ 	if (cached->co_status != C2_CS_READY)
+@@ -101,17 +101,16 @@ bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+ }
+ C2_EXPORTED(c2_conf_obj_mismatch);
+ 
+-int c2_conf_obj_enrich(struct c2_conf_obj *dest,
+-		       const struct c2_confx_object *src,
++int c2_conf_obj_enrich(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		       struct c2_conf_map *registry)
+ {
+ 	/*
+ 	 * C2_PRE(...);
+ 	 *
+-	 * Sets fields of `dest', copying data from `src'.
++	 * Set fields of `dest', copying data from `src'.
+ 	 *
+ 	 * For "foreign key" fields (aka relations):
+-	 *   - If the target object doesn't exist in cache, create a
++	 *   - If the target object does not exist in cache, create a
+ 	 *     stub for it;
+ 	 *   - Assign dest's relation: make it point to the target object.
+ 	 *
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index b6ed515..aaa95ed 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -33,7 +33,7 @@ struct c2_conf_obj * c2_conf_obj_new(enum c2_conf_objtype type,
+  * @param onwire  On-wire object.
+  */
+ bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+-			  const struct c2_confx_object *onwire);
++			  const struct confx_object *onwire);
+ 
+ /**
+  * Enriches contents of cached configuration object using on-wire data.
+@@ -45,8 +45,7 @@ bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+  * @post  dest->co_status != C2_CS_READY  // the status is set by the caller
+  * @post  c2_mutex_is_locked(&c2_conf_map_to_cache(registry)->cc_lock)
+  */
+-int c2_conf_obj_enrich(struct c2_conf_obj *dest,
+-		       const struct c2_confx_object *src,
++int c2_conf_obj_enrich(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		       struct c2_conf_map *registry);
+ 
+ #endif /* __COLIBRI_CONF_OBJOPS_H__ */
+-- 
+1.8.3.2
+

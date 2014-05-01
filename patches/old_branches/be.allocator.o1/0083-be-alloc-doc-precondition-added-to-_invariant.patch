@@ -1,0 +1,25 @@
+From d57895f6594328ed5cae41a00119e9dc8c22f5a1 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Mon, 17 Feb 2014 14:51:03 +0200
+Subject: [PATCH 83/96] be/alloc: [doc] precondition added to _invariant()
+
+---
+ be/alloc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/alloc.h b/be/alloc.h
+index e136624..b05f624 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -106,7 +106,7 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a);
+  * It performs detailed verification of allocator data structures.
+  * It ignores all user data.
+  *
+- * @note It doesn't take allocator lock.
++ * @pre m0_mutex_is_locked(&a->ba_lock)
+  */
+ M0_INTERNAL bool m0_be_allocator__invariant(const struct m0_be_allocator *a);
+ 
+-- 
+1.8.3.2
+

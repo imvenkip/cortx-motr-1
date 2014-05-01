@@ -1,0 +1,25 @@
+From 5dbc6405d2c8cded4e4488882937b7f57d542e71 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 16 Mar 2011 08:36:23 -0600
+Subject: [PATCH 23/91] - fixes in mdstore make file
+
+---
+ mdstore/Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mdstore/Makefile.am b/mdstore/Makefile.am
+index 0f01189..3809e61 100644
+--- a/mdstore/Makefile.am
++++ b/mdstore/Makefile.am
+@@ -4,7 +4,7 @@ mdstoredir                     = $(includedir)/mdstore
+ mdstore_HEADERS                = mdstore.h
+ 
+ md_u.h md_u.c: md.ff \
+-                  $(top_builddir)/fop/libfop2c.la \
++                  $(top_builddir)/fop/libc2rt.la \
+                   $(top_builddir)/fop/fop2c 
+ 	$(top_builddir)/fop/fop2c -u $<
+ 
+-- 
+1.8.3.2
+

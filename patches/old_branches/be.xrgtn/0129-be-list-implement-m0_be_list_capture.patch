@@ -1,0 +1,71 @@
+From 3c7423800bf1875c32ab9fa95f1057e5da8dc526 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 7 Jun 2013 18:50:41 +0300
+Subject: [PATCH 129/228] be/list: implement m0_be_list_capture().
+
+---
+ be/list.c | 41 ++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 40 insertions(+), 1 deletion(-)
+
+diff --git a/be/list.c b/be/list.c
+index 580cdc7..66c9a52 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -129,7 +129,7 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 	struct m0_be_tx_credit k;
+ 	/*Number of pointers affected. */
+ 	static const m0_bcount_t npointers[M0_BLO_NR] = {
+-		[M0_BLO_INSERT]= 4, /* l->ll_next/h->l_head,
++		[M0_BLO_INSERT] = 4, /* l->ll_next/h->l_head,
+ 				      * self->{ll_prev,ll_nextright},
+ 				      * r->ll_prev/h->l_tail */
+ 		[M0_BLO_DELETE] = 4, /* the same */
+@@ -145,6 +145,45 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 	m0_be_tx_credit_add(accum, &k);
+ }
+ 
++M0_INTERNAL void m0_be_list_capture(const struct m0_be_list *list,
++				    struct m0_be_tx *tx,
++				    const struct m0_tlink *origin,
++				    m0_bcount_t left,
++				    m0_bcount_t right)
++{
++	struct m0_be_reg          reg;
++	void                     *lnode0;
++	void                     *lnode;
++	const struct m0_tl_descr *d;
++	const struct m0_tl       *l;
++
++	M0_PRE(list != NULL && origin != NULL && list->bl_descr != NULL
++	       && list->bl_seg != NULL);
++
++	d = list->bl_descr;
++	l = &list->bl_list;
++	reg.br_seg = list->bl_seg;
++	reg.br_size = d->td_container_size;
++	lnode0 = (void*)origin - d->td_link_offset;
++
++	for (lnode = lnode0; left != 0 &&
++	     (lnode = m0_tlist_prev(d, l, lnode)) != NULL; left--) {
++		reg.br_addr = lnode;
++		m0_be_tx_capture(tx, &reg);
++	}
++	for (lnode = lnode0; right != 0 &&
++	     (lnode = m0_tlist_next(d, l, lnode)) != NULL; right--) {
++		reg.br_addr = lnode;
++		m0_be_tx_capture(tx, &reg);
++	}
++	/* Capture list head if left or right search terminates at it. */
++	if (left || right) {
++		reg.br_addr = (void *)list;
++		reg.br_size = sizeof(*list);
++		m0_be_tx_capture(tx, &reg);
++	}
++}
++
+ /*
+  * Neither m0_be_list_init() nor m0_be_list_fini() will ever do anything.
+  * We keep the interfaces for consistency.
+-- 
+1.8.3.2
+

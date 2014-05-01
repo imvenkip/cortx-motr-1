@@ -1,0 +1,267 @@
+From d0fd9eb549d4c6e6aa7ec2224a6241f9fc0f0fa6 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Thu, 10 Oct 2013 18:24:59 +0530
+Subject: [PATCH 102/159] Initial monitor infrastructure UT setup, along with
+ some CODE bugs. Summary : - 1. FIXED : - Had to make stats connection
+ establishing code after rpcservice start. 2. FIXED : - Double acquiring of
+ same mutex, by same thread leading to deadlock.
+
+---
+ addb/addb_monitor.c         | 10 +++++
+ addb/ut/addb_ut.c           |  2 +
+ addb/ut/addb_ut_mon_infra.c | 97 +++++++++++++++++++++++++++++++++++++++++++++
+ mero/setup.c                | 24 ++++++-----
+ 4 files changed, 123 insertions(+), 10 deletions(-)
+ create mode 100644 addb/ut/addb_ut_mon_infra.c
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 3279037..30ea955 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -208,11 +208,19 @@ M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh)
+ 		m0_mutex_unlock(&mon_ctx->amc_mutex);
+ 		M0_RETURN(-ENOMEM);
+ 	}
++	/**
++	 * Need to release monitoring ctx mutex here to avoid deadlock due to
++	 * same thread acguiring this mutex twice(once above here in this
++	 * function & in m0_rpc_client_connect())  without releasing it the
++	 * first time.
++	 */
++	m0_mutex_unlock(&mon_ctx->amc_mutex);
+ 	rc = m0_rpc_client_connect(mon_ctx->amc_stats_conn,
+ 				   mon_ctx->amc_stats_session, rmach,
+ 				   stats_svc_ep,
+ 				   ADDB_STATS_MAX_RPCS_IN_FLIGHT,
+ 				   ADDB_STATS_MAX_RPC_SLOTS_NR);
++	m0_mutex_lock(&mon_ctx->amc_mutex);
+ 	if (rc != 0) {
+ 		STATS_ADDB_FUNCFAIL(rc, SVC_CONN_ESTABLISH_3,
+ 				    &m0_addb_monitors_mod_ctx);
+@@ -542,12 +550,14 @@ M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,
+ 		memcpy(rec->ss_data.au64s_data,
+ 		       sum->asr_rec.ss_data.au64s_data, SUM_SIZE(sum));
+ 		sum->asr_dirty = false;
++		m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 		/**
+ 		 * Post summary record on global machine too.
+ 		 */
+ 		M0_ADDB_MONITOR_STATS_POST(&m0_addb_gmc,
+ 					   m0_addb_rec_type_lookup(rec->ss_id),
+ 					   cv, rec);
++		m0_mutex_lock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 		m0_mutex_unlock(&sum->asr_mutex);
+ 		if (used == BATCH) {
+ 			fop->suf_stats.sf_nr = BATCH;
+diff --git a/addb/ut/addb_ut.c b/addb/ut/addb_ut.c
+index 15c9e3a..a6e28de 100644
+--- a/addb/ut/addb_ut.c
++++ b/addb/ut/addb_ut.c
+@@ -44,6 +44,7 @@
+ #include "addb/ut/addb_ut_stobsink.c"
+ #include "addb/ut/addb_ut_svc.c"
+ #include "addb/ut/addb_ut_fom.c"
++#include "addb/ut/addb_ut_mon_infra.c"
+ #endif
+ 
+ /*
+@@ -114,6 +115,7 @@ const struct m0_test_suite m0_addb_ut = {
+ 		{ "addb-stob-post-retrieve", addb_ut_stob },
+ 		{ "addb-svc",                addb_ut_svc_test },
+ 		{ "addb-fom",                addb_ut_fom_test },
++		{ "addb-mon-infra",          addb_ut_mon_infra_test },
+ #endif
+ 		{ NULL, NULL }
+         }
+diff --git a/addb/ut/addb_ut_mon_infra.c b/addb/ut/addb_ut_mon_infra.c
+new file mode 100644
+index 0000000..49afe62
+--- /dev/null
++++ b/addb/ut/addb_ut_mon_infra.c
+@@ -0,0 +1,97 @@
++/*-*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rohan Puri <rohan_puri@xyratex.com>
++ * Original creation date: 09/30/2013
++ */
++
++enum {
++	UT_ADDB_MON_INFRA_TS_INIT_PAGES = 16,
++	UT_ADDB_MON_INFRA_TS_MAX_PAGES  = 36,
++	UT_ADDB_MON_INFRA_TS_PAGE_SIZE  = 4096, /* bytes */
++	UT_ADDB_MON_INFRA_REC_NR = 100,
++};
++
++static char *addb_mon_infra_server_argv[] = {
++	"addb_mon_infra_ut", "-r", "-p", "-T", "linux", "-D", SERVER_DB_NAME,
++	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
++	"-e", SERVER_ENDPOINT, "-R", "lnet:0@lo:12345:34:1", "-s", "addb",
++	"-s", "stats", "-w", "10"
++};
++
++static void addb_ut_mon_infra_test(void)
++{
++	struct m0_addb_rec_type   *dp = &m0__addb_ut_rt_dp1;
++	struct m0_addb_ctx        *cv[4] = { NULL, &m0_addb_proc_ctx,
++					     &m0_addb_node_ctx, NULL };
++	struct addb_ut_fom_data    ut_data;
++	struct rpcsink            *rsink;
++	uint32_t		   rec_count;
++	int                        rc;
++
++	sctx.rsx_argv = addb_mon_infra_server_argv;
++	start_rpc_client_and_server();
++	m0_addb_mc_init(&mc);
++
++	rc = m0_addb_mc_configure_rpc_sink(&mc, &cctx.rcx_rpc_machine, NULL,
++					   UT_ADDB_MON_INFRA_TS_INIT_PAGES,
++					   UT_ADDB_MON_INFRA_TS_MAX_PAGES,
++					   UT_ADDB_MON_INFRA_TS_PAGE_SIZE);
++	M0_UT_ASSERT(rc == 0);
++	M0_UT_ASSERT(m0_addb_mc_has_rpc_sink(&mc));
++
++	rsink = rpcsink_from_mc(&mc);
++	M0_UT_ASSERT(rsink != NULL);
++	M0_UT_ASSERT(rsink->rs_ts.at_pages.ov_vec.v_nr ==
++		     UT_ADDB_MON_INFRA_TS_INIT_PAGES);
++	M0_UT_ASSERT(rsink->rs_ts.at_max_pages ==
++		     UT_ADDB_MON_INFRA_TS_MAX_PAGES);
++	M0_UT_ASSERT(rsink->rs_ts.at_page_size ==
++		     UT_ADDB_MON_INFRA_TS_PAGE_SIZE);
++
++	rec_count = rec_queue_tlist_length(&rsink->rs_ts.at_rec_queue);
++	M0_UT_ASSERT(rec_count == 0);
++
++	m0_addb_mc_configure_pt_evmgr(&mc);
++	m0__addb_ut_ct0.act_magic = 0;
++	m0__addb_ut_ct0.act_id = addb_ct_max_id + 1;
++	m0_addb_ctx_type_register(&m0__addb_ut_ct0);
++	dp->art_magic = 0;
++	dp->art_id = addb_rt_max_id + 1;
++	m0_addb_rec_type_register(dp);
++	M0_ADDB_CTX_INIT(&mc, &ctx, &m0__addb_ut_ct0, &m0_addb_proc_ctx);
++	cv[0] = &ctx;
++
++	m0_addb_mc_fini(&mc);
++	stop_rpc_client_and_server();
++
++	M0_SET0(&ut_data);
++
++	addb_ct_tlist_del(&m0__addb_ut_ct0);
++	m0__addb_ut_ct0.act_magic = 0;
++	addb_rt_tlist_del(&m0__addb_ut_rt_dp1);
++	m0__addb_ut_rt_dp1.art_magic = 0;
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/mero/setup.c b/mero/setup.c
+index 5e8e5d0..4dd610b 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -590,7 +590,7 @@ static int cs_rpc_machines_init(struct m0_mero *cctx)
+ 	return rc;
+ }
+ 
+-static int cs_addb_monitor_stats_svc_conn_init(struct m0_mero *cctx)
++static void cs_addb_monitor_stats_svc_conn_init(struct m0_mero *cctx)
+ {
+ 	int                          rc = 0;
+ 	struct m0_reqh_context      *rctx;
+@@ -607,8 +607,6 @@ static int cs_addb_monitor_stats_svc_conn_init(struct m0_mero *cctx)
+ 		}
+ 
+ 	} m0_tl_endfor;
+-
+-	return rc;
+ }
+ 
+ /**
+@@ -1516,6 +1514,9 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
+ 
+ 	M0_ENTRY();
+ 
++	reqh = &rctx->rc_reqh;
++	if (reqh->rh_addb_monitoring_ctx.amc_stats_ep != NULL)
++		m0_addb_monitor_stats_svc_conn_fini(reqh);
+ 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
+ 		m0_reqh_shutdown(reqh);
+ 	m0_reqh_fom_domain_idle_wait(reqh);
+@@ -1529,8 +1530,6 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
+ 		m0_reqh_mgmt_service_stop(reqh);
+ 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
+ 	cs_rpc_machines_fini(reqh);
+-	if (reqh->rh_addb_monitoring_ctx.amc_stats_ep != NULL)
+-		m0_addb_monitor_stats_svc_conn_fini(reqh);
+ 	m0_reqh_fini(reqh);
+ 	m0_fol_fini(&rctx->rc_fol);
+ 	m0_mdstore_fini(&rctx->rc_mdstore);
+@@ -1716,6 +1715,7 @@ static void cs_help(FILE *out)
+ "  -f path  Path to genders file, defaults to /etc/mero/genders.\n"
+ "  -g       Bootstrap configuration using genders.\n"
+ "  -Z       Run as a daemon.\n"
++"  -R addr  Stats service endpoint address \n"
+ "\n"
+ "Request handler options:\n"
+ "  -r   Start new set of request handler options.\n"
+@@ -1987,7 +1987,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
+ 								    cc_mds_epx,
+ 								    s);
+ 				})),
+-			M0_STRINGARG('Z', "stats service endpoint address",
++			M0_STRINGARG('R', "stats service endpoint address",
+ 				LAMBDA(void, (const char *s)
+ 				{
+ 					rc = ep_and_xprt_extract(&cctx->
+@@ -2196,9 +2196,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
+ 		cs_net_domains_init(cctx) ?:
+ 		cs_buffer_pool_setup(cctx) ?:
+ 		cs_request_handlers_start(cctx) ?:
+-		cs_rpc_machines_init(cctx) ?:
+-		cctx->cc_stats_svc_epx.ex_endpoint != NULL ?
+-		cs_addb_monitor_stats_svc_conn_init(cctx): 0;
++		cs_rpc_machines_init(cctx);
+ 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
+ 
+ 	if (rc < 0) {
+@@ -2211,9 +2209,15 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
+ 
+ int m0_cs_start(struct m0_mero *cctx)
+ {
++	int rc;
++
+ 	M0_ENTRY();
+ 	M0_PRE(cctx != NULL);
+-	M0_RETURN(cs_services_init(cctx));
++	rc = cs_services_init(cctx);
++	if (cctx->cc_stats_svc_epx.ex_endpoint != NULL)
++		cs_addb_monitor_stats_svc_conn_init(cctx);
++
++	return rc;
+ }
+ 
+ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
+-- 
+1.8.3.2
+

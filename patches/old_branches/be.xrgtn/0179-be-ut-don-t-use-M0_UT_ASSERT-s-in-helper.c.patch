@@ -1,0 +1,179 @@
+From b487824820aba94b1715725b93864741d227fc54 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 20 Jun 2013 02:32:01 +0300
+Subject: [PATCH 179/228] be/ut: don't use M0_UT_ASSERT()s in helper.c
+
+be-tx-ut uses the functions, defined in be/ut/helper.c, to set up and
+tear down a segment. Such operations are should be done in
+m0_test_suite::ts_{init,fini}(); doing them in one of m0_test's
+is not correct for the following reasons:
+  - creation/destruction of a segment has nothing to do with tx UT;
+  - it makes the tests depend on each other.
+
+A function called from ->ts_{init,fini}() must not use M0_UT_ASSERT().
+s/M0_UT_ASSERT/M0_ASSERT/ in helper.c.
+
++ Simplify the code by making `SEG_UT_STORAGE_DIR' a macro.
+---
+ be/ut/helper.c | 44 ++++++++++++++++++--------------------------
+ be/ut/helper.h | 17 +++++++----------
+ 2 files changed, 25 insertions(+), 36 deletions(-)
+
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 4d23c98..1f534f9 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -24,37 +24,27 @@
+ #include "stob/linux.h"	/* m0_linux_stob_domain_locate */
+ #include "be/be.h"	/* m0_be_init */
+ #include "dtm/dtm.h"	/* m0_dtx_init */
+-#include "ut/ut.h"	/* M0_UT_ASSERT */
+ 
+ #include <stdlib.h>	/* system */
+ #include <sys/stat.h>	/* mkdir */
+ #include <sys/types.h>	/* mkdir */
+ 
++#define SEG_UT_STORAGE_DIR "./__seg_ut_stob"
++
+ enum {
+ 	BE_SEG_UT_DOM_ID   = 42,
+ 	BE_SEG_UT_STOB_ID  = 42,
+-	BE_SEG_UT_SEG_SIZE = 0x1000000,	/**< 16MiB */
++	BE_SEG_UT_SEG_SIZE = 0x1000000	/* 16 MiB */
+ };
+ 
+-const char *seg_ut_storage_dir = "./__seg_ut_stob";
+-
+ static struct m0_stob_id id = {
+-	.si_bits = M0_UINT128(0, BE_SEG_UT_STOB_ID),
+-};
+-
+-char buf[0x1000];
+-
+-static char *printf_dir(const char *str) {
+-	sprintf(buf, str, seg_ut_storage_dir);
+-	return buf;
++	.si_bits = M0_UINT128(0, BE_SEG_UT_STOB_ID)
+ };
+ 
+ void m0_be_ut_seg_storage_fini(void)
+ {
+-	int rc;
+-
+-	rc = system(printf_dir("rm -rf %s"));
+-	M0_UT_ASSERT(rc == 0);
++	int rc = system("rm -rf " SEG_UT_STORAGE_DIR);
++	M0_ASSERT(rc == 0);
+ }
+ 
+ void m0_be_ut_seg_storage_init(void)
+@@ -62,10 +52,12 @@ void m0_be_ut_seg_storage_init(void)
+ 	int rc;
+ 
+ 	m0_be_ut_seg_storage_fini();
+-	rc = mkdir(seg_ut_storage_dir, 0700);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = mkdir(printf_dir("%s/o"), 0700);
+-	M0_UT_ASSERT(rc == 0);
++
++	rc = mkdir(SEG_UT_STORAGE_DIR, 0700);
++	M0_ASSERT(rc == 0);
++
++	rc = mkdir(SEG_UT_STORAGE_DIR "/o", 0700);
++	M0_ASSERT(rc == 0);
+ }
+ 
+ void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
+@@ -73,8 +65,8 @@ void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
+ {
+ 	int rc;
+ 
+-	rc = m0_linux_stob_domain_locate(seg_ut_storage_dir, &h->bus_dom);
+-	M0_UT_ASSERT(rc == 0);
++	rc = m0_linux_stob_domain_locate(SEG_UT_STORAGE_DIR, &h->bus_dom);
++	M0_ASSERT(rc == 0);
+ 	m0_dtx_init(&h->bus_dtx);
+ 	if (!stob_create) {
+ 		m0_stob_init(&h->bus_stob_, &id, h->bus_dom);
+@@ -82,7 +74,7 @@ void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
+ 	} else {
+ 		rc = m0_stob_create_helper(h->bus_dom, &h->bus_dtx, &id,
+ 					   &h->bus_stob);
+-		M0_UT_ASSERT(rc == 0);
++		M0_ASSERT(rc == 0);
+ 	}
+ 	m0_be_seg_init(seg, h->bus_stob, &h->bus_be);
+ }
+@@ -104,7 +96,7 @@ void m0_be_ut_seg_create(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg)
+ 	m0_be_ut_seg_storage_init();
+ 	m0_be_ut_seg_initialize(h, seg, false);
+ 	rc = m0_be_seg_create(seg, BE_SEG_UT_SEG_SIZE);
+-	M0_UT_ASSERT(rc == 0);
++	M0_ASSERT(rc == 0);
+ }
+ 
+ void m0_be_ut_seg_destroy(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg)
+@@ -112,7 +104,7 @@ void m0_be_ut_seg_destroy(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg)
+ 	int rc;
+ 
+ 	rc = m0_be_seg_destroy(seg);
+-	M0_UT_ASSERT(rc == 0);
++	M0_ASSERT(rc == 0);
+ 	m0_be_ut_seg_finalize(h, seg, false);
+ 	m0_be_ut_seg_storage_fini();
+ }
+@@ -124,7 +116,7 @@ void m0_be_ut_seg_create_open(struct m0_be_ut_seg_helper *h,
+ 
+ 	m0_be_ut_seg_create(h, seg);
+ 	rc = m0_be_seg_open(seg);
+-	M0_UT_ASSERT(rc == 0);
++	M0_ASSERT(rc == 0);
+ }
+ 
+ void m0_be_ut_seg_close_destroy(struct m0_be_ut_seg_helper *h,
+diff --git a/be/ut/helper.h b/be/ut/helper.h
+index b66a828..d037f66 100644
+--- a/be/ut/helper.h
++++ b/be/ut/helper.h
+@@ -18,23 +18,21 @@
+  * Original creation date: 5-Jun-2013
+  */
+ 
+-
+ #pragma once
+-
+ #ifndef __MERO_BE_UT_HELPER_H__
+ #define __MERO_BE_UT_HELPER_H__
+ 
+-#include "lib/types.h"		/* bool */
+-#include "be/be.h"		/* m0_be */
+-#include "dtm/dtm.h"		/* m0_dtx */
++#include "lib/types.h"          /* bool */
++#include "be/be.h"              /* m0_be */
++#include "dtm/dtm.h"            /* m0_dtx */
+ 
+ /** Helper structure for easy segment preparing for UT */
+ struct m0_be_ut_seg_helper {
+ 	struct m0_stob_domain *bus_dom;
+-	struct m0_dtx	       bus_dtx;
+-	struct m0_stob	      *bus_stob;
+-	struct m0_stob	       bus_stob_;
+-	struct m0_be	       bus_be;
++	struct m0_dtx          bus_dtx;
++	struct m0_stob        *bus_stob;
++	struct m0_stob         bus_stob_;
++	struct m0_be           bus_be;
+ };
+ 
+ void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
+@@ -56,7 +54,6 @@ void m0_be_ut_seg_storage_init(void);
+ 
+ #endif /* __MERO_BE_UT_HELPER_H__ */
+ 
+-
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+-- 
+1.8.3.2
+

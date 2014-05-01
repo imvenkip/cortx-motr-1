@@ -1,0 +1,67 @@
+From c1357f6d587f2a50e4d539e4a8a8e161e36d181d Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 6 Mar 2014 16:02:15 +0800
+Subject: [PATCH 11/26] mode debug information.
+
+---
+ mdservice/md_foms.c | 8 ++++++--
+ mdstore/mdstore.c   | 3 +++
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index cec5af3..41ba44c 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -159,6 +159,9 @@ static int m0_md_create(struct m0_mdstore   *md,
+ 	}
+ 	if (scob)
+ 		m0_cob_put(scob);
++	M0_LOG(M0_DEBUG, "create \"%.*s\" finished with %d and lid=%d",
++	       (int)attr->ca_name.b_nob, (char *)attr->ca_name.b_addr, rc,
++	       (int)attr->ca_lid);
+ 	return rc;
+ }
+ 
+@@ -754,6 +757,7 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
+ out:
+ 	M0_LOG(M0_DEBUG, "Lookup for \"%.*s\" finished with %d",
+ 	       (int)name.b_nob, (char *)name.b_addr, rc);
++
+ 	rep->l_body.b_rc = rc;
+ 	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
+ 	return M0_FSO_AGAIN;
+@@ -786,7 +790,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
+ 	M0_ASSERT(fop_rep != NULL);
+ 	rep = m0_fop_data(fop_rep);
+ 
+-	M0_LOG(M0_DEBUG, "Getattr for "FID_F" started", FID_P(&body->b_pfid));
++	M0_LOG(M0_DEBUG, "Getattr for "FID_F" started", FID_P(&body->b_tfid));
+ 
+ 	/**
+ 	 * Init some fop fields (full path) that require mdstore and other
+@@ -808,7 +812,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
+ 	}
+ out:
+ 	M0_LOG(M0_DEBUG, "Getattr for "FID_F" finished with %d",
+-	       FID_P(&body->b_pfid), rc);
++	       FID_P(&body->b_tfid), rc);
+ 	rep->g_body.b_rc = rc;
+ 	m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
+ 	return M0_FSO_AGAIN;
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 537308b..a70073d 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -728,6 +728,9 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
+ 		       (unsigned)cob->co_nsrec.cnr_linkno,
+ 		       (unsigned)cob->co_nsrec.cnr_cntr,
+ 		       (unsigned)attr->ca_nlink);
++		M0_LOG(M0_DEBUG, "size:%u, lid:%u",
++		       (unsigned)attr->ca_size,
++		       (unsigned)attr->ca_lid);
+ 	}
+ 
+ 	/*
+-- 
+1.8.3.2
+

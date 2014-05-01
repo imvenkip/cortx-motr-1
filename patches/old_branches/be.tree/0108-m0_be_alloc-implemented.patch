@@ -1,0 +1,1246 @@
+From 52cce184dfa05d08b3186270bf4c160556424761 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 6 Jun 2013 03:25:53 +0300
+Subject: [PATCH 108/290] m0_be_alloc() implemented
+
+allocator header embedded into segment header;
+op was added to m0_be_{alloc,free}();
+helper for be UT was added;
+btree fixes for op in alloc/free;
+XXX be/ut/btree.c was disabled in Makefile.sub;
+missing header added to stob/linux.h.
+---
+ be/alloc.c          | 207 ++++++++++++++++++++++++++++++++++++----------------
+ be/alloc.h          |  13 +++-
+ be/alloc_internal.h |  88 ++++++++++++++++++++++
+ be/btree.c          |   6 +-
+ be/seg.c            |  68 +++++++----------
+ be/seg.h            |  13 ----
+ be/seg_internal.h   |  75 +++++++++++++++++++
+ be/ut/Makefile.sub  |   3 +-
+ be/ut/alloc.c       |   9 ++-
+ be/ut/btree.c       |  22 ++++--
+ be/ut/helper.c      | 148 +++++++++++++++++++++++++++++++++++++
+ be/ut/helper.h      |  70 ++++++++++++++++++
+ be/ut/seg.c         | 130 ++++-----------------------------
+ stob/linux.h        |   2 +
+ 14 files changed, 606 insertions(+), 248 deletions(-)
+ create mode 100644 be/alloc_internal.h
+ create mode 100644 be/seg_internal.h
+ create mode 100644 be/ut/helper.c
+ create mode 100644 be/ut/helper.h
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 8e0ffaa..02d3cfc 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -18,14 +18,17 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#include "be/seg.h"
++#include "be/alloc.h"
++#include "be/alloc_internal.h"
+ 
+-#include "lib/types.h"  /* m0_bcount_t */
+-#include "lib/memory.h"	/* m0_addr_is_aligned */
+-#include "lib/errno.h"	/* ENOSPC */
+-#include "mero/magic.h"	/* M0_BE_ALLOC_MAGIC0 */
++#include "lib/types.h"		/* m0_bcount_t */
++#include "lib/memory.h"		/* m0_addr_is_aligned */
++#include "lib/errno.h"		/* ENOSPC */
++#include "mero/magic.h"		/* M0_BE_ALLOC_MAGIC0 */
+ 
+-#include "be/list.h"	/* m0_be_list */
++#include "be/list.h"		/* m0_be_list */
++#include "be/seg.h"		/* m0_be_get */
++#include "be/seg_internal.h"	/* m0_be_seg_hdr */
+ 
+ /**
+  * @addtogroup be
+@@ -40,34 +43,6 @@ enum {
+ 	BE_ALLOC_CHUNK_SHIFT  = 3,
+ };
+ 
+-struct be_alloc_chunk {
+-	/**
+-	 * M0_BE_ALLOC_MAGIC0
+-	 * Used to find invalid memory access after allocated chunk.
+-	 */
+-	uint64_t	bac_magic0;
+-	/** for m0_be_allocator_header.ba_chunks list */
+-	struct m0_tlink bac_linkage;
+-	/** magic for bac_linkage */
+-	uint64_t	bac_magic;
+-	/** for m0_be_allocator_header.ba_free list */
+-	struct m0_tlink bac_linkage_free;
+-	/** magic for bac_linkage_free */
+-	uint64_t	bac_magic_free;
+-	/** size of chunk */
+-	m0_bcount_t	bac_size;
+-	/** is chunk free? */
+-	bool		bac_free;
+-	/**
+-	 * M0_BE_ALLOC_MAGIC1
+-	 * Used to find invalid memory access before allocated chunk.
+-	 */
+-	/** M0_BE_ALLOC_MAGIC1 */
+-	uint64_t	bac_magic1;
+-	/** m0_be_alloc() will return address of bac_mem for allocated chunk */
+-	char		bac_mem[0];
+-};
+-
+ M0_TL_DESCR_DEFINE(chunks_all, "list of all chunks in m0_be_allocator",
+ 		   static, struct be_alloc_chunk, bac_linkage, bac_magic,
+ 		   M0_BE_ALLOC_ALL_LINK_MAGIC, M0_BE_ALLOC_ALL_MAGIC);
+@@ -79,13 +54,6 @@ M0_TL_DESCR_DEFINE(chunks_free, "list of free chunks in m0_be_allocator",
+ 		   M0_BE_ALLOC_FREE_LINK_MAGIC, M0_BE_ALLOC_FREE_MAGIC);
+ M0_TL_DEFINE(chunks_free, static, struct be_alloc_chunk);
+ 
+-struct m0_be_allocator_header {
+-	struct m0_be_list	      bah_chunks;	/**< all chunks */
+-	struct m0_be_list	      bah_free;		/**< free chunks */
+-	struct m0_be_allocator_stats  bah_stats;
+-	struct be_alloc_chunk	      bah_main;		/**< main chunk */
+-};
+-
+ /** O(1) time complexity */
+ static bool be_alloc_chunk_invariant(const struct be_alloc_chunk *c)
+ {
+@@ -108,18 +76,135 @@ static void be_alloc_chunk_init(struct be_alloc_chunk *c,
+ 	M0_POST(be_alloc_chunk_invariant(c));
+ }
+ 
+-static void be_alloc_chunk_fini(struct be_alloc_chunk *c)
++static void be_alloc_chunk_del_fini(struct be_alloc_chunk *c)
+ {
+ 	M0_PRE(be_alloc_chunk_invariant(c));
++	chunks_free_tlist_del(c);
++	chunks_all_tlist_del(c);
+ 	chunks_free_tlink_fini(c);
+ 	chunks_all_tlink_fini(c);
+ }
+ 
++static struct be_alloc_chunk *be_alloc_chunk_addr(void *ptr)
++{
++	return container_of(ptr, struct be_alloc_chunk, bac_mem);
++}
++
++static struct be_alloc_chunk *be_alloc_chunk_prev(struct m0_be_allocator *a,
++						  struct be_alloc_chunk *c)
++{
++	return chunks_all_tlist_prev(&a->ba_h->bah_free.bl_list, c);
++}
++
++static struct be_alloc_chunk *be_alloc_chunk_next(struct m0_be_allocator *a,
++						  struct be_alloc_chunk *c)
++{
++	return chunks_all_tlist_next(&a->ba_h->bah_free.bl_list, c);
++}
++
++/** try to add free chunk after c */
+ static struct be_alloc_chunk *
+-be_alloc_chunk_trysplit(struct be_alloc_chunk *c,
++be_alloc_chunk_tryadd_after(struct m0_be_allocator *a,
++			    struct be_alloc_chunk *c,
++			    struct be_alloc_chunk *f,
++			    m0_bcount_t size_total, bool free)
++{
++	struct be_alloc_chunk *new;
++
++	M0_PRE(be_alloc_chunk_invariant(c));
++	M0_PRE(ergo(free, be_alloc_chunk_invariant(f)));
++	if (size_total < sizeof *c + 1) {
++		/* increase size of chunk c */
++		c->bac_size += size_total;
++		new = NULL;
++	} else {
++		/* add a new chunk */
++		new = (struct be_alloc_chunk *)
++		      (((uintptr_t) c) + sizeof(*c) + c->bac_size);
++		be_alloc_chunk_init(new, size_total - sizeof(*new), free);
++		chunks_all_tlist_add_after(c, new);
++		if (free)
++			chunks_free_tlist_add_after(f, new);
++	}
++	M0_POST(ergo(new != NULL, be_alloc_chunk_invariant(new)));
++	M0_POST(ergo(free, be_alloc_chunk_invariant(f)));
++	M0_POST(be_alloc_chunk_invariant(c));
++	return new;
++}
++
++static struct be_alloc_chunk *
++be_alloc_chunk_split(struct m0_be_allocator *a, struct be_alloc_chunk *c,
++		     uintptr_t addr_start, m0_bcount_t size)
++{
++	struct be_alloc_chunk *prev;
++	struct be_alloc_chunk *next;
++	struct be_alloc_chunk *prev_free;
++	struct be_alloc_chunk *f;
++	uintptr_t	       addr_end;
++	uintptr_t	       addr_prev_end;
++	uintptr_t	       addr_next_start;
++	const uintptr_t	       chunk_size = sizeof *c;
++
++	M0_PRE(be_alloc_chunk_invariant(c));
++	M0_PRE(c->bac_free);
++
++	prev = be_alloc_chunk_prev(a, c);
++	next = be_alloc_chunk_next(a, c);
++	addr_prev_end	= (uintptr_t) prev + chunk_size + prev->bac_size;
++	addr_next_start = (uintptr_t) next;
++	prev_free = chunks_free_tlist_prev(&a->ba_h->bah_free.bl_list, c);
++
++	be_alloc_chunk_del_fini(c);
++	/* c is not valid chunk now */
++
++	addr_end = addr_start + chunk_size + size;
++	M0_ASSERT(addr_prev_end <= addr_start);
++	M0_ASSERT(addr_end	<= addr_next_start);
++
++	/* handle space before new chunk */
++	c = be_alloc_chunk_tryadd_after(a, prev, prev_free,
++					addr_start - addr_prev_end, true);
++	f = c == NULL ? prev_free : c;
++	c = c == NULL ? prev : c;
++	/* add the new chunk */
++	c = be_alloc_chunk_tryadd_after(a, c, NULL, chunk_size + size, false);
++	M0_ASSERT(c != NULL);
++	c->bac_free = false;
++	/* handle space after new chunk */
++	be_alloc_chunk_tryadd_after(a, c, f, addr_next_start - addr_end, true);
++
++	M0_POST(!c->bac_free);
++	M0_POST(c->bac_size >= size);
++	M0_POST(be_alloc_chunk_invariant(c));
++	return c;
++}
++
++static struct be_alloc_chunk *
++be_alloc_chunk_trysplit(struct m0_be_allocator *a, struct be_alloc_chunk *c,
+ 			m0_bcount_t size, unsigned shift)
+ {
+-	return NULL;
++	struct be_alloc_chunk *result = NULL;
++	uintptr_t	       alignment = 1UL << shift;
++	uintptr_t	       addr_mem;
++	uintptr_t	       addr_start;
++	uintptr_t	       addr_end;
++	const uintptr_t	       chunk_size = sizeof *c;
++
++	M0_PRE(be_alloc_chunk_invariant(c));
++	M0_PRE(alignment != 0);
++	if (c->bac_free) {
++		addr_start = (uintptr_t) c;
++		addr_end   = (uintptr_t) &c->bac_mem[c->bac_size];
++		/* find aligned address for memory block */
++		addr_mem   = addr_start + chunk_size + alignment - 1;
++		addr_mem  &= ~(alignment - 1);
++		/* if block fits inside free chunk */
++		result = addr_mem + size <= addr_end ?
++			 be_alloc_chunk_split(a, c, addr_mem - chunk_size,
++					      size) : NULL;
++	}
++	M0_POST(be_alloc_chunk_invariant(c));
++	return result;
+ }
+ 
+ static bool
+@@ -133,9 +218,7 @@ be_alloc_chunk_trymerge(struct be_alloc_chunk *a, struct be_alloc_chunk *b)
+ 	if (a != NULL && b != NULL &&
+ 	    a->bac_free && b->bac_free) {
+ 		a->bac_size += sizeof(*b) + b->bac_size;
+-		chunks_all_tlist_del(b);
+-		chunks_free_tlist_del(b);
+-		be_alloc_chunk_fini(b);
++		be_alloc_chunk_del_fini(b);
+ 		chunks_were_merged = true;
+ 	}
+ 	M0_POST(be_alloc_chunk_invariant(a));
+@@ -143,11 +226,6 @@ be_alloc_chunk_trymerge(struct be_alloc_chunk *a, struct be_alloc_chunk *b)
+ }
+ 
+ 
+-static struct be_alloc_chunk *be_alloc_chunk_addr(void *ptr)
+-{
+-	return container_of(ptr, struct be_alloc_chunk, bac_mem);
+-}
+-
+ M0_INTERNAL int
+ m0_be_allocator_init(struct m0_be_allocator *a, struct m0_be_seg *seg)
+ {
+@@ -156,8 +234,7 @@ m0_be_allocator_init(struct m0_be_allocator *a, struct m0_be_seg *seg)
+ 	m0_mutex_init(&a->ba_lock);
+ 
+ 	a->ba_seg = seg;
+-	a->ba_h = (struct m0_be_allocator_header *)
+-		  ((char *) seg->bs_addr + seg->bs_reserved);
++	a->ba_h = &((struct m0_be_seg_hdr *) seg->bs_addr)->bh_alloc;
+ 	M0_ASSERT(m0_addr_is_aligned(a->ba_h, BE_ALLOC_HEADER_SHIFT));
+ 
+ 	return 0;
+@@ -185,7 +262,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a)
+ 	h = a->ba_h;
+ 	/** @todo GET_PTR h */
+ 	c = &h->bah_main;
+-	overhead   = a->ba_seg->bs_reserved + sizeof(a->ba_h);
++	overhead   = sizeof(struct m0_be_seg_hdr);
+ 	free_space = a->ba_seg->bs_size - overhead;
+ 
+ 	/* check if segment is large enough to allocate at least 1 byte */
+@@ -229,9 +306,7 @@ M0_INTERNAL int m0_be_allocator_destroy(struct m0_be_allocator *a)
+ 	/** @todo GET_PTR h */
+ 	m0_mutex_lock(&a->ba_lock);
+ 
+-	chunks_free_tlist_del(c);
+-	chunks_all_tlist_del(c);
+-	be_alloc_chunk_fini(c);
++	be_alloc_chunk_del_fini(c);
+ 
+ 	chunks_free_tlist_fini(&h->bah_free.bl_list);
+ 	m0_be_list_fini(&h->bah_free);
+@@ -251,7 +326,8 @@ M0_INTERNAL void m0_be_allocator_credit(const struct m0_be_allocator *a,
+ {
+ }
+ 
+-M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a, struct m0_be_tx *tx,
++M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
++			      struct m0_be_tx *tx, struct m0_be_op *op,
+ 			      m0_bcount_t size, unsigned shift)
+ {
+ 	struct be_alloc_chunk *iter;
+@@ -260,18 +336,21 @@ M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a, struct m0_be_tx *tx,
+ 	M0_PRE(m0_be_allocator__invariant(a));
+ 	m0_mutex_lock(&a->ba_lock);
+ 	m0_tl_for(chunks_free, &a->ba_h->bah_free.bl_list, iter) {
+-		c = be_alloc_chunk_trysplit(iter, size, shift);
++		c = be_alloc_chunk_trysplit(a, iter, size, shift);
+ 		if (c != NULL)
+ 			break;
+ 	} m0_tl_endfor;
+ 	m0_mutex_unlock(&a->ba_lock);
+ 	M0_POST(m0_be_allocator__invariant(a));
+ 
++	M0_POST(ergo(c != NULL, !c->bac_free));
++	M0_POST(ergo(c != NULL, c->bac_size >= size));
++	M0_POST(ergo(c != NULL, m0_addr_is_aligned(&c->bac_mem, shift)));
+ 	return c == NULL ? NULL : &c->bac_mem;
+ }
+ 
+-M0_INTERNAL void
+-m0_be_free(struct m0_be_allocator *a, struct m0_be_tx *tx, void *ptr)
++M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
++			    struct m0_be_tx *tx, struct m0_be_op *op, void *ptr)
+ {
+ 	struct be_alloc_chunk *c;
+ 	struct be_alloc_chunk *prev;
+@@ -286,8 +365,8 @@ m0_be_free(struct m0_be_allocator *a, struct m0_be_tx *tx, void *ptr)
+ 		M0_PRE(!c->bac_free);
+ 		/* actual algorithm starts here */
+ 		c->bac_free = true;
+-		prev = chunks_free_tlist_prev(&a->ba_h->bah_free.bl_list, c);
+-		next = chunks_free_tlist_next(&a->ba_h->bah_free.bl_list, c);
++		prev = be_alloc_chunk_prev(a, c);
++		next = be_alloc_chunk_next(a, c);
+ 		chunks_were_merged = be_alloc_chunk_trymerge(prev, c);
+ 		if (chunks_were_merged)
+ 			c = prev;
+diff --git a/be/alloc.h b/be/alloc.h
+index f155bd3..4914f1f 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -70,15 +70,24 @@ M0_INTERNAL void m0_be_allocator_credit(const struct m0_be_allocator *a,
+ 					unsigned shift,
+ 					struct m0_be_tx_credit *accum);
+ 
+-M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a, struct m0_be_tx *tx,
++M0_INTERNAL void *m0_be_alloc(struct m0_be_allocator *a,
++			      struct m0_be_tx *tx, struct m0_be_op *op,
+ 			      m0_bcount_t size, unsigned shift);
+ 
+ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
+-			    struct m0_be_tx *tx, void *ptr);
++			    struct m0_be_tx *tx, struct m0_be_op *op,
++			    void *ptr);
+ 
+ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
+ 				   struct m0_be_allocator_stats *out);
+ 
++#define M0_BE_ALLOC_ARR(seg, tx, op, shift, arr, nr)			\
++	((arr) = m0_be_alloc(&(seg)->bs_allocator, (tx), (op), \
++			     (nr) * sizeof ((arr)[0])), (shift))
++
++#define M0_BE_ALLOC_PTR(seg, tx, op, shift, ptr)			\
++		M0_ALLOC_ARR(seg, tx, op, shift, ptr, 1)
++
+ /** @} end of be group */
+ #endif /* __MERO_BE_ALLOC_H__ */
+ /*
+diff --git a/be/alloc_internal.h b/be/alloc_internal.h
+new file mode 100644
+index 0000000..b43840c
+--- /dev/null
++++ b/be/alloc_internal.h
+@@ -0,0 +1,88 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <Max_Medved@xyratex.com>
++ * Original creation date: 5-Jun-2013
++ */
++
++
++#pragma once
++
++#ifndef __MERO_BE_ALLOC_INTERNAL_H__
++#define __MERO_BE_ALLOC_INTERNAL_H__
++
++#include "lib/types.h"	/* m0_bcount_t */
++#include "be/list.h"	/* m0_be_list */
++#include "be/alloc.h"	/* m0_be_allocator_stats */
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++struct be_alloc_chunk {
++	/**
++	 * M0_BE_ALLOC_MAGIC0
++	 * Used to find invalid memory access after allocated chunk.
++	 */
++	uint64_t	bac_magic0;
++	/** for m0_be_allocator_header.ba_chunks list */
++	struct m0_tlink bac_linkage;
++	/** magic for bac_linkage */
++	uint64_t	bac_magic;
++	/** for m0_be_allocator_header.ba_free list */
++	struct m0_tlink bac_linkage_free;
++	/** magic for bac_linkage_free */
++	uint64_t	bac_magic_free;
++	/** size of chunk */
++	m0_bcount_t	bac_size;
++	/** is chunk free? */
++	bool		bac_free;
++	/**
++	 * M0_BE_ALLOC_MAGIC1
++	 * Used to find invalid memory access before allocated chunk.
++	 */
++	/** M0_BE_ALLOC_MAGIC1 */
++	uint64_t	bac_magic1;
++	/** m0_be_alloc() will return address of bac_mem for allocated chunk */
++	char		bac_mem[0];
++};
++
++struct m0_be_allocator_header {
++	struct m0_be_list	      bah_chunks;	/**< all chunks */
++	struct m0_be_list	      bah_free;		/**< free chunks */
++	struct m0_be_allocator_stats  bah_stats;
++	struct be_alloc_chunk	      bah_main;		/**< main chunk */
++};
++
++/** @} end of be group */
++
++#endif /* __MERO_BE_ALLOC_INTERNAL_H__ */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/btree.c b/be/btree.c
+index c88503a..06cc7b6 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -78,12 +78,14 @@ struct node_pos {
+ 
+ #define MEM_ALLOC(tx, size) ({					           \
+ 	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;      \
+-	m0_be_alloc(alloc, (tx), (size), BTREE_ALLOC_SHIFT);	           \
++	struct m0_be_op		op; /* XXX */				   \
++	m0_be_alloc(alloc, (tx), &op, (size), BTREE_ALLOC_SHIFT);	   \
+ })
+ 
+ #define MEM_FREE(tx, ptr, size) ({				           \
+ 	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;      \
+-	m0_be_free(alloc, (tx), (ptr));				           \
++	struct m0_be_op		op; /* XXX */				   \
++	m0_be_free(alloc, (tx), &op, (ptr));				   \
+ })
+ 
+ /* XXX: check if region structure itself needed outside m0_be_tx_capture() */
+diff --git a/be/seg.c b/be/seg.c
+index 2738964..4d9577d 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -18,14 +18,18 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#include <sys/mman.h>    /* mmap */
+ #include "be/seg.h"
++
+ #include "lib/assert.h"
+ #include "lib/memory.h"  /* m0_alloc_aligned */
+ #include "lib/misc.h"    /* M0_IN */
+ #include "lib/errno.h"
+ #include "stob/stob.h"
+ 
++#include "be/seg_internal.h"
++
++#include <sys/mman.h>    /* mmap */
++
+ /**
+  * @addtogroup be
+  *
+@@ -35,19 +39,6 @@
+ #define BE_SEG_DEFAULT_ADDR   ((void *)0x400000000000)
+ #define BE_SEG_HEADER_OFFSET  (0ULL)
+ 
+-struct m0_be_seg_dict {
+-	char   bsd_name[M0_BSD_MAXNAME];
+-	void  *bsd_ptr;
+-};
+-
+-/* "On-disk" header for segment, stored in STOB at zero offset */
+-struct be_seg_hdr {
+-	void       *bh_addr;  /* segment address in RAM */
+-	m0_bcount_t bh_size;  /* segment size */
+-	/** Segment dictionary */
+-	struct m0_be_seg_dict  bs_dict[M0_SEG_DICT_SIZE];
+-};
+-
+ static int stob_io_single_write(void *buf, m0_bcount_t bufsize,
+ 				struct m0_stob *stob,
+ 				m0_bindex_t offs, uint32_t bshift)
+@@ -96,17 +87,16 @@ static int stob_io_single_write(void *buf, m0_bcount_t bufsize,
+ static int
+ seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
+ {
+-	uint32_t           st_block_shift;
+-	size_t             st_block_size;
+-	struct be_seg_hdr *hdrbuf;      /* seg hdr buffer */
+-	m0_bcount_t        hdrblocks;   /* number of sectors */
+-	int                rc;
++	uint32_t	      st_block_shift;
++	size_t		      st_block_size;
++	struct m0_be_seg_hdr *hdrbuf;      /* seg hdr buffer */
++	m0_bcount_t	      hdrblocks;   /* number of sectors */
++	int		      rc;
+ 
+ 	/* Allocate buffer for segment header. */
+ 	st_block_shift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
+ 	st_block_size = 1 << st_block_shift;
+-	hdrblocks = (sizeof(struct be_seg_hdr) + st_block_size - 1) /
+-		st_block_size;
++	hdrblocks = (sizeof(*hdrbuf) + st_block_size - 1) / st_block_size;
+ 	hdrbuf = m0_alloc_aligned(hdrblocks * st_block_size, st_block_shift);
+ 	if (hdrbuf == NULL)
+ 		return -ENOMEM;
+@@ -116,9 +106,8 @@ seg_header_create(struct m0_be_seg *seg, void *addr, m0_bcount_t size)
+ 	hdrbuf->bh_size = size;
+ 	M0_ASSERT(hdrbuf->bh_addr != NULL);
+ 	M0_ASSERT(m0_addr_is_aligned(hdrbuf->bh_addr, st_block_shift));
+-	rc = stob_io_single_write(hdrbuf, sizeof(struct be_seg_hdr),
+-				  seg->bs_stob, BE_SEG_HEADER_OFFSET,
+-				  st_block_shift);
++	rc = stob_io_single_write(hdrbuf, sizeof(*hdrbuf), seg->bs_stob,
++				  BE_SEG_HEADER_OFFSET, st_block_shift);
+ 	m0_free(hdrbuf);
+ 
+ 	return rc;
+@@ -162,7 +151,7 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+ 
+ M0_INTERNAL bool m0_be_seg__invariant(const struct m0_be_seg *seg)
+ {
+-	return seg->bs_reserved <= seg->bs_size;
++	return true;
+ }
+ 
+ bool m0_be__reg_invariant(const struct m0_be_reg *reg)
+@@ -217,28 +206,26 @@ static int stob_io_single_read(void *buf, m0_bcount_t bufsize,
+ 
+ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ {
+-	int                rc;
+-	uint32_t           st_block_shift;
+-	size_t             st_block_size;
+-	struct be_seg_hdr *hdrbuf;      /* seg hdr buffer */
+-	m0_bcount_t        hdrblocks;   /* number of sectors */
+-	void              *seg_addr0;
+-	m0_bcount_t        seg_size;
+-	void              *p;
++	int		      rc;
++	uint32_t	      st_block_shift;
++	size_t		      st_block_size;
++	struct m0_be_seg_hdr *hdrbuf;      /* seg hdr buffer */
++	m0_bcount_t	      hdrblocks;   /* number of sectors */
++	void		     *seg_addr0;
++	m0_bcount_t	      seg_size;
++	void		     *p;
+ 
+ 	/* Allocate buffer for segment header. */
+ 	st_block_shift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
+ 	st_block_size = 1 << st_block_shift;
+-	hdrblocks = (sizeof(struct be_seg_hdr) + st_block_size - 1) /
+-		st_block_size;
++	hdrblocks = (sizeof(*hdrbuf) + st_block_size - 1) / st_block_size;
+ 	hdrbuf = m0_alloc_aligned(hdrblocks * st_block_size, st_block_shift);
+ 	if (hdrbuf == NULL)
+ 		return -ENOMEM;
+ 
+ 	/* Read segment header from storage. */
+-	rc = stob_io_single_read(hdrbuf, sizeof(struct be_seg_hdr),
+-				 seg->bs_stob, BE_SEG_HEADER_OFFSET,
+-				 st_block_shift);
++	rc = stob_io_single_read(hdrbuf, sizeof(*hdrbuf), seg->bs_stob,
++				 BE_SEG_HEADER_OFFSET, st_block_shift);
+ 	if (rc == 0) {
+ 		seg_addr0 = hdrbuf->bh_addr;
+ 		seg_size  = hdrbuf->bh_size;
+@@ -259,10 +246,8 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
+ 	/* Read whole segment from storage. */
+ 	rc = stob_io_single_read(seg_addr0, seg_size, seg->bs_stob,
+ 				 0, st_block_shift);
+-	if (rc == 0) {
++	if (rc == 0)
+ 		seg->bs_state = M0_BSS_OPENED;
+-		seg->bs_reserved = sizeof *hdrbuf;
+-	}
+ 	return rc;
+ }
+ 
+@@ -270,7 +255,6 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
+ {
+ 	M0_PRE(seg->bs_state == M0_BSS_OPENED);
+ 
+-	m0_be_allocator_fini(&seg->bs_allocator);
+ 	seg->bs_state = M0_BSS_CLOSED;
+ }
+ 
+diff --git a/be/seg.h b/be/seg.h
+index 3fe9619..4f87cc3 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -34,13 +34,6 @@ struct m0_be_op;
+  * @{
+  */
+ 
+-enum {
+-	/** Dictionary entity name maximum string size */
+-	M0_BSD_MAXNAME = 80,
+-	/** Maximum number of entities in dictionary */
+-	M0_SEG_DICT_SIZE = 32,
+-};
+-
+ enum m0_be_seg_states {
+ 	M0_BSS_INIT,
+ 	M0_BSS_OPENED,
+@@ -51,12 +44,6 @@ struct m0_be_seg {
+ 	uint64_t               bs_id; /* see also m0_be::b_next_segid */
+ 	struct m0_stob        *bs_stob;
+ 	m0_bcount_t            bs_size;
+-	/**
+-	 * Size of space at the start of segment used by segment implementation.
+-	 * Memory allocator should not use first bs_reserved bytes of segment
+-	 * in any way.
+-	 */
+-	m0_bcount_t	       bs_reserved;
+ 	void                  *bs_addr;
+ 	struct m0_be_allocator bs_allocator;
+ 	struct m0_be          *bs_be;
+diff --git a/be/seg_internal.h b/be/seg_internal.h
+new file mode 100644
+index 0000000..d5be833
+--- /dev/null
++++ b/be/seg_internal.h
+@@ -0,0 +1,75 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <Max_Medved@xyratex.com>
++ * Original creation date: 5-Jun-2013
++ */
++
++
++#pragma once
++
++#ifndef __MERO_BE_SEG_INTERNAL_H__
++#define __MERO_BE_SEG_INTERNAL_H__
++
++#include "be/alloc_internal.h"	/* m0_be_allocator_header */
++
++/**
++ * @defgroup be
++ *
++ * @{
++ */
++
++enum {
++	/** Dictionary entity name maximum string size */
++	M0_BE_SEG_DICT_MAXNAME = 80,
++	/** Maximum number of entities in dictionary */
++	M0_BE_SEG_DICT_SIZE = 32,
++};
++
++struct m0_be_seg_dict {
++	char  bsd_name[M0_BE_SEG_DICT_MAXNAME];
++	void *bsd_ptr;
++};
++
++/* "On-disk" header for segment, stored in STOB at zero offset */
++struct m0_be_seg_hdr {
++	void			     *bh_addr;  /* segment address in RAM */
++	m0_bcount_t		      bh_size;  /* segment size */
++	struct m0_be_allocator_header bh_alloc;
++	/** Segment dictionary.
++	 * XXX FIXME question from max: what does it contains? */
++	struct m0_be_seg_dict	      bs_dict[M0_BE_SEG_DICT_SIZE];
++};
++
++
++
++/** @} end of be group */
++
++#endif /* __MERO_BE_SEG_INTERNAL_H__ */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/ut/Makefile.sub b/be/ut/Makefile.sub
+index 6d61644..ff55638 100644
+--- a/be/ut/Makefile.sub
++++ b/be/ut/Makefile.sub
+@@ -1,5 +1,6 @@
+ ut_libmero_ut_la_SOURCES += be/ut/alloc.c  \
++			    be/ut/helper.c \
+                             be/ut/list.c   \
+                             be/ut/main.c   \
+                             be/ut/seg.c    \
+-                            be/ut/btree.c
++			    # be/ut/btree.c	# disabled by max
+diff --git a/be/ut/alloc.c b/be/ut/alloc.c
+index 1de5260..1cb0071 100644
+--- a/be/ut/alloc.c
++++ b/be/ut/alloc.c
+@@ -18,11 +18,18 @@
+  * Original creation date: 3-Jun-2013
+  */
+ 
+-#include "ut/ut.h"
+ #include "be/alloc.h"
+ 
++#include "ut/ut.h"		/* M0_UT_ASSERT */
++#include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
++
++static struct m0_be_ut_seg_helper be_ut_seg_helper;
++static struct m0_be_seg		  be_ut_seg;
++
+ M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
+ {
++	m0_be_ut_seg_create(&be_ut_seg_helper, &be_ut_seg);
++	m0_be_ut_seg_destroy(&be_ut_seg_helper, &be_ut_seg);
+ }
+ 
+ /*
+diff --git a/be/ut/btree.c b/be/ut/btree.c
+index e4a4fca..699c7f0 100644
+--- a/be/ut/btree.c
++++ b/be/ut/btree.c
+@@ -26,11 +26,19 @@
+ #include "lib/misc.h"
+ #include "lib/memory.h"
+ 
+-extern void m0_be_ut_seg_create(void);
+-extern void m0_be_ut_seg_destroy(void);
++static struct m0_be_seg		  be_ut_btree_seg;
++static struct m0_be_ut_seg_helper be_ut_btree_seg_helper;
++static uint64_t			  tid = 1ULL;
+ 
+-extern struct m0_be_seg m0_be_ut_seg;
+-static uint64_t tid = 1ULL;
++static void seg_create(void)
++{
++	m0_be_ut_seg_create_open(&be_ut_btree_seg_helper, &be_ut_btree_seg);
++}
++
++static void seg_destroy(void)
++{
++	m0_be_ut_seg_close_destroy(&be_ut_btree_seg_helper, &be_ut_btree_seg);
++}
+ 
+ static void persistent(const struct m0_be_tx *tx)
+ {
+@@ -89,7 +97,7 @@ void test_create(void)
+ 	be_op_init(&op);
+ 
+ 	m0_be_tx_init(&tx, tid++, &be, persistent, discarded, NULL);
+-	m0_be_btree_init(&tree, &m0_be_ut_seg, &kv_ops, NULL);
++	m0_be_btree_init(&tree, &be_ut_btree_seg, &kv_ops, NULL);
+ 	m0_be_btree_credit(&tree, M0_BBO_CREATE, 1, &cred);
+ 
+ 	m0_be_tx_prep(&tx, &cred);
+@@ -279,7 +287,7 @@ void test_lookup(void)
+ const struct m0_test_suite be_list_ut = {
+ 	.ts_name = "be-btree-ut",
+ 	.ts_tests = {
+-		{ "segment create", m0_be_ut_seg_create },
++		{ "segment create", seg_create },
+ 
+ 		{ "create",  test_create  },
+ 		{ "insert",  test_insert  },
+@@ -288,7 +296,7 @@ const struct m0_test_suite be_list_ut = {
+ 		{ "lookup",  test_lookup  },
+ 		{ "destroy", test_destroy },
+ 
+-		{ "segment destroy", m0_be_ut_seg_destroy },
++		{ "segment destroy", seg_destroy },
+ 		{ NULL, NULL }
+ 	}
+ };
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+new file mode 100644
+index 0000000..e8ab6f0
+--- /dev/null
++++ b/be/ut/helper.c
+@@ -0,0 +1,148 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <Max_Medved@xyratex.com>
++ * Original creation date: 5-Jun-2013
++ */
++
++#include "be/ut/helper.h"
++
++#include "stob/stob.h"	/* m0_stob_id */
++#include "stob/linux.h"	/* m0_linux_stob_domain_locate */
++#include "be/be.h"	/* m0_be_init */
++#include "dtm/dtm.h"	/* m0_dtx_init */
++#include "ut/ut.h"	/* M0_UT_ASSERT */
++
++#include <stdlib.h>	/* system */
++#include <sys/stat.h>	/* mkdir */
++#include <sys/types.h>	/* mkdir */
++
++enum {
++	BE_SEG_UT_DOM_ID   = 42,
++	BE_SEG_UT_STOB_ID  = 42,
++	BE_SEG_UT_SEG_SIZE = 0x10000,
++};
++
++const char *seg_ut_storage_dir = "./__seg_ut_stob";
++
++static struct m0_stob_id id = {
++	.si_bits = M0_UINT128(0, BE_SEG_UT_STOB_ID),
++};
++
++char buf[0x1000];
++
++static char *printf_dir(const char *str) {
++	sprintf(buf, str, seg_ut_storage_dir);
++	return buf;
++};
++
++void m0_be_ut_seg_storage_fini(void)
++{
++	int rc;
++
++	rc = system(printf_dir("rm -rf %s"));
++	M0_UT_ASSERT(rc == 0);
++}
++
++void m0_be_ut_seg_storage_init(void)
++{
++	int rc;
++
++	m0_be_ut_seg_storage_fini();
++	rc = mkdir(seg_ut_storage_dir, 0700);
++	M0_UT_ASSERT(rc == 0);
++	rc = mkdir(printf_dir("%s/o"), 0700);
++	M0_UT_ASSERT(rc == 0);
++}
++
++void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
++			     struct m0_be_seg *seg, bool stob_create)
++{
++	int rc;
++
++	rc = m0_linux_stob_domain_locate(seg_ut_storage_dir, &h->bus_dom);
++	M0_UT_ASSERT(rc == 0);
++	m0_dtx_init(&h->bus_dtx);
++	if (!stob_create) {
++		m0_stob_init(&h->bus_stob_, &id, h->bus_dom);
++		h->bus_stob = &h->bus_stob_;
++	} else {
++		rc = m0_stob_create_helper(h->bus_dom, &h->bus_dtx, &id,
++					   &h->bus_stob);
++		M0_UT_ASSERT(rc == 0);
++	}
++	m0_be_seg_init(seg, h->bus_stob, &h->bus_be);
++}
++
++void m0_be_ut_seg_finalize(struct m0_be_ut_seg_helper *h,
++			   struct m0_be_seg *seg, bool stob_put)
++{
++	m0_be_seg_fini(seg);
++	if (stob_put)
++		m0_stob_put(h->bus_stob);
++	m0_dtx_fini(&h->bus_dtx);
++	h->bus_dom->sd_ops->sdo_fini(h->bus_dom);
++}
++
++void m0_be_ut_seg_create(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg)
++{
++	int rc;
++
++	m0_be_ut_seg_storage_init();
++	m0_be_ut_seg_initialize(h, seg, false);
++	rc = m0_be_seg_create(seg, BE_SEG_UT_SEG_SIZE);
++	M0_UT_ASSERT(rc == 0);
++}
++
++void m0_be_ut_seg_destroy(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg)
++{
++	int rc;
++
++	rc = m0_be_seg_destroy(seg);
++	M0_UT_ASSERT(rc == 0);
++	m0_be_ut_seg_finalize(h, seg, false);
++	m0_be_ut_seg_storage_fini();
++}
++
++void m0_be_ut_seg_create_open(struct m0_be_ut_seg_helper *h,
++			      struct m0_be_seg *seg)
++{
++	int rc;
++
++	m0_be_ut_seg_create(h, seg);
++	rc = m0_be_seg_open(seg);
++	M0_UT_ASSERT(rc == 0);
++}
++
++void m0_be_ut_seg_close_destroy(struct m0_be_ut_seg_helper *h,
++				struct m0_be_seg *seg)
++{
++	m0_be_seg_close(seg);
++	m0_be_ut_seg_destroy(h, seg);
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/ut/helper.h b/be/ut/helper.h
+new file mode 100644
+index 0000000..c88a5a8
+--- /dev/null
++++ b/be/ut/helper.h
+@@ -0,0 +1,70 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Maxim Medved <Max_Medved@xyratex.com>
++ * Original creation date: 5-Jun-2013
++ */
++
++
++#pragma once
++
++#ifndef __MERO_BE_UT_HELPER_H__
++#define __MERO_BE_UT_HELPER_H__
++
++#include "lib/types.h"		/* bool */
++#include "be/be.h"		/* m0_be */
++#include "dtm/dtm.h"		/* m0_dtx */
++
++struct m0_be_ut_seg_helper {
++	struct m0_stob_domain *bus_dom;
++	struct m0_dtx	       bus_dtx;
++	struct m0_stob	      *bus_stob;
++	struct m0_stob	       bus_stob_;
++	struct m0_be	       bus_be;
++};
++
++void m0_be_ut_seg_initialize(struct m0_be_ut_seg_helper *h,
++			     struct m0_be_seg *seg, bool stob_create);
++
++void m0_be_ut_seg_finalize(struct m0_be_ut_seg_helper *h,
++			   struct m0_be_seg *seg, bool stob_put);
++
++void m0_be_ut_seg_create(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg);
++void m0_be_ut_seg_destroy(struct m0_be_ut_seg_helper *h, struct m0_be_seg *seg);
++
++void m0_be_ut_seg_create_open(struct m0_be_ut_seg_helper *h,
++			      struct m0_be_seg *seg);
++void m0_be_ut_seg_close_destroy(struct m0_be_ut_seg_helper *h,
++				struct m0_be_seg *seg);
++
++void m0_be_ut_seg_storage_fini(void);
++void m0_be_ut_seg_storage_init(void);
++
++#endif /* __MERO_BE_UT_HELPER_H__ */
++
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
++/*
++ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
++ */
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index c459404..29fb058 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -18,136 +18,34 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-#include "be/seg.h"
+-#include "be/be.h"
+-#include "dtm/dtm.h"
+-#include "stob/linux.h"
+-#include "ut/ut.h"
++#include "be/seg.h"		/* m0_be_seg */
++#include "ut/ut.h"		/* M0_UT_ASSERT */
++#include "be/ut/helper.h"	/* m0_be_ut_seg_helper */
+ 
+-#include <stdlib.h>	/* system */
+-#include <sys/stat.h>	/* mkdir */
+-#include <sys/types.h>	/* mkdir */
+-
+-enum {
+-	BE_SEG_UT_DOM_ID   = 42,
+-	BE_SEG_UT_STOB_ID  = 42,
+-	BE_SEG_UT_SEG_SIZE = 0x10000
+-};
+-
+-const char *seg_ut_storage_dir = "./__seg_ut_stob";
+-
+-static struct m0_stob_domain *dom;
+-static struct m0_stob_id id = {
+-	.si_bits = M0_UINT128(0, BE_SEG_UT_STOB_ID),
+-};
+-
+-static struct m0_dtx dtx;
+-static struct m0_stob *stob;
+-static struct m0_stob stob_;
+-static struct m0_be be;
+-char buf[0x1000];
+-
+-char *printf_dir(const char *str) {
+-	sprintf(buf, str, seg_ut_storage_dir);
+-	return buf;
+-};
+-
+-static void seg_storage_fini(void)
+-{
+-	int rc;
+-
+-	rc = system(printf_dir("rm -rf %s"));
+-	M0_UT_ASSERT(rc == 0);
+-}
+-
+-static void seg_storage_init(void)
+-{
+-	int rc;
+-
+-	seg_storage_fini();
+-	rc = mkdir(seg_ut_storage_dir, 0700);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = mkdir(printf_dir("%s/o"), 0700);
+-	M0_UT_ASSERT(rc == 0);
+-}
+-
+-static void seg_init_helper(struct m0_be_seg *seg, bool stob_create)
+-{
+-	int rc;
+-
+-	rc = m0_linux_stob_domain_locate(seg_ut_storage_dir, &dom);
+-	M0_UT_ASSERT(rc == 0);
+-	m0_dtx_init(&dtx);
+-	if (!stob_create) {
+-		m0_stob_init(&stob_, &id, dom);
+-		stob = &stob_;
+-	} else {
+-		rc = m0_stob_create_helper(dom, &dtx, &id, &stob);
+-		M0_UT_ASSERT(rc == 0);
+-	}
+-	m0_be_seg_init(seg, stob, &be);
+-}
+-
+-static void seg_fini_helper(struct m0_be_seg *seg, bool stob_put)
+-{
+-	m0_be_seg_fini(seg);
+-	if (stob_put)
+-		m0_stob_put(stob);
+-	m0_dtx_fini(&dtx);
+-	dom->sd_ops->sdo_fini(dom);
+-}
++static struct m0_be_ut_seg_helper be_ut_seg_helper;
+ 
+ M0_INTERNAL void m0_be_ut_seg_init_fini(void)
+ {
+ 	struct m0_be_seg seg;
+ 
+-	seg_storage_init();
+-	seg_init_helper(&seg, true);
+-	seg_fini_helper(&seg, true);
+-	seg_storage_fini();
+-}
+-
+-struct m0_be_seg m0_be_ut_seg;
+-M0_INTERNAL void m0_be_ut_seg_create(void)
+-{
+-	int rc;
+-
+-	seg_storage_init();
+-	seg_init_helper(&m0_be_ut_seg, false);
+-	rc = m0_be_seg_create(&m0_be_ut_seg, BE_SEG_UT_SEG_SIZE);
+-	M0_UT_ASSERT(rc == 0);
+-}
+-
+-M0_INTERNAL void m0_be_ut_seg_destroy(void)
+-{
+-	int rc;
+-
+-	rc = m0_be_seg_destroy(&m0_be_ut_seg);
+-	M0_UT_ASSERT(rc == 0);
+-	seg_fini_helper(&m0_be_ut_seg, false);
+-	seg_storage_fini();
++	m0_be_ut_seg_storage_init();
++	m0_be_ut_seg_initialize(&be_ut_seg_helper, &seg, true);
++	m0_be_ut_seg_finalize(&be_ut_seg_helper, &seg, true);
++	m0_be_ut_seg_storage_fini();
+ }
+ 
+ M0_INTERNAL void m0_be_ut_seg_create_destroy(void)
+ {
+-	m0_be_ut_seg_create();
+-	m0_be_ut_seg_destroy();
++	struct m0_be_seg seg;
++
++	m0_be_ut_seg_create(&be_ut_seg_helper, &seg);
++	m0_be_ut_seg_destroy(&be_ut_seg_helper, &seg);
+ }
+ 
+ M0_INTERNAL void m0_be_ut_seg_open_close(void)
+ {
+ 	struct m0_be_seg seg;
+-	int              rc;
+ 
+-	seg_storage_init();
+-	seg_init_helper(&seg, false);
+-	rc = m0_be_seg_create(&seg, BE_SEG_UT_SEG_SIZE);
+-	M0_UT_ASSERT(rc == 0);
+-	rc = m0_be_seg_open(&seg);
+-	M0_UT_ASSERT(rc == 0);
+-	m0_be_seg_close(&seg);
+-	rc = m0_be_seg_destroy(&seg);
+-	M0_UT_ASSERT(rc == 0);
+-	seg_fini_helper(&seg, false);
+-	seg_storage_fini();
++	m0_be_ut_seg_create_open(&be_ut_seg_helper, &seg);
++	m0_be_ut_seg_close_destroy(&be_ut_seg_helper, &seg);
+ }
+diff --git a/stob/linux.h b/stob/linux.h
+index 9306903..7dd3c44 100644
+--- a/stob/linux.h
++++ b/stob/linux.h
+@@ -23,6 +23,8 @@
+ #ifndef __MERO_STOB_LINUX_H__
+ #define __MERO_STOB_LINUX_H__
+ 
++#include "stob/stob.h"	/* m0_stob_domain */
++
+ /**
+    @defgroup stoblinux Storage object based on Linux specific file system
+    and block device interfaces.
+-- 
+1.8.3.2
+

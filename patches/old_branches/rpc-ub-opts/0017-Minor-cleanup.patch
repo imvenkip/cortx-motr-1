@@ -1,0 +1,55 @@
+From 2678fc893059dc75e1f48d3f99ce8c7e87698d01 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 12 Mar 2013 17:49:46 +0200
+Subject: [PATCH 17/24] Minor cleanup
+
+---
+ rpc/ut/clnt_srv_ctx.c | 25 ++++---------------------
+ 1 file changed, 4 insertions(+), 21 deletions(-)
+
+diff --git a/rpc/ut/clnt_srv_ctx.c b/rpc/ut/clnt_srv_ctx.c
+index 1148e43..671569e 100644
+--- a/rpc/ut/clnt_srv_ctx.c
++++ b/rpc/ut/clnt_srv_ctx.c
+@@ -33,27 +33,9 @@
+ #define SERVER_STOB_FILE_NAME      "rpc_ut_server.stob"
+ #define SERVER_ADDB_STOB_FILE_NAME "rpc_ut_server.addb_stob"
+ #define SERVER_LOG_FILE_NAME       "rpc_ut_server.log"
+-
+-/*
+- * Network layer transport selection:
+- * 0 - mem-bulk;
+- * 1 - lnet.
+- */
+-#if 0 /* XXX rpc-ub */
+-
+-#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
+-#define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
+-#define SERVER_ENDPOINT         "lnet:" SERVER_ENDPOINT_ADDR
+-static struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
+-
+-#else
+-
+-#define CLIENT_ENDPOINT_ADDR    "127.0.0.1:12345"
+-#define SERVER_ENDPOINT_ADDR    "127.0.0.1:12345"
+-#define SERVER_ENDPOINT         "bulk-mem:" SERVER_ENDPOINT_ADDR
+-static struct m0_net_xprt *xprt = &m0_net_bulk_mem_xprt;
+-
+-#endif
++#define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:*"
++#define SERVER_ENDPOINT_ADDR       "0@lo:12345:34:1"
++#define SERVER_ENDPOINT            "lnet:" SERVER_ENDPOINT_ADDR
+ 
+ enum {
+ 	CLIENT_COB_DOM_ID  = 16,
+@@ -63,6 +45,7 @@ enum {
+ 	MAX_RETRIES        = 5,
+ };
+ 
++static struct m0_net_xprt  *xprt = &m0_net_lnet_xprt;
+ static struct m0_net_domain client_net_dom;
+ static struct m0_dbenv      client_dbenv;
+ static struct m0_cob_domain client_cob_dom;
+-- 
+1.8.3.2
+

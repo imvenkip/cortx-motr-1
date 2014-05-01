@@ -1,0 +1,293 @@
+From 36b9518e1b3761ad1cb04c0efca195d184e3f72f Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 6 Feb 2014 11:08:35 +0530
+Subject: [PATCH 16/50]  - Reserved space for generic transitions while define
+ FOM specific transitions.  - bulkio_ut function cleanup
+
+---
+ fop/fom.c                |   5 +--
+ fop/fom_generic.c        |   8 ++--
+ fop/fom_generic.h        | 101 +++++++++++++++++++++++++++++++++++++++++++++++
+ ioservice/io_foms.c      |   3 ++
+ ioservice/io_fops.c      |   3 +-
+ ioservice/ut/bulkio_ut.c |  28 +++----------
+ sm/sm.c                  |   6 +--
+ 7 files changed, 119 insertions(+), 35 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index d2fabf6..9c29fcb 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1542,14 +1542,11 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
+ 
+ M0_INTERNAL int m0_fom_phase_trans_size(struct m0_fom *fom)
+ {
+-	int size;
+-
+ 	M0_PRE(fom != NULL);
+ 	M0_PRE(fom->fo_type != NULL);
+ 	M0_PRE(fom->fo_type->ft_conf != NULL);
+ 
+-	size = M0_FOM_STATS_CNTR_DATA * fom->fo_type->ft_conf->scf_trans_nr;
+-	return size;
++	return M0_FOM_STATS_CNTR_DATA * fom->fo_type->ft_conf->scf_trans_nr;
+ }
+ 
+ /** @} endgroup fom */
+diff --git a/fop/fom_generic.c b/fop/fom_generic.c
+index 22c3a33..a8c9ad2 100644
+--- a/fop/fom_generic.c
++++ b/fop/fom_generic.c
+@@ -657,9 +657,7 @@ static struct m0_sm_state_descr generic_phases[] = {
+ 					M0_FOPH_FINISH)
+ 	}
+ };
+-
+-/* @todo Need alignment and proper cause */
+-static struct m0_sm_trans_descr generic_phases_trans[] = {
++struct m0_sm_trans_descr m0_generic_phases_trans[] = {
+ 	{"FOM initialised",	M0_FOPH_INIT,	M0_FOPH_AUTHENTICATE},
+ 	{"FOM finished",	M0_FOPH_INIT,	M0_FOPH_FINISH},
+ 	{"FOM Success",	        M0_FOPH_INIT,	M0_FOPH_SUCCESS},
+@@ -758,8 +756,8 @@ struct m0_sm_conf m0_generic_conf = {
+ 	.scf_name      = "FOM standard phases",
+ 	.scf_nr_states = ARRAY_SIZE(generic_phases),
+ 	.scf_state     = generic_phases,
+-	.scf_trans_nr  = ARRAY_SIZE(generic_phases_trans),
+-	.scf_trans     = generic_phases_trans,
++	.scf_trans_nr  = ARRAY_SIZE(m0_generic_phases_trans),
++	.scf_trans     = m0_generic_phases_trans,
+ };
+ M0_EXPORTED(m0_generic_conf);
+ 
+diff --git a/fop/fom_generic.h b/fop/fom_generic.h
+index ccb4402..ad80f4e 100644
+--- a/fop/fom_generic.h
++++ b/fop/fom_generic.h
+@@ -196,11 +196,112 @@ enum m0_fom_standard_phase {
+    @todo standard fom phases implementation, depends on the support routines for
+ 	handling various standard operations on fop as mentioned above
+  */
++/*
++struct m0_sm_trans_descr generic_phases_trans[] = {
++	{"FOM initialised",	M0_FOPH_INIT,	M0_FOPH_AUTHENTICATE},
++	{"FOM finished",	M0_FOPH_INIT,	M0_FOPH_FINISH},
++	{"FOM Success",	        M0_FOPH_INIT,	M0_FOPH_SUCCESS},
++	{"FOM init failed",	M0_FOPH_INIT,	M0_FOPH_FAILURE},
++	{"FOM initialised start specific phases",
++				M0_FOPH_INIT, M0_FOPH_TYPE_SPECIFIC},
++	{"FOM wait authentication",
++				M0_FOPH_AUTHENTICATE,
++				M0_FOPH_AUTHENTICATE_WAIT},
++	{"FOM authentication finished",
++				M0_FOPH_AUTHENTICATE, M0_FOPH_RESOURCE_LOCAL},
++	{"FOM authentication init failed",
++				M0_FOPH_AUTHENTICATE, M0_FOPH_FAILURE},
++	{"FOM wait authentication finished",
++				M0_FOPH_AUTHENTICATE_WAIT,
++			        M0_FOPH_RESOURCE_LOCAL},
++	{"FOM authentication failed",
++				M0_FOPH_AUTHENTICATE_WAIT, M0_FOPH_FAILURE},
++	{"Wait identify local resource",
++				M0_FOPH_RESOURCE_LOCAL,
++				M0_FOPH_RESOURCE_LOCAL_WAIT},
++	{"Local resource identified",
++				M0_FOPH_RESOURCE_LOCAL,
++			        M0_FOPH_RESOURCE_DISTRIBUTED},
++	{"Local resource identification init failed",
++				M0_FOPH_RESOURCE_LOCAL, M0_FOPH_FAILURE},
++	{"Wait local resource identify finished",
++				M0_FOPH_RESOURCE_LOCAL_WAIT,
++				M0_FOPH_RESOURCE_DISTRIBUTED},
++	{"Local resource identification failed",
++				M0_FOPH_RESOURCE_LOCAL_WAIT, M0_FOPH_FAILURE},
++	{"Wait identify distributed resource",
++				M0_FOPH_RESOURCE_DISTRIBUTED,
++			        M0_FOPH_RESOURCE_DISTRIBUTED_WAIT},
++	{"Distributed resource identified",
++				M0_FOPH_RESOURCE_DISTRIBUTED,
++			        M0_FOPH_OBJECT_CHECK},
++	{"Distributed resource identification init failed",
++				M0_FOPH_RESOURCE_DISTRIBUTED,
++				M0_FOPH_FAILURE},
++	{"Distributed resource identified",
++				M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
++			        M0_FOPH_OBJECT_CHECK},
++	{"Wait identify distributed resource failed",
++				M0_FOPH_RESOURCE_DISTRIBUTED_WAIT,
++				M0_FOPH_FAILURE},
++	{"Wait check for FS objects initiate",
++				M0_FOPH_OBJECT_CHECK,
++			        M0_FOPH_OBJECT_CHECK_WAIT},
++	{"FS objects located",  M0_FOPH_OBJECT_CHECK, M0_FOPH_AUTHORISATION},
++	{"Check for FS objects init failed",
++				M0_FOPH_OBJECT_CHECK, M0_FOPH_FAILURE},
++	{"Wait check for FS objects finished",
++				M0_FOPH_OBJECT_CHECK_WAIT,
++				M0_FOPH_AUTHORISATION},
++	{"Check for FS object failed",
++				M0_FOPH_OBJECT_CHECK_WAIT, M0_FOPH_FAILURE},
++	{"Wait authorisation",
++				M0_FOPH_AUTHORISATION,
++			        M0_FOPH_AUTHORISATION_WAIT},
++	{"Authorisation init finish",
++				M0_FOPH_AUTHORISATION, M0_FOPH_TXN_INIT},
++	{"Autorisation init failed",
++				M0_FOPH_AUTHORISATION, M0_FOPH_FAILURE},
++	{"Wait authorisation finished",
++				M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_TXN_INIT},
++	{"Wait authorisation failed",
++				M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_FAILURE},
++	{"Transaction initialised",
++				M0_FOPH_TXN_INIT, M0_FOPH_TXN_OPEN},
++	{"Wait for transaction open",
++				M0_FOPH_TXN_OPEN, M0_FOPH_TXN_WAIT},
++	{"Transaction open failed",
++				M0_FOPH_TXN_WAIT, M0_FOPH_FAILURE},
++	{"Transaction opened",  M0_FOPH_TXN_WAIT, M0_FOPH_TYPE_SPECIFIC},
++	{"FOM successfully completed",
++				 M0_FOPH_SUCCESS, M0_FOPH_FOL_REC_ADD},
++	{"FOL record added",     M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
++	{"Transaction commited", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
++	{"Wait reply queue",     M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
++	{"Reply sent FOM finish",
++				 M0_FOPH_QUEUE_REPLY, M0_FOPH_FINISH},
++	{"Wait reply queue finished",
++				 M0_FOPH_QUEUE_REPLY_WAIT,
++				 M0_FOPH_TXN_COMMIT_WAIT},
++	{"Reply queued FOM finished",
++				 M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_FINISH},
++	{"Wait transaction commit finished",
++				 M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_FINISH},
++	{"FOM timed out",        M0_FOPH_TIMEOUT, M0_FOPH_FAILURE},
++	{"FOM failed",           M0_FOPH_FAILURE, M0_FOPH_TXN_COMMIT},
++};
++*/
+ int m0_fom_tick_generic(struct m0_fom *fom);
+ 
+ M0_INTERNAL void m0_fom_generic_fini(void);
+ M0_INTERNAL int m0_fom_generic_init(void);
+ 
++enum {
++	M0_GENERIC_PHASES_TRANS_COUNT = 44,
++};
++
++extern struct m0_sm_trans_descr
++m0_generic_phases_trans[M0_GENERIC_PHASES_TRANS_COUNT];
+ extern struct m0_sm_conf m0_generic_conf;
+ 
+ /**
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index aad5e65..d13e047 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -752,6 +752,7 @@ struct m0_sm_state_descr io_phases[] = {
+ };
+ 
+ struct m0_sm_trans_descr io_phases_trans[] = {
++	[ARRAY_SIZE(m0_generic_phases_trans)] =
+ 	{"IO Prepared",
+ 	 M0_FOPH_IO_FOM_PREPARE,
+ 	 M0_FOPH_IO_FOM_BUFFER_ACQUIRE},
+@@ -2119,6 +2120,8 @@ static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+ 			 rwfop->crw_desc.id_nr, rwfop->crw_flags);
+ 	m0_fom_op_addb_ctx_import(fom, &rwfop->crw_addb_ctx_id);
+ 
++	if (M0_FI_ENABLED("skip_counter_alloc"))
++		return;
+ 	IOS_ALLOC_ARR(fom->fo_phase_stats_data, trans_size,
+ 		      &m0_ios_addb_ctx, FOM_COB_RW_ADDB_INIT);
+ 	if (fom->fo_phase_stats_data != NULL) {
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index 60fb41f..6b76104 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -219,7 +219,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 	struct m0_sm_conf *p_cob_ops_conf;
+ #ifndef __KERNEL__
+ 	uint32_t           new_nr;
+-	int                i;
+ 	p_cob_ops_conf = &cob_ops_conf;
+ #else
+ 	p_cob_ops_conf = &m0_generic_conf;
+@@ -238,6 +237,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 			  m0_generic_conf.scf_nr_states);
+ 
+ 	new_nr = io_conf.scf_trans_nr + m0_generic_conf.scf_trans_nr;
++#if 0
+ 	M0_ALLOC_ARR(new_trans, new_nr);
+ 	if (new_trans == NULL) {
+ 		m0_xc_io_fops_fini();
+@@ -250,6 +250,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 		new_trans[i] = io_conf.scf_trans[i];
+ 
+ 	io_conf.scf_trans    = new_trans;
++#endif
+ 	m0_sm_conf_trans_extend(&m0_generic_conf, &io_conf, new_nr);
+ 
+ 	m0_sm_conf_init(&io_conf);
+diff --git a/ioservice/ut/bulkio_ut.c b/ioservice/ut/bulkio_ut.c
+index b2f64b5..c9044a7 100644
+--- a/ioservice/ut/bulkio_ut.c
++++ b/ioservice/ut/bulkio_ut.c
+@@ -1152,29 +1152,13 @@ static int io_fop_stob_create_fom_create(struct m0_fop  *fop,
+ 					 struct m0_fom **m,
+ 					 struct m0_reqh *reqh)
+ {
+-	struct m0_io_fom_cob_rw *fom_obj;
+-	struct m0_fop           *rep_fop;
+-	struct m0_fom           *fom;
+-
+-	M0_ALLOC_PTR(fom_obj);
+-	M0_UT_ASSERT(fom_obj != NULL);
+-
+-        rep_fop = m0_is_read_fop(fop) ?
+-                    m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL) :
+-                    m0_fop_alloc(&m0_fop_cob_writev_rep_fopt, NULL);
+-        if (rep_fop == NULL) {
+-                m0_free(fom_obj);
+-                M0_UT_ASSERT(rep_fop != NULL);
+-        }
+-
+-        fom = &fom_obj->fcrw_gen;
+-        m0_fom_init(fom, &fop->f_type->ft_fom_type,
+-                    &bulkio_stob_create_fom_ops, fop, rep_fop, reqh,
+-                    fop->f_type->ft_fom_type.ft_rstype);
+-
+-        m0_fop_put(rep_fop);
+-        m0_fop_put(fop);
++	int            rc;
++	struct m0_fom *fom;
+ 
++	m0_fi_enable_once("m0_io_fom_cob_rw_addb_init", "skip_counter_alloc");
++	rc = m0_io_fom_cob_rw_create(fop, &fom, reqh);
++        M0_UT_ASSERT(rc == 0);
++	fom->fo_ops = &bulkio_stob_create_fom_ops;
+         *m = fom;
+ 
+         return 0;
+diff --git a/sm/sm.c b/sm/sm.c
+index 7f534f6..fb0ca05 100644
+--- a/sm/sm.c
++++ b/sm/sm.c
+@@ -654,14 +654,14 @@ M0_INTERNAL void m0_sm_conf_trans_extend(const struct m0_sm_conf *base,
+ 	uint32_t i;
+ 
+ 	M0_PRE(conf_invariant(base));
+-	M0_PRE(sub->scf_trans_nr <= max_size);
++//	M0_PRE(sub->scf_trans_nr <= max_size);
+ 
+ 	for (i = 0; i < base->scf_trans_nr; i++) {
+ 		const struct m0_sm_trans_descr *b = &base->scf_trans[i];
+ 
+ 		if (!trans_exists(sub, b->td_src, b->td_tgt)) {
+-			sub->scf_trans[sub->scf_trans_nr++] = *b;
+-			M0_ASSERT(sub->scf_trans_nr <= max_size);
++			sub->scf_trans[i] = *b;
++		//	M0_ASSERT(sub->scf_trans_nr <= max_size);
+ 		}
+ 	}
+ 	M0_POST(conf_invariant(sub));
+-- 
+1.8.3.2
+

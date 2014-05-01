@@ -1,0 +1,122 @@
+From 13b30b5ef3f8464addc5459c0d2c0a621a4361a5 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 2 Aug 2012 12:39:58 +0300
+Subject: [PATCH 281/370] conf/ut/map.c: add an example of in-memory DB
+ creation
+
+This is not a unit test. This code is for reference only and
+will be deleted.
+---
+ conf/map.c    |  3 +++
+ conf/ut/map.c | 65 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 67 insertions(+), 1 deletion(-)
+
+diff --git a/conf/map.c b/conf/map.c
+index 0f3e699..d80bec8 100644
+--- a/conf/map.c
++++ b/conf/map.c
+@@ -46,6 +46,9 @@ int c2_conf_map_init(struct c2_conf_map *map)
+ 	 * http://docs.oracle.com/cd/E17076_02/html/gsg_txn/C/autocommit.html).
+ 	 *
+ 	 * Create empty table (map->m_tbl).
++	 *
++	 * See also `Writing In-Memory Berkeley DB Applications'
++	 * [http://docs.oracle.com/cd/E17076_02/html/articles/inmemory/C/index.html].
+ 	 */
+ 	XXX;
+ }
+diff --git a/conf/ut/map.c b/conf/ut/map.c
+index b6bf3b2..2c19e9d 100644
+--- a/conf/ut/map.c
++++ b/conf/ut/map.c
+@@ -18,9 +18,19 @@
+  * Original creation date: 26-Jul-2012
+  */
+ 
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#if 0  /* XXX <<<<<<< */
+ #include "conf/map.c"
++#endif /* XXX >>>>>>> */
+ #include "lib/ut.h"
+ 
++#if 1  /* XXX <<<<<<< */
++#include <db.h>
++#endif /* XXX >>>>>>> */
++
++#if 0 /*XXX*/
+ static void test_add_lookup(void)
+ {
+ 	struct c2_conf_map       map;
+@@ -54,13 +64,66 @@ static void test_add_lookup(void)
+ 
+ 	c2_conf_map_fini(&map);
+ }
++#endif /*XXX*/
++
++static void test_XXX_db5(void)
++{
++	enum { MEGA = 1024 * 1024 };
++	DB_ENV       *env;
++	DB           *db;
++	DB_MPOOLFILE *mpf;
++	int           rc;
++
++	rc = db_env_create(&env, 0);
++	C2_UT_ASSERT(rc == 0);
++
++	/* Make DB's cache size big enough. */
++	rc = env->set_cachesize(env, 0, 10 * MEGA, 1);
++	C2_UT_ASSERT(rc == 0);
++
++	/* Keep transaction logs in memory. */
++	rc = env->log_set_config(env, DB_LOG_IN_MEMORY, 1);
++	C2_UT_ASSERT(rc == 0);
++
++	/* Make sure that in-memory log is large enough that no
++	 * transaction will ever span the entire buffer. */
++	rc = env->set_lg_bsize(env, 10 * MEGA);
++	C2_UT_ASSERT(rc == 0);
++
++	/* Pass NULL as home directory (2nd arg) and use DB_PRIVATE
++	 * flag for in-memory databases. */
++	rc = env->open(env, NULL, DB_CREATE | DB_INIT_LOCK | DB_INIT_LOG |
++		       DB_INIT_TXN | DB_INIT_MPOOL | DB_PRIVATE, 0);
++	C2_UT_ASSERT(rc == 0);
++
++	rc = db_create(&db, env, 0);
++	C2_UT_ASSERT(rc == 0);
++
++	/* Do not create temporary files on disk, even if the database
++	 * expands to fill the entire cache. */
++	mpf = db->get_mpf(db);
++	rc = mpf->set_flags(mpf, DB_MPOOL_NOFILE, 1);
++	C2_UT_ASSERT(rc == 0);
++
++	/* Do not specify file name (3rd arg). */
++	rc = db->open(db, NULL, NULL, "confc-registry", DB_BTREE,
++		      DB_CREATE | DB_AUTO_COMMIT, 0);
++	C2_UT_ASSERT(rc == 0);
++
++	rc = db->close(db, 0);
++	C2_UT_ASSERT(rc == 0);
++
++	rc = env->close(env, 0);
++	C2_UT_ASSERT(rc == 0);
++}
+ 
+ const struct c2_test_suite conf_map_ut = {
+ 	.ts_name  = "conf-map-ut",
+ 	.ts_init  = NULL,
+ 	.ts_fini  = NULL,
+ 	.ts_tests = {
+-		{ "conf-map-add-lookup", test_add_lookup },
++		/* { "conf-map-add-lookup", test_add_lookup }, */
++		{ "plain Berkeley DB API", test_XXX_db5 },
+ 		{ NULL, NULL }
+ 	}
+ };
+-- 
+1.8.3.2
+

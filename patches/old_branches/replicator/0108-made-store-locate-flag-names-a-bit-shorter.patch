@@ -1,0 +1,245 @@
+From 33c48a84bf1254bac5fa8470c5e76bbde425dad8 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Tue, 7 Jun 2011 08:58:48 -0600
+Subject: [PATCH 108/177] - made store locate flag names a bit shorter; -
+ handled rename case that src name is not yet existing.
+
+---
+ mdservice/md_foms.c | 66 ++++++++++++++++++++++++++++++++++-------------------
+ mdstore/mdstore.c   |  6 ++---
+ mdstore/mdstore.h   |  6 ++---
+ 3 files changed, 48 insertions(+), 30 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index c93b4ae..5a6f12f 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -134,14 +134,13 @@ static int c2_md_create(struct c2_md_store  *mdstore,
+                                 attr->ca_namelen, &ncob, tx);
+         if (rc == -ENOENT) {
+                 rc = c2_md_store_locate(mdstore, tfid, &scob, 
+-                                        C2_MD_STORE_LOCATE_STORED, tx);
++                                        C2_MD_LOCATE_STORED, tx);
+                 if (rc == -ENOENT) {
+                         rc = c2_md_store_alloc(mdstore, tfid, &scob);
+                         if (rc)
+                                 return rc;
+ 
+-                        rc = c2_md_store_create(mdstore, pfid, 
+-                                                scob, attr, tx);
++                        rc = c2_md_store_create(mdstore, pfid, scob, attr, tx);
+                 } else if (rc == 0) {
+                         name = c2_bitstring_alloc(attr->ca_name, attr->ca_namelen);
+                         if (!name) {
+@@ -156,7 +155,7 @@ static int c2_md_create(struct c2_md_store  *mdstore,
+                 }
+         } else if (rc == 0) {
+                 rc = c2_md_store_locate(mdstore, tfid, &scob, 
+-                                        C2_MD_STORE_LOCATE_STORED, tx);
++                                        C2_MD_LOCATE_STORED, tx);
+                 if (rc) {
+                         c2_cob_put(ncob);
+                         return rc;
+@@ -351,7 +350,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                  */
+                 if (ncob->co_nsrec.cnr_linkno != 0) {
+                         rc = c2_md_store_locate(site->s_mdstore, &tfid, &scob, 
+-                                                C2_MD_STORE_LOCATE_STORED,
++                                                C2_MD_LOCATE_STORED,
+                                                 &ctx->fc_tx->tx_dbtx);
+                         if (rc)
+                                 goto out;
+@@ -370,7 +369,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                  * object attributes.
+                  */
+                 rc = c2_md_store_locate(site->s_mdstore, &tfid, &scob, 
+-                                        C2_MD_STORE_LOCATE_STORED,
++                                        C2_MD_LOCATE_STORED,
+                                         &ctx->fc_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+@@ -422,7 +421,7 @@ static int c2_md_rename(struct c2_md_store  *mdstore,
+         int                   rc;
+ 
+         rc = c2_md_store_locate(mdstore, tfid_tgt, &tcob,
+-                                C2_MD_STORE_LOCATE_STORED, tx);
++                                C2_MD_LOCATE_STORED, tx);
+         if (rc != 0 && rc != -ENOENT)
+                 return rc;
+ 
+@@ -468,10 +467,12 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+         struct c2_fop_ctx        *ctx;
+         struct c2_cob            *ncob = NULL;
+         struct c2_cob            *scob = NULL;
++        struct c2_cob            *sncob = NULL;
+         struct c2_fid             tfid_src;
+         struct c2_fid             tfid_tgt;
+         struct c2_fid             pfid_tgt;
+         struct c2_fid             pfid_src;
++        struct c2_bitstring      *sname;
+         struct c2_cob_attr        sattr;
+         struct c2_cob_attr        tattr;
+         struct c2_service        *svc;
+@@ -514,7 +515,7 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+                                 req->r_tname.s_len, &ncob, &ctx->fc_tx->tx_dbtx);
+         if (rc == -ENOENT) {
+                 rc = c2_md_store_locate(site->s_mdstore, &tfid_src, &scob, 
+-                                        C2_MD_STORE_LOCATE_STORED,
++                                        C2_MD_LOCATE_STORED,
+                                         &ctx->fc_tx->tx_dbtx);
+                 if (rc == -ENOENT) {
+                         sattr.ca_name = req->r_tname.s_buf;
+@@ -528,27 +529,44 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+                                                 &pfid_tgt, scob, &sattr, 
+                                                 &ctx->fc_tx->tx_dbtx);
+                 } else if (rc == 0) {
+-                        rc = c2_md_rename(site->s_mdstore,
+-                                          &pfid_tgt, &pfid_src, 
+-                                          &tfid_tgt, &tfid_src, 
+-                                          &tattr, &sattr, scob,
+-                                          &ctx->fc_tx->tx_dbtx);
++                        rc = c2_md_rename(site->s_mdstore, &pfid_tgt, &pfid_src, 
++                                          &tfid_tgt, &tfid_src, &tattr, &sattr,
++                                          scob, &ctx->fc_tx->tx_dbtx);
+                 }
+                 c2_cob_put(scob);
+         } else {
+                 rc = c2_md_store_locate(site->s_mdstore, &tfid_src, &scob, 
+-                                        C2_MD_STORE_LOCATE_STORED,
++                                        C2_MD_LOCATE_STORED,
+                                         &ctx->fc_tx->tx_dbtx);
+                 if (rc) {
+                         c2_cob_put(ncob);
+                         goto out;
+                 }
+                 if (sattr.ca_version > scob->co_nsrec.cnr_version) {
+-                        rc = c2_md_rename(site->s_mdstore,
+-                                          &pfid_tgt, &pfid_src, 
+-                                          &tfid_tgt, &tfid_src, 
+-                                          &tattr, &sattr, scob,
+-                                          &ctx->fc_tx->tx_dbtx);
++                        rc = c2_md_store_lookup(site->s_mdstore, &pfid_src, 
++                                                req->r_sname.s_buf,
++                                                req->r_sname.s_len, &sncob, 
++                                                &ctx->fc_tx->tx_dbtx);
++                        if (rc == -ENOENT) {
++                                sname = c2_bitstring_alloc(req->r_sname.s_buf,
++                                                           req->r_sname.s_len);
++                                if (!sname) {
++                                        rc = -ENOMEM;
++                                } else {
++                                        rc = c2_md_store_link(site->s_mdstore, 
++                                                              &pfid_src, scob, sname,
++                                                              &ctx->fc_tx->tx_dbtx);
++                                        c2_bitstring_free(sname);
++                                }
++                        } else {
++                                c2_cob_put(sncob);
++                        }
++                        if (rc == 0) {
++                                rc = c2_md_rename(site->s_mdstore, &pfid_tgt, 
++                                                  &pfid_src, &tfid_tgt, &tfid_src,
++                                                  &tattr, &sattr, scob, 
++                                                  &ctx->fc_tx->tx_dbtx);
++                        }
+                 }
+                 c2_cob_put(ncob);
+                 c2_cob_put(scob);
+@@ -603,7 +621,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORED,
++                                C2_MD_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc == 0) {
+                 /*
+@@ -680,7 +698,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
+          * ut happy.
+          */
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORED/*OPENED*/,
++                                C2_MD_LOCATE_STORED/*OPENED*/,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -743,7 +761,7 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORED,
++                                C2_MD_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -802,7 +820,7 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORED,
++                                C2_MD_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+@@ -862,7 +880,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&fid, &body->b_tfid);
+ 
+         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
+-                                C2_MD_STORE_LOCATE_STORED,
++                                C2_MD_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc)
+                 goto out;
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 6b1ca95..ede43ce 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -684,7 +684,7 @@ int c2_md_store_locate(struct c2_md_store       *md,
+ 
+         c2_cob_make_oikey(&oikey, fid, 0);
+ 
+-        if (flags == C2_MD_STORE_LOCATE_STORED) {
++        if (flags == C2_MD_LOCATE_STORED) {
+                 rc = c2_cob_locate(&md->md_dom, &oikey, cob, tx);
+         } else {
+                 /*
+@@ -753,7 +753,7 @@ int c2_md_store_path(struct c2_md_store *md,
+ restart:
+         c2_db_tx_init(&tx, md->md_dom.cd_dbenv, 0);
+ 
+-        rc = c2_md_store_locate(md, fid, &cob, C2_MD_STORE_LOCATE_STORED, &tx);
++        rc = c2_md_store_locate(md, fid, &cob, C2_MD_LOCATE_STORED, &tx);
+         if (rc)
+                 goto out;
+ 
+@@ -776,7 +776,7 @@ restart:
+                         break;
+                 }
+                 rc = c2_md_store_locate(md, &cob->co_nskey->cnk_pfid, 
+-                                        &cob, C2_MD_STORE_LOCATE_STORED,
++                                        &cob, C2_MD_LOCATE_STORED,
+                                         &tx);
+         }
+ out:
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 36770d8..ea355df 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -33,11 +33,11 @@ extern struct c2_fid C2_MD_ROOT_FID;
+ */
+ enum c2_md_store_locate_flags {
+         /** Find cob on store. */
+-        C2_MD_STORE_LOCATE_STORED  = 1 << 0,
++        C2_MD_LOCATE_STORED  = 1 << 0,
+         /** Find cob in opened cobs table. */
+-        C2_MD_STORE_LOCATE_OPENED  = 1 << 1,
++        C2_MD_LOCATE_OPENED  = 1 << 1,
+         /** Find cob in orphans table. */
+-        C2_MD_STORE_LOCATE_ORPHAN  = 1 << 2
++        C2_MD_LOCATE_ORPHAN  = 1 << 2
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

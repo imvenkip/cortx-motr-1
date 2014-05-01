@@ -1,0 +1,164 @@
+From c845c1556be243becb2b82a8d703a06b3cba3a50 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 30 Mar 2012 15:32:11 +0300
+Subject: [PATCH 106/311] confc-dld: update the description of path_walk()
+
+---
+ conf/confc.c | 141 +++++++++++++++++++++++++++++++++++------------------------
+ 1 file changed, 83 insertions(+), 58 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index dfef829..8924c77 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -205,64 +205,89 @@
+  * @subsection confc-dld-lspec-walk Walking the DAG
+  *
+  * path_walk() begins with locking the cache (c2_confc::cc_lock) and
+- * unlocks the cache before returning.  The function "moves" along the
+- * DAG of cached configuration objects: it starts at the configuration
+- * object the path originates from and follows the directions,
+- * specified by path components.  path_walk() stops when all of the
+- * path components are consumed or when a stub is reached.
+- *
+- * @note Until confd is implemented, confc has no service to send
+- *       configuration requests to. This issue is addressed by @ref
+- *       confc-offline workaround. In accordance with this workaround,
+- *       path_walk() treats "stub on a path" situations as failures,
+- *       C2_ASSERT()ing availability of the requested object/directory
+- *       in the configuration cache.
+- *
+- * - Stub ahead
+- *
+- * A stub object lying on a path makes further progress impossible,
+- * because relations of a stub are not trustworthy.  If a stub is
+- * C2_CS_LOADING, path_walk() registers c2_confc_ctx::fc_clink with
+- * stub's channel and returns C2_CS_LOADING.  Otherwise it changes
+- * stub's status (C2_CS_MISSING) to C2_CS_LOADING, fills request fop
+- * (c2_confc_ctx::fc_req) by calling request_fill(), and returns
+- * C2_CS_MISSING.
+- *
+- * - Wrong key
+- *
+- * If one of path components is a key and the key is wrong, then
+- * path_walk() returns -ENOENT.
+- *
+- * - Target is an object
+- *
+- * If path target is a C2_CS_READY object, path_walk() increments its
+- * reference counter (c2_conf_obj::co_nrefs) and returns C2_CS_READY.
+- *
+- * - Target is a directory
+- *
+- * If path target is a directory, path_walk() checks whether all of
+- * the configuration objects in this directory are C2_CS_READY. If
+- * they are, path_walk() increments reference counter of the object
+- * the directory originates from, and returns C2_CS_READY.  If at
+- * least one of the objects is C2_CS_MISSING, path_walk() sets
+- * statuses of missing objects to C2_CS_LOADING and returns
+- * C2_CS_MISSING.
+- *
+- * - Target is a directory, C2_CS_LOADING case
+- *
+- * There is one more case, in which the target directory has no
+- * C2_CS_MISSING objects, and yet not all of its objects are
+- * C2_CS_READY --- one or more of the objects in this directory are
+- * C2_CS_LOADING.  If there is only one such object, path_walk()
+- * registers c2_confc_ctx::fc_clink with object's channel
+- * (c2_conf_obj::co_chan) and returns C2_CS_LOADING.
+- *
+- * If there are N + 1 objects (N > 0) with C2_CS_LOADING status, then
+- * path_walk() dynamically allocates an array of N clinks
+- * (c2_confc_ctx::fc_extra), attaches them (c2_clink_attach()) to
+- * c2_confc_ctx::fc_clink, and registers N + 1 clinks with the
+- * channels of C2_CS_LOADING objects (see `Multiple channels' section
+- * in @ref chan).  Finally, path_walk() returns C2_CS_LOADING.
++ * unlocks the cache before returning.  The function does two things
++ * represented by subroutines:
++ *   -#
++ *      walk() "moves" along the DAG of cached configuration
++ *      objects. It starts at the configuration object the path
++ *      originates from and follows the directions specified by path
++ *      components.  walk() stops when all of the path components are
++ *      consumed or when a stub is reached.  It returns the "overall"
++ *      status of the objects belonging the path (see below) or
++ *      negative error code.
++ *   -#
++ *      act() applies the results of path walking. The arguments are
++ *      c2_confc_ctx, path position reached by walk(), and status
++ *      value returned by walk().
++ *
++ * @note According to @ref confc-offline workaround, the situations
++ *       when configuration data requested by an application is
++ *       missing from the confc cache are treated as failures.
++ *       path_walk() C2_ASSERT()s that the value of status returned by
++ *       walk() is C2_CS_READY.
++ *
++ * - walk()
++ *
++ *   - Stub ahead
++ *
++ *     A stub object lying on a path makes further progress
++ *     impossible, because relations of a stub are not trustworthy.
++ *     walk() returns c2_conf_obj::co_status of the stub object.
++ *
++ *   - Wrong key
++ *
++ *     If one of path components is a key and there is no object with
++ *     such key in current directory, then walk() returns -ENOENT.
++ *
++ *   - Target is a directory
++ *
++ *     It is assumed that the parent object of this directory is
++ *     reachable (its path predecessors are C2_CS_READY) and is
++ *     C2_CS_READY. If this is not the case, see `Stub ahead' stanza.
++ *
++ *     walk() scans the directory, checking statuses of its objects.
++ *     If all of the objects are C2_CS_READY, walk() returns
++ *     C2_CS_READY.  If some of the objects are C2_CS_MISSING, walk()
++ *     changes their statuses to C2_CS_LOADING and returns
++ *     C2_CS_MISSING.  Otherwise walk() calculates the number of
++ *     C2_CS_LOADING objects, asserts that this number is > 0, and
++ *     returns C2_CS_LOADING.
++ *
++ *   - Target is an object
++ *
++ *     walk() returns ->co_status of the reached target object.
++ *
++ * - act()
++ *
++ *   - C2_CS_READY
++ *
++ *     act() assigns c2_confc_ctx::fc_result.  It also increments
++ *     reference counter (c2_conf_obj::co_nrefs) of the requested
++ *     configuration object or, in case of directory, of the object
++ *     the directory originates from.
++ *
++ *   - C2_CS_MISSING
++ *
++ *     act() fills configuration fetch request (c2_conf_fetch) and
++ *     sets status of current object, i.e. the object reached by
++ *     walk(), to C2_CS_LOADING.
++ *
++ *   - C2_CS_LOADING object
++ *
++ *     act() registers c2_confc_ctx::fc_clink with object's channel
++ *     (c2_conf_obj::co_chan).
++ *
++ *   - Directory with C2_CS_LOADING objects
++ *
++ *     Let 1 + N be the number of C2_CS_LOADING objects in this
++ *     directory.  If N > 0, then act() allocates array of N clinks,
++ *     sets ->fc_extra and ->fc_nr_extra members of c2_confc_ctx,
++ *     attaches (c2_clink_attach()) ->fc_extra clinks to ->fc_clink,
++ *     and registers a group of clinks with object's channels;
++ *     ->fc_clink is a "group head".  See `Multiple channels' in @ref
++ *     chan.
++ *
++ *     If N = 0, then only ->fc_clink is registered (c2_clink_add()).
+  *
+  * <!------------------------------------------------------------------>
+  * @subsection confc-dld-lspec-state State Specification
+-- 
+1.8.3.2
+

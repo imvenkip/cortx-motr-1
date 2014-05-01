@@ -1,0 +1,68 @@
+From e8ed309d057e906ccfa24cc7850823be0132e3a9 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 20 Apr 2012 22:28:16 +0300
+Subject: [PATCH 146/370] confc.c: minor stylistic updates
+
+- extra_clinks_create(): have c2_confc_ctx parameter, for the sake of
+  symmetry with extra_clinks_destroy().
+- confc_states: place `|' under `='.
+
+RB: r/714
+---
+ conf/confc.c | 20 +++++++++++---------
+ 1 file changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 6785af9..aec1759 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -426,19 +426,21 @@ static int walk(struct walk_ctx *wx)
+ 	return ret;
+ }
+ 
+-/** Allocates `n' clinks and attaches them to the `group'. */
++/** Allocates `n' clinks and attaches them to ctx->fc_clink (group head). */
+ static struct c2_clink *
+-extra_clinks_create(struct c2_clink *group, uint32_t n)
++extra_clinks_create(struct c2_confc_ctx *ctx, uint32_t n)
+ {
+-	struct c2_clink *ret;
++	struct c2_clink *clinks;
+ 	uint32_t         i;
+ 	C2_PRE(n > 0);
+-	C2_ALLOC_ARR(ret, n);
+-	if (ret != NULL) {
++
++	C2_ALLOC_ARR(clinks, n);
++	if (clinks != NULL) {
+ 		for (i = 0; i < n; ++i)
+-			c2_clink_attach(ret + i, group, on_object_updated);
++			c2_clink_attach(clinks + i, &ctx->fc_clink,
++					on_object_updated);
+ 	}
+-	return ret;
++	return clinks;
+ }
+ 
+ /** Frees resources allocated for ctx->fc_extra array. */
+@@ -492,7 +494,7 @@ static int act(struct c2_confc_ctx *cx, const struct walk_ctx *wx,
+ 			C2_ASSERT(wx->w_nload > 0);
+ 			if (wx->w_nload > 1) {
+ 				cx->fc_extra = extra_clinks_create(
+-					&cx->fc_clink, wx->w_nload - 1);
++					cx, wx->w_nload - 1);
+ 				if (cx->fc_extra == NULL)
+ 					return -ENOMEM;
+ 				cx->fc_nr_extra = wx->w_nload - 1;
+@@ -921,7 +923,7 @@ static const struct c2_sm_state_descr confc_states[S_NR] = {
+ 		.sd_ex        = NULL,
+ 		.sd_invariant = NULL,
+ 		.sd_allowed   = 1 << S_WAIT_REPLY | 1 << S_WAIT_STATUS
+-				| 1 << S_TERMINAL | 1 << S_FAILURE
++			      | 1 << S_TERMINAL | 1 << S_FAILURE
+ 	},
+ 	[S_WAIT_REPLY] = {
+ 		.sd_flags     = 0,
+-- 
+1.8.3.2
+

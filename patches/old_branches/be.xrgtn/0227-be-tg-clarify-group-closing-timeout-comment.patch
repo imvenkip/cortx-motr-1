@@ -1,0 +1,25 @@
+From 562e14aa6bad52e6dae5262b84a42d86763540f8 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Mon, 1 Jul 2013 19:15:37 +0300
+Subject: [PATCH 227/228] be/tg: clarify "group closing timeout" comment.
+
+---
+ be/tx_group.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/tx_group.c b/be/tx_group.c
+index 62bbc1c..2a8695a 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -432,7 +432,7 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+ 		gr->tg_hdr.gh_id  = tx->t_hdr.th_id;
+ 		gr->tg_hdr.gh_lsn = gr->tg_eng->te_log.lg_lsn;
+ 		tg_state_set(gr, M0_BGS_ACTIVE);
+-		/* XXX: Schedule group close in 20ms. */
++		/* XXX: Schedule group closing to occur in 20ms. */
+ 		m0_fom_timeout_wait_on(&gr->tg_close_timeout, &gr->tg_fom,
+ 				       m0_time_from_now(0, 20000000));
+ 	}
+-- 
+1.8.3.2
+

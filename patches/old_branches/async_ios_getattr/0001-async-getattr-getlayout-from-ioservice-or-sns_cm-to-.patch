@@ -1,0 +1,261 @@
+From 8b455204170ca475c490318d850029f264c91d4a Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 1 Aug 2013 13:34:55 +0800
+Subject: [PATCH 1/7] async getattr & getlayout from ioservice(or sns_cm) to
+ mdservice.
+
+---
+ ioservice/io_service.c | 188 +++++++++++++++++++++++++++++++++++++++++++++++++
+ ioservice/io_service.h |  21 ++++++
+ rpc/item.h             |   3 +
+ 3 files changed, 212 insertions(+)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 07e5338..7269c6d 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -870,6 +870,194 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+ 	M0_RETURN(rc);
+ }
+ 
++static int _rpc_post(struct m0_fop                *fop,
++		     struct m0_rpc_session        *session,
++		     const struct m0_rpc_item_ops *ri_ops,
++		     struct m0_cm_callback_info   *cb_info)
++{
++	struct m0_rpc_item *item;
++
++	M0_PRE(fop != NULL);
++	M0_PRE(session != NULL);
++
++	item                     = &fop->f_item;
++	item->ri_ops             = ri_ops;
++	item->ri_session         = session;
++	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
++	item->ri_deadline        = 0;
++	item->ri_resend_interval = M0_TIME_NEVER;
++	item->ri_private         = cb_info;
++
++	return m0_rpc_post(item);
++}
++
++
++static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
++{
++	struct m0_fop               *rep;
++	struct m0_fop_getattr_rep   *getattr_rep;
++	struct m0_fop_cob           *rep_fop_cob;
++        struct m0_cob_attr           attr;
++	struct m0_cm_callback_info  *cb_info;
++	int                          rc;
++
++	M0_PRE(item != NULL);
++	M0_ASSERT(item->ri_private != NULL);
++	cb_info = item->ri_private;
++
++	rc = item->ri_error;
++
++	M0_LOG(M0_DEBUG, "ios getattr replied :%d", rc);
++	if (rc == 0) {
++		rep = m0_rpc_item_to_fop(item->ri_reply);
++		getattr_rep = m0_fop_data(rep);
++		rep_fop_cob = &getattr_rep->g_body;
++		if (rep_fop_cob->b_rc == 0)
++			m0_md_cob_wire2mem(&attr, rep_fop_cob);
++		else
++			rc = rep_fop_cob->b_rc;
++	}
++
++	cb_info->ci_cb(cb_info->ci_arg1, rc, &attr);
++}
++
++const struct m0_rpc_item_ops getattr_fop_rpc_item_ops = {
++	.rio_replied = getattr_rpc_item_reply_cb,
++};
++
++
++/**
++ */
++M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
++				         const struct m0_fid *gfid,
++					 struct m0_cm_callback_info *cb_info)
++{
++	struct m0_ios_mds_conn    *imc;
++	struct m0_fop             *req;
++	struct m0_fop_getattr     *getattr;
++	struct m0_fop_cob         *req_fop_cob;
++	int                        rc;
++
++	/* This might block on first call. */
++	rc = m0_ios_mds_conn_get(reqh, &imc);
++	if (rc != 0)
++		return rc;
++	if (!imc->imc_connected)
++		return -ENODEV;
++
++	req = m0_fop_alloc(&m0_fop_getattr_fopt, NULL);
++	if (req == NULL)
++		return -ENOMEM;
++
++	getattr = m0_fop_data(req);
++	req_fop_cob = &getattr->g_body;
++	req_fop_cob->b_tfid = *gfid;
++
++	M0_LOG(M0_DEBUG, "ios getattr for %llu:%llu",
++			 (unsigned long long)gfid->f_container,
++			 (unsigned long long)gfid->f_key);
++
++	rc = _rpc_post(req, &imc->imc_session, &getattr_fop_rpc_item_ops,
++		       cb_info);
++	M0_LOG(M0_DEBUG, "ios getattr sent asynchronously: rc = %d", rc);
++
++	m0_fop_put(req);
++	return rc;
++}
++
++static void getlayout_rpc_item_reply_cb(struct m0_rpc_item *item)
++{
++	struct m0_fop              *rep;
++	struct m0_fop_layout_rep   *layout_rep;
++	struct m0_layout_domain    *ldom;
++	uint64_t                    lid;
++	struct m0_layout           *l;
++	struct m0_cm_callback_info *cb_info;
++	int                         rc;
++
++	M0_PRE(item != NULL);
++	M0_PRE(item->ri_private != NULL);
++	cb_info = item->ri_private;
++	ldom = cb_info->ci_p1;
++	lid  = (uint64_t)cb_info->ci_p2;
++
++	rc = item->ri_error;
++
++	M0_LOG(M0_DEBUG, "ios getlayout replied :%d", rc);
++	if (rc == 0) {
++		struct m0_bufvec        bv;
++		struct m0_bufvec_cursor cur;
++		struct m0_layout_type   *lt;
++
++		rep = m0_rpc_item_to_fop(item->ri_reply);
++		layout_rep = m0_fop_data(rep);
++
++		bv = (struct m0_bufvec)
++			M0_BUFVEC_INIT_BUF((void**)&layout_rep->lr_buf.b_addr,
++				   (m0_bcount_t*)&layout_rep->lr_buf.b_count);
++		m0_bufvec_cursor_init(&cur, &bv);
++
++		lt = &m0_pdclust_layout_type;
++		rc = lt->lt_ops->lto_allocate(ldom, lid, &l);
++		if (rc == 0) {
++			rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
++			/* release lock held by ->lto_allocate() */
++			m0_mutex_unlock(&l->l_lock);
++			if (rc != 0)
++				m0_layout_put(l);
++		}
++	}
++
++	cb_info->ci_cb(cb_info->ci_arg1, rc, l);
++	if (rc == 0)
++		m0_layout_put(l);
++}
++
++const struct m0_rpc_item_ops getlayout_fop_rpc_item_ops = {
++	.rio_replied = getlayout_rpc_item_reply_cb,
++};
++
++
++
++M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
++					    struct m0_layout_domain *ldom,
++					    uint64_t lid,
++					    struct m0_cm_callback_info *cb_info)
++{
++	struct m0_ios_mds_conn *imc;
++	struct m0_fop          *req;
++	struct m0_fop_layout   *layout;
++	int                     rc;
++	M0_ENTRY();
++
++	rc = m0_ios_mds_conn_get(reqh, &imc);
++	if (rc != 0)
++		return rc;
++	if (!imc->imc_connected)
++		return -ENODEV;
++
++	req = m0_fop_alloc(&m0_fop_layout_fopt, NULL);
++	if (req == NULL)
++		return -ENOMEM;
++
++	layout = m0_fop_data(req);
++	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
++	layout->l_lid = lid;
++
++	M0_LOG(M0_DEBUG, "ios getlayout for %llu",
++			 (unsigned long long)lid);
++	cb_info->ci_p1 = ldom;
++	cb_info->ci_p2 = (void *)lid;
++	rc = _rpc_post(req, &imc->imc_session, &getlayout_fop_rpc_item_ops,
++		       cb_info);
++	M0_LOG(M0_DEBUG, "ios getlayout for %llu sent: rc %d",
++			 (unsigned long long)lid, rc);
++	m0_fop_put(req);
++	M0_RETURN(rc);
++}
++
++
++
+ #undef M0_TRACE_SUBSYSTEM
+ 
+ /** @} endgroup io_service */
+diff --git a/ioservice/io_service.h b/ioservice/io_service.h
+index 1a07cc4..e060177 100644
+--- a/ioservice/io_service.h
++++ b/ioservice/io_service.h
+@@ -131,7 +131,28 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+ 				      struct m0_layout_domain *ldom,
+ 				      uint64_t lid,
+ 				      struct m0_layout **l_out);
++struct m0_cm_callback_info {
++	/** @param arg1 caller provided.
++	 *  @param rc return value on this async call.
++	 *  @param data call specific data returned, only valid when rc is zero.
++	 *  	   This data may have different meaning for different call.
++	 *  	   It is invalid after this cb is retured. If caller wants
++	 *  	   to use it later, it needs to be copied out, or get
++	 *  	   reference increased.
++	 */
++	void (*ci_cb)(void *arg1, int rc, void *data);
++	void *ci_arg1; /* caller provided */
++	void *ci_p1;   /* saved param1 */
++	void *ci_p2;   /* saved param2 */
++};
+ 
++M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
++				         const struct m0_fid *gfid,
++					 struct m0_cm_callback_info *cb_info);
++M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
++					    struct m0_layout_domain *ldom,
++					    uint64_t lid,
++					    struct m0_cm_callback_info *cbinfo);
+ /** @} end of io_service */
+ 
+ #endif /* __MERO_IOSERVICE_IO_SERVICE_H__ */
+diff --git a/rpc/item.h b/rpc/item.h
+index 6ebdbd2..18a6bc3 100644
+--- a/rpc/item.h
++++ b/rpc/item.h
+@@ -249,6 +249,9 @@ struct m0_rpc_item {
+ 	/** One of m0_rpc_frm::f_itemq[], in which this item is placed. */
+ 	struct m0_tl                    *ri_itemq;
+ 	struct m0_rpc_frm               *ri_frm;
++
++	/* private. Used as m0_cm_callback_info now */
++	void                            *ri_private;
+ 	/** M0_RPC_ITEM_MAGIC */
+ 	uint64_t			 ri_magic;
+ };
+-- 
+1.8.3.2
+

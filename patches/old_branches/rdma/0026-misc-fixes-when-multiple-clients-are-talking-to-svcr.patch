@@ -1,0 +1,240 @@
+From cab9138215243db77cb5f17513f12bdedd0d9893 Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Tue, 3 Aug 2010 13:06:19 -0600
+Subject: [PATCH 26/34] - misc fixes when multiple clients are talking to
+ svcrdma
+
+---
+ net/usunrpc/rfc5666/rfc5666.h     |  4 ++-
+ net/usunrpc/rfc5666/rfc5666_xdr.c |  4 +--
+ net/usunrpc/rfc5666/svc_rdma.c    | 59 +++++++++++++++++++++++++++------------
+ 3 files changed, 46 insertions(+), 21 deletions(-)
+
+diff --git a/net/usunrpc/rfc5666/rfc5666.h b/net/usunrpc/rfc5666/rfc5666.h
+index 03b6659..5245862 100644
+--- a/net/usunrpc/rfc5666/rfc5666.h
++++ b/net/usunrpc/rfc5666/rfc5666.h
+@@ -111,7 +111,9 @@ struct svcrdma_msg {
+ };
+ 
+ /* the xdr functions */
+-extern  bool_t xdr_svcrdma_msg (XDR *, struct svcrdma_msg *);
++extern bool_t xdr_svcrdma_msg (XDR *, struct svcrdma_msg *);
++extern bool_t xdr_rdma_write_chunk (XDR *, struct rdma_write_chunk *);
++extern bool_t xdr_rdma_write_list (XDR *, struct rdma_write_list *);
+ typedef int (*dfunc_t)(const char *, ...);
+ extern  void   svcrdma_msg_dump(const char *, struct svcrdma_msg *, dfunc_t);
+ 
+diff --git a/net/usunrpc/rfc5666/rfc5666_xdr.c b/net/usunrpc/rfc5666/rfc5666_xdr.c
+index 77107f0..924167a 100644
+--- a/net/usunrpc/rfc5666/rfc5666_xdr.c
++++ b/net/usunrpc/rfc5666/rfc5666_xdr.c
+@@ -32,7 +32,7 @@ static bool_t xdr_rdma_read_list (XDR *xdrs, struct rdma_read_list *objp)
+         return TRUE;
+ }
+ 
+-static bool_t xdr_rdma_write_chunk (XDR *xdrs, struct rdma_write_chunk *objp)
++bool_t xdr_rdma_write_chunk (XDR *xdrs, struct rdma_write_chunk *objp)
+ {
+          if (!xdr_array(xdrs,
+                         (char **) &objp->rwc_segs,
+@@ -44,7 +44,7 @@ static bool_t xdr_rdma_write_chunk (XDR *xdrs, struct rdma_write_chunk *objp)
+         return TRUE;
+ }
+ 
+-static bool_t xdr_rdma_write_list (XDR *xdrs, struct rdma_write_list *objp)
++bool_t xdr_rdma_write_list (XDR *xdrs, struct rdma_write_list *objp)
+ {
+         if (!xdr_rdma_write_chunk (xdrs, &objp->rwl_entry))
+                 return FALSE;
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index a805d5f..4a015f1 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -71,6 +71,7 @@ static struct rdma_context *
+ rdma_context_alloc(struct svcrdma_xprt *, int,
+                    void (*)(struct rdma_context *, void *), void *);
+ static int  rdma_wait_for_completion(struct rdma_context *ctxt);
++static void rdma_context_get(struct rdma_context *ctxt);
+ static void rdma_context_put(struct rdma_context *ctxt);
+ static void rdma_context_hold(struct rdma_context *ctxt);
+ static int  rdma_context_drop(struct rdma_context *ctxt);
+@@ -473,6 +474,7 @@ static bool_t svcrdma_recv(SVCXPRT *svcxprt, struct rpc_msg *msg)
+         void          *ectx;
+         struct ibv_wc  wc;
+         int            rc = 0;
++        bool_t         status = FALSE;
+ 
+         if (ibv_get_cq_event(xp->rx_rcv_chan, &ecq, &ectx) != 0) {
+                 rdma_errx(errno, "get cq_event for xprt %p\n", xp);
+@@ -505,7 +507,7 @@ static bool_t svcrdma_recv(SVCXPRT *svcxprt, struct rpc_msg *msg)
+ 
+                 C2_ASSERT(rc == 1);
+                 if (wc.status != IBV_WC_SUCCESS) {
+-                        rdma_errx(EINVAL, "wc with error(%s), op/id: %d/%lx",
++                        rdma_errx(EINVAL, "wc with error(%s), op/id: %d/%lx\n",
+                                   ibv_wc_status_str(wc.status),
+                                   wc.opcode, wc.wr_id);
+ 
+@@ -516,15 +518,19 @@ static bool_t svcrdma_recv(SVCXPRT *svcxprt, struct rpc_msg *msg)
+                 switch(wc.opcode) {
+                 case IBV_WC_RECV:
+                         rc = rdma_recv_completion(xp, &wc, msg);
++                        if (rc == 0)
++                                status = TRUE;
+                         break;
+                 default:
+-                        rdma_errx(EINVAL, "unknown opcode(%d) of cqe %lx",
++                        rdma_errx(EINVAL, "unknown opcode(%d) of cqe %lx\n",
+                                   wc.opcode, wc.wr_id);
+                         break;
+                 }
++                if (status == TRUE)
++                        break;
+         } /* while (1) */
+ 
+-        return (rc == 0) ? TRUE : FALSE;
++        return status;
+ }
+ 
+ static bool_t svcrdma_getargs(SVCXPRT *svcxprt, xdrproc_t xdr_args,
+@@ -608,6 +614,8 @@ static bool_t svcrdma_reply(SVCXPRT *svcxprt, struct rpc_msg *rpcmsg)
+                       XDR_ENCODE);
+         xdrs.x_public = (caddr_t)reply;
+         if (!xdr_replymsg(&xdrs, rpcmsg)) {
++                rdma_errx(ENOSPC, "error encode rpc msg with %d\n",
++                          reply->rp_rpc->rbd_bufsz);
+                 /* this is probably because of not having enough buffer space */
+                 rc = ENOSPC;
+                 goto out;
+@@ -834,6 +842,12 @@ static void rdma_reply_put(struct rdma_reply *reply)
+ 
+         xdrmem_create(&xdrs, NULL, 0, XDR_FREE);
+         (void)xdr_svcrdma_msg(&xdrs, &reply->rp_msg);
++        (void)xdr_reference(&xdrs, (caddr_t *)&reply->rp_orig_writes,
++                            sizeof(*reply->rp_orig_writes), 
++                            (xdrproc_t)xdr_rdma_write_list);
++        (void)xdr_reference(&xdrs, (caddr_t*)&reply->rp_reply,
++                            sizeof(*reply->rp_reply), 
++                            (xdrproc_t)xdr_rdma_write_chunk);
+ 
+         if (reply->rp_rpc == &reply->rp_rpc_chunks) {
+                 rdma_bufdesc_free(xprt, reply->rp_rpc);
+@@ -897,7 +911,6 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+         struct rdma_request *req;
+         struct rdma_reply   *reply = NULL;
+         struct svcrdma_msg *msg;
+-        struct ibv_recv_wr *badwr;
+         XDR                 xdrs;
+         int                 pos = 0;
+         int                 rc = 0;
+@@ -908,16 +921,6 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+         req = (struct rdma_request *)wc->wr_id;
+         C2_ASSERT(req->rq_xprt == xprt);
+ 
+-        /* handle error message first */
+-        if (wc->status != IBV_WC_SUCCESS) {
+-                /* what can we do? Just reregister the buffer */
+-                rc = ibv_post_recv(xprt->rx_qp, &req->rq_wr, &badwr);
+-                if (rc)
+-                        rdma_errx(rc, "fatal error on registering recv buffer");
+-                return rc;
+-        }
+-
+-        
+         /* initiate the request by ibv_wc */
+         /* Right now, the sunrpc library is sync, this means only one request
+          * is pending at a time.
+@@ -934,6 +937,13 @@ static int rdma_recv_completion(struct svcrdma_xprt *xprt,
+         C2_ASSERT(xprt->rx_cred_used < xprt->rx_credits);
+         c2_mutex_unlock(&xprt->rx_lock);
+ 
++        /* handle error message first */
++        if (wc->status != IBV_WC_SUCCESS) {
++                /* what can we do? Just reregister the buffer */
++                (void)rdma_request_repost(req);
++                return EIO;
++        }
++ 
+         reply = rdma_reply_get(xprt);
+         /* DRR: this is absolutely true.
+          * Right now, the # of request buffer equals to the # of reply buffer,
+@@ -1079,8 +1089,10 @@ out:
+         if (errcode != RDMA_OK) { /* something wrong */
+                 reply->rp_errcode = errcode;
+                 rdma_reply_send(reply);
+-                rc = 88; /* XXX: what error code should be returned? */
++                rc = EIO; /* XXX: what error code should be returned? */
+         } else {
++                /* XXX: need to send an rpc error msg back */
++                /* svcerr_systemerr(req->rq_xprt->rx_svcxprt); */
+                 rdma_reply_put(reply);
+         }
+         return rc;
+@@ -1380,8 +1392,6 @@ static int rdma_reply_encode(struct rdma_reply *reply)
+ 
+         if (reply->rp_errcode != RDMA_OK) {
+                 /* encode a RDMA_ERROR message. */
+-                C2_ASSERT(reply->rp_writes == NULL);
+-                C2_ASSERT(reply->rp_reply == NULL);
+                 msg->rdma_body.rdma_proc = RDMA_ERROR;
+                 msg->rdma_body.u.rdma_error.errcode = reply->rp_errcode;
+                 if (reply->rp_errcode == RDMA_ERR_VERS) {
+@@ -1416,6 +1426,8 @@ static int rdma_reply_encode(struct rdma_reply *reply)
+                         rdma_nomsg->rdma_reply = reply->rp_reply;
+                         reply->rp_rpc_buflen = 0;
+                 }
++                reply->rp_orig_writes = NULL;
++                reply->rp_reply       = NULL;
+         }
+ 
+         bufsize = reply->rp_rdma.rbd_bufsz;
+@@ -1554,7 +1566,7 @@ static int svcrdma_thread_poll(struct svcrdma_xprt *xprt)
+                 case IBV_WC_RDMA_READ:
+                 case IBV_WC_RDMA_WRITE:
+                         rdma_complete_one((struct rdma_context *)wc.wr_id,
+-                                            wc.status);
++                                          wc.status);
+                         break;
+                 default:
+                         rdma_errx(0, "wrong wc code received %d\n", wc.opcode);
+@@ -1756,6 +1768,11 @@ rdma_context_alloc(struct svcrdma_xprt *xprt, int nchunks,
+         return ctxt;
+ }
+ 
++static void rdma_context_get(struct rdma_context *ctxt)
++{
++        c2_ref_get(&ctxt->refcnt);
++}
++
+ static void rdma_context_put(struct rdma_context *ctxt)
+ {
+         c2_ref_put(&ctxt->refcnt);
+@@ -1794,6 +1811,10 @@ static void rdma_context_release(struct rdma_context *ctxt)
+ static void rdma_complete_one(struct rdma_context *ctxt,
+                               enum ibv_wc_status rc)
+ {
++        C2_ASSERT(c2_atomic64_get(&ctxt->holders) > 0);
++        C2_ASSERT(c2_ref_read(&ctxt->refcnt) > 0);
++
++        rdma_context_get(ctxt);
+         if (rc != IBV_WC_SUCCESS) {
+                 if (ctxt->status == IBV_WC_SUCCESS)
+                         ctxt->status = rc;
+@@ -1804,11 +1825,13 @@ static void rdma_complete_one(struct rdma_context *ctxt,
+         c2_mutex_lock(&ctxt->lock);
+         rdma_context_drop(ctxt);
+         c2_mutex_unlock(&ctxt->lock);
++        rdma_context_put(ctxt);
+ }
+ 
+ static int rdma_wait_for_completion(struct rdma_context *ctxt)
+ {
+         C2_ASSERT(c2_atomic64_get(&ctxt->holders) > 0);
++        C2_ASSERT(c2_ref_read(&ctxt->refcnt) > 1);
+         c2_mutex_lock(&ctxt->lock);
+         if (rdma_context_drop(ctxt))
+                 c2_cond_wait(&ctxt->cond, &ctxt->lock);
+-- 
+1.8.3.2
+

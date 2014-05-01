@@ -1,0 +1,45 @@
+From 3c4e18321969946aa19cc29cf640d9a32eb91fa0 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 30 Nov 2012 07:33:31 +0200
+Subject: [PATCH 54/71] LogD 1531: added RTT for test client; removed extra
+ c2_time_now()
+
+---
+ net/test/node_bulk.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 5bd930c..791fd55 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -274,8 +274,6 @@ struct node_bulk_ctx {
+ 	bool				   nbc_callback_executed;
+ };
+ 
+-static const c2_time_t zero_time = C2_MKTIME(0, 0);
+-
+ /** Wrapper for c2_net_test_nh_sd_update() with smaller name */
+ static void sd_update(struct node_bulk_ctx *ctx,
+ 		      enum c2_net_test_nh_msg_type type,
+@@ -523,9 +521,7 @@ void node_bulk_state_transition_auto(struct node_bulk_ctx *ctx,
+ 		  (!role_client && bs->bsb_ts == TS_BADMSG));
+ 	switch (bs->bsb_ts) {
+ 	case TS_TRANSFERRED:
+-		rtt = ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT ?
+-		      zero_time : c2_time_sub(bs->bsb_time_finish,
+-					      bs->bsb_time_start);
++		rtt = c2_time_sub(bs->bsb_time_finish, bs->bsb_time_start);
+ 		sd_update(ctx, MT_TRANSFER, MS_SUCCESS, MD_BOTH);
+ 		c2_net_test_nh_sd_update_rtt(&ctx->nbc_nh, rtt);
+ 		break;
+@@ -932,7 +928,6 @@ static void client_transfer_start(struct node_bulk_ctx *ctx,
+ 
+ 	bs = &ctx->nbc_bs[bs_index];
+ 	node_bulk_state_change(ctx, bs_index, TS_QUEUED);
+-	bs->bsb_time_start = c2_time_now();
+ 	rc = client_bulk_enqueue(ctx, bs_index * 2);
+ 	bs->bsb_send.bse_func_rc = rc;
+ 	if (rc != 0) {
+-- 
+1.8.3.2
+

@@ -1,0 +1,58 @@
+From 32f46e960caaf52625e7757a65389a5a9194f9e2 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 15 Mar 2013 12:50:44 +0200
+Subject: [PATCH 34/63] rpc-ub: slightly improve #includes
+
+rpc/ub/rpc_ub_fops.h: Remove unneeded #includes.
+rpc/ub/rpc_ub_fops.c: Mention imported symbols.
+---
+ rpc/ub/rpc_ub_fops.c | 19 +++++++++----------
+ rpc/ub/rpc_ub_fops.h |  2 --
+ 2 files changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/rpc/ub/rpc_ub_fops.c b/rpc/ub/rpc_ub_fops.c
+index 3a13189..a0096d7 100644
+--- a/rpc/ub/rpc_ub_fops.c
++++ b/rpc/ub/rpc_ub_fops.c
+@@ -18,16 +18,15 @@
+  * Original creation date: 07-Mar-2013
+  */
+ 
+-#include "lib/memory.h"
+-#include "lib/ub.h"
+-#include "fop/fop.h"
+-#include "fop/fom.h"
+-#include "fop/fom_generic.h"
+-#include "rpc/rpc_opcodes.h"
+-#include "rpc/ub/rpc_ub_fops.h"
+-#include "rpc/ub/rpc_ub_fops_xc.h"
+-
+-extern struct m0_reqh_service_type ds1_service_type;
++#include "lib/memory.h"             /* M0_ALLOC_PTR */
++#include "lib/ub.h"                 /* M0_UB_ASSERT */
++#include "fop/fop.h"                /* m0_fop_type */
++#include "fop/fom.h"                /* m0_fom_ops */
++#include "fop/fom_generic.h"        /* M0_FOPH_NR */
++#include "rpc/rpc_opcodes.h"        /* M0_RPC_UB_REQ_OPCODE */
++#include "rpc/ub/rpc_ub_fops.h"     /* ub_req, ub_resp */
++#include "rpc/ub/rpc_ub_fops_xc.h"  /* m0_xc_rpc_ub_fops_init */
++#include "ut/cs_service.h"          /* ds1_service_type */
+ 
+ struct m0_fop_type m0_rpc_ub_req_fopt;
+ struct m0_fop_type m0_rpc_ub_resp_fopt;
+diff --git a/rpc/ub/rpc_ub_fops.h b/rpc/ub/rpc_ub_fops.h
+index 9eb9a47..c3e1008 100644
+--- a/rpc/ub/rpc_ub_fops.h
++++ b/rpc/ub/rpc_ub_fops.h
+@@ -23,8 +23,6 @@
+ #ifndef __MERO_RPC_UT_RPC_UB_FOPS_H__
+ #define __MERO_RPC_UT_RPC_UB_FOPS_H__
+ 
+-#include <stdint.h>
+-#include <sys/types.h>
+ #include "xcode/xcode.h"
+ #include "lib/buf_xc.h"
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,57 @@
+From d6e1fb9191d6ce5e72b72fc799556e069507ad8f Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 11 Aug 2012 23:36:59 +0300
+Subject: [PATCH 309/370] conf: choose magic values for configuration object
+ types
+
+---
+ conf/obj.c | 16 ++++++++--------
+ doc/magix  |  8 ++++++++
+ 2 files changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/conf/obj.c b/conf/obj.c
+index b0bcf65..084b0e3 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -415,14 +415,14 @@
+  */
+ 
+ enum {
+-	CONF_DIR_MAGIX        = XXX,
+-	CONF_PROFILE_MAGIX    = XXX,
+-	CONF_FILESYSTEM_MAGIX = XXX,
+-	CONF_SERVICE_MAGIX    = XXX,
+-	CONF_NODE_MAGIX       = XXX,
+-	CONF_NIC_MAGIX        = XXX,
+-	CONF_SDEV_MAGIX       = XXX,
+-	CONF_PARTITION_MAGIX  = XXX
++	CONF_DIR_MAGIX        = 0x3301dca1ab005e77,
++	CONF_PROFILE_MAGIX    = 0x33c105ab1e5ea177,
++	CONF_FILESYSTEM_MAGIX = 0x33f00d0fc01aba77,
++	CONF_SERVICE_MAGIX    = 0x33b1a5ed10ca1e77,
++	CONF_NODE_MAGIX       = 0x33c01055a1d05a77,
++	CONF_NIC_MAGIX        = 0x33ba5eba11feed77,
++	CONF_SDEV_MAGIX       = 0x33a115eed5a1ad77,
++	CONF_PARTITION_MAGIX  = 0x33bacca15a100f77
+ };
+ 
+ /* XXX TODO: .bt_check = conf_dir_invariant, where
+diff --git a/doc/magix b/doc/magix
+index c89cc13..cf9edaf 100755
+--- a/doc/magix
++++ b/doc/magix
+@@ -48,3 +48,11 @@ c2_layout_list_enum   lle_magic              4c495354454e554d LISTENUM
+ c2_layout_linear_enum lla_magic              4c494e2d454e554d LIN-ENUM
+ c2_conf_reg           r_magic                33fab1edfe0da177 fabled feodal
+ c2_conf_obj           co_gen_magic           335e1f1e55ce1177 selfless cell
++c2_conf_dir           cd_obj.co_magix        3301dca1ab005e77 old calaboose
++c2_conf_profile       cp_obj.co_magix        33c105ab1e5ea177 closable seal
++c2_conf_filesystem    cf_obj.co_magix        33f00d0fc01aba77 food of Colaba
++c2_conf_service       cs_obj.co_magix        33b1a5ed10ca1e77 biased locale
++c2_conf_node          cn_obj.co_magix        33c01055a1d05a77 colossal dosa
++c2_conf_nic           ni_obj.co_magix        33ba5eba11feed77 baseball feed
++c2_conf_sdev          sd_obj.co_magix        33a115eed5a1ad77 allseed salad
++c2_conf_partition     pa_obj.co_magix        33bacca15a100f77 bacca is aloof
+-- 
+1.8.3.2
+

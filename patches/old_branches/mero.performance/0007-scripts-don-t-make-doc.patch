@@ -1,0 +1,26 @@
+From 681171686cb5274c57aac2beb4a8845681ca94ec Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 17 Oct 2013 00:21:19 +0300
+Subject: [PATCH 07/17] scripts: don't make doc
+
+---
+ scripts/mero_build_test.sh | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/scripts/mero_build_test.sh b/scripts/mero_build_test.sh
+index 1c954fc..5c4c08c 100755
+--- a/scripts/mero_build_test.sh
++++ b/scripts/mero_build_test.sh
+@@ -262,9 +262,6 @@ run_test_automate()
+ 	    rc=$?
+         fi
+ 
+-	cd $MERO_CORE_PATH > /dev/null
+-	make doc
+-
+ 	find "$MERO_CORE_PATH" -name .libs | xargs sudo rm -rf
+ 
+ #	print_msg "INFO:$current_branch:Cleanup:Start"
+-- 
+1.8.3.2
+

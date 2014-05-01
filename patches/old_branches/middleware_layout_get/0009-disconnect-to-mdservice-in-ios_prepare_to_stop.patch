@@ -1,0 +1,787 @@
+From 7274647be5a441a74e9fadfc62cf43069c71d615 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 26 Feb 2013 22:32:39 +0800
+Subject: [PATCH 09/24] - disconnect to mdservice in ios_prepare_to_stop() -
+ sleep 10 seconds while disconneting from mds. This gives the server a chance
+ to handle the termination. - make mdservice endpoint and cli2mds endpoint
+ optional - In m0_reqh_shutdown_wait(), call m0_reqh_service_prepare_to_stop()
+ first and then set reqh to shutdown. - In m0_reqh_shutdown_wait(), stop the
+ mdservice last, because other service may need to contact it. -
+ m0_rpc_client_stop() sends session and connection termination immediately.
+
+---
+ addb/ut/addb_ut_svc.c                       |  1 -
+ conf/ut/confc.c                             |  1 -
+ console/ut/console.c                        |  2 +-
+ ioservice/cob_foms.c                        | 13 +++++-
+ ioservice/io_service.c                      | 67 ++++++++++++++++++++---------
+ ioservice/io_service.h                      | 10 ++++-
+ ioservice/ut/bulkio_common.c                |  6 +++
+ ioservice/ut/cob_foms.c                     |  2 +-
+ ioservice/ut/ios_buffer_pool.c              |  4 --
+ m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh |  1 +
+ m0t1fs/linux_kernel/st/st                   |  3 +-
+ mero/setup.c                                | 11 ++---
+ mero/ut/cs_ut_main.c                        | 18 --------
+ reqh/reqh.c                                 | 18 ++++++--
+ reqh/reqh_service.c                         |  5 ++-
+ rpc/conn.c                                  | 25 ++++++-----
+ rpc/conn.h                                  |  2 +
+ rpc/rpclib.c                                |  6 +--
+ rpc/session_foms.c                          |  6 +--
+ rpc/ut/clnt_srv_ctx.c                       |  2 +-
+ sns/cm/ut/cp_common.c                       |  1 -
+ 21 files changed, 122 insertions(+), 82 deletions(-)
+
+diff --git a/addb/ut/addb_ut_svc.c b/addb/ut/addb_ut_svc.c
+index fead51c..ae44794 100644
+--- a/addb/ut/addb_ut_svc.c
++++ b/addb/ut/addb_ut_svc.c
+@@ -39,7 +39,6 @@ static char *addb_ut_svc[] = { "m0d", "-r", "-p", "-T", "linux",
+ 			       "-D", "as_db", "-S", "as_stob",
+ 			       "-A", "as_addb_stob",
+ 			       "-e", "lnet:0@lo:12345:34:1",
+-			       "-G", "lnet:0@lo:12345:34:1",
+ 			       "-s", M0_ADDB_SVC_NAME};
+ static struct m0_net_xprt *as_xprts[] = {
+         &m0_net_lnet_xprt,
+diff --git a/conf/ut/confc.c b/conf/ut/confc.c
+index 91288c1..102c144 100644
+--- a/conf/ut/confc.c
++++ b/conf/ut/confc.c
+@@ -355,7 +355,6 @@ static void test_confc_net(void)
+ 		"-S", NAME(".stob"), "-A", NAME("-addb.stob"),
+ 		"-e", SERVER_ENDPOINT, "-s", "confd",
+ 		"-c", M0_CONF_UT_PATH("conf-str.txt"),
+-		"-G", SERVER_ENDPOINT,
+ 	};
+ 	M0_RPC_SERVER_CTX_DEFINE(confd, &g_xprt, 1, argv, ARRAY_SIZE(argv),
+ 				 NULL, 0, NAME(".log"));
+diff --git a/console/ut/console.c b/console/ut/console.c
+index 84c7b0b..521b88e 100644
+--- a/console/ut/console.c
++++ b/console/ut/console.c
+@@ -102,7 +102,7 @@ static struct m0_rpc_client_ctx cctx = {
+ static char *server_argv[] = {
+ 	"console_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+ 	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
+-	"-G", SERVER_ENDPOINT, "-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
++	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
+ };
+ 
+ static struct m0_rpc_server_ctx sctx = {
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index dc849ed..413c698 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -349,9 +349,17 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
+         if (rc)
+                 return rc;
+ 
+-        M0_LOG(M0_DEBUG, "Creating cob [%lx:%lx]/%x",
++        M0_LOG(M0_DEBUG, "Creating cob for [%lx:%lx]/%x",
+                cc->fco_cfid.f_container, cc->fco_cfid.f_key, cc->fco_cob_idx);
+ 
++if (0) {
++        struct m0_fid      gfid = cc->fco_gfid;
++        struct m0_cob_attr attr = { {0} };
++        rc = m0_ios_mds_getattr(fom->fo_service->rs_reqh, &gfid, &attr);
++        M0_LOG(M0_FATAL, "rc = %d lid = %lld", rc, (unsigned long long)attr.ca_lid);
++}
++
++
+ 	rc = cc_cob_nskey_make(&nskey, &cc->fco_gfid, cc->fco_cob_idx);
+ 	if (rc != 0) {
+ 		IOS_ADDB_FUNCFAIL(rc, CC_COB_CREATE_1, &m0_ios_addb_ctx);
+@@ -502,6 +510,9 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
+ 	cdom = cdom_get(fom);
+ 	M0_ASSERT(cdom != NULL);
+ 
++        M0_LOG(M0_DEBUG, "Deleting cob for [%lx:%lx]/%x",
++               cd->fco_cfid.f_container, cd->fco_cfid.f_key, cd->fco_cob_idx);
++
+         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
+         m0_cob_oikey_make(&oikey, &fid, 0);
+ 	rc = m0_cob_locate(cdom, &oikey, 0, &cob, &fom->fo_tx.tx_dbtx);
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 24c6ea9..a8f712e 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -76,7 +76,7 @@ static unsigned ios_cdom_key;
+ /**
+  * Key for rpc_ctx to mds.
+  */
+-static unsigned ios_mds_rpc_ctx_key;
++static unsigned ios_mds_rpc_ctx_key = 0;
+ 
+ static int ios_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+@@ -84,6 +84,7 @@ static int ios_allocate(struct m0_reqh_service **service,
+ static void ios_fini(struct m0_reqh_service *service);
+ 
+ static int ios_start(struct m0_reqh_service *service);
++void ios_prepare_to_stop(struct m0_reqh_service *service);
+ static void ios_stop(struct m0_reqh_service *service);
+ static void ios_stats_post_addb(struct m0_reqh_service *service);
+ 
+@@ -102,6 +103,7 @@ static const struct m0_reqh_service_type_ops ios_type_ops = {
+  */
+ static const struct m0_reqh_service_ops ios_ops = {
+ 	.rso_start           = ios_start,
++	.rso_prepare_to_stop = ios_prepare_to_stop,
+ 	.rso_stop            = ios_stop,
+ 	.rso_fini            = ios_fini,
+ 	.rso_stats_post_addb = ios_stats_post_addb
+@@ -201,7 +203,6 @@ M0_INTERNAL int m0_ios_register(void)
+ 	m0_reqh_service_type_register(&m0_ios_type);
+ 	ios_cdom_key = m0_reqh_lockers_allot();
+ 	poolmach_key = m0_reqh_lockers_allot();
+-	ios_mds_rpc_ctx_key = m0_reqh_lockers_allot();
+ 	return m0_ioservice_fop_init();
+ }
+ 
+@@ -487,6 +488,15 @@ static int ios_start(struct m0_reqh_service *service)
+ 	return rc;
+ }
+ 
++void ios_prepare_to_stop(struct m0_reqh_service *service)
++{
++	M0_LOG(M0_DEBUG, "ioservice PREPARE ......");
++	m0_ios_mds_rpc_ctx_fini(service);
++	M0_LOG(M0_DEBUG, "ioservice session/connection terminate fops sent");
++	m0_nanosleep(m0_time(10,0), NULL);
++	M0_LOG(M0_DEBUG, "ioservice PREPARE STOPPED");
++}
++
+ /**
+  * Stops I/O Service.
+  * - Frees buffer pool
+@@ -505,9 +515,9 @@ static void ios_stop(struct m0_reqh_service *service)
+ 
+ 	m0_ios_poolmach_fini(service->rs_reqh);
+ 	ios_delete_buffer_pool(service);
+-	m0_ios_mds_rpc_ctx_fini(service);
+ 	m0_ios_cdom_fini(service->rs_reqh);
+ 	m0_reqh_lockers_clear(service->rs_reqh, ios_cdom_key);
++	M0_LOG(M0_DEBUG, "ioservice STOPPED");
+ }
+ 
+ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
+@@ -603,12 +613,6 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
+ 	}
+ }
+ 
+-M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh, struct m0_fid *gfid,
+-				   struct m0_cob_attr *attr);
+-M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+-				      struct m0_layout_domain *ldom,
+-				      uint64_t lid,
+-				      struct m0_layout **l_out);
+ M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
+ {
+ 	struct m0_reqh            *reqh = service->rs_reqh;
+@@ -621,20 +625,23 @@ M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
+ 	const char                *cli_ep_addr;
+ 	const char                *srv_ep_addr;
+ 	enum {
+-		RPC_TIMEOUT              = 10, /* seconds */
+-		NR_SLOTS_PER_SESSION     = 10,
+-		MAX_NR_RPC_IN_FLIGHT     = 10,
++		RPC_TIMEOUT              = 8, /* seconds */
++		NR_SLOTS_PER_SESSION     = 1,
++		MAX_NR_RPC_IN_FLIGHT     = 5,
+ 	};
+ 
+-	M0_PRE(m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
+-
+ 	srv_ep_addr = reqh_ctx->rc_mero->cc_mds_epx.ex_endpoint;
+ 	cli_ep_addr = reqh_ctx->rc_mero->cc_cli2mds_epx.ex_endpoint;
+ 
+-	M0_LOG(M0_ERROR, "cli = %s", cli_ep_addr);
+-	M0_LOG(M0_ERROR, "srv = %s", srv_ep_addr);
+-	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
++	M0_LOG(M0_DEBUG, "cli = %s", cli_ep_addr);
++	M0_LOG(M0_DEBUG, "srv = %s", srv_ep_addr);
++
++	if (srv_ep_addr == NULL || cli_ep_addr == NULL) {
++		M0_LOG(M0_WARN, "No mdservice endpoint.");
++		M0_RETURN(0);
++	}
+ 
++	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+ 	rpc_client_ctx = m0_alloc(sizeof *rpc_client_ctx);
+ 	if (rpc_client_ctx == NULL)
+ 		M0_RETURN(-ENOMEM);
+@@ -659,6 +666,11 @@ M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
+ 		M0_RETURN(rc);
+ 	}
+ 
++	m0_rpc_machine_conn_list_dump(&rpc_client_ctx->rcx_rpc_machine, 1);
++	m0_rpc_machine_conn_list_dump(&rpc_client_ctx->rcx_rpc_machine, 0);
++
++	ios_mds_rpc_ctx_key = m0_reqh_lockers_allot();
++	M0_PRE(m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+ 	m0_reqh_lockers_set(reqh, ios_mds_rpc_ctx_key, rpc_client_ctx);
+ 	serv_obj->rios_mds_rpc_ctx = rpc_client_ctx;
+@@ -672,10 +684,12 @@ struct m0_rpc_client_ctx *m0_ios_mds_rpc_ctx_get(struct m0_reqh *reqh)
+ {
+ 	struct m0_rpc_client_ctx *rpc_client_ctx;
+ 	M0_PRE(reqh != NULL);
+-	M0_PRE(!m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
+ 
+-	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
+-	M0_POST(rpc_client_ctx != NULL);
++	if (ios_mds_rpc_ctx_key != 0) {
++		rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
++		M0_POST(rpc_client_ctx != NULL);
++	} else
++		rpc_client_ctx = NULL;
+ 	return rpc_client_ctx;
+ }
+ 
+@@ -686,12 +700,19 @@ M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
+ 	struct m0_rpc_client_ctx  *rpc_client_ctx;
+ 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+ 
++	if (service->rs_reqh_ctx->rc_mero->cc_mds_epx.ex_endpoint == NULL ||
++	    service->rs_reqh_ctx->rc_mero->cc_cli2mds_epx.ex_endpoint == NULL)
++		return;
++
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
++
+ 	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
++	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
++
+ 	m0_rpc_client_stop(rpc_client_ctx);
+ 	m0_net_domain_fini(&serv_obj->rios_cl_ndom);
+-	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
+ 	m0_free(rpc_client_ctx);
++
+ 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ }
+ 
+@@ -708,6 +729,8 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh, struct m0_fid *gfid,
+ 	int                        rc;
+ 
+ 	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
++	if (rpc_client_ctx == NULL)
++		return -ENODEV;
+ 
+ 	req = m0_fop_alloc(&m0_fop_getattr_fopt, NULL);
+ 	if (req == NULL)
+@@ -745,6 +768,8 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+ 	M0_ENTRY();
+ 
+ 	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
++	if (rpc_client_ctx == NULL)
++		return -ENODEV;
+ 
+ 	req = m0_fop_alloc(&m0_fop_layout_fopt, NULL);
+ 	if (req == NULL)
+diff --git a/ioservice/io_service.h b/ioservice/io_service.h
+index e3b3180..badc41a 100644
+--- a/ioservice/io_service.h
++++ b/ioservice/io_service.h
+@@ -53,7 +53,7 @@
+ #include "lib/chan.h"
+ #include "lib/tlist.h"
+ #include "cob/cob.h"
+-
++#include "layout/layout.h"
+ #include "ioservice/io_service_addb.h"
+ 
+ M0_INTERNAL int m0_ios_register(void);
+@@ -124,6 +124,14 @@ M0_INTERNAL struct m0_rpc_client_ctx
+ 
+ M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service);
+ 
++M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh, struct m0_fid *gfid,
++				   struct m0_cob_attr *attr);
++
++M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
++				      struct m0_layout_domain *ldom,
++				      uint64_t lid,
++				      struct m0_layout **l_out);
++
+ /** @} end of io_service */
+ 
+ #endif /* __MERO_IOSERVICE_IO_SERVICE_H__ */
+diff --git a/ioservice/ut/bulkio_common.c b/ioservice/ut/bulkio_common.c
+index 4bcbf06..a3e3bf7 100644
+--- a/ioservice/ut/bulkio_common.c
++++ b/ioservice/ut/bulkio_common.c
+@@ -107,6 +107,12 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
+ 	strcpy(server_args[19], "-G");
+ 	strcat(server_args[20], xprt);
+ 	strcat(server_args[20], saddr);
++	strcpy(server_args[21], "-L");
++	strcat(server_args[22], xprt);
++	strcat(server_args[22], saddr);
++	strcat(server_args[22], "01");
++
++
+ 	M0_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
+ 	M0_ASSERT(stypes != NULL);
+ 	stypes[0] = &ds1_service_type;
+diff --git a/ioservice/ut/cob_foms.c b/ioservice/ut/cob_foms.c
+index a808ec3..641c24e 100644
+--- a/ioservice/ut/cob_foms.c
++++ b/ioservice/ut/cob_foms.c
+@@ -99,7 +99,7 @@ struct cobthread_arg {
+ static char *server_args[] = {
+ 	"m0d", "-r", "-p", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
+ 	"cobfoms_ut_stob", "-A", "cobfoms_ut_addb_stob", "-e", SERVER_ENDP,
+-	"-s", "ioservice", "-G", SERVER_ENDP,
++	"-s", "ioservice",
+ };
+ 
+ static void cobfoms_utinit(void)
+diff --git a/ioservice/ut/ios_buffer_pool.c b/ioservice/ut/ios_buffer_pool.c
+index 976a765..87614b4 100644
+--- a/ioservice/ut/ios_buffer_pool.c
++++ b/ioservice/ut/ios_buffer_pool.c
+@@ -43,27 +43,23 @@ static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ioservice"};
+ static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
+                                 "-s", "ioservice"};
+ static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
+-                                "-G", "bulk-mem:127.0.0.1:35678",
+                                 "-e", "bulk-mem:127.0.0.1:35679",
+                                 "-s", "ioservice"};
+ static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:35:1",
+-                                "-G", "lnet:0@lo:12345:35:1",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
+                                 "-e", "bulk-mem:127.0.0.1:35679",
+                                 "-s", "ioservice"};
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+index 06a7136..63df35e 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+@@ -24,6 +24,7 @@ MERO_MODULE=m0mero
+ # kernel space tracing parameters
+ MERO_MODULE_TRACE_MASK='!all'
+ MERO_TRACE_PRINT_CONTEXT=short
++MERO_TRACE_PRINT_CONTEXT=full
+ MERO_TRACE_LEVEL=call+
+ 
+ 
+diff --git a/m0t1fs/linux_kernel/st/st b/m0t1fs/linux_kernel/st/st
+index f2e8bc3..c84ac92 100755
+--- a/m0t1fs/linux_kernel/st/st
++++ b/m0t1fs/linux_kernel/st/st
+@@ -135,7 +135,6 @@ EOF`"
+ -r -p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
+ -A $SANDBOX_DIR/addb-stobs
+ -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
+--G lnet:$MDS_ENDPOINT -L lnet:$CLI2MDS_ENDPOINT1
+  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN
+ EOF`"
+     [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P prof-ac"
+@@ -204,7 +203,7 @@ _init() {
+ _fini() {
+     services_stop
+     sandbox_fini
+-    lsmod || grep m0mero
++    lsmod | grep m0mero
+     modules_remove
+     exit ${1:-$?}
+ }
+diff --git a/mero/setup.c b/mero/setup.c
+index e614074..d0978db 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -1692,17 +1692,14 @@ static int reqh_ctxs_are_valid(struct m0_mero *cctx)
+ 	} m0_tl_endfor;
+ 
+ 	if (cctx->cc_mds_epx.ex_endpoint == NULL) {
+-		M0_LOG(M0_ERROR, "Missing mdservice endpoint.\n"
+-				 "Use -G to provice a valid one: %d", rc);
+-		M0_RETURN(rc);
++		M0_LOG(M0_WARN, "Missing mdservice endpoint.\n"
++				 "Use -G to provice a valid one");
+ 	}
+ 	if (cctx->cc_cli2mds_epx.ex_endpoint == NULL) {
+-		M0_LOG(M0_ERROR, "Missing client to mdservice endpoint.\n"
+-				 "Use -L to provice a valid one: %d", rc);
+-		M0_RETURN(rc);
++		M0_LOG(M0_WARN, "Missing client to mdservice endpoint.\n"
++				 "Use -L to provice a valid one");
+ 	}
+ 
+-
+ 	M0_RETURN(rc);
+ }
+ 
+diff --git a/mero/ut/cs_ut_main.c b/mero/ut/cs_ut_main.c
+index 97a79a3..b6cccd8 100644
+--- a/mero/ut/cs_ut_main.c
++++ b/mero/ut/cs_ut_main.c
+@@ -56,14 +56,12 @@ static char *cs_ut_service_one_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_services_many_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "bulk-mem:127.0.0.1:35678",
+                                 "-s", "ds1", "-s" "ds2"};
+ 
+@@ -71,7 +69,6 @@ static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
+                                 "-A", "cs_r1addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1",
+                                 "-r", "-p", "-T", "AD",
+                                 "-D", "cs_r2sdb", "-S", "cs_r2stob",
+@@ -82,7 +79,6 @@ static char *cs_ut_reqhs_many_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+ static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-r", "-p", "-D",
+                                 "cs_sdb", "-T", "AD", "-s", "ds1",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-S", "cs_stob", "-A", "cs_addb_stob"};
+ 
+ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+@@ -90,67 +86,57 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-A", "cs_addb_stob",
+                                 "-d", "devices.conf",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_reqh_none_cmd[] = { "m0d", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_stype_bad_cmd[] = { "m0d", "-r", "-p", "-T", "asdadd",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-r", "-p","-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:asdad:asdsd:sadasd",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_service_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "dasdadasd"};
+ 
+ static char *cs_ut_args_bad_cmd[] = { "m0d", "-r", "-p", "-D", "cs_sdb",
+                                 "-S", "cs_stob", "-A", "cs_addb_sdb",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1"};
+ 
+ static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1", "-q", "4", "-m", "4096"};
+ 
+ static char *cs_ut_lnet_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_sdb",
+                                 "-e", "lnet:0@lo:12345:34:1",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1"};
+ 
+ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-r", "-p", "-T", "linux",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
+                                 "-s", "ioservice"};
+@@ -159,7 +145,6 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-s", "ds1", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb2", "-S", "cs_stob2",
+                                 "-A", "cs_addb_stob2",
+@@ -169,7 +154,6 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
+                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
+@@ -179,7 +163,6 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
+                                 "-s", "ds1"};
+@@ -187,7 +170,6 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-r", "-p", "-T", "AD",
+                                 "-D", "cs_sdb", "-S", "cs_stob",
+                                 "-A", "cs_addb_stob",
+-                                "-G", "lnet:0@lo:12345:34:1",
+                                 "-e", "lnet:asdad:asdsd:sadasd",
+                                 "-s", "ds1"};
+ 
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index a00fe5c..8deea76 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -221,17 +221,29 @@ M0_INTERNAL void m0_reqh_fom_domain_idle_wait(struct m0_reqh *reqh)
+ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh)
+ {
+ 	struct m0_reqh_service *service;
++	struct m0_reqh_service *mdservice = NULL;
+ 
+ 	M0_PRE(reqh != NULL);
+-        m0_rwlock_write_lock(&reqh->rh_rwlock);
+-        reqh->rh_shutdown = true;
+-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 
+ 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
+ 		M0_ASSERT(m0_reqh_service_invariant(service));
++		/* skip mdservice in first loop */
++		if ((strcmp(service->rs_type->rst_name, "mdservice") == 0)) {
++			mdservice = service;
++			continue;
++		}
+ 		m0_reqh_service_prepare_to_stop(service);
+ 	} m0_tl_endfor;
+ 
++	/* shutdown mdservice */
++	if (mdservice != NULL)
++		m0_reqh_service_prepare_to_stop(mdservice);
++
++
++	m0_rwlock_write_lock(&reqh->rh_rwlock);
++	reqh->rh_shutdown = true;
++	m0_rwlock_write_unlock(&reqh->rh_rwlock);
++
+ 	m0_reqh_fom_domain_idle_wait(reqh);
+ }
+ 
+diff --git a/reqh/reqh_service.c b/reqh/reqh_service.c
+index d7987aa..8ee9a71 100644
+--- a/reqh/reqh_service.c
++++ b/reqh/reqh_service.c
+@@ -18,12 +18,13 @@
+  * Original creation date: 05/08/2011
+  */
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
++#include "lib/trace.h" /* m0_console_printf */
+ #include "lib/rwlock.h"
+ #include "lib/errno.h"
+ #include "lib/memory.h"
+ #include "lib/time.h"
+ #include "lib/misc.h" /* M0_SET_ARR0 */
+-#include "lib/trace.h" /* m0_console_printf */
+ #include "lib/finject.h" /* M0_FI_ENABLED */
+ #include "lib/uuid.h"
+ #include "lib/lockers.h"
+@@ -308,6 +309,8 @@ m0_reqh_service_find(const struct m0_reqh_service_type *st,
+ }
+ M0_EXPORTED(m0_reqh_service_find);
+ 
++#undef M0_TRACE_SUBSYSTEM
++
+ /** @} endgroup reqhservice */
+ 
+ /*
+diff --git a/rpc/conn.c b/rpc/conn.c
+index 7920fe1..cc54617 100644
+--- a/rpc/conn.c
++++ b/rpc/conn.c
+@@ -452,6 +452,9 @@ M0_INTERNAL void m0_rpc_conn_fini_locked(struct m0_rpc_conn *conn)
+ 					M0_RPC_CONN_INITIALISED)));
+ 
+ 	rpc_conn_tlist_del(conn);
++	M0_LOG(M0_DEBUG, "rpcmach %p conn %p deleted from %s list",
++		conn->c_rpc_machine, conn,
++		(conn->c_flags & RCF_SENDER_END) ? "outgoing" : "incoming");
+ 	session_zero_detach(conn);
+ 	__conn_fini(conn);
+ 	conn_state_set(conn, M0_RPC_CONN_FINALISED);
+@@ -1170,15 +1173,14 @@ M0_INTERNAL bool m0_rpc_item_is_conn_terminate(const struct m0_rpc_item *item)
+ 	return item->ri_type->rit_opcode == M0_RPC_CONN_TERMINATE_OPCODE;
+ }
+ 
+-#ifndef __KERNEL__
+ /**
+    Just for debugging purpose. Useful in gdb.
+ 
+    dir = 1, to print incoming conn list
+    dir = 0, to print outgoing conn list
+  */
+-M0_INTERNAL int m0_rpc_machine_conn_list_print(struct m0_rpc_machine *machine,
+-					       int dir)
++M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
++					      int dir)
+ {
+ 	struct m0_tl       *list;
+ 	struct m0_rpc_conn *conn;
+@@ -1186,24 +1188,25 @@ M0_INTERNAL int m0_rpc_machine_conn_list_print(struct m0_rpc_machine *machine,
+ 	list = dir ? &machine->rm_incoming_conns : &machine->rm_outgoing_conns;
+ 
+ 	m0_tl_for(rpc_conn, list, conn) {
+-		printf("CONN: %p id %llu state %x\n", conn,
+-				(unsigned long long)conn->c_sender_id,
+-				conn_state(conn));
++		M0_LOG(M0_DEBUG, "rmach %8p conn %8p id %llu state %x dir %s",
++				 machine, conn,
++				 (unsigned long long)conn->c_sender_id,
++				 conn_state(conn),
++				 (conn->c_flags & RCF_SENDER_END)? "S":"R");
+ 	} m0_tl_endfor;
+ 	return 0;
+ }
+ 
+-M0_INTERNAL int m0_rpc_conn_session_list_print(const struct m0_rpc_conn *conn)
++M0_INTERNAL int m0_rpc_conn_session_list_dump(const struct m0_rpc_conn *conn)
+ {
+ 	struct m0_rpc_session *session;
+ 
+ 	m0_tl_for(rpc_session, &conn->c_sessions, session) {
+-		printf("session %p id %llu state %x\n", session,
+-			(unsigned long long)session->s_session_id,
+-			session_state(session));
++		M0_LOG(M0_DEBUG, "session %p id %llu state %x", session,
++			         (unsigned long long)session->s_session_id,
++			         session_state(session));
+ 	} m0_tl_endfor;
+ 	return 0;
+ }
+ 
+ /** @} */
+-#endif
+diff --git a/rpc/conn.h b/rpc/conn.h
+index e990217..2f52602 100644
+--- a/rpc/conn.h
++++ b/rpc/conn.h
+@@ -430,5 +430,7 @@ M0_INTERNAL int m0_rpc_conn_timedwait(struct m0_rpc_conn *conn,
+ 				      uint64_t state_flags,
+ 				      const m0_time_t abs_timeout);
+ 
++M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
++					      int dir);
+ /** @}  End of rpc_session group */
+ #endif /* __MERO_RPC_CONN_H__ */
+diff --git a/rpc/rpclib.c b/rpc/rpclib.c
+index 0b7eb32..9f093f4 100644
+--- a/rpc/rpclib.c
++++ b/rpc/rpclib.c
+@@ -204,13 +204,11 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
+ 
+ 	M0_ENTRY("client_ctx: %p", cctx);
+ 
+-	rc0 = m0_rpc_session_destroy(&cctx->rcx_session,
+-				     m0_time_from_now(cctx->rcx_timeout_s, 0));
++	rc0 = m0_rpc_session_destroy(&cctx->rcx_session, 0);
+ 	if (rc0 != 0)
+ 		M0_LOG(M0_ERROR, "Failed to terminate session %d", rc0);
+ 
+-	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection,
+-				  m0_time_from_now(cctx->rcx_timeout_s, 0));
++	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, 0);
+ 	if (rc1 != 0)
+ 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
+ 
+diff --git a/rpc/session_foms.c b/rpc/session_foms.c
+index 7fa675b..6c69e4c 100644
+--- a/rpc/session_foms.c
++++ b/rpc/session_foms.c
+@@ -465,7 +465,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
+ 	m0_rpc_machine_unlock(machine);
+ 
+ 	reply->rstr_rc = rc;
+-	M0_LOG(M0_INFO, "Session terminate %s: session [%p] rc [%d]\n",
++	M0_LOG(M0_INFO, "Session terminate %s: session [%p] rc [%d]",
+ 			(rc == 0) ? "successful" : "failed", session, rc);
+ 	/*
+ 	 * Note: request is received on SESSION_0, which is different from
+@@ -577,7 +577,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
+ 		 * set sender side conn to FAILED state.
+ 		 * XXX generate ADDB record here.
+ 		 */
+-		M0_LOG(M0_ERROR, "Conn terminate failed: conn [%p]\n", conn);
++		M0_LOG(M0_ERROR, "Conn terminate failed: conn [%p]", conn);
+ 		m0_rpc_conn_fini_locked(conn);
+ 
+ 		m0_rpc_machine_unlock(machine);
+@@ -601,7 +601,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
+ 		if (rc == 0) /* connection is successfully terminated */
+ 			fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
+ 		m0_fom_phase_set(fom, M0_FOPH_FINISH);
+-		M0_LOG(M0_DEBUG, "Conn terminate successful: conn [%p] %d\n",
++		M0_LOG(M0_DEBUG, "Conn terminate successful: conn [%p] %d",
+ 			conn, rc);
+ 		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+ 		M0_LEAVE();
+diff --git a/rpc/ut/clnt_srv_ctx.c b/rpc/ut/clnt_srv_ctx.c
+index 642b910..d8ee4e1 100644
+--- a/rpc/ut/clnt_srv_ctx.c
++++ b/rpc/ut/clnt_srv_ctx.c
+@@ -67,7 +67,7 @@ static struct m0_rpc_client_ctx cctx = {
+ static char *server_argv[] = {
+ 	"rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+ 	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
+-	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2", "-G", SERVER_ENDPOINT,
++	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2",
+ };
+ 
+ static struct m0_rpc_server_ctx sctx = {
+diff --git a/sns/cm/ut/cp_common.c b/sns/cm/ut/cp_common.c
+index fb5fb7f..8c8bd03 100644
+--- a/sns/cm/ut/cp_common.c
++++ b/sns/cm/ut/cp_common.c
+@@ -33,7 +33,6 @@ char      *sns_cm_ut_svc[] = { "m0d", "-r", "-p", "-T", "LINUX",
+                                "-D", "sr_db", "-S", "sr_stob",
+                                "-A", "sr_addb_stob",
+                                "-e", "lnet:0@lo:12345:34:1",
+-                               "-G", "lnet:0@lo:12345:34:1",
+                                "-s", "sns_cm",
+                                "-s", "ioservice"};
+ 
+-- 
+1.8.3.2
+

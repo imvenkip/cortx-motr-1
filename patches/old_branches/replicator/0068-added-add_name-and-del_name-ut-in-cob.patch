@@ -1,0 +1,162 @@
+From 781e35b04d6030c41e7fef61e0713d225ab8be9b Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 18 Apr 2011 13:09:33 -0600
+Subject: [PATCH 068/177] - added add_name and del_name ut in cob; - fixes in
+ cob ut.
+
+---
+ cob/ut/cob.c | 101 ++++++++++++++++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 90 insertions(+), 11 deletions(-)
+
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index b3bd392..3b65306 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -59,8 +59,9 @@ static void test_create(void)
+         nsrec.cnr_fid.f_key = 0xdef;
+ 	C2_SET0(&fabrec); /* zero fill to keep valgrind happy. */
+ 	C2_SET0(&nsrec);
++	C2_SET0(&omgrec);
+ 
+-        nsrec.cnr_nlink = 1;
++        nsrec.cnr_nlink = 0;
+ 
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+         rc = c2_cob_alloc(&dom, &cob);
+@@ -69,23 +70,94 @@ static void test_create(void)
+ 	                   0 /* we'll free below */, &tx);
+ 	C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
++        
++        c2_free(key);
++
++        c2_db_tx_commit(&tx);
++}
++
++/**
++   Test that add_name works.
++*/
++static void test_add_name(void)
++{
++        struct c2_cob_nskey *key;
++        struct c2_fid        pfid;
++        struct c2_db_tx      tx;
++        char                 add_name[] = "add name";
++
++        /* pfid, filename */
++        pfid.f_container = 0x123;
++        pfid.f_key = 0x456;
++        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
++
++        c2_db_tx_init(&tx, dom.cd_dbenv, 0);
++
++        /* lookup for cob created before using @test_name. */
++        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        C2_UT_ASSERT(rc == 0);
++        c2_free(key);
++
++        /* add new name to existing cob */
++        pfid.f_container = 0x123;
++        pfid.f_key = 0x456;
++        c2_cob_make_nskey(&key, &pfid, add_name, strlen(add_name));
++
++        rc = c2_cob_add_name(cob, key, &tx);
++        C2_UT_ASSERT(rc == 0);
++        c2_cob_put(cob);
+ 
+-#if 0
+-        /* This emits an ugly ADDB message during ut. */
++        /* lookup for new name */
++        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        C2_UT_ASSERT(rc == 0);
++        c2_cob_put(cob);
++        c2_free(key);
++
++        c2_db_tx_commit(&tx);
++}
++
++/**
++   Test that del_name works.
++*/
++static void test_del_name(void)
++{
++        struct c2_cob_nskey *key;
++        struct c2_fid        pfid;
++        struct c2_db_tx      tx;
++        char                 add_name[] = "add name";
+ 
+-        /* 2nd create should fail. */
+-        nsrec.cnr_stobid.si_bits.u_hi = 0x666;
+-        rc = c2_cob_create(&dom, key, &nsrec, &fabrec, 0 /* we'll free below */,
+-                           &cob, &tx);
+-	C2_UT_ASSERT(rc != 0);
++        /* pfid, filename */
++        pfid.f_container = 0x123;
++        pfid.f_key = 0x456;
++        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
++
++        c2_db_tx_init(&tx, dom.cd_dbenv, 0);
++
++        /* lookup for cob created before using @test_name. */
++        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        C2_UT_ASSERT(rc == 0);
++        c2_free(key);
++
++        /* del name that we created in prev test */
++        pfid.f_container = 0x123;
++        pfid.f_key = 0x456;
++        c2_cob_make_nskey(&key, &pfid, add_name, strlen(add_name));
++
++        rc = c2_cob_del_name(cob, key, &tx);
++        C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
+-#endif
++
++        /* lookup for new name */
++        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        C2_UT_ASSERT(rc != 0);
+         c2_free(key);
+ 
+         c2_db_tx_commit(&tx);
+ }
+ 
+-/* Lookup by name, make sure cfid is right */
++/** 
++   Lookup by name, make sure cfid is right.
++*/
+ static void test_lookup(void)
+ {
+         struct c2_db_tx      tx;
+@@ -131,7 +203,9 @@ static int test_locate_internal(void)
+         return rc;
+ }
+ 
+-/* Lookup by fid, make sure pfid is right */
++/** 
++   Lookup by fid, make sure pfid is right. 
++*/
+ static void test_locate(void)
+ {
+         rc = test_locate_internal();
+@@ -150,6 +224,9 @@ static void test_locate(void)
+         c2_cob_put(cob);
+ }
+ 
++/** 
++   Test if delete works. 
++*/
+ static void test_delete(void)
+ {
+         struct c2_db_tx      tx;
+@@ -178,6 +255,8 @@ const struct c2_test_suite cob_ut = {
+                 { "cob-create", test_create },
+                 { "cob-lookup", test_lookup },
+                 { "cob-locate", test_locate },
++                { "cob-add-name", test_add_name },
++                { "cob-del-name", test_del_name },
+                 { "cob-delete", test_delete },
+ 		{ "cob-fini", test_fini },
+ 		{ NULL, NULL }
+-- 
+1.8.3.2
+

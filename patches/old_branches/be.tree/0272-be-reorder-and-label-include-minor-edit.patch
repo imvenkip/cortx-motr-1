@@ -1,0 +1,27 @@
+From d26a2d5516f732eed60ce7d1c8f00d3d4aabc48a Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 3 Jul 2013 19:39:10 +0300
+Subject: [PATCH 272/290] be: reorder and label #include (minor edit)
+
+---
+ be/tx_group.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/tx_group.c b/be/tx_group.c
+index 2eed5df..cf2b29c 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -18,9 +18,9 @@
+  * Original creation date: 17-Jun-2013
+  */
+ 
+-#include "fop/fom.h"
+ #include "be/tx_group.h"
+ #include "be/tx.h"
++#include "fop/fom.h"  /* m0_fom_wakeup */
+ 
+ /**
+  * @addtogroup be
+-- 
+1.8.3.2
+

@@ -1,0 +1,256 @@
+From 6b885f75b45c037198bfb3ea5646dd1bf3dbfdd5 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 14 May 2013 11:50:40 +0530
+Subject: [PATCH 136/157] Corrected some M0_ASSERT uses to M0_UT_ASSERT and
+ fixes alike
+
+---
+ layout/ut/composite.c      | 73 +++++++++++++++++++++++++---------------------
+ layout/ut/layout_generic.c |  4 ---
+ 2 files changed, 39 insertions(+), 38 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 3c777a4..617f656 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -75,6 +75,7 @@ static void sublayout_build(uint64_t lid, struct m0_layout_domain *domain,
+  * - Layout with lid "composite_lid * 100 + layer_idx" is used as a part of
+  *   the layer_idx'th layer.
+  */
++/* todo Add test to cover other composite layouts being used as sublayouts. */
+ static void sublayouts_precreate(uint64_t composite_lid,
+ 				 struct m0_layout_domain *domain,
+ 				 uint32_t layers_nr)
+@@ -123,7 +124,6 @@ static void sublayouts_delete(struct m0_layout_domain *domain,
+ 	}
+ }
+ 
+-/* todo Add test to cover other composite layouts being used as sublayouts. */
+ static void extentlist_build(struct m0_tl *extents,
+ 			     uint32_t extents_nr,
+ 			     bool is_contiguous_extents)
+@@ -1303,7 +1303,7 @@ int test_layer_ops_composite(uint64_t lid,
+ 		goto exit;
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+-		M0_ASSERT(cl->cl_layers_nr == layers_nr);
++		M0_UT_ASSERT(cl->cl_layers_nr == layers_nr);
+ 	}
+ 
+ 	/* Verify the layout. */
+@@ -1318,7 +1318,7 @@ int test_layer_ops_composite(uint64_t lid,
+ 
+ 	/* Now, delete the layer. */
+ 	m0_composite_layer_delete(cl);
+-	M0_ASSERT(cl->cl_layers_nr = layers_nr - 1);
++	M0_UT_ASSERT(cl->cl_layers_nr = layers_nr - 1);
+ 
+ 	/* Verify the layout. */
+ 	composite_layout_verify(l, lid, layers_nr - 1, EXTLIST_ASSOCIATED,
+@@ -1537,7 +1537,7 @@ static int ext_op_pre(enum extent_operation eop,
+ 	    (extent_kind == OVERLAPPING_LEFT && !is_contiguous_extents)) {
+ 		M0_UT_ASSERT(rc_tmp == -ENOENT);
+ 		if (eop == EXTENT_LOOKUP) {
+-			M0_ASSERT(failure_test);
++			M0_UT_ASSERT(failure_test);
+ 			rc = rc_tmp;
+ 		}
+ 	} else {
+@@ -1908,15 +1908,15 @@ static int test_ext_state_update(uint64_t lid,
+ 			is_contiguous_extents, extent_kind, ext_state,
+ 			failure_test, &cl, &ext_to_operate, &offset_to_operate,
+ 			&ext_state_lookup, &l_copy_orig);
+-	M0_ASSERT(rc == 0);
++	M0_UT_ASSERT(rc == 0);
+ 
+ 	rc = ext_update(cl, l_copy_orig, domain, extent_kind,
+ 			&ext_to_operate, offset_to_operate, ext_state,
+ 			failure_test);
+ 	if (failure_test)
+-		M0_ASSERT(rc == -EINVAL);
++		M0_UT_ASSERT(rc == -EINVAL);
+ 	else
+-		M0_ASSERT(rc == 0);
++		M0_UT_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_UPDATE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+ 		    extent_kind, cl, l_copy_orig, failure_test);
+@@ -1943,7 +1943,7 @@ static int test_ext_delete(uint64_t lid,
+ 			is_contiguous_extents, extent_kind, M0_CLRES_HOLE,
+ 			failure_test, &cl, &ext_to_operate, &offset_to_operate,
+ 			&ext_state_lookup, &l_copy_orig);
+-	M0_ASSERT(rc == 0);
++	M0_UT_ASSERT(rc == 0);
+ 
+ 	if (M0_FI_ENABLED("ext_del_validation_err")) {
+ 		M0_UT_ASSERT(extent_kind == OVERLAPPING_COMPLETE);
+@@ -1963,9 +1963,9 @@ static int test_ext_delete(uint64_t lid,
+ 			is_contiguous_extents, &ext_to_operate,
+ 			offset_to_operate, failure_test);
+ 	if (failure_test)
+-		M0_ASSERT(rc == -ENOENT || rc == -EINVAL);
++		M0_UT_ASSERT(rc == -ENOENT || rc == -EINVAL);
+ 	else
+-		M0_ASSERT(rc == 0);
++		M0_UT_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_DELETE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+ 		    extent_kind, cl, l_copy_orig, failure_test);
+@@ -2091,7 +2091,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	lid = base_lid + 21;
+ 	rc = test_ext_add(lid, domain, 2, 6, CONTIGUOUS_EXTENTS, EXACT_EXISTING,
+ 			  M0_CLRES_FLATTENING, FAILURE_TEST);
+-	M0_ASSERT(rc == -EINVAL);
++	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	/*
+ 	 * Simulate memory allocation error in the path of ext_inmem_add().
+@@ -2104,7 +2104,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	rc = test_ext_add(lid, domain, 3, 6,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+-	M0_ASSERT(rc == -ENOMEM);
++	M0_UT_ASSERT(rc == -ENOMEM);
+ 	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+@@ -2120,7 +2120,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	rc = test_ext_add(lid, domain, 3, 6,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+-	M0_ASSERT(rc == -ENOMEM);
++	M0_UT_ASSERT(rc == -ENOMEM);
+ 	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+@@ -2135,7 +2135,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	rc = test_ext_add(lid, domain, 4, 7,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+-	M0_ASSERT(rc == -ENOMEM);
++	M0_UT_ASSERT(rc == -ENOMEM);
+ 	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+@@ -2152,7 +2152,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	rc = test_ext_add(lid, domain, 4, 7,
+ 			  !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
+ 			  M0_CLRES_VALID, FAILURE_TEST);
+-	M0_ASSERT(rc == -ENOMEM);
++	M0_UT_ASSERT(rc == -ENOMEM);
+ 	m0_fi_disable("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+ 
+ 	/*
+@@ -2165,7 +2165,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	rc = test_ext_state_update(lid, domain, 3, 6, !CONTIGUOUS_EXTENTS,
+ 				   OVERLAPPING_LEFT, M0_CLRES_FLATTENING,
+ 				   FAILURE_TEST);
+-	M0_ASSERT(rc == -EINVAL);
++	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	/*
+ 	 * Simulate extent validation error by trying to delete an extent
+@@ -2176,7 +2176,7 @@ void test_layer_ext_ops_composite_failure(uint64_t base_lid,
+ 	m0_fi_enable_once("test_ext_delete", "ext_del_validation_err");
+ 	rc = test_ext_delete(lid, domain, 2, 6, !CONTIGUOUS_EXTENTS,
+ 			     OVERLAPPING_COMPLETE, FAILURE_TEST);
+-	M0_ASSERT(rc == -EINVAL);
++	M0_UT_ASSERT(rc == -EINVAL);
+ }
+ 
+ #ifndef __KERNEL__
+@@ -2322,11 +2322,11 @@ int test_update_composite(uint64_t lid,
+ 			  bool is_contiguous_extents,
+ 			  bool failure_test)
+ {
+-	struct m0_composite_layout       *cl;
+-	struct m0_layout                 *l1;
+-	struct m0_layout                 *l1_original_copy;
+-	struct m0_layout                 *l1_changed_copy;
+-	struct m0_layout                 *l_from_db;
++	struct m0_composite_layout        *cl;
++	struct m0_layout                  *l1;
++	struct m0_layout                  *l1_original_copy;
++	struct m0_layout                  *l1_changed_copy;
++	struct m0_layout                  *l_from_db;
+ 	struct m0_layout                  *sublayout;
+ 	uint64_t                           sublayout_id;
+ 	struct m0_tl                       extents;
+@@ -2335,6 +2335,8 @@ int test_update_composite(uint64_t lid,
+ 	struct m0_ext                      ext_lookup;
+ 	enum m0_composite_layer_ext_state  ext_state_lookup;
+ 	struct m0_layout                  *sublayout_lookup;
++	uint32_t                           layers_to_add_nr = 8;
++	uint32_t                           layers_to_delete_nr = 3;
+ 	uint32_t                           i;
+ 	int                                rc_tmp;
+ 	int                                rc;
+@@ -2386,27 +2388,25 @@ int test_update_composite(uint64_t lid,
+ 	M0_UT_ASSERT(ext_state_lookup == M0_CLRES_FLATTENING);
+ 
+ 	/* 3. Add layers to it. */
+-	M0_ASSERT(cl->cl_layers_nr == layers_nr);
+-	for (i = 0; i < 4; ++i) {
++	M0_UT_ASSERT(cl->cl_layers_nr == layers_nr);
++	for (i = 0; i < layers_to_add_nr; ++i) {
+ 		sublayout_id = cl->cl_base.l_id * 100 + cl->cl_layers_nr;
+ 		sublayout_build(sublayout_id, domain, &sublayout);
+ 		extentlist_build(&extents, extents_nr, is_contiguous_extents);
+ 		rc = m0_composite_layer_add(cl, sublayout);
++		M0_UT_ASSERT(rc == 0);
+ 		extentlist_free(&extents);
+-		M0_ASSERT(rc == 0);
+ 	}
+-	M0_ASSERT(cl->cl_layers_nr == layers_nr + 4);
++	M0_UT_ASSERT(cl->cl_layers_nr == layers_nr + layers_to_add_nr);
+ 
+ 	/* 4. Delete layers from it. */
+-#if 0
+-	M0_ASSERT(cl->cl_layers_nr == layers_nr + 4);
+-	for (i = 0; i < 2; ++i) {
+-		//todo Need to delete all the extents
++	for (i = 0; i < layers_to_delete_nr; ++i) {
++		layer_extents_delete(cl, layer_find(cl,
++						    cl->cl_layers_nr - i - 1));
+ 		m0_composite_layer_delete(cl);
+-		M0_ASSERT(cl->cl_layers_nr == ...);
+ 	}
+-	M0_ASSERT(cl->cl_layers_nr == layers_nr + 2);
+-#endif
++	M0_UT_ASSERT(cl->cl_layers_nr ==
++		     layers_nr + layers_to_add_nr - layers_to_delete_nr);
+ 
+ 	/* Update the layout object in the DB. */
+ 	rc = layout_update(l1, failure_test);
+@@ -2456,7 +2456,12 @@ int test_update_composite(uint64_t lid,
+ 		M0_UT_ASSERT(layer_id_lookup == layers_nr - 1);
+ 		M0_UT_ASSERT(ext_state_lookup == M0_CLRES_FLATTENING);
+ 
+-		//todo layer verification.
++		/*
++		 * Verify number of layers. This too is verified by comparing
++		 * the layouts. But anyway, this is an explicit check.
++		 */
++		M0_UT_ASSERT(cl->cl_layers_nr == layers_nr + layers_to_add_nr -
++			     layers_to_delete_nr);
+ 	}
+ 
+ 	/* Delete the in-memory layout. */
+diff --git a/layout/ut/layout_generic.c b/layout/ut/layout_generic.c
+index be4a4e7..da504e3 100644
+--- a/layout/ut/layout_generic.c
++++ b/layout/ut/layout_generic.c
+@@ -50,10 +50,6 @@ void l_verify(struct m0_layout *l, uint64_t lid,
+ 	M0_UT_ASSERT(l->l_id == lid);
+ 	M0_UT_ASSERT(m0_ref_read(&l->l_ref) >= 1);
+ 	M0_UT_ASSERT(ergo(is_user_count_incremented, l->l_user_count > 0));
+-	/* todo Disabling for now since user count of the sublayout for the
+-	 * zeroth layer is incremented when layout is added to the DB during
+-	 * its creation through the test_lookup_composite().
+-	 */
+ 	M0_UT_ASSERT(ergo(!is_user_count_incremented, l->l_user_count == 0));
+ 	M0_UT_ASSERT(l->l_ops != NULL);
+ }
+-- 
+1.8.3.2
+

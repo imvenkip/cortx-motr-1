@@ -1,0 +1,268 @@
+From b17edcd80fdc1fc4a9b539bc0d4dec254250e554 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 19 Jun 2013 18:06:57 +0300
+Subject: [PATCH 175/290] be: extmap: create/destroy + credit()s implemented
+
+---
+ be/btree.h           |  4 +--
+ be/extmap.c          | 93 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ be/extmap.h          | 61 +++++++++++++++++++++++++++++-----
+ be/extmap_internal.h | 10 +++---
+ 4 files changed, 153 insertions(+), 15 deletions(-)
+
+diff --git a/be/btree.h b/be/btree.h
+index 5078bb0..d5ad616 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -67,8 +67,8 @@ enum m0_be_btree_op {
+ 	M0_BBO_MAXKEY,  /**< used for m0_be_btree_maxkey() */
+ 	M0_BBO_MINKEY,  /**< used for m0_be_btree_minkey() */
+ 	M0_BBO_CURSOR_GET, /**<  used for m0_be_btree_cursor_get() */
+-	M0_BBO_CURSOR_NEXT, /**< used for m0_be_btree_cursor_get() */
+-	M0_BBO_CURSOR_PREV, /**< used for m0_be_btree_cursor_get() */
++	M0_BBO_CURSOR_NEXT, /**< used for m0_be_btree_cursor_next() */
++	M0_BBO_CURSOR_PREV, /**< used for m0_be_btree_cursor_prev() */
+ };
+ 
+ /**
+diff --git a/be/extmap.c b/be/extmap.c
+index 1aa82db..2886116 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -24,6 +24,7 @@
+ #include "lib/vec.h"
+ #include "lib/errno.h"
+ #include "lib/arith.h"   /* M0_3WAY */
++#include "lib/misc.h"
+ #include "be/extmap.h"
+ 
+ /**
+@@ -130,6 +131,48 @@ M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
+ 	m0_be_btree_fini(&map->em_mapping);
+ }
+ 
++M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
++				   struct m0_be_tx   *tx,
++				   struct m0_be_op   *op,
++				   struct m0_be_seg  *db,
++			     const char              *mapname)
++{
++	int rc;
++	struct m0_be_bnode *root;
++	struct m0_be_op     bt_op;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++
++	rc = m0_be_seg_dict_lookup(db, mapname, (void**)&root);
++	if (rc == 0) {
++		op->bo_sm.sm_rc = -EEXIST;
++		m0_sm_state_set(&op->bo_sm, M0_BOS_FAILURE);
++		return;
++	}
++
++	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops, NULL);
++	m0_be_btree_create(&map->em_mapping, tx, &bt_op);
++	M0_ASSERT(m0_be_op_state(&bt_op) == M0_BOS_SUCCESS);
++
++	root = map->em_mapping.bb_root;
++	rc = m0_be_seg_dict_insert(db, mapname, root);
++
++	op->bo_sm.sm_rc = rc;
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++}
++
++M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op)
++{
++	struct m0_be_op     bt_op;
++
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++	m0_be_btree_destroy(&map->em_mapping, tx, &bt_op);
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
++	op->bo_sm.sm_rc = bt_op.bo_sm.sm_rc;
++}
++
+ M0_INTERNAL struct m0_be_emap_seg *
+ m0_be_emap_seg_get(struct m0_be_emap_cursor *it)
+ {
+@@ -743,6 +786,56 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
+ 	return rc < 0 ? rc : car->ct_index == M0_BINDEX_MAX + 1;
+ }
+ 
++M0_INTERNAL void m0_be_emap_credit(const struct m0_be_emap      *map,
++					 enum m0_be_emap_optype  optype,
++					 m0_bcount_t             nr,
++					 struct m0_be_tx_credit *accum)
++{
++	enum m0_be_btree_op bt_optype;
++
++	M0_PRE(M0_IN(optype, (M0_BEO_CREATE, M0_BEO_DESTROY, M0_BEO_INSERT,
++			      M0_BEO_DELETE, M0_BEO_UPDATE,
++			      M0_BEO_MERGE, M0_BEO_SPLIT, M0_BEO_PASTE)));
++
++	switch (optype) {
++	case M0_BEO_CREATE:
++		bt_optype = M0_BBO_CREATE;
++	case M0_BEO_DESTROY:
++		bt_optype = M0_BBO_DESTROY;
++	case M0_BEO_INSERT:
++		bt_optype = M0_BBO_INSERT;
++	case M0_BEO_DELETE:
++		bt_optype = M0_BBO_DELETE;
++	case M0_BEO_UPDATE:
++		bt_optype = M0_BBO_UPDATE;
++		m0_be_btree_credit(&map->em_mapping, bt_optype, nr, accum);
++		break;
++	case M0_BEO_MERGE:
++		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, nr, accum);
++		m0_be_btree_credit(&map->em_mapping, M0_BBO_INSERT, nr, accum);
++		m0_be_btree_credit(&map->em_mapping, M0_BBO_UPDATE, nr, accum);
++		break;
++	case M0_BEO_SPLIT:
++		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, 1, accum);
++		m0_be_btree_credit(&map->em_mapping, M0_BBO_INSERT, nr, accum);
++		break;
++	case M0_BEO_PASTE:
++		/*
++		 * In worst case there can be one split from left and one
++		 * split from right sides - i.e. on 4 new segments in total.
++		 */
++		m0_be_emap_credit(map, M0_BEO_SPLIT, 4, accum);
++		/*
++		 * Sequential deletes in btree end up in one delete credit
++		 * (according to Nikita).
++		 */
++		m0_be_btree_credit(&map->em_mapping, M0_BBO_DELETE, 1, accum);
++		break;
++	default:
++		M0_IMPOSSIBLE("invalid emap operation");
++	}
++}
++
+ /** @} end group extmap */
+ 
+ /*
+diff --git a/be/extmap.h b/be/extmap.h
+index 2730337..eb405d1 100644
+--- a/be/extmap.h
++++ b/be/extmap.h
+@@ -62,19 +62,19 @@
+        container identifiers, layout identifiers, recording state of resource
+        name-spaces: allocated to a certain node, free, etc.
+ 
+-   Extent map interface is based on a notion of map cursor (m0_be_emap_cursor): an
+-   object recording a position within a map (i.e., a segment reached by the
++   Extent map interface is based on a notion of map cursor (m0_be_emap_cursor):
++   an object recording a position within a map (i.e., a segment reached by the
+    iteration).
+ 
+    A cursor can be positioned at the segment including a given point in the
+-   name-space (m0_be_emap_lookup()) and moved through the segments (m0_be_emap_next()
+-   and m0_be_emap_prev()).
++   name-space (m0_be_emap_lookup()) and moved through the segments
++   (m0_be_emap_next() and m0_be_emap_prev()).
+ 
+    An extent map can be modified by the following functions:
+ 
+-     - m0_be_emap_split(): split a segment into a collection of segments with given
+-       lengths and values, provided that their total length is the same as the
+-       length of the original segment;
++     - m0_be_emap_split(): split a segment into a collection of segments with
++       given lengths and values, provided that their total length is the same
++       as the length of the original segment;
+ 
+      - m0_be_emap_merge(): merge part of a segment into the next segment. The
+        current segment is shrunk (or deleted if it would become empty) and the
+@@ -118,7 +118,7 @@ struct m0_be_emap_seg;
+ struct m0_be_emap_cursor;
+ 
+ /**
+-    Create maps collection.
++    Initialize maps collection.
+ 
+     @param db - data-base environment used for persistency and transactional
+     support.
+@@ -133,6 +133,23 @@ M0_INTERNAL int m0_be_emap_init(struct m0_be_emap *map,
+ M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map);
+ 
+ /**
++    Create maps collection.
++
++    @param db - data-base environment used for persistency and transactional
++    support.
++ */
++M0_INTERNAL void m0_be_emap_create(struct m0_be_emap *map,
++				   struct m0_be_tx   *tx,
++				   struct m0_be_op   *op,
++				   struct m0_be_seg  *db,
++			     const char              *mapname);
++
++/** Destroy maps collection. */
++M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op);
++
++/**
+    Insert a new map with the given prefix into the collection.
+ 
+    Initially new map consists of a single extent:
+@@ -351,6 +368,34 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
+ /** Returns how far is the end of extent. */
+ M0_INTERNAL m0_bcount_t m0_be_emap_caret_step(const struct m0_be_emap_caret*);
+ 
++/**
++ * Possible persistent operations over the tree.
++ * Enumeration items are being reused to define transaction credit types also.
++ */
++enum m0_be_emap_optype {
++	M0_BEO_CREATE,	/**< m0_be_emap_create() */
++	M0_BEO_DESTROY,	/**< m0_be_emap_destroy() */
++	M0_BEO_INSERT,	/**< m0_be_emap_obj_insert() */
++	M0_BEO_DELETE,	/**< m0_be_emap_obj_delete() */
++	M0_BEO_UPDATE,	/**< m0_be_emap_extent_update() */
++	M0_BEO_MERGE,	/**< m0_be_emap_merge() */
++	M0_BEO_SPLIT,	/**< m0_be_emap_split() */
++	M0_BEO_PASTE,	/**< m0_be_emap_paste() */
++};
++
++/**
++ * Calculates how many internal resources of tx_engine, described by
++ * m0_be_tx_credit, is needed to perform an operation over the @emap.
++ * Function updates @accum structure which is an input for m0_be_tx_prep().
++ *
++ * @param optype operation type over the @emap.
++ * @param nr     number of @optype operations.
++ */
++M0_INTERNAL void m0_be_emap_credit(const struct m0_be_emap      *map,
++					 enum m0_be_emap_optype  optype,
++					 m0_bcount_t             nr,
++					 struct m0_be_tx_credit *accum);
++
+ /** @} end group extmap */
+ 
+ /* __MERO_BE_EXTMAP_H__ */
+diff --git a/be/extmap_internal.h b/be/extmap_internal.h
+index 82b10e7..5f5159a 100644
+--- a/be/extmap_internal.h
++++ b/be/extmap_internal.h
+@@ -86,11 +86,11 @@ struct m0_be_emap_rec {
+    @see m0_be_emap_obj_insert()
+  */
+ struct m0_be_emap {
+-	struct m0_be_btree   em_mapping;
+-	struct m0_buf        em_key_buf;
+-	struct m0_buf        em_val_buf;
+-	struct m0_be_emap_key   em_key;
+-	struct m0_be_emap_rec   em_rec;
++	struct m0_be_btree    em_mapping;
++	struct m0_buf         em_key_buf;
++	struct m0_buf         em_val_buf;
++	struct m0_be_emap_key em_key;
++	struct m0_be_emap_rec em_rec;
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

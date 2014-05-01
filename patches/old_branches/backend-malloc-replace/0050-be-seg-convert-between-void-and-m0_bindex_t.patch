@@ -1,0 +1,36 @@
+From bb23fe3a914a5df066b4bac29a336f278fafb757 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 29 May 2013 18:02:07 +0300
+Subject: [PATCH 050/161] be/seg: convert between (void *) and m0_bindex_t
+
+---
+ be/seg.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 3663c22..9d732d8 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -141,7 +141,7 @@ static int stob_io_single_read(void *buf, m0_bcount_t bufsz,
+ {
+ 	size_t            pgsz;
+ 	m0_bcount_t       rdcnt[1];    /* sectors counts */
+-	m0_bcount_t       rdoffs[1];   /* offsets */
++	m0_bindex_t       rdoffs[1];   /* offsets */
+ 	void             *rdbufpk[1];  /* "packed" addresses */
+ 	struct m0_stob_io io;
+ 	struct m0_clink   clink;
+@@ -158,7 +158,9 @@ static int stob_io_single_read(void *buf, m0_bcount_t bufsz,
+ 	io.si_user.ov_buf         = rdbufpk;
+ 	io.si_user.ov_vec.v_nr    = 1;
+ 	io.si_user.ov_vec.v_count = rdcnt;
+-	rdoffs[0]                 = m0_stob_addr_pack(offs, pgshift);
++	rdoffs[0]                 = (m0_bindex_t)
++				    m0_stob_addr_pack((void *)offs,
++						      pgshift);
+ 	io.si_stob.iv_index       = rdoffs;
+ 	io.si_stob.iv_vec.v_nr    = 1;
+ 	io.si_stob.iv_vec.v_count = rdcnt;
+-- 
+1.8.3.2
+

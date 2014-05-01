@@ -1,0 +1,71 @@
+From c58cf35ae8d3b2e047c3fe77643f5db7481a4494 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 15 Jun 2011 16:32:36 -0600
+Subject: [PATCH 140/177] - bunch of fixes about cob_put
+
+---
+ mdservice/md_foms.c | 10 +++-------
+ mdstore/mdstore.c   |  3 ++-
+ 2 files changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 2aaf577..20f6bd7 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -202,6 +202,7 @@ restart:
+                         rc = c2_md_store_locate(md, ncob->co_fid, &ecob, 
+                                                 C2_MD_LOCATE_STORED, tx);
+                         if (rc) {
++                                c2_cob_put(scob);
+                                 c2_cob_put(ncob);
+                                 return rc;
+                         }
+@@ -219,7 +220,6 @@ restart:
+                                 goto restart;
+                         }
+                         c2_cob_put(ecob);
+-                        c2_cob_put(ncob);
+                 }
+ 
+                 if (attr->ca_version > scob->co_nsrec.cnr_version)
+@@ -569,10 +569,8 @@ static int c2_md_rename_check_src(struct c2_md_store *md,
+                                  */
+                                 rc = c2_md_store_create(md, pfid_src,
+                                                         sattr, &scob, tx);
+-                                if (rc) {
+-                                        c2_cob_put(scob);
++                                if (rc)
+                                         return rc;
+-                                }
+                                                 
+                                 /*
+                                  * Both object and names exist, let's do
+@@ -648,10 +646,8 @@ static int c2_md_rename_check_src(struct c2_md_store *md,
+                                  */
+                                 rc = c2_md_store_create(md, pfid_src,
+                                                         sattr, &scob, tx);
+-                                if (rc) {
+-                                        c2_cob_put(scob);
++                                if (rc)
+                                         return rc;
+-                                }
+                                                 
+                                 /*
+                                  * Both object and names exist, let's do
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 7258ad8..d65a257 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -400,7 +400,8 @@ int c2_md_store_rename(struct c2_md_store       *md,
+                 rc = c2_md_store_unlink(md, pfid_tgt, cob_tgt,
+                                         tname, tnamelen, tx);
+                 if (rc) {
+-                        c2_cob_put(tncob);
++                        if (tncob)
++                                c2_cob_put(tncob);
+                         goto out;
+                 }
+         }
+-- 
+1.8.3.2
+

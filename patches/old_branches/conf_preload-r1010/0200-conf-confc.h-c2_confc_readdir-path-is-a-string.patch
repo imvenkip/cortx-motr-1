@@ -1,0 +1,723 @@
+From 46e95c6db14db2fe7ae93410153ecd6a7aefb036 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 15 Jun 2012 22:44:39 +0300
+Subject: [PATCH 200/311] conf/confc.h: c2_confc_readdir*(); path is a string
+
+- Introduce c2_confc_readdir() and c2_confc_readdir_sync().
+- Get rid of c2_confc_dir*() calls.
+- Make path a string.
+- Update recipes.
+- Extend documentation of c2_confc::cc_lock. (Closes: LogD-1.4 #18)
+- c2_confc_ctx::fc_result is now `struct c2_conf_obj *', not
+  `void *'.
+- c2_confc_ctx_handout(): new function.
+
+Path used to be an array of identifiers and relations.
+Now only identifiers remain.  Replacing array of identifiers
+with a string feels like a natural thing to do.
+---
+ conf/confc.h         | 431 +++++++++++++++++++++++++--------------------------
+ conf/confc_offline.h |   4 +-
+ 2 files changed, 210 insertions(+), 225 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index 00bbd3d..d863a36 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -20,20 +20,23 @@
+ #ifndef __COLIBRI_CONF_CONFC_H__
+ #define __COLIBRI_CONF_CONFC_H__
+ 
+-#include "conf/path.h"
+ #ifdef __KERNEL__
+ #  include "conf/onwire_k.h"
+ #else
+-#  include "conf/onwire_u.h" /* c2_conf_fetch */
++#  include "conf/onwire_u.h" /* c2_conf_buf, c2_conf_fetch */
+ #endif
++#include "conf/obj.h"
++#include "conf/map.h"        /* c2_conf_map */
+ #include "sm/sm.h"           /* c2_sm, c2_sm_ast */
+-#include "lib/chan.h"        /* c2_clink */
++#include "fop/fop.h"         /* c2_fop */
++
++struct c2_mutex;
+ 
+ /**
+  * @page confc-fspec Configuration Client (confc)
+  *
+- * Configuration client library (confc) provides user-space and kernel
+- * interfaces for accessing Colibri configuration information.
++ * Configuration client library -- confc -- provides user-space and
++ * kernel interfaces for accessing Colibri configuration information.
+  *
+  * Confc obtains configuration data from network-accessible
+  * configuration server (confd) and caches this data in memory.
+@@ -53,45 +56,40 @@
+  *
+  * - c2_confc --- an instance of configuration client.
+  *   This structure contains configuration cache and a lock protecting
+- *   the cache from concurrent writes.  c2_confc also has a reference
+- *   to the state machine group that will own the state machines
++ *   the cache from concurrent writes.  c2_confc also keeps reference
++ *   to the state machine group that synchronizes state machines
+  *   created by this confc.
+  *
+  * - c2_confc_ctx --- configuration retrieval context.
+- *   This structure embodies the data needed by a confc state machine
+- *   to process configuration request.  Two of the members are of
+- *   interest of the application:
+- *   - @c fc_complete channel is signaled when the retrieval operation
+- *     completes;
+- *   - @c fc_result will contain the result of retrieval operation ---
+- *     pointer to the requested configuration object or directory.
++ *   This structure embodies data needed by a confc state machine to
++ *   process configuration request.  Its ->fc_complete member is a
++ *   channel that is signaled when the configuration retrieval
++ *   operation completes.
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section confc-fspec-sub Subroutines
+  *
+  * - c2_confc_init() initializes configuration cache, creates a stub
+  *   for the root object (c2_conf_profile).
+- * - c2_confc_fini() finalises confc, destroys configuration cache.
++ * - c2_confc_fini() finalizes confc, destroys configuration cache.
+  *
+  * - c2_confc_ctx_init() initializes context object, which will be
+- *   used by c2_confc_open() and c2_confc_diropen() functions.
+- * - c2_confc_ctx_fini()
++ *   used by c2_confc_open() function.
++ * - c2_confc_ctx_fini() finalizes context object.
+  *
+  * - c2_confc_open() requests asynchronous opening of a configuration object.
+  * - c2_confc_open_sync() opens configuration object synchronously.
+  * - c2_confc_close() closes configuration object.
+  *
+- * - c2_confc_diropen() requests asynchronous opening of a collection
+- *   of configuration objects.
+- * - c2_confc_diropen_sync() opens collection of configuration objects
+- *   synchronously.
+- * - c2_confc_dirnext() is used to iterate a collection of
+- *   configuration objects.
+- * - c2_confc_dirclose() closes collection of configuration objects.
+- *
++ * - c2_confc_ctx_handout() is used to take the resulting
++ *   configuration object from c2_confc_ctx.
+  * - c2_confc_error() returns the error status for the asynchronous
+  *   configuration request.
+  *
++ * - c2_confc_readdir() requests asynchronous retrieval of the next
++ *   directory entry.
++ * - c2_confc_readdir_sync() gets next directory entry synchronously.
++ *
+  * <!---------------------------------------------------------------->
+  * @subsection confc-fspec-sub-setup Initialization and termination
+  *
+@@ -104,7 +102,7 @@
+  * sure c2_sm_asts_run() is called when the group's channel is
+  * signaled; "AST" section of @ref sm has more details on this topic.
+  *
+- * Initiated confc must be eventually terminated with c2_confc_fini().
++ * c2_confc_fini() terminates confc, destroying configuration cache.
+  *
+  * @code
+  * #include "conf/confc.h"
+@@ -134,42 +132,35 @@
+  * @subsection confc-fspec-sub-use Accessing configuration objects
+  *
+  * The application gets access to configuration data by opening
+- * configuration objects.
+- *
+- * c2_confc_open() and c2_confc_open_sync() open individual
+- * configuration objects; c2_confc_diropen() and
+- * c2_confc_diropen_sync() open directories.  Objects of a directory
+- * are iterated over with c2_confc_dirnext().
+- *
+- * c2_confc_open() and c2_confc_diropen() are asynchronous calls.  The
+- * application should initialize a context object
+- * (c2_confc_ctx_init()) and register a clink with
+- * c2_confc_ctx::fc_complete channel prior to calling any of these
+- * functions.  When the clink is signaled, c2_confc_ctx::fc_result
+- * will point to the requested object/directory or be NULL in case of
+- * error.  c2_confc_error() returns the error code.
++ * configuration objects with c2_confc_open() or c2_confc_open_sync().
++ * Directory objects can be iterated over with c2_confc_readdir() or
++ * c2_confc_readdir_sync().
+  *
+- * A caller of c2_confc_open_sync() or c2_confc_diropen_sync() will be
+- * blocked while confc is processing the request.
++ * c2_confc_open() and c2_confc_readdir() are asynchronous functions.
++ * Prior to calling them, the application should initialize a context
++ * object (c2_confc_ctx_init()) and register a clink with
++ * c2_confc_ctx::fc_complete channel.  After the clink is signaled,
++ * c2_confc_ctx_handout() is be used to obtain the requested
++ * configuration object.  c2_confc_error() returns the error code.
+  *
+- * @note  `origin' argument of c2_confc_open_sync() and
+- *        c2_confc_diropen_sync() is not allowed be NULL.  The same
+- *        argument of their asynchronous counterparts can be NULL.
++ * A caller of c2_confc_open_sync() or c2_confc_readdir_sync() will be
++ * blocked while confc processes the request.
+  *
+- * All opened configuration objects and directories must be closed
+- * before c2_confc_fini() is called.  c2_confc_close() and
+- * c2_confc_dirclose() are used for this purpose.
++ * All opened configuration objects must be closed (c2_confc_close())
++ * before c2_confc_fini() is called.
+  *
+  * <hr> <!------------------------------------------------------------>
+  * @section confc-fspec-recipes Recipes
+  *
++ * Configuration objects can be opened asynchronously (c2_confc_open_async())
++ * or synchronously (c2_confc_open_sync()). Most of the examples below
++ * use synchronous call for the sake of brevity.
++ *
+  * @subsection ex1 Getting data on the filesystem
+  *
+  * @code
+  * #include "conf/confc.h"
+  *
+- * struct c2_conf_filesystem; // defined in "conf/obj.h"
+- *
+  * struct c2_confc *confc = ...;
+  *
+  * static int filesystem_open_async(struct c2_conf_filesystem **fs)
+@@ -182,12 +173,16 @@
+  *     c2_clink_init(&clink, NULL)
+  *     c2_clink_add(&ctx.fc_complete, &clink);
+  *
+- *     rc = c2_confc_open(&ctx, NULL, C2_CONF_REL(C2_CO_FILESYSTEM));
++ *     rc = c2_confc_open(&ctx, NULL, "filesystem");
+  *     if (rc == 0) {
++ *         struct c2_conf_obj *obj;
++ *
+  *         c2_chan_wait(&clink);
+- *         *fs = ctx.fc_result;
+- *         if (*fs == NULL)
++ *         obj = c2_confc_ctx_handout(&ctx);
++ *         if (obj == NULL)
+  *             rc = c2_confc_error(&ctx);
++ *         else
++ *             *fs = C2_CONF_CAST(obj, c2_conf_filesystem, cf_obj);
+  *     }
+  *
+  *     c2_clink_del(&clink);
+@@ -198,8 +193,7 @@
+  *
+  * static int filesystem_open_sync(struct c2_conf_filesystem **fs)
+  * {
+- *     return c2_confc_open_sync(fs, confc->cc_root,
+- *                               C2_CONF_REL(C2_CO_FILESYSTEM));
++ *     return c2_confc_open_sync(fs, confc->cc_root, "filesystem");
+  * }
+  * @endcode
+  *
+@@ -208,30 +202,34 @@
+  *
+  * @code
+  * #include "conf/confc.h"
+- * #include "conf/obj.h" // c2_conf_service
+  *
+  * struct c2_confc *confc = ...;
+  *
+  * static int service_by_type(enum c2_cfg_service_type tos)
+  * {
+- *     struct c2_confc_dir    *d;
+- *     struct c2_conf_service *svc;
++ *     struct c2_conf_obj   *obj;
++ *     struct c2_conf_dircur cur;
+  *     int rc;
+  *
+- *     rc = c2_confc_diropen_sync(&d, confc->cc_root,
+- *                                C2_CONF_REL(C2_CO_FILESYSTEM),
+- *                                C2_CONF_REL(C2_CO_SERVICE));
++ *     rc = c2_confc_open_sync(&obj, confc->cc_root, "filesystem/services");
+  *     if (rc != 0)
+  *         return rc;
+  *
+- *     while ((svc = c2_confc_dirnext(d)) != NULL) {
++ *     // This is an idiom: initialize c2_conf_dircur and close
++ *     // directory object.  c2_conf_dircur will keep the object pinned.
++ *     c2_conf_dircur_init(&cur, C2_CONF_CAST(obj, c2_conf_dir, cd_obj));
++ *     c2_confc_close(obj);
++ *
++ *     while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
++ *         const struct c2_conf_service *svc =
++ *             C2_CONF_CAST(obj, c2_conf_service, cs_obj);
+  *         if (svc->cs_type == tos) {
+  *             // ... Use `svc' ...
+  *         }
+  *     }
++ *     c2_conf_dircur_fini(&cur);
+  *
+- *     c2_confc_dirclose(d);
+- *     return 0;
++ *     return rc;
+  * }
+  * @endcode
+  *
+@@ -240,70 +238,82 @@
+  *
+  * @code
+  * #include "conf/confc.h"
+- * #include "conf/obj.h" // c2_conf_service, c2_conf_node
+  *
+  * struct c2_confc *confc = ...;
+  *
+- * /// Does something unspeakably wonderful to the NICs and storage
+- * /// devices of the specific node.
++ * /// Accesses configuration data of devices used by specific service on
++ * /// specific node.
+  * static int node_devices_process(enum c2_cfg_service_type svc_type,
+- *                                 const struct c2_conf_buf *node_key)
++ *                                 const struct c2_conf_buf *node_id)
+  * {
+- *     struct c2_confc_dir    *services;
+- *     struct c2_confc_dir    *d;
+- *     struct c2_conf_service *svc;
+- *     struct c2_conf_node    *node;
+- *     struct c2_conf_nic     *nic;
+- *     struct c2_conf_sdev    *sdev;
+- *     int ret;
+- *
+- *     ret = c2_confc_diropen_sync(&services, confc->cc_root,  // /fs/services
+- *                                 C2_CONF_REL(C2_CO_FILESYSTEM),
+- *                                 C2_CONF_REL(C2_CO_SERVICE));
+- *     if (ret != 0)
+- *         return ret;
+- *
+- *     while ((svc = c2_confc_dirnext(services)) != NULL) {
++ *     struct c2_conf_obj   *obj;
++ *     struct c2_conf_dircur svc_cur; // "services" directory cursor
++ *     struct c2_conf_obj   *node_obj = NULL;
++ *     int rc;
++ *
++ *     rc = c2_confc_open_sync(&obj, confc->cc_root, "filesystem/services");
++ *     if (rc != 0)
++ *         return rc;
++ *
++ *     c2_conf_dircur_init(&svc_cur, C2_CONF_CAST(obj, c2_conf_dir, cd_obj));
++ *     c2_confc_close(obj); // `svc_cur' will keep the object pinned
++ *
++ *     while ((rc = c2_confc_readdir_sync(&obj, &svc_cur)) > 0) {
++ *         // `obj' points at c2_conf_service::cs_obj.
++ *         struct c2_conf_dircur   cur;
++ *         struct c2_conf_service *svc = C2_CONF_CAST(obj, c2_conf_service,
++ *                                                    cs_obj);
+  *         if (svc->cs_type != svc_type)
+- *             continue;
++ *             continue; // This is not the service we are looking for.
+  *
+- *         // svc/node
+- *         ret = c2_confc_open_sync(&node, svc, C2_CONF_REL(C2_CO_NODE));
+- *         if (ret != 0)
++ *         rc = c2_confc_open_sync(&node_obj, obj, "node"); // svc/node
++ *         if (rc != 0)
+  *             break;
+- *
+- *         if (!c2_conf_buf_eq(node->cn_obj.co_key, node_key)) {
+- *             c2_confc_close(node);
++ *         if (!c2_conf_buf_eq(node_obj->co_id, node_id)) {
++ *             // This is not the node we are looking for.
++ *             c2_confc_close(node_obj);
++ *             node_obj = NULL;
+  *             continue;
+  *         }
+  *
+- *         // node/nics
+- *         ret = c2_confc_diropen_sync(&d, node, C2_CONF_REL(C2_CO_NIC));
+- *         if (ret != 0) {
+- *             c2_confc_close(node);
++ *         // Open node/nics.
++ *         rc = c2_confc_open_sync(&obj, node_obj, "nics");
++ *         if (rc != 0)
+  *             break;
+- *         }
+- *         while ((nic = c2_confc_dirnext(d)) != NULL) {
++ *
++ *         // Process NICs.
++ *         c2_conf_dircur_init(&cur, C2_CONF_CAST(obj, c2_conf_dir, cd_obj));
++ *         c2_confc_close(obj);
++ *         while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
++ *             const struct c2_conf_nic *nic =
++ *                 C2_CONF_CAST(obj, c2_conf_nic, ni_obj);
+  *             // ... Use `nic' ...
+  *         }
+- *         c2_confc_dirclose(d);
++ *         c2_conf_dircur_fini(&cur);
++ *         if (rc != 0)
++ *             break;
+  *
+- *         // node/sdevs
+- *         ret = c2_confc_diropen_sync(&d, node, C2_CONF_REL(C2_CO_SDEV));
+- *         if (ret != 0) {
+- *             c2_confc_close(node);
++ *         // Open node/sdevs.
++ *         rc = c2_confc_open_sync(&obj, node_obj, "sdevs");
++ *         if (rc != 0)
+  *             break;
+- *         }
+- *         while ((sdev = c2_confc_dirnext(d)) != NULL) {
++ *
++ *         // Process storage devices.
++ *         c2_conf_dircur_init(&cur, C2_CONF_CAST(obj, c2_conf_dir, cd_obj));
++ *         c2_confc_close(obj);
++ *         while ((rc = c2_confc_readdir_sync(&obj, &cur)) > 0) {
++ *             const struct c2_conf_sdev *sdev =
++ *                 C2_CONF_CAST(obj, c2_conf_sdev, sd_obj);
+  *             // ... Use `sdev' ...
+  *         }
+- *         c2_confc_dirclose(d);
+- *
+- *         c2_confc_close(node);
++ *         c2_conf_dircur_fini(&cur);
++ *         if (rc != 0)
++ *             break;
+  *     }
++ *     c2_conf_dircur_fini(&svc_cur);
+  *
+- *     c2_confc_dirclose(services);
+- *     return ret;
++ *     c2_confc_close(node_obj);
++ *     return rc;
+  * }
+  * @endcode
+  *
+@@ -319,12 +329,14 @@
+  * @{
+  */
+ 
+-struct c2_confc_dir;
++/* ------------------------------------------------------------------
++ * confc instance
++ * ------------------------------------------------------------------ */
+ 
+ /** Configuration client. */
+ struct c2_confc {
+ 	/** Registry of cached configuration objects. */
+-	struct c2_conf_map  cc_registry;  /* XXX Rename to cc_cache? */
++	struct c2_conf_map  cc_registry;
+ 	/** Root of the DAG of configuration objects. */
+ 	struct c2_conf_obj *cc_root;
+ 	/** Serializes confc state machines. */
+@@ -335,6 +347,16 @@ struct c2_confc {
+ 	 * Protects this structure and the DAG of cached configuration
+ 	 * objects from concurrent modifications.  The mutex itself is
+ 	 * owned by an external entity (e.g., the application).
++	 *
++	 * ->cc_group ensures that there are no concurrent state
++	 * transitions. But it has no influence on the application,
++	 * which may modify configuration cache by calling
++	 * c2_confc_close() or c2_confc_fini(). Thus group lock alone
++	 * is not enough.
++	 *
++	 * If both locks are needed, group lock must be acquired first.
++	 *
++	 * @see confc-lspec-thread
+ 	 */
+ 	struct c2_mutex    *cc_lock;
+ };
+@@ -362,14 +384,14 @@ int c2_confc_init(struct c2_confc *client, const char *conf_source,
+ 		  struct c2_mutex *lock);
+ 
+ /**
+- * Finalises configuration client. Destroys configuration cache,
++ * Finalizes configuration client. Destroys configuration cache,
+  * freeing allocated memory.
+  *
+- * @note Users of confc API must be careful not to call
++ * @note Users of confc API should be careful not to call
+  *       c2_confc_fini() while there is a configuration retrieval
+  *       operation in progress.  I.e., don't call c2_confc_fini() if
+- *       there is a thread executing c2_confc_{,dir}open_sync() or an
+- *       c2_confc_ctx has been passed to c2_confc_{,dir}open() and its
++ *       there is a thread executing c2_confc_open_sync() or an
++ *       c2_confc_ctx has been passed to c2_confc_open() and its
+  *       ->fc_complete channel has not been signaled yet.
+  *
+  * @pre  There are no opened (pinned) configuration objects.
+@@ -377,38 +399,43 @@ int c2_confc_init(struct c2_confc *client, const char *conf_source,
+  */
+ void c2_confc_fini(struct c2_confc *client);
+ 
++/* ------------------------------------------------------------------
++ * context
++ * ------------------------------------------------------------------ */
++
++/** Maximum number of path components. */
++enum { C2_CONFC_MAX_PATH_COMP = 16 };
++
+ /** Configuration retrieval context. */
+ struct c2_confc_ctx {
+ 	/** This channel is signaled when the retrieval operation completes. */
+ 	struct c2_chan           fc_complete;
++/* private: internal use only */
+ 	/**
+-	 * Pointer to the requested configuration object/directory.
+-	 *
+-	 * To be type-cast to
+-	 * - `struct X *', where X is a _concrete_ configuration
+-	 *   object type (c2_conf_profile, c2_conf_filesystem, etc.)
+-	 *   in case of c2_confc_open();
+-	 * - `struct c2_confc_dir *' in case of c2_confc_diropen().
++	 * Pointer to the requested configuration object.
+ 	 *
+ 	 * The value is NULL until ->fc_complete channel is signaled.
+-	 * It is also NULL if configuration retrieval failed; see
+-	 * c2_confc_error().
++	 * It is also NULL if configuration retrieval failed.
++	 *
++	 * @see c2_confc_ctx_handout(), c2_confc_error().
+ 	 */
+-	void                    *fc_result;
+-/* private: internal use only */
++	struct c2_conf_obj      *fc_result;
+ 	/** The confc instance this context belongs to. */
+ 	struct c2_confc         *fc_client;
+-	/** Confc state machine. */
++	/** Context state machine. */
+ 	struct c2_sm             fc_mach;
+ 	/**
+ 	 * Asynchronous system trap, used by the implementation to
+ 	 * schedule a transition of ->fc_mach state machine.
+ 	 */
+ 	struct c2_sm_ast         fc_ast;
+-	/** Origin of the path. */
++	/** Origin of the requested path. */
+ 	struct c2_conf_obj      *fc_origin;
+-	/** Path to the object/directory requested by the application. */
+-	struct c2_conf_pathcomp *fc_path;
++	/**
++	 * Path to the object requested by the application.
++	 * End of path is marked with zeroed c2_conf_buf.
++	 */
++	struct c2_conf_buf       fc_path[C2_CONFC_MAX_PATH_COMP + 1];
+ 	/** Configuration fetch request being sent to confd. */
+ 	struct c2_conf_fetch     fc_req;
+ 	/** Request fop. */
+@@ -437,147 +464,105 @@ struct c2_confc_ctx {
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *client);
+ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx);
+ 
++/**
++ * Sets c2_confc_ctx::fc_result to NULL and returns the original value.
++ *
++ * @pre  ctx->fc_mach is in S_TERMINAL or S_FAILURE state.
++ */
++struct c2_conf_obj *c2_confc_ctx_handout(struct c2_confc_ctx *ctx);
++
+ /** Returns the error status for the asynchronous configuration request. */
+ static inline int32_t c2_confc_error(const struct c2_confc_ctx *ctx)
+ {
+ 	return ctx->fc_mach.sm_rc;
+ }
+ 
++/* ------------------------------------------------------------------
++ * open/close
++ * ------------------------------------------------------------------ */
++
+ /**
+  * Requests an asynchronous opening of configuration object.
+  *
+  * @param ctx     Fetch context.
+  * @param origin  Path origin (NULL = root configuration object).
+- * @param ...     Path to the requested object.  Use `C2_CONF_EOP' for
+- *                empty path.
++ * @param path    Path to the requested object.
++ *
++ * @note  The application must keep the string, pointed to by `path',
++ *        intact until configuration retrieval completes (i.e., until
++ *        ctx->fc_complete channel is signaled).
+  *
+- * @retval -EISDIR  Path leads to a directory.
+- * @retval -ENOMEM  Insufficient memory.
++ * @pre  ctx->fc_client == origin->co_confc
+  */
+-#define c2_confc_open(ctx, origin, ...)                                     \
+-	c2__confc_open((ctx), (origin), (const struct c2_conf_pathcomp []){ \
+-			__VA_ARGS__, C2_CONF_EOP })
+-int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		   const struct c2_conf_pathcomp *path);
++int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		  const char *path);
+ 
+ /**
+  * Opens configuration object synchronously.
+  *
+- * If the function succeeds, *obj will point to the requested
+- * configuration object.
++ * If the call succeeds, *obj will point to the requested object.
+  *
+- * @pre origin != NULL
++ * @pre  origin != NULL
+  *
+  * Example:
+  * @code
+  * struct c2_conf_filesystem *fs;
+  * int rc;
+  *
+- * // open `/filesystem'
+- * rc = c2_confc_open_sync(&fs, confc->cc_root,
+- *                         C2_CONF_REL(C2_CONF_FILESYSTEM));
++ * rc = c2_confc_open_sync(&fs, confc->cc_root, "filesystem");
+  * @endcode
+  *
+  * @see c2_confc_open()
+  */
+-#define c2_confc_open_sync(obj, origin, ...)                    \
+-	c2__confc_open_sync((obj), (origin),                    \
+-			    (const struct c2_conf_pathcomp []){ \
+-				    __VA_ARGS__, C2_CONF_EOP })
+-int c2__confc_open_sync(void **obj, struct c2_conf_obj *origin,
+-			const struct c2_conf_pathcomp *path);
+-
+-/* XXX[future]
+- * If statistics shows that synchronous variant is used more often, we
+- * may want to rename the functions: use c2_confc_open_async() for
+- * non-blocking function and c2_confc_open() for synchronous one.
+- */
++int c2_confc_open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
++		       const char *path);
+ 
+ /**
+  * Closes configuration object opened with c2_confc_open() or
+  * c2_confc_open_sync().
+  *
+- * @note  c2_confc_close(NULL) is a noop.
+- *
+- * @pre  ergo(obj != NULL, ((struct c2_conf_obj *)obj)->co_nrefs > 0)
+- */
+-void c2_confc_close(void *obj);
+-
+-/**
+- * Requests an asynchronous opening of a collection of configuration objects.
++ * c2_confc_close(NULL) is a noop.
+  *
+- * @param ctx     Fetch context.
+- * @param origin  Path origin (NULL = root configuration object).
+- * @param ...     Path to the requested directory.  Use `C2_CONF_EOP' for
+- *                empty path.
++ * @note  The application must not close the objects obtained via
++ *        c2_confc_readdir*().
+  *
+- * @retval -ENOTDIR  Path does not lead to a directory.
+- * @retval -ENOMEM   Insufficient memory.
++ * @pre  ergo(obj != NULL, obj->co_nrefs > 0)
+  */
+-#define c2_confc_diropen(ctx, origin, ...)                                    \
+-	c2__confc_diropen((ctx), (origin, (const struct c2_conf_pathcomp []){ \
+-			__VA_ARGS__, C2_CONF_EOP })
+-int c2__confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		      const struct c2_conf_pathcomp *path);
++void c2_confc_close(struct c2_conf_obj *obj);
+ 
+-/**
+- * Opens collection of configuration objects synchronously.
+- *
+- * If the function succeeds, *dir will point to the requested
+- * collection (aka directory).
+- *
+- * @pre origin != NULL
+- *
+- * Example:
+- * @code
+- * struct c2_confc_dir *dir;
+- * int rc;
+- *
+- * // open `/filesystem/services'
+- * rc = c2_confc_diropen_sync(&dir, confc->cc_root,
+- *                            C2_CONF_REL(C2_CONF_FILESYSTEM),
+- *                            C2_CONF_REL(C2_CONF_SERVICE));
+- * @endcode
+- *
+- * @see c2_confc_diropen()
+- */
+-#define c2_confc_diropen_sync(dir, origin, ...)                    \
+-	c2__confc_diropen_sync((dir), (origin),                    \
+-			       (const struct c2_conf_pathcomp []){ \
+-				       __VA_ARGS__, C2_CONF_EOP })
+-int c2__confc_diropen_sync(struct c2_confc_dir **dir,
+-			   struct c2_conf_obj *origin,
+-			   const struct c2_conf_pathcomp *path);
++/* ------------------------------------------------------------------
++ * readdir
++ * ------------------------------------------------------------------ */
+ 
+ /**
+- * Returns the next configuration object of given collection.
+- * Returns NULL if at the end of collection.
+- *
+- * Closes the object returned by previous c2_confc_dirnext() called
+- * with the same argument.  Increments reference counter
+- * (c2_conf_obj::co_nrefs) of the returned object.
++ * Requests asynchronous retrieval of the next directory entry.
+  *
+- * c2_confc_dirnext() is used to iterate a collection of configuration
+- * objects.  Example:
++ * Closes the configuration object returned by previous
++ * c2_confc_readdir*().
+  *
+- * @code
+- * const struct c2_conf_obj *obj;
+- *
+- * while ((obj = c2_confc_dirnext(dir)) != NULL)
+- *         consume(obj);
+- * @endcode
++ * @note  The application must not c2_confc_close() a configuration
++ *        object retrieved by c2_confc_readdir().  The object will be
++ *        closed implicitly by c2_conf_dircur_fini().
+  */
+-const void * c2_confc_dirnext(struct c2_confc_dir *dir);
++int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_dircur *cur);
+ 
+ /**
+- * Closes directory opened with c2_confc_diropen() or
+- * c2_confc_diropen_sync().
++ * Gets next directory entry synchronously.
++ *
++ * Closes the configuration object returned by previous
++ * c2_confc_readdir*().  Increments reference counter of the returned
++ * object.
+  *
+- * @note  c2_confc_dirclose(NULL) is a noop.
++ * @retval 1    *result now points to the next directory entry.
++ * @retval 0    End of directory is reached.
++ * @retval < 0  Error.
+  *
+- * @pre  ergo(dir != NULL, dir->d_parent->co_nrefs > 0)
++ * @note  The application must not c2_confc_close() the resulting
++ *        configuration object.  The object will be closed
++ *        implicitly by c2_conf_dircur_fini().
+  */
+-void c2_confc_dirclose(struct c2_confc_dir *dir);
++int c2_confc_readdir_sync(struct c2_conf_obj **result,
++			  struct c2_conf_dircur *cur);
+ 
+ /** @} confc_dfspec */
+ #endif /* __COLIBRI_CONF_CONFC_H__ */
+diff --git a/conf/confc_offline.h b/conf/confc_offline.h
+index d330cf5..0cc803f 100644
+--- a/conf/confc_offline.h
++++ b/conf/confc_offline.h
+@@ -34,7 +34,7 @@
+  * when confc cannot or should not communicate with confd.
+  *
+  * <hr> <!------------------------------------------------------------>
+- * @section conf-fspec-preload-string  Configuration string
++ * @section conf-fspec-preload-string Configuration string
+  *
+  * The application pre-loads confc cache by passing textual
+  * description of configuration objects -- so called configuration
+@@ -46,7 +46,7 @@
+  * provided as mount(8) option.
+  *
+  * <!---------------------------------------------------------------->
+- * @subsection conf-fspec-preload-string-format  Format
++ * @subsection conf-fspec-preload-string-format Format
+  *
+  * Configuration string represents a set (array) of configuration
+  * objects encoded using JSON [http://www.json.org/] format.
+-- 
+1.8.3.2
+

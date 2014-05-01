@@ -1,0 +1,69 @@
+From 9efe44bc6a859a863c5d3d0008b3aceb61c907c6 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 14 Feb 2013 13:23:51 +0200
+Subject: [PATCH 09/10] m0t1fs/xattr: add support for delxattr
+
+---
+ m0t1fs/linux_kernel/dir.c | 32 ++++++++++++++++++++++++++++----
+ 1 file changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index 1a53207..2d71194 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -179,7 +179,8 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
+ 	struct m0t1fs_mdop          mo;
+ 	int                         rc;
+ 
+-	M0_ENTRY("%.*s", dentry->d_name.len, dentry->d_name.name);
++	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
++		 dentry->d_name.name, name, (int)size, (char *)value);
+ 
+ 	m0t1fs_fs_lock(csb);
+ 
+@@ -206,8 +207,8 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
+ 	struct m0t1fs_mdop          mo;
+ 	int                         rc;
+ 
+-	M0_ENTRY("%.*s into buf of sz %zu", dentry->d_name.len,
+-		 dentry->d_name.name, size);
++	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
++		 dentry->d_name.name, name);
+ 
+ 	m0t1fs_fs_lock(csb);
+ 
+@@ -242,7 +243,30 @@ ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size)
+ 
+ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
+ {
+-        return -EOPNOTSUPP;
++	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
++	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
++	struct m0_fop_delxattr_rep *rep = NULL;
++	struct m0t1fs_mdop          mo;
++	int                         rc;
++
++	M0_ENTRY("Deleting %.*s's xattr %s", dentry->d_name.len,
++		 dentry->d_name.name, name);
++
++	m0t1fs_fs_lock(csb);
++
++	M0_SET0(&mo);
++	mo.mo_attr.ca_tfid = ci->ci_fid;
++	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
++		    dentry->d_name.len);
++	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
++
++	rc = m0t1fs_mds_cob_delxattr(csb, &mo, &rep);
++	if (rc == -ENOENT)
++		rc = -ENODATA;
++
++	m0t1fs_fs_unlock(csb);
++	M0_LEAVE("rc: %d", rc);
++	return rc;
+ }
+ 
+ static int m0t1fs_create(struct inode     *dir,
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From 74a2c7d3ebcc75487bf4cb4c4b2a70b0346cc3bf Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 19:15:13 +0200
+Subject: [PATCH 35/99] LogD 1876: ntc_ep should be checked after allocation
+
+---
+ net/test/network.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/network.c b/net/test/network.c
+index 102e7a3..a1c1816 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -292,7 +292,7 @@ static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
+ 	if (ctx->ntc_buf_bulk == NULL)
+ 		goto free_buf_ping;
+ 	M0_ALLOC_ARR(ctx->ntc_ep, ctx->ntc_cfg.ntncfg_ep_max);
+-	if (ctx->ntc_buf_bulk == NULL)
++	if (ctx->ntc_ep == NULL)
+ 		goto free_buf_bulk;
+ 
+ 	/** @todo replace proc ctx */
+-- 
+1.8.3.2
+

@@ -1,0 +1,38 @@
+From 6dd6a914f70c46977824f14759430cf03d88c13d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 8 Mar 2013 01:40:43 +0200
+Subject: [PATCH 99/99] fixed m0_chan/m0_clink syncrhonization problem in LNET
+ kernel UT
+
+---
+ net/lnet/ut/linux_kernel/klnet_ut.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/net/lnet/ut/linux_kernel/klnet_ut.c b/net/lnet/ut/linux_kernel/klnet_ut.c
+index d02958d..64066eb 100644
+--- a/net/lnet/ut/linux_kernel/klnet_ut.c
++++ b/net/lnet/ut/linux_kernel/klnet_ut.c
+@@ -497,9 +497,9 @@ int ut_ktest_msg_buf_event_wait(struct nlx_core_domain *lcdom,
+ 		M0_ASSERT(ut_ktest_msg_buf_event_wait_delay_chan != NULL);
+ 		m0_atomic64_inc(&ut_ktest_msg_buf_event_wait_stall);
+ 		m0_clink_init(&cl, NULL);
+-		m0_clink_add(ut_ktest_msg_buf_event_wait_delay_chan,&cl);
++		m0_clink_add_lock(ut_ktest_msg_buf_event_wait_delay_chan,&cl);
+ 		m0_chan_timedwait(&cl, timeout);
+-		m0_clink_del(&cl);
++		m0_clink_del_lock(&cl);
+ 		return -ETIMEDOUT;
+ 	}
+ 	return nlx_core_buf_event_wait(lcdom, lctm, timeout);
+@@ -907,7 +907,7 @@ static void ktest_msg_body(struct ut_data *td)
+ 
+ 	/* open the spigot ... */
+ 	m0_atomic64_set(&ut_ktest_msg_buf_event_wait_stall, 0);
+-	m0_chan_signal(ut_ktest_msg_buf_event_wait_delay_chan);
++	m0_chan_signal_lock(ut_ktest_msg_buf_event_wait_delay_chan);
+ 	while (cb_called1 < count) {
+ 		ut_chan_timedwait(&td->tmwait1,1);
+ 	}
+-- 
+1.8.3.2
+

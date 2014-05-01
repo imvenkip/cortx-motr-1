@@ -1,0 +1,380 @@
+From d2d36f2ac6b152f4323c182028a5736ee61045c4 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Tue, 27 Aug 2013 17:17:39 +0530
+Subject: [PATCH 12/24] Fixed group-id setup and conflict problems.
+
+---
+ rm/rm.c            | 45 ++++++++++++++++++++++++++++++---------------
+ rm/rm.h            |  2 +-
+ rm/rm_foms.c       |  9 +++++----
+ rm/rm_internal.h   |  1 +
+ rm/ut/group.c      | 12 ++++++++++--
+ rm/ut/rm_service.c | 29 +++++++++--------------------
+ rm/ut/rmut.c       |  4 ++--
+ 7 files changed, 58 insertions(+), 44 deletions(-)
+
+diff --git a/rm/rm.c b/rm/rm.c
+index 76718e1..4515fe8 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -193,7 +193,8 @@ M0_BOB_DEFINE(M0_INTERNAL, &rem_bob, m0_rm_remote);
+ struct m0_addb_ctx m0_rm_addb_ctx;
+ static m0_time_t   rm_addb_update_interval =
+ 	M0_MKTIME(M0_ADDB_DEF_STAT_PERIOD_S, 0);
+-static const struct m0_uint128 no_group_id = M0_UINT128(0, 0);
++static const struct m0_uint128 standalone_group_id =
++				M0_UINT128(0, M0_RM_NO_GROUP);
+ 
+ static struct m0_addb_rec_type *rm_cntr_rts[] = {
+ 	/* borrow */
+@@ -602,7 +603,7 @@ M0_INTERNAL void m0_rm_owner_init(struct m0_rm_owner    *owner,
+ 	m0_rm_owner_lock(owner);
+ 	owner_state_set(owner, ROS_INITIALISING);
+ 	m0_rm_owner_unlock(owner);
+-	owner->cr_group_id = M0_UINT128(0, grp_id);
++	owner->ro_group_id = M0_UINT128(0, grp_id);
+ 
+ 	m0_rm_ur_tlist_init(&owner->ro_borrowed);
+ 	m0_rm_ur_tlist_init(&owner->ro_sublet);
+@@ -802,6 +803,7 @@ M0_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
+ 	M0_PRE(owner->ro_resource->r_ops->rop_credit_init != NULL);
+ 
+ 	credit->cr_datum = 0;
++	credit->cr_group_id = standalone_group_id;
+ 	m0_rm_ur_tlink_init(credit);
+ 	pr_tlist_init(&credit->cr_pins);
+ 	m0_rm_credit_bob_init(credit);
+@@ -1531,11 +1533,19 @@ M0_EXPORTED(m0_rm_revoke_commit);
+  */
+ /** @{ */
+ 
+-static bool incoming_group_conflict(struct m0_rm_owner    *owner,
+-				    struct m0_rm_incoming *in)
++static bool owner_group_conflict(struct m0_rm_owner    *o,
++			   	 struct m0_rm_incoming *in)
+ {
+-	return !m0_uint128_eq(&owner->cr_group_id, &no_group_id) &&
+-	       m0_uint128_eq(&owner->cr_group_id, &in->rin_want.cr_group_id);
++	return !m0_uint128_eq(&o->ro_group_id, &standalone_group_id) &&
++		m0_uint128_eq(&o->ro_group_id, &in->rin_want.cr_group_id);
++}
++
++static bool credit_group_conflict(struct m0_uint128 *g1,
++			   struct m0_uint128 *g2)
++{
++	return (m0_uint128_eq(g1, g2) &&
++		m0_uint128_eq(g1, &standalone_group_id)) ||
++		!m0_uint128_eq(g1, g2);
+ }
+ 
+ static void incoming_failure_set(struct m0_rm_incoming *in, int err)
+@@ -1578,7 +1588,7 @@ M0_INTERNAL void m0_rm_credit_get(struct m0_rm_incoming *in)
+ 	 * of races between owner state transition and credit requests.
+ 	 */
+ 	if (owner_state(owner) == ROS_ACTIVE) {
+-		if (incoming_group_conflict(owner, in))
++		if (owner_group_conflict(owner, in))
+ 			incoming_failure_set(in, -EINVAL);
+ 		else
+ 			incoming_queue(owner, in);
+@@ -1936,15 +1946,12 @@ static int incoming_check_with(struct m0_rm_incoming *in,
+ 			M0_ASSERT(m0_rm_credit_bob_check(r));
+ 			if (!credit_intersects(r, rest))
+ 				continue;
+-			if (!m0_uint128_eq(&r->cr_group_id,
+-					   &rest->cr_group_id) &&
+-			    !(in->rin_flags & RIF_MAY_REVOKE))
+-				return -EREMOTE;
+ 			loan = bob_of(r, struct m0_rm_loan, rl_credit,
+ 				      &loan_bob);
+ 			M0_ASSERT(!credit_is_empty(r));
+-			if (!m0_uint128_eq(&r->cr_group_id,
+-					   &rest->cr_group_id)) {
++			if (credit_group_conflict(&r->cr_group_id,
++						  &rest->cr_group_id) &&
++			    in->rin_flags & RIF_MAY_REVOKE) {
+ 				/*
+ 				 * It is possible that this loop emits multiple
+ 				 * outgoing requests toward the same remote
+@@ -1958,14 +1965,19 @@ static int incoming_check_with(struct m0_rm_incoming *in,
+ 				 * subset of r.
+ 				 */
+ 				wait++;
+-				rc = revoke_send(in, loan, r);
++				rc = revoke_send(in, loan, r) ?:
++					credit_diff(rest, r);
+ 				if (rc != 0) {
+ 					RM_ADDB_FUNCFAIL(-EREMOTE, REVOKE_FAIL,
+ 							 &m0_rm_addb_ctx);
+ 					M0_RETURN(rc);
+ 				}
++			} else if (!credit_group_conflict(&r->cr_group_id,
++							  &rest->cr_group_id) &&
++				   in->rin_flags & RIF_MAY_BORROW) {
++				rc = rc ?: credit_diff(rest, r);
+ 			}
+-			rc = rc ?: credit_diff(rest, r);
++
+ 			if (rc != 0)
+ 				M0_RETURN(rc);
+ 		} m0_tl_endfor;
+@@ -2383,8 +2395,10 @@ static bool incoming_invariant(const struct m0_rm_incoming *in)
+ 		     incoming_pin_nr(in, M0_RPF_PROTECT) == 0) &&
+ 		/* a fulfilled request... */
+ 		ergo(incoming_state(in) == RI_SUCCESS,
++#if 0
+ 		     /* holds something... */
+ 		     incoming_pin_nr(in, M0_RPF_PROTECT) > 0 &&
++#endif
+ 		     /* and waits on nothing. */
+ 		     incoming_pin_nr(in, M0_RPF_TRACK) == 0) &&
+ 		ergo(incoming_state(in) == RI_FAILURE ||
+@@ -2800,6 +2814,7 @@ m0_rm_credit_copy(struct m0_rm_credit *dst, const struct m0_rm_credit *src)
+ 	M0_PRE(src != NULL);
+ 	M0_PRE(credit_is_empty(dst));
+ 
++	dst->cr_group_id = src->cr_group_id;
+ 	return src->cr_ops->cro_copy(dst, src);
+ }
+ 
+diff --git a/rm/rm.h b/rm/rm.h
+index 833d48b..319b46e 100644
+--- a/rm/rm.h
++++ b/rm/rm.h
+@@ -967,7 +967,7 @@ struct m0_rm_owner {
+ 	 * If this is M0_RM_NO_GROUP (0), the owner is not a member of any
+ 	 * group (a  "standalone" owner).
+ 	 */
+-	struct m0_uint128      cr_group_id;
++	struct m0_uint128      ro_group_id;
+ 	/**
+ 	 * An upward creditor, from where this owner borrows credits.
+ 	 */
+diff --git a/rm/rm_foms.c b/rm/rm_foms.c
+index 42ba436..085320c 100644
+--- a/rm/rm_foms.c
++++ b/rm/rm_foms.c
+@@ -293,7 +293,6 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
+ {
+ 	struct m0_rm_fop_borrow_rep *breply_fop;
+ 	struct m0_rm_fop_revoke_rep *rreply_fop;
+-	struct m0_rm_remote_link    *rrl;
+ 	struct rm_request_fom       *rfom;
+ 	struct m0_rm_loan	    *loan;
+ 	int			     rc = 0;
+@@ -316,9 +315,9 @@ static int reply_prepare(const enum m0_rm_incoming_type type,
+ 
+ 		M0_ASSERT(loan != NULL);
+ 		M0_ASSERT(!m0_proxies_tlist_is_empty(&loan->rl_others));
+-		M0_ASSERT(m0_proxies_tlist_length(&loan->rl_others) == 1);
+-		rrl = m0_proxies_tlist_head(&loan->rl_others);
+-		breply_fop->br_creditor_cookie = rrl->rrl_ptr->rem_cookie;
++		M0_ASSERT(m0_proxies_tlist_length(&loan->rl_others) >= 1);
++		breply_fop->br_creditor_cookie =
++			 rfom->rf_in.ri_rem_owner_cookie;
+ 		/*
+ 		 * Memory for the buffer is allocated by the function.
+ 		 */
+@@ -432,6 +431,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
+ 		 */
+ 		/* Possibly M0_COOKIE_NULL */
+ 		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
++		rfom->rf_in.ri_group_id = bfop->bo_group_id;
+ 		break;
+ 
+ 	case FRT_REVOKE:
+@@ -479,6 +479,7 @@ static int incoming_prepare(enum m0_rm_incoming_type type, struct m0_fom *fom)
+ 	rc = m0_rm_credit_decode(&in->rin_want, buf);
+ 	if (rc != 0)
+ 		m0_rm_incoming_fini(in);
++	in->rin_want.cr_group_id = rfom->rf_in.ri_group_id;
+ 
+ 	M0_RETURN(rc);
+ }
+diff --git a/rm/rm_internal.h b/rm/rm_internal.h
+index f200baf..eebb024 100644
+--- a/rm/rm_internal.h
++++ b/rm/rm_internal.h
+@@ -49,6 +49,7 @@ struct m0_rm_remote_incoming {
+ 	 */
+ 	struct m0_cookie      ri_rem_owner_cookie;
+ 	struct m0_cookie      ri_loan_cookie;
++	struct m0_uint128     ri_group_id;
+ };
+ 
+ /**
+diff --git a/rm/ut/group.c b/rm/ut/group.c
+index 5e871b8..9e219a7 100644
+--- a/rm/ut/group.c
++++ b/rm/ut/group.c
+@@ -18,6 +18,9 @@
+  * Original creation date: 08/22/2013
+  */
+ 
++#ifndef __KERNEL__
++#include <stdio.h>
++#endif
+ #include "rm/rm.h"
+ #include "rm/rm_internal.h"
+ #include "rm/rm_fops.h"
+@@ -63,7 +66,6 @@ static void ring_get(enum rm_server            srv_id,
+ 	in->rin_want.cr_datum = which_ring;
+ 	in->rin_ops = &rmg_incoming_ops;
+ 	in->rin_want.cr_group_id = M0_UINT128(0, grp_id);
+-
+ 	m0_rm_credit_get(in);
+ 	m0_rm_owner_lock(owner);
+ 	rc = m0_sm_timedwait(&in->rin_sm, M0_BITS(RI_SUCCESS), M0_TIME_NEVER);
+@@ -80,7 +82,7 @@ static void standalone_borrow_verify(void)
+ 	struct m0_rm_owner *so1 = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+ 
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_borrowed));
+-	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&so2->ro_owned[OWOS_CACHED]));
++	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so2->ro_owned[OWOS_CACHED]));
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so1->ro_borrowed));
+ 	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&so1->ro_owned[OWOS_CACHED]));
+ }
+@@ -134,6 +136,9 @@ static void group_borrow_run(enum rm_server srv_id)
+ static void server1_tests(void)
+ {
+ 	m0_chan_wait(&group_tests_clink[GROUP_BORROW_TEST1]);
++#ifndef __KERNEL__
++	printf("Server 1 borrowing\n");
++#endif
+ 	group_borrow_run(SERVER_1);
+ 	group_borrow_verify(SERVER_1);
+ 
+@@ -144,6 +149,9 @@ static void server1_tests(void)
+ static void server2_tests(void)
+ {
+ 	m0_chan_wait(&group_tests_clink[GROUP_BORROW_TEST2]);
++#ifndef __KERNEL__
++	printf("Server 2 borrowing\n");
++#endif
+ 	group_borrow_run(SERVER_2);
+ 	group_borrow_verify(SERVER_2);
+ 
+diff --git a/rm/ut/rm_service.c b/rm/ut/rm_service.c
+index 263a4df..97539d8 100644
+--- a/rm/ut/rm_service.c
++++ b/rm/ut/rm_service.c
+@@ -40,23 +40,12 @@ static char *server_argv[] = {
+ };
+ 
+ extern struct m0_reqh_service_type      m0_rms_type;
+-extern struct rm_context                rm_ctx[SERVER_NR];
+-extern const char                      *serv_addr[];
+-extern const int                        cob_ids[];
+-extern const struct m0_rm_incoming_ops  server2_incoming_ops;
+-extern struct m0_chan                   rr_tests_chan;
+-extern struct m0_mutex                  rr_tests_chan_mutex;
+-extern struct m0_clink                  tests_clink[];
+ 
+ static struct m0_net_xprt *xprt        = &m0_net_lnet_xprt;
+ static struct rm_context  *server_ctx  = &rm_ctx[SERVER_1];
+ static struct rm_context  *client_ctx  = &rm_ctx[SERVER_2];
++static struct m0_clink     tests_clink[TEST_NR];
+ 
+-extern void rm_ctx_init(struct rm_context *rmctx);
+-extern void rm_ctx_fini(struct rm_context *rmctx);
+-extern void rm_connect(struct rm_context *src, const struct rm_context *dest);
+-extern void rm_disconnect(struct rm_context *src,
+-			  const struct rm_context *dest);
+ extern void flock_client_utdata_ops_set(struct rm_ut_data *data);
+ 
+ enum {
+@@ -98,13 +87,13 @@ static void rm_svc_server(const int tid)
+ 	rm_service_start(&sctx);
+ 
+ 	/* Signal client that server is now up and running */
+-	m0_chan_signal_lock(&rr_tests_chan);
++	m0_chan_signal_lock(&rm_ut_tests_chan);
+ 	/* Stay alive till client runs its test cases */
+ 	m0_chan_wait(&tests_clink[SERVER_2]);
+ 
+ 	rm_service_stop(&sctx);
+ 	/* Tell client that I am done */
+-	m0_chan_signal_lock(&rr_tests_chan);
++	m0_chan_signal_lock(&rm_ut_tests_chan);
+ }
+ 
+ static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
+@@ -204,7 +193,7 @@ static void rm_client(const int tid)
+ 	rm_ctx_disconnect(client_ctx, server_ctx);
+ 
+ 	/* Tell server to stop */
+-	m0_chan_signal_lock(&rr_tests_chan);
++	m0_chan_signal_lock(&rm_ut_tests_chan);
+ 	/* Wait for server to stop */
+ 	m0_chan_wait(&tests_clink[SERVER_1]);
+ 
+@@ -243,8 +232,8 @@ void rmsvc(void)
+ {
+ 	int rc;
+ 
+-	m0_mutex_init(&rr_tests_chan_mutex);
+-	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
++	m0_mutex_init(&rm_ut_tests_chan_mutex);
++	m0_chan_init(&rm_ut_tests_chan, &rm_ut_tests_chan_mutex);
+ 
+ 	for (rc = 0; rc <= 1; ++rc) {
+ 		M0_SET0(&rm_ctx[rc]);
+@@ -253,7 +242,7 @@ void rmsvc(void)
+ 		rm_ctx[rc].rc_rmach_ctx.rmc_dbname = db_name[rc];
+ 		rm_ctx[rc].rc_rmach_ctx.rmc_ep_addr = serv_addr[rc];
+ 		m0_clink_init(&tests_clink[rc], NULL);
+-		m0_clink_add_lock(&rr_tests_chan, &tests_clink[rc]);
++		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[rc]);
+ 	}
+ 
+ 	/* Start the server */
+@@ -276,8 +265,8 @@ void rmsvc(void)
+ 		m0_clink_fini(&tests_clink[rc]);
+ 	}
+ 
+-	m0_chan_fini_lock(&rr_tests_chan);
+-	m0_mutex_fini(&rr_tests_chan_mutex);
++	m0_chan_fini_lock(&rm_ut_tests_chan);
++	m0_mutex_fini(&rm_ut_tests_chan_mutex);
+ }
+ 
+ /*
+diff --git a/rm/ut/rmut.c b/rm/ut/rmut.c
+index 2d1c1f6..023808f 100644
+--- a/rm/ut/rmut.c
++++ b/rm/ut/rmut.c
+@@ -55,6 +55,7 @@ extern void remote_credits_test(void);
+ extern void rm_fom_funcs_test(void);
+ extern void rm_fop_funcs_test(void);
+ extern void flock_test(void);
++extern void rm_group_test(void);
+ extern bool m0_rm_ur_tlist_is_empty(const struct m0_tl *list);
+ extern void m0_remotes_tlist_del(struct m0_rm_remote *other);
+ extern void rmsvc(void);
+@@ -314,7 +315,6 @@ void loan_session_set(enum rm_server csrv_id,
+ 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
+ 		M0_UT_ASSERT(loan != NULL);
+ 		M0_UT_ASSERT(!m0_proxies_tlist_is_empty(&loan->rl_others));
+-		M0_UT_ASSERT(m0_proxies_tlist_length(&loan->rl_others) == 1);
+ 		m0_cookie_init(&dcookie,
+ 			       &rm_ctx[dsrv_id].rc_test_data.rd_owner->ro_id);
+ 		m0_tl_for(m0_proxies, &loan->rl_others, rrl) {
+@@ -335,7 +335,6 @@ void creditor_cookie_setup(enum rm_server dsrv_id,
+ 	struct m0_rm_owner *owner = rm_ctx[dsrv_id].rc_test_data.rd_owner;
+ 
+ 	m0_cookie_init(&owner->ro_creditor->rem_cookie, &creditor->ro_id);
+-
+ }
+ 
+ const struct m0_test_suite rm_ut = {
+@@ -349,6 +348,7 @@ const struct m0_test_suite rm_ut = {
+ 		{ "rcredits", remote_credits_test },
+ 		{ "rmsvc", rmsvc },
+ 		{ "flock", flock_test },
++		{ "group", rm_group_test },
+ #endif
+ 		{ NULL, NULL }
+ 	}
+-- 
+1.8.3.2
+

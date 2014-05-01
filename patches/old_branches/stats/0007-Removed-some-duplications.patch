@@ -1,0 +1,197 @@
+From a37e0291da90352033e1e78bff499f6782283582 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 19 Dec 2013 03:43:54 +0530
+Subject: [PATCH 07/50] - Removed some duplications
+
+---
+ fop/fom.c                   |  2 +-
+ fop/fom.h                   | 25 +++++++++++++------------
+ fop/fom_generic.h           | 15 +--------------
+ fop/fop_addb.h              |  4 ++--
+ fop/ut/stats/stats_fom.c    |  4 ++--
+ fop/ut/stats/stats_fom.h    | 22 +++-------------------
+ ioservice/io_service_addb.h |  5 ++---
+ 7 files changed, 24 insertions(+), 53 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index 6f53abb..3aa31a2 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1124,7 +1124,7 @@ void m0_fom_fini(struct m0_fom *fom)
+ 		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
+ 				M0_FOM_ADDB_CTX_VEC(fom));
+ 		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
+-		if (fom->fo_sched_epoch != 0)
++		if (fom->fo_sm_phase.sm_state_epoch != 0)
+ 			m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
+ 	}
+ 	m0_sm_fini(&fom->fo_sm_phase);
+diff --git a/fop/fom.h b/fop/fom.h
+index 0d87388..079e98f 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -378,24 +378,25 @@ enum m0_fom_state {
+ enum { M0_FOS_TRANS_NR = 8 };
+ 
+ /**
+- * Histogram arguments for m0_addb_rt_fom_state_stats.
++ * Histogram arguments for m0_addb_rt_fom_[state|phase]_stats.
+  * Define the macro with histogram arguments if desired.
+- * e.g. #define M0_FOM_STATE_STATS_HIST_ARGS 100, 200, 500
++ * e.g. #define M0_FOM_STATS_HIST_ARGS 100, 200, 500
+  */
+-#undef M0_FOM_STATE_STATS_HIST_ARGS
++#undef M0_FOM_STATS_HIST_ARGS
+ 
+-#ifdef M0_FOM_STATE_STATS_HIST_ARGS
+-#define M0_FOM_STATE_STATS_HIST_ARGS2 0, M0_FOM_STATE_STATS_HIST_ARGS
++#ifdef M0_FOM_STATS_HIST_ARGS
++#define M0_FOM_STATS_HIST_ARGS2 0, M0_FOM_STATS_HIST_ARGS
+ #else
+-#define M0_FOM_STATE_STATS_HIST_ARGS2
++#define M0_FOM_STATS_HIST_ARGS2
+ #endif
++
++#define M0_FOM_CNTR_DATA						\
++	(sizeof(struct m0_addb_counter_data) +				\
++	((M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) > 0 ?		\
++	  M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) + 1 : 0) *	\
++                  sizeof(uint64_t)))
+ enum {
+-	FOM_STATE_STATS_DATA_SZ =
+-		(sizeof(struct m0_addb_counter_data) +
+-		  ((M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) > 0 ?
+-		    M0_COUNT_PARAMS(M0_FOM_STATE_STATS_HIST_ARGS2) + 1 : 0) *
+-                   sizeof(uint64_t))) *
+-		M0_FOS_TRANS_NR
++	FOM_STATE_STATS_DATA_SZ = M0_FOM_CNTR_DATA * M0_FOS_TRANS_NR
+ };
+ 
+ enum m0_fom_phase {
+diff --git a/fop/fom_generic.h b/fop/fom_generic.h
+index 1bc4a59..bfd7458 100644
+--- a/fop/fom_generic.h
++++ b/fop/fom_generic.h
+@@ -39,20 +39,7 @@ enum {
+ 	M0_FOM_GENERIC_PHASES_TRANS_NR = 44,
+ };
+ 
+-/** @todo Need to remove duplication */
+-#undef M0_FOM_PHASE_STATS_HIST_ARGS
+-
+-#ifdef M0_FOM_PHASE_STATS_HIST_ARGS
+-#define M0_FOM_PHASE_STATS_HIST_ARGS2 0, M0_FOM_PHASE_STATS_HIST_ARGS
+-#else
+-#define M0_FOM_PHASE_STATS_HIST_ARGS2
+-#endif
+-
+-#define FOM_PHASE_STATS_DATA_SZ(NR)				      \
+-	((sizeof(struct m0_addb_counter_data) +                       \
+-         ((M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) > 0 ?       \
+-           M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) + 1 : 0) *  \
+-           sizeof(uint64_t))) * NR)
++#define FOM_PHASE_STATS_DATA_SZ(NR)	(M0_FOM_CNTR_DATA * NR)
+ 
+ /**
+  * "Phases" through which fom execution typically passes.
+diff --git a/fop/fop_addb.h b/fop/fop_addb.h
+index c0028ce..337bc46 100644
+--- a/fop/fop_addb.h
++++ b/fop/fop_addb.h
+@@ -118,10 +118,10 @@ M0_ADDB_RT_DP(m0_addb_rt_fom_fini, M0_ADDB_RECID_FOM_FINI, "transitions");
+ 
+ extern struct m0_sm_conf fom_states_conf;
+ 
+-#ifdef FOM_STATE_STATS_HIST_ARGS
++#ifdef M0_FOM_STATS_HIST_ARGS
+ /** FOM state statistics counter */
+ M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_state_stats, M0_ADDB_RECID_FOM_STATE_STATS,
+-		   &fom_states_conf, FOM_STATE_STATS_HIST_ARGS);
++		   &fom_states_conf, M0_FOM_STATS_HIST_ARGS);
+ #else
+ M0_ADDB_RT_SM_CNTR(m0_addb_rt_fom_state_stats, M0_ADDB_RECID_FOM_STATE_STATS,
+ 		   &fom_states_conf);
+diff --git a/fop/ut/stats/stats_fom.c b/fop/ut/stats/stats_fom.c
+index e591377..fe5c50f 100644
+--- a/fop/ut/stats/stats_fom.c
++++ b/fop/ut/stats/stats_fom.c
+@@ -58,9 +58,9 @@ static struct m0_sm_conf fom_phases_conf = {
+ 	.scf_trans     = trans
+ };
+ 
+-#ifdef FOM_PHASE_STATS_HIST_ARGS
++#ifdef M0_FOM_STATS_HIST_ARGS
+ M0_ADDB_RT_SM_CNTR(addb_rt_fom_phase_stats, ADDB_RECID_FOM_PHASE_STATS,
+-		   &fom_phases_conf, FOM_STATE_STATS_HIST_ARGS);
++		   &fom_phases_conf, M0_FOM_STATS_HIST_ARGS);
+ #else
+ M0_ADDB_RT_SM_CNTR(addb_rt_fom_phase_stats, ADDB_RECID_FOM_PHASE_STATS,
+ 		   &fom_phases_conf);
+diff --git a/fop/ut/stats/stats_fom.h b/fop/ut/stats/stats_fom.h
+index 10fbcd4..5bc1657 100644
+--- a/fop/ut/stats/stats_fom.h
++++ b/fop/ut/stats/stats_fom.h
+@@ -22,6 +22,8 @@
+ #ifndef __MERO_FOP_UT_STATS_FOM_H__
+ #define __MERO_FOP_UT_STATS_FOM_H__
+ 
++#include "fop/fom.h"
++
+ 
+ enum fom_stats_phase {
+ 	PH_INIT = M0_FOM_PHASE_INIT,  /*< fom has been initialised. */
+@@ -29,31 +31,13 @@ enum fom_stats_phase {
+ 	PH_RUN
+ };
+ 
+-/**
+- * Histogram arguments for m0_addb_rt_fom_phase_stats.
+- * Define the macro with histogram arguments if desired.
+- * e.g. #define FOM_PHASE_STATS_HIST_ARGS 100, 200, 500
+- */
+-#undef FOM_PHASE_STATS_HIST_ARGS
+-
+-#ifdef FOM_PHASE_STATS_HIST_ARGS
+-#define FOM_PHASE_STATS_HIST_ARGS2 0, FOM_PHASE_STATS_HIST_ARGS
+-#else
+-#define FOM_PHASE_STATS_HIST_ARGS2
+-#endif
+-
+ enum {
+ 	TRANS_NR = 3,
+ };
+ 
+ enum {
+ 	ADDB_RECID_FOM_PHASE_STATS = 1777123,
+-	FOM_PHASE_STATS_DATA_SZ =
+-		(sizeof(struct m0_addb_counter_data) +
+-		  ((M0_COUNT_PARAMS(FOM_PHASE_STATS_HIST_ARGS2) > 0 ?
+-		    M0_COUNT_PARAMS(FOM_PHASE_STATS_HIST_ARGS2) + 1 : 0) *
+-                   sizeof(uint64_t))) *
+-		TRANS_NR
++	FOM_PHASE_STATS_DATA_SZ = M0_FOM_CNTR_DATA * TRANS_NR
+ };
+ 
+ /**
+diff --git a/ioservice/io_service_addb.h b/ioservice/io_service_addb.h
+index 119d412..1cb7a6d 100644
+--- a/ioservice/io_service_addb.h
++++ b/ioservice/io_service_addb.h
+@@ -200,12 +200,11 @@ enum {
+ 
+ extern struct m0_addb_ctx m0_ios_addb_ctx;
+ extern struct m0_sm_conf io_conf;
+-
+-#ifdef FOM_PHASE_STATS_HIST_ARGS
++#ifdef M0_FOM_STATS_HIST_ARGS
+ /** FOM state statistics counter */
+ M0_ADDB_RT_SM_CNTR(m0_addb_rt_ios_io_fom_phase_stats,
+ 		   M0_ADDB_RECID_IOS_IO_FOM_PHASE_STATS,
+-		   &io_conf, FOM_PHASE_STATS_HIST_ARGS);
++		   &io_conf, M0_FOM_STATS_HIST_ARGS);
+ #else
+ M0_ADDB_RT_SM_CNTR(m0_addb_rt_ios_io_fom_phase_stats,
+ 		   M0_ADDB_RECID_IOS_IO_FOM_PHASE_STATS,
+-- 
+1.8.3.2
+

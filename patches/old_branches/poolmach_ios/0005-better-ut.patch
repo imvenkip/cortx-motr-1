@@ -1,0 +1,212 @@
+From 4239032f63a7a8c5f9f07be6427a4dc1d7b24444 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 7 Jun 2013 22:37:50 +0800
+Subject: [PATCH 05/12] better ut
+
+---
+ ioservice/ut/cob_foms.c | 40 ++++++++++++++++++++++++++++++----------
+ sm/sm.c                 | 10 ++++++++++
+ 2 files changed, 40 insertions(+), 10 deletions(-)
+
+diff --git a/ioservice/ut/cob_foms.c b/ioservice/ut/cob_foms.c
+index 88fd3ae..2329237 100644
+--- a/ioservice/ut/cob_foms.c
++++ b/ioservice/ut/cob_foms.c
+@@ -558,8 +558,6 @@ static void fom_create_test(enum cob_fom_type fomtype)
+  */
+ static void cc_fom_dealloc(struct m0_fom *fom)
+ {
+-	if (m0_fom_phase(fom) != M0_FOPH_SUCCESS)
+-		m0_ut_fom_phase_set(fom, M0_FOPH_SUCCESS);
+ 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
+ 	fom_fop_put_norpc(fom);
+ 	cc_fom_fini(fom);
+@@ -578,7 +576,7 @@ static struct m0_fom *cc_fom_alloc()
+ 	fop_alloc(fom, COB_CREATE);
+ 	M0_UT_ASSERT(fom->fo_fop != NULL);
+ 	cob_fom_populate(fom);
+-	fom->fo_sm_phase.sm_state = M0_FOPH_COB_OPS_CREATE_DELETE;
++	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_PREPARE);
+ 
+ 	return fom;
+ }
+@@ -622,12 +620,15 @@ static void cc_stob_create_test()
+ 	cc = cob_fom_get(fom);
+ 
+ 	rc = cc_stob_create(fom, cc);
+-	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_CREATE_DELETE);
++	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_PREPARE);
+ 
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_ID);
+ 	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_lo == COB_TEST_ID);
+ 
++	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
++	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
++
+ 	cc_fom_dealloc(fom);
+ }
+ 
+@@ -705,7 +706,7 @@ static void cc_cob_create_test()
+ 	rc = cc_cob_create(fom, cc);
+ 	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+ 
+-	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_CREATE_DELETE);
++	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_PREPARE);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	M0_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_ID);
+@@ -739,6 +740,8 @@ static void cc_cob_create_test()
+ 	M0_UT_ASSERT(rc == 0);
+ 	test_cob = NULL;
+ 
++	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
++	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+ 	cc_fom_dealloc(fom);
+ }
+ 
+@@ -760,6 +763,9 @@ static void cc_fom_state_test(void)
+ 	rc = m0_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = cob_ops_fom_tick(cfom);
++	M0_UT_ASSERT(m0_fom_rc(cfom) == 0);
++	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
++	rc = cob_ops_fom_tick(cfom);
+ 	m0_db_tx_commit(&cfom->fo_tx.tx_dbtx);
+ 
+ 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+@@ -785,6 +791,8 @@ static void cc_fom_state_test(void)
+ 
+ 	rc = cob_ops_fom_tick(dfom);
+ 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
++	rc = cob_ops_fom_tick(dfom);
++	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+ 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_SUCCESS);
+ 
+ 	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
+@@ -807,6 +815,8 @@ static void cc_fom_populate_test()
+ 	cc = cob_fom_get(fom);
+ 	M0_UT_ASSERT(cc->fco_cfid.f_container == COB_TEST_ID);
+ 	M0_UT_ASSERT(cc->fco_cfid.f_key == COB_TEST_ID);
++	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
++	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+ 	cc_fom_dealloc(fom);
+ }
+ 
+@@ -821,8 +831,6 @@ static void cc_fom_populate_test()
+  */
+ static void cd_fom_dealloc(struct m0_fom *fom)
+ {
+-	if (m0_fom_phase(fom) != M0_FOPH_SUCCESS)
+-		m0_ut_fom_phase_set(fom, M0_FOPH_SUCCESS);
+ 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
+ 	fom_fop_put_norpc(fom);
+ 	cd_fom_fini(fom);
+@@ -841,7 +849,7 @@ static struct m0_fom *cd_fom_alloc()
+ 	fop_alloc(fom, COB_DELETE);
+ 	M0_UT_ASSERT(fom->fo_fop != NULL);
+ 	cob_fom_populate(fom);
+-	fom->fo_sm_phase.sm_state = M0_FOPH_COB_OPS_CREATE_DELETE;
++	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_PREPARE);
+ 
+ 	return fom;
+ }
+@@ -886,6 +894,8 @@ static void cd_fom_populate_test()
+ 	M0_UT_ASSERT(cd->fco_cfid.f_key == COB_TEST_ID);
+ 	M0_UT_ASSERT(cd->fco_stobid.si_bits.u_hi == COB_TEST_ID);
+ 	M0_UT_ASSERT(cd->fco_stobid.si_bits.u_lo == COB_TEST_ID);
++	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
++	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+ 	cd_fom_dealloc(fom);
+ }
+ 
+@@ -910,6 +920,8 @@ static struct m0_fom *cob_testdata_create()
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	rc = cob_ops_fom_tick(fom);
++	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
++	rc = cob_ops_fom_tick(fom);
+ 	m0_db_tx_commit(&fom->fo_tx.tx_dbtx);
+ 
+ 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
+@@ -949,10 +961,14 @@ static void cd_stob_delete_test()
+ 
+ 	cd = cob_fom_get(dfom);
+ 	rc = cd_stob_delete(dfom, cd);
+-	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_CREATE_DELETE);
++	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
+ 	M0_ASSERT(rc == 0);
+ 
++	m0_fom_phase_set(dfom, M0_FOPH_COB_OPS_CREATE_DELETE);
++	m0_fom_phase_set(dfom, M0_FOPH_SUCCESS);
+ 	cd_fom_dealloc(dfom);
++	m0_fom_phase_set(cfom, M0_FOPH_COB_OPS_CREATE_DELETE);
++	m0_fom_phase_set(cfom, M0_FOPH_SUCCESS);
+ 	cc_fom_dealloc(cfom);
+ }
+ 
+@@ -984,7 +1000,7 @@ static void cd_cob_delete_test()
+ 	rc = cd_cob_delete(dfom, cd);
+ 	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
+ 
+-	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_CREATE_DELETE);
++	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/*
+@@ -1011,6 +1027,8 @@ static void cd_cob_delete_test()
+ 	rc = cd_stob_delete(dfom, cd);
+ 	M0_UT_ASSERT(rc == 0);
+ 
++	m0_fom_phase_set(dfom, M0_FOPH_COB_OPS_CREATE_DELETE);
++	m0_fom_phase_set(dfom, M0_FOPH_SUCCESS);
+ 	cd_fom_dealloc(dfom);
+ 	cob_testdata_cleanup(cfom);
+ }
+@@ -1036,6 +1054,8 @@ static void cd_fom_state_test(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	rc = cob_ops_fom_tick(dfom);
++	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
++	rc = cob_ops_fom_tick(dfom);
+ 	m0_db_tx_commit(&dfom->fo_tx.tx_dbtx);
+ 
+ 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_SUCCESS);
+diff --git a/sm/sm.c b/sm/sm.c
+index 24f0e4a..ce19980 100644
+--- a/sm/sm.c
++++ b/sm/sm.c
+@@ -23,6 +23,7 @@
+ #include "lib/cdefs.h"              /* M0_EXPORTED */
+ #include "lib/mutex.h"
+ #include "lib/arith.h"              /* m0_is_po2 */
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SM
+ #include "lib/trace.h"
+ #include "lib/memory.h"
+ #include "sm/sm.h"
+@@ -360,6 +361,14 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
+ 	 */
+ 	do {
+ 		sd = sm_state(mach);
++		if (!(sd->sd_allowed & M0_BITS(state))) {
++			M0_LOG(M0_FATAL, "conf name = %s, sd name = %s, "
++					 "allowed = %lx, cur state = %d, "
++					 "target state = %d",
++					 mach->sm_conf->scf_name, sd->sd_name,
++					 (unsigned long)sd->sd_allowed,
++					 mach->sm_state, state);
++		}
+ 		M0_ASSERT(sd->sd_allowed & M0_BITS(state));
+ 		if (sd->sd_ex != NULL)
+ 			sd->sd_ex(mach);
+@@ -644,6 +653,7 @@ M0_INTERNAL void m0_sm_conf_extend(const struct m0_sm_state_descr *base,
+ 			sub[i] = base[i];
+ 	}
+ }
++#undef M0_TRACE_SUBSYSTEM
+ 
+ /** @} end of sm group */
+ 
+-- 
+1.8.3.2
+

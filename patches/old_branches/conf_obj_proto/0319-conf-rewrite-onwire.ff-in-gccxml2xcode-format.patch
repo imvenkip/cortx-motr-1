@@ -1,0 +1,744 @@
+From 6f498d4cf0487e83df54c3674e73aaab020b4174 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 20 Aug 2012 13:43:18 +0300
+Subject: [PATCH 319/370] conf: rewrite onwire.ff in "gccxml2xcode format"
+
+* conf/onwire.h: New file.
+* conf/obj_ops.c: Fix errors discovered by Anatoliy:
+  - #include missing headers;
+  - name C2_CO_* enumerated values properly;
+  - c2_tlist_forall(): Remove explicit declaration of the variable;
+  - MEMBER_PTR() should return an address;
+  - fix tl definitions.
+---
+ conf/obj_ops.c | 111 ++++++++++++++++---------------
+ conf/obj_ops.h |   2 +
+ conf/onwire.ff | 207 ---------------------------------------------------------
+ conf/onwire.h  | 207 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 266 insertions(+), 261 deletions(-)
+ delete mode 100644 conf/onwire.ff
+ create mode 100644 conf/onwire.h
+
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 460770c..5948243 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -22,11 +22,14 @@
+ #  include "config.h"
+ #endif
+ #include "conf/obj_ops.h"
++#include "conf/buf.h"     /* c2_conf_buf_copy, c2_conf_buf_eq */
+ #include "conf/confc.h"   /* c2_confc */
+ #include "lib/cdefs.h"    /* ergo, C2_MAGIX_OFFSET, IS_IN_ARRAY */
+ #include "lib/arith.h"    /* C2_CNT_INC, C2_CNT_DEC */
+ #include "lib/misc.h"     /* C2_IN */
+ #include "lib/memory.h"   /* c2_alloc */
++#include "lib/tlist.h"
++#include "lib/errno.h"    /* ENOENT */
+ 
+ /**
+  * @defgroup conf_dlspec_objops Configuration Object Operations
+@@ -52,10 +55,13 @@ enum {
+ 
+ static bool obj_is_stub(const struct c2_conf_obj *obj)
+ static bool buf_is_valid(const struct c2_conf_buf *buf);
+-static const struct c2_tl_descr *list_of(enum c2_conf_objtype *t);
++static const struct c2_tl_descr *list_of(enum c2_conf_objtype t);
+ 
+ #define _BOB_DEFINE(abbrev, magix)                                           \
+ static bool abbrev ## _invariant(const void *bob);                           \
++static int abbrev ## _lookup(struct c2_conf_obj *parent,                     \
++			     const struct c2_conf_buf *name,                 \
++			     struct c2_conf_obj **out);                      \
+                                                                              \
+ const struct c2_bob_type c2_conf_ ## abbrev ## _bob = {                      \
+ 	.bt_name = "c2_conf_" #abbrev,                                       \
+@@ -139,14 +145,13 @@ bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
+ 
+ static bool dir_invariant(const void *bob)
+ {
+-	struct c2_conf_obj       *child;
+ 	const struct c2_conf_dir *self = bob;
+ 	const struct c2_conf_obj *self_obj = &self->cd_obj;
+ 	const struct c2_conf_obj *parent = self_obj->co_parent;
+ 	const struct c2_tl_descr *td = obj_is_stub(self_obj) ? NULL :
+ 		list_of(self->cd_item_type);
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_DIR);
++	C2_PRE(self_obj->co_type == C2_CO_DIR);
+ 
+ 	return /* Parent is valid configuration object. */
+ 		parent != NULL &&
+@@ -157,14 +162,13 @@ static bool dir_invariant(const void *bob)
+ 		 * to `self' via ->co_parent field. */
+ 		ergo(!obj_is_stub(self_obj), td != NULL &&
+ 		     c2_tlist_forall(td, child, &self->cd_items,
+-				     generic_obj_check_as(child,
+-							  self->cd_item_type) &&
+-				     child->co_parent == self_obj));
++			generic_obj_check_as(child, self->cd_item_type) &&
++			((struct c2_conf_obj *)child)->co_parent == self_obj));
+ }
+ 
+ static bool child_is_ok(const struct c2_conf_obj *obj,
+ 			const struct c2_conf_obj *child,
+-			enum c2_con_objtype child_type)
++			enum c2_conf_objtype child_type)
+ {
+ 	return /* Child is NULL iff `obj' is a stub. */
+ 		obj_is_stub(obj) == (child == NULL) &&
+@@ -175,10 +179,10 @@ static bool child_is_ok(const struct c2_conf_obj *obj,
+ 		     child->co_parent == obj);
+ }
+ 
+-#define ACCESS(ptr, member)                   \
+-({                                            \
+-	typeof(ptr) __ptr = (ptr);            \
+-	__ptr == NULL ? NULL : __ptr->member; \
++#define MEMBER_PTR(ptr, member)                \
++({                                             \
++	typeof(ptr) __ptr = (ptr);             \
++	__ptr == NULL ? NULL : &__ptr->member; \
+ })
+ 
+ static bool profile_invariant(const void *bob)
+@@ -186,12 +190,12 @@ static bool profile_invariant(const void *bob)
+ 	const struct c2_conf_profile *self = bob;
+ 	const struct c2_conf_obj     *self_obj = &self->cp_obj;
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_PROFILE);
++	C2_PRE(self_obj->co_type == C2_CO_PROFILE);
+ 
+ 	return /* c2_conf_profile is the topmost object in the DAG. */
+ 		self_obj->co_parent == NULL &&
+-		child_is_ok(self_obj, ACCESS(self->cp_filesystem, cf_obj),
+-			    C2_CONF_FILESYSTEM) &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cp_filesystem, cf_obj),
++			    C2_CO_FILESYSTEM) &&
+ 		/* Other checks. */
+ 		ergo(self_obj->co_confc != NULL,
+ 		     self_obj->co_confc->cc_root == self_obj);
+@@ -203,15 +207,14 @@ static bool filesystem_invariant(const void *bob)
+ 	const struct c2_conf_obj        *self_obj = &self->cf_obj;
+ 	struct c2_conf_obj              *parent = self_obj->co_parent;
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_FILESYSTEM);
++	C2_PRE(self_obj->co_type == C2_CO_FILESYSTEM);
+ 
+ 	return /* Parent is valid c2_conf_profile pointing to `self' via
+ 		* c2_conf_profile::cp_filesystem field. */
+-		generic_obj_check_as(parent, C2_CONF_PROFILE) &&
+-		C2_CONF_CAST(parent,
+-			     c2_conf_profile)->cp_filesystem == self_obj &&
+-		child_is_ok(self_obj, ACCESS(self->cf_services, cd_obj),
+-			    C2_CONF_DIR) &&
++		generic_obj_check_as(parent, C2_CO_PROFILE) &&
++		C2_CONF_CAST(parent, c2_conf_profile)->cp_filesystem == self &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cf_services, cd_obj),
++			    C2_CO_DIR) &&
+ 		/* Other checks. */
+ 		obj_is_stub(self_obj) == (self->cf_params == NULL);
+ }
+@@ -222,15 +225,15 @@ static bool service_invariant(const void *bob)
+ 	const struct c2_conf_obj     *self_obj = &self->cs_obj;
+ 	struct c2_conf_obj           *parent = self_obj->co_parent;
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_SERVICE);
++	C2_PRE(self_obj->co_type == C2_CO_SERVICE);
+ 
+ 	return /* Parent is valid c2_conf_dir with proper
+ 		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CONF_DIR) &&
++		generic_obj_check_as(parent, C2_CO_DIR) &&
+ 		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CONF_SERVICE &&
+-		child_is_ok(self_obj, ACCESS(self->cs_node, cn_obj),
+-			    C2_CONF_NODE) &&
++			     c2_conf_dir)->cd_item_type == C2_CO_SERVICE &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cs_node, cn_obj),
++			    C2_CO_NODE) &&
+ 		/* Other checks. */
+ 		ergo(!obj_is_stub(self_obj),
+ 		     C2_IN(self->cs_type, (C2_CFG_SERVICE_METADATA,
+@@ -245,16 +248,16 @@ static bool node_invariant(const void *bob)
+ 	const struct c2_conf_node *self = bob;
+ 	const struct c2_conf_obj  *self_obj = &self->cn_obj;
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_NODE);
++	C2_PRE(self_obj->co_type == C2_CO_NODE);
+ 
+ 	return /* The notion of parent is not applicable to a node,
+ 		* since a node may host (be child of) several
+ 		* services. */
+ 		self_obj->co_parent == NULL &&
+-		child_is_ok(self_obj, ACCESS(self->cn_nics, cd_obj),
+-			    C2_CONF_DIR) &&
+-		child_is_ok(self_obj, ACCESS(self->cn_sdevs, cd_obj),
+-			    C2_CONF_DIR);
++		child_is_ok(self_obj, MEMBER_PTR(self->cn_nics, cd_obj),
++			    C2_CO_DIR) &&
++		child_is_ok(self_obj, MEMBER_PTR(self->cn_sdevs, cd_obj),
++			    C2_CO_DIR);
+ }
+ 
+ static bool nic_invariant(const void *bob)
+@@ -263,13 +266,13 @@ static bool nic_invariant(const void *bob)
+ 	const struct c2_conf_obj *self_obj = &self->ni_obj;
+ 	struct c2_conf_obj       *parent = self_obj->co_parent;
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_NIC);
++	C2_PRE(self_obj->co_type == C2_CO_NIC);
+ 
+ 	return /* Parent is valid c2_conf_dir with proper
+ 		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CONF_DIR) &&
++		generic_obj_check_as(parent, C2_CO_DIR) &&
+ 		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CONF_NIC &&
++			     c2_conf_dir)->cd_item_type == C2_CO_NIC &&
+ 		/* Other checks. */
+ 		obj_is_stub(self_obj) == (self->ni_filename == NULL);
+ }
+@@ -280,15 +283,15 @@ static bool sdev_invariant(const void *bob)
+ 	const struct c2_conf_obj  *self_obj = &self->sd_obj;
+ 	struct c2_conf_obj        *parent = self_obj->co_parent;
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_SDEV);
++	C2_PRE(self_obj->co_type == C2_CO_SDEV);
+ 
+ 	return /* Parent is valid c2_conf_dir with proper
+ 		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CONF_DIR) &&
++		generic_obj_check_as(parent, C2_CO_DIR) &&
+ 		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CONF_SDEV &&
+-		child_is_ok(self_obj, ACCESS(self->sd_partitions, cd_obj),
+-			    C2_CONF_DIR) &&
++			     c2_conf_dir)->cd_item_type == C2_CO_SDEV &&
++		child_is_ok(self_obj, MEMBER_PTR(self->sd_partitions, cd_obj),
++			    C2_CO_DIR) &&
+ 		/* Other checks. */
+ 		obj_is_stub(self_obj) == (self->sd_filename == NULL);
+ }
+@@ -299,13 +302,13 @@ static bool partition_invariant(const void *bob)
+ 	const struct c2_conf_obj       *self_obj = &self->pa_obj;
+ 	struct c2_conf_obj             *parent = self_obj->co_parent;
+ 
+-	C2_PRE(self_obj->co_type == C2_CONF_PARTITION);
++	C2_PRE(self_obj->co_type == C2_CO_PARTITION);
+ 
+ 	return /* Parent is valid c2_conf_dir with proper
+ 		* ->cd_item_type. */
+-		generic_obj_check_as(parent, C2_CONF_DIR) &&
++		generic_obj_check_as(parent, C2_CO_DIR) &&
+ 		C2_CONF_CAST(parent,
+-			     c2_conf_dir)->cd_item_type == C2_CONF_PARTITION &&
++			     c2_conf_dir)->cd_item_type == C2_CO_PARTITION &&
+ 		/* Other checks. */
+ 		obj_is_stub(self_obj) == (self->pa_filename == NULL);
+ }
+@@ -427,8 +430,8 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ static int dir_lookup(struct c2_conf_obj *parent,
+ 		      const struct c2_conf_buf *name, struct c2_conf_obj **out)
+ {
+-	struct c2_conf_obj     *child;
+-	struct c2_conf_profile *dir = C2_CONF_CAST(parent, c2_conf_dir);
++	struct c2_conf_obj *child;
++	struct c2_conf_dir *dir = C2_CONF_CAST(parent, c2_conf_dir);
+ 
+ 	C2_PRE(parent->co_status == C2_CS_READY);
+ 
+@@ -529,24 +532,24 @@ static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+  * Lists of configuration objects
+  * ------------------------------------------------------------------ */
+ 
+-C2_TL_DESCR_DEFINE(services_tl, "service objs", static, struct c2_conf_obj,
++C2_TL_DESCR_DEFINE(services, "service objs", static, struct c2_conf_obj,
+ 		   co_linkage, co_magix, CONF_SERVICE_MAGIC, CONF_DIR_MAGIC);
+-C2_TL_DEFINE(services_tl, static, struct c2_conf_obj);
++C2_TL_DEFINE(services, static, struct c2_conf_obj);
+ 
+-C2_TL_DESCR_DEFINE(nics_tl, "nic objs", static, struct c2_conf_obj, co_linkage,
++C2_TL_DESCR_DEFINE(nics, "nic objs", static, struct c2_conf_obj, co_linkage,
+ 		   co_magix, CONF_NIC_MAGIC, CONF_DIR_MAGIC);
+-C2_TL_DEFINE(nics_tl, static, struct c2_conf_obj);
++C2_TL_DEFINE(nics, static, struct c2_conf_obj);
+ 
+-C2_TL_DESCR_DEFINE(sdevs_tl, "sdev objs", static, struct c2_conf_obj,
++C2_TL_DESCR_DEFINE(sdevs, "sdev objs", static, struct c2_conf_obj,
+ 		   co_linkage, co_magix, CONF_SDEV_MAGIC, CONF_DIR_MAGIC);
+-C2_TL_DEFINE(sdevs_tl, static, struct c2_conf_obj);
++C2_TL_DEFINE(sdevs, static, struct c2_conf_obj);
+ 
+-C2_TL_DESCR_DEFINE(partitions_tl, "partition objs", static, struct c2_conf_obj,
++C2_TL_DESCR_DEFINE(partitions, "partition objs", static, struct c2_conf_obj,
+ 		   co_linkage, co_magix, CONF_PARTITION_MAGIC, CONF_DIR_MAGIC);
+-C2_TL_DEFINE(partitions_tl, static, struct c2_conf_obj);
++C2_TL_DEFINE(partitions, static, struct c2_conf_obj);
+ 
+ /** Returns descriptor of a list given type of its items. */
+-static const struct c2_tl_descr *list_of(enum c2_conf_objtype *t)
++static const struct c2_tl_descr *list_of(enum c2_conf_objtype t)
+ {
+ 	switch (t) {
+ 	case C2_CO_SERVICE:   return &services_tl;
+@@ -571,7 +574,7 @@ void c2_conf_obj_get(struct c2_conf_obj *obj)
+ {
+ 	C2_PRE(c2_conf_obj_invariant(obj));
+ 	C2_PRE(obj->co_status == C2_CS_READY);
+-	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
++	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(obj->co_confc)));
+ 
+ 	C2_CNT_INC(obj->co_nrefs);
+ }
+@@ -580,7 +583,7 @@ void c2_conf_obj_put(struct c2_conf_obj *obj)
+ {
+ 	C2_PRE(c2_conf_obj_invariant(obj));
+ 	C2_PRE(obj->co_status == C2_CS_READY);
+-	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(&obj->co_confc)));
++	C2_PRE(ergo(obj->co_confc != NULL, confc_is_locked(obj->co_confc)));
+ 
+ 	C2_CNT_DEC(obj->co_nrefs);
+ 	if (obj->co_nrefs == 0)
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index 8c3c675..fb8ef38 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -59,6 +59,8 @@
+ /** Magic value of a generic configuration object (c2_conf_obj). */
+ enum { C2_CONF_OBJ_MAGIC = 0x335e1f1e55ce1177 /* selfless cell */ };
+ 
++struct c2_conf_reg;
++
+ /** Configuration object operations. */
+ struct c2_conf_obj_ops {
+ 	/**
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+deleted file mode 100644
+index 4a1f783..0000000
+--- a/conf/onwire.ff
++++ /dev/null
+@@ -1,207 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+- * Original creation date: 06-Mar-2012
+- */
+-
+-/* export */
+-struct c2_conf_buf;
+-struct c2_conf_fetch;
+-struct c2_conf_fetch_resp;
+-struct c2_conf_update;
+-struct c2_conf_update_resp;
+-struct c2_conf_stat;
+-struct c2_conf_stat_resp;
+-
+-/**
+- * Sequence of bytes.
+- * See also C2_CONF_BUF_INIT(), c2_conf_buf_eq().
+- */
+-DEF(c2_conf_buf, SEQUENCE,
+-    _(cb_size, U32),
+-    _(cb_data, BYTE));
+-
+-DEF(arr_buf, SEQUENCE,
+-    _(ab_count, U32),
+-    _(ab_elems, c2_conf_buf));
+-
+-DEF(objid, RECORD,
+-    _(oi_type, U32), /* see c2_conf_objtype for values */
+-    _(oi_id,   c2_conf_buf));
+-
+-DEF(fid, RECORD,
+-    _(f_container, U64),
+-    _(f_key,       U64));
+-
+-/* ------------------------------------------------------------------
+- * Configuration objects
+- * ------------------------------------------------------------------ */
+-
+-DEF(confx_profile, RECORD,
+-    /* Name of profile's filesystem. */
+-    _(xp_filesystem, c2_conf_buf));
+-
+-DEF(confx_filesystem, RECORD,
+-    /* Rood fid. */
+-    _(xf_rootfid,  fid),
+-    /* Filesystem parameters. */
+-    _(xf_params,   arr_buf),
+-    /* Services of this filesystem. */
+-    _(xf_services, arr_buf));
+-
+-DEF(confx_service, RECORD,
+-    /* Service type.  See c2_cfg_service_type. */
+-    _(xs_type,       U32),
+-    /* End-points from which this service is reachable. */
+-    _(xs_endpoints,  arr_buf),
+-    /* Hosting node. */
+-    _(xs_node,       c2_conf_buf));
+-
+-DEF(confx_node, RECORD,
+-    /* Memory size in MB. */
+-    _(xn_memsize,    U32),
+-    /* Number of processors. */
+-    _(xn_nr_cpu,     U32),
+-    /* Last known state.  See c2_cfg_state_bit. */
+-    _(xn_last_state, U64),
+-    /* Property flags.  See c2_cfg_flag_bit. */
+-    _(xn_flags,      U64),
+-    /* Pool id. */
+-    _(xn_pool_id,    U64),
+-    /* Network interfaces. */
+-    _(xn_nics,       arr_buf),
+-    /* Storage devices. */
+-    _(xn_sdevs,      arr_buf));
+-
+-DEF(confx_nic, RECORD,
+-    /* Type of network interface.  See c2_cfg_nic_type. */
+-    _(xi_iface,      U32),
+-    /* Maximum transmission unit. */
+-    _(xi_mtu,        U32),
+-    /* Speed in Mb/sec. */
+-    _(xi_speed,      U64),
+-    /* Filename in host OS. */
+-    _(xi_filename,   c2_conf_buf),
+-    /* Last known state.  See c2_cfg_state_bit. */
+-    _(xi_last_state, U64));
+-
+-DEF(confx_sdev, RECORD,
+-    /* Interface type.  See c2_cfg_storage_device_interface_type. */
+-    _(xd_iface,      U32),
+-    /* Media type.  See c2_cfg_storage_device_media_type. */
+-    _(xd_media,      U32),
+-    /* Size in bytes. */
+-    _(xd_size,       U64),
+-    /* Last known state.  See c2_cfg_state_bit. */
+-    _(xd_last_state, U64),
+-    /* Property flags.  See c2_cfg_flag_bit. */
+-    _(xd_flags,      U64),
+-    /* Filename in host OS. */
+-    _(xd_filename,   c2_conf_buf),
+-    /* Partitions of this storage device. */
+-    _(xd_partitions, arr_buf));
+-
+-DEF(confx_partition, RECORD,
+-    /* Start offset in bytes. */
+-    _(xa_start, U64),
+-    /* Size in bytes. */
+-    _(xa_size,  U64),
+-    /* Partition index. */
+-    _(xa_index, U32),
+-    /* Partition type.  See c2_cfg_storage_device_partition_type. */
+-    _(xa_type,  U32),
+-    /* Filename in host OS. */
+-    _(xa_file,  c2_conf_buf));
+-
+-DEF(confx_u, UNION,
+-    _(u_type, U32), /* see c2_conf_objtype for values */
+-    /*
+-     * Note that there is no confx_dir.  One-to-many relations are
+-     * represented by arr_buf --- lists of identifiers.
+-     */
+-    _case(1, u_profile,    confx_profile),
+-    _case(2, u_filesystem, confx_filesystem),
+-    _case(3, u_service,    confx_service),
+-    _case(4, u_node,       confx_node),
+-    _case(5, u_nic,        confx_nic),
+-    _case(6, u_sdev,       confx_sdev),
+-    _case(7, u_partition,  confx_partition));
+-
+-/** Configuration object descriptor. */
+-DEF(confx_object, RECORD,
+-    /* Object identifier. */
+-    _(o_id,     c2_conf_buf),
+-    /* Configuration data. */
+-    _(o_conf,   confx_u));
+-
+-DEF(enconf, SEQUENCE,
+-    _(ec_nr,   U32),
+-    _(ec_objs, confx_object));
+-
+-/* ------------------------------------------------------------------
+- * Configuration fops
+- * ------------------------------------------------------------------ */
+-
+-/** Configuration request. */
+-DEF(c2_conf_fetch, RECORD,
+-    /** Configuration object the path originates from. */
+-    _(f_origin, objid),
+-    /** Path components. */
+-    _(f_path,  arr_buf));
+-
+-/** Confd's response to c2_conf_fetch. */
+-DEF(c2_conf_fetch_resp, RECORD,
+-    /** Result of configuration retrieval (-Exxx = failure, 0 = success). */
+-    _(fr_rc,   U32),
+-    /** A sequence of configuration object descriptors. */
+-    _(fr_data, enconf));
+-
+-/** Update request. */
+-DEF(c2_conf_update, RECORD,
+-    /** Configuration object the path originates from. */
+-    _(f_origin, objid),
+-    /** A sequence of configuration object descriptors. */
+-    _(fr_data,  enconf));
+-
+-/** Confd's response to c2_conf_update. */
+-DEF(c2_conf_update_resp, RECORD,
+-    /** Result of update request (-Exxx = failure, 0 = success). */
+-    _(fr_rc, U32));
+-
+-/** Statistics request. */
+-DEF(c2_conf_stat, RECORD,
+-    /** @TODO: Statistics request flags */
+-    _(f_flags, U32));
+-
+-/** Confd's response to c2_conf_stat. */
+-DEF(c2_conf_stat_resp, RECORD,
+-    /** Configuration cache entries count. */
+-    _(f_cache_ent_cnt, U32),
+-    /** Processed configuration requests count of configuration service. */
+-    _(f_req_cnt,       U32),
+-    /** Processed update requests count of configuration service. */
+-    _(f_upd_cnt,       U32),
+-    /** Processed configuration requests per second. */
+-    _(f_req_per_sec,   U32),
+-    /** Processed update requests per second. */
+-    _(f_upd_per_sec,   U32),
+-    /** Maximum time, update request waits to be applied */
+-    _(f_waiter_max,    U32),
+-    /** An average time, update request waits to be applied */
+-    _(f_waiter_avg,    U32),
+-    /** Result of update request (-Exxx = failure, 0 = success). */
+-    _(fr_rc,           U32));
+diff --git a/conf/onwire.h b/conf/onwire.h
+new file mode 100644
+index 0000000..c7c1c77
+--- /dev/null
++++ b/conf/onwire.h
+@@ -0,0 +1,207 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original authors: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>,
++ *		     Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original creation date: 20-Aug-2012
++ */
++
++#ifndef __COLIBRI_CONF_ONWIRE_H__
++#define __COLIBRI_CONF_ONWIRE_H__
++
++#include "xcode/xcode.h"
++
++/* export */
++struct c2_conf_buf;
++struct c2_conf_fetch;
++struct c2_conf_fetch_resp;
++struct c2_conf_update;
++struct c2_conf_update_resp;
++
++/**
++ * Sequence of bytes.
++ * See also C2_CONF_BUF_INIT(), c2_conf_buf_eq().
++ */
++struct c2_conf_buf {
++	uint32_t cb_size;
++	char    *cb_data;
++} C2_XCA_SEQUENCE;
++
++struct arr_buf {
++	uint32_t            ab_count;
++	struct c2_conf_buf *ab_elems;
++} C2_XCA_SEQUENCE;
++
++/** XXX @todo: s/objid/objiden/ ? */
++struct objid {
++	uint32_t           oi_type; /* see c2_conf_objtype for values */
++	struct c2_conf_buf oi_id;
++} C2_XCA_RECORD;
++
++struct fid {
++	uint64_t f_container;
++	uint64_t f_key;
++} C2_XCA_RECORD;
++
++/* ------------------------------------------------------------------
++ * Configuration objects
++ * ------------------------------------------------------------------ */
++struct confx_profile {
++	/* Name of profile's filesystem. */
++	struct c2_conf_buf xp_filesystem;
++} C2_XCA_RECORD;
++
++struct confx_filesystem {
++	/* Rood fid. */
++	struct fid     xf_rootfid;
++	/* Filesystem parameters. */
++	struct arr_buf xf_params;
++	/* Services of this filesystem. */
++	struct arr_buf xf_services;
++} C2_XCA_RECORD;
++
++struct confx_service {
++	/* Service type.  See c2_cfg_service_type. */
++	uint32_t           xs_type;
++	/* End-points from which this service is reachable. */
++	struct arr_buf     xs_endpoints;
++	/* Hosting node. */
++	struct c2_conf_buf xs_node;
++} C2_XCA_RECORD;
++
++struct confx_node {
++	/* Memory size in MB. */
++	uint32_t       xn_memsize;
++	/* Number of processors. */
++	uint32_t       xn_nr_cpu;
++	/* Last known state.  See c2_cfg_state_bit. */
++	uint64_t       xn_last_state;
++	/* Property flags.  See c2_cfg_flag_bit. */
++	uint64_t       xn_flags;
++	/* Pool id. */
++	uint64_t       xn_pool_id;
++	/* Network interfaces. */
++	struct arr_buf xn_nics;
++	/* Storage devices. */
++	struct arr_buf xn_sdevs;
++} C2_XCA_RECORD;
++
++struct confx_nic {
++	/* Type of network interface.  See c2_cfg_nic_type. */
++	uint32_t           xi_iface;
++	/* Maximum transmission unit. */
++	uint32_t           xi_mtu;
++	/* Speed in Mb/sec. */
++	uint64_t           xi_speed;
++	/* Filename in host OS. */
++	struct c2_conf_buf xi_filename;
++	/* Last known state.  See c2_cfg_state_bit. */
++	uint64_t           xi_last_state;
++} C2_XCA_RECORD;
++
++struct confx_sdev {
++	/* Interface type.  See c2_cfg_storage_device_interface_type. */
++	uint32_t           xd_iface;
++	/* Media type.  See c2_cfg_storage_device_media_type. */
++	uint32_t           xd_media;
++	/* Size in bytes. */
++	uint64_t           xd_size;
++	/* Last known state.  See c2_cfg_state_bit. */
++	uint64_t           xd_last_state;
++	/* Property flags.  See c2_cfg_flag_bit. */
++	uint64_t           xd_flags;
++	/* Filename in host OS. */
++	struct c2_conf_buf xd_filename;
++	/* Partitions of this storage device. */
++	struct arr_buf     xd_partitions;
++} C2_XCA_RECORD;
++
++struct confx_partition {
++	/* Start offset in bytes. */
++	uint64_t           xa_start;
++	/* Size in bytes. */
++	uint64_t           xa_size;
++	/* Partition index. */
++	uint32_t           xa_index;
++	/* Partition type.  See c2_cfg_storage_device_partition_type. */
++	uint32_t           xa_type;
++	/* Filename in host OS. */
++	struct c2_conf_buf xa_file;
++} C2_XCA_RECORD;
++
++struct confx_u {
++	uint32_t u_type; /* see c2_conf_objtype for values */
++	/*
++	 * Note that there is no confx_dir.  One-to-many relations are
++	 * represented by arr_buf --- lists of identifiers.
++	 */
++	union {
++		struct confx_profile    u_profile;
++		struct confx_filesystem u_filesystem;
++		struct confx_service    u_service;
++		struct confx_node       u_node;
++		struct confx_nic        u_nic;
++		struct confx_sdev       u_sdev;
++		struct confx_partition  u_partition;
++	} u;
++} C2_XCA_UNION;
++
++/** Configuration object descriptor. */
++struct confx_object {
++	struct c2_conf_buf o_id;   /*< Object identifier. */
++	struct confx_u     o_conf; /*< Configuration data. */
++} C2_XCA_RECORD;
++
++struct enconf {
++	uint32_t             ec_nr;
++	struct confx_object *ec_objs;
++} C2_XCA_SEQUENCE;
++
++/* ------------------------------------------------------------------
++ * Configuration fops
++ * ------------------------------------------------------------------ */
++
++/** Configuration request. */
++struct c2_conf_fetch {
++	/** Configuration object the path originates from. */
++	struct objid   f_origin;
++	/** Path components. */
++	struct arr_buf f_path;
++} C2_XCA_RECORD;
++
++/** Confd's response to c2_conf_fetch. */
++struct c2_conf_fetch_resp {
++	/** Result of configuration retrieval (-Exxx = failure, 0 = success). */
++	uint32_t      fr_rc;
++	/** A sequence of configuration object descriptors. */
++	struct enconf fr_data;
++} C2_XCA_RECORD;
++
++/** Update request. */
++struct c2_conf_update {
++	/** Configuration object the path originates from. */
++	struct objid  f_origin;
++	/** A sequence of configuration object descriptors. */
++	struct enconf fr_data;
++} C2_XCA_RECORD;
++
++/** Confd's response to c2_conf_update. */
++struct c2_conf_update_resp {
++	/** Result of update request (-Exxx = failure, 0 = success). */
++	uint32_t fr_rc;
++} C2_XCA_RECORD;
++
++#endif /* __COLIBRI_CONF_ONWIRE_H__ */
+-- 
+1.8.3.2
+

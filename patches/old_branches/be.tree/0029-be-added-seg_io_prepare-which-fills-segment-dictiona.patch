@@ -1,0 +1,135 @@
+From 8a19047304235dd406527ef678c5af7cdd36fbc1 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 29 May 2013 13:31:07 +0300
+Subject: [PATCH 029/290] be: added seg_io_prepare(), which fills segment
+ dictionary and stores it in stob.
+
+---
+ be/seg.c | 86 +++++++++++++++++++++++++++++++++++++++-------------------------
+ 1 file changed, 52 insertions(+), 34 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 95a7747..227b014 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -34,65 +34,83 @@
+ #include "stob/linux.h"
+ #include "stob/linux_internal.h"
+ 
+-/** "On-disk" header for segment, stored in STOB at zero offset. */
++#define BE_SEG_DEFAULT_ADDR   ((void*) 0x0708000000000000)
++#define BE_SEG_DEFAULT_OFFSET (0ULL)
++
++/* "on-disk" header for segment, stored in STOB at zero offset */
+ struct be_seg_hdr {
+ 	void       *bh_addr;
+ 	m0_bcount_t bh_size;
+ };
+ 
+-/* static void seg_header_prepare(struct m0_be_seg *seg, struct m0_stob_io *io) */
+-/* { */
+-/* 	/\** fill segment header *\/ */
+-/* 	/\** fill stob ovec: offset and size *\/ */
+-/* 	/\** fill stob ivec: size and addr *\/ */
+-/* } */
++static void seg_io_prepare(struct m0_be_seg *seg, struct m0_stob_io *io)
++{
++	static m0_bcount_t count[] = { 1 };
+ 
+-/* static int seg_header_write(struct m0_be_seg *seg) */
+-/* { */
+-/* 	struct m0_stob_io io; */
+-/* 	struct m0_clink   clink; */
+-/* 	int               rc; */
++	io->si_opcode = SIO_WRITE;
++	io->si_flags  = 0;
+ 
+-/* 	m0_stob_io_init(&io); */
+-/* 	seg_header_prepare(seg, &io); */
++	io->si_fol_rec_part = (void *)1; /* XXX */
+ 
+-/* 	m0_clink_init(&clink, NULL); */
+-/* 	m0_clink_add(&io.si_wait, &clink); */
++	io->si_user.ov_vec.v_nr		= 1;
++	io->si_user.ov_vec.v_count	= count;
++	io->si_user.ov_buf		= (void **) seg->bs_addr;
+ 
+-/* 	rc = m0_stob_io_launch(&io, seg->bs_stob, NULL, NULL); */
+-/* 	M0_ASSERT(rc != 0); /\* XXX FIXME *\/ */
++	io->si_stob.iv_vec.v_nr		= 1;
++	io->si_stob.iv_vec.v_count	= count;
++	io->si_stob.iv_index		= BE_SEG_DEFAULT_OFFSET;
++}
+ 
+-/* 	m0_chan_wait(&clink); */
+-/* 	m0_clink_del(&clink); */
+-/* 	m0_clink_fini(&clink); */
+-/* 	m0_stob_io_fini(&io); */
++static void seg_header_prepare(struct m0_be_seg *seg, struct m0_stob_io *io)
++{
++	struct be_seg_hdr *header = (struct be_seg_hdr *)seg->bs_addr;
+ 
+-/* 	return io.si_rc; */
+-/* } */
++	/* fill segment header */
++	header->bh_addr = BE_SEG_DEAULT_ADDR;
++	header->bh_size = sizeof(struct be_seg_hdr);
+ 
+-int m0_be_seg_create(struct m0_be_seg *seg)
++	seg_io_prepare(seg, io);
++}
++
++static int seg_header_write(struct m0_be_seg *seg)
+ {
+-#if 1 /*XXX*/
+-	return -1;
+-#else
+-	int rc;
++	struct m0_stob_io io;
++	struct m0_clink   clink;
++	int               rc;
++
++	m0_stob_io_init(&io);
++	seg_header_prepare(seg, &io);
+ 
++	m0_clink_init(&clink, NULL);
++	m0_clink_add(&io.si_wait, &clink);
++
++	rc = m0_stob_io_launch(&io, seg->bs_stob, NULL, NULL);
++	M0_ASSERT(rc != 0); /* XXX FIXME */
++
++	m0_chan_wait(&clink);
++	m0_clink_del(&clink);
++	m0_clink_fini(&clink);
++	m0_stob_io_fini(&io);
++
++	return io.si_rc;
++}
++
++int m0_be_seg_create(struct m0_be_seg *seg)
++{
+ 	M0_PRE(seg->bs_state == M0_BSS_INIT);
+ 	M0_PRE(seg->bs_stob->so_domain != NULL);
+ 	M0_PRE(seg->bs_stob->so_state != CSS_EXISTS);
+ 
+-	rc = m0_stob_create(seg->bs_stob, NULL);
+-	if (rc == 0)
+-		stobio_write(seg); /* XXX FIXME: stobio_write() is unknown */
+-	return rc;
+-#endif /*XXX*/
++	return m0_stob_create(&seg->bs_stob, NULL) ?: seg_header_write(seg);
+ }
+ 
+ int m0_be_seg_destroy(struct m0_be_seg *seg)
+ {
+ 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
++
+ 	m0_stob_put(seg->bs_stob);
+ 	/* XXX TODO: stob destroy ... */
++
+ 	return -1; /*XXX*/
+ }
+ 
+-- 
+1.8.3.2
+

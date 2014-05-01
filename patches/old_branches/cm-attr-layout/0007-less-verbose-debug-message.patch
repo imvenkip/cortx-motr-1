@@ -1,0 +1,206 @@
+From 3b4e9037f734b693684564cf02fae86da15b643b Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 3 Apr 2013 00:38:56 +0800
+Subject: [PATCH 07/18] less verbose debug message. detect ROOT FID in
+ iter_fid_next().
+
+---
+ cm/pump.c                                   |  4 ----
+ cob/ns_iter.c                               |  6 +++---
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 29 +++++++++++++++++++----------
+ sns/cm/iter.c                               | 17 +++++++----------
+ sns/cm/st/trigger_fom.c                     |  8 ++++----
+ 5 files changed, 33 insertions(+), 31 deletions(-)
+
+diff --git a/cm/pump.c b/cm/pump.c
+index c967f97..4d32436 100644
+--- a/cm/pump.c
++++ b/cm/pump.c
+@@ -173,10 +173,8 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
+ 	goto out;
+ fail:
+ 	/* Destroy copy packet allocated in CPP_ALLOC phase. */
+-	M0_LOG(M0_FATAL, ">>pump cp failed rc=%d", rc);
+ 	cp->c_ops->co_free(cp);
+ 	pump_move(cp_pump, rc, CPP_FAIL);
+-	M0_LOG(M0_FATAL, "<<pump cp failed rc=%d", rc);
+ 	rc = M0_FSO_AGAIN;
+ out:
+ 	m0_cm_unlock(cm);
+@@ -205,9 +203,7 @@ static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
+ 
+ 	cm = pump2cm(cp_pump);
+ 	m0_cm_lock(cm);
+-	M0_LOG(M0_FATAL, ">>cpp failed rc=%d", m0_fom_rc(&cp_pump->p_fom));
+ 	m0_cm_fail(cm, M0_CM_ERR_START, m0_fom_rc(&cp_pump->p_fom));
+-	M0_LOG(M0_FATAL, "<<cpp failed rc=%d", m0_fom_rc(&cp_pump->p_fom));
+ 
+ 	m0_cm_unlock(cm);
+ 	return M0_FSO_WAIT;
+diff --git a/cob/ns_iter.c b/cob/ns_iter.c
+index 4c09b26..0fb3b7b 100644
+--- a/cob/ns_iter.c
++++ b/cob/ns_iter.c
+@@ -86,7 +86,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
+ 	key_fid.f_container = iter->cni_last_fid.f_container;
+ 	key_fid.f_key = iter->cni_last_fid.f_key;
+ 
+-	M0_LOG(M0_FATAL, "last fid = %llu:%llu",
++	M0_LOG(M0_DEBUG, "last fid = %llu:%llu",
+ 			(unsigned long long)key_fid.f_container,
+ 			(unsigned long long)key_fid.f_key);
+         rc = m0_cob_nskey_make(&key, &key_fid, (char *)nskey_bs,
+@@ -110,7 +110,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
+ 	 */
+ 	gfid->f_container = key->cnk_pfid.f_container;
+ 	gfid->f_key = key->cnk_pfid.f_key;
+-	M0_LOG(M0_FATAL, "returned fid = %llu:%llu",
++	M0_LOG(M0_DEBUG, "returned fid = %llu:%llu",
+ 			(unsigned long long)gfid->f_container,
+ 			(unsigned long long)gfid->f_key);
+ 
+@@ -118,7 +118,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
+ 	iter->cni_last_fid.f_container = key->cnk_pfid.f_container;
+ 	/* Increment the f_key by 1, to exploit m0_db_cursor_get() property. */
+ 	iter->cni_last_fid.f_key = key->cnk_pfid.f_key + 1;
+-	M0_LOG(M0_FATAL, "updated last fid = %llu:%llu",
++	M0_LOG(M0_DEBUG, "updated last fid = %llu:%llu",
+ 			(unsigned long long)iter->cni_last_fid.f_container,
+ 			(unsigned long long)iter->cni_last_fid.f_key);
+ 
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index f4cd558..ddc6937 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -462,24 +462,30 @@ sns_repair_test()
+ 	local fail_device=1
+ 	local stride=20
+ 	local unit_size=$((stride * 1024))
+-	echo "begin mount"
+ 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride &>> $MERO_TEST_LOGFILE || {
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	echo "mount done"
+-	df
+-
+-	echo dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file_to_repair
+-	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file_to_repair >> $MERO_TEST_LOGFILE || {
++	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++	md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair
++	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++	md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair
++	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
+ 		echo "Failed: dd failed.."
+ 		unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	ls -l $MERO_M0T1FS_MOUNT_DIR/file_to_repair
+-	echo "dd done"
+-	trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -U $unit_size -F $fail_device -n 1
+-			-s 10240000 -N $NR_DATA -K $NR_PARITY -P $POOL_WIDTH
++	md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair
++	trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -U $unit_size -F $fail_device -n 3
++			-s 10240000 -s 10240000 -s 10240000 -N $NR_DATA -K $NR_PARITY -P $POOL_WIDTH
+                          -S ${lnet_nid}:${EP[0]}
+                          -C ${lnet_nid}:${SNS_CLI_EP}"
+ 	echo $trigger
+@@ -489,6 +495,9 @@ sns_repair_test()
+ 		rc=1
+ 	else
+ 		echo "SNS Repair done."
++		md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair
++		md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair
++		md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair
+ 		rc=0
+ 	fi
+ 
+diff --git a/sns/cm/iter.c b/sns/cm/iter.c
+index 34c3fe1..95eeb4e 100644
+--- a/sns/cm/iter.c
++++ b/sns/cm/iter.c
+@@ -303,8 +303,7 @@ static int cm_layout_fetch(struct m0_sns_cm_iter *it)
+ 	gfid = it->si_pl.sfc_gob_fid;
+ 	ldom = &it->si_cp->sc_base.c_fom.fo_service->rs_reqh->rh_ldom;
+ 
+-//	M0_LOG(M0_DEBUG, "getattr for %llu:%llu",
+-	M0_LOG(M0_FATAL, "getattr for %llu:%llu",
++	M0_LOG(M0_DEBUG, "getattr for %llu:%llu",
+ 			 (unsigned long long)gfid.f_container,
+ 			 (unsigned long long)gfid.f_key);
+ 	rc = m0_ios_mds_getattr(it->si_cp->sc_base.c_fom.fo_service->rs_reqh,
+@@ -591,6 +590,11 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
+ 
+ 	/* Get current GOB fid saved in the iterator. */
+ 	rc = __fid_next(it, &fid_next);
++	if (rc == 0 && m0_fid_eq(&fid_next, &M0_COB_ROOT_FID)) {
++		/* we reached the root fid. This is the end. */
++		rc = -ENOENT;
++	}
++
+ 	if (rc == -ENOENT)
+ 		return -ENODATA;
+ 	if (rc == 0) {
+@@ -609,15 +613,8 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
+ 		rc = cm_layout_fetch(it);
+ 		if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
+ 			return -ENODATA;
+-		if (rc < 0) {
+-			M0_LOG(M0_FATAL, "why did get layout for %llu:%llu fail??"
+-					 " Is that gob fid valid?!!!",
+-				(unsigned long long)fid_next.f_container,
+-				(unsigned long long)fid_next.f_key);
+-			M0_LOG(M0_FATAL, "Returnning -ENODATA now. Otherwise system hangs"); /* XXX remove this line*/
+-			return -ENODATA; /* XXX remove this line */
++		if (rc < 0)
+ 			return rc;
+-		}
+ 
+ 		if (rc == IT_WAIT) {
+ 			iter_phase_set(it, ITPH_FID_NEXT_WAIT);
+diff --git a/sns/cm/st/trigger_fom.c b/sns/cm/st/trigger_fom.c
+index 09cc112..d807d8a 100644
+--- a/sns/cm/st/trigger_fom.c
++++ b/sns/cm/st/trigger_fom.c
+@@ -227,7 +227,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
+ 		scm = cm2sns(cm);
+ 		switch(m0_fom_phase(fom)) {
+ 			case TPH_START:
+-				M0_LOG(M0_FATAL, "got trigger: start");
++				M0_LOG(M0_DEBUG, "got trigger: start");
+ 				treq = m0_fop_data(fom->fo_fop);
+ 				scm->sc_it.si_fdata = &treq->fdata;
+ 				m0_trigger_file_sizes_save(treq->fsize.f_nr,
+@@ -241,10 +241,10 @@ static int trigger_fom_tick(struct m0_fom *fom)
+ 				m0_mutex_unlock(&scm->sc_stop_wait_mutex);
+ 				m0_fom_phase_set(fom, TPH_WAIT);
+ 				rc = M0_FSO_WAIT;
+-				M0_LOG(M0_FATAL, "got trigger: start done");
++				M0_LOG(M0_DEBUG, "got trigger: start done");
+ 				break;
+ 			case TPH_WAIT:
+-				M0_LOG(M0_FATAL, "got trigger: wait");
++				M0_LOG(M0_DEBUG, "got trigger: wait");
+ 				rfop = m0_fop_alloc(&trigger_rep_fop_fopt,
+ 						    NULL);
+ 				if (rfop == NULL) {
+@@ -257,7 +257,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
+ 				m0_cm_stop(&scm->sc_base);
+ 				m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+ 				rc = M0_FSO_AGAIN;
+-				M0_LOG(M0_FATAL, "got trigger: wait done");
++				M0_LOG(M0_DEBUG, "got trigger: wait done");
+ 				break;
+ 			default:
+ 				M0_IMPOSSIBLE("Invalid fop");
+-- 
+1.8.3.2
+

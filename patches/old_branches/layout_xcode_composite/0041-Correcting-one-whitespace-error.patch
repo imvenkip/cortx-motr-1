@@ -1,0 +1,30 @@
+From d42b2d1fc2f796d7b1fcf1ecc7bbbb4e333ed34e Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 8 Jan 2013 16:09:49 +0530
+Subject: [PATCH 041/157] Correcting one whitespace error
+
+---
+ layout/composite.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/layout/composite.h b/layout/composite.h
+index 0452bc9..e8bb740 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -351,10 +351,10 @@ struct composite_layer_header {
+ 	/** Padding to make the structure 8 bytes aligned. */
+ 	uint32_t clh_pad;
+ 
+-        /**
+-         * Payload storing list of extents (struct m0_ext) for a specific
++	/**
++	 * Payload storing list of extents (struct m0_ext) for a specific
+ 	 * layer.
+-         */
++	 */
+ 	char     clh_extents[0];
+ 
+ };
+-- 
+1.8.3.2
+

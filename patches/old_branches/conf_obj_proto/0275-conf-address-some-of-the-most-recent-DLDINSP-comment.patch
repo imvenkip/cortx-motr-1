@@ -1,0 +1,102 @@
+From 4c9f8a382fba9f14621efce928cc5b591abc9650 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 6 Aug 2012 23:05:43 +0300
+Subject: [PATCH 275/370] conf: address some of the most recent DLDINSP
+ comments
+
++ confc_invariant(): delete unused variable.
++ obj.c: obj_is_pinned() is not needed, since only C2_CS_READY objects
+  can have ->co_nrefs > 0.
++ c2_conf__readdir_post(): check the value of `retval' argument.
++ obj_ops.c (dir_readdir): improve readability by using `prev' variable.
+
+RB: https://reviewboard.clusterstor.com/r/939/
+---
+ conf/confc.c   |  2 --
+ conf/obj.c     | 20 ++++++--------------
+ conf/obj_ops.c | 10 ++++++----
+ 3 files changed, 12 insertions(+), 20 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index c3d3d47..0121a46 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -340,8 +340,6 @@ C2_BOB_DEFINE(static, &c2_confc_bob, c2_confc);
+ 
+ static bool confc_invariant(const struct c2_confc *confc)
+ {
+-	struct c2_rpc_client_ctx *rpc = &confc->cc_rpc;
+-
+ 	return c2_confc_bob_check(confc) && confc->cc_root != NULL &&
+ 		confc->cc_group != NULL;
+ }
+diff --git a/conf/obj.c b/conf/obj.c
+index a375100..05f0756 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -448,12 +448,6 @@ void c2_conf__obj_put(struct c2_conf_obj *obj)
+ 		c2_chan_broadcast(&obj->co_chan);
+ }
+ 
+-static bool obj_is_pinned(const struct c2_conf_obj *obj)
+-{
+-	return obj->co_status == C2_CS_READY && obj->co_nrefs > 0;
+-
+-}
+-
+ static bool
+ belongs(const struct c2_conf_obj *entry, const struct c2_conf_obj *dir)
+ {
+@@ -466,19 +460,17 @@ belongs(const struct c2_conf_obj *entry, const struct c2_conf_obj *dir)
+ bool c2_conf__readdir_pre(const struct c2_conf_obj *dir,
+ 			  const struct c2_conf_obj *entry)
+ {
+-	return dir->co_type == C2_CO_DIR && obj_is_pinned(dir) &&
+-		ergo(entry != NULL,
+-		     belongs(entry, dir) && obj_is_pinned(entry));
++	return dir->co_type == C2_CO_DIR && dir->co_nrefs > 0 &&
++		ergo(entry != NULL, belongs(entry, dir) && entry->co_nrefs > 0);
+ }
+ 
+ bool c2_conf__readdir_post(int retval, const struct c2_conf_obj *dir,
+ 			   const struct c2_conf_obj *entry)
+ {
+-	if (retval == C2_CONF_DIRNEXT)
+-		return entry != NULL &&
+-			belongs(entry, dir) && obj_is_pinned(entry);
+-	else
+-		return entry == NULL;
++	return retval <= C2_CONF_DIRMISS &&
++		(retval == C2_CONF_DIRNEXT ?
++		 (entry != NULL && belongs(entry, dir) && entry->co_nrefs > 0) :
++		 entry == NULL);
+ }
+ 
+ /** @} conf_dlspec_obj */
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 2b8436a..93205ec 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -147,13 +147,15 @@ static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+ 	/*
+ 	 * struct c2_conf_obj *next;
+ 	 * int                 ret;
+-	 * C2_PRE(c2_conf__readdir_pre(dir, *pptr));
++	 * struct c2_conf_obj *prev = *pptr;
+ 	 *
+-	 * if (*pptr == NULL) {
++	 * C2_PRE(c2_conf__readdir_pre(dir, prev));
++	 *
++	 * if (prev == NULL) {
+ 	 *     next = c2_tlist_head();
+ 	 * } else {
+-	 *     next = c2_tlist_next(..., *pptr);
+-	 *     c2_conf__obj_put(*pptr);
++	 *     next = c2_tlist_next(..., prev);
++	 *     c2_conf__obj_put(prev);
+ 	 *     *pptr = NULL;
+ 	 * }
+ 	 *
+-- 
+1.8.3.2
+

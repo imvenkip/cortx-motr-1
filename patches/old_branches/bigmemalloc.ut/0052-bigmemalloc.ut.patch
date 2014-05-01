@@ -1,0 +1,112 @@
+From 132ae7113bbb2f4ddf53264d519921c056267862 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 22 Nov 2013 14:07:42 +0530
+Subject: [PATCH 52/61] bigmemalloc.ut UT is re-organised and runs
+ successfully: 1. test_tree_sanity() has been introduced which ensures that
+ all    parameters internal to tree are sane. 2. test_iterate() now iterates
+ over both struct po2 objects and    struct non_po2 objects. 3. Assert over
+ object type passed to m0_varr_iter is modified to take    into account cases
+ when object sizes are not power of two. 4. Buffers with sizes non-power of
+ two have been tested. 5. m0_varr_for is untested.
+
+---
+ lib/ut/varr.c | 38 ++++++++++++++++++++++++++++++++++----
+ lib/varr.h    |  3 ++-
+ 2 files changed, 36 insertions(+), 5 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index 594cffa..988c457 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -54,10 +54,12 @@ struct po2 {
+ M0_BASSERT(sizeof (struct po2) == M0_BITS(DT_POWTWO_SHIFT));
+ /* sizeof struct non_po2 is not an integer power of two. */
+ struct non_po2 {
+-	uint32_t   n_flag;
+-	struct po2 n_po2;
++	uint16_t np_chksum;
++	uint8_t  np_arr[16];
+ };
+ 
++M0_BASSERT(sizeof (struct non_po2) < BUFF_SIZE &&
++	   sizeof (struct non_po2) > M0_BITS(BUFF_SHIFT - 1));
+ /* Shifts a given number to left/right by taking into account sizeof(number) */
+ #define safe_bitshift(num, shift, operator)				     \
+ 	({								     \
+@@ -73,6 +75,7 @@ static void test_obj_size(void);
+ static void test_tree_sanity(const struct m0_varr *varr, uint32_t depth);
+ static void test_depth(void);
+ static void test_iterate(void);
++static uint16_t int_summation(uint8_t n);
+ void test_varr(void)
+ {
+ 	test_obj_size();
+@@ -166,16 +169,17 @@ static void test_iterate(void)
+ 	struct m0_varr varr;
+ 	uint64_t       nr;
+ 	int	       rc;
++	uint8_t	       j;
+ 	uint64_t       buff_nr;
+ 	uint32_t       depth = 2;
+ 	uint64_t       step;
+-	struct po2    *arr_ele;
++	void	      *arr_ele;
+ 
+ 	for (buff_nr = M0_VA_TNODE_NR;
+ 	     depth <= 8; buff_nr *= (BUFF_SIZE/M0_VA_TNODEPTR_SIZE),
+ 	     ++depth) {
+ 		nr = buff_nr * (safe_bitshift((uint64_t)1,  BUFF_SHIFT -
+-				     DT_POWTWO_SHIFT, <<));
++				DT_POWTWO_SHIFT, <<));
+ 		M0_SET0(&varr);
+ 		rc = m0_varr_init(&varr, nr, size_get(DT_POWTWO), BUFF_SIZE);
+ 		M0_UT_ASSERT(rc == 0);
+@@ -201,5 +205,31 @@ static void test_iterate(void)
+ 			}
+ 		}
+ 		m0_varr_fini(&varr);
++
++		nr = buff_nr;
++		M0_SET0(&varr);
++		rc = m0_varr_init(&varr, nr, size_get(DT_NON_POWTWO), BUFF_SIZE);
++		M0_UT_ASSERT(rc == 0);
++		test_tree_sanity(&varr, depth);
++		m0_varr_iter (&varr, struct non_po2, i, obj, 0, varr.va_nr, 1) {
++			obj->np_chksum = 0;
++			for (j = 0; j < ARRAY_SIZE(obj->np_arr); ++j) {
++				obj->np_arr[j] = j;
++				obj->np_chksum += obj->np_arr[j];
++			}
++		} m0_varr_end_iter;
++		m0_varr_iter (&varr, struct non_po2, i, obj, 0, varr.va_nr, 1) {
++			arr_ele = m0_varr_ele_get(&varr, i);
++			M0_UT_ASSERT(arr_ele == obj);
++			M0_UT_ASSERT(((struct non_po2 *)arr_ele)->np_chksum ==
++				     int_summation(ARRAY_SIZE(obj->np_arr) -
++							      1));
++		} m0_varr_end_iter;
++		m0_varr_fini(&varr);
+ 	}
+ }
++
++static uint16_t int_summation(uint8_t n)
++{
++	return (n * (n + 1)) / 2;
++}
+diff --git a/lib/varr.h b/lib/varr.h
+index cc1c7fb..dd0c34e 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -237,7 +237,8 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 	struct m0_varr_cursor __cursor;				       \
+ 								       \
+ 	M0_PRE(idx < __arr->va_nr && __end <= __arr->va_nr);	       \
+-	M0_PRE(sizeof *obj == M0_BITS(__arr->va_obj_shift));	       \
++	M0_PRE(sizeof *obj > M0_BITS(__arr->va_obj_shift - 1) &&       \
++	       sizeof *obj <= M0_BITS(__arr->va_obj_shift));	       \
+ 								       \
+         __rc = m0_varr_cursor_init(&__cursor, __arr, __arr->va_depth); \
+ 	M0_ASSERT(__rc == 0);					       \
+-- 
+1.8.3.2
+

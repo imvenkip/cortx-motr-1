@@ -1,0 +1,24 @@
+From 127f0f4c75d9579083a13912de39f525c3121c2a Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 20 Jun 2013 23:45:10 +0300
+Subject: [PATCH 192/290] be/seg: fixed memory leak
+
+---
+ be/seg.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/be/seg.c b/be/seg.c
+index 3eb2a8c..1795f90 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -276,6 +276,7 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
+ {
+ 	M0_PRE(seg->bs_state == M0_BSS_OPENED);
+ 
++	m0_free(seg->bs_pgmap);
+ 	seg->bs_state = M0_BSS_CLOSED;
+ }
+ 
+-- 
+1.8.3.2
+

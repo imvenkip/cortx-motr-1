@@ -1,0 +1,61 @@
+From 1a08947d592c73b0beea0c1e7b17b9ef98909bdb Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 10 Feb 2013 01:15:16 +0200
+Subject: [PATCH 11/25] m0t1fs/dir: create dirs with i_nlink==2; skip ioservice
+ for dirs
+
+---
+ m0t1fs/linux_kernel/dir.c | 10 ++++++----
+ mdstore/mdstore.c         |  1 +
+ 2 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index 79c0a4d..99e4afc 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -203,6 +203,7 @@ static int m0t1fs_create(struct inode     *dir,
+ 	if (S_ISDIR(mode)) {
+ 		inode->i_op  = &m0t1fs_dir_inode_operations;
+ 		inode->i_fop = &m0t1fs_dir_file_operations;
++		inc_nlink(inode);  /* one more link (".") for directories */
+ 	} else {
+ 		inode->i_op  = &m0t1fs_reg_inode_operations;
+ 		inode->i_fop = &m0t1fs_reg_file_operations;
+@@ -219,7 +220,6 @@ static int m0t1fs_create(struct inode     *dir,
+ 	if (rc != 0)
+ 		goto out;
+ 
+-	/** No hierarchy so far, all live in root */
+ 	M0_SET0(&mo);
+ 	mo.mo_attr.ca_uid    = inode->i_uid;
+ 	mo.mo_attr.ca_gid    = inode->i_gid;
+@@ -241,9 +241,11 @@ static int m0t1fs_create(struct inode     *dir,
+ 	if (rc != 0)
+ 		goto out;
+ 
+-	rc = m0t1fs_component_objects_op(ci, m0t1fs_ios_cob_create);
+-	if (rc != 0)
+-		goto out;
++	if (S_ISREG(mode)) {
++		rc = m0t1fs_component_objects_op(ci, m0t1fs_ios_cob_create);
++		if (rc != 0)
++			goto out;
++	}
+ 
+ 	m0t1fs_fs_unlock(csb);
+ 
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 5abfcdc..1b38474 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -159,6 +159,7 @@ M0_INTERNAL int m0_mdstore_create(struct m0_mdstore     *md,
+         struct m0_cob_nskey   *nskey;
+         struct m0_cob_nsrec    nsrec;
+         struct m0_cob_fabrec  *fabrec;
++        struct m0_cob_fabrec  *pfabrec;
+         struct m0_cob_omgrec   omgrec;
+         int                    linklen;
+         int                    rc;
+-- 
+1.8.3.2
+

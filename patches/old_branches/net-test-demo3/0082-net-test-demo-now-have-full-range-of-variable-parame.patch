@@ -1,0 +1,36 @@
+From b0ccf8e129613d6f9b730a13ba7f5ea01ba1e692 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 24 Feb 2013 16:15:42 -0800
+Subject: [PATCH 82/99] net-test demo now have full range of variable
+ parameters
+
+---
+ net/test/demo/demo.sh | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/net/test/demo/demo.sh b/net/test/demo/demo.sh
+index de23999..e387ddf 100755
+--- a/net/test/demo/demo.sh
++++ b/net/test/demo/demo.sh
+@@ -50,12 +50,12 @@ BD_BUF_NR_CLIENT=
+ BD_BUF_NR_SERVER=
+ 
+ # List of parameters to test
+-# MSG_SIZE_LIST="64 128 256 512 1024 2048 4096 8192 16384 32768 65536 131072 \
+-# 262144 524288 1048576"
+-# CONCURRENCY_CLIENT_LIST="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 18 20 22 24 \
+-# 26 28 30 32 40 48 56 64 80 96 112 128 160 192 224 256"
+-MSG_SIZE_LIST="512 16384 131072 1048576"
+-CONCURRENCY_CLIENT_LIST="1 4 16 256"
++MSG_SIZE_LIST="64 128 256 512 1024 2048 4096 8192 16384 32768 65536 131072 \
++262144 524288 1048576"
++CONCURRENCY_CLIENT_LIST="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 18 20 22 24 \
++26 28 30 32 40 48 56 64 80 96 112 128 160 192 224 256"
++# MSG_SIZE_LIST="512 16384 131072 1048576"
++# CONCURRENCY_CLIENT_LIST="1 4 16 256"
+ MEASUREMENT_LIST="Bandwidth RTT MPS"
+ M_TYPE_LIST="min max avg stddev"
+ declare -a MSG_SIZE_ARR=(${MSG_SIZE_LIST// / })
+-- 
+1.8.3.2
+

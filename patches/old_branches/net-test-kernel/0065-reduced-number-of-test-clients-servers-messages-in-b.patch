@@ -1,0 +1,43 @@
+From d96a4be0c832ef9a356ba9b3d1c4e793a59fdc67 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 13 Jan 2013 05:31:25 +0200
+Subject: [PATCH 65/71] reduced number of test clients/servers/messages in bulk
+ UT
+
+---
+ net/test/ut/client_server.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/net/test/ut/client_server.c b/net/test/ut/client_server.c
+index 0fe6752..02fbd58 100644
+--- a/net/test/ut/client_server.c
++++ b/net/test/ut/client_server.c
+@@ -388,18 +388,18 @@ void c2_net_test_client_server_bulk_ut(void)
+ 	 */
+ 	/*
+ 	 * - 0@lo interface
+-	 * - 8 test clients, 8 test servers
+-	 * - 256 test messages x 64KiB per message
++	 * - 2 test clients, 2 test servers
++	 * - 64 test messages x 1MiB per message
+ 	 * - 2 pairs of concurrent buffers on each test client
+-	 * - 32 concurrent buffers on each test server
+-	 * - 32(64) network buffers for network buffer descriptors
++	 * - 8 concurrent buffers on each test server
++	 * - 8(16) network buffers for network buffer descriptors
+ 	 *   on the test client(server) with 4KiB per buffer and
+ 	 *   64k maximum buffer descriptors in buffer
+ 	 */
+ 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_BULK,
+-			       8, 8, 2, 32,
+-			       0x100, 0x10000,
+-			       32, 64, 0x1000, 0x10000);
++			       2, 2, 2, 8,
++			       64, 0x100000,
++			       8, 16, 0x1000, 0x10000);
+ }
+ 
+ /*
+-- 
+1.8.3.2
+

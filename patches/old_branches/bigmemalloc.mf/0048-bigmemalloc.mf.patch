@@ -1,0 +1,474 @@
+From db0667b8d9fe000e5d72dd7e3f4c725850012765 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 1 Nov 2013 15:03:44 +0530
+Subject: [PATCH 48/50] bigmemalloc.mf -Modes ALLOC and DEALLOC have been
+ removed.
+
+---
+ lib/varr.c | 295 +++++++++++++++++++------------------------------------------
+ lib/varr.h |  14 +--
+ 2 files changed, 94 insertions(+), 215 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index 245d926..ca29875 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -52,9 +52,6 @@ M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr);
+ /* Evaluates the height of the tree based upon total number of
+  * buffers to be allocated. */
+ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr, uint64_t buff_nr);
+-/* Returns log to the base two for the radix associated with a level. */
+-M0_INTERNAL uint32_t children_of_level(const struct m0_varr *arr,
+-				       uint32_t level);
+ /* Returns the youngest common ancestor of two children within a tree */
+ M0_INTERNAL uint32_t common_ancestor(const struct m0_varr *arr,
+ 				     uint64_t target_idx, uint64_t src_idx);
+@@ -83,20 +80,22 @@ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr);
+ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+ 					unsigned long obj_nr_in_1_cont,
+ 					uint8_t obj_nr_shift);
+-/* Computes the maximum possible leaf-level buffers beneath a given level. */
+-M0_INTERNAL uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+-					       uint32_t level);
+-M0_INTERNAL bool within_tree_width(const struct m0_varr_cursor *cursor,
+-				   uint32_t depth, uint32_t index);
++M0_INTERNAL uint64_t max_idx_within_level(const struct m0_varr_cursor *cursor,
++					  uint32_t depth);
++M0_INTERNAL uint32_t carry_to_idx_xlate(const struct m0_varr_cursor *cursor,
++					uint64_t carry, uint32_t depth);
++M0_INTERNAL uint64_t carry_for_next_level(const struct m0_varr_cursor *cursor,
++					  uint64_t carry, uint32_t depth);
++
++M0_INTERNAL uint8_t log_radix(const struct m0_varr *arr, uint32_t level);
+ /* Returns logarithm to the base two, for the nearest power of two
+  * which is not lesser than 'size'*/
+ M0_INTERNAL uint8_t nearest_power_of_two(size_t size);
+ /* Returns a 64-bit number whose last 'n' bits are set, and rest are zero. */
+ M0_INTERNAL uint64_t last_nbits_set(uint8_t n);
+ /* Increments buffer based upon its level in a tree */
+-M0_INTERNAL void *buff_move(const struct m0_varr *arr, uint32_t depth,
+-			    void *buff, uint32_t step,
+-			    enum m0_varr_cursor_dir dir)
++M0_INTERNAL void *buff_incr(const struct m0_varr *arr, uint32_t depth,
++			    void *buff, uint32_t inc);
+ /* Shifts a given number to left/right by taking into account sizeof(number) */
+ #define safe_bitshift(num, shift, operator)				     \
+ 	({								     \
+@@ -234,36 +233,38 @@ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ 	struct m0_varr_cursor  cursor;
+ 	int		       rc;
+ 	void		      *holder;
++	uint32_t	       i;
+ 
+-	rc = m0_varr_cursor_init(&cursor, arr, ALLOC);
+-	if (rc != 0)
+-		goto end;
+-	do {
+-		holder = m0_varr_buf_alloc(arr->va_bufsize);
+-		if (holder == NULL) {
+-			rc = -ENOMEM;
++	for (i = 1; i < arr->va_depth; ++i) {
++		rc = m0_varr_cursor_init(&cursor, arr, i);
++		if (rc != 0)
+ 			goto end;
+-		}
+-		*(void **)m0_varr_cursor_get(&cursor) = holder;
+-	} while (m0_varr_cursor_preorder_iter(&cursor));
++		do {
++			holder = m0_varr_buf_alloc(arr->va_bufsize);
++			if (holder == NULL) {
++				rc = -ENOMEM;
++				goto end;
++			}
++			*(void **)m0_varr_cursor_get(&cursor) = holder;
++		} while (m0_varr_cursor_next(&cursor));
++	}
+ end:
+ 	return rc;
+ }
+ 
+ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ 				    const struct m0_varr *arr,
+-				    enum m0_varr_cursor_trav traversal)
++				    uint32_t depth)
+ {
+ 	struct m0_varr_path_element *pe;
+ 	void			    *buf;
+ 	void			    *root;
+-	uint32_t		     depth;
+ 
+ 	M0_PRE(cursor != NULL);
+ 	M0_PRE(arr != NULL);
++	M0_PRE(depth <= arr->va_depth);
+ 
+ 	cursor->vc_arr	 = (struct m0_varr *)arr;
+-	cursor->vc_trav	 = traversal;
+ 	cursor->vc_depth = 0;
+ 	cursor->vc_done	 = 0;
+ 	pe		 = &cursor->vc_path[0];
+@@ -274,8 +275,6 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ 	pe->vp_buf	 = (void *)&root;
+ 	pe->vp_width	 = 1;
+ 
+-	depth = traversal == ITERATE ? arr->va_depth : traversal == ALLOC ? 1 :
+-						        arr->va_depth - 1;
+ 	while (cursor->vc_depth < depth) {
+ 		buf = pe->vp_buf;
+ 		if (buf != NULL) {
+@@ -318,162 +317,92 @@ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor)
+ }
+ 
+ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+-				    uint64_t step, enum m0_varr_cursor_dir dir)
++				    uint64_t inc)
+ {
+ 	void			    *buf;
+ 	struct m0_varr_path_element *pe;
+ 	uint32_t		     d = cursor->vc_depth;
+ 	uint64_t		     target_idx;
+-	uint32_t		     common_anct;
+-	uint32_t		     index_in_level;
+-	uint32_t		     step_in_level;
++	uint64_t		     max_idx_in_level;
++	uint64_t		     carry;
+ 
+ 	M0_PRE(cursor != NULL);
+-	M0_PRE(ergo(cursor->vc_trav == ITERATE,
+-				d == cursor->vc_arr->va_depth));
+-	M0_PRE(ergo(cursor->vc_trav != ITERATE, inc == 1 &&
+-				d < cursor->vc_arr->va_depth));
++	M0_PRE(d < cursor->vc_arr->va_depth);
+ 
+ 	pe = &cursor->vc_path[d];
+-	if (dir == FWD) {
+-		target_idx = cursor->vc_done + step;
+-		if (target_idx >= cursor->vc_arr->va_nr)
+-			goto end;
+-	} else {
+-		if (step > cursor->vc_done)
+-			goto end;
+-		target_idx = cursor->vc_done - step;
+-	}
+-	if (target_idx == cursor->vc_done)
++	max_idx_in_level = max_idx_within_level(cursor, d);
++	target_idx = cursor->vc_done + inc;
++	if (target_idx >= max_idx_in_level)
++		goto end;
++	else if (target_idx == cursor->vc_done)
+ 		goto next;
+-	common_anct = common_ancestor(cursor->vc_arr, target_idx,
+-				      cursor->vc_done);
+-	while (d > common_anct) {
+-		pe->vp_idx = index_within_level(cursor->vc_arr,
+-						target_idx, d);
++	carry = inc;
++	while (d > 0 && carry > pe->vp_width) {
++		pe->vp_idx = carry_to_idx_xlate(cursor, carry, d);
++		carry	   = carry_for_next_level(cursor, carry, d);
+ 		--pe;
+ 		--d;
+ 	}
+-	index_in_level = index_within_level(cursor->vc_arr,
+-					    target_idx, d);
+-	step_in_level = index_in_level > pe->vp_idx ? index_in_level -
+-		pe->vp_idx : pe->vp_idx - index_in_level;
+-	pe->vp_buf = buff_move(cursor->vc_arr, d, pe->vp_buf,
+-			       step_in_level, dir);
+-	pe->vp_idx = index_in_level;
+-	while (common_anct != cursor->vc_depth &&
+-	       d < cursor->vc_depth) {
++	pe->vp_buf = buff_incr(cursor->vc_arr, d, pe->vp_buf,
++			       carry - pe->vp_idx);
++	pe->vp_idx = carry;
++	while (d < cursor->vc_depth) {
+ 		buf = pe->vp_buf;
+ 		++pe;
+ 		++d;
+ 		pe->vp_buf = *(void **)buf;
+-		pe->vp_buf = buff_move(cursor->vc_arr, d, pe->vp_buf,
+-				       pe->vp_idx, FWD);
++		pe->vp_buf = buff_incr(cursor->vc_arr, d, pe->vp_buf,
++				       pe->vp_idx);
+ 	}
+ 	cursor->vc_done = target_idx;
++	goto next;
++next:
+ 	return 1;
+ end:
+ 	return 0;
+ 
+ }
+ 
+-M0_INTERNAL int m0_varr_cursor_preorder_nxt(struct m0_varr_cursor *cursor)
++M0_INTERNAL uint64_t max_idx_within_level(const struct m0_varr_cursor *cursor,
++					  uint32_t depth)
+ {
+-	void			    *buf;
+-	struct m0_varr_path_element *pe;
+-	uint32_t		     d = cursor->vc_depth;
++	uint64_t shift;
+ 
+-	/* Increments of cursor->vc_done are in the quantum of objects
+-	 * in a single leaf buffer. Hence strict equality constraint is
+-	 * avoided below. */
+-	if (cursor->vc_done >= cursor->vc_arr->va_nr)
+-		goto end;
+-	if (d < cursor->vc_arr->va_depth - 1) {
+-		buf = pe->vp_buf;
+-		++pe;
+-		++d;
+-		pe->vp_buf = *(void **)buf;
+-		pe->vp_idx = 0;
+-		pe->vp_width = children_of_level(cursor->vc_arr, d);
+-	} else {
+-		completed_leaves_update(cursor, d, 1);
+-		while (!within_tree_width(cursor, d, pe->vp_idx + 1) &&
+-		       d > 0) {
+-			--pe;
+-			--d;
+-		}
+-		++pe->vp_idx;
+-		pe->vp_buf = buff_move(cursor->vc_arr, d, pe->vp_buf, 1, FWD);
+-	}
+-	cursor->vc_depth = d;
+-	if (cursor->vc_depth != 0)
+-		goto next;
+-	else
+-		goto end;
+-next:
+-	return 1;
+-end:
+-	return 0;
++	shift = depth == cursor->vc_arr->va_depth ? 0 :
++		cursor->vc_arr->va_buf_shift - cursor->vc_arr->va_obj_shift +
++		(cursor->vc_arr->va_depth - depth - 1) *
++		cursor->vc_arr->va_bufptr_nr_shift;
++	return safe_bitshift(cursor->vc_arr->va_nr, shift, >>);
+ }
+ 
+-M0_INTERNAL int m0_varr_cursor_postorder_nxt(struct m0_varr_cursor *cursor)
++M0_INTERNAL uint32_t carry_to_idx_xlate(const struct m0_varr_cursor *cursor,
++					uint64_t carry, uint32_t depth)
+ {
+-	void			    *buf;
+-	struct m0_varr_path_element *pe;
+-	uint32_t		     d = cursor->vc_depth;
+-
+-	if (d == 0)
+-		goto end;
+-	if (d == cursor->vc_arr->va_depth - 1)
+-		completed_leaves_update(cursor, d, 1);
+-	if (within_tree_width(cursor, d, pe->vp_idx + 1) &&
+-	    *(void **)buff_move(cursor->vc_arr, d, pe->vp_buf, 1, FWD)
+-	    != NULL) {
+-		++pe->vp_idx;
+-		pe->vp_buf = buff_move(cursor->vc_arr, d, pe->vp_buf, 1, FWD);
+-		while (d < cursor->vc_arr->va_depth - 1 &&
+-		       *(void **)pe->vp_buf != NULL) {
+-			buf = pe->vp_buf;
+-			++pe;
+-			++d;
+-			pe->vp_buf = *(void **)buf;
+-			pe->vp_idx = 0;
+-		}
+-	} else {
+-		--pe;
+-		--d;
+-	}
+-	cursor->vc_depth = d;
+-	if (cursor->vc_depth != 0)
+-		goto next;
+-	else
+-		goto end;
+-next:
+-	return 1;
+-end:
+-	return 0;
++	M0_PRE(cursor != NULL);
++	M0_PRE(depth <= cursor->vc_arr->va_depth);
++	return (cursor->vc_path[depth].vp_idx + carry) &
++		(cursor->vc_path[depth].vp_width - 1);
+ }
+ 
+-M0_INTERNAL uint32_t common_ancestor(const struct m0_varr *arr,
+-				     uint64_t target_idx, uint64_t src_idx)
++M0_INTERNAL uint64_t carry_for_next_level(const struct m0_varr_cursor *cursor,
++					  uint64_t carry, uint32_t depth)
+ {
+-	uint64_t diff;
+-	uint32_t level = arr->va_depth;
++	M0_PRE(cursor != NULL);
++	M0_PRE(depth <= cursor->vc_arr->va_depth);
++	return safe_bitshift(carry, log_radix(cursor->vc_arr, depth), >>);
++}
+ 
++M0_INTERNAL uint8_t log_radix(const struct m0_varr *arr, uint32_t level)
++{
+ 	M0_PRE(arr != NULL);
++	M0_PRE(level <= arr->va_depth);
+ 
+-	diff = target_idx ^ src_idx;
+-	if (diff == 0)
+-		return 0;
+-	if (diff <= varr_obj_nr_in_buff(arr))
+-		return arr->va_depth;
+-	diff >>= arr->va_buf_shift - arr->va_obj_shift;
+-	while (diff > 0 && level > 0) {
+-		diff >>= level == 2 ? M0_VA_TNODE_NR_SHIFT :
++	if (level <= 1)
++		return level == 1 ? M0_VA_TNODE_NR_SHIFT : 0;
++	else
++		return level == arr->va_depth ?
++			arr->va_buf_shift - arr->va_obj_shift :
+ 			arr->va_bufptr_nr_shift;
+-		--level;
+-	}
+-	return level;
+ }
+ 
+ M0_INTERNAL uint32_t index_within_level(const struct m0_varr *arr,
+@@ -503,50 +432,8 @@ M0_INTERNAL uint64_t last_nbits_set(uint8_t n)
+ 		~(uint64_t)0;
+ }
+ 
+-M0_INTERNAL bool within_tree_width(const struct m0_varr_cursor *cursor,
+-				   uint32_t depth, uint32_t index)
+-{
+-	return index < cursor->vc_path[depth].vp_width &&
+-		cursor->vc_done < cursor->vc_arr->va_nr;
+-}
+-
+-M0_INTERNAL void completed_leaves_update(struct m0_varr_cursor *cursor,
+-					 uint32_t depth, uint32_t inc)
+-{
+-	M0_PRE(cursor != NULL);
+-	M0_PRE(ergo(cursor->vc_trav != ITERATE,
+-		    depth < cursor->vc_arr->va_depth));
+-
+-	if (depth == cursor->vc_arr->va_depth)
+-		cursor->vc_done += inc;
+-	else
+-		cursor->vc_done += inc *
+-			varr_obj_nr_in_buff(cursor->vc_arr) *
+-			max_buff_nr_till_lev_n_pn(cursor->vc_arr, depth);
+-}
+-
+-/*
+- * Returns max possible number of leaf-buffers for only a single tree node,
+- * that can fit till given level in virtual array.
+- * The acronym _pn in API name stands for "per node".
+- * Lower level number contains more buffers than higher level number.
+- * Level 0 is ancestor of level n (n > 0).
+- */
+-M0_INTERNAL uint64_t max_buff_nr_till_lev_n_pn(const struct m0_varr *arr,
+-					       uint32_t level)
+-{
+-	M0_PRE(level <= arr->va_depth);
+-
+-	/*return m0_pow(arr->va_bufsize / M0_VA_TNODEPTR_SIZE,
+-	  arr->va_depth - level);*/
+-	return level == arr->va_depth ? 0 :
+-		safe_bitshift((uint64_t)1, (arr->va_bufptr_nr_shift *
+-					    (arr->va_depth - level - 1)), <<);
+-}
+-
+-M0_INTERNAL void *buff_move(const struct m0_varr *arr, uint32_t depth,
+-			    void *buff, uint32_t step,
+-			    enum m0_varr_cursor_dir dir)
++M0_INTERNAL void *buff_incr(const struct m0_varr *arr, uint32_t depth,
++			    void *buff, uint32_t inc)
+ {
+ 	size_t inc_unit;
+ 
+@@ -556,10 +443,7 @@ M0_INTERNAL void *buff_move(const struct m0_varr *arr, uint32_t depth,
+ 		inc_unit = arr->va_obj_size;
+ 	else
+ 		inc_unit = M0_VA_TNODEPTR_SIZE;
+-	if (dir == FWD)
+-		buff += incr*inc_unit;
+-	else
+-		buff -= incr*inc_unit;
++	buff += inc*inc_unit;
+ 	return buff;
+ }
+ 
+@@ -568,17 +452,20 @@ M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr)
+ 	struct m0_varr_cursor cursor;
+ 	int		      rc;
+ 	void		     *holder;
+-
+-	rc = m0_varr_cursor_init(&cursor, arr, DEALLOC);
+-	M0_ASSERT(rc == 0);
+-	do {
+-		holder = *(void **)m0_varr_cursor_get(&cursor);
+-		/* This condition will fail when varr_buffers_alloc() has got
+-		 * terminated intermittently. */
+-		if ((void *)holder != NULL) {
+-			m0_varr_buf_free(holder, arr->va_bufsize);
+-		}
+-	} while (m0_varr_cursor_postorder_iter(&cursor));
++	uint32_t	      i;
++
++	for (i = arr->va_depth - 1; i > 0; --i) {
++		rc = m0_varr_cursor_init(&cursor, arr, i);
++		M0_ASSERT(rc == 0);
++		do {
++			holder = *(void **)m0_varr_cursor_get(&cursor);
++			/* This condition will fail when varr_buffers_alloc()
++			 * has got terminated intermittently. */
++			if ((void *)holder != NULL) {
++				m0_varr_buf_free(holder, arr->va_bufsize);
++			}
++		} while (m0_varr_cursor_next(&cursor));
++	}
+ }
+ 
+ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr)
+diff --git a/lib/varr.h b/lib/varr.h
+index 411da24..a2c209d 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -91,14 +91,7 @@ enum {
+ 	M0_VA_DEPTH_MAX	  = 16,
+ };
+ 
+-enum m0_varr_cursor_trav {
+-	ITERATE,
+-	ALLOC,
+-	DEALLOC,
+-};
+-
+ struct m0_varr_path_element {
+-	uint64_t  vp_arr_idx;
+ 	uint32_t  vp_idx;
+ 	uint32_t  vp_width;
+ 	void	 *vp_buf;
+@@ -109,7 +102,6 @@ struct m0_varr_cursor {
+ 	uint32_t		     vc_depth;
+ 	uint64_t		     vc_done;
+ 	struct m0_varr_path_element  vc_path[M0_VA_DEPTH_MAX];
+-	enum m0_varr_cursor_trav     vc_trav;
+ };
+ 
+ struct m0_varr {
+@@ -194,14 +186,14 @@ M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr);
+ /** Initializes the cursor to suitable location based upon the operation of
+  * traversal. */
+ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+-				    const struct m0_varr *arr,
+-				    enum m0_varr_cursor_trav traversal);
++				    const struct m0_varr *arr, uint32_t depth);
+ /**
+  * Returns a pointer corresponding to the current location of a cursor.
+  */
+ M0_INTERNAL void* m0_varr_cursor_get(struct m0_varr_cursor *cursor);
+ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor);
+-M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor, uint32_t inc);
++M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
++				    uint64_t inc);
+ 
+ /* Iterates over an arbitrary arithmetic progression of indices over
+  * the range [start, end) */
+-- 
+1.8.3.2
+

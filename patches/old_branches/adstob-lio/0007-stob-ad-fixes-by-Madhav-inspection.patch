@@ -1,0 +1,95 @@
+From 1127abe460d5847c0f9f15df7970c1101edd2a3e Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Wed, 23 Oct 2013 17:52:54 +0300
+Subject: [PATCH 07/17] stob/ad: fixes by Madhav inspection
+
+* allocate only required number of arp_seg.ps_segments;
+* cleanup m0_fol_rec_part at ad_write_map() in case of failure.
+
+References: http://reviewboard.clusterstor.com/r/1552
+---
+ stob/ad.c | 25 +++++++++++++++++++------
+ 1 file changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/stob/ad.c b/stob/ad.c
+index 7832ae0..2736c01 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -1068,7 +1068,7 @@ static bool ad_wext_cursor_move(struct ad_wext_cursor *wc, m0_bcount_t count)
+ 	return wc->wc_wext == NULL;
+ }
+ 
+-static uint32_t ad_write_frags_count(struct m0_indexvec *iv)
++static uint32_t ad_write_map_count(struct m0_indexvec *iv)
+ {
+ 	uint32_t               frags;
+ 	m0_bcount_t            frag_size;
+@@ -1291,6 +1291,14 @@ static int ad_fol_part_alloc(struct m0_fol_rec_part *part, uint32_t frags)
+ 	return 0;
+ }
+ 
++static void ad_fol_part_free(struct m0_fol_rec_part *part)
++{
++	struct ad_rec_part *arp = part->rp_data;
++
++	m0_free(arp->arp_seg.ps_old_data);
++	m0_fol_rec_part_fini(part);
++}
++
+ /**
+    Updates extent map, inserting newly allocated extents into it.
+ 
+@@ -1357,10 +1365,10 @@ static int ad_write_map(struct m0_stob_io *io, struct ad_domain *adom,
+ 		M0_ASSERT(eodst == eoext);
+ 	} while (!eodst);
+ 
+-	if (result == 0) {
+-		arp->arp_seg.ps_segments = i;
++	if (result == 0)
+ 		m0_fol_rec_part_add(&io->si_tx->tx_fol_rec, part);
+-	}
++	else
++		ad_fol_part_free(part);
+ 
+ 	return result;
+ }
+@@ -1397,6 +1405,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
+ {
+ 	m0_bcount_t           todo;
+ 	uint32_t              frags;
++	uint32_t              cfrags;
+ 	int                   result;
+ 	struct ad_write_ext   head;
+ 	struct ad_write_ext  *wext;
+@@ -1441,6 +1450,7 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
+ 		frags = ad_write_count(src, &wc);
+ 		result = ad_vec_alloc(io->si_obj, back, frags);
+ 		if (result == 0) {
++			struct m0_indexvec *ivec;
+ 			m0_vec_cursor_init(src, &io->si_user.ov_vec);
+ 			ad_wext_cursor_init(&wc, &head);
+ 
+@@ -1449,7 +1459,10 @@ static int ad_write_launch(struct m0_stob_io *io, struct ad_domain *adom,
+ 			m0_ivec_cursor_init(dst, &io->si_stob);
+ 			ad_wext_cursor_init(&wc, &head);
+ 
+-			result = ad_write_map(io, adom, dst, map, &wc, frags);
++			ivec = container_of(dst->ic_cur.vc_vec,
++						struct m0_indexvec, iv_vec);
++			cfrags = ad_write_map_count(ivec);
++			result = ad_write_map(io, adom, dst, map, &wc, cfrags);
+ 		}
+ 	}
+ 	ad_wext_fini(&head);
+@@ -1472,7 +1485,7 @@ static void ad_write_credit(struct ad_domain *dom, struct m0_indexvec *iv,
+ 	M0_LOG(M0_DEBUG, "after bo_alloc: cred=[%d:%d]",
+ 		(int)acc->tc_reg_nr, (int)acc->tc_reg_size);
+ 
+-	frags = ad_write_frags_count(iv);
++	frags = ad_write_map_count(iv);
+ 	M0_LOG(M0_DEBUG, "frags=%d", frags);
+ 	m0_be_emap_credit(&dom->ad_adata, M0_BEO_PASTE, frags, acc);
+ 	M0_LOG(M0_DEBUG, "after emap_cred: cred=[%d:%d]",
+-- 
+1.8.3.2
+

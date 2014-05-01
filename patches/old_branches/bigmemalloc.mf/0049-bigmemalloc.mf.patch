@@ -1,0 +1,763 @@
+From 4e86f8adcbdeab6e2d0fda026e7c6c665c7c638a Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 8 Nov 2013 20:01:58 +0530
+Subject: [PATCH 49/50] bigmemalloc.mf -Code is aligned with comments received
+ at:  http://reviewboard.clusterstor.com/r/1513/
+
+---
+ lib/Makefile.sub        |   1 +
+ lib/linux_kernel/varr.c |   8 --
+ lib/user_space/varr.c   |   6 --
+ lib/varr.c              | 205 +++++++++++++++++++++++++-----------------------
+ lib/varr.h              | 199 ++++++++++++++++++++++++++--------------------
+ lib/varr_private.h      |   1 -
+ 6 files changed, 221 insertions(+), 199 deletions(-)
+
+diff --git a/lib/Makefile.sub b/lib/Makefile.sub
+index ca808f1..90ce02e 100644
+--- a/lib/Makefile.sub
++++ b/lib/Makefile.sub
+@@ -138,6 +138,7 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
+               lib/linux_kernel/timer.c \
+               lib/linux_kernel/timer.h \
+               lib/linux_kernel/types.h \
++              lib/linux_kernel/varr.c \
+               lib/linux_kernel/vec.h \
+               lib/linux_kernel/ut/main.c
+ 
+diff --git a/lib/linux_kernel/varr.c b/lib/linux_kernel/varr.c
+index f1a94d1..157acb0 100644
+--- a/lib/linux_kernel/varr.c
++++ b/lib/linux_kernel/varr.c
+@@ -42,14 +42,6 @@ M0_EXTERN void m0_varr_buf_free(void *buf, size_t bufsize)
+ 		m0_free(buf);
+ }
+ 
+-M0_EXTERN bool m0_varr_size_is_valid(const struct m0_varr *arr)
+-{
+-	M0_PRE(arr != NULL);
+-
+-	return  arr->va_buf_shift <= PAGE_CACHE_SHIFT    &&
+-		arr->va_obj_shift  <=  arr->va_buf_shift;
+-}
+-
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/lib/user_space/varr.c b/lib/user_space/varr.c
+index 3647900..285113a 100644
+--- a/lib/user_space/varr.c
++++ b/lib/user_space/varr.c
+@@ -36,12 +36,6 @@ M0_EXTERN void m0_varr_buf_free(void *buf, size_t bufsize)
+ 	m0_free(buf);
+ }
+ 
+-M0_EXTERN bool m0_varr_size_is_valid(const struct m0_varr *arr)
+-{
+-	M0_PRE(arr != NULL);
+-	return arr->va_obj_shift <= arr->va_buf_shift;
+-}
+-
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/lib/varr.c b/lib/varr.c
+index ca29875..6e58f7a 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -30,6 +30,7 @@
+ #ifndef __KERNEL__
+ #include <limits.h>		/* CHAR_BIT */
+ #else
++#include <linux/pagemap.h>	/* PAGE_CACHE_SIZE */
+ #include <linux/limits.h>
+ #endif
+ 
+@@ -45,66 +46,66 @@ M0_INTERNAL const struct m0_bob_type varr_bobtype = {
+ };
+ 
+ M0_INTERNAL bool varr_invariant(const struct m0_varr *arr);
+-/* Constructs a tree to hold buffers. */
++/** Constructs a tree to hold buffers. */
+ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr);
+-/* Frees a tree holding buffers. */
++/** Frees a tree holding buffers. */
+ M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr);
+-/* Evaluates the height of the tree based upon total number of
+- * buffers to be allocated. */
++/**
++ * Evaluates the height of the tree based upon total number of leaf-level
++ * buffers to be allocated.
++ */
+ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr, uint64_t buff_nr);
+-/* Returns the youngest common ancestor of two children within a tree */
+-M0_INTERNAL uint32_t common_ancestor(const struct m0_varr *arr,
+-				     uint64_t target_idx, uint64_t src_idx);
+-/* Returns index within a buffer at given depth for a given target_index within
+- * an array. */
++/**
++ * Returns index within a buffer at given depth, for a given target_index
++ * in an array.
++ */
+ M0_INTERNAL uint32_t index_within_level(const struct m0_varr *arr,
+ 					uint64_t target_idx, uint32_t depth);
+-/* Returns total number of children for a node at given level in a tree. */
++/** Returns total number of children for a node at given level in a tree. */
+ M0_INTERNAL uint32_t children_of_level(const struct m0_varr *arr,
+ 				       uint32_t level);
+-/* Updates the total number of leaf nodes touched upon by the cursor
+- * iterator. */
+-M0_INTERNAL void completed_leaves_update(struct m0_varr_cursor *cursor,
+-					 uint32_t depth, uint32_t inc);
+-/* Fetches address of an object with index 'index' within the array. Returns
+- * 'true' when address is present in the cache. Returns 'false' otherwise. */
+-M0_INTERNAL bool cache_fetch(const struct m0_varr *arr, uint64_t index,
+-			     void **holder);
+-/* Updates the cache with address of a buffer and range of indices residing
+- * in it. */
++/**
++ * Fetches address of a buffer in which object with index 'index' resides.
++ * Returns NULL in case address of the buffer is not present in cache.
++ */
++M0_INTERNAL void *cache_fetch(const struct m0_varr *arr, uint64_t index);
++/**
++ * Updates the cache with address of a buffer and range of indices residing
++ * in it.
++ */
+ M0_INTERNAL void cache_update(struct m0_varr *arr, void *holder,
+ 			      uint64_t start_index);
+-/* Returns number of objects that can fit in a single buffer. */
++/** Returns number of objects that can fit in a single buffer. */
+ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr);
+-/* Computes number of buffers required at the leaf-level. */
++/** Computes number of buffers required at the leaf-level. */
+ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+ 					unsigned long obj_nr_in_1_cont,
+ 					uint8_t obj_nr_shift);
++/** Returns index of the highest numbered node at given depth. */
+ M0_INTERNAL uint64_t max_idx_within_level(const struct m0_varr_cursor *cursor,
+ 					  uint32_t depth);
+-M0_INTERNAL uint32_t carry_to_idx_xlate(const struct m0_varr_cursor *cursor,
++M0_INTERNAL uint32_t inc_to_idx_xlate(const struct m0_varr_cursor *cursor,
++				      uint64_t carry, uint32_t depth);
++M0_INTERNAL uint64_t inc_for_next_level(const struct m0_varr_cursor *cursor,
+ 					uint64_t carry, uint32_t depth);
+-M0_INTERNAL uint64_t carry_for_next_level(const struct m0_varr_cursor *cursor,
+-					  uint64_t carry, uint32_t depth);
+ 
+ M0_INTERNAL uint8_t log_radix(const struct m0_varr *arr, uint32_t level);
+-/* Returns logarithm to the base two, for the nearest power of two
+- * which is not lesser than 'size'*/
+-M0_INTERNAL uint8_t nearest_power_of_two(size_t size);
+-/* Returns a 64-bit number whose last 'n' bits are set, and rest are zero. */
++/** Returns the ceiling of logarithm to the base two. */
++M0_INTERNAL uint8_t nearest_power_of_two(size_t num);
++/** Returns a 64-bit number whose last 'n' bits are set, and rest are zero. */
+ M0_INTERNAL uint64_t last_nbits_set(uint8_t n);
+-/* Increments buffer based upon its level in a tree */
++/** Increments buffer based upon its level in a tree */
+ M0_INTERNAL void *buff_incr(const struct m0_varr *arr, uint32_t depth,
+ 			    void *buff, uint32_t inc);
+-/* Shifts a given number to left/right by taking into account sizeof(number) */
+-#define safe_bitshift(num, shift, operator)				     \
+-	({								     \
+-	 uint8_t        __shift = (shift);				     \
+-	 typeof(num)    __num   = (num);				     \
+-	 M0_ASSERT(!strcmp(#operator, "<<") || !strcmp(#operator, ">>"));    \
+-	 M0_ASSERT(__shift < CHAR_BIT * sizeof __num);			     \
+-	 __num operator __shift;					     \
+-	 })
++/** Shifts a given number to left/right by taking into account sizeof(number) */
++#define safe_bitshift(num, shift, operator)				 \
++({									 \
++	uint8_t     __shift = (shift);					 \
++	typeof(num) __num   = (num);					 \
++	M0_ASSERT(!strcmp(#operator, "<<") || !strcmp(#operator, ">>")); \
++	M0_ASSERT(__shift < CHAR_BIT * sizeof __num);			 \
++	__num operator __shift;						 \
++})
+ 
+ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ 			     size_t bufsize)
+@@ -114,54 +115,48 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
+ 
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE(nr > 0 && size > 0 && bufsize > 0);
++	M0_PRE(size <= bufsize);
++#ifdef __KERNEL__
++	M0_PRE(bufsize <= PAGE_CACHE_SIZE);
++#endif
+ 
+ 	arr->va_nr              = nr;
+ 	/* Can result into padding if object and buffer sizes are not integer
+ 	 * powers of two. */
+ 	arr->va_obj_shift       = nearest_power_of_two(size);
+-	arr->va_obj_size	= safe_bitshift((size_t)1, arr->va_obj_shift,
++	arr->va_obj_size	= safe_bitshift((size_t) 1, arr->va_obj_shift,
+ 						<<);
+ 	arr->va_buf_shift       = nearest_power_of_two(bufsize);
+-	arr->va_bufsize		= safe_bitshift((size_t)1, arr->va_buf_shift,
++	arr->va_bufsize		= safe_bitshift((size_t) 1, arr->va_buf_shift,
+ 						<<);
+ 	arr->va_bufptr_nr_shift = arr->va_buf_shift -
+ 		nearest_power_of_two(M0_VA_TNODEPTR_SIZE);
+-	arr->va_bufptr_nr       = safe_bitshift((uint64_t)1,
++	arr->va_bufptr_nr       = safe_bitshift((uint64_t) 1,
+ 						arr->va_bufptr_nr_shift, <<);
+-
+-	/*
+-	 * Since two successive buffs are not guaranteed to be contiguous,
+-	 * structures bigger than bufsize can't fit in such array as
+-	 * any attempt to dereference structure members can go over a
+-	 * bufsize and can fault the program.
+-	 */
+-	M0_ASSERT(m0_varr_size_is_valid(arr));
+ 	m0_varr_bob_init(arr);
+ 	buff_nr = total_leaf_buffers(nr, varr_obj_nr_in_buff(arr),
+ 				     arr->va_buf_shift - arr->va_obj_shift);
+ 	arr->va_depth   = depth_find(arr, buff_nr);
+ 	M0_ALLOC_PTR(arr->va_cache);
+-	if (arr->va_cache == NULL)
+-		rc = -ENOMEM;
+-	if (rc == 0)
++	if (arr->va_cache != NULL)
+ 		rc = varr_buffers_alloc(arr);
+-
++	else
++		rc = -ENOMEM;
+ 	if (rc != 0)
+ 		m0_varr_fini(arr);
+-	else
+-		M0_POST_EX(ergo(rc == 0, varr_invariant(arr)));
++	M0_POST_EX(ergo(rc == 0, varr_invariant(arr)));
+ 	return rc;
+ }
+ 
+-M0_INTERNAL uint8_t nearest_power_of_two(size_t size)
++M0_INTERNAL uint8_t nearest_power_of_two(size_t num)
+ {
+-	size_t  aligned_size  = 1;
++	size_t  aligned_num  = 1;
+ 	uint8_t aligned_shift = 0;
+ 
+-	M0_PRE(size > 0);
++	M0_PRE(num > 0);
+ 
+-	while (size > aligned_size) {
+-		aligned_size = safe_bitshift(aligned_size, 1, <<);
++	while (num > aligned_num) {
++		aligned_num = safe_bitshift(aligned_num, 1, <<);
+ 		++aligned_shift;
+ 	}
+ 	return aligned_shift;
+@@ -170,7 +165,7 @@ M0_INTERNAL uint8_t nearest_power_of_two(size_t size)
+ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr)
+ {
+ 	M0_PRE(arr != NULL);
+-	return	safe_bitshift((unsigned long)1,
++	return	safe_bitshift((unsigned long) 1,
+ 			      (arr->va_buf_shift - arr->va_obj_shift), <<);
+ }
+ 
+@@ -181,7 +176,7 @@ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+ 	uint64_t buff_nr;
+ 	M0_PRE(obj_nr_in_1_cont > 0);
+ 
+-	buff_nr = safe_bitshift(nr, obj_nr_shift, >>);
++	buff_nr  = safe_bitshift(nr, obj_nr_shift, >>);
+ 	buff_nr += (nr & (obj_nr_in_1_cont - 1)) == 0 ? 0 : 1;
+ 	return buff_nr;
+ }
+@@ -203,13 +198,18 @@ M0_INTERNAL uint64_t total_leaf_buffers(unsigned long nr,
+   _______________________________________________________________________
+  | Max. number of objects                                     | Depth   |
+  |____________________________________________________________|_________|
+- | M0_VA_TNODE_NR * (bufsize/obj_size)                        |   2     |
++ | M0_VA_TNODE_NR * (bufsize/obj_size)                        |   1     |
+  |____________________________________________________________|_________|
+- | M0_VA_TNODE_NR * (buffsize/ptr_size)  * (buf_size/obj_size)|   3     |
++ | M0_VA_TNODE_NR * (buffsize/ptr_size)  * (buf_size/obj_size)|   2     |
+  |____________________________________________________________|_________|
+- | M0_VA_TNODE_NR * (bufsize/ptr_size)^2 * (buf_size/obj_size)|   4     |
++ | M0_VA_TNODE_NR * (bufsize/ptr_size)^2 * (buf_size/obj_size)|   3     |
+  |____________________________________________________________|_________|
+  * @endverbatim
++ * The current implementation treats the structure virtual array not as a
++ * collection of trees with same depth, but as a single tree encompassing
++ * entire data-structure. Following function returns depth of this tree. For
++ * each case in the table above, this tree has depth one more than the one
++ * mentioned in the table.
+  */
+ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+ 				uint64_t total_leaves)
+@@ -220,7 +220,7 @@ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+ 	M0_PRE(total_leaves > 0);
+ 
+ 	for (level = 1;; ++level)
+-		if (total_leaves <= safe_bitshift((uint64_t)1,
++		if (total_leaves <= safe_bitshift((uint64_t) 1,
+ 						  arr->va_bufptr_nr_shift *
+ 						  (level - 1) +
+ 						  M0_VA_TNODE_NR_SHIFT, <<))
+@@ -300,7 +300,7 @@ M0_INTERNAL uint32_t children_of_level(const struct m0_varr *arr,
+ 		return level == 1 ? M0_VA_TNODE_NR : 1;
+ 	else
+ 		return level == arr->va_depth ?
+-			safe_bitshift((uint32_t)1,
++			safe_bitshift((uint32_t) 1,
+ 				      arr->va_buf_shift - arr->va_obj_shift,
+ 				      <<) : arr->va_bufptr_nr;
+ }
+@@ -324,10 +324,10 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 	uint32_t		     d = cursor->vc_depth;
+ 	uint64_t		     target_idx;
+ 	uint64_t		     max_idx_in_level;
+-	uint64_t		     carry;
++	uint64_t		     idx_in_level;
+ 
+ 	M0_PRE(cursor != NULL);
+-	M0_PRE(d < cursor->vc_arr->va_depth);
++	M0_PRE(d <= cursor->vc_arr->va_depth);
+ 
+ 	pe = &cursor->vc_path[d];
+ 	max_idx_in_level = max_idx_within_level(cursor, d);
+@@ -336,16 +336,18 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 		goto end;
+ 	else if (target_idx == cursor->vc_done)
+ 		goto next;
+-	carry = inc;
+-	while (d > 0 && carry > pe->vp_width) {
+-		pe->vp_idx = carry_to_idx_xlate(cursor, carry, d);
+-		carry	   = carry_for_next_level(cursor, carry, d);
++	idx_in_level = pe->vp_idx + inc;
++	while (d > 0 && idx_in_level >= pe->vp_width) {
++		inc	   = inc_for_next_level(cursor, idx_in_level,
++						  d);
++		pe->vp_idx = inc_to_idx_xlate(cursor, idx_in_level, d);
+ 		--pe;
+ 		--d;
++		idx_in_level  = pe->vp_idx + inc;
+ 	}
+ 	pe->vp_buf = buff_incr(cursor->vc_arr, d, pe->vp_buf,
+-			       carry - pe->vp_idx);
+-	pe->vp_idx = carry;
++			       inc);
++	pe->vp_idx = idx_in_level;
+ 	while (d < cursor->vc_depth) {
+ 		buf = pe->vp_buf;
+ 		++pe;
+@@ -375,17 +377,16 @@ M0_INTERNAL uint64_t max_idx_within_level(const struct m0_varr_cursor *cursor,
+ 	return safe_bitshift(cursor->vc_arr->va_nr, shift, >>);
+ }
+ 
+-M0_INTERNAL uint32_t carry_to_idx_xlate(const struct m0_varr_cursor *cursor,
+-					uint64_t carry, uint32_t depth)
++M0_INTERNAL uint32_t inc_to_idx_xlate(const struct m0_varr_cursor *cursor,
++				      uint64_t carry, uint32_t depth)
+ {
+ 	M0_PRE(cursor != NULL);
+ 	M0_PRE(depth <= cursor->vc_arr->va_depth);
+-	return (cursor->vc_path[depth].vp_idx + carry) &
+-		(cursor->vc_path[depth].vp_width - 1);
++	return carry & (cursor->vc_path[depth].vp_width - 1);
+ }
+ 
+-M0_INTERNAL uint64_t carry_for_next_level(const struct m0_varr_cursor *cursor,
+-					  uint64_t carry, uint32_t depth)
++M0_INTERNAL uint64_t inc_for_next_level(const struct m0_varr_cursor *cursor,
++					uint64_t carry, uint32_t depth)
+ {
+ 	M0_PRE(cursor != NULL);
+ 	M0_PRE(depth <= cursor->vc_arr->va_depth);
+@@ -428,8 +429,8 @@ M0_INTERNAL uint32_t index_within_level(const struct m0_varr *arr,
+ M0_INTERNAL uint64_t last_nbits_set(uint8_t n)
+ {
+ 	M0_PRE(n <= 64);
+-	return n < 64 ? ~safe_bitshift(~(uint64_t)0, n, <<) :
+-		~(uint64_t)0;
++	return n < 64 ? ~safe_bitshift(~(uint64_t) 0, n, <<) :
++		~(uint64_t) 0;
+ }
+ 
+ M0_INTERNAL void *buff_incr(const struct m0_varr *arr, uint32_t depth,
+@@ -496,7 +497,8 @@ M0_INTERNAL void *m0_varr_ele_get(struct m0_varr *arr, uint64_t index)
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE(index < arr->va_nr);
+ 
+-	if (cache_fetch(arr, index, &holder))
++	holder = cache_fetch(arr, index);
++	if (holder != NULL)
+ 		goto end;
+ 	holder = (void *)arr->va_tree;
+ 	for (level = 1; level < arr->va_depth; ++level) {
+@@ -517,33 +519,36 @@ end:
+ 					    index, arr->va_depth));
+ }
+ 
+-M0_INTERNAL bool cache_fetch(const struct m0_varr *arr, uint64_t index,
+-			     void **holder)
++M0_INTERNAL void *cache_fetch(const struct m0_varr *arr, uint64_t index)
+ {
+-	return arr->va_cache->vc_buff != NULL				 &&
+-		arr->va_cache->vc_first_index <= index		         &&
+-		index <= (arr->va_cache->vc_last_index)			 &&
+-		/* Deliberately put single '=' sign. */
+-		(*holder = arr->va_cache->vc_buff);
++	struct varr_cache *cache;
++
++	M0_PRE(arr != NULL);
++	cache = arr->va_cache;
++	return cache->vc_buff != NULL		&&
++		cache->vc_first_index <= index	&&
++		index <= cache->vc_last_index	?
++		cache->vc_buff : NULL;
+ }
+ 
+ M0_INTERNAL void cache_update(struct m0_varr *arr, void *holder,
+ 			      uint64_t index)
+ {
+-	uint64_t index_in_level;
++	uint64_t	   index_in_level;
++	struct varr_cache *cache;
+ 
+ 	M0_PRE(arr != NULL);
+ 	M0_PRE(index < arr->va_nr);
+ 
++	cache = arr->va_cache;
+ 	index_in_level = index_within_level((const struct m0_varr *)arr,
+ 					    index, arr->va_depth);
+-	arr->va_cache->vc_buff = holder;
+-	arr->va_cache->vc_first_index = index - index_in_level;
+-	arr->va_cache->vc_last_index = min64u(arr->va_cache->vc_first_index +
+-					      varr_obj_nr_in_buff((const struct
+-								   m0_varr *)
+-								   arr) -
+-					      1, arr->va_nr - 1);
++	cache->vc_buff = holder;
++	cache->vc_first_index = index - index_in_level;
++	cache->vc_last_index = min64u(cache->vc_first_index +
++				      varr_obj_nr_in_buff((const struct
++							   m0_varr *) arr) -
++				      1, arr->va_nr - 1);
+ }
+ 
+ M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr)
+diff --git a/lib/varr.h b/lib/varr.h
+index a2c209d..3141cd8 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -24,31 +24,38 @@
+ #define __MERO_LIB_VIRTUAL_ARRAY_H__
+ 
+ #include "lib/vec.h"
++#include "lib/assert.h"
++#include "lib/misc.h"
+ 
+ /**
++ * @defgroup varr Virtual array
+  * A virtual array represents a data structure which can be used at places
+  * where big contiguous memory allocations are not possible.
+  *
+- * Big arrays or pointers holding big memory areas can simply be replaced
+- * by the virtual array which will provide interfaces to access (read + write)
+- * array members and to iterate over all elements.
++ * Virtual array can be used for big arrays or pointers which would potentially
++ * hold large memory areas. Virtual array library provides interface for
++ * read, write, and iterate over an array.
+  *
+  * Using such structures can be especially helpful in kernel where contiguity
+- * of pages is not guaranteed.
+- * And any memory allocation growing beyond page size can essentially fail.
+- * Current implementation supports both user-space as well as kernel versions.
++ * of pages is not guaranteed, and any memory allocation growing beyond page
++ * size can essentially fail. Current implementation supports both user-space
++ * as well as kernel versions.
+  *
+  * The structure of virtual array is kept something similar to a block map
+- * from an on-disk inode which multiple indirections.
++ * from an on-disk inode with multiple indirections.
+  *
+  * Using pointer arithmetic on virtual array is strongly discouraged since
+  * it does not guarantee contiguity of buffers.
+  *
+- * The virtual array uses a radix-tree like structure whose height is
++ * A virtual array uses a radix-tree like structure whose height is
+  * dependent on number of objects to be accommodated in the array.
+  *
+- * Consider an array consisting of OBJ_NR numbers of type unsigned long,
+- * with buffers worth M0_0VEC_ALIGN each.
++ * Following example illustrates the usage of various interfaces
++ * that are provided by virtual array library.
++ *
++ * Consider an array consisting of OBJ_NR number of objects, of the type
++ * unsigned long. Library leaves it to its user what shall be the size of a
++ * buffer holding objects. Following example uses M0_0VEC_ALIGN as buffer size.
+  *
+  * @code
+  *
+@@ -60,73 +67,76 @@
+  *
+  * rc = m0_varr_init(&varr, OBJ_NR, sizeof(unsigned long), M0_0VEC_ALIGN);
+  *
+- * for (id = 0; id < m0_varr_size(&varr); ++id) {
+- *         ptr = m0_varr_ele_get(&varr, id);
+- *         *ptr = id;
++ * m0_varr_iter(&varr, unsigned long, id, obj, 0, m0_varr_size(&varr), 1) {
++ *	*obj = id;
+  * }
+  *
+- * for (id = 0; id < m0_varr_size(&varr); ++id) {
++ * m0_varr_iter(&varr, unsigned long, id, obj, 0, m0_varr_size(&varr), 1) {
+  *         ptr = m0_varr_ele_get(&varr, id);
+- *         M0_ASSERT(*ptr == id);
+- *         *ptr = id + 1;
++ *         M0_ASSERT(*ptr == *obj);
+  * }
+  *
+  * m0_varr_fini(&varr);
+  *
+  * @endcode
++ * @{
+  */
+-struct m0_varr;
+ 
+-/* Cache that holds pointer to recently accessed buffer along with range of
+- * objects that reside in it.
+- */
+-enum {
+-	/* Number of nodes which originate from root of radix tree. */
+-	M0_VA_TNODE_NR	  = 64,
+-	/* Size of pointer to a tree node. */
++enum m0_varr_tree_char {
++	/** Number of nodes which originate from root of radix tree. */
++	M0_VA_TNODE_NR	     = 64,
++	/** Size of pointer to a tree node. */
+ 	M0_VA_TNODEPTR_SIZE  = sizeof(void *),
+-	/* Log (M0_VA_TNODE_NR) to base 2. */
++	/** Log (M0_VA_TNODE_NR) to base 2. */
+ 	M0_VA_TNODE_NR_SHIFT = 6,
+-	/* Maximum allowable depth of a tree. */
+-	M0_VA_DEPTH_MAX	  = 16,
++	/** Maximum allowable depth of a tree. */
++	M0_VA_DEPTH_MAX	     = 16,
+ };
++M0_BASSERT(M0_VA_TNODE_NR == 1 << M0_VA_TNODE_NR_SHIFT);
+ 
++/**
++ * An object that holds address of a node, and its index within a buffer of
++ * width vp_width.
++ */
+ struct m0_varr_path_element {
+-	uint32_t  vp_idx;
+-	uint32_t  vp_width;
+-	void	 *vp_buf;
++	uint32_t vp_idx;
++	uint32_t vp_width;
++	void	*vp_buf;
+ };
+ 
+ struct m0_varr_cursor {
+-	struct m0_varr		    *vc_arr;
+-	uint32_t		     vc_depth;
+-	uint64_t		     vc_done;
+-	struct m0_varr_path_element  vc_path[M0_VA_DEPTH_MAX];
++	struct m0_varr		   *vc_arr;
++	uint32_t		    vc_depth;
++	/** Number of leaf level nodes behind cursor's current position. */
++	uint64_t		    vc_done;
++	/**
++	 * Holds addresses of those nodes which form a path between the root
++	 * node and current cursor position. Address of a node at level 'i'
++	 * on the path is stored in vc_path[i].
++	 */
++	struct m0_varr_path_element vc_path[M0_VA_DEPTH_MAX];
+ };
+ 
+ struct m0_varr {
+ 	/** Number of elements in array. */
+ 	uint64_t           va_nr;
+-	/** Number of leaf-level buffers required to store m0_varr::va_nr
+-	 * number of objects.
+-	 */
+-	uint64_t	   va_buff_nr;
+-
++	size_t		   va_obj_size;
+ 	/** Log of object-size to the base two. */
+ 	uint8_t            va_obj_shift;
+-	size_t		   va_obj_size;
+-	/** Size of buffer which is used to store objects from array. */
++	/**
++	 * Size of buffer which is used to store objects and buffer-pointers
++	 * from a tree.
++	 */
+ 	size_t		   va_bufsize;
+-	/** Log of va_bufsize to the base 2. */
++	/** Log of va_bufsize to the base two. */
+ 	uint8_t            va_buf_shift;
+ 
+-	/** Level depth of tree proportional to number of objects stored. */
++	/** Depth of tree proportional to number of objects stored. */
+ 	uint32_t           va_depth;
+ 
+ 	/**
+-	 * Number of pointer to buffer that can be accommodated in one
+-	 * meta buffer.
+-	 * This number is easy to calculate and need not be stored
++	 * Number of pointers that can be accommodated in one
++	 * meta buffer. This number is easy to calculate and need not be stored
+ 	 * as a member of structure. However, during tree traversal, this
+ 	 * number is calculated multiple times in each trail, owing to
+ 	 * significant and _exactly same_ compute operations which can be
+@@ -140,24 +150,22 @@ struct m0_varr {
+ 	 * of buffer containing multitude of objects.
+ 	 * The arrangement is such that there could be n levels within any
+ 	 * tree node before a leaf node is reached.
+-	 * Such arrangement provisions constant height radix tree which eases
+-	 * up the lookups.
+ 	 */
+ 	void              *va_tree[M0_VA_TNODE_NR];
+-	/**
+-	 * Holds address of buffer holding recently accessed object.
+-	 */
++	/** Holds address of a buffer holding recently accessed object. */
+ 	struct varr_cache *va_cache;
+-
+ 	/** Magic field to cross check sanity of structure. */
+ 	uint64_t           va_magic;
+ };
+ 
+ /**
+  * Initialises a virtual array.
+- * @param nr[in]      Length of array.
+- * @param size[in]    Size of object to be stored in array.
+- * @param bufsize[in] Size of each buffer which stores the objects.
++ * @param[in]  nr      Length of array.
++ * @param[in]  size    Size of object to be stored in array.
++ * @param[in]  bufsize Size of each buffer which stores the objects.
++ * @param[out] arr     Array to be initialized.
++ * @retval 0	       On success.
++ * @retval -ENOMEM     On failure.
+  * @pre   arr != NULL && nr > 0.
+  * @post  varr_invariant(arr).
+  */
+@@ -178,53 +186,76 @@ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr);
+  * @pre  arr != NULL && index < arr->va_nr.
+  * @post varr_invariant(arr).
+  */
+-M0_INTERNAL void *m0_varr_ele_get(struct m0_varr *arr, uint64_t index);
++M0_INTERNAL void * m0_varr_ele_get(struct m0_varr *arr, uint64_t index);
++
++/** Returns the number of elements stored in an array. */
++M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr);
++
+ /**
+- * Returns the size of an array.
++ * Initializes a cursor to the address of the first node at given depth.
++ * @param[in]  arr     An array to which a cursor gets associated.
++ * @param[in]  depth   Depth to which cursor is initialized.
++ * @param[out] cursor
++ * @retval     0       On success.
++ * @retval     -EINVAL On failure.
++ * @pre	arr != NULL
++ * @pre depth <= arr->va_depth
+  */
+-M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr);
+-/** Initializes the cursor to suitable location based upon the operation of
+- * traversal. */
+ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ 				    const struct m0_varr *arr, uint32_t depth);
+ /**
+  * Returns a pointer corresponding to the current location of a cursor.
++ * @pre	m0_varr_cursor_init()
++ */
++M0_INTERNAL void *m0_varr_cursor_get(struct m0_varr_cursor *cursor);
++/**
++ * Moves cursor to the next node at the same level as m0_varr_cursor::vc_depth.
++ * @retval 1 On success.
++ * @retval 0 On completion of all nodes at level m0_varr_cursor::vc_depth.
+  */
+-M0_INTERNAL void* m0_varr_cursor_get(struct m0_varr_cursor *cursor);
+ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor);
++/**
++ * Moves the cursor location by 'inc', along the same level as
++ * m0_varr_cursor::vc_depth.
++ * @retval 1 On success.
++ * @retval 0 On completion of all nodes at level m0_varr_cursor::vc_depth.
++ * @pre	m0_varr_cursor_init()
++ */
+ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 				    uint64_t inc);
+-
+-/* Iterates over an arbitrary arithmetic progression of indices over
+- * the range [start, end) */
+-#define m0_varr_iter(arr, type, idx, obj, start, end, inc)		\
+-	({								\
+-	 uint64_t	       idx     = (start);			\
+-	 uint64_t	       __end   = (end);				\
+-	 uint64_t	       __inc   = (inc);				\
+-	 struct m0_varr	      *__arr   = (arr);				\
+-	 type		      *obj;					\
+-	 int		       rc;					\
+-	 struct m0_varr_cursor cursor;					\
+-									\
+-	 M0_PRE(idx < __arr->va_nr && __end <= __arr->va_nr);		\
+-	 M0_PRE(sizeof *obj == 1 << __arr->va_obj_shift);		\
+-									\
+-	 rc = m0_varr_cursor_init(&cursor, __arr, ITERATE);		\
+-	 M0_ASSERT(rc == 0);						\
+-	 m0_varr_cursor_move(&cursor, idx);				\
+-	 for (obj = m0_varr_cursor_get(&cursor); idx < __end;		\
+-	      idx += __inc, m0_varr_cursor_move(&cursor, __inc),        \
+-	      obj = m0_varr_cursor_get(&cursor)) {			\
++/**
++ * Iterates over an arbitrary arithmetic progression of indices over
++ * the range [start, end).
++ */
++#define m0_varr_iter(arr, type, idx, obj, start, end, inc)	       \
++({								       \
++	uint64_t	      idx   = (start);			       \
++	uint64_t	      __end = (end);			       \
++	uint64_t	      __inc = (inc);			       \
++	struct m0_varr	     *__arr = (arr);			       \
++	type		     *obj;				       \
++	int		      __rc;				       \
++	struct m0_varr_cursor __cursor;				       \
++								       \
++	M0_PRE(idx < __arr->va_nr && __end <= __arr->va_nr);	       \
++	M0_PRE(sizeof *obj == M0_BITS(__arr->va_obj_shift));	       \
++								       \
++        __rc = m0_varr_cursor_init(&__cursor, __arr, __arr->va_depth); \
++	M0_ASSERT(__rc == 0);					       \
++	m0_varr_cursor_move(&__cursor, idx);			       \
++	for (obj = m0_varr_cursor_get(&__cursor); idx < __end;	       \
++		idx += __inc, m0_varr_cursor_move(&__cursor, __inc),   \
++		obj = m0_varr_cursor_get(&__cursor)) {		       \
+ 
+ #define m0_varr_end_iter } } )
+ 
+ /** Iterates over whole virtual array. */
+-#define m0_varr_for(arr, type, idx, obj)				\
++#define m0_varr_for(arr, type, idx, obj)		    \
+ 	m0_varr_iter(arr, type, idx, obj, 0, arr->va_nr, 1)
+ 
+ #define m0_varr_end_for m0_varr_end_iter
+ 
++/** @} end of varr group */
+ #endif /* __MERO_LIB_VIRTUAL_ARRAY_H__ */
+ 
+ /*
+diff --git a/lib/varr_private.h b/lib/varr_private.h
+index 1e26efa..9c744b8 100644
+--- a/lib/varr_private.h
++++ b/lib/varr_private.h
+@@ -25,7 +25,6 @@
+ 
+ M0_EXTERN void *m0_varr_buf_alloc(size_t bufsize);
+ M0_EXTERN void  m0_varr_buf_free(void *buf, size_t bufsize);
+-M0_EXTERN bool  m0_varr_size_is_valid(const struct m0_varr *arr);
+ 
+ struct varr_cache {
+ 	unsigned long *vc_buff;
+-- 
+1.8.3.2
+

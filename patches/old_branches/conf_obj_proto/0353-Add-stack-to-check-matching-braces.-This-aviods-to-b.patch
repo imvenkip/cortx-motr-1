@@ -1,0 +1,120 @@
+From a5d607f7af9af3756ed3b6d709b93e3eb94af38d Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Sat, 1 Sep 2012 12:33:51 +0300
+Subject: [PATCH 353/370] Add stack to check matching braces. This aviods
+ '[{]}' to be matched.
+
+---
+ conf/preload.c | 76 +++++++++++++++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 68 insertions(+), 8 deletions(-)
+
+diff --git a/conf/preload.c b/conf/preload.c
+index 35c8719..44af51d 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -40,6 +40,44 @@
+  * Preload parser
+  * ------------------------------------------------------------------ */
+ 
++struct stack {
++	char  *stack;
++	size_t size;
++	size_t end; /* top + 1 */
++};
++
++#define STACK_INIT(s) { .stack = s, .size = ARRAY_SIZE(s), .end = 0 }
++
++static bool stack_is_empty(const struct stack *stack)
++{
++	return stack->end == 0;
++}
++
++static int stack_pop(struct stack *stack)
++{
++	if (stack_is_empty(stack))
++		return -EINVAL; /* underflow! */
++
++	stack->end--;
++	return 0;
++}
++
++static int stack_push(struct stack *stack, char c)
++{
++	if (stack->end >= stack->size)
++		return -ENOMEM; /* owerflow! */
++
++	stack->stack[stack->end++] = c;
++	return 0;
++}
++
++static char stack_top(const struct stack *stack)
++{
++	C2_PRE(stack->end > 0);
++
++	return stack->stack[stack->end - 1];
++}
++
+ /*
+   Preload parser minilibrary is used to parse sequences of characters, separated
+   by ',', ':',... providing non-destructive input data capability. It introduces
+@@ -192,13 +230,34 @@ static int unit_quoted_unquote(struct hunk *unit)
+ 		: rc;
+ }
+ 
++static int braces_match(struct stack* stack, char brace)
++{
++	/* skipping everything except braces */
++	if (!C2_IN(brace, ('[','{','}',']')))
++		return 0;
++
++	if (C2_IN(brace, ('[','{')))
++		return stack_push(stack, brace);
++
++	/* replace on matching brace for comparison */
++	if (brace == ']') brace = '[';
++	if (brace == '}') brace = '{';
++
++	return (stack_top(stack) == brace) ? stack_pop(stack) : -EINVAL;
++}
++
++static bool is_in_braces(const struct stack *stack)
++{
++	return !stack_is_empty(stack);
++}
++
+ static int unit_parse(struct hunk *unit, char ss)
+ {
+ 	int  rc;
+ 	const char *p;
+-	int  brace  = 0;
+-	int  curly  = 0;
+ 	bool quoted = false;
++	char brace_stack[32]; /* Only 32 folds are supported*/
++	struct stack braces = STACK_INIT(brace_stack);
+ 
+ 	if ((rc = unit_trim(unit)) != 0)
+ 		return rc;
+@@ -209,13 +268,14 @@ static int unit_parse(struct hunk *unit, char ss)
+ 
+ 		if (quoted)
+ 			continue;
+-					/* @TODO: */
+-		if (*p == '[') brace++; /* push *p into stack */
+-		if (*p == ']') brace--; /* pop *c from stack, check *c == '[' */
+-		if (*p == '{') curly++; /* push *p into stack */
+-		if (*p == '}') curly--; /* pop *c from stack, check *c == '{' */
+ 
+-		if (!curly && !brace && (*p == ss || p == unit->end)) {
++		if ((rc = braces_match(&braces, *p)) != 0)
++			return rc;
++
++		if (is_in_braces(&braces))
++			continue;
++
++		if (*p == ss || p == unit->end) {
+ 			unit->end = (*p == ss) ? --p : p;
+ 			return unit_trim(unit);
+ 		}
+-- 
+1.8.3.2
+

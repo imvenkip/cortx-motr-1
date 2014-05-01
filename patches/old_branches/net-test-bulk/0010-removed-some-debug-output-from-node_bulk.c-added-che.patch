@@ -1,0 +1,47 @@
+From 3bbd25303e401851bc8b80c06d560ad3b8f170c5 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 19 Nov 2012 18:14:12 +0200
+Subject: [PATCH 10/58] removed some debug output from node_bulk.c, added
+ checks to ST
+
+---
+ net/test/node_bulk.c   | 2 --
+ net/test/st/run-1x1.sh | 2 +-
+ 2 files changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 6595711..e3db315 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1172,7 +1172,6 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 	struct c2_chan	tm_chan;
+ 	bool		notify;
+ 
+-	C2_LOG(C2_DEBUG, "enter node_bulk_worker");
+ 	C2_PRE(ctx != NULL);
+ 
+ 	/* all buffers are unused */
+@@ -1221,7 +1220,6 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 	c2_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
+ 	node_bulk_state_transition_auto_all(ctx);
+ 	c2_net_test_nh_sd_copy_lock(&ctx->nbc_nh);
+-	C2_LOG(C2_DEBUG, "leave node_bulk_worker");
+ }
+ 
+ static void *node_bulk_init_fini(struct c2_net_test_service *svc,
+diff --git a/net/test/st/run-1x1.sh b/net/test/st/run-1x1.sh
+index 9851ff8..ba535ce 100644
+--- a/net/test/st/run-1x1.sh
++++ b/net/test/st/run-1x1.sh
+@@ -20,7 +20,7 @@ source "$ST_COMMON"
+ 
+ eval_kill_pid() {
+ 	eval pid=\${$1-xxx}
+-	if [ "$pid" != "xxx" ]; then
++	if [ "$pid" != "xxx" -a -f /proc/$pid/exe]; then
+ 		echo killing $pid
+ 		KILL_PID+="$pid "
+ 	fi
+-- 
+1.8.3.2
+

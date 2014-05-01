@@ -1,0 +1,75 @@
+From 37ea63a02a8b742de2018662cecb912f0579bfce Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Tue, 20 Mar 2012 13:45:46 +0530
+Subject: [PATCH 07/10] * Retreive status of create call from reply.
+
+---
+ c2t1fs/linux_kernel/dir.c | 27 +++++++++++++++++++++++----
+ mdservice/md_fops.ff      |  3 ++-
+ 2 files changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/dir.c b/c2t1fs/linux_kernel/dir.c
+index 5f400cb..8bfa99b 100644
+--- a/c2t1fs/linux_kernel/dir.c
++++ b/c2t1fs/linux_kernel/dir.c
+@@ -249,11 +249,11 @@ int fop_create_prepare(struct inode        *dir,
+ 
+ 	rc = to_fop_str(name, namelen, &req->c_name);
+ 
+-	if (rc != 0) {
++	if (rc != 0)
+ 		c2_fop_free(fop);
+-	} else {
++	else
+ 		*out = fop;
+-	}
++
+ 
+ 	C2_LEAVE("rc: %d", rc);
+ 	return rc;
+@@ -280,8 +280,27 @@ static int make_create_rpc_call(struct inode *dir,
+ 	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
+ 				C2T1FS_RPC_TIMEOUT);
+ 	if (rc == 0) {
+-
++		struct c2_rpc_item       *reply_item;
++		struct c2_fop            *reply_fop;
++		struct c2_fop_create_rep *create_reply;
++
++		/* XXX @todo Handle generic error reply */
++		reply_item = fop->f_item.ri_reply;
++		C2_ASSERT(reply_item != NULL);
++		C2_ASSERT(reply_item->ri_type ==
++			  &c2_fop_create_rep_fopt.ft_rpc_item_type);
++
++		reply_fop = c2_rpc_item_to_fop(reply_item);
++		create_reply = c2_fop_data(reply_fop);
++		C2_ASSERT(create_reply != NULL);
++
++		rc = create_reply->c_rc;
++		/*
++		 * XXX @todo load attributes returned by create_reply in
++		 * inode
++		 */
+ 	}
++	C2_LEAVE("rc: %d", rc);
+ 	return rc;
+ }
+ 
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index e61653c..e913aa9 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -65,7 +65,8 @@ DEF(c2_fop_create, RECORD,
+     _(c_name,   c2_fop_str));
+ 
+ DEF(c2_fop_create_rep, RECORD,
+-    _(c_body, c2_fop_cob));
++    _(c_body, c2_fop_cob),
++    _(c_rc,   U32));
+ 
+ DEF(c2_fop_link, RECORD,
+     _(l_body, c2_fop_cob),
+-- 
+1.8.3.2
+

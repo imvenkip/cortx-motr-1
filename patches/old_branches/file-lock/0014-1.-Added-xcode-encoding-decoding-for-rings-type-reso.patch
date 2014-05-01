@@ -1,0 +1,1145 @@
+From 195feeb265fc24e1d6fb250d1f83f3a6babb8b6f Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Wed, 10 Apr 2013 16:38:32 +0530
+Subject: [PATCH 14/25] 1. Added xcode encoding/decoding for rings type
+ resource. 2. Renamed filelock.c to file.c
+
+---
+ rm/ut/Makefile.sub |   2 +-
+ rm/ut/file.c       | 516 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ rm/ut/filelock.c   | 516 -----------------------------------------------------
+ rm/ut/rings.c      |  39 +++-
+ 4 files changed, 548 insertions(+), 525 deletions(-)
+ create mode 100644 rm/ut/file.c
+ delete mode 100644 rm/ut/filelock.c
+
+diff --git a/rm/ut/Makefile.sub b/rm/ut/Makefile.sub
+index c3fea4d..37a8247 100644
+--- a/rm/ut/Makefile.sub
++++ b/rm/ut/Makefile.sub
+@@ -6,5 +6,5 @@ ut_libmero_ut_la_SOURCES += rm/ut/rings.h \
+                             rm/ut/rcredits.c \
+                             rm/ut/rm_foms.c \
+                             rm/ut/rm_fops.c \
+-                            rm/ut/filelock.c \
++                            rm/ut/file.c \
+                             rm/ut/rmut.c
+diff --git a/rm/ut/file.c b/rm/ut/file.c
+new file mode 100644
+index 0000000..f826c09
+--- /dev/null
++++ b/rm/ut/file.c
+@@ -0,0 +1,516 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
++ * Original creation date: 03/27/2013
++ */
++#include "lib/types.h"            /* uint64_t */
++#include "lib/chan.h"
++#include "lib/misc.h"
++#include "lib/memory.h"
++#include "lib/time.h"
++#include "lib/ut.h"
++#include "fop/fom_generic.h"
++#include "fop/fom_generic.h"
++#include "fid/fid.h"
++
++#include "rm/rm.h"
++#include "rm/rm_internal.h"
++#include "rm/rm_fops.h"
++#include "rm/file.h"
++#include "rm/ut/rmut.h"
++
++/* Import */
++extern struct rm_context rm_ctx[SERVER_NR];
++extern const struct m0_rm_resource_type_ops file_lock_type_ops;
++
++/*
++ * Hierarchy description:
++ * SERVER_1 is downward debtor for SERVER_2.
++ * SERVER_2 is upward creditor for SERVER_1.
++ */
++
++enum flock_tests {
++	TEST1 = 0,
++	TEST2,
++	TEST3,
++	TEST4,
++	TEST_NR,
++};
++
++enum {
++	CLNT_THR_NR = 10,
++	SRV_THR_NR = 10
++};
++
++static struct m0_thread clnt_thr[CLNT_THR_NR];
++static struct m0_thread srv_thr[SRV_THR_NR];
++static int clnt_counter;
++static int srv_counter;
++
++/* Maximum test servers for this testcase */
++static enum rm_server test_servers_nr;
++
++static struct m0_chan flock_tests_chan;
++static struct m0_clink tests_clink[TEST_NR];
++static struct m0_mutex flock_tests_chan_mutex;
++
++static void fl_rtype_set(struct rm_ut_data *_this)
++{
++	int rc;
++
++	rc = m0_file_lock_type_register(&_this->rd_dom);
++	M0_UT_ASSERT(rc == 0);
++	_this->rd_rt = _this->rd_dom.rd_types[M0_RM_FLOCK_RT];
++}
++
++static void fl_rtype_unset(struct rm_ut_data *_this)
++{
++	m0_file_lock_type_deregister(&_this->rd_dom);
++	_this->rd_rt = NULL;
++}
++
++/*
++ * m0_file_lock_type_register registers a single type
++ * This test needs two object hierarchies. Hence we need one more file type
++ * object.
++ */
++static void fl_client_rtype_set(struct rm_ut_data *_this)
++{
++	struct m0_rm_resource_type *rt;
++	int			    rc;
++
++	M0_ALLOC_PTR(rt);
++	M0_UT_ASSERT(rt != NULL);
++	rt->rt_id = M0_RM_FLOCK_RT;
++	rt->rt_ops = &file_lock_type_ops;
++	rc = m0_rm_type_register(&_this->rd_dom, rt);
++	M0_UT_ASSERT(rc == 0);
++	_this->rd_rt = rt;
++}
++
++static void fl_client_rtype_unset(struct rm_ut_data *_this)
++{
++	m0_rm_type_deregister(_this->rd_rt);
++	m0_free(_this->rd_rt);
++	_this->rd_rt = NULL;
++}
++
++static void fl_res_set(struct rm_ut_data *_this)
++{
++	struct m0_file *flock;
++	struct m0_fid   fid;
++
++	M0_ALLOC_PTR(flock);
++	M0_UT_ASSERT(flock != NULL);
++	m0_fid_set(&fid, 1, 0);
++	m0_file_init(flock, &fid, &_this->rd_dom);
++	_this->rd_res = &flock->fi_res;
++}
++
++static void fl_res_unset(struct rm_ut_data *_this)
++{
++	struct m0_file *flock;
++
++	flock = container_of(_this->rd_res, struct m0_file, fi_res);
++	m0_file_fini(flock);
++	m0_free(flock);
++	_this->rd_res = NULL;
++}
++
++static void fl_owner_set(struct rm_ut_data *_this)
++{
++	struct m0_rm_owner *owner;
++
++	M0_ALLOC_PTR(owner);
++	M0_UT_ASSERT(owner != NULL);
++	m0_rm_owner_init(owner, _this->rd_res, NULL);
++	_this->rd_owner = owner;
++}
++
++static void fl_owner_unset(struct rm_ut_data *_this)
++{
++	int rc;
++
++	m0_rm_owner_windup(_this->rd_owner);
++	rc = m0_rm_owner_timedwait(_this->rd_owner, M0_BITS(ROS_FINAL),
++				   M0_TIME_NEVER);
++	M0_UT_ASSERT(rc == 0);
++	M0_UT_ASSERT(owner_state(_this->rd_owner) == ROS_FINAL);
++	m0_rm_owner_fini(_this->rd_owner);
++	m0_free(_this->rd_owner);
++	_this->rd_owner = NULL;
++}
++
++static void fl_datum_set(struct rm_ut_data *_this)
++{
++	_this->rd_credit.cr_datum = RM_FILE_LOCK;
++}
++
++static struct rm_ut_data_ops fl_srv_ut_data_ops = {
++	.rtype_set = fl_rtype_set,
++	.rtype_unset = fl_rtype_unset,
++	.resource_set = fl_res_set,
++	.resource_unset = fl_res_unset,
++	.owner_set = fl_owner_set,
++	.owner_unset = fl_owner_unset,
++	.credit_datum_set = fl_datum_set
++};
++
++static struct rm_ut_data_ops fl_client_ut_data_ops = {
++	.rtype_set = fl_client_rtype_set,
++	.rtype_unset = fl_client_rtype_unset,
++	.resource_set = fl_res_set,
++	.resource_unset = fl_res_unset,
++	.owner_set = fl_owner_set,
++	.owner_unset = fl_owner_unset,
++	.credit_datum_set = fl_datum_set
++};
++
++void flock_client_utdata_ops_set(struct rm_ut_data *data)
++{
++	data->rd_ops = &fl_client_ut_data_ops;
++}
++
++void flock_srv_utdata_ops_set(struct rm_ut_data *data)
++{
++	data->rd_ops = &fl_srv_ut_data_ops;
++}
++
++static void wait_lock(enum rm_server srv_id)
++{
++	struct m0_rm_incoming *in    = &rm_ctx[srv_id].rc_test_data.rd_in;
++	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
++	int		       rc;
++
++	m0_file_lock(owner, in);
++	m0_rm_owner_lock(owner);
++	if (incoming_state(in) == RI_WAIT) {
++		rc = m0_sm_timedwait(&in->rin_sm,
++				     M0_BITS(RI_SUCCESS, RI_FAILURE),
++				     M0_TIME_NEVER);
++		M0_UT_ASSERT(rc == 0);
++	}
++	m0_rm_owner_unlock(owner);
++	M0_UT_ASSERT(in->rin_rc == 0);
++	m0_file_unlock(in);
++}
++
++static void test_verify(enum flock_tests test_id)
++{
++	struct m0_rm_owner *clnt = rm_ctx[SERVER_1].rc_test_data.rd_owner;
++	struct m0_rm_owner *srv  = rm_ctx[SERVER_2].rc_test_data.rd_owner;
++
++	switch(test_id) {
++	case TEST1:
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&srv->ro_sublet));
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&clnt->ro_borrowed));
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++				&clnt->ro_owned[OWOS_CACHED]));
++		break;
++	case TEST2:
++		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&srv->ro_sublet));
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
++				&srv->ro_owned[OWOS_CACHED]));
++		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&clnt->ro_borrowed));
++		break;
++	case TEST3:
++		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&srv->ro_sublet) ||
++			     !m0_rm_ur_tlist_is_empty(
++                                &srv->ro_owned[OWOS_CACHED]) ||
++			     !m0_rm_ur_tlist_is_empty(
++                                &srv->ro_owned[OWOS_HELD]));
++		break;
++	default:
++		break;
++	}
++}
++
++static void test3_lock(enum rm_server srv_id, int n)
++{
++	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
++	struct m0_rm_incoming  req;
++	int		       rc;
++
++	M0_SET0(&req);
++	m0_file_lock(owner, &req);
++	m0_rm_owner_lock(owner);
++	test_verify(TEST3);
++	if (incoming_state(&req) == RI_WAIT) {
++		rc = m0_sm_timedwait(&req.rin_sm,
++				     M0_BITS(RI_SUCCESS, RI_FAILURE),
++				     M0_TIME_NEVER);
++		M0_UT_ASSERT(rc == 0);
++	}
++	M0_UT_ASSERT(req.rin_rc == 0);
++	M0_UT_ASSERT(incoming_state(&req) == RI_SUCCESS);
++	m0_rm_owner_unlock(owner);
++	if (srv_id == SERVER_1) {
++		clnt_counter += n;
++		loan_session_set(SERVER_2, SERVER_1);
++	} else if (srv_id == SERVER_2) {
++		srv_counter += n;
++	}
++	m0_file_unlock(&req);
++	M0_SET0(&req);
++}
++
++static void srv_lock(int n)
++{
++	test3_lock(SERVER_2, n);
++}
++
++static void srv_test3_run()
++{
++	int i;
++	int sum;
++	int rc;
++
++	for (sum = i = 0; i < SRV_THR_NR; ++i) {
++		rc = M0_THREAD_INIT(&srv_thr[i], int, NULL,
++				    &srv_lock, i, "srv_lock");
++		M0_UT_ASSERT(rc == 0);
++		sum += i;
++	}
++
++	for (i = 0; i < SRV_THR_NR; ++i) {
++		m0_thread_join(&srv_thr[i]);
++		m0_thread_fini(&srv_thr[i]);
++	}
++	M0_UT_ASSERT(srv_counter == sum);
++}
++
++static void clnt_lock(int n)
++{
++	test3_lock(SERVER_1, n);
++}
++
++static void client_test3_run()
++{
++	int i;
++	int sum;
++	int rc;
++
++	/* Server-2 (server) is upward creditor for Server-1 (client) */
++	creditor_cookie_setup(SERVER_1, SERVER_2);
++
++	for (sum = i = 0; i < CLNT_THR_NR; ++i) {
++		rc = M0_THREAD_INIT(&clnt_thr[i], int, NULL,
++				    &clnt_lock, i, "clnt_lock");
++		M0_UT_ASSERT(rc == 0);
++		sum += i;
++	}
++
++	for (i = 0; i < CLNT_THR_NR; ++i) {
++		m0_thread_join(&clnt_thr[i]);
++		m0_thread_fini(&clnt_thr[i]);
++	}
++	M0_UT_ASSERT(clnt_counter == sum);
++}
++
++/* DLD - Test 3 */
++static void test2_run()
++{
++	/* Take a wait lock on server */
++	wait_lock(SERVER_2);
++}
++
++/* DLD - Test 2 */
++static void testcase2_run()
++{
++	struct m0_rm_incoming *in    = &rm_ctx[SERVER_1].rc_test_data.rd_in;
++	struct m0_rm_owner    *owner = rm_ctx[SERVER_1].rc_test_data.rd_owner;
++	struct m0_rm_incoming  req;
++
++	/* Take the lock */
++	m0_file_lock(owner, in);
++	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
++	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&owner->ro_owned[OWOS_CACHED]));
++	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_owned[OWOS_HELD]));
++
++	/* Recursively try to take the same lock */
++	m0_file_lock(owner, &req);
++	M0_UT_ASSERT(incoming_state(&req) == RI_WAIT);
++
++	/* Release lock (from the first request) */
++	m0_file_unlock(in);
++
++	/* Second lock request should now be successful */
++	M0_UT_ASSERT(req.rin_rc == 0);
++	M0_UT_ASSERT(incoming_state(&req) == RI_SUCCESS);
++	m0_file_unlock(&req);
++}
++
++/* DLD - Test 1 */
++static void testcase1_run()
++{
++	/* Server-2 (server) is upward creditor for Server-1 (client) */
++	creditor_cookie_setup(SERVER_1, SERVER_2);
++
++	/* Take a wait lock on client */
++	wait_lock(SERVER_1);
++
++	/*
++	 * Set up session pointer on the server. So that this lock can be
++	 * revoked by the server.
++	 */
++	loan_session_set(SERVER_2, SERVER_1);
++}
++
++static void test1_run()
++{
++	testcase1_run();
++	test_verify(TEST1);
++	testcase2_run();
++	test_verify(TEST1);
++}
++
++static void client_tests(void)
++{
++	m0_chan_wait(&tests_clink[TEST1]);
++	test1_run();
++
++	/* Begin next test */
++	m0_chan_signal_lock(&flock_tests_chan);
++	m0_chan_wait(&tests_clink[TEST3]);
++
++	client_test3_run();
++}
++
++static void server_tests(void)
++{
++	m0_chan_wait(&tests_clink[TEST2]);
++	test2_run();
++	test_verify(TEST2);
++
++	/* Begin next test */
++	m0_chan_signal_lock(&flock_tests_chan);
++	srv_test3_run();
++}
++
++static void rm_server_start(const int tid)
++{
++	if (tid >= test_servers_nr)
++		return;
++
++	switch(tid) {
++	case SERVER_1:
++		flock_client_utdata_ops_set(&rm_ctx[tid].rc_test_data);
++		rm_ctx_server_start(tid);
++		client_tests();
++		break;
++	case SERVER_2:
++		flock_srv_utdata_ops_set(&rm_ctx[tid].rc_test_data);
++		rm_ctx_server_start(tid);
++		server_tests();
++		break;
++	default:
++		break;
++	}
++}
++
++/*
++ * Configure server hierarchy.
++ */
++static void server_hier_config(void)
++{
++	rm_ctx[SERVER_1].creditor_id = SERVER_2;
++	rm_ctx[SERVER_1].debtor_id = SERVER_INVALID;
++
++	rm_ctx[SERVER_2].creditor_id = SERVER_INVALID;
++	rm_ctx[SERVER_2].debtor_id = SERVER_1;
++}
++
++static void flock_utinit(void)
++{
++	uint32_t i;
++
++	/* Maximum 2 servers for this test */
++	test_servers_nr = SERVER_NR - 1;
++	for (i = 0; i < test_servers_nr; ++i)
++		rm_ctx_config(i);
++
++	server_hier_config();
++	m0_mutex_init(&flock_tests_chan_mutex);
++	m0_chan_init(&flock_tests_chan, &flock_tests_chan_mutex);
++	/* Set up test sync points */
++	for (i = 0; i < TEST_NR; ++i) {
++		m0_clink_init(&tests_clink[i], NULL);
++		m0_clink_add_lock(&flock_tests_chan, &tests_clink[i]);
++	}
++	m0_rm_fop_init();
++}
++
++static void flock_utfini(void)
++{
++	uint32_t i;
++
++	/*
++	 * Windup the server first, then the client. Trying to stop
++	 * client first may put it into INSOLVENT state. This will
++	 * finalize UT-RM objects hierarchy.
++	 */
++	rm_ctx_server_windup(SERVER_2);
++	rm_ctx_server_windup(SERVER_1);
++
++	/* Disconnect the servers */
++	for (i = 0; i < test_servers_nr; ++i) {
++		rm_ctx_server_stop(i);
++	}
++	/* Finalise the servers */
++	for (i = 0; i < test_servers_nr; ++i) {
++		rm_ctx_fini(&rm_ctx[i]);
++	}
++	m0_rm_fop_fini();
++	for (i = 0; i < TEST_NR; ++i) {
++		m0_clink_del_lock(&tests_clink[i]);
++		m0_clink_fini(&tests_clink[i]);
++	}
++	m0_chan_fini_lock(&flock_tests_chan);
++	m0_mutex_fini(&flock_tests_chan_mutex);
++}
++
++void flock_test(void)
++{
++	int rc;
++	int i;
++
++	flock_utinit();
++	/* Start RM servers */
++	for (i = 0; i < test_servers_nr; ++i) {
++		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
++				    &rm_server_start, i, "rm_server_%d", i);
++		M0_UT_ASSERT(rc == 0);
++	}
++
++	/* Now start the tests - wait till all the servers are ready */
++	m0_chan_signal_lock(&flock_tests_chan);
++	for (i = 0; i < test_servers_nr; ++i) {
++		m0_thread_join(&rm_ctx[i].rc_thr);
++		m0_thread_fini(&rm_ctx[i].rc_thr);
++	}
++	flock_utfini();
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/rm/ut/filelock.c b/rm/ut/filelock.c
+deleted file mode 100644
+index f826c09..0000000
+--- a/rm/ut/filelock.c
++++ /dev/null
+@@ -1,516 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
+- * Original creation date: 03/27/2013
+- */
+-#include "lib/types.h"            /* uint64_t */
+-#include "lib/chan.h"
+-#include "lib/misc.h"
+-#include "lib/memory.h"
+-#include "lib/time.h"
+-#include "lib/ut.h"
+-#include "fop/fom_generic.h"
+-#include "fop/fom_generic.h"
+-#include "fid/fid.h"
+-
+-#include "rm/rm.h"
+-#include "rm/rm_internal.h"
+-#include "rm/rm_fops.h"
+-#include "rm/file.h"
+-#include "rm/ut/rmut.h"
+-
+-/* Import */
+-extern struct rm_context rm_ctx[SERVER_NR];
+-extern const struct m0_rm_resource_type_ops file_lock_type_ops;
+-
+-/*
+- * Hierarchy description:
+- * SERVER_1 is downward debtor for SERVER_2.
+- * SERVER_2 is upward creditor for SERVER_1.
+- */
+-
+-enum flock_tests {
+-	TEST1 = 0,
+-	TEST2,
+-	TEST3,
+-	TEST4,
+-	TEST_NR,
+-};
+-
+-enum {
+-	CLNT_THR_NR = 10,
+-	SRV_THR_NR = 10
+-};
+-
+-static struct m0_thread clnt_thr[CLNT_THR_NR];
+-static struct m0_thread srv_thr[SRV_THR_NR];
+-static int clnt_counter;
+-static int srv_counter;
+-
+-/* Maximum test servers for this testcase */
+-static enum rm_server test_servers_nr;
+-
+-static struct m0_chan flock_tests_chan;
+-static struct m0_clink tests_clink[TEST_NR];
+-static struct m0_mutex flock_tests_chan_mutex;
+-
+-static void fl_rtype_set(struct rm_ut_data *_this)
+-{
+-	int rc;
+-
+-	rc = m0_file_lock_type_register(&_this->rd_dom);
+-	M0_UT_ASSERT(rc == 0);
+-	_this->rd_rt = _this->rd_dom.rd_types[M0_RM_FLOCK_RT];
+-}
+-
+-static void fl_rtype_unset(struct rm_ut_data *_this)
+-{
+-	m0_file_lock_type_deregister(&_this->rd_dom);
+-	_this->rd_rt = NULL;
+-}
+-
+-/*
+- * m0_file_lock_type_register registers a single type
+- * This test needs two object hierarchies. Hence we need one more file type
+- * object.
+- */
+-static void fl_client_rtype_set(struct rm_ut_data *_this)
+-{
+-	struct m0_rm_resource_type *rt;
+-	int			    rc;
+-
+-	M0_ALLOC_PTR(rt);
+-	M0_UT_ASSERT(rt != NULL);
+-	rt->rt_id = M0_RM_FLOCK_RT;
+-	rt->rt_ops = &file_lock_type_ops;
+-	rc = m0_rm_type_register(&_this->rd_dom, rt);
+-	M0_UT_ASSERT(rc == 0);
+-	_this->rd_rt = rt;
+-}
+-
+-static void fl_client_rtype_unset(struct rm_ut_data *_this)
+-{
+-	m0_rm_type_deregister(_this->rd_rt);
+-	m0_free(_this->rd_rt);
+-	_this->rd_rt = NULL;
+-}
+-
+-static void fl_res_set(struct rm_ut_data *_this)
+-{
+-	struct m0_file *flock;
+-	struct m0_fid   fid;
+-
+-	M0_ALLOC_PTR(flock);
+-	M0_UT_ASSERT(flock != NULL);
+-	m0_fid_set(&fid, 1, 0);
+-	m0_file_init(flock, &fid, &_this->rd_dom);
+-	_this->rd_res = &flock->fi_res;
+-}
+-
+-static void fl_res_unset(struct rm_ut_data *_this)
+-{
+-	struct m0_file *flock;
+-
+-	flock = container_of(_this->rd_res, struct m0_file, fi_res);
+-	m0_file_fini(flock);
+-	m0_free(flock);
+-	_this->rd_res = NULL;
+-}
+-
+-static void fl_owner_set(struct rm_ut_data *_this)
+-{
+-	struct m0_rm_owner *owner;
+-
+-	M0_ALLOC_PTR(owner);
+-	M0_UT_ASSERT(owner != NULL);
+-	m0_rm_owner_init(owner, _this->rd_res, NULL);
+-	_this->rd_owner = owner;
+-}
+-
+-static void fl_owner_unset(struct rm_ut_data *_this)
+-{
+-	int rc;
+-
+-	m0_rm_owner_windup(_this->rd_owner);
+-	rc = m0_rm_owner_timedwait(_this->rd_owner, M0_BITS(ROS_FINAL),
+-				   M0_TIME_NEVER);
+-	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(owner_state(_this->rd_owner) == ROS_FINAL);
+-	m0_rm_owner_fini(_this->rd_owner);
+-	m0_free(_this->rd_owner);
+-	_this->rd_owner = NULL;
+-}
+-
+-static void fl_datum_set(struct rm_ut_data *_this)
+-{
+-	_this->rd_credit.cr_datum = RM_FILE_LOCK;
+-}
+-
+-static struct rm_ut_data_ops fl_srv_ut_data_ops = {
+-	.rtype_set = fl_rtype_set,
+-	.rtype_unset = fl_rtype_unset,
+-	.resource_set = fl_res_set,
+-	.resource_unset = fl_res_unset,
+-	.owner_set = fl_owner_set,
+-	.owner_unset = fl_owner_unset,
+-	.credit_datum_set = fl_datum_set
+-};
+-
+-static struct rm_ut_data_ops fl_client_ut_data_ops = {
+-	.rtype_set = fl_client_rtype_set,
+-	.rtype_unset = fl_client_rtype_unset,
+-	.resource_set = fl_res_set,
+-	.resource_unset = fl_res_unset,
+-	.owner_set = fl_owner_set,
+-	.owner_unset = fl_owner_unset,
+-	.credit_datum_set = fl_datum_set
+-};
+-
+-void flock_client_utdata_ops_set(struct rm_ut_data *data)
+-{
+-	data->rd_ops = &fl_client_ut_data_ops;
+-}
+-
+-void flock_srv_utdata_ops_set(struct rm_ut_data *data)
+-{
+-	data->rd_ops = &fl_srv_ut_data_ops;
+-}
+-
+-static void wait_lock(enum rm_server srv_id)
+-{
+-	struct m0_rm_incoming *in    = &rm_ctx[srv_id].rc_test_data.rd_in;
+-	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+-	int		       rc;
+-
+-	m0_file_lock(owner, in);
+-	m0_rm_owner_lock(owner);
+-	if (incoming_state(in) == RI_WAIT) {
+-		rc = m0_sm_timedwait(&in->rin_sm,
+-				     M0_BITS(RI_SUCCESS, RI_FAILURE),
+-				     M0_TIME_NEVER);
+-		M0_UT_ASSERT(rc == 0);
+-	}
+-	m0_rm_owner_unlock(owner);
+-	M0_UT_ASSERT(in->rin_rc == 0);
+-	m0_file_unlock(in);
+-}
+-
+-static void test_verify(enum flock_tests test_id)
+-{
+-	struct m0_rm_owner *clnt = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+-	struct m0_rm_owner *srv  = rm_ctx[SERVER_2].rc_test_data.rd_owner;
+-
+-	switch(test_id) {
+-	case TEST1:
+-		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&srv->ro_sublet));
+-		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&clnt->ro_borrowed));
+-		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
+-				&clnt->ro_owned[OWOS_CACHED]));
+-		break;
+-	case TEST2:
+-		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&srv->ro_sublet));
+-		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(
+-				&srv->ro_owned[OWOS_CACHED]));
+-		M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&clnt->ro_borrowed));
+-		break;
+-	case TEST3:
+-		M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&srv->ro_sublet) ||
+-			     !m0_rm_ur_tlist_is_empty(
+-                                &srv->ro_owned[OWOS_CACHED]) ||
+-			     !m0_rm_ur_tlist_is_empty(
+-                                &srv->ro_owned[OWOS_HELD]));
+-		break;
+-	default:
+-		break;
+-	}
+-}
+-
+-static void test3_lock(enum rm_server srv_id, int n)
+-{
+-	struct m0_rm_owner    *owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+-	struct m0_rm_incoming  req;
+-	int		       rc;
+-
+-	M0_SET0(&req);
+-	m0_file_lock(owner, &req);
+-	m0_rm_owner_lock(owner);
+-	test_verify(TEST3);
+-	if (incoming_state(&req) == RI_WAIT) {
+-		rc = m0_sm_timedwait(&req.rin_sm,
+-				     M0_BITS(RI_SUCCESS, RI_FAILURE),
+-				     M0_TIME_NEVER);
+-		M0_UT_ASSERT(rc == 0);
+-	}
+-	M0_UT_ASSERT(req.rin_rc == 0);
+-	M0_UT_ASSERT(incoming_state(&req) == RI_SUCCESS);
+-	m0_rm_owner_unlock(owner);
+-	if (srv_id == SERVER_1) {
+-		clnt_counter += n;
+-		loan_session_set(SERVER_2, SERVER_1);
+-	} else if (srv_id == SERVER_2) {
+-		srv_counter += n;
+-	}
+-	m0_file_unlock(&req);
+-	M0_SET0(&req);
+-}
+-
+-static void srv_lock(int n)
+-{
+-	test3_lock(SERVER_2, n);
+-}
+-
+-static void srv_test3_run()
+-{
+-	int i;
+-	int sum;
+-	int rc;
+-
+-	for (sum = i = 0; i < SRV_THR_NR; ++i) {
+-		rc = M0_THREAD_INIT(&srv_thr[i], int, NULL,
+-				    &srv_lock, i, "srv_lock");
+-		M0_UT_ASSERT(rc == 0);
+-		sum += i;
+-	}
+-
+-	for (i = 0; i < SRV_THR_NR; ++i) {
+-		m0_thread_join(&srv_thr[i]);
+-		m0_thread_fini(&srv_thr[i]);
+-	}
+-	M0_UT_ASSERT(srv_counter == sum);
+-}
+-
+-static void clnt_lock(int n)
+-{
+-	test3_lock(SERVER_1, n);
+-}
+-
+-static void client_test3_run()
+-{
+-	int i;
+-	int sum;
+-	int rc;
+-
+-	/* Server-2 (server) is upward creditor for Server-1 (client) */
+-	creditor_cookie_setup(SERVER_1, SERVER_2);
+-
+-	for (sum = i = 0; i < CLNT_THR_NR; ++i) {
+-		rc = M0_THREAD_INIT(&clnt_thr[i], int, NULL,
+-				    &clnt_lock, i, "clnt_lock");
+-		M0_UT_ASSERT(rc == 0);
+-		sum += i;
+-	}
+-
+-	for (i = 0; i < CLNT_THR_NR; ++i) {
+-		m0_thread_join(&clnt_thr[i]);
+-		m0_thread_fini(&clnt_thr[i]);
+-	}
+-	M0_UT_ASSERT(clnt_counter == sum);
+-}
+-
+-/* DLD - Test 3 */
+-static void test2_run()
+-{
+-	/* Take a wait lock on server */
+-	wait_lock(SERVER_2);
+-}
+-
+-/* DLD - Test 2 */
+-static void testcase2_run()
+-{
+-	struct m0_rm_incoming *in    = &rm_ctx[SERVER_1].rc_test_data.rd_in;
+-	struct m0_rm_owner    *owner = rm_ctx[SERVER_1].rc_test_data.rd_owner;
+-	struct m0_rm_incoming  req;
+-
+-	/* Take the lock */
+-	m0_file_lock(owner, in);
+-	M0_UT_ASSERT(incoming_state(in) == RI_SUCCESS);
+-	M0_UT_ASSERT(m0_rm_ur_tlist_is_empty(&owner->ro_owned[OWOS_CACHED]));
+-	M0_UT_ASSERT(!m0_rm_ur_tlist_is_empty(&owner->ro_owned[OWOS_HELD]));
+-
+-	/* Recursively try to take the same lock */
+-	m0_file_lock(owner, &req);
+-	M0_UT_ASSERT(incoming_state(&req) == RI_WAIT);
+-
+-	/* Release lock (from the first request) */
+-	m0_file_unlock(in);
+-
+-	/* Second lock request should now be successful */
+-	M0_UT_ASSERT(req.rin_rc == 0);
+-	M0_UT_ASSERT(incoming_state(&req) == RI_SUCCESS);
+-	m0_file_unlock(&req);
+-}
+-
+-/* DLD - Test 1 */
+-static void testcase1_run()
+-{
+-	/* Server-2 (server) is upward creditor for Server-1 (client) */
+-	creditor_cookie_setup(SERVER_1, SERVER_2);
+-
+-	/* Take a wait lock on client */
+-	wait_lock(SERVER_1);
+-
+-	/*
+-	 * Set up session pointer on the server. So that this lock can be
+-	 * revoked by the server.
+-	 */
+-	loan_session_set(SERVER_2, SERVER_1);
+-}
+-
+-static void test1_run()
+-{
+-	testcase1_run();
+-	test_verify(TEST1);
+-	testcase2_run();
+-	test_verify(TEST1);
+-}
+-
+-static void client_tests(void)
+-{
+-	m0_chan_wait(&tests_clink[TEST1]);
+-	test1_run();
+-
+-	/* Begin next test */
+-	m0_chan_signal_lock(&flock_tests_chan);
+-	m0_chan_wait(&tests_clink[TEST3]);
+-
+-	client_test3_run();
+-}
+-
+-static void server_tests(void)
+-{
+-	m0_chan_wait(&tests_clink[TEST2]);
+-	test2_run();
+-	test_verify(TEST2);
+-
+-	/* Begin next test */
+-	m0_chan_signal_lock(&flock_tests_chan);
+-	srv_test3_run();
+-}
+-
+-static void rm_server_start(const int tid)
+-{
+-	if (tid >= test_servers_nr)
+-		return;
+-
+-	switch(tid) {
+-	case SERVER_1:
+-		flock_client_utdata_ops_set(&rm_ctx[tid].rc_test_data);
+-		rm_ctx_server_start(tid);
+-		client_tests();
+-		break;
+-	case SERVER_2:
+-		flock_srv_utdata_ops_set(&rm_ctx[tid].rc_test_data);
+-		rm_ctx_server_start(tid);
+-		server_tests();
+-		break;
+-	default:
+-		break;
+-	}
+-}
+-
+-/*
+- * Configure server hierarchy.
+- */
+-static void server_hier_config(void)
+-{
+-	rm_ctx[SERVER_1].creditor_id = SERVER_2;
+-	rm_ctx[SERVER_1].debtor_id = SERVER_INVALID;
+-
+-	rm_ctx[SERVER_2].creditor_id = SERVER_INVALID;
+-	rm_ctx[SERVER_2].debtor_id = SERVER_1;
+-}
+-
+-static void flock_utinit(void)
+-{
+-	uint32_t i;
+-
+-	/* Maximum 2 servers for this test */
+-	test_servers_nr = SERVER_NR - 1;
+-	for (i = 0; i < test_servers_nr; ++i)
+-		rm_ctx_config(i);
+-
+-	server_hier_config();
+-	m0_mutex_init(&flock_tests_chan_mutex);
+-	m0_chan_init(&flock_tests_chan, &flock_tests_chan_mutex);
+-	/* Set up test sync points */
+-	for (i = 0; i < TEST_NR; ++i) {
+-		m0_clink_init(&tests_clink[i], NULL);
+-		m0_clink_add_lock(&flock_tests_chan, &tests_clink[i]);
+-	}
+-	m0_rm_fop_init();
+-}
+-
+-static void flock_utfini(void)
+-{
+-	uint32_t i;
+-
+-	/*
+-	 * Windup the server first, then the client. Trying to stop
+-	 * client first may put it into INSOLVENT state. This will
+-	 * finalize UT-RM objects hierarchy.
+-	 */
+-	rm_ctx_server_windup(SERVER_2);
+-	rm_ctx_server_windup(SERVER_1);
+-
+-	/* Disconnect the servers */
+-	for (i = 0; i < test_servers_nr; ++i) {
+-		rm_ctx_server_stop(i);
+-	}
+-	/* Finalise the servers */
+-	for (i = 0; i < test_servers_nr; ++i) {
+-		rm_ctx_fini(&rm_ctx[i]);
+-	}
+-	m0_rm_fop_fini();
+-	for (i = 0; i < TEST_NR; ++i) {
+-		m0_clink_del_lock(&tests_clink[i]);
+-		m0_clink_fini(&tests_clink[i]);
+-	}
+-	m0_chan_fini_lock(&flock_tests_chan);
+-	m0_mutex_fini(&flock_tests_chan_mutex);
+-}
+-
+-void flock_test(void)
+-{
+-	int rc;
+-	int i;
+-
+-	flock_utinit();
+-	/* Start RM servers */
+-	for (i = 0; i < test_servers_nr; ++i) {
+-		rc = M0_THREAD_INIT(&rm_ctx[i].rc_thr, int, NULL,
+-				    &rm_server_start, i, "rm_server_%d", i);
+-		M0_UT_ASSERT(rc == 0);
+-	}
+-
+-	/* Now start the tests - wait till all the servers are ready */
+-	m0_chan_signal_lock(&flock_tests_chan);
+-	for (i = 0; i < test_servers_nr; ++i) {
+-		m0_thread_join(&rm_ctx[i].rc_thr);
+-		m0_thread_fini(&rm_ctx[i].rc_thr);
+-	}
+-	flock_utfini();
+-}
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/rm/ut/rings.c b/rm/ut/rings.c
+index e15b808..1028513 100644
+--- a/rm/ut/rings.c
++++ b/rm/ut/rings.c
+@@ -27,6 +27,8 @@
+ #include "lib/chan.h"
+ #include "lib/ut.h"
+ #include "lib/vec.h"
++#include "rpc/rpc_helpers.h"
++#include "xcode/xcode.h"
+ 
+ #include "rm/rm.h"
+ #include "rm/ut/rings.h"
+@@ -175,21 +177,36 @@ static void rings_credit_free(struct m0_rm_credit *credit)
+ 	credit->cr_datum = 0;
+ }
+ 
++static int rings_credit_encdec(struct m0_rm_credit *credit,
++			       struct m0_bufvec_cursor *cur,
++			       enum m0_bufvec_what what)
++{
++	struct m0_xcode_obj datumobj;
++	struct m0_xcode_ctx ctx;
++	int		    rc;
++
++	datumobj.xo_type = &M0_XT_U64;
++	datumobj.xo_ptr = (void *)&credit->cr_datum;
++	m0_xcode_ctx_init(&ctx, &datumobj);
++	ctx.xcx_buf = *cur;
++	ctx.xcx_alloc = m0_xcode_alloc;
++	rc = what == M0_BUFVEC_ENCODE ? m0_xcode_encode(&ctx) :
++					m0_xcode_decode(&ctx);
++	if (rc == 0 && what == M0_BUFVEC_DECODE)
++		credit->cr_datum = *(uint64_t *)m0_xcode_ctx_top(&ctx);
++	return rc;
++}
++
+ static int rings_credit_encode(struct m0_rm_credit *credit,
+ 			       struct m0_bufvec_cursor *cur)
+ {
+-	m0_bufvec_cursor_copyto(cur, (void *)&credit->cr_datum,
+-				sizeof credit->cr_datum);
+-
+-	return 0;
++	return rings_credit_encdec(credit, cur, M0_BUFVEC_ENCODE);
+ }
+ 
+ static int rings_credit_decode(struct m0_rm_credit *credit,
+ 			       struct m0_bufvec_cursor *cur)
+ {
+-	m0_bufvec_cursor_copyfrom(cur, &credit->cr_datum,
+-				  sizeof credit->cr_datum);
+-	return 0;
++	return rings_credit_encdec(credit, cur, M0_BUFVEC_DECODE);
+ }
+ 
+ static int rings_credit_copy(struct m0_rm_credit *dest,
+@@ -206,7 +223,13 @@ static int rings_credit_copy(struct m0_rm_credit *dest,
+ 
+ static m0_bcount_t rings_credit_len(const struct m0_rm_credit *credit)
+ {
+-	return (m0_bcount_t) sizeof(uint64_t);
++	struct m0_xcode_obj datumobj;
++	struct m0_xcode_ctx ctx;
++
++	datumobj.xo_type = &M0_XT_U64;
++	datumobj.xo_ptr = (void *)&credit->cr_datum;
++	m0_xcode_ctx_init(&ctx, &datumobj);
++	return m0_xcode_length(&ctx);
+ }
+ 
+ static bool rings_is_subset(const struct m0_rm_credit *src,
+-- 
+1.8.3.2
+

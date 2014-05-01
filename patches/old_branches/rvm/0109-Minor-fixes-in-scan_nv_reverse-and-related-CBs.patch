@@ -1,0 +1,418 @@
+From 901141be1cc94e1261181cc432df9045dd405693 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Fri, 31 May 2013 02:03:48 -0700
+Subject: [PATCH 109/121] Minor fixes in scan_nv_reverse and related CBs
+
+---
+ rvm/rvm_logrecovr.c | 126 +++++++++++++++++++++++++++++++++-------------------
+ rvm/rvm_private.h   |   4 ++
+ 2 files changed, 84 insertions(+), 46 deletions(-)
+
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index 13a0bc5..f23b921 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -208,6 +208,8 @@ void init_buffer_cb(cbinfo, status, msg)
+ 	log	   = lrc_cbdata->lrc_log;
+ 	synch	   = lrc_cbdata->lrc_synch;
+ 
++	log->log_buf.r_length = lrc_cbdata->lrc_read_len;
++
+ 	assert(log->trunc_thread == cthread_self());
+ 
+ 	if (synch)
+@@ -305,9 +307,10 @@ rvm_return_t init_buffer(log, offset, direction, synch, cbinfo)
+ 	}
+ 
+ 	/* read data from log device */
+-	log_buf->r_length = read_dev(&log->dev, &log_buf->offset, log_buf->buf,
+-				     length, lrc_cbinfo);
+-	if (log_buf->r_length < 0) {
++	lrc_cbdata->lrc_read_len = length;
++	retval = read_dev(&log->dev, &log_buf->offset, log_buf->buf, length,
++			  lrc_cbinfo);
++	if (retval != 0) {
+ 		retval 		  =  RVM_EIO;               /* i/o error */
+ 		log_buf->r_length =  0;          /* buffer invalid */
+ 		be_status 	  = -1;
+@@ -443,25 +446,29 @@ void load_aux_buf_cb(cbinfo, status, msg_type)
+         m0_be_msg_type_t         msg_type;
+ {
+ 	lrc_cbdata_t *lrc_cbdata;
++	log_t	     *log;
++    	log_buf_t    *log_buf;
+ 
+ 	if (status != 0)
+ 		goto exit;
+ 
+ 	printf("\n function %s \n", __FUNCTION__);
+ 
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+-	assert(lrc_cbdata->lrc_log->trunc_thread == cthread_self());
++	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++	log	   =  lrc_cbdata->lrc_log;
++	log_buf	   = &log->log_buf;
+ 
+-	if (lrc_cbdata->lrc_synch)
+-        	mutex_unlock(&lrc_cbdata->lrc_log->dev_lock);
++	log_buf->aux_rlength = lrc_cbdata->lrc_read_len;
++	assert(log->trunc_thread == cthread_self());
+ 
+-	assert(lrc_cbdata->lrc_log->trunc_thread == cthread_self());
++	if (lrc_cbdata->lrc_synch)
++        	mutex_unlock(&log->dev_lock);
+ 
++	assert(log->trunc_thread == cthread_self());
+ exit:
+ 	if(cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+         }
+-
+ 	m0_free(lrc_cbdata);
+ }
+ /* load log auxillary buffer */
+@@ -568,20 +575,19 @@ rvm_return_t load_aux_buf(log, log_offset, length,aux_ptr,
+                 goto exit;
+         }
+ 
+-	lrc_cbdata->lrc_log   = log;
+-	lrc_cbdata->lrc_synch = synch;
++	lrc_cbdata->lrc_log   	 = log;
++	lrc_cbdata->lrc_synch	 = synch;
++	lrc_cbdata->lrc_read_len = read_len;
+ 	lrc_cbinfo            = &lrc_cbdata->lrc_cbinfo;
+-	/************************** UNCOMMENT THISSSSSSSS **************************************/
+-	/*m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo, load_aux_buf_cb);*/
++	m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo, load_aux_buf_cb);
+ 
+ 	/* read new value data from log */
+-	if ((log_buf->aux_rlength = read_dev(&log->dev ,&log_buf->aux_offset,
+-					     log_buf->aux_buf, read_len)) < 0) {
++	if ((retval = read_dev(&log->dev, &log_buf->aux_offset,
++				log_buf->aux_buf, read_len, lrc_cbinfo)) != 0) {
+ 		retval = msg 	     = RVM_EIO;
+ 		log_buf->aux_rlength = 0;
+ 		be_status 	     = -1;
+ 	}
+-
+ exit:
+ 	if ((retval != RVM_SUCCESS || is_load_aux_done) && cbinfo != NULL &&
+ 	    cbinfo->bc_cb != NULL) {
+@@ -589,8 +595,6 @@ exit:
+ 		m0_free(lrc_cbdata);
+ 	}
+ 
+-	/************************** REMOVE THIS CALLLL ******************************************/
+-	load_aux_buf_cb(lrc_cbinfo, be_status, msg);
+ 	return retval;
+ }
+ 
+@@ -784,12 +788,10 @@ void scan_nv_forward_cb(cbinfo, status, msg)
+ 		case rec_end_id:
+ 			fwd_done = rvm_true;
+ 			goto exit;
+-			/*return RVM_SUCCESS;*/
+ 
+ 		default:
+ 			fwd_done = rvm_true;
+ 			goto exit;
+-			/*return RVM_SUCCESS; *//* need better reporting */
+ 	}
+ 
+ 	/* get whole range in buffer */
+@@ -875,6 +877,10 @@ void scan_wrap_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	long            tmp_ptr;            /* temporary buffer ptr */
+ 	lrc_cbdata_t   *lrc_cbdata;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
++	if (be_status != 0)
++		goto exit;
++
+ 	M0_ASSERT(cbinfo != NULL);
+ 	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 
+@@ -912,6 +918,7 @@ void scan_wrap_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	    log_buf->ptr = -1;          /* utility can deal with it */
+ 	else assert(rvm_false);
+ 
++exit:
+         if (cbinfo != NULL && cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, be_status, msg_type);
+         }
+@@ -969,7 +976,8 @@ void __validate_rec_reverse_cb(struct m0_be_cbinfo *cbinfo,
+ 	long		 tmp_ptr;
+ 	rec_hdr_t       *rec_hdr;
+ 
+-	if(be_status != 0)
++	printf("\nfunction %s\n", __FUNCTION__);
++	if (be_status != 0)
+ 		goto exit;
+ 
+ 	M0_ASSERT(cbinfo != NULL);
+@@ -1014,6 +1022,7 @@ void validate_rec_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+     	lrc_cbdata_t    *lrc_cbdata;
+ 	rvm_bool_t 	 synch;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
+ 	if(be_status != 0)
+ 	    goto exit;
+ 
+@@ -1153,6 +1162,7 @@ void scan_reverse_vrr_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	rvm_return_t   retval;
+ 	lrc_cbdata_t  *lrc_cbdata;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
+ 	if(be_status != 0)
+ 		goto exit;
+ 	lrc_cbdata	= container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+@@ -1180,6 +1190,7 @@ void rcs_done_loop(range_chk_sum_cbdata_t *rcs_cbdata)
+ 	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
+ 	log_buf_t       	*log_buf;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
+ 	cbinfo  = &rcs_cbdata->rcsc_cbinfo;
+ 	log_buf = &rcs_cbdata->rcsc_log->log_buf;
+ 
+@@ -1209,7 +1220,12 @@ void rcs_refill_buffer_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 	rvm_bool_t		 done = rvm_false;
+ 	rvm_return_t		 retval;
+ 
+-        rcs_cbdata 	= container_of(cbinfo, range_chk_sum_cbdata_t, rcsc_cbinfo);
++	printf("\nfunction %s\n", __FUNCTION__);
++	if (be_status != 0)
++		goto exit;
++
++        rcs_cbdata 	= container_of(cbinfo, range_chk_sum_cbdata_t,
++				       rcsc_cbinfo);
+ 	log	   	= rcs_cbdata->rcsc_log;
+ 	log_buf	   	= &log->log_buf;
+ 	nv_length  	= rcs_cbdata->rcsc_nv_length;
+@@ -1273,6 +1289,8 @@ struct m0_be_cbinfo 	*cbinfo;
+ 	int			 be_status = 0;
+ 	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
++
+ 	M0_ALLOC_PTR(rcs_cbdata);
+ 	M0_ASSERT(rcs_cbdata != NULL);
+ 
+@@ -1335,6 +1353,7 @@ void scan_reverse_snr_loop_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	lrc_cbdata_t        *lrc_cbdata;
+ 	rvm_return_t	     retval;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
+         if(be_status != 0)
+                 goto exit;
+ 
+@@ -1372,6 +1391,7 @@ void scan_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	lrc_cbdata_t        *lrc_cbdata;
+ 	rvm_return_t	     retval;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
+ 	if(be_status != 0)
+ 		goto exit;
+ 
+@@ -1411,6 +1431,7 @@ void scan_reverse_snr_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	lrc_cbdata_t        *lrc_cbdata;
+ 	rvm_return_t	     retval = RVM_EINTERNAL;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
+ 	if(be_status != 0)
+ 		goto exit;
+ 
+@@ -1523,9 +1544,6 @@ exit:
+ 
+ }
+ 
+-
+-
+-
+ void scan_nv_reverse_cb(cbinfo, status, msg)
+ 	struct m0_be_cbinfo	*cbinfo;
+ 	int			 status;
+@@ -1535,10 +1553,21 @@ void scan_nv_reverse_cb(cbinfo, status, msg)
+ 	log_t		*log;
+ 	log_buf_t	*log_buf;
+ 	rec_hdr_t	*rec_hdr;
++	long             len;
++
++	printf("\nfunction %s\n", __FUNCTION__);
++	if (status != 0)
++		goto exit;
+ 
+ 	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   = lrc_cbdata->lrc_log;
+ 	log_buf	   = &log->log_buf;
++	len 	   = lrc_cbdata->lrc_nv_rev_len;
++
++	if (lrc_cbdata->lrc_called_refill)
++		log_buf->ptr -= len;
++	else if (lrc_cbdata->lrc_called_init)
++		log_buf->ptr -= sizeof(nv_range_t);
+ 
+ 	/* exit pointing to new header */
+ 	rec_hdr = (rec_hdr_t *)&log_buf->buf[log_buf->ptr];
+@@ -1581,8 +1610,7 @@ rvm_return_t scan_nv_reverse(log, synch, cbinfo)
+ 
+ 	lrc_cbdata->lrc_log   =  log;
+ 	lrc_cbinfo	      = &lrc_cbdata->lrc_cbinfo;
+-	/******************* UNCOMMENT THIS ***************************************/
+-	/*m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo, scan_nv_reverse_cb);*/
++	m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo, scan_nv_reverse_cb);
+ 
+ 	/* get new header position */
+ 	rec_hdr = (rec_hdr_t *)&log_buf->buf[log_buf->ptr];
+@@ -1604,15 +1632,16 @@ rvm_return_t scan_nv_reverse(log, synch, cbinfo)
+ 		/* no, refill buffer according to length of data */
+ 		if ((len - sizeof(nv_range_t)) <= NV_LOCAL_MAX){
+ 			/* small, get data into buffer */
++			lrc_cbdata->lrc_nv_rev_len    = len;
++			lrc_cbdata->lrc_called_refill = rvm_true;
++			lrc_cbdata->lrc_called_init   = rvm_false;
+ 			retval = refill_buffer(log, REVERSE, synch, lrc_cbinfo);
+ 			if (retval != RVM_SUCCESS) {
+ 				be_status = -1;
+ 				msg	  = retval;
+-				goto exit;
+ 			}
+-
+-		    	log_buf->ptr -= len;
+ 			goto exit;
++
+ 		} else {
+ 			/* large, skip data for now */
+ 			offset = RVM_ADD_LENGTH_TO_OFFSET(log_buf->offset,
+@@ -1620,21 +1649,22 @@ rvm_return_t scan_nv_reverse(log, synch, cbinfo)
+ 							  sizeof(nv_range_t)));
+ 
+ 			offset = RVM_SUB_LENGTH_FROM_OFFSET(offset,len);
+-				/****************************** pass lrc_cbinfo ********************////////////
+-			retval = init_buffer(log, &offset, REVERSE, synch);
+-			/*lrc_cbinfo);*/
++			lrc_cbdata->lrc_called_init   = rvm_true;
++			lrc_cbdata->lrc_called_refill = rvm_false;
++
++			retval = init_buffer(log, &offset, REVERSE, synch,
++					     lrc_cbinfo);
+ 			if (retval != RVM_SUCCESS) {
+ 				be_status = -1;
+ 				msg	  = retval;
+-				goto exit;
+ 			}
+-			log_buf->ptr -= sizeof(nv_range_t);
+-			/********* make it goto exit. *******************************************/
+-			goto temporary_exit;
++			goto exit;
+ 		}
+ 	} else
+ 		log_buf->ptr -= len;
+-temporary_exit:
++
++	lrc_cbdata->lrc_called_init   = rvm_false;
++	lrc_cbdata->lrc_called_refill = rvm_false;
+ 	scan_nv_reverse_cb(lrc_cbinfo, be_status, msg);
+ 
+ exit:
+@@ -2083,7 +2113,6 @@ rvm_return_t scan_forward(log, synch, cbinfo)
+ 			    	log_buf->ptr 	 = -1;
+ 				is_scan_fwd_done = rvm_true;
+ 				call_validate	 = rvm_false;
+-				/*return RVM_SUCCESS;*/
+ 			}
+ 			assert(rvm_false);      /* unknown record type */
+ 	}
+@@ -2107,7 +2136,6 @@ exit:
+ 	}
+ 
+ exit_return:
+-	/*return validate_rec_forward(log, synch, cbinfo->bc_pcbinfo);*/
+ 	return retval;
+ }
+ 
+@@ -2352,6 +2380,7 @@ void locate_tail_cb(loc_tail_cbdata_t *loc_tail_cbdata)
+ 	int			 be_status = 0;
+ 	m0_be_msg_type_t	 msg_type  = M0_BE_SUCCESS;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
+ 	cbinfo 		= &loc_tail_cbdata->ltc_cbinfo;
+ 	last_rec_num	= loc_tail_cbdata->ltc_last_rec_num;
+ 
+@@ -2414,6 +2443,11 @@ void loc_tail_set_trans_status_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 
+ 	struct timeval   	 last_write; /* last write to log */
+ 
++
++	printf("\nfunction %s\n", __FUNCTION__);
++	if (be_status != 0)
++		goto exit;
++
+         loc_tail_cbdata = container_of(cbinfo, loc_tail_cbdata_t, ltc_cbinfo);
+ 	M0_ASSERT(loc_tail_cbdata != NULL);
+ 
+@@ -2482,6 +2516,10 @@ void loc_tail_vrf_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 	struct timeval   	 last_write; /* last write to log */
+ 	uint32_t		 set_trans_called = rvm_false;
+ 
++	printf("\nfunction %s\n", __FUNCTION__);
++	if (be_status != 0)
++		goto err_exit;
++
+         loc_tail_cbdata = container_of(cbinfo, loc_tail_cbdata_t, ltc_cbinfo);
+ 	M0_ASSERT(loc_tail_cbdata != NULL);
+ 
+@@ -2655,7 +2693,7 @@ void loc_tail_scan_forward_cb(loc_tail_cbdata_t *loc_tail_cbdata)
+ 	assert(log->trunc_thread == cthread_self());
+ 	assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_FIND_TAIL);
+ 
+-	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++	if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg_type);
+                 m0_free(loc_tail_cbdata);
+@@ -3414,8 +3452,7 @@ static rvm_return_t do_trans(log, skip_trans, cbinfo)
+ 	lrc_cbdata->lrc_num_ranges	=  num_ranges;
+ 	lrc_cbdata->lrc_prev_range	=  prev_range;
+ 	lrc_cbinfo			= &lrc_cbdata->lrc_cbinfo;
+-	/********************************************************** UNCOMMENT *****************************/
+-	/*m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo, do_trans_cb);*/
++	m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo, do_trans_cb);
+ 
+ 	retval = scan_nv_reverse(log, SYNCH, lrc_cbinfo);
+ 	if (retval != RVM_SUCCESS) {
+@@ -3427,9 +3464,6 @@ exit:
+ 	    	m0_be_handler_post(cbinfo, be_status, msg);
+ 		m0_free(lrc_cbdata);
+ 	}
+-
+-	/***************************************** REMOVE THIS *******************************************/
+-	do_trans_cb(lrc_cbinfo, be_status, msg);
+ 	return retval;
+ }
+ 
+diff --git a/rvm/rvm_private.h b/rvm/rvm_private.h
+index ee1574f..b8fbb1e 100644
+--- a/rvm/rvm_private.h
++++ b/rvm/rvm_private.h
+@@ -1849,15 +1849,19 @@ typedef struct log_recover_cbdata {
+ 
+ 	/** Needed by init_buffer & refill_buffer. */
+ 	rvm_bool_t		 lrc_synch;
++	rvm_length_t         	 lrc_read_len;
+ 
+ 	/**
+ 	 * Needed by scan wrap_reverse and validate_rec_reverse,
+ 	 * validate_rec_forward, scan_reverse.
+ 	 */
+ 	rvm_bool_t		 lrc_is_refill_buf;
++	rvm_bool_t		 lrc_called_init;
++	rvm_bool_t		 lrc_called_refill;
+ 	rec_end_t		*lrc_rec_end;
+ 	rec_hdr_t		*lrc_rec_hdr;
+ 	long			 lrc_tmp_ptr;
++	long			 lrc_nv_rev_len;
+ 
+ 	/** Needed by do_trans. */
+ 	rvm_bool_t		 lrc_skip_trans;
+-- 
+1.8.3.2
+

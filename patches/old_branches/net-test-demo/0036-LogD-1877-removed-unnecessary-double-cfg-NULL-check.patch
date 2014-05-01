@@ -1,0 +1,26 @@
+From 10d43673fa748d4d702dcb37b6c34109b31fc344 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 19:17:48 +0200
+Subject: [PATCH 36/79] LogD 1877: removed unnecessary double "cfg == NULL"
+ check
+
+---
+ net/test/node.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/node.c b/net/test/node.c
+index f3dfdff..c5f3f68 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -939,7 +939,7 @@ int m0_net_test_node_module_initfini(struct m0_net_test_node_cfg *cfg)
+ 
+ 	if (cfg == NULL)
+ 		goto fini;
+-	if (cfg == NULL || cfg->ntnc_addr == NULL ||
++	if (cfg->ntnc_addr == NULL ||
+ 	    cfg->ntnc_addr_console == NULL ||
+ 	    cfg->ntnc_send_timeout == 0) {
+ 		rc = -EINVAL;
+-- 
+1.8.3.2
+

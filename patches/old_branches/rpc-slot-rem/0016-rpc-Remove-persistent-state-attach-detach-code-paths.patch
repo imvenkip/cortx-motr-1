@@ -1,0 +1,24 @@
+From 8444df0546b2646a2a66b6386250295f2ece29e5 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Thu, 23 May 2013 13:11:31 +0530
+Subject: [PATCH 16/60] rpc: Remove persistent state attach/detach code paths.
+
+---
+ rpc/session.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/rpc/session.c b/rpc/session.c
+index 7905bc9..16161eb 100644
+--- a/rpc/session.c
++++ b/rpc/session.c
+@@ -1038,7 +1038,6 @@ M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
+ 	/* For receiver side session, no slots are on ready_slots list
+ 	   since all reply items are bound items. */
+ 	session_state_set(session, M0_RPC_SESSION_TERMINATED);
+-
+ 	M0_ASSERT(m0_rpc_session_invariant(session));
+ 	M0_RETURN(0);
+ }
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From a56e7733408d2908fc0f1b14369321942728613c Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 5 Feb 2013 18:52:47 +0200
+Subject: [PATCH 54/79] node_bulk_state_search() now returns TS_UNUSED if found
+ nothing
+
+---
+ net/test/node_bulk.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 5e3f46a..542230e 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -474,6 +474,7 @@ node_bulk_state_search(enum transfer_state state,
+ 			return state_list[i].sta_to;
+ 	}
+ 	M0_IMPOSSIBLE("Invalid 'from' state in net-test bulk testing.");
++	return TS_UNUSED;
+ }
+ 
+ static void node_bulk_state_change_cb(struct node_bulk_ctx *ctx,
+-- 
+1.8.3.2
+

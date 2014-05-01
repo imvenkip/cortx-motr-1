@@ -1,0 +1,160 @@
+From 21a0537791913e48ba33c32352e53b1212359122 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 20 Jun 2011 23:15:29 -0600
+Subject: [PATCH 147/158] - fixed some comments.
+
+---
+ mdservice/md_foms.c | 67 ++++++++++++++++++++++++++---------------------------
+ 1 file changed, 33 insertions(+), 34 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index ede7e30..43ae95e 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -206,7 +206,7 @@ restart:
+                                 goto restart;
+                         } else {
+                                 /*
+-                                 * Name that belongings to our object exists, it
++                                 * Name that belongs to our object exists, it
+                                  * should be stat data or db is not consistent.
+                                  * We don't put an assert here because -EDEADLK
+                                  * may occur.
+@@ -387,6 +387,11 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         if (body->b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS) {
+                 rc = c2_md_store_lookup(md, &pfid, req->u_name.s_buf,
+                                         req->u_name.s_len, &ncob, tx);
++                /*
++                 * If no name found we need to create it with zombie
++                 * flag set to 1 or initial scan can find it later,
++                 * which is not what we want.
++                 */
+                 if (rc == -ENOENT) {
+                         rc = c2_md_store_locate(md, &tfid, &scob, 
+                                                 C2_MD_LOCATE_STORED,
+@@ -400,6 +405,10 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                                                       attr.ca_name,
+                                                       attr.ca_namelen,
+                                                       1, tx);
++                                /*
++                                 * We just added a link, need to update object
++                                 * attributes.
++                                 */
+                                 if (rc == 0 &&
+                                     attr.ca_version > scob->co_nsrec.cnr_version)
+                                         rc = c2_md_store_setattr(md, scob, &attr, tx);
+@@ -436,20 +445,12 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                         c2_cob_put(ncob);
+                 }
+         } else {
+-                /*
+-                 * For the case object exists or we have kill of hardlink
+-                 * (object will survive at the end of day) let's update
+-                 * object attributes.
+-                 */
+                 rc = c2_md_store_locate(md, &tfid, &scob, 
+                                         C2_MD_LOCATE_STORED,
+                                         &ctx->fc_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
+                 
+-                /*
+-                 * Name exists but it has older version. Let's kill it.
+-                 */
+                 rc = c2_md_store_unlink(md, &pfid, scob, 
+                                         req->u_name.s_buf,
+                                         req->u_name.s_len,
+@@ -488,6 +489,9 @@ static int c2_md_rename(struct c2_md_store  *md,
+         C2_ASSERT(scob != NULL);
+         C2_ASSERT(tcob != NULL);
+ 
++        /*
++         * Do normal rename as all objects are fine.
++         */
+         rc = c2_md_store_rename(md, pfid_tgt, pfid_src, tcob, scob,
+                                 tattr->ca_name, tattr->ca_namelen,
+                                 sattr->ca_name, sattr->ca_namelen, tx);
+@@ -507,16 +511,16 @@ static int c2_md_rename(struct c2_md_store  *md,
+         return rc;
+ }
+ 
+-static int c2_md_rename_check_src(struct c2_md_store *md, 
+-                                  struct c2_fid      *pfid_tgt, 
+-                                  struct c2_fid      *pfid_src,
+-                                  struct c2_fid      *tfid_tgt, 
+-                                  struct c2_fid      *tfid_src,
+-                                  struct c2_cob_attr *tattr, 
+-                                  struct c2_cob_attr *sattr, 
+-                                  struct c2_cob      *tcob,
+-                                  int                 scan, 
+-                                  struct c2_db_tx    *tx)
++static int c2_md_rename_src(struct c2_md_store *md, 
++                            struct c2_fid      *pfid_tgt, 
++                            struct c2_fid      *pfid_src,
++                            struct c2_fid      *tfid_tgt, 
++                            struct c2_fid      *tfid_src,
++                            struct c2_cob_attr *tattr, 
++                            struct c2_cob_attr *sattr, 
++                            struct c2_cob      *tcob,
++                            int                 scan, 
++                            struct c2_db_tx    *tx)
+ {
+         struct c2_cob *sncob = NULL;
+         struct c2_cob *scob = NULL;
+@@ -524,12 +528,9 @@ static int c2_md_rename_check_src(struct c2_md_store *md,
+         
+         C2_ASSERT(tcob != NULL);
+ 
++        rc = c2_md_store_lookup(md, pfid_src, sattr->ca_name, 
++                                sattr->ca_namelen, &sncob, tx);
+         if (c2_fid_eq(tfid_tgt, tfid_src)) {
+-                /*
+-                 * Same object, let's check the name.
+-                 */
+-                rc = c2_md_store_lookup(md, pfid_src, sattr->ca_name, 
+-                                        sattr->ca_namelen, &sncob, tx);
+                 if (rc == -ENOENT) {
+                         if (scan) {
+                                 /*
+@@ -569,8 +570,6 @@ static int c2_md_rename_check_src(struct c2_md_store *md,
+                         c2_cob_put(sncob);
+                 }
+         } else {
+-                rc = c2_md_store_lookup(md, pfid_src, sattr->ca_name, 
+-                                        sattr->ca_namelen, &sncob, tx);
+                 if (rc == -ENOENT) {
+                         rc = c2_md_store_locate(md, tfid_src, &scob, 
+                                                 C2_MD_LOCATE_STORED, tx);
+@@ -786,10 +785,10 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+                                               tattr.ca_namelen, 0, tx);
+                 }
+                 if (rc == 0)
+-                        rc = c2_md_rename_check_src(md, &pfid_tgt, &pfid_src, 
+-                                                    &tfid_tgt, &tfid_src,
+-                                                    &tattr, &sattr, tcob, 
+-                                                    scan, tx);
++                        rc = c2_md_rename_src(md, &pfid_tgt, &pfid_src, 
++                                              &tfid_tgt, &tfid_src,
++                                              &tattr, &sattr, tcob, 
++                                              scan, tx);
+         } else if (rc == 0) {
+                 if (c2_fid_eq(tncob->co_fid, &tfid_tgt)) {
+                         rc = c2_md_store_locate(md, &tfid_tgt, &tcob, 
+@@ -814,10 +813,10 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+                 }
+ 
+                 if (rc == 0)
+-                        rc = c2_md_rename_check_src(md, &pfid_tgt, &pfid_src, 
+-                                                    &tfid_tgt, &tfid_src,
+-                                                    &tattr, &sattr, tcob,
+-                                                    scan, tx);
++                        rc = c2_md_rename_src(md, &pfid_tgt, &pfid_src, 
++                                              &tfid_tgt, &tfid_src,
++                                              &tattr, &sattr, tcob,
++                                              scan, tx);
+                 c2_cob_put(tncob);
+         }
+ 
+-- 
+1.8.3.2
+

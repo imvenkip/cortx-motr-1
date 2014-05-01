@@ -1,0 +1,390 @@
+From 5bfb9f3a2536fd33c114aafcc689d3615b8462d1 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Tue, 26 Mar 2013 14:26:10 +0530
+Subject: [PATCH 06/25] Completed CR phase.
+
+---
+ rm/file.c | 111 ++++++++++++++++++++++++++++++++++++++++----------------------
+ rm/rm.c   |   2 +-
+ rm/rm.h   |  51 ++++++++++++++++-------------
+ 3 files changed, 100 insertions(+), 64 deletions(-)
+
+diff --git a/rm/file.c b/rm/file.c
+index 47965ec..99bb348 100644
+--- a/rm/file.c
++++ b/rm/file.c
+@@ -42,7 +42,7 @@
+ 
+    This DLD describes the implementation of a distributed file lock. The
+    distributed file lock is implemented over Mero resource manager. Mero
+-   resource manager alerady provides a distributed resource management
++   resource manager already provides a distributed resource management
+    framework within a cluster (provides semantics similar to a distributed
+    lock manager).
+ 
+@@ -167,28 +167,28 @@ static void file_lock_credit_init(struct m0_rm_resource *resource,
+ static void file_lock_incoming_complete(struct m0_rm_incoming *in, int32_t rc);
+ static void file_lock_incoming_conflict(struct m0_rm_incoming *in);
+ 
+-static bool file_lock_cr_intersects(const struct m0_rm_credit *c0,
++static bool file_lock_cr_intersects(const struct m0_rm_credit *this,
+ 				    const struct m0_rm_credit *c1);
+ static m0_bcount_t file_lock_cr_len(const struct m0_rm_credit *c0);
+ 
+-static int file_lock_cr_join(struct m0_rm_credit *c0,
++static int file_lock_cr_join(struct m0_rm_credit *this,
+ 			     const struct m0_rm_credit *c1);
+-static int file_lock_cr_disjoin(struct m0_rm_credit *c0,
++static int file_lock_cr_disjoin(struct m0_rm_credit *this,
+ 				const struct m0_rm_credit *c1,
+ 				struct m0_rm_credit *intersection);
+ static int file_lock_cr_copy(struct m0_rm_credit *dest,
+-			     const struct m0_rm_credit *src);
+-static int file_lock_cr_diff(struct m0_rm_credit *c0,
++			     const struct m0_rm_credit *this);
++static int file_lock_cr_diff(struct m0_rm_credit *this,
+ 			     const struct m0_rm_credit *c1);
+-static bool file_lock_cr_conflicts(const struct m0_rm_credit *c0,
++static bool file_lock_cr_conflicts(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1);
+-static bool file_lock_cr_is_subset(const struct m0_rm_credit *c0,
++static bool file_lock_cr_is_subset(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1);
+-static int file_lock_cr_encode(const struct m0_rm_credit *credit,
++static int file_lock_cr_encode(const struct m0_rm_credit *this,
+ 			       struct m0_bufvec_cursor *cur);
+-static int file_lock_cr_decode(struct m0_rm_credit *credit,
++static int file_lock_cr_decode(struct m0_rm_credit *this,
+ 			       struct m0_bufvec_cursor *cur);
+-static void file_lock_cr_free(struct m0_rm_credit *credit);
++static void file_lock_cr_free(struct m0_rm_credit *this);
+ 
+ static struct m0_rm_resource_type flock_rt = {
+ 	.rt_name = "File Lock Resource Type"
+@@ -234,7 +234,7 @@ static bool file_lock_equal(const struct m0_rm_resource *resource0,
+ 
+ 	file0 = container_of(resource0, struct m0_file, fi_res);
+ 	file1 = container_of(resource1, struct m0_file, fi_res);
+-	
++
+ 	return file0->fi_fid.f_container == file1->fi_fid.f_container &&
+ 	       file0->fi_fid.f_key == file1->fi_fid.f_key;
+ }
+@@ -244,14 +244,17 @@ static int file_lock_encode(struct m0_bufvec_cursor *cur,
+ 			    const struct m0_rm_resource *resource)
+ {
+ 	struct m0_file *fl;
++	m0_bcount_t     len;
++	m0_bcount_t     cnt;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(resource != NULL);
+-	
++
+ 	fl = container_of(resource, struct m0_file, fi_res);
+-	m0_bufvec_cursor_copyto(cur, (void *)&fl->fi_fid, sizeof fl->fi_fid);
++	len = sizeof fl->fi_fid;
++	cnt = m0_bufvec_cursor_copyto(cur, (void *)&fl->fi_fid, len);
+ 
+-	M0_RETURN(0);
++	M0_RETURN(cnt == len ? 0 : -EINVAL);
+ }
+ 
+ /** Decode file_lock - from the wire */
+@@ -259,6 +262,9 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
+ 			    struct m0_rm_resource **resource)
+ {
+ 	struct m0_file *fl;
++	m0_bcount_t     len;
++	m0_bcount_t     cnt;
++	int             rc = 0;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(resource != NULL);
+@@ -267,15 +273,27 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
+ 	if (fl == NULL)
+ 		M0_RETURN(-ENOMEM);
+ 
+-	m0_bufvec_cursor_copyfrom(cur, &fl->fi_fid, sizeof fl->fi_fid);
+-	*resource = &fl->fi_res;
+-	M0_RETURN(0);
++	len = sizeof fl->fi_fid;
++	cnt = m0_bufvec_cursor_copyfrom(cur, &fl->fi_fid, len);
++	if (cnt == len) {
++		fl->fi_res.r_ops = &file_lock_ops;
++		/*
++		 * Other resource parameters are initialised by
++		 * m0_rm_resource_add()
++		 */
++		*resource = &fl->fi_res;
++	} else {
++		rc = -EINVAL;
++		m0_free(fl);
++	}
++	M0_RETURN(rc);
+ }
+ 
+ /** Initialises credit (lock state) and ops vector for the file_lock */
+ static void file_lock_credit_init(struct m0_rm_resource *resource,
+ 				  struct m0_rm_credit *credit)
+ {
++	M0_ASSERT(credit != NULL);
+ 	credit->cr_ops = &file_lock_credit_ops;
+ }
+ 
+@@ -292,10 +310,11 @@ static void file_lock_incoming_conflict(struct m0_rm_incoming *in)
+ 	M0_IMPOSSIBLE();
+ }
+ 
+-static bool file_lock_cr_intersects(const struct m0_rm_credit *c0,
++static bool file_lock_cr_intersects(const struct m0_rm_credit *this,
+ 				    const struct m0_rm_credit *c1)
+ {
+-	return c0->cr_datum == c1->cr_datum;
++	M0_ASSERT(c1 != NULL);
++	return this->cr_datum == c1->cr_datum;
+ }
+ 
+ static m0_bcount_t file_lock_cr_len(const struct m0_rm_credit *c0)
+@@ -303,13 +322,13 @@ static m0_bcount_t file_lock_cr_len(const struct m0_rm_credit *c0)
+ 	return (m0_bcount_t) sizeof(uint64_t);
+ }
+ 
+-static int file_lock_cr_join(struct m0_rm_credit *c0,
++static int file_lock_cr_join(struct m0_rm_credit *this,
+ 			     const struct m0_rm_credit *c1)
+ {
+ 	return 0;
+ }
+ 
+-static int file_lock_cr_disjoin(struct m0_rm_credit *c0,
++static int file_lock_cr_disjoin(struct m0_rm_credit *this,
+ 				const struct m0_rm_credit *c1,
+ 				struct m0_rm_credit *intersection)
+ {
+@@ -317,53 +336,65 @@ static int file_lock_cr_disjoin(struct m0_rm_credit *c0,
+ }
+ 
+ static int file_lock_cr_copy(struct m0_rm_credit *dest,
+-			     const struct m0_rm_credit *src)
++			     const struct m0_rm_credit *this)
+ {
+-	dest->cr_datum = src->cr_datum;
+-	dest->cr_owner = src->cr_owner;
+-	dest->cr_ops = src->cr_ops;
++	M0_ASSERT(dest != NULL);
++
++	dest->cr_datum = this->cr_datum;
++	dest->cr_owner = this->cr_owner;
++	dest->cr_ops = this->cr_ops;
+ 
+ 	return 0;
+ }
+ 
+-static int file_lock_cr_diff(struct m0_rm_credit *c0,
++static int file_lock_cr_diff(struct m0_rm_credit *this,
+ 			     const struct m0_rm_credit *c1)
+ {
+-	c0->cr_datum -= c1->cr_datum;
++	M0_ASSERT(c1 != NULL);
++
++	this->cr_datum -= c1->cr_datum;
+ 	return 0;
+ }
+ 
+-static bool file_lock_cr_conflicts(const struct m0_rm_credit *c0,
++static bool file_lock_cr_conflicts(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1)
+ {
+ 	return false;
+ }
+ 
+-static bool file_lock_cr_is_subset(const struct m0_rm_credit *c0,
++static bool file_lock_cr_is_subset(const struct m0_rm_credit *this,
+ 				   const struct m0_rm_credit *c1)
+ {
+ 	return true;
+ }
+ 
+-static int file_lock_cr_encode(const struct m0_rm_credit *credit,
++static int file_lock_cr_encode(const struct m0_rm_credit *this,
+ 			      struct m0_bufvec_cursor *cur)
+ {
+-	m0_bufvec_cursor_copyto(cur, (void *)&credit->cr_datum,
+-				sizeof credit->cr_datum);
+-	return 0;
++	m0_bcount_t len;
++	m0_bcount_t cnt;
++
++	M0_ENTRY();
++	len = sizeof this->cr_datum;
++	cnt = m0_bufvec_cursor_copyto(cur, (void *)&this->cr_datum, len);
++	M0_RETURN(cnt == len ? 0 : -EINVAL);
+ }
+ 
+-static int file_lock_cr_decode(struct m0_rm_credit *credit,
++static int file_lock_cr_decode(struct m0_rm_credit *this,
+ 			       struct m0_bufvec_cursor *cur)
+ {
+-	m0_bufvec_cursor_copyfrom(cur, &credit->cr_datum,
+-				  sizeof credit->cr_datum);
+-	return 0;
++	m0_bcount_t len;
++	m0_bcount_t cnt;
++
++	M0_ENTRY();
++	len = sizeof this->cr_datum;
++	cnt = m0_bufvec_cursor_copyfrom(cur, &this->cr_datum, len);
++	M0_RETURN(cnt == len ? 0 : -EINVAL);
+ }
+ 
+-static void file_lock_cr_free(struct m0_rm_credit *credit)
++static void file_lock_cr_free(struct m0_rm_credit *this)
+ {
+-	credit->cr_datum = 0;
++	this->cr_datum = 0;
+ }
+ 
+ /** @} */ /* end internal FileLockInternal */
+diff --git a/rm/rm.c b/rm/rm.c
+index 4ef5720..44bb87f 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -2376,7 +2376,7 @@ M0_EXPORTED(m0_rm_credit_dup);
+ static int credit_copy(struct m0_rm_credit *dst, const struct m0_rm_credit *src)
+ {
+ 	M0_PRE(src != NULL);
+-	M0_PRE(dst->cr_datum == 0);
++	M0_PRE(credit_is_empty(dst));
+ 
+ 	return src->cr_ops->cro_copy(dst, src);
+ }
+diff --git a/rm/rm.h b/rm/rm.h
+index 866ee2e..7479c1f 100644
+--- a/rm/rm.h
++++ b/rm/rm.h
+@@ -432,26 +432,30 @@ struct m0_rm_credit {
+ 	uint64_t                      cr_magix;
+ };
+ 
++/**
++ * @note "this credit" in the comments below refers to the credit on which
++ * an operation is invoked.
++ */
+ struct m0_rm_credit_ops {
+ 	/**
+ 	 * Called when the generic code is about to free a credit. Type specific
+ 	 * code releases any resources associated with the credit.
+ 	 */
+-	void (*cro_free)(struct m0_rm_credit *droit);
++	void (*cro_free)(struct m0_rm_credit *_this);
+ 	/**
+-	 * Serialise a resource into a buffer.
++	 * Serialises a credit of a resource into a buffer.
+ 	 */
+-	int  (*cro_encode)(const struct m0_rm_credit *credit,
++	int  (*cro_encode)(const struct m0_rm_credit *_this,
+ 			   struct m0_bufvec_cursor *cur);
+ 	/**
+-	 * De-serialises the resource from a buffer.
++	 * De-serialises the credit of a resource from a buffer.
+ 	 */
+-	int  (*cro_decode)(struct m0_rm_credit *credit,
++	int  (*cro_decode)(struct m0_rm_credit *_this,
+ 			   struct m0_bufvec_cursor *cur);
+ 	/**
+ 	 * Return the size of the credit's data.
+ 	 */
+-	m0_bcount_t (*cro_len) (const struct m0_rm_credit *credit);
++	m0_bcount_t (*cro_len) (const struct m0_rm_credit *_this);
+ 
+ 	/** @name operations.
+ 	 *
+@@ -462,8 +466,8 @@ struct m0_rm_credit_ops {
+          */
+         /** @{ */
+         /**
+-         * @retval True, iff c0 intersects with c1.
+-	 * Credits intersect when there is some usage authorised by credit c0
++         * @retval True, iff 'this credit' intersects with c1.
++	 * Credits intersect when there is some usage authorised by credit this
+ 	 * and by credit c1.
+ 	 *
+ 	 * For example, a credit to read an extent [0, 100] (denoted R:[0, 100])
+@@ -479,28 +483,29 @@ struct m0_rm_credit_ops {
+ 	 *
+ 	 *      - !intersects(A, 0)
+ 	 */
+-        bool (*cro_intersects) (const struct m0_rm_credit *c0,
++        bool (*cro_intersects) (const struct m0_rm_credit *_this,
+                                 const struct m0_rm_credit *c1);
+         /**
+-         * @retval True if c0 is subset (or proper subset) of c1.
++         * @retval True if 'this credit' is subset (or proper subset) of c1.
+ 	 */
+-        bool (*cro_is_subset) (const struct m0_rm_credit *c0,
++        bool (*cro_is_subset) (const struct m0_rm_credit *_this,
+                                const struct m0_rm_credit *c1);
+         /**
+-         * Adjoins c1 to c0, updating c0 in place to be the sum credit.
++         * Adjoins c1 to 'this credit', updating this in place to be the sum
++         * credit.
+ 	 */
+-        int (*cro_join) (struct m0_rm_credit *c0,
++        int (*cro_join) (struct m0_rm_credit *_this,
+                           const struct m0_rm_credit *c1);
+         /**
+-         * Splits c0 into two parts - diff(c0,c1) and intersection(c0, c1)
+-	 * Destructively updates c0 with diff(c0, c1) and updates
+-	 * intersection with intersection of (c0, c1)
++         * Splits this into two parts - diff(this,c1) and intersection(this, c1)
++	 * Destructively updates 'this credit' with diff(this, c1) and updates
++	 * intersection with intersection of (this, c1)
+ 	 */
+-        int (*cro_disjoin) (struct m0_rm_credit *c0,
++        int (*cro_disjoin) (struct m0_rm_credit *_this,
+                             const struct m0_rm_credit *c1,
+ 			    struct m0_rm_credit *intersection);
+ 	/**
+-         * @retval True, iff c0 conflicts with c1.
++         * @retval True, iff 'this credit' conflicts with c1.
+ 	 * Credits conflict iff one of them authorises a usage incompatible with
+ 	 * another.
+ 	 *
+@@ -517,11 +522,11 @@ struct m0_rm_credit_ops {
+          *       it, a credit to write to a variable must always imply a credit
+          *       to read it.
+ 	 */
+-        bool (*cro_conflicts) (const struct m0_rm_credit *c0,
++        bool (*cro_conflicts) (const struct m0_rm_credit *_this,
+ 			       const struct m0_rm_credit *c1);
+         /** Difference between credits.
+ 	 *
+-	 *  The difference is a part of c0 that doesn't intersect with c1.
++	 *  The difference is a part of this that doesn't intersect with c1.
+ 	 *
+ 	 *  For example, diff(RW:[50, 150], R:[0, 100]) == RW:[101, 150].
+ 	 *
+@@ -557,16 +562,16 @@ struct m0_rm_credit_ops {
+ 	 *
+ 	 *       - intersects(A, B) iff meet(A, B) != 0.
+ 	 *
+-	 *  This function destructively updates "c0" in place.
++	 *  This function destructively updates "this" in place.
+          */
+-        int  (*cro_diff)(struct m0_rm_credit *c0,
++        int  (*cro_diff)(struct m0_rm_credit *_this,
+ 			 const struct m0_rm_credit *c1);
+ 	/** Creates a copy of "src" in "dst".
+ 	 *
+ 	 *  @pre dst is empty.
+ 	 */
+         int  (*cro_copy)(struct m0_rm_credit *dst,
+-			 const struct m0_rm_credit *src);
++			 const struct m0_rm_credit *_this);
+         /** @} end of Credits operations. */
+ };
+ 
+-- 
+1.8.3.2
+

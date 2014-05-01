@@ -1,0 +1,68 @@
+From b98b18ada5a1b8461039007acbd4d7469e72ed8e Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 9 Jun 2011 04:27:15 -0600
+Subject: [PATCH 118/177] - fixes in unlink: setattr only in case that object
+ will stay alive after unlink.
+
+---
+ mdservice/md_foms.c | 21 +++++++++------------
+ 1 file changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index a955463..641ea8f 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -379,8 +379,6 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+          * Mark name zombie, replicator will kill it later.
+          */
+         if (body->b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS) {
+-                int linkno;
+-                
+                 rc = c2_md_store_lookup(md, &pfid, req->u_name.s_buf,
+                                         req->u_name.s_len, &ncob,
+                                         tx);
+@@ -392,24 +390,23 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                         c2_cob_put(ncob);
+                         goto out;
+                 }
+-                linkno = ncob->co_nsrec.cnr_linkno;
+-                c2_cob_put(ncob);
+ 
+                 /*
+                  * Update attributes for the case object survives 
+                  * (unlink of a name).
+                  */
+-                if (linkno != 0) {
++                if (ncob->co_nsrec.cnr_linkno > 0) {
+                         rc = c2_md_store_locate(md, &tfid, &scob, 
+                                                 C2_MD_LOCATE_STORED,
+                                                 tx);
+-                        if (rc)
+-                                goto out;
+-
+-                        if (attr.ca_version > scob->co_nsrec.cnr_version)
+-                                rc = c2_md_store_setattr(md, scob, &attr, tx);
+-                        c2_cob_put(scob);
++                        if (rc == 0) {
++                                if (attr.ca_version > scob->co_nsrec.cnr_version)
++                                        rc = c2_md_store_setattr(md, scob, &attr,
++                                                                 tx);
++                                c2_cob_put(scob);
++                        }
+                 }
++                c2_cob_put(ncob);
+         } else {
+                 /*
+                  * For the case object exists or we have kill of hardlink
+@@ -430,7 +427,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                                                 req->u_name.s_buf,
+                                                 req->u_name.s_len,
+                                                 tx);
+-                        if (rc == 0)
++                        if (rc == 0 && scob->co_nsrec.cnr_nlink > 0)
+                                 rc = c2_md_store_setattr(md, scob, &attr, tx);
+                 }
+                 c2_cob_put(scob);
+-- 
+1.8.3.2
+

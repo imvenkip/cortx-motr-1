@@ -1,0 +1,126 @@
+From 43230130b4b14751dadd2287299b7928da7377f5 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 2 Jul 2013 23:46:30 +0300
+Subject: [PATCH 265/290] be: use a macro to compress tx_states definition
+
+This change makes the definition of `tx_states' concise, removing noise.
+---
+ be/tx.c | 101 ++++++++++++++--------------------------------------------------
+ 1 file changed, 21 insertions(+), 80 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 284d17c..ab5b278 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -54,87 +54,28 @@ static bool tx_state_invariant(const struct m0_sm *sm)
+ }
+ 
+ static struct m0_sm_state_descr tx_states[M0_BTS_NR] = {
+-	[M0_BTS_FAILED] = {
+-		.sd_flags     = M0_SDF_FAILURE,
+-		.sd_name      = "M0_BTS_FAILURE",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = 0
+-	},
+-	[M0_BTS_PREPARE] = {
+-		.sd_flags     = M0_SDF_INITIAL,
+-		.sd_name      = "M0_BTS_PREPARE",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_PREPARE, M0_BTS_OPENING,
+-					M0_BTS_ACTIVE, M0_BTS_FAILED),
+-	},
+-	[M0_BTS_OPENING] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BTS_OPENING",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+-	},
+-	[M0_BTS_ACTIVE] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BTS_ACTIVE",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_ACTIVE, M0_BTS_CLOSED),
+-	},
+-	[M0_BTS_CLOSED] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BTS_CLOSED",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_GROUPED),
+-	},
+-	[M0_BTS_GROUPED] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BTS_GROUPED",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_SUBMITTED),
+-	},
+-	[M0_BTS_SUBMITTED] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BTS_SUBMITTED",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_LOGGED),
+-	},
+-	[M0_BTS_LOGGED] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BTS_LOGGED",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_PLACED),
+-	},
+-	[M0_BTS_PLACED] = {
+-		.sd_flags     = 0,
+-		.sd_name      = "M0_BTS_PLACED",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = M0_BITS(M0_BTS_STABLE),
+-	},
+-	[M0_BTS_STABLE] = {
+-		.sd_flags     = M0_SDF_TERMINAL,
+-		.sd_name      = "M0_BTS_STABLE",
+-		.sd_in        = NULL,
+-		.sd_ex        = NULL,
+-		.sd_invariant = tx_state_invariant,
+-		.sd_allowed   = 0
++#define _S(name, flags, allowed)                    \
++	[name] = {                                  \
++		.sd_flags     = flags,              \
++		.sd_name      = #name,              \
++		.sd_invariant = tx_state_invariant, \
++		.sd_allowed   = allowed             \
+ 	}
++
++	_S(M0_BTS_FAILED,  M0_SDF_FAILURE, 0),
++	_S(M0_BTS_PREPARE, M0_SDF_INITIAL, M0_BITS(M0_BTS_PREPARE,
++						   M0_BTS_OPENING,
++						   M0_BTS_ACTIVE,
++						   M0_BTS_FAILED)),
++	_S(M0_BTS_OPENING,   0, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED)),
++	_S(M0_BTS_ACTIVE,    0, M0_BITS(M0_BTS_ACTIVE, M0_BTS_CLOSED)),
++	_S(M0_BTS_CLOSED,    0, M0_BITS(M0_BTS_GROUPED)),
++	_S(M0_BTS_GROUPED,   0, M0_BITS(M0_BTS_SUBMITTED)),
++	_S(M0_BTS_SUBMITTED, 0, M0_BITS(M0_BTS_LOGGED)),
++	_S(M0_BTS_LOGGED,    0, M0_BITS(M0_BTS_PLACED)),
++	_S(M0_BTS_PLACED,    0, M0_BITS(M0_BTS_STABLE)),
++	_S(M0_BTS_STABLE,    M0_SDF_TERMINAL, 0)
++#undef _S
+ };
+ 
+ static const struct m0_sm_conf tx_sm_conf = {
+-- 
+1.8.3.2
+

@@ -1,0 +1,312 @@
+From 5f010c96367c0c81663a3eb7cd442408e7547815 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 7 Feb 2014 10:43:39 +0200
+Subject: [PATCH 4/9] seg0: updated DLD.
+
+---
+ be/seg.h | 230 +++++++++++++++++++++++++++++++--------------------------------
+ 1 file changed, 113 insertions(+), 117 deletions(-)
+
+diff --git a/be/seg.h b/be/seg.h
+index 47e8a7a..2ea49f8 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -162,114 +162,78 @@ M0_INTERNAL int m0_be_reg__read(struct m0_be_reg *reg);
+ M0_INTERNAL int m0_be_reg__write(struct m0_be_reg *reg);
+ 
+ 
+-/**
+- * BE object types which can be brought up by m0_be_objects_up() and
+- * brought down by m0_be_objects_down().
+- */
+-enum m0_be_segobj_type {
+-	M0_BST_SEG,
+-	M0_BST_AD,
+-	M0_BST_COB,
+-	M0_BST_MD,
+-	M0_BST_BALLOC,
+-	M0_BST_NR,
+-};
++/** seg0 object type. */
++struct m0_be_0type {
+ 
+-enum {
+-	M0_BE_SEGOBJ_OPT_NAME_MAX   = 128,
+-	M0_BE_SEGOBJ_OPT_VALUE_MAX  = 2048,
+-};
++	/** unique prefix: "SEG", "LOG", "AD", "MD", etc. */
++	const char  *b0_name;
+ 
+-/**
+- * Options which are read and used while concrete BE-object
+- * initialization process.
+- *
+- * @note options format is choosen to be string based because it'll be
+- * much easier to implement the utility which preares seg0 with such format.
+- */
+-struct m0_be_segobj_opt {
+ 	/**
+-	 * Name of the option, format: "type : name".
+-	 * type is of:
+-	 * 'i' for int types
+-	 * 'u' for usigned types
+-	 * 'p' for pointers
+-	 * 's' for strings
+-	 * examples: "s:abrakadabra", "p:mds", "i:abs-zero", "u:absolute-answer"
+-	 * @note: types are used for redundancy and error checking.
++	 * Initialisation call-back invoked by BE when seg0 is loaded. This
++	 * call-back sets volatile BE-related parameters according to given
++	 * @data, which stores options. These options describe BE-objects
++	 * configuration. For example options may have an information that
++	 * mdservice related trees are stored inside segment with #0102 id.
++	 *
++	 * @note after b0_init() call there's no need for concrete modules, like
++	 * balloc or adstob to access segment dictionary.
++	 *
++	 * @param suffix distinguishes multiple instances of the same type,
++	 * e.g., M0_BE:SEG1, M0_BE:SEG2.
++	 *
++	 * @param data is an opaque pointer and size to the options
++	 *             this type needs to perform startup.
+ 	 */
+-	char so_opt_name[M0_BE_SEGOBJ_OPT_NAME_MAX];
++	int       (*b0_init)(const struct m0_be_domain *dom, const char *suffix,
++			     const struct m0_buf *data);
+ 
+-	/**
+-	 * Values of the option are read with sscanf(3) so they have
+-	 * to be prepared respectively.
+-	 * example corresponding to @so_opt_name doc:
+-	 * "magic", "0xcafebabe8badf00d", "-273", "42"
+-	 */
+-	char so_opt_value[M0_BE_SEGOBJ_OPT_VALUE_MAX];
++	void      (*b0_fini)(const struct m0_be_domain *dom, const char *suffix,
++			     const struct m0_buf *data);
++
++	/** linkage in a list of 0types into m0_be_domain. */
++	struct m0_tl b0_linkage;
+ };
+ 
+ /**
+- * Description of BE-object to bring up while initial seg0 load procedure.
+- * @note this structure is stored as a value for keys in seg0 dictionary.
++ * Registers new 0type.
+  */
+-struct m0_be_segobj_desc {
+-	/**
+-	 * After be_obj_up() is called on the desc, this pointer has to be set
+-	 * up on initialized be object. Different tiers of hierarchy depend one
+-	 * from other and such pointers can be needed to start up a dependent
+-	 * be-object.
+-	 */
+-	void                    *sd_obj;
+-
+-	enum m0_be_segobj_type   sd_type;
+-	unsinged                 sd_opts_nr;
+-	struct m0_be_segobj_opt  sd_opts[];
+-};
+-
++void m0_be_0type_register(struct m0_be_domain *dom, struct m0_be_0type *zt);
+ /**
+- * Loads seg0, then according to the metadata stored in seg0 dictionary, loads
+- * and brings other BE-objects up by calling corresponding functions.
+- *
+- * @param dom       domain to which seg0 and corresponding BE-objects are
+- *		    being bound.
+- * @param stob_dir  path to dir where seg0 stob lives.
+- * @param stob_id   seg0 stob id.
+- *
++ * Adds a record about 0type instance to the seg0 dictionary.
+  */
+-M0_INTERNAL int m0_be_objects_up(struct m0_be_domain *dom,
+-				 const char *stob_dir,
+-				 const struct m0_stob_id *stob_id);
+-
++int  m0_be_0type_add(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		     const char *suffix, const struct m0_buf *data);
+ /**
+- * Complementary to m0_be_objects_up().
++ * Deletes a record about 0type instance from the seg0 dictionary.
+  */
+-M0_INTERNAL void m0_be_objects_down(struct m0_be_domain *dom);
++int  m0_be_0type_del(struct m0_be_0type *zt, struct m0_be_tx *tx,
++		     const char *suffix);
+ 
+ /**
+  * <hr> <!------------------------------------------------------------>
+- * @section seg0-metadata Meta-segment (seg0), format and systematic BE storage startup.
++ * @section seg0-metadata Meta-segment (seg0), systematic BE storage startup.
+  * <b>Overview.</b>
+  *
+  * Seg0 stores an information to bring all BE subsystems up. It may include
+  * different hierarchies of objects which have to be brought up and initialized
+  * systematically. So the goal of metadata is to store an information which is
+- * used to specify and order and some options for BE subsystem initialization
++ * used to specify an order and some options for BE subsystem initialization
+  * and startup.
+  *
+  * It's supposed that BE objects like segment or different structures stored
+- * inside it, like COB, have no mutual dependencies, so the initialization order
+- * and metadata may have trivial format.
++ * inside it, have no mutual dependencies, so the initialization order and
++ * metadata may have trivial format.
+  *
+  * It's assumed that different BE objects of the same type can be brought up
+  * independently. This assumption makes initialization routines straightforward.
+  *
+- * Concrete BE object initialization depends on a tier of BE-objects which have
+- * to be started before it. Type of this object (in enum m0_be_segobj_type) has
+- * to be placed after types from which initialization of this object depends on.
++ * Concrete BE-object initialization depends on a tier of BE-objects which have
++ * to be started before it. Type of this object has to be registered after types
++ * from which initialization of this object depends on.
++ *
++ * The hierarchiy below has the following startup ordering: M0_BE:SEG,
++ * M0_BE:COB, M0_BE:MDS, M0_BE:AD, M0_BE:BALLOC.
+  *
+- * The hierarchiy below may have the following types ordering:
+- * enum { SEG, COB, MDS, AD, BALLOC, NR }
+  * @dot
+  *  digraph conf_fetch_phase {
+  *      node [fontsize=9];
+@@ -301,67 +265,99 @@ M0_INTERNAL void m0_be_objects_down(struct m0_be_domain *dom);
+  *  }
+  * @enddot
+  *
++ * <b> Highlights </b>
++ *
++ * - While BE initialization, seg0 dictionary is scanned for a special records
++ *   started with "M0_BE:". Values of these records are structures which have a
++ *   special m0_be_0type stored inside, which is extracted and
++ *   m0_be_0type::b0_init() is called on every such type. Metadata associated
++ *   with m0_be_0type is not somehow related to confd but it can be node- or
++ *   segment- related.
++ *
++ * - m0_be_0type::b0_init() initializes BE-internal objects like all segments
++ *   and log and the sets volatile-only variables inside other subsystems for which
++ *   m0_be_0types are defined.
++ *
++ * - In cases when subsystem needs to change one of its configuration parameters
++ *   it calls  m0_be_0type_add() to peform changes in seg0 dictionary.
++ *
++ * <b> BE domain initialization </b>
++ *
++ * mkfs.be would use m0_be_0type_add() to populate the seg0 dictionary. BE
++ * domain initialisation has to be split in 2 levels (in lib/module.h sense):
++ *
++ * @code
++ * // level n
++ * m0_be_domain_init(&dom);
++ * m0_be_0type_register(&dom, foo);
++ * m0_be_0type_register(&dom, bar);
++ *
++ * // level m (m > n)
++ * dom.seg0_stob = stob;
++ * m0_be_domain_start(&dom);
++ * @endcode
++ *
++ * <b>BE-internal objects: segments and log</b>
++ *
++ * Segments and log configuration options are stored inside seg0. Initialization
++ * of these BE objects are more than just their volatile-only fields assignment and
++ * it includes corresponding m0_stob lookup and steps needed to bring on-disk
++ * and in-memory parts of these objects up.
++ *
++ * To perform such startup sequences the following functions are used for all
++ * segments: m0_be_seg_init(), m0_be_seg_open(); and for log: m0_be_log_init(),
++ * m0_be_log_open().  Accoringly to given interfaces, each segment has to have
++ * the following set of metadata options: underlying stob options, domain
++ * options, segment options; and log should have the following: underlying stob
++ * options.
++ *
+  * <b> Metadata format </b>
+  * Related metadata is stored inside seg0 dictionary and retrieved from it by
+  * iteration of all records in dictionary with predefined prefix in its
+  * keys (@todo dictionary has to be updated a little bit to do this).
+- * Format of the key is the following: "{ prefix } { separator } { beobj name }"
++ * Format of the key is the following:
++ * "{ prefix } { separator } { 0type } { objname }"
+  * Example: "M0_BE:COB1"
+  *
+- * The value of such dictionary record contains object type which is being
+- * broguht up and options which is used to configure this BE-object.
++ * The value of such dictionary record contains struct m0_buf representing a
++ * pointer and size of an object which is being brought up. It has to be casted
++ * inside concrete ->b0_init() and used as options for concrete m0_be_0type to
++ * perform initialization.
+  *
+- * As it was noted, options in m0_be_segobj_desc are strings for convenience.
+  *
+  * <b>BE-object startup pseudocode (top-level).</b>
+  *
+  * @code
+  * struct m0_be_domain      *dom = ...;
+  *
+- * struct m0_be_segobj_desc *desc;
+- * enum m0_be_segobj_type    objtype;
++ * struct m0_buf      *opt;
++ * struct m0_be_0type *objtype;
+  *
+- * for (objtype = 0; objtype < M0_BST_NR; ++objtype) {
+- *      for (desc = segobj_desc_begin(dict, objtype);
+- *           desc != NULL && rc != 0;
+- *           desc = segobj_desc_next(dict, desc, objtype))
+- * 		rc = be_obj_up(dom, desc);
+- * }
++ *  m0_tlist_for(&be_0type_list, &dom->bd_0types, objtype) {
++ *      for (opt = segobj_opt_begin(dict, objtype);
++ *           opt != NULL && rc != 0;
++ *           opt = segobj_opt_next(dict, opt, objtype))
++ *              rc = be_obj_up(dom, opt);
++ * } m0_tlist_endfor;
+  * @endcode
+  *
+  * <b>Iterator-like interface used while startup.</b>
+  * @code
+- * const struct m0_be_segobj_desc *segobj_desc_begin(
+- * 	const struct m0_be_seg *dict,
+- * 	enum m0_be_segobj_type objtype);
+- *
+- * const struct m0_be_segobj_desc *segobj_desc_next(
+- * 	const struct m0_be_seg *dict,
+- * 	const struct m0_be_segobj_desc *desc,
+- * 	enum m0_be_segobj_type objtype);
++ * const struct m0_buf *segobj_opt_begin(const struct m0_be_seg   *dict,
++ *                                       const struct m0_be_0type *objtype);
++ *
++ * const struct m0_buf *segobj_opt_next(const struct m0_be_seg    *dict,
++ *                                      const struct m0_be_buf    *opt,
++ *                                      const struct m0_be_0type  *objtype);
+  * @endcode
+  *
+  * <b>Pseudocode bringing BE-object up.</b>
+  * @code
+- * int be_obj_up(struct m0_be_domain *dom, struct m0_be_segobj_desc *desc)
++ * int be_obj_up(struct m0_be_domain *dom, struct m0_be_buf *opt)
+  * {
+- * 	enum m0_be_segobj_type    type = desc->sd_type;
+- * 	struct m0_be_segobj_opt  *opts = &desc->sd_opts;
+- * 	unsigned                  nr   = &desc->sd_opts_nr;
+- *
+- *      // seg_up(),  ad_up(), cob_up(),  md_up(), bal_up() are used to bring up
+- *      // different be object hierarchies.
+- *
+- * 	switch (type) {
+- * 	case M0_BST_SEG    : return seg_up(dom, &opts, nr);
+- * 	case M0_BST_AD     : return  ad_up(dom, &opts, nr);
+- * 	case M0_BST_COB    : return cob_up(dom, &opts, nr);
+- * 	case M0_BST_MD     : return  md_up(dom, &opts, nr);
+- * 	case M0_BST_BALLOC : return bal_up(dom, &opts, nr);
+- * 	default:
+- * 		M0_IMPOSSIBLE("invalid object type");
+- * 	}
+- * 	return -EINVAL;
++ *      char suffix[] = ...;
++ *
++ *      return type->b0_init(dom, suffix, opt);
+  * }
+  * @endcode
+  *
+-- 
+1.8.3.2
+

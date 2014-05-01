@@ -1,0 +1,441 @@
+From 29d7e6787fa6f556a77a91c07cf190cec52deffd Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 16 Mar 2011 04:15:24 -0600
+Subject: [PATCH 022/177] - some fixes in cob after inspections.
+
+---
+ cob/cob.c    |  65 +++---------------------------------
+ cob/cob.h    | 107 +++++++++++++++++++++++++++++++++++++----------------------
+ mdstore/md.c |  50 ++++++++++++++++++++++++++--
+ 3 files changed, 120 insertions(+), 102 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index cca28c6..f2d2720 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -199,7 +199,6 @@ static void cob_init(struct c2_cob_domain *dom, struct c2_cob *cob)
+         cob->co_dom = dom;
+ 	c2_ref_init(&cob->co_ref, 1, cob_free_cb);
+ 	C2_SET0(&cob->co_fid);
+-        c2_rwlock_init(&cob->co_guard);
+         cob->co_valid = 0;
+ 	c2_addb_ctx_init(&cob->co_addb, &c2_cob_addb, &dom->cd_addb);
+ }
+@@ -211,7 +210,6 @@ static void cob_fini(struct c2_cob *cob)
+         else if (cob->co_valid & CA_NSKEY_DB)
+                 c2_db_pair_fini(&cob->co_oipair);
+ 
+-	c2_rwlock_fini(&cob->co_guard);
+ 	c2_addb_ctx_fini(&cob->co_addb);
+ }
+ 
+@@ -404,31 +402,10 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
+ }
+ 
+ /**
+-   Check if a cob with this name is in the cache
+-
+-   This takes a cob reference if the cob is found in the cache.
+-   Returns -ENOENT if not in cache.
+-
+-   @see cob_cache_oicheck
+- */
+-static int cob_cache_nscheck(struct c2_cob_domain *dom,
+-                             const struct c2_cob_nskey *nskey,
+-                             struct c2_cob **out)
+-{
+-        /* 
+-         * @todo: implement a cache for cobs and check if the cob with
+-         * this nskey is in the cache. 
+-         */
+-        return -ENOENT;
+-}
+-
+-/**
+    Lookup a filename in the namespace table.
+ 
+-   Check if cached first; otherwise create a new cob and populate it with
+-   the contents of the namespace record; i.e. the stat data and fid.
+-
+-   The stat data and the namespace key (filename) may be cached.
++   Create a new cob and populate it with the contents of the namespace
++   record; i.e. the stat data and fid.
+ 
+    This lookup adds a reference to the cob.
+ 
+@@ -439,18 +416,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
+                   uint64_t need, struct c2_cob **out, struct c2_db_tx *tx)
+ {
+         struct c2_cob *cob;
+-        int rc;
+-
+-        rc = cob_cache_nscheck(dom, nskey, out);
+-        if (rc == 0) {
+-                /*
+-                 * Cached, we took ref above. But we do need to free nskey
+-                 * if they asked. 
+-                 */
+-                if (need & CA_NSKEY_FREE)
+-                        c2_free(nskey);
+-                return 0;
+-        }
++        int            rc;
+ 
+         rc = c2_cob_alloc(dom, &cob);
+         if (rc)
+@@ -487,27 +453,10 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
+ }
+ 
+ /**
+-   Check if a cob with this fid is in the cache
+-
+-   This takes a cob reference if the cob is found in the cache.
+-   @see cob_cache_nscheck
+- */
+-static int cob_cache_oicheck(struct c2_cob_domain *dom,
+-                             struct c2_cob_oikey *oikey, 
+-                             struct c2_cob **out)
+-{
+-        /* 
+-         * @todo: implement a cache for cobs and check if the cob with this
+-         * oi is in the cache. 
+-        */
+-        return -ENOENT;
+-}
+-
+-/**
+    Locate by object index key
+ 
+-   Check if cached first; otherwise create a new cob and populate it with
+-   the contents of the oi record; i.e. the filename.
++   Otherwise create a new cob and populate it with the contents of the oi
++   record; i.e. the filename.
+ 
+    This lookup adds a reference to the cob.
+  */
+@@ -519,10 +468,6 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
+ 
+         C2_PRE(c2_fid_is_set(&oikey->cok_fid));
+ 
+-        rc = cob_cache_oicheck(dom, oikey, out);
+-        if (rc == 0)
+-                return 0;
+-
+         /* Get cob memory. */
+         rc = c2_cob_alloc(dom, &cob);
+         if (rc)
+diff --git a/cob/cob.h b/cob/cob.h
+index 062deda..2c3eb7e 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -67,9 +67,6 @@ struct c2_cob_domain_id {
+    A c2_cob_domain cannot span multiple containers.  Eventually, there should
+    be methods for combining/splitting containers and therefore cob
+    domains and databases.
+-
+-   A domain might cache component objects to speed up object lookup.
+-   This caching is not visible to upper layers.
+ */
+ struct c2_cob_domain {
+         struct c2_cob_domain_id cd_id;
+@@ -81,7 +78,7 @@ struct c2_cob_domain {
+         struct c2_table         cd_fileattr_omg;
+ 
+         /** 
+-           an ADDB context for events related to this domain. 
++           An ADDB context for events related to this domain. 
+         */
+         struct c2_addb_ctx      cd_addb;
+ };
+@@ -92,8 +89,7 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom);
+ 
+ 
+ /** 
+-   Namespace table.
+-   For data objects, pfid = cfid and name = ""
++   Namespace table. For data objects, pfid = cfid and name = ""
+  */
+ struct c2_cob_nskey {
+         struct c2_fid       cnk_pfid;
+@@ -105,8 +101,12 @@ int c2_cob_nskey_size(const struct c2_cob_nskey *nskey);
+ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0, 
+                      const struct c2_cob_nskey *k1);
+ 
++/**
++   Namespace table record. Zero record contains file attributes,
++   may be called stat data.
++*/
+ struct c2_cob_nsrec {
+-        struct c2_fid     cnr_fid;
++        struct c2_fid     cnr_fid;     /**< object fid */
+         uint32_t          cnr_linkno;  /**< number of link for the name */
+ 
+         uint64_t          cnr_ino;     /**< inode number. */
+@@ -117,21 +117,24 @@ struct c2_cob_nsrec {
+                 uint32_t  cnr_rdev;    /**< device ID (if special file). */
+                 uint64_t  cnr_size;    /**< total size, in bytes. */
+         } u;
+-        uint32_t          cnr_blksize; /**< blocksize for filesystem I/O. */
+-        uint32_t          cnr_blocks;  /**< number of blocks allocated. */
+-        uint32_t          cnr_atime;   /**< time of last access. */
+-        uint32_t          cnr_mtime;   /**< time of last modification. */
+-        uint32_t          cnr_ctime;   /**< time of last status change. */
++
++        uint64_t          cnr_blksize; /**< blocksize for filesystem I/O. */
++        uint64_t          cnr_blocks;  /**< number of blocks allocated. */
++        uint64_t          cnr_atime;   /**< time of last access. */
++        uint64_t          cnr_mtime;   /**< time of last modification. */
++        uint64_t          cnr_ctime;   /**< time of last status change. */
+ };
+ 
+-/** Object index table */
++/** Object index table key. */
+ struct c2_cob_oikey {
+         struct c2_fid     cok_fid;
+         uint32_t          cok_linkno;  /**< hardlink ordinal index */
+ };
+ 
++/** The oi table record is a struct c2_cob_nskey. */
++
+ /** 
+-   Fileattr_basic table key is fid
++   Fileattr_basic table key is c2_cob_oikey
+ 
+    @note version change at every ns manipulation and data write.
+    If version and mtime/ctime both change frequently, at the same time,
+@@ -148,6 +151,10 @@ struct c2_cob_fabrec {
+         /* add ACL, any other md not needed for stat(2) */
+ };
+ 
++/**
++   Protection and access flags stored in this table.
++   @note c2_cob_oikey is key for this table.
++*/
+ struct c2_cob_omgrec {
+         uint32_t          cor_mode;    /**< protection. */
+         uint32_t          cor_uid;     /**< user ID of owner. */
+@@ -161,11 +168,14 @@ struct c2_cob_omgrec {
+    table lookups.  The c2_cob may be cached and should be protected by a lock.
+ 
+    The exposed methods to get a new cob are:
+-   - c2_cob_lookup   (lookup by filename)
+-   - c2_cob_locate   (lookup by stob_id)
+-   - c2_cob_create(stob_id, filename, attrs)
++   - c2_cob_lookup() - lookup by filename
++   - c2_cob_locate() - lookup by fid
++   - c2_cob_create() - create new cob using passed nskey, nsrec and attrbutes
+    The cobs returned by these methods are always populated.
+-   An "empty" cob is never exposed.
++   
++   An empty cob is only exposed with c2_cob_alloc() method, which is used
++   by request handler and (possibly) others. Such a cob is used as an input
++   parameter to c2_cob_create() method.
+ 
+    Users use c2_cob_get/put to hold references; the cob may be destroyed on
+    the last put, or it may be cached for faster future lookup.
+@@ -180,30 +190,45 @@ struct c2_cob_omgrec {
+    operations can be executed on persistent storage by calling functions on
+    c2_cob;
+ 
+-   - it caches certain metadata attributes in memory.
++   - it caches certain metadata attributes in memory for short period of time
++   that may be used in same thread.
+ 
+    <b>Concurrency control</b>
+-   co_guard is used to protect agaist manipulation of data inside a
+-   c2_cob (currently not used as there are no manipulation methods yet).
++   No concurrency control is needed as the same cob instance cannot be accessed
++   by more than one thread simultaneously as there is no method to find a cob
++   that has already been returned. c2_cob_locate() and c2_cob_lookup() return
++   new allocated cobs to the caller even oikey and nskey used are the same.
++   
++   Concurrent thread will be blocked anyways on db[45] transaction untill it
++   is committed.
+ 
+    <b>Liveness</b>
+    A c2-cob may be freed when the reference count drops to 0
+ 
+-   @note: The c2_nskey is allocated separately because it is variable length.
+-   Once allocated, the cob can free the memory by using CA_NSKEY_FREE.
++   @note: The c2_cob_nskey is allocated separately because it is variable
++   length. Once allocated, the cob can free the memory by using CA_NSKEY_FREE.
++   
++   <b>Caching</b>
++   Cobs are not cached cob domain or even cob API users. Rationale is the
++   following:
++   
++   - we use db[45] for storing metadata and it already has cache that may work
++   in a way that satisfies our needs;
++   
++   - using cache means substantial complications with locking and concurrent
++   access. Currently these issues are completely covered by db[45].
+  */
+ struct c2_cob {
+         struct c2_cob_domain  *co_dom;
+         struct c2_stob        *co_stob;    /**< underlying storage object */
+         struct c2_ref          co_ref;     /**< refcounter for caching cobs */
+-        struct c2_rwlock       co_guard;   /**< lock on cob manipulation */
+         uint64_t               co_valid;   /**< @see enum ca_valid */
+         struct c2_verno        co_version; /**< current object version */
+         struct c2_cob_nskey   *co_nskey;   /**< pfid, filename */
+         struct c2_cob_oikey    co_oikey;   /**< tfid, linkno */
+         struct c2_cob_nsrec    co_nsrec;   /**< fid, stat data */
+         struct c2_cob_fabrec   co_fabrec;  /**< fileattr_basic data */
+-        struct c2_cob_omgrec   co_omgrec;  /**< fileattr_basic data */
++        struct c2_cob_omgrec   co_omgrec;  /**< permission data */
+         struct c2_db_pair      co_oipair;
+ 	struct c2_addb_ctx     co_addb;
+ };
+@@ -214,20 +239,20 @@ struct c2_cob {
+    Cob flags and valid attributes 
+ */
+ enum ca_valid {
+-        CA_NSKEY      = (1 << 0),
++        CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
+         CA_NSKEY_FREE = (1 << 1),  /**< cob responsible for dealloc of nskey */
+         CA_NSKEY_DB   = (1 << 2),  /**< db responsible for dealloc of nskey */
+-        CA_NSREC      = (1 << 3),
+-        CA_FABREC     = (1 << 4),
+-        CA_OMGREC     = (1 << 5),
+-        CA_LAYOUT     = (1 << 6),
++        CA_NSREC      = (1 << 3),  /**< nsrec in cob is up-to-date */
++        CA_FABREC     = (1 << 4),  /**< fabrec in cob is up-to-date */
++        CA_OMGREC     = (1 << 5),  /**< omgrec in cob is up-to-date */
++        CA_LAYOUT     = (1 << 6),  /**< layout in cob is up-to-date */
+ };
+ 
+ /**
+    Lookup a filename in the namespace table
+ 
+-   Check if cached first; otherwise create a new cob and populate it with
+-   the contents of the namespace record; i.e. the stat data and fid.
++   Allocate a new cob and populate it with the contents of the
++   namespace record; i.e. the stat data and fid.
+ 
+    @see c2_cob_locate
+  */
+@@ -240,12 +265,11 @@ int c2_cob_lookup(struct c2_cob_domain *dom,
+ /**
+    Locate by object index key.
+ 
+-   Check if cached first; otherwise create a new cob and populate it with
+-   the contents of the oi record; i.e. the filename.
+-
+-   This does not lookup file attributes.
++   Create a new cob and populate it with the contents of the
++   oi record; i.e. the filename. This also lookups for all attributes,
++   that is, fab, omg, etc.
+ 
+-    @see c2_cob_lookup
++   @see c2_cob_lookup
+  */
+ int c2_cob_locate(struct c2_cob_domain    *dom, 
+                   struct c2_cob_oikey     *oikey,
+@@ -257,6 +281,8 @@ int c2_cob_locate(struct c2_cob_domain    *dom,
+ 
+    This doesn't create a new storage object; just creates
+    metadata table entries for it to enable namespace and oi lookup.
++   
++   @note first argument cob is allocated with c2_cob_alloc()
+  */
+ int c2_cob_create(struct c2_cob_cob    *cob,
+                   struct c2_cob_nskey  *nskey,
+@@ -267,8 +293,8 @@ int c2_cob_create(struct c2_cob_cob    *cob,
+                   struct c2_db_tx      *tx);
+ 
+ /**
+-   Delete name with statdata, entry in object index and file
+-   attributes.
++   Delete name with statdata, entry in object index and all file
++   attributes from fab, omg, etc., tables.
+ */
+ int c2_cob_delete(struct c2_cob *cob, 
+                   struct c2_db_tx *tx);
+@@ -283,7 +309,8 @@ int c2_cob_update(struct c2_cob *cob,
+                   struct c2_db_tx *tx);
+ 
+ /**
+-   Update file attributes of passed cob with @nsrec fields.
++   Update file attributes of passed cob with @nsrec, @fabrec 
++   and @omgrec fields.
+ */
+ int c2_cob_setattr(struct c2_cob        *cob,
+                    struct c2_cob_nsrec  *nsrec,
+diff --git a/mdstore/md.c b/mdstore/md.c
+index 14ee776..414eea5 100644
+--- a/mdstore/md.c
++++ b/mdstore/md.c
+@@ -29,7 +29,6 @@ static int md_store_create_execute(struct c2_fop *fop, struct c2_fop_ctx *ctx)
+         struct c2_md_store       *md;
+         struct c2_cob            *cob;
+         struct c2_fop_create     *req;
+-        struct c2_fop_create_rep *rep = NULL;
+         int                       rc;
+ 
+         site = ctx->ft_site;
+@@ -52,14 +51,61 @@ static int md_store_create_execute(struct c2_fop *fop, struct c2_fop_ctx *ctx)
+         return rc;
+ }
+ 
++static void md_store_create_free(struct c2_fop *fop)
++{
++        struct c2_fop_create *req;
++
++        req = c2_fop_data(fop);
++        c2_free(req->c_name.n_name);
++}
++
+ static struct c2_fop_type_ops md_create_ops = {
+         .fto_execute = md_store_create_execute,
+ 	.fto_free    = md_store_create_free
+ };
+ 
++static int md_store_open_execute(struct c2_fop *fop, struct c2_fop_ctx *ctx)
++{
++        struct c2_site           *site;
++        struct c2_md_store       *md;
++        struct c2_cob            *cob;
++        struct c2_fop_open       *req;
++        struct c2_fop_cob        *body;
++        struct c2_cob_oikey       oikey;
++        int                       rc;
++
++        site = ctx->ft_site;
++        C2_ASSERT(site != NULL);
++
++        md = site->s_md;
++        C2_ASSERT(md != NULL);
++        
++        rc = c2_fop_fol_rec_add(fop, ctx->ft_fol, ctx->ft_tx);
++        ADDB_CALL("fol_open", rc);
++        if (rc == 0) {
++                req = c2_fop_data(fop);
++                body = &req->o_body;
++
++                md_store_make_oikey(&oikey, &body->b_tfid, 0);
++
++                rc = c2_cob_locate(&md->md_cob, &oikey, &cob, ctx->ft_tx);
++                if (rc == -ENOENT) {
++                        /*
++                         * @todo: create file is open mode says so.
++                         */
++                } else if (rc) {
++                        return rc;
++                }
++        
++                rc = c2_md_store_open(md, cob, req, NULL, ctx);
++                ADDB_CALL("md_store_open", rc);
++                c2_cob_put(cob);
++        }
++        return rc;
++}
+ static struct c2_fop_type_ops md_open_ops = {
+         .fto_execute = md_store_open_execute,
+-	.fto_free    = md_store_open_free
++        .fto_free    = NULL
+ };
+ 
+ static struct c2_fop_type_ops md_close_ops = {
+-- 
+1.8.3.2
+

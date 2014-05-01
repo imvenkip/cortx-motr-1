@@ -1,0 +1,203 @@
+From a52dcb76ca31d59f8e1fa96df1f31d53d9452aa6 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 16 Feb 2014 18:58:34 +0200
+Subject: [PATCH 81/96] be/fl: resize() removed
+
+---
+ be/alloc.c | 41 +++++++++++++++++++++++++----------------
+ be/fl.c    | 14 --------------
+ be/fl.h    |  5 -----
+ be/ut/fl.c | 17 +++--------------
+ 4 files changed, 28 insertions(+), 49 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 43d611c..0d3c07e 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -345,6 +345,19 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
+ 	return new;
+ }
+ 
++static void be_alloc_chunk_resize(struct m0_be_allocator *a,
++				  struct m0_be_tx *tx,
++				  struct be_alloc_chunk *c,
++				  m0_bcount_t new_size)
++{
++	if (c->bac_free)
++		m0_be_fl_del(&a->ba_fl, tx, c);
++	c->bac_size = new_size;
++	if (c->bac_free)
++		m0_be_fl_add(&a->ba_fl, tx, c);
++	be_alloc_size_capture(a, tx, c);
++}
++
+ static struct be_alloc_chunk *
+ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 		     struct m0_be_tx *tx,
+@@ -381,14 +394,8 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 	if (chunk0_size <= chunk_sizeof) {
+ 		/* no space for chunk0 */
+ 		if (prev != NULL) {
+-			/* XXX refactor next if as func */
+-			if (prev->bac_free) {
+-				m0_be_fl_resize(&a->ba_fl, tx, prev,
+-						prev->bac_size + chunk0_size);
+-			} else {
+-				prev->bac_size += chunk0_size;
+-			}
+-			be_alloc_size_capture(a, tx, prev);
++			be_alloc_chunk_resize(a, tx, prev,
++					      prev->bac_size + chunk0_size);
+ 		} else
+ 			; /* space before the first chunk is temporary lost */
+ 	} else {
+@@ -404,8 +411,8 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
+ 
+ 	if (chunk1_size <= chunk_sizeof) {
+ 		/* no space for chunk1 */
+-		new->bac_size += chunk1_size;
+-		be_alloc_size_capture(a, tx, new);
++		be_alloc_chunk_resize(a, tx, new,
++				      new->bac_size + chunk1_size);
+ 	} else {
+ 		be_alloc_chunk_add_after(a, tx, new,
+ 					 0, chunk1_size, true);
+@@ -461,8 +468,7 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
+ 	if (x != NULL && y != NULL && x->bac_free && y->bac_free) {
+ 		y_size_total = sizeof *y + y->bac_size;
+ 		be_alloc_chunk_del_fini(a, tx, y);
+-		m0_be_fl_resize(&a->ba_fl, tx, x, x->bac_size + y_size_total);
+-		be_alloc_size_capture(a, tx, x);
++		be_alloc_chunk_resize(a, tx, x, x->bac_size + y_size_total);
+ 		chunks_were_merged = true;
+ 	}
+ 	M0_POST(ergo(x != NULL, be_alloc_chunk_invariant(a, x)));
+@@ -576,6 +582,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	struct m0_be_tx_credit chunk_add_after_credit = {};
+ 	struct m0_be_tx_credit chunk_del_fini_credit = {};
+ 	struct m0_be_tx_credit chunk_trymerge_credit = {};
++	struct m0_be_tx_credit chunk_resize_credit = {};
+ 	struct m0_be_tx_credit cred_mark_free = {};
+ 	struct m0_be_tx_credit cred_split = {};
+ 	struct m0_be_tx_credit mem_zero_credit = {};
+@@ -615,13 +622,15 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	m0_be_fl_credit(&a->ba_fl, M0_BFL_DEL, &tmp);
+ 	chunk_del_fini_credit = tmp;
+ 
++	m0_be_fl_credit(&a->ba_fl, M0_BFL_DEL, &chunk_resize_credit);
++	m0_be_fl_credit(&a->ba_fl, M0_BFL_ADD, &chunk_resize_credit);
++	m0_be_tx_credit_add(&chunk_resize_credit, &cred_chunk_size);
++
+ 	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_del_fini_credit);
+-	m0_be_fl_credit(&a->ba_fl, M0_BFL_RESIZE, &chunk_trymerge_credit);
+-	m0_be_tx_credit_add(&chunk_trymerge_credit, &cred_chunk_size);
++	m0_be_tx_credit_add(&chunk_trymerge_credit, &chunk_resize_credit);
+ 
+ 	m0_be_tx_credit_add(&cred_split, &chunk_del_fini_credit);
+-	m0_be_fl_credit(&a->ba_fl, M0_BFL_RESIZE, &cred_split);
+-	m0_be_tx_credit_mac(&cred_split, &cred_chunk_size, 2);
++	m0_be_tx_credit_mac(&cred_split, &chunk_resize_credit, 2);
+ 	m0_be_tx_credit_mac(&cred_split, &chunk_add_after_credit, 3);
+ 
+ 	m0_be_tx_credit_add(&cred_mark_free, &cred_free_flag);
+diff --git a/be/fl.c b/be/fl.c
+index 28bd164..8957b06 100644
+--- a/be/fl.c
++++ b/be/fl.c
+@@ -156,16 +156,6 @@ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl *fl,
+ 	M0_POST_EX(m0_be_fl__invariant(fl));
+ }
+ 
+-M0_INTERNAL void m0_be_fl_resize(struct m0_be_fl *fl,
+-				 struct m0_be_tx *tx,
+-				 struct be_alloc_chunk *chunk,
+-				 m0_bcount_t size)
+-{
+-	m0_be_fl_del(fl, tx, chunk);
+-	chunk->bac_size = size;
+-	m0_be_fl_add(fl, tx, chunk);
+-}
+-
+ /** find empty chunk with size at least 'size' */
+ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
+ 						 m0_bcount_t size)
+@@ -226,10 +216,6 @@ M0_INTERNAL void m0_be_fl_credit(struct m0_be_fl *fl,
+ 		m0_be_list_credit(be_fl_list(fl, 0), M0_BLO_TLINK_DESTROY, 1,
+ 				  accum);
+ 		break;
+-	case M0_BFL_RESIZE:
+-		m0_be_fl_credit(fl, M0_BFL_DEL, accum);
+-		m0_be_fl_credit(fl, M0_BFL_ADD, accum);
+-		break;
+ 	default:
+ 		M0_ASSERT_INFO(false, "fl_op = %d", fl_op);
+ 	}
+diff --git a/be/fl.h b/be/fl.h
+index a807663..1283eea 100644
+--- a/be/fl.h
++++ b/be/fl.h
+@@ -45,7 +45,6 @@ enum m0_be_fl_op {
+ 	M0_BFL_DESTROY,
+ 	M0_BFL_ADD,
+ 	M0_BFL_DEL,
+-	M0_BFL_RESIZE,
+ };
+ 
+ /** m0_be free list for some size of chunks */
+@@ -77,10 +76,6 @@ M0_INTERNAL void m0_be_fl_add(struct m0_be_fl *fl,
+ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl *fl,
+ 			      struct m0_be_tx *tx,
+ 			      struct be_alloc_chunk *chunk);
+-M0_INTERNAL void m0_be_fl_resize(struct m0_be_fl *fl,
+-				 struct m0_be_tx *tx,
+-				 struct be_alloc_chunk *chunk,
+-				 m0_bcount_t size);
+ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
+ 						 m0_bcount_t size);
+ 
+diff --git a/be/ut/fl.c b/be/ut/fl.c
+index 366fa29..a4a5f9e 100644
+--- a/be/ut/fl.c
++++ b/be/ut/fl.c
+@@ -62,8 +62,6 @@ void m0_be_ut_fl(void)
+ 	int				i;
+ 	int				rc;
+ 	int				index;
+-	bool				move_chunk;
+-	m0_bcount_t			size;
+ 
+ 	m0_be_ut_backend_init(ut_be);
+ 	m0_be_ut_seg_init(&ut_seg, ut_be, BE_UT_FL_SEG_SIZE);
+@@ -90,7 +88,7 @@ void m0_be_ut_fl(void)
+ 
+ 			cred = M0_BE_TX_CREDIT(0, 0);
+ 			/* XXX don't use the largest possible credit */
+-			m0_be_fl_credit(fl, M0_BFL_RESIZE, &cred);
++			m0_be_fl_credit(fl, M0_BFL_ADD, &cred);
+ 			m0_be_tx_credit_mul(&cred, BE_UT_FL_OP_PER_TX);
+ 			m0_be_tx_prep(&tx, &cred);
+ 
+@@ -99,18 +97,9 @@ void m0_be_ut_fl(void)
+ 		}
+ 		index = be_ut_fl_rand(BE_UT_FL_CHUNK_NR, &seed);
+ 		if (chunks_used[index]) {
+-			/* del or resize */
+-			move_chunk = be_ut_fl_rand(2, &seed) == 0;
+-			if (move_chunk) {
+-				size = be_ut_fl_rand_size(&seed);
+-				m0_be_fl_resize(fl, &tx, &chunks[index], size);
+-				M0_UT_ASSERT(chunks[index].bac_size == size);
+-			} else {
+-				m0_be_fl_del(fl, &tx, &chunks[index]);
+-				chunks_used[index] = false;
+-			}
++			m0_be_fl_del(fl, &tx, &chunks[index]);
++			chunks_used[index] = false;
+ 		} else {
+-			/* add */
+ 			chunks[index].bac_size = be_ut_fl_rand_size(&seed);
+ 			m0_be_fl_add(fl, &tx, &chunks[index]);
+ 			chunks_used[index] = true;
+-- 
+1.8.3.2
+

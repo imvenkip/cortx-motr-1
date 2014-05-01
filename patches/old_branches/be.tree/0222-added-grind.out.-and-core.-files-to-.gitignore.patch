@@ -1,0 +1,35 @@
+From cd20874ade5546f956838ca56258ace843d0049d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 26 Jun 2013 02:07:41 +0300
+Subject: [PATCH 222/290] added *grind.out.* and core.* files to .gitignore
+
+---
+ .gitignore | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/.gitignore b/.gitignore
+index 3dceffb..936c211 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -111,6 +111,18 @@ gmon.out
+ *.log
+ 
+ #
++# Tools files
++#
++/cachegrind.out.*
++/callgrind.out.*
++/massif.out.*
++
++#
++# Core files
++#
++/core.*
++
++#
+ # Generated documentation
+ #
+ doc/html/
+-- 
+1.8.3.2
+

@@ -1,0 +1,25 @@
+From 2e82fe04ca8746423598937ad41ebc1e173e1142 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 8 Feb 2013 14:05:54 +0200
+Subject: [PATCH 01/25] m0t1fs/st: added mount and umount options
+
+---
+ m0t1fs/linux_kernel/st/st | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/m0t1fs/linux_kernel/st/st b/m0t1fs/linux_kernel/st/st
+index 8d13249..fade2f7 100755
+--- a/m0t1fs/linux_kernel/st/st
++++ b/m0t1fs/linux_kernel/st/st
+@@ -236,6 +236,8 @@ case "${1:-}" in
+     rmmod) modules_remove; exit;;
+     sstart) _init; exit;;
+     sstop) _fini; exit;;
++    mount) _init; _mount local; exit;;
++    umount) umount $SANDBOX_DIR/mnt; _fini; exit;;
+     help) usage; exit;;
+     *) usage >&2; die;;
+ esac
+-- 
+1.8.3.2
+

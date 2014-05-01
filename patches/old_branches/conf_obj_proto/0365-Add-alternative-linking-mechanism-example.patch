@@ -1,0 +1,295 @@
+From b5514162a2f744ede8df91693ad11cc5e8fdbe56 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 14 Sep 2012 15:26:25 +0300
+Subject: [PATCH 365/370] Add alternative linking mechanism example
+
+---
+ conf/Makefile.am    |   3 +-
+ conf/link.c         |  66 +++++++++++++++++++++++++++++++
+ conf/link.h         |  55 ++++++++++++++++++++++++++
+ conf/ut/Makefile.am |   5 +++
+ conf/ut/linktest.c  | 110 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 238 insertions(+), 1 deletion(-)
+ create mode 100644 conf/link.c
+ create mode 100644 conf/link.h
+ create mode 100644 conf/ut/linktest.c
+
+diff --git a/conf/Makefile.am b/conf/Makefile.am
+index f16b656..3f30bf3 100644
+--- a/conf/Makefile.am
++++ b/conf/Makefile.am
+@@ -6,7 +6,8 @@ _OBJS_SRC = objs/common.h objs/common.c objs/dir.c objs/profile.c   \
+ 
+ noinst_LTLIBRARIES = libcolibri-conf.la
+ libcolibri_conf_la_SOURCES = obj.h obj.c reg.h reg.c obj_ops.h obj_ops.c \
+-                             onwire.h preload.h preload.c $(_OBJS_SRC)
++                             onwire.h preload.h preload.c $(_OBJS_SRC) \
++                             link.h link.c
+ 
+ INCLUDES = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include \
+            -iquote /usr/include
+diff --git a/conf/link.c b/conf/link.c
+new file mode 100644
+index 0000000..694c4b8
+--- /dev/null
++++ b/conf/link.c
+@@ -0,0 +1,66 @@
++#include "conf/link.h"
++#include <stdio.h>
++#include <string.h>
++
++void c2_conf_rel_init(struct c2_conf_rel *link)
++{
++	c2_list_link_init(&link->cr_link);
++	c2_list_init(&link->cr_child);
++	link->cr_parent = NULL;
++}
++
++void c2_conf_rel_fini(struct c2_conf_rel *link)
++{
++	link->cr_parent = NULL;
++	c2_list_fini(&link->cr_child);
++	c2_list_link_fini(&link->cr_link);
++}
++
++void c2_conf_rel_add(struct c2_conf_rel *to, struct c2_conf_rel *what)
++{
++	c2_list_add(&to->cr_child, &what->cr_link);
++	what->cr_parent = to;
++}
++
++void c2_conf_rel_del(struct c2_conf_rel *from, struct c2_conf_rel *what)
++{
++	C2_PRE(c2_list_contains(&from->cr_child, &what->cr_link));
++
++	c2_list_del(&what->cr_link);
++	what->cr_parent = NULL;
++}
++
++struct c2_conf_rel *rel_lookup(struct c2_conf_rel *from,
++				      const c2_conf_rel_identity *what)
++{
++	struct c2_list_link *pos;
++	struct c2_conf_rel  *ent;
++
++	c2_list_for_each(&from->cr_child, pos) {
++		ent = c2_list_entry(pos, struct c2_conf_rel, cr_link);
++		if (strcmp(ent->cr_who.cw_id, what) == 0)
++			return ent;
++	}
++
++	return 0;
++}
++
++int c2_conf_rel_walk(struct c2_conf_rel *from,
++		     const c2_conf_rel_identity **through)
++{
++	struct c2_conf_rel *current = from;
++	struct c2_conf_rel *next = NULL;
++
++	for (; through[1] != NULL; through++) {
++		next = rel_lookup(current, through[1]);
++		if (next == NULL)
++			return -1;
++
++		printf("%s -> %s\n", current->cr_who.cw_id,
++		       next->cr_who.cw_id);
++		current = next;
++	}
++
++	return 0;
++}
++
+diff --git a/conf/link.h b/conf/link.h
+new file mode 100644
+index 0000000..61cc178
+--- /dev/null
++++ b/conf/link.h
+@@ -0,0 +1,55 @@
++#pragma once
++#ifndef __COLIBRI_CONF_LINK_H__
++#define __COLIBRI_CONF_LINK_H__
++
++#include "lib/list.h"
++
++typedef const char  c2_conf_rel_identity;
++typedef int         c2_conf_rel_ambtype;
++
++struct c2_conf_whoami {
++	c2_conf_rel_identity *cw_id;
++	c2_conf_rel_ambtype   cw_type;
++};
++
++struct c2_conf_rel {
++	/* links related stuff */
++	struct c2_list_link  cr_link; /* link into c2_conf_rel::cl_child */
++	struct c2_list	     cr_child;
++	struct c2_conf_rel  *cr_parent;
++
++	/* data related stuff */
++	struct c2_conf_whoami cr_who;
++};
++
++void c2_conf_rel_init(struct c2_conf_rel *link);
++void c2_conf_rel_fini(struct c2_conf_rel *link);
++
++void c2_conf_rel_add(struct c2_conf_rel *to,   struct c2_conf_rel *what);
++void c2_conf_rel_del(struct c2_conf_rel *from, struct c2_conf_rel *what);
++
++int c2_conf_rel_walk(struct c2_conf_rel *from,
++		     const c2_conf_rel_identity **through);
++
++/*
++  struct c2_conf_rel compound = ...;
++  struct c2_conf_rel_iter it = c2_conf_rel_begin(&compound);
++  for (; it != c2_conf_rel_end(it); it = c2_conf_rel_next(it)) {
++	struct c2_conf_rel *iterated_value = it->ri_current;
++  }
++*/
++
++struct c2_conf_rel_iter {
++	struct c2_conf_rel *ri_compound;
++	struct c2_conf_rel *ri_current;
++};
++
++/* @pre  is_conf_rel_compound(compound) */
++/* @post is_conf_rel_iter_valid(ret) */
++struct c2_conf_rel_iter c2_conf_rel_begin(struct c2_conf_rel *compound);
++struct c2_conf_rel_iter c2_conf_rel_end(struct c2_conf_rel_iter iter);
++struct c2_conf_rel_iter c2_conf_rel_next(struct c2_conf_rel_iter iter);
++
++
++#endif  /* __COLIBRI_CONF_REL_H__ */
++
+diff --git a/conf/ut/Makefile.am b/conf/ut/Makefile.am
+index fc6f7c1..78af3d7 100644
+--- a/conf/ut/Makefile.am
++++ b/conf/ut/Makefile.am
+@@ -9,3 +9,8 @@ libconf_ut_la_CFLAGS = \
+ noinst_PROGRAMS = prepar
+ prepar_SOURCES  = prepar.c
+ prepar_LDADD    = $(top_builddir)/colibri/libcolibri.la
++
++# Preload parser (temporary target)
++noinst_PROGRAMS  = linktest
++linktest_SOURCES = linktest.c
++linktest_LDADD   = $(top_builddir)/colibri/libcolibri.la
+diff --git a/conf/ut/linktest.c b/conf/ut/linktest.c
+new file mode 100644
+index 0000000..767582a
+--- /dev/null
++++ b/conf/ut/linktest.c
+@@ -0,0 +1,110 @@
++#include "conf/link.h"
++#include <stdio.h>
++
++enum types {
++	BIOS,
++	MEM,
++	CPU,
++	CACHE,
++	REG,
++	MB
++};
++
++/*
++	mb0
++	 |
++   +-----+------+------+
++   |	 |	|      |
++ bios0	mem0   mem1   cpu0
++			|
++	   +------+-----+--- +----+----+
++ 	   |	  |     |    |	  |    |
++         cache0 cache1 reg0 reg1 reg2 reg3
++ */
++
++int main(void)
++{
++
++	struct c2_conf_rel r20 = { .cr_who = { "cache0", CACHE } };
++	struct c2_conf_rel r21 = { .cr_who = { "cache1", CACHE } };
++	struct c2_conf_rel r22 = { .cr_who = { "reg0"  , REG   } };
++	struct c2_conf_rel r23 = { .cr_who = { "reg1"  , REG   } };
++	struct c2_conf_rel r24 = { .cr_who = { "reg2"  , REG   } };
++	struct c2_conf_rel r25 = { .cr_who = { "reg3"  , REG   } };
++
++	struct c2_conf_rel r13 = { .cr_who = { "bios0" , BIOS  } };
++	struct c2_conf_rel r12 = { .cr_who = { "mem0"  , MEM   } };
++	struct c2_conf_rel r11 = { .cr_who = { "mem1"  , MEM   } };
++	struct c2_conf_rel r10 = { .cr_who = { "cpu0"  , CPU   } };
++
++	struct c2_conf_rel r00 = { .cr_who = { "mb0"   , MB    } };
++
++	c2_conf_rel_init(&r20);
++	c2_conf_rel_init(&r21);
++	c2_conf_rel_init(&r22);
++	c2_conf_rel_init(&r23);
++	c2_conf_rel_init(&r24);
++	c2_conf_rel_init(&r25);
++	c2_conf_rel_init(&r13);
++	c2_conf_rel_init(&r12);
++	c2_conf_rel_init(&r11);
++	c2_conf_rel_init(&r10);
++	c2_conf_rel_init(&r00);
++
++
++	c2_conf_rel_add(&r00, &r10);
++	c2_conf_rel_add(&r00, &r11);
++	c2_conf_rel_add(&r00, &r12);
++	c2_conf_rel_add(&r00, &r13);
++
++	c2_conf_rel_add(&r10, &r20);
++	c2_conf_rel_add(&r10, &r21);
++	c2_conf_rel_add(&r10, &r22);
++	c2_conf_rel_add(&r10, &r23);
++	c2_conf_rel_add(&r10, &r24);
++	c2_conf_rel_add(&r10, &r25);
++
++
++	printf("test1:\n");
++	{
++		const char *path[] = { "mb0", "cpu0", "reg0", NULL };
++		int rc = c2_conf_rel_walk(&r00, path);
++		C2_ASSERT(rc == 0);
++	}
++	printf("test2:\n");
++	{
++		const char *path[] = { "mb0", "cpu0", "regX", NULL };
++		int rc = c2_conf_rel_walk(&r00, path);
++		C2_ASSERT(rc == -1);
++	}
++
++
++
++	c2_conf_rel_del(&r00, &r10);
++	c2_conf_rel_del(&r00, &r11);
++	c2_conf_rel_del(&r00, &r12);
++	c2_conf_rel_del(&r00, &r13);
++
++	c2_conf_rel_del(&r10, &r20);
++	c2_conf_rel_del(&r10, &r21);
++	c2_conf_rel_del(&r10, &r22);
++	c2_conf_rel_del(&r10, &r23);
++	c2_conf_rel_del(&r10, &r24);
++	c2_conf_rel_del(&r10, &r25);
++
++
++	c2_conf_rel_fini(&r20);
++	c2_conf_rel_fini(&r21);
++	c2_conf_rel_fini(&r22);
++	c2_conf_rel_fini(&r23);
++	c2_conf_rel_fini(&r24);
++	c2_conf_rel_fini(&r25);
++	c2_conf_rel_fini(&r13);
++	c2_conf_rel_fini(&r12);
++	c2_conf_rel_fini(&r11);
++	c2_conf_rel_fini(&r10);
++	c2_conf_rel_fini(&r00);
++
++
++	return 0;
++}
+-- 
+1.8.3.2
+

@@ -1,0 +1,2110 @@
+From 3aae30ea178d4c69a72ada48e9ccfec18899319e Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Fri, 13 Sep 2013 15:27:21 +0530
+Subject: [PATCH 005/121] 	- Stats Service Implementation 	  - stats
+ service 	  - stats update fop/fom 	  - stats query fop/fom 
+   - stats service/fom UTs
+
+	Reviewed by : Rohan Puri <rohan_puri@xyratex.com>,
+		      Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+
+	Reviewboard links :
+		     http://reviewboard.clusterstor.com/r/1467/ (DLDINSP)
+		     http://reviewboard.clusterstor.com/r/1496/	(CINSP-POSTUT)
+---
+ Makefile.am             |   2 +
+ addb/addb.h             |   2 +
+ doc/addb-ids            |   3 +
+ doc/dld-index.c         |   1 +
+ lib/trace.h             |  40 +--
+ mero/init.c             |   2 +
+ mero/magic.h            |  16 +
+ rpc/rpc_opcodes.h       |   5 +
+ stats/Makefile.sub      |  14 +
+ stats/stats_addb.h      |  65 ++++
+ stats/stats_fops.c      | 123 ++++++++
+ stats/stats_fops.h      | 123 ++++++++
+ stats/stats_srv.c       | 784 ++++++++++++++++++++++++++++++++++++++++++++++++
+ stats/stats_srv.h       | 156 ++++++++++
+ stats/ut/Makefile.sub   |   4 +
+ stats/ut/stats_ut.c     |  56 ++++
+ stats/ut/stats_ut_svc.c | 485 ++++++++++++++++++++++++++++++
+ utils/ut_main.c         |   2 +
+ 18 files changed, 1863 insertions(+), 20 deletions(-)
+ create mode 100644 stats/Makefile.sub
+ create mode 100644 stats/stats_addb.h
+ create mode 100644 stats/stats_fops.c
+ create mode 100644 stats/stats_fops.h
+ create mode 100644 stats/stats_srv.c
+ create mode 100644 stats/stats_srv.h
+ create mode 100644 stats/ut/Makefile.sub
+ create mode 100644 stats/ut/stats_ut.c
+ create mode 100644 stats/ut/stats_ut_svc.c
+
+diff --git a/Makefile.am b/Makefile.am
+index b3ee28a..ead8fe8 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -207,6 +207,7 @@ include $(top_srcdir)/sns/cm/Makefile.sub
+ include $(top_srcdir)/sns/cm/repair/Makefile.sub
+ include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
+ include $(top_srcdir)/stob/Makefile.sub
++include $(top_srcdir)/stats/Makefile.sub
+ include $(top_srcdir)/udb/Makefile.sub
+ include $(top_srcdir)/xcode/Makefile.sub
+ 
+@@ -255,6 +256,7 @@ include $(top_srcdir)/sm/ut/Makefile.sub
+ include $(top_srcdir)/sns/cm/repair/ut/Makefile.sub
+ include $(top_srcdir)/sns/ut/Makefile.sub
+ include $(top_srcdir)/stob/ut/Makefile.sub
++include $(top_srcdir)/stats/ut/Makefile.sub
+ include $(top_srcdir)/udb/ut/Makefile.sub
+ include $(top_srcdir)/ut/Makefile.sub
+ include $(top_srcdir)/xcode/ut/Makefile.sub
+diff --git a/addb/addb.h b/addb/addb.h
+index 9a6291b..cf0f5a3 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -321,6 +321,8 @@ M0_INTERNAL void m0_addb_rec_type_register(struct m0_addb_rec_type *rt);
+ M0_INTERNAL const struct m0_addb_rec_type *m0_addb_rec_type_lookup(uint32_t id);
+ 
+ enum {
++	/** Undefined record id */
++	M0_ADDB_RECID_UNDEF     = 0,
+ 	/** Record type identifier for context records */
+ 	M0_ADDB_RECID_CTXDEF    = 1,
+ 	/** Function failure record type identifier */
+diff --git a/doc/addb-ids b/doc/addb-ids
+index dbeb2a9..471f97f 100644
+--- a/doc/addb-ids
++++ b/doc/addb-ids
+@@ -9,6 +9,7 @@ details on their fields.
+           context identifier           context type
+ value          enum                    variable  name              file
+ ------ ---------------------------     -----------------------     -----------------
++     0 M0_ADDB_RECID_UNDEF          -- undefined --                addb/addb.h
+ 1-19							           addb/addb.h
+      1 M0_ADDB_CTXID_NODE_HI           m0_addb_ct_node_hi
+      2 M0_ADDB_CTXID_NODE_LO           m0_addb_ct_node_lo
+@@ -77,6 +78,8 @@ value          enum                    variable  name              file
+ 1600-1699
+    1600 M0_ADDB_CTXID_RM_MOD           m0_addb_ct_rm_mod           rm/rm_addb.h
+    1601 M0_ADDB_CTXID_RMS_SERV         m0_addb_ct_rms_serv
++1700-1799							   stats/stats_addb.h
++   1700 M0_ADDB_CTXID_STATS_SVC        m0_addb_ct_stats_svc
+ 
+ ******************************************************************************
+ Record Type Identifiers
+diff --git a/doc/dld-index.c b/doc/dld-index.c
+index 5b284bc..be73d7d 100644
+--- a/doc/dld-index.c
++++ b/doc/dld-index.c
+@@ -30,6 +30,7 @@ file.c -->
+ - @subpage m0t1fs "M0T1FS detailed level design specification" <!-- m0t1fs/linux_kernel/m0t1fs.h -->
+ - @subpage rpc-layer-core-dld "RPC layer core DLD" <!-- rpc/rpc.h -->
+ - @subpage m0loop-dld "The new m0loop device driver DLD" <!-- m0t1fs/linux_kernel/m0loop.c -->
++- @subpage DLD-stats-svc "Stats Service" <!-- addb/stats_srv.c -->
+ 
+ Detailed designs should use the <i>@subpage DLD "Mero DLD Template"
+ <!-- doc/dld-template.c --> </i> as a style guide.
+diff --git a/lib/trace.h b/lib/trace.h
+index dd03985..4888be6 100644
+--- a/lib/trace.h
++++ b/lib/trace.h
+@@ -210,26 +210,26 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
+   M0_TRACE_SUBSYS(CM,         6) \
+   M0_TRACE_SUBSYS(COB,        7) \
+   M0_TRACE_SUBSYS(CONF,       8) \
+-  M0_TRACE_SUBSYS(DTM ,       9) \
+-  M0_TRACE_SUBSYS(FOP,       10) \
+-  M0_TRACE_SUBSYS(FORMATION, 11) \
+-  M0_TRACE_SUBSYS(IOSERVICE, 12) \
+-  M0_TRACE_SUBSYS(LAYOUT,    13) \
+-  M0_TRACE_SUBSYS(LNET,      14) \
+-  M0_TRACE_SUBSYS(M0D,       15) \
+-  M0_TRACE_SUBSYS(M0T1FS,    16) \
+-  M0_TRACE_SUBSYS(MEMORY,    17) \
+-  M0_TRACE_SUBSYS(MGMT,      18) \
+-  M0_TRACE_SUBSYS(NET,       19) \
+-  M0_TRACE_SUBSYS(POOL,      20) \
+-  M0_TRACE_SUBSYS(RM,        21) \
+-  M0_TRACE_SUBSYS(RPC,       22) \
+-  M0_TRACE_SUBSYS(SM,        23) \
+-  M0_TRACE_SUBSYS(SNS,       24) \
+-  M0_TRACE_SUBSYS(SNSCM,     25) \
+-  M0_TRACE_SUBSYS(STOB,      26) \
+-  M0_TRACE_SUBSYS(BTREE,     27) \
+-  M0_TRACE_SUBSYS(EXTMAP,    28)
++  M0_TRACE_SUBSYS(FOP,        9) \
++  M0_TRACE_SUBSYS(FORMATION, 10) \
++  M0_TRACE_SUBSYS(IOSERVICE, 11) \
++  M0_TRACE_SUBSYS(LAYOUT,    12) \
++  M0_TRACE_SUBSYS(LNET,      13) \
++  M0_TRACE_SUBSYS(M0D,       14) \
++  M0_TRACE_SUBSYS(M0T1FS,    15) \
++  M0_TRACE_SUBSYS(MEMORY,    16) \
++  M0_TRACE_SUBSYS(MGMT,      17) \
++  M0_TRACE_SUBSYS(NET,       18) \
++  M0_TRACE_SUBSYS(POOL,      19) \
++  M0_TRACE_SUBSYS(RM,        20) \
++  M0_TRACE_SUBSYS(RPC,       21) \
++  M0_TRACE_SUBSYS(SM,        22) \
++  M0_TRACE_SUBSYS(SNS,       23) \
++  M0_TRACE_SUBSYS(SNSCM,     24) \
++  M0_TRACE_SUBSYS(STOB,      25) \
++  M0_TRACE_SUBSYS(BTREE,     26) \
++  M0_TRACE_SUBSYS(EXTMAP,    27) \
++  M0_TRACE_SUBSYS(STATS,     28)
+ 
+ #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1 << value),
+ /** The subsystem bitmask definitions */
+diff --git a/mero/init.c b/mero/init.c
+index 84d8418..010d1e5 100644
+--- a/mero/init.c
++++ b/mero/init.c
+@@ -68,6 +68,7 @@
+ #include "mdservice/md_fops.h"
+ #include "mdservice/md_service.h"
+ #include "rm/rm_service.h"
++#include "stats/stats_srv.h"
+ #include "sns/sns.h"
+ #include "sns/parity_ops.h"
+ #include "cm/cm.h"
+@@ -160,6 +161,7 @@ struct init_fini_call subsystem[] = {
+ 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },
+ 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
+ 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
++	{ &m0_stats_svc_init,   &m0_stats_svc_fini,   "stats-service" },
+ #endif /* __KERNEL__ */
+ 	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
+ 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
+diff --git a/mero/magic.h b/mero/magic.h
+index 2b33760..0790272 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -744,6 +744,22 @@ enum m0_magic_satchel {
+ 	/* stob/cache.c:cache_tl::td_head_magic (faded ballade) */
+ 	M0_STOB_CACHE_MAGIX     = 0x33FADEDBA11ADE77,
+ 
++/* Stats */
++	/* m0_stats::s_magic (slab slab) */
++	M0_STATS_MAGIC = 0x3351AB51AB77,
++
++	/* stats_tl::.td_head_magic (slab sled) */
++	M0_STATS_HEAD_MAGIC = 0x3351AB51ED77,
++
++	/* stats_svc::ss_magic (slab sic)*/
++	M0_STATS_SVC_MAGIC = 0x3351AB51C77,
++
++	/* stats_query_fom::suf_magic (slab deed) */
++	M0_STATS_QUERY_FOM_MAGIC = 0x3351ABDEED77,
++
++	/* stats_update_fom::suf_magic (slab feed) */
++	M0_STATS_UPDATE_FOM_MAGIC = 0x3351ABFEED77,
++
+ /* Trace */
+ 	/* m0_trace_rec_header::trh_magic (foldable doll) */
+ 	M0_TRACE_MAGIC = 0x33f01dab1ed01177,
+diff --git a/rpc/rpc_opcodes.h b/rpc/rpc_opcodes.h
+index 8951a4b..f813a18 100644
+--- a/rpc/rpc_opcodes.h
++++ b/rpc/rpc_opcodes.h
+@@ -199,6 +199,11 @@ enum M0_RPC_OPCODES {
+ 	M0_POOLMACHINE_SET_OPCODE           = 113,
+ 	M0_POOLMACHINE_SET_REP_OPCODE       = 114,
+ 
++	/* Stats fops */
++	M0_STATS_UPDATE_FOP_OPCODE          = 115,
++	M0_STATS_QUERY_FOP_OPCODE           = 116,
++	M0_STATS_QUERY_REP_FOP_OPCODE       = 117,
++
+ 	/* DTM */
+ 	M0_DTM_NOTIFICATION_OPCODE          = 120,
+ 	M0_DTM_UP_OPCODE                    = 121
+diff --git a/stats/Makefile.sub b/stats/Makefile.sub
+new file mode 100644
+index 0000000..3f5b815
+--- /dev/null
++++ b/stats/Makefile.sub
+@@ -0,0 +1,14 @@
++nobase_mero_include_HEADERS += stats/stats_srv.h     \
++                               stats/stats_fops.h    \
++			       stats/stats_addb.h    \
++                               stats/stats_fops_xc.h
++
++mero_libmero_la_SOURCES  += stats/stats_srv.c        \
++			    stats/stats_fops.c       \
++			    stats/stats_fops_xc.c
++
++XC_FILES   += stats/stats_fops_xc.h
++
++CLEANFILES += stats/stats_fops_xc.c \
++	      stats/stats_fops_xc.h \
++	      stats/stats_fops.gccxml
+diff --git a/stats/stats_addb.h b/stats/stats_addb.h
+new file mode 100644
+index 0000000..ed04139
+--- /dev/null
++++ b/stats/stats_addb.h
+@@ -0,0 +1,65 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 07/05/2013
++ */
++
++#pragma once
++
++#ifndef __MERO_STATS_ADDB_H__
++#define __MERO_STATS_ADDB_H__
++
++#include "addb/addb.h"
++
++/**
++ * @addtogroup stats_svc
++ * @{
++ */
++
++/*
++ * Stats ADDB context types.
++ */
++enum {
++	M0_ADDB_CTXID_STATS_SVC		= 1700,
++	M0_ADDB_CTXID_STATS_UPDATE_FOM	= 1701,
++	M0_ADDB_CTXID_STATS_QUERY_FOM	= 1702,
++};
++
++M0_ADDB_CT(m0_addb_ct_stats_svc, M0_ADDB_CTXID_STATS_SVC, "hi", "low");
++M0_ADDB_CT(m0_addb_ct_stats_update_fom, M0_ADDB_CTXID_STATS_UPDATE_FOM);
++M0_ADDB_CT(m0_addb_ct_stats_query_fom, M0_ADDB_CTXID_STATS_QUERY_FOM);
++
++/*
++ * Stats ADDB posting locations.
++ */
++enum {
++	/* stats service */
++	M0_STATS_SVC_ADDB_LOC_SERVICE_ALLOC = 1,
++};
++
++/** @} */ /* end of stats */
++
++#endif /* __MERO_STATS_ADDB_H_ */
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/stats_fops.c b/stats/stats_fops.c
+new file mode 100644
+index 0000000..a4d194d
+--- /dev/null
++++ b/stats/stats_fops.c
+@@ -0,0 +1,123 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 07/24/2013
++ */
++
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STATS
++#include "lib/trace.h"
++#include "lib/assert.h"
++#include "lib/memory.h"
++#include "rpc/item.h"
++#include "fop/fop_item_type.h"
++#include "rpc/rpc_opcodes.h"
++#include "fop/fop.h"
++#include "stats/stats_srv.h"
++#include "stats/stats_fops_xc.h"
++
++extern struct m0_sm_state_descr stats_update_phases[];
++extern struct m0_sm_conf stats_update_fom_sm_conf;
++extern struct m0_sm_state_descr stats_query_phases[];
++extern struct m0_sm_conf stats_query_fom_sm_conf;
++extern const struct m0_fom_type_ops stats_update_fom_type_ops;
++extern const struct m0_fom_type_ops stats_query_fom_type_ops;
++
++struct m0_fop_type m0_fop_stats_update_fopt;
++struct m0_fop_type m0_fop_stats_query_fopt;
++struct m0_fop_type m0_fop_stats_query_rep_fopt;
++
++static const struct m0_rpc_item_type_ops stats_update_item_type_ops = {
++        M0_FOP_DEFAULT_ITEM_TYPE_OPS,
++};
++
++static const struct m0_rpc_item_type_ops stats_query_item_type_ops = {
++        M0_FOP_DEFAULT_ITEM_TYPE_OPS,
++};
++
++const struct m0_fop_type_ops stats_update_fop_ops;
++const struct m0_fop_type_ops stats_query_fop_ops;
++
++M0_INTERNAL int m0_stats_fops_init(void)
++{
++	m0_xc_stats_fops_init();
++#ifndef __KERNEL__
++        m0_sm_conf_extend(m0_generic_conf.scf_state, stats_query_phases,
++                          m0_generic_conf.scf_nr_states);
++#endif
++        return  M0_FOP_TYPE_INIT(&m0_fop_stats_update_fopt,
++                                 .name      = "Stats update fop",
++				 .opcode    = M0_STATS_UPDATE_FOP_OPCODE,
++				 .xt	    = m0_stats_update_fop_xc,
++				 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
++				 .fop_ops   = &stats_update_fop_ops,
++				 .fom_ops   = &stats_update_fom_type_ops,
++				 .sm	    = &stats_update_fom_sm_conf,
++				 .svc_type  = &m0_stats_svc_type,
++				 .rpc_ops   = &stats_update_item_type_ops) ?:
++		M0_FOP_TYPE_INIT(&m0_fop_stats_query_fopt,
++                                 .name      = "Stats query fop",
++				 .opcode    = M0_STATS_QUERY_FOP_OPCODE,
++				 .xt	    = m0_stats_query_fop_xc,
++				 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
++				 .fop_ops   = &stats_query_fop_ops,
++				 .fom_ops   = &stats_query_fom_type_ops,
++				 .sm	    = &stats_query_fom_sm_conf,
++				 .svc_type  = &m0_stats_svc_type,
++				 .rpc_ops   = &stats_query_item_type_ops) ?:
++		M0_FOP_TYPE_INIT(&m0_fop_stats_query_rep_fopt,
++                                 .name      = "Stats query rep fop",
++				 .opcode    = M0_STATS_QUERY_REP_FOP_OPCODE,
++				 .xt	    = m0_stats_query_rep_fop_xc,
++				 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
++}
++
++M0_INTERNAL void m0_stats_fops_fini(void)
++{
++	m0_xc_stats_fops_fini();
++	m0_fop_type_fini(&m0_fop_stats_update_fopt);
++	m0_fop_type_fini(&m0_fop_stats_query_fopt);
++	m0_fop_type_fini(&m0_fop_stats_query_rep_fopt);
++}
++
++M0_INTERNAL struct m0_stats_update_fop *
++m0_stats_update_fop_get(struct m0_fop *fop)
++{
++	return (struct m0_stats_update_fop *)m0_fop_data(fop);
++}
++
++M0_INTERNAL struct m0_stats_query_fop *
++m0_stats_query_fop_get(struct m0_fop *fop)
++{
++	return (struct m0_stats_query_fop *)m0_fop_data(fop);
++}
++
++M0_INTERNAL struct m0_stats_query_rep_fop *
++m0_stats_query_rep_fop_get(struct m0_fop *fop)
++{
++	return (struct m0_stats_query_rep_fop *)m0_fop_data(fop);
++}
++
++#undef M0_TRACE_SUBSYSTEM
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/stats_fops.h b/stats/stats_fops.h
+new file mode 100644
+index 0000000..c737573
+--- /dev/null
++++ b/stats/stats_fops.h
+@@ -0,0 +1,123 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 07/04/2013
++ */
++
++#pragma once
++
++#ifndef __MERO_STATS_STATS_FOPS_H__
++#define __MERO_STATS_STATS_FOPS_H__
++
++#include "lib/types.h"
++#include "xcode/xcode_attr.h"
++#include "addb/addb.h"
++#include "addb/addb_wire.h"
++#include "addb/addb_wire_xc.h"
++/**
++ * @defgroup stats_fop Stats FOP
++ * @{
++ */
++enum {
++	/** Sine stats using same id as corresponding addb rec type id */
++	M0_STATS_ID_UNDEFINED = M0_ADDB_RECID_UNDEF
++};
++
++struct m0_fop;
++
++extern struct m0_fop_type m0_fop_stats_update_fopt;
++extern struct m0_fop_type m0_fop_stats_query_fopt;
++extern struct m0_fop_type m0_fop_stats_query_rep_fopt;
++
++/* @note Same fop definations will be defined from monitoring infra
++ *       Need to merge these changes properly.
++ *       Please remove tis note after merge.
++ */
++
++/**
++ * Mero nodes send sequence of m0_stats_sum.
++ */
++struct m0_stats_sum {
++	/** Stats id, this is corresponding addb rec type id. */
++	uint64_t		  ss_id;
++	/** Stats summary data */
++	struct m0_addb_uint64_seq ss_data;
++} M0_XCA_RECORD;
++
++struct m0_stats_recs {
++	/** Stats sequence length */
++	uint64_t		   sf_nr;
++	/** Stats sequence data */
++	struct m0_stats_sum  *sf_stats;
++} M0_XCA_SEQUENCE;
++
++/** stats update fop */
++struct m0_stats_update_fop {
++	/** ADDB stats */
++	struct m0_stats_recs suf_stats;
++} M0_XCA_RECORD;
++
++/** stats query fop */
++struct m0_stats_query_fop {
++	/** Stats ids */
++	struct m0_addb_uint64_seq sqf_ids;
++} M0_XCA_RECORD;
++
++/** stats query reply fop */
++struct m0_stats_query_rep_fop {
++	/** ADDB stats */
++	struct m0_stats_recs sqrf_stats;
++} M0_XCA_RECORD;
++
++/**
++ * Get stats update fop
++ * @param fop pointer to fop
++ * @return pointer to stats update fop.
++ */
++M0_INTERNAL struct m0_stats_update_fop *
++m0_stats_update_fop_get(struct m0_fop *fop);
++
++/**
++ * Get stats query fop
++ * @param fop pointer to fop
++ * @return pointer to stats query fop.
++ */
++M0_INTERNAL struct m0_stats_query_fop *
++m0_stats_query_fop_get(struct m0_fop *fop);
++
++/**
++ * Get stats query reply fop
++ * @param fop pointer to fop
++ * @return pointer to stats query reply fop.
++ */
++M0_INTERNAL struct m0_stats_query_rep_fop *
++m0_stats_query_rep_fop_get(struct m0_fop *fop);
++
++M0_INTERNAL int  m0_stats_fops_init(void);
++M0_INTERNAL void m0_stats_fops_fini(void);
++
++/** @} end group stats_fop */
++#endif /* __MERO_STATS_STATS_FOPS_H_ */
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/stats_srv.c b/stats/stats_srv.c
+new file mode 100644
+index 0000000..73fcb89
+--- /dev/null
++++ b/stats/stats_srv.c
+@@ -0,0 +1,784 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 06/14/2013
++ */
++
++/**
++   @page DLD-stats-svc  Stats Service
++
++   - @ref DLD-stats-svc-ovw
++   - @ref DLD-stats-svc-def
++   - @ref DLD-stats-svc-req
++   - @subpage DLD-stats-svc-fspecs
++   - @ref DLD-stats-svc-lspecs
++      - @ref DLD-stats-svc-lspecs-stats_list
++      - @ref DLD-stats-svc-lspec-state
++      - @ref DLD-stats-svc-lspec-thread
++      - @ref DLD-stats-svc-lspec-service-registration
++      - @ref DLD-stats-svc-lspec-numa
++      - @ref DLD-stats-svc-lspec-depends
++      - @ref DLD-stats-svc-lspec-conformance
++   - @ref DLD-stats-svc-ut
++   - @ref DLD-stats-svc-it
++   - @ref DLD-stats-svc-st
++   - @ref DLD-stats-svc-O
++   - @ref DLD-stats-svc-ref
++
++   <hr>
++   @section DLD-stats-svc-ovw Overview
++   Stats service provides the following functionality:
++   - Updates of in-memory stats objects on requests from mero nodes
++   - Provides stats information from in-memory stats objects to cluster
++     administrative utilities/console on their query.
++
++   <hr>
++   @section DLD-stats-svc-def Definitions
++   - <b>Stats Service</b> Stats service which processes mero statistics
++     update/query requests.
++   - <b>Stats Object</b> Stats in-memory object which represents a statistics
++     matrix.
++   - <b>Stats Update</b> Stats update request which updates stats object values.
++   - <b>Stats Query</b> Stats query request which returns latest updated
++     stats objects value.
++   - <b>Stats Clients</b> Mero administrative console/utilities.
++
++   <hr>
++   @section DLD-stats-svc-req Requirements
++   - <b>r.stats_service.in_memory_objects</b> Maintains in-memory statistic
++     objects. It is list of stats object.
++   - <b>r.stats_service.update</b> It updates requested stats object values.
++   - <b>r.stats_service.query</b> It returns requested stats object values to
++     stats clients.
++
++   <hr>
++   @section DLD-stats-svc-lspecs Logical Specification
++
++   @subsection DLD-stats-svc-lspecs-stats_list Stats Object List
++   In memory stats object list does not contain any object initially. Stats
++   FOM update respective stats object. object is created if not found in
++   stats list.
++
++   @subsection DLD-stats-svc-lspec-state State Transitions
++   State diagram for stats_update FOM:
++   @dot
++   digraph {
++	size = "5,10"
++	node [shape=record, fontsize=10]
++	S0 [label="Init Update FOM"]
++	S1 [label="Update Stats object"]
++	S2 [label="Finalise FOM"]
++	S0 -> S1 [label="Stats Update fom initiaized"]
++	S1 -> S2 [label="Stats object updated"]
++   }
++   @enddot
++
++   State diagram for stats_query FOM:
++   @dot
++   digraph {
++	size = "5,10"
++	node [shape=record, fontsize=10]
++	S0 [label="Init Query FOM"]
++	S1 [label="Read stats objects and set reply FOP"]
++	S2 [label="Finalise FOM"]
++	S0 -> S1 [label="Stats object found"]
++	S1 -> S2 [label="Set reply FOP"]
++   }
++   @enddot
++
++   @subsection DLD-stats-svc-lspec-thread Threading and Concurrency Model
++   Stats service FOMs(updates/query) are executed by request handler's
++   locality thread. Since same locality is assigned to all these FOMs, no
++   other serialization is required for stats service.
++
++   @subsection DLD-stats-svc-lspec-service-registration Service Registration
++   Stats service type definition :
++
++   M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
++                            M0_STATS_SVC_NAME, &m0_addb_ct_stats_service);
++
++   Stats service type initialization/finalization :
++
++   Stats service registers/unregisters its service type with request handler
++   using interfaces m0_stats_svc_init()/ m0_stats_svc_fini() during
++   Mero system initialization and finalization (m0_init()/ m0_fini()).
++
++   @subsection DLD-stats-svc-lspec-numa NUMA optimizations
++   Update FOMs and query FOMs are executed in the same locality. Update/Query
++   FOMs access in-memory list of statistic objects. Since both type of FOMs
++   executed by same localiy threads it gets benifis of locality.
++
++   @subsection DLD-stats-svc-lspec-depends Dependencies
++   - <b>r.reqh</b> : Request handler's locality thread execute stats service
++   FOMs(update/query).
++
++   @subsection DLD-stats-svc-lspec-conformance Conformance
++   - <b>i.stats_service.in_memory_objects</b> It implements list of stats
++     object to keep stats run time.
++   - <b>i.stats_service.update</b> It implements stats_update FOM.
++   - <b>i.stats_service.query</b> It implements stats_query FOM.
++
++   <hr>
++   @section DLD-stats-svc-ut Unit Tests
++   -# Test update request for stats object not present with stats service
++      stats list with single stats parameter
++   -# Test update request for stats object present with stats service stats
++      list with single stats parameter
++   -# Test update request for stats object with multiple stats parameters
++   -# Test query for stats object with single stats parameter
++   -# Test query for stats object with multiple stats parameters
++
++   <hr>
++   @section DLD-stats-svc-it Integration Test
++   Mero nodes send stats (different 2-3 types) to stats service,
++   verification of stats sent by Mero node with respective stats object.
++
++   <hr>
++   @section DLD-stats-svc-st System Test
++   This tests whole monitoring infrastructure by running some sample IOs on
++   on Mero and verify statistics collected by querying statistic service using
++   client/monitoring utility.
++
++   <hr>
++   @section DLD-stats-svc-O Analysis
++   - Since all the stats objects are in-memory objects, query and update are
++     fast.
++   - Since stats service is just a book keeping of stats information into
++     in-memory object list. Since it does not do any computations of stats
++     values, it does not creates CPU usage overhead for mero nodes.
++
++   <hr>
++   @section DLD-stats-svc-ref References
++   - <a href="https://docs.google.com/a/xyratex.com/document/d/
++14uPeE0mNkRu3oF32Ys_EnpvSZtGWbf8hviPHTBTOXso/edit">
++   HLD of ADDB Monitoring</a>
++   - <a href="https://docs.google.com/a/xyratex.com/document/d/
++1lBgPht18RYX7s9XL-FcfUBKZ0zvo6JzqAEsXpTWs_4Q/edit">
++   Mero Stats Service</a>
++ */
++#undef M0_ADDB_CT_CREATE_DEFINITION
++#define M0_ADDB_CT_CREATE_DEFINITION
++#include "stats/stats_addb.h"
++
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STATS
++#include "lib/trace.h"
++#include "lib/tlist.h"
++#include "lib/assert.h"
++#include "lib/misc.h"
++#include "lib/memory.h"
++#include "rpc/item.h"
++#include "fop/fop_item_type.h"
++#include "rpc/rpc_opcodes.h"
++#include "stats/stats_srv.h"
++#include "fop/fop.h"
++#include "fop/fom_generic.h"
++#include "reqh/reqh_service.h"
++#include "stats/stats_fops.h"
++#include "stats/stats_fops_xc.h"
++
++M0_TL_DESCR_DEFINE(stats, "statistic objects", M0_INTERNAL, struct m0_stats,
++		   s_linkage, s_magic, M0_STATS_MAGIC, M0_STATS_HEAD_MAGIC);
++M0_TL_DEFINE(stats, M0_INTERNAL, struct m0_stats);
++
++static const struct m0_bob_type stats_svc_bob = {
++	.bt_name         = "stats svc",
++	.bt_magix_offset = M0_MAGIX_OFFSET(struct stats_svc, ss_magic),
++	.bt_magix        = M0_STATS_SVC_MAGIC,
++	.bt_check        = NULL
++};
++
++M0_BOB_DEFINE(static, &stats_svc_bob, stats_svc);
++
++struct m0_addb_ctx stats_svc_addb_ctx;
++const struct m0_fom_type_ops stats_update_fom_type_ops;
++const struct m0_fom_type_ops stats_query_fom_type_ops;
++struct m0_sm_conf stats_update_fom_sm_conf;
++struct m0_sm_conf stats_query_fom_sm_conf;
++
++/*
++ * Stats Service
++ */
++static bool stats_svc_invariant(const struct stats_svc *svc)
++{
++	return stats_svc_bob_check(svc);
++}
++
++/**
++ * The rso_start methods to start stats service.
++ */
++static int stats_svc_rso_start(struct m0_reqh_service *service)
++{
++	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
++
++	return 0;
++}
++
++/**
++ * The rso_stop method to stop Stats service.
++ */
++static void stats_svc_rso_stop(struct m0_reqh_service *service)
++{
++        M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPED);
++}
++
++/**
++ * The rso_fini method to finalise the Stats service.
++ */
++static void stats_svc_rso_fini(struct m0_reqh_service *service)
++{
++	struct stats_svc *svc;
++	struct m0_stats  *stats_obj;
++
++	M0_PRE(M0_IN(m0_reqh_service_state_get(service), (M0_RST_STOPPED,
++							  M0_RST_FAILED)));
++	svc = bob_of(service, struct stats_svc, ss_reqhs, &stats_svc_bob);
++
++	m0_tl_for(stats, &svc->ss_stats, stats_obj) {
++		M0_ASSERT(stats_obj != NULL);
++
++		stats_tlink_del_fini(stats_obj);
++		m0_free(stats_obj->s_sum.ss_data.au64s_data);
++		m0_free(stats_obj);
++	} m0_tl_endfor;
++
++	stats_svc_bob_fini(svc);
++	m0_free(svc);
++}
++
++static const struct m0_reqh_service_ops stats_svc_ops = {
++	.rso_start = stats_svc_rso_start,
++	.rso_stop  = stats_svc_rso_stop,
++	.rso_fini  = stats_svc_rso_fini
++};
++
++static int stats_svc_rsto_service_allocate(struct m0_reqh_service      **srv,
++					   struct m0_reqh_service_type  *stype,
++					   struct m0_reqh_context       *rctx)
++{
++	struct stats_svc *svc;
++
++	M0_PRE(srv != NULL && stype != NULL);
++
++	M0_ALLOC_PTR(svc);
++	if (svc == NULL)
++		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
++
++	*srv = &svc->ss_reqhs;
++	(*srv)->rs_type = stype;
++	(*srv)->rs_ops = &stats_svc_ops;
++
++	stats_svc_bob_init(svc);
++	stats_tlist_init(&svc->ss_stats);
++
++	M0_POST(stats_svc_invariant(svc));
++
++	return 0;
++}
++
++static struct m0_reqh_service_type_ops stats_service_type_ops = {
++	.rsto_service_allocate = stats_svc_rsto_service_allocate,
++};
++
++M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
++			    M0_STATS_SVC_NAME, &m0_addb_ct_stats_svc);
++
++/*
++ * Public interfaces
++ */
++M0_INTERNAL int m0_stats_svc_init(void)
++{
++	int rc;
++
++	m0_addb_ctx_type_register(&m0_addb_ct_stats_svc);
++	m0_addb_ctx_type_register(&m0_addb_ct_stats_update_fom);
++	m0_addb_ctx_type_register(&m0_addb_ct_stats_query_fom);
++
++	rc = m0_reqh_service_type_register(&m0_stats_svc_type);
++	if (rc != 0)
++		return rc;
++
++	rc = m0_stats_fops_init();
++	if (rc != 0)
++		m0_reqh_service_type_unregister(&m0_stats_svc_type);
++
++	return rc;
++}
++
++M0_INTERNAL void m0_stats_svc_fini(void)
++{
++	m0_reqh_service_type_unregister(&m0_stats_svc_type);
++	m0_stats_fops_fini();
++}
++
++/*
++ * Stats Update FOM.
++ */
++static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
++				   struct m0_reqh *reqh);
++static int stats_update_fom_tick(struct m0_fom *fom);
++static void stats_update_fom_fini(struct m0_fom *fom);
++static size_t stats_fom_home_locality(const struct m0_fom *fom);
++static void stats_update_fom_addb_init(struct m0_fom     *fom,
++				       struct m0_addb_mc *mc);
++
++/**
++ * Stats update FOM operation vector.
++ */
++static const struct m0_fom_ops stats_update_fom_ops = {
++	.fo_tick          = stats_update_fom_tick,
++	.fo_home_locality = stats_fom_home_locality,
++	.fo_addb_init     = stats_update_fom_addb_init,
++	.fo_fini          = stats_update_fom_fini
++};
++
++/**
++ * Stats update FOP type operation vector.
++ */
++const struct m0_fom_type_ops stats_update_fom_type_ops = {
++	.fto_create = stats_update_fom_create,
++};
++
++struct m0_sm_state_descr stats_update_phases[] = {
++	[STATS_UPDATE_FOM_INIT] = {
++		.sd_flags = M0_SDF_INITIAL,
++		.sd_name = "Init",
++		.sd_allowed = M0_BITS(STATS_UPDATE_FOM_UPDATE_OBJECT)
++	},
++	[STATS_UPDATE_FOM_UPDATE_OBJECT] = {
++		.sd_name = "Update",
++		.sd_allowed = M0_BITS(STATS_UPDATE_FOM_FINISH)
++	},
++	[STATS_UPDATE_FOM_FINISH] = {
++		.sd_flags = M0_SDF_TERMINAL,
++		.sd_name = "Finish",
++		.sd_allowed = 0
++	},
++};
++
++struct m0_sm_conf stats_update_fom_sm_conf = {
++	.scf_name      = "stats-update-fom-sm",
++	.scf_nr_states = ARRAY_SIZE(stats_update_phases),
++	.scf_state     = stats_update_phases
++};
++
++static bool stats_invariant(const struct m0_stats *stats)
++{
++	return stats->s_magic == M0_STATS_MAGIC;
++}
++
++/**
++ * @todo This def may come in monitor infra. Need to take care while merging.
++ */
++#define SUM_SIZE(sum_data) (sum_data->ss_data.au64s_nr * sizeof(uint64_t))
++
++static struct m0_stats *stats_get(struct m0_tl *stats_list, uint64_t id)
++{
++	struct m0_stats *stats_obj = NULL;
++
++	M0_PRE(stats_list != NULL);
++
++	m0_tl_for(stats, stats_list, stats_obj) {
++		M0_ASSERT(stats_invariant(stats_obj));
++		if (stats_obj->s_sum.ss_id == id)
++			break;
++	} m0_tl_endfor;
++
++	return stats_obj;
++}
++
++static int stats_sum_copy(struct m0_stats_sum *s, struct m0_stats_sum *d)
++{
++	M0_PRE(s != NULL && d != NULL);
++	if (d->ss_data.au64s_nr == 0) {
++		M0_ALLOC_ARR(d->ss_data.au64s_data, s->ss_data.au64s_nr);
++		if (d->ss_data.au64s_data == NULL)
++			M0_RETERR(-ENOMEM, "Failed to allocate memory.");
++	}
++
++	d->ss_id = s->ss_id;
++	d->ss_data.au64s_nr = s->ss_data.au64s_nr;
++	memcpy(d->ss_data.au64s_data, s->ss_data.au64s_data, SUM_SIZE(d));
++	return 0;
++}
++
++static int stats_add(struct m0_tl *stats_list, struct m0_stats_sum *sum)
++{
++	struct m0_stats *new_stats;
++	int              rc;
++
++	M0_PRE(stats_list != NULL);
++	M0_PRE(sum != NULL);
++
++	/**
++          * @todo
++          * Is it required to check valid m0_stats_sum::ss_id from some
++          * some list? How ? need some global stats id list.
++          */
++
++	M0_ALLOC_PTR(new_stats);
++	if (new_stats == NULL)
++		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
++
++	new_stats->s_magic = M0_STATS_MAGIC;
++	rc = stats_sum_copy(sum, &new_stats->s_sum);
++	if (rc != 0) {
++		m0_free(new_stats);
++		return rc;
++	}
++
++	stats_tlink_init(new_stats);
++	stats_tlist_add_tail(stats_list, new_stats);
++
++	return 0;
++}
++
++static int stats_update(struct m0_fom *fom)
++{
++	struct m0_stats_update_fop *ufop;
++	struct stats_svc           *svc;
++	int			    i;
++
++	M0_PRE(fom != NULL);
++
++	ufop = m0_stats_update_fop_get(fom->fo_fop);
++
++	svc = container_of(fom->fo_service, struct stats_svc, ss_reqhs);
++	stats_svc_invariant(svc);
++
++	for (i = 0; i < ufop->suf_stats.sf_nr; ++i) {
++		struct m0_stats_sum *sum = &(ufop->suf_stats.sf_stats[i]);
++		struct m0_stats     *stats_obj = stats_get(&svc->ss_stats,
++							   sum->ss_id);
++
++		if (stats_obj != NULL) {
++			stats_sum_copy(sum, &stats_obj->s_sum);
++		} else {
++			int rc = stats_add(&svc->ss_stats, sum);
++			if (rc != 0)
++				return rc;
++		}
++	}
++
++	return 0;
++}
++
++/**
++ * Create and initiate stats update FOM.
++ */
++static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
++				   struct m0_reqh *reqh)
++{
++	struct stats_update_fom *stats_ufom;
++	struct m0_fom           *fom;
++
++	M0_PRE(fop != NULL);
++	M0_PRE(out != NULL);
++
++	M0_ALLOC_PTR(stats_ufom);
++	if (stats_ufom == NULL)
++		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
++
++	fom = &stats_ufom->suf_fom;
++	m0_fom_init(fom, &(fop->f_type->ft_fom_type), &stats_update_fom_ops,
++		    fop, NULL, reqh, &m0_stats_svc_type);
++
++	stats_ufom->suf_magic = M0_STATS_UPDATE_FOM_MAGIC;
++
++	*out = fom;
++
++	return 0;
++}
++
++/**
++ * State transition function for stats update FOM.
++ */
++static int stats_update_fom_tick(struct m0_fom *fom)
++{
++	int rc = 0;
++
++	M0_PRE(fom != NULL);
++
++	switch(m0_fom_phase(fom)) {
++	case STATS_UPDATE_FOM_INIT:
++		m0_fom_phase_set(fom, STATS_UPDATE_FOM_UPDATE_OBJECT);
++		rc = M0_FSO_AGAIN;
++		break;
++	case STATS_UPDATE_FOM_UPDATE_OBJECT:
++		rc = stats_update(fom);
++		m0_fom_phase_set(fom, STATS_UPDATE_FOM_FINISH);
++		/* No need to execute generic phases. */
++		rc = M0_FSO_WAIT;
++		break;
++	default:
++		M0_IMPOSSIBLE("Phase not defined.");
++	}
++
++	return rc;
++}
++
++/**
++ * Finalise stats update FOM.
++ */
++static void stats_update_fom_fini(struct m0_fom *fom)
++{
++	struct stats_update_fom *ufom;
++
++	M0_PRE(fom != NULL);
++	ufom = container_of(fom, struct stats_update_fom, suf_fom);
++
++	m0_fom_fini(fom);
++	m0_free(ufom);
++}
++
++/**
++ * Get stats update FOM locality.
++ */
++static size_t stats_fom_home_locality(const struct m0_fom *fom)
++{
++	return 1; /* all stats update FOM run in same locality */
++}
++
++/**
++ * Initialize addb context of stats update FOM.
++ */
++static void stats_update_fom_addb_init(struct m0_fom     *fom,
++				       struct m0_addb_mc *mc)
++{
++        M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_stats_update_fom,
++                         &fom->fo_service->rs_addb_ctx);
++}
++
++/*
++ * Stats Query FOM
++ */
++static int    stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
++				     struct m0_reqh *reqh);
++static int    stats_query_fom_tick(struct m0_fom *fom);
++static void   stats_query_fom_fini(struct m0_fom *fom);
++static void   stats_query_fom_addb_init(struct m0_fom     *fom,
++				        struct m0_addb_mc *mc);
++/**
++ * Stats update FOM operation vector.
++ */
++static const struct m0_fom_ops stats_query_fom_ops = {
++	.fo_tick          = stats_query_fom_tick,
++	.fo_home_locality = stats_fom_home_locality,
++	.fo_addb_init     = stats_query_fom_addb_init,
++	.fo_fini          = stats_query_fom_fini
++};
++
++/**
++ * Stats update FOP type operation vector.
++ */
++const struct m0_fom_type_ops stats_query_fom_type_ops = {
++	.fto_create = stats_query_fom_create,
++};
++
++struct m0_sm_state_descr stats_query_phases[] = {
++	[STATS_QUERY_FOM_READ_OBJECT] = {
++		.sd_name    = "Read",
++		.sd_allowed = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE)
++	}
++};
++
++struct m0_sm_conf stats_query_fom_sm_conf = {
++	.scf_name      = "stats-query-fom-sm",
++	.scf_nr_states = ARRAY_SIZE(stats_query_phases),
++	.scf_state     = stats_query_phases
++};
++
++static int read_stats(struct m0_fom *fom)
++{
++	struct m0_stats_query_fop     *qfop;
++	struct stats_svc              *svc;
++	struct m0_stats_query_rep_fop *rep_fop;
++	int			       i;
++	int			       rc = 0;
++
++	M0_PRE(fom != NULL);
++
++	qfop = m0_stats_query_fop_get(fom->fo_fop);
++	M0_ASSERT(qfop->sqf_ids.au64s_nr != 0);
++
++	svc = container_of(fom->fo_service, struct stats_svc, ss_reqhs);
++	stats_svc_invariant(svc);
++
++	rep_fop = m0_stats_query_rep_fop_get(fom->fo_rep_fop);
++	rep_fop->sqrf_stats.sf_nr = qfop->sqf_ids.au64s_nr;
++
++	for (i = 0; i < qfop->sqf_ids.au64s_nr; ++i) {
++		struct m0_addb_uint64_seq *sum_data;
++		struct m0_stats           *stats_obj =
++			stats_get(&svc->ss_stats, qfop->sqf_ids.au64s_data[i]);
++
++		/* Continue getting stats for next id */
++		if (stats_obj == NULL) {
++			rep_fop->sqrf_stats.sf_stats[i].ss_id =
++				M0_STATS_ID_UNDEFINED;
++			rep_fop->sqrf_stats.sf_stats[i].ss_data.au64s_nr = 0;
++			continue;
++		}
++
++		sum_data = &(rep_fop->sqrf_stats.sf_stats[i].ss_data);
++		rc = stats_sum_copy(&stats_obj->s_sum,
++				    &rep_fop->sqrf_stats.sf_stats[i]);
++		if (rc != 0) {
++			struct m0_stats_sum *sums;
++
++			sums = rep_fop->sqrf_stats.sf_stats;
++
++#undef REP_STATS_SUM_DATA
++#define REP_STATS_SUM_DATA(rep_fop, i) \
++	(rep_fop->sqrf_stats.sf_stats[i].ss_data.au64s_data)
++
++			for (;i >= 0; --i)
++				m0_free(REP_STATS_SUM_DATA(rep_fop, i));
++			m0_free(rep_fop->sqrf_stats.sf_stats);
++			break;
++		}
++	}
++
++	return rc;
++}
++
++/**
++ * Create and initialize stats query FOM.
++ */
++static int stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
++				  struct m0_reqh *reqh)
++{
++	struct stats_query_fom	      *stats_qfom;
++	struct m0_fom		      *fom;
++	struct m0_fop		      *reply_fop;
++	struct m0_stats_query_rep_fop *qrep_fop;
++	struct m0_stats_query_fop     *q_fop;
++	int			       rc = 0;
++
++	M0_PRE(fop != NULL);
++	M0_PRE(out != NULL);
++
++	M0_ALLOC_PTR(stats_qfom);
++	if (stats_qfom == NULL)
++		M0_RETERR(-ENOMEM, "Failed to allocate memory.");
++
++	M0_ALLOC_PTR(qrep_fop);
++	if (qrep_fop == NULL) {
++		rc = -ENOMEM;
++		goto free_qfom;
++	}
++
++	q_fop = m0_stats_query_fop_get(fop);
++	qrep_fop->sqrf_stats.sf_nr = q_fop->sqf_ids.au64s_nr;
++
++	M0_ALLOC_ARR(qrep_fop->sqrf_stats.sf_stats, q_fop->sqf_ids.au64s_nr);
++	if (qrep_fop->sqrf_stats.sf_stats == NULL) {
++		rc = -ENOMEM;
++		goto free_qrep_fop;
++	}
++
++	reply_fop = m0_fop_alloc(&m0_fop_stats_query_rep_fopt, qrep_fop);
++	if (reply_fop == NULL) {
++		rc = -ENOMEM;
++		goto free_qrep_fop_stats;
++	}
++
++	fom = &stats_qfom->sqf_fom;
++	m0_fom_init(fom, &fop->f_type->ft_fom_type, &stats_query_fom_ops, fop,
++		    reply_fop, reqh, &m0_stats_svc_type);
++	m0_fop_put(reply_fop);
++
++	stats_qfom->sqf_magic = M0_STATS_QUERY_FOM_MAGIC;
++
++	*out = fom;
++
++	return 0;
++
++free_qrep_fop_stats:
++	m0_free(qrep_fop->sqrf_stats.sf_stats);
++free_qrep_fop:
++	m0_free(qrep_fop);
++free_qfom:
++	m0_free(stats_qfom);
++
++	M0_RETERR(rc, "Failed to create query FOM");
++}
++
++/**
++ * State transition function for stats query FOM.
++ */
++static int stats_query_fom_tick(struct m0_fom *fom)
++{
++	int rc = 0;
++
++	M0_PRE(fom != NULL);
++
++	/**
++	 * @note only M0_FOPH_QUEUE_REPLY & M0_FOPH_QUEUE_REPLY_WAIT are
++	 * required.
++	 */
++	if (m0_fom_phase(fom) < M0_FOPH_NR)
++		return m0_fom_tick_generic(fom);
++
++	switch(m0_fom_phase(fom)) {
++	case STATS_QUERY_FOM_READ_OBJECT:
++		rc = read_stats(fom);
++		fom->fo_sm_phase.sm_rc = rc;
++		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
++		rc = M0_FSO_AGAIN;
++		break;
++	default:
++		M0_IMPOSSIBLE("Phase not defined.");
++	}
++
++	return rc;
++}
++
++/**
++ * Finalise stats query FOM.
++ */
++static void stats_query_fom_fini(struct m0_fom *fom)
++{
++	struct stats_query_fom *qfom;
++
++	M0_PRE(fom != NULL);
++	qfom = container_of(fom, struct stats_query_fom, sqf_fom);
++
++	m0_fom_fini(fom);
++	m0_free(qfom);
++}
++
++/**
++ * Initialize addb context of stats query FOM.
++ */
++static void stats_query_fom_addb_init(struct m0_fom     *fom,
++				      struct m0_addb_mc *mc)
++{
++        M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_stats_update_fom,
++                         &fom->fo_service->rs_addb_ctx);
++}
++
++#undef M0_TRACE_SUBSYSTEM
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/stats_srv.h b/stats/stats_srv.h
+new file mode 100644
+index 0000000..136e00e
+--- /dev/null
++++ b/stats/stats_srv.h
+@@ -0,0 +1,156 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 06/14/2013
++ */
++
++#pragma once
++
++#ifndef __MERO_STATS_STATS_SVC_H__
++#define __MERO_STATS_STATS_SVC_H__
++#ifndef __KERNEL__
++
++/**
++   @page DLD-stats-svc-fspecs Functional Specification
++
++   - @ref DLD-stats-svc-fspecs-ds
++   - @ref DLD-stats-svc-fspecs-int-if
++   - @ref DLD-stats-svc-fspecs-ext-if
++
++   <hr>
++   @section DLD-stats-svc-fspecs-ds Data Structures
++   - m0_stats
++   - stats_svc
++   - stats_list
++   - stats_update_fom
++   - stats_query_fom
++
++   @section DLD-stats-svc-fspecs-int-if Internal Interfaces
++   - stats_svc_rso_start()
++   - stats_svc_rso_stop()
++   - stats_svc_rso_fini()
++   - stats_svc_rsto_service_allocate()
++
++   - stats_update_fom_create()
++   - stats_update_fom_tick()
++   - stats_update_fom_home_locality()
++   - stats_update_fom_addb_init()
++   - stats_update_fom_fini()
++
++   - stats_query_fom_create()
++   - stats_query_fom_tick()
++   - stats_query_fom_home_locality()
++   - stats_query_fom_addb_init()
++   - stats_query_fom_fini()
++
++   @section DLD-stats-svc-fspecs-ext-if External Interfaces
++   - m0_stats_svc_init()
++   - m0_stats_svc_fini()
++*/
++
++#include "stats/stats_fops.h"
++#include "reqh/reqh.h"
++#include "reqh/reqh_service.h"
++#include "fop/fom_generic.h"
++
++/**
++ * @defgroup stats_svc Stats Service
++ * @{
++ */
++#define M0_STATS_SVC_NAME "stats"
++
++extern struct m0_reqh_service_type m0_stats_svc_type;
++
++/**
++ * In-memory representation of statistical information
++ */
++struct m0_stats {
++	uint64_t	    s_magic;
++	/** Linkage to list of global stats object */
++	struct m0_tlink     s_linkage;
++	/** Summary record represent statistics */
++	struct m0_stats_sum s_sum;
++};
++
++/**
++ * Stats service.
++ */
++struct stats_svc {
++	uint64_t	       ss_magic;
++	/**
++	 * List of statistic objects.
++	 * Initially this list does not contains any stats object. As
++	 * stats_update request is recieved, stats_update FOM creates new entry
++	 * for respective stats otherwise update existing stats object.
++	 */
++	struct m0_tl           ss_stats;
++	/** Embedded request handler service object. */
++	struct m0_reqh_service ss_reqhs;
++};
++
++/**
++ * Stats update fom.
++ */
++struct stats_update_fom {
++	uint64_t      suf_magic;
++	struct m0_fom suf_fom;
++};
++
++enum stats_update_fom_phases {
++	STATS_UPDATE_FOM_INIT = M0_FOPH_INIT,
++	STATS_UPDATE_FOM_FINISH = M0_FOPH_FINISH,
++	STATS_UPDATE_FOM_UPDATE_OBJECT = M0_FOPH_NR + 1,
++};
++
++/*
++ * Stats query fom.
++ */
++struct stats_query_fom {
++	uint64_t      sqf_magic;
++	struct m0_fom sqf_fom;
++};
++
++enum stats_query_fom_phases {
++	STATS_QUERY_FOM_READ_OBJECT = M0_FOPH_NR + 1,
++};
++
++/**
++ * Initialize stats service.
++ */
++M0_INTERNAL int m0_stats_svc_init(void);
++
++/**
++ * Finalize stats service.
++ */
++M0_INTERNAL void m0_stats_svc_fini(void);
++
++#define STATS_SVC_ALLOC_PTR(ptr, loc, ctx)				      \
++	M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_STATS_SVC_ADDB_LOC_##loc, ctx)
++
++/** @} end group stats_service */
++
++#endif /* __KERNEL__ */
++#endif /* __MERO_STATS_STATS_SVC_H_ */
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/ut/Makefile.sub b/stats/ut/Makefile.sub
+new file mode 100644
+index 0000000..5a83ed1
+--- /dev/null
++++ b/stats/ut/Makefile.sub
+@@ -0,0 +1,4 @@
++ut_libmero_ut_la_SOURCES += stats/ut/stats_ut.c
++
++EXTRA_DIST += \
++	   stats/ut/stats_ut_svc.c
+diff --git a/stats/ut/stats_ut.c b/stats/ut/stats_ut.c
+new file mode 100644
+index 0000000..961010d
+--- /dev/null
++++ b/stats/ut/stats_ut.c
+@@ -0,0 +1,56 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 07/31/2013
++ */
++#include "lib/finject.h"
++#include "ut/ut.h"
++
++#include "stats/ut/stats_ut_svc.c"
++
++static int stats_ut_init(void)
++{
++	return 0;
++}
++
++static int stats_ut_fini(void)
++{
++	return 0;
++}
++
++const struct m0_test_suite stats_ut = {
++	.ts_name  = "stats-ut",
++	.ts_init  = stats_ut_init,
++	.ts_fini  = stats_ut_fini,
++	.ts_tests = {
++		{ "stats-svc-start-stop", stats_ut_svc_start_stop },
++		{ "stats-svc-update-fom", stats_ut_svc_update_fom },
++		{ "stats-svc-query-fom",  stats_ut_svc_query_fom },
++		{ NULL,	NULL}
++	}
++};
++M0_EXPORTED(stats_ut);
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stats/ut/stats_ut_svc.c b/stats/ut/stats_ut_svc.c
+new file mode 100644
+index 0000000..536f2da
+--- /dev/null
++++ b/stats/ut/stats_ut_svc.c
+@@ -0,0 +1,485 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
++ * Original creation date: 07/31/2013
++ */
++#include "fop/fop.h"
++#include "fop/fom.h"
++#include "mero/setup.h"
++#include "stats/stats_fops.h"
++#include "reqh/reqh_service.h"
++
++#include "stats/stats_srv.c"
++#include "rpc/ut/clnt_srv_ctx.c"
++struct m0_mutex ut_stats_mutex;
++struct m0_cond  ut_stats_cond;
++struct m0_rpc_server_ctx stats_ut_sctx_bk;
++
++static char *stats_ut_server_argv[] = {
++        "rpclib_ut", "-r", "-p", "-T", "AD", "-D", SERVER_DB_NAME,
++        "-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
++        "-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10"
++};
++
++struct m0_reqh_service_type *stats_ut_default_stypes[] = {
++        &m0_stats_svc_type,
++};
++
++enum stats_id {
++	UT_STATS_FOP_RATE = 1,
++	UT_STATS_READ_SIZE,
++	UT_STATS_DISK
++};
++
++enum fop_type {
++	UPDATE_FOP = 1,
++	QUERY_FOP
++};
++
++/* Fake stats */
++struct fop_rate {
++	uint64_t fr_rate;
++	uint64_t fr_avg_turnaround_time_ns;
++};
++
++struct read_size {
++	uint64_t rs_avg_size;
++};
++
++struct disk_stats {
++	uint64_t ds_total;
++	uint64_t ds_free;
++	uint64_t ds_used;
++};
++
++struct m0_stats_sum stats_sum[3];
++uint64_t                 stats_ids[] = {
++	UT_STATS_FOP_RATE,
++	UT_STATS_READ_SIZE,
++	UT_STATS_DISK
++};
++
++static void check_summary_data(struct m0_addb_uint64_seq *d1,
++			       struct m0_addb_uint64_seq *d2)
++{
++	M0_UT_ASSERT(d1->au64s_nr == d2->au64s_nr);
++	if (d1->au64s_nr != 0 && d2->au64s_nr != 0)
++		M0_UT_ASSERT(memcmp(d1->au64s_data, d2->au64s_data,
++				    d1->au64s_nr) == 0);
++}
++
++void check_stats(struct m0_tl *stats_list, int count)
++{
++	int i;
++	int id;
++
++	for (i = 0, id = 1; i < count; ++i, ++id) {
++		struct m0_stats *stats = stats_get(stats_list, id);
++		M0_UT_ASSERT(stats != NULL);
++
++		check_summary_data(&stats_sum[i].ss_data,
++				   &(stats->s_sum.ss_data));
++	}
++}
++
++static void stats_ut_svc_start_stop()
++{
++	struct m0_reqh	       *reqh;
++	struct m0_reqh_service *stats_srv;
++	/*
++	 * Test 1: Check stats service start on mero server start
++	 * 1. Start mero client-server
++	 * 2. verify it's status
++	 */
++	stats_ut_sctx_bk = sctx;
++
++        sctx.rsx_argv             = stats_ut_server_argv,
++        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
++        sctx.rsx_service_types    = stats_ut_default_stypes,
++        sctx.rsx_service_types_nr = 1,
++
++	start_rpc_client_and_server();
++
++	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
++	M0_UT_ASSERT(reqh != NULL);
++
++	stats_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
++	M0_UT_ASSERT(stats_srv != NULL);
++	M0_UT_ASSERT(m0_reqh_service_state_get(stats_srv) == M0_RST_STARTED);
++
++	/*
++	 * Test 2: Check individual stats service stop
++	 * 1. stop stats service
++	 * 2. verify it's status
++	 */
++	m0_reqh_service_stop(stats_srv);
++	M0_UT_ASSERT(m0_reqh_service_state_get(stats_srv) == M0_RST_STOPPED);
++
++	stop_rpc_client_and_server();
++
++	sctx = stats_ut_sctx_bk;
++}
++
++void fop_release(struct m0_ref *ref)
++{
++	struct m0_fop *fop = container_of(ref, struct m0_fop, f_ref);
++
++	M0_UT_ASSERT(fop != NULL);
++	m0_fop_fini(fop);
++	m0_free(fop);
++}
++
++static void test_state_update_fom_fini(struct m0_fom *fom)
++{
++	stats_update_fom_fini(fom);
++	m0_mutex_lock(&ut_stats_mutex);
++	m0_cond_signal(&ut_stats_cond);
++	m0_mutex_unlock(&ut_stats_mutex);
++}
++
++/**
++ *	Fake stats update FOM operation vector to fom.
++ *	It only override fom_finish op which is wrapper of original one.
++ */
++static const struct m0_fom_ops ut_stats_update_fom_ops = {
++        .fo_tick          = stats_update_fom_tick,
++        .fo_home_locality = stats_fom_home_locality,
++        .fo_addb_init     = stats_update_fom_addb_init,
++        .fo_fini          = test_state_update_fom_fini
++};
++
++static struct m0_fop *get_fake_stats_fop(uint32_t nsum, enum fop_type type)
++{
++	struct m0_fop                   *fop;
++	struct m0_stats_update_fop *ufop;
++	struct m0_stats_query_fop  *qfop;
++
++
++	M0_ALLOC_PTR(fop);
++	M0_UT_ASSERT(fop != NULL);
++
++	switch(type) {
++	case UPDATE_FOP :
++		M0_ALLOC_PTR(ufop);
++		M0_UT_ASSERT(ufop != NULL);
++
++		M0_ALLOC_ARR(ufop->suf_stats.sf_stats, nsum);
++		M0_UT_ASSERT(ufop->suf_stats.sf_stats != NULL);
++
++		m0_fop_init(fop, &m0_fop_stats_update_fopt, (void *)ufop,
++			    fop_release);
++		break;
++	case QUERY_FOP :
++		M0_ALLOC_PTR(qfop);
++		M0_UT_ASSERT(qfop != NULL);
++
++		m0_fop_init(fop, &m0_fop_stats_query_fopt, (void *)qfop,
++			    fop_release);
++		break;
++	}
++
++	return fop;
++}
++
++static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
++			    int count)
++{
++	struct m0_fop			*fop;
++	struct m0_fom			*fom;
++	struct m0_stats_update_fop *ufop;
++	int				 i;
++	int				 rc;
++
++	m0_mutex_init(&ut_stats_mutex);
++	m0_cond_init(&ut_stats_cond, &ut_stats_mutex);
++
++	fop = get_fake_stats_fop(count, UPDATE_FOP);
++	M0_UT_ASSERT(fop != NULL);
++
++	ufop = m0_stats_update_fop_get(fop);
++	ufop->suf_stats.sf_nr = count;
++	for (i = 0; i < count; ++i)
++		stats_sum_copy(&stats_sum[i], &ufop->suf_stats.sf_stats[i]);
++
++	rc = stats_update_fom_create(fop, &fom, reqh);
++	M0_UT_ASSERT(rc == 0);
++
++	m0_fop_put(fop);
++
++	fom->fo_ops   = &ut_stats_update_fom_ops;
++	fom->fo_local = true;
++
++	m0_mutex_lock(&ut_stats_mutex);
++
++	/* Submit fop to reqh handler */
++	m0_fom_queue(fom, reqh);
++	m0_cond_wait(&ut_stats_cond);
++
++	m0_mutex_unlock(&ut_stats_mutex);
++	m0_cond_fini(&ut_stats_cond);
++
++	check_stats(&srv->ss_stats, count);
++}
++
++static void stats_ut_svc_update_fom()
++{
++	struct m0_reqh	       *reqh;
++	struct fop_rate		f_rate;
++	struct read_size        r_size;
++	struct disk_stats       d_stats;
++	struct m0_reqh_service *reqh_srv;
++	struct stats_svc       *srv;
++
++	stats_ut_sctx_bk = sctx;
++
++        sctx.rsx_argv             = stats_ut_server_argv,
++        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
++        sctx.rsx_service_types    = stats_ut_default_stypes,
++        sctx.rsx_service_types_nr = 1,
++
++	start_rpc_client_and_server();
++
++	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
++	M0_UT_ASSERT(reqh != NULL);
++
++	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
++	M0_UT_ASSERT(reqh_srv != NULL);
++	M0_UT_ASSERT(m0_reqh_service_state_get(reqh_srv) == M0_RST_STARTED);
++
++	srv = container_of(reqh_srv, struct stats_svc, ss_reqhs);
++	stats_svc_invariant(srv);
++
++	/*
++	 * Test 1:
++	 * verify creation of new stats type
++	 */
++	f_rate.fr_rate = 1000;
++	f_rate.fr_avg_turnaround_time_ns = 1234;
++	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
++	stats_sum[0].ss_data.au64s_nr = 2;
++	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
++
++	update_fom_test(srv, reqh, 1);
++
++	/*
++	 * Test 2:
++	 * verify creation (new stats type) & update (existing stats type)
++	 * from stats list
++	 */
++	f_rate.fr_rate = 2000;
++	f_rate.fr_avg_turnaround_time_ns = 4321;
++	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
++	stats_sum[0].ss_data.au64s_nr = 2;
++	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
++
++	r_size.rs_avg_size = 1024;
++	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
++	stats_sum[1].ss_data.au64s_nr = 1;
++	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
++
++	update_fom_test(srv, reqh, 2);
++
++	/*
++	 * Test 3:
++	 * verify creation (new stats type) & multiple update
++	 * (existing stats type) from stats list
++	 */
++	f_rate.fr_rate = 3000;
++	f_rate.fr_avg_turnaround_time_ns = 98765;
++	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
++	stats_sum[0].ss_data.au64s_nr = 2;
++	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
++
++	r_size.rs_avg_size = 8196;
++	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
++	stats_sum[1].ss_data.au64s_nr = 1;
++	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
++
++	d_stats.ds_free  = 2678901234;
++	d_stats.ds_used  = 3578901234;
++	d_stats.ds_total = 6257802468;
++	stats_sum[2].ss_id = UT_STATS_DISK;
++	stats_sum[2].ss_data.au64s_nr = 3;
++	stats_sum[2].ss_data.au64s_data = (uint64_t *)&d_stats;
++
++	update_fom_test(srv, reqh, 3);
++
++	stop_rpc_client_and_server();
++
++	sctx = stats_ut_sctx_bk;
++}
++
++static void test_state_query_fom_fini(struct m0_fom *fom)
++{
++	int				     i;
++	struct m0_stats_query_fop      *qfop;
++	struct m0_stats_query_rep_fop  *qfop_rep;
++
++	qfop = m0_stats_query_fop_get(fom->fo_fop);
++	qfop_rep = m0_stats_query_rep_fop_get(fom->fo_rep_fop);
++
++	M0_UT_ASSERT(qfop_rep->sqrf_stats.sf_nr == qfop->sqf_ids.au64s_nr);
++
++	for (i = 0; i < qfop_rep->sqrf_stats.sf_nr; ++i) {
++		struct m0_stats_sum *sum;
++		sum = &(qfop_rep->sqrf_stats.sf_stats[i]);
++		M0_UT_ASSERT(sum->ss_id == stats_sum[i].ss_id);
++		if (sum->ss_id != M0_STATS_ID_UNDEFINED)
++			check_summary_data(&sum->ss_data,
++					   &stats_sum[i].ss_data);
++	}
++
++	stats_query_fom_fini(fom);
++
++	m0_mutex_lock(&ut_stats_mutex);
++	m0_cond_signal(&ut_stats_cond);
++	m0_mutex_unlock(&ut_stats_mutex);
++}
++
++/**
++ *	Fake stats query FOM operation vector to fom.
++ *	It only override fom_finish op which is wrapper of original one.
++ */
++static const struct m0_fom_ops ut_stats_query_fom_ops = {
++        .fo_tick          = stats_query_fom_tick,
++        .fo_home_locality = stats_fom_home_locality,
++        .fo_addb_init     = stats_query_fom_addb_init,
++        .fo_fini          = test_state_query_fom_fini
++};
++
++static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
++			   int count)
++{
++	struct m0_fop			*fop;
++	struct m0_fom			*fom;
++	struct m0_stats_query_fop  *qfop;
++	int				 rc;
++
++	m0_mutex_init(&ut_stats_mutex);
++	m0_cond_init(&ut_stats_cond, &ut_stats_mutex);
++
++	fop = get_fake_stats_fop(count, QUERY_FOP);
++	M0_UT_ASSERT(fop != NULL);
++
++	qfop = m0_stats_query_fop_get(fop);
++
++	M0_ALLOC_ARR(qfop->sqf_ids.au64s_data, count);
++	M0_UT_ASSERT(qfop->sqf_ids.au64s_data != NULL);
++	qfop->sqf_ids.au64s_nr = count;
++	memcpy(qfop->sqf_ids.au64s_data, stats_ids, count * sizeof(uint64_t));
++
++	rc = stats_query_fom_create(fop, &fom, reqh);
++	M0_UT_ASSERT(rc == 0);
++
++	m0_fop_put(fop);
++
++	fom->fo_ops   = &ut_stats_query_fom_ops;
++	fom->fo_local = true;
++
++	m0_mutex_lock(&ut_stats_mutex);
++
++	/* Submit fop to reqh handler */
++	m0_fom_queue(fom, reqh);
++	m0_cond_wait(&ut_stats_cond);
++
++	m0_mutex_unlock(&ut_stats_mutex);
++	m0_cond_fini(&ut_stats_cond);
++}
++
++static void stats_ut_svc_query_fom()
++{
++	struct m0_reqh	       *reqh;
++	struct fop_rate		f_rate;
++	struct read_size        r_size;
++	struct disk_stats       d_stats;
++	struct m0_reqh_service *reqh_srv;
++	struct stats_svc       *srv;
++
++	stats_ut_sctx_bk = sctx;
++
++        sctx.rsx_argv             = stats_ut_server_argv,
++        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
++        sctx.rsx_service_types    = stats_ut_default_stypes,
++        sctx.rsx_service_types_nr = 1,
++
++	start_rpc_client_and_server();
++
++	reqh = m0_cs_reqh_get(&sctx.rsx_mero_ctx, "stats");
++	M0_UT_ASSERT(reqh != NULL);
++
++	reqh_srv = m0_reqh_service_find(&m0_stats_svc_type, reqh);
++	M0_UT_ASSERT(reqh_srv != NULL);
++	M0_UT_ASSERT(m0_reqh_service_state_get(reqh_srv) == M0_RST_STARTED);
++
++	srv = container_of(reqh_srv, struct stats_svc, ss_reqhs);
++	stats_svc_invariant(srv);
++
++	/*
++	 * Populate stats on stats service.
++	 */
++	f_rate.fr_rate = 3000;
++	f_rate.fr_avg_turnaround_time_ns = 98765;
++	stats_sum[0].ss_id = UT_STATS_FOP_RATE;
++	stats_sum[0].ss_data.au64s_nr = 2;
++	stats_sum[0].ss_data.au64s_data = (uint64_t *)&f_rate;
++
++	r_size.rs_avg_size = 8196;
++	stats_sum[1].ss_id = UT_STATS_READ_SIZE;
++	stats_sum[1].ss_data.au64s_nr = 1;
++	stats_sum[1].ss_data.au64s_data = (uint64_t *)&r_size;
++
++	d_stats.ds_free  = 2678901234;
++	d_stats.ds_used  = 3578901234;
++	d_stats.ds_total = 6257802468;
++	stats_sum[2].ss_id = UT_STATS_DISK;
++	stats_sum[2].ss_data.au64s_nr = 3;
++	stats_sum[2].ss_data.au64s_data = (uint64_t *)&d_stats;
++
++	update_fom_test(srv, reqh, 3);
++
++	/* Test 1 : Query single stats. */
++	query_fom_test(srv, reqh, 1);
++
++	/* Test 2 : Query two stats. */
++	query_fom_test(srv, reqh, 2);
++
++	/* Test 3 : Query all stats. */
++	query_fom_test(srv, reqh, 3);
++
++	/*
++	 * Test 4 : Query stats with some undfined stats ids.
++	 *          Reply fops should get ss_id for queried stats is
++	 *          M0_UNDEF_STATS.
++	 */
++	stats_ids[1] = 9999;
++	stats_sum[1].ss_id = M0_STATS_ID_UNDEFINED;
++	query_fom_test(srv, reqh, 3);
++
++	stop_rpc_client_and_server();
++
++	sctx = stats_ut_sctx_bk;
++}
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 489a767..4a3df2f 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -93,6 +93,7 @@ extern const struct m0_test_suite sns_cm_repair_ut;
+ extern const struct m0_test_suite snscm_net_ut;
+ extern const struct m0_test_suite snscm_storage_ut;
+ extern const struct m0_test_suite snscm_xform_ut;
++extern const struct m0_test_suite stats_ut;
+ extern const struct m0_test_suite stobio_ut;
+ extern const struct m0_test_suite udb_ut;
+ extern const struct m0_test_suite xcode_bufvec_fop_ut;
+@@ -158,6 +159,7 @@ void add_uts(void)
+ 	m0_ut_add(&snscm_storage_ut);
+ 	m0_ut_add(&sns_cm_repair_ut);
+ 	m0_ut_add(&snscm_net_ut);
++	m0_ut_add(&stats_ut);
+ 	m0_ut_add(&stobio_ut);
+ 	m0_ut_add(&udb_ut);
+ 	m0_ut_add(&xcode_bufvec_fop_ut);
+-- 
+1.8.3.2
+

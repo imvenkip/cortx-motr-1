@@ -1,0 +1,28 @@
+From 1fa15466359709d0aae178abdd8c395b4a923132 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Thu, 27 Dec 2012 07:56:10 -0800
+Subject: [PATCH 18/94] Added magic for reference
+
+---
+ be/lib/be_types.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/be/lib/be_types.h b/be/lib/be_types.h
+index 30ae145..0c87f3d 100644
+--- a/be/lib/be_types.h
++++ b/be/lib/be_types.h
+@@ -42,6 +42,11 @@ struct m0_reference {
+         uint64_t magic_offset;
+ };
+ 
++enum m0_be_magic {
++        /* be_domain::be_ref_magic (cca11a5ca11ed) */
++        BE_ALLOC_REF_MAGIC = 0x33ca11a5ca11ed77
++};
++
+ #endif /* __MERO_BE_LIB_BE_TYPES_H_ */
+ 
+ /*
+-- 
+1.8.3.2
+

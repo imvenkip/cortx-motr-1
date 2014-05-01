@@ -1,0 +1,25 @@
+From d096c823068199828c9e09632dc971f6180582fd Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 30 Nov 2012 06:23:45 +0200
+Subject: [PATCH 51/58] LogD 1527: added "not thread-safe" note to
+ c2_net_test_ringbuf_nr()
+
+---
+ net/test/ringbuf.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/test/ringbuf.h b/net/test/ringbuf.h
+index 5215e39..3571fcd 100644
+--- a/net/test/ringbuf.h
++++ b/net/test/ringbuf.h
+@@ -83,6 +83,7 @@ bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb);
+ 
+ /**
+    Get current number of elements in the ring buffer.
++   @note This function is not thread-safe.
+    @pre c2_net_test_ringbuf_invariant(rb)
+  */
+ size_t c2_net_test_ringbuf_nr(struct c2_net_test_ringbuf *rb);
+-- 
+1.8.3.2
+

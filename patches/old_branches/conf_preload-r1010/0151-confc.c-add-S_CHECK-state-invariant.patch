@@ -1,0 +1,70 @@
+From 7223f2a3ca3299d43aa023ba3ccb9445534ebdb8 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 26 Apr 2012 18:06:56 +0300
+Subject: [PATCH 151/311] confc.c: add S_CHECK state invariant
+
+LogD: #1109
+RB: r/714
+---
+ conf/confc.c | 26 ++++++++++++++++++--------
+ 1 file changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 6e0a912..5c6360c 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -286,6 +286,14 @@ static struct c2_confc_ctx * mach_to_ctx(struct c2_sm *mach)
+ 	return ctx;
+ }
+ 
++static const struct c2_confc_ctx * mach_to_const_ctx(const struct c2_sm *mach)
++{
++	const struct c2_confc_ctx *ctx =
++		container_of(mach, const struct c2_confc_ctx, fc_mach);
++	C2_ASSERT(ctx_invariant(ctx));
++	return ctx;
++}
++
+ static struct c2_confc_ctx * ast_to_ctx(struct c2_sm_ast *ast)
+ {
+ 	struct c2_confc_ctx *ctx =
+@@ -865,18 +873,20 @@ static void completion_announce(struct c2_sm *mach)
+ 
+ static bool failure_st_invariant(const struct c2_sm *mach)
+ {
+-	const struct c2_confc_ctx *ctx =
+-		container_of(mach, const struct c2_confc_ctx, fc_mach);
+-	C2_ASSERT(ctx_invariant(ctx));
++	const struct c2_confc_ctx *ctx = mach_to_const_ctx(mach);
+ 	return ctx->fc_result == NULL && ctx->fc_mach.sm_rc < 0;
+ }
+ 
+ static bool terminal_st_invariant(const struct c2_sm *mach)
+ {
+-	const struct c2_confc_ctx *ctx =
+-		container_of(mach, const struct c2_confc_ctx, fc_mach);
+-	C2_ASSERT(ctx_invariant(ctx));
+-	return mach->sm_rc == 0 && ctx->fc_result != NULL;
++	return mach->sm_rc == 0 && mach_to_const_ctx(mach)->fc_result != NULL;
++}
++
++static bool check_st_invariant(const struct c2_sm *mach)
++{
++	const struct c2_confc_ctx *ctx = mach_to_const_ctx(mach);
++	return mach->sm_rc == 0 && ctx->fc_result == NULL &&
++		ctx_invariant(ctx) && ctx->fc_extra == NULL;
+ }
+ 
+ /** Handles `RPC replied' event, i.e. response arrival or an error. */
+@@ -930,7 +940,7 @@ static const struct c2_sm_state_descr confc_states[S_NR] = {
+ 		.sd_name      = "CHECK",
+ 		.sd_in        = check_st_in,
+ 		.sd_ex        = NULL,
+-		.sd_invariant = NULL,
++		.sd_invariant = check_st_invariant,
+ 		.sd_allowed   = 1 << S_WAIT_REPLY | 1 << S_WAIT_STATUS
+ 			      | 1 << S_TERMINAL | 1 << S_FAILURE
+ 	},
+-- 
+1.8.3.2
+

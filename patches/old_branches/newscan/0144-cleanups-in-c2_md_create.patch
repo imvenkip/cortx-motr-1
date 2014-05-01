@@ -1,0 +1,46 @@
+From 5caf421ccd13e3110428313a6500accdbb7d1ea9 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Sun, 19 Jun 2011 09:01:42 -0600
+Subject: [PATCH 144/158] - cleanups in c2_md_create()
+
+---
+ mdservice/md_foms.c | 23 ++++++++++-------------
+ 1 file changed, 10 insertions(+), 13 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index a89e219..81dc49a 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -206,19 +206,16 @@ restart:
+                                 goto restart;
+                         }
+                         c2_cob_put(ecob);
+-                }
+-
+-                /*
+-                 * Let's see if we have stat data name and create one
+-                 * if not.
+-                 */
+-                rc = c2_md_store_locate(md, tfid, &scob, 
+-                                        C2_MD_LOCATE_STORED, tx);
+-                if (rc == -ENOENT) {
+-                        C2_ASSERT(attr->ca_nlink > 0);
+-                        rc = c2_md_store_create(md, pfid, attr, &scob, tx);
+-                } else if (rc == 0) {
+-                        if (attr->ca_version > scob->co_nsrec.cnr_version)
++                } else {
++                        /*
++                         * Name belonging to same object exists, it should be
++                         * stat data or db is not consistent. We don't put an
++                         * assert here because -EDEADLK may occur.
++                         */
++                        rc = c2_md_store_locate(md, tfid, &scob, 
++                                                C2_MD_LOCATE_STORED, tx);
++                        if (rc == 0 && 
++                            attr->ca_version > scob->co_nsrec.cnr_version)
+                                 rc = c2_md_store_setattr(md, scob, attr, tx);
+                 }
+                 c2_cob_put(ncob);
+-- 
+1.8.3.2
+

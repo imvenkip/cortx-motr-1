@@ -1,0 +1,1018 @@
+From f441b267b46de3ffd4793e3ea86b78932c0e6c56 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Wed, 13 Mar 2013 16:20:37 +0530
+Subject: [PATCH 03/25] Added distributed file lock DLD.
+
+---
+ rm/file.c  | 336 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ rm/file.h  | 131 +++++++++++++++++++++++
+ rm/mutex.c | 355 -------------------------------------------------------------
+ rm/mutex.h | 153 --------------------------
+ 4 files changed, 467 insertions(+), 508 deletions(-)
+ create mode 100644 rm/file.c
+ create mode 100644 rm/file.h
+ delete mode 100644 rm/mutex.c
+ delete mode 100644 rm/mutex.h
+
+diff --git a/rm/file.c b/rm/file.c
+new file mode 100644
+index 0000000..1ff9e06
+--- /dev/null
++++ b/rm/file.c
+@@ -0,0 +1,336 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
++ * Original creation date: 03/12/2013
++ */
++
++#include "rm/file.h"
++
++/**
++   @page FileLock Distributed File Lock DLD
++
++   - @ref FileLockDLD-ovw
++   - @ref FileLockDLD-req
++   - @ref FileLockDLD-depends
++   - @subpage FileLockDLD-fspec "Functional Specification" <!-- Note @subpage -->
++   - @ref FileLockDLD-lspec
++      - @ref FileLockDLD-lspec-comps
++      - @ref FileLockDLD-lspec-numa
++   - @ref FileLockDLD-conformance
++   - @ref FileLockDLD-ut
++   - @ref FileLockDLD-st
++   - @ref FileLockDLD-ref
++   - @ref FileLockDLD-impl-plan
++
++
++   <hr>
++   @section FileLockDLD-ovw Overview
++
++   This DLD describes the implementation of a distributed file lock. The
++   distributed file lock is implemented over Mero resource manager. Mero
++   resource manager alerady provides a distributed resource management
++   framework within a cluster (provides semantics similar to a distributed
++   lock manager).
++
++   <b>Purpose of a DLD</b> @n
++   The purpose of the Detailed Level Design (DLD) specification of a
++   distributed file lock is to:
++   - Implement file lock resource type of Mero resource manager
++   - Implement distributed file lock interfaces
++
++   <hr>
++   @section FileLockDLD-req Requirements
++
++   - @b R.rm-file-lock.async The distributed file lock should provide async
++   interfaces.
++   - @b R.rm-file-lock.RM The distributed file lock shall use RM
++   (resource manager) to implement the interfaces.
++
++   <hr>
++   @section FileLockDLD-depends Dependencies
++
++   The distributed file lock depends on resource manager.
++
++   <hr>
++   @section FileLockDLD-lspec Logical Specification
++
++   - @ref FileLockDLD-lspec-comps
++   - @ref FileLockInternal  <!-- Note link -->
++   - @ref FileLockDLD-lspec-numa
++
++
++   @subsection FileLockDLD-lspec-comps Component Overview
++   The distributed file lock implements following resource manager ops:
++   - resource type ops
++   - resource ops
++   - resource credit ops
++
++   @subsection FileLockDLD-lspec-numa NUMA optimizations
++
++   This component helps the threads to do a cluster-wide synchronization.
++   Distributed file lock by itself has no specific NUMA optimizations.
++
++   <hr>
++   @section FileLockDLD-conformance Conformance
++
++   - @b I.rm-file-lock.async The interfaces are async.
++   - @b I.rm-file-lock.RM  Implements RM ops to implement file lock resource
++
++   <hr>
++   @section FileLockDLD-ut Unit Tests
++
++   The unit test setup will be as follows:
++   a) two resource manger servers
++   OR
++   b) two resource manager server and resource manager service
++
++   Following scenarios will be tested:
++   @test
++   1) Lock usage when no other thread is using the lock
++   - wait mode: gets the lock
++   - try mode: gets the lock
++
++   @test
++   2) Lock usage when a local thread is holding the lock
++   - wait mode: gets the lock when the other thread releases the lock
++   - try mode : gets an error
++
++   @test
++   3) Lock usage when a remote thread is holding the lock
++   - wait mode: gets the lock when the other thread releases the lock
++   - try mode : gets an error
++
++   @test
++   4) lib/ut/thread.c like test
++   - A set of arbitrary thread perform lock, unlock operations.
++   Verify the number of operations match the expected result.
++
++   <hr>
++   @section FileLockDLD-st System Tests
++
++   System tests will be performed by the subsystem that uses the distributed
++   file lock.
++
++   <hr>
++   @section FileLockDLD-ref References
++
++   - <a href="https://docs.google.com/a/xyratex.com/document/d/1YTj9aib8DMrFr7OJo_ZjVuLhHAEqSGRxO2oUpe1SSsQ/edit">
++      HLD of resource manager Interfaces</a>,
++
++   <hr>
++   @section FileLockDLD-impl-plan Implementation Plan
++
++   It implements:
++   - m0_rm_resource_type_ops
++   - m0_rm_resource_ops
++   - m0_rm_credit_ops
++   - m0_rm_file_lock_* external interfaces
++
++ */
++
++/**
++   @defgroup FileLockInternal Distributed File Lock Internals
++   @ingroup FileLock
++
++   This section contains the functions that are internal to the distributed
++   file lock. They implement various resource manager ops.
++
++   @see @ref FileLockDLD-ovw and @ref FileLockDLD-lspec
++
++   @{
++ */
++
++const struct m0_rm_resource_type_ops file_lock_type_ops = {
++	.rto_eq     = file_lock_equal,
++	.rto_decode = file_lock_decode,
++	.rto_encode = file_lock_encode,
++};
++
++const struct m0_rm_resource_ops file_lock_ops = {
++	.rop_credit_init = file_lock_credit_init
++};
++
++const struct m0_rm_credit_ops file_lock_credit_ops = {
++	.cro_intersects = file_lock_cr_intersects,
++	.cro_join       = file_lock_cr_join,
++	.cro_copy       = file_lock_cr_copy,
++	.cro_diff       = file_lock_cr_diff,
++	.cro_free       = file_lock_cr_free,
++	.cro_encode     = file_lock_cr_encode,
++	.cro_decode     = file_lock_cr_decode,
++	.cro_len        = file_lock_cr_len,
++	.cro_is_subset  = file_lock_cr_is_subset,
++	.cro_disjoin    = file_lock_cr_disjoin,
++	.cro_conflicts  = file_lock_cr_conflicts,
++};
++
++const struct m0_rm_incoming_ops file_lock_incoming_ops = {
++	.rio_complete = file_lock_incoming_complete,
++	.rio_conflict = file_lock_incoming_conflict
++};
++
++/** Compare Ids of two file_lockes */
++static bool file_lock_equal(const struct m0_rm_resource *resource0,
++			    const struct m0_rm_resource *resource1)
++{
++}
++
++/** Encode file_lock - ready to send over the wire */
++static int file_lock_encode(struct m0_bufvec_cursor *cur,
++			    const struct m0_rm_resource *resource)
++{
++}
++
++/** Decode file_lock - from the wire */
++static int file_lock_decode(const struct m0_bufvec_cursor *cur,
++			    struct m0_rm_resource **resource)
++{
++}
++
++/** Initialises credit (lock state) and ops vector for the file_lock */
++static void file_lock_credit_init(struct m0_rm_resource *resource,
++				  struct m0_rm_credit *credit)
++{
++}
++
++/** Lock request completion callback */
++static void file_lock_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
++{
++}
++
++/** Lock request conflict callback - Invalid for file_lock */
++static void file_lock_incoming_conflict(struct m0_rm_incoming *in)
++{
++	C2_IMPOSSIBLE();
++}
++
++static bool file_lock_cr_intersects(const struct m0_rm_credit *c0,
++				    const struct m0_rm_credit *c1)
++{
++}
++
++static bool file_lock_cr_len(const struct m0_rm_credit *c0)
++{
++}
++
++static int file_lock_cr_join(struct m0_rm_credit *c0,
++			     const struct m0_rm_credit *c1)
++{
++}
++
++static int file_lock_cr_disjoin(struct m0_rm_credit *c0,
++				const struct m0_rm_credit *c1,
++				struct m0_rm_credit *intersection)
++{
++}
++
++static int file_lock_cr_copy(struct m0_rm_credit *dst,
++			     const struct m0_rm_credit *src)
++{
++}
++
++static int file_lock_cr_diff(struct m0_rm_credit *c0,
++			     const struct m0_rm_credit *c1)
++{
++}
++
++static bool file_lock_cr_conflicts(const struct m0_rm_credit *c0,
++				   const struct m0_rm_credit *c1)
++{
++}
++
++static bool file_lock_cr_is_subset(const struct m0_rm_credit *c0,
++				   const struct m0_rm_credit *c1)
++{
++}
++
++staic int file_lock_cr_encode(const struct m0_rm_credit *credit,
++			      struct m0_bufvec_cursor *cur)
++{
++}
++
++static int file_lock_cr_decode(struct m0_rm_credit *credit,
++			       struct m0_bufvec_cursor *cur)
++{
++}
++
++static void file_lock_cr_free(struct m0_rm_credit *credit)
++{
++}
++
++/** @} */ /* end internal FileLockInternal */
++
++/**
++ * @addtogroup FileLock
++ * @{
++ */
++M0_INTERNAL int m0_file_owner_init(struct m0_file *file,
++				   struct m0_rm_owner *owner,
++				   struct m0_rm_remote *creditor)
++{
++}
++M0_EXPORTED(m0_file_owner_init);
++
++M0_INTERNAL void m0_file_owner_fini(struct m0_rm_owner *owner)
++{
++}
++M0_EXPORTED(m0_file_owner_fini);
++
++M0_INTERNAL int m0_file_lock(struct m0_rm_owner *owner,
++			     struct m0_rm_incoming *req)
++{
++	/*
++	 * Possible steps:
++	 * 1. m0_rm_incoming_init(req, owner, M0_RIT_LOCAL,
++	 *                        RIP_NONE, RIF_MAY_BORROW);
++	 * 2. Initialise req->rin_want
++	 * 3. m0_rm_credit_get(req);
++	 */
++}
++M0_EXPORTED(m0_file_lock);
++
++M0_INTERNAL int m0_file_unlock(struct m0_rm_incoming *req)
++{
++	/*
++	 * Possible steps:
++	 * 1. m0_rm_credit_put(req);
++	 * 2. m0_rm_incoming_fini(req);
++	 */
++}
++M0_EXPORTED(m0_file_unlock);
++
++M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom)
++{
++}
++M0_EXPORTED(m0_file_lock_type_register);
++
++M0_INTERNAL void m0_file_lock_type_deregister(struct m0_rm_domain *dom)
++{
++}
++M0_EXPORTED(m0_file_lock_type_deregister);
++
++/** @} end of FileLock */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 79
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/rm/file.h b/rm/file.h
+new file mode 100644
+index 0000000..d7d435c
+--- /dev/null
++++ b/rm/file.h
+@@ -0,0 +1,131 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
++ * Original creation date: 03/12/2013
++ */
++
++#pragma once
++
++#ifndef __MERO_RM_FILE_H__
++#define __MERO_RM_FILE_H__
++
++#include "fid/fid.h"
++#include "rm/rm.h"
++
++/**
++   @page FileLock Distributed File Lock DLD
++
++   - @ref FileLockDLD-fspec-ds
++   - @ref FileLockDLD-fspec-sub
++
++   @section FileLockDLD-fspec Functional Specification
++   This section describes the data structure and the external interfaces of
++   the distributed file lock implemented using resource manager.
++
++   @section FileLockDLD-fspec-ds Data Structures
++
++   The distributed mutex will the following data structure:
++   - m0_file
++     This holds generic RM resource, and fid.
++
++   @section FileLockDLD-fspec-sub Subroutines
++
++   The asynchronous distributed file lock provides the functions listed in
++   in the sub-sections below:
++
++   @subsection FileLockDLD-fspec-sub-cons Constructors and Destructors
++
++   @subsection FileLockDLD-fspec-sub-opi Operational Interfaces
++   - m0_file_lock()
++   - m0_file_unlock()
++   - m0_file_lock_type_register()
++   - m0_file_lock_type_deregister()
++   - m0_file_owner_init()
++   - m0_file_owner_fini()
++
++ */
++
++/**
++   @defgroup FileLock Distributed File Lock
++   @ingroup rm
++
++   @see rm
++   @ref FileLockDLD-fspec "Functional Specification"
++
++   @{
++ */
++
++/** Distributed file lock */
++struct m0_file {
++	/** Id of the resource (i.e., fid) for which mutex is created */
++	struct m0_fid         fi_fid;
++
++	/** Embed RM resource */
++	struct m0_rm_resource fi_res;
++};
++
++/**
++ * Initialises owner for a file-lock resource.
++ *
++ * @param file - a resource
++ * @param owner - Owner for file
++ * @param creditor - Creditor for this owner
++ */
++M0_INTERNAL int m0_file_owner_init(struct m0_file *file,
++				   struct m0_rm_owner *owner,
++				   struct m0_rm_remote *creditor)
++
++/**
++ * Finalises the owner of file-lock
++ */
++M0_INTERNAL void m0_file_owner_fini(struct m0_rm_owner *owner);
++
++/**
++ * Asynchronously sends a distributed file lock request. A caller can
++ * decide to wait, if necessary.
++ */
++M0_INTERNAL int m0_file_lock(struct m0_rm_owner *owner,
++			     struct m0_rm_incoming *req);
++
++/**
++ * Asynchronously sends a request to unlock the distributed file lock.
++ */
++M0_INTERNAL int m0_file_unlock(struct m0_file *req);
++
++/**
++ * Registers the resource of type 'distributed mutex' with a resource domain.
++ */
++M0_INTERNAL int m0_file_lock_type_register(struct m0_rm_domain *dom);
++
++/**
++ * De-registers the resource of type 'distributed mutex' from a resource domain.
++ */
++M0_INTERNAL void m0_file_lock_type_deregister(struct m0_rm_domain *dom);
++
++/** @} end of FileLock */
++
++#endif /*  __MERO_RM_FILE_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 79
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/rm/mutex.c b/rm/mutex.c
+deleted file mode 100644
+index 3ee8298..0000000
+--- a/rm/mutex.c
++++ /dev/null
+@@ -1,355 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
+- * Original creation date: 02/26/2013
+- */
+-
+-#include "rm/mutex.h"
+-
+-/**
+-   @page RMmutex Distributed Mutex DLD
+-
+-   - @ref RMmutexDLD-ovw
+-   - @ref RMmutexDLD-req
+-   - @ref RMmutexDLD-depends
+-   - @subpage RMmutexDLD-fspec "Functional Specification" <!-- Note @subpage -->
+-   - @ref RMmutexDLD-lspec
+-      - @ref RMmutexDLD-lspec-comps
+-      - @ref RMmutexDLD-lspec-numa
+-   - @ref RMmutexDLD-conformance
+-   - @ref RMmutexDLD-ut
+-   - @ref RMmutexDLD-st
+-   - @ref RMmutexDLD-ref
+-   - @ref RMmutexDLD-impl-plan
+-
+-
+-   <hr>
+-   @section RMmutexDLD-ovw Overview
+-
+-   This DLD describes the implementation of a distributed mutex. The
+-   distributed mutex is implemented over Mero resource manager. Mero
+-   resource manager alerady provides a distributed resource management
+-   framework within a cluster (provides semantics similar to a distributed
+-   lock manager).
+-
+-   <b>Purpose of a DLD</b> @n
+-   The purpose of the Detailed Level Design (DLD) specification of a
+-   distributed mutex is to:
+-   - Implement mutex resource type of Mero resource manager
+-   - Implement distributed mutex interfaces
+-
+-   <hr>
+-   @section RMmutexDLD-req Requirements
+-
+-   - @b R.rm-mutex.POSIX The distributed mutex should provide the
+-   interfaces similar to POSIX. Such interfaces are standard, easy to use
+-   and familiar to programmers.
+-   - @b R.rm-mutex.RM The distributed mutex shall use RM (resource manager)
+-   to implement the interfaces.
+-
+-   <hr>
+-   @section RMmutexDLD-depends Dependencies
+-
+-   The distributed mutex depends on resource manager.
+-
+-   <hr>
+-   @section RMmutexDLD-lspec Logical Specification
+-
+-   - @ref RMmutexDLD-lspec-comps
+-   - @ref RMmutexInternal  <!-- Note link -->
+-   - @ref RMmutexDLD-lspec-numa
+-
+-
+-   @subsection RMmutexDLD-lspec-comps Component Overview
+-   The distributed mutex implements following resource manager ops:
+-   - resource type ops
+-   - resource ops
+-   - resource credit ops
+-
+-   @subsection RMmutexDLD-lspec-numa NUMA optimizations
+-
+-   This component helps the threads to do a cluster-wide synchronization.
+-   Distributed mutex by itself has no specific NUMA optimizations.
+-
+-   <hr>
+-   @section RMmutexDLD-conformance Conformance
+-
+-   - @b I.rm-mutex.POSIX The interfaces look similar to POSIX interfaces.
+-   - @b I.rm-mutex.RM  Implements RM ops to implement mutex resource
+-
+-   <hr>
+-   @section RMmutexDLD-ut Unit Tests
+-
+-   The unit test setup will be as follows:
+-   a) two resource manger servers
+-   OR
+-   b) two resource manager server and resource manager service
+-
+-   Following scenarios will be tested:
+-   @test
+-   1) Lock usage when no other thread is using the lock
+-   - wait mode: gets the lock
+-   - try mode: gets the lock
+-
+-   @test
+-   2) Lock usage when a local thread is holding the lock
+-   - wait mode: gets the lock when the other thread releases the lock
+-   - try mode : gets an error
+-
+-   @test
+-   3) Lock usage when a remote thread is holding the lock
+-   - wait mode: gets the lock when the other thread releases the lock
+-   - try mode : gets an error
+-
+-   @test
+-   4) lib/ut/thread.c like test
+-   - A set of arbitrary thread perform lock, unlock operations.
+-   Verify the number of operations match the expected result.
+-
+-   <hr>
+-   @section RMmutexDLD-st System Tests
+-
+-   System tests will be performed by the subsystem that uses the distributed
+-   mutex.
+-
+-   <hr>
+-   @section RMmutexDLD-ref References
+-
+-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1YTj9aib8DMrFr7OJo_ZjVuLhHAEqSGRxO2oUpe1SSsQ/edit">
+-      HLD of resource manager Interfaces</a>,
+-
+-   <hr>
+-   @section RMmutexDLD-impl-plan Implementation Plan
+-
+-   It implements:
+-   - m0_rm_resource_type_ops
+-   - m0_rm_resource_ops
+-   - m0_rm_credit_ops
+-   - m0_rm_mutex_* external interfaces
+-
+- */
+-
+-/**
+-   @defgroup RMmutexInternal Distributed Mutex Internals
+-   @ingroup RMmutex
+-
+-   This section contains the functions that are internal to the distributed
+-   mutex. They implement various resource manager ops.
+-
+-   @see @ref RMmutexDLD-ovw and @ref RMmutexDLD-lspec
+-
+-   @{
+- */
+-
+-const struct m0_rm_resource_type_ops mutex_type_ops = {
+-	.rto_eq     = mutex_equal,
+-	.rto_decode = mutex_decode,
+-	.rto_encode = mutex_encode,
+-};
+-
+-const struct m0_rm_resource_ops mutex_ops = {
+-	.rop_credit_init = mutex_credit_init
+-};
+-
+-const struct m0_rm_credit_ops mutex_credit_ops = {
+-	.cro_intersects = mutex_cr_intersects,
+-	.cro_join       = mutex_cr_join,
+-	.cro_copy       = mutex_cr_copy,
+-	.cro_diff       = mutex_cr_diff,
+-	.cro_free       = mutex_cr_free,
+-	.cro_encode     = mutex_cr_encode,
+-	.cro_decode     = mutex_cr_decode,
+-	.cro_len        = mutex_cr_len,
+-	.cro_is_subset  = mutex_cr_is_subset,
+-	.cro_disjoin    = mutex_cr_disjoin,
+-	.cro_conflicts  = mutex_cr_conflicts,
+-};
+-
+-const struct m0_rm_incoming_ops mutex_incoming_ops = {
+-	.rio_complete = mutex_incoming_complete,
+-	.rio_conflict = mutex_incoming_conflict
+-};
+-
+-/** Compare Ids of two mutexes */
+-static bool mutex_equal(const struct m0_rm_resource *resource0,
+-			const struct m0_rm_resource *resource1)
+-{
+-}
+-
+-/** Encode mutex - ready to send over the wire */
+-static int mutex_encode(struct m0_bufvec_cursor *cur,
+-			const struct m0_rm_resource *resource)
+-{
+-}
+-
+-/** Decode mutex - from the wire */
+-static int mutex_encode(const struct m0_bufvec_cursor *cur,
+-			struct m0_rm_resource **resource)
+-{
+-}
+-
+-/** Initialises credit (lock state) and ops vector for the mutex */
+-static void mutex_credit_init(struct m0_rm_resource *resource,
+-			      struct m0_rm_credit *credit)
+-{
+-}
+-
+-/** Lock request completion callback */
+-static void mutex_incoming_complete(struct m0_rm_incoming *in, int32_t rc)
+-{
+-}
+-
+-/** Lock request conflict callback - Invalid for mutex */
+-static void mutex_incoming_conflict(struct m0_rm_incoming *in)
+-{
+-	C2_IMPOSSIBLE();
+-}
+-
+-static bool mutex_cr_intersects(const struct m0_rm_credit *c0,
+-				const struct m0_rm_credit *c1)
+-{
+-}
+-
+-static bool mutex_cr_len(const struct m0_rm_credit *c0)
+-{
+-}
+-
+-static int mutex_cr_join(struct m0_rm_credit *c0,
+-			 const struct m0_rm_credit *c1)
+-{
+-}
+-
+-static int mutex_cr_disjoin(struct m0_rm_credit *c0,
+-			    const struct m0_rm_credit *c1,
+-			    struct m0_rm_credit *intersection)
+-{
+-}
+-
+-static int mutex_cr_copy(struct m0_rm_credit *dst,
+-			 const struct m0_rm_credit *src)
+-{
+-}
+-
+-static int mutex_cr_diff(struct m0_rm_credit *c0,
+-			 const struct m0_rm_credit *c1)
+-{
+-}
+-
+-static bool mutex_cr_conflicts(const struct m0_rm_credit *c0,
+-			       const struct m0_rm_credit *c1)
+-{
+-}
+-
+-static bool mutex_cr_is_subset(const struct m0_rm_credit *c0,
+-			       const struct m0_rm_credit *c1)
+-{
+-}
+-
+-staic int mutex_cr_encode(const struct m0_rm_credit *credit,
+-			  struct m0_bufvec_cursor *cur)
+-{
+-}
+-
+-static int mutex_cr_decode(struct m0_rm_credit *credit,
+-			   struct m0_bufvec_cursor *cur)
+-{
+-}
+-
+-static void mutex_cr_free(struct m0_rm_credit *credit)
+-{
+-}
+-
+-/** @} */ /* end internal RMmutexInternal */
+-
+-/**
+- * @addtogroup RMmutex
+- * @{
+- */
+-M0_INTERNAL int m0_rm_mutex_init(struct m0_rm_mutex *mutex,
+-				 const struct m0_uint128 *res_id)
+-{
+-	/*
+-	 * Possible steps:
+-	 * 1. Initialise of mutex and resource structures
+-	 * 2. Use m0_rm_resource_locate() to obtain the creditor information
+-	 * 3. If (2) succeeds, add resource to a resouce type.
+-	 *    Get the resoruce type pointer from resource doamain array for
+-	 *    resource types.
+-	 */
+-}
+-M0_EXPORTED(m0_rm_mutex_init);
+-
+-M0_INTERNAL void m0_rm_mutex_fini(struct m0_rm_mutex *mutex)
+-{
+-}
+-M0_EXPORTED(m0_rm_mutex_fini);
+-
+-M0_INTERNAL int m0_rm_mutex_lock(struct m0_rm_mutex *mutex)
+-{
+-	/*
+-	 * Possible steps:
+-	 * 1. m0_rm_incoming_init(&mutex->mx_in);
+-	 * 2. Initialise mutex->mx_in.rin_want
+-	 * 3. m0_rm_credit_get(&mutex->mx_in);
+-	 * 4. m0_chan_wait(&mutex->mx_chan);
+-	 */
+-}
+-M0_EXPORTED(m0_rm_mutex_lock);
+-
+-M0_INTERNAL int m0_rm_mutex_unlock(struct m0_rm_mutex *mutex)
+-{
+-	/*
+-	 * Possible steps:
+-	 * 1. m0_rm_credit_put(&mutex->mx_in);
+-	 * 2. m0_rm_incoming_fini(&mutex->mx_in);
+-	 */
+-}
+-M0_EXPORTED(m0_rm_mutex_unlock);
+-
+-M0_INTERNAL int m0_rm_mutex_trylock(struct m0_rm_mutex *mutex)
+-{
+-	/*
+-	 * Possible steps:
+-	 * 1. m0_rm_incoming_init(&mutex->mx_in);
+-	 * 2. Initialise mutex->mx_in.rin_want
+-	 * 3. Initialise mx_in.rin_flags = RI_WAIT
+-	 * 4. m0_rm_credit_get(&mutex->mx_in);
+-	 */
+-}
+-M0_EXPORTED(m0_rm_mutex_trylock);
+-
+-M0_INTERNAL int m0_rm_mutex_type_register(struct m0_rm_domain *dom)
+-{
+-}
+-M0_EXPORTED(m0_rm_mutex_type_register);
+-
+-M0_INTERNAL void m0_rm_mutex_type_deregister(struct m0_rm_domain *dom)
+-{
+-}
+-M0_EXPORTED(m0_rm_mutex_type_deregister);
+-
+-/** @} end of RMmutex */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 79
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/rm/mutex.h b/rm/mutex.h
+deleted file mode 100644
+index 485ac9b..0000000
+--- a/rm/mutex.h
++++ /dev/null
+@@ -1,153 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
+- * Original creation date: 02/26/2013
+- */
+-
+-#pragma once
+-
+-#ifndef __MERO_RM_MUTEX_H__
+-#define __MERO_RM_MUTEX_H__
+-
+-#include "lib/chan.h"
+-#include "rm/rm.h"
+-
+-/**
+-   @page RMmutex Distributed Mutex DLD
+-
+-   - @ref RMmutexDLD-fspec-ds
+-   - @ref RMmutexDLD-fspec-sub
+-
+-   @section RMmutexDLD-fspec Functional Specification
+-   This section describes the data structure and the external interfaces of
+-   the distributed file lock implemented using resource manager.
+-
+-   @section RMmutexDLD-fspec-ds Data Structures
+-
+-   The distributed mutex will the following data structure:
+-   - m0_rm_mutex
+-     This holds generic RM resource, incoming request strucutre and a 128-bit
+-     id (to store fids etc.)
+-
+-   @section RMmutexDLD-fspec-sub Subroutines
+-
+-   The distributed mutex will have typical locking functions listed
+-   belowin the sub-sections:
+-
+-   @subsection RMmutexDLD-fspec-sub-cons Constructors and Destructors
+-   - m0_rm_mutex_init()
+-   - m0_rm_mutex_fini()
+-
+-   @subsection RMmutexDLD-fspec-sub-opi Operational Interfaces
+-   - m0_rm_mutex_lock()
+-   - m0_rm_mutex_unlock()
+-   - m0_rm_mutex_trylock()
+-   - m0_rm_mutex_type_register()
+-   - m0_rm_mutex_type_deregister()
+-
+- */
+-
+-/**
+-   @defgroup RMmutex Distributed Mutex
+-   @ingroup rm
+-
+-   @see rm
+-   @ref RMmutexDLD-fspec "Functional Specification"
+-
+-   @{
+- */
+-
+-/** Distributed mutex */
+-struct m0_rm_mutex {
+-	/** Id of the resource (i.e., fid) for which mutex is created */
+-	struct m0_uint128     mx_res_id;
+-
+-	/** Embed RM resource */
+-	struct m0_rm_resource mx_res;
+-
+-	/** An incoming RM request for lock operations */
+-	struct m0_rm_incoming mx_in;
+-
+-	/** Wait channel for the mutex */
+-	struct m0_chan        mx_chan;
+-};
+-
+-/**
+- * Initialises a distributed mutex.
+- *
+- * @param res_id - Id of resource. For example, fid.
+- * @pre The lock is not active.
+- * @post The lock is active
+- */
+-M0_INTERNAL int m0_rm_mutex_init(struct m0_rm_mutex *mutex,
+-				 const struct m0_uint128 *res_id);
+-
+-/**
+- * Finalises a distributed mutex.
+- *
+- * @pre The lock is not active.
+- * @post The lock is active
+- */
+-M0_INTERNAL void m0_rm_mutex_fini(struct m0_rm_mutex *mutex);
+-
+-/**
+- * Locks a distributed mutex.
+- *
+- * @pre The lock is not locked.
+- * @post The lock is locked
+- */
+-M0_INTERNAL int m0_rm_mutex_lock(struct m0_rm_mutex *mutex);
+-
+-/**
+- * Unlocks a distributed mutex.
+- *
+- * @pre The lock is active and locked.
+- * @post The lock is unlocked
+- */
+-M0_INTERNAL int m0_rm_mutex_unlock(struct m0_rm_mutex *mutex);
+-
+-/**
+- * Attempts to lock a distributed mutex without blocking. The function
+- * will not wait if mutex is already locked.
+- *
+- * @pre The lock is active.
+- */
+-M0_INTERNAL int m0_rm_mutex_trylock(struct m0_rm_mutex *mutex);
+-
+-/**
+- * Registers the resource of type 'distributed mutex' with a resource domain.
+- */
+-M0_INTERNAL int m0_rm_mutex_type_register(struct m0_rm_domain *dom);
+-
+-/**
+- * De-registers the resource of type 'distributed mutex' from a resource domain.
+- */
+-M0_INTERNAL void m0_rm_mutex_type_deregister(struct m0_rm_domain *dom);
+-
+-/** @} end of RMmutex */
+-
+-#endif /*  __MERO_RM_MUTEX_H__ */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 79
+- *  scroll-step: 1
+- *  End:
+- */
+-- 
+1.8.3.2
+

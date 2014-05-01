@@ -1,0 +1,25 @@
+From 1523b3c6c18d982c128398551bebafc569e36345 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 12 Mar 2013 02:01:29 +0800
+Subject: [PATCH 24/24] less verbose debug message
+
+---
+ sns/cm/service.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sns/cm/service.c b/sns/cm/service.c
+index a23e3f6..9fe1b92 100644
+--- a/sns/cm/service.c
++++ b/sns/cm/service.c
+@@ -128,7 +128,7 @@ static int svc_start(struct m0_reqh_service *service)
+ 	mero = rctx->rc_mero;
+ 	m0_tl_for(cs_eps, &mero->cc_ios_eps, ep) {
+ 		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+-		M0_LOG(M0_FATAL, "pool_width=%d, "
++		M0_LOG(M0_DEBUG, "pool_width=%d, "
+ 				 "ioservice xprt:endpoints: %s:%s",
+ 				 mero->cc_pool_width,
+ 				 ep->ex_xprt, ep->ex_endpoint);
+-- 
+1.8.3.2
+

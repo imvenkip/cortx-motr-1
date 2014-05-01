@@ -1,0 +1,87 @@
+From c4d17f4b2168982c4623e62119f73fd6862c9e8d Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 14 Mar 2012 19:24:21 +0200
+Subject: [PATCH 061/311] fix comment of "foo_enrich() enriches foo" kind
+
+Rename c2_conf_obj_enrich to c2_conf_obj_fill.  The function _fills_
+an object with configuration. A stub has no configuration data, so
+there is nothing to _enrich_.
+
+Reviewed-on: http://reviewboard.clusterstor.com/r/714/
+Reported-by: Carl Braganza <carl_braganza@xyratex.com>
+References:  LogD-1.3 # 768
+---
+ conf/confc.c   | 4 ++--
+ conf/obj_ops.c | 6 +++---
+ conf/obj_ops.h | 6 +++---
+ 3 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index ad98bcb..374e1de 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -899,7 +899,7 @@ object_enrich(struct c2_conf_obj *dest, const struct confx_object *src)
+ 	 *     c2_addb(report inconsistency);
+ 	 *     ret = -EMISMATCH; // XXX Can we use non-standard errno?
+ 	 * } else if (dest->co_status != C2_CS_READY) {
+-	 *     ret = c2_conf_obj_enrich(dest, src, cache_registry());
++	 *     ret = c2_conf_obj_fill(dest, src, cache_registry());
+ 	 * }
+ 	 *
+ 	 * obj->co_status = rc == 0 ? C2_CS_READY : C2_CS_MISSING;
+@@ -950,7 +950,7 @@ cache_add(const struct confx_object *src)
+ 	 * if (obj == NULL)
+ 	 *     return -ENOMEM;
+ 	 *
+-	 * rc = c2_conf_obj_enrich(obj, src, cache_registry());
++	 * rc = c2_conf_obj_fill(obj, src, cache_registry());
+ 	 * rc = ?: c2_conf_map_add(cache_registry(), obj);
+ 	 *
+ 	 * if (rc != 0)
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index d439b66..b198fb9 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -101,8 +101,8 @@ bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+ }
+ C2_EXPORTED(c2_conf_obj_mismatch);
+ 
+-int c2_conf_obj_enrich(struct c2_conf_obj *dest, const struct confx_object *src,
+-		       struct c2_conf_map *registry)
++int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
++		     struct c2_conf_map *registry)
+ {
+ 	/*
+ 	 * C2_PRE(...);
+@@ -118,4 +118,4 @@ int c2_conf_obj_enrich(struct c2_conf_obj *dest, const struct confx_object *src,
+ 	 */
+ 	XXX;
+ }
+-C2_EXPORTED(c2_conf_obj_enrich);
++C2_EXPORTED(c2_conf_obj_fill);
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index aaa95ed..d1c9bf3 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -36,7 +36,7 @@ bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+ 			  const struct confx_object *onwire);
+ 
+ /**
+- * Enriches contents of cached configuration object using on-wire data.
++ * Enriches a stub with configuration data.
+  *
+  * @pre   c2_mutex_is_locked(&c2_conf_map_to_cache(registry)->cc_lock)
+  * @pre   dest->co_status != C2_CS_READY
+@@ -45,7 +45,7 @@ bool c2_conf_obj_mismatch(const struct c2_conf_obj *cached,
+  * @post  dest->co_status != C2_CS_READY  // the status is set by the caller
+  * @post  c2_mutex_is_locked(&c2_conf_map_to_cache(registry)->cc_lock)
+  */
+-int c2_conf_obj_enrich(struct c2_conf_obj *dest, const struct confx_object *src,
+-		       struct c2_conf_map *registry);
++int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
++		     struct c2_conf_map *registry);
+ 
+ #endif /* __COLIBRI_CONF_OBJOPS_H__ */
+-- 
+1.8.3.2
+

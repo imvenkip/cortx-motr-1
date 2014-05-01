@@ -1,0 +1,930 @@
+From 3819a80ca709dba30014f2ac4f8b3a0ec187d9f3 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 17 Dec 2012 17:59:28 +0530
+Subject: [PATCH 032/157] Support for ext deletion and updation.
+
+---
+ layout/composite.c    | 283 ++++++++++++++++++++++++++++++--------------------
+ layout/composite.h    |   3 +-
+ layout/ut/composite.c | 170 ++++++++++++++++++++++++++----
+ layout/ut/layout.c    |  38 +++++++
+ layout/ut/layout.h    |  10 ++
+ 5 files changed, 370 insertions(+), 134 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 6821c70..6254bba 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -522,7 +522,10 @@ static void prefix_set(struct layout_prefix *prefix,
+ 
+ //todo look for the strings sub-layout, sub_layout, sublayouts and similar instances and make those consistent. Also from the ut/composite.c.
+ 
+-/* todo */
++/*
++ * Operation to be performed on an extent, in the context of callbacks from
++ * c2_emap_paste().
++ */
+ enum extent_op {
+ 	DELETE,
+ 	CUT_LEFT,
+@@ -574,14 +577,12 @@ static int extent_in_memory_add(struct c2_composite_layer *layer,
+ 
+ static int extent_in_memory_delete(struct c2_composite_layer *layer,
+ 				   const struct c2_ext *ext,
+-				   enum c2_composite_layer_ext_state estate)
++				   enum c2_composite_layer_ext_state oldstate)
+ {
+ 	struct c2_composite_layer_extent *ext1;
+ 	bool                              ext1_found;
+ 	struct c2_composite_layer_extent *extent;
+ 
+-	C2_PRE(estate != C2_CLRES_INVALID);
+-
+ 	/* todo refactor the code with extent_in_memory_add() */
+ 	ext1_found = false;
+ 	c2_tl_for(c2_layer_extent, layer->clr_extents, extent) {
+@@ -599,13 +600,14 @@ static int extent_in_memory_delete(struct c2_composite_layer *layer,
+ 	} c2_tl_endfor;
+ 
+ 	if (ext1_found && ext->e_end == extent->cle_ext.e_end) {
+-		C2_ASSERT(extent->cle_state == estate);
++		C2_ASSERT(extent->cle_state == oldstate);
+ 		c2_layer_extent_tlist_del(ext1);
+ 		c2_layer_extent_tlink_fini(ext1);
+ 		c2_free(ext1);
+ 		--layer->clr_extents_nr;
+ 		return 0;
+ 	} else
++		/* Exact extent is not found. */
+ 		return -ENOENT;
+ }
+ 
+@@ -668,8 +670,7 @@ static void extent_in_memory_trim(struct c2_composite_layer *layer,
+ static int ext_inmemory_adjust(struct c2_composite_layer *layer,
+ 			       enum extent_op extent_op,
+ 			       const struct c2_emap_seg *seg,
+-			       const struct c2_ext *ext,
+-			       enum c2_composite_layer_ext_state new_estate)
++			       const struct c2_ext *ext)
+ {
+ 	int rc;
+ 
+@@ -688,8 +689,8 @@ static int ext_inmemory_adjust(struct c2_composite_layer *layer,
+ 	       (ext != NULL) ? (unsigned long long)ext->e_end : 0);
+ 
+ 	/*
+-	 * Extents with the state C2_CLRES_INVALID are not stored in the
+-	 * in-memory list of the extents. Hence, return right away.
++	 * Extents with the state C2_CLRES_INVALID are not stored in
++	 * the in-memory list of the extents. Hence, return right away.
+ 	 */
+ 	if (seg->ee_val == C2_CLRES_INVALID)
+ 		return 0;
+@@ -699,13 +700,11 @@ static int ext_inmemory_adjust(struct c2_composite_layer *layer,
+ 		 * The extent seg->ee_ext is replaced by some newer extent.
+ 		 * Hence, seg->ee_ext is asked to be deleted.
+ 		 */
++
+ 		rc = extent_in_memory_delete(layer, &seg->ee_ext, seg->ee_val);
+ 		C2_ASSERT(rc == 0); //todo handle
+-	} else if (extent_op == CUT_LEFT) {
+-		C2_PRE(new_estate == seg->ee_val);
+-		extent_in_memory_trim(layer, extent_op, seg, ext);
+-	} else if (extent_op == CUT_RIGHT) {
+-		C2_PRE(new_estate == seg->ee_val);
++	} else {
++		C2_ASSERT(C2_IN(extent_op, (CUT_LEFT, CUT_RIGHT)));
+ 		extent_in_memory_trim(layer, extent_op, seg, ext);
+ 	}
+ 
+@@ -716,13 +715,13 @@ static int ext_inmemory_adjust(struct c2_composite_layer *layer,
+ 
+ /*
+  * todo Check the naming - "add and update" individually as applicable AND
+- * "write" to indicate add OR update.
++ * "write" to indicate "add OR update".
+  */
+-static int extent_in_db_add(struct c2_emap_cursor *it,
+-			    struct c2_composite_layer *layer,
+-			    const struct c2_ext *ext_to_add,
+-			    uint64_t estate,
+-			    enum c2_layout_xcode_op op)
++static int extent_in_db_write(struct c2_emap_cursor *it,
++			      struct c2_composite_layer *layer,
++			      const struct c2_ext *ext_to_add,
++			      uint64_t estate,
++			      bool inmemory_list_update)
+ {
+ #ifndef __KERNEL__
+ 	struct c2_ext ext;
+@@ -731,8 +730,6 @@ static int extent_in_db_add(struct c2_emap_cursor *it,
+ 
+ 	//Check about the locking
+ 
+-	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE)));
+-
+ 	C2_LOG(C2_DEBUG, "layer idx %lu, e_start %llu, e_end %llu",
+ 	       (unsigned long)layer->clr_idx,
+ 	       (unsigned long long)ext_to_add->e_start,
+@@ -800,34 +797,32 @@ static int extent_in_db_add(struct c2_emap_cursor *it,
+ 	rc = c2_emap_paste(it, &ext, estate,
+ 		LAMBDA(void, (struct c2_emap_seg *seg) {
+ 			/* Extent deletion. */
+-			if (op == C2_LXO_DB_UPDATE) {
++			if (inmemory_list_update) {
+ 				rc_cb = rc_cb ?: ext_inmemory_adjust(layer,
+ 								     DELETE,
+ 								     seg,
+-								     NULL,
+-								     estate);
++								     NULL);
+ 			}
+ 		}),
+ 		LAMBDA(void, (struct c2_emap_seg *seg,
+ 			      struct c2_ext *extent,
+ 			      uint64_t val) {
+ 			/* Cut left. */
+-			if (op == C2_LXO_DB_UPDATE) {
++			if (inmemory_list_update) {
+ 				//todo rm following
+ 				C2_ASSERT(extent->e_start == ext.e_start);
+ 				//C2_ASSERT(extent->e_end == ext.e_end);//fails
+ 				rc_cb = rc_cb ?: ext_inmemory_adjust(layer,
+ 								     CUT_LEFT,
+ 								     seg,
+-								     extent,
+-								     estate);
++								     extent);
+ 			}
+ 		}),
+ 		LAMBDA(void, (struct c2_emap_seg *seg,
+ 			      struct c2_ext *extent,
+ 			      uint64_t val) {
+ 			/* Cut right. */
+-			if (op == C2_LXO_DB_UPDATE) {
++			if (inmemory_list_update) {
+ 				//todo rm following
+ 				C2_ASSERT(extent->e_start == ext.e_start);
+ 				//todo rm following
+@@ -835,14 +830,13 @@ static int extent_in_db_add(struct c2_emap_cursor *it,
+ 				rc_cb = rc_cb ?: ext_inmemory_adjust(layer,
+ 								     CUT_RIGHT,
+ 								     seg,
+-								     extent,
+-								     estate);
++								     extent);
+ 			}
+ 		}));
+ 
+ 	rc = rc ?: rc_cb;
+ 
+-	if (rc == 0 && op == C2_LXO_DB_UPDATE && estate != C2_CLRES_INVALID) {
++	if (rc == 0 && inmemory_list_update && estate != C2_CLRES_INVALID) {
+ 		/*
+ 		 * Now that the deletion of the extents applicable from the
+ 		 * in-memory list of the extents has been handled through the
+@@ -866,18 +860,20 @@ static int extent_in_db_add(struct c2_emap_cursor *it,
+ #endif /* __KERNEL__ */
+ }
+ 
+-static int sublayout_id_in_db_read(struct composite_schema_data *csd,
+-				   struct c2_db_tx *tx,
+-				   uint64_t composite_lid,
++static int sublayout_id_in_db_read(const struct c2_composite_layout *cl,
+ 				   uint32_t layer_idx,
++				   struct c2_db_tx *tx,
+ 				   uint64_t *sublayout_id)
+ {
+-	struct c2_db_pair          pair;
+-	struct layer_sublayout_key key;
+-	struct layer_sublayout_rec rec;
+-	int                        rc;
++	struct composite_schema_data *csd;
++	struct c2_db_pair             pair;
++	struct layer_sublayout_key    key;
++	struct layer_sublayout_rec    rec;
++	int                           rc;
+ 
+-	key.lrsmk_comp_lid = composite_lid;
++	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
++
++	key.lrsmk_comp_lid = cl->cl_base.l_id;
+ 	key.lrsmk_layer_idx = layer_idx;
+ 	key.lrsmk_pad = 0;
+ 	rec.lrsmr_sublayout_lid = 0; /* To be overwritten with the lookup. */
+@@ -892,16 +888,16 @@ static int sublayout_id_in_db_read(struct composite_schema_data *csd,
+ 	return rc;
+ }
+ 
+-static int sublayout_id_in_db_write(struct composite_schema_data *csd,
+-				    struct c2_db_tx *tx,
+-				    const struct c2_composite_layout *cl,
+-				    const struct c2_composite_layer *layer)
++static int sublayout_id_in_db_write(const struct c2_composite_layout *cl,
++				    const struct c2_composite_layer *layer,
++				    struct c2_db_tx *tx)
+ {
+-	uint64_t                   sublayout_id;
+-	struct c2_db_pair          pair;
+-	struct layer_sublayout_key key;
+-	struct layer_sublayout_rec rec;
+-	int                        rc;
++	struct composite_schema_data *csd;
++	uint64_t                      sublayout_id;
++	struct c2_db_pair             pair;
++	struct layer_sublayout_key    key;
++	struct layer_sublayout_rec    rec;
++	int                           rc;
+ 
+ 	if (layer->clr_idx > 0) {
+ 		/*
+@@ -911,8 +907,7 @@ static int sublayout_id_in_db_write(struct composite_schema_data *csd,
+ 		 * composite layout to the DB, by using the API
+ 		 * c2_layout_add().
+ 		 */
+-		rc = sublayout_id_in_db_read(csd, tx, cl->cl_base.l_id, 0,
+-					     &sublayout_id);
++		rc = sublayout_id_in_db_read(cl, 0, tx, &sublayout_id);
+ 		if (rc != 0) {
+ 			/*
+ 			 * todo ADDB rec etc, indicating the composite layout
+@@ -927,6 +922,8 @@ static int sublayout_id_in_db_write(struct composite_schema_data *csd,
+ 	 * Now, proceed to write the sublayout id for the layer->clr_idx'th
+ 	 * layer.
+ 	 */
++	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
++
+ 	key.lrsmk_comp_lid = cl->cl_base.l_id;
+ 	key.lrsmk_layer_idx = layer->clr_idx;
+ 	key.lrsmk_pad = 0;
+@@ -939,12 +936,19 @@ static int sublayout_id_in_db_write(struct composite_schema_data *csd,
+ 	return rc;
+ }
+ 
++static struct c2_emap *emap_from_cl(const struct c2_composite_layout *cl)
++{
++	struct composite_schema_data *csd;
++
++	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
++	return &csd->csd_layer_ext_map;
++}
++
+ static int extentmap_in_db_write(struct c2_composite_layout *cl,
+ 				 struct c2_composite_layer *layer,
+ 				 bool if_extents_associated,
+ 				 struct c2_db_tx *tx)
+ {
+-	struct composite_schema_data     *csd;
+ 	struct c2_emap                   *emap;
+ 	struct c2_emap_cursor             it;
+ 	struct c2_composite_layer_extent *extent;
+@@ -952,8 +956,7 @@ static int extentmap_in_db_write(struct c2_composite_layout *cl,
+ 	struct layout_prefix              prefix;
+ 	int                               rc;
+ 
+-	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
+-	emap = &csd->csd_layer_ext_map;
++	emap = emap_from_cl(cl);
+ 	prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
+ 	rc = c2_emap_obj_insert(emap, tx, (struct c2_uint128 *)&prefix,
+ 				C2_CLRES_INVALID);
+@@ -978,8 +981,8 @@ static int extentmap_in_db_write(struct c2_composite_layout *cl,
+ 	c2_tl_for(c2_layer_extent, layer->clr_extents, extent) {
+ 		C2_ASSERT(C2_IN(extent->cle_state, (C2_CLRES_VALID,
+ 						    C2_CLRES_FLATTENING)));
+-		rc = extent_in_db_add(&it, layer, &extent->cle_ext,
+-				      extent->cle_state, C2_LXO_DB_ADD);
++		rc = extent_in_db_write(&it, layer, &extent->cle_ext,
++					extent->cle_state, false);
+ 		C2_ASSERT(rc == 0); //todo Handle
+ 	} c2_tl_endfor;
+ 	c2_emap_close(&it);
+@@ -991,8 +994,7 @@ static int layer_in_db_write(struct c2_composite_layout *cl,
+ 			     struct c2_composite_layer *layer,
+ 			     struct c2_db_tx *tx)
+ {
+-	struct composite_schema_data *csd;
+-	int                           rc;
++	int rc;
+ 
+ 	C2_PRE(composite_invariant(cl));
+ 	/* Zeroth layer is already written through c2_layout_add(). */
+@@ -1000,8 +1002,7 @@ static int layer_in_db_write(struct c2_composite_layout *cl,
+ 	C2_PRE(tx != NULL);
+ 
+ 	/* Write 'the sublayout id for this layer' to the DB. */
+-	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
+-	rc = sublayout_id_in_db_write(csd, tx, cl, layer);
++	rc = sublayout_id_in_db_write(cl, layer, tx);
+ 	C2_ASSERT(rc == 0); //todo Handle
+ 
+ 	/* Write 'the extent map for this layer' to the DB. */
+@@ -1158,20 +1159,21 @@ static int composite_layout_in_cursor_read(struct c2_composite_layout *cl,
+ 	return rc;
+ }
+ 
+-static int extentmap_in_db_read(struct c2_emap *emap,
+-				uint64_t composite_lid,
++static int extentmap_in_db_read(const struct c2_composite_layout *cl,
+ 				uint32_t layer_idx,
+ 				struct c2_db_tx *tx,
+ 				struct c2_tl **extents,
+ 				uint32_t *extents_nr)
+ {
++	struct c2_emap                   *emap;
+ 	struct c2_emap_cursor             it;
+ 	struct layout_prefix              prefix;
+ 	struct c2_emap_seg               *seg;
+ 	struct c2_composite_layer_extent *extent;
+ 	int                               rc;
+ 
+-	prefix_set(&prefix, composite_lid, layer_idx);
++	emap = emap_from_cl(cl);
++	prefix_set(&prefix, cl->cl_base.l_id, layer_idx);
+ 	rc = c2_emap_lookup(emap, tx, (struct c2_uint128 *)&prefix, 0, &it);
+ 	if (rc != 0) {//todo Handle err
+ 		rc = 0; //todo Change this once all the layers'
+@@ -1222,25 +1224,19 @@ static int extentmap_in_db_read(struct c2_emap *emap,
+ static int layers_in_db_read(struct c2_composite_layout *cl,
+ 			     struct c2_db_tx *tx)
+ {
+-	struct composite_schema_data *csd;
+-	struct c2_emap               *emap;
+-	uint64_t                      sublayout_id;
+-	struct c2_layout             *sublayout;
+-	struct c2_tl                 *extents;
+-	uint32_t                      extents_nr;
+-	uint32_t                      i;
+-	int                           rc;
+-
+-	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
+-	emap = &csd->csd_layer_ext_map;
++	uint64_t          sublayout_id;
++	struct c2_layout *sublayout;
++	struct c2_tl     *extents;
++	uint32_t          extents_nr;
++	uint32_t          i;
++	int               rc;
+ 
+ 	i = 1;
+ 	//todo This fn shall accept layers_nr which is to be stored in the
+ 	//layouts table.
+ 	while (1) {
+ 		/* Read 'the sublayout id for this layer' from the DB. */
+-		rc = sublayout_id_in_db_read(csd, tx, cl->cl_base.l_id, i,
+-					     &sublayout_id);
++		rc = sublayout_id_in_db_read(cl, i, tx, &sublayout_id);
+ 		if (rc == -ENOENT) {
+ 			//todo This is to be removed once layers_nr is known
+ 			rc = 0;
+@@ -1266,8 +1262,7 @@ static int layers_in_db_read(struct c2_composite_layout *cl,
+ 		       (unsigned long long)sublayout_id);
+ 
+ 		/* Read 'the extent map for this layer' from the DB. */
+-		rc = extentmap_in_db_read(emap, cl->cl_base.l_id, i, tx,
+-					  &extents, &extents_nr);
++		rc = extentmap_in_db_read(cl, i, tx, &extents, &extents_nr);
+ 		C2_ASSERT(rc == 0); //todo Handle
+ 
+ 		/* Now, write the layer to the inmemory layout. */
+@@ -1295,16 +1290,13 @@ static int composite_layout_in_db_read(struct c2_composite_layout *cl,
+ 				       struct c2_db_tx *tx,
+ 				       uint32_t user_count)
+ {
+-	struct composite_schema_data *csd;
+-	uint64_t                      sublayout_id;
+-	struct c2_layout             *sublayout;
+-	int                           rc;
++	uint64_t          sublayout_id;
++	struct c2_layout *sublayout;
++	int               rc;
+ 
+ 	C2_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+-	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
+ 
+-	rc = sublayout_id_in_db_read(csd, tx, cl->cl_base.l_id, 0,
+-				     &sublayout_id);
++	rc = sublayout_id_in_db_read(cl, 0, tx, &sublayout_id);
+ 	C2_ASSERT(rc == 0); /* todo Handle error */
+ 
+ 	sublayout = layout_find(cl->cl_base.l_dom, sublayout_id);
+@@ -1372,14 +1364,10 @@ static int composite_layout_in_db_write(struct c2_composite_layout *cl,
+ 					enum c2_layout_xcode_op op,
+ 					struct c2_db_tx *tx)
+ {
+-	struct composite_schema_data *csd;
+-	struct c2_emap               *emap;
+ 	struct c2_composite_layer    *layer;
+ 	int                           rc;
+ 
+ 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_DELETE)));
+-	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
+-	emap = &csd->csd_layer_ext_map;
+ 
+ 	if (op == C2_LXO_DB_ADD) {
+ 		/*
+@@ -1392,7 +1380,7 @@ static int composite_layout_in_db_write(struct c2_composite_layout *cl,
+ 		C2_ASSERT(layer->clr_l->l_id > 0); /* old layout id */
+ 
+ 		/* Write 'the sublayout id for this layer' to the DB. */
+-		rc = sublayout_id_in_db_write(csd, tx, cl, layer);
++		rc = sublayout_id_in_db_write(cl, layer, tx);
+ 		C2_ASSERT(rc == 0); //todo Handle
+ 
+ 		/* Write 'the extent map for this layer' to the DB. */
+@@ -1475,15 +1463,6 @@ static int composite_encode(struct c2_layout *l,
+ 	return rc;
+ }
+ 
+-/* todo Use wherever applicable. */
+-static struct c2_emap *emap_from_cl(const struct c2_composite_layout *cl)
+-{
+-	struct composite_schema_data *csd;
+-
+-	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
+-	return &csd->csd_layer_ext_map;
+-}
+-
+ static struct c2_composite_layer *layer_find(
+ 					const struct c2_composite_layout *cl,
+ 					uint32_t layer_idx)
+@@ -1504,9 +1483,13 @@ static struct c2_composite_layer *layer_find(
+ 
+ /*
+  * todo Verify functioning of this API. Currently in UT, all the layers
+- * contain same list of extents. So traversing layers part is not
++ * contain same list of extents. So traversing layers part is not being
+  * verified.
+  */
++/*
++ * todo Change beahvior of this API to return zeroth layer as the default,
++ * once approved in the DLDINSP.
++ */
+ int c2_composite_layer_ext_lookup(const struct c2_composite_layout *cl,
+ 				  c2_bindex_t offset,
+ 				  struct c2_db_tx *tx,
+@@ -1568,18 +1551,16 @@ int c2_composite_layer_ext_add(struct c2_composite_layout *cl,
+ 			       const struct c2_ext *ext,
+ 			       struct c2_db_tx *tx)
+ {
+-	struct composite_schema_data *csd;
+-	struct c2_emap               *emap;
+-	struct c2_emap_cursor         it;
+-	struct c2_composite_layer    *layer;
+-	struct layout_prefix          prefix;
+-	int                           rc;
++	struct c2_emap            *emap;
++	struct c2_emap_cursor      it;
++	struct c2_composite_layer *layer;
++	struct layout_prefix       prefix;
++	int                        rc;
+ 
+ 	layer = layer_find(cl, layer_idx);
+ 	C2_ASSERT(layer != NULL);
+ 
+-	csd = cl->cl_base.l_dom->ld_type_data[c2_composite_layout_type.lt_id];
+-	emap = &csd->csd_layer_ext_map;
++	emap = emap_from_cl(cl);
+ 	prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
+ 	rc = c2_emap_lookup(emap, tx, (struct c2_uint128 *)&prefix,
+ 			    ext->e_start, &it);
+@@ -1595,15 +1576,14 @@ int c2_composite_layer_ext_add(struct c2_composite_layout *cl,
+ 	 *
+ 	 * To conform to the latter need, it is planned to check the states of
+ 	 * 'all the existing extents in the emap, the ext spans over'. If they
+-	 * are not the same, then accordingly, multiple extent_in_db_add()
++	 * are not the same, then accordingly, multiple extent_in_db_write()
+ 	 * requests are generated.
+ 	 *
+ 	 * This will be implemented once this design point is agreed upon
+ 	 * during CINSP_PREUT.
+ 	 */
+ 
+-	rc = extent_in_db_add(&it, layer, ext, C2_CLRES_VALID,
+-			      C2_LXO_DB_UPDATE);
++	rc = extent_in_db_write(&it, layer, ext, C2_CLRES_VALID, true);
+ 	C2_ASSERT(rc == 0); //todo Handle
+ 
+ 	c2_emap_close(&it);
+@@ -1617,8 +1597,46 @@ c2_composite_layer_ext_state_update(struct c2_composite_layout *cl,
+ 				    enum c2_composite_layer_ext_state state,
+ 				    struct c2_db_tx *tx)
+ {
+-	//todo Dec 13 Provide implementation
+-	return 0;
++	struct c2_emap            *emap;
++	struct c2_emap_cursor      it;
++	struct c2_composite_layer *layer;
++	struct layout_prefix       prefix;
++	int                        rc;
++
++	C2_PRE(composite_invariant(cl));
++	C2_PRE(C2_IN(state, (C2_CLRES_VALID, C2_CLRES_FLATTENING)));
++
++	layer = layer_find(cl, layer_idx);
++	C2_ASSERT(layer != NULL);
++
++	emap = emap_from_cl(cl);
++	prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
++	rc = c2_emap_lookup(emap, tx, (struct c2_uint128 *)&prefix,
++			    ext->e_start, &it);
++	C2_ASSERT(rc == 0); //todo handle err
++
++	/**
++	 * @todo In short: Break ext into multiple, based on values (extent
++	 * states) of 'multiple segments the ext may span over'.
++	 *
++	 * Details: Two extents can be merged if and only if they are
++	 * 'back-to-back' (this part is taken care of by c2_emap_paste()) and
++	 * their state is the same.
++	 *
++	 * To conform to the latter need, it is planned to check the states of
++	 * 'all the existing extents in the emap, the ext spans over'. If they
++	 * are not the same, then accordingly, multiple extent_in_db_write()
++	 * requests are generated.
++	 *
++	 * This will be implemented once this design point is agreed upon
++	 * during CINSP_PREUT.
++	 */
++
++	rc = extent_in_db_write(&it, layer, ext, state, true);
++	C2_ASSERT(rc == 0); //todo Handle
++
++	c2_emap_close(&it);
++	return rc;
+ }
+ 
+ int c2_composite_layer_ext_delete(struct c2_composite_layout *cl,
+@@ -1626,8 +1644,43 @@ int c2_composite_layer_ext_delete(struct c2_composite_layout *cl,
+ 				  const struct c2_ext *ext,
+ 				  struct c2_db_tx *tx)
+ {
+-	//todo Dec 13 Provide implementation
+-	return 0;
++	struct c2_emap            *emap;
++	struct c2_emap_cursor      it;
++	struct c2_composite_layer *layer;
++	struct layout_prefix       prefix;
++	int                        rc;
++
++	layer = layer_find(cl, layer_idx);
++	C2_ASSERT(layer != NULL);
++
++	emap = emap_from_cl(cl);
++	prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
++	rc = c2_emap_lookup(emap, tx, (struct c2_uint128 *)&prefix,
++			    ext->e_start, &it);
++	C2_ASSERT(rc == 0); //todo handle err
++
++	/**
++	 * @todo In short: Break ext into multiple, based on values (extent
++	 * states) of 'multiple segments the ext may span over'.
++	 *
++	 * Details: Two extents can be merged if and only if they are
++	 * 'back-to-back' (this part is taken care of by c2_emap_paste()) and
++	 * their state is the same.
++	 *
++	 * To conform to the latter need, it is planned to check the states of
++	 * 'all the existing extents in the emap, the ext spans over'. If they
++	 * are not the same, then accordingly, multiple extent_in_db_write()
++	 * requests are generated.
++	 *
++	 * This will be implemented once this design point is agreed upon
++	 * during CINSP_PREUT.
++	 */
++
++	rc = extent_in_db_write(&it, layer, ext, C2_CLRES_INVALID, true);
++	C2_ASSERT(rc == 0); //todo Handle
++
++	c2_emap_close(&it);
++	return rc;
+ }
+ 
+ static const struct c2_layout_ops composite_ops = {
+diff --git a/layout/composite.h b/layout/composite.h
+index 16b4170..fbae60d 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -28,7 +28,7 @@
+  *
+  * Composite layout is made up of multiple layers.
+  *
+- * Each layer except the zeroth one, costitutes of a sub-layout and a list of
++ * Each layer except the zeroth one, constitutes of a sub-layout and a list of
+  * extents associated with that layer.
+  *
+  * Zeroth layer is a special layer which contains a sub-layout that in fact is
+@@ -232,6 +232,7 @@ int c2_composite_layer_add(struct c2_composite_layout *cl,
+  * available c2_emap_lookup(). Is it ok OR it should be changed to look up
+  * into the in-memory list of the extents?
+  */
++// todo Dec 14 Lookup shall return ext_state as well.
+ int c2_composite_layer_ext_lookup(const struct c2_composite_layout *cl,
+ 				  c2_bindex_t offset,
+ 				  struct c2_db_tx *tx,
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 979ab40..a02a1e8 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1560,25 +1560,40 @@ static int layout_lookup(uint64_t lid,
+ 	return rc;
+ }
+ 
+-int test_ext_add_composite(uint64_t lid,
+-			   struct c2_layout_domain *domain,
+-			   uint32_t layers_nr,
+-			   uint32_t min_extents_nr,
+-			   c2_bindex_t min_start_offset,
+-			   c2_bindex_t approximate_end_offset,
+-			   bool if_contiguous_extents,
+-			   uint32_t kind_of_extent_to_add,
+-			   bool failure_test)
++enum extent_op {
++	EXTENT_ADD,
++	EXTENT_UPDATE,
++	EXTENT_DELETE
++};
++
++int ext_operate(enum extent_op eop,
++		uint64_t lid,
++		struct c2_layout_domain *domain,
++		uint32_t layers_nr,
++		uint32_t min_extents_nr,
++		c2_bindex_t min_start_offset,
++		c2_bindex_t approximate_end_offset,
++		bool if_contiguous_extents,
++		uint32_t kind_of_extent_to_operate,
++		bool failure_test)
+ {
+ 	struct c2_layout           *l;
+ 	struct c2_layout           *l_copy_orig;
+ 	struct c2_layout           *l_copy_updated;
+ 	struct c2_layout           *l_from_DB;
+ 	struct c2_composite_layout *cl;
+-	struct c2_ext               ext_to_add;
++	struct c2_ext               ext_to_operate;
+ 	struct c2_db_tx             tx;
++	uint32_t                    layer_id_lookup;
++	struct c2_ext               ext_lookup;
++	struct c2_layout           *sublayout_lookup;
++	c2_bindex_t                 offset_to_lookup;
+ 	int                         rc_tmp;
+ 
++	/*
++	 * Build a composite layout, add it to the DB and add some layers to
++	 * it.
++	 */
+ 	rc = test_add_composite(lid, domain,
+ 				layers_nr, min_extents_nr, min_start_offset,
+ 				approximate_end_offset, if_contiguous_extents,
+@@ -1588,16 +1603,91 @@ int test_ext_add_composite(uint64_t lid,
+ 	composite_layout_copy(l, &l_copy_orig);
+ 	cl = c2_layout_to_cl(l);
+ 
+-	/* Define an extent to be inserted. */
++	/* Define an extent to be operated. */
+ 	extent_to_be_operated(cl, if_contiguous_extents, 1, 1,
+-			      kind_of_extent_to_add, &ext_to_add);
++			      kind_of_extent_to_operate, &ext_to_operate);
+ 
+-	/* Insert the extent. */
++	/* Operate on the extent, based on the value of op. */
+ 	rc = c2_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+-	rc = c2_composite_layer_ext_add(cl, 1, &ext_to_add, &tx);
+-	C2_UT_ASSERT(rc == 0);
++	if (eop == EXTENT_ADD) {
++		if (C2_IN(kind_of_extent_to_operate, (NON_EXISTING,
++						      EXACT_EXISTING,
++						      OVERLAPPING_RIGHT)))
++			offset_to_lookup = ext_to_operate.e_start;
++		else {
++			C2_UT_ASSERT(C2_IN(kind_of_extent_to_operate,
++					   (OVERLAPPING_LEFT,
++					    OVERLAPPING_COMPLETE)));
++			offset_to_lookup = ext_to_operate.e_end - 1;
++		}
++
++		rc = c2_composite_layer_ext_lookup(cl, offset_to_lookup,
++						   &tx, &layer_id_lookup,
++						   &ext_lookup,
++						   &sublayout_lookup);
++		if (C2_IN(kind_of_extent_to_operate, (NON_EXISTING,
++						      OVERLAPPING_RIGHT,
++						      OVERLAPPING_LEFT)) ||
++		    (kind_of_extent_to_operate == OVERLAPPING_COMPLETE &&
++		     if_contiguous_extents == false))
++			C2_UT_ASSERT(rc == -ENOENT);
++		else {
++			C2_UT_ASSERT(rc == 0);
++			C2_UT_ASSERT(layer_id_lookup > 0);
++			C2_UT_ASSERT(ext_lookup.e_start <= offset_to_lookup);
++			C2_UT_ASSERT(ext_lookup.e_end > offset_to_lookup);
++			C2_UT_ASSERT(sublayout_lookup->l_id == lid * 100 +
++				     layer_id_lookup);
++		}
++
++		rc = c2_composite_layer_ext_add(cl, 1, &ext_to_operate, &tx);
++		C2_UT_ASSERT(rc == 0);
++
++		rc = c2_composite_layer_ext_lookup(cl, offset_to_lookup,
++						   &tx, &layer_id_lookup,
++						   &ext_lookup,
++						   &sublayout_lookup);
++		C2_UT_ASSERT(rc == 0);
++		C2_UT_ASSERT(layer_id_lookup > 0);
++		C2_UT_ASSERT(ext_lookup.e_start <= offset_to_lookup);
++		C2_UT_ASSERT(ext_lookup.e_end > offset_to_lookup);
++		C2_UT_ASSERT(sublayout_lookup->l_id == lid * 100 +
++			     layer_id_lookup);
++	} else if (eop == EXTENT_UPDATE) {
++		C2_ASSERT(0);
++	} else if (eop == EXTENT_DELETE) {
++		rc = c2_composite_layer_ext_lookup(cl, ext_to_operate.e_start,
++						   &tx, &layer_id_lookup,
++						   &ext_lookup,
++						   &sublayout_lookup);
++		if (kind_of_extent_to_operate == NON_EXISTING ||
++		    kind_of_extent_to_operate == OVERLAPPING_RIGHT)
++			C2_UT_ASSERT(rc == -ENOENT);
++		else
++			C2_UT_ASSERT(rc == 0);
++
++
++		rc = c2_composite_layer_ext_delete(cl, 1, &ext_to_operate,
++						   &tx);
++		C2_UT_ASSERT(rc == 0);
++
++		rc = c2_composite_layer_ext_lookup(cl, ext_to_operate.e_start,
++						   &tx, &layer_id_lookup,
++						   &ext_lookup,
++						   &sublayout_lookup);
++		//todo devise the ext_del TCs more accurately
++#if 1
++		if (kind_of_extent_to_operate == NON_EXISTING ||
++		    kind_of_extent_to_operate == OVERLAPPING_RIGHT)
++		//todo ext_delete does not yet seem to be working
++			C2_UT_ASSERT(rc == -ENOENT);
++		else
++			C2_UT_ASSERT(rc == 0);
++#endif
++		//todo C2_UT_ASSERT(rc == -ENOENT);
++	}
+ 
+ 	rc_tmp = c2_db_tx_commit(&tx);
+ 	C2_UT_ASSERT(rc_tmp == 0);
+@@ -1605,12 +1695,17 @@ int test_ext_add_composite(uint64_t lid,
+ 	composite_layout_copy(l, &l_copy_updated);
+ 
+ 	/* Verify the extent list in the in-memory layout. */
+-	if (kind_of_extent_to_add == EXACT_EXISTING) {
++	//todo Adjust these based on whether it is ADD or DELETE
++	if (kind_of_extent_to_operate == EXACT_EXISTING &&
++	    eop == EXTENT_ADD) {
++		composite_layout_compare(l_copy_orig, l_copy_updated, false);
++	} else if (kind_of_extent_to_operate == NON_EXISTING &&
++		   eop == EXTENT_DELETE) {
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+ 	} else {
+-		C2_UT_ASSERT(C2_IN(kind_of_extent_to_add,
++		C2_UT_ASSERT(C2_IN(kind_of_extent_to_operate,
+ 				   (NON_EXISTING,
+-				    NON_EXISTING,
++				    EXACT_EXISTING,
+ 				    OVERLAPPING_LEFT,
+ 				    OVERLAPPING_RIGHT,
+ 				    OVERLAPPING_COMPLETE)));
+@@ -1641,6 +1736,45 @@ int test_ext_add_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
++int test_ext_add_composite(uint64_t lid,
++			   struct c2_layout_domain *domain,
++			   uint32_t layers_nr,
++			   uint32_t min_extents_nr,
++			   c2_bindex_t min_start_offset,
++			   c2_bindex_t approximate_end_offset,
++			   bool if_contiguous_extents,
++			   uint32_t kind_of_extent_to_operate,
++			   bool failure_test)
++{
++	rc = ext_operate(EXTENT_ADD, lid, domain,
++			 layers_nr, min_extents_nr,
++			 min_start_offset, approximate_end_offset,
++			 if_contiguous_extents,
++			 kind_of_extent_to_operate,
++			 failure_test);
++	return rc;
++}
++
++int test_ext_delete_composite(uint64_t lid,
++			      struct c2_layout_domain *domain,
++			      uint32_t layers_nr,
++			      uint32_t min_extents_nr,
++			      c2_bindex_t min_start_offset,
++			      c2_bindex_t approximate_end_offset,
++			      bool if_contiguous_extents,
++			      uint32_t kind_of_extent_to_operate,
++			      bool failure_test)
++{
++	rc = ext_operate(EXTENT_DELETE, lid, domain,
++			 layers_nr, min_extents_nr,
++			 min_start_offset, approximate_end_offset,
++			 if_contiguous_extents,
++			 kind_of_extent_to_operate,
++			 failure_test);
++	return rc;
++}
++
++
+ #endif /* __KERNEL__ */
+ 
+ /*
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 8b2b636..66570f8 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -3859,6 +3859,9 @@ static void test_composite_layer_ops(void)
+ {
+ 	uint64_t lid;
+ 
++	//todo cover all the cases considering kind of ext to operate and
++	//if_contigous
++
+ #if 1
+ 	/* todo
+ 	 * Build a layout object with COMPOSITE layout type, with noncontiguous
+@@ -3914,6 +3917,14 @@ static void test_composite_layer_ops(void)
+ 	lid = 22007;
+ 	rc = test_ext_add_composite(lid, &domain, 6, 4,
+ 				    lid * 100, lid * 100 * 100,
++				    !CONTIGUOUS_EXTENTS, OVERLAPPING_COMPLETE,
++				    !FAILURE_TEST);
++	C2_UT_ASSERT(rc == 0);
++
++
++	lid = 22008;
++	rc = test_ext_add_composite(lid, &domain, 6, 4,
++				    lid * 100, lid * 100 * 100,
+ 				    CONTIGUOUS_EXTENTS, OVERLAPPING_COMPLETE,
+ 				    !FAILURE_TEST);
+ 	C2_UT_ASSERT(rc == 0);
+@@ -3921,6 +3932,33 @@ static void test_composite_layer_ops(void)
+ 
+ 	/* todo Shall cover the other cases of extent type to be added. */
+ 
++	lid = 22009;
++	rc = test_ext_delete_composite(lid, &domain, 6, 4,
++				       lid * 100, lid * 100 * 100,
++				       !CONTIGUOUS_EXTENTS, EXACT_EXISTING,
++				       !FAILURE_TEST);
++	C2_UT_ASSERT(rc == 0);
++
++	lid = 22010;
++	rc = test_ext_delete_composite(lid, &domain, 6, 4,
++				       lid * 100, lid * 100 * 100,
++				       !CONTIGUOUS_EXTENTS, NON_EXISTING,
++				       !FAILURE_TEST);
++	C2_UT_ASSERT(rc == 0);
++
++	lid = 22011;
++	rc = test_ext_delete_composite(lid, &domain, 6, 4,
++				       lid * 100, lid * 100 * 100,
++				       !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++				       !FAILURE_TEST);
++	C2_UT_ASSERT(rc == 0);
++
++	lid = 22012;
++	rc = test_ext_delete_composite(lid, &domain, 6, 4,
++				       lid * 100, lid * 100 * 100,
++				       !CONTIGUOUS_EXTENTS, OVERLAPPING_RIGHT,
++				       !FAILURE_TEST);
++	C2_UT_ASSERT(rc == 0);
+ }
+ 
+ #endif /* __KERNEL__ */
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index 4dad196..042e1cb 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -203,6 +203,16 @@ int test_ext_add_composite(uint64_t lid,
+ 			   uint32_t kind_of_extent_to_add,
+ 			   bool failure_test);
+ 
++int test_ext_delete_composite(uint64_t lid,
++			      struct c2_layout_domain *domain,
++			      uint32_t layers_nr,
++			      uint32_t min_extents_nr,
++			      c2_bindex_t min_start_offset,
++			      c2_bindex_t approximate_end_offset,
++			      bool if_contiguous_extents,
++			      uint32_t kind_of_extent_to_operate,
++			      bool failure_test);
++
+ /* __COLIBRI_LAYOUT_LAYOUT_H__ */
+ #endif
+ 
+-- 
+1.8.3.2
+

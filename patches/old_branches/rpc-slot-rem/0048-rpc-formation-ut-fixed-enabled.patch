@@ -1,0 +1,48 @@
+From a1e5afa0e3beecbf7c09837147f1e37d58ae4c86 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 11 Feb 2014 23:59:11 +0200
+Subject: [PATCH 48/60] rpc-formation-ut fixed & enabled
+
+---
+ rpc/ut/formation2.c | 2 +-
+ utils/ut_main.c     | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/rpc/ut/formation2.c b/rpc/ut/formation2.c
+index af13ee2..16fda59 100644
+--- a/rpc/ut/formation2.c
++++ b/rpc/ut/formation2.c
+@@ -583,7 +583,7 @@ static void frm_test8(void)
+ 	flags_reset();
+ 	for (i = 0; i < N; ++i) {
+ 		deadline = m0_rnd(3, &seed_deadline) + 1;
+-		kind     = m0_rnd(3, &seed_kind) + 1;
++		kind     = m0_rnd(2, &seed_kind) + 1;
+ 		prio     = m0_rnd(M0_RPC_ITEM_PRIO_NR, &seed_prio);
+ 		_timeout = m0_rnd(1000, &seed_timeout);
+ 
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index d4a9d92..a5291d8 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -62,7 +62,7 @@ extern const struct m0_test_suite dtm_transmit_ut;
+ extern const struct m0_test_suite emap_ut;
+ extern const struct m0_test_suite fit_ut;
+ extern const struct m0_test_suite fol_ut;
+-//extern const struct m0_test_suite frm_ut;
++extern const struct m0_test_suite frm_ut;
+ extern const struct m0_test_suite ios_bufferpool_ut;
+ extern const struct m0_test_suite item_ut;
+ extern const struct m0_test_suite item_source_ut;
+@@ -130,7 +130,7 @@ void add_uts(void)
+ 	m0_ut_add(&emap_ut);
+ 	m0_ut_add(&fit_ut);
+ 	m0_ut_add(&fol_ut);
+-//	m0_ut_add(&frm_ut);
++	m0_ut_add(&frm_ut);
+ 	m0_ut_add(&ios_bufferpool_ut);
+ 	m0_ut_add(&item_ut);
+ 	m0_ut_add(&item_source_ut);
+-- 
+1.8.3.2
+

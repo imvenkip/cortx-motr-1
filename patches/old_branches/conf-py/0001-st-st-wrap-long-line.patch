@@ -1,0 +1,27 @@
+From 252f4cb86992f39e3f345073b83921edadb8b72c Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 18 Mar 2013 00:14:13 +0200
+Subject: [PATCH 1/2] st/st: wrap long line
+
+This is a decorative edit.
+---
+ m0t1fs/linux_kernel/st/st | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/m0t1fs/linux_kernel/st/st b/m0t1fs/linux_kernel/st/st
+index 00662d4..3451eb9 100755
+--- a/m0t1fs/linux_kernel/st/st
++++ b/m0t1fs/linux_kernel/st/st
+@@ -117,7 +117,8 @@ services_start() {
+ 
+   ("prof-ac", {1| ("fs-1")}),
+   ("fs-1", {2| ((11, 22),
+-                [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs", "-A", "addb-stobs", "-w", "3"],
++                [12: "-r", "-p", "-T", "linux", "-D", "db", "-S", "stobs",
++                     "-A", "addb-stobs", "-w", "3"],
+                 [1: "ios-1"])}),
+   ("ios-1", {3| (2, [1: "lnet:$IOS1_ENDPOINT"], "node-1")}),
+   ("node-1", {4| (163840, 0, 0, 16, 0, [0], [0])})]
+-- 
+1.8.3.2
+

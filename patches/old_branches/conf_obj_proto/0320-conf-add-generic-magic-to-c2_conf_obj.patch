@@ -1,0 +1,238 @@
+From c75d55e153157679283a2187711ec60024dcefed Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 21 Aug 2012 14:42:50 +0300
+Subject: [PATCH 320/370] conf: add generic magic to c2_conf_obj
+
+Now c2_conf_obj has two magic fields -- generic and concrete.
+Generic magic allows to:
+ - replace "concrete lists" (e.g., services_tl, nics_tl) with
+   a list of generic objects (objs_tl);
+ - create heterogeneous list of configuration objects (c2_conf_reg)
+   without the burden of auxiliary `objptr' structure.
+
+Concrete magic is still needed for generic-to-concrete object casting
+(C2_CONF_CAST()).
+---
+ conf/obj_ops.c | 114 +++++++++++++++++++++++++++++++++++----------------------
+ doc/magix      |  16 ++++----
+ 2 files changed, 78 insertions(+), 52 deletions(-)
+
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 5948243..887553c 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -40,9 +40,14 @@
+  */
+ 
+ /* ------------------------------------------------------------------
+- * bobs and invariants
++ * bobs
+  * ------------------------------------------------------------------ */
++
++static bool _generic_obj_check(const void *bob);
++static bool buf_is_valid(const struct c2_conf_buf *buf);
++
+ enum {
++	CONF_GENERIC_MAGIC    = 0x33ca11ab1ed0d077,
+ 	CONF_DIR_MAGIC        = 0x3301dca1ab005e77,
+ 	CONF_PROFILE_MAGIC    = 0x33c105ab1e5ea177,
+ 	CONF_FILESYSTEM_MAGIC = 0x33f00d0fc01aba77,
+@@ -53,34 +58,40 @@ enum {
+ 	CONF_PARTITION_MAGIC  = 0x33bacca15a100f77
+ };
+ 
+-static bool obj_is_stub(const struct c2_conf_obj *obj)
+-static bool buf_is_valid(const struct c2_conf_buf *buf);
+-static const struct c2_tl_descr *list_of(enum c2_conf_objtype t);
+-
+-#define _BOB_DEFINE(abbrev, magix)                                           \
+-static bool abbrev ## _invariant(const void *bob);                           \
+-static int abbrev ## _lookup(struct c2_conf_obj *parent,                     \
+-			     const struct c2_conf_buf *name,                 \
+-			     struct c2_conf_obj **out);                      \
+-                                                                             \
+-const struct c2_bob_type c2_conf_ ## abbrev ## _bob = {                      \
+-	.bt_name = "c2_conf_" #abbrev,                                       \
+-	.bt_magix_offset =                                                   \
+-		C2_MAGIX_OFFSET(struct c2_conf_ ## abbrev,                   \
+-				c2_conf_ ## abbrev ## _cast_field.co_magix), \
+-	.bt_magix = magix,                                                   \
+-	.bt_check = abbrev ## _invariant                                     \
++static const struct c2_bob_type generic_obj_bob = {
++	.bt_name         = "c2_conf_obj",
++	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_conf_obj,
++					   co_magic.generic),
++	.bt_magix        = CONF_GENERIC_MAGIC,
++	.bt_check        = _generic_obj_check
++};
++C2_BOB_DEFINE(static, &generic_obj_bob, c2_conf_obj);
++
++#define _BOB_TYPE_DEFINE(abbrev, magic)                            \
++static bool abbrev ## _invariant(const void *bob);                 \
++static int abbrev ## _lookup(struct c2_conf_obj *parent,           \
++			     const struct c2_conf_buf *name,       \
++			     struct c2_conf_obj **out);            \
++                                                                   \
++const struct c2_bob_type c2_conf_ ## abbrev ## _bob = {            \
++	.bt_name = "c2_conf_" #abbrev,                             \
++	.bt_magix_offset =                                         \
++		C2_MAGIX_OFFSET(struct c2_conf_ ## abbrev,         \
++				c2_conf_ ## abbrev ## _cast_field. \
++					co_magic.concrete),        \
++	.bt_magix = magic,                                         \
++	.bt_check = abbrev ## _invariant                           \
+ }
+ 
+-_BOB_DEFINE(dir,        CONF_DIR_MAGIC);
+-_BOB_DEFINE(profile,    CONF_PROFILE_MAGIC);
+-_BOB_DEFINE(filesystem, CONF_FILESYSTEM_MAGIC);
+-_BOB_DEFINE(service,    CONF_SERVICE_MAGIC);
+-_BOB_DEFINE(node,       CONF_NODE_MAGIC);
+-_BOB_DEFINE(nic,        CONF_NIC_MAGIC);
+-_BOB_DEFINE(sdev,       CONF_SDEV_MAGIC);
+-_BOB_DEFINE(partition,  CONF_PARTITION_MAGIC);
+-#undef _BOB_DEFINE
++_BOB_TYPE_DEFINE(dir,        CONF_DIR_MAGIC);
++_BOB_TYPE_DEFINE(profile,    CONF_PROFILE_MAGIC);
++_BOB_TYPE_DEFINE(filesystem, CONF_FILESYSTEM_MAGIC);
++_BOB_TYPE_DEFINE(service,    CONF_SERVICE_MAGIC);
++_BOB_TYPE_DEFINE(node,       CONF_NODE_MAGIC);
++_BOB_TYPE_DEFINE(nic,        CONF_NIC_MAGIC);
++_BOB_TYPE_DEFINE(sdev,       CONF_SDEV_MAGIC);
++_BOB_TYPE_DEFINE(partition,  CONF_PARTITION_MAGIC);
++#undef _BOB_TYPE_DEFINE
+ 
+ /** Configuration object type. */
+ static const struct obj_type {
+@@ -88,7 +99,10 @@ static const struct obj_type {
+ 	size_t                    ot_size;
+ 	/** Offset of c2_conf_obj field. */
+ 	int                       ot_obj_offset;
+-	/** Address of branded object type. */
++	/**
++	 * Branded object type that corresponds to concrete
++	 * configuration object.
++	 */
+ 	const struct c2_bob_type *ot_bob;
+ 	/** Operations vector. */
+ 	struct c2_conf_obj_ops    ot_ops;
+@@ -119,29 +133,37 @@ static const struct obj_type *obj_type(enum c2_conf_objtype type)
+ 	return &_obj_types[type];
+ }
+ 
+-static bool
+-generic_obj_check_as(const struct c2_conf_obj *obj, enum c2_conf_objtype type)
++static bool _generic_obj_check(const void *bob)
+ {
+-	const struct obj_type *ot = obj_type(type);
++	const struct c2_conf_obj *obj = bob;
+ 
+-	return obj->co_type == type && obj->co_magix == ot->ot_bob->bt_magix &&
+-		buf_is_valid(&obj->co_id) &&
++	return buf_is_valid(&obj->co_id) &&
+ 		C2_IN(obj->co_status,
+ 		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
+-		obj->co_ops == &ot->ot_ops;
++		obj->co_ops == &obj_type(type)->ot_ops;
+ }
++C2_BASSERT(generic_obj_bob.bt_check == _generic_obj_check);
++
++/* ------------------------------------------------------------------
++ * Invariants
++ * ------------------------------------------------------------------ */
++
++static bool obj_is_stub(const struct c2_conf_obj *obj);
++static const struct c2_tl_descr *list_of(enum c2_conf_objtype t);
+ 
+ bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
+ {
+ 	const struct obj_type *ot = obj_type(obj->co_type);
+ 
+-	return generic_obj_check_as(obj, obj->co_type) &&
++	return c2_conf_obj_bob_check(obj) &&
+ 		c2_bob_check(ot->ot_bob, (const char *)obj - ot->ot_obj_offset);
+ }
+-
+-/* ------------------------------------------------------------------
+- * Concrete invariants
+- * ------------------------------------------------------------------ */
++
++static bool
++generic_obj_check_as(const struct c2_conf_obj *obj, enum c2_conf_objtype type)
++{
++	return obj->co_type == type && c2_conf_obj_bob_check(obj);
++}
+ 
+ static bool dir_invariant(const void *bob)
+ {
+@@ -330,7 +352,6 @@ static int generic_obj_init(struct c2_conf_obj *obj, enum c2_conf_objtype type,
+ 		return rc;
+ 
+ 	obj->co_type = type;
+-	obj->co_magix = ot->ot_bob->bt_magix;
+ 	obj->co_status = C2_CS_MISSING;
+ 	obj->co_ops = &ot->ot_ops;
+ 	C2_ASSERT(obj->co_parent == NULL);
+@@ -338,6 +359,8 @@ static int generic_obj_init(struct c2_conf_obj *obj, enum c2_conf_objtype type,
+ 	c2_chan_init(&obj->co_chan);
+ 	/* TODO Assert that obj->co_linkage is zeroed. */
+ 	C2_ASSERT(obj->co_confc == NULL);
++	c2_conf_obj_bob_init(obj);
++	obj->co_magic.concrete = ot->ot_bob->bt_magix;
+ 
+ 	C2_POST(generic_obj_check_as(obj, type));
+ 	return 0;
+@@ -533,19 +556,22 @@ static int dir_readdir(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+  * ------------------------------------------------------------------ */
+ 
+ C2_TL_DESCR_DEFINE(services, "service objs", static, struct c2_conf_obj,
+-		   co_linkage, co_magix, CONF_SERVICE_MAGIC, CONF_DIR_MAGIC);
++		   co_linkage, co_magic.concrete, CONF_SERVICE_MAGIC,
++		   CONF_DIR_MAGIC);
+ C2_TL_DEFINE(services, static, struct c2_conf_obj);
+ 
+ C2_TL_DESCR_DEFINE(nics, "nic objs", static, struct c2_conf_obj, co_linkage,
+-		   co_magix, CONF_NIC_MAGIC, CONF_DIR_MAGIC);
++		   co_magic.concrete, CONF_NIC_MAGIC, CONF_DIR_MAGIC);
+ C2_TL_DEFINE(nics, static, struct c2_conf_obj);
+ 
+ C2_TL_DESCR_DEFINE(sdevs, "sdev objs", static, struct c2_conf_obj,
+-		   co_linkage, co_magix, CONF_SDEV_MAGIC, CONF_DIR_MAGIC);
++		   co_linkage, co_magic.concrete, CONF_SDEV_MAGIC,
++		   CONF_DIR_MAGIC);
+ C2_TL_DEFINE(sdevs, static, struct c2_conf_obj);
+ 
+ C2_TL_DESCR_DEFINE(partitions, "partition objs", static, struct c2_conf_obj,
+-		   co_linkage, co_magix, CONF_PARTITION_MAGIC, CONF_DIR_MAGIC);
++		   co_linkage, co_magic.concrete, CONF_PARTITION_MAGIC,
++		   CONF_DIR_MAGIC);
+ C2_TL_DEFINE(partitions, static, struct c2_conf_obj);
+ 
+ /** Returns descriptor of a list given type of its items. */
+diff --git a/doc/magix b/doc/magix
+index cf9edaf..3eb4812 100755
+--- a/doc/magix
++++ b/doc/magix
+@@ -48,11 +48,11 @@ c2_layout_list_enum   lle_magic              4c495354454e554d LISTENUM
+ c2_layout_linear_enum lla_magic              4c494e2d454e554d LIN-ENUM
+ c2_conf_reg           r_magic                33fab1edfe0da177 fabled feodal
+ c2_conf_obj           co_gen_magic           335e1f1e55ce1177 selfless cell
+-c2_conf_dir           cd_obj.co_magix        3301dca1ab005e77 old calaboose
+-c2_conf_profile       cp_obj.co_magix        33c105ab1e5ea177 closable seal
+-c2_conf_filesystem    cf_obj.co_magix        33f00d0fc01aba77 food of Colaba
+-c2_conf_service       cs_obj.co_magix        33b1a5ed10ca1e77 biased locale
+-c2_conf_node          cn_obj.co_magix        33c01055a1d05a77 colossal dosa
+-c2_conf_nic           ni_obj.co_magix        33ba5eba11feed77 baseball feed
+-c2_conf_sdev          sd_obj.co_magix        33a115eed5a1ad77 allseed salad
+-c2_conf_partition     pa_obj.co_magix        33bacca15a100f77 bacca is aloof
++c2_conf_dir           cd_obj.co_con_magic    3301dca1ab005e77 old calaboose
++c2_conf_profile       cp_obj.co_con_magic    33c105ab1e5ea177 closable seal
++c2_conf_filesystem    cf_obj.co_con_magic    33f00d0fc01aba77 food of Colaba
++c2_conf_service       cs_obj.co_con_magic    33b1a5ed10ca1e77 biased locale
++c2_conf_node          cn_obj.co_con_magic    33c01055a1d05a77 colossal dosa
++c2_conf_nic           ni_obj.co_con_magic    33ba5eba11feed77 baseball feed
++c2_conf_sdev          sd_obj.co_con_magic    33a115eed5a1ad77 allseed salad
++c2_conf_partition     pa_obj.co_con_magic    33bacca15a100f77 bacca is aloof
+-- 
+1.8.3.2
+

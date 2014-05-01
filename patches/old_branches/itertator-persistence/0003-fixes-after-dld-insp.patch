@@ -1,0 +1,51 @@
+From cfdaef228ef0f05ff67b274185f5d2da0a3285fb Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 8 Oct 2013 18:29:31 +0800
+Subject: [PATCH 3/8] fixes after dld insp.
+
+---
+ cm/cm.c | 21 ++++++++++++---------
+ 1 file changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/cm/cm.c b/cm/cm.c
+index e54a377..d521a34 100644
+--- a/cm/cm.c
++++ b/cm/cm.c
+@@ -246,13 +246,14 @@
+  window persistence
+    Copy machine sliding window is an in-memory data structure to keep track of
+    progress of some operations. When some failure happens, e.g. software or node
+-   crash, this sliding windows information is lost. Copy machine has no clue
+-   how to resume the operations at the point of failure. To solve this problem,
+-   copy machine stores some information about the completed operations onto
+-   persistent storage transactionally. So when node and/or copy machine restarts
+-   after failure, it reads from persistent storage and resumes its operations.
+-
+-   The following informations is to be stored on persistent storage,
++   crash, this in-memory sliding window information is lost. Copy machine has
++   no clue how to resume the operations at the point of failure. To solve this
++   problem, copy machine stores some information about the completed operations
++   onto persistent storage transactionally. So when node and/or copy machine
++   restarts after failure, it reads from persistent storage and resumes its
++   operations.
++
++   The following information is to be stored on persistent storage,
+    i)  copy machine id. It is struct m0_cm::cm_id.
+    ii) last completed aggregation group id.
+ 
+@@ -271,8 +272,10 @@
+    in copy machine start routine to check if a previous unfinished operation
+    is in-progress. m0_cm_sw_store_update() will be called when sliding window
+    advances. m0_cm_sw_store_finish() is called when a copy machine operation
+-   completes. In this case, the last completed AG id has a special, {-1, -1},
+-   to indicate that the operation has already completed successfully.
++   completes. In this case, the stored AG id will be deleted from storage,
++   to indicate that the operation has already completed successfully. When
++   node failure happens at this time, and then restarts again, it loads from
++   storage, and -ENOENT indicates no pending copy machine operation is progress.
+ 
+    @subsection CMDLD-lspec-cm-stop Copy machine stop
+    Once operation completes successfully, copy machine performs required tasks,
+-- 
+1.8.3.2
+

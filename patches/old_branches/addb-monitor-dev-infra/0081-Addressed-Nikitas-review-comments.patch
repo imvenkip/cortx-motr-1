@@ -1,0 +1,62 @@
+From c8895adaae8c315cff4ffc08a7ff410774a6388f Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Tue, 20 Aug 2013 16:25:54 +0530
+Subject: [PATCH 081/107] Addressed Nikitas review comments
+
+---
+ addb/addb_monitor.h          | 1 -
+ addb/user_space/addb_svc.c   | 1 -
+ m0t1fs/linux_kernel/m0t1fs.c | 7 +------
+ 3 files changed, 1 insertion(+), 8 deletions(-)
+
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 0415486..b2098dc 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -293,7 +293,6 @@ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor);
+ 
+ /**
+  * Cleanup the ADDB monitoring sub-system
+- * @todo: Replace substring "subsys" with some other appropriate name
+  */
+ M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh);
+ 
+diff --git a/addb/user_space/addb_svc.c b/addb/user_space/addb_svc.c
+index 99191eb..b79ca38 100644
+--- a/addb/user_space/addb_svc.c
++++ b/addb/user_space/addb_svc.c
+@@ -98,7 +98,6 @@ static bool addb_svc_invariant(const struct addb_svc *svc)
+ static int addb_svc_rso_start(struct m0_reqh_service *service)
+ {
+ 	struct addb_svc *svc;
+-	int              rc;
+ 
+ 	M0_LOG(M0_DEBUG, "starting");
+ 	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index a395f87..700f8e9 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -154,18 +154,13 @@ M0_INTERNAL int m0t1fs_init(void)
+ 	if (rc != 0)
+ 		goto net_fini;
+ 
+-	/* @todo: Need to give proper stats service endpoint */
+-	rc = m0_addb_monitor_subsys_init(&m0t1fs_globals.g_reqh, "REPLACE-ME");
+-	if (rc != 0)
+-		goto rpc_fini;
+-
+ 	M0_FOM_SIMPLE_POST(&mam_pfom.pf_fom, &m0t1fs_globals.g_reqh,
+ 			   &m0t1fs_addb_monitor_pfom_tick,
+ 			   &mam_pfom, 1);
+ 
+ 	rc = m0t1fs_layout_init();
+ 	if (rc != 0)
+-		goto mon_fini;
++		goto rpc_fini;
+ 
+ 	rc = register_filesystem(&m0t1fs_fs_type);
+ 	if (rc != 0)
+-- 
+1.8.3.2
+

@@ -1,0 +1,668 @@
+From 2fbb56a8d0cb819ffcb982fea19e2a090d895893 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sun, 28 Apr 2013 16:32:20 +0800
+Subject: [PATCH 03/14] code for pool machine load/store
+
+---
+ ioservice/io_device.c         |   3 +-
+ lib/uuid.h                    |   4 +
+ m0t1fs/linux_kernel/super.c   |   2 +-
+ m0t1fs/linux_kernel/ut/file.c |   3 +-
+ pool/Makefile.sub             |   3 +-
+ pool/pool.c                   |  27 ++--
+ pool/pool.h                   |  20 ++-
+ pool/pool_store.c             | 366 ++++++++++++++++++++++++++++++++++++++++++
+ pool/ut/test_pm.c             |   8 +-
+ rpc/service.h                 |   4 +-
+ 10 files changed, 416 insertions(+), 24 deletions(-)
+ create mode 100644 pool/pool_store.c
+
+diff --git a/ioservice/io_device.c b/ioservice/io_device.c
+index 0fc467f..1b7363a 100644
+--- a/ioservice/io_device.c
++++ b/ioservice/io_device.c
+@@ -270,7 +270,8 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
+ 	}
+ 
+ 	/* TODO configuration information is needed here. */
+-	rc = m0_poolmach_init(poolmach, reqh->rh_dtm, PM_DEFAULT_NR_NODES,
++	rc = m0_poolmach_init(poolmach, reqh->rh_dbenv, reqh->rh_dtm,
++			      PM_DEFAULT_NR_NODES,
+ 			      service->rs_reqh_ctx->rc_mero->cc_pool_width,
+ 			      PM_DEFAULT_MAX_NODE_FAILURES,
+ 			      PM_DEFAULT_MAX_DEV_FAILURES);
+diff --git a/lib/uuid.h b/lib/uuid.h
+index 1a2e412..2b67826 100644
+--- a/lib/uuid.h
++++ b/lib/uuid.h
+@@ -34,6 +34,10 @@ enum {
+ 	M0_UUID_STRLEN = 36
+ };
+ 
++struct m0_uuid {
++	char u_uuid[M0_UUID_STRLEN];
++};
++
+ /**
+    Parse the 8-4-4-4-12 hexadecimal string representation of a UUID
+    and convert to numerical form.
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index adafd8e..0070280 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -664,7 +664,7 @@ static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
+ 	if (m == NULL)
+ 		return -ENOMEM;
+ 
+-	rc = m0_poolmach_init(m, NULL, 1, pool_width, 1, nr_parity_units);
++	rc = m0_poolmach_init(m, NULL, NULL, 1, pool_width, 1, nr_parity_units);
+ 	if (rc == 0)
+ 		*out = m;
+ 	else
+diff --git a/m0t1fs/linux_kernel/ut/file.c b/m0t1fs/linux_kernel/ut/file.c
+index 4666c10..d0679dd 100644
+--- a/m0t1fs/linux_kernel/ut/file.c
++++ b/m0t1fs/linux_kernel/ut/file.c
+@@ -157,7 +157,8 @@ static int file_io_ut_init(void)
+ 	M0_SET0(&poolmach);
+ 	csb.csb_pool.po_mach = &poolmach;
+ 
+-	rc = m0_poolmach_init(csb.csb_pool.po_mach, NULL, 1, LAY_P, 1, LAY_K);
++	rc = m0_poolmach_init(csb.csb_pool.po_mach, NULL, NULL,
++			      1, LAY_P, 1, LAY_K);
+ 	M0_ASSERT(rc == 0);
+ 
+ 	return 0;
+diff --git a/pool/Makefile.sub b/pool/Makefile.sub
+index 5a53b84..ef94b45 100644
+--- a/pool/Makefile.sub
++++ b/pool/Makefile.sub
+@@ -1,2 +1,3 @@
+ nobase_mero_include_HEADERS += pool/pool.h
+-mero_libmero_la_SOURCES  += pool/pool.c
++mero_libmero_la_SOURCES  += pool/pool.c \
++			    pool/pool_store.c
+diff --git a/pool/pool.c b/pool/pool.c
+index 898cebb..a2cfdc4 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -259,6 +259,7 @@ M0_INTERNAL bool m0_poolmach_version_before(const struct m0_pool_version_numbers
+ }
+ 
+ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
++				 struct m0_dbenv *dbenv,
+ 				 struct m0_dtm *dtm,
+ 				 uint32_t nr_nodes,
+ 				 uint32_t nr_devices,
+@@ -315,7 +316,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+ 
+ 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+ 		/* -1 means that this spare slot is not used */
+-		pm->pm_state.pst_spare_usage_array[i].psp_device_index =
++		pm->pm_state.pst_spare_usage_array[i].psu_device_index =
+ 						POOL_PM_SPARE_SLOT_UNUSED;
+ 	}
+ 
+@@ -482,10 +483,10 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
+ 	case M0_PNDS_ONLINE:
+ 		/* clear spare slot usage if it is from rebalanced */
+ 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-			if (spare_array[i].psp_device_index == event->pe_index){
+-				M0_ASSERT(M0_IN(spare_array[i].psp_device_state,
++			if (spare_array[i].psu_device_index == event->pe_index){
++				M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
+ 						     (M0_PNDS_SNS_REBALANCED)));
+-				spare_array[i].psp_device_index =
++				spare_array[i].psu_device_index =
+ 						POOL_PM_SPARE_SLOT_UNUSED;
+ 			break;
+ 			}
+@@ -494,11 +495,11 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
+ 	case M0_PNDS_SNS_REPAIRING:
+ 		/* alloc a sns repare spare slot */
+ 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-			if (spare_array[i].psp_device_index ==
++			if (spare_array[i].psu_device_index ==
+ 						POOL_PM_SPARE_SLOT_UNUSED) {
+-				spare_array[i].psp_device_index =
++				spare_array[i].psu_device_index =
+ 							event->pe_index;
+-				spare_array[i].psp_device_state =
++				spare_array[i].psu_device_state =
+ 							M0_PNDS_SNS_REPAIRING;
+ 				break;
+ 			}
+@@ -515,8 +516,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach *pm,
+ 	case M0_PNDS_SNS_REBALANCED:
+ 		/* change the repair spare slot usage */
+ 		for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-			if (spare_array[i].psp_device_index == event->pe_index){
+-				spare_array[i].psp_device_state =
++			if (spare_array[i].psu_device_index == event->pe_index){
++				spare_array[i].psu_device_state =
+ 							event->pe_state;
+ 				break;
+ 			}
+@@ -664,8 +665,8 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
+ 
+ 	spare_usage_array = pm->pm_state.pst_spare_usage_array;
+ 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-		if (spare_usage_array[i].psp_device_index == device_index) {
+-			M0_ASSERT(M0_IN(spare_usage_array[i].psp_device_state,
++		if (spare_usage_array[i].psu_device_index == device_index) {
++			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
+ 						(M0_PNDS_SNS_REPAIRING,
+ 						 M0_PNDS_SNS_REPAIRED)));
+ 			*spare_slot_out = i;
+@@ -702,8 +703,8 @@ M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
+ 
+ 	spare_usage_array = pm->pm_state.pst_spare_usage_array;
+ 	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
+-		if (spare_usage_array[i].psp_device_index == device_index) {
+-			M0_ASSERT(M0_IN(spare_usage_array[i].psp_device_state,
++		if (spare_usage_array[i].psu_device_index == device_index) {
++			M0_ASSERT(M0_IN(spare_usage_array[i].psu_device_state,
+ 						(M0_PNDS_SNS_REBALANCING,
+ 						 M0_PNDS_SNS_REBALANCED)));
+ 			*spare_slot_out = i;
+diff --git a/pool/pool.h b/pool/pool.h
+index 80de341..20dd7e4 100644
+--- a/pool/pool.h
++++ b/pool/pool.h
+@@ -26,6 +26,7 @@
+ #include "lib/cdefs.h"
+ #include "lib/rwlock.h"
+ #include "lib/tlist.h"
++#include "db/db.h"
+ 
+ /**
+    @defgroup pool Storage pools.
+@@ -37,6 +38,7 @@
+ struct m0_stob_id;
+ struct m0_dtm;
+ struct m0_io_req;
++struct m0_dbenv;
+ struct m0_dtx;
+ 
+ /* export */
+@@ -230,10 +232,10 @@ struct m0_pool_event_link {
+  */
+ struct m0_pool_spare_usage {
+ 	/** index of the device to use this spare slot */
+-	uint32_t psp_device_index;
++	uint32_t              psu_device_index;
+ 
+ 	/** state of the device to use this spare slot */
+-	enum m0_pool_nd_state psp_device_state;
++	enum m0_pool_nd_state psu_device_state;
+ };
+ 
+ /**
+@@ -282,6 +284,10 @@ struct m0_poolmach_state {
+ 	struct m0_tl                   pst_events_list;
+ };
+ 
++enum m0_poolmach_flags {
++	M0_POOLMACH_FLAG_MASTER = 1 << 0
++};
++
+ /**
+  * pool machine. Data structure representing replicated pool state machine.
+  *
+@@ -297,6 +303,16 @@ struct m0_poolmach {
+ 	/** struct m0_persistent_sm  pm_mach; */
+ 	struct m0_poolmach_state pm_state;
+ 
++	/** the db table to store poolmach state.
++	 * Only valid for Master Pool Machine.
++	 */
++	struct m0_table          pm_table;
++
++	/**
++	 * flag bits. See enum m0_poolmach_flags.
++	 */
++	uint32_t                 pm_flags;
++
+ 	/** this pool machine initialized or not */
+ 	bool                     pm_is_initialised;
+ 
+diff --git a/pool/pool_store.c b/pool/pool_store.c
+new file mode 100644
+index 0000000..30d75f8
+--- /dev/null
++++ b/pool/pool_store.c
+@@ -0,0 +1,366 @@
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
++ * Original creation date: 07/15/2010
++ */
++
++#undef M0_TRACE_SUBSYSTEM
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
++#include "lib/trace.h"      /* M0_LOG */
++#include "lib/errno.h"
++#include "lib/memory.h"
++#include "stob/stob.h"
++#include "pool/pool.h"
++#include "lib/misc.h"
++#include "lib/uuid.h"
++
++/**
++   @addtogroup pool
++
++   @{
++ */
++
++struct m0_poolnode_rec {
++	enum m0_pool_nd_state pn_state;
++	struct m0_uuid        pn_node_id;
++};
++
++struct m0_pooldev_rec {
++	enum m0_pool_nd_state pd_state;
++	struct m0_uuid        pd_dev_id;
++	struct m0_uuid        pd_node_id;
++};
++
++struct m0_pool_spare_usage_rec {
++	uint32_t              psu_device_index;
++	enum m0_pool_nd_state psu_device_state;
++};
++
++struct m0_poolmach_state_rec {
++	struct m0_pool_version_numbers psr_version;
++	uint32_t                       psr_nr_nodes;
++	uint32_t                       psr_nr_devices;
++	uint32_t                       psr_max_node_failures;
++	uint32_t                       psr_max_device_failures;
++};
++
++struct m0_pool_event_rec {
++	struct m0_pool_version_numbers pel_version;
++	struct m0_pool_event           pel_event;
++};
++
++static const struct m0_table_ops m0_poolmach_store_ops = {
++	.to = {
++		[TO_KEY] = {
++			.max_size = sizeof (struct m0_pool_version_numbers)
++			},
++		[TO_REC] = {
++			.max_size = ~0
++			}
++	},
++	.key_cmp = NULL
++};
++
++static struct m0_pool_version_numbers poolmach_state_key = {
++	.pvn_version = {
++		[PVE_READ]  = ~0ULL - 1,
++		[PVE_WRITE] = ~0ULL - 1
++	}
++};
++
++
++static struct m0_pool_version_numbers poolmach_device_state_key = {
++	.pvn_version = {
++		[PVE_READ]  = ~0ULL - 2,
++		[PVE_WRITE] = ~0ULL - 2
++	}
++};
++
++static struct m0_pool_version_numbers poolmach_node_state_key = {
++	.pvn_version = {
++		[PVE_READ]  = ~0ULL - 3,
++		[PVE_WRITE] = ~0ULL - 3
++	}
++};
++
++static struct m0_pool_version_numbers poolmach_spare_key = {
++	.pvn_version = {
++		[PVE_READ]  = ~0ULL - 4,
++		[PVE_WRITE] = ~0ULL - 4
++	}
++};
++
++static int load_from_db(struct m0_table                *table,
++			struct m0_db_tx                *tx,
++			struct m0_pool_version_numbers *key,
++			void                           *rec,
++			int                             size_of_rec)
++{
++	struct m0_db_pair pair;
++	int               rc;
++
++	m0_db_pair_setup(&pair, table,
++			 key, sizeof *key,
++			 rec, size_of_rec);
++
++	rc = m0_table_lookup(tx, &pair);
++	m0_db_pair_release(&pair);
++	m0_db_pair_fini(&pair);
++	return rc;
++}
++
++static int store_into_db(struct m0_table                *table,
++			 struct m0_db_tx                *tx,
++			 struct m0_pool_version_numbers *key,
++			 void                           *rec,
++			 int                             size_of_rec)
++{
++	struct m0_db_pair pair;
++	int               rc;
++
++	m0_db_pair_setup(&pair, table,
++			 key, sizeof *key,
++			 rec, size_of_rec);
++
++	rc = m0_table_insert(tx, &pair);
++	m0_db_pair_release(&pair);
++	m0_db_pair_fini(&pair);
++	return rc;
++}
++
++
++static int m0_poolmach_store(struct m0_poolmach *pm,
++			     struct m0_dbenv    *dbenv,
++			     struct m0_db_tx    *tx,
++			     uint32_t            nr_nodes,
++			     uint32_t            nr_devices,
++			     uint32_t            max_node_failures,
++			     uint32_t            max_device_failures)
++{
++	struct m0_poolmach_state_rec    poolmach_rec;
++	struct m0_poolnode_rec         *poolnode_rec;
++	struct m0_pooldev_rec          *pooldev_rec;
++	struct m0_pool_spare_usage_rec *pool_spare_usage_rec;
++	uint32_t                        i;
++	int                             rc;
++
++        poolnode_rec = m0_alloc(nr_nodes * sizeof (*poolnode_rec));
++        pooldev_rec  = m0_alloc(nr_devices * sizeof (*pooldev_rec));
++        pool_spare_usage_rec = m0_alloc(max_device_failures *
++					 sizeof (*pool_spare_usage_rec));
++	if (poolnode_rec == NULL || pooldev_rec == NULL ||
++	    pool_spare_usage_rec == NULL) {
++		rc = -ENOMEM;
++		goto out_free;
++	}
++
++	poolmach_rec.psr_version = pm->pm_state.pst_version;
++	poolmach_rec.psr_nr_nodes = nr_nodes;
++	poolmach_rec.psr_nr_devices = nr_devices;
++	poolmach_rec.psr_max_node_failures = max_node_failures;
++	poolmach_rec.psr_max_device_failures = max_device_failures;
++	rc = store_into_db(&pm->pm_table, tx, &poolmach_state_key,
++			   &poolmach_rec, sizeof poolmach_rec);
++	if (rc != 0)
++		goto out_free;
++
++	for (i = 0; i < nr_nodes; i++) {
++		poolnode_rec[i].pn_state =
++				pm->pm_state.pst_nodes_array[i].pn_state;
++		/* poolnode_rec[i].pn_node_id = uuid */
++	}
++	rc = load_from_db(&pm->pm_table, tx, &poolmach_node_state_key,
++			  poolnode_rec,
++			  nr_nodes * sizeof (*poolnode_rec));
++	if (rc != 0)
++		goto out_free;
++
++
++	for (i = 0; i < nr_devices; i++) {
++		pooldev_rec[i].pd_state =
++				pm->pm_state.pst_devices_array[i].pd_state;
++		/* pooldev_rec[i].pd_node_id = uuid */
++		/* pooldev_rec[i].pd_dev_id = uuid */
++	}
++	rc = store_into_db(&pm->pm_table, tx, &poolmach_device_state_key,
++			   pooldev_rec,
++			   nr_devices * sizeof (*pooldev_rec));
++	if (rc != 0)
++		goto out_free;
++
++	for (i = 0; i < max_device_failures; i++) {
++		pool_spare_usage_rec[i].psu_device_index =
++			pm->pm_state.pst_spare_usage_array[i].psu_device_index;
++		pool_spare_usage_rec[i].psu_device_state =
++			pm->pm_state.pst_spare_usage_array[i].psu_device_state;
++	}
++	rc = store_into_db(&pm->pm_table, tx, &poolmach_spare_key,
++			   pool_spare_usage_rec,
++			   max_device_failures * sizeof (*pool_spare_usage_rec));
++
++out_free:
++	m0_free(poolnode_rec);
++	m0_free(pooldev_rec);
++	m0_free(pool_spare_usage_rec);
++	return rc;
++}
++
++static int m0_poolmach_load(struct m0_poolmach *pm,
++			    struct m0_dbenv    *dbenv,
++			    struct m0_db_tx    *tx,
++			    uint32_t            nr_nodes,
++			    uint32_t            nr_devices,
++			    uint32_t            max_node_failures,
++			    uint32_t            max_device_failures)
++{
++	struct m0_poolmach_state_rec    poolmach_rec;
++	struct m0_poolnode_rec         *poolnode_rec;
++	struct m0_pooldev_rec          *pooldev_rec;
++	struct m0_pool_spare_usage_rec *pool_spare_usage_rec;
++	uint32_t                        i;
++	int                             rc;
++
++        poolnode_rec = m0_alloc(nr_nodes * sizeof (*poolnode_rec));
++        pooldev_rec  = m0_alloc(nr_devices * sizeof (*pooldev_rec));
++        pool_spare_usage_rec = m0_alloc(max_device_failures *
++					 sizeof (*pool_spare_usage_rec));
++	if (poolnode_rec == NULL || pooldev_rec == NULL ||
++	    pool_spare_usage_rec == NULL) {
++		rc = -ENOMEM;
++		goto out_free;
++	}
++
++
++	rc = load_from_db(&pm->pm_table, tx, &poolmach_state_key,
++			  &poolmach_rec, sizeof poolmach_rec);
++	if (rc != 0)
++		goto out_free;
++
++	if (poolmach_rec.psr_nr_nodes != nr_nodes ||
++	    poolmach_rec.psr_nr_devices != nr_devices ||
++	    poolmach_rec.psr_max_node_failures != max_node_failures ||
++	    poolmach_rec.psr_max_device_failures != max_device_failures) {
++		M0_LOG(M0_ERROR, "Pool Machine persistent state does not match!");
++		rc = -ESTALE;
++		goto out_free;
++	}
++	pm->pm_state.pst_version = poolmach_rec.psr_version;
++
++	rc = load_from_db(&pm->pm_table, tx, &poolmach_node_state_key,
++			  poolnode_rec,
++			  nr_nodes * sizeof (*poolnode_rec));
++	if (rc != 0)
++		goto out_free;
++
++	rc = load_from_db(&pm->pm_table, tx, &poolmach_device_state_key,
++			  pooldev_rec,
++			  nr_devices * sizeof (*pooldev_rec));
++	if (rc != 0)
++		goto out_free;
++
++	rc = load_from_db(&pm->pm_table, tx, &poolmach_spare_key,
++			  pool_spare_usage_rec,
++			  max_device_failures * sizeof (*pool_spare_usage_rec));
++	if (rc != 0)
++		goto out_free;
++
++	for (i = 0; i < nr_nodes; i++) {
++		pm->pm_state.pst_nodes_array[i].pn_state =
++						poolnode_rec[i].pn_state;
++	}
++
++	for (i = 0; i < nr_devices; i++) {
++		pm->pm_state.pst_devices_array[i].pd_state =
++						pooldev_rec[i].pd_state;
++	}
++
++	for (i = 0; i < max_device_failures; i++) {
++		pm->pm_state.pst_spare_usage_array[i].psu_device_index =
++				pool_spare_usage_rec[i].psu_device_index;
++		pm->pm_state.pst_spare_usage_array[i].psu_device_state =
++				pool_spare_usage_rec[i].psu_device_state;
++	}
++
++out_free:
++	m0_free(poolnode_rec);
++	m0_free(pooldev_rec);
++	m0_free(pool_spare_usage_rec);
++	return rc;
++}
++
++M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
++				       struct m0_dbenv    *dbenv,
++				       struct m0_dtm      *dtm,
++				       uint32_t            nr_nodes,
++				       uint32_t            nr_devices,
++				       uint32_t            max_node_failures,
++				       uint32_t            max_device_failures)
++{
++	struct m0_db_tx                 init_tx;
++	int                             rc;
++
++	M0_PRE(!pm->pm_is_initialised);
++	M0_PRE((dbenv == NULL) == (dtm == NULL));
++	M0_ENTRY();
++
++	M0_SET0(pm);
++
++	if (dbenv == NULL) {
++		pm->pm_flags &= ~M0_POOLMACH_FLAG_MASTER;
++		M0_RETURN(0);
++	}
++	pm->pm_flags |= M0_POOLMACH_FLAG_MASTER;
++
++	rc = m0_table_init(&pm->pm_table, dbenv,
++			   "poolmach_persistent_state", 0,
++			   &m0_poolmach_store_ops);
++	if (rc != 0)
++		M0_RETURN(rc);
++
++	rc = m0_db_tx_init(&init_tx, dbenv, 0);
++	if (rc != 0) {
++		m0_table_fini(&pm->pm_table);
++		M0_RETURN(rc);
++	}
++
++	rc = m0_poolmach_load(pm, dbenv, &init_tx, nr_nodes, nr_devices,
++			      max_node_failures, max_device_failures);
++	if (rc == -ENOENT) {
++		rc = m0_poolmach_store(pm, dbenv, &init_tx, nr_nodes, nr_devices,
++				       max_node_failures, max_device_failures);
++	}
++	if (rc == 0)
++		rc = m0_db_tx_commit(&init_tx);
++	else
++		m0_db_tx_abort(&init_tx);
++
++	if (rc != 0)
++		m0_table_fini(&pm->pm_table);
++	return rc;
++}
++
++#undef M0_TRACE_SUBSYSTEM
++/** @} end group pool */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index 9a53cc0..ac13ae9 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -37,7 +37,7 @@ static void pm_test_init_fini(void)
+ 	int                rc;
+ 
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, NULL, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+@@ -62,7 +62,7 @@ static void pm_test_transit(void)
+ 	uint32_t                       index;
+ 
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, NULL, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 PM_TEST_DEFAULT_MAX_DEVICE_FAILURE);
+@@ -359,7 +359,7 @@ static void pm_test_spare_slot(void)
+ 	uint32_t              spare_slot;
+ 
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, NULL, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 2 /* two spare device */);
+@@ -521,7 +521,7 @@ static void pm_test_multi_fail(void)
+ 	uint32_t              spare_slot;
+ 
+ 	M0_SET0(&pm);
+-	rc = m0_poolmach_init(&pm, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
++	rc = m0_poolmach_init(&pm, NULL, NULL, PM_TEST_DEFAULT_NODE_NUMBER,
+ 					 PM_TEST_DEFAULT_DEVICE_NUMBER,
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 3 /*three spare device */);
+diff --git a/rpc/service.h b/rpc/service.h
+index 309bb9f..21da369 100644
+--- a/rpc/service.h
++++ b/rpc/service.h
+@@ -34,6 +34,7 @@
+ #include "mero/magic.h"
+ #include "rpc/session.h"
+ #include "rpc/item.h"
++#include "lib/uuid.h"
+ 
+ /* Imports */
+ struct m0_rpc_conn;
+@@ -47,10 +48,11 @@ struct m0_rpc_service_ops;
+ M0_INTERNAL int m0_rpc_service_module_init(void);
+ M0_INTERNAL void m0_rpc_service_module_fini(void);
+ 
+-/** @todo XXX This is stub definition */
++/** @todo XXX This is stub definition
+ struct m0_uuid {
+ 	char u_uuid[40];
+ };
++*/
+ 
+ struct m0_rpc_service_type {
+ 	/** Numeric id that uniquely identifies a service type */
+-- 
+1.8.3.2
+

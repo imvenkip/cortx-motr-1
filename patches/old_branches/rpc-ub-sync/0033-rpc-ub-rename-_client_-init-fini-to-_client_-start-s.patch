@@ -1,0 +1,154 @@
+From 82bd893fef951e2a1ff93fd9e719121ac6c38915 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 15 Mar 2013 10:34:28 +0200
+Subject: [PATCH 33/63] rpc-ub: rename _client_{init,fini}() to
+ _client_{start,stop}()
+
+Rename static functions:
+  _client_init() --> _client_start();
+  _client_fini() --> _client_stop().
+Because that's what they do --- start and stop rpc client.
+
++ cob/ut/cob.c: Remove wrong comment.
+---
+ cob/ut/cob.c |  1 -
+ rpc/ub/ub.c  | 50 ++++++++++++++++++++++----------------------------
+ 2 files changed, 22 insertions(+), 29 deletions(-)
+
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index c7562bf..5b16d76 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -39,7 +39,6 @@ static int db_reset(void)
+ 	int rc;
+ 
+ 	rc = m0_ut_db_reset(db_name);
+-	/* M0_UT_ASSERT not usable during ts_init */
+ 	M0_ASSERT(rc == 0);
+ 	return rc;
+ }
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index eec0bee..449bdef 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -51,16 +51,16 @@ enum {
+    - define rpc client interface such that it can represent multiple clients.
+  */
+ 
+-#if 0
+-#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
+-#define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
+-#define SERVER_ENDPOINT         "lnet:" SERVER_ENDPOINT_ADDR
++#if 0 /* XXX ? */
++#  define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
++#  define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
++#  define SERVER_ENDPOINT         "lnet:" SERVER_ENDPOINT_ADDR
+ 
+ static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
+ #else
+-#define CLIENT_ENDPOINT_ADDR "127.0.0.1:12345"
+-#define SERVER_ENDPOINT_ADDR CLIENT_ENDPOINT_ADDR
+-#define SERVER_ENDPOINT      "bulk-mem:" SERVER_ENDPOINT_ADDR
++#  define CLIENT_ENDPOINT_ADDR "127.0.0.1:12345"
++#  define SERVER_ENDPOINT_ADDR CLIENT_ENDPOINT_ADDR
++#  define SERVER_ENDPOINT      "bulk-mem:" SERVER_ENDPOINT_ADDR
+ 
+ static struct m0_net_xprt  *g_xprt = &m0_net_bulk_mem_xprt;
+ #endif
+@@ -107,8 +107,8 @@ static const struct m0_rpc_item_ops ub_item_ops = {
+  * XXX FIXME: Code duplication!
+  * ---------------------------------------------------------------- */
+ 
+-static int _client_init(struct ub_rpc_client *client, uint32_t cob_dom_id,
+-			const char *db_name, uint32_t slot_nr)
++static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
++			  const char *db_name, uint32_t nr_slots)
+ {
+ 	int rc;
+ 
+@@ -120,8 +120,7 @@ static int _client_init(struct ub_rpc_client *client, uint32_t cob_dom_id,
+ 	client->rc_ctx.rcx_cob_dom_id            = cob_dom_id;
+ 	client->rc_ctx.rcx_dbenv                 = &client->rc_dbenv;
+ 	client->rc_ctx.rcx_db_name               = strdup(db_name);
+-	client->rc_ctx.rcx_nr_slots              = slot_nr;
+-
++	client->rc_ctx.rcx_nr_slots              = nr_slots;
+ 	client->rc_ctx.rcx_local_addr            = CLIENT_ENDPOINT_ADDR;
+ 	client->rc_ctx.rcx_remote_addr           = SERVER_ENDPOINT_ADDR;
+ 	client->rc_ctx.rcx_timeout_s             = CONNECT_TIMEOUT;
+@@ -130,18 +129,15 @@ static int _client_init(struct ub_rpc_client *client, uint32_t cob_dom_id,
+ 
+ 	rc = m0_rpc_client_start(&client->rc_ctx);
+ 	M0_ASSERT(rc == 0);
+-
+-	return rc;
+ }
+ 
+-static void _client_fini(struct ub_rpc_client *client)
++static void _client_stop(struct ub_rpc_client *client)
+ {
+ 	int rc;
+ 
+ 	rc = m0_rpc_client_stop(&client->rc_ctx);
+ 	M0_ASSERT(rc == 0);
+-	/* I know, db_name is not actually const pointer */
+-	m0_free((void*)client->rc_ctx.rcx_db_name);
++	m0_free((void *)client->rc_ctx.rcx_db_name);
+ 	m0_net_domain_fini(&client->rc_net_dom);
+ }
+ 
+@@ -159,11 +155,9 @@ static int _start(const char *opts /*XXX USEME*/)
+ 	for (i = 0; i < ARRAY_SIZE(g_client); ++i) {
+ 		char clientdb[20];
+ 		snprintf(clientdb, ARRAY_SIZE(clientdb), ".client-db-%d", i);
+-		rc = _client_init(&g_client[i], CLIENT_COB_DOM_ID + i,
+-				  clientdb, SESSION_SLOTS);
+-		M0_ASSERT(rc == 0);
++		_client_start(&g_client[i], CLIENT_COB_DOM_ID + i, clientdb,
++			      SESSION_SLOTS);
+ 	}
+-
+ 	m0_rpc_ub_fops_init();
+ 	return 0;
+ }
+@@ -173,7 +167,7 @@ static void _stop(void)
+ 	int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(g_client); ++i)
+-		_client_fini(&g_client[i]);
++		_client_stop(&g_client[i]);
+ 
+ 	m0_rpc_server_stop(&g_sctx);
+ 	m0_net_xprt_fini(g_xprt);
+@@ -215,10 +209,10 @@ static int client_post(struct m0_fop *fop, struct m0_rpc_session *session)
+ 
+ static void fop_send(struct m0_rpc_session *session, size_t seqn)
+ {
+-	int             rc;
+-	const char     *data = "RPC UB data";
+-	struct m0_fop  *fop;
+-	struct ub_req  *req;
++	int            rc;
++	const char    *data = "RPC UB data";
++	struct m0_fop *fop;
++	struct ub_req *req;
+ 
+ 	fop = m0_fop_alloc(&m0_rpc_ub_req_fopt, NULL);
+ 	M0_UB_ASSERT(fop != NULL);
+@@ -240,10 +234,10 @@ static void fop_send(struct m0_rpc_session *session, size_t seqn)
+ 
+ static void XXX_name_me(int iter M0_UNUSED)
+ {
+-	int i;
+-	int j;
+-	int rc;
+ 	struct m0_rpc_session *session;
++	int                    i;
++	int                    j;
++	int                    rc;
+ 
+ 	/* @todo: For some reason the following error may occur here:
+ 	   mero: NOTICE : [rpc/slot.c:584:m0_rpc_slot_reply_received] < rc=-71.
+-- 
+1.8.3.2
+

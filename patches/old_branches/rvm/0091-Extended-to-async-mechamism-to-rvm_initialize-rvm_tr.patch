@@ -1,0 +1,4918 @@
+From 529acf001dc1a184024c15875f135bf4ee6bf548 Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Wed, 22 May 2013 00:06:12 -0700
+Subject: [PATCH 091/121] Extended to async mechamism to rvm_initialize,
+ rvm_truncate, rvm_end_transaction, log_recover.
+
+---
+ be/Makefile.sub      |    6 +-
+ be/be.h              |   32 +-
+ be/be_common.h       |   76 +++
+ be/be_rvm.c          |   57 +-
+ be/be_rvm.h          |    6 +-
+ be/domain.c          |   19 +-
+ be/domain.h          |   14 +-
+ be/handler.h         |    2 +-
+ be/helper.c          |   13 +-
+ be/seg.c             |    1 -
+ be/tx.c              |    2 +-
+ be/ut/be.c           |   45 +-
+ be/ut/handle_store.c |    2 +-
+ rvm/rds_free.c       |   39 +-
+ rvm/rds_malloc.c     |   36 +-
+ rvm/rds_prealloc.c   |   40 +-
+ rvm/rds_stats.c      |    2 +-
+ rvm/rds_zap.c        |   23 +-
+ rvm/rvm.h            |   31 +-
+ rvm/rvm_createseg.c  |    8 +-
+ rvm/rvm_init.c       |  170 ++++--
+ rvm/rvm_io.c         |  120 +++--
+ rvm/rvm_logflush.c   |  605 ++++++++++++++++-----
+ rvm/rvm_logrecovr.c  | 1461 ++++++++++++++++++++++++++++++++++++--------------
+ rvm/rvm_logstatus.c  |  246 +++++++--
+ rvm/rvm_map.c        |   29 +-
+ rvm/rvm_private.h    |  154 +++++-
+ rvm/rvm_status.c     |   82 ++-
+ rvm/rvm_trans.c      |  256 +++++----
+ rvm/rvm_unmap.c      |    1 +
+ rvm/ut/rvm.c         |    2 +-
+ 31 files changed, 2546 insertions(+), 1034 deletions(-)
+ create mode 100644 be/be_common.h
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 874f1c4..cc21ed1 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -3,8 +3,7 @@ nobase_mero_include_HEADERS +=  be/be.h
+ 				be/be_buf.h		\
+ 				be/helper.h		\
+ 				be/handle_store.h	\
+-				be/kv_store.h           \
+-				be/btree.h
++				be/kv_store.h
+ 
+ mero_libmero_la_SOURCES	    +=	be/be_init.c		\
+ 				be/domain.c		\
+@@ -16,5 +15,4 @@ mero_libmero_la_SOURCES	    +=	be/be_init.c		\
+ 				be/helper.c		\
+ 				be/handle_store.c	\
+ 				be/kv_store.c		\
+-				be/handler.c            \
+-				be/btree.c
++				be/handler.c
+diff --git a/be/be.h b/be/be.h
+index 147196b..9b68cfc 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -190,11 +190,10 @@ struct m0_be_cbinfo;
+ 
+ #include "be/be_impl.h"
+ #include "be/be_buf.h"
++#include "be/be_common.h"
+ #include "rvm/rvm.h"
+ 
+-typedef enum m0_be_msg_type m0_be_msg_type_t;
+-typedef void (*m0_be_callback)(struct m0_be_cbinfo *cbinfo, int status,
+-                               m0_be_msg_type_t msg_type);
++#include <stdio.h>
+ 
+ /**
+  * Initialises the in-memory part of domain structure. This function does not
+@@ -202,7 +201,9 @@ typedef void (*m0_be_callback)(struct m0_be_cbinfo *cbinfo, int status,
+  *
+  * @post m0_be_seg_state(dom->bd_data) == M0_BESEG_CLOSED
+  */
+-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom);
++
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
++                                   struct m0_be_cbinfo *cbinfo);
+ 
+ /**
+  * Finalises the in-memory part of domain structure.
+@@ -704,29 +705,6 @@ struct m0_be_named_seg_hdr {
+         uint64_t total_segments;
+ };
+ 
+-/** Return message type from the callback. */
+-enum m0_be_msg_type {
+-        M0_BE_SUCCESS,
+-        M0_BE_ALLOC,
+-        M0_BE_INTERNAL,
+-        M0_BE_INVALID_ARG,
+-        M0_BE_SEG_INTERNAL,
+-        M0_BE_SEG_DUP_NAME,
+-        M0_BE_SEG_NAME_ERR,
+-        M0_BE_STOB_FAILED
+-};
+-
+-/**
+- * Holds callback info from higher level to lower level.
+- */
+-struct m0_be_cbinfo {
+-        m0_be_callback           bc_cb;
+-        /** Parent cbinfo pointer. */
+-        struct m0_be_cbinfo     *bc_pcbinfo;
+-        struct m0_sm_group      *bc_sm_group;
+-        struct m0_tl            *bc_hq;
+-};
+-
+ /** Handler object. */
+ struct m0_be_handler_obj {
+         struct m0_be_cbinfo    *bho_cbinfo;
+diff --git a/be/be_common.h b/be/be_common.h
+new file mode 100644
+index 0000000..cd254ff
+--- /dev/null
++++ b/be/be_common.h
+@@ -0,0 +1,76 @@
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author              : Prashant Dhange <prashant_dhange@xyratex.com>
++ * Original creation date       : 05/08/2013
++ */
++
++#pragma once
++
++#ifndef __MERO_BE_BE_COMMON_H__
++#define __MERO_BE_BE_COMMON_H__
++#include "sm/sm.h"
++#include "lib/tlist.h"
++
++/**
++  @defgroup be common callback interfaces
++  @{
++  */
++struct m0_be_cbinfo;
++typedef enum m0_be_msg_type m0_be_msg_type_t;
++typedef void (*m0_be_callback)(struct m0_be_cbinfo *cbinfo, int status,
++                               m0_be_msg_type_t msg_type);
++
++/** Return message type from the callback. */
++enum m0_be_msg_type {
++        M0_BE_SUCCESS,
++        M0_BE_ALLOC,
++        M0_BE_INTERNAL,
++        M0_BE_INVALID_ARG,
++        M0_BE_SEG_INTERNAL,
++        M0_BE_SEG_DUP_NAME,
++        M0_BE_SEG_NAME_ERR,
++        M0_BE_STOB_FAILED,
++        M0_BE_HANDLER_THREAD_INIT_FAILED,
++        M0_BE_RVM_INIT_FAILED
++};
++
++/**
++ * Holds callback info from higher level to lower level.
++ */
++struct m0_be_cbinfo {
++        m0_be_callback           bc_cb;
++        /** Parent cbinfo pointer. */
++        struct m0_be_cbinfo     *bc_pcbinfo;
++        struct m0_sm_group      *bc_sm_group;
++        struct m0_tl            *bc_hq;
++};
++M0_INTERNAL void m0_be_cbinfo_copy_helper(struct m0_be_cbinfo *icbinfo,
++                                          struct m0_be_cbinfo *ocbinfo,
++                                          m0_be_callback cb);
++/** @} end of be interface */
++
++/* __MERO_BE_BE_COMMON_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/be_rvm.c b/be/be_rvm.c
+index c50ed57..0b8aa65 100644
+--- a/be/be_rvm.c
++++ b/be/be_rvm.c
+@@ -17,11 +17,14 @@
+  * Original creation date       : 11/28/2012
+  */
+ #include <stdio.h>
++#include "lib/memory.h"
+ #include "be/be.h"
+ #include "rvm/rvm.h"
++#include "rvm/rvm_private.h"
+ #include "stob/linux.h"
+ #include "stob/linux_internal.h"
+-
++#include "be/be_rvm.h"
++#include "be/handler.h"
+ /**
+   @addtogroup be_rvm
+   @{
+@@ -32,13 +35,18 @@ char log_file[MAXPATHLEN];
+  * Initialize RVM
+  * @todo - most of the rvm options are hardcoded for now
+  */
+-void m0_be_rvm_init(struct m0_be_domain *dom)
++int m0_be_rvm_init(struct m0_be_domain *dom,
++                   struct m0_be_cbinfo *cbinfo)
+ {
+         rvm_options_t            *options;
+         rvm_return_t             retval;
+         struct linux_domain      *ldom;
+         struct m0_stob           *log_stob = dom->bd_impl.log_stob;
+         int                      nbytes    = 0;
++        rvm_cbdata_t            *rvm_cbdata;
++        struct m0_be_cbinfo     *rvm_cbinfo;
++        int                      status = 0;
++        m0_be_msg_type_t         msg_type = M0_BE_SUCCESS;
+ 
+         M0_ASSERT(log_stob != NULL);
+ 
+@@ -52,8 +60,6 @@ void m0_be_rvm_init(struct m0_be_domain *dom)
+ 
+         options = rvm_malloc_options();
+ 
+-        M0_ASSERT(options != NULL);
+-
+         options->flags |= RVM_ALL_OPTIMIZATIONS;
+         options->log_stob = log_stob;
+         options->log_dev = (char *) log_file;
+@@ -61,12 +67,49 @@ void m0_be_rvm_init(struct m0_be_domain *dom)
+         options->create_log_size = RVM_MK_OFFSET(0,20971520);
+         options->create_log_mode = 0600;
+ 
+-        retval = rvm_initialize(RVM_VERSION,options);
++        M0_ALLOC_PTR(rvm_cbdata);
++        M0_ASSERT(rvm_cbdata != NULL);
++        rvm_cbdata->rvm_version         = RVM_VERSION;
++        rvm_cbdata->rvm_options         = options;
++
++        rvm_cbinfo                      = &rvm_cbdata->rvm_cbinfo;
++        rvm_cbinfo->bc_pcbinfo          = cbinfo;
++        rvm_cbinfo->bc_sm_group         = cbinfo->bc_sm_group;
++        rvm_cbinfo->bc_hq               = cbinfo->bc_hq;
++        rvm_cbinfo->bc_cb               = rvm_initialize_cb;
++
++        printf("\nfunction : %s\n", __FUNCTION__);
++        retval = rvm_initialize(RVM_VERSION, options, rvm_cbinfo);
++
++        if(retval != RVM_SUCCESS)
++                status = -1;
++
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(rvm_cbdata);
++        }
++        return 0;
++}
++
++void rvm_initialize_cb(struct m0_be_cbinfo     *cbinfo,
++                       int                      status,
++                       m0_be_msg_type_t         msg_type)
++{
++        rvm_options_t            *options;
++        rvm_cbdata_t             *rvm_cbd;
+ 
+-        M0_ASSERT(retval == RVM_SUCCESS);
++        rvm_cbd   = container_of(cbinfo, rvm_cbdata_t, rvm_cbinfo);
++        options   = rvm_cbd->rvm_options;
+ 
++        printf("\nfunction : %s\n", __FUNCTION__);
+         rvm_free_options(options);
+-};
++
++        if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
++        m0_free(rvm_cbd);
++}
+ 
+ void *m0_be_rvm_get_heapaddr(struct m0_be_seg *seg)
+ {
+diff --git a/be/be_rvm.h b/be/be_rvm.h
+index 0f57569..c27b32a 100644
+--- a/be/be_rvm.h
++++ b/be/be_rvm.h
+@@ -26,10 +26,14 @@
+   @defgroup be interface
+   @{
+   */
++void rvm_initialize_cb(struct m0_be_cbinfo     *cbinfo,
++                       int                      status,
++                       m0_be_msg_type_t         msg_type);
+ /*
+  * Initializes RVM.
+  */
+-void m0_be_rvm_init(struct m0_be_domain *dom);
++int m0_be_rvm_init(struct m0_be_domain *dom,
++                   struct m0_be_cbinfo *cbinfo);
+ 
+ /*
+  * Returns address of the heap start form the RVM segment.
+diff --git a/be/domain.c b/be/domain.c
+index 97399cc..3096df3 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -70,10 +70,13 @@ M0_INTERNAL void m0_be_domain_create(struct m0_be_domain *dom,
+         M0_LEAVE();
+ }
+ 
+-M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
++M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom,
++                                   struct m0_be_cbinfo *cbinfo)
+ {
+         int                        result;
+         struct m0_be_handler_data *bh_data;
++        int                        status = 0;
++        m0_be_msg_type_t           msg_type = M0_BE_SUCCESS;
+ 
+         M0_ENTRY("domain: %p", dom);
+ 
+@@ -95,7 +98,9 @@ M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
+                                 "Backend handler thread");
+         if (result != 0) {
+                 M0_LOG(M0_FATAL, "Failed to create BE handler thread!");
+-                return;
++                status = -1;
++                msg_type = M0_BE_HANDLER_THREAD_INIT_FAILED;
++                goto exit;
+         }
+ 
+         /* Initialise named segment. */
+@@ -104,10 +109,18 @@ M0_INTERNAL void m0_be_domain_init(struct m0_be_domain *dom)
+         m0_be_seg_tlist_init(&dom->bd_seg);
+         m0_be_tx_tlist_init(&dom->bd_tx);
+ 
+-        m0_be_rvm_init(dom);
++        printf("\nfunction : %s\n", __FUNCTION__);
++        status = m0_be_rvm_init(dom, cbinfo);
++
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
+ 
+         M0_POST(m0_be_domain_invariant(dom));
+         M0_LEAVE("Domain initialised, dom = %p", dom);
++
+ }
+ 
+ M0_INTERNAL bool m0_be_domain_lookup(struct m0_be_domain *dom, const char *name,
+diff --git a/be/domain.h b/be/domain.h
+index e6303d8..7f2ccb3 100644
+--- a/be/domain.h
++++ b/be/domain.h
+@@ -40,6 +40,18 @@
+ #define end_for_each_tx_in_domain } m0_tl_endfor
+ 
+ /**
++ *  * Callback data passed from domain level to the next.
++ *   */
++struct m0_be_dom_cbdata {
++        struct m0_be_cbinfo     bdc_cbinfo;
++        struct m0_be_domain    *bdc_dom;
++};
++
++M0_INTERNAL void m0_bd_init_rvm_init_cb(struct m0_be_cbinfo *cbinfo,
++                                        int status,
++                                        m0_be_msg_type_t msg_type);
++
++/**
+  * Helper function for domain to get segment from domain's segment list
+  */
+ M0_INTERNAL struct m0_be_seg *m0_be_domain_get_seg(struct m0_be_domain *dom,
+@@ -53,7 +65,7 @@ M0_INTERNAL bool m0_be_domain_invariant(const struct m0_be_domain *dom);
+ 
+ M0_INTERNAL uint32_t m0_be_domain_state(const struct m0_be_domain *dom);
+ /** @} end of be_domain group */
+-
++void notify_me();
+ /* __MERO_BE_DOMAIN_H__ */
+ #endif
+ 
+diff --git a/be/handler.h b/be/handler.h
+index 63f24b8..e84a1dc 100644
+--- a/be/handler.h
++++ b/be/handler.h
+@@ -21,7 +21,7 @@
+ 
+ #ifndef __MERO_BE_HANDLER_H__
+ #define __MERO_BE_HANDLER_H__
+-
++#include "be/be.h"
+ /**
+   @defgroup be_handler
+   @{
+diff --git a/be/helper.c b/be/helper.c
+index 1ef3870..1b3642e 100644
+--- a/be/helper.c
++++ b/be/helper.c
+@@ -27,6 +27,7 @@
+ #include "be/helper.h"
+ #include "be/seg.h"
+ #include "be/kv_store.h"
++#include "be/be_common.h"
+ #include <stdio.h>
+ #include <stdlib.h>
+ 
+@@ -48,7 +49,7 @@ M0_INTERNAL void m0_be_ks_init_domain(struct m0_be_domain  **out_dom,
+                 m0_be_domain_create(dom, bd_stob, log_stob);
+         }
+ 
+-        m0_be_domain_init(dom);
++        m0_be_domain_init(dom, NULL);
+         *out_dom = dom;
+ }
+ M0_EXPORTED(m0_be_ks_init_domain);
+@@ -281,6 +282,16 @@ M0_INTERNAL void m0_be_sm_lock_state_change_helper(struct m0_sm       *sm,
+ }
+ M0_EXPORTED(m0_be_sm_lock_state_change_helper);
+ 
++M0_INTERNAL void m0_be_cbinfo_copy_helper(struct m0_be_cbinfo *icbinfo,
++                                          struct m0_be_cbinfo *ocbinfo,
++                                          m0_be_callback cb)
++{
++    ocbinfo->bc_pcbinfo   = icbinfo;
++    ocbinfo->bc_cb       = cb;
++    ocbinfo->bc_sm_group = icbinfo->bc_sm_group;
++    ocbinfo->bc_hq       = icbinfo->bc_hq;
++}
++M0_EXPORTED(m0_be_cbinfo_copy_helper);
+ /* @} end of be_helper group */
+ 
+ /*
+diff --git a/be/seg.c b/be/seg.c
+index 0281689..9e1446b 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -164,7 +164,6 @@ M0_INTERNAL void m0_be_seg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+ 
+         m0_be_seg_state_change(seg, M0_BESEG_CREATING);
+ 
+-
+         if (strlen(name) >= MAXNAMELEN) {
+                 m0_be_seg_state_change(seg, M0_BESEG_FAILED);
+                 status   = -1;
+diff --git a/be/tx.c b/be/tx.c
+index d410448..936a96e 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -261,7 +261,7 @@ M0_INTERNAL void m0_be_tx_done_cb(struct m0_be_cbinfo *cbinfo, int status,
+         tx = bt_cbdata->btc_tx;
+         M0_ASSERT(tx != NULL);
+ 
+-        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush);
++        ret = rvm_end_transaction(tx->bt_impl.tx_id, flush, NULL);
+         if (RVM_SUCCESS != ret) {
+                 M0_LOG(M0_DEBUG, "rvm_end_transaction failed in tx_done_cb");
+                 tx_state = M0_BETX_FAILED;
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 80e49de..94a593d 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -50,7 +50,7 @@
+ #include "stob/linux_internal.h"
+ 
+ #define RVM_CREATE      1
+-#define BE_DEBUG        0
++#define BE_DEBUG        1
+ 
+ static struct m0_be_seg         *seg;
+ static struct m0_be_domain      *dom;
+@@ -82,12 +82,13 @@ struct m0_be_usr_astinfo {
+ 
+ struct m0_be_ts_cbdata {
+         struct m0_be_cbinfo       cbinfo;
+-        struct m0_be_usr_astinfo *be_usr_ast;
++        struct m0_be_usr_astinfo be_usr_ast;
+         int                       counter;
+         /* current operation is completed or not */
+         bool                      completed;
+ } *bt_cbdata;
+ 
++struct m0_be_ts_cbdata *bt_dom_cbdata;
+ static int log_stob_create(void)
+ {
+         struct linux_stob        *lstob;
+@@ -172,14 +173,14 @@ void be_ts_cb(struct m0_be_cbinfo *cbinfo, int status, m0_be_msg_type_t msg_type
+                 printf("\n%s - counter : %d completed : %d\n", __FUNCTION__,
+                        cbdata->counter, (cbdata->completed) ? 1 : 0);
+ 
+-        if (cbdata->be_usr_ast != NULL) {
+-                cbdata->be_usr_ast->bua_status    = status;
+-                cbdata->be_usr_ast->bua_msg       = msg_type;
+-                cbdata->be_usr_ast->bua_ast.sa_cb = be_ts_ast_post_cb;
++        if ((void*)&cbdata->be_usr_ast != NULL) {
++                cbdata->be_usr_ast.bua_status    = status;
++                cbdata->be_usr_ast.bua_msg       = msg_type;
++                cbdata->be_usr_ast.bua_ast.sa_cb = be_ts_ast_post_cb;
+ 
+ 		if (BE_DEBUG)
+ 			printf("\nbe_ts_cb id = %x\n", (unsigned int)pthread_self());
+-                be_usr_ast_post_helper(cbdata->be_usr_ast);
++                be_usr_ast_post_helper(&cbdata->be_usr_ast);
+         }
+ }
+ 
+@@ -188,6 +189,8 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+ {
+         int rc = 0;
+ 
++        M0_ALLOC_PTR(bt_dom_cbdata);
++        M0_ASSERT(bt_dom_cbdata != NULL);
+         M0_ALLOC_PTR(bt_cbdata);
+         M0_ASSERT(bt_cbdata != NULL);
+ 
+@@ -214,13 +217,27 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+ 
+         M0_LOG(M0_DEBUG, "Domain create");
+         m0_be_domain_create(dom, NULL, log_stob);
+-        m0_be_domain_init(dom);
++
+         m0_sm_group_init(&usr_sm_group);
+         sm_group = m0_be_domain_sm_group(dom);
+         M0_ASSERT(sm_group != NULL);
+ 
+-        result = m0_be_domain_lookup(dom, "first", &seg);
+ 
++        bt_dom_cbdata->cbinfo.bc_cb             =  be_ts_cb;
++        bt_dom_cbdata->cbinfo.bc_sm_group       =  sm_group;
++        bt_dom_cbdata->cbinfo.bc_hq             = &dom->bd_hq;
++        bt_dom_cbdata->cbinfo.bc_pcbinfo        =  NULL;
++        bt_dom_cbdata->counter                  =  0;
++        bt_dom_cbdata->completed                =  false;
++        bt_dom_cbdata->be_usr_ast.bua_sm_group  = &usr_sm_group;
++
++        printf("\nfunction : %s\n", __FUNCTION__);
++        m0_be_domain_init(dom, &bt_dom_cbdata->cbinfo);
++        m0_chan_wait(&usr_sm_group.s_clink);
++        m0_sm_group_lock(&usr_sm_group);
++        m0_sm_asts_run(&usr_sm_group);
++        m0_sm_group_unlock(&usr_sm_group);
++        result = m0_be_domain_lookup(dom, "first", &seg);
+         if (result == false) {
+                 M0_ALLOC_PTR(seg);
+                 m0_be_seg_init(seg, dom, sm_group, 0);
+@@ -231,8 +248,7 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+                 bt_cbdata->cbinfo.bc_pcbinfo        =  NULL;
+                 bt_cbdata->counter                  =  0;
+                 bt_cbdata->completed                =  false;
+-                M0_ALLOC_PTR(bt_cbdata->be_usr_ast);
+-                bt_cbdata->be_usr_ast->bua_sm_group = &usr_sm_group;
++                bt_cbdata->be_usr_ast.bua_sm_group = &usr_sm_group;
+ 
+                 m0_be_seg_create(seg, NULL,  "first", NULL, &bt_cbdata->cbinfo);
+                 m0_chan_wait(&usr_sm_group.s_clink);
+@@ -265,7 +281,6 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         bt_cbdata->cbinfo.bc_pcbinfo               =  NULL;
+         bt_cbdata->counter                         =  10;
+         bt_cbdata->completed                       =  false;
+-        M0_ALLOC_PTR(bt_cbdata->be_usr_ast);
+         bt_cbdata->be_usr_ast->bua_sm_group        = &usr_sm_group;
+ 
+         M0_ALLOC_PTR(seg);
+@@ -283,8 +298,6 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+                 rc = -1;
+         }
+ #endif
+-
+-        m0_free(bt_cbdata->be_usr_ast);
+         return rc;
+ }
+ 
+@@ -335,8 +348,7 @@ static void test_be_transaction()
+         bt_cbdata->cbinfo.bc_sm_group        =  sm_group;
+         bt_cbdata->cbinfo.bc_hq              = &dom->bd_hq;
+         bt_cbdata->cbinfo.bc_pcbinfo         =  NULL;
+-        M0_ALLOC_PTR(bt_cbdata->be_usr_ast);
+-        bt_cbdata->be_usr_ast->bua_sm_group   = &usr_sm_group;
++        bt_cbdata->be_usr_ast.bua_sm_group   = &usr_sm_group;
+ 
+         bt_cbdata->counter                =  20;
+         bt_cbdata->completed              =  false;
+@@ -347,7 +359,6 @@ static void test_be_transaction()
+         m0_sm_group_lock(&usr_sm_group);
+         m0_sm_asts_run(&usr_sm_group);
+         m0_sm_group_unlock(&usr_sm_group);
+-        m0_free(bt_cbdata->be_usr_ast);
+ 
+         m0_be_tx_fini(tx);
+ 
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index 2bbaece..87b2356 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -157,7 +157,7 @@ static int ts_be_init(void)
+         M0_ASSERT(rc == 0);
+ 
+         m0_be_domain_create(&dom, NULL, log_stob);
+-        m0_be_domain_init(&dom);
++        m0_be_domain_init(&dom, NULL);
+         sm_group = m0_be_domain_sm_group(&dom);
+         M0_ASSERT(sm_group != NULL);
+ 
+diff --git a/rvm/rds_free.c b/rvm/rds_free.c
+index a343b66..b40af9f 100644
+--- a/rvm/rds_free.c
++++ b/rvm/rds_free.c
+@@ -56,7 +56,6 @@ rds_free(seg_hdr,addr, tid, err)
+      int	  *err;
+ {
+     free_block_t *bp = BLOCK_HDR(addr);  /* find pointer to block header */
+-    rvm_tid_t *atid;
+     rvm_return_t rvmret;
+ 
+     /* Make sure the heap has been initialized */
+@@ -85,32 +84,17 @@ rds_free(seg_hdr,addr, tid, err)
+ 	return -1;
+     }
+ 
+-    if (tid == NULL) {			     /* Use input tid if non-null */
+-	atid = rvm_malloc_tid();
+-	rvmret = rvm_begin_transaction(atid, restore);
+-	if (rvmret != RVM_SUCCESS) {
+-	    (*err) = (int) rvmret;
+-	    rvm_free_tid(atid);
+-	    return -1;
+-	}
+-    } else
+-	atid = tid;
+-
+     *err = SUCCESS; 		/* Initialize the error value */
+     START_CRITICAL(seg_hdr->heap_hdr);
+     {
+ 	/* Update statistics */
+-	rvmret = rvm_set_range(seg_hdr, atid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
++	rvmret = rvm_set_range(seg_hdr, tid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
+ 	if (rvmret != RVM_SUCCESS) {
+ 	    (*err) = (int)rvmret;
+ 	} else {
+ 	    /* Set the lowguard to reflect that the block has been allocated. */
+-	    rvmret = rvm_set_range(seg_hdr, atid, &(bp->type), sizeof(guard_t));
++	    rvmret = rvm_set_range(seg_hdr, tid, &(bp->type), sizeof(guard_t));
+ 	    if (rvmret != RVM_SUCCESS) {
+-		if (tid == NULL) {
+-		    rvm_abort_transaction(atid);
+-		    rvm_free_tid(atid);
+-		}
+ 		(*err) = (int)rvmret;
+ 	    } else {
+ 		bp->type = FREE_GUARD;
+@@ -120,28 +104,19 @@ rds_free(seg_hdr,addr, tid, err)
+ 		RDS_STATS(seg_hdr->heap_hdr).mallocbytes -= bp->size * RDS_CHUNK_SIZE(seg_hdr->heap_hdr);
+ 
+ 		/* try to merge with trailing free blocks */
+-		merge_with_next_free(seg_hdr, bp, atid, err);
++		merge_with_next_free(seg_hdr, bp, tid, err);
+ 
+ 		/* Add the block to the approprite free list. */
+ 		if (*err == SUCCESS)
+-		    put_block(seg_hdr, bp, atid, err); /* Error is picked up below... */
++		    put_block(seg_hdr, bp, tid, err); /* Error is picked up below... */
+ 	    }
+ 	}
+ 
+-	if ((*err != SUCCESS) && (tid == NULL)) {
+-	    rvm_abort_transaction(atid);
+-	    rvm_free_tid(atid);
+-	} else if (tid == NULL) {
+-	    rvmret = rvm_end_transaction(atid, no_flush);
+-	    rvm_free_tid(atid);
+-	    if (rvmret != RVM_SUCCESS) {
+-		(*err) = (int)rvmret;
+-	    }
+-	}
+     }
++
+     END_CRITICAL(seg_hdr->heap_hdr);
+ 
+-    return 0;
++    return rvmret;
+ }
+ 
+ /* Assume only one thread can have an open tid at a time. Since we're only
+@@ -256,7 +231,7 @@ int rds_do_free(seg_hdr,list, mode)
+ 	if (err != SUCCESS) {
+ 	    rvm_abort_transaction(tid);
+ 	} else {
+-	    rvmret = rvm_end_transaction(tid, mode);
++	    rvmret = rvm_end_transaction(tid, mode, NULL);
+ 	}
+     }
+     END_CRITICAL(seg_hdr->heap_hdr);
+diff --git a/rvm/rds_malloc.c b/rvm/rds_malloc.c
+index 083ee0b..7d79788 100644
+--- a/rvm/rds_malloc.c
++++ b/rvm/rds_malloc.c
+@@ -45,7 +45,6 @@ rds_malloc(seg_hdr, size, tid, err)
+      int	   *err;
+ {
+     free_block_t *fbp=NULL;
+-    rvm_tid_t *atid;
+     rvm_return_t rvmret;
+     int i;
+     unsigned long orig_size = size;
+@@ -61,29 +60,13 @@ rds_malloc(seg_hdr, size, tid, err)
+ 
+     i = (size / RDS_CHUNK_SIZE(seg_hdr->heap_hdr)) + 1;         /* determine which list to use */
+ 
+-    if (tid == NULL) {			     /* Use input tid if non-null */
+-	atid = rvm_malloc_tid();
+-	rvmret = rvm_begin_transaction(atid, restore);
+-	if (rvmret != RVM_SUCCESS) {
+-	    (*err) = (int)rvmret;
+-	    rvm_free_tid(atid);
+-	    return NULL;
+-	}
+-    } else
+-	atid = tid;
+-
+-
+     *err = SUCCESS; 		/* Initialize the error value */
+     START_CRITICAL(seg_hdr->heap_hdr);
+     {
+ 	/* Update stats */
+-	rvmret = rvm_set_range(seg_hdr,atid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
++	rvmret = rvm_set_range(seg_hdr,tid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
+ 	if (rvmret != RVM_SUCCESS) {
+ 	    (*err) = (int)rvmret;
+-	    if (tid == NULL) {
+-		rvm_abort_transaction(atid);
+-		rvm_free_tid(atid);
+-	    }
+ 	    LEAVE_CRITICAL_SECTION;
+ 	}
+ 
+@@ -92,12 +75,8 @@ rds_malloc(seg_hdr, size, tid, err)
+ 	RDS_STATS(seg_hdr->heap_hdr).mallocbytes += i * RDS_CHUNK_SIZE(seg_hdr->heap_hdr);
+ 
+ 	/* Get a block of the correct size. */
+-	fbp = get_block(seg_hdr, i, atid, err);
++	fbp = get_block(seg_hdr, i, tid, err);
+ 	if (*err != SUCCESS) {
+-	    if (tid == NULL) {
+-		rvm_abort_transaction(atid);
+-		rvm_free_tid(atid);
+-	    }
+ 	    LEAVE_CRITICAL_SECTION;
+ 	}
+ 
+@@ -107,23 +86,14 @@ rds_malloc(seg_hdr, size, tid, err)
+         assert((fbp->type == FREE_GUARD) && ((*BLOCK_END(fbp, seg_hdr->heap_hdr)) == END_GUARD));
+ 
+ 	/* Set the lowguard to reflect that the block has been allocated. */
+-	rvmret = rvm_set_range(seg_hdr, atid, fbp, sizeof(free_block_t));
++	rvmret = rvm_set_range(seg_hdr, tid, fbp, sizeof(free_block_t));
+ 	if (rvmret != RVM_SUCCESS) {
+-	    if (tid == NULL) {
+-		rvm_abort_transaction(atid);
+-		rvm_free_tid(atid);
+-	    }
+ 	    (*err) = (int)rvmret;
+ 	    LEAVE_CRITICAL_SECTION;
+-
+ 	}
+ 	fbp->type = ALLOC_GUARD;
+ 	fbp->prev = fbp->next = NULL;
+ 
+-	if (tid == NULL) {		/* Let code below pick up the error. */
+-	    (*err) =(int) rvm_end_transaction(atid, no_flush);
+-	    rvm_free_tid(atid);
+-	}
+     }
+     END_CRITICAL(seg_hdr->heap_hdr);
+ 
+diff --git a/rvm/rds_prealloc.c b/rvm/rds_prealloc.c
+index 7964ce9..ba87576 100644
+--- a/rvm/rds_prealloc.c
++++ b/rvm/rds_prealloc.c
+@@ -45,7 +45,6 @@ rds_prealloc(seg_hdr,size, nblocks, tid, err)
+      int	   *err;
+ {
+     free_block_t *bp;
+-    rvm_tid_t *atid;
+     int i;
+     rvm_return_t rvmerr;
+ 
+@@ -68,23 +67,10 @@ rds_prealloc(seg_hdr,size, nblocks, tid, err)
+ 	return -1;
+     }
+ 
+-    if (tid == NULL) {		     /* Use input tid if non-null */
+-	atid = rvm_malloc_tid();
+-	rvmerr = rvm_begin_transaction(atid, restore);
+-	if (rvmerr != RVM_SUCCESS) {
+-	    (*err) = (int) rvmerr;
+-	    rvm_free_tid(atid);
+-	    return -1;
+-	}
+-    } else
+-	atid = tid;
+-
+     /* Update statistics */
+-    rvmerr = rvm_set_range(seg_hdr, atid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
+-    if ((rvmerr != RVM_SUCCESS) && (tid == NULL)) {
+-	rvm_abort_transaction(atid);
++    rvmerr = rvm_set_range(seg_hdr, tid, &RDS_STATS(seg_hdr->heap_hdr), sizeof(rds_stats_t));
++    if ((rvmerr != RVM_SUCCESS)) {
+ 	(*err) = (int)rvmerr;
+-	rvm_free_tid(atid);
+ 	return -1;
+     }
+     RDS_STATS(seg_hdr->heap_hdr).prealloc++;	/* Update statistics. */
+@@ -100,37 +86,19 @@ rds_prealloc(seg_hdr,size, nblocks, tid, err)
+ 	START_CRITICAL(seg_hdr->heap_hdr);
+ 	{
+ 	    /* Get a block */
+-	    bp = split(size, atid, err);
++	    bp = split(size, tid, err);
+ 	    if (bp != NULL) {
+ 		/* Add the block to the appropriate list. */
+-		put_block(bp, atid, err);
++		put_block(bp, tid, err);
+ 	    }
+ 	}
+ 	END_CRITICAL(seg_hdr->heap_hdr);
+ 
+ 	if (*err != SUCCESS) {
+-	    if (tid == NULL) {
+-		rvm_abort_transaction(atid);
+-		rvm_free_tid(atid);
+-	    }
+-	    return -1;
+-	}
+-    }
+-
+-    if (tid == NULL) {
+-	rvmerr = rvm_end_transaction(atid, no_flush);
+-	if (rvmerr != RVM_SUCCESS) {
+-	    (*err) = (int) rvmerr;
+-	    rvm_free_tid(atid);
+ 	    return -1;
+ 	}
+-
+-	rvm_free_tid(atid);
+     }
+ 
+     *err = SUCCESS;
+     return 0;
+ }
+-
+-
+-
+diff --git a/rvm/rds_stats.c b/rvm/rds_stats.c
+index 19385bc..f60198f 100644
+--- a/rvm/rds_stats.c
++++ b/rvm/rds_stats.c
+@@ -85,7 +85,7 @@ rds_clear_stats(seg_hdr,err)
+ 	return -1;
+     }
+ 
+-    rvmret = rvm_end_transaction(atid, no_flush);
++    rvmret = rvm_end_transaction(atid, no_flush, NULL);
+     if (rvmret != RVM_SUCCESS) {
+ 	(*err) = (int)rvmret;
+ 	rvm_free_tid(atid);
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index c25805b..2174354 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -50,7 +50,7 @@ void rzh_rvm_flush_cb(cbinfo, status, msg_type)
+ 	int 			 status;
+ 	m0_be_msg_type_t 	 msg_type;
+ {
+-	rzh_cbdata_t 	*rzh_cbdata;
++	rzh_cbdata_t 		*rzh_cbdata;
+ 
+ 	if (status != 0)
+ 		goto exit;
+@@ -59,11 +59,10 @@ void rzh_rvm_flush_cb(cbinfo, status, msg_type)
+ 	M0_ASSERT(cbinfo != NULL);
+ 
+ 	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+-	M0_ASSERT(rzh_cbdata != NULL);
+ 
+-	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_truncate_cb1;
++	cbinfo->bc_cb = rzh_rvm_truncate_cb1;
+ 
+-	status = rvm_truncate();
++	status = rvm_truncate(cbinfo);
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+@@ -94,7 +93,7 @@ void rzh_rvm_end_transaction_cb(cbinfo, status, msg_type)
+ 	rvm_free_tid(tid);
+ 	status = rvm_flush();
+ 
+-	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_flush_cb;
++	cbinfo->bc_cb = rzh_rvm_flush_cb;
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+@@ -150,15 +149,15 @@ void rzh_rvm_load_seg_cb(cbinfo, status, msg_type)
+ 		goto exit;
+ 	}
+ 
+-	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_end_transaction_cb;
+-	status = rvm_end_transaction(tid, no_flush);
++	cbinfo->bc_cb = rzh_rvm_end_transaction_cb;
++	status = rvm_end_transaction(tid, no_flush, cbinfo);
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		m0_free(rzh_cbdata);
+         }
+-	rzh_rvm_end_transaction_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
++	/*rzh_rvm_end_transaction_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);*/
+ }
+ 
+ void rzh_rvm_truncate_cb(cbinfo, status, msg_type)
+@@ -174,7 +173,7 @@ void rzh_rvm_truncate_cb(cbinfo, status, msg_type)
+ 	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+ 	M0_ASSERT(rzh_cbdata != NULL);
+ 
+-	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_load_seg_cb;
++	cbinfo->bc_cb = rzh_rvm_load_seg_cb;
+ 
+ 	/* Map in the appropriate structures by calling Rvm_Load_Segment. */
+ 	status = rvm_load_segment(rzh_cbdata->rzhc_dev_name,
+@@ -206,17 +205,17 @@ void rzh_create_seg_cb(cbinfo, status, msg_type)
+ 
+ 	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+ 
+-	rzh_cbdata->rzhc_cbinfo.bc_cb = rzh_rvm_truncate_cb;
++	cbinfo->bc_cb = rzh_rvm_truncate_cb;
+ 
+ 	/* Force the writes from create to appear in the data segment. */
+-	status = rvm_truncate();
++	status = rvm_truncate(cbinfo);
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+            cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		m0_free(rzh_cbdata);
+         }
+-	rzh_rvm_truncate_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
++	/*rzh_rvm_truncate_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);*/
+ }
+ 
+ /*
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index 20d2bd8..83d2ab3 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -24,7 +24,6 @@ Coda are listed in the file CREDITS.
+ 
+ /*LINTLIBRARY*/
+ #pragma once
+-
+ #ifndef __MERO_RVM_RVM_H__
+ #define __MERO_RVM_RVM_H__
+ 
+@@ -40,7 +39,7 @@ Coda are listed in the file CREDITS.
+ /* get timestamp structures and system constants */
+ #include <sys/time.h>
+ #include <sys/param.h>
+-//#include "be/be.h"
++#include "be/be_common.h"
+ 
+ /* define bool, TRUE, and FALSE */
+ 
+@@ -52,9 +51,6 @@ Coda are listed in the file CREDITS.
+ #define FALSE 0
+ #endif
+ 
+-/* forward declaration */
+-struct m0_be_cbinfo;
+-
+ /* RVM's use of false, true and bool causes trouble with versions of gcc
+    above 2.6 or so; because of this, the names of RVM's definitions
+    have been changed to rvm_{false,true,bool_t}. (Originally changed
+@@ -417,12 +413,13 @@ typedef struct rvm_seg_hdr
+ /*
+         Main Function Declarations
+ */
+-
+ /* RVM initialization: pass version and optional options
+    descriptor */
+-extern rvm_return_t rvm_initialize(const char *version, rvm_options_t *opts);
++
++extern rvm_return_t rvm_initialize(const char *version, rvm_options_t *opts,
++                                   struct m0_be_cbinfo *rvm_cbinfo);
+ /* init macro */
+-#define RVM_INIT(options) rvm_initialize(RVM_VERSION,(options))
++#define RVM_INIT(options, rvm_cbinfo) rvm_initialize(RVM_VERSION,(options), (rvm_cbinfo))
+ 
+ /* shutdown RVM */
+ extern rvm_return_t rvm_terminate (void);   /* no parameters */
+@@ -432,10 +429,10 @@ extern void *rds_heap_addr(rvm_seg_hdr_t *seg_hdr);
+ 
+ /* map recoverable storage */
+ extern rvm_return_t rvm_map(
+-    rvm_seg_hdr_t           	*seg_hdr,
+-    rvm_region_t         	*region,       /* pointer to region descriptor */
+-    rvm_options_t        	*options,      /* optional ptr to option descriptor */
+-    struct m0_be_cbinfo	 	*cbinfo 	/* cbinfo from upper layer. */
++    rvm_seg_hdr_t         *seg_hdr,
++    rvm_region_t          *region,       /* pointer to region descriptor */
++    rvm_options_t         *options,      /* optional ptr to option descriptor */
++    struct m0_be_cbinfo   *cbinfo
+     );
+ 
+ /* unmap recoverable storage */
+@@ -482,9 +479,10 @@ extern rvm_return_t rvm_abort_transaction(
+ 
+ /* commit a transaction */
+ extern rvm_return_t rvm_end_transaction(
+-    rvm_tid_t           *tid,           /* pointer to transaction identifier */
+-    rvm_mode_t          mode            /* transaction commit mode */
+-    );
++    rvm_tid_t           *tid,          /* pointer to transaction identifier */
++    rvm_mode_t           mode,         /* transaction commit mode */
++    struct m0_be_cbinfo *cbinfo        /* transaction commit mode */
++);
+ 
+ /* flush log cache buffer to log device */
+ extern rvm_return_t rvm_flush(); /* no parameters */
+@@ -496,7 +494,8 @@ extern rvm_return_t rvm_truncate(); /* no parameters */
+ extern rvm_return_t rvm_create_log(
+     rvm_options_t   *rvm_options,       /* ptr to options record */
+     rvm_offset_t    *log_len,           /* length of log data area */
+-    long            mode                /* file creation protection mode */
++    long            mode,                /* file creation protection mode */
++    struct m0_be_cbinfo *cbinfo
+     );
+ 
+ /* underlying support functions for length, offset, and rounding macros
+diff --git a/rvm/rvm_createseg.c b/rvm/rvm_createseg.c
+index 7c2ec8f..3095078 100644
+--- a/rvm/rvm_createseg.c
++++ b/rvm/rvm_createseg.c
+@@ -55,7 +55,7 @@ void rcs_rvm_end_transaction_cb(struct m0_be_cbinfo *cbinfo,
+ 	/* The segment should now be all set to go, clean up. */
+ 	status = rvm_unmap(seg_hdr, region);
+ 	if (status != RVM_SUCCESS) {
+-		printf("create_segment unmap failed %s\n", rvm_return(status));
++		printf("__ create_segment unmap failed %s\n", rvm_return(status));
+ 		goto exit;
+ 	}
+ 
+@@ -137,16 +137,16 @@ void rcs_rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 		offset = RVM_ADD_LENGTH_TO_OFFSET(offset, region_defs[i].length);
+ 	}
+ 
+-	rcs_cbdata->rcsc_cbinfo.bc_cb = rcs_rvm_end_transaction_cb;
++	cbinfo->bc_cb = rcs_rvm_end_transaction_cb;
+ 
+-	status = rvm_end_transaction(tid, flush);
++	status = rvm_end_transaction(tid, flush, cbinfo);
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		m0_free(rcs_cbdata);
+         }
+-	rcs_rvm_end_transaction_cb(&rcs_cbdata->rcsc_cbinfo, status, msg_type);
++	/*rcs_rvm_end_transaction_cb(&rcs_cbdata->rcsc_cbinfo, status, msg_type);*/
+ }
+ 
+ 
+diff --git a/rvm/rvm_init.c b/rvm/rvm_init.c
+index f9eaaad..6e9f8cb 100644
+--- a/rvm/rvm_init.c
++++ b/rvm/rvm_init.c
+@@ -21,8 +21,9 @@ Coda are listed in the file CREDITS.
+ *                   RVM Initialization and Termination
+ *
+ */
+-
+ #include "rvm/rvm_private.h"
++#include "be/handler.h"
++#include "lib/memory.h"
+ 
+ /* global variables */
+ extern log_t        *default_log;       /* default log descriptor ptr */
+@@ -46,70 +47,147 @@ rvm_bool_t bad_init(void)
+         return rvm_true;
+ }
+ 
+-/* rvm_initialize */
+-rvm_return_t rvm_initialize(const char *rvm_version, rvm_options_t *rvm_options)
++void rvm_create_log_cb(struct m0_be_cbinfo *cbinfo, int status,
++                       m0_be_msg_type_t msg_type)
+ {
+-    rvm_return_t    retval = RVM_SUCCESS;
+-
+-    rvm_debug(0);                       /* only causes module loading */
+-    if (strcmp(rvm_version,RVM_VERSION) != 0)
+-        return RVM_EVERSION_SKEW;       /* version skew */
+-    assert(sizeof(rvm_length_t) == sizeof(char *));
+-    if ((retval=bad_options(rvm_options,rvm_true)) != RVM_SUCCESS)
+-        return retval;                  /* bad options ptr or record */
+-
+-    CRITICAL(init_lock,                 /* begin init_lock crit sec */
+-        {
+-        if (inited) goto err_exit;      /* did it all already ... */
+-        if (terminated)
+-            {
+-            retval = RVM_EINIT;         /* restart not allowed */
+-            goto err_exit;
+-            }
+-
+-        cthread_init();                 /* init Cthreads */
++        ri_cbdata_t             *ri_cbdata;
++        rvm_options_t           *rvm_options;
++        rvm_return_t             retval = RVM_SUCCESS;
+ 
+-        /* init basic structures */
+-        if ((init_utils()) != 0)
+-            {
+-            retval =  RVM_EIO;          /* can't get time stamp */
+-	    printf("Error in init_utils\n");
+-            goto err_exit;
+-            }
+-        init_map_roots();               /* mapping list and tree */
+-        init_log_list();                /* log device list */
++        if (status != 0)
++                goto exit;
+ 
+-        if (rvm_options && rvm_options->create_log_file)
+-        {
+-            retval = rvm_create_log(rvm_options, &rvm_options->create_log_size,
+-                                    rvm_options->create_log_mode);
++        M0_ASSERT(cbinfo != NULL);
+ 
+-            if (retval != RVM_SUCCESS) {
+-		printf("rvm_create_log failed\n");
+-		goto err_exit;
+-            }
+-        }
++        ri_cbdata  = container_of(cbinfo, ri_cbdata_t, ric_cbinfo);
++        rvm_options = ri_cbdata->ric_rvm_options;
+ 
++        cbinfo->bc_cb = do_rvm_options_post_cb;
+         /* process options */
+-        if ((retval=do_rvm_options(rvm_options)) != RVM_SUCCESS) {
++        printf("\nfunction : %s\n", __FUNCTION__);
++        if ((retval=do_rvm_options(rvm_options, cbinfo)) != RVM_SUCCESS) {
+ 		printf("do_rvm_options failed\n");
+-		goto err_exit;
++                status = -1;
+ 	}
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(ri_cbdata);
++        }
++}
++
++void do_rvm_options_post_cb(struct m0_be_cbinfo *cbinfo, int status,
++                            m0_be_msg_type_t msg_type)
++{
++        ri_cbdata_t             *ri_cbdata;
++        rvm_options_t           *rvm_options;
++        rvm_return_t             retval = RVM_SUCCESS;
++
++        if (status != 0)
++                goto err_exit;
++
++        M0_ASSERT(cbinfo != NULL);
++
++        ri_cbdata  = container_of(cbinfo, ri_cbdata_t, ric_cbinfo);
++        rvm_options = ri_cbdata->ric_rvm_options;
+ 
++	printf("\n function : %s\n", __func__);
+         /* take care of default log */
+         if (default_log == NULL) {
+-		if ((retval=do_log_options(NULL,rvm_options)) != RVM_SUCCESS) {
++		if ((retval=do_log_options(NULL,
++                                           rvm_options,
++                                           cbinfo)) != RVM_SUCCESS) {
+ 			printf("do_rvm_options failed\n");
++                        status = -1;
+ 			goto err_exit;
+ 		}
+ 	}
+         inited = rvm_true;              /* all done */
++        status = 0;
+ 
+-err_exit:;
+-        });                             /* end init_lock crit sec */
++err_exit:
++        if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(ri_cbdata);
++        }
++}
+ 
+-    return retval;
++/* rvm_initialize */
++rvm_return_t rvm_initialize(const char *rvm_version, rvm_options_t *rvm_options,
++                            struct m0_be_cbinfo *cbinfo)
++{
++    rvm_return_t                 retval = RVM_SUCCESS;
++    int			         status = 0;
++    m0_be_msg_type_t	         msg_type = M0_BE_SUCCESS;
++    ri_cbdata_t                 *ri_cbdata;
++    struct m0_be_cbinfo         *ri_cbinfo;
++
++    rvm_debug(0);                       /* only causes module loading */
++    if (strcmp(rvm_version,RVM_VERSION) != 0)
++        return RVM_EVERSION_SKEW;       /* version skew */
++    assert(sizeof(rvm_length_t) == sizeof(char *));
++    if ((retval=bad_options(rvm_options,rvm_true)) != RVM_SUCCESS)
++        return retval;                  /* bad options ptr or record */
++
++                                 /* end init_lock crit sec */
++    if (inited) {
++        status = -1;
++        msg_type = M0_BE_RVM_INIT_FAILED;
++        goto exit;      /* did it all already ... */
+     }
++    if (terminated)
++        {
++        retval = RVM_EINIT;         /* restart not allowed */
++        status = -1;
++        msg_type = M0_BE_RVM_INIT_FAILED;
++        goto exit;
++        }
++
++    M0_ALLOC_PTR(ri_cbdata);
++    M0_ASSERT(ri_cbdata != NULL);
++
++    ri_cbdata->ric_rvm_options         = rvm_options;
++    ri_cbdata->ric_create_log_size     = rvm_options->create_log_size;
++    ri_cbdata->ric_create_log_mode     = rvm_options->create_log_mode;
++
++    ri_cbinfo                  = &ri_cbdata->ric_cbinfo;
++    ri_cbinfo->bc_pcbinfo      = cbinfo;
++    ri_cbinfo->bc_cb           = rvm_create_log_cb;
++    ri_cbinfo->bc_sm_group     = cbinfo->bc_sm_group;
++    ri_cbinfo->bc_hq           = cbinfo->bc_hq;
++
++    cthread_init();                 /* init Cthreads */
++
++    /* init basic structures */
++    if ((init_utils()) != 0)
++        {
++        retval =  RVM_EIO;          /* can't get time stamp */
++        printf("Error in init_utils\n");
++        status = -1;
++        msg_type = M0_BE_RVM_INIT_FAILED;
++        goto exit;
++        }
++    init_map_roots();               /* mapping list and tree */
++    init_log_list();                /* log device list */
++
++        printf("\nfunction : %s\n", __FUNCTION__);
++    if (rvm_options && rvm_options->create_log_file) {
++        retval = rvm_create_log(rvm_options, &rvm_options->create_log_size,
++                                 rvm_options->create_log_mode, ri_cbinfo);
++        goto exit;
++    }
++
++	rvm_create_log_cb(ri_cbinfo, status, msg_type);
++
++exit:
++        if ((status != 0 || !rvm_options->create_log_file) &&
++            cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(ri_cbdata);
++        }
++        return status;
++}
+ 
+ /* rvm_terminate */
+ rvm_return_t rvm_terminate(void)
+diff --git a/rvm/rvm_io.c b/rvm/rvm_io.c
+index 633108d..00ade36 100644
+--- a/rvm/rvm_io.c
++++ b/rvm/rvm_io.c
+@@ -270,6 +270,8 @@ static bool stob_io_complete_cb(struct m0_clink *clink)
+ 	lsi_cbdata = container_of(clink, lsi_cbdata_t, lsic_clink);
+ 	cbinfo 	   = &lsi_cbdata->lsic_cbinfo;
+ 
++        printf("\nfunction : %s\n", __FUNCTION__);
++
+ 	if (cbinfo != NULL && cbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo, status, msg_type);
+ 	}
+@@ -285,10 +287,17 @@ void launch_stob_io_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	struct m0_stob_io	*io;
+ 	struct m0_clink		*clink;
+ 
++        printf("\nfunction : %s\n", __FUNCTION__);
++
+ 	lsi_cbdata = container_of(cbinfo, lsi_cbdata_t, lsic_cbinfo);
+ 
+ 	io 	= &lsi_cbdata->lsic_io;
+-	clink 	= &lsi_cbdata->lsic_clink;
++	clink	= &lsi_cbdata->lsic_clink;
++
++	if(lsi_cbdata->lsic_length != io->si_count) {
++		status = -1;
++		msg_type = RVM_EIO;
++	}
+ 
+ 	m0_clink_del(clink);
+ 	m0_clink_fini(clink);
+@@ -307,6 +316,7 @@ uint32_t launch_stob_io_new(enum m0_stob_io_opcode opcode,
+ 			m0_bindex_t 	 	 *io_offset,
+ 			void 			**io_addr,
+ 			struct m0_stob 	 	 *stob,
++                        rvm_length_t              length,
+ 			struct m0_be_cbinfo 	 *cbinfo)
+ {
+ 	struct m0_stob_io       *io;
+@@ -318,18 +328,20 @@ uint32_t launch_stob_io_new(enum m0_stob_io_opcode opcode,
+ 
+ 	lsi_cbdata_t		*lsi_cbdata;
+ 
++        printf("\nfunction : %s\n", __FUNCTION__);
++
+ 	M0_ALLOC_PTR(lsi_cbdata);
+ 	M0_ASSERT(lsi_cbdata != NULL);
+ 
+ 	lsic_cbinfo = &lsi_cbdata->lsic_cbinfo;
+-	lsic_cbinfo->bc_cb 	 = launch_stob_io_cb;
+-	lsic_cbinfo->bc_pcbinfo  = cbinfo;
+-	lsic_cbinfo->bc_hq 	 = cbinfo->bc_hq;
+-	lsic_cbinfo->bc_sm_group = cbinfo->bc_sm_group;
++
++	m0_be_cbinfo_copy_helper(cbinfo, lsic_cbinfo, launch_stob_io_cb);
+ 
+ 	io 	= &lsi_cbdata->lsic_io;
+ 	clink 	= &lsi_cbdata->lsic_clink;
+ 
++	lsi_cbdata->lsic_length = length;
++
+ 	m0_stob_io_init(io);
+ 
+ 	io->si_opcode              = opcode;
+@@ -565,13 +577,10 @@ long read_stob_new(device_t *dev, rvm_offset_t *rvm_offset, char *dest,
+ 	rs_cbdata->rsc_dev 	 = dev;
+ 	rsc_cbinfo = &rs_cbdata->rsc_cbinfo;
+ 
+-	rsc_cbinfo->bc_hq 	= cbinfo->bc_hq;
+-	rsc_cbinfo->bc_sm_group = cbinfo->bc_sm_group;
+-	rsc_cbinfo->bc_cb 	= read_stob_cb;
+-	rsc_cbinfo->bc_pcbinfo 	= cbinfo;
++	m0_be_cbinfo_copy_helper(cbinfo, rsc_cbinfo, read_stob_cb);
+ 
+ 	status = launch_stob_io_new(SIO_READ, io_nr, io_count, io_offset,
+-				    io_addr, dev->stob, rsc_cbinfo);
++				    io_addr, dev->stob, length, rsc_cbinfo);
+ 
+ 	if (status < 0) {
+ 		msg_type = M0_BE_INTERNAL;
+@@ -605,7 +614,7 @@ long read_stob(dev,offset,dest,length)
+     assert(length != 0);
+     assert((dev->raw_io) ? (SECTOR_INDEX(length) == 0) : 1);
+     assert((dev == &default_log->dev) ?
+-           (!LOCK_FREE(default_log->dev_lock)) : 1);
++                    (!LOCK_FREE(default_log->dev_lock)) : 1);
+ 
+     /* seek if necessary */
+     errno = 0;
+@@ -692,14 +701,44 @@ long read_dev(dev,offset,dest,length)
+             return retval;
+        }
+     }
++void write_dev_post_async(cbinfo, status, msg_type)
++        struct m0_be_cbinfo     *cbinfo;
++        int                      status;
++        m0_be_msg_type_t         msg_type;
++{
++   rvm_tx_cbdata_t *tx_cbdata;
++   device_t         *dev;
++
++   printf("\nfunction : %s status : %d\n", __FUNCTION__, status);
++
++   tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
++   if (status != 0)
++                goto exit;
++
++   M0_ASSERT(tx_cbdata != NULL);
+ 
++   dev   = &tx_cbdata->rtc_log->dev;
++
++   m0_free(tx_cbdata->rtc_io_offset);
++   m0_free(tx_cbdata->rtc_io_count);
++   m0_free(tx_cbdata->rtc_io_addr);
++
++   dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
++                                                  tx_cbdata->rtc_io.si_count);
++exit:
++        if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                //m0_free(tx_cbdata);
++        }
++}
+ /* write bytes to device or file */
+-long write_dev(dev,offset,src,length,sync)
+-    device_t        *dev;               /* device descriptor */
+-    rvm_offset_t    *offset;            /* device offset */
+-    char            *src;               /* address of data source */
+-    rvm_length_t    length;             /* length of transfer */
+-    rvm_bool_t      sync;               /* fsync if true */
++long write_dev(dev,offset,src,length,sync,cbinfo)
++    device_t            *dev;               /* device descriptor */
++    rvm_offset_t        *offset;            /* device offset */
++    char                *src;               /* address of data source */
++    rvm_length_t         length;             /* length of transfer */
++    rvm_bool_t           sync;               /* fsync if true */
++    struct m0_be_cbinfo *cbinfo;
+ {
+     rvm_offset_t    last_position;
+     long            retval;
+@@ -708,7 +747,12 @@ long write_dev(dev,offset,src,length,sync)
+     m0_bindex_t    *io_offset;
+     m0_bcount_t    *io_count;
+     uint32_t        io_bshift;
+-    uint32_t        iter_count;
++    uint32_t        iter_count = 0;
++    rvm_tx_cbdata_t      *rtx_data;
++    struct m0_be_cbinfo  *rtxc_cbinfo;
++
++        printf("\nfunction : %s\n", __FUNCTION__);
++
+ 
+     assert(dev->stob != NULL);
+     assert(length != 0);
+@@ -720,6 +764,15 @@ long write_dev(dev,offset,src,length,sync)
+     errno = 0;
+     if ((retval = chk_seek(dev,offset)) < 0)
+ 	return retval;
++
++    M0_ALLOC_PTR(rtx_data);
++    M0_ASSERT(rtx_data != NULL);
++
++    rtx_data->rtc_log  = container_of(dev, log_t,dev);
++    rtxc_cbinfo        = &rtx_data->rtc_cbinfo;
++
++    m0_be_cbinfo_copy_helper(cbinfo, rtxc_cbinfo, write_dev_post_async);
++
+     last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
+                                              length);
+     assert(RVM_OFFSET_LEQ(last_position,dev->num_bytes));
+@@ -736,24 +789,21 @@ long write_dev(dev,offset,src,length,sync)
+           M0_ALLOC_ARR(io_offset, iter_count);
+           M0_ASSERT(io_offset != NULL);
+ 
++	  rtx_data->rtc_io_addr   = io_addr;
++	  rtx_data->rtc_io_count  = io_count;
++	  rtx_data->rtc_io_offset = io_offset;
++	  rtx_data->rtc_io_len    = length;
++
+           io_bshift = dev->stob->so_op->sop_block_shift(dev->stob);
+ 
+           io_addr[0]      = m0_stob_addr_pack(src, io_bshift);
+           io_count[0]     = length >> io_bshift;
+           io_offset[0]    = offset->low >> io_bshift;
+ 
+-          wrt_len = launch_stob_io(SIO_WRITE, iter_count, io_count, io_offset,
+-                                   io_addr, dev->stob);
+-
+-          m0_free(io_offset);
+-          m0_free(io_count);
+-          m0_free(io_addr);
+-
+-         if (wrt_len < 0) {
+-               rvm_errdev = dev;
+-               rvm_ioerrno = errno;
+-               return wrt_len;
+-         }
++          /*rtx_data->rtc_io_len    = io_count[0];*/
++          wrt_len = launch_stob_io_new(SIO_WRITE, iter_count, io_count,
++                                       io_offset, io_addr, dev->stob, length,
++                                       rtxc_cbinfo);
+    }
+    else {
+     /* do write if not in no update mode */
+@@ -773,13 +823,13 @@ long write_dev(dev,offset,src,length,sync)
+                 return retval;
+ 	    }
+ 	}
++        /* update position (raw i/o must be exact) */
++        assert((dev->raw_io) ? (wrt_len == length) : 1);
++        dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
++                                                  wrt_len);
+      }
+     }
+-    /* update position (raw i/o must be exact) */
+-    assert((dev->raw_io) ? (wrt_len == length) : 1);
+-    dev->last_position = RVM_ADD_LENGTH_TO_OFFSET(dev->last_position,
+-                                                  wrt_len);
+-    return wrt_len;
++     return wrt_len;
+ }
+ /* gather write for files */
+ static long gather_write_file(dev,offset,wrt_len)
+diff --git a/rvm/rvm_logflush.c b/rvm/rvm_logflush.c
+index 0d834ee..1e44c3a 100644
+--- a/rvm/rvm_logflush.c
++++ b/rvm/rvm_logflush.c
+@@ -26,6 +26,9 @@ Coda are listed in the file CREDITS.
+ #include <sys/uio.h>
+ #include "rvm/rvm_private.h"
+ 
++#include "lib/memory.h"
++#include "be/handler.h"
++
+ /* global variables */
+ 
+ extern  log_t       *default_log;       /* default log descriptor ptr */
+@@ -388,78 +391,294 @@ static rvm_return_t write_tid(int_tid_t *tid)
+         return RVM_EIO;
+     return update_log_tail(log, &log->trans_hdr.rec_hdr);
+ }
+-/* wait for a truncation to free space for log record
+-   -- assumes dev_lock is held */
+-static rvm_return_t wait_for_space(log,space_needed,log_free,did_wait)
+-    log_t           *log;               /* log descriptor */
+-    rvm_offset_t    *space_needed;      /* amount of space required */
+-    rvm_offset_t    *log_free;          /* size calculation temp */
+-    rvm_bool_t      *did_wait;
+-    {
+-    rvm_return_t    retval = RVM_SUCCESS;
+ 
+-    /* see if enough space for current record */
+-    *did_wait = rvm_false;
+-    DO_FOREVER
+-        {
+-        log_tail_length(log,log_free);
+-        if (RVM_OFFSET_GEQ(*log_free,*space_needed))
+-            break;                      /* enough */
+-
+-        /* no, release log device & wait for truncation completion */
+-        mutex_unlock(&log->dev_lock);
+-        retval = wait_for_truncation(log,NULL);
+-
+-        /* regain log device & count waits */
+-        mutex_lock(&log->dev_lock);
+-        *did_wait = rvm_true;
+-        log->status.n_truncation_wait++;
+-        if (retval != RVM_SUCCESS) break;
++/*wait_for_space_wait_for_truncation */
++void wfs_wft(wfs_cbdata_t *wfs_cbdata)
++{
++	log_t 			*wfsc_log;
++	rvm_offset_t 		*wfsc_space_needed;
++	rvm_offset_t 		*wfsc_log_free;
++	struct m0_be_cbinfo	*wfsc_cbinfo;
++
++	rvm_return_t	 	 retval;
++	int 			 status = 0;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
++	rvm_bool_t		 done = rvm_false;
++
++	wfsc_log 		= wfs_cbdata->wfsc_log;
++	wfsc_space_needed 	= wfs_cbdata->wfsc_space_needed;
++	wfsc_log_free 		= wfs_cbdata->wfsc_log_free;
++	wfsc_cbinfo		= &wfs_cbdata->wfsc_cbinfo;
++
++	log_tail_length(wfsc_log, wfsc_log_free);
++
++	if (RVM_OFFSET_GEQ(*wfsc_log_free, *wfsc_space_needed)) {
++		done = rvm_true;
++		goto exit;
++	}
++
++	mutex_unlock(&wfsc_log->dev_lock);
++	retval = wait_for_truncation(wfsc_log, NULL, wfsc_cbinfo);
++
++	if(retval != RVM_SUCCESS) {
++		status 	 = -1;
++		msg_type = retval;
++	}
++
++	/* This needs to be removed when wait_for_truncation becomes async. */
++	/*wfs_wft_cb(wfsc_cbinfo, status, msg_type);*/
++
++exit:
++	/* If error or looping is done, then post the parent callback. */
++	if ((status != 0 || done == rvm_true ) &&
++	    wfsc_cbinfo->bc_pcbinfo != NULL &&
++            wfsc_cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(wfsc_cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(wfs_cbdata);
+         }
++}
++
++/* waif_for_space_waif_for_truncation_cb */
++void wfs_wft_cb(struct m0_be_cbinfo *cbinfo, int status,
++		m0_be_msg_type_t msg_type)
++{
++	log_t 		*wfsc_log;
++	rvm_bool_t 	*wfsc_did_wait;
++	wfs_cbdata_t	*wfs_cbdata;
++
++	wfs_cbdata = container_of(cbinfo, wfs_cbdata_t, wfsc_cbinfo);
++        M0_ASSERT(wfs_cbdata != NULL);
++
++	if (status != 0)
++		goto exit;
++
++	wfsc_log 		= wfs_cbdata->wfsc_log;
++	wfsc_did_wait 		= wfs_cbdata->wfsc_did_wait;
++
++	/* regain log device & count waits */
++	mutex_lock(&wfsc_log->dev_lock);
++
++	wfsc_log->status.n_truncation_wait++;
++	*wfsc_did_wait = rvm_true;
++
++	wfs_wft(wfs_cbdata);
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(wfs_cbdata);
++        }
++}
++
++/*
++ * wait for a truncation to free space for log record.
++ * Assumes dev_lock is held.
++ */
++static rvm_return_t wait_for_space(log_t 		*log,
++				   rvm_offset_t 	*space_needed,
++				   rvm_offset_t 	*log_free,
++				   rvm_bool_t 		*did_wait,
++				   struct m0_be_cbinfo 	*cbinfo)
++{
++	wfs_cbdata_t		*wfs_cbdata;
++	struct m0_be_cbinfo 	*wfsc_cbinfo;
++	int 			 status = 0;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
++	rvm_return_t     	 retval = RVM_SUCCESS;
++
++	/* see if enough space for current record */
++	*did_wait = rvm_false;
++
++	log_tail_length(log, log_free);
++
++	/* no, release log device & wait for truncation completion */
++	mutex_unlock(&log->dev_lock);
++
++	M0_ALLOC_PTR(wfs_cbdata);
++	M0_ASSERT(wfs_cbdata != NULL);
++
++	wfsc_cbinfo = &wfs_cbdata->wfsc_cbinfo;
++
++	wfs_cbdata->wfsc_log 	  	= log;
++	wfs_cbdata->wfsc_did_wait 	= did_wait;
++	wfs_cbdata->wfsc_space_needed 	= space_needed;
++
++	wfsc_cbinfo->bc_pcbinfo 	= cbinfo;
++	wfsc_cbinfo->bc_hq 		= cbinfo->bc_hq;
++	wfsc_cbinfo->bc_sm_group 	= cbinfo->bc_sm_group;
++	wfsc_cbinfo->bc_cb		= wfs_wft_cb;
++
++	retval = wait_for_truncation(log, NULL, wfsc_cbinfo);
++	if(retval != RVM_SUCCESS) {
++		status = -1;
++		msg_type = retval;
++	}
++
++	/* This needs to be removed when wait_for_truncation becomes async. */
++	/*wfs_wft_cb(wfsc_cbinfo, status, msg_type);*/
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(wfs_cbdata);
++        }
++
++	return status;
++}
++
++void lt_write_tid_cb(struct m0_be_cbinfo *cbinfo,
++		     int status,
++		     m0_be_msg_type_t msg_type)
++{
++	lt_cbdata_t	*lt_cbdata;
++	log_t		*log;
++	int_tid_t	*tid;
++
++	lt_cbdata = container_of(cbinfo, lt_cbdata_t, ltc_cbinfo);
++	log 	  = lt_cbdata->ltc_log;
++	tid 	  = lt_cbdata->ltc_tid;
++
++	if (status != 0)
++		goto exit;
++
++	CRITICAL(log->dev_lock,
++	{
++		/* save uname of first & last transactions logged */
++		log->status.last_uname = tid->uname;
++
++		if (TIME_EQL_ZERO(log->status.first_uname))
++			log->status.first_uname = tid->uname;
++	});
++
++	CRITICAL(log->flush_list_lock, free_tid(tid));
++
++exit:
++	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
++	m0_free(lt_cbdata);
++}
++
++void lt_wait_for_space_cb(struct m0_be_cbinfo *cbinfo,
++			  int status,
++			  m0_be_msg_type_t msg_type)
++{
++	lt_cbdata_t	*lt_cbdata;
++	log_t		*log;
++	rvm_return_t	 retval;
++
++	lt_cbdata = container_of(cbinfo, lt_cbdata_t, ltc_cbinfo);
++	log 	  = lt_cbdata->ltc_log;
++
++	if (status != 0)
++		goto exit;
++
++
++	CRITICAL(log->dev_lock,
++	{
++		cbinfo->bc_cb = lt_write_tid_cb;
++
++		/* transfer tid to log device */
++		if ((retval = write_tid(lt_cbdata->ltc_tid)) != RVM_SUCCESS) {
++			status   = -1;
++			msg_type = retval;
++		}
++	});
++
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(lt_cbdata);
++        }
++}
++
++void lt_flush_log_special_cb(struct m0_be_cbinfo *cbinfo,
++			     int status,
++			     m0_be_msg_type_t msg_type)
++{
++	lt_cbdata_t	*lt_cbdata;
++	int_tid_t	*tid;
++	log_t		*log;
++	rvm_offset_t   	 log_needed;
++	rvm_offset_t   	 log_free;           /* log size temp, debug only */
++	rvm_bool_t     	 did_wait;           /* debug only */
++	rvm_return_t	 retval;
++
++	lt_cbdata = container_of(cbinfo, lt_cbdata_t, ltc_cbinfo);
++	log = lt_cbdata->ltc_log;
++	tid = lt_cbdata->ltc_tid;
++
++	if (status != 0)
++		goto exit;
++
++	CRITICAL(log->dev_lock,
++	{
++		/* wait if truncation required to get space */
++		log_needed = RVM_ADD_LENGTH_TO_OFFSET(tid->log_size,
++				sizeof(log_wrap_t) + sizeof(rec_end_t));
++
++		cbinfo->bc_cb = lt_wait_for_space_cb;
++
++		retval = wait_for_space(log, &log_needed, &log_free, &did_wait,
++					cbinfo);
++
++		if (retval != RVM_SUCCESS) {
++			status   = -1;
++			msg_type = retval;
++		}
++	});
++
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(lt_cbdata);
++        }
++}
+ 
+-    return retval;
+-    }
+ /* compute log entry size; truncate if necessary */
+-static rvm_return_t log_tid(log_t *log, int_tid_t *tid)
++static rvm_return_t log_tid(log_t *log,
++			    int_tid_t *tid,
++			    struct m0_be_cbinfo *cbinfo)
+ {
+-    rvm_offset_t    log_needed;
+-    rvm_offset_t    log_free;           /* log size temp, debug only */
+-    rvm_bool_t      did_wait;           /* debug only */
+-    rvm_return_t    retval;             /* return value */
++	rvm_return_t    	 retval;             /* return value */
++	int			 status;
++	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
+ 
+-    /* start daemon truncation if necessary */
+-    (void)initiate_truncation(log,cur_log_percent(log,&tid->log_size));
++	lt_cbdata_t		*lt_cbdata;
++	struct m0_be_cbinfo	*ltc_cbinfo;
+ 
+-    CRITICAL(log->dev_lock,             /* begin dev_lock crit sec */
+-    {
+-        /* flush any immediate stream records */
+-        if ((retval=flush_log_special(log)) != RVM_SUCCESS)
+-            goto err_exit;
+-
+-        /* wait if truncation required to get space */
+-	log_needed = RVM_ADD_LENGTH_TO_OFFSET(tid->log_size,
+-				    sizeof(log_wrap_t) + sizeof(rec_end_t));
+-	retval = wait_for_space(log, &log_needed, &log_free, &did_wait);
+-	if (retval != RVM_SUCCESS) goto err_exit;
+-
+-        /* transfer tid to log device */
+-        if ((retval=write_tid(tid)) != RVM_SUCCESS)
+-            goto err_exit;
+-
+-        /* save uname of first & last transactions logged */
+-        log->status.last_uname = tid->uname;
+-        if (TIME_EQL_ZERO(log->status.first_uname))
+-            log->status.first_uname = tid->uname;
+-err_exit:;
+-    });                             /* end dev_lock crit sec */
+-    if (retval != RVM_SUCCESS) return retval;
++	M0_ALLOC_PTR(lt_cbdata);
++	M0_ASSERT(lt_cbdata != 0);
+ 
+-    /* scrap tid */
+-    if (retval == RVM_SUCCESS)
+-        CRITICAL(log->flush_list_lock,free_tid(tid));
++	lt_cbdata->ltc_log = log;
++	lt_cbdata->ltc_tid = tid;
+ 
+-    return retval;
++	ltc_cbinfo = &lt_cbdata->ltc_cbinfo;
++
++	/* start daemon truncation if necessary */
++	(void)initiate_truncation(log, cur_log_percent(log, &tid->log_size));
++
++	CRITICAL(log->dev_lock,
++	{
++		/* flush any immediate stream records */
++		m0_be_cbinfo_copy_helper(cbinfo, ltc_cbinfo,
++					 lt_flush_log_special_cb);
++		if ((retval = flush_log_special(log)) != RVM_SUCCESS) {
++			status   = -1;
++			msg_type = retval;
++		}
++	});
++
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(lt_cbdata);
++        }
++
++	return status;
+ }
++
+ /* set up special log entry i/o */
+ static void build_log_special(log_t *log, log_special_t *special)
+ {
+@@ -506,7 +725,7 @@ static rvm_return_t log_special(log_t *log, log_special_t *special)
+     special_size = RVM_MK_OFFSET(0,special->rec_hdr.rec_length
+                   + sizeof(log_wrap_t) + sizeof(rec_end_t));
+     if ((retval=wait_for_space(log,&special_size,
+-                               &max_log_free,&did_wait))
++                               &max_log_free,&did_wait, NULL))
+         != RVM_SUCCESS) return retval;
+ 
+     /* be sure enough i/o vector slots available */
+@@ -561,98 +780,192 @@ rvm_return_t flush_log_special(log)
+ 
+     return retval;
+     }
++
++void fl_log_tid_cb(struct m0_be_cbinfo *cbinfo,
++		   int status,
++		   m0_be_msg_type_t msg_type)
++{
++
++	fl_cbdata_t 		*fl_cbdata;
++	int_tid_t     		*tid;
++	log_t			*log;
++	rvm_bool_t	 	 done_looping = rvm_false;
++	rvm_bool_t	 	 break_sw;
++	struct timeval 	 	 start_time;
++	struct timeval   	 end_time;
++	long             	 kretval;
++	rvm_return_t     	 retval = RVM_SUCCESS;
++
++	fl_cbdata = container_of(cbinfo, fl_cbdata_t, flc_cbinfo);
++	log 	  = fl_cbdata->flc_log;
++
++	if (status != 0)
++		goto status_exit;
++
++	RW_CRITICAL(log->flush_lock, w,
++	{
++		CRITICAL(log->flush_list_lock,
++		{
++			if (LIST_NOT_EMPTY(log->flush_list))
++				tid = (int_tid_t *)log->flush_list.nextentry;
++			else tid = NULL;
++		});
++		if (tid == NULL) {
++			done_looping = rvm_true;
++			goto exit;
++		}
++
++		break_sw = (rvm_bool_t)TID(FLUSH_MARK);
++		retval 	 = log_tid(log, tid, cbinfo);
++
++		if ((retval != RVM_SUCCESS) || break_sw) {
++			status   = -1;
++			msg_type = retval;
++		}
++exit:;
++	});
++
++	if (done_looping && retval == RVM_SUCCESS) {
++		kretval = gettimeofday(&end_time,(struct timezone *)NULL);
++		if (kretval != 0) {
++			status = -1;
++			msg_type = RVM_EIO;
++			goto status_exit;
++		}
++
++		end_time = sub_times(&end_time,&start_time);
++		log->status.flush_time = add_times(&log->status.flush_time,
++						   &end_time);
++		end_time.tv_usec = end_time.tv_usec/1000;
++		end_time.tv_usec += end_time.tv_sec*1000;
++		log->status.last_flush_time = end_time.tv_usec;
++		enter_histogram(end_time.tv_usec, log->status.flush_times,
++				flush_times_vec, flush_times_len);
++	}
++
++status_exit:
++	if ((done_looping || status != 0) && cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(fl_cbdata);
++	}
++}
++
+ /* internal log flush */
+-rvm_return_t flush_log(log,count)
+-    log_t           *log;
+-    long            *count;              /* statistics counter */
+-    {
+-    int_tid_t       *tid;               /* tid to log */
+-    rvm_bool_t      break_sw;           /* break switch for loop termination */
+-    struct timeval  start_time;
+-    struct timeval  end_time;
+-    long            kretval;
+-    rvm_return_t    retval = RVM_SUCCESS;
++rvm_return_t flush_log(log_t *log, long *count, struct m0_be_cbinfo *cbinfo)
++{
++	int_tid_t     		*tid;               /* tid to log */
++	fl_cbdata_t		*fl_cbdata;
++	struct m0_be_cbinfo 	*flc_cbinfo;
++	rvm_bool_t	 	 break_sw;           /* break switch for loop termination */
++	struct timeval   	 start_time;
++	struct timeval   	 end_time;
++	long             	 kretval;
++	rvm_return_t     	 retval = RVM_SUCCESS;
++	rvm_bool_t		 done_looping = rvm_false;
++	int 			 status;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
++
++	M0_ALLOC_PTR(fl_cbdata);
++	M0_ASSERT(fl_cbdata != NULL);
++
++	RW_CRITICAL(log->flush_lock, w,
++	{
++		/* process statistics */
++		if (count != NULL) (*count)++;
++		kretval = gettimeofday(&start_time, (struct timezone *)NULL);
++
++		if (kretval != 0) {
++			retval = RVM_EIO;
++			goto exit;
++		}
++
++		/* establish flush mark so future commits won't be flushed
++		and cause extraordinarily long delay to this flush */
++		CRITICAL(log->flush_list_lock,
++		{
++			if (LIST_NOT_EMPTY(log->flush_list))
++			((int_tid_t *)(log->flush_list.preventry))->flags
++			|= FLUSH_MARK;
++		});
++
++		CRITICAL(log->flush_list_lock,
++		{
++			if (LIST_NOT_EMPTY(log->flush_list))
++				tid = (int_tid_t *)log->flush_list.nextentry;
++			else tid = NULL;
++		});
++		if (tid == NULL) {
++			done_looping = rvm_true;
++			goto exit;
++		}
++
++		flc_cbinfo = &fl_cbdata->flc_cbinfo;
++
++		m0_be_cbinfo_copy_helper(cbinfo, flc_cbinfo, fl_log_tid_cb);
++
++		break_sw = (rvm_bool_t)TID(FLUSH_MARK);
++		retval 	 = log_tid(log, tid, flc_cbinfo);
++
++		if ((retval != RVM_SUCCESS) || break_sw) {
++			status   = -1;
++			msg_type = retval;
++		}
++
++		/* force buffers to disk */
++		/*CRITICAL(log->dev_lock,*/
++		/*{*/
++		/*if (sync_dev(&log->dev) < 0)*/
++		/*retval = RVM_EIO;*/
++		/*});*/
++exit:;
++	});
++
++	if (done_looping && retval == RVM_SUCCESS) {
++		kretval = gettimeofday(&end_time,(struct timezone *)NULL);
++		if (kretval != 0) {
++			status = -1;
++			msg_type = RVM_EIO;
++			goto status_exit;
++		}
++
++		end_time = sub_times(&end_time,&start_time);
++		log->status.flush_time = add_times(&log->status.flush_time,
++						   &end_time);
++		end_time.tv_usec = end_time.tv_usec/1000;
++		end_time.tv_usec += end_time.tv_sec*1000;
++		log->status.last_flush_time = end_time.tv_usec;
++		enter_histogram(end_time.tv_usec, log->status.flush_times,
++				flush_times_vec, flush_times_len);
++	}
+ 
+-    /* allow only one flush at a time to avoid commit ordering problems */
+-    RW_CRITICAL(log->flush_lock,w,      /* begin flush_lock crit sec */
+-        {
+-        /* process statistics */
+-        if (count != NULL) (*count)++;
+-        kretval= gettimeofday(&start_time,(struct timezone *)NULL);
+-        if (kretval != 0)
+-            {
+-            retval = RVM_EIO;
+-            goto err_exit;
+-            }
++status_exit:
++	if ((done_looping || status != 0) && cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		m0_free(fl_cbdata);
++	}
+ 
+-        /* establish flush mark so future commits won't be flushed
+-           and cause extraordinarily long delay to this flush */
+-        CRITICAL(log->flush_list_lock,  /* begin flush_list_lock crit sec */
+-            {
+-            if (LIST_NOT_EMPTY(log->flush_list))
+-                ((int_tid_t *)(log->flush_list.preventry))->flags
+-                    |= FLUSH_MARK;
+-            });                         /* end flush_list_lock crit sec */
+-        /* flush all queued tid's */
+-        DO_FOREVER
+-            {
+-            /* do tid's one at a time to allow no_flush commits while flushing */
+-            CRITICAL(log->flush_list_lock, /* begin flush_list_lock crit sec */
+-                {
+-                if (LIST_NOT_EMPTY(log->flush_list))
+-                    tid = (int_tid_t *)log->flush_list.nextentry;
+-                else tid = NULL;
+-                });                     /* end flush_list_lock crit sec */
+-            if (tid == NULL) break;
+-
+-            /* flush this tid */
+-            break_sw = (rvm_bool_t)TID(FLUSH_MARK);
+-            retval = log_tid(log,tid);
+-            if ((retval != RVM_SUCCESS) || break_sw)
+-                break;
+-            }
+-
+-        /* force buffers to disk */
+-        CRITICAL(log->dev_lock,
+-            {
+-            if (sync_dev(&log->dev) < 0)
+-                retval = RVM_EIO;
+-            });
+-err_exit:;
+-        });                             /* end flush_lock crit sec */
+-
+-    /* terminate timing */
+-    if (retval == RVM_SUCCESS)
+-    {
+-	kretval= gettimeofday(&end_time,(struct timezone *)NULL);
+-	if (kretval != 0) return RVM_EIO;
+-	end_time = sub_times(&end_time,&start_time);
+-	log->status.flush_time = add_times(&log->status.flush_time,
+-					&end_time);
+-	end_time.tv_usec = end_time.tv_usec/1000;
+-	end_time.tv_usec += end_time.tv_sec*1000;
+-	log->status.last_flush_time = end_time.tv_usec;
+-	enter_histogram(end_time.tv_usec,log->status.flush_times,
+-			flush_times_vec,flush_times_len);
+-    }
+-    return retval;
++	return status;
+ }
++
+ /* exported flush routine */
+ rvm_return_t rvm_flush()
+-    {
+-    rvm_return_t    retval;
++{
++	/*rvm_return_t    retval;*/
+ 
+-    /* do application interface checks */
+-    if (bad_init()) return RVM_EINIT;
+-    if (default_log == NULL) return RVM_ELOG;
++	/* do application interface checks */
++	if (bad_init()) return RVM_EINIT;
++	if (default_log == NULL) return RVM_ELOG;
+ 
+-    /* flush the queues */
+-    if ((retval=flush_log(default_log,
+-                          &default_log->status.n_rvm_flush))
+-        != RVM_SUCCESS) return retval;
++	/* flush the queues */
++	/*if ((retval = flush_log(default_log, &default_log->status.n_rvm_flush, NULL))*/
++	/*!= RVM_SUCCESS)*/
++	/*return retval;*/
++
++	return RVM_SUCCESS;
++}
+ 
+-    return RVM_SUCCESS;
+-    }
+ /* special log entries enqueuing routine */
+ rvm_return_t queue_special(log,special)
+     log_t           *log;               /* log descriptor */
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index d4d6e8c..fcb78b6 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -32,6 +32,7 @@ Coda are listed in the file CREDITS.
+ 
+ #include "stob/stob.h"
+ #include "lib/memory.h"
++#include "be/handler.h"
+ 
+ #ifdef RVM_LOG_TAIL_BUG
+ #include <rvmtesting.h>
+@@ -2282,104 +2283,239 @@ static rvm_return_t merge_node(log,node,preload)
+     }
+ */
+ 
+-static rvm_return_t  update_seg(log, seg_dict, seg_dev)
+-    log_t           *log;               /* log descriptor */
+-    seg_dict_t      *seg_dict;          /* segment dictionary entry */
+-    device_t        *seg_dev;           /* segment device descriptor */
++void __update_seg_cb(cbinfo, be_status, msg)
++        struct m0_be_cbinfo     *cbinfo;
++        int                      be_status;
++        m0_be_msg_type_t         msg;
+ {
+-    log_status_t           *status;
+-    dev_region_t           *node;
+-    tree_root_t            *mod_tree;
+-    struct m0_stob         *stob;
+-    void                  **io_addr;
+-    m0_bindex_t            *io_offset;
+-    m0_bcount_t            *io_count;
+-    m0_bcount_t             io_total_count = 0;
+-    uint32_t                io_bshift;
+-    uint32_t                iter_count;
+-    uint32_t                iter_remained;
+-    uint32_t                i = 0;
+-    uint32_t                nodes_done = 0;
+-    uint32_t                retval;
+-
+-    mod_tree        = &seg_dict->mod_tree;
+-    status          = &log->status;
+-    stob            = seg_dev->stob;
+-    rvm_num_nodes   = mod_tree->n_nodes;
+-    iter_remained   = rvm_num_nodes;
+-
+-    /* sanity checks and initializations */
+-    assert(&log->dev != seg_dev);
+-    assert(log->trunc_thread == cthread_self());
+-    assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_APPLY);
++        lrc_cbdata_t    *lrc_cbdata;
++        log_t           *log;
++        log_status_t    *status;
++        struct m0_stob  *stob;
++        seg_dict_t      *seg_dict;
++        dev_region_t    *node;
++        m0_bindex_t     *io_offset;
++        m0_bcount_t     *io_count;
++        m0_bcount_t      io_total_count = 0;
++        tree_root_t     *mod_tree;
++        rvm_return_t     retval;
++	rvm_length_t	 trunc_state;
++        void           **io_addr;
++        uint32_t         iter_count;
++        uint32_t         iter_remained;
++        uint32_t         io_bshift;
++        uint32_t         i = 0;
++
++        if (be_status != 0)
++                goto exit;
++
++        lrc_cbdata     = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++        log            = lrc_cbdata->lrc_log;
++        seg_dict       = lrc_cbdata->lrc_seg_dict;
++        stob           = lrc_cbdata->lrc_stob;
++        io_offset      = lrc_cbdata->lrc_io_offset;
++        io_count       = lrc_cbdata->lrc_io_count;
++        io_addr        = lrc_cbdata->lrc_io_addr;
++        iter_count     = lrc_cbdata->lrc_upd_seg_iter_cnt;
++        iter_remained  = lrc_cbdata->lrc_upd_seg_iter_remained;
++
++        io_bshift      = stob->so_op->sop_block_shift(stob);
++        mod_tree       = &seg_dict->mod_tree;
++        status         = &log->status;
++        iter_remained -= iter_count;
++        iter_count     = MAX_WRITE_RECORDS;
++
++        if (iter_remained < MAX_WRITE_RECORDS) {
++                iter_count = iter_remained;
++        }
+ 
+-    if (!(log->in_recovery || rvm_utlsw)) {
+-        mutex_lock(&seg_dict->seg->dev_lock);
++        lrc_cbdata->lrc_upd_seg_iter_cnt      = iter_count;
++        lrc_cbdata->lrc_upd_seg_iter_remained = iter_remained;
++
++        node = (dev_region_t *)tree_successor(mod_tree);
++        if (node == NULL) {
++                be_status = 0;
++                msg       = M0_BE_SUCCESS;
++                goto exit;
++        }
++
++        cbinfo->bc_cb = __update_seg_cb;
++
++        for (; (node) != NULL; node = (dev_region_t *)tree_successor(mod_tree))
++        {
++                io_addr[i]      = m0_stob_addr_pack(node->nv_ptr, io_bshift);
++                io_count[i]     = node->length >> io_bshift;
++                io_offset[i]    = node->offset.low >> io_bshift;
++                io_total_count += io_count[i];
++                i++;
++                /* pass cbinfo to launch stobio. */
++                if (i == iter_count) {
++                       retval = launch_stob_io_new(SIO_WRITE, iter_count,
++						    io_count, io_offset,
++						    io_addr, stob,
++						    io_total_count, cbinfo);
++
++                        if (retval != io_total_count) {
++                                be_status = -1;
++                                msg       = RVM_EOFFSET;
++                                goto exit;
++                        }
++                        break;
++                }
++        }
++
++exit:
++        /*
++         *  Clean up & post parent if there's some failure or the tree has been
++         *  traversed fully i.e. node == NULL.
++         */
++        if ((be_status != 0 || node == NULL) &&
++            cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++
++                /* If all has been well, cleanup. */
++                if (be_status == 0) {
++                        UNLINK_NODES_OF(seg_dict->mod_tree, dev_region_t, node)
++                        {
++                                assert(node->links.node.struct_id ==
++                                       dev_region_id);
++                                (void)free_dev_region(node);
++                        }
++
++                        assert(seg_dict->mod_tree.n_nodes == 0);
++                        m0_free(io_offset);
++                        m0_free(io_count);
++                        m0_free(io_addr);
++
++                        /* end segment dev_lock crit sec */
++                        if (!(log->in_recovery || rvm_utlsw)) {
++                                mutex_unlock(&seg_dict->seg->dev_lock);
++                                assert(log->trunc_thread == cthread_self());
++				trunc_state = status->trunc_state;
++                                assert((trunc_state & RVM_TRUNC_PHASES) ==
++                                       RVM_TRUNC_APPLY);
++                        }
++                }
++                /* Post parent. */
++                m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++                m0_free(lrc_cbdata);
++        }
++}
++
++static rvm_return_t  update_seg(log, seg_dict, seg_dev, cbinfo)
++        log_t                *log;        /* log descriptor */
++        seg_dict_t           *seg_dict;   /* segment dictionary entry */
++        device_t             *seg_dev;    /* segment device descriptor */
++        struct m0_be_cbinfo  *cbinfo;
++{
++        lrc_cbdata_t            *lrc_cbdata;
++        struct m0_be_cbinfo     *lrc_cbinfo;
++        log_status_t            *status;
++        dev_region_t            *node;
++        tree_root_t             *mod_tree;
++        struct m0_stob          *stob;
++        void                   **io_addr;
++        m0_bindex_t             *io_offset;
++        m0_bcount_t             *io_count;
++        m0_bcount_t             io_total_count = 0;
++        uint32_t                io_bshift;
++        uint32_t                iter_count;
++        uint32_t                iter_remained;
++        uint32_t                i = 0;
++        uint32_t                nodes_done = 0;
++        uint32_t                retval    = RVM_SUCCESS;
++        int                     be_status = 0;
++        m0_be_msg_type_t        msg = M0_BE_SUCCESS;
++
++        mod_tree      = &seg_dict->mod_tree;
++        status        = &log->status;
++        stob          = seg_dev->stob;
++        rvm_num_nodes = mod_tree->n_nodes;
++        iter_remained = rvm_num_nodes;
++        printf("\nfunction %s\n",__FUNCTION__);
++        /* sanity checks and initializations */
++        assert(&log->dev != seg_dev);
+         assert(log->trunc_thread == cthread_self());
+         assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_APPLY);
+-    }
+ 
+-    iter_count = MAX_WRITE_RECORDS;
+-    if (rvm_num_nodes < MAX_WRITE_RECORDS) {
+-        iter_count = rvm_num_nodes;
+-    }
++        if (!(log->in_recovery || rvm_utlsw)) {
++                mutex_lock(&seg_dict->seg->dev_lock);
++                assert(log->trunc_thread == cthread_self());
++                assert((status->trunc_state & RVM_TRUNC_PHASES) ==
++                       RVM_TRUNC_APPLY);
++        }
+ 
+-    M0_ALLOC_ARR(io_addr, iter_count);
+-    M0_ASSERT(io_addr != NULL);
++        iter_count = MAX_WRITE_RECORDS;
++        if (rvm_num_nodes < MAX_WRITE_RECORDS) {
++                iter_count = rvm_num_nodes;
++        }
+ 
+-    M0_ALLOC_ARR(io_count, iter_count);
+-    M0_ASSERT(io_count != NULL);
++        M0_ALLOC_ARR(io_addr, iter_count);
++        M0_ASSERT(io_addr != NULL);
+ 
+-    M0_ALLOC_ARR(io_offset, iter_count);
+-    M0_ASSERT(io_offset != NULL);
++        M0_ALLOC_ARR(io_count, iter_count);
++        M0_ASSERT(io_count != NULL);
+ 
+-    io_bshift = stob->so_op->sop_block_shift(stob);
++        M0_ALLOC_ARR(io_offset, iter_count);
++        M0_ASSERT(io_offset != NULL);
+ 
+-    for (node = (dev_region_t *)init_tree_generator(mod_tree,FORWARD,rvm_false);
+-        (node) != NULL; node = (dev_region_t *)tree_successor(mod_tree)) {
++        io_bshift = stob->so_op->sop_block_shift(stob);
+ 
+-        io_addr[i]      = m0_stob_addr_pack(node->nv_ptr, io_bshift);
+-        io_count[i]     = node->length >> io_bshift;
+-        io_offset[i]    = node->offset.low >> io_bshift;
+-	io_total_count  += io_count[i];
+-        i++;
+-        nodes_done++;
+-        if (i == iter_count) {
+-            retval = launch_stob_io(SIO_WRITE, iter_count, io_count, io_offset,
+-                                    io_addr, stob);
+-            if(retval != io_total_count)
+-                return RVM_EOFFSET;
++        node = (dev_region_t *)init_tree_generator(mod_tree,FORWARD,rvm_false);
+ 
+-            iter_remained -= iter_count;
+-            iter_count = MAX_WRITE_RECORDS;
+-            if (iter_remained < MAX_WRITE_RECORDS) {
+-                iter_count = iter_remained;
+-            }
+-            i = 0;
++        /* Prepare cb_data. */
++        M0_ALLOC_PTR(lrc_cbdata);
++        if (lrc_cbdata == NULL) {
++                be_status = -1;
++                msg       = -ENOMEM;
++                goto exit;
+         }
+-    }
++        lrc_cbdata->lrc_log       = log;
++        lrc_cbdata->lrc_seg_dict  = seg_dict;
++        lrc_cbdata->lrc_stob      = stob;
++        lrc_cbdata->lrc_io_offset = io_offset;
++        lrc_cbdata->lrc_io_count  = io_count;
++        lrc_cbdata->lrc_io_addr   = io_addr;
+ 
+-    UNLINK_NODES_OF(seg_dict->mod_tree, dev_region_t, node)
+-    {
+-        assert(node->links.node.struct_id == dev_region_id);
+-        (void)free_dev_region(node);
+-    }
++        /* Remaining number of iterations need to be stored to execute in cb. */
++        lrc_cbdata->lrc_upd_seg_iter_cnt      = iter_count;
++        lrc_cbdata->lrc_upd_seg_iter_remained = iter_remained;
+ 
+-    assert(nodes_done == rvm_num_nodes);
+-    assert(seg_dict->mod_tree.n_nodes == 0);
++        /* Prepare cbinfo. */
++        lrc_cbinfo             = &lrc_cbdata->lrc_cbinfo;
++        m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo, __update_seg_cb);
+ 
+-    m0_free(io_offset);
+-    m0_free(io_count);
+-    m0_free(io_addr);
++        for (; (node) != NULL; node = (dev_region_t *)tree_successor(mod_tree))
++        {
++                io_addr[i]      = m0_stob_addr_pack(node->nv_ptr, io_bshift);
++                io_count[i]     = node->length >> io_bshift;
++                io_offset[i]    = node->offset.low >> io_bshift;
++                io_total_count += io_count[i];
++                i++;
++                nodes_done++;
++                if (i == iter_count) {
++                        /* pass lrc_cbinfo to launch stobio. */
++                        retval = launch_stob_io_new(SIO_WRITE, iter_count,
++						    io_count, io_offset,
++						    io_addr, stob,
++						    io_total_count, lrc_cbinfo);
++
++                        if (retval != io_total_count) {
++                                be_status = -1;
++                                msg       = RVM_EOFFSET;
++                                goto exit;
++                        }
++                        break;
++                }
++         }
+ 
+-    /* end segment dev_lock crit sec */
+-    if (!(log->in_recovery || rvm_utlsw)) {
+-        mutex_unlock(&seg_dict->seg->dev_lock);
+-        assert(log->trunc_thread == cthread_self());
+-        assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_APPLY);
+-    }
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++                m0_free(lrc_cbdata);
++        }
+ 
+-    return RVM_SUCCESS;
++        return RVM_SUCCESS;
+ }
+ 
+ /*
+@@ -2525,87 +2661,298 @@ err_exit:
+     }
+ */
+ 
+-/* Recovery: phase 3 -- apply modifications to segments */
+-rvm_return_t apply_mods(log)
+-    log_t           *log;               /* log descriptor */
+-    {
+-    log_status_t    *status = &log->status; /* status descriptor */
+-    seg_dict_t      *seg_dict;          /* current segment dictionary entry */
+-    device_t        *seg_dev;           /* segment device descriptor */
+-    rvm_return_t    retval = RVM_SUCCESS; /* return value */
+-    long            i;                  /* loop counter */
+-    rvm_length_t    flags = O_RDWR;
++void __lrc_apply_mod_update_seg(cbinfo, be_status, msg)
++        struct m0_be_cbinfo *cbinfo;
++        int                  be_status;
++        m0_be_msg_type_t     msg;
++{
++        lrc_cbdata_t    *lrc_cbdata;
++        log_t           *log;
++        log_status_t    *status;
++        seg_dict_t      *seg_dict;
++        device_t        *seg_dev;
++        rvm_return_t     retval = RVM_SUCCESS;
++        long             i;
++        long             iter;
++        rvm_length_t     flags = O_RDWR;
++
++        lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++        iter       = lrc_cbdata->lrc_seg_dict_len;
++        i          = lrc_cbdata->lrc_curr_vec_index;
++        log        = lrc_cbdata->lrc_log;
++        seg_dict   = &log->seg_dict_vec[i];
++        seg_dev    = &seg_dict->dev;
++        status     = &log->status;
++
++        if (iter == 0 || be_status != 0)
++                goto exit;
+ 
+-    assert(log->trunc_thread == cthread_self());
+-    assert((status->trunc_state & RVM_TRUNC_PHASES)
+-           == RVM_TRUNC_BUILD_TREE);
+-    status->trunc_state = (status->trunc_state & ~RVM_TRUNC_BUILD_TREE)
+-                           | RVM_TRUNC_APPLY;
++        assert(log->trunc_thread == cthread_self());
++        assert((status->trunc_state & RVM_TRUNC_PHASES) ==
++               RVM_TRUNC_APPLY);
+ 
+-    /* iterate through segment dictionary */
+-    for (i=0;i<log->seg_dict_len;i++)
+-        {
+-        seg_dict = &log->seg_dict_vec[i];
++        /* close segment device if in recovery */
++        if (log->in_recovery)
++                if (close_dev(seg_dev) < 0) {
++                        be_status = -1;
++                        msg    = RVM_EIO;
++                        goto exit;
++                }
++
++start_seg_dict:
++        seg_dict   = &log->seg_dict_vec[i];
+         assert(seg_dict->struct_id == seg_dict_id);
+ 
+-        if (seg_dict->mod_tree.root == NULL)
+-            continue;                   /* no changes to this seg */
++        if (seg_dict->mod_tree.root == NULL) {
++                /* no changes to this seg */
++                i    += 1;
++                iter -= 1;
++                if (iter == 0)
++                        goto exit;
++
++                goto start_seg_dict;
++        }
+ 
+         /* open device and get characteristics if necessary */
+-        if (log->in_recovery)
+-            {
+-            seg_dev = &seg_dict->dev;
+-            if (rvm_no_update) flags = O_RDONLY;
+-            if (open_dev(seg_dev,flags,0) < 0)
+-                return RVM_EIO;
+-            assert(log->trunc_thread == cthread_self());
+-            if (set_dev_char(seg_dev,&seg_dev->num_bytes) < 0)
+-                {
+-                close_dev(seg_dev);
+-                return RVM_EIO;
++        if (log->in_recovery) {
++                seg_dev = &seg_dict->dev;
++
++                if (rvm_no_update)
++                        flags = O_RDONLY;
++
++                if (open_dev(seg_dev, flags, 0) < 0) {
++                        be_status = -1;
++                        msg       = RVM_EIO;
++                        goto exit;
+                 }
+-            assert(log->trunc_thread == cthread_self());
+-            assert((status->trunc_state & RVM_TRUNC_PHASES)
+-                   == RVM_TRUNC_APPLY);
+-            }
+-        else
+-            {
+-            assert(seg_dict->seg->links.struct_id == seg_id);
+-            seg_dev = &(seg_dict->seg->dev); /* already open */
+-            }
++
++                assert(log->trunc_thread == cthread_self());
++
++                if (set_dev_char(seg_dev,&seg_dev->num_bytes) < 0) {
++                        close_dev(seg_dev);
++                        be_status = -1;
++                        msg       = RVM_EIO;
++                        goto exit;
++                }
++
++                assert(log->trunc_thread == cthread_self());
++                assert((status->trunc_state & RVM_TRUNC_PHASES) ==
++                       RVM_TRUNC_APPLY);
++        } else {
++                    assert(seg_dict->seg->links.struct_id == seg_id);
++                    seg_dev = &(seg_dict->seg->dev); /* already open */
++        }
++
+         log->cur_seg_dev = seg_dev;
+ 
+-        /* read segment data and merge new values */
+-        if ((retval=update_seg(log,seg_dict,seg_dev)) != RVM_SUCCESS)
+-                return retval;
++        /* Update iterations count and remaining length. */
++        lrc_cbdata->lrc_seg_dict_len   = iter - 1;
++        lrc_cbdata->lrc_curr_vec_index = i + 1;
++
++        /* Prepare cbinfo. */
++        cbinfo->bc_cb = __lrc_apply_mod_update_seg;
++
++        /* pass cbinfo to update_seg. */
++        if ((retval = update_seg(log, seg_dict, seg_dev, cbinfo)) !=
++            RVM_SUCCESS) {
++                be_status = -1;
++                msg       = retval;
++        }
++exit:
++        /* post parent in case of some failure or when the iter = 0. */
++        if ((status != 0 || iter == 0) &&
++             cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++                m0_free(lrc_cbdata);
++        }
++}
++
++/* Recovery: phase 3 -- apply modifications to segments */
++
++rvm_return_t apply_mods(log, cbinfo)
++        log_t               *log;               /* log descriptor */
++        struct m0_be_cbinfo *cbinfo;
++{
++        lrc_cbdata_t           *lrc_cbdata;
++        struct m0_be_cbinfo    *lrc_cbinfo;
++        /* status descriptor */
++        log_status_t           *status = &log->status;
++        /* current segment dictionary entry */
++        seg_dict_t             *seg_dict;
++        /* segment device descriptor */
++        device_t               *seg_dev;
++        rvm_return_t            retval = RVM_SUCCESS;
++        long                    i;
++        long                    iter;
++        rvm_length_t            flags = O_RDWR;
++        int                     be_status = 0;
++        m0_be_msg_type_t        msg = M0_BE_SUCCESS;
+ 
+         assert(log->trunc_thread == cthread_self());
+         assert((status->trunc_state & RVM_TRUNC_PHASES)
+-               == RVM_TRUNC_APPLY);
++               == RVM_TRUNC_BUILD_TREE);
++        status->trunc_state = (status->trunc_state & ~RVM_TRUNC_BUILD_TREE) |
++                               RVM_TRUNC_APPLY;
++        printf("\n function %s\n",__FUNCTION__);
++        /* Prepare cbdata. */
++        M0_ALLOC_PTR(lrc_cbdata);
++        if (lrc_cbdata == NULL) {
++                be_status = -1;
++                msg    = -ENOMEM;
++                goto exit;
++        }
++        /* Prepare cbinfo. */
++        lrc_cbinfo             = &lrc_cbdata->lrc_cbinfo;
++        m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo,
++                                 __lrc_apply_mod_update_seg);
++
++        /* iterate through segment dictionary */
++        /*for (i = 0; i < log->seg_dict_len; i++) {*/
++        i    = 0;
++        iter = log->seg_dict_len;
++
++        if (iter > 0) {
++                start_seg_dict:
++                        seg_dict = &log->seg_dict_vec[i];
++                        assert(seg_dict->struct_id == seg_dict_id);
++
++                        if (seg_dict->mod_tree.root == NULL) {
++                                /* no changes to this seg */
++                                i    += 1;
++                             	iter -= 1;
++                                if (iter == 0) {
++                                        /*
++                                         * No more changes to be made,
++                                         * call parent now.
++                                         */
++                                        be_status = 0;
++                                        lrc_cbdata->lrc_seg_dict_len   = 0;
++                                        lrc_cbdata->lrc_curr_vec_index = i;
++
++                                        __lrc_apply_mod_update_seg(cbinfo,
++                                                                   be_status,
++                                                                   msg);
++                                        retval = 0;
++                                        goto exit;
++                                }
++
++                                goto start_seg_dict;
++                                /*continue;*/
++                        }
++
++                /* open device and get characteristics if necessary */
++                if (log->in_recovery) {
++                        seg_dev = &seg_dict->dev;
++
++                        if (rvm_no_update)
++                                flags = O_RDONLY;
++
++                        if (open_dev(seg_dev, flags, 0) < 0) {
++                                be_status = -1;
++                                msg    = RVM_EIO;
++                                goto exit;
++                                /*return RVM_EIO;*/
++                        }
++
++                        assert(log->trunc_thread == cthread_self());
++
++                        if (set_dev_char(seg_dev,&seg_dev->num_bytes) < 0) {
++                                close_dev(seg_dev);
++                                be_status = -1;
++                                msg    = RVM_EIO;
++                                goto exit;
++                                /*return RVM_EIO;*/
++                        }
++
++                        assert(log->trunc_thread == cthread_self());
++                        assert((status->trunc_state & RVM_TRUNC_PHASES) ==
++                               RVM_TRUNC_APPLY);
++                } else {
++                            assert(seg_dict->seg->links.struct_id == seg_id);
++                            seg_dev = &(seg_dict->seg->dev); /* already open */
++                }
++
++                log->cur_seg_dev = seg_dev;
++
++                /* Update iterations count and remaining length. */
++                lrc_cbdata->lrc_seg_dict_len   = iter - 1;
++                lrc_cbdata->lrc_curr_vec_index = i + 1;
++
++                /* pass this cbinfo to update_seg. */
++                /* read segment data and merge new values */
++                if ((retval = update_seg(log, seg_dict, seg_dev, lrc_cbinfo)) !=
++                    RVM_SUCCESS) {
++                        be_status = -1;
++                        msg    = retval;
++                        goto exit;
++                        /*return retval;*/
++                }
+ 
+-        /* close segment device if in recovery */
+-        if (log->in_recovery)
+-            if (close_dev(seg_dev) < 0)
+-                return RVM_EIO;
+         }
+ 
+-    /* re-protect buffer */
+-/* MACH_RVM_PROTECT
+- *
+- * protect(log->log_buf.buf, log->log_buf.length, FALSE, VM_PROT_READ);
+- */
++        /* re-protect buffer */
++        /* MACH_RVM_PROTECT
++        *
++        * protect(log->log_buf.buf, log->log_buf.length, FALSE, VM_PROT_READ);
++        */
++exit:
++        /* check status and post parents. */
++        if (status != 0  && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++        }
++        return retval;
++}
++
++void write_log_status_cb(cbinfo, be_status, msg)
++        struct m0_be_cbinfo *cbinfo;
++        int                  be_status;
++        m0_be_msg_type_t     msg;
++{
++        lrc_cbdata_t    *lrc_cbdata;
++        log_t           *log;
++        log_status_t    *status;
++
++        if (be_status != 0)
++                goto exit;
++
++        printf("\nfunction = %s \n", __FUNCTION__);
++        lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++        log        = lrc_cbdata->lrc_log;
++        status     = &log->status;
++
++        assert(log->trunc_thread == cthread_self());
++        assert((status->trunc_state & RVM_TRUNC_PHASES)
++               == RVM_TRUNC_UPDATE);
++
++        if (log->in_recovery && (!rvm_utlsw)) {
++                /* do recovery-only processing */
++                /* kill segment dictionary */
++                free_seg_dict_vec(log);
++                log->in_recovery = rvm_false;
++        }
++exit:
++	if (cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++	}
++	m0_free(lrc_cbdata);
++}
+ 
+-    return retval;
+-    }
+ /* Recovery: phase 4 -- update head/tail of log */
+-static rvm_return_t status_update(log, new_1st_rec_num)
+-    log_t           *log;               /* log descriptor */
+-    rvm_length_t    new_1st_rec_num;
++static rvm_return_t status_update(log, new_1st_rec_num, cbinfo)
++    log_t                   *log;               /* log descriptor */
++    rvm_length_t             new_1st_rec_num;
++    struct m0_be_cbinfo     *cbinfo;
+     {
+-    log_status_t    *status = &log->status; /* status descriptor */
+-    struct timeval  end_time;           /* end of action time temp */
+-    int             kretval;
+-    rvm_return_t    retval = RVM_SUCCESS; /* return value */
++    lrc_cbdata_t         *lrc_cbdata;
++    struct m0_be_cbinfo  *lrc_cbinfo;
++    log_status_t         *status = &log->status; /* status descriptor */
++    struct timeval        end_time;           /* end of action time temp */
++    int                   kretval;
++    int                   be_status = 0;
++    m0_be_msg_type_t      msg    = M0_BE_SUCCESS;
++    rvm_return_t          retval = RVM_SUCCESS; /* return value */
+ 
+     assert(log->trunc_thread == cthread_self());
+     assert((status->trunc_state & RVM_TRUNC_PHASES)
+@@ -2613,61 +2960,79 @@ static rvm_return_t status_update(log, new_1st_rec_num)
+     status->trunc_state = (status->trunc_state & ~RVM_TRUNC_APPLY)
+                            | RVM_TRUNC_UPDATE;
+ 
+-    /* update the status block on disk */
+-    CRITICAL(log->dev_lock,             /* begin log device lock crit sec */
+-        {
+-        assert(log->trunc_thread == cthread_self());
+-        assert((status->trunc_state & RVM_TRUNC_PHASES)
+-           == RVM_TRUNC_UPDATE);
+-        status->prev_trunc = status->last_trunc;
++    printf("\nfunction : %s\n", __FUNCTION__);
+ 
+-        if (RVM_OFFSET_EQL(status->log_head,status->log_tail))
+-            clear_log_status(log);      /* log empty */
+-        else
+-            {
+-            RVM_ZERO_OFFSET(status->prev_log_head);
+-            RVM_ZERO_OFFSET(status->prev_log_tail);
+-            status->first_rec_num = new_1st_rec_num;
+-            }
++    M0_ALLOC_PTR(lrc_cbdata);
++    if (lrc_cbdata == NULL) {
++            be_status = -1;
++            retval    = msg = -ENOMEM;
++            goto err_exit;
++    }
+ 
+-        /* end timings */
+-        kretval= gettimeofday(&end_time,(struct timezone *)NULL);
+-        if (kretval != 0) goto err_exit;
+-        end_time = sub_times(&end_time,&trunc_start_time);
+-        status->tot_truncation_time =
+-            add_times(&status->tot_truncation_time,&end_time);
+-        status->last_truncation_time = round_time(&end_time);
+-        enter_histogram(status->last_truncation_time,
+-                            log->status.tot_truncation_times,
+-                            truncation_times_vec,truncation_times_len);
+-        status->last_tree_build_time = last_tree_build_time;
+-        enter_histogram(last_tree_build_time,
+-                        log->status.tot_tree_build_times,
+-                        truncation_times_vec,truncation_times_len);
+-        status->last_tree_apply_time = last_tree_apply_time;
+-        enter_histogram(last_tree_apply_time,
+-                        log->status.tot_tree_apply_times,
+-                        truncation_times_vec,truncation_times_len);
+-
+-        retval = write_log_status(log,NULL);
+-err_exit:;
+-        assert(log->trunc_thread == cthread_self());
+-        assert((status->trunc_state & RVM_TRUNC_PHASES)
+-           == RVM_TRUNC_UPDATE);
+-        });                             /* end log device lock crit sec */
+-    if (kretval != 0) return RVM_EIO;
+-    if (retval != RVM_SUCCESS) return retval;
+ 
+-    if (log->in_recovery && (!rvm_utlsw)) /* do recovery-only processing */
++    /* update the status block on disk */
++    CRITICAL(log->dev_lock,             /* begin log device lock crit sec */
+         {
+-        /* kill segment dictionary */
+-        free_seg_dict_vec(log);
+-
+-        log->in_recovery = rvm_false;
+-        }
++		assert(log->trunc_thread == cthread_self());
++		assert((status->trunc_state & RVM_TRUNC_PHASES)
++		   == RVM_TRUNC_UPDATE);
++		status->prev_trunc = status->last_trunc;
++
++		if (RVM_OFFSET_EQL(status->log_head,status->log_tail))
++		    clear_log_status(log);      /* log empty */
++		else
++		    {
++		    RVM_ZERO_OFFSET(status->prev_log_head);
++		    RVM_ZERO_OFFSET(status->prev_log_tail);
++		    status->first_rec_num = new_1st_rec_num;
++		    }
++
++		/* end timings */
++		kretval= gettimeofday(&end_time,(struct timezone *)NULL);
++		if (kretval != 0){
++		    be_status = -1;
++		    msg = kretval;
++		    goto err_exit;
++		}
++		end_time = sub_times(&end_time,&trunc_start_time);
++		status->tot_truncation_time =
++		    add_times(&status->tot_truncation_time,&end_time);
++		status->last_truncation_time = round_time(&end_time);
++		enter_histogram(status->last_truncation_time,
++				    log->status.tot_truncation_times,
++				    truncation_times_vec,truncation_times_len);
++		status->last_tree_build_time = last_tree_build_time;
++		enter_histogram(last_tree_build_time,
++				log->status.tot_tree_build_times,
++				truncation_times_vec,truncation_times_len);
++		status->last_tree_apply_time = last_tree_apply_time;
++		enter_histogram(last_tree_apply_time,
++				log->status.tot_tree_apply_times,
++				truncation_times_vec,truncation_times_len);
++
++		/* Prepare lrc_cbdata. */
++		lrc_cbdata->lrc_log = log;
++
++		/* Prepare cbinfo to be given to write_log_status. */
++		lrc_cbinfo  = &lrc_cbdata->lrc_cbinfo;
++		m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo,
++					 write_log_status_cb);
++
++		retval = write_log_status(log,NULL, lrc_cbinfo);
++		if (retval != RVM_SUCCESS) {
++			be_status = -1;
++			msg       = retval;
++		}
++        }); /* end log device lock crit sec */
+ 
+-    return retval;
++err_exit:;
++    if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
++        cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++                m0_free(lrc_cbdata);
+     }
++    return retval;
++}
+ /* switch truncation epochs */
+ static rvm_return_t new_epoch(log,count)
+     log_t           *log;               /* log descriptor */
+@@ -2704,185 +3069,479 @@ static rvm_return_t new_epoch(log,count)
+     return retval;
+     }
+ 
+-/* recover committed state from log */
+-rvm_return_t log_recover(log,count,is_daemon,flag)
+-    log_t           *log;               /* log descriptor */
+-    rvm_length_t    *count;             /* ptr to statistics counter */
+-    rvm_bool_t      is_daemon;          /* true if called by daemon */
+-    rvm_length_t    flag;               /* truncation type flag */
++void status_update_cb(cbinfo, be_status, msg)
++        struct m0_be_cbinfo  *cbinfo;
++        int                   be_status;
++        m0_be_msg_type_t      msg;
+ {
+-    log_status_t    *status = &log->status; /* log status descriptor */
+-    log_daemon_t    *daemon = &log->daemon; /* log daemon descriptor */
+-    struct timeval  end_time;           /* end of action time temp */
+-    struct timeval  tmp_time;           /* local timing temp */
+-    int             kretval;
+-    rvm_bool_t      do_truncation = rvm_false;
+-    rvm_return_t    retval = RVM_SUCCESS;
+-    rvm_length_t    new_1st_rec_num=0;
+-X(start)
+-    CRITICAL(log->truncation_lock,      /* begin truncation lock crit sec */
+-        {
+-        /* capture truncation thread & flag for checking */
+-        assert(log->trunc_thread == (cthread_t)NULL);
+-        assert(status->trunc_state == ZERO);
+-        log->trunc_thread = cthread_self();
+-        status->trunc_state = flag;
+-X(dev_lock)
+-        CRITICAL(log->dev_lock,         /* begin dev_lock crit sec */
+-            {
+-            /* process statistics */
+-            assert(log->trunc_thread == cthread_self());
+-            kretval= gettimeofday(&trunc_start_time,
+-                                  (struct timezone *)NULL);
+-            if (kretval != 0)
+-                {
+-                retval = RVM_EIO;
+-                goto err_exit1;
+-                }
+-            last_tree_build_time = 0;
+-            last_tree_apply_time = 0;
+-X(in_recovery)
+-            /* phase 1: locate tail & start new epoch */
+-            if (log->in_recovery)
+-                {
+-                if ((retval=locate_tail(log)) != RVM_SUCCESS)
+-                    goto err_exit1;
++        lrc_cbdata_t    *lrc_cbdata;
++        log_t           *log;
++        log_status_t    *status;
++        log_daemon_t    *daemon;
++        rvm_bool_t       is_daemon;
++        rvm_bool_t       is_upd_done;
++        rvm_return_t     retval = RVM_SUCCESS;
++
++        lrc_cbdata  = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++        log         = lrc_cbdata->lrc_log;
++        is_daemon   = lrc_cbdata->lrc_is_daemon;
++        is_upd_done = lrc_cbdata->lrc_is_update_done;
++        status      = &log->status;
++        daemon      = &log->daemon;
++
++        printf("\nfunction = %s \n", __FUNCTION__);
++        if (be_status != 0)
++                goto exit;
++
++        /* This should be done only when status_update was called. */
++        if (is_upd_done) {
++                assert(log->trunc_thread == cthread_self());
+                 assert((status->trunc_state & RVM_TRUNC_PHASES)
+-                       == RVM_TRUNC_FIND_TAIL);
+-                }
+-            assert(log->trunc_thread == cthread_self());
+-            if (rvm_chk_sigint != NULL) /* test for interrupt */
+-                if ((*rvm_chk_sigint)(NULL)) goto err_exit1;
+-            /* see if truncation actually needed */
+-            if (RVM_OFFSET_EQL(status->log_tail,status->log_head))
+-                status->log_empty = rvm_true;
+-            else
++                       == RVM_TRUNC_UPDATE);
++        }
++
++        CRITICAL(log->truncation_lock,      /* begin truncation lock crit sec */
++        {
++                assert(log->trunc_thread == cthread_self());
++                assert((status->trunc_state & RVM_TRUNC_PHASES) ==
++                       RVM_TRUNC_UPDATE);
++
++                /* wake up any threads waiting on a truncation */
++                assert(log->trunc_thread == cthread_self());
++                CRITICAL(daemon->lock, /* begin daemon->lock crit sec */
+                 {
+-                status->log_empty = rvm_false;
+-                do_truncation = rvm_true;
+-                new_1st_rec_num = status->next_rec_num;
++                        assert(log->trunc_thread == cthread_self());
++                        if (is_daemon) {
++                                assert(log->daemon.thread == cthread_self());
++                                assert((status->trunc_state &
++                                        RVM_ASYNC_TRUNCATE) != 0);
+ 
+-                /* switch epochs */
+-                if ((retval=new_epoch(log,count)) != RVM_SUCCESS)
+-                    goto err_exit1;
++                                assert(daemon->state == truncating);
++                                if (retval != RVM_SUCCESS)
++                                        daemon->state = error;
++                        }
++
++                        assert(log->trunc_thread == cthread_self());
++                }); /* end daemon->lock crit sec */
++
++                log->trunc_thread   = (cthread_t)NULL;
++                status->trunc_state = ZERO;
++        });
++
++exit:
++        if (cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++        }
++	m0_free(lrc_cbdata);
++}
++
++void log_recover_cb(cbinfo, be_status, msg)
++        struct m0_be_cbinfo *cbinfo;
++        int                  be_status;
++        m0_be_msg_type_t     msg;
++
++{
++        lrc_cbdata_t    *lrc_cbdata;
++        log_t           *log;
++        log_status_t    *status;
++        log_daemon_t    *daemon;
++        rvm_length_t     new_1st_rec_num;
++        rvm_return_t     retval = RVM_SUCCESS;
++        rvm_bool_t       is_daemon;
++        rvm_bool_t       is_upd_done;
++        struct timeval   end_time;           /* end of action time temp */
++        struct timeval   tmp_time;           /* local timing temp */
++        int              kretval;
++
++        printf("\nfunction : %s\n", __FUNCTION__);
++        /* On some error, wake up waiting threads if any. */
++        if (be_status != 0)
++                goto exit;
++
++        lrc_cbdata  = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++        log         = lrc_cbdata->lrc_log;
++        is_daemon   = lrc_cbdata->lrc_is_daemon;
++        status      = &log->status;
++        daemon      = &log->daemon;
++        is_upd_done = lrc_cbdata->lrc_is_update_done;
++
++        new_1st_rec_num = lrc_cbdata->lrc_new_1st_rec_num;
++
++        /* should take lock or not>?? */
++        CRITICAL(log->truncation_lock,      /* begin truncation lock crit sec */
++        {
+                 assert(log->trunc_thread == cthread_self());
++                assert((status->trunc_state & RVM_TRUNC_PHASES)
++                       == RVM_TRUNC_APPLY);
++
++                kretval = gettimeofday(&end_time,
++                                      (struct timezone *)NULL);
++                if (kretval != 0)
++                        /* return RVM_EIO; */
++                        assert(0);
++
++                end_time = sub_times(&end_time,&tmp_time);
++                last_tree_apply_time = round_time(&end_time);
++
++                /* test for interrupt */
++                if (rvm_chk_sigint != NULL)
++                        if ((*rvm_chk_sigint)(NULL)) {
++                                /*
++                                 * Just wake up waiting threads, if any, post
++                                 * parent and return.
++                                 */
++                                lrc_cbdata->lrc_is_update_done = rvm_false;
++                                status_update_cb(cbinfo, be_status, msg);
++                                return;
++                        }
++
++                cbinfo->bc_cb = status_update_cb;
++                lrc_cbdata->lrc_is_update_done = rvm_true;
++
++                X(status_upd)
++
++                /* always update the status */
++                /* phase 4 */
++                retval = status_update(log, new_1st_rec_num, cbinfo);
++                if (retval != RVM_SUCCESS) {
++                        be_status = -1;
++                        msg       = retval;
+                 }
+ 
+-X(err_exit1)
+-err_exit1:;
+-	    /* signal `initiate_truncation' that the first part is done */
+-	    if (is_daemon)
+-		{
+-		mutex_lock(&daemon->lock);
+-		assert(log->daemon.thread == cthread_self());
+-		assert(daemon->state == truncating);
+-		assert((status->trunc_state & RVM_ASYNC_TRUNCATE) != 0);
+-		condition_signal(&daemon->flush_flag);
+-		mutex_unlock(&daemon->lock);
+-		}
+-            });                         /* end dev_lock crit sec */
++        });
+ 
+-        if (retval != RVM_SUCCESS) goto err_exit;
+-        if (rvm_chk_sigint != NULL)     /* test for interrupt */
+-            if ((*rvm_chk_sigint)(NULL)) goto err_exit;
+-        /* do log scan if truncation actually needed */
+-        if (do_truncation)
+-            {
+-X(do_trunc)
+-            /* build tree and time */
+-            kretval= gettimeofday(&tmp_time,(struct timezone *)NULL);
+-            if (kretval != 0) assert(0); /* return RVM_EIO; */
+-X(build_tree)
+-            if ((retval=build_tree(log)) != RVM_SUCCESS) /* phase 2 */
+-                assert(0); /* return retval; */
+-X(build_tree done)
+-            assert(log->trunc_thread == cthread_self());
+-            assert((status->trunc_state & RVM_TRUNC_PHASES)
+-                   == RVM_TRUNC_BUILD_TREE);
++exit:
++        if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++        }
++}
+ 
+-            kretval= gettimeofday(&end_time,(struct timezone *)NULL);
+-            if (kretval != 0) assert(0); /* return RVM_EIO; */
+-            end_time = sub_times(&end_time,&tmp_time);
+-            last_tree_build_time = round_time(&end_time);
+-            if (rvm_chk_sigint != NULL) /* test for interrupt */
+-                if ((*rvm_chk_sigint)(NULL)) goto err_exit;
++/* recover committed state from log */
++rvm_return_t log_recover(log, count, is_daemon, flag, cbinfo)
++    log_t               *log;               /* log descriptor */
++    rvm_length_t        *count;             /* ptr to statistics counter */
++    rvm_bool_t           is_daemon;          /* true if called by daemon */
++    rvm_length_t         flag;               /* truncation type flag */
++    struct m0_be_cbinfo *cbinfo;
++{
++        lrc_cbdata_t        *lrc_cbdata;
++        struct m0_be_cbinfo *lrc_cbinfo;
++        log_status_t        *status = &log->status; /* log status descriptor */
++        log_daemon_t        *daemon = &log->daemon; /* log daemon descriptor */
++        struct timeval       end_time;           /* end of action time temp */
++        struct timeval       tmp_time;           /* local timing temp */
++        int                  kretval;
++        int                  be_status = 0;
++        m0_be_msg_type_t     msg       = M0_BE_SUCCESS;
++        rvm_bool_t           do_truncation = rvm_false;
++        rvm_return_t         retval = RVM_SUCCESS;
++        rvm_length_t         new_1st_rec_num=0;
++
++        printf("\nfunction : %s\n", __FUNCTION__);
++        X(start)
++        CRITICAL(log->truncation_lock,      /* begin truncation lock crit sec */
++        {
++                /* capture truncation thread & flag for checking */
++                assert(log->trunc_thread == (cthread_t)NULL);
++                assert(status->trunc_state == ZERO);
++                log->trunc_thread = cthread_self();
++                status->trunc_state = flag;
++
++                X(dev_lock)
++                CRITICAL(log->dev_lock, /* begin dev_lock crit sec */
++                        {
++                                /* process statistics */
++                                assert(log->trunc_thread == cthread_self());
++                                kretval= gettimeofday(&trunc_start_time,
++                                                  (struct timezone *)NULL);
++                                if (kretval != 0) {
++                                        retval = RVM_EIO;
++                                        goto err_exit1;
++                                }
++
++                                last_tree_build_time = 0;
++                                last_tree_apply_time = 0;
++
++                                X(in_recovery)
++                                /* phase 1: locate tail & start new epoch */
++                                if (log->in_recovery) {
++                                        if ((retval=locate_tail(log))!=
++                                            RVM_SUCCESS)
++                                                goto err_exit1;
++                                        assert((status->trunc_state &
++                                                RVM_TRUNC_PHASES) ==
++                                                RVM_TRUNC_FIND_TAIL);
++                                }
++
++                                assert(log->trunc_thread == cthread_self());
++
++                                /* test for interrupt */
++                                if (rvm_chk_sigint != NULL)
++                                        if ((*rvm_chk_sigint)(NULL))
++                                                goto err_exit1;
++
++                                /* see if truncation actually needed */
++                                if (RVM_OFFSET_EQL(status->log_tail,
++                                                   status->log_head))
++                                        status->log_empty = rvm_true;
++                                else {
++                                        status->log_empty = rvm_false;
++                                        do_truncation = rvm_true;
++                                        new_1st_rec_num = status->next_rec_num;
++
++                                        /* switch epochs */
++                                        if ((retval=new_epoch(log,count)) !=
++                                            RVM_SUCCESS)
++                                                goto err_exit1;
++                                        assert(log->trunc_thread ==
++                                               cthread_self());
++                                }
++
++                                X(err_exit1)
++                                err_exit1:;
++
++                                /* signal `initiate_truncation' that the first part is done */
++                                if (is_daemon) {
++                                        mutex_lock(&daemon->lock);
++                                        assert(log->daemon.thread ==
++                                               cthread_self());
++                                        assert(daemon->state == truncating);
++                                        assert((status->trunc_state &
++                                               RVM_ASYNC_TRUNCATE) != 0);
++                                        condition_signal(&daemon->flush_flag);
++                                        mutex_unlock(&daemon->lock);
++                                }
++                        }); /* end dev_lock crit sec */
++
++                if (retval != RVM_SUCCESS) {
++                        be_status = -1;
++                        msg       = retval;
++                        goto err_exit;
++                }
+ 
+-            /* apply tree and time */
+-            kretval= gettimeofday(&tmp_time,(struct timezone *)NULL);
+-            if (kretval != 0) assert(0); /* return RVM_EIO; */
+-X(apply_mods)
+-            if ((retval=apply_mods(log)) != RVM_SUCCESS) /* phase 3 */
+-                goto err_exit;
+-X(apply_mods end)
+-            assert(log->trunc_thread == cthread_self());
+-            assert((status->trunc_state & RVM_TRUNC_PHASES)
+-                   == RVM_TRUNC_APPLY);
+-            kretval= gettimeofday(&end_time,(struct timezone *)NULL);
+-            if (kretval != 0) assert(0); /* return RVM_EIO; */
+-            end_time = sub_times(&end_time,&tmp_time);
+-            last_tree_apply_time = round_time(&end_time);
+-            if (rvm_chk_sigint != NULL) /* test for interrupt */
+-                if ((*rvm_chk_sigint)(NULL)) goto err_exit;
+-            }
+-        else
+-            status->trunc_state =
+-                (status->trunc_state & ~RVM_TRUNC_PHASES)
+-                    | RVM_TRUNC_APPLY;
+-X(status_upd)
+-        /* always update the status */
+-        retval = status_update(log, new_1st_rec_num);    /* phase 4 */
+-        assert(log->trunc_thread == cthread_self());
+-        assert((status->trunc_state & RVM_TRUNC_PHASES)
+-               == RVM_TRUNC_UPDATE);
+-        /* wake up any threads waiting on a truncation */
+-err_exit:
+-        assert(log->trunc_thread == cthread_self());
+-        CRITICAL(daemon->lock,          /* begin daemon->lock crit sec */
+-            {
+-            assert(log->trunc_thread == cthread_self());
+-            if (is_daemon)
+-                {
+-                assert(log->daemon.thread == cthread_self());
+-                assert((status->trunc_state & RVM_ASYNC_TRUNCATE) != 0);
+-                assert(daemon->state == truncating);
+-                if (retval != RVM_SUCCESS)
+-                    daemon->state = error;
++                /* test for interrupt */
++                if (rvm_chk_sigint != NULL)
++                        if ((*rvm_chk_sigint)(NULL)) {
++                                be_status = -1;
++                                goto err_exit;
++                        }
++
++                M0_ALLOC_PTR(lrc_cbdata);
++                if (lrc_cbdata == NULL) {
++                        be_status = -1;
++                        retval    = msg = -ENOMEM;
++                        goto exit_log_recover;
+                 }
+-            assert(log->trunc_thread == cthread_self());
+-            });                         /* end daemon->lock crit sec */
+ 
+-        log->trunc_thread = (cthread_t)NULL;
+-        status->trunc_state = ZERO;
+-        });                             /* end truncation lock crit sec */
++                /* Prepare lrc_cbdata. */
++                lrc_cbdata->lrc_log             = log;
++                lrc_cbdata->lrc_new_1st_rec_num = new_1st_rec_num;
++                lrc_cbdata->lrc_is_daemon       = is_daemon;
++
++                /* Prepare cbinfo to be given to apply_mods. */
++                lrc_cbinfo             = &lrc_cbdata->lrc_cbinfo;
++		m0_be_cbinfo_copy_helper(cbinfo, lrc_cbinfo,
++					 log_recover_cb);
++
++                /* do log scan if truncation actually needed */
++                if (do_truncation) {
++
++                        X(do_trunc)
++                        /* build tree and time */
++                        kretval= gettimeofday(&tmp_time,
++                                              (struct timezone *)NULL);
++                        if (kretval != 0)
++                                /* return RVM_EIO; */
++                                assert(0);
++
++                        X(build_tree)
++                        /* phase 2 */
++                        if ((retval=build_tree(log)) != RVM_SUCCESS)
++                                /* return retval; */
++                                assert(0);
++
++                        X(build_tree done)
++
++                        assert(log->trunc_thread == cthread_self());
++                        assert((status->trunc_state & RVM_TRUNC_PHASES)
++                               == RVM_TRUNC_BUILD_TREE);
++
++                        kretval= gettimeofday(&end_time,
++                                              (struct timezone *)NULL);
++
++                        if (kretval != 0)
++                                /* return RVM_EIO; */
++                                assert(0);
++
++                        end_time = sub_times(&end_time,&tmp_time);
++                        last_tree_build_time = round_time(&end_time);
++
++                        /* test for interrupt */
++                        if (rvm_chk_sigint != NULL)
++                                if ((*rvm_chk_sigint)(NULL))
++                                        goto err_exit;
++
++                        /* apply tree and time */
++                        kretval= gettimeofday(&tmp_time,
++                                              (struct timezone *)NULL);
++                        if (kretval != 0)
++                                /* return RVM_EIO; */
++                                assert(0);
++
++                        /* status update is not done yet! */
++                        lrc_cbdata->lrc_is_update_done = rvm_false;
++
++                        /* pass lrc_cbinfo to apply_mods. */
++                        X(apply_mods)
++                        /* phase 3 */
++                        if ((retval = apply_mods(log, lrc_cbinfo)) !=
++		  	    RVM_SUCCESS)
++                                goto err_exit;
++                        X(apply_mods end)
++
++                        /* goto exit_log_recover, as we do not want to wake up
++                         * any thread yet. That would be done in cb given to
++                         * apply_mods.
++                         */
++                        goto exit_log_recover;
++
++                } else {
++                        status->trunc_state = (status->trunc_state &
++                                               (~RVM_TRUNC_PHASES)) |
++                                              RVM_TRUNC_APPLY;
++
++                        lrc_cbdata->lrc_is_update_done = rvm_true;
++			lrc_cbinfo->bc_cb              = status_update_cb;
++
++                        X(status_upd)
++                        /* always update the status */
++                        /* phase 4 */
++			printf("\n function __enter__: %s\n", __FUNCTION__);
++                        retval = status_update(log, new_1st_rec_num,
++                                               lrc_cbinfo);
++
++                        if (retval != RVM_SUCCESS) {
++                                printf("\n function = %s failed in main else\n", __FUNCTION__);
++                                be_status = -1;
++                                msg       = retval;
++                        }
++			printf("\n function __exit__: %s\n", __FUNCTION__);
++                        goto exit_log_recover;
++                }
+ 
+-    return retval;
++                /* wake up any threads waiting on a truncation */
++        err_exit:
++                assert(log->trunc_thread == cthread_self());
++                CRITICAL(daemon->lock,        /* begin daemon->lock crit sec */
++                {
++                        assert(log->trunc_thread == cthread_self());
++                        if (is_daemon) {
++                        assert(log->daemon.thread == cthread_self());
++                        assert((status->trunc_state &
++                                        RVM_ASYNC_TRUNCATE) != 0);
++
++                        assert(daemon->state == truncating);
++                        if (retval != RVM_SUCCESS)
++                        daemon->state = error;
++                        }
++
++                        assert(log->trunc_thread == cthread_self());
++                }); /* end daemon->lock crit sec */
++
++                log->trunc_thread   = (cthread_t)NULL;
++                status->trunc_state = ZERO;
++
++        }); /* end truncation lock crit sec */
++        exit_log_recover:
++                if (be_status != 0  && cbinfo->bc_pcbinfo != NULL &&
++                        cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                        m0_be_handler_post(cbinfo->bc_pcbinfo,
++		                           be_status, msg);
++			m0_free(lrc_cbdata);
++                }
++        return retval;
+ }
+ #undef X
+ 
+-
+-/* rvm_truncate */
+-rvm_return_t rvm_truncate()
++void rt_flush_log_cb(struct m0_be_cbinfo *cbinfo, int status,
++		     m0_be_msg_type_t msg_type)
+ {
+-	rvm_return_t    retval;
++	rvm_return_t    	 retval;
+ 
+-	/* initial checks */
+-	if (bad_init())
+-		return RVM_EINIT;
+-	if (default_log == NULL)
+-		return RVM_ELOG;
++	if (status != 0)
++		goto exit;
++
++	if (bad_init()) {
++		status 	 = -1;
++		msg_type = RVM_EINIT;
++		goto exit;
++	}
+ 
+-    /* flush any queued records */
+-	if ((retval=flush_log(default_log,
+-			      &default_log->status.n_flush))
+-	    != RVM_SUCCESS) return retval;
++	if (default_log == NULL) {
++		status 	 = -1;
++		msg_type = RVM_ELOG;
++		goto exit;
++	}
+ 
+-	/* do truncation */
++        printf("\nfunction : %s\n", __FUNCTION__);
+ 	retval = log_recover(default_log,
+ 			     &default_log->status.tot_rvm_truncate,
+-			     rvm_false,RVM_TRUNCATE_CALL);
+-	return retval;
++			     rvm_false,
++			     RVM_TRUNCATE_CALL,
++			     cbinfo->bc_pcbinfo);
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
++	m0_free(cbinfo);
+ }
+ 
++/* rvm_truncate */
++rvm_return_t rvm_truncate(struct m0_be_cbinfo *cbinfo)
++{
++	struct m0_be_cbinfo	*rt_cbinfo;
++	rvm_return_t    	 retval;
++	int 			 status = 0;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
++
++	/* initial checks */
++	if (bad_init()) {
++		status = -1;
++		msg_type = RVM_EINIT;
++		goto exit;
++	}
++	if (default_log == NULL) {
++		status = -1;
++		msg_type = RVM_ELOG;
++		goto exit;
++	}
++
++	M0_ALLOC_PTR(rt_cbinfo);
++	M0_ASSERT(rt_cbinfo != NULL);
++
++        printf("\nfunction : %s\n", __FUNCTION__);
++
++	m0_be_cbinfo_copy_helper(cbinfo, rt_cbinfo, rt_flush_log_cb);
++
++	/* flush any queued records */
++	retval = flush_log(default_log, &default_log->status.n_flush, rt_cbinfo);
++	if (retval != RVM_SUCCESS) {
++		status = -1;
++		msg_type = retval;
++		goto exit;
++	}
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(rt_cbinfo);
++        }
++
++	return 0;
++}
+ 
+ /* map & flush <--> truncation synchronization functions */
+ 
+@@ -2913,61 +3572,75 @@ rvm_bool_t initiate_truncation(log,threshold)
+ 
+     return did_init;
+ }
+-/* wait until truncation has processed all records up to time_stamp */
+-rvm_return_t wait_for_truncation(log,time_stamp)
+-    log_t           *log;               /* log descriptor */
+-    struct timeval  *time_stamp;        /* time threshold */
+-    {
+-    log_daemon_t    *daemon = &log->daemon; /* deamon control descriptor */
+-    log_status_t    *status = &log->status; /* log status descriptor */
+-    rvm_bool_t      force_trunc = rvm_false; /* do syncronous truncation */
+-    rvm_bool_t      exit_sw = rvm_false;
+-    rvm_return_t    retval = RVM_SUCCESS;
+ 
+-    while (!exit_sw)
+-        {
+-        CRITICAL(daemon->lock,          /* begin daemon lock crit sec */
+-            {
+-            /* synchronous truncation if daemon not in use */
+-            if ((daemon->truncate == 0) || (daemon->state == rvm_idle))
+-                {
+-                force_trunc = rvm_true;
+-                goto exit_wait;
+-                }
++/* wait until truncation has processed all records up to time_stamp */
++rvm_return_t wait_for_truncation(log_t *log,
++				 struct timeval *time_stamp,
++				 struct m0_be_cbinfo *cbinfo)
++{
++	log_daemon_t  	*daemon = &log->daemon; /* deamon control descriptor */
++	log_status_t    *log_status = &log->status; /* log status descriptor */
++	rvm_bool_t       force_trunc = rvm_false; /* do syncronous truncation */
++	rvm_bool_t       exit_sw = rvm_false;
++	rvm_return_t     retval  = RVM_SUCCESS;
++
++	int 		 status   = 0;
++	m0_be_msg_type_t msg_type = M0_BE_SUCCESS;
++
++	while (!exit_sw)
++	{
++		CRITICAL(daemon->lock,          /* begin daemon lock crit sec */
++		{
++			/* synchronous truncation if daemon not in use */
++			if ((daemon->truncate == 0) || (daemon->state == rvm_idle)) {
++				force_trunc = rvm_true;
++				goto exit_wait;
++			}
++
++			/* wait for concurrent truncation completion */
++			while (daemon->state == truncating) {
++				condition_wait(&daemon->wake_up,&daemon->lock);
++			}
++
++			if (daemon->state == error) {
++				/* quit if daemon had error */
++				msg_type = RVM_EINTERNAL;
++				status   = -1;
++				goto exit_wait;
++			}
++
++			/* see if records up to time threshold have been processed */
++			if ((time_stamp == NULL) ||
++			    (TIME_GEQ(log_status->last_trunc,*time_stamp)))
++				goto exit_wait;         /* yes, exit */
++
++			/* no, must trigger another truncation */
++			daemon->state = truncating;
++			condition_signal(&daemon->code);
++				goto exit_crit_sec;
+ 
+-            /* wait for concurrent truncation completion */
+-            while (daemon->state == truncating)
+-                {
+-                condition_wait(&daemon->wake_up,&daemon->lock);
+-                }
+-            if (daemon->state == error)
+-                {
+-                retval = RVM_EINTERNAL; /* quit if daemon had error */
+-                goto exit_wait;
+-                }
++exit_wait:  exit_sw = rvm_true;
++exit_crit_sec:;
++		});                         /* end daemon lock crit sec */
++	}
+ 
+-            /* see if records up to time threshold have been processed */
+-            if ((time_stamp == NULL) ||
+-                (TIME_GEQ(status->last_trunc,*time_stamp)))
+-                goto exit_wait;         /* yes, exit */
++	/* do synchronous truncation */
++	if (force_trunc) {
++		retval   = log_recover(log, &log->status.tot_sync_truncation,
++				     rvm_false, RVM_SYNC_TRUNCATE, cbinfo);
+ 
+-            /* no, must trigger another truncation */
+-            daemon->state = truncating;
+-            condition_signal(&daemon->code);
+-            goto exit_crit_sec;
++		status   = -1;
++		msg_type = retval;
++	}
+ 
+-exit_wait:  exit_sw = rvm_true;
+-exit_crit_sec:;
+-            });                         /* end daemon lock crit sec */
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, status, msg_type);
+         }
+ 
+-    /* do synchronous truncation */
+-    if (force_trunc)
+-        retval = log_recover(log,&log->status.tot_sync_truncation,
+-                             rvm_false,RVM_SYNC_TRUNCATE);
++	return retval;
++}
+ 
+-    return retval;
+-    }
+ /* truncation daemon */
+ void log_daemon(void *arg)
+     {
+diff --git a/rvm/rvm_logstatus.c b/rvm/rvm_logstatus.c
+index 462b786..548e64b 100644
+--- a/rvm/rvm_logstatus.c
++++ b/rvm/rvm_logstatus.c
+@@ -28,6 +28,8 @@ Coda are listed in the file CREDITS.
+ #include <fcntl.h>
+ #include <errno.h>
+ #include "rvm/rvm_private.h"
++#include "be/handler.h"
++#include "lib/memory.h"
+ 
+ #ifdef RVM_LOG_TAIL_BUG
+ #include <rvmtesting.h>
+@@ -424,14 +426,65 @@ err_exit2:
+     *log_ptr = (log_t *)NULL;
+     return retval;
+     }
++
++
++void do_log_options_cb(struct m0_be_cbinfo *cbinfo, int status,
++                       m0_be_msg_type_t msg_type)
++{
++    rvm_return_t                 retval;
++    log_t                       *log = NULL;
++    log_t                       **log_ptr;
++    rcl_cbdata_t                *rcl_cbdata;
++    rvm_options_t               *rvm_options;
++
++    rcl_cbdata  = container_of(cbinfo, rcl_cbdata_t, rclc_cbinfo);
++    log         = rcl_cbdata->rclc_log;
++    log_ptr     = rcl_cbdata->rclc_out_log_ptr;
++    rvm_options = rcl_cbdata->rclc_rvm_options;
++
++    printf("\nfunction : %s\n", __FUNCTION__);
++
++    if(log != NULL)
++    {
++        /* pre-load write buffer with new tail sector */
++        if (log->dev.raw_io)
++            {
++            CRITICAL(log->dev_lock,retval=preload_wrt_buf(log));
++            if (retval != RVM_SUCCESS) {
++		    printf("preload_wrt_buff failed\n");
++                    retval = RVM_ELOG;
++                    status = -1;
++                    msg_type = M0_BE_RVM_INIT_FAILED;
++		    goto exit;
++            }
++        }
++    }
++    /* process options and return log descriptor if wanted */
++    retval = set_truncate_options(log,rvm_options);
++    if (log_ptr != NULL)
++       *log_ptr = log;
++      printf("\nfunction : %s\n", __FUNCTION__);
++exit:
++        if (cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(rcl_cbdata);
++        }
++}
+ /* log options processing */
+-rvm_return_t do_log_options(log_ptr,rvm_options)
+-    log_t           **log_ptr;          /* addr of log descriptor ptr */
+-    rvm_options_t   *rvm_options;       /* ptr to rvm options descriptor */
++rvm_return_t do_log_options(log_ptr,rvm_options, cbinfo)
++    log_t               **log_ptr;          /* addr of log descriptor ptr */
++    rvm_options_t        *rvm_options;       /* ptr to rvm options descriptor */
++    struct m0_be_cbinfo  *cbinfo;
+     {
+-    rvm_return_t    retval;
+-    log_t           *log = NULL;
+-    char            *log_dev;
++    rvm_return_t                 retval;
++    log_t                       *log = NULL;
++    char                        *log_dev;
++    int                          status = 0;
++    m0_be_msg_type_t             msg_type= M0_BE_SUCCESS;
++    rcl_cbdata_t                *rcl_cbdata;
++    struct m0_be_cbinfo         *rcl_cbinfo;
++
+ 
+     if ((rvm_options == NULL) || (rvm_options->log_dev == NULL))
+         return RVM_SUCCESS;
+@@ -441,41 +494,56 @@ rvm_return_t do_log_options(log_ptr,rvm_options)
+     if ((log=find_log(log_dev)) == NULL)
+         {
+         /* see if already have a log */
+-        if (default_log != NULL)
+-            return RVM_ELOG;
++        if (default_log != NULL) {
++            status    = -1;
++            msg_type  = M0_BE_RVM_INIT_FAILED;
++            retval    = RVM_ELOG;
++            goto exit;
++        }
+ 
+         /* build log descriptor */
+         if ((retval=open_log(log_dev,&log,NULL,rvm_options))
+             != RVM_SUCCESS) {
+ 		printf("open_log failed.\n");
+-		return retval;
++                status    = -1;
++                msg_type  = M0_BE_RVM_INIT_FAILED;
++                retval    = RVM_ELOG;
++                goto exit;
+ 	}
+ 
++        M0_ALLOC_PTR(rcl_cbdata);
++        M0_ASSERT(rcl_cbdata != NULL);
++
++	/*rcl_cbdata->rclc_rvm_options        = rvm_options;*/
++        rcl_cbdata->rclc_log                = log;
++        rcl_cbdata->rclc_out_log_ptr        = log_ptr;
++
++        rcl_cbinfo                          = &rcl_cbdata->rclc_cbinfo;
++        m0_be_cbinfo_copy_helper(cbinfo, rcl_cbinfo, do_log_options_cb);
+         /* do recovery processing for log */
+         log->in_recovery = rvm_true;
++	printf("\n function __enter__: %s\n", __func__);
+         if ((retval = log_recover(log,&log->status.tot_recovery,
+-                                  rvm_false,RVM_RECOVERY)) != RVM_SUCCESS) {
++                                  rvm_false,
++                                  RVM_RECOVERY, rcl_cbinfo)) != RVM_SUCCESS) {
+ 		printf("log_recover failed.\n");
+-		return retval;
++                status    = -1;
++                msg_type  = M0_BE_RVM_INIT_FAILED;
++                retval    = RVM_ELOG;
++                goto exit;
+ 	}
++    }
+ 
+-        /* pre-load write buffer with new tail sector */
+-        if (log->dev.raw_io)
+-            {
+-            CRITICAL(log->dev_lock,retval=preload_wrt_buf(log));
+-            if (retval != RVM_SUCCESS) {
+-		    return retval;
+-		    printf("preload_wrt_buff failed\n");
+-	    }
+-            }
++      printf("\nfunction __exit__: %s\n", __FUNCTION__);
++exit:
++        if (status != 0 &&
++            cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                printf("\nErr function : %s\n", __FUNCTION__);
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(rcl_cbdata);
+         }
+-
+-    /* process options and return log descriptor if wanted */
+-    retval = set_truncate_options(log,rvm_options);
+-    if (log_ptr != NULL)
+-        *log_ptr = log;
+-
+-    return retval;
++        return retval;
+     }
+ /* accumulate running statistics totals */
+ void copy_log_stats(log)
+@@ -560,7 +628,7 @@ void clear_log_status(log)
+     log_status_t    *status = &log->status; /* status area descriptor */
+ 
+     assert(((&log->dev == &default_log->dev) && (!rvm_utlsw)) ?
+-           (!LOCK_FREE(default_log->dev_lock)) : 1);
++                    (!LOCK_FREE(default_log->dev_lock)) : 1);
+ 
+     status->valid = rvm_true;
+     status->log_empty = rvm_true;
+@@ -579,8 +647,9 @@ void clear_log_status(log)
+     copy_log_stats(log);
+     }
+ /* log status block initialization */
+-rvm_return_t init_log_status(log)
+-    log_t           *log;               /* log descriptor */
++rvm_return_t init_log_status(log, cbinfo)
++    log_t                *log;               /* log descriptor */
++    struct m0_be_cbinfo  *cbinfo;
+     {
+     rvm_length_t    i;
+     log_status_t    *status = &log->status; /* status area descriptor */
+@@ -669,7 +738,7 @@ rvm_return_t init_log_status(log)
+         }
+ 
+     /* write the device areas */
+-    return write_log_status(log,NULL);
++    return write_log_status(log,NULL, cbinfo);
+     }
+ /* read log status area from log device */
+ rvm_return_t read_log_status(log,status_buf)
+@@ -726,9 +795,10 @@ rvm_return_t read_log_status(log,status_buf)
+     return RVM_SUCCESS;
+     }
+ /* write log status area on log device */
+-rvm_return_t write_log_status(log,dev)
+-    log_t               *log;
+-    device_t            *dev;           /* optional device */
++rvm_return_t write_log_status(log,dev, cbinfo)
++    log_t                    *log;
++    device_t                 *dev;           /* optional device */
++    struct m0_be_cbinfo      *cbinfo;
+     {
+     log_status_t        *status = &log->status; /* status area descriptor */
+     rvm_offset_t        *status_offset; /* device status area offset */
+@@ -779,7 +849,7 @@ rvm_return_t write_log_status(log,dev)
+     if (dev->raw_io) status_offset = &raw_status_offset;
+     else status_offset = &file_status_offset;
+     if (write_dev(dev,status_offset,dev_status,
+-                  LOG_DEV_STATUS_SIZE,SYNCH) < 0)
++                  LOG_DEV_STATUS_SIZE,SYNCH, cbinfo) < 0)
+         return RVM_EIO;
+ 
+     return RVM_SUCCESS;
+@@ -959,8 +1029,8 @@ void log_tail_length(log,tail_length)
+     else
+         /* all other cases */
+         *tail_length = RVM_SUB_OFFSETS(temp,status->log_tail);
++}
+ 
+-    }
+ /* determine length of log tail area usable in single write */
+ void log_tail_sngl_w(log_t *log, rvm_offset_t *tail_length)
+ {
+@@ -1012,8 +1082,8 @@ long cur_log_percent(log,space_needed)
+     CRITICAL(log->dev_lock,             /* begin dev_lock crit sec */
+         {
+         /* find out how much space is there now & set high water mark */
+-        log_tail_length(log,&temp);
+-        temp = RVM_SUB_OFFSETS(status->log_size,temp);
++        log_tail_length(log, &temp);
++        temp = RVM_SUB_OFFSETS(status->log_size, temp);
+         cur_size = OFFSET_TO_FLOAT(temp);
+         cur_percent = (long)(100.0*(cur_size/
+                                     OFFSET_TO_FLOAT(status->log_size)));
+@@ -1033,19 +1103,59 @@ long cur_log_percent(log,space_needed)
+ 
+     return cur_percent;
+     }
++
++void rcl_write_dev_cb(struct m0_be_cbinfo *cbinfo, int status,
++                      m0_be_msg_type_t msg_type)
++{
++        rvm_return_t             retval = RVM_SUCCESS;
++        rcl_cbdata_t            *rcl_cbdata;
++        log_t                   *log;
++
++        if (status != 0)
++                goto exit;
++
++        M0_ASSERT(cbinfo != NULL);
++
++        rcl_cbdata = container_of(cbinfo, rcl_cbdata_t, rclc_cbinfo);
++        log = rcl_cbdata->rclc_log;
++
++        /* complete initialization */
++        printf("\nfunction : %s\n", __FUNCTION__);
++        retval = init_log_status(log, cbinfo->bc_pcbinfo);
++
++        if (retval != RVM_SUCCESS) {
++             status = -1;
++             goto exit;
++        }
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        } else {
++		m0_free(rcl_cbdata);
++	}
++}
++
+ /* rvm_create_log application interface */
+-rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+-    rvm_options_t   *rvm_options;       /* ptr to options record */
+-    rvm_offset_t    *log_len;           /* length of log data area */
+-    long            mode;               /* file creation protection mode */
++rvm_return_t rvm_create_log(rvm_options, log_len,mode, cbinfo)
++    rvm_options_t       *rvm_options;       /* ptr to options record */
++    rvm_offset_t        *log_len;           /* length of log data area */
++    long                 mode;               /* file creation protection mode */
++    struct m0_be_cbinfo *cbinfo;
+     {
+-    log_t           *log;               /* descriptor for log */
+-    rvm_offset_t    offset;             /* offset temporary */
+-    char            *end_mark = "end";
+-    long            save_errno;
+-    rvm_return_t    retval;
+-
+-    if ((retval=bad_options(rvm_options,rvm_true)) != RVM_SUCCESS)
++    log_t                   *log;               /* descriptor for log */
++    rvm_offset_t             offset;             /* offset temporary */
++    char                    *end_mark = "end";
++    long                     save_errno;
++    rvm_return_t             retval;
++    int                      status = 0;
++    rcl_cbdata_t            *rcl_cbdata;
++    struct m0_be_cbinfo     *rclc_cbinfo;
++    m0_be_msg_type_t         msg_type = M0_BE_SUCCESS;
++
++    printf("\nfunction : %s\n", __FUNCTION__);
++
++    if ((retval = bad_options(rvm_options,rvm_true)) != RVM_SUCCESS)
+         return retval;                  /* bad options ptr or record */
+     if (rvm_options == NULL)
+         return RVM_EOPTIONS;            /* must have an options record */
+@@ -1057,6 +1167,7 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+     /* check that log file length is legal */
+     offset = RVM_ADD_LENGTH_TO_OFFSET(*log_len,
+     	    	 LOG_DEV_STATUS_SIZE+FILE_STATUS_OFFSET);
++
+     offset = CHOP_OFFSET_TO_SECTOR_SIZE(offset);
+     if (RVM_OFFSET_HIGH_BITS_TO_LENGTH(offset) != 0)
+         return RVM_ETOO_BIG;
+@@ -1090,35 +1201,52 @@ rvm_return_t rvm_create_log(rvm_options,log_len,mode)
+         if (open_dev(&log->dev,O_WRONLY,mode) == 0) /* don't allow create yet */
+         {
+            retval = RVM_ELOG;              /* error -- file already exists */
++           status = -1;
+            goto err_exit;
+         }
+ 
+         if (errno != ENOENT)
+         {
+            retval = RVM_EIO;               /* other i/o error, errno specifies */
++           status = -1;
+            goto err_exit;
+         }
+         if(log->dev.stob_io == rvm_false) {
+             if (open_dev(&log->dev,O_WRONLY | O_CREAT,mode) != 0)
+             {                               // do real create
+                 retval = RVM_EIO;
++                status = -1;
+                 goto err_exit;
+             }
+         }
+     }
++    if (status != 0)
++            goto err_exit;
++
++    M0_ALLOC_PTR(rcl_cbdata);
++    M0_ASSERT(rcl_cbdata != NULL);
++
++    rcl_cbdata->rclc_log        = log;
++    rclc_cbinfo                 = &rcl_cbdata->rclc_cbinfo;
++    rclc_cbinfo->bc_pcbinfo     = cbinfo;
++    rclc_cbinfo->bc_cb 	        = rcl_write_dev_cb;
++    rclc_cbinfo->bc_sm_group 	= cbinfo->bc_sm_group;
++    rclc_cbinfo->bc_hq 		= cbinfo->bc_hq;
++
+     /* force file length to specified size by writting last byte */
+     log->dev.num_bytes = offset;
+-    offset = RVM_SUB_LENGTH_FROM_OFFSET(offset,strlen(end_mark));
+-    if (write_dev(&log->dev,&offset,end_mark,
+-                  strlen(end_mark),NO_SYNCH) < 0)
++    offset = RVM_SUB_LENGTH_FROM_OFFSET(offset, strlen(end_mark));
++    if (write_dev(&log->dev,&offset,end_mark, strlen(end_mark),NO_SYNCH,
++                  rclc_cbinfo) < 0)
+         {
+         retval = RVM_EIO;
++        status = -1;
+         goto err_exit;
+         }
+-
+-    /* complete initialization */
+-    retval = init_log_status(log);
+-
++     goto exit;
++    /*return retval;*/
++        /* Need to remove this when write_dev made async. */
++    /*rcl_write_dev_cb(rclc_cbinfo, status, msg_type);*/
+ err_exit:
+     if (log->dev.handle != 0)
+         {
+@@ -1136,6 +1264,12 @@ err_exit:
+ #endif /* RVM_LOG_TAIL_SHADOW */
+     free_log(log);
+ 
++exit:
++    if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++                       cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++                m0_free(rcl_cbdata);
++    }
+     return retval;
+     }
+ /* special routines for basher */
+diff --git a/rvm/rvm_map.c b/rvm/rvm_map.c
+index c65e886..8fccd3c 100644
+--- a/rvm/rvm_map.c
++++ b/rvm/rvm_map.c
+@@ -1064,6 +1064,7 @@ void rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 	m0_free(rm_cbdata);
+ }
+ 
++
+ /* rvm_map */
+ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 		     rvm_region_t  		*rvm_region,
+@@ -1087,22 +1088,23 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 	if (bad_init()) {
+ 		status = -1;
+ 		msg_type =  RVM_EINIT;
+-		goto err_exit;
++		goto exit;
+ 	}
+ 	if ((retval = bad_region(rvm_region)) != RVM_SUCCESS) {
+ 		status = -1;
+ 		msg_type = retval;
+ 	}
++
+ 	if (rvm_options != NULL)
+ 		if ((retval = do_rvm_options(rvm_options)) != RVM_SUCCESS) {
+ 			status = -1;
+ 			msg_type = retval;
+-			goto err_exit;
++			goto exit;
+ 		}
+ 	if (default_log == NULL) {
+ 		status 	 = -1;
+ 		msg_type = RVM_ELOG;
+-		goto err_exit;
++		goto exit;
+ 	}
+ 	(void)BCOPY((char *)rvm_region,(char *)&save_rvm_region,
+ 		    sizeof(rvm_region_t));
+@@ -1115,14 +1117,14 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 	if (retval != RVM_SUCCESS) {
+ 		status 	 = -1;
+ 		msg_type = retval;
+-		goto err_exit;
++		goto exit;
+ 	}
+ 	if (seg == NULL) {
+ 		/* must build a new segment */
+ 		if ((seg=build_seg(rvm_region,default_log,&retval)) == NULL) {
+ 			status = -1;
+ 			msg_type = M0_BE_INTERNAL;
+-			goto err_exit;
++			goto exit;
+ 		}
+ 		seg->dev.stob = seg_hdr->seg_stob;
+ 	}
+@@ -1131,7 +1133,7 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 		if (seg->dev.handle == 0) {
+ 			status 	 = -1;
+ 			msg_type = RVM_EIO;
+-			goto err_exit;
++			goto exit;
+ 		}
+ 	}
+ 
+@@ -1140,7 +1142,7 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 	if (retval != RVM_SUCCESS) {
+ 		status 	 = -1;
+ 		msg_type = retval;
+-		goto err_exit;
++		goto exit;
+ 	}
+ 
+ 	/* check for overlap with existing mappings in segment, check
+@@ -1148,7 +1150,7 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 	if ((retval = chk_dependencies(seg, region)) != RVM_SUCCESS) {
+ 		status 	 = -1;
+ 		msg_type = retval;
+-		goto err_exit;
++		goto exit;
+ 	}
+ 
+ 	/* complete region tree node */
+@@ -1160,7 +1162,7 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 		if ( fd < 0 ) {
+ 			status   = -1;
+ 			msg_type = RVM_EIO;
+-			goto err_exit;
++			goto exit;
+ 		}
+ 		addr = mmap(rvm_region->vmaddr,
+ 			    rvm_region->length,
+@@ -1174,12 +1176,12 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 		if (addr != rvm_region->vmaddr) {
+ 			status = -1;
+ 			msg_type = RVM_ENOT_MAPPED;
+-			goto err_exit;
++			goto exit;
+ 		}
+ 		if (close(fd)) {
+ 			status 	 = -1;
+ 			msg_type = RVM_EIO;
+-			goto err_exit;
++			goto exit;
+ 		}
+ 	}
+ 	else {
+@@ -1201,12 +1203,11 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 		if (retval != RVM_SUCCESS) {
+ 			status = -1;
+ 			msg_type = retval;
+-			goto err_exit;
++			goto exit;
+ 		}
+ 	}
+ 
+-	return RVM_SUCCESS;
+-err_exit:
++exit:
+ 	if (region_saved) {
+ 		clean_up(region, mem_region);
+ 		(void)BCOPY((char *)&save_rvm_region, (char *)rvm_region,
+diff --git a/rvm/rvm_private.h b/rvm/rvm_private.h
+index 41ec385..97c932e 100644
+--- a/rvm/rvm_private.h
++++ b/rvm/rvm_private.h
+@@ -1109,29 +1109,6 @@ typedef struct
+     }
+ int_tid_t;
+ 
+-/* rvm_map_cbdata */
+-typedef	struct rm_cbdata {
+-	struct m0_be_cbinfo	 rmc_cbinfo;
+-	rvm_region_t 		*rmc_rvm_region;
+-}rm_cbdata_t;
+-
+-/* read_stob_cbdata */
+-typedef	struct read_stob_cbdata {
+-	struct m0_be_cbinfo	  rsc_cbinfo;
+-	device_t		 *rsc_dev;
+-	void                  	**rsc_io_addr;
+-	m0_bindex_t            	*rsc_io_offset;
+-	m0_bcount_t            	*rsc_io_count;
+-	uint64_t		 rsc_nbytes;
+-}read_stob_cbdata_t;
+-
+-/* read_stob_cbdata */
+-typedef	struct launch_stob_io_cbdata {
+-	struct m0_be_cbinfo	 lsic_cbinfo;
+-	struct m0_clink		 lsic_clink;
+-	struct m0_stob_io     	 lsic_io;
+-}lsi_cbdata_t;
+-
+ /* definitions for tid flags field (also used in trans_hdr flags field */
+ #define RESTORE_FLAG        (2*RVM_COALESCE_TRANS)
+ #define FLUSH_FLAG          (2*RESTORE_FLAG)
+@@ -1342,6 +1319,13 @@ long cur_log_percent();                 /* [rvm_logstatus.c] */
+     rvm_offset_t    *space_nneded;
+ */
+ extern
++void rcl_write_dev_cb();
++/*   struct m0_be_cbinfo *cbinfo;
++     int                  status;
++     m0_be_msg_type_t msg_type;
++*/
++
++extern
+ void cur_log_length();                  /* [rvm_logstatus.c] */
+ /*  log_t           *log;
+     rvm_offset_t    *length;
+@@ -1357,8 +1341,9 @@ rvm_return_t flush_log_special();       /* [rvm_logflush.c] */
+ 
+ extern
+ rvm_return_t flush_log();               /* [rvm_logflush.c] */
+-/*  log_t           *log;
+-    long            *count;
++/*  log_t           	*log;
++    long            	*count;
++    struct m0_be_cbinfo *cbinfo;
+ */
+ extern
+ rvm_return_t locate_tail();             /* [rvm_logrecovr.c] */
+@@ -1509,7 +1494,8 @@ long mem_partial_include(tree_node_t *tnode1, tree_node_t *tnode2);
+ long mem_total_include(tree_node_t *tnode1, tree_node_t *tnode2);
+ region_t *find_whole_range(rvm_seg_hdr_t *seg_hdr, char *dest, rvm_length_t length, rw_lock_mode_t mode);
+ region_t *find_partial_range(rvm_seg_hdr_t *seg_hdr, char *dest, rvm_length_t length, long *code);
+-rvm_return_t rvm_map(rvm_seg_hdr_t *seg_hdr, rvm_region_t *rvm_region, rvm_options_t *rvm_options, struct m0_be_cbinfo *cbinfo);
++rvm_return_t rvm_map(rvm_seg_hdr_t *seg_hdr, rvm_region_t *rvm_region,
++                     rvm_options_t *rvm_options, struct m0_be_cbinfo *cbinfo);
+ 
+ 
+ /* segment dictionary functions */
+@@ -1557,6 +1543,10 @@ long read_stob();                        /* [rvm_io.c] */
+ */
+ extern
+ uint32_t launch_stob_io();               /* [rvm_io.c] */
++
++extern
++uint32_t launch_stob_io_new();               /* [rvm_io.c] */
++
+ /*
+  enum m0_stob_io_opcode  opcode;
+  uint32_t                io_nr;
+@@ -1756,5 +1746,117 @@ extern
+ void rvm_debug();                       /* [rvm_debug] */
+ /*  rvm_length_t    val; */
+ 
++/* Async support */
++
++/* rvm_initialize_cbdata */
++typedef struct ri_cbdata {
++        struct m0_be_cbinfo      ric_cbinfo;
++        rvm_options_t           *ric_rvm_options;
++        rvm_offset_t             ric_create_log_size;
++        long                     ric_create_log_mode;
++}ri_cbdata_t;
++
++/* rvm_create_log_cbdata */
++typedef struct rcl_cbdata {
++        struct m0_be_cbinfo      rclc_cbinfo;
++        log_t                   *rclc_log;
++        rvm_options_t           *rclc_rvm_options;
++        log_t                  **rclc_out_log_ptr;
++}rcl_cbdata_t;
++
++/* flush_log_cbdata */
++typedef struct fl_cbdata {
++        struct m0_be_cbinfo      flc_cbinfo;
++        log_t                   *flc_log;
++}fl_cbdata_t;
++
++/* log_tid_cbdata */
++typedef struct lt_cbdata {
++        struct m0_be_cbinfo      ltc_cbinfo;
++        log_t                   *ltc_log;
++	int_tid_t		*ltc_tid;
++}lt_cbdata_t;
++
++typedef struct rvm_cbdata {
++        struct m0_be_cbinfo      rvm_cbinfo;
++        const char              *rvm_version;
++        rvm_options_t           *rvm_options;
++}rvm_cbdata_t;
++
++/* rvm_map_cbdata */
++typedef	struct rm_cbdata {
++	struct m0_be_cbinfo	 rmc_cbinfo;
++	rvm_region_t 		*rmc_rvm_region;
++}rm_cbdata_t;
++
++/* read_stob_cbdata */
++typedef	struct read_stob_cbdata {
++	struct m0_be_cbinfo	  rsc_cbinfo;
++	device_t		 *rsc_dev;
++	void                  	**rsc_io_addr;
++	m0_bindex_t            	*rsc_io_offset;
++	m0_bcount_t            	*rsc_io_count;
++	uint64_t		 rsc_nbytes;
++}read_stob_cbdata_t;
++
++/* read_stob_cbdata */
++typedef	struct launch_stob_io_cbdata {
++	struct m0_be_cbinfo	 lsic_cbinfo;
++	struct m0_clink		 lsic_clink;
++	struct m0_stob_io     	 lsic_io;
++	rvm_length_t		 lsic_length;
++}lsi_cbdata_t;
+ 
++typedef struct rvm_tx_cbdata {
++       struct m0_be_cbinfo     rtc_cbinfo;
++       struct m0_clink         rtc_clink;
++       seg_dict_t             *rtc_seg_dict;
++       log_t                  *rtc_log;
++       int_tid_t              *rtc_tid;
++       int                     rtc_mode;
++       int                     rtc_io_len;
++       struct m0_stob_io       rtc_io;
++       void                  **rtc_io_addr;
++       m0_bindex_t            *rtc_io_offset;
++        m0_bcount_t            *rtc_io_count;
++        struct timeval          rtc_start_time;
++       struct timeval          rtc_end_time;
++}rvm_tx_cbdata_t;
++
++typedef struct log_recover_cbdata {
++        struct m0_be_cbinfo      lrc_cbinfo;
++        log_t                   *lrc_log;
++
++        /** Needed by log_recover_cb & apply_mods. */
++        rvm_length_t             lrc_new_1st_rec_num;
++        rvm_bool_t               lrc_is_daemon;
++        rvm_bool_t               lrc_is_update_done;
++        long                     lrc_seg_dict_len;
++        long                     lrc_curr_vec_index;
++
++        /** Needed by __update_seg_cb. */
++        uint32_t                 lrc_upd_seg_iter_remained;
++        uint32_t                 lrc_upd_seg_iter_cnt;
++        struct m0_stob          *lrc_stob;
++        seg_dict_t              *lrc_seg_dict;
++        m0_bindex_t             *lrc_io_offset;
++        m0_bcount_t             *lrc_io_count;
++        void                   **lrc_io_addr;
++}lrc_cbdata_t;
++
++/* wait_for_space_cbdata. */
++typedef struct wfs_cbdata {
++        struct m0_be_cbinfo      wfsc_cbinfo;
++        log_t                   *wfsc_log;
++        rvm_offset_t            *wfsc_space_needed;
++        rvm_offset_t            *wfsc_log_free;
++        rvm_bool_t              *wfsc_did_wait;
++}wfs_cbdata_t;
++
++
++void rvm_initialize_cb(struct m0_be_cbinfo *cbinfo, int status,
++                       m0_be_msg_type_t msg_type);
++
++void do_rvm_options_post_cb(struct m0_be_cbinfo *cbinfo, int status,
++                            m0_be_msg_type_t msg_type);
+ #endif /* __MERO_RVM_RVM_PRIVATE_H__ */
+diff --git a/rvm/rvm_status.c b/rvm/rvm_status.c
+index c534a86..25c0816 100644
+--- a/rvm/rvm_status.c
++++ b/rvm/rvm_status.c
+@@ -22,6 +22,8 @@ Coda are listed in the file CREDITS.
+ */
+ 
+ #include "rvm/rvm_private.h"
++#include "be/handler.h"
++#include "lib/memory.h"
+ 
+ /* global variables */
+ extern log_t        *default_log;       /* default log descriptor ptr */
+@@ -107,15 +109,54 @@ rvm_return_t bad_options(rvm_options,chk_log_dev)
+ 
+     return RVM_SUCCESS;
+     }
++
++void do_rvm_options_cb(struct m0_be_cbinfo *cbinfo, int status,
++                                  m0_be_msg_type_t msg_type)
++{
++        ri_cbdata_t             *ri_cbdata;
++        rvm_options_t           *rvm_options;
++
++        if (status != 0)
++                goto err_exit;
++
++        M0_ASSERT(cbinfo != NULL);
++
++        ri_cbdata  = container_of(cbinfo, ri_cbdata_t, ric_cbinfo);
++        rvm_options = ri_cbdata->ric_rvm_options;
++
++        if (rvm_options != NULL)
++        {
++             /* set optimizations */
++             rvm_optimizations = rvm_options->flags & (RVM_ALL_OPTIMIZATIONS);
++             if (rvm_optimizations & RVM_COALESCE_TRANS)
++                  rvm_optimizations |= RVM_COALESCE_RANGES;
++
++             /* set mapping kind */
++             rvm_map_private = rvm_options->flags & RVM_MAP_PRIVATE;
++       }
++       printf("\nfunction : %s\n", __FUNCTION__);
++
++err_exit:
++        if (cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
++}
++
+ /* rvm options processing */
+-rvm_return_t do_rvm_options(rvm_options)
+-    rvm_options_t   *rvm_options;
+-    {
+-    log_t           *log;               /* log descriptor */
+-    rvm_return_t    retval;
++rvm_return_t do_rvm_options(rvm_options, cbinfo)
++    rvm_options_t        *rvm_options;
++    struct m0_be_cbinfo  *cbinfo;
++{
++    log_t                       *log;               /* log descriptor */
++    rvm_return_t                 retval;
++    int                          status = 0;
++    m0_be_msg_type_t             msg_type= M0_BE_SUCCESS;
++    ri_cbdata_t                 *ri_cbdata;
++    struct m0_be_cbinfo         *ri_cbinfo;
+ 
+     if (rvm_options != NULL)
+-        {
++    {
+         /* set up maximum read length for large transafers */
+         rvm_options->max_read_len =
+             CHOP_TO_SECTOR_SIZE(rvm_options->max_read_len);
+@@ -123,22 +164,27 @@ rvm_return_t do_rvm_options(rvm_options)
+             rvm_options->max_read_len = MAX_READ_LEN;
+         rvm_max_read_len = rvm_options->max_read_len;
+ 
+-        /* do log - modifying options */
+-        if ((retval=do_log_options(&log,rvm_options)) != RVM_SUCCESS)
+-            return retval;
++        M0_ALLOC_PTR(ri_cbdata);
++        M0_ASSERT(ri_cbdata != NULL);
+ 
+-        /* set optimizations */
+-        rvm_optimizations = rvm_options->flags & (RVM_ALL_OPTIMIZATIONS);
+-        if (rvm_optimizations & RVM_COALESCE_TRANS)
+-            rvm_optimizations |= RVM_COALESCE_RANGES;
+-
+-	/* set mapping kind */
+-	rvm_map_private = rvm_options->flags & RVM_MAP_PRIVATE;
+-        }
++        ri_cbdata->ric_rvm_options         = rvm_options;
+ 
++        ri_cbinfo                          = &ri_cbdata->ric_cbinfo;
++        m0_be_cbinfo_copy_helper(cbinfo, ri_cbinfo, do_rvm_options_cb);
+ 
+-    return RVM_SUCCESS;
++	printf("\n function : %s\n", __func__);
++        /* do log - modifying options */
++        if ((retval=do_log_options(&log,rvm_options, ri_cbinfo)) != RVM_SUCCESS)
++            return retval;
++    }
++    if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++        cbinfo->bc_pcbinfo->bc_cb != NULL) {
++           m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++           m0_free(ri_cbdata);
+     }
++    return RVM_SUCCESS;
++}
++
+ /* rvm_query */
+ rvm_return_t rvm_query(seg_hdr,rvm_options,rvm_region)
+     rvm_seg_hdr_t          *seg_hdr;
+diff --git a/rvm/rvm_trans.c b/rvm/rvm_trans.c
+index 0227378..ea480f9 100644
+--- a/rvm/rvm_trans.c
++++ b/rvm/rvm_trans.c
+@@ -25,6 +25,9 @@ Coda are listed in the file CREDITS.
+ #include <errno.h>
+ #include "rvm/rvm_private.h"
+ 
++#include "be/handler.h"
++#include "lib/memory.h"
++
+ /* global variables */
+ 
+ extern log_t        *default_log;       /* default log descriptor ptr */
+@@ -790,7 +793,7 @@ static rvm_return_t coalesce_trans(tid,q_tid)
+     UNLINK_NODES_OF(tid->range_tree,range_t,range)
+         {
+         /* merge the range into queued tid */
+-        if ((retval=merge_tid(q_tid,tid,range)) != RVM_SUCCESS)
++        if ((retval = merge_tid(q_tid,tid,range)) != RVM_SUCCESS)
+             return retval;
+         }
+ 
+@@ -834,73 +837,102 @@ static int_tid_t *get_queued_tid(tid)
+     return q_tid;
+     }
+ /* establish log entry for committing tid */
+-static rvm_return_t queue_tid(tid)
+-    int_tid_t       *tid;               /* tid to log */
+-    {
+-    log_t           *log = tid->log;    /* log descriptor */
+-    int_tid_t       *q_tid;             /* ptr to last queued tid */
+-    rvm_bool_t      flush_flag;
+-    rvm_return_t    retval;
++static rvm_return_t queue_tid(int_tid_t *tid, struct m0_be_cbinfo *cbinfo)
++{
++	log_t           	*log = tid->log;    /* log descriptor */
++	int_tid_t       	*q_tid;             /* ptr to last queued tid */
++	rvm_bool_t      	 flush_flag;
++	rvm_return_t    	 retval;
++	int			 status = 0;
++	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
++
++	/* make sure transaction not too large for log */
++	if ((retval = nv_io_size(tid,&tid->log_size)) != RVM_SUCCESS) {
++		status = -1;
++		msg_type = retval;
++		goto exit;
++	}
+ 
+-    /* make sure transaction not too large for log */
+-    if ((retval=nv_io_size(tid,&tid->log_size)) != RVM_SUCCESS)
+-        return retval;                  /* transaction too big to log */
++	if (init_unames() != 0) {
++		status = -1;
++		msg_type = RVM_EIO;
++		retval = RVM_EIO;
++		goto exit;
++	}
+ 
+-    if (init_unames() != 0)             /* update uname generator */
+-        return RVM_EIO;
+-    flush_flag = (rvm_bool_t)TID(FLUSH_FLAG); /* save flush flag */
++	flush_flag = (rvm_bool_t)TID(FLUSH_FLAG); /* save flush flag */
+ 
+-    /* queue tid for flush */
+-    CRITICAL(log->flush_list_lock,      /* begin flush_list_lock crit sec */
+-        {
+-	make_uname(&tid->commit_stamp);     /* record commit timestamp */
+-        /* test for transaction coalesce */
+-        if (TID(RVM_COALESCE_TRANS))
+-            {
+-            /* see if must initialize coalescing */
+-            if ((q_tid=get_queued_tid(tid)) == NULL)
+-                {
+-                if (flush_flag) goto enqueue; /* nothing to coalesce! */
++	/* queue tid for flush */
++	CRITICAL(log->flush_list_lock,      /* begin flush_list_lock crit sec */
++	{
++		make_uname(&tid->commit_stamp);     /* record commit timestamp */
++		/* test for transaction coalesce */
++		if (TID(RVM_COALESCE_TRANS)) {
++			/* see if must initialize coalescing */
++			if ((q_tid=get_queued_tid(tid)) == NULL) {
++				if (flush_flag)
++					goto enqueue; /* nothing to coalesce! */
++
++				/* initialize transaction merger by inserting copy of tid
++				with empty tree so that ranges get reordered by merge */
++
++				q_tid = (int_tid_t *)alloc_list_entry(int_tid_id);
++
++				if (q_tid == NULL) {
++					status = -1;
++					msg_type = RVM_ENO_MEMORY;
++					retval = RVM_ENO_MEMORY;
++					goto exit_crit;
++				}
++
++				BCOPY(tid,q_tid,sizeof(int_tid_t));
++				init_tree_root(&q_tid->range_tree);
++				RVM_ZERO_OFFSET(q_tid->log_size);
++
++				/* array now owned by q_tid */
++				tid->x_ranges = NULL;
++				(void)move_list_entry(NULL, &log->flush_list,
++						      &q_tid->links);
++			}
++
++			/* merge ranges of tid with previously queued tid(s) */
++			retval = coalesce_trans(tid,q_tid);
++			goto exit_crit;
++		}
++		/* save new values if necessary and queue */
++		if (!flush_flag)
++			if (tid->range_tree.n_nodes != 0)
++				if ((retval = save_all_nvs(tid)) != RVM_SUCCESS) {
++					/* too big for heap */
++					status = -1;
++					msg_type = retval;
++					goto exit_crit;
++				}
++
++/* enqueue new tid */
++enqueue:
++			(void)move_list_entry(NULL,&log->flush_list,&tid->links);
+ 
+-                /* initialize transaction merger by inserting copy of tid
+-                   with empty tree so that ranges get reordered by merge */
+-                if ((q_tid=(int_tid_t *)alloc_list_entry(int_tid_id)) == NULL)
+-                    {
+-                    retval = RVM_ENO_MEMORY;
+-                    goto exit;
+-                    }
+-                BCOPY(tid,q_tid,sizeof(int_tid_t));
+-                init_tree_root(&q_tid->range_tree);
+-                RVM_ZERO_OFFSET(q_tid->log_size);
+-                tid->x_ranges = NULL; /* array now owned by q_tid */
+-                (void)move_list_entry(NULL,&log->flush_list,
+-                                      &q_tid->links);
+-                }
++exit_crit:;
++	});                             /* end flush_list_lock crit sec */
+ 
+-            /* merge ranges of tid with previously queued tid(s) */
+-            retval = coalesce_trans(tid,q_tid);
+-            goto exit;
+-            }
+-        /* save new values if necessary and queue */
+-        if (!flush_flag)
+-            if (tid->range_tree.n_nodes != 0)
+-                if ((retval = save_all_nvs(tid)) != RVM_SUCCESS)
+-                    goto exit;  /* too big for heap */
++	if (retval != RVM_SUCCESS)
++		goto exit;
+ 
+-        /* enqueue new tid */
+-enqueue:
+-        (void)move_list_entry(NULL,&log->flush_list,&tid->links);
++	/* flush log if commit requires */
++	if (flush_flag) {
++		retval = flush_log(log, &log->status.n_flush, cbinfo);
++	}
+ 
+-exit:;
+-        });                             /* end flush_list_lock crit sec */
+-    if (retval != RVM_SUCCESS) return retval;
++exit:
++	if ((!flush_flag || status != 0) && cbinfo != NULL &&
++	    cbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo, status, msg_type);
++        }
+ 
+-    /* flush log if commit requires */
+-    if (flush_flag)
+-        retval = flush_log(log,&log->status.n_flush);
++	return retval;
++}
+ 
+-    return retval;
+-    }
+ /* rvm_begin_transaction */
+ rvm_return_t rvm_begin_transaction(rvm_tid,mode)
+     rvm_tid_t           *rvm_tid;       /* ptr to rvm_tid */
+@@ -962,51 +994,77 @@ rvm_return_t rvm_abort_transaction(rvm_tid)
+     free_tid(tid);                      /* free transaction descriptor */
+     return RVM_SUCCESS;
+     }
++
+ /* rvm_end_transaction */
+-rvm_return_t rvm_end_transaction(rvm_tid,mode)
+-    rvm_tid_t       *rvm_tid;           /* ptr to transaction to commit */
+-    rvm_mode_t      mode;               /* end mode */
+-    {
+-    int_tid_t       *tid;               /* internal tid */
+-    log_t           *log;               /* log descriptor ptr */
+-    rvm_return_t    retval;
++rvm_return_t rvm_end_transaction(rvm_tid_t *rvm_tid, rvm_mode_t mode,
++				 struct m0_be_cbinfo *cbinfo)
++{
++	int_tid_t       *tid;               /* internal tid */
++	log_t           *log;               /* log descriptor ptr */
++	rvm_return_t     retval;
++	int 		 status = 0;
++	m0_be_msg_type_t msg_type = M0_BE_SUCCESS;
++	rvm_bool_t	 null_tid = rvm_false;
++
++	/* basic entry checks */
++	if (bad_init()) {
++		status = -1;
++		retval = RVM_EINIT;
++		msg_type = RVM_EINIT;
++		goto exit;
++	}
+ 
+-    /* basic entry checks */
+-    if (bad_init()) return RVM_EINIT;
+-    if ((mode != flush) && (mode != no_flush))
+-        return RVM_EMODE;
+-    if ((tid = get_tid(rvm_tid)) == NULL) /* begin tid_lock crit section */
+-        return RVM_ETID;
++	if ((mode != flush) && (mode != no_flush)) {
++		status = -1;
++		retval = RVM_EMODE;
++		msg_type = RVM_EMODE;
++		goto exit;
++	}
+ 
+-    /* remove tid from log's tid_list */
+-    log = tid->log;
+-    CRITICAL(log->dev_lock,		/* begin dev_lock crit section */
+-    {
+-	CRITICAL(log->tid_list_lock,	/* unlink tid from log's tid_list*/
+-		 move_list_entry(&log->tid_list,NULL,&tid->links));
+-        if (mode == flush)              /* record flush mode and count */
++	if ((tid = get_tid(rvm_tid)) == NULL) {
++		status = -1;
++		retval = RVM_ETID;
++		msg_type = RVM_ETID;
++		goto exit;
++	}
++
++	/* remove tid from log's tid_list */
++	log = tid->log;
++	CRITICAL(log->dev_lock,		/* begin dev_lock crit section */
+ 	{
+-            tid->flags |= FLUSH_FLAG;
+-            log->status.n_flush_commit++;
++		CRITICAL(log->tid_list_lock,	/* unlink tid from log's tid_list*/
++		move_list_entry(&log->tid_list,NULL,&tid->links));
++		if (mode == flush) {              /* record flush mode and count */
++			tid->flags |= FLUSH_FLAG;
++			log->status.n_flush_commit++;
++		}
++		else
++			log->status.n_no_flush_commit++;
++	});					/* end tid_list_lock crit section */
++	tid->commit_stamp.tv_sec = 1;       /* temporary mark */
++	rw_unlock(&tid->tid_lock,w);        /* end tid_lock crit section */
++
++	/* kill null tids */
++	if ((rvm_optimizations != 0) && (tid->range_tree.n_nodes == 0)) {
++		rvm_tid->tid = NULL;
++		free_tid(tid);
++		null_tid = rvm_true;
++		goto exit;
+ 	}
+-        else
+-            log->status.n_no_flush_commit++;
+-    });					/* end tid_list_lock crit section */
+-    tid->commit_stamp.tv_sec = 1;       /* temporary mark */
+-    rw_unlock(&tid->tid_lock,w);        /* end tid_lock crit section */
+ 
+-    /* kill null tids */
+-    if ((rvm_optimizations != 0) && (tid->range_tree.n_nodes == 0))
+-        {
+-        rvm_tid->tid = NULL;
+-        free_tid(tid);
+-        return RVM_SUCCESS;
++	/* @todo - Need to do this ZERO_TIME(tid->commit_stamp) for the tid if
++	 * error occurs in queue_tid */;
++	/* build new value record(s) & flush if necessary */
++	if ((retval = queue_tid(tid, cbinfo)) != RVM_SUCCESS) {
++		status = -1;
++		msg_type = retval;
++	}
++
++exit:
++	if ((null_tid || status != 0) && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, status, msg_type);
+         }
+ 
+-    /* build new value record(s) & flush if necessary */
+-    if ((retval=queue_tid(tid)) != RVM_SUCCESS)
+-        ZERO_TIME(tid->commit_stamp);
+-    else
+-        rvm_tid->tid = NULL;
+-    return retval;
+-    }
++	return retval;
++}
+diff --git a/rvm/rvm_unmap.c b/rvm/rvm_unmap.c
+index e529680..5599930 100644
+--- a/rvm/rvm_unmap.c
++++ b/rvm/rvm_unmap.c
+@@ -61,6 +61,7 @@ rvm_return_t rvm_unmap(seg_hdr,rvm_region)
+     if ((region->vmaddr != rvm_region->vmaddr) ||
+         (region->length != rvm_region->length))
+         {
++	printf("\n\nhere only\n\n");
+         retval = RVM_ERANGE;
+         goto err_exit;
+         }
+diff --git a/rvm/ut/rvm.c b/rvm/ut/rvm.c
+index 500b720..903d39d 100644
+--- a/rvm/ut/rvm.c
++++ b/rvm/ut/rvm.c
+@@ -119,7 +119,7 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+ 	        Recov_Options.create_log_size = RVM_MK_OFFSET(0,20971520);
+         	Recov_Options.create_log_mode = 0600;
+ 
+-		ret = RVM_INIT(&Recov_Options);
++		ret = RVM_INIT(&Recov_Options, NULL);
+ 		if(ret == RVM_SUCCESS) {
+ 		       RVM_LOG(RVM_DEBUG,"Success in creating rvm log device \n");
+ 		 }
+-- 
+1.8.3.2
+

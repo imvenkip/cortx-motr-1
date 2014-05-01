@@ -1,0 +1,1101 @@
+From 1ffbd2047eb88c30d701842ad1bf82573553c901 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 25 Jun 2013 03:45:27 +0300
+Subject: [PATCH 211/290] be/tx_regmap: implemented, UT added
+
+---
+ be/seg.c          |   8 ++
+ be/seg.h          |  13 +-
+ be/tx_regmap.c    | 369 ++++++++++++++++++++++++++++++++++++++++++++++++--
+ be/tx_regmap.h    | 115 ++++++++++++++--
+ be/ut/main.c      |  11 +-
+ be/ut/tx_regmap.c | 392 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ lib/ext.c         |   9 ++
+ 7 files changed, 891 insertions(+), 26 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 2526d81..b80a537 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -568,6 +568,14 @@ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
+ 	return seg->bs_addr <= addr && addr < seg->bs_addr + seg->bs_size;
+ }
+ 
++M0_INTERNAL bool m0_be_reg_is_eq(const struct m0_be_reg *r1,
++				 const struct m0_be_reg *r2)
++{
++	return r1->br_seg == r2->br_seg &&
++	       r1->br_size == r2->br_size &&
++	       r1->br_addr == r2->br_addr;
++}
++
+ /** @} end of be group */
+ 
+ /*
+diff --git a/be/seg.h b/be/seg.h
+index c9fa911..a1d35a2 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -96,6 +96,8 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name);
+ 		.br_size = (size), \
+ 		.br_addr = (addr) })
+ 
++#define M0_BE_REG_PTR(seg, ptr)	M0_BE_REG((seg), sizeof *(ptr), (ptr))
++
+ M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
+ 
+ M0_INTERNAL int m0_be_seg_write(struct m0_be_seg *seg,
+@@ -107,6 +109,9 @@ M0_INTERNAL int m0_be_seg_bufvec_build(struct m0_be_seg *seg,
+ 				       struct m0_indexvec *iv,
+ 				       struct m0_bufvec *bv);
+ 
++M0_INTERNAL bool m0_be_reg_is_eq(const struct m0_be_reg *r1,
++				 const struct m0_be_reg *r2);
++
+ /*
+  * `reg' parameter is not const, because stob IO will update
+  * m0_be_reg::br_addr when a region is loaded/stored.
+@@ -114,7 +119,7 @@ M0_INTERNAL int m0_be_seg_bufvec_build(struct m0_be_seg *seg,
+ M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
+ 
+ #define M0_BE_PTR_GET(seg, op, ptr) \
+-	m0_be_reg_get(M0_BE_REG((seg), (sizeof *ptr), (ptr)), (op))
++	m0_be_reg_get(M0_BE_REG_PTR((seg), (ptr)), (op))
+ 
+ #define M0_BE_ARR_GET(seg, op, arr, nr) \
+ 	m0_be_reg_get(M0_BE_REG((seg), (sizeof arr[0]) * (nr), (arr)), (op))
+@@ -126,11 +131,17 @@ M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
+  */
+ M0_INTERNAL void m0_be_reg_get_fast(const struct m0_be_reg *reg);
+ 
++#define M0_BE_PTR_GET_FAST(seg, ptr) \
++	m0_be_reg_get_fast(M0_BE_REG_PTR((seg), (ptr)))
++
+ /**
+  * @pre m0_be__reg_is_pinned(reg)
+  */
+ M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg);
+ 
++#define M0_BE_PTR_PUT(seg, ptr) \
++	m0_be_reg_put(M0_BE_REG((seg), (sizeof *ptr), (ptr)))
++
+ /* Returns true iff all region's pages are pinned. */
+ M0_INTERNAL bool m0_be__reg_is_pinned(const struct m0_be_reg *reg);
+ 
+diff --git a/be/tx_regmap.c b/be/tx_regmap.c
+index ad45966..d91dde6 100644
+--- a/be/tx_regmap.c
++++ b/be/tx_regmap.c
+@@ -21,7 +21,9 @@
+ #include "be/tx_regmap.h"
+ #include "be/tx.h"
+ #include "lib/ext.h"    /* m0_ext */
+-#include "lib/errno.h"  /* EFAULT */
++#include "lib/errno.h"  /* ENOMEM */
++#include "lib/memory.h"	/* m0_alloc */
++#include "lib/assert.h"	/* M0_POST */
+ 
+ /**
+  * @addtogroup be
+@@ -29,42 +31,381 @@
+  * @{
+  */
+ 
+-#define REGD_EXT(rd) {                                                       \
+-	.e_start = (uint64_t)(rd)->rd_reg.br_addr,                           \
+-	.e_end   = (uint64_t)(rd)->rd_reg.br_addr + (rd)->rd_reg.br_size - 1 \
++/** @note don't forget to undefine this at the end of the file */
++#define REGD_EXT(rd) (struct m0_ext) {					    \
++	.e_start = (m0_bindex_t)(rd)->rd_reg.br_addr,			    \
++	.e_end   = (m0_bindex_t)(rd)->rd_reg.br_addr + (rd)->rd_reg.br_size \
+ }
+ 
+-M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm, size_t size_max)
++M0_INTERNAL bool m0_be_reg_d__invariant(const struct m0_be_reg_d *rd)
+ {
+-	return -EFAULT;
++	return rd->rd_reg.br_addr != NULL && rd->rd_reg.br_size > 0;
++}
++
++M0_INTERNAL bool m0_be_reg_d_is_in(const struct m0_be_reg_d *rd, void *ptr)
++{
++	M0_CASSERT(sizeof(m0_bindex_t) >= sizeof(ptr));
++	return m0_ext_is_in(&REGD_EXT(rd), (m0_bindex_t) ptr);
++}
++
++static bool be_reg_d_are_overlapping(const struct m0_be_reg_d *rd1,
++				     const struct m0_be_reg_d *rd2)
++{
++	return m0_ext_are_overlapping(&REGD_EXT(rd1), &REGD_EXT(rd2));
++}
++
++static bool be_reg_d_is_partof(const struct m0_be_reg_d *super,
++			       const struct m0_be_reg_d *sub)
++{
++	return m0_ext_is_partof(&REGD_EXT(super), &REGD_EXT(sub));
++}
++
++/**
++ * return address of the first byte inside the region.
++ * return NULL if region is empty
++ */
++static void *be_reg_d_fb(const struct m0_be_reg_d *rd)
++{
++	M0_PRE(rd != NULL);
++
++	return rd->rd_reg.br_size == 0 ? NULL : rd->rd_reg.br_addr;
++}
++
++/** return address of the byte before be_reg_d_fb(rd) */
++static void *be_reg_d_fb1(const struct m0_be_reg_d *rd)
++{
++	M0_PRE(rd != NULL);
++
++	return be_reg_d_fb(rd) == NULL ? NULL :
++	       (void *) ((uintptr_t) be_reg_d_fb(rd) - 1);
++}
++/**
++ * return address of the last byte inside the region.
++ * return NULL if region is empty
++ */
++static void *be_reg_d_lb(const struct m0_be_reg_d *rd)
++{
++	M0_PRE(rd != NULL);
++
++	return rd->rd_reg.br_size == 0 ? NULL :
++	       (char *) rd->rd_reg.br_addr + rd->rd_reg.br_size - 1;
++}
++
++static void *be_reg_d_lb1(const struct m0_be_reg_d *rd)
++{
++	M0_PRE(rd != NULL);
++
++	return be_reg_d_lb(rd) == NULL ? NULL :
++	       (void *) ((uintptr_t) be_reg_d_lb(rd) + 1);
++}
++
++static m0_bcount_t be_reg_d_size(const struct m0_be_reg_d *rd)
++{
++	M0_PRE(rd != NULL);
++
++	return rd->rd_reg.br_size;
++}
++
++static bool be_rdt_rd_is_in(const struct m0_be_reg_d_tree *rdt,
++			    const struct m0_be_reg_d *rd)
++{
++	return &rdt->brt_r[0] <= rd && rd <= &rdt->brt_r[rdt->brt_size];
++}
++
++M0_INTERNAL int m0_be_rdt_init(struct m0_be_reg_d_tree *rdt, size_t size_max)
++{
++	*rdt = (struct m0_be_reg_d_tree) {
++		.brt_size     = 0,
++		.brt_size_max = size_max,
++	};
++	M0_ALLOC_ARR(rdt->brt_r, rdt->brt_size_max);
++	M0_POST(ergo(rdt->brt_r != NULL, m0_be_rdt__invariant(rdt)));
++
++	return rdt->brt_r == NULL ? -ENOMEM : 0;
++}
++
++M0_INTERNAL void m0_be_rdt_fini(struct m0_be_reg_d_tree *rdt)
++{
++	M0_PRE(m0_be_rdt__invariant(rdt));
++	m0_free(rdt->brt_r);
++}
++
++M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt)
++{
++	size_t i;
++
++	if (rdt == NULL || rdt->brt_r == NULL ||
++	    rdt->brt_size > rdt->brt_size_max)
++		return false;
++	for (i = 0; i < rdt->brt_size; ++i)
++		if (!m0_be_reg_d__invariant(&rdt->brt_r[i]))
++			return false;
++	for (i = 0; i + 1 < rdt->brt_size; ++i) {
++		if ((char *) rdt->brt_r[i].rd_reg.br_addr >=
++		    (char *) rdt->brt_r[i + 1].rd_reg.br_addr)
++			return false;
++		if (be_reg_d_are_overlapping(&rdt->brt_r[i],
++					     &rdt->brt_r[i + 1]))
++			return false;
++	}
++	return true;
++}
++
++M0_INTERNAL size_t m0_be_rdt_size(const struct m0_be_reg_d_tree *rdt)
++{
++	return rdt->brt_size;
++}
++
++static size_t be_rdt_find_i(const struct m0_be_reg_d_tree *rdt, void *addr)
++{
++	struct m0_ext e;
++	m0_bindex_t   a = (m0_bindex_t) addr;
++	size_t	      i;
++
++	M0_CASSERT(sizeof(a) >= sizeof(addr));
++	/** @todo use binary search */
++	for (i = 0; i < rdt->brt_size; ++i) {
++		e = REGD_EXT(&rdt->brt_r[i]);
++		if (m0_ext_is_in(&e, a) || a < e.e_start)
++			break;
++	}
++	M0_POST(m0_be_rdt__invariant(rdt));
++	return i;
++}
++
++
++M0_INTERNAL struct m0_be_reg_d *
++m0_be_rdt_find(const struct m0_be_reg_d_tree *rdt, void *addr)
++{
++	struct m0_be_reg_d *rd;
++	size_t		    i;
++
++	M0_PRE(m0_be_rdt__invariant(rdt));
++
++	i = be_rdt_find_i(rdt, addr);
++	rd = i == rdt->brt_size ? NULL : &rdt->brt_r[i];
++
++	M0_POST(ergo(rd != NULL, be_rdt_rd_is_in(rdt, rd)));
++	return rd;
++}
++
++M0_INTERNAL struct m0_be_reg_d *
++m0_be_rdt_next(const struct m0_be_reg_d_tree *rdt, struct m0_be_reg_d *prev)
++{
++	struct m0_be_reg_d *rd;
++
++	M0_PRE(m0_be_rdt__invariant(rdt));
++	M0_PRE(prev != NULL);
++	M0_PRE(be_rdt_rd_is_in(rdt, prev));
++
++	rd = prev == &rdt->brt_r[rdt->brt_size - 1] ? NULL : ++prev;
++
++	M0_POST(ergo(rd != NULL, be_rdt_rd_is_in(rdt, rd)));
++	return rd;
++}
++
++M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree *rdt,
++			       const struct m0_be_reg_d *rd)
++{
++	size_t index;
++	size_t i;
++
++	M0_PRE(m0_be_rdt__invariant(rdt));
++	M0_PRE(m0_be_rdt_size(rdt) < rdt->brt_size_max);
++	M0_PRE(rd->rd_reg.br_size > 0);
++
++	index = be_rdt_find_i(rdt, be_reg_d_fb(rd));
++	++rdt->brt_size;
++	for (i = rdt->brt_size - 1; i > index; --i)
++		rdt->brt_r[i] = rdt->brt_r[i - 1];
++	rdt->brt_r[index] = *rd;
++
++	M0_POST(m0_be_rdt__invariant(rdt));
++}
++
++M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
++					      const struct m0_be_reg_d *rd)
++{
++	size_t index;
++	size_t i;
++
++	M0_PRE(m0_be_rdt__invariant(rdt));
++	M0_PRE(m0_be_rdt_size(rdt) > 0);
++
++	index = be_rdt_find_i(rdt, be_reg_d_fb(rd));
++	M0_ASSERT(m0_be_reg_is_eq(&rdt->brt_r[index].rd_reg, &rd->rd_reg));
++
++	for (i = index; i + 1 < rdt->brt_size; ++i)
++		rdt->brt_r[i] = rdt->brt_r[i + 1];
++	--rdt->brt_size;
++
++	M0_POST(m0_be_rdt__invariant(rdt));
++	return index == m0_be_rdt_size(rdt) ? NULL : &rdt->brt_r[index];
++}
++
++M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
++				  struct m0_be_regmap_callbacks *rm_cb,
++				  size_t size_max)
++{
++	int rc;
++
++	rc = m0_be_rdt_init(&rm->br_rdt, size_max);
++	rm->br_cb = *rm_cb;
++	M0_POST(ergo(rc == 0, m0_be_regmap__invariant(rm)));
++	return rc;
+ }
+ 
+ M0_INTERNAL void m0_be_regmap_fini(struct m0_be_regmap *rm)
+ {
++	M0_PRE(m0_be_regmap__invariant(rm));
++	m0_be_rdt_fini(&rm->br_rdt);
++}
++
++M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm)
++{
++	return rm != NULL && m0_be_rdt__invariant(&rm->br_rdt);
++}
++
++/** Delete all regions that are completely covered by the given region */
++static void be_regmap_del_all_completely_covered(struct m0_be_regmap *rm,
++						 struct m0_be_reg_d *rd)
++{
++	struct m0_be_reg_d *rdi;
++
++	if (rd == NULL || rd->rd_reg.br_size == 0)
++		return;
++
++	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
++
++	/* if it is an intersection and not complete coverage */
++	if (rdi != NULL && !be_reg_d_is_partof(rd, rdi))
++		rdi = m0_be_rdt_next(&rm->br_rdt, rdi);
++
++	/* delete all coverted regions */
++	while (rdi != NULL && be_reg_d_is_partof(rd, rdi)) {
++		rm->br_cb.brc_del(rdi);
++		rdi = m0_be_rdt_del(&rm->br_rdt, rdi);
++	}
++}
++
++static struct m0_be_reg_d *
++be_regmap_super(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
++{
++	struct m0_be_reg_d *rdi;
++
++	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
++	return rdi != NULL && be_reg_d_is_partof(rdi, rd) ? rdi : NULL;
++}
++
++static struct m0_be_reg_d *
++be_regmap_intersect_first(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
++{
++	struct m0_be_reg_d *rdi;
++
++	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_fb(rd));
++	return rdi != NULL && be_reg_d_size(rd) > 0 &&
++	       m0_be_reg_d_is_in(rdi, be_reg_d_fb(rd)) &&
++	       !m0_be_reg_d_is_in(rdi, be_reg_d_lb1(rd)) ? rdi : NULL;
++
++}
++
++static struct m0_be_reg_d *
++be_regmap_intersect_last(struct m0_be_regmap *rm, const struct m0_be_reg_d *rd)
++{
++	struct m0_be_reg_d *rdi;
++
++	rdi = m0_be_rdt_find(&rm->br_rdt, be_reg_d_lb(rd));
++	return rdi != NULL && be_reg_d_size(rd) > 0 &&
++	       !m0_be_reg_d_is_in(rdi, be_reg_d_fb1(rd)) &&
++	       m0_be_reg_d_is_in(rdi, be_reg_d_lb(rd)) ? rdi : NULL;
++}
++
++static void be_regmap_reg_d_cut(struct m0_be_regmap *rm,
++				struct m0_be_reg_d *rd,
++				m0_bcount_t cut_start,
++				m0_bcount_t cut_end)
++{
++	struct m0_be_reg *r;
++
++	M0_PRE(m0_be_reg_d__invariant(rd));
++	M0_PRE(rd->rd_reg.br_size > cut_start + cut_end);
++
++	r = &rd->rd_reg;
++
++	rm->br_cb.brc_cut(rd, cut_start, cut_end);
++
++	r->br_size -= cut_start;
++	r->br_addr = (char *) r->br_addr + cut_start;
++
++	r->br_size -= cut_end;
++
++	M0_POST(m0_be_reg_d__invariant(rd));
+ }
+ 
+-M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm, struct m0_be_reg_d r)
++M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
++				  struct m0_be_reg_d *rd)
+ {
++	struct m0_be_reg_d *rdi;
++
++	M0_PRE(m0_be_regmap__invariant(rm));
++	M0_PRE(rd != NULL);
++	M0_PRE(m0_be_reg_d__invariant(rd));
++
++	rdi = be_regmap_super(rm, rd);
++	if (rdi != NULL) {
++		/* old region completely absorbs the new */
++		rm->br_cb.brc_cpy(rdi, rd);
++	} else {
++		m0_be_regmap_del(rm, rd);
++		rm->br_cb.brc_add(rd);
++		m0_be_rdt_ins(&rm->br_rdt, rd);
++	}
++
++	M0_POST(m0_be_regmap__invariant(rm));
+ }
+ 
+-M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm, struct m0_be_reg_d r)
++M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
++				  struct m0_be_reg_d *rd)
+ {
++	struct m0_be_reg_d *rdi;
++	m0_bcount_t	    cut;
++
++	M0_PRE(m0_be_regmap__invariant(rm));
++	M0_PRE(rd != NULL);
++	M0_PRE(m0_be_reg_d__invariant(rd));
++
++	be_regmap_del_all_completely_covered(rm, rd);
++	rdi = be_regmap_intersect_first(rm, rd);
++	if (rdi != NULL) {
++		cut = be_reg_d_size(rdi);
++		cut -= (char *) be_reg_d_fb(rd) -
++		       (char *) be_reg_d_fb(rdi);
++		be_regmap_reg_d_cut(rm, rdi, 0, cut);
++	}
++	rdi = be_regmap_intersect_last(rm, rd);
++	if (rdi != NULL) {
++		cut = be_reg_d_size(rdi);
++		cut -= (char *) be_reg_d_lb(rdi) -
++		       (char *) be_reg_d_lb(rd);
++		be_regmap_reg_d_cut(rm, rdi, cut, 0);
++	}
+ }
+ 
+ M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_first(struct m0_be_regmap *rm)
+ {
+-	return NULL;
++	return m0_be_rdt_find(&rm->br_rdt, NULL);
+ }
+ 
+ M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_next(struct m0_be_regmap *rm,
+-						  struct m0_be_reg_d *r)
++						  struct m0_be_reg_d *prev)
+ {
+-	return NULL;
++	return m0_be_rdt_next(&rm->br_rdt, prev);
+ }
+ 
+-M0_INTERNAL size_t m0_be_regmap_size(struct m0_be_regmap *rm)
++M0_INTERNAL size_t m0_be_regmap_size(const struct m0_be_regmap *rm)
+ {
+-	return 0;
++	M0_PRE(m0_be_regmap__invariant(rm));
++	return m0_be_rdt_size(&rm->br_rdt);
+ }
+ 
+ M0_INTERNAL int tx_reg_cmp(const void *p0, const void *p1)
+@@ -96,6 +437,8 @@ M0_INTERNAL void tx_reg_ext(const struct m0_be_reg_d *rd, struct m0_ext *out)
+ 	out->e_end   = out->e_start + reg->br_size - 1;
+ }
+ 
++#undef REGD_EXT
++
+ /** @} end of be group */
+ 
+ /*
+diff --git a/be/tx_regmap.h b/be/tx_regmap.h
+index 8f2505d..938e18e 100644
+--- a/be/tx_regmap.h
++++ b/be/tx_regmap.h
+@@ -33,34 +33,129 @@ struct m0_ext;
+  */
+ 
+ struct m0_be_reg_d {
++	/** region's transaction */
+ 	struct m0_be_tx  *rd_tx;
+ 	m0_bindex_t       rd_idx;
+ 	struct m0_be_reg  rd_reg;
+ 	void             *rd_buf;
+ };
+ 
+-/* Regions tree node for tsearch(). */
+-struct m0_be_regdtree_node {
+-	struct m0_be_reg_d *bn_reg_d;
++/* Regions tree */
++struct m0_be_reg_d_tree {
++	size_t		    brt_size;
++	size_t		    brt_size_max;
++	struct m0_be_reg_d *brt_r;
++};
++
++struct m0_be_regmap_callbacks {
++	void (*brc_add)(const struct m0_be_reg_d *rd);
++	void (*brc_del)(const struct m0_be_reg_d *rd);
++	void (*brc_cpy)(const struct m0_be_reg_d *super,
++			const struct m0_be_reg_d *rd);
++	void (*brc_cut)(const struct m0_be_reg_d *rd,
++			m0_bcount_t cut_at_start,
++			m0_bcount_t cut_at_end);
+ };
+ 
+ struct m0_be_regmap {
+-	size_t size;
+-	size_t size_max;
++	struct m0_be_reg_d_tree	      br_rdt;
++	struct m0_be_regmap_callbacks br_cb;
++	/** XXX use it */
++	void			     *br_cb_data;
++};
++
++/**
++ * @todo TODO XXX remove it.
++ * Regions tree node for tsearch().
++ */
++struct m0_be_regdtree_node {
++	struct m0_be_reg_d *bn_reg_d;
+ };
+ 
+-M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm, size_t size_max);
++M0_INTERNAL bool m0_be_reg_d__invariant(const struct m0_be_reg_d *rd);
++M0_INTERNAL bool m0_be_reg_d_is_in(const struct m0_be_reg_d *rd, void *ptr);
++
++/**
++ * Initialize m0_be_reg_d tree.
++ *
++ * - memory allocation takes place only in this function;
++ * - m0_be_reg_d given to the m0_be_rdt_ins() will be copied to the tree;
++ * - m0_be_reg_d in the tree are ordered by a region start address;
++ * - there is no overlapping between regions in the tree;
++ * - regions in the tree have size > 0;
++ * - all fields of m0_be_reg_d except rd_reg are completely ignored in a tree
++ *   functions;
++ *
++ * Region is from the tree iff it is returned by m0_be_rdt_find(),
++ * m0_be_rdt_next(), m0_be_rdt_del().
++ */
++M0_INTERNAL int m0_be_rdt_init(struct m0_be_reg_d_tree *rdt, size_t size_max);
++/** Finalize m0_be_reg_d tree. Free all memory allocated */
++M0_INTERNAL void m0_be_rdt_fini(struct m0_be_reg_d_tree *rdt);
++M0_INTERNAL bool m0_be_rdt__invariant(const struct m0_be_reg_d_tree *rdt);
++/** Return current size of the tree, in number of m0_be_reg_d */
++M0_INTERNAL size_t m0_be_rdt_size(const struct m0_be_reg_d_tree *rdt);
++
++/**
++ * Find region by address.
++ *
++ * - find first m0_be_reg_d that contains byte with the given address or
++ * - first region after the given address or
++ * - get first region in the tree if the given address is NULL.
++ *
++ * @see m0_be_rdt_init(), m0_be_rdt_next().
++ */
++M0_INTERNAL struct m0_be_reg_d *
++m0_be_rdt_find(const struct m0_be_reg_d_tree *rdt, void *addr);
++/**
++ * Find next region after the given region.
++ *
++ * @param rdt m0_be_reg_d tree
++ * @param prev region to find after. Should be a region from the tree.
++ * @return NULL if prev is the last region in the tree or
++ *	   next region after the prev if it is not.
++ * @see m0_be_rdt_init().
++ */
++M0_INTERNAL struct m0_be_reg_d *
++m0_be_rdt_next(const struct m0_be_reg_d_tree *rdt, struct m0_be_reg_d *prev);
++
++/**
++ * Insert a region in the tree.
++ *
++ * @pre rd->rd_reg.br_size > 0
++ * @note rd will be copied to the tree.
++ * @see m0_be_rdt_init().
++ */
++M0_INTERNAL void m0_be_rdt_ins(struct m0_be_reg_d_tree *rdt,
++			       const struct m0_be_reg_d *rd);
++/**
++ * Delete a region from the tree.
++ *
++ * @param rdt m0_be_reg_d tree
++ * @param rd region to delete
++ * @return pointer to the next item after the deleted
++ * @return NULL if the last item was deleted
++ * @see m0_be_rdt_init().
++ */
++M0_INTERNAL struct m0_be_reg_d *m0_be_rdt_del(struct m0_be_reg_d_tree *rdt,
++					      const struct m0_be_reg_d *rd);
++
++M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
++				  struct m0_be_regmap_callbacks *rm_cb,
++				  size_t size_max);
+ M0_INTERNAL void m0_be_regmap_fini(struct m0_be_regmap *rm);
++M0_INTERNAL bool m0_be_regmap__invariant(const struct m0_be_regmap *rm);
+ 
++/* XXX add const */
+ M0_INTERNAL void m0_be_regmap_add(struct m0_be_regmap *rm,
+-				  struct m0_be_reg_d r);
++				  struct m0_be_reg_d *rd);
+ M0_INTERNAL void m0_be_regmap_del(struct m0_be_regmap *rm,
+-				  struct m0_be_reg_d r);
++				  struct m0_be_reg_d *rd);
+ 
+ M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_first(struct m0_be_regmap *rm);
+ M0_INTERNAL struct m0_be_reg_d *m0_be_regmap_next(struct m0_be_regmap *rm,
+-						  struct m0_be_reg_d *r);
+-M0_INTERNAL size_t m0_be_regmap_size(struct m0_be_regmap *rm);
++						  struct m0_be_reg_d *prev);
++M0_INTERNAL size_t m0_be_regmap_size(const struct m0_be_regmap *rm);
+ 
+ M0_INTERNAL int tx_reg_cmp(const void *p0, const void *p1);
+ M0_INTERNAL void tx_reg_ext(const struct m0_be_reg_d *rd, struct m0_ext *out);
+diff --git a/be/ut/main.c b/be/ut/main.c
+index e62a38c..57c8a35 100644
+--- a/be/ut/main.c
++++ b/be/ut/main.c
+@@ -30,6 +30,10 @@ extern void m0_be_ut_alloc_create_destroy(void);
+ extern void m0_be_ut_alloc_multiple(void);
+ extern void m0_be_ut_alloc_mt(void);
+ 
++extern void m0_be_ut_reg_d_tree(void);
++extern void m0_be_ut_regmap_simple(void);
++extern void m0_be_ut_regmap_random(void);
++
+ const struct m0_test_suite m0_be_ut = {
+ 	.ts_name = "be-ut",
+ 	.ts_tests = {
+@@ -39,8 +43,11 @@ const struct m0_test_suite m0_be_ut = {
+ 		{ "seg-write",      m0_be_ut_seg_write            },
+ 		{ "alloc-init",     m0_be_ut_alloc_init_fini      },
+ 		{ "alloc-create",   m0_be_ut_alloc_create_destroy },
+-		{ "alloc-multiple", m0_be_ut_alloc_multiple       },
+-		{ "alloc-mt",       m0_be_ut_alloc_mt             },
++		{ "alloc-multiple", m0_be_ut_alloc_multiple	  },
++		{ "alloc-mt",	    m0_be_ut_alloc_mt		  },
++		{ "reg_d_tree",	    m0_be_ut_reg_d_tree		  },
++		{ "regmap-simple",  m0_be_ut_regmap_simple	  },
++		{ "regmap-random",  m0_be_ut_regmap_random	  },
+ 		{ NULL, NULL }
+ 	}
+ };
+diff --git a/be/ut/tx_regmap.c b/be/ut/tx_regmap.c
+index a53fc77..6e6ed65 100644
+--- a/be/ut/tx_regmap.c
++++ b/be/ut/tx_regmap.c
+@@ -18,6 +18,398 @@
+  * Original creation date: 17-Jun-2013
+  */
+ 
++#include "be/tx_regmap.h"
++
++#include "ut/ut.h"	/* M0_UT_ASSERT */
++
++#include <stdio.h>	/* fflush */
++#include <stdlib.h>	/* rand_r */
++#include <string.h>	/* memcpy */
++
++/*
++#define LOGD(...) printf(__VA_ARGS__)
++*/
++#define LOGD(...)
++
++enum {
++	BE_UT_RDT_SIZE	  = 0x10,
++	BE_UT_RDT_R_SIZE  = 0x4,
++	BE_UT_RDT_ITER	  = 0x10000,
++};
++
++struct be_ut_rdt_reg_d {
++	struct m0_be_reg_d ur_rd;
++	bool		   ur_inserted;
++};
++
++static struct be_ut_rdt_reg_d  be_ut_rdt_rd[BE_UT_RDT_SIZE];
++static struct m0_be_reg_d_tree be_ut_rdt;
++
++static bool be_ut_reg_d_is_equal(const struct m0_be_reg_d *rd1,
++				 const struct m0_be_reg_d *rd2)
++{
++	return rd1->rd_reg.br_size == rd2->rd_reg.br_size &&
++	       rd1->rd_reg.br_addr == rd2->rd_reg.br_addr;
++}
++
++static int be_ut_rdt_del_find(int index)
++{
++	int i;
++
++	for (i = index + 1; i < BE_UT_RDT_SIZE; ++i) {
++		if (be_ut_rdt_rd[i].ur_inserted)
++			break;
++	}
++	return i;
++}
++
++static void be_ut_reg_d_tree_check(void)
++{
++	struct be_ut_rdt_reg_d *urd;
++	struct m0_be_reg_d     *rd;
++	int			i;
++	size_t			size = 0;
++
++	rd = m0_be_rdt_find(&be_ut_rdt, NULL);
++	for (i = 0; i < BE_UT_RDT_SIZE; ++i) {
++		urd = &be_ut_rdt_rd[i];
++		if (urd->ur_inserted) {
++			++size;
++			M0_UT_ASSERT(be_ut_reg_d_is_equal(rd, &urd->ur_rd));
++			rd = m0_be_rdt_next(&be_ut_rdt, rd);
++		}
++	}
++	M0_UT_ASSERT(rd == NULL);
++	M0_UT_ASSERT(size == m0_be_rdt_size(&be_ut_rdt));
++}
++
++void m0_be_ut_reg_d_tree(void)
++{
++	struct be_ut_rdt_reg_d *urd;
++	struct m0_be_reg_d     *rd;
++	unsigned		seed = 0;
++	m0_bcount_t		r_size;
++	void		       *r_addr;
++	int			rc;
++	int			i;
++	int			index;
++	int			del_i;
++
++	rc = m0_be_rdt_init(&be_ut_rdt, BE_UT_RDT_SIZE);
++	M0_UT_ASSERT(rc == 0);
++	for (i = 0; i < BE_UT_RDT_SIZE; ++i) {
++		r_size = rand_r(&seed) % BE_UT_RDT_R_SIZE + 1;
++		r_addr = (void *) (uintptr_t) (i * BE_UT_RDT_R_SIZE + 1);
++		be_ut_rdt_rd[i] = (struct be_ut_rdt_reg_d) {
++			.ur_rd = {
++				.rd_reg = M0_BE_REG(NULL, r_size, r_addr),
++			},
++			.ur_inserted = false,
++		};
++	}
++	be_ut_reg_d_tree_check();
++	for (i = 0; i < BE_UT_RDT_ITER; ++i) {
++		index = rand_r(&seed) % BE_UT_RDT_SIZE;
++		urd = &be_ut_rdt_rd[index];
++
++		if (!urd->ur_inserted) {
++			m0_be_rdt_ins(&be_ut_rdt, &urd->ur_rd);
++		} else {
++			del_i = be_ut_rdt_del_find(index);
++			rd = m0_be_rdt_del(&be_ut_rdt, &urd->ur_rd);
++			M0_UT_ASSERT(equi(del_i == BE_UT_RDT_SIZE, rd == NULL));
++			M0_UT_ASSERT(ergo(del_i != BE_UT_RDT_SIZE,
++					  be_ut_reg_d_is_equal(rd,
++						&be_ut_rdt_rd[del_i].ur_rd)));
++		}
++		urd->ur_inserted = !urd->ur_inserted;
++
++		be_ut_reg_d_tree_check();
++	}
++	m0_be_rdt_fini(&be_ut_rdt);
++}
++
++enum {
++	BE_UT_REGMAP_ITER   = 0x10000,
++	BE_UT_REGMAP_LEN    = 0x20,
++	BE_UT_REGMAP_R_SIZE = 0x10,
++};
++
++static struct m0_be_regmap be_ut_rm_regmap;
++static const unsigned	   be_ut_rm_unused = ~0;
++static unsigned		   be_ut_rm_data[BE_UT_REGMAP_LEN];
++static unsigned		   be_ut_rm_reg[BE_UT_REGMAP_LEN];
++static unsigned		   be_ut_rm_data_copy[BE_UT_REGMAP_LEN];
++static unsigned		   be_ut_rm_iteration;
++
++static void be_ut_rm_fill2(uintptr_t addr, m0_bcount_t size, unsigned value,
++			   bool fill_reg)
++{
++	uintptr_t i;
++
++	for (i = addr; i < addr + size; ++i) {
++		M0_UT_ASSERT(0 <= i && i < BE_UT_REGMAP_LEN);
++		M0_UT_ASSERT(equi(be_ut_rm_unused == be_ut_rm_data[i],
++				  be_ut_rm_unused != value));
++		be_ut_rm_data[i] = value;
++		if (fill_reg)
++			be_ut_rm_reg[i] = value;
++	}
++}
++
++static void be_ut_rm_fill(const struct m0_be_reg_d *rd, unsigned value,
++			  bool fill_reg)
++{
++	M0_PRE(m0_be_reg_d__invariant(rd));
++	be_ut_rm_fill2((uintptr_t) rd->rd_reg.br_addr,
++		       rd->rd_reg.br_size, value, fill_reg);
++}
++
++static void be_ut_rm_add_cb(const struct m0_be_reg_d *rd)
++{
++	be_ut_rm_fill(rd, be_ut_rm_iteration, true);
++}
++
++static void be_ut_rm_del_cb(const struct m0_be_reg_d *rd)
++{
++	be_ut_rm_fill(rd, be_ut_rm_unused, true);
++}
++
++static void be_ut_rm_cpy_cb(const struct m0_be_reg_d *super,
++			    const struct m0_be_reg_d *rd)
++{
++	be_ut_rm_fill(rd, be_ut_rm_unused, false);
++	be_ut_rm_fill(rd, be_ut_rm_iteration, false);
++}
++
++static void be_ut_rm_cut_cb(const struct m0_be_reg_d *rd,
++			    m0_bcount_t cut_at_start,
++			    m0_bcount_t cut_at_end)
++{
++	m0_bcount_t size;
++	uintptr_t   addr;
++
++	M0_PRE(m0_be_reg_d__invariant(rd));
++
++	size = rd->rd_reg.br_size;
++	addr = (uintptr_t) rd->rd_reg.br_addr;
++
++	if (cut_at_start != 0) {
++		be_ut_rm_fill2(addr, cut_at_start, be_ut_rm_unused, true);
++	}
++	if (cut_at_end != 0) {
++		be_ut_rm_fill2(addr + size - cut_at_end, cut_at_end,
++			       be_ut_rm_unused, true);
++	}
++}
++
++static struct m0_be_regmap_callbacks be_ut_rm_cb = {
++	.brc_add = be_ut_rm_add_cb,
++	.brc_del = be_ut_rm_del_cb,
++	.brc_cpy = be_ut_rm_cpy_cb,
++	.brc_cut = be_ut_rm_cut_cb,
++};
++
++static void be_ut_regmap_init(void)
++{
++	int rc;
++	int i;
++
++	rc = m0_be_regmap_init(&be_ut_rm_regmap, &be_ut_rm_cb,
++			       BE_UT_REGMAP_ITER);
++	M0_UT_ASSERT(rc == 0);
++	for (i = 0; i < BE_UT_REGMAP_LEN; ++i) {
++		be_ut_rm_data[i] = be_ut_rm_unused;
++		be_ut_rm_reg[i]	 = be_ut_rm_unused;
++	}
++	be_ut_rm_iteration = 0;
++}
++
++static void be_ut_regmap_fini(void)
++{
++	m0_be_regmap_fini(&be_ut_rm_regmap);
++}
++
++static void be_ut_regmap_reset(void)
++{
++	be_ut_regmap_fini();
++	be_ut_regmap_init();
++}
++
++static void be_ut_regmap_data_copy(void)
++{
++	memcpy(&be_ut_rm_data_copy, &be_ut_rm_data, sizeof be_ut_rm_data_copy);
++}
++
++static void be_ut_regmap_print_d(unsigned d, int i)
++{
++	if (d == be_ut_rm_unused) {
++		LOGD("%*s", 4, ".");
++	} else {
++		LOGD("%4.u", d);
++	}
++	LOGD("%c", i == BE_UT_REGMAP_LEN - 1 ? '\n' : ' ');
++}
++
++static void be_ut_regmap_data_cmp(const struct m0_be_reg_d *r,
++				  unsigned desired,
++				  bool nop)
++{
++	int i;
++
++	LOGD("save: ");
++	for (i = 0; i < BE_UT_REGMAP_LEN; ++i)
++		be_ut_regmap_print_d(be_ut_rm_data_copy[i], i);
++	LOGD("curr: ");
++	for (i = 0; i < BE_UT_REGMAP_LEN; ++i)
++		be_ut_regmap_print_d(be_ut_rm_data[i], i);
++	LOGD("    : ");
++	for (i = 0; i < BE_UT_REGMAP_LEN; ++i)
++		be_ut_regmap_print_d(i % 10, i);
++	fflush(stdout);
++
++	for (i = 0; i < BE_UT_REGMAP_LEN; ++i) {
++		M0_UT_ASSERT(ergo(nop,
++				  be_ut_rm_data[i] == be_ut_rm_data_copy[i]));
++		if (m0_be_reg_d_is_in(r, (void *) (uintptr_t) i)) {
++			M0_UT_ASSERT(ergo(!nop, be_ut_rm_data[i] == desired));
++		} else {
++			M0_UT_ASSERT(ergo(!nop, be_ut_rm_data[i] ==
++					  be_ut_rm_data_copy[i]));
++		}
++	}
++}
++
++static void be_ut_regmap_size_check(size_t desired_size)
++{
++	struct m0_be_reg_d *rd;
++	size_t		    size = 0;
++
++	for (rd = m0_be_regmap_first(&be_ut_rm_regmap); rd != NULL;
++	     rd = m0_be_regmap_next(&be_ut_rm_regmap, rd)) {
++		++size;
++	}
++	M0_UT_ASSERT(ergo(desired_size != 0, size == desired_size));
++	M0_UT_ASSERT(size == m0_be_regmap_size(&be_ut_rm_regmap));
++}
++
++/*
++ * There is one special case when m0_be_regmap_del() is no-op: when a new region
++ * is completely covered by existing and existing is larger than new at the
++ * beginning and at the end. For example, if new region is [5, 10) and in the
++ * tree there is a region [3, 12), then delete is no-op because delete operation
++ * will need additional credit m0_be_tx_credit.tc_reg_nr for the regions [3, 5)
++ * and [10, 12).
++ */
++static bool be_ut_regmap_nop(m0_bcount_t begin, m0_bcount_t end, bool do_insert)
++{
++	unsigned value;
++	int	 i;
++
++	if (do_insert)
++		return false;
++	if (begin == 0 || end + 1 == BE_UT_REGMAP_LEN)
++		return false;
++
++	value = be_ut_rm_reg[begin];
++	for (i = begin; i < end; ++i) {
++		if (be_ut_rm_reg[i] != value)
++			return false;
++	}
++	if (be_ut_rm_reg[begin - 1] != value || be_ut_rm_reg[end] != value)
++		return false;
++	return true;
++}
++
++/* do operation with range [begin, end) */
++static void be_ut_regmap_do(m0_bcount_t begin, m0_bcount_t end, bool do_insert)
++{
++	struct m0_be_reg_d rd;
++	unsigned	   desired;
++	bool		   nop;
++
++	M0_PRE(0 <= begin && begin <= BE_UT_REGMAP_LEN);
++	M0_PRE(0 <= end   && end   <= BE_UT_REGMAP_LEN);
++	M0_PRE(begin <= end);
++
++	++be_ut_rm_iteration;
++
++	LOGD("\ndo_insert = %s, begin = %lu, end = %lu, iteration = %u\n",
++	       do_insert ? "true" : "false", begin, end, be_ut_rm_iteration);
++
++	rd = (struct m0_be_reg_d ) {
++		.rd_reg = M0_BE_REG(NULL, end - begin,
++				    (void *) begin),
++	};
++
++	be_ut_regmap_data_copy();
++	nop = be_ut_regmap_nop(begin, end, do_insert);
++
++	/** XXX TODO check other fields of m0_be_reg_d */
++	if (do_insert)
++		m0_be_regmap_add(&be_ut_rm_regmap, &rd);
++	else
++		m0_be_regmap_del(&be_ut_rm_regmap, &rd);
++
++	desired = do_insert == 1 ? be_ut_rm_iteration : be_ut_rm_unused;
++	be_ut_regmap_data_cmp(&rd, desired, nop);
++	be_ut_regmap_size_check(0);
++}
++
++void m0_be_ut_regmap_simple(void)
++{
++	be_ut_regmap_init();
++
++	/* add and delete a single region */
++	be_ut_regmap_size_check(0);
++	be_ut_regmap_do(1, 10, true);
++	be_ut_regmap_size_check(1);
++	be_ut_regmap_do(1, 10, false);
++	be_ut_regmap_size_check(0);
++
++	be_ut_regmap_reset();
++
++	/* first region should not be deleted here */
++	be_ut_regmap_size_check(0);
++	be_ut_regmap_do(2, 10, true);
++	be_ut_regmap_size_check(1);
++	be_ut_regmap_do(3, 9, false);
++	be_ut_regmap_size_check(1);
++
++	be_ut_regmap_reset();
++
++	be_ut_regmap_size_check(0);
++	be_ut_regmap_do(1, 10, true);
++	be_ut_regmap_size_check(1);
++	be_ut_regmap_do(15, 20, true);
++	be_ut_regmap_size_check(2);
++	be_ut_regmap_do(9, 16, true);
++	be_ut_regmap_size_check(3);
++	be_ut_regmap_do(1, 20, false);
++	be_ut_regmap_size_check(0);
++
++	be_ut_regmap_fini();
++}
++
++void m0_be_ut_regmap_random(void)
++{
++	m0_bcount_t begin;
++	m0_bcount_t end;
++	unsigned    i;
++	unsigned    seed = 0;
++	int	    do_insert;
++
++	be_ut_regmap_init();
++	for (i = 0; i < BE_UT_REGMAP_ITER; ++i) {
++		begin = rand_r(&seed) % (BE_UT_REGMAP_LEN -
++					 BE_UT_REGMAP_R_SIZE - 1) + 1;
++		end = begin + rand_r(&seed) % BE_UT_REGMAP_R_SIZE + 1;
++		do_insert = rand_r(&seed) % 2;
++		be_ut_regmap_do(begin, end, do_insert == 1);
++	}
++	be_ut_regmap_fini();
++}
++
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/lib/ext.c b/lib/ext.c
+index 1337e8d..f8123ef 100644
+--- a/lib/ext.c
++++ b/lib/ext.c
+@@ -37,6 +37,15 @@ M0_INTERNAL bool m0_ext_is_in(const struct m0_ext *ext, m0_bindex_t index)
+ 	return ext->e_start <= index && index < ext->e_end;
+ }
+ 
++M0_INTERNAL bool m0_ext_are_overlapping(const struct m0_ext *e0,
++					const struct m0_ext *e1)
++{
++	struct m0_ext i;
++
++	m0_ext_intersection(e0, e1, &i);
++	return m0_ext_is_valid(&i);
++}
++
+ M0_INTERNAL bool m0_ext_is_partof(const struct m0_ext *super,
+ 				  const struct m0_ext *sub)
+ {
+-- 
+1.8.3.2
+

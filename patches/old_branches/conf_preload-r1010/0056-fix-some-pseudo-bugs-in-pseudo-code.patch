@@ -1,0 +1,176 @@
+From dbde58504f34d0e3023ba2ef6b3de6e45d9da59f Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 13 Mar 2012 17:27:16 +0200
+Subject: [PATCH 056/311] fix some pseudo-bugs in pseudo-code
+
++ confc.c: add cache_registry() helper function
++ confc.c: make g_confc.root to point to "generic" configuration object.
+  This simplifies the code (a bit) and root's "profile-ness" is never
+  needed anyway.
+---
+ conf/confc.c | 51 +++++++++++++++++++++++++--------------------------
+ conf/confc.h |  6 +++---
+ 2 files changed, 28 insertions(+), 29 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 838faf1..6bbc915 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -305,8 +305,8 @@
+  */
+ 
+ static struct {
+-	struct c2_conf_cache    cache;
+-	struct c2_conf_profile *root;
++	struct c2_conf_cache cache;
++	struct c2_conf_obj  *root;
+ } g_confc; /* `g_' for global variable */
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx)
+@@ -347,6 +347,9 @@ static inline struct c2_mutex * group_lock(void) {
+ static inline struct c2_mutex * cache_lock(void) {
+ 	return &g_confc.cache.cc_lock;
+ }
++static inline struct c2_conf_map * cache_registry(void) {
++	return &g_confc.cache.cc_registry;
++}
+ 
+ static inline struct c2_confc_ctx * to_ctx(struct c2_sm *mach)
+ {
+@@ -385,8 +388,7 @@ path_walk(struct c2_confc_ctx *ctx, enum c2_conf_status *status)
+ 	 *                  path_walk() registers ctx->fc_clink with
+ 	 *                  the channel(s) of loading object(s).
+ 	 */
+-	struct c2_conf_obj *obj =
+-		ctx->fc_path.p_origin ?: &g_confc.root->cp_obj;
++	struct c2_conf_obj *obj = ctx->fc_path.p_origin ?: g_confc.root;
+ 	struct c2_conf_pathcomp *comp = ctx->fc_path.p_comps;
+ 	size_t len = ctx->fc_path.p_len; /* number of components to go */
+ 	bool target_is_directory = false;
+@@ -487,11 +489,10 @@ static int cache_grow(const struct c2_conf_fetch_resp *resp)
+ 	 *         return -Exxx;
+ 	 *     }
+ 	 *
+-	 *     cached = c2_conf_map_lookup(&g_confc.cache.cc_registry,
+-	 *                                 &fetched->o_key,
++	 *     cached = c2_conf_map_lookup(cache_registry(), &fetched->o_key,
+ 	 *                                 fetched->o_val.ov_type);
+ 	 *     if (cached == NULL)
+-	 *         rc = cache_add(&g_confc.cache.cc_registry, fetched);
++	 *         rc = cache_add(fetched);
+ 	 *     else
+ 	 *         rc = object_enrich(cached, fetched);
+ 	 *
+@@ -510,28 +511,28 @@ static bool confc_is_initiated(void)
+ 	return g_confc.root != NULL;
+ }
+ 
+-int c2_confc_init(const char *profile,
+-		  const char *confd_addr, /* XXX unused */
++int c2_confc_init(const char *profile, const char *confd_addr,
+ 		  struct c2_sm_group *sm_group)
+ {
+ 	/*
+-	 * struct c2_conf_profile *root;
++	 * int                 ret;
++	 * struct c2_conf_obj *root;
+ 	 *
+ 	 * C2_PRE(!confc_is_initiated());
+ 	 * C2_PRE(profile != NULL && *profile != 0);
++	 * C2_PRE(confd_addr != NULL && *confd_addr != 0);
+ 	 * C2_PRE(sm_group != NULL);
+ 	 *
+ 	 * g_confc.cache.cc_group = sm_group;
+ 	 * c2_mutex_init(cache_lock());
+ 	 *
+-	 * c2_conf_map_init(&g_confc.cc_registry);
+-	 *
+-	 * root = allocate c2_conf_profile object;
+-	 * copy `profile' to root->cp_obj.co_key;
+-	 * c2_conf_map_add(&g_confc.cache.cc_registry, &root->cp_obj);
++	 * c2_conf_map_init(cache_registry());
++	 * root = c2_conf_obj_new(C2_CO_PROFILE, &(const struct c2_conf_buf)
++	 *                        C2_CONF_BUF_INIT(strlen(profile), profile));
++	 * c2_conf_map_add(cache_registry(), root);
+ 	 * g_confc.root = root;
+ 	 *
+-	 * C2_POST(confc_is_initiated());
++	 * C2_POST(equi(ret == 0, confc_is_initiated()));
+ 	 */
+ 	XXX;
+ 	/* XXX TODO: Consume `confd_addr'. */
+@@ -546,12 +547,12 @@ void c2_confc_fini(void)
+ 	 * c2_mutex_lock(group_lock());
+ 	 * c2_mutex_lock(cache_lock());
+ 	 *
+-	 * for (obj in g_confc.cache.cc_registry) {
++	 * for (obj in cache_registry()) {
+ 	 * 	C2_ASSERT(obj->co_nrefs == 0
+ 	 * 		&& obj->co_status != C2_CS_LOADING);
+ 	 * 	c2_free(obj);
+ 	 * }
+-	 * c2_confc_map_fini(&g_confc.cache.cc_registry);
++	 * c2_confc_map_fini(cache_registry());
+ 	 * g_confc.root = NULL;
+ 	 *
+ 	 * c2_mutex_unlock(cache_lock());
+@@ -898,7 +899,7 @@ object_enrich(struct c2_conf_obj *dest, const struct confx_object *src)
+ 	 *     c2_addb(report inconsistency);
+ 	 *     ret = -EMISMATCH; // XXX Can we use non-standard errno?
+ 	 * } else if (dest->co_status != C2_CS_READY) {
+-	 *     ret = c2_conf_obj_enrich(dest, src, &g_confc.cache.cc_registry);
++	 *     ret = c2_conf_obj_enrich(dest, src, cache_registry());
+ 	 * }
+ 	 *
+ 	 * obj->co_status = rc == 0 ? C2_CS_READY : C2_CS_MISSING;
+@@ -933,16 +934,14 @@ static bool ctx_invariant(struct c2_confc_ctx *ctx)
+  * Allocates new configuration object and sets its fields from the
+  * on-wire data.
+  *
+- * @param registry  Objid-to-address mapping.
+- * @param src       Configuration object as received from confd.
++ * @param src  Configuration object as received from confd.
+  */
+ static int
+-cache_add(struct c2_conf_map *registry, const struct confx_object *src)
++cache_add(const struct confx_object *src)
+ {
+ 	/*
+ 	 * struct c2_conf_obj *obj;
+-	 * struct _object_ops *ops;
+-	 * int rc;
++	 * int                 rc;
+ 	 *
+ 	 * C2_ASSERT(IS_IN_ARRAY(src->fo_val.v_type, object_ops));
+ 	 * ops = object_ops + src->fo_val.v_type;
+@@ -951,8 +950,8 @@ cache_add(struct c2_conf_map *registry, const struct confx_object *src)
+ 	 * if (obj == NULL)
+ 	 * 	return -ENOMEM;
+ 	 *
+-	 * rc = ops->oo_enrich(obj, src);
+-	 * rc = ?: c2_conf_map_add(registry, obj);
++	 * rc = c2_conf_obj_enrich(obj, src, cache_registry());
++	 * rc = ?: c2_conf_map_add(cache_registry(), obj);
+ 	 *
+ 	 * if (rc != 0)
+ 	 * 	c2_free(obj);
+diff --git a/conf/confc.h b/conf/confc.h
+index 50de48d..3ad3a02 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -309,9 +309,9 @@ struct c2_confc_dir;
+  * @param sm_group    State machine group to be associated with confc
+  *                    configuration cache.
+  *
+- * @pre  confc cache is not initiated
+- * @pre  sm_group != NULL
+- * @post confc cache is initiated
++ * @pre   confc cache is not initiated
++ * @pre   sm_group != NULL
++ * @post  equi(retval == 0, confc cache is initiated)
+  */
+ int c2_confc_init(const char *profile, const char *confd_addr,
+ 		  struct c2_sm_group *sm_group);
+-- 
+1.8.3.2
+

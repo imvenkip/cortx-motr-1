@@ -1,0 +1,69 @@
+From 5e596850144b0daaaa61e4fb6867198851efc0d8 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 20 Mar 2013 21:59:53 +0200
+Subject: [PATCH 45/63] rpc-ub: remove an excessive layer of abstraction
+
+We don't need no obfuscation.
+---
+ rpc/ub/ub.c | 36 +++++++++++++-----------------------
+ 1 file changed, 13 insertions(+), 23 deletions(-)
+
+diff --git a/rpc/ub/ub.c b/rpc/ub/ub.c
+index d1a3a30..bc2e7fd 100644
+--- a/rpc/ub/ub.c
++++ b/rpc/ub/ub.c
+@@ -264,29 +264,13 @@ static void ub_item_replied(struct m0_rpc_item *item)
+ 	M0_UB_ASSERT(m0_buf_eq(&resp->ur_data, &req->ur_data));
+ }
+ 
+-static int client_post(struct m0_fop *fop, struct m0_rpc_session *session)
+-{
+-	struct m0_rpc_item *item;
+-	int                 deadline = 0; /* XXX CONFIGUREME?
+-					   * (to test resend after timeout) */
+-	M0_PRE(fop != NULL);
+-	M0_PRE(session != NULL);
+-
+-	item              = &fop->f_item;
+-	item->ri_ops      = &ub_item_ops;
+-	item->ri_session  = session;
+-	item->ri_deadline = deadline;
+-	item->ri_prio     = M0_RPC_ITEM_PRIO_MID; /* XXX CONFIGUREME */
+-
+-	return m0_rpc_post(item);
+-}
+-
+ static void fop_send(struct m0_rpc_session *session, size_t seqn)
+ {
+-	struct m0_fop *fop;
+-	struct ub_req *req;
+-	int            rc;
+-	const char    *data = "RPC UB data";
++	struct m0_fop      *fop;
++	struct ub_req      *req;
++	struct m0_rpc_item *item;
++	int                 rc;
++	const char         *data = "RPC UB data";
+ 
+ 	fop = m0_fop_alloc(&m0_rpc_ub_req_fopt, NULL);
+ 	M0_UB_ASSERT(fop != NULL);
+@@ -295,8 +279,14 @@ static void fop_send(struct m0_rpc_session *session, size_t seqn)
+ 	req->ur_seqn = 0x12345678;
+ 	m0_buf_init(&req->ur_data, strdup(data), strlen(data));
+ 
+-	fop->f_item.ri_nr_sent_max = MAX_RETRIES;
+-	rc = client_post(fop, session);
++	item = &fop->f_item;
++	item->ri_nr_sent_max = MAX_RETRIES;
++	item->ri_ops         = &ub_item_ops;
++	item->ri_session     = session;
++	item->ri_deadline    = 0; /* XXX CONFIGUREME? */
++	item->ri_prio        = M0_RPC_ITEM_PRIO_MID; /* XXX CONFIGUREME */
++
++	rc = m0_rpc_post(item);
+ 	M0_UB_ASSERT(rc == 0);
+ 
+ 	m0_fop_put(fop);
+-- 
+1.8.3.2
+

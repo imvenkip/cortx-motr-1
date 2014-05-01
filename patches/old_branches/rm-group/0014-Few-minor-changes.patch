@@ -1,0 +1,102 @@
+From 900b1d1727c341aba864a5e69d82bd1aaee79804 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Mon, 2 Sep 2013 12:17:57 +0530
+Subject: [PATCH 14/24] Few minor changes.
+
+---
+ rm/rm.c       | 9 +++++----
+ rm/rm_fops.c  | 1 -
+ rm/ut/group.c | 8 +-------
+ rm/ut/rmut.c  | 3 ---
+ 4 files changed, 6 insertions(+), 15 deletions(-)
+
+diff --git a/rm/rm.c b/rm/rm.c
+index 4cffbdc..e819f6f 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -2218,9 +2218,9 @@ M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
+ 	M0_PRE(owner != NULL);
+ 	M0_PRE(loan != NULL);
+ 
+-	rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet);
++	rc = m0_rm_credit_dup(&loan->rl_credit, &cached);
+ 	if (rc == 0) {
+-		rc = m0_rm_credit_dup(&loan->rl_credit, &cached) ?:
++		rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_sublet) ?:
+ 			loan_check(owner, &owner->ro_sublet, cached);
+ 		if (rc == 0 && !credit_is_empty(cached)) {
+ 			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
+@@ -2228,8 +2228,9 @@ M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
+ 			M0_LOG(M0_INFO, "credit cached\n");
+ 		} else {
+ 			m0_free(cached);
+-			M0_LOG(M0_ERROR, "credit removal failed: rc [%d]\n",
+-			       rc);
++			if (rc != 0)
++				M0_LOG(M0_ERROR, "credit removal failed: "
++						 "rc [%d]\n", rc);
+ 		}
+ 	} else
+ 		M0_LOG(M0_ERROR, "credit allocation failed: rc [%d]\n", rc);
+diff --git a/rm/rm_fops.c b/rm/rm_fops.c
+index 51ace08..b97715e 100644
+--- a/rm/rm_fops.c
++++ b/rm/rm_fops.c
+@@ -116,7 +116,6 @@ static int rm_out_create(struct rm_out           **out,
+ 		m0_free(outreq);
+ 		goto out;
+ 	}
+-
+ 	*out = outreq;
+ out:
+ 	M0_RETURN(rc);
+diff --git a/rm/ut/group.c b/rm/ut/group.c
+index 9e219a7..0d60d28 100644
+--- a/rm/ut/group.c
++++ b/rm/ut/group.c
+@@ -136,9 +136,6 @@ static void group_borrow_run(enum rm_server srv_id)
+ static void server1_tests(void)
+ {
+ 	m0_chan_wait(&group_tests_clink[GROUP_BORROW_TEST1]);
+-#ifndef __KERNEL__
+-	printf("Server 1 borrowing\n");
+-#endif
+ 	group_borrow_run(SERVER_1);
+ 	group_borrow_verify(SERVER_1);
+ 
+@@ -149,9 +146,6 @@ static void server1_tests(void)
+ static void server2_tests(void)
+ {
+ 	m0_chan_wait(&group_tests_clink[GROUP_BORROW_TEST2]);
+-#ifndef __KERNEL__
+-	printf("Server 2 borrowing\n");
+-#endif
+ 	group_borrow_run(SERVER_2);
+ 	group_borrow_verify(SERVER_2);
+ 
+@@ -213,7 +207,7 @@ static void server_hier_config(void)
+ 	rm_ctx[SERVER_3].creditor_id = SERVER_INVALID;
+ 	rm_ctx[SERVER_3].debtor_id[0] = SERVER_1;
+ 	rm_ctx[SERVER_3].debtor_id[1] = SERVER_2;
+-	rm_ctx[SERVER_3].rc_debtors_nr = 1;
++	rm_ctx[SERVER_3].rc_debtors_nr = 2;
+ }
+ 
+ static void rm_group_utinit(void)
+diff --git a/rm/ut/rmut.c b/rm/ut/rmut.c
+index 063e9d9..f64c299 100644
+--- a/rm/ut/rmut.c
++++ b/rm/ut/rmut.c
+@@ -320,9 +320,6 @@ void loan_session_set(enum rm_server csrv_id,
+ 		    dcookie.co_generation ==
+ 			remote->rem_cookie.co_generation)
+ 			remote->rem_session = &rm_ctx[csrv_id].rc_sess[dsrv_id];
+-#ifndef __KERNEL__
+-	printf("Loan Session set:%p\n", remote->rem_session);
+-#endif
+ 	} m0_tl_endfor;
+ }
+ 
+-- 
+1.8.3.2
+

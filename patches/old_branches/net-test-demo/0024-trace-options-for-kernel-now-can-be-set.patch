@@ -1,0 +1,36 @@
+From 10f1369dbafb845ab6a256203ec8211bc7cb52df Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 31 Jan 2013 16:02:56 +0200
+Subject: [PATCH 24/79] trace options for kernel now can be set
+
+---
+ lib/linux_kernel/ktrace.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/lib/linux_kernel/ktrace.c b/lib/linux_kernel/ktrace.c
+index 1dc344e..5903841 100644
+--- a/lib/linux_kernel/ktrace.c
++++ b/lib/linux_kernel/ktrace.c
+@@ -35,11 +35,6 @@
+  * @{
+  */
+ 
+-static char *trace_immediate_mask = "all";
+-static char *trace_level	  = "debug+";
+-static char *trace_print_context  = "full";
+-
+-/*
+ static char *trace_immediate_mask;
+ module_param(trace_immediate_mask, charp, 0644);
+ MODULE_PARM_DESC(trace_immediate_mask,
+@@ -58,7 +53,6 @@ MODULE_PARM_DESC(trace_print_context,
+ 		 " controls whether to display additional trace point"
+ 		 " info, like subsystem, file, func, etc.; values:"
+ 		 " none, func, short, full");
+- */
+ 
+ static int set_trace_immediate_mask(void)
+ {
+-- 
+1.8.3.2
+

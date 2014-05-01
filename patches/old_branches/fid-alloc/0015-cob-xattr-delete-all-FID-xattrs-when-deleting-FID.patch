@@ -1,0 +1,130 @@
+From e4840b1f3bafb82fafa2e3bdf5829cfdd05a9fc1 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Mon, 1 Apr 2013 00:19:51 +0300
+Subject: [PATCH 15/15] cob/xattr: delete all FID' xattrs when deleting FID
+
+* add COB_EXPAND_EAKEY and COB_CTRACE_EAKEY macros
+* use COB_CTRACE_EAKEY in m0_cob_ea_iterator_get() and
+  m0_cob_ea_iterator_next()
+* use the same -ENOENT semantics for m0_cob_ea_iterator_get()
+  and m0_cob_ea_iterator_next()
+* insert code into m0_cob_delete() to remove all xattrs of
+  the object
+---
+ cob/cob.c | 56 ++++++++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 46 insertions(+), 10 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index d64c627..9743d79 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -43,10 +43,13 @@
+ 	COB_EXPAND_FID(obj, fid_member),                               \
+ 	(long long unsigned)(obj)->linkno_member
+ #define COB_EXPAND_NSKEY(k) COB_EXPAND_FIDNAM(k, cnk_pfid, cnk_name)
++#define COB_EXPAND_EAKEY(k) COB_EXPAND_FIDNAM(k, cek_fid, cek_name)
+ #define COB_EXPAND_OIKEY(k) COB_EXPAND_FIDLNK(k, cok_fid, cok_linkno)
+ #define COB_EXPAND_NSREC(k) COB_EXPAND_FIDLNK(k, cnr_fid, cnr_linkno)
+ #define COB_CTRACE_NSKEY(ctracer, fmt, k, ...)                         \
+ 	M0_ ## ctracer (fmt, COB_EXPAND_NSKEY(k), ## __VA_ARGS__)
++#define COB_CTRACE_EAKEY(ctracer, fmt, k, ...)                         \
++	M0_ ## ctracer (fmt, COB_EXPAND_EAKEY(k), ## __VA_ARGS__)
+ 
+ #include "lib/misc.h"   /* M0_SET0 */
+ #include "lib/cdefs.h"
+@@ -1302,13 +1305,16 @@ out:
+ 
+ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx)
+ {
+-	struct m0_cob_fabkey fabkey;
+-	struct m0_cob_omgkey omgkey;
+-	struct m0_cob_oikey  oikey;
+-	bool                 sdname;
+-	struct m0_db_pair    pair;
+-	struct m0_cob       *sdcob;
+-	int                  rc;
++	struct m0_cob_fabkey       fabkey;
++	struct m0_cob_omgkey       omgkey;
++	struct m0_cob_oikey        oikey;
++	bool                       sdname;
++	struct m0_db_pair          pair;
++	struct m0_cob             *sdcob;
++	struct m0_cob_ea_iterator  it;
++	struct m0_bitstring        empty = {.b_len = 0};
++	int                        rc;
++	int                        rci;
+ 
+ 	M0_PRE(m0_cob_is_valid(cob));
+ 	M0_PRE(cob->co_flags & M0_CA_NSKEY);
+@@ -1365,6 +1371,25 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_db_tx *tx)
+ 		 */
+ 		m0_table_delete(tx, &pair);
+ 		m0_db_pair_fini(&pair);
++
++		/* Delete all extended attributes. */
++		rci = m0_cob_ea_iterator_init(cob, &it, &empty, tx);
++		if (rci != 0) {
++			M0_LOG(M0_DEBUG, "ea iterator init: %d", rci);
++			goto out;
++		}
++		for (rci = m0_cob_ea_iterator_get(&it); rci == 0;
++		     rci = m0_cob_ea_iterator_next(&it)) {
++			m0_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_ea,
++					 it.ci_key,
++					 m0_cob_eakey_size(it.ci_key),
++					 NULL, 0);
++			M0_LOG(M0_DEBUG, "delete earec [%llx:%llx].%.*s",
++			       COB_EXPAND_EAKEY(it.ci_key));
++			m0_table_delete(tx, &pair);
++			m0_db_pair_fini(&pair);
++		}
++		m0_cob_ea_iterator_fini(&it);
+ 	}
+ out:
+ 	COB_FUNC_FAIL(DELETE, rc);
+@@ -1734,18 +1759,27 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
+ 
+ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
+ {
+-	return m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
++	int rc;
++	COB_CTRACE_EAKEY(ENTRY, "[%llx:%llx].%.*s", it->ci_key);
++
++	rc = m0_db_cursor_get(&it->ci_cursor, &it->ci_pair);
++	if (rc == 0 && !m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
++		rc = -ENOENT;
++
++	COB_CTRACE_EAKEY(LEAVE, "[%llx:%llx].%.*s, rc=%d", it->ci_key, rc);
++	return rc;
+ }
+ 
+ M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
+ {
+ 	int rc;
++	COB_CTRACE_EAKEY(ENTRY, "[%llx:%llx].%.*s", it->ci_key);
+ 
+ 	rc = m0_db_cursor_next(&it->ci_cursor, &it->ci_pair);
+-
+ 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cek_fid, it->ci_cob->co_fid))
+-		return -ENOENT;
++		rc = -ENOENT;
+ 
++	COB_CTRACE_EAKEY(LEAVE, "[%llx:%llx].%.*s, rc=%d", it->ci_key, rc);
+ 	return rc;
+ }
+ 
+@@ -1760,9 +1794,11 @@ M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it)
+ 
+ /** @} end group cob */
+ 
++#undef COB_CTRACE_EAKEY
+ #undef COB_CTRACE_NSKEY
+ #undef COB_EXPAND_NSREC
+ #undef COB_EXPAND_OIKEY
++#undef COB_EXPAND_EAKEY
+ #undef COB_EXPAND_NSKEY
+ #undef COB_EXPAND_FIDLNK
+ #undef COB_EXPAND_FIDNAM
+-- 
+1.8.3.2
+

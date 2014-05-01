@@ -1,0 +1,198 @@
+From 14cd0d7ed88132f9fb1254835b6b737b2bf880e4 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 28 Nov 2013 15:46:07 +0530
+Subject: [PATCH 26/50]  - Some fixes.
+
+---
+ fop/fom.c                   | 17 ++++++++++++-----
+ fop/fom.h                   | 25 ++++++-------------------
+ fop/fop.c                   |  1 +
+ ioservice/io_foms.c         | 24 ++++++++++++++++++++++--
+ ioservice/io_fops.c         |  1 +
+ ioservice/io_service_addb.h |  1 +
+ 6 files changed, 43 insertions(+), 26 deletions(-)
+
+diff --git a/fop/fom.c b/fop/fom.c
+index a638c82..d62653a 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -1124,6 +1124,8 @@ void m0_fom_fini(struct m0_fom *fom)
+ 		m0_sm_stats_post(&fom->fo_sm_state, &reqh->rh_addb_mc,
+ 				M0_FOM_ADDB_CTX_VEC(fom));
+ 		m0_addb_sm_counter_fini(&fom->fo_sm_state_stats);
++		if (fom->fo_sched_epoch != 0)
++			m0_addb_sm_counter_fini(&fom->fo_sm_phase_stats);
+ 	}
+ 	m0_sm_fini(&fom->fo_sm_phase);
+ 	m0_sm_fini(&fom->fo_sm_state);
+@@ -1194,7 +1196,8 @@ void m0_fom_init(struct m0_fom *fom, struct m0_fom_type *fom_type,
+ 	}
+ 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
+ 		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
+-	fom->fo_sm_phase.sm_state_epoch = 0;
++	fom->fo_sm_phase.sm_state_epoch =
++		fom->fo_phase_stats_data == NULL ? 0 : m0_time_now();
+ }
+ M0_EXPORTED(m0_fom_init);
+ 
+@@ -1444,7 +1447,6 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
+ 	struct m0_sm_group             *fom_group;
+ 	struct m0_addb_ctx             *fom_addb_ctx = NULL;
+ 	const struct m0_sm_conf        *conf;
+-	struct m0_addb_sm_counter      *phase_cntr;
+ 	bool                            phase_stats_enabled;
+ 
+ 	M0_PRE(fom != NULL);
+@@ -1464,7 +1466,6 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
+ 
+ 	/* Preserve these across the call to m0_sm_init(). */
+ 	phase_stats_enabled = fom->fo_sm_phase.sm_state_epoch != 0;
+-	phase_cntr = fom->fo_sm_phase.sm_addb_stats;
+ 
+ 	m0_sm_init(&fom->fo_sm_phase, conf, M0_FOM_PHASE_INIT, fom_group);
+ 	m0_sm_init(&fom->fo_sm_state, &fom_states_conf, M0_FOS_INIT, fom_group);
+@@ -1476,8 +1477,14 @@ M0_INTERNAL void m0_fom_sm_init(struct m0_fom *fom)
+ 					sizeof(fom->fo_fos_stats_data));
+ 		m0_sm_stats_enable(&fom->fo_sm_state,
+ 				   &fom->fo_sm_state_stats);
+-		if (phase_stats_enabled)
+-			m0_sm_stats_enable(&fom->fo_sm_phase, phase_cntr);
++		if (phase_stats_enabled) {
++			m0_addb_sm_counter_init(&fom->fo_sm_phase_stats,
++						&m0_addb_rt_fom_phase_stats,
++						fom->fo_phase_stats_data,
++						fom->fo_phase_stats_data_size);
++			m0_sm_stats_enable(&fom->fo_sm_phase,
++					   &fom->fo_sm_phase_stats);
++		}
+ 	}
+ }
+ 
+diff --git a/fop/fom.h b/fop/fom.h
+index 73833ba..2d444b0 100644
+--- a/fop/fom.h
++++ b/fop/fom.h
+@@ -398,23 +398,6 @@ enum {
+ 		M0_FOS_TRANS_NR
+ };
+ 
+-/** @todo Need to remove duplication */
+-#undef M0_FOM_PHASE_STATS_HIST_ARGS
+-
+-#ifdef M0_FOM_PHASE_STATS_HIST_ARGS
+-#define M0_FOM_PHASE_STATS_HIST_ARGS2 0, M0_FOM_PHASE_STATS_HIST_ARGS
+-#else
+-#define M0_FOM_PHASE_STATS_HIST_ARGS2
+-#endif
+-enum {
+-	FOM_PHASE_STATS_DATA_SZ =
+-		(sizeof(struct m0_addb_counter_data) +
+-		  ((M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) > 0 ?
+-		    M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) + 1 : 0) *
+-                   sizeof(uint64_t))) *
+-		M0_FOS_TRANS_NR
+-};
+-
+ enum m0_fom_phase {
+ 	M0_FOM_PHASE_INIT,   /*< fom has been initialised. */
+ 	M0_FOM_PHASE_FINISH, /*< terminal phase. */
+@@ -572,8 +555,12 @@ struct m0_fom {
+ 
+ 	/** addb sm counter for states statistics */
+ 	struct m0_addb_sm_counter fo_sm_phase_stats;
+-	/** counter data for states statistics */
+-	uint8_t                   fo_phase_stats_data[FOM_PHASE_STATS_DATA_SZ];
++	/**
++         * counter data for states statistics
++         * fo_addb_init() allocates it.
++         */
++	uint8_t                   *fo_phase_stats_data;
++	uint32_t                   fo_phase_stats_data_size;
+ 
+ 	/** Thread executing current phase transition. */
+ 	struct m0_loc_thread     *fo_thread;
+diff --git a/fop/fop.c b/fop/fop.c
+index f241b2f..95d702d 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -254,6 +254,7 @@ M0_INTERNAL int m0_fops_init(void)
+ 	m0_addb_rec_type_register(&m0_addb_rt_fom_init);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fom_fini);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fom_state_stats);
++	m0_addb_rec_type_register(&m0_addb_rt_fom_phase_stats);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_run_times);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_sched_wait_times);
+ 	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 70b1595..f5155bb 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -607,12 +607,27 @@ static int net_buffer_release(struct m0_fom *);
+ 
+ static inline struct m0_addb_mc *fom_to_addb_mc(const struct m0_fom *fom);
+ 
++/** @todo Need to remove duplication */
++#undef M0_FOM_PHASE_STATS_HIST_ARGS
++
++#ifdef M0_FOM_PHASE_STATS_HIST_ARGS
++#define M0_FOM_PHASE_STATS_HIST_ARGS2 0, M0_FOM_PHASE_STATS_HIST_ARGS
++#else
++#define M0_FOM_PHASE_STATS_HIST_ARGS2
++#endif
++
+ enum {
+ 	IO_FOM_SPECIFIC_PHASE_TRANS_NR = 22,
++	IO_FOM_PHASE_TRANS_NR          =
++	M0_FOM_GENERIC_PHASES_TRANS_NR + IO_FOM_SPECIFIC_PHASE_TRANS_NR,
++        FOM_PHASE_STATS_DATA_SZ        =
++                (sizeof(struct m0_addb_counter_data) +
++                  ((M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) > 0 ?
++                    M0_COUNT_PARAMS(M0_FOM_PHASE_STATS_HIST_ARGS2) + 1 : 0) *
++                   sizeof(uint64_t))) *
++                IO_FOM_PHASE_TRANS_NR
+ };
+ 
+-#define IO_FOM_PHASE_TRANS_NR					\
+-	(M0_FOM_GENERIC_PHASES_TRANS_NR + IO_FOM_SPECIFIC_PHASE_TRANS_NR)
+ 
+ /**
+  * I/O FOM operation vector.
+@@ -2095,6 +2110,11 @@ static void m0_io_fom_cob_rw_addb_init(struct m0_fom *fom,
+ 			 rwfop->crw_fid.f_container, rwfop->crw_fid.f_key,
+ 			 rwfop->crw_desc.id_nr, rwfop->crw_flags);
+ 	m0_fom_op_addb_ctx_import(fom, &rwfop->crw_addb_ctx_id);
++
++	IOS_ALLOC_ARR(fom->fo_phase_stats_data, FOM_PHASE_STATS_DATA_SZ,
++		      &m0_ios_addb_ctx, FOM_COB_RW_ADDB_INIT);
++	if (fom->fo_phase_stats_data != NULL)
++		fom->fo_phase_stats_data_size = FOM_PHASE_STATS_DATA_SZ * 8;
+ }
+ 
+ /**
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index 861cc89..7344e99 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -226,6 +226,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
+ 			  m0_generic_conf.scf_nr_states);
+ 	m0_sm_conf_extend(m0_generic_conf.scf_state, cob_ops_phases,
+ 			  m0_generic_conf.scf_nr_states);
++	m0_sm_conf_init(&io_conf);
+ 	m0_sm_conf_trans_extend(m0_generic_conf.scf_trans, io_phases_trans,
+ 			        io_conf.scf_trans_nr);
+ #endif
+diff --git a/ioservice/io_service_addb.h b/ioservice/io_service_addb.h
+index ee5c853..2fc410d 100644
+--- a/ioservice/io_service_addb.h
++++ b/ioservice/io_service_addb.h
+@@ -156,6 +156,7 @@ enum {
+ 	M0_IOS_ADDB_LOC_CREATE_BUF_POOL,
+ 	M0_IOS_ADDB_LOC_SERVICE_ALLOC,
+ 	M0_IOS_ADDB_LOC_FOM_COB_RW_CREATE,
++	M0_IOS_ADDB_LOC_FOM_COB_RW_ADDB_INIT,
+ 	M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
+ 	M0_IOS_ADDB_LOC_ZERO_COPY_INITIATE_1,
+ 	M0_IOS_ADDB_LOC_ZERO_COPY_INITIATE_2,
+-- 
+1.8.3.2
+

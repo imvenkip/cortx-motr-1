@@ -1,0 +1,30 @@
+From 72698b33c5ba21b6cc0bcc3d313fc6cbed067fd7 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 21 Feb 2013 07:28:31 +0200
+Subject: [PATCH 73/99] corrected MODULE_PARM_DESC() names for net-test kernel
+ module
+
+---
+ net/test/linux_kernel/node_k.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/test/linux_kernel/node_k.c b/net/test/linux_kernel/node_k.c
+index 33f0e47..f90275c 100644
+--- a/net/test/linux_kernel/node_k.c
++++ b/net/test/linux_kernel/node_k.c
+@@ -33,10 +33,10 @@ static char	    *addr_console = NULL;
+ static unsigned long timeout = 3;
+ 
+ module_param(addr, charp, S_IRUGO);
+-MODULE_PARM_DESC(node_role, "endpoint address for node commands");
++MODULE_PARM_DESC(addr, "endpoint address for node commands");
+ 
+ module_param(addr_console, charp, S_IRUGO);
+-MODULE_PARM_DESC(node_role, "endpoint address for console commands");
++MODULE_PARM_DESC(addr_console, "endpoint address for console commands");
+ 
+ module_param(timeout, ulong, S_IRUGO);
+ MODULE_PARM_DESC(timeout, "command send timeout, seconds");
+-- 
+1.8.3.2
+

@@ -1,0 +1,100 @@
+From ce1b1984834063f5f0ab0461e137b57f5f264b9e Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 29 May 2013 14:45:59 +0300
+Subject: [PATCH 039/228] be/seg: fix and uncomment m0_be_seg_open(), add
+ missing headers
+
+---
+ be/seg.c | 44 +++++++++++++++++++++-----------------------
+ 1 file changed, 21 insertions(+), 23 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index ab285e1..de160fa 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -20,6 +20,10 @@
+ 
+ #include "be/seg.h"
+ #include "lib/assert.h"
++#include "lib/memory.h"  /* m0_alloc_aligned */
++#include "lib/misc.h"    /* M0_IN */
++#include "lib/errno.h"
++#include "stob/stob.h"
+ 
+ /**
+  * @addtogroup be
+@@ -27,10 +31,6 @@
+  * @{
+  */
+ 
+-#include "be/seg.h"
+-#include "lib/misc.h"  /* M0_IN */
+-#include "stob/stob.h"
+-
+ #define BE_SEG_DEFAULT_ADDR   ((void *)0x0708000000000000)
+ #define BE_SEG_DEFAULT_OFFSET (0ULL)
+ 
+@@ -134,27 +134,26 @@ bool m0_be__reg_invariant(const struct m0_be_reg *reg)
+ 
+ int m0_be_seg_open(struct m0_be_seg *seg)
+ {
+-#if 1 /*XXX*/
+-	return -1;
+-#else /*XXX*/
+-	struct m0_stob_io io;
+-	struct m0_clink   clink;
+-	int               rc;
+-	uint32_t          st_block_shift;
+-	size_t            st_block_size;
+-	m0_bcount_t       rdcnt[1];    /* sectors counts */
+-	m0_bcount_t       rdoffs[1];   /* offsets */
+-	be_seg_hdr       *hdrbuf[1];   /* read buffers */
+-	void             *rdbufpk[1];  /* "packed" addresses */
+-	void             *seg_addr0;
+-	m0_bcount_t       seg_size;
++	struct m0_stob_io  io;
++	struct m0_clink    clink;
++	int                rc;
++	uint32_t           st_block_shift;
++	size_t             st_block_size;
++	m0_bcount_t        rdcnt[1];    /* sectors counts */
++	m0_bcount_t        rdoffs[1];   /* offsets */
++	struct be_seg_hdr *hdrbuf[1];   /* read buffers */
++	void              *rdbufpk[1];  /* "packed" addresses */
++	void              *seg_addr0;
++	m0_bcount_t        seg_size;
+ 
+ 	/* Allocate buffer for STOB io. */
+ 	st_block_shift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
+ 	st_block_size = 1 << st_block_shift;
+-	rdcnt[0] = (sizeof(be_seg_hdr) + st_block_size - 1) / st_block_size;
+-	rdbuf[0] = m0_alloc_aligned(rdcnt[0] * st_block_size, st_block_shift);
+-	if (rdbuf[0] == NULL)
++	rdcnt[0] = (sizeof(struct be_seg_hdr) + st_block_size - 1) /
++		st_block_size;
++	hdrbuf[0] = m0_alloc_aligned(rdcnt[0] * st_block_size,
++				     st_block_shift);
++	if (hdrbuf[0] == NULL)
+ 		return -ENOMEM;
+ 
+ 	/* Set up io struct for reading. */
+@@ -182,7 +181,7 @@ int m0_be_seg_open(struct m0_be_seg *seg)
+ 		seg_addr0 = hdrbuf[0]->bh_addr;
+ 		seg_size  = hdrbuf[0]->bh_size;
+ 	}
+-	m0_free(rdbuf[0]);
++	m0_free(hdrbuf[0]);
+ 	m0_clink_del_lock(&clink);
+ 	m0_clink_fini(&clink);
+ 	m0_stob_io_fini(&io);
+@@ -190,7 +189,6 @@ int m0_be_seg_open(struct m0_be_seg *seg)
+ 
+ 	/* TODO: mmap an area at bh_addr of bh_size */
+ 	return 0;
+-#endif /*XXX*/
+ }
+ 
+ void m0_be_seg_close(struct m0_be_seg *seg)
+-- 
+1.8.3.2
+

@@ -1,0 +1,409 @@
+From fbe6986c94e9c87ff1d34d4157dce2b6a6a50b1e Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 16 May 2013 19:37:12 +0300
+Subject: [PATCH 4/4] rm/ut: refactor cached_credits_test() and
+ held_credits_test()
+
+Remove the noise:
+  - do *not* m0_rm_credit_init() just after m0_rm_incoming_init():
+    m0_rm_incoming_init() makes this call itself;
+  - do not M0_SET() m0_rm_incoming just before m0_rm_incoming_init():
+    this is the first thing that m0_rm_incoming_init() does.
+
+rm UT are the only available examples on how to use this complex API.
+Therefore, they should be exemplary and never be the source of noise.
+---
+ lib/cookie.c       |   2 +-
+ rm/rm.c            |   5 +-
+ rm/rm_service.c    |  15 +++++-
+ rm/ut/lcredits.c   | 133 ++++++++++++++++++++++++++---------------------------
+ rm/ut/rm_foms.c    |   1 -
+ rm/ut/rm_fops.c    |  30 +++++-------
+ rm/ut/rm_service.c |  36 +++++++--------
+ 7 files changed, 111 insertions(+), 111 deletions(-)
+
+diff --git a/lib/cookie.c b/lib/cookie.c
+index ae7b3ee..4ad4ee7 100644
+--- a/lib/cookie.c
++++ b/lib/cookie.c
+@@ -69,7 +69,7 @@ M0_INTERNAL int m0_cookie_global_init(void)
+ 	return m0_arch_cookie_global_init();
+ }
+ 
+-M0_INTERNAL void m0_cookie_new(uint64_t * gen)
++M0_INTERNAL void m0_cookie_new(uint64_t *gen)
+ {
+ 	M0_PRE(gen != NULL);
+ 
+diff --git a/rm/rm.c b/rm/rm.c
+index c47af42..465ee1c 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -413,13 +413,16 @@ static void resource_get(struct m0_rm_resource *res)
+ static void resource_put(struct m0_rm_resource *res)
+ {
+ 	struct m0_rm_resource_type *rtype = res->r_type;
+-	uint32_t		    count = res->r_ref;
++	uint32_t		    count;
+ 
+ 	M0_ENTRY("resource : %p", res);
++	M0_PRE(rtype != NULL);
++
+ 	m0_mutex_lock(&rtype->rt_lock);
+ 	count = res->r_ref;
+ 	M0_CNT_DEC(res->r_ref);
+ 	m0_mutex_unlock(&rtype->rt_lock);
++
+ 	M0_LOG(M0_DEBUG, "ref[%u -> %u]", count, count - 1);
+ 	M0_LEAVE();
+ }
+diff --git a/rm/rm_service.c b/rm/rm_service.c
+index 1494f55..702198f 100644
+--- a/rm/rm_service.c
++++ b/rm/rm_service.c
+@@ -41,7 +41,8 @@
+ #include "rm/rm_internal.h"
+ #include "rm/rm_service.h"
+ #include "rm/rm_fops.h"
+-#include "rm/ut/rings.h"
++
++/* XXX FIXME: This is really poor design decision to include a UT file. */
+ #include "rm/ut/rings.c"
+ 
+ M0_TL_DESCR_DEFINE(rmsvc_owner, "RM Service Owners", static, struct m0_rm_owner,
+@@ -199,9 +200,19 @@ static void rms_stop(struct m0_reqh_service *service)
+ 	m0_tl_for (rmsvc_owner, &rms->rms_owners, owner) {
+ 		M0_ASSERT(owner != NULL);
+ 		m0_tl_for(m0_remotes, &owner->ro_resource->r_remote, remote) {
+-			M0_ASSERT(remote != NULL);
+ 			m0_remotes_tlist_del(remote);
+ 			m0_rm_remote_fini(remote);
++			/*
++			 * DO NOT m0_free(remote) here!
++			 *
++			 * This would lead to a murky failure of "rm-ut:rmsvc"
++			 * test, caused by NULL resource type in resource_put().
++			 *
++			 * Steps to reproduce:
++			 *   $ m0 run-ut -t reqh-ut,reqh-service-ut,rm-ut \
++			 *         -m rm -e call+
++			 * Note, that "rm-ut" alone does not fail.
++			 */
+ 		} m0_tl_endfor;
+ 		m0_rm_owner_windup(owner);
+ 		m0_rm_owner_timedwait(owner, ROS_FINAL, M0_TIME_NEVER);
+diff --git a/rm/ut/lcredits.c b/rm/ut/lcredits.c
+index 58f5fcf..8229707 100644
+--- a/rm/ut/lcredits.c
++++ b/rm/ut/lcredits.c
+@@ -63,96 +63,91 @@ static void local_credits_fini(void)
+ 
+ static void cached_credits_test(enum m0_rm_incoming_flags flags)
+ {
+-	struct m0_rm_incoming next_in;
++	struct m0_rm_incoming *a = &test_data.rd_in;
++	struct m0_rm_incoming  b;
+ 
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+-			    M0_RIT_LOCAL, RIP_NONE, flags);
+-
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_want.cr_datum = NENYA;
+-	test_data.rd_in.rin_ops = &rings_incoming_ops;
++	m0_rm_incoming_init(a, &test_data.rd_owner, M0_RIT_LOCAL, RIP_NONE,
++			    flags);
++	a->rin_want.cr_datum = NENYA;
++	a->rin_ops = &rings_incoming_ops;
+ 	/*
+ 	 * 1. Test obtaining cached credit.
+ 	 */
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+-
+-	M0_SET0(&next_in);
+-	m0_rm_incoming_init(&next_in, &test_data.rd_owner,
+-			    M0_RIT_LOCAL, RIP_NONE, flags);
+-	next_in.rin_want.cr_datum = VILYA;
+-	next_in.rin_ops = &rings_incoming_ops;
+-
++	m0_rm_credit_get(a);
++	M0_UT_ASSERT(a->rin_rc == 0);
++	M0_UT_ASSERT(a->rin_sm.sm_state == RI_SUCCESS);
++
++	m0_rm_incoming_init(&b, &test_data.rd_owner, M0_RIT_LOCAL, RIP_NONE,
++			    flags);
++	b.rin_want.cr_datum = VILYA;
++	b.rin_ops = &rings_incoming_ops;
+ 	/*
+ 	 * 2. Test obtaining another cached credit.
+ 	 */
+-	m0_rm_credit_get(&next_in);
+-	M0_UT_ASSERT(next_in.rin_rc == 0);
+-	M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
++	m0_rm_credit_get(&b);
++	M0_UT_ASSERT(b.rin_rc == 0);
++	M0_UT_ASSERT(b.rin_sm.sm_state == RI_SUCCESS);
+ 
+-	m0_rm_credit_put(&test_data.rd_in);
+-	m0_rm_credit_put(&next_in);
++	m0_rm_credit_put(a);
++	m0_rm_credit_put(&b);
+ 
+-	m0_rm_incoming_fini(&test_data.rd_in);
+-	m0_rm_incoming_fini(&next_in);
++	m0_rm_incoming_fini(a);
++	m0_rm_incoming_fini(&b);
+ }
+ 
+ static void held_credits_test(enum m0_rm_incoming_flags flags)
+ {
+-	struct m0_rm_incoming next_in;
+-	struct m0_clink	      clink;
+-
+-	M0_SET0(&test_data.rd_in);
+-	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner,
+-			    M0_RIT_LOCAL, RIP_NONE, flags);
+-
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+-	test_data.rd_in.rin_want.cr_datum = NENYA;
+-	test_data.rd_in.rin_ops = &lcredits_incoming_ops;
+-
+-	m0_rm_credit_get(&test_data.rd_in);
+-	M0_UT_ASSERT(test_data.rd_in.rin_rc == 0);
+-	M0_UT_ASSERT(test_data.rd_in.rin_sm.sm_state == RI_SUCCESS);
+-
+-	M0_SET0(&next_in);
+-	m0_rm_incoming_init(&next_in, &test_data.rd_owner,
+-			    M0_RIT_LOCAL, RIP_NONE, flags);
+-	next_in.rin_want.cr_datum = NENYA;
+-	next_in.rin_ops = &lcredits_incoming_ops;
+-
++	struct m0_rm_incoming *a = &test_data.rd_in;
++	struct m0_rm_incoming  b;
++	struct m0_clink        clink;
++
++	m0_rm_incoming_init(a, &test_data.rd_owner, M0_RIT_LOCAL, RIP_NONE,
++			    flags);
++	a->rin_want.cr_datum = NENYA;
++	a->rin_ops = &lcredits_incoming_ops;
++	/*
++	 * 1. Seize the credit.
++	 */
++	m0_rm_credit_get(a);
++	M0_UT_ASSERT(a->rin_rc == 0);
++	M0_UT_ASSERT(a->rin_sm.sm_state == RI_SUCCESS);
++
++	m0_rm_incoming_init(&b, &test_data.rd_owner, M0_RIT_LOCAL, RIP_NONE,
++			    flags);
++	b.rin_want.cr_datum = NENYA;
++	b.rin_ops = &lcredits_incoming_ops;
+ 	/*
+-	 * 1. Try to obtain conflicting held credit.
++	 * 2. Try to obtain conflicting held credit.
+ 	 */
+-	m0_rm_credit_get(&next_in);
+-	M0_UT_ASSERT(ergo(flags == RIF_LOCAL_WAIT,
+-			  next_in.rin_sm.sm_state == RI_WAIT));
+-	M0_UT_ASSERT(ergo(flags == RIF_LOCAL_TRY,
+-			  next_in.rin_sm.sm_state == RI_FAILURE));
+-
+-	if (flags == RIF_LOCAL_WAIT) {
+-		m0_clink_init(&clink, NULL);
+-		m0_clink_add_lock(&lcredits_chan, &clink);
++	m0_rm_credit_get(&b);
++	if (flags == RIF_LOCAL_TRY) {
++		M0_UT_ASSERT(b.rin_sm.sm_state == RI_FAILURE);
++		m0_rm_credit_put(a);
++		goto out;
+ 	}
+ 
+-	/* First caller releases the credit */
+-	m0_rm_credit_put(&test_data.rd_in);
++	M0_ASSERT(flags == RIF_LOCAL_WAIT);
++	M0_UT_ASSERT(b.rin_sm.sm_state == RI_WAIT);
++	m0_clink_init(&clink, NULL);
++	m0_clink_add_lock(&lcredits_chan, &clink);
+ 
++	/* First caller releases the credit. */
++	m0_rm_credit_put(a);
+ 	/*
+-	 * 2. If the flag is RIF_LOCAL_WAIT, check if we get the credit
+-	 *    after the first caller releases it.
++	 * 3. Now we should be able to get the credit.
+ 	 */
+-	if (flags == RIF_LOCAL_WAIT) {
+-		M0_UT_ASSERT(m0_chan_timedwait(&clink, !0));
+-		M0_UT_ASSERT(next_in.rin_rc == 0);
+-		M0_UT_ASSERT(next_in.rin_sm.sm_state == RI_SUCCESS);
+-		m0_rm_credit_put(&next_in);
+-		m0_clink_del_lock(&clink);
+-		m0_clink_fini(&clink);
++	{
++		bool res = m0_chan_timedwait(&clink, 1);
++		M0_UT_ASSERT(res);
+ 	}
+-
+-	m0_rm_incoming_fini(&test_data.rd_in);
+-	m0_rm_incoming_fini(&next_in);
++	M0_UT_ASSERT(b.rin_rc == 0);
++	M0_UT_ASSERT(b.rin_sm.sm_state == RI_SUCCESS);
++	m0_rm_credit_put(&b);
++	m0_clink_del_lock(&clink);
++	m0_clink_fini(&clink);
++out:
++	m0_rm_incoming_fini(a);
++	m0_rm_incoming_fini(&b);
+ }
+ 
+ static void failures_test(void)
+diff --git a/rm/ut/rm_foms.c b/rm/ut/rm_foms.c
+index 735fddd..fc206ab 100644
+--- a/rm/ut/rm_foms.c
++++ b/rm/ut/rm_foms.c
+@@ -465,7 +465,6 @@ static void rvk_test_cleanup(void)
+ 	m0_tl_for(m0_rm_ur, &test_data.rd_owner.ro_borrowed, credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		loan = container_of(credit, struct m0_rm_loan, rl_credit);
+-		remote = loan->rl_other;
+ 		m0_rm_loan_fini(loan);
+ 		m0_free(loan);
+ 	} m0_tl_endfor;
+diff --git a/rm/ut/rm_fops.c b/rm/ut/rm_fops.c
+index 76ae698..dd50b37 100644
+--- a/rm/ut/rm_fops.c
++++ b/rm/ut/rm_fops.c
+@@ -18,10 +18,6 @@
+  * Original creation date: 07/23/2012
+  */
+ 
+-#ifdef HAVE_CONFIG_H
+-#include "config.h"
+-#endif
+-
+ #include "lib/errno.h"
+ #include "lib/memory.h"
+ #include "lib/misc.h"
+@@ -32,19 +28,17 @@
+ #include "rm/ut/rings.h"
+ #include "rm/rm_fops.c"          /* To access static APIs. */
+ 
+-static struct m0_rm_loan *test_loan;
+-static struct m0_rm_remote remote;
++static struct m0_rm_loan  *test_loan;
++static struct m0_rm_remote test_remote;
+ 
+ static void post_borrow_validate(int err);
+-static void borrow_reply_populate(struct m0_rm_fop_borrow_rep *breply,
+-				  int err);
++static void borrow_reply_populate(struct m0_rm_fop_borrow_rep *breply, int err);
+ static void post_borrow_cleanup(struct m0_rpc_item *item, int err);
+ static void borrow_fop_validate(struct m0_rm_fop_borrow *bfop);
+ static void post_revoke_validate(int err);
+ static void revoke_fop_validate(struct m0_rm_fop_revoke *rfop);
+ static void post_revoke_cleanup(struct m0_rpc_item *item, int err);
+-static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
+-				  int err);
++static void revoke_reply_populate(struct m0_fop_generic_reply *rreply, int err);
+ 
+ /*
+  *****************
+@@ -57,11 +51,8 @@ static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
+  */
+ static void request_param_init(enum m0_rm_incoming_type reqtype)
+ {
+-	M0_SET0(&test_data.rd_in);
+ 	m0_rm_incoming_init(&test_data.rd_in, &test_data.rd_owner, reqtype,
+ 			    RIP_NONE, RIF_LOCAL_WAIT);
+-
+-	m0_rm_credit_init(&test_data.rd_in.rin_want, &test_data.rd_owner);
+ 	test_data.rd_in.rin_want.cr_datum = NENYA;
+ 	test_data.rd_in.rin_ops = &rings_incoming_ops;
+ 
+@@ -76,14 +67,15 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
+ 			  test_data.rd_owner.ro_resource);
+ 	m0_cookie_init(&test_data.rd_owner.ro_creditor->rem_cookie,
+ 		       &test_data.rd_owner.ro_id);
++
++	test_remote.rem_state = REM_FREED;
++	m0_rm_remote_init(&test_remote, &test_data.rd_res.rs_resource);
++	m0_cookie_init(&test_remote.rem_cookie, &test_data.rd_owner.ro_id);
++
+ 	M0_ALLOC_PTR(test_loan);
+ 	M0_UT_ASSERT(test_loan != NULL);
+-	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+-	remote.rem_state = REM_FREED;
+-	m0_rm_remote_init(&remote, &test_data.rd_res.rs_resource);
+-	m0_cookie_init(&remote.rem_cookie, &test_data.rd_owner.ro_id);
+-	test_loan->rl_other = &remote;
+-	m0_rm_loan_init(test_loan, &test_data.rd_credit, &remote);
++	test_loan->rl_other = &test_remote;
++	m0_rm_loan_init(test_loan, &test_data.rd_credit, &test_remote);
+ 	m0_cookie_init(&test_loan->rl_cookie, &test_loan->rl_id);
+ }
+ 
+diff --git a/rm/ut/rm_service.c b/rm/ut/rm_service.c
+index d792d25..295b2b1 100644
+--- a/rm/ut/rm_service.c
++++ b/rm/ut/rm_service.c
+@@ -176,39 +176,39 @@ static void rm_client(const int tid)
+ 
+ void rmsvc(void)
+ {
+-	int rc;
++	int i;
+ 
+ 	m0_mutex_init(&rr_tests_chan_mutex);
+ 	m0_chan_init(&rr_tests_chan, &rr_tests_chan_mutex);
+ 
+-	for (rc = 0; rc <= 1; ++rc) {
+-		M0_SET0(&rm_ctx[rc]);
+-		rm_ctx[rc].rc_id = rc;
+-		rm_ctx[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
+-		rm_ctx[rc].rc_rmach_ctx.rmc_dbname = db_name[rc];
+-		rm_ctx[rc].rc_rmach_ctx.rmc_ep_addr = serv_addr[rc];
+-		m0_clink_init(&tests_clink[rc], NULL);
+-		m0_clink_add_lock(&rr_tests_chan, &tests_clink[rc]);
++	for (i = 0; i < 2; ++i) {
++		M0_SET0(&rm_ctx[i]);
++		rm_ctx[i].rc_id = i;
++		rm_ctx[i].rc_rmach_ctx.rmc_cob_id.id = cob_ids[i];
++		rm_ctx[i].rc_rmach_ctx.rmc_dbname = db_name[i];
++		rm_ctx[i].rc_rmach_ctx.rmc_ep_addr = serv_addr[i];
++		m0_clink_init(&tests_clink[i], NULL);
++		m0_clink_add_lock(&rr_tests_chan, &tests_clink[i]);
+ 	}
+ 
+ 	/* Start the server */
+-	rc = M0_THREAD_INIT(&server_ctx->rc_thr, int, NULL, &rm_svc_server, 0,
+-			    "rm_svc_%d", 0);
+-	M0_UT_ASSERT(rc == 0);
++	i = M0_THREAD_INIT(&server_ctx->rc_thr, int, NULL, &rm_svc_server, 0,
++			   "rm_svc_%d", 0);
++	M0_UT_ASSERT(i == 0);
+ 
+ 	/* Start client */
+-	rc = M0_THREAD_INIT(&client_ctx->rc_thr, int, NULL, &rm_client, 0,
+-			    "rm_cli_%d", 0);
+-	M0_UT_ASSERT(rc == 0);
++	i = M0_THREAD_INIT(&client_ctx->rc_thr, int, NULL, &rm_client, 0,
++			   "rm_cli_%d", 0);
++	M0_UT_ASSERT(i == 0);
+ 
+ 	m0_thread_join(&server_ctx->rc_thr);
+ 	m0_thread_join(&client_ctx->rc_thr);
+ 	m0_thread_fini(&server_ctx->rc_thr);
+ 	m0_thread_fini(&client_ctx->rc_thr);
+ 
+-	for (rc = 0; rc <= 1; ++rc) {
+-		m0_clink_del_lock(&tests_clink[rc]);
+-		m0_clink_fini(&tests_clink[rc]);
++	for (i = 0; i < 2; ++i) {
++		m0_clink_del_lock(&tests_clink[i]);
++		m0_clink_fini(&tests_clink[i]);
+ 	}
+ 
+ 	m0_chan_fini_lock(&rr_tests_chan);
+-- 
+1.8.3.2
+

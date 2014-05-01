@@ -1,0 +1,48 @@
+From 37d61503acea60a4fe6309e9cf8213146d137ac0 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 12 Jun 2013 11:22:32 +0300
+Subject: [PATCH 142/290] be/tx: initialize t_captured, t_prepared, t_used and
+ t_pos credits.
+
+---
+ be/tx.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/be/tx.c b/be/tx.c
+index 9bbccf8..09be17e 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -218,6 +218,13 @@ M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine)
+ 		  (tx_tlist_fini(&engine->te_txs[i]), true));
+ }
+ 
++static void be_tx_credit_init(struct m0_be_tx_credit *k)
++{
++	M0_PRE(k != NULL);
++	k->tc_reg_nr = 0;
++	k->tc_reg_size = 0;
++}
++
+ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 			       struct m0_be *be, struct m0_sm_group *tx_grp,
+ 			       m0_be_tx_cb_t persistent,
+@@ -225,11 +232,16 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ 			       void (*filler)(struct m0_be_tx *tx,
+ 					      void *payload, void *datum))
+ {
++	M0_PRE(tx != NULL);
+ 	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_INIT, tx_grp);
+ 	tx->t_id = tid;
+ 	tx->t_be = be;
+ 	tx->t_persistent = persistent;
+ 	tx->t_discarded  = discarded;
++	be_tx_credit_init(&tx->t_prepared);
++	be_tx_credit_init(&tx->t_captured);
++	be_tx_credit_init(&tx->t_used);
++	be_tx_credit_init(&tx->t_pos);
+ 	tx_tlink_init_at(tx, &tx_engine(tx)->te_txs[M0_BTS_INIT]);
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+-- 
+1.8.3.2
+

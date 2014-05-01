@@ -1,0 +1,25 @@
+From 05873f8beb8aafa5e43b907249856dcc5ace0ed5 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 11 Feb 2014 18:08:16 +0200
+Subject: [PATCH 41/60] rpc: 5 secs resend timeout seems to be good enough
+
+---
+ rpc/item.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rpc/item.h b/rpc/item.h
+index d551985..67f677f 100644
+--- a/rpc/item.h
++++ b/rpc/item.h
+@@ -112,7 +112,7 @@ enum m0_rpc_item_dir {
+ };
+ 
+ enum m0_rpc_item_resend {
+-	M0_RPC_ITEM_RESEND_INTERVAL = 20 /* in secs */
++	M0_RPC_ITEM_RESEND_INTERVAL = 5 /* in secs */
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

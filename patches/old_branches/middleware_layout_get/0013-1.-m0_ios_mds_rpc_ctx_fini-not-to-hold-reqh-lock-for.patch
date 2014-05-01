@@ -1,0 +1,108 @@
+From 4e4ee4809b1e09955ee81dd5f1c611d644997fd7 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 4 Mar 2013 18:13:50 +0800
+Subject: [PATCH 13/24] 1. m0_ios_mds_rpc_ctx_fini(), not to hold reqh lock for
+ rpc_client_stop() and net_domain_fini() 2. restore debug message to their
+ initial levels.
+
+---
+ ioservice/io_service.c   | 10 +++-------
+ ioservice/ut/bulkio_ut.c |  2 --
+ rpc/rpclib.c             |  6 ++++--
+ rpc/session_foms.c       |  4 ++--
+ 4 files changed, 9 insertions(+), 13 deletions(-)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 6beacf1..a19b04a 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -484,11 +484,9 @@ static int ios_start(struct m0_reqh_service *service)
+ 
+ void ios_prepare_to_stop(struct m0_reqh_service *service)
+ {
+-	M0_LOG(M0_FATAL, "ioservice PREPARE ......");
++	M0_LOG(M0_DEBUG, "ioservice PREPARE ......");
+ 	m0_ios_mds_rpc_ctx_fini(service);
+-	M0_LOG(M0_FATAL, "ioservice session/connection terminate fops sent");
+-	m0_nanosleep(m0_time(21,0), NULL);
+-	M0_LOG(M0_FATAL, "ioservice PREPARE STOPPED");
++	M0_LOG(M0_DEBUG, "ioservice PREPARE STOPPED");
+ }
+ 
+ /**
+@@ -698,15 +696,13 @@ M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
+ 		return;
+ 
+ 	m0_rwlock_write_lock(&reqh->rh_rwlock);
+-
+ 	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
+ 	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
++	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ 
+ 	m0_rpc_client_stop(rpc_client_ctx);
+ 	m0_net_domain_fini(&serv_obj->rios_cl_ndom);
+ 	m0_free(rpc_client_ctx);
+-
+-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
+ }
+ 
+ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh, struct m0_fid *gfid,
+diff --git a/ioservice/ut/bulkio_ut.c b/ioservice/ut/bulkio_ut.c
+index 77e3167..23b350a 100644
+--- a/ioservice/ut/bulkio_ut.c
++++ b/ioservice/ut/bulkio_ut.c
+@@ -1639,9 +1639,7 @@ static void bulkio_init(void)
+ 
+ static void bulkio_fini(void)
+ {
+-	M0_LOG(M0_FATAL, "client stopping");
+ 	bulkio_client_stop(bp->bp_cctx);
+-	M0_LOG(M0_FATAL, "client stopped");
+ 
+ 	bulkio_server_stop(bp->bp_sctx);
+ 	m0_addb_mc_fini(&m0_addb_gmc);
+diff --git a/rpc/rpclib.c b/rpc/rpclib.c
+index 9f093f4..0b7eb32 100644
+--- a/rpc/rpclib.c
++++ b/rpc/rpclib.c
+@@ -204,11 +204,13 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
+ 
+ 	M0_ENTRY("client_ctx: %p", cctx);
+ 
+-	rc0 = m0_rpc_session_destroy(&cctx->rcx_session, 0);
++	rc0 = m0_rpc_session_destroy(&cctx->rcx_session,
++				     m0_time_from_now(cctx->rcx_timeout_s, 0));
+ 	if (rc0 != 0)
+ 		M0_LOG(M0_ERROR, "Failed to terminate session %d", rc0);
+ 
+-	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection, 0);
++	rc1 = m0_rpc_conn_destroy(&cctx->rcx_connection,
++				  m0_time_from_now(cctx->rcx_timeout_s, 0));
+ 	if (rc1 != 0)
+ 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
+ 
+diff --git a/rpc/session_foms.c b/rpc/session_foms.c
+index abbebf4..6c69e4c 100644
+--- a/rpc/session_foms.c
++++ b/rpc/session_foms.c
+@@ -465,7 +465,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
+ 	m0_rpc_machine_unlock(machine);
+ 
+ 	reply->rstr_rc = rc;
+-	M0_LOG(M0_FATAL, "Session terminate %s: session [%p] rc [%d]",
++	M0_LOG(M0_INFO, "Session terminate %s: session [%p] rc [%d]",
+ 			(rc == 0) ? "successful" : "failed", session, rc);
+ 	/*
+ 	 * Note: request is received on SESSION_0, which is different from
+@@ -601,7 +601,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
+ 		if (rc == 0) /* connection is successfully terminated */
+ 			fop_rep->f_item.ri_ops = &conn_terminate_reply_item_ops;
+ 		m0_fom_phase_set(fom, M0_FOPH_FINISH);
+-		M0_LOG(M0_FATAL, "Conn terminate successful: conn [%p] %d",
++		M0_LOG(M0_DEBUG, "Conn terminate successful: conn [%p] %d",
+ 			conn, rc);
+ 		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+ 		M0_LEAVE();
+-- 
+1.8.3.2
+

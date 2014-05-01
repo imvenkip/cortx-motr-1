@@ -1,0 +1,894 @@
+From 4aced016b50186645d053340d61db6a306e5fdb6 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Tue, 21 May 2013 11:34:27 +0530
+Subject: [PATCH] s_senderID_m0_cookie
+
+struct m0_rpc_conn::c_sender_id is replaced with struct m0_cookie c_cookie
+---
+ lib/Kbuild.sub      |  1 +
+ lib/m0lib.c         |  3 ++
+ rpc/conn.c          | 88 ++++++++++++++++++++++++++++-------------------------
+ rpc/conn.h          |  6 ++--
+ rpc/conn_internal.h |  8 ++---
+ rpc/item.c          |  6 +++-
+ rpc/rpc_machine.c   |  5 +--
+ rpc/rpc_onwire.h    |  5 +--
+ rpc/session.c       | 10 +-----
+ rpc/session_foms.c  | 28 +++++------------
+ rpc/session_fops.h  | 35 +++++----------------
+ rpc/slot.c          | 16 +++++-----
+ rpc/ut/conn.c       | 30 ++++++++----------
+ rpc/ut/packet.c     |  5 ++-
+ rpc/ut/session.c    | 15 ---------
+ 15 files changed, 106 insertions(+), 155 deletions(-)
+
+diff --git a/lib/Kbuild.sub b/lib/Kbuild.sub
+index a4ad01f..9f2c62f 100644
+--- a/lib/Kbuild.sub
++++ b/lib/Kbuild.sub
+@@ -9,6 +9,7 @@ m0mero_objects += lib/assert.o \
+                   lib/chan.o \
+                   lib/cond.o \
+                   lib/cookie.o \
++		  lib/cookie_xc.o \
+                   lib/ext.o \
+                   lib/ext_xc.o \
+                   lib/finject.o \
+diff --git a/lib/m0lib.c b/lib/m0lib.c
+index d6a48ba..08b9d19 100644
+--- a/lib/m0lib.c
++++ b/lib/m0lib.c
+@@ -26,6 +26,7 @@
+ #include "lib/types_xc.h"
+ #include "lib/ext_xc.h"
+ #include "lib/string_xc.h"
++#include "lib/cookie_xc.h"
+ 
+ static void xc_types_init(void)
+ {
+@@ -35,10 +36,12 @@ static void xc_types_init(void)
+ 	m0_xc_vec_init();
+ 	m0_xc_ext_init();
+ 	m0_xc_string_init();
++	m0_xc_cookie_init();
+ }
+ 
+ static void xc_types_fini(void)
+ {
++	m0_xc_cookie_fini();
+ 	m0_xc_string_fini();
+ 	m0_xc_ext_fini();
+ 	m0_xc_vec_fini();
+diff --git a/rpc/conn.c b/rpc/conn.c
+index e8d739a..4923af8 100644
+--- a/rpc/conn.c
++++ b/rpc/conn.c
+@@ -28,6 +28,7 @@
+ #include "lib/arith.h"
+ #include "lib/finject.h"
+ #include "lib/uuid.h"
++#include "lib/cookie.h"
+ #include "cob/cob.h"
+ #include "fop/fop.h"
+ #include "db/db.h"
+@@ -41,7 +42,7 @@
+    This file implements functions related to m0_rpc_conn.
+  */
+ 
+-static const char conn_cob_name_fmt[] = "SENDER_%lu";
++static const char conn_cob_name_fmt[] = "SENDER_%lu%lu";
+ 
+ M0_INTERNAL struct m0_rpc_chan *rpc_chan_get(struct m0_rpc_machine *machine,
+ 					     struct m0_net_end_point *dest_ep,
+@@ -62,7 +63,6 @@ static void session_zero_detach(struct m0_rpc_conn *conn);
+    Creates "/SESSIONS/SENDER_$sender_id/SESSION_ID_0/SLOT_0:0" in cob namespace.
+  */
+ static int conn_persistent_state_attach(struct m0_rpc_conn *conn,
+-					uint64_t            sender_id,
+ 					struct m0_db_tx    *tx);
+ static void __conn_persistent_state_put(struct m0_rpc_conn *conn);
+ 
+@@ -199,26 +199,26 @@ M0_INTERNAL bool m0_rpc_conn_invariant(const struct m0_rpc_conn *conn)
+ 
+ 	switch (conn_state(conn)) {
+ 	case M0_RPC_CONN_INITIALISED:
+-		return  conn->c_sender_id == SENDER_ID_INVALID &&
++		return  m0_cookie_is_null(conn->c_cookie) &&
+ 			conn->c_nr_sessions == 1 &&
+ 			session_state(session0) == M0_RPC_SESSION_IDLE;
+ 
+ 	case M0_RPC_CONN_CONNECTING:
+-		return  conn->c_sender_id == SENDER_ID_INVALID &&
++		return  m0_cookie_is_null(conn->c_cookie) &&
+ 			conn->c_nr_sessions == 1;
+ 
+ 	case M0_RPC_CONN_ACTIVE:
+-		return  conn->c_sender_id != SENDER_ID_INVALID &&
++		return  !m0_cookie_is_null(conn->c_cookie) &&
+ 			conn->c_nr_sessions >= 1 &&
+ 			ergo(recv_end, conn->c_cob != NULL);
+ 
+ 	case M0_RPC_CONN_TERMINATING:
+ 		return  conn->c_nr_sessions == 1 &&
+-			conn->c_sender_id != SENDER_ID_INVALID;
++			!m0_cookie_is_null(conn->c_cookie);
+ 
+ 	case M0_RPC_CONN_TERMINATED:
+ 		return	conn->c_nr_sessions == 1 &&
+-			conn->c_sender_id != SENDER_ID_INVALID &&
++			!m0_cookie_is_null(conn->c_cookie) &&
+ 			conn->c_cob == NULL &&
+ 			conn->c_sm.sm_rc == 0;
+ 
+@@ -302,7 +302,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
+ 	}
+ 
+ 	conn->c_rpc_machine = machine;
+-	conn->c_sender_id   = SENDER_ID_INVALID;
++	conn->c_cookie      = M0_COOKIE_NULL;
+ 	conn->c_cob         = NULL;
+ 	conn->c_service     = NULL;
+ 	conn->c_nr_sessions = 0;
+@@ -600,10 +600,11 @@ M0_EXPORTED(m0_rpc_conn_establish_sync);
+ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
+ 				      m0_time_t abs_timeout)
+ {
+-	struct m0_fop         *fop;
+-	struct m0_rpc_session *session_0;
+-	struct m0_rpc_machine *machine;
+-	int                    rc;
++	struct m0_fop			 *fop;
++	struct m0_rpc_session		 *session_0;
++	struct m0_rpc_machine		 *machine;
++	int				  rc;
++	struct m0_rpc_fop_conn_establish *fop_data;
+ 
+ 	M0_ENTRY("conn: %p", conn);
+ 	M0_PRE(conn != NULL && conn->c_rpc_machine != NULL);
+@@ -627,10 +628,11 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
+ 	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_INITIALISED &&
+ 	          m0_rpc_conn_is_snd(conn));
+ 
+-	/* m0_rpc_fop_conn_establish FOP doesn't contain any data. */
+ 
+ 	session_0 = m0_rpc_conn_session0(conn);
+-
++	fop_data = m0_fop_data(fop);
++	m0_cookie_new(&conn->c_generation);
++	m0_cookie_init(&fop_data->rce_cookie, &conn->c_generation);
+ 	rc = m0_rpc__fop_post(fop, session_0, &conn_establish_item_ops,
+ 			      abs_timeout);
+ 	if (rc == 0)
+@@ -696,9 +698,9 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
+ 		rc    = reply->rcer_rc;
+ 	}
+ 	if (rc == 0) {
+-		M0_ASSERT(reply != NULL);
+-		if (reply->rcer_sender_id != SENDER_ID_INVALID) {
+-			conn->c_sender_id = reply->rcer_sender_id;
++		if (!m0_cookie_is_null(reply->rcer_cookie)) {
++			conn->c_cookie = reply->rcer_cookie;
++			M0_ASSERT(!m0_cookie_is_null(conn->c_cookie));
+ 			conn_state_set(conn, M0_RPC_CONN_ACTIVE);
+ 		} else
+ 			rc = -EPROTO;
+@@ -784,7 +786,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
+ 		M0_RETURN(0);
+ 	}
+ 	args = m0_fop_data(fop);
+-	args->ct_sender_id = conn->c_sender_id;
++	args->ct_cookie = conn->c_cookie;
+ 
+ 	session_0 = m0_rpc_conn_session0(conn);
+ 	rc = m0_rpc__fop_post(fop, session_0, &conn_terminate_item_ops,
+@@ -843,6 +845,7 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
+ {
+ 	struct m0_rpc_fop_conn_terminate_rep *reply;
+ 	struct m0_rpc_conn                   *conn;
++	struct m0_rpc_conn                   *conn_retrvd;
+ 	struct m0_rpc_machine                *machine;
+ 	struct m0_rpc_item                   *reply_item;
+ 	int32_t                               rc;
+@@ -865,11 +868,13 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
+ 		M0_ASSERT(reply_item != NULL &&
+ 			  item->ri_session == reply_item->ri_session);
+ 		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
++		M0_ASSERT(reply != NULL);
+ 		rc    = reply->ctr_rc;
+ 	}
+ 	if (rc == 0) {
+-		M0_ASSERT(reply != NULL);
+-		if (conn->c_sender_id == reply->ctr_sender_id)
++		conn_retrvd = m0_cookie_of(&reply->ctr_cookie,
++					   struct m0_rpc_conn, c_generation);
++		if (conn == conn_retrvd)
+ 			conn_state_set(conn, M0_RPC_CONN_TERMINATED);
+ 		else
+ 			rc = -EPROTO;
+@@ -884,21 +889,21 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
+ }
+ 
+ M0_INTERNAL int m0_rpc_conn_cob_lookup(struct m0_cob_domain *dom,
+-				       uint64_t sender_id,
++				       struct m0_uint128 c_uuid,
+ 				       struct m0_cob **out, struct m0_db_tx *tx)
+ {
+ 	struct m0_cob *root_session_cob;
+ 	char           name[SESSION_COB_MAX_NAME_LEN];
+ 	int            rc;
+ 
+-	M0_ENTRY("cob_dom: %p, sender_id: %llu", dom,
+-		 (unsigned long long)sender_id);
+-	M0_PRE(sender_id != SENDER_ID_INVALID);
++	M0_ENTRY("cob_dom: %p, uuid: %llu%llu", dom,
++		 (unsigned long long)c_uuid.u_hi,
++		 (unsigned long long)c_uuid.u_lo);
+ 
+ 	rc = m0_rpc_root_session_cob_get(dom, &root_session_cob, tx);
+ 	if (rc == 0) {
+-		sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
+-
++		sprintf(name, conn_cob_name_fmt, (unsigned long)c_uuid.u_hi,
++			(unsigned long)c_uuid.u_lo);
+ 		rc = m0_rpc_cob_lookup_helper(dom, root_session_cob, name,
+ 					      out, tx);
+ 		m0_cob_put(root_session_cob);
+@@ -907,7 +912,7 @@ M0_INTERNAL int m0_rpc_conn_cob_lookup(struct m0_cob_domain *dom,
+ }
+ 
+ M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
+-				       uint64_t sender_id,
++				       struct m0_uint128 c_uuid,
+ 				       struct m0_cob **out, struct m0_db_tx *tx)
+ {
+ 	struct m0_cob *conn_cob;
+@@ -915,12 +920,13 @@ M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
+ 	char           name[SESSION_COB_MAX_NAME_LEN];
+ 	int            rc;
+ 
+-	M0_ENTRY("cob_dom: %p, sender_id: %llu", dom,
+-		 (unsigned long long)sender_id);
++	M0_ENTRY("cob_dom: %p, uuid: %llu%llu", dom,
++		 (unsigned long long)c_uuid.u_hi,
++		 (unsigned long long)c_uuid.u_lo);
+ 	M0_PRE(dom != NULL && out != NULL);
+-	M0_PRE(sender_id != SENDER_ID_INVALID);
+ 
+-	sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
++	sprintf(name, conn_cob_name_fmt, (unsigned long)c_uuid.u_hi,
++		(unsigned long)c_uuid.u_lo);
+ 	*out = NULL;
+ 
+ 	rc = m0_rpc_cob_lookup_helper(dom, NULL, M0_COB_SESSIONS_NAME,
+@@ -938,7 +944,6 @@ M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
+ }
+ 
+ static int conn_persistent_state_attach(struct m0_rpc_conn *conn,
+-				        uint64_t            sender_id,
+ 				        struct m0_db_tx    *tx)
+ {
+ 	struct m0_rpc_session *session0 = m0_rpc_conn_session0(conn);
+@@ -947,14 +952,15 @@ static int conn_persistent_state_attach(struct m0_rpc_conn *conn,
+ 	int                    rc;
+ 	int                    i;
+ 
+-	M0_ENTRY("conn: %p, sender_id: %llu", conn,
+-		 (unsigned long long)sender_id);
++	M0_ENTRY("conn: %p, conn_uuid: %llu%llu", conn,
++		 (unsigned long long)conn->c_uuid.u_hi,
++		 (unsigned long long)conn->c_uuid.u_lo);
+ 	M0_PRE(m0_rpc_conn_invariant(conn) &&
+ 	       conn_state(conn) == M0_RPC_CONN_CONNECTING);
+ 
+-	rc = m0_rpc_conn_cob_create(dom, sender_id, &conn->c_cob, tx) ?:
++	rc = m0_rpc_conn_cob_create(dom, conn->c_uuid, &conn->c_cob, tx) ?:
+ 	     m0_rpc_session_cob_create(conn->c_cob, SESSION_ID_0,
+-					&session0->s_cob, tx);
++				       &session0->s_cob, tx);
+ 	if (rc != 0)
+ 		goto cleanup;
+ 
+@@ -976,7 +982,6 @@ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn)
+ {
+ 	struct m0_rpc_machine *machine;
+ 	struct m0_db_tx        tx;
+-	uint64_t               sender_id;
+ 	int                    rc;
+ 
+ 	M0_ENTRY("conn: %p", conn);
+@@ -993,8 +998,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn)
+ 	conn_state_set(conn, M0_RPC_CONN_CONNECTING);
+ 	rc = m0_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
+ 	if (rc == 0) {
+-		sender_id = m0_rpc_id_generate();
+-		rc = conn_persistent_state_attach(conn, sender_id, &tx);
++		rc = conn_persistent_state_attach(conn, &tx);
+ 		if (rc == 0)
+ 			rc = m0_db_tx_commit(&tx);
+ 		else
+@@ -1002,7 +1006,7 @@ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn)
+ 	}
+ 
+ 	if (rc == 0) {
+-		conn->c_sender_id = sender_id;
++		m0_cookie_new(&conn->c_generation);
+ 		conn_state_set(conn, M0_RPC_CONN_ACTIVE);
+ 	} else
+ 		conn_failed(conn, rc);
+@@ -1164,9 +1168,9 @@ M0_INTERNAL int m0_rpc_machine_conn_list_dump(struct m0_rpc_machine *machine,
+ 	list = dir ? &machine->rm_incoming_conns : &machine->rm_outgoing_conns;
+ 
+ 	m0_tl_for(rpc_conn, list, conn) {
+-		M0_LOG(M0_DEBUG, "rmach %8p conn %8p id %llu state %x dir %s",
++		M0_LOG(M0_DEBUG, "rmach %8p conn %8p uuid %llu state %x dir %s",
+ 				 machine, conn,
+-				 (unsigned long long)conn->c_sender_id,
++				 (unsigned long long)conn->c_uuid.u_hi,
+ 				 conn_state(conn),
+ 				 (conn->c_flags & RCF_SENDER_END)? "S":"R");
+ 	} m0_tl_endfor;
+diff --git a/rpc/conn.h b/rpc/conn.h
+index eb88488..1991c0c 100644
+--- a/rpc/conn.h
++++ b/rpc/conn.h
+@@ -242,9 +242,9 @@ enum m0_rpc_conn_flags {
+   all the state transitions of conn internally.
+  */
+ struct m0_rpc_conn {
+-	/** Sender ID, unique on receiver */
+-	uint64_t                  c_sender_id;
+-
++	/** Cookie holding a reference to conn on other end */
++	struct m0_cookie	  c_cookie;
++	uint64_t		  c_generation;
+ 	/** Globally unique ID of rpc connection */
+ 	struct m0_uint128         c_uuid;
+ 
+diff --git a/rpc/conn_internal.h b/rpc/conn_internal.h
+index a9a68fa..da2fa02 100644
+--- a/rpc/conn_internal.h
++++ b/rpc/conn_internal.h
+@@ -38,10 +38,6 @@ struct m0_rpc_item_source;
+    @{
+  */
+ 
+-enum {
+-	SENDER_ID_INVALID = UINT64_MAX,
+-};
+-
+ M0_INTERNAL bool m0_rpc_conn_invariant(const struct m0_rpc_conn *conn);
+ 
+ static inline int conn_state(const struct m0_rpc_conn *conn)
+@@ -81,7 +77,7 @@ M0_INTERNAL void m0_rpc_conn_fini_locked(struct m0_rpc_conn *conn);
+    Searches for /SESSIONS/SENDER_$sender_id
+  */
+ M0_INTERNAL int m0_rpc_conn_cob_lookup(struct m0_cob_domain *dom,
+-				       uint64_t sender_id,
++				       struct m0_uint128 c_uuid,
+ 				       struct m0_cob **out,
+ 				       struct m0_db_tx *tx);
+ 
+@@ -91,7 +87,7 @@ M0_INTERNAL int m0_rpc_conn_cob_lookup(struct m0_cob_domain *dom,
+    Creates a cob /SESSIONS/SENDER_$sender_id
+  */
+ M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
+-				       uint64_t sender_id,
++				       struct m0_uint128 c_uuid,
+ 				       struct m0_cob **out,
+ 				       struct m0_db_tx *tx);
+ 
+diff --git a/rpc/item.c b/rpc/item.c
+index b1f118d..c4c9be5 100644
+--- a/rpc/item.c
++++ b/rpc/item.c
+@@ -27,6 +27,7 @@
+ #include "lib/misc.h"
+ #include "lib/errno.h"
+ #include "lib/finject.h"
++#include "lib/cookie.h"
+ #include "mero/magic.h"
+ #include "rpc/rpc_internal.h"
+ 
+@@ -56,8 +57,11 @@ M0_TL_DEFINE(rit, static, struct m0_rpc_item_type);
+ 
+ static const struct m0_rpc_onwire_slot_ref invalid_slot_ref = {
+ 	.osr_slot_id    = SLOT_ID_INVALID,
+-	.osr_sender_id  = SENDER_ID_INVALID,
+ 	.osr_session_id = SESSION_ID_INVALID,
++	.osr_cookie	= {
++		.co_addr = 7,
++		.co_generation = 0xffff,
++	}
+ };
+ 
+ /** Global rpc item types list. */
+diff --git a/rpc/rpc_machine.c b/rpc/rpc_machine.c
+index 20d3d1e..efff668 100644
+--- a/rpc/rpc_machine.c
++++ b/rpc/rpc_machine.c
+@@ -299,8 +299,9 @@ static void cleanup_incoming_connections(struct m0_rpc_machine *machine)
+ 
+ 	m0_tl_for(rpc_conn, &machine->rm_incoming_conns, conn) {
+ 		m0_rpc_conn_cleanup_all_sessions(conn);
+-		M0_LOG(M0_WARN, "Aborting conn %llu",
+-			(unsigned long long)conn->c_sender_id);
++		M0_LOG(M0_WARN, "Aborting conn %llu%llu",
++			(unsigned long long)conn->c_uuid.u_hi,
++			(unsigned long long)conn->c_uuid.u_lo);
+ 		(void)m0_rpc_rcv_conn_terminate(conn);
+ 		m0_rpc_conn_terminate_reply_sent(conn);
+ 	} m0_tl_endfor;
+diff --git a/rpc/rpc_onwire.h b/rpc/rpc_onwire.h
+index 45a5c18..3713168 100644
+--- a/rpc/rpc_onwire.h
++++ b/rpc/rpc_onwire.h
+@@ -27,6 +27,8 @@
+ #include "lib/types_xc.h"     /* m0_uint128_xc */
+ #include "dtm/verno.h"        /* m0_verno */
+ #include "dtm/verno_xc.h"     /* m0_verno_xc */
++#include "lib/cookie.h"
++#include "lib/cookie_xc.h"
+ #include "xcode/xcode_attr.h" /* M0_XCA_RECORD */
+ 
+ /**
+@@ -40,9 +42,8 @@ enum {
+ 
+ struct m0_rpc_onwire_slot_ref {
+ 	struct m0_uint128 osr_uuid;
+-	uint64_t          osr_sender_id;
+ 	uint64_t          osr_session_id;
+-
++	struct m0_cookie  osr_cookie;
+ 	/** Numeric id of slot. Used when encoding and decoding rpc item to
+ 	    and from wire-format
+ 	 */
+diff --git a/rpc/session.c b/rpc/session.c
+index 659a58a..70642d2 100644
+--- a/rpc/session.c
++++ b/rpc/session.c
+@@ -572,7 +572,6 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
+ 	args = m0_fop_data(fop);
+ 	M0_ASSERT(args != NULL);
+ 
+-	args->rse_sender_id = conn->c_sender_id;
+ 	args->rse_slot_cnt  = session->s_nr_slots;
+ 
+ 	session_0 = m0_rpc_conn_session0(conn);
+@@ -628,7 +627,6 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
+ 	struct m0_rpc_slot                      *slot;
+ 	struct m0_rpc_item                      *reply_item;
+ 	struct m0_fop                           *fop;
+-	uint64_t                                 sender_id;
+ 	uint64_t                                 session_id;
+ 	int32_t                                  rc;
+ 	int                                      i;
+@@ -660,11 +658,9 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
+ 	}
+ 	if (rc == 0) {
+ 		M0_ASSERT(reply != NULL);
+-		sender_id  = reply->rser_sender_id;
+ 		session_id = reply->rser_session_id;
+ 		if (session_id > SESSION_ID_MIN &&
+-		    session_id < SESSION_ID_MAX &&
+-		    sender_id != SENDER_ID_INVALID) {
++		    session_id < SESSION_ID_MAX) {
+ 			session->s_session_id = session_id;
+ 			session_state_set(session, M0_RPC_SESSION_IDLE);
+ 			for (i = 0; i < session->s_nr_slots; i++) {
+@@ -777,7 +773,6 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
+ 	}
+ 
+ 	args                 = m0_fop_data(fop);
+-	args->rst_sender_id  = conn->c_sender_id;
+ 	args->rst_session_id = session->s_session_id;
+ 
+ 	session_0 = m0_rpc_conn_session0(conn);
+@@ -831,7 +826,6 @@ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
+ 	struct m0_rpc_conn                      *conn;
+ 	struct m0_rpc_session                   *session;
+ 	struct m0_rpc_machine                   *machine;
+-	uint64_t                                 sender_id;
+ 	uint64_t                                 session_id;
+ 	int32_t                                  rc;
+ 
+@@ -846,9 +840,7 @@ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
+ 	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
+ 
+ 	args       = m0_fop_data(m0_rpc_item_to_fop(item));
+-	sender_id  = args->rst_sender_id;
+ 	session_id = args->rst_session_id;
+-	M0_ASSERT(sender_id == conn->c_sender_id);
+ 	session = m0_rpc_session_search(conn, session_id);
+ 	M0_ASSERT(m0_rpc_session_invariant(session) &&
+ 		  session_state(session) == M0_RPC_SESSION_TERMINATING);
+diff --git a/rpc/session_foms.c b/rpc/session_foms.c
+index 5c5fffd..01d60a4 100644
+--- a/rpc/session_foms.c
++++ b/rpc/session_foms.c
+@@ -240,8 +240,9 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
+ 			M0_ASSERT(slot != NULL);
+ 			item->ri_session = session0;
+ 			m0_rpc_slot_item_add_internal(slot, item);
+-			/* See [2] at the end of function */
+-			ow_sref->osr_sender_id = SENDER_ID_INVALID;
++			M0_ASSERT(m0_cookie_is_null(item->ri_slot_refs[0].sr_ow.osr_cookie));
++			if (!m0_cookie_is_null(request->rce_cookie))
++				conn->c_cookie = request->rce_cookie;
+ 			M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
+ 			M0_ASSERT(m0_rpc_conn_invariant(conn));
+ 		} else {
+@@ -253,10 +254,10 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
+ 
+ out:
+ 	if (rc == 0) {
+-		reply->rcer_sender_id = conn->c_sender_id;
++		m0_cookie_init(&reply->rcer_cookie, &conn->c_generation);
+ 		reply->rcer_rc        = 0;
+ 		M0_LOG(M0_INFO, "Conn established: conn [%p] id [%lu]\n", conn,
+-				(unsigned long)conn->c_sender_id);
++				(unsigned long)conn->c_uuid.u_hi);
+ 		m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+ 	} else {
+ 		M0_ASSERT(conn != NULL);
+@@ -289,24 +290,11 @@ M0_INTERNAL void m0_rpc_fom_conn_establish_addb_init(struct m0_fom *fom,
+  */
+ 
+ /* [2]
+- * IMPORTANT
+- * @code
+- *     item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+- * @endcode
+- * Request item has SENDER_ID_INVALID.
+- * slot_item_add_internal() overwrites it with conn->c_sender_id.
+- * But we want reply to have sender_id SENDER_ID_INVALID.
+- * m0_rpc_reply_post() simply copies sender id from req item to
+- * reply item as it is. So set sender id of request item
+- * to SENDER_ID_INVALID
+- */
+-
+-/* [3]
+  * CONN_ESTABLISH item is directly submitted for execution. Update
+  * rpc-layer stats on INCOMING path here.
+  */
+ 
+-/* [4]
++/* [3]
+  * IMPORTANT: No reply is sent if conn establishing is failed.
+  *
+  * ACTIVE session is required to send reply. In case of, successful
+@@ -401,7 +389,6 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
+ 	m0_rpc_machine_unlock(machine);
+ 
+ out:
+-	reply->rser_sender_id = request->rse_sender_id;
+ 	reply->rser_rc        = rc;
+ 
+ 	if (rc != 0) {
+@@ -462,7 +449,6 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
+ 	reply = m0_fop_data(fom->fo_rep_fop);
+ 	M0_ASSERT(reply != NULL);
+ 
+-	reply->rstr_sender_id = request->rst_sender_id;
+ 	reply->rstr_session_id = session_id = request->rst_session_id;
+ 
+ 	item = &fom->fo_fop->f_item;
+@@ -590,7 +576,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
+ 	machine = conn->c_rpc_machine;
+ 
+ 	m0_rpc_machine_lock(machine);
+-	reply->ctr_sender_id = request->ct_sender_id;
++	reply->ctr_cookie = conn->c_cookie;
+ 	reply->ctr_rc        = m0_rpc_rcv_conn_terminate(conn);
+ 	m0_rpc_machine_unlock(machine);
+ 
+diff --git a/rpc/session_fops.h b/rpc/session_fops.h
+index bf4c47d..83bcd33 100644
+--- a/rpc/session_fops.h
++++ b/rpc/session_fops.h
+@@ -76,7 +76,7 @@ struct m0_rpc_fop_conn_establish_ctx {
+ };
+ 
+ struct m0_rpc_fop_conn_establish {
+-	uint64_t rce_unused;
++	struct m0_cookie rce_cookie;
+ } M0_XCA_RECORD;
+ 
+ /**
+@@ -85,10 +85,9 @@ struct m0_rpc_fop_conn_establish {
+  */
+ struct m0_rpc_fop_conn_establish_rep {
+ 	/**
+-	   sender_id assigned by receiver to the established rpc-connection.
+-	   Has value SENDER_ID_INVALID if CONN_ESTABLISH operation fails.
++	 Cookie for m0_rpc_conn on receiver.
+ 	 */
+-	uint64_t rcer_sender_id;
++	struct m0_cookie rcer_cookie;
+ 	/**
+ 	   Contains 0 if CONN_ESTABLISH operation is successful, error code
+ 	   otherwise.
+@@ -101,9 +100,9 @@ struct m0_rpc_fop_conn_establish_rep {
+  */
+ struct m0_rpc_fop_conn_terminate {
+ 	/**
+-	   sender_id of rpc-connection being terminated.
++	 Cookie for connection being terminated
+ 	 */
+-	uint64_t ct_sender_id;
++	struct m0_cookie ct_cookie;
+ } M0_XCA_RECORD;
+ 
+ /**
+@@ -111,14 +110,14 @@ struct m0_rpc_fop_conn_terminate {
+  */
+ struct  m0_rpc_fop_conn_terminate_rep {
+ 	/**
+-	   sender_id of rpc-connection being terminated.
++	 Cookie for rpc-connection being terminated.
+ 	 */
+-	uint64_t ctr_sender_id;
++	struct m0_cookie ctr_cookie;
+ 	/**
+ 	   Contains 0 if CONN_TERMINATE operation is successful, error code
+ 	   otherwise.
+ 	 */
+-	uint32_t ctr_rc;
++	uint32_t	 ctr_rc;
+ } M0_XCA_RECORD;
+ 
+ 
+@@ -127,10 +126,6 @@ struct  m0_rpc_fop_conn_terminate_rep {
+  */
+ struct m0_rpc_fop_session_establish {
+ 	/**
+-	   sender_id of rpc-connection in which a new session is to be created.
+-	 */
+-	uint64_t rse_sender_id;
+-	/**
+ 	   Number of slots the new session should have.
+ 	 */
+ 	uint32_t rse_slot_cnt;
+@@ -147,10 +142,6 @@ struct m0_rpc_fop_session_establish_rep {
+ 	 */
+ 	uint64_t rser_session_id;
+ 	/**
+-	   sender_id copied from m0_rpc_fop_session_establish.
+-	 */
+-	uint64_t rser_sender_id;
+-	/**
+ 	   Contains 0 if SESSION_ESTABLISH operation is successful, error code
+ 	   otherwise.
+ 	 */
+@@ -162,11 +153,6 @@ struct m0_rpc_fop_session_establish_rep {
+  */
+ struct m0_rpc_fop_session_terminate {
+ 	/**
+-	   sender_id of rpc-connection to which the session being terminated
+-	   belongs.
+-	 */
+-	uint64_t rst_sender_id;
+-	/**
+ 	   session_id of session being terminated.
+ 	 */
+ 	uint64_t rst_session_id;
+@@ -181,11 +167,6 @@ struct m0_rpc_fop_session_terminate_rep {
+ 	 */
+ 	uint64_t rstr_session_id;
+ 	/**
+-	   sender_id of rpc-connection to which the session being terminated
+-	   belongs.
+-	 */
+-	uint64_t rstr_sender_id;
+-	/**
+ 	   Contains 0 if SESSION_TERMINATE operation is successful, error code
+ 	   otherwise.
+ 	 */
+diff --git a/rpc/slot.c b/rpc/slot.c
+index 9c6f71b..ef6b51b 100644
+--- a/rpc/slot.c
++++ b/rpc/slot.c
+@@ -396,7 +396,7 @@ static void __slot_item_add(struct m0_rpc_slot *slot,
+ 	item->ri_slot_refs[0] = (struct m0_rpc_slot_ref){
+ 		.sr_ow = {
+ 			.osr_session_id = session->s_session_id,
+-			.osr_sender_id  = session->s_conn->c_sender_id,
++			.osr_cookie     = session->s_conn->c_cookie,
+ 			.osr_uuid       = session->s_conn->c_uuid,
+ 			/*
+ 			 * m0_rpc_slot_item_apply() will provide an item
+@@ -821,25 +821,23 @@ m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
+ 	const struct m0_rpc_onwire_slot_ref *sref;
+ 	const struct m0_tl                  *conn_list;
+ 	struct m0_rpc_conn                  *conn;
+-	bool                                 use_uuid;
+ 
+ 	M0_ENTRY("machine: %p, item: %p", machine, item);
+ 
+ 	sref = &item->ri_slot_refs[0].sr_ow;
+-	use_uuid = (sref->osr_sender_id == SENDER_ID_INVALID);
+ 	conn_list = m0_rpc_item_is_request(item) ?
+ 			&machine->rm_incoming_conns :
+ 			&machine->rm_outgoing_conns;
+ 
+-	m0_tl_for(rpc_conn, conn_list, conn) {
+-		if (use_uuid) {
++	conn = m0_cookie_of(&sref->osr_cookie, struct m0_rpc_conn,
++			    c_generation);
++	if (conn == NULL) {
++		m0_tl_for(rpc_conn, conn_list, conn) {
+ 			if (m0_uint128_cmp(&conn->c_uuid,
+ 					   &sref->osr_uuid) == 0)
+ 				break;
+-		} else if (conn->c_sender_id == sref->osr_sender_id) {
+-			break;
+-		}
+-	} m0_tl_endfor;
++		} m0_tl_endfor;
++	}
+ 
+ 	M0_LEAVE("conn: %p", conn);
+ 	return conn;
+diff --git a/rpc/ut/conn.c b/rpc/ut/conn.c
+index 0dfb0c8..55740a1 100644
+--- a/rpc/ut/conn.c
++++ b/rpc/ut/conn.c
+@@ -25,10 +25,6 @@
+ #include "mero/magic.h"
+ #include "rpc/rpc_internal.h"
+ 
+-enum {
+-	SENDER_ID = 1001,
+-};
+-
+ static struct m0_rpc_machine machine;
+ static struct m0_rpc_conn    conn;
+ static struct m0_fop	     est_fop;
+@@ -132,10 +128,11 @@ static void conn_init_and_establish(void)
+ 	fop_set_session(&est_fop);
+ 	fop_set_session(&est_fop_rep);
+ 
+-	est_fop.f_item.ri_error    = 0;
+-	est_reply.rcer_sender_id   = SENDER_ID; /* sender_id_allocate() */
+-	est_reply.rcer_rc          = 0;
+-	est_fop_rep.f_data.fd_data = &est_reply;
++	est_fop.f_item.ri_error             = 0;
++	est_reply.rcer_rc                   = 0;
++	est_reply.rcer_cookie.co_generation = conn.c_generation;
++	est_reply.rcer_cookie.co_addr       = (uint64_t)&conn.c_generation;
++	est_fop_rep.f_data.fd_data          = &est_reply;
+ 
+ }
+ 
+@@ -160,7 +157,7 @@ static void conn_terminate(void)
+ 	fop_set_session(&term_fop_rep);
+ 
+ 	term_fop.f_item.ri_error    = 0;
+-	term_reply.ctr_sender_id    = est_reply.rcer_sender_id;
++	term_reply.ctr_cookie       = est_reply.rcer_cookie;
+ 	term_reply.ctr_rc           = 0;
+ 	term_fop_rep.f_data.fd_data = &term_reply;
+ 
+@@ -232,6 +229,7 @@ static void conn_establish_fail_test(void)
+ 
+ static void conn_establish_reply_fail_test(void)
+ {
++
+ 	/* Checks for Conn M0_RPC_CONN_CONNECTING => M0_RPC_CONN_FAILED */
+ 	conn_init_and_establish();
+ 
+@@ -244,11 +242,9 @@ static void conn_establish_reply_fail_test(void)
+ 
+ 	m0_rpc_conn_fini(&conn);
+ 	est_fop.f_item.ri_error = 0;
+-
+-	/* Due to invalid sender id. */
++	/* Due to invalid-cookie */
+ 	conn_init_and_establish();
+-
+-	est_reply.rcer_sender_id = SENDER_ID_INVALID;
++	est_reply.rcer_cookie = M0_COOKIE_NULL;
+ 	m0_rpc_machine_lock(&machine);
+ 	m0_rpc_conn_establish_reply_received(&est_fop.f_item);
+ 	M0_UT_ASSERT(conn.c_sm.sm_rc == -EPROTO);
+@@ -256,8 +252,8 @@ static void conn_establish_reply_fail_test(void)
+ 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_FAILED);
+ 
+ 	m0_rpc_conn_fini(&conn);
+-	est_reply.rcer_sender_id = SENDER_ID; /* restore */
+-
++	est_reply.rcer_cookie.co_generation = conn.c_generation; /* restore */
++	est_reply.rcer_cookie.co_addr	    = (uint64_t)&conn.c_generation;
+ }
+ 
+ static void conn_terminate_fail_test(void)
+@@ -303,12 +299,12 @@ static void conn_terminate_reply_fail_test(void)
+ 	m0_rpc_conn_fini(&conn);
+ 	term_fop.f_item.ri_error = 0;
+ 
+-	/* Due to non-matching sender id. */
++	/* Due to non-matching cookie. */
+ 	conn_init_and_establish();
+ 	conn_establish_reply();
+ 	conn_terminate();
+ 
+-	term_reply.ctr_sender_id = SENDER_ID + 1;
++	term_reply.ctr_cookie.co_generation = conn.c_generation + 1;
+ 	m0_rpc_machine_lock(&machine);
+ 	m0_rpc_conn_terminate_reply_received(&term_fop.f_item);
+ 	m0_rpc_machine_unlock(&machine);
+diff --git a/rpc/ut/packet.c b/rpc/ut/packet.c
+index 4fde94d..22b435d 100644
+--- a/rpc/ut/packet.c
++++ b/rpc/ut/packet.c
+@@ -144,7 +144,10 @@ static void populate_item(struct m0_rpc_item *item)
+ 	item->ri_slot_refs[0].sr_ow = (struct m0_rpc_onwire_slot_ref) {
+ 		.osr_uuid.u_hi = 9876,
+ 		.osr_uuid.u_lo = 6789,
+-		.osr_sender_id = 101,
++		.osr_cookie    = {
++			.co_addr = 0,
++			.co_generation = 0xffff,
++		},
+ 		.osr_session_id = 523,
+ 		.osr_slot_id = 23,
+ 		.osr_verno = {
+diff --git a/rpc/ut/session.c b/rpc/ut/session.c
+index 4ba9da4..8b63935 100644
+--- a/rpc/ut/session.c
++++ b/rpc/ut/session.c
+@@ -25,7 +25,6 @@
+ #include "rpc/rpc_internal.h"
+ 
+ enum {
+-	SENDER_ID  = 1001,
+ 	SESSION_ID = 101,
+ 	SLOTS_NR   = 1,
+ };
+@@ -62,7 +61,6 @@ static int session_ut_init(void)
+ 	int rc;
+ 
+ 	conn.c_rpc_machine = &machine;
+-	conn.c_sender_id   = SENDER_ID;
+ 	rpc_session_tlist_init(&conn.c_sessions);
+ 	rmach_watch_tlist_init(&machine.rm_watch);
+ 
+@@ -119,7 +117,6 @@ static void prepare_fake_est_reply(void)
+ 	est_ctx.sec_fop.f_item.ri_error = 0;
+ 
+ 	est_reply.rser_session_id = SESSION_ID; /* session_id_allocate() */
+-	est_reply.rser_sender_id  = SENDER_ID;  /* sender_id_allocate()  */
+ 	est_reply.rser_rc         = 0;
+ 
+ 	est_fop_rep.f_data.fd_data  = &est_reply;
+@@ -153,11 +150,9 @@ static void prepare_fake_term_reply(void)
+ {
+ 	term_fop.f_item.ri_error = 0;
+ 	term_fop.f_data.fd_data  = &term;
+-	term.rst_sender_id       = SENDER_ID;
+ 	term.rst_session_id      = SESSION_ID;
+ 
+ 	term_reply.rstr_session_id = SESSION_ID;
+-	term_reply.rstr_sender_id  = SENDER_ID;
+ 	term_reply.rstr_rc         = 0;
+ 
+ 	term_fop_rep.f_data.fd_data  = &term_reply;
+@@ -274,16 +269,6 @@ static void session_establish_reply_fail_test(void)
+ 
+ 	m0_rpc_session_fini(&session);
+ 
+-	/* Due to invalid sender id. */
+-	session_init_and_establish();
+-
+-	est_reply.rser_sender_id = SENDER_ID_INVALID;
+-	session_establish_reply(0);
+-	M0_UT_ASSERT(session.s_sm.sm_rc == -EPROTO);
+-	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_FAILED);
+-
+-	m0_rpc_session_fini(&session);
+-
+ 	/* Due to error in establish reply fop. */
+ 	session_init_and_establish();
+ 
+-- 
+1.8.3.2
+

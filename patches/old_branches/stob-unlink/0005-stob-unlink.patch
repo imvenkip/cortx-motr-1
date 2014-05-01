@@ -1,0 +1,391 @@
+From 8bb125fc157d7dc457c3a8821185beb40c11fd33 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Wed, 30 Apr 2014 16:23:02 +0530
+Subject: [PATCH 5/6] stob-unlink, - Address inspection comments   - add
+ EXT_{F, P} macros to lib/ext.h   - add m0_be_emap_count()   - no need to
+ itereate over emap segments in stob_ad_destroy()   - other stylistic issues
+
+---
+ be/extmap.c          | 33 +++++++++++++++++++++
+ be/extmap.h          |  4 +++
+ ioservice/cob_foms.c |  4 +--
+ lib/ext.h            |  3 ++
+ lib/types.h          |  3 --
+ stob/ad.c            | 83 +++++++++++++++-------------------------------------
+ stob/linux.c         |  5 ++--
+ stob/null.c          |  5 ++--
+ stob/stob.c          |  6 ++--
+ stob/stob.h          |  8 ++---
+ 10 files changed, 79 insertions(+), 75 deletions(-)
+
+diff --git a/be/extmap.c b/be/extmap.c
+index 9fa4014..648687e 100644
+--- a/be/extmap.c
++++ b/be/extmap.c
+@@ -211,6 +211,11 @@ M0_INTERNAL struct m0_be_op *m0_be_emap_op(struct m0_be_emap_cursor *it)
+ 	return &it->ec_op;
+ }
+ 
++M0_INTERNAL int m0_be_emap_op_rc(struct m0_be_emap_cursor *it)
++{
++	return it->ec_op.bo_u.u_emap.e_rc;
++}
++
+ M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
+ 				   const struct m0_uint128  *prefix,
+ 				   m0_bindex_t               offset,
+@@ -494,6 +499,34 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
+ 	 */
+ }
+ 
++M0_INTERNAL m0_bcount_t m0_be_emap_count(struct m0_be_emap_cursor *it)
++{
++	struct m0_be_emap_seg *seg;
++	struct m0_be_op       *op;
++	m0_bcount_t            frags = 0;
++	int                    rc = 0;
++
++	M0_INVARIANT_EX(be_emap_invariant(it));
++
++	op = m0_be_emap_op(it);
++	do {
++		seg = m0_be_emap_seg_get(it);
++		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
++			  !m0_ext_is_empty(&seg->ee_ext));
++		++frags;
++		if (m0_be_emap_ext_is_last(&seg->ee_ext))
++			break;
++		m0_be_op_init(op);
++		m0_be_emap_next(it);
++		rc = m0_be_op_wait(op);
++		M0_ASSERT(rc == 0);
++		rc = m0_be_emap_op_rc(it);
++		m0_be_op_fini(op);
++	} while (rc == 0);
++
++	return frags;
++}
++
+ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
+ 				       struct m0_be_tx   *tx,
+ 				       struct m0_be_op   *op,
+diff --git a/be/extmap.h b/be/extmap.h
+index 1c7829e..ecba983 100644
+--- a/be/extmap.h
++++ b/be/extmap.h
+@@ -199,6 +199,7 @@ M0_INTERNAL struct m0_be_emap_seg *
+ 
+ /** Returns the back-end operation of emap cursor */
+ M0_INTERNAL struct m0_be_op *m0_be_emap_op(struct m0_be_emap_cursor *it);
++M0_INTERNAL int m0_be_emap_op_rc(struct m0_be_emap_cursor *it);
+ 
+ /**
+    Initialises extent map cursor to point to the segment containing given
+@@ -318,6 +319,9 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
+ 	void (*cut_left)(struct m0_be_emap_seg*, struct m0_ext*, uint64_t),
+ 	void (*cut_right)(struct m0_be_emap_seg*, struct m0_ext*, uint64_t));
+ 
++/** Returns number of segments in the map. */
++M0_INTERNAL m0_bcount_t m0_be_emap_count(struct m0_be_emap_cursor *it);
++
+ /**
+    Updates the segment at the current cursor with the given
+    segment having same prefix.
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index 697753e..b0729bb 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -677,8 +677,8 @@ static int cd_stob_delete_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
+ 			rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
+ 			     m0_stob_locate(stob) : 0;
+ 			if (rc == 0) {
+-				m0_stob_destroy_credit(stob,
+-						       m0_fom_tx_credit(fom));
++				rc = m0_stob_destroy_credit(stob,
++							    m0_fom_tx_credit(fom));
+ 			}
+ 			m0_stob_put(stob);
+ 		}
+diff --git a/lib/ext.h b/lib/ext.h
+index 8878f3e..43d7529 100644
+--- a/lib/ext.h
++++ b/lib/ext.h
+@@ -62,6 +62,9 @@ M0_INTERNAL m0_bindex_t m0_ext_cap(const struct m0_ext *ext2, m0_bindex_t val);
+ /** Tells if start of extent is less than end of extent. */
+ M0_INTERNAL bool m0_ext_is_valid(const struct m0_ext *ext);
+ 
++#define EXT_F  "[0x%"PRIx64", 0x%"PRIx64")"
++#define EXT_P(x)  (x)->e_start, (x)->e_end
++
+ /** @} end of ext group */
+ #endif /* __MERO_LIB_EXT_H__ */
+ 
+diff --git a/lib/types.h b/lib/types.h
+index 4e97d92..96cdf87 100644
+--- a/lib/types.h
++++ b/lib/types.h
+@@ -41,9 +41,6 @@ struct m0_uint128 {
+ #define U128D_F "%lu:%lu"
+ #define U128_P(x) (unsigned long)(x)->u_hi, (unsigned long)(x)->u_lo
+ 
+-#define EXT_F "[%lx,%lx)"
+-#define EXT_P(x) (unsigned long)(x)->e_start, (unsigned long)(x)->e_end
+-
+ M0_INTERNAL bool m0_uint128_eq(const struct m0_uint128 *u0,
+ 			       const struct m0_uint128 *u1);
+ M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
+diff --git a/stob/ad.c b/stob/ad.c
+index 7c61450..ff486e1 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -556,45 +556,25 @@ static int stob_ad_create(struct m0_stob *stob,
+ 	return rc;
+ }
+ 
+-static int __emap_next_sync(struct m0_be_emap_cursor *it)
+-{
+-	struct m0_be_op *it_op;
+-	int              rc;
+-
+-	it_op = m0_be_emap_op(it);
+-	m0_be_op_init(it_op);
+-	m0_be_emap_next(it);
+-	m0_be_op_wait(it_op);
+-	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+-	rc = it_op->bo_u.u_emap.e_rc;
+-	m0_be_op_fini(it_op);
+-
+-	return M0_RC(rc);
+-}
+-
+-static void stob_ad_destroy_credit(struct m0_stob *stob,
+-				   struct m0_be_tx_credit *accum)
++static int stob_ad_destroy_credit(struct m0_stob *stob,
++				  struct m0_be_tx_credit *accum)
+ {
+ 	struct m0_stob_ad_domain *adom;
+ 	struct m0_be_emap_cursor  it;
+-	struct m0_be_emap_seg    *seg;
+ 	int                       rc;
+ 	m0_bcount_t               frags = 0;
+ 
+ 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
+ 	rc = stob_ad_cursor(adom, stob, 0, &it);
+-	while (rc == 0) {
+-		seg = m0_be_emap_seg_get(&it);
+-		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+-			  !m0_ext_is_empty(&seg->ee_ext));
+-		++frags;
+-		if (m0_be_emap_ext_is_last(&seg->ee_ext))
+-			break;
+-		rc = __emap_next_sync(&it);
+-	}
++	if (rc != 0)
++		return M0_RC(rc);
++	frags = m0_be_emap_count(&it);
++	rc = m0_be_emap_op_rc(&it);
+ 	m0_be_emap_close(&it);
+ 	if (rc == 0)
+ 		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags, accum);
++
++	return M0_RC(rc);
+ }
+ 
+ static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
+@@ -609,14 +589,12 @@ static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
+ 			 };
+ 	int              rc = 0;
+ 
+-	M0_LOG(M0_DEBUG, "ext=[%llu, %llu) val=%llu",
+-		(unsigned long long)ext->e_start,
+-		(unsigned long long)ext->e_end,
+-		(unsigned long long)it->ec_seg.ee_val);
++	M0_LOG(M0_DEBUG, "ext="EXT_F" val=%llu",
++		EXT_P(ext), (unsigned long long)it->ec_seg.ee_val);
+ 
+ 	it_op = &it->ec_op;
+ 	m0_be_op_init(it_op);
+-	m0_be_emap_paste(it, &tx->tx_betx, &todo, it->ec_seg.ee_val,
++	m0_be_emap_paste(it, &tx->tx_betx, &todo, AET_HOLE,
+ 		 LAMBDA(void, (struct m0_be_emap_seg *seg) {
+ 				/* handle extent deletion. */
+ 				M0_LOG(M0_DEBUG, "del: val=%llu",
+@@ -625,7 +603,6 @@ static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
+ 							    &seg->ee_ext,
+ 							    seg->ee_val);
+ 		}), NULL, NULL);
+-	m0_be_op_wait(it_op);
+ 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
+ 	rc = it_op->bo_u.u_emap.e_rc;
+ 	m0_be_op_fini(it_op);
+@@ -649,14 +626,8 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
+ 	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+ 	rc = stob_ad_cursor(adom, stob, 0, &it);
+ 	M0_LOG(M0_DEBUG, U128D_F, U128_P(&it.ec_prefix));
+-	while (rc == 0) {
+-		seg = m0_be_emap_seg_get(&it);
+-		rc = stob_ad_map_ext_delete(adom, &it, tx);
+-		if (rc != 0 || m0_be_emap_ext_is_last(&seg->ee_ext))
+-			break;
+-		rc = __emap_next_sync(&it);
+-	}
+-
++	seg = m0_be_emap_seg_get(&it);
++	rc = stob_ad_map_ext_delete(adom, &it, tx);
+ 	if (rc == 0)
+ 		rc = M0_BE_OP_SYNC_RET(op,
+ 				       m0_be_emap_obj_delete(&adom->sad_adata,
+@@ -1013,10 +984,8 @@ static int stob_ad_read_launch(struct m0_stob_io *io,
+ 	seg    = m0_be_emap_seg_get(it);
+ 	back   = &aio->ai_back;
+ 
+-	M0_LOG(M0_DEBUG, "ext=[0x%llx, 0x%llx) val=0x%llx",
+-		(unsigned long long)seg->ee_ext.e_start,
+-		(unsigned long long)seg->ee_ext.e_end,
+-		(unsigned long long)seg->ee_val);
++	M0_LOG(M0_DEBUG, "ext="EXT_F" val=0x%llx",
++		EXT_P(&seg->ee_ext), (unsigned long long)seg->ee_val);
+ 
+ 	frags = frags_not_empty = 0;
+ 	do {
+@@ -1306,10 +1275,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
+ 		.e_end   = off + m0_ext_length(ext)
+ 	};
+ 
+-	M0_ENTRY("ext=[0x%llx, 0x%llx) val=0x%llx",
+-		(unsigned long long)todo.e_start,
+-		(unsigned long long)todo.e_end,
+-		(unsigned long long)ext->e_start);
++	M0_ENTRY("ext="EXT_F" val=0x%llx", EXT_P(&todo),
++		 (unsigned long long)ext->e_start);
+ 
+ 	m0_be_op_init(&it.ec_op);
+ 	m0_be_emap_lookup(orig->ec_map, &orig->ec_seg.ee_pre, off, &it);
+@@ -1341,7 +1308,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
+ 				M0_LOG(M0_DEBUG, "del: val=0x%llx",
+ 					(unsigned long long)seg->ee_val);
+ 				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
+-					"Delete of the same just allocated block");
++				"Delete of the same just allocated block");
+ 				rc = rc ?:
+ 				     stob_ad_seg_free(io->si_tx, adom, seg,
+ 						      &seg->ee_ext, seg->ee_val);
+@@ -1355,7 +1322,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
+ 			seg->ee_val = val;
+ 			if (stob_ad_stob2ad(io->si_obj)->ad_overwrite)
+ 				rc = rc ?:
+-				     stob_ad_seg_free(io->si_tx, adom, seg, ext, val);
++				     stob_ad_seg_free(io->si_tx, adom, seg,
++						      ext, val);
+ 		}),
+ 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
+ 		       uint64_t val) {
+@@ -1373,12 +1341,11 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
+ 				if (stob_ad_stob2ad(io->si_obj)->ad_overwrite &&
+ 				    ext->e_start == seg->ee_ext.e_start)
+ 					rc = rc ?:
+-					     stob_ad_seg_free(io->si_tx, adom, seg,
+-							      ext, val);
++					     stob_ad_seg_free(io->si_tx, adom,
++							      seg, ext, val);
+ 			} else
+ 				seg->ee_val = val;
+ 		}));
+-	m0_be_op_wait(&it.ec_op);
+ 	M0_ASSERT(m0_be_op_state(&it.ec_op) == M0_BOS_SUCCESS);
+ 	result = it.ec_op.bo_u.u_emap.e_rc;
+ 	m0_be_op_fini(&it.ec_op);
+@@ -1721,10 +1688,8 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
+ 		m0_be_op_fini(&it.ec_op);
+ 
+ 		if (rc == 0) {
+-			M0_LOG(M0_DEBUG, "%3d: ext=[0x%llx, 0x%llx) val=0x%llx",
+-				i,
+-				(unsigned long long)old_data[i].ee_ext.e_start,
+-				(unsigned long long)old_data[i].ee_ext.e_end,
++			M0_LOG(M0_DEBUG, "%3d: ext="EXT_F" val=0x%llx",
++				i, EXT_P(&old_data[i].ee_ext),
+ 				(unsigned long long)old_data[i].ee_val);
+ 			rc = M0_BE_OP_SYNC_RET_WITH(
+ 				&it.ec_op,
+diff --git a/stob/linux.c b/stob/linux.c
+index 79980df..1de50ec 100644
+--- a/stob/linux.c
++++ b/stob/linux.c
+@@ -426,9 +426,10 @@ static int stob_linux_create(struct m0_stob *stob,
+ 	return stob_linux_open(stob, dom, stob_key, cfg, true);
+ }
+ 
+-static void stob_linux_destroy_credit(struct m0_stob *stob,
+-				      struct m0_be_tx_credit *accum)
++static int stob_linux_destroy_credit(struct m0_stob *stob,
++				     struct m0_be_tx_credit *accum)
+ {
++	return 0;
+ }
+ 
+ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
+diff --git a/stob/null.c b/stob/null.c
+index 86e0f9f..5e2ff3d 100644
+--- a/stob/null.c
++++ b/stob/null.c
+@@ -364,9 +364,10 @@ static int stob_null_create(struct m0_stob *stob,
+ 	return rc;
+ }
+ 
+-static void stob_null_destroy_credit(struct m0_stob *stob,
+-				     struct m0_be_tx_credit *accum)
++static int stob_null_destroy_credit(struct m0_stob *stob,
++				    struct m0_be_tx_credit *accum)
+ {
++	return 0;
+ }
+ 
+ static int stob_null_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
+diff --git a/stob/stob.c b/stob/stob.c
+index 49a701f..cfef791 100644
+--- a/stob/stob.c
++++ b/stob/stob.c
+@@ -177,10 +177,10 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
+ 	return M0_RC(rc);
+ }
+ 
+-M0_INTERNAL void m0_stob_destroy_credit(struct m0_stob *stob,
+-					struct m0_be_tx_credit *accum)
++M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
++				       struct m0_be_tx_credit *accum)
+ {
+-	stob->so_ops->sop_destroy_credit(stob, accum);
++	return stob->so_ops->sop_destroy_credit(stob, accum);
+ }
+ 
+ M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
+diff --git a/stob/stob.h b/stob/stob.h
+index 5fe3dea..fce0ec6 100644
+--- a/stob/stob.h
++++ b/stob/stob.h
+@@ -148,8 +148,8 @@ struct m0_stob_ops {
+ 	 */
+ 	void (*sop_fini)(struct m0_stob *stob);
+ 	/** @see m0_stob_destroy_credit() */
+-	void (*sop_destroy_credit)(struct m0_stob *stob,
+-				   struct m0_be_tx_credit *accum);
++	int (*sop_destroy_credit)(struct m0_stob *stob,
++				  struct m0_be_tx_credit *accum);
+ 	/** @see m0_stob_destroy() */
+ 	int (*sop_destroy)(struct m0_stob *stob, struct m0_dtx *dtx);
+ 	/** @see m0_stob_io_init() */
+@@ -207,8 +207,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
+ 			       const char *str_cfg);
+ 
+ /** Calculates BE tx credit for m0_stob_destroy(). */
+-M0_INTERNAL void m0_stob_destroy_credit(struct m0_stob *stob,
+-					struct m0_be_tx_credit *accum);
++M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
++				       struct m0_be_tx_credit *accum);
+ /*
+  * Destroys stob.
+  *
+-- 
+1.8.3.2
+

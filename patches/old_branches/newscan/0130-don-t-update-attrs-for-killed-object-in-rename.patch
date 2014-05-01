@@ -1,0 +1,26 @@
+From 6c52645da5ba39d70a0d9cc481b98f546561b5a9 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 13 Jun 2011 11:48:15 -0600
+Subject: [PATCH 130/158] - don't update attrs for killed object in rename
+
+---
+ mdservice/md_foms.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 592ef19..7c3ab90 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -467,7 +467,8 @@ static int c2_md_rename(struct c2_md_store  *md,
+          * Update attributes of source and target.
+          */
+         rc = c2_md_store_setattr(md, scob, sattr, tx);
+-        if (rc == 0 && !c2_fid_eq(scob->co_fid, tcob->co_fid))
++        if (rc == 0 && tcob->co_nsrec.cnr_nlink > 0 && 
++            !c2_fid_eq(scob->co_fid, tcob->co_fid))
+                 rc = c2_md_store_setattr(md, tcob, tattr, tx);
+         return rc;
+ }
+-- 
+1.8.3.2
+

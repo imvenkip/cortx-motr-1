@@ -1,0 +1,142 @@
+From 1083eec95f3d62fadbdd5060c3060be17e857c30 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 23 Aug 2012 17:38:11 +0300
+Subject: [PATCH 327/370] conf/obj_ops.c: nic_fill() implemented
+
++ endpoints_populate(): Set the last element to NULL.
++ buf_strdup(): New function.
+---
+ conf/obj_ops.c | 79 +++++++++++++++++++++++++++++++++++++++++++++++-----------
+ 1 file changed, 65 insertions(+), 14 deletions(-)
+
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index d7e3af6..88ca726 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -26,10 +26,10 @@
+ #include "conf/confc.h"   /* c2_confc */
+ #include "lib/cdefs.h"    /* ergo, C2_MAGIX_OFFSET, IS_IN_ARRAY */
+ #include "lib/arith.h"    /* C2_CNT_INC, C2_CNT_DEC */
+-#include "lib/misc.h"     /* C2_IN */
+-#include "lib/memory.h"   /* c2_alloc */
++#include "lib/misc.h"     /* C2_IN, memcpy, strlen */
++#include "lib/memory.h"   /* c2_alloc, C2_ALLOC_ARR */
+ #include "lib/tlist.h"
+-#include "lib/errno.h"    /* ENOENT, ENOMEM */
++#include "lib/errno.h"    /* ENOENT, ENOMEM, EINVAL */
+ 
+ /**
+  * @defgroup conf_dlspec_objops Configuration Object Operations
+@@ -553,6 +553,18 @@ void c2_conf_obj_put(struct c2_conf_obj *obj)
+ 
+ static int endpoints_populate(char ***dest, const struct arr_buf *src);
+ 
++/** Performs sanity checking of given onwire object. */
++static bool confx_object_is_valid(const struct confx_object *src)
++{
++	/* XXX
++	 * - All of c2_conf_buf-s contained in `src' are buf_is_valid();
++	 * - all of arr_buf-s are populated with valid c2_conf_buf-s;
++	 * - etc.
++	 */
++	(void) src; /* XXX */
++	return true;
++}
++
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		     struct c2_conf_reg *reg)
+ {
+@@ -563,6 +575,7 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 	C2_PRE(obj_is_stub(dest) && dest->co_nrefs == 0);
+ 	C2_PRE(dest->co_type == src->o_conf.u_type);
+ 	C2_PRE(c2_conf_buf_eq(&dest->co_id, &src->o_id));
++	C2_PRE(confx_object_is_valid(src));
+ 
+ 	rc = ot->ot_ops.coo_fill(dest, src, reg);
+ 	if (rc != 0)
+@@ -669,28 +682,41 @@ static int node_fill(struct c2_conf_obj *__dest,
+ 			&dest->cn_sdevs);
+ }
+ 
++static int nic_fill(struct c2_conf_obj *__dest,
++		    const struct confx_object *__src, struct c2_conf_reg *reg)
++{
++	struct c2_conf_nic *dest;
++	const struct confx_nic *src = &__src->o_conf.u.u_nic;
++
++	dest = C2_CONF_CAST(__dest, c2_conf_nic); /* XXX C2_CONF_CAST()? */
++
++	dest->ni_iface = src->xi_iface;
++	dest->ni_mtu = src->xi_mtu;
++	dest->ni_speed = src->xi_speed;
++	dest->ni_last_state = src->xi_last_state;
++
++	dest->ni_filename = buf_strdup(&src->xi_filename);
++	if (dest->ni_filename == NULL)
++		return -ENOMEM;
++}
++
+ static int endpoints_populate(char ***dest, const struct arr_buf *src)
+ {
+ 	uint32_t              i;
+-	char                 *s;
+ 	const struct arr_buf *ep;
+ 
+-	/* XXX TODO What if (src->ab_count == 0 || src->ab_elems == NULL)? */
+-	C2_ALLOC_ARR(*dest, src->ab_count);
++	C2_PRE(src->ab_count > 0 && src->ab_elems != NULL);
++
++	C2_ALLOC_ARR(*dest, src->ab_count + 1);
+ 	if (*dest == NULL)
+ 		return -ENOMEM;
+ 
+ 	for (i = 0; i < src->ab_count; ++i) {
+-		ep = &src->ab_elems[i];
+-
+-		C2_ALLOC_PTR(s, ep->cb_size + 1);
+-		if (s == NULL)
++		(*dest)[i] = buf_strdup(&src->ab_elems[i]);
++		if ((*dest)[i] == NULL)
+ 			goto fail;
+-
+-		memcpy(s, ep->cb_data, ep->cb_size);
+-		s[ep->cb_size] = '\0';
+-		(*dest)[i] = s;
+ 	}
++	(*dest)[i] = NULL; /* end of list */
+ 
+ 	return 0;
+ fail:
+@@ -866,4 +892,29 @@ static bool buf_is_valid(const struct c2_conf_buf *buf)
+ 	return buf->cb_size > 0 && buf->cb_data != NULL;
+ }
+ 
++/*
++ * Note, that buf_strdup() expects valid (buf_is_valid()) buffer.
++ * Take care when working with buffers received over network.
++ */
++static char *buf_strdup(const struct c2_conf_buf *buf)
++{
++	size_t len;
++	char  *s;
++
++	C2_PRE(buf_is_valid(buf));
++
++	/* Measure the size of payload. Buffer's bytes beyond '\0'
++	 * will never be used. */
++	len = strlen(buf->cb_data);
++	if (len > buf->cb_size)
++		len = buf->cb_size;
++
++	C2_ALLOC_ARR(s, len + 1);
++	if (s != NULL) {
++		memcpy(s, buf->cb_data, len);
++		s[len] = 0;
++	}
++	return s;
++}
++
+ /** @} conf_dlspec_objops */
+-- 
+1.8.3.2
+

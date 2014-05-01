@@ -1,0 +1,365 @@
+From 6bd2a0dd0825917370a202c90dad1ea97cf5a43e Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 15 Apr 2013 15:41:20 +0530
+Subject: [PATCH 113/172] Some cleanup related to stroing sublayout ids in the
+ primary table
+
+---
+ layout/composite.c    | 177 ++------------------------------------------------
+ layout/ut/composite.c |  34 ++++------
+ 2 files changed, 17 insertions(+), 194 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 743eac0..b2bd7da 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -84,8 +84,9 @@ struct layout_prefix {
+ 	 *
+ 	 * @todo Even when the layout id is extended to be 128 bit, only the
+ 	 * first 64 bits which will identify the layout identifier may
+-	 * be stored in the prefix thus excluding the lid part which will
+-	 * identify the layout type.
++	 * be stored in the prefix, thus excluding the later part of the lid
++	 * which will identify the layout type. It does not seem to be an
++	 * issue, still calling it out explicitly at this point.
+ 	 */
+ 	uint32_t lp_filler;
+ };
+@@ -2340,132 +2341,6 @@ err1_injected:
+ 	M0_RETURN(rc);
+ }
+ 
+-#if 0
+-static int sublayout_id_indb_lookup(struct m0_composite_layout *cl,
+-				    uint32_t layer_idx,
+-				    struct m0_db_tx *tx,
+-				    uint64_t *sublayout_id)
+-{
+-	struct m0_db_pair           pair;
+-	struct layer_sublayout_key  key;
+-	struct layer_sublayout_rec  rec;
+-	int                         rc;
+-
+-	M0_ENTRY("lid %llu, layer %lu, sublayout_id %llu",
+-		 (unsigned long long)cl->cl_base.l_id,
+-		 (unsigned long)layer_idx,
+-		 (unsigned long long)*sublayout_id);
+-
+-	pair_set(&pair, &key, &rec, cl, layer_idx,
+-		 0 /* To be overwritten with the lookup */);
+-	if (M0_FI_ENABLED("table_lookup_err"))
+-		{ rc = L_TABLE_LOOKUP_ERR; goto err1_injected; }
+-	rc = m0_table_lookup(tx, &pair);
+-err1_injected:
+-	if (rc != 0 && rc != -ENOENT)
+-		/**
+-		 * The later condition is since the number of layers is not
+-		 * known in advance while reading the layers from the DB.
+-		 */
+-		m0_layout__log("sublayout_id_indb_lookup",
+-			       "failed to lookup into layer_sublayout table",
+-			       M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ,
+-			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+-	else
+-		*sublayout_id = rec.lrsmr_sublayout_lid;
+-	m0_db_pair_fini(&pair);
+-
+-	M0_POST(ergo(rc == 0, *sublayout_id > 0));
+-	M0_RETURN(rc);
+-}
+-#endif
+-
+-#if 0
+-static int sublayout_id_indb_add(struct m0_composite_layout *cl,
+-				 const struct m0_composite_layer *layer,
+-				 struct m0_db_tx *tx)
+-{
+-	uint64_t                    sublayout_id;
+-	struct m0_db_pair           pair;
+-	struct layer_sublayout_key  key;
+-	struct layer_sublayout_rec  rec;
+-	int                         rc;
+-
+-	M0_ENTRY("lid %llu, layer %lu, sublayout_id %llu",
+-		 (unsigned long long)cl->cl_base.l_id,
+-		 (unsigned long)layer->clr_idx,
+-		 (unsigned long long)layer->clr_sl->l_id);
+-
+-	if (layer->clr_idx > 0) {
+-		/*
+-		 * Verify that the sublayout for the zeroth layer has already
+-		 * been written to the DB. It ensures that the zeroth layer
+-		 * has already been added to the DB as a part of writing the
+-		 * composite layout to the DB, by using the API
+-		 * m0_layout_add().
+-		 */
+-		rc = sublayout_id_indb_lookup(cl, 0, tx, &sublayout_id);
+-		if (rc != 0) {
+-			M0_LOG(M0_ERROR, "lid %llu, The composite layout does "
+-			       "not seem to be added to DB, prior to adding "
+-			       "the layer %lu",
+-			       (unsigned long long)cl->cl_base.l_id,
+-			       (unsigned long)layer->clr_idx);
+-			return rc;
+-		}
+-	}
+-
+-	/*
+-	 * Now, proceed to write the sublayout id for the layer->clr_idx'th
+-	 * layer.
+-	 */
+-	pair_set(&pair, &key, &rec, cl, layer->clr_idx, layer->clr_sl->l_id);
+-	if (M0_FI_ENABLED("table_insert_err"))
+-		{ rc = L_TABLE_INSERT_ERR; goto err1_injected; }
+-	rc = m0_table_insert(tx, &pair);
+-err1_injected:
+-	if (rc != 0)
+-		m0_layout__log("sublayout_id_indb_add",
+-			       "failed to insert into layer_sublayout table",
+-			       M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_ADD,
+-			       &layer->clr_cl->l_addb_ctx, layer->clr_cl->l_id,
+-			       rc);
+-	m0_db_pair_fini(&pair);
+-	M0_RETURN(rc);
+-}
+-#endif
+-
+-#if 0
+-static int sublayout_id_indb_delete(const struct m0_composite_layout *cl,
+-				    const struct m0_composite_layer *layer,
+-				    struct m0_db_tx *tx)
+-{
+-	struct m0_db_pair             pair;
+-	struct layer_sublayout_key    key;
+-	struct layer_sublayout_rec    rec;
+-	int                           rc;
+-
+-	M0_ENTRY("lid %llu, layer %lu, sublayout_id %llu",
+-		 (unsigned long long)cl->cl_base.l_id,
+-		 (unsigned long)layer->clr_idx,
+-		 (unsigned long long)layer->clr_sl->l_id);
+-
+-	pair_set(&pair, &key, &rec, cl, layer->clr_idx, 0 /* Ignored */);
+-	if (M0_FI_ENABLED("table_del_err"))
+-		{ rc = L_TABLE_DEL_ERR; goto err1_injected; }
+-	rc = m0_table_delete(tx, &pair);
+-err1_injected:
+-	if (rc != 0)
+-		m0_layout__log("sublayout_id_indb_delete",
+-			       "failed to delete from layer_sublayout table",
+-			       M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_DEL,
+-			       &layer->clr_cl->l_addb_ctx, layer->clr_cl->l_id,
+-			       rc);
+-	m0_db_pair_fini(&pair);
+-	M0_RETURN(rc);
+-}
+-#endif
+-
+ static int extmap_indb_add(struct m0_composite_layout *cl,
+ 			   struct m0_composite_layer *layer,
+ 			   struct m0_db_tx *tx)
+@@ -2545,28 +2420,10 @@ static int layer_indb_add(struct m0_composite_layout *cl,
+ 
+ 	M0_PRE(composite_invariant(cl));
+ 	M0_PRE(tx != NULL);
+-
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+-
+-	/* Add 'the sublayout id for this layer' to the DB. */
+-#if 0
+-	rc = sublayout_id_indb_add(cl, layer, tx);
+-	if (rc == 0) {
+-#endif
+-		/* Add 'the extent map for this layer' to the DB. */
+-		rc = extmap_indb_add(cl, layer, tx);
+-#if 0
+-		if (rc != 0)
+-			/*
+-			 * If extmap_indb_add() has failed for no apparent
+-			 * reason, it is likely that sublayout_id_indb_delete()
+-			 * would fail. Hence, ignoring its return status.
+-			 */
+-			sublayout_id_indb_delete(cl, layer, tx);
+-	}
+-#endif
+-
++	/* Add 'the extent map for this layer' to the DB. */
++	rc = extmap_indb_add(cl, layer, tx);
+ 	M0_POST(composite_invariant(cl));
+ 	M0_RETURN(rc);
+ }
+@@ -2947,12 +2804,6 @@ static int layer_indb_delete(struct m0_composite_layout *cl,
+ 	M0_ENTRY("lid %llu, in_update_path %d",
+ 		 (unsigned long long)cl->cl_base.l_id, in_update_path);
+ 
+-#if 0
+-	rc = sublayout_id_indb_delete(cl, layer, tx);
+-	if (rc != 0)
+-		return rc;
+-#endif
+-
+ 	/*
+ 	 * Decrement the user count of the sublayout while the layer is being
+ 	 * deleted from the DB.
+@@ -2974,13 +2825,6 @@ static int layer_indb_delete(struct m0_composite_layout *cl,
+ 			       "Error while deleting extents from DB ",
+ 			       (unsigned long long)cl->cl_base.l_id,
+ 			       (unsigned long)layer->clr_idx);
+-			/*
+-			 * If the extents_indb_delete() has failed for no
+-			 * apparent reason, it is likely that the subsequent
+-			 * sublayout_id_indb_delete() too would fail. Hence,
+-			 * ignoring its status.
+-			 */
+-			//todo rm sublayout_id_indb_delete(cl, layer, tx);
+ 			m0_layout_user_count_inc(layer->clr_sl);
+ 			return rc;
+ 		}
+@@ -2997,12 +2841,7 @@ err1_injected:
+ 			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL,
+ 			       &cl->cl_base.l_addb_ctx,
+ 			       cl->cl_base.l_id, rc);
+-			/*
+-			 * Ignoring the status of sublayout_id_indb_delete()
+-			 * for the reason similar to mentioned above.
+-			 */
+-			//todo rm sublayout_id_indb_delete(cl, layer, tx);
+-			m0_layout_user_count_inc(layer->clr_sl);
++		m0_layout_user_count_inc(layer->clr_sl);
+ 		return rc;
+ 	}
+ 
+@@ -3075,10 +2914,6 @@ static int comp_layout_indb_delete(struct m0_composite_layout *cl,
+ 		//todo
+ 		rc = existing_layers_nr_read(cl, tx, &existing_layers_nr);
+ 		M0_ASSERT(rc == 0 || rc == -ENOENT);
+-
+-		/* todo Apr09 Now, delete the existing_layers_nr layers from
+-		 * the DB. Make use of single_ext_indb_write(). Make it accept
+-		 * l instead of layer*/
+ 		if (rc == 0) {
+ 			//todo Reduce the user_count of the sublayouts
+ 			for (i = existing_layers_nr - 1; i >= 0; --i) {
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 8067a8a..1ca5662 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -491,10 +491,6 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 			if (layer_add_failure_test)
+ 				M0_UT_ASSERT(rc == LO_ENCODE_ERR ||
+ 					     rc == L_TABLE_INSERT_ERR);
+-				/*
+-				 * todo rc == -ENOENT when cursor_init error is
+-				 * injected.
+-				 */
+ 			else
+ 				M0_UT_ASSERT(rc == 0);
+ 			m0_free(area);
+@@ -522,9 +518,8 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 	if (is_add_to_db) {
+ 		if (domain->ld_is_db_available) {
+ 			/*
+-			 * todo Now that some layers are added, they call for
+-			 * m0_layout_update() so as to update the primary
+-			 * table.
++			 * Now that some layers are added, update the layout in
++			 * the DB.
+ 			 */
+ 			layout_update(&(*cl)->cl_base);
+ 			rc_tmp = m0_db_tx_commit(txptr);
+@@ -656,10 +651,8 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 		 */
+ 		m0_layout_user_count_inc(sublayout);
+ 
+-		//todo rm layer_header.clh_slid = sublyout_id;
+ 		layer_header.clh_idx = i;
+ 		layer_header.clh_extents_nr = extents_nr;
+-		//todo rm layer_header.clh_pad = 0;
+ 		nbytes = m0_bufvec_cursor_copyto(dcur, &layer_header,
+ 						 sizeof layer_header);
+ 		M0_UT_ASSERT(nbytes == sizeof layer_header);
+@@ -804,7 +797,6 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 	for (i = 0; i < layers_nr; ++i) {
+ 		layer_header = m0_bufvec_cursor_addr(cur);
+ 		m0_bufvec_cursor_move(cur, sizeof *layer_header);
+-		//todo rm M0_UT_ASSERT(layer_header->clh_slid == lid * 100 + i);
+ 		M0_UT_ASSERT(layer_header->clh_idx == i);
+ 		M0_UT_ASSERT(layer_header->clh_extents_nr == extents_nr);
+ 		M0_UT_ASSERT(m0_bufvec_cursor_step(cur) >=
+@@ -857,8 +849,7 @@ int test_encode_composite(uint64_t lid,
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+-	//todo allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 10, &num_bytes, &area);
+-	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 30, &num_bytes, &area);
++	allocate_area(domain, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes, &area);
+ 	bv = (struct m0_bufvec) M0_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	m0_bufvec_cursor_init(&cur, &bv);
+ 
+@@ -933,8 +924,6 @@ static void composite_layout_buf_compare(struct m0_bufvec_cursor *cur1,
+ 		layer_header2 = m0_bufvec_cursor_addr(cur2);
+ 		m0_bufvec_cursor_move(cur1, sizeof *layer_header1);
+ 		m0_bufvec_cursor_move(cur2, sizeof *layer_header2);
+-		/* todo rm M0_UT_ASSERT(layer_header1->clh_slid ==
+-			     layer_header2->clh_slid); */
+ 		M0_UT_ASSERT(layer_header1->clh_idx == layer_header2->clh_idx);
+ 		M0_UT_ASSERT(layer_header1->clh_extents_nr ==
+ 			     layer_header2->clh_extents_nr);
+@@ -1362,9 +1351,10 @@ int test_layer_ops_composite(uint64_t lid,
+ 
+ 	rc = composite_layers_add(cl, txptr, layers_nr, min_extents_nr,
+ 				  !CONTIGUOUS_EXTENTS, layer_add_failure_test);
++
+ 	/*
+-	 * todo Now that some layers are added, they call for
+-	 * m0_layout_update() so as to update the primary table.
++	 * Now that some layers are added, update the layout in
++	 * the DB.
+ 	 */
+ 	if (domain->ld_is_db_available)
+ 		layout_update(&cl->cl_base);
+@@ -1373,7 +1363,6 @@ int test_layer_ops_composite(uint64_t lid,
+ 		M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR || rc == -ENOMEM ||
+ 			     rc == -EINVAL || rc == L_EMAP_PASTE_ERR ||
+ 			     rc == L_EMAP_OBJ_INSERT_ERR);
+-		//todo tx_fini()  or m0_db_tx_abort(txptr); ?
+ 		//todo Check organisation of the following
+ 		if (domain->ld_is_db_available) {
+ 			rc_tmp = m0_db_tx_commit(&tx);
+@@ -1441,10 +1430,9 @@ int test_layer_ops_composite(uint64_t lid,
+ 	if (domain->ld_is_db_available) {
+ 		rc_tmp = m0_db_tx_commit(&tx);
+ 		M0_UT_ASSERT(rc_tmp == 0);
+-
+ 		/*
+-		 * todo Now that some layer is deleted, it calls for
+-		 * m0_layout_update() so as to update the primary table.
++		 * Now that some layers are deleted, update the layout in
++		 * the DB.
+ 		 */
+ 		if (domain->ld_is_db_available)
+ 			layout_update(&cl->cl_base);
+@@ -2436,7 +2424,7 @@ int test_lookup_composite(uint64_t lid,
+ 		if (!failure_test)
+ 			composite_layout_copy(l1, &l1_copy);
+ 
+-		/*
++		/* todo check if shud be after layout_update()
+ 		 * Lookup for the layout object to verify that the same object
+ 		 * is returned from the memory, not requiring a lookup from the
+ 		 * DB.
+@@ -2450,8 +2438,8 @@ int test_lookup_composite(uint64_t lid,
+ 		m0_layout_put(l1);
+ 
+ 		/*
+-		 * todo Now that some layers are added, they call for
+-		 * m0_layout_update() so as to update the primary table.
++		 * Now that some layers are added, update the layout in
++		 * the DB.
+ 		 */
+ 		if (domain->ld_is_db_available)
+ 			layout_update(&cl->cl_base);
+-- 
+1.8.3.2
+

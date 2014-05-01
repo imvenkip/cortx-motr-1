@@ -1,0 +1,93 @@
+From 4238c36df85f36e121ae9b015f7059a72729e251 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Fri, 7 Feb 2014 11:38:06 +0200
+Subject: [PATCH 37/60] ioservice: stob leak fixed at io_launch()
+
+---
+ ioservice/io_foms.c | 13 ++++++++-----
+ rpc/item.c          |  2 +-
+ rpc/item.h          |  7 ++++++-
+ 3 files changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index 15bb20a..a320755 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1459,7 +1459,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
+                  *         I/O requests.
+                  */
+ 
+-		nb->nb_timeout = m0_time_from_now(2, 0);
++		nb->nb_timeout = m0_time_from_now(
++				    M0_RPC_ITEM_RESEND_INTERVAL / 2 ?: 1, 0);
+ 		rc = rc ?: m0_rpc_bulk_buf_add(rbulk, segs_nr, dom,
+ 					       nb, &rb_buf);
+                 if (rc != 0) {
+@@ -1607,11 +1608,11 @@ static int io_launch(struct m0_fom *fom)
+ 
+ 	rc = stob_object_find(fom);
+ 	if (rc != 0)
+-		goto cleanup;
++		goto out;
+ 
+ 	rc = io_fom_cob2file(fom, &rwfop->crw_fid, &file);
+ 	if (rc != 0)
+-		goto cleanup;
++		goto out;
+ 
+ 	/*
+ 	  Since the upper layer IO block size could differ with IO block size
+@@ -1745,8 +1746,10 @@ static int io_launch(struct m0_fom *fom)
+ 		return M0_FSO_WAIT;
+ 	}
+ 
+-	m0_stob_put(fom_obj->fcrw_stob);
+-cleanup:
++out:
++	if (fom_obj->fcrw_stob != NULL)
++		m0_stob_put(fom_obj->fcrw_stob);
++
+ 	if (rc != 0) {
+ 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+ 		IOS_ADDB_FUNCFAIL(rc, IO_LAUNCH_1, &fom->fo_addb_ctx);
+diff --git a/rpc/item.c b/rpc/item.c
+index cfb6098..416a6cc 100644
+--- a/rpc/item.c
++++ b/rpc/item.c
+@@ -343,7 +343,7 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
+ 	item->ri_magic = M0_RPC_ITEM_MAGIC;
+ 	item->ri_ha_epoch = M0_HA_EPOCH_NONE;
+ 
+-	item->ri_resend_interval = m0_time(1, 0);
++	item->ri_resend_interval = m0_time(M0_RPC_ITEM_RESEND_INTERVAL, 0);
+ 	item->ri_nr_sent_max     = ~(uint64_t)0;
+ 
+ 	packet_item_tlink_init(item);
+diff --git a/rpc/item.h b/rpc/item.h
+index 2f9fa7e..75ff306 100644
+--- a/rpc/item.h
++++ b/rpc/item.h
+@@ -111,6 +111,10 @@ enum m0_rpc_item_dir {
+ 	M0_RPC_ITEM_OUTGOING,
+ };
+ 
++enum m0_rpc_item_resend {
++	M0_RPC_ITEM_RESEND_INTERVAL = 2 /* in secs */
++};
++
+ /**
+    A single RPC item, such as a FOP or ADDB Record.  This structure should be
+    included in every item being sent via RPC layer core to emulate relationship
+@@ -130,7 +134,8 @@ struct m0_rpc_item {
+ 	    the item.
+ 	 */
+ 	m0_time_t			 ri_deadline;
+-	/** Time to wait before resending (defaults to 1 second). */
++	/** Time to wait before resending
++	 * (defaults to M0_RPC_ITEM_RESEND_INTERVAL seconds). */
+ 	m0_time_t                        ri_resend_interval;
+ 	/** How many resending attempts to make (defaults to ~0). */
+ 	uint64_t                         ri_nr_sent_max;
+-- 
+1.8.3.2
+

@@ -1,0 +1,139 @@
+From cf6c0ea323eada32c19ea36cb8ceb4961c5d4701 Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Mon, 20 May 2013 16:07:41 +0400
+Subject: [PATCH 2/2] ha: add documentation for the notification interface.
+
+---
+ ha/note.h | 102 +++++++++++++++++++++++++++++++++++++++++++++-----------------
+ 1 file changed, 75 insertions(+), 27 deletions(-)
+
+diff --git a/ha/note.h b/ha/note.h
+index b8fafce..553ad24 100644
+--- a/ha/note.h
++++ b/ha/note.h
+@@ -26,7 +26,67 @@
+ 
+ 
+ /**
+- * @defgroup ha
++ * @defgroup ha-note HA notification
++ *
++ * This module defines protocols and functions used to communicate HA-related
++ * events between HA and Mero core.
++ *
++ * Any HA-related event is represented as a state change of a configuration
++ * object. Configuration objects are stored in the Mero configuration data-base
++ * hosted by confd services and accessible to Mero and HA instances through
++ * confc module. A configuration object is identified by a unique 128-bit
++ * identifier.
++ *
++ * HA-related state of a configuration object is represented by enum
++ * m0_ha_obj_state. It is important to understand that this state is *not*
++ * stored in confd. confd stores the "basic" information describing the
++ * nomenclature of system elements (nodes, services, devices, pools, etc.) and
++ * their relationships. HA maintains additional state on top of confd, which
++ * describes the run-time behaviour of configuration elements.
++ *
++ * Among other things, confd stores, for certain types of objects, their
++ * "delegation pointers". A delegation pointer of an object X is some object Y
++ * that should be used when X fails. For example, to organise a fail-over pair,
++ * 2 services should have delegation pointers set to each other. The delegation
++ * pointer of a pool points to the pool to which writes should be re-directed in
++ * case of an NBA event. When an object fails, the chain formed by delegation
++ * pointers is followed until a usable object is found. If the chain is
++ * exhausted before a usable object is found, a system error is declared. All
++ * consecutive attempts to use the object would return the error until HA state
++ * of confd state changes.
++ *
++ * <b>Use cases</b>
++ *
++ * 0. Mero initialisation
++ *
++ * On startup, Mero instance connects to confd and populates its local confc
++ * with configuration objects. Then, Mero instance calls m0_ha_state_get() (one
++ * or more times). This function accepts as an input parameter a vector
++ * (m0_ha_nvec) that identifies objects for which state is queried
++ * (m0_ha_note::no_state field is ignored). m0_ha_state_get() constructs a fop
++ * of m0_ha_state_get_fopt type with nvec as data and sends it to the local HA
++ * instance (via supplied session).
++ *
++ * HA replies with the same vector with m0_ha_note::no_state fields
++ * set. m0_ha_state_get() stores received object states in confc and notifies
++ * the caller about completion through the supplied channel.
++ *
++ * 1. Mero core notifies HA about failure.
++ *
++ * On detecting a failure, Mero core calls m0_ha_state_set(), which takes as an
++ * input an nvec (with filled states), describing the failures, constructs
++ * m0_ha_state_set_fopt fop and sends it to the local HA instance via supplied
++ * session. HA replies with generic fop reply (m0_fop_generic_reply).
++ *
++ * @note that there is a separate mechanism, based on m0ctl, which is used to
++ * notify HA about failures which cannot be reported through RPC.
++ *
++ * 2. HA notifies Mero about failure.
++ *
++ * When HA agrees about a failure, it sends to each Mero instance a
++ * m0_ha_state_set_fopt fop. Mero replies with generic fop reply.
++ *
++ * m0_ha_state_accept() is called when a m0_ha_state_set_fopt fop is received.
+  *
+  * @{
+  */
+@@ -84,26 +144,6 @@ enum m0_ha_obj_state {
+ struct m0_ha_note {
+ 	/** Object identifier. */
+ 	struct m0_uint128 no_id;
+-	/**
+-	 * Index in the "delegation chain" for the object.
+-	 *
+-	 * Consider the following examples:
+-	 *
+-	 * - delegation chain of a service consists of the service itself and
+-	 *   its fail-over partners. The service is used only when depth is
+-	 *   0. Otherwise, depth-th fail-over partner is used.
+-	 *
+-	 * - delegation chain of a pool consists of the sequence of pools that
+-         *   is used in case of successive NBA events. That is, in normal
+-         *   situation, the head of the sequence (the pool itself) is used,
+-         *   after first NBA event, CADR pool is used, then CADDR, etc.
+-	 *
+-	 * Delegation chain always start with the object itself.
+-	 *
+-	 * By increasing the depth of an object, HA tells Mero to switch to the
+-	 * "alternative" access path.
+-	 */
+-	uint32_t          no_depth;
+ 	/** Object type, taken from enum m0_conf_objtype. */
+ 	uint8_t           no_otype;
+ 	/** State, from enum m0_ha_obj_state. */
+@@ -121,12 +161,20 @@ struct m0_ha_nvec {
+ /**
+  *
+  */
+-M0_INTERNAL int m0_ha_query(struct m0_confc *confc,
+-			    struct m0_ha_note *note, struct m0_chan *chan);
+-M0_INTERNAL void m0_ha_note_accept(struct m0_confc *confc,
+-				   const struct m0_ha_nvec *nvec);
+-
+-/** @} end of ha group */
++M0_INTERNAL int m0_ha_state_get(struct m0_confc *confc,
++				struct m0_rpc_session *session,
++				struct m0_ha_nvec *note, struct m0_chan *chan);
++M0_INTERNAL int m0_ha_state_set(struct m0_rpc_session *session,
++				struct m0_ha_nvec *note);
++M0_INTERNAL void m0_ha_state_accept(struct m0_confc *confc,
++				    const struct m0_ha_nvec *nvec);
++
++M0_EXTERN struct m0_fop_type m0_ha_state_get_fopt;
++M0_EXTERN struct m0_fop_type m0_ha_state_get_rep_fopt;
++M0_EXTERN struct m0_fop_type m0_ha_state_set_fopt;
++M0_EXTERN struct m0_fop_type m0_ha_state_set_rep_fopt;
++
++/** @} end of ha-note group */
+ 
+ #endif /* __MERO___HA_NOTE_H__ */
+ 
+-- 
+1.8.3.2
+

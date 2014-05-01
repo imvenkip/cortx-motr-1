@@ -1,0 +1,215 @@
+From 8045d398deb0d02db699cb8d40d4c76292f55f12 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 13 Nov 2013 01:36:43 +0200
+Subject: [PATCH 02/13] scripts: added systemtap scripts to look at context
+ switching
+
+note: tested on systemtap 2.4
+---
+ scripts/test.sh  |   6 ++
+ scripts/test.stp | 180 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 186 insertions(+)
+ create mode 100755 scripts/test.sh
+ create mode 100755 scripts/test.stp
+
+diff --git a/scripts/test.sh b/scripts/test.sh
+new file mode 100755
+index 0000000..0b89f24
+--- /dev/null
++++ b/scripts/test.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++
++# BINARY="$1"
++BINARY="utils/.libs/lt-ut"
++stap -vv -d "$BINARY" --ldd -DMAXTRACE=10 -DSTP_NO_OVERLOAD -DMAXSKIPPED=1000000 -DMAXERRORS=1000 \
++    ./scripts/test.stp "$BINARY" 0 0
+diff --git a/scripts/test.stp b/scripts/test.stp
+new file mode 100755
+index 0000000..e7adfbd
+--- /dev/null
++++ b/scripts/test.stp
+@@ -0,0 +1,180 @@
++#!/usr/bin/env stap
++
++global target_execname = "lt-ut";
++global hits = 0;
++global log_tag;
++global log_pid;
++global log_tid;
++global log_time;
++// global log_kbacktrace;
++global log_ubacktrace;
++global log_parms;
++
++probe begin
++{
++	printf("begin\n");
++	log_hit("begin", "");
++}
++
++probe end
++{
++	foreach (i in log_tid) {
++		/* TODO print relative time */
++		/* TODO pretty timestamp */
++		printf("%d %d %d %s %s\n", log_pid[i], log_tid[i], log_time[i], log_tag[i], log_parms[i]);
++		// printf("%s\n", sprint_syms(log_kbacktrace[i]));
++		// printf("%s\n", sprint_usyms(log_ubacktrace[i]));
++		printf("%s\n", log_ubacktrace[i]);
++	}
++	cswitch_end();
++	printf("hits = %d\n", hits);
++	printf("end\n");
++}
++
++function log_hit(tag, parms)
++{
++	/* XXX race? */
++	i = hits++;
++	log_time[i] = gettimeofday_ns();
++	log_tag[i] = tag;
++	log_pid[i] = pid();
++	log_tid[i] = tid();
++	// log_kbacktrace[hits] = callers(-1);
++	log_ubacktrace[i] = m0_bt();
++	log_parms[i] = parms;
++}
++
++probe process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_be_alloc")
++{
++	printf("%s %s\n", pp(), $$parms);
++}
++
++probe process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_mutex_lock"),
++      process("/work/mero/mero/.libs/libmero-0.1.0.so").function("m0_mutex_unlock")
++{
++	// print("%s %s\n", $$parms, $$parms$$);
++	// print_ubacktrace();
++	// printf("%d %d %s %s %s\n", tid(), gettimeofday_ns(), backtrace(), ubacktrace(), $$parms);
++	//
++	// log_hit(ppfunc(), $$parms);
++}
++
++/* unusable: logging only waitpid() kind of syscalls */
++/*
++probe scheduler.process_wait
++{
++	log_hit(pp(), sprintf("%s %d", name, pid));
++}
++*/
++
++probe scheduler.tick
++{
++	// log_hit(pp(), sprintf("%s %d", name, idle));
++}
++
++/*
++ * Context switches
++ */
++
++global cswitch_str;
++global cswitch_backtrace;
++global cswitch_nr;
++
++probe scheduler.ctxswitch
++{
++	i = cswitch_nr++;
++	cswitch_str[i] = sprintf("%s CPU %d ctxswitch from %s (name:state:pid:tid): %s:%d:%d:%d -> %s:%d:%d:%d", m0_timestamp(), cpu(), execname(),
++				 prev_task_name, prevtsk_state, prev_pid, prev_tid,
++				 next_task_name, nexttsk_state, next_pid, next_tid);
++	cswitch_backtrace[i] = m0_pid_selected(prev_pid) ? sprint_usyms(ubacktrace()) : "";
++}
++
++function cswitch_end()
++{
++	for (i = 0; i < cswitch_nr; ++i) {
++		printf("%s\n", cswitch_str[i]);
++		if (cswitch_backtrace[i] != "")
++			printf("%s\n", cswitch_backtrace[i]);
++	}
++	printf("csw_end");
++}
++
++/*
++ * Timekeeping
++ */
++
++function m0_timestamp:string()
++{
++	time = gettimeofday_ns();
++	one_billion = 1000000000;
++	return sprintf("%d.%09d", time / one_billion, time % one_billion);
++}
++
++/*
++ * Backtraces
++ */
++function m0_bt:string()
++{
++	/* sprint_ubacktrace(): 20-60 microseconds per call */
++	/* sprint_usyms(ubacktrace()): 30-60 microseconds per call */
++	// return sprint_ubacktrace(); // ucallers(-1);
++	return sprint_usyms(ubacktrace());
++}
++
++/*
++ * Processes and threads
++ * TODO trace mero kernel threads
++ */
++
++global target_pid = 0;	/* for use in scheduler.ctxswitch */
++global m0_pids;
++
++function m0_pid_mark(pid)
++{
++	m0_pids[pid] = pid;
++}
++
++function m0_pid_select(pid, ppid)
++{
++	if (m0_pids[ppid] != 0 && m0_pids[pid] == 0)
++		m0_pids[pid] = m0_pids[ppid];
++}
++
++function m0_pid_unselect(pid)
++{
++	/* TODO additional check to be sure that all childs are unselected */
++}
++
++function m0_pid_selected:long(pid)
++{
++	return m0_pids[pid] != 0;
++}
++
++probe kprocess.exec_complete
++{
++	printf("kprocess.exec_complete (execname pid success errno) %s %d %d %d\n", execname(), pid(), success, errno);
++	if (execname() == target_execname) {
++		target_pid = pid();
++		m0_pid_mark(pid());
++		printf("target pid selected: %d %s\n", target_pid, target_execname);
++	}
++}
++
++probe kprocess.create
++{
++	printf("kprocess.create (execname pid tid new_pid new_tid) %s %d %d %d %d\n", execname(), pid(), tid(), new_pid, new_tid);
++	m0_pid_select(new_pid, pid());
++	if (m0_pid_selected(new_pid))
++		printf("target pid selected: %d\n", new_pid);
++}
++
++probe kprocess.start
++{
++	printf("kprocess.start (execname pid tid) %s %d %d\n", execname(), pid(), tid());
++}
++
++probe kprocess.exit
++{
++	printf("kprocess.exit (execname pid tid) %s %d %d\n", execname(), pid(), tid());
++	m0_pid_unselect(pid());
++}
+-- 
+1.8.3.2
+

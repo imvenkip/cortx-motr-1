@@ -1,0 +1,25 @@
+From 0607088bd551a8a1ecb58eabff3f81697d0d3509 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 9 Jan 2014 05:01:06 +0200
+Subject: [PATCH 33/96] be/alloc: s/shift^2/2^shift/
+
+---
+ be/alloc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/alloc.h b/be/alloc.h
+index db59218..7abddbb 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -227,7 +227,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+  *	      *ptr shouldn't be used before completion of the operation.
+  *	      Can be NULL.
+  * @param size Memory size
+- * @param shift Memory will be aligned on (shift^2)-byte boundary.
++ * @param shift Memory will be aligned on (2^shift)-byte boundary.
+  *		It can be less than M0_BE_ALLOC_SHIFT_MIN - in this case
+  *		allocation will be done as if it is equal to
+  *		M0_BE_ALLOC_SHIFT_MIN.
+-- 
+1.8.3.2
+

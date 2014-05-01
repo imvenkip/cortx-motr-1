@@ -1,0 +1,229 @@
+From d89533adeab8f69a75d6f70dcbf0e755bb90ade3 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Mon, 21 Oct 2013 14:43:19 +0530
+Subject: [PATCH 41/50] bigmemalloc.mf -Fixed few bugs.
+
+---
+ lib/varr.c | 84 ++++++++++++++++++++++++++++++--------------------------------
+ lib/varr.h |  2 +-
+ 2 files changed, 41 insertions(+), 45 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index 566306a..be03924 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -163,7 +163,7 @@ M0_INTERNAL uint8_t nearest_power_of_two(size_t size)
+ 	M0_PRE(size > 0);
+ 
+ 	while (size > aligned_size) {
+-		safe_bitshift(aligned_size, 1, <<);
++		aligned_size = safe_bitshift(aligned_size, 1, <<);
+ 		++aligned_shift;
+ 	}
+ 	return aligned_shift;
+@@ -220,7 +220,7 @@ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+ 	M0_PRE(total_leaves > 0);
+ 
+ 	for (level = 1;; ++level)
+-		if (total_leaves <= safe_bitshift((uint32_t)1,
++		if (total_leaves <= safe_bitshift((uint64_t)1,
+ 						  arr->va_bufptr_nr_shift *
+ 						  (level - 1) +
+ 						  M0_VA_TNODE_NR_SHIFT, <<))
+@@ -230,9 +230,9 @@ M0_INTERNAL uint32_t depth_find(const struct m0_varr *arr,
+ 
+ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ {
+-	struct m0_varr_cursor cursor;
+-	int		      rc;
+-	unsigned long	      holder;
++	struct m0_varr_cursor  cursor;
++	int		       rc;
++	unsigned long	       holder;
+ 
+ 	rc = m0_varr_cursor_init(&cursor, arr, ALLOC);
+ 	if (rc != 0)
+@@ -246,8 +246,6 @@ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
+ 		*(void **)m0_varr_cursor_get(&cursor) = (void*)holder;
+ 	} while (m0_varr_cursor_next(&cursor));
+ end:
+-	if (rc != 0)
+-		varr_buffers_dealloc(arr);
+ 	return rc;
+ }
+ 
+@@ -257,6 +255,7 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ {
+ 	struct m0_varr_path_element *pe;
+ 	unsigned long		    *buf;
++	void			    *root;
+ 	uint32_t		     depth;
+ 
+ 	M0_PRE(cursor != NULL);
+@@ -268,13 +267,16 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ 	cursor->vc_done	 = 0;
+ 	pe		 = &cursor->vc_path[0];
+ 	pe->vp_idx	 = 0;
+-	pe->vp_buf	 = (void *)arr->va_tree;
++	root		 = (void *)arr->va_tree;
++	/* Note that we will never dereference pe->vp_buf at depth == 0 outside
++	 * the scope of this function*/
++	pe->vp_buf	 = (void *)&root;
+ 	pe->vp_width	 = 1;
+ 
+ 	depth = traversal == ITERATE ? arr->va_depth : traversal == ALLOC ? 1 :
+ 						        arr->va_depth - 1;
+ 	while (cursor->vc_depth < depth) {
+-		buf = pe->vp_buf;
++		buf = (unsigned long *)pe->vp_buf;
+ 		if (buf != NULL) {
+ 			++pe;
+ 			++cursor->vc_depth;
+@@ -303,10 +305,9 @@ M0_INTERNAL uint8_t log_radix(const struct m0_varr *arr, uint32_t level)
+ 			arr->va_buf_shift - arr->va_bufptr_nr_shift;
+ }
+ 
+-M0_INTERNAL void* m0_varr_cursor_get(const struct m0_varr_cursor *cursor)
++M0_INTERNAL void* m0_varr_cursor_get(struct m0_varr_cursor *cursor)
+ {
+-	return cursor->vc_done >= cursor->vc_arr->va_nr ? NULL :
+-		cursor->vc_path[cursor->vc_depth].vp_buf;
++	return cursor->vc_path[cursor->vc_depth].vp_buf;
+ }
+ 
+ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor)
+@@ -317,7 +318,7 @@ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor)
+ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 				    uint32_t inc)
+ {
+-	unsigned long		    *buf;
++	void			    *buf;
+ 	struct m0_varr_path_element *pe;
+ 	uint32_t		     d = cursor->vc_depth;
+ 	uint64_t		     target_idx;
+@@ -348,8 +349,8 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 				       index_in_level - pe->vp_idx);
+ 		pe->vp_idx = index_in_level;
+ 		while (d <= cursor->vc_depth) {
+-			buf = (unsigned long *)pe->vp_buf;
+-			pe->vp_buf = (void *)(*buf);
++			buf = pe->vp_buf;
++			pe->vp_buf = *(void **)buf;
+ 			pe->vp_buf = buff_incr(cursor->vc_arr, d, pe->vp_buf,
+ 					       pe->vp_idx);
+ 			++d;
+@@ -361,13 +362,13 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 		/* Increments of cursor->vc_done are in the quantum of objects
+ 		 * in a single leaf buffer. Hence strict equality constraint is
+ 		 * avoided below. */
+-		if (cursor->vc_done > cursor->vc_arr->va_buff_nr)
++		if (cursor->vc_done > cursor->vc_arr->va_nr)
+ 			goto end;
+ 		if (cursor->vc_depth < cursor->vc_arr->va_depth - 1) {
+-			buf = (unsigned long *)pe->vp_buf;
++			buf = pe->vp_buf;
+ 			++pe;
+ 			++cursor->vc_depth;
+-			pe->vp_buf = (void *)(*buf);
++			pe->vp_buf = *(void **)buf;
+ 			pe->vp_idx = 0;
+ 			pe->vp_width =
+ 				safe_bitshift((uint32_t)1,
+@@ -375,17 +376,14 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 						        cursor->vc_depth),
+ 					      <<);
+ 		} else {
++			completed_leaves_update(cursor, d, 1);
+ 			while (!within_tree_width(cursor, cursor->vc_depth,
+ 						  pe->vp_idx + 1) &&
+-			       cursor->vc_depth > 0) {
+-				if (d == cursor->vc_arr->va_depth - 1)
+-					completed_leaves_update(cursor, d, 1);
++				cursor->vc_depth > 0) {
+ 				--pe;
+ 				--cursor->vc_depth;
++				d = cursor->vc_depth;
+ 			}
+-			if (cursor->vc_depth ==
+-					cursor->vc_arr->va_depth - 1)
+-				completed_leaves_update(cursor, d, 1);
+ 			++pe->vp_idx;
+ 			pe->vp_buf = buff_incr(cursor->vc_arr,
+ 					       cursor->vc_depth, pe->vp_buf,
+@@ -399,28 +397,26 @@ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor,
+ 	case DEALLOC:
+ 		if (cursor->vc_depth == 0)
+ 			goto end;
++		if (cursor->vc_depth == cursor->vc_arr->va_depth - 1)
++			completed_leaves_update(cursor, cursor->vc_depth, 1);
+ 		if (within_tree_width(cursor, cursor->vc_depth,
+-					pe->vp_idx + 1)) {
++				      pe->vp_idx + 1) &&
++		    buff_incr(cursor->vc_arr, cursor->vc_depth,
++			      pe->vp_buf, 1) != NULL) {
+ 			++pe->vp_idx;
+ 			pe->vp_buf = buff_incr(cursor->vc_arr,
+ 					       cursor->vc_depth,
+ 					       pe->vp_buf, 1);
+-			if (cursor->vc_depth < cursor->vc_arr->va_depth -1) {
+-				while (cursor->vc_depth <
+-						cursor->vc_arr->va_depth - 1) {
+-					buf = (unsigned long *)pe->vp_buf;
+-					++pe;
+-					++cursor->vc_depth;
+-					pe->vp_buf = (void *)(*buf);
+-					pe->vp_idx = 0;
+-				}
+-			} else
+-				completed_leaves_update(cursor,
+-							cursor->vc_depth, 1);
++			while (cursor->vc_depth <
++			       cursor->vc_arr->va_depth - 1 &&
++			       *(void **)pe->vp_buf != NULL) {
++				buf = pe->vp_buf;
++				++pe;
++				++cursor->vc_depth;
++				pe->vp_buf = *(void **)buf;
++				pe->vp_idx = 0;
++			}
+ 		} else {
+-			if (cursor->vc_depth == cursor->vc_arr->va_depth - 1)
+-				completed_leaves_update(cursor,
+-							cursor->vc_depth, 1);
+ 			--pe;
+ 			--cursor->vc_depth;
+ 		}
+@@ -547,13 +543,13 @@ M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr)
+ 
+ 	rc = m0_varr_cursor_init(&cursor, arr, DEALLOC);
+ 	M0_ASSERT(rc == 0);
+-
+ 	do {
+-		holder = *((unsigned long *)m0_varr_cursor_get(&cursor));
++		holder = *(unsigned long *)m0_varr_cursor_get(&cursor);
+ 		/* This condition will fail when varr_buffers_alloc() has got
+ 		 * terminated intermittently. */
+-		if ((unsigned long *)holder != NULL)
+-			m0_varr_buf_free((void *)holder, arr->va_bufsize);
++		if ((void *)holder != NULL)
++			m0_varr_buf_free((void *)holder,
++					 arr->va_bufsize);
+ 	} while (m0_varr_cursor_next(&cursor));
+ }
+ 
+diff --git a/lib/varr.h b/lib/varr.h
+index d0dad9e..0e08b64 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -205,7 +205,7 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
+ /**
+  * Returns a pointer corresponding to the current location of a cursor.
+  */
+-M0_INTERNAL void* m0_varr_cursor_get(const struct m0_varr_cursor *cursor);
++M0_INTERNAL void* m0_varr_cursor_get(struct m0_varr_cursor *cursor);
+ M0_INTERNAL int m0_varr_cursor_next(struct m0_varr_cursor *cursor);
+ M0_INTERNAL int m0_varr_cursor_move(struct m0_varr_cursor *cursor, uint32_t inc);
+ 
+-- 
+1.8.3.2
+

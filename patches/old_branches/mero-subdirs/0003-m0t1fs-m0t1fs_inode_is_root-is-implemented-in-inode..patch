@@ -1,0 +1,42 @@
+From ffc7052f373a612fcc9b3bd15ed12904f10db9fb Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sat, 9 Feb 2013 16:01:02 +0200
+Subject: [PATCH 03/22] m0t1fs: m0t1fs_inode_is_root() is implemented in
+ inode.c
+
+---
+ m0t1fs/linux_kernel/m0t1fs.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index 485d699..21d7c14 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -632,8 +632,6 @@ extern const struct inode_operations m0t1fs_reg_inode_operations;
+ 
+ /* super.c */
+ 
+-M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode);
+-
+ M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype,
+ 			      int flags,
+ 			      const char *devname,
+@@ -660,6 +658,8 @@ m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
+ M0_INTERNAL int m0t1fs_inode_cache_init(void);
+ M0_INTERNAL void m0t1fs_inode_cache_fini(void);
+ 
++M0_INTERNAL bool m0t1fs_inode_is_root(const struct inode *inode);
++
+ M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
+                                            struct m0_fid *root_fid);
+ M0_INTERNAL struct inode *m0t1fs_iget(struct super_block *sb,
+-- 
+1.8.3.2
+

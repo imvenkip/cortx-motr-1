@@ -1,0 +1,19 @@
+From e73e4f80541d23105eb8738e641c22270fbc2df1 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 13 Apr 2011 01:57:09 -0600
+Subject: [PATCH 58/91] - test commit
+
+---
+ README | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README b/README
+index ce96a42..b02849e 100644
+--- a/README
++++ b/README
+@@ -1 +1 @@
+-Colibri core project
++!Colibri core project
+-- 
+1.8.3.2
+

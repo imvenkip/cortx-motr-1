@@ -1,0 +1,48 @@
+From 84e6a641761daa7a2c3486637250774f837bada4 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 25 Jan 2013 19:24:44 +0200
+Subject: [PATCH 10/79] added links to M0_NET_TEST_CMD_SIZE_MAX
+
+---
+ net/test/commands.h | 4 ++--
+ net/test/node.c     | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/net/test/commands.h b/net/test/commands.h
+index b71b3e6..e1e6f00 100644
+--- a/net/test/commands.h
++++ b/net/test/commands.h
+@@ -41,7 +41,7 @@
+  */
+ 
+ enum {
+-	/*
++	/**
+ 	 * It is a size of command network buffer.
+ 	 * Command will be serialized to this buffer, so it should
+ 	 * be large enough to contain entire serialized command.
+@@ -291,7 +291,7 @@ struct m0_net_test_cmd_ctx {
+    @note
+    - buffers for message sending/receiving will be allocated here,
+      three buffers per endpoint: one for sending, two for receiving;
+-   - all buffers will have M0_NET_TEST_CMD_SIZE_MAX size;
++   - all buffers will have ::M0_NET_TEST_CMD_SIZE_MAX size;
+    - all buffers for receiving commands will be added to receive queue here;
+    - buffers will not be automatically added to receive queue after
+      call to m0_net_test_commands_recv();
+diff --git a/net/test/node.c b/net/test/node.c
+index f5fad13..dce4330 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -663,7 +663,7 @@ finished.up();\l", shape=box];
+    @section net-test-lim Current Limitations
+ 
+    - test buffer for commands between test console and test node have
+-     size 16KiB now (see M0_NET_TEST_CMD_SIZE_MAX);
++     size 16KiB now (see ::M0_NET_TEST_CMD_SIZE_MAX);
+ 
+    <hr>
+    @section net-test-ref References
+-- 
+1.8.3.2
+

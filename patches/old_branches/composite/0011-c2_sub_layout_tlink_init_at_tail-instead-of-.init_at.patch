@@ -1,0 +1,81 @@
+From ca8b96a1b3e574153588077a3326d48344988de3 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 26 Oct 2012 18:02:29 +0530
+Subject: [PATCH 011/172] c2_sub_layout_tlink_init_at_tail() instead of
+ ..init_at() in UT
+
+---
+ layout/ut/layout.c | 26 +++++++++++---------------
+ 1 file changed, 11 insertions(+), 15 deletions(-)
+
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 15e214d..1cc13f4 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -830,9 +830,6 @@ static void sub_layouts_build(uint64_t composite_lid,
+ 	 * unsigned numbers from 0 to C2_BINDEX_MAX'. Let's spread that
+ 	 * namespace over the number of sub-layouts.
+ 	 */
+-	/* todo Check why the last seg shows the first sublayout-id n so on,
+-	 * in the layout DB.
+-	 */
+ 	c2_uint128_init(&seed, "sub_layouts_buil");
+ 	delta = C2_BINDEX_MAX / num_sublayouts;
+ 	where = 0;
+@@ -861,7 +858,7 @@ static void sub_layouts_build(uint64_t composite_lid,
+ 		sl->csl_ext.e_end   = sl->csl_ext.e_start + delta - 1;
+ 		total               = total + delta;
+ 		where               = sl->csl_ext.e_end + 1;
+-		c2_sub_layout_tlink_init_at(sl, *sub_layout_list);
++		c2_sub_layout_tlink_init_at_tail(sl, *sub_layout_list);
+ 
+ #ifndef __KERNEL__
+ 		printf("sl_lid %llu, e_start %llu, e_end %llu, "
+@@ -907,7 +904,7 @@ static void composite_layout_verify(struct c2_layout *l,
+ 	uint32_t                        N;
+ 	uint32_t                        K;
+ 	uint32_t                        P;
+-	int                             i;
++	uint32_t                        i;
+ 	c2_bindex_t                     delta = C2_BINDEX_MAX / num_sublayouts;
+ 	c2_bindex_t                     where;
+ 
+@@ -918,8 +915,8 @@ static void composite_layout_verify(struct c2_layout *l,
+ 	l_verify(l, composite_lid, !USER_COUNT_INCREMENTED);
+ 
+ 	c2_uint128_init(&seed, "sub_layouts_buil");
+-	i = num_sublayouts - 1;
+-	where = C2_BINDEX_MAX;
++	i = 0;
++	where = 0;
+         c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+ 		/* Verify the sub-layout. */
+ 		sublayout_lid = composite_lid * 100 + i;
+@@ -942,17 +939,16 @@ static void composite_layout_verify(struct c2_layout *l,
+ #endif
+ 
+ 		/* Verify sl->csl_ext. */
+-		C2_UT_ASSERT(sl->csl_ext.e_end == where);
++		C2_UT_ASSERT(sl->csl_ext.e_start == where);
+ 		if (i == num_sublayouts - 1)
+-			C2_UT_ASSERT(sl->csl_ext.e_start == C2_BINDEX_MAX -
+-					delta - (C2_BINDEX_MAX % delta));
++			C2_UT_ASSERT(sl->csl_ext.e_end == C2_BINDEX_MAX);
+ 		else
+-			C2_UT_ASSERT(sl->csl_ext.e_start ==
+-				     sl->csl_ext.e_end - delta + 1);
+-		where = sl->csl_ext.e_start - 1;
+-		--i;
++			C2_UT_ASSERT(sl->csl_ext.e_end == sl->csl_ext.e_start +
++							  delta - 1);
++		where = sl->csl_ext.e_end + 1;
++		++i;
+         } c2_tl_endfor;
+-	C2_UT_ASSERT(i == -1);
++	C2_UT_ASSERT(i == num_sublayouts);
+ }
+ 
+ /*
+-- 
+1.8.3.2
+

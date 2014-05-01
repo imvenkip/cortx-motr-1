@@ -1,0 +1,25 @@
+From e83630d14208c2b8ff9cb5d3c6201cefd806903e Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 10:05:56 +0200
+Subject: [PATCH 38/71] LogD 1514: "static const" for local variables
+
+---
+ net/test/initfini.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/initfini.c b/net/test/initfini.c
+index de1c974..ef21004 100644
+--- a/net/test/initfini.c
++++ b/net/test/initfini.c
+@@ -40,7 +40,7 @@ struct init_fini {
+ 	void (*if_fini)(void);
+ };
+ 
+-struct init_fini if_list[] = {
++static const struct init_fini if_list[] = {
+ #define NET_TEST_MODULE(name) {			  \
+ 	.if_init = c2_net_test_ ## name ## _init, \
+ 	.if_fini = c2_net_test_ ## name ## _fini, \
+-- 
+1.8.3.2
+

@@ -1,0 +1,75 @@
+From 28547bcf08060994d14d1c33b574214b00cd4057 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 29 Mar 2013 17:33:16 +0200
+Subject: [PATCH 07/15] mds/fid: add outfid parameter to m0_md_create()
+
+---
+ mdservice/md_foms.c | 23 ++++++++++++++---------
+ 1 file changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 9caf984..41b049d 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -119,10 +119,11 @@ M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
+    links.
+  */
+ static int m0_md_create(struct m0_mdstore  *md,
+-			struct m0_fid       *pfid,
+-			struct m0_fid       *tfid,
+-			struct m0_cob_attr  *attr,
+-			struct m0_db_tx     *tx)
++			struct m0_fid      *pfid,
++			struct m0_fid      *tfid,
++			struct m0_fid      *outfid,
++			struct m0_cob_attr *attr,
++			struct m0_db_tx    *tx)
+ {
+ 	struct m0_cob *scob = NULL;
+ 	int            rc;
+@@ -135,6 +136,9 @@ static int m0_md_create(struct m0_mdstore  *md,
+ 		 * must be normal create case.
+ 		 */
+ 		rc = m0_mdstore_create(md, pfid, attr, &scob, tx);
++		/* If mdstore_create returned FID, pass it to outfid. */
++		if (rc == 0 && outfid != NULL && scob->co_flags & M0_CA_NSREC)
++			*outfid = scob->co_nsrec.cnr_fid;
+ 	} else if (rc == 0) {
+ 		/*
+ 		 * There is statdata name, this must be hardlink
+@@ -200,9 +204,9 @@ static int m0_md_tick_create(struct m0_fom *fom)
+ 
+ 	m0_buf_init(&attr.ca_name, req->c_name.s_buf, req->c_name.s_len);
+ 
+-	M0_LOG(M0_DEBUG, "Create [%lx:%lx]/[%lx:%lx] %.*s",
+-	       body->b_pfid.f_container, body->b_pfid.f_key,
++	M0_LOG(M0_DEBUG, "Create [%lx:%lx]<-[%lx:%lx]/%.*s",
+ 	       body->b_tfid.f_container, body->b_tfid.f_key,
++	       body->b_pfid.f_container, body->b_pfid.f_key,
+ 	       (int)attr.ca_name.b_nob, (char *)attr.ca_name.b_addr);
+ 
+ 	/**
+@@ -219,8 +223,9 @@ static int m0_md_tick_create(struct m0_fom *fom)
+ 	}
+ 
+ 	m0_fom_block_enter(fom);
+-	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &body->b_pfid,
+-			  &body->b_tfid, &attr, &fom->fo_tx.tx_dbtx);
++	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
++			  &body->b_pfid, &body->b_tfid, &rep->c_body.b_tfid,
++			  &attr, &fom->fo_tx.tx_dbtx);
+ 	m0_fom_block_leave(fom);
+ out:
+ 	M0_LOG(M0_DEBUG, "Create finished with %d", rc);
+@@ -270,7 +275,7 @@ static int m0_md_tick_link(struct m0_fom *fom)
+ 
+ 	m0_fom_block_enter(fom);
+ 	rc = m0_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+-			  &body->b_pfid, &body->b_tfid, &attr,
++			  &body->b_pfid, &body->b_tfid, NULL, &attr,
+ 			  &fom->fo_tx.tx_dbtx);
+ 	m0_fom_block_leave(fom);
+ out:
+-- 
+1.8.3.2
+

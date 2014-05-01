@@ -1,0 +1,220 @@
+From 3301c93d736250d82b8804aafd138d0f1302b461 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 16 Jul 2012 21:08:19 +0300
+Subject: [PATCH 245/311] confc.c: define {confc,group}_{,un}lock() helpers
+
+LogD #460
+RB: r/865/diff/1-4/?file=22713#file22713line269
+---
+ conf/confc.c | 100 ++++++++++++++++++++++++++++++++++-------------------------
+ 1 file changed, 58 insertions(+), 42 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 1cc2bde..cb350f6 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -249,30 +249,6 @@ enum {
+ C2_RPC_ITEM_TYPE_DEF(request_item_type, ...XXX...);
+ 
+ /* ------------------------------------------------------------------
+- * Locks
+- * ------------------------------------------------------------------ */
+-
+-static inline struct c2_mutex *group_lock(struct c2_confc *confc)
+-{
+-	return &confc->cc_group->s_lock;
+-}
+-
+-static inline struct c2_mutex *confc_lock(struct c2_confc_ctx *ctx)
+-{
+-	return &ctx->fc_confc->cc_lock;
+-}
+-
+-static bool group_is_locked(const struct c2_confc_ctx *ctx)
+-{
+-	return c2_mutex_is_locked(group_lock(ctx->fc_confc));
+-}
+-
+-static bool confc_is_locked(const struct c2_confc *confc)
+-{
+-	return c2_mutex_is_locked(&confc->cc_lock);
+-}
+-
+-/* ------------------------------------------------------------------
+  * c2_confc
+  * ------------------------------------------------------------------ */
+ 
+@@ -350,6 +326,10 @@ static bool confc_invariant(const struct c2_confc *confc)
+ 
+ static void on_replied(struct c2_rpc_item *item);
+ static bool on_object_updated(struct c2_clink *link);
++static void group_lock(const struct c2_confc *confc);
++static void group_unlock(const struct c2_confc *confc);
++static void confc_lock(struct c2_confc *confc);
++static void confc_unlock(struct c2_confc *confc);
+ 
+ /** States of c2_confc_ctx::fc_mach. */
+ enum confc_ctx_state { S_INITIAL, S_CHECK, S_WAIT_REPLY, S_WAIT_STATUS,
+@@ -376,17 +356,17 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
+ {
+ 	C2_PRE(confc_invariant(confc));
+ 
+-	c2_mutex_lock(group_lock(confc)); /* needed for c2_sm_init() */
++	group_lock(confc); /* needed for c2_sm_init() */
+ 	c2_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
+ 		   confc->cc_group, XXX /* *c2_addb_ctx */);
+ 
+ 	/* Attach to c2_confc. */
+-	c2_mutex_lock(&confc->cc_lock);
++	confc_lock(confc);
+ 	C2_CNT_INC(confc->cc_nr_ctx);
+-	c2_mutex_unlock(&confc->cc_lock);
++	confc_unlock(confc);
+ 	ctx->fc_confc = confc;
+ 
+-	c2_mutex_unlock(group_lock(confc));
++	group_unlock(confc);
+ 
+ 	c2_clink_init(&ctx->fc_clink, on_object_updated);
+ 
+@@ -400,16 +380,16 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+ 
+ 	c2_clink_fini(&ctx->fc_clink);
+ 
+-	c2_mutex_lock(group_lock(confc)); /* needed for c2_sm_fini() */
++	group_lock(confc); /* needed for c2_sm_fini() */
+ 
+ 	/* Detach from c2_confc. */
+-	c2_mutex_lock(confc_lock(ctx));
++	confc_lock(confc);
+ 	C2_CNT_DEC(confc->cc_nr_ctx);
+-	c2_mutex_unlock(confc_lock(ctx));
++	confc_unlock(confc);
+ 	ctx->fc_confc = NULL;
+ 
+ 	c2_sm_fini(&ctx->fc_mach);
+-	c2_mutex_unlock(group_lock(confc));
++	group_unlock(confc);
+ }
+ 
+ bool c2_confc_ctx_is_completed(const struct c2_confc_ctx *ctx)
+@@ -489,11 +469,11 @@ int c2_confc_open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
+ void c2_confc_close(struct c2_conf_obj *obj)
+ {
+ 	if (obj != NULL) {
+-		c2_mutex_lock(&obj->co_confc->cc_lock);
++		confc_lock(obj->co_confc);
+ 		C2_CNT_DEC(obj->co_nrefs);
+ 		if (obj->co_nrefs == 0)
+ 			c2_chan_broadcast(&obj->co_chan);
+-		c2_mutex_unlock(&obj->co_confc->cc_lock);
++		confc_unlock(obj->co_confc);
+ 	}
+ }
+ 
+@@ -606,6 +586,8 @@ static const struct c2_confc_ctx *const_mach_to_ctx(const struct c2_sm *mach);
+ static void ast_fail(struct c2_sm_ast *ast, int32_t rc);
+ static int
+ cache_grow(struct c2_conf_map *cache, const struct c2_conf_fetch_resp *resp);
++static bool group_is_locked(const struct c2_confc *confc);
++static bool confc_is_locked(const struct c2_confc *confc);
+ 
+ /** Actions to perform on entering S_CHECK state. */
+ static int check_st_in(struct c2_sm *mach)
+@@ -756,10 +738,10 @@ static int path_walk(struct c2_confc_ctx *ctx)
+ 	struct c2_conf_obj *obj;
+ 	size_t              ri;
+ 
+-	C2_PRE(group_is_locked(ctx));
++	C2_PRE(group_is_locked(ctx->fc_confc));
+ 	C2_PRE(ctx->fc_origin != NULL);
+ 
+-	c2_mutex_lock(confc_lock(ctx));
++	confc_lock(ctx->fc_confc);
+ 
+ 	for (ret = 0, obj = ctx->fc_origin, ri = 0;
+ 	     ret == 0 && obj->co_status == C2_CS_READY &&
+@@ -782,8 +764,8 @@ static int path_walk(struct c2_confc_ctx *ctx)
+ 		ret = path_walk_complete(ctx, obj, ri);
+ 	}
+ 
+-	c2_mutex_unlock(confc_lock(ctx));
+-	C2_POST(group_is_locked(ctx));
++	confc_unlock(ctx->fc_confc));
++	C2_POST(group_is_locked(ctx->fc_confc));
+ 	return ret;
+ }
+ 
+@@ -800,7 +782,7 @@ static int path_walk(struct c2_confc_ctx *ctx)
+ static int
+ path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj, size_t ri)
+ {
+-	C2_PRE(group_is_locked(ctx));
++	C2_PRE(group_is_locked(ctx->fc_confc));
+ 	C2_PRE(confc_is_locked(ctx->fc_confc));
+ 
+ 	switch (obj->co_status) {
+@@ -993,9 +975,9 @@ cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
+ 	 * struct c2_confc     *confc = registry_to_confc(reg);
+ 	 *
+ 	 * C2_PRE(resp->fr_rc == 0);
+-	 * C2_PRE(c2_mutex_is_locked(group_lock(confc));
++	 * C2_PRE(group_is_locked(confc));
+ 	 *
+-	 * c2_mutex_lock(&confc->cc_lock);
++	 * confc_lock(confc);
+ 	 *
+ 	 * for (onwire in resp->fr_data) {
+ 	 *     if (onwire->o_id.cb_size == 0 ||
+@@ -1016,7 +998,7 @@ cache_grow(struct c2_conf_map *reg, const struct c2_conf_fetch_resp *resp)
+ 	 *         break;
+ 	 * }
+ 	 *
+-	 * c2_mutex_unlock(&confc->cc_lock);
++	 * confc_unlock(confc);
+ 	 * return ret;
+ 	 */
+ 	XXX;
+@@ -1091,5 +1073,39 @@ request_fill(struct c2_conf_ctx *ctx, const struct c2_conf_obj *org, size_t ri)
+ 
+ 	C2_POST(request_is_valid(req));
+ }
++
++/* ------------------------------------------------------------------
++ * Locking
++ * ------------------------------------------------------------------ */
++
++static void group_lock(const struct c2_confc *confc)
++{
++	c2_mutex_lock(&confc->cc_group->s_lock);
++}
++
++static void group_unlock(const struct c2_confc *confc)
++{
++	c2_mutex_unlock(&confc->cc_group->s_lock);
++}
++
++static bool group_is_locked(const struct c2_confc *confc)
++{
++	return c2_mutex_is_locked(&confc->cc_group->s_lock);
++}
++
++static void confc_lock(struct c2_confc *confc)
++{
++	c2_mutex_lock(&confc->cc_lock);
++}
++
++static void confc_unlock(struct c2_confc *confc)
++{
++	c2_mutex_unlock(&confc->cc_lock);
++}
++
++static bool confc_is_locked(const struct c2_confc *confc)
++{
++	return c2_mutex_is_locked(&confc->cc_lock);
++}
+ 
+ /** @} confc_dlspec */
+-- 
+1.8.3.2
+

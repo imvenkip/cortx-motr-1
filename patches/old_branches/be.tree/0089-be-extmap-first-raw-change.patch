@@ -1,0 +1,675 @@
+From 762441f99430a0862cf998bba63aa59db072e315 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Mon, 3 Jun 2013 12:49:15 +0300
+Subject: [PATCH 089/290] be: extmap first raw change
+
+---
+ balloc/balloc.c      |  42 +++++++++---------
+ be/seg.c             |   2 +-
+ db/extmap.c          | 123 +++++++++++++++++++++++++--------------------------
+ db/extmap.h          |  56 +++++++++++------------
+ db/extmap_internal.h |  28 +++++++-----
+ 5 files changed, 124 insertions(+), 127 deletions(-)
+
+diff --git a/balloc/balloc.c b/balloc/balloc.c
+index f210474..5c05b57 100644
+--- a/balloc/balloc.c
++++ b/balloc/balloc.c
+@@ -1874,7 +1874,7 @@ out:
+    specified memory limitation.	 This is a configurable parameter, or default
+    value will be chosen based on system memory.
+ 
+-   @param ctxt balloc operation context environment.
++   @param ctx balloc operation context environment.
+    @param req allocate request which includes all parameters.
+    @return 0 means success.
+ 	   Result allocated blocks are again stored in "req":
+@@ -1883,7 +1883,7 @@ out:
+ 	   Upon failure, non-zero error number is returned.
+  */
+ static
+-int balloc_allocate_internal(struct m0_balloc *mero,
++int balloc_allocate_internal(struct m0_balloc *ctx,
+ 			     struct m0_db_tx *tx,
+ 			     struct m0_balloc_allocate_req *req)
+ {
+@@ -1892,7 +1892,7 @@ int balloc_allocate_internal(struct m0_balloc *mero,
+ 	M0_ENTRY();
+ 
+ 	while (req->bar_len &&
+-	       !balloc_claim_free_blocks(mero, req->bar_len)) {
++	       !balloc_claim_free_blocks(ctx, req->bar_len)) {
+ 		req->bar_len = req->bar_len >> 1;
+ 	}
+ 	if (req->bar_len == 0) {
+@@ -1900,7 +1900,7 @@ int balloc_allocate_internal(struct m0_balloc *mero,
+ 		goto out;
+ 	}
+ 
+-	balloc_init_ac(&bac, mero, tx, req);
++	balloc_init_ac(&bac, ctx, tx, req);
+ 
+ 	/* Step 1. query the pre-allocation */
+ 	if (!balloc_use_prealloc(&bac)) {
+@@ -1923,17 +1923,17 @@ out:
+ /**
+    Free multiple blocks owned by some object to free space.
+ 
+-   @param ctxt balloc operation context environment.
++   @param ctx balloc operation context environment.
+    @param req block free request which includes all parameters.
+    @return 0 means success. Upon failure, non-zero error number is returned.
+  */
+-static int balloc_free_internal(struct m0_balloc *mero,
++static int balloc_free_internal(struct m0_balloc *ctx,
+ 				struct m0_db_tx *tx,
+ 				struct m0_balloc_free_req *req)
+ {
+ 	struct m0_ext			 fex;
+ 	struct m0_balloc_group_info	*grp;
+-	struct m0_balloc_super_block	*sb = &mero->cb_sb;
++	struct m0_balloc_super_block	*sb = &ctx->cb_sb;
+ 	m0_bcount_t			 group;
+ 	m0_bindex_t			 start, off;
+ 	m0_bcount_t			 len, step;
+@@ -1943,25 +1943,25 @@ static int balloc_free_internal(struct m0_balloc *mero,
+ 	start = req->bfr_physical;
+ 	len = req->bfr_len;
+ 
+-	group = balloc_bn2gn(start + len, mero);
++	group = balloc_bn2gn(start + len, ctx);
+ 	M0_LOG(M0_DEBUG, "start=0x%llx, len=0x%llx, start_group=%llu, "
+ 		"end_group=%llu, group count=%llu\n",
+ 		(unsigned long long)start,
+ 		(unsigned long long)len,
+-		(unsigned long long)balloc_bn2gn(start, mero),
+-		(unsigned long long)balloc_bn2gn(start + len, mero),
++		(unsigned long long)balloc_bn2gn(start, ctx),
++		(unsigned long long)balloc_bn2gn(start + len, ctx),
+ 		(unsigned long long)sb->bsb_groupcount
+ 		);
+ 	if (group > sb->bsb_groupcount)
+ 		return -EINVAL;
+ 
+ 	while (rc == 0 && len > 0) {
+-		group = balloc_bn2gn(start, mero);
++		group = balloc_bn2gn(start, ctx);
+ 
+-		grp = m0_balloc_gn2info(mero, group);
++		grp = m0_balloc_gn2info(ctx, group);
+ 		m0_balloc_lock_group(grp);
+ 
+-		rc = m0_balloc_load_extents(mero, grp, tx);
++		rc = m0_balloc_load_extents(ctx, grp, tx);
+ 		if (rc != 0) {
+ 			m0_balloc_unlock_group(grp);
+ 			goto out;
+@@ -1975,7 +1975,7 @@ static int balloc_free_internal(struct m0_balloc *mero,
+ 
+ 		fex.e_start = start;
+ 		fex.e_end   = start + step;
+-		rc = balloc_update_db(mero, tx, grp,
++		rc = balloc_update_db(ctx, tx, grp,
+ 					 &fex, M0_BALLOC_FREE);
+ 		m0_balloc_release_extents(grp);
+ 		m0_balloc_unlock_group(grp);
+@@ -1991,12 +1991,12 @@ out:
+ /**
+    Discard the pre-allocation for object.
+ 
+-   @param ctxt balloc operation context environment.
++   @param ctx balloc operation context environment.
+    @param req discard request which includes all parameters.
+    @return 0 means success. Upon failure, non-zero error number is returned.
+  */
+ __attribute__((unused))
+-static int balloc_discard_prealloc(struct m0_balloc *mero,
++static int balloc_discard_prealloc(struct m0_balloc *ctx,
+ 				   struct m0_balloc_discard_req *req)
+ {
+ 	return 0;
+@@ -2008,15 +2008,15 @@ static int balloc_discard_prealloc(struct m0_balloc *mero,
+    This function may be used by fsck or some other tools to modify the
+    allocation status directly.
+ 
+-   @param ctxt balloc operation context environment.
++   @param ctx balloc operation context environment.
+    @param alloc true to make the specifed extent as allocated, otherwise make
+ 	  the extent as free.
+    @param ext user supplied extent to check.
+    @return 0 means success. Upon failure, non-zero error number is returned.
+  */
+ __attribute__((unused))
+-static int balloc_enforce(struct m0_balloc *mero, bool alloc,
+-			  struct m0_ext *ex)
++static int balloc_enforce(struct m0_balloc *ctx, bool alloc,
++			  struct m0_ext *ext)
+ {
+ 	return 0;
+ }
+@@ -2025,12 +2025,12 @@ static int balloc_enforce(struct m0_balloc *mero, bool alloc,
+ /**
+    Query the allocation status.
+ 
+-   @param ctxt balloc operation context environment.
++   @param ctx balloc operation context environment.
+    @param ext user supplied extent to check.
+    @return true if the extent is fully allocated. Otherwise, false is returned.
+  */
+ __attribute__((unused))
+-static bool balloc_query(struct m0_balloc *mero, struct m0_ext *ex)
++static bool balloc_query(struct m0_balloc *ctx, struct m0_ext *ext)
+ {
+ 
+ 	return false;
+diff --git a/be/seg.c b/be/seg.c
+index b76f485..74f3969 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -307,7 +307,7 @@ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg *seg, const char *name,
+ 					void **out)
+ {
+ 	*out = NULL;
+-	return 0;
++	return -ENOENT;
+ }
+ 
+ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg, const char *name,
+diff --git a/db/extmap.c b/db/extmap.c
+index a7565ea..0fa05eb 100644
+--- a/db/extmap.c
++++ b/db/extmap.c
+@@ -1,5 +1,5 @@
+ /*
+- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -79,74 +79,57 @@ static void key_print(const struct m0_emap_key *k)
+ }
+ */
+ 
+-static int emap_cmp(struct m0_table *table,
+-		    const void *key0, const void *key1)
++static int emap_cmp(const void *key0, const void *key1)
+ {
+ 	const struct m0_emap_key *a0 = key0;
+ 	const struct m0_emap_key *a1 = key1;
+ 
+-/*	static const char compare[] = "<=>";
+-
+-	key_print(a0);
+-	printf(" %c ", compare[(m0_uint128_cmp(&a0->ek_prefix,
+-						 &a1->ek_prefix) ?:
+-				  M0_3WAY(a0->ek_offset,
+-					  a1->ek_offset)) + 1]);
+-	key_print(a1);
+-	printf("\n"); */
+ 	return m0_uint128_cmp(&a0->ek_prefix, &a1->ek_prefix) ?:
+ 		M0_3WAY(a0->ek_offset, a1->ek_offset);
+ }
+ 
+-static const struct m0_table_ops emap_ops = {
+-	.to = {
+-		[TO_KEY] = {
+-			.max_size = sizeof(struct m0_emap_key)
+-		},
+-		[TO_REC] = {
+-			.max_size = sizeof(struct m0_emap_rec)
+-		},
+-	},
+-	.key_cmp = emap_cmp
+-};
+-
+-M0_INTERNAL int m0_emap_init(struct m0_emap *emap, struct m0_dbenv *db,
+-			     const char *mapname)
++static unsigned ksize(void*)
+ {
+-	return m0_table_init(&emap->em_mapping, db, mapname, 0, &emap_ops);
++	return sizeof(struct m0_emap_key);
+ }
+ 
+-M0_INTERNAL void m0_emap_fini(struct m0_emap *emap)
++static unsigned dsize(void*)
+ {
+-	m0_table_fini(&emap->em_mapping);
++	return sizeof(struct m0_emap_rec);
+ }
+ 
+-static void emap_pack(const struct m0_emap_seg *ext,
+-		      struct m0_emap_key *key, struct m0_emap_rec *rec)
++static const struct m0_be_btree_kv_ops emap_ops = {
++        .ko_ksize =   emap_ksize,
++        .ko_dsize =   emap_dsize,
++        .ko_compare = emap_cmp
++};
++
++M0_INTERNAL int m0_emap_init(struct m0_emap *map, struct m0_be_seg *db,
++			     const char *mapname)
+ {
+-	key->ek_prefix = ext->ee_pre;
+-	key->ek_offset = ext->ee_ext.e_end;
+-	rec->er_start  = ext->ee_ext.e_start;
+-	rec->er_value  = ext->ee_val;
++	int rc;
++	struct m0_be_bnode *root;
++
++	rc = m0_seg_dict_lookup(db, mapname, &root);
++	if (rc != 0) {
++		return rc;
++	}
++	return m0_be_btree_init(&map->em_mapping, db, &emap_ops, root);
+ }
+ 
+-static void emap_open(const struct m0_emap_key *key,
+-		      const struct m0_emap_rec *rec, struct m0_emap_seg *ext)
++M0_INTERNAL void m0_emap_fini(struct m0_emap *map)
+ {
+-	ext->ee_pre         = key->ek_prefix;
+-	ext->ee_ext.e_start = rec->er_start;
+-	ext->ee_ext.e_end   = key->ek_offset;
+-	ext->ee_val         = rec->er_value;
++	m0_be_btree_fini(&map->em_mapping);
+ }
+ 
+-M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor *iterator)
++M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor *it)
+ {
+-	return &iterator->ec_seg;
++	return &it->ec_seg;
+ }
+ 
+ M0_INTERNAL bool m0_emap_ext_is_last(const struct m0_ext *ext)
+ {
+-	return ext->e_end == M0_BINDEX_MAX + 1;
++	return ext->e_end == M0_BCOUNT_MAX;
+ }
+ 
+ M0_INTERNAL bool m0_emap_ext_is_first(const struct m0_ext *ext)
+@@ -156,12 +139,26 @@ M0_INTERNAL bool m0_emap_ext_is_first(const struct m0_ext *ext)
+ 
+ static void it_pack(struct m0_emap_cursor *it)
+ {
+-	emap_pack(&it->ec_seg, &it->ec_key, &it->ec_rec);
++	const struct m0_emap_seg *ext = &it->ec_seg;
++	struct m0_emap_key       *key = &it->ec_key;
++	struct m0_emap_rec       *rec = &it->ec_rec;
++
++	key->ek_prefix = ext->ee_pre;
++	key->ek_offset = ext->ee_ext.e_end;
++	rec->er_start  = ext->ee_ext.e_start;
++	rec->er_value  = ext->ee_val;
+ }
+ 
+ static void it_open(struct m0_emap_cursor *it)
+ {
+-	emap_open(&it->ec_key, &it->ec_rec, &it->ec_seg);
++	const struct m0_emap_key *key = &it->ec_key;
++	const struct m0_emap_rec *rec = &it->ec_rec;
++	struct m0_emap_seg       *ext = &it->ec_seg;
++
++	ext->ee_pre         = key->ek_prefix;
++	ext->ee_ext.e_start = rec->er_start;
++	ext->ee_ext.e_end   = key->ek_offset;
++	ext->ee_val         = rec->er_value;
+ }
+ 
+ static bool it_prefix_ok(const struct m0_emap_cursor *it)
+@@ -191,17 +188,17 @@ static bool it_prefix_ok(const struct m0_emap_cursor *it)
+ 	(*(func))(&__it->ec_cursor, &__it->ec_pair);	\
+ })
+ 
+-static int it_init(struct m0_emap *emap, struct m0_db_tx *tx,
++static int it_init(struct m0_emap *map, struct m0_db_tx *tx,
+ 		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		   struct m0_emap_cursor *it, uint32_t flags)
+ {
+-	m0_db_pair_setup(&it->ec_pair, &emap->em_mapping,
++	m0_db_pair_setup(&it->ec_pair, &map->em_mapping,
+ 			 &it->ec_key, sizeof it->ec_key,
+ 			 &it->ec_rec, sizeof it->ec_rec);
+ 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
+ 	it->ec_key.ek_offset = offset + 1;
+-	it->ec_map           = emap;
+-	return m0_db_cursor_init(&it->ec_cursor, &emap->em_mapping, tx, flags);
++	it->ec_map           = map;
++	return m0_db_cursor_init(&it->ec_cursor, &map->em_mapping, tx, flags);
+ }
+ 
+ static void emap_close(struct m0_emap_cursor *it)
+@@ -210,13 +207,13 @@ static void emap_close(struct m0_emap_cursor *it)
+ 	m0_db_pair_fini(&it->ec_pair);
+ }
+ 
+-static int emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
++static int emap_lookup(struct m0_emap *map, struct m0_db_tx *tx,
+ 		       const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		       struct m0_emap_cursor *it)
+ {
+ 	int result;
+ 
+-	result = it_init(emap, tx, prefix, offset, it, 0);
++	result = it_init(map, tx, prefix, offset, it, 0);
+ 	if (result == 0) {
+ 		result = IT_DO_OPEN(it, &m0_db_cursor_get);
+ 		if (result != 0)
+@@ -231,7 +228,7 @@ static int emap_next(struct m0_emap_cursor *it)
+ 	return IT_DO_OPEN(it, &m0_db_cursor_next);
+ }
+ 
+-#ifdef ENABLE_DEBUG
++#if 0
+ static bool emap_invariant_check(struct m0_emap_cursor *it)
+ {
+ 	int                   result;
+@@ -278,7 +275,7 @@ static bool emap_invariant(struct m0_emap_cursor *it)
+ 	return check;
+ }
+ 
+-#else /* !ENABLE_DEBUG */
++#else
+ 
+ static bool emap_invariant(struct m0_emap_cursor *it)
+ {
+@@ -286,7 +283,7 @@ static bool emap_invariant(struct m0_emap_cursor *it)
+ }
+ #endif
+ 
+-int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
++int m0_emap_lookup(struct m0_emap *map, struct m0_db_tx *tx,
+ 		   const struct m0_uint128 *prefix, m0_bindex_t offset,
+ 		   struct m0_emap_cursor *it)
+ {
+@@ -294,7 +291,7 @@ int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
+ 
+ 	M0_PRE(offset <= M0_BINDEX_MAX);
+ 
+-	result = emap_lookup(emap, tx, prefix, offset, it);
++	result = emap_lookup(map, tx, prefix, offset, it);
+ 	M0_ASSERT_EX(ergo(result == 0, emap_invariant(it)));
+ 	return result;
+ }
+@@ -454,18 +451,18 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+ 	 *
+ 	 * - on entry to m0_emap_paste():
+ 	 *
+-	 *   emap: *[0, 512) [512, 1024) [1024, 2048) [2048, ...)
++	 *   map: *[0, 512) [512, 1024) [1024, 2048) [2048, ...)
+ 	 *   ext:   [0, 1024)
+ 	 *
+ 	 *   (where current cursor position is starred).
+ 	 *
+ 	 * - at the end of the first iteration, instead of expected
+ 	 *
+-	 *   emap: [0, 1024) *[512, 1024) [1024, 2048) [2048, ...)
++	 *   map: [0, 1024) *[512, 1024) [1024, 2048) [2048, ...)
+ 	 *
+ 	 *   the map was
+ 	 *
+-	 *   emap: [0, 1024) *[1024, 2048) [2048, ...)
++	 *   map: [0, 1024) *[1024, 2048) [2048, ...)
+ 	 *
+ 	 * - that is, the call to emap_split_internal():
+ 	 *
+@@ -539,14 +536,14 @@ M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+ 	return result;
+ }
+ 
+-M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
++M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *map, struct m0_db_tx *tx,
+ 				   const struct m0_uint128 *prefix,
+ 				   uint64_t val)
+ {
+ 	struct m0_emap_cursor it;
+ 	int                   result;
+ 
+-	result = it_init(emap, tx, prefix, 0, &it, M0_DB_CURSOR_RMW);
++	result = it_init(map, tx, prefix, 0, &it, M0_DB_CURSOR_RMW);
+ 	if (result == 0) {
+ 		it.ec_seg.ee_pre         = *prefix;
+ 		it.ec_seg.ee_ext.e_start = 0;
+@@ -560,13 +557,13 @@ M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
+ 	return result;
+ }
+ 
+-M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *emap, struct m0_db_tx *tx,
++M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *map, struct m0_db_tx *tx,
+ 				   const struct m0_uint128 *prefix)
+ {
+ 	struct m0_emap_cursor it;
+ 	int                   result;
+ 
+-	result = m0_emap_lookup(emap, tx, prefix, 0, &it);
++	result = m0_emap_lookup(map, tx, prefix, 0, &it);
+ 	if (result == 0) {
+ 		M0_ASSERT(m0_emap_ext_is_first(&it.ec_seg.ee_ext) &&
+ 			  m0_emap_ext_is_last(&it.ec_seg.ee_ext));
+diff --git a/db/extmap.h b/db/extmap.h
+index ae13064..e7eb56f 100644
+--- a/db/extmap.h
++++ b/db/extmap.h
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -104,14 +104,15 @@
+ 
+ #include "lib/ext.h"       /* m0_ext */
+ #include "lib/types.h"     /* struct m0_uint128 */
+-#include "db/db.h"
++#include "be/tx.h"
++#include "be/btree.h"
+ #include "lib/ext_xc.h"
+ #include "lib/types_xc.h"
+ 
+ /* import */
+ struct m0_emap;
+-struct m0_dbenv;
+-struct m0_db_tx;
++struct m0_be_seg;
++struct m0_be_tx;
+ struct m0_indexvec;
+ 
+ /* export */
+@@ -124,11 +125,11 @@ struct m0_emap_cursor;
+     @param db - data-base environment used for persistency and transactional
+     support.
+  */
+-M0_INTERNAL int m0_emap_init(struct m0_emap *emap,
+-			     struct m0_dbenv *db, const char *mapname);
++M0_INTERNAL int m0_emap_init(struct m0_emap *map, struct m0_be_seg *db,
++			     const char *mapname);
+ 
+ /** Release the resources associated with the collection. */
+-M0_INTERNAL void m0_emap_fini(struct m0_emap *emap);
++M0_INTERNAL void m0_emap_fini(struct m0_emap *map);
+ 
+ /**
+    Insert a new map with the given prefix into the collection.
+@@ -139,9 +140,8 @@ M0_INTERNAL void m0_emap_fini(struct m0_emap *emap);
+ 	   ([0, M0\_BINDEX\_MAX + 1), val)
+    @f]
+  */
+-M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
+-				   const struct m0_uint128 *prefix,
+-				   uint64_t val);
++M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *map, struct m0_be_tx *tx,
++				const struct m0_uint128 *prefix, uint64_t val);
+ 
+ /**
+    Remove a map with the given prefix from the collection.
+@@ -149,7 +149,7 @@ M0_INTERNAL int m0_emap_obj_insert(struct m0_emap *emap, struct m0_db_tx *tx,
+    @pre the map must be in initial state: consists of a single extent, covering
+    the whole name-space.
+  */
+-M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *emap, struct m0_db_tx *tx,
++M0_INTERNAL int m0_emap_obj_delete(struct m0_emap *map, struct m0_be_tx *tx,
+ 				   const struct m0_uint128 *prefix);
+ 
+ /** Extent map segment. */
+@@ -169,8 +169,7 @@ M0_INTERNAL bool m0_emap_ext_is_last(const struct m0_ext *ext);
+ M0_INTERNAL bool m0_emap_ext_is_first(const struct m0_ext *ext);
+ 
+ /** Returns an extent at the current cursor position. */
+-M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor
+-						*iterator);
++M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor *it);
+ 
+ /**
+     Initialises extent map cursor to point to the segment containing given
+@@ -188,23 +187,23 @@ M0_INTERNAL struct m0_emap_seg *m0_emap_seg_get(struct m0_emap_cursor
+     @retval -ENOENT no matching segment is found and there is no map following
+     requested one.
+  */
+-M0_INTERNAL int m0_emap_lookup(struct m0_emap *emap, struct m0_db_tx *tx,
++M0_INTERNAL int m0_emap_lookup(struct m0_emap *map, struct m0_be_tx *tx,
+ 			       const struct m0_uint128 *prefix,
+ 			       m0_bindex_t offset, struct m0_emap_cursor *it);
+ 
+ /**
+    Move cursor to the next segment in its map.
+ 
+-   @pre !m0_emap_ext_is_last(m0_emap_seg_get(iterator))
++   @pre !m0_emap_ext_is_last(m0_emap_seg_get(it))
+  */
+-M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *iterator);
++M0_INTERNAL int m0_emap_next(struct m0_emap_cursor *it);
+ 
+ /**
+    Move cursor to the previous segment in its map.
+ 
+-   @pre !m0_emap_ext_is_first(m0_emap_seg_get(iterator))
++   @pre !m0_emap_ext_is_first(m0_emap_seg_get(it))
+  */
+-M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *iterator);
++M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *it);
+ 
+ /**
+    Split the segment the cursor is current positioned at into a collection of
+@@ -218,9 +217,9 @@ M0_INTERNAL int m0_emap_prev(struct m0_emap_cursor *iterator);
+    Empty segments from vec are skipped.  On successful completion, the cursor is
+    positioned on the last created segment.
+ 
+-   @pre m0_vec_count(&vec->ov_vec) == m0_ext_length(m0_emap_seg_get(iterator))
++   @pre m0_vec_count(&vec->ov_vec) == m0_ext_length(m0_emap_seg_get(it))
+  */
+-M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *iterator,
++M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *it,
+ 			      struct m0_indexvec *vec);
+ 
+ /**
+@@ -253,11 +252,9 @@ M0_INTERNAL int m0_emap_split(struct m0_emap_cursor *iterator,
+    a part of official function contract.
+  */
+ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+-		  void (*del)(struct m0_emap_seg *),
+-		  void (*cut_left)(struct m0_emap_seg *, struct m0_ext *,
+-				   uint64_t),
+-		  void (*cut_right)(struct m0_emap_seg *, struct m0_ext *,
+-				    uint64_t));
++	void (*del)      (struct m0_emap_seg*),
++	void (*cut_left) (struct m0_emap_seg*, struct m0_ext*, uint64_t),
++	void (*cut_right)(struct m0_emap_seg*, struct m0_ext*, uint64_t));
+ 
+ /**
+    Merge a part of the segment the cursor is currently positioned at with the
+@@ -266,11 +263,10 @@ int m0_emap_paste(struct m0_emap_cursor *it, struct m0_ext *ext, uint64_t val,
+    Current segment's extent is shrunk by delta. If this would make it empty, the
+    current segment is deleted. The next segment is expanded by delta downwards.
+ 
+-   @pre !m0_emap_ext_is_last(m0_emap_seg_get(iterator))
+-   @pre delta <= m0_ext_length(m0_emap_seg_get(iterator));
++   @pre !m0_emap_ext_is_last(m0_emap_seg_get(it))
++   @pre delta <= m0_ext_length(m0_emap_seg_get(it));
+  */
+-M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *iterator,
+-			      m0_bindex_t delta);
++M0_INTERNAL int m0_emap_merge(struct m0_emap_cursor *it, m0_bindex_t delta);
+ 
+ /**
+    Updates the segment the cursor is currently postioned at with the given
+@@ -284,7 +280,7 @@ M0_INTERNAL int m0_emap_extent_update(struct m0_emap_cursor *it,
+ /**
+    Release the resources associated with the cursor.
+  */
+-M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *iterator);
++M0_INTERNAL void m0_emap_close(struct m0_emap_cursor *it);
+ 
+ #include "db/extmap_internal.h"
+ 
+diff --git a/db/extmap_internal.h b/db/extmap_internal.h
+index 9a6683e..9d0f6a0 100644
+--- a/db/extmap_internal.h
++++ b/db/extmap_internal.h
+@@ -1,6 +1,6 @@
+ /* -*- C -*- */
+ /*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+@@ -35,7 +35,7 @@
+  */
+ 
+ #include "lib/types.h"     /* struct m0_uint128 */
+-#include "db/db.h"
++#include "be/btree.h"
+ 
+ /**
+    m0_emap stores a collection of related extent maps. Individual maps within a
+@@ -44,16 +44,20 @@
+    @see m0_emap_obj_insert()
+  */
+ struct m0_emap {
+-	struct m0_table   em_mapping;
++	struct m0_be_btree   em_mapping;
+ };
+ 
+ /**
+    A key used to identify a particular segment in the map collection.
+  */
+ struct m0_emap_key {
+-	/** Prefix of the map the segment is part of. */
++	/**
++	    Prefix of the map the segment is part of.
++	 */
+ 	struct m0_uint128 ek_prefix;
+-	/** Last offset of the segment's extent. That is, the key of a segment
++
++	/**
++	    Last offset of the segment's extent. That is, the key of a segment
+ 	    ([A, B), V) has B as an offset.
+ 
+ 	    This not entirely intuitive decision is forced by the available
+@@ -90,15 +94,15 @@ struct m0_emap_rec {
+  */
+ struct m0_emap_cursor {
+ 	/** Map this cursor is iterating through. */
+-	struct m0_emap     *ec_map;
++	struct m0_emap           *ec_map;
+ 	/** Segment currently reached. */
+-	struct m0_emap_seg  ec_seg;
++	struct m0_emap_seg        ec_seg;
+ 	/** Data-base cursor. */
+-	struct m0_db_cursor ec_cursor;
+-	struct m0_db_pair   ec_pair;
+-	struct m0_emap_key  ec_key;
+-	struct m0_emap_rec  ec_rec;
+-	struct m0_uint128   ec_prefix;
++	struct m0_be_btree_cursor ec_cursor;
++	struct m0_db_pair         ec_pair;
++	struct m0_emap_key        ec_key;
++	struct m0_emap_rec        ec_rec;
++	struct m0_uint128         ec_prefix;
+ };
+ 
+ /** @} end group extmap */
+-- 
+1.8.3.2
+

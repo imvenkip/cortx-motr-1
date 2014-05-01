@@ -1,0 +1,42 @@
+From 8f3a700a01596cf0b8c41917807e07311f29a14e Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Mon, 18 Mar 2013 13:10:26 +0200
+Subject: [PATCH 01/15] cob: add d_ino member to struct m0_dirent and
+ M0_COB_TFID flag
+
+---
+ cob/cob.h | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/cob/cob.h b/cob/cob.h
+index c360a8d..c3de28d 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -304,13 +304,14 @@ enum m0_cob_valid_flags {
+ 	M0_COB_NLINK   = 1 << 10,
+ 	M0_COB_RDEV    = 1 << 11,
+ 	M0_COB_BLKSIZE = 1 << 12,
+-	M0_COB_LID     = 1 << 13
++	M0_COB_LID     = 1 << 13,
++	M0_COB_TFID    = 1 << 14
+ };
+ 
+ #define M0_COB_ALL (M0_COB_ATIME | M0_COB_MTIME | M0_COB_CTIME |               \
+ 		    M0_COB_SIZE | M0_COB_MODE | M0_COB_UID | M0_COB_GID |      \
+ 		    M0_COB_BLOCKS | M0_COB_TYPE | M0_COB_FLAGS | M0_COB_NLINK |\
+-		    M0_COB_RDEV | M0_COB_BLKSIZE | M0_COB_LID)
++		    M0_COB_RDEV | M0_COB_BLKSIZE | M0_COB_LID | M0_COB_TFID)
+ 
+ /**
+  * Attributes describing object that needs to be created or modified.
+@@ -519,6 +520,7 @@ struct m0_cob {
+ struct m0_dirent {
+ 	uint32_t             d_namelen;
+ 	uint32_t             d_reclen;
++	ino_t                d_ino;
+ 	char                 d_name[0];
+ };
+ 
+-- 
+1.8.3.2
+

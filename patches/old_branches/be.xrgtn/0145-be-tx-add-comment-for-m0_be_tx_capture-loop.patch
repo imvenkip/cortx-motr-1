@@ -1,0 +1,26 @@
+From 8f081f898e82c8c798fc2b688db3bc8c116469b5 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 12 Jun 2013 11:59:37 +0300
+Subject: [PATCH 145/228] be/tx: add comment for m0_be_tx_capture() loop.
+
+---
+ be/tx.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/be/tx.c b/be/tx.c
+index 8c07afb..bd5a6f6 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -314,6 +314,9 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 
+ 	credit_mod(&tx->t_captured, new, +1);
+ 
++	/* Cut pieces off the new region and store them into old regions'
++	 * buffers, until the new region either do not intersect any of the
++	 * old ones or is completely stuffed into old buffers. */
+ 	while (new->rd_reg.br_size > 0) {
+ 		struct m0_ext enew;
+ 		struct m0_ext eold;
+-- 
+1.8.3.2
+

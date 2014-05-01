@@ -1,0 +1,24 @@
+From 18a09b1fcda4220e3afcbffd1f61eb7d73326c50 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 19:12:14 +0200
+Subject: [PATCH 34/99] LogD 1875: extra blank line
+
+---
+ net/test/network.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/test/network.c b/net/test/network.c
+index 235fabc..102e7a3 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -268,7 +268,6 @@ static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
+ 	int		rc;
+ 	int		i;
+ 
+-
+ 	M0_PRE(ctx != NULL);
+ 	M0_PRE(equi(cfg != NULL, tm_addr != NULL));
+ 
+-- 
+1.8.3.2
+

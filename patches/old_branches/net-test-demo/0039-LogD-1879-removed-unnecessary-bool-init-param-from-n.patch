@@ -1,0 +1,60 @@
+From e463a40d890c32b0eb530c815039fc2502e392f9 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Sun, 3 Feb 2013 19:35:41 +0200
+Subject: [PATCH 39/79] LogD 1879: removed unnecessary 'bool init' param from
+ node_bulk_initfini()
+
+---
+ net/test/node_bulk.c | 16 +++++++---------
+ 1 file changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 834fe94..398e56a 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1463,17 +1463,15 @@ success:
+ 	return rc;
+ }
+ 
+-static void *node_bulk_init_fini(void *ctx_,
+-				 struct m0_net_test_service *svc,
+-				 bool init)
++static void *node_bulk_initfini(void *ctx_,
++				struct m0_net_test_service *svc)
+ {
+ 	struct node_bulk_ctx *ctx;
+ 	int		      rc;
+ 
+-	M0_PRE(equi(init, ctx_ == NULL));
+-	M0_PRE(equi(init, svc != NULL));
++	M0_PRE(equi(ctx_ == NULL, svc != NULL));
+ 
+-	if (init) {
++	if (svc != NULL) {
+ 		M0_ALLOC_PTR(ctx);
+ 		if (ctx != NULL) {
+ 			ctx->nbc_svc			  = svc;
+@@ -1485,17 +1483,17 @@ static void *node_bulk_init_fini(void *ctx_,
+ 		M0_ASSERT(rc == 0);
+ 		m0_free(ctx);
+ 	}
+-	return init ? ctx : NULL;
++	return svc != NULL ? ctx : NULL;
+ }
+ 
+ static void *node_bulk_init(struct m0_net_test_service *svc)
+ {
+-	return node_bulk_init_fini(NULL, svc, true);
++	return node_bulk_initfini(NULL, svc);
+ }
+ 
+ static void node_bulk_fini(void *ctx_)
+ {
+-	void *rc = node_bulk_init_fini(ctx_, NULL, false);
++	void *rc = node_bulk_initfini(ctx_, NULL);
+ 	M0_POST(rc == NULL);
+ }
+ 
+-- 
+1.8.3.2
+

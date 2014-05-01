@@ -1,0 +1,2091 @@
+From 3ce6c8466c411ad0ccf62bd7e3436d2833c0f859 Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 17 May 2012 12:59:09 +0530
+Subject: [PATCH 09/11] - Common addb_pack & addb_getsize functions.
+
+---
+ addb/addb.c                         | 150 ++++-------------------------
+ addb/addb.h                         |  66 ++++++++-----
+ addb/addb_console.c                 |   4 +-
+ addb/addb_fop.c                     | 186 ++++--------------------------------
+ addb/addb_store.c                   |  28 ++----
+ addb/linux_kernel/addb_console.c    |   5 +-
+ addb/ut/addb.c                      |   8 +-
+ cob/cob.c                           |   9 +-
+ colibri/colibri_setup.c             |  14 ++-
+ fop/fom.c                           |   2 +-
+ ioservice/cob_foms.c                |  60 +++++++-----
+ ioservice/cobfid_map.c              |  38 ++++----
+ ioservice/io_foms.c                 |  22 ++---
+ ioservice/io_fops.c                 |  21 ++--
+ lib/assert.h                        |   2 +-
+ lib/cdefs.h                         |   2 +-
+ lib/param.h                         |  61 ++++++------
+ net/bulk_emulation/ksunrpc_server.c |  10 +-
+ net/net_cli.c                       |   6 +-
+ net/usunrpc/client.c                |   2 +-
+ net/usunrpc/server.c                |  10 +-
+ nrs/nrs.c                           |   5 +-
+ reqh/reqh.c                         |   2 +-
+ rpc/formation.c                     |  35 ++++---
+ rpc/rpc2.c                          |  17 ++--
+ stob/ad.c                           |   6 +-
+ stob/linux_adieu.c                  |   8 +-
+ yaml2db/yaml2db.c                   |  42 ++++----
+ 28 files changed, 322 insertions(+), 499 deletions(-)
+
+diff --git a/addb/addb.c b/addb/addb.c
+index c2e5c57..c9337b4 100644
+--- a/addb/addb.c
++++ b/addb/addb.c
+@@ -25,6 +25,7 @@
+ 
+ #include <stdarg.h>
+ 
++#include "lib/param.h"
+ #include "lib/arith.h" /* max_check */
+ #include "lib/memory.h"/*c2_alloc/c2_free */
+ #include "lib/cdefs.h" /* C2_EXPORTED */
+@@ -44,6 +45,17 @@
+    @{
+  */
+ 
++
++C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, AEL_NOTE,
++			 C2_ADDB_STAMP);
++
++C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_func_fail, "func-fail",
++                         C2_ADDB_EVENT_FUNC_FAIL, AEL_ERROR,
++			 C2_ADDB_FUNC_CALL);
++
++C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_trace, "trace", C2_ADDB_EVENT_TRACE,
++			 AEL_TRACE, C2_ADDB_TRACE);
++
+ /*
+  * This can be changed.
+  */
+@@ -126,8 +138,7 @@ void c2_addb_add(struct c2_addb_dp *dp)
+ 	const struct c2_addb_ev  *ev;
+ 
+ 	ev  = dp->ad_ev;
+-	lev = max_check(dp->ad_level, max_check(ev->ae_level,
+-						ev->ae_ops->aeo_level));
++	lev = max_check(dp->ad_level, ev->ae_level);
+ 	/* log high priority data points to the console */
+ 	if (lev > c2_addb_level_default_console)
+ 		c2_addb_console(lev, dp);
+@@ -169,145 +180,26 @@ int c2_addb_var_msg_add(struct c2_addb_ctx       *ctx,
+ 	va_end(ap);
+ 
+ 	if (rc > 0)
+-		C2_ADDB_ADD(ctx, loc, c2_addb_trace, msgbuf);
++		C2_ADDB_ADD(ctx, loc, c2_addb_trace, (const char *)msgbuf);
+ 
+         return rc;
+ }
+ 
+-static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
++int c2_addb_set_data(struct c2_addb_dp *dp, const void *body)
+ {
+-	dp->ad_name = name;
+-	dp->ad_rc = rc;
+-	return 0;
+-}
++	int 		i;
++	uint32_t	data_size = 0;
+ 
+-static int subst_name(struct c2_addb_dp *dp, const char *name)
+-{
+-	dp->ad_name = name;
+-	dp->ad_rc = 0;
+-	return 0;
+-}
++	for (i = 0; i <= dp->ad_nargs; i++)
++		data_size += dp->ad_sizeof[i];
+ 
+-static int subst_int(struct c2_addb_dp *dp, int rc)
+-{
+-	dp->ad_name = "";
+-	dp->ad_rc = rc;
+-	return 0;
+-}
++	dp->ad_data = (char *)c2_alloc(data_size);
+ 
+-static int subst_void(struct c2_addb_dp *dp)
+-{
+-	dp->ad_name = "";
+-	dp->ad_rc = 0;
+-	return 0;
+-}
++	memcpy((void *)dp->ad_data, body, data_size);
+ 
+-static int subst_uint64_t(struct c2_addb_dp *dp, uint64_t val)
+-{
+-	dp->ad_name = "";
+-	dp->ad_rc = val;
+ 	return 0;
+ }
+ 
+-const struct c2_addb_ev_ops C2_ADDB_SYSCALL = {
+-	.aeo_subst = (c2_addb_ev_subst_t)subst_int,
+-	.aeo_size  = sizeof(int32_t),
+-	.aeo_name  = "syscall-failure",
+-	.aeo_level = AEL_NOTE
+-};
+-
+-/** get size for data point opaque data */
+-extern int c2_addb_func_fail_getsize(struct c2_addb_dp *dp);
+-
+-extern int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
+-				  struct c2_addb_record *rec);
+-
+-extern int c2_addb_call_getsize(struct c2_addb_dp *dp);
+-extern int c2_addb_call_pack(struct c2_addb_dp *dp,
+-			     struct c2_addb_record *rec);
+-
+-extern int c2_addb_flag_getsize(struct c2_addb_dp *dp);
+-extern int c2_addb_flag_pack(struct c2_addb_dp *dp,
+-			     struct c2_addb_record *rec);
+-
+-extern int c2_addb_inval_getsize(struct c2_addb_dp *dp);
+-extern int c2_addb_inval_pack(struct c2_addb_dp *dp,
+-			      struct c2_addb_record *rec);
+-
+-extern int c2_addb_empty_getsize(struct c2_addb_dp *dp);
+-extern int c2_addb_empty_pack(struct c2_addb_dp *dp,
+-			      struct c2_addb_record *rec);
+-
+-extern int c2_addb_trace_getsize(struct c2_addb_dp *dp);
+-
+-extern int c2_addb_trace_pack(struct c2_addb_dp *dp,
+-			      struct c2_addb_record *rec);
+-
+-const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
+-	.aeo_subst   = (c2_addb_ev_subst_t)subst_name_int,
+-	.aeo_pack    = c2_addb_func_fail_pack,
+-	.aeo_getsize = c2_addb_func_fail_getsize,
+-	.aeo_size    = sizeof(int32_t) + sizeof(char *),
+-	.aeo_name    = "function-failure",
+-	.aeo_level   = AEL_NOTE
+-};
+-
+-const struct c2_addb_ev_ops C2_ADDB_CALL = {
+-	.aeo_subst   = (c2_addb_ev_subst_t)subst_int,
+-	.aeo_pack    = c2_addb_call_pack,
+-	.aeo_getsize = c2_addb_call_getsize,
+-	.aeo_size    = sizeof(int32_t),
+-	.aeo_name    = "call-failure",
+-	.aeo_level   = AEL_NOTE
+-};
+-
+-const struct c2_addb_ev_ops C2_ADDB_STAMP = {
+-	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
+-/*
+-	XXX disabled to avoid recursion. These ops are used by events which are
+-            defined and generated in network/rpc layer.
+-*/
+-/*	.aeo_pack    = c2_addb_empty_pack,
+-	.aeo_getsize = c2_addb_empty_getsize,
+-*/
+-	.aeo_size    = 0,
+-	.aeo_name    = "."
+-};
+-
+-const struct c2_addb_ev_ops C2_ADDB_FLAG = {
+-	.aeo_subst   = (c2_addb_ev_subst_t)subst_void,
+-	.aeo_pack    = c2_addb_flag_pack,
+-	.aeo_getsize = c2_addb_flag_getsize,
+-	.aeo_size    = sizeof(bool),
+-	.aeo_name    = "flag"
+-};
+-
+-const struct c2_addb_ev_ops C2_ADDB_INVAL = {
+-	.aeo_subst   = (c2_addb_ev_subst_t)subst_uint64_t,
+-	.aeo_pack    = c2_addb_inval_pack,
+-	.aeo_getsize = c2_addb_inval_getsize,
+-	.aeo_size    = sizeof(uint64_t),
+-	.aeo_name    = "inval"
+-};
+-
+-const struct c2_addb_ev_ops C2_ADDB_TRACE = {
+-	.aeo_subst   = (c2_addb_ev_subst_t)subst_name,
+-	.aeo_pack    = c2_addb_trace_pack,
+-	.aeo_getsize = c2_addb_trace_getsize,
+-	.aeo_size    = sizeof(char *),
+-	.aeo_name    = "trace",
+-	.aeo_level   = AEL_TRACE
+-};
+-
+-C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_oom, "oom", C2_ADDB_EVENT_OOM, C2_ADDB_STAMP);
+-
+-C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_func_fail, "func-fail",		\
+-			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+-
+-C2_ADDB_EV_DEFINE_PUBLIC(c2_addb_trace, "trace", C2_ADDB_EVENT_TRACE,	\
+-			 C2_ADDB_TRACE);
+-
+-
+ static const struct c2_addb_ctx_type c2_addb_global_ctx_type = {
+ 	.act_name = "global"
+ };
+diff --git a/addb/addb.h b/addb/addb.h
+index 5740356..933145a 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -22,8 +22,9 @@
+ #ifndef __COLIBRI_ADDB_ADDB_H__
+ #define __COLIBRI_ADDB_ADDB_H__
+ 
+-#include "lib/types.h"
+ #include "lib/cdefs.h"
++#include "lib/param.h"
++#include "lib/types.h"
+ #include "lib/assert.h"
+ #include "lib/adt.h"
+ #include "lib/list.h"
+@@ -206,6 +207,8 @@ typedef	int (*c2_addb_ev_pack_t)(struct c2_addb_dp *dp,
+ */
+ typedef	int (*c2_addb_ev_getsize_t)(struct c2_addb_dp *dp);
+ 
++int c2_addb_set_data(struct c2_addb_dp *dp, const void *body);
++
+ struct c2_addb_ev_ops {
+ 	c2_addb_ev_subst_t    aeo_subst;
+ 	c2_addb_ev_pack_t     aeo_pack;
+@@ -227,11 +230,23 @@ enum c2_addb_event_id {
+ 	C2_ADDB_EVENT_FUNC_FAIL             = 0x4ULL,
+ 	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
+ 	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
++	C2_ADDB_EVENT_NRS		    = 0x12ULL,
+ 
+ 	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
+ 	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
+ 
+-	C2_ADDB_EVENT_TRACE		    = 0x30ULL
++	C2_ADDB_EVENT_TRACE		    = 0x30ULL,
++        C2_ADDB_EVENT_UT_TRACE		    = 0x31ULL,
++        C2_ADDB_EVENT_CS_FUNC_FAIL	    = 0x32ULL,
++        C2_ADDB_EVENT_CREATE_COB_FUNC_FAIL  = 0x33ULL,
++        C2_ADDB_EVENT_DELETE_COB_FUNC_FAIL  = 0x34ULL,	
++        C2_ADDB_EVENT_COBFID_FUNC_FAIL	    = 0x35ULL,
++        C2_ADDB_EVENT_BULKCLIENT_FUNC_FAIL  = 0x36ULL,
++        C2_ADDB_EVENT_USUNRPC1_REQ	    = 0x37ULL,
++        C2_ADDB_EVENT_USUNRPC1_OPNOTSURPPORT = 0x38ULL,
++        C2_ADDB_EVENT_FORMATION_FUNC_FAIL   = 0x39ULL,
++        C2_ADDB_EVENT_RPCM_FUNC_FAIL	    = 0x40ULL,
++        C2_ADDB_EVENT_YAML2DB_FUNC_FAIL	    = 0x41ULL
+ };
+ 
+ /**
+@@ -269,10 +284,10 @@ struct c2_addb_dp {
+ 	const struct c2_addb_loc *ad_loc;
+ 	const struct c2_addb_ev  *ad_ev;
+ 	enum c2_addb_ev_level     ad_level;
+-
+-	/* XXX temporary */
+-	uint64_t    ad_rc;
+-	const char *ad_name;
++	int 			  ad_nargs;
++	const int		 *ad_offset;
++	const int		 *ad_sizeof;
++	char                     *ad_data;
+ };
+ 
+ void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
+@@ -322,21 +337,21 @@ void c2_addb_fini(void);
+    @endcode
+  */
+ 
+-#define __C2_ADDB_EV_DEFINE(var, name, id, ops)				\
++#define __C2_ADDB_EV_DEFINE(var, name, id, level)				\
+ const struct c2_addb_ev var = {						\
+ 	.ae_name  = (name),						\
+ 	.ae_id    = (id),						\
+-	.ae_ops   = &(ops)						\
++	.ae_level = (level),						\
+ };
+ 
+-#define C2_ADDB_EV_DEFINE(var, name, id, ops)				\
+-	__C2_ADDB_EV_DEFINE(var, name, id, ops)				\
++#define C2_ADDB_EV_DEFINE(var, name, id, level, ops)			\
++	__C2_ADDB_EV_DEFINE(var, name, id, level)			\
+ 									\
+ 	typedef typeof(__ ## ops ## _typecheck_t) __ ## var ## _typecheck_t
+ 
+ 
+-#define C2_ADDB_EV_DEFINE_PUBLIC(var, name, id, ops)	\
+-	__C2_ADDB_EV_DEFINE(var, name, id, ops)
++#define C2_ADDB_EV_DEFINE_PUBLIC(var, name, id, level, ops)	\
++	__C2_ADDB_EV_DEFINE(var, name, id, level)
+ 
+ #define C2_ADDB_EV_DECLARE(var, ops)					\
+ 	extern const struct c2_addb_ev var;				\
+@@ -361,21 +376,27 @@ const struct c2_addb_ev var = {						\
+    hit = c2_dirent_cache_lookup(pdir, name, &entry);
+    C2_ADDB_ADD(&fop->f_addb_ctx, &reqh_addb_loc, &reqh_dirent_cache, hit);
+    @endcode
+- */
++*/
+ #define C2_ADDB_ADD(ctx, loc, ev, ...)				\
+-({								\
++{								\
+ 	struct c2_addb_dp __dp;					\
++	C2_ARG_DECL(__addb_ev_body, ## __VA_ARGS__)		\
+ 								\
+-	__dp.ad_ctx   = (ctx);					\
+-	__dp.ad_loc   = (loc);					\
+-	__dp.ad_ev    = &(ev);					\
+-	__dp.ad_level = (c2_addb_level_default);		\
++	__dp.ad_ctx    = (ctx);					\
++	__dp.ad_loc    = (loc);					\
++	__dp.ad_ev     = &(ev);					\
++	__dp.ad_level  = (c2_addb_level_default);		\
++	__dp.ad_nargs  = (C2_COUNT_PARAMS(__VA_ARGS__));	\
++	__dp.ad_offset = _offset;				\
++	__dp.ad_sizeof = _sizeof;				\
+ 								\
+ 	(void)sizeof(((__ ## ev ## _typecheck_t *)NULL)		\
+ 		     (&__dp , ## __VA_ARGS__));			\
+-	if (ev.ae_ops->aeo_subst(&__dp , ## __VA_ARGS__) == 0)	\
++	if (c2_addb_set_data(&__dp ,				\
++	   		     &(const struct __addb_ev_body){ __VA_ARGS__ })\
++	    == 0)						\
+ 		c2_addb_add(&__dp);				\
+-})
++}
+ 
+ extern enum c2_addb_ev_level c2_addb_level_default;
+ enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level);
+@@ -391,8 +412,6 @@ enum c2_addb_ev_level c2_addb_choose_default_level_console(
+    @see C2_ADDB_STAMP, C2_ADDB_FLAG
+  */
+ #define C2_ADDB_OPS_DEFINE(ops, ...)					\
+-extern const struct c2_addb_ev_ops ops;					\
+-									\
+ typedef int								\
+ __ ## ops ## _typecheck_t(struct c2_addb_dp *dp , ## __VA_ARGS__)
+ 
+@@ -417,12 +436,13 @@ C2_ADDB_OPS_DEFINE(C2_ADDB_TRACE, const char *message);
+ C2_ADDB_EV_DECLARE(c2_addb_oom, C2_ADDB_STAMP);
+ 
+ /** Report this event when function call fails that doesn't fit into a more
+-    specific event. */
++ *     specific event. */
+ C2_ADDB_EV_DECLARE(c2_addb_func_fail, C2_ADDB_FUNC_CALL);
+ 
+ /** Report this event when a trace message has to be put into addb */
+ C2_ADDB_EV_DECLARE(c2_addb_trace, C2_ADDB_TRACE);
+ 
++
+ /** Global (per address space) addb context, used when no other context is
+     applicable. */
+ extern struct c2_addb_ctx c2_addb_global_ctx;
+diff --git a/addb/addb_console.c b/addb/addb_console.c
+index 34e0f79..fd12579 100644
+--- a/addb/addb_console.c
++++ b/addb/addb_console.c
+@@ -41,9 +41,9 @@ void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp)
+ 
+ 	ctx = dp->ad_ctx;
+ 	ev  = dp->ad_ev;
+-	printf("addb: ctx: %s/%p, loc: %s, ev: %s/%s, rc: %i name: %s\n",
++	printf("addb: ctx: %s/%p, loc: %s, ev: %s\n",
+ 	       ctx->ac_type->act_name, ctx, dp->ad_loc->al_name,
+-	       ev->ae_ops->aeo_name, ev->ae_name, (int)dp->ad_rc, dp->ad_name);
++	       ev->ae_name);
+ }
+ 
+ /** @} end of addb group */
+diff --git a/addb/addb_fop.c b/addb/addb_fop.c
+index 302bb51..7426050 100644
+--- a/addb/addb_fop.c
++++ b/addb/addb_fop.c
+@@ -54,50 +54,6 @@ C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
+ 
+ C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
+ 		    C2_RPC_ITEM_TYPE_REPLY);
+-/**
+-   ADDB record body for function fail event.
+-
+-   This event includes a message and a return value.
+-*/
+-struct c2_addb_func_fail_body {
+-	uint32_t rc;
+-	char     msg[0];
+-};
+-
+-/**
+-   ADDB record body for call event.
+-
+-   This event includes a return value.
+-*/
+-struct c2_addb_call_body {
+-	uint32_t rc;
+-};
+-
+-/**
+-   ADDB record body for flag event.
+-
+-   This event includes a return value.
+-*/
+-struct c2_addb_flag_body {
+-	bool flag;
+-};
+-
+-/**
+-   ADDB record body for invalid event.
+-
+-   This event includes a errno number.
+-*/
+-struct c2_addb_inval_body {
+-	uint64_t invalid;
+-};
+-
+-/**
+-    ADDB record body for trace message.
+-
+-*/
+-struct c2_addb_trace_body {
+-	char     msg[0];
+-};
+ 
+ #ifndef __KERNEL__
+ static int c2_addb_enable_dump = 0;
+@@ -126,10 +82,10 @@ static void c2_addb_record_dump(const struct c2_addb_record *rec)
+ 
+ 	switch (header->arh_event_id) {
+ 	case C2_ADDB_EVENT_FUNC_FAIL: {
+-		const struct c2_addb_func_fail_body *body;
+-		body = (struct c2_addb_func_fail_body*) rec->ar_data.cmb_value;
++		const struct __addb_ev_body *body;
++		body = (struct __addb_ev_body*) rec->ar_data.cmb_value;
+ 
+-		printf("++func-fail++> rc = %d, msg = %s\n", body->rc, body->msg);
++//		printf("++func-fail++> rc = %d, msg = %s\n", body->rc, body->msg);
+ 		break;
+ 		}
+ 	default:
+@@ -173,142 +129,32 @@ static int c2_addb_record_header_pack(struct c2_addb_dp *dp,
+ 	return 0;
+ };
+ 
+-/** get size for data point opaque data */
+-int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
++int c2_addb_getsize(struct c2_addb_dp *dp)
+ {
+-	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1, 8);
+-}
++	int		i;
++	uint32_t	data_size = 0;
+ 
+-int c2_addb_call_getsize(struct c2_addb_dp *dp)
+-{
+-	return c2_align(sizeof(uint32_t), 8);
+-}
+-int c2_addb_flag_getsize(struct c2_addb_dp *dp)
+-{
+-	return c2_align(sizeof(bool), 8);
+-}
++	for (i = 0; i <= dp->ad_nargs; i++)
++		data_size += dp->ad_sizeof[i];
+ 
+-int c2_addb_inval_getsize(struct c2_addb_dp *dp)
+-{
+-	return c2_align(sizeof(uint64_t), 8);
++	return c2_align(data_size, 8);
+ }
+ 
+-int c2_addb_empty_getsize(struct c2_addb_dp *dp)
+-{
+-	return 0;
+-}
+-
+-int c2_addb_trace_getsize(struct c2_addb_dp *dp)
+-{
+-	return c2_align(strlen(dp->ad_name) + 1, 8);
+-}
+-
+-/** packing func fail addb record */
+-int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
+-			   struct c2_addb_record *rec)
+-{
+-	struct c2_addb_record_header  *header = &rec->ar_header;
+-	struct c2_addb_func_fail_body *body;
+-	int rc;
+-
+-	C2_ASSERT(c2_addb_func_fail_getsize(dp) == rec->ar_data.cmb_count);
+-
+-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+-	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+-		body = (struct c2_addb_func_fail_body *)rec->ar_data.cmb_value;
+-
+-		C2_ASSERT(body != NULL);
+-		body->rc = (uint32_t)dp->ad_rc;
+-
+-		strncpy(body->msg, dp->ad_name,
+-			rec->ar_data.cmb_count - sizeof(body->rc));
+-	}
+-	return rc;
+-}
+-
+-int c2_addb_call_pack(struct c2_addb_dp *dp,
+-		      struct c2_addb_record *rec)
+-{
+-	struct c2_addb_record_header *header = &rec->ar_header;
+-	struct c2_addb_call_body     *body;
+-	int rc;
+-
+-	C2_ASSERT(c2_addb_call_getsize(dp) == rec->ar_data.cmb_count);
+-
+-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+-	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+-		body = (struct c2_addb_call_body *)rec->ar_data.cmb_value;
+-
+-		C2_ASSERT(body != NULL);
+-		body->rc = (uint32_t)dp->ad_rc;
+-	}
+-	return rc;
+-}
+-
+-int c2_addb_flag_pack(struct c2_addb_dp *dp,
+-		      struct c2_addb_record *rec)
+-{
+-	struct c2_addb_record_header *header = &rec->ar_header;
+-	struct c2_addb_flag_body     *body;
+-	int rc;
+-
+-	C2_ASSERT(c2_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
+-
+-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+-	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+-		body = (struct c2_addb_flag_body *)rec->ar_data.cmb_value;
+-
+-		C2_ASSERT(body != NULL);
+-		body->flag = (bool)dp->ad_rc;
+-	}
+-	return rc;
+-}
+-
+-int c2_addb_inval_pack(struct c2_addb_dp *dp,
+-		       struct c2_addb_record *rec)
+-{
+-	struct c2_addb_record_header *header = &rec->ar_header;
+-	struct c2_addb_inval_body    *body;
+-	int rc;
+-
+-	C2_ASSERT(c2_addb_flag_getsize(dp) == rec->ar_data.cmb_count);
+-
+-	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+-	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+-		body = (struct c2_addb_inval_body *)rec->ar_data.cmb_value;
+-
+-		C2_ASSERT(body != NULL);
+-		body->invalid = (uint64_t)dp->ad_rc;
+-	}
+-	return rc;
+-
+-}
+-
+-int c2_addb_empty_pack(struct c2_addb_dp *dp,
+-		       struct c2_addb_record *rec)
+-{
+-	struct c2_addb_record_header *header = &rec->ar_header;
+-
+-	C2_ASSERT(rec->ar_data.cmb_count = 0);
+-
+-	return c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+-}
+-
+-int c2_addb_trace_pack(struct c2_addb_dp *dp,
++int c2_addb_pack(struct c2_addb_dp *dp,
+ 		       struct c2_addb_record *rec)
+ {
+ 	struct c2_addb_record_header	*header = &rec->ar_header;
+-	struct c2_addb_trace_body	*body;
+ 	int				 rc;
++	uint32_t			 body_size;
+ 
+-	C2_ASSERT(c2_addb_trace_getsize(dp) == rec->ar_data.cmb_count);
++	body_size = c2_addb_getsize(dp);
++	C2_ASSERT(body_size == rec->ar_data.cmb_count);
+ 
+ 	rc = c2_addb_record_header_pack(dp, header, rec->ar_data.cmb_count);
+ 	if (rc == 0 && rec->ar_data.cmb_count > 0) {
+-		body = (struct c2_addb_trace_body *)rec->ar_data.cmb_value;
+-
+-		C2_ASSERT(body != NULL);
+-		strncpy(body->msg, dp->ad_name, rec->ar_data.cmb_count);
++		C2_ASSERT(rec->ar_data.cmb_value != NULL);
++		memcpy((void *)rec->ar_data.cmb_value, (void *)dp->ad_data,
++		       body_size);
+ 	}
+ 	return rc;
+ }
+diff --git a/addb/addb_store.c b/addb/addb_store.c
+index 322c3bf..c140ddc 100644
+--- a/addb/addb_store.c
++++ b/addb/addb_store.c
+@@ -40,12 +40,15 @@
+ 
+ #ifndef __KERNEL__
+ 
++int c2_addb_pack(struct c2_addb_dp *dp, struct c2_addb_record *rec);
++int c2_addb_getsize(struct c2_addb_dp *dp);
++
++
+ c2_bindex_t addb_stob_offset = 0;
+ 
+ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+ 		     struct c2_stob *stob)
+ {
+-	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
+ 	struct c2_addb_record        rec;
+ 	uint32_t    bshift;
+ 	uint64_t    bmask;
+@@ -54,19 +57,16 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
+ 	c2_bindex_t offset[2];
+ 	int      rc;
+ 
+-	if (ops->aeo_pack == NULL)
+-		return 0;
+-
+ 	C2_SET0(&rec);
+ 	/* get size */
+-	rec.ar_data.cmb_count = ops->aeo_getsize(dp);
++	rec.ar_data.cmb_count = c2_addb_getsize(dp);
+ 	if (rec.ar_data.cmb_count != 0) {
+ 		rec.ar_data.cmb_value = c2_alloc(rec.ar_data.cmb_count);
+ 		if (rec.ar_data.cmb_value == NULL)
+ 			return -ENOMEM;
+ 	}
+ 	/* packing */
+-	rc = ops->aeo_pack(dp, &rec);
++	rc = c2_addb_pack(dp, &rec);
+ 	if (rc == 0) {
+ 		/* use stob io routines to write the addb */
+ 		struct c2_stob_io io;
+@@ -131,7 +131,6 @@ uint64_t c2_addb_db_seq = 0;
+ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
+ 		   struct c2_table *table)
+ {
+-	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
+ 	struct c2_addb_record rec;
+ 	struct c2_db_pair     pair;
+ 	uint32_t	      keysize;
+@@ -140,19 +139,16 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
+ 	struct c2_db_tx	       tx;
+ 	int      rc;
+ 
+-	if (ops->aeo_pack == NULL)
+-		return 0;
+-
+ 	C2_SET0(&rec);
+ 	/* get size */
+-	rec.ar_data.cmb_count = ops->aeo_getsize(dp);
++	rec.ar_data.cmb_count = c2_addb_getsize(dp);
+ 	if (rec.ar_data.cmb_count != 0) {
+ 		rec.ar_data.cmb_value = c2_alloc(rec.ar_data.cmb_count);
+ 		if (rec.ar_data.cmb_value == NULL)
+ 			return -ENOMEM;
+ 	}
+ 	/* packing */
+-	rc = ops->aeo_pack(dp, &rec);
++	rc = c2_addb_pack(dp, &rec);
+ 	if (rc == 0) {
+ 		/* use db routines to write the addb */
+ 		keysize = sizeof c2_addb_db_seq;
+@@ -201,7 +197,6 @@ int c2_addb_db_add(struct c2_addb_dp *dp, struct c2_dbenv *env,
+ 
+ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
+ {
+-	const struct c2_addb_ev_ops *ops = dp->ad_ev->ae_ops;
+ 	struct c2_fop         *request;
+ 	struct c2_fop         *reply;
+ 	struct c2_addb_record *addb_record;
+@@ -210,9 +205,6 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
+ 	int size;
+ 	int result;
+ 
+-	if (ops->aeo_pack == NULL)
+-		return 0;
+-
+ 	request = c2_fop_alloc(&c2_addb_record_fopt, NULL);
+ 	reply   = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
+ 	if (request == NULL || reply == NULL) {
+@@ -224,7 +216,7 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
+ 	addb_reply  = c2_fop_data(reply);
+ 
+ 	/* get size */
+-	size = ops->aeo_getsize(dp);
++	size = c2_addb_getsize(dp);
+ 	if (size != 0) {
+ 		addb_record->ar_data.cmb_value = c2_alloc(size);
+ 		if (addb_record->ar_data.cmb_value == NULL) {
+@@ -235,7 +227,7 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
+ 		addb_record->ar_data.cmb_value = NULL;
+ 	addb_record->ar_data.cmb_count = size;
+ 	/* packing */
+-	result = ops->aeo_pack(dp, addb_record);
++	result = c2_addb_pack(dp, addb_record);
+ 	if (result == 0) {
+ 		C2_SET0(addb_reply);
+ 		call.ac_arg = request;
+diff --git a/addb/linux_kernel/addb_console.c b/addb/linux_kernel/addb_console.c
+index 427b797..f1f3341 100644
+--- a/addb/linux_kernel/addb_console.c
++++ b/addb/linux_kernel/addb_console.c
+@@ -42,10 +42,9 @@ void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp)
+ 	ctx = dp->ad_ctx;
+ 	ev  = dp->ad_ev;
+ 	/* XXX select KERN_ based on lev */
+-	printk(KERN_ERR "addb: ctx: %s/%p, loc: %s, ev: %s/%s, "
+-	       "rc: %i name: %s\n",
++	printk(KERN_ERR "addb: ctx: %s/%p, loc: %s, ev: %s\n",
+ 	       ctx->ac_type->act_name, ctx, dp->ad_loc->al_name,
+-	       ev->ae_ops->aeo_name, ev->ae_name, (int)dp->ad_rc, dp->ad_name);
++	       ev->ae_name);
+ }
+ 
+ /** @} end of addb group */
+diff --git a/addb/ut/addb.c b/addb/ut/addb.c
+index 4326c24..b257d38 100644
+--- a/addb/ut/addb.c
++++ b/addb/ut/addb.c
+@@ -24,6 +24,7 @@
+ #include <unistd.h>
+ #endif
+ 
++#include "lib/param.h"
+ #include "lib/memory.h"
+ #include "lib/ut.h"
+ #include "addb/addb.h"
+@@ -38,6 +39,11 @@ const struct c2_addb_loc c2_addb_ut_loc = {
+ 	.al_name = "ADDB-UT"
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_UT_TRACE, const char *msg);
++
++C2_ADDB_EV_DEFINE(custom_trace_ut, "custom_trace_ut_msg",
++                  C2_ADDB_EVENT_UT_TRACE, AEL_TRACE, C2_ADDB_UT_TRACE);
++
+ static const char s_out_fname[] = "addb_ut_output_redirect";
+ 
+ enum {
+@@ -61,7 +67,7 @@ static void test_addb()
+ 
+ 	c2_addb_choose_default_level_console(AEL_NONE);
+ 
+-	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, c2_addb_trace, (message));
++//	C2_ADDB_ADD(&addb_ut_ctx, &c2_addb_ut_loc, custom_trace_ut, (message));
+ 
+ 	rewind(stdout);
+ 
+diff --git a/cob/cob.c b/cob/cob.c
+index a6964ce..f05b3a7 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -481,8 +481,10 @@ int c2_cob_locate(struct c2_cob_domain *dom, const struct c2_stob_id *id,
+ 	return rc;
+ }
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_COB_INVAL, uint64_t val);
++
+ C2_ADDB_EV_DEFINE(cob_eexist, "md_exists", C2_ADDB_EVENT_COB_MDEXISTS,
+-		  C2_ADDB_INVAL);
++		  AEL_ERROR, C2_ADDB_COB_INVAL);
+ 
+ /**
+    Add a new cob to the namespace.
+@@ -584,8 +586,9 @@ static bool c2_cob_is_valid(struct c2_cob *cob)
+         return c2_stob_id_is_set(&cob->co_stobid);
+ }
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_COB_FLAG, bool flag);
+ C2_ADDB_EV_DEFINE(cob_delete, "md_delete", C2_ADDB_EVENT_COB_MDDELETE,
+-		  C2_ADDB_FLAG);
++		  AEL_NOTE, C2_ADDB_COB_FLAG);
+ 
+ /**
+    Delete the metadata for this cob.
+@@ -690,7 +693,7 @@ int c2_cob_update(struct c2_cob		*cob,
+ 
+ out:
+ 	C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
+-			c2_addb_func_fail, "cob_update", rc);
++			c2_addb_func_fail, (const char *)"cob_update", rc);
+ 	return rc;
+ }
+ 
+diff --git a/colibri/colibri_setup.c b/colibri/colibri_setup.c
+index 93dbdb7..1296814 100644
+--- a/colibri/colibri_setup.c
++++ b/colibri/colibri_setup.c
+@@ -49,6 +49,9 @@
+    @{
+  */
+ 
++#define ADDB_FUNC_FAIL(ctx, loc, ev, name, rc)                          \
++        C2_ADDB_ADD(ctx, loc, ev, (const char *)name, rc)
++
+ /**
+    Represents cob domain id, it is incremented for every new cob domain.
+ 
+@@ -1244,8 +1247,11 @@ static const struct c2_addb_ctx_type cobfid_map_setup_addb = {
+ 	.act_name = "cobfid_map_setup",
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_CS_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(cobfid_map_setup_func_fail, "cobfid_map_setup_func_failed",
+-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		  C2_ADDB_EVENT_CS_FUNC_FAIL, AEL_ERROR,
++		  C2_ADDB_CS_FUNC_CALL);
+ 
+ /**
+    Find a request handler service within a given Colibir instance.
+@@ -1354,7 +1360,7 @@ static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name)
+ 
+ 	rc = c2_dbenv_init(&s->cms_dbenv, name, 0);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(&s->cms_addb, &cobfid_map_setup_loc,
++		ADDB_FUNC_FAIL(&s->cms_addb, &cobfid_map_setup_loc,
+ 			    cobfid_map_setup_func_fail,
+ 			    "c2_dbenv_init() failed.", rc);
+ 		return rc;
+@@ -1362,7 +1368,7 @@ static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name)
+ 
+ 	rc = c2_cobfid_map_init(&s->cms_map, &s->cms_dbenv, &s->cms_addb, name);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(&s->cms_addb, &cobfid_map_setup_loc,
++		ADDB_FUNC_FAIL(&s->cms_addb, &cobfid_map_setup_loc,
+ 			    cobfid_map_setup_func_fail,
+ 			    "c2_cobfid_map_init() failed.", rc);
+ 		c2_dbenv_fini(&s->cms_dbenv);
+@@ -1413,7 +1419,7 @@ static int cobfid_map_setup_process(struct c2_cobfid_setup *s,
+ 	c2_mutex_unlock(&s->cms_mutex);
+ 
+ 	if (rc != 0)
+-		C2_ADDB_ADD(&s->cms_addb, &cobfid_map_setup_loc,
++		ADDB_FUNC_FAIL(&s->cms_addb, &cobfid_map_setup_loc,
+ 			    cobfid_map_setup_func_fail,
+ 			    "c2_cobfid_map_adddel() failed.", rc);
+ 	return rc;
+diff --git a/fop/fom.c b/fop/fom.c
+index 172a219..c7bff92 100644
+--- a/fop/fom.c
++++ b/fop/fom.c
+@@ -66,7 +66,7 @@ const struct c2_addb_ctx_type c2_fom_addb_ctx_type = {
+ bool fom_wait_time_is_out(const struct c2_fom_domain *dom, const struct c2_fom *fom);
+ 
+ #define FOM_ADDB_ADD(fom, name, rc)  \
+-C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
++C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (const char *)(name), (rc))
+ 
+ /**
+  * Fom domain operations.
+diff --git a/ioservice/cob_foms.c b/ioservice/cob_foms.c
+index c7153d9..ac20859 100644
+--- a/ioservice/cob_foms.c
++++ b/ioservice/cob_foms.c
+@@ -67,8 +67,17 @@ static const struct c2_addb_loc cc_fom_addb_loc = {
+ 	.al_name = "create_cob_fom",
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_CREATE_COB_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(cc_fom_func_fail, "create cob func failed.",
+-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		  C2_ADDB_EVENT_CREATE_COB_FUNC_FAIL, AEL_ERROR,
++		  C2_ADDB_CREATE_COB_FUNC_CALL);
++
++#define ADDB_FUNC_FAIL(ctx, loc, ev, name, rc)                          \
++        C2_ADDB_ADD(ctx, loc, ev, (const char *)name, rc)
++
++#define ADDB_TRACE(ctx, loc, ev, name)                          	\
++        C2_ADDB_ADD(ctx, loc, ev, (const char *)name)
+ 
+ /** Cob create fom ops. */
+ static struct c2_fom_ops cc_fom_ops = {
+@@ -91,8 +100,11 @@ static const struct c2_addb_loc cd_fom_addb_loc = {
+ 	.al_name = "cob_delete_fom",
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_DELETE_COB_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(cd_fom_func_fail, "cob delete fom func failed.",
+-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		  C2_ADDB_EVENT_DELETE_COB_FUNC_FAIL, AEL_ERROR,
++		  C2_ADDB_DELETE_COB_FUNC_CALL);
+ 
+ /** Cob delete fom ops. */
+ static const struct c2_fom_ops cd_fom_ops = {
+@@ -122,7 +134,7 @@ static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
+ 	rc = cob_op_fom_create(out);
+ 	cfom = cob_fom_get(*out);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(&fop->f_addb, &cc_fom_addb_loc, cc_fom_func_fail,
++		ADDB_FUNC_FAIL(&fop->f_addb, &cc_fom_addb_loc, cc_fom_func_fail,
+ 			    "Failed to create cob_create fom.", rc);
+ 		return rc;
+ 	}
+@@ -249,11 +261,11 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
+ 				   &fom->fo_tx, &cc->fco_stobid, &stob);
+ 
+ 	if (rc != 0)
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+ 			    cc_fom_func_fail,
+-			    "Stob creation failed in cc_stob_create().", rc);
++			    "Stob creation failed in cc_stob_create().", rc)
+ 	else {
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++		ADDB_TRACE(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+ 			    c2_addb_trace, "Stob created successfully.");
+ 		c2_stob_put(stob);
+ 	}
+@@ -303,7 +315,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
+ 	 */
+ 	switch (rc) {
+ 	case 0:
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++		ADDB_TRACE(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+ 			    c2_addb_trace, "Cob created successfully.");
+ 		/**
+ 		 * Since c2_cob_locate() does not cache in-memory cobs,
+@@ -317,13 +329,13 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
+ 
+ 	case -ENOMEM:
+ 		c2_free(nskey->cnk_name.b_data);
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+ 			    cc_fom_func_fail,
+ 			    "Memory allocation failed in cc_cob_create().", rc);
+ 		break;
+ 
+ 	default:
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+ 			    cc_fom_func_fail, "Cob creation failed", rc);
+ 	}
+ 
+@@ -352,11 +364,11 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc)
+ 
+ 	rc = c2_cobfid_setup_recadd(s, cc->fco_gfid, cob_fid);
+ 	if (rc != 0)
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+-			    cc_fom_func_fail, "cobfid_map_add() failed.", rc);
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++			    cc_fom_func_fail, "cobfid_map_add() failed.", rc)
+ 	else
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+-			    c2_addb_trace, "Record added to cobfid_map.");
++		ADDB_TRACE(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++			    c2_addb_trace, "Record added to cobfid_map.")
+ 
+ 	c2_mutex_lock(&cctx->cc_mutex);
+ 	c2_cobfid_setup_put(cctx);
+@@ -429,7 +441,7 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
+ 
+ 	rc = c2_cob_locate(cdom, &cd->fco_stobid, &cob, &fom->fo_tx.tx_dbtx);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
+ 			    cd_fom_func_fail,
+ 			    "c2_cob_locate() failed.", rc);
+ 		return rc;
+@@ -438,11 +450,11 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
+ 
+ 	rc = c2_cob_delete(cob, &fom->fo_tx.tx_dbtx);
+ 	if (rc != 0)
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
+-			    cd_fom_func_fail, "c2_cob_delete() failed.", rc);
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
++			    cd_fom_func_fail, "c2_cob_delete() failed.", rc)
+ 	else
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+-			    c2_addb_trace, "Cob deleted successfully.");
++		ADDB_TRACE(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++			    c2_addb_trace, "Cob deleted successfully.")
+ 
+ 	return rc;
+ }
+@@ -458,7 +470,7 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
+ 	rc = c2_stob_find(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
+ 			  &cd->fco_stobid, &stob);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
+ 			    cd_fom_func_fail,
+ 			    "c2_stob_find() failed.", rc);
+ 		return rc;
+@@ -469,7 +481,7 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
+ 
+ 	C2_ASSERT(stob->so_ref.a_value == CD_FOM_STOBIO_LAST_REFS);
+ 	c2_stob_put(stob);
+-	C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++	ADDB_TRACE(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+ 		    c2_addb_trace, "Stob deleted successfully.");
+ 
+ 	return rc;
+@@ -497,13 +509,13 @@ static int cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
+ 
+ 	rc = c2_cobfid_setup_recdel(s, cd->fco_gfid, cob_fid);
+ 	if (rc != 0)
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
++		ADDB_FUNC_FAIL(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
+ 			    cd_fom_func_fail,
+-			    "c2_cobfid_setup_delrec() failed.", rc);
++			    "c2_cobfid_setup_delrec() failed.", rc)
+ 	else
+-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
++		ADDB_TRACE(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+ 			    c2_addb_trace,
+-			    "Record removed from cobfid_map.");
++			    "Record removed from cobfid_map.")
+ 
+ 	c2_mutex_lock(&cctx->cc_mutex);
+ 	c2_cobfid_setup_put(cctx);
+diff --git a/ioservice/cobfid_map.c b/ioservice/cobfid_map.c
+index 9539dd6..d3052b9 100644
+--- a/ioservice/cobfid_map.c
++++ b/ioservice/cobfid_map.c
+@@ -102,8 +102,14 @@ static const struct c2_addb_loc cfm_addb_loc = {
+ 	        .al_name = "cobfid_map"
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_COBFID_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(cfm_func_fail, "cobfid_map_func_fail",
+-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		  C2_ADDB_EVENT_COBFID_FUNC_FAIL, AEL_ERROR,
++		  C2_ADDB_COBFID_FUNC_CALL);
++
++#define ADDB_FUNC_FAIL(ctx, loc, ev, name, rc)                          \
++	C2_ADDB_ADD(ctx, loc, ev, (const char *)name, rc)     		\
+ 
+ /*
+  *****************************************************************************
+@@ -149,7 +155,7 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
+ 	rc = c2_table_init(&cfm->cfm_table, cfm->cfm_dbenv, cfm->cfm_map_name,
+ 			   0, &cfm_table_ops);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_table_init", rc);
+ 		c2_free(cfm->cfm_map_name);
+ 		return rc;
+@@ -186,7 +192,7 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
+ 
+ 	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_db_tx_init", rc);
+ 		return rc;
+ 	}
+@@ -198,7 +204,7 @@ int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
+ 	rc = c2_table_update(&tx, &db_pair);
+ 	if (rc != 0) {
+ 		table_update_failed = true;
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_table_update", rc);
+ 	}
+ 
+@@ -228,7 +234,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
+ 
+ 	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_db_tx_init", rc);
+ 		return rc;
+ 	}
+@@ -241,7 +247,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
+ 
+ 	rc = c2_table_delete(&tx, &db_pair);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_table_delete", rc);
+ 		table_op_failed = true;
+ 	}
+@@ -378,7 +384,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
+ 		rc = iter->cfmi_ops->cfmio_fetch(iter);
+ 		if (rc != 0){
+ 			C2_ASSERT(iter->cfmi_error != 0);
+-			C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
++			ADDB_FUNC_FAIL(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
+ 				    cfm_func_fail, "cfmio_fetch", rc);
+ 			return rc;
+ 		}
+@@ -390,7 +396,7 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
+ 		rc = iter->cfmi_ops->cfmio_reload(iter);
+ 		if (rc != 0){
+ 			C2_ASSERT(iter->cfmi_error != 0);
+-			C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
++			ADDB_FUNC_FAIL(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
+ 				    cfm_func_fail, "cfmio_reload", rc);
+ 			return rc;
+ 		}
+@@ -451,14 +457,14 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
+ 
+ 	rc = c2_db_tx_init(&tx, cfm->cfm_dbenv, 0);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_db_tx_init", rc);
+ 		return rc;
+ 	}
+ 
+ 	rc = c2_db_cursor_init(&db_cursor, &cfm->cfm_table, &tx, 0);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_db_cursor_init", rc);
+ 		c2_db_tx_abort(&tx);
+ 		return rc;
+@@ -472,7 +478,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
+ 
+ 	rc = c2_db_cursor_last(&db_cursor, &db_pair);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_db_cursor_last", rc);
+ 		goto cleanup;
+ 	}
+@@ -488,7 +494,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
+ 
+ 	rc = c2_db_cursor_get(&db_cursor, &db_pair);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++		ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 			    "c2_db_cursor_get", rc);
+ 		goto cleanup;
+ 	}
+@@ -498,7 +504,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
+ 	if (iter->cfmi_reload) {
+ 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
+ 		if (rc != 0) {
+-			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++			ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 				    "c2_db_cursor_next", rc);
+ 			goto cleanup;
+ 		}
+@@ -533,7 +539,7 @@ static int enum_fetch(struct c2_cobfid_map_iter *iter)
+ 		   is needed */
+ 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
+ 		if (rc != 0) {
+-			C2_ADDB_ADD(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
++			ADDB_FUNC_FAIL(cfm->cfm_addb, &cfm_addb_loc, cfm_func_fail,
+ 				    "c2_db_cursor_next", rc);
+ 			goto cleanup;
+ 		}
+@@ -602,7 +608,7 @@ int c2_cobfid_map_enum(struct c2_cobfid_map *cfm,
+ 	rc = cobfid_map_iter_init(cfm, iter, &enum_ops,
+ 				  C2_COBFID_MAP_QT_ENUM_MAP);
+ 	if (rc != 0)
+-		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
++		ADDB_FUNC_FAIL(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
+ 			    cfm_func_fail, "cobfid_map_iter_init", rc);
+ 	return rc;
+ }
+@@ -680,7 +686,7 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
+ 	rc = cobfid_map_iter_init(cfm, iter, &enum_container_ops,
+ 				  C2_COBFID_MAP_QT_ENUM_CONTAINER);
+ 	if (rc != 0) {
+-		C2_ADDB_ADD(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
++		ADDB_FUNC_FAIL(iter->cfmi_cfm->cfm_addb, &cfm_addb_loc,
+ 			    cfm_func_fail, "cobfid_map_iter_init", rc);
+ 		return rc;
+ 	}
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index d632088..a50c706 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1199,7 +1199,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+                     c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+ 		    C2_ADDB_ADD(&fom->fo_fop->f_addb,
+ 				&io_fom_addb_loc, c2_addb_trace,
+-				"FOM: net_buffs_acquire waiting\n");
++				(const char *)"FOM: net_buffs_acquire waiting\n");
+ 
+                     return  FSO_WAIT;
+             } else if (nb == NULL) {
+@@ -1364,7 +1364,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
+                         fom->fo_phase = FOPH_FAILURE;
+                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                     c2_addb_func_fail,
+-                                    "io_fom_cob_rw_initiate_zero_copy", rc);
++                                    (const char *)"io_fom_cob_rw_initiate_zero_copy", rc);
+                         return FSO_AGAIN;
+                 }
+ 
+@@ -1392,7 +1392,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
+                 fom->fo_phase = FOPH_FAILURE;
+                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                             c2_addb_func_fail,
+-                            "io_fom_cob_rw_initiate_zero_copy", rc);
++                            (const char *)"io_fom_cob_rw_initiate_zero_copy", rc);
+                 return FSO_AGAIN;
+         }
+ 
+@@ -1433,7 +1433,7 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
+                 fom->fo_phase = FOPH_FAILURE;
+                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                             c2_addb_func_fail,
+-                            "io_fom_cob_rw_zero_copy_finish", fom->fo_rc);
++                            (const char *)"io_fom_cob_rw_zero_copy_finish", fom->fo_rc);
+                 c2_mutex_unlock(&rbulk->rb_mutex);
+                 return FSO_AGAIN;
+         }
+@@ -1442,7 +1442,7 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
+         c2_rpc_bulk_fini(rbulk);
+ 
+ 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		    c2_addb_trace, "FOM: zero_copy_finished\n");
++		    c2_addb_trace, (const char *)"FOM: zero_copy_finished\n");
+ 
+         return FSO_AGAIN;
+ }
+@@ -1550,7 +1550,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
+                          */
+                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                     c2_addb_func_fail,
+-                                    "io_fom_cob_rw_io_launch", rc);
++                                    (const char *)"io_fom_cob_rw_io_launch", rc);
+                         c2_stob_io_fini(stio);
+                         c2_free(stio_desc);
+                         break;
+@@ -1572,7 +1572,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
+                          */
+                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                     c2_addb_func_fail,
+-                                    "io_fom_cob_rw_io_launch", rc);
++                                    (const char *)"io_fom_cob_rw_io_launch", rc);
+                         /*
+                          * @todo: need to add memory free allocated in stio
+                          *        in thid function.
+@@ -1597,7 +1597,7 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
+                          */
+                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+                                     c2_addb_func_fail,
+-                                    "io_fom_cob_rw_io_launch", rc);
++                                    (const char *)"io_fom_cob_rw_io_launch", rc);
+                         c2_clink_del(&stio_desc->siod_clink);
+                         c2_stob_io_fini(stio);
+                         c2_free(stio_desc);
+@@ -1652,7 +1652,7 @@ cleanup:
+ 	fom->fo_rc = rc;
+ 	fom->fo_phase = FOPH_FAILURE;
+         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_func_fail,
+-                    "io_fom_cob_rw_io_launch", rc);
++                    (const char *)"io_fom_cob_rw_io_launch", rc);
+ 	return FSO_AGAIN;
+ }
+ 
+@@ -1710,12 +1710,12 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
+         if (fom->fo_rc != 0) {
+ 	        fom->fo_phase = FOPH_FAILURE;
+                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-                            c2_addb_func_fail, "io_fom_cob_rw_io_finish",
++                            c2_addb_func_fail, (const char *)"io_fom_cob_rw_io_finish",
+                             fom->fo_rc);
+ 	        return FSO_AGAIN;
+         }
+ 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		    c2_addb_trace, "FOM: stob_io_finished.\n");
++		    c2_addb_trace, (const char *)"FOM: stob_io_finished.\n");
+ 
+         return FSO_AGAIN;
+ }
+diff --git a/ioservice/io_fops.c b/ioservice/io_fops.c
+index 3d84e67..c58500a 100644
+--- a/ioservice/io_fops.c
++++ b/ioservice/io_fops.c
+@@ -88,8 +88,11 @@ static const struct c2_addb_ctx_type bulkclient_addb_ctx_type = {
+ 	.act_name = "bulkclient",
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_BULKCLIENT_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(bulkclient_func_fail, "bulkclient func failed.",
+-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		  C2_ADDB_EVENT_BULKCLIENT_FUNC_FAIL, AEL_ERROR,
++		  C2_ADDB_BULKCLIENT_FUNC_CALL);
+ 
+ static struct c2_fop_type_format *ioservice_fmts[] = {
+ 	&c2_fop_file_fid_tfmt,
+@@ -588,7 +591,7 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
+ 		C2_POST(io_fop_invariant(iofop));
+ 	} else
+ 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+-			    bulkclient_func_fail, "io fop init failed.", rc);
++			    bulkclient_func_fail, (const char *)"io fop init failed.", rc);
+ 	return rc;
+ }
+ C2_EXPORTED(c2_io_fop_init);
+@@ -1146,7 +1149,7 @@ static int io_fop_desc_ivec_prepare(struct c2_fop *fop,
+ 	if (rc != 0) {
+ 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+ 			    bulkclient_func_fail,
+-			    "io_fop_desc_ivec_prepare failed.", rc);
++			    (const char *)"io_fop_desc_ivec_prepare failed.", rc);
+ 		return rc;
+ 	}
+ 
+@@ -1271,7 +1274,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
+ 	if (rc != 0) {
+ 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+ 			    bulkclient_func_fail,
+-			    "c2_rpc_bulk_store() failed for coalesced io fop.",
++			    (const char *)"c2_rpc_bulk_store() failed for coalesced io fop.",
+ 			    rc);
+ 		c2_io_fop_destroy(res_fop);
+ 		goto cleanup;
+@@ -1283,7 +1286,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
+ 	 */
+ 	if (io_fop_size_get(res_fop) > size) {
+ 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+-			    bulkclient_func_fail, "Size of coalesced fop"
++			    bulkclient_func_fail, (const char *)"Size of coalesced fop"
+ 			    "exceeded remaining space in send net buffer.",
+ 			    -EMSGSIZE);
+ 		c2_mutex_lock(&rbulk->rb_mutex);
+@@ -1333,7 +1336,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
+ 
+ 	C2_POST(rw->crw_desc.id_nr == rw->crw_ivecs.cis_nr);
+ 	C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc, c2_addb_trace,
+-		    "io fops coalesced successfully.");
++		    (const char *)"io fops coalesced successfully.");
+ 	rpcitem_tlist_add(items_list, &bkp_fop->f_item);
+ 	return rc;
+ cleanup:
+@@ -1446,7 +1449,7 @@ static void io_item_replied(struct c2_rpc_item *item)
+ 
+ 	if (reply->rwr_rc != 0)
+ 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+-			    bulkclient_func_fail, "io fop failed.",
++			    bulkclient_func_fail, (const char *)"io fop failed.",
+ 			    item->ri_error);
+ 
+ 	/*
+@@ -1457,7 +1460,7 @@ static void io_item_replied(struct c2_rpc_item *item)
+ 	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
+ 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+ 			    c2_addb_trace,
+-			    "Reply received for coalesced io fops.");
++			    (const char *)"Reply received for coalesced io fops.");
+ 		c2_io_fop_destroy(fop);
+ 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
+ 		rpcitem_tlist_del(ritem);
+@@ -1545,7 +1548,7 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
+ 		c2_tlist_for (&rpcitem_tl, &head->ri_compound_items, item) {
+ 			C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+ 				    bulkclient_func_fail,
+-				    "io_fop_coalesce failed.", rc);
++				    (const char *)"io_fop_coalesce failed.", rc);
+ 			rpcitem_tlist_del(item);
+ 		} c2_tlist_endfor;
+ 	} else {
+diff --git a/lib/assert.h b/lib/assert.h
+index 7cc7096..2ba449d 100644
+--- a/lib/assert.h
++++ b/lib/assert.h
+@@ -56,7 +56,7 @@
+ 
+    @see C2_BASSERT()
+  */
+-#define C2_CASSERT(cond) do { switch (1) {case 0: case !!(cond): ;} } while (0)
++#define C2_CASSERT(cond) do { switch (1) {case 0:case !!(cond): ;} } while (0)
+ 
+ /**
+    A macro to assert that compile-time condition is true. Condition must be a
+diff --git a/lib/cdefs.h b/lib/cdefs.h
+index 0c517a5..f4b0ce4 100644
+--- a/lib/cdefs.h
++++ b/lib/cdefs.h
+@@ -69,7 +69,7 @@ extern void __dummy_function(void);
+ /**
+  * True if an expression has a given type.
+  */
+-#define C2_HAS_TYPE(expr, type) __builtin_types_compatible_p(typeof(expr), type)
++#define C2_HAS_TYPE(expr, type)  __builtin_types_compatible_p(typeof(expr), type)
+ 
+ /**
+  * Returns the number of parameters given to this variadic macro (up to 9
+diff --git a/lib/param.h b/lib/param.h
+index 7d0c528..c63067b 100644
+--- a/lib/param.h
++++ b/lib/param.h
+@@ -23,6 +23,7 @@
+ 
+ #include <stdarg.h>
+ #include <stddef.h>
++#include "lib/cdefs.h"
+ 
+ #define C2_ARG_DECL(...)						\
+ 	C2_CAT(C2_ARG_DECL, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+@@ -33,13 +34,13 @@
+ 	static const int _sizeof[NR] = SIZEOF;
+ 
+ #define PARAM_TYPEOF(a, v) typeof(a) v
+-#define PARAM_OFFSETOF(v) offsetof(struct t_body, v)
++#define PARAM_OFFSETOF(name, v) offsetof(struct name, v)
+ #define PARAM_SIZEOF(a) sizeof(a)
+ 
+-#define PARAM_CHECK(a) 							\
+-C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+-	   (sizeof(a) == 1 || sizeof(a) == 2 || sizeof(a) == 4 ||	\
+-	    sizeof(a) == 8))
++#define PARAM_CHECK(a)							\
++C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&                            \
++           (sizeof(a) == 1 || sizeof(a) == 2 || sizeof(a) == 4 ||       \
++            sizeof(a) == 8))
+ 
+ /**
+  * PARAM_GROUP() is used to pass { x0, ..., xn } as a single argument to
+@@ -52,14 +53,14 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+ #define C2_ARG_DECL1(name, a0)						\
+    __ARG_DECL(name, 1,							\
+    { PARAM_TYPEOF(a0, v0); },						\
+-   { PARAM_OFFSETOF(v0) },						\
++   { PARAM_OFFSETOF(name, v0) },						\
+    { PARAM_SIZEOF(a0) });						\
+    PARAM_CHECK(a0);
+ 
+ #define C2_ARG_DECL2(name, a0, a1)					\
+    __ARG_DECL(name, 2,							\
+    { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1); },			\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1) }),		\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1) }),		\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1) }));		\
+    PARAM_CHECK(a0); PARAM_CHECK(a1);
+ 
+@@ -67,8 +68,8 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+    __ARG_DECL(name, 3,							\
+    { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
+      PARAM_TYPEOF(a2, v2); },						\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
+-		 PARAM_OFFSETOF(v2) }),					\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1),		\
++		 PARAM_OFFSETOF(name, v2) }),					\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
+ 		 PARAM_SIZEOF(a2) }));					\
+    PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2);
+@@ -77,8 +78,8 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+    __ARG_DECL(name, 4,							\
+    { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
+      PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3); },			\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
+-		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3) }),		\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1),		\
++		 PARAM_OFFSETOF(name, v2), PARAM_OFFSETOF(name, v3) }),		\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1), 			\
+ 		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3) }));		\
+    PARAM_CHECK(a0); PARAM_CHECK(a1); PARAM_CHECK(a2); PARAM_CHECK(a3);
+@@ -88,9 +89,9 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+    { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
+      PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3);			\
+      PARAM_TYPEOF(a4, v4); },						\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
+-		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
+-                 PARAM_OFFSETOF(v4) }),					\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1),		\
++		 PARAM_OFFSETOF(name, v2), PARAM_OFFSETOF(name, v3),		\
++                 PARAM_OFFSETOF(name, v4) }),					\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
+ 		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
+                  PARAM_SIZEOF(a4) }));		\
+@@ -102,9 +103,9 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+    { PARAM_TYPEOF(a0, v0); PARAM_TYPEOF(a1, v1);			\
+      PARAM_TYPEOF(a2, v2);PARAM_TYPEOF(a3, v3);				\
+      PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5); },			\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
+-		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
+-                 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5) }),		\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1),		\
++		 PARAM_OFFSETOF(name, v2), PARAM_OFFSETOF(name, v3),		\
++                 PARAM_OFFSETOF(name, v4), PARAM_OFFSETOF(name, v5) }),		\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
+ 		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
+                  PARAM_SIZEOF(a4), PARAM_SIZEOF(a5) }));		\
+@@ -117,10 +118,10 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+      PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3);			\
+      PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5);			\
+      PARAM_TYPEOF(a6, v6); },						\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
+-		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
+-                 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5),		\
+-                 PARAM_OFFSETOF(v6) }),					\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1),		\
++		 PARAM_OFFSETOF(name, v2), PARAM_OFFSETOF(name, v3),		\
++                 PARAM_OFFSETOF(name, v4), PARAM_OFFSETOF(name, v5),		\
++                 PARAM_OFFSETOF(name, v6) }),					\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
+ 		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
+                  PARAM_SIZEOF(a4), PARAM_SIZEOF(a5),			\
+@@ -134,10 +135,10 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+      PARAM_TYPEOF(a2, v2); PARAM_TYPEOF(a3, v3);			\
+      PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5);			\
+      PARAM_TYPEOF(a6, v6); PARAM_TYPEOF(a7, v7); },			\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
+-		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
+-                 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5),		\
+-                 PARAM_OFFSETOF(v6), PARAM_OFFSETOF(v7) }),		\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1),		\
++		 PARAM_OFFSETOF(name, v2), PARAM_OFFSETOF(name, v3),		\
++                 PARAM_OFFSETOF(name, v4), PARAM_OFFSETOF(name, v5),		\
++                 PARAM_OFFSETOF(name, v6), PARAM_OFFSETOF(name, v7) }),		\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
+ 		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
+                  PARAM_SIZEOF(a4), PARAM_SIZEOF(a5),			\
+@@ -152,11 +153,11 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
+      PARAM_TYPEOF(a4, v4); PARAM_TYPEOF(a5, v5);			\
+      PARAM_TYPEOF(a6, v6); PARAM_TYPEOF(a7, v7);			\
+      PARAM_TYPEOF(a8, v8); PARAM_TYPEOF(a9, v9); },			\
+-   PARAM_GROUP({ PARAM_OFFSETOF(v0), PARAM_OFFSETOF(v1),		\
+-		 PARAM_OFFSETOF(v2), PARAM_OFFSETOF(v3),		\
+-               	 PARAM_OFFSETOF(v4), PARAM_OFFSETOF(v5),		\
+-		 PARAM_OFFSETOF(v6), PARAM_OFFSETOF(v7),		\
+-                 PARAM_OFFSETOF(v8) }),					\
++   PARAM_GROUP({ PARAM_OFFSETOF(name, v0), PARAM_OFFSETOF(name, v1),		\
++		 PARAM_OFFSETOF(name, v2), PARAM_OFFSETOF(name, v3),		\
++               	 PARAM_OFFSETOF(name, v4), PARAM_OFFSETOF(name, v5),		\
++		 PARAM_OFFSETOF(name, v6), PARAM_OFFSETOF(name, v7),		\
++                 PARAM_OFFSETOF(name, v8) }),					\
+    PARAM_GROUP({ PARAM_SIZEOF(a0), PARAM_SIZEOF(a1),			\
+ 		 PARAM_SIZEOF(a2), PARAM_SIZEOF(a3),			\
+                	 PARAM_SIZEOF(a4), PARAM_SIZEOF(a5),			\
+diff --git a/net/bulk_emulation/ksunrpc_server.c b/net/bulk_emulation/ksunrpc_server.c
+index 429ae9f..411342b 100644
+--- a/net/bulk_emulation/ksunrpc_server.c
++++ b/net/bulk_emulation/ksunrpc_server.c
+@@ -76,17 +76,21 @@ static const struct c2_addb_loc ksunrpc_addb_server = {
+ 	.al_name = "ksunrpc-server"
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_USUNRPC_INVAL, uint64_t val);
++C2_ADDB_OPS_DEFINE(C2_ADDB_USUNRPC_STAMP);
++
+ C2_ADDB_EV_DEFINE(ksunrpc_addb_req,       "req",
+-		  C2_ADDB_EVENT_USUNRPC_REQ, C2_ADDB_STAMP);
++		  C2_ADDB_EVENT_USUNRPC_REQ, AEL_NOTE, C2_ADDB_USUNRPC_STAMP);
+ C2_ADDB_EV_DEFINE(ksunrpc_addb_opnotsupp, "EOPNOTSUPP",
+-		  C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT, C2_ADDB_INVAL);
++		  C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT, AEL_ERROR,
++		  C2_ADDB_USUNRPC_INVAL);
+ 
+ #define ADDB_ADD(service, ev, ...) \
+ C2_ADDB_ADD(&(service)->s_addb, &ksunrpc_addb_server, ev , ## __VA_ARGS__)
+ 
+ #define ADDB_CALL(service, name, rc)				\
+ C2_ADDB_ADD(&(service)->s_addb, &ksunrpc_addb_server,		\
+-            c2_addb_func_fail, (name), (rc))
++            c2_addb_func_fail, (const char *)(name), (rc))
+ 
+ static struct c2_list ksunrpc_svc_list;
+ static struct c2_rwlock ksunrpc_lock;
+diff --git a/net/net_cli.c b/net/net_cli.c
+index 817ecca..d44b29d 100644
+--- a/net/net_cli.c
++++ b/net/net_cli.c
+@@ -32,10 +32,12 @@ static const struct c2_addb_loc net_cli_addb = {
+ 	.al_name = "net-cli"
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_NET_STAMP);
++
+ C2_ADDB_EV_DEFINE(net_addb_conn_send, "send", C2_ADDB_EVENT_NET_SEND,
+-		  C2_ADDB_STAMP);
++		  AEL_NOTE, C2_ADDB_NET_STAMP);
+ C2_ADDB_EV_DEFINE(net_addb_conn_call, "call", C2_ADDB_EVENT_NET_CALL,
+-		  C2_ADDB_STAMP);
++		  AEL_NOTE, C2_ADDB_NET_STAMP);
+ 
+ #define ADDB_ADD(conn, ev, ...) \
+ C2_ADDB_ADD(&(conn)->nc_addb, &net_cli_addb, ev , ## __VA_ARGS__)
+diff --git a/net/usunrpc/client.c b/net/usunrpc/client.c
+index a004b90..ac69836 100644
+--- a/net/usunrpc/client.c
++++ b/net/usunrpc/client.c
+@@ -97,7 +97,7 @@ C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client, ev , ## __VA_ARGS__)
+ 
+ #define ADDB_CALL(conn, name, rc)					\
+ C2_ADDB_ADD(&(conn)->nc_addb, &usunrpc_addb_client,                     \
+-            c2_addb_func_fail, (name), (rc))
++            c2_addb_func_fail, (const char *)(name), (rc))
+ 
+ enum {
+ 	MINIMAL_XPRT_MAX_BUFFER_SIZE = (1<<19) + 1024,
+diff --git a/net/usunrpc/server.c b/net/usunrpc/server.c
+index e98e613..24c1f83 100644
+--- a/net/usunrpc/server.c
++++ b/net/usunrpc/server.c
+@@ -212,17 +212,21 @@ static struct c2_service *usunrpc_service_get(void)
+ 	return pthread_getspecific(usunrpc_service_key);
+ }
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_USUNRPC1_INVAL, uint64_t val);
++C2_ADDB_OPS_DEFINE(C2_ADDB_USUNRPC1_STAMP);
++
+ C2_ADDB_EV_DEFINE(usunrpc_addb_req,       "req",
+-		  C2_ADDB_EVENT_USUNRPC_REQ, C2_ADDB_STAMP);
++		  C2_ADDB_EVENT_USUNRPC1_REQ, AEL_NOTE, C2_ADDB_USUNRPC1_STAMP);
+ C2_ADDB_EV_DEFINE(usunrpc_addb_opnotsupp, "EOPNOTSUPP",
+-		  C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT, C2_ADDB_INVAL);
++		  C2_ADDB_EVENT_USUNRPC1_OPNOTSURPPORT, AEL_ERROR,
++		  C2_ADDB_USUNRPC1_INVAL);
+ 
+ #define ADDB_ADD(service, ev, ...) \
+ C2_ADDB_ADD(&(service)->s_addb, &usunrpc_addb_server, ev , ## __VA_ARGS__)
+ 
+ #define ADDB_CALL(service, name, rc)				\
+ C2_ADDB_ADD(&(service)->s_addb, &usunrpc_addb_server,		\
+-            c2_addb_func_fail, (name), (rc))
++            c2_addb_func_fail, (const char *)(name), (rc))
+ 
+ /**
+    worker thread.
+diff --git a/nrs/nrs.c b/nrs/nrs.c
+index 4177fc1..450422d 100644
+--- a/nrs/nrs.c
++++ b/nrs/nrs.c
+@@ -42,7 +42,10 @@ static const struct c2_addb_loc nrs_addb = {
+ 	.al_name = "nrs"
+ };
+ 
+-C2_ADDB_EV_DEFINE(nrs_addb_enqueue, "enqueue", 0x10, C2_ADDB_STAMP);
++C2_ADDB_OPS_DEFINE(C2_ADDB_NRS_STAMP);
++
++C2_ADDB_EV_DEFINE(nrs_addb_enqueue, "enqueue", C2_ADDB_EVENT_NRS, AEL_NOTE,
++		  C2_ADDB_NRS_STAMP);
+ 
+ int c2_nrs_init(struct c2_nrs *nrs, struct c2_reqh *reqh)
+ {
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index b21b80f..4d31d19 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -84,7 +84,7 @@ const struct c2_tl_descr c2_rh_rpml_descr = C2_TL_DESCR("rpc machines",
+ struct c2_addb_ctx c2_reqh_addb_ctx;
+ 
+ #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
+-C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
++C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (const char *)(name), (rc))
+ 
+ extern int c2_reqh_fop_init(void);
+ extern void c2_reqh_fop_fini(void);
+diff --git a/rpc/formation.c b/rpc/formation.c
+index 8325cde..9188977 100644
+--- a/rpc/formation.c
++++ b/rpc/formation.c
+@@ -42,8 +42,17 @@ static const struct c2_addb_loc frm_addb_loc = {
+         .al_name = "rpc-formation"
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_FORMATION_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(formation_func_fail, "formation_func_fail",
+-		C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		C2_ADDB_EVENT_FORMATION_FUNC_FAIL, AEL_ERROR,
++		C2_ADDB_FORMATION_FUNC_CALL);
++
++#define ADDB_FUNC_FAIL(ctx, loc, ev, name, rc)                          \
++        C2_ADDB_ADD(ctx, loc, ev, (const char *)name, rc)
++
++#define ADDB_TRACE(ctx, loc, ev, name)                          	\
++        C2_ADDB_ADD(ctx, loc, ev, (const char *)name)
+ 
+ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+ 		      uint32_t rc);
+@@ -362,12 +371,12 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
+ 	   access to rpc object. */
+ 	c2_mutex_lock(&frm_sm->fs_lock);
+ 	if (ev->nbe_status == 0) {
+-		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
++		ADDB_TRACE(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+ 			    c2_addb_trace, "Rpc sent on wire.");
+ 		frm_item_rpc_stats_set(rpc);
+ 		frm_item_state_set(rpc, RPC_ITEM_SENT);
+ 	} else {
+-		C2_ADDB_ADD(&fb->fb_frm_sm->fs_rpc_form_addb,
++		ADDB_FUNC_FAIL(&fb->fb_frm_sm->fs_rpc_form_addb,
+ 			    &frm_addb_loc, formation_func_fail,
+ 			    "net buf send failed", ev->nbe_status);
+ 		frm_item_state_set(rpc, RPC_ITEM_SEND_FAILED);
+@@ -600,7 +609,7 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
+ 	if (c2_list_link_is_in(&item->ri_unformed_linkage))
+ 		c2_list_del(&item->ri_unformed_linkage);
+ 
+-	C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
++	ADDB_TRACE(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
+ 		    "Item removed from formation module.");
+ 
+ 	if (item->ri_group == NULL)
+@@ -654,7 +663,7 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm,
+ 				item_timer_callback, (unsigned long)item);
+ 		rc = c2_timer_start(&item->ri_timer);
+ 		if (rc != 0) {
+-			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
++			ADDB_FUNC_FAIL(&frm_sm->fs_rpc_form_addb,
+ 				&frm_addb_loc, formation_func_fail,
+ 				"frm_item_add", rc);
+ 			return;
+@@ -670,7 +679,7 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm,
+ 	 * although unbound items are not really added to formation
+ 	 * state machine.
+ 	 */
+-	C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
++	ADDB_TRACE(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
+ 		    "Item added to formation module.");
+ 
+ 	/* If item is unbound or unsolicited, don't add it to list
+@@ -1067,7 +1076,7 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
+ 	frm_policy = frm_check_policies(frm_sm);
+ 
+ 	if (!(frm_policy || size_optimal)) {
+-		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
++		ADDB_FUNC_FAIL(&frm_sm->fs_rpc_form_addb,
+ 			    &frm_addb_loc, formation_func_fail,
+ 			    "Optimal rpc can not be formed.",
+ 			    -EINVAL);
+@@ -1098,7 +1107,7 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
+ 	}
+ 
+ 	c2_list_add(&frm_sm->fs_rpcs, &rpcobj->r_linkage);
+-	C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
++	ADDB_TRACE(&frm_sm->fs_rpc_form_addb, &frm_addb_loc, c2_addb_trace,
+ 		    "Rpc formed.");
+ 
+ 	/* Send the prepared rpc on wire to destination. */
+@@ -1145,7 +1154,7 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
+ 		    frm_sm->fs_curr_rpcs_in_flight >=
+ 		    frm_sm->fs_max_rpcs_in_flight) {
+ 			rc = -EBUSY;
+-			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
++			ADDB_FUNC_FAIL(&frm_sm->fs_rpc_form_addb,
+ 					&frm_addb_loc, formation_func_fail,
+ 					"max in flight reached", rc);
+ 			break;
+@@ -1167,7 +1176,7 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
+ 		   buffer descriptors. */
+ 		rc = c2_rpc_encode(rpc_obj, &fb->fb_buffer);
+ 		if (rc < 0) {
+-			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
++			ADDB_FUNC_FAIL(&frm_sm->fs_rpc_form_addb,
+ 					&frm_addb_loc, formation_func_fail,
+ 					"c2_rpc_encode failed.", rc);
+ 			continue;
+@@ -1176,7 +1185,7 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
+ 		/* Add the buffer to transfer machine.*/
+ 		rc = c2_net_buffer_add(&fb->fb_buffer, tm);
+ 		if (rc < 0) {
+-			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb,
++			ADDB_FUNC_FAIL(&frm_sm->fs_rpc_form_addb,
+ 					&frm_addb_loc, formation_func_fail,
+ 					"c2_net_buffer_add failed", rc);
+ 			continue;
+@@ -1185,7 +1194,7 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
+ 		C2_ASSERT(fb->fb_buffer.nb_tm->ntm_dom == tm->ntm_dom);
+ 		if (frm_sm->fs_sender_side) {
+ 			frm_sm->fs_curr_rpcs_in_flight++;
+-			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
++			ADDB_TRACE(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+ 				    c2_addb_trace, "Rpc dispatched.");
+ 		}
+ 		c2_list_del(&rpc_obj->r_linkage);
+@@ -1203,7 +1212,7 @@ void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm)
+ 	if (frm_sm->fs_sender_side) {
+ 		if (frm_sm->fs_curr_rpcs_in_flight > 0) {
+ 			frm_sm->fs_curr_rpcs_in_flight--;
+-			C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
++			ADDB_TRACE(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
+ 				    c2_addb_trace, "Rpc received from wire.");
+ 		}
+ 	}
+diff --git a/rpc/rpc2.c b/rpc/rpc2.c
+index cd854bf..925b93b 100644
+--- a/rpc/rpc2.c
++++ b/rpc/rpc2.c
+@@ -79,8 +79,13 @@ static const struct c2_addb_loc rpc_machine_addb_loc = {
+ 	        .al_name = "rpc-machine"
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_RPCM_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(rpc_machine_func_fail, "rpc_machine_func_fail",
+-		                C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		  C2_ADDB_EVENT_RPCM_FUNC_FAIL, AEL_ERROR,
++		  C2_ADDB_RPCM_FUNC_CALL);
++#define ADDB_FUNC_FAIL(ctx, loc, ev, name, rc)                          \
++        C2_ADDB_ADD(ctx, loc, ev, (const char *)name, rc)  
+ 
+ /**
+    Buffer callback for buffers added by rpc layer for receiving messages.
+@@ -500,7 +505,7 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
+ 	if (rc < 0) {
+ 		c2_clink_del(&tmwait);
+ 		c2_clink_fini(&tmwait);
+-		C2_ADDB_ADD(&machine->cr_rpc_machine_addb,
++		ADDB_FUNC_FAIL(&machine->cr_rpc_machine_addb,
+ 			    &rpc_machine_addb_loc, rpc_machine_func_fail,
+ 			    "c2_net_tm_stop", 0);
+ 		return;
+@@ -1327,7 +1332,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
+ 		if (!(nb->nb_flags & C2_NET_BUF_REGISTERED)) {
+ 			rc = c2_net_buffer_register(nb, netdom);
+ 			if (rc != 0) {
+-				C2_ADDB_ADD(&rpcmach->cr_rpc_machine_addb,
++				ADDB_FUNC_FAIL(&rpcmach->cr_rpc_machine_addb,
+ 					    &rpc_machine_addb_loc,
+ 					    rpc_machine_func_fail,
+ 					    "Net buf registration failed.", rc);
+@@ -1339,7 +1344,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
+ 		if (op == C2_RPC_BULK_LOAD) {
+ 			rc = c2_net_desc_copy(&descs[cnt], &nb->nb_desc);
+ 			if (rc != 0) {
+-				C2_ADDB_ADD(&rpcmach->cr_rpc_machine_addb,
++				ADDB_FUNC_FAIL(&rpcmach->cr_rpc_machine_addb,
+ 					    &rpc_machine_addb_loc,
+ 					    rpc_machine_func_fail,
+ 					    "Load: Net buf desc copy failed.",
+@@ -1354,7 +1359,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
+ 		nb->nb_app_private = rbuf;
+ 		rc = c2_net_buffer_add(nb, tm);
+ 		if (rc != 0) {
+-			C2_ADDB_ADD(&rpcmach->cr_rpc_machine_addb,
++			ADDB_FUNC_FAIL(&rpcmach->cr_rpc_machine_addb,
+ 				    &rpc_machine_addb_loc,
+ 				    rpc_machine_func_fail,
+ 				    "Buffer addition to TM failed.", rc);
+@@ -1366,7 +1371,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
+ 		if (op == C2_RPC_BULK_STORE) {
+ 			rc = c2_net_desc_copy(&nb->nb_desc, &descs[cnt]);
+                         if (rc != 0) {
+-                                C2_ADDB_ADD(&rpcmach->cr_rpc_machine_addb,
++                                ADDB_FUNC_FAIL(&rpcmach->cr_rpc_machine_addb,
+                                             &rpc_machine_addb_loc,
+                                             rpc_machine_func_fail,
+                                             "Store: Net buf desc copy failed.",
+diff --git a/stob/ad.c b/stob/ad.c
+index 633c0c8..2210007 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -86,13 +86,15 @@ static const struct c2_addb_loc ad_stob_addb_loc = {
+ static struct c2_addb_ctx ad_stob_ctx;
+ 
+ #define ADDB_GLOBAL_ADD(name, rc)					\
+-C2_ADDB_ADD(&ad_stob_ctx, &ad_stob_addb_loc, c2_addb_func_fail, (name), (rc))
++C2_ADDB_ADD(&ad_stob_ctx, &ad_stob_addb_loc, c2_addb_func_fail,		\
++	    (const char *)(name), (rc))
+ 
+ #define ADDB_ADD(obj, ev, ...)	\
+ C2_ADDB_ADD(&(obj)->so_addb, &ad_stob_addb_loc, ev , ## __VA_ARGS__)
+ 
+ #define ADDB_CALL(obj, name, rc)	\
+-C2_ADDB_ADD(&(obj)->so_addb, &ad_stob_addb_loc, c2_addb_func_fail, (name), (rc))
++C2_ADDB_ADD(&(obj)->so_addb, &ad_stob_addb_loc, c2_addb_func_fail,	\
++	   (const char *)(name), (rc))
+ 
+ struct ad_domain {
+ 	struct c2_stob_domain      ad_base;
+diff --git a/stob/linux_adieu.c b/stob/linux_adieu.c
+index 65b557d..63e28a1 100644
+--- a/stob/linux_adieu.c
++++ b/stob/linux_adieu.c
+@@ -162,14 +162,16 @@ enum {
+ 	_ldom->use_directio ? LINUX_BMASK : 0 ;		\
+ })
+ 
+-#define ADDB_GLOBAL_ADD(name, rc)					\
+-C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
++#define ADDB_GLOBAL_ADD(name, rc)				\
++C2_ADDB_ADD(&adieu_addb_ctx, &adieu_addb_loc, c2_addb_func_fail,\
++	    (const char *)(name), (rc))
+ 
+ #define ADDB_ADD(obj, ev, ...)	\
+ C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, ev , ## __VA_ARGS__)
+ 
+ #define ADDB_CALL(obj, name, rc)	\
+-C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, c2_addb_func_fail, (name), (rc))
++C2_ADDB_ADD(&(obj)->so_addb, &adieu_addb_loc, c2_addb_func_fail,\
++	    (const char *)(name), (rc))
+ 
+ int linux_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
+ {
+diff --git a/yaml2db/yaml2db.c b/yaml2db/yaml2db.c
+index 6ae919c..5ea7dfa 100644
+--- a/yaml2db/yaml2db.c
++++ b/yaml2db/yaml2db.c
+@@ -43,8 +43,14 @@ static const struct c2_addb_loc yaml2db_addb_loc = {
+         .al_name = "yaml2db"
+ };
+ 
++C2_ADDB_OPS_DEFINE(C2_ADDB_YAML2DB_FUNC_CALL, const char *fname, int rc);
++
+ C2_ADDB_EV_DEFINE(yaml2db_func_fail, "yaml2db_func_fail",
+-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
++		  C2_ADDB_EVENT_YAML2DB_FUNC_FAIL, AEL_ERROR,
++		  C2_ADDB_YAML2DB_FUNC_CALL);
++
++#define ADDB_FUNC_FAIL(ctx, loc, ev, name, rc)                          \
++        C2_ADDB_ADD(ctx, loc, ev, (const char *)name, rc)
+ 
+ /* Forward declaration */
+ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx);
+@@ -74,7 +80,7 @@ int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx)
+ 		   parser_initialize command returns 1 in case of success */
+ 		rc = yaml_parser_initialize(&yctx->yc_parser);
+ 		if(rc != 1) {
+-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++			ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 				    yaml2db_func_fail,
+ 				    "yaml_parser_initialize", 0);
+ 			rc = -EINVAL;
+@@ -84,7 +90,7 @@ int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx)
+ 		/* Open the config file in read mode */
+ 		yctx->yc_fp = fopen(yctx->yc_cname, "r");
+ 		if (yctx->yc_fp == NULL) {
+-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++			ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 					yaml2db_func_fail, "fopen", 0);
+ 			yaml_parser_delete(&yctx->yc_parser);
+ 			rc = -errno;
+@@ -101,7 +107,7 @@ int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx)
+ 	rc = c2_dbenv_init(&yctx->yc_db, yctx->yc_dpath, 0);
+ 
+ 	if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 			    yaml2db_func_fail, "c2_dbenv_init", 0);
+ 		goto cleanup;
+ 	}
+@@ -215,14 +221,14 @@ int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
+ 
+ 	rc = yaml_parser_load(&yctx->yc_parser, &yctx->yc_document);
+ 	if (rc != 1) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 			    yaml2db_func_fail, "yaml_parser_load", 0);
+ 		goto parser_error;
+ 	}
+ 
+ 	root_node = yaml_document_get_root_node(&yctx->yc_document);
+ 	if (root_node == NULL) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 			    yaml2db_func_fail,
+ 			    "yaml2db_document_get_root_node", 0);
+                 yaml_document_delete(&yctx->yc_document);
+@@ -449,7 +455,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+         rc = c2_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
+ 			   0, ysec->ys_table_ops);
+         if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 			    yaml2db_func_fail, "c2_table_init", 0);
+                 return rc;
+ 	}
+@@ -457,7 +463,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+         /* Initialize the database transaction */
+         rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
+         if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 			    yaml2db_func_fail, "c2_db_tx_init", 0);
+                 c2_table_fini(&table);
+                 return rc;
+@@ -465,7 +471,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+ 
+ 	node = yaml2db_scalar_locate(yctx, conf_param);
+ 	if (node == NULL) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 			    yaml2db_func_fail, "yaml2db_scalar_locate", 0);
+                 c2_table_fini(&table);
+ 		c2_db_tx_abort(&tx);
+@@ -499,7 +505,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+ 					(char *)k_node->data.scalar.value,
+ 					(char *)v_node->data.scalar.value);
+ 			if (rc != 0) {
+-				C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++				ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 						yaml2db_func_fail,
+ 						"section_value_populate", 0);
+ 				c2_table_fini(&table);
+@@ -512,7 +518,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+ 
+ 		rc = c2_table_update(&tx, &db_pair);
+ 		if (rc != 0) {
+-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++			ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 					yaml2db_func_fail,
+ 					"c2_table_insert", 0);
+ 			c2_db_pair_release(&db_pair);
+@@ -532,7 +538,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
+ 		mandatory_keys_present = validate_mandatory_keys(ysec,
+ 							valid_key_status);
+ 		if (!mandatory_keys_present) {
+-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++			ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 					yaml2db_func_fail,
+ 					"validate_mandatory_keys", 0);
+ 			c2_table_fini(&table);
+@@ -572,7 +578,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+         rc = c2_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
+ 			   0, ysec->ys_table_ops);
+         if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 			    yaml2db_func_fail, "c2_table_init", rc);
+                 return rc;
+         }
+@@ -580,7 +586,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+        /* Initialize the database transaction */
+         rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
+         if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+                                 yaml2db_func_fail, "c2_db_tx_init", rc);
+                 c2_table_fini(&table);
+                 return rc;
+@@ -588,7 +594,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+ 
+ 	rc = c2_db_cursor_init(&db_cursor, &table, &tx, 0);
+         if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+                                 yaml2db_func_fail, "c2_db_cursor_init", rc);
+                 c2_table_fini(&table);
+ 		c2_db_tx_abort(&tx);
+@@ -601,7 +607,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+ 	   the last key is found */
+ 	rc = c2_db_cursor_last(&db_cursor, &db_pair);
+         if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+                                 yaml2db_func_fail, "c2_db_cursor_last", rc);
+ 		goto cleanup;
+         }
+@@ -610,7 +616,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+ 	c2_db_pair_setup(&db_pair, &table, &key, sizeof key, &val, sizeof val);
+ 	rc = c2_db_cursor_first(&db_cursor, &db_pair);
+         if (rc != 0) {
+-                C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++                ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+                                 yaml2db_func_fail, "c2_db_cursor_first", rc);
+ 		goto cleanup;
+         }
+@@ -627,7 +633,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
+ 
+ 		rc = c2_db_cursor_next(&db_cursor, &db_pair);
+ 		if (rc != 0) {
+-			C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
++			ADDB_FUNC_FAIL(&yctx->yc_addb, &yaml2db_addb_loc,
+ 				    yaml2db_func_fail,
+ 				    "c2_db_cursor_next", rc);
+ 			goto cleanup;
+-- 
+1.8.3.2
+

@@ -1,0 +1,94 @@
+From 4aabcb0f0560d293b57b569cff613ef4839f64c0 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 14 Mar 2012 19:04:55 +0200
+Subject: [PATCH 060/311] use actual names in state diagram
+
+Also fix the remaining red spots, caused by "leading" tabs within
+pseudo-code blocks.
+
+Reviewed-on: http://reviewboard.clusterstor.com/r/714/
+Reported-by: Carl Braganza <carl_braganza@xyratex.com>
+References:  LogD-1.3 # 767, 765
+---
+ conf/confc.c | 46 +++++++++++++++++++++++-----------------------
+ 1 file changed, 23 insertions(+), 23 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 6bbc915..ad98bcb 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -177,24 +177,24 @@
+  *
+  * @dot
+  * digraph confd_states {
+- * 	node [fontsize=11];
+- * 	edge [fontsize=11];
+- * 	INITIAL  [style=filled, fillcolor=lightgrey];
+- * 	TERMINAL [style=filled, fillcolor=lightgrey];
+- * 	FAILURE  [style=filled, fillcolor=lightgrey];
+- *
+- *   	INITIAL -> CHECK;
+- *   	CHECK -> TERMINAL [label="all \"needed\" obj-s\nare cached"];
+- *   	CHECK -> FAILURE [label="error"];
+- *   	CHECK -> WAIT_REPLY [label=
+- *   "at least one\nof the \"needed\" obj-s\nis MISSING\n{ set status(es) to LOADING;\nsend request }"];
+- *   	WAIT_REPLY -> FAILURE [label="timeout\nor\nrc != 0"];
+- * 	WAIT_REPLY -> GROW_CACHE [label="response received,\nrc == 0"];
+- * 	GROW_CACHE -> FAILURE [label="error"];
+- * 	GROW_CACHE -> CHECK [label="done"];
+- *   	CHECK -> WAIT_STATUS [label=
+- *   "no MISSING obj-s, but\nat least one is LOADING\n{ clink_add(&obj->co_chan) }"];
+- *   	WAIT_STATUS -> CHECK [label="\"status updated\" event"];
++ *     node [fontsize=11];
++ *     edge [fontsize=11];
++ *     S_INITIAL  [style=filled, fillcolor=lightgrey];
++ *     S_TERMINAL [style=filled, fillcolor=lightgrey];
++ *     S_FAILURE  [style=filled, fillcolor=lightgrey];
++ *
++ *     S_INITIAL -> S_CHECK;
++ *     S_CHECK -> S_TERMINAL [label="all \"needed\" obj-s\nare cached"];
++ *     S_CHECK -> S_FAILURE [label="error"];
++ *     S_CHECK -> S_WAIT_REPLY [label=
++ *   "at least one\nof the \"needed\" obj-s\nis C2_CS_MISSING\n{ set status(es) to C2_CS_LOADING;\nsend request }"];
++ *     S_WAIT_REPLY -> S_FAILURE [label="timeout\nor\nrc != 0"];
++ *     S_WAIT_REPLY -> S_GROW_CACHE [label="response received,\nrc == 0"];
++ *     S_GROW_CACHE -> S_FAILURE [label="error"];
++ *     S_GROW_CACHE -> S_CHECK [label="done"];
++ *     S_CHECK -> S_WAIT_STATUS [label=
++ *   "no C2_CS_MISSING obj-s, but\nat least one is C2_CS_LOADING\n{ clink_add(&obj->co_chan) }"];
++ *     S_WAIT_STATUS -> S_CHECK [label="\"status updated\" event"];
+  * }
+  * @enddot
+  *
+@@ -548,9 +548,9 @@ void c2_confc_fini(void)
+ 	 * c2_mutex_lock(cache_lock());
+ 	 *
+ 	 * for (obj in cache_registry()) {
+-	 * 	C2_ASSERT(obj->co_nrefs == 0
+-	 * 		&& obj->co_status != C2_CS_LOADING);
+-	 * 	c2_free(obj);
++	 *     C2_ASSERT(obj->co_nrefs == 0 &&
++	 *               obj->co_status != C2_CS_LOADING);
++	 *     c2_free(obj);
+ 	 * }
+ 	 * c2_confc_map_fini(cache_registry());
+ 	 * g_confc.root = NULL;
+@@ -948,13 +948,13 @@ cache_add(const struct confx_object *src)
+ 	 *
+ 	 * obj = c2_conf_obj_new(src->o_val.ov_type, src->o_key);
+ 	 * if (obj == NULL)
+-	 * 	return -ENOMEM;
++	 *     return -ENOMEM;
+ 	 *
+ 	 * rc = c2_conf_obj_enrich(obj, src, cache_registry());
+ 	 * rc = ?: c2_conf_map_add(cache_registry(), obj);
+ 	 *
+ 	 * if (rc != 0)
+-	 * 	c2_free(obj);
++	 *     c2_free(obj);
+ 	 * return rc;
+ 	 */
+ 	XXX;
+-- 
+1.8.3.2
+

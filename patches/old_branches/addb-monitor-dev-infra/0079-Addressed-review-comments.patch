@@ -1,0 +1,78 @@
+From 25640a86c00a36cedcecead2b0243535ed361d07 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Mon, 22 Jul 2013 17:42:10 +0530
+Subject: [PATCH 079/107] Addressed review comments - simple fom in m0t1fs for
+ monitor summary records periodic posting
+
+---
+ addb/addb_monitor.h          |  1 +
+ m0t1fs/linux_kernel/m0t1fs.c | 19 +++++++++++++++++++
+ m0t1fs/m0t1fs_addb.h         |  3 +++
+ 3 files changed, 23 insertions(+)
+
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index b2098dc..0415486 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -293,6 +293,7 @@ M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor);
+ 
+ /**
+  * Cleanup the ADDB monitoring sub-system
++ * @todo: Replace substring "subsys" with some other appropriate name
+  */
+ M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh);
+ 
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index 2122126..a395f87 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -66,6 +66,21 @@ static void m0t1fs_reqh_services_stop(void);
+ 
+ struct m0_addb_ctx m0t1fs_addb_ctx;
+ 
++
++/**
++ * ADDB monitor summary posting fom
++ */
++static struct m0t1fs_addb_monitor_pfom mam_pfom;
++
++static int m0t1fs_addb_monitor_pfom_tick(struct m0_fom *fom, void *data,
++					 int *substate)
++{
++	/**
++	 * @todo: Implement ADDB summary record posting logic.
++	 */
++	return 0;
++}
++
+ static struct file_system_type m0t1fs_fs_type = {
+ 	.owner        = THIS_MODULE,
+ 	.name         = "m0t1fs",
+@@ -144,6 +159,10 @@ M0_INTERNAL int m0t1fs_init(void)
+ 	if (rc != 0)
+ 		goto rpc_fini;
+ 
++	M0_FOM_SIMPLE_POST(&mam_pfom.pf_fom, &m0t1fs_globals.g_reqh,
++			   &m0t1fs_addb_monitor_pfom_tick,
++			   &mam_pfom, 1);
++
+ 	rc = m0t1fs_layout_init();
+ 	if (rc != 0)
+ 		goto mon_fini;
+diff --git a/m0t1fs/m0t1fs_addb.h b/m0t1fs/m0t1fs_addb.h
+index cb6bc3d..c071310 100644
+--- a/m0t1fs/m0t1fs_addb.h
++++ b/m0t1fs/m0t1fs_addb.h
+@@ -24,6 +24,9 @@
+ 
+ #include "addb/addb.h"
+ #include "addb/addb_monitor.h"
++#ifdef __KERNEL__
++#include "fop/fom_simple.h"
++#endif
+ 
+ /*
+  ******************************************************************************
+-- 
+1.8.3.2
+

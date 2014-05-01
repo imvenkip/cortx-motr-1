@@ -1,0 +1,2946 @@
+From 7bd37f99a8c5aa9ef640b854e62d594431568959 Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Wed, 5 Jun 2013 08:11:53 -0700
+Subject: [PATCH 117/121] Removed asserts from rvm code.
+
+---
+ rvm/rds_start.c     |  43 +++--
+ rvm/rds_zap.c       |  88 +++++-----
+ rvm/rvm.h           |   3 +
+ rvm/rvm_createseg.c |  75 ++++++---
+ rvm/rvm_init.c      | 140 ++++++++--------
+ rvm/rvm_io.c        | 449 +++++++++++++++++++++++++++++-----------------------
+ rvm/rvm_loadseg.c   |  20 ++-
+ rvm/rvm_logflush.c  | 110 +++++++++----
+ rvm/rvm_logrecovr.c | 274 +++++++++++++++++++++-----------
+ rvm/rvm_logstatus.c |  48 ++++--
+ rvm/rvm_map.c       |  10 +-
+ rvm/rvm_status.c    |  10 +-
+ 12 files changed, 784 insertions(+), 486 deletions(-)
+
+diff --git a/rvm/rds_start.c b/rvm/rds_start.c
+index 3a39c2b..d77bc31 100644
+--- a/rvm/rds_start.c
++++ b/rvm/rds_start.c
+@@ -17,7 +17,7 @@ Coda are listed in the file CREDITS.
+ #*/
+ 
+ #include <stdlib.h>
+-#include <stdio.h>
++#include "lib/errno.h"
+ #include "rvm/rds_private.h"
+ #include "be/handler.h"
+ #include "lib/memory.h"
+@@ -51,12 +51,13 @@ void rlh_load_seg_cb(cbinfo, status, msg_type)
+         int                      err;
+ 
+         M0_ASSERT(cbinfo != NULL);
++	rlh_cbdata  = container_of(cbinfo, rlh_cbdata_t, rlhc_cbinfo);
++
+         if (status != 0) {
+             printf("Error rvm_load_segment returns %d\n", status);
+             goto exit;
+         }
+ 
+-	rlh_cbdata  = container_of(cbinfo, rlh_cbdata_t, rlhc_cbinfo);
+         seg_hdr     = rlh_cbdata->rlhc_seg_hdr;
+         region_defs = seg_hdr->heap_hdr->RegionDefs;
+ 
+@@ -95,30 +96,46 @@ int rds_load_heap(DevName, DevLength, static_addr, err, seg_hdr, cbinfo)
+      struct m0_be_cbinfo   *cbinfo;
+ {
+         struct m0_be_cbinfo 	*rlh_cbinfo;
+-        rlh_cbdata_t 		*rlh_cbdata;
++        rlh_cbdata_t 		*rlh_cbdata = NULL;
+         rvm_return_t             rvmret;
+-
++	int			 status;
++	m0_be_msg_type_t	 msg;
+         /* Initialization of seg->bs_rvm */
+         rds_init(seg_hdr);
+ 
+         M0_ALLOC_PTR(rlh_cbdata);
+-	M0_ASSERT(rlh_cbdata != NULL);
+-
+-        rlh_cbinfo = &rlh_cbdata->rlhc_cbinfo;
++	if (rlh_cbdata == NULL) {
++                msg    = -ENOMEM;
++		status = -1;
++                goto exit;
++        }
+ 
+         rlh_cbdata->rlhc_seg_hdr = seg_hdr;
+-	rlh_cbinfo->bc_pcbinfo 	 = cbinfo;
+-	rlh_cbinfo->bc_cb 	 = rlh_load_seg_cb;
+-	rlh_cbinfo->bc_sm_group  = cbinfo->bc_sm_group;
+-	rlh_cbinfo->bc_hq 	 = cbinfo->bc_hq;
++        rlh_cbinfo = &rlh_cbdata->rlhc_cbinfo;
++	m0_be_cbinfo_copy_helper(cbinfo ,rlh_cbinfo, rlh_load_seg_cb);
+ 
+         /* Map in the appropriate structures by calling Rvm_Load_Segment. */
+         rvmret = rvm_load_segment(DevName, DevLength, NULL,
+                                   &seg_hdr->heap_hdr->NRegionDefs,
+                                   &seg_hdr->heap_hdr->RegionDefs, seg_hdr,
+                                   rlh_cbinfo);
+-	/* Error handling needed. */
+-        return 0;
++	if(rvmret != 0) {
++		msg    = rvmret;
++		status = -1;
++	} else {
++		status = rvmret;
++		msg    = M0_BE_SUCCESS;
++	}
++
++exit:
++        if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg);
++		if (rlh_cbdata != NULL)
++			m0_free(rlh_cbdata);
++        }
++
++        return rvmret;
+ }
+ 
+ /*
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index f3115c6..c248fd8 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -17,7 +17,7 @@ Coda are listed in the file CREDITS.
+ #*/
+ 
+ #include <stdlib.h>
+-#include <stdio.h>
++#include "lib/errno.h"
+ #include "rvm/rds_private.h"
+ #include "be/handler.h"
+ #include "lib/memory.h"
+@@ -30,14 +30,16 @@ void rzh_rvm_truncate_cb1(cbinfo, status, msg_type)
+ 	rzh_cbdata_t 		*rzh_cbdata;
+ 
+ 	M0_ASSERT(cbinfo != NULL);
+-
+ 	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+-	M0_ASSERT(rzh_cbdata != NULL);
++
++	if (status != 0)
++		goto exit;
+ 
+ 	rvm_release_segment(rzh_cbdata->rzhc_n_loadregions,
+ 			    &rzh_cbdata->rzhc_loadregions,
+ 			    rzh_cbdata->rzhc_seg_hdr);
+ 
++exit:
+ 	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+         }
+@@ -52,16 +54,15 @@ void rzh_rvm_flush_cb(cbinfo, status, msg_type)
+ {
+ 	rzh_cbdata_t 		*rzh_cbdata;
+ 
+-	if (status != 0)
+-		goto exit;
+-
+-	/* Make sure the initialization has been committed to rvm data */
+ 	M0_ASSERT(cbinfo != NULL);
+-
+ 	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+ 
++	if (status != 0)
++		goto exit;
++
+ 	cbinfo->bc_cb = rzh_rvm_truncate_cb1;
+ 
++	/* Make sure the initialization has been committed to rvm data */
+ 	status = rvm_truncate(cbinfo);
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+@@ -79,13 +80,11 @@ void rzh_rvm_end_transaction_cb(cbinfo, status, msg_type)
+ 	rvm_tid_t 		*tid = NULL;
+ 	rzh_cbdata_t 		*rzh_cbdata;
+ 
+-	if (status != 0)
+-		goto exit;
+-
+ 	M0_ASSERT(cbinfo != NULL);
+-
+ 	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+-	M0_ASSERT(rzh_cbdata != NULL);
++
++	if (status != 0)
++		goto exit;
+ 
+ 	tid = rzh_cbdata->rzhc_tid;
+ 
+@@ -93,7 +92,6 @@ void rzh_rvm_end_transaction_cb(cbinfo, status, msg_type)
+ 	rvm_free_tid(tid);
+ 
+ 	status = rvm_flush(cbinfo);
+-
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+@@ -110,12 +108,12 @@ void rzh_rvm_load_seg_cb(cbinfo, status, msg_type)
+ 	rvm_tid_t 		*tid = NULL;
+ 	rzh_cbdata_t 		*rzh_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+-	M0_ASSERT(rzh_cbdata != NULL);
+-
+ 	/* Total sanity checks -- since we just created the segment */
+ 	if (rzh_cbdata->rzhc_n_loadregions != 2) {
+ 		status = EBAD_SEGMENT_HDR;
+@@ -164,12 +162,12 @@ void rzh_rvm_truncate_cb(cbinfo, status, msg_type)
+ {
+ 	rzh_cbdata_t 		*rzh_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+-	M0_ASSERT(rzh_cbdata != NULL);
+-
+ 	cbinfo->bc_cb = rzh_rvm_load_seg_cb;
+ 
+ 	/* Map in the appropriate structures by calling Rvm_Load_Segment. */
+@@ -195,13 +193,12 @@ void rzh_create_seg_cb(cbinfo, status, msg_type)
+ {
+ 	rzh_cbdata_t 		*rzh_cbdata;
+ 
+-	if (status != 0)
+-		goto exit;
+-
+ 	M0_ASSERT(cbinfo != NULL);
+-
+ 	rzh_cbdata = container_of(cbinfo, rzh_cbdata_t, rzhc_cbinfo);
+ 
++	if (status != 0)
++		goto exit;
++
+ 	cbinfo->bc_cb = rzh_rvm_truncate_cb;
+ 
+ 	/* Force the writes from create to appear in the data segment. */
+@@ -236,9 +233,6 @@ int rds_zap_heap(dev_name, dev_length, start_addr, static_length, heap_length,
+ 	int			 status = 0;
+ 	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
+ 
+-	if (status != 0)
+-		goto exit;
+-
+ 	if (start_addr == NULL) {
+ 		start_addr = rvm_get_vm_addr(heap_length + static_length +
+ 					     RVM_SEGMENT_HDR_SIZE);
+@@ -259,7 +253,11 @@ int rds_zap_heap(dev_name, dev_length, start_addr, static_length, heap_length,
+ 	seg_hdr->regions[1].vmaddr = start_addr + heap_length;
+ 
+ 	M0_ALLOC_PTR(rzh_cbdata);
+-	M0_ASSERT(rzh_cbdata != NULL);
++	if (rzh_cbdata == NULL) {
++                status   = -1;
++		msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	rzh_cbdata->rzhc_dev_name 	= dev_name;
+ 	rzh_cbdata->rzhc_start_addr 	= start_addr;
+@@ -272,11 +270,7 @@ int rds_zap_heap(dev_name, dev_length, start_addr, static_length, heap_length,
+ 	rzh_cbdata->rzhc_nlists 	= nlists;
+ 
+ 	rzhc_cbinfo = &rzh_cbdata->rzhc_cbinfo;
+-
+-	rzhc_cbinfo->bc_pcbinfo 	= cbinfo;
+-	rzhc_cbinfo->bc_cb 		= rzh_create_seg_cb;
+-	rzhc_cbinfo->bc_sm_group 	= cbinfo->bc_sm_group;
+-	rzhc_cbinfo->bc_hq 		= cbinfo->bc_hq;
++	m0_be_cbinfo_copy_helper(cbinfo, rzhc_cbinfo, rzh_create_seg_cb);
+ 
+ 	/* Create the segments */
+ 	status = rvm_create_segment(dev_name,
+@@ -290,7 +284,8 @@ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+-		m0_free(rzh_cbdata);
++		if (rzh_cbdata != NULL)
++			m0_free(rzh_cbdata);
+         }
+ 
+ 	return 0;
+@@ -302,11 +297,15 @@ void rd_rvm_truncate_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	rvm_seg_hdr_t *seg_hdr;
+ 	rd_cbdata_t   *rd_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	rd_cbdata = container_of(cbinfo, rd_cbdata_t, rdc_cbinfo);
+-	seg_hdr   = rd_cbdata->rdc_seg_hdr;
+ 
+-	rvm_release_segment(seg_hdr->n_loadregions, &seg_hdr->regions, seg_hdr);
++	if (status != 0)
++		goto exit;
+ 
++	seg_hdr = rd_cbdata->rdc_seg_hdr;
++	rvm_release_segment(seg_hdr->n_loadregions, &seg_hdr->regions, seg_hdr);
++exit:
+ 	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+         }
+@@ -319,6 +318,7 @@ void rd_rvm_flush_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	rvm_return_t	 retval;
+ 	rd_cbdata_t   	*rd_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	rd_cbdata = container_of(cbinfo, rd_cbdata_t, rdc_cbinfo);
+ 
+ 	if(status != 0)
+@@ -328,7 +328,7 @@ void rd_rvm_flush_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	retval = rvm_truncate(cbinfo);
+ 
+ 	if(retval != RVM_SUCCESS) {
+-		status = -1;
++		status   = -1;
+ 		msg_type = msg_type;
+ 	}
+ exit:
+@@ -348,11 +348,14 @@ int rds_done(rvm_seg_hdr_t *seg_hdr, struct m0_be_cbinfo *cbinfo)
+ 	rvm_return_t		 retval;
+ 
+ 	M0_ALLOC_PTR(rd_cbdata);
+-	M0_ASSERT(rd_cbdata != NULL);
++	if (rd_cbdata == NULL) {
++                status   = -1;
++		msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	rd_cbdata->rdc_seg_hdr = seg_hdr;
+-
+-	rdc_cbinfo = &rd_cbdata->rdc_cbinfo;
++	rdc_cbinfo             = &rd_cbdata->rdc_cbinfo;
+ 
+ 	m0_be_cbinfo_copy_helper(cbinfo, rdc_cbinfo, rd_rvm_flush_cb);
+ 
+@@ -360,12 +363,13 @@ int rds_done(rvm_seg_hdr_t *seg_hdr, struct m0_be_cbinfo *cbinfo)
+ 	retval = rvm_flush(rdc_cbinfo);
+ 	if(retval != RVM_SUCCESS) {
+ 		status = -1;
+-		msg_type = msg_type;
+ 	}
+ 
++exit:
+ 	if (status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, status, msg_type);
+-                m0_free(rd_cbdata);
++		if (rd_cbdata != NULL)
++			m0_free(rd_cbdata);
+         }
+ 
+ 	return retval;
+diff --git a/rvm/rvm.h b/rvm/rvm.h
+index 1255dc2..bee5475 100644
+--- a/rvm/rvm.h
++++ b/rvm/rvm.h
+@@ -538,5 +538,8 @@ extern rvm_length_t rvm_page_size ();
+ extern rvm_length_t rvm_page_mask ();
+ extern rvm_offset_t rvm_rnd_offset_up_to_page(rvm_offset_t *x);
+ extern rvm_offset_t rvm_rnd_offset_dn_to_page(rvm_offset_t *x);
++extern rvm_return_t rvm_io_alloc_helper(void ***io_addr, m0_bcount_t **io_count,
++			       		m0_bindex_t **io_offset, uint32_t io_nr,
++					int *status);
+ 
+ #endif /* __MERO_RVM_RVM_H__ */
+diff --git a/rvm/rvm_createseg.c b/rvm/rvm_createseg.c
+index 9279659..f8bb564 100644
+--- a/rvm/rvm_createseg.c
++++ b/rvm/rvm_createseg.c
+@@ -16,10 +16,10 @@ Coda are listed in the file CREDITS.
+ 
+ #*/
+ 
+-#include <stdio.h>
+ #include <string.h>
+ #include <assert.h>
+ 
++#include "lib/errno.h"
+ #include "rvm/rvm.h"
+ #include "rvm/rvm_segment.h"
+ #include "rvm/rvm_segment_private.h"
+@@ -36,25 +36,28 @@ void rcs_rvm_end_transaction_cb(struct m0_be_cbinfo *cbinfo,
+ 	rvm_seg_hdr_t	*seg_hdr;
+ 	rvm_region_t	*region;
+ 	rvm_tid_t	*tid;
++	rvm_return_t	 retval;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	rcs_cbdata = container_of(cbinfo, rcs_cbdata_t, rcsc_cbinfo);
+-	M0_ASSERT(rcs_cbdata != NULL);
+ 
+ 	seg_hdr = rcs_cbdata->rcsc_seg_hdr;
+ 	region  = rcs_cbdata->rcsc_region;
+ 	tid  	= rcs_cbdata->rcsc_tid;
+ 
+-
+-	rvm_free_tid(tid);
+-	if (status != RVM_SUCCESS) {
++	if (status != 0) {
+ 		rvm_free_region(region);
+ 		goto exit;
+ 	}
+ 
++	rvm_free_tid(tid);
++
+ 	/* The segment should now be all set to go, clean up. */
+-	status = rvm_unmap(seg_hdr, region);
+-	if (status != RVM_SUCCESS) {
++	retval = rvm_unmap(seg_hdr, region);
++	if (retval != RVM_SUCCESS) {
++		msg_type = retval;
++		status 	 = -1;
+ 		printf("__ create_segment unmap failed %s\n", rvm_return(status));
+ 		goto exit;
+ 	}
+@@ -84,10 +87,14 @@ void rcs_rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 	rvm_region_t		*region;
+ 	rvm_region_def_t	*region_defs;
+ 	rvm_length_t 		 nregions;
++	rvm_return_t		 retval;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	rcs_cbdata = container_of(cbinfo, rcs_cbdata_t, rcsc_cbinfo);
+-	M0_ASSERT(rcs_cbdata != NULL);
++
++	if (status != 0)
++		goto exit;
+ 
+ 	seg_hdr	  	= rcs_cbdata->rcsc_seg_hdr;
+ 	region    	= rcs_cbdata->rcsc_region;
+@@ -97,8 +104,10 @@ void rcs_rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 	tid = rvm_malloc_tid();
+ 	rcs_cbdata->rcsc_tid = tid;
+ 
+-	status = rvm_begin_transaction(tid, restore);
+-	if (status != RVM_SUCCESS) {
++	retval = rvm_begin_transaction(tid, restore);
++	if (retval != RVM_SUCCESS) {
++		status 	 = -1;
++		msg_type = retval;
+ 		rvm_free_tid(tid);
+ 		rvm_free_region(region);
+ 		goto exit;
+@@ -107,8 +116,10 @@ void rcs_rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 	/* Set up the header region. This is always a fixed size. */
+ 	hptr = (rvm_segment_hdr_t *) region->vmaddr;
+ 
+-	status = rvm_set_range(seg_hdr, tid, (char *)hptr, RVM_SEGMENT_HDR_SIZE);
+-	if (status != RVM_SUCCESS) {
++	retval = rvm_set_range(seg_hdr, tid, (char *)hptr, RVM_SEGMENT_HDR_SIZE);
++	if (retval != RVM_SUCCESS) {
++		status 	 = -1;
++		msg_type = retval;
+ 		rvm_abort_transaction(tid);
+ 		rvm_free_tid(tid);
+ 		rvm_free_region(region);
+@@ -139,7 +150,15 @@ void rcs_rvm_map_cb(struct m0_be_cbinfo *cbinfo,
+ 
+ 	cbinfo->bc_cb = rcs_rvm_end_transaction_cb;
+ 
+-	status = rvm_end_transaction(tid, flush, cbinfo);
++	retval = rvm_end_transaction(tid, flush, cbinfo);
++	if (retval != RVM_SUCCESS) {
++		status 	 = -1;
++		msg_type = retval;
++		rvm_abort_transaction(tid);
++		rvm_free_tid(tid);
++		rvm_free_region(region);
++		goto exit;
++	}
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+@@ -165,18 +184,23 @@ rvm_return_t rvm_create_segment(char *dev_name,
+ {
+ 	rcs_cbdata_t	 	*rcs_cbdata;
+ 	struct m0_be_cbinfo 	*rcsc_cbinfo;
+-	int 		  	 status;
++	int 		  	 status   = 0;
+ 	m0_be_msg_type_t  	 msg_type = M0_BE_SUCCESS;
++	rvm_return_t		 retval;
+ 
+ 	M0_ALLOC_PTR(rcs_cbdata);
+-	M0_ASSERT(rcs_cbdata != NULL);
+-
++	if (rcs_cbdata == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	rvm_region_t *region = rvm_malloc_region();
+ 
+ 	/* Make sure the region definitions do not overlap. */
+ 	if (overlap(nregions, region_defs)) {
+-		status =  RVM_ERANGE;
++		status 	 = -1;
++		msg_type = RVM_ERANGE;
+ 		goto exit;
+ 	}
+ 
+@@ -193,8 +217,10 @@ rvm_return_t rvm_create_segment(char *dev_name,
+ 	RVM_ZERO_OFFSET(region->offset);
+ 
+ 	/* allocate the address range for this region */
+-	status = allocate_vm(seg_hdr, &(region->vmaddr), region->length);
+-	if (status != RVM_SUCCESS) {
++	retval = allocate_vm(seg_hdr, &(region->vmaddr), region->length);
++	if (retval != RVM_SUCCESS) {
++		status 	 = -1;
++		msg_type = retval;
+ 		rvm_free_region(region);
+ 		goto exit;
+ 	}
+@@ -212,18 +238,21 @@ rvm_return_t rvm_create_segment(char *dev_name,
+ 	rcsc_cbinfo->bc_cb 	 = rcs_rvm_map_cb;
+ 	rcsc_cbinfo->bc_pcbinfo  = cbinfo;
+ 
+-	status = rvm_map(seg_hdr, region, options, rcsc_cbinfo);
+-	if (status != RVM_SUCCESS) {
++	retval = rvm_map(seg_hdr, region, options, rcsc_cbinfo);
++	if (retval != RVM_SUCCESS) {
++		status 	 = -1;
++		msg_type = retval;
+ 		rvm_free_region(region);
+ 	}
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+-		m0_free(rcs_cbdata);
++		if (rcs_cbdata != NULL)
++			m0_free(rcs_cbdata);
+ 	}
+ 
+-	return status;
++	return retval;
+ }
+ 
+ char *rvm_get_vm_addr(unsigned long length)
+diff --git a/rvm/rvm_init.c b/rvm/rvm_init.c
+index 30744f1..bbeed31 100644
+--- a/rvm/rvm_init.c
++++ b/rvm/rvm_init.c
+@@ -21,6 +21,7 @@ Coda are listed in the file CREDITS.
+ *                   RVM Initialization and Termination
+ *
+ */
++#include "lib/errno.h"
+ #include "rvm/rvm_private.h"
+ #include "be/handler.h"
+ #include "lib/memory.h"
+@@ -54,12 +55,12 @@ void rvm_create_log_cb(struct m0_be_cbinfo *cbinfo, int status,
+         rvm_options_t           *rvm_options;
+         rvm_return_t             retval = RVM_SUCCESS;
+ 
++        M0_ASSERT(cbinfo != NULL);
++        ri_cbdata  = container_of(cbinfo, ri_cbdata_t, ric_cbinfo);
++
+         if (status != 0)
+                 goto exit;
+ 
+-        M0_ASSERT(cbinfo != NULL);
+-
+-        ri_cbdata  = container_of(cbinfo, ri_cbdata_t, ric_cbinfo);
+         rvm_options = ri_cbdata->ric_rvm_options;
+ 
+         cbinfo->bc_cb = do_rvm_options_post_cb;
+@@ -82,12 +83,12 @@ void do_rvm_options_post_cb(struct m0_be_cbinfo *cbinfo, int status,
+         rvm_options_t           *rvm_options;
+         rvm_return_t             retval = RVM_SUCCESS;
+ 
++        M0_ASSERT(cbinfo != NULL);
++        ri_cbdata  = container_of(cbinfo, ri_cbdata_t, ric_cbinfo);
++
+         if (status != 0)
+                 goto err_exit;
+ 
+-        M0_ASSERT(cbinfo != NULL);
+-
+-        ri_cbdata  = container_of(cbinfo, ri_cbdata_t, ric_cbinfo);
+         rvm_options = ri_cbdata->ric_rvm_options;
+ 
+         /* take care of default log */
+@@ -101,7 +102,6 @@ void do_rvm_options_post_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	}
+         inited = rvm_true;              /* all done */
+         status = 0;
+-
+ err_exit:
+         if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+@@ -113,79 +113,87 @@ err_exit:
+ rvm_return_t rvm_initialize(const char *rvm_version, rvm_options_t *rvm_options,
+                             struct m0_be_cbinfo *cbinfo)
+ {
+-    rvm_return_t                 retval = RVM_SUCCESS;
+-    int			         status = 0;
+-    m0_be_msg_type_t	         msg_type = M0_BE_SUCCESS;
+-    ri_cbdata_t                 *ri_cbdata;
+-    struct m0_be_cbinfo         *ri_cbinfo;
+-
+-    rvm_debug(0);                       /* only causes module loading */
+-    if (strcmp(rvm_version,RVM_VERSION) != 0)
+-        return RVM_EVERSION_SKEW;       /* version skew */
+-    assert(sizeof(rvm_length_t) == sizeof(char *));
+-    if ((retval=bad_options(rvm_options,rvm_true)) != RVM_SUCCESS)
+-        return retval;                  /* bad options ptr or record */
+-
+-                                 /* end init_lock crit sec */
+-    if (inited) {
+-        status = -1;
+-        msg_type = M0_BE_RVM_INIT_FAILED;
+-        goto exit;      /* did it all already ... */
+-    }
+-    if (terminated)
+-        {
+-        retval = RVM_EINIT;         /* restart not allowed */
+-        status = -1;
+-        msg_type = M0_BE_RVM_INIT_FAILED;
+-        goto exit;
+-        }
++	rvm_return_t		retval = RVM_SUCCESS;
++	int			status = 0;
++	m0_be_msg_type_t	msg_type = M0_BE_SUCCESS;
++	ri_cbdata_t            *ri_cbdata = NULL;
++	struct m0_be_cbinfo    *ri_cbinfo;
++
++	rvm_debug(0);                       /* only causes module loading */
++	if (strcmp(rvm_version,RVM_VERSION) != 0) {
++                status   = -1;
++                msg_type = RVM_EVERSION_SKEW;       /* version skew */
++		goto exit;        /* bad options ptr or record */
++	}
+ 
+-    M0_ALLOC_PTR(ri_cbdata);
+-    M0_ASSERT(ri_cbdata != NULL);
++	assert(sizeof(rvm_length_t) == sizeof(char *));
++	if ((retval=bad_options(rvm_options,rvm_true)) != RVM_SUCCESS) {
++                status   = -1;
++                msg_type = retval;
++		goto exit;        /* bad options ptr or record */
++	}
++				 /* end init_lock crit sec */
++	if (inited) {
++		status = -1;
++		msg_type = M0_BE_RVM_INIT_FAILED;
++		goto exit;      /* did it all already ... */
++	}
++	if (terminated)
++	{
++		retval = RVM_EINIT;         /* restart not allowed */
++		status = -1;
++		msg_type = M0_BE_RVM_INIT_FAILED;
++		goto exit;
++	}
+ 
+-    ri_cbdata->ric_rvm_options         = rvm_options;
+-    ri_cbdata->ric_create_log_size     = rvm_options->create_log_size;
+-    ri_cbdata->ric_create_log_mode     = rvm_options->create_log_mode;
++	M0_ALLOC_PTR(ri_cbdata);
++	if (ri_cbdata == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+-    ri_cbinfo                  = &ri_cbdata->ric_cbinfo;
+-    ri_cbinfo->bc_pcbinfo      = cbinfo;
+-    ri_cbinfo->bc_cb           = rvm_create_log_cb;
+-    ri_cbinfo->bc_sm_group     = cbinfo->bc_sm_group;
+-    ri_cbinfo->bc_hq           = cbinfo->bc_hq;
++	ri_cbdata->ric_rvm_options         = rvm_options;
++	ri_cbdata->ric_create_log_size     = rvm_options->create_log_size;
++	ri_cbdata->ric_create_log_mode     = rvm_options->create_log_mode;
+ 
+-    cthread_init();                 /* init Cthreads */
++	ri_cbinfo                  = &ri_cbdata->ric_cbinfo;
++	m0_be_cbinfo_copy_helper(cbinfo, ri_cbinfo, rvm_create_log_cb);
+ 
+-    /* init basic structures */
+-    if ((init_utils()) != 0)
+-        {
+-        retval =  RVM_EIO;          /* can't get time stamp */
+-        status = -1;
+-        msg_type = M0_BE_RVM_INIT_FAILED;
+-        goto exit;
+-        }
+-    init_map_roots();               /* mapping list and tree */
+-    init_log_list();                /* log device list */
++	cthread_init();                 /* init Cthreads */
++
++	/* init basic structures */
++	if ((init_utils()) != 0)
++	{
++		retval =  RVM_EIO;          /* can't get time stamp */
++		status = -1;
++		msg_type = M0_BE_RVM_INIT_FAILED;
++		goto exit;
++	}
++	init_map_roots();               /* mapping list and tree */
++	init_log_list();                /* log device list */
+ 
+-    if (rvm_options && rvm_options->create_log_file) {
++	if (rvm_options && rvm_options->create_log_file) {
+ 
+-        retval = rvm_create_log(rvm_options, &rvm_options->create_log_size,
+-                                 rvm_options->create_log_mode, ri_cbinfo);
++	retval = rvm_create_log(rvm_options, &rvm_options->create_log_size,
++				 rvm_options->create_log_mode, ri_cbinfo);
+ 	if (retval != RVM_SUCCESS) {
+ 		status   = -1;
+ 		msg_type = retval;
+ 	}
+-        goto exit;
+-    }
++	goto exit;
++	}
+ 
+-    rvm_create_log_cb(ri_cbinfo, status, msg_type);
++	rvm_create_log_cb(ri_cbinfo, status, msg_type);
+ 
+ exit:
+-        if ((status != 0 || !rvm_options->create_log_file) &&
+-            cbinfo != NULL && cbinfo->bc_cb != NULL) {
+-                m0_be_handler_post(cbinfo, status, msg_type);
+-                m0_free(ri_cbdata);
+-        }
+-        return status;
++	if ((status != 0 || !rvm_options->create_log_file) &&
++	    cbinfo != NULL && cbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo, status, msg_type);
++		if (ri_cbdata != NULL)
++			m0_free(ri_cbdata);
++	}
++	return status;
+ }
+ 
+ /* rvm_terminate */
+diff --git a/rvm/rvm_io.c b/rvm/rvm_io.c
+index 319cf14..a192cf9 100644
+--- a/rvm/rvm_io.c
++++ b/rvm/rvm_io.c
+@@ -66,6 +66,39 @@ static long chk_seek(device_t *dev, rvm_offset_t *offset);
+ #define ZERO 0
+ #endif
+ 
++rvm_return_t rvm_io_alloc_helper(void ***io_addr, m0_bcount_t **io_count,
++					m0_bindex_t **io_offset, uint32_t io_nr,
++					int *status)
++{
++	M0_ALLOC_ARR(*io_addr, io_nr);
++	if(*io_addr == NULL) {
++                *status   = -1;
++                goto exit;
++        }
++
++	M0_ALLOC_ARR(*io_count, io_nr);
++	if(*io_count == NULL) {
++                *status   = -1;
++		m0_free(*io_addr);
++                goto exit;
++        }
++
++	M0_ALLOC_ARR(*io_offset, io_nr);
++	if(*io_offset == NULL) {
++                *status   = -1;
++		m0_free(*io_count);
++		m0_free(*io_addr);
++                goto exit;
++        }
++
++	*status = 0;
++	return 0;
++exit:
++
++	return -ENOMEM;
++
++}
++
+ /* buffer address checks: test if [addr, addr+len]
+    lies inside default_log->dev.wrt_buf */
+ static rvm_bool_t in_wrt_buf(char *addr, rvm_length_t len)
+@@ -264,11 +297,13 @@ static bool stob_io_complete_cb(struct m0_clink *clink)
+ {
+ 	lsi_cbdata_t		*lsi_cbdata;
+ 	struct m0_be_cbinfo	*cbinfo;
+-	int 			 status   = 0;
+-	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
++	int			 status   = 0;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
++
++	M0_ASSERT(clink != NULL);
+ 
+ 	lsi_cbdata = container_of(clink, lsi_cbdata_t, lsic_clink);
+-	cbinfo 	   = &lsi_cbdata->lsic_cbinfo;
++	cbinfo	   = &lsi_cbdata->lsic_cbinfo;
+ 
+ 
+ 	if (cbinfo != NULL && cbinfo->bc_cb != NULL) {
+@@ -286,10 +321,10 @@ void launch_stob_io_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	struct m0_stob_io	*io;
+ 	struct m0_clink		*clink;
+ 
+-
++	M0_ASSERT(cbinfo != NULL);
+ 	lsi_cbdata = container_of(cbinfo, lsi_cbdata_t, lsic_cbinfo);
+ 
+-	io 	= &lsi_cbdata->lsic_io;
++	io	= &lsi_cbdata->lsic_io;
+ 	clink	= &lsi_cbdata->lsic_clink;
+ 
+ 	if(lsi_cbdata->lsic_length != io->si_count) {
+@@ -309,33 +344,37 @@ void launch_stob_io_cb(struct m0_be_cbinfo *cbinfo, int status,
+ }
+ 
+ uint32_t launch_stob_io_new(enum m0_stob_io_opcode opcode,
+-			uint32_t 	  	  io_nr,
+-			m0_bcount_t 	 	 *io_count,
+-			m0_bindex_t 	 	 *io_offset,
+-			void 			**io_addr,
+-			struct m0_stob 	 	 *stob,
++			uint32_t		  io_nr,
++			m0_bcount_t		 *io_count,
++			m0_bindex_t		 *io_offset,
++			void			**io_addr,
++			struct m0_stob		 *stob,
+                         rvm_length_t              length,
+-			struct m0_be_cbinfo 	 *cbinfo)
++			struct m0_be_cbinfo	 *cbinfo)
+ {
+ 	struct m0_stob_io       *io;
+ 	struct m0_clink         *clink;
+ 	uint32_t                 rc;
+-	int 			 status   = 0;
+-	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
+-	struct m0_be_cbinfo 	*lsic_cbinfo;
++	int			 status   = 0;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
++	struct m0_be_cbinfo	*lsic_cbinfo;
+ 
+ 	lsi_cbdata_t		*lsi_cbdata;
+ 
+ 
+ 	M0_ALLOC_PTR(lsi_cbdata);
+-	M0_ASSERT(lsi_cbdata != NULL);
++	if(lsi_cbdata == NULL) {
++                rc = status = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	lsic_cbinfo = &lsi_cbdata->lsic_cbinfo;
+ 
+ 	m0_be_cbinfo_copy_helper(cbinfo, lsic_cbinfo, launch_stob_io_cb);
+ 
+-	io 	= &lsi_cbdata->lsic_io;
+-	clink 	= &lsi_cbdata->lsic_clink;
++	io	= &lsi_cbdata->lsic_io;
++	clink	= &lsi_cbdata->lsic_clink;
+ 
+ 	lsi_cbdata->lsic_length = length;
+ 
+@@ -357,15 +396,17 @@ uint32_t launch_stob_io_new(enum m0_stob_io_opcode opcode,
+ 	m0_clink_add(&io->si_wait, clink);
+ 	rc = m0_stob_io_launch(io, stob, NULL, NULL);
+ 
++exit:
+ 	if (rc != 0) {
+-		status 	 = -1;
++		status	 = -1;
+ 		msg_type = M0_BE_INTERNAL;
+ 
+ 		if (cbinfo->bc_pcbinfo != NULL &&
+ 		    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+ 			m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		}
+-		m0_free(lsi_cbdata);
++		if(lsi_cbdata != NULL)
++			m0_free(lsi_cbdata);
+ 	}
+ 
+ 	return 0;
+@@ -412,65 +453,80 @@ uint32_t launch_stob_io(opcode, io_nr, io_count, io_offset, io_addr, stob)
+ 
+     return nr;
+ }
+-
++#if 0
+ uint64_t launch_read_io(stob, offset, dest, length)
+     struct m0_stob     *stob;
+     rvm_length_t        offset;
+     char               *dest;
+     uint64_t            length;
+ {
+-    void                  **io_addr;
+-    m0_bindex_t            *io_offset;
+-    m0_bcount_t            *io_count;
+-    uint32_t                io_bshift;
+-    uint32_t                io_nr;
+-    uint64_t                io_read_len;
++	void                  **io_addr;
++	m0_bindex_t            *io_offset;
++	m0_bcount_t            *io_count;
++	uint32_t                io_bshift;
++	uint32_t                io_nr;
++	uint64_t                io_read_len;
+ 
+-    int                     i = 0;
+-    uint64_t                retval = 0;
++	int                     i = 0;
++	uint64_t                retval = 0;
+ 
+-    io_bshift = stob->so_op->sop_block_shift(stob);
+-    io_nr = (length + rvm_max_read_len - 1) / rvm_max_read_len;
++	io_bshift = stob->so_op->sop_block_shift(stob);
++	io_nr = (length + rvm_max_read_len - 1) / rvm_max_read_len;
+ 
+-    M0_ALLOC_ARR(io_addr, io_nr);
+-    M0_ASSERT(io_addr != NULL);
++	M0_ALLOC_ARR(io_addr, io_nr);
++	if (io_addr == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+-    M0_ALLOC_ARR(io_count, io_nr);
+-    M0_ASSERT(io_count != NULL);
++	M0_ALLOC_ARR(io_count, io_nr);
++	if (io_count == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++		m0_free(io_addr);
++                goto exit;
++        }
+ 
+-    M0_ALLOC_ARR(io_offset, io_nr);
+-    M0_ASSERT(io_offset != NULL);
++	M0_ALLOC_ARR(io_offset, io_nr);
++	if (io_offset == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++		m0_free(io_count);
++		m0_free(io_addr);
++                goto exit;
++        }
+ 
+-    while (length > 0) {
+-        if (length <= rvm_max_read_len)
+-            io_read_len = length;
+-        else
+-            io_read_len = rvm_max_read_len;
++	while (length > 0) {
++		if (length <= rvm_max_read_len)
++		    io_read_len = length;
++		else
++		    io_read_len = rvm_max_read_len;
+ 
+-        io_addr[i]      = m0_stob_addr_pack(dest, io_bshift);
+-        io_count[i]     = io_read_len >> io_bshift;
+-        io_offset[i]    = offset >> io_bshift;
++		io_addr[i]      = m0_stob_addr_pack(dest, io_bshift);
++		io_count[i]     = io_read_len >> io_bshift;
++		io_offset[i]    = offset >> io_bshift;
+ 
+-        length      -= io_read_len;
+-        offset      += io_read_len;
+-        dest        += io_read_len;
+-        i           += 1;
+-    }
++		length      -= io_read_len;
++		offset      += io_read_len;
++		dest        += io_read_len;
++		i           += 1;
++	}
+ 
+-    retval = launch_stob_io(SIO_READ, io_nr, io_count, io_offset, io_addr, stob);
++	retval = launch_stob_io(SIO_READ, io_nr, io_count, io_offset, io_addr, stob);
+ 
+-    m0_free(io_offset);
+-    m0_free(io_count);
+-    m0_free(io_addr);
++	m0_free(io_offset);
++	m0_free(io_count);
++	m0_free(io_addr);
+ 
+-    return retval;
++	return retval;
+ }
+-
++#endif
+ void read_stob_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 		  m0_be_msg_type_t msg_type)
+ {
+-	device_t 		*dev;
+-	read_stob_cbdata_t 	*rs_cbdata;
++	device_t		*dev;
++	read_stob_cbdata_t	*rs_cbdata;
+ 
+ 	rs_cbdata = container_of(cbinfo, read_stob_cbdata_t, rsc_cbinfo);
+         M0_ASSERT(rs_cbdata != NULL);
+@@ -499,18 +555,18 @@ long read_stob_new(device_t *dev, rvm_offset_t *rvm_offset, char *dest,
+ {
+ 	read_stob_cbdata_t     *rs_cbdata;
+ 	struct m0_be_cbinfo    *rsc_cbinfo;
+-	void                  **io_addr;
+-	m0_bindex_t            *io_offset;
+-	m0_bcount_t            *io_count;
++	void                  **io_addr = NULL;
++	m0_bindex_t            *io_offset = NULL;
++	m0_bcount_t            *io_count = NULL;
+ 	uint32_t                io_bshift;
+ 	uint32_t                io_nr;
+ 	uint64_t                io_read_len;
+ 	int                     i = 0;
+ 
+-	rvm_length_t    	offset 	  = 0;
+-	rvm_offset_t    	last_position;
+-	rvm_length_t    	retval;
+-	int 			status;
++	rvm_length_t		offset	  = 0;
++	rvm_offset_t		last_position;
++	rvm_length_t		retval;
++	int			status;
+ 	m0_be_msg_type_t	msg_type = M0_BE_SUCCESS;
+ 
+ 
+@@ -521,7 +577,7 @@ long read_stob_new(device_t *dev, rvm_offset_t *rvm_offset, char *dest,
+ 	       (!LOCK_FREE(default_log->dev_lock)) : 1);
+ 
+ 	if ((retval = chk_seek(dev, rvm_offset)) < 0) {
+-		status 	 = -1;
++		status	 = -1;
+ 		msg_type = retval;
+ 		goto exit;
+ 	}
+@@ -532,22 +588,24 @@ long read_stob_new(device_t *dev, rvm_offset_t *rvm_offset, char *dest,
+ 	       RVM_OFFSET_LEQ(last_position,dev->num_bytes));
+ 
+ 	/* do read in larg-ish blocks to avoid kernel buffer availability
+- 	 * problems also zero region if /dev/null being read */
++	 * problems also zero region if /dev/null being read */
+ 
+ 	io_bshift = dev->stob->so_op->sop_block_shift(dev->stob);
+-	io_nr 	  = (length + rvm_max_read_len - 1) / rvm_max_read_len;
++	io_nr	  = (length + rvm_max_read_len - 1) / rvm_max_read_len;
+ 
+ 	M0_ALLOC_PTR(rs_cbdata);
+-	M0_ASSERT(rs_cbdata != NULL);
+-
+-	M0_ALLOC_ARR(io_addr, io_nr);
+-	M0_ASSERT(io_addr != NULL);
+-
+-	M0_ALLOC_ARR(io_count, io_nr);
+-	M0_ASSERT(io_count != NULL);
++	if(rs_cbdata == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+-	M0_ALLOC_ARR(io_offset, io_nr);
+-	M0_ASSERT(io_offset != NULL);
++	retval = rvm_io_alloc_helper(&io_addr, &io_count,
++				     &io_offset, io_nr, &status);
++	if(retval != 0) {
++		msg_type = retval;
++		goto exit;
++	}
+ 
+ 	offset = rvm_offset->low;
+ 	rs_cbdata->rsc_nbytes = length;
+@@ -562,16 +620,16 @@ long read_stob_new(device_t *dev, rvm_offset_t *rvm_offset, char *dest,
+ 		io_count[i]     = io_read_len >> io_bshift;
+ 		io_offset[i]    = offset >> io_bshift;
+ 
+-		length      	-= io_read_len;
+-		offset      	+= io_read_len;
+-		dest        	+= io_read_len;
+-		i           	+= 1;
++		length		-= io_read_len;
++		offset		+= io_read_len;
++		dest		+= io_read_len;
++		i		+= 1;
+ 	}
+ 
+-	rs_cbdata->rsc_io_addr 	 = io_addr;
++	rs_cbdata->rsc_io_addr	 = io_addr;
+ 	rs_cbdata->rsc_io_count  = io_count;
+ 	rs_cbdata->rsc_io_offset = io_offset;
+-	rs_cbdata->rsc_dev 	 = dev;
++	rs_cbdata->rsc_dev	 = dev;
+ 	rsc_cbinfo = &rs_cbdata->rsc_cbinfo;
+ 
+ 	m0_be_cbinfo_copy_helper(cbinfo, rsc_cbinfo, read_stob_cb);
+@@ -585,18 +643,17 @@ long read_stob_new(device_t *dev, rvm_offset_t *rvm_offset, char *dest,
+ 		m0_free(io_addr);
+ 		m0_free(io_count);
+ 		m0_free(io_offset);
+-
+-		m0_free(rs_cbdata);
+ 	}
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+-		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		if (rs_cbdata != NULL)
++			m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 	}
+ 
+ 	return 0;
+ }
+-
++#if 0
+ /* read bytes from device or file */
+ long read_stob(dev,offset,dest,length)
+     device_t        *dev;               /* device descriptor */
+@@ -632,13 +689,12 @@ long read_stob(dev,offset,dest,length)
+ 
+     return nbytes;
+ }
+-
+ /* read bytes from device or file */
+ long read_dev_old(dev,offset,dest,length)
+-    device_t        	  *dev;               /* device descriptor */
+-    rvm_offset_t    	  *offset;            /* device offset */
+-    char            	  *dest;              /* address of data destination */
+-    rvm_length_t    	   length;             /* length of transfer */
++    device_t		  *dev;               /* device descriptor */
++    rvm_offset_t	  *offset;            /* device offset */
++    char		  *dest;              /* address of data destination */
++    rvm_length_t	   length;             /* length of transfer */
+     {
+         rvm_offset_t    last_position;
+         long            nbytes;
+@@ -670,15 +726,15 @@ long read_dev_old(dev,offset,dest,length)
+             while (length != 0)
+                 {
+                 if (length <= rvm_max_read_len)
+-        		read_len = length;
++			read_len = length;
+                 else
+-        		read_len = rvm_max_read_len;
+-        	nbytes=read((int)dev->handle,dest,(int)read_len);
++			read_len = rvm_max_read_len;
++		nbytes=read((int)dev->handle,dest,(int)read_len);
+                 if (nbytes < 0) {
+-        		rvm_errdev = dev;
+-        		rvm_ioerrno = errno;
+-        		return nbytes;
+-        	}
++			rvm_errdev = dev;
++			rvm_ioerrno = errno;
++			return nbytes;
++		}
+                 if (nbytes == 0)                /* force a cheap negative test */
+                     if (rvm_utlsw && dev->raw_io) /* since rarely used */
+                         if (!strcmp(dev->name,"/dev/null"))
+@@ -699,13 +755,13 @@ long read_dev_old(dev,offset,dest,length)
+             return retval;
+        }
+     }
+-
++#endif
+ /* read bytes from device or file */
+ long read_dev(dev,offset,dest,length,cbinfo)
+-    device_t        	  *dev;               /* device descriptor */
+-    rvm_offset_t    	  *offset;            /* device offset */
+-    char            	  *dest;              /* address of data destination */
+-    rvm_length_t    	   length;             /* length of transfer */
++    device_t		  *dev;               /* device descriptor */
++    rvm_offset_t	  *offset;            /* device offset */
++    char		  *dest;              /* address of data destination */
++    rvm_length_t	   length;             /* length of transfer */
+     struct m0_be_cbinfo   *cbinfo;
+     {
+         rvm_offset_t    last_position;
+@@ -738,15 +794,15 @@ long read_dev(dev,offset,dest,length,cbinfo)
+             while (length != 0)
+                 {
+                 if (length <= rvm_max_read_len)
+-        		read_len = length;
++			read_len = length;
+                 else
+-        		read_len = rvm_max_read_len;
+-        	nbytes=read((int)dev->handle,dest,(int)read_len);
++			read_len = rvm_max_read_len;
++		nbytes=read((int)dev->handle,dest,(int)read_len);
+                 if (nbytes < 0) {
+-        		rvm_errdev = dev;
+-        		rvm_ioerrno = errno;
+-        		return nbytes;
+-        	}
++			rvm_errdev = dev;
++			rvm_ioerrno = errno;
++			return nbytes;
++		}
+                 if (nbytes == 0)                /* force a cheap negative test */
+                     if (rvm_utlsw && dev->raw_io) /* since rarely used */
+                         if (!strcmp(dev->name,"/dev/null"))
+@@ -778,7 +834,7 @@ void write_dev_post_async(cbinfo, status, msg_type)
+ 
+    tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
+    if (status != 0)
+-                goto exit;
++	goto exit;
+ 
+    M0_ASSERT(tx_cbdata != NULL);
+ 
+@@ -808,16 +864,15 @@ long write_dev(dev,offset,src,length,sync,cbinfo)
+     rvm_offset_t    last_position;
+     long            retval;
+     long            wrt_len = length;   /* for no_update mode */
+-    void          **io_addr;
+-    m0_bindex_t    *io_offset;
+-    m0_bcount_t    *io_count;
++    void          **io_addr = NULL;
++    m0_bindex_t    *io_offset = NULL;
++    m0_bcount_t    *io_count = NULL;
+     uint32_t        io_bshift;
+     uint32_t        iter_count = 0;
+-    rvm_tx_cbdata_t      *rtx_data;
++    rvm_tx_cbdata_t      *rtx_data = NULL;
+     struct m0_be_cbinfo  *rtxc_cbinfo;
+-    m0_be_msg_type_t	  msg_type=M0_BE_SUCCESS;
+-
+-
++    m0_be_msg_type_t	  msg_type = M0_BE_SUCCESS;
++    int			  status = 0;
+ 
+     assert(dev->stob != NULL);
+     assert(length != 0);
+@@ -828,12 +883,16 @@ long write_dev(dev,offset,src,length,sync,cbinfo)
+     /* seek if necessary */
+     errno = 0;
+     if ((retval = chk_seek(dev,offset)) < 0) {
+-    	msg_type = RVM_EIO;
++	msg_type = RVM_EIO;
+ 	goto exit;
+     }
+ 
+     M0_ALLOC_PTR(rtx_data);
+-    M0_ASSERT(rtx_data != NULL);
++    if(rtx_data == NULL) {
++		retval   = -ENOMEM;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+     /*rtx_data->rtc_log  = container_of(dev, log_t,dev);*/
+     rtx_data->rtc_dev  = dev;
+@@ -848,14 +907,12 @@ long write_dev(dev,offset,src,length,sync,cbinfo)
+     if(dev->stob_io) {
+           iter_count = 1; /* We are simulating single write call on fd */
+ 
+-          M0_ALLOC_ARR(io_addr, iter_count);
+-          M0_ASSERT(io_addr != NULL);
+-
+-          M0_ALLOC_ARR(io_count, iter_count);
+-          M0_ASSERT(io_count != NULL);
+-
+-          M0_ALLOC_ARR(io_offset, iter_count);
+-          M0_ASSERT(io_offset != NULL);
++	  retval = rvm_io_alloc_helper(&io_addr, &io_count,
++			      &io_offset, iter_count, &status);
++          if(retval != 0) {
++		msg_type = retval;
++		goto exit;
++	  }
+ 
+ 	  rtx_data->rtc_io_addr   = io_addr;
+ 	  rtx_data->rtc_io_count  = io_count;
+@@ -901,7 +958,8 @@ exit:
+         if (retval != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, retval, msg_type);
+-                m0_free(rtx_data);
++		if (rtx_data != NULL)
++			m0_free(rtx_data);
+     }
+      return wrt_len;
+ }
+@@ -1084,80 +1142,84 @@ exit:
+         }
+         m0_free(tx_cbdata);
+ }
++
+ /* gather write for stob */
+ static long gather_write_stob(dev, offset, wrt_len, cbinfo)
+-    device_t        	*dev;                 /* device descriptor */
+-    rvm_offset_t    	*offset;              /* disk position */
+-    rvm_length_t    	*wrt_len;             /* num bytes written (out) */
++    device_t		*dev;                 /* device descriptor */
++    rvm_offset_t	*offset;              /* disk position */
++    rvm_length_t	*wrt_len;             /* num bytes written (out) */
+     struct m0_be_cbinfo *cbinfo;
+-    {
+-    long               retval;             /* kernel return value */
+-    long               iov_index = 0;      /* index of current iov entry */
+-    void             **io_addr;
+-    m0_bindex_t       *io_offset;
+-    m0_bcount_t       *io_count;
+-    uint32_t           io_bshift;
+-    struct iovec      *iov = dev->iov;      /* i/o vector */
+-    rvm_offset_t       io_temp_off;
+-    int 	       status = 0;
+-    m0_be_msg_type_t   msg_type = M0_BE_SUCCESS;
+-
+-    rvm_tx_cbdata_t     *rtx_data;
+-    struct m0_be_cbinfo *rtxc_cbinfo;
+-
+-    io_temp_off = *offset;
+-    /* */
+-    M0_ALLOC_ARR(io_addr, dev->iov_cnt);
+-    M0_ASSERT(io_addr != NULL);
+-
+-    M0_ALLOC_ARR(io_count, dev->iov_cnt);
+-    M0_ASSERT(io_count != NULL);
+-
+-    M0_ALLOC_ARR(io_offset, dev->iov_cnt);
+-    M0_ASSERT(io_offset != NULL);
+-
+-    io_bshift = dev->stob->so_op->sop_block_shift(dev->stob);
++{
++	long               retval;             /* kernel return value */
++	long               iov_index = 0;      /* index of current iov entry */
++	void             **io_addr = NULL;
++	m0_bindex_t       *io_offset = NULL;
++	m0_bcount_t       *io_count = NULL;
++	uint32_t           io_bshift;
++	struct iovec      *iov = dev->iov;      /* i/o vector */
++	rvm_offset_t       io_temp_off;
++	int	       status = 0;
++	m0_be_msg_type_t   msg_type = M0_BE_SUCCESS;
++
++	rvm_tx_cbdata_t     *rtx_data = NULL;
++	struct m0_be_cbinfo *rtxc_cbinfo;
++
++	io_temp_off = *offset;
++	/* */
++	retval = rvm_io_alloc_helper(&io_addr, &io_count,
++				     &io_offset, dev->iov_cnt, &status);
++	if(retval != 0) {
++		msg_type = retval;
++		goto exit;
++	}
+ 
+-    M0_ALLOC_PTR(rtx_data);
+-    M0_ASSERT(rtx_data != NULL);
++	io_bshift = dev->stob->so_op->sop_block_shift(dev->stob);
+ 
+-    rtxc_cbinfo             = &rtx_data->rtc_cbinfo;
+-    rtx_data->rtc_dev       = dev;
+-    rtx_data->rtc_io_offset = io_offset;
+-    rtx_data->rtc_io_addr   = io_addr;
+-    rtx_data->rtc_io_count  = io_count;
++	M0_ALLOC_PTR(rtx_data);
++	if(rtx_data == NULL) {
++                retval = msg_type = -ENOMEM;
++                status   = -1;
++                goto exit;
++        }
+ 
+-    m0_be_cbinfo_copy_helper(cbinfo, rtxc_cbinfo,gather_write_stob_post_async);
+-    /* do gather write in groups of 16 for Unix */
+-    while (dev->iov_cnt > 0)
+-    {
+-            /* copy whole range into wrt_buf */
+-            io_addr[iov_index]      = m0_stob_addr_pack(iov[iov_index].iov_base, io_bshift);
+-            io_count[iov_index]     = iov[iov_index].iov_len >> io_bshift;
+-            io_offset[iov_index]    = io_temp_off.low >> io_bshift;
+-            io_temp_off             = RVM_ADD_LENGTH_TO_OFFSET(io_temp_off, iov[iov_index].iov_len);
+-            *wrt_len               += iov[iov_index].iov_len;
+-            /*dev->ptr = RVM_ADD_LENGTH_TO_ADDR(dev->ptr, iov[iov_index].iov_len);*/
+-            iov_index++;                /* move to next entry */
+-            dev->iov_cnt--;
+-    }
++	rtxc_cbinfo             = &rtx_data->rtc_cbinfo;
++	rtx_data->rtc_dev       = dev;
++	rtx_data->rtc_io_offset = io_offset;
++	rtx_data->rtc_io_addr   = io_addr;
++	rtx_data->rtc_io_count  = io_count;
+ 
+-    rtx_data->rtc_io_len    = *wrt_len;
++	m0_be_cbinfo_copy_helper(cbinfo, rtxc_cbinfo,gather_write_stob_post_async);
++	/* do gather write in groups of 16 for Unix */
++	while (dev->iov_cnt > 0)
++	{
++	    /* copy whole range into wrt_buf */
++	    io_addr[iov_index]      = m0_stob_addr_pack(iov[iov_index].iov_base, io_bshift);
++	    io_count[iov_index]     = iov[iov_index].iov_len >> io_bshift;
++	    io_offset[iov_index]    = io_temp_off.low >> io_bshift;
++	    io_temp_off             = RVM_ADD_LENGTH_TO_OFFSET(io_temp_off, iov[iov_index].iov_len);
++	    *wrt_len               += iov[iov_index].iov_len;
++	    /*dev->ptr = RVM_ADD_LENGTH_TO_ADDR(dev->ptr, iov[iov_index].iov_len);*/
++	    iov_index++;                /* move to next entry */
++	    dev->iov_cnt--;
++	}
+ 
+-    retval = launch_stob_io_new(SIO_WRITE, iov_index, io_count, io_offset,
+-      			        io_addr, dev->stob, *wrt_len, rtxc_cbinfo);
++	rtx_data->rtc_io_len    = *wrt_len;
+ 
+-    if(retval != 0 && cbinfo->bc_pcbinfo != NULL &&
+-       cbinfo->bc_pcbinfo->bc_cb != NULL) {
+-                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+-                 m0_free(rtx_data);
+-    }
+-    return retval;
+-    }
++	retval = launch_stob_io_new(SIO_WRITE, iov_index, io_count, io_offset,
++				io_addr, dev->stob, *wrt_len, rtxc_cbinfo);
++exit:
++	if(retval != 0 && cbinfo->bc_pcbinfo != NULL &&
++	cbinfo->bc_pcbinfo->bc_cb != NULL) {
++		m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++		if (rtx_data != NULL)
++			m0_free(rtx_data);
++	}
++	return retval;
++}
+ /* gather write to device: accepts vector of any length
+    pointed to by device descriptor */
+ long gather_write_dev(dev, offset, cbinfo)
+-    device_t        	    *dev;               /* device descriptor */
++    device_t		    *dev;               /* device descriptor */
+     rvm_offset_t            *offset;            /* device offset */
+     struct m0_be_cbinfo     *cbinfo;
+     {
+@@ -1211,7 +1273,4 @@ long sync_dev(dev)
+         dev->buf_start = dev->ptr;
+ 
+     return retval;
+-    }
+-
+-
+-
++}
+diff --git a/rvm/rvm_loadseg.c b/rvm/rvm_loadseg.c
+index 8499fd8..ac55b26 100644
+--- a/rvm/rvm_loadseg.c
++++ b/rvm/rvm_loadseg.c
+@@ -48,10 +48,12 @@ void rls_loop_rvm_map_cb(cbinfo, status, msg)
+         rvm_region_t            *hdr_region;
+         int                      err = 0;
+ 
++	M0_ASSERT(cbinfo != NULL);
++        rls_cbdata = container_of(cbinfo, rls_cbdata_t, rlsc_cbinfo);
++
+         if (status != 0)
+                 goto exit;
+ 
+-        rls_cbdata = container_of(cbinfo, rls_cbdata_t, rlsc_cbinfo);
+         seg_hdr    = rls_cbdata->rlsc_seg_hdr;
+         hdr_region = rls_cbdata->rlsc_hdr_region;
+ 
+@@ -103,10 +105,12 @@ void __rls_rvm_map(cbinfo, status, msg)
+         unsigned long            iter;
+         int                      err;
+ 
++	M0_ASSERT(cbinfo != NULL);
++        rls_cbdata = container_of(cbinfo, rls_cbdata_t, rlsc_cbinfo);
++
+         if (status != 0)
+                 goto exit;
+ 
+-        rls_cbdata = container_of(cbinfo, rls_cbdata_t, rlsc_cbinfo);
+         iter       = rls_cbdata->rlsc_rvmmap_itr;
+         cur_index  = rls_cbdata->rlsc_rvmmap_curr_index;
+ 
+@@ -188,7 +192,12 @@ void rls_rvm_map_cb(cbinfo, status, msg)
+         rvm_region_def_t       **regions;
+         int                      err;
+ 
++	M0_ASSERT(cbinfo != NULL);
+         rls_cbdata = container_of(cbinfo, rls_cbdata_t, rlsc_cbinfo);
++
++	if (status != 0)
++		goto exit;
++
+         seg_hdr    = rls_cbdata->rlsc_seg_hdr;
+         hdr_region = rls_cbdata->rlsc_hdr_region;
+         region     = rls_cbdata->rlsc_region;
+@@ -270,6 +279,7 @@ exit:
+         if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg);
++		m0_free(rls_cbdata);
+         }
+ }
+ 
+@@ -284,7 +294,7 @@ rvm_load_segment(char *DevName, rvm_offset_t DevLength, rvm_options_t *options,
+ 		 unsigned long *nregions, rvm_region_def_t **regions,
+                  rvm_seg_hdr_t *seg_hdr, struct m0_be_cbinfo *cbinfo)
+ {
+-        rls_cbdata_t            *rls_cbdata;
++        rls_cbdata_t            *rls_cbdata = NULL;
+         rvm_region_t            *region;
+         rvm_region_t            *hdr_region;
+         m0_be_msg_type_t         msg = M0_BE_SUCCESS;
+@@ -356,7 +366,9 @@ exit:
+                 rvm_free_region(region);
+ 
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg);
+-                m0_free(rls_cbdata);
++
++		if (rls_cbdata != NULL)
++			m0_free(rls_cbdata);
+         }
+ 
+         return status;
+diff --git a/rvm/rvm_logflush.c b/rvm/rvm_logflush.c
+index 5f1b01c..e244420 100644
+--- a/rvm/rvm_logflush.c
++++ b/rvm/rvm_logflush.c
+@@ -114,10 +114,12 @@ void wl_gather_write_dev_cb(cbinfo, be_status, msg)
+ 	log_wrap_t      *wrap;
+ 	rvm_return_t	 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
+ 	log	      = lfs_cbdata->lfsc_log;
+ 	wrap	      = &log->log_wrap;
+ 
+@@ -153,7 +155,7 @@ static rvm_return_t write_log_wrap(log, cbinfo)
+ 	log_t		    *log;
+ 	struct m0_be_cbinfo *cbinfo;
+ {
+-	lfsc_cbdata_t	       *lfs_cbdata;
++	lfsc_cbdata_t	       *lfs_cbdata = NULL;
+ 	device_t               *dev = &log->dev;
+ 	log_wrap_t             *wrap = &log->log_wrap;
+ 	struct m0_be_cbinfo    *lfs_cbinfo;
+@@ -204,7 +206,8 @@ exit:
+ 	if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
+-		m0_free(lfs_cbdata);
++		if (lfs_cbdata != NULL)
++			m0_free(lfs_cbdata);
+ 	}
+ 
+ 	return RVM_SUCCESS;
+@@ -390,10 +393,12 @@ void wtid_gather_write_dev_cb(cbinfo, status, msg_type)
+ 
+ 
+ 
++   M0_ASSERT(cbinfo != NULL);
++   tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
++
+    if (status != 0)
+        goto exit;
+ 
+-   tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
+ 
+    log         = tx_cbdata->rtc_log;
+ 
+@@ -412,7 +417,7 @@ exit:
+         cbinfo->bc_pcbinfo->bc_cb != NULL) {
+             m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 	     m0_free(tx_cbdata);
+-     } 
++     }
+ }
+ 
+ void wtid_write_log_wrap_cb(cbinfo, be_status, msg_type)
+@@ -425,11 +430,12 @@ void wtid_write_log_wrap_cb(cbinfo, be_status, msg_type)
+    int_tid_t           *tid;
+    log_status_t        *status = NULL;
+ 
++   M0_ASSERT(cbinfo != NULL);
++   tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
++
+    if (be_status != 0)
+        goto exit;
+ 
+-   tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
+-
+    log         = tx_cbdata->rtc_log;
+    tid         = tx_cbdata->rtc_tid;
+    status      = &log->status;
+@@ -485,12 +491,12 @@ void __wtid_write_log_wrap_loop(cbinfo, be_status, msg_type)
+    range_t	       *range;
+    rvm_return_t	        retval = RVM_SUCCESS;
+ 
++   M0_ASSERT(cbinfo != NULL);
++   tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
++
+    if (be_status != 0)
+        goto exit;
+ 
+-
+-   tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
+-
+    log         = tx_cbdata->rtc_log;
+    tid         = tx_cbdata->rtc_tid;
+    log_free    = tx_cbdata->rtc_log_free;
+@@ -552,10 +558,12 @@ void wtid_write_log_wrap(cbinfo, status, msg_type)
+ 	rvm_return_t	 	 retval = RVM_SUCCESS;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	tx_cbdata = container_of(cbinfo, rvm_tx_cbdata_t, rtc_cbinfo);
+ 	log 	  = tx_cbdata->rtc_log;
+ 	tid 	  = tx_cbdata->rtc_tid;
+ 	log_free  = tx_cbdata->rtc_log_free;
+@@ -613,7 +621,7 @@ exit:
+ static rvm_return_t write_tid(int_tid_t *tid, struct m0_be_cbinfo *cbinfo)
+ {
+ 	log_t               *log = tid->log;    /* log descriptor */
+-	rvm_tx_cbdata_t     *rtx_data;
++	rvm_tx_cbdata_t     *rtx_data = NULL;
+ 	struct m0_be_cbinfo *rtxc_cbinfo;
+ 	rvm_offset_t         log_free;           /* size of log tail area */
+ 	rvm_return_t         retval;
+@@ -622,7 +630,12 @@ static rvm_return_t write_tid(int_tid_t *tid, struct m0_be_cbinfo *cbinfo)
+ 
+ 
+ 	M0_ALLOC_PTR(rtx_data);
+-	M0_ASSERT(rtx_data != NULL);
++	if (rtx_data == NULL) {
++                be_status = -1;
++                msg_type  = -ENOMEM;
++                goto exit;
++        }
++
+ 	/* check that transactions are logged in commit order */
+ 	assert(TIME_GTR(tid->commit_stamp,log->status.last_commit));
+ 
+@@ -662,7 +675,8 @@ exit:
+ 	if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg_type);
+-	  	m0_free(rtx_data);
++		if (rtx_data != NULL)
++			m0_free(rtx_data);
+ 	}
+ 
+ 	return retval;
+@@ -676,10 +690,12 @@ void ls_update_log_tail_cb(cbinfo, be_status, msg)
+ 	log_special_t	*special;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
+ 	special       = lfs_cbdata->lfsc_special;
+ 	free_log_special(special);
+ exit:
+@@ -701,10 +717,12 @@ void ls_gather_write_dev_cb(cbinfo, be_status, msg)
+ 	log_special_t	*special;
+ 	rvm_return_t	 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
+ 	log	      = lfs_cbdata->lfsc_log;
+ 	special       = lfs_cbdata->lfsc_special;
+ 
+@@ -770,10 +788,12 @@ void ls_write_log_wrap_cb(cbinfo, be_status, msg)
+ 	log_special_t	*special;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
+ 	log	      = lfs_cbdata->lfsc_log;
+ 	special       = lfs_cbdata->lfsc_special;
+ 
+@@ -811,10 +831,12 @@ void ls_wait_for_space_cb(cbinfo, be_status, msg)
+ 	rvm_return_t	 retval;
+ 	rvm_offset_t     log_free;        /* size calculation temp */
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lfs_cbdata    = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
+ 	log	      = lfs_cbdata->lfsc_log;
+ 	special       = lfs_cbdata->lfsc_special;
+ 	special_size  = lfs_cbdata->lfsc_special_size;
+@@ -900,8 +922,8 @@ void wfs_wft_cb(struct m0_be_cbinfo *cbinfo, int status,
+ 	rvm_bool_t 	*wfsc_did_wait;
+ 	wfs_cbdata_t	*wfs_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	wfs_cbdata = container_of(cbinfo, wfs_cbdata_t, wfsc_cbinfo);
+-        M0_ASSERT(wfs_cbdata != NULL);
+ 
+ 	if (status != 0)
+ 		goto exit;
+@@ -934,7 +956,7 @@ static rvm_return_t wait_for_space(log_t 		*log,
+ 				   rvm_bool_t 		*did_wait,
+ 				   struct m0_be_cbinfo 	*cbinfo)
+ {
+-	wfs_cbdata_t		*wfs_cbdata;
++	wfs_cbdata_t		*wfs_cbdata = NULL;
+ 	struct m0_be_cbinfo 	*wfsc_cbinfo;
+ 	int 			 status = 0;
+ 	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
+@@ -950,7 +972,11 @@ static rvm_return_t wait_for_space(log_t 		*log,
+ 	mutex_unlock(&log->dev_lock);
+ 
+ 	M0_ALLOC_PTR(wfs_cbdata);
+-	M0_ASSERT(wfs_cbdata != NULL);
++	if (wfs_cbdata == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+         log_tail_length(log,log_free);
+         if (RVM_OFFSET_GEQ(*log_free,*space_needed)) {
+@@ -964,10 +990,7 @@ static rvm_return_t wait_for_space(log_t 		*log,
+ 	wfs_cbdata->wfsc_space_needed 	= space_needed;
+ 	wfs_cbdata->wfsc_log_free	= log_free;
+ 
+-	wfsc_cbinfo->bc_pcbinfo 	= cbinfo;
+-	wfsc_cbinfo->bc_hq 		= cbinfo->bc_hq;
+-	wfsc_cbinfo->bc_sm_group 	= cbinfo->bc_sm_group;
+-	wfsc_cbinfo->bc_cb		= wfs_wft_cb;
++	m0_be_cbinfo_copy_helper(cbinfo, wfsc_cbinfo, wfs_wft_cb);
+ 
+ 	retval = wait_for_truncation(log, NULL, wfsc_cbinfo);
+ 	if(retval != RVM_SUCCESS) {
+@@ -979,7 +1002,8 @@ exit:
+ 	if ((!trun_needed || status != 0) && cbinfo != NULL &&
+             cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, status, msg_type);
+-                m0_free(wfs_cbdata);
++		if (wfs_cbdata != NULL)
++			m0_free(wfs_cbdata);
+         }
+ 
+ 	return status;
+@@ -1036,7 +1060,8 @@ exit:
+ 	if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
+-		m0_free(lfs_cbdata);
++		if (lfs_cbdata != NULL)
++			m0_free(lfs_cbdata);
+ 	}
+ 
+ 	return RVM_SUCCESS;
+@@ -1052,10 +1077,12 @@ void fls_log_special_cb(cbinfo, be_status, msg)
+ 	log_special_t	*special;
+ 	rvm_return_t	 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lfs_cbdata = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lfs_cbdata = container_of(cbinfo, lfsc_cbdata_t, lfsc_cbinfo);
+ 	log	   = lfs_cbdata->lfsc_log;
+ 
+ 	CRITICAL(log->special_list_lock,
+@@ -1141,7 +1168,8 @@ exit:
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+ 		/*m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);*/
+ 		m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lfs_cbdata);
++		if (lfs_cbdata != NULL)
++			m0_free(lfs_cbdata);
+ 	}
+ 	return retval;
+ }
+@@ -1154,7 +1182,9 @@ void lt_write_tid_cb(struct m0_be_cbinfo *cbinfo,
+ 	log_t		*log;
+ 	int_tid_t	*tid;
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	lt_cbdata = container_of(cbinfo, lt_cbdata_t, ltc_cbinfo);
++
+ 	log 	  = lt_cbdata->ltc_log;
+ 	tid 	  = lt_cbdata->ltc_tid;
+ 
+@@ -1187,6 +1217,7 @@ void lt_wait_for_space_cb(struct m0_be_cbinfo *cbinfo,
+ 	log_t		*log;
+ 	rvm_return_t	 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	lt_cbdata = container_of(cbinfo, lt_cbdata_t, ltc_cbinfo);
+ 	log 	  = lt_cbdata->ltc_log;
+ 
+@@ -1225,6 +1256,7 @@ void lt_flush_log_special_cb(struct m0_be_cbinfo *cbinfo,
+ 	rvm_bool_t     	 did_wait;           /* debug only */
+ 	rvm_return_t	 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	lt_cbdata = container_of(cbinfo, lt_cbdata_t, ltc_cbinfo);
+ 	log = lt_cbdata->ltc_log;
+ 	tid = lt_cbdata->ltc_tid;
+@@ -1270,7 +1302,11 @@ static rvm_return_t log_tid(log_t *log,
+ 	struct m0_be_cbinfo	*ltc_cbinfo;
+ 
+ 	M0_ALLOC_PTR(lt_cbdata);
+-	M0_ASSERT(lt_cbdata != 0);
++	if (lt_cbdata == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	lt_cbdata->ltc_log = log;
+ 	lt_cbdata->ltc_tid = tid;
+@@ -1291,10 +1327,12 @@ static rvm_return_t log_tid(log_t *log,
+ 		}
+ 	});
+ 
++exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+-                m0_free(lt_cbdata);
++		if (lt_cbdata != NULL)
++			m0_free(lt_cbdata);
+         }
+ 
+ 	return status;
+@@ -1315,6 +1353,7 @@ void fl_log_tid_cb(struct m0_be_cbinfo *cbinfo,
+ 	long             	 kretval;
+ 	rvm_return_t     	 retval = RVM_SUCCESS;
+ 
++	M0_ASSERT(cbinfo != NULL);
+ 	fl_cbdata = container_of(cbinfo, fl_cbdata_t, flc_cbinfo);
+ 	log 	  = fl_cbdata->flc_log;
+ 
+@@ -1394,7 +1433,11 @@ rvm_return_t flush_log(log,count,cbinfo)
+ 	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
+ 
+ 	M0_ALLOC_PTR(fl_cbdata);
+-	M0_ASSERT(fl_cbdata != NULL);
++	if (fl_cbdata == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto status_exit;
++        }
+ 
+ 	RW_CRITICAL(log->flush_lock, w,
+ 	{
+@@ -1480,7 +1523,8 @@ status_exit:
+ 	/*if (status != 0 && cbinfo != NULL &&*/
+ 	    cbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo, status, msg_type);
+-		m0_free(fl_cbdata);
++		if (fl_cbdata != NULL)
++			m0_free(fl_cbdata);
+ 	}
+ 
+ 	return retval;
+diff --git a/rvm/rvm_logrecovr.c b/rvm/rvm_logrecovr.c
+index 30faf0f..fc9b9d7 100644
+--- a/rvm/rvm_logrecovr.c
++++ b/rvm/rvm_logrecovr.c
+@@ -200,10 +200,11 @@ void init_buffer_cb(cbinfo, status, msg)
+ 	log_t		*log;
+ 	rvm_bool_t	 synch;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   = lrc_cbdata->lrc_log;
+ 	synch	   = lrc_cbdata->lrc_synch;
+ 
+@@ -318,7 +319,8 @@ rvm_return_t init_buffer(log, offset, direction, synch, cbinfo)
+ exit:
+ 	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 
+ 	return retval;
+@@ -446,11 +448,12 @@ void load_aux_buf_cb(cbinfo, status, msg_type)
+ 	log_t	     *log;
+     	log_buf_t    *log_buf;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-
+-	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   =  lrc_cbdata->lrc_log;
+ 	log_buf	   = &log->log_buf;
+ 
+@@ -479,7 +482,7 @@ rvm_return_t load_aux_buf(log, log_offset, length,aux_ptr,
+     rvm_bool_t      	 pre_load;          /* permit pre-loading of range */
+     struct m0_be_cbinfo *cbinfo;
+ {
+-	lrc_cbdata_t        *lrc_cbdata;
++	lrc_cbdata_t        *lrc_cbdata = NULL;
+ 	struct m0_be_cbinfo *lrc_cbinfo;
+ 	log_buf_t           *log_buf   = &log->log_buf;
+ 	rvm_offset_t	    *aux_offset;
+@@ -586,7 +589,8 @@ exit:
+ 	if ((retval != RVM_SUCCESS || is_load_aux_done) && cbinfo != NULL &&
+ 	    cbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 
+ 	return retval;
+@@ -764,10 +768,11 @@ void scan_nv_forward_cb(cbinfo, status, msg)
+ 	rvm_bool_t		 fwd_done = rvm_false;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata    =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata    =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	      =  lrc_cbdata->lrc_log;
+ 	synch	      =  lrc_cbdata->lrc_synch;
+ 	log_buf       = &log->log_buf;
+@@ -854,7 +859,8 @@ rvm_return_t scan_nv_forward(log, synch, cbinfo)
+ exit:
+ 	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+ 	    	m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 	return RVM_SUCCESS;
+ }
+@@ -869,12 +875,12 @@ void scan_wrap_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	long            tmp_ptr;            /* temporary buffer ptr */
+ 	lrc_cbdata_t   *lrc_cbdata;
+ 
+-	if (be_status != 0)
+-		goto exit;
+-
+ 	M0_ASSERT(cbinfo != NULL);
+ 	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 
++	if (be_status != 0)
++		goto exit;
++
+ 	log     = lrc_cbdata->lrc_log;
+ 	log_buf = &log->log_buf;
+ 
+@@ -912,6 +918,7 @@ void scan_wrap_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ exit:
+         if (cbinfo != NULL && cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, be_status, msg_type);
++		m0_free(lrc_cbdata);
+         }
+ }
+ /* scan for wrap marker */
+@@ -967,12 +974,12 @@ void __validate_rec_reverse_cb(struct m0_be_cbinfo *cbinfo,
+ 	long		 tmp_ptr;
+ 	rec_hdr_t       *rec_hdr;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	M0_ASSERT(cbinfo != NULL);
+-
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log        = lrc_cbdata->lrc_log;
+ 	log_buf	   = &log->log_buf;
+ 	if(lrc_cbdata->lrc_is_refill_buf) {
+@@ -1013,10 +1020,12 @@ void validate_rec_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	rvm_bool_t 	 synch;
+ 	rvm_bool_t 	 is_vrc_complete = rvm_false;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata    = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if(be_status != 0)
+ 	    goto exit;
+ 
+-	lrc_cbdata    = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log 	      = lrc_cbdata->lrc_log;
+ 	log_buf       = &log->log_buf;
+ 	status        = &log->status;
+@@ -1160,7 +1169,8 @@ exit:
+     /*if ((retval != RVM_SUCCESS || wrap_end == rvm_true) && cbinfo != NULL &&*/
+        if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, be_status, msg_type);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+         }
+         return retval;
+ 
+@@ -1174,9 +1184,11 @@ void scan_reverse_vrr_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	rvm_return_t   retval;
+ 	lrc_cbdata_t  *lrc_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata	= container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if(be_status != 0)
+ 		goto exit;
+-	lrc_cbdata	= container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log		= lrc_cbdata->lrc_log;
+ 	synch		= lrc_cbdata->lrc_synch;
+ 
+@@ -1230,8 +1242,8 @@ void rcs_refill_buffer_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 	rvm_bool_t		 done = rvm_false;
+ 	rvm_return_t		 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
+         rcs_cbdata = container_of(cbinfo, range_chk_sum_cbdata_t, rcsc_cbinfo);
+-	M0_ASSERT(rcs_cbdata != NULL);
+ 
+ 	if (be_status != 0)
+ 		goto exit;
+@@ -1299,9 +1311,12 @@ struct m0_be_cbinfo 	*cbinfo;
+ 	int			 be_status = 0;
+ 	m0_be_msg_type_t 	 msg_type = M0_BE_SUCCESS;
+ 
+-
+ 	M0_ALLOC_PTR(rcs_cbdata);
+-	M0_ASSERT(rcs_cbdata != NULL);
++	if (rcs_cbdata == NULL) {
++                be_status = -1;
++                msg_type  = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	rcsc_cbinfo = &rcs_cbdata->rcsc_cbinfo;
+ 	rcs_cbdata->rcsc_chk_val 	= chk_val;
+@@ -1346,7 +1361,8 @@ done_looping:
+ exit:
+ 	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, be_status, msg_type);
+-                m0_free(rcs_cbdata);
++		if (rcs_cbdata != NULL)
++			m0_free(rcs_cbdata);
+         }
+ 	return retval;
+ }
+@@ -1362,10 +1378,12 @@ void scan_reverse_snr_loop_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	lrc_cbdata_t        *lrc_cbdata;
+ 	rvm_return_t	     retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++        lrc_cbdata	= container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+         if(be_status != 0)
+                 goto exit;
+ 
+-        lrc_cbdata	= container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+         log		= lrc_cbdata->lrc_log;
+         log_buf    	= &log->log_buf;
+ 	synch	   	= lrc_cbdata->lrc_synch;
+@@ -1399,11 +1417,12 @@ void scan_reverse_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	lrc_cbdata_t        *lrc_cbdata;
+ 	rvm_return_t	     retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if(be_status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+-
+ 	log	= lrc_cbdata->lrc_log;
+ 	synch 	= lrc_cbdata->lrc_synch;
+ 	log_buf = &log->log_buf;
+@@ -1438,10 +1457,12 @@ void scan_reverse_snr_cb(struct m0_be_cbinfo *cbinfo, int  be_status,
+ 	lrc_cbdata_t        *lrc_cbdata;
+ 	rvm_return_t	     retval = RVM_EINTERNAL;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if(be_status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   = lrc_cbdata->lrc_log;
+ 	log_buf	   = &log->log_buf;
+ 	synch      = lrc_cbdata->lrc_synch;
+@@ -1507,7 +1528,7 @@ rvm_return_t scan_reverse(log, synch, cbinfo)
+ 	rvm_offset_t    offset;             /* temp for offset calculations */
+ 	rvm_return_t    retval = RVM_SUCCESS;
+ 
+-	lrc_cbdata_t   		*lrc_cbdata;
++	lrc_cbdata_t   		*lrc_cbdata = NULL;
+ 	struct m0_be_cbinfo	*lrc_cbinfo;
+ 	m0_be_msg_type_t	 msg       =  M0_BE_SUCCESS;
+ 	int			 be_status = 0;
+@@ -1546,10 +1567,10 @@ exit:
+ 	if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
+-                m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+         }
+ 	return retval;
+-
+ }
+ 
+ void scan_nv_reverse_cb(cbinfo, status, msg)
+@@ -1563,10 +1584,12 @@ void scan_nv_reverse_cb(cbinfo, status, msg)
+ 	rec_hdr_t	*rec_hdr;
+ 	long             len;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   = lrc_cbdata->lrc_log;
+ 	log_buf	   = &log->log_buf;
+ 	len 	   = lrc_cbdata->lrc_nv_rev_len;
+@@ -1676,7 +1699,8 @@ rvm_return_t scan_nv_reverse(log, synch, cbinfo)
+ exit:
+ 	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+ 	    	m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 
+ 	return retval;
+@@ -1694,10 +1718,11 @@ void vrf_refill_buffer_cb(cbinfo, status, msg)
+ 	rec_end_t       	*rec_end = NULL;
+ 	long            	 tmp_ptr;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata =   container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata =   container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   =   lrc_cbdata->lrc_log;
+ 	log_buf	   =  &log->log_buf;
+ 
+@@ -1729,10 +1754,12 @@ void vrf_load_aux_buf_cb(cbinfo, status, msg)
+ 	rec_end_t       	*rec_end = NULL;
+ 	long            	 tmp_ptr;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   =  lrc_cbdata->lrc_log;
+ 	log_buf	   = &log->log_buf;
+ 	tmp_ptr	   =  lrc_cbdata->lrc_tmp_ptr;
+@@ -1771,10 +1798,12 @@ void validate_rec_forward_cb(cbinfo, status, msg)
+ 	rvm_bool_t		 val_rec_fwd_done = rvm_false;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   =  lrc_cbdata->lrc_log;
+ 	synch	   =  lrc_cbdata->lrc_synch;
+ 	log_buf	   = &log->log_buf;
+@@ -1922,7 +1951,8 @@ exit:
+ 	if (be_status != 0  && cbinfo != NULL &&
+ 	    cbinfo->bc_cb != NULL) {
+ 	    	m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 
+ 	return retval;
+@@ -1943,10 +1973,12 @@ void sf_scan_nv_forward_cb(cbinfo, status, msg)
+ 	long 		 	 ptr;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata    =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata    =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	      =  lrc_cbdata->lrc_log;
+ 	synch	      =  lrc_cbdata->lrc_synch;
+ 	log_buf       = &log->log_buf;
+@@ -2011,10 +2043,12 @@ void sf_init_buffer_cb(cbinfo, status, msg)
+ 	rvm_bool_t		 synch;
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata    =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	      =  lrc_cbdata->lrc_log;
+ 	synch	      =  lrc_cbdata->lrc_synch;
+ 
+@@ -2131,7 +2165,8 @@ exit:
+ 	if ((be_status != 0 || is_scan_fwd_done) && cbinfo != NULL &&
+ 	    cbinfo->bc_cb != NULL) {
+ 	    	m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 
+ exit_return:
+@@ -2162,10 +2197,12 @@ void set_trans_status_cb(cbinfo, be_status, msg)
+ 	log_status_t	*status;
+ 	trans_hdr_t	*trans_hdr;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   =  lrc_cbdata->lrc_log;
+ 	trans_hdr  = &lrc_cbdata->lrc_trans_hdr;
+ 	status     = &log->status;
+@@ -2203,10 +2240,12 @@ void sts_range_chk_sum_cb(cbinfo, be_status, msg)
+ 	rvm_bool_t       chk_val;
+ 	rvm_return_t	 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   = lrc_cbdata->lrc_log;
+ 	chk_val	   = lrc_cbdata->lrc_chk_val;
+ 
+@@ -2250,10 +2289,12 @@ void sts_nv_fwd_cb(cbinfo, be_status, msg)
+ 	rvm_bool_t      	 is_bad_record  = rvm_false;
+ 	rvm_return_t    	 retval	        = RVM_SUCCESS;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   =  lrc_cbdata->lrc_log;
+ 	num_ranges =  lrc_cbdata->lrc_num_ranges;
+ 	chk_val    = &lrc_cbdata->lrc_chk_val;
+@@ -2328,7 +2369,6 @@ static rvm_return_t set_trans_status(log, rec_hdr, cbinfo)
+                 goto exit;
+         }
+ 
+-
+ 	/* keep copy of header to get status if ranges are OK */
+ 	BCOPY((char *)rec_hdr, (char *)&trans_hdr, sizeof(trans_hdr_t));
+ 
+@@ -2353,6 +2393,8 @@ static rvm_return_t set_trans_status(log, rec_hdr, cbinfo)
+ exit:
+ 	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo, be_status, msg);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 	return retval;
+ }
+@@ -2675,9 +2717,6 @@ void loc_tail_scan_forward_cb(loc_tail_cbdata_t *loc_tail_cbdata)
+ 	log_buf 	= &log->log_buf;
+ 	last_write 	= status->last_write;
+ 
+-	if (be_status != 0)
+-		goto err_exit;
+-
+ 	/* re-init scanner sequence checking state since small logs can cause
+ 	a few records to be rescanned and re-init read buffer at tail
+ 	*/
+@@ -2695,6 +2734,7 @@ void loc_tail_scan_forward_cb(loc_tail_cbdata_t *loc_tail_cbdata)
+ 	if (retval != RVM_SUCCESS) {
+ 		be_status	= -1;
+ 		msg_type 	= retval;
++		goto err_exit;
+ 	}
+ 
+ 	goto exit;
+@@ -2827,6 +2867,9 @@ void loc_tail_init_buf_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 	log_buf 	= &log->log_buf;
+ 	last_write 	= status->last_write;
+ 
++	if (status != 0)
++		goto err_exit;
++
+ 	assert(log->trunc_thread == cthread_self());
+ 	assert((status->trunc_state & RVM_TRUNC_PHASES) == RVM_TRUNC_FIND_TAIL);
+ 
+@@ -2944,7 +2987,11 @@ struct m0_be_cbinfo *cbinfo;
+ 	rvm_bool_t       	 save_rvm_utlsw = rvm_utlsw;
+ 
+ 	M0_ALLOC_PTR(loc_tail_cbdata);
+-	M0_ASSERT(loc_tail_cbdata != NULL);
++	if(loc_tail_cbdata == NULL) {
++                be_status  = -1;
++                msg_type   = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	loc_tail_cbdata->ltc_last_rec_num = 0;
+ 
+@@ -3001,7 +3048,8 @@ err_exit:
+ 
+ 	if (be_status != 0 && cbinfo!= NULL && cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, be_status, msg_type);
+-                m0_free(loc_tail_cbdata);
++		if (loc_tail_cbdata != NULL)
++			m0_free(loc_tail_cbdata);
+         }
+ exit:;
+ 	return retval;
+@@ -3357,10 +3405,12 @@ void do_trans_cb(cbinfo, be_status, msg)
+ 	long            	 prev_range = 0;
+ 	rvm_return_t    	 retval     = RVM_SUCCESS;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata =  container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	   =  lrc_cbdata->lrc_log;
+ 	skip_trans =  lrc_cbdata->lrc_skip_trans;
+ 	num_ranges =  lrc_cbdata->lrc_num_ranges;
+@@ -3473,7 +3523,8 @@ static rvm_return_t do_trans(log, skip_trans, cbinfo)
+ exit:
+ 	if (be_status != 0  && cbinfo != NULL &&  cbinfo->bc_cb != NULL) {
+ 	    	m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 	return retval;
+ }
+@@ -3754,7 +3805,11 @@ static rvm_return_t chk_wrap(log, force_wrap_chk, skip_trans, cbinfo)
+ 	rvm_bool_t		 post_parent = rvm_false;
+ 
+ 	M0_ALLOC_PTR(cw_cbdata);
+-	M0_ASSERT(cw_cbdata != NULL);
++	if (cw_cbdata == NULL) {
++                be_status = -1;
++                msg_type  = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	cwc_cbinfo = &cw_cbdata->cwc_cbinfo;
+ 	data_len = &cw_cbdata->cwc_data_len;
+@@ -3808,7 +3863,8 @@ static rvm_return_t chk_wrap(log, force_wrap_chk, skip_trans, cbinfo)
+ exit:
+ 	if ((be_status != 0 || post_parent) && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo, be_status, msg_type);
+-                m0_free(cw_cbdata);
++		if (cw_cbdata != NULL)
++			m0_free(cw_cbdata);
+         }
+ 
+ 	return retval;
+@@ -3829,10 +3885,12 @@ void bt_do_trans_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 	rvm_offset_t          *tail;
+ 	bt_cbdata_t           *bt_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	bt_cbdata   = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
++
+ 	if(be_status == -1)
+ 		goto exit;
+ 
+-	bt_cbdata   = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
+ 	log         = bt_cbdata->bt_log;
+ 	tail	    = &bt_cbdata->bt_tail;
+ 	log_buf	    = &log->log_buf;
+@@ -3860,16 +3918,15 @@ void bt_chk_wrap_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 	bt_cbdata_t           *bt_cbdata;
+ 	rvm_return_t	       retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	bt_cbdata   = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
++
+ 	if(be_status == -1)
+ 		goto exit;
+ 
+-	bt_cbdata   = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
+ 	log         = bt_cbdata->bt_log;
+ 
+-	/*bt_cbinfo->bc_pcbinfo   = cbinfo;*/
+ 	cbinfo->bc_cb        = bt_do_trans_cb;
+-	/*bt_cbinfo->bc_sm_group  = cbinfo->bc_sm_group;*/
+-	/*bt_cbinfo->bc_hq        = cbinfo->bc_hq;*/
+ 
+ 	bt_cbdata->bt_force_wrap_chk = rvm_false;
+ X( trans_hdr_id: do_trans)
+@@ -3899,11 +3956,12 @@ void bt_scan_reverse_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+     	bt_cbdata_t           *bt_cbdata;
+ 	/*struct m0_be_cbinfo   *bt_cbinfo;*/
+ 
++	M0_ASSERT(cbinfo != NULL);
++	bt_cbdata = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
++
+ 	if(be_status != 0)
+ 		goto exit;
+ 
+-
+-	bt_cbdata   = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
+ 	log         = bt_cbdata->bt_log;
+ 	tail	    = &bt_cbdata->bt_tail;
+ 
+@@ -3997,10 +4055,12 @@ void bt_pre_scan_reverse_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+     	bt_cbdata_t           *bt_cbdata;
+ 	rvm_bool_t	       loop_break = rvm_false;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	bt_cbdata = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
++
+ 	if(be_status == -1)
+ 		goto exit;
+ 
+-	bt_cbdata   = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
+ 	log         = bt_cbdata->bt_log;
+ 	tail 	    = &bt_cbdata->bt_tail;
+ 
+@@ -4035,11 +4095,13 @@ void bt_init_buffer_cb(struct m0_be_cbinfo *cbinfo, int be_status,
+ 	log_buf_t      	      *log_buf = NULL; /* log buffer descriptor */
+     	bt_cbdata_t           *bt_cbdata;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	bt_cbdata = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
++
+ 	if(be_status == -1)
+ 		goto exit;
+ 
+-	bt_cbdata   = container_of(cbinfo, bt_cbdata_t, bt_cbinfo);
+-	log         = bt_cbdata->bt_log;
++	log = bt_cbdata->bt_log;
+ 
+ 	assert(log->trunc_thread == cthread_self());
+ 	log_buf	    = &log->log_buf;
+@@ -4078,7 +4140,12 @@ static rvm_return_t build_tree(log, cbinfo)
+ 	                       | RVM_TRUNC_BUILD_TREE;
+ 
+ 	M0_ALLOC_PTR(bt_cbdata);
+-	M0_ASSERT(bt_cbdata != NULL);
++	if (bt_cbdata == NULL) {
++                be_status = -1;
++                msg_type  = -ENOMEM;
++		retval    = -ENOMEM;
++                goto exit;
++        }
+ 
+ 	bt_cbdata->bt_log                = log;
+ 
+@@ -4101,10 +4168,12 @@ X(init_buf)
+ 	}
+         retval = init_buffer(log, status_offset, direction, SYNCH, bt_cbinfo);
+ 
++exit:
+ 	if (retval != RVM_SUCCESS && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg_type);
+-		m0_free(bt_cbdata);
++		if (bt_cbdata != NULL)
++			m0_free(bt_cbdata);
+ 	}
+ 	return RVM_SUCCESS;
+ }
+@@ -4365,11 +4434,13 @@ void __update_seg_cb(cbinfo, be_status, msg)
+         uint32_t         io_bshift;
+         uint32_t         i = 0;
+ 
++	M0_ASSERT(cbinfo != NULL);
++        lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+         if (be_status != 0)
+                 goto exit;
+ 
+ 
+-        lrc_cbdata     = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+         log            = lrc_cbdata->lrc_log;
+         seg_dict       = lrc_cbdata->lrc_seg_dict;
+         stob           = lrc_cbdata->lrc_stob;
+@@ -4467,7 +4538,7 @@ static rvm_return_t  update_seg(log, seg_dict, seg_dev, cbinfo)
+         device_t             *seg_dev;    /* segment device descriptor */
+         struct m0_be_cbinfo  *cbinfo;
+ {
+-        lrc_cbdata_t            *lrc_cbdata;
++        lrc_cbdata_t            *lrc_cbdata = NULL;
+         struct m0_be_cbinfo     *lrc_cbinfo;
+         log_status_t            *status;
+         dev_region_t            *node;
+@@ -4508,14 +4579,13 @@ static rvm_return_t  update_seg(log, seg_dict, seg_dev, cbinfo)
+                 iter_count = rvm_num_nodes;
+         }
+ 
+-        M0_ALLOC_ARR(io_addr, iter_count);
+-        M0_ASSERT(io_addr != NULL);
+-
+-        M0_ALLOC_ARR(io_count, iter_count);
+-        M0_ASSERT(io_count != NULL);
+-
+-        M0_ALLOC_ARR(io_offset, iter_count);
+-        M0_ASSERT(io_offset != NULL);
++	retval = rvm_io_alloc_helper(&io_addr, &io_count,
++			    &io_offset, iter_count, &be_status);
++	if(retval != 0) {
++		 be_status = -1;
++                 msg       = -ENOMEM;
++                 goto exit;
++        }
+ 
+         io_bshift = stob->so_op->sop_block_shift(stob);
+ 
+@@ -4572,7 +4642,8 @@ exit:
+         if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
+-                m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+         }
+ 
+         return RVM_SUCCESS;
+@@ -4960,6 +5031,8 @@ exit:
+         if (be_status != 0  && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+         }
+         return retval;
+ }
+@@ -4973,10 +5046,12 @@ void write_log_status_cb(cbinfo, be_status, msg)
+         log_t           *log;
+         log_status_t    *status;
+ 
++	M0_ASSERT(cbinfo != NULL);
++        lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+         if (be_status != 0)
+                 goto exit;
+ 
+-        lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+         log        = lrc_cbdata->lrc_log;
+         status     = &log->status;
+ 
+@@ -5087,7 +5162,8 @@ err_exit:;
+     if (be_status != 0 && cbinfo->bc_pcbinfo != NULL &&
+         cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
+-                m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+     }
+     return retval;
+ }
+@@ -5101,11 +5177,13 @@ void new_epoch_cb(cbinfo, status, msg)
+ 	log_t		*log;
+ 	rvm_return_t	 retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (status != 0)
+ 		goto exit;
+ 
+-	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+-	log 	   = lrc_cbdata->lrc_log;
++	log = lrc_cbdata->lrc_log;
+ 
+ 	assert(log->trunc_thread == cthread_self());
+ 
+@@ -5178,9 +5256,9 @@ static rvm_return_t new_epoch(log, count, cbinfo)
+ exit:
+ 	if (be_status != 0  && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+-		m0_be_handler_post(cbinfo->bc_pcbinfo,
+-				   be_status, msg);
+-		m0_free(lrc_cbdata);
++		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 	return retval;
+ }
+@@ -5282,11 +5360,13 @@ void log_recover_cb(cbinfo, be_status, msg)
+         struct timeval   tmp_time;           /* local timing temp */
+         int              kretval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++        lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+         /* On some error, wake up waiting threads if any. */
+         if (be_status != 0)
+                 goto exit;
+ 
+-        lrc_cbdata  = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+         log         = lrc_cbdata->lrc_log;
+         is_daemon   = lrc_cbdata->lrc_is_daemon;
+         status      = &log->status;
+@@ -5360,10 +5440,12 @@ void lr_build_tree_cb(cbinfo, be_status, msg)
+ 	rvm_bool_t           is_daemon;
+         rvm_return_t         retval;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit_log_recover;
+ 
+-	lrc_cbdata      = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	        = lrc_cbdata->lrc_log;
+ 	is_daemon	= lrc_cbdata->lrc_is_daemon;
+ 	status	        = &log->status;
+@@ -5437,10 +5519,12 @@ void lr_epoch_cb(cbinfo, be_status, msg)
+         rvm_return_t         retval;
+         rvm_length_t         new_1st_rec_num;
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit_log_recover;
+ 
+-	lrc_cbdata      = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	        = lrc_cbdata->lrc_log;
+ 	do_truncation   = lrc_cbdata->lrc_do_trunc;
+ 	is_daemon	= lrc_cbdata->lrc_is_daemon;
+@@ -5533,8 +5617,7 @@ err_exit:
+ exit_log_recover:
+ 	if (be_status != 0  && cbinfo->bc_pcbinfo != NULL &&
+ 	    cbinfo->bc_pcbinfo->bc_cb != NULL) {
+-		m0_be_handler_post(cbinfo->bc_pcbinfo,
+-				   be_status, msg);
++		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
+ 		m0_free(lrc_cbdata);
+ 	}
+ }
+@@ -5557,10 +5640,12 @@ void lr_locate_tail_cb(cbinfo, be_status, msg)
+ 	rvm_length_t        *count;             /* ptr to statistics counter */
+ 
+ 
++	M0_ASSERT(cbinfo != NULL);
++	lrc_cbdata = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
++
+ 	if (be_status != 0)
+ 		goto exit_log_recover;
+ 
+-	lrc_cbdata      = container_of(cbinfo, lrc_cbdata_t, lrc_cbinfo);
+ 	log	        = lrc_cbdata->lrc_log;
+ 	do_truncation   = lrc_cbdata->lrc_do_trunc;
+ 	is_daemon	= lrc_cbdata->lrc_is_daemon;
+@@ -5673,7 +5758,7 @@ rvm_return_t log_recover(log, count, is_daemon, flag, cbinfo)
+ 	M0_ALLOC_PTR(lrc_cbdata);
+ 	if (lrc_cbdata == NULL) {
+ 		be_status = -1;
+-		retval    = msg = -ENOMEM;
++		msg = -ENOMEM;
+ 		goto exit_log_recover;
+ 	}
+ 
+@@ -5757,7 +5842,8 @@ err_exit:
+ exit_log_recover:
+ 	if (be_status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
+ 		m0_be_handler_post(cbinfo->bc_pcbinfo, be_status, msg);
+-		m0_free(lrc_cbdata);
++		if (lrc_cbdata != NULL)
++			m0_free(lrc_cbdata);
+ 	}
+ 
+         return retval;
+@@ -5800,7 +5886,7 @@ exit:
+ /* rvm_truncate */
+ rvm_return_t rvm_truncate(struct m0_be_cbinfo *cbinfo)
+ {
+-	struct m0_be_cbinfo	*rt_cbinfo;
++	struct m0_be_cbinfo	*rt_cbinfo = NULL;
+ 	rvm_return_t    	 retval;
+ 	int 			 status = 0;
+ 	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
+@@ -5818,8 +5904,11 @@ rvm_return_t rvm_truncate(struct m0_be_cbinfo *cbinfo)
+ 	}
+ 
+ 	M0_ALLOC_PTR(rt_cbinfo);
+-	M0_ASSERT(rt_cbinfo != NULL);
+-
++	if (rt_cbinfo == NULL) {
++		status   = -1;
++		msg_type = -ENOMEM;
++		goto exit;
++	}
+ 
+ 	m0_be_cbinfo_copy_helper(cbinfo, rt_cbinfo, rt_flush_log_cb);
+ 
+@@ -5834,7 +5923,8 @@ exit:
+         if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+-                m0_free(rt_cbinfo);
++		if (rt_cbinfo != NULL)
++			m0_free(rt_cbinfo);
+         }
+ 
+ 	return 0;
+diff --git a/rvm/rvm_logstatus.c b/rvm/rvm_logstatus.c
+index abbf17a..094971d 100644
+--- a/rvm/rvm_logstatus.c
++++ b/rvm/rvm_logstatus.c
+@@ -340,7 +340,7 @@ exit:
+ static rvm_return_t preload_wrt_buf(log,cbinfo)
+     log_t           	 *log;               /* log descriptor */
+     struct m0_be_cbinfo  *cbinfo;
+-    {
++{
+     device_t              *dev = &log->dev;   /* device descriptor ptr */
+     log_status_t          *status = &log->status; /* log status descriptor */
+     rvm_offset_t           tail_sector;        /* log tail sector */
+@@ -350,7 +350,11 @@ static rvm_return_t preload_wrt_buf(log,cbinfo)
+     int		           be_status = 0;
+ 
+     M0_ALLOC_PTR(rcl_cbdata);
+-    M0_ASSERT(rcl_cbdata != NULL);
++    if (rcl_cbdata == NULL) {
++                be_status = -1;
++                msg_type  = -ENOMEM;
++                goto exit;
++    }
+ 
+     rcl_cbdata->rclc_log                = log;
+ 
+@@ -364,6 +368,7 @@ static rvm_return_t preload_wrt_buf(log,cbinfo)
+ 	be_status = -1;
+     }
+ 
++exit:
+     if (be_status != 0 &&
+             cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+@@ -371,7 +376,7 @@ static rvm_return_t preload_wrt_buf(log,cbinfo)
+                 m0_free(rcl_cbdata);
+     }
+     return RVM_SUCCESS;
+-    }
++}
+ 
+ void ol_read_log_status_cb(struct m0_be_cbinfo *cbinfo, int status,
+                            m0_be_msg_type_t msg_type)
+@@ -459,7 +464,11 @@ rvm_return_t open_log(dev_name,log_ptr,status_buf,rvm_options,cbinfo)
+     m0_be_msg_type_t	 msg_type;
+ 
+     M0_ALLOC_PTR(rcl_cbdata);
+-    M0_ASSERT(rcl_cbdata != NULL);
++    if (rcl_cbdata == NULL) {
++                retval   = -1;
++                msg_type = -ENOMEM;
++                goto ol_err_exit;
++    }
+ 
+     /* build internal log structure */
+     if ((log = make_log(dev_name,&retval)) == NULL)
+@@ -622,7 +631,11 @@ rvm_return_t do_log_options(log_ptr,rvm_options, cbinfo)
+ 
+ 
+    M0_ALLOC_PTR(rcl_cbdata);
+-   M0_ASSERT(rcl_cbdata != NULL);
++   if (rcl_cbdata == NULL) {
++                status   = -1;
++                msg_type = -ENOMEM;
++                goto exit;
++    }
+ 
+     if ((rvm_options == NULL) || (rvm_options->log_dev == NULL)) {
+         status = RVM_SUCCESS;
+@@ -942,7 +955,11 @@ rvm_return_t read_log_status(log,status_buf,cbinfo)
+ 
+ 
+     M0_ALLOC_PTR(rcl_cbdata);
+-    M0_ASSERT(rcl_cbdata != NULL);
++    if (rcl_cbdata == NULL) {
++                be_status = -1;
++                msg_type  = -ENOMEM;
++                goto exit;
++    }
+     /* read the status areas */
+     if (status_buf != NULL)
+         dev_status = (log_dev_status_t *)status_buf;
+@@ -967,6 +984,7 @@ rvm_return_t read_log_status(log,status_buf,cbinfo)
+ 	be_status = -1;
+     }
+ 
++exit:
+     if (be_status != 0 &&
+             cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+@@ -1423,7 +1441,11 @@ rvm_return_t rvm_create_log(rvm_options, log_len,mode, cbinfo)
+             goto err_exit;
+ 
+     M0_ALLOC_PTR(rcl_cbdata);
+-    M0_ASSERT(rcl_cbdata != NULL);
++    if (rcl_cbdata == NULL) {
++                status    = -1;
++                msg_type  = -ENOMEM;
++                goto exit;
++    }
+ 
+     rcl_cbdata->rclc_log        = log;
+     rclc_cbinfo                 = &rcl_cbdata->rclc_cbinfo;
+@@ -1438,9 +1460,9 @@ rvm_return_t rvm_create_log(rvm_options, log_len,mode, cbinfo)
+     if (write_dev(&log->dev,&offset,end_mark, strlen(end_mark),NO_SYNCH,
+                   rclc_cbinfo) < 0)
+         {
+-        retval = RVM_EIO;
+-        status = -1;
+-        goto err_exit;
++		retval = RVM_EIO;
++		status = -1;
++		goto err_exit;
+         }
+      goto exit;
+     /*return retval;*/
+@@ -1449,9 +1471,9 @@ rvm_return_t rvm_create_log(rvm_options, log_len,mode, cbinfo)
+ err_exit:
+     if (log->dev.handle != 0)
+         {
+-        save_errno = errno;
+-        (void)close_dev(&log->dev);
+-        errno = save_errno;
++		save_errno = errno;
++		(void)close_dev(&log->dev);
++		errno = save_errno;
+         }
+ #ifdef RVM_LOG_TAIL_BUG
+     /* drop the "temporary" clobber address */
+diff --git a/rvm/rvm_map.c b/rvm/rvm_map.c
+index 0fdd65b..4e9a6dc 100644
+--- a/rvm/rvm_map.c
++++ b/rvm/rvm_map.c
+@@ -1027,7 +1027,8 @@ static rvm_return_t chk_dependencies(seg, region, cbinfo)
+ 	if ((x_region == NULL || be_status != 0)  &&
+ 	    cbinfo != NULL && cbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo, be_status, msg);
+-		m0_free(cd_cbdata);
++		if (be_status != 0)
++			m0_free(cd_cbdata);
+         }
+ 	return ret;
+ }
+@@ -1338,8 +1339,11 @@ rvm_return_t rvm_map(rvm_seg_hdr_t 		*seg_hdr,
+ 	m0_be_msg_type_t 	msg_type 	= M0_BE_SUCCESS;
+ 
+ 	M0_ALLOC_PTR(rm_cbdata);
+-	M0_ASSERT(rm_cbdata != NULL);
+-
++	if (rm_cbdata == NULL) {
++		status    = -1;
++		msg_type = -ENOMEM;
++		goto exit;
++	}
+ 
+ 	rm_cbdata->rmc_rvm_region 	= rvm_region;
+ 	rm_cbdata->rmc_rvm_options 	= rvm_options;
+diff --git a/rvm/rvm_status.c b/rvm/rvm_status.c
+index 3260025..a9322da 100644
+--- a/rvm/rvm_status.c
++++ b/rvm/rvm_status.c
+@@ -21,6 +21,7 @@ Coda are listed in the file CREDITS.
+ *
+ */
+ 
++#include "lib/errno.h"
+ #include "rvm/rvm_private.h"
+ #include "be/handler.h"
+ #include "lib/memory.h"
+@@ -164,8 +165,11 @@ rvm_return_t do_rvm_options(rvm_options, cbinfo)
+         rvm_max_read_len = rvm_options->max_read_len;
+ 
+         M0_ALLOC_PTR(ri_cbdata);
+-        M0_ASSERT(ri_cbdata != NULL);
+-
++	if(ri_cbdata == NULL){
++		status   = -1;
++		msg_type = -ENOMEM;
++		goto exit;
++	}
+         ri_cbdata->ric_rvm_options         = rvm_options;
+ 
+         ri_cbinfo                          = &ri_cbdata->ric_cbinfo;
+@@ -175,6 +179,8 @@ rvm_return_t do_rvm_options(rvm_options, cbinfo)
+         if ((retval=do_log_options(&log,rvm_options, ri_cbinfo)) != RVM_SUCCESS)
+             return retval;
+     }
++
++exit:
+     if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+         cbinfo->bc_pcbinfo->bc_cb != NULL) {
+            m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+-- 
+1.8.3.2
+

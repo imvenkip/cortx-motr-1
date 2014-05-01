@@ -1,0 +1,118 @@
+From e13a18bc00fc48d1ab7935a66cb4f124d7d99448 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 18 Jun 2012 13:50:58 +0300
+Subject: [PATCH 201/311] conf/map.[hc]: use {type, id} as mapping key
+
+- Rename key to id.
+- Reorder arguments of c2_conf_map_lookup(): {type, id} is more logical
+  ordering.
+- Remove space between asterisk and function name.
+---
+ conf/map.c | 10 +++++-----
+ conf/map.h | 28 ++++++++++++++--------------
+ 2 files changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/conf/map.c b/conf/map.c
+index 8948163..bbf4501 100644
+--- a/conf/map.c
++++ b/conf/map.c
+@@ -65,12 +65,12 @@ int c2_conf_map_add(struct c2_conf_map *map, const struct c2_conf_obj *obj)
+ 	XXX;
+ }
+ 
+-struct c2_conf_obj * c2_conf_map_lookup(const struct c2_conf_map *map,
+-					const struct c2_conf_buf *key,
+-					enum c2_conf_objtype type)
++struct c2_conf_obj *c2_conf_map_lookup(const struct c2_conf_map *map,
++				       enum c2_conf_objtype type,
++				       const struct c2_conf_buf *id)
+ {
+ 	/*
+-	 * Try to find an address, associated with a given {key, type}
++	 * Try to find an address, associated with a given {type, id}
+ 	 * pair, in map->m_tbl.
+ 	 *
+ 	 * Verify the postcondition.
+@@ -89,7 +89,7 @@ void c2_conf_map_cursor_fini(struct c2_conf_map_cursor *cur)
+ 	XXX;
+ }
+ 
+-struct c2_conf_obj * c2_conf_map_next(struct c2_conf_map_cursor *cur)
++struct c2_conf_obj *c2_conf_map_next(struct c2_conf_map_cursor *cur)
+ {
+ 	XXX;
+ }
+diff --git a/conf/map.h b/conf/map.h
+index eba2d73..8e27b29 100644
+--- a/conf/map.h
++++ b/conf/map.h
+@@ -25,12 +25,12 @@
+ /**
+  * @page conf-fspec-map Registry of Cached Configuration Objects
+  *
+- * Object id-to-address mapping, also known as a registry of cached
+- * configuration objects, is an in-memory database that associates
+- * object identities ({key, value} pairs) with memory addresses of
+- * these objects.  A confc or confd module maintaining configuration
+- * cache creates such a registry and uses it to ensure uniqueness of
+- * configuration objects stored in the cache.
++ * Object identity-to-address mapping, also known as a registry of
++ * cached configuration objects, is an in-memory database that
++ * associates object identities ({type, id} pairs) with memory
++ * addresses of these objects.  A confc or confd module maintaining
++ * configuration cache creates such a registry and uses it to ensure
++ * uniqueness of configuration objects stored in the cache.
+  *
+  * The implementation is based on in-memory Berkeley database, which
+  * is created and manipulated via Colibri database interfaces
+@@ -55,7 +55,7 @@ struct c2_dbenv;
+ struct c2_table;
+ struct c2_conf_buf;
+ 
+-/** Objid-to-address mapping. */
++/** Object identity-to-address mapping. */
+ struct c2_conf_map {
+ 	struct c2_dbenv *m_db;  /*< DB environment. */
+ 	struct c2_table *m_tbl; /*< DB table (the registry itself). */
+@@ -71,23 +71,23 @@ int c2_conf_map_init(struct c2_conf_map *map);
+ void c2_conf_map_fini(struct c2_conf_map *map);
+ 
+ /**
+- * Adds new entry to the "objid-to-address" mapping.
++ * Adds new entry to the mapping.
+  *
+  * @pre  The mapping does not contain given object.
+  */
+ int c2_conf_map_add(struct c2_conf_map *map, const struct c2_conf_obj *obj);
+ 
+ /**
+- * Searches for an object given its key and type.
++ * Searches for an object given its type and id.
+  *
+  * Returns NULL if the object is not found.
+  *
+  * @post ergo(retval != NULL,
+- *            retval->co_type == type && c2_conf_buf_eq(retval->co_key, key))
++ *            retval->co_type == type && c2_conf_buf_eq(retval->co_id, id))
+  */
+-struct c2_conf_obj * c2_conf_map_lookup(const struct c2_conf_map *map,
+-					const struct c2_conf_buf *key,
+-					enum c2_conf_objtype type);
++struct c2_conf_obj *c2_conf_map_lookup(const struct c2_conf_map *map,
++				       enum c2_conf_objtype type,
++				       const struct c2_conf_buf *id);
+ 
+ /** Cursor, which is used to iterate over entries of a mapping. */
+ struct c2_conf_map_cursor {
+@@ -108,7 +108,7 @@ void c2_conf_map_cursor_fini(struct c2_conf_map_cursor *cur);
+  * Returns the next element of a mapping. Returns NULL if there are no
+  * more elements.
+  */
+-struct c2_conf_obj * c2_conf_map_next(struct c2_conf_map_cursor *cur);
++struct c2_conf_obj *c2_conf_map_next(struct c2_conf_map_cursor *cur);
+ 
+ /** @} conf_dfspec_map */
+ #endif /* __COLIBRI_CONF_MAP_H__ */
+-- 
+1.8.3.2
+

@@ -1,0 +1,170 @@
+From d82352d69e70ecfec1343bdd0207ece669df565e Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 11 May 2012 23:46:55 +0300
+Subject: [PATCH 168/311] conf/map.h: use C2 DB interfaces instead of plain db5
+
++ Describe the stubs in conf/map.c.
+---
+ conf/map.c | 64 ++++++++++++++++++++++++++++++++++++++++++++++++++++----------
+ conf/map.h | 31 ++++++++++++++----------------
+ 2 files changed, 68 insertions(+), 27 deletions(-)
+
+diff --git a/conf/map.c b/conf/map.c
+index 98e2f90..8948163 100644
+--- a/conf/map.c
++++ b/conf/map.c
+@@ -22,6 +22,12 @@
+ #  include <config.h>
+ #endif
+ #include "conf/map.h"
++#include "db/db.h"
++#ifdef __KERNEL__
++#  include "conf/onwire_k.h"
++#else
++#  include "conf/onwire_u.h" /* c2_conf_buf */
++#endif
+ 
+ /**
+  * @defgroup conf_dlspec_map Registry of Cached Configuration Objects
+@@ -34,21 +40,59 @@
+ int c2_conf_map_init(struct c2_conf_map *map)
+ {
+ 	/*
+-	 * int rc;
+-	 *
+-	 * C2_PRE(map->m_db == NULL);
++	 * Create an in-memory database, set map->m_db.
+ 	 *
+-	 * // Initialize DB handle.
+-	 * rc = db_create(&map->m_db, NULL, 0);
++	 * Set DB_AUTO_COMMIT flag (see
++	 * http://docs.oracle.com/cd/E17076_02/html/gsg_txn/C/autocommit.html).
+ 	 *
+-	 * // Set DB cache size (10 MB should suffice).
+-	 * rc = map->m_db->set_cachesize(...);
++	 * Create empty table (map->m_tbl).
++	 */
++	XXX;
++}
++
++void c2_conf_map_fini(struct c2_conf_map *map)
++{
++	/* Finalize, free, and assign NULL to map->m_tbl and map->m_db. */
++	XXX;
++}
++
++int c2_conf_map_add(struct c2_conf_map *map, const struct c2_conf_obj *obj)
++{
++	/*
++	 * Verify the precondition.
++	 * c2_table_insert() new pair into map->m_tbl.
++	 */
++	XXX;
++}
++
++struct c2_conf_obj * c2_conf_map_lookup(const struct c2_conf_map *map,
++					const struct c2_conf_buf *key,
++					enum c2_conf_objtype type)
++{
++	/*
++	 * Try to find an address, associated with a given {key, type}
++	 * pair, in map->m_tbl.
+ 	 *
+-	 * // Open the database.
+-	 * rc = map->m_db->open(map->m_db, NULL, NULL, "confc registry",
+-	 *                      DB_BTREE, DB_CREATE, 0);
++	 * Verify the postcondition.
+ 	 */
+ 	XXX;
+ }
+ 
++void c2_conf_map_cursor_init(struct c2_conf_map_cursor *cur,
++			     const struct c2_conf_map *map)
++{
++	XXX;
++}
++
++void c2_conf_map_cursor_fini(struct c2_conf_map_cursor *cur)
++{
++	XXX;
++}
++
++struct c2_conf_obj * c2_conf_map_next(struct c2_conf_map_cursor *cur)
++{
++	XXX;
++}
++
++
+ /** @} conf_dlspec_map */
+diff --git a/conf/map.h b/conf/map.h
+index 1e89de2..710c367 100644
+--- a/conf/map.h
++++ b/conf/map.h
+@@ -20,7 +20,7 @@
+ #ifndef __COLIBRI_CONF_MAP_H__
+ #define __COLIBRI_CONF_MAP_H__
+ 
+-#include <db.h> /* DB */
++#include "conf/obj.h" /* c2_conf_objtype */
+ 
+ /**
+  * @page conf-fspec-map Registry of Cached Configuration Objects
+@@ -49,22 +49,20 @@
+  * @{
+  */
+ 
+-/**
+- * Objid-to-address mapping.
+- *
+- * Associates identity of a configuration object with its address in
+- * memory.  Identity of a configuration object is a {key, type} pair.
+- *
+- * c2_conf_map is used as a registry of cached configuration objects.
+- */
++struct c2_dbenv;
++struct c2_table;
++struct c2_conf_buf;
++
++/** Objid-to-address mapping. */
+ struct c2_conf_map {
+-	DB *m_db; /*< DB handle. */
++	struct c2_dbenv *m_db;  /*< DB environment. */
++	struct c2_table *m_tbl; /*< DB table (the registry itself). */
+ };
+ 
+ /**
+  * Constructs empty mapping.
+  *
+- * @pre  map->cm_db == NULL
++ * @pre  map->m_db == NULL
+  */
+ int c2_conf_map_init(struct c2_conf_map *map);
+ 
+@@ -81,19 +79,18 @@ int c2_conf_map_add(struct c2_conf_map *map, const struct c2_conf_obj *obj);
+  * Searches for an object given its key and type.
+  *
+  * Returns NULL if the object is not found.
++ *
++ * @post ergo(retval != NULL,
++ *            retval->co_type == type && c2_conf_buf_eq(retval->co_key, key))
+  */
+ struct c2_conf_obj * c2_conf_map_lookup(const struct c2_conf_map *map,
+ 					const struct c2_conf_buf *key,
+ 					enum c2_conf_objtype type);
+ 
+-/**
+- * Mapping cursor.
+- *
+- * c2_conf_map_cursor is used to iterate over elements of a mapping.
+- */
++/** Cursor, which is used to iterate over entries of a mapping. */
+ struct c2_conf_map_cursor {
+ 	const struct c2_conf_map *mc_map;
+-	DBC                      *mc_cur;
++	struct c2_db_cursor      *mc_cur;
+ };
+ 
+ /**
+-- 
+1.8.3.2
+

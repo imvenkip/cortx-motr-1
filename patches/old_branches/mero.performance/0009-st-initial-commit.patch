@@ -1,0 +1,22 @@
+From 6dbef544c724b6b191d7e9aa0e2335cdacb3b117 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 27 Oct 2013 19:25:32 +0200
+Subject: [PATCH 09/17] st: initial commit
+
+---
+ st/README | 3 +++
+ 1 file changed, 3 insertions(+)
+ create mode 100644 st/README
+
+diff --git a/st/README b/st/README
+new file mode 100644
+index 0000000..831e115
+--- /dev/null
++++ b/st/README
+@@ -0,0 +1,3 @@
++jenkins/	scripts for jenkins
++pm/		performance measurement
++jenkins.sh	jenkins entry point
+-- 
+1.8.3.2
+

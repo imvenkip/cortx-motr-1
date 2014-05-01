@@ -1,0 +1,126 @@
+From 7da5403ed4db2278c7f385b75d0fceefae5d6d61 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 19 Nov 2012 10:14:34 +0800
+Subject: [PATCH 08/10] pass pool configuation into poolmach_init()
+
+---
+ c2t1fs/linux_kernel/super.c   |  4 +++-
+ c2t1fs/linux_kernel/ut/file.c |  2 +-
+ ioservice/io_device.c         |  3 ++-
+ pool/pool.c                   | 12 +++++++-----
+ pool/pool.h                   |  4 +++-
+ pool/ut/test_pm.c             |  4 ++--
+ 6 files changed, 18 insertions(+), 11 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/super.c b/c2t1fs/linux_kernel/super.c
+index 5cf6e16..698aa0e 100644
+--- a/c2t1fs/linux_kernel/super.c
++++ b/c2t1fs/linux_kernel/super.c
+@@ -193,7 +193,9 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
+ 		goto pool_fini;
+ 	}
+ 
+-	rc = c2_poolmach_init(csb->csb_pool.po_mach, NULL);
++	rc = c2_poolmach_init(csb->csb_pool.po_mach, NULL,
++			      1, mntopts->mo_pool_width,
++			      1, mntopts->mo_nr_parity_units);
+ 	if (rc != 0) {
+ 		c2_free(csb->csb_pool.po_mach);
+ 		goto pool_fini;
+diff --git a/c2t1fs/linux_kernel/ut/file.c b/c2t1fs/linux_kernel/ut/file.c
+index 83cc933..072714b 100644
+--- a/c2t1fs/linux_kernel/ut/file.c
++++ b/c2t1fs/linux_kernel/ut/file.c
+@@ -156,7 +156,7 @@ static int file_io_ut_init(void)
+ 	C2_SET0(&poolmach);
+ 	csb.csb_pool.po_mach = &poolmach;
+ 
+-	rc = c2_poolmach_init(csb.csb_pool.po_mach, NULL);
++	rc = c2_poolmach_init(csb.csb_pool.po_mach, NULL, 1, LAY_P, 1, LAY_K);
+ 	C2_ASSERT(rc == 0);
+ 
+ 	return 0;
+diff --git a/ioservice/io_device.c b/ioservice/io_device.c
+index 101fb79..1d0bce7 100644
+--- a/ioservice/io_device.c
++++ b/ioservice/io_device.c
+@@ -260,7 +260,8 @@ int c2_ios_poolmach_init(struct c2_reqh *reqh)
+ 		goto out;
+ 	}
+ 
+-	rc = c2_poolmach_init(poolmach, reqh->rh_dtm);
++	/* TODO configuration information is needed here. */
++	rc = c2_poolmach_init(poolmach, reqh->rh_dtm, 1, 10, 1, 1);
+ 	if (rc != 0) {
+ 		c2_reqh_key_fini(reqh, poolmach_key);
+ 		goto out;
+diff --git a/pool/pool.c b/pool/pool.c
+index 0d45261..cf1b46a 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -77,7 +77,9 @@ bool c2_poolmach_version_equal(const struct c2_pool_version_numbers *v1,
+ 	return !memcmp(v1, v2, sizeof *v1);
+ }
+ 
+-int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
++int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm,
++		      uint32_t nr_nodes, uint32_t nr_devices,
++		      uint32_t max_node_failures, uint32_t max_device_failures)
+ {
+ 	uint32_t i;
+ 	C2_PRE(!pm->pm_is_initialised);
+@@ -91,10 +93,10 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+ 	C2_SET0(&pm->pm_state);
+ 	pm->pm_state.pst_version.pvn_version[PVE_READ]  = 0;
+ 	pm->pm_state.pst_version.pvn_version[PVE_WRITE] = 0;
+-	pm->pm_state.pst_nr_nodes = 1;
+-	pm->pm_state.pst_nr_devices = 10;
+-	pm->pm_state.pst_max_node_failures = 1;
+-	pm->pm_state.pst_max_device_failures = 1;
++	pm->pm_state.pst_nr_nodes = nr_nodes;
++	pm->pm_state.pst_nr_devices = nr_devices;
++	pm->pm_state.pst_max_node_failures = max_node_failures;
++	pm->pm_state.pst_max_device_failures = max_device_failures;
+ 	pm->pm_state.pst_nodes_array = c2_alloc(pm->pm_state.pst_nr_nodes *
+ 						sizeof (struct c2_poolnode));
+ 	pm->pm_state.pst_devices_array = c2_alloc(pm->pm_state.pst_nr_devices *
+diff --git a/pool/pool.h b/pool/pool.h
+index aa93137..12a1bfc 100644
+--- a/pool/pool.h
++++ b/pool/pool.h
+@@ -305,7 +305,9 @@ struct c2_poolmach {
+ bool c2_poolmach_version_equal(const struct c2_pool_version_numbers *v1,
+ 			       const struct c2_pool_version_numbers *v2);
+ 
+-int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
++int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm,
++		      uint32_t nr_nodes, uint32_t nr_devices,
++		      uint32_t max_node_failures, uint32_t max_device_failures);
+ void c2_poolmach_fini(struct c2_poolmach *pm);
+ 
+ /**
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index 28eae4f..9efe65c 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -32,7 +32,7 @@ static void pm_test_init_fini(void)
+ 	int                rc;
+ 
+ 	C2_SET0(&pm);
+-	rc = c2_poolmach_init(&pm, NULL);
++	rc = c2_poolmach_init(&pm, NULL, 1, 10, 1, 1);
+ 	C2_UT_ASSERT(rc == 0);
+ 	c2_poolmach_fini(&pm);
+ }
+@@ -87,7 +87,7 @@ static void pm_test_transit(void)
+ 	uint32_t                       index;
+ 
+ 	C2_SET0(&pm);
+-	rc = c2_poolmach_init(&pm, NULL);
++	rc = c2_poolmach_init(&pm, NULL, 1, 10, 1, 1);
+ 	C2_UT_ASSERT(rc == 0);
+ 
+ 	rc = c2_poolmach_current_version_get(&pm, &v0);
+-- 
+1.8.3.2
+

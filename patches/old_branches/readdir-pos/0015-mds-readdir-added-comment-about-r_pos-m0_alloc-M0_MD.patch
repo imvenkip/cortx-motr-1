@@ -1,0 +1,26 @@
+From 4c6f32e66d412e7540261caa392fee1ce68805cc Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 26 Feb 2013 12:12:09 +0200
+Subject: [PATCH 15/17] mds/readdir: added comment about r_pos =
+ m0_alloc(M0_MD_MAX_NAME_LEN)
+
+---
+ mdstore/mdstore.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index e188ae3..226d4eb 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -755,6 +755,8 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 		} else {
+ 			s_buf = m0_bitstring_buf_get(&it.ci_key->cnk_name);
+ 			s_len = m0_bitstring_len_get(&it.ci_key->cnk_name);
++			/* rdpg->r_pos was allocated with large buffer:
++			 * rdpg.r_pos = m0_alloc(M0_MD_MAX_NAME_LEN) */
+ 			m0_bitstring_copy(rdpg->r_pos, s_buf, s_len);
+ 		}
+ 
+-- 
+1.8.3.2
+

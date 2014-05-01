@@ -1,0 +1,243 @@
+From cb413f751f27ea9474ab47990acd5e353a029301 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 30 Aug 2012 22:58:17 +0300
+Subject: [PATCH 347/370] preload: Removed buffer copying. Add several concrete
+ parsers. Cleanup.
+
+---
+ conf/preload.c | 133 +++++++++++++++++++++++++++++++++++++++------------------
+ 1 file changed, 92 insertions(+), 41 deletions(-)
+
+diff --git a/conf/preload.c b/conf/preload.c
+index e874ee9..ad298d7 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -62,9 +62,13 @@ static void hunk_pr(const char *prefix, const struct hunk *p) {
+ 	char buf[4096];
+ 
+ 	C2_PRE(!hunk_is_empty(p));
++
++	/* @todo: for (p = hunk->begin; p <= hunk->end; ++p)
++	   C2_PRE(isprint(*p)); */
++
+ 	memset(buf, 0, 4096);
+ 	memcpy(buf, p->begin, p->end - p->begin + 1);
+-	printf("%s: ~%s~\n---\n", prefix, buf);
++	printf("%s: ~%s~\n", prefix, buf);
+ #endif
+ }
+ 
+@@ -233,9 +237,8 @@ enum { C2_CO_INVALID_TYPE = C2_CO_NR };
+ static int parse_profile(const struct hunk *key, const struct hunk *val,
+ 			 struct confx_object *out)
+ {
+-	printf(">>>>>>%s\n", __FUNCTION__);
+-	hunk_pr("sub", key);
+-	hunk_pr("sub", val);
++	hunk_pr(__FUNCTION__, key);
++	hunk_pr(__FUNCTION__, val);
+ 
+ 	if (hunk_str_eq(key, "id"))
+ 		c2_buf_init(&out->o_id, (void *)val->begin, hunk_len(val));
+@@ -253,9 +256,8 @@ static int parse_profile(const struct hunk *key, const struct hunk *val,
+ static int parse_filesystem(const struct hunk *key, const struct hunk *val,
+ 			    struct confx_object *out)
+ {
+-	printf(">>>>>>%s\n", __FUNCTION__);
+-	hunk_pr("sub", key);
+-	hunk_pr("sub", val);
++	hunk_pr(__FUNCTION__, key);
++	hunk_pr(__FUNCTION__, val);
+ 
+ 	return 0;
+ }
+@@ -263,9 +265,8 @@ static int parse_filesystem(const struct hunk *key, const struct hunk *val,
+ static int parse_service(const struct hunk *key, const struct hunk *val,
+ 			 struct confx_object *out)
+ {
+-	printf(">>>>>>%s\n", __FUNCTION__);
+-	hunk_pr("sub", key);
+-	hunk_pr("sub", val);
++	hunk_pr(__FUNCTION__, key);
++	hunk_pr(__FUNCTION__, val);
+ 
+ 	return 0;
+ }
+@@ -273,9 +274,8 @@ static int parse_service(const struct hunk *key, const struct hunk *val,
+ static int parse_node(const struct hunk *key, const struct hunk *val,
+ 		      struct confx_object *out)
+ {
+-	printf(">>>>>>%s\n", __FUNCTION__);
+-	hunk_pr("sub", key);
+-	hunk_pr("sub", val);
++	hunk_pr(__FUNCTION__, key);
++	hunk_pr(__FUNCTION__, val);
+ 
+ 	return 0;
+ }
+@@ -283,9 +283,34 @@ static int parse_node(const struct hunk *key, const struct hunk *val,
+ static int parse_nic(const struct hunk *key, const struct hunk *val,
+ 		     struct confx_object *out)
+ {
+-	printf(">>>>>>%s\n", __FUNCTION__);
+-	hunk_pr("sub", key);
+-	hunk_pr("sub", val);
++	hunk_pr(__FUNCTION__, key);
++	hunk_pr(__FUNCTION__, val);
++
++	if (hunk_str_eq(key, "id"))
++		c2_buf_init(&out->o_id, (void *)val->begin, hunk_len(val));
++
++	else if (hunk_str_eq(key, "iface_type"))
++		out->o_conf.u.u_nic.xi_iface =
++			strtoul(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "mtu"))
++		out->o_conf.u.u_nic.xi_mtu =
++			strtoul(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "speed"))
++		out->o_conf.u.u_nic.xi_speed =
++			strtoull(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "filename"))
++		c2_buf_init(&out->o_conf.u.u_nic.xi_filename,
++			    (void *)val->begin, hunk_len(val));
++
++	else if (hunk_str_eq(key, "last_state"))
++		out->o_conf.u.u_nic.xi_last_state =
++			strtoull(val->begin, NULL, 0);
++
++	else
++		return -EINVAL;
+ 
+ 	return 0;
+ }
+@@ -293,9 +318,50 @@ static int parse_nic(const struct hunk *key, const struct hunk *val,
+ static int parse_sdev(const struct hunk *key, const struct hunk *val,
+ 		      struct confx_object *out)
+ {
+-	printf(">>>>>>%s\n", __FUNCTION__);
+-	hunk_pr("sub", key);
+-	hunk_pr("sub", val);
++	hunk_pr(__FUNCTION__, key);
++	hunk_pr(__FUNCTION__, val);
++
++	if (hunk_str_eq(key, "id"))
++		c2_buf_init(&out->o_id, (void *)val->begin, hunk_len(val));
++
++	else if (hunk_str_eq(key, "iface"))
++		out->o_conf.u.u_sdev.xd_iface =
++			strtoul(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "media"))
++		out->o_conf.u.u_sdev.xd_media =
++			strtoul(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "size"))
++		out->o_conf.u.u_sdev.xd_size =
++			strtoul(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "last_state"))
++		out->o_conf.u.u_sdev.xd_last_state =
++			strtoul(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "flags"))
++		out->o_conf.u.u_sdev.xd_flags =
++			strtoul(val->begin, NULL, 0);
++
++	else if (hunk_str_eq(key, "filename"))
++		c2_buf_init(&out->o_conf.u.u_sdev.xd_filename,
++			    (void *)val->begin, hunk_len(val));
++
++	else
++		return -EINVAL;
++
++	/*
++	  @todo: no "filename":"/path/to/somewhere" in confstr!
++	  @todo: allocate or what with this?
++	  "partitions":["part0"]
++	  struct arr_buf xd_partitions;
++	  struct arr_buf {
++		uint32_t       ab_count;
++		struct c2_buf *ab_elems;
++	  } ;
++	*/
++
+ 
+ 	return 0;
+ }
+@@ -303,9 +369,8 @@ static int parse_sdev(const struct hunk *key, const struct hunk *val,
+ static int parse_partition(const struct hunk *key, const struct hunk *val,
+ 			   struct confx_object *out)
+ {
+-	printf(">>>>>>%s\n", __FUNCTION__);
+-	hunk_pr("sub", key);
+-	hunk_pr("sub", val);
++	hunk_pr(__FUNCTION__, key);
++	hunk_pr(__FUNCTION__, val);
+ 
+ 	if (hunk_str_eq(key, "id"))
+ 		out->o_id = (const struct c2_buf)
+@@ -375,26 +440,24 @@ static size_t str_to_x(const struct hunk *key)
+ 	C2_IMPOSSIBLE("Wrong configuration string type given!");
+ }
+ 
+-static int x_parser_call(const char *conf_string, struct confx_object *out)
++static int x_parser_call(const struct hunk *str, struct confx_object *out)
+ {
+ 	int rc;
+-	struct hunk str = { .begin = conf_string,
+-			    .end = &conf_string[strlen(conf_string) - 1] };
+ 	struct hunk ent = { NULL, NULL };
+ 	struct hunk key = { NULL, NULL };
+ 	struct hunk val = { NULL, NULL };
+ 
+-	rc = sequence_parse(&ent, &str, ':');
++	rc = sequence_parse(&ent, str, ':');
+ 	if (rc != 0)
+ 		return rc;
+ 	hunk_cp(&key, &ent);
+ 
+-	rc = sequence_parse(&ent, &str, ':');
++	rc = sequence_parse(&ent, str, ':');
+ 	if (rc != 0)
+ 		return rc;
+ 	hunk_cp(&val, &ent);
+ 
+-	rc = sequence_parse(&ent, &str, ':');
++	rc = sequence_parse(&ent, str, ':');
+ 	if (rc != -ENOENT)
+ 		return -EINVAL;
+ 
+@@ -402,9 +465,6 @@ static int x_parser_call(const char *conf_string, struct confx_object *out)
+ 	if (rc != 0)
+ 		return rc;
+ 
+-	//hunk_pr("\t\t\tsub", &key);
+-	//hunk_pr("\t\t\tsub", &val);
+-
+ 	if (hunk_str_eq(&key, "type")) {
+ 		C2_ASSERT(out->o_conf.u_type == C2_CO_INVALID_TYPE);
+ 
+@@ -440,16 +500,7 @@ int c2_conf_parse(const char *src, struct confx_object *dest, size_t n)
+ 			dest[conf_index].o_conf.u_type = C2_CO_INVALID_TYPE;
+ 
+ 			for (; entry_parse(&ent, &rec) == 0; ) {
+-				/* @todo: avoid copying and C-strings */
+-				char parse_buf[256];
+-				int  len = ent.end - ent.begin + 1;
+-				if (len >= ARRAY_SIZE(parse_buf))
+-					return -ENOMEM;
+-
+-				memcpy(parse_buf, ent.begin, len);
+-				parse_buf[len]= '\0';
+-
+-				rc = x_parser_call(parse_buf,
++				rc = x_parser_call(&ent,
+ 						   &dest[conf_index]);
+ 				if (rc != 0)
+ 					return rc;
+-- 
+1.8.3.2
+

@@ -1,0 +1,62 @@
+From f38b1164ee97bc213c610f17b1ad75ba7f52e23f Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 6 Jun 2013 19:16:49 +0300
+Subject: [PATCH 120/161] be/list: replace be_list_reg_put() with
+ BE_LIST_PUT_REG() macro.
+
+---
+ be/list.c | 25 +++++++++++--------------
+ 1 file changed, 11 insertions(+), 14 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index 280cc9d..e26a4b1 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -89,16 +89,14 @@ M0_INTERNAL void m0_be_list_get(const struct m0_be_list *list,
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+ }
+ 
+-static void be_list_reg_put(const struct m0_be_reg *reg)
+-{
+-	M0_PRE(reg != NULL);
+-	if (reg->br_addr != NULL) {
+-		/* Check list node's reg before doing mem access. */
+-		M0_ASSERT(m0_be__reg_is_pinned(reg));
+-		m0_be_reg_put(reg);
++#undef  BE_LIST_PUT_REG
++#define BE_LIST_PUT_REG(node, reg)                                     \
++	if (node != NULL) {                                            \
++		(reg).br_addr = (node);                                \
++		/* Check list node's reg before doing mem access. */   \
++		M0_ASSERT(m0_be__reg_is_pinned(&(reg)));               \
++		m0_be_reg_put(&(reg));                                 \
+ 	}
+-}
+-
+ M0_INTERNAL void m0_be_list_put(const struct m0_be_list *list,
+ 				m0_bcount_t nelems)
+ {
+@@ -113,16 +111,15 @@ M0_INTERNAL void m0_be_list_put(const struct m0_be_list *list,
+ 
+ 	m0_tlist_for(list->bl_descr, &list->bl_list, lnode) {
+ 		if (--nelems == 0) break;
+-		/* Put previous region. */
+-		l_reg.br_addr = prvnode;
+-		be_list_reg_put(&l_reg);
++		/* Free previous node. */
++		BE_LIST_PUT_REG(prvnode, l_reg);
+ 		prvnode = lnode;
+ 	} m0_tlist_endfor;
+ 
+ 	/* Put last region. */
+-	l_reg.br_addr = prvnode;
+-	be_list_reg_put(&l_reg);
++	BE_LIST_PUT_REG(prvnode, l_reg);
+ }
++#undef  BE_LIST_PUT_REG
+ 
+ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 				   enum m0_be_list_op optype,
+-- 
+1.8.3.2
+

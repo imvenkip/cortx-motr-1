@@ -1,0 +1,320 @@
+From 75676f22d32d74444da9a8aea848e5a300faef53 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 3 Apr 2014 02:43:12 +0400
+Subject: [PATCH 12/13] - some more fixes after inspection
+
+---
+ cob/cob.h                   |  1 +
+ fid/fid.c                   | 37 ---------------------
+ fid/fid.h                   | 24 --------------
+ m0t1fs/linux_kernel/super.c |  4 +--
+ mdservice/Kbuild.sub        |  3 +-
+ mdservice/Makefile.sub      |  2 ++
+ mdservice/md_fid.c          | 81 +++++++++++++++++++++++++++++++++++++++++++++
+ mdservice/md_fid.h          | 70 +++++++++++++++++++++++++++++++++++++++
+ 8 files changed, 158 insertions(+), 64 deletions(-)
+ create mode 100644 mdservice/md_fid.c
+ create mode 100644 mdservice/md_fid.h
+
+diff --git a/cob/cob.h b/cob/cob.h
+index beab1ea..9aa70b1 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -32,6 +32,7 @@
+ #include "lib/bitstring.h"
+ #include "addb/addb.h"
+ #include "fid/fid.h"
++#include "mdservice/md_fid.h"
+ #include "stob/stob.h"
+ #include "dtm/verno.h"
+ #include "be/btree.h"
+diff --git a/fid/fid.c b/fid/fid.c
+index 33110ef..1dbc317 100644
+--- a/fid/fid.c
++++ b/fid/fid.c
+@@ -84,43 +84,6 @@ M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name)
+ 	return NULL;
+ }
+ 
+-/**
+-   Cob storage root. Not exposed to user.
+- */
+-const struct m0_fid M0_COB_ROOT_FID = {
+-	.f_container = 1ULL,
+-	.f_key       = 1ULL
+-};
+-
+-const char M0_COB_ROOT_NAME[] = "ROOT";
+-
+-const struct m0_fid M0_DOT_MERO_FID = {
+-	.f_container = 1ULL,
+-	.f_key       = 4ULL
+-};
+-
+-const char M0_DOT_MERO_NAME[] = ".mero";
+-
+-const struct m0_fid M0_DOT_MERO_FID_FID = {
+-	.f_container = 1ULL,
+-	.f_key       = 5ULL
+-};
+-
+-const char M0_DOT_MERO_FID_NAME[] = "fid";
+-
+-/**
+-   Namespace root fid. Exposed to user.
+-*/
+-const struct m0_fid M0_MDSERVICE_SLASH_FID = {
+-	.f_container = 1ULL,
+-	.f_key       = (1ULL << 16) - 1
+-};
+-
+-const struct m0_fid M0_MDSERVICE_START_FID = {
+-	.f_container = 1ULL,
+-	.f_key       = (1ULL << 16)
+-};
+-
+ M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid)
+ {
+ 	const struct m0_fid_type *ft = m0_fid_type_getfid(fid);
+diff --git a/fid/fid.h b/fid/fid.h
+index d15de23..f4b8112 100644
+--- a/fid/fid.h
++++ b/fid/fid.h
+@@ -100,30 +100,6 @@ M0_INTERNAL const struct m0_fid_type *
+ m0_fid_type_getfid(const struct m0_fid *fid);
+ M0_INTERNAL const struct m0_fid_type *m0_fid_type_getname(const char *name);
+ 
+-/* Namespace name for root cob (not exposed to user) */
+-extern const char M0_COB_ROOT_NAME[];
+-
+-/* Grobal cob root fid. */
+-extern const struct m0_fid M0_COB_ROOT_FID;
+-
+-/* Namespace name for virtual .mero directory */
+-extern const char M0_DOT_MERO_NAME[];
+-
+-/* .mero directory fid. */
+-extern const struct m0_fid M0_DOT_MERO_FID;
+-
+-/* Namespace name for virtual .mero/fid directory */
+-extern const char M0_DOT_MERO_FID_NAME[];
+-
+-/* .mero/fid directory fid. */
+-extern const struct m0_fid M0_DOT_MERO_FID_FID;
+-
+-/* Hierarchy root fid (exposed to user). */
+-extern const struct m0_fid M0_MDSERVICE_SLASH_FID;
+-
+-/* First fid that is allowed to be used by client for normal files and dirs. */
+-extern const struct m0_fid M0_MDSERVICE_START_FID;
+-
+ /** @} end of fid group */
+ #endif /* __MERO_FID_FID_H__ */
+ 
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 04c4734..f31b1cb 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -1475,8 +1475,8 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
+         body->b_blocks = 16;
+         body->b_size = 4096;
+         body->b_blksize = 4096;
+-	body->b_nlink = 2;
+-	body->b_lid = csb->csb_layout_id;
++        body->b_nlink = 2;
++        body->b_lid = csb->csb_layout_id;
+         body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+                         S_IRGRP | S_IXGRP |                     /* r-x for group */
+                         S_IROTH | S_IXOTH);
+diff --git a/mdservice/Kbuild.sub b/mdservice/Kbuild.sub
+index f854c88..e54eb0f 100644
+--- a/mdservice/Kbuild.sub
++++ b/mdservice/Kbuild.sub
+@@ -1,2 +1,3 @@
+ m0mero_objects += mdservice/md_fops.o \
+-                 mdservice/md_fops_xc.o
++                 mdservice/md_fops_xc.o \
++                 mdservice/md_fid.o
+diff --git a/mdservice/Makefile.sub b/mdservice/Makefile.sub
+index e582425..90ff573 100644
+--- a/mdservice/Makefile.sub
++++ b/mdservice/Makefile.sub
+@@ -1,10 +1,12 @@
+ nobase_mero_include_HEADERS += mdservice/md_foms.h \
++                                  mdservice/md_fid.h \
+                                   mdservice/md_fops.h \
+                                   mdservice/md_service.h \
+                                   mdservice/md_fops_xc.h \
+                                   mdservice/mdservice_addb.h
+ 
+ mero_libmero_la_SOURCES  += mdservice/md_service.c \
++                                  mdservice/md_fid.c \
+                                   mdservice/md_foms.c \
+                                   mdservice/md_fops.c \
+                                   mdservice/md_fops_xc.c
+diff --git a/mdservice/md_fid.c b/mdservice/md_fid.c
+new file mode 100644
+index 0000000..e983cf0
+--- /dev/null
++++ b/mdservice/md_fid.c
+@@ -0,0 +1,81 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 04-Apr-2014
++ */
++
++#include "lib/errno.h"         /* EINVAL */
++#include "lib/misc.h"          /* memcmp, strcmp */
++#include "lib/string.h"        /* sscanf */
++#include "lib/assert.h"        /* M0_PRE */
++#include "fid/fid_xc.h"
++#include "fid/fid.h"
++
++/**
++   @addtogroup md_fid
++
++   @{
++ */
++
++/**
++   Cob storage root. Not exposed to user.
++ */
++M0_INTERNAL const struct m0_fid M0_COB_ROOT_FID = {
++	.f_container = 1ULL,
++	.f_key       = 1ULL
++};
++
++M0_INTERNAL const char M0_COB_ROOT_NAME[] = "ROOT";
++
++M0_INTERNAL const struct m0_fid M0_DOT_MERO_FID = {
++	.f_container = 1ULL,
++	.f_key       = 4ULL
++};
++
++M0_INTERNAL const char M0_DOT_MERO_NAME[] = ".mero";
++
++M0_INTERNAL const struct m0_fid M0_DOT_MERO_FID_FID = {
++	.f_container = 1ULL,
++	.f_key       = 5ULL
++};
++
++M0_INTERNAL const char M0_DOT_MERO_FID_NAME[] = "fid";
++
++/**
++   Namespace root fid. Exposed to user.
++*/
++M0_INTERNAL const struct m0_fid M0_MDSERVICE_SLASH_FID = {
++	.f_container = 1ULL,
++	.f_key       = (1ULL << 16) - 1
++};
++
++M0_INTERNAL const struct m0_fid M0_MDSERVICE_START_FID = {
++	.f_container = 1ULL,
++	.f_key       = (1ULL << 16)
++};
++
++/** @} end of md_fid group */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/mdservice/md_fid.h b/mdservice/md_fid.h
+new file mode 100644
+index 0000000..098099a
+--- /dev/null
++++ b/mdservice/md_fid.h
+@@ -0,0 +1,70 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 04-Apr-2014
++ */
++
++#pragma once
++
++#ifndef __MERO_MDSERVICE_MD_FID_H__
++#define __MERO_MDSERVICE_MD_FID_H__
++
++/**
++   @defgroup md_fid Md fid constants
++
++   @{
++ */
++
++/* import */
++#include "fid/fid.h"
++
++/* Namespace name for root cob (not exposed to user) */
++M0_EXTERN const char M0_COB_ROOT_NAME[];
++
++/* Grobal cob root fid. */
++M0_EXTERN const struct m0_fid M0_COB_ROOT_FID;
++
++/* Namespace name for virtual .mero directory */
++M0_EXTERN const char M0_DOT_MERO_NAME[];
++
++/* .mero directory fid. */
++M0_EXTERN const struct m0_fid M0_DOT_MERO_FID;
++
++/* Namespace name for virtual .mero/fid directory */
++M0_EXTERN const char M0_DOT_MERO_FID_NAME[];
++
++/* .mero/fid directory fid. */
++M0_EXTERN const struct m0_fid M0_DOT_MERO_FID_FID;
++
++/* Hierarchy root fid (exposed to user). */
++M0_EXTERN const struct m0_fid M0_MDSERVICE_SLASH_FID;
++
++/* First fid that is allowed to be used by client for normal files and dirs. */
++M0_EXTERN const struct m0_fid M0_MDSERVICE_START_FID;
++
++/** @} end of md_fid group */
++#endif /* __MERO_MDSERVICE_MD_FID_H__ */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+-- 
+1.8.3.2
+

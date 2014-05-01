@@ -1,0 +1,73 @@
+From bbee64c53390ec94315a02ae4bace9d440208955 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 27 Oct 2013 19:25:58 +0200
+Subject: [PATCH 10/17] st: jenkins entry point added
+
+---
+ st/jenkins.sh        | 42 ++++++++++++++++++++++++++++++++++++++++++
+ st/pm/net-test/st.sh |  4 ++++
+ 2 files changed, 46 insertions(+)
+ create mode 100755 st/jenkins.sh
+ create mode 100755 st/pm/net-test/st.sh
+
+diff --git a/st/jenkins.sh b/st/jenkins.sh
+new file mode 100755
+index 0000000..3a0da6f
+--- /dev/null
++++ b/st/jenkins.sh
+@@ -0,0 +1,42 @@
++#!/bin/bash
++set -eux
++export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
++
++export MERO_ST_ROOT=$(cd "$( dirname "$0")" && pwd)
++export MERO_SRC_ROOT="`dirname $MERO_ST_ROOT`"
++export MERO_ST_ARTIFACTS="`dirname $MERO_SRC_ROOT`/artifacts"
++export MERO_ST_DATA_ROOT="`dirname $MERO_SRC_ROOT`/st_root"
++
++main() {
++	TASK_NAME="${1-help}"
++	shift 1 || true
++
++	case "$TASK_NAME" in
++	"build-performance")
++		# TODO parametrize
++		cd "$MERO_SRC_ROOT"
++		sh autogen.sh
++		./configure --enable-profiler --enable-release
++		make -j9
++		;;
++	"net-test")
++		sudo "$MERO_ST_ROOT/pm/net-test/st.sh" "$@" \
++			 > "$MERO_ST_ARTIFACTS/net-test-stdout.txt" \
++			2> "$MERO_ST_ARTIFACTS/net-test-stderr.txt"
++		;;
++	"clean")
++		sudo rm -rf "$MERO_ST_ARTIFACTS" "$MERO_ST_DATA_ROOT"
++		mkdir -p "$MERO_ST_ARTIFACTS"
++		mkdir -p "$MERO_ST_DATA_ROOT"
++		;;
++	"git-clean")
++		cd $MERO_SRC_ROOT
++		sudo chown --recursive `id -nu`:`id -ng` "$MERO_SRC_ROOT"
++		git clean -dfx
++	"help")
++		echo "See st/jenkins.sh" # TODO improve
++		;;
++	esac
++}
++
++main "$@"
+diff --git a/st/pm/net-test/st.sh b/st/pm/net-test/st.sh
+new file mode 100755
+index 0000000..fb99b8d
+--- /dev/null
++++ b/st/pm/net-test/st.sh
+@@ -0,0 +1,4 @@
++#!/bin/bash
++
++# TODO move net-test scripts here
++"$MERO_SRC_ROOT/net/test/st/st.sh" "$@"
+-- 
+1.8.3.2
+

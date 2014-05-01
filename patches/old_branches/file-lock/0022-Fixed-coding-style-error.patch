@@ -1,0 +1,28 @@
+From 39906089d1cc91ddd73b7f744638d6e3bcf2fe6d Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Tue, 30 Apr 2013 20:55:40 +0530
+Subject: [PATCH 22/25] Fixed coding style error.
+
+---
+ rm/file.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/rm/file.c b/rm/file.c
+index 02b4cd7..1b0d7ce 100644
+--- a/rm/file.c
++++ b/rm/file.c
+@@ -277,9 +277,9 @@ static int file_lock_decode(struct m0_bufvec_cursor *cur,
+ 		 * m0_rm_resource_add()
+ 		 */
+ 		*resource = &fl->fi_res;
+-	} else {
++	} else
+ 		m0_free(fl);
+-	}
++
+ 	M0_RETURN(rc);
+ }
+ 
+-- 
+1.8.3.2
+

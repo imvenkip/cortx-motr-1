@@ -1,0 +1,155 @@
+From 53a974476a9059e4e1653dd15b75556c783feb74 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 20 Jul 2011 23:55:10 +0400
+Subject: [PATCH 166/177] - disable ut if no cunit foundin the system
+
+---
+ Makefile.am       |  4 ++++
+ colibri/init.c    |  4 ++++
+ configure.ac      | 32 +++++++++++++++++++++++---------
+ lib/Makefile.am   |  8 +++++++-
+ utils/Makefile.am |  6 +++++-
+ 5 files changed, 43 insertions(+), 11 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index ca7183a..566ba16 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -8,9 +8,13 @@ SUBDIRS_LIBS = lib addb/addb_pseudo fol db fid fop sm stob xdr net addb dtm nrs
+                site reqh mdstore iostore # rpc
+ 
+ SUBDIR_KERNEL = build_kernel_modules
++if HAVE_CUNIT_SUPPORT
+ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
+             fol/ut sns/ut desim/ut cob/ut xdr/ut net/ut net/bulk_emulation/ut \
+             udb/ut capa/ut mdstore/ut #rpc/ut
++else
++SUBDIR_UT = 
++endif
+ SUBDIR_ST = net/st net/bulk_emulation/st
+ SUBDIR_UB =
+ SUBDIR_BIN = utils
+diff --git a/colibri/init.c b/colibri/init.c
+index e02bee9..f300785 100644
+--- a/colibri/init.c
++++ b/colibri/init.c
+@@ -29,7 +29,9 @@
+ /* #include "rpc/rpclib.h" */
+ #include "fop/fop.h"
+ #include "addb/addb.h"
++#ifdef HAVE_CUNIT
+ #include "lib/ut.h"
++#endif
+ #include "lib/bitstring.h"
+ #include "layout/layout.h"
+ #include "pool/pool.h"
+@@ -59,7 +61,9 @@ struct init_fini_call {
+ struct init_fini_call subsystem[] = {
+ 	{ &c2_trace_init,    &c2_trace_fini,   "trace" },
+ 	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
++#ifdef HAVE_CUNIT
+ 	{ &c2_uts_init,      &c2_uts_fini,     "ut" },
++#endif
+ 	{ &c2_threads_init,  &c2_threads_fini, "thread" },
+ 	{ &c2_addb_init,     &c2_addb_fini,    "addb" },
+ 	{ &c2_db_init,       &c2_db_fini,      "db" },
+diff --git a/configure.ac b/configure.ac
+index 3976a1b..e66dbe8 100755
+--- a/configure.ac
++++ b/configure.ac
+@@ -242,25 +242,39 @@ AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([HAVE_NETINET_IN_H])])
+ # Checking for CUnit
+ OLD_CFLAGS=$CFLAGS
+ 
++enable_cunit=yes
+ # Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
+ CFLAGS="-I/usr/local/include -I/opt/local/include"
+-AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h], 
+-[AC_DEFINE([HAVE_CUNIT])], [AC_MSG_ERROR([CUnit/Cunit.h cannot be found!])], 
++AC_CHECK_HEADERS([CUnit/CUnit.h CUnit/Basic.h CUnit/Automated.h], [], [
++    AC_MSG_NOTICE([CUnit/Cunit.h cannot be found!])
++    enable_cunit=no
++], 
+ [
+ #ifdef CUNIT_CUNIT_H
+ #include <CUnit/CUnit.h>
+ #endif
+ ])
+-
+ OLD_LIBS=$LIBS
+ 
+-# Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
+-LIBS="$LIBS -L/usr/local/lib -L/opt/local/lib"
+-AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [AC_MSG_ERROR([CU_basic_run_tests() cannot be found!])])
+-CUNIT_LIBS=$LIBS
+-AC_SUBST([CUNIT_LIBS])
++OLD_LIBS=$LIBS
++if test x$enable_cunit = xyes; then
++    # Make sure that CUnit is found on Mac OS X where it is usually instalelled from ports to /opt/local
++    LIBS="$LIBS -L/usr/local/lib -L/opt/local/lib"
++    AC_SEARCH_LIBS([CU_basic_run_tests], [cunit], [], [
++        AC_MSG_NOTICE([CU_basic_run_tests() cannot be found!])
++        enable_cunit=no
++    ])
++    if test x$enable_cunit = xyes; then
++        CUNIT_LIBS=$LIBS
++        AC_SUBST([CUNIT_LIBS])
++        LIBS=$OLD_LIBS
++        CFLAGS=$OLD_CFLAGS
++        AC_DEFINE([HAVE_CUNIT])
++    fi
++fi
+ LIBS=$OLD_LIBS
+-CFLAGS=$OLD_CFLAGS
++
++AM_CONDITIONAL([HAVE_CUNIT_SUPPORT], [test x$enable_cunit = xyes])
+ 
+ # Checks for typedefs, structures, and compiler characteristics.
+ AC_TYPE_SIZE_T
+diff --git a/lib/Makefile.am b/lib/Makefile.am
+index d89dc32..b55bbaa 100644
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -7,6 +7,12 @@ libc2_HEADERS        = adt.h atomic.h cond.h getopts.h misc.h refs.h trace.h \
+                        thread.h time.h ub.h bitmap.h processor.h timer.h \
+                        semaphore.h
+ 
++if HAVE_CUNIT_SUPPORT
++UT_SOURCES           = ut.c ut.h ub.c ub.h 
++else
++UT_SOURCES           =
++endif
++
+ noinst_LTLIBRARIES   = libc2.la
+ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c \
+                        queue.c vec.c chan.c mutex.c cond.c buf.c \
+@@ -16,7 +22,7 @@ libc2_la_SOURCES     = libc2.c memory.c list.c refs.c \
+                        vec.h chan.h mutex.h cond.h types.h errno.h \
+                        user_space/user_x86_64_atomic.h assert.h cdefs.h \
+                        misc.c misc.h ext.c ext.h bitstring.h bitstring.c \
+-                       ut.c ut.h ub.c ub.h trace.h user_space/trace.c \
++                       $(UT_SOURCES) trace.h user_space/trace.c \
+                        getopts.c getopts.h user_space/assert.h \
+                        user_space/mutex.h user_space/cdefs.h \
+                        user_space/utime.c user_space/types.h \
+diff --git a/utils/Makefile.am b/utils/Makefile.am
+index ae8ed95..aab27ea 100644
+--- a/utils/Makefile.am
++++ b/utils/Makefile.am
+@@ -1,8 +1,12 @@
+ SUBDIRS      = ploss
+ 
++if HAVE_CUNIT_SUPPORT
+ libstob_ut   = $(top_builddir)/stob/ut/libstob-ut.la
+-
+ noinst_PROGRAMS = ut ub
++else
++noinst_PROGRAMS =
++endif
++
+ sbin_PROGRAMS   = mkfs.colibri
+ 
+ mkfs_colibri_SOURCES   = mkfs.colibri.c
+-- 
+1.8.3.2
+

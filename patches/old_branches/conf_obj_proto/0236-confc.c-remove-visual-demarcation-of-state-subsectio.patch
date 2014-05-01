@@ -1,0 +1,73 @@
+From 494ee7464c192d2869de8b3269722fb80e267205 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 12 Jul 2012 11:54:21 +0300
+Subject: [PATCH 236/370] confc.c: remove visual demarcation of state
+ subsections
+
+LogD #396
+RB: r/865
+---
+ conf/confc.c | 10 ++--------
+ 1 file changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 184a4fb..eb56212 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -80,11 +80,10 @@
+  * }
+  * @enddot
+  *
+- * <!---------------------------------------------------------------->
+  * @subsection confc-lspec-state-initial S_INITIAL
+  *
+- * c2_confc_open() populates c2_confc_ctx::fc_path array
+- * (path_store()) and posts an AST to c2_confc::cc_group.
++ * c2_confc_open() populates c2_confc_ctx::fc_path array (path_store())
++ * and posts an AST to c2_confc::cc_group.
+  *
+  * @note  c2_sm_ast_post() signals group's clink. Current design of
+  *        confc assumes that some thread will respond to this event by
+@@ -93,7 +92,6 @@
+  * When the AST, posted by c2_confc_open(), is run, it moves a state
+  * machine (c2_confc_ctx::fc_mach) to S_CHECK state.
+  *
+- * <!---------------------------------------------------------------->
+  * @subsection confc-lspec-state-check S_CHECK
+  *
+  * When S_CHECK state is entered, check_st_in() callback is invoked.
+@@ -114,7 +112,6 @@
+  * The algorithm of path_walk() is described below (see @ref
+  * confc-lspec-walk).
+  *
+- * <!---------------------------------------------------------------->
+  * @subsection confc-lspec-state-wait-reply S_WAIT_REPLY
+  *
+  * When a state machine is about to enter S_WAIT_REPLY state,
+@@ -130,7 +127,6 @@
+  * counter (c2_rpc_item_get()) and posts an AST, scheduling transition
+  * to S_GROW_CACHE state.
+  *
+- * <!---------------------------------------------------------------->
+  * @subsection confc-lspec-state-wait-status S_WAIT_STATUS
+  *
+  * A state machine in S_WAIT_STATUS state remains idle until the
+@@ -151,7 +147,6 @@
+  *           zero.  (This case is not applicable to S_WAIT_STATUS
+  *           state.)
+  *
+- * <!---------------------------------------------------------------->
+  * @subsection confc-lspec-state-grow-cache S_GROW_CACHE
+  *
+  * When a state machine is entering S_GROW_CACHE state,
+@@ -163,7 +158,6 @@
+  * succeeds, grow_cache_st_in() moves the state machine to S_CHECK
+  * state, otherwise --- to S_FAILURE state.
+  *
+- * <!---------------------------------------------------------------->
+  * @subsection confc-lspec-state-term S_TERMINAL, S_FAILURE
+  *
+  * When a state machine enters S_TERMINAL or S_FAILURE state, it
+-- 
+1.8.3.2
+

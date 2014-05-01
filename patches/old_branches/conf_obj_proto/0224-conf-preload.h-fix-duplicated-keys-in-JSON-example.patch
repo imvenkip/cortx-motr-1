@@ -1,0 +1,42 @@
+From ee439fd65f6f89fbf95ee000c96c95cbbb85cfb0 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 5 Jul 2012 00:26:21 +0300
+Subject: [PATCH 224/370] conf/preload.h: fix duplicated keys in JSON example
+
+LogD #271
+RB: 849
+---
+ conf/preload.h | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/conf/preload.h b/conf/preload.h
+index 10da7ba..3ddf773 100644
+--- a/conf/preload.h
++++ b/conf/preload.h
+@@ -98,11 +98,11 @@
+  *
+ @verbatim
+ [ { "type":"profile", "id":"test-2", "filesystem":"c2t1fs" }
+-, { "type":fs, "id":"c2t1fs", "rootfid":[11, 22], "params":[50,60,70],
++, { "type":"filesystem", "id":"c2t1fs", "rootfid":[11, 22], "params":[50,60,70],
+     "services":["mds", "io"] }
+-, { "type":"service", "id":"mds", "filesystem":"c2t1fs", "type":1,
++, { "type":"service", "id":"mds", "filesystem":"c2t1fs", "svc_type":1,
+     "endpoints":["addr0"], "node":"N" }
+-, { "type":"service", "id":"io", "filesystem":"c2t1fs", "type":2,
++, { "type":"service", "id":"io", "filesystem":"c2t1fs", "svc_type":2,
+     "endpoints":["addr1","addr2","addr3"], "node":"N" }
+ , { "type":"node", "id":"N", "services":["mds", "io"], "memsize":8000,
+     "nr_cpu":2, "last_state":3, "flags":2, "pool_id":0, "nics":["nic0"],
+@@ -112,7 +112,7 @@
+ , { "type":"sdev", "id":"sdev0", "iface":4, "media":1, "size":596000000000,
+     "last_state":3, "flags":4, "partitions":["part0"] }
+ , { "type":"partition", "id":"part0", "start":0, "size":596000000000, "index":0,
+-    "type":7, "filename":"sda1" } ]
++    "pa_type":7, "filename":"sda1" } ]
+ @endverbatim
+  *
+  * @see @ref conf_dfspec_preload "Detailed Functional Specification"
+-- 
+1.8.3.2
+

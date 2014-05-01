@@ -1,0 +1,63 @@
+From 46602b2751a59c3c5e0e71080ceb03c4ffd69f40 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 13 Feb 2013 19:53:43 +0200
+Subject: [PATCH 60/79] net-test/demo: add -o and -p options, use
+ ::cdmline::usage
+
+---
+ net/test/demo/demo.exp | 27 +++++++++++++++++----------
+ 1 file changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/net/test/demo/demo.exp b/net/test/demo/demo.exp
+index b0c7fef..b35deb1 100755
+--- a/net/test/demo/demo.exp
++++ b/net/test/demo/demo.exp
+@@ -100,7 +100,7 @@ proc init_hosts {shosts chosts ntopts_al} {
+         set r [exec_cmd $pid($h) $sid($h) "sudo lctl list_nids" 10]
+         foreach l [split $r \n] {
+             if {[regexp {([0-9.]+)@([a-z0-9_]+)} $l a addr typ]
+-            && [info exists ntopts(t)] && "z$typ" == "z$ntopts(t)"} {
++            && "z$typ" == "z$ntopts(t)"} {
+                 lappend nids($h) $addr
+             }
+         }
+@@ -109,20 +109,27 @@ proc init_hosts {shosts chosts ntopts_al} {
+     }
+ }
+ 
+-proc usage {argv0} {
+-    send_error "USAGE: $argv0 srv1\[,srv2...\] clnt1\[,clnt2...\]\n"
+-    exit 1
+-}
+ proc main {argv0 argv} {
+     package require cmdline
+-    array set ntopts [::cmdline::getoptions argv {
+-        {t.arg    "tcp"    "network type (tcp, o2ib)"}}]
+-    if {[llength $argv] != 2} {usage $argv0}
++    set optdesc {
++        {o.arg    42        "portal"}
++        {p.arg    12345     "LNET pid"}
++        {t.arg    tcp       "network type: tcp or o2ib"}
++        {v                  "turn on verbose mode"}
++    }
++    set usg "\[options\] srv1\[,srv2...\] clnt1\[,clnt2...\]"
++    if {[catch {
++        array set ntopts [::cmdline::getoptions argv $optdesc $usg]
++        if {[llength $argv] != 2} {
++            error [::cmdline::usage $optdesc $usg]}
++    } err]} {
++        send_error "USAGE: $err"
++        exit 1
++    }
+     set shosts [split [lindex $argv 0] ,]
+     set chosts [split [lindex $argv 1] ,]
+-    send_user "servers: $shosts\nclients: $chosts\n"
+     init_hosts $shosts $chosts [array get ntopts]
+ }
+ 
+ main $argv0 $argv
+-# vi:set sw=4 et tw=72 ft=tcl:
++# vi:set sw=4 et tw=72 ft=tcl si:
+-- 
+1.8.3.2
+

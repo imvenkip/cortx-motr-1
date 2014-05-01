@@ -1,0 +1,237 @@
+From d48b2c11831f46c921a3c880daa7914cab954a9d Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Tue, 25 Feb 2014 16:49:23 +0530
+Subject: [PATCH 3/8] be.conv.confx, - Fixed cleanup issues found in testing. -
+ Code cleanup and re-organization.
+
+---
+ conf/preload.c | 54 +++++++++++++++++++++++++++++++++++++-----------------
+ conf/ut/db.c   | 48 ++++++++++++++++++++----------------------------
+ 2 files changed, 57 insertions(+), 45 deletions(-)
+
+diff --git a/conf/preload.c b/conf/preload.c
+index 82eaa1f..08b65a3 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -36,7 +36,7 @@
+ #include "be/op.h"
+ 
+ struct confx_ctx {
+-	char                *cc_ptr;
++	void                *cc_ptr;
+ 	m0_bcount_t          cc_total;
+ 	m0_bcount_t          cc_used;
+ 	struct m0_xcode_ctx  cc_xctx;
+@@ -50,7 +50,7 @@ static void *__confx_ctx_alloc(struct confx_ctx *cctx, size_t nob)
+ 	M0_PRE(cctx->cc_ptr != NULL);
+ 	M0_PRE(cctx->cc_used + nob <= cctx->cc_total);
+ 
+-	addr = cctx->cc_ptr + cctx->cc_used;
++	addr = (char *)cctx->cc_ptr + cctx->cc_used;
+ 	cctx->cc_used += nob;
+ 
+ 	return addr;
+@@ -59,16 +59,18 @@ static void *__confx_ctx_alloc(struct confx_ctx *cctx, size_t nob)
+ static void *__confx_alloc(struct m0_xcode_cursor *ctx, size_t nob)
+ {
+ 	struct confx_ctx *cctx;
++	void             *addr;
+ 
+ 	cctx = container_of(container_of(ctx, struct m0_xcode_ctx, xcx_it),
+ 			    struct confx_ctx, cc_xctx);
+ 
+-	return __confx_ctx_alloc(cctx, nob);
++	addr = __confx_ctx_alloc(cctx, nob);
++	return addr;
+ }
+ 
+ M0_INTERNAL void m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg)
+ {
+-	struct confx_ctx *cctx;
++	struct confx_ctx       *cctx;
+ 	struct m0_be_tx_credit  cred = {};
+ 	struct m0_be_tx         tx;
+ 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
+@@ -101,12 +103,12 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg)
+ 
+ static size_t confstr_to_obj_size(const char *s)
+ {
+-	char buf[1024] = {0};
+ 	int slen = 0;
+ 	uint32_t type;
+ 	uint32_t nr_confx_obj;
+ 	size_t obj_size = 0;
+-	uint32_t conf_objtype_size[M0_CO_NR] = {
++	static const uint32_t conf_objtype_size[M0_CO_NR] = {
++			[M0_CO_DIR]     = 0,
+ 			[M0_CO_PROFILE] = sizeof(struct m0_confx_profile),
+ 			[M0_CO_FILESYSTEM] = sizeof(struct m0_confx_filesystem),
+ 			[M0_CO_SERVICE] = sizeof (struct m0_confx_service),
+@@ -115,8 +117,17 @@ static size_t confstr_to_obj_size(const char *s)
+ 			[M0_CO_SDEV] = sizeof(struct m0_confx_sdev),
+ 			[M0_CO_PARTITION] = sizeof(struct m0_confx_partition)
+ 	};
+-
+-	/* calculate size for total number of struct m0_confx_obj */
++        static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
++                               /* NONE  PRE   IN POST */
++                [M0_XA_RECORD]   = { 0, '(',   0, ')' },
++                [M0_XA_UNION]    = { 0, '{',   0, '}' },
++                [M0_XA_SEQUENCE] = { 0, '[',   0, ']' },
++                [M0_XA_TYPEDEF]  = { 0,   0,   0,   0 },
++                [M0_XA_OPAQUE]   = { 0,   0,   0,   0 },
++                [M0_XA_ATOM]     = { 0,   0,   0,   0 }
++        };
++
++	/* calculate number of struct m0_confx_obj objects. */
+ 	if (*s != '\0' && *s == '[') {
+ 		s++;
+ 		sscanf(s, "%u\n", &nr_confx_obj);
+@@ -125,22 +136,25 @@ static size_t confstr_to_obj_size(const char *s)
+ 
+ 	while (*s != '\0') {
+ 		type = 0;
+-		conf_objtype_size[0] = 0;
+-		if (*s == '{') {
++		if (*s == structure[M0_XA_UNION][M0_XCODE_CURSOR_PRE]) {
+ 			s++;
++			/*
++			 * Extract the configuration object type in-order to
++			 * calculate and accumulate corresponding object size.
++			 */
+ 			sscanf(s, "%u\n", &type);
+ 			obj_size += conf_objtype_size[type];
+ 		}
+-		if (*s == '[')
++		if (*s == structure[M0_XA_SEQUENCE][M0_XCODE_CURSOR_PRE])
+ 			obj_size += sizeof(m0_bcount_t);
++		/* String start */
+ 		if (*s == '"') {
+-			++s;
+-			memset(buf, 0, 1024);
++			s++;
+ 			slen = 0;
++			/* String end */
+ 			while (*s != '"') {
+-				sscanf(s, "%c", &buf[slen]);
+-				++slen;
+-				++s;
++				M0_CNT_INC(slen);
++				s++;
+ 			}
+ 			obj_size += slen;
+ 		}
+@@ -172,7 +186,9 @@ static int confstr_ctx_init(struct confx_ctx *cctx, const char *s,
+ 		M0_ASSERT(rc == 0);
+ 		M0_RETURN(rc);
+ 	}
+-	M0_BE_ALLOC_ARR_SYNC(cctx->cc_ptr, obj_size, seg, &tx);
++	M0_BE_OP_SYNC(__op,
++		      m0_be_alloc(m0_be_seg_allocator(seg), &tx, &__op,
++				  &cctx->cc_ptr, obj_size));
+ 	M0_ASSERT(cctx->cc_ptr != NULL);
+ 	m0_be_tx_close_sync(&tx);
+ 	m0_be_tx_fini(&tx);
+@@ -196,6 +212,10 @@ M0_INTERNAL int m0_confstr_parse(const char *s, struct m0_be_seg *seg,
+ 	M0_ENTRY();
+ 
+ 	M0_SET0(&ctx);
++	/*
++	 * Support building configuration objects in both BE segment memory as
++	 * well as main memory through xcode.
++	 */
+ 	if (seg != NULL) {
+ 		M0_ALLOC_PTR(cctx);
+ 		if (cctx == NULL)
+diff --git a/conf/ut/db.c b/conf/ut/db.c
+index db18560..897dde6 100644
+--- a/conf/ut/db.c
++++ b/conf/ut/db.c
+@@ -27,6 +27,7 @@
+ #include "conf/ut/file_helpers.h"
+ #include "reqh/reqh.h"
+ #include "ut/ut.h"
++#include "ut/be.h"
+ #include "be/ut/helper.h"
+ 
+ #define _CONFDB_PATH "_conf.db"
+@@ -213,9 +214,7 @@ static void conf_ut_db_init()
+ 
+ 	M0_SET0(&ut_be);
+ 	M0_SET0(&ut_seg);
+-        m0_be_ut_backend_init(&ut_be);
+-        m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+-        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
++        m0_ut_backend_init(&ut_be, &ut_seg);
+ 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+         seg = &ut_seg.bus_seg;
+         rc = m0_be_ut__seg_dict_create(seg, grp);
+@@ -224,36 +223,28 @@ static void conf_ut_db_init()
+ 
+ static void conf_ut_db_fini()
+ {
+-	/*
+-	 * XXX: Call m0_ut_backend_fini_with_reqh() after
+-	 *      fixing m0_confdb_destroy().
+-	 */
+-        m0_be_ut_seg_fini(&ut_seg);
+-        m0_be_ut_backend_fini(&ut_be);
+-}
++	struct m0_sm_group     *grp;
+ 
+-/*
+-static int conf_ut_be_tx_create(struct m0_be_tx *tx,
+-				struct m0_be_ut_backend *ut_be,
+-				struct m0_be_tx_credit *accum)
+-{
+-        m0_be_ut_tx_init(tx, ut_be);
+-        m0_be_tx_prep(tx, accum);
+-        return m0_be_tx_open_sync(tx);
++	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
++	m0_be_ut__seg_dict_destroy(seg, grp);
++	m0_ut_backend_fini(&ut_be, &ut_seg);
+ }
+ 
+-static void conf_ut_be_tx_fini(struct m0_be_tx *tx)
++void __confstr_parse(char *buf, uint32_t nr_objs)
+ {
+-        m0_be_tx_close_sync(tx);
+-        m0_be_tx_fini(tx);
++	struct m0_confx *enc;
++	int              rc;
++
++	rc = m0_confstr_parse(buf, seg, &enc);
++	M0_UT_ASSERT(rc == 0);
++	M0_UT_ASSERT(enc->cx_nr == nr_objs);
++	m0_confx_free(enc, seg);
+ }
+-*/
+ 
+ void test_confstr_parse(void)
+ {
+-	struct m0_confx        *enc;
+-	int                     rc;
+-	char                    buf[1024] = {0};
++	int   rc;
++	char  buf[1024] = {0};
+ 
+ 	cleanup();
+ 
+@@ -261,10 +252,11 @@ void test_confstr_parse(void)
+ 
+ 	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
+ 	M0_UT_ASSERT(rc == 0);
+-	rc = m0_confstr_parse(buf, seg, &enc);
++	__confstr_parse(buf, 8);
++	memset(buf, 0, 1024);
++	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf-str.txt"), buf, sizeof buf);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(enc->cx_nr == 8);
+-	m0_confx_free(enc, seg);
++	__confstr_parse(buf, 6);
+ 	conf_ut_db_fini();
+ }
+ 
+-- 
+1.8.3.2
+

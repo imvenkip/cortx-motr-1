@@ -1,0 +1,293 @@
+From ceff53aab0fe757d70828c96b5b6eedb1bd29dd4 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Wed, 14 Mar 2012 19:51:01 +0530
+Subject: [PATCH 02/10] Copy metadata fop definitions from replicator branch.
+
+---
+ Makefile.am           |   3 +-
+ colibri/Makefile.am   |   1 +
+ configure.ac          |   4 +-
+ mdservice/.gitignore  |   1 +
+ mdservice/Makefile.am |  19 +++++++
+ mdservice/md_fops.c   |  10 ++++
+ mdservice/md_fops.ff  | 150 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ stob/ut/.gitignore    |   1 +
+ 8 files changed, 186 insertions(+), 3 deletions(-)
+ create mode 100644 mdservice/.gitignore
+ create mode 100644 mdservice/Makefile.am
+ create mode 100644 mdservice/md_fops.c
+ create mode 100644 mdservice/md_fops.ff
+
+diff --git a/Makefile.am b/Makefile.am
+index 7f00286..b5f136a 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -26,6 +26,7 @@ SUBDIRS_LIBS = \
+                dtm \
+                ioservice \
+                layout \
++               mdservice \
+                mw \
+                nrs \
+                pool \
+@@ -49,7 +50,7 @@ SUBDIR_ST = console/st net/st net/bulk_emulation/st yaml2db/st
+ 
+ SUBDIR_UB =
+ 
+-SUBDIR_BIN = console/bin mds utils
++SUBDIR_BIN = console/bin utils
+ 
+ SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT) \
+ 	     $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
+diff --git a/colibri/Makefile.am b/colibri/Makefile.am
+index da36069..59a3aa2 100644
+--- a/colibri/Makefile.am
++++ b/colibri/Makefile.am
+@@ -27,6 +27,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
+                             $(top_builddir)/fop/libcolibri-fop.la \
+                             $(top_builddir)/layout/libcolibri-layout.la \
+                             $(top_builddir)/lib/libc2.la \
++                            $(top_builddir)/mdservice/libcolibri-mdservice.la \
+                             $(top_builddir)/net/libcolibri-net.la \
+                             $(top_builddir)/net/bulk_emulation/libcolibri-net-bulkmem.la \
+                             $(top_builddir)/net/bulk_emulation/libcolibri-net-bulksunrpc.la \
+diff --git a/configure.ac b/configure.ac
+index f853f6c..6277b87 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -631,9 +631,9 @@ AC_CONFIG_FILES([
+                  balloc/Makefile
+                  balloc/ut/Makefile
+                  build_kernel_modules/Makefile
++                 c2t1fs/linux_kernel/st/common.sh
+                  capa/Makefile
+                  capa/ut/Makefile
+-                 c2t1fs/linux_kernel/st/common.sh
+                  cfg/Makefile
+                  cob/Makefile
+                  cob/ut/Makefile
+@@ -665,7 +665,7 @@ AC_CONFIG_FILES([
+                  lib/ut/Makefile
+                  m4/Makefile
+                  man/Makefile
+-                 mds/Makefile
++                 mdservice/Makefile
+                  mw/Makefile
+                  net/Makefile
+ 		 net/bulk_emulation/Makefile
+diff --git a/mdservice/.gitignore b/mdservice/.gitignore
+new file mode 100644
+index 0000000..1d6c042
+--- /dev/null
++++ b/mdservice/.gitignore
+@@ -0,0 +1 @@
++md_fops_[uk].[ch]
+diff --git a/mdservice/Makefile.am b/mdservice/Makefile.am
+new file mode 100644
+index 0000000..0158ff7
+--- /dev/null
++++ b/mdservice/Makefile.am
+@@ -0,0 +1,19 @@
++MDSVC_SRCDIR                     = @SRCDIR@/mdservice
++
++mdservicedir                     = $(includedir)/mdservice
++
++md_fops_u.h md_fops_u.c md_fops_k.h md_fops_k.c: md_fops.ff \
++                  $(top_builddir)/fop/rt/libc2rt.la \
++                  $(top_builddir)/fop/fop2c 
++	$(top_builddir)/fop/fop2c -uk $<
++
++
++noinst_LTLIBRARIES               = libcolibri-mdservice.la
++libcolibri_mdservice_la_SOURCES  = md_fops_u.c md_fops_u.h md_fops.c \
++INCLUDES                         = -I. -I$(top_srcdir) -I$(top_srcdir)/include
++
++EXTRA_DIST                       = md_fops.ff
++
++clean-local:
++	cd $(MDSVC_SRCDIR) ; \
++	rm -fr md_fops_[uk].[ch]
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+new file mode 100644
+index 0000000..25ecf01
+--- /dev/null
++++ b/mdservice/md_fops.c
+@@ -0,0 +1,10 @@
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++
++#include "fop/fop.h"
++
++#include "mdservice/md_fops_u.h"
++#include "fop/fop_format_def.h"
++#include "mdservice/md_fops.ff"
++
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+new file mode 100644
+index 0000000..c54565e
+--- /dev/null
++++ b/mdservice/md_fops.ff
+@@ -0,0 +1,150 @@
++/* -*- C -*- */
++/*
++ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
++ * Original creation date: 03/29/2011
++ */
++
++/**
++   @addtogroup fop
++   @{
++ */
++
++/** @file md_fop.ff
++ *
++ * <b>Colibri metatadata fop formats</b>
++ *
++ */
++
++DEF(c2_fop_fid, RECORD,
++    _(f_seq, U64),
++    _(f_oid, U64));
++
++DEF(c2_fop_str, SEQUENCE,
++    _(s_len, U32),
++    _(s_buf, BYTE));
++
++DEF(c2_fop_cob, RECORD,
++    _(b_index, U64),
++    _(b_version, U64),
++    _(b_flags, U32),
++    _(b_valid, U32),
++    _(b_mode, U32),
++    _(b_size, U64),
++    _(b_blksize, U64),
++    _(b_blocks, U64),
++    _(b_nlink, U32),
++    _(b_uid, U32),
++    _(b_gid, U32),
++    _(b_sid, U32),
++    _(b_nid, U64),
++    _(b_rdev, U32),
++    _(b_atime, U32),
++    _(b_mtime, U32),
++    _(b_ctime, U32),
++    _(b_pfid, c2_fop_fid),
++    _(b_tfid, c2_fop_fid));
++
++DEF(c2_fop_create, RECORD,
++    _(c_body,   c2_fop_cob),
++    _(c_target, c2_fop_str), /**< target for symlink case */
++    _(c_path,   c2_fop_str),
++    _(c_name,   c2_fop_str));
++
++DEF(c2_fop_create_rep, RECORD,
++    _(c_body, c2_fop_cob));
++
++DEF(c2_fop_link, RECORD,
++    _(l_body, c2_fop_cob),
++    _(l_spath, c2_fop_str),
++    _(l_tpath, c2_fop_str),
++    _(l_name, c2_fop_str));
++
++DEF(c2_fop_link_rep, RECORD,
++    _(l_body, c2_fop_cob));
++
++DEF(c2_fop_unlink, RECORD,
++    _(u_body, c2_fop_cob),
++    _(u_path, c2_fop_str),
++    _(u_name, c2_fop_str));
++
++DEF(c2_fop_unlink_rep, RECORD,
++    _(u_body, c2_fop_cob));
++
++DEF(c2_fop_rename, RECORD,
++    _(r_sbody, c2_fop_cob),
++    _(r_tbody, c2_fop_cob),
++    _(r_spath, c2_fop_str),
++    _(r_tpath, c2_fop_str),
++    _(r_sname, c2_fop_str),
++    _(r_tname, c2_fop_str));
++
++DEF(c2_fop_rename_rep, RECORD,
++    _(r_body, c2_fop_cob));
++
++DEF(c2_fop_open, RECORD,
++    _(o_path, c2_fop_str),
++    _(o_body, c2_fop_cob));
++
++DEF(c2_fop_open_rep, RECORD,
++    _(o_body, c2_fop_cob));
++
++DEF(c2_fop_close, RECORD,
++    _(c_body, c2_fop_cob),
++    _(c_path, c2_fop_str));
++
++DEF(c2_fop_close_rep, RECORD,
++    _(c_body, c2_fop_cob));
++
++DEF(c2_fop_setattr, RECORD,
++    _(s_body, c2_fop_cob),
++    _(s_path, c2_fop_str));
++
++DEF(c2_fop_setattr_rep, RECORD,
++    _(s_body, c2_fop_cob));
++
++DEF(c2_fop_getattr, RECORD,
++    _(g_body, c2_fop_cob),
++    _(g_path, c2_fop_str));
++
++DEF(c2_fop_getattr_rep, RECORD,
++    _(g_body, c2_fop_cob));
++
++DEF(c2_fop_readdir, RECORD,
++    _(r_body, c2_fop_cob),
++    _(r_path, c2_fop_str),
++    _(r_pos,  c2_fop_str));
++
++DEF(c2_fop_buf, SEQUENCE,
++    _(b_count, U32),
++    _(b_addr, BYTE));
++
++DEF(c2_fop_readdir_rep, RECORD,
++    _(r_end,  c2_fop_str),
++    _(r_body, c2_fop_cob),
++    _(r_buf,  c2_fop_buf));
++
++/** @} end of fop group */
++
++/* 
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/stob/ut/.gitignore b/stob/ut/.gitignore
+index ad8fc25..b1bb5a2 100644
+--- a/stob/ut/.gitignore
++++ b/stob/ut/.gitignore
+@@ -2,3 +2,4 @@ server
+ client
+ utadieu
+ io_[ku].[ch]
++stobutil
+-- 
+1.8.3.2
+

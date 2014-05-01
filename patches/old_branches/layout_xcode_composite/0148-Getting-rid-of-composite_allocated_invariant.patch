@@ -1,0 +1,341 @@
+From 602f4a00ad414d86e22df0fc756f6f170164787c Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 27 May 2013 19:14:47 +0530
+Subject: [PATCH 148/157] Getting rid of composite_allocated_invariant()
+
+---
+ layout/composite.c | 80 +++++++++++++++++++++++++++++++++---------------------
+ layout/ut/layout.c | 42 ++++++++++++++--------------
+ 2 files changed, 70 insertions(+), 52 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 4773ba8..ded31d6 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -128,17 +128,6 @@ struct preallocated_extents {
+ 		uint32_t                          max_used;
+ };
+ 
+-/** Verifies layout that is not populated. */
+-static bool composite_allocated_invariant(const struct m0_composite_layout *cl)
+-{
+-	return
+-		_0C(cl != NULL) &&
+-		_0C(m0_layout__allocated_invariant(&cl->cl_base)) &&
+-		_0C(m0_mutex_is_locked(&cl->cl_base.l_lock)) &&
+-		_0C(cl->cl_layers_nr == 0) &&
+-		_0C(layers_tlist_is_empty(&cl->cl_layers));
+-}
+-
+ /**
+  * Verifies that all the extents are back-to-back and that they cover
+  * the entire offset namespace that is from 0 to M0_BINDEX_MAX.
+@@ -282,7 +271,8 @@ static int composite_allocate(struct m0_layout_domain *dom,
+ 	m0_mutex_lock(&cl->cl_base.l_lock);
+ 
+ 	*out = &cl->cl_base;
+-	M0_POST(composite_allocated_invariant(cl));
++	M0_POST(m0_layout__allocated_invariant(&cl->cl_base));
++	M0_POST(cl->cl_layers_nr == 0);
+ 	M0_LEAVE("lid %llu, cl pointer %p", (unsigned long long)lid, cl);
+ 	return 0;
+ }
+@@ -292,8 +282,11 @@ static void composite_delete(struct m0_layout *l)
+ {
+ 	struct m0_composite_layout *cl;
+ 
++	M0_PRE(m0_mutex_is_locked(&l->l_lock));
++	M0_PRE(m0_layout__allocated_invariant(l));
+ 	cl = bob_of(l, struct m0_composite_layout, cl_base, &composite_bob);
+-	M0_PRE(composite_allocated_invariant(cl));
++	M0_PRE(cl->cl_layers_nr == 0);
++	M0_PRE(layers_tlist_is_empty(&cl->cl_layers));
+ 
+ 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	m0_mutex_unlock(&l->l_lock);
+@@ -303,26 +296,28 @@ static void composite_delete(struct m0_layout *l)
+ 	M0_LEAVE();
+ }
+ 
+-/** Adds a layer to the in-memory layout. */
+-static int layer_add(struct m0_composite_layout *cl,
+-		     struct m0_layout *sublayout,
+-		     struct m0_composite_layer **lr)
++/** Adds zeroth layer or beyond to the in-memory layout. */
++static int layer_add_internal(struct m0_composite_layout *cl,
++			      struct m0_layout *sublayout,
++			      struct m0_composite_layer **lr)
+ {
+ 	struct m0_composite_layer        *layer;
+ 	struct m0_composite_layer_extent *lr_ext;
+ 
+ 	/* Zeroth layer is getting added. */
+-	M0_PRE(ergo(cl->cl_layers_nr == 0, composite_allocated_invariant(cl)));
++	M0_PRE(ergo(cl->cl_layers_nr == 0,
++		    m0_mutex_is_locked(&cl->cl_base.l_lock) &&
++		    layers_tlist_is_empty(&cl->cl_layers) &&
++		    m0_layout__allocated_invariant(&cl->cl_base)));
+ 	/* Layer beyond zeroth is getting added. */
+ 	M0_PRE(ergo(cl->cl_layers_nr > 0, composite_invariant(cl)));
+ 
+ 	M0_ENTRY("lid %llu, sublayout_id %llu",
+ 		 (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long long)sublayout->l_id);
+-
+ 	M0_ALLOC_PTR(layer);
+ 	if (layer == NULL) {
+-		m0_layout__log("layer_add",
++		m0_layout__log("layer_add_internal",
+ 			       "failed to allocate composite layer",
+ 			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ALLOC,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
+@@ -343,7 +338,7 @@ static int layer_add(struct m0_composite_layout *cl,
+ 	 */
+ 	M0_ALLOC_PTR(lr_ext);
+ 	if (lr_ext == NULL) {
+-		m0_layout__log("layer_add",
++		m0_layout__log("layer_add_internal",
+ 			       "failed to allocate layer extent",
+ 			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EXT_ALLOC,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
+@@ -368,6 +363,15 @@ static int layer_add(struct m0_composite_layout *cl,
+ 	M0_RETURN(0);
+ }
+ 
++/** Adds a layer beyond the zeroth one to the in-memory layout. */
++static int layer_add(struct m0_composite_layout *cl,
++		     struct m0_layout *sublayout,
++		     struct m0_composite_layer **lr)
++{
++	M0_PRE(composite_invariant(cl));
++	return layer_add_internal(cl, sublayout, lr);
++}
++
+ static void extlist_free(struct m0_tl *extlist, bool is_fini)
+ {
+ 	struct m0_composite_layer_extent *lr_ext;
+@@ -404,18 +408,21 @@ static int composite_populate(struct m0_composite_layout *cl,
+ 	struct m0_composite_layer *layer;
+ 	int                        rc;
+ 
+-	M0_PRE(composite_allocated_invariant(cl));
++	M0_PRE(m0_layout__allocated_invariant(&cl->cl_base));
++	M0_PRE(m0_mutex_is_locked(&cl->cl_base.l_lock));
++	M0_PRE(cl->cl_layers_nr == 0);
++	M0_PRE(layers_tlist_is_empty(&cl->cl_layers));
+ 	M0_PRE(m0_layout__invariant(sublayout));
+ 	M0_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+ 
+-	rc = layer_add(cl, sublayout, &layer);
++	rc = layer_add_internal(cl, sublayout, &layer);
+ 	if (rc == 0) {
+ 		M0_ASSERT(layer->clr_idx == 0);
+ 		m0_layout__populate(&cl->cl_base, user_count);
+ 	}
+ 
+ 	M0_POST(ergo(rc == 0, composite_invariant(cl)));
+-	M0_POST(ergo(rc != 0, composite_allocated_invariant(cl)));
++	M0_POST(m0_mutex_is_locked(&cl->cl_base.l_lock));
+ 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)cl->cl_base.l_id, rc);
+ 	return rc;
+ }
+@@ -444,9 +451,13 @@ M0_INTERNAL int m0_composite_build(struct m0_layout_domain *dom,
+ 	rc = composite_allocate(dom, lid, &l);
+ 	if (rc == 0) {
+ 		/* Now, composite_allocate() has locked l->l_lock. */
++		M0_ASSERT(m0_mutex_is_locked(&l->l_lock));
++		M0_ASSERT(m0_layout__allocated_invariant(&cl->cl_base));
+ 		cl = bob_of(l, struct m0_composite_layout, cl_base,
+ 			    &composite_bob);
+-		M0_ASSERT(composite_allocated_invariant(cl));
++		M0_ASSERT(cl->cl_layers_nr == 0);
++		M0_ASSERT(layers_tlist_is_empty(&cl->cl_layers));
++
+ 		rc = composite_populate(cl, sublayout, 0);
+ 		if (rc == 0) {
+ 			*out = cl;
+@@ -772,7 +783,10 @@ static int layers_read(struct m0_composite_layout *cl,
+ 	uint32_t                   i;
+ 	int                        rc = 0;
+ 
+-	M0_PRE(composite_allocated_invariant(cl));
++	M0_PRE(m0_layout__allocated_invariant(&cl->cl_base));
++	M0_PRE(m0_mutex_is_locked(&cl->cl_base.l_lock));
++	M0_PRE(cl->cl_layers_nr == 0);
++	M0_PRE(layers_tlist_is_empty(&cl->cl_layers));
+ 	M0_PRE(cur != NULL);
+ 	M0_PRE(m0_bufvec_cursor_step(cur) >=
+ 	       layers_nr * sizeof(struct layer_header));
+@@ -782,7 +796,6 @@ static int layers_read(struct m0_composite_layout *cl,
+ 	M0_ENTRY("lid %llu, user_count %lu, layers_nr %lu",
+ 		 (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)user_count, (unsigned long)layers_nr);
+-
+ 	for (i = 0; i < layers_nr; ++i) {
+ 		sublayout = layout_find(cl->cl_base.l_dom,
+ 					sublayout_id_list[i]);
+@@ -836,9 +849,12 @@ static int layers_read(struct m0_composite_layout *cl,
+ 			layers_inmem_delete(cl);
+ 		if (populate_done)
+ 			composite_populate_reverse(cl);
+-		M0_POST(composite_allocated_invariant(cl));
++		M0_POST(cl->cl_layers_nr == 0);
++		M0_POST(layers_tlist_is_empty(&cl->cl_layers));
++		M0_POST(m0_layout__allocated_invariant(&cl->cl_base));
+ 	} else
+ 		M0_POST(composite_invariant(cl));
++	M0_POST(m0_mutex_is_locked(&cl->cl_base.l_lock));
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -862,7 +878,8 @@ static int composite_decode(struct m0_layout *l,
+ 
+ 	M0_ENTRY("lid %llu", (unsigned long long)l->l_id);
+ 	cl = bob_of(l, struct m0_composite_layout, cl_base, &composite_bob);
+-	M0_PRE(composite_allocated_invariant(cl));
++	M0_PRE(cl->cl_layers_nr == 0);
++	M0_PRE(layers_tlist_is_empty(&cl->cl_layers));
+ 
+ 	rc = sublayout_ids_inbuf_read(cl, cur, &layers_nr, &sublayout_id_list);
+ 	if (rc != 0) {
+@@ -877,10 +894,11 @@ static int composite_decode(struct m0_layout *l,
+ 			 sublayout_id_list);
+ 	m0_free(sublayout_id_list);
+ 	M0_POST(ergo(rc == 0, composite_invariant(cl)));
+-	M0_POST(ergo(rc != 0 && cl->cl_layers_nr == 0,
+-		     composite_allocated_invariant(cl)));
+ 	M0_POST(ergo(rc != 0 && cl->cl_layers_nr > 0,
+ 		     composite_invariant(cl)));
++	M0_POST(ergo(rc != 0 && cl->cl_layers_nr == 0,
++		     m0_layout__allocated_invariant(&cl->cl_base)));
++	M0_POST(m0_mutex_is_locked(&cl->cl_base.l_lock));
+ 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+ 	return rc;
+ }
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 7e316d1..882c8d1 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -595,20 +595,20 @@ static void test_build_failure(void)
+ 
+ 	/*
+ 	 * Simulate layer memory allocation failure in the first invokation of
+-	 * layer_add() that is in the path of m0_composite_build().
++	 * layer_add_internal() that is in the path of m0_composite_build().
+ 	 */
+ 	lid = 2022;
+-	m0_fi_enable_once("layer_add", "alloc_ptr_fail/layer");
++	m0_fi_enable_once("layer_add_internal", "alloc_ptr_fail/layer");
+ 	rc = test_build_composite(lid, &domain, 5, !CONTIGUOUS_EXTENTS,
+ 				  FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 
+ 	/*
+ 	 * Simulate lr_ext memory allocation failure in the first invokation of
+-	 * layer_add() that is in the path of m0_composite_build().
++	 * layer_add_internal() that is in the path of m0_composite_build().
+ 	 */
+ 	lid = 2023;
+-	m0_fi_enable_once("layer_add", "alloc_ptr_fail/lr_ext");
++	m0_fi_enable_once("layer_add_internal", "alloc_ptr_fail/lr_ext");
+ 	rc = test_build_composite(lid, &domain, 5, !CONTIGUOUS_EXTENTS,
+ 				  FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+@@ -802,21 +802,21 @@ static void test_decode_failure(void)
+ 	 * in the path of composite_populate()
+ 	 */
+ 	lid = 4025;
+-	m0_fi_enable_off_n_on_m("layer_add", "alloc_ptr_fail/layer",
++	m0_fi_enable_off_n_on_m("layer_add_internal", "alloc_ptr_fail/layer",
+ 				2 /* composite_sublayouts nr */, 1);
+ 	rc = test_decode_composite(lid, &domain, 5, 6,
+ 				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("layer_add", "alloc_ptr_fail/layer");
++	m0_fi_disable("layer_add_internal", "alloc_ptr_fail/layer");
+ 
+ 	/* Simulate memory allocation failure for the first layer addition. */
+ 	lid = 4026;
+-	m0_fi_enable_off_n_on_m("layer_add", "alloc_ptr_fail/layer",
++	m0_fi_enable_off_n_on_m("layer_add_internal", "alloc_ptr_fail/layer",
+ 				3 /* 1 + composite_sublayouts nr */, 1);
+ 	rc = test_decode_composite(lid, &domain, 5, 6,
+ 				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("layer_add", "alloc_ptr_fail/layer");
++	m0_fi_disable("layer_add_internal", "alloc_ptr_fail/layer");
+ 
+ 	/* Simulate sublayout find error while reading the zeroth layer. */
+ 	lid = 4027;
+@@ -1431,13 +1431,13 @@ static void test_layer_ops_failure(void)
+ 
+ 	/* Simulate memory allocation error while adding a layer. */
+ 	lid = 15001;
+-	m0_fi_enable_off_n_on_m("layer_add", "alloc_ptr_fail/layer",
++	m0_fi_enable_off_n_on_m("layer_add_internal", "alloc_ptr_fail/layer",
+ 				3 /* 1 + composite_sublayouts nr */, 1);
+ 	rc = test_layer_ops_composite(lid, &domain, 5, 8,
+ 				      LAYER_ADD_FAILURE_TEST,
+ 				      !LAYER_DEL_FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("layer_add", "alloc_ptr_fail/layer");
++	m0_fi_disable("layer_add_internal", "alloc_ptr_fail/layer");
+ }
+ 
+ /**
+@@ -1665,41 +1665,41 @@ static void test_lookup_failure(void)
+ 	M0_UT_ASSERT(rc == -EPROTO);
+ 
+ 	/*
+-	 * Simulate layer_add() failure for its first invokation that is
+-	 * in the path of composite_decode().
++	 * Simulate layer_add_internal() failure for its first invokation that
++	 * is in the path of composite_decode().
+ 	 */
+ 	lid = 19021;
+-	m0_fi_enable_off_n_on_m("layer_add", "alloc_ptr_fail/layer",
++	m0_fi_enable_off_n_on_m("layer_add_internal", "alloc_ptr_fail/layer",
+ 				6 /* layers_nr + composite_sublayouts nr */, 1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("layer_add", "alloc_ptr_fail/layer");
++	m0_fi_disable("layer_add_internal", "alloc_ptr_fail/layer");
+ 
+ 	/*
+-	 * Simulate layer_add() failure for its second invokation that is
+-	 * in the path of composite_decode().
++	 * Simulate layer_add_internal() failure for its second invokation
++	 * that is in the path of composite_decode().
+ 	 */
+ 	lid = 19022;
+-	m0_fi_enable_off_n_on_m("layer_add", "alloc_ptr_fail/layer",
++	m0_fi_enable_off_n_on_m("layer_add_internal", "alloc_ptr_fail/layer",
+ 				7 /* layers_nr + 1 + composite_sublayouts nr */,
+ 				1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("layer_add", "alloc_ptr_fail/layer");
++	m0_fi_disable("layer_add_internal", "alloc_ptr_fail/layer");
+ 
+ 	/*
+-	 * Simulate layer_add() failure for the last layer addition
++	 * Simulate layer_add_internal() failure for the last layer addition
+ 	 * that is in the path of composite_decode().
+ 	 */
+ 	lid = 19023;
+-	m0_fi_enable_off_n_on_m("layer_add", "alloc_ptr_fail/layer",
++	m0_fi_enable_off_n_on_m("layer_add_internal", "alloc_ptr_fail/layer",
+ 				7 /* 2 * layers_nr - 1) */, 1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+-	m0_fi_disable("layer_add", "alloc_ptr_fail/layer");
++	m0_fi_disable("layer_add_internal", "alloc_ptr_fail/layer");
+ 
+ #if 0 //todo
+ 	/*
+-- 
+1.8.3.2
+

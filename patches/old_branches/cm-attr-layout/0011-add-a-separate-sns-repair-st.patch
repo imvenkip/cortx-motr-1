@@ -1,0 +1,244 @@
+From 1e989d8da2a0e5ae21389ccce1f0b472ecbc5eb2 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 4 Apr 2013 11:34:12 +0800
+Subject: [PATCH 11/18] add a separate sns repair st. check -EAGAIN in
+ m0t1fs_component_objects_op().
+
+---
+ m0t1fs/linux_kernel/dir.c                   |  8 ++-
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 55 +----------------
+ m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh | 91 +++++++++++++++++++++++++++++
+ scripts/m0                                  | 17 +++---
+ 4 files changed, 109 insertions(+), 62 deletions(-)
+ create mode 100755 m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index 9dfcc27..75554c4 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -969,7 +969,13 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
+ 		cob_fid = m0t1fs_ios_cob_fid(ci, i);
+ 		cob_idx = m0t1fs_ios_cob_idx(ci, &ci->ci_fid, &cob_fid);
+ 		M0_ASSERT(cob_idx != ~0);
+-		rc      = func(csb, &cob_fid, &ci->ci_fid, cob_idx);
++again:
++		rc = func(csb, &cob_fid, &ci->ci_fid, cob_idx);
++		if (rc == -EAGAIN) {
++			M0_LOG(M0_NOTICE, "Failure vector updated. Do this"
++					  " operation again");
++			goto again;
++		}
+ 		if (rc != 0) {
+ 			M0_LOG(M0_ERROR, "Cob %s [%lu:%lu] failed with %d",
+ 				func == m0t1fs_ios_cob_create ? "create" : "delete",
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 082035c..16aa0e8 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -456,62 +456,10 @@ rmw_test()
+ 	return 0
+ }
+ 
+-sns_repair_test()
+-{
+-	local rc=0
+-	local fail_device=1
+-	local stride=20
+-	local unit_size=$((stride * 1024))
+-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride &>> $MERO_TEST_LOGFILE || {
+-		cat $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-	md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair | tee  $MERO_M0T1FS_TEST_DIR/md5
+-	md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
+-	md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
+-	trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -U $unit_size -F $fail_device -n 3
+-			-s 10240000 -s 10240000 -s 10240000 -N $NR_DATA -K $NR_PARITY -P $POOL_WIDTH
+-                         -S ${lnet_nid}:${EP[0]}
+-                         -C ${lnet_nid}:${SNS_CLI_EP}"
+-	echo $trigger
+-
+-	if ! $trigger ; then
+-		echo "SNS Repair failed"
+-		rc=1
+-	else
+-		echo "SNS Repair done."
+-		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-		rc=0
+-	fi
+-
+-	unmount_and_clean &>> $MERO_TEST_LOGFILE
+-
+-	return $rc
+-}
+-
+ 
+ m0t1fs_system_tests()
+ {
+-	sns_repair_test || {
+-		echo "Failed: SNS repair failed.."
+-		return 1
+-	}
+-	return
++
+ 	file_creation_test $MAX_NR_FILES || {
+                 echo "Failed: File creation test failed."
+ 		return 1
+@@ -527,7 +475,6 @@ m0t1fs_system_tests()
+ 		return 1
+ 	}
+ 
+-
+ 	m0loop_st || return 1
+ 
+ 	return 0
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh
+new file mode 100755
+index 0000000..bc8f4e0
+--- /dev/null
++++ b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh
+@@ -0,0 +1,91 @@
++#!/bin/sh
++
++#set -x
++
++. `dirname $0`/common.sh
++. `dirname $0`/m0t1fs_common_inc.sh
++. `dirname $0`/m0t1fs_client_inc.sh
++. `dirname $0`/m0t1fs_server_inc.sh
++
++
++sns_repair_test()
++{
++	local rc=0
++	local fail_device=1
++	local stride=20
++	local unit_size=$((stride * 1024))
++
++	echo "Starting SNS repair testing ..."
++	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride &>> $MERO_TEST_LOGFILE || {
++		cat $MERO_TEST_LOGFILE
++		return 1
++	}
++	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++	dd if=/dev/zero bs=20k count=500 of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++	md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair | tee  $MERO_M0T1FS_TEST_DIR/md5
++	md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
++	md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair | tee -a $MERO_M0T1FS_TEST_DIR/md5
++	trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -U $unit_size -F $fail_device -n 3
++			-s 10240000 -s 10240000 -s 10240000 -N $NR_DATA -K $NR_PARITY -P $POOL_WIDTH
++                         -S ${lnet_nid}:${EP[0]}
++                         -C ${lnet_nid}:${SNS_CLI_EP}"
++	echo $trigger
++
++	if ! $trigger ; then
++		echo "SNS Repair failed"
++		rc=1
++	else
++		echo "SNS Repair done."
++		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++		rc=$?
++	fi
++
++	unmount_and_clean &>> $MERO_TEST_LOGFILE
++
++	return $rc
++}
++
++main()
++{
++	NODE_UUID=`uuidgen`
++	mero_service start
++	if [ $? -ne "0" ]
++	then
++		echo "Failed to start Mero Service."
++		return 1
++	fi
++
++	rc=0
++	sns_repair_test || {
++		echo "Failed: SNS repair failed.."
++		rc=1
++	}
++
++	mero_service stop
++	if [ $? -ne "0" ]
++	then
++		echo "Failed to stop Mero Service."
++		return 1
++	fi
++
++	echo "Test log available at $MERO_TEST_LOGFILE."
++
++	return $rc
++}
++
++trap unprepare EXIT
++
++main
+diff --git a/scripts/m0 b/scripts/m0
+index 33e7857..b90f1f5 100755
+--- a/scripts/m0
++++ b/scripts/m0
+@@ -57,20 +57,23 @@ run_kut() {
+ run_st() {
+     _reset
+ 
+-#    $SUDO "$SRC/net/test/st/st.sh"
++    $SUDO "$SRC/net/test/st/st.sh"
+ 
+     ## rpc ping
+-#    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" insmod
+-#    local rc=0
+-#    "$SRC/rpc/it/st" || rc=$?
+-#    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" rmmod
+-#    [ $rc -eq 0 ] || exit $rc
++    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" insmod
++    local rc=0
++    "$SRC/rpc/it/st" || rc=$?
++    $SUDO "$SRC/m0t1fs/linux_kernel/st/st" rmmod
++    [ $rc -eq 0 ] || exit $rc
+ 
+     ## conf ST
+-#    $SUDO SANDBOX_DIR=${RUNDIR}/_m0-sandbox "$SRC/m0t1fs/linux_kernel/st/st"
++    $SUDO SANDBOX_DIR=${RUNDIR}/_m0-sandbox "$SRC/m0t1fs/linux_kernel/st/st"
+ 
+     ## other ST
+     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
++
++    ## SNS repair
++    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair.sh"
+ }
+ 
+ dist_check() {
+-- 
+1.8.3.2
+

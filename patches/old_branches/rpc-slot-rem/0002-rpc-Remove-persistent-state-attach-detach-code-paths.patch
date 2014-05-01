@@ -1,0 +1,550 @@
+From e157a7934c70b43a4b0f6e8aef5225a3724a0a64 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Thu, 23 May 2013 13:11:31 +0530
+Subject: [PATCH 02/60] rpc: Remove persistent state attach/detach code paths.
+
+---
+ rpc/conn.c    | 206 ++--------------------------------------------------------
+ rpc/session.c | 193 ++----------------------------------------------------
+ 2 files changed, 9 insertions(+), 390 deletions(-)
+
+diff --git a/rpc/conn.c b/rpc/conn.c
+index 93f37a5..1aa9ef6 100644
+--- a/rpc/conn.c
++++ b/rpc/conn.c
+@@ -28,7 +28,6 @@
+ #include "lib/arith.h"
+ #include "lib/finject.h"
+ #include "lib/uuid.h"
+-#include "cob/cob.h"
+ #include "fop/fop.h"
+ #include "db/db.h"
+ #include "rpc/rpc_internal.h"
+@@ -41,8 +40,6 @@
+    This file implements functions related to m0_rpc_conn.
+  */
+ 
+-static const char conn_cob_name_fmt[] = "SENDER_%lu";
+-
+ M0_INTERNAL struct m0_rpc_chan *rpc_chan_get(struct m0_rpc_machine *machine,
+ 					     struct m0_net_end_point *dest_ep,
+ 					     uint64_t max_rpcs_in_flight);
+@@ -58,16 +55,6 @@ static int session_zero_attach(struct m0_rpc_conn *conn);
+  */
+ static void session_zero_detach(struct m0_rpc_conn *conn);
+ 
+-/**
+-   Creates "/SESSIONS/SENDER_$sender_id/SESSION_ID_0/SLOT_0:0" in cob namespace.
+- */
+-static int conn_persistent_state_attach(struct m0_rpc_conn *conn,
+-					uint64_t            sender_id,
+-					struct m0_db_tx    *tx)
+-__attribute__((unused));
+-static void __conn_persistent_state_put(struct m0_rpc_conn *conn)
+-__attribute__((unused));
+-
+ static int __conn_init(struct m0_rpc_conn      *conn,
+ 		       struct m0_net_end_point *ep,
+ 		       struct m0_rpc_machine   *machine,
+@@ -303,7 +290,6 @@ static int __conn_init(struct m0_rpc_conn      *conn,
+ 
+ 	conn->c_rpc_machine = machine;
+ 	conn->c_sender_id   = SENDER_ID_INVALID;
+-	conn->c_cob         = NULL;
+ 	conn->c_service     = NULL;
+ 	conn->c_nr_sessions = 0;
+ 
+@@ -883,103 +869,9 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
+ 	M0_POST(m0_rpc_machine_is_locked(machine));
+ }
+ 
+-M0_INTERNAL int m0_rpc_conn_cob_lookup(struct m0_cob_domain *dom,
+-				       uint64_t sender_id,
+-				       struct m0_cob **out, struct m0_db_tx *tx)
+-{
+-	struct m0_cob *root_session_cob;
+-	char           name[SESSION_COB_MAX_NAME_LEN];
+-	int            rc;
+-
+-	M0_ENTRY("cob_dom: %p, sender_id: %llu", dom,
+-		 (unsigned long long)sender_id);
+-	M0_PRE(sender_id != SENDER_ID_INVALID);
+-
+-	rc = m0_rpc_root_session_cob_get(dom, &root_session_cob, tx);
+-	if (rc == 0) {
+-		sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
+-
+-		rc = m0_rpc_cob_lookup_helper(dom, root_session_cob, name,
+-					      out, tx);
+-		m0_cob_put(root_session_cob);
+-	}
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
+-				       uint64_t sender_id,
+-				       struct m0_cob **out, struct m0_db_tx *tx)
+-{
+-	struct m0_cob *conn_cob;
+-	struct m0_cob *root_session_cob;
+-	char           name[SESSION_COB_MAX_NAME_LEN];
+-	int            rc;
+-
+-	M0_ENTRY("cob_dom: %p, sender_id: %llu", dom,
+-		 (unsigned long long)sender_id);
+-	M0_PRE(dom != NULL && out != NULL);
+-	M0_PRE(sender_id != SENDER_ID_INVALID);
+-
+-	sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
+-	*out = NULL;
+-
+-	rc = m0_rpc_cob_lookup_helper(dom, NULL, M0_COB_SESSIONS_NAME,
+-					&root_session_cob, tx);
+-	if (rc != 0) {
+-		M0_ASSERT(rc != -EEXIST);
+-		M0_RETURN(rc);
+-	}
+-	rc = m0_rpc_cob_create_helper(dom, root_session_cob, name, &conn_cob,
+-					tx);
+-	if (rc == 0)
+-		*out = conn_cob;
+-	m0_cob_put(root_session_cob);
+-	M0_RETURN(rc);
+-}
+-
+-static int conn_persistent_state_attach(struct m0_rpc_conn *conn,
+-				        uint64_t            sender_id,
+-				        struct m0_db_tx    *tx)
+-{
+-	struct m0_rpc_session *session0 = m0_rpc_conn_session0(conn);
+-	struct m0_cob_domain  *dom      = conn->c_rpc_machine->rm_dom;
+-	struct m0_rpc_slot    *slot;
+-	int                    rc;
+-	int                    i;
+-
+-	return 0;
+-
+-	M0_ENTRY("conn: %p, sender_id: %llu", conn,
+-		 (unsigned long long)sender_id);
+-	M0_PRE(m0_rpc_conn_invariant(conn) &&
+-	       conn_state(conn) == M0_RPC_CONN_CONNECTING);
+-
+-	rc = m0_rpc_conn_cob_create(dom, sender_id, &conn->c_cob, tx) ?:
+-	     m0_rpc_session_cob_create(conn->c_cob, SESSION_ID_0,
+-					&session0->s_cob, tx);
+-	if (rc != 0)
+-		goto cleanup;
+-
+-	for (i = 0; i < session0->s_nr_slots; ++i) {
+-		slot = session0->s_slot_table[i];
+-		rc   = m0_rpc_slot_cob_create(session0->s_cob, i/*SLOT0*/,
+-					     0/*SLOT_GEN*/, &slot->sl_cob, tx);
+-		if (rc != 0)
+-			goto cleanup;
+-	}
+-	return 0;
+-
+-cleanup:
+-	__conn_persistent_state_put(conn);
+-	M0_RETURN(rc);
+-}
+-
+ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn)
+ {
+ 	struct m0_rpc_machine *machine;
+-	//struct m0_db_tx        tx;
+-	uint64_t               sender_id;
+-	int                    rc;
+ 
+ 	M0_ENTRY("conn: %p", conn);
+ 	M0_PRE(conn != NULL);
+@@ -993,76 +885,13 @@ M0_INTERNAL int m0_rpc_rcv_conn_establish(struct m0_rpc_conn *conn)
+ 		  m0_rpc_conn_is_rcv(conn));
+ 
+ 	conn_state_set(conn, M0_RPC_CONN_CONNECTING);
+-	sender_id = m0_rpc_id_generate();
+-/*
+-	rc = m0_db_tx_init(&tx, machine->rm_dom->cd_dbenv, 0);
+-	if (rc == 0) {
+-		rc = conn_persistent_state_attach(conn, sender_id, &tx);
+-		if (rc == 0)
+-			rc = m0_db_tx_commit(&tx);
+-		else
+-			m0_db_tx_abort(&tx);
+-	}
+-*/
+-	rc = 0;
+-	if (rc == 0) {
+-		conn->c_sender_id = sender_id;
+-		conn_state_set(conn, M0_RPC_CONN_ACTIVE);
+-	} else
+-		conn_failed(conn, rc);
++	conn->c_sender_id = m0_rpc_id_generate();
++	conn_state_set(conn, M0_RPC_CONN_ACTIVE);
+ 
+ 	M0_POST(m0_rpc_machine_is_locked(machine));
+-	M0_RETURN(rc);
+-}
+-
+-__attribute__((unused))
+-static int conn_persistent_state_destroy(struct m0_rpc_conn *conn,
+-					 struct m0_db_tx    *tx)
+-{
+-	struct m0_rpc_session *session0;
+-	struct m0_rpc_slot    *slot;
+-	int                    i;
+-
+-	M0_ENTRY("conn: %p", conn);
+-	session0 = m0_rpc_conn_session0(conn);
+-	M0_ASSERT(conn->c_cob != NULL && session0->s_cob != NULL);
+-
+-	return 0;
+-
+-	for (i = 0; i < session0->s_nr_slots; ++i) {
+-		slot = session0->s_slot_table[i];
+-		m0_cob_delete_put(slot->sl_cob, tx);
+-		slot->sl_cob = NULL;
+-	}
+-	m0_cob_delete_put(session0->s_cob, tx);
+-	m0_cob_delete_put(conn->c_cob, tx);
+-	conn->c_cob = session0->s_cob = NULL;
+ 	M0_RETURN(0);
+ }
+ 
+-static void __conn_persistent_state_put(struct m0_rpc_conn *conn)
+-{
+-	struct m0_rpc_session *session0 = m0_rpc_conn_session0(conn);
+-	struct m0_rpc_slot    *slot;
+-	int                    i;
+-
+-	M0_ENTRY("conn: %p", conn);
+-	for (i = 0; i < session0->s_nr_slots; ++i) {
+-		slot = session0->s_slot_table[i];
+-		if (slot->sl_cob != NULL) {
+-			/* No need to "delete" cobs, as tx is going to abort */
+-			m0_cob_put(slot->sl_cob);
+-			slot->sl_cob = NULL;
+-		}
+-	}
+-	if (session0->s_cob != NULL)
+-		m0_cob_put(session0->s_cob);
+-	if (conn->c_cob != NULL)
+-		m0_cob_put(conn->c_cob);
+-	conn->c_cob = session0->s_cob = NULL;
+-	M0_LEAVE();
+-}
+-
+ M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn)
+ {
+ 	struct m0_rpc_session *session;
+@@ -1084,8 +913,6 @@ M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn)
+ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
+ {
+ 	struct m0_rpc_machine *machine;
+-//	struct m0_db_tx        tx;
+-	int                    rc;
+ 
+ 	M0_ENTRY("conn: %p", conn);
+ 	M0_PRE(conn != NULL);
+@@ -1103,36 +930,13 @@ M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
+ 	deregister_all_item_sources(conn);
+ 
+ 	conn_state_set(conn, M0_RPC_CONN_TERMINATING);
+-/*
+-	rc = m0_db_tx_init(&tx, conn->c_cob->co_dom->cd_dbenv, 0);
+-	if (rc == 0) {
+-		rc = conn_persistent_state_destroy(conn, &tx);
+-		if (rc == 0)
+-			rc = m0_db_tx_commit(&tx);
+-		else
+-			m0_db_tx_abort(&tx);
+-	}
+-*/
+-	rc = 0;
+-	if (rc == 0) {
+-		conn_state_set(conn, M0_RPC_CONN_TERMINATED);
+-	} else {
+-		/* Without dropping references to persistent objects we will
+-		   not be able to finalise session0.
+-		   Note: cobs are not deleted in persitent store and they
+-		         are leaked.
+-		   XXX Any better alternative???
+-		 */
+-		__conn_persistent_state_put(conn);
+-		conn_failed(conn, rc);
+-	}
++	conn_state_set(conn, M0_RPC_CONN_TERMINATED);
+ 	M0_ASSERT(m0_rpc_conn_invariant(conn));
+-	M0_POST(ergo(rc == 0, conn_state(conn) == M0_RPC_CONN_TERMINATED));
+-	M0_POST(ergo(rc != 0, conn_state(conn) == M0_RPC_CONN_FAILED));
++	M0_POST(conn_state(conn) == M0_RPC_CONN_TERMINATED);
+ 	/* In-core state will be cleaned up by
+ 	   m0_rpc_conn_terminate_reply_sent() */
+ 	M0_ASSERT(m0_rpc_machine_is_locked(machine));
+-	M0_RETURN(rc);
++	M0_RETURN(0);
+ }
+ 
+ M0_INTERNAL void m0_rpc_conn_terminate_reply_sent(struct m0_rpc_conn *conn)
+diff --git a/rpc/session.c b/rpc/session.c
+index fa01d49..7eafa93 100644
+--- a/rpc/session.c
++++ b/rpc/session.c
+@@ -27,7 +27,6 @@
+ #include "lib/misc.h"
+ #include "lib/bitstring.h"
+ #include "lib/uuid.h"
+-#include "cob/cob.h"
+ #include "mero/magic.h"
+ #include "fop/fop.h"
+ #include "lib/arith.h"             /* M0_CNT_DEC */
+@@ -60,20 +59,6 @@ static int  rcv_item_consume(struct m0_rpc_item *item);
+ static void rcv_reply_consume(struct m0_rpc_item *req,
+ 			      struct m0_rpc_item *reply);
+ 
+-/**
+-   Creates cob hierarchy that represents persistent state of @session.
+- */
+-static int session_persistent_state_attach(struct m0_rpc_session *session,
+-					   uint64_t               session_id,
+-					   struct m0_db_tx       *tx);
+-
+-/**
+-  Deletes all the cobs associated with the session and slots belonging to
+-  the session
+- */
+-static int session_persistent_state_destroy(struct m0_rpc_session *session,
+-					    struct m0_db_tx       *tx);
+-
+ static int nr_active_items_count(const struct m0_rpc_session *session);
+ 
+ static int slot_table_alloc_and_init(struct m0_rpc_session *session);
+@@ -330,7 +315,6 @@ M0_INTERNAL int m0_rpc_session_init_locked(struct m0_rpc_session *session,
+ 	session->s_conn                = conn;
+ 	session->s_nr_slots            = nr_slots;
+ 	session->s_slot_table_capacity = nr_slots;
+-	session->s_cob                 = NULL;
+ 
+ 	rpc_session_tlink_init(session);
+ 	m0_list_init(&session->s_unbound_items);
+@@ -937,54 +921,6 @@ static void session_idle_x_busy(struct m0_rpc_session *session)
+ 					       M0_RPC_SESSION_BUSY)));
+ }
+ 
+-M0_INTERNAL int m0_rpc_session_cob_lookup(struct m0_cob *conn_cob,
+-					  uint64_t session_id,
+-					  struct m0_cob **session_cob,
+-					  struct m0_db_tx *tx)
+-{
+-	struct m0_cob *cob;
+-	char           name[SESSION_COB_MAX_NAME_LEN];
+-	int            rc;
+-
+-	M0_ENTRY("conn_cob: %p, session_id: %llu", conn_cob,
+-		 (unsigned long long)session_id);
+-	M0_PRE(conn_cob != NULL && session_id <= SESSION_ID_MAX &&
+-			session_cob != NULL);
+-
+-	*session_cob = NULL;
+-	sprintf(name, "SESSION_%lu", (unsigned long)session_id);
+-
+-	rc = m0_rpc_cob_lookup_helper(conn_cob->co_dom, conn_cob, name,
+-					&cob, tx);
+-	M0_ASSERT(ergo(rc != 0, cob == NULL));
+-	*session_cob = cob;
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL int m0_rpc_session_cob_create(struct m0_cob *conn_cob,
+-					  uint64_t session_id,
+-					  struct m0_cob **session_cob,
+-					  struct m0_db_tx *tx)
+-{
+-	struct m0_cob *cob;
+-	char           name[SESSION_COB_MAX_NAME_LEN];
+-	int            rc;
+-
+-	M0_ENTRY("conn_cob: %p, session_id: %llu", conn_cob,
+-		 (unsigned long long)session_id);
+-	M0_PRE(conn_cob != NULL && session_id != SESSION_ID_INVALID &&
+-			session_cob != NULL);
+-
+-	*session_cob = NULL;
+-	sprintf(name, "SESSION_%lu", (unsigned long)session_id);
+-
+-	rc = m0_rpc_cob_create_helper(conn_cob->co_dom, conn_cob, name,
+-					&cob, tx);
+-	M0_ASSERT(ergo(rc != 0, cob == NULL));
+-	*session_cob = cob;
+-	M0_RETURN(rc);
+-}
+-
+ /**
+    Allocates and returns new session_id
+  */
+@@ -1109,9 +1045,6 @@ static void rcv_reply_consume(struct m0_rpc_item *req,
+ M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session)
+ {
+ 	struct m0_rpc_machine *machine;
+-//	struct m0_db_tx        tx;
+-	uint64_t               session_id;
+-	int                    rc;
+ 
+ 	M0_ENTRY("session: %p", session);
+ 	M0_PRE(session != NULL);
+@@ -1122,112 +1055,10 @@ M0_INTERNAL int m0_rpc_rcv_session_establish(struct m0_rpc_session *session)
+ 	M0_ASSERT(session_state(session) == M0_RPC_SESSION_INITIALISED);
+ 
+ 	session_state_set(session, M0_RPC_SESSION_ESTABLISHING);
+-	session_id = session_id_allocate();
+-	rc = 0;
+-/*
+-	rc = m0_db_tx_init(&tx, session->s_conn->c_cob->co_dom->cd_dbenv, 0);
+-	if (rc == 0) {
+-		rc = session_persistent_state_attach(session, session_id, &tx);
+-		if (rc == 0)
+-			rc = m0_db_tx_commit(&tx);
+-		else
+-			m0_db_tx_abort(&tx);
+-	}
+-*/
+-	if (rc == 0) {
+-		session->s_session_id = session_id;
+-		session_state_set(session, M0_RPC_SESSION_IDLE);
+-	} else {
+-		session_failed(session, rc);
+-	}
++	session->s_session_id = session_id_allocate();
++	session_state_set(session, M0_RPC_SESSION_IDLE);
+ 
+ 	M0_ASSERT(m0_rpc_session_invariant(session));
+-	M0_RETURN(rc);
+-}
+-
+-__attribute__((unused))
+-static int session_persistent_state_attach(struct m0_rpc_session *session,
+-					   uint64_t               session_id,
+-					   struct m0_db_tx       *tx)
+-{
+-	struct m0_cob  *cob;
+-	int             rc;
+-	int             i;
+-
+-	return 0;
+-
+-	M0_ENTRY("session: %p, session_id: %llu", session,
+-		 (unsigned long long)session_id);
+-	M0_PRE(session != NULL &&
+-	       m0_rpc_session_invariant(session) &&
+-	       session_state(session) == M0_RPC_SESSION_ESTABLISHING &&
+-	       session->s_cob == NULL);
+-
+-	session->s_cob = NULL;
+-	rc = m0_rpc_session_cob_create(session->s_conn->c_cob,
+-					session_id, &cob, tx);
+-	if (rc != 0)
+-		goto errout;
+-
+-	M0_ASSERT(cob != NULL);
+-	session->s_cob = cob;
+-
+-	for (i = 0; i < session->s_nr_slots; i++) {
+-		M0_ASSERT(session->s_slot_table[i]->sl_cob == NULL);
+-		rc = m0_rpc_slot_cob_create(session->s_cob, i, 0,
+-							&cob, tx);
+-		if (rc != 0)
+-			goto errout;
+-
+-		M0_ASSERT(cob != NULL);
+-		session->s_slot_table[i]->sl_cob = cob;
+-	}
+-	M0_RETURN(rc);
+-
+-errout:
+-	M0_ASSERT(rc != 0);
+-
+-	for (i = 0; i < session->s_nr_slots; i++) {
+-		cob = session->s_slot_table[i]->sl_cob;
+-		if (cob != NULL)
+-			m0_cob_put(cob);
+-		session->s_slot_table[i]->sl_cob = NULL;
+-	}
+-	if (session->s_cob != NULL) {
+-		m0_cob_put(session->s_cob);
+-		session->s_cob = NULL;
+-	}
+-	M0_RETURN(rc);
+-}
+-
+-__attribute__((unused))
+-static int session_persistent_state_destroy(struct m0_rpc_session *session,
+-					    struct m0_db_tx       *tx)
+-{
+-	struct m0_rpc_slot *slot;
+-	int                 i;
+-
+-	M0_ENTRY("session: %p", session);
+-	M0_ASSERT(session != NULL);
+-
+-	return 0;
+-
+-	for (i = 0; i < session->s_nr_slots; i++) {
+-		slot = session->s_slot_table[i];
+-		if (slot != NULL && slot->sl_cob != NULL) {
+-			/*
+-			 * m0_cob_delete_put() - even failed one - leaves the
+-			 * cob unusable.  And we don't care about error code.
+-			 */
+-			(void)m0_cob_delete_put(slot->sl_cob, tx);
+-			slot->sl_cob = NULL;
+-		}
+-	}
+-	if (session->s_cob != NULL) {
+-		m0_cob_delete_put(session->s_cob, tx);
+-		session->s_cob = NULL;
+-	}
+-
+ 	M0_RETURN(0);
+ }
+ 
+@@ -1235,8 +1066,6 @@ M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
+ {
+ 	struct m0_rpc_machine *machine;
+ 	struct m0_rpc_conn    *conn;
+-//	struct m0_db_tx        tx;
+-	int                    rc;
+ 
+ 	M0_ENTRY("session: %p", session);
+ 	M0_PRE(session != NULL);
+@@ -1252,26 +1081,12 @@ M0_INTERNAL int m0_rpc_rcv_session_terminate(struct m0_rpc_session *session)
+ 	session_state_set(session, M0_RPC_SESSION_TERMINATING);
+ 	/* For receiver side session, no slots are on ready_slots list
+ 	   since all reply items are bound items. */
+-/*
+-	rc = m0_db_tx_init(&tx, session->s_cob->co_dom->cd_dbenv, 0);
+-	if (rc == 0) {
+-		rc = session_persistent_state_destroy(session, &tx);
+-		if (rc == 0)
+-			rc = m0_db_tx_commit(&tx);
+-		else
+-			m0_db_tx_abort(&tx);
+-	}
+-*/
+-	rc = 0;
+-	if (rc == 0)
+-		session_state_set(session, M0_RPC_SESSION_TERMINATED);
+-	else
+-		session_failed(session, rc);
++	session_state_set(session, M0_RPC_SESSION_TERMINATED);
+ 
+ 	M0_ASSERT(m0_rpc_session_invariant(session));
+ 	M0_ASSERT(m0_rpc_machine_is_locked(machine));
+ 
+-	M0_RETURN(rc);
++	M0_RETURN(0);
+ }
+ 
+ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
+-- 
+1.8.3.2
+

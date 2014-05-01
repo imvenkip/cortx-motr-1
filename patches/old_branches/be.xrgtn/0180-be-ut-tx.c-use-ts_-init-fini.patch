@@ -1,0 +1,235 @@
+From 5b6a492056757689e0bdb34adaa4b46d1ccf8622 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 20 Jun 2013 02:51:36 +0300
+Subject: [PATCH 180/228] be (ut/tx.c): use ->ts_{init,fini}()
+
++ Use `g_' prefix for global variables.
++ Remove unnecessary #includes.
+---
+ be/ut/tx.c | 112 +++++++++++++++++++++++++++----------------------------------
+ 1 file changed, 49 insertions(+), 63 deletions(-)
+
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index b559c7c..f2e53d9 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -17,62 +17,48 @@
+  * Original creation date: 12-Jun-2013
+  */
+ 
+-#undef M0_TRACE_SUBSYSTEM
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+-#include "ut/ut.h"
+-#include "be/be.h"
+-#include "be/tx.h"
+-#include "be/seg.h"
+-#include "be/alloc.h"
++
+ #include "be/tx_fom.h"
+-#include "lib/misc.h"
+-#include "rpc/rpclib.h"
+ #include "be/ut/helper.h"
++#include "lib/misc.h"      /* M0_BITS, M0_IN */
++#include "rpc/rpclib.h"
++#include "ut/ut.h"
+ 
+-static struct m0_be_ut_seg_helper be_ut_btree_seg_helper;
+-static struct m0_sm_group         grp;
+-static struct m0_be_seg           be_ut_btree_seg;
+-static struct m0_be               be;
+-static uint64_t                   tid = 1ULL;
++static struct m0_be_ut_seg_helper g_helper;
++static struct m0_be_seg           g_seg;
++static struct m0_sm_group         g_grp;
++static uint64_t                   g_tid = 1;
+ 
+-M0_UNUSED static void seg_create(void)
++static int seg_create(void)
+ {
+ 	int                     rc;
+-	struct m0_be_seg       *seg   = &be_ut_btree_seg;
+-	struct m0_be_allocator *alloc = &seg->bs_allocator;
++	struct m0_be_allocator *alloc = &g_seg.bs_allocator;
+ 
+-	m0_be_ut_seg_create_open(&be_ut_btree_seg_helper, &be_ut_btree_seg);
++	m0_be_ut_seg_create_open(&g_helper, &g_seg);
+ 
+-	rc = m0_be_allocator_init(alloc, seg);
+-	M0_UT_ASSERT(rc == 0);
++	rc = m0_be_allocator_init(alloc, &g_seg);
++	M0_ASSERT(rc == 0);
+ 
+ 	rc = m0_be_allocator_create(alloc);
+-	M0_UT_ASSERT(rc == 0);
++	M0_ASSERT(rc == 0);
+ 
+-	m0_sm_group_init(&grp);
++	m0_sm_group_init(&g_grp);
++	return 0;
+ }
+ 
+-M0_UNUSED static void seg_destroy(void)
++static int seg_destroy(void)
+ {
+ 	int                     rc;
+-	struct m0_be_seg       *seg   = &be_ut_btree_seg;
+-	struct m0_be_allocator *alloc = &seg->bs_allocator;
+-
+-	m0_sm_group_fini(&grp);
++	struct m0_be_allocator *alloc = &g_seg.bs_allocator;
+ 
++	m0_sm_group_fini(&g_grp);
+ 	rc = m0_be_allocator_destroy(alloc);
+-	M0_UT_ASSERT(rc == 0);
++	M0_ASSERT(rc == 0);
+ 	m0_be_allocator_fini(alloc);
+-
+-	m0_be_ut_seg_close_destroy(&be_ut_btree_seg_helper, &be_ut_btree_seg);
+-}
+-
+-static void persistent(const struct m0_be_tx *tx)
+-{
+-}
+-static void discarded(const struct m0_be_tx *tx)
+-{
++	m0_be_ut_seg_close_destroy(&g_helper, &g_seg);
++	return 0;
+ }
+ 
+ static void be_init(struct m0_be *be)
+@@ -85,13 +71,15 @@ static void be_fini(struct m0_be *be)
+ 	m0_be_tx_engine_fini(&be->b_tx);
+ }
+ 
+-static void tx_test(void)
++static void persistent(const struct m0_be_tx *tx) {}
++static void discarded(const struct m0_be_tx *tx) {}
++
++static void tx_test(struct m0_be *be)
+ {
+ 	struct m0_be_op         op;
+ 	struct m0_be_tx         tx;
+ 	struct m0_be_tx_credit  cred;
+-	struct m0_be_seg       *seg   = &be_ut_btree_seg;
+-	struct m0_be_allocator *alloc = &seg->bs_allocator;
++	struct m0_be_allocator *alloc = &g_seg.bs_allocator;
+ 	struct m0_uint128      *p;
+ 	int                     rc;
+ 
+@@ -99,14 +87,14 @@ static void tx_test(void)
+ 	/*
+ 	 * Init BE, BE IO, credits
+ 	 */
+-	be_init(&be);
++	be_init(be);
+ 	m0_be_op_init(&op);
+ 	m0_be_tx_credit_init(&cred);
+ 
+ 	/*
+ 	 * Init transaction and its credits
+ 	 */
+-	m0_be_tx_init(&tx, tid++, &be, &grp, persistent, discarded, NULL);
++	m0_be_tx_init(&tx, ++g_tid, be, &g_grp, persistent, discarded, NULL);
+ 	m0_be_allocator_credit(alloc, M0_BAO_ALLOC, sizeof *p, 0, &cred);
+ 	m0_be_tx_prep(&tx, &cred);
+ 	M0_LOG(M0_DEBUG, "prepared");
+@@ -119,14 +107,14 @@ static void tx_test(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_LOG(M0_DEBUG, "opened");
+ 
+-	p = m0_be_alloc(&seg->bs_allocator, &tx, &op, sizeof *p, 0);
++	p = m0_be_alloc(alloc, &tx, &op, sizeof *p, 0);
+ 	M0_UT_ASSERT(p != NULL);
+ 	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+ 						 M0_BOS_FAILURE)));
+ 
+ 	p->u_hi = 0xdeadd00d8badf00d;
+ 	p->u_lo = 0x5ca1ab1e7e1eca57;
+-	M0_BE_TX_CAPTURE_PTR(seg, &tx, p);
++	M0_BE_TX_CAPTURE_PTR(&g_seg, &tx, p);
+ 	M0_LOG(M0_DEBUG, "captured");
+ 
+ 	/*
+@@ -141,26 +129,25 @@ static void tx_test(void)
+ 	 * Cleanup
+ 	 */
+ 	m0_be_op_fini(&op);
+-	be_fini(&be);
++	be_fini(be);
+ 
+ 	M0_LEAVE();
+ }
+ 
+-#include <unistd.h> /* XXX DELETEME */
+-
+ static void test_tx_svc(void)
+ {
++	struct m0_be    be;
++	struct m0_reqh *reqh;
++	int             rc;
+ #define NAME(ext) "be-tx-ut" ext
+-#define SERVER_ENDPOINT "lnet:0@lo:12345:34:1"
+-	int                      rc;
+-	char                    *argv[] = {
++	char *argv[] = {
+ 		NAME(""), "-r", "-p", "-T", "AD", "-D", NAME(".db"),
+ 		"-S", NAME(".stob"), "-A", NAME("-addb.stob"), "-w", "10",
+-		"-e", SERVER_ENDPOINT, "-s", "tx-service",
++		"-e", "lnet:0@lo:12345:34:1", "-s", "be-tx-service",
+ 	};
+-	static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
+-	struct m0_rpc_server_ctx txs = {
+-		.rsx_xprts            = &g_xprt,
++	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
++	struct m0_rpc_server_ctx tx_svc = {
++		.rsx_xprts            = &xprt,
+ 		.rsx_xprts_nr         = 1,
+ 		.rsx_argv             = argv,
+ 		.rsx_argc             = ARRAY_SIZE(argv),
+@@ -168,33 +155,32 @@ static void test_tx_svc(void)
+ 		.rsx_service_types_nr = 0,
+ 		.rsx_log_file_name    = NAME(".log")
+ 	};
+-	struct m0_reqh          *reqh;
+-#undef SERVER_ENDPOINT
+ #undef NAME
+ 
+-	rc = m0_rpc_server_start(&txs);
++	rc = m0_rpc_server_start(&tx_svc);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	reqh = m0_mero_to_rmach(&txs.rsx_mero_ctx)->rm_reqh;
++	reqh = m0_mero_to_rmach(&tx_svc.rsx_mero_ctx)->rm_reqh;
+ 	M0_UT_ASSERT(reqh != NULL);
+ 
+ 	rc = m0_tx_processing_start(reqh, &be.b_tx);
+ 	M0_UT_ASSERT(rc == 0);
+-	sleep(2); /* XXX FIXME */
++	sleep(2); /* give reqh some time to start */
+ 
+-	tx_test();
++	tx_test(&be);
+ 
+ 	m0_tx_processing_stop();
+-	m0_rpc_server_stop(&txs);
++	m0_rpc_server_stop(&tx_svc);
+ }
+ 
+ const struct m0_test_suite be_tx_ut = {
+ 	.ts_name = "be-tx-ut",
++	.ts_init = seg_create,
++	.ts_fini = seg_destroy,
+ 	.ts_tests = {
+-		{ "tx: segment create", seg_create },
+-		{ "txs: run", test_tx_svc },
+-		{ "tx: segment destroy", seg_destroy },
++		{ "run", test_tx_svc },
+ 		{ NULL, NULL }
+ 	}
+ };
++
+ #undef M0_TRACE_SUBSYSTEM
+-- 
+1.8.3.2
+

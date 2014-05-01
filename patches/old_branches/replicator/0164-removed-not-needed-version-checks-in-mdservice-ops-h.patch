@@ -1,0 +1,59 @@
+From 1f6f2f70564645749301fdfc324b1c9c31f44597 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Tue, 19 Jul 2011 03:11:06 -0600
+Subject: [PATCH 164/177] - removed not needed version checks in mdservice ops
+ handlers.
+
+---
+ mdservice/md_foms.c | 14 ++++----------
+ 1 file changed, 4 insertions(+), 10 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 1ef1f18..6a4de8a 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -342,8 +342,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                 
+         rc = c2_md_store_unlink(md, &pfid, scob, attr.ca_name,
+                                 attr.ca_namelen, tx);
+-        if (rc == 0 && scob->co_nsrec.cnr_nlink > 0 &&
+-            attr.ca_version > scob->co_nsrec.cnr_version)
++        if (rc == 0 && scob->co_nsrec.cnr_nlink > 0)
+                 rc = c2_md_store_setattr(md, scob, &attr, tx);
+         c2_cob_put(scob);
+         
+@@ -529,8 +528,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+                 rc = c2_md_store_open(site->s_mdstore, cob, 
+                                       body->b_flags, 
+                                       &ctx->fc_tx->tx_dbtx);
+-                if (rc == 0 && 
+-                    attr.ca_version > cob->co_nsrec.cnr_version &&
++                if (rc == 0 &&
+                     (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
+                         /*
+                          * Mode contains open flags that we don't need
+@@ -616,7 +614,6 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
+         rc = c2_md_store_close(site->s_mdstore, cob, 
+                                &ctx->fc_tx->tx_dbtx);
+         if (rc == 0 && 
+-            attr.ca_version > cob->co_nsrec.cnr_version &&
+             (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
+                 /*
+                  * Mode contains open flags that we don't need
+@@ -687,11 +684,8 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
+         if (rc)
+                 goto out;
+ 
+-        if (attr.ca_version > cob->co_nsrec.cnr_version &&
+-            (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
+-                rc = c2_md_store_setattr(site->s_mdstore, cob, &attr,
+-                                         &ctx->fc_tx->tx_dbtx);
+-        }
++        rc = c2_md_store_setattr(site->s_mdstore, cob, &attr,
++                                 &ctx->fc_tx->tx_dbtx);
+         c2_cob_put(cob);
+ 
+         if (rc == 0) {
+-- 
+1.8.3.2
+

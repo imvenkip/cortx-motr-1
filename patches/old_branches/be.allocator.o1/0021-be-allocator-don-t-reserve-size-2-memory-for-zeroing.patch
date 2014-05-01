@@ -1,0 +1,25 @@
+From 82c780438326896aeb5d70a2d2227612e71e5f88 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 20 Nov 2013 02:10:11 +0200
+Subject: [PATCH 21/96] be/allocator: don't reserve size*2 memory for zeroing
+
+---
+ be/alloc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index f3707db..9411e88 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -688,7 +688,7 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+ 	cred_chunk_size = M0_BE_TX_CREDIT_PTR(&chunk.bac_size);
+ 
+ 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
+-	mem_zero_credit = M0_BE_TX_CREDIT(1, size * 2);
++	mem_zero_credit = M0_BE_TX_CREDIT(1, size);
+ 
+ 	m0_be_list_credit(NULL, M0_BLO_CREATE,	1, &cred_list_create);
+ 	m0_be_list_credit(NULL, M0_BLO_DESTROY, 1, &cred_list_destroy);
+-- 
+1.8.3.2
+

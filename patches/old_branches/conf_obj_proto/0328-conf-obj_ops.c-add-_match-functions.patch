@@ -1,0 +1,265 @@
+From 1ad009b1183d84196b31d1cb003e23b0308db91a Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Thu, 23 Aug 2012 18:16:23 +0300
+Subject: [PATCH 328/370] conf/obj_ops.c: add *_match() functions
+
+---
+ conf/obj.h     |   2 +-
+ conf/obj_ops.c | 172 +++++++++++++++++++++++++++++++++++++++++++++------------
+ conf/obj_ops.h |   7 +++
+ 3 files changed, 145 insertions(+), 36 deletions(-)
+
+diff --git a/conf/obj.h b/conf/obj.h
+index fe45bba..f3015aa 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -251,7 +251,7 @@ struct c2_conf_filesystem {
+ 	 * NULL terminated array of C strings.
+ 	 * XXX @todo Make it an array of name-value pairs (attributes).
+ 	 */
+-	const char         *cf_params;
++	const char        **cf_params;
+ };
+ 
+ struct c2_conf_service {
+diff --git a/conf/obj_ops.c b/conf/obj_ops.c
+index 88ca726..27255a4 100644
+--- a/conf/obj_ops.c
++++ b/conf/obj_ops.c
+@@ -80,6 +80,8 @@ static int abbrev ## _lookup(struct c2_conf_obj *parent,           \
+ static int abbrev ## _fill(struct c2_conf_obj *dest,               \
+ 			   const struct confx_object *src,         \
+ 			   struct c2_conf_reg *reg);               \
++static bool abbrev ## _match(const struct c2_conf_obj *cached,     \
++			     const struct confx_object *onwire);   \
+ 								   \
+ const struct c2_bob_type c2_conf_ ## abbrev ## _bob = {            \
+ 	.bt_name = "c2_conf_" #abbrev,                             \
+@@ -125,6 +127,7 @@ static const struct obj_type {
+ 			.coo_lookup  = abbrev ## _lookup,                     \
+ 			.coo_readdir = XXX,                                   \
+ 			.coo_fill    = abbrev ## _fill,                       \
++			.coo_match   = abbrev ## _match,                      \
+ 			.coo_fini    = XXX                                    \
+ 		}                                                             \
+ 	}
+@@ -481,31 +484,14 @@ static int dir_new(const struct c2_conf_buf *dir_id,
+  * c2_conf_match()
+  * ------------------------------------------------------------------ */
+ 
+-/* static const struct { */
+-/* 	/\** */
+-/* 	 * Tests equality of the cached configuration object and its */
+-/* 	 * on-wire representation. */
+-/* 	 * */
+-/* 	 * @pre  cached->co_status == C2_CS_READY */
+-/* 	 * @pre  cached->co_type == onwire->o_conf.u_type */
+-/* 	 * @pre  c2_conf_buf_eq(cached->co_id, onwire->o_id) */
+-/* 	 *\/ */
+-/* 	bool (*oo_equal)(const struct c2_conf_obj *cached, */
+-/* 			 const struct confx_object *onwire); */
+-/* } obj_ops[C2_CO_NR] = { */
+-/* 	[C2_CO_DIR]        = { .oo_equal = XXX }, */
+-/* 	[C2_CO_PROFILE]    = { .oo_equal = XXX }, */
+-/* 	[C2_CO_FILESYSTEM] = { .oo_equal = XXX }, */
+-/* 	[C2_CO_SERVICE]    = { .oo_equal = XXX }, */
+-/* 	[C2_CO_NODE]       = { .oo_equal = XXX }, */
+-/* 	[C2_CO_NIC]        = { .oo_equal = XXX }, */
+-/* 	[C2_CO_SDEV]       = { .oo_equal = XXX }, */
+-/* 	[C2_CO_PARTITION]  = { .oo_equal = XXX } */
+-/* }; */
++static bool confx_object_is_valid(const struct confx_object *src);
+ 
+ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+ 		       const struct confx_object *onwire)
+ {
++	C2_PRE(c2_conf_obj_invariant(cached));
++	C2_PRE(confx_object_is_valid(onwire));
++
+ 	if (cached->co_type != onwire->o_conf.u_type ||
+ 	    !c2_conf_buf_eq(cached->co_id, onwire->o_id))
+ 		return false;
+@@ -513,8 +499,124 @@ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+ 	if (cached->co_status != C2_CS_READY)
+ 		return true; /* a stub corresponds to the on-wire object */
+ 
+-	C2_ASSERT(IS_IN_ARRAY(cached->co_type, obj_ops));
+-	return obj_ops[cached->co_type].oo_equal(a, b);
++	return obj_type(obj->co_type)->ot_ops.coo_match(cached, onwire);
++}
++
++static bool profile_match(const struct c2_conf_obj *cached,
++			  const struct confx_object *onwire)
++{
++	const struct confx_profile      *objx = &onwire->o_conf.u.u_profile;
++	const struct c2_conf_profile    *obj = C2_CONF_CAST(cached,
++							    &onwire->o_id);
++	const struct c2_conf_filesystem *child = obj->cp_filesystem;
++
++	return c2_conf_buf_eq(&child->cf_obj.co_id, &objx->xp_filesystem);
++}
++
++static bool filesystem_match(const struct c2_conf_obj *cached,
++			     const struct confx_object *onwire)
++{
++	const struct confx_filesystem   *objx = &onwire->o_conf.u.u_filesystem;
++	const struct c2_conf_filesystem *obj = C2_CONF_CAST(cached,
++							    &onwire->o_id);
++	const struct c2_conf_service    *child = obj->cf_services;
++	const struct c2_conf_buf        *buf;
++	int                              i;
++
++	for (i = 0; obj->cf_params[i] != NULL; ++i) {
++		C2_ASSERT(i < objx->xf_params.ab_count);
++		buf = &objx->xf_params.ab_elements[i];
++		if (memcmp(obj->cf_params[i], buf->cb_data, buf->cb_size) != 0)
++			return false;
++	}
++
++	return c2_conf_buf_eq(&child->cd_obj.co_id, &objx->xp_services) &&
++		objx->xf_rootfid.f_container == obj->cf_rootfid.f_container &&
++		objx->xf_rootfid.f_size == obj->cf_rootfid.f_size;
++}
++
++static bool service_match(const struct c2_conf_obj *cached,
++			  const struct confx_object *onwire)
++{
++	const struct confx_service   *objx = &onwire->o_conf.u.u_service;
++	const struct c2_conf_service *obj = C2_CONF_CAST(cached, &onwire->o_id);
++	const struct c2_conf_node    *child = obj->cs_node;
++	const struct c2_conf_buf     *buf;
++	int                           i;
++
++	for (i = 0; obj->cs_endpoints[i] != NULL; ++i) {
++		C2_ASSERT(i < objx->xs_endpoints.ab_count);
++		buf = &objx->xf_endpoints.ab_elements[i];
++		if (memcmp(obj->cs_endpoints[i],
++			   buf->cb_data, buf->cb_size) != 0)
++			return false;
++	}
++
++	return c2_conf_buf_eq(&child->cn_obj.co_id, &objx->xs_node) &&
++		obj->cs_type == objx->xs_type;
++}
++
++static bool node_match(const struct c2_conf_obj *cached,
++		       const struct confx_object *onwire)
++{
++	const struct confx_node   *objx = &onwire->o_conf.u.u_node;
++	const struct c2_conf_node *obj = C2_CONF_CAST(cached, &onwire->o_id);
++	const struct c2_conf_nic  *child_nic  = obj->cn_nics;
++	const struct c2_conf_sdev *child_sdev = obj->cn_sdevs;
++
++	C2_IMPOSSIBLE("To be implemented!");
++	return /* XXX TODO: compare dir elements */
++		objx->xn_memsize    == obj->cn_memsize    &&
++		objx->xn_nr_cpu	    == obj->cn_nr_cpu     &&
++		objx->xn_last_state == obj->cn_last_state &&
++		objx->xn_flags	    == obj->cn_flags      &&
++		objx->xn_pool_id    == obj->cn_pool_id;
++
++}
++
++static bool nic_match(const struct c2_conf_obj *cached,
++		      const struct confx_object *onwire)
++{
++	const struct confx_nic   *objx = &onwire->o_conf.u.u_nic;
++	const struct c2_conf_nic *obj = C2_CONF_CAST(cached, &onwire->o_id);
++
++	return objx->xi_iface == obj->ni_iface &&
++		objx->xi_mtu == obj->ni_mtu &&
++		objx->xi_speed == obj->ni_speed &&
++		objx->xi_last_state == obj->ni_last_state;
++}
++
++static bool sdev_match(const struct c2_conf_obj *cached,
++		       const struct confx_object *onwire)
++{
++	const struct confx_sdev        *objx = &onwire->o_conf.u.u_sdev;
++	const struct c2_conf_sdev      *obj = C2_CONF_CAST(cached,
++							   &onwire->o_id);
++	const struct c2_conf_partition *child = obj->ni_partitions;
++
++	C2_IMPOSSIBLE("To be implemented!");
++	return
++		/* XXX TODO: compare dir elements */
++		/* c2_conf_buf_eq(&child->pa_obj.co_id, &objx->xd_partitions) && */
++		obj->sd_iface == objx->xd_iface &&
++		obj->sd_media == objx->xd_media &&
++		obj->sd_size == objx->xd_size &&
++		obj->sd_last_state == objx->xd_last_state &&
++		obj->sd_flags == objx->xd_flags;
++}
++
++static bool partition_match(const struct c2_conf_obj *cached,
++			    const struct confx_object *onwire)
++{
++	const struct confx_partition   *objx = &onwire->o_conf.u.u_partition;
++	const struct c2_conf_partition *obj = C2_CONF_CAST(cached,
++							   &onwire->o_id);
++	return obj->pa_start == objx->xa_start  &&
++		obj->pa_size == objx->xa_size   &&
++		obj->pa_index == objx->xa_index &&
++		obj->pa_type == objx->xa_type   &&
++		memcmp(obj->pa_filename, objx->xa_file.cb_data,
++		       objx->xa_file.cb_size) == 0;
+ }
+ 
+ /* ------------------------------------------------------------------
+@@ -553,18 +655,6 @@ void c2_conf_obj_put(struct c2_conf_obj *obj)
+ 
+ static int endpoints_populate(char ***dest, const struct arr_buf *src);
+ 
+-/** Performs sanity checking of given onwire object. */
+-static bool confx_object_is_valid(const struct confx_object *src)
+-{
+-	/* XXX
+-	 * - All of c2_conf_buf-s contained in `src' are buf_is_valid();
+-	 * - all of arr_buf-s are populated with valid c2_conf_buf-s;
+-	 * - etc.
+-	 */
+-	(void) src; /* XXX */
+-	return true;
+-}
+-
+ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
+ 		     struct c2_conf_reg *reg)
+ {
+@@ -917,4 +1007,16 @@ static char *buf_strdup(const struct c2_conf_buf *buf)
+ 	return s;
+ }
+ 
++/** Performs sanity checking of given onwire object. */
++static bool confx_object_is_valid(const struct confx_object *src)
++{
++	/* XXX
++	 * - All of c2_conf_buf-s contained in `src' are buf_is_valid();
++	 * - all of arr_buf-s are populated with valid c2_conf_buf-s;
++	 * - etc.
++	 */
++	(void) src; /* XXX */
++	return true;
++}
++
+ /** @} conf_dlspec_objops */
+diff --git a/conf/obj_ops.h b/conf/obj_ops.h
+index 9422bc4..cbdf160 100644
+--- a/conf/obj_ops.h
++++ b/conf/obj_ops.h
+@@ -114,6 +114,13 @@ struct c2_conf_obj_ops {
+ 			struct c2_conf_reg *reg);
+ 
+ 	/**
++	 * Returns false iff cached configuration object and on-wire object
++	 * have conflicting data.
++	 */
++	bool (*coo_match)(const struct c2_conf_obj *cached,
++			  const struct confx_object *onwire);
++
++	/**
+ 	 * Destructor of configuration object.
+ 	 *
+ 	 * The intended usage of ->coo_fini() is to free the allocated
+-- 
+1.8.3.2
+

@@ -1,0 +1,632 @@
+From b6908f4c36d13ade326d1415a4a1f8f7ae22080c Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Fri, 21 Dec 2012 01:18:01 -0800
+Subject: [PATCH 13/94] Renamed be.c to be_reg.c, removed credit structure from
+ be_tx and changes to be_tx functions
+
+---
+ be/Makefile.sub |   6 +-
+ be/be.h         |   6 +-
+ be/be_impl.h    |   2 +-
+ be/be_reg.c     | 301 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ be/be_tx.c      | 101 ++++++-------------
+ be/be_tx.h      |   6 +-
+ be/ut/be.c      |   9 +-
+ 7 files changed, 341 insertions(+), 90 deletions(-)
+ create mode 100644 be/be_reg.c
+
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 0dab17e..e81ced7 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -5,9 +5,9 @@ nobase_mero_include_HEADERS +=  be/be.h                 \
+ 				be/lib/be_types.h	\
+ 				be/lib/be_kv_store.h	
+ 
+-mero_libmero_la_SOURCES	    += 	be/be.c                 \
+-			      	be/be_domain.c          \
+-			    	be/be_seg.c             \
++mero_libmero_la_SOURCES	    += 	be/be_domain.c          \
++			      	be/be_seg.c             \
++			    	be/be_reg.c             \
+ 			    	be/be_rvm.c             \
+ 			    	be/be_tx.c              \
+ 			    	be/lib/be_buf.c         \
+diff --git a/be/be.h b/be/be.h
+index 1dd69e2..c23083b 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -347,7 +347,8 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx,
+  *
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+  */
+-M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx, struct m0_be_credit *cred);
++//M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx, struct m0_be_credit *cred);
++M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx);
+ 
+ /**
+  * Starts a prepared transaction.
+@@ -525,9 +526,6 @@ struct m0_be_tx {
+  */
+ struct m0_be_credit {
+         /** @todo add more stuff here. */
+-
+-        /** List of region in Transaction */
+-        struct m0_tl    bc_tl;
+ };
+ 
+ /**
+diff --git a/be/be_impl.h b/be/be_impl.h
+index 96be956..51a0b8f 100644
+--- a/be/be_impl.h
++++ b/be/be_impl.h
+@@ -62,7 +62,7 @@ struct m0_be_tx_impl {
+         rvm_tid_t               *tx_id;
+ 
+         /* Credit list associated with this transaction */
+-        struct m0_be_credit     *tx_bc;
++        struct m0_tl             bc_tl;
+ 
+         struct m0_sm_group      *sm_group;
+ };
+diff --git a/be/be_reg.c b/be/be_reg.c
+new file mode 100644
+index 0000000..7090725
+--- /dev/null
++++ b/be/be_reg.c
+@@ -0,0 +1,301 @@
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Sachin Patil <spatil@xyratex.com>
++ * Original creation date: 30 Nov 2012
++ */
++
++#include "be/be.h"
++
++/**
++        Back-end
++
++  @addtogroup be
++  @{
++  */
++
++/* State machine variable declarations  */
++static const struct m0_sm_state_descr reg_states[] = {
++        [M0_BEREG_INIT] = {
++                .sd_flags     = M0_SDF_INITIAL,
++                .sd_name      = "BE REG INIT",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_INPROGRESS)  |
++                                (1 << M0_BEREG_DONE)        |
++                                (1 << M0_BEREG_FAILED)
++        },
++        [M0_BEREG_INPROGRESS] = {
++                .sd_flags     = 0,
++                .sd_name      = "BE REG INPROGRESS",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_DONE)        |
++                                (1 << M0_BEREG_SUCCEED)     |
++                                (1 << M0_BEREG_FAILED)
++        },
++        [M0_BEREG_DONE] = {
++                .sd_flags     = 0,
++                .sd_name      = "BE REG DONE",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_SUCCEED)     |
++                                (1 << M0_BEREG_FAILED)
++        },
++        [M0_BEREG_SUCCEED] = {
++                .sd_flags     = M0_SDF_TERMINAL,
++                .sd_name      = "BE REG SUCCEED",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = 0
++        },
++        [M0_BEREG_FAILED] = {
++                .sd_flags     = M0_SDF_FAILURE,
++                .sd_name      = "BE REG FAILED",
++                .sd_in        = NULL,
++                .sd_ex        = NULL,
++                .sd_invariant = NULL,
++                .sd_allowed   = (1 << M0_BEREG_FAILED)
++        },
++};
++
++static const struct m0_sm_conf reg_conf = {
++        .scf_name      = "REG States",
++        .scf_nr_states = ARRAY_SIZE(reg_states),
++        .scf_state     = reg_states
++};
++
++/**
++ * @post reg->br_sm.sm_state == M0_BEREG_INIT
++ */
++M0_INTERNAL void m0_be_reg_init(struct m0_be_reg *reg, struct m0_be_tx *tx,
++                                struct m0_be_seg *seg, struct m0_be_buf *buf)
++{
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++        M0_ASSERT(seg != NULL);
++        M0_ASSERT(buf != NULL);
++
++        /* Initialise region structure with required values */
++        reg->br_tx  = tx;
++        reg->br_seg = seg;
++        reg->br_buf = *buf;
++
++        /* todo@ Locking sm_group is required before initializing sm */
++        /* todo@ Register the state machine of the region into sm_group */
++        /* todo@ unlock locked sm group */
++
++        /* todo@ need to call function m0_sm_state_set() for same not
++         * set directly
++         */
++        reg->br_sm.sm_state = M0_BEREG_INIT;
++
++        M0_POST(reg->br_sm.sm_state == M0_BEREG_INIT);
++}
++
++/**
++ * Allocates a region.
++ * Updates m0_reference of region that can be used to persist pointers
++ *
++ * @pre reg->br_sm.sm_state == M0_BEREG_INIT
++ * @pre reg->br_buf.b_addr == NULL
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ *                                   M0_BEREG_FAILED))
++ */
++
++M0_INTERNAL void m0_be_alloc(struct m0_be_reg *reg)
++{
++        int                      err;
++        rvm_tid_t               *tid;
++        struct m0_uint128       *toffset;
++
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++
++        if (reg->br_tx == NULL)
++                tid = NULL;
++        else
++                tid = reg->br_tx->bt_impl.tx_id; 
++        /*
++         * Allocate memory from RDS Heap.
++         * Update br_buf to store virtual address.
++         */
++
++        /* extern char *rds_malloc(unsigned long size,
++         *                         rvm_tid_t *tid,
++         *                         int *err);
++         */
++        reg->br_buf.b_addr = (void *)rds_malloc(reg->br_buf.b_nob,
++                                                tid, &err);
++
++        toffset = &(reg->br_buf.logical_address.segid_offset);
++
++        toffset->u_hi = reg->br_seg->bs_impl.segment_id;
++        toffset->u_lo = (reg->br_seg->bs_addr - reg->br_buf.b_addr);
++
++
++       if (toffset->u_lo < 0)
++                toffset->u_lo = -(toffset->u_lo);
++
++        /* As heap always starts after segment header of size PAGE_SIZE */
++        toffset->u_lo += PAGE_SIZE;
++
++}
++
++/**
++ * Frees a region.
++ *
++ * Freeing NULL is a no-op.
++ *
++ * @pre reg->br_sm.sm_state == M0_BEREG_INIT
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ *                                   M0_BEREG_FAILED))
++ */
++M0_INTERNAL void m0_be_free(struct m0_be_reg *reg)
++{
++        int             err;
++        rvm_tid_t      *tid;
++
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++
++        if (reg->br_tx == NULL)
++                tid = NULL;
++        else
++                tid = reg->br_tx->bt_impl.tx_id; 
++        /*
++         * Allocate memory from RDS Heap.
++         * Update br_buf to store virtual address.
++         */
++
++        rds_free((char *)reg->br_buf.b_addr, NULL, &err);
++
++        if (err != SUCCESS) {
++                /* todo@ need to call function m0_sm_state_set() for same not
++                 * set directly
++                 */
++                reg->br_sm.sm_state = M0_BEREG_FAILED;
++                return;
++        }
++
++        reg->br_buf.b_addr                              = NULL;
++        reg->br_buf.logical_address.segid_offset.u_hi   = 0;
++        reg->br_buf.logical_address.segid_offset.u_lo   = 0;
++
++}
++
++/**
++ * Pre-fetches a region.
++ *
++ * This doesn't incur a state change in region state machine and doesn't report
++ * failures.
++ *
++ * @pre reg->br_sm.sm_state == M0_BEREG_INIT
++ * @pre reg->br_buf.b_addr != NULL
++ */
++M0_INTERNAL void m0_be_prefetch(const struct m0_be_reg *reg)
++{
++
++        return;
++}
++
++
++/**
++ * Un-pins the region, pinned by m0_be_get().
++ *
++ * @pre reg->br_sm.sm_state == M0_BEREG_INIT
++ * @pre reg->br_buf.b_addr != NULL
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ *                                   M0_BEREG_FAILED))
++ */
++M0_INTERNAL void m0_be_put(const struct m0_be_reg *reg)
++{
++
++        return;
++}
++
++/**
++ * Captures a region in a transaction.
++ *
++ * @pre tx->bt_sm.sm_state == M0_BETX_OPEN
++ * @pre reg->br_sm.sm_state == M0_BEREG_INIT
++ * @post M0_IN(reg->br_sm.sm_state, (M0_BEREG_INPROGRESS, M0_BEREG_SUCCEED,
++ *                                   M0_BEREG_FAILED))
++ */
++M0_INTERNAL void m0_be_reg_capture(struct m0_be_reg *reg)
++{
++        rvm_return_t ret;
++
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++        M0_ASSERT(reg->br_tx != NULL);
++
++        ret = rvm_set_range(reg->br_tx->bt_impl.tx_id,
++                            reg->br_buf.b_addr,
++                            reg->br_buf.b_nob);
++
++        if (RVM_SUCCESS != ret) {
++                /* Is it right to set reg->br_sm.sm_state to M0_BEREG_FAILED? */
++                /* todo@ need to call function m0_sm_state_set() for same not
++                 * set directly
++                 */
++                reg->br_sm.sm_state = M0_BEREG_FAILED;
++                return;
++        }
++
++        /* todo@ need to call function m0_sm_state_set() for same not
++         * set directly
++         */
++        reg->br_sm.sm_state = M0_BEREG_INPROGRESS;
++}
++
++/**
++ * @pre reg->br_sm.sm_state != M0_BEREG_INPROGRESS
++ */
++M0_INTERNAL void m0_be_reg_fini(struct m0_be_reg *reg)
++{
++
++        /* Asserting on required pointers */
++        M0_ASSERT(reg != NULL);
++
++        /* todo@ M0_PRE(reg->br_sm.sm_state == M0_BEREG_INPROGRESS); */
++        /* todo@ Finalizing on state machine */
++}
++
++/**
++ * The function posts tx request to state machine thread
++ *
++ */
++M0_INTERNAL void m0_reg_req_post(struct m0_sm_group *sm_group,
++                                 struct m0_sm_ast *sm_ast)
++{
++        m0_sm_ast_post(sm_group, sm_ast);
++}
++
++/** @} end group be */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/be_tx.c b/be/be_tx.c
+index 829a513..e48b7c6 100644
+--- a/be/be_tx.c
++++ b/be/be_tx.c
+@@ -145,6 +145,9 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx,
+         tx->bt_dom              = dom;
+         tx->bt_impl.sm_group    = &(dom->bd_impl.sm_group);
+ 
++        /* Initialize bt_impl->bc_tl list */
++        m0_be_reg_tlist_init(&(tx->bt_impl.bc_tl));
++
+         /*
+          * Locking sm_group is required before initializing sm
+          * TODO@ Need to confirm with Nikita, do we need to move the state
+@@ -172,25 +175,18 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx,
+  * @pre tx->bt_sm.sm_state == M0_BETX_PREPARING
+  *
+  */
+-M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx, struct m0_be_credit *cred)
++M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx)
+ {
+         struct m0_be_reg *reg_it;
+ 
+         /* Asserting on required pointers */
+         M0_ASSERT(tx != NULL);
+-        M0_ASSERT(cred != NULL);
+ 
+         /* Is tx->bt_sm.sm_state in M0_BETX_PREPARING state */
+         M0_PRE(tx->bt_sm.sm_state == M0_BETX_PREPARING);
+ 
+-        /*
+-         * Assign cred to tx->bt_impl.tx_bc, required in m0_be_tx_done
+-         * to mark regions from credit list for completion
+-         */
+-        tx->bt_impl.tx_bc = cred;
+-
+         /* Iterate credit list of regions */
+-        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++        m0_tlist_for(&m0_be_reg_tl, &(tx->bt_impl.bc_tl), reg_it) {
+ 
+                 /* check reg_it->br_sm.sm_state for region state */
+ 
+@@ -265,6 +261,8 @@ M0_INTERNAL void m0_be_tx_done(struct m0_be_tx *tx)
+  */
+ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ {
++        struct m0_be_reg *reg_it;
++
+         /* Asserting on required pointers */
+         M0_ASSERT(tx != NULL);
+ 
+@@ -272,6 +270,16 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ 
+         rvm_free_tid(tx->bt_impl.tx_id);
+ 
++         /* Removing entries from reg list if present */
++         /* Iterate credit list of regions */
++         m0_tlist_for(&m0_be_reg_tl, &(tx->bt_impl.bc_tl), reg_it) {
++                if (m0_be_reg_tlink_is_in(reg_it))
++                         m0_be_reg_tlink_del_fini(reg_it);
++         } m0_tlist_endfor;
++
++        /* Finalise bt_impl->bc_tl list */
++        m0_be_reg_tlist_fini(&(tx->bt_impl.bc_tl));
++
+         M0_TX_SM_STATE_SET(tx, M0_BETX_CLOSED);
+ 
+         /* Remove entry from in memory active transaction list if present */
+@@ -332,7 +340,6 @@ M0_INTERNAL void m0_be_tx_prep_cb(struct m0_sm_group *sm_group,
+ {
+         struct m0_be_tx         *tx;
+         struct m0_be_reg        *reg_it;
+-        struct m0_be_credit     *cred;
+ 
+         /* Asserting on required pointers */
+         M0_ASSERT(sm_group != NULL);
+@@ -342,32 +349,16 @@ M0_INTERNAL void m0_be_tx_prep_cb(struct m0_sm_group *sm_group,
+ 
+         M0_ASSERT(tx != NULL);
+ 
+-        cred = tx->bt_impl.tx_bc;
+-
+         /* Iterate credit list of regions */
+-        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++        m0_tlist_for(&m0_be_reg_tl, &(tx->bt_impl.bc_tl), reg_it) {
+                 /* Assumption: reg_it->br_tx will be updated to tx */
+                 reg_it->br_tx = tx;
+ 
+-                /* check reg_it->br_sm.sm_state for region state */
+-                switch (reg_it->br_sm.sm_state) {
+-                case M0_BEREG_INIT: 
+-                       m0_be_alloc(reg_it);
+-                       /* do not break, add allocated
+-                        * region to transaction
+-                        */
+-
+-                case M0_BEREG_DONE:
+-                       /*
+-                        * Capture region function which changes
+-                        * the region state to InProgress
+-                        */
+-                       m0_be_reg_capture(reg_it);
+-                       break;
+-
+-                default:
+-                       M0_ASSERT(!"invalid region state");
+-                }
++                /*
++                * Capture region function which changes
++                * the region state to InProgress
++                */
++                m0_be_reg_capture(reg_it);
+ 
+         } m0_tlist_endfor;
+ 
+@@ -403,8 +394,7 @@ M0_INTERNAL void m0_be_tx_done_cb(struct m0_sm_group *sm_group,
+                                   struct m0_sm_ast *sm_ast)
+ {
+         struct m0_be_tx         *tx;
+-        struct m0_be_credit *cred;
+-        struct m0_be_reg *reg_it;
++        struct m0_be_reg        *reg_it;
+         rvm_return_t ret;
+ 
+         /* Asserting on required pointers */
+@@ -420,13 +410,8 @@ M0_INTERNAL void m0_be_tx_done_cb(struct m0_sm_group *sm_group,
+                 goto exit_end_tx;
+         }
+ 
+-        /* set state of all the regions in the credit */
+-        cred = tx->bt_impl.tx_bc;
+-
+-        M0_ASSERT(cred != NULL);
+-
+         /* Iterate credit list of regions */
+-        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
++        m0_tlist_for(&m0_be_reg_tl, &(tx->bt_impl.bc_tl), reg_it) {
+                 /* Mark all regions for completion */
+                 /* TODO@ need to call function m0_sm_state_set() */
+                 reg_it->br_sm.sm_state = M0_BEREG_DONE;
+@@ -443,45 +428,17 @@ exit:
+         return;
+ }
+ 
+-M0_INTERNAL void m0_be_credit_init(struct m0_be_credit *cred)
+-{
+-        /* Asserting on required pointers */
+-        M0_ASSERT(cred != NULL);
+-
+-        /* Initialize cred->bc_tl list */
+-        m0_be_reg_tlist_init(&(cred->bc_tl));
+-}
+-
+-M0_INTERNAL void m0_be_credit_add(struct m0_be_credit *cred,
+-                                  struct m0_be_reg *reg)
++M0_INTERNAL void m0_be_tx_add_cred(struct m0_be_tx *tx,
++                                   struct m0_be_reg *reg)
+ {
+         /* Asserting on required pointers */
+-        M0_ASSERT(cred != NULL);
++        M0_ASSERT(tx != NULL);
+         M0_ASSERT(reg != NULL);
+ 
+         /* Add reg to credit list, default would be add to tail */
+         m0_be_reg_tlink_init(reg);
+ 
+-        m0_be_reg_tlist_add_tail(&(cred->bc_tl), reg);
+-}
+-
+-M0_INTERNAL void m0_be_credit_fini(struct m0_be_credit *cred)
+-{
+-        struct m0_be_reg *reg_it;
+-
+-        /* Asserting on required pointers */
+-        M0_ASSERT(cred != NULL);
+-
+-        /* Removing entries from reg list if present */
+-        /* Iterate credit list of regions */
+-        m0_tlist_for(&m0_be_reg_tl, &(cred->bc_tl), reg_it) {
+-                if (m0_be_reg_tlink_is_in(reg_it))
+-                        m0_be_reg_tlink_del_fini(reg_it);
+-
+-        } m0_tlist_endfor;
+-
+-        /* Finalise cred->bc_tl list */
+-        m0_be_reg_tlist_fini(&(cred->bc_tl));
++        m0_be_reg_tlist_add_tail(&(tx->bt_impl.bc_tl), reg);
+ }
+ 
+ /**
+diff --git a/be/be_tx.h b/be/be_tx.h
+index 7578f6c..f20d38d 100644
+--- a/be/be_tx.h
++++ b/be/be_tx.h
+@@ -33,10 +33,8 @@
+         m0_sm_state_set(&((tx)->bt_sm), state);                       \
+         m0_sm_group_unlock((tx)->bt_impl.sm_group);
+ 
+-M0_INTERNAL void m0_be_credit_init(struct m0_be_credit *cred);
+-M0_INTERNAL void m0_be_credit_add(struct m0_be_credit *cred,
+-                                  struct m0_be_reg *reg);
+-M0_INTERNAL void m0_be_credit_fini(struct m0_be_credit *cred);
++M0_INTERNAL void m0_be_tx_add_cred(struct m0_be_tx *tx,
++                                   struct m0_be_reg *reg);
+ 
+ M0_INTERNAL void m0_be_tx_init_cb(struct m0_sm_group *sm_group,
+                                   struct m0_sm_ast *sm_ast);
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 5862b33..d1a77ac 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -42,7 +42,6 @@ int main()
+ {
+         /** Be Domain Transaction */
+         struct m0_be_tx tx;
+-        struct m0_be_credit cred;
+         struct m0_be_reg reg;
+         struct m0_be_buf buf;
+ 
+@@ -94,8 +93,6 @@ int main()
+ 
+ 
+         /* Transaction list initialization */
+-        m0_be_credit_init(&cred);
+-
+         m0_be_tx_init(&tx, &dom, 0);
+ 
+         m0_sm_group_lock(tx.bt_impl.sm_group);
+@@ -108,11 +105,12 @@ int main()
+ 
+         m0_be_buf_init(&buf, NULL, 1024, 0, 0, 0);
+         m0_be_reg_init(&reg, NULL, &seg, &buf);
++        m0_be_alloc(&reg);
+ 
+-        m0_be_credit_add(&cred, &reg);
++        m0_be_tx_add_cred(&tx, &reg);
+ 
+         printf("reg : %p reg_state[%d]\n", &reg, reg.br_sm.sm_state);
+-        m0_be_tx_prep(&tx, &cred);
++        m0_be_tx_prep(&tx);
+ 
+         m0_sm_group_lock(tx.bt_impl.sm_group);
+         m0_sm_timedwait(&tx.bt_sm,
+@@ -152,7 +150,6 @@ int main()
+                         (char *)reg.br_buf.logical_address.virtual_address);
+ 
+         rvm_truncate();
+-        m0_be_credit_fini(&cred);
+ 
+         m0_be_tx_fini(&tx);
+ 
+-- 
+1.8.3.2
+

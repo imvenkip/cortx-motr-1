@@ -1,0 +1,533 @@
+From a3e60e32a62f1afe62010036aade9ac8b94b4a65 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 30 Jun 2013 16:58:03 +0300
+Subject: [PATCH 221/228] be/tg: embed fom into m0_be_tx_group, modify API and
+ impl accordingly.
+
+* add reqh parameter to tx_group_init() (and also to tx_group_alloc() and
+  tx_group_init_state() functions)
+* add reqh parameter to m0_be_tx_open() function because it may need to
+  allocate new group (via tx_group_alloc())
+* add tg_state(), tg_state_set(), tg_state_move() functions
+* plagiarize tg_invariant(), tg_states array, tg_sm_conf, tg_fom_fini(),
+  tg_fom_home_locality(), tg_fom_tick(), tg_fom_ops, tg_fom_type_ops,
+  tg_fom_type from tx fom implemetation to implement tx group fom
+* call m0_be_tg_fom_type_init() before starting tx UT
+---
+ be/tx.c       |   4 +-
+ be/tx.h       |   2 +-
+ be/tx_group.c | 299 ++++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ be/tx_group.h |  21 ++++-
+ be/ut/tx.c    |   3 +-
+ 5 files changed, 304 insertions(+), 25 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index da3777f..50b5a26 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -365,7 +365,7 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
+ 	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+-M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
++M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx, struct m0_reqh *reqh)
+ {
+ 	struct m0_be_tx_engine *eng      = tx_engine(tx);
+ 	struct m0_be_tx_credit *prepared = &tx->t_prepared;
+@@ -388,7 +388,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 		if (tg_tlist_length(&eng->te_tgs[M0_BGS_EMPTY]) ==
+ 		    tx_tlist_length(&eng->te_txs[M0_BTS_ACTIVE]) +
+ 		    tx_tlist_length(&eng->te_txs[M0_BTS_OPENING]) &&
+-		    tx_group_alloc(eng) == NULL) {
++		    tx_group_alloc(eng, reqh) == NULL) {
+ 			tx_fail(tx, -ENOMEM);
+ 		} else {
+ 			M0_ALLOC_ARR(tx->t_reg_d_area, prepared->tc_reg_nr);
+diff --git a/be/tx.h b/be/tx.h
+index ed2ac5d..944e390 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -429,7 +429,7 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
+ 			       const struct m0_be_tx_credit *credit,
+ 			       m0_bcount_t payload_size);
+ 
+-M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
++M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx, struct m0_reqh *reqh);
+ 
+ M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
+ 				  const struct m0_be_reg *reg);
+diff --git a/be/tx_group.c b/be/tx_group.c
+index d16dc52..69e52fe 100644
+--- a/be/tx_group.c
++++ b/be/tx_group.c
+@@ -20,9 +20,12 @@
+ 
+ #include "be/tx_group.h"
+ #include "be/tx.h"
+-#include "lib/list.h"    /* M0_TL_DESCR_DEFINE */
+-#include "lib/misc.h"    /* m0_forall */
+-#include "lib/memory.h"  /* m0_alloc */
++#include "be/tx_service.h"  /* XXX: m0_be_txs_stype */
++#include "lib/list.h"       /* M0_TL_DESCR_DEFINE */
++#include "lib/misc.h"       /* m0_forall */
++#include "lib/memory.h"     /* m0_alloc */
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
++#include "lib/trace.h"
+ 
+ /**
+  * @addtogroup be
+@@ -44,10 +47,266 @@ M0_TL_DESCR_DEFINE(tg, "groups", M0_INTERNAL, struct m0_be_tx_group,
+ 
+ M0_TL_DEFINE(tg, M0_INTERNAL, struct m0_be_tx_group);
+ 
++static enum m0_be_tg_state tg_state(const struct m0_be_tx_group *gr)
++{
++	return m0_fom_phase(&gr->tg_fom);
++}
++
++static void tg_state_set(struct m0_be_tx_group *gr, enum m0_be_tg_state state)
++{
++	m0_fom_phase_set(&gr->tg_fom, state);
++	tg_tlist_move(&gr->tg_eng->te_tgs[state], gr);
++}
++
++/* XXX: unused until log i/o launch at tg_tick gets implemented. */
++M0_UNUSED static void tg_state_move(struct m0_be_tx_group *gr, int err,
++				    enum m0_be_tg_state state)
++{
++	m0_fom_phase_move(&gr->tg_fom, err, state);
++	tg_tlist_move(&gr->tg_eng->te_tgs[state], gr);
++}
++
++static struct m0_be_tx_group *fom2tg(struct m0_fom *fom)
++{
++	return container_of(fom, struct m0_be_tx_group, tg_fom);
++}
++
++static const struct m0_be_tx_group *cfom2tg(const struct m0_fom *fom)
++{
++	return container_of(fom, const struct m0_be_tx_group, tg_fom);
++}
++
++static m0_bcount_t tg_tx_nr(const struct m0_be_tx_group *gr)
++{
++	m0_bcount_t n = 0;
++	int         i;
++	for (i = 0; i < ARRAY_SIZE(gr->tg_txs); i++) {
++		n += gr_tlist_length(&gr->tg_txs[i]);
++	}
++	return n;
++}
++
++M0_INTERNAL bool m0_be__tg_invariant(const struct m0_be_tx_group *gr)
++{
++	return
++		gr->tg_hdr.gh_magic == M0_TRACE_TG_HDR_MAGIC &&
++		gr->tg_cblk.gc_magic == M0_TRACE_TG_CBLK_MAGIC &&
++		/*m0_forall(i, ARRAY_SIZE(gr->tg_txs),
++			  m0_list_invariant(&gr->tg_txs[i]->tl_head)) &&*/
++		tg_tlist_contains(&gr->tg_eng->te_tgs[tg_state(gr)], gr) &&
++		tg_tx_nr(gr) == gr->tg_hdr.gh_tx_nr;
++}
++
++static bool tg_invariant(const struct m0_sm *sm)
++{
++	return m0_be__tg_invariant(fom2tg(container_of(sm, struct m0_fom,
++						       fo_sm_phase)));
++}
++
++static struct m0_sm_state_descr tg_states[M0_BGS_NR] = {
++	[M0_BGS_INIT] = {
++		.sd_flags     = M0_SDF_INITIAL,
++		.sd_name      = "M0_BGS_INIT",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = M0_BITS(M0_BGS_EMPTY)
++	},
++	[M0_BGS_EMPTY] = {
++		.sd_flags     = M0_SDF_INITIAL,
++		.sd_name      = "M0_BGS_EMPTY",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = M0_BITS(M0_BGS_ACTIVE),
++	},
++	[M0_BGS_ACTIVE] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BGS_ACTIVE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = M0_BITS(M0_BGS_ACTIVE, M0_BGS_CLOSED),
++	},
++	[M0_BGS_CLOSED] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BGS_CLOSED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = M0_BITS(M0_BGS_CLOSED, M0_BGS_LOG),
++	},
++	[M0_BGS_LOG] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BGS_LOG",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = M0_BITS(M0_BGS_LOG, M0_BGS_LOGGED),
++	},
++	[M0_BGS_LOGGED] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BGS_LOGGED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = M0_BITS(M0_BGS_PLACE),
++	},
++	[M0_BGS_PLACE] = {
++		.sd_flags     = 0,
++		.sd_name      = "M0_BGS_PLACE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = M0_BITS(M0_BGS_PLACE, M0_BGS_PLACED),
++	},
++	[M0_BGS_PLACED] = {
++		.sd_flags     = M0_SDF_TERMINAL,
++		.sd_name      = "M0_BGS_PLACED",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = 0,
++	},
++	[M0_BGS_FAILED] = {
++		.sd_flags     = M0_SDF_FAILURE,
++		.sd_name      = "M0_BGS_FAILURE",
++		.sd_in        = NULL,
++		.sd_ex        = NULL,
++		.sd_invariant = tg_invariant,
++		.sd_allowed   = 0
++	}
++};
++
++static const struct m0_sm_conf tg_sm_conf = {
++	.scf_name         = "m0_be_tx_group::tg_fom",
++	.scf_nr_states    = M0_BGS_NR,
++	.scf_state        = tg_states
++};
++
++static void tg_fom_fini(struct m0_fom *fom)
++{
++	struct m0_be_tx_group *gr = fom2tg(fom);
++	struct m0_stob_io     *io = &gr->tg_stobio;
++	M0_ENTRY();
++	m0_fom_fini(fom);
++	m0_stob_io_fini(&gr->tg_stobio);
++	/* free STOB i/o vectors */
++	m0_free(io->si_user.ov_vec.v_count);
++	io->si_user.ov_vec.v_count = NULL;  /* iv and ov share the same */
++        io->si_stob.iv_vec.v_count = NULL;  /* v_count array. */
++	m0_free(io->si_user.ov_buf);
++	io->si_user.ov_buf = NULL;
++	m0_free(io->si_stob.iv_index);
++	io->si_stob.iv_index = NULL;
++	M0_LEAVE();
++}
++
++static size_t tg_fom_home_locality(const struct m0_fom *fom)
++{
++	return cfom2tg(fom)->tg_hdr.gh_id;
++}
++
++static int tg_fom_tick(struct m0_fom *fom)
++{
++	struct m0_be_tx_group  *gr    = fom2tg(fom);
++	struct m0_be_tx_engine *eng   = gr->tg_eng;
++	struct m0_be_tx        *tx;
++	int                     state = tg_state(gr);
++
++	M0_LOG(M0_DEBUG, "state = %d", state);
++
++	switch (state) {
++	case M0_BGS_INIT:
++	case M0_BGS_EMPTY:
++	case M0_BGS_ACTIVE:
++		/* noop */
++		return M0_FSO_WAIT;
++
++	case M0_BGS_CLOSED:
++		/* All group's transactions must be in CLOSED state ATM. */
++		M0_PRE(m0_forall(i, ARRAY_SIZE(gr->tg_txs),
++				 (i == M0_BTS_CLOSED ||
++				  tg_tlist_is_empty(&gr->tg_txs[i]))));
++
++		/* If group isn't first in the CLOSED list, wait. */
++		if (gr != tg_tlist_head(&eng->te_tgs[M0_BGS_CLOSED]))
++			return M0_FSO_WAIT;
++
++		/* TODO:XXX: start log i/o. */
++	        /* Switch group's transactions to LOG state. */
++		tg_state_set(gr, M0_BGS_LOG);
++		m0_tl_for(tg, &gr->tg_txs[M0_BTS_CLOSED], tx) {
++			tx_state_set(tx, M0_BTS_LOG);
++		} m0_tl_endfor;
++		return M0_FSO_WAIT;
++
++	case M0_BGS_LOG:
++		/* Log i/o has been completed, go further.*/
++		tg_state_set(gr, M0_BGS_LOGGED);
++		m0_tl_for(tg, &gr->tg_txs[M0_BTS_CLOSED], tx) {
++			tx_state_set(tx, M0_BTS_LOGGED);
++		} m0_tl_endfor;
++		return M0_FSO_AGAIN;
++
++	case M0_BGS_LOGGED:
++		tg_state_set(gr, M0_BGS_PLACE);
++	case M0_BGS_PLACE:
++		/* All group's transactions must be in LOGGED, PLACE or
++		 * PLACED state ATM, with no more than 1 tx in PLACE. */
++		M0_PRE(m0_forall(i, ARRAY_SIZE(gr->tg_txs),
++				 (i == M0_BTS_LOGGED || i == M0_BTS_PLACE ||
++				  i == M0_BTS_PLACED ||
++				  tg_tlist_is_empty(&gr->tg_txs[i]))) &&
++		       M0_IN(tg_tlist_length(&gr->tg_txs[M0_BTS_PLACE]),
++			     (0, 1))
++		       );
++
++		if (gr_tlist_is_empty(&gr->tg_txs[M0_BGS_LOGGED])) {
++			/* All transactions made it to PLACED. */
++			tg_state_set(gr, M0_BGS_PLACED);
++		} else {
++			/* Start seg i/o for the next LOGGED
++			 * transaction by switching it to PLACE. */
++			tx = gr_tlist_head(&gr->tg_txs[M0_BTS_LOGGED]);
++			m0_fom_wait_on(fom, &tx->t_fom.fo_sm_phase.sm_chan,
++				       &fom->fo_cb);
++			tx_state_set(tx, M0_BTS_PLACE);
++		}
++		return M0_FSO_WAIT;
++
++	case M0_BGS_PLACED:
++	case M0_BGS_FAILED:
++	default:
++		M0_IMPOSSIBLE("XXX not possible");
++	}
++}
++static const struct m0_fom_ops tg_fom_ops = {
++	.fo_fini          = tg_fom_fini,
++	.fo_tick          = tg_fom_tick,
++	.fo_home_locality = tg_fom_home_locality,
++	.fo_addb_init     = NULL
++};
++
++static const struct m0_fom_type_ops tg_fom_type_ops = {
++	.fto_create       = NULL
++};
++
++static struct m0_fom_type tg_fom_type;
++
++M0_INTERNAL void m0_be_tg_fom_type_init(void)
++{
++	/* XXX: why is conf passed as non-const to fom init()? */
++	m0_fom_type_init(&tg_fom_type, &tg_fom_type_ops, &m0_be_txs_stype,
++			 (struct m0_sm_conf*)&tg_sm_conf);
++}
++
+ /* Initialize tx group in the given state excluding its STOB i/o structure. */
+ static void tx_group_init_state(struct m0_be_tx_group *gr,
+ 				struct m0_be_tx_engine *eng,
++				struct m0_reqh *reqh,
+ 				enum m0_be_tg_state state)
++
+ {
+ 	m0_mutex_init(&gr->tg_lock);
+ 	gr->tg_hdr.gh_id        = 0;
+@@ -60,21 +319,25 @@ static void tx_group_init_state(struct m0_be_tx_group *gr,
+ 	gr->tg_cblk.gc_md5.u_lo = 0;
+ 	gr->tg_cblk.gc_magic    = M0_TRACE_TG_CBLK_MAGIC;
+ 	gr->tg_eng              = eng;
+-	gr->tg_state            = state;
+ 	m0_forall(i, ARRAY_SIZE(gr->tg_txs),
+-		  (tg_tlist_init(&gr->tg_txs[i]), true));
+-	tg_tlink_init_at(gr, &eng->te_tgs[gr->tg_state]);
++		  (gr_tlist_init(&gr->tg_txs[i]), true));
++	m0_fom_init(&gr->tg_fom, &tg_fom_type, &tg_fom_ops, NULL, NULL, reqh,
++		    &m0_be_txs_stype);
++	m0_fom_queue(&gr->tg_fom, reqh);  /* init state machine */
++	tg_tlink_init_at(gr, &eng->te_tgs[state]);
+ }
+ 
+ /* Must be called with eng lock hold.*/
+ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
+-			       struct m0_be_tx_engine *eng)
++			       struct m0_be_tx_engine *eng,
++			       struct m0_reqh *reqh)
+ {
+ 	m0_stob_io_init(&gr->tg_stobio);
+-	tx_group_init_state(gr, eng, M0_BGS_INIT);
++	tx_group_init_state(gr, eng, reqh, M0_BGS_INIT);
+ }
+ 
+-M0_INTERNAL struct m0_be_tx_group *tx_group_alloc(struct m0_be_tx_engine *eng)
++M0_INTERNAL struct m0_be_tx_group *tx_group_alloc(struct m0_be_tx_engine *eng,
++						  struct m0_reqh *reqh)
+ {
+ 	struct m0_be_tx_group *gr;
+ 	m0_bcount_t            vec_nr;
+@@ -101,7 +364,7 @@ M0_INTERNAL struct m0_be_tx_group *tx_group_alloc(struct m0_be_tx_engine *eng)
+ 	if (iv->iv_index == NULL)
+ 		goto free_bv;
+ 
+-	tx_group_init_state(gr, eng, M0_BGS_EMPTY);
++	tx_group_init_state(gr, eng, reqh, M0_BGS_EMPTY);
+ 	return gr;
+ 
+ free_bv:
+@@ -118,26 +381,25 @@ M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr)
+ {
+ 	m0_stob_io_fini(&gr->tg_stobio);
+ 	m0_forall(i, ARRAY_SIZE(gr->tg_txs),
+-		  (tg_tlist_fini(&gr->tg_txs[i]), true));
++		  (gr_tlist_fini(&gr->tg_txs[i]), true));
+ 	m0_mutex_fini(&gr->tg_lock);
+ }
+ 
+ M0_INTERNAL void tx_group_add(struct m0_be_tx_group *gr, struct m0_be_tx *tx)
+ {
+ 	M0_PRE(tx_state(tx) == M0_BTS_CLOSED);
+-	M0_PRE(M0_IN(gr->tg_state, (M0_BGS_EMPTY, M0_BGS_ACTIVE)));
++	M0_PRE(M0_IN(tg_state(gr), (M0_BGS_EMPTY, M0_BGS_ACTIVE)));
+ 
+ 	m0_mutex_lock(&gr->tg_lock);  /* XXX: lock before calling
+ 					 tx_group_add ? */
+ 	tx->t_group      = gr;
+ 	gr_tlist_add(&gr->tg_txs[tx_state(tx)], tx);
+ 
+-	if (gr->tg_state == M0_BGS_EMPTY) {
++	if (tg_state(gr) == M0_BGS_EMPTY) {
+ 		/* Assign ID of the 1st transaction as grp ID. */
+ 		gr->tg_hdr.gh_id  = tx->t_hdr.th_id;
+ 		gr->tg_hdr.gh_lsn = gr->tg_eng->te_log.lg_lsn;
+-		gr->tg_state      = M0_BGS_ACTIVE;
+-		tg_tlist_move(&gr->tg_eng->te_tgs[M0_BGS_ACTIVE], gr);
++		tg_state_set(gr, M0_BGS_ACTIVE);
+ 		/* TODO:XXX Start grop close timer. */
+ 	}
+ 	/* Calculate tx offset in log. */
+@@ -209,12 +471,11 @@ M0_INTERNAL void tx_group_close(struct m0_be_tx_group *gr)
+ 	 * finalised.
+ 	 */
+ 
+-	M0_PRE(gr->tg_state == M0_BGS_ACTIVE);
++	M0_PRE(tg_state(gr) == M0_BGS_ACTIVE);
+ 	m0_mutex_lock(&gr->tg_lock);  /* XXX: lock before calling
+ 					 tx_group_close ? */
+-	gr->tg_state = M0_BGS_CLOSED;
+ 	gr->tg_eng->te_log.lg_lsn += tg_log_size(gr);
+-	tg_tlist_move(&gr->tg_eng->te_tgs[M0_BGS_CLOSED], gr);
++	tg_state_set(gr, M0_BGS_CLOSED);
+ 	/* TODO: launch log i/o */
+ 	m0_mutex_unlock(&gr->tg_lock);
+ }
+@@ -225,6 +486,8 @@ M0_INTERNAL m0_bcount_t tg_log_size(const struct m0_be_tx_group *gr)
+ 		+ sizeof(struct m0_be_tg_cblk);
+ }
+ 
++#undef M0_TRACE_SUBSYSTEM
++
+ /** @} end of be group */
+ /*
+  *  Local variables:
+diff --git a/be/tx_group.h b/be/tx_group.h
+index 9e9a9e0..4169216 100644
+--- a/be/tx_group.h
++++ b/be/tx_group.h
+@@ -24,6 +24,7 @@
+ 
+ #include "be/tx_state.h"
+ #include "be/tx_credit.h"
++#include "fop/fom.h"
+ #include "lib/types.h"
+ 
+ struct m0_be_tx_engine;
+@@ -37,6 +38,8 @@ struct m0_be_tx_engine;
+ enum m0_be_tg_state {
+         /** Initial state without i/o buffers allocated. */
+ 	M0_BGS_INIT,
++	/** Any transaction in group failed .*/
++	M0_BGS_FAILED,
+ 	/** Initial state with i/o buffers pre-allocated. */
+ 	M0_BGS_EMPTY,
+ 	/** Group contains at least one transaction and ready to accept
+@@ -44,7 +47,13 @@ enum m0_be_tg_state {
+ 	M0_BGS_ACTIVE,
+ 	/** Group is full and ready for log i/o and seg i/o. */
+ 	M0_BGS_CLOSED,
++	/** Group is performing log i/o. */
++	M0_BGS_LOG,
++	/** All group transactions are in M0_BTS_LOGGED state. */
+ 	M0_BGS_LOGGED,
++	/** Group is performing seg i/o. */
++	M0_BGS_PLACE,
++	/** Las transaction in the group has been PLACED. */
+ 	M0_BGS_PLACED,
+ 	M0_BGS_NR
+ };
+@@ -115,7 +124,7 @@ struct m0_be_tx_group {
+ 	uint64_t                tg_magic;
+ 	/** Linkage in the m0_be_tx_engine::te_tgs[...] lists. */
+ 	struct m0_tlink         tg_linkage;
+-	enum m0_be_tg_state     tg_state;
++	struct m0_fom           tg_fom;
+ 	/** Per-state lists of transactions in this group. */
+ 	struct m0_tl            tg_txs[M0_BTS_NR];
+ 	/** Protects all fields of this struct. */
+@@ -125,8 +134,10 @@ struct m0_be_tx_group {
+ };
+ 
+ M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,
+-			       struct m0_be_tx_engine *eng);
+-M0_INTERNAL struct m0_be_tx_group *tx_group_alloc(struct m0_be_tx_engine *eng);
++			       struct m0_be_tx_engine *eng,
++			       struct m0_reqh *reqh);
++M0_INTERNAL struct m0_be_tx_group *tx_group_alloc(struct m0_be_tx_engine *eng,
++						  struct m0_reqh *reqh);
+ M0_INTERNAL void tx_group_fini(struct m0_be_tx_group *gr);
+ 
+ M0_INTERNAL void tx_group_add(struct m0_be_tx_group *gr,
+@@ -134,6 +145,10 @@ M0_INTERNAL void tx_group_add(struct m0_be_tx_group *gr,
+ M0_INTERNAL void tx_group_close(struct m0_be_tx_group *gr);
+ M0_INTERNAL m0_bcount_t tg_log_size(const struct m0_be_tx_group *gr);
+ 
++M0_INTERNAL bool m0_be__tg_invariant(const struct m0_be_tx_group *gr);
++
++M0_INTERNAL void m0_be_tg_fom_type_init(void);
++
+ M0_TL_DESCR_DECLARE(gr, M0_EXTERN);
+ M0_TL_DECLARE(gr, M0_INTERNAL, struct m0_be_tx);
+ M0_TL_DESCR_DECLARE(tg, M0_EXTERN);
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 6761ea9..642e725 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -32,6 +32,7 @@ static uint64_t           g_tid = 1;
+ static int seg_create(void)
+ {
+ 	m0_be_tx_fom_type_init();
++	m0_be_tg_fom_type_init();
+ 	m0_be_ut_h_init(&be_ut_tx_h);
+ 	m0_sm_group_init(&g_grp);
+ 	return 0;
+@@ -87,7 +88,7 @@ static void tx_test(struct m0_be *be, struct m0_reqh *reqh)
+ 	/*
+ 	 * Open tx, allocate, dirty and capture region
+ 	 */
+-	m0_be_tx_open(&tx);
++	m0_be_tx_open(&tx, reqh);
+ 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE), M0_TIME_NEVER);
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_LOG(M0_DEBUG, "opened");
+-- 
+1.8.3.2
+

@@ -1,0 +1,40 @@
+From b48ec4b9bff4f0f96a483a899f72c68e67c900e2 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 22 Jun 2011 13:38:29 -0600
+Subject: [PATCH 150/177] - use AEL_ERROR for addb; - added addb call to show
+ root init errors in mdstore.
+
+---
+ addb/addb.c       | 2 +-
+ mdstore/mdstore.c | 2 ++
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/addb/addb.c b/addb/addb.c
+index 5cedfff..3f35226 100644
+--- a/addb/addb.c
++++ b/addb/addb.c
+@@ -47,7 +47,7 @@
+ /*
+  * This can be changed.
+  */
+-enum c2_addb_ev_level c2_addb_level_default = AEL_NOTE;
++enum c2_addb_ev_level c2_addb_level_default = AEL_ERROR;
+ C2_EXPORTED(c2_addb_level_default);
+ 
+ /**
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 2001673..51af570 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -84,6 +84,8 @@ int c2_md_store_init(struct c2_md_store         *md,
+                 rc = c2_md_store_lookup(md, NULL, C2_MD_ROOT_NAME, 
+                                         strlen(C2_MD_ROOT_NAME), 
+                                         &md->md_root, &tx);
++                C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
++                            c2_addb_func_fail, "md_root_lookup", rc);
+                 if (rc) {
+                         c2_db_tx_abort(&tx);
+                 } else {
+-- 
+1.8.3.2
+

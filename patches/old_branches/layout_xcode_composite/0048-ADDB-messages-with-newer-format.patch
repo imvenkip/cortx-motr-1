@@ -1,0 +1,589 @@
+From 81323e15d8af6fd7433275d791fc6a9ff283b431 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 11 Jan 2013 18:12:44 +0530
+Subject: [PATCH 048/157] ADDB messages with newer format
+
+---
+ layout/Makefile.sub  |   1 +
+ layout/composite.c   | 200 ++++++++++++++++++++-------------------------------
+ layout/layout_addb.h |  95 +++++++++++++++---------
+ 3 files changed, 140 insertions(+), 156 deletions(-)
+
+diff --git a/layout/Makefile.sub b/layout/Makefile.sub
+index 961027a..e9a1198 100644
+--- a/layout/Makefile.sub
++++ b/layout/Makefile.sub
+@@ -10,6 +10,7 @@ mero_libmero_la_SOURCES  += layout/layout.c \
+                                   layout/layout_internal.h \
+                                   layout/pdclust.c \
+                                   layout/composite.c \
++                                  layout/composite_internal.h \
+                                   layout/list_enum.c \
+                                   layout/linear_enum.c \
+                                   layout/layout_db.c
+diff --git a/layout/composite.c b/layout/composite.c
+index 307a42b..19f236c 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -239,12 +239,10 @@ static int composite_register(struct m0_layout_domain *dom,
+ 	M0_ALLOC_PTR(csd);
+ err1_injected:
+ 	if (csd == NULL) {
+-#if 0
+ 		m0_layout__log("composite_register",
+ 			       "failed to allocate schema data",
+-			       &m0_addb_oom, &layout_global_ctx, LID_NONE,
++			       M0_LAYOUT_ADDB_LOC_COMP_REG_1, NULL, LID_NONE,
+ 			       -ENOMEM);
+-#endif
+ 		return -ENOMEM;
+ 	}
+ 
+@@ -255,12 +253,10 @@ err1_injected:
+ 			   &composite_table_ops);
+ err2_injected:
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("composite_register",
+ 			       "failed to initialise layer_sublayout table",
+-			       &m0_addb_func_fail, &layout_global_ctx,
+-			       LID_NONE, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_REG_2, NULL, LID_NONE,
++			       rc);
+ 		m0_free(csd);
+ 		return rc;
+ 	}
+@@ -271,12 +267,10 @@ err2_injected:
+ 			  "layer_ext_map");
+ err3_injected:
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("composite_register",
+-			       "failed to initialise layer_ext_map emap",
+-			       &m0_addb_func_fail, &layout_global_ctx,
+-			       LID_NONE, rc);
+-#endif
++			       "failed to initialise layer_ext_map",
++			       M0_LAYOUT_ADDB_LOC_COMP_REG_3, NULL, LID_NONE,
++			       rc);
+ 		m0_table_fini(&csd->csd_layer_sublayout);
+ 		m0_free(csd);
+ 		return rc;
+@@ -323,21 +317,19 @@ static int composite_allocate(struct m0_layout_domain *dom,
+ 	M0_ALLOC_PTR(cl);
+ err1_injected:
+ 	if (cl == NULL) {
+-#if 0
+ 		m0_layout__log("composite_allocate",
+ 			       "failed to allocate composite layout",
+-			       &m0_addb_oom, &layout_global_ctx, lid, -ENOMEM);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_ALLOC_1, NULL, lid,
++			      -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+ 
+ 	M0_ALLOC_PTR(cl->cl_layers);
+ 	if (cl->cl_layers == NULL) {
+-#if 0
+ 		m0_layout__log("composite_allocate",
+ 			       "failed to allocate composite layers list",
+-			       &m0_addb_oom, &layout_global_ctx, lid, -ENOMEM);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_ALLOC_2, NULL, lid,
++			       -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+ 	comp_layer_tlist_init(cl->cl_layers);
+@@ -396,12 +388,11 @@ static int layer_in_memory_add(struct m0_composite_layout *cl,
+ 		 extlist, (unsigned long)ext_nr);
+ 	M0_ALLOC_PTR(layer);
+ 	if (layer == NULL) {
+-#if 0
+ 		m0_layout__log("layer_in_memory_add",
+ 			       "failed to allocate composite layer",
+-			       &m0_addb_oom, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, -ENOMEM);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ALLOC,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
++			       -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+ 
+@@ -637,12 +628,11 @@ static int ext_in_memory_add(struct m0_composite_layer *layer,
+ 
+ 	M0_ALLOC_PTR(ext_to_insert);
+ 	if (ext_to_insert == NULL) {
+-#if 0
+ 		m0_layout__log("ext_in_memory_add",
+ 			       "failed to allocate composite layer extent",
+-			       &m0_addb_oom, &layer->clr_l->l_addb,
+-			       layer->clr_l->l_id, -ENOMEM);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EXT_ALLOC,
++			       &layer->clr_l->l_addb_ctx, layer->clr_l->l_id,
++			       -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+ 
+@@ -988,13 +978,10 @@ static int sublayout_id_in_db_read(struct m0_composite_layout *cl,
+ 			 &key, sizeof key, &rec, sizeof rec);
+ 	rc = m0_table_lookup(tx, &pair);
+ 	if (rc != 0)
+-#if 0
+-		m0_layout__log("m0_layout_lookup",
++		m0_layout__log("sublayout_id_in_db_read",
+ 			       "failed to lookup into layer_sublayout table",
+-			       &m0_addb_func_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
+-		;
++			       M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 	else
+ 		*sublayout_id = rec.lrsmr_sublayout_lid;
+ 	m0_db_pair_fini(&pair);
+@@ -1054,13 +1041,12 @@ static int sublayout_id_in_db_add(struct m0_composite_layout *cl,
+ 		{ rc = L_TABLE_INSERT_ERR; goto err1_injected; }
+ 	rc = m0_table_insert(tx, &pair);
+ err1_injected:
+-#if 0
+ 	if (rc != 0)
+ 		m0_layout__log("sublayout_id_in_db_add",
+ 			       "failed to insert into layer_sublayout table",
+-			       &m0_addb_func_fail, &layer->clr_l->l_addb,
+-			       layer->clr_l->l_id, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_ADD,
++			       &layer->clr_l->l_addb_ctx, layer->clr_l->l_id,
++			       rc);
+ 	m0_db_pair_fini(&pair);
+ 	M0_RETURN(rc);
+ }
+@@ -1088,13 +1074,12 @@ static int sublayout_id_in_db_delete(const struct m0_composite_layout *cl,
+ 	m0_db_pair_setup(&pair, &csd->csd_layer_sublayout,
+ 			 &key, sizeof key, &rec, sizeof rec);
+ 	rc = m0_table_delete(tx, &pair);
+-#if 0
+ 	if (rc != 0)
+ 		m0_layout__log("sublayout_id_in_db_delete",
+ 			       "failed to delete from layer_sublayout table",
+-			       &m0_addb_func_fail, &layer->clr_l->l_addb,
+-			       layer->clr_l->l_id, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_DEL,
++			       &layer->clr_l->l_addb_ctx, layer->clr_l->l_id,
++			       rc);
+ 	m0_db_pair_fini(&pair);
+ 	M0_RETURN(rc);
+ }
+@@ -1127,24 +1112,22 @@ static int extmap_in_db_add(struct m0_composite_layout *cl,
+ 	prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
+ 	rc = m0_emap_obj_insert(emap, tx, (struct m0_uint128 *)&prefix,
+ 				M0_CLRES_INVALID);
+-#if 0
+ 	if (rc != 0) {
+ 		m0_layout__log("extmap_in_db_add",
+-			       "failed to insert into layer_ext_map emap",
+-			       &m0_addb_func_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
++			       "failed to insert into layer_ext_map",
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
++			       rc);
+ 		return rc;
+ 	}
+-#endif
+ 
+ 	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix, 0, &it);
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("extmap_in_db_add",
+-			       "failed to lookup into layer_ext_map emap",
+-			       &m0_addb_func_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       "failed to lookup into layer_ext_map",
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_2,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
++			       rc);
+ 		m0_emap_obj_delete(emap, tx, (struct m0_uint128 *)&prefix);
+ 		/*
+ 		 * If m0_emap_lookup() has failed for no apparent reason, it is
+@@ -1226,24 +1209,20 @@ M0_INTERNAL int m0_composite_layer_add(struct m0_composite_layout *cl,
+ 		 extlist, (unsigned long)ext_nr, tx);
+ 
+ 	if (m0_composite_layer_ext_tlist_is_empty(extlist) || ext_nr == 0) {
+-		rc = -EINVAL;
+-#if 0
+ 		m0_layout__log("m0_composite_layer_add",
+ 			       "Invalid list of extents",
+-			       &comp_ext_op_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
+-		return rc;
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
++			       -EINVAL);
++		return -EINVAL;
+ 	}
+ 
+ 	rc = layer_in_memory_add(cl, sublayout, extlist, ext_nr, &layer);
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("m0_composite_layer_add",
+ 			       "failed to write layer in memory",
+-			       &comp_ext_op_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_2,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		return rc;
+ 	}
+ 	M0_ASSERT(layer->clr_idx > 0);
+@@ -1258,12 +1237,10 @@ M0_INTERNAL int m0_composite_layer_add(struct m0_composite_layout *cl,
+ 	M0_PRE(tx != NULL);
+ 	rc = layer_in_db_add(cl, layer, tx);
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("m0_composite_layer_add",
+ 			       "failed to write layer in DB",
+-			       &comp_ext_op_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_3,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		layer_in_memory_delete(cl, layer);
+ 	}
+ 
+@@ -1316,12 +1293,11 @@ static int extlist_in_buf_read(struct m0_composite_layout *cl,
+ 	/* Read the extent list owned by the specified layer. */
+ 	M0_ALLOC_PTR(extlist);
+ 	if (extlist == NULL) {
+-#if 0
+ 		m0_layout__log("extlist_in_buf_read",
+ 			       "failed to allocate composite extent list",
+-			       &m0_addb_oom, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, -ENOMEM);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
++			       -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+ 	m0_composite_layer_ext_tlist_init(extlist);
+@@ -1330,12 +1306,11 @@ static int extlist_in_buf_read(struct m0_composite_layout *cl,
+ 	for (i = 0; i < extents_nr; ++i) {
+ 		M0_ALLOC_PTR(lr_ext);
+ 		if (lr_ext == NULL) {
+-#if 0
+ 			m0_layout__log("extlist_in_buf_read",
+ 				       "failed to allocate composite extent",
+-				       &m0_addb_oom, &cl->cl_base.l_addb,
++				       M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_2,
++				       &cl->cl_base.l_addb_ctx,
+ 				       cl->cl_base.l_id, -ENOMEM);
+-#endif
+ 			extlist_free(extlist);
+ 			return -ENOMEM;
+ 		}
+@@ -1442,23 +1417,20 @@ static int extentmap_in_db_read(struct m0_composite_layout *cl,
+ 	prefix_set(&prefix, cl->cl_base.l_id, layer_idx);
+ 	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix, 0, &it);
+ 	if (rc != 0) {
+-#if 0
+-		m0_layout__log("m0_layout_lookup",
+-			       "failed to lookup into layer_ext_map emap",
+-			       &m0_addb_func_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++		m0_layout__log("extentmap_in_db_read",
++			       "failed to lookup into layer_ext_map",
++			       M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		return rc;
+ 	}
+ 
+ 	M0_ALLOC_PTR(*extlist);
+ 	if (*extlist == NULL) {
+-#if 0
+ 		m0_layout__log("extentmap_in_db_read",
+ 			       "failed to allocate composite extent list",
+-			       &m0_addb_oom, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, -ENOMEM);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_2,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
++			       -ENOMEM);
+ 		m0_emap_close(&it);
+ 		return -ENOMEM;
+ 	}
+@@ -1474,13 +1446,11 @@ static int extentmap_in_db_read(struct m0_composite_layout *cl,
+ 					      M0_CLRES_FLATTENING)));
+ 		M0_ALLOC_PTR(lr_ext);
+ 		if (lr_ext == NULL) {
+-#if 0
+ 			m0_layout__log("extentmap_in_db_read",
+ 				       "failed to allocate composite extent",
+-				       &m0_addb_oom,
+-				       &cl->cl_base.l_addb,
++				       M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_3,
++				       &cl->cl_base.l_addb_ctx,
+ 				       cl->cl_base.l_id, -ENOMEM);
+-#endif
+ 			extlist_free(*extlist);
+ 			m0_emap_close(&it);
+ 			return -ENOMEM;
+@@ -1909,13 +1879,11 @@ M0_INTERNAL int m0_composite_layer_ext_lookup(struct m0_composite_layout *cl,
+ 		rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix,
+ 				    offset, &it);
+ 		if (rc != 0) {
+-#if 0
+ 			m0_layout__log("m0_composite_layer_ext_lookup",
+-				       "failed to lookup into layer_ext_map "
+-				       "emap",
+-				       &m0_addb_func_fail, &cl->cl_base.l_addb,
++				       "failed to lookup into layer_ext_map",
++				       M0_LAYOUT_ADDB_LOC_COMP_EXT_LOOKUP,
++				       &cl->cl_base.l_addb_ctx,
+ 				       cl->cl_base.l_id, rc);
+-#endif
+ 			m0_mutex_unlock(&cl->cl_base.l_lock);
+ 			return rc;
+ 		}
+@@ -1984,12 +1952,10 @@ M0_INTERNAL int m0_composite_layer_ext_add(struct m0_composite_layout *cl,
+ 	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix,
+ 			    ext->e_start, &it);
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("m0_composite_layer_ext_add",
+-			       "failed to lookup into layer_ext_map emap",
+-			       &m0_addb_func_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       "failed to lookup into layer_ext_map",
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		m0_mutex_unlock(&cl->cl_base.l_lock);
+ 		return rc;
+ 	}
+@@ -2012,13 +1978,11 @@ M0_INTERNAL int m0_composite_layer_ext_add(struct m0_composite_layout *cl,
+ 	 */
+ 
+ 	rc = ext_in_db_write(&it, layer, ext, M0_CLRES_VALID, true);
+-#if 0
+ 	if (rc != 0)
+ 		m0_layout__log("m0_composite_layer_ext_add",
+ 			       "failed to write extent in DB",
+-			       &comp_ext_op_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_2,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 	m0_emap_close(&it);
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+ 	M0_LEAVE("lid %llu, layer %lu, e_start %llu, e_end %llu, rc %d",
+@@ -2061,12 +2025,10 @@ M0_INTERNAL int m0_composite_layer_ext_state_update(
+ 	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix,
+ 			    ext->e_start, &it);
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("m0_composite_layer_ext_state_update",
+-			       "failed to lookup into layer_ext_map emap",
+-			       &m0_addb_func_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       "failed to lookup into layer_ext_map",
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		m0_mutex_unlock(&cl->cl_base.l_lock);
+ 		return rc;
+ 	}
+@@ -2083,12 +2045,10 @@ M0_INTERNAL int m0_composite_layer_ext_state_update(
+ 	    seg->ee_ext.e_end != ext->e_end ||
+ 	    seg->ee_val == M0_CLRES_INVALID) {
+ 		rc = -EINVAL;
+-#if 0
+ 		m0_layout__log("m0_composite_layer_ext_state_update",
+ 			       "A non-existing extent can not be updated",
+-			       &comp_ext_op_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE_2,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		m0_emap_close(&it);
+ 		m0_mutex_unlock(&cl->cl_base.l_lock);
+ 		return rc;
+@@ -2112,13 +2072,11 @@ M0_INTERNAL int m0_composite_layer_ext_state_update(
+ 	 */
+ 
+ 	rc = ext_in_db_write(&it, layer, ext, ext_state, true);
+-#if 0
+ 	if (rc != 0)
+ 		m0_layout__log("m0_composite_layer_ext_state_update",
+ 			       "failed to write extent in DB",
+-			       &comp_ext_op_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE_3,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 	m0_emap_close(&it);
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+ 	M0_POST(composite_invariant(cl));
+@@ -2154,12 +2112,10 @@ M0_INTERNAL int m0_composite_layer_ext_delete(struct m0_composite_layout *cl,
+ 	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix,
+ 			    ext->e_start, &it);
+ 	if (rc != 0) {
+-#if 0
+ 		m0_layout__log("m0_composite_layer_ext_delete",
+-			       "failed to lookup into layer_ext_map emap",
+-			       &m0_addb_func_fail, &cl->cl_base.l_addb,
+-			       cl->cl_base.l_id, rc);
+-#endif
++			       "failed to lookup into layer_ext_map",
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_DEL_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		m0_mutex_unlock(&cl->cl_base.l_lock);
+ 		return rc;
+ 	}
+@@ -2182,13 +2138,12 @@ M0_INTERNAL int m0_composite_layer_ext_delete(struct m0_composite_layout *cl,
+ 	 */
+ 
+ 	rc = ext_in_db_write(&it, layer, ext, M0_CLRES_INVALID, true);
+-#if 0
+ 	if (rc != 0)
+ 		m0_layout__log("m0_composite_layer_ext_delete",
+ 			       "failed to write extent in memory",
+-			       &comp_ext_op_fail, &cl->cl_base.l_addb,
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_DEL_2,
++			       &cl->cl_base.l_addb_ctx,
+ 			       cl->cl_base.l_id, rc);
+-#endif
+ 	m0_emap_close(&it);
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+ 
+@@ -2232,11 +2187,10 @@ static int composite_instance_build(struct m0_layout *l,
+ 	M0_ALLOC_PTR(ci);
+ err1_injected:
+ 	if (ci == NULL) {
+-#if 0
+ 		m0_layout__log("composite_instance_build",
+ 			       "failed to allocate composite instance",
+-			       &m0_addb_oom, &l->l_addb, l->l_id, -ENOMEM);
+-#endif
++			       M0_LAYOUT_ADDB_LOC_COMP_INST_BUILD,
++			       &l->l_addb_ctx, l->l_id, -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+ 
+diff --git a/layout/layout_addb.h b/layout/layout_addb.h
+index f4dee57..827b34d 100644
+--- a/layout/layout_addb.h
++++ b/layout/layout_addb.h
+@@ -52,39 +52,68 @@ M0_ADDB_CT(m0_addb_ct_layout_obj, M0_ADDB_CTXID_LAYOUT_OBJ, "lid", "ltid");
+ enum {
+ 	M0_LAYOUT_ADDB_LOC_0 = 0,
+ 
+-	M0_LAYOUT_ADDB_LOC_ADD_1              = 10,
+-	M0_LAYOUT_ADDB_LOC_ADD_2              = 11,
+-	M0_LAYOUT_ADDB_LOC_DECODE_1           = 20,
+-	M0_LAYOUT_ADDB_LOC_DECODE_2           = 21,
+-	M0_LAYOUT_ADDB_LOC_DELETE_1           = 30,
+-	M0_LAYOUT_ADDB_LOC_DELETE_2           = 31,
+-	M0_LAYOUT_ADDB_LOC_DOM_INIT           = 40,
+-	M0_LAYOUT_ADDB_LOC_ENCODE             = 50,
+-	M0_LAYOUT_ADDB_LOC_ET_REG             = 60,
+-	M0_LAYOUT_ADDB_LOC_LIN_ALLOC          = 70,
+-	M0_LAYOUT_ADDB_LOC_LIST_ALLOC         = 80,
+-	M0_LAYOUT_ADDB_LOC_LIST_DECODE        = 90,
+-	M0_LAYOUT_ADDB_LOC_LIST_ENUM_BUILD    = 100,
+-	M0_LAYOUT_ADDB_LOC_LIST_REG_1         = 110,
+-	M0_LAYOUT_ADDB_LOC_LIST_REG_2         = 111,
+-	M0_LAYOUT_ADDB_LOC_LOOKUP_1           = 120,
+-	M0_LAYOUT_ADDB_LOC_LOOKUP_2           = 121,
+-	M0_LAYOUT_ADDB_LOC_LOOKUP_3           = 122,
+-	M0_LAYOUT_ADDB_LOC_LOOKUP_4           = 123,
+-	M0_LAYOUT_ADDB_LOC_LT_REG             = 130,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_1  = 140,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_2  = 141,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_3  = 142,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_4  = 143,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_1 = 150,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_2 = 151,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_3 = 152,
+-	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_4 = 153,
+-	M0_LAYOUT_ADDB_LOC_PAIR_INIT          = 160,
+-	M0_LAYOUT_ADDB_LOC_PDCLUST_ALLOC      = 170,
+-	M0_LAYOUT_ADDB_LOC_PDCLUST_INST_BUILD = 180,
+-	M0_LAYOUT_ADDB_LOC_UPDATE_1           = 190,
+-	M0_LAYOUT_ADDB_LOC_UPDATE_2           = 191,
++	M0_LAYOUT_ADDB_LOC_ADD_1                   = 10,
++	M0_LAYOUT_ADDB_LOC_ADD_2                   = 11,
++	M0_LAYOUT_ADDB_LOC_DECODE_1                = 20,
++	M0_LAYOUT_ADDB_LOC_DECODE_2                = 21,
++	M0_LAYOUT_ADDB_LOC_DELETE_1                = 30,
++	M0_LAYOUT_ADDB_LOC_DELETE_2                = 31,
++	M0_LAYOUT_ADDB_LOC_DOM_INIT                = 40,
++	M0_LAYOUT_ADDB_LOC_ENCODE                  = 50,
++	M0_LAYOUT_ADDB_LOC_ET_REG                  = 60,
++	M0_LAYOUT_ADDB_LOC_LIN_ALLOC               = 70,
++	M0_LAYOUT_ADDB_LOC_LIST_ALLOC              = 80,
++	M0_LAYOUT_ADDB_LOC_LIST_DECODE             = 90,
++	M0_LAYOUT_ADDB_LOC_LIST_ENUM_BUILD         = 100,
++	M0_LAYOUT_ADDB_LOC_LIST_REG_1              = 110,
++	M0_LAYOUT_ADDB_LOC_LIST_REG_2              = 111,
++	M0_LAYOUT_ADDB_LOC_LOOKUP_1                = 120,
++	M0_LAYOUT_ADDB_LOC_LOOKUP_2                = 121,
++	M0_LAYOUT_ADDB_LOC_LOOKUP_3                = 122,
++	M0_LAYOUT_ADDB_LOC_LOOKUP_4                = 123,
++	M0_LAYOUT_ADDB_LOC_LT_REG                  = 130,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_1       = 140,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_2       = 141,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_3       = 142,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_4       = 143,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_1      = 150,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_2      = 151,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_3      = 152,
++	M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_4      = 153,
++	M0_LAYOUT_ADDB_LOC_PAIR_INIT               = 160,
++	M0_LAYOUT_ADDB_LOC_PDCLUST_ALLOC           = 170,
++	M0_LAYOUT_ADDB_LOC_PDCLUST_INST_BUILD      = 180,
++	M0_LAYOUT_ADDB_LOC_UPDATE_1                = 190,
++	M0_LAYOUT_ADDB_LOC_UPDATE_2                = 191,
++	M0_LAYOUT_ADDB_LOC_COMP_REG_1              = 200,
++	M0_LAYOUT_ADDB_LOC_COMP_REG_2              = 201,
++	M0_LAYOUT_ADDB_LOC_COMP_REG_3              = 202,
++	M0_LAYOUT_ADDB_LOC_COMP_ALLOC_1            = 210,
++	M0_LAYOUT_ADDB_LOC_COMP_ALLOC_2            = 211,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ALLOC        = 220,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EXT_ALLOC    = 230,
++	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ     = 240,
++	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_ADD      = 250,
++	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_DEL      = 260,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_1   = 270,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_2   = 271,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_1        = 280,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_2        = 281,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_3        = 282,
++	M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_1       = 290,
++	M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_2       = 291,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_1        = 300,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_2        = 301,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_3        = 302,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_LOOKUP         = 310,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_1          = 320,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_2          = 321,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE_1       = 330,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE_2       = 331,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE_3       = 332,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_DEL_1          = 330,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_DEL_2          = 331,
++	M0_LAYOUT_ADDB_LOC_COMP_INST_BUILD         = 340,
+ 
+ 	M0_LAYOUT_ADDB_LOC_NR
+ };
+-- 
+1.8.3.2
+

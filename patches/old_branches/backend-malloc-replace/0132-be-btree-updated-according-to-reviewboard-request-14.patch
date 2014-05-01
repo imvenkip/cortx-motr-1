@@ -1,0 +1,1872 @@
+From 6b00e393fa73eebce67e28648f2a41a3a6dbcf86 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Sun, 9 Jun 2013 14:44:39 +0300
+Subject: [PATCH 132/161] be: btree updated according to reviewboard request
+ #1448 notes.
+
+---
+ be/btree.c    | 910 ++++++++++++++++++++++++++--------------------------------
+ be/btree.h    |  58 ++--
+ be/seg.c      |   5 +
+ be/seg.h      |   2 +
+ be/tx.h       |   6 +
+ be/ut/btree.c |  13 +-
+ 6 files changed, 452 insertions(+), 542 deletions(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index c74e278..1b897d8 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -51,9 +51,16 @@ void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
+ }
+ /* </XXX>: make things compile */
+ 
++/* btree constants */
+ enum {
++	BTREE_FAN_OUT     = 5,
+ 	BTREE_ALLOC_SHIFT = 1,
+-	BTREE_FAN_OUT	  = 5
++
++	KV_NR             = 2 * BTREE_FAN_OUT - 1,
++	KV_SIZE           = KV_NR * sizeof(struct bt_key_val *),
++
++	CHILDREN_NR       = 2 * BTREE_FAN_OUT,
++	CHILDREN_SIZE     = CHILDREN_NR * sizeof(struct m0_be_bnode *)
+ };
+ 
+ struct bt_key_val {
+@@ -62,44 +69,62 @@ struct bt_key_val {
+ };
+ 
+ struct m0_be_bnode {
+-	struct m0_be_bnode *prev;  /**< Pointer used for linked list */
+-	struct m0_be_bnode *next;  /**< Pointer used for linked list */
+-	bool                leaf;  /**< Used to indicate whether leaf or not */
+-        unsigned int        nr_active;  /**< Number of active keys */
+-	unsigned int        level;      /**< Level in the B-Tree */
+-        struct bt_key_val  **key_vals;  /**< Array of keys and values */
+-        struct m0_be_bnode **children;  /**< Array of pointers to child nodes */
++	struct m0_be_bnode  *b_prev; /**< Pointer used for linked list */
++	struct m0_be_bnode  *b_next; /**< Pointer used for linked list */
++	bool                 b_leaf; /**< Used to indicate whether leaf or not */
++        unsigned int         b_nr_active; /**< Number of active keys */
++	unsigned int         b_level;    /**< Level in the B-Tree */
++        struct bt_key_val  **b_key_vals; /**< Array of keys and values */
++        struct m0_be_bnode **b_children; /**< Array of pointers to child nodes */
+ };
+ 
+ struct node_pos {
+-	struct m0_be_bnode *node;
+-	unsigned int	    index;
++	struct m0_be_bnode *p_node;
++	unsigned int	    p_index;
+ };
+ 
+-#define MEM_ALLOC(tx, size) ({					           \
+-	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;      \
+-	struct m0_be_op		op; /* XXX */				   \
+-	m0_be_alloc(alloc, (tx), &op, (size), BTREE_ALLOC_SHIFT);	   \
+-})
++static inline void *mem_alloc(const struct m0_be_btree *btree,
++			      struct m0_be_tx *tx, m0_bcount_t size)
++{
++	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;
++	struct m0_be_op		op; /* XXX */
+ 
+-#define MEM_FREE(tx, ptr, size) ({				           \
+-	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;      \
+-	struct m0_be_op		op; /* XXX */				   \
+-	m0_be_free(alloc, (tx), &op, (ptr));				   \
+-})
++	return m0_be_alloc(alloc, tx, &op, size, BTREE_ALLOC_SHIFT);
++}
++
++static inline void mem_free(const struct m0_be_btree *btree,
++			    struct m0_be_tx *tx, void *ptr, m0_bcount_t size)
++{
++	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;
++	struct m0_be_op		op; /* XXX */
++
++	m0_be_free(alloc, tx, &op, ptr);
++}
+ 
+ /* XXX: check if region structure itself needed outside m0_be_tx_capture() */
+-#define MEM_UPDATE(tx, ptr, size) ({					   \
+-	m0_be_tx_capture((tx), &M0_BE_REG(btree->bb_seg, (size), (ptr)));  \
+-})
++static inline void mem_update(const struct m0_be_btree *btree,
++			      struct m0_be_tx *tx, void *ptr, m0_bcount_t size)
++{
++	m0_be_tx_capture(tx, &M0_BE_REG(btree->bb_seg, size, ptr));
++}
+ 
+-#define KV_SIZE(btree)	      (2*BTREE_FAN_OUT*sizeof(struct bt_key_val *) - 1)
+-#define CHILDREN_SIZE(btree)  (2*BTREE_FAN_OUT*sizeof(struct m0_be_bnode *))
+-#define LOG(...)              M0_LOG(M0_DEBUG, __VA_ARGS__)
++static inline int key_lt(const struct m0_be_btree *btree,
++			 const void *key0, const void *key1)
++{
++	return btree->bb_ops->ko_compare(key0, key1)  <  0;
++}
+ 
+-#define KEY_LT(key0, key1) (btree->bb_ops->ko_compare(key0, key1)  <  0)
+-#define KEY_GT(key0, key1) (btree->bb_ops->ko_compare(key0, key1)  >  0)
+-#define KEY_EQ(key0, key1) (btree->bb_ops->ko_compare(key0, key1) ==  0)
++static inline int key_gt(const struct m0_be_btree *btree,
++			 const void *key0, const void *key1)
++{
++	return btree->bb_ops->ko_compare(key0, key1)  >  0;
++}
++
++static inline int key_eq(const struct m0_be_btree *btree,
++			 const void *key0, const void *key1)
++{
++	return btree->bb_ops->ko_compare(key0, key1) ==  0;
++}
+ 
+ 
+ /* ------------------------------------------------------------------
+@@ -114,9 +139,9 @@ enum position_t {
+ static struct m0_be_bnode *allocate_btree_node(const struct m0_be_btree *btree,
+ 					       struct m0_be_tx *tx);
+ 
+-static int free_btree_node(struct m0_be_bnode *node,
+-			   const struct m0_be_btree *btree,
+-			   struct m0_be_tx *tx);
++static void free_btree_node(struct m0_be_bnode *node,
++			    const struct m0_be_btree *btree,
++			    struct m0_be_tx *tx);
+ 
+ static struct node_pos get_btree_node(struct m0_be_btree *btree, void *key,
+ 				      bool slant);
+@@ -126,10 +151,10 @@ static int delete_key_from_node(struct m0_be_btree *btree,
+ 				struct node_pos *node_pos);
+ 
+ static struct m0_be_bnode *merge_nodes(struct m0_be_btree *btree,
+-				   struct m0_be_tx *tx,
+-				   struct m0_be_bnode *n1,
+-				   struct bt_key_val *kv,
+-				   struct m0_be_bnode *n2);
++				       struct m0_be_tx *tx,
++				       struct m0_be_bnode *n1,
++				       struct bt_key_val *kv,
++				       struct m0_be_bnode *n2);
+ 
+ static void move_key(struct m0_be_btree *btree,
+ 		     struct m0_be_tx *tx,
+@@ -137,11 +162,13 @@ static void move_key(struct m0_be_btree *btree,
+ 		     unsigned int index,
+ 		     enum position_t pos);
+ 
+-static struct node_pos get_max_key_pos(struct m0_be_btree *btree,
+-				       struct m0_be_bnode *subtree);
++static void get_max_key_pos(struct m0_be_btree *btree,
++			    struct m0_be_bnode *subtree,
++			    struct node_pos    *pos);
+ 
+-static struct node_pos get_min_key_pos(struct m0_be_btree *btree,
+-				       struct m0_be_bnode *subtree);
++static void get_min_key_pos(struct m0_be_btree *btree,
++			    struct m0_be_bnode *subtree,
++			    struct node_pos    *pos);
+ 
+ static struct m0_be_bnode *merge_siblings(struct m0_be_btree *btree,
+ 				      struct m0_be_tx *tx,
+@@ -174,19 +201,19 @@ static bool btree_node_invariant(const struct m0_be_btree *btree,
+ 	return
+ 		level < BTREE_INVARIANT_HEIGHT_MAX &&
+ 		/* expected occupancy */
+-		ergo(root, 1 <= node->nr_active &&
+-		     node->nr_active < 2*BTREE_FAN_OUT - 1) &&
+-		ergo(!root, BTREE_FAN_OUT-1 <= node->nr_active &&
+-		     node->nr_active < 2*BTREE_FAN_OUT - 1) &&
++		ergo(root, 1 <= node->b_nr_active &&
++		     node->b_nr_active < KV_NR) &&
++		ergo(!root, BTREE_FAN_OUT-1 <= node->b_nr_active &&
++		     node->b_nr_active < KV_NR) &&
+ 		/* keys are in order */
+-		m0_forall(i, node->nr_active - 1,
+-			  i < 1 ? true : node->key_vals[i]->key >
+-					 node->key_vals[i - 1]->key) &&
++		m0_forall(i, node->b_nr_active - 1,
++			  i < 1 ? true : node->b_key_vals[i]->key >
++					 node->b_key_vals[i - 1]->key) &&
+ 		/* matchig parent */
+-		m0_forall(i, node->nr_active, node->leaf ? true :
+-			  KEY_GT(node->children[level]->key_vals[i]->key,
+-				 node->key_vals[level]->key) &&
+-			  btree_node_invariant(btree, node->children[level],
++		m0_forall(i, node->b_nr_active, node->b_leaf ? true :
++			  key_gt(btree, node->b_children[level]->b_key_vals[i]->key,
++				 node->b_key_vals[level]->key) &&
++			  btree_node_invariant(btree, node->b_children[level],
+ 					       false, level + 1));
+ }
+ 
+@@ -200,26 +227,16 @@ static inline bool btree_invariant(const struct m0_be_btree *btree)
+ 	return btree_node_invariant(btree, btree->bb_root, true, 0);
+ }
+ 
+-static int node_update(struct m0_be_bnode	    *node,
+-		       const struct m0_be_btree   *btree,
+-		       struct m0_be_tx *tx)
++static void node_update(struct m0_be_bnode       *node,
++			const struct m0_be_btree *btree,
++			struct m0_be_tx          *tx)
+ {
+-	/* int rc; */
+-
+ 	/* Update node itself */
+-	/*rc =*/ MEM_UPDATE(tx, node, sizeof(struct m0_be_bnode));
+-	/* M0_ASSERT(rc == 0); */
+-
++	mem_update(btree, tx, node, sizeof(struct m0_be_bnode));
+ 	/* Update keys and values pointers */
+-	/*rc =*/ MEM_UPDATE(tx, node->key_vals, KV_SIZE(btree));
+-	/* M0_ASSERT(rc == 0); */
+-
++	mem_update(btree, tx, node->b_key_vals, KV_SIZE);
+ 	/* Update links. We must not update children nodes, just pointers */
+-	/*rc =*/ MEM_UPDATE(tx, node->children, CHILDREN_SIZE(btree));
+-	/* M0_ASSERT(rc == 0); */
+-
+-	/* return rc; */
+-	return 0;
++	mem_update(btree, tx, node->b_children, CHILDREN_SIZE);
+ }
+ 
+ /**
+@@ -231,11 +248,6 @@ static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
+ 
+ 	/* memory for the node has to be reserved by m0_be_tx_open() */
+ 	M0_ASSERT(btree->bb_root != NULL);
+-
+-	btree->bb_root->leaf = true;
+-	btree->bb_root->nr_active = 0;
+-	btree->bb_root->next = NULL;
+-	btree->bb_root->level = 0;
+ }
+ 
+ /**
+@@ -248,28 +260,28 @@ static struct m0_be_bnode *allocate_btree_node(const struct m0_be_btree *btree,
+ 	struct m0_be_bnode *node;
+ 
+ 	/*  Allocate memory for the node */
+-	node = (struct m0_be_bnode *)MEM_ALLOC(tx, sizeof(struct m0_be_bnode));
++	node = (struct m0_be_bnode *)mem_alloc(btree, tx, sizeof(struct m0_be_bnode));
+ 	M0_ASSERT(node != NULL);	/* @todo: analyse return code */
+ 
+ 	/*  Initialize the number of active nodes */
+-	node->nr_active = 0;
++	node->b_nr_active = 0;
+ 
+ 	/*  Initialize the keys */
+-	node->key_vals = (struct bt_key_val **)MEM_ALLOC(tx, KV_SIZE(btree));
+-	M0_ASSERT(node->key_vals != NULL); /* @todo: analyse return code */
++	node->b_key_vals = (struct bt_key_val **)mem_alloc(btree, tx, KV_SIZE);
++	M0_ASSERT(node->b_key_vals != NULL); /* @todo: analyse return code */
+ 
+ 	/*  Initialize the child pointers */
+-	node->children = (struct m0_be_bnode **)MEM_ALLOC(tx, CHILDREN_SIZE(btree));
+-	M0_ASSERT(node->children != NULL); /* @todo: analyse return code */
++	node->b_children = (struct m0_be_bnode **)mem_alloc(btree, tx, CHILDREN_SIZE);
++	M0_ASSERT(node->b_children != NULL); /* @todo: analyse return code */
+ 
+ 	/*  Use to determine whether it is a leaf */
+-	node->leaf = true;
++	node->b_leaf = true;
+ 
+ 	/*  Use to determine the level in the tree */
+-	node->level = 0;
++	node->b_level = 0;
+ 
+ 	/* Initialize the linked list pointer to NULL */
+-	node->next = NULL;
++	node->b_next = NULL;
+ 
+ 	return node;
+ }
+@@ -277,19 +289,18 @@ static struct m0_be_bnode *allocate_btree_node(const struct m0_be_btree *btree,
+ /**
+  * Function used to free the memory allocated to the b-tree
+  */
+-static int free_btree_node(struct m0_be_bnode	    *node,
+-			   const struct m0_be_btree *btree,
+-			   struct m0_be_tx	    *tx)
++static void free_btree_node(struct m0_be_bnode       *node,
++			    const struct m0_be_btree *btree,
++			    struct m0_be_tx          *tx)
+ {
+-	MEM_FREE(tx, node->children, CHILDREN_SIZE(btree));
+-	MEM_FREE(tx, node->key_vals, KV_SIZE(btree));
+-	MEM_FREE(tx, node, sizeof(struct m0_be_bnode));
+-
+-	return 0;
++	mem_free(btree, tx, node->b_children, CHILDREN_SIZE);
++	mem_free(btree, tx, node->b_key_vals, KV_SIZE);
++	mem_free(btree, tx, node, sizeof(struct m0_be_bnode));
+ }
+ 
+ /**
+- * Used to split the child node and adjust the parent so that it has two children
++ * Used to split the child node and adjust the parent so that it has a pointer
++ * to the new child
+  */
+ static void btree_split_child(struct m0_be_btree *btree,
+ 			      struct m0_be_tx	 *tx,
+@@ -297,48 +308,47 @@ static void btree_split_child(struct m0_be_btree *btree,
+ 			      unsigned int	  index,
+ 			      struct m0_be_bnode *child)
+ {
+-	int rc;
+-	int i = 0;
++	int i;
+ 	unsigned int order = BTREE_FAN_OUT;
+ 
+ 	struct m0_be_bnode *new_child = allocate_btree_node(btree, tx);
+-	new_child->leaf = child->leaf;
+-	new_child->level = child->level;
+-	new_child->nr_active = BTREE_FAN_OUT - 1;
++	M0_ASSERT(new_child != NULL);
++
++	new_child->b_leaf = child->b_leaf;
++	new_child->b_level = child->b_level;
++	new_child->b_nr_active = BTREE_FAN_OUT - 1;
+ 
+ 	/*  Copy the higher order keys to the new child */
+ 	for (i = 0; i < order - 1; i++) {
+-		new_child->key_vals[i] = child->key_vals[i + order];
+-		if (!child->leaf) {
+-			new_child->children[i] = child->children[i + order];
++		new_child->b_key_vals[i] = child->b_key_vals[i + order];
++		if (!child->b_leaf) {
++			new_child->b_children[i] = child->b_children[i + order];
+ 		}
+ 	}
+ 
+ 	/*  Copy the last child pointer */
+-	if (!child->leaf) {
+-		new_child->children[i] = child->children[i + order];
++	if (!child->b_leaf) {
++		new_child->b_children[i] = child->b_children[i + order];
+ 	}
+ 
+-	child->nr_active = order - 1;
++	child->b_nr_active = order - 1;
+ 
+-	for (i = parent->nr_active + 1; i > index + 1; i--) {
+-		parent->children[i] = parent->children[i - 1];
++	for (i = parent->b_nr_active + 1; i > index + 1; i--) {
++		parent->b_children[i] = parent->b_children[i - 1];
+ 	}
+-	parent->children[index + 1] = new_child;
++	parent->b_children[index + 1] = new_child;
+ 
+-	for (i = parent->nr_active; i > index; i--) {
+-		parent->key_vals[i] = parent->key_vals[i - 1];
++	for (i = parent->b_nr_active; i > index; i--) {
++		parent->b_key_vals[i] = parent->b_key_vals[i - 1];
+ 	}
+ 
+-	parent->key_vals[index] = child->key_vals[order - 1];
+-	parent->nr_active++;
++	parent->b_key_vals[index] = child->b_key_vals[order - 1];
++	parent->b_nr_active++;
+ 
+ 	/* Update affected memory regions in tx: */
+-	rc = node_update(parent, btree, tx);
+-	M0_ASSERT(rc == 0);
+-
+-	rc = node_update(child, btree, tx);
+-	M0_ASSERT(rc == 0);
++	node_update(parent, btree, tx);
++	node_update(child, btree, tx);
++	node_update(new_child, btree, tx);
+ }
+ 
+ /**
+@@ -351,36 +361,34 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
+ {
+ 	void *key = key_val->key;
+ 	int i;
+-	int rc;
+ 	struct m0_be_bnode *child;
+ 	struct m0_be_bnode *node = parent_node;
+ 
+- insert:i = node->nr_active - 1;
+-	if (node->leaf) {
+-		while (i >= 0 && KEY_LT(key, node->key_vals[i]->key)) {
+-			node->key_vals[i + 1] = node->key_vals[i];
++ insert:i = node->b_nr_active - 1;
++	if (node->b_leaf) {
++		while (i >= 0 && key_lt(btree, key, node->b_key_vals[i]->key)) {
++			node->b_key_vals[i + 1] = node->b_key_vals[i];
+ 			i--;
+ 		}
+-		node->key_vals[i + 1] = key_val;
+-		node->nr_active++;
++		node->b_key_vals[i + 1] = key_val;
++		node->b_nr_active++;
+ 
+ 		/* Update affected memory regions */
+-		rc = node_update(node, btree, tx);
+-		M0_ASSERT(rc == 0);
++		node_update(node, btree, tx);
+ 	} else {
+-		while (i >= 0 && KEY_LT(key, node->key_vals[i]->key)) {
++		while (i >= 0 && key_lt(btree, key, node->b_key_vals[i]->key)) {
+ 			i--;
+ 		}
+ 		i++;
+-		child = node->children[i];
++		child = node->b_children[i];
+ 
+-		if (child->nr_active == 2 * BTREE_FAN_OUT - 1) {
++		if (child->b_nr_active == KV_NR) {
+ 			btree_split_child(btree, tx, node, i, child);
+-			if (KEY_GT(key_val->key, node->key_vals[i]->key)) {
++			if (key_gt(btree, key_val->key, node->b_key_vals[i]->key)) {
+ 				i++;
+ 			}
+ 		}
+-		node = node->children[i];
++		node = node->b_children[i];
+ 		goto insert;
+ 	}
+ }
+@@ -395,21 +403,23 @@ static void btree_insert_key(struct m0_be_btree *btree,
+ 	struct m0_be_bnode *rnode;
+ 
+ 	rnode = btree->bb_root;
+-	if (rnode->nr_active == (2 * BTREE_FAN_OUT - 1)) {
++	if (rnode->b_nr_active == KV_NR) {
+ 		struct m0_be_bnode *new_root;
+ 		new_root = allocate_btree_node(btree, tx);
+-		new_root->level = btree->bb_root->level + 1;
++		M0_ASSERT(new_root != NULL);
++
++		new_root->b_level = btree->bb_root->b_level + 1;
+ 		btree->bb_root = new_root;
+-		new_root->leaf = false;
+-		new_root->nr_active = 0;
+-		new_root->children[0] = rnode;
++		new_root->b_leaf = false;
++		new_root->b_nr_active = 0;
++		new_root->b_children[0] = rnode;
+ 		btree_split_child(btree, tx, new_root, 0, rnode);
+ 		btree_insert_nonfull(btree, tx, new_root, key_val);
++
++		/* Update tree structure itself */
++		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
+ 	} else
+ 		btree_insert_nonfull(btree, tx, rnode, key_val);
+-
+-	/* Update tree structure itself */
+-	MEM_UPDATE(tx, btree, sizeof(struct m0_be_btree));
+ }
+ 
+ /**
+@@ -418,28 +428,16 @@ static void btree_insert_key(struct m0_be_btree *btree,
+  *	@param subtree The subtree to be searched
+  *	@return The node_pos containing the key and position of the key
+  */
+-static struct node_pos get_max_key_pos(struct m0_be_btree *btree,
+-				       struct m0_be_bnode *subtree)
++static void get_max_key_pos(struct m0_be_btree *btree,
++			    struct m0_be_bnode *node,
++			    struct node_pos    *pos)
+ {
+-	struct node_pos node_pos;
+-	struct m0_be_bnode *node = subtree;
+-
+-	while (true) {
+-		if (node == NULL) {
+-			break;
+-		}
++	for (; node != NULL && !node->b_leaf;
++	     node = node->b_children[node->b_nr_active])
++		;
+ 
+-		if (node->leaf) {
+-			node_pos.node = node;
+-			node_pos.index = node->nr_active - 1;
+-			return node_pos;
+-		} else {
+-			node_pos.node = node;
+-			node_pos.index = node->nr_active - 1;
+-			node = node->children[node->nr_active];
+-		}
+-	}
+-	return node_pos;
++	pos->p_node  = node;
++	pos->p_index = node != NULL ? node->b_nr_active - 1 : 0;
+ }
+ 
+ /**
+@@ -448,28 +446,15 @@ static struct node_pos get_max_key_pos(struct m0_be_btree *btree,
+  *	@param subtree The subtree to be searched
+  *	@return The node_pos containing the key and position of the key
+  */
+-static struct node_pos get_min_key_pos(struct m0_be_btree *btree,
+-				       struct m0_be_bnode *subtree)
++static void get_min_key_pos(struct m0_be_btree *btree,
++			    struct m0_be_bnode *node,
++			    struct node_pos    *pos)
+ {
+-	struct node_pos node_pos;
+-	struct m0_be_bnode *node = subtree;
+-
+-	while (true) {
+-		if (node == NULL) {
+-			break;
+-		}
++	for (; node != NULL && node->b_leaf; node = node->b_children[0])
++		;
+ 
+-		if (node->leaf) {
+-			node_pos.node = node;
+-			node_pos.index = 0;
+-			return node_pos;
+-		} else {
+-			node_pos.node = node;
+-			node_pos.index = 0;
+-			node = node->children[0];
+-		}
+-	}
+-	return node_pos;
++	pos->p_node  = node;
++	pos->p_index = 0;
+ }
+ 
+ /**
+@@ -485,68 +470,61 @@ static struct m0_be_bnode *merge_siblings(struct m0_be_btree *btree,
+ 					  unsigned int	      index,
+ 					  enum position_t     pos)
+ {
+-	int rc;
+-	unsigned int i, j;
++	unsigned int i;
++	unsigned int j;
+ 	struct m0_be_bnode *new_node;
+-	struct m0_be_bnode *n1, *n2;
++	struct m0_be_bnode *n1;
++	struct m0_be_bnode *n2;
+ 
+-	if (index == (parent->nr_active)) {
++	if (index == parent->b_nr_active)
+ 		index--;
+-		n1 = parent->children[parent->nr_active - 1];
+-		n2 = parent->children[parent->nr_active];
+-	} else {
+-		n1 = parent->children[index];
+-		n2 = parent->children[index + 1];
+-	}
++
++	n1 = parent->b_children[index];
++	n2 = parent->b_children[index + 1];
+ 
+ 	/* Merge the current node with the left node */
+ 	new_node = allocate_btree_node(btree, tx);
+-	new_node->level = n1->level;
+-	new_node->leaf = n1->leaf;
++	new_node->b_level = n1->b_level;
++	new_node->b_leaf = n1->b_leaf;
+ 
+ 	for (j = 0; j < BTREE_FAN_OUT - 1; j++) {
+-		new_node->key_vals[j] = n1->key_vals[j];
+-		new_node->children[j] = n1->children[j];
++		new_node->b_key_vals[j] = n1->b_key_vals[j];
++		new_node->b_children[j] = n1->b_children[j];
+ 	}
+ 
+-	new_node->key_vals[BTREE_FAN_OUT - 1] = parent->key_vals[index];
+-	new_node->children[BTREE_FAN_OUT - 1] = n1->children[BTREE_FAN_OUT - 1];
++	new_node->b_key_vals[BTREE_FAN_OUT - 1] = parent->b_key_vals[index];
++	new_node->b_children[BTREE_FAN_OUT - 1] = n1->b_children[BTREE_FAN_OUT - 1];
+ 
+ 	for (j = 0; j < BTREE_FAN_OUT - 1; j++) {
+-		new_node->key_vals[j + BTREE_FAN_OUT] = n2->key_vals[j];
+-		new_node->children[j + BTREE_FAN_OUT] = n2->children[j];
++		new_node->b_key_vals[j + BTREE_FAN_OUT] = n2->b_key_vals[j];
++		new_node->b_children[j + BTREE_FAN_OUT] = n2->b_children[j];
+ 	}
+-	new_node->children[2 * BTREE_FAN_OUT - 1] =
+-	    n2->children[BTREE_FAN_OUT - 1];
++	new_node->b_children[KV_NR] = n2->b_children[BTREE_FAN_OUT - 1];
+ 
+-	parent->children[index] = new_node;
++	parent->b_children[index] = new_node;
+ 
+-	for (j = index; j < parent->nr_active; j++) {
+-		parent->key_vals[j] = parent->key_vals[j + 1];
+-		parent->children[j + 1] = parent->children[j + 2];
++	for (j = index; j < parent->b_nr_active; j++) {
++		parent->b_key_vals[j] = parent->b_key_vals[j + 1];
++		parent->b_children[j + 1] = parent->b_children[j + 2];
+ 	}
+ 
+-	new_node->nr_active = n1->nr_active + n2->nr_active + 1;
+-	parent->nr_active--;
++	new_node->b_nr_active = n1->b_nr_active + n2->b_nr_active + 1;
++	parent->b_nr_active--;
+ 
+-	for (i = parent->nr_active; i < 2 * BTREE_FAN_OUT - 1; i++) {
+-		parent->key_vals[i] = NULL;
++	for (i = parent->b_nr_active; i < KV_NR; i++) {
++		parent->b_key_vals[i] = NULL;
+ 	}
+ 
+ 	free_btree_node(n1, btree, tx);
+ 	free_btree_node(n2, btree, tx);
+ 
+-	if (parent->nr_active == 0 && btree->bb_root == parent) {
++	if (parent->b_nr_active == 0 && btree->bb_root == parent) {
+ 		free_btree_node(parent, btree, tx);
+ 		btree->bb_root = new_node;
+-		if (new_node->level)
+-			new_node->leaf = false;
+-		else
+-			new_node->leaf = true;
++		new_node->b_leaf = (new_node->b_level == 0);
+ 	} else {
+ 		/* Update affected memory regions */
+-		rc = node_update(parent, btree, tx);
+-		M0_ASSERT(rc == 0);
++		node_update(parent, btree, tx);
+ 	}
+ 
+ 	return new_node;
+@@ -568,61 +546,55 @@ static void move_key(struct m0_be_btree	  *btree,
+ 	struct m0_be_bnode *lchild;
+ 	struct m0_be_bnode *rchild;
+ 	unsigned int i;
+-	int rc;
+ 
+ 	if (pos == P_RIGHT) {
+ 		index--;
+ 	}
+-	lchild = node->children[index];
+-	rchild = node->children[index + 1];
++	lchild = node->b_children[index];
++	rchild = node->b_children[index + 1];
+ 
+ 	/*  Move the key from the parent to the left child */
+ 	if (pos == P_LEFT) {
+-		lchild->key_vals[lchild->nr_active] = node->key_vals[index];
+-		lchild->children[lchild->nr_active + 1] = rchild->children[0];
+-		rchild->children[0] = NULL;
+-		lchild->nr_active++;
++		lchild->b_key_vals[lchild->b_nr_active] = node->b_key_vals[index];
++		lchild->b_children[lchild->b_nr_active + 1] = rchild->b_children[0];
++		rchild->b_children[0] = NULL;
++		lchild->b_nr_active++;
+ 
+-		node->key_vals[index] = rchild->key_vals[0];
+-		rchild->key_vals[0] = NULL;
++		node->b_key_vals[index] = rchild->b_key_vals[0];
++		rchild->b_key_vals[0] = NULL;
+ 
+-		for (i = 0; i < rchild->nr_active - 1; i++) {
+-			rchild->key_vals[i] = rchild->key_vals[i + 1];
+-			rchild->children[i] = rchild->children[i + 1];
++		for (i = 0; i < rchild->b_nr_active - 1; i++) {
++			rchild->b_key_vals[i] = rchild->b_key_vals[i + 1];
++			rchild->b_children[i] = rchild->b_children[i + 1];
+ 		}
+-		rchild->children[rchild->nr_active - 1] =
+-		    rchild->children[rchild->nr_active];
+-		rchild->nr_active--;
++		rchild->b_children[rchild->b_nr_active - 1] =
++		    rchild->b_children[rchild->b_nr_active];
++		rchild->b_nr_active--;
+ 	} else {
+ 		/*  Move the key from the parent to the right child */
+-		for (i = rchild->nr_active; i > 0; i--) {
+-			rchild->key_vals[i] = rchild->key_vals[i - 1];
+-			rchild->children[i + 1] = rchild->children[i];
++		for (i = rchild->b_nr_active; i > 0; i--) {
++			rchild->b_key_vals[i] = rchild->b_key_vals[i - 1];
++			rchild->b_children[i + 1] = rchild->b_children[i];
+ 		}
+-		rchild->children[1] = rchild->children[0];
+-		rchild->children[0] = NULL;
++		rchild->b_children[1] = rchild->b_children[0];
++		rchild->b_children[0] = NULL;
+ 
+-		rchild->key_vals[0] = node->key_vals[index];
++		rchild->b_key_vals[0] = node->b_key_vals[index];
+ 
+-		rchild->children[0] = lchild->children[lchild->nr_active];
+-		lchild->children[lchild->nr_active] = NULL;
++		rchild->b_children[0] = lchild->b_children[lchild->b_nr_active];
++		lchild->b_children[lchild->b_nr_active] = NULL;
+ 
+-		node->key_vals[index] = lchild->key_vals[lchild->nr_active - 1];
+-		lchild->key_vals[lchild->nr_active - 1] = NULL;
++		node->b_key_vals[index] = lchild->b_key_vals[lchild->b_nr_active - 1];
++		lchild->b_key_vals[lchild->b_nr_active - 1] = NULL;
+ 
+-		lchild->nr_active--;
+-		rchild->nr_active++;
++		lchild->b_nr_active--;
++		rchild->b_nr_active++;
+ 	}
+ 
+ 	/* Update affected memory regions in tx: */
+-	rc = node_update(node, btree, tx);
+-	M0_ASSERT(rc == 0);
+-
+-	rc = node_update(lchild, btree, tx);
+-	M0_ASSERT(rc == 0);
+-
+-	rc = node_update(rchild, btree, tx);
+-	M0_ASSERT(rc == 0);
++	node_update(node, btree, tx);
++	node_update(lchild, btree, tx);
++	node_update(rchild, btree, tx);
+ }
+ 
+ /**
+@@ -639,24 +611,24 @@ static struct m0_be_bnode *merge_nodes(struct m0_be_btree *btree,
+ 	unsigned int i;
+ 
+ 	new_node = allocate_btree_node(btree, tx);
+-	new_node->leaf = true;
++	new_node->b_leaf = true;
+ 
+-	for (i = 0; i < n1->nr_active; i++) {
+-		new_node->key_vals[i] = n1->key_vals[i];
+-		new_node->children[i] = n1->children[i];
++	for (i = 0; i < n1->b_nr_active; i++) {
++		new_node->b_key_vals[i] = n1->b_key_vals[i];
++		new_node->b_children[i] = n1->b_children[i];
+ 	}
+-	new_node->children[n1->nr_active] = n1->children[n1->nr_active];
+-	new_node->key_vals[n1->nr_active] = kv;
++	new_node->b_children[n1->b_nr_active] = n1->b_children[n1->b_nr_active];
++	new_node->b_key_vals[n1->b_nr_active] = kv;
+ 
+-	for (i = 0; i < n2->nr_active; i++) {
+-		new_node->key_vals[i + n1->nr_active + 1] = n2->key_vals[i];
+-		new_node->children[i + n1->nr_active + 1] = n2->children[i];
++	for (i = 0; i < n2->b_nr_active; i++) {
++		new_node->b_key_vals[i + n1->b_nr_active + 1] = n2->b_key_vals[i];
++		new_node->b_children[i + n1->b_nr_active + 1] = n2->b_children[i];
+ 	}
+-	new_node->children[2 * BTREE_FAN_OUT - 1] = n2->children[n2->nr_active];
++	new_node->b_children[KV_NR] = n2->b_children[n2->b_nr_active];
+ 
+-	new_node->nr_active = n1->nr_active + n2->nr_active + 1;
+-	new_node->leaf = n1->leaf;
+-	new_node->level = n1->level;
++	new_node->b_nr_active = n1->b_nr_active + n2->b_nr_active + 1;
++	new_node->b_leaf = n1->b_leaf;
++	new_node->b_level = n1->b_level;
+ 
+ 	free_btree_node(n1, btree, tx);
+ 	free_btree_node(n2, btree, tx);
+@@ -672,40 +644,38 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
+ 			 struct m0_be_tx	 *tx,
+ 			 struct node_pos	 *node_pos)
+ {
+-	unsigned int keys_max = 2 * BTREE_FAN_OUT - 1;
++	unsigned int keys_max = KV_NR;
+ 	unsigned int i;
+-	int rc;
+ 	struct bt_key_val *key_val;
+-	struct m0_be_bnode *node = node_pos->node;
++	struct m0_be_bnode *node = node_pos->p_node;
+ 
+-	if (node->leaf == false) {
++	if (node->b_leaf == false) {
+ 		return -1;
+ 	}
+ 
+-	key_val = node->key_vals[node_pos->index];
++	key_val = node->b_key_vals[node_pos->p_index];
+ 
+-	for (i = node_pos->index; i < keys_max - 1; i++) {
+-		node->key_vals[i] = node->key_vals[i + 1];
++	for (i = node_pos->p_index; i < keys_max - 1; i++) {
++		node->b_key_vals[i] = node->b_key_vals[i + 1];
+ 	}
+ 
+ 	if (key_val->key) {
+-		MEM_FREE(tx, key_val->key, btree->bb_ops->ko_ksize(key_val->key));
++		mem_free(btree, tx, key_val->key, btree->bb_ops->ko_ksize(key_val->key));
+ 		key_val->key = NULL;
+ 	}
+ 
+ 	if (key_val->val) {
+-		MEM_FREE(tx, key_val->val, btree->bb_ops->ko_dsize(key_val->val));
++		mem_free(btree, tx, key_val->val, btree->bb_ops->ko_vsize(key_val->val));
+ 		key_val->val = NULL;
+ 	}
+ 
+-	node->nr_active--;
++	node->b_nr_active--;
+ 
+-	if (node->nr_active == 0) {
++	if (node->b_nr_active == 0) {
+ 		free_btree_node(node, btree, tx);
+ 	} else {
+ 		/* Update affected memory regions in tx: */
+-		rc = node_update(node, btree, tx);
+-		M0_ASSERT(rc == 0);
++		node_update(node, btree, tx);
+ 	}
+ 	return 0;
+ }
+@@ -718,7 +688,6 @@ static int btree_delete_key(struct m0_be_btree   *btree,
+ 			    struct m0_be_bnode   *subtree,
+ 			    void                 *key)
+ {
+-	int rc;
+ 	unsigned int i, index;
+ 	struct m0_be_bnode *node = NULL, *rsibling, *lsibling;
+ 	struct m0_be_bnode *comb_node, *parent;
+@@ -733,68 +702,68 @@ static int btree_delete_key(struct m0_be_btree   *btree,
+  del_loop:for (i = 0;; i = 0) {
+ 
+ 		/* If there are no keys simply return */
+-		if (!node->nr_active)
++		if (!node->b_nr_active)
+ 			return -1;
+ 
+ 		/*  Fix the index of the key greater than or equal */
+ 		/*  to the key that we would like to search */
+ 
+-		while (i < node->nr_active &&
+-		       KEY_GT(kv, node->key_vals[i]->key)) {
++		while (i < node->b_nr_active &&
++		       key_gt(btree, kv, node->b_key_vals[i]->key)) {
+ 			i++;
+ 		}
+ 		index = i;
+ 
+ 		/*  If we find such key break */
+-		if (i < node->nr_active && KEY_EQ(kv, node->key_vals[i]->key)) {
++		if (i < node->b_nr_active && key_eq(btree, kv, node->b_key_vals[i]->key)) {
+ 			break;
+ 		}
+-		if (node->leaf)
++		if (node->b_leaf)
+ 			return -1;
+ 
+ 		/* Store the parent node */
+ 		parent = node;
+ 
+ 		/*  To get a child node */
+-		node = node->children[i];
++		node = node->b_children[i];
+ 
+ 		/* If NULL not found */
+ 		if (node == NULL)
+ 			return -1;
+ 
+-		if (index == (parent->nr_active)) {
+-			lsibling = parent->children[parent->nr_active - 1];
++		if (index == (parent->b_nr_active)) {
++			lsibling = parent->b_children[parent->b_nr_active - 1];
+ 			rsibling = NULL;
+ 		} else if (index == 0) {
+ 			lsibling = NULL;
+-			rsibling = parent->children[1];
++			rsibling = parent->b_children[1];
+ 		} else {
+-			lsibling = parent->children[i - 1];
+-			rsibling = parent->children[i + 1];
++			lsibling = parent->b_children[i - 1];
++			rsibling = parent->b_children[i + 1];
+ 		}
+ 
+-		if (node->nr_active == BTREE_FAN_OUT - 1 && parent) {
++		if (node->b_nr_active == BTREE_FAN_OUT - 1 && parent) {
+ 			/*  The current node has (t - 1) keys but the */
+ 			/*  right sibling has > (t - 1) keys */
+ 			if (rsibling
+-			    && (rsibling->nr_active > BTREE_FAN_OUT - 1)) {
++			    && (rsibling->b_nr_active > BTREE_FAN_OUT - 1)) {
+ 				move_key(btree, tx, parent, i, P_LEFT);
+ 			} else
+ 			/*  The current node has (t - 1) keys but the */
+ 			/*  left sibling has (t - 1) keys */
+ 			if (lsibling
+-				    && (lsibling->nr_active >
++				    && (lsibling->b_nr_active >
+ 						BTREE_FAN_OUT - 1)) {
+ 				move_key(btree, tx, parent, i, P_RIGHT);
+ 			} else
+ 			/*  Left sibling has (t - 1) keys */
+ 			if (lsibling  &&
+-			    (lsibling->nr_active == BTREE_FAN_OUT - 1)) {
++			    (lsibling->b_nr_active == BTREE_FAN_OUT - 1)) {
+ 				node = merge_siblings(btree, tx, parent, i, P_LEFT);
+ 			} else
+ 			/*  Right sibling has (t - 1) keys */
+ 			if (rsibling &&
+-			    (rsibling->nr_active ==BTREE_FAN_OUT - 1)) {
++			    (rsibling->b_nr_active ==BTREE_FAN_OUT - 1)) {
+ 				node = merge_siblings(btree, tx, parent, i, P_RIGHT);
+ 			}
+ 		}
+@@ -803,104 +772,102 @@ static int btree_delete_key(struct m0_be_btree   *btree,
+ 	/* Case 1 : The node containing the key is found and is the leaf node. */
+ 	/* Also the leaf node has keys greater than the minimum required. */
+ 	/* Simply remove the key */
+-	if (node->leaf && (node->nr_active > BTREE_FAN_OUT - 1)) {
+-		node_pos.node = node;
+-		node_pos.index = index;
++	if (node->b_leaf && (node->b_nr_active > BTREE_FAN_OUT - 1)) {
++		node_pos.p_node = node;
++		node_pos.p_index = index;
+ 		delete_key_from_node(btree, tx, &node_pos);
+ 
+ 		/* Update affected memory regions in tx: */
+ 		/* XXX: this update looks to be useless */
+-		/*rc =*/ MEM_UPDATE(tx, btree, sizeof(struct m0_be_btree));
++		/*rc =*/ mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
+ 		/* M0_ASSERT(rc == 0); */
+ 
+ 		return 0;
+ 	}
+ 	/* If the leaf node is the root permit deletion even if the */
+ 	/* number of keys is less than (t - 1) */
+-	if (node->leaf && (node == btree->bb_root)) {
+-		node_pos.node = node;
+-		node_pos.index = index;
++	if (node->b_leaf && (node == btree->bb_root)) {
++		node_pos.p_node = node;
++		node_pos.p_index = index;
+ 		delete_key_from_node(btree, tx, &node_pos);
+ 
+ 		/* Update affected memory regions in tx: */
+-		/*rc =*/ MEM_UPDATE(tx, btree, sizeof(struct m0_be_btree));
++		/*rc =*/ mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
+ 		/* M0_ASSERT(rc == 0); */
+ 
+ 		return 0;
+ 	}
+ 
+ 	/* Case 2: The node containing the key is found and is an internal node */
+-	if (node->leaf == false) {
+-		if (node->children[index]->nr_active > BTREE_FAN_OUT - 1) {
+-			sub_node_pos =
+-			    get_max_key_pos(btree, node->children[index]);
++	if (node->b_leaf == false) {
++		if (node->b_children[index]->b_nr_active > BTREE_FAN_OUT - 1) {
++			get_max_key_pos(btree, node->b_children[index],
++					&sub_node_pos);
+ 			key_val =
+-			    sub_node_pos.node->key_vals[sub_node_pos.index];
++			    sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
+ 
+ 			new_key_val =
+ 			    (struct bt_key_val *)
+-				MEM_ALLOC(tx, sizeof(struct bt_key_val));
++				mem_alloc(btree, tx, sizeof(struct bt_key_val));
+ 			/* @todo: analyse return code */
+ 			M0_ASSERT(new_key_val != NULL);
+ 
+ 			copy_key_val(btree, tx, key_val, new_key_val);
+-			node->key_vals[index] = new_key_val;
++			node->b_key_vals[index] = new_key_val;
+ 
+ 			/* Update key vals pointer, WARNING: can be XXX. */
+-			/*rc =*/ MEM_UPDATE(tx, node->key_vals, KV_SIZE(btree));
++			/*rc =*/ mem_update(btree, tx, node->b_key_vals, KV_SIZE);
+ 			/* M0_ASSERT(rc == 0); */
+ 
+-			btree_delete_key(btree, tx, node->children[index],
++			btree_delete_key(btree, tx, node->b_children[index],
+ 					 key_val->key);
+-			if (sub_node_pos.node->leaf == false) {
++			if (sub_node_pos.p_node->b_leaf == false) {
+ 				M0_LOG(M0_ERROR, "Not leaf");
+ 			}
+-		} else if ((node->children[index + 1]->nr_active >
++		} else if ((node->b_children[index + 1]->b_nr_active >
+ 			    BTREE_FAN_OUT - 1)) {
+-			sub_node_pos =
+-			    get_min_key_pos(btree, node->children[index + 1]);
++			get_min_key_pos(btree, node->b_children[index + 1],
++					&sub_node_pos);
+ 			key_val =
+-			    sub_node_pos.node->key_vals[sub_node_pos.index];
++			    sub_node_pos.p_node->b_key_vals[sub_node_pos.p_index];
+ 
+ 			new_key_val =
+ 			    (struct bt_key_val *)
+-				MEM_ALLOC(tx, sizeof(struct bt_key_val));
++				mem_alloc(btree, tx, sizeof(struct bt_key_val));
+ 			M0_ASSERT(new_key_val != NULL);	/* @todo: analyse return code */
+ 
+ 			copy_key_val(btree, tx, key_val, new_key_val);
+-			node->key_vals[index] = new_key_val;
++			node->b_key_vals[index] = new_key_val;
+ 
+ 			/* Update key vals pointer, WARNING: can be XXX. */
+-			/*rc =*/ MEM_UPDATE(tx, node->key_vals, KV_SIZE(btree));
+-			M0_ASSERT(rc == 0);
++			mem_update(btree, tx, node->b_key_vals, KV_SIZE);
+ 
+-			btree_delete_key(btree, tx, node->children[index + 1],
++			btree_delete_key(btree, tx, node->b_children[index + 1],
+ 					 key_val->key);
+-			if (sub_node_pos.node->leaf == false) {
++			if (sub_node_pos.p_node->b_leaf == false) {
+ 				M0_LOG(M0_ERROR, "Not leaf");
+ 			}
+ 
+-		} else if (node->children[index]->nr_active == BTREE_FAN_OUT - 1
+-			   && node->children[index + 1]->nr_active ==
++		} else if (node->b_children[index]->b_nr_active == BTREE_FAN_OUT - 1
++			   && node->b_children[index + 1]->b_nr_active ==
+ 			   BTREE_FAN_OUT - 1) {
+ 
+-			comb_node = merge_nodes(btree, tx, node->children[index],
+-						node->key_vals[index],
+-						node->children[index + 1]);
+-			node->children[index] = comb_node;
++			comb_node = merge_nodes(btree, tx, node->b_children[index],
++						node->b_key_vals[index],
++						node->b_children[index + 1]);
++			node->b_children[index] = comb_node;
+ 
+-			for (i = index + 1; i < node->nr_active; i++) {
+-				node->children[i] = node->children[i + 1];
+-				node->key_vals[i - 1] = node->key_vals[i];
++			for (i = index + 1; i < node->b_nr_active; i++) {
++				node->b_children[i] = node->b_children[i + 1];
++				node->b_key_vals[i - 1] = node->b_key_vals[i];
+ 			}
+-			node->nr_active--;
+-			if (node->nr_active == 0 && btree->bb_root == node) {
++			node->b_nr_active--;
++			if (node->b_nr_active == 0 && btree->bb_root == node) {
+ 				free_btree_node(node, btree, tx);
+ 				btree->bb_root = comb_node;
+ 			} else {
+ 				/* XXX: crazy looking update procedure... */
+-				rc = node_update(node, btree, tx);
+-				M0_ASSERT(rc == 0);
++				node_update(node, btree, tx);
+ 			}
+ 
+ 			node = comb_node;
+@@ -912,14 +879,14 @@ static int btree_delete_key(struct m0_be_btree   *btree,
+ 	/*  moving to the leaf node making sure that each node that */
+ 	/*  we encounter on the way has atleast 't' (order of the tree) */
+ 	/*  keys */
+-	if (node->leaf && (node->nr_active > BTREE_FAN_OUT - 1)) {
+-		node_pos.node = node;
+-		node_pos.index = index;
++	if (node->b_leaf && (node->b_nr_active > BTREE_FAN_OUT - 1)) {
++		node_pos.p_node = node;
++		node_pos.p_index = index;
+ 		delete_key_from_node(btree, tx, &node_pos);
+ 	}
+ 
+ 	/* Update affected memory regions in tx: */
+-	/*rc =*/ MEM_UPDATE(tx, btree, sizeof(struct m0_be_btree));
++	/*rc =*/ mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
+ 	/* M0_ASSERT(rc == 0); */
+ 
+ 	return 0;
+@@ -928,7 +895,7 @@ static int btree_delete_key(struct m0_be_btree   *btree,
+ static inline bool key_found(struct m0_be_btree *btree, const void *kv0,
+ 			     const void *kv1, bool slant)
+ {
+-	return (slant && KEY_LT(kv0, kv1)) || KEY_EQ(kv0, kv1);
++	return (slant && key_lt(btree, kv0, kv1)) || key_eq(btree, kv0, kv1);
+ }
+ 
+ /**
+@@ -939,7 +906,7 @@ static inline bool key_found(struct m0_be_btree *btree, const void *kv0,
+  */
+ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
+ {
+-	struct node_pos kp = { .node = NULL };
++	struct node_pos kp = { .p_node = NULL };
+ 	void *key_val = key;
+ 	struct m0_be_bnode *node;
+ 	unsigned int i = 0;
+@@ -950,25 +917,25 @@ struct node_pos get_btree_node(struct m0_be_btree *btree, void *key, bool slant)
+ 
+ 		/*  Find the index of the key greater than or equal */
+ 		/*  to the key that we would like to search */
+-		while (i < node->nr_active &&
+-		       KEY_GT(key_val, node->key_vals[i]->key)) {
++		while (i < node->b_nr_active &&
++		       key_gt(btree, key_val, node->b_key_vals[i]->key)) {
+ 			i++;
+ 		}
+ 
+ 		/*  If we find such key return the key-value pair */
+-		if (i < node->nr_active &&
+-		    key_found(btree, key_val, node->key_vals[i]->key, slant)) {
+-			kp.node = node;
+-			kp.index = i;
++		if (i < node->b_nr_active &&
++		    key_found(btree, key_val, node->b_key_vals[i]->key, slant)) {
++			kp.p_node = node;
++			kp.p_index = i;
+ 			return kp;
+ 		}
+ 		/*  If the node is leaf and if we did not find the key */
+ 		/*  return NULL */
+-		if (node->leaf) {
++		if (node->b_leaf) {
+ 			return kp;
+ 		}
+ 		/*  To got a child node */
+-		node = node->children[i];
++		node = node->b_children[i];
+ 	}
+ 	return kp;
+ }
+@@ -986,7 +953,7 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
+ 	struct m0_be_bnode *child, *del_node;
+ 
+ 	node = btree->bb_root;
+-	current_level = node->level;
++	current_level = node->b_level;
+ 	head = node;
+ 	tail = node;
+ 
+@@ -994,20 +961,20 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
+ 		if (head == NULL) {
+ 			break;
+ 		}
+-		if (head->level < current_level) {
+-			current_level = head->level;
++		if (head->b_level < current_level) {
++			current_level = head->b_level;
+ 		}
+ 
+-		if (head->leaf == false) {
+-			for (i = 0; i < head->nr_active + 1; i++) {
+-				child = head->children[i];
+-				tail->next = child;
++		if (head->b_leaf == false) {
++			for (i = 0; i < head->b_nr_active + 1; i++) {
++				child = head->b_children[i];
++				tail->b_next = child;
+ 				tail = child;
+-				child->next = NULL;
++				child->b_next = NULL;
+ 			}
+ 		}
+ 		del_node = head;
+-		head = head->next;
++		head = head->b_next;
+ 		free_btree_node(del_node, btree, tx);
+ 	}
+ 	/*  @todo: Seems btree has to be deleted also... */
+@@ -1026,8 +993,8 @@ static struct bt_key_val *btree_search(struct m0_be_btree *btree, void *key)
+ 	struct bt_key_val *key_val = NULL;
+ 	struct node_pos kp = get_btree_node(btree, key, false);
+ 
+-	if (kp.node) {
+-		key_val = kp.node->key_vals[kp.index];
++	if (kp.p_node) {
++		key_val = kp.p_node->b_key_vals[kp.p_index];
+ 	}
+ 	return key_val;
+ }
+@@ -1048,14 +1015,14 @@ static void copy_key_val(struct m0_be_btree *btree,
+ 	M0_ENTRY();
+ 
+ 	keysize = btree->bb_ops->ko_ksize(src->key);
+-	dst->key = (void *)MEM_ALLOC(tx, keysize);
++	dst->key = (void *)mem_alloc(btree, tx, keysize);
+ 	M0_ASSERT(dst->key != NULL);	/* @todo: analyse return code */
+ 
+ 	bcopy(src->key, dst->key, keysize);
+ 
+ 	if (src->val) {
+-		datasize = btree->bb_ops->ko_dsize(src->val);
+-		dst->val = (void *)MEM_ALLOC(tx, datasize);
++		datasize = btree->bb_ops->ko_vsize(src->val);
++		dst->val = (void *)mem_alloc(btree, tx, datasize);
+ 		M0_ASSERT(dst->val != NULL);	/* @todo: analyse return code */
+ 		bcopy(src->val, dst->val, datasize);
+ 	}
+@@ -1071,8 +1038,9 @@ static void copy_key_val(struct m0_be_btree *btree,
+ static void *btree_get_max_key(struct m0_be_btree *btree)
+ {
+ 	struct node_pos node_pos;
+-	node_pos = get_max_key_pos(btree, btree->bb_root);
+-	return node_pos.node->key_vals[node_pos.index]->key;
++
++	get_max_key_pos(btree, btree->bb_root, &node_pos);
++	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
+ }
+ 
+ /**
+@@ -1083,17 +1051,18 @@ static void *btree_get_max_key(struct m0_be_btree *btree)
+ static void *btree_get_min_key(struct m0_be_btree *btree)
+ {
+ 	struct node_pos node_pos;
+-	node_pos = get_min_key_pos(btree, btree->bb_root);
+-	return node_pos.node->key_vals[node_pos.index]->key;
++
++	get_min_key_pos(btree, btree->bb_root, &node_pos);
++	return node_pos.p_node->b_key_vals[node_pos.p_index]->key;
+ }
+ 
+ M0_UNUSED static void btree_pair_release(struct m0_be_btree *btree,
+ 					 struct m0_be_tx *tx,
+ 					 struct bt_key_val *kv)
+ {
+-	MEM_FREE(tx, kv->val, btree->bb_ops->ko_dsize(kv->val));
+-	MEM_FREE(tx, kv->key, btree->bb_ops->ko_ksize(kv->key));
+-	MEM_FREE(tx, kv, sizeof(struct bt_key_val));
++	mem_free(btree, tx, kv->val, btree->bb_ops->ko_vsize(kv->val));
++	mem_free(btree, tx, kv->key, btree->bb_ops->ko_ksize(kv->key));
++	mem_free(btree, tx, kv, sizeof(struct bt_key_val));
+ }
+ 
+ M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
+@@ -1103,18 +1072,18 @@ M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
+ {
+ 	struct bt_key_val *kv;
+ 
+-	M0_PRE(val_size == btree->bb_ops->ko_dsize(val));
++	M0_PRE(val_size == btree->bb_ops->ko_vsize(val));
+ 	M0_PRE(key_size == btree->bb_ops->ko_ksize(key));
+ 
+ 	/* XXX: ENOMEM has to be checked */
+ 
+-	kv = (struct bt_key_val *)MEM_ALLOC(tx, sizeof(struct bt_key_val));
++	kv = (struct bt_key_val *)mem_alloc(btree, tx, sizeof(struct bt_key_val));
+ 	M0_ASSERT(kv != NULL);
+ 
+-	kv->key = MEM_ALLOC(tx, key_size);
++	kv->key = mem_alloc(btree, tx, key_size);
+ 	M0_ASSERT(kv != NULL);
+ 
+-	kv->val = MEM_ALLOC(tx, val_size);
++	kv->val = mem_alloc(btree, tx, val_size);
+ 	M0_ASSERT(kv != NULL);
+ 
+ 	bcopy(key, kv->key, key_size);
+@@ -1128,14 +1097,24 @@ M0_UNUSED static struct bt_key_val *btree_pair_setup(struct m0_be_btree *btree,
+  * Btree external interfaces implementation
+  * ------------------------------------------------------------------ */
+ 
++#define BTREE_OP_FILL(op, tree, tx, optype, anchor) ({	\
++	(op)->bo_u.u_btree.t_anchor = (anchor);		\
++	(op)->bo_u.u_btree.t_tree   = (tree);		\
++	(op)->bo_u.u_btree.t_out    = NULL;		\
++	(op)->bo_u.u_btree.t_in     = NULL;		\
++	(op)->bo_u.u_btree.t_op     = optype;		\
++	(op)->bo_u.u_btree.t_tx     = (tx);		\
++	(op)->bo_utype              = M0_BOP_TREE;	\
++	})
++
++
+ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
+ 				  struct m0_be_seg   *seg,
+ 				  const struct m0_be_btree_kv_ops *ops,
+ 				  struct m0_be_bnode *root)
+ {
+ 	M0_PRE(ops != NULL);
+-	M0_PRE(ergo(root != NULL, seg->bs_addr <= (void*) root &&
+-		    (void*) root < seg->bs_addr + seg->bs_size));
++	M0_PRE(ergo(root != NULL, m0_be_seg_contains(seg, root)));
+ 
+ 	m0_rwlock_init(&tree->bb_lock);
+ 	tree->bb_root = root;
+@@ -1155,13 +1134,7 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 	/* M0_PRE(m0_rwlock_is_locked(tx->t_be.b_tx.te_lock)); */
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_CREATE;
+-	op->bo_u.u_btree.t_tx     = tx;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, tx, M0_BBO_CREATE, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+@@ -1179,13 +1152,7 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
+ 	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_DESTROY;
+-	op->bo_u.u_btree.t_tx     = tx;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, tx, M0_BBO_DESTROY, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+@@ -1202,18 +1169,19 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
+ 				    struct m0_be_tx_credit *accum)
+ {
+ 	struct m0_be_tx_credit node_credit = {
+-		.tc_reg_nr   = 1 + (2*BTREE_FAN_OUT) + (2*BTREE_FAN_OUT - 1),
+-		.tc_reg_size = sizeof(struct m0_be_bnode) + KV_SIZE(tree) +
+-			       CHILDREN_SIZE(tree)
++		.tc_reg_nr   = 1 + CHILDREN_NR + KV_NR,
++		.tc_reg_size = sizeof(struct m0_be_bnode) +KV_SIZE+CHILDREN_SIZE
+ 	};
+-	uint32_t height = tree->bb_root->level;
++	uint32_t height = tree->bb_root->b_level;
++
++	M0_PRE(M0_IN(optype, (M0_BBO_CREATE, M0_BBO_DESTROY, M0_BBO_INSERT,
++			      M0_BBO_DELETE, M0_BBO_UPDATE)));
+ 
+ 	m0_be_tx_credit_add(accum, &node_credit);
+ 	switch (optype) {
+ 	case M0_BBO_CREATE:
+ 		break;
+ 	case M0_BBO_DESTROY:
+-		m0_be_tx_credit_mul(accum, pow(height, BTREE_FAN_OUT));
+ 		break;
+ 	case M0_BBO_INSERT:
+ 	case M0_BBO_DELETE:
+@@ -1234,15 +1202,9 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
+ 	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 	M0_PRE(key->b_nob == tree->bb_ops->ko_ksize(key->b_addr));
+-	M0_PRE(val->b_nob == tree->bb_ops->ko_dsize(val->b_addr));
++	M0_PRE(val->b_nob == tree->bb_ops->ko_vsize(val->b_addr));
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_INSERT;
+-	op->bo_u.u_btree.t_tx     = tx;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, tx, M0_BBO_INSERT, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+@@ -1266,24 +1228,18 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *btree,
+ 	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 	M0_PRE(key->b_nob == btree->bb_ops->ko_ksize(key->b_addr));
+-	M0_PRE(val->b_nob == btree->bb_ops->ko_dsize(val->b_addr));
++	M0_PRE(val->b_nob == btree->bb_ops->ko_vsize(val->b_addr));
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = btree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_UPDATE;
+-	op->bo_u.u_btree.t_tx     = tx;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, btree, tx, M0_BBO_UPDATE, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&btree->bb_lock);
+ 
+ 	kv = btree_search(btree, key->b_addr);
+ 	if (kv != NULL) {
+-		MEM_FREE(tx, kv->val, btree->bb_ops->ko_dsize(kv->val));
++		mem_free(btree, tx, kv->val, btree->bb_ops->ko_vsize(kv->val));
+ 		kv->val = val->b_addr;
+-		MEM_UPDATE(tx, kv, sizeof(struct bt_key_val));
++		mem_update(btree, tx, kv, sizeof(struct bt_key_val));
+ 	}
+ 
+ 	m0_rwlock_write_unlock(&btree->bb_lock);
+@@ -1300,13 +1256,7 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
+ 	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_DELETE;
+-	op->bo_u.u_btree.t_tx     = tx;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, tx, M0_BBO_DELETE, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+@@ -1327,13 +1277,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ 	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = btree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_LOOKUP;
+-	op->bo_u.u_btree.t_tx     = NULL;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, btree, NULL, M0_BBO_LOOKUP, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+@@ -1341,7 +1285,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ 	kv = btree_search(btree, key->b_addr);
+ 	if (kv != NULL) {
+ 		dest_value->b_addr = kv->val;
+-		dest_value->b_nob = btree->bb_ops->ko_dsize(kv->val);
++		dest_value->b_nob = btree->bb_ops->ko_vsize(kv->val);
+ 	}
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+@@ -1357,20 +1301,14 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
+ 	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = btree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_MAXKEY;
+-	op->bo_u.u_btree.t_tx     = NULL;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, btree, NULL, M0_BBO_MAXKEY, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+ 
+ 	key = btree_get_max_key(btree);
+ 	op->bo_u.u_btree.t_out->b_addr = key;
+-	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_dsize(key);
++	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_vsize(key);
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+@@ -1385,20 +1323,14 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *btree,
+ 	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = btree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_MAXKEY;
+-	op->bo_u.u_btree.t_tx     = NULL;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, btree, NULL, M0_BBO_MINKEY, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+ 
+ 	key = btree_get_min_key(btree);
+ 	op->bo_u.u_btree.t_out->b_addr = key;
+-	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_dsize(key);
++	op->bo_u.u_btree.t_out->b_nob = btree->bb_ops->ko_vsize(key);
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+@@ -1421,13 +1353,7 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *btree,
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 	M0_PRE(key->b_nob == btree->bb_ops->ko_ksize(key->b_addr));
+ 
+-	op->bo_u.u_btree.t_anchor = anchor;
+-	op->bo_u.u_btree.t_tree   = btree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_UPDATE;
+-	op->bo_u.u_btree.t_tx     = tx;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, btree, tx, M0_BBO_UPDATE, anchor);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&btree->bb_lock);
+@@ -1452,13 +1378,7 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 	M0_PRE(key->b_nob == tree->bb_ops->ko_ksize(key->b_addr));
+ 
+-	op->bo_u.u_btree.t_anchor = anchor;
+-	op->bo_u.u_btree.t_tree   = tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_INSERT;
+-	op->bo_u.u_btree.t_tx     = tx;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, tx, M0_BBO_INSERT, anchor);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_write_lock(&tree->bb_lock);
+@@ -1482,13 +1402,7 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
+ 	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = anchor;
+-	op->bo_u.u_btree.t_tree   = btree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = key;
+-	op->bo_u.u_btree.t_op     = M0_BBO_LOOKUP;
+-	op->bo_u.u_btree.t_tx     = NULL;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, btree, NULL, M0_BBO_INSERT, anchor);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+@@ -1497,7 +1411,7 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *btree,
+ 	kv = btree_search(btree, key->b_addr);
+ 	if (kv != NULL) {
+ 		anchor->ba_value.b_addr = kv->val;
+-		anchor->ba_value.b_nob = btree->bb_ops->ko_dsize(kv->val);
++		anchor->ba_value.b_nob = btree->bb_ops->ko_vsize(kv->val);
+ 	}
+ }
+ 
+@@ -1525,24 +1439,24 @@ static void iter_prepare(struct m0_be_bnode *node)
+ 	struct m0_be_bnode *head, *tail;
+ 	struct m0_be_bnode *child;
+ 
+-	current_level = node->level;
++	current_level = node->b_level;
+ 	head = node;
+ 	tail = node;
+ 
+ 	while (true) {
+ 		if (head == NULL)
+ 			break;
+-		if (head->level < current_level)
+-			current_level = head->level;
+-		if (head->leaf == false) {
+-			for (i = 0; i < head->nr_active + 1; i++) {
+-				child = head->children[i];
+-				tail->next = child;
++		if (head->b_level < current_level)
++			current_level = head->b_level;
++		if (head->b_leaf == false) {
++			for (i = 0; i < head->b_nr_active + 1; i++) {
++				child = head->b_children[i];
++				tail->b_next = child;
+ 				tail = child;
+-				child->next = NULL;
++				child->b_next = NULL;
+ 			}
+ 		}
+-		head = head->next;
++		head = head->b_next;
+ 	}
+ }
+ 
+@@ -1554,13 +1468,13 @@ M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
+ 	cur->bc_tree = btree;
+ 
+ 	cur->bc_node = btree->bb_root;
+-	while (cur->bc_node->next != NULL) {
+-		cur->bc_node->next->prev = cur->bc_node;
+-		cur->bc_node = cur->bc_node->next;
++	while (cur->bc_node->b_next != NULL) {
++		cur->bc_node->b_next->b_prev = cur->bc_node;
++		cur->bc_node = cur->bc_node->b_next;
+ 	}
+ 
+-	cur->bc_node->next = btree->bb_root;
+-	btree->bb_root->prev = cur->bc_node;
++	cur->bc_node->b_next = btree->bb_root;
++	btree->bb_root->b_prev = cur->bc_node;
+ }
+ 
+ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)
+@@ -1577,21 +1491,15 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
+ 
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = cur->bc_tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_CURSOR_GET;
+-	op->bo_u.u_btree.t_tx     = NULL;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, NULL, M0_BBO_CURSOR_GET, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&tree->bb_lock);
+ 
+ 	/* cursor move */
+ 	last = get_btree_node(cur->bc_tree, key->b_addr, slant);
+-	cur->bc_last_node = last.node;
+-	cur->bc_last_pos = last.index;
++	cur->bc_last_node = last.p_node;
++	cur->bc_last_pos = last.p_index;
+ 
+ 	if (cur->bc_last_node == NULL)
+ 		goto out;
+@@ -1599,11 +1507,11 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
+ 	cur->bc_pos = cur->bc_last_pos;
+ 	cur->bc_node = cur->bc_last_node;
+ 
+-	kv = cur->bc_node->key_vals[cur->bc_pos];
++	kv = cur->bc_node->b_key_vals[cur->bc_pos];
+ 	/* cursor end move */
+ 
+ 	op->bo_u.u_btree.t_out->b_addr = kv->val;
+-	op->bo_u.u_btree.t_out->b_nob = cur->bc_tree->bb_ops->ko_dsize(kv->val);
++	op->bo_u.u_btree.t_out->b_nob = cur->bc_tree->bb_ops->ko_vsize(kv->val);
+ 	op->bo_u.u_btree.t_out2->b_addr = kv->key;
+ 	op->bo_u.u_btree.t_out2->b_nob = cur->bc_tree->bb_ops->ko_ksize(kv->key);
+ 
+@@ -1620,13 +1528,7 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
+ 
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = cur->bc_tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_CURSOR_NEXT;
+-	op->bo_u.u_btree.t_tx     = NULL;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, NULL, M0_BBO_CURSOR_NEXT, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&tree->bb_lock);
+@@ -1635,9 +1537,9 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
+ 	/* cursor move */
+ 	++cur->bc_pos;
+ 
+-	if (cur->bc_pos >= cur->bc_node->nr_active) {
++	if (cur->bc_pos >= cur->bc_node->b_nr_active) {
+ 		cur->bc_pos = 0;
+-		cur->bc_node = cur->bc_node->next;
++		cur->bc_node = cur->bc_node->b_next;
+ 	}
+ 
+ 	if (cur->bc_pos == cur->bc_last_pos &&
+@@ -1645,9 +1547,9 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
+ 		goto out;
+ 	/* cursor end move */
+ 
+-	kv = cur->bc_node->key_vals[cur->bc_pos];
++	kv = cur->bc_node->b_key_vals[cur->bc_pos];
+ 	op->bo_u.u_btree.t_out->b_addr = kv->val;
+-	op->bo_u.u_btree.t_out->b_nob = cur->bc_tree->bb_ops->ko_dsize(kv->val);
++	op->bo_u.u_btree.t_out->b_nob = cur->bc_tree->bb_ops->ko_vsize(kv->val);
+ 	op->bo_u.u_btree.t_out2->b_addr = kv->key;
+ 	op->bo_u.u_btree.t_out2->b_nob = cur->bc_tree->bb_ops->ko_ksize(kv->key);
+ 
+@@ -1664,20 +1566,14 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
+ 
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+-	op->bo_u.u_btree.t_anchor = NULL;
+-	op->bo_u.u_btree.t_tree   = cur->bc_tree;
+-	op->bo_u.u_btree.t_out    = NULL;
+-	op->bo_u.u_btree.t_in     = NULL;
+-	op->bo_u.u_btree.t_op     = M0_BBO_CURSOR_NEXT;
+-	op->bo_u.u_btree.t_tx     = NULL;
+-	op->bo_utype              = M0_BOP_TREE;
++	BTREE_OP_FILL(op, tree, NULL, M0_BBO_CURSOR_PREV, NULL);
+ 
+ 	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&tree->bb_lock);
+ 
+ 	if (cur->bc_pos == 0) {
+-		cur->bc_node = cur->bc_node->prev;
+-		cur->bc_pos = cur->bc_node->nr_active - 1;
++		cur->bc_node = cur->bc_node->b_prev;
++		cur->bc_pos = cur->bc_node->b_nr_active - 1;
+ 	} else
+ 		--cur->bc_pos;
+ 
+@@ -1685,9 +1581,9 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
+ 	    cur->bc_node == cur->bc_last_node)
+ 		goto out;
+ 
+-	kv = cur->bc_node->key_vals[cur->bc_pos];
++	kv = cur->bc_node->b_key_vals[cur->bc_pos];
+ 	op->bo_u.u_btree.t_out->b_addr = kv->val;
+-	op->bo_u.u_btree.t_out->b_nob = cur->bc_tree->bb_ops->ko_dsize(kv->val);
++	op->bo_u.u_btree.t_out->b_nob = cur->bc_tree->bb_ops->ko_vsize(kv->val);
+ 	op->bo_u.u_btree.t_out2->b_addr = kv->key;
+ 	op->bo_u.u_btree.t_out2->b_nob = cur->bc_tree->bb_ops->ko_ksize(kv->key);
+ out:
+diff --git a/be/btree.h b/be/btree.h
+index 23cc4c3..5078bb0 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -54,20 +54,21 @@ struct m0_be_btree {
+ };
+ 
+ /**
+- * Possible persistent operations over the tree for which credit can be taken
++ * Possible persistent operations over the tree.
++ * Enumeration items are being reused to define transaction credit types also.
+  */
+ enum m0_be_btree_op {
+-	M0_BBO_CREATE,	/**< IO made for m0_be_btree_create() */
+-	M0_BBO_DESTROY, /**< IO made for m0_be_btree_destroy() */
+-	M0_BBO_INSERT,  /**< IO made for m0_be_btree_{inplace_|}insert() */
+-	M0_BBO_DELETE,  /**< IO made for m0_be_btree_{inplace_|}delete() */
+-	M0_BBO_UPDATE,  /**< IO made for m0_be_btree_{inplace_|}update() */
+-	M0_BBO_LOOKUP,  /**< IO made for m0_be_btree_lookup() */
+-	M0_BBO_MAXKEY,  /**< IO made for m0_be_btree_maxkey() */
+-	M0_BBO_MINKEY,  /**< IO made for m0_be_btree_minkey() */
+-	M0_BBO_CURSOR_GET, /**< IO made for m0_be_btree_cursor_get() */
+-	M0_BBO_CURSOR_NEXT, /**< IO made for m0_be_btree_cursor_get() */
+-	M0_BBO_CURSOR_PREV, /**< IO made for m0_be_btree_cursor_get() */
++	M0_BBO_CREATE,	/**< used for m0_be_btree_create() */
++	M0_BBO_DESTROY, /**< used for m0_be_btree_destroy() */
++	M0_BBO_INSERT,  /**< used for m0_be_btree_{inplace_|}insert() */
++	M0_BBO_DELETE,  /**< used for m0_be_btree_{inplace_|}delete() */
++	M0_BBO_UPDATE,  /**< used for m0_be_btree_{inplace_|}update() */
++	M0_BBO_LOOKUP,  /**< used for m0_be_btree_lookup() */
++	M0_BBO_MAXKEY,  /**< used for m0_be_btree_maxkey() */
++	M0_BBO_MINKEY,  /**< used for m0_be_btree_minkey() */
++	M0_BBO_CURSOR_GET, /**<  used for m0_be_btree_cursor_get() */
++	M0_BBO_CURSOR_NEXT, /**< used for m0_be_btree_cursor_get() */
++	M0_BBO_CURSOR_PREV, /**< used for m0_be_btree_cursor_get() */
+ };
+ 
+ /**
+@@ -75,9 +76,9 @@ enum m0_be_btree_op {
+  */
+ struct m0_be_btree_kv_ops {
+ 	/** Returns the key size */
+-        unsigned int  (*ko_ksize)   (const void *key);
+-	/** Returns the data size */
+-        unsigned int  (*ko_dsize)   (const void *data);
++        m0_bcount_t   (*ko_ksize)   (const void *key);
++	/** Returns the value size */
++        m0_bcount_t   (*ko_vsize)   (const void *data);
+ 	/** @return 1 if key0 > key1, -1 if key0 < key2, 0 if key0 == key2 */
+         int           (*ko_compare) (const void *key0, const void *key1);
+ };
+@@ -152,10 +153,10 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
+ /**
+  * Inserts @key and @value into btree. Operation is asynchronous.
+  *
+- * Note0: interface is asynchronous and relies on op::bo_sm and tx::bt_sm.
+- * When op::bo_sm transits into M0_BOS_SUCCESS | M0_BOS_FAILURE and tx::bt_sm
+- * transits into M0_BTS_STABLE | M0_BTS_FAILED, operation is considered to be
+- * finished.
++ * Note0: interface is asynchronous and relies on op::bo_sm.
++ * Operation is considered to be finished after op::bo_sm transits to
++ * M0_BOS_SUCCESS | M0_BOS_FAILURE: after that point other operations will see
++ * the effect of this one.
+  *
+  * Note1: When op::bo_sm state transits from M0_BOS_INIT into M0_BOS_SUCCESS
+  * then page where requested memory regions of the tree is loaded from the disk
+@@ -165,8 +166,6 @@ M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
+  * or M0_BTS_STABLE then data passed to the function in @key and @value become
+  * persistent.
+  *
+- * Note3: User has to aquire m0_be_tx_engine::te_lock before this call,
+- * m0_be_btree::bb_lock is being held inside this function.
+  */
+ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
+ 				    struct m0_be_tx *tx,
+@@ -254,12 +253,11 @@ struct m0_be_btree_anchor {
+  *
+  * @see m0_be_btree_insert, note0 - note2.
+  *
+- * Note3: User has to aquire m0_be_tx_engine::te_lock before this call,
+- * m0_be_btree::bb_lock is being held inside this function. To do this, user has
+- * to set @anchor::ba_write and lock will be held for write if it's true and for
+- * read otherwize.
++ * Note3: m0_be_btree::bb_lock is being held inside this function. To do this,
++ * user has to set @anchor::ba_write and lock will be held for write if it's
++ * true and for read otherwize.
+  *
+- * Note4: Neither given @key nor @value is copied or allocated in the tree after
++ * Note3: Neither given @key nor @value is copied or allocated in the tree after
+  * this call.
+  *
+  * Usage:
+@@ -351,6 +349,14 @@ M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
+  * transits into M0_BOS_SUCCESS | M0_BOS_FAILURE operation is considered to be
+  * finished.
+  *
++ * Note: allowed sequence of cursor calls is:
++ * - m0_be_btree_cursor_init();
++ * - m0_be_btree_cursor_get();
++ * - m0_be_btree_cursor_next()* | m0_be_btree_cursor_prev()*;
++ * - m0_be_btree_cursor_kv_get()*;
++ * - m0_be_btree_cursor_put();
++ * - m0_be_btree_cursor_fini();
++ *
+  * @param slant[in] if slant == true then cursor will return a minimum key not
+  *  less than given, otherwize it'll be set on exact key if it's possible.
+  */
+diff --git a/be/seg.c b/be/seg.c
+index 4d9577d..9d59d42 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -312,6 +312,11 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name)
+ 	return 0;
+ }
+ 
++M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
++{
++	return seg->bs_addr <= addr && addr < seg->bs_addr + seg->bs_size;
++}
++
+ /** @} end of be group */
+ /*
+  *  Local variables:
+diff --git a/be/seg.h b/be/seg.h
+index 4f87cc3..f346591 100644
+--- a/be/seg.h
++++ b/be/seg.h
+@@ -88,6 +88,8 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg, const char *name);
+ 		.br_size = (size), \
+ 		.br_addr = (addr) })
+ 
++M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
++
+ /*
+  * `reg' parameter is not const, because stob IO will update
+  * m0_be_reg::br_addr when a region is loaded/stored.
+diff --git a/be/tx.h b/be/tx.h
+index b62c3b8..275c796 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -588,6 +588,12 @@ struct m0_be_tx {
+ 	 */
+ 	void                  *t_tree;
+ };
++
++#define M0_BE_TX_CAPTURE_PTR(seg, tx, ptr)				\
++({									\
++	m0_be_tx_capture(tx, &M0_BE_REG((seg), sizeof *(ptr), (ptr)));	\
++})
++
+ M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx);
+ 
+ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+diff --git a/be/ut/btree.c b/be/ut/btree.c
+index 0130ada..7954caf 100644
+--- a/be/ut/btree.c
++++ b/be/ut/btree.c
+@@ -69,19 +69,14 @@ static int tree_cmp(const void *key0, const void *key1)
+         return strcmp(key0, key1);
+ }
+ 
+-static uint32_t tree_key_size(const void *key)
++static m0_bcount_t tree_kv_size(const void *kv)
+ {
+-        return strlen(key) + 1;
+-}
+-
+-static uint32_t tree_data_size(const void *data)
+-{
+-        return strlen(data) + 1;
++        return strlen(kv) + 1;
+ }
+ 
+ static const struct m0_be_btree_kv_ops kv_ops = {
+-	.ko_ksize   = tree_key_size,
+-	.ko_dsize   = tree_data_size,
++	.ko_ksize   = tree_kv_size,
++	.ko_vsize   = tree_kv_size,
+ 	.ko_compare = tree_cmp
+ };
+ 
+-- 
+1.8.3.2
+

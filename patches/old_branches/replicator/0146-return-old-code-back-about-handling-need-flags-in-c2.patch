@@ -1,0 +1,315 @@
+From 05cbf5681ec5f7fdd029d16a225f3d0360ecba05 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 20 Jun 2011 12:54:41 -0600
+Subject: [PATCH 146/177] - return old code back about handling need flags in
+ c2_cob_lookup(). Sometimes we want to maange nskey passed to cob ourselves.
+ Example: using one nskey with all entries in cursor iterations; - cleanup in
+ c2_md_creat() aboutn killing a name belonging to foreign object; - fixed
+ unlink in mdservice. If object is not found we need to create with zombie
+ flag set to 1 or init scan can find it later and re-create which is wrong.
+
+---
+ cob/cob.c           |   5 ++-
+ cob/ut/cob.c        |  37 +++++++++--------
+ mdservice/md_foms.c | 112 ++++++++++++++++++++++++++++++----------------------
+ mdstore/mdstore.c   |   8 ++--
+ 4 files changed, 94 insertions(+), 68 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 9d7aeed..b1fd03b 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -577,7 +577,10 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
+                 return rc;
+ 
+         cob->co_nskey = nskey;
+-        cob->co_valid |= CA_NSKEY | CA_NSKEY_FREE;
++        cob->co_valid |= CA_NSKEY;
++        
++        if (need & CA_NSKEY_FREE)
++                cob->co_valid |= CA_NSKEY_FREE;
+ 
+         rc = cob_ns_lookup(cob, tx);
+         if (rc) {
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index 123609c..5e9cc1e 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -103,7 +103,7 @@ static void test_create(void)
+ */
+ static void test_add_name(void)
+ {
+-        struct c2_cob_nskey *key;
++        struct c2_cob_nskey *nskey;
+         struct c2_fid        pfid;
+         struct c2_db_tx      tx;
+ 
+@@ -114,25 +114,27 @@ static void test_add_name(void)
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+ 
+         /* lookup for cob created before using @test_name. */
+-        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+-        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        c2_cob_make_nskey(&nskey, &pfid, test_name, strlen(test_name));
++        rc = c2_cob_lookup(&dom, nskey, CA_NSKEY_FREE, &cob, &tx);
+         C2_UT_ASSERT(rc == 0);
+ 
+         /* add new name to existing cob */
+-        c2_cob_make_nskey(&key, &pfid, add_name, strlen(add_name));
+-        rc = c2_cob_add_name(cob, key, &cob->co_nsrec, &tx);
++        c2_cob_make_nskey(&nskey, &pfid, add_name, strlen(add_name));
++        rc = c2_cob_add_name(cob, nskey, &cob->co_nsrec, &tx);
+         C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
+ 
+         /* lookup for new name */
+-        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        rc = c2_cob_lookup(&dom, nskey, 0, &cob, &tx);
+         C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
++        c2_free(nskey);
+ 
+         /* lookup for wrong name, should fail. */
+-        c2_cob_make_nskey(&key, &pfid, wrong_name, strlen(wrong_name));
+-        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        c2_cob_make_nskey(&nskey, &pfid, wrong_name, strlen(wrong_name));
++        rc = c2_cob_lookup(&dom, nskey, 0, &cob, &tx);
+         C2_UT_ASSERT(rc != 0);
++        c2_free(nskey);
+ 
+         c2_db_tx_commit(&tx);
+ }
+@@ -142,7 +144,7 @@ static void test_add_name(void)
+ */
+ static void test_del_name(void)
+ {
+-        struct c2_cob_nskey *key;
++        struct c2_cob_nskey *nskey;
+         struct c2_fid        pfid;
+         struct c2_db_tx      tx;
+ 
+@@ -153,19 +155,20 @@ static void test_del_name(void)
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+ 
+         /* lookup for cob created before using @test_name. */
+-        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+-        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        c2_cob_make_nskey(&nskey, &pfid, test_name, strlen(test_name));
++        rc = c2_cob_lookup(&dom, nskey, CA_NSKEY_FREE, &cob, &tx);
+         C2_UT_ASSERT(rc == 0);
+ 
+         /* del name that we created in prev test */
+-        c2_cob_make_nskey(&key, &pfid, add_name, strlen(add_name));
+-        rc = c2_cob_del_name(cob, key, &tx);
++        c2_cob_make_nskey(&nskey, &pfid, add_name, strlen(add_name));
++        rc = c2_cob_del_name(cob, nskey, &tx);
+         C2_UT_ASSERT(rc == 0);
+         c2_cob_put(cob);
+ 
+         /* lookup for new name */
+-        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        rc = c2_cob_lookup(&dom, nskey, 0, &cob, &tx);
+         C2_UT_ASSERT(rc != 0);
++        c2_free(nskey);
+ 
+         c2_db_tx_commit(&tx);
+ }
+@@ -176,14 +179,14 @@ static void test_del_name(void)
+ static void test_lookup(void)
+ {
+         struct c2_db_tx      tx;
+-        struct c2_cob_nskey *key;
++        struct c2_cob_nskey *nskey;
+         struct c2_fid        pfid;
+ 
+         pfid.f_container = 0x123;
+         pfid.f_key = 0x456;
+-        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
++        c2_cob_make_nskey(&nskey, &pfid, test_name, strlen(test_name));
+         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
+-        rc = c2_cob_lookup(&dom, key, 0, &cob, &tx);
++        rc = c2_cob_lookup(&dom, nskey, CA_NSKEY_FREE, &cob, &tx);
+         c2_db_tx_commit(&tx);
+         C2_UT_ASSERT(rc == 0);
+         C2_UT_ASSERT(cob != NULL);
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 81dc49a..ede7e30 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -179,44 +179,40 @@ restart:
+                                 rc = c2_md_store_setattr(md, scob, attr, tx);
+                 }
+         } else if (rc == 0) {
++                rc = c2_md_store_locate(md, ncob->co_fid, &scob, 
++                                        C2_MD_LOCATE_STORED, tx);
++                if (rc) {
++                        c2_cob_put(ncob);
++                        return rc;
++                }
++
+                 /*
+-                 * Different object, this may be hardlink or result of racer
+-                 * work.
++                 * Do we need to do anything at all?
+                  */
+-                if (!c2_fid_eq(ncob->co_fid, tfid)) {
+-                        struct c2_cob *ecob = NULL;
+-                        
+-                        rc = c2_md_store_locate(md, ncob->co_fid, &ecob, 
+-                                                C2_MD_LOCATE_STORED, tx);
+-                        if (rc) {
+-                                c2_cob_put(ncob);
+-                                return rc;
+-                        }
+-
+-                        if (attr->ca_version > ecob->co_nsrec.cnr_version) {
+-                                rc = c2_md_store_unlink(md, pfid, ecob, 
++                if (attr->ca_version > scob->co_nsrec.cnr_version) {
++                        if (!c2_fid_eq(ncob->co_fid, tfid)) {
++                                /*
++                                 * Different object, this may be hardlink or
++                                 * result of racer work.
++                                 */
++                                rc = c2_md_store_unlink(md, pfid, scob, 
+                                                         attr->ca_name,
+                                                         attr->ca_namelen,
+                                                         tx);
+-                                c2_cob_put(ecob);
++                                c2_cob_put(scob);
+                                 c2_cob_put(ncob);
+-
+                                 if (rc)
+                                         return rc;
+                                 goto restart;
+-                        }
+-                        c2_cob_put(ecob);
+-                } else {
+-                        /*
+-                         * Name belonging to same object exists, it should be
+-                         * stat data or db is not consistent. We don't put an
+-                         * assert here because -EDEADLK may occur.
+-                         */
+-                        rc = c2_md_store_locate(md, tfid, &scob, 
+-                                                C2_MD_LOCATE_STORED, tx);
+-                        if (rc == 0 && 
+-                            attr->ca_version > scob->co_nsrec.cnr_version)
++                        } else {
++                                /*
++                                 * Name that belongings to our object exists, it
++                                 * should be stat data or db is not consistent.
++                                 * We don't put an assert here because -EDEADLK
++                                 * may occur.
++                                 */
+                                 rc = c2_md_store_setattr(md, scob, attr, tx);
++                        }
+                 }
+                 c2_cob_put(ncob);
+         }
+@@ -391,32 +387,54 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         if (body->b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS) {
+                 rc = c2_md_store_lookup(md, &pfid, req->u_name.s_buf,
+                                         req->u_name.s_len, &ncob, tx);
+-                if (rc)
+-                        goto out;
+-
+-                ncob->co_nsrec.cnr_zombie = 1;
+-                rc = c2_cob_update(ncob, &ncob->co_nsrec, NULL, NULL, tx);
+-                if (rc) {
+-                        c2_cob_put(ncob);
+-                        goto out;
+-                }
+-
+-                /*
+-                 * Update attributes for the case object survives 
+-                 * (unlink of a name).
+-                 */
+-                if (ncob->co_nsrec.cnr_linkno > 0) {
++                if (rc == -ENOENT) {
+                         rc = c2_md_store_locate(md, &tfid, &scob, 
+                                                 C2_MD_LOCATE_STORED,
+                                                 tx);
+-                        if (rc == 0) {
++                        if (rc == -ENOENT) {
++                                attr.ca_zombie = 1;
++                                rc = c2_md_store_create(md, &pfid,
++                                                        &attr, &scob, tx);
++                        } else if (rc == 0) {
++                                rc = c2_md_store_link(md, &pfid, scob, 
++                                                      attr.ca_name,
++                                                      attr.ca_namelen,
++                                                      1, tx);
++                                if (rc == 0 &&
++                                    attr.ca_version > scob->co_nsrec.cnr_version)
++                                        rc = c2_md_store_setattr(md, scob, &attr, tx);
++                        }
++                        if (scob)
++                                c2_cob_put(scob);
++                } else if (rc == 0) {
++                        /*
++                         * Mark name zombie.
++                         */
++                        ncob->co_nsrec.cnr_zombie = 1;
++                        rc = c2_cob_update(ncob, &ncob->co_nsrec, NULL, NULL, tx);
++                        if (rc) {
++                                c2_cob_put(ncob);
++                                goto out;
++                        }
++                        /*
++                         * Update attributes for the case object will survive
++                         * (unlink of a hardlink). Name may be occupid by some
++                         * another object, let's use fid from ncob instead of
++                         * passed tfid.
++                         */
++                        if (ncob->co_nsrec.cnr_linkno > 0) {
++                                rc = c2_md_store_locate(md, ncob->co_fid, &scob, 
++                                                        C2_MD_LOCATE_STORED, tx);
++                                if (rc) {
++                                        c2_cob_put(ncob);
++                                        goto out;
++                                }
+                                 if (attr.ca_version > scob->co_nsrec.cnr_version)
+-                                        rc = c2_md_store_setattr(md, scob, &attr,
+-                                                                 tx);
++                                        rc = c2_md_store_setattr(md, scob, &attr, tx);
+                                 c2_cob_put(scob);
+                         }
++                        c2_cob_put(ncob);
+                 }
+-                c2_cob_put(ncob);
+         } else {
+                 /*
+                  * For the case object exists or we have kill of hardlink
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 9c13686..0559d1e 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -146,7 +146,7 @@ int c2_md_store_create(struct c2_md_store       *md,
+         nsrec.cnr_atime = attr->ca_atime;
+         nsrec.cnr_mtime = attr->ca_mtime;
+         nsrec.cnr_ctime = attr->ca_ctime;
+-        nsrec.cnr_zombie = 0;
++        nsrec.cnr_zombie = attr->ca_zombie;
+ 
+         omgrec.cor_uid = attr->ca_uid;
+         omgrec.cor_gid = attr->ca_gid;
+@@ -693,13 +693,15 @@ int c2_md_store_lookup(struct c2_md_store       *md,
+                        struct c2_db_tx          *tx)
+ {
+         struct c2_cob_nskey *nskey;
++        int flags;
+ 
+         if (pfid == NULL)
+                 pfid = &C2_MD_ROOT_FID;
+ 
+         c2_cob_make_nskey(&nskey, pfid, name, namelen);
+-        return c2_cob_lookup(&md->md_dom, nskey, 
+-                             (CA_FABREC | CA_OMGREC), cob, tx);
++        flags = (CA_NSKEY_FREE | CA_FABREC | CA_OMGREC);
++        return c2_cob_lookup(&md->md_dom, nskey, flags,
++                             cob, tx);
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

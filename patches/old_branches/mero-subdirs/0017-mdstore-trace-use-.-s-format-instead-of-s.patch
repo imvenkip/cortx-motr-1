@@ -1,0 +1,34 @@
+From a43733d454501353180a8ed3e8b0e1b834bf1f8c Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 10 Feb 2013 14:50:49 +0200
+Subject: [PATCH 17/22] mdstore/trace: use %.*s format instead of %*s
+
+---
+ mdstore/mdstore.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index bf3d399..0569680 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -728,7 +728,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+                         ent->d_namelen = m0_bitstring_len_get(rdpg->r_pos);
+                         ent->d_reclen = reclen;
+                         M0_LOG(M0_DEBUG,
+-                               "Readdir filled entry \"%*s\" recsize %d",
++                               "Readdir filled entry \"%.*s\" recsize %d",
+                                ent->d_namelen, (char *)ent->d_name, ent->d_reclen);
+                 } else {
+                         if (last) {
+@@ -753,7 +753,7 @@ out_end:
+                 rdpg->r_end = m0_bitstring_alloc(m0_bitstring_buf_get(rdpg->r_pos),
+                                                  m0_bitstring_len_get(rdpg->r_pos));
+                 M0_LOG(M0_DEBUG,
+-                      "Setting last name to \"%*s\"",
++                      "Setting last name to \"%.*s\"",
+                       (int)m0_bitstring_len_get(rdpg->r_pos),
+                       (char *)m0_bitstring_buf_get(rdpg->r_pos));
+         }
+-- 
+1.8.3.2
+

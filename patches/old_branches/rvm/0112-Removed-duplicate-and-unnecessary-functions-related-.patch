@@ -1,0 +1,200 @@
+From cb6bd2dd00c526857a5400e18e868bd4fb3c2b25 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Mon, 3 Jun 2013 00:13:53 -0700
+Subject: [PATCH 112/121] Removed duplicate and unnecessary functions related
+ to BE from cob/cob.c
+
+---
+ cob/cob.c | 91 +++++++++++++++++++--------------------------------------------
+ 1 file changed, 27 insertions(+), 64 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index f666f5f..58a717c 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -68,6 +68,23 @@ static void __cob_wait_and_lock_sm_group(struct m0_sm_group *in_group)
+         m0_sm_group_unlock(in_group);
+ }
+ 
++void cob_ns_be_cb(struct m0_be_cbinfo *cbinfo, int status, m0_be_msg_type_t msg)
++{
++        struct m0_cob_be_cbinfo  *cob_cbinfo;
++        struct m0_sm_ast         *ast;
++        struct m0_sm_group       *post_sm_group;
++
++        M0_ASSERT(cbinfo != NULL);
++        cob_cbinfo    = container_of(cbinfo, struct m0_cob_be_cbinfo,
++                                     cbc_cbinfo);
++
++        if (msg == M0_BE_SUCCESS) {
++                ast           = &cob_cbinfo->cbc_ast;
++                post_sm_group = cob_cbinfo->cbc_sm_group;
++                m0_sm_ast_post(post_sm_group, ast);
++        }
++}
++
+ static void __cob_be_tx_done_ast_cb(struct m0_sm_group *sm_group,
+                                     struct m0_sm_ast   *ast)
+ {
+@@ -78,25 +95,6 @@ static void __cob_be_tx_done_ast_cb(struct m0_sm_group *sm_group,
+         m0_free(tx);
+ }
+ 
+-/** Called by m0_be_tx_done_cb at the very end of tx done termination. */
+-static void __cob_be_tx_done_cb(struct m0_be_cbinfo *cbinfo, int status,
+-                                m0_be_msg_type_t     msg_type)
+-{
+-        struct m0_cob_be_cbinfo  *cob_cbinfo;
+-        struct m0_sm_ast         *ast;
+-        struct m0_sm_group       *post_sm_group;
+-
+-        cob_cbinfo = container_of(cbinfo, struct m0_cob_be_cbinfo, cbc_cbinfo);
+-
+-        ast           = &cob_cbinfo->cbc_ast;
+-        post_sm_group = cob_cbinfo->cbc_sm_group;
+-
+-        m0_sm_group_lock(cbinfo->bc_sm_group);
+-        m0_sm_ast_post(post_sm_group, ast);
+-        m0_sm_group_unlock(cbinfo->bc_sm_group);
+-	m0_free(cob_cbinfo);
+-}
+-
+ static void __cob_set_be_tx_done_cbinfo(struct m0_cob_be_cbinfo  *cob_cbinfo,
+                                         struct m0_be_cbinfo     **out_be_cbinfo,
+                                         struct m0_sm_group       *sm_group,
+@@ -106,7 +104,7 @@ static void __cob_set_be_tx_done_cbinfo(struct m0_cob_be_cbinfo  *cob_cbinfo,
+ 
+         be_cbinfo               = &cob_cbinfo->cbc_cbinfo;
+         be_cbinfo->bc_hq        = &cob_be_domain->bd_hq;
+-        be_cbinfo->bc_cb        =  __cob_be_tx_done_cb;
++        be_cbinfo->bc_cb        =  cob_ns_be_cb;
+         be_cbinfo->bc_sm_group  =  sm_group;
+         be_cbinfo->bc_pcbinfo   =  NULL;
+ 
+@@ -458,24 +456,6 @@ static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id *id,
+ 
+ #ifndef __KERNEL__
+ 
+-void cob_ns_kv_store_init(struct m0_be_cbinfo *cbinfo, int status,
+-                          m0_be_msg_type_t     msg)
+-{
+-        struct m0_cob_be_cbinfo  *cob_cbinfo;
+-        struct m0_sm_ast         *ast;
+-        struct m0_sm_group       *post_sm_group;
+-
+-        M0_ASSERT(cbinfo != NULL);
+-        cob_cbinfo    = container_of(cbinfo, struct m0_cob_be_cbinfo,
+-                                     cbc_cbinfo);
+-
+-        if (msg == M0_BE_SUCCESS) {
+-                ast           = &cob_cbinfo->cbc_ast;
+-                post_sm_group = cob_cbinfo->cbc_sm_group;
+-                m0_sm_ast_post(post_sm_group, ast);
+-        }
+-}
+-
+ static void __kv_operation_ast_cb(struct m0_sm_group *sm_group,
+                                        struct m0_sm_ast   *ast)
+ {
+@@ -523,7 +503,7 @@ static void __kv_store_init_helper(struct m0_be_kv_store    **handle,
+ 
+ 	be_cbinfo               = &cob_cbinfo->cbc_cbinfo;
+         be_cbinfo->bc_hq        = &cob_be_domain->bd_hq;
+-        be_cbinfo->bc_cb        = cob_ns_kv_store_init;
++        be_cbinfo->bc_cb        = cob_ns_be_cb;
+         be_cbinfo->bc_sm_group  = sm_group;
+         be_cbinfo->bc_pcbinfo   = NULL;
+ 
+@@ -541,27 +521,6 @@ static void __kv_store_init_helper(struct m0_be_kv_store    **handle,
+ 	m0_free(cob_cbinfo);
+ }
+ 
+-void cob_nsrec_kv_init_operation_cb(void *cbdata, void *result, int rc)
+-{
+-        struct m0_cob_be_cbinfo   *cob_cbinfo;
+-        struct m0_be_cbinfo       *be_cbinfo;
+-        struct m0_sm_ast          *ast;
+-        struct m0_sm_group        *post_sm_group;
+-
+-        M0_ASSERT(rc == 0);
+-
+-        cob_cbinfo    = (struct m0_cob_be_cbinfo *)cbdata;
+-        be_cbinfo     = &cob_cbinfo->cbc_cbinfo;
+-        ast           = &cob_cbinfo->cbc_ast;
+-        post_sm_group = cob_cbinfo->cbc_sm_group;
+-
+-        m0_sm_group_lock(be_cbinfo->bc_sm_group);
+-        m0_sm_ast_post(post_sm_group, ast);
+-        m0_sm_group_unlock(be_cbinfo->bc_sm_group);
+-
+-	m0_free(cob_cbinfo);
+-}
+-
+ void __ast_init_kv_store(struct m0_sm_group *sm_group, struct m0_sm_ast *ast)
+ {
+         struct m0_be_kv_store     *handle;
+@@ -595,17 +554,17 @@ static void __cob_set_seg_cbinfo(struct m0_cob_be_cbinfo    *cob_cbinfo,
+ 
+         /*
+          * This be_cbinfo will be used after segment creation completes.
+-         * The function cob_ns_kv_store_init will be called in
++         * The function cob_ns_be_cb will be called in
+          * be_handler context.
+          */
+         be_cbinfo               = &cob_cbinfo->cbc_cbinfo;
+         be_cbinfo->bc_hq        = &cob_be_domain->bd_hq;
+-        be_cbinfo->bc_cb        =  cob_ns_kv_store_init;
++        be_cbinfo->bc_cb        =  cob_ns_be_cb;
+         be_cbinfo->bc_sm_group  =  sm_group;
+         be_cbinfo->bc_pcbinfo   =  NULL;
+ 
+         /*
+-         * This cbinfo will be used cob_ns_kv_store_init to post
++         * This cbinfo will be used cob_ns_be_cb to post
+          * __ast_init_kv_store on cob_sm_group.After ast_post,the
+          * function __ast_init_kv_store will be called in caller
+          * context, not in be_handler context.
+@@ -719,6 +678,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_dbenv *env,
+ 
+                 /* Wait for handle initialisation. */
+                 __cob_wait_and_lock_sm_group(&cob_sm_group);
++		m0_free(cob_cbinfo);
+         }
+ #endif
+ 
+@@ -783,7 +743,7 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
+ 	M0_ASSERT(cob_cbinfo != NULL);
+ 	be_cbinfo               = &cob_cbinfo->cbc_cbinfo;
+         be_cbinfo->bc_hq        = &cob_be_domain->bd_hq;
+-        be_cbinfo->bc_cb        = cob_ns_kv_store_init;
++        be_cbinfo->bc_cb        = cob_ns_be_cb;
+         be_cbinfo->bc_sm_group  = sm_group;
+         be_cbinfo->bc_pcbinfo   = NULL;
+ 
+@@ -1728,6 +1688,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
+ 
+                 m0_be_tx_done(be_tx, be_cbinfo);
+                 __cob_wait_and_lock_sm_group(&cob_sm_group);
++		m0_free(cob_cbinfo);
+ 
+                 if (rc != 0)
+                         goto out;
+@@ -1843,6 +1804,7 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
+ 
+         m0_be_tx_done(be_tx, be_cbinfo);
+         __cob_wait_and_lock_sm_group(&cob_sm_group);
++	m0_free(cob_cbinfo);
+ #endif
+ out:
+         M0_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
+@@ -1918,6 +1880,7 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
+         __cob_set_be_tx_done_cbinfo(cob_cbinfo, &be_cbinfo, sm_group, be_tx);
+         m0_be_tx_done(be_tx, be_cbinfo);
+         __cob_wait_and_lock_sm_group(&cob_sm_group);
++	m0_free(cob_cbinfo);
+ 
+         cob->co_pair = NULL;
+ #endif
+-- 
+1.8.3.2
+

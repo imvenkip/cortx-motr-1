@@ -1,0 +1,28 @@
+From bb5c3f08b0d0ecf5e50a0ec49ab6d02666327a4c Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 19 Mar 2012 21:42:50 +0200
+Subject: [PATCH 079/311] use negative error code, for consistency
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+Reviewed-on: http://reviewboard.clusterstor.com/r/714/
+---
+ conf/confc.h | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/conf/confc.h b/conf/confc.h
+index 212abc2..02d0872 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -382,8 +382,7 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx);
+ /** Returns the error status for the asynchronous configuration request. */
+ static inline int32_t c2_confc_error(const struct c2_confc_ctx *ctx)
+ {
+-	C2_PRE(ctx->fc_mach.sm_rc <= 0);
+-	return -ctx->fc_mach.sm_rc;
++	return ctx->fc_mach.sm_rc;
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

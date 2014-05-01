@@ -1,0 +1,216 @@
+From 1b1354ab1b9a2e7f2aefa447fbac946deeabb7ed Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 29 May 2013 18:49:49 +0300
+Subject: [PATCH 054/290] be: add M0_INTERNAL to btree.h and be.h
+
+---
+ be/be.h    |   5 +--
+ be/btree.c |   8 ++---
+ be/btree.h | 108 +++++++++++++++++++++++++++++++++++--------------------------
+ 3 files changed, 68 insertions(+), 53 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index dbfa32b..a6f2ca4 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -73,14 +73,15 @@ struct m0_be_op {
+ };
+ 
+ /** Waits for the operation to complete and returns its rc. */
+-int m0_be_op_wait(struct m0_be_op *op);
++M0_INTERNAL int m0_be_op_wait(struct m0_be_op *op);
+ 
+ /**
+  * Moves the fom to the "next_state" and arranges for state transitions to
+  * continue when "op" completes. Returns value suitable to be returned from
+  * m0_fom_ops::fo_tick() implementation.
+  */
+-int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom, int next_state);
++M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op, struct m0_fom *fom,
++				  int next_state);
+ 
+ /** @} end of be group */
+ #endif /* __MERO_BE_BE_H__ */
+diff --git a/be/btree.c b/be/btree.c
+index e6fd384..8538198 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -18,17 +18,13 @@
+  * Original creation date: 29-May-2013
+  */
+ 
+-
+ /**
+- * @addtogroup XXX
++ * @addtogroup be
+  *
+  * @{
+  */
+ 
+-
+-
+-/** @} end of XXX group */
+-
++/** @} end of be group */
+ 
+ /*
+  *  Local variables:
+diff --git a/be/btree.h b/be/btree.h
+index 7a3232d..a3566f9 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -34,21 +34,24 @@ struct m0_be_btree {
+ 	struct m0_be_bnode *bb_root;
+ };
+ 
+-void m0_be_btree_init(struct m0_be_btree *tree, struct m0_be_seg *seg,
+-		      struct m0_be_bnode *root);
++M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
++				  struct m0_be_seg *seg,
++				  struct m0_be_bnode *root);
+ 
+-void m0_be_btree_fini(struct m0_be_btree *tree);
++M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree);
+ 
+ /*
+  * Use case:
+  *     m0_be_btree_init(&tree, seg, NULL);
+  *     m0_be_btree_create(&tree, tx, op);
+  */
+-void m0_be_btree_create(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op);
++M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
++				    struct m0_be_tx *tx,
++				    struct m0_be_op *op);
+ 
+-void m0_be_btree_destroy(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			 struct m0_be_op *op);
++M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
++				     struct m0_be_tx *tx,
++				     struct m0_be_op *op);
+ 
+ struct m0_be_btree_cursor {
+ 	struct m0_be_btree *bc_tree;
+@@ -56,17 +59,17 @@ struct m0_be_btree_cursor {
+ 	struct m0_buf       bc_current;
+ };
+ 
+-void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
+-			     struct m0_be_btree *tree);
++M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cursor,
++					 struct m0_be_btree *tree);
+ 
+-void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
++M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor);
+ 
+-void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
+-			    const struct m0_buf *key);
++M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cursor,
++					const struct m0_buf *key);
+ 
+-void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
++M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
+ 
+-void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
++M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cursor);
+ 
+ struct m0_be_btree_anchor {
+ 	struct m0_be_btree *ba_tree;
+@@ -74,15 +77,19 @@ struct m0_be_btree_anchor {
+ 	bool                ba_write; /**< Is write lock being held? */
+ };
+ 
+-void m0_be_btree_maxkey(const struct m0_be_btree *tree, struct m0_be_op *op,
+-			struct m0_buf *out);
++M0_INTERNAL void m0_be_btree_maxkey(const struct m0_be_btree *tree,
++				    struct m0_be_op *op,
++				    struct m0_buf *out);
+ 
+-void m0_be_btree_lookup(struct m0_be_btree *tree, struct m0_be_op *op,
+-			const struct m0_buf *key, struct m0_buf *dest_buf);
++M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key,
++				    struct m0_buf *dest_buf);
+ 
+-void m0_be_btree_lookup_inplace(struct m0_be_btree *tree, struct m0_be_op *op,
+-				const struct m0_buf *key,
+-				struct m0_be_btree_anchor *anchor);
++M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
++					    struct m0_be_op *op,
++					    const struct m0_buf *key,
++					    struct m0_be_btree_anchor *anchor);
+ 
+ enum m0_be_btree_op {
+ 	M0_BBO_CREATE,
+@@ -92,32 +99,43 @@ enum m0_be_btree_op {
+ 	M0_BBO_UPDATE
+ };
+ 
+-void m0_be_btree_credit(const struct m0_be_btree *tree,
+-			enum m0_be_btree_op optype, m0_bcount_t nr,
+-			struct m0_be_tx_credit *accum);
+-
+-void m0_be_btree_insert(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op, const struct m0_buf *key,
+-			const struct m0_buf *value);
+-
+-void m0_be_btree_insert_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-				struct m0_be_op *op, const struct m0_buf *key,
+-				struct m0_be_btree_anchor *anchor);
+-
+-void m0_be_btree_update(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op, const struct m0_buf *key,
+-			const struct m0_buf *value);
+-
+-void m0_be_btree_update_inplace(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-				struct m0_be_op *op, const struct m0_buf *key,
+-				struct m0_be_btree_anchor *anchor);
+-
+-void m0_be_btree_delete(struct m0_be_btree *tree, struct m0_be_tx *tx,
+-			struct m0_be_op *op, const struct m0_buf *key);
++M0_INTERNAL void m0_be_btree_credit(const struct m0_be_btree *tree,
++				    enum m0_be_btree_op optype,
++				    m0_bcount_t nr,
++				    struct m0_be_tx_credit *accum);
++
++M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
++				    struct m0_be_tx *tx,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key,
++				    const struct m0_buf *value);
++
++M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
++					    struct m0_be_tx *tx,
++					    struct m0_be_op *op,
++					    const struct m0_buf *key,
++					    struct m0_be_btree_anchor *anchor);
++
++M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
++				    struct m0_be_tx *tx,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key,
++				    const struct m0_buf *value);
++
++M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree *tree,
++					    struct m0_be_tx *tx,
++					    struct m0_be_op *op,
++					    const struct m0_buf *key,
++					    struct m0_be_btree_anchor *anchor);
++
++M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
++				    struct m0_be_tx *tx,
++				    struct m0_be_op *op,
++				    const struct m0_buf *key);
+ 
+ /** Completes m0_be_btree_*_inplace() operation. */
+-void m0_be_btree_release(struct m0_be_btree *tree,
+-			 const struct m0_be_btree_anchor *anchor);
++M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
++				     const struct m0_be_btree_anchor *anchor);
+ 
+ /** @} end of be group */
+ #endif /* __MERO_BE_BTREE_H__ */
+-- 
+1.8.3.2
+

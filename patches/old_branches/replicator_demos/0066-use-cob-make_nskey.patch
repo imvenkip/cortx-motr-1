@@ -1,0 +1,31 @@
+From 409a682466d6ac18386e2bd817c3d1e2a9751cf0 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Mon, 18 Apr 2011 03:02:46 -0600
+Subject: [PATCH 66/91] - use cob make_nskey.
+
+---
+ cob/ut/cob.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/cob/ut/cob.c b/cob/ut/cob.c
+index d24e56e..d934b70 100644
+--- a/cob/ut/cob.c
++++ b/cob/ut/cob.c
+@@ -59,10 +59,13 @@ static void test_create(void)
+         struct c2_cob_nsrec  nsrec;
+         struct c2_cob_fabrec fabrec;
+         struct c2_cob_omgrec omgrec;
++        struct c2_fid        pfid;
+         struct c2_db_tx      tx;
+ 
+         /* pfid, filename */
+-        make_nskey(&key, 0x123, 0x456, "hello world");
++        pfid.f_container = 0x123;
++        pfid.f_key = 0x456;
++        c2_cob_make_nskey(&key, &pfid, "hello world");
+ 
+         nsrec.cnr_fid.f_container = 0xabc;
+         nsrec.cnr_fid.f_key = 0xdef;
+-- 
+1.8.3.2
+

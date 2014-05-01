@@ -1,0 +1,195 @@
+From 05b4fa2c640c59d662282c6213e4e8acc12de877 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Mon, 23 Dec 2013 16:39:20 +0530
+Subject: [PATCH 3/7] be.conv.conf, - Fix conf/ut/db.c with respect to
+ conf/db.c be changes. - Add interface to destroy confdb.
+
+---
+ conf/db.c    | 52 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/db.h    | 13 +++++++++++++
+ conf/ut/db.c | 35 ++++++++++++++++++++++++++---------
+ 3 files changed, 91 insertions(+), 9 deletions(-)
+
+diff --git a/conf/db.c b/conf/db.c
+index 118f3e7..426d563 100644
+--- a/conf/db.c
++++ b/conf/db.c
+@@ -307,6 +307,8 @@ static int confx_obj_dup(struct m0_confx_obj *dest, struct m0_confx_obj *src,
+ 	struct m0_xcode_ctx     sctx;
+ 	struct m0_xcode_cursor *dit = &dctx.xcx_it;
+ 	struct m0_xcode_cursor *sit = &sctx.xcx_it;
++	struct m0_xcode_obj    *src_obj;
++	struct m0_xcode_obj    *dest_obj;
+ 	int                     result;
+ 	int                     rc;
+ 
+@@ -357,10 +359,16 @@ static int confx_obj_dup(struct m0_confx_obj *dest, struct m0_confx_obj *src,
+ 		}
+ 	}
+ 
++	dest_obj = &dctx.xcx_it.xcu_stack[0].s_obj;
++	src_obj = &sctx.xcx_it.xcu_stack[0].s_obj;
++
+ 	if (result >= 0)
+ 		result = 0;
++	M0_POST(ergo(result == 0, m0_xcode_cmp(dest_obj, src_obj) == 0));
++
+ 	return result;
+ }
++#undef CONF_XCODE_BE_ALLOC_PTR
+ 
+ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
+ 					const struct m0_confx *conf,
+@@ -395,6 +403,50 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
+ 	M0_RETURN(0);
+ }
+ 
++M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
++					 struct m0_be_tx_credit *accum)
++{
++	struct m0_be_btree *btree;
++	int                 i;
++	int                 rc = 0;
++
++	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
++		if (table_names[i] == NULL)
++			continue;
++		rc = m0_be_seg_dict_lookup(seg, table_names[i],
++					   (void **)&btree);
++		if (rc != 0)
++			M0_RETURN(rc);
++		m0_be_btree_destroy_credit(btree, 1, accum);
++		M0_BE_FREE_CREDIT_PTR(btree, seg, accum);
++	}
++
++	M0_RETURN(rc);
++}
++
++M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx)
++{
++	struct m0_be_btree     *btree;
++	int                     i;
++	int                     rc = 0;
++
++	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
++		if (table_names[i] == NULL)
++			continue;
++		rc = m0_be_seg_dict_lookup(seg, table_names[i],
++					   (void **)&btree);
++		if (rc != 0)
++			M0_RETURN(rc);
++		M0_BE_OP_SYNC(op, m0_be_btree_destroy(btree, tx, &op));
++		M0_BE_FREE_PTR_SYNC(btree, seg, tx);
++		rc = m0_be_seg_dict_delete(seg, tx, table_names[i]);
++		if (rc != 0)
++			M0_RETURN(rc);
++	}
++
++	M0_RETURN(rc);
++}
++
+ M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
+ {
+ 	confdb_tables_fini(seg);
+diff --git a/conf/db.h b/conf/db.h
+index 28ef438..abb23a1 100644
+--- a/conf/db.h
++++ b/conf/db.h
+@@ -28,6 +28,9 @@
+ struct m0_confx;
+ struct m0_confx_obj;
+ 
++/**
++ * Calculates BE credits required by configuration database tables and @conf.
++ */
+ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
+ 					const struct m0_confx *conf,
+ 					struct m0_be_tx_credit *accum);
+@@ -41,7 +44,17 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
+ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
+                                  const struct m0_confx *conf);
+ 
++/**
++ * Finalises in-memory configuration database.
++ */
+ M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg);
++/**
++ * Calculates BE credits in-order to destroy configuration database from
++ * persistent store.
++ */
++M0_INTERNAL int m0_confdb_destroy_credit(struct m0_be_seg *seg,
++					 struct m0_be_tx_credit *accum);
++M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx);
+ 
+ /**
+  * Creates m0_confx and populates it with data read from a
+diff --git a/conf/ut/db.c b/conf/ut/db.c
+index 35361cb..67f7771 100644
+--- a/conf/ut/db.c
++++ b/conf/ut/db.c
+@@ -188,6 +188,19 @@ static void conf_ut_db_fini()
+         m0_be_ut_backend_fini(&ut_be);
+ }
+ 
++#define CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc) \
++do {                                               \
++        m0_be_ut_tx_init(&(tx), &(ut_be));         \
++        m0_be_tx_prep(&(tx), &(accum));            \
++        rc = m0_be_tx_open_sync(&(tx));            \
++        M0_UT_ASSERT(rc == 0);                     \
++} while (0);
++
++#define CONF_UT_BE_TX_FINI(tx)    \
++do {                              \
++        m0_be_tx_close_sync(&tx); \
++        m0_be_tx_fini(&tx);       \
++} while (0);
+ void test_confdb(void)
+ {
+ 	struct m0_confx        *enc;
+@@ -229,16 +242,12 @@ void test_confdb(void)
+ 
+ 	conf_ut_db_init();
+ 
+-	m0_confdb_create_credit(seg, enc, &accum);
+-        m0_be_ut_tx_init(&tx, &ut_be);
+-        m0_be_tx_prep(&tx, &accum);
+-        rc = m0_be_tx_open_sync(&tx);
+-        M0_UT_ASSERT(rc == 0);
+-
++	rc = m0_confdb_create_credit(seg, enc, &accum);
++	M0_UT_ASSERT(rc == 0);
++	CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc);
+ 	rc = m0_confdb_create(seg, &tx, enc);
+ 	M0_UT_ASSERT(rc == 0);
+-        m0_be_tx_close_sync(&tx);
+-        m0_be_tx_fini(&tx);
++	CONF_UT_BE_TX_FINI(tx);
+ 
+ 	rc = m0_confdb_read(seg, &dec);
+ 	M0_UT_ASSERT(rc == 0);
+@@ -246,8 +255,14 @@ void test_confdb(void)
+ 	for (i = 0; i < ARRAY_SIZE(tests); ++i)
+ 		tests[i].check(&dec->cx_objs[i]);
+ 	m0_confx_free(enc);
+-
+ 	m0_confdb_fini(seg);
++	M0_SET0(&accum);
++	rc = m0_confdb_destroy_credit(seg, &accum);
++	M0_UT_ASSERT(rc == 0);
++	CONF_UT_BE_TX_CREATE(tx, ut_be, accum, rc);
++	rc = m0_confdb_destroy(seg, &tx);
++        M0_UT_ASSERT(rc == 0);
++	CONF_UT_BE_TX_FINI(tx);
+ 	conf_ut_db_fini();
+ 
+ 	cleanup();
+@@ -255,3 +270,5 @@ void test_confdb(void)
+ 
+ #undef _BUF
+ #undef _CONFDB_PATH
++#undef CONF_UT_BE_TX_CREATE
++#undef CONF_UT_BE_TX_FINI
+-- 
+1.8.3.2
+

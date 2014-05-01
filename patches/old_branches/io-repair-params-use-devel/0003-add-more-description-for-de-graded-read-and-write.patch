@@ -1,0 +1,93 @@
+From f7931656e789138df9b693581a2582fb1bbbc8dd Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 7 Nov 2012 06:52:09 +0800
+Subject: [PATCH 03/10] add more description for de-graded read and write
+
+---
+ c2t1fs/linux_kernel/file.c | 36 +++++++++++++++++++++++++++++-------
+ 1 file changed, 29 insertions(+), 7 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/file.c b/c2t1fs/linux_kernel/file.c
+index 53a1117..ffa13c0 100644
+--- a/c2t1fs/linux_kernel/file.c
++++ b/c2t1fs/linux_kernel/file.c
+@@ -159,6 +159,7 @@
+    | read |  FAILED    | read from other data unit(s) and parity unit(s) and   |
+    |      |  REPAIRING | re-construct the datai.  If NBA** exists, use new     |
+    |      |            | layout to do reading if necessary.                    |
++   |      |            | See more detail for this degraded read (1)            |
+    |      |------------|-------------------------------------------------------|
+    |      |  REPAIRED  | read from the repaired spare unit or use new layout   |
+    |      |            | if NBA**                                              |
+@@ -167,11 +168,14 @@
+    |      |------------|-------------------------------------------------------|
+    |      |  OFFLINE   | same as FAILED                                        |
+    |      |------------|-------------------------------------------------------|
+-   |write |  FAILED    | NBA** determines to use new layout or write to spare  |
+-   |      |            | unit.                                                 |
++   |write |  FAILED    | NBA** determines to use new layout or old layout      |
++   |      |            | if old layout is used, this is called degraded        |
++   |      |            | write. See more detail in the following (2)           |
+    |      |------------|-------------------------------------------------------|
+    |      |  REPAIRING | Cocurrent++ write I/O and sns repairing is out of the |
+-   |      |            | scope of this DLD                          @TODO XXX  |
++   |      |            | scope of this DLD.  Not supported currently.          |
++   |      |            | -ENOTSUP will be returned at this moment.             |
++   |      |            | This is @TODO Concorrent r/w in SNS repair            |
+    |      |------------|-------------------------------------------------------|
+    |      |  REPAIRED  | write to the repaired spare unit or new layout        |
+    |      |            | if NBA**                                              |
+@@ -188,21 +192,35 @@
+    goes from REBALANCING to ONLINE state. If the old device is ever "fixed"
+    somehow, it becomes a new device in ONLINE state.
+ 
+-   A read request target for FAILED/REPAIRING device is handled with the
+-   following steps:
++   A degraded read request is handled with the following steps:
+    (1) Calculate its parity group, find out related data units and parity units.
+        This needs help from the file's layout.
+-   (2) Send read request to necessary data units and/or parity units
++   (2) Send read requests to necessary data units and/or parity units
+        asynchronously. The read request itself is blocked and waiting for those
+        replies. For a N+K+K (N data units, K parity units, K spare units) layout,
+        N units of data or parity units are needed to re-compute the lost data.
+    (3) When those read replies come, ASTs will be called to re-compute the data
+        iteratively. Temporary result is stored in the buffer of the original
+-       read request. This request request and its reply can be released (no
++       read request. This async read request and its reply can be released (no
+        cache at this moment).
+    (4) When all read replies come back, and the data is finally re-computed,
+        the original read request has its data, and can be returned to user.
+ 
++   A degraded write request is handled as the following:
++   (1) Calculate its parity group, find out related data units and parity units.
++       This needs help from the file's layout.
++   (2) Send async read requests to all other survival data units in this
++       parity. If the original write request is a full-stripe write request,
++       skip this step. Other data units are those data units which are not
++       covered (spanned) by this write request.
++   (3) When these async read requests complete, replies come back to client.
++       Calculate parity (or parities) for this parity group from the data units.
++       Those async read requests can be released after this.
++   (4) Send write request(s) to data units, and all the new parity data, except
++       the failed device(s). Please note here: write to the failed devices are
++       excluded to send.
++   (5) When those write requests complete, return to user space.
++
+    The same thread used by the rmw will be used here to run the ASTs. The basic
+    algorithm is similar in these two features. No new data structures are
+    introduced by this feature.
+@@ -215,6 +233,10 @@
+    to the latest version. Please see @ref pool and @ref poolmach for more
+    details.
+ 
++   Which spare space to use in the SNS repair is managed by failure vector.
++   After SNS repair, client can query this information from failure vector and
++   send r/w request to corresponding spare space.
++
+    @subsection iosnsrepair-lspec-state State Specification
+    N/A
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,147 @@
+From 9fa221502ebb276dd10bf5d93485aa7682d98f38 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 20 Nov 2012 00:01:13 +0200
+Subject: [PATCH 12/71] changed console output visibility, checking status on
+ client&server in main wait loop
+
+---
+ net/test/st/st-config.sh.in     |  3 ++-
+ net/test/user_space/console_u.c | 52 +++++++++++++++++++++++++++++++----------
+ 2 files changed, 42 insertions(+), 13 deletions(-)
+
+diff --git a/net/test/st/st-config.sh.in b/net/test/st/st-config.sh.in
+index 04e1a23..83ff627 100644
+--- a/net/test/st/st-config.sh.in
++++ b/net/test/st/st-config.sh.in
+@@ -14,7 +14,8 @@ VERBOSE=
+ # VERBOSE="-v"
+ 
+ # Set to empty string to disable last line with parsable output
+-PARSABLE="-p"
++PARSABLE=
++# PARSABLE="-p"
+ 
+ LNET_IF="0@lo"
+ LNET_PID=12345
+diff --git a/net/test/user_space/console_u.c b/net/test/user_space/console_u.c
+index c31a6d0..97824fb 100644
+--- a/net/test/user_space/console_u.c
++++ b/net/test/user_space/console_u.c
+@@ -35,7 +35,10 @@
+ 
+ /**
+    @page net-test-fspec-cli-console Test console command line parameters
+-   @todo Update obsoleted options.
++   @todo Update obsoleted options. Use
++   @code
++   ntc -?
++   @endcode
+ 
+    Installing/uninstalling test suite (kernel modules, scripts etc.)
+    to/from remote host:
+@@ -366,7 +369,9 @@ static double avg_total(c2_time_t diff_t, double msg_nr)
+ 
+ static void print_status_data(struct c2_net_test_console_ctx *ctx)
+ {
+-	struct c2_net_test_cmd_status_data *sd = ctx->ntcc_clients.ntcrc_sd;
++	struct c2_net_test_cmd_status_data *sd;
++	struct c2_net_test_msg_nr	   *send_nr;
++	struct c2_net_test_msg_nr	   *recv_nr;
+ 	c2_time_t			    diff_t;
+ 	c2_time_t			    rtt_t;
+ 	unsigned long			    rtt;
+@@ -374,23 +379,31 @@ static void print_status_data(struct c2_net_test_console_ctx *ctx)
+ 	double				    avg_i;
+ 	double				    total_o;
+ 	double				    total_i;
+-
+-	total_o = sd->ntcsd_msg_nr_send.ntmn_total;
+-	total_i = sd->ntcsd_msg_nr_recv.ntmn_total;
++	bool				    type_ping;
++
++	type_ping = ctx->ntcc_cfg->ntcc_test_type == C2_NET_TEST_TYPE_PING;
++	sd = ctx->ntcc_clients.ntcrc_sd;
++	send_nr = type_ping ? &sd->ntcsd_msg_nr_send : &sd->ntcsd_bulk_nr_send;
++	recv_nr = type_ping ? &sd->ntcsd_msg_nr_recv : &sd->ntcsd_bulk_nr_recv;
++	total_o = send_nr->ntmn_total;
++	total_i = recv_nr->ntmn_total;
+ 	if (sd->ntcsd_finished) {
+ 		diff_t = c2_time_sub(sd->ntcsd_time_finish,
+ 				     sd->ntcsd_time_start);
+ 		avg_o = avg_total(diff_t, total_o);
+ 		avg_i = avg_total(diff_t, total_i);
+ 	} else {
+-		avg_o = c2_net_test_stats_avg(&sd->ntcsd_mps_recv.ntmps_stats);
+-		avg_i = c2_net_test_stats_avg(&sd->ntcsd_mps_send.ntmps_stats);
++		avg_o = c2_net_test_stats_avg(&sd->ntcsd_mps_send.ntmps_stats);
++		avg_i = c2_net_test_stats_avg(&sd->ntcsd_mps_recv.ntmps_stats);
+ 	}
+ 	bsize_print("avg out: ", ctx, avg_o);
+ 	bsize_print("/s avg in: ", ctx, avg_i);
+ 	bsize_print("/s total out: ", ctx, total_o);
+ 	bsize_print(" total in: ", ctx, total_i);
+ 
++	if (!type_ping)
++		sd = ctx->ntcc_servers.ntcrc_sd;
++
+ 	rtt_t = c2_net_test_stats_avg(&sd->ntcsd_rtt);
+ 	rtt = c2_time_seconds(rtt_t) * C2_TIME_ONE_BILLION +
+ 	      c2_time_nanoseconds(rtt_t);
+@@ -499,8 +512,11 @@ static void print_status_data_parsable(struct c2_net_test_cmd_status_data *sd)
+ 
+ static int console_run(struct c2_net_test_console_ctx *ctx)
+ {
+-	c2_time_t status_interval = C2_MKTIME(1, 0);
+-	bool	  good;
++	enum c2_net_test_role role;
++	enum c2_net_test_role role1;
++	c2_time_t	      status_interval = C2_MKTIME(1, 0);
++	bool		      good;
++	bool		      verbose;
+ 
+ 	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_INIT,
+ 			    "INIT => test servers",
+@@ -522,14 +538,23 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
+ 			    "test clients => START DONE");
+ 	if (!good)
+ 		return -ENETUNREACH;
++	role = ctx->ntcc_cfg->ntcc_test_type == C2_NET_TEST_TYPE_PING ?
++	       C2_NET_TEST_ROLE_CLIENT : C2_NET_TEST_ROLE_SERVER;
++	role1 = role == C2_NET_TEST_ROLE_CLIENT ? C2_NET_TEST_ROLE_SERVER :
++						  C2_NET_TEST_ROLE_CLIENT;
+ 	do {
+ 		/** @todo can be interrupted */
+ 		c2_nanosleep(status_interval, NULL);
+-		if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT,
+-				  C2_NET_TEST_CMD_STATUS, NULL, NULL)) {
++		good = console_step(ctx, role, C2_NET_TEST_CMD_STATUS,
++				    NULL, NULL);
++		good = good ? console_step(ctx, role1, C2_NET_TEST_CMD_STATUS,
++					   NULL, NULL) : good;
++		if (!good) {
+ 			c2_net_test_u_printf("STATUS DATA command failed.\n");
+ 		} else {
+-			print_status_data_v(ctx->ntcc_clients.ntcrc_sd);
++			print_status_data_v(role == C2_NET_TEST_ROLE_CLIENT ?
++				            ctx->ntcc_clients.ntcrc_sd :
++				            ctx->ntcc_servers.ntcrc_sd);
+ 			print_status_data(ctx);
+ 		}
+ 	} while (!ctx->ntcc_clients.ntcrc_sd->ntcsd_finished);
+@@ -547,10 +572,13 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
+ 			    "test clients => STOP DONE");
+ 	if (!good)
+ 		return -ENETUNREACH;
++	verbose = c2_net_test_u_printf_verbose;
++	c2_net_test_u_printf_verbose = true;
+ 	c2_net_test_u_printf_v("clients total: ");
+ 	print_status_data_v(ctx->ntcc_clients.ntcrc_sd);
+ 	c2_net_test_u_printf_v("servers total: ");
+ 	print_status_data_v(ctx->ntcc_servers.ntcrc_sd);
++	c2_net_test_u_printf_verbose = verbose;
+ 	if (produce_parsable_output) {
+ 		print_status_data_parsable(ctx->ntcc_clients.ntcrc_sd);
+ 		print_status_data_parsable(ctx->ntcc_servers.ntcrc_sd);
+-- 
+1.8.3.2
+

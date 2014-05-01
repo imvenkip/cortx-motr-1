@@ -1,0 +1,73 @@
+From 2db3a26f852d0d4df6b3bd37aca2386d94361c4b Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Thu, 25 Apr 2013 23:30:40 -0700
+Subject: [PATCH 078/121] Added bob_fini for domain, seg, reg & tx in
+ respective fini calls, removed invariant calls as post conditions in dom_fini
+ and tx_fini
+
+---
+ be/domain.c | 3 ++-
+ be/reg.c    | 3 +++
+ be/seg.c    | 3 +++
+ be/tx.c     | 3 ++-
+ 4 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/be/domain.c b/be/domain.c
+index f3dae88..be3925f 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -162,7 +162,8 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
+         m0_thread_join(&bd_impl->th);
+         m0_thread_fini(&bd_impl->th);
+ 
+-        M0_POST(m0_be_domain_invariant(dom));
++        /* Fini the bob as well. */
++        m0_be_domain_bob_fini(dom);
+         M0_LEAVE("Domain finalised, dom = %p", dom);
+ }
+ 
+diff --git a/be/reg.c b/be/reg.c
+index 77098a0..fc698cd 100644
+--- a/be/reg.c
++++ b/be/reg.c
+@@ -234,6 +234,9 @@ M0_INTERNAL void m0_be_reg_fini(struct m0_be_reg *reg)
+ {
+         M0_PRE(m0_be_reg_invariant(reg) &&
+                M0_IN(m0_be_reg_state(reg), (M0_BEREG_DONE, M0_BEREG_FAILED)));
++
++        /* Fini it's bob. */
++        m0_be_reg_bob_fini(reg);
+ }
+ 
+ M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+diff --git a/be/seg.c b/be/seg.c
+index 1d782a1..faaf849 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -216,6 +216,9 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+                 m0_be_seg_tlink_del_fini(seg);
+ 
+         m0_free(seg);
++
++        /* Fini it's bob. */
++        m0_be_seg_bob_fini(seg);
+         M0_LEAVE();
+ }
+ 
+diff --git a/be/tx.c b/be/tx.c
+index 6daf77d..c6e8538 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -216,7 +216,8 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+                 m0_be_tx_tlink_del_fini(tx);
+         m0_sm_fini(&tx->bt_sm);
+ 
+-        M0_POST(m0_be_tx_invariant(tx));
++        /* Fini it's bob. */
++        m0_be_tx_bob_fini(tx);
+         M0_LEAVE();
+ }
+ 
+-- 
+1.8.3.2
+

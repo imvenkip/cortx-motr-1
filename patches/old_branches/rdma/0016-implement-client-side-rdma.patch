@@ -1,0 +1,331 @@
+From bb3bd7656ca156e6f68391e58dc961f1f063fbbd Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Wed, 28 Jul 2010 14:54:32 -0600
+Subject: [PATCH 16/34] - implement client side rdma
+
+---
+ c2t1fs/main.c         | 23 +++++++++++++++---
+ configure.ac          | 17 +++++++++++++
+ net/ksunrpc/client.c  |  6 ++---
+ net/ksunrpc/ksunrpc.h | 11 +++++++++
+ net/ksunrpc/kxdr.c    | 66 +++++++++++++++++++++++++--------------------------
+ stob/ut/server.c      |  2 ++
+ 6 files changed, 85 insertions(+), 40 deletions(-)
+
+diff --git a/c2t1fs/main.c b/c2t1fs/main.c
+index e726f01..60841d8 100644
+--- a/c2t1fs/main.c
++++ b/c2t1fs/main.c
+@@ -9,14 +9,13 @@
+ #include <linux/uio.h>
+ #include <linux/inet.h>
+ #include <linux/in.h>
++#include <linux/sunrpc/xprt.h>
+ 
+ #include "lib/misc.h"  /* C2_SET0 */
+ #include "lib/memory.h"
+ #include "lib/errno.h"
+ #include "fop/fop.h"
+-
+ #include "c2t1fs.h"
+-
+ #include "io_k.h"
+ #include "stob/ut/io_fop.h"
+ 
+@@ -475,6 +474,9 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
+                 return -EINVAL;
+         }
+ 
++        /* default is tcp */
++        csi->csi_srvid.ssi_trans = XPRT_TRANSPORT_TCP;
++
+         s1 = options;
+         while (*s1) {
+                 while (*s1 == ' ' || *s1 == ',')
+@@ -509,7 +511,22 @@ static int c2t1fs_parse_options(struct super_block *sb, char *options)
+ 				return rc;
+ 			}
+ 			cid ++;
+-		}
++                } else if (strncmp(s1, "trans=", 6) == 0) {
++                        char *trans = s1 + 6;
++                        s1 = trans;
++                        if (strncmp(trans, "tcp", 3) == 0) {
++                                s1 += 3;
++                                csi->csi_srvid.ssi_trans = XPRT_TRANSPORT_TCP;
++#ifdef ENABLE_RDMA
++                        } else if (strncmp(trans, "rdma", 4) == 0) {
++                                s1 += 4;
++                                csi->csi_srvid.ssi_trans = XPRT_TRANSPORT_RDMA;
++#endif
++                        } else {
++                                printk(KERN_ERR "wrong transport type\n");
++                                return -EINVAL;
++                        }
++                }
+ 
+                 /* Find next opt */
+                 s2 = strchr(s1, ',');
+diff --git a/configure.ac b/configure.ac
+index 5db4c56..665096d 100755
+--- a/configure.ac
++++ b/configure.ac
+@@ -463,6 +463,19 @@ if test x$OS = xlinux; then
+         LIBS=$OLD_LIBS
+ fi
+ 
++AC_DEFUN([COLIBRI_LINUX_RDMA],
++[AC_MSG_CHECKING([if kernel supports sunrpc over rdma])
++ COLIBRI_LINUX_TRY_COMPILE([
++        #include <linux/sunrpc/xprt.h>
++],[
++        int abc = XPRT_TRANSPORT_RDMA;
++],[
++        AC_MSG_RESULT([yes])
++],[
++        AC_MSG_ERROR([no kernel rdma, sorry!])
++])
++])
++
+ if test x$enable_rdma = xyes; then
+         AC_CHECK_LIB([rdmacm], [rdma_create_id], [],
+                      [AC_MSG_ERROR([cannot find ramdcm lib])])
+@@ -471,6 +484,10 @@ if test x$enable_rdma = xyes; then
+         AC_CHECK_HEADERS([rdma/rdma_cma.h infiniband/verbs.h],
+                          [AC_DEFINE([ENABLE_RDMA])],
+                          [AC_MSG_ERROR([cannot find rdma header files])])
++
++        if test x$OS = xlinux; then
++                COLIBRI_LINUX_RDMA
++        fi
+ fi
+ 
+ OLD_LIBS=$LIBS
+diff --git a/net/ksunrpc/client.c b/net/ksunrpc/client.c
+index a4fd7cd..dbb24f9 100644
+--- a/net/ksunrpc/client.c
++++ b/net/ksunrpc/client.c
+@@ -123,9 +123,9 @@ static int ksunrpc_conn_init(struct c2_service_id *id, struct c2_net_conn *conn)
+ 	};
+ 
+ 	struct rpc_create_args args = {
+-		.protocol	= XPRT_TRANSPORT_TCP,
+-		.address	= (struct sockaddr *)&ksid->ssi_sockaddr,
+-		.addrsize	= ksid->ssi_addrlen,
++		.protocol	= xsid->ssi_trans,
++		.address	= (struct sockaddr *)xsid->ssi_sockaddr,
++		.addrsize	= xsid->ssi_addrlen,
+ 		.timeout	= &timeparms,
+ 		.servername	= ksid->ssi_host,
+ 		.program	= &c2t1_program,
+diff --git a/net/ksunrpc/ksunrpc.h b/net/ksunrpc/ksunrpc.h
+index fcf7466..534f913 100644
+--- a/net/ksunrpc/ksunrpc.h
++++ b/net/ksunrpc/ksunrpc.h
+@@ -24,6 +24,17 @@ struct ksunrpc_dom {
+ 	 */
+ };
+ 
++/**
++   SUNRPC service identifier.
++ */
++struct ksunrpc_service_id {
++	char                 *ssi_host;	    /**< server hostname */
++	struct sockaddr_in   *ssi_sockaddr; /**< server ip_addr  */
++	int 	              ssi_addrlen;  /**< server ip_addr  */
++	uint16_t              ssi_port;     /**< server tcp port */
++        int                   ssi_trans;    /**< server transport */
++};
++
+ struct c2_fop;
+ 
+ 
+diff --git a/net/ksunrpc/kxdr.c b/net/ksunrpc/kxdr.c
+index 615179a..598e18e 100644
+--- a/net/ksunrpc/kxdr.c
++++ b/net/ksunrpc/kxdr.c
+@@ -87,43 +87,43 @@ struct kxdr_ctx {
+ typedef int (*c2_kxdrproc_t)(struct kxdr_ctx *, void *);
+ 
+ static const c2_kxdrproc_t kxdr_disp[KNR][FFA_NR];
+-static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj);
++static int (*atom_kxdr[KNR][FPF_NR])(struct kxdr_ctx *ctx, void *obj);
+ 
+-int c2_kvoid_encode(struct xdr_stream *xdr, void *val)
++int c2_kvoid_encode(struct kxdr_ctx *ctx, void *val)
+ {
+ 	return 0;
+ }
+ 
+-int c2_kvoid_decode(struct xdr_stream *xdr, void *val)
++int c2_kvoid_decode(struct kxdr_ctx *ctx, void *val)
+ {
+ 	return 0;
+ }
+ 
+-int c2_ku32_encode(struct xdr_stream *xdr, uint32_t *val)
++int c2_ku32_encode(struct kxdr_ctx *ctx, uint32_t *val)
+ {
+ 	uint32_t *p;
+ 
+-	p = xdr_reserve_space(xdr, 4);
++	p = xdr_reserve_space(ctx->kc_xdr, 4);
+ 	if (p != NULL)
+ 		*p = htonl(*val);
+ 	return p != NULL ? 0 : -EIO;
+ }
+ 
+-int c2_ku32_decode(struct xdr_stream *xdr, uint32_t *val)
++int c2_ku32_decode(struct kxdr_ctx *ctx, uint32_t *val)
+ {
+ 	uint32_t *p;
+ 
+-	p = xdr_inline_decode(xdr, 4);
++	p = xdr_inline_decode(ctx->kc_xdr, 4);
+ 	if (p != NULL)
+ 		*val = ntohl(*p);
+ 	return p != NULL ? 0 : -EIO;
+ }
+ 
+-int c2_ku64_encode(struct xdr_stream *xdr, uint64_t *val)
++int c2_ku64_encode(struct kxdr_ctx *ctx, uint64_t *val)
+ {
+ 	uint32_t *p;
+ 
+-	p = xdr_reserve_space(xdr, 8);
++	p = xdr_reserve_space(ctx->kc_xdr, 8);
+ 	if (p != NULL) {
+ 		p[0] = htonl((uint32_t)(*val >> 32));
+ 		p[1] = htonl((uint32_t)*val);
+@@ -131,11 +131,11 @@ int c2_ku64_encode(struct xdr_stream *xdr, uint64_t *val)
+ 	return p != NULL ? 0 : -EIO;
+ }
+ 
+-int c2_ku64_decode(struct xdr_stream *xdr, uint64_t *val)
++int c2_ku64_decode(struct kxdr_ctx *ctx, uint64_t *val)
+ {
+ 	uint32_t *p;
+ 
+-	p = xdr_inline_decode(xdr, 8);
++	p = xdr_inline_decode(ctx->kc_xdr, 8);
+ 	if (p != NULL)
+ 		*val = (((uint64_t)ntohl(p[0])) << 32) | ntohl(p[1]);
+ 	return p != NULL ? 0 : -EIO;
+@@ -194,7 +194,7 @@ static int kxdr_sequence_enc(struct kxdr_ctx *ctx, void *obj)
+ 	int result;
+ 	struct page_sequence *ps = obj;
+ 
+-	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr, &ps->ps_nr);
++	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx, &ps->ps_nr);
+ 	if (result != 0)
+ 		return result;
+ 
+@@ -215,7 +215,7 @@ static int kxdr_sequence_dec(struct kxdr_ctx *ctx, void *obj)
+ 	int      result;
+ 	uint32_t nr;
+ 
+-	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr, obj);
++	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx, obj);
+ 	if (result != 0)
+ 		return result;
+ 
+@@ -264,14 +264,14 @@ static int kxdr_iobuf_enc(struct kxdr_ctx *ctx, void *obj)
+ {
+         int result;
+         struct c2_io_buf *dbuf = obj;
+-        int (*encode_u32)(struct xdr_stream *, void *);
++        int (*encode_u32)(struct kxdr_ctx *, void *);
+ 
+         encode_u32 = atom_kxdr[ctx->kc_what][FPF_U32];
+-        result = encode_u32(ctx->kc_xdr, &dbuf->cib_align);
++        result = encode_u32(ctx, &dbuf->cib_align);
+         if (result)
+                 return result;
+ 
+-        result = encode_u32(ctx->kc_xdr, &dbuf->cib_count);
++        result = encode_u32(ctx, &dbuf->cib_count);
+         if (result)
+                 return result;
+ 
+@@ -285,13 +285,11 @@ static int kxdr_iobuf_dec(struct kxdr_ctx *ctx, void *obj)
+         struct c2_io_buf *dbuf = obj;
+ 	int      result;
+ 
+-	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr,
+-                                                  &dbuf->cib_align);
++	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx, &dbuf->cib_align);
+         if (result)
+                 return result;
+ 
+-	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx->kc_xdr,
+-                                                  &dbuf->cib_count);
++	result = atom_kxdr[ctx->kc_what][FPF_U32](ctx, &dbuf->cib_count);
+ 	if (result != 0)
+ 		return result;
+ 
+@@ -320,26 +318,26 @@ static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
+ 	return 0;
+ }
+ 
+-static int (*atom_kxdr[KNR][FPF_NR])(struct xdr_stream *xdr, void *obj) = {
++static int (*atom_kxdr[KNR][FPF_NR])(struct kxdr_ctx *ctx, void *obj) = {
+ 	[KENC] = {
+-		[FPF_VOID] = (void *)&c2_kvoid_encode,
+-		[FPF_BYTE] = NULL,
+-		[FPF_U32]  = (void *)&c2_ku32_encode,
+-		[FPF_U64]  = (void *)&c2_ku64_encode,
++		[FPF_VOID]  = (void *)&c2_kvoid_encode,
++		[FPF_BYTE]  = NULL,
++		[FPF_U32]   = (void *)&c2_ku32_encode,
++		[FPF_U64]   = (void *)&c2_ku64_encode,
+                 [FPF_IOBUF] = (void *)&kxdr_iobuf_enc
+ 	},
+ 	[KDEC] = {
+-		[FPF_VOID] = (void *)&c2_kvoid_decode,
+-		[FPF_BYTE] = NULL,
+-		[FPF_U32]  = (void *)&c2_ku32_decode,
+-		[FPF_U64]  = (void *)&c2_ku64_decode,
++		[FPF_VOID]  = (void *)&c2_kvoid_decode,
++		[FPF_BYTE]  = NULL,
++		[FPF_U32]   = (void *)&c2_ku32_decode,
++		[FPF_U64]   = (void *)&c2_ku64_decode,
+                 [FPF_IOBUF] = (void *)&kxdr_iobuf_dec
+ 	},
+         [KREP] = {
+-		[FPF_VOID] = (void *)&kxdr_atom_rep,
+-		[FPF_BYTE] = (void *)&kxdr_atom_rep,
+-		[FPF_U32]  = (void *)&kxdr_atom_rep,
+-		[FPF_U64]  = (void *)&kxdr_atom_rep,
++		[FPF_VOID]  = (void *)&kxdr_atom_rep,
++		[FPF_BYTE]  = (void *)&kxdr_atom_rep,
++		[FPF_U32]   = (void *)&kxdr_atom_rep,
++		[FPF_U64]   = (void *)&kxdr_atom_rep,
+                 [FPF_IOBUF] = (void *)&kxdr_iobuf_rep
+         }
+ };
+@@ -349,7 +347,7 @@ static int kxdr_atom(struct kxdr_ctx *ctx, void *obj)
+ 	C2_ASSERT(ctx->kc_type->fft_u.u_atom.a_type <
+ 		  ARRAY_SIZE(atom_kxdr[ctx->kc_what]));
+ 	return atom_kxdr[ctx->kc_what][ctx->kc_type->fft_u.u_atom.a_type]
+-		(ctx->kc_xdr, obj);
++		(ctx, obj);
+ }
+ 
+ static int kxdr_atom_rep(struct kxdr_ctx *ctx, void *obj)
+diff --git a/stob/ut/server.c b/stob/ut/server.c
+index 50f7bae..02ae930 100644
+--- a/stob/ut/server.c
++++ b/stob/ut/server.c
+@@ -434,7 +434,9 @@ int main(int argc, char **argv)
+ 	if (strcmp(trans, "tcp") ||
+ 	    strcmp(trans, "udp") ||
+ 	    strcmp(trans, "rdma"))
++		fprintf(stderr, "unknown transport %s\n", trans);
+ 		return -1;
++
+ 	C2_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
+ 
+ 	result = mkdir(path, 0700);
+-- 
+1.8.3.2
+

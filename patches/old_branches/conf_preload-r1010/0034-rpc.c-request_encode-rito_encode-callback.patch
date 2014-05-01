@@ -1,0 +1,87 @@
+From 665ec94bcd548a1a0e3170e25c1779695037f30d Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 4 Mar 2012 21:14:05 +0200
+Subject: [PATCH 034/311] rpc.c (request_encode): ->rito_encode callback
+
++ fetch{,_resp}_itype: c2_rpc_item_type declarations
+---
+ conf/rpc.c | 43 +++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 41 insertions(+), 2 deletions(-)
+
+diff --git a/conf/rpc.c b/conf/rpc.c
+index 9cdeadc..2819e64 100644
+--- a/conf/rpc.c
++++ b/conf/rpc.c
+@@ -23,6 +23,9 @@
+ #endif
+ #define __C2_CONF_IMPL
+ #include "conf/rpc.h"
++#include "conf/xdata.h"  /* c2_conf_fetch_xc */
++#include "xcode/xcode.h"
++#include "rpc/rpc2.h"    /* C2_RPC_ITEM_TYPE_DEF */
+ 
+ static const struct c2_fop_type_ops fopt_ops = {
+ 	/* XXX c2_xcode_fop_size_get() may be inappropriate here */
+@@ -36,7 +39,7 @@ static struct c2_rpc_item_type_ops fetch_ops = {
+ 	 * Like c2_fop_item_type_default_encode(), but item_encdec()
+ 	 * is replaced with c2_xcode_encode().
+ 	 */
+-	.rito_encode    = XXX,
++	.rito_encode    = request_encode,
+ 	/* XXX TODO should be set for confd */
+ 	.rito_decode    = NULL
+ };
+@@ -47,9 +50,12 @@ static struct c2_rpc_item_type_ops fetch_ops = {
+  * XXX Dependency: struct c2_fop_type_format c2_conf_fetch_tfmt
+  */
+ C2_FOP_TYPE_DECLARE_OPS(c2_conf_fetch, "c2_conf_fetch", &fopt_ops,
+-			C2_CONF_FETCH_RESP_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
++			C2_CONF_FETCH_OPCODE, C2_RPC_ITEM_TYPE_REQUEST,
+ 			&fetch_ops);
+ 
++C2_RPC_ITEM_TYPE_DEF(fetch_itype, C2_CONF_FETCH_OPCODE,
++		     C2_RPC_ITEM_TYPE_REQUEST, &fetch_ops);
++
+ static struct c2_rpc_item_type_ops fetch_resp_ops = {
+ 	/* return c2_xcode_length() */
+ 	.rito_item_size = XXX,
+@@ -67,3 +73,36 @@ static struct c2_rpc_item_type_ops fetch_resp_ops = {
+ C2_FOP_TYPE_DECLARE_OPS(c2_conf_fetch_resp, "c2_conf_fetch_resp", &ftype_ops,
+ 			C2_CONF_FETCH_RESP_OPCODE, C2_RPC_ITEM_TYPE_REPLY,
+ 			&fetch_resp_ops);
++
++C2_RPC_ITEM_TYPE_DEF(fetch_resp_itype, C2_CONF_FETCH_RESP_OPCODE,
++		     C2_RPC_ITEM_TYPE_REPLY, &fetch_resp_ops);
++
++static int
++request_encode(struct c2_rpc_item_type *item_type __attribute__((unused)),
++	       struct c2_rpc_item *item, struct c2_bufvec_cursor *cur)
++{
++	/*
++	 * struct c2_xcode_ctx xtx;
++	 * struct c2_xcode_obj xobj = {
++	 * 	.xo_type = c2_conf_fetch_xc,
++	 * 	.xo_ptr  = c2_fop_data(c2_rpc_item_to_fop(item))
++	 * };
++	 *
++	 * C2_PRE(item->ri_type == &fetch_itype);
++	 *
++	 * Ensure by bob-checking that xobj.xo_ptr is of c2_conf_fetch type.
++	 *
++	 * Validate the request (req):
++	 *   - req->ff_origin.o_objtype < C2_CO_NR;
++	 *   - req->ff_origin belongs the cache;
++	 *   - equi(req->ff_comps.c_nr == 0, req->ff_comps.c_data == NULL);
++	 *   - C2_ASSERT(c2_conf_path_validate
++	 *               (req->ff_origin.o_objtype, req->ff_origin.o_objkey,
++	 *                req->ff_comps.c_data, req->ff_comps.c_nr, NULL) == 0);
++	 *
++	 * c2_xcode_ctx_init(&xtx, &xobj);
++	 * xtx.xtx_buf = *cur;
++	 * return c2_xcode_encode(&xtx);
++	 */
++	XXX;
++}
+-- 
+1.8.3.2
+

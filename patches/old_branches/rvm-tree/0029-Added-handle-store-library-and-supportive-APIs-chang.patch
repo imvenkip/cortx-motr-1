@@ -1,0 +1,723 @@
+From ab6a9d072051b01ce3f59af71730f93893a1efa3 Mon Sep 17 00:00:00 2001
+From: Prashant Dhange <prashant_dhange@xyratex.com>
+Date: Mon, 7 Jan 2013 04:07:34 -0800
+Subject: [PATCH 29/94] Added handle store library and supportive APIs, changes
+ to handle store UT
+
+---
+ Makefile.am              |   1 +
+ be/Makefile.sub          |  15 +--
+ be/be_reg.c              |  16 ++--
+ be/be_reg.h              |   4 +-
+ be/lib/Makefile.sub      |  14 +++
+ be/lib/be_handle_store.c | 112 ++++++++++++++++++++++
+ be/lib/be_handle_store.h |  50 ++++++++++
+ be/ut/Makefile           |   2 +-
+ be/ut/Makefile.sub       |   2 +-
+ be/ut/be_handle_store.c  | 129 +++++++++++++++++++++++++
+ be/ut/handle_store.c     | 244 -----------------------------------------------
+ 11 files changed, 322 insertions(+), 267 deletions(-)
+ create mode 100644 be/lib/Makefile.sub
+ create mode 100644 be/lib/be_handle_store.c
+ create mode 100644 be/lib/be_handle_store.h
+ create mode 100644 be/ut/be_handle_store.c
+ delete mode 100644 be/ut/handle_store.c
+
+diff --git a/Makefile.am b/Makefile.am
+index 75b7387..5ef3e90 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -150,6 +150,7 @@ mero_libmero_la_SOURCES  =
+ include $(top_srcdir)/addb/Makefile.sub
+ include $(top_srcdir)/addb/addbff/Makefile.sub
+ include $(top_srcdir)/be/Makefile.sub
++include $(top_srcdir)/be/lib/Makefile.sub
+ include $(top_srcdir)/balloc/Makefile.sub
+ include $(top_srcdir)/build_kernel_modules/Makefile.sub
+ include $(top_srcdir)/m0t1fs/Makefile.sub
+diff --git a/be/Makefile.sub b/be/Makefile.sub
+index 6cf6d2b..e67e0a9 100644
+--- a/be/Makefile.sub
++++ b/be/Makefile.sub
+@@ -1,18 +1,7 @@
+-nobase_mero_include_HEADERS +=  be/be.h                 \
+-				be/lib/be_buf.h         \
+-				be/lib/be_list.h        \
+-				be/lib/be_tlist.h       \
+-				be/lib/be_types.h	\
+-				be/lib/be_kv_store.h	\
+-				be/lib/be_helper.h	
++nobase_mero_include_HEADERS +=  be/be.h                 
+ 
+ mero_libmero_la_SOURCES	    += 	be/be_domain.c          \
+ 			      	be/be_seg.c             \
+ 			    	be/be_reg.c             \
+ 			    	be/be_rvm.c             \
+-			    	be/be_tx.c              \
+-			    	be/lib/be_buf.c         \
+-			    	be/lib/be_list.c        \
+-			    	be/lib/be_tlist.c	\
+-				be/lib/be_kv_store.c	\
+-				be/lib/be_helper.c
++			    	be/be_tx.c              
+diff --git a/be/be_reg.c b/be/be_reg.c
+index b9890c3..a7c5fa6 100644
+--- a/be/be_reg.c
++++ b/be/be_reg.c
+@@ -474,16 +474,20 @@ reg_done_exit:
+         }
+ }
+ 
+-
++/**
++ * Handle store support APIs
++ * Due to RVM limitation of single segment support,
++ * the static region from segment is used as a handle store.
++ */
+ M0_INTERNAL void m0_be_static_reg_init(void *start_addr)
+ {
+         static_reg_start_addr = start_addr;
+ }
+ 
+-M0_INTERNAL void m0_be_static_reg_update_buf(u_int64_t offset,
+-                                             struct m0_be_buf *ubuf,
+-                                             struct m0_be_seg *seg,
+-                                             struct m0_be_tx *tx)
++M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
++                                              struct m0_be_buf *ubuf,
++                                              struct m0_be_seg *seg,
++                                              struct m0_be_tx *tx)
+ {
+         struct m0_be_reg       *reg;
+         struct m0_be_buf        buf;
+@@ -499,7 +503,7 @@ M0_INTERNAL void m0_be_static_reg_update_buf(u_int64_t offset,
+         m0_be_tx_prep(tx);
+ }
+ 
+-M0_INTERNAL void *m0_be_static_reg_get_handle_addr(u_int64_t offset)
++M0_INTERNAL void *m0_be_static_reg_get_handle_addr(uint64_t offset)
+ {
+         return (static_reg_start_addr + offset);
+ }
+diff --git a/be/be_reg.h b/be/be_reg.h
+index 1e5f57b..23ce54b 100644
+--- a/be/be_reg.h
++++ b/be/be_reg.h
+@@ -42,12 +42,12 @@ M0_INTERNAL void m0_be_reg_req_post(struct m0_sm_group *sm_group,
+ 
+ M0_INTERNAL void m0_be_static_reg_init();
+ 
+-M0_INTERNAL void m0_be_static_reg_update_buf(u_int64_t offset,
++M0_INTERNAL void m0_be_static_reg_capture_buf(uint64_t offset,
+                                              struct m0_be_buf *buf,
+                                              struct m0_be_seg *seg,
+                                              struct m0_be_tx *tx);
+ 
+-M0_INTERNAL void *m0_be_static_reg_get_handle_addr(u_int64_t offset);
++M0_INTERNAL void *m0_be_static_reg_get_handle_addr(uint64_t offset);
+ 
+ /** @} end of be group */
+ 
+diff --git a/be/lib/Makefile.sub b/be/lib/Makefile.sub
+new file mode 100644
+index 0000000..67e8ead
+--- /dev/null
++++ b/be/lib/Makefile.sub
+@@ -0,0 +1,14 @@
++nobase_mero_include_HEADERS +=  be/lib/be_buf.h         \
++				be/lib/be_list.h        \
++				be/lib/be_tlist.h       \
++				be/lib/be_types.h	\
++				be/lib/be_kv_store.h	\
++				be/lib/be_helper.h	\
++				be/lib/be_handle_store.h
++
++mero_libmero_la_SOURCES	    +=  be/lib/be_buf.c         \
++			    	be/lib/be_list.c        \
++			    	be/lib/be_tlist.c	\
++				be/lib/be_kv_store.c	\
++				be/lib/be_helper.c	\
++				be/lib/be_handle_store.c
+diff --git a/be/lib/be_handle_store.c b/be/lib/be_handle_store.c
+new file mode 100644
+index 0000000..497a2b1
+--- /dev/null
++++ b/be/lib/be_handle_store.c
+@@ -0,0 +1,112 @@
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Prashant Dhange <prashant_dhange@xyratex.com>
++ * Original creation date: 04 Jan 2013
++ */
++
++/**
++  @addtogroup be_handle_store
++  @{
++  */
++
++#include "be/be.h"
++
++/**
++ * Handle store APIs
++ *
++ * m0_be_hs_init()           - Initialize handle store
++ * m0_be_hs_update()         - Update handle store address on RVM
++ * m0_be_hs_get()            - Get handle store reference (m0_uint128) from RVM
++ */
++
++static struct m0_be_seg *seg = NULL; 
++
++M0_INTERNAL void m0_be_hs_init(struct m0_be_seg *segin)
++{
++        M0_ASSERT(segin != NULL);
++
++        seg = segin;
++
++        m0_be_static_reg_init(seg->bs_static_addr);
++}
++
++
++M0_INTERNAL void m0_be_hs_update(uint64_t index, struct m0_uint128 *h_addr)
++{
++        struct m0_be_tx         tx;
++        struct m0_be_buf        buf;
++        struct m0_uint128      *elem;
++        uint64_t                offset;
++
++        m0_be_tx_init(&tx, seg->bs_dom, 0);
++
++        m0_sm_group_lock(tx.bt_impl.sm_group);
++        m0_sm_timedwait(&tx.bt_sm,
++                        (1 << M0_BETX_INIT) | (1 << M0_BETX_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(tx.bt_impl.sm_group);
++
++        m0_be_buf_init(&buf, NULL, sizeof(struct m0_uint128), 0, 0, 0);
++        offset = index * sizeof(struct m0_uint128);
++        m0_be_static_reg_capture_buf(offset, &buf, seg, &tx); 
++
++        m0_sm_group_lock(tx.bt_impl.sm_group);
++        m0_sm_timedwait(&tx.bt_sm,
++                        (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(tx.bt_impl.sm_group);
++
++        m0_be_tx_start(&tx);
++        m0_sm_group_lock(tx.bt_impl.sm_group);
++        m0_sm_timedwait(&tx.bt_sm,
++                        (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(tx.bt_impl.sm_group);
++
++        elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(offset);
++
++        elem->u_hi = h_addr->u_hi;
++        elem->u_lo = h_addr->u_lo;
++
++        m0_be_tx_done(&tx);
++
++        m0_sm_group_lock(tx.bt_impl.sm_group);
++        m0_sm_timedwait(&tx.bt_sm,
++                        (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(tx.bt_impl.sm_group);
++        m0_be_tx_fini(&tx);
++}
++
++
++M0_INTERNAL struct m0_uint128 *m0_be_hs_get(uint64_t index)
++{
++        uint64_t offset = index * sizeof(struct m0_uint128);
++
++        return (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(offset);
++}
++
++/** @} end group be_ut */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/lib/be_handle_store.h b/be/lib/be_handle_store.h
+new file mode 100644
+index 0000000..e17f201
+--- /dev/null
++++ b/be/lib/be_handle_store.h
+@@ -0,0 +1,50 @@
++/*
++ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Prashant Dhange <prashant_dhange@xyratex.com>
++ * Original creation date: 04 Jan 2013
++ */
++
++#pragma once
++
++#ifndef __MERO_BE_LIB_BE_HANDLE_STORE_H__
++#define __MERO_BE_LIB_BE_HANDLE_STORE_H__
++
++/**
++  @defgroup be (Meta-data) back-end
++  @{
++  */
++#include "be/be.h"
++
++M0_INTERNAL void m0_be_hs_init(struct m0_be_seg *segin);
++
++M0_INTERNAL void m0_be_hs_update(uint64_t index, struct m0_uint128 *h_addr);
++
++M0_INTERNAL struct m0_uint128 *m0_be_hs_get(uint64_t index);
++
++/** @} end of be group */
++
++/* __MERO_BE_LIB_BE_HANDLE_STORE_H__ */
++#endif
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/ut/Makefile b/be/ut/Makefile
+index 12c3a8f..15cf35a 100644
+--- a/be/ut/Makefile
++++ b/be/ut/Makefile
+@@ -2,7 +2,7 @@
+ 
+ all:
+ 	gcc .libs/ut_libmero_ut_la-be.o  ../../mero/.libs/libmero.a  -o ./be_ut  -lpthread  -ldb  -lrt -laio -lrvm -lrds -lseg -L../../../rvm/rvm/.libs -L../../../rvm/rds/.libs -L../../../rvm/seg/.libs
+-	gcc .libs/ut_libmero_ut_la-handle_store.o  ../../mero/.libs/libmero.a  -o ./be_hstore -lpthread -ldb -lrt -laio -lrvm -lrds -lseg -L../../../rvm/rvm/.libs -L../../../rvm/rds/.libs -L../../../rvm/seg/.libs
++	gcc .libs/ut_libmero_ut_la-be_handle_store.o  ../../mero/.libs/libmero.a -o ./be_hanlde_store -lpthread -ldb -lrt -laio -lrvm -lrds -lseg -L../../../rvm/rvm/.libs -L../../../rvm/rds/.libs -L../../../rvm/seg/.libs
+ 	rm -rf /tmp/log_file
+ 
+ clean:
+diff --git a/be/ut/Makefile.sub b/be/ut/Makefile.sub
+index 6c4175e..2c137b2 100644
+--- a/be/ut/Makefile.sub
++++ b/be/ut/Makefile.sub
+@@ -1,2 +1,2 @@
+ ut_libmero_ut_la_SOURCES += be/ut/be.c \
+-			    be/ut/handle_store.c
++			    be/ut/be_handle_store.c
+diff --git a/be/ut/be_handle_store.c b/be/ut/be_handle_store.c
+new file mode 100644
+index 0000000..fe07850
+--- /dev/null
++++ b/be/ut/be_handle_store.c
+@@ -0,0 +1,129 @@
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Prashant Dhange <prashant_dhange@xyratex.com>
++ * Original creation date: 28 Dec 2012
++ */
++
++/**
++ *              Be Domain UT
++ *
++ * The UT does not create Named Segment and thus named segment related
++ * function is not completed for time being
++ */
++
++/**
++  @addtogroup be_ut
++  @{
++  */
++
++#include <stdio.h>
++#include <unistd.h>
++#include <stdlib.h>
++#include "be/be.h"
++#include "be/lib/be_handle_store.h"
++
++struct m0_be_seg *seg;
++struct m0_be_domain *dom;
++struct m0_stob ns_stob, stob;
++struct m0_stob log_stob;
++struct m0_be_tx tx;
++
++void __init()
++{
++        /* Initializing domain */
++        printf("\n\tBackend UT\n");
++        m0_be_domain_create(&dom);
++        m0_be_domain_init(dom);
++        printf("\nDomain is initialized\n");
++
++        /**
++         * This is just done to work other part of the code.
++         * We are not dealing with named segment for this moment.
++         */
++        dom->bd_data.bs_sm.sm_state = M0_BESEG_ACTIVE;
++
++        m0_be_domain_lookup(dom, 1, &seg);
++
++        m0_sm_group_lock(seg->bs_impl.sm_group);
++        m0_sm_timedwait(&(seg->bs_sm),
++                        (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED),
++                        M0_TIME_NEVER);
++        m0_sm_group_unlock(seg->bs_impl.sm_group);
++
++
++        if (M0_BESEG_FAILED == seg->bs_sm.sm_state) {
++                printf("\nFailed to create segment \n");
++                return;
++        }
++        printf("\nSegment is opened\n");
++        printf("\nheap addr : %p\n", seg->bs_heap_addr);
++        printf("\nstatic addr : %p\n", seg->bs_static_addr);
++}
++
++void __fini()
++{
++        rvm_truncate();
++        rvm_flush();
++
++        m0_be_seg_done(seg);
++        dom->bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
++        m0_be_domain_fini(dom);
++
++        printf("\nExiting from Backend UT\n");
++
++        printf("\n");
++}
++
++int main(int argc, char *argv[])
++{
++        int i=0;
++        int run_mode = atoi(argv[1]);
++
++        __init();
++        m0_be_hs_init(seg);
++
++        if (!run_mode) {
++                for (i = 0; i < 10; i++) { 
++                        struct m0_uint128 kvstore;
++                        kvstore.u_hi = 1 + i;
++                        kvstore.u_lo = 88779911231 + i;
++                        m0_be_hs_update(i, &kvstore);
++                }
++                for (i = 0; i < 10; i = i+2) {
++                        struct m0_uint128 *kvstore = m0_be_hs_get(i);
++                        printf("Address [%ld, %ld] \n", kvstore->u_hi, kvstore->u_lo);
++                }
++        } else {
++                for (i = 0; i < 10; i = i+2) {
++                        struct m0_uint128 *kvstore = m0_be_hs_get(i);
++                        printf("Address [%ld, %ld] \n", kvstore->u_hi, kvstore->u_lo);
++                }
++        }
++        __fini();
++        return 0;
++}
++
++/** @} end group be_ut */
++
++/*
++ *  Local variables:
++ *  c-indentation-style: "K&R"
++ *  c-basic-offset: 8
++ *  tab-width: 8
++ *  fill-column: 80
++ *  scroll-step: 1
++ *  End:
++ */
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+deleted file mode 100644
+index 1d39fd8..0000000
+--- a/be/ut/handle_store.c
++++ /dev/null
+@@ -1,244 +0,0 @@
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Prashant Dhange <prashant_dhange@xyratex.com>
+- * Original creation date: 28 Dec 2012
+- */
+-
+-/**
+- *              Be Domain UT
+- *
+- * The UT does not create Named Segment and thus named segment related
+- * function is not completed for time being
+- */
+-
+-/**
+-  @addtogroup be_ut
+-  @{
+-  */
+-
+-#include <stdio.h>
+-#include <unistd.h>
+-#include <stdlib.h>
+-#include "be/be.h"
+-
+-struct m0_be_seg *seg;
+-struct m0_be_domain *dom;
+-struct m0_stob ns_stob, stob;
+-struct m0_stob log_stob;
+-struct m0_be_tx tx;
+-
+-void __init()
+-{
+-        /* Initializing domain */
+-        printf("\n\tBackend UT\n");
+-        m0_be_domain_create(&dom);
+-        m0_be_domain_init(dom);
+-        printf("\nDomain is initialized\n");
+-
+-        /**
+-         * This is just done to work other part of the code.
+-         * We are not dealing with named segment for this moment.
+-         */
+-        dom->bd_data.bs_sm.sm_state = M0_BESEG_ACTIVE;
+-
+-        m0_be_domain_lookup(dom, 1, &seg);
+-
+-        m0_sm_group_lock(seg->bs_impl.sm_group);
+-        m0_sm_timedwait(&(seg->bs_sm),
+-                        (1 << M0_BESEG_ACTIVE) | (1 << M0_BESEG_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(seg->bs_impl.sm_group);
+-
+-
+-        if (M0_BESEG_FAILED == seg->bs_sm.sm_state) {
+-                printf("\nFailed to create segment \n");
+-                return;
+-        }
+-        printf("\nSegment is opened\n");
+-        printf("\nheap addr : %p\n", seg->bs_heap_addr);
+-        printf("\nstatic addr : %p\n", seg->bs_static_addr);
+-}
+-
+-
+-void __kv_store_table_add(int64_t index, struct m0_uint128 kv_addr)
+-{
+-        struct m0_be_tx         tx;
+-        struct m0_be_buf        buf;
+-        struct m0_uint128      *elem;
+-        u_int64_t               offset;
+-
+-        m0_be_tx_init(&tx, dom, 0);
+-
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_INIT) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-
+-        m0_be_buf_init(&buf, NULL, sizeof(struct m0_uint128), 0, 0, 0);
+-        offset = index * sizeof(struct m0_uint128);
+-        m0_be_static_reg_update_buf(offset, &buf, seg, &tx); 
+-
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-
+-        m0_be_tx_start(&tx);
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-
+-        elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(offset);
+-
+-        elem->u_hi = kv_addr.u_hi;
+-        elem->u_lo = kv_addr.u_lo;
+-
+-        m0_be_tx_done(&tx);
+-
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-        m0_be_tx_fini(&tx);
+-}
+-
+-
+-void __kv_store_table_delete(int64_t index)
+-{
+-        struct m0_be_tx     tx;
+-        struct m0_be_reg *reg;
+-        struct m0_be_buf buf;
+-        struct m0_uint128  *elem;
+-
+-        m0_be_tx_init(&tx, dom, 0);
+-
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_PREPARING) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-        printf("\nTx is initiated\n");
+-
+-        m0_be_buf_init(&buf, NULL, sizeof(struct m0_uint128), 0, 0, 0);
+-        m0_be_reg_init(&reg, NULL, seg, &buf);
+-
+-        m0_be_tx_add_cred(&tx, reg);
+-
+-        printf("reg : %p reg_state[%d]\n", reg, reg->br_sm.sm_state);
+-        m0_be_tx_prep(&tx);
+-
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_PREPARED) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-        printf("\nTx is Opening\n");
+-
+-        m0_be_tx_start(&tx);
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_OPEN) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-        printf("\nTx Opened\n");
+-
+-        elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(0);
+-
+-        elem->u_hi = 0;
+-        elem->u_lo = 0;
+-
+-        m0_be_tx_done(&tx);
+-        m0_sm_group_lock(tx.bt_impl.sm_group);
+-        m0_sm_timedwait(&tx.bt_sm,
+-                        (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
+-                        M0_TIME_NEVER);
+-        m0_sm_group_unlock(tx.bt_impl.sm_group);
+-        m0_be_tx_fini(&tx);
+-        
+-}
+-
+-
+-void __kv_store_table_printele(int64_t index)
+-{
+-        struct m0_uint128 *elem;
+-
+-        elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(index * sizeof(struct m0_uint128 ));
+-
+-        printf("Elem %p : [%ld, %ld] \n", elem, elem->u_hi, elem->u_lo);
+-}
+-
+-void __fini()
+-{
+-        rvm_truncate();
+-        rvm_flush();
+-
+-        m0_be_seg_done(seg);
+-        dom->bd_data.bs_sm.sm_state = M0_BESEG_CLOSED;
+-        m0_be_domain_fini(dom);
+-
+-        printf("\nExiting from Backend UT\n");
+-
+-        printf("\n");
+-}
+-
+-
+-int main(int argc, char *argv[])
+-{
+-        int i=0;
+-        int run_mode = atoi(argv[1]);
+-
+-        __init();
+-
+-        if (!run_mode) {
+-                m0_be_static_reg_init(seg->bs_static_addr);
+-                for (i = 0; i < 10; i++) { 
+-                        struct m0_uint128 kvstore1;
+-                        kvstore1.u_hi = 1 + i;
+-                        kvstore1.u_lo = 55229233941 + i;
+-                        __kv_store_table_add(i, kvstore1);
+-                        __kv_store_table_printele(i);
+-                }
+-                printf("Address of kv_store_tbl : %p\n", m0_be_static_reg_get_handle_addr(0));
+-                for (i = 0; i < 10; i = i+2) {
+-                        __kv_store_table_printele(i);
+-                }
+-        } else {
+-                m0_be_static_reg_init(seg->bs_static_addr);
+-                //__kv_store_table_delete(2);
+-                for (i = 0; i < 10; i = i+2) {
+-                        __kv_store_table_printele(i);
+-                }
+-        }
+-        __fini();
+-        return 0;
+-}
+-
+-/** @} end group be_ut */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+-- 
+1.8.3.2
+

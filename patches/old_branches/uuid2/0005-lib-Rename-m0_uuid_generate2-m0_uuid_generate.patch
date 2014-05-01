@@ -1,0 +1,67 @@
+From f122273c626ea007cc29cefed837afc479b6a711 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Mon, 29 Apr 2013 13:18:18 +0530
+Subject: [PATCH 5/5] lib: Rename m0_uuid_generate2() ==> m0_uuid_generate()
+
+---
+ lib/ut/uuid.c | 2 +-
+ lib/uuid.c    | 2 +-
+ lib/uuid.h    | 2 +-
+ rpc/conn.c    | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/lib/ut/uuid.c b/lib/ut/uuid.c
+index 2fa29e5..3258f85 100644
+--- a/lib/ut/uuid.c
++++ b/lib/ut/uuid.c
+@@ -115,7 +115,7 @@ void m0_test_lib_uuid(void)
+ 	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(uuid); ++i)
+-		m0_uuid_generate2(&uuid[i]);
++		m0_uuid_generate(&uuid[i]);
+ 	for (i = 0; i < ARRAY_SIZE(uuid); ++i)
+ 		for (j = i + 1; j < ARRAY_SIZE(uuid); ++j)
+ 			M0_UT_ASSERT(m0_uint128_cmp(&uuid[i], &uuid[j]) != 0);
+diff --git a/lib/uuid.c b/lib/uuid.c
+index 7e95b23..b5a73e1 100644
+--- a/lib/uuid.c
++++ b/lib/uuid.c
+@@ -37,7 +37,7 @@ M0_BASSERT(sizeof (struct m0_uint128) == sizeof (char[16]));
+ M0_BASSERT(sizeof (struct m0_uint128) == sizeof (uuid_t));
+ #endif
+ 
+-M0_INTERNAL void m0_uuid_generate2(struct m0_uint128 *u)
++M0_INTERNAL void m0_uuid_generate(struct m0_uint128 *u)
+ {
+ #ifdef __KERNEL__
+ 	generate_random_uuid((unsigned char *)u);
+diff --git a/lib/uuid.h b/lib/uuid.h
+index 3f9398e..1a2e412 100644
+--- a/lib/uuid.h
++++ b/lib/uuid.h
+@@ -55,7 +55,7 @@ M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val);
+ M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
+ 				char *buf, size_t len);
+ 
+-M0_INTERNAL void m0_uuid_generate2(struct m0_uint128 *u);
++M0_INTERNAL void m0_uuid_generate(struct m0_uint128 *u);
+ 
+ /** @} end uuid group */
+ 
+diff --git a/rpc/conn.c b/rpc/conn.c
+index 5bedea0..2dcc00d 100644
+--- a/rpc/conn.c
++++ b/rpc/conn.c
+@@ -263,7 +263,7 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
+ 	m0_rpc_machine_lock(machine);
+ 
+ 	conn->c_flags = RCF_SENDER_END;
+-	m0_uuid_generate2(&conn->c_uuid);
++	m0_uuid_generate(&conn->c_uuid);
+ 
+ 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
+ 	if (rc == 0) {
+-- 
+1.8.3.2
+

@@ -1,0 +1,274 @@
+From 12081683014253a7ef2241ba1598736e2e66c0df Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 27 Feb 2012 17:00:44 +0200
+Subject: [PATCH 020/311] move DLD to confc.{c,h}
+
+This is the DLD of _confc_ module.  s/conf-dld/confc-dld/
+---
+ conf/confc.c    | 93 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/confc.h    |  4 +--
+ conf/obj.c      | 87 -----------------------------------------------------
+ conf/obj.h      |  7 -----
+ doc/dld-index.c |  4 +--
+ 5 files changed, 97 insertions(+), 98 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 9c138f8..bdbbd05 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -32,6 +32,99 @@
+ #include "lib/time.h"    /* C2_TIME_NEVER */
+ #include "lib/misc.h"    /* memcpy */
+ 
++/**
++ * @page confc-dld Configuration client (confc) DLD
++ *
++ * - @ref confc-dld-ovw
++ * - @ref confc-dld-def
++ * - @ref confc-dld-req
++ * - @ref confc-dld-depends
++ * - @ref confc-dld-highlights
++ * - @subpage confc-dld-fspec "Functional Specification"
++ * - XXX
++ *
++ * <hr>
++ * @section confc-dld-ovw Overview
++ *
++ * XXX {This section is a kind of README...}
++ *
++ * <hr>
++ * @section confc-dld-def Definitions
++ *
++ * Previously defined terms:
++ *
++ * - @b Confc (configuration client library, configuration client):
++ *   a library that provides configuration consumers with API to query
++ *   C2 configuration.
++ *
++ * - @b Confd (configuration server): a management service that
++ *   provides configuration clients with information obtained from
++ *   configuration database.
++ *
++ * - Configuration @b consumer: any software that uses confc
++ *   interfaces to access C2 configuration.
++ *
++ * - Configuration @b cache: configuration data stored in node’s
++ *   memory. Confc library maintains such a cache and provides
++ *   configuration consumers with access to its data. Confd also uses
++ *   configuration cache for faster retrieval of information requested
++ *   by configuration clients.
++ *
++ * - Configuration @b object: a data structure that contains
++ *   configuration information. There are several types of
++ *   configuration objects: profile, service, node, etc.
++ *
++ * New terms:
++ *
++ * - <b>Directory</b>: a list of configuration objects. This term is
++ *   usually used in context of path.  Alternative name --- collection
++ *   of configuration objects.
++ *
++ * - <b>Path target</b>: the object or directory that a path leads to.
++ *   Path target is @b reachable if all of the @b intermediate objects
++ *   of the path (if any) are ready (C2_CS_READY) and target is either
++ *   an object that is ready or a directory of ready objects.
++ *
++ * <hr>
++ * @section confc-dld-req Requirements
++ *
++ * - @b r.conf.confc.kernel
++ *   Confc library must be implemented for the kernel.
++ * - @b r.conf.confc.user
++ *   Confc library must be implemented for user space.
++ * - @b r.conf.cache.data-model
++ *   The implementation should organize configuration information as
++ *   outlined in section 4.1 of the HLD. The same data structures
++ *   should be used for confc and confd caches, if possible.
++ *   Configuration structures must be kept in memory.
++ * - @b r.conf.cache.pinning
++ *   Pinning of an object protects existence of this object in the cache.
++ *   Pinned object can be moved from a stub condition to "ready".
++ * - @b r.conf.cache.unique-objects
++ *   Configuration cache must not contain multiple objects with the
++ *   same identity (identity of a configuration object is a tuple of
++ *   type and key).
++ *
++ * <hr>
++ * @section confc-dld-depends Dependencies
++ *
++ * - c2_rpc_item_get() and c2_rpc_item_put() should be implemented.
++ *
++ *   Confc implementation schedules a state transition in
++ *   ->rio_replied().  The data of ->ri_reply will be consumed only
++ *   when the new state is being entered to.  The rpc item pointed to
++ *   by ->ri_reply must not be freed (by rpc layer) until confc has
++ *   consumed the data.  Thus the need for c2_rpc_item_get().
++ *
++ * - XXX
++ *
++ * <hr>
++ * @section confc-dld-highlights Design Highlights
++ *
++ * XXX
++ *
++ */
++
+ static struct c2_conf_cache confc_cache;
+ 
+ static bool ctx_invariant(struct c2_confc_ctx *ctx);
+diff --git a/conf/confc.h b/conf/confc.h
+index 912207d..8e269cd 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -26,7 +26,7 @@
+ #include "lib/chan.h"    /* c2_clink */
+ 
+ /**
+- * @page conf-confc  confc: configuration client
++ * @page confc-dld-fspec  confc: Functional Specification
+  *
+  * Configuration client library (confc) provides user-space and kernel
+  * interfaces for accessing Colibri configuration information.
+@@ -137,7 +137,7 @@
+  * }
+  * @endcode
+  */
+-
++
+ struct c2_confc_dir;
+ 
+ /**
+diff --git a/conf/obj.c b/conf/obj.c
+index 2ee38e6..a72d7bf 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -18,93 +18,6 @@
+  * Original creation date: 03-Feb-2012
+  */
+ 
+-/**
+- * @page conf-dld Configuration DLD
+- *
+- * - @ref conf-dld-ovw
+- * - @ref conf-dld-def
+- * - @ref conf-dld-req
+- * - @ref conf-dld-depends
+- * - XXX
+- *
+- * <hr>
+- * @section conf-dld-ovw Overview
+- *
+- * XXX
+- *
+- * <hr>
+- * @section conf-dld-def Definitions
+- *
+- * Previously defined terms:
+- *
+- * - @b Confc (configuration client library, configuration client):
+- *   a library that provides configuration consumers with API to query
+- *   C2 configuration.
+- *
+- * - @b Confd (configuration server): a management service that
+- *   provides configuration clients with information obtained from
+- *   configuration database.
+- *
+- * - Configuration @b consumer: any software that uses confc
+- *   interfaces to access C2 configuration.
+- *
+- * - Configuration @b cache: configuration data stored in node’s
+- *   memory. Confc library maintains such a cache and provides
+- *   configuration consumers with access to its data. Confd also uses
+- *   configuration cache for faster retrieval of information requested
+- *   by configuration clients.
+- *
+- * - Configuration @b object: a data structure that contains
+- *   configuration information. There are several types of
+- *   configuration objects: profile, service, node, etc.
+- *
+- * New terms:
+- *
+- * - <b>Directory</b>: a list of configuration objects. This term is
+- *   usually used in context of path.  Alternative name --- collection
+- *   of configuration objects.
+- *
+- * - <b>Path target</b>: the object or directory that a path leads to.
+- *   Path target is @b reachable if all of the @b intermediate objects
+- *   of the path (if any) are ready (C2_CS_READY) and target is either
+- *   an object that is ready or a directory of ready objects.
+- *
+- * <hr>
+- * @section conf-dld-req Requirements
+- *
+- * - @b r.conf.confc.kernel
+- *   Confc library must be implemented for the kernel.
+- * - @b r.conf.confc.user
+- *   Confc library must be implemented for user space.
+- * - @b r.conf.confd
+- *   Confd service must be implemented for user space.
+- * - @b r.conf.cache.data-model
+- *   The implementation should organize configuration information as
+- *   outlined in section 4.1 of the HLD. The same data structures
+- *   should be used for confc and confd caches, if possible.
+- *   Configuration structures must be kept in memory.
+- * - @b r.conf.cache.pinning
+- *   Pinning of an object protects existence of this object in the cache.
+- *   Pinned object can be moved from a stub condition to "ready".
+- * - @b r.conf.cache.unique-objects
+- *   Configuration cache must not contain multiple objects with the
+- *   same identity (identity of a configuration object is a tuple of
+- *   type and key).
+- *
+- * <hr>
+- * @section conf-dld-depends Dependencies
+- *
+- * - c2_rpc_item_get() and c2_rpc_item_put() should be implemented.
+- *
+- *   Confc implementation schedules a state transition in
+- *   ->rio_replied().  The data of ->ri_reply will be consumed only
+- *   when the new state is being entered to.  The rpc item pointed to
+- *   by ->ri_reply must not be freed (by rpc layer) until confc has
+- *   consumed the data.  Thus the need for c2_rpc_item_get().
+- *
+- * - XXX
+- */
+-
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+diff --git a/conf/obj.h b/conf/obj.h
+index 66ff9bd..b6d0e1b 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -30,13 +30,6 @@
+ #include "lib/tlist.h" /* c2_tl, c2_tlink */
+ #include "lib/types.h"
+ 
+-/**
+- * XXX Be sure to explain what this module (`conf' directory) is about.
+- * Such explanation --- a substitution for README file --- must be
+- * present in module's "main" file (this one or confc.h; use
+- * cross-references to make it more accessible).
+- */
+-
+ /** Type of configuration object. */
+ enum c2_conf_objtype {
+ 	C2_CO_PROFILE,
+diff --git a/doc/dld-index.c b/doc/dld-index.c
+index e9cf81d..252b697 100644
+--- a/doc/dld-index.c
++++ b/doc/dld-index.c
+@@ -6,8 +6,8 @@ Detailed designs, ordered alphabetically:
+ 
+ - @subpage c2t1fs "C2T1FS detailed level design specification"
+            <!-- c2t1fs/main.c -->
+-- @subpage conf-dld
+-           <!-- conf/obj.c -->
++- @subpage confc-dld
++           <!-- conf/confc.c -->
+ - @subpage DLD_conf_schema "DLD for configuration schema"
+            <!-- cfg/cfg.h -->
+ - @subpage LNetDLD "LNet Transport DLD"
+-- 
+1.8.3.2
+

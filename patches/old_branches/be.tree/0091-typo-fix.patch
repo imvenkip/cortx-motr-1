@@ -1,0 +1,25 @@
+From 7e2399e8186940ea30f08235d033fa0ab66bb57b Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 3 Jun 2013 22:46:31 +0300
+Subject: [PATCH 091/290] typo fix
+
+---
+ scripts/gen-src-skel | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/gen-src-skel b/scripts/gen-src-skel
+index aad03e0..01688ee 100755
+--- a/scripts/gen-src-skel
++++ b/scripts/gen-src-skel
+@@ -322,7 +322,7 @@ automatically adds some constructs, which are required by Mero coding style
+ (like copyright, author and creation date, include guards, emacs config, etc.)
+ 
+ User name and email are taken from `git config user.name` and
+-`git config user.email` output. Waring is printed if any of those variables is
++`git config user.email` output. Warning is printed if any of those variables is
+ not defined.
+ 
+ =head1 ARGUMENTS
+-- 
+1.8.3.2
+

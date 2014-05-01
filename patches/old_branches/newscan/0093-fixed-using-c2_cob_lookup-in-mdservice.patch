@@ -1,0 +1,61 @@
+From d84a2b0678ef195d48ef4d04a84c899cd3d53d9f Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 25 May 2011 06:14:58 -0600
+Subject: [PATCH 093/158] - fixed using c2_cob_lookup() in mdservice; - fixed
+ c2_md_store_getattr() about setting attr.flags.
+
+---
+ mdservice/md_foms.c | 3 +--
+ mdstore/mdstore.c   | 7 +++----
+ 2 files changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index ff8bba7..457bb23 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -441,9 +441,8 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                                   attr.ca_namelen);
+                 
+                 rc = c2_cob_lookup(&site->s_mdstore->md_dom, 
+-                                   nskey, 0, &ncob, 
++                                   nskey, CA_NSKEY_FREE, &ncob, 
+                                    &ctx->fc_tx->tx_dbtx);
+-                c2_free(nskey);
+                 if (rc)
+                         goto out_put_cob;
+                 
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 8d4466a..5b21e90 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -532,7 +532,7 @@ int c2_md_store_getattr(struct c2_md_store      *md,
+          * Copy permissions and owner info into rep.
+          */
+         if (cob->co_valid & CA_OMGREC) {
+-                attr->ca_flags = C2_MD_UID | C2_MD_GID | C2_MD_MODE;
++                attr->ca_flags |= C2_MD_UID | C2_MD_GID | C2_MD_MODE;
+                 attr->ca_uid = cob->co_omgrec.cor_uid;
+                 attr->ca_gid = cob->co_omgrec.cor_gid;
+                 attr->ca_mode = cob->co_omgrec.cor_mode;
+@@ -542,8 +542,8 @@ int c2_md_store_getattr(struct c2_md_store      *md,
+          * Copy nsrec fields into response.
+          */
+         if (cob->co_valid & CA_NSREC) {
+-                attr->ca_flags = C2_MD_ATIME | C2_MD_CTIME | C2_MD_MTIME |
+-                                 C2_MD_BLKSIZE | C2_MD_BLOCKS;
++                attr->ca_flags |= C2_MD_ATIME | C2_MD_CTIME | C2_MD_MTIME |
++                                  C2_MD_BLKSIZE | C2_MD_BLOCKS;
+                 attr->ca_atime = cob->co_nsrec.cnr_atime;
+                 attr->ca_ctime = cob->co_nsrec.cnr_ctime;
+                 attr->ca_mtime = cob->co_nsrec.cnr_mtime;
+@@ -565,7 +565,6 @@ int c2_md_store_getattr(struct c2_md_store      *md,
+         /*
+          * @todo: Copy fab fields.
+          */
+-
+         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
+                     c2_addb_func_fail, "md_getattr", rc);
+         return rc;
+-- 
+1.8.3.2
+

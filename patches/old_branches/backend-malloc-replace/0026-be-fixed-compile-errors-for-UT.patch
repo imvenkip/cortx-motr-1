@@ -1,0 +1,117 @@
+From 3dceadb47fbbb188729e1d30e795be5bdbfefc8a Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Tue, 28 May 2013 22:58:56 +0300
+Subject: [PATCH 026/161] be: fixed compile errors for UT
+
+---
+ be/be.h     |  2 ++
+ be/tx.h     |  7 +++++--
+ be/ut/seg.c | 19 +++++++++++--------
+ 3 files changed, 18 insertions(+), 10 deletions(-)
+
+diff --git a/be/be.h b/be/be.h
+index 280034d..2f57010 100644
+--- a/be/be.h
++++ b/be/be.h
+@@ -22,6 +22,8 @@
+ #ifndef __MERO_BE_BE_H__
+ #define __MERO_BE_BE_H__
+ 
++#include "be/tx.h"
++
+ /**
+  * @defgroup be
+  *
+diff --git a/be/tx.h b/be/tx.h
+index ca48dc9..2bac1cf 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -28,12 +28,15 @@
+  * @{
+  */
+ 
++/** @todo remove */
++#define XXX
++
+ struct m0_be_log {
+-	XXX;
++	XXX
+ };
+ 
+ enum m0_be_tx_state {
+-	XXX,
++	XXX
+ 	M0_BTS_NR
+ };
+ 
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index 42ccc83..f8cfae4 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -19,9 +19,11 @@
+  */
+ 
+ #include "be/seg.h"
+-#include "ut/ut.h"
++#include "be/be.h"
+ 
++#include "ut/ut.h"
+ #include "dtm/dtm.h"
++#include "stob/linux.h"
+ 
+ enum {
+ 	BE_SEG_UT_DOM_ID = 42,
+@@ -29,8 +31,8 @@ enum {
+ };
+ 
+ static struct m0_stob_domain	dom;
+-static static struct m0_stob_id id = {
+-	.si_bits = M0_UINT128(0, BE_SEG_STOB_ID),
++static struct m0_stob_id id = {
++	.si_bits = M0_UINT128(0, BE_SEG_UT_STOB_ID),
+ };
+ static struct m0_dtx		dtx;
+ static struct m0_stob	       *stob;
+@@ -40,19 +42,18 @@ static void seg_init_helper(struct m0_be_seg *seg)
+ {
+ 	int rc;
+ 
+-	rc = m0_stob_domain_init(&dom, &m0_linux_stob_type, BE_SEG_UT_DOM_ID);
+-	M0_UT_ASSERT(rc == 0);
++	m0_stob_domain_init(&dom, &m0_linux_stob_type, BE_SEG_UT_DOM_ID);
+ 	m0_dtx_init(&dtx);
+ 	rc = m0_stob_create_helper(&dom, &dtx, &id, &stob);
+ 	M0_UT_ASSERT(rc == 0);
+-	m0_be_seg_init(&seg, &stob, &be);
++	m0_be_seg_init(seg, stob, &be);
+ }
+ 
+ static void seg_fini_helper(struct m0_be_seg *seg)
+ {
+-	m0_be_seg_fini(&seg);
++	m0_be_seg_fini(seg);
+ 	m0_stob_put(stob);
+-	m0_dtx_fini(&tx);
++	m0_dtx_fini(&dtx);
+ 	m0_stob_domain_fini(&dom);
+ }
+ 
+@@ -67,6 +68,7 @@ static void test_init_fini(void)
+ static void test_create_destroy(void)
+ {
+ 	struct m0_be_seg seg;
++	int		 rc;
+ 
+ 	seg_init_helper(&seg);
+ 	rc = m0_be_seg_create(&seg);
+@@ -79,6 +81,7 @@ static void test_create_destroy(void)
+ static void test_open_close(void)
+ {
+ 	struct m0_be_seg seg;
++	int		 rc;
+ 
+ 	seg_init_helper(&seg);
+ 	rc = m0_be_seg_create(&seg);
+-- 
+1.8.3.2
+

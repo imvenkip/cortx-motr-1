@@ -1,0 +1,132 @@
+From 68355a539ca9e8f48eb9bfc4b2056c3621eb2395 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 17 Mar 2014 11:58:34 +0800
+Subject: [PATCH 24/26] remove unused variable and better code alighment
+
+---
+ m0t1fs/linux_kernel/m0t1fs.h | 45 ++++++++++++++++++++++----------------------
+ 1 file changed, 22 insertions(+), 23 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index b57810b..5501900 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -470,79 +470,79 @@ struct m0t1fs_container_location_map {
+  */
+ struct m0t1fs_sb {
+ 	/** service context of MGS. Not a member of csb_service_contexts */
+-	struct m0t1fs_service_context csb_mgs;
++	struct m0t1fs_service_context          csb_mgs;
+ 
+ 	/** number of contexts in csb_service_contexts list, that have
+ 	    ACTIVE rpc connection and rpc session.
+ 	    csb_nr_active_contexts <= m0_tlist_length(&csb_service_contexts) */
+-	uint32_t                      csb_nr_active_contexts;
++	uint32_t                               csb_nr_active_contexts;
+ 
+ 	/** list of m0t1fs_service_context objects hanging using sc_link.
+ 	    tlist descriptor: svc_ctx_tl */
+-	struct m0_tl                  csb_service_contexts;
++	struct m0_tl                            csb_service_contexts;
+ 
+ 	/** Total number of containers. */
+-	uint32_t                      csb_nr_containers;
++	uint32_t                                csb_nr_containers;
+ 
+ 	/** pool width */
+-	uint32_t                      csb_pool_width;
++	uint32_t                                csb_pool_width;
+ 
+-	struct m0_pool                csb_pool;
++	struct m0_pool                          csb_pool;
+ 
+ 	/** used by temporary implementation of m0t1fs_fid_alloc(). */
+-	uint64_t                      csb_next_key;
++	uint64_t                                csb_next_key;
+ 
+ 	struct
+-	m0t1fs_container_location_map csb_cl_map;
++	m0t1fs_container_location_map           csb_cl_map;
+ 
+ 	/** mutex that serialises all file and directory operations */
+-	struct m0_mutex               csb_mutex;
++	struct m0_mutex                         csb_mutex;
+ 
+ 	/** File layout ID */
+-	uint64_t                      csb_layout_id;
++	uint64_t                                csb_layout_id;
+ 
+ 	/** Layout for file */
+-	struct m0_layout             *csb_file_layout;
++	struct m0_layout                       *csb_file_layout;
+ 
+ 	/**
+ 	 * Flag indicating if m0t1fs mount is active or not.
+ 	 * Flag is set when m0t1fs is mounted and is reset by unmount thread.
+ 	 */
+-	bool                          csb_active;
++	bool                                    csb_active;
+ 
+ 	/**
+ 	 * Instantaneous count of pending io requests.
+ 	 * Every io request increments this value while initializing
+ 	 * and decrements it while finalizing.
+ 	 */
+-	struct m0_atomic64            csb_pending_io_nr;
++	struct m0_atomic64                      csb_pending_io_nr;
+ 
+ 	/** Special thread which runs ASTs from io requests. */
+-	struct m0_thread              csb_astthread;
++	struct m0_thread                        csb_astthread;
+ 
+ 	/**
+ 	 * Channel on which unmount thread will wait. It will be signalled
+ 	 * by AST thread while exiting.
+ 	 */
+-	struct m0_chan                csb_iowait;
++	struct m0_chan                          csb_iowait;
+ 
+ 	/** State machine group used for all IO requests. */
+-	struct m0_sm_group            csb_iogroup;
++	struct m0_sm_group                      csb_iogroup;
+ 
+ 	/** Root fid, retrieved from mdservice in mount time. */
+-	struct m0_fid                 csb_root_fid;
++	struct m0_fid                           csb_root_fid;
+ 
+ 	/** Maximal allowed namelen (retrived from mdservice) */
+-	int                           csb_namelen;
++	int                                     csb_namelen;
+ 
+ 	/** Run-time addb context for each mount point */
+-	struct m0_addb_ctx            csb_addb_ctx;
++	struct m0_addb_ctx                      csb_addb_ctx;
+ 
+ 	/** Read[0] and write[1] I/O request statistics */
+-	struct m0_addb_io_stats       csb_io_stats[2];
++	struct m0_addb_io_stats                 csb_io_stats[2];
+ 
+ 	/** Degraded mode Read[0] and write[1] I/O request statistics */
+-	struct m0_addb_io_stats       csb_dgio_stats[2];
++	struct m0_addb_io_stats                 csb_dgio_stats[2];
+ 
+ 	struct m0_net_xprt                     *csb_xprt;
+ 	/** local endpoint address module parameter */
+@@ -557,13 +557,12 @@ struct m0t1fs_sb {
+ 	struct m0_layout_domain                 csb_layout_dom;
+ 
+ 	struct m0_addb_monitor                  csb_addb_mon_rw_io_size;
+-	uint32_t                                csb_addb_mon_rw_io_size_key;
+ 	struct m0t1fs_addb_mon_sum_data_io_size csb_addb_mon_sum_data_rw_io_size;
+ 	struct m0_be_ut_backend                 csb_ut_be;
+ 	struct m0_be_ut_seg                     csb_ut_seg;
+ 
+ 	/** lnet tmid for client ep */
+-	size_t                        csb_tmid;
++	size_t                                  csb_tmid;
+ };
+ 
+ struct m0t1fs_filedata {
+-- 
+1.8.3.2
+

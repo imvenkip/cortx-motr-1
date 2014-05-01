@@ -1,0 +1,168 @@
+From 91f7866b6d4a72a0de33c1fcebfcf119dbd8cb27 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 8 Mar 2012 19:55:51 +0200
+Subject: [PATCH 045/370] buf.{h,c}: c2_conf_buf operations
+
+---
+ conf/buf.c | 51 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/buf.h | 43 +++++++++++++++++++++++++++++++++++++++++++
+ conf/obj.c |  8 --------
+ conf/obj.h | 11 -----------
+ 4 files changed, 94 insertions(+), 19 deletions(-)
+ create mode 100644 conf/buf.c
+ create mode 100644 conf/buf.h
+
+diff --git a/conf/buf.c b/conf/buf.c
+new file mode 100644
+index 0000000..e451672
+--- /dev/null
++++ b/conf/buf.c
+@@ -0,0 +1,51 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 08-Mar-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++#include "conf/buf.h"
++#ifdef __KERNEL__
++#  include "conf/onwire_k.h"
++#else
++#  include "conf/onwire_u.h" /* c2_conf_buf */
++#endif
++#include "lib/misc.h"        /* memcmp */
++
++bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y)
++{
++	return x->cb_size == y->cb_size
++		&& memcmp(x->cb_data, y->cb_data, x->cb_size) == 0;
++}
++C2_EXPORTED(c2_conf_buf_eq);
++
++int c2_conf_buf_strdup(struct c2_conf_buf *dest, const char *src)
++{
++	/*
++	 * C2_PRE(dest->cb_size == 0 && dest->cb_data == NULL);
++	 * dest->cb_data = strdup(src);
++	 * if (dest->cb_data == NULL)
++	 *     return -ENOMEM;
++	 * dest->cb_size = strlen(dest->cb_data);
++	 * return 0;
++	 */
++	XXX;
++}
++C2_EXPORTED(c2_conf_buf_strdup);
+diff --git a/conf/buf.h b/conf/buf.h
+new file mode 100644
+index 0000000..390960c
+--- /dev/null
++++ b/conf/buf.h
+@@ -0,0 +1,43 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 08-Mar-2012
++ */
++#ifndef __COLIBRI_CONF_BUF_H__
++#define __COLIBRI_CONF_BUF_H__
++
++struct c2_conf_buf;
++
++/**
++ * C2_CONF_BUF_INIT: initializer for struct c2_conf_buf.
++ *
++ * c2_conf_buf is defined in onwire.ff, but C2_CONF_BUF_INIT() cannot
++ * be defined there --- fop/fop2c would skip such a definition.
++ */
++#define C2_CONF_BUF_INIT(size, data) { .cb_size = (size), .cb_data = (data) }
++
++/** Returns true iff two buffers are equal. */
++bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y);
++
++/**
++ * Duplicates a string into c2_conf_buf.
++ *
++ * @pre  dest->cb_size == 0 && dest->cb_data == NULL
++ */
++int c2_conf_buf_strdup(struct c2_conf_buf *dest, const char *src);
++
++#endif /* __COLIBRI_CONF_BUF_H__ */
+diff --git a/conf/obj.c b/conf/obj.c
+index a72d7bf..03fe40c 100644
+--- a/conf/obj.c
++++ b/conf/obj.c
+@@ -22,7 +22,6 @@
+ #  include <config.h>
+ #endif
+ #include "conf/obj.h"
+-#include <string.h> /* memcmp */
+ 
+ enum {
+ 	CONF_FSSVC_HEAD_MAGIC   = 0x66732f7376632020, /* "fs/svc  " */
+@@ -34,10 +33,3 @@ C2_TL_DESCR_DEFINE(c2_conf_filesystem_services,
+ 		   "c2_conf_filesystem::cf_services", ,
+ 		   struct c2_conf_service, cs_filesystem_linkage, cs_magic,
+ 		   CONF_SERVICE_LINK_MAGIC, CONF_FSSVC_HEAD_MAGIC);
+-
+-bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y)
+-{
+-	return x->cb_size == y->cb_size
+-		&& memcmp(x->cb_data, y->cb_data, x->cb_size) == 0;
+-}
+-C2_EXPORTED(c2_conf_buf_eq);
+diff --git a/conf/obj.h b/conf/obj.h
+index 6afb9e1..4d33da6 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -53,17 +53,6 @@ enum c2_conf_status {
+ 	C2_CS_READY    /*< Configuration is available. */
+ };
+ 
+-/**
+- * C2_CONF_BUF_INIT: initializer for struct c2_conf_buf.
+- *
+- * c2_conf_buf is defined in onwire.ff, but C2_CONF_BUF_INIT() cannot
+- * be defined there --- fop/fop2c would skip such a definition.
+- */
+-#define C2_CONF_BUF_INIT(size, data) { .cb_size = (size), .cb_data = (data) }
+-
+-/** Returns true iff two buffers are equal. */
+-bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y);
+-
+ /** Abstract configuration object. */
+ struct c2_conf_obj {
+ 	enum c2_conf_objtype co_type;
+-- 
+1.8.3.2
+

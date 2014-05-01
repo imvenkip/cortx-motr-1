@@ -1,0 +1,459 @@
+From d3b918a9a14dcc7f863bf74ba8bdc8e9a18552b1 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 19 Nov 2012 16:38:20 +0200
+Subject: [PATCH 02/71] added ST for net-test
+
+---
+ configure.ac                       |   1 +
+ lib/user_space/ugetopts.c          |   2 +-
+ net/test/console.c                 |   4 +-
+ net/test/st/run-1x1.sh             |  88 +++++++++++++++++++++
+ net/test/st/st-bulk.sh             |  14 ++++
+ net/test/st/st-config-common.sh.in |  21 +++++
+ net/test/st/st-ping.sh             |  10 +++
+ net/test/st/st.sh                  |   8 ++
+ net/test/user_space/console_u.c    | 152 ++++++++++++++++++++++++++++++-------
+ 9 files changed, 270 insertions(+), 30 deletions(-)
+ create mode 100644 net/test/st/run-1x1.sh
+ create mode 100755 net/test/st/st-bulk.sh
+ create mode 100644 net/test/st/st-config-common.sh.in
+ create mode 100755 net/test/st/st-ping.sh
+ create mode 100755 net/test/st/st.sh
+
+diff --git a/configure.ac b/configure.ac
+index 8654f10..ee9cc35 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -728,6 +728,7 @@ AC_CONFIG_FILES([
+ 		 net/test/ntn.sh
+ 		 net/test/user_space/Makefile
+ 		 net/test/ut/Makefile
++		 net/test/st/st-config-common.sh
+ 		 net/ut/Makefile
+                  nrs/Makefile
+                  patches/Makefile
+diff --git a/lib/user_space/ugetopts.c b/lib/user_space/ugetopts.c
+index 5cf7802..de5c262 100644
+--- a/lib/user_space/ugetopts.c
++++ b/lib/user_space/ugetopts.c
+@@ -58,7 +58,7 @@ static void usage(const char *progname,
+ 			o->go_type == GOT_HELP ? "" :
+ 			o->go_type == GOT_FLAG ? "" :
+ 			o->go_type == GOT_FORMAT ? o->go_u.got_fmt.f_string :
+-			o->go_type == GOT_SCALED ? "number of bytes" :
++			o->go_type == GOT_SCALED ? "scaled" :
+ 			o->go_type == GOT_NUMBER ? "number" : "string",
+ 			o->go_desc);
+ 	}
+diff --git a/net/test/console.c b/net/test/console.c
+index 629077a..761bb84 100644
+--- a/net/test/console.c
++++ b/net/test/console.c
+@@ -25,10 +25,10 @@
+ 
+ /* @todo debug only, remove it */
+ #ifndef __KERNEL__
+-/*
+ #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+-*/
++/*
+ #define LOGD(format, ...) do {} while (0)
++*/
+ #else
+ #define LOGD(format, ...) do {} while (0)
+ #endif
+diff --git a/net/test/st/run-1x1.sh b/net/test/st/run-1x1.sh
+new file mode 100644
+index 0000000..10ed643
+--- /dev/null
++++ b/net/test/st/run-1x1.sh
+@@ -0,0 +1,88 @@
++#!/bin/sh
++
++# The same values as in client-server UT
++ADDR_CONSOLE4CLIENTS="$LNET_PREFIX:2998"
++ADDR_CONSOLE4SERVERS="$LNET_PREFIX:2999"
++ADDR_CMD_CLIENT="$LNET_PREFIX:3000"
++ADDR_DATA_CLIENT="$LNET_PREFIX:3128"
++ADDR_CMD_SERVER="$LNET_PREFIX:3256"
++ADDR_DATA_SERVER="$LNET_PREFIX:3384"
++
++# Copy-paste from core/utils/ut.sh
++# Small wrapper to run user-space UT, which depends on kcolibri module
++
++if [ "$(id -u)" -ne 0 ]; then
++    echo "Must be run as root"
++    exit 1
++fi
++
++. /work/git/colibri-net-test/core/c2t1fs/linux_kernel/st/common.sh
++
++eval_kill_pid() {
++	eval pid=\${$1-xxx}
++	if [ "$pid" != "xxx" ]; then
++		echo killing $pid
++		KILL_PID+="$pid "
++	fi
++}
++
++unload_all() {
++	KILL_PID=
++	eval_kill_pid "PID_SERVER"
++	eval_kill_pid "PID_CLIENT"
++	eval_kill_pid "PID_CONSOLE"
++	for pid in $KILL_PID; do
++		kill $pid > /dev/null 2>&1 || true
++	done
++	modunload
++	modunload_galois
++}
++trap unload_all EXIT
++
++modprobe_lnet
++modload_galois
++modload || exit $?
++
++# allow only 'fatal' and higher trace messages to be printed on console by
++# default, to prevent cluttering of UT output with "fake" error messages,
++# generated while testing various error paths using fault injection;
++# this can be overridden with '-e' CLI option.
++# export C2_TRACE_LEVEL='fatal+'
++
++export C2_TRACE_IMMEDIATE_MASK=all
++export C2_TRACE_LEVEL=debug+
++
++"$NTN" -a $ADDR_CMD_SERVER -c $ADDR_CONSOLE4SERVERS &
++PID_SERVER=$!
++sleep $NODE_INIT_DELAY
++
++"$NTN" -a $ADDR_CMD_CLIENT -c $ADDR_CONSOLE4CLIENTS &
++PID_CLIENT=$!
++sleep $NODE_INIT_DELAY
++
++BULK_PARAMETERS=
++
++if [ "$TEST_TYPE" == "bulk" ]; then
++	BULK_PARAMETERS="-B $BD_BUF_NR_SERVER \
++			 -b $BD_BUF_NR_CLIENT \
++			 -f $BD_BUF_SIZE \
++			 -g $BD_BUF_NR_MAX"
++fi
++
++"$NTC" -A "$ADDR_CONSOLE4SERVERS" \
++       -a "$ADDR_CONSOLE4CLIENTS" \
++       -C "$ADDR_CMD_SERVER" \
++       -c "$ADDR_CMD_CLIENT" \
++       -D "$ADDR_DATA_SERVER" \
++       -d "$ADDR_DATA_CLIENT" \
++       -t "$TEST_TYPE" \
++       -n "$MSG_NR" \
++       -s "$MSG_SIZE" \
++       -E "$CONCURRENCY_SERVER" \
++       -e "$CONCURRENCY_CLIENT" \
++       $VERBOSE \
++       $PARSABLE \
++       $BULK_PARAMETERS
++
++# The same time for fini
++sleep $NODE_INIT_DELAY
+diff --git a/net/test/st/st-bulk.sh b/net/test/st/st-bulk.sh
+new file mode 100755
+index 0000000..0a58107
+--- /dev/null
++++ b/net/test/st/st-bulk.sh
+@@ -0,0 +1,14 @@
++#!/bin/sh
++
++source ./st-config-common.sh
++TEST_TYPE="bulk"
++MSG_NR=1024
++MSG_SIZE="1m"
++CONCURRENCY_CLIENT=8
++CONCURRENCY_SERVER=16
++BD_BUF_NR_CLIENT=16
++BD_BUF_NR_SERVER=32
++BD_BUF_SIZE=4k
++BD_BUF_NR_MAX=8
++
++source ./run-1x1.sh
+diff --git a/net/test/st/st-config-common.sh.in b/net/test/st/st-config-common.sh.in
+new file mode 100644
+index 0000000..415e263
+--- /dev/null
++++ b/net/test/st/st-config-common.sh.in
+@@ -0,0 +1,21 @@
++#!/bin/sh
++
++# Path to binaries
++NTN=@SRCDIR@/net/test/user_space/ntn
++NTN=@SRCDIR@/net/test/user_space/ntc
++
++# Time to wait for node loading.
++# Timeout is used here because there is no way to check for node readiness
++NODE_INIT_DELAY=3
++
++# Set to empty string to disable verbose output
++VERBOSE="-v"
++
++# Set to empty string to disable last line with parsable output
++PARSABLE="-p"
++
++LNET_IF="0@lo"
++LNET_PID=12345
++LNET_PORTAL=42
++
++LNET_PREFIX="$LNET_IF:$LNET_PID:$LNET_PORTAL"
+diff --git a/net/test/st/st-ping.sh b/net/test/st/st-ping.sh
+new file mode 100755
+index 0000000..db617aa
+--- /dev/null
++++ b/net/test/st/st-ping.sh
+@@ -0,0 +1,10 @@
++#!/bin/sh
++
++source ./st-config-common.sh
++TEST_TYPE="ping"
++MSG_NR=1024
++MSG_SIZE="4k"
++CONCURRENCY_CLIENT=8
++CONCURRENCY_SERVER=16
++
++source ./run-1x1.sh
+diff --git a/net/test/st/st.sh b/net/test/st/st.sh
+new file mode 100755
+index 0000000..5770e88
+--- /dev/null
++++ b/net/test/st/st.sh
+@@ -0,0 +1,8 @@
++#!/bin/sh
++
++# Next lines are useful for ST scripts debugging
++# set -eux
++# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
++
++sh ./st-ping.sh
++sh ./st-bulk.sh
+diff --git a/net/test/user_space/console_u.c b/net/test/user_space/console_u.c
+index 835ad99..c31a6d0 100644
+--- a/net/test/user_space/console_u.c
++++ b/net/test/user_space/console_u.c
+@@ -114,17 +114,22 @@ DESCRIBE(test_type,	       't', "Test type, 'ping' or 'bulk'");
+ DESCRIBE(msg_nr,	       'n', "Number of test messages for the "
+ 				    "test client (for each server)");
+ DESCRIBE(msg_size,	       's', "Test message size");
+-DESCRIBE(bd_buf_nr_client,     'B', "Number of message buffers for bulk buffer "
++DESCRIBE(bd_buf_nr_server,     'B', "Number of message buffers for bulk buffer "
++				    "network descriptors for the test server");
++DESCRIBE(bd_buf_nr_client,     'b', "Number of message buffers for bulk buffer "
+ 				    "network descriptors for the test client");
+-DESCRIBE(bd_buf_nr_server,     'b', "Number of message buffers for bulk buffer "
+-				    "network descriptors for the test client");
+-DESCRIBE(bd_buf_size,	       'f', "Size of buffer for bulk buffer"
++DESCRIBE(bd_buf_size,	       'f', "Size of buffer for bulk buffer "
+ 				    "network descriptors");
+-DESCRIBE(bd_nr_max,	       'g', "Maximum number of bulk buffer"
++DESCRIBE(bd_nr_max,	       'g', "Maximum number of bulk buffer "
+ 				    "network descriptors in msg buffer");
+ DESCRIBE(concurrency_server,   'E', "Test server concurrency");
+ DESCRIBE(concurrency_client,   'e', "Test client concurrency");
+ 
++/**
++ * Print string with test results in parsable format
++ * in the end of the console output.
++ */
++static bool produce_parsable_output = true;
+ 
+ /** Console printf */
+ static bool addr_check(const char *addr)
+@@ -171,10 +176,11 @@ static bool config_check(struct c2_net_test_console_cfg *cfg)
+ 		return false;
+ 	if (cfg->ntcc_msg_nr == 0 || cfg->ntcc_msg_size == 0)
+ 		return false;
+-	if (cfg->ntcc_bd_buf_nr_server == 0 ||
+-	    cfg->ntcc_bd_buf_nr_client == 0 ||
+-	    cfg->ntcc_bd_buf_size == 0 ||
+-	    cfg->ntcc_bd_nr_max == 0)
++	if (cfg->ntcc_test_type == C2_NET_TEST_TYPE_BULK &&
++	    (cfg->ntcc_bd_buf_nr_server == 0 ||
++	     cfg->ntcc_bd_buf_nr_client == 0 ||
++	     cfg->ntcc_bd_buf_size == 0 ||
++	     cfg->ntcc_bd_nr_max == 0))
+ 		return false;
+ 	if (cfg->ntcc_concurrency_server == 0 ||
+ 	    cfg->ntcc_concurrency_client == 0)
+@@ -285,6 +291,7 @@ static int configure(int argc, char *argv[],
+ 		NUMBER_ARG(bd_nr_max),
+ 		NUMBER_ARG(concurrency_server),
+ 		NUMBER_ARG(concurrency_client),
++		C2_FLAGARG('p', "Parsable output", &produce_parsable_output),
+ 		C2_VERBOSEFLAGARG,
+ 		C2_IFLISTARG(&list_if),
+ 		C2_HELPARG('?'),
+@@ -293,6 +300,10 @@ static int configure(int argc, char *argv[],
+ 		config_print(cfg);
+ 	success &= config_check(cfg);
+ 	return list_if ? 1 : success ? 0 : -1;
++#undef NUMBER_ARG
++#undef SCALED_ARG
++#undef SLIST_ARG
++#undef ASCIIZ_ARG
+ }
+ 
+ static void config_free(struct c2_net_test_console_cfg *cfg)
+@@ -337,21 +348,6 @@ static void print_stats(const char *descr,
+ 			       c2_net_test_stats_stddev(stats));
+ }
+ 
+-static void print_status_data_v(struct c2_net_test_cmd_status_data *sd)
+-{
+-	c2_net_test_u_printf_v("messages total/failed/bad: ");
+-	print_msg_nr("sent", &sd->ntcsd_msg_nr_send);
+-	print_msg_nr(", received", &sd->ntcsd_msg_nr_recv);
+-	print_msg_nr(", bulk sent", &sd->ntcsd_bulk_nr_send);
+-	print_msg_nr(", bulk received", &sd->ntcsd_bulk_nr_recv);
+-	print_msg_nr(", transfers", &sd->ntcsd_transfers);
+-	c2_net_test_u_printf_v("; count/min/max/avg/stddev: ");
+-	print_stats("MPS, sent", &sd->ntcsd_mps_send.ntmps_stats);
+-	print_stats(", MPS, received", &sd->ntcsd_mps_recv.ntmps_stats);
+-	print_stats(", RTT", &sd->ntcsd_rtt);
+-	c2_net_test_u_printf_v(" ns\n");
+-}
+-
+ static void bsize_print(const char *descr,
+ 			struct c2_net_test_console_ctx *ctx,
+ 			double msg_nr)
+@@ -403,10 +399,108 @@ static void print_status_data(struct c2_net_test_console_ctx *ctx)
+ 	c2_net_test_u_printf("\n");
+ }
+ 
++static void print_msg_nr_parsable(const char *prefix,
++				  struct c2_net_test_msg_nr *msg_nr)
++{
++#define CONSOLE_PRINT_MSG_NR(name) \
++	printf("%s_"#name" %lu ", prefix, msg_nr->ntmn_##name)
++	CONSOLE_PRINT_MSG_NR(total);
++	CONSOLE_PRINT_MSG_NR(failed);
++	CONSOLE_PRINT_MSG_NR(bad);
++#undef CONSOLE_PRINT_MSG_NR
++}
++
++static void print_stats_parsable(const char *prefix,
++				 struct c2_net_test_stats *stats)
++{
++#define CONSOLE_PRINT_STATS(name) \
++	printf("%s_"#name" %lu ", prefix, stats->nts_##name);
++	CONSOLE_PRINT_STATS(count);
++	CONSOLE_PRINT_STATS(min);
++	CONSOLE_PRINT_STATS(max);
++#undef CONSOLE_PRINT_STATS
++	printf("%s_avg %.0f ", prefix, c2_net_test_stats_avg(stats));
++	printf("%s_stddev %.0f ", prefix, c2_net_test_stats_stddev(stats));
++}
++
++static void
++print_status_data_implementation(struct c2_net_test_cmd_status_data *sd,
++				 bool parsable)
++{
++	size_t i;
++	struct {
++		const char		  *prefix_p;
++		const char		  *prefix_v;
++		struct c2_net_test_msg_nr *messages;
++	} msg_nr[] = {
++		{ .prefix_p = "sent",
++		  .prefix_v = "sent",
++		  .messages = &sd->ntcsd_msg_nr_send },
++		{ .prefix_p = "received",
++		  .prefix_v = ", received",
++		  .messages = &sd->ntcsd_msg_nr_recv },
++		{ .prefix_p = "bulk_sent",
++		  .prefix_v = ", bulk sent",
++		  .messages = &sd->ntcsd_bulk_nr_send },
++		{ .prefix_p = "bulk_received",
++		  .prefix_v = ", bulk received",
++		  .messages = &sd->ntcsd_bulk_nr_recv },
++		{ .prefix_p = "transfers",
++		  .prefix_v = ", transfers",
++		  .messages = &sd->ntcsd_transfers }
++	};
++	struct {
++		const char		 *prefix_p;
++		const char		 *prefix_v;
++		struct c2_net_test_stats *stats;
++	} stats[] = {
++		{ .prefix_p = "mps_sent",
++		  .prefix_v = "MPS, sent",
++		  .stats    = &sd->ntcsd_mps_send.ntmps_stats },
++		{ .prefix_p = "mps_received",
++		  .prefix_v = ", MPS, received",
++		  .stats    = &sd->ntcsd_mps_recv.ntmps_stats },
++		{ .prefix_p = "mps_rtt",
++		  .prefix_v = ", RTT",
++		  .stats    = &sd->ntcsd_rtt },
++	};
++
++	C2_PRE(sd != NULL);
++
++	if (!parsable)
++		c2_net_test_u_printf_v("messages total/failed/bad: ");
++	for (i = 0; i < ARRAY_SIZE(msg_nr); ++i) {
++		(parsable ? print_msg_nr_parsable : print_msg_nr)
++			(parsable ? msg_nr[i].prefix_p : msg_nr[i].prefix_v,
++			 msg_nr[i].messages);
++	}
++	if (!parsable)
++		c2_net_test_u_printf_v("; count/min/max/avg/stddev: ");
++	for (i = 0; i < ARRAY_SIZE(stats); ++i) {
++		(parsable ? print_stats_parsable : print_stats)
++			(parsable ? stats[i].prefix_p : stats[i].prefix_v,
++			 stats[i].stats);
++	}
++	if (!parsable)
++		c2_net_test_u_printf_v(" ns\n");
++}
++
++static void print_status_data_v(struct c2_net_test_cmd_status_data *sd)
++{
++	print_status_data_implementation(sd, false);
++}
++
++static void print_status_data_parsable(struct c2_net_test_cmd_status_data *sd)
++{
++	print_status_data_implementation(sd, true);
++	printf("time_start = %lu ", sd->ntcsd_time_start);
++	printf("time_finish = %lu\n", sd->ntcsd_time_finish);
++}
++
+ static int console_run(struct c2_net_test_console_ctx *ctx)
+ {
+ 	c2_time_t status_interval = C2_MKTIME(1, 0);
+-	bool good;
++	bool	  good;
+ 
+ 	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_INIT,
+ 			    "INIT => test servers",
+@@ -457,6 +551,10 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
+ 	print_status_data_v(ctx->ntcc_clients.ntcrc_sd);
+ 	c2_net_test_u_printf_v("servers total: ");
+ 	print_status_data_v(ctx->ntcc_servers.ntcrc_sd);
++	if (produce_parsable_output) {
++		print_status_data_parsable(ctx->ntcc_clients.ntcrc_sd);
++		print_status_data_parsable(ctx->ntcc_servers.ntcrc_sd);
++	}
+ 	return 0;
+ }
+ 
+@@ -468,8 +566,8 @@ int main(int argc, char *argv[])
+ 		.ntcc_addr_console4servers = NULL,
+ 		.ntcc_addr_console4clients = NULL,
+ 		/** @todo add to command line parameters */
+-		.ntcc_cmd_send_timeout     = C2_MKTIME(3, 0),
+-		.ntcc_cmd_recv_timeout     = C2_MKTIME(3, 0),
++		.ntcc_cmd_send_timeout     = C2_MKTIME(10, 0),
++		.ntcc_cmd_recv_timeout     = C2_MKTIME(10, 0),
+ 		.ntcc_buf_send_timeout     = C2_MKTIME(3, 0),
+ 		.ntcc_buf_recv_timeout     = C2_MKTIME(3, 0),
+ 		.ntcc_buf_bulk_timeout     = C2_MKTIME(3, 0),
+-- 
+1.8.3.2
+

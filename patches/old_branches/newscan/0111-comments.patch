@@ -1,0 +1,900 @@
+From f4fcc939102c789cad6172ae42fa58b68aebb85b Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 8 Jun 2011 02:22:17 -0600
+Subject: [PATCH 111/158] - comments; - fixes in rename; - cleanups.
+
+---
+ cob/cob.c           |  29 +++--
+ mdservice/md_foms.c | 326 +++++++++++++++++++++++++++++++---------------------
+ mdstore/mdstore.c   |  30 +++--
+ mdstore/mdstore.h   | 141 ++++++++++++-----------
+ 4 files changed, 297 insertions(+), 229 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 3b2d96a..b90b6d2 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1088,6 +1088,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
+         struct c2_cob_nsrec  nsrec;
+         struct c2_db_pair    pair;
+         struct c2_cob_oikey  oikey;
++        int                  zombie;
+         int                  rc;
+ 
+         C2_PRE(c2_cob_is_valid(cob));
+@@ -1105,6 +1106,9 @@ int c2_cob_update_name(struct c2_cob        *cob,
+         if (rc)
+                 goto out;
+ 
++        zombie = nsrec.cnr_zombie;
++        nsrec.cnr_zombie = 0;
++        
+         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+                          tgtkey, c2_cob_nskey_size(tgtkey),
+                          &nsrec, sizeof nsrec);
+@@ -1114,17 +1118,20 @@ int c2_cob_update_name(struct c2_cob        *cob,
+         if (rc)
+                 goto out;
+         
+-        /*
+-         * Kill old record. Error will be returned if nothing found.
+-         */
+-        c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
+-	                 srckey, c2_cob_nskey_size(srckey),
+-		         NULL, 0);
+-        rc = c2_table_delete(tx, &pair);
+-        c2_db_pair_release(&pair);
+-        c2_db_pair_fini(&pair);
+-        if (rc)
+-                goto out;
++        if (!zombie) {
++                /*
++                 * Kill old record. Error will be returned if
++                 * nothing found.
++                 */
++                c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
++	                         srckey, c2_cob_nskey_size(srckey),
++		                 NULL, 0);
++                rc = c2_table_delete(tx, &pair);
++                c2_db_pair_release(&pair);
++                c2_db_pair_fini(&pair);
++                if (rc)
++                        goto out;
++        }
+ 
+         /* Update object index */
+         c2_cob_make_oikey(&oikey, cob->co_fid, nsrec.cnr_linkno);
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index cb95750..39f9091 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -119,61 +119,73 @@ static void c2_md_fop_attr2cob(struct c2_fop_cob *body,
+         body->b_version = attr->ca_version;
+ }
+ 
+-static int c2_md_create(struct c2_md_store  *mdstore, 
++static int c2_md_create(struct c2_md_store  *md, 
+                         struct c2_fid       *pfid,
+                         struct c2_fid       *tfid, 
+                         struct c2_cob_attr  *attr, 
+                         struct c2_db_tx     *tx)
+ {
+-        struct c2_bitstring *name;
+         struct c2_cob *scob = NULL;
+         struct c2_cob *ncob = NULL;
+         int rc;
+         
+-        rc = c2_md_store_lookup(mdstore, pfid, attr->ca_name, 
++        rc = c2_md_store_lookup(md, pfid, attr->ca_name, 
+                                 attr->ca_namelen, &ncob, tx);
+         if (rc == -ENOENT) {
+-                rc = c2_md_store_locate(mdstore, tfid, &scob, 
++                /*
++                 * No name, let's check if we have stat data name.
++                 */
++                rc = c2_md_store_locate(md, tfid, &scob, 
+                                         C2_MD_LOCATE_STORED, tx);
+                 if (rc == -ENOENT) {
+-                        rc = c2_md_store_alloc(mdstore, tfid, &scob);
++                        /*
++                         * No file at all, let's create it no matter
++                         * where we are called from, scan or changelog.
++                         */
++                        rc = c2_md_store_alloc(md, tfid, &scob);
+                         if (rc)
+                                 return rc;
+ 
+-                        rc = c2_md_store_create(mdstore, pfid, scob, attr, tx);
++                        rc = c2_md_store_create(md, pfid, scob, attr, tx);
+                 } else if (rc == 0) {
+-                        name = c2_bitstring_alloc(attr->ca_name, attr->ca_namelen);
+-                        if (!name) {
+-                                c2_cob_put(scob);
+-                                return -ENOMEM;
+-                        }
+-                        rc = c2_md_store_link(mdstore, pfid, scob, name, tx);
+-                        c2_bitstring_free(name);
+-
++                        /*
++                         * There is statdata name, this must be hardlink
++                         * either from scan or changelog.
++                         */
++                        rc = c2_md_store_link(md, pfid, scob, attr->ca_name,
++                                              attr->ca_namelen, tx);
++                        /*
++                         * Each operation changes target attributes (times).
++                         * We want to keep them up-to-date.
++                         */
+                         if (rc == 0)
+-                                rc = c2_md_store_setattr(mdstore, scob, attr, tx);
++                                rc = c2_md_store_setattr(md, scob, attr, tx);
+                 }
+         } else if (rc == 0) {
+-                rc = c2_md_store_locate(mdstore, tfid, &scob, 
++                /*
++                 * Ok, there is name, let's check versions to see what to
++                 * do with it.
++                 */
++                rc = c2_md_store_locate(md, tfid, &scob, 
+                                         C2_MD_LOCATE_STORED, tx);
+                 if (rc) {
++                        /*
++                         * No statdata name, this means broken db.
++                         */
+                         c2_cob_put(ncob);
+                         return rc;
+                 }
+                 if (attr->ca_version > scob->co_nsrec.cnr_version) {
+-                        name = c2_bitstring_alloc(attr->ca_name, attr->ca_namelen);
+-                        if (!name) {
+-                                rc = -ENOMEM;
+-                                goto out;
+-                        }
+-                        rc = c2_md_store_link(mdstore, pfid, scob, name, tx);
+-                        c2_bitstring_free(name);
+-                        if (rc == 0)
+-                                rc = c2_md_store_setattr(mdstore, scob, attr, tx);
++                        /*
++                         * Name exists but it has old version. It cannot
++                         * be different file because scanner would give 
++                         * us different fid and we would not get here.
++                         * Let's just update attributes.
++                         */
++                        C2_ASSERT(c2_fid_eq(ncob->co_fid, scob->co_fid));
++                        rc = c2_md_store_setattr(md, scob, attr, tx);
+                 }
+         }
+-
+-out:    
+         if (ncob)    
+                 c2_cob_put(ncob);
+         if (scob)
+@@ -287,6 +299,18 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
+         return FSO_AGAIN;
+ }
+ 
++static int c2_md_zombie(struct c2_md_store *md, 
++                        struct c2_cob *cob,
++                        struct c2_db_tx *tx)
++{
++        struct c2_cob_attr attr;
++
++        C2_SET0(&attr);
++        attr.ca_flags = 0;
++        attr.ca_zombie = 1;
++        return c2_md_store_setattr(md, cob, &attr, tx);
++}
++
+ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+ {
+         struct c2_cob_attr        attr;
+@@ -303,9 +327,13 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         struct c2_fid             tfid;
+         struct c2_fid             pfid;
+         struct c2_service        *svc;
+-        struct c2_bitstring      *name;
++        struct c2_db_tx          *tx;
++        struct c2_md_store       *md;
+         int                       rc;
+ 
++        md = site->s_mdstore;
++        tx = &ctx->fc_tx->tx_dbtx;
++
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+ 
+         fop = fom_obj->fm_fop;
+@@ -329,37 +357,38 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         c2_md_make_fid(&tfid, &body->b_tfid);
+ 
+         /*
+-         * Mark object zombie, replicator will kill it later.
++         * Mark name zombie, replicator will kill it later.
+          */
+         if (body->b_bias & C2_MD_BIAS_SCAN_IN_PROGRESS) {
+-                rc = c2_md_store_lookup(site->s_mdstore, &pfid,
+-                                        req->u_name.s_buf,
++                int linkno;
++                
++                rc = c2_md_store_lookup(md, &pfid, req->u_name.s_buf,
+                                         req->u_name.s_len, &ncob,
+-                                        &ctx->fc_tx->tx_dbtx);
++                                        tx);
+                 if (rc)
+                         goto out;
+ 
+-                C2_SET0(&attr);                
+-                attr.ca_zombie = 1;
+-                rc = c2_md_store_setattr(site->s_mdstore, ncob, 
+-                                         &attr, &ctx->fc_tx->tx_dbtx);
++                rc = c2_md_zombie(md, ncob, tx);
++                if (rc) {
++                        c2_cob_put(ncob);
++                        goto out;
++                }
++                linkno = ncob->co_nsrec.cnr_linkno;
+                 c2_cob_put(ncob);
+ 
+                 /*
+-                 * Update attributes for the case object survives.
++                 * Update attributes for the case object survives 
++                 * (unlink of a name).
+                  */
+-                if (ncob->co_nsrec.cnr_linkno != 0) {
+-                        rc = c2_md_store_locate(site->s_mdstore, &tfid, &scob, 
++                if (linkno != 0) {
++                        rc = c2_md_store_locate(md, &tfid, &scob, 
+                                                 C2_MD_LOCATE_STORED,
+-                                                &ctx->fc_tx->tx_dbtx);
++                                                tx);
+                         if (rc)
+                                 goto out;
+ 
+-                        if (attr.ca_version > scob->co_nsrec.cnr_version) {
+-                                rc = c2_md_store_setattr(site->s_mdstore,
+-                                                         scob, &attr, 
+-                                                         &ctx->fc_tx->tx_dbtx);
+-                        }
++                        if (attr.ca_version > scob->co_nsrec.cnr_version)
++                                rc = c2_md_store_setattr(md, scob, &attr, tx);
+                         c2_cob_put(scob);
+                 }
+         } else {
+@@ -368,27 +397,22 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+                  * (object will survive at the end of day) let's update
+                  * object attributes.
+                  */
+-                rc = c2_md_store_locate(site->s_mdstore, &tfid, &scob, 
++                rc = c2_md_store_locate(md, &tfid, &scob, 
+                                         C2_MD_LOCATE_STORED,
+                                         &ctx->fc_tx->tx_dbtx);
+                 if (rc)
+                         goto out;
++                
++                /*
++                 * Name exists but it has older version. Let's kill it.
++                 */
+                 if (attr.ca_version > scob->co_nsrec.cnr_version) {
+-                        name = c2_bitstring_alloc(req->u_name.s_buf,
+-                                                  req->u_name.s_len);
+-                        if (!name) {
+-                                c2_cob_put(scob);
+-                                goto out;
+-                        }
+-                        rc = c2_md_store_unlink(site->s_mdstore, 
+-                                                &pfid, scob, name, 
+-                                                &ctx->fc_tx->tx_dbtx);
+-                        c2_bitstring_free(name);
+-                        if (rc == 0) {
+-                                rc = c2_md_store_setattr(site->s_mdstore,
+-                                                         scob, &attr, 
+-                                                         &ctx->fc_tx->tx_dbtx);
+-                        }
++                        rc = c2_md_store_unlink(md, &pfid, scob, 
++                                                req->u_name.s_buf,
++                                                req->u_name.s_len,
++                                                tx);
++                        if (rc == 0)
++                                rc = c2_md_store_setattr(md, scob, &attr, tx);
+                 }
+                 c2_cob_put(scob);
+         }
+@@ -405,7 +429,7 @@ out:
+         return FSO_AGAIN;
+ }
+ 
+-static int c2_md_rename(struct c2_md_store  *mdstore,
++static int c2_md_rename(struct c2_md_store  *md,
+                         struct c2_fid       *pfid_tgt,
+                         struct c2_fid       *pfid_src,
+                         struct c2_fid       *tfid_tgt,
+@@ -415,41 +439,29 @@ static int c2_md_rename(struct c2_md_store  *mdstore,
+                         struct c2_cob       *scob, 
+                         struct c2_db_tx     *tx)
+ {
+-        struct c2_bitstring  *sname;
+-        struct c2_bitstring  *tname;
+         struct c2_cob        *tcob = NULL;
+         int                   rc;
+ 
+-        rc = c2_md_store_locate(mdstore, tfid_tgt, &tcob,
++        rc = c2_md_store_locate(md, tfid_tgt, &tcob, 
+                                 C2_MD_LOCATE_STORED, tx);
+-        if (rc != 0 && rc != -ENOENT)
+-                return rc;
+-
+-        sname = c2_bitstring_alloc(sattr->ca_name, sattr->ca_namelen);
+-        if (!sname) {
+-                if (tcob)
+-                        c2_cob_put(tcob);
+-                return -ENOMEM;
+-        }
+-                
+-        tname = c2_bitstring_alloc(tattr->ca_name, tattr->ca_namelen);
+-        if (!tname) {
+-                c2_bitstring_free(sname);
+-                if (tcob)
+-                        c2_cob_put(tcob);
+-                return -ENOMEM;
+-        }
+-
+-        rc = c2_md_store_rename(mdstore, pfid_tgt, pfid_src, 
+-                                tcob, scob, tname, sname, tx);
+-        c2_bitstring_free(tname);
+-        c2_bitstring_free(sname);
+-        if (rc == 0) {
+-                rc = c2_md_store_setattr(mdstore, scob, sattr, tx);
++        /*
++         * Target object may not exist. This is what we tolerate -ENOENT.
++         * Rename will handle the rest.
++         */
++        if (rc == 0 || rc == -ENOENT) {
++                rc = c2_md_store_rename(md, pfid_tgt, pfid_src, tcob, scob,
++                                        tattr->ca_name, tattr->ca_namelen,
++                                        sattr->ca_name, sattr->ca_namelen, tx);
++                if (rc)
++                        goto out;
++                /*
++                 * Update attributes of source and target.
++                 */
++                rc = c2_md_store_setattr(md, scob, sattr, tx);
+                 if (rc == 0 && tcob && !c2_fid_eq(scob->co_fid, tcob->co_fid))
+-                        rc = c2_md_store_setattr(mdstore, tcob, tattr, tx);
++                        rc = c2_md_store_setattr(md, tcob, tattr, tx);
+         }
+-
++out:
+         if (tcob)
+                 c2_cob_put(tcob);
+         return rc;
+@@ -467,17 +479,22 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+         struct c2_fop_ctx        *ctx;
+         struct c2_cob            *ncob = NULL;
+         struct c2_cob            *scob = NULL;
++        struct c2_cob            *tcob = NULL;
+         struct c2_cob            *sncob = NULL;
+         struct c2_fid             tfid_src;
+         struct c2_fid             tfid_tgt;
+         struct c2_fid             pfid_tgt;
+         struct c2_fid             pfid_src;
+-        struct c2_bitstring      *sname;
+         struct c2_cob_attr        sattr;
+         struct c2_cob_attr        tattr;
+         struct c2_service        *svc;
++        struct c2_db_tx          *tx;
++        struct c2_md_store       *md;
+         int                       rc;
+ 
++        tx = &ctx->fc_tx->tx_dbtx;
++        md = site->s_mdstore;
++
+         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+ 
+         fop = fom_obj->fm_fop;
+@@ -510,64 +527,103 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
+         c2_md_fop_cob2attr(&sattr, sbody);
+         sattr.ca_name = req->r_sname.s_buf;
+         sattr.ca_namelen = req->r_sname.s_len;
+-
+-        rc = c2_md_store_lookup(site->s_mdstore, &pfid_tgt, req->r_tname.s_buf,
+-                                req->r_tname.s_len, &ncob, &ctx->fc_tx->tx_dbtx);
++        
++        rc = c2_md_store_lookup(md, &pfid_tgt, req->r_tname.s_buf,
++                                req->r_tname.s_len, &ncob, tx);
+         if (rc == -ENOENT) {
+-                rc = c2_md_store_locate(site->s_mdstore, &tfid_src, &scob, 
+-                                        C2_MD_LOCATE_STORED,
+-                                        &ctx->fc_tx->tx_dbtx);
++                /*
++                 * No name, let's check stat data and may be create some.
++                 */
++                rc = c2_md_store_locate(md, &tfid_src, &scob,
++                                        C2_MD_LOCATE_STORED, tx);
+                 if (rc == -ENOENT) {
++                        /*
++                         * Not even stat data name, let's create file 
++                         * with target name. Given we have no stat data
++                         * name of the source, we don't have to bother
++                         * with src name too.
++                         */
+                         sattr.ca_name = req->r_tname.s_buf;
+                         sattr.ca_namelen = req->r_tname.s_len;
+                         
+-                        rc = c2_md_store_alloc(site->s_mdstore, &tfid_src, 
+-                                               &scob);
++                        rc = c2_md_store_alloc(md, &tfid_src, &scob);
+                         if (rc)
+                                 goto out;
+-                        rc = c2_md_store_create(site->s_mdstore, 
+-                                                &pfid_tgt, scob, &sattr, 
+-                                                &ctx->fc_tx->tx_dbtx);
++                        rc = c2_md_store_create(md, &pfid_tgt, scob,
++                                                &sattr, tx);
+                 } else if (rc == 0) {
+-                        rc = c2_md_rename(site->s_mdstore, &pfid_tgt, &pfid_src, 
+-                                          &tfid_tgt, &tfid_src, &tattr, &sattr,
+-                                          scob, &ctx->fc_tx->tx_dbtx);
++                        /*
++                         * There is src stat data, let's perfrom normal
++                         * rename.
++                         */
++                        rc = c2_md_rename(md, &pfid_tgt, &pfid_src, 
++                                          &tfid_tgt, &tfid_src, &tattr,
++                                          &sattr, scob, tx);
+                         c2_cob_put(scob);
+                 }
+         } else {
+-                rc = c2_md_store_locate(site->s_mdstore, &tfid_src, &scob, 
+-                                        C2_MD_LOCATE_STORED,
+-                                        &ctx->fc_tx->tx_dbtx);
++                /*
++                 * Target name exists, let's check versions.
++                 */
++                rc = c2_md_store_locate(md, &tfid_src, &scob, 
++                                        C2_MD_LOCATE_STORED, tx);
+                 if (rc) {
+                         c2_cob_put(ncob);
+                         goto out;
+                 }
+                 if (sattr.ca_version > scob->co_nsrec.cnr_version) {
+-                        rc = c2_md_store_lookup(site->s_mdstore, &pfid_src, 
++                        /*
++                         * Some older version is found. We need to handle
++                         * this.
++                         */
++                        rc = c2_md_store_lookup(md, &pfid_src, 
+                                                 req->r_sname.s_buf,
+-                                                req->r_sname.s_len, &sncob, 
+-                                                &ctx->fc_tx->tx_dbtx);
++                                                req->r_sname.s_len,
++                                                &sncob, tx);
+                         if (rc == -ENOENT) {
+-                                sname = c2_bitstring_alloc(req->r_sname.s_buf,
+-                                                           req->r_sname.s_len);
+-                                if (!sname) {
+-                                        rc = -ENOMEM;
+-                                } else {
+-                                        rc = c2_md_store_link(site->s_mdstore, 
+-                                                              &pfid_src, scob, sname,
+-                                                              &ctx->fc_tx->tx_dbtx);
+-                                        c2_bitstring_free(sname);
+-                                }
++                                struct c2_cob *zcob;
++                                        
++                                /*
++                                 * Create missing src name and mark it zombie,
++                                 * so that scan when finds it understands that
++                                 * unlinked name should not be re-created.
++                                 */
++                                rc = c2_md_store_link(md, &pfid_src, scob, 
++                                                      req->r_sname.s_buf,
++                                                      req->r_sname.s_len, tx);
++                                if (rc)
++                                        goto out_put_cobs;                                
++
++                                rc = c2_md_store_lookup(md, &pfid_src,
++                                                        req->r_sname.s_buf,
++                                                        req->r_sname.s_len,
++                                                        &zcob, tx);
++                                if (rc)
++                                        goto out_put_cobs;                                
++
++                                rc = c2_md_zombie(md, zcob, tx);
++                                c2_cob_put(zcob);
++                                if (rc)
++                                        goto out_put_cobs;                                
+                         } else {
+                                 c2_cob_put(sncob);
+                         }
++                        
++                        /*
++                         * Given tgt name exists (scan might find it before us) we
++                         * want only update attributes on the source and target.
++                         */
++                        rc = c2_md_store_setattr(md, scob, &sattr, tx);
+                         if (rc == 0) {
+-                                rc = c2_md_rename(site->s_mdstore, &pfid_tgt, 
+-                                                  &pfid_src, &tfid_tgt, &tfid_src,
+-                                                  &tattr, &sattr, scob, 
+-                                                  &ctx->fc_tx->tx_dbtx);
++                                rc = c2_md_store_locate(md, &tfid_tgt, &tcob, 
++                                                        C2_MD_LOCATE_STORED, tx);
++                                if (rc == 0 && !c2_fid_eq(scob->co_fid, tcob->co_fid))
++                                        rc = c2_md_store_setattr(md, tcob, &tattr, tx);
++                                if (tcob)
++                                        c2_cob_put(tcob);
+                         }
+                 }
++out_put_cobs:
+                 c2_cob_put(ncob);
+                 c2_cob_put(scob);
+         }
+@@ -624,21 +680,23 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+                                 C2_MD_LOCATE_STORED,
+                                 &ctx->fc_tx->tx_dbtx);
+         if (rc == 0) {
+-                /*
+-                 * @todo: pass correct flags to open.
+-                 */
+-                rc = c2_md_store_open(site->s_mdstore, cob, attr.ca_flags, 
++                rc = c2_md_store_open(site->s_mdstore, cob, 
++                                      body->b_flags, 
+                                       &ctx->fc_tx->tx_dbtx);
+                 if (rc == 0 &&
+                     attr.ca_version > cob->co_nsrec.cnr_version) {
+-                        rc = c2_md_store_setattr(site->s_mdstore, cob,
+-                                                 &attr, &ctx->fc_tx->tx_dbtx);
++                        rc = c2_md_store_setattr(site->s_mdstore,
++                                                 cob, &attr, 
++                                                 &ctx->fc_tx->tx_dbtx);
+                 }
+                 c2_cob_put(cob);
+         } else if (rc == -ENOENT) {
+                 /*
+-                 * @todo: create file if open mode (body->b_flags) says so.
++                 * Lustre has create before open in cae of OPEN_CREATE.
++                 * We don't have to create anything here as file already
++                 * should exist, let's just check this.
+                  */
++                C2_ASSERT(!(body->b_flags & C2_MD_OPEN_CREAT));
+         } else if (rc)
+                 goto out;
+ 
+@@ -891,7 +949,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
+                 goto out;
+         }
+ 
+-        rdpg.r_pos = c2_bitstring_alloc(req->r_pos.s_buf,
++        rdpg.r_pos = c2_bitstring_alloc(req->r_pos.s_buf, 
+                                         req->r_pos.s_len);
+         if (rdpg.r_pos == NULL) {
+                 c2_cob_put(cob);
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index a489b52..ac78751 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -152,7 +152,8 @@ int c2_md_store_create(struct c2_md_store       *md,
+ int c2_md_store_link(struct c2_md_store         *md, 
+                      struct c2_fid              *pfid,
+                      struct c2_cob              *cob,
+-                     struct c2_bitstring        *name,
++                     const char                 *name,
++                     int                         namelen,
+                      struct c2_db_tx            *tx)
+ {
+         struct c2_cob_nskey   *nskey;
+@@ -169,9 +170,7 @@ int c2_md_store_link(struct c2_md_store         *md,
+         /*
+          * Link @nskey to a file described with @cob
+          */
+-        c2_cob_make_nskey(&nskey, pfid, c2_bitstring_buf_get(name), 
+-                          c2_bitstring_len_get(name));
+-
++        c2_cob_make_nskey(&nskey, pfid, name, namelen); 
+         C2_PRE(c2_fid_is_set(&cob->co_nsrec.cnr_fid));
+         nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
+         nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
+@@ -230,7 +229,8 @@ out:
+ int c2_md_store_unlink(struct c2_md_store       *md,
+                        struct c2_fid            *pfid,
+                        struct c2_cob            *cob,
+-                       struct c2_bitstring      *name,
++                       const char               *name,
++                       int                       namelen,
+                        struct c2_db_tx          *tx)
+ {
+         struct c2_cob         *ncob;
+@@ -250,8 +250,7 @@ int c2_md_store_unlink(struct c2_md_store       *md,
+          * Check for hardlinks.
+          */
+         if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
+-                c2_cob_make_nskey(&nskey, pfid, c2_bitstring_buf_get(name), 
+-                                  c2_bitstring_len_get(name));
++                c2_cob_make_nskey(&nskey, pfid, name, namelen);
+ 
+                 /*
+                  * Check if we're trying to kill stata data entry. We need to
+@@ -406,8 +405,10 @@ int c2_md_store_rename(struct c2_md_store       *md,
+                        struct c2_fid            *pfid_src,
+                        struct c2_cob            *cob_tgt,
+                        struct c2_cob            *cob_src,
+-                       struct c2_bitstring      *name_tgt,
+-                       struct c2_bitstring      *name_src,
++                       const char               *tname,
++                       int                       tnamelen,
++                       const char               *sname,
++                       int                       snamelen,
+                        struct c2_db_tx          *tx)
+ {
+         struct c2_cob_nskey  *srckey;
+@@ -424,7 +425,8 @@ int c2_md_store_rename(struct c2_md_store       *md,
+          * Let's kill existing target object.
+          */
+         if (cob_tgt && !c2_fid_eq(cob_tgt->co_fid, cob_src->co_fid)) {
+-                rc = c2_md_store_unlink(md, pfid_tgt, cob_tgt, name_tgt, tx);
++                rc = c2_md_store_unlink(md, pfid_tgt, cob_tgt, tname,
++                                        tnamelen, tx);
+                 if (rc)
+                         goto out;
+         }
+@@ -432,12 +434,8 @@ int c2_md_store_rename(struct c2_md_store       *md,
+         /*
+          * Prepare src and dst keys.
+          */                
+-        c2_cob_make_nskey(&srckey, pfid_src, 
+-                          c2_bitstring_buf_get(name_src),
+-                          c2_bitstring_len_get(name_src));
+-        c2_cob_make_nskey(&tgtkey, pfid_tgt, 
+-                          c2_bitstring_buf_get(name_tgt),
+-                          c2_bitstring_len_get(name_tgt));
++        c2_cob_make_nskey(&srckey, pfid_src, sname, snamelen);
++        c2_cob_make_nskey(&tgtkey, pfid_tgt, tname, tnamelen);
+ 
+         rc = c2_cob_update_name(cob_src, srckey, tgtkey, tx);
+         if (rc)
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index 74bf0fb..36f48be 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -71,14 +71,6 @@ enum c2_md_fmode_flags {
+            Other flags from system fmode space are not of 
+            interest right now.
+          */
+-        
+-        /**
+-           These are from Lustre open flags space. We need
+-           this so far here because changelog records have
+-           these flags.
+-        */
+-        C2_MD_OPEN_TRUNC   = 1 << 9,
+-        C2_MD_OPEN_APPEND  = 1 << 10
+ };
+ 
+ enum c2_md_acc_flags {
+@@ -91,6 +83,15 @@ enum c2_md_acc_flags {
+         C2_MD_MAY_CHDIR    = 1 << 6
+ };
+ 
++enum c2_md_open_flags {
++        C2_MD_OPEN_CREAT   = 00000100,
++        C2_MD_OPEN_EXCL    = 00000200,
++        C2_MD_OPEN_TRUNC   = 00001000,
++        C2_MD_OPEN_APPEND  = 00002000,
++        C2_MD_OPEN_SYNC    = 00010000,
++        C2_MD_OPEN_DIR     = 00200000
++};
++
+ enum c2_md_bias_flags {
+         C2_MD_BIAS_SCAN_IN_PROGRESS = 1 << 0
+ };
+@@ -185,37 +186,39 @@ struct c2_rdpg {
+    Init mdstore and get it ready to work. Ifinit_root == !!1
+    then root cob is initialized.
+ */
+-int c2_md_store_init(struct c2_md_store *md, 
+-                     struct c2_cob_domain_id *id,
+-                     struct c2_dbenv *db, 
+-                     int init_root);
++int c2_md_store_init(struct c2_md_store         *md, 
++                     struct c2_cob_domain_id    *id,
++                     struct c2_dbenv            *db, 
++                     int                         init_root);
+ 
+ /**
+    Finalize mdstore instance.
+ */
+-void c2_md_store_fini(struct c2_md_store *md);
++void c2_md_store_fini(struct c2_md_store        *md);
+ 
+ /**
+    Handle link operation described by @pfid and @name. Input
+    cob is so called statdata cob and returned by c2_cob_locate(). 
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_link(struct c2_md_store *md, 
+-                     struct c2_fid *pfid, 
+-                     struct c2_cob *cob, 
+-                     struct c2_bitstring *name,
+-                     struct c2_db_tx *tx);
++int c2_md_store_link(struct c2_md_store         *md, 
++                     struct c2_fid              *pfid, 
++                     struct c2_cob              *cob, 
++                     const char                 *name,
++                     int                         namelen,
++                     struct c2_db_tx            *tx);
+                      
+ /**
+    Handle unlink operation described by @pfid and @name. Input
+    cob is so called statdata cob and returned by c2_cob_locate(). 
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_unlink(struct c2_md_store *md, 
+-                       struct c2_fid *pfid, 
+-                       struct c2_cob *cob,
+-                       struct c2_bitstring *name,
+-                       struct c2_db_tx *tx);
++int c2_md_store_unlink(struct c2_md_store       *md, 
++                       struct c2_fid            *pfid, 
++                       struct c2_cob            *cob,
++                       const char               *name,
++                       int                       namelen,
++                       struct c2_db_tx          *tx);
+                        
+ /**
+    Handle rename operation described by params. Input cobs are
+@@ -224,14 +227,16 @@ int c2_md_store_unlink(struct c2_md_store *md,
+ 
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_rename(struct c2_md_store *md, 
+-                       struct c2_fid *pfid_tgt,
+-                       struct c2_fid *pfid_src,
+-                       struct c2_cob *cob_tgt,
+-                       struct c2_cob *cob_src,
+-                       struct c2_bitstring *name_tgt,
+-                       struct c2_bitstring *name_src,
+-                       struct c2_db_tx *tx);
++int c2_md_store_rename(struct c2_md_store       *md, 
++                       struct c2_fid            *pfid_tgt,
++                       struct c2_fid            *pfid_src,
++                       struct c2_cob            *cob_tgt,
++                       struct c2_cob            *cob_src,
++                       const char               *tname,
++                       int                       tnamelen,
++                       const char               *sname,
++                       int                       snamelen,
++                       struct c2_db_tx          *tx);
+ 
+ /**
+    Handle create operation described by @attr on @cob. Input @cob
+@@ -239,21 +244,21 @@ int c2_md_store_rename(struct c2_md_store *md,
+    
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_create(struct c2_md_store *md, 
+-                       struct c2_fid *pfid,
+-                       struct c2_cob *cob,
+-                       struct c2_cob_attr *attr,
+-                       struct c2_db_tx *tx);
++int c2_md_store_create(struct c2_md_store       *md, 
++                       struct c2_fid            *pfid,
++                       struct c2_cob            *cob,
++                       struct c2_cob_attr       *attr,
++                       struct c2_db_tx          *tx);
+ 
+ /**
+    Handle open operation described by @flags on @cob. Input @cob
+    is so called statdata cob and returned by c2_cob_locate(). 
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_open(struct c2_md_store *md, 
+-                     struct c2_cob *cob,
+-                     int flags,
+-                     struct c2_db_tx *tx);
++int c2_md_store_open(struct c2_md_store         *md, 
++                     struct c2_cob              *cob,
++                     int                         flags,
++                     struct c2_db_tx            *tx);
+ 
+ /**
+    Handle close operation on @cob. Input @cob is so called statdata
+@@ -261,9 +266,9 @@ int c2_md_store_open(struct c2_md_store *md,
+ 
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_close(struct c2_md_store *md, 
+-                      struct c2_cob *cob,
+-                      struct c2_db_tx *tx);
++int c2_md_store_close(struct c2_md_store        *md, 
++                      struct c2_cob             *cob,
++                      struct c2_db_tx           *tx);
+ 
+ /**
+    Handle setattr operation described by @attr on @cob. Input @cob
+@@ -271,10 +276,10 @@ int c2_md_store_close(struct c2_md_store *md,
+    
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_setattr(struct c2_md_store *md, 
+-                        struct c2_cob *cob,
+-                        struct c2_cob_attr *attr,
+-                        struct c2_db_tx *tx);
++int c2_md_store_setattr(struct c2_md_store      *md, 
++                        struct c2_cob           *cob,
++                        struct c2_cob_attr      *attr,
++                        struct c2_db_tx         *tx);
+ 
+ /**
+    Get attributes of @cob into passed @attr. Input @cob
+@@ -282,10 +287,10 @@ int c2_md_store_setattr(struct c2_md_store *md,
+    
+    Error code is returned in error case or zero otherwise.
+ */
+-int c2_md_store_getattr(struct c2_md_store *md, 
+-                        struct c2_cob *cob,
+-                        struct c2_cob_attr *attr,
+-                        struct c2_db_tx *tx);
++int c2_md_store_getattr(struct c2_md_store      *md,
++                        struct c2_cob           *cob,
++                        struct c2_cob_attr      *attr,
++                        struct c2_db_tx         *tx);
+ 
+ /**
+    Handle readdir operation described by @rdpg on @cob. Input @cob
+@@ -301,27 +306,27 @@ int c2_md_store_readdir(struct c2_md_store      *md,
+ /**
+    Find cob by fid.
+ */
+-int c2_md_store_locate(struct c2_md_store *md, 
+-                       const struct c2_fid *fid,
+-                       struct c2_cob **cob, 
+-                       int flags, 
+-                       struct c2_db_tx *tx);
++int c2_md_store_locate(struct c2_md_store       *md, 
++                       const struct c2_fid      *fid,
++                       struct c2_cob           **cob, 
++                       int                       flags, 
++                       struct c2_db_tx          *tx);
+ 
+ /**
+    Find cob by parent and name.
+ */
+-int c2_md_store_lookup(struct c2_md_store *md, 
+-                       struct c2_fid *pfid,
+-                       const char *name, 
+-                       int namelen, 
+-                       struct c2_cob **cob, 
+-                       struct c2_db_tx *tx);
++int c2_md_store_lookup(struct c2_md_store       *md, 
++                       struct c2_fid            *pfid,
++                       const char               *name, 
++                       int                       namelen, 
++                       struct c2_cob           **cob, 
++                       struct c2_db_tx          *tx);
+ /**
+    Allocate new cob on mdstore @md.
+ */
+-int c2_md_store_alloc(struct c2_md_store *md, 
+-                      struct c2_fid *fid,
+-                      struct c2_cob **cob);
++int c2_md_store_alloc(struct c2_md_store        *md, 
++                      struct c2_fid             *fid,
++                      struct c2_cob            **cob);
+ 
+ /**
+    Get path by @fid. Path @path is allocated by
+@@ -329,9 +334,9 @@ int c2_md_store_alloc(struct c2_md_store *md,
+    When it is not longer needed it may be freed
+    with c2_free().
+  */
+-int c2_md_store_path(struct c2_md_store *md,
+-                     struct c2_fid *fid,
+-                     char **path);
++int c2_md_store_path(struct c2_md_store         *md,
++                     struct c2_fid              *fid,
++                     char                      **path);
+ 
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+-- 
+1.8.3.2
+

@@ -1,0 +1,35 @@
+From 18e9eb383fe1d56ba66b4b26659ff24a20ff1d92 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 3 Jul 2013 02:17:19 +0300
+Subject: [PATCH 267/290] be: use m0_tl_forall() instead of m0_tlist_forall()
+
+---
+ be/tx_fom.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 26000a2..e15c788 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -180,7 +180,6 @@ static int tx_group_tick(struct m0_fom *fom)
+ 		[TGS_PLACED]     = TGS_STABLE,
+ 		[TGS_STABLE]     = TGS_OPEN
+ 	};
+-	const struct m0_be_tx       *tx;
+ 	const struct m0_be_tx_group *gr =
+ 		&tx_group_fom(fom)->tgf_engine->te_group;
+ 	const int                    state = m0_fom_phase(fom);
+@@ -191,8 +190,8 @@ static int tx_group_tick(struct m0_fom *fom)
+ 	if (state == TGS_FINISH) {
+ 		M0_IMPOSSIBLE("XXX Not implemented");
+ 	} else if (state != TGS_PLACED ||
+-		   m0_tlist_forall(&gr_tl, tx, &gr->tg_txs,
+-				   m0_be__tx_state(tx) == M0_BTS_STABLE)) {
++		   m0_tl_forall(gr, tx, &gr->tg_txs,
++				m0_be__tx_state(tx) == M0_BTS_STABLE)) {
+ 		M0_LOG(M0_DEBUG, "Move to state %d", next_state[state]);
+ 		m0_fom_phase_set(fom, next_state[state]);
+ 	}
+-- 
+1.8.3.2
+

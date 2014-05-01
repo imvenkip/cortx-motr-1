@@ -1,0 +1,366 @@
+From 1b78a1009aae6d3fe7bf1288596a4e2ba7ffc38a Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Fri, 28 Feb 2014 14:01:26 +0530
+Subject: [PATCH 14/14] dgmode-spare-map-writeIO -Addressed issues raised on
+ review-board at following link:  http://reviewboard.clusterstor.com/r/1622/
+
+---
+ m0t1fs/linux_kernel/file.c | 153 +++++++++++++++++----------------------------
+ sns/parity_repair.h        |   2 +-
+ 2 files changed, 60 insertions(+), 95 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/file.c b/m0t1fs/linux_kernel/file.c
+index ef8451c..f13891d 100644
+--- a/m0t1fs/linux_kernel/file.c
++++ b/m0t1fs/linux_kernel/file.c
+@@ -658,7 +658,7 @@ static int io_spare_map(const struct pargrp_iomap *map,
+ 			uint32_t *spare_slot, uint32_t *spare_slot_prev,
+ 			enum m0_pool_nd_state *eff_state);
+ 
+-static int state_of_unit(const struct m0_pdclust_src_addr *src,
++static int unit_state(const struct m0_pdclust_src_addr *src,
+ 			 const struct io_request *req,
+ 			 enum m0_pool_nd_state *state);
+ 
+@@ -2101,7 +2101,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
+ 		 * indexvec_page_nr().
+ 		 */
+ 		ro_page_nr = /* Number of pages to be read.
+-			      XXX: 'nr' can not be directly eliminated. If
++			      @todo: 'nr' can not be directly eliminated. If
+ 			      page contents are within_eof, then even if
+ 			      they are fully modified, older contents need
+ 			      to be read in read-old approach. If fully
+@@ -2203,8 +2203,8 @@ static int pargrp_iomap_pages_mark(struct pargrp_iomap       *map,
+ 	M0_RETURN(rc);
+ }
+ 
+-static int page_update(struct pargrp_iomap *map, uint32_t row, uint32_t col,
+-		       enum page_attr page_type)
++static void page_update(struct pargrp_iomap *map, uint32_t row, uint32_t col,
++			enum page_attr page_type)
+ {
+ 	struct m0_pdclust_layout  *play;
+ 	struct m0_pdclust_src_addr src;
+@@ -2227,32 +2227,22 @@ static int page_update(struct pargrp_iomap *map, uint32_t row, uint32_t col,
+ 	else
+ 		src.sa_unit = col + layout_n(play);
+ 
+-	rc = state_of_unit(&src, map->pi_ioreq, &state);
+-	if (rc == 0) {
+-		if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
+-				  M0_PNDS_SNS_REPAIRING))) {
+-			if (page_type == PA_DATA)
+-				map->pi_databufs[row][col]->db_flags |=
+-					PA_READ_FAILED;
+-			else
+-				map->pi_paritybufs[row][col]->db_flags |=
+-					PA_READ_FAILED;
+-		} else if (state == M0_PNDS_SNS_REPAIRED) {
+-			rc = io_spare_map(map, &src, &spare_slot, &spare_prev,
+-				          &state);
+-			if (rc == 0 &&
+-			    M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
+-					  M0_PNDS_SNS_REPAIRING))) {
+-				if (page_type == PA_DATA)
+-					map->pi_databufs[row][col]->db_flags |=
+-						PA_READ_FAILED;
+-				else
+-					map->pi_paritybufs[row][col]->db_flags |=
+-						PA_READ_FAILED;
+-			}
+-		}
++	rc = unit_state(&src, map->pi_ioreq, &state);
++	M0_ASSERT(rc == 0);
++	if (state == M0_PNDS_SNS_REPAIRED) {
++		rc = io_spare_map(map, &src, &spare_slot, &spare_prev,
++				  &state);
++		M0_ASSERT(rc == 0);
++	}
++	if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
++			  M0_PNDS_SNS_REPAIRING))) {
++		if (page_type == PA_DATA)
++			map->pi_databufs[row][col]->db_flags |=
++				PA_READ_FAILED;
++		else
++			map->pi_paritybufs[row][col]->db_flags |=
++				PA_READ_FAILED;
+ 	}
+-	return rc;
+ }
+ 
+ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+@@ -2266,10 +2256,9 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 	uint32_t                   tgt_id;
+ 	m0_bindex_t                goff;
+ 	struct m0_layout_enum     *le;
+-	struct m0_pdclust_layout   *play;
++	struct m0_pdclust_layout  *play;
+ 	struct m0_pdclust_src_addr src;
+ 	struct m0_pdclust_tgt_addr tgt;
+-	enum m0_pdclust_unit_type  unit_type;
+ 	enum m0_pool_nd_state	   dev_state;
+ 	struct m0t1fs_sb	  *msb;
+ 	uint32_t		   spare_slot;
+@@ -2285,16 +2274,16 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 	 * Finds out the id of target object to which failed IO fop
+ 	 * was sent.
+ 	 */
+-	le     = m0_layout_instance_to_enum(file_to_m0inode(map->pi_ioreq->
+-				ir_file)->ci_layout_instance);
++	le = m0_layout_instance_to_enum(file_to_m0inode(map->pi_ioreq->
++					ir_file)->ci_layout_instance);
+ 	tgt_id = m0_layout_enum_find(le, file_to_fid(map->pi_ioreq->ir_file),
+ 			             &tio->ti_fid);
+ 	msb = file_to_sb(map->pi_ioreq->ir_file);
+ 	rc = m0_poolmach_device_state(msb->csb_pool.po_mach,
+ 				      tio->ti_fid.f_container, &dev_state);
+-	play	      = pdlayout_get(map->pi_ioreq);
++	play = pdlayout_get(map->pi_ioreq);
+ 	tgt.ta_frame = index[0] / layout_unit_size(play);
+-	tgt.ta_obj   = tgt_id;
++	tgt.ta_obj = tgt_id;
+ 
+ 	/*
+ 	 * Finds out reverse mapping of layout and gives
+@@ -2305,17 +2294,12 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 				&tgt, &src);
+ 	M0_ASSERT(src.sa_group == map->pi_grpid);
+ 	M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
+-	unit_type = m0_pdclust_unit_classify(play, src.sa_unit);
+ 	if (dev_state == M0_PNDS_SNS_REPAIRED) {
+ 		rc = io_spare_map(map, &src, &spare_slot, &spare_slot_prev,
+ 			          &dev_state);
+-		if (rc != 0) {
+-			M0_RETERR(rc, "Failed to map a repaired unit to spare");
+-		}
+-		if (dev_state == M0_PNDS_SNS_REPAIRED) {
+-			rc = 0;
+-			goto end;
+-		}
++		M0_ASSERT(rc == 0);
++		if (dev_state == M0_PNDS_SNS_REPAIRED)
++			return rc;
+ 	}
+ 	map->pi_state = PI_DEGRADED;
+ 	++map->pi_ioreq->ir_dgmap_nr;
+@@ -2331,7 +2315,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 				page_nr(layout_unit_size(play))]
+ 				[src.sa_unit - layout_n(play)] != NULL);
+ 		map->pi_paritybufs[(page_nr(index[0]) %
+-				page_nr(layout_unit_size(play)))]
++				   page_nr(layout_unit_size(play)))]
+ 			[src.sa_unit - layout_n(play)]->db_flags |=
+ 			PA_READ_FAILED;
+ 	}
+@@ -2368,7 +2352,6 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
+ 		}
+ 	}
+ 	rc = pargrp_iomap_pages_mark(map, M0_PUT_SPARE);
+-end:
+ 	M0_RETURN(rc);
+ 
+ par_fail:
+@@ -2396,7 +2379,7 @@ static int io_spare_map(const struct pargrp_iomap *map,
+ 	struct m0t1fs_sb	   *msb;
+ 	int			    rc;
+ 
+-	play	      = pdlayout_get(map->pi_ioreq);
++	play = pdlayout_get(map->pi_ioreq);
+ 	play_instance = pdlayout_instance(layout_instance(map->pi_ioreq));
+ 	gfid = file_to_fid(map->pi_ioreq->ir_file);
+ 	msb = file_to_sb(map->pi_ioreq->ir_file);
+@@ -2413,18 +2396,13 @@ static int io_spare_map(const struct pargrp_iomap *map,
+ 	/* Check if there is an effective failure of unit. */
+ 	spare.sa_group = src->sa_group;
+ 	spare.sa_unit = *spare_slot_prev;
+-	rc = state_of_unit(&spare, map->pi_ioreq, eff_state);
+-	if (rc != 0) {
+-		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
+-				  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
+-				  rc, &m0t1fs_addb_ctx);
+-		M0_RETURN(rc);
+-	}
+-	return 0;
++	rc = unit_state(&spare, map->pi_ioreq, eff_state);
++	return rc;
+ }
+ 
+-int state_of_unit(const struct m0_pdclust_src_addr *src,
+-		  const struct io_request *req, enum m0_pool_nd_state *state)
++static int unit_state(const struct m0_pdclust_src_addr *src,
++		      const struct io_request *req,
++		      enum m0_pool_nd_state *state)
+ {
+ 	struct m0_pdclust_layout   *play;
+ 	struct m0_pdclust_instance *play_instance;
+@@ -2434,7 +2412,7 @@ int state_of_unit(const struct m0_pdclust_src_addr *src,
+ 	struct m0t1fs_sb	   *msb;
+ 
+ 	msb = file_to_sb(req->ir_file);
+-	play   = pdlayout_get(req);
++	play = pdlayout_get(req);
+ 	play_instance = pdlayout_instance(layout_instance(req));
+ 	m0_pdclust_instance_map(play_instance, src, &tgt);
+ 	tfid = target_fid(req, &tgt);
+@@ -2442,11 +2420,11 @@ int state_of_unit(const struct m0_pdclust_src_addr *src,
+ 				      state);
+ 	if (rc != 0) {
+ 		M0_ADDB_FUNC_FAIL(&m0_addb_gmc,
+-				M0T1FS_ADDB_LOC_TIOREQ_MAP_QDEVST,
+-				rc, &m0t1fs_addb_ctx);
++				  M0T1FS_ADDB_LOC_TIOREQ_MAP_QSPSLOT,
++				  rc, &m0t1fs_addb_ctx);
+ 		M0_RETURN(rc);
+ 	}
+-	return 0;
++	return rc;
+ }
+ 
+ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
+@@ -2473,7 +2451,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
+ 	M0_PRE_EX(pargrp_iomap_invariant(map));
+ 
+ 	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
+-	play  = pdlayout_get(map->pi_ioreq);
++	play = pdlayout_get(map->pi_ioreq);
+ 
+ 	/*
+ 	 * Data matrix from parity group.
+@@ -2512,10 +2490,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
+ 						rc = -ENOMEM;
+ 						break;
+ 					}
+-					rc = page_update(map, row, col,
+-							 PA_DATA);
+-					if (rc != 0)
+-						break;
++					page_update(map, row, col, PA_DATA);
+ 				}
+ 				if (map->pi_state == PI_HEALTHY)
+ 					continue;
+@@ -2573,9 +2548,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
+ 				}
+ 			}
+ 			dbuf = map->pi_paritybufs[row][col];
+-			rc = page_update(map, row, col, PA_PARITY);
+-			if (rc != 0)
+-				break;
++			page_update(map, row, col, PA_PARITY);
+ 			/* Skips the page if it is marked as PA_READ_FAILED. */
+ 			if (dbuf->db_flags & PA_READ_FAILED)
+ 				continue;
+@@ -2602,7 +2575,6 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
+ 	struct m0_buf            *parity;
+ 	struct m0_buf             failed;
+ 	struct m0_pdclust_layout *play;
+-	uint32_t		  failed_nr = 0;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE_EX(pargrp_iomap_invariant(map));
+@@ -2674,12 +2646,8 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
+ 				(map->pi_paritybufs[row][col]->db_flags &
+ 				 PA_READ_FAILED) ? 1 : 0;
+ 		}
+-		for (col = 0; col < data_col_nr(play) + parity_col_nr(play); ++col)
+-			if (*(fail + col) == 1)
+-				++failed_nr;
+ 		m0_parity_math_recover(parity_math(map->pi_ioreq), data,
+ 				       parity, &failed);
+-		failed_nr = 0;
+ 	}
+ 
+ 	m0_free(data);
+@@ -3459,9 +3427,8 @@ static int ioreq_iosm_handle(struct io_request *req)
+ 			 * in healthy state.
+ 			 */
+ 			rc = req->ir_ops->iro_dgmode_write(req, rmw);
+-			if (rc != 0) {
++			if (rc != 0)
+ 				goto fail_locked;
+-			}
+ 		}
+ 	} else {
+ 		uint32_t    seg;
+@@ -3550,9 +3517,8 @@ static int ioreq_iosm_handle(struct io_request *req)
+ 
+ 		/* Returns immediately if all devices are in healthy state. */
+ 		rc = req->ir_ops->iro_dgmode_write(req, rmw);
+-		if (rc != 0) {
++		if (rc != 0)
+ 			goto fail_locked;
+-		}
+ 	}
+ 
+ 	/*
+@@ -3587,6 +3553,21 @@ fail:
+ 	M0_RETERR(rc, "ioreq_iosm_handle failed");
+ }
+ 
++static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
++{
++	struct io_request   *req;
++	struct target_ioreq *ti;
++
++	M0_PRE(xfer != NULL);
++	M0_PRE(xfer->nxr_state == NXS_COMPLETE);
++
++	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
++
++	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
++		ti->ti_state = M0_PNDS_ONLINE;
++	} m0_htable_endfor;
++}
++
+ static int io_request_init(struct io_request  *req,
+ 			   struct file	      *file,
+ 			   const struct iovec *iov,
+@@ -4024,9 +4005,8 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
+ 	}
+ 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+ 	if (ti->ti_dgvec == NULL && M0_IN(ioreq_sm_state(req),
+-	    (IRS_DEGRADED_READING, IRS_DEGRADED_WRITING))) {
++	    (IRS_DEGRADED_READING, IRS_DEGRADED_WRITING)))
+ 		rc = dgmode_rwvec_alloc_init(ti);
+-	}
+ 
+ 	*out = ti;
+ 	M0_RETURN(rc);
+@@ -4870,21 +4850,6 @@ out:
+ 	M0_RETURN(rc);
+ }
+ 
+-static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
+-{
+-	struct io_request   *req;
+-	struct target_ioreq *ti;
+-
+-	M0_PRE(xfer != NULL);
+-	M0_PRE(xfer->nxr_state == NXS_COMPLETE);
+-
+-	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+-
+-	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
+-		ti->ti_state = M0_PNDS_ONLINE;
+-	} m0_htable_endfor;
+-}
+-
+ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
+ {
+ 	struct io_request   *req;
+diff --git a/sns/parity_repair.h b/sns/parity_repair.h
+index 5a0db1d..486b4d4 100644
+--- a/sns/parity_repair.h
++++ b/sns/parity_repair.h
+@@ -35,7 +35,7 @@
+  * @param unit_number Unit number in the parity group.
+  * @param spare_slot_out the output spare slot.
+  * @param spare_slot_out_prev the previous spare slot (in case of cascaded
+- *        failures. Contains unit number in case of single failure.
++ *        failures) Contains unit number in case of single failure.
+  */
+ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
+ 					const struct m0_fid *fid,
+-- 
+1.8.3.2
+

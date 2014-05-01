@@ -1,0 +1,25 @@
+From 386f35d45786e9a5dd6c41866a246b23921724b3 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Tue, 26 Feb 2013 22:04:32 -0800
+Subject: [PATCH 58/94] Minor change in kv_store insert
+
+---
+ be/kv_store.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/be/kv_store.c b/be/kv_store.c
+index dcbe5cc..08858be 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -396,7 +396,7 @@ M0_INTERNAL int32_t m0_be_ks_insert(struct m0_be_kv_store   *handle,
+ 
+         /* Check for duplicate insertion */
+         m0_tlist_for(ks_list_descr, ks_tlist, scan) {
+-                if (handle->ks_handle_heap.ksh_key_match(new, scan) == 0) {
++                if (handle->ks_handle_heap.ksh_key_cmp(new, scan) == 0) {
+                         ret_val = BE_KV_DUPLICATE;
+                         M0_LOG(M0_ERROR, "kv_insert: duplicate insertion!");
+                         goto exit_insert;
+-- 
+1.8.3.2
+

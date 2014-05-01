@@ -1,0 +1,274 @@
+From 56c4ebca193f1f3434405378019c5265fd73ee29 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Wed, 21 Aug 2013 15:08:20 +0300
+Subject: [PATCH 04/34] db: added a part of cursor functions.
+
+---
+ db/db.c | 182 ++++++++++++++++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 156 insertions(+), 26 deletions(-)
+
+diff --git a/db/db.c b/db/db.c
+index e6e924d..caabc92 100644
+--- a/db/db.c
++++ b/db/db.c
+@@ -45,6 +45,7 @@
+ #include "db/db_common.h"
+ 
+ #include "be/domain.h"	/* m0_be_domain */
++#include "be/btree.h"
+ #include "ut/ast_thread.c"/* XXX: m0_ut_ast_thread_start */
+ 
+ #include "stob/linux.h"		/* m0_linux_stob_domain_locate */
+@@ -195,6 +196,10 @@ M0_INTERNAL void m0_table_fini(struct m0_table *table)
+ 
+ M0_INTERNAL void m0_db_buf_impl_init(struct m0_db_buf *buf)
+ {
++	struct m0_buf *dbt = &buf->db_i.db_dbt;
++
++        dbt->b_addr = buf->db_buf.b_addr;
++        dbt->b_nob  = buf->db_buf.b_nob;
+ }
+ 
+ M0_INTERNAL void m0_db_buf_impl_fini(struct m0_db_buf *buf)
+@@ -203,18 +208,42 @@ M0_INTERNAL void m0_db_buf_impl_fini(struct m0_db_buf *buf)
+ 
+ M0_INTERNAL bool m0_db_buf_impl_invariant(const struct m0_db_buf *buf)
+ {
+-	return false;
++	const struct m0_buf *dbt = &buf->db_i.db_dbt;
++
++	return dbt->b_addr == buf->db_buf.b_addr &&
++		dbt->b_nob == buf->db_buf.b_nob;
+ }
+ 
+-M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx, struct m0_dbenv *env,
++M0_INTERNAL int m0_db_tx_init(struct m0_db_tx *tx_, struct m0_dbenv *env,
+ 			      uint64_t flags)
+ {
+-	return -1;
++	int                    rc;
++	struct m0_be_tx       *tx;
++	struct m0_be_tx_credit enough = M0_BE_TX_CREDIT_INIT(1 << 20, 1 << 25);
++
++	M0_ALLOC_PTR(tx_->dt_i.dt_txn);
++	if (tx_->dt_i.dt_txn == NULL)
++		return -ENOMEM;
++	tx = tx_->dt_i.dt_txn;
++
++        m0_be_tx_init(tx, 0, env->d_i.d_dom, env->d_i.d_sm_group, NULL, NULL,
++                      NULL, NULL);
++        m0_be_tx_prep(tx, &enough);
++	rc = m0_be_tx_open_sync(tx);
++	if (rc != 0)
++		m0_free(tx);
++
++	return rc;
+ }
+ 
+-M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx)
++M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx_)
+ {
+-	return -1;
++	int rc;
++	struct m0_be_tx *tx = tx_->dt_i.dt_txn;
++        rc = m0_be_tx_close_sync(tx);
++        m0_be_tx_fini(tx);
++	m0_free(tx);
++	return rc;
+ }
+ 
+ M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)
+@@ -229,68 +258,169 @@ M0_INTERNAL void m0_db_tx_waiter_add(struct m0_db_tx *tx,
+ 	M0_IMPOSSIBLE("");
+ }
+ 
+-M0_INTERNAL int m0_table_update(struct m0_db_tx *tx, struct m0_db_pair *pair)
++/* --------------------------------------------------------------------------
++ * Table operations
++ * ------------------------------------------------------------------------ */
++
++M0_INTERNAL int m0_table_update(struct m0_db_tx *tx_, struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_btree *tree = pair->dp_table->t_i.i_tree;
++	struct m0_buf      *key  = &pair->dp_key.db_i.db_dbt;
++	struct m0_buf      *val  = &pair->dp_rec.db_i.db_dbt;
++	struct m0_be_tx    *tx   = tx_->dt_i.dt_txn;
++
++	M0_BE_OP_SYNC(op, m0_be_btree_update(tree, tx, &op, key, val));
++	return 0;
+ }
+ 
+-M0_INTERNAL int m0_table_insert(struct m0_db_tx *tx, struct m0_db_pair *pair)
+-{	return -1;
++M0_INTERNAL int m0_table_insert(struct m0_db_tx *tx_, struct m0_db_pair *pair)
++{
++	struct m0_be_btree *tree = pair->dp_table->t_i.i_tree;
++	struct m0_buf      *key  = &pair->dp_key.db_i.db_dbt;
++	struct m0_buf      *val  = &pair->dp_rec.db_i.db_dbt;
++	struct m0_be_tx    *tx   = tx_->dt_i.dt_txn;
++
++	M0_BE_OP_SYNC(op, m0_be_btree_insert(tree, tx, &op, key, val));
++	return 0;
+ }
+ 
+ M0_INTERNAL int m0_table_lookup(struct m0_db_tx *tx, struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_btree *tree = pair->dp_table->t_i.i_tree;
++	struct m0_buf      *key  = &pair->dp_key.db_i.db_dbt;
++	struct m0_buf      *val  = &pair->dp_rec.db_i.db_dbt;
++
++	return M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, key, val),
++				 bo_u.u_btree.t_rc);
++
+ }
+ 
+-M0_INTERNAL int m0_table_delete(struct m0_db_tx *tx, struct m0_db_pair *pair)
++M0_INTERNAL int m0_table_delete(struct m0_db_tx *tx_, struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_tx    *tx   = tx_->dt_i.dt_txn;
++	struct m0_be_btree *tree = pair->dp_table->t_i.i_tree;
++	struct m0_buf      *key  = &pair->dp_key.db_i.db_dbt;
++
++	return M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, tx, &op, key),
++				 bo_u.u_btree.t_rc);
+ }
+ 
+-M0_INTERNAL int m0_db_cursor_init(struct m0_db_cursor *cursor,
++/* --------------------------------------------------------------------------
++ * Cursors
++ * ------------------------------------------------------------------------ */
++
++M0_INTERNAL int m0_db_cursor_init(struct m0_db_cursor *cursor_,
+ 				  struct m0_table *table, struct m0_db_tx *tx,
+ 				  uint32_t flags)
+ {
+-	return -1;
++	struct m0_be_btree_cursor *cursor;
++
++	M0_ALLOC_PTR(cursor_->c_i.c_i);
++	cursor = cursor_->c_i.c_i;
++	if (cursor == NULL)
++		return -ENOMEM;
++
++	cursor_->c_flags = flags;
++	cursor_->c_table = table;
++	m0_be_btree_cursor_init(cursor, table->t_i.i_tree);
++	return 0;
+ }
+ 
+-M0_INTERNAL void m0_db_cursor_fini(struct m0_db_cursor *cursor)
++M0_INTERNAL void m0_db_cursor_fini(struct m0_db_cursor *cursor_)
+ {
++	struct m0_be_btree_cursor *cursor = cursor_->c_i.c_i;
+ 
++	m0_be_btree_cursor_fini(cursor);
++	m0_free(cursor);
+ }
+ 
+-M0_INTERNAL int m0_db_cursor_get(struct m0_db_cursor *cursor,
++M0_INTERNAL int m0_db_cursor_get(struct m0_db_cursor *cursor_,
+ 				 struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_btree_cursor *cursor = cursor_->c_i.c_i;
++	int rc;
++
++        rc = m0_be_btree_cursor_get_sync(cursor, &pair->dp_key.db_i.db_dbt,
++					 false); /* XXX: can be either true */
++
++	m0_be_btree_cursor_kv_get(cursor, &pair->dp_key.db_i.db_dbt,
++				  &pair->dp_rec.db_i.db_dbt);
++	return rc;
+ }
+ 
+-M0_INTERNAL int m0_db_cursor_next(struct m0_db_cursor *cursor,
++M0_INTERNAL int m0_db_cursor_next(struct m0_db_cursor *cursor_,
+ 				  struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_btree_cursor *cursor = cursor_->c_i.c_i;
++	int rc;
++
++	m0_be_op_init(&cursor->bc_op);
++	m0_be_btree_cursor_next(cursor);
++	rc = m0_be_op_wait(&cursor->bc_op);
++	M0_ASSERT(rc == 0);
++
++	m0_be_btree_cursor_kv_get(cursor, &pair->dp_key.db_i.db_dbt,
++				  &pair->dp_rec.db_i.db_dbt);
++
++	return cursor->bc_op.bo_u.u_btree.t_rc;
+ }
+ 
+-M0_INTERNAL int m0_db_cursor_prev(struct m0_db_cursor *cursor,
++M0_INTERNAL int m0_db_cursor_prev(struct m0_db_cursor *cursor_,
+ 				  struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_btree_cursor *cursor = cursor_->c_i.c_i;
++	int rc;
++
++	m0_be_op_init(&cursor->bc_op);
++	m0_be_btree_cursor_prev(cursor);
++	rc = m0_be_op_wait(&cursor->bc_op);
++	M0_ASSERT(rc == 0);
++
++	m0_be_btree_cursor_kv_get(cursor, &pair->dp_key.db_i.db_dbt,
++				  &pair->dp_rec.db_i.db_dbt);
++
++	return cursor->bc_op.bo_u.u_btree.t_rc;
+ }
+ 
+-M0_INTERNAL int m0_db_cursor_first(struct m0_db_cursor *cursor,
++M0_INTERNAL int m0_db_cursor_first(struct m0_db_cursor *cursor_,
+ 				   struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_btree_cursor *cursor = cursor_->c_i.c_i;
++	int rc;
++
++	m0_be_op_init(&cursor->bc_op);
++	rc = m0_be_op_wait(&cursor->bc_op);
++	M0_ASSERT(rc == 0);
++	m0_be_btree_minkey(pair->dp_table->t_i.i_tree,
++			   &cursor->bc_op, &pair->dp_key.db_i.db_dbt);
++	m0_be_op_fini(&cursor->bc_op);
++
++	m0_be_btree_cursor_kv_get(cursor, &pair->dp_key.db_i.db_dbt,
++				  &pair->dp_rec.db_i.db_dbt);
++
++	return 0;
+ }
+ 
+-M0_INTERNAL int m0_db_cursor_last(struct m0_db_cursor *cursor,
++M0_INTERNAL int m0_db_cursor_last(struct m0_db_cursor *cursor_,
+ 				  struct m0_db_pair *pair)
+ {
+-	return -1;
++	struct m0_be_btree_cursor *cursor = cursor_->c_i.c_i;
++	int rc;
++
++	m0_be_op_init(&cursor->bc_op);
++	rc = m0_be_op_wait(&cursor->bc_op);
++	M0_ASSERT(rc == 0);
++	m0_be_btree_maxkey(pair->dp_table->t_i.i_tree,
++			   &cursor->bc_op, &pair->dp_key.db_i.db_dbt);
++	m0_be_op_fini(&cursor->bc_op);
++
++	m0_be_btree_cursor_kv_get(cursor, &pair->dp_key.db_i.db_dbt,
++				  &pair->dp_rec.db_i.db_dbt);
++
++	return 0;
+ }
+ 
+-M0_INTERNAL int m0_db_cursor_set(struct m0_db_cursor *cursor,
++M0_INTERNAL int m0_db_cursor_set(struct m0_db_cursor *cursor_,
+ 				 struct m0_db_pair *pair)
+ {
+ 	return -1;
+-- 
+1.8.3.2
+

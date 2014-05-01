@@ -1,0 +1,75 @@
+From 4b3c3caf4f2f8f8b2b6de466dfbd3eee036c3bca Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Mon, 3 Dec 2012 02:19:32 -0800
+Subject: [PATCH 2/2] - Fixed a memory leak in file_aio_write() and
+ file_aio_read(), reported by   Huang Hua. - Added more test cases to c2t1fs
+ st to test big size IO.
+
+---
+ c2t1fs/linux_kernel/file.c                  |  3 +++
+ c2t1fs/linux_kernel/st/c2t1fs_client_inc.sh | 19 ++++++++++++++++++-
+ 2 files changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/c2t1fs/linux_kernel/file.c b/c2t1fs/linux_kernel/file.c
+index 353767f..a361574 100644
+--- a/c2t1fs/linux_kernel/file.c
++++ b/c2t1fs/linux_kernel/file.c
+@@ -2922,6 +2922,7 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
+ 	/* Updates file position. */
+ 	kcb->ki_pos = pos + count;
+ 
++	c2_indexvec_free(ivec);
+ 	c2_free(ivec);
+ 	C2_LEAVE();
+ 	return count;
+@@ -2984,6 +2985,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
+ 	}
+ 
+ 	if (c2_vec_count(&ivec->iv_vec) == 0) {
++		c2_indexvec_free(ivec);
+ 		c2_free(ivec);
+ 		return 0;
+ 	}
+@@ -2994,6 +2996,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
+ 	/* Updates file position. */
+ 	kcb->ki_pos = pos + count;
+ 
++	c2_indexvec_free(ivec);
+ 	c2_free(ivec);
+ 	C2_LEAVE();
+ 	return count;
+diff --git a/c2t1fs/linux_kernel/st/c2t1fs_client_inc.sh b/c2t1fs/linux_kernel/st/c2t1fs_client_inc.sh
+index 407b8d4..6599af3 100644
+--- a/c2t1fs/linux_kernel/st/c2t1fs_client_inc.sh
++++ b/c2t1fs/linux_kernel/st/c2t1fs_client_inc.sh
+@@ -378,9 +378,26 @@ rmw_test()
+ 			io_size=1M
+ 			echo -n "IORMW Large Count Test: I/O for stride ="\
+ 			     "${stride_size}K, bs = $io_size, count = $i... "
+-			bulkio_test $stride_size $i &>> $COLIBRI_TEST_LOGFILE ||				return 1
++			bulkio_test $stride_size $i &>> \
++				$COLIBRI_TEST_LOGFILE || return 1
+ 			show_write_speed
+ 		done
++
++		for ((stride_size=4; stride_size<=$max_stride_size; stride_size*=2))
++		do
++			# I/O With large Block
++			for i in 16M 32M 64M 100M
++			do
++				io_size=$i
++				echo -n "IORMW Large Block Test: I/O for stride ="\
++				"${stride_size}K, bs = $io_size, count = 1... "
++				bulkio_test $stride_size 1 &>> \
++				$COLIBRI_TEST_LOGFILE || return 1
++				show_write_speed
++			done
++
++		done
++
+ 	done
+ 
+ 	echo "Test: IORMW: Success." | tee $COLIBRI_TEST_LOGFILE
+-- 
+1.8.3.2
+

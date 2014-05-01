@@ -1,0 +1,24 @@
+From 41a70a62bfba5de9ade124d2a9c3cc4c527d65d6 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 21 Mar 2012 18:13:16 +0200
+Subject: [PATCH 3/9] c2_fom_type_ops_default isn't C2_EXPORTED
+
+---
+ fop/fop_format.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/fop/fop_format.c b/fop/fop_format.c
+index 7940024..dfc42ed 100644
+--- a/fop/fop_format.c
++++ b/fop/fop_format.c
+@@ -43,7 +43,6 @@ static bool decoration_used = false;
+ const struct c2_fom_type_ops c2_fom_type_ops_default = {
+ 	.fto_create = c2_fom_create_dummy
+ };
+-C2_EXPORTED(c2_fom_type_ops_default);
+ 
+ static int c2_fom_create_dummy(struct c2_fop *fop, struct c2_fom **fom)
+ {
+-- 
+1.8.3.2
+

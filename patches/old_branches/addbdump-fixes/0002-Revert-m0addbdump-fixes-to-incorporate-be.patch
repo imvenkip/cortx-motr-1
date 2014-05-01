@@ -1,0 +1,228 @@
+From 05a8f2b3938cad820d90a7055b654715198e2ff0 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Thu, 5 Dec 2013 10:43:54 +0530
+Subject: [PATCH 2/5] Revert "m0addbdump fixes to incorporate be"
+
+This reverts commit a3989c7f5af1b3fb2d0d4ce6976f688c5d3fd222.
+---
+ Makefile.am          | 20 +++++++++---------
+ addb/dump/addbdump.c | 59 ++++++++++++++++++++++++++++++++++++----------------
+ 2 files changed, 51 insertions(+), 28 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index b5a0ade..c0a708d 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -620,16 +620,16 @@ bin_PROGRAMS             += pool/m0poolmach
+ pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
+ pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
+ 
+-#
+-# addb/dump
+-#
+-
+-sbin_PROGRAMS                 += addb/dump/m0addbdump
+-addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
+-addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
+-
+-include $(top_srcdir)/addb/dump/Makefile.sub
+-
++#XXX_BE_DB #
++#XXX_BE_DB # addb/dump
++#XXX_BE_DB #
++#XXX_BE_DB
++#XXX_BE_DB sbin_PROGRAMS                 += addb/dump/m0addbdump
++#XXX_BE_DB addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
++#XXX_BE_DB addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
++#XXX_BE_DB
++#XXX_BE_DB include $(top_srcdir)/addb/dump/Makefile.sub
++#XXX_BE_DB
+ #XXX_BE_DB #
+ #XXX_BE_DB # mgmt/ctl/m0ctl
+ #XXX_BE_DB # (This is unrelated to utils/linux_kernel/ctl.c).
+diff --git a/addb/dump/addbdump.c b/addb/dump/addbdump.c
+index 276e1a4..4552c6e 100644
+--- a/addb/dump/addbdump.c
++++ b/addb/dump/addbdump.c
+@@ -92,7 +92,7 @@ struct addb_dump_ctl {
+ 	/* a string to display with error message */
+ 	const char                  *adc_errstr;
+ 	int                          adc_stype_nr;
+-	struct m0_be_seg             adc_be_seg;
++	struct m0_dbenv              adc_db;
+ 	struct dump_stob             adc_stob;
+ 	struct m0_addb_segment_iter *adc_iter;
+ 	FILE                        *adc_out;
+@@ -121,6 +121,7 @@ static int dump_linux_stob_init(struct addb_dump_ctl *ctl)
+ }
+ 
+ static int dump_stob_locate(struct m0_stob_domain *dom,
++			    struct m0_dtx *dtx,
+ 			    const struct m0_stob_id *stob_id,
+ 			    struct m0_stob **out)
+ {
+@@ -136,7 +137,7 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
+ 		 * point.
+ 		 */
+ 		if (stob->so_state == CSS_UNKNOWN)
+-			rc = m0_stob_locate(stob);
++			rc = m0_stob_locate(stob, dtx);
+ 		/* do not attempt to create, this is a dump utility! */
+ 		if (rc != 0) {
+ 			m0_stob_put(stob);
+@@ -149,7 +150,7 @@ static int dump_stob_locate(struct m0_stob_domain *dom,
+ }
+ 
+ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
+-			     struct m0_be_seg *be_seg)
++			     struct m0_dtx *tx, struct m0_dbenv *db)
+ {
+ 
+ 	char                 ad_dname[MAXPATHLEN];
+@@ -159,21 +160,22 @@ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
+ 	struct m0_balloc    *cb;
+ 	int                  rc;
+ 
+-        M0_PRE(stob != NULL && be_seg != NULL);
++        M0_PRE(stob != NULL && db != NULL);
+ 	M0_ALLOC_PTR(adstob);
+ 	if (adstob == NULL)
+ 		return -ENOMEM;
+ 
++	m0_dtx_open(tx, db);
+ 	bstob = &adstob->as_stob_back;
+ 	bstob_id = &adstob->as_id_back;
+ 	bstob_id->si_bits.u_hi = cid;
+ 	bstob_id->si_bits.u_lo = M0_AD_STOB_ID_LO;
+-	rc = dump_stob_locate(stob->s_ldom, bstob_id, bstob);
++	rc = dump_stob_locate(stob->s_ldom, tx, bstob_id, bstob);
+ 	if (rc == 0) {
+ 		sprintf(ad_dname, "%lx%lx",
+ 			bstob_id->si_bits.u_hi, bstob_id->si_bits.u_lo);
+-		rc = m0_ad_stob_domain_locate(ad_dname, be_seg, NULL,
+-					      &adstob->as_dom, *bstob);
++		rc = m0_ad_stob_domain_locate(ad_dname, &adstob->as_dom,
++					      *bstob);
+ 	}
+ 	if (rc != 0) {
+ 		if (*bstob != NULL) {
+@@ -184,8 +186,8 @@ static int dump_ad_stob_init(struct dump_stob *stob, uint64_t cid,
+ 	} else {
+ 		M0_ASSERT(stob->s_adom == NULL);
+ 		stob->s_adom = adstob;
+-		rc = m0_balloc_create(cid, be_seg, NULL, &cb) ?:
+-		    m0_ad_stob_setup(adstob->as_dom, be_seg, NULL,
++		rc = m0_balloc_allocate(cid, &cb) ?:
++		    m0_ad_stob_setup(adstob->as_dom, db,
+ 				     *bstob, &cb->cb_ballroom,
+ 				     BALLOC_DEF_CONTAINER_SIZE,
+ 				     BALLOC_DEF_BLOCK_SHIFT,
+@@ -199,7 +201,7 @@ static void dump_linux_stob_fini(struct dump_stob *stob)
+ {
+ 	M0_PRE(stob != NULL);
+ 	if (stob->s_ldom != NULL)
+-                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom, NULL);
++                stob->s_ldom->sd_ops->sdo_fini(stob->s_ldom);
+ }
+ 
+ static void dump_ad_stob_fini(struct dump_stob *stob)
+@@ -216,7 +218,7 @@ static void dump_ad_stob_fini(struct dump_stob *stob)
+ 		adom = adstob->as_dom;
+ 		if (bstob != NULL)
+ 			m0_stob_put(bstob);
+-		adom->sd_ops->sdo_fini(adom, NULL);
++		adom->sd_ops->sdo_fini(adom);
+ 		stob->s_adom = NULL;
+ 		m0_free(adstob);
+ 	}
+@@ -238,13 +240,22 @@ static void cleanup(struct addb_dump_ctl *ctl)
+ 	if (ctl->adc_iter != NULL)
+ 		m0_addb_segment_iter_free(ctl->adc_iter);
+ 	dump_storage_fini(&ctl->adc_stob);
++	if (ctl->adc_dbpath != NULL)
++		m0_dbenv_fini(&ctl->adc_db);
+ }
+ 
+ static int setup(struct addb_dump_ctl *ctl)
+ {
++	struct m0_dtx tx;
+ 	int           rc;
+ 
+-	if (ctl->adc_infile != NULL) {
++	if (ctl->adc_dbpath != NULL) {
++		rc = m0_dbenv_init(&ctl->adc_db, ctl->adc_dbpath, 0);
++		if (rc != 0) {
++			ctl->adc_errstr = ctl->adc_dbpath;
++			return rc;
++		}
++	} else if (ctl->adc_infile != NULL) {
+ 		rc = m0_addb_file_iter_alloc(&ctl->adc_iter, ctl->adc_infile);
+ 		if (rc != 0)
+ 			ctl->adc_errstr = ctl->adc_infile;
+@@ -252,22 +263,24 @@ static int setup(struct addb_dump_ctl *ctl)
+ 	}
+ 
+ 	ctl->adc_stob.s_stype_nr = ctl->adc_stype_nr;
++	m0_dtx_init(&tx);
+ 	rc = dump_linux_stob_init(ctl);
+ 	if (rc == 0 && ctl->adc_stype_nr == M0_AD_STOB)
+ 		rc = dump_ad_stob_init(&ctl->adc_stob, M0_ADDB_STOB_ID_HI,
+-				       &ctl->adc_be_seg);
++				       &tx, &ctl->adc_db);
+ 
+ 	if (rc == 0) {
+ 		rc = dump_stob_locate(ctl->adc_stype_nr == M0_LINUX_STOB ?
+ 				      ctl->adc_stob.s_ldom :
+ 				      ctl->adc_stob.s_adom->as_dom,
+-				      &m0_addb_stob_id,
++				      &tx, &m0_addb_stob_id,
+ 				      &ctl->adc_stob.s_stob);
+ 	}
+-	if (rc != 0) {
++	m0_dtx_done(&tx);
++	if (rc != 0 && ctl->adc_dbpath != NULL)
+ 		dump_storage_fini(&ctl->adc_stob);
++	if (rc != 0)
+ 		ctl->adc_errstr = ctl->adc_stpath;
+-	}
+ 	else
+ 		rc = m0_addb_stob_iter_alloc(&ctl->adc_iter,
+ 					     ctl->adc_stob.s_stob);
+@@ -861,6 +874,14 @@ int main(int argc, char *argv[])
+ 					else
+ 						ctl.adc_stpath = str;
+ 				})),
++			M0_STRINGARG('D', "Database environment path",
++				LAMBDA(void, (const char *str)
++				{
++					if (ctl.adc_dbpath != NULL)
++						rc = -EINVAL;
++					else
++						ctl.adc_dbpath = str;
++				})),
+ 			M0_FLAGARG('b', "Dump binary data", &dump_binary),
+ 			M0_FLAGARG('c', "Dump context records", &dump_ctx),
+ 			M0_FLAGARG('e', "Dump event records", &dump_event),
+@@ -901,7 +922,7 @@ int main(int argc, char *argv[])
+ 			goto done;
+ 		} else if (ctl.adc_infile != NULL) {
+ 			if (stype != NULL || dump_binary ||
+-			    ctl.adc_stpath != NULL) {
++			    ctl.adc_stpath != NULL || ctl.adc_dbpath != NULL) {
+ 				rc = EINVAL;
+ 				addbdump_help(stderr);
+ 				goto done;
+@@ -909,7 +930,9 @@ int main(int argc, char *argv[])
+ 		} else {
+ 			ctl.adc_stype_nr = stype_parse(stype);
+ 			if (ctl.adc_stype_nr == M0_STOB_TYPE_NR ||
+-			    ctl.adc_stpath == NULL) {
++			    ctl.adc_stpath == NULL ||
++			    (ctl.adc_dbpath == NULL &&
++			     ctl.adc_stype_nr == M0_AD_STOB)) {
+ 				rc = EINVAL;
+ 				addbdump_help(stderr);
+ 				goto done;
+-- 
+1.8.3.2
+

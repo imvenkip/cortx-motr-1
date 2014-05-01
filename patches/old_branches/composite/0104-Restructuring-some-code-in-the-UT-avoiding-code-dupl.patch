@@ -1,0 +1,887 @@
+From 581e15a4e3dc78a3c24cadcf425448aebe91ea33 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Sat, 30 Mar 2013 00:59:57 +0530
+Subject: [PATCH 104/172] Restructuring some code in the UT avoiding code
+ duplication.
+
+---
+ layout/ut/composite.c | 637 ++++++++++++++++++++++++++++++++------------------
+ layout/ut/composite.h |  32 +--
+ layout/ut/layout.c    |  12 +-
+ 3 files changed, 428 insertions(+), 253 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 0886957..c10c0e2 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1,4 +1,3 @@
+-/* -*- C -*- */
+ /*
+  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+  *
+@@ -1492,7 +1491,7 @@ static void extent_to_be_operated(const struct m0_composite_layout *cl,
+ 				  bool if_contiguous_extents,
+ 				  uint32_t layer_idx,
+ 				  uint64_t extent_idx,
+-				  uint32_t extent_kind,
++				  enum kind_of_extent extent_kind,
+ 				  struct m0_ext *ext)
+ {
+ 	struct m0_composite_layer        *layer;
+@@ -1587,30 +1586,31 @@ enum extent_operation {
+ 	EXTENT_DELETE
+ };
+ 
+-static int ext_operate(enum extent_operation eop,
+-		       uint64_t lid,
+-		       struct m0_layout_domain *domain,
+-		       uint32_t layers_nr,
+-		       uint32_t min_extents_nr,
+-		       bool if_contiguous_extents,
+-		       uint32_t extent_kind,
+-		       uint64_t ext_state,
+-		       bool failure_test)
++/**
++ * Prepares for extent operation by creating a layout and by figuring out the
++ * the extent and the offset to operate upon.
++ */
++static int ext_op_pre(enum extent_operation eop,
++		      uint64_t lid,
++		      struct m0_layout_domain *domain,
++		      uint32_t layers_nr,
++		      uint32_t min_extents_nr,
++		      bool if_contiguous_extents,
++		      enum kind_of_extent extent_kind,
++		      uint64_t ext_state,
++		      bool failure_test,
++		      struct m0_composite_layout **cl,
++		      struct m0_ext *ext_to_operate,
++		      m0_bindex_t *offset_to_operate,
++		      uint64_t *ext_state_lookup,
++		      struct m0_layout **l_copy_orig)
+ {
+ 	bool                        is_add_to_db;
+-	struct m0_layout           *l;
+-	struct m0_layout           *l_copy_orig;
+-	struct m0_layout           *l_copy_updated;
+-	struct m0_composite_layout *cl;
+-	struct m0_ext               ext_to_operate;
+-	m0_bindex_t                 offset_to_operate;
+ 	struct m0_db_tx            *txptr;
+ 	uint32_t                    layer_id_lookup;
+ 	struct m0_ext               ext_lookup;
+-	uint64_t                    ext_state_lookup;
+ 	struct m0_layout           *sublayout_lookup;
+ 	struct m0_db_tx             tx;
+-	struct m0_layout           *l_from_DB;
+ 	int                         rc_tmp;
+ 	int                         rc;
+ 
+@@ -1622,23 +1622,21 @@ static int ext_operate(enum extent_operation eop,
+ 					    layers_nr, min_extents_nr,
+ 					    if_contiguous_extents,
+ 					    is_add_to_db, !FAILURE_TEST,
+-					    !LAYER_ADD_FAILURE_TEST, &cl);
++					    !LAYER_ADD_FAILURE_TEST, cl);
+ 	M0_UT_ASSERT(rc == 0);
+-	l = m0_cl_to_layout(cl);
+-	composite_layout_copy(l, &l_copy_orig);
+ 
+ 	/* Define an extent to be operated. */
+-	extent_to_be_operated(cl, if_contiguous_extents, 1, 1,
+-			      extent_kind, &ext_to_operate);
++	extent_to_be_operated(*cl, if_contiguous_extents, 1, 1,
++			      extent_kind, ext_to_operate);
+ 
+ 	/* Define the offset to be operated. */
+ 	if (M0_IN(extent_kind, (NON_EXISTING, EXACT_EXISTING,
+ 				OVERLAPPING_LEFT, OVERLAPPING_COMPLETE,
+ 				CONTAINED_WITHIN)))
+-		offset_to_operate = ext_to_operate.e_start + 1;
++		*offset_to_operate = ext_to_operate->e_start + 1;
+ 	else {
+ 		M0_UT_ASSERT(extent_kind == OVERLAPPING_RIGHT);
+-		offset_to_operate = ext_to_operate.e_end - 1;
++		*offset_to_operate = ext_to_operate->e_end - 1;
+ 	}
+ 
+ 	if (domain->ld_is_db_available) {
+@@ -1652,153 +1650,70 @@ static int ext_operate(enum extent_operation eop,
+ 		my_console_printf("\nextlist dump before ext LOOKUP "
+ 				  "with ext_kind %u, offset %llu\n",
+ 				  extent_kind,
+-				  (unsigned long long)offset_to_operate);
++				  (unsigned long long)*offset_to_operate);
+ 	else
+ 		my_console_printf("\nextlist dump before ext "
+ 				  "ADD/STATE_UPDATE/DELETE with ext_kind %u,\n"
+ 				  "\text [%llu, %llu), e_state %llu\n",
+ 				  extent_kind,
+-				  (unsigned long long)ext_to_operate.e_start,
+-				  (unsigned long long)ext_to_operate.e_end,
++				  (unsigned long long)ext_to_operate->e_start,
++				  (unsigned long long)ext_to_operate->e_end,
+ 				  (unsigned long long)ext_state);
+-	extlist_dump(cl, cl->cl_layers_nr - 1);
++	extlist_dump(*cl, (*cl)->cl_layers_nr - 1);
+ 
+ 	/* Initial lookup verifying that the result is as expected. */
+-	rc = m0_composite_layer_ext_lookup(cl, offset_to_operate,
+-					   txptr, &ext_lookup,
+-					   &layer_id_lookup,
+-					   &ext_state_lookup,
+-					   &sublayout_lookup);
++	rc = 0;
++	rc_tmp = m0_composite_layer_ext_lookup(*cl, *offset_to_operate,
++					       txptr, &ext_lookup,
++					       &layer_id_lookup,
++					       ext_state_lookup,
++					       &sublayout_lookup);
++	//todo Check if the following cond shud be based on failure_test
+ 	if (extent_kind == NON_EXISTING || (extent_kind == OVERLAPPING_LEFT &&
+-					    !if_contiguous_extents))
+-		M0_UT_ASSERT(rc == -ENOENT);
+-	else {
+-		M0_UT_ASSERT(rc == 0);
+-		M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 1);
+-		M0_UT_ASSERT(ext_state_lookup == M0_CLRES_VALID);
++					    !if_contiguous_extents)) {
++		M0_UT_ASSERT(rc_tmp == -ENOENT);
++		if (eop == EXTENT_LOOKUP)
++			rc = rc_tmp;
++	} else {
++		M0_UT_ASSERT(rc_tmp == 0);
++		M0_UT_ASSERT(layer_id_lookup == (*cl)->cl_layers_nr - 1);
++		M0_UT_ASSERT(*ext_state_lookup == M0_CLRES_VALID);
+ 		M0_UT_ASSERT(sublayout_lookup->l_id ==
+ 			     lid * 100 + layer_id_lookup);
+ 		if (extent_kind == EXACT_EXISTING) {
+-			M0_UT_ASSERT(ext_to_operate.e_start ==
++			M0_UT_ASSERT(ext_to_operate->e_start ==
+ 				     ext_lookup.e_start &&
+-				     ext_to_operate.e_end ==
++				     ext_to_operate->e_end ==
+ 				     ext_lookup.e_end);
+ 		} else {
+-			M0_UT_ASSERT(ext_lookup.e_start <= offset_to_operate);
+-			M0_UT_ASSERT(ext_lookup.e_end > offset_to_operate);
++			M0_UT_ASSERT(ext_lookup.e_start <= *offset_to_operate);
++			M0_UT_ASSERT(ext_lookup.e_end > *offset_to_operate);
+ 		}
+ 	}
+-
+-	/* Operate on the extent, based on the value of op. */
+-	if (eop == EXTENT_LOOKUP) {
+-		/* Nothing else to be done, lookup is performed above. */
+-		my_console_printf("after LOOKUP for offset %llu: "
+-				  "rc %d, state %llu\n",
+-				  (unsigned long long)offset_to_operate, rc,
+-				  (rc == 0) ?
+-				  (unsigned long long)ext_state_lookup : 0);
+-		rc = 0;
+-	} else if (eop == EXTENT_ADD) {
+-		/* Add the extent. */
+-		rc = m0_composite_layer_ext_add(cl, cl->cl_layers_nr - 1,
+-						&ext_to_operate,
+-						ext_state, txptr);
+-		if (failure_test)
+-			M0_UT_ASSERT(rc == -EINVAL);
+-			//todo print rc
+-		else {
+-			M0_UT_ASSERT(rc == 0);
+-			my_console_printf("extlist dump after ext ADD with "
+-					  "ext_kind, %u\n"
+-					  "\text [%llu, %llu), "
+-					  "ext_state %llu\n", extent_kind,
+-					  (unsigned long long)
+-						ext_to_operate.e_start,
+-					  (unsigned long long)
+-						ext_to_operate.e_end,
+-					  (unsigned long long)ext_state);
+-			extlist_dump(cl, cl->cl_layers_nr - 1);
+-
+-			rc = m0_composite_layer_ext_lookup(cl,
+-							   offset_to_operate,
+-							   txptr, &ext_lookup,
+-							   &layer_id_lookup,
+-							   &ext_state_lookup,
+-							   &sublayout_lookup);
+-			M0_UT_ASSERT(rc == 0);
+-			M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 1);
+-			M0_UT_ASSERT(ext_state_lookup == ext_state);
+-			M0_UT_ASSERT(ext_lookup.e_start <= offset_to_operate);
+-			M0_UT_ASSERT(ext_lookup.e_end > offset_to_operate);
+-			M0_UT_ASSERT(ext_state_lookup == ext_state);
+-			M0_UT_ASSERT(sublayout_lookup->l_id == lid * 100 +
+-				     layer_id_lookup);
+-		}
+-	} else if (eop == EXTENT_UPDATE) {
+-		rc = m0_composite_layer_ext_state_update(cl,
+-							 cl->cl_layers_nr - 1,
+-							 &ext_to_operate,
+-							 ext_state, txptr);
+-		if (failure_test)
+-			M0_UT_ASSERT(rc == -EINVAL);
+-			//todo print rc
+-		else {
+-			M0_UT_ASSERT(rc == 0);
+-			my_console_printf("extlist dump after ext UPDATE with "
+-					  "ext_kind %u\n,"
+-					  "\text [%llu, %llu), "
+-					  "ext_state %llu\n", extent_kind,
+-					  (unsigned long long)
+-						ext_to_operate.e_start,
+-					  (unsigned long long)
+-						ext_to_operate.e_end,
+-					  (unsigned long long)ext_state);
+-			extlist_dump(cl, cl->cl_layers_nr - 1);
+-
+-			rc = m0_composite_layer_ext_lookup(cl,
+-							   offset_to_operate,
+-							   txptr, &ext_lookup,
+-							   &layer_id_lookup,
+-							   &ext_state_lookup,
+-							   &sublayout_lookup);
+-			M0_UT_ASSERT(rc == 0);
+-			M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 1);
+-			M0_UT_ASSERT(ext_state_lookup == ext_state);
+-		}
+-	} else if (eop == EXTENT_DELETE) {
+-		/* Delete the extent. */
+-		rc = m0_composite_layer_ext_delete(cl, cl->cl_layers_nr - 1,
+-						   &ext_to_operate, txptr);
+-		M0_UT_ASSERT(rc == 0);
+-		//todo cover err cases and in failure cases, print rc
+-		my_console_printf("extlist dump after ext DELETE with "
+-				  "ext_kind %u\n,"
+-				  "\text [%llu, %llu) \n", extent_kind,
+-				  (unsigned long long)ext_to_operate.e_start,
+-				  (unsigned long long)ext_to_operate.e_end);
+-		extlist_dump(cl, cl->cl_layers_nr - 1);
+-
+-		rc = m0_composite_layer_ext_lookup(cl, offset_to_operate,
+-						   txptr, &ext_lookup,
+-						   &layer_id_lookup,
+-						   &ext_state_lookup,
+-						   &sublayout_lookup);
+-		if (extent_kind == NON_EXISTING ||
+-		    (extent_kind == OVERLAPPING_LEFT && !if_contiguous_extents))
+-			M0_UT_ASSERT(rc == -ENOENT);
+-		else {
+-			M0_UT_ASSERT(rc == 0);
+-			M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 2);
+-		}
+-	}
+-
+-	//todo in failure case, compare the original in-mem layout
+ 	if (domain->ld_is_db_available) {
+ 		rc_tmp = m0_db_tx_commit(&tx);
+ 		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+ 
+-	composite_layout_copy(l, &l_copy_updated);
++	composite_layout_copy(m0_cl_to_layout(*cl), l_copy_orig);
++	return rc;
++}
++
++static void ext_op_post(enum extent_operation eop,
++			uint64_t lid,
++			struct m0_layout_domain *domain,
++			uint32_t layers_nr,
++			enum kind_of_extent extent_kind,
++			struct m0_composite_layout *cl,
++			struct m0_layout *l_copy_orig,
++			bool failure_test)
++{
++	struct m0_layout *l_copy_updated;
++	struct m0_layout *l_from_DB;
++	int               rc;
++
++	lid = cl->cl_base.l_id;
++	composite_layout_copy(&cl->cl_base, &l_copy_updated);
+ 
+ 	/* Verify the extent list in the in-memory layout. */
+ 	if (failure_test)
+@@ -1810,18 +1725,24 @@ static int ext_operate(enum extent_operation eop,
+ 	else if (eop == EXTENT_DELETE && extent_kind == NON_EXISTING)
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+ 	else {
+-		/* The following fails as expected. */
++		/*
++		 * The following fails as expected since there have been some
++		 * changes to the layout.
++		 */
+ #if 0
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+ #endif
+ 	}
+ 
+-	/* Delete the composite layout object. */
++	/* Delete the in-memory composite layout. */
+ 	m0_layout_put(&cl->cl_base);
+ 	M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
+ 
+-	if (domain->ld_is_db_available) {
+-		/* Read the layout from the DB and compare. */
++	if (l_copy_orig->l_dom->ld_is_db_available) {
++		/*
++		 * Read the layout from the DB and compare to verify that the
++		 * the DB version of the layout has been updated right.
++		 */
+ 		l_from_DB = NULL;
+ 		rc = layout_lookup(lid, domain, &m0_composite_layout_type,
+ 				   !FAILURE_TEST, &l_from_DB);
+@@ -1830,70 +1751,331 @@ static int ext_operate(enum extent_operation eop,
+ 
+ 		/* Release the reference incremented by m0_layout_lookup(). */
+ 		m0_layout_put(l_from_DB);
+-	} else
+-		rc = 0;
+-
++	}
+ 	composite_layout_copy_delete(l_copy_orig);
+ 	composite_layout_copy_delete(l_copy_updated);
+ 
+ 	/* Delete all the precreated sublayouts. */
+ 	sublayouts_delete(domain, lid, layers_nr);
++}
++
++static int ext_add(struct m0_composite_layout *cl,
++		   struct m0_layout *l_copy_orig,
++		   struct m0_layout_domain *domain,
++		   enum kind_of_extent extent_kind,
++		   struct m0_ext *ext_to_operate,
++		   m0_bindex_t offset_to_operate,
++		   uint64_t ext_state,
++		   bool failure_test)
++{
++	struct m0_db_tx   tx;
++	struct m0_db_tx  *txptr;
++	uint32_t          layer_id_lookup;
++	struct m0_ext     ext_lookup;
++	uint64_t          ext_state_lookup;
++	struct m0_layout *sublayout_lookup;
++	int               rc_tmp;
++	int               rc;
++
++	if (domain->ld_is_db_available) {
++		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
++		M0_UT_ASSERT(rc == 0);
++		txptr = &tx;
++	} else
++		txptr = NULL;
++
++	/* Add the extent. */
++	rc = m0_composite_layer_ext_add(cl, cl->cl_layers_nr - 1,
++					ext_to_operate, ext_state, txptr);
++	if (failure_test) {
++		M0_UT_ASSERT(rc == -EINVAL);
++		//todo print rc
++	} else {
++		M0_UT_ASSERT(rc == 0);
++		my_console_printf("extlist dump after ext ADD with "
++				  "ext_kind, %u\n \text [%llu, %llu), "
++				  "ext_state %llu\n", extent_kind,
++				  (unsigned long long)ext_to_operate->e_start,
++				  (unsigned long long)ext_to_operate->e_end,
++				  (unsigned long long)ext_state);
++		extlist_dump(cl, cl->cl_layers_nr - 1);
++
++		rc = m0_composite_layer_ext_lookup(cl, offset_to_operate,
++						   txptr, &ext_lookup,
++						   &layer_id_lookup,
++						   &ext_state_lookup,
++						   &sublayout_lookup);
++		M0_UT_ASSERT(rc == 0);
++		M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 1);
++		M0_UT_ASSERT(ext_state_lookup == ext_state);
++		M0_UT_ASSERT(ext_lookup.e_start <= offset_to_operate);
++		M0_UT_ASSERT(ext_lookup.e_end > offset_to_operate);
++		M0_UT_ASSERT(ext_state_lookup == ext_state);
++		M0_UT_ASSERT(sublayout_lookup->l_id ==
++			     cl->cl_base.l_id * 100 + layer_id_lookup);
++	}
++	//todo in failure case, compare the original in-mem layout
++	if (domain->ld_is_db_available) {
++		rc_tmp = m0_db_tx_commit(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	}
++	return rc;
++}
++
++static int ext_update(struct m0_composite_layout *cl,
++		      struct m0_layout *l_copy_orig,
++		      struct m0_layout_domain *domain,
++		      enum kind_of_extent extent_kind,
++		      struct m0_ext *ext_to_operate,
++		      m0_bindex_t offset_to_operate,
++		      uint64_t ext_state,
++		      bool failure_test)
++{
++	struct m0_db_tx   tx;
++	struct m0_db_tx  *txptr;
++	uint32_t          layer_id_lookup;
++	struct m0_ext     ext_lookup;
++	uint64_t          ext_state_lookup;
++	struct m0_layout *sublayout_lookup;
++	int               rc_tmp;
++	int               rc;
++
++	//todo Factor out this common code and tx commit code
++	if (domain->ld_is_db_available) {
++		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
++		M0_UT_ASSERT(rc == 0);
++		txptr = &tx;
++	} else
++		txptr = NULL;
++
++	rc = m0_composite_layer_ext_state_update(cl, cl->cl_layers_nr - 1,
++						 ext_to_operate, ext_state,
++						 txptr);
++	if (failure_test)
++		M0_UT_ASSERT(rc == -EINVAL);
++		//todo print rc
++	else {
++		M0_UT_ASSERT(rc == 0);
++		my_console_printf("extlist dump after ext UPDATE with "
++				  "ext_kind %u\n, \text [%llu, %llu), "
++				  "ext_state %llu\n", extent_kind,
++				  (unsigned long long)ext_to_operate->e_start,
++				  (unsigned long long)ext_to_operate->e_end,
++				  (unsigned long long)ext_state);
++		extlist_dump(cl, cl->cl_layers_nr - 1);
+ 
++		rc = m0_composite_layer_ext_lookup(cl, offset_to_operate,
++						   txptr, &ext_lookup,
++						   &layer_id_lookup,
++						   &ext_state_lookup,
++						   &sublayout_lookup);
++		M0_UT_ASSERT(rc == 0);
++		M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 1);
++		M0_UT_ASSERT(ext_state_lookup == ext_state);
++	}
++	//todo in failure case, compare the original in-mem layout
++	if (domain->ld_is_db_available) {
++		rc_tmp = m0_db_tx_commit(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	}
+ 	return rc;
+ }
+ 
+-int test_ext_lookup_composite(uint64_t lid,
+-			      struct m0_layout_domain *domain,
+-			      uint32_t layers_nr,
+-			      uint32_t min_extents_nr,
+-			      bool if_contiguous_extents,
+-			      uint32_t extent_kind,
+-			      bool failure_test)
++static int ext_delete(struct m0_composite_layout *cl,
++		      struct m0_layout *l_copy_orig,
++		      struct m0_layout_domain *domain,
++		      enum kind_of_extent extent_kind,
++		      bool if_contiguous_extents,
++		      struct m0_ext *ext_to_operate,
++		      m0_bindex_t offset_to_operate,
++		      bool failure_test)
+ {
+-	return ext_operate(EXTENT_LOOKUP, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   extent_kind, M0_CLRES_INVALID, failure_test);
++	struct m0_db_tx   tx;
++	struct m0_db_tx  *txptr;
++	uint32_t          layer_id_lookup;
++	struct m0_ext     ext_lookup;
++	uint64_t          ext_state_lookup;
++	struct m0_layout *sublayout_lookup;
++	int               rc_tmp;
++	int               rc;
++
++	//todo Factor out this common code and tx commit code
++	if (domain->ld_is_db_available) {
++		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
++		M0_UT_ASSERT(rc == 0);
++		txptr = &tx;
++	} else
++		txptr = NULL;
++
++	/* Delete the extent. */
++	rc = m0_composite_layer_ext_delete(cl, cl->cl_layers_nr - 1,
++					   ext_to_operate, txptr);
++	if (failure_test)
++		M0_UT_ASSERT(rc == -ENOENT);
++	else
++		M0_UT_ASSERT(rc == 0);
++	//todo cover err cases and in failure cases, print rc
++	my_console_printf("extlist dump after ext DELETE with ext_kind %u\n,"
++			  "\text [%llu, %llu) \n", extent_kind,
++			  (unsigned long long)ext_to_operate->e_start,
++			  (unsigned long long)ext_to_operate->e_end);
++	extlist_dump(cl, cl->cl_layers_nr - 1);
++
++	rc = m0_composite_layer_ext_lookup(cl, offset_to_operate, txptr,
++					   &ext_lookup, &layer_id_lookup,
++					   &ext_state_lookup,
++					   &sublayout_lookup);
++	if (extent_kind == NON_EXISTING ||
++	    (extent_kind == OVERLAPPING_LEFT && !if_contiguous_extents)) {
++		M0_UT_ASSERT(rc == -ENOENT);
++		rc = 0;
++	} else {
++		M0_UT_ASSERT(rc == 0);
++		M0_UT_ASSERT(layer_id_lookup == cl->cl_layers_nr - 2);
++	}
++
++	//todo in failure case, compare the original in-mem layout
++	if (domain->ld_is_db_available) {
++		rc_tmp = m0_db_tx_commit(&tx);
++		M0_UT_ASSERT(rc_tmp == 0);
++	}
++	return rc;
+ }
+ 
+-int test_ext_add_composite(uint64_t lid,
++static int test_ext_lookup(uint64_t lid,
+ 			   struct m0_layout_domain *domain,
+ 			   uint32_t layers_nr,
+ 			   uint32_t min_extents_nr,
+ 			   bool if_contiguous_extents,
+-			   uint32_t extent_kind,
+-			   uint64_t ext_state,
++			   enum kind_of_extent extent_kind,
+ 			   bool failure_test)
+ {
+-	return ext_operate(EXTENT_ADD, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   extent_kind, ext_state, failure_test);
++	struct m0_layout           *l_copy_orig;
++	struct m0_composite_layout *cl;
++	struct m0_ext               ext_to_operate;
++	m0_bindex_t                 offset_to_operate;
++	uint64_t                    ext_state_lookup;
++	int                         rc;
++
++	rc = ext_op_pre(EXTENT_LOOKUP, lid, domain, layers_nr, min_extents_nr,
++			if_contiguous_extents, extent_kind,
++			M0_CLRES_INVALID, /* todo */
++			failure_test, &cl, &ext_to_operate, &offset_to_operate,
++			&ext_state_lookup, &l_copy_orig);
++	if (failure_test)
++		M0_UT_ASSERT(rc == -ENOENT);
++	else
++		M0_UT_ASSERT(rc == 0);
++
++	/*
++	 * Nothing else to be done, lookup is performed as a part
++	 * of ext_op_pre() called above.
++	 */
++	my_console_printf("after LOOKUP for offset %llu: rc %d, state %llu\n",
++			  (unsigned long long)offset_to_operate, rc,
++			  (rc == 0) ? (unsigned long long)ext_state_lookup : 0);
++
++	ext_op_post(EXTENT_LOOKUP, cl->cl_base.l_id, domain, cl->cl_layers_nr,
++		    extent_kind, cl, l_copy_orig, failure_test /* todo */);
++	return rc;
+ }
+ 
+-int test_ext_state_update_composite(uint64_t lid,
+-				    struct m0_layout_domain *domain,
+-				    uint32_t layers_nr,
+-				    uint32_t min_extents_nr,
+-				    bool if_contiguous_extents,
+-				    uint32_t extent_kind,
+-				    uint64_t ext_state,
+-				    bool failure_test)
++static int test_ext_add(uint64_t lid,
++			struct m0_layout_domain *domain,
++			uint32_t layers_nr,
++			uint32_t min_extents_nr,
++			bool if_contiguous_extents,
++			enum kind_of_extent extent_kind,
++			uint64_t ext_state,
++			bool failure_test)
++{
++	struct m0_layout           *l_copy_orig;
++	struct m0_composite_layout *cl;
++	struct m0_ext               ext_to_operate;
++	m0_bindex_t                 offset_to_operate;
++	uint64_t                    ext_state_lookup;
++	int                         rc;
++
++	rc = ext_op_pre(EXTENT_ADD, lid, domain, layers_nr, min_extents_nr,
++			if_contiguous_extents, extent_kind, ext_state,
++			failure_test, &cl, &ext_to_operate, &offset_to_operate,
++			&ext_state_lookup, &l_copy_orig);
++	M0_UT_ASSERT(rc == 0);
++
++	rc = ext_add(cl, l_copy_orig, domain, extent_kind,
++		     &ext_to_operate, offset_to_operate, ext_state,
++		     failure_test);
++	M0_UT_ASSERT(rc == 0);
++
++	ext_op_post(EXTENT_ADD, cl->cl_base.l_id, domain, cl->cl_layers_nr,
++		    extent_kind, cl, l_copy_orig, failure_test);
++	return rc;
++}
++
++static int test_ext_state_update(uint64_t lid,
++				 struct m0_layout_domain *domain,
++				 uint32_t layers_nr,
++				 uint32_t min_extents_nr,
++				 bool if_contiguous_extents,
++				 enum kind_of_extent extent_kind,
++				 uint64_t ext_state,
++				 bool failure_test)
+ {
+-	return ext_operate(EXTENT_UPDATE, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   extent_kind, ext_state, failure_test);
++	struct m0_layout           *l_copy_orig;
++	struct m0_composite_layout *cl;
++	struct m0_ext               ext_to_operate;
++	m0_bindex_t                 offset_to_operate;
++	uint64_t                    ext_state_lookup;
++	int                         rc;
++
++	rc = ext_op_pre(EXTENT_UPDATE, lid, domain, layers_nr, min_extents_nr,
++			if_contiguous_extents, extent_kind, ext_state,
++			failure_test, &cl, &ext_to_operate, &offset_to_operate,
++			&ext_state_lookup, &l_copy_orig);
++	M0_ASSERT(rc == 0);
++
++	rc = ext_update(cl, l_copy_orig, domain, extent_kind,
++			&ext_to_operate, offset_to_operate, ext_state,
++			failure_test);
++	M0_ASSERT(rc == 0);
++
++	ext_op_post(EXTENT_UPDATE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
++		    extent_kind, cl, l_copy_orig, failure_test);
++	return rc;
+ }
+ 
+-int test_ext_delete_composite(uint64_t lid,
+-			      struct m0_layout_domain *domain,
+-			      uint32_t layers_nr,
+-			      uint32_t min_extents_nr,
+-			      bool if_contiguous_extents,
+-			      uint32_t extent_kind,
+-			      bool failure_test)
++static int test_ext_delete(uint64_t lid,
++			   struct m0_layout_domain *domain,
++			   uint32_t layers_nr,
++			   uint32_t min_extents_nr,
++			   bool if_contiguous_extents,
++			   enum kind_of_extent extent_kind,
++			   bool failure_test)
+ {
+-	return ext_operate(EXTENT_DELETE, lid, domain,
+-			   layers_nr, min_extents_nr, if_contiguous_extents,
+-			   extent_kind, M0_CLRES_INVALID, failure_test);
++	struct m0_layout           *l_copy_orig;
++	struct m0_composite_layout *cl;
++	struct m0_ext               ext_to_operate;
++	m0_bindex_t                 offset_to_operate;
++	uint64_t                    ext_state_lookup;
++	int                         rc;
++
++	rc = ext_op_pre(EXTENT_DELETE, lid, domain, layers_nr, min_extents_nr,
++			if_contiguous_extents, extent_kind, M0_CLRES_INVALID,
++			failure_test, &cl, &ext_to_operate, &offset_to_operate,
++			&ext_state_lookup, &l_copy_orig);
++	M0_ASSERT(rc == 0);
++
++	rc = ext_delete(cl, l_copy_orig, domain, extent_kind,
++			if_contiguous_extents, &ext_to_operate,
++			offset_to_operate, failure_test);
++	if (failure_test)
++		M0_ASSERT(rc == -ENOENT);
++	else
++		M0_ASSERT(rc == 0);
++
++	ext_op_post(EXTENT_DELETE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
++		    extent_kind, cl, l_copy_orig, failure_test);
++	return rc;
+ }
+ 
+ static int ext_ops(uint64_t base_lid,
+@@ -1905,6 +2087,7 @@ static int ext_ops(uint64_t base_lid,
+ 	bool                is_contiguous;
+ 	enum kind_of_extent extent_kind;
+ 	enum kind_of_extent extent_kind_it; /* iterator */
++	bool                failure_test;
+ 	uint32_t            i;
+ 	int                 rc;
+ 
+@@ -1915,6 +2098,7 @@ static int ext_ops(uint64_t base_lid,
+ 		lid = base_lid + i;
+ 		is_contiguous = i % 2 ? false : true;
+ 		extent_kind = extent_kind_it;
++		failure_test = false;
+ 
+ 		if (i != 0 && i % 2)
+ 			++extent_kind_it;
+@@ -1922,33 +2106,37 @@ static int ext_ops(uint64_t base_lid,
+ 		if (is_contiguous == true && extent_kind == NON_EXISTING)
+ 			/* Not a valid combination. */
+ 			continue;
+-		if (eop == EXTENT_LOOKUP)
+-			rc = test_ext_lookup_composite(lid, domain, 3, 4,
+-						       is_contiguous,
+-						       extent_kind,
+-						       !FAILURE_TEST);
+-		else if (eop == EXTENT_ADD)
+-			rc = test_ext_add_composite(lid, domain, 4, 7,
+-						    is_contiguous,
+-						    extent_kind,
+-						    M0_CLRES_VALID, //todo
+-						    !FAILURE_TEST);
++
++		if (eop == EXTENT_LOOKUP) {
++			if (extent_kind == NON_EXISTING ||
++			    (extent_kind == OVERLAPPING_LEFT && !is_contiguous))
++				failure_test = true;
++			rc = test_ext_lookup(lid, domain, 3, 4,
++					     is_contiguous, extent_kind,
++					     failure_test);
++		} else if (eop == EXTENT_ADD)
++			rc = test_ext_add(lid, domain, 4, 7,
++					  is_contiguous, extent_kind,
++					  M0_CLRES_VALID, !FAILURE_TEST);
+ 		else if (eop == EXTENT_UPDATE)
+-			//todo Take out composite from such fn names
+-			rc = test_ext_state_update_composite(lid, domain, 5, 4,
+-							     is_contiguous,
+-							     extent_kind,
+-							     M0_CLRES_VALID,//todo
+-							     !FAILURE_TEST);
++			rc = test_ext_state_update(lid, domain, 5, 4,
++						   is_contiguous, extent_kind,
++						   M0_CLRES_VALID,
++						   !FAILURE_TEST);
+ 			/* todo For failure test, use M0_CLRES_FLATTENING. And
+ 			 * in that case, the only success case is
+ 			 * !CONTIGUOUS_EXTENTS, NON_EXISTING. */
+-		else if (eop == EXTENT_DELETE)
+-			rc = test_ext_delete_composite(lid, domain, 4, 4,
+-						       is_contiguous,
+-						       extent_kind,
+-						       !FAILURE_TEST);
+-		M0_UT_ASSERT(rc == 0);
++		else if (eop == EXTENT_DELETE) {
++			rc = test_ext_delete(lid, domain, 4, 4,
++					     is_contiguous, extent_kind,
++					     failure_test);
++		}
++
++		if (failure_test) {
++			//todo
++			M0_UT_ASSERT(rc != 0);
++		} else
++			M0_UT_ASSERT(rc == 0);
+ 	}
+ 	return rc;
+ }
+@@ -1970,10 +2158,9 @@ void test_layer_ext_ops_composite(uint64_t base_lid,
+ 	//todo Add extent with the flattening state
+ 	//todo Cover other cases with the flattening state addition
+ 	lid = base_lid + 60;
+-	rc = test_ext_add_composite(lid, domain, 4, 6,
+-				    !CONTIGUOUS_EXTENTS, NON_EXISTING,
+-				    M0_CLRES_FLATTENING,
+-				    !FAILURE_TEST);
++	rc = test_ext_add(lid, domain, 4, 6,
++			  !CONTIGUOUS_EXTENTS, NON_EXISTING,
++			  M0_CLRES_FLATTENING, !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Test cases for extent updation. */
+@@ -1990,6 +2177,12 @@ void test_layer_ext_ops_composite(uint64_t base_lid,
+ 	M0_UT_ASSERT(rc == 0);
+ }
+ 
++void test_layer_ext_ops_composite_failure(uint64_t lid,
++					  struct m0_layout_domain *domain)
++{
++
++}
++
+ #ifndef __KERNEL__
+ /* Tests the API m0_layout_lookup(), for the COMPOSITE layout type. */
+ int test_lookup_composite(uint64_t lid,
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index 9c01ed4..88474dc 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -105,38 +105,10 @@ int test_layer_ops_composite(uint64_t lid,
+ 			     uint32_t min_extents_nr,
+ 			     bool layer_add_failure_test,
+ 			     bool layer_del_failure_test);
+-int test_ext_lookup_composite(uint64_t lid,
+-			      struct m0_layout_domain *domain,
+-			      uint32_t layers_nr,
+-			      uint32_t min_extents_nr,
+-			      bool if_contiguous_extents,
+-			      uint32_t kind_of_extent_to_lookup,
+-			      bool failure_test);
+-int test_ext_add_composite(uint64_t lid,
+-			   struct m0_layout_domain *domain,
+-			   uint32_t layers_nr,
+-			   uint32_t min_extents_nr,
+-			   bool if_contiguous_extents,
+-			   uint32_t kind_of_extent_to_operate,
+-			   uint64_t ext_state,
+-			   bool failure_test);
+-int test_ext_state_update_composite(uint64_t lid,
+-				    struct m0_layout_domain *domain,
+-				    uint32_t layers_nr,
+-				    uint32_t min_extents_nr,
+-				    bool if_contiguous_extents,
+-				    uint32_t kind_of_extent_to_operate,
+-				    uint64_t ext_state,
+-				    bool failure_test);
+-int test_ext_delete_composite(uint64_t lid,
+-			      struct m0_layout_domain *domain,
+-			      uint32_t layers_nr,
+-			      uint32_t min_extents_nr,
+-			      bool if_contiguous_extents,
+-			      uint32_t kind_of_extent_to_operate,
+-			      bool failure_test);
+ void test_layer_ext_ops_composite(uint64_t base_lid,
+ 				  struct m0_layout_domain *domain);
++void test_layer_ext_ops_composite_failure(uint64_t base_lid,
++					  struct m0_layout_domain *domain);
+ #endif /* __MERO_LAYOUT_UT_COMPOSITE_H__ */
+ 
+ /*
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 9f56f4e..1dbc4e3 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1414,7 +1414,15 @@ static void test_layer_ext_ops_inmem(void)
+ 	test_layer_ext_ops_composite(lid, &domain);
+ }
+ 
+-/* todo lid 17001 reserved for test_layer_ext_ops_inmem_failure. */
++static void test_layer_ext_ops_inmem_failure(void)
++{
++	uint64_t lid;
++
++	M0_UT_ASSERT(domain.ld_is_db_available == false);
++
++	lid = 17001;
++	test_layer_ext_ops_composite_failure(lid, &domain);
++}
+ 
+ #ifndef __KERNEL__
+ /* Tests the API m0_layout_lookup(). */
+@@ -2403,6 +2411,8 @@ const struct m0_test_suite layout_ut = {
+ 		{ "layout-layer-ops-inmem-failure",
+ 			test_layer_ops_inmem_failure },
+ 		{ "layout-layer-ext-ops-inmem", test_layer_ext_ops_inmem },
++		{ "layout-layer-ext-ops-inmem-failure",
++			test_layer_ext_ops_inmem_failure },
+ #ifndef __KERNEL__
+ 		{ "layout-lookup", test_lookup },
+ 		{ "layout-lookup-failure", test_lookup_failure },
+-- 
+1.8.3.2
+

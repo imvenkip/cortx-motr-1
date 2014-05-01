@@ -1,0 +1,446 @@
+From 22feef6841729abbf193f6237e4cdfc7a2575031 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sun, 24 Feb 2013 10:06:41 +0800
+Subject: [PATCH 03/24] - store rpc_client_ctx as a reqh locker. -
+ rpc_client_ctx init/fini/get - interface to getattr by gfid. - interface to
+ get layout by layout id.
+
+---
+ ioservice/io_service.c | 257 ++++++++++++++++++++++++++++++++++++++-----------
+ ioservice/io_service.h |  28 +++---
+ mdservice/md_foms.c    |   8 +-
+ mdservice/md_fops.h    |   7 ++
+ 4 files changed, 226 insertions(+), 74 deletions(-)
+
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 9bb13dc..352eb0d 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -26,6 +26,8 @@
+ #define M0_ADDB_RT_CREATE_DEFINITION
+ #include "ioservice/io_service_addb.h"
+ 
++#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
++#include "lib/trace.h"
+ #include "lib/errno.h"
+ #include "lib/memory.h"
+ #include "lib/tlist.h"
+@@ -39,6 +41,10 @@
+ #include "ioservice/io_service.h"
+ #include "ioservice/io_device.h"
+ #include "pool/pool.h"
++#include "net/lnet/lnet.h"
++#include "mdservice/md_fops.h"
++#include "layout/layout.h"
++#include "layout/pdclust.h"
+ 
+ M0_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh",
+ 		   M0_INTERNAL,
+@@ -67,6 +73,11 @@ M0_INTERNAL unsigned poolmach_key;
+  */
+ static unsigned ios_cdom_key;
+ 
++/**
++ * Key for rpc_ctx to mds.
++ */
++static unsigned ios_mds_rpc_ctx_key;
++
+ static int ios_allocate(struct m0_reqh_service **service,
+ 			struct m0_reqh_service_type *stype,
+ 			const char *arg);
+@@ -190,6 +201,7 @@ M0_INTERNAL int m0_ios_register(void)
+ 	m0_reqh_service_type_register(&m0_ios_type);
+ 	ios_cdom_key = m0_reqh_lockers_allot();
+ 	poolmach_key = m0_reqh_lockers_allot();
++	ios_mds_rpc_ctx_key = m0_reqh_lockers_allot();
+ 	return m0_ioservice_fop_init();
+ }
+ 
+@@ -384,8 +396,8 @@ static int ios_allocate(struct m0_reqh_service **service,
+         bufferpools_tlist_init(&ios->rios_buffer_pools);
+         ios->rios_magic = M0_IOS_REQH_SVC_MAGIC;
+ 
+-	/* confd to configuration database. */
+-	ios->rios_confd = arg;
++	/* retrieve mds endpoint from the arg */
++	(void)arg;
+ 
+         *service = &ios->rios_gen;
+ 	(*service)->rs_ops = &ios_ops;
+@@ -453,68 +465,27 @@ static int ios_start(struct m0_reqh_service *service)
+ 
+ 	rc = ios_create_buffer_pool(service);
+ 	if (rc != 0) {
+-		/* Cleanup required for already created buffer pools. */
+-		ios_delete_buffer_pool(service);
++		m0_ios_cdom_fini(service->rs_reqh);
+ 		return rc;
+ 	}
+ 
+-	serv_obj->rios_mds_rpc_ctx_key = m0_reqh_key_init();
+-	serv_obj->rios_mds_rpc_ctx = m0_reqh_key_find(service->rs_reqh,
+-					serv_obj->rios_mds_rpc_ctx_key,
+-					sizeof(struct m0_rpc_client_ctx));
+-	if (serv_obj->rios_mds_rpc_ctx == NULL) {
+-		ios_delete_buffer_pool(service);
+-		return -ENOMEM;
+-	}
++	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
++	serv_obj->rios_cdom = *cdom;
+ 
+-	/*
+-	// Init serv_obj->rios_mds_rpc_ctx here
+-	m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
+-	serv_obj->rios_mds_rpc_ctx->rcx_net_dom            = &cl_ndom;
+-	serv_obj->rios_mds_rpc_ctx->rcx_local_addr         = cl_ep_addr;
+-	serv_obj->rios_mds_rpc_ctx->rcx_remote_addr        = srv_ep_addr;
+-	serv_obj->rios_mds_rpc_ctx->rcx_db_name            = dbname;
+-	serv_obj->rios_mds_rpc_ctx->rcx_dbenv              = &cl_dbenv;
+-	serv_obj->rios_mds_rpc_ctx->rcx_cob_dom_id         = cl_cdom_id;
+-	serv_obj->rios_mds_rpc_ctx->rcx_cob_dom            = &cl_cdom;
+-	serv_obj->rios_mds_rpc_ctx->rcx_nr_slots           = MAX_RPC_SLOTS_NR;
+-	serv_obj->rios_mds_rpc_ctx->rcx_timeout_s          = RPC_TIMEOUTS;
+-	serv_obj->rios_mds_rpc_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
+-
+-	//And then init client
+-	rc = m0_rpc_client_start(serv_obj->rios_mds_rpc_ctx);
++	rc = ios_create_buffer_pool(service);
+ 	if (rc != 0) {
+-		m0_reqh_key_fini(service->rs_reqh,
+-				 serv_obj->rios_mds_rpc_ctx_key);
++		/* Cleanup required for already created buffer pools. */
+ 		ios_delete_buffer_pool(service);
++		m0_ios_mds_rpc_ctx_fini(service);
++		m0_ios_cdom_fini(service->rs_reqh);
+ 		return rc;
+ 	}
+ 
+-	// When necessary, we can send rpc to mds to get layout and other
+-	// file attributes.
+-
+-	// Now we can use conf to get configuration, e.g. layout.
+-	// rios_confd can be used here.
+-
+-	// This is an example to send a request to mds, e.g. getattr, layout
+-	fop = m0_fop_alloc(some_fop_fopt, NULL);
+-	req = m0_fop_data(fop);
+-	rc = m0_rpc_client_call(fop, &serv_obj->rios_mds_rpc_ctx->rcx_session,
+-				NULL,
+-				0,
+-				m0_time_from_now(60, 0));
+-	rep = m0_rpc_item_to_fop(fop->f_item.ri_reply);
+-	m0_fop_put(fop);
+-	*/
+-
+ 	rc = m0_ios_poolmach_init(service->rs_reqh);
+ 	if (rc != 0) {
+-		/*
+-		m0_rpc_client_stop(serv_obj->rios_mds_rpc_ctx);
+-		*/
+-		m0_reqh_key_fini(service->rs_reqh,
+-				 serv_obj->rios_mds_rpc_ctx_key);
+ 		ios_delete_buffer_pool(service);
++		m0_ios_mds_rpc_ctx_fini(service);
++		m0_ios_cdom_fini(service->rs_reqh);
+ 	}
+ 	return rc;
+ }
+@@ -535,11 +506,6 @@ static void ios_stop(struct m0_reqh_service *service)
+ 
+ 	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
+ 
+-	/* stop the client to mds.
+-	m0_rpc_client_stop(serv_obj->rios_mds_rpc_ctx);
+-	*/
+-	m0_reqh_key_fini(service->rs_reqh, serv_obj->rios_mds_rpc_ctx_key);
+-
+ 	m0_ios_poolmach_fini(service->rs_reqh);
+ 	ios_delete_buffer_pool(service);
+ 	m0_ios_cdom_fini(service->rs_reqh);
+@@ -639,6 +605,183 @@ static void ios_stats_post_addb(struct m0_reqh_service *service)
+ 	}
+ }
+ 
++M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service)
++{
++	struct m0_reqh            *reqh = service->rs_reqh;
++	struct m0_reqh_io_service *serv_obj;
++	struct m0_rpc_client_ctx  *rpc_client_ctx;
++	int                        rc;
++	static char                cl_ep_addr[M0_NET_LNET_XEP_ADDR_LEN] = {0};
++	static char                srv_ep_addr[M0_NET_LNET_XEP_ADDR_LEN] = {0};
++	const char                *dbname = "sr_cdb";
++	struct m0_net_domain      *cl_ndom;
++	enum {
++		RPC_TIMEOUT              = 10, /* seconds */
++		NR_SLOTS_PER_SESSION     = 10,
++		MAX_NR_RPC_IN_FLIGHT     = 10,
++	};
++
++	M0_PRE(m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
++
++	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
++
++	rpc_client_ctx = m0_alloc(sizeof *rpc_client_ctx);
++	if (rpc_client_ctx == NULL)
++		return -ENOMEM;
++
++	cl_ndom = &serv_obj->rios_cl_ndom;
++	m0_net_domain_init(&serv_obj->rios_cl_ndom, &m0_net_lnet_xprt,
++			   &service->rs_addb_ctx);
++	rpc_client_ctx->rcx_net_dom            = cl_ndom;
++	rpc_client_ctx->rcx_local_addr         = cl_ep_addr;
++	rpc_client_ctx->rcx_remote_addr        = srv_ep_addr;
++	rpc_client_ctx->rcx_db_name            = dbname;
++	rpc_client_ctx->rcx_dbenv              = reqh->rh_dbenv;
++	rpc_client_ctx->rcx_cob_dom_id         = service->rs_uuid;
++	rpc_client_ctx->rcx_cob_dom            = &serv_obj->rios_cdom;
++	rpc_client_ctx->rcx_nr_slots           = NR_SLOTS_PER_SESSION;
++	rpc_client_ctx->rcx_timeout_s          = RPC_TIMEOUT;
++	rpc_client_ctx->rcx_max_rpcs_in_flight = MAX_NR_RPC_IN_FLIGHT;
++
++	rc = m0_rpc_client_start(rpc_client_ctx);
++	if (rc != 0) {
++		m0_free(rpc_client_ctx);
++		return rc;
++	}
++
++	m0_rwlock_write_lock(&reqh->rh_rwlock);
++	m0_reqh_lockers_set(reqh, ios_mds_rpc_ctx_key, rpc_client_ctx);
++	serv_obj->rios_mds_rpc_ctx = rpc_client_ctx;
++	m0_rwlock_write_unlock(&reqh->rh_rwlock);
++	return 0;
++}
++
++M0_INTERNAL struct m0_rpc_client_ctx
++*m0_ios_mds_rpc_ctx_get(struct m0_reqh *reqh)
++{
++	struct m0_rpc_client_ctx *rpc_client_ctx;
++	M0_PRE(reqh != NULL);
++	M0_PRE(m0_reqh_lockers_is_empty(reqh, ios_mds_rpc_ctx_key));
++
++	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
++	M0_POST(rpc_client_ctx != NULL);
++	return rpc_client_ctx;
++}
++
++M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service)
++{
++	struct m0_reqh            *reqh = service->rs_reqh;
++	struct m0_reqh_io_service *serv_obj;
++	struct m0_rpc_client_ctx  *rpc_client_ctx;
++
++	serv_obj = container_of(service, struct m0_reqh_io_service, rios_gen);
++
++	m0_net_domain_fini(&serv_obj->rios_cl_ndom);
++	m0_rwlock_write_lock(&reqh->rh_rwlock);
++	rpc_client_ctx = m0_reqh_lockers_get(reqh, ios_mds_rpc_ctx_key);
++	m0_reqh_lockers_clear(reqh, ios_mds_rpc_ctx_key);
++	m0_free(rpc_client_ctx);
++	m0_rwlock_write_unlock(&reqh->rh_rwlock);
++}
++
++M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh, struct m0_fid *gfid,
++				   struct m0_cob_attr *attr)
++{
++	struct m0_rpc_client_ctx  *rpc_client_ctx;
++	struct m0_fop             *req;
++	struct m0_fop             *rep;
++	struct m0_fop_getattr     *getattr;
++	struct m0_fop_getattr_rep *getattr_rep;
++	struct m0_fop_cob         *req_fop_cob;
++	struct m0_fop_cob         *rep_fop_cob;
++	int                        rc;
++
++	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
++
++	req = m0_fop_alloc(&m0_fop_getattr_fopt, NULL);
++	if (req == NULL)
++		return -ENOMEM;
++
++	getattr = m0_fop_data(req);
++	req_fop_cob = &getattr->g_body;
++	req_fop_cob->b_tfid = *gfid;
++
++	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL,
++				m0_time_from_now(60, 0));
++	if (rc != 0) {
++		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
++		getattr_rep = m0_fop_data(rep);
++		rep_fop_cob = &getattr_rep->g_body;
++		m0_md_cob_wire2mem(attr, rep_fop_cob);
++	}
++	m0_fop_put(req);
++	return rc;
++}
++
++M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
++				      struct m0_layout_domain *ldom,
++				      uint64_t lid,
++				      struct m0_layout **l_out)
++{
++	struct m0_rpc_client_ctx  *rpc_client_ctx;
++	struct m0_fop             *req;
++	struct m0_fop             *rep;
++	struct m0_fop_layout      *layout;
++	struct m0_fop_layout_rep  *layout_rep;
++	int                        rc;
++	M0_ENTRY();
++
++	rpc_client_ctx = m0_ios_mds_rpc_ctx_get(reqh);
++
++	req = m0_fop_alloc(&m0_fop_layout_fopt, NULL);
++	if (req == NULL)
++		return -ENOMEM;
++
++	layout = m0_fop_data(req);
++	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
++	layout->l_lid = lid;
++
++	rc = m0_rpc_client_call(req, &rpc_client_ctx->rcx_session, NULL,
++				m0_time_from_now(60, 0));
++	if (rc != 0) {
++		struct m0_bufvec               bv;
++		struct m0_bufvec_cursor        cur;
++		struct m0_layout              *l;
++		struct m0_layout_type         *lt;
++		M0_ASSERT(l_out != NULL);
++
++		rep = m0_rpc_item_to_fop(req->f_item.ri_reply);
++		layout_rep = m0_fop_data(rep);
++		M0_LOG(M0_DEBUG, "layout rep->lr_rc = %d", layout_rep->lr_rc);
++
++		bv = (struct m0_bufvec)
++			M0_BUFVEC_INIT_BUF((void**)&layout_rep->lr_buf.b_addr,
++				   (m0_bcount_t*)&layout_rep->lr_buf.b_count);
++		m0_bufvec_cursor_init(&cur, &bv);
++
++		lt = &m0_pdclust_layout_type;
++		rc = lt->lt_ops->lto_allocate(ldom, lid, &l);
++		if (rc == 0) {
++			rc = m0_layout_decode(l, &cur, M0_LXO_BUFFER_OP, NULL);
++			/* release lock held by ->lto_allocate() */
++			m0_mutex_unlock(&l->l_lock);
++			if (rc == 0) {
++				/* m0_layout_put() should be called for l_out
++				 * after use
++				 */
++				*l_out = l;
++			} else {
++				m0_layout_put(l);
++			}
++		}
++	}
++
++	m0_fop_put(req);
++	M0_RETURN(rc);
++}
++
++#undef M0_TRACE_SUBSYSTEM
++
+ /** @} endgroup io_service */
+ 
+ /*
+diff --git a/ioservice/io_service.h b/ioservice/io_service.h
+index 7bb71f6..e3b3180 100644
+--- a/ioservice/io_service.h
++++ b/ioservice/io_service.h
+@@ -89,15 +89,14 @@ struct m0_ios_rwfom_stats {
+  * service specific information.
+  */
+ struct m0_reqh_io_service {
+-        /** Generic reqh service object */
+-        struct m0_reqh_service       rios_gen;
+-        /** Buffer pools belongs to this services */
+-        struct m0_tl                 rios_buffer_pools;
++	/** Generic reqh service object */
++	struct m0_reqh_service       rios_gen;
++	/** Buffer pools belongs to this services */
++	struct m0_tl                 rios_buffer_pools;
+ 	/** Read[0] and write[1] I/O FOM statistics */
+-	struct m0_ios_rwfom_stats  rios_rwfom_stats[2];
++	struct m0_ios_rwfom_stats    rios_rwfom_stats[2];
+ 	/** Cob domain for ioservice. */
+-	struct m0_cob_domain      rios_cdom;
+-        struct m0_tl                 rios_buffer_pools;
++	struct m0_cob_domain         rios_cdom;
+ 
+ 	/** rpc client to metadata & management service.
+ 	 * This is stored in reqh as a key. So other services, like "sns_repair"
+@@ -105,13 +104,10 @@ struct m0_reqh_io_service {
+ 	 * attributes for files, etc.
+ 	 */
+ 	struct m0_rpc_client_ctx    *rios_mds_rpc_ctx;
+-	/** reqh key */
+-	unsigned                     rios_mds_rpc_ctx_key;
+-	/** confd path */
+-	const char                  *rios_confd;
++	struct m0_net_domain         rios_cl_ndom;
+ 
+-        /** magic to check io service object */
+-        uint64_t                     rios_magic;
++	/** magic to check io service object */
++	uint64_t                     rios_magic;
+ };
+ 
+ M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
+@@ -122,6 +118,12 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
+ 
+ M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh);
+ 
++M0_INTERNAL int m0_ios_mds_rpc_ctx_init(struct m0_reqh_service *service);
++M0_INTERNAL struct m0_rpc_client_ctx
++*m0_ios_mds_rpc_ctx_get(struct m0_reqh *reqh);
++
++M0_INTERNAL void m0_ios_mds_rpc_ctx_fini(struct m0_reqh_service *service);
++
+ /** @} end of io_service */
+ 
+ #endif /* __MERO_IOSERVICE_IO_SERVICE_H__ */
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 34fb78e..9caf984 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -46,8 +46,8 @@
+ #include "mdservice/md_service.h"
+ #include "mdstore/mdstore.h"
+ 
+-static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
+-			       struct m0_fop_cob *body)
++M0_INTERNAL void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
++				    const struct m0_fop_cob *body)
+ {
+ 	M0_SET0(attr);
+ 	attr->ca_pfid = body->b_pfid;
+@@ -80,8 +80,8 @@ static void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
+ 	attr->ca_version = body->b_version;
+ }
+ 
+-static void m0_md_cob_mem2wire(struct m0_fop_cob *body,
+-			      struct m0_cob_attr *attr)
++M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
++				    const struct m0_cob_attr *attr)
+ {
+ 	body->b_pfid = attr->ca_pfid;
+ 	body->b_tfid = attr->ca_tfid;
+diff --git a/mdservice/md_fops.h b/mdservice/md_fops.h
+index 430d61b..4c1f75f 100644
+--- a/mdservice/md_fops.h
++++ b/mdservice/md_fops.h
+@@ -280,6 +280,13 @@ struct m0_fop_layout_rep {
+ M0_INTERNAL int m0_mdservice_fop_init(void);
+ M0_INTERNAL void m0_mdservice_fop_fini(void);
+ 
++struct m0_cob_attr;
++M0_INTERNAL void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
++				    const struct m0_fop_cob *body);
++
++M0_INTERNAL void m0_md_cob_mem2wire(struct m0_fop_cob *body,
++				    const struct m0_cob_attr *attr);
++
+ #endif /* __MERO_MDSERVICE_MD_FOMS_H__ */
+ /*
+  *  Local variables:
+-- 
+1.8.3.2
+

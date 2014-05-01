@@ -1,0 +1,38 @@
+From f1cc458586b63ce3b12f3bffa4c158148c7f5dee Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 09:53:28 +0200
+Subject: [PATCH 31/58] LogD 1499: use C2_IN(), second part
+
+---
+ net/test/node_helper.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/net/test/node_helper.c b/net/test/node_helper.c
+index cb11630..8c91a92 100644
+--- a/net/test/node_helper.c
++++ b/net/test/node_helper.c
+@@ -19,6 +19,7 @@
+  */
+ 
+ #include "lib/trace.h"			/* C2_LOG */
++#include "lib/misc.h"			/* C2_IN */
+ 
+ #include "net/test/node_helper.h"
+ 
+@@ -88,10 +89,9 @@ void c2_net_test_nh_sd_update(struct c2_net_test_nh *nh,
+ 	struct c2_net_test_mps		   *mps;
+ 
+ 	C2_PRE(c2_net_test_nh__invariant(nh));
+-	C2_PRE(type == MT_MSG || type == MT_BULK || type == MT_TRANSFER);
+-	C2_PRE(status == MS_SUCCESS || status == MS_FAILED || status == MS_BAD);
+-	C2_PRE(direction == MD_SEND || direction == MD_RECV ||
+-	       direction == MD_BOTH);
++	C2_PRE(C2_IN(type, (MT_MSG, MT_BULK, MT_TRANSFER)));
++	C2_PRE(C2_IN(status, (MS_SUCCESS, MS_FAILED, MS_BAD)));
++	C2_PRE(C2_IN(direction, (MD_SEND, MD_RECV, MD_BOTH)));
+ 	C2_PRE(equi(type == MT_TRANSFER, direction == MD_BOTH));
+ 
+ 	if (type == MT_MSG) {
+-- 
+1.8.3.2
+

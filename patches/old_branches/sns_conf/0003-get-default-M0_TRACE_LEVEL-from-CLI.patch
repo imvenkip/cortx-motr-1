@@ -1,0 +1,26 @@
+From 54a273fb1f3105499b897cde3a4500785510aa73 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 21 May 2013 10:48:20 +0800
+Subject: [PATCH 3/3] get default M0_TRACE_LEVEL from CLI
+
+---
+ utils/ut.sh.in | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/utils/ut.sh.in b/utils/ut.sh.in
+index ad6c8dc..466ab4a 100755
+--- a/utils/ut.sh.in
++++ b/utils/ut.sh.in
+@@ -26,7 +26,8 @@ modload || exit $?
+ # default, to prevent cluttering of UT output with "fake" error messages,
+ # generated while testing various error paths using fault injection;
+ # this can be overridden with '-e' CLI option.
+-export M0_TRACE_LEVEL='fatal+'
++M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-'fatal+'}
++export M0_TRACE_LEVEL
+ 
+ # $EXEC allows to reuse this script to execute different utilities which need
+ # loaded mero modules prior to be run. For example, running utitiliy called `ub'
+-- 
+1.8.3.2
+

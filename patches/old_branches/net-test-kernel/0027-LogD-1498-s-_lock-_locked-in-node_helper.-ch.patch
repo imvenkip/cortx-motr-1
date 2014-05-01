@@ -1,0 +1,85 @@
+From d6a423930142768c9c17e307b273f716c98e346b Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 09:13:07 +0200
+Subject: [PATCH 27/71] LogD 1498: s/_lock/_locked/ in node_helper.[ch]
+
+---
+ net/test/node_bulk.c   | 2 +-
+ net/test/node_helper.c | 4 ++--
+ net/test/node_helper.h | 6 +++---
+ net/test/node_ping.c   | 2 +-
+ 4 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index a58541f..1e97134 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1257,7 +1257,7 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 		/* state transitions from final states */
+ 		node_bulk_state_transition_auto_all(ctx);
+ 		/* update copy of statistics */
+-		c2_net_test_nh_sd_copy_lock(&ctx->nbc_nh);
++		c2_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
+ 		/* wait for STOP command or buffer event */
+ 		if (!ctx->nbc_callback_executed)
+ 			c2_chan_wait(&ctx->nbc_stop_clink);
+diff --git a/net/test/node_helper.c b/net/test/node_helper.c
+index 3b4c068..302bb3d 100644
+--- a/net/test/node_helper.c
++++ b/net/test/node_helper.c
+@@ -57,7 +57,7 @@ void c2_net_test_nh_fini(struct c2_net_test_nh *nh)
+ 	c2_mutex_fini(&nh->ntnh_sd_copy_lock);
+ }
+ 
+-void c2_net_test_nh_sd_copy_lock(struct c2_net_test_nh *nh)
++void c2_net_test_nh_sd_copy_locked(struct c2_net_test_nh *nh)
+ {
+ 	C2_PRE(c2_net_test_nh__invariant(nh));
+ 
+@@ -66,7 +66,7 @@ void c2_net_test_nh_sd_copy_lock(struct c2_net_test_nh *nh)
+ 	c2_mutex_unlock(&nh->ntnh_sd_copy_lock);
+ }
+ 
+-void c2_net_test_nh_sd_get_lock(struct c2_net_test_nh *nh,
++void c2_net_test_nh_sd_get_locked(struct c2_net_test_nh *nh,
+ 				struct c2_net_test_cmd_status_data *sd)
+ {
+ 	C2_PRE(c2_net_test_nh__invariant(nh));
+diff --git a/net/test/node_helper.h b/net/test/node_helper.h
+index 50e5bae..2fa8580 100644
+--- a/net/test/node_helper.h
++++ b/net/test/node_helper.h
+@@ -109,14 +109,14 @@ void c2_net_test_nh_fini(struct c2_net_test_nh *nh);
+  * nh->ntnh_sd_copy = nh->ntnh_sd while holding nh->ntnh_sd_copy_lock.
+  * @see c2_net_test_nh.ntnh_sd
+  */
+-void c2_net_test_nh_sd_copy_lock(struct c2_net_test_nh *nh);
++void c2_net_test_nh_sd_copy_locked(struct c2_net_test_nh *nh);
+ /**
+  * *sd = nh->ntnh_sd_copy while holding nh->ntnh_sd_copy_lock.
+  * Also set sd->ntcsd_time_now to the current time.
+  * @see c2_net_test_nh.ntnh_sd
+  */
+-void c2_net_test_nh_sd_get_lock(struct c2_net_test_nh *nh,
+-				struct c2_net_test_cmd_status_data *sd);
++void c2_net_test_nh_sd_get_locked(struct c2_net_test_nh *nh,
++				  struct c2_net_test_cmd_status_data *sd);
+ 
+ /**
+  * Update statistics for message numbers.
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index 6d29975..45455e2 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -645,7 +645,7 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
+ 		if (ep != NULL)
+ 			c2_net_end_point_put(ep);
+ 		/* update copy of statistics */
+-		c2_net_test_nh_sd_copy_lock(&ctx->npc_nh);
++		c2_net_test_nh_sd_copy_locked(&ctx->npc_nh);
+ 	}
+ 	/* dequeue all buffers */
+ 	for (i = 0; i < ctx->npc_buf_nr; ++i) {
+-- 
+1.8.3.2
+

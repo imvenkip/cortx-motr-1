@@ -1,0 +1,180 @@
+From f6f2c13d17095e96a0ee3b8ca74647b2db210421 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sat, 23 Feb 2013 17:23:36 +0200
+Subject: [PATCH 03/17] mds/readdir: start namespace search at (fid, "")
+ instead of (fid, ".")
+
+m0_mdstore_dir_empty_check() and m0_mdstore_readdir() have been
+modified to start namespace table search at (fid, "") instead of
+(fid, "."). This way we won't miss directory entries with names
+like ",," ("" < "," < ",," < "." < ".." ...).
+Additional m0_fid_eq() EOF check has been removed from
+m0_mdstore_readdir(), because this check is performed by
+m0_cob_iterator_get() now.
+---
+ mdstore/mdstore.c | 93 +++++++++++++++++++++----------------------------------
+ 1 file changed, 36 insertions(+), 57 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 9c4aced..8a640ee 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -319,20 +319,16 @@ M0_INTERNAL int m0_mdstore_dir_empty_check(struct m0_mdstore *md,
+ 					   struct m0_db_tx   *tx)
+ {
+ 	struct m0_cob_iterator  it;
+-	struct m0_bitstring    *pos;
++	struct m0_bitstring     empty = {.b_len = 0};
+ 	int                     rc;
+ 
+ 	M0_ENTRY();
+-	pos = m0_bitstring_alloc(".", 1);
+-	if (pos == NULL)
+-		return -ENOMEM;
+-	rc = m0_cob_iterator_init(cob, &it, pos, tx);
++	rc = m0_cob_iterator_init(cob, &it, &empty, tx);
+ 	if (rc != 0) {
+ 		M0_LOG(M0_DEBUG, "iterator init: %d", rc);
+ 		goto out;
+ 	}
+-	for (rc = m0_cob_iterator_get(&it);
+-	     rc == 0 && m0_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid);
++	for (rc = m0_cob_iterator_get(&it); rc == 0;
+ 	     rc = m0_cob_iterator_next(&it)) {
+ 		M0_LOG(M0_DEBUG, "[%lx:%lx]/%.*s contains [%lx:%lx]/%.*s",
+ 		       cob->co_nskey->cnk_pfid.f_container,
+@@ -348,7 +344,6 @@ M0_INTERNAL int m0_mdstore_dir_empty_check(struct m0_mdstore *md,
+ 	}
+ 	m0_cob_iterator_fini(&it);
+ out:
+-	m0_bitstring_free(pos);
+ 	if (rc == -ENOENT)
+ 		rc = 0;
+ 	M0_LEAVE("rc: %d", rc);
+@@ -374,7 +369,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
+ 	       cob->co_nskey->cnk_pfid.f_key,
+ 	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
+ 	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
+-	       cob->co_nsrec.cnr_fid.f_container, 
++	       cob->co_nsrec.cnr_fid.f_container,
+ 	       cob->co_nsrec.cnr_fid.f_key, cob->co_nsrec.cnr_linkno);
+ 	M0_ASSERT(pfid != NULL);
+ 	M0_ASSERT(cob != NULL);
+@@ -710,73 +705,55 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 	struct m0_dirent              *last = NULL;
+ 	int                            nob;
+ 	int                            reclen;
+-	int                            first;
+-	int                            second;
+ 	int                            rc;
++	int                            dot;
++	char                          *pos_buf;
++	uint32_t                       pos_len;
++	struct m0_bitstring            empty = {.b_len = 0};
+ 
+ 	M0_ENTRY();
+-	M0_ASSERT(cob != NULL);
++	M0_ASSERT(cob != NULL && rdpg != NULL);
++
++	pos_buf = (char *)m0_bitstring_buf_get(rdpg->r_pos);
++	pos_len = m0_bitstring_len_get(rdpg->r_pos);
+ 
+ 	M0_LOG(M0_DEBUG,
+ 	       "Readdir on object [%lx:%lx] starting from \"%.*s\"",
+-	       cob->co_fid->f_container, cob->co_fid->f_key,
+-	       m0_bitstring_len_get(rdpg->r_pos),
+-	       (char *)m0_bitstring_buf_get(rdpg->r_pos));
+-
+-	first = !strncmp(m0_bitstring_buf_get(rdpg->r_pos), ".", 2);
+-	second = 0;
++	       cob->co_fid->f_container, cob->co_fid->f_key, pos_len,
++	       pos_buf);
++
++	/** Emulate "." and ".." entries at the 1st and 2nd positions. */
++	if (pos_len == 0 || (pos_len == 1 && pos_buf[0] == '.')) {
++		dot = 1;
++	} else if (pos_len == 2 && strncmp(pos_buf, "..", 2) == 0) {
++		dot = 2;
++	} else {
++		dot = 0;
++	}
+ 
+-	rc = m0_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
++	rc = m0_cob_iterator_init(cob, &it, dot ? &empty : rdpg->r_pos, tx);
+ 	if (rc != 0) {
+ 		M0_LOG(M0_DEBUG, "Iterator failed to position with %d", rc);
+ 		goto out;
+ 	}
+ 
+-	rc = m0_cob_iterator_get(&it);
+-	if (rc == 0) {
+-		if (!first) {
+-			rc = m0_cob_iterator_next(&it);
+-		} else {
+-			rc = 0;
+-		}
+-	} else if (rc == -ENOENT) {
+-		/*
+-		 * Not exact position found and we are on least key
+-		 * let's do one step forward.
+-		 */
+-		rc = m0_cob_iterator_next(&it);
+-		} else {
+-		M0_LOG(M0_DEBUG, "Iterator failed to get cursor with %d", rc);
+-		goto out;
+-	}
+-
+ 	ent = rdpg->r_buf.b_addr;
+ 	nob = rdpg->r_buf.b_nob;
+-	while (rc == 0 || first || second) {
+-		int do_next = 0;
+-		if (first) {
++	/**
++	 * Positions iterator to the closest key greater or equal
++	 * to the starting position. Returns -ENOENT if no such
++	 * key exists.
++	 */
++	rc = m0_cob_iterator_get(&it);
++	while (rc == 0 || dot) {
++		if (dot == 1) {
+ 			m0_bitstring_copy(rdpg->r_pos, ".", 1);
+-			second = 1;
+-			first = 0;
+-		} else if (second) {
++		} else if (dot == 2) {
+ 			m0_bitstring_copy(rdpg->r_pos, "..", 2);
+-			second = 0;
+ 		} else {
+-			if (!m0_fid_eq(&it.ci_key->cnk_pfid, cob->co_fid)) {
+-				M0_LOG(M0_DEBUG,
+-				       "EOF detected. [%lx:%lx] != [%lx:%lx]",
+-				       it.ci_key->cnk_pfid.f_container,
+-				       it.ci_key->cnk_pfid.f_key,
+-				       cob->co_fid->f_container,
+-				       cob->co_fid->f_key);
+-				rc = -ENOENT;
+-				break;
+-			}
+-
+ 			m0_bitstring_copy(rdpg->r_pos,
+ 					  m0_bitstring_buf_get(&it.ci_key->cnk_name),
+ 					  m0_bitstring_len_get(&it.ci_key->cnk_name));
+-			do_next = 1;
+ 		}
+ 
+ 		reclen = ((sizeof(*ent) + m0_bitstring_len_get(rdpg->r_pos)) + 7) & ~7;
+@@ -801,8 +778,10 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
+ 		last = ent;
+ 		ent = (void *)ent + reclen;
+ 		nob -= reclen;
+-		if (do_next)
++		if (!dot)
+ 			rc = m0_cob_iterator_next(&it);
++		else if (++dot > 2)
++			dot = 0;
+ 	}
+ out_end:
+ 	m0_cob_iterator_fini(&it);
+-- 
+1.8.3.2
+

@@ -1,0 +1,251 @@
+From f89daf7bff3336e4b09222ddf76422c266bc6972 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 7 Mar 2012 21:05:35 +0200
+Subject: [PATCH 043/370] delete xdata.ff
+
+While "xcode" format will definitely be used in the future,
+currently it is only "fop2c" version that is needed.
+
+To see the contents of deleted file, type
+    git show 7b478cf7db
+---
+ conf/confc.h  |   6 ++-
+ conf/obj.h    |  11 ++--
+ conf/path.h   |   2 +-
+ conf/xdata.ff | 165 ----------------------------------------------------------
+ 4 files changed, 13 insertions(+), 171 deletions(-)
+ delete mode 100644 conf/xdata.ff
+
+diff --git a/conf/confc.h b/conf/confc.h
+index 7f84a94..7a93aaa 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -21,7 +21,11 @@
+ #define __COLIBRI_CONF_CONFC_H__
+ 
+ #include "conf/path.h"
+-#include "conf/xdata.h" /* c2_conf_fetch */
++#ifdef __KERNEL__
++#  include "conf/onwire_k.h"
++#else
++#  include "conf/onwire_u.h" /* c2_conf_fetch */
++#endif
+ #include "sm/sm.h"      /* c2_sm, c2_sm_ast */
+ #include "lib/chan.h"   /* c2_clink */
+ 
+diff --git a/conf/obj.h b/conf/obj.h
+index f59a2f4..6afb9e1 100644
+--- a/conf/obj.h
++++ b/conf/obj.h
+@@ -20,7 +20,11 @@
+ #ifndef __COLIBRI_CONF_OBJ_H__
+ #define __COLIBRI_CONF_OBJ_H__
+ 
+-#include "conf/xdata.h" /* c2_conf_buf */
++#ifdef __KERNEL__
++#  include "conf/onwire_k.h"
++#else
++#  include "conf/onwire_u.h" /* c2_conf_buf */
++#endif
+ 
+ /* XXX @todo Move definitions from cfg/cfg.h to conf/schema.h */
+ #include "cfg/cfg.h"
+@@ -52,9 +56,8 @@ enum c2_conf_status {
+ /**
+  * C2_CONF_BUF_INIT: initializer for struct c2_conf_buf.
+  *
+- * c2_conf_buf is defined in xdata.ff (it has to be xcoded), but
+- * C2_CONF_BUF_INIT() cannot be defined there (xcode/ff2c would reject
+- * such a definition).
++ * c2_conf_buf is defined in onwire.ff, but C2_CONF_BUF_INIT() cannot
++ * be defined there --- fop/fop2c would skip such a definition.
+  */
+ #define C2_CONF_BUF_INIT(size, data) { .cb_size = (size), .cb_data = (data) }
+ 
+diff --git a/conf/path.h b/conf/path.h
+index adb466d..436d8fb 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -89,7 +89,7 @@ const struct c2_conf_relation * c2_conf_downlink(uint32_t src, uint32_t tgt);
+ 
+ /**
+  * Initializers for c2_conf_pathcomp structure. The structure itself
+- * is described in xdata.ff.
++ * is described in `onwire.ff'.
+  *
+  * Use example:
+  *
+diff --git a/conf/xdata.ff b/conf/xdata.ff
+deleted file mode 100644
+index 7b478cf..0000000
+--- a/conf/xdata.ff
++++ /dev/null
+@@ -1,165 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+- * Original creation date: 30-Jan-2012
+- */
+-
+-/* XXX TODO Move definitions from cfg/cfg.h to conf/db.ff */
+-require "cfg/cfg"; /* C2_CFG_PARAM_LEN, C2_CFG_SERVICE_MAX_END_POINTS */
+-
+-/*
+- * Sequence of bytes.
+- *
+- * See also C2_CONF_BUF_INIT() and c2_conf_buf_eq().
+- */
+-sequence {
+-	u32 cb_size;
+-	u8  cb_data
+-} c2_conf_buf;
+-
+-/* Path component. */
+-union {
+-	u8          pc_iskey;       /* boolean value: 0 (no), 1 (yes) */
+-	u32         pc_relation :0; /* see c2_conf_objtype for values */
+-	c2_conf_buf pc_key      :1
+-} c2_conf_pathcomp;
+-
+-/* Configuration request. */
+-record {
+-	record {
+-		u32         o_objtype; /* see c2_conf_objtype for values */
+-		c2_conf_buf o_objkey
+-	} ff_origin; /* Configuration object the path originates from. */
+-	sequence {
+-		u32              c_nr;
+-		c2_conf_pathcomp c_data
+-	} ff_comps   /* Path components. */
+-} c2_conf_fetch;
+-
+-/* Configuration of a profile. */
+-record {
+-	c2_conf_buf fp_filesystem /* Name of profile's filesystem. */
+-} c2_confx_profile;
+-
+-/* Configuration of a filesystem. */
+-record {
+-	record {
+-		u64 f_container;
+-		u64 f_key
+-	} ff_rootfid; /* Root fid. */
+-	sequence {
+-		void p_none :C2_CFG_PARAM_LEN;
+-		u64  p_data
+-	} ff_params   /* Filesystem parameters. */
+-} c2_confx_filesystem;
+-
+-/* Configuration of a service. */
+-record {
+-	/* Parent filesystem. */
+-	c2_conf_buf fs_filesystem;
+-
+-	/* Service type.  See c2_cfg_service_type for values. */
+-	u32         fs_type;
+-
+-	/* End-points from which this service is reachable. */
+-	sequence {
+-		void        e_none :C2_CFG_SERVICE_MAX_END_POINTS;
+-		c2_conf_buf e_data
+-	} fs_endpoints;
+-
+-	/* Hosting node. */
+-	c2_conf_buf fs_node
+-} c2_confx_service;
+-
+-record {
+-	sequence {
+-		u32         s_nr;
+-		c2_conf_buf s_data
+-	} fn_services;
+-	u32 fn_memsize;
+-	u32 fn_nr_processors;
+-	u64 fn_last_state;
+-	u64 fn_flags;
+-	u64 fn_pool_id;
+-	sequence {
+-		u32         n_nr;
+-		c2_conf_buf n_data
+-	} fn_nics;
+-	sequence {
+-		u32         d_nr;
+-		c2_conf_buf d_data
+-	} fn_sdevs
+-} c2_confx_node;
+-
+-record {
+-	c2_conf_buf fn_node;
+-	u32         fn_iface_type;
+-	u32         fn_mtu;
+-	u64         fn_speed;
+-	c2_conf_buf fn_filename;
+-	u64         fn_last_state
+-} c2_confx_nic;
+-
+-record {
+-	c2_conf_buf fd_node;
+-	u32         fd_type;
+-	u32         fd_media;
+-	u64         fd_size;
+-	u64         fd_last_state;
+-	u64         fd_flags;
+-	c2_conf_buf fd_filename;
+-	sequence {
+-		u32         p_nr;
+-		c2_conf_buf p_data
+-	} fd_partitions
+-} c2_confx_sdev;
+-
+-record {
+-	c2_conf_buf fp_sdev;
+-	u64         fp_start;
+-	u64         fp_size;
+-	u32         fp_index;
+-	u32         fp_type;
+-	c2_conf_buf fp_filename
+-} c2_confx_partition;
+-
+-/* Encoding of a configuration object. */
+-record {
+-	c2_conf_buf fo_key;
+-	union {
+-		u8                  v_type; /* see c2_conf_objtype for values */
+-		c2_confx_profile    v_profile;
+-		c2_confx_filesystem v_filesystem;
+-		c2_confx_service    v_service;
+-		c2_confx_node       v_node;
+-		c2_confx_nic        v_nic;
+-		c2_confx_sdev       v_sdev;
+-		c2_confx_partition  v_partition
+-	} fo_val
+-} c2_confx_obj;
+-
+-/* Confd's reponse to c2_conf_fetch. */
+-record {
+-	/* Result of configuration retrieval (-Exxx = failure, 0 = success). */
+-	u32 ffr_rc;
+-
+-	/* A sequence of encoded configuration objects. */
+-	sequence {
+-		u32          d_nr;
+-		c2_confx_obj d_objs
+-	} ffr_data
+-} c2_conf_fetch_resp
+-- 
+1.8.3.2
+

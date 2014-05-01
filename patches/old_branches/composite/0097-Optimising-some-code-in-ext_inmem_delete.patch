@@ -1,0 +1,95 @@
+From 7a18afc86bc226b82287745135e6d1d7db55730e Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 22 Mar 2013 17:59:22 +0530
+Subject: [PATCH 097/172] Optimising some code in ext_inmem_delete()
+
+---
+ layout/composite.c | 37 ++++++++++++++-----------------------
+ 1 file changed, 14 insertions(+), 23 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index f9eff84..78a4024 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -2219,25 +2219,16 @@ static int ext_inmem_delete(struct m0_composite_layer *layer,
+ 		if (ext->e_start > lr_ext->cle_ext.e_end)
+ 			continue;
+ 		if (ext->e_start == lr_ext->cle_ext.e_start) {
+-			if (ext->e_end == lr_ext->cle_ext.e_end) {
+-				lr_ext_to_delete = lr_ext;
+-				lr_ext_to_delete_found = true;
+-				break;
+-			} else
+-				/*
+-				 * It is only during the process of an extent
+-				 * getting added by splitting some existing
+-				 * extent, when there could be two extents
+-				 * starting with the same offset. So, this
+-				 * 'continue' is to find that other exact
+-				 * matching extent.
+-				 */
+-				continue;
++			M0_ASSERT(lr_ext->cle_ext.e_end == ext->e_end);
++			M0_ASSERT(lr_ext->cle_state == old_ext_state);
++
++			lr_ext_to_delete = lr_ext;
++			lr_ext_to_delete_found = true;
++			break;
+ 		}
+ 	} m0_tl_endfor;
+ 
+-	if (lr_ext_to_delete_found && ext->e_end == lr_ext->cle_ext.e_end) {
+-		M0_ASSERT(lr_ext_to_delete->cle_state == old_ext_state);
++	if (lr_ext_to_delete_found)
+ 		ext_inmem_del_internal(layer, lr_ext_to_delete);
+ 		rc = 0;
+ 	} else
+@@ -2645,7 +2636,7 @@ static int comp_layout_indb_read(struct m0_composite_layout *cl,
+ {
+ 	uint64_t                   sublayout_id;
+ 	struct m0_layout          *sublayout;
+-	struct m0_tl               extents;
++	struct m0_tl               extlist;
+ 	uint32_t                   extents_nr;
+ 	struct m0_composite_layer *layer;
+ 	uint32_t                   i; /* layer idx */
+@@ -2687,7 +2678,7 @@ static int comp_layout_indb_read(struct m0_composite_layout *cl,
+ 		}
+ 
+ 		/* Read 'the extent map for this layer' from the DB. */
+-		rc = extentmap_indb_read(cl, i, tx, &extents, &extents_nr);
++		rc = extentmap_indb_read(cl, i, tx, &extlist, &extents_nr);
+ 		if (rc != 0) {
+ 			M0_LOG(M0_ERROR, "lid %llu, layer %lu, extentmap could"
+ 			       "not be read from the DB",
+@@ -2699,14 +2690,14 @@ static int comp_layout_indb_read(struct m0_composite_layout *cl,
+ 		}
+ 
+ 		if (i == 0)
+-			rc = composite_populate(cl, sublayout, &extents,
++			rc = composite_populate(cl, sublayout, &extlist,
+ 						extents_nr, user_count,
+ 						!USER_COUNT_ADJUST);
+ 		else
+ 			/* Now, write the layer to the in-memory layout. */
+-			rc = layer_inmem_add(cl, sublayout, &extents,
+-					     extents_nr,
+-					     !USER_COUNT_ADJUST, &layer);
++			rc = layer_inmem_add(cl, sublayout, &extlist,
++					     extents_nr, !USER_COUNT_ADJUST,
++					     &layer);
+ 		/*
+ 		 * Release the reference added by m0_layout_find().
+ 		 * In case of success, composite_populate() or
+@@ -2716,7 +2707,7 @@ static int comp_layout_indb_read(struct m0_composite_layout *cl,
+ 		m0_layout_put(sublayout);
+ 
+ 		if (rc != 0) {
+-			extlist_free(&extents);
++			extlist_free(&extlist);
+ 			break;
+ 		}
+ 		++i;
+-- 
+1.8.3.2
+

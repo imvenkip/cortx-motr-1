@@ -1,0 +1,99 @@
+From e709e72349b10a33c868bdc5e3d67d6eb37f4516 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 18 Apr 2012 19:34:54 +0300
+Subject: [PATCH 140/370] add code for c2_conf_path_is_valid()
+
++ Enumerate properties of a valid path.
+
+LogD #1068
+Review Request #714
+---
+ conf/confc.c |  4 ++--
+ conf/path.c  | 34 ++++++++++++++++++++++++++++++++++
+ conf/path.h  | 10 +++++-----
+ 3 files changed, 41 insertions(+), 7 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index da604f1..4281ec6 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -83,8 +83,8 @@
+  * @subsection confc-lspec-state-initial S_INITIAL
+  *
+  * c2_confc_open() and c2_confc_diropen() check validity of `path'
+- * argument, copy it to c2_confc_ctx::fc_path, and post an AST to
+- * c2_confc::cc_group.
++ * argument (see c2_conf_path_is_valid()), copy it to
++ * c2_confc_ctx::fc_path, and post an AST to c2_confc::cc_group.
+  *
+  * @note  c2_sm_ast_post() signals group's clink. Current design of
+  *        confc assumes that some thread will respond to this event by
+diff --git a/conf/path.c b/conf/path.c
+index f453767..9be7ce6 100644
+--- a/conf/path.c
++++ b/conf/path.c
+@@ -94,6 +94,40 @@ const struct rels {
+ 	[C2_CO_PARTITION]  = { .data = NULL, .ar_nr = 0 }
+ };
+ 
++bool c2_conf_path_is_valid(const struct c2_conf_obj *origin,
++			   const struct c2_conf_pathcomp *path, bool *isdir)
++{
++	const struct c2_conf_relation *rel;
++	enum c2_conf_objtype           cur = origin->co_type;
++
++	if (!c2_conf_eop(path) && path->pc_iskey)
++		return false; /* property #1 is not met */
++
++	for (*isdir = false; !c2_conf_eop(path); ++path) {
++		if (path->pc_iskey) {
++			if (*isdir) {
++				/* key has narrowed one-to-many relation */
++				*isdir = false;
++				continue;
++			} else {
++				return false; /* property #3 is not met */
++			}
++			/* NB: we don't care about the value of key */
++		}
++
++		C2_ASSERT(!path->pc_iskey);
++		if (*isdir)
++			return false; /* property #2 is not met */
++		rel = c2_conf_downlink(cur, path->u.pc_relation);
++		if (rel == NULL)
++			return false; /* property #0 is not met */
++
++		cur = rel->r_type;
++		*isdir = rel->r_dir != NULL;
++	}
++	return true;
++}
++
+ const struct c2_conf_relation * c2_conf_downlink(uint32_t src, uint32_t tgt)
+ {
+ 	size_t i;
+diff --git a/conf/path.h b/conf/path.h
+index e9e7c23..63e48fc 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -191,11 +191,11 @@ struct c2_conf_pathcomp;
+  *
+  * An empty path is valid.  Non-empty path is valid iff the following
+  * properties hold:
+- * - relations are downlinks (c2_conf_downlink() != NULL);
+- * - the first component is a downlink;
+- * - a one-to-many downlink is followed by a key or is the last
+- *   component;
+- * - a key is preceded by a one-to-many downlink.
++ * - #0: relations are downlinks (c2_conf_downlink() != NULL);
++ * - #1: the first component is a relation;
++ * - #2: one-to-many relation is followed by a key or is the last
++ *       component;
++ * - #3: a key is preceded by one-to-many relation.
+  *
+  * @note  c2_conf_path_is_valid() does not verify keys of `path' (i.e.,
+  *        it does not check the existence of objects referred to by
+-- 
+1.8.3.2
+

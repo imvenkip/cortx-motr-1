@@ -1,0 +1,327 @@
+From 5d32ed17308cb9dd0542b409b6e8781a1600d454 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Thu, 20 Jan 2011 09:01:37 -0700
+Subject: [PATCH 05/91] - added c2_site; - added fto_free() - more code about
+ mdstore and using it.
+
+---
+ Makefile.am           |  2 +-
+ colibri/Makefile.am   |  3 ++-
+ colibri/init.c        |  4 +++-
+ configure.ac          |  1 +
+ datastore/datastore.c |  7 ++++---
+ datastore/datastore.h |  6 +++---
+ fop/fop.h             | 15 +++++++++++++++
+ mdstore/mdstore.c     | 29 ++++++++++++++++++-----------
+ mdstore/mdstore.h     | 12 +++++++-----
+ reqh/reqh.c           | 19 +++++++++++--------
+ reqh/reqh.h           | 14 ++++----------
+ 11 files changed, 69 insertions(+), 43 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index b1e9291..f4aaf11 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -1,6 +1,6 @@
+ SUBDIRS_BASE = m4 doc man patches 
+ SUBDIRS_LIBS = lib sm addb fop stob net fol fid dtm nrs sns mw reqh layout \
+-               pool balloc db desim cob capa udb mdstore datastore # rpc
++               pool balloc db desim cob capa udb site mdstore datastore # rpc
+ SUBDIR_KERNEL = build_kernel_modules
+ SUBDIR_BINARIES = mds utils
+ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut \
+diff --git a/colibri/Makefile.am b/colibri/Makefile.am
+index 66ddbc8..06e7b64 100644
+--- a/colibri/Makefile.am
++++ b/colibri/Makefile.am
+@@ -27,7 +27,8 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DBLIBS@ @CUNIT_LIBS@ \
+                             $(top_builddir)/stob/libcolibri-stob.la \
+                             $(top_builddir)/udb/libcolibri-udb.la \
+                             $(top_builddir)/mdstore/libcolibri-mdstore.la \
+-                            $(top_builddir)/datastore/libcolibri-datastore.la
++                            $(top_builddir)/datastore/libcolibri-datastore.la \
++                            $(top_builddir)/site/libcolibri-site.la
+ 
+ #                            $(top_builddir)/rpc/libcolibri-rpc.la
+ 
+diff --git a/colibri/init.c b/colibri/init.c
+index a4f66f2..ae833a5 100644
+--- a/colibri/init.c
++++ b/colibri/init.c
+@@ -18,6 +18,7 @@
+ #include "stob/ad.h"
+ #include "fol/fol.h"
+ #include "desim/sim.h"
++#include "site/site.h"
+ 
+ #include "colibri/init.h"
+ 
+@@ -48,7 +49,8 @@ struct init_fini_call subsystem[] = {
+ 	{ &linux_stobs_init, &linux_stobs_fini, "linux-stob" },
+ 	{ &ad_stobs_init,    &ad_stobs_fini,    "ad-stob" },
+ 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
+-	{ &sim_global_init,  &sim_global_fini,  "desim" }
++	{ &sim_global_init,  &sim_global_fini,  "desim" },
++	{ &c2_sites_init,    &c2_sites_fini,    "sites" }
+ };
+ 
+ static void fini_nr(int i)
+diff --git a/configure.ac b/configure.ac
+index 2166384..c4234fc 100755
+--- a/configure.ac
++++ b/configure.ac
+@@ -523,6 +523,7 @@ AC_CONFIG_FILES([
+                  sns/ut/Makefile
+                  stob/Makefile
+                  stob/ut/Makefile
++                 site/Makefile
+                  mdstore/Makefile
+                  datastore/Makefile
+                  udb/Makefile
+diff --git a/datastore/datastore.c b/datastore/datastore.c
+index 8d2ad2f..130aff0 100644
+--- a/datastore/datastore.c
++++ b/datastore/datastore.c
+@@ -8,12 +8,13 @@
+ 
+ #include "datastore.h"
+ 
+-int c2_data_store_init(struct c2_data_store *store, struct c2_stob_domain *stob)
++int c2_data_store_init(struct c2_data_store *data, struct c2_stob_domain *stob)
+ {
+-        store->dt_stob = stob;
++        data->ds_stob = stob;
+         return 0;
+ }
+ 
+-void c2_data_store_fini(struct c2_data_store *store)
++void c2_data_store_fini(struct c2_data_store *data)
+ {
++        return;
+ }
+diff --git a/datastore/datastore.h b/datastore/datastore.h
+index 07d1b13..8e8b81c 100644
+--- a/datastore/datastore.h
++++ b/datastore/datastore.h
+@@ -6,11 +6,11 @@
+ struct c2_stob_domain;
+ 
+ struct c2_data_store {
+-        struct c2_stob_domain  *dt_stob;
++        struct c2_stob_domain  *ds_stob;
+ };
+ 
+-int c2_data_store_init(struct c2_data_store *store, struct c2_stob_domain *stob);
+-void c2_data_store_fini(struct c2_data_store *store);
++int c2_data_store_init(struct c2_data_store *data, struct c2_stob_domain *stob);
++void c2_data_store_fini(struct c2_data_store *data);
+ 
+ 
+ /* __COLIBRI_DATASTORE_DATASTORE_H__ */
+diff --git a/fop/fop.h b/fop/fop.h
+index b04effb..b111ca8 100644
+--- a/fop/fop.h
++++ b/fop/fop.h
+@@ -37,6 +37,7 @@ struct c2_rpcmachine;
+ struct c2_service;
+ struct c2_fol;
+ struct c2_db_tx;
++struct c2_site;
+ 
+ /* export */
+ struct c2_fop_type;
+@@ -89,8 +90,20 @@ void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
+    particular fop execution in a service.
+  */
+ struct c2_fop_ctx {
++        /**
++           Service that fop is executed on behlf of.
++        */
+ 	struct c2_service *ft_service;
+ 	/**
++	   Fol that reqh uses.
++	*/
++	struct c2_fol     *ft_fol;
++	/**
++	   Site that fop is executed on behalf of. Site contains devices
++	   stack and allows accessing them from ->fop_execute().
++	*/
++        struct c2_site    *ft_site;
++	/**
+ 	   Service-dependent cookie identifying fop execution. Passed to
+ 	   c2_service_ops::so_reply_post() to post a reply.
+ 
+@@ -105,6 +118,8 @@ struct c2_fop_type_ops {
+ 	int (*fto_fom_init)(struct c2_fop *fop, struct c2_fom **fom);
+ 	/** XXX temporary entry point for threaded fop execution. */
+ 	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
++        /** Free some fop fields if needed. */
++	void (*fto_free) (struct c2_fop *fop);
+ 	/** fol record type operations for this fop type, or NULL is standard
+ 	    operations are to be used. */
+ 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index d24d745..48b3e4c 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -2,26 +2,33 @@
+ #  include <config.h>
+ #endif
+ 
++#include "lib/misc.h"   /* C2_SET0 */
++#include "lib/cdefs.h"
++#include "lib/arith.h"   /* C2_3WAY */
++#include "lib/errno.h"
+ #include "lib/assert.h"
+ #include "lib/memory.h"
+-#include "lib/misc.h"              /* C2_SET0 */
+ #include "lib/bitstring.h"
+-#include "cob/cob.h"
++#include "lib/rwlock.h"
++
++#include "addb/addb.h"
++#include "db/db.h"
+ #include "fop/fop.h"
++#include "cob/cob.h"
+ 
+ #include "mdstore.h"
+ 
+-int c2_md_store_init(struct c2_md_store *store, struct c2_cob_domain *cob)
+-{
+-        store->md_cob = cob;
+-        return 0;
+-}
+-
+-int c2_md_store_handle(struct c2_md_store *store, struct c2_fop *fop)
++int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
++                     struct c2_dbenv *db)
+ {
+-        return 0;
++        int rc;
++        
++        C2_SET0(md);
++        rc = c2_cob_domain_init(&md->md_cob, db, id);
++        return rc;
+ }
+ 
+-void c2_md_store_fini(struct c2_md_store *store)
++void c2_md_store_fini(struct c2_md_store *md)
+ {
++        c2_cob_domain_fini(&md->md_cob);
+ }
+diff --git a/mdstore/mdstore.h b/mdstore/mdstore.h
+index cdb70c5..af483a0 100644
+--- a/mdstore/mdstore.h
++++ b/mdstore/mdstore.h
+@@ -3,16 +3,18 @@
+ #ifndef __COLIBRI_MDSTORE_MDSTORE_H__
+ #define __COLIBRI_MDSTORE_MDSTORE_H__
+ 
++struct c2_cob_domain_id;
+ struct c2_cob_domain;
+-struct c2_fop;
++struct c2_dbenv;
+ 
+ struct c2_md_store {
+-        struct c2_cob_domain  *md_cob;
++        struct c2_cob_domain  md_cob;
+ };
+ 
+-int c2_md_store_init(struct c2_md_store *store, struct c2_cob_domain *cob);
+-int c2_md_store_handle(struct c2_md_store *store, struct c2_fop *fop);
+-void c2_md_store_fini(struct c2_md_store *store);
++int c2_md_store_init(struct c2_md_store *md, struct c2_cob_domain_id *id,
++                     struct c2_dbenv *db);
++
++void c2_md_store_fini(struct c2_md_store *md);
+ 
+ /* __COLIBRI_MDSTORE_MDSTORE_H__ */
+ #endif
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index ba3fa21..0302f8d 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -3,10 +3,10 @@
+ #endif
+ 
+ #include "lib/assert.h"
++#include "lib/misc.h"
+ #include "stob/stob.h"
+ #include "fop/fop.h"
+-#include "mdstore/mdstore.h"
+-#include "datastore/datastore.h"
++#include "site/site.h"
+ 
+ #include "reqh.h"
+ 
+@@ -16,13 +16,11 @@
+  */
+ 
+ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
+-		  struct c2_fol *fol, struct c2_md_store *md,
+-		  struct c2_data_store *data)
++		  struct c2_fol *fol, struct c2_site *site)
+ {
+-	reqh->rh_md = md;
+ 	reqh->rh_fol = fol;
+ 	reqh->rh_dtm = dtm;
+-	reqh->rh_data = data;
++	reqh->rh_site = site;
+ 	return 0;
+ }
+ 
+@@ -194,8 +192,13 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop)
+ 	fop->f_type->ft_ops->fto_fom_init(fop, &fom);
+ 	fom->fm_ops->fmo_run(fom);
+ #endif
+-        if (reqh->rh_md)
+-                c2_md_store_handle(reqh->rh_md, fop);
++
++        struct c2_fop_ctx ctx;
++
++        C2_SET0(&ctx);
++        ctx.ft_site = reqh->rh_site;
++        ctx.ft_fol  = reqh->rh_fol;
++        fop->f_type->ft_ops->fto_execute(fop, &ctx);
+ }
+ 
+ void c2_reqh_fop_sortkey_get(struct c2_reqh *reqh, struct c2_fop *fop,
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index b2f9296..c9b8937 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -8,8 +8,7 @@
+ /* import */
+ struct c2_fop;
+ struct c2_stob_domain;
+-struct c2_md_store;
+-struct c2_data_store;
++struct c2_site;
+ 
+ /**
+    @defgroup reqh Request handler
+@@ -30,18 +29,13 @@ struct c2_reqh {
+ 	*/
+ 	struct c2_fol         *rh_fol;
+ 	/**
+-	   Metadata store is collection of cobs.
+-	 */
+-	struct c2_md_store    *rh_md;
+-	/**
+-	   Data store is collection of stobs.
++	   Site on which reqh is working.
+ 	*/
+-	struct c2_data_store  *rh_data;
++	struct c2_site        *rh_site;
+ };
+ 
+ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
+-		  struct c2_fol *fol, struct c2_md_store *md,
+-		  struct c2_data_store *data);
++		  struct c2_fol *fol, struct c2_site *site);
+ void c2_reqh_fini(struct c2_reqh *reqh);
+ 
+ /**
+-- 
+1.8.3.2
+

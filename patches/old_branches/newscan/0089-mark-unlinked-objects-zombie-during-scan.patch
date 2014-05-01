@@ -1,0 +1,114 @@
+From a971a7be35bb7b68a0aeb9cf5fa06e927e669c2d Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Sun, 22 May 2011 05:42:50 -0600
+Subject: [PATCH 089/158] - mark unlinked objects zombie during scan.
+
+---
+ cob/cob.h            |  3 ++-
+ mdservice/md_foms.c  | 19 ++++++++++++++++---
+ mdservice/md_fops.ff |  1 +
+ mdstore/mdstore.c    |  4 ++++
+ 4 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/cob/cob.h b/cob/cob.h
+index c55b4c6..6845761 100644
+--- a/cob/cob.h
++++ b/cob/cob.h
+@@ -193,6 +193,7 @@ struct c2_cob_attr {
+         struct c2_fid     ca_pfid;    /**< parent fid */
+         struct c2_fid     ca_tfid;    /**< object fid */
+         int               ca_flags;   /**< marks valid fiedls. */
++        int               ca_zombie;  /**< object is zombie. */
+         uint32_t          ca_mode;    /**< protection. */
+         uint32_t          ca_uid;     /**< user ID of owner. */
+         uint32_t          ca_gid;     /**< group ID of owner. */
+@@ -232,7 +233,7 @@ struct c2_cob_nsrec {
+         uint32_t          cnr_linkno;  /**< number of link for the name */
+         uint32_t          cnr_nlink;   /**< number of hard links. */
+         uint32_t          cnr_cntr;    /**< linkno allocation counter. */
+-        uint32_t          cnr_padding0;
++        uint32_t          cnr_zombie;  /**< this object is marked to be killed. */
+         uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
+         uint64_t          cnr_version; /**< attributes version, used for repl. */
+ 
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index 094a590..f0dbdd3 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -104,6 +104,7 @@ static void c2_md_fop_cob2attr(struct c2_cob_attr *attr,
+         if (body->b_flags & C2_MD_BLOCKS)
+                 attr->ca_blocks = body->b_blocks;
+         attr->ca_version = body->b_version;
++        attr->ca_zombie = 0;
+ }
+ 
+ static void c2_md_fop_attr2cob(struct c2_fop_cob *body, 
+@@ -409,9 +410,21 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
+         attr.ca_name = req->u_name.n_name;
+         attr.ca_namelen = req->u_name.n_count;
+ 
+-        if (req->u_body.b_version > cob->co_nsrec.cnr_version) {
+-                rc = c2_md_store_unlink(site->s_mdstore, pcob,
+-                                        cob, &attr, ctx);
++        if (body->b_scan) {
++                /* 
++                 * Mark object zombie to kill it later when scan finishes.
++                 */
++                rc = c2_md_store_getattr(site->s_mdstore, cob, &attr, ctx);
++                if (rc == 0) {
++                        attr.ca_zombie = 1;
++                        rc = c2_md_store_setattr(site->s_mdstore, cob, 
++                                                 &attr, ctx);
++                }
++        } else {
++                if (req->u_body.b_version > cob->co_nsrec.cnr_version) {
++                        rc = c2_md_store_unlink(site->s_mdstore, pcob,
++                                                cob, &attr, ctx);
++                }
+         }
+         c2_cob_put(cob);
+         c2_cob_put(pcob);
+diff --git a/mdservice/md_fops.ff b/mdservice/md_fops.ff
+index 7aa8b60..00d29c8 100644
+--- a/mdservice/md_fops.ff
++++ b/mdservice/md_fops.ff
+@@ -23,6 +23,7 @@ DEF(c2_fop_cob, RECORD,
+     _(b_index, U64),
+     _(b_version, U64),
+     _(b_flags, U32),
++    _(b_scan, U32),
+     _(b_mode, U32),
+     _(b_size, U64),
+     _(b_blksize, U64),
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index f74429f..875e23f 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -120,6 +120,8 @@ int c2_md_store_create(struct c2_md_store       *md,
+         nsrec.cnr_atime = attr->ca_atime;
+         nsrec.cnr_mtime = attr->ca_mtime;
+         nsrec.cnr_ctime = attr->ca_ctime;
++        nsrec.cnr_zombie = 0;
++
+         omgrec.cor_uid = attr->ca_uid;
+         omgrec.cor_gid = attr->ca_gid;
+         omgrec.cor_mode = attr->ca_mode;
+@@ -460,6 +462,7 @@ int c2_md_store_setattr(struct c2_md_store      *md,
+         if (attr->ca_flags & C2_MD_NLINK)
+                 nsrec->cnr_nlink = attr->ca_nlink;
+         nsrec->cnr_version = attr->ca_version;
++        nsrec->cnr_zombie = attr->ca_zombie;
+ 
+         /*
+          * Handle uid/gid/mode update.
+@@ -515,6 +518,7 @@ int c2_md_store_getattr(struct c2_md_store      *md,
+         attr->ca_blocks = cob->co_nsrec.cnr_blocks;
+         attr->ca_nlink = cob->co_nsrec.cnr_nlink;
+         attr->ca_version = cob->co_nsrec.cnr_version;
++        attr->ca_zombie = cob->co_nsrec.cnr_zombie;
+ 
+         if (S_ISCHR(attr->ca_mode) || S_ISBLK(attr->ca_mode)) {
+                 attr->ca_rdev = cob->co_nsrec.u.cnr_rdev;
+-- 
+1.8.3.2
+

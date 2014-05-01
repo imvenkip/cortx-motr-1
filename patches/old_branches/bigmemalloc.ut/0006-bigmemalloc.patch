@@ -1,0 +1,27 @@
+From 6c813e852b0bd8178ff19501487aa9a85aa7a97e Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Fri, 5 Jul 2013 02:38:16 -0700
+Subject: [PATCH 06/61] bigmemalloc: - Removed commented code.
+
+---
+ lib/ut/genarray.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/lib/ut/genarray.c b/lib/ut/genarray.c
+index 25984a6..5246398 100644
+--- a/lib/ut/genarray.c
++++ b/lib/ut/genarray.c
+@@ -132,10 +132,8 @@ void test_genarray(void)
+ 	}
+ 
+ 	for (id = 0; id < ELEMENT_NR; ++id) {
+-		//arr.kga_ops->kgo_write(&arr, id, id);
+ 		val = genarray_ele_get(&arr, unsigned long, id);
+ 		*val = id;
+-		//M0_UT_ASSERT(id == arr.kga_ops->kgo_read(&arr, id));
+ 	}
+ 
+ 	for (id = ELEMENT_NR - 1; id != 0; --id) {
+-- 
+1.8.3.2
+

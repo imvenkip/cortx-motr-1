@@ -1,0 +1,484 @@
+From eaa9051e2e8b53944e5d5b944716c970a9f9027e Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 25 Mar 2013 18:06:40 +0530
+Subject: [PATCH 101/172] Coverage of some error cases
+
+---
+ layout/composite.c    |  89 +++++++++++++---------------------
+ layout/ut/composite.c |   4 +-
+ layout/ut/layout.c    | 130 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 3 files changed, 155 insertions(+), 68 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index ce9344b..0abbd4f 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -1970,21 +1970,19 @@ static void pair_set(struct m0_db_pair *pair,
+ }
+ 
+ static int emap_iterator_set(struct m0_composite_layout *cl,
++			     struct m0_emap *emap,
+ 			     uint32_t layer_idx,
+-			     const struct m0_ext *ext,
++			     m0_bindex_t offset,
+ 			     struct m0_db_tx *tx,
+ 			     struct m0_emap_cursor *it)
+ {
+-	struct m0_emap       *emap;
+-	struct layout_prefix  prefix;
+-	int                   rc;
++	struct layout_prefix prefix;
++	int                  rc;
+ 
+-	emap = emap_from_cl(cl);
+ 	prefix_set(&prefix, cl->cl_base.l_id, layer_idx);
+ 	if (M0_FI_ENABLED("emap_lookup_err"))
+ 		{ rc = L_EMAP_LOOKUP_ERR; goto err1_injected; }
+-	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix,
+-			    ext->e_start, it);
++	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix, offset, it);
+ err1_injected:
+ 	if (rc != 0) {
+ 		m0_layout__log("emap_iterator_set",
+@@ -2031,6 +2029,7 @@ static int ext_indb_write(struct m0_composite_layout *cl,
+ 			  uint32_t ext_validation_kind)
+ {
+ 	struct m0_composite_layer_extent *lr_ext_nearest;
++	struct m0_emap                   *emap;
+ 	struct m0_emap_cursor             it;
+ 	int                               rc;
+ 
+@@ -2051,7 +2050,8 @@ static int ext_indb_write(struct m0_composite_layout *cl,
+ 	if (rc != 0)
+ 		M0_RETURN(rc);
+ 
+-	rc = emap_iterator_set(cl, layer->clr_idx, ext, tx, &it);
++	emap = emap_from_cl(cl);
++	rc = emap_iterator_set(cl, emap, layer->clr_idx, ext->e_start, tx, &it);
+ 	if (rc != 0) {
+ 		M0_LEAVE("lid %llu, layer %lu, rc %d",
+ 			 (unsigned long long)layer->clr_cl->l_id,
+@@ -2487,19 +2487,18 @@ err1_injected:
+ 		return rc;
+ 	}
+ 
+-	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix, 0, &it);
++	rc = emap_iterator_set(cl, emap, layer->clr_idx, 0, tx, &it);
+ 	if (rc != 0) {
+-		m0_layout__log("extmap_indb_add",
+-			       "failed to lookup into layer_emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_2,
+-			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
+-			       rc);
+ 		m0_emap_obj_delete(emap, tx, (struct m0_uint128 *)&prefix);
+ 		/*
+ 		 * If m0_emap_lookup() has failed for no apparent reason, it is
+ 		 * likely that m0_emap_obj_delete() too would fail. Hence,
+ 		 * ignoring its status.
+ 		 */
++
++		M0_LEAVE("lid %llu, layer %lu, rc %d",
++			 (unsigned long long)cl->cl_base.l_id,
++			 (unsigned long)layer->clr_idx, rc);
+ 		return rc;
+ 	}
+ 
+@@ -2567,7 +2566,6 @@ static int extentmap_indb_read(struct m0_composite_layout *cl,
+ {
+ 	struct m0_emap        *emap;
+ 	struct m0_emap_cursor  it;
+-	struct layout_prefix   prefix;
+ 	struct m0_emap_seg    *seg;
+ 	int                    rc;
+ 
+@@ -2575,23 +2573,15 @@ static int extentmap_indb_read(struct m0_composite_layout *cl,
+ 		 (unsigned long)layer_idx);
+ 
+ 	emap = emap_from_cl(cl);
+-	prefix_set(&prefix, cl->cl_base.l_id, layer_idx);
+-	if (M0_FI_ENABLED("emap_lookup_err"))
+-		{ rc = L_EMAP_LOOKUP_ERR; goto err1_injected; }
+-	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix, 0, &it);
+-err1_injected:
++	rc = emap_iterator_set(cl, emap, layer_idx, 0, tx, &it);
+ 	if (rc != 0) {
+-		m0_layout__log("extentmap_indb_read",
+-			       "failed to lookup into layer_emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_1,
+-			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
++		M0_LEAVE("lid %llu, layer %lu, rc %d",
++			 (unsigned long long)cl->cl_base.l_id,
++			 (unsigned long)layer_idx, rc);
+ 		return rc;
+ 	}
+-
+-	rc = 0;
+-	m0_composite_layer_ext_tlist_init(extlist);
+-	*extents_nr = 0;
+ 	seg = m0_emap_seg_get(&it);
++	m0_composite_layer_ext_tlist_init(extlist);
+ 	while (1) {
+ 		M0_ASSERT(seg != NULL);
+ 		if (M0_FI_ENABLED("invalid_ext_state_err"))
+@@ -2620,6 +2610,7 @@ err1_injected:
+ 		seg = m0_emap_seg_get(&it);
+ 	}
+ 	m0_emap_close(&it);
++
+ 	if (rc == 0) {
+ 		*extents_nr = m0_composite_layer_ext_tlist_length(extlist);
+ 		M0_POST(*extents_nr > 0);
+@@ -2780,7 +2771,6 @@ static int layer_delete_verify(struct m0_composite_layout *cl,
+ {
+ 	struct m0_composite_layer_extent *lr_ext;
+ 	struct m0_emap_cursor             it;
+-	struct layout_prefix              prefix;
+ 	struct m0_emap_seg               *seg;
+ 	int                               rc;
+ 
+@@ -2807,17 +2797,14 @@ static int layer_delete_verify(struct m0_composite_layout *cl,
+ 	rc = 0;
+ 	/* In-DB layer verification. */
+ 	if (cl->cl_base.l_dom->ld_is_db_available) {
+-		prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
+-		rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix,
+-				    0, &it);
++		rc = emap_iterator_set(cl, emap, layer->clr_idx, 0, tx, &it);
+ 		if (rc != 0) {
+-			m0_layout__log("layer_delete_verify",
+-				       "failed to lookup into layer_emap",
+-				       M0_LAYOUT_ADDB_LOC_COMP_LAYOUT_DEL,
+-				       &cl->cl_base.l_addb_ctx,
+-				       cl->cl_base.l_id, rc);
++			M0_LEAVE("lid %llu, layer %lu, rc %d",
++				 (unsigned long long)cl->cl_base.l_id,
++				 (unsigned long)layer->clr_idx, rc);
+ 			return rc;
+ 		}
++
+ 		seg = m0_emap_seg_get(&it);
+ 		while (1) {
+ 			M0_ASSERT(seg != NULL);
+@@ -2859,21 +2846,17 @@ static int extents_indb_delete(struct m0_composite_layout *cl,
+ 	struct m0_emap        *emap;
+ 	struct m0_emap_cursor  it;
+ 	struct m0_emap_seg    *seg;
+-	struct layout_prefix   prefix;
+ 	int                    rc;
+ 
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+ 
+ 	emap = emap_from_cl(cl);
+-	prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
+-	rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix, 0, &it);
++	rc = emap_iterator_set(cl, emap, layer->clr_idx, 0, tx, &it);
+ 	if (rc != 0) {
+-		m0_layout__log("extents_indb_delete",
+-			       "failed to lookup into layer_emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_2,
+-			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
+-			       rc);
++		M0_LEAVE("lid %llu, layer %lu, rc %d",
++			 (unsigned long long)cl->cl_base.l_id,
++			 (unsigned long)layer->clr_idx, rc);
+ 		return rc;
+ 	}
+ 
+@@ -3030,7 +3013,6 @@ static int ext_indb_lookup(struct m0_composite_layout *cl,
+ 	struct m0_emap            *emap;
+ 	struct m0_emap_cursor      it;
+ 	struct m0_emap_seg        *seg;
+-	struct layout_prefix       prefix;
+ 	struct m0_composite_layer *layer;
+ 	uint32_t                   i; /* layer idx */
+ 	bool                       found;
+@@ -3045,18 +3027,13 @@ static int ext_indb_lookup(struct m0_composite_layout *cl,
+ 	i = cl->cl_layers_nr - 1;
+ 	found = false;
+ 	while (1) {
+-		prefix_set(&prefix, cl->cl_base.l_id, i);
+-		rc = m0_emap_lookup(emap, tx, (struct m0_uint128 *)&prefix,
+-				    offset, &it);
++		rc = emap_iterator_set(cl, emap, i, offset, tx, &it);
+ 		if (rc != 0) {
+-			m0_layout__log("m0_composite_layer_ext_lookup",
+-				       "failed to lookup into layer_emap",
+-				       M0_LAYOUT_ADDB_LOC_COMP_EXT_LOOKUP,
+-				       &cl->cl_base.l_addb_ctx,
+-				       cl->cl_base.l_id, rc);
+-			break;
++			M0_LEAVE("lid %llu, layer %lu, rc %d",
++				 (unsigned long long)cl->cl_base.l_id,
++				 (unsigned long)i, rc);
++			return rc;
+ 		}
+-
+ 		seg = m0_emap_seg_get(&it);
+ 		m0_emap_close(&it);
+ 		M0_ASSERT(seg != NULL);
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 4c273a9..55c397f 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1430,6 +1430,7 @@ int test_layer_ops_composite(uint64_t lid,
+ 	rc = m0_composite_layer_delete(cl, txptr);
+ 	if (layer_del_failure_test) {
+ 		M0_UT_ASSERT(rc == -EINVAL || rc == L_TABLE_DEL_ERR ||
++			     rc == L_EMAP_LOOKUP_ERR ||
+ 			     rc == L_EMAP_OBJ_DEL_ERR);
+ 		//todo tx_fini()  or m0_db_tx_abort(txptr); ?
+ 
+@@ -2607,7 +2608,8 @@ int test_update_composite(uint64_t lid,
+ 
+ 	if (failure_test) {
+ 		M0_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_UPDATE_ERR ||
+-			     rc == L_TABLE_INSERT_ERR);
++			     rc == L_TABLE_INSERT_ERR ||
++			     rc == L_EMAP_LOOKUP_ERR);
+ 
+ 		/*
+ 		 * todo In this case, verify that the update op has not altered
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 1a6e8b0..9f56f4e 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1681,18 +1681,35 @@ static void test_lookup_failure(void)
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+-	/* Simulate emap lookup error in the path of extentmap_indb_read(). */
++	/*
++	 * Simulate emap lookup error in the path of extentmap_indb_read() for
++	 * zeroth layer.
++	 */
+ 	lid = 19026;
+-	m0_fi_enable_once("extentmap_indb_read", "emap_lookup_err");
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				4 /* layers_nr */, 1);
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
++
++	/*
++	 * Simulate emap lookup error in the path of extentmap_indb_read() for
++	 * non-zeroth layer.
++	 */
++	lid = 19027;
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				6 /* layers_nr + 2 */, 1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
+ 
+ 	/*
+ 	 * Simulate sublayout id lookup error in the path of
+ 	 * comp_layout_indb_read().
+ 	 */
+-	lid = 19027;
++	lid = 19028;
+ 	m0_fi_enable_off_n_on_m("sublayout_id_indb_lookup", "table_lookup_err",
+ 				4, 1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+@@ -1701,14 +1718,14 @@ static void test_lookup_failure(void)
+ 	m0_fi_disable("sublayout_id_indb_lookup", "table_lookup_err");
+ 
+ 	/* Simulate sublayout find error while reading the zeroth layer. */
+-	lid = 19028;
++	lid = 19029;
+ 	m0_fi_enable_once("layout_find", "layout_find_err");
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	/* Simulate sublayout find error while reading a non-zeroth layer. */
+-	lid = 19029;
++	lid = 19030;
+ 	m0_fi_enable_off_n_on_m("layout_find", "layout_find_err", 2, 1);
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+@@ -1858,8 +1875,8 @@ static void test_add_failure(void)
+ 	 * Simulate error while adding zeroth layer to the DB as a part
+ 	 * of the m0_layout_add() op.
+ 	 */
+-	m0_fi_enable_once("sublayout_id_indb_add", "table_insert_err");
+ 	lid = 21022;
++	m0_fi_enable_once("sublayout_id_indb_add", "table_insert_err");
+ 	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+ 				!DUPLICATE_TEST, FAILURE_TEST);
+@@ -1869,9 +1886,9 @@ static void test_add_failure(void)
+ 	 * Simulate error while adding a non-zeroth layer to the DB as a part
+ 	 * of the m0_layout_add() op.
+ 	 */
++	lid = 21023;
+ 	m0_fi_enable_off_n_on_m("sublayout_id_indb_add", "table_insert_err",
+ 				1, 1);
+-	lid = 21023;
+ 	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+ 				!DUPLICATE_TEST, FAILURE_TEST);
+@@ -1882,8 +1899,8 @@ static void test_add_failure(void)
+ 	 * Simulate sublayout id lookup error while adding zeroth layer to the
+ 	 * DB as a part of the m0_layout_add op.
+ 	 */
+-	m0_fi_enable_once("sublayout_id_indb_lookup", "table_lookup_err");
+ 	lid = 21024;
++	m0_fi_enable_once("sublayout_id_indb_lookup", "table_lookup_err");
+ 	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+ 				!DUPLICATE_TEST, FAILURE_TEST);
+@@ -1893,15 +1910,38 @@ static void test_add_failure(void)
+ 	 * Simulate sublayout id lookup error while adding a non-zeroth layer
+ 	 * to the DB as a part of the m0_layout_add() op.
+ 	 */
++	lid = 21025;
+ 	m0_fi_enable_off_n_on_m("sublayout_id_indb_lookup", "table_lookup_err",
+ 				1, 1);
+-	lid = 21025;
+ 	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+ 				!DUPLICATE_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_TABLE_LOOKUP_ERR);
+ 	m0_fi_disable("sublayout_id_indb_lookup", "table_lookup_err");
+ 
++	/*
++	 * Simulate extmap iterator setting error while adding a zeroth
++	 * layer to the DB as a part of the m0_layout_add() op.
++	 */
++	lid = 21026;
++	m0_fi_enable_once("emap_iterator_set", "emap_lookup_err");
++	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
++				LAYOUT_DESTROY, NULL,
++				!DUPLICATE_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++
++	/*
++	 * Simulate extmap iterator setting error while adding a non-zeroth
++	 * layer to the DB as a part of the m0_layout_add() op.
++	 */
++	lid = 21027;
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err", 3, 1);
++	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
++				LAYOUT_DESTROY, NULL,
++				!DUPLICATE_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
++
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
+@@ -2013,9 +2053,9 @@ static void test_update_failure(void)
+ 	 * Simulate layout add failure in the path of m0_layout_update() for
+ 	 * a composite type of a layout.
+ 	 */
++	lid = 23003;
+ 	m0_fi_enable_off_n_on_m("sublayout_id_indb_add", "table_insert_err",
+ 				4 /* layers_nr */, 1);
+-	lid = 23003;
+ 	rc = test_update_composite(lid, &domain, 4, 5, !CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR);
+@@ -2025,14 +2065,27 @@ static void test_update_failure(void)
+ 	 * Simulate layer add failure in the path of m0_layout_update() for
+ 	 * a composite type of a layout.
+ 	 */
++	lid = 23004;
+ 	m0_fi_enable_off_n_on_m("sublayout_id_indb_add", "table_insert_err",
+ 				5 /* layers_nr + 1 */, 1);
+-	lid = 23004;
+ 	rc = test_update_composite(lid, &domain, 4, 5, !CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_TABLE_INSERT_ERR);
+ 	m0_fi_disable("sublayout_id_indb_add", "table_insert_err");
+ 
++	/*
++	 * Simulate emap iterator setting error during extents_indb_delete()
++	 * that is in the path of updating a layout.
++	 */
++	lid = 23005;
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				5 /* layers_nr (extmap_indb_add()) +,
++				   * 1 (extents_indb_delete()) */, 1);
++	rc = test_update_composite(lid, &domain, 4, 7, !CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
++
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
+@@ -2155,6 +2208,20 @@ static void test_delete_failure(void)
+ 				 EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EPROTO);
+ 
++#if 0 //todo
++	/*
++	 * Simulate emap iterator setting error while deleting zeroth layer in
++	 * the path of m0_layout_delete().
++	 */
++	lid = 25021;
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				5 /* layers_nr + 1 */, 1);
++	rc = test_delete_composite(lid, &domain, 4, 10,
++				   CONTIGUOUS_EXTENTS, !FAILURE_TEST);
++	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
++#endif
++
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
+@@ -2247,6 +2314,47 @@ static void test_layer_ops_indb_failure(void)
+ 				      LAYER_DEL_FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == L_TABLE_DEL_ERR);
+ 
++	/*
++	 * Simulate emap iterator setting error during layer_delete_verify()
++	 * that is in the path of deleting layer - for a zeroth layer.
++	 */
++	lid = 25021;
++
++#if 0 //todo works
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				12 /* todo layers_nr * extents_nr + 1 */, 1);
++	rc = test_layer_ops_composite(lid, &domain, 4, 4,
++				      !LAYER_ADD_FAILURE_TEST,
++				      LAYER_DEL_FAILURE_TEST);
++#endif
++
++#if 0 //todo works
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				14 /* 14 works */ /* 15 is high */
++				/* todo layers_nr (extmap_indb_add()) +
++				 * layers_nr (extentmap_indb_read() thr' lookup)
++				 * + 1 (layer_delete_verify) */,
++				1);
++	rc = test_layer_ops_composite(lid, &domain, 4, 6,
++				      !LAYER_ADD_FAILURE_TEST,
++				      LAYER_DEL_FAILURE_TEST);
++#endif
++
++#if 1 //todo works
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				15 /* todo layers_nr (extmap_indb_add()) +,
++			* layers_nr (extentmap_indb_read() thr' lookup +
++			* + 1 (layer_delete_verify() failure case)
++			* + extents_nr (ext_indb_write() thr ext deletion +
++			* 1 (layer_delete_verify()) */,
++				1);
++	rc = test_layer_ops_composite(lid, &domain, 4, 7,
++				      !LAYER_ADD_FAILURE_TEST,
++				      LAYER_DEL_FAILURE_TEST);
++#endif
++	M0_UT_ASSERT(rc == L_EMAP_LOOKUP_ERR);
++	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
++
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
+-- 
+1.8.3.2
+

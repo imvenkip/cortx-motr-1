@@ -1,0 +1,223 @@
+From aab51d250c620abd0cc103019a45289cb0f1f511 Mon Sep 17 00:00:00 2001
+From: Andriy Tkachuk <andriy_tkachuk@xyratex.com>
+Date: Tue, 25 Feb 2014 14:08:39 +0200
+Subject: [PATCH 54/60] rpc: make sure machine is locked at m0_rpc_item_put()
+
+---
+ conf/confc.c          |  3 +--
+ rpc/formation2.c      |  2 +-
+ rpc/item.c            |  4 +++-
+ rpc/packet.c          |  8 +++++++-
+ rpc/packet_internal.h |  5 ++++-
+ rpc/rpc_machine.c     |  4 +++-
+ rpc/ut/packet.c       | 14 ++++++++++++--
+ 7 files changed, 31 insertions(+), 9 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index f9a5b4f..4fa6ca7 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -932,11 +932,10 @@ static int grow_cache_st_in(struct m0_sm *mach)
+ 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+ 	rc = resp->fr_rc ?: cache_grow(ctx->fc_confc, resp);
+ 
++	m0_sm_group_lock(&item->ri_rmachine->rm_sm_grp);
+ 	/* Let the rpc layer free memory allocated for response. */
+ 	m0_rpc_item_put(item->ri_reply);
+-
+ 	/* The item has been consumed and is not needed any more. */
+-	m0_sm_group_lock(&item->ri_rmachine->rm_sm_grp);
+ 	m0_rpc_item_put(item);
+ 	m0_sm_group_unlock(&item->ri_rmachine->rm_sm_grp);
+ 	ctx->fc_rpc_item = NULL;
+diff --git a/rpc/formation2.c b/rpc/formation2.c
+index 3bf4095..6f9c4a6 100644
+--- a/rpc/formation2.c
++++ b/rpc/formation2.c
+@@ -462,7 +462,7 @@ static void frm_balance(struct m0_rpc_frm *frm)
+ 			M0_LOG(M0_ERROR, "Error: packet allocation failed");
+ 			break;
+ 		}
+-		m0_rpc_packet_init(p);
++		m0_rpc_packet_init(p, frm_rmachine(frm));
+ 		frm_fill_packet(frm, p);
+ 		if (m0_rpc_packet_is_empty(p)) {
+ 			/* See FRM_BALANCE_NOTE_1 at the end of this function */
+diff --git a/rpc/item.c b/rpc/item.c
+index d75ed26..5faf21d 100644
+--- a/rpc/item.c
++++ b/rpc/item.c
+@@ -395,7 +395,9 @@ void m0_rpc_item_put(struct m0_rpc_item *item)
+ {
+ 	M0_PRE(item != NULL && item->ri_type != NULL &&
+ 	       item->ri_type->rit_ops != NULL &&
+-	       item->ri_type->rit_ops->rito_item_put != NULL);
++	       item->ri_type->rit_ops->rito_item_put != NULL &&
++	       item->ri_rmachine != NULL);
++	M0_PRE(m0_mutex_is_locked(&item->ri_rmachine->rm_sm_grp.s_lock));
+ 
+ 	item->ri_type->rit_ops->rito_item_put(item);
+ }
+diff --git a/rpc/packet.c b/rpc/packet.c
+index 0f077c3..91dad8d 100644
+--- a/rpc/packet.c
++++ b/rpc/packet.c
+@@ -79,12 +79,14 @@ M0_INTERNAL bool m0_rpc_packet_invariant(const struct m0_rpc_packet *p)
+ 		p != NULL &&
+ 		p->rp_ow.poh_version != 0 &&
+ 		p->rp_ow.poh_magic == M0_RPC_PACKET_HEAD_MAGIC &&
++		p->rp_rmachine != NULL &&
+ 		p->rp_ow.poh_nr_items ==
+ 			packet_item_tlist_length(&p->rp_items) &&
+ 		p->rp_size == size + m0_rpc_packet_onwire_header_size();
+ }
+ 
+-M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *p)
++M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *p,
++				    struct m0_rpc_machine *rmach)
+ {
+ 	M0_ENTRY("packet: %p", p);
+ 	M0_PRE(p != NULL);
+@@ -95,6 +97,7 @@ M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *p)
+ 	p->rp_ow.poh_magic = M0_RPC_PACKET_HEAD_MAGIC;
+ 	p->rp_size = m0_rpc_packet_onwire_header_size();
+ 	packet_item_tlist_init(&p->rp_items);
++	p->rp_rmachine = rmach;
+ 
+ 	M0_ASSERT(m0_rpc_packet_invariant(p));
+ 	M0_LEAVE();
+@@ -120,6 +123,7 @@ M0_INTERNAL void m0_rpc_packet_add_item(struct m0_rpc_packet *p,
+ 	M0_PRE(!packet_item_tlink_is_in(item));
+ 
+ 	m0_rpc_item_get(item);
++	item->ri_rmachine = p->rp_rmachine;
+ 	packet_item_tlink_init_at_tail(item, &p->rp_items);
+ 	++p->rp_ow.poh_nr_items;
+ 	p->rp_size += m0_rpc_item_size(item);
+@@ -327,7 +331,9 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
+ 		if (rc != 0)
+ 			M0_RETURN(rc);
+ 		m0_rpc_packet_add_item(p, item);
++		m0_rpc_machine_lock(p->rp_rmachine);
+ 		m0_rpc_item_put(item);
++		m0_rpc_machine_unlock(p->rp_rmachine);
+ 		item = NULL;
+ 	}
+ 	m0_bufvec_cursor_align(cursor, 8);
+diff --git a/rpc/packet_internal.h b/rpc/packet_internal.h
+index 4904208..84efca5 100644
+--- a/rpc/packet_internal.h
++++ b/rpc/packet_internal.h
+@@ -59,6 +59,8 @@ struct m0_rpc_packet {
+ 	int                                rp_status;
+ 
+ 	struct m0_rpc_frm                 *rp_frm;
++
++	struct m0_rpc_machine             *rp_rmachine;
+ };
+ 
+ M0_INTERNAL m0_bcount_t m0_rpc_packet_onwire_header_size(void);
+@@ -72,7 +74,8 @@ M0_TL_DECLARE(packet_item, M0_INTERNAL, struct m0_rpc_item);
+ #define end_for_each_item_in_packet m0_tl_endfor
+ 
+ M0_INTERNAL bool m0_rpc_packet_invariant(const struct m0_rpc_packet *packet);
+-M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *packet);
++M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *packet,
++				    struct m0_rpc_machine *rmach);
+ M0_INTERNAL void m0_rpc_packet_fini(struct m0_rpc_packet *packet);
+ 
+ /**
+diff --git a/rpc/rpc_machine.c b/rpc/rpc_machine.c
+index 9603393..92468bc 100644
+--- a/rpc/rpc_machine.c
++++ b/rpc/rpc_machine.c
+@@ -770,7 +770,7 @@ static void net_buf_received(struct m0_net_buffer    *nb,
+ 		 (unsigned long long)length, (char *)from_ep->nep_addr);
+ 
+ 	machine = tm_to_rpc_machine(nb->nb_tm);
+-	m0_rpc_packet_init(&p);
++	m0_rpc_packet_init(&p, machine);
+ 	rc = m0_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
+ 	if (rc != 0)
+ 		RPCMC_ADDB_FUNCFAIL(rc, machine->rm_reqh != NULL ?
+@@ -801,7 +801,9 @@ static void packet_received(struct m0_rpc_packet    *p,
+ 	for_each_item_in_packet(item, p) {
+ 		item->ri_rmachine = machine;
+ 		m0_rpc_item_get(item);
++		m0_rpc_machine_lock(machine);
+ 		m0_rpc_packet_remove_item(p, item);
++		m0_rpc_machine_unlock(machine);
+ 		item_received(item, from_ep);
+ 		m0_rpc_machine_lock(machine); /* protect ri_sm fini() */
+ 		m0_rpc_item_put(item);
+diff --git a/rpc/ut/packet.c b/rpc/ut/packet.c
+index 9e0c69e..7a3da5f 100644
+--- a/rpc/ut/packet.c
++++ b/rpc/ut/packet.c
+@@ -36,6 +36,8 @@
+ 
+ #define cmp_field(obj1, obj2, field)((obj1)->field == (obj2)->field)
+ 
++static struct m0_rpc_machine rmachine;
++
+ static struct m0_rpc_item *prepare_ping_fop_item(void);
+ static struct m0_rpc_item *prepare_ping_rep_fop_item(void);
+ static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr);
+@@ -49,6 +51,7 @@ static void packet_fini(struct m0_rpc_packet *packet);
+ 
+ static int packet_encdec_ut_init(void)
+ {
++	m0_sm_group_init(&rmachine.rm_sm_grp);
+ 	m0_ping_fop_init();
+ 	return 0;
+ }
+@@ -56,6 +59,7 @@ static int packet_encdec_ut_init(void)
+ static int packet_encdec_ut_fini(void)
+ {
+ 	m0_ping_fop_fini();
++	m0_sm_group_fini(&rmachine.rm_sm_grp);
+ 	return 0;
+ }
+ 
+@@ -68,14 +72,18 @@ static void test_packet_encode_decode(void)
+ 	m0_bcount_t          bufvec_size;
+ 	int		     rc;
+ 
+-	m0_rpc_packet_init(&packet);
++	m0_rpc_packet_init(&packet, &rmachine);
+ 
+ 	item = prepare_ping_fop_item();
+ 	m0_rpc_packet_add_item(&packet, item);
++	m0_sm_group_lock(&rmachine.rm_sm_grp);
+ 	m0_rpc_item_put(item);
++	m0_sm_group_unlock(&rmachine.rm_sm_grp);
+ 	item = prepare_ping_rep_fop_item();
+ 	m0_rpc_packet_add_item(&packet, item);
++	m0_sm_group_lock(&rmachine.rm_sm_grp);
+ 	m0_rpc_item_put(item);
++	m0_sm_group_unlock(&rmachine.rm_sm_grp);
+ 	bufvec_size = m0_align(packet.rp_size, 8);
+ 	/* m0_alloc_aligned() (lib/linux_kernel/memory.c), supports
+ 	 * alignment of PAGE_SHIFT only
+@@ -84,7 +92,7 @@ static void test_packet_encode_decode(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_rpc_packet_encode(&packet, &bufvec);
+ 	M0_UT_ASSERT(rc == 0);
+-	m0_rpc_packet_init(&decoded_packet);
++	m0_rpc_packet_init(&decoded_packet, &rmachine);
+ 	rc = m0_rpc_packet_decode(&decoded_packet, &bufvec, 0, bufvec_size);
+ 	M0_UT_ASSERT(rc == 0);
+ 	packet_compare(&packet, &decoded_packet);
+@@ -225,7 +233,9 @@ static void packet_fini(struct m0_rpc_packet *packet)
+ 
+ 	/* items will be freed as soon as they're removed
+ 	   from packet, because this is last reference on them */
++	m0_sm_group_lock(&rmachine.rm_sm_grp);
+ 	m0_rpc_packet_remove_all_items(packet);
++	m0_sm_group_unlock(&rmachine.rm_sm_grp);
+ 	m0_rpc_packet_fini(packet);
+ }
+ 
+-- 
+1.8.3.2
+

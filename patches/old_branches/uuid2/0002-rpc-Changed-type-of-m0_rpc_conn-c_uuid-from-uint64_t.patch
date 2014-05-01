@@ -1,0 +1,155 @@
+From 26d0d0fec4abe18032e7577cba05f3d0e7b5fc25 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Thu, 25 Apr 2013 18:27:21 +0530
+Subject: [PATCH 2/5] rpc: Changed type of m0_rpc_conn::c_uuid from uint64_t to
+ m0_uint128
+
+---
+ rpc/conn.c          | 9 ++++-----
+ rpc/conn.h          | 2 +-
+ rpc/conn_internal.h | 2 +-
+ rpc/rpc_onwire.h    | 9 +++++----
+ rpc/slot.c          | 4 ++--
+ rpc/ut/conn.c       | 6 +++---
+ rpc/ut/packet.c     | 3 ++-
+ 7 files changed, 18 insertions(+), 17 deletions(-)
+
+diff --git a/rpc/conn.c b/rpc/conn.c
+index d444db2..cf57a52 100644
+--- a/rpc/conn.c
++++ b/rpc/conn.c
+@@ -263,7 +263,7 @@ M0_INTERNAL int m0_rpc_conn_init(struct m0_rpc_conn *conn,
+ 	m0_rpc_machine_lock(machine);
+ 
+ 	conn->c_flags = RCF_SENDER_END;
+-	m0_rpc_sender_uuid_get(&conn->c_uuid);
++	m0_uuid_generate2(&conn->c_uuid);
+ 
+ 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
+ 	if (rc == 0) {
+@@ -376,13 +376,12 @@ static void __conn_fini(struct m0_rpc_conn *conn)
+ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
+ 				     struct m0_net_end_point *ep,
+ 				     struct m0_rpc_machine *machine,
+-				     const struct m0_rpc_sender_uuid *uuid)
++				     const struct m0_uint128 *uuid)
+ {
+ 	int rc;
+ 
+-	M0_ENTRY("conn: %p, ep_addr: %s, machine: %p,"
+-		 " sender_uuid: %llu", conn, (char *)ep->nep_addr,
+-		 machine, (unsigned long long)uuid->su_uuid);
++	M0_ENTRY("conn: %p, ep_addr: %s, machine: %p", conn,
++		 (char *)ep->nep_addr, machine);
+ 	M0_ASSERT(conn != NULL && ep != NULL);
+ 	M0_PRE(m0_rpc_machine_is_locked(machine));
+ 
+diff --git a/rpc/conn.h b/rpc/conn.h
+index 2f52602..9652ed1 100644
+--- a/rpc/conn.h
++++ b/rpc/conn.h
+@@ -255,7 +255,7 @@ struct m0_rpc_conn {
+ 	uint64_t                  c_sender_id;
+ 
+ 	/** Globally unique ID of rpc connection */
+-	struct m0_rpc_sender_uuid c_uuid;
++	struct m0_uint128         c_uuid;
+ 
+ 	/** @see m0_rpc_conn_flags for list of flags */
+ 	uint64_t                  c_flags;
+diff --git a/rpc/conn_internal.h b/rpc/conn_internal.h
+index 69521f5..b34eac2 100644
+--- a/rpc/conn_internal.h
++++ b/rpc/conn_internal.h
+@@ -114,7 +114,7 @@ M0_INTERNAL int m0_rpc_conn_cob_create(struct m0_cob_domain *dom,
+ M0_INTERNAL int m0_rpc_rcv_conn_init(struct m0_rpc_conn *conn,
+ 				     struct m0_net_end_point *ep,
+ 				     struct m0_rpc_machine *machine,
+-				     const struct m0_rpc_sender_uuid *uuid);
++				     const struct m0_uint128 *uuid);
+ /**
+    Creates a receiver end of conn.
+ 
+diff --git a/rpc/rpc_onwire.h b/rpc/rpc_onwire.h
+index 7288775..31881b1 100644
+--- a/rpc/rpc_onwire.h
++++ b/rpc/rpc_onwire.h
+@@ -23,9 +23,10 @@
+ #ifndef __MERO_RPC_ONWIRE_H__
+ #define __MERO_RPC_ONWIRE_H__
+ 
+-#include "lib/types.h" /* uint64_t */
+-#include "dtm/verno.h" /* m0_verno */
+-#include "dtm/verno_xc.h" /* m0_verno_xc */
++#include "lib/types.h"        /* uint64_t */
++#include "lib/types_xc.h"     /* m0_uint128_xc */
++#include "dtm/verno.h"        /* m0_verno */
++#include "dtm/verno_xc.h"     /* m0_verno_xc */
+ #include "xcode/xcode_attr.h" /* M0_XCA_RECORD */
+ 
+ /**
+@@ -49,7 +50,7 @@ struct m0_rpc_sender_uuid {
+ } M0_XCA_RECORD;
+ 
+ struct m0_rpc_onwire_slot_ref {
+-	struct m0_rpc_sender_uuid  osr_uuid;
++	struct m0_uint128          osr_uuid;
+ 	uint64_t                   osr_sender_id;
+ 	uint64_t                   osr_session_id;
+ 
+diff --git a/rpc/slot.c b/rpc/slot.c
+index 33b2630..9c6f71b 100644
+--- a/rpc/slot.c
++++ b/rpc/slot.c
+@@ -833,8 +833,8 @@ m0_rpc_machine_find_conn(const struct m0_rpc_machine *machine,
+ 
+ 	m0_tl_for(rpc_conn, conn_list, conn) {
+ 		if (use_uuid) {
+-			if (m0_rpc_sender_uuid_cmp(&conn->c_uuid,
+-						   &sref->osr_uuid) == 0)
++			if (m0_uint128_cmp(&conn->c_uuid,
++					   &sref->osr_uuid) == 0)
+ 				break;
+ 		} else if (conn->c_sender_id == sref->osr_sender_id) {
+ 			break;
+diff --git a/rpc/ut/conn.c b/rpc/ut/conn.c
+index 2f71a1e..0dfb0c8 100644
+--- a/rpc/ut/conn.c
++++ b/rpc/ut/conn.c
+@@ -97,8 +97,8 @@ static void fop_set_session(struct m0_fop *fop)
+ 
+ static void conn_init_fini_test(void)
+ {
+-	struct m0_rpc_sender_uuid uuid;
+-	int			  rc;
++	struct m0_uint128 uuid;
++	int		  rc;
+ 
+ 	/* Checks for RPC connection initialisation and finalisation. */
+ 	conn_init();
+@@ -114,7 +114,7 @@ static void conn_init_fini_test(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_INITIALISED);
+ 	M0_UT_ASSERT(conn.c_rpc_machine == &machine);
+-	M0_UT_ASSERT(conn.c_uuid.su_uuid == uuid.su_uuid);
++	M0_UT_ASSERT(m0_uint128_cmp(&conn.c_uuid, &uuid) == 0);
+ 
+ 	m0_rpc_conn_fini(&conn);
+ }
+diff --git a/rpc/ut/packet.c b/rpc/ut/packet.c
+index 4cc5eab..4fde94d 100644
+--- a/rpc/ut/packet.c
++++ b/rpc/ut/packet.c
+@@ -142,7 +142,8 @@ static void fill_ping_fop_data(struct m0_fop_ping_arr *fp_arr)
+ static void populate_item(struct m0_rpc_item *item)
+ {
+ 	item->ri_slot_refs[0].sr_ow = (struct m0_rpc_onwire_slot_ref) {
+-		.osr_uuid.su_uuid = 9876,
++		.osr_uuid.u_hi = 9876,
++		.osr_uuid.u_lo = 6789,
+ 		.osr_sender_id = 101,
+ 		.osr_session_id = 523,
+ 		.osr_slot_id = 23,
+-- 
+1.8.3.2
+

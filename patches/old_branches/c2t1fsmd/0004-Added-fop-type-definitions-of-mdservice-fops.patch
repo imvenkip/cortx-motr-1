@@ -1,0 +1,159 @@
+From 02d4def551ff97c0a604a2ef81db774eb86878e0 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Wed, 14 Mar 2012 20:55:50 +0530
+Subject: [PATCH 04/10] * Added fop type definitions of mdservice fops.
+
+---
+ mdservice/md_fops.c | 98 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ rpc/rpc_opcodes.h   | 28 +++++++++++++++
+ 2 files changed, 126 insertions(+)
+
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 814d6d9..431a0c0 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -12,4 +12,102 @@
+ 
+ #include "fop/fop_format_def.h"
+ #include "mdservice/md_fops.ff"
++#include "rpc/rpc_opcodes.h"
++#include "rpc/rpc_onwire.h"
++
++static const struct c2_fop_type_ops default_fop_type_ops = {
++        .fto_size_get = c2_xcode_fop_size_get,
++};
++
++/** Request fops. */
++C2_FOP_TYPE_DECLARE(c2_fop_create,  "Create request",
++		    &default_fop_type_ops,
++                    C2_MD_CREATE_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_fop_link,    "Hardlink request",
++		    &default_fop_type_ops,
++                    C2_MD_LINK_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_fop_unlink,  "Unlink request",
++		    &default_fop_type_ops,
++                    C2_MD_UNLINK_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_fop_open,    "Open request",
++		    &default_fop_type_ops,
++                    C2_MD_OPEN_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_fop_close,   "Close request",
++		    &default_fop_type_ops,
++                    C2_MD_CLOSE_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_fop_setattr, "Setattr request",
++		    &default_fop_type_ops,
++                    C2_MD_SETATTR_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_fop_getattr, "Getattr request",
++		    &default_fop_type_ops,
++                    C2_MD_GETATTR_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST);
++
++C2_FOP_TYPE_DECLARE(c2_fop_rename,  "Rename request",
++		    &default_fop_type_ops,
++                    C2_MD_RENAME_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
++
++C2_FOP_TYPE_DECLARE(c2_fop_readdir, "Readdir request",
++		    &default_fop_type_ops,
++                    C2_MD_READDIR_OPCODE,
++		    C2_RPC_ITEM_TYPE_REQUEST);
++
++/** Reply fops. */
++C2_FOP_TYPE_DECLARE(c2_fop_create_rep,  "Create reply",
++		    &default_fop_type_ops,
++                    C2_MD_CREATE_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_link_rep,    "Hardlink reply",
++		    &default_fop_type_ops,
++                    C2_MD_LINK_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_unlink_rep,  "Unlink reply",
++		    &default_fop_type_ops,
++                    C2_MD_UNLINK_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_open_rep,    "Open reply",
++		    &default_fop_type_ops,
++                    C2_MD_OPEN_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_close_rep,   "Close reply",
++		    &default_fop_type_ops,
++                    C2_MD_CLOSE_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_setattr_rep, "Setattr reply",
++		    &default_fop_type_ops,
++                    C2_MD_SETATTR_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_getattr_rep, "Getattr reply",
++		    &default_fop_type_ops,
++                    C2_MD_GETATTR_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_rename_rep,  "Rename reply",
++		    &default_fop_type_ops,
++                    C2_MD_RENAME_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
++
++C2_FOP_TYPE_DECLARE(c2_fop_readdir_rep, "Readdir reply",
++		    &default_fop_type_ops,
++                    C2_MD_READDIR_REP_OPCODE,
++		    C2_RPC_ITEM_TYPE_REPLY);
+ 
+diff --git a/rpc/rpc_opcodes.h b/rpc/rpc_opcodes.h
+index 5e53383..a2f3863 100644
+--- a/rpc/rpc_opcodes.h
++++ b/rpc/rpc_opcodes.h
+@@ -108,6 +108,34 @@ enum C2_RPC_OPCODES {
+ 
+ 	/** Xcode rpc opcodes */
+ 	C2_XCODE_UT_OPCODE = 50,
++
++	/** mdservice rpc opcodes */
++	C2_MD_CREATE_OPCODE      = 51,
++	C2_MD_CREATE_REP_OPCODE  = 52,
++
++	C2_MD_LINK_OPCODE        = 53,
++	C2_MD_LINK_REP_OPCODE    = 54,
++
++	C2_MD_UNLINK_OPCODE      = 55,
++	C2_MD_UNLINK_REP_OPCODE  = 56,
++
++	C2_MD_OPEN_OPCODE        = 57,
++	C2_MD_OPEN_REP_OPCODE    = 58,
++
++	C2_MD_CLOSE_OPCODE       = 59,
++	C2_MD_CLOSE_REP_OPCODE   = 60,
++
++	C2_MD_SETATTR_OPCODE     = 61,
++	C2_MD_SETATTR_REP_OPCODE = 62,
++
++	C2_MD_GETATTR_OPCODE     = 63,
++	C2_MD_GETATTR_REP_OPCODE = 64,
++
++	C2_MD_RENAME_OPCODE      = 65,
++	C2_MD_RENAME_REP_OPCODE  = 66,
++
++	C2_MD_READDIR_OPCODE     = 67,
++	C2_MD_READDIR_REP_OPCODE = 68,
+ };
+ /** @} endgroup rpc_layer_core */
+ 
+-- 
+1.8.3.2
+

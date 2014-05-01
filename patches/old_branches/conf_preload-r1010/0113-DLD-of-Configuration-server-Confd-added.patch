@@ -1,0 +1,492 @@
+From 0483be7592de4ac52e860dae5f874ce217e1f37c Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 2 Apr 2012 16:40:53 +0300
+Subject: [PATCH 113/311] DLD of 'Configuration server, Confd' added
+
+---
+ conf/confd.c | 291 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/confd.h | 174 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 465 insertions(+)
+ create mode 100644 conf/confd.c
+ create mode 100644 conf/confd.h
+
+diff --git a/conf/confd.c b/conf/confd.c
+new file mode 100644
+index 0000000..bcb388b
+--- /dev/null
++++ b/conf/confd.c
+@@ -0,0 +1,291 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original creation date: 19-Mar-2012
++ */
++
++#include "conf/confd.h"
++/**
++ * @page confd-dld Configuration server (confd) DLD
++ *
++ * - @ref confd-dld-ovw
++ * - @ref confd-dld-def
++ * - @ref confd-dld-req
++ * - @ref confd-dld-depends
++ * - @ref confd-dld-highlights
++ * - @ref confd-dld-fspec "Functional Specification"
++ * - @ref confd-dld-lspec
++ * - @ref confd-dld-conformance
++ * - @ref confd-dld-ut
++ * - @ref confd-dld-st
++ * - @ref confd-dld-O
++ * - @ref confd-dld-ref
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-ovw Overview
++ *
++ * Configuration is part of Colibri cluster meta-data.
++ * Confd (configuration server) is a management service that provides
++ * configuration clients with information obtained from configuration
++ * database.
++ * Confd is implemented in user space.
++ * Confc-s access configuration data by sending FOP-requests to Confd.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-def Definitions
++ * XXX
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-req Requirements
++ *
++ * - @b r.conf.confd
++ *   Confd service must be implemented for user space.
++ * - @b r.conf.cache.data-model
++ *   The implementation should organize configuration information as
++ *   outlined in section 4.1 of the HLD. The same data structures
++ *   should be used for confc and confd caches, if possible.
++ *   Configuration structures must be kept in memory.
++ * - @b r.conf.cache.pinning
++ *   Pinning of an object protects existence of this object in the cache.
++ *   Pinned object can be moved from a stub condition to "ready".
++ * - @b r.conf.cache.unique-objects
++ *   Configuration cache must not contain multiple objects with the
++ *   same identity (identity of a configuration object is a tuple of
++ *   type and key).
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-depends Dependencies
++ * Confd depends on the following subsystems,
++ * most reasonable functions are listed above:
++ * - RPC layer:
++ *   - c2_rpc_server_start() used to start rpc server
++ *   - c2_rpc_server_stop() used to stop rpc server
++ *   - c2_cs_rpcmach_get() used to retrieve rpcmach to examine rpc statistics
++ *   - c2_rpc_reply_post() used to send FOP-based reply to Confc
++ *   - C2_RPC_SERVER_CTX_DECLARE() used to create rpc server context
++ * - DB layer:
++ *   - c2_dbenv_init()
++ *   - c2_dbenv_fini()
++ *   - c2_db_pair_setup()
++ *   - c2_table_lookup()
++ * - FOP/FOM/REQH/fop2c/onwire.ff:
++ *   - struct c2_fom_type - used to define a handler called 
++ *     by a thread of request hander on different stages of FOP processing.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-highlights Design Highlights
++ *
++ * - Configuration server relies on rehq component threading model and
++ *   should not aquire any locks or to be in any waiting states. Request
++ *   processing should be performed in an asyncronous-like manner.
++ *   The only syncronous calls to configuration DB is allowed.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-fspec "Functional Specification"
++ * next_state()    - transits confd states relying in the current state
++ * and on the state of configuration objects, represented by the confd::c_root
++ * obj_load()      - loads confd::c_root from cache or configuration db.
++ * aquires c2_fom_block_{enter,leave}() to inform reqh about potential I/O.
++ * obj_serialize() - serializes given object to FOP.
++ * obj_wait()      - handles wait state of configuration request processing.
++ * aquires c2_fom_block_at() to inform reqh to create an extra thread.
++ * handle_failure()
++ * reqh_confd_req_fom_state() - called by reqh to handle incoming confc requests.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-lspec Logical Specification
++ *
++ * @subsection confd-dld-lspec-comps Component Overview
++ *
++ * Confd provides FOP-based interface to access configuration values,
++ * stored in configuration db. Confd maintains a cache of
++ * configuration objects organized as a directed acyclic graph (DAG).
++ * When Confc requests a configuration object cache is filled with
++ * corresponding values fetched from configuration DB. If cache has
++ * already a requested object then configuration DB is not accessed.
++ * After c2_confd_init() DAG and cache are empty.
++ *
++ * @subsection confd-dld-lspec-state State Specification
++ *
++ *	C2_CONFD_STATUS_INITIAL
++ *	C2_CONFD_STATUS_SERIALIZE
++ *	C2_CONFD_STATUS_LOAD
++ *	C2_CONFD_STATUS_WAIT
++ *	C2_CONFD_STATUS_TERMINATE
++ *	C2_CONFD_STATUS_FAILURE
++ * 
++ * Confd state transition diagram can be seen in `HLD of configuration
++ * caching' document in fig. 4.
++ *
++ * All confd states are processed in reqh_confd_req_fom_state().
++ * 
++ * - After c2_confd_init() Confd transits into C2_CONFD_STATUS_INITIAL state.
++ *
++ * - C2_CONFD_STATUS_INITIAL:
++ *   When reqh_confd_req_fom_state() is called and FOP has valid configuration request data,
++ *   confd::c_root is being filled with a DAG sent with a FOP. Then next_state() is called.
++ *   next_state() checks if confd::c_root is valid and transits into C2_CONFD_STATUS_SERIALIZE.
++ *
++ * - C2_CONFD_STATUS_SERIALIZE:
++ *   In this state confd::c_root is being examined. If DAG consists of objects with
++ *   co_status == C2_CS_READY then obj_serialize() is called. This produces a FOP to 
++ *   send back to Confc. Here c2_rpc_reply_post() is called to send a FOP. next_state()
++ *   is called and state transists to C2_CONFD_STATUS_INITIAL.
++ *   If DAG consists of objects with co_status != C2_CS_READY and
++ *   confd::c_state != C2_CONFD_STATUS_LOAD then next_state() call transists confd into
++ *   C2_CONFD_STATUS_LOAD, otherwize into C2_CONFD_STATUS_WAIT.
++ *   If obj_serialize() < 0 then transit into C2_CONFD_STATUS_FAILURE.
++ *
++ * - C2_CONFD_STATUS_LOAD:
++ *   In this state objects in DAG and Confd cache are being filled from configuration db.
++ *   State in all objects in DAG is set to co_status != C2_CS_LOADING. Untill all objects
++ *   in DAG aren't loaded, Confd stays in this state.
++ *   As far as loading may take a long time, before entering the state c2_fom_block_enter()
++ *   is called. When loading stage finished, reqh has to be informed with c2_fom_block_leave().
++ *   next_state() call transits confd into C2_CONFD_STATUS_SERIALIZE state.
++ *   c2_chan_broadcast() is called on c2_conf_obj::co_chan to notify waiting threads.
++ *   If db does not contain requested object then transit into C2_CONFD_STATUS_FAILURE.
++ * 
++ * - C2_CONFD_STATUS_WAIT:
++ *   In this state Confd creates a link on c2_conf_obj::co_chan and waits on it
++ *   with c2_chan_wait() until it's signalled. next_state() call transits confd
++ *   into C2_CONFD_STATUS_SERIALIZE state. c2_fom_block_at() should be called
++ *   before c2_chan_wait() call. This may create an extra processing thread in reqh.
++ *   next_state() call transits confd into C2_CONFD_STATUS_SERIALIZE state.
++ *   If timeout occured then transits into C2_CONFD_STATUS_FAILURE.
++ *
++ * - C2_CONFD_STATUS_TERMINATE:
++ *   Transists in this state when c2_confd_terminate() is called.
++ *
++ * - C2_CONFD_STATUS_FAILURE:
++ *   In this state confd handles errors occured while processing of incoming FOP
++ *   request and call next_state(). This transfers Confd into intial state.
++ *   On any error an empty FOP is being sent on a Confc request. 
++ *
++ * @subsection confd-dld-lspec-thread Threading and Concurrency Model
++ * 
++ * Confd has not a separate thread. All threading and concurrency is being
++ * performed on the Request Handler side, registered in the system.
++ * Incoming FOPs handling, state transitions, outgoing FOPs serialization,
++ * error handling is done in callbacks called by reqh-component.
++ * 
++ *
++ * @subsection confd-dld-lspec-numa NUMA Optimizations
++ *
++ * Not applicable.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-conformance Conformance
++ *
++ * - @b i.conf.confd.user
++ *   Confd is implemented for user space.
++ * - @b i.conf.cache.data-model
++ *   Configuration information is organized as outlined in section 4.1
++ *   of the HLD. The same data structures are used for confc and
++ *   confd.  Configuration structures are kept in memory.
++ * - @b i.conf.cache.pinning
++ *   Confc "pins" configuration object by incrementing its reference
++ *   counter.  c2_confc_fini() asserts (with C2_PRE()) that no objects
++ *   are pinned when the cache is being destroyed.
++ * - @b i.conf.cache.unique-objects
++ *   A registry of cached objects (c2_conf_cache::cc_registry) is used
++ *   to achieve uniqueness of configuration object identities.
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-ut Unit Tests
++ *  
++ * XXX
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-st System Tests
++ *
++ * XXX
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-O Analysis
++ *
++ * XXX
++ *
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-ref References
++ *
++ * - HLD of configuration caching
++ *   [https://docs.google.com/a/xyratex.com/document/d/1t8osSyFOsdTGYGbnMC3ynB1niVqtm6bCJSzJwh1IUw8/view]
++ * - HLD of configuration.schema
++ *   [https://docs.google.com/a/xyratex.com/document/d/1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/view]
++ * - Configuration one-pager
++ *   [https://docs.google.com/a/xyratex.com/document/d/1hnWm6x3UhWIB_9qiR69ScGF57Vcy0D38BBTdpFhe4Bo/view]
++ *
++ * @see confd_dlspec
++ */
++
++/**
++ * Serialises given DAG into FOP-package.
++ *
++ * @param root, of the DAG of configuration objects.
++ * @param out, FOP, prepared to be sent as a reply with c2_rpc_reply_post().
++ * 
++ * @pre for_each(obj in root) obj.co_status == C2_CS_READY.
++ * @pre out is not initialized.
++ * @return 0 on success initialization, <0 on error. 
++ */
++static int obj_serialize(struct c2_conf_obj *root, struct c2_fop *out)
++{
++}
++
++/**
++ * Transitions confd into the next state.
++ *
++ * @param confd, configuration server structure
++ * @return 0 on success, <0 if confd is left in the same state
++ */
++static int next_state(struct c2_confd *confd)
++{
++}
++
++/**
++ * Loads confd::c_root of the DAG of configuration objects
++ * from configuration db, or confd::c_accr::ca_map cache if mapping exists.
++ *
++ * @param confd, configuration server structure
++ * @return 0 on success, <0 if unable to load object, or path does not exists
++ */
++static int obj_load(struct c2_confd *confd)
++{
++}
++
++/**
++ * Waits for confd::c_root::co_chan to be signalled.
++ * @param confd, configuration server structure
++ * @return 0 on success, <0 if timeout occured.
++ */
++static int obj_wait(struct c2_confd *confd)
++{
++}
++
++/**
++ * Called when confd transits to C2_CONFD_STATUS_FAILURE
++ */
++static void handle_failure(struct c2_confd *confd)
++{
++}
++
++/**
++ * Handles incoming requests, called by reqh.
++ */
++static int reqh_confd_req_fom_state(struct c2_fom *fom)
++{
++}
+diff --git a/conf/confd.h b/conf/confd.h
+new file mode 100644
+index 0000000..e2c4303
+--- /dev/null
++++ b/conf/confd.h
+@@ -0,0 +1,174 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
++ * Original creation date: 19-Mar-2012
++ */
++
++#ifndef __COLIBRI_CONF_CONFD_H__
++#define __COLIBRI_CONF_CONFD_H__
++
++
++
++/**
++ *  @addtogroup confd
++ *  @{
++ * 
++ * @page confd-dld-fspec  confd: Functional Specification
++ *
++ * Configuration server library (confd) is designed to work as a
++ * part of user-space configuration server and provides a "FOP-based"
++ * interface for accessing Colibri configuration information, stored in 
++ * configuration DB.
++ *
++ * Confd caches recently used configuration values fetched from configuration DB
++ * in memory based data caches to speed up confc requests.
++ *
++ * - @ref confd-dld-fspec-data
++ * - @ref confd-dld-fspec-sub
++ * - @ref confd-dld-fspec-recipes
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-fspec-data  Data Structures
++ * c2_confd --- represents configuration server, stores structures to 
++ * perform caching, accessing to configuration DB, request handling
++ * c2_confd_conf_accessor --- represents data structures related to
++ * efficient configuration data access.
++ * c2_confd_rpc_server --- represents data structures used for FOP
++ * transmittion.
++ * 
++ * Shares with confc:
++ * - c2_fop_type_format structures, defined in onwire.ff;
++ * - c2_conf_map structure, representing cache of configuration objects.
++ * <hr> <!------------------------------------------------------------->
++ * @section confd-dld-fspec-sub  Subroutines
++ * c2_confd_init() - starts confd-server.
++ * c2_confd_fini() - terminates started confd-server.
++ * @section confd-dld-fspec-recipes  Recipes
++ * Confd API provides "as simple as possible" interface to start 
++ * and to terminate configuration server:
++ * A typical usage scenario of confd is the following:
++ *
++ * Start the server, c2_confd_start() returns after server is
++ * started and doesn't wait it finishes.
++ * @code
++ * struct c2_confd *confd;
++ * const char *conf_db = "/path/to/conf/db";
++ * const char *rpc_db  = "/path/to/rpc/db";
++ * const char *srvname = "confd-001";
++ * int rc = c2_confd_start(&confd, conf_db, rpc_db, srvname, &c2_net_bulk_sunrpc_xprt);
++ * assert(rc == 0);
++ * @endcode
++ * 
++ * Confd server interacts with Confc-s using FOP-based interface.
++ * After Confc sends a FOP with configuration data request,
++ * server processes it and send a FOP-reply. Details can be found in @ref confd-dld-lspec.
++ *
++ * Terminate Conf-d server:
++ * @code
++ * c2_confd_terminate(&confd);
++ * @endcode
++ */
++
++/**
++ * Configuration server states.
++ * @see Fig 4 in https://docs.google.com/a/xyratex.com/document/d/1t8osSyFOsdTGYGbnMC3ynB1niVqtm6bCJSzJwh1IUw8/view
++ */
++enum c2_confd_status {
++	C2_CONFD_STATUS_INITIAL = FOPH_NR + 1,
++	C2_CONFD_STATUS_SERIALIZE,
++	C2_CONFD_STATUS_LOAD,
++	C2_CONFD_STATUS_WAIT,
++	C2_CONFD_STATUS_TERMINATE,
++	C2_CONFD_STATUS_FAILURE
++};
++
++/**
++ * Configuration data accessor.
++ * Used to access to configuration data from DB or from cache 
++ * if it's populated with corresponding data.
++ */
++struct c2_confd_conf_accessor {
++	/** Database path */
++	const char	       *ca_dbpath;
++	/** Database environment */
++	struct c2_dbenv		ca_db;
++	/** Registry of cached configuration objects */
++	struct c2_conf_map	ca_cache;
++};
++
++/** Configuration rpc server.
++ *  Used to process incoming FOP-based requests of configuration data.
++ */
++struct c2_confd_rpc_server {	
++	struct c2_rpc_server_ctx ctx;
++
++/* private: */	
++	const char	       **server_argv;
++	struct c2_net_xprt	*xprt;
++	const char		*rs_srvname;
++	const char		*rs_dbname;
++	const char		*rs_endpoint;
++};
++
++/* Configuration server. */
++struct c2_confd {
++	/** ADDB context for the context */
++	struct c2_addb_ctx		c_addb;
++	/** Configuration data accessor */
++	struct c2_confd_conf_accessor	c_accr;
++	/** Configuration rpc server */
++	struct c2_confd_rpc_server      c_srv;
++
++/* private: */	
++	/** lock, to protect confd from concurrent access */
++	struct c2_mutex			c_lock;
++	/** current state of confd */
++	struct c2_confd_status          c_st;
++	/** represents currently requested DAG of configuration objects */
++	struct c2_conf_obj	       *c_root;
++};
++
++/**
++ * Starts configuration server.
++ * @param confd		Configuration server instance.
++ * @param cdbpath	Path to DB with configuration values.
++ * @param rdbpath       Path to RPC-server DB
++ * @param srvname	RPC-server name
++ * @param xprt		RPC-server transport
++ *
++ * @pre c2_mutex_is_not_locked(c2_confd::c_lock)
++ * @post c2_mutex_is_not_locked(c2_confd::c_lock) && c_st == C2_CONFD_STATUS_INITIAL
++ * @return 0 on success initialization, <0 on error. 
++ */
++int  c2_confd_start(struct c2_confd *confd, char *cdbpath, char *rdbpath,
++		    char *srvname, struct c2_net_xprt *xprt);
++
++
++/**
++ * Terminates configuration server structures.
++ * 
++ * Destroys and deallocates all data structures.
++ * @pre c_st == C2_CONFD_STATUS_INITIAL
++ * @pre c2_mutex_is_not_locked(c2_confd::c_lock)
++ * @post c_st == C2_CONFD_STATUS_TERMINATE
++ * @post c2_confd::c_cache is finalized and c2_confd::c_db is closed.
++ */
++void c2_confd_terminate(struct c2_confd *confd);
++
++
++/** @} end group confd */
++
++#endif /* __COLIBRI_CONF_CONFD_H__ */
+-- 
+1.8.3.2
+

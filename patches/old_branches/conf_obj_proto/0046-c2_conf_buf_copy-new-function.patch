@@ -1,0 +1,127 @@
+From 1c3f9ff148fdb938dd651b3a649c13fbcc02f9c4 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Fri, 9 Mar 2012 14:22:10 +0200
+Subject: [PATCH 046/370] c2_conf_buf_copy(): new function
+
++ onwire.ff: rename fields of `objval'
+---
+ conf/buf.c     | 27 ++++++++++-----------------
+ conf/buf.h     | 20 ++++++++++++++++++--
+ conf/onwire.ff | 16 ++++++++--------
+ 3 files changed, 36 insertions(+), 27 deletions(-)
+
+diff --git a/conf/buf.c b/conf/buf.c
+index e451672..a9e509c 100644
+--- a/conf/buf.c
++++ b/conf/buf.c
+@@ -22,12 +22,7 @@
+ #  include <config.h>
+ #endif
+ #include "conf/buf.h"
+-#ifdef __KERNEL__
+-#  include "conf/onwire_k.h"
+-#else
+-#  include "conf/onwire_u.h" /* c2_conf_buf */
+-#endif
+-#include "lib/misc.h"        /* memcmp */
++#include "lib/memory.h"      /* c2_alloc */
+ 
+ bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y)
+ {
+@@ -36,16 +31,14 @@ bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y)
+ }
+ C2_EXPORTED(c2_conf_buf_eq);
+ 
+-int c2_conf_buf_strdup(struct c2_conf_buf *dest, const char *src)
++int c2_conf_buf_copy(struct c2_conf_buf *dest, const struct c2_conf_buf *src)
+ {
+-	/*
+-	 * C2_PRE(dest->cb_size == 0 && dest->cb_data == NULL);
+-	 * dest->cb_data = strdup(src);
+-	 * if (dest->cb_data == NULL)
+-	 *     return -ENOMEM;
+-	 * dest->cb_size = strlen(dest->cb_data);
+-	 * return 0;
+-	 */
+-	XXX;
++	C2_PRE(dest->cb_size == 0 && dest->cb_data == NULL);
++	dest->cb_size = src->cb_size;
++	dest->cb_data = c2_alloc(src->cb_size);
++	if (dest->cb_data == NULL)
++		return -ENOMEM;
++	memcpy(dest->cb_data, src->cb_data, src->cb_size);
++	return 0;
+ }
+-C2_EXPORTED(c2_conf_buf_strdup);
++C2_EXPORTED(c2_conf_buf_copy);
+diff --git a/conf/buf.h b/conf/buf.h
+index 390960c..88812ba 100644
+--- a/conf/buf.h
++++ b/conf/buf.h
+@@ -20,7 +20,12 @@
+ #ifndef __COLIBRI_CONF_BUF_H__
+ #define __COLIBRI_CONF_BUF_H__
+ 
+-struct c2_conf_buf;
++#ifdef __KERNEL__
++#  include "conf/onwire_k.h"
++#else
++#  include "conf/onwire_u.h" /* c2_conf_buf */
++#endif
++#include "lib/misc.h"        /* strlen */
+ 
+ /**
+  * C2_CONF_BUF_INIT: initializer for struct c2_conf_buf.
+@@ -34,10 +39,21 @@ struct c2_conf_buf;
+ bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y);
+ 
+ /**
++ * Copies a buffer.
++ *
++ * @pre  dest->cb_size == 0 && dest->cb_data == NULL
++ */
++int c2_conf_buf_copy(struct c2_conf_buf *dest, const struct c2_conf_buf *src);
++
++/**
+  * Duplicates a string into c2_conf_buf.
+  *
+  * @pre  dest->cb_size == 0 && dest->cb_data == NULL
+  */
+-int c2_conf_buf_strdup(struct c2_conf_buf *dest, const char *src);
++static inline int c2_conf_buf_strdup(struct c2_conf_buf *dest, const char *src)
++{
++	return c2_conf_buf_copy(dest, &(const struct c2_conf_buf)
++				C2_CONF_BUF_INIT(strlen(src), src));
++}
+ 
+ #endif /* __COLIBRI_CONF_BUF_H__ */
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+index 779a57c..eeacf0f 100644
+--- a/conf/onwire.ff
++++ b/conf/onwire.ff
+@@ -151,14 +151,14 @@ DEF(confx_partition, RECORD,
+     _(xa_file,  c2_conf_buf));
+ 
+ DEF(objval, UNION,
+-    _(co_type, U32), /* see c2_conf_objtype for values */
+-    _case(0, co_profile,    confx_profile),
+-    _case(1, co_filesystem, confx_filesystem),
+-    _case(2, co_service,    confx_service),
+-    _case(3, co_node,       confx_node),
+-    _case(4, co_nic,        confx_nic),
+-    _case(5, co_sdev,       confx_sdev),
+-    _case(6, co_partition,  confx_partition));
++    _(ov_type, U32), /* see c2_conf_objtype for values */
++    _case(0, ov_profile,    confx_profile),
++    _case(1, ov_filesystem, confx_filesystem),
++    _case(2, ov_service,    confx_service),
++    _case(3, ov_node,       confx_node),
++    _case(4, ov_nic,        confx_nic),
++    _case(5, ov_sdev,       confx_sdev),
++    _case(6, ov_partition,  confx_partition));
+ 
+ DEF(confx_object, RECORD,
+     _(o_key, c2_conf_buf),
+-- 
+1.8.3.2
+

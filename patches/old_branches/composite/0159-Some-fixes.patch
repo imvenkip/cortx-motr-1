@@ -1,0 +1,434 @@
+From 70376106b46063ce6da289e53098f8a0c6767228 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Wed, 24 Jul 2013 12:32:02 +0530
+Subject: [PATCH 159/172] Some fixes
+
+---
+ layout/composite.c         |  6 ++----
+ layout/layout.c            | 10 +++++-----
+ layout/layout.h            |  2 +-
+ layout/layout_internal.h   |  4 ++--
+ layout/linear_enum.c       | 16 ++++++++--------
+ layout/list_enum.c         | 31 ++++++++++++++-----------------
+ layout/pdclust.c           |  7 ++++---
+ layout/ut/composite.c      |  9 ++++++---
+ layout/ut/layout.c         |  2 --
+ layout/ut/layout.h         |  3 ++-
+ layout/ut/layout_generic.c | 26 ++++++++++----------------
+ layout/ut/pdclust.c        | 11 +++++++----
+ 12 files changed, 61 insertions(+), 66 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 3b1ec62..fcc6a0c 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -821,7 +821,6 @@ static int composite_copy_from_onwire(struct m0_composite_layout *cl,
+ 	struct m0_layout          *sublayout;
+ 	struct m0_composite_layer *lr;
+ 	struct m0_layer_onwire    *lr_onwire;
+-	uint32_t                   user_count; //todo
+ 	bool                       populate_done = false;
+ 	uint32_t                   i;
+ 	int                        rc;
+@@ -841,8 +840,8 @@ static int composite_copy_from_onwire(struct m0_composite_layout *cl,
+ 		}
+ 		if (i == 0) { /* Zeroth layer */
+ 			//todo Check if user count shall be passed this way
+-			user_count = onwire->co_base.lo_user_count;
+-			rc = composite_populate(cl, sublayout, user_count);
++			rc = composite_populate(cl, sublayout,
++						onwire->co_base.lo_user_count);
+ 			if (rc == 0) {
+ 				lr = layers_tlist_head(&cl->cl_layers);
+ 				populate_done = true;
+@@ -918,7 +917,6 @@ static int composite_decode(struct m0_layout *l,
+ 		M0_ASSERT(rc == 0); //todo
+ 		if (rc == 0) {
+ 			onwire = m0_xcode_ctx_top(&ctx);
+-			//todo Copy layers info from cl_onwire to cl.
+ 			rc = composite_copy_from_onwire(cl, onwire);
+ 			//if (rc != 0) todo
+ 
+diff --git a/layout/layout.c b/layout/layout.c
+index f558276..954e06f 100644
+--- a/layout/layout.c
++++ b/layout/layout.c
+@@ -503,11 +503,11 @@ M0_INTERNAL void m0_layout__striped_fini(struct m0_striped_layout *str_l)
+ 	M0_LEAVE("lid %llu", (unsigned long long)str_l->sl_base.l_id);
+ }
+ 
+-//todo check what to do about user_count in this case of xcode_decode()
+ M0_INTERNAL int m0_layout__striped_copy_from_onwire(
+ 					struct m0_striped_layout *str_l,
+ 					uint32_t let_id,
+-					void *e_onwire)
++					void *enum_onwire,
++					uint32_t user_count)
+ {
+ 	struct m0_layout_domain    *domain = str_l->sl_base.l_dom;
+ 	struct m0_layout_enum_type *et;
+@@ -515,10 +515,10 @@ M0_INTERNAL int m0_layout__striped_copy_from_onwire(
+ 	int                         rc;
+ 
+ 	et = domain->ld_enum[let_id];
+-	rc = et->let_ops->leto_copy_from_onwire(str_l->sl_base.l_dom, e_onwire,
+-					        &e);
++	rc = et->let_ops->leto_copy_from_onwire(str_l->sl_base.l_dom,
++						enum_onwire, &e);
+ 	M0_ASSERT(rc == 0); //todo Handle
+-	m0_layout__striped_populate(str_l, e, /*user_count todo */ 0);
++	m0_layout__striped_populate(str_l, e, user_count);
+ 	return rc;
+ }
+ 
+diff --git a/layout/layout.h b/layout/layout.h
+index 3242158..5c46dc5 100644
+--- a/layout/layout.h
++++ b/layout/layout.h
+@@ -158,7 +158,7 @@ enum {
+ 	M0_LAYOUT_ENUM_TYPE_MAX = 32
+ };
+ 
+-/** todo Move this to layout_internal.h
++/**
+  * Operation on a layout record, performed through either m0_layout_decode()
+  * or m0_layout_encode() routines.
+  * M0_LXO_BUFFER_OP indicates that m0_layout_decode()/m0_layout_encode() has
+diff --git a/layout/layout_internal.h b/layout/layout_internal.h
+index 8bf42a8..8b12b81 100644
+--- a/layout/layout_internal.h
++++ b/layout/layout_internal.h
+@@ -144,11 +144,11 @@ M0_INTERNAL bool m0_layout__striped_allocated_invariant(
+ 				const struct m0_striped_layout *s);
+ M0_INTERNAL bool m0_layout__striped_invariant(
+ 				const struct m0_striped_layout *stl);
+-//todo Make the names and sequence common to both the ones below
+ M0_INTERNAL int m0_layout__striped_copy_from_onwire(
+ 					struct m0_striped_layout *str_l,
+ 					uint32_t let_id,
+-					void *e);
++					void *enum_onwire,
++					uint32_t user_count);
+ M0_INTERNAL int m0_layout__striped_copy_to_onwire(
+ 					const struct m0_striped_layout *str_l,
+ 					struct m0_layout_onwire *l_onwire,
+diff --git a/layout/linear_enum.c b/layout/linear_enum.c
+index 610895f..b1f3179 100644
+--- a/layout/linear_enum.c
++++ b/layout/linear_enum.c
+@@ -297,18 +297,18 @@ static int linear_copy_from_onwire(struct m0_layout_domain *domain,
+ }
+ 
+ /** Implementation of leo_copy_to_onwire() for LINEAR enumeration type. */
+-static int linear_copy_to_onwire(const struct m0_layout_enum *e,
++static int linear_copy_to_onwire(const struct m0_layout_enum *lenum,
+ 				 void **enum_onwire, uint32_t *let_id)
+ {
+-	struct m0_layout_linear_enum        *lin_enum;
+-	struct m0_layout_linear_enum_onwire *lin_onwire;
++	struct m0_layout_linear_enum        *e;
++	struct m0_layout_linear_enum_onwire *onwire;
+ 
+-	M0_ALLOC_PTR(lin_onwire);
+-	M0_ASSERT(lin_onwire != NULL); //todo
++	M0_ALLOC_PTR(onwire);
++	M0_ASSERT(onwire != NULL); //todo
+ 
+-	lin_enum = enum_to_linear_enum(e);
+-	lin_onwire->lleo_attr = lin_enum->lle_attr;
+-	*enum_onwire = lin_onwire;
++	e = enum_to_linear_enum(lenum);
++	onwire->lleo_attr = e->lle_attr;
++	*enum_onwire = onwire;
+ 	*let_id = m0_linear_enum_type.let_id;
+ 	return 0; //todo
+ }
+diff --git a/layout/list_enum.c b/layout/list_enum.c
+index ab86db1..4e54b7a 100644
+--- a/layout/list_enum.c
++++ b/layout/list_enum.c
+@@ -669,8 +669,6 @@ static int list_copy_from_onwire(struct m0_layout_domain *domain,
+ 	for (i = 0; i < onwire->lleo_cobs.llca_nr; ++i) {
+ 		cob_list[i] = onwire->lleo_cobs.llca_cob[i];
+ 	}
+-	M0_ASSERT(i == onwire->lleo_cobs.llca_nr); //todo rm
+-
+ 	rc = m0_list_enum_build(domain, cob_list, i, &e);
+ 	M0_ASSERT(rc == 0); //todo handle
+ 	*out = &e->lle_base;
+@@ -678,28 +676,27 @@ static int list_copy_from_onwire(struct m0_layout_domain *domain,
+ }
+ 
+ /** Implementation of leo_copy_to_onwire() for LIST enumeration type. */
+-static int list_copy_to_onwire(const struct m0_layout_enum *e,
++static int list_copy_to_onwire(const struct m0_layout_enum *lenum,
+ 			       void **enum_onwire,
+ 			       uint32_t *let_id)
+ {
+-	//todo Name variables appropriately
+-	struct m0_layout_list_enum        *list_enum;
+-	struct m0_layout_list_enum_onwire *list_onwire;
++	struct m0_layout_list_enum        *e;
++	struct m0_layout_list_enum_onwire *onwire;
+ 	struct m0_fid                     *cobs;
+ 	uint32_t                           i;
+ 
+-	M0_ALLOC_PTR(list_onwire);
+-	M0_ASSERT(list_onwire != NULL); //todo
++	M0_ALLOC_PTR(onwire);
++	M0_ASSERT(onwire != NULL); //todo
+ 
+-	list_enum = enum_to_list_enum(e);
+-	M0_ALLOC_ARR(list_onwire->lleo_cobs.llca_cob, list_enum->lle_nr);
+-	M0_ASSERT(list_onwire->lleo_cobs.llca_cob != NULL); //todo Handle
+-	list_onwire->lleo_cobs.llca_nr = list_enum->lle_nr;
+-
+-	cobs = list_onwire->lleo_cobs.llca_cob;
+-	for (i = 0; i < list_enum->lle_nr; ++i)
+-		cobs[i] = list_enum->lle_list_of_cobs[i];
+-	*enum_onwire = list_onwire;//todo
++	e = enum_to_list_enum(lenum);
++	M0_ALLOC_ARR(onwire->lleo_cobs.llca_cob, e->lle_nr);
++	M0_ASSERT(onwire->lleo_cobs.llca_cob != NULL); //todo Handle
++	onwire->lleo_cobs.llca_nr = e->lle_nr;
++
++	cobs = onwire->lleo_cobs.llca_cob;
++	for (i = 0; i < e->lle_nr; ++i)
++		cobs[i] = e->lle_list_of_cobs[i];
++	*enum_onwire = onwire;//todo
+ 	*let_id = m0_list_enum_type.let_id;
+ 	return 0; //todo
+ }
+diff --git a/layout/pdclust.c b/layout/pdclust.c
+index 69b80b3..641d08b 100644
+--- a/layout/pdclust.c
++++ b/layout/pdclust.c
+@@ -422,7 +422,8 @@ static int pdclust_copy_from_onwire(struct m0_pdclust_layout *pl,
+ 	pl->pl_attr = onwire->po_attr;
+ 	rc = m0_layout__striped_copy_from_onwire(&pl->pl_base,
+ 						 onwire->po_let_id,
+-						 onwire->po_enum);
++						 onwire->po_enum,
++						 onwire->po_base.lo_user_count);
+ 	M0_ASSERT(rc == 0); //todo Handle
+ 	return rc;
+ }
+@@ -460,7 +461,6 @@ static int pdclust_decode(struct m0_layout *l,
+ 		M0_ASSERT(rc == 0); //todo
+ 		if (rc == 0) {
+ 			onwire = m0_xcode_ctx_top(&ctx);
+-			//todo Copy from onwire to pl
+ 			rc = pdclust_copy_from_onwire(pl, onwire);
+ 			M0_ASSERT(rc == 0); //todo Handle
+ 			user_count = pl->pl_base.sl_base.l_user_count;
+@@ -629,7 +629,8 @@ static m0_bcount_t pdclust_bufsize(const struct m0_layout *l)
+ 	stl = m0_layout_to_striped(l);
+ 	e = m0_striped_layout_to_enum(stl);
+ 	return sizeof(struct m0_layout_rec) +
+-		sizeof(struct m0_layout_pdclust_rec) + e->le_ops->leo_bufsize(e);
++		sizeof(struct m0_layout_pdclust_rec) +
++		e->le_ops->leo_bufsize(e);
+ }
+ 
+ /**
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 4eb0d59..37067d8 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -879,7 +879,7 @@ int test_decode_composite(uint64_t lid,
+ 		composite_layout_verify(l, lid, layers_nr, EXTLIST_ASSOCIATED,
+ 					extents_nr, is_contiguous_extents,
+ 					!SEC_FROM_TOP_DELETED,
+-					!USER_COUNT_INCREMENTED);
++					USER_COUNT_INCREMENTED);
+ 	}
+ 
+ 	/* Destroy the layout object. */
+@@ -909,6 +909,7 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 					uint32_t layers_nr,
+ 					uint32_t extents_nr,
+ 					bool is_contiguous_extents,
++					bool is_user_count_incremented,
+ 					struct m0_bufvec_cursor *cur)
+ {
+ 	uint32_t                        lt_id; //todo indent
+@@ -938,7 +939,7 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 	M0_UT_ASSERT(cur != NULL);
+ 
+ 	/* Verify generic part of the layout buffer. */
+-	lbuf_verify(cur, &lt_id);
++	lbuf_verify(cur, &lt_id, is_user_count_incremented);
+ 	M0_UT_ASSERT(lt_id == m0_composite_layout_type.lt_id);
+ 
+ 	/* Verify COMPOSITE layout type specific part of the layout buffer. */
+@@ -1050,6 +1051,7 @@ int test_encode_composite(uint64_t lid,
+ 					    !FAILURE_TEST,
+ 					    !LAYER_ADD_FAILURE_TEST, &cl);
+ 	M0_UT_ASSERT(rc == 0);
++	m0_layout_user_count_inc(&cl->cl_base);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+ 	m0_mutex_lock(&cl->cl_base.l_lock);
+@@ -1073,7 +1075,8 @@ int test_encode_composite(uint64_t lid,
+ 	/* Verify the layout buffer produced by m0_layout_encode(). */
+ 	if (!failure_test)
+ 		composite_layout_buf_verify(lid, domain, layers_nr, extents_nr,
+-					    is_contiguous_extents, &cur);
++					    is_contiguous_extents,
++					    USER_COUNT_INCREMENTED, &cur);
+ 
+ 	/* Delete the composite layout object. */
+ 	m0_layout_put(&cl->cl_base);
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 78823af..7234c3a 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -618,7 +618,6 @@ static void test_build_failure(void)
+ static void test_decode(void)
+ {
+ 	uint64_t lid;
+-	//todo Add test to decode after increasing user count
+ 
+ 	/*
+ 	 * Decode a layout object with PDCLUST layout type, LIST enum type
+@@ -835,7 +834,6 @@ static void test_encode(void)
+ {
+ 	uint64_t lid;
+ 
+-	//todo Add test to encode after increasing user count
+ 	/*
+ 	 * Encode for PDCLUST layout type and LIST enumeration type,
+ 	 * with a few inline entries only.
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index b4e9d63..f79c4ab 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -49,7 +49,8 @@ void allocate_area(struct m0_layout_domain *domain,
+ 		   void **area);
+ void l_verify(struct m0_layout *l, uint64_t lid,
+ 	      bool is_user_count_incremented);
+-void lbuf_verify(struct m0_bufvec_cursor *cur, uint32_t *lt_id);
++void lbuf_verify(struct m0_bufvec_cursor *cur, uint32_t *lt_id,
++		 bool is_user_count_incremented);
+ void lbuf_compare(struct m0_bufvec_cursor *cur1,
+ 		  struct m0_bufvec_cursor *cur2);
+ void layout_compare(const struct m0_layout *l1,
+diff --git a/layout/ut/layout_generic.c b/layout/ut/layout_generic.c
+index 6d81d29..fadae22 100644
+--- a/layout/ut/layout_generic.c
++++ b/layout/ut/layout_generic.c
+@@ -54,28 +54,20 @@ void l_verify(struct m0_layout *l, uint64_t lid,
+ 	M0_UT_ASSERT(l->l_ops != NULL);
+ }
+ 
+-//todo Accordingly, change lbuf_verify(), lbuf_compare()
+ /** Builds part of the buffer representing generic part of the layout object. */
+ void generic_buf_build(uint64_t lid, uint32_t lt_id,
+ 		       struct m0_bufvec_cursor *dcur)
+ {
+-#if 0
+-	struct m0_layout_rec rec;
+-	m0_bcount_t          nbytes_copied;
+-
+-	rec.lr_lt_id      = lt_id;
+-	rec.lr_user_count = 0;
+-
+-	nbytes_copied = m0_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
+-	M0_UT_ASSERT(nbytes_copied == sizeof rec);
+-#endif
+ 	struct m0_layout_onwire lo;
+ 	m0_bcount_t             nbytes;
+ 	//todo convert all the nbytes_copied to nbytes
+ 
+-	//todo rm lo.lo_id         = lid;
+-	lo.lo_lt_id      = lt_id;
+-	lo.lo_user_count = 0;
++	lo.lo_lt_id = lt_id;
++	/*
++	 * Setting intial user count to 1 so that it gets tested that
++	 * m0_layout_decode() propagates the right user count.
++	 */
++	lo.lo_user_count = 1;
+ 	nbytes = m0_bufvec_cursor_copyto(dcur, &lo, sizeof lo);
+ 	M0_UT_ASSERT(nbytes == sizeof lo);
+ }
+@@ -106,7 +98,8 @@ void allocate_area(struct m0_layout_domain *domain,
+  * Verifies part of the layout buffer representing generic part of the layout
+  * object.
+  */
+-void lbuf_verify(struct m0_bufvec_cursor *cur, uint32_t *lt_id)
++void lbuf_verify(struct m0_bufvec_cursor *cur, uint32_t *lt_id,
++		 bool is_user_count_incremented)
+ {
+ 	struct m0_layout_rec *rec;
+ 
+@@ -115,7 +108,8 @@ void lbuf_verify(struct m0_bufvec_cursor *cur, uint32_t *lt_id)
+ 	M0_UT_ASSERT(rec != NULL);
+ 
+ 	*lt_id = rec->lr_lt_id;
+-	M0_UT_ASSERT(rec->lr_user_count == 0);
++	M0_UT_ASSERT(ergo(is_user_count_incremented, rec->lr_user_count > 0));
++	M0_UT_ASSERT(ergo(!is_user_count_incremented, rec->lr_user_count == 0));
+ 	m0_bufvec_cursor_move(cur, sizeof *rec);
+ }
+ 
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index d77be8e..6cf5017 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -489,7 +489,7 @@ int test_decode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 		/* Verify the layout object built by m0_layout_decode(). */
+ 		pdclust_layout_verify(l, lid, enum_id,
+ 				      N, K, P, &seed,
+-				      777, 888, !USER_COUNT_INCREMENTED);
++				      777, 888, USER_COUNT_INCREMENTED);
+ 	}
+ 
+ 	/* Destroy the layout object. */
+@@ -540,6 +540,7 @@ static void pdclust_layout_buf_verify(uint64_t lid, uint32_t enum_id,
+ 				      uint32_t N, uint32_t K, uint32_t P,
+ 				      struct m0_uint128 *seed,
+ 				      uint32_t A, uint32_t B,
++				      bool is_user_count_incremented,
+ 				      struct m0_bufvec_cursor *cur)
+ {
+ 	uint32_t                      lt_id;
+@@ -554,7 +555,7 @@ static void pdclust_layout_buf_verify(uint64_t lid, uint32_t enum_id,
+ 	M0_UT_ASSERT(cur != NULL);
+ 
+ 	/* Verify generic part of the layout buffer. */
+-	lbuf_verify(cur, &lt_id);
++	lbuf_verify(cur, &lt_id, is_user_count_incremented);
+ 	M0_UT_ASSERT(lt_id == m0_pdclust_layout_type.lt_id);
+ 
+ 	/* Verify PDCLUST layout type specific part of the layout buffer. */
+@@ -622,6 +623,7 @@ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 				  &pl, &list_enum, &lin_enum,
+ 				  !FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == 0);
++	m0_layout_user_count_inc(&pl->pl_base.sl_base);
+ 
+ 	/* Encode the layout object into a layout buffer. */
+ 	m0_mutex_lock(&pl->pl_base.sl_base.l_lock);
+@@ -644,7 +646,7 @@ int test_encode_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	/* Verify the layout buffer produced by m0_layout_encode(). */
+ 	if (!failure_test)
+ 		pdclust_layout_buf_verify(lid, enum_id, N, K, P, &seed,
+-					  11, 21, &cur);
++					  11, 21, USER_COUNT_INCREMENTED, &cur);
+ 
+ 	/* Delete the layout object. */
+ 	m0_layout_put(&pl->pl_base.sl_base);
+@@ -865,7 +867,8 @@ static void pdclust_layout_compare(uint32_t enum_id,
+ 	M0_UT_ASSERT(pl1->pl_attr.pa_N == pl2->pl_attr.pa_N);
+ 	M0_UT_ASSERT(pl1->pl_attr.pa_K == pl2->pl_attr.pa_K);
+ 	M0_UT_ASSERT(pl1->pl_attr.pa_P == pl2->pl_attr.pa_P);
+-	M0_UT_ASSERT(m0_uint128_eq(&pl1->pl_attr.pa_seed, &pl2->pl_attr.pa_seed));
++	M0_UT_ASSERT(m0_uint128_eq(&pl1->pl_attr.pa_seed,
++		     &pl2->pl_attr.pa_seed));
+ 
+ 	/* Compare enumeration specific part of the layout objects. */
+ 	M0_UT_ASSERT(pl1->pl_base.sl_enum->le_type ==
+-- 
+1.8.3.2
+

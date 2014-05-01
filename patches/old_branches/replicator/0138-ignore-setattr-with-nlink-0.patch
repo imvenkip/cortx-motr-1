@@ -1,0 +1,91 @@
+From 377e1fc045dab1763172e083b5bf18269b3a0db5 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Wed, 15 Jun 2011 15:56:43 -0600
+Subject: [PATCH 138/177] - ignore setattr with nlink == 0
+
+---
+ cob/cob.c           | 16 ++++++++++++++++
+ mdservice/md_foms.c | 12 +++++++-----
+ 2 files changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 37d2134..581a743 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -565,6 +565,13 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
+         struct c2_cob *cob;
+         int            rc;
+ 
++        /*
++         * Zero out "out" just in case that if we fail here, it is
++         * easier to find abnormal using of NULL cob.
++         */
++        C2_ASSERT(out != NULL);
++        *out = NULL;
++
+         rc = c2_cob_alloc(dom, &cob);
+         if (rc)
+                 return rc;
+@@ -621,6 +628,13 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
+ 
+         C2_PRE(c2_fid_is_set(&oikey->cok_fid));
+ 
++        /*
++         * Zero out "out" just in case that if we fail here, it is
++         * easier to find abnormal using of NULL cob.
++         */
++        C2_ASSERT(out != NULL);
++        *out = NULL;
++
+         /* Get cob memory. */
+         rc = c2_cob_alloc(dom, &cob);
+         if (rc)
+@@ -769,6 +783,8 @@ int c2_cob_create(struct c2_cob_domain *dom,
+         int                   rc;
+ 
+         C2_PRE(out != NULL);
++        *out = NULL;
++
+         C2_PRE(nskey != NULL);
+         C2_PRE(nsrec != NULL);
+         C2_PRE(fabrec != NULL);
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index c5437be..2aaf577 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -861,8 +861,9 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+                 rc = c2_md_store_open(site->s_mdstore, cob, 
+                                       body->b_flags, 
+                                       &ctx->fc_tx->tx_dbtx);
+-                if (rc == 0 &&
+-                    attr.ca_version > cob->co_nsrec.cnr_version) {
++                if (rc == 0 && 
++                    attr.ca_version > cob->co_nsrec.cnr_version &&
++                    (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
+                         /*
+                          * Mode contains open flags that we don't need
+                          * to store to db.
+@@ -875,7 +876,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+                 c2_cob_put(cob);
+         } else if (rc == -ENOENT) {
+                 /*
+-                 * Lustre has create before open in cae of OPEN_CREATE.
++                 * Lustre has create before open in case of OPEN_CREATE.
+                  * We don't have to create anything here as file already
+                  * should exist, let's just check this.
+                  */
+@@ -946,8 +947,9 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
+ 
+         rc = c2_md_store_close(site->s_mdstore, cob, 
+                                &ctx->fc_tx->tx_dbtx);
+-        if (rc == 0 &&
+-            attr.ca_version > cob->co_nsrec.cnr_version) {
++        if (rc == 0 && 
++            attr.ca_version > cob->co_nsrec.cnr_version &&
++            (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
+                 /*
+                  * Mode contains open flags that we don't need
+                  * to store to db.
+-- 
+1.8.3.2
+

@@ -1,0 +1,79 @@
+From 157885df10f0abb10ce538e4c04be3eee54a6888 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Wed, 15 Jan 2014 01:59:54 +0200
+Subject: [PATCH 72/96] be/ut/helper: use M0_BE_UT_TRANSACT() in
+ ut_{alloc,free}()
+
+---
+ be/ut/helper.c | 44 +++++++++++++-------------------------------
+ 1 file changed, 13 insertions(+), 31 deletions(-)
+
+diff --git a/be/ut/helper.c b/be/ut/helper.c
+index 66195bf..03d0022 100644
+--- a/be/ut/helper.c
++++ b/be/ut/helper.c
+@@ -635,48 +635,30 @@ void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
+ 	be_ut_seg_allocator_initfini(ut_seg, ut_be, false);
+ }
+ 
+-static void be_ut_alloc_free(struct m0_be_ut_backend *ut_be,
+-			     struct m0_be_ut_seg *ut_seg,
+-			     enum m0_be_allocator_op optype,
+-			     void **ptr,
+-			     m0_bcount_t size)
+-{
+-	struct m0_be_seg       *seg = &ut_seg->bus_seg;
+-	struct m0_be_allocator *a = m0_be_seg_allocator(seg);
+-	struct m0_be_tx_credit	cred = {};
+-	struct m0_be_tx		tx   = {};
+-	int			rc;
+-
+-	M0_PRE(M0_IN(optype, (M0_BAO_ALLOC, M0_BAO_FREE)));
+-
+-	m0_be_ut_tx_init(&tx, ut_be);
+-	m0_be_allocator_credit(a, optype, size, 0, &cred);
+-	m0_be_tx_prep(&tx, &cred);
+-	rc = m0_be_tx_open_sync(&tx);
+-	M0_ASSERT(rc == 0);
+-	if (optype == M0_BAO_ALLOC) {
+-		M0_BE_OP_SYNC(op, m0_be_alloc(a, &tx, &op, ptr, size));
+-		M0_ASSERT(*ptr != NULL);
+-	} else {
+-		M0_BE_OP_SYNC(op, m0_be_free(a, &tx, &op, *ptr));
+-	}
+-	m0_be_tx_close_sync(&tx);
+-	m0_be_tx_fini(&tx);
+-}
+-
+ M0_INTERNAL void m0_be_ut_alloc(struct m0_be_ut_backend *ut_be,
+ 				struct m0_be_ut_seg *ut_seg,
+ 				void **ptr,
+ 				m0_bcount_t size)
+ {
+-	be_ut_alloc_free(ut_be, ut_seg, M0_BAO_ALLOC, ptr, size);
++	struct m0_be_allocator *a = m0_be_seg_allocator(&ut_seg->bus_seg);
++
++	/* don't use capturing checkers here */
++	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
++		  m0_be_allocator_credit(a, M0_BAO_ALLOC, size, 0, &cred),
++		  M0_BE_OP_SYNC(op, m0_be_alloc(a, tx, &op, ptr, size)));
++	M0_ASSERT(*ptr != NULL);
+ }
+ 
+ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
+ 			       struct m0_be_ut_seg *ut_seg,
+ 			       void *ptr)
+ {
+-	be_ut_alloc_free(ut_be, ut_seg, M0_BAO_FREE, &ptr, 0);
++	struct m0_be_allocator *a = m0_be_seg_allocator(&ut_seg->bus_seg);
++
++	/* don't use capturing checkers here */
++	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
++			  m0_be_allocator_credit(a, M0_BAO_FREE, 0, 0, &cred),
++			  M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, ptr)));
+ }
+ 
+ #undef REQH_EMU
+-- 
+1.8.3.2
+

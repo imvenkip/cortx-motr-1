@@ -1,0 +1,82 @@
+From 8f3b326279bc365d1101ce1a57b291e0c75cb024 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Tue, 24 Dec 2013 20:34:13 +0800
+Subject: [PATCH 09/11] add a test case for loading pool with wrong parameters.
+
+---
+ pool/pool.c       |  8 ++++----
+ pool/pool_store.c |  2 +-
+ pool/ut/test_pm.c | 17 +++++++++++++++++
+ 3 files changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/pool/pool.c b/pool/pool.c
+index 0df40ff..a2a7634 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -277,6 +277,8 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+ 
+ 	M0_SET0(pm);
+ 	m0_rwlock_init(&pm->pm_lock);
++	pm->pm_be_seg = be_seg;
++	pm->pm_sm_grp = sm_grp;
+ 
+ 	if (be_seg == NULL) {
+ 		struct m0_poolmach_state *state;
+@@ -335,11 +337,9 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
+ 					    nr_devices, max_node_failures,
+ 					    max_device_failures);
+ 	}
+-	if (rc == 0) {
+-		pm->pm_be_seg = be_seg;
+-		pm->pm_sm_grp = sm_grp;
++	if (rc == 0)
+ 		pm->pm_is_initialised = true;
+-	} else
++	else
+ 		m0_poolmach_fini(pm);
+ 	return rc;
+ }
+diff --git a/pool/pool_store.c b/pool/pool_store.c
+index 4391ca5..d844362 100644
+--- a/pool/pool_store.c
++++ b/pool/pool_store.c
+@@ -136,7 +136,7 @@ static int m0_poolmach_load(struct m0_poolmach       *pm,
+ 	    pm_state_on_disk->pst_nr_devices != nr_devices + 1 ||
+ 	    pm_state_on_disk->pst_max_node_failures != max_node_failures ||
+ 	    pm_state_on_disk->pst_max_device_failures != max_device_failures) {
+-		M0_LOG(M0_FATAL, "Invalid pool configuration. Using stale pool "
++		M0_LOG(M0_ERROR, "Invalid pool configuration. Using stale pool "
+ 				 "info? On-disk pool param: %u:%u:%u:%u, "
+ 				 "Requested pool param: %u:%u:%u:%u",
+ 				 pm_state_on_disk->pst_nr_nodes,
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index 419a1d1..2fb6c3b 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -789,6 +789,23 @@ static void pm_test_load_from_persistent_storage(void)
+ 					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
+ 					 3);
+ 	M0_UT_ASSERT(rc == 0);
++	m0_poolmach_fini(&pm);
++
++	/* Use some different parameters. Error should be returned. */
++	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
++					 PM_TEST_DEFAULT_NODE_NUMBER + 1,
++					 PM_TEST_DEFAULT_DEVICE_NUMBER,
++					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
++					 3);
++	M0_UT_ASSERT(rc == -EINVAL);
++
++	/* Now with proper parameters, it should work again. */
++	rc = m0_poolmach_init(&pm, be_seg, sm_grp, NULL,
++					 PM_TEST_DEFAULT_NODE_NUMBER,
++					 PM_TEST_DEFAULT_DEVICE_NUMBER,
++					 PM_TEST_DEFAULT_MAX_NODE_FAILURE,
++					 3);
++	M0_UT_ASSERT(rc == 0);
+ 
+ 	/* Destroy poolmach persistent storage.
+ 	 */
+-- 
+1.8.3.2
+

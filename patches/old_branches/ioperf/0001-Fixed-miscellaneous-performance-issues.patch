@@ -1,0 +1,245 @@
+From 76aa1dbea490badce470197cf205a1fec063bca4 Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Tue, 27 Nov 2012 22:15:26 -0800
+Subject: [PATCH 1/2] Fixed miscellaneous performance issues. - Fixed an issue
+ in c2t1fs code found by systemtap. An unnecessary lookup   was removed and
+ required structure was passed as function argument. - Fixed an issue found in
+ IO foms code which asserted on passing big size IO   requests. - Fixed IO
+ foms locality function to assign locality based cob fid instead of   IO fop
+ opcode. This resulted in significant improvement in IO performance   since IO
+ fops were divided into multitude of localities instead of earlier   situation
+ where all read requests would go to one locality and all write   requests
+ would go to another.
+
+---
+ c2t1fs/linux_kernel/file.c          | 41 ++++++++-----------------------------
+ c2t1fs/linux_kernel/file_internal.h | 16 +++------------
+ c2t1fs/linux_kernel/ut/file.c       |  6 +++---
+ ioservice/io_foms.c                 |  8 +++++---
+ 4 files changed, 20 insertions(+), 51 deletions(-)
+
+diff --git a/c2t1fs/linux_kernel/file.c b/c2t1fs/linux_kernel/file.c
+index a2856fb..353767f 100644
+--- a/c2t1fs/linux_kernel/file.c
++++ b/c2t1fs/linux_kernel/file.c
+@@ -658,7 +658,8 @@ static void target_ioreq_seg_add      (struct target_ioreq *ti,
+ 				       c2_bindex_t	    gob_offset,
+ 				       c2_bindex_t	    par_offset,
+ 				       c2_bcount_t	    count,
+-				       uint64_t		    unit);
++				       uint64_t		    unit,
++				       struct pargrp_iomap *map);
+ 
+ static const struct target_ioreq_ops tioreq_ops = {
+ 	.tio_seg_add	    = target_ioreq_seg_add,
+@@ -675,10 +676,6 @@ static int  ioreq_iomaps_prepare(struct io_request *req);
+ 
+ static void ioreq_iomaps_destroy(struct io_request *req);
+ 
+-static void ioreq_iomap_locate	(struct io_request    *req,
+-				 uint64_t	       grpid,
+-				 struct pargrp_iomap **map);
+-
+ static int ioreq_user_data_copy (struct io_request   *req,
+ 				 enum copy_direction  dir,
+ 				 enum page_attr	      filter);
+@@ -691,7 +688,6 @@ static const struct io_request_ops ioreq_ops = {
+ 	.iro_iomaps_prepare = ioreq_iomaps_prepare,
+ 	.iro_iomaps_destroy = ioreq_iomaps_destroy,
+ 	.iro_user_data_copy = ioreq_user_data_copy,
+-	.iro_iomap_locate   = ioreq_iomap_locate,
+ 	.iro_parity_recalc  = ioreq_parity_recalc,
+ 	.iro_iosm_handle    = ioreq_iosm_handle,
+ };
+@@ -919,25 +915,6 @@ static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
+ 	C2_LEAVE();
+ }
+ 
+-static void ioreq_iomap_locate(struct io_request *req, uint64_t grpid,
+-			       struct pargrp_iomap **iomap)
+-{
+-	uint64_t map;
+-
+-	C2_ENTRY("Locate map with grpid = %llu", grpid);
+-	C2_PRE(io_request_invariant(req));
+-	C2_PRE(iomap != NULL);
+-
+-	for (map = 0; map < req->ir_iomap_nr; ++map) {
+-		if (req->ir_iomaps[map]->pi_grpid == grpid) {
+-			*iomap = req->ir_iomaps[map];
+-			break;
+-		}
+-	}
+-	C2_POST(map < req->ir_iomap_nr);
+-	C2_LEAVE("Map = %p", *iomap);
+-}
+-
+ /* Typically used while copying data to/from user space. */
+ static bool page_copy_filter(c2_bindex_t start, c2_bindex_t end,
+ 			     enum page_attr filter)
+@@ -2110,7 +2087,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
+ 
+ 			ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
+ 						0, c2_ext_length(&r_ext),
+-						src.sa_unit);
++						src.sa_unit,
++						req->ir_iomaps[map]);
+ 		}
+ 
+ 		/* Maps parity units only in case of write IO. */
+@@ -2137,7 +2115,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
+ 							tgt.ta_frame, pgstart,
+ 							0,
+ 							layout_unit_size(play),
+-							src.sa_unit);
++							src.sa_unit,
++							req->ir_iomaps[map]);
+ 				par_offset += layout_unit_size(play);
+ 			}
+ 		}
+@@ -2653,7 +2632,8 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
+ 				 c2_bindex_t	      gob_offset,
+ 				 c2_bindex_t	      par_offset,
+ 				 c2_bcount_t	      count,
+-				 uint64_t	      unit)
++				 uint64_t	      unit,
++				 struct pargrp_iomap *map)
+ {
+ 	uint32_t		   seg;
+ 	c2_bindex_t		   toff;
+@@ -2662,13 +2642,13 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
+ 	c2_bindex_t		   pgend;
+ 	struct data_buf		  *buf;
+ 	struct io_request	  *req;
+-	struct pargrp_iomap	  *map;
+ 	struct c2_pdclust_layout  *play;
+ 	enum c2_pdclust_unit_type  unit_type;
+ 
+ 	C2_ENTRY("target_ioreq %p, gob_offset %llu, count %llu",
+ 		 ti, gob_offset, count);
+ 	C2_PRE(target_ioreq_invariant(ti));
++	C2_PRE(map != NULL);
+ 
+ 	req	= bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
+ 			 &ioreq_bobtype);
+@@ -2678,9 +2658,6 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
+ 	C2_ASSERT(C2_IN(unit_type, (C2_PUT_DATA, C2_PUT_PARITY)));
+ 
+ 	toff	= target_offset(frame, play, gob_offset);
+-	req->ir_ops->iro_iomap_locate(req, group_id(gob_offset,
+-				      data_size(play)), &map);
+-	C2_ASSERT(map != NULL);
+ 	pgstart = toff;
+ 	goff    = unit_type == C2_PUT_DATA ? gob_offset : par_offset;
+ 
+diff --git a/c2t1fs/linux_kernel/file_internal.h b/c2t1fs/linux_kernel/file_internal.h
+index f2d94de..acf1010 100644
+--- a/c2t1fs/linux_kernel/file_internal.h
++++ b/c2t1fs/linux_kernel/file_internal.h
+@@ -825,18 +825,6 @@ struct io_request_ops {
+                                    enum page_attr      filter);
+ 
+         /**
+-         * Locates the pargrp_iomap structure corresponding to given
+-         * parity group id from io_request::ir_iomaps.
+-         * For a valid parity group id, a pargrp_iomap structure must
+-         * be present.
+-	 * @param grpid Parity group id.
+-	 * @param map   Out paramter to return pargrp_iomap.
+-         */
+-        void (*iro_iomap_locate)  (struct io_request    *req,
+-                                   uint64_t              grpid,
+-                                   struct pargrp_iomap **map);
+-
+-        /**
+          * Recalculates parity for all pargrp_iomap structures in
+          * given io_request.
+          * Basically, invokes parity_recalc() routine for every
+@@ -1105,6 +1093,7 @@ struct target_ioreq_ops {
+ 	 * @param par_offset Offset in case of parity units.
+ 	 * @param count      Number of bytes in this segment.
+ 	 * @param unit       Unit id in parity group.
++	 * @param map        Parent pargrp_iomap structure.
+ 	 * @pre   ti != NULL && count > 0.
+ 	 * @post  c2_vec_count(&ti->ti_ivec.iv_vec) > 0.
+          */
+@@ -1113,7 +1102,8 @@ struct target_ioreq_ops {
+                                     c2_bindex_t          gob_offset,
+                                     c2_bindex_t          par_offset,
+                                     c2_bcount_t          count,
+-                                    uint64_t             unit);
++                                    uint64_t             unit,
++				    struct pargrp_iomap *map);
+ 
+         /**
+ 	 * Prepares io fops from index vector and buffer vector.
+diff --git a/c2t1fs/linux_kernel/ut/file.c b/c2t1fs/linux_kernel/ut/file.c
+index f810627..30564f6 100644
+--- a/c2t1fs/linux_kernel/ut/file.c
++++ b/c2t1fs/linux_kernel/ut/file.c
+@@ -777,7 +777,7 @@ static void target_ioreq_test(void)
+ 	for (cnt = 0; cnt < IOVEC_NR; ++cnt)
+ 		ti.ti_pageattrs[cnt] &= ~(PA_DATA | PA_PARITY);
+ 
+-	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, 0);
++	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, 0, map);
+ 	C2_UT_ASSERT(1 == SEG_NR(&ti.ti_ivec));
+ 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
+ 	C2_UT_ASSERT(ti.ti_pageattrs[0] & PA_DATA);
+@@ -787,7 +787,7 @@ static void target_ioreq_test(void)
+ 	buf = map->pi_databufs[row][col];
+ 
+ 	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, 0), 0,
+-			     PAGE_CACHE_SIZE, 0);
++			     PAGE_CACHE_SIZE, 0, map);
+ 	C2_UT_ASSERT(2 == SEG_NR(&ti.ti_ivec));
+ 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[1] == buf->db_buf.b_addr);
+ 	C2_UT_ASSERT(ti.ti_pageattrs[1] & PA_DATA);
+@@ -795,7 +795,7 @@ static void target_ioreq_test(void)
+ 	/* Addition of parity buffer */
+ 	buf = map->pi_paritybufs[page_id(0)]
+ 		[LAY_N % data_col_nr(pdlay)];
+-	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, LAY_N);
++	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, LAY_N, map);
+ 	C2_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
+ 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
+ 	C2_UT_ASSERT(ti.ti_pageattrs[2] & PA_PARITY);
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index e552aa6..0ac084a 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -1035,7 +1035,6 @@ static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
+ 
+ 	netbufs_tlist_init(&fom_obj->fcrw_netbuf_list);
+ 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
+-	c2_rpc_bulk_init(&fom_obj->fcrw_bulk);
+ 
+ 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
+ 		    "FOM created : type=rw.");
+@@ -1263,7 +1262,7 @@ static int zero_copy_initiate(struct c2_fom *fom)
+ 
+ 	rwfop = io_rw_get(fop);
+ 	rbulk = &fom_obj->fcrw_bulk;
+-
++	c2_rpc_bulk_init(rbulk);
+ 
+ 	C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
+ 	dom      = io_fop_tm_get(fop)->ntm_dom;
+@@ -1775,10 +1774,13 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
+  */
+ static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom)
+ {
++	struct c2_fop_cob_rw *rw;
++
+ 	C2_PRE(fom != NULL);
+ 	C2_PRE(fom->fo_fop != NULL);
+ 
+-	return c2_fop_opcode(fom->fo_fop);
++	rw = io_rw_get(fom->fo_fop);
++	return rw->crw_fid.f_container;
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

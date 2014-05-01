@@ -1,0 +1,235 @@
+From e6b19f21643f147f03b6865b91092627016cd035 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 9 Mar 2013 22:09:01 +0200
+Subject: [PATCH 08/63] mero, utils: minor cleanup and refactoring
+
++ mero/conf.c (cs_conf_to_args): Remove misleading comment. Place
+  automatic variable after the static ones.
++ mero/init.c (m0_init): Minor cleanup.
++ utils/common.c (unit_start): Call m0_fini() in case of error. Refactor.
++ utils/ub_main.c (ub_run): Minor cleanup.
++ utils/ub_main.c (main): Refactor.
+---
+ lib/ub.c             |  1 -
+ mero/conf.c          | 25 +++++++++----------------
+ mero/init.c          | 10 +++++-----
+ rpc/ut/rpc_machine.c |  5 +----
+ ut/ut.c              |  3 ++-
+ utils/common.c       | 35 +++++++++++++++++++++--------------
+ utils/ub_main.c      | 23 ++++++++---------------
+ 7 files changed, 46 insertions(+), 56 deletions(-)
+
+diff --git a/lib/ub.c b/lib/ub.c
+index 5272ef6..025d0b3 100644
+--- a/lib/ub.c
++++ b/lib/ub.c
+@@ -60,7 +60,6 @@ M0_INTERNAL int m0_ub_set_select(const char *name)
+ 		}
+ 	}
+ 	printf("Given benchmark `%s' not found\n", name);
+-
+ 	return -ENOENT;
+ }
+ 
+diff --git a/mero/conf.c b/mero/conf.c
+index 9d1b1e6..d55e936 100644
+--- a/mero/conf.c
++++ b/mero/conf.c
+@@ -168,28 +168,21 @@ end:
+ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
+ 				const char *profile)
+ {
++	enum {
++		MAX_RPCS_IN_FLIGHT = 32,
++		CLIENT_COB_DOM_ID  = 13,
++		CONNECT_TIMEOUT    = 20,
++		NR_SLOTS           = 1
++	};
+ 	static struct m0_net_domain     client_net_dom;
+ 	static struct m0_dbenv          client_dbenv;
+ 	static struct m0_cob_domain     client_cob_dom;
+-	int                             rc;
+-	/*
+-	 * XXX FIXME: Don't use m0_rpc_client_ctx.
+-	 *
+-	 * See test_confc_net() in conf/ut/confc.c for example on how
+-	 * to initialise confc without m0_rpc_client_ctx.
+-	 */
+ 	static struct m0_rpc_client_ctx cctx;
+-
++	static char                     client_ep[M0_NET_LNET_XEP_ADDR_LEN];
++	static char                     server_ep[M0_NET_LNET_XEP_ADDR_LEN];
+ 	static const char              *client_db_file_name = "mero_client.db";
+ 	static struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
+-	static char client_ep[M0_NET_LNET_XEP_ADDR_LEN] = {0};
+-	static char server_ep[M0_NET_LNET_XEP_ADDR_LEN] = {0};
+-	enum {
+-		MAX_RPCS_IN_FLIGHT = 32,
+-		CLIENT_COB_DOM_ID  = 13,
+-		CONNECT_TIMEOUT    = 20,
+-		NR_SLOTS           = 1,
+-	};
++	int                             rc;
+ 
+ 	M0_ENTRY();
+ 	M0_PRE(confd_addr != NULL && profile != NULL);
+diff --git a/mero/init.c b/mero/init.c
+index cdb2a5b..1832ee5 100644
+--- a/mero/init.c
++++ b/mero/init.c
+@@ -150,16 +150,16 @@ static void fini_nr(int i)
+ int m0_init(void)
+ {
+ 	int i;
+-	int result;
++	int rc = 0;
+ 
+-	for (result = i = 0; i < ARRAY_SIZE(subsystem); ++i) {
+-		result = subsystem[i].ifc_init();
+-		if (result != 0) {
++	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
++		rc = subsystem[i].ifc_init();
++		if (rc != 0) {
+ 			fini_nr(i);
+ 			break;
+ 		}
+ 	}
+-	return result;
++	return rc;
+ }
+ 
+ void m0_fini()
+diff --git a/rpc/ut/rpc_machine.c b/rpc/ut/rpc_machine.c
+index 05704c5..c2c5af5 100644
+--- a/rpc/ut/rpc_machine.c
++++ b/rpc/ut/rpc_machine.c
+@@ -35,14 +35,11 @@ static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+ static const char               *ep_addr = "0@lo:12345:34:2";
+ static struct m0_cob_domain      cdom;
+ static struct m0_net_domain      ndom;
+-static struct m0_cob_domain_id   cdom_id = {
+-	.id = 10000
+-};
++static struct m0_cob_domain_id   cdom_id = { .id = 10000 };
+ static struct m0_dbenv           dbenv;
+ static const char               *dbname = "db";
+ static struct m0_net_buffer_pool buf_pool;
+ static struct m0_net_xprt        *net_xprt = &m0_net_lnet_xprt;
+-
+ static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
+ 
+ static void cob_domain_init(void)
+diff --git a/ut/ut.c b/ut/ut.c
+index 5924dc2..ddcdc75 100644
+--- a/ut/ut.c
++++ b/ut/ut.c
+@@ -22,7 +22,8 @@
+ #include "ut/cs_service.h"
+ #include "reqh/reqh_service.h"
+ #include "fop/fom_generic.h"
+-#include "lib/misc.h"		/* M0_IN() */
++#include "lib/misc.h"           /* M0_IN() */
++
+ int m0_ut_init(void)
+ {
+ 	int i;
+diff --git a/utils/common.c b/utils/common.c
+index 37122aa..17a4c3b 100644
+--- a/utils/common.c
++++ b/utils/common.c
+@@ -59,26 +59,33 @@ static int reset_sandbox(const char *sandbox)
+ 
+ int unit_start(const char *sandbox)
+ {
+-	int result;
++	int rc;
+ 
+ 	setbuf(stdout, NULL);
+ 	setbuf(stderr, NULL);
+ 
+-	result = m0_init();
+-	if (result == 0) {
+-		result = reset_sandbox(sandbox);
+-		if (result == 0) {
+-			result = mkdir(sandbox, 0700);
+-			if (result == 0)
+-				result = chdir(sandbox);
+-			if (result != 0)
+-				result = -errno;
+-		}
++	rc = m0_init();
++	if (rc != 0)
++		return rc;
++
++	rc = reset_sandbox(sandbox);
++	if (rc != 0)
++		goto err;
++
++	rc = mkdir(sandbox, 0700) ?: chdir(sandbox);
++	if (rc != 0) {
++		rc = -errno;
++		goto err_box;
+ 	}
+-	if (result == 0)
+-		m0_ut_init();
+ 
+-	return result;
++	rc = m0_ut_init();
++	if (rc == 0)
++		return 0;
++err_box:
++	(void)reset_sandbox(sandbox);
++err:
++	m0_fini();
++	return rc;
+ }
+ 
+ void unit_end(const char *sandbox, bool keep_sandbox)
+diff --git a/utils/ub_main.c b/utils/ub_main.c
+index 0cbf34e..1ad7296 100644
+--- a/utils/ub_main.c
++++ b/utils/ub_main.c
+@@ -120,12 +120,8 @@ static void ub_run(const struct ub_args *args)
+ 		return;
+ 	}
+ 
+-	if (args->ua_name != NULL) {
+-		if (m0_ub_set_select(args->ua_name) != 0)
+-			return;
+-	}
+-
+-	m0_ub_run(args->ua_rounds);
++	if (args->ua_name == NULL || m0_ub_set_select(args->ua_name) == 0)
++		m0_ub_run(args->ua_rounds);
+ }
+ 
+ int main(int argc, char *argv[])
+@@ -135,19 +131,16 @@ int main(int argc, char *argv[])
+ 
+ 	rc = unit_start(UB_SANDBOX);
+ 	if (rc != 0)
+-		goto unit;
++		return rc;
+ 
+ 	rc = ub_args_parse(argc, argv, &args);
+-	if (rc != 0)
+-		goto parse;
+-
+-	ub_add(&args);
+-	ub_run(&args);
+-
+-parse:
++	if (rc == 0) {
++		ub_add(&args);
++		ub_run(&args);
++	}
+ 	ub_args_fini(&args);
+-unit:
+ 	unit_end(UB_SANDBOX, false);
++
+ 	return rc;
+ }
+ 
+-- 
+1.8.3.2
+

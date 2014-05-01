@@ -1,0 +1,151 @@
+From 2a7791e575f11f56d34778dab5566dd4392dc02f Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 18 Apr 2012 16:14:54 +0300
+Subject: [PATCH 138/370] s/initialise/initialize/
+
+Use the more widespread spelling.
+---
+ conf/confc.c | 20 ++++++++++----------
+ conf/confc.h |  8 ++++----
+ conf/map.h   |  2 +-
+ 3 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 3960543..da604f1 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -46,7 +46,7 @@
+  *
+  * A confc state machine is embedded into c2_confc_ctx structure as
+  * its @ref c2_confc_ctx::fc_mach "fc_mach" member.
+- * c2_confc_ctx_init() initialises state machine and sets its state to
++ * c2_confc_ctx_init() initializes state machine and sets its state to
+  * S_INITIAL.
+  *
+  * @dot
+@@ -276,7 +276,7 @@
+  *
+  * cache_add() performs the following operations:
+  *   -# c2_conf_obj_new() --- allocates configuration object and
+- *      initialises its fields;
++ *      initializes its fields;
+  *   -# c2_conf_obj_fill() --- fills new object with configuration data
+  *      contained in on-wire object descriptor (confx_object);
+  *   -# c2_conf_map_add() --- adds new entry to the cached objects
+@@ -567,7 +567,7 @@ static int path_walk(struct c2_confc_ctx *ctx)
+ 	return ret;
+ }
+ 
+-static bool confc_is_initialised(const struct c2_confc *client)
++static bool confc_is_initialized(const struct c2_confc *client)
+ {
+ 	C2_PRE(equi(client->cc_root, client->cc_group));
+ 	return client->cc_root != NULL;
+@@ -580,7 +580,7 @@ int c2_confc_init(struct c2_confc *client, const char *confd_addr,
+ 	 * int rc;
+ 	 * struct c2_conf_obj *root;
+ 	 *
+-	 * C2_PRE(!confc_is_initialised(client));
++	 * C2_PRE(!confc_is_initialized(client));
+ 	 * C2_PRE(confd_addr != NULL && *confd_addr != 0);
+ 	 * C2_PRE(profile != NULL && *profile != 0);
+ 	 * C2_PRE(sm_group != NULL);
+@@ -599,7 +599,7 @@ int c2_confc_init(struct c2_confc *client, const char *confd_addr,
+ 	 *
+ 	 * cache__preload(&client->cc_registry, confd_addr);
+ 	 *
+-	 * C2_POST(equi(rc == 0, confc_is_initialised(client)));
++	 * C2_POST(equi(rc == 0, confc_is_initialized(client)));
+ 	 * c2_mutex_unlock(&client->cc_lock);
+ 	 * c2_mutex_unlock(&sm_group->s_lock);
+ 	 * return rc;
+@@ -610,7 +610,7 @@ int c2_confc_init(struct c2_confc *client, const char *confd_addr,
+ void c2_confc_fini(struct c2_confc *client)
+ {
+ 	/*
+-	 * C2_PRE(confc_is_initialised(client));
++	 * C2_PRE(confc_is_initialized(client));
+ 	 *
+ 	 * c2_mutex_lock(&client->cc_group->s_lock);
+ 	 * c2_mutex_lock(&client->cc_lock);
+@@ -628,7 +628,7 @@ void c2_confc_fini(struct c2_confc *client)
+ 	 * c2_mutex_unlock(&client->cc_group->s_lock);
+ 	 * client->cc_group = NULL;
+ 	 *
+-	 * C2_POST(!confc_is_initialised(client));
++	 * C2_POST(!confc_is_initialized(client));
+ 	 */
+ 	XXX;
+ }
+@@ -638,7 +638,7 @@ int c2__confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ {
+ 	bool isdir;
+ 
+-	C2_PRE(confc_is_initialised(ctx->fc_client));
++	C2_PRE(confc_is_initialized(ctx->fc_client));
+ 	C2_PRE(ctx->fc_origin == NULL && ctx->fc_path == NULL);
+ 
+ 	if (origin == NULL)
+@@ -665,7 +665,7 @@ int c2__confc_open_sync(void **obj, struct c2_confc *client,
+ 	struct c2_clink     clink;
+ 	int                 rc;
+ 
+-	C2_PRE(confc_is_initialised(client));
++	C2_PRE(confc_is_initialized(client));
+ 
+ 	c2_confc_ctx_init(&ctx, client);
+ 	c2_clink_init(&clink, NULL);
+@@ -1100,7 +1100,7 @@ static int cache__preload(struct c2_conf_map *cache, const char *conf_str)
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *client)
+ {
+-	C2_PRE(confc_is_initialised(confc));
++	C2_PRE(confc_is_initialized(confc));
+ 
+ 	ctx->fc_client = confc;
+ 	c2_sm_init(&ctx->fc_mach, &confc_states_conf, S_INITIAL,
+diff --git a/conf/confc.h b/conf/confc.h
+index 74c9be5..0f53af4 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -69,10 +69,10 @@
+  * <hr> <!------------------------------------------------------------>
+  * @section confc-fspec-sub Subroutines
+  *
+- * - c2_confc_init() initialises configuration client.
++ * - c2_confc_init() initializes configuration client.
+  * - c2_confc_fini() finalises confc, destroys configuration cache.
+  *
+- * - c2_confc_ctx_init() initialises context object, which will be
++ * - c2_confc_ctx_init() initializes context object, which will be
+  *   used by c2_confc_open() and c2_confc_diropen() functions.
+  * - c2_confc_ctx_fini()
+  *
+@@ -327,9 +327,9 @@ struct c2_confc {
+ };
+ 
+ /**
+- * Initialises configuration client.
++ * Initializes configuration client.
+  *
+- * @param client      A confc instance to be initialised.
++ * @param client      A confc instance to be initialized.
+  * @param confd_addr  See the note below. @todo Configuration server's
+  *                    end point address.
+  * @param profile     Name of profile used by this confc.
+diff --git a/conf/map.h b/conf/map.h
+index c689594..d768d23 100644
+--- a/conf/map.h
++++ b/conf/map.h
+@@ -101,7 +101,7 @@ struct c2_conf_map_cursor {
+ };
+ 
+ /**
+- * Initialises a cursor, positioning it at the first element of the
++ * Initializes a cursor, positioning it at the first element of the
+  * mapping.
+  */
+ void c2_conf_map_cursor_init(struct c2_conf_map_cursor *cur,
+-- 
+1.8.3.2
+

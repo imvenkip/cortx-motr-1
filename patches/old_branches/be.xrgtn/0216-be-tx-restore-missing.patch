@@ -1,0 +1,52 @@
+From ab6b4b5cc9e04247b7fe9b263e51b672eebe1597 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 28 Jun 2013 15:34:57 +0300
+Subject: [PATCH 216/228] be/tx: restore missing "+".
+
+---
+ be/tx.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 8eb00f4..cf1729c 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -376,7 +376,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 	/* Must have more or the same number of empty groups as open
+ 	 * transactions.*/
+ 	M0_PRE(tg_tlist_length(&eng->te_tgs[M0_BGS_EMPTY]) >=
+-	       tx_tlist_length(&eng->te_txs[M0_BTS_ACTIVE])
++	       tx_tlist_length(&eng->te_txs[M0_BTS_ACTIVE]) +
+ 	       tx_tlist_length(&eng->te_txs[M0_BTS_OPENING]));
+ 
+ 	tx_engine_lock(eng);
+@@ -384,7 +384,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 		/* If number of empty groups is the same as transactions,
+ 		 * we need to allocate one more group. */
+ 		if (tg_tlist_length(&eng->te_tgs[M0_BGS_EMPTY]) ==
+-		    tx_tlist_length(&eng->te_txs[M0_BTS_ACTIVE])
++		    tx_tlist_length(&eng->te_txs[M0_BTS_ACTIVE]) +
+ 		    tx_tlist_length(&eng->te_txs[M0_BTS_OPENING]) &&
+ 		    tx_group_alloc(eng) == NULL) {
+ 			tx_fail(tx, -ENOMEM);
+@@ -587,7 +587,7 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
+ M0_INTERNAL m0_bcount_t tx_log_size(const struct m0_be_tx *tx,
+ 				    const struct m0_be_tx_credit *cr)
+ {
+-	return sizeof(struct m0_be_tx_hdr) + tx->t_hdr.th_payload_size
++	return sizeof(struct m0_be_tx_hdr) + tx->t_hdr.th_payload_size +
+ 		cr->tc_reg_nr * sizeof(struct m0_be_reg_d) + cr->tc_reg_size;
+ }
+ 
+@@ -724,7 +724,7 @@ m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ 				       (prev = t, true))) &&
+ 		M0_IN(tg_tlist_length(&te->te_tgs[M0_BGS_ACTIVE]), (0, 1)) &&
+ 		tg_tlist_length(&te->te_tgs[M0_BGS_EMPTY]) >=
+-		tx_tlist_length(&te->te_txs[M0_BTS_OPENING])
++		tx_tlist_length(&te->te_txs[M0_BTS_OPENING]) +
+ 		tx_tlist_length(&te->te_txs[M0_BTS_ACTIVE]) &&
+ 		tx_engine_free_space(te) <= te->te_log.lg_size;
+ }
+-- 
+1.8.3.2
+

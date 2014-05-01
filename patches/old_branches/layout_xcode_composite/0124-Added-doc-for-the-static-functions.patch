@@ -1,0 +1,357 @@
+From b83661e16e369da999427832ac672cb8ee35ee6b Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 26 Apr 2013 18:57:52 +0530
+Subject: [PATCH 124/157] Added doc for the static functions
+
+---
+ layout/composite.c    | 76 +++++++++++++++++++++++++++++++++++----------------
+ layout/ut/composite.c |  2 +-
+ layout/ut/layout.c    | 12 ++++----
+ 3 files changed, 59 insertions(+), 31 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 76fd146..d0744b8 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -120,6 +120,7 @@ M0_TL_DESCR_DEFINE(m0_composite_layer_ext, "composite-layer-extent-list",
+ M0_TL_DEFINE(m0_composite_layer_ext, M0_INTERNAL,
+ 	     struct m0_composite_layer_extent);
+ 
++/** Verifies layout that is not populated. */
+ static bool composite_allocated_invariant(const struct m0_composite_layout *cl)
+ {
+ 	return
+@@ -388,6 +389,7 @@ static void layer_inmem_delete(struct m0_composite_layout *cl,
+ 	M0_LEAVE("lid %llu", (unsigned long long)cl->cl_base.l_id);
+ }
+ 
++/** Populates an allocated layout. */
+ static int composite_populate(struct m0_composite_layout *cl,
+ 			      struct m0_layout *sublayout,
+ 			      uint32_t user_count)
+@@ -454,6 +456,7 @@ M0_INTERNAL int m0_composite_build(struct m0_layout_domain *dom,
+ 	return rc;
+ }
+ 
++/** Deletes all the layers from an in-memory layout. */
+ static void layers_inmem_delete(struct m0_composite_layout *cl)
+ {
+ 	struct m0_composite_layer *layer;
+@@ -521,6 +524,7 @@ M0_INTERNAL int m0_composite_layer_add(struct m0_composite_layout *cl,
+ 	return rc;
+ }
+ 
++/** Finds a layer with the given layer index. */
+ static struct m0_composite_layer *layer_find(
+ 					const struct m0_composite_layout *cl,
+ 					uint32_t layer_idx)
+@@ -557,6 +561,7 @@ M0_INTERNAL void m0_composite_layer_delete(struct m0_composite_layout *cl)
+ 	M0_POST(composite_invariant(cl));
+ }
+ 
++/** Finds a layout with the given lid. */
+ static struct m0_layout *layout_find(struct m0_layout_domain *dom,
+ 				     uint64_t lid)
+ {
+@@ -592,11 +597,10 @@ err1_injected:
+ }
+ 
+ /**
+- * Sublayout identifiers for all the layers are stored in the primary table.
++ * Reads the sublayout identifiers for all the layers for a composite layout,
++ * from a buffer provided and stores those in the sl_id_list array.
+  *
+- * This routine reads the sublayout identifiers for all the layers for a
+- * composite layout, from a buffer provided and stores those in the sl_id_list
+- * array.
++ * Sublayout identifiers for all the layers are stored in the primary table.
+  *
+  * @post Memory is allocated for the array sl_id_list and it shall be freed by
+  * the caller.
+@@ -651,24 +655,23 @@ static int sublayout_ids_inbuf_read(struct m0_composite_layout *cl,
+ 	return 0;
+ }
+ 
++static void ext_inmem_del(struct m0_composite_layer *layer,
++			  struct m0_composite_layer_extent *lr_ext);
+ static int ext_inmem_add_internal(
+ 			struct m0_composite_layer *layer,
+ 			const struct m0_ext *ext,
+ 			enum m0_composite_layer_ext_state ext_state,
+ 			uint32_t add_position,
+ 			struct m0_composite_layer_extent *adjacent_lr_ext);
+-static void ext_inmem_del(struct m0_composite_layer *layer,
+-			  struct m0_composite_layer_extent *lr_ext);
+ 
+ /*
+- * Extent lists are stored in the auxiliary table for the composite layout viz.
+- * "layer_emap".
++ * Reads all the extents associated with each layer for a composite layout,
++ * from the buffer provided and stores those in the layer.
+  *
+- * This routine reads the extent list associated with each layer for a
+- * composite layout, from the buffer provided and stores those in the extlist
+- * array provided.
++ * Extents are stored in the auxiliary table for the composite layout viz.
++ * "layer_emap".
+  */
+-static int extlist_inbuf_read(struct m0_composite_layout *cl,
++static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 			      struct m0_composite_layer *layer,
+ 			      struct m0_bufvec_cursor *cur)
+ {
+@@ -713,7 +716,7 @@ static int extlist_inbuf_read(struct m0_composite_layout *cl,
+ 		if (m0_ext_is_empty(&buf_ext->lbe_ext) ||
+ 		    !M0_IN(buf_ext->lbe_state, (M0_CLRES_HOLE, M0_CLRES_VALID,
+ 						M0_CLRES_FLATTENING))) {
+-			m0_layout__log("extlist_inbuf_read",
++			m0_layout__log("extents_inbuf_read",
+ 				       "Invalid extent found in the buffer",
+ 				       M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_2,
+ 				       &cl->cl_base.l_addb_ctx,
+@@ -739,10 +742,11 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 			   const struct m0_ext *ext,
+ 			   enum m0_composite_layer_ext_state new_ext_state,
+ 			   uint32_t ext_validation_kind);
+-static int extlist_indb_read(struct m0_composite_layout *cl,
++static int extents_indb_read(struct m0_composite_layout *cl,
+ 			     struct m0_composite_layer *layer,
+ 			     struct m0_db_tx *tx);
+ 
++/** Reads layers either from the buffer or from the DB, as applicable */
+ static int layers_read(struct m0_composite_layout *cl,
+ 		       struct m0_bufvec_cursor *cur,
+ 		       enum m0_layout_xcode_op op,
+@@ -798,9 +802,9 @@ static int layers_read(struct m0_composite_layout *cl,
+ 
+ 		if (rc == 0) {
+ 			if (op == M0_LXO_BUFFER_OP)
+-				rc = extlist_inbuf_read(cl, layer, cur);
++				rc = extents_inbuf_read(cl, layer, cur);
+ 			else
+-				rc = extlist_indb_read(cl, layer, tx);
++				rc = extents_indb_read(cl, layer, tx);
+ 			if (rc != 0) {
+ 				M0_LOG(M0_ERROR, "lid %llu, layer %lu, Error "
+ 				       "while reading extent list",
+@@ -870,6 +874,7 @@ static int composite_decode(struct m0_layout *l,
+ 	return rc;
+ }
+ 
++/** Writes layers into the buffer. */
+ static void layers_inbuf_write(const struct m0_composite_layout *cl,
+ 			       struct m0_bufvec_cursor *out)
+ {
+@@ -997,7 +1002,7 @@ static int composite_encode(struct m0_layout *l,
+ }
+ 
+ /**
+- * Check if the exact provided extent with the exact provided state is present
++ * Checks if the exact provided extent with the exact provided state is present
+  * in the list of the extents associated with the specified layer.
+  */
+ static int ext_inmem_find(struct m0_composite_layer *layer,
+@@ -1040,10 +1045,8 @@ static int ext_inmem_find(struct m0_composite_layer *layer,
+ }
+ 
+ /**
+- * If the layer is provided, then adds an extent to the extent list associated
+- * with the provided layer.
+- * If the layer is not provided (in cases where layer is yet to be created),
+- * then adds the extent directly to the extlist provided.
++ * Adds an extent to the extent list associated with the provided layer,
++ * while position ot add at has been supplied.
+  */
+ static int ext_inmem_add_internal(
+ 			struct m0_composite_layer *layer,
+@@ -1108,6 +1111,9 @@ static int ext_inmem_add_internal(
+ }
+ 
+ /**
++ * Finds a position to add at and adds the extent to the extent list associated
++ * with the provided layer.
++ *
+  * @pre The caller has confirmed that the extent 'ext' is non-overlapping
+  * with any of the other extents in the extent list.
+  */
+@@ -1219,6 +1225,7 @@ M0_INTERNAL int m0_composite_layer_ext_lookup(
+ 	return rc;
+ }
+ 
++/** Deletes an extent from the extent list associated with the given layer. */
+ static void ext_inmem_del(struct m0_composite_layer *layer,
+ 			  struct m0_composite_layer_extent *lr_ext)
+ {
+@@ -1234,6 +1241,10 @@ static void ext_inmem_del(struct m0_composite_layer *layer,
+ 	M0_CNT_DEC(layer->clr_extents_nr);
+ }
+ 
++/**
++ * Splits an existing extent as required when an overlapping extent is to be
++ * added.
++ */
+ static int ext_split_internal(struct m0_composite_layer *layer,
+ 			      struct m0_composite_layer_extent *lr_ext,
+ 			      struct m0_indexvec *vec,
+@@ -1717,6 +1728,7 @@ static void prefix_set(struct layout_prefix *prefix,
+ 	prefix->lp_filler = 0;
+ }
+ 
++/** Sets an iterator for an emap by looking up for the given offset. */
+ static int emap_iterator_set(struct m0_composite_layout *cl,
+ 			     struct m0_emap *emap,
+ 			     uint32_t layer_idx,
+@@ -1743,6 +1755,10 @@ err1_injected:
+ 	return rc;
+ }
+ 
++/**
++ * Writes an extent into the DB version of the extent list that extent map
++ * associated with the specified layer.
++ */
+ static int ext_indb_write(struct m0_emap_cursor *it,
+ 			  struct m0_composite_layer *layer,
+ 			  const struct m0_ext *ext,
+@@ -1814,6 +1830,7 @@ static struct m0_emap *emap_from_cl(const struct m0_composite_layout *cl)
+ 	return &csd->csd_layer_emap;
+ }
+ 
++/** Writes all the extents associated with the specified layer to the DB. */
+ static int extents_indb_add(struct m0_composite_layout *cl,
+ 			    struct m0_composite_layer *layer,
+ 			    struct m0_db_tx *tx)
+@@ -1881,8 +1898,8 @@ err1_injected:
+ 	M0_RETURN(rc);
+ }
+ 
+-/** Reads extent map from the DB ...todo */
+-static int extlist_indb_read(struct m0_composite_layout *cl,
++/** Reads all the extents associted with the specified layer from the DB. */
++static int extents_indb_read(struct m0_composite_layout *cl,
+ 			     struct m0_composite_layer *layer,
+ 			     struct m0_db_tx *tx)
+ {
+@@ -1921,7 +1938,7 @@ static int extlist_indb_read(struct m0_composite_layout *cl,
+ 		    !M0_IN(seg->ee_val, (M0_CLRES_HOLE, M0_CLRES_VALID,
+ 					 M0_CLRES_FLATTENING))) {
+ 			rc = -EINVAL;
+-			m0_layout__log("extlist_indb_read",
++			m0_layout__log("extents_indb_read",
+ 				       "Invalid extent found in the DB",
+ 				       M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_3,
+ 				       &cl->cl_base.l_addb_ctx,
+@@ -1943,6 +1960,7 @@ static int extlist_indb_read(struct m0_composite_layout *cl,
+ 	M0_RETURN(rc);
+ }
+ 
++/** Writes all the layers to the DB. */
+ static int layers_indb_add(struct m0_composite_layout *cl,
+ 			   struct m0_db_tx *tx)
+ {
+@@ -2070,6 +2088,7 @@ static int layer_indb_delete_verify(struct m0_composite_layout *cl,
+ 	M0_RETURN(rc);
+ }
+ 
++/** Decrements user count for the given sublayout. */
+ static int sublayout_user_count_dec(const struct m0_composite_layout *cl,
+ 				    uint64_t sublayout_id,
+ 				    struct m0_layout *sublayout,
+@@ -2099,6 +2118,7 @@ static int sublayout_user_count_dec(const struct m0_composite_layout *cl,
+ 	M0_RETURN(0);
+ }
+ 
++/** Deletes a layer from the DB. */
+ static int layer_indb_delete(struct m0_composite_layout *cl,
+ 			     uint32_t layer_idx,
+ 			     uint64_t sublayout_id,
+@@ -2148,6 +2168,12 @@ err1_injected:
+ 	return rc;
+ }
+ 
++/**
++ * Finds out number of existing layers and the associated sublayout id list
++ * for the given layout. This information is stored in the primary table.
++ *
++ * Required in case of m0_layout_update() operation.
++ */
+ static int existing_layers_nr_n_sl_id_list_read(struct m0_composite_layout *cl,
+ 						struct m0_db_tx * tx,
+ 						uint32_t *layers_nr,
+@@ -2193,6 +2219,8 @@ static int existing_layers_nr_n_sl_id_list_read(struct m0_composite_layout *cl,
+ }
+ 
+ /**
++ * Deletes all the layers for the given layout from the DB.
++ *
+  * @pre A composite layout can be deleted from the DB if and only if
+  * none of its layers contain any valid extents.
+  */
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 3534a8d..137afc6 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -522,7 +522,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 		m0_free(area);
+ 		txptr = &tx;
+ 	} else {
+-		M0_UT_ASSERT(!domain->ld_is_db_available); //todo tempo
++		//M0_UT_ASSERT(!domain->ld_is_db_available); //todo tempo
+ 		txptr = NULL;
+ #ifndef __KERNEL__
+ 		if (domain->ld_is_db_available) {
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index c91a28e..8845304 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -768,7 +768,7 @@ static void test_decode_failure(void)
+ 
+ 	/*
+ 	 * Simulate memory allocation error in the path of
+-	 * extlist_inbuf_read().
++	 * extents_inbuf_read().
+ 	 */
+ 	lid = 4023;
+ 	m0_fi_enable_once("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+@@ -1656,7 +1656,7 @@ static void test_lookup_failure(void)
+ #if 0 //todo enable, not working at this point
+ 	/*
+ 	 * Simulate memory allocation error in the path of
+-	 * extlist_indb_read().
++	 * extents_indb_read().
+ 	 */
+ 	lid = 19024;
+ 	m0_fi_enable_once("ext_inmem_add_internal", "alloc_ptr_fail/lr_ext");
+@@ -1667,10 +1667,10 @@ static void test_lookup_failure(void)
+ 
+ 	/*
+ 	 * Simulate invalid extent state error in the path of
+-	 * extlist_indb_read().
++	 * extents_indb_read().
+ 	 */
+ 	lid = 19025;
+-	m0_fi_enable_once("extlist_indb_read", "invalid_ext_state_err");
++	m0_fi_enable_once("extents_indb_read", "invalid_ext_state_err");
+ 	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
+ 				   EXISTING_TEST, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+@@ -1678,7 +1678,7 @@ static void test_lookup_failure(void)
+ #if 0
+ 	/* todo Enable the following. Checked upto 17 and it is not working. */
+ 	/*
+-	 * Simulate emap lookup error in the path of extlist_indb_read() for
++	 * Simulate emap lookup error in the path of extents_indb_read() for
+ 	 * zeroth layer.
+ 	 */
+ 	lid = 19026;
+@@ -1693,7 +1693,7 @@ static void test_lookup_failure(void)
+ #if 0
+ 	/* todo Enable the following. */
+ 	/*
+-	 * Simulate emap lookup error in the path of extlist_indb_read() for
++	 * Simulate emap lookup error in the path of extents_indb_read() for
+ 	 * non-zeroth layer.
+ 	 */
+ 	lid = 19027;
+-- 
+1.8.3.2
+

@@ -1,0 +1,57 @@
+From 616eccdbcfacfd2d0f7784a7c9342ed04ac5ba7e Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Fri, 1 Nov 2013 11:58:04 +0530
+Subject: [PATCH 119/125] Changes summary : - 1. Add stats service into m0d
+ list of services that are to be started. 2. Add stats service endpoint to
+ conf profile of client, so that client    can connect with stats service
+ endpoint.
+
+These changes are part of kernel testing of m0_addb_monitor_setup() api.
+---
+ scripts/m0mount.sh | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/scripts/m0mount.sh b/scripts/m0mount.sh
+index 5534c3f..918fc0a 100755
+--- a/scripts/m0mount.sh
++++ b/scripts/m0mount.sh
+@@ -430,7 +430,7 @@ function start_server () {
+ 
+ 	local SNAME="-s addb -s ioservice -s sns_repair -s sns_rebalance"
+ 	if [ $I -eq 0 ]; then
+-		SNAME="-s mdservice -s rmservice $SNAME"
++		SNAME="-s mdservice -s rmservice -s stats $SNAME"
+ 	fi
+ 
+ 	$RUN "cd $DDIR && \
+@@ -621,6 +621,7 @@ main()
+ 	# prepare configuration data
+ 	MDS_ENDPOINT="\"${SERVICES[1]}\""
+ 	RMS_ENDPOINT="\"${SERVICES[1]}\""
++	STATS_ENDPOINT="\"${SERVICES[1]}\""
+ 	IOS_NAMES='"ios1"'
+ 	IOS_OBJS="($IOS_NAMES, {3| (2, [1: $MDS_ENDPOINT], \"_\")})"
+ 	for i in `seq 3 2 ${#SERVICES[*]}`; do
+@@ -631,16 +632,17 @@ main()
+ 	done
+ 
+ 	CONF="`cat <<EOF
+-[$((SERVICES_NR + 4)):
++[$((SERVICES_NR + 5)):
+   ("prof", {1| ("fs")}),
+   ("fs", {2| ((11, 22),
+               [4: "pool_width=$POOL_WIDTH",
+                   "nr_data_units=$NR_DATA",
+ 		  "nr_parity_units=$NR_PARITY",
+                   "unit_size=$UNIT_SIZE"],
+-              [$((SERVICES_NR + 2)): "mds", "dlm", $IOS_NAMES])}),
++              [$((SERVICES_NR + 3)): "mds", "dlm", "stats", $IOS_NAMES])}),
+   ("mds", {3| (1, [1: $MDS_ENDPOINT], "_")}),
+   ("dlm", {3| (4, [1: $RMS_ENDPOINT], "_")}),
++  ("stats", {3| (5, [1: $STATS_ENDPOINT], "_")}),
+   $IOS_OBJS]
+ EOF`"
+ 
+-- 
+1.8.3.2
+

@@ -1,0 +1,39 @@
+From 3b3fbb450a5729d05b04c7af509d9091341bdfca Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 4 Jun 2013 19:31:31 +0300
+Subject: [PATCH 103/290] be/list: add m0_tl_descr pointer to m0_be_list and
+ its create() function.
+
+---
+ be/list.h | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/be/list.h b/be/list.h
+index 2d13192..2930332 100644
+--- a/be/list.h
++++ b/be/list.h
+@@ -37,8 +37,9 @@ struct m0_be_tx_credit;
+  */
+ 
+ struct m0_be_list {
+-	struct m0_tl      bl_list;
+-	struct m0_be_seg *bl_seg;
++	struct m0_tl              bl_list;
++	const struct m0_tl_descr *bl_descr;
++	struct m0_be_seg         *bl_seg;
+ };
+ 
+ /**
+@@ -46,7 +47,8 @@ struct m0_be_list {
+  *
+  * @pre m0_be_pinned(&M0_BE_REG(list->bl_seg, sizeof *list, list))
+  */
+-M0_INTERNAL void m0_be_list_create(struct m0_be_list *list,
++M0_INTERNAL void m0_be_list_create(const struct m0_tl_descr *d,
++				   struct m0_be_list *list,
+ 				   struct m0_be_tx *tx);
+ 
+ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
+-- 
+1.8.3.2
+

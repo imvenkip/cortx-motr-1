@@ -1,0 +1,93 @@
+From 9c698dad1b7f55650510479a6b4a035563a183ab Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 11 Apr 2013 10:53:43 +0800
+Subject: [PATCH 09/10] use m0_fom_block_enter/leave to notify blocking
+ operation.
+
+---
+ cm/pump.c              |  5 +++++
+ ioservice/io_service.c | 30 +++++++++++++++++++++++++-----
+ 2 files changed, 30 insertions(+), 5 deletions(-)
+
+diff --git a/cm/pump.c b/cm/pump.c
+index 4d32436..6a04e67 100644
+--- a/cm/pump.c
++++ b/cm/pump.c
+@@ -139,7 +139,12 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
+ 	cm = pump2cm(cp_pump);
+ 	M0_ASSERT(cp != NULL);
+ 	m0_cm_lock(cm);
++
++	/* This operation might block. */
++	m0_fom_block_enter(&cp_pump->p_fom);
+ 	rc = m0_cm_data_next(cm, cp);
++	m0_fom_block_leave(&cp_pump->p_fom);
++
+ 	if (rc < 0) {
+ 		if (rc == -ENOBUFS || rc == -ENODATA) {
+ 			if (rc == -ENODATA) {
+diff --git a/ioservice/io_service.c b/ioservice/io_service.c
+index 5fec5ef..942773e 100644
+--- a/ioservice/io_service.c
++++ b/ioservice/io_service.c
+@@ -662,6 +662,15 @@ static int ios_mds_conn_get_locked(struct m0_reqh *reqh,
+ 	return 0;
+ }
+ 
++/**
++ * Gets ioservice to mdservice connection. If it is newly allocated, establish
++ * the connection.
++ *
++ * @param out the connection is returned here.
++ *
++ * @note This is a block operation in service.
++ *       m0_fom_block_enter()/m0_fom_block_leave() must be used to notify fom.
++ */
+ M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
+ 				    struct m0_ios_mds_conn **out)
+ {
+@@ -682,6 +691,11 @@ M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
+ 	M0_RETURN(rc);
+ }
+ 
++/**
++ * Terminates and clears the ioservice to mdservice connection.
++ *
++ * @todo This is also a blocker operation. How to do with this?
++ */
+ M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh)
+ {
+ 	struct m0_ios_mds_conn *imc;
+@@ -717,6 +731,9 @@ M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh)
+  * @param reqh the request handler.
+  * @param gfid the global fid of the file.
+  * @param attr the returned attributes will be stored here.
++ *
++ * @note This is a block operation in service.
++ *       m0_fom_block_enter()/m0_fom_block_leave() must be used to notify fom.
+  */
+ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
+ 				   const struct m0_fid *gfid,
+@@ -760,11 +777,14 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
+ }
+ 
+ /**
+- Gets layout from mdservice with specified layout id.
+- @param reqh the request handler.
+- @param ldom the layout domain in which the layout will be created.
+- @param lid  the layout id to query.
+- @param l_out returned layout will be stored here.
++ * Gets layout from mdservice with specified layout id.
++ * @param reqh the request handler.
++ * @param ldom the layout domain in which the layout will be created.
++ * @param lid  the layout id to query.
++ * @param l_out returned layout will be stored here.
++ *
++ * @note This is a block operation in service.
++ *       m0_fom_block_enter()/m0_fom_block_leave() must be used to notify fom.
+ */
+ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
+ 				      struct m0_layout_domain *ldom,
+-- 
+1.8.3.2
+

@@ -1,0 +1,119 @@
+From c80a17724ff462398b06cb7024c00061814a9583 Mon Sep 17 00:00:00 2001
+From: "anand.vidwansa" <anand_vidwansa@xyratex.com>
+Date: Wed, 14 Aug 2013 04:33:12 -0700
+Subject: [PATCH 11/15] bigmemalloc: - Removed obsolete code.
+
+---
+ lib/ut/varr.c | 66 -----------------------------------------------------------
+ 1 file changed, 66 deletions(-)
+
+diff --git a/lib/ut/varr.c b/lib/ut/varr.c
+index 0a1e847..d90d36d 100644
+--- a/lib/ut/varr.c
++++ b/lib/ut/varr.c
+@@ -74,13 +74,7 @@ void test_varr(void)
+ {
+ 	int                  rc;
+ 	unsigned long        id;
+-	//unsigned long        t2;
+-	//unsigned long        buff_nr;
+ 	unsigned long        ele_nr_in_buff;
+-	//unsigned long        buff_id_in_l2;
+-	//unsigned long       *tier1;
+-	//unsigned long       *tier2;
+-	//unsigned long       *addr;
+ 	unsigned long       *val;
+ 	unsigned long        cnt;
+ 	struct foo          *f;
+@@ -96,33 +90,6 @@ void test_varr(void)
+ 	M0_UT_ASSERT(arr.va_sizeof == sizeof(unsigned long));
+ 
+ 	ele_nr_in_buff = M0_0VEC_ALIGN / sizeof(unsigned long);
+-	/*
+-	for (id = 0; id < ele_nr_in_buff; ++id) {
+-		tier1 = (unsigned long *)arr.va_levels[VA_LEVEL1] + id;
+-		M0_UT_ASSERT(*tier1 != 0);
+-	}
+-
+-	for (id = 0; id <= buff_id_in_l2; ++id) {
+-		tier1  = (unsigned long *)arr.va_levels[VA_LEVEL2];
+-		tier1 += id;
+-		M0_UT_ASSERT(*tier1 != 0);
+-		for (t2 = 0; t2 < ele_nr_in_buff; ++t2) {
+-			tier2  = (unsigned long *)*tier1;
+-			tier2 += t2;
+-			if (PAGE_NR_TILL_LEVEL1 + id * PAGE_NR_IN_LEVEL1 +
+-			    t2 <= buff_nr)
+-				M0_UT_ASSERT(*tier2 != 0);
+-			else
+-				M0_UT_ASSERT(*tier2 == 0);
+-		}
+-	}
+-
+-	for (id = buff_id_in_l2 + 1; id < ele_nr_in_buff; ++id) {
+-		tier1  = (unsigned long *)arr.va_levels[VA_LEVEL2];
+-		tier1 += id;
+-		M0_UT_ASSERT(*tier1 == 0);
+-	}
+-	*/
+ 
+ 	for (id = 0; id < ELEMENT_NR; ++id) {
+ 		val = varr_ele_get(&arr, unsigned long, id);
+@@ -134,38 +101,11 @@ void test_varr(void)
+ 		M0_UT_ASSERT(*val == id);
+ 	}
+ 
+-	/*
+-	tier1  = (unsigned long *)arr.va_levels[VA_LEVEL2];
+-	tier1 += buff_index_in_level_n(buff_nr, VA_LEVEL2);
+-	tier2  = (unsigned long *)*tier1;
+-	tier2 += (buff_nr - PAGE_NR_TILL_LEVEL1) % PAGE_NR_IN_LEVEL1;
+-	addr   = (unsigned long *)(*tier2 + (sizeof(unsigned long) *
+-		 (ELEMENT_NR % varr_obj_nr_in_buff(&arr))));
+-	M0_UT_ASSERT(*addr == 0);
+-	*/
+ 	m0_varr_fini(&arr);
+ 
+ 	/* Genarray used to store array of structures. */
+ 	rc = m0_varr_init(&arr, struct_nr, sizeof *f, M0_0VEC_ALIGN);
+ 
+-	/*
+-	 * Total size to accommodate array of struct foo worth 64 bytes
+-	 * each = 64 * 123456 = 7901184.
+-	 * Total number of buffers to be allocated to accommodate array
+-	 * worth 7901184 bytes = 7901184 / 4096 = 1929.
+-	 * Pages till level 0 = 1.
+-	 * Pages till level 1 = 513.
+-	 * Pages till level 2, sublevel (0 + 1 + 2) = 1929.
+-	 * Number of meta buffers allocated = 5.
+-	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(arr.va_nr == struct_nr);
+-	M0_UT_ASSERT(arr.va_sizeof == sizeof *f);
+-	M0_UT_ASSERT((unsigned long *)arr.va_levels[0] != NULL);
+-	M0_UT_ASSERT((unsigned long *)arr.va_levels[1] != NULL);
+-	M0_UT_ASSERT((unsigned long *)arr.va_levels[2] != NULL);
+-	M0_UT_ASSERT(arr.va_alloc == 1929 + 5);
+-	*/
+-
+ 	M0_ALLOC_ARR(address_tracker, struct_nr);
+ 	M0_UT_ASSERT(address_tracker != NULL);
+ 
+@@ -176,15 +116,9 @@ void test_varr(void)
+ 		address_tracker[id] = f;
+ 	}
+ 
+-	/*M0_UT_ASSERT(!varr_forall(&arr, fint, struct foo,
+-				      fint->f_8b == 12345));*/
+-
+ 	for (id = 0; id < struct_nr; ++id)
+ 		M0_UT_ASSERT(address_tracker[id]->f_magic == FOO_MAGIC);
+ 
+-	/*M0_UT_ASSERT(varr_forall(&arr, fint, struct foo,
+-				     fint->f_magic == FOO_MAGIC));*/
+-
+ 	for (id = struct_nr - 1; id != 0; --id) {
+ 		f = varr_ele_get(&arr, struct foo, id);
+ 		M0_UT_ASSERT(f == address_tracker[id]);
+-- 
+1.8.3.2
+

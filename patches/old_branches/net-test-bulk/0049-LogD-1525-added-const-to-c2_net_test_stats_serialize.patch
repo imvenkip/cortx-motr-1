@@ -1,0 +1,26 @@
+From 48251337ce2a82978611c899fba6327591f39cd8 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 18:34:52 +0200
+Subject: [PATCH 49/58] LogD 1525: added "const" to
+ c2_net_test_stats_serialize():pv129[]
+
+---
+ net/test/stats.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/test/stats.c b/net/test/stats.c
+index c7e3f13..4a0fdb6 100644
+--- a/net/test/stats.c
++++ b/net/test/stats.c
+@@ -135,7 +135,7 @@ c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
+ 					struct c2_bufvec *bv,
+ 					c2_bcount_t bv_offset)
+ {
+-	struct c2_uint128 *pv128[] = {
++	struct c2_uint128 * const pv128[] = {
+ 		&stats->nts_sum,
+ 		&stats->nts_sum_sqr,
+ 	};
+-- 
+1.8.3.2
+

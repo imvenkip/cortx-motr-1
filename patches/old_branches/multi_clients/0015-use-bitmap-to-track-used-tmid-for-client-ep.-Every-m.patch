@@ -1,0 +1,233 @@
+From 249e1ee9f93e83c79159602ea750dea505af4d38 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Sat, 8 Mar 2014 00:52:06 +0800
+Subject: [PATCH 15/26] use bitmap to track used tmid for client ep. Every
+ mount will use a free tmid from [0, M0_NET_LNET_NIDSTR_SIZE/2] as of now.
+ introduced m0_bitmap_ffz() to find first zero in a bitmap.
+
+---
+ lib/bitmap.c                                | 12 ++++++++++++
+ lib/bitmap.h                                |  8 ++++++++
+ m0t1fs/linux_kernel/m0t1fs.c                | 21 +++++++++++++++++++--
+ m0t1fs/linux_kernel/m0t1fs.h                |  3 +++
+ m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh | 12 ++++++------
+ m0t1fs/linux_kernel/super.c                 | 24 +++++++++++++++++++-----
+ reqh/reqh.h                                 |  2 +-
+ 7 files changed, 68 insertions(+), 14 deletions(-)
+
+diff --git a/lib/bitmap.c b/lib/bitmap.c
+index ba5861e..5c8eab0 100644
+--- a/lib/bitmap.c
++++ b/lib/bitmap.c
+@@ -104,6 +104,18 @@ M0_INTERNAL bool m0_bitmap_get(const struct m0_bitmap *map, size_t idx)
+ }
+ M0_EXPORTED(m0_bitmap_get);
+ 
++M0_INTERNAL size_t m0_bitmap_ffz(const struct m0_bitmap *map)
++{
++	size_t idx;
++	/* use linux find_first_zero_bit() ? */
++	for (idx = 0; idx < map->b_nr; idx++) {
++		if (m0_bitmap_get(map, idx) == false)
++			return idx;
++	}
++	return -1;
++}
++M0_EXPORTED(m0_bitmap_ffz);
++
+ M0_INTERNAL void m0_bitmap_set(struct m0_bitmap *map, size_t idx, bool val)
+ {
+ 	M0_ASSERT(idx < map->b_nr && map->b_words != NULL);
+diff --git a/lib/bitmap.h b/lib/bitmap.h
+index 3e5cfca..b4565cc 100644
+--- a/lib/bitmap.h
++++ b/lib/bitmap.h
+@@ -85,6 +85,14 @@ M0_INTERNAL void m0_bitmap_fini(struct m0_bitmap *map);
+ M0_INTERNAL bool m0_bitmap_get(const struct m0_bitmap *map, size_t idx);
+ 
+ /**
++   Find first zero (a.k.a unset, false) bit from a bitmap.
++
++   @param map bitmap to query
++   @return index of the first zero bit. If no zero bit found, -1 is returned.
++ */
++M0_INTERNAL size_t m0_bitmap_ffz(const struct m0_bitmap *map);
++
++/**
+    Set a bit value in a bitmap.
+ 
+    @param map bitmap to modify
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index 6f21a40..c4f0311 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -31,6 +31,7 @@
+ #include "mdservice/md_fops.h"
+ #include "rpc/rpclib.h"
+ #include "rm/rm.h"
++#include "net/lnet/lnet_core_types.h"
+ 
+ #include "m0t1fs/m0t1fs_addb.h"
+ 
+@@ -53,6 +54,8 @@ module_param(max_rpc_msg_size, int, S_IRUGO);
+ MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
+ 
+ struct m0_addb_ctx m0t1fs_addb_ctx;
++struct m0_bitmap m0t1fs_client_ep_tmid;
++struct m0_mutex m0t1fs_mutex;
+ 
+ static struct file_system_type m0t1fs_fs_type = {
+ 	.owner        = THIS_MODULE,
+@@ -98,10 +101,19 @@ M0_INTERNAL int m0t1fs_init(void)
+ 
+ 	M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_m0t1fs_mon_io_size,
+ 					    "io_size");
++	m0_mutex_init(&m0t1fs_mutex);
++	/*
++	 * [0 - M0_NET_LNET_TMID_MAX / 2] for clients.
++	 * [M0_NET_LNET_TMID_MAX / 2 - M0_NET_LNET_TMID_MAX] for server ep.
++	 */
++	rc = m0_bitmap_init(&m0t1fs_client_ep_tmid, M0_NET_LNET_TMID_MAX / 2);
++	if (rc != 0)
++		goto out;
++	m0_bitmap_set(&m0t1fs_client_ep_tmid, 0, true);
+ 
+         rc = m0_fid_init();
+         if (rc != 0)
+-                goto out;
++                goto out_bitmap;
+ 
+ 	rc = m0_ioservice_fop_init();
+ 	if (rc != 0)
+@@ -130,8 +142,11 @@ ioservice_fini:
+         m0_ioservice_fop_fini();
+ fid_fini:
+         m0_fid_fini();
+-out:
++out_bitmap:
++	m0_bitmap_fini(&m0t1fs_client_ep_tmid);
++	m0_mutex_fini(&m0t1fs_mutex);
+ 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
++out:
+ 
+ 	M0_LEAVE("rc: %d", rc);
+ 	M0_ASSERT(rc != 0);
+@@ -149,6 +164,8 @@ M0_INTERNAL void m0t1fs_fini(void)
+ 	m0_ioservice_fop_fini();
+ 	m0_fid_fini();
+ 
++	m0_bitmap_fini(&m0t1fs_client_ep_tmid);
++	m0_mutex_fini(&m0t1fs_mutex);
+ 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
+ 
+ 	M0_LEAVE();
+diff --git a/m0t1fs/linux_kernel/m0t1fs.h b/m0t1fs/linux_kernel/m0t1fs.h
+index c2c038e..8063741 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.h
++++ b/m0t1fs/linux_kernel/m0t1fs.h
+@@ -563,6 +563,9 @@ struct m0t1fs_sb {
+ 	struct m0_addb_io_stats       csb_dgio_stats[2];
+ 
+ 	struct m0t1fs_globals         csb_m0t1fs_globals;
++
++	/** lnet tmid for client ep */
++	size_t                        csb_tmid;
+ };
+ 
+ struct m0t1fs_filedata {
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+index 3826436..184a58a 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+@@ -43,14 +43,14 @@ MERO_STOB_DOMAIN="ad -d disks.conf"
+ 
+ # list of server end points
+ EP=(
+-    12345:33:101   # MDS  EP
+-    12345:33:102   # IOS1 EP
+-    12345:33:103   # IOS2 EP
+-    12345:33:104   # IOS3 EP
+-    12345:33:105   # IOS4 EP
++    12345:33:1001   # MDS  EP
++    12345:33:1002   # IOS1 EP
++    12345:33:1003   # IOS2 EP
++    12345:33:1004   # IOS3 EP
++    12345:33:1005   # IOS4 EP
+ )
+ 
+-SNS_CLI_EP="12345:33:301"
++SNS_CLI_EP="12345:33:991"
+ 
+ PREPARE_STORAGE="-p"
+ POOL_WIDTH=$(expr ${#EP[*]} - 1)
+diff --git a/m0t1fs/linux_kernel/super.c b/m0t1fs/linux_kernel/super.c
+index 6379efe..99a7ade 100644
+--- a/m0t1fs/linux_kernel/super.c
++++ b/m0t1fs/linux_kernel/super.c
+@@ -40,8 +40,11 @@
+ #include "net/lnet/lnet.h"
+ #include "rpc/rpc_internal.h"
+ #include "m0t1fs/m0t1fs_addb.h"
++#include "net/lnet/lnet_core_types.h"
+ 
+ extern struct io_mem_stats iommstats;
++extern struct m0_bitmap m0t1fs_client_ep_tmid;
++extern struct m0_mutex m0t1fs_mutex;
+ 
+ M0_INTERNAL void io_bob_tlists_init(void);
+ 
+@@ -988,15 +991,23 @@ static int m0t1fs_net_init(struct m0t1fs_sb *csb)
+ 	struct m0_net_domain *ndom;
+ 	int		      rc;
+ 	char                 *laddr;
+-	static int            tmid = 1;
+ 
+ 	M0_ENTRY();
+-	laddr = m0_alloc(100);
++	laddr = m0_alloc(M0_NET_LNET_NIDSTR_SIZE * 2);
+ 
+ 	csb->csb_m0t1fs_globals.g_xprt  = &m0_net_lnet_xprt;;
+-	sprintf(laddr, "%s%d", local_addr, tmid++);
+-	if (tmid > 99)
+-		tmid = 1;
++	m0_mutex_lock(&m0t1fs_mutex);
++	csb->csb_tmid = m0_bitmap_ffz(&m0t1fs_client_ep_tmid);
++	if (csb->csb_tmid < 0) {
++		m0_mutex_unlock(&m0t1fs_mutex);
++		goto out;
++	}
++	m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, true);
++	m0_mutex_unlock(&m0t1fs_mutex);
++
++	snprintf(laddr, M0_NET_LNET_NIDSTR_SIZE * 2,
++		 "%s%d", local_addr, (int)csb->csb_tmid);
++	M0_LOG(M0_DEBUG, "local ep is %s", laddr);
+ 	csb->csb_m0t1fs_globals.g_laddr = laddr;
+ 	xprt =  csb->csb_m0t1fs_globals.g_xprt;
+ 	ndom = &csb->csb_m0t1fs_globals.g_ndom;
+@@ -1021,6 +1032,9 @@ static void m0t1fs_net_fini(struct m0t1fs_sb *csb)
+ 	m0_net_domain_fini(&csb->csb_m0t1fs_globals.g_ndom);
+ 	m0_net_xprt_fini(csb->csb_m0t1fs_globals.g_xprt);
+ 	m0_free(csb->csb_m0t1fs_globals.g_laddr);
++	m0_mutex_lock(&m0t1fs_mutex);
++	m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, false);
++	m0_mutex_unlock(&m0t1fs_mutex);
+ 
+ 	M0_LEAVE();
+ }
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index 106a8b3..53f93f8 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -62,7 +62,7 @@ struct m0_net_xprt;
+ struct m0_rpc_machine;
+ struct m0_local_service_ops;
+ 
+-M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
++M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 1<<16);
+ 
+ /** Local reply consumer service (testing or replicator) */
+ struct m0_local_service {
+-- 
+1.8.3.2
+

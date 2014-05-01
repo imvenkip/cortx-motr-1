@@ -1,0 +1,284 @@
+From 02c88facccd3aa0bbf4974a33675287da92e6db9 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 20 Jun 2013 12:57:51 +0530
+Subject: [PATCH 156/172] Addition of
+ m0_composite_layer_delete_second_from_top() API
+
+---
+ layout/composite.c    | 31 +++++++++++++++++--
+ layout/composite.h    |  2 ++
+ layout/ut/composite.c | 86 ++++++++++++++++++++++++++++++++++++---------------
+ layout/ut/composite.h |  4 ++-
+ 4 files changed, 95 insertions(+), 28 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 7c9c01b..59f1f51 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -367,14 +367,14 @@ static void extlist_fini(struct m0_tl *extlist)
+ static void layer_delete(struct m0_composite_layout *cl,
+ 			 struct m0_composite_layer *layer)
+ {
+-	M0_PRE(layer->clr_idx == cl->cl_layers_nr - 1);
++	M0_PRE(layer->clr_idx == cl->cl_layers_nr - 1 ||
++	       layer->clr_idx == cl->cl_layers_nr - 2);
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+ 	layers_tlink_del_fini(layer);
+ 	M0_CNT_DEC(cl->cl_layers_nr);
+ 	m0_layout_put(layer->clr_sl);
+ 	extlist_fini(&layer->clr_extents);
+-	M0_POST(layer->clr_idx == cl->cl_layers_nr);
+ 	m0_free(layer);
+ 	M0_LEAVE();
+ }
+@@ -550,6 +550,33 @@ M0_INTERNAL void m0_composite_layer_delete(struct m0_composite_layout *cl)
+ 	M0_POST(composite_invariant(cl));
+ }
+ 
++M0_INTERNAL void m0_composite_layer_delete_second_from_top(
++					struct m0_composite_layout *cl)
++{
++	struct m0_composite_layer *top;
++	struct m0_composite_layer *second;
++	uint32_t                   layers_nr;
++
++	M0_PRE(composite_invariant(cl));
++	M0_PRE(cl->cl_layers_nr > 2);
++
++	M0_ENTRY("lid %llu, layers_nr %lu",
++		 (unsigned long long)cl->cl_base.l_id,
++		 (unsigned long)cl->cl_layers_nr);
++	m0_mutex_lock(&cl->cl_base.l_lock);
++	top = layers_tlist_tail(&cl->cl_layers); /* The top-most layer. */
++	second = layers_tlist_prev(&cl->cl_layers, top);
++	M0_ASSERT(second->clr_idx == cl->cl_layers_nr - 2);
++	M0_PRE(m0_tl_forall(ext, ext1, &second->clr_extents,
++			    ext1->cle_state == M0_CLRES_HOLE));
++	layers_nr = cl->cl_layers_nr;
++	layer_delete(cl, second);
++	M0_ASSERT(top->clr_idx == layers_nr - 1);
++	top->clr_idx = layers_nr - 2;
++	m0_mutex_unlock(&cl->cl_base.l_lock);
++	M0_POST(composite_invariant(cl));
++}
++
+ /** Finds a sublayout with the given lid. */
+ static struct m0_layout *layout_find(struct m0_layout_domain *dom,
+ 				     uint64_t lid)
+diff --git a/layout/composite.h b/layout/composite.h
+index 5b66369..fadaeeb 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -309,6 +309,8 @@ M0_INTERNAL void m0_composite_layer_delete(struct m0_composite_layout *cl);
+  * top-most)?
+  * If yes, shall we call it m0_composite_layer_delete_second_from_top()?
+  */
++M0_INTERNAL void m0_composite_layer_delete_second_from_top(
++					struct m0_composite_layout *cl);
+ 
+ /**
+  * Looks up for a valid extent containing the given offset, starting with the
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 2072d27..2ddab75 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -203,23 +203,38 @@ static void extentlist_free(struct m0_tl *extlist)
+ 	ext_tlist_fini(extlist);
+ }
+ 
++static void pdclust_sublayout_verify(struct m0_layout *sublayout,
++				     uint64_t sublayout_id)
++{
++	struct m0_uint128 seed;
++	uint32_t          enum_id;
++	uint32_t          N;
++	uint32_t          K;
++	uint32_t          P;
++	bool              inline_test;
++
++	m0_uint128_init(&seed, "sublayouts_build");
++	enum_id = sublayout_id % 2 ? LIST_ENUM_ID : LINEAR_ENUM_ID;
++	inline_test = sublayout_id % 5 ? LESS_THAN_INLINE : MORE_THAN_INLINE;
++	NKP_assign(enum_id, inline_test, 9, 109, 1200, &N, &K, &P);
++	pdclust_layout_verify(sublayout, sublayout_id,
++			      enum_id, N, K, P, &seed, 10, 20,
++			      !USER_COUNT_INCREMENTED);
++
++}
++
+ static void composite_layout_verify(struct m0_layout *l,
+ 				    uint64_t composite_lid,
+ 				    uint32_t layers_nr,
+ 				    bool is_extlist_associated,
+ 				    uint32_t extents_nr,
+ 				    bool is_contiguous_extents,
++				    bool is_sec_from_top_deleted,
+ 				    bool is_user_count_incremented)
+ {
+-	bool                              inline_test;
+-	uint64_t                          sublayout_id;
+ 	struct m0_composite_layout       *cl;
++	uint64_t                          sublayout_id;
+ 	struct m0_composite_layer        *layer;
+-	struct m0_uint128                 seed;
+-	uint32_t                          enum_id;
+-	uint32_t                          N;
+-	uint32_t                          K;
+-	uint32_t                          P;
+ 	m0_bindex_t			  delta;
+ 	struct m0_composite_layer_extent *lr_ext;
+ 	uint32_t                          i;
+@@ -238,29 +253,28 @@ static void composite_layout_verify(struct m0_layout *l,
+ 
+ 	/* Verify the layers */
+ 	i = 0;
+-	m0_uint128_init(&seed, "sublayouts_build");
+         m0_tl_for(layers, &cl->cl_layers, layer) {
+ 		M0_UT_ASSERT(layer->clr_idx == i);
+ 		M0_UT_ASSERT(layer->clr_cl->l_id == cl->cl_base.l_id);
+ 		/* Verify the sublayout. */
+-		if (layer->clr_idx % 2 == 0) {
++		if (layer->clr_idx < layers_nr - 1 ||
++		    (layer->clr_idx == layers_nr - 1 &&
++		     !is_sec_from_top_deleted))
+ 			sublayout_id = composite_lid * 100 + i;
+-			enum_id = sublayout_id % 2 ?
+-				LIST_ENUM_ID : LINEAR_ENUM_ID;
+-			inline_test = sublayout_id % 5 ? LESS_THAN_INLINE :
+-							 MORE_THAN_INLINE;
+-			NKP_assign(enum_id, inline_test, 9, 109, 1200,
+-				   &N, &K, &P);
+-			pdclust_layout_verify(layer->clr_sl, sublayout_id,
+-					      enum_id, N, K, P, &seed, 10, 20,
+-					      !USER_COUNT_INCREMENTED);
+-		} else {
+-			composite_layout_verify(layer->clr_sl,
+-						layer->clr_sl->l_id, 1,
++		else
++			/* Second-from-top has become the top-most layer now. */
++			sublayout_id = composite_lid * 100 + i + 1;
++		if (((layer->clr_idx < layers_nr - 1 ||
++		      !is_sec_from_top_deleted) && layer->clr_idx % 2 == 0) ||
++		     (layer->clr_idx == layers_nr - 1 &&
++		      is_sec_from_top_deleted && layer->clr_idx % 2 != 0))
++			pdclust_sublayout_verify(layer->clr_sl, sublayout_id);
++		else
++			composite_layout_verify(layer->clr_sl, sublayout_id, 1,
+ 						!EXTLIST_ASSOCIATED, 1,
+ 						CONTIGUOUS_EXTENTS,
++						!SEC_FROM_TOP_DELETED,
+ 						!USER_COUNT_INCREMENTED);
+-		}
+ 		M0_UT_ASSERT(layer->clr_extents_nr == extents_nr);
+ 
+ 		/* Verify the extents. */
+@@ -405,7 +419,8 @@ static int extlist_associate(struct m0_composite_layout *cl,
+ 	l_from_cl = m0_cl_to_layout(cl);
+ 	composite_layout_verify(l_from_cl, l_from_cl->l_id, cl->cl_layers_nr,
+ 				EXTLIST_ASSOCIATED, extents_nr,
+-				is_contiguous_extents, !USER_COUNT_INCREMENTED);
++				is_contiguous_extents, !SEC_FROM_TOP_DELETED,
++				!USER_COUNT_INCREMENTED);
+ 	extentlist_free(&extents);
+ 	return rc;
+ }
+@@ -441,6 +456,7 @@ static int composite_layout_build(uint64_t lid,
+ 		/* Verify the composite layout object contents. */
+ 		composite_layout_verify(l_from_cl, lid, 1, !EXTLIST_ASSOCIATED,
+ 					1, CONTIGUOUS_EXTENTS,
++					!SEC_FROM_TOP_DELETED,
+ 					!USER_COUNT_INCREMENTED);
+ 	}
+ 	return rc;
+@@ -497,6 +513,7 @@ static int layers_add(struct m0_composite_layout *cl,
+ 		composite_layout_verify(&cl->cl_base, cl->cl_base.l_id, i + 1,
+ 					EXTLIST_ASSOCIATED, extents_nr,
+ 					is_contiguous_extents,
++					!SEC_FROM_TOP_DELETED,
+ 					!USER_COUNT_INCREMENTED);
+ 	}
+ 	return rc;
+@@ -543,6 +560,7 @@ static int composite_build_and_layers_add(uint64_t lid,
+ 						EXTLIST_ASSOCIATED,
+ 						extents_nr,
+ 						is_contiguous_extents,
++						!SEC_FROM_TOP_DELETED,
+ 						!USER_COUNT_INCREMENTED);
+ 		}
+ #if 0
+@@ -586,6 +604,7 @@ int test_build_composite(uint64_t lid,
+ 		/* Verify the layout object built earlier here. */
+ 		composite_layout_verify(l, lid, 1, !EXTLIST_ASSOCIATED,
+ 					1, is_contiguous_extents,
++					!SEC_FROM_TOP_DELETED,
+ 					!USER_COUNT_INCREMENTED);
+ 
+ 		/* Associate an extent list to the zeroth layer. */
+@@ -599,6 +618,7 @@ int test_build_composite(uint64_t lid,
+ 		 */
+ 		composite_layout_verify(l, lid, 1, EXTLIST_ASSOCIATED,
+ 					extents_nr, is_contiguous_extents,
++					!SEC_FROM_TOP_DELETED,
+ 					!USER_COUNT_INCREMENTED);
+ 
+ 		/* Delete the composite layout object. */
+@@ -744,6 +764,7 @@ int test_decode_composite(uint64_t lid,
+ 		/* Verify the layout object built by m0_layout_decode(). */
+ 		composite_layout_verify(l, lid, layers_nr, EXTLIST_ASSOCIATED,
+ 					extents_nr, is_contiguous_extents,
++					!SEC_FROM_TOP_DELETED,
+ 					!USER_COUNT_INCREMENTED);
+ 	}
+ 
+@@ -1340,7 +1361,7 @@ int test_layer_ops_composite(uint64_t lid,
+ 	l = m0_cl_to_layout(cl);
+ 	composite_layout_verify(l, lid, layers_nr, EXTLIST_ASSOCIATED,
+ 				extents_nr, !CONTIGUOUS_EXTENTS,
+-				!USER_COUNT_INCREMENTED);
++				!SEC_FROM_TOP_DELETED, !USER_COUNT_INCREMENTED);
+ 
+ 	/* Delete all the extents associated with the top-most layer. */
+ 	layer = layer_find(cl, cl->cl_layers_nr - 1);
+@@ -1353,7 +1374,22 @@ int test_layer_ops_composite(uint64_t lid,
+ 	/* Verify the layout. */
+ 	composite_layout_verify(l, lid, layers_nr - 1, EXTLIST_ASSOCIATED,
+ 				extents_nr, !CONTIGUOUS_EXTENTS,
+-				!USER_COUNT_INCREMENTED);
++				!SEC_FROM_TOP_DELETED, !USER_COUNT_INCREMENTED);
++	if (layers_nr < 3) /* Skip the second-from-top layer deletion */
++		goto exit;
++
++	/* Delete all the extents associated with the layer second-from-top. */
++	layer = layer_find(cl, cl->cl_layers_nr - 2);
++	layer_extents_delete(cl, layer);
++
++	/* Now, delete the layer that is second-from-top. */
++	m0_composite_layer_delete_second_from_top(cl);
++	M0_UT_ASSERT(cl->cl_layers_nr = layers_nr - 2);
++
++	/* Verify the layout. */
++	composite_layout_verify(l, lid, layers_nr - 2, EXTLIST_ASSOCIATED,
++				extents_nr, !CONTIGUOUS_EXTENTS,
++				SEC_FROM_TOP_DELETED, !USER_COUNT_INCREMENTED);
+ exit:
+ 	/* Delete the composite layout object. */
+ 	m0_layout_put(&cl->cl_base);
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index ca2180f..cd33ab8 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -94,7 +94,9 @@ enum {
+ 	/** End offset for the last extent from an extent map. */
+ 	END_OFFSET             = M0_BINDEX_MAX + 1,
+ 	/** If exent list is explicitly associated to a a layer. */
+-	EXTLIST_ASSOCIATED     = true
++	EXTLIST_ASSOCIATED     = true,
++	/** If the layer second-from-top is deleted. */
++	SEC_FROM_TOP_DELETED   = true
+ };
+ 
+ int test_build_composite(uint64_t lid,
+-- 
+1.8.3.2
+

@@ -1,0 +1,253 @@
+From 17165e44ec1bdf24939e129d2cb7bc71ee36dfec Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Wed, 22 May 2013 08:05:34 -0700
+Subject: [PATCH 095/121] Made rds_done async.
+
+---
+ rvm/rds_private.h  |  7 +++++
+ rvm/rds_zap.c      | 89 ++++++++++++++++++++++++++++++++++++++++++++----------
+ rvm/rvm_logflush.c | 39 ++++++++++++++++--------
+ 3 files changed, 106 insertions(+), 29 deletions(-)
+
+diff --git a/rvm/rds_private.h b/rvm/rds_private.h
+index 8753ac3..71d5b87 100644
+--- a/rvm/rds_private.h
++++ b/rvm/rds_private.h
+@@ -141,6 +141,7 @@ struct heap_def {
+         RVM_MUTEX               heap_lock;
+ };
+ 
++/* rds_zap_heap_cbdata. */
+ typedef struct rds_zap_heap_cbdata {
+ 	struct m0_be_cbinfo	 rzhc_cbinfo;
+ 	char 		    	*rzhc_dev_name;
+@@ -156,11 +157,17 @@ typedef struct rds_zap_heap_cbdata {
+ 	unsigned long        	rzhc_n_loadregions;
+ } rzh_cbdata_t;
+ 
++/* rds_load_heap_cbdata. */
+ typedef struct rds_load_heap_cbdata {
+ 	struct m0_be_cbinfo	 rlhc_cbinfo;
+ 	rvm_seg_hdr_t	    	*rlhc_seg_hdr;
+ } rlh_cbdata_t;
+ 
++/* rds_done_cbdata. */
++typedef struct rd_cbdata {
++        struct m0_be_cbinfo      rdc_cbinfo;
++        rvm_seg_hdr_t           *rdc_seg_hdr;
++}rd_cbdata_t;
+ 
+ #define HEAP_INIT(pheap)   		(pheap->RecoverableHeapStartAddress != 0)
+ #define RDS_VERSION_STAMP(pheap)	(pheap->RecoverableHeapStartAddress->version)
+diff --git a/rvm/rds_zap.c b/rvm/rds_zap.c
+index a2ffea6..55ad131 100644
+--- a/rvm/rds_zap.c
++++ b/rvm/rds_zap.c
+@@ -69,7 +69,6 @@ exit:
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		m0_free(rzh_cbdata);
+         }
+-	rzh_rvm_truncate_cb1(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
+ }
+ 
+ void rzh_rvm_end_transaction_cb(cbinfo, status, msg_type)
+@@ -90,20 +89,19 @@ void rzh_rvm_end_transaction_cb(cbinfo, status, msg_type)
+ 
+ 	tid = rzh_cbdata->rzhc_tid;
+ 
++	cbinfo->bc_cb = rzh_rvm_flush_cb;
+ 	rvm_free_tid(tid);
+-	status = rvm_flush();
+ 
+-	cbinfo->bc_cb = rzh_rvm_flush_cb;
++	status = rvm_flush(cbinfo);
++
+ exit:
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		m0_free(rzh_cbdata);
+         }
+-	rzh_rvm_flush_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);
+ }
+ 
+-
+ void rzh_rvm_load_seg_cb(cbinfo, status, msg_type)
+ 	struct m0_be_cbinfo   	*cbinfo;
+ 	int 			 status;
+@@ -157,7 +155,6 @@ exit:
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		m0_free(rzh_cbdata);
+         }
+-	/*rzh_rvm_end_transaction_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);*/
+ }
+ 
+ void rzh_rvm_truncate_cb(cbinfo, status, msg_type)
+@@ -215,7 +212,6 @@ exit:
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+ 		m0_free(rzh_cbdata);
+         }
+-	/*rzh_rvm_truncate_cb(&rzh_cbdata->rzhc_cbinfo, status, msg_type);*/
+ }
+ 
+ /*
+@@ -299,16 +295,77 @@ exit:
+ 	return 0;
+ }
+ 
+-int rds_done(seg_hdr, cbinfo)
+-	rvm_seg_hdr_t 		*seg_hdr;
+-	struct m0_be_cbinfo 	*cbinfo;
++void rd_rvm_truncate_cb(struct m0_be_cbinfo *cbinfo, int status,
++		     	m0_be_msg_type_t msg_type)
++{
++	rvm_seg_hdr_t *seg_hdr;
++	rd_cbdata_t   *rd_cbdata;
++
++	rd_cbdata = container_of(cbinfo, rd_cbdata_t, rdc_cbinfo);
++	seg_hdr   = rd_cbdata->rdc_seg_hdr;
++
++	rvm_release_segment(seg_hdr->n_loadregions, &seg_hdr->regions, seg_hdr);
++
++	if (cbinfo->bc_pcbinfo != NULL && cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, status, msg_type);
++        }
++	m0_free(rd_cbdata);
++}
++
++void rd_rvm_flush_cb(struct m0_be_cbinfo *cbinfo, int status,
++		     m0_be_msg_type_t msg_type)
++{
++	rvm_return_t	 retval;
++	rd_cbdata_t   	*rd_cbdata;
++
++	rd_cbdata = container_of(cbinfo, rd_cbdata_t, rdc_cbinfo);
++
++	if(status != 0)
++		goto exit;
++
++	cbinfo->bc_cb = rd_rvm_truncate_cb;
++	retval = rvm_truncate(cbinfo);
++
++	if(retval != RVM_SUCCESS) {
++		status = -1;
++		msg_type = msg_type;
++	}
++exit:
++	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
++            cbinfo->bc_pcbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, status, msg_type);
++		m0_free(rd_cbdata);
++        }
++}
++
++int rds_done(rvm_seg_hdr_t *seg_hdr, struct m0_be_cbinfo *cbinfo)
+ {
+-    int retval;
+-    /* Make sure the initialization has been committed to rvm data */
+-    rvm_flush();
+-    retval = rvm_truncate(NULL);
++	int 		    	 status = 0;
++	m0_be_msg_type_t	 msg_type = M0_BE_SUCCESS;
++	rd_cbdata_t		*rd_cbdata;
++	struct m0_be_cbinfo 	*rdc_cbinfo;
++	rvm_return_t		 retval;
+ 
+-    rvm_release_segment(seg_hdr->n_loadregions, &seg_hdr->regions, seg_hdr);
++	M0_ALLOC_PTR(rd_cbdata);
++	M0_ASSERT(rd_cbdata != NULL);
++
++	rd_cbdata->rdc_seg_hdr = seg_hdr;
++
++	rdc_cbinfo = &rd_cbdata->rdc_cbinfo;
++
++	m0_be_cbinfo_copy_helper(cbinfo, rdc_cbinfo, rd_rvm_flush_cb);
++
++	/* Make sure the initialization has been committed to rvm data */
++	retval = rvm_flush(rdc_cbinfo);
++	if(retval != RVM_SUCCESS) {
++		status = -1;
++		msg_type = msg_type;
++	}
++
++	if (status != 0 && cbinfo != NULL && cbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo, status, msg_type);
++                m0_free(rd_cbdata);
++        }
+ 
+-    return 0;
++	return retval;
+ }
+diff --git a/rvm/rvm_logflush.c b/rvm/rvm_logflush.c
+index b8f6b75..0612707 100644
+--- a/rvm/rvm_logflush.c
++++ b/rvm/rvm_logflush.c
+@@ -860,9 +860,6 @@ void wfs_wft(wfs_cbdata_t *wfs_cbdata)
+ 		msg_type = retval;
+ 	}
+ 
+-	/* This needs to be removed when wait_for_truncation becomes async. */
+-	/*wfs_wft_cb(wfsc_cbinfo, status, msg_type);*/
+-
+ exit:
+ 	/* If error or looping is done, then post the parent callback. */
+ 	if ((status != 0 || done == rvm_true ) &&
+@@ -949,8 +946,6 @@ static rvm_return_t wait_for_space(log_t 		*log,
+ 		msg_type = retval;
+ 	}
+ 
+-	/* This needs to be removed when wait_for_truncation becomes async. */
+-	/*wfs_wft_cb(wfsc_cbinfo, status, msg_type);*/
+ 	if (status != 0 && cbinfo->bc_pcbinfo != NULL &&
+             cbinfo->bc_pcbinfo->bc_cb != NULL) {
+                 m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
+@@ -1443,20 +1438,38 @@ status_exit:
+ }
+ 
+ /* exported flush routine */
+-rvm_return_t rvm_flush()
++rvm_return_t rvm_flush(struct m0_be_cbinfo *cbinfo)
+ {
+-	/*rvm_return_t    retval;*/
++	rvm_return_t    	retval;
++	int			status = 0;
++	m0_be_msg_type_t	msg_type = M0_BE_SUCCESS;
+ 
+ 	/* do application interface checks */
+-	if (bad_init()) return RVM_EINIT;
+-	if (default_log == NULL) return RVM_ELOG;
++	if (bad_init()) {
++		status   = -1;
++		msg_type = RVM_EINIT;
++		goto exit;
++	}
++
++	if (default_log == NULL) {
++		status   = -1;
++		msg_type = RVM_ELOG;
++		goto exit;
++	}
+ 
+ 	/* flush the queues */
+-	/*if ((retval = flush_log(default_log, &default_log->status.n_rvm_flush, NULL))*/
+-	/*!= RVM_SUCCESS)*/
+-	/*return retval;*/
++	retval = flush_log(default_log, &default_log->status.n_rvm_flush, cbinfo);
++	if (retval != RVM_SUCCESS) {
++		status = -1;
++		msg_type = retval;
++	}
+ 
+-	return RVM_SUCCESS;
++exit:
++	if (status != 0 && cbinfo && cbinfo->bc_cb != NULL) {
++                m0_be_handler_post(cbinfo->bc_pcbinfo, status, msg_type);
++        }
++
++	return retval;
+ }
+ 
+ /* special log entries enqueuing routine */
+-- 
+1.8.3.2
+

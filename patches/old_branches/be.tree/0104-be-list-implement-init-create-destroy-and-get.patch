@@ -1,0 +1,110 @@
+From c3446f45f522f9cd7e2f84432ff71f8e6829b60c Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Tue, 4 Jun 2013 19:34:01 +0300
+Subject: [PATCH 104/290] be/list: implement init(), create(), destroy() and
+ get().
+
+---
+ be/list.c | 71 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 64 insertions(+), 7 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index 1d36e27..8c79686 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -25,20 +25,73 @@
+  */
+ 
+ #include "be/list.h"
++#include "be/be.h"
++#include "lib/memory.h"
+ 
+ M0_INTERNAL void
+-m0_be_list_create(struct m0_be_list *list, struct m0_be_tx *tx)
++m0_be_list_create(const struct m0_tl_descr *d,
++		  struct m0_be_list *list,
++		  struct m0_be_tx *tx)
+ {
+-	/* m0_tlist_init(); */
+-	/* m0_be_tx_capture(); */
++	M0_PRE(list != NULL && d != NULL && tx != NULL);
++	M0_PRE(m0_be__reg_is_pinned(&M0_BE_REG(list->bl_seg, sizeof *list,
++					       list)));
++	m0_tlist_init(d, &list->bl_list);
++	m0_be_tx_capture(tx, &M0_BE_REG(list->bl_seg, sizeof *list, list));
+ }
+ 
+ M0_INTERNAL void
+ m0_be_list_destroy(struct m0_be_list *list, struct m0_be_tx *tx)
+ {
+-	/* tlist_fini(); */
+-	/* mangle tlist head; */
+-	/* m0_be_tx_capture(); */
++	M0_PRE(list != NULL && list->bl_descr != NULL && tx != NULL);
++	M0_PRE(m0_be__reg_is_pinned(&M0_BE_REG(list->bl_seg, sizeof *list,
++					       list)));
++	m0_tlist_fini(list->bl_descr, &list->bl_list);
++	m0_be_tx_capture(tx, &M0_BE_REG(list->bl_seg, sizeof *list, list));
++}
++
++/**
++ * Pins the head and first `nelems' of the list, loading them from disk
++ * storage if necessary.
++ */
++M0_INTERNAL void m0_be_list_get(const struct m0_be_list *list,
++				m0_bcount_t nelems,
++				struct m0_be_op *op)
++{
++	struct m0_list_link *ll;
++	struct m0_be_op     *lreg_op;
++
++	M0_PRE(list != NULL && op != NULL);
++	op->bo_utype              = M0_BOP_LIST;
++	op->bo_u.u_list.l_list    = list;
++	op->bo_u.u_list.l_nelems  = nelems;
++	m0_sm_state_set(&op->bo_sm, M0_BOS_ACTIVE);
++
++	/* Prepare sub-operation for m0_be_reg_get(). */
++	lreg_op = m0_alloc(sizeof (struct m0_be_op));
++	M0_ASSERT(lreg_op != NULL);
++	lreg_op->bo_utype         = M0_BOP_REG;
++	lreg_op->bo_fom           = NULL;
++	lreg_op->bo_parent_op     = op;
++	m0_sm_init(&lreg_op->bo_sm, op->bo_sm.sm_conf, M0_BOS_INIT,
++		   op->bo_sm.sm_grp);
++
++	for (ll = list->bl_list.t_head.l_head;
++	     ll != NULL && (void*)ll != &list->bl_list.t_head;
++	     ll = ll->ll_next) {
++		op->bo_u.u_list.l_llink     = ll;
++		lreg_op->bo_u.u_reg.br_seg  = list->bl_seg;
++		lreg_op->bo_u.u_reg.br_size = list->bl_descr->
++			td_container_size;
++		lreg_op->bo_u.u_reg.br_addr = (void *)ll -
++			list->bl_descr->td_link_offset;
++		m0_be_reg_get(&lreg_op->bo_u.u_reg, lreg_op);
++		/* XXX: for async completion we must must add clink/callback
++		 * to lreg_op->bo_sm.sm_chan. */
++		M0_ASSERT(m0_be_op_state(lreg_op) == M0_BOS_SUCCESS);
++	}
++	m0_free(lreg_op); /* XXX: must be freed in lreg_op callback. */
++	m0_sm_state_set(&op->bo_sm, M0_BOS_SUCCESS);
+ }
+ 
+ /*
+@@ -51,7 +104,11 @@ m0_be_list_destroy(struct m0_be_list *list, struct m0_be_tx *tx)
+  * of such fields.
+  */
+ M0_INTERNAL void m0_be_list_init(struct m0_be_list *list,
+-				 struct m0_be_seg *seg) {}
++				 struct m0_be_seg *seg)
++{
++	M0_PRE(list != NULL && seg != NULL);
++	list->bl_seg = seg;
++}
+ M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list) {}
+ 
+ /** @} end of be group */
+-- 
+1.8.3.2
+

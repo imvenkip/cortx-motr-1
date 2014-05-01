@@ -1,0 +1,27 @@
+From b831adb1925e6e289acfa6dc34e7855924e722b8 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 8 Apr 2013 08:38:24 -0700
+Subject: [PATCH 2/6] M0_CLOCK_SOURCE_REALTIME_MONOTONIC is default clock
+ source
+
+---
+ lib/user_space/utime.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/lib/user_space/utime.c b/lib/user_space/utime.c
+index 801d245..fb36c6b 100644
+--- a/lib/user_space/utime.c
++++ b/lib/user_space/utime.c
+@@ -41,8 +41,7 @@
+    @{
+ */
+ 
+-// const enum CLOCK_SOURCES M0_CLOCK_SOURCE = M0_CLOCK_SOURCE_REALTIME_MONOTONIC;
+-const enum CLOCK_SOURCES M0_CLOCK_SOURCE = M0_CLOCK_SOURCE_MONOTONIC_RAW;
++const enum CLOCK_SOURCES M0_CLOCK_SOURCE = M0_CLOCK_SOURCE_REALTIME_MONOTONIC;
+ m0_time_t		 m0_time_monotonic_offset;
+ 
+ static m0_time_t clock_gettime_wrapper(clockid_t clock_id)
+-- 
+1.8.3.2
+

@@ -1,0 +1,271 @@
+From 3b53c3aaad947e5021518ab489c09d558027c40e Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 18 Jan 2013 15:52:50 +0530
+Subject: [PATCH 056/172] Avoding some code duplication in the UT
+
+---
+ layout/ut/composite.c      | 33 ++++-----------------
+ layout/ut/layout_generic.c |  1 -
+ layout/ut/pdclust.c        | 74 +++++++---------------------------------------
+ 3 files changed, 17 insertions(+), 91 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 5f7f84b..7e29eeb 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1182,15 +1182,10 @@ int test_lookup_composite(uint64_t lid,
+ 			  bool existing_test,
+ 			  bool failure_test)
+ {
+-	m0_bcount_t        num_bytes;
+-	void              *area;
+ 	struct m0_layout  *l1;
+ 	struct m0_layout  *l1_copy;
+ 	struct m0_layout  *l2;
+ 	struct m0_layout  *l3;
+-	struct m0_db_pair  pair;
+-	struct m0_db_tx    tx;
+-	int                rc_tmp;
+ 
+ 	M0_UT_ASSERT(ergo(!existing_test, failure_test));
+ 
+@@ -1213,8 +1208,8 @@ int test_lookup_composite(uint64_t lid,
+ 		 * is returned from the memory, not requiring a lookup from the
+ 		 * DB.
+ 		 */
+-		rc = m0_layout_lookup(domain, lid, &m0_composite_layout_type,
+-				      &tx, &pair, &l2);
++		rc = layout_lookup(lid, domain, &m0_composite_layout_type,
++				   !FAILURE_TEST, &l2);
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(l2 == l1);
+ 
+@@ -1228,23 +1223,14 @@ int test_lookup_composite(uint64_t lid,
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 
+ 	/* Lookup for the layout object from the DB. */
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	pair_set(&pair, &lid, area, num_bytes);
+-	rc = m0_layout_lookup(domain, lid, &m0_composite_layout_type,
+-			      &tx, &pair, &l3);
++	rc = layout_lookup(lid, domain, &m0_composite_layout_type,
++			   failure_test, &l3);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
+ 			     rc == LO_DECODE_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
+ 	if (existing_test && !failure_test) {
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == l3);
+ 		composite_layout_compare(l1_copy, l3, false);
+@@ -1259,7 +1245,6 @@ int test_lookup_composite(uint64_t lid,
+ 	if (existing_test)
+ 		sublayouts_delete(domain, lid, layers_nr);
+ 
+-	m0_free(area);
+ 	return rc;
+ }
+ 
+@@ -1474,15 +1459,9 @@ int test_delete_composite(uint64_t lid,
+ 		 * Lookup for the layout object from the DB, to verify that it
+ 		 * does not exist there.
+ 		 */
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-		pair_set(&pair, &lid, area, num_bytes);
+-		rc_tmp = m0_layout_lookup(domain, lid,
+-					  &m0_composite_layout_type,
+-					  &tx, &pair, &l_lookup);
++		rc_tmp = layout_lookup(lid, domain, &m0_composite_layout_type,
++				       FAILURE_TEST, &l_lookup);
+ 		M0_UT_ASSERT(rc_tmp == -ENOENT);
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+ 
+ 	m0_free(area);
+diff --git a/layout/ut/layout_generic.c b/layout/ut/layout_generic.c
+index 1e96ab2..2e7256d 100644
+--- a/layout/ut/layout_generic.c
++++ b/layout/ut/layout_generic.c
+@@ -234,7 +234,6 @@ bool ghost_create(void *d)
+ 	return rc;
+ }
+ 
+-//todo Use this in pdclust.c
+ /* Wrapper that looks up for the layout object from the DB. */
+ int layout_lookup(uint64_t lid, struct m0_layout_domain *domain,
+ 		  const struct m0_layout_type *lt,
+diff --git a/layout/ut/pdclust.c b/layout/ut/pdclust.c
+index 74c6f2c..39f7e89 100644
+--- a/layout/ut/pdclust.c
++++ b/layout/ut/pdclust.c
+@@ -1347,15 +1347,10 @@ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 			bool existing_test,
+ 			bool failure_test)
+ {
+-	m0_bcount_t        num_bytes;
+-	void              *area;
+ 	struct m0_layout  *l1;
+ 	struct m0_layout  *l1_copy;
+ 	struct m0_layout  *l2;
+ 	struct m0_layout  *l3;
+-	struct m0_db_pair  pair;
+-	struct m0_db_tx    tx;
+-	int                rc_tmp;
+ 	int                rc;
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+@@ -1380,8 +1375,8 @@ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 		 * is returned from the memory, not requiring a lookup from the
+ 		 * DB.
+ 		 */
+-		rc = m0_layout_lookup(domain, lid, &m0_pdclust_layout_type,
+-				      &tx, &pair, &l2);
++		rc = layout_lookup(lid, domain, &m0_pdclust_layout_type,
++				   !FAILURE_TEST, &l2);
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(l2 == l1);
+ 
+@@ -1395,24 +1390,14 @@ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 
+ 	/* Lookup for the layout object from the DB. */
+-	allocate_area(domain, ADDITIONAL_BYTES_NONE, &num_bytes, &area);
+-
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	pair_set(&pair, &lid, area, num_bytes);
+-
+-	rc = m0_layout_lookup(domain, lid, &m0_pdclust_layout_type,
+-			      &tx, &pair, &l3);
++	rc = layout_lookup(lid, domain, &m0_pdclust_layout_type,
++			   failure_test, &l3);
+ 	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
+ 			     rc == LO_DECODE_ERR);
+ 	else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+-
+ 	if (existing_test && !failure_test) {
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == l3);
+ 		pdclust_layout_compare(enum_id, l1_copy, l3, false);
+@@ -1422,7 +1407,6 @@ int test_lookup_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 		m0_layout_put(l3);
+ 		M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 	}
+-	m0_free(area);
+ 	return rc;
+ }
+ 
+@@ -1439,11 +1423,6 @@ int test_lookup_pdclust_with_ghost_creation(uint64_t lid,
+ 	struct m0_bufvec         bv_for_encode;
+ 	struct m0_bufvec_cursor  cur_for_encode;
+ 	struct m0_layout        *l_from_DB;
+-	m0_bcount_t              num_bytes_for_lookup;
+-	void                    *area_for_lookup;
+-	struct m0_db_pair        pair;
+-	struct m0_db_tx          tx;
+-	int                      rc_tmp;
+ 	int                      rc;
+ 
+ 	M0_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+@@ -1497,26 +1476,13 @@ int test_lookup_pdclust_with_ghost_creation(uint64_t lid,
+ 	 * performed on the serialised representation of the same layout
+ 	 * created above and stored in g_data.cur.
+ 	 */
+-	if (enum_id == LIST_ENUM_ID)
+-		allocate_area(domain, ADDITIONAL_BYTES_DEFAULT,
+-			      &num_bytes_for_lookup, &area_for_lookup);
+-	else
+-		allocate_area(domain, ADDITIONAL_BYTES_NONE,
+-			      &num_bytes_for_lookup, &area_for_lookup);
+-
+-	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-	M0_UT_ASSERT(rc == 0);
+-
+-	pair_set(&pair, &lid, area_for_lookup, num_bytes_for_lookup);
+ 	m0_fi_enable_func("m0_layout_lookup", "ghost_creation",
+ 			  ghost_create, &g_data);
+-	rc = m0_layout_lookup(domain, lid, &m0_pdclust_layout_type,
+-			      &tx, &pair, &l_from_DB);
++	rc = layout_lookup(lid, domain, &m0_pdclust_layout_type,
++			   !FAILURE_TEST, &l_from_DB);
+ 	M0_UT_ASSERT(rc == 0);
+ 	m0_layout_put(l_from_DB);
+ 	m0_fi_disable("m0_layout_lookup", "ghost_creation");
+-	rc_tmp = m0_db_tx_commit(&tx);
+-	M0_UT_ASSERT(rc_tmp == 0);
+ 
+ 	M0_UT_ASSERT(l_from_DB == g_data.l);
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == l_from_DB);
+@@ -1528,7 +1494,6 @@ int test_lookup_pdclust_with_ghost_creation(uint64_t lid,
+ 	M0_UT_ASSERT(list_lookup(domain, lid) == NULL);
+ 
+ 	m0_free(area_for_encode);
+-	m0_free(area_for_lookup);
+ 	return rc;
+ }
+ 
+@@ -1717,20 +1682,12 @@ int test_update_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 		 * Lookup for the layout object from the DB to verify that its
+ 		 * user count is indeed updated.
+ 		 */
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-
+-		pair_set(&pair, &lid, area, num_bytes);
+-
+-		rc = m0_layout_lookup(domain, lid, &m0_pdclust_layout_type,
+-				      &tx, &pair, &l2);
++		rc = layout_lookup(lid, domain, &m0_pdclust_layout_type,
++				   !FAILURE_TEST, &l2);
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(l2->l_user_count == 100);
+ 		M0_UT_ASSERT(m0_ref_read(&l2->l_ref) == 1);
+ 
+-		rc = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc == 0);
+-
+ 		/*
+ 		 * Compare the two layouts - one created earlier here and the
+ 		 * one that is looked up from the DB.
+@@ -1822,20 +1779,11 @@ int test_delete_pdclust(uint64_t lid, struct m0_layout_domain *domain,
+ 	if (!failure_test) {
+ 		/*
+ 		 * Lookup for the layout object from the DB, to verify that it
+-		 * does not exist there and that the lookup results into
+-		 * ENOENT error.
++		 * does not exist there.
+ 		 */
+-		rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+-		M0_UT_ASSERT(rc == 0);
+-
+-		pair_set(&pair, &lid, area, num_bytes);
+-
+-		rc_tmp = m0_layout_lookup(domain, lid, &m0_pdclust_layout_type,
+-					  &tx, &pair, &l);
++		rc_tmp = layout_lookup(lid, domain, &m0_pdclust_layout_type,
++				       FAILURE_TEST, &l);
+ 		M0_UT_ASSERT(rc_tmp == -ENOENT);
+-
+-		rc_tmp = m0_db_tx_commit(&tx);
+-		M0_UT_ASSERT(rc_tmp == 0);
+ 	}
+ 
+ 	m0_free(area);
+-- 
+1.8.3.2
+

@@ -1,0 +1,30 @@
+From 43246e5229b06c38aba5564cd80382401ac651bc Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 28 Aug 2012 22:16:09 +0300
+Subject: [PATCH 308/311] conf/reg.h: add `Concurrency control' section
+
+LogD #843
+RB: r/981/diff/3/?file=27989#file27989line57
+---
+ conf/reg.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/conf/reg.h b/conf/reg.h
+index 0c38487..061b73e 100644
+--- a/conf/reg.h
++++ b/conf/reg.h
+@@ -55,6 +55,11 @@
+  * - c2_conf_reg_delete() unregisters configuration object and calls
+  *   its destructor.
+  *
++ * @section conf-fspec-reg-thread Concurrency control
++ *
++ * A user must guarantee that c2_conf_reg_*() calls performed against
++ * the same registry are not concurrent.
++ *
+  * @see @ref conf_dfspec_reg "Detailed Functional Specification"
+  */
+ 
+-- 
+1.8.3.2
+

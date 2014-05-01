@@ -1,0 +1,130 @@
+From 1dc91a72e7415006ea97775f3d5d5359aaa13577 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sat, 31 Mar 2012 17:46:13 +0300
+Subject: [PATCH 110/370] cache_grow(): lock the cache while operating
+
++ use C2_ADDB_ADD() calls
++ object_enrich(): broadcast object's channel only if the status is changed
+---
+ conf/confc.c   | 45 +++++++++++++++++++++++++--------------------
+ conf/onwire.ff |  1 +
+ 2 files changed, 26 insertions(+), 20 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 97a67fc..99318d1 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -1132,18 +1132,20 @@ static int cache_add(struct c2_conf_map *cache, const struct confx_object *src)
+ {
+ 	/*
+ 	 * struct c2_conf_obj *obj;
+-	 * int rc;
++	 * int                 ret;
++	 *
++	 * C2_PRE(c2_mutex_is_locked(&registry_to_client(cache)->cc_lock));
+ 	 *
+ 	 * obj = c2_conf_obj_new(src->o_val.ov_type, &src->o_key);
+ 	 * if (obj == NULL)
+ 	 *     return -ENOMEM;
+ 	 *
+-	 * rc = c2_conf_obj_fill(obj, src, cache);
+-	 * rc = ?: c2_conf_map_add(cache, obj);
++	 * ret = c2_conf_obj_fill(obj, src, cache);
++	 * ret = ?: c2_conf_map_add(cache, obj);
+ 	 *
+-	 * if (rc != 0)
++	 * if (ret != 0)
+ 	 *     c2_free(obj);
+-	 * return rc;
++	 * return ret;
+ 	 */
+ 	XXX;
+ }
+@@ -1154,24 +1156,21 @@ static int object_enrich(struct c2_conf_obj *dest,
+ {
+ 	/*
+ 	 * int ret;
+-	 * struct c2_confc *cli = registry_to_client(cache);
+ 	 *
+-	 * C2_PRE(c2_mutex_is_locked(&cli->cc_group->s_lock));
+-	 * c2_mutex_lock(&cli->cc_lock);
+ 	 * C2_PRE(dest->co_type == src->fo_val.v_type);
++	 * C2_PRE(c2_mutex_is_locked(&registry_to_client(cache)->cc_lock));
+ 	 *
+ 	 * if (c2_conf_obj_mismatch(dest, src)) {
+-	 *     c2_addb(report inconsistency);
++	 *     C2_ADDB_ADD(report inconsistency);
+ 	 *     ret = -EMISMATCH; // XXX Can we use non-standard errno?
+-	 * } else if (dest->co_status != C2_CS_READY) {
++	 * } else if (dest->co_status == C2_CS_READY) {
++	 *     return 0; // neither change the status nor broadcast
++	 * } else {
+ 	 *     ret = c2_conf_obj_fill(dest, src, cache);
+ 	 * }
+ 	 *
+ 	 * obj->co_status = ret == 0 ? C2_CS_READY : C2_CS_MISSING;
+ 	 * c2_chan_broadcast(&dest->co_chan);
+-	 *
+-	 * c2_mutex_unlock(&cli->cc_lock);
+-	 * C2_POST(c2_mutex_is_locked(&cli->cc_group->s_lock));
+ 	 * return ret;
+ 	 */
+ 	XXX;
+@@ -1189,29 +1188,35 @@ cache_grow(struct c2_conf_map *cache, const struct c2_conf_fetch_resp *resp)
+ 	/*
+ 	 * struct confx_object *fetched;
+ 	 * struct c2_conf_obj  *cached;
+-	 * int                  rc;
++	 * int                  ret;
++	 * struct c2_confc     *cli = registry_to_client(cache);
+ 	 *
+ 	 * C2_PRE(resp->fr_rc == 0);
++	 * C2_PRE(c2_mutex_is_locked(&cli->cc_group->s_lock));
++	 *
++	 * c2_mutex_lock(&cli->cc_lock);
+ 	 *
+ 	 * for (fetched in resp->fr_data) {
+ 	 *     if (fetched->o_key.cb_size == 0 ||
+ 	 *         fetched->o_key.cb_data == NULL) {
+-	 *         c2_addb(report bogus data);
+-	 *         return -Exxx;
++	 *         C2_ADDB_ADD(report bogus data);
++	 *         ret = -Exxx;
++	 *         break;
+ 	 *     }
+ 	 *
+ 	 *     cached = c2_conf_map_lookup(cache, &fetched->o_key,
+ 	 *                                 fetched->o_val.ov_type);
+ 	 *     if (cached == NULL)
+-	 *         rc = cache_add(cache, fetched);
++	 *         ret = cache_add(cache, fetched);
+ 	 *     else
+-	 *         rc = object_enrich(cached, fetched, cache);
++	 *         ret = object_enrich(cached, fetched, cache);
+ 	 *
+-	 *     if (rc != 0)
++	 *     if (ret != 0)
+ 	 *         break;
+ 	 * }
+ 	 *
+-	 * return rc;
++	 * c2_mutex_unlock(&cli->cc_lock);
++	 * return ret;
+ 	 */
+ 	XXX;
+ }
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+index 6cd60ce..27dbc32 100644
+--- a/conf/onwire.ff
++++ b/conf/onwire.ff
+@@ -166,6 +166,7 @@ DEF(objval, UNION,
+     _case(5, ov_sdev,       confx_sdev),
+     _case(6, ov_partition,  confx_partition));
+ 
++/** Object descriptor. */
+ DEF(confx_object, RECORD,
+     _(o_key, c2_conf_buf),
+     _(o_val, objval));
+-- 
+1.8.3.2
+

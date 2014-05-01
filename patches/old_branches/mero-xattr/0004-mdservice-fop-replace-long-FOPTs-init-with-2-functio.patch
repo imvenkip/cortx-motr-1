@@ -1,0 +1,70 @@
+From 3f861da2c3ca49bdfacef692b04afa9f335f6241 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 14 Feb 2013 10:56:30 +0200
+Subject: [PATCH 04/10] mdservice/fop: replace long FOPTs init with 2 function
+ calls
+
+Replace long fopt/rep_fopt initialization expression in the
+m0_mdservice_fop_init() functions with the next statement:
+  return m0_mdservice_fopts_init() ?: m0_mdservice_rep_fopts_init();
+where m0_mdservice_fopts_init() initializes fopt request types,
+and m0_mdservice_rep_fopts_init() initializes fopt reply types.
+This way we don't get "frame size > 2048" error.
+---
+ mdservice/md_fops.c | 25 +++++++++++++++++--------
+ 1 file changed, 17 insertions(+), 8 deletions(-)
+
+diff --git a/mdservice/md_fops.c b/mdservice/md_fops.c
+index 1f00809..323d38f 100644
+--- a/mdservice/md_fops.c
++++ b/mdservice/md_fops.c
+@@ -325,13 +325,8 @@ struct m0_fop_type m0_fop_rename_rep_fopt;
+ struct m0_fop_type m0_fop_readdir_rep_fopt;
+ struct m0_fop_type m0_fop_layout_rep_fopt;
+ 
+-M0_INTERNAL int m0_mdservice_fop_init(void)
++M0_INTERNAL int m0_mdservice_fopts_init(void)
+ {
+-        /*
+-         * Provided by gccxml2xcode after parsing md_fops.h
+-         */
+-        m0_xc_md_fops_init();
+-
+         return  M0_FOP_TYPE_INIT(&m0_fop_create_fopt,
+                                  .name      = "Create request",
+                                  .opcode    = M0_MDSERVICE_CREATE_OPCODE,
+@@ -516,8 +511,12 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .fom_ops   = &m0_md_fom_ops,
+                                  .svc_type  = &m0_mds_type,
+ #endif
+-                                 .sm        = &m0_generic_conf) ?:
+-                M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
++                                 .sm        = &m0_generic_conf);
++}
++
++M0_INTERNAL int m0_mdservice_rep_fopts_init(void)
++{
++	return  M0_FOP_TYPE_INIT(&m0_fop_create_rep_fopt,
+                                  .name      = "Create reply",
+                                  .opcode    = M0_MDSERVICE_CREATE_REP_OPCODE,
+                                  .xt        = m0_fop_create_rep_xc,
+@@ -598,6 +597,16 @@ M0_INTERNAL int m0_mdservice_fop_init(void)
+                                  .xt        = m0_fop_layout_rep_xc,
+                                  .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
+ }
++
++M0_INTERNAL int m0_mdservice_fop_init(void)
++{
++        /*
++         * Provided by gccxml2xcode after parsing md_fops.h
++         */
++        m0_xc_md_fops_init();
++
++        return m0_mdservice_fopts_init() ?: m0_mdservice_rep_fopts_init();
++}
+ M0_EXPORTED(m0_mdservice_fop_init);
+ 
+ M0_INTERNAL void m0_mdservice_fop_fini(void)
+-- 
+1.8.3.2
+

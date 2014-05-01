@@ -1,0 +1,286 @@
+From d33b7964e17385ff3a6218c10d55a14a0ed4e9e8 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Tue, 25 Feb 2014 17:06:49 +0530
+Subject: [PATCH 4/4] be.conv.conf, - Add documentation. - Remove conf/db.c
+ (none of the file contents are used anymore).
+
+---
+ conf/db.c      | 210 ---------------------------------------------------------
+ conf/preload.c |  30 +++++----
+ 2 files changed, 17 insertions(+), 223 deletions(-)
+ delete mode 100644 conf/db.c
+
+diff --git a/conf/db.c b/conf/db.c
+deleted file mode 100644
+index d6a0de6..0000000
+--- a/conf/db.c
++++ /dev/null
+@@ -1,210 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+- * Original creation date: 25-Sep-2012
+- */
+-
+-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+-#include "lib/trace.h"
+-#include "lib/finject.h"
+-
+-#include "conf/db.h"
+-#include "conf/onwire.h"     /* m0_confx_obj, m0_confx */
+-#include "conf/onwire_xc.h"
+-#include "conf/obj.h"        /* m0_conf_objtype */
+-#include "xcode/xcode.h"
+-#include "db/db.h"
+-#include "be/btree.h"
+-#include "be/tx.h"
+-#include "be/op.h"
+-#include "lib/memory.h"      /* m0_alloc, m0_free */
+-#include "lib/errno.h"       /* EINVAL */
+-#include "lib/misc.h"        /* M0_SET0 */
+-
+-static enum m0_conf_objtype xobj_type(const struct m0_confx_obj *xobj)
+-{
+-	uint32_t t = xobj->o_conf.u_type;
+-
+-	M0_CASSERT(M0_CO_DIR == 0);
+-	M0_POST(t < M0_CO_NR && t != M0_CO_DIR);
+-	return t;
+-}
+-
+-static int confx_to_xcode_obj(struct m0_confx_obj *xobj,
+-			      struct m0_xcode_obj *out, bool decode)
+-{
+-	M0_PRE(xobj != NULL && out != NULL);
+-
+-	switch(xobj_type(xobj)) {
+-#define _CASE(type, abbrev)                                                         \
+-	case type:                                                                  \
+-		*out =  M0_XCODE_OBJ(m0_confx_ ## abbrev ## _xc,                    \
+-				     decode ? NULL : &xobj->o_conf.u.u_ ## abbrev); \
+-		break
+-
+-	_CASE(M0_CO_PROFILE,    profile);
+-	_CASE(M0_CO_FILESYSTEM, filesystem);
+-	_CASE(M0_CO_SERVICE,    service);
+-	_CASE(M0_CO_NODE,       node);
+-	_CASE(M0_CO_NIC,        nic);
+-	_CASE(M0_CO_SDEV,       sdev);
+-	_CASE(M0_CO_PARTITION,  partition);
+-#undef _CASE
+-	case M0_CO_DIR:
+-	default:
+-		M0_RETERR(-EINVAL, "Invalid object type: %u", xobj_type(xobj));
+-	}
+-
+-	M0_RETURN(0);
+-}
+-
+-/* Note: m0_xcode_ctx_init() doesn't allow `xobj' to be const. Sigh. */
+-static int
+-xcode_ctx_init(struct m0_xcode_ctx *ctx, struct m0_confx_obj *xobj, bool decode)
+-{
+-	struct m0_xcode_obj obj;
+-
+-	M0_ENTRY();
+-
+-	confx_to_xcode_obj(xobj, &obj, decode);
+-	m0_xcode_ctx_init(ctx, &obj);
+-	if (decode)
+-		ctx->xcx_alloc = _conf_xcode_alloc;
+-
+-	M0_RETURN(0);
+-}
+-
+-static int confx_obj_measure(struct m0_confx_obj *xobj, m0_bcount_t *result)
+-{
+-	struct m0_xcode_ctx ctx;
+-	int                 rc;
+-
+-	M0_ENTRY();
+-
+-	rc = xcode_ctx_init(&ctx, xobj, false);
+-	if (rc != 0)
+-		M0_RETURN(rc);
+-
+-	rc = m0_xcode_length(&ctx);
+-	if (rc < 0)
+-		M0_RETURN(rc);
+-	M0_ASSERT(rc != 0); /* XXX How can we be so sure? */
+-
+-	*result = rc;
+-	M0_RETURN(0);
+-}
+-
+-/* ------------------------------------------------------------------
+- * confdb_key, confdb_obj
+- * ------------------------------------------------------------------ */
+-
+-enum {
+-	CONFDB_SRV_EP_MAX = 16,
+-	CONFDB_FS_MAX     = 16,
+-	CONFDB_NICS_MAX   = 16,
+-	CONFDB_SDEVS_MAX  = 16,
+-	CONFDB_PART_MAX   = 16,
+-	CONFDB_UUID_SIZE  = 40,
+-	CONFDB_NAME_LEN   = 256,
+-
+-	/* XXX FIXME: very inaccurate estimations */
+-	CONFDB_REC_MAX    = sizeof(struct m0_confx_obj) + CONFDB_NAME_LEN * (
+-		CONFDB_SRV_EP_MAX + CONFDB_FS_MAX + CONFDB_NICS_MAX +
+-		CONFDB_SDEVS_MAX + CONFDB_PART_MAX)
+-};
+-
+-static int
+-confx_fill(struct m0_confx *dest, struct m0_be_btree *btrees[])
+-{
+-	struct m0_be_btree_cursor bcur;
+-	size_t                    ti;    /* index in tables[] */
+-	int                       rc;
+-	size_t                    i = 0; /* index in dest->cx_objs[] */
+-
+-	M0_ENTRY();
+-	M0_PRE(dest->cx_nr > 0);
+-
+-	for (ti = M0_CO_PROFILE; ti <= M0_CO_PARTITION; ++ti) {
+-		m0_be_btree_cursor_init(&bcur, btrees[ti]);
+-		for (rc = m0_be_btree_cursor_first_sync(&bcur); rc == 0;
+-		     rc = m0_be_btree_cursor_next_sync(&bcur), ++i) {
+-			struct confdb_obj dbobj;
+-			m0_be_btree_cursor_kv_get(&bcur, &dbobj.do_key,
+-						  &dbobj.do_rec);
+-			M0_ASSERT(i < dest->cx_nr);
+-			rc = confx_from_db(&dest->cx_objs[i], ti, &dbobj);
+-			if (rc != 0) {
+-				m0_be_btree_cursor_fini(&bcur);
+-				goto out;
+-			}
+-		}
+-		m0_be_btree_cursor_fini(&bcur);
+-		M0_ASSERT(rc == -ENOENT); /* end of the table */
+-		rc = 0;
+-	}
+-out:
+-	if (rc == 0) {
+-		M0_POST(i == dest->cx_nr);
+-	} else {
+-		for (; i > 0; --i)
+-			m0_free(dest->cx_objs[i].o_id.b_addr);
+-		confx_free(dest);
+-		M0_SET0(dest);
+-	}
+-	M0_RETURN(rc);
+-}
+-
+-M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
+-{
+-	struct m0_be_btree *btrees[ARRAY_SIZE(table_names)];
+-	int                 i;
+-	int                 rc;
+-	size_t              nr_objs = 0;
+-
+-	M0_ENTRY();
+-
+-	for (i = 0; i < ARRAY_SIZE(table_names); ++i) {
+-		if (table_names[i] == NULL)
+-			continue;
+-		rc = m0_be_seg_dict_lookup(seg, table_names[i],
+-					   (void **)&btrees[i]);
+-		if (rc != 0)
+-			return rc;
+-	}
+-	rc = confdb_objs_count(btrees, &nr_objs);
+-	if (rc != 0)
+-		goto out;
+-	if (nr_objs == 0) {
+-		rc = -ENODATA;
+-		goto out;
+-	}
+-	*out = confx_alloc(nr_objs);
+-	if (*out == NULL) {
+-		rc = -ENOMEM;
+-		goto out;
+-	}
+-
+-	rc = confx_fill(*out, btrees);
+-	if (rc != 0) {
+-		confx_free(*out);
+-		*out = NULL;
+-	}
+-out:
+-	M0_RETURN(rc);
+-}
+-
+-#undef M0_TRACE_SUBSYSTEM
+diff --git a/conf/preload.c b/conf/preload.c
+index 08b65a3..5bacc3a 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -35,6 +35,10 @@
+ #include "be/alloc.h"
+ #include "be/op.h"
+ 
++/*
++ * Contains BE segment memory allocation details corresponding to the
++ * configuration object struct confx_ctx::cc_confx.
++ */
+ struct confx_ctx {
+ 	void                *cc_ptr;
+ 	m0_bcount_t          cc_total;
+@@ -103,10 +107,10 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc, struct m0_be_seg *seg)
+ 
+ static size_t confstr_to_obj_size(const char *s)
+ {
+-	int slen = 0;
+-	uint32_t type;
+-	uint32_t nr_confx_obj;
+-	size_t obj_size = 0;
++	int                   slen = 0;
++	uint32_t              type;
++	uint32_t              nr_confx_obj;
++	size_t                obj_size = 0;
+ 	static const uint32_t conf_objtype_size[M0_CO_NR] = {
+ 			[M0_CO_DIR]     = 0,
+ 			[M0_CO_PROFILE] = sizeof(struct m0_confx_profile),
+@@ -117,15 +121,15 @@ static size_t confstr_to_obj_size(const char *s)
+ 			[M0_CO_SDEV] = sizeof(struct m0_confx_sdev),
+ 			[M0_CO_PARTITION] = sizeof(struct m0_confx_partition)
+ 	};
+-        static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
+-                               /* NONE  PRE   IN POST */
+-                [M0_XA_RECORD]   = { 0, '(',   0, ')' },
+-                [M0_XA_UNION]    = { 0, '{',   0, '}' },
+-                [M0_XA_SEQUENCE] = { 0, '[',   0, ']' },
+-                [M0_XA_TYPEDEF]  = { 0,   0,   0,   0 },
+-                [M0_XA_OPAQUE]   = { 0,   0,   0,   0 },
+-                [M0_XA_ATOM]     = { 0,   0,   0,   0 }
+-        };
++	static const char structure[M0_XA_NR][M0_XCODE_CURSOR_NR] = {
++					/* NONE  PRE   IN POST */
++			[M0_XA_RECORD]   = { 0, '(',   0, ')' },
++			[M0_XA_UNION]    = { 0, '{',   0, '}' },
++			[M0_XA_SEQUENCE] = { 0, '[',   0, ']' },
++			[M0_XA_TYPEDEF]  = { 0,   0,   0,   0 },
++			[M0_XA_OPAQUE]   = { 0,   0,   0,   0 },
++			[M0_XA_ATOM]     = { 0,   0,   0,   0 }
++	};
+ 
+ 	/* calculate number of struct m0_confx_obj objects. */
+ 	if (*s != '\0' && *s == '[') {
+-- 
+1.8.3.2
+

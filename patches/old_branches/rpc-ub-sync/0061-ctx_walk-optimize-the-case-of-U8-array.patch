@@ -1,0 +1,116 @@
+From 7a6c005191b728f5c841b2ccb18565ea831b083b Mon Sep 17 00:00:00 2001
+From: Nikita Danilov <nikita_danilov@xyratex.com>
+Date: Fri, 29 Mar 2013 22:30:04 +0400
+Subject: [PATCH 61/63] ctx_walk(): optimize the case of U8 array. (cherry
+ picked from commit 0242356a1f1e5aa0192c54e24c4b63bdc69b180b)
+
+---
+ xcode/string.c |  4 +---
+ xcode/xcode.c  | 30 +++++++++++++++++++++++++++---
+ xcode/xcode.h  |  5 +++++
+ 3 files changed, 33 insertions(+), 6 deletions(-)
+
+diff --git a/xcode/string.c b/xcode/string.c
+index fb90881..e93d6dd 100644
+--- a/xcode/string.c
++++ b/xcode/string.c
+@@ -159,9 +159,7 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
+ 				if (result != 0)
+ 					return result;
+ 			}
+-			if (xt->xct_aggr == M0_XA_SEQUENCE &&
+-			    xt->xct_child[1].xf_type == &M0_XT_U8 &&
+-			    *str == '"') {
++			if (m0_xcode_is_byte_array(xt) && *str == '"') {
+ 				/* string literal */
+ 				result = string_literal(cur, ++str);
+ 				if (result < 0)
+diff --git a/xcode/xcode.c b/xcode/xcode.c
+index c3db290..9ddf24c 100644
+--- a/xcode/xcode.c
++++ b/xcode/xcode.c
+@@ -132,6 +132,15 @@ enum xcode_op {
+ 	XO_NR
+ };
+ 
++static bool at_array(const struct m0_xcode_cursor       *it,
++		     const struct m0_xcode_cursor_frame *prev,
++		     const struct m0_xcode_obj          *par)
++{
++	return it->xcu_depth > 0 && par->xo_type->xct_aggr == M0_XA_SEQUENCE &&
++		prev->s_fieldno == 1 && prev->s_elno == 0 &&
++		m0_xcode_tag(par) > 0;
++}
++
+ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
+ {
+ 	const struct m0_xcode_cursor_frame *prev;
+@@ -180,9 +189,7 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
+ 		nob = size;
+ 		slot = &obj->xo_ptr;
+ 	} else {
+-		if (pt->xct_aggr == M0_XA_SEQUENCE &&
+-		    prev->s_fieldno == 1 && prev->s_elno == 0 &&
+-		    m0_xcode_tag(par) > 0)
++		if (at_array(it, prev, par))
+ 			/* allocate array */
+ 			nob = m0_xcode_tag(par) * size;
+ 		else if (pt->xct_child[prev->s_fieldno].xf_type == &M0_XT_OPAQUE)
+@@ -198,6 +205,12 @@ static void **allocp(struct m0_xcode_cursor *it, size_t *out)
+ 	return slot;
+ }
+ 
++M0_INTERNAL bool m0_xcode_is_byte_array(const struct m0_xcode_type *xt)
++{
++	return xt->xct_aggr == M0_XA_SEQUENCE &&
++		xt->xct_child[1].xf_type == &M0_XT_U8;
++}
++
+ M0_INTERNAL ssize_t
+ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
+ 		   void *(*alloc)(struct m0_xcode_cursor *, size_t))
+@@ -276,7 +289,14 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
+ 			}
+ 			m0_xcode_skip(it);
+ 		} else if (xt->xct_aggr == M0_XA_ATOM) {
++			struct m0_xcode_cursor_frame *prev = top - 1;
++			struct m0_xcode_obj          *par  = &prev->s_obj;
++			bool array = at_array(it, prev, par) &&
++				m0_xcode_is_byte_array(par->xo_type);
++
+ 			size = xt->xct_sizeof;
++			if (array)
++				size *= m0_xcode_tag(par);
+ 
+ 			if (op == XO_LEN)
+ 				length += size;
+@@ -304,6 +324,10 @@ static int ctx_walk(struct m0_xcode_ctx *ctx, enum xcode_op op)
+ 							  src, size) != size)
+ 					result = -EPROTO;
+ 			}
++			if (array) {
++				it->xcu_depth--;
++				m0_xcode_skip(it);
++			}
+ 		}
+ 		if (result < 0)
+ 			break;
+diff --git a/xcode/xcode.h b/xcode/xcode.h
+index 4d12932..88e137a 100644
+--- a/xcode/xcode.h
++++ b/xcode/xcode.h
+@@ -563,6 +563,11 @@ M0_INTERNAL int m0_xcode_data_size(struct m0_xcode_ctx *ctx,
+ M0_INTERNAL void *m0_xcode_alloc(struct m0_xcode_cursor *it, size_t nob);
+ 
+ /**
++   True iff "xt" is an array of bytes.
++ */
++M0_INTERNAL bool m0_xcode_is_byte_array(const struct m0_xcode_type *xt);
++
++/**
+    Handles memory allocation during decoding.
+ 
+    This function takes an xcode iteration cursor and, if necessary, allocates
+-- 
+1.8.3.2
+

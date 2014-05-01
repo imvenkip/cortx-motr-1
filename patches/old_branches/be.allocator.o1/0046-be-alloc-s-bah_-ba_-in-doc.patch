@@ -1,0 +1,64 @@
+From 6cf3b475930b0f85826727c586fdae0d16df1356 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 9 Jan 2014 07:35:21 +0200
+Subject: [PATCH 46/96] be/alloc: s/bah_/ba_/ in doc
+
+---
+ be/alloc.c   | 4 ++--
+ be/alloc.h   | 4 ++--
+ mero/magic.h | 4 ++--
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 826acfd..e0179cc 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -85,8 +85,8 @@
+  * - user data in chunk located just after allocator data;
+  *
+  * Two lists of chunks are maintained:
+- * - m0_be_allocator.bah_chunks contains all chunks - the chunks list;
+- * - m0_be_allocator.bah_free contains free chunks - the free list.
++ * - m0_be_allocator.ba_chunks contains all chunks - the chunks list;
++ * - m0_be_allocator.ba_free contains free chunks - the free list.
+  *
+  * Lists of chunks restrictions:
+  * - all chunks in a list are ordered by address;
+diff --git a/be/alloc.h b/be/alloc.h
+index c7e2b20..c5079df 100644
+--- a/be/alloc.h
++++ b/be/alloc.h
+@@ -116,8 +116,8 @@ struct m0_be_allocator_stats {
+ /**
+  * @brief Allocator.
+  *
+- * - allocator space begins at m0_be_allocator.bah_addr and have size
+- *   m0_be_allocator.bah_size bytes;
++ * - allocator space begins at m0_be_allocator.ba_addr and have size
++ *   m0_be_allocator.ba_size bytes;
+  * - resides in a segment address space;
+  * - is a part of a segment header. It may be changed in the future;
+  * - contains list headers for chunks lists.
+diff --git a/mero/magic.h b/mero/magic.h
+index 64209aa..9537eba 100644
+--- a/mero/magic.h
++++ b/mero/magic.h
+@@ -143,13 +143,13 @@ enum m0_magic_satchel {
+ 	/* be_alloc_chunk::bac_magic1 (codices bad id) */
+ 	M0_BE_ALLOC_MAGIC1 = 0xc0d1ce5bad1d,
+ 
+-	/* m0_be_allocator::bah_chunks (alcaaba solod) */
++	/* m0_be_allocator::ba_chunks (alcaaba solod) */
+ 	M0_BE_ALLOC_ALL_MAGIC = 0xa1caaba5010d,
+ 
+ 	/* be_alloc_chunk::bac_magic (official feis) */
+ 	M0_BE_ALLOC_ALL_LINK_MAGIC = 0x0ff1c1a1fe15,
+ 
+-	/* m0_be_allocator::bah_free (cascadia aloe) */
++	/* m0_be_allocator::ba_free (cascadia aloe) */
+ 	M0_BE_ALLOC_FREE_MAGIC = 0xca5cad1aa10e,
+ 
+ 	/* be_alloc_chunk::bac_magic_free (edifice faded) */
+-- 
+1.8.3.2
+

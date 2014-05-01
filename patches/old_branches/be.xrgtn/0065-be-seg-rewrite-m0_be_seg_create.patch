@@ -1,0 +1,195 @@
+From fb2d591756a86fb94c6e3cec4e92e510c5d392bd Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Thu, 30 May 2013 17:49:23 +0300
+Subject: [PATCH 065/228] be/seg: rewrite m0_be_seg_create()
+
+---
+ be/seg.c | 127 ++++++++++++++++++++++++++++++++++++---------------------------
+ 1 file changed, 73 insertions(+), 54 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index 168f017..bdd960c 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -43,72 +43,91 @@ struct be_seg_hdr {
+ 	m0_bcount_t bh_size;  /* segment size */
+ };
+ 
+-static void seg_io_prepare(struct m0_be_seg *seg, struct m0_stob_io *io)
+-{
+-	static m0_bcount_t count[] = { sizeof(struct be_seg_hdr) };
+-
+-	io->si_flags  = 0;
+-
+-	io->si_fol_rec_part = (void *)1; /* XXX log/payload/opcode-spec-dat */
+-
+-	io->si_user.ov_vec.v_nr    = 1;
+-	io->si_user.ov_vec.v_count = count;
+-	io->si_user.ov_buf         = (void **) seg->bs_addr;
+-
+-	io->si_stob.iv_vec.v_nr    = 1;
+-	io->si_stob.iv_vec.v_count = count;
+-	io->si_stob.iv_index       = BE_SEG_HEADER_OFFSET;
+-}
+-
+-static void seg_header_prepare(struct m0_be_seg *seg, struct m0_stob_io *io,
+-			       m0_bcount_t size)
+-{
+-	struct be_seg_hdr *header = (struct be_seg_hdr *)seg->bs_addr;
+-
+-	/* fill segment header */
+-	header->bh_addr = BE_SEG_DEFAULT_ADDR;
+-	header->bh_size = size;
+-
+-	seg_io_prepare(seg, io);
+-}
+-
+-static int seg_header_write(struct m0_be_seg *seg, m0_bcount_t size)
++static int stob_io_single_write(void *buf, m0_bcount_t bufsize,
++				struct m0_stob *stob,
++				m0_bindex_t offs, uint32_t bshift)
+ {
++	size_t            bsize;
++	m0_bcount_t       wrcnt[1];    /* sectors counts */
++	m0_bindex_t       wroffs[1];   /* offsets */
++	void             *bufpk[1];  /* "packed" addresses */
+ 	struct m0_stob_io io;
+ 	struct m0_clink   clink;
+ 	int               rc;
+ 
++	bsize = 1 << bshift;
++
++	/* Set up io struct for reading. */
+ 	m0_stob_io_init(&io);
+-	io.si_opcode = SIO_WRITE;
+-	seg_header_prepare(seg, &io, size);
++	wrcnt[0]                  = (bufsize + bsize - 1) / bsize;
++	bufpk[0]                  = m0_stob_addr_pack(buf, bshift);
++	io.si_flags               = 0;
++	io.si_opcode              = SIO_WRITE;
++	io.si_user.ov_buf         = bufpk;
++	io.si_user.ov_vec.v_nr    = 1;
++	io.si_user.ov_vec.v_count = wrcnt;
++	wroffs[0]                 = (m0_bindex_t)
++				    m0_stob_addr_pack((void *)offs,
++						      bshift);
++	io.si_stob.iv_index       = wroffs;
++	io.si_stob.iv_vec.v_nr    = 1;
++	io.si_stob.iv_vec.v_count = wrcnt;
++	io.si_fol_rec_part        = (void *)1;
+ 
+ 	m0_clink_init(&clink, NULL);
+-	m0_clink_add(&io.si_wait, &clink);
+-
+-	rc = m0_stob_io_launch(&io, seg->bs_stob, NULL, NULL);
+-	M0_ASSERT(rc == 0); /* XXX FIXME handle errors */
+-
+-	m0_chan_wait(&clink);
+-	m0_clink_del(&clink);
++	m0_clink_add_lock(&io.si_wait, &clink);
++	rc = m0_stob_io_launch(&io, stob, NULL, NULL);
++	if (rc == 0) {
++		m0_chan_wait(&clink);
++		rc = io.si_rc;
++	}
++	m0_clink_del_lock(&clink);
+ 	m0_clink_fini(&clink);
+ 	m0_stob_io_fini(&io);
+ 
+-	return io.si_rc;
++	return rc;
+ }
+ 
+-M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size)
++static int seg_header_create(struct m0_be_seg *seg, void *addr,
++			     m0_bcount_t size)
+ {
+-	int rc;
++	uint32_t           st_block_shift;
++	size_t             st_block_size;
++	struct be_seg_hdr *hdrbuf;      /* seg hdr buffer */
++	m0_bcount_t        hdrblocks;   /* number of sectors */
++	int                rc;
+ 
++	/* Allocate buffer for segment header. */
++	st_block_shift = seg->bs_stob->so_op->sop_block_shift(seg->bs_stob);
++	st_block_size = 1 << st_block_shift;
++	hdrblocks = (sizeof(struct be_seg_hdr) + st_block_size - 1) /
++		st_block_size;
++	hdrbuf = m0_alloc_aligned(hdrblocks * st_block_size, st_block_shift);
++	if (hdrbuf == NULL)
++		return -ENOMEM;
++
++	/* Write segment header to storage. */
++	hdrbuf->bh_addr = addr;
++	hdrbuf->bh_size = size;
++	M0_ASSERT(hdrbuf->bh_addr != NULL);
++	M0_ASSERT(m0_addr_is_aligned(hdrbuf->bh_addr, st_block_shift));
++	rc = stob_io_single_write(hdrbuf, sizeof(struct be_seg_hdr),
++				  seg->bs_stob, BE_SEG_HEADER_OFFSET,
++				  st_block_shift);
++
++	return rc;
++}
++
++M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg, m0_bcount_t size)
++{
+ 	M0_PRE(seg->bs_state == M0_BSS_INIT);
+ 	M0_PRE(seg->bs_stob->so_domain != NULL);
+ 	M0_PRE(seg->bs_stob->so_state != CSS_EXISTS);
+ 
+-	rc = m0_stob_find(seg->bs_stob->so_domain,
+-			  &seg->bs_stob->so_id, &seg->bs_stob) ?:
+-	     m0_stob_create(seg->bs_stob, NULL) ?: seg_header_write(seg, size);
+-
+-	return rc;
++	return m0_stob_find(seg->bs_stob->so_domain,
++			    &seg->bs_stob->so_id, &seg->bs_stob) ?:
++		m0_stob_create(seg->bs_stob, NULL) ?:
++		seg_header_create(seg, BE_SEG_DEFAULT_ADDR, size);
+ }
+ 
+ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
+@@ -140,11 +159,11 @@ bool m0_be__reg_invariant(const struct m0_be_reg *reg)
+ 		reg->br_addr != NULL;
+ }
+ 
+-static int stob_io_single_read(void *buf, m0_bcount_t bufsz,
++static int stob_io_single_read(void *buf, m0_bcount_t bufsize,
+ 			       struct m0_stob *stob,
+-			       m0_bindex_t offs, uint32_t pgshift)
++			       m0_bindex_t offs, uint32_t bshift)
+ {
+-	size_t            pgsz;
++	size_t            bsize;
+ 	m0_bcount_t       rdcnt[1];    /* sectors counts */
+ 	m0_bindex_t       rdoffs[1];   /* offsets */
+ 	void             *rdbufpk[1];  /* "packed" addresses */
+@@ -152,12 +171,12 @@ static int stob_io_single_read(void *buf, m0_bcount_t bufsz,
+ 	struct m0_clink   clink;
+ 	int               rc;
+ 
+-	pgsz = 1 << pgshift;
++	bsize = 1 << bshift;
+ 
+ 	/* Set up io struct for reading. */
+ 	m0_stob_io_init(&io);
+-	rdcnt[0]                  = (bufsz + pgsz - 1) / pgsz;
+-	rdbufpk[0]                = m0_stob_addr_pack(buf, pgshift);
++	rdcnt[0]                  = (bufsize + bsize - 1) / bsize;
++	rdbufpk[0]                = m0_stob_addr_pack(buf, bshift);
+ 	io.si_flags               = 0;
+ 	io.si_opcode              = SIO_READ;
+ 	io.si_user.ov_buf         = rdbufpk;
+@@ -165,7 +184,7 @@ static int stob_io_single_read(void *buf, m0_bcount_t bufsz,
+ 	io.si_user.ov_vec.v_count = rdcnt;
+ 	rdoffs[0]                 = (m0_bindex_t)
+ 				    m0_stob_addr_pack((void *)offs,
+-						      pgshift);
++						      bshift);
+ 	io.si_stob.iv_index       = rdoffs;
+ 	io.si_stob.iv_vec.v_nr    = 1;
+ 	io.si_stob.iv_vec.v_count = rdcnt;
+-- 
+1.8.3.2
+

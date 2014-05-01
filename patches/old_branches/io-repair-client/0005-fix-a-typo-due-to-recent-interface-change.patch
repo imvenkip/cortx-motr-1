@@ -1,0 +1,25 @@
+From 7ef1e6dcf48e4aa8d22ea3ec6e942261a65a5242 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Mon, 17 Dec 2012 12:37:13 +0800
+Subject: [PATCH 5/6] fix a typo due to recent interface change
+
+---
+ m0t1fs/linux_kernel/ut/file.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/m0t1fs/linux_kernel/ut/file.c b/m0t1fs/linux_kernel/ut/file.c
+index 085c24e..a49e898 100644
+--- a/m0t1fs/linux_kernel/ut/file.c
++++ b/m0t1fs/linux_kernel/ut/file.c
+@@ -803,7 +803,7 @@ static void target_ioreq_test(void)
+ 	buf = map->pi_paritybufs[page_id(0)]
+ 		[LAY_N % data_col_nr(pdlay)];
+ 
+-	tgt.ta_frame = LAY_N;
++	src.sa_unit  = LAY_N;
+ 	target_ioreq_seg_add(&ti, &src, &tgt, 0, 0, PAGE_CACHE_SIZE, map);
+ 	M0_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
+ 	M0_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
+-- 
+1.8.3.2
+

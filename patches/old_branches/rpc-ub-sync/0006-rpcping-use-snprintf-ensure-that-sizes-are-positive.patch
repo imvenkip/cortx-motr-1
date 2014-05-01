@@ -1,0 +1,77 @@
+From 28f4a261d53cc4d969cdc02aabdbf7a655436df6 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 7 Mar 2013 19:45:06 +0200
+Subject: [PATCH 06/63] rpcping: use snprintf(); ensure that sizes are positive
+
+Use snprintf() instead of sprintf().
+
+max_rpc_msg_size and tm_recv_queue_len can be <= 0 --- they come
+from kernel module option or from CLI argument.  Handle this
+case by using default values.
+---
+ rpc/it/rpc_ping.c  | 19 +++++++++++++------
+ rpc/ut/rpclib_ut.c |  2 +-
+ 2 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/rpc/it/rpc_ping.c b/rpc/it/rpc_ping.c
+index 6d274d3..b6e24ae 100644
+--- a/rpc/it/rpc_ping.c
++++ b/rpc/it/rpc_ping.c
+@@ -68,7 +68,6 @@ enum ep_type { EP_SERVER, EP_CLIENT };
+ 
+ enum {
+ 	BUF_LEN		   = 128,
+-	STRING_LEN	   = 16,
+ 	M0_LNET_PORTAL     = 34,
+ 	MAX_RPCS_IN_FLIGHT = 32,
+ 	CLIENT_COB_DOM_ID  = 13,
+@@ -400,8 +399,15 @@ static void quit_dialog(void)
+ 	read(0, &ch, sizeof ch);
+ }
+ 
++static int int2str(char *dest, size_t size, int src, int defval)
++{
++	int rc = snprintf(dest, size, "%d", src > 0 ? src : defval);
++	return (rc < 0 || rc >= size) ? -EINVAL : 0;
++}
++
+ static int run_server(void)
+ {
++	enum { STRING_LEN = 16 };
+ 	static char tm_len[STRING_LEN];
+ 	static char rpc_size[STRING_LEN];
+ 	int	    rc;
+@@ -421,11 +427,12 @@ static int run_server(void)
+ 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
+ 	};
+ 
+-	if (tm_recv_queue_len != 0)
+-		sprintf(tm_len, "%d" , tm_recv_queue_len);
+-
+-	if (max_rpc_msg_size != 0)
+-		sprintf(rpc_size, "%d" , max_rpc_msg_size);
++	rc = int2str(tm_len, sizeof tm_len, tm_recv_queue_len,
++		     M0_NET_TM_RECV_QUEUE_DEF_LEN) ?:
++	     int2str(rpc_size, sizeof rpc_size, max_rpc_msg_size,
++		     M0_RPC_DEF_MAX_RPC_MSG_SIZE);
++	if (rc != 0)
++		return rc;
+ 
+ 	rc = m0_init();
+ 	if (rc != 0)
+diff --git a/rpc/ut/rpclib_ut.c b/rpc/ut/rpclib_ut.c
+index a82b621..a82d28c 100644
+--- a/rpc/ut/rpclib_ut.c
++++ b/rpc/ut/rpclib_ut.c
+@@ -117,7 +117,7 @@ out:
+ 
+ static void test_rpclib(void)
+ {
+-	int                    rc;
++	int rc;
+ 
+ 	/*
+ 	 * There is no need to initialize xprt explicitly if client and server
+-- 
+1.8.3.2
+

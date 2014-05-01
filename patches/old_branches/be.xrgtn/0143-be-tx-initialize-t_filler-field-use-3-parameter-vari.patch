@@ -1,0 +1,46 @@
+From c00bcf59163f26ce3452d31a49186003c42f0729 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Wed, 12 Jun 2013 11:53:49 +0300
+Subject: [PATCH 143/228] be/tx: initialize t_filler field, use 3-parameter
+ variant of the callback.
+
+---
+ be/tx.c | 5 +++--
+ be/tx.h | 3 ++-
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 09be17e..8c07afb 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -234,10 +234,11 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, uint64_t tid,
+ {
+ 	M0_PRE(tx != NULL);
+ 	m0_sm_init(&tx->t_sm, &tx_sm_conf, M0_BTS_INIT, tx_grp);
+-	tx->t_id = tid;
+-	tx->t_be = be;
++	tx->t_id         = tid;
++	tx->t_be         = be;
+ 	tx->t_persistent = persistent;
+ 	tx->t_discarded  = discarded;
++	tx->t_filler     = filler;
+ 	be_tx_credit_init(&tx->t_prepared);
+ 	be_tx_credit_init(&tx->t_captured);
+ 	be_tx_credit_init(&tx->t_used);
+diff --git a/be/tx.h b/be/tx.h
+index e4e135f..0d601f6 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -563,7 +563,8 @@ struct m0_be_tx {
+ 	 * A typical use of this call-back is to form a "fol record" used by DTM
+ 	 * for distributed transaction management.
+ 	 */
+-	void                 (*t_filler)(struct m0_be_tx *tx, void *payload);
++	void                 (*t_filler)(struct m0_be_tx *tx, void *payload,
++					 void *datum);
+ 	/**
+ 	 * User-specified value, associated with the transaction. Transaction
+ 	 * engine doesn't interpret this value. It can be used to pass
+-- 
+1.8.3.2
+

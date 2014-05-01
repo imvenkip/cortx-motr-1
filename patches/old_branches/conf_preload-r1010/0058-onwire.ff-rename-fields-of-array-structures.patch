@@ -1,0 +1,38 @@
+From bf0cf6a2740900b47624447d05f2710b015249f9 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 13 Mar 2012 18:24:57 +0200
+Subject: [PATCH 058/311] onwire.ff: rename fields of array structures
+
+---
+ conf/onwire.ff | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/conf/onwire.ff b/conf/onwire.ff
+index add076d..c662997 100644
+--- a/conf/onwire.ff
++++ b/conf/onwire.ff
+@@ -43,16 +43,16 @@ DEF(c2_conf_pathcomp, UNION,
+  */
+ 
+ DEF(arr_u64, SEQUENCE,
+-    _(af_count, U32),
+-    _(af_data,  U64));
++    _(an_count, U32),
++    _(an_elems, U64));
+ 
+ DEF(arr_buf, SEQUENCE,
+     _(ab_count, U32),
+-    _(ab_data,  c2_conf_buf));
++    _(ab_elems, c2_conf_buf));
+ 
+ DEF(arr_pathcomp, SEQUENCE,
+-    _(c_nr,   U32),
+-    _(c_data, c2_conf_pathcomp));
++    _(ap_count, U32),
++    _(ap_elems, c2_conf_pathcomp));
+ 
+ DEF(objid, RECORD,
+     _(oi_objtype, U32), /* see c2_conf_objtype for values */
+-- 
+1.8.3.2
+

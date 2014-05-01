@@ -1,0 +1,269 @@
+From e296e2dd9b90c7718eacf2255d72db59fd887f4f Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 30 May 2013 17:09:44 +0300
+Subject: [PATCH 064/290] be (tx): use `m0_be__' prefix for invariants
+
+* Invariants are "internal" interfaces. We use `m0_be__' prefix
+  (double underscore), since applications must not concern about
+  such interfaces.
+
+* be/tx.h: Group credit interfaces together.
+---
+ be/tx.c | 49 +++++++++++++++++++++++++------------------------
+ be/tx.h | 33 +++++++++++++++++----------------
+ 2 files changed, 42 insertions(+), 40 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index b4286b7..51e3d25 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -72,12 +72,12 @@ M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine)
+ 	m0_forall(i, ARRAY_SIZE(engine->te_txs),
+ 		  tx_tlist_init(&engine->te_txs[i]));
+ 	m0_rwlock_init(&engine->te_lock);
+-	M0_POST(m0_be_tx_engine_invariant(engine));
++	M0_POST(m0_be__tx_engine_invariant(engine));
+ }
+ 
+ M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine)
+ {
+-	M0_PRE(m0_be_tx_engine_invariant(engine));
++	M0_PRE(m0_be__tx_engine_invariant(engine));
+ 	m0_rwlock_fini(&engine->te_lock);
+ 	m0_forall(i, ARRAY_SIZE(engine->te_txs),
+ 		  tx_tlist_fini(&engine->te_txs[i]));
+@@ -95,12 +95,12 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx,
+ 	tx->t_persistent = persistent;
+ 	tx->t_discarded  = discarded;
+ 	tx_tlink_init_at(tx, tx_engine(tx)->te_txs[M0_BTS_INIT]);
+-	M0_POST(m0_be_tx_invariant(tx));
++	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ {
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	tx_tlink_del_fini(tx);
+ 	m0_sm_fini(&tx->t_sm);
+ }
+@@ -108,10 +108,10 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ M0_INTERNAL void
+ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
+ {
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	M0_PRE(tx_state(tx) == M0_BTS_INIT);
+ 	m0_be_tx_credit_add(&tx->t_prepared, credit);
+-	M0_POST(m0_be_tx_invariant(tx));
++	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+@@ -120,7 +120,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 	struct m0_be_tx_credit *prepared = &tx->t_prepared;
+ 	struct m0_bcount_t      log_size = tx_prepared_log_size(tx);
+ 
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	M0_PRE(tx_state(tx) == M0_BTS_PREPARE);
+ 	M0_ALLOC_ARR(tx->t_reg_d_area, prepared->tc_reg_nr);
+ 	M0_ALLOC_ARR(tx->r_reg_area, prepared->tc_reg_size);
+@@ -136,7 +136,7 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
+ 		m0_free(tx->t_reg_d_area);
+ 		m0_free(tx->t_reg_area);
+ 	}
+-	M0_POST(m0_be_tx_invariant(tx));
++	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ M0_INTERNAL void
+@@ -146,7 +146,7 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 	struct m0_be_reg_d *rd       = &tx->t_reg_d_area[used->tc_reg_nr];
+ 	m0_bcount_t size             = reg->br_size;
+ 
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	M0_PRE(tx_state(tx) == M0_BTS_ACTIVE);
+ 	rd->rd_seg_id = reg->br_seg->bs_id;
+ 	rd->rd_offset = reg->br_addr - reg->br_seg->bs_addr;
+@@ -158,7 +158,7 @@ m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
+ 	/**
+ 	 * @todo XXX assign group to transaction, add region to the group tree.
+ 	 */
+-	M0_POST(m0_be_tx_invariant(tx));
++	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx,
+@@ -174,14 +174,14 @@ M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx,
+ 
+ 	M0_PRE(tx_state(tx) == M0_BTS_ACTIVE);
+ 	tx_engine_lock(eng);
+-	M0_PRE(m0_be_tx_engine_invariant(tx));
++	M0_PRE(m0_be__tx_engine_invariant(tx));
+ 	eng->te_inmem = tx;
+ 	tx_state_set(tx, M0_BTS_CLOSED);
+ 	M0_ASSERT(used <= prepared);
+ 	M0_ASSERT(eng->te_reserved + log_used >= log_prepared);
+ 	eng->te_reserved -= prepared - used;
+ 	tx_engine_got_space(eng);
+-	M0_POST(m0_be_tx_engine_invariant(tx));
++	M0_POST(m0_be__tx_engine_invariant(tx));
+ 	tx_engine_unlock(eng);
+ }
+ 
+@@ -215,19 +215,19 @@ static void tx_engine_got_space(struct m0_be_tx_engine *eng)
+ {
+ 	struct m0_be_tx *head;
+ 
+-	M0_PRE(m0_be_tx_engine_invariant(eng));
++	M0_PRE(m0_be__tx_engine_invariant(eng));
+ 	while ((head = tx_tlist_head(&eng->te_txs[M0_BTS_OPENING])) != NULL &&
+ 	       tx_prepared_log_size(head) <= tx_engine_free_space(eng))
+ 		tx_open_tail(head);
+-	M0_POST(m0_be_tx_engine_invariant(eng));
++	M0_POST(m0_be__tx_engine_invariant(eng));
+ }
+ 
+ static void tx_state_set(struct m0_be_tx *tx, enum m0_be_tx_state state)
+ {
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	m0_sm_state_set(&tx->t_sm, state);
+ 	tx_link(tx);
+-	M0_POST(m0_be_tx_invariant(tx));
++	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ static void tx_open_tail(struct m0_be_tx *tx)
+@@ -243,9 +243,9 @@ static void tx_open_tail(struct m0_be_tx *tx)
+ 
+ static void tx_fail(struct m0_be_tx *tx, int errno)
+ {
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	m0_sm_fail(&tx->t_sm, M0_BTS_FAILED, errno);
+-	M0_POST(m0_be_tx_invariant(tx));
++	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ static enum m0_be_tx_state tx_state_get(const struct m0_be_tx *tx)
+@@ -255,15 +255,15 @@ static enum m0_be_tx_state tx_state_get(const struct m0_be_tx *tx)
+ 
+ static void tx_link(struct m0_be_tx *tx)
+ {
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	tx_tlist_move(tx_engine(tx)->tx_txs[tx->t_state], tx);
+-	M0_POST(m0_be_tx_invariant(tx));
++	M0_POST(m0_be__tx_invariant(tx));
+ }
+ 
+ static m0_bindex_t tx_log_loc(const struct m0_be_tx *tx)
+ {
+ 	M0_PRE(tx->t_group != NULL);
+-	M0_PRE(m0_be_tx_invariant(tx));
++	M0_PRE(m0_be__tx_invariant(tx));
+ 	return tx->t_group->tg_log_loc;
+ }
+ 
+@@ -292,13 +292,14 @@ static m0_be_tx_engine *tx_engine(const struct m0_be_tx *tx)
+ 	return &tx->t_be.b_tx;
+ }
+ 
+-M0_INTERNAL bool m0_be_tx_engine_invariant(const struct m0_be_tx_engine *engine)
++M0_INTERNAL bool
++m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ {
+ 	struct m0_be_log *log  = &engine->te_log;
+ 	struct m0_be_tx  *prev = NULL;
+ 	return
+ 		m0_forall(i, M0_BTS_NR, m0_tl_forall(tx, tx, &engine->te_txs[i],
+-		     m0_be_tx_invariant(tx) &&
++		     m0_be__tx_invariant(tx) &&
+ 		     ergo(prev != NULL,
+ 			  prev->t_key > tx->t_key &&
+ 			  ergo(prev->t_group != NULL,
+@@ -319,7 +320,7 @@ M0_INTERNAL bool m0_be_tx_engine_invariant(const struct m0_be_tx_engine *engine)
+ 		tx_engine_free_space(te) <= te->te_log.lg_size;
+ }
+ 
+-M0_INTERNAL bool m0_be_tx_invariant(const struct m0_be_tx *tx)
++M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx)
+ {
+ 	enum m0_be_tx_state state = tx_state_get(tx);
+ 	return
+diff --git a/be/tx.h b/be/tx.h
+index 7fd5b95..9f77de2 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -119,13 +119,11 @@ struct m0_be_tx_engine {
+ };
+ 
+ M0_INTERNAL bool
+-m0_be_tx_engine_invariant(const struct m0_be_tx_engine *engine);
++m0_be__tx_engine_invariant(const struct m0_be_tx_engine *engine);
+ 
+ M0_INTERNAL void m0_be_tx_engine_init(struct m0_be_tx_engine *engine);
+ M0_INTERNAL void m0_be_tx_engine_fini(struct m0_be_tx_engine *engine);
+ 
+-typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
+-
+ struct m0_be_tx_credit {
+ 	/**
+ 	 * The number of regions needed for operation representation in the
+@@ -137,6 +135,21 @@ struct m0_be_tx_credit {
+ 	m0_bcount_t tc_reg_size;
+ };
+ 
++M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
++
++/** c0 += c1 */
++M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
++				     const struct m0_be_tx_credit *c1);
++
++/** c *= k */
++M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
++
++struct m0_be_txgroup {
++	struct m0_tl tg_tx;
++};
++
++typedef void (*m0_be_tx_cb_t)(const struct m0_be_tx *tx);
++
+ struct m0_be_tx {
+ 	struct m0_sm           t_sm;
+ 	uint64_t               t_id;
+@@ -153,11 +166,8 @@ struct m0_be_tx {
+ 	m0_be_tx_cb_t          t_persistent;
+ 	m0_be_tx_cb_t          t_discarded;
+ };
+-M0_INTERNAL bool m0_be_tx_invariant(const struct m0_be_tx *tx);
+ 
+-struct m0_be_txgroup {
+-	struct m0_tl tg_tx;
+-};
++M0_INTERNAL bool m0_be__tx_invariant(const struct m0_be_tx *tx);
+ 
+ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx,
+ 			       uint64_t tid,
+@@ -192,15 +202,6 @@ M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
+  */
+ M0_INTERNAL void m0_be_tx_stable(struct m0_be_tx *tx);
+ 
+-M0_INTERNAL void m0_be_tx_credit_init(struct m0_be_tx_credit *credit);
+-
+-/** c0 += c1 */
+-M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
+-				     const struct m0_be_tx_credit *c1);
+-
+-/** c *= k */
+-M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k);
+-
+ /** @} end of be group */
+ #endif /* __MERO_BE_TX_H__ */
+ 
+-- 
+1.8.3.2
+

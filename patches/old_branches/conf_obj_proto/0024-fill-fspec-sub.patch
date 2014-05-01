@@ -1,0 +1,115 @@
+From a5f9a7e09059b18bd6049c8057882e78a1d0ac02 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 28 Feb 2012 15:59:52 +0200
+Subject: [PATCH 024/370] fill fspec-sub
+
+---
+ conf/confc.c |  8 ++++++++
+ conf/confc.h | 44 +++++++++++++++++++++++++++++++-------------
+ 2 files changed, 39 insertions(+), 13 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index a56f2fd..2505aed 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -286,9 +286,15 @@ end:
+ 	return ret;
+ }
+ 
++static inline bool confc_is_initiated(void)
++{
++	return confc_cache.cc_sm_group != NULL && confc_cache.cc_root != NULL;
++}
++
+ int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+ 		  const struct c2_conf_pathcomp *path, size_t path_len)
+ {
++	C2_PRE(confc_is_initiated());
+ 	C2_PRE(ctx->fc_path.p_comps == NULL);
+ 
+ 	ctx->fc_path.p_origin = path_origin;
+@@ -312,6 +318,8 @@ void * c2_confc_open_sync(const struct c2_conf_path *path)
+ 	int rc;
+ 	void *ret = NULL;
+ 
++	C2_PRE(confc_is_initiated());
++
+ 	c2_confc_ctx_init(&ctx);
+ 	rc = c2_confc_open(path, &ctx);
+ 	if (rc == 0) {
+diff --git a/conf/confc.h b/conf/confc.h
+index ab42728..f060fcf 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -36,9 +36,6 @@
+  *
+  * - @ref confc-dld-fspec-data
+  * - @ref confc-dld-fspec-sub
+- *   - @ref confc-dld-fspec-sub-tors
+- *   - @ref confc-dld-fspec-sub-accessors
+- *   - @ref confc-dld-fspec-sub-modifiers
+  * - @ref confc-dld-fspec-recipes
+  *   - @ref confc-dld-fspec-recipes-setup
+  *   - @ref confc-dld-fspec-recipes-open
+@@ -60,19 +57,26 @@
+  * <hr> <!------------------------------------------------------------->
+  * @section confc-dld-fspec-sub  Subroutines
+  *
+- * XXX
+- *
+- * @subsection confc-dld-fspec-sub-tors  Constructors and Destructors
++ * - c2_confc_init(): initiates configuration client.
++ * - c2_confc_fini(): terminates confc, destroys configuration cache.
+  *
+- * XXX
++ * - c2_confc_ctx_init()
++ * - c2_confc_ctx_fini()
+  *
+- * @subsection confc-dld-fspec-sub-accessors  Accessors and Invariants
++ * - c2_confc_open(): requests asynchronous opening of configuration object.
++ * - c2_confc_open_sync(): opens configuration object synchronously.
++ * - c2_confc_close(): closes a configuration object.
+  *
+- * XXX
++ * - c2_confc_diropen(): requests asynchronous opening of a collection
++ *   of configuration objects.
++ * - c2_confc_diropen_sync(): opens a collection of configuration
++ *   objects synchronously.
++ * - c2_confc_dirnext(): returns the next configuration object of a
++ *   collection.
++ * - c2_confc_dirclose(): closes a collection of configuration objects.
+  *
+- * @subsection confc-dld-fspec-sub-modifiers  Operational Interfaces
+- *
+- * XXX
++ * - c2_confc_error(): returns the error status for the asynchronous
++ *   configuration request.
+  *
+  * <hr> <!------------------------------------------------------------->
+  * @section confc-dld-fspec-recipes  Recipes
+@@ -337,7 +341,21 @@ struct c2_confc_dir * c2_confc_diropen_sync(struct c2_conf_obj *path_origin,
+ 					    const struct c2_conf_pathcomp *path,
+ 					    size_t path_len);
+ 
+-void * c2_confc_dirnext(struct c2_confc_dir *dir);
++/**
++ * Returns a pointer to the next configuration object of given
++ * collection.  Returns NULL if at the end of collection.
++ *
++ * c2_confc_dirnext() is used to navigate collections of configuration
++ * objects:
++ *
++ * @code
++ * const struct c2_conf_obj *obj;
++ *
++ * while ((obj = c2_confc_dirnext(dir)) != NULL)
++ *         consume(obj);
++ * @endcode
++ */
++const void * c2_confc_dirnext(struct c2_confc_dir *dir);
+ 
+ void c2_confc_dirclose(struct c2_confc_dir *dir);
+ 
+-- 
+1.8.3.2
+

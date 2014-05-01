@@ -1,0 +1,30 @@
+From 4adefa0b3405eb18ab58144ce32a094078f419db Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 1 Mar 2013 01:55:28 +0200
+Subject: [PATCH 90/99] added logscale and invered palette for RTT pm3d map
+
+---
+ net/test/demo/demo.sh | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/net/test/demo/demo.sh b/net/test/demo/demo.sh
+index 0b2071d..08966cd 100755
+--- a/net/test/demo/demo.sh
++++ b/net/test/demo/demo.sh
+@@ -1149,9 +1149,12 @@ plot_pm3d()
+ 	local measurement="$1"
+ 
+ 	$ECHO "set pm3d at bstbst map"
+-	$ECHO "set palette"
++	$ECHO_N "set palette"
++	[ "$measurement" == "RTT" ] && $ECHO_N " negative"
++	$ECHO
+ 	$ECHO "set cbtics format " \
+ 	      "\"${measurement_format[$measurement]}\" font \",8\""
++	[ "$measurement" == "RTT" ] && $ECHO "set logscale cb"
+ }
+ 
+ plot_3d_fence()
+-- 
+1.8.3.2
+

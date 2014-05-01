@@ -1,0 +1,243 @@
+From f1a84da412b25d547919cc72157735feea118756 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 27 Dec 2012 11:30:28 +0530
+Subject: [PATCH 033/172] m0_composite_layer_ext_lookup() to return ext_state
+ as well
+
+---
+ db/extmap.c           |  4 +--
+ layout/composite.c    |  2 ++
+ layout/composite.h    |  6 ++---
+ layout/ut/composite.c | 74 +++++++++++++++++++++++++++++++--------------------
+ 4 files changed, 51 insertions(+), 35 deletions(-)
+
+diff --git a/db/extmap.c b/db/extmap.c
+index 098c4f1..aabe43a 100644
+--- a/db/extmap.c
++++ b/db/extmap.c
+@@ -18,9 +18,7 @@
+  */
+ 
+ #if 0
+-#include <stdio.h>     /* asprintf */
+-#include <stdlib.h>
+-#include <string.h>
++#include <stdio.h>       /* printf */
+ #endif
+ 
+ #include "lib/vec.h"
+diff --git a/layout/composite.c b/layout/composite.c
+index 01e52d4..cd78a54 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -1494,6 +1494,7 @@ int m0_composite_layer_ext_lookup(const struct m0_composite_layout *cl,
+ 				  struct m0_db_tx *tx,
+ 				  uint32_t *layer_idx,
+ 				  struct m0_ext *ext,
++				  enum m0_composite_layer_ext_state *state,
+ 				  struct m0_layout **sublayout)
+ {
+ 	struct m0_emap            *emap;
+@@ -1534,6 +1535,7 @@ int m0_composite_layer_ext_lookup(const struct m0_composite_layout *cl,
+ 	if (found == true) {
+ 		*layer_idx = i;
+ 		*ext = seg->ee_ext;
++		*state = seg->ee_val;
+ 		layer = layer_find(cl, *layer_idx);
+ 		M0_ASSERT(layer != NULL);
+ 		*sublayout = layer->clr_l;
+diff --git a/layout/composite.h b/layout/composite.h
+index 277b0bf..ff46be6 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -48,8 +48,8 @@
+  * 5) Eventually, “layout flattening” will be invoked that will convert
+  *    composite layouts to new non-composite layouts. (Future)
+  *
+- * @todo Is it necessary that the extents owned by various layers are exclusive
+- * of each other?
++ * @todo Imagination is that the extents owned by various layers are exclusive
++ * of each other. Shall this be enforced through the invariants?
+  *
+  * @{
+  */
+@@ -232,12 +232,12 @@ int m0_composite_layer_add(struct m0_composite_layout *cl,
+  * available m0_emap_lookup(). Is it ok OR it should be changed to look up
+  * into the in-memory list of the extents?
+  */
+-// todo Dec 14 Lookup shall return ext_state as well.
+ int m0_composite_layer_ext_lookup(const struct m0_composite_layout *cl,
+ 				  m0_bindex_t offset,
+ 				  struct m0_db_tx *tx,
+ 				  uint32_t *layer_idx,
+ 				  struct m0_ext *ext,
++				  enum m0_composite_layer_ext_state *state,
+ 				  struct m0_layout **sublayout);
+ 
+ /**
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index bf107fe..5bef81c 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1463,14 +1463,15 @@ int test_ext_lookup_composite(uint64_t lid,
+ 			      uint32_t kind_of_extent_to_lookup,
+ 			      bool failure_test)
+ {
+-	struct m0_layout           *l;
+-	struct m0_composite_layout *cl;
+-	struct m0_ext               ext_to_lookup;
+-	struct m0_ext               ext;
+-	uint32_t                    layer_idx;
+-	struct m0_layout           *sublayout;
+-	struct m0_db_tx             tx;
+-	int                         rc_tmp;
++	struct m0_layout                  *l;
++	struct m0_composite_layout        *cl;
++	struct m0_ext                      ext_to_lookup;
++	enum m0_composite_layer_ext_state  ext_state_lookup;
++	struct m0_ext                      ext_lookup;
++	uint32_t                           layer_idx;
++	struct m0_layout                  *sublayout;
++	struct m0_db_tx                    tx;
++	int                                rc_tmp;
+ 
+ 	rc = test_add_composite(lid, domain, layers_nr,
+ 				min_extents_nr, min_start_offset,
+@@ -1489,18 +1490,20 @@ int test_ext_lookup_composite(uint64_t lid,
+ 	rc = m0_db_tx_init(&tx, domain->ld_dbenv, DBFLAGS);
+ 	M0_UT_ASSERT(rc == 0);
+ 
+-	ext.e_start = 0;
+-	ext.e_end = 0;
++	ext_lookup.e_start = 0;
++	ext_lookup.e_end = 0;
+ 	rc = m0_composite_layer_ext_lookup(cl, ext_to_lookup.e_start, &tx,
+-					   &layer_idx, &ext, &sublayout);
++					   &layer_idx, &ext_lookup,
++					   &ext_state_lookup, &sublayout);
+ 
+ 	rc_tmp = m0_db_tx_commit(&tx);
+ 	M0_UT_ASSERT(rc_tmp == 0);
+ 
+ 	if (kind_of_extent_to_lookup == EXACT_EXISTING) {
+ 		M0_UT_ASSERT(rc == 0);
+-		M0_UT_ASSERT(ext_to_lookup.e_start == ext.e_start);
+-		M0_UT_ASSERT(ext_to_lookup.e_end == ext.e_end);
++		M0_UT_ASSERT(ext_to_lookup.e_start == ext_lookup.e_start);
++		M0_UT_ASSERT(ext_to_lookup.e_end == ext_lookup.e_end);
++		M0_UT_ASSERT(ext_state_lookup == M0_CLRES_VALID);
+ 		M0_UT_ASSERT(sublayout->l_id == lid * 100 + layer_idx);
+ 	} else if (kind_of_extent_to_lookup == NON_EXISTING) {
+ 		M0_UT_ASSERT(rc == -ENOENT);
+@@ -1577,18 +1580,19 @@ int ext_operate(enum extent_op eop,
+ 		uint32_t kind_of_extent_to_operate,
+ 		bool failure_test)
+ {
+-	struct m0_layout           *l;
+-	struct m0_layout           *l_copy_orig;
+-	struct m0_layout           *l_copy_updated;
+-	struct m0_layout           *l_from_DB;
+-	struct m0_composite_layout *cl;
+-	struct m0_ext               ext_to_operate;
+-	struct m0_db_tx             tx;
+-	uint32_t                    layer_id_lookup;
+-	struct m0_ext               ext_lookup;
+-	struct m0_layout           *sublayout_lookup;
+-	m0_bindex_t                 offset_to_lookup;
+-	int                         rc_tmp;
++	struct m0_layout                  *l;
++	struct m0_layout                  *l_copy_orig;
++	struct m0_layout                  *l_copy_updated;
++	struct m0_layout                  *l_from_DB;
++	struct m0_composite_layout        *cl;
++	struct m0_ext                      ext_to_operate;
++	struct m0_db_tx                    tx;
++	uint32_t                           layer_id_lookup;
++	struct m0_ext                      ext_lookup;
++	enum m0_composite_layer_ext_state  ext_state_lookup;
++	struct m0_layout                  *sublayout_lookup;
++	m0_bindex_t                        offset_to_lookup;
++	int                                rc_tmp;
+ 
+ 	/*
+ 	 * Build a composite layout, add it to the DB and add some layers to
+@@ -1626,6 +1630,7 @@ int ext_operate(enum extent_op eop,
+ 		rc = m0_composite_layer_ext_lookup(cl, offset_to_lookup,
+ 						   &tx, &layer_id_lookup,
+ 						   &ext_lookup,
++						   &ext_state_lookup,
+ 						   &sublayout_lookup);
+ 		if (M0_IN(kind_of_extent_to_operate, (NON_EXISTING,
+ 						      OVERLAPPING_RIGHT,
+@@ -1635,9 +1640,11 @@ int ext_operate(enum extent_op eop,
+ 			M0_UT_ASSERT(rc == -ENOENT);
+ 		else {
+ 			M0_UT_ASSERT(rc == 0);
++			//todo Code duplication and organization
+ 			M0_UT_ASSERT(layer_id_lookup > 0);
+ 			M0_UT_ASSERT(ext_lookup.e_start <= offset_to_lookup);
+ 			M0_UT_ASSERT(ext_lookup.e_end > offset_to_lookup);
++			M0_UT_ASSERT(ext_state_lookup == M0_CLRES_VALID);
+ 			M0_UT_ASSERT(sublayout_lookup->l_id == lid * 100 +
+ 				     layer_id_lookup);
+ 		}
+@@ -1648,11 +1655,13 @@ int ext_operate(enum extent_op eop,
+ 		rc = m0_composite_layer_ext_lookup(cl, offset_to_lookup,
+ 						   &tx, &layer_id_lookup,
+ 						   &ext_lookup,
++						   &ext_state_lookup,
+ 						   &sublayout_lookup);
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(layer_id_lookup > 0);
+ 		M0_UT_ASSERT(ext_lookup.e_start <= offset_to_lookup);
+ 		M0_UT_ASSERT(ext_lookup.e_end > offset_to_lookup);
++		M0_UT_ASSERT(ext_state_lookup == M0_CLRES_VALID);
+ 		M0_UT_ASSERT(sublayout_lookup->l_id == lid * 100 +
+ 			     layer_id_lookup);
+ 	} else if (eop == EXTENT_UPDATE) {
+@@ -1661,14 +1670,15 @@ int ext_operate(enum extent_op eop,
+ 		rc = m0_composite_layer_ext_lookup(cl, ext_to_operate.e_start,
+ 						   &tx, &layer_id_lookup,
+ 						   &ext_lookup,
++						   &ext_state_lookup,
+ 						   &sublayout_lookup);
+ 		if (kind_of_extent_to_operate == NON_EXISTING ||
+ 		    kind_of_extent_to_operate == OVERLAPPING_RIGHT)
+ 			M0_UT_ASSERT(rc == -ENOENT);
+ 		else
++			/* todo Other validation. */
+ 			M0_UT_ASSERT(rc == 0);
+ 
+-
+ 		rc = m0_composite_layer_ext_delete(cl, 1, &ext_to_operate,
+ 						   &tx);
+ 		M0_UT_ASSERT(rc == 0);
+@@ -1676,16 +1686,22 @@ int ext_operate(enum extent_op eop,
+ 		rc = m0_composite_layer_ext_lookup(cl, ext_to_operate.e_start,
+ 						   &tx, &layer_id_lookup,
+ 						   &ext_lookup,
++						   &ext_state_lookup,
+ 						   &sublayout_lookup);
+ 		//todo devise the ext_del TCs more accurately
+-#if 1
+ 		if (kind_of_extent_to_operate == NON_EXISTING ||
+ 		    kind_of_extent_to_operate == OVERLAPPING_RIGHT)
+ 		//todo ext_delete does not yet seem to be working
+ 			M0_UT_ASSERT(rc == -ENOENT);
+-		else
++		else {
++			/* todo Ideally shud get ENOENT for each case. */
++			M0_UT_ASSERT(M0_IN(kind_of_extent_to_operate,
++					   (EXACT_EXISTING,
++					    OVERLAPPING_LEFT,
++					    OVERLAPPING_COMPLETE)));
++			/* todo Other validation. */
+ 			M0_UT_ASSERT(rc == 0);
+-#endif
++		}
+ 		//todo M0_UT_ASSERT(rc == -ENOENT);
+ 	}
+ 
+-- 
+1.8.3.2
+

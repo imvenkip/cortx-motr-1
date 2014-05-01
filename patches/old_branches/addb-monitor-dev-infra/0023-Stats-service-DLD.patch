@@ -1,0 +1,362 @@
+From b8f3c568e84960aa92ad68c3c82e807385e898df Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Wed, 26 Jun 2013 16:10:05 +0530
+Subject: [PATCH 023/107]  - Stats service DLD    - functional spec    -
+ logical specs    - tests
+
+---
+ addb/stats_srv.c | 217 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ addb/stats_srv.h |  31 +++++++-
+ 2 files changed, 243 insertions(+), 5 deletions(-)
+
+diff --git a/addb/stats_srv.c b/addb/stats_srv.c
+index 9179a1c..50ede51 100644
+--- a/addb/stats_srv.c
++++ b/addb/stats_srv.c
+@@ -68,30 +68,95 @@
+    @section DLD-stats-svc-lspecs Logical Specification
+    @subsection DLD-stats-svc-lspec-state State Transitions
+ 
++   State diagram for stats_update FOM:
++   @dot
++   digraph {
++	size = "5,10"
++	node [shape=record, fontsize=10]
++	S0 [label="Init Update FOM"]
++	S1 [label="Update Stats object"]
++	S2 [label="Finliase FOM"]
++	S0 -> S1 [label="FOM initialised"]
++	S1 -> S2 [label="Stats object updated]
++   }
++   @enddot
++
++   State diagram for stats_query FOM:
++   @dot
++   digraph {
++	size = "5,10"
++	node [shape=record, fontsize=10]
++	S0 [label="Init Query FOM"]
++	S1 [label="Read stats object and set reply FOP"]
++	S2 [label="Finliase FOM"]
++	S0 -> S1 [label="FOM initialised"]
++	S1 -> S2 [label="Stats object read"]
++   }
++   @enddot
++
+    @subsection DLD-stats-svc-lspec-thread Threading and Concurrency Model
++   - Since stats service runs by request handler and all stats service FOMs
++     locality is same, all the stats services requests (updates/query) executes
++     by same thread. All stats service operation executes serially.
+ 
+    @subsection DLD-stats-svc-lspec-service-registration Service Registration
++   - Stats service type defination :
++
++   M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
++                            M0_STATS_SVC_NAME, &m0_addb_ct_stats_service);
++
++   - Stats service type registration/unregistration :
++
++   Stats service registers/unregistrs its service type with request handler
++   using interfaces m0_stats_svc_register()/m0_stats_svc_unregister() during
++   Mero system initialization and finalization (m0_init()/m0_fini()).
+ 
+    @subsection DLD-stats-svc-lspec-numa NUMA optimizations
++   Update FOM and query FOM puts in same locality thread.
+ 
+    @subsection DLD-stats-svc-lspec-depends Dependencies
++   - <b> r.reqh<b> : Request handler to execute stats service FOMs.
++   - <b> r.addb<b> : ADDB subsystem is the dependancy for stats service since
++     these stats object are in the form of ADDB records. And ADDB subsystem
++     required to recognise that objects.
+ 
+    @subsection DLD-stats-svc-lspec-conformance Conformance
++   - <b>i.stats-service.in-memory-objects</b> It implements list of ADDB records
++     to keep stats run time.
++   - <b>i.stats-service.update</b> It implements stats_update FOM.
++   - <b>i.stats-service.query</b> It implements stats_query FOM.
+ 
+    <hr>
+    @section DLD-stats-svc-ut Unit Tests
++   -# Test stats update with single stats parameter
++   -# Test stats update with multiple stats parameters
++   -# Test stats query with single stats parameter
++   -# Test stats query with multiple stats parameters
+ 
+    <hr>
+    @section DLD-stats-svc-it Integration Test
++   Mero nodes sends stats (differnet 2-3 type stats) to stats service,
++   verification of stats sent by Mero node with respective stats object.
+ 
+    <hr>
+    @section DLD-stats-svc-st System Test
++   This tests whole monitoring infrastructure by running some sample IOs on
++   on Mero and verify statistics collected by querying statistic service using
++   client/monitoring utility.
+ 
+    <hr>
+    @section DLD-stats-svc-O Analysis
++   - Keeping stats info as ADDB record provide generic way to for all types
++     of stats objects. It also helpful to send it over network.
+ 
+    <hr>
+    @section DLD-stats-svc-ref References
++   - <a href="https://docs.google.com/a/xyratex.com/document/d/
++14uPeE0mNkRu3oF32Ys_EnpvSZtGWbf8hviPHTBTOXso/edit">
++   HLD of ADDB Monitoring</a>
++   - <a href="https://docs.google.com/a/xyratex.com/document/d/
++1lBgPht18RYX7s9XL-FcfUBKZ0zvo6JzqAEsXpTWs_4Q/edit">
++   Mero Stats Service</a>
+  */
+ 
+ M0_TL_DESCR_DEFINE(stats, "statistic objects", M0_INTERNAL, struct m0_stats,
+@@ -107,6 +172,9 @@ static const struct m0_bob_type stats_svc_bob = {
+ 
+ M0_BOB_DEFINE(static, &stats_svc_bob, stats_svc);
+ 
++/* List of statistic objects. */
++static struct m0_tl stats_list;
++
+ /*
+  * Stats Service
+  */
+@@ -116,6 +184,9 @@ M0_BOB_DEFINE(static, &stats_svc_bob, stats_svc);
+  */
+ static int stats_svc_rso_start(struct m0_reqh_service *service)
+ {
++	M0_PRE(service != NULL);
++
++	return 0;
+ }
+ 
+ /**
+@@ -123,19 +194,23 @@ static int stats_svc_rso_start(struct m0_reqh_service *service)
+  */
+ static int stats_svc_rso_stop(struct m0_reqh_service *service)
+ {
++	M0_PRE(service != NULL);
++
++	return 0;
+ }
+ 
+ /**
+  * The rso_fini method to finalize the Stats service.
+  */
+-static void stats_svc_rso_fini(struct m0_reqh_service)
++static void stats_svc_rso_fini(struct m0_reqh_service *service)
+ {
++	M0_PRE(service != NULL);
+ }
+ 
+ static const struct m0_reqh_service_ops stats_svc_ops = {
+ 	.rso_start = stats_svc_rso_start,
+ 	.rso_stop  = stats_svc_rso_stop,
+-	.rso_fini  = stats_svc_rso_stop
++	.rso_fini  = stats_svc_rso_fini
+ };
+ 
+ /*
+@@ -172,9 +247,145 @@ M0_INTERNAL int m0_stats_svc_register(void)
+  */
+ M0_INTERNAL int m0_stats_svc_unregister(void)
+ {
+-	return m0_reqh_service_type_unregister(&m0_stats_svc_type);
++	m0_reqh_service_type_unregister(&m0_stats_svc_type);
++
++	return 0;
++}
++
++/*
++ * Stats Update FOM.
++ */
++
++/**
++ * Create and initiate stats update FOM.
++ */
++static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
++				   struct m0_reqh *reqh)
++{
++	M0_PRE(fop != NULL);
++	M0_PRE(out != NULL);
++
++	return 0;
++}
++
++/**
++ * State transition function for stats update FOM.
++ */
++static int stats_update_fom_tick(struct m0_fom *fom)
++{
++	M0_PRE(fom != NULL);
++
++	return 0;
++}
++
++/**
++ * Finalize stats update FOM.
++ */
++static void stats_update_fom_fini(struct m0_fom *fom)
++{
++	M0_PRE(fom != NULL);
++}
++
++/**
++ * Get stats update FOM locality.
++ */
++static size_t stats_update_fom_locality(const struct m0_fom *fom)
++{
++	return 1; /* all stats update FOM run in same locality */
++}
++
++/**
++ * Initialize addb context of stats update FOM.
++ */
++static void stats_update_fom_addb_init(struct m0_fom     *fom,
++				       struct m0_addb_mc *mc)
++{
++}
++
++/**
++ * Stats update FOM operation vector.
++ */
++static const struct m0_fom_ops stats_update_fom_ops = {
++	.fo_tick          = stats_update_fom_tick,
++	.fo_home_locality = stats_update_fom_locality,
++	.fo_addb_init     = stats_update_fom_addb_init,
++	.fo_fini          = stats_update_fom_fini
++};
++
++/**
++ * Stats update FOP type operation vector.
++ */
++const struct m0_fom_type_ops stats_update_fom_type_ops {
++	.fto_create = stats_update_fom_create,
++};
++
++/*
++ * Stats Query FOM
++ */
++
++/**
++ * Create and initiate stats query FOM.
++ */
++static int stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
++				  struct m0_reqh *reqh)
++{
++	M0_PRE(fop != NULL);
++	M0_PRE(out != NULL);
++
++	return 0;
++}
++
++/**
++ * State transition function for stats query FOM.
++ */
++static int stats_query_fom_tick(struct m0_fom *fom)
++{
++	M0_PRE(fom != NULL);
++
++	return 0;
++}
++
++/**
++ * Finalize stats query FOM.
++ */
++static void stats_query_fom_fini(struct m0_fom *fom)
++{
++	M0_PRE(fom != NULL);
+ }
+ 
++/**
++ * Get stats query FOM locality.
++ */
++static size_t stats_query_fom_locality(const struct m0_fom *fom)
++{
++	return 1; /* all stats query FOM run in same locality */
++}
++
++/**
++ * Initialize addb context of stats query FOM.
++ */
++static void stats_query_fom_addb_init(struct m0_fom     *fom,
++				      struct m0_addb_mc *mc)
++{
++}
++
++/**
++ * Stats update FOM operation vector.
++ */
++static const struct m0_fom_ops stats_query_fom_ops = {
++	.fo_tick          = stats_query_fom_tick,
++	.fo_home_locality = stats_query_fom_locality,
++	.fo_addb_init     = stats_query_fom_addb_init,
++	.fo_fini          = stats_query_fom_fini
++};
++
++/**
++ * Stats update FOP type operation vector.
++ */
++const struct m0_fom_type_ops stats_query_fom_type_ops {
++	.fto_create = stats_query_fom_create,
++};
++
+ /*
+  *  Local variables:
+  *  c-indentation-style: "K&R"
+diff --git a/addb/stats_srv.h b/addb/stats_srv.h
+index c11ceb8..08c56dd 100644
+--- a/addb/stats_srv.h
++++ b/addb/stats_srv.h
+@@ -32,13 +32,33 @@
+    @{
+ 
+    @section DLD-stats-svc-fspecs Functioanl Specification
+-   The primari data structures involved are:
++   @subsection DLD-stats-svc-fspecs-ds
+    - m0_mon_stats
+    - stats_svc
+    - stats_update_fom
+    - stats_query_fom
+ 
+-   The interfaces involved are:
++   @subsection DLD-stats-svc-fspecs-int-if
++   - stats_svc_rso_start
++   - stats_svc_rso_stop
++   - stats_svc_rso_fini
++   - stats_svc_rsto_service_allocate
++
++   - stats_update_fom_create
++   - stats_update_fom_tick
++   - stats_update_fom_home_locality
++   - stats_update_fom_addb_init
++   - stats_update_fom_fini
++
++   - stats_query_fom_create
++   - stats_query_fom_tick
++   - stats_query_fom_home_locality
++   - stats_query_fom_addb_init
++   - stats_query_fom_fini
++
++   @subsection DLD-stats-svc-fspecs-ext-if
++   - m0_stats_svc_register,
++   - m0_stats_svc_unregister
+ */
+ 
+ #define M0_STATS_SVC_NAME "stats"
+@@ -84,7 +104,14 @@ struct stats_query_fom {
+ 	struct m0_fom sqf_fom;
+ };
+ 
++/**
++ * Registers stats service.
++ */
+ M0_INTERNAL int m0_stats_svc_register(void);
++
++/**
++ * Un-registers stats service.
++ */
+ M0_INTERNAL int m0_stats_svc_unregister(void);
+ 
+ /** @} end group stats_service */
+-- 
+1.8.3.2
+

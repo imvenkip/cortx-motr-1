@@ -1,0 +1,307 @@
+From 3a97339af485ea829e8eb227d37ed80f551d73f0 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Fri, 24 May 2013 18:29:33 +0530
+Subject: [PATCH 146/157] ADDB related changes
+
+---
+ layout/composite.c   | 68 +++++++++++++++++++++++++---------------------------
+ layout/layout_addb.h | 45 ++++++++++++++--------------------
+ 2 files changed, 51 insertions(+), 62 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index c95c246..4773ba8 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -224,7 +224,7 @@ err3_injected:
+ 	if (rc != 0) {
+ 		m0_layout__log("composite_register",
+ 			       "failed to initialise layer_emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_REG_3, NULL, LID_NONE,
++			       M0_LAYOUT_ADDB_LOC_COMP_REG_2, NULL, LID_NONE,
+ 			       rc);
+ 		m0_free(csd);
+ 		return rc;
+@@ -345,7 +345,7 @@ static int layer_add(struct m0_composite_layout *cl,
+ 	if (lr_ext == NULL) {
+ 		m0_layout__log("layer_add",
+ 			       "failed to allocate layer extent",
+-			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ALLOC,
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EXT_ALLOC,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
+ 			       -ENOMEM);
+ 		m0_layout_put(layer->clr_sl);
+@@ -520,7 +520,7 @@ M0_INTERNAL int m0_composite_layer_add(struct m0_composite_layout *cl,
+ 	if (rc != 0) {
+ 		m0_layout__log("m0_composite_layer_add",
+ 			       "Failed to add layer",
+-			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_2,
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 
+ 	}
+@@ -639,7 +639,7 @@ static int sublayout_ids_inbuf_read(struct m0_composite_layout *cl,
+ 	if (sublayout_id_list == NULL) {
+ 		m0_layout__log("sublayout_ids_inbuf_read",
+ 			       "failed to allocate sublayout_id_list",
+-			       M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL,
++			       M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id,
+ 			       -ENOMEM);
+ 		M0_RETURN(-ENOMEM);
+@@ -669,7 +669,7 @@ static int ext_add(struct m0_tl *extlist,
+ 		   const struct m0_ext *ext,
+ 		   enum m0_composite_layer_ext_state ext_state,
+ 		   uint32_t add_position,
+-		   struct m0_composite_layer_extent *adjacent_lr_ext);
++		   struct m0_composite_layer_extent *adj_lr_ext);
+ 
+ /*
+  * Reads all the extents associated with each layer for a composite layout,
+@@ -725,7 +725,7 @@ static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 						M0_CLRES_FLATTENING))) {
+ 			m0_layout__log("extents_inbuf_read",
+ 				       "Invalid extent found in the buffer",
+-				       M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_2,
++				       M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ,
+ 				       &cl->cl_base.l_addb_ctx,
+ 				       cl->cl_base.l_id, -ENOMEM);
+ 			return -EINVAL;
+@@ -1101,7 +1101,7 @@ static int ext_add(struct m0_tl *extlist,
+ 		   const struct m0_ext *ext,
+ 		   enum m0_composite_layer_ext_state ext_state,
+ 		   uint32_t add_position,
+-		   struct m0_composite_layer_extent *adjacent_lr_ext) //todo adj
++		   struct m0_composite_layer_extent *adj_lr_ext)
+ {
+ 	struct m0_composite_layer_extent *lr_ext;
+ 
+@@ -1114,7 +1114,7 @@ static int ext_add(struct m0_tl *extlist,
+ 		M0_RETURN(-ENOMEM);
+ 	}
+ 	ext_add_internal(extlist, l, ext, ext_state, add_position,
+-			       adjacent_lr_ext, lr_ext);
++			 adj_lr_ext, lr_ext);
+ 	M0_RETURN(0);
+ }
+ 
+@@ -1202,7 +1202,7 @@ static void ext_split(struct m0_composite_layer *layer,
+ 		      struct m0_composite_layer_extent *lr_ext,
+ 		      struct m0_indexvec *vec,
+ 		      m0_bindex_t scan,
+-		      struct preallocated_extents *preallocated)
++		      struct preallocated_extents *prealloc)
+ {
+ 	struct m0_ext ext;
+ 	m0_bcount_t   len;
+@@ -1227,8 +1227,8 @@ static void ext_split(struct m0_composite_layer *layer,
+ 					 layer->clr_cl, &ext,
+ 					 vec->iv_index[i],
+ 					 ADD_BEFORE, lr_ext,
+-					 preallocated->ext[preallocated->max_used]); //todo indent
+-			preallocated->is_used[preallocated->max_used++] = true;
++					 prealloc->ext[prealloc->max_used]);
++			prealloc->is_used[prealloc->max_used++] = true;
+ 			M0_CNT_INC(layer->clr_extents_nr);
+ 		}
+ 	}
+@@ -1357,7 +1357,7 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 		     enum m0_composite_layer_ext_state new_ext_state,
+ 		     struct m0_composite_layer_extent *lr_ext_to_insert_into)
+ {
+-	struct preallocated_extents       preallocated;
++	struct preallocated_extents       prealloc;
+ 	struct m0_composite_layer_extent *lr_ext;
+ 	struct m0_composite_layer_extent *lr_ext_next;
+ 	struct m0_composite_layer_extent *lr_ext_to_del;
+@@ -1379,24 +1379,22 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 	 * extents those may be required together to paste the extent 'ext'.
+ 	 */
+ 	for (i = 0; i < PREALLOCATE_NR; ++i) {
+-		M0_ALLOC_PTR(preallocated.ext[i]);
+-		if (preallocated.ext[i] == NULL) {
++		M0_ALLOC_PTR(prealloc.ext[i]);
++		if (prealloc.ext[i] == NULL) {
+ 			rc = -ENOMEM;
+ 			break;
+ 		}
+-		preallocated.is_used[i] = false;
++		prealloc.is_used[i] = false;
+ 	}
+ 	if (rc != 0) {
+-		m0_layout__log("ext_paste",
+-			       "M0_ALLOC_PTR() failed",
+-			       M0_LAYOUT_ADDB_LOC_LIN_ALLOC, /*todo*/
+-			       &cl->cl_base.l_addb_ctx,
+-			       cl->cl_base.l_id, rc);
++		m0_layout__log("ext_paste", "M0_ALLOC_PTR() failed",
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_1,
++			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		for (j = i - 1; j > 0; --j)
+-			m0_free(preallocated.ext[j]);
++			m0_free(prealloc.ext[j]);
+ 		M0_RETURN(rc);
+ 	}
+-	preallocated.max_used = 0;
++	prealloc.max_used = 0;
+ 
+ 	is_ultimate_ext_add = false;
+ 	prev = ext_tlist_prev(&layer->clr_extents, lr_ext_to_insert_into);
+@@ -1452,7 +1450,7 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 		if (split_required) {
+ 			ext_split(layer, lr_ext_to_insert_into, &vec,
+ 				  length[0] > 0 ?
+-				  chunk->e_start : ext->e_start, &preallocated);
++				  chunk->e_start : ext->e_start, &prealloc);
+ 		}
+ 		if (delete_required)
+ 			ext_del(layer, lr_ext_to_del);
+@@ -1483,7 +1481,7 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 			M0_ASSERT(prev == NULL);
+ 			ext_add_internal(&layer->clr_extents, &cl->cl_base,
+ 					 ext, new_ext_state, ADD_AT_START, NULL,
+-					 preallocated.ext[preallocated.max_used]); //todo indent
++					 prealloc.ext[prealloc.max_used]);
+ 		} else {
+ 			M0_ASSERT(prev != NULL);
+ 			M0_ASSERT(ext_find(layer, &prev->cle_ext,
+@@ -1498,14 +1496,14 @@ static int ext_paste(struct m0_composite_layout *cl,
+ 						      prev);
+ 			ext_add_internal(&layer->clr_extents, &cl->cl_base,
+ 					 ext, new_ext_state, ADD_AFTER, prev,
+-				       preallocated.ext[preallocated.max_used]); //todo indent
++				       prealloc.ext[prealloc.max_used]);
+ 		}
+-		preallocated.is_used[preallocated.max_used++] = true;
++		prealloc.is_used[prealloc.max_used++] = true;
+ 		M0_CNT_INC(layer->clr_extents_nr);
+ 	}
+ 	for (i = 0; i < PREALLOCATE_NR; ++i) {
+-		if (!preallocated.is_used[i])
+-			m0_free(preallocated.ext[i]);
++		if (!prealloc.is_used[i])
++			m0_free(prealloc.ext[i]);
+ 	}
+ 	M0_RETURN(rc);
+ }
+@@ -1824,7 +1822,7 @@ err1_injected:
+ 	if (rc != 0)
+ 		m0_layout__log("ext_indb_write",
+ 			       "failed to paste an extent into emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE,
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_2,
+ 			       &layer->clr_cl->l_addb_ctx, layer->clr_cl->l_id,
+ 			       rc);
+ 
+@@ -1866,7 +1864,7 @@ err1_injected:
+ 	if (rc != 0) {
+ 		m0_layout__log("extents_indb_add",
+ 			       "failed to insert into layer_emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_1,
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		return rc;
+ 	}
+@@ -1953,7 +1951,7 @@ static int extents_indb_read(struct m0_composite_layout *cl,
+ 			rc = -EINVAL;
+ 			m0_layout__log("extents_indb_read",
+ 				       "Invalid extent found in the DB",
+-				       M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_3,
++				       M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ,
+ 				       &l->l_addb_ctx, l->l_id, -ENOMEM);
+ 			break;
+ 		}
+@@ -2031,7 +2029,7 @@ err1_injected:
+ 	if (rc != 0) {
+ 		m0_layout__log("single_ext_indb_write",
+ 			       "failed to lookup into layer_emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_EMAP_IT_SET,
++			       M0_LAYOUT_ADDB_LOC_COMP_EMAP_LOOKUP,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 		return rc;
+ 	}
+@@ -2044,7 +2042,7 @@ err2_injected:
+ 	if (rc != 0)
+ 		m0_layout__log("single_ext_indb_write",
+ 			       "failed to paste an extent into emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE,
++			       M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_3,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 	m0_emap_close(&it);
+ 	M0_RETURN(rc);
+@@ -2170,13 +2168,13 @@ err1_injected:
+ 			m0_layout__log("layer_indb_delete",
+ 				       "failed to decrement user count for a "
+ 				       "sublayout",
+-				       M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL,
++				       M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_1,
+ 				       &cl->cl_base.l_addb_ctx,
+ 				       cl->cl_base.l_id, rc);
+ 	} else
+ 		m0_layout__log("layer_indb_delete",
+ 			       "failed to delete from layer_emap",
+-			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL,
++			       M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_2,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 	M0_LEAVE("lid %llu, layer_idx %lu, rc %d",
+ 		 (unsigned long long)cl->cl_base.l_id,
+diff --git a/layout/layout_addb.h b/layout/layout_addb.h
+index c863142..0a99731 100644
+--- a/layout/layout_addb.h
++++ b/layout/layout_addb.h
+@@ -87,35 +87,26 @@ enum {
+ 	M0_LAYOUT_ADDB_LOC_UPDATE_2                = 191,
+ 	M0_LAYOUT_ADDB_LOC_COMP_REG_1              = 200,
+ 	M0_LAYOUT_ADDB_LOC_COMP_REG_2              = 201,
+-	M0_LAYOUT_ADDB_LOC_COMP_REG_3              = 202,
+ 	M0_LAYOUT_ADDB_LOC_COMP_ALLOC              = 210,
+ 	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ALLOC        = 220,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_1        = 230,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD_2        = 231,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_DEL_1        = 240,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_DEL_2        = 241,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_DEL_3        = 242,
+-	M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_1       = 250,
+-	M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ_2       = 251,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL   = 260,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD            = 370,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE         = 380,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_DELETE         = 390,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE          = 400,
+-	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ     = 410,
+-	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_ADD      = 420,
+-	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_DEL      = 430,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_1   = 440,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD_2   = 441,
+-	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_1        = 450,
+-	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_2        = 451,
+-	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ_3        = 452,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_WRITE          = 460,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYOUT_DEL         = 470,
+-	M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL     = 480,
+-	M0_LAYOUT_ADDB_LOC_COMP_EXT_LOOKUP         = 490,
+-	M0_LAYOUT_ADDB_LOC_COMP_EMAP_IT_SET        = 500,
+-	M0_LAYOUT_ADDB_LOC_COMP_INST_BUILD         = 510,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EXT_ALLOC    = 230,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_ADD          = 240,
++	M0_LAYOUT_ADDB_LOC_COMP_SUBLAYOUT_READ     = 250,
++	M0_LAYOUT_ADDB_LOC_COMP_ELIST_READ         = 260,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD_INTERNAL   = 270,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_ADD            = 380,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_UPDATE         = 390,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_DELETE         = 400,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_1        = 410,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_2        = 411,
++	M0_LAYOUT_ADDB_LOC_COMP_EXT_PASTE_3        = 412,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_EMAP_ADD     = 420,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_LOOKUP        = 430,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_READ          = 440,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_1   = 450,
++	M0_LAYOUT_ADDB_LOC_COMP_LAYER_INDB_DEL_2   = 451,
++	M0_LAYOUT_ADDB_LOC_COMP_EMAP_IT_SET        = 460,
++	M0_LAYOUT_ADDB_LOC_COMP_INST_BUILD         = 470,
+ 
+ 	M0_LAYOUT_ADDB_LOC_NR
+ };
+-- 
+1.8.3.2
+

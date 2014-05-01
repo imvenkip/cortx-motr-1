@@ -1,0 +1,80 @@
+From 571026504b185a227eece71064a59662db2697d6 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 9 Apr 2012 10:35:26 +0300
+Subject: [PATCH 124/311] System Tests: use @subsections instead of bullets
+
+---
+ conf/confc.c | 6 +++---
+ conf/confc.h | 4 ++++
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 1f56694..e72d6a9 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -538,7 +538,7 @@
+  *
+  * Actual output is compared with expected at `Compare' step.
+  *
+- * - Configuration data
++ * @subsection confc-dld-st-conf Configuration data
+  *
+  * confg generates "configuration string" --- an ASCII string
+  * introduced in @ref confc-offline.
+@@ -547,7 +547,7 @@
+  * confc's requests, confg will need to be changed to generate
+  * configuration database.
+  *
+- * - Queries
++ * @subsection confc-dld-st-queries Queries
+  *
+  * System tests cover three use cases (see @ref
+  * confc-dld-fspec-recipes):
+@@ -562,7 +562,7 @@
+  *
+  * A query is number of use case and values of input parameters.
+  *
+- * - Output
++ * @subsection confc-dld-st-output Output
+  *
+  * When the confc application from `Run' step (see above) runs a
+  * [configuration] query, it produces a string with textual
+diff --git a/conf/confc.h b/conf/confc.h
+index 0f03703..f7587fa 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -91,6 +91,7 @@
+  * - c2_confc_error() returns the error status for the asynchronous
+  *   configuration request.
+  *
++ * <!------------------------------------------------------------------>
+  * @subsection confc-dld-fspec-sub-setup Initialization and termination
+  *
+  * Prior to accessing configuration, the application (aka
+@@ -122,6 +123,7 @@
+  * }
+  * @endcode
+  *
++ * <!------------------------------------------------------------------>
+  * @subsection confc-dld-fspec-sub-use Accessing configuration objects
+  *
+  * The application gets access to configuration data by opening
+@@ -190,6 +192,7 @@
+  * }
+  * @endcode
+  *
++ * <!------------------------------------------------------------------>
+  * @subsection ex2  Getting configuration of a service of specific type
+  *
+  * @code
+@@ -221,6 +224,7 @@
+  * }
+  * @endcode
+  *
++ * <!------------------------------------------------------------------>
+  * @subsection ex3  List devices used by specific service on specific node
+  *
+  * @code
+-- 
+1.8.3.2
+

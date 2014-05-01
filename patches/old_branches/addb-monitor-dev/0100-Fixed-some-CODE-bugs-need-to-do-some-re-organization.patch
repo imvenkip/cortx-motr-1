@@ -1,0 +1,324 @@
+From cbaabf8e15068f73b528a8eab54eece30e964eb6 Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Fri, 4 Oct 2013 14:49:36 +0530
+Subject: [PATCH 100/125] Fixed some CODE bugs, need to do some re-organization
+ of CODE, These were triggered during UT initialization.
+
+Summaries : -
+1. Removed unnecessary 'stats service endpoint' argument from api m0_addb_monitors_init().
+2. BUG: addb monitor static ADDB context was registered & initialized during every REQH_INIT() calls.
+   This needs to be done, only during first call, (Some UTs do call REQH_INIT() more than once).
+3. Now, stats_conn_init()/fini() makes use of same argument(reqh) to make prototype symmetrical.
+4. stats_svc_conn_init()/fini() are exported.
+5. Currently m0_addb_monitor_summaries_post() is *disabled* (not compiled in), its causing some panic, thats
+   being debugged. This is done, so that verify that addb UTs pass conforming, that addb monitoring infrastructure
+   initialization CODE is working.
+6. Removed stats service endpoint argument from REQH_INIT() macro & made relevant changes to code.
+---
+ addb/addb_monitor.c          | 34 ++++++++++++++++------------------
+ addb/addb_monitor.h          | 16 +++++++++++++---
+ addb/addb_pfom.c             |  4 +++-
+ m0t1fs/linux_kernel/m0t1fs.c |  4 +---
+ mero/setup.c                 | 41 +++++++++++++++++++++++++++++++++--------
+ reqh/reqh.c                  |  7 ++-----
+ reqh/reqh.h                  |  2 --
+ rpc/rpclib.c                 |  7 +------
+ 8 files changed, 69 insertions(+), 46 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 90ea5ba..3279037 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -169,7 +169,7 @@ M0_TL_DEFINE(addb_mon, M0_INTERNAL, struct m0_addb_monitor);
+ struct m0_addb_ctx m0_addb_monitors_mod_ctx;
+ 
+ #ifndef __KERNEL__
+-static int stats_svc_conn_establish(struct m0_reqh *reqh)
++M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh)
+ {
+ 	int                           rc = 0;
+ 	const char                    *stats_svc_ep;
+@@ -251,28 +251,24 @@ out:
+ 	m0_mutex_unlock(&mon_ctx->amc_mutex);
+ }
+ 
+-M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh,
+-				      const char     *endpoint)
++M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh)
+ {
+ 	int                            rc = 0;
+ 	struct m0_addb_monitoring_ctx *mon_ctx;
++	const struct m0_addb_ctx_type *act;
+ 
+ 	M0_PRE(reqh != NULL);
+-	M0_PRE(endpoint != NULL);
+ 
+ 	mon_ctx = &reqh->rh_addb_monitoring_ctx;
+ 
+ 	addb_mon_tlist_init(&mon_ctx->amc_list);
+ 	m0_mutex_init(&mon_ctx->amc_mutex);
+-
+-#ifndef __KERNEL__
+-	rc = stats_svc_conn_establish(reqh);
+-	if (rc != 0)
+-		M0_RETERR(rc, "Stats service connection estalish failed\n");
+-#endif
+-	m0_addb_ctx_type_register(&m0_addb_ct_monitors_mod);
+-	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_addb_monitors_mod_ctx,
+-			&m0_addb_ct_monitors_mod, &m0_addb_proc_ctx);
++	act = m0_addb_ctx_type_lookup(M0_ADDB_CTXID_MONITORS_MOD);
++	if (act == NULL) {
++		m0_addb_ctx_type_register(&m0_addb_ct_monitors_mod);
++		M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_addb_monitors_mod_ctx,
++				 &m0_addb_ct_monitors_mod, &m0_addb_proc_ctx);
++	}
+ 
+ 	return rc;
+ }
+@@ -359,9 +355,14 @@ M0_INTERNAL void m0_addb_monitor_del(struct m0_reqh         *reqh,
+ }
+ 
+ #ifndef __KERNEL__
+-static void addb_stats_service_conn_fini(struct m0_addb_monitoring_ctx *mon_ctx)
++M0_INTERNAL void m0_addb_monitor_stats_svc_conn_fini(struct m0_reqh *reqh)
+ {
+-	int rc;
++	int                            rc;
++	struct m0_addb_monitoring_ctx *mon_ctx;
++
++	M0_PRE(reqh != NULL);
++
++	mon_ctx = &reqh->rh_addb_monitoring_ctx;
+ 
+ 	rc = m0_rpc_session_destroy(mon_ctx->amc_stats_session, M0_TIME_NEVER);
+ 	if (rc != 0)
+@@ -387,9 +388,6 @@ M0_INTERNAL void m0_addb_monitors_fini(struct m0_reqh *reqh)
+ 		m0_addb_monitor_fini(mon);
+ 	} m0_tl_endfor;
+ 
+-#ifndef __KERNEL__
+-	addb_stats_service_conn_fini(&reqh->rh_addb_monitoring_ctx);
+-#endif
+ 	addb_mon_tlist_fini(&reqh->rh_addb_monitoring_ctx.amc_list);
+ 	m0_mutex_unlock(&reqh->rh_addb_monitoring_ctx.amc_mutex);
+ 
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 1219ec7..ce33439 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -284,11 +284,9 @@ struct m0_addb_monitoring_ctx {
+  * @param mach RPC machine
+  * @param endpoint endpoint where stats service runs
+  * @pre reqh != NULL
+- * @pre endpoint != NULL
+  * @post reqh::rh_addb_monitoring_ctx:amg_list initialized
+  */
+-M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh,
+-				      const char     *endpoint);
++M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh);
+ 
+ /**
+  * Initialize ADDB monitor
+@@ -388,6 +386,18 @@ do {                                                                    \
+ 	m0__addb_post(mc, &pd);                                         \
+ } while (0)
+ 
++/**
++ * Establish rpc connection & session with stats service endpoint.
++ * @parm reqh Initialized request handler.
++ */
++M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh);
++
++/**
++ * Close rpc connection & session with stats service endpoint.
++ * @param reqh Initialized request handler.
++ */
++M0_INTERNAL void m0_addb_monitor_stats_svc_conn_fini(struct m0_reqh *reqh);
++
+ #endif /* __MERO_ADDB_ADDB_MONITOR_H__ */
+ /*
+  *  Local variables:
+diff --git a/addb/addb_pfom.c b/addb/addb_pfom.c
+index f574573..f8fe4bf 100644
+--- a/addb/addb_pfom.c
++++ b/addb/addb_pfom.c
+@@ -206,7 +206,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
+ 	struct m0_reqh_service *rsvc = &svc->as_reqhs;
+ 	int                     rc = M0_FSO_AGAIN;
+ 	m0_time_t               now;
+-	int                     err;
++//	int                     err;
+ 	M0_ENTRY();
+ 
+ 	switch (m0_fom_phase(fom)) {
+@@ -250,6 +250,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
+ 		M0_LOG(M0_DEBUG, "post");
+ 		m0_reqh_stats_post_addb(reqh);
+ 
++#if 0
+ 		err = m0_addb_monitor_summaries_post(svc->as_reqhs.rs_reqh,
+ 						     pfom);
+ 
+@@ -259,6 +260,7 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
+ 		 */
+ 		if (err != 0)
+ 			M0_LOG(M0_ERROR, "addb summary posting failed");
++#endif
+ 
+ /** Only needed for stobsink, so should not be called in kernel */
+ #ifndef __KERNEL__
+diff --git a/m0t1fs/linux_kernel/m0t1fs.c b/m0t1fs/linux_kernel/m0t1fs.c
+index ee1b57f..52243f7 100644
+--- a/m0t1fs/linux_kernel/m0t1fs.c
++++ b/m0t1fs/linux_kernel/m0t1fs.c
+@@ -259,9 +259,7 @@ static int m0t1fs_rpc_init(void)
+ 			  .rhia_db           = dbenv,
+ 			  .rhia_mdstore      = (void*)1,
+ 			  .rhia_fol          = fol,
+-			  .rhia_svc          = (void*)1,
+-			  /** @todo replace with stats service endpoint */
+-			  .rhia_stats_svc_ep = "REPLACE-ME");
++			  .rhia_svc          = (void*)1);
+ 	if (rc != 0)
+ 		goto dbenv_fini;
+ 	rc = m0_rpc_machine_init(rpc_machine, ndom, laddr, reqh,
+diff --git a/mero/setup.c b/mero/setup.c
+index 46ad487..5e8e5d0 100644
+--- a/mero/setup.c
++++ b/mero/setup.c
+@@ -49,6 +49,7 @@
+ #include "mero/version.h"
+ #include "rpc/rpclib.h"
+ #include "rpc/rpc_internal.h"
++#include "addb/addb_monitor.h"
+ 
+ /**
+    @addtogroup m0d
+@@ -589,6 +590,27 @@ static int cs_rpc_machines_init(struct m0_mero *cctx)
+ 	return rc;
+ }
+ 
++static int cs_addb_monitor_stats_svc_conn_init(struct m0_mero *cctx)
++{
++	int                          rc = 0;
++	struct m0_reqh_context      *rctx;
++
++	M0_PRE(cctx != NULL);
++
++	m0_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
++		M0_ASSERT(m0_reqh_context_invariant(rctx));
++		rc = m0_addb_monitor_stats_svc_conn_init(&rctx->rc_reqh);
++		if (rc != 0) {
++			/* @todo: LOG ADDB msg */
++			rc = 0;
++			break;
++		}
++
++	} m0_tl_endfor;
++
++	return rc;
++}
++
+ /**
+    Finalises all the rpc machines from the list of rpc machines present in
+    m0_reqh.
+@@ -611,8 +633,8 @@ static void cs_rpc_machines_fini(struct m0_reqh *reqh)
+ 	} m0_tl_endfor;
+ }
+ 
+-static uint32_t cs_domain_tms_nr(struct m0_mero *cctx,
+-				struct m0_net_domain *dom)
++static uint32_t cs_domain_tms_nr(struct m0_mero       *cctx,
++				 struct m0_net_domain *dom)
+ {
+ 	struct m0_reqh_context      *rctx;
+ 	struct cs_endpoint_and_xprt *ep;
+@@ -1432,9 +1454,7 @@ static int cs_request_handler_start(struct m0_reqh_context *rctx)
+ 			  .rhia_mdstore      = &rctx->rc_mdstore,
+ 			  .rhia_fol          = &rctx->rc_fol,
+ 			  .rhia_svc          = NULL,
+-			  .rhia_addb_stob    = rctx->rc_addb_stob.cas_stob,
+-			  /** @todo: Replace with stats service endpoint */
+-			  .rhia_stats_svc_ep = "REPLACE-ME");
++			  .rhia_addb_stob    = rctx->rc_addb_stob.cas_stob);
+ 	if (rc == 0) {
+ 		rctx->rc_state = RC_INITIALISED;
+ 		return 0;
+@@ -1508,8 +1528,11 @@ static void cs_request_handler_stop(struct m0_reqh_context *rctx)
+ 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
+ 		m0_reqh_mgmt_service_stop(reqh);
+ 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
+-
+-	m0_reqh_dbenv_fini(reqh);
++	cs_rpc_machines_fini(reqh);
++	if (reqh->rh_addb_monitoring_ctx.amc_stats_ep != NULL)
++		m0_addb_monitor_stats_svc_conn_fini(reqh);
++	m0_reqh_fini(reqh);
++	m0_fol_fini(&rctx->rc_fol);
+ 	m0_mdstore_fini(&rctx->rc_mdstore);
+ 	cs_addb_storage_fini(&rctx->rc_addb_stob);
+ 	cs_storage_fini(&rctx->rc_stob);
+@@ -2173,7 +2196,9 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
+ 		cs_net_domains_init(cctx) ?:
+ 		cs_buffer_pool_setup(cctx) ?:
+ 		cs_request_handlers_start(cctx) ?:
+-		cs_rpc_machines_init(cctx);
++		cs_rpc_machines_init(cctx) ?:
++		cctx->cc_stats_svc_epx.ex_endpoint != NULL ?
++		cs_addb_monitor_stats_svc_conn_init(cctx): 0;
+ 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
+ 
+ 	if (rc < 0) {
+diff --git a/reqh/reqh.c b/reqh/reqh.c
+index f87e3cc..08504f0 100644
+--- a/reqh/reqh.c
++++ b/reqh/reqh.c
+@@ -170,12 +170,9 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
+ 		reqh->rh_fol->f_reqh = reqh;
+ 
+ 	m0_addb_mc_init(&reqh->rh_addb_mc);
+-
+-	if (reqh_args->rhia_stats_svc_ep)
+-		rc = m0_addb_monitors_init(reqh,
+-					   reqh_args->rhia_stats_svc_ep);
++	rc = m0_addb_monitors_init(reqh);
+ 	if (rc != 0)
+-		return rc;
++		goto layout_types_unreg;
+ 
+ 	/** @todo Currently passing dbenv to this api, the duty of the
+ 	    thread doing the io is to create/use a local/embedded m0_dtx
+diff --git a/reqh/reqh.h b/reqh/reqh.h
+index f895010..0e3db00 100644
+--- a/reqh/reqh.h
++++ b/reqh/reqh.h
+@@ -199,8 +199,6 @@ struct m0_reqh_init_args {
+ 	    @see cs_addb_storage_init()
+ 	  */
+ 	struct m0_stob          *rhia_addb_stob;
+-	/** Stats service endpoint */
+-	const char              *rhia_stats_svc_ep;
+ };
+ 
+ /**
+diff --git a/rpc/rpclib.c b/rpc/rpclib.c
+index 5e48993..124eef3 100644
+--- a/rpc/rpclib.c
++++ b/rpc/rpclib.c
+@@ -150,12 +150,7 @@ int m0_rpc_client_start(struct m0_rpc_client_ctx *cctx)
+ 			  .rhia_db           = cctx->rcx_dbenv,
+ 			  .rhia_mdstore      = (void*)1,
+ 			  .rhia_fol          = &cctx->rcx_fol,
+-			  .rhia_svc          = (void*)1,
+-			  /**
+-			   * We need stats service endpoint
+-			   * not NULL, so that monitors init is called.
+-			   */
+-			  .rhia_stats_svc_ep = "UT");
++			  .rhia_svc          = (void*)1);
+ 	if (rc != 0)
+ 		goto err;
+ 	m0_reqh_start(&cctx->rcx_reqh);
+-- 
+1.8.3.2
+

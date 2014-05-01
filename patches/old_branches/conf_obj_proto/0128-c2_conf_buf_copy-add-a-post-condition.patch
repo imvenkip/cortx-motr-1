@@ -1,0 +1,53 @@
+From 74597f4fd0134bbf8fa63a0a0ae2f86f9273ea31 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 11 Apr 2012 12:07:35 +0300
+Subject: [PATCH 128/370] c2_conf_buf_copy(): add a post-condition
+
+HBND
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+Reviewed-on: https://reviewboard.clusterstor.com/r/714/
+---
+ conf/buf.c | 5 +++--
+ conf/buf.h | 3 ++-
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/conf/buf.c b/conf/buf.c
+index 5ce8566..2976ce9 100644
+--- a/conf/buf.c
++++ b/conf/buf.c
+@@ -26,8 +26,8 @@
+ 
+ bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y)
+ {
+-	return x->cb_size == y->cb_size
+-		&& memcmp(x->cb_data, y->cb_data, x->cb_size) == 0;
++	return x->cb_size == y->cb_size &&
++		memcmp(x->cb_data, y->cb_data, x->cb_size) == 0;
+ }
+ 
+ int c2_conf_buf_copy(struct c2_conf_buf *dest, const struct c2_conf_buf *src)
+@@ -38,5 +38,6 @@ int c2_conf_buf_copy(struct c2_conf_buf *dest, const struct c2_conf_buf *src)
+ 		return -ENOMEM;
+ 	dest->cb_size = src->cb_size;
+ 	memcpy(dest->cb_data, src->cb_data, src->cb_size);
++	C2_POST(c2_conf_buf_eq(dest, src));
+ 	return 0;
+ }
+diff --git a/conf/buf.h b/conf/buf.h
+index 88812ba..8789a9d 100644
+--- a/conf/buf.h
++++ b/conf/buf.h
+@@ -41,7 +41,8 @@ bool c2_conf_buf_eq(const struct c2_conf_buf *x, const struct c2_conf_buf *y);
+ /**
+  * Copies a buffer.
+  *
+- * @pre  dest->cb_size == 0 && dest->cb_data == NULL
++ * @pre   dest->cb_size == 0 && dest->cb_data == NULL
++ * @post  ergo(result == 0, c2_conf_buf_eq(dest, src))
+  */
+ int c2_conf_buf_copy(struct c2_conf_buf *dest, const struct c2_conf_buf *src);
+ 
+-- 
+1.8.3.2
+

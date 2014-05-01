@@ -1,0 +1,478 @@
+From bf824de2ec8e186b550c02ecdbab2979888ff22c Mon Sep 17 00:00:00 2001
+From: Rohan Puri <rohan_puri@xyratex.com>
+Date: Wed, 24 Jul 2013 04:09:37 +0530
+Subject: [PATCH 042/159] Addressed review comments
+
+---
+ addb/addb_monitor.c |  79 +++++++++--------------
+ addb/addb_monitor.h | 182 ++++++++++++++++++++++++++++++----------------------
+ addb/addb_rec.c     |   2 +-
+ 3 files changed, 136 insertions(+), 127 deletions(-)
+
+diff --git a/addb/addb_monitor.c b/addb/addb_monitor.c
+index 5165ea2..713552d 100644
+--- a/addb/addb_monitor.c
++++ b/addb/addb_monitor.c
+@@ -50,7 +50,7 @@
+    <hr>
+    @section ADDB-MON-INFRA-DLD-def Definitions
+    - <b> Summary ADDB records</b> These are summary records that are generated
+-   by ADDB monitor for a particular system metric.
++   by ADDB monitor for a particular statistic metric.
+    - <b> ADDB monitor</b> These are objects present on every node in the cluster
+    (client or server), they generate summary records.
+ 
+@@ -58,20 +58,15 @@
+    @section ADDB-MON-INFRA-DLD-req Requirments
+ 
+    The following requirements are fully described in
+-   @ref ADDB-MON-INFRA-DLD-ref-HLD "[0]":
+-   - @b r.addb.monitor.add.runtime
+    - @b r.addb.monitor.remove.runtime
+    - @b r.addb.monitor.summary.post-stats-records
+    - @b r.addb.monitor.summary.post-stats-addb-records
+-   - @b r.addb.monitor.summary.post-exception-records
++   - @b @todo r.addb.monitor.summary.post-exception-records
+    - @b r.addb.monitor.nesting
+ 
+    <hr>
+    @section ADDB-MON-INFRA-DLD-highlights Design Highlights
+ 
+-   This design closely follows that described in
+-   @ref ADDB-MON-INFRA-DLD-ref-HLD "[0]"
+-
+    <hr>
+    @section ADDB-MON-INFRA-DLD-lspec Logical Specification
+    - @ref ADDB-MON-INFRA-DLD-lspec-comps
+@@ -165,15 +160,15 @@ M0_TL_DESCR_DEFINE(addb_mon, "addb monitors list", M0_INTERNAL,
+ M0_TL_DEFINE(addb_mon, M0_INTERNAL, struct m0_addb_monitor);
+ 
+ struct addb_monitor_entry {
+-	int (*ame_init) (void);
+-	void (*ame_fini) (void);
+-	const char *ame_name;
+-	bool status;
++	int        (*ame_init) (void);
++	void       (*ame_fini) (void);
++	const char  *ame_name;
++	bool         status;
+ };
+ 
+ /**
+  * List of all monitor entries
+- * @todo: This should come from conf
++ * @todo: Only monitor entry's status "ON/OFF" should come from conf
+  */
+ struct addb_monitor_entry monitors[] = {
+ 	{ NULL, NULL, NULL, false}
+@@ -213,41 +208,30 @@ fail:
+ 
+ bool addb_monitor_invariant(struct m0_addb_monitor *mon)
+ {
+-	return ((mon != NULL) &&
+-		(mon->am_ops != NULL) &&
+-		(((mon->am_ops->am_sum_get != NULL) &&
+-		 (mon->am_ops->am_sum_alloc != NULL)) ||
+-	        ((mon->am_ops->am_sum_get == NULL) &&
+-		 (mon->am_ops->am_sum_alloc == NULL))));
++	return (mon != NULL && mon->am_ops != NULL);
+ }
+ 
+-M0_INTERNAL int m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
+-				     const struct m0_addb_rec_type    *rtype,
+-				     const struct m0_addb_monitor_ops *mon_ops)
++M0_INTERNAL void m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
++				      const struct m0_addb_monitor_ops *mon_ops)
+ {
+-	int rc = 0;
+-
+ 	M0_PRE(monitor != NULL);
+-	M0_PRE(rtype != NULL);
+ 	M0_PRE(mon_ops != NULL);
+ 
+ 	monitor->am_ops = mon_ops;
+-	M0_ASSERT(addb_monitor_invariant(monitor));
+-
+-	if (mon_ops->am_sum_alloc != NULL) {
+-		rc = monitor->am_ops->am_sum_alloc(monitor,
+-						 monitor_global_ctx.amgc_reqh,
+-					         rtype);
+-		if (rc != 0)
+-			M0_RETURN(rc);
+-	}
+ 
+ 	addb_mon_tlink_init(monitor);
+ 
+-	M0_RETURN(rc);
+ }
+ 
+-static void addb_monitor_fini(struct m0_addb_monitor *monitor)
++M0_INTERNAL void m0_addb_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
++				      const struct m0_addb_rec_type *rtype,
++				      uint64_t                      *mon_data,
++				      size_t                         nr)
++{
++	/** @todo: need to implement */
++}
++
++M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor)
+ {
+ 	M0_PRE(addb_monitor_invariant(monitor));
+ 
+@@ -267,11 +251,6 @@ M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor)
+ 	M0_PRE(addb_monitor_invariant(monitor));
+ 
+ 	addb_mon_tlist_del(monitor);
+-
+-	if (monitor->am_ops->am_sum_get != NULL)
+-		m0_free(monitor->am_ops->am_sum_get(monitor,
+-						monitor_global_ctx.amgc_reqh));
+-	addb_monitor_fini(monitor);
+ }
+ 
+ M0_INTERNAL void m0_addb_monitor_subsys_fini(void)
+@@ -280,6 +259,7 @@ M0_INTERNAL void m0_addb_monitor_subsys_fini(void)
+ 
+ 	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
+ 		m0_addb_monitor_del(mon);
++		m0_addb_monitor_fini(mon);
+ 	} m0_tl_endfor;
+ 
+ 	addb_mon_tlist_fini(&monitor_global_ctx.amgc_list);
+@@ -305,8 +285,8 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 		M0_RETURN(-ENOMEM);
+ 
+ 	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
+-		if (mon->am_ops->am_sum_get != NULL) {
+-			struct m0_addb_sum_rec *sum = mon->am_ops->am_sum_get(mon,
++		if (mon->am_ops->amo_sum_rec != NULL) {
++			struct m0_addb_sum_rec *sum = mon->am_ops->amo_sum_rec(mon,
+ 						                      reqh);
+ 			m0_mutex_lock(&sum->asr_mutex);
+ 			if (sum->asr_dirty == true)
+@@ -324,8 +304,8 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 		M0_RETURN(-ENOMEM);
+ 
+ 	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
+-		if (mon->am_ops->am_sum_get != NULL) {
+-			struct m0_addb_sum_rec *sum = mon->am_ops->am_sum_get(mon,
++		if (mon->am_ops->amo_sum_rec != NULL) {
++			struct m0_addb_sum_rec *sum = mon->am_ops->amo_sum_rec(mon,
+ 								      reqh);
+ 			struct m0_addb_sum_rec_wire  *addb_sum_rec_on_wire;
+ 			size_t                        len;
+@@ -354,8 +334,10 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 				 * in this small window, would be sent during
+ 				 * next periodic call to this function.
+ 				 */
+-				if (i == dirtied_mon_cnt)
++				if (i == dirtied_mon_cnt) {
++					m0_mutex_unlock(&sum->asr_mutex);
+ 					break;
++				}
+ 				sum_rec = &(sum_recs_fop->asrf_recs[i++]);
+ 
+ 				/**
+@@ -372,11 +354,12 @@ M0_INTERNAL int m0_addb_monitor_post_summaries(void)
+ 				 * sizeof(each on-wire sum rec) would be
+ 				 * approximately some KBs.
+ 				 */
+-				addb_sum_rec_on_wire->asrw_id = sum->asr_rec->asrw_id;
++				addb_sum_rec_on_wire->asrw_id = sum->asr_rec.asrw_id;
+ 				addb_sum_rec_on_wire->asrw_rec.au64s_nr =
+-					sum->asr_rec->asrw_rec.au64s_nr;
++					sum->asr_rec.asrw_rec.au64s_nr;
+ 
+-				memcpy(addb_sum_rec_on_wire, sum->asr_rec, len);
++				memcpy(addb_sum_rec_on_wire->asrw_rec.au64s_data,
++				       sum->asr_rec.asrw_rec.au64s_data, len);
+ 				sum_rec->asrfd_data = addb_sum_rec_on_wire;
+ 			}
+ 			m0_mutex_unlock(&sum->asr_mutex);
+diff --git a/addb/addb_monitor.h b/addb/addb_monitor.h
+index 27ee483..a9ea3a9 100644
+--- a/addb/addb_monitor.h
++++ b/addb/addb_monitor.h
+@@ -56,7 +56,7 @@
+    - m0_addb_monitor_add()
+    - m0_addb_monitor_del()
+    - m0_addb_monitor_subsys_fini()
+-   - m0_addb_post_summaries()
++   - m0_addb_monitor_post_summaries()
+ 
+    <hr>
+    @section ADDB-DLD-fspec-usecases Recipes
+@@ -69,103 +69,123 @@
+ 
+    @code
+ 	// 1. Add monitor to the structure that is to be monitored
+-	struct m0_module_struct {
+-		struct m0_addb_monitor ms_mon;
+-	}module_struct;
++	//    or dynamically allocate them as mentioned in step 7.
++	struct m0_xyz_module_struct {
++		.
++		.
++		.
++		struct m0_addb_monitor xms_mon;
++	};
++
++	Lets consider we have a variable available to access an instance
++	of struct m0_xyz_module_struct, viz. xyz_module_var.
+ 
+ 	// 2. Define the ADDB summary record type.
+-	M0_ADDB_RT_DP(m0_addb_sum_rec1, M0_ADDB_SUM_REC1, "para1");
++	M0_ADDB_RT_DP(m0_addb_xyz, M0_ADDB_XYZ, "xyz_parm");
+ 
+-	// 3. Define a new stats structure
+-	struct sum1_struct {
+-		uint64_t  s1s_para1;
++	// 3. Define a new monitor specific stats data
++	// NOTE: The fields should be only uint64_t
++	struct xyz {
++		uint64_t x_parm;
+ 	};
+-	One can either keep the instance of this structure global or
+-	embed it in struct m0_module_struct along with m0_addb_monitor.
++	Its upto the monitor implementer where to define a global variable for
++	this xyz or to embed it any top level structure. If dynamic
++	allocation is needed, it should be done as mentioned in step 7.
+ 
+-	NOTE: fields of this struct should match to the ADDB summary
+-	record type defined in 2.
++	For this eq. lets consider it part of struct m0_xyz_module_struct
++	mentioned in step 1.
++	struct m0_xyz_module_struct {
++		.
++		.
++		.
++		struct xyz xms_xyz;
++	};
++	NOTE: fields of this struct should match in total number as well as
++	the meaning to the ADDB summary record type defined in 2 (serial order
++	should be maintained while defining the structure).
+ 
+ 	// 4. Define key to locate m0_addb_sum_rec for this monitor.
+ 
+-	// This can be either global or can be embedded in m0_module_struct
+-	// along with m0_addb_monitor.
+-	uint32_t sum1_key;
+-
+-
+-	// 4. Set the monitor specific data in reqh's locker data-structure.
+-	#define ADDB_SET_SUM_DATA(sum1, datap, addb_rec_type) \
+-	{
+-		M0_ASSERT(sum1 != NULL);
+-		M0_ASSERT(datap != NULL);
+-		M0_ASSERT(addb_rec_type != NULL);
+-
+-		sum1->asr_rec->asrw_id = addb_rec_type->art_id;
+-		sum1->asr_rec->asrw_rec.au64s_nr = sizeof(*datap) / sizeof(uint64_t);
+-		sum1->asr_rec->asrw_rec.au64s_data = (uint64_t *) datap;
+-	}
+-
+-	int sum1_am_sum_alloc(const struct m0_addb_monitor   *monitor,
+-			      const struct m0_reqh           *reqh,
+-			      const struct m0_addb_rec_type  *m0_addb_sum1_rec)
+-	{
+-		struct m0_addb_sum_rec *sum1;
++	// This can be either global or can be embedded in module specific
++	// top level structure. For eg. can be as a sibling along with
++	// m0_addb_monitor.
++	uint32_t xyz_key;
+ 
+-		M0_ALLOC_PTR(sum1);
+-
+-		m0_mutex_init(&sum1->asr_mutex);
+-		ADDB_SET_SUM_DATA(sum1, &sum1_struct, m0_addb_sum1_rec);
+-
+-		m0_reqh_lockers_set(reqh, sum1_key, &sum1);
+-	}
+-
+-	// 5. Get the monitor specific data from reqh's lockers DS/
+-	struct m0_add_sum_rec * sum1_am_sum_get(const struct m0_addb_monitor *mon,
++	// 4. Define monitor operation amo_sum_rec
++	struct m0_add_sum_rec * xyz_amo_sum_rec(const struct m0_addb_monitor *mon,
+ 						const struct m0_reqh *reqh)
+ 	{
+-		return m0_reqh_lockers_get(reqh, sum1_key);
++		return m0_reqh_lockers_get(reqh, xyz_key);
+ 	}
+ 
+-	// 6. Define am_watch()
+-	void sum1_am_watch(struct m0_addb_monitor *monitor,
++	// 5. Define monitor operations amo_watch()
++	void xyz_amo_watch(struct m0_addb_monitor *monitor,
+ 			   struct m0_addb_rec *rec, struct m0_reqh *reqh)
+ 	{
+ 		// for addb rec of type X
+-		struct m0_addb_sum_rec *sum1 = reqh_lockers_get(reqh, sum1_key);
++		struct m0_addb_sum_rec *xyz = reqh_lockers_get(reqh, xyz_key);
+ 
+ 		// NOTE: Locking is optional, use only when monitor implementor
+ 		// specifically wants to synchronize access to summary data.
+-		m0_mutex_lock(&sum1->asr_mutex);
++		m0_mutex_lock(&xyz->asr_mutex);
+ 		// update data
+ 		// set the dirty flag
+-		m0_mutex_unlock(&sum1->asr_mutex);
++		m0_mutex_unlock(&xyz->asr_mutex);
+ 	}
+ 
+-	// 7. Define monitor entry in monitors array.
+-	int sum1_ame_init(void)
+-	{
+-		m0_addb_monitor_init(&module_struct->ms_mon, sum1_am_watch,
+-			     sum1_am_sum_get, sum1_am_sum_alloc, m0_addb_sum1_rec);
++	// 6. Define monitor ops struct and set these operations as initializers
++	const struct m0_addb_monitor_ops mon_ops = {
++		.amo_watch = xyz_amo_watch,
++		.amo_sum_rec = xyz_amo_sum_rec
++	};
+ 
+-		m0_addb_monitor_add(&module_struct->ms_mon);
++	// 7. Define monitor entry's init function
++	int xyz_ame_init(void)
++	{
++		//1. Dynamically allocate monitor(optional)
++		//2. Dynamically allocate instance of monitor specific data
++		//   here struct xyz (optional)
++		//3. Dynamically allocate instance of struct m0_addb_sum_rec
++		//4. Initialize monitor
++		//5. Initialize summary record (m0_addb_sum_rec)
++		//6. Add monitor to mero system
++		struct m0_addb_sum_rec *rec;
++		M0_ALLOC_PTR(rec);
++
++		m0_addb_monitor_init(&xyz_module_var.xms_mon, mon_ops);
++
++		m0_addb_monitor_sum_rec_init(rec, &m0_addb_xyz,
++					     &xyz_module_var.xms_xyz,
++					     sizeof(xyz_module_var.xms_xyz));
++		m0_addb_monitor_add(&xyz_module_var.xms_mon);
+ 	}
+ 
+-	void sum1_ame_fini(void)
++	// 8. Define monitor entry's fini function
++	void xyz_ame_fini(void)
+ 	{
+-		m0_addb_monitor_del(&module_struct->ms_mon);
++		//1. Remove monitor from mero system
++		//2. Free summary record (m0_addb_sum_rec)
++		//3. Finalize monitor
++		//4. Free instance of monitor specific data (over here struct
++		//   xyz instance) (optional)
++		//5. Free monitor (optional)
++
++		m0_addb_monitor_del(&xyz_module_var.xms_mon);
++		m0_free(&xyz_module_var.xms_mon->am_ops->amo_sum_rec);
++		m0_addb_monitor_fini(&xyz_module_var.xms_mon);
+ 	}
+ 
++	// 9. Add these monitor entry's init/fini to monitor entry's array.
+ 	struct addb_monitor_entry monitors[] = {
+ 		.
+ 		.
+ 		.
+-		{ sum1_ame_init, sum1_ame_fini, "sum1_mon", true },
++		{ xyz_ame_init, xyz_ame_fini, "xyz_mon", true },
+ 		.
+ 		.
+ 		.
+ 	};
+ 
+-
+    @endcode
+ */
+ 
+@@ -189,7 +209,7 @@ struct m0_addb_sum_rec {
+ 	 * m0_addb_sum_rec_wire::asrw_rec::au64s_data is monitor
+ 	 * specific data
+ 	 */
+-	struct m0_addb_sum_rec_wire *asr_rec;
++	struct m0_addb_sum_rec_wire  asr_rec;
+ };
+ 
+ struct m0_addb_monitor_ops {
+@@ -201,19 +221,12 @@ struct m0_addb_monitor_ops {
+ 	 * m0_addb_sum_rec::asr_mutex lock to be held only iff
+ 	 * monitor implementor wants to synchronize access to it.
+ 	 */
+-	void                    (*am_watch) (const struct m0_addb_monitor *mon,
+-					     const struct m0_addb_rec     *rec,
+-					     const struct m0_reqh         *r);
++	void                    (*amo_watch) (const struct m0_addb_monitor *mon,
++					      const struct m0_addb_rec     *rec,
++					      const struct m0_reqh         *r);
+ 	/** Returns m0_addb_sum_rec, if any for this monitor. */
+-	struct m0_addb_sum_rec *(*am_sum_get) (const struct m0_addb_monitor *m,
+-					       const struct m0_reqh         *r);
+-	/**
+-	 * Alloc & set the monitor specific m0_addb_sum_rec, if any
+-	 * in the reqh's locker structure.
+-	 */
+-	int                     (*am_sum_alloc) (const struct m0_addb_monitor *m,
+-					         const struct m0_reqh         *r,
+-					         const struct m0_addb_rec_type *t);
++	struct m0_addb_sum_rec *(*amo_sum_rec) (const struct m0_addb_monitor *m,
++					        const struct m0_reqh         *r);
+ };
+ 
+ struct m0_addb_monitor {
+@@ -268,15 +281,22 @@ M0_INTERNAL int m0_addb_monitor_subsys_init(const struct m0_reqh *reqh,
+  * @pre (*am_watch) () != NULL
+  * @pre rtype != NULL && m0_addb_rec_type_lookup(rtype->art_id) != NULL
+  * @post *monitor != NULL
+- * @post monitor:am_watch == @param (*am_watch) ()
+- * @post monitor:am_sum_alloc == @param (*am_sum_alloc) ()
+- * @post monitor:am_sum_get == @param (*am_sum_get) ()
+  */
+-M0_INTERNAL int m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
+-				     const struct m0_addb_rec_type    *rtype,
++M0_INTERNAL void m0_addb_monitor_init(struct m0_addb_monitor           *monitor,
+ 				     const struct m0_addb_monitor_ops *mon_ops);
+ 
+ /**
++ * Init m0_addb_sum_rec (Generic summary record structure)
++ * @param sum_rec ADDB summary record to init
++ * @param rtype   ADDB record type that this monitor would produce
++ * @param mon_data uint64_t array of monitor specific data
++ * @param nr No of uint64_t words.
++ */
++M0_INTERNAL void m0_addb_sum_rec_init(struct m0_addb_sum_rec        *sum_rec,
++				      const struct m0_addb_rec_type *rtype,
++				      uint64_t                      *mon_data,
++				      size_t                         nr);
++/**
+  * Add a particular monitor with the ADDB monitoring sub-system
+  * @param monitor ADDB monitor to register
+  */
+@@ -289,6 +309,12 @@ M0_INTERNAL void m0_addb_monitor_add(struct m0_addb_monitor *monitor);
+ M0_INTERNAL void m0_addb_monitor_del(struct m0_addb_monitor *monitor);
+ 
+ /**
++ * Finalize monitor
++ * @param  monitro ADDB monitor to finalize
++ */
++M0_INTERNAL void m0_addb_monitor_fini(struct m0_addb_monitor *monitor);
++
++/**
+  * Cleanup the ADDB monitoring sub-system
+  * @todo: Replace substring "subsys" with some other appropriate name
+  */
+diff --git a/addb/addb_rec.c b/addb/addb_rec.c
+index 1dbc39e..0164b5b 100644
+--- a/addb/addb_rec.c
++++ b/addb/addb_rec.c
+@@ -154,7 +154,7 @@ static void addb_rec_post(struct m0_addb_mc *mc,
+ 
+ 	/* Invoke all the monitor's filters */
+ 	m0_tl_for(addb_mon, &monitor_global_ctx.amgc_list, mon) {
+-		mon->am_ops->am_watch(mon, rec, monitor_global_ctx.amgc_reqh);
++		mon->am_ops->amo_watch(mon, rec, monitor_global_ctx.amgc_reqh);
+ 	} m0_tl_endfor;
+ }
+ 
+-- 
+1.8.3.2
+

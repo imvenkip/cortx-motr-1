@@ -1,0 +1,515 @@
+From 1b540e80c2f0272057296210e224a99f38f52ceb Mon Sep 17 00:00:00 2001
+From: Rajanikant Chirmade <rajanikant_chirmade@xyratex.com>
+Date: Thu, 5 Apr 2012 11:40:22 +0530
+Subject: [PATCH 02/11] - Added function to add variable addb messages. - Added
+ ADDB messages for io_foms.
+
+---
+ addb/addb.c                      |  46 +++++----------
+ addb/addb.h                      |  20 +++++--
+ addb/ut/addb.c                   |  35 ++++++++++-
+ build_kernel_modules/Makefile.in |  13 +++--
+ ioservice/io_foms.c              | 123 ++++++++++++++++++++++-----------------
+ utils/linux_kernel/main.c        |   2 +
+ 6 files changed, 143 insertions(+), 96 deletions(-)
+
+diff --git a/addb/addb.c b/addb/addb.c
+index 9f4cadb..c2e5c57 100644
+--- a/addb/addb.c
++++ b/addb/addb.c
+@@ -48,7 +48,7 @@
+  * This can be changed.
+  */
+ enum c2_addb_ev_level	c2_addb_level_default	      = AEL_NOTE;
+-enum c2_addb_ev_level	c2_addb_level_default_console = AEL_NONE;
++enum c2_addb_ev_level	c2_addb_level_default_console = AEL_WARN;
+ 
+ /**
+    ADDB record store type.
+@@ -68,10 +68,6 @@ static c2_addb_stob_add_t c2_addb_stob_add_p = NULL;
+ static c2_addb_db_add_t   c2_addb_db_add_p   = NULL;
+ static c2_addb_net_add_t  c2_addb_net_add_p  = NULL;
+ 
+-enum {
+-	ADDB_CUSTOM_MSG_SIZE = 256,
+-};
+-
+ int c2_addb_init(void)
+ {
+ 	return 0;
+@@ -159,33 +155,23 @@ void c2_addb_add(struct c2_addb_dp *dp)
+ 	}
+ }
+ 
+-void c2_addb_add_custom_trace(struct c2_addb_ctx *ctx,
+-                              const struct c2_addb_loc *loc,
+-                              const char *fmt, ...)
++int c2_addb_var_msg_add(struct c2_addb_ctx       *ctx,
++			const struct c2_addb_loc *loc,
++			char                     *msgbuf,
++			uint32_t                  msglen,
++			const char               *fmt, ...)
+ {
+-	va_list        ap;
+-	char          *trace_msg = NULL;
+-	int            rc;
+-	int            msg_size = ADDB_CUSTOM_MSG_SIZE;
+-	int            retry = 1;
+-
+-	while (retry == 1) {
+-		trace_msg = c2_alloc(msg_size);
+-		if (trace_msg != NULL) {
+-			va_start(ap, fmt);
+-			rc = vsnprintf(trace_msg, msg_size, fmt, ap);
+-			va_end(ap);
+-			if (rc < 0 || rc <=  msg_size)
+-				retry = 0;
+-			else {
+-				msg_size = rc;
+-                                c2_free(trace_msg);
+-                        }
+-		}
+-	}
++	va_list ap;
++	int     rc;
++
++	va_start(ap, fmt);
++	rc = vsnprintf(msgbuf, msglen, fmt, ap);
++	va_end(ap);
++
++	if (rc > 0)
++		C2_ADDB_ADD(ctx, loc, c2_addb_trace, msgbuf);
+ 
+-        if (trace_msg != NULL)
+-		C2_ADDB_ADD(ctx, loc, c2_addb_trace, trace_msg);
++        return rc;
+ }
+ 
+ static int subst_name_int(struct c2_addb_dp *dp, const char *name, int rc)
+diff --git a/addb/addb.h b/addb/addb.h
+index 8b72413..180ddb9 100644
+--- a/addb/addb.h
++++ b/addb/addb.h
+@@ -102,14 +102,22 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *);
+ 
+ int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...);
+ 
+-/*
+- * Adds custom made addb trace messages.
+- * @note This interfase only adds addb trace event messages.
++/**
++ * Adds variable addb messages.
++ * @note This interface adds addb trace event messages.
++ * @param ctx pointer to addb context.
++ * @param loc event location (sub-system).
++ * @param msgbuf message buffer passed by caller to copy formated message.
++ * @param msglen length of message buffer.
+  * @param fmt formatted string representing custom made message.
++ * @return On success it returns actual formated message length, and negative
++ *         value returned on error.
+  */
+-void c2_addb_add_custom_trace(struct c2_addb_ctx *ctx,
+-                              const struct c2_addb_loc *loc,
+-                              const char *fmt, ...);
++int c2_addb_var_msg_add(struct c2_addb_ctx       *ctx,
++			const struct c2_addb_loc *loc,
++			char                     *msgbuf,
++			uint32_t                  msglen,
++			const char               *fmt, ...);
+ 
+ /**
+    Activity in context on which addb event happens.
+diff --git a/addb/ut/addb.c b/addb/ut/addb.c
+index 2c525c8..b90cdea 100644
+--- a/addb/ut/addb.c
++++ b/addb/ut/addb.c
+@@ -15,15 +15,18 @@
+  * http://www.xyratex.com/contact
+  *
+  * Original author: Manish Honap <manish_honap@xyratex.com>
++ *                  Rajanikant Chirmade <rajanikant_chairmade@xyratex.com>
+  * Original creation date: 01/27/2012
+  */
+-
++#ifndef __KERNEL__
+ #include <stdio.h>
+ #include <string.h>
+ #include <unistd.h>
++#endif
+ 
+-#include "addb/addb.h"
++#include "lib/memory.h"
+ #include "lib/ut.h"
++#include "addb/addb.h"
+ 
+ struct c2_addb_ctx addb_ut_ctx;
+ 
+@@ -37,10 +40,13 @@ const struct c2_addb_loc c2_addb_ut_loc = {
+ 
+ static const char s_out_fname[] = "addb_ut_output_redirect";
+ 
++#define ADDB_UT_VAR_MSG_SIZE 256
++
+ #define MESSAGE_LENGTH sizeof("addb: ctx: ADDB-UT/0x8ff4fa0, loc: ADDB-UT, ev: \
+ 			      trace/trace, rc: 0 name: A test ADDB message for \
+ 			      C2_ADDB_TRACE event")
+ 
++#ifndef __KERNEL__
+ static void test_addb()
+ {
+ 	char     buffer[MESSAGE_LENGTH];
+@@ -65,16 +71,41 @@ static void test_addb()
+ 
+ 	c2_addb_choose_default_level_console(AEL_WARN);
+ }
++#endif
+ 
++static void test_addb_var_msg_add(void)
++{
++	char message[ADDB_UT_VAR_MSG_SIZE];
++	int  msg_size;
++	char addb_msg[ADDB_UT_VAR_MSG_SIZE];
++
++	memset(message, 'A', ADDB_UT_VAR_MSG_SIZE);
++	message[ADDB_UT_VAR_MSG_SIZE-1] = 0;
++
++	c2_addb_ctx_init(&addb_ut_ctx, &c2_addb_ut_ctx, &c2_addb_global_ctx);
++
++	c2_addb_choose_default_level_console(AEL_NONE);
++
++	msg_size = c2_addb_var_msg_add(&addb_ut_ctx, &c2_addb_ut_loc, addb_msg,
++				       ADDB_UT_VAR_MSG_SIZE, "%s", message);
++
++	C2_UT_ASSERT(msg_size == ADDB_UT_VAR_MSG_SIZE-1);
++
++	c2_addb_choose_default_level_console(AEL_WARN);
++}
+ const struct c2_test_suite addb_ut = {
+         .ts_name  = "addb-ut",
+         .ts_init  = NULL,
+         .ts_fini  = NULL,
+         .ts_tests = {
++#ifndef __KERNEL__
+                 { "addb", test_addb},
++#endif
++                { "addb_var_msg", test_addb_var_msg_add},
+ 		{ NULL, NULL }
+         }
+ };
++C2_EXPORTED(addb_ut);
+ 
+ /*
+  *  Local variables:
+diff --git a/build_kernel_modules/Makefile.in b/build_kernel_modules/Makefile.in
+index c7890ca..6c63371 100644
+--- a/build_kernel_modules/Makefile.in
++++ b/build_kernel_modules/Makefile.in
+@@ -21,17 +21,20 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
+ 
+ #       The $(dirs) list is maintained alphabetically
+ 
+-dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db \
+-        db/linux_kernel dtm fid fol fop ioservice ioservice/ut    \
+-	layout lib lib/linux_kernel lib/ut net net/bulk_emulation \
+-        net/bulk_emulation/ut net/ksunrpc net/ut pool rpc rpc/ut  \
+-        sm sns stob stob/ut ut xcode xcode/ut
++dirs  = addb addb/linux_kernel addb/ut c2t1fs/linux_kernel cob \
++	colibri db db/linux_kernel dtm fid fol fop ioservice   \
++	ioservice/ut layout lib lib/linux_kernel lib/ut net    \
++	net/bulk_emulation net/bulk_emulation/ut net/ksunrpc   \
++	net/ut pool rpc rpc/ut sm sns stob stob/ut ut xcode    \
++	xcode/ut
+ 
+ #       Source Listing
+ 
+ addb_SOURCES                    := addb.c addb_fop.c addb_k.c
+ addb_HEADERS                    := addb_k.h
+ 
++addb_ut_SOURCES                 := addb.c
++
+ addb_linux_kernel_SOURCES       := addb_console.c
+ 
+ #       If there's a directory 'd' in $(dirs) then the listing of files given
+diff --git a/ioservice/io_foms.c b/ioservice/io_foms.c
+index d3d0386..62ebf39 100644
+--- a/ioservice/io_foms.c
++++ b/ioservice/io_foms.c
+@@ -563,6 +563,10 @@
+  */
+ #define IOSERVICE_NAME "ioservice"
+ 
++enum {
++	IO_FOM_ADDB_MSG_SIZE = 256,
++};
++
+ C2_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct c2_stob_io_desc,
+                    siod_linkage,  siod_magic,
+                    C2_STOB_IO_DESC_LINK_MAGIC,  C2_STOB_IO_DESC_HEAD_MAGIC);
+@@ -1028,6 +1032,7 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
+         struct c2_fop_cob_rw    *rwfop;
+         const char              *fom_type_string;
+         c2_bcount_t              size;
++	char                     addb_msg[IO_FOM_ADDB_MSG_SIZE];
+ 
+         C2_PRE(fop != NULL);
+         C2_PRE(c2_is_io_fop(fop));
+@@ -1079,11 +1084,12 @@ int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
+ 
+ 	fom_type_string = c2_is_read_fop(fop) ? "I/O READ" : "I/O WRITE";
+         size = io_fom_cob_rw_indexvec_size(fop);
+-        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: created/type=%s, fid=%lu:%lu, ndesc=%d, "
+-                                 "size=%d", fom_type_string,
+-                                 rwfop->crw_fid.f_seq, rwfop->crw_fid.f_oid,
+-                                 fom_obj->fcrw_ndesc, size);
++	c2_addb_var_msg_add(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++			    addb_msg, IO_FOM_ADDB_MSG_SIZE,
++			    "FOM: created/type=%s, fid=%lu:%lu, ndesc=%d, "
++			    "size=%d", fom_type_string,
++			    rwfop->crw_fid.f_seq, rwfop->crw_fid.f_oid,
++			    fom_obj->fcrw_ndesc, size);
+         return rc;
+ }
+ 
+@@ -1110,6 +1116,7 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+         struct c2_fop                *fop;
+         struct c2_io_fom_cob_rw      *fom_obj = NULL;
+         struct c2_net_transfer_mc     tm;
++	char                          addb_msg[IO_FOM_ADDB_MSG_SIZE];
+ 
+         C2_PRE(fom != NULL);
+         C2_PRE(c2_is_io_fop(fom->fo_fop));
+@@ -1180,10 +1187,9 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+ 
+                     fom->fo_phase = FOPH_IO_FOM_BUFFER_WAIT;
+                     c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+-                    c2_addb_add_custom_trace(&fom->fo_fop->f_addb,
+-                                             &io_fom_addb_loc,
+-		                             "FOM: net_buffs_acquire/"
+-                                             "waiting\n");
++		    C2_ADDB_ADD(&fom->fo_fop->f_addb,
++				&io_fom_addb_loc, c2_addb_trace,
++				"FOM: net_buffs_acquire waiting\n");
+ 
+                     return  FSO_WAIT;
+             } else if (nb == NULL) {
+@@ -1210,9 +1216,10 @@ static int io_fom_cob_rw_acquire_net_buffer(struct c2_fom *fom)
+         }
+ 
+         fom_obj->fcrw_batch_size = acquired_net_bufs;
+-        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: net_buffs_acquire/batch_size=%d\n",
+-                                 fom_obj->fcrw_batch_size);
++	c2_addb_var_msg_add(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++			    addb_msg, IO_FOM_ADDB_MSG_SIZE,
++			    "FOM: net_buffs_acquire/batch_size=%d\n",
++			    fom_obj->fcrw_batch_size);
+         return FSO_AGAIN;
+ }
+ 
+@@ -1236,6 +1243,7 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
+         struct c2_fop                  *fop;
+         struct c2_io_fom_cob_rw        *fom_obj = NULL;
+         struct c2_net_transfer_mc       tm;
++	char                            addb_msg[IO_FOM_ADDB_MSG_SIZE];
+ 
+ 
+         C2_PRE(fom != NULL);
+@@ -1268,9 +1276,10 @@ static int io_fom_cob_rw_release_net_buffer(struct c2_fom *fom)
+         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
+ 
+         fom_obj->fcrw_batch_size = acquired_net_bufs;
+-        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: net_buffs_release/batch_size=%d\n",
+-                                 fom_obj->fcrw_batch_size);
++	c2_addb_var_msg_add(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++			    addb_msg, IO_FOM_ADDB_MSG_SIZE,
++			    "FOM: net_buffs_release/batch_size=%d\n",
++			    fom_obj->fcrw_batch_size);
+ 
+         if (required_net_bufs == 0)
+                fom->fo_phase = FOPH_SUCCESS;
+@@ -1301,6 +1310,7 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
+         struct c2_net_buf_desc    *net_desc;
+         struct c2_net_domain      *dom;
+         uint32_t                   buffers_added = 0;
++	char                       addb_msg[IO_FOM_ADDB_MSG_SIZE];
+ 
+         C2_PRE(fom != NULL);
+         C2_PRE(c2_is_io_fop(fom->fo_fop));
+@@ -1376,9 +1386,10 @@ static int io_fom_cob_rw_initiate_zero_copy(struct c2_fom *fom)
+                 return FSO_AGAIN;
+         }
+ 
+-        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: zero_copy_initiated/batch_size=%d\n",
+-                                 fom_obj->fcrw_batch_size);
++	c2_addb_var_msg_add(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++			    addb_msg, IO_FOM_ADDB_MSG_SIZE,
++			    "FOM: zero_copy_initiated/batch_size=%d\n",
++			    fom_obj->fcrw_batch_size);
+         return FSO_WAIT;
+ }
+ 
+@@ -1420,8 +1431,8 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
+         c2_mutex_unlock(&rbulk->rb_mutex);
+         c2_rpc_bulk_fini(rbulk);
+ 
+-        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: zero_copy_finished\n");
++	C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		    c2_addb_trace, "FOM: zero_copy_finished\n");
+ 
+         return FSO_AGAIN;
+ }
+@@ -1444,17 +1455,18 @@ static int io_fom_cob_rw_zero_copy_finish(struct c2_fom *fom)
+  */
+ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
+ {
+-	int				 rc;
+-	uint32_t			 bshift;
+-	struct c2_fid			 fid;
+-	struct c2_fop			*fop;
+-	struct c2_io_fom_cob_rw	        *fom_obj;
+-	struct c2_stob_id		 stobid;
+-        struct c2_net_buffer            *nb = NULL;
+-	struct c2_fop_cob_rw		*rwfop;
+-        struct c2_io_indexvec            wire_ivec;
+-	struct c2_stob_domain		*fom_stdom;
+-	struct c2_fop_file_fid		*ffid;
++	int			 rc;
++	uint32_t		 bshift;
++	struct c2_fid		 fid;
++	struct c2_fop		*fop;
++	struct c2_io_fom_cob_rw *fom_obj;
++	struct c2_stob_id	 stobid;
++	struct c2_net_buffer    *nb = NULL;
++	struct c2_fop_cob_rw	*rwfop;
++	struct c2_io_indexvec    wire_ivec;
++	struct c2_stob_domain	*fom_stdom;
++	struct c2_fop_file_fid	*ffid;
++	char                     addb_msg[IO_FOM_ADDB_MSG_SIZE];
+ 
+ 	C2_PRE(fom != NULL);
+         C2_PRE(c2_is_io_fop(fom->fo_fop));
+@@ -1628,9 +1640,10 @@ static int io_fom_cob_rw_io_launch(struct c2_fom *fom)
+ 
+                 c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
+ 
+-                c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                         "FOM: stob_io_launched/n_iocount=%d\n",
+-                                         fom_obj->fcrw_num_stobio_launched);
++		c2_addb_var_msg_add(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++				    addb_msg, IO_FOM_ADDB_MSG_SIZE,
++				    "FOM: stob_io_launched/n_iocount=%d\n",
++				    fom_obj->fcrw_num_stobio_launched);
+ 
+ 	        return FSO_WAIT;
+         }
+@@ -1659,8 +1672,8 @@ cleanup:
+  */
+ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
+ {
+-        struct c2_io_fom_cob_rw   *fom_obj;
+-        struct c2_stob_io_desc    *stio_desc;
++        struct c2_io_fom_cob_rw *fom_obj;
++        struct c2_stob_io_desc  *stio_desc;
+ 
+         C2_PRE(fom != NULL);
+         C2_PRE(c2_is_io_fop(fom->fo_fop));
+@@ -1704,8 +1717,8 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
+                             fom->fo_rc);
+ 	        return FSO_AGAIN;
+         }
+-        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: stob_io_finished.\n");
++	C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++		    c2_addb_trace, "FOM: stob_io_finished.\n");
+ 
+         return FSO_AGAIN;
+ }
+@@ -1720,9 +1733,10 @@ static int io_fom_cob_rw_io_finish(struct c2_fom *fom)
+  */
+ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
+ {
+-        int                                       rc = 0;
+-        struct c2_io_fom_cob_rw                  *fom_obj;
+-        struct c2_io_fom_cob_rw_state_transition  st;
++        int                                      rc = 0;
++        struct c2_io_fom_cob_rw                 *fom_obj;
++        struct c2_io_fom_cob_rw_state_transition st;
++	char                                     addb_msg[IO_FOM_ADDB_MSG_SIZE];
+ 
+         C2_PRE(fom != NULL);
+         C2_PRE(c2_is_io_fop(fom->fo_fop));
+@@ -1752,9 +1766,10 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
+                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
+                 rwrep->rwr_rc = fom->fo_rc;
+                 rwrep->rwr_count = fom_obj->fcrw_bytes_transfered;
+-                c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: set reply/io_count=%lu, rc=%d\n",
+-                                 rwrep->rwr_count, rwrep->rwr_rc);
++		c2_addb_var_msg_add(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++				    addb_msg, IO_FOM_ADDB_MSG_SIZE,
++				    "FOM: set reply/io_count=%lu, rc=%d\n",
++				    rwrep->rwr_count, rwrep->rwr_rc);
+                 return rc;
+         }
+ 
+@@ -1776,12 +1791,13 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
+  */
+ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
+ {
+-        uint32_t                        colour = 0;
+-        struct c2_fop                  *fop = fom->fo_fop;
+-        struct c2_io_fom_cob_rw        *fom_obj;
+-        struct c2_net_buffer           *nb = NULL;
+-        struct c2_stob_io_desc         *stio_desc = NULL;
+-        struct c2_net_transfer_mc       tm;
++        uint32_t                   colour = 0;
++        struct c2_fop             *fop = fom->fo_fop;
++        struct c2_io_fom_cob_rw   *fom_obj;
++        struct c2_net_buffer      *nb = NULL;
++        struct c2_stob_io_desc    *stio_desc = NULL;
++        struct c2_net_transfer_mc  tm;
++	char                       addb_msg[IO_FOM_ADDB_MSG_SIZE];
+ 
+         C2_PRE(fom != NULL);
+ 
+@@ -1824,9 +1840,10 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
+ 
+         c2_mutex_fini(&fom_obj->fcrw_stio_mutex);
+ 
+-        c2_addb_add_custom_trace(&fom->fo_fop->f_addb, &io_fom_addb_loc,
+-		                 "FOM: finished/size=%lu, rc=%d",
+-                                 fom_obj->fcrw_bytes_transfered, fom->fo_rc);
++	c2_addb_var_msg_add(&fom->fo_fop->f_addb, &io_fom_addb_loc,
++			    addb_msg, IO_FOM_ADDB_MSG_SIZE,
++			    "FOM: finished/size=%lu, rc=%d",
++			    fom_obj->fcrw_bytes_transfered, fom->fo_rc);
+         c2_fom_fini(fom);
+ 
+         c2_free(fom_obj);
+diff --git a/utils/linux_kernel/main.c b/utils/linux_kernel/main.c
+index f9ebe90..f214332 100644
+--- a/utils/linux_kernel/main.c
++++ b/utils/linux_kernel/main.c
+@@ -39,6 +39,7 @@ extern const struct c2_test_suite buffer_pool_ut;
+ extern const struct c2_test_suite xcode_ut;
+ extern const struct c2_test_suite bulkio_client_ut;
+ extern const struct c2_test_suite rpc_service_ut;
++extern const struct c2_test_suite addb_ut;
+ 
+ static struct c2_thread ut_thread;
+ 
+@@ -47,6 +48,7 @@ static void run_kernel_ut(int ignored)
+         printk(KERN_INFO "Colibri Kernel Unit Test\n");
+ 
+ 	c2_uts_init();
++	c2_ut_add(&addb_ut);
+ 	c2_ut_add(&bulkio_client_ut);
+ 	c2_ut_add(&c2_klibc2_ut);
+ 	c2_ut_add(&c2_net_bulk_if_ut);
+-- 
+1.8.3.2
+

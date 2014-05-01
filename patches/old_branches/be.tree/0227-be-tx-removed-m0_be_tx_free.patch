@@ -1,0 +1,182 @@
+From 4e98260723b4e116ac3dbb94846b949ecac07508 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 26 Jun 2013 12:45:31 +0300
+Subject: [PATCH 227/290] be/tx: removed m0_be_tx_free()
+
+simplified m0_be_reg_area_{init,fini}();
+removed m0_be_reg_area_free().
+---
+ be/tx.c        | 12 +----------
+ be/tx.h        |  2 --
+ be/tx_fom.c    |  1 -
+ be/tx_regmap.c | 64 ++++++++++++++--------------------------------------------
+ be/tx_regmap.h |  2 --
+ 5 files changed, 16 insertions(+), 65 deletions(-)
+
+diff --git a/be/tx.c b/be/tx.c
+index 5d1a14e..cd293f8 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -195,21 +195,11 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
+ {
+ 	M0_PRE(m0_be__tx_invariant(tx));
+ 
+-	m0_be_tx_free(tx);
++	m0_be_reg_area_fini(&tx->t_reg_area);
+ 	tx_tlink_del_fini(tx);
+ 	m0_sm_fini(&tx->t_sm);
+ }
+ 
+-M0_INTERNAL void m0_be_tx_free(struct m0_be_tx *tx)
+-{
+-	void noop(void *nodep) {}
+-
+-	M0_PRE(m0_be__tx_invariant(tx));
+-	M0_PRE(tx_state(tx) >= M0_BTS_PLACED);
+-
+-	m0_be_reg_area_free(&tx->t_reg_area);
+-}
+-
+ M0_INTERNAL void
+ m0_be_tx_prep(struct m0_be_tx *tx, const struct m0_be_tx_credit *credit)
+ {
+diff --git a/be/tx.h b/be/tx.h
+index 7f724b5..372a828 100644
+--- a/be/tx.h
++++ b/be/tx.h
+@@ -498,8 +498,6 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx);
+  *
+  * XXX DELETEME? Do we really need this function?
+  */
+-M0_INTERNAL void m0_be_tx_free(struct m0_be_tx *tx);
+-
+ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
+ 			       const struct m0_be_tx_credit *credit);
+ 
+diff --git a/be/tx_fom.c b/be/tx_fom.c
+index 8df35ad..ab01c05 100644
+--- a/be/tx_fom.c
++++ b/be/tx_fom.c
+@@ -193,7 +193,6 @@ static int tx_fom_tick(struct m0_fom *fom)
+ 		m0_be_op_fini(&fom_to_txm(fom)->tf_op);
+ #endif
+ 		tx_state_set(tx, M0_BTS_PLACED);
+-		m0_be_tx_free(tx);  /* free region buffers */
+ 		m0_fom_phase_set(fom, FS_STABLE);
+ 		return M0_FSO_AGAIN;
+ 
+diff --git a/be/tx_regmap.c b/be/tx_regmap.c
+index 06d95cd..f309c34 100644
+--- a/be/tx_regmap.c
++++ b/be/tx_regmap.c
+@@ -419,73 +419,39 @@ M0_INTERNAL size_t m0_be_regmap_size(const struct m0_be_regmap *rm)
+ 
+ static struct m0_be_regmap_callbacks be_reg_area_cb;
+ 
+-static int be_reg_area_initfini(struct m0_be_reg_area *ra,
+-				const struct m0_be_tx_credit *prepared)
++M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
++				    const struct m0_be_tx_credit *prepared)
+ {
+ 	int rc;
+ 
+-	M0_SET0(ra);
+-
+-	if (prepared == NULL)
+-		goto fini;
+-
+-	ra->bra_prepared = *prepared;
+-
+-	rc = m0_be_regmap_init(&ra->bra_map, &be_reg_area_cb, ra,
+-			       ra->bra_prepared.tc_reg_nr);
+-	if (rc != 0)
+-		goto failed;
++	ra->bra_prepared  = *prepared;
++	ra->bra_area_used = 0;
+ 
+ 	M0_ALLOC_ARR(ra->bra_area, ra->bra_prepared.tc_reg_size);
+ 	if (ra->bra_area == NULL) {
+ 		rc = -ENOMEM;
+-		goto free_map;
++	} else {
++		rc = m0_be_regmap_init(&ra->bra_map, &be_reg_area_cb, ra,
++				       ra->bra_prepared.tc_reg_nr);
++		if (rc != 0)
++			m0_be_regmap_fini(&ra->bra_map);
+ 	}
+-	ra->bra_allocated = true;
+-	goto successful;
+-
+-fini:
+-	rc = 0;
+-	if (!ra->bra_allocated)
+-		goto successful;
+-	ra->bra_allocated = false;
+-	m0_free(ra->bra_area);
+-free_map:
+-	m0_be_regmap_fini(&ra->bra_map);
+-failed:
+-successful:
+-	return rc;
+-}
+-
+-M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
+-				    const struct m0_be_tx_credit *prepared)
+-{
+-	int rc;
+-
+-	rc = be_reg_area_initfini(ra, prepared);
+-	M0_POST(m0_be_reg_area__invariant(ra));
++	M0_POST(ergo(rc == 0, m0_be_reg_area__invariant(ra)));
+ 	return rc;
+ }
+ 
+ M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)
+ {
+ 	M0_PRE(m0_be_reg_area__invariant(ra));
+-	be_reg_area_initfini(ra, NULL);
++	m0_be_regmap_fini(&ra->bra_map);
++	m0_free(ra->bra_area);
+ }
+ 
+ M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra)
+ {
+-	return ergo(ra->bra_allocated,
+-		    m0_be_regmap__invariant(&ra->bra_map)) &&
+-		ergo(ra->bra_allocated, ra->bra_area != NULL) &&
+-		ra->bra_area_used <= ra->bra_prepared.tc_reg_size;
+-}
+-
+-M0_INTERNAL void m0_be_reg_area_free(struct m0_be_reg_area *ra)
+-{
+-	M0_PRE(m0_be_reg_area__invariant(ra));
+-	be_reg_area_initfini(ra, NULL);
+-	M0_POST(m0_be_reg_area__invariant(ra));
++	return m0_be_regmap__invariant(&ra->bra_map) &&
++	       ra->bra_area != NULL &&
++	       ra->bra_area_used <= ra->bra_prepared.tc_reg_size;
+ }
+ 
+ M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
+diff --git a/be/tx_regmap.h b/be/tx_regmap.h
+index c21e405..0296ff3 100644
+--- a/be/tx_regmap.h
++++ b/be/tx_regmap.h
+@@ -167,14 +167,12 @@ struct m0_be_reg_area {
+ 	char		      *bra_area;
+ 	m0_bcount_t	       bra_area_used;
+ 	struct m0_be_tx_credit bra_prepared;
+-	bool		       bra_allocated;
+ };
+ 
+ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
+ 				    const struct m0_be_tx_credit *prepared);
+ M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra);
+ M0_INTERNAL bool m0_be_reg_area__invariant(const struct m0_be_reg_area *ra);
+-M0_INTERNAL void m0_be_reg_area_free(struct m0_be_reg_area *ra);
+ M0_INTERNAL void m0_be_reg_area_used(struct m0_be_reg_area *ra,
+ 				     struct m0_be_tx_credit *used);
+ 
+-- 
+1.8.3.2
+

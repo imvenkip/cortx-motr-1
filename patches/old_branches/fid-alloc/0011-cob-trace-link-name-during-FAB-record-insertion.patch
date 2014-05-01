@@ -1,0 +1,31 @@
+From a50d2a582aa75585a55be5909b1deda6ad7e1325 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 31 Mar 2013 21:21:58 +0300
+Subject: [PATCH 11/15] cob: trace link name during FAB record insertion
+
+---
+ cob/cob.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index 438f2f6..476426c 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1254,12 +1254,12 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
+ 			 &fabkey, sizeof fabkey, cob->co_fabrec,
+ 			 m0_cob_fabrec_size(cob->co_fabrec));
+ 	rc = m0_table_insert(tx, &pair);
+-	M0_LOG(M0_DEBUG, "insert fab [%llx:%llx] v%llu.%llu, rc=%d",
++	M0_LOG(M0_DEBUG, "insert fab [%llx:%llx] v%llu.%llu, lnk=%.*s, rc=%d",
+ 	       (long long unsigned)fabkey.cfb_fid.f_container,
+ 	       (long long unsigned)fabkey.cfb_fid.f_key,
+ 	       (long long unsigned)cob->co_fabrec->cfb_version.vn_lsn,
+ 	       (long long unsigned)cob->co_fabrec->cfb_version.vn_vc,
+-	       rc);
++	       (int)fabrec->cfb_linklen, (char *)fabrec->cfb_link, rc);
+ 	m0_db_pair_release(&pair);
+ 	m0_db_pair_fini(&pair);
+ 	if (rc != 0)
+-- 
+1.8.3.2
+

@@ -1,0 +1,1516 @@
+From 80b4aed6118d4f2da18c336738a52d1c6654b587 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 19 Nov 2012 18:06:46 +0530
+Subject: [PATCH 020/172] Calling the "sublayout, extentlist" touple as a layer
+ and not sub-layout
+
+---
+ layout/composite.c    | 253 ++++++++++++++++----------------
+ layout/composite.h    | 136 ++++++++---------
+ layout/layout.h       |   4 +-
+ layout/layout_db.c    |   2 +-
+ layout/pdclust.h      |   2 +-
+ layout/ut/composite.c | 393 +++++++++++++++++++++++++-------------------------
+ 6 files changed, 382 insertions(+), 408 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 5e1a3b7..9b2d558 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -79,15 +79,16 @@ struct layout_prefix {
+ 	uint64_t lp_filler;
+ };
+ 
+-C2_TL_DESCR_DEFINE(c2_sub_layout, "sub-layout-list", /* global */,
+-		   struct c2_composite_sub_layout, csl_list_linkage, csl_magic,
++C2_TL_DESCR_DEFINE(c2_layer, "composite-layer-list", /* global */,
++		   struct c2_composite_layer, clr_list_linkage, clr_magic,
+ 		   C2_LAYOUT_COMP_SUBL_MAGIC, C2_LAYOUT_COMP_SUBL_HEAD_MAGIC);
+-C2_TL_DEFINE(c2_sub_layout, /* global */, struct c2_composite_sub_layout);
++C2_TL_DEFINE(c2_layer, /* global */, struct c2_composite_layer);
+ 
+-C2_TL_DESCR_DEFINE(c2_layout_extent, "layout-extent-list", /* global */,
+-		   struct c2_sub_layout_extent, sle_list_linkage, sle_magic,
++C2_TL_DESCR_DEFINE(c2_layer_extent, "composite-layer-extent-list",
++		   /* global */, struct c2_composite_layer_extent,
++		   cle_list_linkage, cle_magic,
+ 		   C2_LAYOUT_EXTENT_MAGIC, C2_LAYOUT_EXTENT_HEAD_MAGIC);
+-C2_TL_DEFINE(c2_layout_extent, /* global */, struct c2_sub_layout_extent);
++C2_TL_DEFINE(c2_layer_extent, /* global */, struct c2_composite_layer_extent);
+ 
+ static bool composite_allocated_invariant(const struct c2_composite_layout *cl)
+ {
+@@ -95,9 +96,9 @@ static bool composite_allocated_invariant(const struct c2_composite_layout *cl)
+ 		cl != NULL &&
+ 		c2_layout__allocated_invariant(&cl->cl_base) &&
+ 		c2_mutex_is_locked(&cl->cl_base.l_lock) &&
+-		cl->cl_sub_layouts != NULL &&
+-		c2_sub_layout_tlist_is_empty(cl->cl_sub_layouts) &&
+-		cl->cl_sublayouts_nr == 0;
++		cl->cl_layers != NULL &&
++		c2_layer_tlist_is_empty(cl->cl_layers) &&
++		cl->cl_layers_nr == 0;
+ }
+ 
+ static bool composite_invariant(const struct c2_composite_layout *cl)
+@@ -105,14 +106,13 @@ static bool composite_invariant(const struct c2_composite_layout *cl)
+ 	return
+ 		c2_composite_layout_bob_check(cl) &&
+ 		c2_layout__invariant(&cl->cl_base) &&
+-		cl->cl_sub_layouts != NULL &&
+-		cl->cl_sublayouts_nr ==
+-			c2_sub_layout_tlist_length(cl->cl_sub_layouts) &&
+-		c2_tl_forall(c2_sub_layout, sl, cl->cl_sub_layouts,
+-			     c2_layout__invariant(sl->csl_l) &&
+-			     sl->csl_extents != NULL &&
+-			     sl->csl_extents_nr ==
+-			     c2_layout_extent_tlist_length(sl->csl_extents));
++		cl->cl_layers != NULL &&
++		cl->cl_layers_nr == c2_layer_tlist_length(cl->cl_layers) &&
++		c2_tl_forall(c2_layer, sl, cl->cl_layers,
++			     c2_layout__invariant(sl->clr_l) &&
++			     sl->clr_extents != NULL &&
++			     sl->clr_extents_nr ==
++			     c2_layer_extent_tlist_length(sl->clr_extents));
+ }
+ 
+ static const struct c2_layout_ops composite_ops;
+@@ -138,13 +138,13 @@ err1_injected:
+ 		return -ENOMEM;
+ 	}
+ 
+-	C2_ALLOC_PTR(cl->cl_sub_layouts);
+-	if (cl->cl_sub_layouts == NULL) {
++	C2_ALLOC_PTR(cl->cl_layers);
++	if (cl->cl_layers == NULL) {
+ 		c2_layout__log("composite_allocate", "C2_ALLOC_PTR() failed",
+ 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+-	c2_sub_layout_tlist_init(cl->cl_sub_layouts);
++	c2_layer_tlist_init(cl->cl_layers);
+ 
+ 	c2_layout__init(&cl->cl_base, dom, lid,
+ 			(struct c2_layout_type *)&c2_composite_layout_type,
+@@ -171,29 +171,17 @@ static void composite_delete(struct c2_layout *l)
+ 	c2_mutex_unlock(&l->l_lock);
+ 	c2_composite_layout_bob_fini(cl);
+ 	c2_layout__delete(&cl->cl_base);
+-	c2_sub_layout_tlist_fini(cl->cl_sub_layouts);
++	c2_layer_tlist_fini(cl->cl_layers);
+ 	c2_free(cl);
+ 	C2_LEAVE();
+ }
+ 
+ static void composite_populate(struct c2_composite_layout *cl,
+-			   //    struct c2_tl *sub_layouts,
+-			     //  uint32_t sublayouts_nr,
+ 			       uint32_t user_count)
+ {
+ 	C2_PRE(composite_allocated_invariant(cl));
+-	/*
+-	 * The sub-layout list has been validated by the caller and a reference
+-	 * has been added to each sub-layout.
+-	 */
+-
+ 	C2_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+ 	c2_layout__populate(&cl->cl_base, user_count);
+-	/*
+-	cl->cl_sub_layouts = sub_layouts;
+-	cl->cl_nr = sublayouts_nr;
+-	*/
+-
+ 	C2_POST(composite_invariant(cl));
+ 	C2_POST(c2_mutex_is_locked(&cl->cl_base.l_lock));
+ 	C2_LEAVE("lid %llu", (unsigned long long)cl->cl_base.l_id);
+@@ -233,10 +221,10 @@ int c2_composite_build(struct c2_layout_domain *dom,
+ /** Implementation of lo_fini for COMPOSITE layout type. */
+ static void composite_fini(struct c2_ref *ref)
+ {
+-	struct c2_layout               *l;
+-	struct c2_composite_layout     *cl;
+-	struct c2_composite_sub_layout *sl;
+-	struct c2_sub_layout_extent    *sl_ext;
++	struct c2_layout                 *l;
++	struct c2_composite_layout       *cl;
++	struct c2_composite_layer        *layer;
++	struct c2_composite_layer_extent *extent;
+ 
+ 	l = container_of(ref, struct c2_layout, l_ref);
+ 	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
+@@ -245,28 +233,28 @@ static void composite_fini(struct c2_ref *ref)
+ 	cl = c2_layout_to_cl(l);
+ 	c2_composite_layout_bob_fini(cl);
+ 
+-	c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+-		c2_tl_for(c2_layout_extent, sl->csl_extents, sl_ext) {
+-			c2_layout_extent_tlist_del(sl_ext);
+-			c2_layout_extent_tlink_fini(sl_ext);
+-			c2_free(sl_ext);
++	c2_tl_for(c2_layer, cl->cl_layers, layer) {
++		c2_tl_for(c2_layer_extent, layer->clr_extents, extent) {
++			c2_layer_extent_tlist_del(extent);
++			c2_layer_extent_tlink_fini(extent);
++			c2_free(extent);
+ 		} c2_tl_endfor;
+-		c2_free(sl->csl_extents);
++		c2_free(layer->clr_extents);
+ 		/*
+ 		 * Decrement the user count incremented by
+ 		 * c2_composite_layer_add().
+ 		 */
+-		c2_layout_user_count_dec(sl->csl_l);
++		c2_layout_user_count_dec(layer->clr_l);
+ 		/*
+ 		 * Release the reference acquired by c2_composite_layer_add().
+ 		 */
+-		c2_layout_put(sl->csl_l);
+-		c2_sub_layout_tlist_del(sl);
+-		c2_sub_layout_tlink_fini(sl);
+-		c2_free(sl);
++		c2_layout_put(layer->clr_l);
++		c2_layer_tlist_del(layer);
++		c2_layer_tlink_fini(layer);
++		c2_free(layer);
+ 	} c2_tl_endfor;
+-	c2_sub_layout_tlist_fini(cl->cl_sub_layouts);
+-	c2_free(cl->cl_sub_layouts);
++	c2_layer_tlist_fini(cl->cl_layers);
++	c2_free(cl->cl_layers);
+ 
+ 	c2_layout__fini(&cl->cl_base);
+ 	c2_free(cl);
+@@ -278,14 +266,14 @@ int c2_composite_layer_add(struct c2_composite_layout *cl,
+ 			   struct c2_tl *extlist,
+ 			   uint32_t ext_nr)
+ {
+-	struct c2_composite_sub_layout *sl;
++	struct c2_composite_layer *sl;
+ 
+ 	C2_PRE(composite_invariant(cl));
+ 	C2_PRE(c2_layout__invariant(l));
+ 	C2_PRE(extlist != NULL);
+ 
+ 	C2_ENTRY();
+-	if (c2_layout_extent_tlist_is_empty(extlist)) {
++	if (c2_layer_extent_tlist_is_empty(extlist)) {
+ 		//todo ADDB, TRACE rec etc
+ 		return -EINVAL;
+ 	}
+@@ -295,13 +283,13 @@ int c2_composite_layer_add(struct c2_composite_layout *cl,
+ 	C2_ALLOC_PTR(sl);
+ 	C2_ASSERT(sl != NULL); //todo handle error
+ 
+-	sl->csl_l = l;
+-	sl->csl_extents = extlist;
+-	sl->csl_extents_nr = ext_nr;
+-	c2_layout_get(sl->csl_l);
+-	c2_layout_user_count_inc(sl->csl_l);
+-	c2_sub_layout_tlink_init_at_tail(sl, cl->cl_sub_layouts);
+-	++cl->cl_sublayouts_nr;
++	sl->clr_l = l;
++	sl->clr_extents = extlist;
++	sl->clr_extents_nr = ext_nr;
++	c2_layout_get(sl->clr_l);
++	c2_layout_user_count_inc(sl->clr_l);
++	c2_layer_tlink_init_at_tail(sl, cl->cl_layers);
++	++cl->cl_layers_nr;
+ 
+ 	//todo This op has to sync up the on-disk db
+ 
+@@ -394,12 +382,14 @@ static c2_bcount_t composite_max_recsize(struct c2_layout_domain *dom)
+ 	return 0;
+ }
+ 
++//todo look for sub-layout, sub_layout, sublayouts and similar instances and remove those. Also from the ut/composite.c.
++
+ #if 0
+ static int sublayouts_read(struct c2_composite_layout *cl,
+ 			   struct c2_tl *sub_layouts, uint32_t *nr,
+ 			   struct c2_db_tx *tx)
+ {
+-	struct c2_composite_sub_layout *sl;
++	struct c2_composite_layer      *layer; //todo sl replaced by layer
+ 	struct composite_schema_data   *csd;
+ 	struct c2_emap                 *emap;
+ 	struct c2_emap_cursor           it;
+@@ -419,7 +409,7 @@ static int sublayouts_read(struct c2_composite_layout *cl,
+ 	C2_ASSERT(rc == 0); //todo handle err
+ 
+ 	/*
+-	 * Read all the sub-layouts from the emap cursor and store them in the
++	 * Read all the layers from the emap cursor and store them in the
+ 	 * sub_layouts list.
+ 	 */
+ 	sublayouts_nr = 0;
+@@ -427,36 +417,36 @@ static int sublayouts_read(struct c2_composite_layout *cl,
+ 	seg = c2_emap_seg_get(&it);
+ 	C2_ASSERT(c2_emap_ext_is_first(&seg->ee_ext));
+ 
+-	C2_LOG(C2_DEBUG, "Composite lid %llu, sub-layouts: ",
++	C2_LOG(C2_DEBUG, "Composite lid %llu, layer: ",
+ 	       (unsigned long long)cl->cl_base.l_id);
+ 
+ 	while (1) {
+ 		seg = c2_emap_seg_get(&it);
+-		C2_ALLOC_PTR(sl);
+-		C2_ASSERT(sl != NULL); //todo handle error
++		C2_ALLOC_PTR(layer);
++		C2_ASSERT(layer != NULL); //todo handle error
+ #if 0
+-		sl->csl_l = c2_layout_lookup(cl->cl_base.l_dom, seg->ee_val,
++		layer->clr_l = c2_layout_lookup(cl->cl_base.l_dom, seg->ee_val,
+ 					     &c2_pdclust_layout_type /* todo*/,
+ 					     tx,);
+ 		/* todo What to do if the layout is not cached?
+ 		 * lookup requires layout type to be stored.
+ 		 */
+ #endif
+-		sl->csl_l = c2_layout_find(cl->cl_base.l_dom, seg->ee_val);
+-		C2_ASSERT(sl->csl_l != NULL); //todo Handle err
+-		c2_layout_user_count_inc(sl->csl_l); //todo Optimise code
++		layer->clr_l = c2_layout_find(cl->cl_base.l_dom, seg->ee_val);
++		C2_ASSERT(layer->clr_l != NULL); //todo Handle err
++		c2_layout_user_count_inc(layer->clr_l); //todo Optimise code
+ 		C2_ASSERT(!c2_ext_is_empty(&seg->ee_ext));
+-		sl->csl_ext = seg->ee_ext;
+-		c2_sub_layout_tlink_init_at_tail(sl, sub_layouts);
++		layer->clr_ext = seg->ee_ext;
++		c2_layer_tlink_init_at_tail(layer, sub_layouts);
+ 
+ 		C2_LOG(C2_DEBUG, "Sub-layout[%lu]: lid %llu, "
+ 		       "e_start %llu, e_end %llu",
+ 		       (unsigned long)sublayouts_nr,
+-		       (insigned long long)sl->csl_l->l_id,
+-		       (unsigned long long)sl->csl_ext.e_start,
+-		       (unsigned long long)sl->csl_ext.e_end);
++		       (insigned long long)layer->clr_l->l_id,
++		       (unsigned long long)layer->clr_ext.e_start,
++		       (unsigned long long)layer->clr_ext.e_end);
+ 
+-		total = total + sl->csl_ext.e_end - sl->csl_ext.e_start;
++		total = total + layer->clr_ext.e_end - layer->clr_ext.e_start;
+ 				//todo Why + 1 is not req'd
+ 		++sublayouts_nr;
+ 
+@@ -482,16 +472,16 @@ static int composite_decode(struct c2_layout *l,
+ 			    struct c2_db_tx *tx,
+ 			    uint32_t user_count)
+ {
+-	struct c2_composite_layout     *cl;
+-	struct c2_layout               *sublayout;
+-	struct c2_tl                   *extents;
+-	struct composite_header        *cl_header;
+-	struct sub_layout_header       *sl_header;
+-	struct c2_sub_layout_extent    *sl_ext;
+-	struct c2_ext                  *ext;
+-	uint32_t                        i;
+-	uint32_t                        j;
+-	int                             rc;
++	struct c2_composite_layout       *cl;
++	struct c2_layout                 *sublayout;
++	struct c2_tl                     *extents;
++	struct composite_header          *cl_header;
++	struct composite_layer_header    *layer_header;
++	struct c2_composite_layer_extent *extent;
++	struct c2_ext                    *ext;
++	uint32_t                          i;
++	uint32_t                          j;
++	int                               rc;
+ 
+ 	C2_PRE(c2_layout__allocated_invariant(l));
+ 	C2_PRE(cur != NULL);
+@@ -506,17 +496,17 @@ static int composite_decode(struct c2_layout *l,
+ 	cl_header = c2_bufvec_cursor_addr(cur);
+ 	c2_bufvec_cursor_move(cur, sizeof *cl_header);
+ 	C2_ASSERT(c2_bufvec_cursor_step(cur) >=
+-		  cl_header->ch_sublayouts_nr * sizeof *sl_header);
++		  cl_header->ch_layers_nr * sizeof *layer_header);
+ 
+ 	composite_populate(cl, user_count);
+ 	C2_ASSERT(composite_invariant(cl));
+ 
+ 	if (op == C2_LXO_BUFFER_OP) {
+ 		/*
+-		 * Parse the sub-layout information from the buffer pointed by
+-		 * cur and add those sub-layouts to the composite layout.
++		 * Parse the layers information from the buffer pointed by
++		 * cur and add those layers to the composite layout.
+ 		 */
+-		for (i = 0; i < cl_header->ch_sublayouts_nr; ++i) {
++		for (i = 0; i < cl_header->ch_layers_nr; ++i) {
+ 			C2_ALLOC_PTR(extents);
+ 			if (extents == NULL) {
+ 				//todo Handle error
+@@ -528,12 +518,12 @@ static int composite_decode(struct c2_layout *l,
+ 				return -ENOMEM;
+ #endif
+ 			}
+-			c2_layout_extent_tlist_init(extents);
++			c2_layer_extent_tlist_init(extents);
+ 
+-			sl_header = c2_bufvec_cursor_addr(cur);
+-			c2_bufvec_cursor_move(cur, sizeof *sl_header);
++			layer_header = c2_bufvec_cursor_addr(cur);
++			c2_bufvec_cursor_move(cur, sizeof *layer_header);
+ 			sublayout = c2_layout_find(l->l_dom,
+-						   sl_header->slh_lid);
++						   layer_header->clh_lid);
+ 			if (sublayout == NULL) {
+ 				/**
+ 				 * todo Handle error. Eventually the layout
+@@ -543,23 +533,23 @@ static int composite_decode(struct c2_layout *l,
+ 			}
+ 			C2_ASSERT(sublayout != NULL);
+ 			C2_ASSERT(c2_bufvec_cursor_step(cur) >=
+-				  sl_header->slh_extents_nr * sizeof *ext);
++				  layer_header->clh_extents_nr * sizeof *ext);
+ 
+-			for (j = 0; j < sl_header->slh_extents_nr; ++j) {
+-				C2_ALLOC_PTR(sl_ext);
+-				if (sl_ext == NULL) {
++			for (j = 0; j < layer_header->clh_extents_nr; ++j) {
++				C2_ALLOC_PTR(extent);
++				if (extent == NULL) {
+ 					//todo Handle error
+ 				}
+ 				ext = c2_bufvec_cursor_addr(cur);
+ 				c2_bufvec_cursor_move(cur, sizeof *ext);
+-				sl_ext->sle_ext = *ext;
+-				c2_layout_extent_tlink_init_at_tail(sl_ext,
++				extent->cle_ext = *ext;
++				c2_layer_extent_tlink_init_at_tail(extent,
+ 								    extents);
+ 			}
+ 
+ 			//C2_ASSERT(l->l_user_count > 0); //todo
+ 			rc = c2_composite_layer_add(cl, sublayout, extents,
+-						    sl_header->slh_extents_nr);
++						  layer_header->clh_extents_nr);
+ 			C2_ASSERT(rc == 0); //todo Handle error
+ 
+ 			/*
+@@ -571,8 +561,8 @@ static int composite_decode(struct c2_layout *l,
+ 		}
+ 	} else {
+ 		/*
+-		 * Read all the sub-layouts from the layout DB and store them
+-		 * in the sub_layouts list.
++		 * Read all the layers from the layout DB and store them
++		 * in the layers list.
+ 		 */
+ 		//rc = sublayouts_read(cl, sub_layouts, &nr, tx);
+ 		//C2_ASSERT(rc == 0); //todo Handle err
+@@ -592,7 +582,7 @@ static int sublayouts_write(struct c2_layout *l,
+ 			    enum c2_layout_xcode_op op,
+ 			    struct c2_db_tx *tx)
+ {
+-	struct c2_composite_sub_layout *sl;
++	struct c2_composite_layer      *layer; //todo sl replaced by layer
+ 	struct composite_schema_data   *csd;
+ 	struct c2_emap                 *emap;
+ 	struct c2_emap_cursor           it;
+@@ -628,20 +618,20 @@ static int sublayouts_write(struct c2_layout *l,
+ 
+ 		total         = 0;
+ 		sublayouts_nr = 0;
+-		C2_LOG(C2_DEBUG, "Composite lid %llu, sub-layouts: ",
++		C2_LOG(C2_DEBUG, "Composite lid %llu, layer: ",
+ 		       (unsigned long long)l->l_id);
+ 
+-		c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
++		c2_tl_for(c2_layer, cl->cl_layers, sl) {
+ 			C2_LOG(C2_DEBUG, "Sub-layout[%lu]: lid %llu, "
+ 			       "e_start %llu, e_end %llu",
+ 			       (unsigned long)sublayouts_nr,
+-			       (unsigned long long)sl->csl_l->l_id,
+-			       (unsigned long long)sl->csl_ext.e_start,
+-			       (unsigned long long)sl->csl_ext.e_end);
++			       (unsigned long long)sl->clr_l->l_id,
++			       (unsigned long long)sl->clr_ext.e_start,
++			       (unsigned long long)sl->clr_ext.e_end);
+ 
+-			len[sublayouts_nr] = sl->csl_ext.e_end -
+-					     sl->csl_ext.e_start + 1;
+-			val[sublayouts_nr] = sl->csl_l->l_id;
++			len[sublayouts_nr] = sl->clr_ext.e_end -
++					     sl->clr_ext.e_start + 1;
++			val[sublayouts_nr] = sl->clr_l->l_id;
+ 			total              = total + len[sublayouts_nr];
+ 			++sublayouts_nr;
+ 		} c2_tl_endfor;
+@@ -685,13 +675,13 @@ static int composite_encode(struct c2_layout *l,
+ 			    struct c2_db_tx *tx,
+ 			    struct c2_bufvec_cursor *out)
+ {
+-	struct c2_composite_layout     *cl;
+-	struct c2_composite_sub_layout *sl;
+-	struct composite_header         cl_header;
+-	struct sub_layout_header        sl_header;
+-	struct c2_sub_layout_extent    *sl_ext;
+-	c2_bcount_t                     nbytes;
+-	int                             rc;
++	struct c2_composite_layout       *cl;
++	struct c2_composite_layer        *layer;
++	struct composite_header           cl_header;
++	struct composite_layer_header     layer_header;
++	struct c2_composite_layer_extent *extent;
++	c2_bcount_t                       nbytes;
++	int                               rc;
+ 
+ 	C2_PRE(l != NULL);
+ 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+@@ -704,26 +694,27 @@ static int composite_encode(struct c2_layout *l,
+ 	cl = c2_layout_to_cl(l);
+ 	if (op == C2_LXO_BUFFER_OP) {
+ 		/*
+-		 * Read sub-layout information from the composite layout viz.
+-		 * cl and store it in the buffer.
++		 * Read layers information from the composite layout and store
++		 * it in the buffer.
+ 		 */
+ 		C2_ASSERT(c2_bufvec_cursor_step(out) >= sizeof cl_header);
+-		cl_header.ch_sublayouts_nr = cl->cl_sublayouts_nr;
++		cl_header.ch_layers_nr = cl->cl_layers_nr;
+ 		nbytes = c2_bufvec_cursor_copyto(out, &cl_header,
+ 						 sizeof cl_header);
+ 		C2_ASSERT(nbytes == sizeof cl_header);
+-		C2_ASSERT(c2_bufvec_cursor_step(out) >= cl->cl_sublayouts_nr *
+-							sizeof sl_header);
+-		c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+-			sl_header.slh_lid = sl->csl_l->l_id;
+-			sl_header.slh_extents_nr = sl->csl_extents_nr;
+-			nbytes = c2_bufvec_cursor_copyto(out, &sl_header,
+-							 sizeof sl_header);
+-			c2_tl_for(c2_layout_extent, sl->csl_extents, sl_ext) {
++		C2_ASSERT(c2_bufvec_cursor_step(out) >= cl->cl_layers_nr *
++							sizeof layer_header);
++		c2_tl_for(c2_layer, cl->cl_layers, layer) {
++			layer_header.clh_lid = layer->clr_l->l_id;
++			layer_header.clh_extents_nr = layer->clr_extents_nr;
++			nbytes = c2_bufvec_cursor_copyto(out, &layer_header,
++							 sizeof layer_header);
++			c2_tl_for(c2_layer_extent, layer->clr_extents,
++				  extent) {
+ 				nbytes = c2_bufvec_cursor_copyto(out,
+-							&sl_ext->sle_ext,
+-							sizeof sl_ext->sle_ext);
+-				C2_ASSERT(nbytes == sizeof sl_ext->sle_ext);
++							&extent->cle_ext,
++							sizeof extent->cle_ext);
++				C2_ASSERT(nbytes == sizeof extent->cle_ext);
+ 			} c2_tl_endfor;
+ 		} c2_tl_endfor;
+ 		rc = 0;
+diff --git a/layout/composite.h b/layout/composite.h
+index 505d4de..ea684a2 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -41,83 +41,84 @@
+ /* export */
+ struct c2_composite_layout;
+ 
+-/**
+- * Extension of the generic c2_layout for the composite layout type.
+- */
++/** Extension of the generic c2_layout for the composite layout type. */
+ struct c2_composite_layout {
+ 	/** Super class. */
+ 	struct c2_layout  cl_base;
+ 
+-	/* Number of sub-layouts in this composite layout. */
+-	uint32_t          cl_sublayouts_nr;
++	/**
++	 * Number of layers that is number of sub-layouts in this composite
++	 * layout.
++	 */
++	uint32_t          cl_layers_nr;
+ 
+ 	/**
+-	 * List of of sub-layouts (struct c2_composite_sub_layout) owned by
++	 * List of layers (struct c2_composite_layer) owned by
+ 	 * this composite layout.
+ 	 */
+-	struct c2_tl     *cl_sub_layouts;
++	struct c2_tl     *cl_layers;
+ 
+ 	uint64_t          cl_magic;
+ };
+ 
+ /**
+- * todo Desc
+- * todo Rename this to c2_composite_layer
++ * Layer of a composite layout.
++ * There can be multiple layers in a composite layout. Typically, one layer
++ * gets added per failure.
+  */
+-struct c2_composite_sub_layout {
+-	/** Layout this sub-layout is part of. todo Check if req'd */
+-	struct c2_layout *csl_l;
++struct c2_composite_layer {
++	/** Composite Layout this layer is part of. */
++	struct c2_layout *clr_l;
+ 
+-	/** Number of extents in this sub-layout. todo Check if req'd */
+-	uint32_t          csl_extents_nr;
++	/** Number of extents in this layer. */
++	uint32_t          clr_extents_nr;
+ 
+ 	/**
+ 	 * List of extents (struct c2_sub_layout_extent) owned by this
+-	 * sub-layout.
++	 * layer.
+ 	 */
+-	struct c2_tl     *csl_extents;
++	struct c2_tl     *clr_extents;
+ 
+-	/**
+-	 * Magic number set while c2_composite_sub_layout object is
+-	 * initialised.
+-	 */
+-	uint64_t          csl_magic;
++	/** Magic number set while c2_composite_layer object is initialised. */
++	uint64_t          clr_magic;
+ 
+ 	/**
+-	 * Linkage used for maintaining list of the sub-layouts owned by a
++	 * Linkage used for maintaining list of the layers owned by a
+ 	 * particular composite layout.
+ 	 */
+-	struct c2_tlink   csl_list_linkage;
++	struct c2_tlink   clr_list_linkage;
+ };
+ 
+-struct c2_sub_layout_extent {
++/**
++ * Extent that is part of 'a layer of a composite layout'. Any composite layer
++ * contains list of such extents.
++ */
++struct c2_composite_layer_extent {
+ 	/** Extent being represented. */
+-	struct c2_ext                   sle_ext;
++	struct c2_ext                   cle_ext;
+ 
+ 	/**
+ 	 * Magic number set while c2_sub_layout_extent object is
+ 	 * initialised.
+ 	 */
+-	uint64_t                        sle_magic;
++	uint64_t                        cle_magic;
+ 
+ 	/**
+ 	 * Linkage used for maintaining list of the extents owned by a
+ 	 * particular sub-layout.
+ 	 */
+-	struct c2_tlink                 sle_list_linkage;
++	struct c2_tlink                 cle_list_linkage;
+ };
+ 
+-C2_TL_DECLARE(c2_sub_layout, extern, struct c2_composite_sub_layout);
+-C2_TL_DECLARE(c2_layout_extent, extern, struct c2_sub_layout_extent);
++C2_TL_DECLARE(c2_layer, extern, struct c2_composite_layer);
++C2_TL_DECLARE(c2_layer_extent, extern, struct c2_composite_layer_extent);
+ 
+-/** todo Update...
++/**
+  * Allocates and builds a layout object with the composite layout type,
+- * by setting its intial ref count to 1.
+- * @post ergo(rc == 0, pdclust_invariant(*out))
+- * @post ergo(rc == 0, c2_ref_read(l->l_ref) == 1)
+- *
+- * @param sub_layouts This is a list of sublayouts spanning over namespace
+- * of all the 64-bit unsigned numbers from 0 to C2_BINDEX_MAX. todo
++ * by setting its initial ref count to 1. It does not contain any layer by
++ * default and the multiple layers can be added by explicitly using the API
++ * c2_composite_layer_add().
++ * @post ergo(rc == 0, composite_invariant(*out) && c2_ref_read(l->l_ref) == 1)
+  *
+  * @note The layout object built by this API is to be finalised by releasing
+  * 'the reference on it that has been held during its creation'.
+@@ -130,9 +131,7 @@ int c2_composite_build(struct c2_layout_domain *dom,
+ 		       uint64_t lid,
+ 		       struct c2_composite_layout **out);
+ 
+-/**
+- * todo
+- */
++/** Adds a layer to the composite layout. */
+ int c2_composite_layer_add(struct c2_composite_layout *cl,
+ 			   struct c2_layout *l,
+ 			   struct c2_tl *extlist,
+@@ -151,13 +150,15 @@ extern struct c2_layout_type c2_composite_layout_type;
+ 
+ /**
+  * Structure used to store header information for a composite layout like
+- * number of sub-layouts from the buffer representing the composite layout.
++ * number of layers in it. It is used in the buffer representation of a
++ * composite layout.
+  *
+- * @note This structure needs to be maintained as 8 bytes aligned.
++ * @note This structure needs to be maintained as 8 bytes aligned. (todo
++ * required only if this is to be stored in the layouts table from the LDB.)
+  */
+ struct composite_header {
+-	/** Total number of sub-layouts in a specific composite layout. */
+-	uint32_t ch_sublayouts_nr;
++	/** Total number of layers in a specific composite layout. */
++	uint32_t ch_layers_nr;
+ 
+ 	/** Padding to make the structure 8 bytes aligned. */
+ 	uint32_t ch_pad;
+@@ -165,50 +166,31 @@ struct composite_header {
+ C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct composite_header)));
+ 
+ /**
+- * Structure used to store header information for a sub-layout like number of
+- * extents of the sub-layout from the buffer representing the composite layout.
++ * Structure used to store header information for 'a layer of a composite
++ * layout' like the number of extents in it. It is used in the buffer
++ * representation of a composite layout.
+  *
+- * @note This structure needs to be maintained as 8 bytes aligned.
++ * @note This structure needs to be maintained as 8 bytes aligned. (todo
++ * required only if this is to be stored in the layouts table from the LDB.)
+  */
+-struct sub_layout_header { //todo composite_layer_header
+-	/** Layout id for the sub-layout. */
+-	uint64_t slh_lid;
++struct composite_layer_header {
++	/** Layout id for the layout used for this layer (sub-layout). */
++	uint64_t clh_lid;
+ 
+-	/** Number of extents belonging to this sub-layout. */
+-	uint32_t slh_extents_nr;
++	/** Number of extents belonging to this layer. */
++	uint32_t clh_extents_nr;
+ 
+ 	/** Padding to make the structure 8 bytes aligned. */
+-	uint32_t slh_pad;
++	uint32_t clh_pad;
+ 
+         /**
+-         * Payload storing list of slh_extents_nr number of extents
+-	 * (struct c2_ext) for a specific sublayout.
++         * Payload storing list of extents (struct c2_ext) for a specific
++	 * layer.
+          */
+-	char     slh_extents[0];
++	char     clh_extents[0];
+ 
+ };
+-C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct sub_layout_header)));
+-
+-#if 0
+-/**
+- * Structure used to store information about a sub-layout from the buffer
+- * representing the composite layout.
+- *
+- * @note This structure needs to be maintained as 8 bytes aligned.
+- * todo BASSERT
+- */
+-struct sub_layout_entry {
+-	/** Layout id for the sub-layout. */
+-	//todo Remove if not must to have uint64_t sle_lid;
+-
+-	/**
+-	 * Payload storing list of extents (struct c2_ext) for the specific
+-	 * sublayout.
+-	 */
+-	char     sle_cobs[0];
+-};
+-C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct sub_layout_entry)));
+-#endif
++C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct composite_layer_header)));
+ 
+ /** @} end group composite */
+ 
+diff --git a/layout/layout.h b/layout/layout.h
+index b9cf883..45f4950 100644
+--- a/layout/layout.h
++++ b/layout/layout.h
+@@ -87,7 +87,7 @@
+  * - A layout can be assigned to a file both by the server and the client.
+  *
+  * @section layout-operations-sequence Sequence Of Layout Operation
+- * The sequence of operation related to domain intialisation/finalisation,
++ * The sequence of operation related to domain initialisation/finalisation,
+  * layout type and enum type registration and unregistration is as follows:
+  * - Initialise c2_layout_domain object.
+  * - Register layout types and enum types using
+@@ -805,7 +805,7 @@ void c2_layout_user_count_dec(struct c2_layout *l);
+  *   C2_LXO_DB_LOOKUP.
+  *
+  * @post Layout object is fully built (along with enumeration object being
+- * built if applicable) along with its ref count being intialised to 1. User
++ * built if applicable) along with its ref count being initialised to 1. User
+  * needs to explicitly release this reference so as to delete this in-memory
+  * layout.
+  * - ergo(rc == 0, c2_layout__invariant(l))
+diff --git a/layout/layout_db.c b/layout/layout_db.c
+index 2704299..836fb5c 100644
+--- a/layout/layout_db.c
++++ b/layout/layout_db.c
+@@ -221,7 +221,7 @@
+  *
+  * Layout DB uses a single c2_emap instance to implement the composite layout
+  * extent map viz. comp_layout_ext_map. This table stores the "layout segment
+- * to sub-layout id mappings" for each compsite layout.
++ * to sub-layout id mappings" for each composite layout.
+  *
+  * Since prefix (an element of the key for c2_emap) is required to be 128 bit
+  * in size, layout id (unit64_t) of the composite layout is used as a part of
+diff --git a/layout/pdclust.h b/layout/pdclust.h
+index e2e9277..2748ff2 100644
+--- a/layout/pdclust.h
++++ b/layout/pdclust.h
+@@ -247,7 +247,7 @@ struct c2_pdclust_tgt_addr {
+ 
+ /**
+  * Allocates and builds a layout object with the pdclust layout type,
+- * by setting its intial ref count to 1.
++ * by setting its initial ref count to 1.
+  * @post ergo(rc == 0, pdclust_invariant(*out))
+  * @post ergo(rc == 0, c2_ref_read(l->l_ref) == 1)
+  *
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index de54578..d2d6448 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -29,8 +29,8 @@
+ #include "layout/composite.h"
+ #include "layout/ut/layout.h"
+ 
+-C2_TL_DESCR_DECLARE(c2_sub_layout, extern);
+-C2_TL_DESCR_DECLARE(c2_layout_extent, extern);
++C2_TL_DESCR_DECLARE(c2_layer, extern);
++C2_TL_DESCR_DECLARE(c2_layer_extent, extern);
+ static int rc;
+ 
+ static void sublayout_build(uint64_t lid, struct c2_layout **sub_layout)
+@@ -64,17 +64,17 @@ static void extentlist_build(struct c2_tl **extlist,
+ 			     c2_bindex_t approximate_end_offset,
+ 			     bool if_contiguous_extents)
+ {
+-	struct c2_tl                *extents;
+-	struct c2_sub_layout_extent *sl_ext;
+-	c2_bindex_t                  delta;
+-	c2_bindex_t                  multiplier;
+-	uint32_t                     i;
++	struct c2_tl                     *extents;
++	struct c2_composite_layer_extent *extent;
++	c2_bindex_t                       delta;
++	c2_bindex_t                       multiplier;
++	uint32_t                          i;
+ 
+ 	/* Initialise a c2_tl for storing the extents. */
+ 	C2_ALLOC_PTR(extents);
+ 	C2_UT_ASSERT(extents != NULL);
+-	c2_layout_extent_tlist_init(extents);
+-	C2_UT_ASSERT(c2_layout_extent_tlist_is_empty(extents));
++	c2_layer_extent_tlist_init(extents);
++	C2_UT_ASSERT(c2_layer_extent_tlist_is_empty(extents));
+ 
+ 	multiplier = if_contiguous_extents ? 1 : 2;
+ 	delta = (approximate_end_offset - min_start_offset + 1) /
+@@ -87,45 +87,45 @@ static void extentlist_build(struct c2_tl **extlist,
+ 			(unsigned long long)approximate_end_offset);
+ #endif
+ 	for (i = 0; i < extents_nr; ++i) {
+-		C2_ALLOC_PTR(sl_ext);
+-		C2_UT_ASSERT(sl_ext != NULL);
+-		sl_ext->sle_ext.e_start = min_start_offset +
++		C2_ALLOC_PTR(extent);
++		C2_UT_ASSERT(extent != NULL);
++		extent->cle_ext.e_start = min_start_offset +
+ 					  (multiplier * i * delta);
+-		sl_ext->sle_ext.e_end = sl_ext->sle_ext.e_start + delta - 1;
++		extent->cle_ext.e_end = extent->cle_ext.e_start + delta - 1;
+ #ifndef __KERNEL__
+ 		printf("ext[%u]: start %llu, end %llu \n", i,
+-			(unsigned long long)sl_ext->sle_ext.e_start,
+-			(unsigned long long)sl_ext->sle_ext.e_end);
++			(unsigned long long)extent->cle_ext.e_start,
++			(unsigned long long)extent->cle_ext.e_end);
+ #endif
+-		c2_layout_extent_tlink_init_at_tail(sl_ext, extents);
++		c2_layer_extent_tlink_init_at_tail(extent, extents);
+ 	}
+ 	*extlist = extents;
+-	C2_UT_ASSERT(!c2_layout_extent_tlist_is_empty(*extlist));
++	C2_UT_ASSERT(!c2_layer_extent_tlist_is_empty(*extlist));
+ }
+ 
+ static void composite_layout_verify(struct c2_layout *l,
+ 				    uint64_t composite_lid,
+-				    uint32_t sublayouts_nr,
++				    uint32_t layers_nr,
+ 				    uint32_t min_extents_nr,
+ 				    c2_bindex_t min_start_offset,
+ 				    c2_bindex_t approximate_end_offset,
+ 				    bool if_contiguous_extents)
+ {
+-	bool                            inline_test;
+-	uint64_t                        sublayout_lid;
+-	struct c2_composite_layout     *cl;
+-	struct c2_composite_sub_layout *sl;
+-	struct c2_uint128               seed;
+-	uint32_t                        enum_id;
+-	uint32_t                        N;
+-	uint32_t                        K;
+-	uint32_t                        P;
+-	c2_bindex_t			delta;
+-	c2_bindex_t                     multiplier;
+-	struct c2_sub_layout_extent    *sl_ext;
+-	uint32_t                        extents_nr;
+-	uint32_t                        i;
+-	uint32_t                        j;
++	bool                              inline_test;
++	uint64_t                          sublayout_lid;
++	struct c2_composite_layout       *cl;
++	struct c2_composite_layer        *layer;
++	struct c2_uint128                 seed;
++	uint32_t                          enum_id;
++	uint32_t                          N;
++	uint32_t                          K;
++	uint32_t                          P;
++	c2_bindex_t			  delta;
++	c2_bindex_t                       multiplier;
++	struct c2_composite_layer_extent *extent;
++	uint32_t                          extents_nr;
++	uint32_t                          i;
++	uint32_t                          j;
+ 
+ 	C2_UT_ASSERT(l != NULL);
+ 	C2_UT_ASSERT(l->l_type == &c2_composite_layout_type);
+@@ -141,37 +141,37 @@ static void composite_layout_verify(struct c2_layout *l,
+ 	/* Verify the layers */
+ 	i = 0;
+ 	extents_nr = min_extents_nr;
+-        c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+-		/* Verify the sub-layout. */
++        c2_tl_for(c2_layer, cl->cl_layers, layer) {
++		/* Verify the layer. */
+ 		sublayout_lid = composite_lid * 100 + i;
+ 		enum_id = sublayout_lid % 2 ? LIST_ENUM_ID : LINEAR_ENUM_ID;
+ 		inline_test = sublayout_lid % 5 ? LESS_THAN_INLINE :
+ 						  MORE_THAN_INLINE;
+ 		NKP_assign(enum_id, inline_test, 9, 109, 1200, &N, &K, &P);
+-		pdclust_layout_verify(enum_id, sl->csl_l, sublayout_lid,
++		pdclust_layout_verify(enum_id, layer->clr_l, sublayout_lid,
+ 				      N, K, P, &seed, 10, 20,
+ 				      USER_COUNT_INCREMENTED);
+-		C2_UT_ASSERT(sl->csl_l->l_user_count == 1);
++		C2_UT_ASSERT(layer->clr_l->l_user_count == 1);
+ 
+-		C2_UT_ASSERT(sl->csl_extents_nr == extents_nr);
++		C2_UT_ASSERT(layer->clr_extents_nr == extents_nr);
+ 
+ 		/* Verify the extents. */
+ 		j = 0;
+ 		delta = (approximate_end_offset - min_start_offset + 1) /
+ 			(extents_nr * multiplier);
+-		c2_tl_for(c2_layout_extent, sl->csl_extents, sl_ext) {
+-			C2_UT_ASSERT(sl_ext->sle_ext.e_start ==
++		c2_tl_for(c2_layer_extent, layer->clr_extents, extent) {
++			C2_UT_ASSERT(extent->cle_ext.e_start ==
+ 				     min_start_offset +
+ 				     (multiplier * j * delta));
+-			C2_UT_ASSERT(sl_ext->sle_ext.e_end ==
+-				     sl_ext->sle_ext.e_start + delta - 1);
++			C2_UT_ASSERT(extent->cle_ext.e_end ==
++				     extent->cle_ext.e_start + delta - 1);
+ 			++j;
+ 		} c2_tl_endfor;
+ 		C2_UT_ASSERT(j == extents_nr);
+ 		++i;
+ 		++extents_nr;
+         } c2_tl_endfor;
+-	C2_UT_ASSERT(i == sublayouts_nr);
++	C2_UT_ASSERT(i == layers_nr);
+ }
+ 
+ /*
+@@ -183,7 +183,7 @@ static void composite_layout_verify(struct c2_layout *l,
+ int composite_layout_build(uint64_t lid,
+ 			   struct c2_layout_domain *domain,
+ 			   struct c2_composite_layout **cl,
+-			   uint32_t sublayouts_nr,
++			   uint32_t layers_nr,
+ 			   uint32_t min_extents_nr,
+ 			   c2_bindex_t min_start_offset,
+ 			   c2_bindex_t approximate_end_offset,
+@@ -215,14 +215,14 @@ int composite_layout_build(uint64_t lid,
+ 	composite_layout_verify(l_from_cl, lid, 0, 0, 0, 0,
+ 				if_contiguous_extents);
+ 
+-	/* Add sub-layouts. */
++	/* Add layers to the composite layout. */
+ 	extents_nr = min_extents_nr;
+-	for (i = 0; i < sublayouts_nr; ++i, ++extents_nr) {
++	for (i = 0; i < layers_nr; ++i, ++extents_nr) {
+ 		sublayout_lid = lid * 100 + i;
+ 		/* Build a layout to be used as a sub-layout. */
+ 		sublayout_build(lid * 100 + i, &sl); /* lid * 100 + i */
+ 
+-		/* Build extent list to be owned by the sub-layout. */
++		/* Build an extent list to be associated with the sub-layout. */
+ 		extentlist_build(&extents, extents_nr,
+ 				 min_start_offset, approximate_end_offset,
+ 				 if_contiguous_extents);
+@@ -253,7 +253,7 @@ int composite_layout_build(uint64_t lid,
+  */
+ int test_build_composite(uint64_t lid,
+ 			 struct c2_layout_domain *domain,
+-			 uint32_t sublayouts_nr,
++			 uint32_t layers_nr,
+ 			 uint32_t min_extents_nr,
+ 			 c2_bindex_t min_start_offset,
+ 			 c2_bindex_t approximate_end_offset,
+@@ -263,7 +263,7 @@ int test_build_composite(uint64_t lid,
+ 	struct c2_composite_layout *cl;
+ 	struct c2_layout           *l;
+ 
+-	rc = composite_layout_build(lid, domain, &cl, sublayouts_nr,
++	rc = composite_layout_build(lid, domain, &cl, layers_nr,
+ 				    min_extents_nr, min_start_offset,
+ 				    approximate_end_offset,
+ 				    if_contiguous_extents,
+@@ -292,27 +292,27 @@ int test_build_composite(uint64_t lid,
+ 
+ /* Builds a buffer containing serialised representation of a layout object. */
+ static void composite_layout_buf_build(uint64_t composite_lid,
+-				       uint32_t sublayouts_nr,
++				       uint32_t layers_nr,
+ 				       uint32_t min_extents_nr,
+ 				       c2_bindex_t min_start_offset,
+ 				       c2_bindex_t approximate_end_offset,
+ 				       bool if_contiguous_extents,
+ 				       struct c2_bufvec_cursor *dcur)
+ {
+-	c2_bcount_t               nbytes;
+-	uint64_t                  sublayout_lid;
+-	struct c2_layout         *sub_layout;
+-	struct composite_header   cl_header;
+-	struct sub_layout_header  sl_header;
+-	struct c2_ext             ext;
+-	c2_bindex_t               delta;
+-	c2_bindex_t               multiplier;
+-	uint32_t                  extents_nr;
+-	uint32_t                  i;
+-	uint32_t                  j;
++	c2_bcount_t                    nbytes;
++	uint64_t                       sublayout_lid;
++	struct c2_layout              *sub_layout;
++	struct composite_header        cl_header;
++	struct composite_layer_header  layer_header;
++	struct c2_ext                  ext;
++	c2_bindex_t                    delta;
++	c2_bindex_t                    multiplier;
++	uint32_t                       extents_nr;
++	uint32_t                       i;
++	uint32_t                       j;
+ 
+ 	C2_UT_ASSERT(dcur != NULL);
+-	C2_UT_ASSERT(sublayouts_nr > 0);
++	C2_UT_ASSERT(layers_nr > 0);
+ 
+ 	/* Build part of the buffer representing generic part of the layout. */
+ 	generic_buf_build(c2_composite_layout_type.lt_id, dcur);
+@@ -322,12 +322,12 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 	 * of the layout.
+ 	 */
+ 	C2_ASSERT(c2_bufvec_cursor_step(dcur) >= sizeof cl_header);
+-	cl_header.ch_sublayouts_nr = sublayouts_nr;
++	cl_header.ch_layers_nr = layers_nr;
+ 	nbytes = c2_bufvec_cursor_copyto(dcur, &cl_header, sizeof cl_header);
+ 	C2_ASSERT(nbytes == sizeof cl_header);
+ 
+-	C2_ASSERT(c2_bufvec_cursor_step(dcur) >= cl_header.ch_sublayouts_nr *
+-						 sizeof sl_header);
++	C2_ASSERT(c2_bufvec_cursor_step(dcur) >= cl_header.ch_layers_nr *
++						 sizeof layer_header);
+ 	multiplier = if_contiguous_extents ? 1 : 2;
+ 
+ #ifndef __KERNEL__
+@@ -340,15 +340,15 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 		(unsigned long long)approximate_end_offset);
+ #endif
+ 	extents_nr = min_extents_nr;
+-	for (i = 0; i < cl_header.ch_sublayouts_nr; ++i, ++extents_nr) {
++	for (i = 0; i < cl_header.ch_layers_nr; ++i, ++extents_nr) {
+ 		sublayout_lid = composite_lid * 100 + i;
+ 		//todo Pre-create a few layouts
+ 		sublayout_build(sublayout_lid, &sub_layout);
+-		sl_header.slh_lid = sublayout_lid;
+-		sl_header.slh_extents_nr = extents_nr;
+-		nbytes = c2_bufvec_cursor_copyto(dcur, &sl_header,
+-						 sizeof sl_header);
+-		C2_ASSERT(nbytes == sizeof sl_header);
++		layer_header.clh_lid = sublayout_lid;
++		layer_header.clh_extents_nr = extents_nr;
++		nbytes = c2_bufvec_cursor_copyto(dcur, &layer_header,
++						 sizeof layer_header);
++		C2_ASSERT(nbytes == sizeof layer_header);
+ 
+ 		delta = (approximate_end_offset - min_start_offset + 1) /
+ 			(extents_nr * multiplier);
+@@ -358,7 +358,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ 			(unsigned long)extents_nr,
+ 			(unsigned long long)delta);
+ #endif
+-		for (j = 0; j < sl_header.slh_extents_nr; ++j) {
++		for (j = 0; j < layer_header.clh_extents_nr; ++j) {
+ 			ext.e_start = min_start_offset +
+ 				      multiplier * j * delta;
+ 			ext.e_end = ext.e_start + delta - 1;
+@@ -379,7 +379,7 @@ static void composite_layout_buf_build(uint64_t composite_lid,
+ /* Tests the API c2_layout_decode() for COMPOSITE layout type. */
+ int test_decode_composite(uint64_t lid,
+ 			  struct c2_layout_domain *domain,
+-			  uint32_t sublayouts_nr,
++			  uint32_t layers_nr,
+ 			  uint32_t min_extents_nr,
+ 			  c2_bindex_t min_start_offset,
+ 			  c2_bindex_t approximate_end_offset,
+@@ -402,7 +402,7 @@ int test_decode_composite(uint64_t lid,
+ 	allocate_area(&area, ADDITIONAL_BYTES_DEFAULT * 4, &num_bytes);
+ 	bv = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area, &num_bytes);
+ 	c2_bufvec_cursor_init(&cur, &bv);
+-	composite_layout_buf_build(lid, sublayouts_nr, min_extents_nr,
++	composite_layout_buf_build(lid, layers_nr, min_extents_nr,
+ 				   min_start_offset, approximate_end_offset,
+ 				   if_contiguous_extents, &cur);
+ 
+@@ -422,7 +422,7 @@ int test_decode_composite(uint64_t lid,
+ 		C2_UT_ASSERT(list_lookup(lid) == l);
+ 
+ 		/* Verify the layout object built by c2_layout_decode(). */
+-		composite_layout_verify(l, lid, sublayouts_nr, min_extents_nr,
++		composite_layout_verify(l, lid, layers_nr, min_extents_nr,
+ 					min_start_offset,
+ 					approximate_end_offset,
+ 					if_contiguous_extents);
+@@ -443,7 +443,7 @@ int test_decode_composite(uint64_t lid,
+ 	 * Destroy all the sub-layouts created through
+ 	 * composite_layout_buf_build().
+ 	 */
+-	for (i = 0; i < sublayouts_nr; ++i) {
++	for (i = 0; i < layers_nr; ++i) {
+ 		sublayout_lid = lid * 100 + i;
+ 		sl = c2_layout_find(domain, sublayout_lid);
+ 		C2_UT_ASSERT(sl != NULL);
+@@ -460,22 +460,22 @@ int test_decode_composite(uint64_t lid,
+ /* Verifies layout buffer against the various input arguments. */
+ static void composite_layout_buf_verify(uint64_t lid,
+ 					struct c2_layout_domain *domain,
+-					uint32_t sublayouts_nr,
++					uint32_t layers_nr,
+ 					uint32_t min_extents_nr,
+ 					c2_bindex_t min_start_offset,
+ 					c2_bindex_t approximate_end_offset,
+ 					bool if_contiguous_extents,
+ 					struct c2_bufvec_cursor *cur)
+ {
+-	uint32_t                  lt_id;
+-	struct composite_header  *cl_header;
+-	struct sub_layout_header *sl_header;
+-	struct c2_ext            *ext;
+-	c2_bindex_t               delta;
+-	c2_bindex_t               multiplier;
+-	uint32_t                  extents_nr;
+-	uint32_t                  i;
+-	uint32_t                  j;
++	uint32_t                       lt_id;
++	struct composite_header       *cl_header;
++	struct composite_layer_header *layer_header;
++	struct c2_ext                 *ext;
++	c2_bindex_t                    delta;
++	c2_bindex_t                    multiplier;
++	uint32_t                       extents_nr;
++	uint32_t                       i;
++	uint32_t                       j;
+ 
+ 	C2_UT_ASSERT(cur != NULL);
+ 
+@@ -488,24 +488,24 @@ static void composite_layout_buf_verify(uint64_t lid,
+ 	cl_header = c2_bufvec_cursor_addr(cur);
+ 	C2_UT_ASSERT(cl_header != NULL);
+ 	c2_bufvec_cursor_move(cur, sizeof *cl_header);
+-	C2_UT_ASSERT(cl_header->ch_sublayouts_nr == sublayouts_nr);
++	C2_UT_ASSERT(cl_header->ch_layers_nr == layers_nr);
+ 
+-	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >= cl_header->ch_sublayouts_nr *
+-						   sizeof *sl_header);
++	C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >= cl_header->ch_layers_nr *
++						   sizeof *layer_header);
+ 	multiplier = if_contiguous_extents ? 1 : 2;
+ 	extents_nr = min_extents_nr;
+ 
+-	for (i = 0; i < cl_header->ch_sublayouts_nr; ++i, ++extents_nr) {
+-		sl_header = c2_bufvec_cursor_addr(cur);
+-		c2_bufvec_cursor_move(cur, sizeof *sl_header);
+-		C2_UT_ASSERT(sl_header->slh_lid == lid * 100 + i);
+-		C2_UT_ASSERT(sl_header->slh_extents_nr == extents_nr);
++	for (i = 0; i < cl_header->ch_layers_nr; ++i, ++extents_nr) {
++		layer_header = c2_bufvec_cursor_addr(cur);
++		c2_bufvec_cursor_move(cur, sizeof *layer_header);
++		C2_UT_ASSERT(layer_header->clh_lid == lid * 100 + i);
++		C2_UT_ASSERT(layer_header->clh_extents_nr == extents_nr);
+ 
+ 		C2_UT_ASSERT(c2_bufvec_cursor_step(cur) >=
+-			     sl_header->slh_extents_nr * sizeof ext);
++			     layer_header->clh_extents_nr * sizeof ext);
+ 		delta = (approximate_end_offset - min_start_offset + 1) /
+ 			(extents_nr * multiplier);
+-		for (j = 0; j < sl_header->slh_extents_nr; ++j) {
++		for (j = 0; j < layer_header->clh_extents_nr; ++j) {
+ 			ext = c2_bufvec_cursor_addr(cur);
+ 			c2_bufvec_cursor_move(cur, sizeof *ext);
+ 			C2_UT_ASSERT(ext->e_start == min_start_offset +
+@@ -518,7 +518,7 @@ static void composite_layout_buf_verify(uint64_t lid,
+ /* Tests the API c2_layout_encode() for COMPOSITE layout type. */
+ int test_encode_composite(uint64_t lid,
+ 			  struct c2_layout_domain *domain,
+-			  uint32_t sublayouts_nr,
++			  uint32_t layers_nr,
+ 			  uint32_t min_extents_nr,
+ 			  c2_bindex_t min_start_offset,
+ 			  c2_bindex_t approximate_end_offset,
+@@ -534,7 +534,7 @@ int test_encode_composite(uint64_t lid,
+ 	C2_ENTRY("lid %llu", (unsigned long long)lid);
+ 
+ 	/* Build a layout object. */
+-	rc = composite_layout_build(lid, domain, &cl, sublayouts_nr,
++	rc = composite_layout_build(lid, domain, &cl, layers_nr,
+ 				    min_extents_nr, min_start_offset,
+ 				    approximate_end_offset,
+ 				    if_contiguous_extents, failure_test);
+@@ -561,7 +561,7 @@ int test_encode_composite(uint64_t lid,
+ 
+ 	/* Verify the layout buffer produced by c2_layout_encode(). */
+ 	if (!failure_test)
+-		composite_layout_buf_verify(lid, domain, sublayouts_nr,
++		composite_layout_buf_verify(lid, domain, layers_nr,
+ 					    min_extents_nr, min_start_offset,
+ 					    approximate_end_offset,
+ 					    if_contiguous_extents, &cur);
+@@ -579,14 +579,14 @@ int test_encode_composite(uint64_t lid,
+ static void composite_layout_buf_compare(struct c2_bufvec_cursor *cur1,
+ 					 struct c2_bufvec_cursor *cur2)
+ {
+-	struct composite_header  *cl_header1;
+-	struct composite_header  *cl_header2;
+-	struct sub_layout_header *sl_header1;
+-	struct sub_layout_header *sl_header2;
+-	struct c2_ext            *ext1;
+-	struct c2_ext            *ext2;
+-	uint32_t                  i;
+-	uint32_t                  j;
++	struct composite_header       *cl_header1;
++	struct composite_header       *cl_header2;
++	struct composite_layer_header *layer_header1;
++	struct composite_layer_header *layer_header2;
++	struct c2_ext                 *ext1;
++	struct c2_ext                 *ext2;
++	uint32_t                       i;
++	uint32_t                       j;
+ 
+ 	C2_UT_ASSERT(cur1 != NULL);
+ 	C2_UT_ASSERT(cur2 != NULL);
+@@ -605,23 +605,23 @@ static void composite_layout_buf_compare(struct c2_bufvec_cursor *cur1,
+ 	c2_bufvec_cursor_move(cur1, sizeof *cl_header1);
+ 	c2_bufvec_cursor_move(cur2, sizeof *cl_header2);
+ 
+-	C2_UT_ASSERT(cl_header1->ch_sublayouts_nr ==
+-		     cl_header2->ch_sublayouts_nr);
++	C2_UT_ASSERT(cl_header1->ch_layers_nr ==
++		     cl_header2->ch_layers_nr);
+ 
+ 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur1) >=
+-		     cl_header1->ch_sublayouts_nr * sizeof *sl_header1);
++		     cl_header1->ch_layers_nr * sizeof *layer_header1);
+ 	C2_UT_ASSERT(c2_bufvec_cursor_step(cur2) >=
+-		     cl_header2->ch_sublayouts_nr * sizeof *sl_header2);
++		     cl_header2->ch_layers_nr * sizeof *layer_header2);
+ 
+-	for (i = 0; i < cl_header1->ch_sublayouts_nr; ++i) {
+-		sl_header1 = c2_bufvec_cursor_addr(cur1);
+-		sl_header2 = c2_bufvec_cursor_addr(cur2);
+-		c2_bufvec_cursor_move(cur1, sizeof *sl_header1);
+-		c2_bufvec_cursor_move(cur2, sizeof *sl_header2);
+-		C2_UT_ASSERT(sl_header1->slh_extents_nr ==
+-			     sl_header2->slh_extents_nr);
++	for (i = 0; i < cl_header1->ch_layers_nr; ++i) {
++		layer_header1 = c2_bufvec_cursor_addr(cur1);
++		layer_header2 = c2_bufvec_cursor_addr(cur2);
++		c2_bufvec_cursor_move(cur1, sizeof *layer_header1);
++		c2_bufvec_cursor_move(cur2, sizeof *layer_header2);
++		C2_UT_ASSERT(layer_header1->clh_extents_nr ==
++			     layer_header2->clh_extents_nr);
+ 
+-		for (j = 0; j < sl_header1->slh_extents_nr; ++j) {
++		for (j = 0; j < layer_header1->clh_extents_nr; ++j) {
+ 			ext1 = c2_bufvec_cursor_addr(cur1);
+ 			ext2 = c2_bufvec_cursor_addr(cur2);
+ 			c2_bufvec_cursor_move(cur1, sizeof *ext1);
+@@ -639,7 +639,7 @@ static void composite_layout_buf_compare(struct c2_bufvec_cursor *cur1,
+  */
+ int test_decode_encode_composite(uint64_t lid,
+ 				 struct c2_layout_domain *domain,
+-				 uint32_t sublayouts_nr,
++				 uint32_t layers_nr,
+ 				 uint32_t min_extents_nr,
+ 				 c2_bindex_t min_start_offset,
+ 				 c2_bindex_t approximate_end_offset,
+@@ -665,7 +665,7 @@ int test_decode_encode_composite(uint64_t lid,
+ 	bv1 = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area1, &num_bytes);
+ 	c2_bufvec_cursor_init(&cur1, &bv1);
+ 
+-	composite_layout_buf_build(lid, sublayouts_nr, min_extents_nr,
++	composite_layout_buf_build(lid, layers_nr, min_extents_nr,
+ 				   min_start_offset, approximate_end_offset,
+ 				   if_contiguous_extents, &cur1);
+ 
+@@ -716,7 +716,7 @@ int test_decode_encode_composite(uint64_t lid,
+ 	 * Destroy all the sub-layouts created through
+ 	 * composite_layout_buf_build().
+ 	 */
+-	for (i = 0; i < sublayouts_nr; ++i) {
++	for (i = 0; i < layers_nr; ++i) {
+ 		sublayout_lid = lid * 100 + i;
+ 		sl = c2_layout_find(domain, sublayout_lid);
+ 		C2_UT_ASSERT(sl != NULL);
+@@ -739,12 +739,12 @@ static void composite_layout_compare(const struct c2_layout *l1,
+ 				     const struct c2_layout *l2,
+ 				     bool l2_ref_elevated)
+ {
+-	struct c2_composite_layout     *cl1;
+-	struct c2_composite_layout     *cl2;
+-	struct c2_composite_sub_layout *sl1;
+-	struct c2_composite_sub_layout *sl2;
+-	struct c2_sub_layout_extent    *sl_ext1;
+-	struct c2_sub_layout_extent    *sl_ext2;
++	struct c2_composite_layout       *cl1;
++	struct c2_composite_layout       *cl2;
++	struct c2_composite_layer        *layer1;
++	struct c2_composite_layer        *layer2;
++	struct c2_composite_layer_extent *extent1;
++	struct c2_composite_layer_extent *extent2;
+ 
+ 	C2_UT_ASSERT(l1 != NULL && l2 != NULL);
+ 
+@@ -766,22 +766,23 @@ static void composite_layout_compare(const struct c2_layout *l1,
+ 	cl1 = container_of(l1, struct c2_composite_layout, cl_base);
+ 	cl2 = container_of(l2, struct c2_composite_layout, cl_base);
+ 
+-	C2_UT_ASSERT(cl1->cl_sublayouts_nr == cl2->cl_sublayouts_nr);
+-	sl2 = c2_sub_layout_tlist_head(cl2->cl_sub_layouts);
+-	c2_tl_for(c2_sub_layout, cl1->cl_sub_layouts, sl1) {
+-		C2_UT_ASSERT(sl1->csl_l == sl2->csl_l);
+-		C2_UT_ASSERT(sl1->csl_extents_nr == sl2->csl_extents_nr);
+-
+-		sl_ext2 = c2_layout_extent_tlist_head(sl2->csl_extents);
+-		c2_tl_for(c2_layout_extent, sl1->csl_extents, sl_ext1) {
+-			C2_UT_ASSERT(sl_ext1->sle_ext.e_start ==
+-				     sl_ext2->sle_ext.e_start);
+-			C2_UT_ASSERT(sl_ext1->sle_ext.e_end ==
+-				     sl_ext2->sle_ext.e_end);
+-			sl_ext2 = c2_layout_extent_tlist_next(sl2->csl_extents,
+-							      sl_ext2);
++	C2_UT_ASSERT(cl1->cl_layers_nr == cl2->cl_layers_nr);
++	layer2 = c2_layer_tlist_head(cl2->cl_layers);
++	c2_tl_for(c2_layer, cl1->cl_layers, layer1) {
++		C2_UT_ASSERT(layer1->clr_l == layer2->clr_l);
++		C2_UT_ASSERT(layer1->clr_extents_nr == layer2->clr_extents_nr);
++
++		extent2 = c2_layer_extent_tlist_head(layer2->clr_extents);
++		c2_tl_for(c2_layer_extent, layer1->clr_extents, extent1) {
++			C2_UT_ASSERT(extent1->cle_ext.e_start ==
++				     extent2->cle_ext.e_start);
++			C2_UT_ASSERT(extent1->cle_ext.e_end ==
++				     extent2->cle_ext.e_end);
++			extent2 = c2_layer_extent_tlist_next(
++							   layer2->clr_extents,
++							   extent2);
+ 		} c2_tl_endfor;
+-		sl2 = c2_sub_layout_tlist_next(cl2->cl_sub_layouts, sl2);
++		layer2 = c2_layer_tlist_next(cl2->cl_layers, layer2);
+ 	} c2_tl_endfor;
+ }
+ 
+@@ -789,12 +790,12 @@ static void composite_layout_compare(const struct c2_layout *l1,
+ static void composite_layout_copy(const struct c2_layout *l_src,
+ 				  struct c2_layout **l_dest)
+ {
+-	struct c2_composite_layout     *cl_src;
+-	struct c2_composite_layout     *cl_dest;
+-	struct c2_composite_sub_layout *sl_src;
+-	struct c2_composite_sub_layout *sl_dest;
+-	struct c2_sub_layout_extent    *sl_src_ext;
+-	struct c2_sub_layout_extent    *sl_dest_ext;
++	struct c2_composite_layout       *cl_src;
++	struct c2_composite_layout       *cl_dest;
++	struct c2_composite_layer        *layer_src;
++	struct c2_composite_layer        *layer_dest;
++	struct c2_composite_layer_extent *extent_src;
++	struct c2_composite_layer_extent *extent_dest;
+ 
+ 	C2_UT_ASSERT(l_src != NULL && l_dest != NULL);
+ 
+@@ -813,32 +814,32 @@ static void composite_layout_copy(const struct c2_layout *l_src,
+ 	c2_ref_init(&(*l_dest)->l_ref, 1, l_src->l_ops->lo_fini);
+ 
+ 	/* Copy COMPOSITE layout type specific part of the layout objects. */
+-	cl_dest->cl_sublayouts_nr = cl_src->cl_sublayouts_nr;
+-
+-	C2_ALLOC_PTR(cl_dest->cl_sub_layouts);
+-	C2_UT_ASSERT(cl_dest->cl_sub_layouts != NULL);
+-	c2_sub_layout_tlist_init(cl_dest->cl_sub_layouts);
+-
+-	c2_tl_for(c2_sub_layout, cl_src->cl_sub_layouts, sl_src) {
+-		C2_ALLOC_PTR(sl_dest);
+-		C2_UT_ASSERT(sl_dest != NULL);
+-
+-		sl_dest->csl_l = sl_src->csl_l;
+-		sl_dest->csl_extents_nr = sl_src->csl_extents_nr;
+-
+-		C2_ALLOC_PTR(sl_dest->csl_extents);
+-		C2_UT_ASSERT(sl_dest->csl_extents != NULL);
+-		c2_layout_extent_tlist_init(sl_dest->csl_extents);
+-
+-		c2_tl_for(c2_layout_extent, sl_src->csl_extents, sl_src_ext) {
+-			C2_ALLOC_PTR(sl_dest_ext);
+-			C2_UT_ASSERT(sl_dest_ext != NULL);
+-			sl_dest_ext->sle_ext = sl_src_ext->sle_ext;
+-			c2_layout_extent_tlink_init_at_tail(sl_dest_ext,
+-							  sl_dest->csl_extents);
++	cl_dest->cl_layers_nr = cl_src->cl_layers_nr;
++
++	C2_ALLOC_PTR(cl_dest->cl_layers);
++	C2_UT_ASSERT(cl_dest->cl_layers != NULL);
++	c2_layer_tlist_init(cl_dest->cl_layers);
++
++	c2_tl_for(c2_layer, cl_src->cl_layers, layer_src) {
++		C2_ALLOC_PTR(layer_dest);
++		C2_UT_ASSERT(layer_dest != NULL);
++
++		layer_dest->clr_l = layer_src->clr_l;
++		layer_dest->clr_extents_nr = layer_src->clr_extents_nr;
++
++		C2_ALLOC_PTR(layer_dest->clr_extents);
++		C2_UT_ASSERT(layer_dest->clr_extents != NULL);
++		c2_layer_extent_tlist_init(layer_dest->clr_extents);
++
++		c2_tl_for(c2_layer_extent, layer_src->clr_extents,
++			  extent_src) {
++			C2_ALLOC_PTR(extent_dest);
++			C2_UT_ASSERT(extent_dest != NULL);
++			extent_dest->cle_ext = extent_src->cle_ext;
++			c2_layer_extent_tlink_init_at_tail(extent_dest,
++						      layer_dest->clr_extents);
+ 		} c2_tl_endfor;
+-		c2_sub_layout_tlink_init_at_tail(sl_dest,
+-						 cl_dest->cl_sub_layouts);
++		c2_layer_tlink_init_at_tail(layer_dest, cl_dest->cl_layers);
+ 	} c2_tl_endfor;
+ 
+ 	composite_layout_compare(&cl_src->cl_base, &cl_dest->cl_base, false);
+@@ -846,26 +847,26 @@ static void composite_layout_copy(const struct c2_layout *l_src,
+ 
+ static void composite_layout_copy_delete(struct c2_layout *l)
+ {
+-	struct c2_composite_layout     *cl;
+-	struct c2_composite_sub_layout *sl;
+-	struct c2_sub_layout_extent    *sl_ext;
++	struct c2_composite_layout       *cl;
++	struct c2_composite_layer        *layer;
++	struct c2_composite_layer_extent *extent;
+ 
+ 	C2_UT_ASSERT(l != NULL);
+ 
+ 	cl = container_of(l, struct c2_composite_layout, cl_base);
+-	c2_tl_for(c2_sub_layout, cl->cl_sub_layouts, sl) {
+-		c2_tl_for(c2_layout_extent, sl->csl_extents, sl_ext) {
+-			c2_layout_extent_tlist_del(sl_ext);
+-			c2_layout_extent_tlink_fini(sl_ext);
+-			c2_free(sl_ext);
++	c2_tl_for(c2_layer, cl->cl_layers, layer) {
++		c2_tl_for(c2_layer_extent, layer->clr_extents, extent) {
++			c2_layer_extent_tlist_del(extent);
++			c2_layer_extent_tlink_fini(extent);
++			c2_free(extent);
+ 		} c2_tl_endfor;
+-		c2_free(sl->csl_extents);
+-		c2_sub_layout_tlist_del(sl);
+-		c2_sub_layout_tlink_fini(sl);
+-		c2_free(sl);
++		c2_free(layer->clr_extents);
++		c2_layer_tlist_del(layer);
++		c2_layer_tlink_fini(layer);
++		c2_free(layer);
+ 	} c2_tl_endfor;
+-	c2_sub_layout_tlist_fini(cl->cl_sub_layouts);
+-	c2_free(cl->cl_sub_layouts);
++	c2_layer_tlist_fini(cl->cl_layers);
++	c2_free(cl->cl_layers);
+ 	c2_free(cl);
+ }
+ 
+@@ -875,7 +876,7 @@ static void composite_layout_copy_delete(struct c2_layout *l)
+  */
+ int test_encode_decode_composite(uint64_t lid,
+ 				 struct c2_layout_domain *domain,
+-				 uint32_t sublayouts_nr,
++				 uint32_t layers_nr,
+ 				 uint32_t min_extents_nr,
+ 				 c2_bindex_t min_start_offset,
+ 				 c2_bindex_t approximate_end_offset,
+@@ -890,14 +891,14 @@ int test_encode_decode_composite(uint64_t lid,
+ 	struct c2_layout           *l;
+ 	struct c2_layout           *l_copy;
+ 	struct c2_layout_type      *lt;
+-	uint64_t                 sublayout_lid;
+-	struct c2_layout        *sl;
+-	uint32_t                 i;
++	uint64_t                    sublayout_lid;
++	struct c2_layout           *sl;
++	uint32_t                    i;
+ 
+ 	C2_ENTRY("lid %llu", (unsigned long long)lid);
+ 
+ 	/* Build a layout object. */
+-	rc = composite_layout_build(lid, domain, &cl, sublayouts_nr,
++	rc = composite_layout_build(lid, domain, &cl, layers_nr,
+ 				    min_extents_nr, min_start_offset,
+ 				    approximate_end_offset,
+ 				    if_contiguous_extents, !FAILURE_TEST);
+@@ -921,7 +922,7 @@ int test_encode_decode_composite(uint64_t lid,
+ 	 * while the composite layout is destroyed and are available for the
+ 	 * subsequent c2_layout_decode()..
+ 	 */
+-	for (i = 0; i < sublayouts_nr; ++i) {
++	for (i = 0; i < layers_nr; ++i) {
+ 		sublayout_lid = lid * 100 + i;
+ 		sl = c2_layout_find(domain, sublayout_lid);
+ 		C2_UT_ASSERT(sl != NULL);
+@@ -960,7 +961,7 @@ int test_encode_decode_composite(uint64_t lid,
+ 	C2_UT_ASSERT(list_lookup(lid) == NULL);
+ 
+ 	/* todo tempo See above. */
+-	for (i = 0; i < sublayouts_nr; ++i) {
++	for (i = 0; i < layers_nr; ++i) {
+ 		sublayout_lid = lid * 100 + i;
+ 		sl = c2_layout_find(domain, sublayout_lid);
+ 		C2_UT_ASSERT(sl != NULL);
+@@ -1081,7 +1082,7 @@ static int test_lookup_composite(uint64_t lid,
+ 
+ #if 0
+ /* Tests the API c2_layout_add(), for the COMPOSITE layout type. */
+-//todo Make this accept sublayouts_nr
++//todo Make this accept layers_nr
+ static int test_add_composite(uint64_t lid,
+ 			      bool layout_destroy, struct c2_layout **l_obj,
+ 			      bool duplicate_test,
+-- 
+1.8.3.2
+

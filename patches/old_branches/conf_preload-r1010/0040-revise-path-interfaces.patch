@@ -1,0 +1,571 @@
+From 2abc6193d83eacf9bd5b8d10c5ca046267eed0a2 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 5 Mar 2012 20:49:15 +0200
+Subject: [PATCH 040/311] revise path interfaces
+
+* define c2_conf_pathcomp in xdata.ff
+* move c2_conf_relation to path.h; get rid of relation.{h,c}
+
+NOTE: ut/ directory becomes outdated.  This is OK, as I intend
+remove this code anyway: it is hard and ineffective to maintain
+the code when working on DLD level.  Enumeration of unit tests
+will suffice.
+---
+ conf/confc.c    |  22 ++++++++-----
+ conf/confc.h    |  14 ++++----
+ conf/path.c     |  99 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ conf/path.h     |  96 +++++++++++++++++++++++++++++++++--------------------
+ conf/relation.c | 100 --------------------------------------------------------
+ conf/relation.h |  59 ---------------------------------
+ conf/ut/path.c  |   2 +-
+ conf/xdata.ff   |   7 ++--
+ 8 files changed, 184 insertions(+), 215 deletions(-)
+ create mode 100644 conf/path.c
+ delete mode 100644 conf/relation.c
+ delete mode 100644 conf/relation.h
+
+diff --git a/conf/confc.c b/conf/confc.c
+index 505982e..67a530b 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -234,10 +234,10 @@ static inline struct c2_confc_ctx * to_ctx(struct c2_sm *mach)
+ 
+ /**
+  * @pre   cache's sm_group is locked
+- * @pre   c2_conf_path_invariant(&ctx->fc_path)
++ * @pre   c2_conf_path_is_valid(&ctx->fc_path, NULL)
+  * @post  cache's sm_group is locked
+  *
+- * @retval -ENOENT  ctx->fc_path contains a key and the corresponding
++ * @retval -ENOENT  ctx->fc_path contains a key, but the corresponding
+  *                  object does not exist.
+  */
+ static int
+@@ -271,7 +271,7 @@ path_walk(struct c2_confc_ctx *ctx, enum c2_conf_status *status)
+ 	int ret = 0;
+ 
+ 	C2_PRE(c2_mutex_is_locked(group_lock()));
+-	C2_PRE(c2_conf_path_invariant(&ctx->fc_path));
++	C2_PRE(c2_conf_path_is_valid(&ctx->fc_path, NULL));
+ 
+ 	c2_mutex_lock(cache_lock());
+ 	*status = obj->co_status;
+@@ -408,17 +408,20 @@ C2_EXPORTED(c2_confc_fini);
+ int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+ 		  const struct c2_conf_pathcomp *path, size_t path_len)
+ {
++	bool isdir;
++
+ 	C2_PRE(confc_is_initiated());
+-	C2_PRE(ctx->fc_path.p_comps == NULL);
++	C2_PRE(ctx->fc_path.p_origin == NULL && ctx->fc_path.p_len == 0 &&
++	       ctx->fc_path.p_comps == NULL);
+ 
+ 	ctx->fc_path.p_origin = path_origin;
+ 	ctx->fc_path.p_len    = path_len;
+-	ctx->fc_path.p_comps  = c2_conf_pathcomp_dup(path, path_len);
++	ctx->fc_path.p_comps  = C2_ALLOC_ARR(path, path_len);
+ 	if (ctx->fc_path.p_comps == NULL)
+ 		return -ENOMEM;
+-	C2_ASSERT(c2_conf_path_invariant(&ctx->fc_path));
++	C2_ASSERT(c2_conf_path_is_valid(&ctx->fc_path, &isdir));
+ 
+-	if (c2_conf_path_is_dir(&ctx->fc_path))
++	if (isdir)
+ 		return -EISDIR;
+ 
+ 	ast_state_set(&ctx->fc_ast, S_CHECK);
+@@ -426,7 +429,8 @@ int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *path_origin,
+ }
+ C2_EXPORTED(c2_confc_open);
+ 
+-void * c2_confc_open_sync(const struct c2_conf_path *path)
++void * c2_confc_open_sync(struct c2_conf_obj *path_origin,
++			  const struct c2_conf_pathcomp *path, size_t path_len)
+ {
+ 	struct c2_confc_ctx ctx;
+ 	int rc;
+@@ -435,7 +439,7 @@ void * c2_confc_open_sync(const struct c2_conf_path *path)
+ 	C2_PRE(confc_is_initiated());
+ 
+ 	c2_confc_ctx_init(&ctx);
+-	rc = c2_confc_open(path, &ctx);
++	rc = c2_confc_open(&ctx, path_origin, path, path_len);
+ 	if (rc == 0) {
+ 		rc = c2_sm_timedwait(&ctx.fc_mach, S_TERMINAL | S_FAILURE,
+ 				     C2_TIME_NEVER);
+diff --git a/conf/confc.h b/conf/confc.h
+index 9e9c8e1..7f84a94 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -347,25 +347,23 @@ struct c2_confc_ctx {
+ 	 * c2_confc_error()).
+ 	 */
+ 	void                *fc_result;
+-
+ /* private: internal use only */
+ 	/** A confc state machine. */
+ 	struct c2_sm         fc_mach;
++	/** Asynchronous system trap. */
+ 	struct c2_sm_ast     fc_ast;
+-
+-	/** Path to the requested object/directory. */
++	/** Path to the object/directory (as requested by application). */
+ 	struct c2_conf_path  fc_path;
++	/** Configuration fetch request (as sent to confd). */
++	struct c2_conf_fetch fc_req;
++	/** Request fop. */
++	struct c2_fop        fc_fop;
+ 	/**
+ 	 * Record of interest in "object unpinned" events.
+ 	 *
+ 	 * This clink gets added to c2_conf_obj::co_chan channel.
+ 	 */
+ 	struct c2_clink      fc_clink;
+-
+-	/** Configuration request. */
+-	struct c2_conf_fetch fc_req;
+-	/** Request fop. */
+-	struct c2_fop        fc_fop;
+ };
+ 
+ void c2_confc_ctx_init(struct c2_confc_ctx *ctx);
+diff --git a/conf/path.c b/conf/path.c
+new file mode 100644
+index 0000000..df5c6d7
+--- /dev/null
++++ b/conf/path.c
+@@ -0,0 +1,99 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 05-Feb-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include <config.h>
++#endif
++#include "conf/path.h"
++#include "conf/obj.h"
++
++const struct c2_conf_relation dl_profile[] = {
++	{
++		.r_type   = C2_CO_FILESYSTEM,
++		.r_offset = offsetof(struct c2_conf_profile, cp_filesystem),
++		.r_dir    = NULL
++	}
++};
++const struct c2_conf_relation dl_filesystem[] = {
++	{
++		.r_type   = C2_CO_SERVICE,
++		.r_offset = offsetof(struct c2_conf_filesystem, cf_services),
++		.r_dir    = c2_conf_filesystem_services_tl
++	}
++};
++const struct c2_conf_relation dl_service[] = {
++	{
++		.r_type   = C2_CO_NODE,
++		.r_offset = offsetof(struct c2_conf_service, cs_node),
++		.r_dir    = NULL
++	}
++};
++const struct c2_conf_relation dl_node[] = {
++	{
++		.r_type   = C2_CO_NIC,
++		.r_offset = offsetof(struct c2_conf_node, cn_nics),
++		.r_dir    = c2_conf_node_nics_tl
++	},
++	{
++		.r_type   = C2_CO_SDEV,
++		.r_offset = offsetof(struct c2_conf_node, cn_sdevs),
++		.r_dir    = c2_conf_node_sdevs_tl
++	}
++};
++const struct c2_conf_relation dl_sdev[] = {
++	{
++		.r_type   = C2_CO_PARTITION,
++		.r_offset = offsetof(struct c2_conf_sdev, sd_partitions),
++		.r_dir    = c2_conf_sdev_partitions_tl
++	}
++};
++
++const struct rels {
++	const struct c2_conf_relation *data;
++	size_t                         nr;
++} downlinks[C2_CO_NR] = {
++	[C2_CO_PROFILE]    = { .data = dl_profile,
++			       .nr   = ARRAY_SIZE(dl_profile) },
++	[C2_CO_FILESYSTEM] = { .data = dl_filesystem,
++			       .nr   = ARRAY_SIZE(dl_filesystem) },
++	[C2_CO_SERVICE]    = { .data = dl_service,
++			       .nr   = ARRAY_SIZE(dl_service) },
++	[C2_CO_NODE]       = { .data = dl_node,
++			       .nr   = ARRAY_SIZE(dl_node) },
++	[C2_CO_NIC]        = { .data = NULL, .ar_nr = 0 },
++	[C2_CO_SDEV]       = { .data = dl_sdev,
++			       .nr   = ARRAY_SIZE(dl_sdev) },
++	[C2_CO_PARTITION]  = { .data = NULL, .ar_nr = 0 }
++};
++
++const struct c2_conf_relation * c2_conf_downlink(uint32_t src, uint32_t tgt)
++{
++	size_t i;
++	const struct rels *rs = downlinks + src;
++
++	C2_PRE(src < C2_CO_NR && tgt < C2_CO_NR);
++
++	for (i = 0; i < rs->nr; ++i) {
++		if (rs->data[i]->r_type == tgt)
++			return rs->data[i];
++	}
++	return NULL;
++}
++C2_EXPORTED(c2_conf_downlink);
+diff --git a/conf/path.h b/conf/path.h
+index ec7ac79..adb466d 100644
+--- a/conf/path.h
++++ b/conf/path.h
+@@ -20,61 +20,87 @@
+ #ifndef __COLIBRI_CONF_PATH_H__
+ #define __COLIBRI_CONF_PATH_H__
+ 
+-#include "conf/obj.h"
+ #include "lib/memory.h" /* C2_ALLOC_ARR */
+ 
+-/** Path component. */
+-struct c2_conf_pathcomp {
+-	bool pc_iskey;
+-	union {
+-		enum c2_conf_objtype relation;
+-		struct c2_conf_buf   key;
+-	} pc_u;
+-};
+-
+-#define C2_CONF_PATHCOMP_R(r)  { .pc_iskey = false, .pc_u.relation = (r) }
+-#define C2_CONF_PATHCOMP_K(k)  { .pc_iskey = true, .pc_u.key = k }
+-
+-/**
+- * Duplicates an array of path components.
+- *
+- * @param src  Path components to copy.
+- * @param n    Number of components.
+- *
+- * @note  Returned value must be freed with c2_free().
+- *
+- * @returns a pointer to the duplicated path components, or NULL if no
+- * sufficient memory was available.
+- */
+-static inline struct c2_conf_pathcomp *
+-c2_conf_pathcomp_dup(const struct c2_conf_pathcomp *src, size_t n)
+-{
+-	return C2_ALLOC_ARR(src, n);
+-}
++struct c2_conf_obj;
++struct c2_conf_pathcomp;
+ 
++/** Path to configuration object/directory. */
+ struct c2_conf_path {
++	/** Path origin. */
+ 	struct c2_conf_obj      *p_origin;
++	/** Number of components. */
+ 	size_t                   p_len;
++	/** Path components. */
+ 	struct c2_conf_pathcomp *p_comps;
+ };
+ 
+ /**
+- * Returns true iff the path is empty or has the following properties:
++ * Checks validity of a path.
++ *
++ * An empty path is valid.  Non-empty path is valid iff the following
++ * properties hold:
+  * - relations are downlinks (c2_conf_downlink() != NULL);
+  * - the first component is a downlink;
+  * - a one-to-many downlink is followed by a key or is the last
+  *   component;
+  * - a key is preceded by a one-to-many downlink.
+  *
+- * @pre  path != NULL
++ * @param path        Path to validate.
++ * @param[out] isdir  If the path is valid and isdir != NULL, then
++ *                    *isdir will be set to:
++ *                    - @c true:  the path leads to a collection of objects;
++ *                    - @c false: the path leads to a single object.
+  */
+-bool c2_conf_path_invariant(const struct c2_conf_path *path);
++bool c2_conf_path_is_valid(const struct c2_conf_path *path, bool *isdir);
+ 
+ /**
+- * Returns true iff the path ends with a one-to-many downlink.
++ * Relation --- a pointer from one configuration object to another
++ * object or a list of objects.
++ */
++struct c2_conf_relation {
++	/**
++	 * Type of relation's target. See c2_conf_objtype for values.
++	 *
++	 * Target can be either single configuration object or a list
++	 * of objects.
++	 */
++	uint32_t                  r_type;
++	/** Offset of the relation field in an ambient structure. */
++	int                       r_offset;
++	/**
++	 * tlist descriptor of the target directory (which is a list
++	 * of objects); NULL if the relation points to a configuration
++	 * object.
++	 */
++	const struct c2_tl_descr *r_dir;
++};
++
++/**
++ * Returns description of a downlink, given types of source and target
++ * objects. Returns NULL if there is no such downlink.
++ *
++ * @param src  Type of object the downlink originates from.
++ * @param tgt  Type of downlink's target object(s).
++ *
++ * @pre  src < C2_CO_NR && tgt < C2_CO_NR
++ */
++const struct c2_conf_relation * c2_conf_downlink(uint32_t src, uint32_t tgt);
++
++/**
++ * Initializers for c2_conf_pathcomp structure. The structure itself
++ * is described in xdata.ff.
++ *
++ * Use example:
+  *
+- * @pre  c2_conf_path_invariant(path)
++ *     uint8_t key[] = "uuid";
++ *     struct c2_conf_pathcomp pcomps[] = {
++ *         C2_CONF_PATHCOMP_R(C2_CO_SERVICE),
++ *         C2_CONF_PATHCOMP_K(sizeof key, key)
++ *     };
+  */
+-bool c2_conf_path_is_dir(const struct c2_conf_path *path);
++#define C2_CONF_PATHCOMP_R(r)  { .pc_iskey = 0, .u.pc_relation = (r) }
++#define C2_CONF_PATHCOMP_K(ksize, kdata)  \
++	{ .pc_iskey = 1, .u.pc_key = C2_CONF_BUF_INIT(ksize, kdata) }
+ 
+ #endif /* __COLIBRI_CONF_PATH_H__ */
+diff --git a/conf/relation.c b/conf/relation.c
+deleted file mode 100644
+index 07d4eb8..0000000
+--- a/conf/relation.c
++++ /dev/null
+@@ -1,100 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+- * Original creation date: 05-Feb-2012
+- */
+-
+-#ifdef HAVE_CONFIG_H
+-#  include <config.h>
+-#endif
+-#include "conf/relation.h"
+-
+-const struct c2_conf_relation dl_profile[] = {
+-	{
+-		.r_type   = C2_CO_FILESYSTEM,
+-		.r_offset = offsetof(struct c2_conf_profile, cp_filesystem),
+-		.r_dir    = NULL
+-	}
+-};
+-const struct c2_conf_relation dl_filesystem[] = {
+-	{
+-		.r_type   = C2_CO_SERVICE,
+-		.r_offset = offsetof(struct c2_conf_filesystem, cf_services),
+-		.r_dir    = c2_conf_filesystem_services_tl
+-	}
+-};
+-const struct c2_conf_relation dl_service[] = {
+-	{
+-		.r_type   = C2_CO_NODE,
+-		.r_offset = offsetof(struct c2_conf_service, cs_node),
+-		.r_dir    = NULL
+-	}
+-};
+-const struct c2_conf_relation dl_node[] = {
+-	{
+-		.r_type   = C2_CO_NIC,
+-		.r_offset = offsetof(struct c2_conf_node, cn_nics),
+-		.r_dir    = c2_conf_node_nics_tl
+-	},
+-	{
+-		.r_type   = C2_CO_SDEV,
+-		.r_offset = offsetof(struct c2_conf_node, cn_sdevs),
+-		.r_dir    = c2_conf_node_sdevs_tl
+-	}
+-};
+-const struct c2_conf_relation dl_sdev[] = {
+-	{
+-		.r_type   = C2_CO_PARTITION,
+-		.r_offset = offsetof(struct c2_conf_sdev, sd_partitions),
+-		.r_dir    = c2_conf_sdev_partitions_tl
+-	}
+-};
+-
+-const struct rels {
+-	const struct c2_conf_relation *data;
+-	size_t                         nr;
+-} downlinks[C2_CO_NR] = {
+-	[C2_CO_PROFILE]    = { .data = dl_profile,
+-			       .nr   = ARRAY_SIZE(dl_profile) },
+-	[C2_CO_FILESYSTEM] = { .data = dl_filesystem,
+-			       .nr   = ARRAY_SIZE(dl_filesystem) },
+-	[C2_CO_SERVICE]    = { .data = dl_service,
+-			       .nr   = ARRAY_SIZE(dl_service) },
+-	[C2_CO_NODE]       = { .data = dl_node,
+-			       .nr   = ARRAY_SIZE(dl_node) },
+-	[C2_CO_NIC]        = { .data = NULL, .ar_nr = 0 },
+-	[C2_CO_SDEV]       = { .data = dl_sdev,
+-			       .nr   = ARRAY_SIZE(dl_sdev) },
+-	[C2_CO_PARTITION]  = { .data = NULL, .ar_nr = 0 }
+-};
+-
+-const struct c2_conf_relation *
+-c2_conf_downlink(enum c2_conf_objtype src, enum c2_conf_objtype tgt)
+-{
+-	size_t i;
+-	const struct rels rs = downlinks[src];
+-
+-	C2_PRE(C2_CO_PROFILE <= src && src < C2_CO_NR);
+-	C2_PRE(C2_CO_PROFILE <= tgt && tgt < C2_CO_NR);
+-
+-	for (i = 0; i < rs.nr; ++i) {
+-		if (rs.data[i]->r_type == tgt)
+-			return rs.data[i];
+-	}
+-	return NULL;
+-}
+-C2_EXPORTED(c2_conf_downlink);
+diff --git a/conf/relation.h b/conf/relation.h
+deleted file mode 100644
+index 55019ec..0000000
+--- a/conf/relation.h
++++ /dev/null
+@@ -1,59 +0,0 @@
+-/* -*- c -*- */
+-/*
+- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+- * Original creation date: 05-Feb-2012
+- */
+-#ifndef __COLIBRI_CONF_RELATION_H__
+-#define __COLIBRI_CONF_RELATION_H__
+-
+-#include "conf/obj.h" /* c2_conf_objtype */
+-
+-/**
+- * Relation --- a pointer from one configuration object to another
+- * object or a list of objects.
+- */
+-struct c2_conf_relation {
+-	/**
+-	 * Type of relation's target.
+-	 *
+-	 * Target can be either single configuration object or a list
+-	 * of objects.
+-	 */
+-	enum c2_conf_objtype      r_type;
+-
+-	/** Offset of the relation field in an ambient structure. */
+-	int                       r_offset;
+-
+-	/**
+-	 * tlist descriptor of the target directory (which is a list
+-	 * of objects); NULL if the relation points to a configuration
+-	 * object.
+-	 */
+-	const struct c2_tl_descr *r_dir;
+-};
+-
+-/**
+- * Returns description of a downlink, given types of source and target
+- * objects. Returns NULL if there is no such downlink.
+- *
+- * @param src  Type of object the downlink originates from.
+- * @param tgt  Type of downlink's target object(s).
+- */
+-const struct c2_conf_relation * c2_conf_downlink(enum c2_conf_objtype src,
+-						 enum c2_conf_objtype tgt);
+-
+-#endif /* __COLIBRI_CONF_RELATION_H__ */
+diff --git a/conf/ut/path.c b/conf/ut/path.c
+index 7aadfe2..18f2fea 100644
+--- a/conf/ut/path.c
++++ b/conf/ut/path.c
+@@ -54,7 +54,7 @@ static void test_pathcomp_dup(void)
+ 	struct c2_conf_pathcomp *dest;
+ 	size_t i;
+ 
+-	dest = c2_conf_pathcomp_dup(src, ARRAY_SIZE(src));
++	dest = C2_ALLOC_ARR(src, ARRAY_SIZE(src));
+ 	C2_UT_ASSERT(dest != NULL);
+ 	for (i = 0; i < ARRAY_SIZE(src); ++i)
+ 		C2_UT_ASSERT(pathcomp_eq(dest + i, src + i));
+diff --git a/conf/xdata.ff b/conf/xdata.ff
+index ade35a1..6f5e748 100644
+--- a/conf/xdata.ff
++++ b/conf/xdata.ff
+@@ -31,11 +31,12 @@ sequence {
+ 	u8  cb_data
+ } c2_conf_buf;
+ 
++/* Path component. */
+ union {
+-	u8          pc_iskey;
+-	u32         pc_relation :0;
++	u8          pc_iskey;       /* boolean value: 0 (no), 1 (yes) */
++	u32         pc_relation :0; /* see c2_conf_objtype for values */
+ 	c2_conf_buf pc_key      :1
+-} c2_confx_pathcomp;
++} c2_conf_pathcomp;
+ 
+ /* Configuration request. */
+ record {
+-- 
+1.8.3.2
+

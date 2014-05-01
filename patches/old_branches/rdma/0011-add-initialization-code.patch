@@ -1,0 +1,96 @@
+From 13756b031e1e9abd94ffe5d250461e554bc75db3 Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Thu, 22 Jul 2010 09:55:17 -0600
+Subject: [PATCH 11/34] - add initialization code
+
+---
+ net/usunrpc/rfc5666/svc_rdma.c          | 21 ++++++++++++++++++---
+ net/usunrpc/rfc5666/svc_rdma_internal.h |  1 +
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index 057f6e8..f844948 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -77,6 +77,7 @@ SVCXPRT *svcrdma_create (struct sockaddr_in *sa, struct svcrdma_config *cfg)
+         }
+         memset(xp, 0, sizeof(*xp));
+         c2_list_init(&xp->xprts);
++        c2_mutex_init(&xp->xprts_lock);
+         xp->status = RDMA_XPRT_LISTEN;
+ 
+         xp->channel = rdma_create_event_channel();
+@@ -179,6 +180,7 @@ static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
+         c2_list_link_init(&xprt->link);
+         c2_list_init(&xprt->requests);
+         c2_list_init(&xprt->replies);
++        c2_mutex_init(&xprt->bufs_mutex);
+         xprt->rndzv = xp;
+         xprt->cmid  = cmid;
+ 
+@@ -230,7 +232,9 @@ static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
+ 
+         /* add the xprt into linked list of listener */
+         xprt->status = RDMA_XPRT_CONNECTING;
++        c2_mutex_lock(&xp->xprts_lock);
+         c2_list_add_tail(&xp->xprts, &xprt->link);
++        c2_mutex_unlock(&xp->xprts_lock);
+ 
+         return 0;
+ 
+@@ -243,12 +247,17 @@ static inline struct svcrdma_xprt *xprt_find(struct svcrndzv_xprt *xp,
+                                              struct rdma_cm_id *id)
+ {
+         struct svcrdma_xprt *xprt;
++        struct svcrdma_xprt *found = NULL;
+ 
++        c2_mutex_lock(&xp->xprts_lock);
+         c2_list_for_each_entry(&xp->xprts, xprt, struct svcrdma_xprt, link) {
+-                if (xprt->cmid == id)
+-                        return xprt;
++                if (xprt->cmid == id) {
++                        found = xprt;
++                        break;
++                }
+         }
+-        return NULL;
++        c2_mutex_unlock(&xp->xprts_lock);
++        return found;
+ }
+ 
+ /**
+@@ -327,6 +336,8 @@ static void rendezvous_destroy(SVCXPRT *xprt)
+ {
+         struct svcrndzv_xprt *xp = (struct svcrndzv_xprt *)xprt->xp_p1;
+ 
++        svcrdma_assert(c2_list_is_empty(&xp->xprts));
++        c2_mutex_fini(&xp->xprts_lock);
+         xprt_unregister(xprt);
+         rdma_destroy_id(xp->cmid);
+         rdma_destroy_event_channel(xp->channel);
+@@ -520,6 +531,10 @@ static bool_t svcrdma_reply(SVCXPRT *svcxprt, struct rpc_msg *rpcmsg)
+ 
+ static void svcrdma_xprt_destroy (struct svcrdma_xprt *xprt)
+ {
++        c2_mutex_lock(&xprt->rndzv->xprts_lock);
++        c2_list_del(&xprt->link);
++        c2_mutex_unlock(&xprt->rndzv->xprts_lock);
++
+         if (xprt->cmid->qp)
+                 rdma_destroy_qp(xprt->cmid);
+         if (xprt->cq)
+diff --git a/net/usunrpc/rfc5666/svc_rdma_internal.h b/net/usunrpc/rfc5666/svc_rdma_internal.h
+index 6b716f2..7667762 100644
+--- a/net/usunrpc/rfc5666/svc_rdma_internal.h
++++ b/net/usunrpc/rfc5666/svc_rdma_internal.h
+@@ -152,6 +152,7 @@ struct svcrndzv_xprt {
+ 
+         /** exports have been accepted. */
+         struct c2_list             xprts;
++        struct c2_mutex            xprts_lock;
+ 
+         /**
+           Credits management.
+-- 
+1.8.3.2
+

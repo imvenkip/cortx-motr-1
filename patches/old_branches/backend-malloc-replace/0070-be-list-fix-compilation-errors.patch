@@ -1,0 +1,45 @@
+From 13ed03e976483b86f3ee7aeff2019fdf0b3195ec Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 30 May 2013 18:34:07 +0300
+Subject: [PATCH 070/161] be (list): fix compilation errors
+
+---
+ be/list.c | 2 ++
+ be/list.h | 8 ++++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/be/list.c b/be/list.c
+index 4fb6b5f..1d36e27 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -24,6 +24,8 @@
+  * @{
+  */
+ 
++#include "be/list.h"
++
+ M0_INTERNAL void
+ m0_be_list_create(struct m0_be_list *list, struct m0_be_tx *tx)
+ {
+diff --git a/be/list.h b/be/list.h
+index aa9ac66..2d13192 100644
+--- a/be/list.h
++++ b/be/list.h
+@@ -22,6 +22,14 @@
+ #ifndef __MERO_BE_LIST_H__
+ #define __MERO_BE_LIST_H__
+ 
++#include "lib/tlist.h"
++
++/* import */
++struct m0_be_op;
++struct m0_be_seg;
++struct m0_be_tx;
++struct m0_be_tx_credit;
++
+ /**
+  * @defgroup be
+  *
+-- 
+1.8.3.2
+

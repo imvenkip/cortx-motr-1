@@ -1,0 +1,591 @@
+From dab1301f7d2b3b5b3e32359515cb11cd40135b38 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Mon, 17 Feb 2014 11:44:46 +0530
+Subject: [PATCH 10/14] dgmode-spare-map-writeIO
+
+1. DG mode IO script contains some debugging stub.
+2. m0t1fs_sns_common_inc.sh has now been included in sns st (mf-version).
+---
+ m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh     | 198 +++--------------------
+ m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh | 214 ++++++++++++-------------
+ 2 files changed, 123 insertions(+), 289 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh b/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh
+index c084324..8d3f78b 100755
+--- a/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh
+@@ -8,24 +8,21 @@
+ . `dirname $0`/m0t1fs_server_inc.sh
+ . `dirname $0`/m0t1fs_sns_common_inc.sh
+ 
++
+ dgwrite_test_module()
+ {
+-	#dd bs=$unit_size count=50 \
+ 	$@ \
+ 	   if=./sandbox/source of=./sandbox/file_to_compare >> $MERO_TEST_LOGFILE || {
+ 		echo "Failed: dd failed.."
+ 		unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	sleep 2
+ 	$@ \
+ 	  if=./sandbox/source  of=$MERO_M0T1FS_MOUNT_DIR/file_to_compare >> $MERO_TEST_LOGFILE || {
+ 		echo "Failed: dd failed.."
+ 		unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	rm -f ./messages
+-	cp /var/log/messages ./messages
+ 	diff ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/file_to_compare
+ 	echo $?
+ }
+@@ -39,7 +36,7 @@ dgwrite_test()
+ 	local N=3
+ 	local K=3
+ 	local P=9
+-	local stride=32
++	local stride=4
+ 	local unit_size=$((stride * 1024))
+ 
+ 	echo "Starting SNS repair testing ..."
+@@ -55,108 +52,64 @@ dgwrite_test()
+ 		unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-
+-	echo "Creating a file"
+-	dgwrite_test_module dd bs=$unit_size count=40
+-	du -sh ./sandbox/file_to_compare
+-	dd if=/dev/urandom bs=$unit_size count=10 \
+-	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
++	echo "Creating files"
++	dgwrite_test_module dd bs=$unit_size count=50
+ 
+ 	for ((i=1; i < ${#EP[*]}; i++)) ; do
+ 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
+ 	done
+ 
+-####### Set Failure device
++####### Set Failure device ##################################################
+ 	pool_mach_set_failure $fail_device1
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dgmode-write test 1: writing after first failure"
+-	dgwrite_test_module dd bs=$unit_size count=5 seek=25
+-
+-#	echo "IO dgmode-write test 2: Writing to a file after first failure"
+-#	sleep 2
++	echo "dgmode test1: IO after first failure"
++	dgwrite_test_module dd bs=$unit_size count=7 seek=13
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "Taking diff after first repair"
++	echo "dgmode test 2: Read after repair"
+ 	diff ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/file_to_compare
+-	echo $?
+-####### Query device state
++####### Query device state###################################################
+ 	pool_mach_query $fail_device1
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dgmode-write test 2: writing after first repair"
+-	dgwrite_test_module dd bs=$unit_size count=40
+-	du -sh ./sandbox/file_to_compare
+ 
+ 	pool_mach_set_failure $fail_device2
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
++	echo "dgmode test 3: Read after second failure"
++	diff ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/file_to_compare
++	echo $?
+ 
+-	echo "IO dgmode-write test 3: writing after second failure"
++	echo "dgmode test 4: IO after second failure"
+ 	dgwrite_test_module dd bs=$unit_size count=5 seek=25
+-	du -sh ./sandbox/file_to_compare
+-
+-######################################
+-dd if=/root/48Kfile of=./sandbox/file_to_compare \
+-	bs=$unit_size count=1 seek=25 conv=notrunc 
+-
+-
+-	dd if=/root/48Kfile of=$MERO_M0T1FS_MOUNT_DIR/file_to_compare \
+-	bs=$unit_size count=1 seek=25 conv=notrunc 
+-
+-	echo "Taking diff after putting ascii values and after second failure"
+-	diff ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/file_to_compare
+-######################################
+-md5sum $MERO_M0T1FS_MOUNT_DIR/file_to_compare | \
+-		tee $MERO_M0T1FS_TEST_DIR/md5
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "Checking md5sum after repair"
+-	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++
+ 	pool_mach_query $fail_device2
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-######################################
+-	echo "Taking diff after putting ascii values and after second repair"
+-	diff  ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/file_to_compare
+-	echo $?
+-######################################
+-
+-	echo "IO dgmode-write test 4: writing after second repair"
+-	echo "" >/var/log/messages
+-	dgwrite_test_module dd bs=$unit_size count=5 seek=25
+-#	dd if=/root/48Kfile of=./sandbox/file_to_compare \
+-#	bs=$unit_size count=1 seek=25 conv=notrunc 
+-#
+-#
+-#	dd if=/root/48Kfile of=$MERO_M0T1FS_MOUNT_DIR/file_to_compare \
+-#	bs=$unit_size count=1 seek=25 conv=notrunc 
+ 
+-	echo "Taking diff after putting ascii values"
++	echo "dgmode test 5: Read after second repair"
+ 	diff ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/file_to_compare
+ 	echo $?
+ 
+-	#md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-	cp ./sandbox/file_to_compare ./sandbox/file_to_compare_orig
+-	du -sh ./sandbox/file_to_compare
++	echo "dgmode test 6: IO after second repair"
++	dgwrite_test_module dd bs=$unit_size count=40
+ 
+ 	for ((i=8; i < 9; i++)) ; do
+ 		for ((j=0; j < 3; j++)); do
+@@ -169,123 +122,18 @@ md5sum $MERO_M0T1FS_MOUNT_DIR/file_to_compare | \
+ 			echo $?
+ 		done
+ 	done
+-#	pool_mach_set_failure $fail_device3
+-	if [ $? -ne "0" ]
+-	then
+-		return $?
+-	fi
+-	echo "IO dgmode-write test 5: writing after third failure"
+-#	dgwrite_test_module dd bs=$unit_size count=5 seek=25
+-#	echo "IO dgmode-read test 5: Reading after third failure"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-#
+-	echo "unmounting and cleaning.."
+-	unmount_and_clean &>> $MERO_TEST_LOGFILE
+-
+-	return $rc
+-}
+-
+-dgread_test()
+-{
+-	local rc=0
+-	local fail_device1=1
+-	local fail_device2=9
+-	local fail_device3=2
+-	local N=3
+-	local K=3
+-	local P=9
+-	local stride=32
+-	local unit_size=$((stride * 1024))
+-
+-	echo "Starting SNS repair testing ..."
+-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride $N $K $P &>> $MERO_TEST_LOGFILE || {
+-		cat $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-	dd if=/dev/urandom bs=$unit_size count=50 \
+-	of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-
+-	dd if=/dev/urandom bs=$unit_size count=50 \
+-	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-
+-	dd if=/dev/urandom bs=$unit_size count=50 \
+-	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-
+-md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair | \
+-		tee $MERO_M0T1FS_TEST_DIR/md5
+-md5sum $MERO_M0T1FS_MOUNT_DIR/file2_to_repair | \
+-		tee $MERO_M0T1FS_TEST_DIR/md5
+-md5sum $MERO_M0T1FS_MOUNT_DIR/file3_to_repair | \
+-		tee $MERO_M0T1FS_TEST_DIR/md5
+-
+-	for ((i=1; i < ${#EP[*]}; i++)) ; do
+-		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
+-	done
+-
+-####### Set Failure device
+-	pool_mach_set_failure $fail_device1
+-	if [ $? -ne "0" ]
+-	then
+-		return $?
+-	fi
+-	echo "IO dgmode-read test 1: Reading after first failure"
+-	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-	sleep 2
+-	sns_repair
+-	if [ $? -ne "0" ]
+-	then
+-		return $?
+-	fi
+-####### Query device state
+-	pool_mach_query $fail_device1
+-	if [ $? -ne "0" ]
+-	then
+-		return $?
+-	fi
+-	echo "IO dgmode-read test 2: Reading after repair"
+-	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-
+-	pool_mach_set_failure $fail_device2
+-	if [ $? -ne "0" ]
+-	then
+-		return $?
+-	fi
+-	echo "IO dgmode-read test 3: Reading after second failure"
+-	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-
+-	sns_repair
+-	if [ $? -ne "0" ]
+-	then
+-		return $?
+-	fi
+-
+-	pool_mach_query $fail_device2
+-	if [ $? -ne "0" ]
+-	then
+-		return $?
+-	fi
+-	echo "IO dgmode-read test 4: Reading after second repair"
+-	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+ 
+ 	pool_mach_set_failure $fail_device3
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dgmode-read test 5: Reading after third failure"
+-	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
++	echo "dgmode test 7: Read after third failure"
++	diff ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/file_to_compare
++	echo $?
++
++	echo "dgmode test 8: IO after third failure"
++	dgwrite_test_module dd bs=$unit_size count=5 seek=25
+ 
+ 	echo "unmounting and cleaning.."
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
+index 249356c..eaf6951 100755
+--- a/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh
+@@ -6,17 +6,81 @@
+ . `dirname $0`/m0t1fs_common_inc.sh
+ . `dirname $0`/m0t1fs_client_inc.sh
+ . `dirname $0`/m0t1fs_server_inc.sh
+-. `dirname $0`/m0t1fs_sns_common_inc.sh
++
++pool_mach_set_failure()
++{
++	DEVICES=""
++	STATE=""
++	for i in "$@"
++	do
++		DEVICES="$DEVICES -I $i"
++		STATE="$STATE -s 1"
++	done
++	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
++		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
++	echo $poolmach
++	if ! $poolmach ; then
++		echo "m0poolmach failed"
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	fi
++
++	return 0
++}
++
++pool_mach_query()
++{
++	DEVICES=""
++	for i in "$@"
++	do
++		DEVICES="$DEVICES -I $i"
++	done
++	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N $# \
++		 $DEVICES -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
++	echo $poolmach
++	if ! $poolmach ; then
++		echo "m0poolmach failed"
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	fi
++
++	return 0
++}
++
++sns_repair()
++{
++	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
++	echo $repair_trigger
++	if ! $repair_trigger ; then
++		echo "SNS Repair failed"
++		return 1
++	fi
++
++	return 0
++}
++
++sns_rebalance()
++{
++        rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
++        echo $rebalance_trigger
++        if ! $rebalance_trigger ; then
++                echo "SNS Re-balance failed"
++                return 1
++        fi
++
++	return 0
++}
++
+ sns_repair_test()
+ {
+ 	local rc=0
+ 	local fail_device1=1
+-	local fail_device2=9
+-	local fail_device3=2
++	local fail_device2=3
++	local fail_device3=7
+ 	local N=3
+ 	local K=3
+ 	local P=9
+-	local stride=32
++	local stride=20
+ 	local unit_size=$((stride * 1024))
+ 
+ 	echo "Starting SNS repair testing ..."
+@@ -24,160 +88,82 @@ sns_repair_test()
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	#cp /root/48Kfile $MERO_M0T1FS_MOUNT_DIR/
+-	echo "" >/var/log/messages
++
+ 	dd if=/dev/urandom bs=$unit_size count=50 \
+-	of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
++	   of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
+ 		echo "Failed: dd failed.."
+ 		unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-#	cp /var/log/messages ./first_write.log
+-#
+-#	echo "" >/var/log/messages
+-#	dd if=/dev/urandom bs=$unit_size count=20 \
+-#	of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
+-#		echo "Failed: dd failed.."
+-#		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-#		return 1
+-#	}
+-#	cp /var/log/messages ./second_write.log
+-#	dd if=/dev/urandom bs=$unit_size count=50 \
+-#	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
+-#		echo "Failed: dd failed.."
+-#		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-#		return 1
+-#	}
+-#
+-#	dd if=/dev/urandom bs=$unit_size count=50 \
+-#	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
+-#		echo "Failed: dd failed.."
+-#		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-#		return 1
+-#	}
+-
+-#md5sum $MERO_M0T1FS_MOUNT_DIR/file1_to_repair | \
+-#		tee $MERO_M0T1FS_TEST_DIR/md5
++
++	dd if=/dev/urandom bs=$unit_size count=50 \
++	   of=$MERO_M0T1FS_MOUNT_DIR/file2_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++
++	dd if=/dev/urandom bs=$unit_size count=50 \
++	   of=$MERO_M0T1FS_MOUNT_DIR/file3_to_repair >> $MERO_TEST_LOGFILE || {
++		echo "Failed: dd failed.."
++		unmount_and_clean &>> $MERO_TEST_LOGFILE
++		return 1
++	}
++
+ 	for ((i=1; i < ${#EP[*]}; i++)) ; do
+ 		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
+ 	done
+ 
+ ####### Set Failure device
+-	pool_mach_set_failure $fail_device1
++	pool_mach_set_failure $fail_device1 $fail_device2
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-#	echo "IO dgmode-read test 1: Reading after first failure"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-#	sleep 2
+-	echo "">/var/log/messages
+-	rm -f ./messages
+-	echo "IO dgmode-write test 1: Writing after first failure"
+-	dd if=/dev/urandom bs=$unit_size count=20 \
+-	of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		cp /var/log/messages .
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-#	cp /var/log/messages .
++
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-#	echo "IO dgmode-read test 2: Reading after repair"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-#	sleep 2
+ ####### Query device state
+ 
+-	pool_mach_query $fail_device1
++	pool_mach_query $fail_device1 $fail_device2
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+ 
+-	pool_mach_set_failure $fail_device2
++	pool_mach_set_failure $fail_device3
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dgmode-write test 2: Writing after second failure"
+-	echo "">/var/log/messages
+-	dd if=/dev/urandom bs=$unit_size count=50 \
+-	of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair >> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		cp /var/log/messages .
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-#	rm -f ./messages
+-#	cp /var/log/messages .
+-##	echo "IO dgmode-read test 3: Reading after failure post first repair."
+-##	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-##	sleep 2
+-##
++
+ 	sns_repair
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+ 
+-	pool_mach_query $fail_device2
++	pool_mach_query $fail_device3
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-##	echo "IO dgmode-read test 4: Reading after second repair"
+-##	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-##	sleep 2
+-	pool_mach_set_failure $fail_device3
++
++        echo "Starting SNS Re-balance.."
++	sns_rebalance
+ 	if [ $? -ne "0" ]
+ 	then
+ 		return $?
+ 	fi
+-	echo "IO dgmode-write test 3: Writing after last failure"
+-#	cp /root/48Kfile $MERO_M0T1FS_MOUNT_DIR/file1_to_repair
+-	dd if=/dev/urandom bs=$unit_size count=1 conv=notrunc \
+-	of=$MERO_M0T1FS_MOUNT_DIR/file1_to_repair seek=10>> $MERO_TEST_LOGFILE || {
+-		echo "Failed: dd failed.."
+-		cp /var/log/messages .
+-		unmount_and_clean &>> $MERO_TEST_LOGFILE
+-		return 1
+-	}
+-#	cp /var/log/messages .
+-#	echo "Taking difference"
+-#	diff /root/48Kfile $MERO_M0T1FS_MOUNT_DIR/file1_to_repair
+-#	echo $?
+-
+-#	echo "IO dgmode-read test 5: Reading after third failure"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-#
+-#	sns_repair
+-#	if [ $? -ne "0" ]
+-#	then
+-#		return $?
+-#	fi
+-#
+-#	echo "IO dgmode-read test 6: Reading after last repair"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-#	sleep 2
+-# #       echo "Starting SNS Re-balance.."
+-#	sns_rebalance
+-#	if [ $? -ne "0" ]
+-#	then
+-#		return $?
+-#	fi
+-#	pool_mach_query $fail_device1 $fail_device2 $fail_device3
+-#	if [ $? -ne "0" ]
+-#	then
+-#		return $?
+-#	fi
+-#
+-#	echo "IO dgmode-read test 7: Reading after rebalance"
+-#	md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+-#	sleep 2
++	pool_mach_query $fail_device1 $fail_device2 $fail_device3
++	if [ $? -ne "0" ]
++	then
++		return $?
++	fi
++
+ 	echo "unmounting and cleaning.."
+ 	unmount_and_clean &>> $MERO_TEST_LOGFILE
+ 
+-- 
+1.8.3.2
+

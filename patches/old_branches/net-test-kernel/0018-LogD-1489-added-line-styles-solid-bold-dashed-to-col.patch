@@ -1,0 +1,101 @@
+From 0e268f20b083c468b0fb37bebd9be2d4153d4e0c Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 06:17:20 +0200
+Subject: [PATCH 18/71] LogD 1489: added line styles (solid, bold, dashed) to
+ color lines in DLD
+
+---
+ net/test/node.c | 60 ++++++++++++++++++++++++++++-----------------------------
+ 1 file changed, 30 insertions(+), 30 deletions(-)
+
+diff --git a/net/test/node.c b/net/test/node.c
+index cf98d5b..c136434 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -302,9 +302,9 @@ finished.up();\l", shape=box];
+      - buf_free.up()
+ 
+    @subsubsection net-test-lspec-algo-sm-legend State Machine Legend
+-   - Red arrow - state transition to "error" states.
+-   - Green arrow - state transition for "successful" operation.
+-   - Black arrow - auto state transition (shouldn't be explicit).
++   - Red solid arrow - state transition to "error" states.
++   - Green bold arrow - state transition for "successful" operation.
++   - Black dashed arrow - auto state transition (shouldn't be explicit).
+    - State name in double oval - final state.
+ 
+    @subsubsection net-test-lspec-algo-client-bulk Bulk Test Client Algorithm
+@@ -317,26 +317,26 @@ finished.up();\l", shape=box];
+ 	bd_sent	    [label="BD_SENT"];
+ 	cb_left2    [label="CB_LEFT2"];
+ 	cb_left1    [label="CB_LEFT1"];
+-	failed2	    [label="FAILED2", color="red"];
+-	failed1	    [label="FAILED1", color="red"];
++	failed2	    [label="FAILED2", color="red", style="solid"];
++	failed1	    [label="FAILED1", color="red", style="solid"];
+ 	transferred [label="TRANSFERRED", peripheries=2];
+ 	failed	    [label="FAILED", peripheries=2];
+ 
+-	unused	    -> queued	   [color="green"];
+-	queued	    -> bd_sent	   [color="green"];
+-	queued	    -> failed	   [color="red"];
+-	queued	    -> failed1	   [color="red"];
+-	queued	    -> failed2	   [color="red"];
+-	bd_sent	    -> cb_left2	   [color="green"];
+-	bd_sent	    -> failed2	   [color="red"];
+-	cb_left2    -> cb_left1	   [color="green"];
+-	cb_left2    -> failed1	   [color="red"];
+-	cb_left1    -> transferred [color="green"];
+-	cb_left1    -> failed	   [color="red"];
+-	failed2	    -> failed1	   [color="red"];
+-	failed1	    -> failed	   [color="red"];
+-	transferred -> unused	   [color="black"];
+-	failed	    -> unused	   [color="black"];
++	unused	    -> queued	   [color="green", style="bold"];
++	queued	    -> bd_sent	   [color="green", style="bold"];
++	queued	    -> failed	   [color="red", style="solid"];
++	queued	    -> failed1	   [color="red", style="solid"];
++	queued	    -> failed2	   [color="red", style="solid"];
++	bd_sent	    -> cb_left2	   [color="green", style="bold"];
++	bd_sent	    -> failed2	   [color="red", style="solid"];
++	cb_left2    -> cb_left1	   [color="green", style="bold"];
++	cb_left2    -> failed1	   [color="red", style="solid"];
++	cb_left1    -> transferred [color="green", style="bold"];
++	cb_left1    -> failed	   [color="red", style="solid"];
++	failed2	    -> failed1	   [color="red", style="solid"];
++	failed1	    -> failed	   [color="red", style="solid"];
++	transferred -> unused	   [color="black", style="dashed"];
++	failed	    -> unused	   [color="black", style="dashed"];
+    }
+    @enddot
+ 
+@@ -436,16 +436,16 @@ finished.up();\l", shape=box];
+ 	failed	    [label="FAILED", peripheries=2];
+ 	badmsg	    [label="BADMSG", peripheries=2];
+ 
+-	unused	    -> bd_received [color="green"];
+-	bd_received -> badmsg	   [color="red"];
+-	bd_received -> receiving   [color="green"];
+-	receiving   -> sending	   [color="green"];
+-	receiving   -> failed	   [color="red"];
+-	sending	    -> transferred [color="green"];
+-	sending	    -> failed	   [color="red"];
+-	transferred -> unused	   [color="black"];
+-	failed	    -> unused	   [color="black"];
+-	badmsg	    -> unused	   [color="black"];
++	unused	    -> bd_received [color="green", style="bold"];
++	bd_received -> badmsg	   [color="red", style="solid"];
++	bd_received -> receiving   [color="green", style="bold"];
++	receiving   -> sending	   [color="green", style="bold"];
++	receiving   -> failed	   [color="red", style="solid"];
++	sending	    -> transferred [color="green", style="bold"];
++	sending	    -> failed	   [color="red", style="solid"];
++	transferred -> unused	   [color="black", style="dashed"];
++	failed	    -> unused	   [color="black", style="dashed"];
++	badmsg	    -> unused	   [color="black", style="dashed"];
+    }
+    @enddot
+ 
+-- 
+1.8.3.2
+

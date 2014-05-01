@@ -1,0 +1,31 @@
+From 2c9ab1c069712359f48c9228aebfa948e347dbf9 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Tue, 28 Aug 2012 21:35:55 +0300
+Subject: [PATCH 305/311] conf: use "break of c2_tlist_for()" idiom
+
+LogD #842
+RB: r/981/diff/3/?file=27990#file27990line68
+---
+ conf/reg.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/conf/reg.c b/conf/reg.c
+index a1f79fd..58768bf 100644
+--- a/conf/reg.c
++++ b/conf/reg.c
+@@ -65,10 +65,10 @@ struct c2_conf_obj *c2_conf_reg_lookup(const struct c2_conf_reg *reg,
+ 
+ 	c2_tlist_for(&c2_conf_reg_tl, &reg->r_objs, obj) {
+ 		if (obj->co_type == type && c2_conf_buf_eq(&obj->co_id, id))
+-			return obj;
++			break;
+ 	} c2_tlist_endfor;
+ 
+-	return NULL;
++	return obj;
+ }
+ 
+ static void del(struct c2_conf_obj *obj)
+-- 
+1.8.3.2
+

@@ -1,0 +1,28 @@
+From 209f59c8ac9fcb7bf30441c850fc6777ef7c408b Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Fri, 7 Jun 2013 09:52:24 +0300
+Subject: [PATCH 123/290] be/list: define M0_BLO_NR as last element of enum.
+
+---
+ be/list.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/be/list.h b/be/list.h
+index 0a67625..43c962f 100644
+--- a/be/list.h
++++ b/be/list.h
+@@ -74,9 +74,9 @@ M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list);
+ enum m0_be_list_op {
+ 	M0_BLO_INSERT,
+ 	M0_BLO_DELETE,
+-	M0_BLO_MOVE
++	M0_BLO_MOVE,
++	M0_BLO_NR
+ };
+-#define M0_BLO_NR 3
+ 
+ /**
+  * Calculates the credit needed to perform `nr' list operations of type
+-- 
+1.8.3.2
+

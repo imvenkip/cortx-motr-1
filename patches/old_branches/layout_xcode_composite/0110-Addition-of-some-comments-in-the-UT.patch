@@ -1,0 +1,112 @@
+From 4eff1f5a6e3c6a7483fd1e7fb6b594466c9f3b80 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 4 Apr 2013 16:20:26 +0530
+Subject: [PATCH 110/157] Addition of some comments in the UT
+
+---
+ layout/ut/composite.c | 18 ++++++++----------
+ layout/ut/composite.h | 18 +++++++++++++++++-
+ 2 files changed, 25 insertions(+), 11 deletions(-)
+
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index 62ecba1..846b0d3 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -324,9 +324,8 @@ static void extlist_dump(const struct m0_composite_layout *cl,
+ 			  (unsigned long long)cl->cl_base.l_id,
+ 			  (unsigned long)layer_idx);
+ 	m0_tl_for(m0_composite_layer_ext, &layer->clr_extents, lr_ext) {
+-		my_console_printf("\t ext[%lu]: start %llu, end %llu, "
+-				  "state %llu \n",
+-				  (unsigned long)i,
++		my_console_printf("\t ext[%2lu]: [%20llu, %20llu), "
++				  "state %llu \n", (unsigned long)i,
+ 				  (unsigned long long)lr_ext->cle_ext.e_start,
+ 				  (unsigned long long)lr_ext->cle_ext.e_end,
+ 				  (unsigned long long)lr_ext->cle_state);
+@@ -1647,21 +1646,21 @@ static int ext_op_pre(enum extent_operation eop,
+ 				  (unsigned long long)*offset_to_operate);
+ 	else if (eop == EXTENT_ADD)
+ 		my_console_printf("\nextlist_dump before ext ADD with "
+-				  "ext_kind %u, \n\t ext [%llu, %llu), "
++				  "ext_kind %u, \n\t ext [%20llu, %20llu), "
+ 				  "e_state %llu\n", extent_kind,
+ 				  (unsigned long long)ext_to_operate->e_start,
+ 				  (unsigned long long)ext_to_operate->e_end,
+ 				  (unsigned long long)ext_state);
+ 	else if (eop == EXTENT_UPDATE)
+ 		my_console_printf("\nextlist_dump before ext STATE_UPDATE with "
+-				  "ext_kind %u, \n\t ext [%llu, %llu), "
++				  "ext_kind %u, \n\t ext [%20llu, %20llu), "
+ 				  "e_state %llu\n", extent_kind,
+ 				  (unsigned long long)ext_to_operate->e_start,
+ 				  (unsigned long long)ext_to_operate->e_end,
+ 				  (unsigned long long)ext_state);
+ 	else
+ 		my_console_printf("\nextlist_dump before ext DELETE with "
+-				  "ext_kind %u, \n\t ext [%llu, %llu), "
++				  "ext_kind %u, \n\t ext [%20llu, %20llu), "
+ 				  "e_state %llu\n", extent_kind,
+ 				  (unsigned long long)ext_to_operate->e_start,
+ 				  (unsigned long long)ext_to_operate->e_end,
+@@ -1821,7 +1820,7 @@ static int ext_add(struct m0_composite_layout *cl,
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+ 		my_console_printf("extlist_dump after ext ADD with "
+-				  "ext_kind %u, \n\t ext [%llu, %llu), "
++				  "ext_kind %u, \n\t ext [%20llu, %20llu), "
+ 				  "ext_state %llu\n", extent_kind,
+ 				  (unsigned long long)ext_to_operate->e_start,
+ 				  (unsigned long long)ext_to_operate->e_end,
+@@ -1885,7 +1884,7 @@ static int ext_update(struct m0_composite_layout *cl,
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+ 		my_console_printf("extlist_dump after ext STATE_UPDATE with "
+-				  "ext_kind %u, \n\t ext [%llu, %llu), "
++				  "ext_kind %u, \n\t ext [%20llu, %20llu), "
+ 				  "ext_state %llu\n", extent_kind,
+ 				  (unsigned long long)ext_to_operate->e_start,
+ 				  (unsigned long long)ext_to_operate->e_end,
+@@ -1943,9 +1942,8 @@ static int ext_delete(struct m0_composite_layout *cl,
+ 		my_console_printf("ext DELETE failed, rc %d\n", rc);
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+-		//todo cover err cases and in failure cases, print rc
+ 		my_console_printf("extlist_dump after ext DELETE with "
+-				  "ext_kind %u, \n\t ext [%llu, %llu) \n",
++				  "ext_kind %u, \n\t ext [%20llu, %20llu) \n",
+ 				  extent_kind,
+ 				  (unsigned long long)ext_to_operate->e_start,
+ 				  (unsigned long long)ext_to_operate->e_end);
+diff --git a/layout/ut/composite.h b/layout/ut/composite.h
+index dd1216d..40171f0 100644
+--- a/layout/ut/composite.h
++++ b/layout/ut/composite.h
+@@ -28,7 +28,23 @@
+  * be added/updated/deleted to/from the extent list' for a particular layer
+  * from a particular composite layout.
+  *
+- * For example: //todo
++ * Assume that an extent list is as below:
++ * ext[0]: [                   0,  2635249153387078802), state 1
++ * ext[1]: [ 2635249153387078802,  5270498306774157604), state 0
++ * ext[2]: [ 5270498306774157604,  7905747460161236406), state 1
++ * ext[3]: [ 7905747460161236406, 10540996613548315208), state 0
++ * ext[4]: [10540996613548315208, 13176245766935394010), state 1
++ * ext[5]: [13176245766935394010, 15811494920322472812), state 0
++ * ext[6]: [15811494920322472812, 18446744073709551615), state 1
++ *
++ * Now, examples of extents with various kinds:
++ * NON_EXISTING:		[2635249153387078802, 5270498306774157604)
++ * EXACT_EXISTING:		[5270498306774157604, 7905747460161236406)
++ * OVERLAPPING_LEFT:		[2635249153387078802, 5270498306774157605)
++ * OVERLAPPING_RIGHT:		[5270498306774157603, 7905747460161236406)
++ * OVERLAPPING_COMPLETE:	[5270498306774157603, 7905747460161236407)
++ * CONTAINED_WITHIN:		[5270498306774157606, 7905747460161236404)
++ * OVERLAPPING_MULTIPLE: todo
+  */
+ enum kind_of_extent {
+ 	NON_EXISTING          = 0,
+-- 
+1.8.3.2
+

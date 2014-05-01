@@ -1,0 +1,48 @@
+From 599418a93096fc6c311720802948b03558d802ea Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 8 Aug 2012 13:54:23 +0300
+Subject: [PATCH 283/370] doc/magix: downcase magic numbers for uniformity
+
++ Replace tabs with spaces.
+---
+ doc/magix | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/doc/magix b/doc/magix
+index e626d68..b44ff7b 100755
+--- a/doc/magix
++++ b/doc/magix
+@@ -18,10 +18,10 @@ fi_dynamic_id        fdi_magic               666964796e69646c fidynidl
+ fi_dynamic_id_tl     td_head_magic           666964796e696468 fidynidh
+ cs_reqh_context      rc_magix                  52455148435458 REQHCTX
+ rhctx_tl             td_head_magic             52484354584844 RHCTXHD
+-c2_net_domain        nd_magix                    4E4554444F4D NETDOM
+-ndom_tl              td_head_magic           4E4554444F4D4844 NETDOMHD
+-cs_endpoint_and_xprt ex_magix                      43535F4550 CS_EP
+-cs_eps_tl            td_head_magic             43535F45504844 CS_EPHD
++c2_net_domain        nd_magix                    4e4554444f4d NETDOM
++ndom_tl              td_head_magic           4e4554444f4d4844 NETDOMHD
++cs_endpoint_and_xprt ex_magix                      43535f4550 CS_EP
++cs_eps_tl            td_head_magic             43535f45504844 CS_EPHD
+ c2_db_tx_waiter      tw_magix                ab5c155a0fa1bed0 abscissa of albedo
+ enw_tl               td_head_magic           da2edc0cc1d10515 dazed coccidiosis
+ c2_reqh_service_type rst_magix               5248535643545950 RHSVCTYP
+@@ -30,11 +30,11 @@ c2_reqh_service      rs_magix                  52455148535643 REQHSVC
+ c2_reqh_svc_tl       td_head_magic           5245515356434844 REQSVCHD
+ c2_rpc_frm           f_magic                   5250435f46524d RPC_FRM
+ rpc_buffer           rb_magic                  5250435f425546 RPC_BUF
+-c2_rpc_machine       rm_magix                  5250434D414348 RPCMACH
+-c2_reqh_rpc_mach_tl  td_head_magic           52455152504D4844 REQRPMHD
++c2_rpc_machine       rm_magix                  5250434d414348 RPCMACH
++c2_reqh_rpc_mach_tl  td_head_magic           52455152504d4844 REQRPMHD
+ cs_ad_stob           as_magix                    414453544f42 ADSTOB
+ astob                td_head_magic           414453544f424844 ADSTOBHD
+-c2_long_lock_link    lll_magix	             B055B1E55EDF01D5 boss blessed folds
+-c2_long_lock	     l_magix		     0B055B1E55EDBA55 boss blessed bass
++c2_long_lock_link    lll_magix               b055b1e55edf01d5 boss blessed folds
++c2_long_lock         l_magix                 0b055b1e55edba55 boss blessed bass
+ c2_fom_thread        lt_magix                fa151f1ab1ec0b01 falsifiable COBOL
+ thr_tl               td_head_magic           dec1a551f1edcade declassified cade
+-- 
+1.8.3.2
+

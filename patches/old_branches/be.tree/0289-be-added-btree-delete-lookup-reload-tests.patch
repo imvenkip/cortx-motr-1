@@ -1,0 +1,149 @@
+From 9a36b0fa07a60708118b3f8b204fd319177afd64 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Sat, 6 Jul 2013 13:02:31 +0300
+Subject: [PATCH 289/290] be: added btree delete/lookup/reload tests.
+
+    - And seems, after this commit we're ready for the demo!
+---
+ be/btree.c |  9 +++++----
+ be/ut/tx.c | 46 +++++++++++++++++++++++++++++++++-------------
+ 2 files changed, 38 insertions(+), 17 deletions(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index 5302df5..93c34eb 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -779,7 +779,7 @@ static int btree_delete_key(struct m0_be_btree   *btree,
+ 
+ 		/* Update affected memory regions in tx: */
+ 		/* XXX: this update looks to be useless */
+-		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
++		/* mem_update(btree, tx, btree, sizeof(struct m0_be_btree)); */
+ 		M0_POST(btree_invariant(btree));
+ 		return 0;
+ 	}
+@@ -1262,7 +1262,7 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
+ {
+ 	int rc;
+ 
+-	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
++	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+ 	BTREE_OP_FILL(op, tree, tx, M0_BBO_DELETE, NULL);
+@@ -1283,7 +1283,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ {
+ 	struct bt_key_val *kv;
+ 
+-	M0_PRE(btree->bb_root == NULL && btree->bb_ops != NULL);
++	M0_PRE(btree->bb_root != NULL && btree->bb_ops != NULL);
+ 	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 
+ 	BTREE_OP_FILL(op, btree, NULL, M0_BBO_LOOKUP, NULL);
+@@ -1291,6 +1291,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_rwlock_read_lock(&btree->bb_lock);
+ 
++	M0_SET0(dest_value);
+ 	kv = btree_search(btree, key->b_addr);
+ 	if (kv != NULL) {
+ 		dest_value->b_addr = kv->val;
+@@ -1298,7 +1299,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *btree,
+ 	}
+ 
+ 	m0_rwlock_read_unlock(&btree->bb_lock);
+-	m0_be_op_state_set(op, kv != NULL ? M0_BOS_SUCCESS : M0_BOS_FAILURE);
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *btree,
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 1957c11..3d29359 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -112,6 +112,8 @@ enum {
+ };
+ static void tree_test(struct m0_be *be)
+ {
++	struct m0_buf		key;
++	struct m0_buf		val;
+ 	struct m0_be_op         op;
+ 	struct m0_be_tx         tx = {};
+ 	struct m0_be_tx_credit  cred;
+@@ -157,9 +159,6 @@ static void tree_test(struct m0_be *be)
+ 						 M0_BOS_FAILURE)));
+ 
+ 	for (i = 0; i < INSERT_COUNT; ++i) {
+-		struct m0_buf key;
+-		struct m0_buf val;
+-
+ 		m0_be_op_init(&op);
+ 		m0_buf_init(&key, m0_be_alloc(a, &tx, &op, INSERT_SIZE, 0),
+ 			    INSERT_SIZE);
+@@ -182,7 +181,18 @@ static void tree_test(struct m0_be *be)
+ 		m0_be_btree_insert(&tree, &tx, &op, &key, &val);
+ 		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+ 							 M0_BOS_FAILURE)));
+-		btree_dbg_print(&tree);
++	}
++
++	for (i = INSERT_COUNT/4; i < INSERT_COUNT*3/4; ++i) {
++		char k[4];
++
++		m0_buf_init(&key, k, ARRAY_SIZE(k));
++		sprintf(key.b_addr, "%03d", i);
++
++		m0_be_op_init(&op);
++		m0_be_btree_delete(&tree, &tx, &op, &key);
++		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++							 M0_BOS_FAILURE)));
+ 	}
+ 
+ 	M0_LOG(M0_DEBUG, "captured");
+@@ -300,8 +310,10 @@ static int _fini(void)
+ void loader(void)
+ {
+ 	int rc;
++	int i;
+ 	struct m0_be_op op;
+-	struct m0_buf   out;
++	struct m0_buf   key;
++	struct m0_buf   val;
+ 
+ 	m0_be_ut_seg_initialize(&be_ut_tx_h, true);
+ 	rc = m0_be_seg_open(&be_ut_tx_h.buh_seg);
+@@ -313,15 +325,23 @@ void loader(void)
+ 
+ 	btree_dbg_print(&tree);
+ 
+-	m0_be_op_init(&op);
+-	m0_be_btree_minkey(&tree, &op, &out);
+-	M0_LOG(M0_DEBUG, "--- %s", (char *) out.b_addr);
+-	m0_be_op_fini(&op);
++	for (i = 0; i < INSERT_COUNT; ++i) {
++		char kv[4];
+ 
+-	m0_be_op_init(&op);
+-	m0_be_btree_maxkey(&tree, &op, &out);
+-	M0_LOG(M0_DEBUG, "--- %s", (char *) out.b_addr);
+-	m0_be_op_fini(&op);
++		sprintf(kv, "%03d", i);
++		m0_buf_init(&key, kv, ARRAY_SIZE(kv));
++
++		m0_be_op_init(&op);
++		m0_be_btree_lookup(&tree, &op, &key, &val);
++		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
++							 M0_BOS_FAILURE)));
++
++		if (INSERT_COUNT/4 <= i && i < INSERT_COUNT*3/4)
++			M0_UT_ASSERT(val.b_addr == NULL && val.b_nob  == 0);
++		else
++			M0_UT_ASSERT(strcmp(kv, val.b_addr) == 0);
++
++	}
+ 
+ 	m0_be_ut_seg_close_destroy(&be_ut_tx_h);
+ }
+-- 
+1.8.3.2
+

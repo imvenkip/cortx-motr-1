@@ -1,0 +1,247 @@
+From 0398f5928295785ce31db94a52f9b3a99527269f Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Tue, 29 Apr 2014 15:24:04 +0530
+Subject: [PATCH 3/6] stob-unlnk, - Implement ad stob delete, release
+ underlying storage extents.
+
+---
+ stob/ad.c | 174 ++++++++++++++++++++++++++++++++------------------------------
+ 1 file changed, 89 insertions(+), 85 deletions(-)
+
+diff --git a/stob/ad.c b/stob/ad.c
+index 987a353..191d399 100644
+--- a/stob/ad.c
++++ b/stob/ad.c
+@@ -500,35 +500,6 @@ static void stob_ad_cfg_free(void *cfg_create)
+ {
+ }
+ 
+-/*
+- * Remap real emap prefix to a random.
+- * This is quick workaround in case of adstob-unlink absence. Old objects
+- * ain't removed from emap but new ones are inserted with remapped prefixes.
+- *
+- * Workflow:
+- *  - Replace low 64bits of the prefix with value from seg_dict. Don't do
+- *    anything if seg_dict doesn't contain the record.
+- *  - When adstob is being destroyed just replace value in seg_dict with new
+- *    random number.
+- *
+- * @todo Remove this function and its calls when adstob-unlink is landed.
+- * @see  stob_ad_destroy().
+- */
+-static void stob_ad_emap_prefix_remap(struct m0_uint128 *prefix,
+-				      struct m0_stob_ad_domain *adom)
+-{
+-	void *value;
+-	char  dict_key[64];
+-	int   rc;
+-
+-	sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+-		prefix->u_hi, prefix->u_lo);
+-
+-	rc = m0_be_seg_dict_lookup(adom->sad_be_seg, dict_key, &value);
+-	if (rc == 0)
+-		prefix->u_lo = (uint64_t)value;
+-}
+-
+ static int stob_ad_init(struct m0_stob *stob,
+ 			struct m0_stob_domain *dom,
+ 			uint64_t stob_key)
+@@ -540,7 +511,6 @@ static int stob_ad_init(struct m0_stob *stob,
+ 
+ 	stob->so_ops = &stob_ad_ops;
+ 	prefix = M0_UINT128(m0_stob_domain_id_get(dom), stob_key);
+-	stob_ad_emap_prefix_remap(&prefix, adom); /* XXX */
+ 	rc = M0_BE_OP_SYNC_RET_WITH(
+ 		&it.ec_op,
+ 		m0_be_emap_lookup(&adom->sad_adata, &prefix, 0, &it),
+@@ -576,7 +546,7 @@ static int stob_ad_create(struct m0_stob *stob,
+ 
+ 	M0_PRE(dtx != NULL);
+ 	prefix = M0_UINT128(m0_stob_domain_id_get(dom), stob_key);
+-	stob_ad_emap_prefix_remap(&prefix, adom); /* XXX */
++	M0_LOG(M0_DEBUG, U128D_F, U128_P(&prefix));
+ 	rc = M0_BE_OP_SYNC_RET(
+ 		op,
+ 		m0_be_emap_obj_insert(&adom->sad_adata, &dtx->tx_betx, &op,
+@@ -586,80 +556,115 @@ static int stob_ad_create(struct m0_stob *stob,
+ 	return rc;
+ }
+ 
++static int __emap_next_sync(struct m0_be_emap_cursor *it)
++{
++	struct m0_be_op *it_op;
++	int              rc;
++
++	it_op = m0_be_emap_op(it);
++	m0_be_op_init(it_op);
++	m0_be_emap_next(it);
++	m0_be_op_wait(it_op);
++	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
++	rc = it_op->bo_u.u_emap.e_rc;
++	m0_be_op_fini(it_op);
++
++	return M0_RC(rc);
++}
++
+ static void stob_ad_destroy_credit(struct m0_stob *stob,
+ 				   struct m0_be_tx_credit *accum)
+ {
+ 	struct m0_stob_ad_domain *adom;
+-	//struct m0_uint128         prefix;
+-	//char                      dict_key[64];
++	struct m0_be_emap_cursor  it;
++	struct m0_be_emap_seg    *seg;
++	int                       rc;
++	m0_bcount_t               frags = 0;
+ 
+ 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
++	rc = stob_ad_cursor(adom, stob, 0, &it);
++	while (rc == 0) {
++		seg = m0_be_emap_seg_get(&it);
++		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
++			  !m0_ext_is_empty(&seg->ee_ext));
++		++frags;
++		if (m0_be_emap_ext_is_last(&seg->ee_ext))
++			break;
++		rc = __emap_next_sync(&it);
++	}
++	m0_be_emap_close(&it);
++	if (rc == 0)
++		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags, accum);
++}
+ 
+-	/*
+-	 * Now stob_ad_destroy_credit() adds credits for fake
+-	 * stob_ad_destroy(). So it needs to be rewritten in the future.
+-	 */
+-	//prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+-	//sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+-	//	prefix.u_hi, prefix.u_lo);
+-	//m0_be_seg_dict_insert_credit(adom->sad_be_seg, dict_key, accum);
+-	//m0_be_seg_dict_delete_credit(adom->sad_be_seg, dict_key, accum);
+-	m0_be_emap_credit(&adom->sad_adata, M0_BEO_DESTROY, 1, accum);
++static int stob_ad_map_ext_delete(struct m0_stob_ad_domain *adom,
++				  struct m0_be_emap_cursor *it,
++				  struct m0_dtx *tx)
++{
++	struct m0_be_op *it_op;
++	struct m0_ext   *ext = &it->ec_seg.ee_ext;
++	struct m0_ext    todo = {
++				.e_start = 0,
++				.e_end   = ~0,
++			 };
++	int              rc = 0;
++
++	M0_LOG(M0_DEBUG, "ext=[%llu, %llu) val=%llu",
++		(unsigned long long)ext->e_start,
++		(unsigned long long)ext->e_end,
++		(unsigned long long)it->ec_seg.ee_val);
++
++	it_op = &it->ec_op;
++	m0_be_op_init(it_op);
++	m0_be_emap_paste(it, &tx->tx_betx, &todo, it->ec_seg.ee_val,
++		 LAMBDA(void, (struct m0_be_emap_seg *seg) {
++				/* handle extent deletion. */
++				M0_LOG(M0_DEBUG, "del: val=%llu",
++					(unsigned long long)seg->ee_val);
++				rc = rc ?: stob_ad_seg_free(tx, adom, seg,
++							    &seg->ee_ext,
++							    seg->ee_val);
++		}), NULL, NULL);
++	m0_be_op_wait(it_op);
++	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
++	rc = it_op->bo_u.u_emap.e_rc;
++	m0_be_op_fini(it_op);
++
++	return M0_RC(rc);
+ }
+ 
+-/*
+- * We don't destroy adstob. Instead, just remap emap prefix.
+- * @see  stob_ad_emap_prefix_remap().
+- * @note This is only workaround and correct destroy() should be implemented.
++/**
++ * Destroys ad stob ext map and releases underlying storage object's
++ * extents.
+  */
+ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
+ {
+ 	struct m0_stob_ad_domain *adom;
+ 	struct m0_be_emap_seg    *seg;
+ 	struct m0_be_emap_cursor  it;
+-	struct m0_be_op          *it_op;
+-	//struct m0_uint128         prefix;
+-	//char                      dict_key[64];
+-	//void                     *value;
+-        //uint64_t                  value_int;
++	struct m0_uint128         prefix;
+ 	int                       rc;
+-	//static uint64_t           seed = 0xba5e5eed; /* base seed */
+ 
+ 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
+-	//seg    = adom->sad_be_seg;
+-	//prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+-
+-	//sprintf(dict_key, "ad.remap.%"PRIx64".%"PRIx64,
+-	//	prefix.u_hi, prefix.u_lo);
++	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+ 	rc = stob_ad_cursor(adom, stob, 0, &it);
+-	M0_ASSERT(rc == 0);
++	M0_LOG(M0_DEBUG, U128D_F, U128_P(&it.ec_prefix));
++	while (rc == 0) {
++		seg = m0_be_emap_seg_get(&it);
++		rc = stob_ad_map_ext_delete(adom, &it, tx);
++		if (rc != 0 || m0_be_emap_ext_is_last(&seg->ee_ext))
++			break;
++		rc = __emap_next_sync(&it);
++	}
+ 
+-	seg = m0_be_emap_seg_get(&it);
+-	do {
+-		stob_ad_seg_free(tx, adom, seg,
+-				 &seg->ee_ext, seg->ee_val);
+-		if (!m0_be_emap_ext_is_last(&seg->ee_ext)){
+-			it_op = m0_be_emap_op(&it);
+-			m0_be_op_init(it_op);
+-			m0_be_emap_next(&it);
+-			rc = m0_be_op_wait(it_op);
+-			M0_ASSERT(rc == 0);
+-			M0_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+-			m0_be_op_fini(it_op);
+-			seg = m0_be_emap_seg_get(&it);
+-		}
+-	}while(m0_be_emap_ext_is_last(&seg->ee_ext));
+-	//m0_mutex_lock(&adom->sad_mutex);
+-	//value_int = m0_rnd64(&seed);
+-	//m0_mutex_unlock(&adom->sad_mutex);
+-	//value = (void *)value_int;
+-	//M0_ASSERT((uint64_t)value == value_int);
+-	//(void)m0_be_seg_dict_delete(seg, &dtx->tx_betx, dict_key);
+-	//rc = m0_be_seg_dict_insert(seg, &dtx->tx_betx, dict_key, value);
+-	//M0_ASSERT(rc == 0);
+-	
++	if (rc == 0)
++		rc = M0_BE_OP_SYNC_RET(op,
++				       m0_be_emap_obj_delete(&adom->sad_adata,
++							     &tx->tx_betx, &op,
++							     &prefix),
++				       bo_u.u_emap.e_rc);
+ 
+-	return 0;
++	return M0_RC(rc);
+ }
+ 
+ static uint32_t stob_ad_block_shift(struct m0_stob *stob)
+@@ -810,7 +815,6 @@ static int stob_ad_cursor(struct m0_stob_ad_domain *adom,
+ 
+ 	/* XXX make fid2prefix */
+ 	prefix = M0_UINT128(fid->f_container, fid->f_key);
+-	stob_ad_emap_prefix_remap(&prefix, adom); /* XXX */
+ 	rc = M0_BE_OP_SYNC_RET_WITH(
+ 		&it->ec_op,
+ 		m0_be_emap_lookup(&adom->sad_adata, &prefix, offset, it),
+-- 
+1.8.3.2
+

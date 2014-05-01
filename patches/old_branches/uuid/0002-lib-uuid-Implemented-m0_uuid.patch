@@ -1,0 +1,366 @@
+From 32b1a60c8c9ad7f226b7441a5000b980f78b80b3 Mon Sep 17 00:00:00 2001
+From: Amit Jambure <Amit_Jambure@xyratex.com>
+Date: Thu, 25 Apr 2013 13:26:00 +0530
+Subject: [PATCH 2/2] lib/uuid: Implemented m0_uuid.
+
+UUID is implemented as 16 byte array instead of m0_uint128.
+m0_uuid_parse() and m0_uuid_format() are changed accordingly.
+---
+ extra-libs/galois       |  2 +-
+ lib/linux_kernel/uuid.h |  4 ---
+ lib/user_space/uuid.c   |  4 +--
+ lib/user_space/uuid.h   |  3 ++-
+ lib/ut/uuid.c           | 64 +++++++++++++++++++++++++++++---------------
+ lib/uuid.c              | 71 +++++++++++++++++++++++++++++++++++++++++++++++++
+ lib/uuid.h              | 36 ++++++++++++++++++-------
+ 7 files changed, 144 insertions(+), 40 deletions(-)
+
+diff --git a/extra-libs/galois b/extra-libs/galois
+index 10ccbd0..3230956 160000
+--- a/extra-libs/galois
++++ b/extra-libs/galois
+@@ -1 +1 @@
+-Subproject commit 10ccbd0ca55db92909fda817ee1065d914736440
++Subproject commit 32309568c1977a934d9aab96552392417ca9dd21
+diff --git a/lib/linux_kernel/uuid.h b/lib/linux_kernel/uuid.h
+index 2e164b1..b2c08cf 100644
+--- a/lib/linux_kernel/uuid.h
++++ b/lib/linux_kernel/uuid.h
+@@ -31,10 +31,6 @@
+  * @{
+  */
+ 
+-struct m0_uuid {
+-	char u_byte[16];
+-};
+-
+ /** @} end of XXX group */
+ 
+ #endif /* __MERO_LIB_LINUX_KERNEL_UUID_H__ */
+diff --git a/lib/user_space/uuid.c b/lib/user_space/uuid.c
+index 9076739..cdb621b 100644
+--- a/lib/user_space/uuid.c
++++ b/lib/user_space/uuid.c
+@@ -25,7 +25,7 @@
+  *
+  * @{
+  */
+-
++/*
+ M0_INTERNAL void m0_uuid_init(struct m0_uuid *u)
+ {
+ 	uuid_clear(u->u_uuid);
+@@ -50,7 +50,7 @@ M0_INTERNAL void m0_uuid_unparse(struct m0_uuid *u, char *out)
+ {
+ 	uuid_unparse(u->u_uuid, out);
+ }
+-
++*/
+ /** @} end of XXX group */
+ 
+ 
+diff --git a/lib/user_space/uuid.h b/lib/user_space/uuid.h
+index 818d36a..8128dee 100644
+--- a/lib/user_space/uuid.h
++++ b/lib/user_space/uuid.h
+@@ -32,10 +32,11 @@
+  * @{
+  */
+ 
++/*
+ struct m0_uuid {
+ 	uuid_t u_uuid;
+ };
+-
++*/
+ /** @} end of XXX group */
+ 
+ #endif /* __MERO_LIB_USER_SPACE_UUID_H__ */
+diff --git a/lib/ut/uuid.c b/lib/ut/uuid.c
+index 0d073fa..fa20734 100644
+--- a/lib/ut/uuid.c
++++ b/lib/ut/uuid.c
+@@ -50,65 +50,85 @@ static char *bad_uuids_long[] = { /* long in one field */
+ 	"abcdef01-2345-6789-abcd-ef0123456789a",
+ };
+ 
++static bool uuid_eq(const struct m0_uuid *u, uint64_t hi, uint64_t lo)
++{
++	uint64_t      mask;
++	int           i;
++	unsigned char c;
++
++	mask = 0xFF00000000000000;
++	for (i = 0; i < sizeof(uint64_t); ++i) {
++		c = (hi & mask) >> (sizeof(uint64_t) - i - 1) * 8;
++		if (u->u_byte[i] != c)
++			return false;
++		mask >>= 8;
++	}
++	mask = 0xFF00000000000000;
++	for (i = 0; i < sizeof(uint64_t); ++i) {
++		c = (lo & mask) >> (sizeof(uint64_t) - i - 1) * 8;
++		if (u->u_byte[i + 8] != c)
++			return false;
++		mask >>= 8;
++	}
++	return true;
++}
++
+ static bool test_identity_op(const char *str)
+ {
+-	struct m0_uint128 u1;
+-	struct m0_uint128 u2;
+-	char buf[M0_UUID_STRLEN+1];
+-	int rc;
++	struct m0_uuid u1;
++	struct m0_uuid u2;
++	char           buf[M0_UUID_STRLEN+1];
++	int            rc;
+ 
+-	rc = m0_uuid_parse(str, &u1);
++	rc = m0_uuid_parse2(str, &u1);
+ 	if (rc != 0)
+ 		return false;
+-	m0_uuid_format(&u1, buf, ARRAY_SIZE(buf));
+-	rc = m0_uuid_parse(buf, &u2);
++	m0_uuid_format2(&u1, buf, ARRAY_SIZE(buf));
++	rc = m0_uuid_parse2(buf, &u2);
+ 	if (rc != 0)
+ 		return false;
+-	return (u1.u_hi == u2.u_hi) && (u1.u_lo == u2.u_lo);
++	return m0_uuid_cmp(&u1, &u2) == 0;
+ }
+ 
+ void m0_test_lib_uuid(void)
+ {
+-	struct m0_uint128 u;
++	struct m0_uuid u;
+ 	int rc;
+ 	int i;
+ 
+-	rc = m0_uuid_parse(nil_uuid, &u);
++	rc = m0_uuid_parse2(nil_uuid, &u);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(u.u_hi == 0);
+-	M0_UT_ASSERT(u.u_lo == 0);
++	M0_UT_ASSERT(m0_uuid_is_null(&u));
+ 	M0_UT_ASSERT(test_identity_op(nil_uuid));
+ 
+-	rc = m0_uuid_parse(uuid1, &u);
++	rc = m0_uuid_parse2(uuid1, &u);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(u.u_hi == 0xabcdef0123456789);
+-	M0_UT_ASSERT(u.u_lo == 0xabcdef0123456789);
++	M0_UT_ASSERT(uuid_eq(&u, 0xabcdef0123456789, 0xabcdef0123456789));
+ 	M0_UT_ASSERT(test_identity_op(uuid1));
+ 
+-	rc = m0_uuid_parse(uuid2, &u);
++	rc = m0_uuid_parse2(uuid2, &u);
+ 	M0_UT_ASSERT(rc == 0);
+-	M0_UT_ASSERT(u.u_hi == 0x9876543210abcdef);
+-	M0_UT_ASSERT(u.u_lo == 0xfedcba0123456789);
++	M0_UT_ASSERT(uuid_eq(&u, 0x9876543210abcdef, 0xfedcba0123456789));
+ 	M0_UT_ASSERT(test_identity_op(uuid2));
+ 
+-	rc = m0_uuid_parse(bad1, &u);
++	rc = m0_uuid_parse2(bad1, &u);
+ 	M0_UT_ASSERT(rc == -EINVAL);
+ 
+ 	for (i = 0; i < ARRAY_SIZE(bad_uuids_len_ok); ++i) {
+ 		M0_UT_ASSERT(strlen(bad_uuids_len_ok[i]) == M0_UUID_STRLEN);
+-		rc = m0_uuid_parse(bad_uuids_len_ok[i], &u);
++		rc = m0_uuid_parse2(bad_uuids_len_ok[i], &u);
+ 		M0_UT_ASSERT(rc == -EINVAL);
+ 	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(bad_uuids_short); ++i) {
+ 		M0_UT_ASSERT(strlen(bad_uuids_short[i]) < M0_UUID_STRLEN);
+-		rc = m0_uuid_parse(bad_uuids_short[i], &u);
++		rc = m0_uuid_parse2(bad_uuids_short[i], &u);
+ 		M0_UT_ASSERT(rc == -EINVAL);
+ 	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(bad_uuids_long); ++i) {
+ 		M0_UT_ASSERT(strlen(bad_uuids_long[i]) > M0_UUID_STRLEN);
+-		rc = m0_uuid_parse(bad_uuids_long[i], &u);
++		rc = m0_uuid_parse2(bad_uuids_long[i], &u);
+ 		M0_UT_ASSERT(rc == -EINVAL);
+ 	}
+ }
+diff --git a/lib/uuid.c b/lib/uuid.c
+index 1448e02..3e60d38 100644
+--- a/lib/uuid.c
++++ b/lib/uuid.c
+@@ -24,8 +24,61 @@
+ #include "lib/errno.h"
+ #include "lib/string.h"   /* isxdigit, strlen, strtoul */
+ #include "lib/time.h"
++#include "lib/misc.h"     /* M0_SET0 */
+ #include "lib/uuid.h"
+ 
++static int parse_hex(const char *str, int len, uint64_t *val);
++
++M0_INTERNAL void m0_uuid_init(struct m0_uuid *u)
++{
++	M0_SET0(u);
++}
++
++M0_INTERNAL bool m0_uuid_is_null(const struct m0_uuid *u)
++{
++	int i;
++
++	for (i = 0; i < sizeof u->u_byte; ++i)
++		if (u->u_byte[i] != 0)
++			return false;
++	return true;
++}
++
++M0_INTERNAL int m0_uuid_cmp(const struct m0_uuid *u1, const struct m0_uuid *u2)
++{
++	return memcmp(u1->u_byte, u2->u_byte, sizeof u1->u_byte);
++}
++
++M0_INTERNAL void m0_uuid_generate2(struct m0_uuid *u)
++{
++#ifndef __KERNEL__
++	uuid_generate(u->u_uuid);
++#endif
++}
++
++M0_INTERNAL int m0_uuid_parse2(const char *str, struct m0_uuid *u)
++{
++	uint64_t v;
++	int      i;
++	int      j;
++
++	if (str[M0_UUID_STRLEN] != '\0')
++		return -EINVAL;
++	for (i = j = 0; i < M0_UUID_STRLEN; ++i) {
++		if (M0_IN(i, (8, 13, 18, 23))) {
++			if (str[i] == '-')
++				continue;
++			else
++				return -EINVAL;
++		}
++		if (parse_hex(&str[i], 2, &v) < 0)
++			return -EINVAL;
++		u->u_byte[j++] = v;
++		++i;
++	}
++	return 0;
++}
++
+ /**
+    Convert the leading hex string of a specified length to binary.
+    The length and characters are enforced.
+@@ -55,6 +108,24 @@ static int parse_hex(const char *str, int len, uint64_t *val)
+ 	return 0;
+ }
+ 
++M0_INTERNAL void m0_uuid_format2(const struct m0_uuid *u,
++				char *buf, size_t len)
++{
++	char hexchar[] = "0123456789abcdef";
++	int  i;
++	int  j;
++
++	M0_ASSERT(len > M0_UUID_STRLEN);
++	for (i = j = 0; j < sizeof u->u_byte; ++j) {
++		buf[i++] = hexchar[(u->u_byte[j] & 0xF0) >> 4];
++		buf[i++] = hexchar[(u->u_byte[j] & 0x0F)];
++		if (M0_IN(i, (8, 13, 18, 23)))
++			buf[i++] = '-';
++	}
++	M0_ASSERT(i == M0_UUID_STRLEN);
++	buf[i] = '\0';
++}
++
+ M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val)
+ {
+ 	uint64_t h1;
+diff --git a/lib/uuid.h b/lib/uuid.h
+index d101270..ae3cd28 100644
+--- a/lib/uuid.h
++++ b/lib/uuid.h
+@@ -23,27 +23,42 @@
+ #ifndef __MERO_LIB_UUID_H__
+ #define __MERO_LIB_UUID_H__
+ 
+-#include "lib/types.h" /* struct m0_uint128 */
+-
+ #ifndef __KERNEL__
+-#include "lib/user_space/uuid.h"
++#  include <uuid/uuid.h>
+ #else
+-#include "lib/linux_kernel/uuid.h"
++#  include <linux/uuid.h>
+ #endif
+ 
++#include "lib/types.h" /* struct m0_uint128 */
++#include "lib/assert.h"
++
+ /**
+    @defgroup uuid UUID support
+    @{
+  */
+ 
++struct m0_uuid {
++	union {
++		unsigned char     u_byte[16];
++#ifndef __KERNEL__
++		uuid_t            u_uuid;
++#endif
++	};
++};
++M0_BASSERT(sizeof(struct m0_uuid) == sizeof (((struct m0_uuid*)0)->u_byte));
++#ifndef __KERNEL__
++M0_BASSERT(sizeof(struct m0_uuid) == sizeof(uuid_t));
++#endif
++
+ enum {
+ 	M0_UUID_STRLEN = 36
+ };
+ 
+ M0_INTERNAL void m0_uuid_init     (struct m0_uuid *u);
+ M0_INTERNAL bool m0_uuid_is_null  (const struct m0_uuid *u);
+-M0_INTERNAL void m0_uuid_generate1(struct m0_uuid *u);
+-M0_INTERNAL int  m0_uuid_parse1   (char *str, struct m0_uuid *uuid);
++M0_INTERNAL int  m0_uuid_cmp      (const struct m0_uuid *u1,
++				   const struct m0_uuid *u2);
++M0_INTERNAL void m0_uuid_generate2(struct m0_uuid *u);
+ M0_INTERNAL void m0_uuid_unparse  (struct m0_uuid *u, char *out);
+ 
+ /**
+@@ -52,23 +67,24 @@ M0_INTERNAL void m0_uuid_unparse  (struct m0_uuid *u, char *out);
+    See <a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">
+    Universally unique identifier</a> for more details.
+  */
+-M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val);
++M0_INTERNAL int m0_uuid_parse2(const char *str, struct m0_uuid *u);
+ 
+ /**
+    Produce the 8-4-4-4-12 hexadecimal string representation of a UUID
+    from its numerical form.
+    See <a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">
+    Universally unique identifier</a> for more details.
+-   @param val The numerical UUID.
+    @param buf String buffer.
+    @param len Length of the buffer.
+               It must be at least M0_UUID_STRLEN+1 bytes long.
+  */
+-M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
++M0_INTERNAL void m0_uuid_format2(const struct m0_uuid *u,
+ 				char *buf, size_t len);
+ 
+-/** Generate unique UUID. */
++M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val);
+ M0_INTERNAL uint64_t m0_uuid_generate(void);
++M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
++				char *buf, size_t len);
+ 
+ /** @} end uuid group */
+ 
+-- 
+1.8.3.2
+

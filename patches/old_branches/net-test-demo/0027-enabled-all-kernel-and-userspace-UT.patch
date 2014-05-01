@@ -1,0 +1,80 @@
+From e42cb810fa683cb0e86d8003b6d27c4432803c2b Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 31 Jan 2013 16:12:56 +0200
+Subject: [PATCH 27/79] enabled all kernel and userspace UT
+
+---
+ utils/linux_kernel/main.c | 4 ----
+ utils/ut_main.c           | 8 +-------
+ 2 files changed, 1 insertion(+), 11 deletions(-)
+
+diff --git a/utils/linux_kernel/main.c b/utils/linux_kernel/main.c
+index 68c5f33..717f4c3 100644
+--- a/utils/linux_kernel/main.c
++++ b/utils/linux_kernel/main.c
+@@ -60,7 +60,6 @@ static void run_kernel_ut(int ignored)
+         printk(KERN_INFO "Mero Kernel Unit Test\n");
+ 
+ 	m0_uts_init();
+-#if 0
+ 	/* sort test suites in alphabetic order */
+ 	m0_ut_add(&m0_klibm0_ut);  /* test lib first */
+ 	m0_ut_add(&m0_addb_ut);
+@@ -71,9 +70,7 @@ static void run_kernel_ut(int ignored)
+ 	m0_ut_add(&m0_net_bulk_if_ut);
+ 	m0_ut_add(&m0_net_bulk_mem_ut);
+ 	m0_ut_add(&m0_net_lnet_ut);
+-#endif
+ 	m0_ut_add(&m0_net_test_ut);
+-#if 0
+ 	m0_ut_add(&m0_net_tm_prov_ut);
+ 	m0_ut_add(&conn_ut);
+ 	m0_ut_add(&frm_ut);
+@@ -84,7 +81,6 @@ static void run_kernel_ut(int ignored)
+ 	m0_ut_add(&session_ut);
+ 	m0_ut_add(&sm_ut);
+ 	m0_ut_add(&xcode_ut);
+-#endif
+ 
+ 	m0_ut_run();
+ 	m0_uts_fini();
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index ac68124..14bac96 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -91,8 +91,7 @@ extern const struct m0_test_suite yaml2db_ut;
+ void add_uts(void)
+ {
+ 	/* sort test suites in alphabetic order */
+-	/* m0_ut_add(&libm0_ut); */ /* test lib first */
+-	/*
++	m0_ut_add(&libm0_ut); /* test lib first */
+ 	m0_ut_add(&ad_ut);
+ 	m0_ut_add(&adieu_ut);
+ 	m0_ut_add(&balloc_ut);
+@@ -104,9 +103,7 @@ void add_uts(void)
+ 	m0_ut_add(&m0_net_bulk_if_ut);
+ 	m0_ut_add(&m0_net_bulk_mem_ut);
+ 	m0_ut_add(&m0_net_lnet_ut);
+-	*/
+ 	m0_ut_add(&m0_net_test_ut);
+-	/*
+ 	m0_ut_add(&m0_net_tm_prov_ut);
+ 	m0_ut_add(&capa_ut);
+ 	m0_ut_add(&cm_cp_ut);
+@@ -145,12 +142,9 @@ void add_uts(void)
+ 	m0_ut_add(&xcode_bufvec_fop_ut);
+ 	m0_ut_add(&xcode_ff2c_ut);
+ 	m0_ut_add(&xcode_ut);
+-	*/
+ 	/* These tests have redirection of messages. */
+-	/*
+ 	m0_ut_add(&console_ut);
+ 	m0_ut_add(&yaml2db_ut);
+-	*/
+ }
+ 
+ int main(int argc, char *argv[])
+-- 
+1.8.3.2
+

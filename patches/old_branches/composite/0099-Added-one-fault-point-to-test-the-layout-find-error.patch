@@ -1,0 +1,83 @@
+From 64af3df3f7f52452094b1ce8feee939540ffd737 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Mon, 25 Mar 2013 11:20:17 +0530
+Subject: [PATCH 099/172] Added one fault point to test the layout find error
+
+---
+ layout/composite.c |  4 ++++
+ layout/ut/layout.c | 30 ++++++++++++++++++++++++++++++
+ 2 files changed, 34 insertions(+)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index de01e17..ce9344b 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -817,6 +817,9 @@ static struct m0_layout *layout_find(struct m0_layout_domain *dom,
+ {
+ 	struct m0_layout *sublayout;
+ 
++	if (M0_FI_ENABLED("layout_find_err"))
++		{ sublayout = NULL; goto err1_injected; }
++
+ 	sublayout = m0_layout_find(dom, lid);
+ 	/**
+ 	 * @todo Eventually, if the sublayout is not found in the cache, it
+@@ -841,6 +844,7 @@ static struct m0_layout *layout_find(struct m0_layout_domain *dom,
+ 	 * 'the composite layout type support to getattr'.
+ 	 */
+ 	M0_ASSERT(sublayout != NULL);
++err1_injected:
+ 	return sublayout;
+ }
+ 
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 89953cc..c13e047 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -800,6 +800,21 @@ static void test_decode_failure(void)
+ 				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 	m0_fi_disable("layer_inmem_add", "mem_err");
++
++	/* Simulate sublayout find error while reading the zeroth layer. */
++	lid = 4026;
++	m0_fi_enable_once("layout_find", "layout_find_err");
++	rc = test_decode_composite(lid, &domain, 5, 6,
++				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EINVAL);
++
++	/* Simulate sublayout find error while reading the non-zeroth layer. */
++	lid = 4026;
++	m0_fi_enable_off_n_on_m("layout_find", "layout_find_err", 2, 1);
++	rc = test_decode_composite(lid, &domain, 5, 6,
++				   !CONTIGUOUS_EXTENTS, FAILURE_TEST);
++	m0_fi_disable("layout_find", "layout_find_err");
++	M0_UT_ASSERT(rc == -EINVAL);
+ }
+ 
+ /* Tests the API m0_layout_encode(). */
+@@ -1685,6 +1700,21 @@ static void test_lookup_failure(void)
+ 	M0_UT_ASSERT(rc == L_TABLE_LOOKUP_ERR);
+ 	m0_fi_disable("sublayout_id_indb_lookup", "table_lookup_err");
+ 
++	/* Simulate sublayout find error while reading the zeroth layer. */
++	lid = 19028;
++	m0_fi_enable_once("layout_find", "layout_find_err");
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EINVAL);
++
++	/* Simulate sublayout find error while reading a non-zeroth layer. */
++	lid = 19029;
++	m0_fi_enable_off_n_on_m("layout_find", "layout_find_err", 2, 1);
++	rc = test_lookup_composite(lid, &domain, 4, 5, CONTIGUOUS_EXTENTS,
++				   EXISTING_TEST, FAILURE_TEST);
++	M0_UT_ASSERT(rc == -EINVAL);
++	m0_fi_disable("layout_find", "layout_find_err");
++
+ 	domain_ldb_available_set(&domain, false);
+ }
+ 
+-- 
+1.8.3.2
+

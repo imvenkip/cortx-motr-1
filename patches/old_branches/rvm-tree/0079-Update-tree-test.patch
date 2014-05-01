@@ -1,0 +1,398 @@
+From 0ef1263cf3ff9ac1485e246f7a4f80f0a7ee3375 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Tue, 16 Apr 2013 19:02:17 +0300
+Subject: [PATCH 79/94] Update tree test.
+
+---
+ be/pool.c  |   6 +-
+ be/tree.c  |   8 +--
+ be/tree.h  |   1 +
+ be/tx.c    |  12 +++-
+ be/ut/be.c | 205 +++++++++++++++++++++++++++++++++++++++----------------------
+ 5 files changed, 150 insertions(+), 82 deletions(-)
+
+diff --git a/be/pool.c b/be/pool.c
+index e1a9dba..6423afd 100644
+--- a/be/pool.c
++++ b/be/pool.c
+@@ -68,8 +68,12 @@ static int tx_pool_update(struct m0_be_tx_pool *pool, void *p, size_t size,
+ 	buf.b_nob  = size;
+         m0_be_reg_init(reg, tx, seg, &buf);
+ 
+-	if (and_free)
++	if (and_free) {
++		/* XXX: free looks to be a special case. That's why capturing
++		   and then freeing.. */
++		m0_be_reg_capture(reg);
+ 		m0_be_free(reg);
++	}
+ 
+ 	m0_be_tx_add_cred(tx, reg);
+ 
+diff --git a/be/tree.c b/be/tree.c
+index 1318f2f..6d0a442 100644
+--- a/be/tree.c
++++ b/be/tree.c
+@@ -2,9 +2,9 @@
+ #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+ #include "lib/trace.h"
+ 
+-#include <strings.h>
+-#include "tree.h"
+ #include "lib/assert.h"
++#include "lib/misc.h"
++#include "be/tree.h"
+ 
+ 
+ #define MEM_ALLOC0(btree_alloc, tx, size) btree_alloc((tx), (size))
+@@ -835,9 +835,7 @@ struct node_pos get_btree_node(struct btree *btree, void *key)
+ 	struct bt_node *node;
+ 	unsigned int i = 0;
+ 
+-	PRINT("(%u,%p,%p)", key_val, key, btree);
+ 	node = btree->root;
+-	PRINT("(%u,%p,%p)", key_val, key, node);
+ 
+ 	for (;; i = 0) {
+ 
+@@ -1007,7 +1005,6 @@ M0_INTERNAL struct bt_key_val *btree_pair_setup(struct btree *btree,
+ 	return kv;
+ }
+ 
+-#if 1
+ /**
+  *	Used to print the keys of the bt_node
+  *	@param node The node whose keys are to be printed
+@@ -1073,6 +1070,5 @@ M0_INTERNAL void btree_dbg_print(struct btree *btree, struct bt_node *node)
+ 
+ 	PRINT("---8<---8<---8<---8<---8<---8<---");
+ }
+-#endif
+ 
+ #undef M0_TRACE_SUBSYSTEM
+diff --git a/be/tree.h b/be/tree.h
+index f3c7edb..6919747 100644
+--- a/be/tree.h
++++ b/be/tree.h
+@@ -22,6 +22,7 @@ struct bt_key_val {
+ 
+ // Notes: bt_node::next is used only in deletion, tx may not track it;
+ // Todos: remove btree::value, replace with strcmp-like comparator;
++//        move btree::{value, key_size, data_size} into btree::ops;
+ 
+ struct bt_node {
+ 	struct bt_node     *next;	// Pointer used for linked list
+diff --git a/be/tx.c b/be/tx.c
+index 01ad82e..e7f60ab 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -151,6 +151,9 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx)
+         for_each_reg_in_tx(reg_it, tx)
+                 if (!M0_IN(m0_be_reg_state(reg_it), (M0_BEREG_INIT,
+                                                      M0_BEREG_ALLOCATED))) {
++			M0_LOG(M0_DEBUG, "abort tx, reg.state: %d",
++			       m0_be_reg_state(reg_it));
++
+                         tx_state = M0_BETX_FAILED;
+                         rvm_abort_transaction(tx->bt_impl.tx_id);
+                         rvm_free_tid(tx->bt_impl.tx_id);
+@@ -162,6 +165,7 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx)
+                 reg_it->br_tx = tx;
+                 m0_be_reg_capture(reg_it);
+                 if (m0_be_reg_state(reg_it) != M0_BEREG_CAPTURED) {
++			M0_LOG(M0_DEBUG, "reg is not captured");
+                         tx_state = M0_BETX_FAILED;
+                         goto exit;
+                 }
+@@ -251,12 +255,16 @@ M0_INTERNAL void m0_be_tx_done_cb(void *cb_data)
+                 goto tx_exit;
+         }
+ 
++        M0_LOG(M0_INFO, "rvm_end_transaction done");
++
++	m0_sm_group_lock(sm_group);
++
+         for_each_reg_in_tx(reg_it, tx)
+-                m0_sm_group_lock(sm_group);
+                 m0_sm_state_set(&reg_it->br_sm, M0_BEREG_DONE);
+-                m0_sm_group_unlock(sm_group);
+         end_for_each_reg_in_tx
+ 
++	m0_sm_group_unlock(sm_group);
++
+         tx_state = M0_BETX_DONE;
+         M0_LOG(M0_INFO, "Transaction done tx = %p", tx);
+ tx_exit:
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 1d496e1..7bf64b6 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -220,7 +220,10 @@ static void test_be_transaction()
+ #include "be/pool.h"
+ #include "be/handle_store.h"
+ 
+-enum { TREE_FAN_OUT = 5 };
++enum {
++	TREE_FAN_OUT = 5,
++	TREE_KV_NR   = 20*TREE_FAN_OUT /* 20 nodes is enough for the test */
++};
+ 
+ /* Generate uint value for the key. XXX: Umka, should it be unique??? */
+ static uint32_t tree_value(void *key)
+@@ -267,113 +270,122 @@ static int p_update (struct btree_tx_impl *tx, void *p, size_t size)
+ 	return m0_be_tx_pool_update(&pool, p, size);
+ }
+ 
++static const struct btree_tx_ops tops = {
++	.update = p_update,
++	.alloc  = p_alloc,
++	.free   = p_free
++};
+ 
+-M0_UNUSED static void test_be_tree_create(void)
++static void be_tx_commit(struct m0_be_tx *tx)
+ {
+-        struct m0_be_tx *tx;
+-	struct btree	*tree;
+-	int		 rc;
+-	int		 i;
+-
+-	static struct {
+-		uint32_t key;
+-		uint32_t val;
+-	} kv[] = { { 10, 90 }, { 11, 91 }, { 12, 92 }, { 13, 93 }, { 14, 94 },
+-		   { 15, 95 }, { 16, 96 }, { 17, 97 }, { 18, 98 }, { 19, 99 }
+-	};
+-
+-        M0_ALLOC_PTR(tx);
+-        M0_UT_ASSERT(tx != NULL);
+-
+-        m0_be_tx_init(tx, dom, 0);
+-
+-	/*
+-	 * Start manupulating tree here...
+-	 */
+-	{
+-		struct bt_key_val *bkv;
+-
+-		const struct btree_tx_ops tops = {
+-			.update = p_update,
+-			.alloc  = p_alloc,
+-			.free   = p_free
+-		};
+-
+-		tree = btree_create(TREE_FAN_OUT, tx, &tops);
+-		M0_UT_ASSERT(tree != NULL);
+-
+-		tree->value     = tree_value;
+-		tree->key_size  = tree_key_size;
+-		tree->data_size = tree_data_size;
+-
+-		for (i = 0; i < ARRAY_SIZE(kv); ++i) {
+-			bkv = btree_pair_setup(tree, tx,
+-					       &kv[i].key, sizeof(uint32_t),
+-					       &kv[i].val, sizeof(uint32_t));
+-			M0_UT_ASSERT(bkv != NULL);
+-
+-			rc = btree_insert_key(tree, tx, bkv);
+-			M0_UT_ASSERT(rc == 0);
+-		}
+-	}
+-
+-
+-	/*
+-	 * Finish with transactions...
+-	 */
+         m0_be_tx_prep(tx);
+         m0_be_tx_start(tx);
+         m0_be_tx_done(tx);
+ 
+         m0_sm_group_lock(sm_group);
+-        m0_sm_timedwait(&tx->bt_sm,
+-                        (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
++        m0_sm_timedwait(&tx->bt_sm, (1 << M0_BETX_DONE) | (1 << M0_BETX_FAILED),
+                         M0_TIME_NEVER);
+         m0_sm_group_unlock(sm_group);
++}
+ 
++static struct m0_be_tx *be_tx_init(void)
++{
++	struct m0_be_tx *tx;
++
++        M0_ALLOC_PTR(tx);
++        M0_UT_ASSERT(tx != NULL);
++        m0_be_tx_init(tx, dom, 0);
++
++	return tx;
++}
++
++static void be_tx_fini(struct m0_be_tx *tx)
++{
+ 	m0_be_tx_fini(tx);
+         m0_free(tx);
++}
++
++M0_UNUSED static void test_be_tree_create(void)
++{
++	struct m0_be_hs_opdata  *bh_opdata;
++	struct bt_key_val       *bkv;
++	struct m0_be_tx         *tx;
++	struct btree	        *tree;
++	struct btree           **ptree;
++	int			 rc;
++	int			 i;
+ 
+ 	/*
+-	 * Save handle in static part of the segment
++	 * Start using transaction...
+ 	 */
+-	{
+-		struct m0_be_hs_opdata  *bh_opdata;
+-		struct btree **ptree;
++	tx = be_tx_init();
+ 
+-		M0_ALLOC_PTR(bh_opdata);
+-		M0_UT_ASSERT(bh_opdata != NULL);
++	/*
++	 * Start manupulating tree here...
++	 */
++	tree = btree_create(TREE_FAN_OUT, tx, &tops);
++	M0_UT_ASSERT(tree != NULL);
+ 
+-                M0_ALLOC_PTR(bh_opdata->bho_segid_offset);
+-		M0_UT_ASSERT(bh_opdata->bho_segid_offset != NULL);
++	tree->value     = tree_value;
++	tree->key_size  = tree_key_size;
++	tree->data_size = tree_data_size;
+ 
+-                bh_opdata->bho_segid_offset->u_hi = 1;
+-                bh_opdata->bho_segid_offset->u_lo = 88779911231;
+-                bh_opdata->bho_index		  = 0;
+-                bh_opdata->bho_seg		  = seg;
++	for (i = 0; i < TREE_KV_NR; ++i) {
++		bkv = btree_pair_setup(tree, tx, &i, sizeof(uint32_t),
++						 &i, sizeof(uint32_t));
++		M0_UT_ASSERT(bkv != NULL);
+ 
+-                m0_be_hs_update(bh_opdata);
+-                ptree = (struct btree **)m0_be_hs_get(seg, 0);
+-		*ptree = tree;
++		rc = btree_insert_key(tree, tx, bkv);
++		M0_UT_ASSERT(rc == 0);
+ 	}
++
++	/*
++	 * Finish with transactions...
++	 */
++	be_tx_commit(tx);
++	be_tx_fini(tx);
++
++	/*
++	 * Save handle in static part of the segment
++	 */
++	M0_ALLOC_PTR(bh_opdata);
++	M0_UT_ASSERT(bh_opdata != NULL);
++
++	M0_ALLOC_PTR(bh_opdata->bho_segid_offset);
++	M0_UT_ASSERT(bh_opdata->bho_segid_offset != NULL);
++
++	bh_opdata->bho_segid_offset->u_hi = 1;
++	bh_opdata->bho_segid_offset->u_lo = 88779911231;
++	bh_opdata->bho_index		  = 0;
++	bh_opdata->bho_seg		  = seg;
++
++	m0_be_hs_update(bh_opdata);
++	ptree = (struct btree **)m0_be_hs_get(seg, 0);
++	*ptree = tree;
++	/* XXX: For now... My task is not to write a good loader here */
++	sleep(5);
+ }
+ 
+ M0_UNUSED static void test_be_tree_load(void)
+ {
++	int		   rc		M0_UNUSED;
+ 	uint32_t	   i;
++	uint32_t	   j		M0_UNUSED;
+ 	uint32_t           min;
+ 	uint32_t           max;
+ 	struct btree     **tree;
++	struct m0_be_tx   *tx		M0_UNUSED;
+ 	struct bt_key_val *kv;
+ 
+ 	tree = (struct btree**) m0_be_static_reg_get_handle_addr(seg, 0);
+ 	/*
+-	 * To whom who do forget to do the following a painfull debug session
+-	 * guaranteed...
++	 * To those who did forget to do the following a painfull debug session
++	 * is guaranteed... Restored segment contains rubbish at that place.
+ 	 */
+ 	(*tree)->value     = tree_value;
+ 	(*tree)->key_size  = tree_key_size;
+ 	(*tree)->data_size = tree_data_size;
++	(*tree)->ops       = &tops;
+ 
+ 	/*
+ 	 * Call some "tx-less" functions to see what's inside the tree.
+@@ -388,11 +400,58 @@ M0_UNUSED static void test_be_tree_load(void)
+ 
+ 	for (i = min; i <= max; ++i) {
+ 		kv = btree_search(*tree, &i);
+-		M0_LOG(M0_DEBUG, "(%u, %u)", *(uint32_t *)kv->key, *(uint32_t *)kv->val);
++		if (kv == NULL)
++			continue;
++
++		M0_LOG(M0_DEBUG, "(%u, %u)", *(uint32_t *)kv->key,
++					     *(uint32_t *)kv->val);
+ 	}
+ 
++	btree_dbg_print(*tree, (*tree)->root);
++#if 0
++	/*
++	 * Start using transaction...
++	 */
++	tx = be_tx_init();
++
++	/*
++	 * Delete, insert...
++	 */
++
++	/* tree has the following range of keys at this point: [0 .. 100) */
++	for (i = 3*TREE_KV_NR/4; i < TREE_KV_NR; ++i) {
++		rc = btree_delete_key(*tree, tx, (*tree)->root, &i);
++		M0_UT_ASSERT(rc == 0);
++	}
++
++	for (i = 0; i < TREE_KV_NR/4; ++i) {
++		rc = btree_delete_key(*tree, tx, (*tree)->root, &i);
++		M0_UT_ASSERT(rc == 0);
++	}
++	/* tree has the following range of keys at this point: [25 .. 75) */
++	btree_dbg_print(*tree, (*tree)->root);
++
++	/* Inserting >2 keys which value is more than 75 most likely will change
++	   the tree root. This may cause several alloc/free operations inside
++	   tree, and numerous updates... */
++	for (i = 0, j = 0; i < TREE_KV_NR/2; ++i, j = 100*i) {
++		kv = btree_pair_setup(*tree, tx, &j, sizeof(uint32_t),
++				                 &j, sizeof(uint32_t));
++		M0_UT_ASSERT(kv != NULL);
+ 
++		rc = btree_insert_key(*tree, tx, kv);
++		M0_UT_ASSERT(rc == 0);
++	}
++	/* tree has the following range of keys at this point:
++	   [25 .. 75) | [100 .. +100 .. 5000) */
+ 	btree_dbg_print(*tree, (*tree)->root);
++
++	/*
++	 * Finish with transactions...
++	 */
++	be_tx_commit(tx);
++	be_tx_fini(tx);
++#endif
+ }
+ 
+ 
+-- 
+1.8.3.2
+

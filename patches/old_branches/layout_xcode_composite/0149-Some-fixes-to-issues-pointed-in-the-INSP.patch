@@ -1,0 +1,373 @@
+From ee1d3e5e24bbc22b823c7f7bbb41c7c8da00c304 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 28 May 2013 14:54:33 +0530
+Subject: [PATCH 149/157] Some fixes to issues pointed in the INSP
+
+---
+ layout/composite.c | 137 ++++++++++++++++++-----------------------------------
+ 1 file changed, 45 insertions(+), 92 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index ded31d6..56efee0 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -196,7 +196,6 @@ static int composite_register(struct m0_layout_domain *dom,
+ 	M0_PRE(dom->ld_type_data[lt->lt_id] == NULL);
+ 
+ 	M0_ENTRY("Layout_type_id %lu", (unsigned long)lt->lt_id);
+-
+ 	M0_ALLOC_PTR(csd);
+ 	if (csd == NULL) {
+ 		m0_layout__log("composite_register",
+@@ -218,7 +217,6 @@ err3_injected:
+ 		m0_free(csd);
+ 		return rc;
+ 	}
+-
+ 	dom->ld_type_data[lt->lt_id] = csd;
+ 	M0_LEAVE("Layout_type_id %lu, rc %d", (unsigned long)lt->lt_id, rc);
+ 	return rc;
+@@ -254,7 +252,6 @@ static int composite_allocate(struct m0_layout_domain *dom,
+ 	M0_PRE(out != NULL);
+ 
+ 	M0_ENTRY("lid %llu", (unsigned long long)lid);
+-
+ 	M0_ALLOC_PTR(cl);
+ 	if (cl == NULL) {
+ 		m0_layout__log("composite_allocate",
+@@ -413,8 +410,8 @@ static int composite_populate(struct m0_composite_layout *cl,
+ 	M0_PRE(cl->cl_layers_nr == 0);
+ 	M0_PRE(layers_tlist_is_empty(&cl->cl_layers));
+ 	M0_PRE(m0_layout__invariant(sublayout));
+-	M0_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+ 
++	M0_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+ 	rc = layer_add_internal(cl, sublayout, &layer);
+ 	if (rc == 0) {
+ 		M0_ASSERT(layer->clr_idx == 0);
+@@ -446,13 +443,13 @@ M0_INTERNAL int m0_composite_build(struct m0_layout_domain *dom,
+ 	int                         rc;
+ 
+ 	M0_PRE(out != NULL);
+-	M0_ENTRY("domain %p, lid %llu", dom, (unsigned long long)lid);
+ 
++	M0_ENTRY("domain %p, lid %llu", dom, (unsigned long long)lid);
+ 	rc = composite_allocate(dom, lid, &l);
+ 	if (rc == 0) {
+ 		/* Now, composite_allocate() has locked l->l_lock. */
+ 		M0_ASSERT(m0_mutex_is_locked(&l->l_lock));
+-		M0_ASSERT(m0_layout__allocated_invariant(&cl->cl_base));
++		M0_ASSERT(m0_layout__allocated_invariant(l));
+ 		cl = bob_of(l, struct m0_composite_layout, cl_base,
+ 			    &composite_bob);
+ 		M0_ASSERT(cl->cl_layers_nr == 0);
+@@ -465,7 +462,6 @@ M0_INTERNAL int m0_composite_build(struct m0_layout_domain *dom,
+ 		} else
+ 			composite_delete(l);
+ 	}
+-
+ 	M0_POST(ergo(rc == 0, composite_invariant(*out) &&
+ 		     cl->cl_layers_nr == 1 &&
+ 		     m0_mutex_is_not_locked(&l->l_lock)));
+@@ -521,7 +517,7 @@ M0_INTERNAL int m0_composite_layer_add(struct m0_composite_layout *cl,
+ 	M0_PRE(cl->cl_layers_nr >= 1);
+ 	M0_PRE(m0_layout__invariant(sublayout));
+ 
+-	M0_ENTRY("lid %llu, sublayout_id %llu, existing_layers_nr %lu",
++	M0_ENTRY("lid %llu, sublayout_id %llu, old_layers_nr %lu",
+ 		 (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long long)sublayout->l_id,
+ 		 (unsigned long)cl->cl_layers_nr);
+@@ -637,7 +633,6 @@ static int sublayout_ids_inbuf_read(struct m0_composite_layout *cl,
+ 	M0_PRE(m0_bufvec_cursor_step(cur) >= sizeof *cl_rec);
+ 
+ 	M0_ENTRY("lid %llu", (unsigned long long)cl->cl_base.l_id);
+-
+ 	/*
+ 	 * Read the composite layout type specific part of the record from the
+ 	 * buffer.
+@@ -700,6 +695,7 @@ static int extents_inbuf_read(struct m0_composite_layout *cl,
+ 	int                               rc = 0;
+ 
+ 	M0_PRE(composite_invariant(cl));
++
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+ 	/*
+@@ -961,7 +957,6 @@ static int composite_encode(struct m0_layout *l,
+ 	M0_ENTRY("lid %llu, layers_nr %lu, op %lu",
+ 		 (unsigned long long)l->l_id, (unsigned long)cl->cl_layers_nr,
+ 		 (unsigned long)op);
+-
+ 	/*
+ 	 * Write the composite layout type specific part of the record into the
+ 	 * buffer.
+@@ -1016,7 +1011,6 @@ static int composite_encode(struct m0_layout *l,
+ 			       "deleted from the DB",
+ 			       (unsigned long long)cl->cl_base.l_id);
+ 	}
+-
+ 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+ 	return rc;
+ }
+@@ -1041,7 +1035,6 @@ static int ext_find(struct m0_composite_layer *layer,
+ 		 (unsigned long long)ext->e_start,
+ 		 (unsigned long long)ext->e_end,
+ 		 (unsigned long long)expected_ext_state);
+-
+ 	ext_encountered = false;
+ 	m0_tl_for(ext, &layer->clr_extents, lr_ext) {
+ 		if (lr_ext->cle_ext.e_end <= ext->e_start)
+@@ -1060,7 +1053,6 @@ static int ext_find(struct m0_composite_layer *layer,
+ 			*lr_ext_out = lr_ext;
+ 	} else
+ 		rc = -ENOENT;
+-
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -1259,14 +1251,11 @@ static void ext_split(struct m0_composite_layer *layer,
+  * deleted and finds the nearest extent from the list so as to start inserting
+  * the newer extent into it.
+  *
+- * Overlapping extents can be merged if and only if they are with
+- * the state M0_CLRES_HOLE or with the state same as ext_state.
++ * Overlapping extents can be merged if new_ext_state is such that
++ * forall_extents(e, M0_IN(e->state, (M0_CLRES_HOLE, newext_state)))
+  *
+- * Overlapping extents can be deleted if and only if they are:
+- * - all with the state M0_CLRES_HOLE OR
+- * - all with only one state other than M0_CLRES_HOLE OR
+- * - all with the mixture of some with the state M0_CLRES_HOLE and some with
+- *   one single state other than M0_CLRES_HOLE.
++ * Overlapping extents can be deleted if there is a state S such that
++ * forall_extents(e, M0_IN(e->state, (M0_CLRES_HOLE, S)))
+  */
+ static int ext_validate(struct m0_composite_layout *cl,
+ 			struct m0_composite_layer *layer,
+@@ -1289,7 +1278,6 @@ static int ext_validate(struct m0_composite_layout *cl,
+ 		/* Nearest extent from the list. */
+ 		if (ext->e_start >= lr_ext->cle_ext.e_start)
+ 			*lr_ext_nearest = lr_ext;
+-
+ 		if (!m0_ext_are_overlapping(ext, &lr_ext->cle_ext))
+ 			continue;
+ 		/* For overlapping extents. */
+@@ -1297,59 +1285,31 @@ static int ext_validate(struct m0_composite_layout *cl,
+ 			if (lr_ext->cle_state != M0_CLRES_HOLE &&
+ 			    lr_ext->cle_state != new_ext_state) {
+ 				rc = -EINVAL;
+-				M0_LOG(M0_ERROR, "lid %llu, layer %lu, "
+-				       "Overlapping extent can not be merged "
+-				       "since the state is not the same, "
+-				       "e_start %llu, e_end %llu, "
+-				       "e_state %llu, existing_e_start %llu, "
+-				       "existing_e_end %llu, "
+-				       "existing_state %llu",
+-				       (unsigned long long) layer->clr_cl->l_id,
+-				       (unsigned long)layer->clr_idx,
+-				       (unsigned long long)ext->e_start,
+-				       (unsigned long long)ext->e_end,
+-				       (unsigned long long)new_ext_state,
+-				       (unsigned long long)
+-						lr_ext->cle_ext.e_start,
+-				       (unsigned long long)
+-						lr_ext->cle_ext.e_end,
+-				       (unsigned long long)lr_ext->cle_state);
+-				break;
+ 			}
+-		} else { /* ext_validation_kind == EXT_DEL_VALIDATION */
+-			if (lr_ext->cle_state != M0_CLRES_HOLE &&
+-			     (first_nonhole_state != M0_CLRES_HOLE &&
+-			      lr_ext->cle_state != first_nonhole_state)) {
++		} else if (lr_ext->cle_state != M0_CLRES_HOLE &&
++			   (first_nonhole_state != M0_CLRES_HOLE &&
++			    lr_ext->cle_state != first_nonhole_state))
+ 				rc = -EINVAL;
+-				M0_LOG(M0_ERROR, "lid %llu, layer %lu, "
+-				       "Overlapping extent can not be deleted "
+-				       "since the states differ, e_start %llu, "
+-				       "e_end %llu, e_state %llu, "
+-				       "existing_e_start %llu, "
+-				       "existing_e_end %llu, "
+-				       "existing_state %llu, "
+-				       "first_nonhole_state %llu",
+-				       (unsigned long long) layer->clr_cl->l_id,
+-				       (unsigned long)layer->clr_idx,
+-				       (unsigned long long)ext->e_start,
+-				       (unsigned long long)ext->e_end,
+-				       (unsigned long long)new_ext_state,
+-				       (unsigned long long)
+-						lr_ext->cle_ext.e_start,
+-				       (unsigned long long)
+-						lr_ext->cle_ext.e_end,
+-				       (unsigned long long)lr_ext->cle_state,
+-				       (unsigned long long)
+-						first_nonhole_state);
+-			}
+-			if (lr_ext->cle_state != M0_CLRES_HOLE &&
+-			    first_nonhole_state == M0_CLRES_HOLE)
+-				first_nonhole_state = lr_ext->cle_state;
+-			if (rc != 0)
+-				break;
+-		}
++		if (ext_validation_kind == EXT_DEL_VALIDATION &&
++		    lr_ext->cle_state != M0_CLRES_HOLE &&
++		    first_nonhole_state == M0_CLRES_HOLE)
++			first_nonhole_state = lr_ext->cle_state;
++		if (rc != 0)
++			break;
+ 	} m0_tl_endfor;
+-
++	if (rc != 0)
++		M0_LOG(M0_ERROR, "lid %llu, layer %lu, Overlapping extent can "
++		       "not be %s, e_start %llu, e_end %llu, e_state %llu, "
++		       "old_e_start %llu, old_e_end %llu, old_state %llu",
++		       (unsigned long long)layer->clr_cl->l_id,
++		       (unsigned long)layer->clr_idx,
++		       ext_validation_kind == EXT_MERGE_VALIDATION ?
++		       "merged" : "deleted", (unsigned long long)ext->e_start,
++		       (unsigned long long)ext->e_end,
++		       (unsigned long long)new_ext_state,
++		       (unsigned long long)lr_ext->cle_ext.e_start,
++		       (unsigned long long)lr_ext->cle_ext.e_end,
++		       (unsigned long long)lr_ext->cle_state);
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -1563,7 +1523,6 @@ static int ext_write(struct m0_composite_layout *cl,
+ 		 (unsigned long long)new_ext_state,
+ 		 (unsigned long long)lr_ext_to_insert_into->cle_ext.e_start,
+ 		 (unsigned long long)lr_ext_to_insert_into->cle_ext.e_end);
+-
+ 	if (lr_ext_to_insert_into->cle_ext.e_start == ext->e_start &&
+ 	    lr_ext_to_insert_into->cle_ext.e_end == ext->e_end &&
+ 	    lr_ext_to_insert_into->cle_state == new_ext_state) {
+@@ -1573,7 +1532,6 @@ static int ext_write(struct m0_composite_layout *cl,
+ 			 (unsigned long)layer->clr_idx, rc);
+ 		return rc;
+ 	}
+-
+ 	if (lr_ext_to_insert_into->cle_ext.e_start == ext->e_start &&
+ 	    lr_ext_to_insert_into->cle_ext.e_end == ext->e_end &&
+ 	    lr_ext_to_insert_into->cle_state != new_ext_state) {
+@@ -1871,7 +1829,6 @@ static int extents_indb_add(struct m0_composite_layout *cl,
+ 
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+-
+ 	emap = emap_from_cl(cl);
+ 	prefix_set(&prefix, cl->cl_base.l_id, layer->clr_idx);
+ 	if (M0_FI_ENABLED("emap_obj_insert_err"))
+@@ -1920,7 +1877,6 @@ err1_injected:
+ 			break;
+ 		}
+ 	} m0_tl_endfor;
+-
+ 	m0_emap_close(&it);
+ 	M0_RETURN(rc);
+ }
+@@ -1939,7 +1895,6 @@ static int extents_indb_read(struct m0_composite_layout *cl,
+ 
+ 	M0_ENTRY("lid %llu, layer %lu", (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx);
+-
+ 	/*
+ 	 * Delete the single extent added by default when the layer got added.
+ 	 * Then sequentially, add the extents as read from the buffer.
+@@ -2206,10 +2161,10 @@ err1_injected:
+  *
+  * Required in case of m0_layout_update() operation.
+  */
+-static int existing_layers_nr_n_sl_id_list_read(struct m0_composite_layout *cl,
+-						struct m0_db_tx * tx,
+-						uint32_t *layers_nr,
+-						uint64_t **sl_id_list)
++static int old_layers_nr_n_sl_id_list_read(struct m0_composite_layout *cl,
++					   struct m0_db_tx * tx,
++					   uint32_t *layers_nr,
++					   uint64_t **sl_id_list)
+ {
+ 	struct m0_layout        *l = &cl->cl_base;
+ 	struct m0_db_pair        pair;
+@@ -2244,7 +2199,7 @@ static int existing_layers_nr_n_sl_id_list_read(struct m0_composite_layout *cl,
+ 	}
+ 	m0_free(rec);
+ 	M0_POST(composite_invariant(cl));
+-	M0_LOG(M0_DEBUG, "lid %llu, rc %d, existing_layers_nr %lu",
++	M0_LOG(M0_DEBUG, "lid %llu, rc %d, old_layers_nr %lu",
+ 	       (unsigned long long)cl->cl_base.l_id, rc,
+ 	       (unsigned long)*layers_nr);
+ 	return rc;
+@@ -2261,8 +2216,8 @@ static int layers_indb_delete(struct m0_composite_layout *cl,
+ {
+ 	struct m0_composite_layer *layer;
+ 	struct m0_emap            *emap;
+-	uint32_t                   existing_layers_nr;
+-	uint64_t                  *existing_sl_id_list;
++	uint32_t                   old_layers_nr;
++	uint64_t                  *old_sl_id_list;
+ 	uint32_t                   i;
+ 	int                        rc;
+ 
+@@ -2278,19 +2233,19 @@ static int layers_indb_delete(struct m0_composite_layout *cl,
+ 	emap = emap_from_cl(cl);
+ 
+ 	if (in_update_path) {
+-		rc = existing_layers_nr_n_sl_id_list_read(cl, tx,
+-							  &existing_layers_nr,
+-							  &existing_sl_id_list);
++		rc = old_layers_nr_n_sl_id_list_read(cl, tx,
++						     &old_layers_nr,
++						     &old_sl_id_list);
+ 		if (rc == 0) {
+-			for (i = existing_layers_nr - 1; i >= 0; --i) {
++			for (i = old_layers_nr - 1; i >= 0; --i) {
+ 				rc = layer_indb_delete(cl, i,
+-						       existing_sl_id_list[i],
++						       old_sl_id_list[i],
+ 						       NULL, tx,
+ 						       in_update_path);
+ 				if (i == 0 || rc != 0)
+ 					break;
+ 			}
+-			m0_free(existing_sl_id_list);
++			m0_free(old_sl_id_list);
+ 		}
+ 	} else {
+ 		m0_tl_for(layers, &cl->cl_layers, layer) {
+@@ -2307,7 +2262,6 @@ static int layers_indb_delete(struct m0_composite_layout *cl,
+ 			}
+ 		} m0_tl_endfor;
+ 	}
+-
+ 	M0_POST(composite_invariant(cl));
+ 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)cl->cl_base.l_id, rc);
+ 	return rc;
+@@ -2357,7 +2311,6 @@ static int composite_instance_build(struct m0_layout *l,
+ 		 (unsigned long long)l->l_id,
+ 		 (unsigned long long)fid->f_container,
+ 		 (unsigned long long)fid->f_key);
+-
+ 	M0_ALLOC_PTR(ci);
+ 	if (ci == NULL) {
+ 		m0_layout__log("composite_instance_build",
+@@ -2366,7 +2319,6 @@ static int composite_instance_build(struct m0_layout *l,
+ 			       &l->l_addb_ctx, l->l_id, -ENOMEM);
+ 		return -ENOMEM;
+ 	}
+-
+ 	m0_layout__instance_init(&ci->ci_base, fid, l,
+ 				 &composite_instance_ops);
+ 	m0_composite_instance_bob_init(ci);
+@@ -2393,6 +2345,7 @@ M0_INTERNAL struct m0_composite_instance *m0_layout_instance_to_ci(
+ 					const struct m0_layout_instance *li)
+ {
+ 	struct m0_composite_instance *ci;
++
+ 	ci = bob_of(li, struct m0_composite_instance, ci_base,
+ 		    &composite_instance_bob);
+ 	M0_POST(composite_instance_invariant(ci));
+-- 
+1.8.3.2
+

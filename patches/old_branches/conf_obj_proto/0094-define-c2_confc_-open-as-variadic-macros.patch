@@ -1,0 +1,234 @@
+From a06cd7ec3c845493d792f6e33f6ea9bffb4e7c08 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Sun, 25 Mar 2012 23:17:48 +0300
+Subject: [PATCH 094/370] define c2_confc_*open*() as variadic macros
+
+Hide complexities of compound literals[1] and end markers[2] within
+the definitions of variadic macros.
+
+  [1] (const struct c2_conf_pathcomp []{ ... }
+  [2] C2_CONF_EOP
+---
+ conf/confc.c | 10 +++----
+ conf/confc.h | 94 +++++++++++++++++++++++++++++++++++++++---------------------
+ 2 files changed, 66 insertions(+), 38 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index c3ab378..7957ea6 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -552,8 +552,8 @@ void c2_confc_fini(struct c2_confc *client)
+ 	XXX;
+ }
+ 
+-int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		  const struct c2_conf_pathcomp *path)
++int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		const struct c2_conf_pathcomp *path)
+ {
+ 	bool isdir;
+ 
+@@ -574,9 +574,9 @@ int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+ 	return 0;
+ }
+ 
+-int c2_confc_open_sync(void **obj, struct c2_confc *client,
+-		       struct c2_conf_obj *origin,
+-		       const struct c2_conf_pathcomp *path)
++int _confc_open_sync(void **obj, struct c2_confc *client,
++		     struct c2_conf_obj *origin,
++		     const struct c2_conf_pathcomp *path)
+ {
+ 	struct c2_confc_ctx ctx;
+ 	struct c2_clink     clink;
+diff --git a/conf/confc.h b/conf/confc.h
+index 1b0b987..927de53 100644
+--- a/conf/confc.h
++++ b/conf/confc.h
+@@ -169,8 +169,7 @@
+  *     c2_clink_init(&clink, NULL)
+  *     c2_clink_add(&ctx.fc_complete, &clink);
+  *
+- *     rc = c2_confc_open(&ctx, NULL, (struct c2_conf_pathcomp []){
+- *                        C2_CONF_REL(C2_CO_FILESYSTEM), C2_CONF_EOP });
++ *     rc = c2_confc_open(&ctx, NULL, C2_CONF_REL(C2_CO_FILESYSTEM));
+  *     if (rc == 0) {
+  *         c2_chan_wait(&clink);
+  *         *fs = ctx.fc_result;
+@@ -186,8 +185,8 @@
+  *
+  * static int filesystem_open_s(struct c2_conf_filesystem **fs)
+  * {
+- *     return c2_confc_open_sync(fs, confc, NULL, (struct c2_conf_pathcomp []){
+- *                               C2_CONF_REL(C2_CO_FILESYSTEM), C2_CONF_EOP });
++ *     return c2_confc_open_sync(fs, confc, NULL,
++ *                               C2_CONF_REL(C2_CO_FILESYSTEM));
+  * }
+  * @endcode
+  *
+@@ -205,9 +204,9 @@
+  *     struct c2_conf_service *svc;
+  *     int rc;
+  *
+- *     rc = c2_confc_diropen_sync(&d, confc, NULL, (struct c2_conf_pathcomp []){
++ *     rc = c2_confc_diropen_sync(&d, confc, NULL,
+  *                                C2_CONF_REL(C2_CO_FILESYSTEM),
+- *                                C2_CONF_REL(C2_CO_SERVICE), C2_CONF_EOP });
++ *                                C2_CONF_REL(C2_CO_SERVICE));
+  *     if (rc != 0)
+  *         return rc;
+  *
+@@ -241,10 +240,9 @@
+  *     struct c2_conf_sdev    *sdev;
+  *     int ret;
+  *
+- *     ret = c2_confc_diropen_sync(&services, confc, NULL,
+- *                                 (struct c2_conf_pathcomp []){ // /fs/services
++ *     ret = c2_confc_diropen_sync(&services, confc, NULL,  // /fs/services
+  *                                 C2_CONF_REL(C2_CO_FILESYSTEM),
+- *                                 C2_CONF_REL(C2_CO_SERVICE), C2_CONF_EOP });
++ *                                 C2_CONF_REL(C2_CO_SERVICE));
+  *     if (ret != 0)
+  *         return ret;
+  *
+@@ -252,9 +250,8 @@
+  *         if (svc->cs_type != svc_type)
+  *             continue;
+  *
+- *         ret = c2_confc_open_sync(&node, confc, svc,
+- *                                  (struct c2_conf_pathcomp []){ // svc/node
+- *                                  C2_CONF_REL(C2_CO_NODE), C2_CONF_EOP });
++ *         // svc/node
++ *         ret = c2_confc_open_sync(&node, confc, svc, C2_CONF_REL(C2_CO_NODE));
+  *         if (ret != 0)
+  *             break;
+  *
+@@ -263,9 +260,8 @@
+  *             continue;
+  *         }
+  *
+- *         ret = c2_confc_diropen_sync(&d, confc, node,  // node/nics
+- *                                     (struct c2_conf_pathcomp []){
+- *                                     C2_CONF_REL(C2_CO_NIC), C2_CONF_EOP });
++ *         // node/nics
++ *         ret = c2_confc_diropen_sync(&d, confc, node, C2_CONF_REL(C2_CO_NIC));
+  *         if (ret != 0) {
+  *             c2_confc_close(node, confc);
+  *             break;
+@@ -275,9 +271,9 @@
+  *         }
+  *         c2_confc_dirclose(d, confc);
+  *
+- *         ret = c2_confc_diropen_sync(&d, confc, node,  // node/sdevs
+- *                                     (struct c2_conf_pathcomp []){
+- *                                     C2_CONF_REL(C2_CO_SDEV), C2_CONF_EOP });
++ *         // node/sdevs
++ *         ret = c2_confc_diropen_sync(&d, confc, node,
++ *                                     C2_CONF_REL(C2_CO_SDEV));
+  *         if (ret != 0) {
+  *             c2_confc_close(node, confc);
+  *             break;
+@@ -411,15 +407,16 @@ static inline int32_t c2_confc_error(const struct c2_confc_ctx *ctx)
+  *
+  * @param ctx     Fetch context.
+  * @param origin  Path origin (NULL = root configuration object).
+- * @param path    Path to the requested object.
++ * @param ...     Path to the requested object.
+  *
+  * @retval -EISDIR  Path leads to a directory.
+  * @retval -ENOMEM  Insufficient memory.
+- *
+- * @pre  path != NULL
+  */
+-int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		  const struct c2_conf_pathcomp *path);
++#define c2_confc_open(ctx, origin, ...)                                  \
++	_confc_open((ctx), (origin), (const struct c2_conf_pathcomp []){ \
++			__VA_ARGS__, C2_CONF_EOP })
++int _confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Opens configuration object synchronously.
+@@ -427,11 +424,24 @@ int c2_confc_open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+  * If the function succeeds, *obj will point to the requested
+  * configuration object.
+  *
++ * Example:
++ * @code
++ * struct c2_conf_filesystem *fs;
++ * int rc;
++ *
++ * // open `/filesystem'
++ * rc = c2_confc_open_sync(&fs, confc, NULL, C2_CONF_REL(C2_CONF_FILESYSTEM));
++ * @endcode
++ *
+  * @see c2_confc_open()
+  */
+-int c2_confc_open_sync(void **obj, struct c2_confc *client,
+-		       struct c2_conf_obj *origin,
+-		       const struct c2_conf_pathcomp *path);
++#define c2_confc_open_sync(obj, client, origin, ...)         \
++	_confc_open_sync((obj), (client), (origin),          \
++			 (const struct c2_conf_pathcomp []){ \
++				 __VA_ARGS__, C2_CONF_EOP })
++int _confc_open_sync(void **obj, struct c2_confc *client,
++		     struct c2_conf_obj *origin,
++		     const struct c2_conf_pathcomp *path);
+ 
+ /* XXX[future]
+  * If statistics shows that synchronous variant is used more often, we
+@@ -457,25 +467,43 @@ void c2_confc_close(void *obj, struct c2_confc *client);
+  *
+  * @param ctx     Fetch context.
+  * @param origin  Path origin (NULL = root configuration object).
+- * @param path    Path to the requested directory.
++ * @param ...     Path to the requested directory.
+  *
+  * @retval -ENOTDIR  Path does not lead to a directory.
+  * @retval -ENOMEM   Insufficient memory.
+  */
+-int c2_confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
+-		     const struct c2_conf_pathcomp *path);
++#define c2_confc_diropen(ctx, origin, ...)                                 \
++	_confc_diropen((ctx), (origin, (const struct c2_conf_pathcomp []){ \
++			__VA_ARGS, C2_CONF_EOP })
++int _confc_diropen(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
++		   const struct c2_conf_pathcomp *path);
+ 
+ /**
+- * Opens collection of configuration object synchronously.
++ * Opens collection of configuration objects synchronously.
+  *
+  * If the function succeeds, *dir will point to the requested
+  * collection (aka directory).
+  *
++ * Example:
++ * @code
++ * struct c2_confc_dir *dir;
++ * int rc;
++ *
++ * // open `/filesystem/services'
++ * rc = c2_confc_diropen_sync(&dir, confc, NULL,
++ *                            C2_CONF_REL(C2_CONF_FILESYSTEM),
++ *                            C2_CONF_REL(C2_CONF_SERVICE));
++ * @endcode
++ *
+  * @see c2_confc_diropen()
+  */
+-int c2_confc_diropen_sync(struct c2_confc_dir **dir, struct c2_confc *client,
+-			  struct c2_conf_obj *origin,
+-			  const struct c2_conf_pathcomp *path);
++#define c2_confc_diropen_sync(dir, client, origin, ...)         \
++	_confc_diropen_sync((dir), (client), (origin),          \
++			    (const struct c2_conf_pathcomp []){ \
++				    __VA_ARGS__, C2_CONF_EOP })
++int _confc_diropen_sync(struct c2_confc_dir **dir, struct c2_confc *client,
++			struct c2_conf_obj *origin,
++			const struct c2_conf_pathcomp *path);
+ 
+ /**
+  * Returns the next configuration object of given collection.
+-- 
+1.8.3.2
+

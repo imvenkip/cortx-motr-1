@@ -1,0 +1,29 @@
+From 0c8b6f095a3ec12925ac67549b43851c7428c4bf Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Mon, 18 Mar 2013 23:30:02 +0200
+Subject: [PATCH 42/63] rpc-ub: add forgotten source file to Makefile.sub
+
+Add rpc/ub/rpc_ub_fops.h to the list of sources.
+`m0 dist-check' passes again.
+
+Thanks to Dima Chumak for nailing the bug!
+---
+ rpc/ub/Makefile.sub | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/rpc/ub/Makefile.sub b/rpc/ub/Makefile.sub
+index 1f14556..327e396 100644
+--- a/rpc/ub/Makefile.sub
++++ b/rpc/ub/Makefile.sub
+@@ -1,6 +1,7 @@
+ ut_libmero_ut_la_SOURCES += rpc/ub/ub.c \
+                             rpc/ub/rpc_ub_fops_xc.c \
+-                            rpc/ub/rpc_ub_fops.c
++                            rpc/ub/rpc_ub_fops.c \
++                            rpc/ub/rpc_ub_fops.h
+ 
+ XC_FILES += rpc/ub/rpc_ub_fops_xc.h
+ 
+-- 
+1.8.3.2
+

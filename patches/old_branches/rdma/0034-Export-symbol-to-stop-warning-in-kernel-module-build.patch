@@ -1,0 +1,24 @@
+From 74f07b002a9e17da744ebcc24cb8364acfe9259a Mon Sep 17 00:00:00 2001
+From: Carl Braganza <Carl_Braganza@us.xyratex.com>
+Date: Thu, 3 Mar 2011 10:22:08 -0800
+Subject: [PATCH 34/34] Export symbol to stop warning in kernel module build.
+
+---
+ fop/fop_iterator.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fop/fop_iterator.c b/fop/fop_iterator.c
+index 8adb9c1..ad35ec2 100644
+--- a/fop/fop_iterator.c
++++ b/fop/fop_iterator.c
+@@ -672,6 +672,7 @@ void c2_fop_object_init(const struct c2_fop_type_format *fid_fop_type)
+ 	fop_object_watch.fif_bits  = C2_FOB_LOAD;
+ 	c2_fop_itype_watch_add(&fop_object_itype, &fop_object_watch);
+ }
++C2_EXPORTED(c2_fop_object_init);
+ 
+ void c2_fop_object_it_init(struct c2_fit *it, struct c2_fop *fop)
+ {
+-- 
+1.8.3.2
+

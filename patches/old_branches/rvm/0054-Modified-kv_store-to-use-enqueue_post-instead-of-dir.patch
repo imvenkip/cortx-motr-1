@@ -1,0 +1,436 @@
+From de8e50755f2f3f8669cfcb4afa45b5ce21256ca0 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Thu, 21 Feb 2013 05:18:13 -0800
+Subject: [PATCH 054/121] Modified kv_store to use enqueue_post instead of
+ directly calling cb's
+
+---
+ be/be_impl.h         |  4 ---
+ be/domain.c          |  7 -----
+ be/handle_store.c    | 21 +++++--------
+ be/handle_store.h    |  2 --
+ be/handler.c         |  2 +-
+ be/kv_store.c        | 84 +++++++++++++++-------------------------------------
+ be/kv_store.h        |  4 +--
+ be/seg.c             | 12 ++------
+ be/tx.c              |  8 -----
+ be/ut/be.c           |  8 +++++
+ be/ut/handle_store.c |  5 ----
+ 11 files changed, 44 insertions(+), 113 deletions(-)
+
+diff --git a/be/be_impl.h b/be/be_impl.h
+index 77dec79..50bffbb 100644
+--- a/be/be_impl.h
++++ b/be/be_impl.h
+@@ -51,8 +51,6 @@ struct m0_be_seg_impl {
+         char                    segment_name[MAXNAMELEN];
+         /* Segment stob file path or device path  */
+         char                    path_name[MAXPATHLEN];
+-        void                   *cbdata;
+-        void                  (*cb)(void *);
+ };
+ 
+ /**
+@@ -62,8 +60,6 @@ struct m0_be_tx_impl {
+         rvm_tid_t               *tx_id;
+         /* Credit list of (m0_be_reg) regions associated with transaction */
+         struct m0_tl             bc_tl;
+-        void                    *cbdata;
+-        void                   (*cb)(void *);
+ };
+ 
+ /** @} end of be group */
+diff --git a/be/domain.c b/be/domain.c
+index 89e7be4..1c64485 100644
+--- a/be/domain.c
++++ b/be/domain.c
+@@ -201,13 +201,6 @@ M0_INTERNAL void m0_be_domain_seg_restore(struct m0_be_domain *dom,
+                 m0_be_seg_tlink_init(seg);
+                 m0_be_seg_tlist_add(&dom->bd_seg, seg);
+         }
+-        else {
+-                if(seg->bs_impl.cb) {
+-                        seg->bs_impl.cb(seg->bs_impl.cbdata);
+-                }
+-                seg->bs_impl.cb         = NULL;
+-                seg->bs_impl.cbdata     = NULL;
+-        }
+ 
+         M0_POST(m0_be_domain_invariant(dom));
+         M0_LEAVE("seg: %p", seg);
+diff --git a/be/handle_store.c b/be/handle_store.c
+index f44159e..4c2e1cb 100644
+--- a/be/handle_store.c
++++ b/be/handle_store.c
+@@ -31,6 +31,7 @@
+ #include "be/reg.h"
+ #include "be/tx.h"
+ #include "be/handle_store.h"
++#include "be/handler.h"
+ 
+ /**
+  * Handle store APIs
+@@ -48,6 +49,7 @@ M0_INTERNAL void m0_be_hs_update(struct m0_be_hs_opdata *bh_opdata)
+         struct m0_be_seg       *seg;
+         struct m0_uint128      *elem;
+         struct m0_uint128      *h_addr;
++        struct m0_sm_group     *sm_group;
+ 
+         M0_ENTRY();
+ 
+@@ -64,6 +66,9 @@ M0_INTERNAL void m0_be_hs_update(struct m0_be_hs_opdata *bh_opdata)
+         M0_ASSERT(seg    != NULL);
+         M0_ASSERT(h_addr != NULL);
+ 
++        sm_group = m0_be_domain_sm_group(seg->bs_dom);
++        M0_ASSERT(sm_group != NULL);
++
+         m0_be_tx_init(tx, seg->bs_dom, 0);
+ 
+         if (m0_be_tx_state(tx) == M0_BETX_FAILED)
+@@ -83,18 +88,12 @@ M0_INTERNAL void m0_be_hs_update(struct m0_be_hs_opdata *bh_opdata)
+ 
+         elem = (struct m0_uint128 *) m0_be_static_reg_get_handle_addr(seg,
+                                                                       offset);
+-
+-        /*
+-         * Set the call back data and function to be called after
+-         * m0_be_tx_done has been completed fully.
+-         * i.e. after m0_be_tx_done_cb
+-         */
+         *elem              = *h_addr;
+         bh_opdata->bho_tx  = tx;
+-        tx->bt_impl.cb     = m0_be_hs_tx_cb;
+-        tx->bt_impl.cbdata = (void *)bh_opdata;
+         m0_be_tx_done(tx);
+ 
++        m0_sm_enqueue_post(sm_group, bh_opdata, m0_be_hs_tx_cb);
++
+ hs_exit:
+         if (m0_be_tx_state(tx) == M0_BETX_FAILED) {
+                 M0_LOG(M0_FATAL, "Failed to make kv-store handle persistent");
+@@ -126,12 +125,6 @@ M0_INTERNAL void m0_be_hs_tx_cb(void *cb_data)
+ 
+         m0_be_tx_fini(tx);
+ 
+-        if(bh_opdata->bho_cb) {
+-                bh_opdata->bho_cb(bh_opdata->bho_cbdata);
+-        }
+-        bh_opdata->bho_cb       = NULL;
+-        bh_opdata->bho_cbdata   = NULL;
+-
+         m0_free(cb_data);
+         m0_free(tx);
+         M0_LEAVE();
+diff --git a/be/handle_store.h b/be/handle_store.h
+index bfe6c21..29d0daa 100644
+--- a/be/handle_store.h
++++ b/be/handle_store.h
+@@ -38,8 +38,6 @@ struct m0_be_hs_opdata {
+         struct m0_uint128       *bho_segid_offset;
+         struct m0_be_seg        *bho_seg;
+         struct m0_be_tx         *bho_tx;
+-        void                    *bho_cbdata;
+-        void                   (*bho_cb)(void *cb_data);
+         uint64_t                 bho_index;
+ };
+ 
+diff --git a/be/handler.c b/be/handler.c
+index bd5cae7..41f131b 100644
+--- a/be/handler.c
++++ b/be/handler.c
+@@ -91,7 +91,7 @@ M0_INTERNAL struct m0_be_sm_obj *m0_sm_dequeue_obj(struct m0_sm_group *sm_group)
+ 
+         be_sm_obj  = NULL;
+         scan       = NULL;
+-        be_sm_obj  = m0_be_runq_tlist_tail(&be_sm_runq);
++        be_sm_obj  = m0_be_runq_tlist_head(&be_sm_runq);
+         if (be_sm_obj != NULL)
+                 m0_be_runq_tlink_del_fini(be_sm_obj);
+ 
+diff --git a/be/kv_store.c b/be/kv_store.c
+index a10ca1a..f5e8aeb 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -26,8 +26,6 @@
+ #include "be/be_buf.h"
+ #include "be/helper.h"
+ #include "be/handler.h"
+-
+-#include <stdio.h>
+ #include <string.h>
+ 
+ /**
+@@ -196,14 +194,9 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_ks_opdata *bk_opdata)
+         bh_opdata->bho_segid_offset     = &rvm_handle_ref->be_segid_offset;
+         bh_opdata->bho_seg              = rvm_handle_seg;
+ 
+-        /*
+-         * This callback data and function will be called after hs_update has
+-         * been completed, to terminate the handle creation process.
+-         */
+-        bh_opdata->bho_cbdata           = (void *)bk_opdata;
+-        bh_opdata->bho_cb               = m0_be_ksi_hs_cb;
+-
+         m0_be_hs_update(bh_opdata);
++
++        m0_sm_enqueue_post(sm_group, bk_opdata, m0_be_ksi_hs_cb);
+         M0_LEAVE();
+ }
+ 
+@@ -216,7 +209,6 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **handle,
+ {
+         struct m0_sm_group         *sm_group;
+         struct m0_be_seg           *rvm_handle_seg = NULL;
+-        bool                        ret_val;
+ 
+         struct m0_be_ks_opdata     *bk_opdata;
+ 
+@@ -246,53 +238,25 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **handle,
+         m0_sm_state_set(&(*handle)->ks_handle_heap.ksh_sm, M0_BEKS_INPROGRESS);
+         m0_sm_group_unlock(sm_group);
+ 
+-        /* Prepare call back data */
+-        bk_opdata->bko_handle   = handle;
+-        bk_opdata->bko_ksi_mode = mode;
++        M0_ALLOC_PTR(rvm_handle_seg);
++        M0_ASSERT(rvm_handle_seg != NULL);
+ 
+         if (strcasecmp(mode, "recover") == 0) {
+-                M0_ALLOC_PTR(rvm_handle_seg);
+-                M0_ASSERT(rvm_handle_seg != NULL);
+-                bk_opdata->bko_seg = rvm_handle_seg;
+-
+                 /* Try to restore (open) the segment in @dom */
+-
+-                /*
+-                 * Set the call back data and function to be called after
+-                 * the segment has been opened
+-                 * i.e. after m0_be_seg_open_cb
+-                 */
+-                rvm_handle_seg->bs_impl.cbdata  = bk_opdata;
+-                rvm_handle_seg->bs_impl.cb      = m0_be_ksi_handle_cb;
+                 m0_be_domain_seg_restore(dom, BE_KV_SEG_NAME, rvm_handle_seg);
+         } else {
+-                /* Lookup for the kv_store segment. If not found, create one */
++                /* Create a new segment */
+                 /* @todo: segment name is hardcoded for now */
+-                ret_val = m0_be_domain_lookup(dom, BE_KV_SEG_NAME,
+-                                              &rvm_handle_seg);
+-                if (ret_val != true) {
+-                        M0_ALLOC_PTR(rvm_handle_seg);
+-                        M0_ASSERT(rvm_handle_seg != NULL);
+-
+-                        m0_be_seg_init(rvm_handle_seg, dom, sm_group, 0);
+-
+-                        /*
+-                         * Set the call back data and function to be called
+-                         * after the segment has been create.
+-                         * i.e. after m0_be_seg_create_cb
+-                         */
+-                        rvm_handle_seg->bs_impl.cbdata  = bk_opdata;
+-                        rvm_handle_seg->bs_impl.cb      = m0_be_ksi_handle_cb;
+-                        bk_opdata->bko_seg              = rvm_handle_seg;
+-
+-                        m0_be_seg_create(rvm_handle_seg, NULL, BE_KV_SEG_NAME,
+-                                         NULL);
+-                } else {
+-                        /* Segment was created earlier, just use it */
+-                        bk_opdata->bko_seg = rvm_handle_seg;
+-                        m0_be_ksi_handle_cb(bk_opdata);
+-                }
++
++                m0_be_seg_init(rvm_handle_seg, dom, sm_group, 0);
++                m0_be_seg_create(rvm_handle_seg, NULL, BE_KV_SEG_NAME,
++                                 NULL);
+         }
++        /* Prepare call back data */
++        bk_opdata->bko_handle   = handle;
++        bk_opdata->bko_ksi_mode = mode;
++        bk_opdata->bko_seg      = rvm_handle_seg;
++        m0_sm_enqueue_post(sm_group, bk_opdata, m0_be_ksi_handle_cb);
+ }
+ M0_EXPORTED(m0_be_ks_init);
+ 
+@@ -743,7 +707,7 @@ M0_INTERNAL void m0_be_ksi_handle_cb(void *cb_data)
+         }
+ 
+         /* Complete the kv-store initialisation process */
+-        m0_be_ksi_sm_cb(cb_data);
++        m0_be_ksi_init_done(cb_data);
+ exit:
+         M0_LEAVE();
+ }
+@@ -754,6 +718,8 @@ M0_INTERNAL void m0_be_ksi_hs_cb(void *cb_data)
+         struct m0_be_kv_store_rvm   *rvm_handle;
+         struct m0_tl_descr          *descr;
+         struct m0_be_ks_opdata      *bk_opdata;
++        struct m0_be_domain         *dom;
++        struct m0_sm_group          *sm_group;
+ 
+         M0_ENTRY();
+ 
+@@ -761,22 +727,20 @@ M0_INTERNAL void m0_be_ksi_hs_cb(void *cb_data)
+         tx         = bk_opdata->bko_tx;
+         descr      = (*bk_opdata->bko_handle)->ks_handle_heap.ksh_list_descr;
+         rvm_handle = (*bk_opdata->bko_handle)->ks_handle_rvm;
++        dom        = (*bk_opdata->bko_handle)->ks_handle_heap.ksh_dom;
+ 
+         M0_ASSERT(tx          != NULL);
+         M0_ASSERT(descr       != NULL);
+         M0_ASSERT(rvm_handle  != NULL);
+ 
++        sm_group = m0_be_domain_sm_group(dom);
++
+         m0_tlist_init(descr, &rvm_handle->ksr_tlist);
+ 
+-        /*
+-         * Set the call back data and function to be called after
+-         * m0_be_tx_done has been completed fully.
+-         * i.e. after m0_be_tx_done_cb
+-         */
+-        tx->bt_impl.cbdata = (void *)bk_opdata;
+-        tx->bt_impl.cb     = m0_be_ksi_tx_cb;
+         m0_be_tx_done(tx);
+ 
++        m0_sm_enqueue_post(sm_group, bk_opdata, m0_be_ksi_tx_cb);
++
+         M0_LEAVE();
+ }
+ 
+@@ -806,12 +770,12 @@ M0_INTERNAL void m0_be_ksi_tx_cb(void *cb_data)
+         m0_free(buf);
+ 
+         /* Complete the kv-store initialisation process */
+-        m0_be_ksi_sm_cb(bk_opdata);
++        m0_be_ksi_init_done(bk_opdata);
+ 
+         M0_LEAVE();
+ }
+ 
+-M0_INTERNAL void m0_be_ksi_sm_cb(void *cb_data)
++M0_INTERNAL void m0_be_ksi_init_done(void *cb_data)
+ {
+         struct m0_be_ks_opdata  *bk_opdata;
+         struct m0_be_domain     *dom;
+diff --git a/be/kv_store.h b/be/kv_store.h
+index d317ebd..84d7a4b 100644
+--- a/be/kv_store.h
++++ b/be/kv_store.h
+@@ -309,13 +309,13 @@ M0_INTERNAL bool m0_be_ks_deref_handle(struct m0_be_kv_store *handle,
+   Callback routine that completes the KS initialization.
+   Marks the current state of KS state machine as done.
+  */
+-M0_INTERNAL void m0_be_ksi_sm_cb(void *cb_data);
++M0_INTERNAL void m0_be_ksi_init_done(void *cb_data);
+ 
+ /**
+   Callback routine that carries out m0_be_tx_fini for m0_be_ks_create handle.
+   Frees pointers allocated previously in m0_be_ks_create handle.
+   Last step in m0_be_ks_create_handle.
+-  Calls m0_be_ksi_sm_cb to complete m0_be_ks_init.
++  Calls m0_be_ksi_init_done to complete m0_be_ks_init.
+  */
+ M0_INTERNAL void m0_be_ksi_tx_cb(void *cb_data);
+ 
+diff --git a/be/seg.c b/be/seg.c
+index 0925ebc..811ca04 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -390,11 +390,7 @@ exit:
+         m0_sm_group_lock(sm_group);
+         m0_sm_state_set((&seg->bs_sm), seg_state);
+         m0_sm_group_unlock(sm_group);
+-        if(seg_state == M0_BESEG_ACTIVE && seg->bs_impl.cb) {
+-                seg->bs_impl.cb(seg->bs_impl.cbdata);
+-                seg->bs_impl.cb         = NULL;
+-                seg->bs_impl.cbdata     = NULL;
+-        }
++
+         M0_LEAVE();
+ }
+ 
+@@ -465,11 +461,7 @@ exit:
+         m0_sm_group_lock(sm_group);
+         m0_sm_state_set((&seg->bs_sm), seg_state);
+         m0_sm_group_unlock(sm_group);
+-        if(seg_state == M0_BESEG_ACTIVE && seg->bs_impl.cb) {
+-                seg->bs_impl.cb(seg->bs_impl.cbdata);
+-                seg->bs_impl.cb         = NULL;
+-                seg->bs_impl.cbdata     = NULL;
+-        }
++
+         M0_LEAVE();
+ }
+ 
+diff --git a/be/tx.c b/be/tx.c
+index 7779dcf..01ad82e 100644
+--- a/be/tx.c
++++ b/be/tx.c
+@@ -108,9 +108,6 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx *tx, struct m0_be_domain *dom,
+                   dom != NULL &&
+                   &dom->bd_impl.sm_group != NULL);
+ 
+-        tx->bt_impl.cb     = NULL;
+-        tx->bt_impl.cbdata = NULL;
+-
+         tx->bt_dom   = dom;
+         tx->bt_magic = M0_BE_TX_MAGIC;
+ 
+@@ -267,11 +264,6 @@ tx_exit:
+         m0_sm_state_set(&tx->bt_sm, tx_state);
+         m0_sm_group_unlock(sm_group);
+ 
+-        if(tx_state == M0_BETX_DONE && tx->bt_impl.cb && tx->bt_impl.cbdata) {
+-                tx->bt_impl.cb(tx->bt_impl.cbdata);
+-                tx->bt_impl.cb         = NULL;
+-                tx->bt_impl.cbdata     = NULL;
+-        }
+         M0_LEAVE();
+ }
+ 
+diff --git a/be/ut/be.c b/be/ut/be.c
+index 5f8673b..3343a8c 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -181,6 +181,14 @@ const struct m0_test_suite be_ut = {
+         }
+ };
+ 
++int main() {
++        ts_be_init();
++        test_be_transaction();
++        ts_be_fini();
++
++        return 0;
++}
++
+ #undef M0_TRACE_SUBSYSTEM
+ /** @} end group be_ut */
+ 
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index 6b88bdf..fcc5f4c 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -83,8 +83,6 @@ static int ts_be_init(void)
+         if (result == false) {
+                 M0_ALLOC_PTR(seg);
+                 m0_be_seg_init(seg, &dom, sm_group, 0);
+-                seg->bs_impl.cb         = NULL;
+-                seg->bs_impl.cbdata     = NULL;
+                 m0_be_seg_create(seg, NULL,  "first", NULL);
+         }
+ 
+@@ -142,9 +140,6 @@ static void test_be_handlestore()
+                 bh_opdata->bho_segid_offset         = kvstore;
+                 bh_opdata->bho_seg                  = seg;
+ 
+-                bh_opdata->bho_cbdata           = NULL;
+-                bh_opdata->bho_cb               = NULL;
+-
+                 m0_be_hs_update(bh_opdata);
+         }
+         for (i = 0; i < 10; i = i+2) {
+-- 
+1.8.3.2
+

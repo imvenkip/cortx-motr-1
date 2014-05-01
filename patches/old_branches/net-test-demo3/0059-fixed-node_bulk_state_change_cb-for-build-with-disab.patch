@@ -1,0 +1,26 @@
+From 1a2f8228dd044cc8345e4d1646abc89377cac3fe Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Wed, 13 Feb 2013 17:50:21 +0200
+Subject: [PATCH 59/99] fixed node_bulk_state_change_cb() for build with
+ disabled asserts
+
+---
+ net/test/node_bulk.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 542230e..de25f4a 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -504,6 +504,8 @@ static void node_bulk_state_change_cb(struct node_bulk_ctx *ctx,
+ 				  ARRAY_SIZE(node_bulk_server_success) :
+ 				  ARRAY_SIZE(node_bulk_server_failure);
+ 	} else {
++		transition	= NULL;
++		transition_size = 0;
+ 		M0_IMPOSSIBLE("Invalid node role in net-test bulk testing");
+ 	}
+ 	state = node_bulk_state_search(ctx->nbc_bs[bs_index].bsb_ts,
+-- 
+1.8.3.2
+

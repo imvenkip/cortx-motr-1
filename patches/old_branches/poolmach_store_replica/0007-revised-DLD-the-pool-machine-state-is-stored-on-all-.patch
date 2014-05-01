@@ -1,0 +1,312 @@
+From c8f71c7b8dc4126190e58902837d8a25992f96b5 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Fri, 3 May 2013 21:53:19 +0800
+Subject: [PATCH 07/14] revised DLD: the pool machine state is stored on all
+ nodes.
+
+---
+ pool/Kbuild.sub   |   2 +-
+ pool/Makefile.sub |   9 +---
+ pool/pool.c       | 140 ++++++++++++++++++++++++++++++++++--------------------
+ pool/pool_fops.c  |  47 ------------------
+ pool/pool_store.c |   6 +--
+ 5 files changed, 94 insertions(+), 110 deletions(-)
+ delete mode 100644 pool/pool_fops.c
+
+diff --git a/pool/Kbuild.sub b/pool/Kbuild.sub
+index 7f5ef91..69d4b9b 100644
+--- a/pool/Kbuild.sub
++++ b/pool/Kbuild.sub
+@@ -1 +1 @@
+-m0mero_objects += pool/pool.o pool/pool_store.o pool/pool_fops.o
++m0mero_objects += pool/pool.o pool/pool_store.o
+diff --git a/pool/Makefile.sub b/pool/Makefile.sub
+index 70e32bf..9c1d53a 100644
+--- a/pool/Makefile.sub
++++ b/pool/Makefile.sub
+@@ -2,11 +2,4 @@ nobase_mero_include_HEADERS += pool/pool.h \
+ 			       pool/pool_fops.h
+ 
+ mero_libmero_la_SOURCES  += pool/pool.c \
+-			    pool/pool_store.c \
+-			    pool/pool_fops.c
+-
+-XC_FILES   += pool/pool_fops_xc.h
+-
+-CLEANFILES += pool/pool_fops_xc.h \
+-              pool/pool_fops_xc.c \
+-              pool/pool_fops.gccxml
++			    pool/pool_store.c
+diff --git a/pool/pool.c b/pool/pool.c
+index e2ce414..f66fd29 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -46,22 +46,21 @@
+    <hr>
+    @section pool_mach_store_replica-ovw Overview
+    Pool Machine state is stored on persistent storage. When system restarts,
+-   it will load its data from persistent storage and back to service.
++   Ioservice loads pool machine state data from persistent storage.
+ 
+-   Pool Machine state is replicated on multiple nodes. The first node
+-   in the pool is master node. All other nodes are replica nodes. They
+-   keep a cache of this pool machine state. These caches get updated by FOPs.
++   Every ioservice has its own pool machine state stored on persistent storage.
++   They are independent. Pool machine state transitions are triggered by pool
++   machine events. Pool machine events, e.g. device failure event, SNS
++   completion event, are delivered to all ioservices. So, these pool machine
++   states are updated and the final pool machine state are identical on all
++   nodes.
++
++   Pool machine state is stored in DB (or RVM, when it is ready).
+ 
+    <hr>
+    @section pool_mach_store_replica-def Definitions
+    @see poolmach for failure vectors, events, etc.
+ 
+-   Master Pool Machine node. The fist node in a pool stores the pool machine
+-   states on persistent storage.
+-
+-   Replica Pool Machine node. Other nodes in a pool, keep caches of pool
+-   machine states from Master pool machine node.
+-
+    <hr>
+    @section pool_mach_store_replica-req Requirements
+    The following requirements should be meet:
+@@ -70,8 +69,6 @@
+                 persistent storage.
+    - @b R.DLD.T Updates to the persistent storage should survive system failure.
+ 
+-   - @b R.DLD.R Pool machine states are replicated from master nodes to replica.
+-
+    <hr>
+    @section pool_mach_store_replica-depends Dependencies
+    FOP.
+@@ -86,13 +83,13 @@
+    usages, etc. are stored in DB or RVM. Updates to these storage will be
+    protected by distributed transaction manager.
+ 
+-   When any pool machine state is updated on master node, an unsolicited FOP
+-   (a one-may message) will be delivered to each replica node. When replica
+-   node gets this message, it should decode update event from the fop and
+-   update its pool machine state accordingly.
++   Every ioservice has a pool machine. Pool machine update events are delivered
++   to all ioservices. So all the pool machine there get state transitions
++   according to these events. Finally the pool machine states on all ioservice
++   nodes are persistent and identical.
+ 
+-   The pool machine update event should be delivered to master node. Master
+-   node will handle the update event, and send update FOPs to other replica.
++   HA component is responsible for delivering these events to all ioservice
++   nodes.
+ 
+    <hr>
+    @section pool_mach_store_replica-lspec Logical Specification
+@@ -102,43 +99,89 @@
+    - @ref pool_mach_store_replica-lspec-if
+ 
+    @subsection pool_mach_store_replica-lspec-comps Component Overview
+-   A unsolicited notification fop is introduced. This fop will be sent from
+-   master pool machine node to its replicas. This fop contains the event
+-   which triggers a pool machine update.
++   Pool machine global information, like number of devices and number of nodes in
++   this pool, current read and write version numbers are stored on persistent
++   storage.
+ 
+-   When replicas initialise their pool machine states, they send pool machine
+-   updates requests to master nodes. Master node replies with its latest pool
+-   machine states. If master node is not ready at that moment, replicas will
+-   get updates notification later.
++   State of each devices is an array, and it is stored on persistent storage as
++   a record. State of each nodes is an array, and it is also stored on
++   persistent storage as a record. Spare space usage is an array, and it is
++   stored on persistent storage as a record. Special version numbers are used
++   as keys for them.
++
++   All events are stored on persistent storage. Each event is stored as a
++   separate record, and its version number is key.
+ 
+    @subsection pool_mach_store_replica-lspec-ds Data Structures
+    The data structures of failure vector, failure vector version number,
+    event, event list are in @ref poolmach module.
+-   A new fop type (m0_poolmach_updates_fop) is introduced to contains the events
+-    list.
++
++   The DB records for global pool state, state of node, state of device,
++   events are defined as the following:
++   @code
++	struct m0_poolmach_state_rec {
++		struct m0_pool_version_numbers psr_version;
++		uint32_t                       psr_nr_nodes;
++		uint32_t                       psr_nr_devices;
++		uint32_t                       psr_max_node_failures;
++		uint32_t                       psr_max_device_failures;
++	};
++
++	struct m0_poolnode_rec {
++		enum m0_pool_nd_state pn_state;
++		struct m0_uuid        pn_node_id;
++	};
++
++	struct m0_pooldev_rec {
++		enum m0_pool_nd_state pd_state;
++		struct m0_uuid        pd_dev_id;
++		struct m0_uuid        pd_node_id;
++	};
++
++	struct m0_pool_spare_usage_rec {
++		uint32_t              psu_device_index;
++		enum m0_pool_nd_state psu_device_state;
++	};
++
++	struct m0_pool_event_rec {
++		struct m0_pool_event           per_event;
++	};
++   @endcode
++   Struct m0_pool_version_numbers is used as keys for the above data structures.
++   Special keys are defined as the following:
+ 
+    @code
+-	struct m0_fv_updates {
+-	        uint32_t            fvu_count;
+-	        struct m0_fv_event *fvu_events;
+-	} M0_XCA_SEQUENCE;
++   static struct m0_pool_version_numbers poolmach_state_key = {
++		.pvn_version = {
++			[PVE_READ]  = ~0ULL - 1,
++			[PVE_WRITE] = ~0ULL - 1
++		}
++	};
+ 
+-	struct m0_poolmach_updates_req {
+-		// replica's cached version.
+-	        struct m0_fv_version pu_fv_version;
+-	} M0_XCA_RECORD;
+ 
+-	struct m0_poolmach_updates_rep {
+-		uint32_t            pu_rc;
++	static struct m0_pool_version_numbers poolmach_device_state_key = {
++		.pvn_version = {
++			[PVE_READ]  = ~0ULL - 2,
++			[PVE_WRITE] = ~0ULL - 2
++		}
++	};
+ 
+-		// latest version number.
+-	        struct m0_fv_version pu_fv_version;
++	static struct m0_pool_version_numbers poolmach_node_state_key = {
++		.pvn_version = {
++			[PVE_READ]  = ~0ULL - 3,
++			[PVE_WRITE] = ~0ULL - 3
++		}
++	};
+ 
+-		// events list
+-	        struct m0_fv_updates pu_fv_updates;
+-	} M0_XCA_RECORD;
++	static struct m0_pool_version_numbers poolmach_spare_key = {
++		.pvn_version = {
++			[PVE_READ]  = ~0ULL - 4,
++			[PVE_WRITE] = ~0ULL - 4
++		}
++	};
+    @endcode
+ 
++
+    @subsection pool_mach_store_replica-lspec-if Interfaces
+    The failure vector and version number operations are designed and listed
+    in @ref poolmach.
+@@ -150,16 +193,11 @@
+    <hr>
+    @section pool_mach_store_replica-conformance Conformance
+    - @b I.DLD.P All pool machine states are stored on persistent storage, using
+-                DB or RVM interfaces. This states data can be loaded when
+-                system re-starts.
++		DB or RVM interfaces. This states data can be loaded when
++		system re-starts.
+    - @b I.DLD.T Updates to the persistent storage will be protected by
+-                distributed transaction manager. This will insure the updates
+-                can survive system failures.
+-
+-   - @b I.DLD.R Pool machine states are replicated from master nodes to replica.
+-                Updates to master pool machine node will be sent to replicas
+-                within fops. Replicas will updates their state according to
+-                those fops.
++		distributed transaction manager. This will insure the updates
++		can survive system failures.
+ 
+    <hr>
+    @section pool_mach_store_replica-ut Unit Tests
+diff --git a/pool/pool_fops.c b/pool/pool_fops.c
+deleted file mode 100644
+index 48c25be..0000000
+--- a/pool/pool_fops.c
++++ /dev/null
+@@ -1,47 +0,0 @@
+-/* -*- C -*- */
+-/*
+- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+- *
+- * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+- * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+- * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+- * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+- * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+- * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+- * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+- *
+- * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+- * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+- * http://www.xyratex.com/contact
+- *
+- * Original author: Huang Hua <Hua_Huang@xyratex.com>
+- * Original creation date: 05/03/2013
+- */
+-
+-#undef M0_TRACE_SUBSYSTEM
+-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_POOL
+-#include "lib/trace.h"      /* M0_LOG */
+-#include "lib/errno.h"
+-#include "lib/memory.h"
+-#include "pool/pool.h"
+-#include "lib/misc.h"
+-
+-/**
+-   @addtogroup pool
+-
+-   @{
+- */
+-
+-
+-#undef M0_TRACE_SUBSYSTEM
+-/** @} end group pool */
+-
+-/*
+- *  Local variables:
+- *  c-indentation-style: "K&R"
+- *  c-basic-offset: 8
+- *  tab-width: 8
+- *  fill-column: 80
+- *  scroll-step: 1
+- *  End:
+- */
+diff --git a/pool/pool_store.c b/pool/pool_store.c
+index 774eee0..48990fe 100644
+--- a/pool/pool_store.c
++++ b/pool/pool_store.c
+@@ -244,9 +244,9 @@ M0_INTERNAL int m0_poolmach_store(struct m0_poolmach *pm,
+ 				pm->pm_state.pst_nodes_array[i].pn_state;
+ 		/* poolnode_rec[i].pn_node_id = uuid */
+ 	}
+-	rc = load_from_db(&pm->pm_table, tx, &poolmach_node_state_key,
+-			  poolnode_rec,
+-			  nr_nodes * sizeof (*poolnode_rec));
++	rc = store_into_db(&pm->pm_table, tx, &poolmach_node_state_key,
++			   poolnode_rec,
++			   nr_nodes * sizeof (*poolnode_rec));
+ 	if (rc != 0)
+ 		goto out_free;
+ 
+-- 
+1.8.3.2
+

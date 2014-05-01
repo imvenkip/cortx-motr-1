@@ -1,0 +1,401 @@
+From cdde31f6cf2fcefba0932d7cf49bca0b33033056 Mon Sep 17 00:00:00 2001
+From: Zishan Shaikh <zishan_shaikh@xyratex.com>
+Date: Tue, 19 Feb 2013 07:25:22 -0800
+Subject: [PATCH 53/94] Fixed handle store ut to work with new m0_be_hs_update
+ implementation
+
+---
+ be/be_types.h        |  2 +-
+ be/handler.c         | 10 +++++-----
+ be/helper.c          | 13 +++++++++----
+ be/kv_store.c        | 29 ++++++++++++++++++-----------
+ be/seg.c             |  3 +--
+ be/ut/Makefile.sub   |  5 +++--
+ be/ut/handle_store.c | 36 +++++++++++++++++++++++++++++-------
+ be/ut/kv_store.c     | 13 +++++--------
+ utils/ut_main.c      |  2 +-
+ 9 files changed, 72 insertions(+), 41 deletions(-)
+
+diff --git a/be/be_types.h b/be/be_types.h
+index 80f4e3a..9bda3b9 100644
+--- a/be/be_types.h
++++ b/be/be_types.h
+@@ -34,7 +34,7 @@ struct m0_be_reference {
+         void             *be_virtual_address;
+         /* Higher 64 bit segment id & lower 64 bit offset within the segment */
+         struct m0_uint128 be_segid_offset;
+-        /* 
++        /*
+          * Set to domain magic when the object is allocated memory via be_alloc
+          */
+         uint64_t          be_magic;
+diff --git a/be/handler.c b/be/handler.c
+index 15cbaa7..bd5cae7 100644
+--- a/be/handler.c
++++ b/be/handler.c
+@@ -49,7 +49,7 @@ M0_INTERNAL void enqueue_cb(struct m0_be_sm_obj *be_sm_obj, int type)
+                         m0_be_runq_tlink_init(be_sm_obj);
+                         is_empty = m0_be_runq_tlist_is_empty(&be_sm_runq);
+ 
+-                        if(is_empty == true)
++                        if (is_empty == true)
+                                 m0_be_runq_tlist_add(&be_sm_runq, be_sm_obj);
+                         else
+                                 m0_be_runq_tlist_add_tail(&be_sm_runq,
+@@ -60,7 +60,7 @@ M0_INTERNAL void enqueue_cb(struct m0_be_sm_obj *be_sm_obj, int type)
+                         m0_be_waitq_tlink_init(be_sm_obj);
+                         is_empty = m0_be_waitq_tlist_is_empty(&be_sm_waitq);
+ 
+-                        if(is_empty == true)
++                        if (is_empty == true)
+                                 m0_be_waitq_tlist_add(&be_sm_waitq, be_sm_obj);
+                         else
+                                 m0_be_waitq_tlist_add_tail(&be_sm_waitq,
+@@ -78,7 +78,7 @@ M0_INTERNAL struct m0_be_sm_obj *m0_sm_dequeue_obj(struct m0_sm_group *sm_group)
+ 
+         if (m0_be_runq_tlist_is_empty(&be_sm_runq)) {
+                 m0_tl_for(m0_be_waitq, &be_sm_waitq, scan) {
+-                        if(scan == NULL)
++                        if (scan == NULL)
+                                 break;
+                         be_sm_obj = (struct m0_be_sm_obj *)scan;
+                         m0_be_waitq_tlink_del_fini(be_sm_obj);
+@@ -91,8 +91,8 @@ M0_INTERNAL struct m0_be_sm_obj *m0_sm_dequeue_obj(struct m0_sm_group *sm_group)
+ 
+         be_sm_obj  = NULL;
+         scan       = NULL;
+-        be_sm_obj = m0_be_runq_tlist_tail(&be_sm_runq);
+-        if(be_sm_obj != NULL)
++        be_sm_obj  = m0_be_runq_tlist_tail(&be_sm_runq);
++        if (be_sm_obj != NULL)
+                 m0_be_runq_tlink_del_fini(be_sm_obj);
+ 
+         m0_sm_group_unlock(sm_group);
+diff --git a/be/helper.c b/be/helper.c
+index f96b67d..712dc32 100644
+--- a/be/helper.c
++++ b/be/helper.c
+@@ -113,7 +113,7 @@ M0_INTERNAL void m0_be_ks_prep_link_reg(struct m0_be_domain    *dom,
+ {
+         struct m0_be_seg        *seg = NULL;
+         struct m0_sm_group      *sm_group;
+-        struct m0_be_buf         buf;
++        struct m0_be_buf        *buf;
+         bool                     ret_val;
+ 
+         M0_ENTRY();
+@@ -126,9 +126,14 @@ M0_INTERNAL void m0_be_ks_prep_link_reg(struct m0_be_domain    *dom,
+ 
+         M0_ALLOC_PTR((*reg));
+         M0_ASSERT(*reg != NULL);
+-        buf.b_nob = sizeof *link;
+-        buf.b_addr = (void *)link;
+-        m0_be_reg_init(*reg, tx, seg, &buf);
++
++        M0_ALLOC_PTR(buf);
++        M0_ASSERT(buf != NULL);
++
++        buf->b_nob = sizeof *link;
++        buf->b_addr = (void *)link;
++        m0_be_reg_init(*reg, tx, seg, buf);
++        m0_free(buf);
+         M0_LEAVE();
+ }
+ M0_EXPORTED(m0_be_ks_prep_link);
+diff --git a/be/kv_store.c b/be/kv_store.c
+index 4656884..a10ca1a 100644
+--- a/be/kv_store.c
++++ b/be/kv_store.c
+@@ -134,13 +134,18 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_ks_opdata *bk_opdata)
+         struct m0_tl_descr          *descr;
+         struct m0_be_hs_opdata      *bh_opdata;
+         struct m0_be_buf            *rvm_handle_buf;
+-        int                          ret_val;
+ 
+         M0_ENTRY();
+ 
+-        handle = *bk_opdata->bko_handle;
+-        dom    = handle->ks_handle_heap.ksh_dom;
+-        descr  = handle->ks_handle_heap.ksh_list_descr;
++        handle         = *bk_opdata->bko_handle;
++        dom            = handle->ks_handle_heap.ksh_dom;
++        descr          = handle->ks_handle_heap.ksh_list_descr;
++        rvm_handle_seg = bk_opdata->bko_seg;
++
++        M0_ASSERT(dom    != NULL);
++        M0_ASSERT(descr  != NULL);
++        M0_ASSERT(handle != NULL);
++        M0_ASSERT(rvm_handle_seg != NULL);
+ 
+         M0_ALLOC_PTR(tx);
+         M0_ASSERT(tx != NULL);
+@@ -148,14 +153,8 @@ M0_INTERNAL void m0_be_ks_create_handle(struct m0_be_ks_opdata *bk_opdata)
+         M0_ALLOC_PTR(rvm_handle_buf);
+         M0_ASSERT(rvm_handle_buf != NULL);
+ 
+-        /* Lookup for the kv_store segment. */
+         sm_group = m0_be_domain_sm_group(dom);
+ 
+-        ret_val = m0_be_domain_lookup(dom, BE_KV_SEG_NAME, &rvm_handle_seg);
+-
+-        M0_ASSERT(ret_val == true);
+-        M0_ASSERT(rvm_handle_seg != NULL);
+-
+         m0_be_tx_init(tx, dom, 0);
+ 
+         /* Prepare a region for the rvm_handle. */
+@@ -268,6 +267,7 @@ M0_INTERNAL void m0_be_ks_init(struct m0_be_kv_store **handle,
+                 m0_be_domain_seg_restore(dom, BE_KV_SEG_NAME, rvm_handle_seg);
+         } else {
+                 /* Lookup for the kv_store segment. If not found, create one */
++                /* @todo: segment name is hardcoded for now */
+                 ret_val = m0_be_domain_lookup(dom, BE_KV_SEG_NAME,
+                                               &rvm_handle_seg);
+                 if (ret_val != true) {
+@@ -716,6 +716,8 @@ M0_INTERNAL void m0_be_ksi_handle_cb(void *cb_data)
+         char                    *mode;
+         bool                     ret_val;
+ 
++        M0_ENTRY();
++
+         bk_opdata = (struct m0_be_ks_opdata *)cb_data;
+ 
+         handle = *bk_opdata->bko_handle;
+@@ -737,11 +739,13 @@ M0_INTERNAL void m0_be_ksi_handle_cb(void *cb_data)
+         /* Create handle */
+         if (ret_val == false && strcasecmp(mode, "create") == 0) {
+                 m0_be_ks_create_handle(cb_data);
+-                return;
++                goto exit;
+         }
+ 
+         /* Complete the kv-store initialisation process */
+         m0_be_ksi_sm_cb(cb_data);
++exit:
++        M0_LEAVE();
+ }
+ 
+ M0_INTERNAL void m0_be_ksi_hs_cb(void *cb_data)
+@@ -814,6 +818,8 @@ M0_INTERNAL void m0_be_ksi_sm_cb(void *cb_data)
+         struct m0_be_kv_store   *handle;
+         struct m0_sm_group      *sm_group;
+ 
++        M0_ENTRY();
++
+         bk_opdata = (struct m0_be_ks_opdata *)cb_data;
+ 
+         handle = *bk_opdata->bko_handle;
+@@ -829,6 +835,7 @@ M0_INTERNAL void m0_be_ksi_sm_cb(void *cb_data)
+         m0_sm_group_unlock(sm_group);
+ 
+         m0_free(cb_data);
++        M0_LEAVE();
+ }
+ 
+ #undef M0_TRACE_SUBSYSTEM
+diff --git a/be/seg.c b/be/seg.c
+index 512c2b6..0925ebc 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -218,7 +218,6 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
+                 m0_be_seg_tlink_del_fini(seg);
+ 
+         m0_free(seg);
+-        M0_POST(m0_be_seg_invariant(seg));
+         M0_LEAVE();
+ }
+ 
+@@ -296,7 +295,7 @@ M0_INTERNAL void m0_be_seg_create_cb(void *cb_data)
+         struct  m0_stob_id        stob_id;
+         int                       result;
+         int                       err;
+-        enum m0_be_seg_state      seg_state;
++        enum m0_be_seg_state      seg_state = 0;
+ 
+ 
+         seg                     = (struct m0_be_seg *)cb_data;
+diff --git a/be/ut/Makefile.sub b/be/ut/Makefile.sub
+index 5318e25..2726512 100644
+--- a/be/ut/Makefile.sub
++++ b/be/ut/Makefile.sub
+@@ -1,4 +1,5 @@
+ #be/ut/handle_store.c
+-ut_libmero_ut_la_SOURCES += be/ut/be.c		 \
+-			    be/ut/kv_store.c	 \
++ut_libmero_ut_la_SOURCES += be/ut/be.c			\
++			    be/ut/kv_store.c		\
++			    be/ut/handle_store.c	\
+ 			    be/ut/kv_store_ub.c
+diff --git a/be/ut/handle_store.c b/be/ut/handle_store.c
+index afa887d..6b88bdf 100644
+--- a/be/ut/handle_store.c
++++ b/be/ut/handle_store.c
+@@ -42,13 +42,15 @@ struct m0_be_tx          tx;
+ struct m0_sm_group      *sm_group;
+ struct m0_be_reg         reg;
+ struct m0_be_buf         buf;
++struct m0_be_hs_opdata  *bh_opdata;
++struct m0_uint128       *kvstore;
+ 
+ char hs_cmd[1024];
+ static const char      *stob_dir  = "./__be/o";
+ static const char      *stob_file = "0000000000000000.0000000000000001";
+ extern const char      *log_file;
+ 
+-static int ts_be_init(void)   /* ts_ for "test suite" */
++static int ts_be_init(void)
+ {
+         int  rc = 0;
+         bool result;
+@@ -81,6 +83,8 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         if (result == false) {
+                 M0_ALLOC_PTR(seg);
+                 m0_be_seg_init(seg, &dom, sm_group, 0);
++                seg->bs_impl.cb         = NULL;
++                seg->bs_impl.cbdata     = NULL;
+                 m0_be_seg_create(seg, NULL,  "first", NULL);
+         }
+ 
+@@ -93,6 +97,7 @@ static int ts_be_init(void)   /* ts_ for "test suite" */
+         if (m0_be_seg_state(seg) == M0_BESEG_FAILED) {
+                 rc = -1;
+         }
++        M0_ALLOC_PTR(kvstore);
+ 
+         return rc;
+ }
+@@ -111,6 +116,7 @@ static int ts_be_fini(void)
+         sprintf(hs_cmd, "rm -rf %s", stob_dir);
+         rc = system(hs_cmd);
+         M0_ASSERT(rc == 0);
++        m0_free(kvstore);
+ 
+         return rc;
+ }
+@@ -120,14 +126,30 @@ static void test_be_handlestore()
+         int i;
+ 
+         for (i = 0; i < 10; i++) {
+-                struct m0_uint128 kvstore;
+-                kvstore.u_hi = 1 + i;
+-                kvstore.u_lo = 88779911231 + i;
+-                m0_be_hs_update(seg, i, &kvstore);
++                /*
++                 * Need to allocate everytime, as we free it in last call back
++                 * in m0_be_hs_update
++                 */
++                M0_ALLOC_PTR(bh_opdata);
++                kvstore->u_hi = 1 + i;
++                kvstore->u_lo = 88779911231 + i;
++
++                /*
++                 * Prepare call back data and function to be used by
++                 * m0_be_hs_update() and its callback routine
++                 */
++                bh_opdata->bho_index                = i;
++                bh_opdata->bho_segid_offset         = kvstore;
++                bh_opdata->bho_seg                  = seg;
++
++                bh_opdata->bho_cbdata           = NULL;
++                bh_opdata->bho_cb               = NULL;
++
++                m0_be_hs_update(bh_opdata);
+         }
+         for (i = 0; i < 10; i = i+2) {
+-                struct m0_uint128 *kvstore = m0_be_hs_get(seg, i);
+-                M0_ASSERT(kvstore != NULL);
++                struct m0_uint128 *kvs = m0_be_hs_get(seg, i);
++                M0_ASSERT(kvs != NULL);
+         }
+ }
+ 
+diff --git a/be/ut/kv_store.c b/be/ut/kv_store.c
+index b4c5c93..75939d2 100644
+--- a/be/ut/kv_store.c
++++ b/be/ut/kv_store.c
+@@ -35,9 +35,8 @@
+ #include "be/be_private.h"
+ #include "be/handle_store.h"
+ #include "be/helper.h"
+-#include <stdio.h>
+-#include <stdlib.h>
+ #include <string.h>
++#include <stdlib.h>
+ #define MAX_KEY_SIZE 256
+ 
+ /** User defined structure. */
+@@ -67,6 +66,7 @@ static const char          *stob_dir  = "./__be/o";
+ static const char          *stob_file = "0000000000000000.0000000000000001";
+ extern const char          *log_file;
+ char                        kv_cmd[1024];
++int                         kv_val;
+ 
+ /** Key compare routine. */
+ int function_comp(void *key1, void *key2)
+@@ -151,6 +151,8 @@ static int insert(char *key_name, int val)
+         struct m0_be_buf        *obj_buf;
+         struct m0_sm_group      *sm_group;
+ 
++        kv_val = val;
++
+         M0_ALLOC_PTR(tx);
+ 
+         if (tx == NULL) {
+@@ -186,7 +188,7 @@ static int insert(char *key_name, int val)
+ 
+         /* Make changes to object */
+         strncpy(object[val]->key, key_name, strlen(key_name));
+-        object[val]->obj_val = val;
++        object[val]->obj_val = kv_val;
+ 
+         /* Insert this into the kv_store */
+         status = m0_be_ks_insert(handle, obj_ref, tx);
+@@ -197,7 +199,6 @@ static int insert(char *key_name, int val)
+         m0_be_tx_done(tx);
+         m0_be_wait(sm_group, &tx->bt_sm,
+                    M0_BITS(M0_BETX_DONE, M0_BETX_FAILED));
+-
+         m0_be_tx_fini(tx);
+         m0_free(tx);
+         m0_free(obj_reg);
+@@ -335,7 +336,6 @@ void test_kv_store()
+         length = m0_tlist_length(&kv_list_descr,
+                                  &handle->ks_handle_rvm->ksr_tlist);
+         M0_ASSERT(length == 1024);
+-        printf("Inserted %ld objects!!\n", length);
+ 
+         /* Find the inserted objects */
+         strcpy(obj_name, "a");
+@@ -355,8 +355,6 @@ void test_kv_store()
+         strcat(obj_name, "e");
+         __find(768, 1024, obj_name, "d", "dkv");
+ 
+-        printf("Found %ld objects!!\n", length);
+-
+         /* Delete'em */
+         for(i =0; i < 1024; i++) {
+                 status = delete(ret_obj[i]);
+@@ -366,7 +364,6 @@ void test_kv_store()
+                                  &handle->ks_handle_rvm->ksr_tlist);
+ 
+         M0_ASSERT(length == 0);
+-        printf("Deleted all of them!!\n");
+ }
+ 
+ const struct m0_test_suite be_kv_store_ut = {
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 790c538..3c05a5b 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -96,7 +96,7 @@ void add_uts(void)
+         m0_ut_add(&ad_ut);
+         m0_ut_add(&adieu_ut);
+         /*m0_ut_add(&be_hs_ut);*/
+-        /*m0_ut_add(&be_kv_store_ut);*/
++        m0_ut_add(&be_kv_store_ut);
+         /*m0_ut_add(&be_ut);*/
+ 	m0_ut_add(&balloc_ut);
+         m0_ut_add(&buffer_pool_ut);
+-- 
+1.8.3.2
+

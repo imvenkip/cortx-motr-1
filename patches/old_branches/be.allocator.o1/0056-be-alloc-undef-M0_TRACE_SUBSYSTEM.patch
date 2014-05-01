@@ -1,0 +1,25 @@
+From d0e79013ed16adb5c99773690d839a729076856d Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 14 Jan 2014 22:47:11 +0200
+Subject: [PATCH 56/96] be/alloc: #undef M0_TRACE_SUBSYSTEM
+
+---
+ be/alloc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 51596c1..8a635de 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -817,6 +817,8 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
+ 	/** @todo PUT_PTR a->ba_h */
+ }
+ 
++#undef M0_TRACE_SUBSYSTEM
++
+ /** @} end of be group */
+ /*
+  *  Local variables:
+-- 
+1.8.3.2
+

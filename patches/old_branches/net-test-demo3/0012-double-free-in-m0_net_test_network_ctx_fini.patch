@@ -1,0 +1,24 @@
+From dfa2a951fb56e821143bccd1a2e231de3c9eaabe Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Fri, 25 Jan 2013 19:51:01 +0200
+Subject: [PATCH 12/99] double-free in m0_net_test_network_ctx_fini
+
+---
+ net/test/network.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/test/network.c b/net/test/network.c
+index 16f69b1..88b666f 100644
+--- a/net/test/network.c
++++ b/net/test/network.c
+@@ -395,7 +395,6 @@ void m0_net_test_network_ctx_fini(struct m0_net_test_network_ctx *ctx)
+ 	m0_net_tm_fini(ctx->ntc_tm);
+ 	m0_free(ctx->ntc_tm);
+ 	m0_net_domain_fini(ctx->ntc_dom);
+-	m0_free(ctx->ntc_tm);
+ 	m0_free(ctx->ntc_dom);
+ }
+ 
+-- 
+1.8.3.2
+

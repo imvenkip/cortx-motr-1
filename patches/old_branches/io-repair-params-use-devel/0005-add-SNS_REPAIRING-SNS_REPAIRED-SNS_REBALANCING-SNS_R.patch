@@ -1,0 +1,421 @@
+From c6d4c476632cf29f19cd53675fd3d087baec4416 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Thu, 15 Nov 2012 17:15:31 +0800
+Subject: [PATCH 05/10] add SNS_REPAIRING, SNS_REPAIRED, SNS_REBALANCING,
+ SNS_REBALANCED states. add interfaces to query device/node state. add
+ interfaces to query sns repair spare slot and sns rebalance slot.
+
+---
+ pool/pool.c       | 208 +++++++++++++++++++++++++++++++++++++++++++++++++++---
+ pool/pool.h       |  88 ++++++++++++++++++++++-
+ pool/ut/test_pm.c |   2 +-
+ 3 files changed, 285 insertions(+), 13 deletions(-)
+
+diff --git a/pool/pool.c b/pool/pool.c
+index 2f70bb6..fb5f6c8 100644
+--- a/pool/pool.c
++++ b/pool/pool.c
+@@ -92,26 +92,55 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+ 	pm->pm_state.pst_version.pvn_version[PVE_READ]  = 0;
+ 	pm->pm_state.pst_version.pvn_version[PVE_WRITE] = 0;
+ 	pm->pm_state.pst_nr_nodes = 1;
++	pm->pm_state.pst_nr_devices = 10;
++	pm->pm_state.pst_max_node_failures = 1;
++	pm->pm_state.pst_max_device_failures = 1;
+ 	pm->pm_state.pst_nodes_array = c2_alloc(pm->pm_state.pst_nr_nodes *
+ 						sizeof (struct c2_poolnode));
++	pm->pm_state.pst_devices_array = c2_alloc(pm->pm_state.pst_nr_devices *
++						  sizeof (struct c2_pooldev));
++
++	pm->pm_state.pst_repair_spare_list
++			= c2_alloc(pm->pm_state.pst_max_device_failures *
++				   sizeof (struct c2_pool_spare_pair));
++	pm->pm_state.pst_rebalance_spare_list
++			= c2_alloc(pm->pm_state.pst_max_device_failures *
++				   sizeof (struct c2_pool_spare_pair));
++	if (pm->pm_state.pst_nodes_array == NULL ||
++	    pm->pm_state.pst_devices_array == NULL ||
++	    pm->pm_state.pst_repair_spare_list == NULL ||
++	    pm->pm_state.pst_rebalance_spare_list == NULL) {
++		/* c2_free(NULL) is valid */
++		c2_free(pm->pm_state.pst_nodes_array);
++		c2_free(pm->pm_state.pst_devices_array);
++		c2_free(pm->pm_state.pst_repair_spare_list);
++		c2_free(pm->pm_state.pst_rebalance_spare_list);
++		return -ENOMEM;
++	}
++
+ 	for (i = 0; i < pm->pm_state.pst_nr_nodes; i++) {
+ 		pm->pm_state.pst_nodes_array[i].pn_state = C2_PNDS_ONLINE;
+ 		/* TODO use real node id */
+-		pm->pm_state.pst_nodes_array[i].pn_id = NULL;
++		pm->pm_state.pst_nodes_array[i].pn_id    = NULL;
+ 	}
+ 
+-	pm->pm_state.pst_nr_devices = 10;
+-	pm->pm_state.pst_devices_array = c2_alloc(pm->pm_state.pst_nr_devices *
+-						  sizeof (struct c2_pooldev));
+ 	for (i = 0; i < pm->pm_state.pst_nr_devices; i++) {
+ 		pm->pm_state.pst_devices_array[i].pd_state = C2_PNDS_ONLINE;
+ 		/* TODO use real device id */
+-		pm->pm_state.pst_devices_array[i].pd_id = NULL;
+-		pm->pm_state.pst_devices_array[i].pd_node = NULL;
++		pm->pm_state.pst_devices_array[i].pd_id    = NULL;
++		pm->pm_state.pst_devices_array[i].pd_node  = NULL;
++	}
++
++	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
++		pm->pm_state.pst_repair_spare_list[i].psp_device_index = 0xFFFFFFFF;
++		pm->pm_state.pst_repair_spare_list[i].psp_spare_slot   = 0xFFFFFFFF;
++	}
++
++	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
++		pm->pm_state.pst_rebalance_spare_list[i].psp_device_index = 0xFFFFFFFF;
++		pm->pm_state.pst_rebalance_spare_list[i].psp_spare_slot   = 0xFFFFFFFF;
+ 	}
+ 
+-	pm->pm_state.pst_max_node_failures = 1;
+-	pm->pm_state.pst_max_device_failures = 1;
+ 	poolmach_events_tlist_init(&pm->pm_state.pst_events_list);
+ 
+ 	c2_rwlock_init(&pm->pm_lock);
+@@ -134,6 +163,9 @@ void c2_poolmach_fini(struct c2_poolmach *pm)
+ 		c2_free(scan->pel_event);
+ 		c2_free(scan);
+ 	} c2_tl_endfor;
++
++	c2_free(pm->pm_state.pst_rebalance_spare_list);
++	c2_free(pm->pm_state.pst_repair_spare_list);
+ 	c2_free(pm->pm_state.pst_devices_array);
+ 	c2_free(pm->pm_state.pst_nodes_array);
+ 	c2_rwlock_write_unlock(&pm->pm_lock);
+@@ -142,12 +174,34 @@ void c2_poolmach_fini(struct c2_poolmach *pm)
+ 	c2_rwlock_fini(&pm->pm_lock);
+ }
+ 
++
++/**
++ * The state transition path:
++ *
++ *       +--------> OFFLINE
++ *       |            |
++ *       |            |
++ *       v            v
++ *    ONLINE -----> FAILED --> SNS_REPAIRING --> SNS_REPAIRED
++ *       ^                                            |
++ *       |                                            |
++ *       |                                            v
++ *       |                                       SNS_REBALANCING
++ *       |                                            |
++ *       ^                                            |
++ *       |                                            v
++ *       |                                       SNS_REBALANCED
++ *       |                                            |
++ *       |                                            v
++ *       +------------------<-------------------------+
++ */
+ int c2_poolmach_state_transit(struct c2_poolmach *pm,
+ 			      struct c2_pool_event *event)
+ {
+ 	struct c2_poolmach_state  *pm_state;
+ 	struct c2_pool_event      *new_event;
+ 	struct c2_pool_event_link *event_link;
++	enum c2_pool_nd_state      old_state;
+ 	int                        rc = 0;
+ 	C2_PRE(pm != NULL);
+ 	C2_PRE(event != NULL);
+@@ -156,15 +210,64 @@ int c2_poolmach_state_transit(struct c2_poolmach *pm,
+ 
+ 	if (!C2_IN(event->pe_type, (C2_POOL_NODE, C2_POOL_DEVICE)))
+ 		return -EINVAL;
+-	if (!C2_IN(event->pe_state, (C2_PNDS_ONLINE, C2_PNDS_FAILED,
+-				     C2_PNDS_OFFLINE, C2_PNDS_RECOVERING)))
++
++	if (!C2_IN(event->pe_state, (C2_PNDS_ONLINE,
++				     C2_PNDS_FAILED,
++				     C2_PNDS_OFFLINE,
++				     C2_PNDS_SNS_REPAIRING,
++				     C2_PNDS_SNS_REPAIRED,
++				     C2_PNDS_SNS_REBALANCING,
++				     C2_PNDS_SNS_REBALANCED)))
+ 		return -EINVAL;
++
+ 	if ((event->pe_type == C2_POOL_NODE &&
+ 	     event->pe_index >= pm_state->pst_nr_nodes) ||
+ 	    (event->pe_type == C2_POOL_DEVICE &&
+ 	     event->pe_index >= pm_state->pst_nr_devices))
+ 		return -EINVAL;
+ 
++	if (event->pe_type == C2_POOL_NODE) {
++		old_state = pm_state->pst_nodes_array[event->pe_index].pn_state;
++	} else if (event->pe_type == C2_POOL_DEVICE) {
++		old_state =
++			pm_state->pst_devices_array[event->pe_index].pd_state;
++	}
++
++	switch (old_state) {
++	case C2_PNDS_ONLINE:
++		if (!C2_IN(event->pe_state, (C2_PNDS_OFFLINE,
++					     C2_PNDS_FAILED)))
++			return -EINVAL;
++		break;
++	case C2_PNDS_OFFLINE:
++		if (!C2_IN(event->pe_state, (C2_PNDS_ONLINE,
++					     C2_PNDS_FAILED)))
++			return -EINVAL;
++		break;
++	case C2_PNDS_FAILED:
++		if (!C2_IN(event->pe_state, (C2_PNDS_SNS_REPAIRING)))
++			return -EINVAL;
++		break;
++	case C2_PNDS_SNS_REPAIRING:
++		if (!C2_IN(event->pe_state, (C2_PNDS_SNS_REPAIRED)))
++			return -EINVAL;
++		break;
++	case C2_PNDS_SNS_REPAIRED:
++		if (!C2_IN(event->pe_state, (C2_PNDS_SNS_REBALANCING)))
++			return -EINVAL;
++		break;
++	case C2_PNDS_SNS_REBALANCING:
++		if (!C2_IN(event->pe_state, (C2_PNDS_SNS_REBALANCED)))
++			return -EINVAL;
++		break;
++	case C2_PNDS_SNS_REBALANCED:
++		if (!C2_IN(event->pe_state, (C2_PNDS_ONLINE)))
++			return -EINVAL;
++		break;
++	default:
++		return -EINVAL;
++	}
++
+ 	/* Step 1: lock the poolmach */
+ 	c2_rwlock_write_lock(&pm->pm_lock);
+ 
+@@ -281,6 +384,91 @@ int c2_poolmach_current_version_get(struct c2_poolmach *pm,
+ 	return 0;
+ }
+ 
++int c2_poolmach_device_state(struct c2_poolmach *pm,
++			     uint32_t device_index,
++			     enum c2_pool_nd_state *state_out)
++{
++	C2_PRE(pm != NULL && state_out != NULL);
++
++	if (device_index >= pm->pm_state.pst_nr_devices)
++		return -EINVAL;
++
++	c2_rwlock_read_lock(&pm->pm_lock);
++	*state_out = pm->pm_state.pst_devices_array[device_index].pd_state;
++	c2_rwlock_read_unlock(&pm->pm_lock);
++	return 0;
++}
++
++int c2_poolmach_node_state(struct c2_poolmach *pm,
++			   uint32_t node_index,
++			   enum c2_pool_nd_state *state_out)
++{
++	C2_PRE(pm != NULL && state_out != NULL);
++
++	if (node_index >= pm->pm_state.pst_nr_nodes)
++		return -EINVAL;
++
++	c2_rwlock_read_lock(&pm->pm_lock);
++	*state_out = pm->pm_state.pst_nodes_array[node_index].pn_state;
++	c2_rwlock_read_unlock(&pm->pm_lock);
++
++	return 0;
++}
++
++int c2_poolmach_sns_repair_spare_query(struct c2_poolmach *pm,
++				       uint32_t device_index,
++				       uint32_t *spare_slot_out)
++{
++	struct c2_pool_spare_pair *repair_spare_list;
++	uint32_t i;
++	int      rc;
++	C2_PRE(pm != NULL && spare_slot_out != NULL);
++
++	if (device_index >= pm->pm_state.pst_max_device_failures)
++		return -EINVAL;
++
++	rc = -ENOENT;
++	repair_spare_list = pm->pm_state.pst_repair_spare_list;
++	c2_rwlock_read_lock(&pm->pm_lock);
++	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
++		if (repair_spare_list[i].psp_device_index == device_index) {
++			*spare_slot_out = repair_spare_list[i].psp_spare_slot;
++			rc = 0;
++			break;
++		}
++	}
++	c2_rwlock_read_unlock(&pm->pm_lock);
++
++	return rc;
++}
++
++int c2_poolmach_sns_rebalance_spare_query(struct c2_poolmach *pm,
++					  uint32_t device_index,
++					  uint32_t *spare_slot_out)
++{
++	struct c2_pool_spare_pair *rebalance_spare_list;
++	uint32_t i;
++	int      rc;
++	C2_PRE(pm != NULL && spare_slot_out != NULL);
++
++	if (device_index >= pm->pm_state.pst_max_device_failures)
++		return -EINVAL;
++
++	rc = -ENOENT;
++	rebalance_spare_list = pm->pm_state.pst_rebalance_spare_list;
++	c2_rwlock_read_lock(&pm->pm_lock);
++	for (i = 0; i < pm->pm_state.pst_max_device_failures; i++) {
++		if (rebalance_spare_list[i].psp_device_index == device_index) {
++			*spare_slot_out = rebalance_spare_list[i].psp_spare_slot;
++			rc = 0;
++			break;
++		}
++	}
++	c2_rwlock_read_unlock(&pm->pm_lock);
++
++	return rc;
++}
++
+ int c2_poolmach_current_state_get(struct c2_poolmach *pm,
+ 				  struct c2_poolmach_state **state_copy)
+ {
+diff --git a/pool/pool.h b/pool/pool.h
+index e1a9634..83a0737 100644
+--- a/pool/pool.h
++++ b/pool/pool.h
+@@ -96,8 +96,26 @@ enum c2_pool_nd_state {
+ 	/** a node/device turned off-line by an administrative request */
+ 	C2_PNDS_OFFLINE,
+ 
+-	/** a node/device is active, but not yet serving IO */
+-	C2_PNDS_RECOVERING,
++	/** a node/device is active in sns repair. */
++	C2_PNDS_SNS_REPAIRING,
++
++	/**
++	 * a node/device completed sns repair. Its data is re-constructed
++	 * on its corresponding spare space
++	 */
++	C2_PNDS_SNS_REPAIRED,
++
++	/** a node/device is active in sns re-balance. */
++	C2_PNDS_SNS_REBALANCING,
++
++	/**
++	 * a node/device completed sns re-rebalance. Its data is copyied
++	 * back to its original location. This usually happens when a
++	 * new device replaced a failed device and re-balance completed.
++	 * After this, the device can be set to ONLINE, and its corresponding
++	 * space space can be returned to pool.
++	 */
++	C2_PNDS_SNS_REBALANCED,
+ 
+ 	/** number of state */
+ 	C2_PNDS_NR
+@@ -205,6 +223,20 @@ struct c2_pool_event_link {
+ };
+ 
+ /**
++ * A pair of device and spare slot, used to track device in repair or rebalance
++ * state. Unused pair is filled with {-1, -1};
++ */
++struct c2_pool_spare_pair {
++	/** device index to track */
++	uint32_t psp_device_index;
++
++	/** its corresponding spare slot. Valid spare slots are in the range of
++	 * [0, c2_poolmach_state::pst_max_device_failures - 1];
++	 */
++	uint32_t psp_spare_slot;
++};
++
++/**
+  * Persistent pool machine state.
+  *
+  * Copies of this struct are maintained by every node that thinks it is a part
+@@ -239,6 +271,18 @@ struct c2_poolmach_state {
+ 	uint32_t                       pst_max_device_failures;
+ 
+ 	/**
++	 * {repair device, spare slot} pair lists. This size of this array is
++	 * pst_max_device_failures;
++	 */
++	struct c2_pool_spare_pair     *pst_repair_spare_list;
++
++	/**
++	 * {rebalace device, spare slot} pair lists. This size of this array is
++	 * pst_max_device_failures;
++	 */
++	struct c2_pool_spare_pair     *pst_rebalance_spare_list;
++
++	/**
+ 	 * All Events ever happened to this pool machine, ordered by time.
+ 	 */
+ 	struct c2_tl                   pst_events_list;
+@@ -306,6 +350,46 @@ int c2_poolmach_current_version_get(struct c2_poolmach *pm,
+ 				    struct c2_pool_version_numbers *curr);
+ 
+ /**
++ * Query the current state of a specified device.
++ * @param pm pool machine.
++ * @param device_index the index of the device to query.
++ * @param state_out the output state.
++ */
++int c2_poolmach_device_state(struct c2_poolmach *pm,
++			     uint32_t device_index,
++			     enum c2_pool_nd_state *state_out);
++
++/**
++ * Query the current state of a specified device.
++ * @param pm pool machine.
++ * @param node_index the index of the node to query.
++ * @param state_out the output state.
++ */
++int c2_poolmach_node_state(struct c2_poolmach *pm,
++			   uint32_t node_index,
++			   enum c2_pool_nd_state *state_out);
++
++/**
++ * Query the {sns repair, spare slot} pair of a specified device.
++ * @param pm pool machine.
++ * @param device_index the index of the device to query.
++ * @param spare_slot_out the output spair slot.
++ */
++int c2_poolmach_sns_repair_spare_query(struct c2_poolmach *pm,
++				       uint32_t device_index,
++				       uint32_t *spare_slot_out);
++
++/**
++ * Query the {sns rebalance, spare slot} pair of a specified device.
++ * @param pm pool machine.
++ * @param device_index the index of the device to query.
++ * @param spare_slot_out the output spair slot.
++ */
++int c2_poolmach_sns_rebalance_spare_query(struct c2_poolmach *pm,
++					  uint32_t device_index,
++					  uint32_t *spare_slot_out);
++
++/**
+  * Return a copy of current pool machine state.
+  *
+  * The caller may send the current pool machine state to other services or
+diff --git a/pool/ut/test_pm.c b/pool/ut/test_pm.c
+index 334245f..199b938 100644
+--- a/pool/ut/test_pm.c
++++ b/pool/ut/test_pm.c
+@@ -363,7 +363,7 @@ static void pm_test_transit(void)
+ 	/* invalid event. case 3: invalid state */
+ 	e_invalid.pe_type  = C2_POOL_NODE;
+ 	e_invalid.pe_index = 0;
+-	e_invalid.pe_state = C2_PNDS_RECOVERING + 1;
++	e_invalid.pe_state = C2_PNDS_SNS_REBALANCED + 1;
+ 	rc = c2_poolmach_state_transit(&pm, &e_invalid);
+ 	C2_UT_ASSERT(rc == -EINVAL);
+ 
+-- 
+1.8.3.2
+

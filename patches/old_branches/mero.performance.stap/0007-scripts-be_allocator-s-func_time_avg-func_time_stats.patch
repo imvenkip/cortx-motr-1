@@ -1,0 +1,53 @@
+From cd91c3a9ef415d5bf48534c06209476512ffef76 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 28 Nov 2013 00:05:16 +0200
+Subject: [PATCH 07/13] scripts/be_allocator: s/func_time_avg/func_time_stats/
+
+---
+ scripts/be_allocator.stp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/scripts/be_allocator.stp b/scripts/be_allocator.stp
+index 1245aea..266df98 100644
+--- a/scripts/be_allocator.stp
++++ b/scripts/be_allocator.stp
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env stap
+ 
+ global func_time
+-global func_time_avg
++global func_time_stats
+ 
+ probe	process(@1).function("m0_be_alloc_aligned"),
+ 	process(@1).function("m0_be_free_aligned")
+@@ -14,23 +14,23 @@ probe	process(@1).function("m0_be_alloc_aligned").return,
+ {
+ 	time_elapsed = gettimeofday_ns() - func_time[tid(), ppfunc()]
+ 	delete func_time[tid(), ppfunc()]
+-	func_time_avg[ppfunc()] <<< time_elapsed
++	func_time_stats[ppfunc()] <<< time_elapsed
+ 	// printf("%s %s %s %d\n", m0_timestamp(), ppfunc(), $$parms, time_elapsed)
+ }
+ 
+ function print_allocator_stats()
+ {
+ 	printf("%s\n", tz_ctime(gettimeofday_s()))
+-	foreach (ftime in func_time_avg) {
++	foreach (ftime in func_time_stats) {
+ 		printf("timing histogram for %s, ns\n", ftime)
+-		print(@hist_log(func_time_avg[ftime]))
++		print(@hist_log(func_time_stats[ftime]))
+ 	}
+ }
+ 
+ probe timer.ms(1000)
+ {
+ 	print_allocator_stats()
+-	delete func_time_avg
++	delete func_time_stats
+ }
+ 
+ probe begin
+-- 
+1.8.3.2
+

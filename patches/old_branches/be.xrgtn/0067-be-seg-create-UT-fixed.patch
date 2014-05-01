@@ -1,0 +1,88 @@
+From e30bffd64367fb5c02e7b153a2166d1718ca8e26 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 30 May 2013 18:12:45 +0300
+Subject: [PATCH 067/228] be: seg:create UT fixed
+
+---
+ be/seg.c    |  2 +-
+ be/ut/seg.c | 15 ++++++++-------
+ 2 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/be/seg.c b/be/seg.c
+index bdd960c..0694d58 100644
+--- a/be/seg.c
++++ b/be/seg.c
+@@ -137,7 +137,7 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
+ 	m0_stob_put(seg->bs_stob);
+ 	/* XXX TODO: stob destroy ... */
+ 
+-	return -1; /*XXX*/
++	return 0; /*XXX*/
+ }
+ 
+ M0_INTERNAL void
+diff --git a/be/ut/seg.c b/be/ut/seg.c
+index 79c37dd..6b756c4 100644
+--- a/be/ut/seg.c
++++ b/be/ut/seg.c
+@@ -71,14 +71,14 @@ static void seg_storage_init(void)
+ 	M0_UT_ASSERT(rc == 0);
+ }
+ 
+-static void seg_init_helper(struct m0_be_seg *seg, bool create_stob)
++static void seg_init_helper(struct m0_be_seg *seg, bool stob_create)
+ {
+ 	int rc;
+ 
+ 	rc = m0_linux_stob_domain_locate(seg_ut_storage_dir, &dom);
+ 	M0_UT_ASSERT(rc == 0);
+ 	m0_dtx_init(&dtx);
+-	if (!create_stob) {
++	if (!stob_create) {
+ 		m0_stob_init(&stob_, &id, dom);
+ 		stob = &stob_;
+ 	} else {
+@@ -88,10 +88,11 @@ static void seg_init_helper(struct m0_be_seg *seg, bool create_stob)
+ 	m0_be_seg_init(seg, stob, &be);
+ }
+ 
+-static void seg_fini_helper(struct m0_be_seg *seg)
++static void seg_fini_helper(struct m0_be_seg *seg, bool stob_put)
+ {
+ 	m0_be_seg_fini(seg);
+-	m0_stob_put(stob);
++	if (stob_put)
++		m0_stob_put(stob);
+ 	m0_dtx_fini(&dtx);
+ }
+ 
+@@ -101,7 +102,7 @@ static void test_init_fini(void)
+ 
+ 	seg_storage_init();
+ 	seg_init_helper(&seg, true);
+-	seg_fini_helper(&seg);
++	seg_fini_helper(&seg, true);
+ 	seg_storage_fini();
+ }
+ 
+@@ -116,7 +117,7 @@ static void test_create_destroy(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 	rc = m0_be_seg_destroy(&seg);
+ 	M0_UT_ASSERT(rc == 0);
+-	seg_fini_helper(&seg);
++	seg_fini_helper(&seg, false);
+ 	seg_storage_fini();
+ }
+ 
+@@ -134,7 +135,7 @@ static void test_open_close(void)
+ 	m0_be_seg_close(&seg);
+ 	rc = m0_be_seg_destroy(&seg);
+ 	M0_UT_ASSERT(rc == 0);
+-	seg_fini_helper(&seg);
++	seg_fini_helper(&seg, false);
+ 	seg_storage_fini();
+ }
+ 
+-- 
+1.8.3.2
+

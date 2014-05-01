@@ -1,0 +1,180 @@
+From ac9053a8515642426d202131cba97d0462f26b99 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 30 Aug 2012 23:47:33 +0300
+Subject: [PATCH 348/370] conf: add ut/main.c with `conf_ut' test suite
+
+There used to be two test suites, each containing single test. Nonsense!
+
++ lib/ut/main.c: Sort test suites alphabetically.
+---
+ conf/ut/Makefile.am |  2 +-
+ conf/ut/main.c      | 38 ++++++++++++++++++++++++++++++++++++++
+ conf/ut/obj.c       | 13 +------------
+ conf/ut/reg.c       | 13 +------------
+ lib/ut/main.c       |  4 ++--
+ utils/ut_main.c     |  6 ++----
+ 6 files changed, 45 insertions(+), 31 deletions(-)
+ create mode 100644 conf/ut/main.c
+
+diff --git a/conf/ut/Makefile.am b/conf/ut/Makefile.am
+index dbbaca0..da27eef 100644
+--- a/conf/ut/Makefile.am
++++ b/conf/ut/Makefile.am
+@@ -1,5 +1,5 @@
+ noinst_LTLIBRARIES    = libconf-ut.la
+-libconf_ut_la_SOURCES = obj.c reg.c
++libconf_ut_la_SOURCES = main.c obj.c reg.c
+ libconf_ut_la_LIBADD  = $(top_builddir)/colibri/libcolibri.la
+ 
+ # Preload parser (temporary target)
+diff --git a/conf/ut/main.c b/conf/ut/main.c
+new file mode 100644
+index 0000000..41f4609
+--- /dev/null
++++ b/conf/ut/main.c
+@@ -0,0 +1,38 @@
++/* -*- c -*- */
++/*
++ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
++ *
++ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
++ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
++ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
++ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
++ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
++ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
++ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
++ *
++ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
++ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
++ * http://www.xyratex.com/contact
++ *
++ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
++ * Original creation date: 30-Aug-2012
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++#include "lib/ut.h"
++
++extern void test_obj(void);
++extern void test_reg(void);
++
++const struct c2_test_suite conf_ut = {
++	.ts_name  = "conf-ut",
++	.ts_init  = NULL,
++	.ts_fini  = NULL,
++	.ts_tests = {
++		{ "obj", test_obj },
++		{ "reg", test_reg },
++		{ NULL, NULL }
++	}
++};
+diff --git a/conf/ut/obj.c b/conf/ut/obj.c
+index 23833fe..5f7ee4d 100644
+--- a/conf/ut/obj.c
++++ b/conf/ut/obj.c
+@@ -26,7 +26,7 @@
+ #include "lib/buf.h"
+ #include "lib/ut.h"
+ 
+-static void test_obj_new(void)
++void test_obj(void)
+ {
+ 	struct c2_conf_obj *obj;
+ 	struct c2_conf_reg  reg;
+@@ -50,14 +50,3 @@ static void test_obj_new(void)
+ 	c2_conf_obj_delete(obj);
+ 	c2_conf_reg_fini(&reg, true);
+ }
+-
+-const struct c2_test_suite conf_obj_ut = {
+-	.ts_name  = "conf-obj-ut",
+-	.ts_init  = NULL,
+-	.ts_fini  = NULL,
+-	.ts_tests = {
+-		{ "conf-obj-new", test_obj_new },
+-		{ NULL, NULL }
+-	}
+-};
+-C2_EXPORTED(conf_obj_ut);
+diff --git a/conf/ut/reg.c b/conf/ut/reg.c
+index 6011ec0..a2b90c6 100644
+--- a/conf/ut/reg.c
++++ b/conf/ut/reg.c
+@@ -61,7 +61,7 @@ obj_new(enum c2_conf_objtype type, const struct c2_buf *id)
+ 	return obj;
+ }
+ 
+-static void test_reg(void)
++void test_reg(void)
+ {
+ 	struct c2_conf_reg  reg;
+ 	struct c2_conf_obj *obj;
+@@ -99,14 +99,3 @@ static void test_reg(void)
+ 	c2_conf_reg_fini(&reg, true);
+ 	C2_UT_ASSERT(g_nr_finalised == ARRAY_SIZE(samples));
+ }
+-
+-const struct c2_test_suite conf_reg_ut = {
+-	.ts_name  = "conf-reg-ut",
+-	.ts_init  = NULL,
+-	.ts_fini  = NULL,
+-	.ts_tests = {
+-		{ "conf-reg", test_reg },
+-		{ NULL, NULL }
+-	}
+-};
+-C2_EXPORTED(conf_reg_ut);
+diff --git a/lib/ut/main.c b/lib/ut/main.c
+index c60548d..cf8d90f 100644
+--- a/lib/ut/main.c
++++ b/lib/ut/main.c
+@@ -25,8 +25,10 @@
+ #include "lib/ut.h"
+ 
+ /* sort test suites in alphabetic order */
++extern void c2_ut_lib_buf_test(void);
+ extern void test_atomic(void);
+ extern void test_bitmap(void);
++extern void test_bob(void);
+ extern void test_chan(void);
+ extern void test_cookie(void);
+ extern void test_finject(void);
+@@ -45,8 +47,6 @@ extern void test_tlist(void);
+ extern void test_trace(void);
+ extern void test_vec(void);
+ extern void test_zerovec(void);
+-extern void test_bob(void);
+-extern void c2_ut_lib_buf_test(void);
+ 
+ const struct c2_test_suite libc2_ut = {
+ 	.ts_name = "libc2-ut",
+diff --git a/utils/ut_main.c b/utils/ut_main.c
+index 03984a6..13edb78 100644
+--- a/utils/ut_main.c
++++ b/utils/ut_main.c
+@@ -47,8 +47,7 @@ extern const struct c2_test_suite cfm_ut;
+ extern const struct c2_test_suite cob_ut;
+ extern const struct c2_test_suite cobfoms_ut;
+ extern const struct c2_test_suite colibri_setup_ut;
+-extern const struct c2_test_suite conf_obj_ut;
+-extern const struct c2_test_suite conf_reg_ut;
++extern const struct c2_test_suite conf_ut;
+ extern const struct c2_test_suite console_ut;
+ extern const struct c2_test_suite db_cursor_ut;
+ extern const struct c2_test_suite db_ut;
+@@ -93,8 +92,7 @@ void add_uts(void)
+ 	c2_ut_add(&cob_ut);
+ 	c2_ut_add(&cobfoms_ut);
+ 	c2_ut_add(&colibri_setup_ut);
+-	c2_ut_add(&conf_obj_ut);
+-	c2_ut_add(&conf_reg_ut);
++	c2_ut_add(&conf_ut);
+ 	c2_ut_add(&db_cursor_ut);
+ 	c2_ut_add(&db_ut);
+ 	c2_ut_add(&emap_ut);
+-- 
+1.8.3.2
+

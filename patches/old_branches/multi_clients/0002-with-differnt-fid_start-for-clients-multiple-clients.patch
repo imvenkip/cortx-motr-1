@@ -1,0 +1,149 @@
+From a4c150f961c18fadb92219319f82d025af7d2986 Mon Sep 17 00:00:00 2001
+From: Hua Huang <hua_huang@xyratex.com>
+Date: Wed, 12 Feb 2014 23:37:22 +0800
+Subject: [PATCH 02/26] with differnt fid_start for clients, multiple clients
+ can work.
+
+---
+ m0t1fs/linux_kernel/dir.c                   |  2 +
+ m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh | 65 ++++++++++++++++-------------
+ 2 files changed, 37 insertions(+), 30 deletions(-)
+
+diff --git a/m0t1fs/linux_kernel/dir.c b/m0t1fs/linux_kernel/dir.c
+index 4253af2..9837e2f 100644
+--- a/m0t1fs/linux_kernel/dir.c
++++ b/m0t1fs/linux_kernel/dir.c
+@@ -318,6 +318,8 @@ static int m0t1fs_create(struct inode     *dir,
+ 
+ 	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
+ 	m0t1fs_file_lock_init(ci, csb);
++	if ((inode->i_state & I_NEW) != 0)
++		unlock_new_inode(inode);
+ 
+ 	insert_inode_hash(inode);
+ 	mark_inode_dirty(inode);
+diff --git a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+index 82036dd..96fef9e 100644
+--- a/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
++++ b/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+@@ -1,6 +1,6 @@
+ mount_m0t1fs()
+ {
+-	if [ $# -ne 5 ]
++	if [ $# -ne 5 -a $# -ne 6 ]
+ 	then
+ 		echo "Usage: mount_m0t1fs <mount_dir> <unit_size (in Kbytes)> <N> <K> <p>"
+ 		return 1
+@@ -11,6 +11,7 @@ mount_m0t1fs()
+ 	local N=$3
+ 	local K=$4
+ 	local P=$5
++	local mountop=$6
+ 
+ 	# Create mount directory
+ 	sudo mkdir -p $m0t1fs_mount_dir || {
+@@ -60,7 +61,7 @@ EOF`"
+ 
+ 	echo "Mounting file system..."
+ 
+-	cmd="sudo mount -t m0t1fs -o profile=prof,local_conf='$CONF' \
++	cmd="sudo mount -t m0t1fs -o profile=prof,local_conf='$CONF',$mountop \
+ 	    none $m0t1fs_mount_dir"
+ 	echo $cmd
+ 	eval $cmd || {
+@@ -359,60 +360,64 @@ multi_client_test()
+ 	local mount_dir_2=${MERO_M0T1FS_MOUNT_DIR}bb
+ 	local mount_dir_3=${MERO_M0T1FS_MOUNT_DIR}cc
+ 
+-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
++	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=4" &>> $MERO_TEST_LOGFILE || {
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
++	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1004" &>> $MERO_TEST_LOGFILE || {
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
++	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2004" &>> $MERO_TEST_LOGFILE || {
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+ 	echo "Three clients mounted:"
+-	df
++	mount	
+ 	mkdir ${mount_dir_1}/dir1 
+-	mkdir ${mount_dir_1}/dir2 
+-	mkdir ${mount_dir_1}/dir3
+-	cp -av /bin/ls ${mount_dir_1}/obj1
+-	cp -av /bin/ls ${mount_dir_1}/obj2
+-	cp -av /bin/ls ${mount_dir_1}/obj3
+-	ls -li ${mount_dir_1}
+-	ls -li ${mount_dir_2}
+-	ls -li ${mount_dir_3}
+-
+-	diff -b /bin/ls ${mount_dir_1}/obj1 || echo "Obj1 creation failure"
+-	diff -b /bin/ls ${mount_dir_1}/obj2 || echo "Obj2 creation failure"
+-	diff -b /bin/ls ${mount_dir_1}/obj3 || echo "Obj3 creation failure"
+-
+-	diff -b /bin/ls ${mount_dir_1}/obj1 || echo "Obj1 creation failure"
+-	diff -b /bin/ls ${mount_dir_2}/obj2 || echo "Obj2 creation failure"
+-	diff -b /bin/ls ${mount_dir_3}/obj3 || echo "Obj3 creation failure"
+-	ls -li /${mount_dir_1}/
++	mkdir ${mount_dir_2}/dir2 
++	mkdir ${mount_dir_3}/dir3
++	cp -av /bin/ls ${mount_dir_1}/dir1/obj1
++	cp -av /bin/ls ${mount_dir_2}/dir2/obj2
++	cp -av /bin/ls ${mount_dir_3}/dir3/obj3
++	ls -liR ${mount_dir_1}
++	ls -liR ${mount_dir_2}
++	ls -liR ${mount_dir_3}
++
++	diff /bin/ls ${mount_dir_1}/dir1/obj1 || echo "Obj1 creation failure"
++	diff /bin/ls ${mount_dir_1}/dir2/obj2 || echo "Obj2 creation failure"
++	diff /bin/ls ${mount_dir_1}/dir3/obj3 || echo "Obj3 creation failure"
++
++	diff /bin/ls ${mount_dir_1}/dir1/obj1 || echo "Obj1 creation failure"
++	diff /bin/ls ${mount_dir_2}/dir2/obj2 || echo "Obj2 creation failure"
++	diff /bin/ls ${mount_dir_3}/dir3/obj3 || echo "Obj3 creation failure"
+ 
+ 	unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
+ 	unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
+ 	unmount_m0t1fs ${mount_dir_3} &>> $MERO_TEST_LOGFILE
+ 	echo "First round done."
+-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
++	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=4" &>> $MERO_TEST_LOGFILE || {
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
++	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=1004" &>> $MERO_TEST_LOGFILE || {
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
++	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=2004" &>> $MERO_TEST_LOGFILE || {
+ 		cat $MERO_TEST_LOGFILE
+ 		return 1
+ 	}
+ 	echo "Three clients mounted:"
+-	df
+-	ls -li ${mount_dir_1}
+-	ls -li ${mount_dir_2}
+-	ls -li ${mount_dir_3}
++	mount
++	ls -liR ${mount_dir_1}
++	ls -liR ${mount_dir_2}
++	ls -liR ${mount_dir_3}
++
++	md5sum /bin/ls
++	md5sum ${mount_dir_1}/dir1/obj1
++	md5sum ${mount_dir_2}/dir2/obj2
++	md5sum ${mount_dir_3}/dir3/obj3
+ 
+ 	unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
+ 	unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
+-- 
+1.8.3.2
+

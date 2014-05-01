@@ -1,0 +1,26 @@
+From 0eb5f33b3aab7029d5d476e926d1cd79eb1e5eff Mon Sep 17 00:00:00 2001
+From: Sachin Patil <sachin_patil@xyratex.com>
+Date: Wed, 22 May 2013 11:42:13 -0700
+Subject: [PATCH 097/121] Fixed read_stob_new issue.
+
+---
+ rvm/rvm_io.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/rvm/rvm_io.c b/rvm/rvm_io.c
+index 2fecd45..155cabe 100644
+--- a/rvm/rvm_io.c
++++ b/rvm/rvm_io.c
+@@ -582,7 +582,8 @@ long read_stob_new(device_t *dev, rvm_offset_t *rvm_offset, char *dest,
+ 	m0_be_cbinfo_copy_helper(cbinfo, rsc_cbinfo, read_stob_cb);
+ 
+ 	status = launch_stob_io_new(SIO_READ, io_nr, io_count, io_offset,
+-				    io_addr, dev->stob, length, rsc_cbinfo);
++				    io_addr, dev->stob, rs_cbdata->rsc_nbytes,
++				    rsc_cbinfo);
+ 
+ 	if (status < 0) {
+ 		msg_type = M0_BE_INTERNAL;
+-- 
+1.8.3.2
+

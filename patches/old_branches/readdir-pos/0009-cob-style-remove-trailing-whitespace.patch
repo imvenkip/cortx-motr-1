@@ -1,0 +1,52 @@
+From 63bca03331e9e3b7764c85c53d98af74c40250d7 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sun, 24 Feb 2013 13:50:32 +0200
+Subject: [PATCH 09/17] cob/style: remove trailing whitespace
+
+---
+ cob/cob.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/cob/cob.c b/cob/cob.c
+index d47859b..6d1ba96 100644
+--- a/cob/cob.c
++++ b/cob/cob.c
+@@ -1003,7 +1003,7 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
+ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
+ {
+ 	int rc;
+-	M0_ENTRY("[%lx:%lx]/%.*s", 
++	M0_ENTRY("[%lx:%lx]/%.*s",
+ 		 (long)it->ci_key->cnk_pfid.f_container,
+ 		 (long)it->ci_key->cnk_pfid.f_key,
+ 		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+@@ -1013,7 +1013,7 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
+ 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+ 		rc = -ENOENT;
+ 
+-	M0_LEAVE("[%lx:%lx]/%.*s rc: %d", 
++	M0_LEAVE("[%lx:%lx]/%.*s rc: %d",
+ 		 (long)it->ci_key->cnk_pfid.f_container,
+ 		 (long)it->ci_key->cnk_pfid.f_key,
+ 		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+@@ -1025,7 +1025,7 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
+ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
+ {
+ 	int rc;
+-	M0_ENTRY("[%lx:%lx]/%.*s", 
++	M0_ENTRY("[%lx:%lx]/%.*s",
+ 		 (long)it->ci_key->cnk_pfid.f_container,
+ 		 (long)it->ci_key->cnk_pfid.f_key,
+ 		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+@@ -1035,7 +1035,7 @@ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
+ 	if (rc == 0 && !m0_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
+ 		rc = -ENOENT;
+ 
+-	M0_LEAVE("[%lx:%lx]/%.*s rc: %d", 
++	M0_LEAVE("[%lx:%lx]/%.*s rc: %d",
+ 		 (long)it->ci_key->cnk_pfid.f_container,
+ 		 (long)it->ci_key->cnk_pfid.f_key,
+ 		 m0_bitstring_len_get(&it->ci_key->cnk_name),
+-- 
+1.8.3.2
+

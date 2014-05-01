@@ -1,0 +1,183 @@
+From 39b412fae0bf67b56184b159f7de8f2a65eed5b7 Mon Sep 17 00:00:00 2001
+From: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+Date: Wed, 21 Aug 2013 18:35:46 +0530
+Subject: [PATCH 05/24] Interim check-in.
+
+---
+ rm/rm.c          | 36 ++++++++++++++++++++----------------
+ rm/rm_internal.h |  6 ++++++
+ rm/ut/rm_fops.c  | 21 ++++++++++++++++++++-
+ 3 files changed, 46 insertions(+), 17 deletions(-)
+
+diff --git a/rm/rm.c b/rm/rm.c
+index 8fa6540..ed43d0f 100644
+--- a/rm/rm.c
++++ b/rm/rm.c
+@@ -1072,6 +1072,15 @@ M0_INTERNAL void m0_rm_loan_proxy_del(struct m0_rm_remote_link *rrl)
+ 	m0_free(rrl);
+ }
+ 
++M0_INTERNAL void m0_rm_loan_proxies_remove(struct m0_rm_loan *loan)
++{
++	struct m0_rm_remote_link *rrl;
++
++	m0_tl_for(m0_proxies, &loan->rl_others, rrl) {
++		m0_rm_loan_proxy_del(rrl);
++	}  m0_tl_endfor;
++}
++
+ M0_INTERNAL int m0_rm_loan_init(struct m0_rm_loan         *loan,
+ 				const struct m0_rm_credit *credit)
+ {
+@@ -1398,16 +1407,15 @@ M0_EXPORTED(m0_rm_borrow_commit);
+ 
+ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
+ {
+-	struct m0_rm_incoming    *in       = &rem_in->ri_incoming;
+-	struct m0_rm_owner       *owner    = in->rin_want.cr_owner;
+-	struct m0_rm_loan        *brwd_loan = NULL;
+-	struct m0_rm_loan        *remnant_loan;
+-	struct m0_rm_loan        *add_loan = NULL;
+-	struct m0_rm_loan        *remove_loan = NULL;
+-	struct m0_rm_credit      *credit;
+-	struct m0_cookie         *cookie;
+-	struct m0_rm_remote_link *rrl;
+-	int                       rc         = 0;
++	struct m0_rm_incoming *in       = &rem_in->ri_incoming;
++	struct m0_rm_owner    *owner    = in->rin_want.cr_owner;
++	struct m0_rm_loan     *brwd_loan = NULL;
++	struct m0_rm_loan     *remnant_loan;
++	struct m0_rm_loan     *add_loan = NULL;
++	struct m0_rm_loan     *remove_loan = NULL;
++	struct m0_rm_credit   *credit;
++	struct m0_cookie      *cookie;
++	int                    rc         = 0;
+ 
+ 	M0_ENTRY("owner: %p credit: %llu", owner,
+ 		 (long long unsigned) INCOMING_CREDIT(in));
+@@ -1459,9 +1467,7 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
+ 		 * desired (this) debtor.
+ 		 * Hence, it's safe to delete the 'proxies' list.
+ 		 */
+-		m0_tl_for(m0_proxies, &brwd_loan->rl_others, rrl) {
+-			m0_rm_loan_proxy_del(rrl);
+-		} m0_tl_endfor;
++		m0_rm_loan_proxies_remove(brwd_loan);
+ 		if (credit_is_empty(&remnant_loan->rl_credit))
+ 			remove_loan = remnant_loan;
+ 		else
+@@ -1473,9 +1479,7 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
+ 		m0_rm_ur_tlist_add(&owner->ro_borrowed, &add_loan->rl_credit);
+ 
+ 	if (remove_loan != NULL) {
+-		m0_tl_for(m0_proxies, &remove_loan->rl_others, rrl) {
+-			m0_rm_loan_proxy_del(rrl);
+-		} m0_tl_endfor;
++		m0_rm_loan_proxies_remove(remove_loan);
+ 		m0_rm_loan_fini(remove_loan);
+ 		m0_free(remove_loan);
+ 	}
+diff --git a/rm/rm_internal.h b/rm/rm_internal.h
+index 16c3473..f200baf 100644
+--- a/rm/rm_internal.h
++++ b/rm/rm_internal.h
+@@ -209,6 +209,12 @@ M0_INTERNAL int m0_rm_loan_proxy_add(struct m0_rm_loan   *loan,
+ 				     struct m0_rm_remote *other);
+ 
+ /**
++ * Helper function that remove all the pointers to proxies from the
++ * proxies list inside the loan.
++ */
++M0_INTERNAL void m0_rm_loan_proxies_remove(struct m0_rm_loan *loan);
++
++/**
+  * Removes debtor/creditor to the loan.
+  */
+ M0_INTERNAL void m0_rm_loan_proxy_del(struct m0_rm_remote_link *rrl);
+diff --git a/rm/ut/rm_fops.c b/rm/ut/rm_fops.c
+index ada7c90..b9852ee 100644
+--- a/rm/ut/rm_fops.c
++++ b/rm/ut/rm_fops.c
+@@ -95,9 +95,13 @@ static void request_param_init(enum m0_rm_incoming_type reqtype)
+  */
+ static void request_param_fini(void)
+ {
+-	//m0_rm_loan_proxy_del(test_loan, &remote);
++	if (test_loan != NULL) {
++		m0_rm_loan_proxies_remove(test_loan);
++		m0_rm_loan_fini(test_loan);
++	}
+ 	m0_rm_remote_fini(&remote);
+ 	m0_free(test_loan);
++	m0_rm_remote_fini(rm_test_data.rd_owner->ro_creditor);
+ 	m0_free(rm_test_data.rd_owner->ro_creditor);
+ 	rm_test_data.rd_owner->ro_creditor = NULL;
+ }
+@@ -136,6 +140,7 @@ static void rm_req_fop_validate(enum m0_rm_incoming_type reqtype)
+ 			break;
+ 		}
+ 
++		m0_rm_loan_proxies_remove(loan);
+ 		m0_rm_ur_tlist_del(pin->rp_credit);
+ 		rm_fop_release(&oreq->ou_fop.f_ref);
+ 
+@@ -349,7 +354,11 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
+ {
+ 	struct m0_rm_credit *credit;
+ 	struct m0_rm_loan   *loan;
++	struct rm_out       *outreq;
+ 
++	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
++	loan = &outreq->ou_req.rog_want;
++	m0_rm_loan_proxies_remove(loan);
+ 	/*
+ 	 * A borrow error leaves the owner lists unaffected.
+ 	 * If borrow succeeds, the owner lists are updated. Hence they
+@@ -363,12 +372,15 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
+ 	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
+ 			credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
++		m0_rm_credit_fini(credit);
+ 		m0_free(credit);
+ 	} m0_tl_endfor;
+ 
+ 	m0_tl_for(m0_rm_ur, &rm_test_data.rd_owner->ro_borrowed, credit) {
+ 		m0_rm_ur_tlink_del_fini(credit);
+ 		loan = bob_of(credit, struct m0_rm_loan, rl_credit, &loan_bob);
++		m0_rm_loan_proxies_remove(loan);
++		m0_rm_loan_fini(loan);
+ 		m0_free(loan);
+ 	} m0_tl_endfor;
+ 	m0_rm_owner_unlock(rm_test_data.rd_owner);
+@@ -484,7 +496,11 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
+ {
+ 	struct m0_rm_credit *credit;
+ 	struct m0_rm_loan   *loan;
++	struct rm_out       *outreq;
+ 
++	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
++	loan = &outreq->ou_req.rog_want;
++	m0_rm_loan_proxies_remove(loan);
+ 	/*
+ 	 * After a successful revoke, sublet credit is transferred to
+ 	 * OWOS_CACHED. Otherwise it remains in the sublet list.
+@@ -496,6 +512,7 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
+ 			  &rm_test_data.rd_owner->ro_owned[OWOS_CACHED],
+ 			  credit) {
+ 			m0_rm_ur_tlink_del_fini(credit);
++			m0_rm_credit_fini(credit);
+ 			m0_free(credit);
+ 		} m0_tl_endfor;
+ 	} else {
+@@ -503,6 +520,8 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
+ 			m0_rm_ur_tlink_del_fini(credit);
+ 			loan = bob_of(credit, struct m0_rm_loan,
+ 				      rl_credit, &loan_bob);
++			m0_rm_loan_proxies_remove(loan);
++			m0_rm_loan_fini(loan);
+ 			m0_free(loan);
+ 		} m0_tl_endfor;
+ 	}
+-- 
+1.8.3.2
+

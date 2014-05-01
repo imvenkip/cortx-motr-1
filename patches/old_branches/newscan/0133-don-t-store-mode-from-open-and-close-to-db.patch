@@ -1,0 +1,32 @@
+From b595611a2a451cb62ffb414a2b2c9da29dc96685 Mon Sep 17 00:00:00 2001
+From: Yuriy Umanets <yuriy_umanets@xyratex.com>
+Date: Tue, 14 Jun 2011 15:33:05 -0600
+Subject: [PATCH 133/158]  - don't store mode from open and close to db.
+
+---
+ mdservice/md_foms.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mdservice/md_foms.c b/mdservice/md_foms.c
+index ca00d5c..3bae13c 100644
+--- a/mdservice/md_foms.c
++++ b/mdservice/md_foms.c
+@@ -857,6 +857,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
+                                       &ctx->fc_tx->tx_dbtx);
+                 if (rc == 0 &&
+                     attr.ca_version > cob->co_nsrec.cnr_version) {
++                        attr.ca_flags &= ~C2_MD_MODE;
+                         rc = c2_md_store_setattr(site->s_mdstore,
+                                                  cob, &attr, 
+                                                  &ctx->fc_tx->tx_dbtx);
+@@ -937,6 +938,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
+                                &ctx->fc_tx->tx_dbtx);
+         if (rc == 0 &&
+             attr.ca_version > cob->co_nsrec.cnr_version) {
++                attr.ca_flags &= ~C2_MD_MODE;
+                 rc = c2_md_store_setattr(site->s_mdstore, cob,
+                                          &attr, &ctx->fc_tx->tx_dbtx);
+         }
+-- 
+1.8.3.2
+

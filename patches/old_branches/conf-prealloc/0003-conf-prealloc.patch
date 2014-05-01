@@ -1,0 +1,211 @@
+From 45344cc82524c45ec8736dc4023f4edea512aef6 Mon Sep 17 00:00:00 2001
+From: Mandar Sawant <mandar_sawant@xyratex.com>
+Date: Wed, 2 Apr 2014 11:57:20 +0530
+Subject: [PATCH 3/5] conf-prealloc, - Replaced M0_XCODE_FREE() with
+ m0_xcode_obj_free()
+
+---
+ addb/user_space/addb_retrieval.c |  2 +-
+ addb/ut/addb_ut_fom.c            |  4 ++--
+ addb/ut/addb_ut_stobsink.c       |  4 ++--
+ conf/preload.c                   |  2 +-
+ file/file.c                      |  2 +-
+ fol/fol.c                        |  4 ++--
+ fop/fop.c                        |  2 +-
+ stats/stats_api.c                |  2 +-
+ xcode/ut/xcode.c                 |  6 +++---
+ xcode/xcode.c                    |  9 +++++++++
+ xcode/xcode.h                    | 10 +---------
+ 11 files changed, 24 insertions(+), 23 deletions(-)
+
+diff --git a/addb/user_space/addb_retrieval.c b/addb/user_space/addb_retrieval.c
+index aaa80de..7c7c7eb 100644
+--- a/addb/user_space/addb_retrieval.c
++++ b/addb/user_space/addb_retrieval.c
+@@ -579,7 +579,7 @@ static void addb_cursor_rec_free(struct m0_addb_cursor *cur)
+ 			.xo_ptr  = cur->ac_rec,
+ 		};
+ 
+-		M0_XCODE_FREE(&obj, NULL, NULL);
++		m0_xcode_free_obj(&obj);
+ 		cur->ac_rec = NULL;
+ 	}
+ }
+diff --git a/addb/ut/addb_ut_fom.c b/addb/ut/addb_ut_fom.c
+index e875b07..53ba45d 100644
+--- a/addb/ut/addb_ut_fom.c
++++ b/addb/ut/addb_ut_fom.c
+@@ -205,8 +205,8 @@ static void addb_ut_fom_test(void)
+ 	m0_stob_put(ut_data.aufd_stob);
+ 	dom->sd_ops->sdo_fini(dom);
+ 	for (i = 0; i < UT_ADDB_FOM_REC_NR; ++i)
+-		M0_XCODE_FREE(&M0_XCODE_OBJ(m0_addb_rec_xc,
+-					    ut_addb_rec_arr[i]), NULL, NULL);
++		m0_xcode_free_obj(&M0_XCODE_OBJ(m0_addb_rec_xc,
++				  ut_addb_rec_arr[i]));
+ 	addb_ct_tlist_del(&m0__addb_ut_ct0);
+ 	m0__addb_ut_ct0.act_magic = 0;
+ 	addb_rt_tlist_del(&m0__addb_ut_rt_dp1);
+diff --git a/addb/ut/addb_ut_stobsink.c b/addb/ut/addb_ut_stobsink.c
+index 2fe6232..148847d 100644
+--- a/addb/ut/addb_ut_stobsink.c
++++ b/addb/ut/addb_ut_stobsink.c
+@@ -455,7 +455,7 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
+ 			if (m0_addb_rec_is_ctx(r)) {
+ 				ctx_nr++;
+ 				obj.xo_ptr = r;
+-				M0_XCODE_FREE(&obj, NULL, NULL);
++				m0_xcode_free_obj(&obj);
+ 				continue;
+ 			}
+ 			M0_UT_ASSERT(r->ar_rid == dp_rid);
+@@ -469,7 +469,7 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
+ 			}
+ 			count++;
+ 			obj.xo_ptr = r;
+-			M0_XCODE_FREE(&obj, NULL, NULL);
++			m0_xcode_free_obj(&obj);
+ 		}
+ 	}
+ 	M0_UT_ASSERT(ctx_nr == 1);
+diff --git a/conf/preload.c b/conf/preload.c
+index edc00fa..b0d2c10 100644
+--- a/conf/preload.c
++++ b/conf/preload.c
+@@ -33,7 +33,7 @@ M0_INTERNAL void m0_confx_free(struct m0_confx *enc)
+ {
+ 	M0_ENTRY();
+ 	if (enc != NULL)
+-		M0_XCODE_FREE(&M0_XCODE_OBJ(m0_confx_xc, enc), NULL, NULL);
++		m0_xcode_free_obj(&M0_XCODE_OBJ(m0_confx_xc, enc));
+ 	M0_LEAVE();
+ }
+ 
+diff --git a/file/file.c b/file/file.c
+index 5b84517..ff33689 100644
+--- a/file/file.c
++++ b/file/file.c
+@@ -333,7 +333,7 @@ static void file_lock_resource_free(struct m0_rm_resource *resource)
+ 	struct m0_file *fl;
+ 
+ 	fl = container_of(resource, struct m0_file, fi_res);
+-	M0_XCODE_FREE(&M0_XCODE_OBJ(m0_fid_xc, (void *)fl->fi_fid), NULL, NULL);
++	m0_xcode_free_obj(&M0_XCODE_OBJ(m0_fid_xc, (void *)fl->fi_fid));
+ 	m0_free(fl);
+ }
+ 
+diff --git a/fol/fol.c b/fol/fol.c
+index 81205d6..672911a 100644
+--- a/fol/fol.c
++++ b/fol/fol.c
+@@ -403,14 +403,14 @@ M0_INTERNAL void m0_fol_rec_part_fini(struct m0_fol_rec_part *part)
+ 	m0_rec_part_tlink_fini(part);
+ 
+ 	if (part->rp_flag == M0_XCODE_DECODE) {
+-		M0_XCODE_FREE(&REC_PART_XCODE_OBJ(part), NULL, NULL);
++		m0_xcode_free_obj(&REC_PART_XCODE_OBJ(part));
+ 		m0_free(part);
+ 	} else {
+ 	    if (part->rp_ops->rpo_type == &m0_fop_fol_rec_part_type) {
+ 		m0_free(part->rp_data);
+ 		m0_free(part);
+ 	    } else
+-		M0_XCODE_FREE(&REC_PART_XCODE_OBJ(part), NULL, NULL);
++		m0_xcode_free_obj(&REC_PART_XCODE_OBJ(part));
+ 	}
+ }
+ 
+diff --git a/fop/fop.c b/fop/fop.c
+index 3b504d0..74976f5 100644
+--- a/fop/fop.c
++++ b/fop/fop.c
+@@ -128,7 +128,7 @@ M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
+ 
+ 	m0_rpc_item_fini(&fop->f_item);
+ 	if (fop->f_data.fd_data != NULL)
+-		M0_XCODE_FREE(&M0_FOP_XCODE_OBJ(fop), NULL, NULL);
++		m0_xcode_free_obj(&M0_FOP_XCODE_OBJ(fop));
+ 	M0_LEAVE();
+ }
+ 
+diff --git a/stats/stats_api.c b/stats/stats_api.c
+index a1324ff..fd91525 100644
+--- a/stats/stats_api.c
++++ b/stats/stats_api.c
+@@ -154,7 +154,7 @@ void m0_stats_free(struct m0_stats_recs *stats)
+                 .xo_ptr  = stats,
+ 	};
+ 
+-	M0_XCODE_FREE(&obj, NULL, NULL);
++	m0_xcode_free_obj(&obj);
+ }
+ /*
+  *  Local variables:
+diff --git a/xcode/ut/xcode.c b/xcode/ut/xcode.c
+index e86a52a..275db5d 100644
+--- a/xcode/ut/xcode.c
++++ b/xcode/ut/xcode.c
+@@ -451,7 +451,7 @@ static void xcode_decode_test(void)
+ 	M0_UT_ASSERT( TT->t_un.u.u_y   ==  T.t_un.u.u_y);
+ 	M0_UT_ASSERT(*TT->t_opaq.o_32  == *T.t_opaq.o_32);
+ 
+-	M0_XCODE_FREE(&decoded, NULL, NULL);
++	m0_xcode_free_obj(&decoded);
+ }
+ 
+ enum {
+@@ -575,8 +575,8 @@ static void xcode_cmp_test(void)
+ 	M0_UT_ASSERT(cmp > 0);
+ 	t1->t_v.v_nr--;
+ 
+-	M0_XCODE_FREE(&obj0, NULL, NULL);
+-	M0_XCODE_FREE(&obj1, NULL, NULL);
++	m0_xcode_free_obj(&obj0);
++	m0_xcode_free_obj(&obj1);
+ }
+ 
+ #define OBJ(xt, ptr) (&(struct m0_xcode_obj){ .xo_type = (xt), .xo_ptr = (ptr) })
+diff --git a/xcode/xcode.c b/xcode/xcode.c
+index 89700e8..c6669ef 100644
+--- a/xcode/xcode.c
++++ b/xcode/xcode.c
+@@ -222,6 +222,15 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
+ 	return 0;
+ }
+ 
++M0_INTERNAL void m0_xcode_free_obj(struct m0_xcode_obj *obj)
++{
++	struct m0_xcode_ctx ctx;
++
++	M0_SET0(&ctx);
++	m0_xcode_ctx_init(&ctx, (obj));
++	m0_xcode_free(&ctx);
++}
++
+ /**
+    Common xcoding function, implementing encoding, decoding and sizing.
+  */
+diff --git a/xcode/xcode.h b/xcode/xcode.h
+index 6bd8d2a..c72e615 100644
+--- a/xcode/xcode.h
++++ b/xcode/xcode.h
+@@ -658,15 +658,7 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str);
+ M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
+ 			       char *str, int nr);
+ 
+-#define M0_XCODE_FREE(obj, alloc, free)   \
+-do {                                      \
+-	struct m0_xcode_ctx __ctx;        \
+-	m0_xcode_ctx_init(&__ctx, (obj)); \
+-	__ctx.xcx_alloc = (alloc);        \
+-	__ctx.xcx_free  = (free);         \
+-	m0_xcode_free(&__ctx);            \
+-} while (0)
+-
++M0_INTERNAL void m0_xcode_free_obj(struct m0_xcode_obj *obj);
+ M0_INTERNAL void m0_xcode_free(struct m0_xcode_ctx *ctx);
+ M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
+ 			     const struct m0_xcode_obj *o1);
+-- 
+1.8.3.2
+

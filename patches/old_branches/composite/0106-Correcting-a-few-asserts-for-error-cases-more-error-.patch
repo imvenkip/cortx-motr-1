@@ -1,0 +1,325 @@
+From 385c218cc89e5e7d327eb166bc75b7adaab2322f Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Tue, 2 Apr 2013 12:46:35 +0530
+Subject: [PATCH 106/172] Correcting a few asserts for error cases, more error
+ cases coverage
+
+---
+ layout/composite.c    | 22 ++++++++----
+ layout/ut/composite.c | 93 ++++++++++++++++++++++++++++++++++++++++++---------
+ layout/ut/layout.c    |  3 +-
+ layout/ut/layout.h    |  4 ++-
+ 4 files changed, 98 insertions(+), 24 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 65fad4f..a01494c 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -1501,8 +1501,7 @@ static int ext_inmem_validate(struct m0_composite_layout *cl,
+ 			      const struct m0_ext *ext,
+ 			      uint64_t new_ext_state,
+ 			      uint32_t ext_validation_kind,
+-			      struct m0_composite_layer_extent
+-					**lr_ext_nearest)
++			      struct m0_composite_layer_extent **lr_ext_nearest)
+ {
+ 	struct m0_composite_layer_extent *lr_ext;
+ 	uint64_t                          first_noninvalid_state;
+@@ -1751,7 +1750,7 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 			chunk = &lr_ext_to_insert_into->cle_ext;
+ 		}
+ 	}
+-	M0_ASSERT(m0_ext_is_empty(&ext0));
++	M0_ASSERT(ergo(rc == 0, m0_ext_is_empty(&ext0)));
+ 
+ 	/*
+ 	 * Now that the deletion/trimming of the overlapping extents
+@@ -1768,8 +1767,17 @@ static int ext_inmem_write(struct m0_composite_layout *cl,
+ 	if (rc == 0) {
+ 		rc1 = ext_inmem_find(layer, ext, new_ext_state, &lr_ext);
+ 		M0_POST(rc1 == 0);
++		/*
++		 * In case this function ext_inmem_write() has come across
++		 * errors other than -EINVAL, e.g. -ENOMEM, then it is unlikely
++		 * that we will be able to restore the original extent list
++		 * even if we might have kept track of it. Hence, it is not
++		 * attempted to restore the original extent list in case of
++		 * failure, thus sacrificing the layer_invariant() and in turn
++		 * the composite_invariant() in that case.
++		 */
++		M0_POST(layer_invariant(layer));
+ 	}
+-	M0_POST(layer_invariant(layer));
+ 	M0_LEAVE("lid %llu, layer %lu, rc %d",
+ 		 (unsigned long long)cl->cl_base.l_id,
+ 		 (unsigned long)layer->clr_idx, rc);
+@@ -1814,7 +1822,7 @@ M0_INTERNAL int m0_composite_layer_ext_add(struct m0_composite_layout *cl,
+ 			       &cl->cl_base.l_addb_ctx, cl->cl_base.l_id, rc);
+ 
+ 	m0_mutex_unlock(&cl->cl_base.l_lock);
+-	M0_POST(layer_invariant(layer));
++	M0_POST(ergo(rc == 0, layer_invariant(layer)));
+ 	M0_POST(composite_invariant(cl));
+ 	M0_LEAVE("lid %llu, layer %lu, e_start %llu, e_end %llu, "
+ 		 "e_state %llu, rc %d", (unsigned long long)cl->cl_base.l_id,
+@@ -2058,7 +2066,7 @@ static int ext_indb_write(struct m0_composite_layout *cl,
+ 	rc = ext_indb_write_internal(&it, layer, ext, new_ext_state,
+ 				     INMEM_LIST_UPDATE);
+ 	m0_emap_close(&it);
+-	M0_POST(layer_invariant(layer));
++	M0_POST(ergo(rc == 0, layer_invariant(layer)));
+ 	M0_RETURN(rc);
+ }
+ 
+@@ -2187,7 +2195,7 @@ static int ext_indb_write_internal(struct m0_emap_cursor *it,
+ 			       (unsigned long long)ext->e_start,
+ 			       (unsigned long long)ext->e_end);
+ 	}
+-	M0_POST(layer_invariant(layer));
++	M0_POST(ergo(rc == 0, layer_invariant(layer)));
+ 	M0_RETURN(rc);
+ #else
+ 	/* This function is not expected to be invoked in the kernel mode. */
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index b38860f..fca8e28 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1709,6 +1709,7 @@ static void ext_op_post(enum extent_operation eop,
+ 			enum kind_of_extent extent_kind,
+ 			struct m0_composite_layout *cl,
+ 			struct m0_layout *l_copy_orig,
++			bool layout_compare,
+ 			bool failure_test)
+ {
+ 	struct m0_layout *l_copy_updated;
+@@ -1719,7 +1720,7 @@ static void ext_op_post(enum extent_operation eop,
+ 	composite_layout_copy(&cl->cl_base, &l_copy_updated);
+ 
+ 	/* Verify the extent list in the in-memory layout. */
+-	if (failure_test)
++	if (failure_test && layout_compare)
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+ 	else if (eop == EXTENT_LOOKUP)
+ 		composite_layout_compare(l_copy_orig, l_copy_updated, false);
+@@ -1741,7 +1742,7 @@ static void ext_op_post(enum extent_operation eop,
+ 	m0_layout_put(&cl->cl_base);
+ 	M0_UT_ASSERT(m0_layout_find(domain, lid) == NULL);
+ 
+-	if (l_copy_orig->l_dom->ld_is_db_available) {
++	if (l_copy_orig->l_dom->ld_is_db_available && layout_compare) {
+ 		/*
+ 		 * Read the layout from the DB and compare it to the in-memory
+ 		 * layout to verify that the DB version of the layout has been
+@@ -1792,7 +1793,8 @@ static int ext_add(struct m0_composite_layout *cl,
+ 	rc = m0_composite_layer_ext_add(cl, cl->cl_layers_nr - 1,
+ 					ext_to_operate, ext_state, txptr);
+ 	if (failure_test) {
+-		M0_UT_ASSERT(rc == -EINVAL || rc == -EINVAL);
++		M0_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM ||
++			     rc == L_EMAP_LOOKUP_ERR);
+ 		//todo print rc
+ 	} else {
+ 		M0_UT_ASSERT(rc == 0);
+@@ -1983,7 +1985,8 @@ static int test_ext_lookup(uint64_t lid,
+ 			  (unsigned long long)offset_to_operate, rc,
+ 			  (rc == 0) ? (unsigned long long)ext_state_lookup : 0);
+ 	ext_op_post(EXTENT_LOOKUP, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, failure_test /* todo */);
++		    extent_kind, cl, l_copy_orig, LAYOUTS_COMPARE,
++		    failure_test);
+ 	return rc;
+ }
+ 
+@@ -2001,6 +2004,7 @@ static int test_ext_add(uint64_t lid,
+ 	struct m0_ext               ext_to_operate;
+ 	m0_bindex_t                 offset_to_operate;
+ 	uint64_t                    ext_state_lookup;
++	bool                        layout_compare = LAYOUTS_COMPARE;
+ 	int                         rc;
+ 
+ 	rc = ext_op_pre(EXTENT_ADD, lid, domain, layers_nr, min_extents_nr,
+@@ -2012,13 +2016,18 @@ static int test_ext_add(uint64_t lid,
+ 	rc = ext_add(cl, l_copy_orig, domain, extent_kind,
+ 		     &ext_to_operate, offset_to_operate, ext_state,
+ 		     failure_test);
+-	if (failure_test)
+-		M0_UT_ASSERT(rc == -EINVAL);
+-	else
++	if (failure_test) {
++		M0_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM ||
++			     rc == L_EMAP_LOOKUP_ERR);
++		if (rc == -ENOMEM)
++			/* The layer may be in an inconsistent state. */
++			layout_compare = !LAYOUTS_COMPARE;
++	} else
+ 		M0_UT_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_ADD, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, failure_test);
++		    extent_kind, cl, l_copy_orig, layout_compare,
++		    failure_test);
+ 	return rc;
+ }
+ 
+@@ -2053,10 +2062,39 @@ static int test_ext_state_update(uint64_t lid,
+ 		M0_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_UPDATE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, failure_test);
++		    extent_kind, cl, l_copy_orig, LAYOUTS_COMPARE,
++		    failure_test);
+ 	return rc;
+ }
+ 
++//todo Make use of this where applicable
++static void tx_init(struct m0_layout_domain *domain,
++		    struct m0_db_tx *tx,
++		    struct m0_db_tx **txptr)
++{
++	int rc;
++
++	if (domain->ld_is_db_available) {
++		rc = m0_db_tx_init(tx, domain->ld_dbenv, DBFLAGS);
++		M0_UT_ASSERT(rc == 0);
++		*txptr = tx;
++	} else
++		*txptr = NULL;
++}
++
++//todo Make use of this where applicable
++static void tx_commit(struct m0_layout_domain *domain,
++		    struct m0_db_tx *txptr)
++{
++	int rc;
++
++	if (domain->ld_is_db_available) {
++		rc = m0_db_tx_commit(txptr);
++		M0_UT_ASSERT(rc == 0);
++	} else
++		M0_UT_ASSERT(txptr == NULL);
++}
++
+ static int test_ext_delete(uint64_t lid,
+ 			   struct m0_layout_domain *domain,
+ 			   uint32_t layers_nr,
+@@ -2070,6 +2108,8 @@ static int test_ext_delete(uint64_t lid,
+ 	struct m0_ext               ext_to_operate;
+ 	m0_bindex_t                 offset_to_operate;
+ 	uint64_t                    ext_state_lookup;
++	struct m0_db_tx             tx;
++	struct m0_db_tx            *txptr;
+ 	struct m0_ext               ext;
+ 	int                         rc;
+ 
+@@ -2081,13 +2121,15 @@ static int test_ext_delete(uint64_t lid,
+ 
+ 	if (M0_FI_ENABLED("ext_del_validation_err")) {
+ 		M0_UT_ASSERT(extent_kind == OVERLAPPING_COMPLETE);
++		tx_init(domain, &tx, &txptr);
+ 		ext.e_start = ext_to_operate.e_end - 1;
+ 		ext.e_end = ext_to_operate.e_end;
+ 		rc = m0_composite_layer_ext_state_update(cl,
+ 							 cl->cl_layers_nr - 1,								 &ext,
+ 							 M0_CLRES_FLATTENING,
+-							 NULL/*todo for db */);
++							 txptr);
+ 		M0_UT_ASSERT(rc == 0);
++		tx_commit(domain, txptr);
+ 		/* Now that the layout is updated, update its copy. */
+ 		composite_layout_copy_delete(l_copy_orig);
+ 		composite_layout_copy(&cl->cl_base, &l_copy_orig);
+@@ -2102,7 +2144,8 @@ static int test_ext_delete(uint64_t lid,
+ 		M0_ASSERT(rc == 0);
+ 
+ 	ext_op_post(EXTENT_DELETE, cl->cl_base.l_id, domain, cl->cl_layers_nr,
+-		    extent_kind, cl, l_copy_orig, failure_test);
++		    extent_kind, cl, l_copy_orig, LAYOUTS_COMPARE,
++		    failure_test);
+ 	return rc;
+ }
+ 
+@@ -2219,28 +2262,48 @@ void test_layer_ext_ops_composite_failure(uint64_t lid,
+ 			  M0_CLRES_FLATTENING, FAILURE_TEST);
+ 	M0_ASSERT(rc == -EINVAL);
+ 
++	/* Simulate memory allocation error in the path of ext_inmem_add(). */
++	m0_fi_enable_once("ext_inmem_add_internal", "mem_err");
++	rc = test_ext_add(lid + 1, domain, 3, 6,
++			  !CONTIGUOUS_EXTENTS, OVERLAPPING_LEFT,
++			  M0_CLRES_VALID, FAILURE_TEST);
++	M0_ASSERT(rc == -ENOMEM);
++
++	/*
++	 * Simulate extmap iterator setting error while trying to add an
++	 * extent.
++	 */
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				3 /* layers_nr */, 1);
++	rc = test_ext_add(lid + 2, domain, 3, 6, CONTIGUOUS_EXTENTS,
++			  EXACT_EXISTING, //todo OVRLAPPING_RIGHT as well
++			  M0_CLRES_VALID,
++			  domain->ld_is_db_available ?
++				FAILURE_TEST : !FAILURE_TEST);
++	M0_UT_ASSERT(ergo(domain->ld_is_db_available, rc == L_EMAP_LOOKUP_ERR));
++	M0_UT_ASSERT(ergo(!domain->ld_is_db_available, rc == 0));
++	m0_fi_disable("emap_iterator_set", "emap_lookup_err");
++
+ 	/*
+ 	 * Simulate extent validation error by trying to update an extent with
+ 	 * the M0_CLRES_FLATTENING state that at least partially overlaps with
+ 	 * two existing extents - one with the M0_CLRES_INVALID state and the
+ 	 * other with M0_CLRES_VALID state..
+ 	 */
+-	rc = test_ext_state_update(lid + 1, domain, 3, 6, !CONTIGUOUS_EXTENTS,
++	rc = test_ext_state_update(lid + 21, domain, 3, 6, !CONTIGUOUS_EXTENTS,
+ 				   OVERLAPPING_LEFT, M0_CLRES_FLATTENING,
+ 				   FAILURE_TEST);
+ 	M0_ASSERT(rc == -EINVAL);
+ 
+-#if 0 //enable by intialising tx for the db case
+ 	/*
+ 	 * Simulate extent validation error by trying to delete an extent
+ 	 * that overlaps with multiple extents while at least two of those are
+ 	 * with two different states other than M0_CLRES_INVALID.
+ 	 */
+ 	m0_fi_enable_once("test_ext_delete", "ext_del_validation_err");
+-	rc = test_ext_delete(lid + 2, domain, 2, 6, !CONTIGUOUS_EXTENTS,
++	rc = test_ext_delete(lid + 41, domain, 2, 6, !CONTIGUOUS_EXTENTS,
+ 			     OVERLAPPING_COMPLETE, FAILURE_TEST);
+ 	M0_ASSERT(rc == -EINVAL);
+-#endif
+ }
+ 
+ #ifndef __KERNEL__
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 578641f..083b50a 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -1943,7 +1943,8 @@ static void test_add_failure(void)
+ 	 * layer to the DB as a part of the m0_layout_add() op.
+ 	 */
+ 	lid = 21027;
+-	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err", 3, 1);
++	m0_fi_enable_off_n_on_m("emap_iterator_set", "emap_lookup_err",
++				3 /* layers_nr - 1 */, 1);
+ 	rc = test_add_composite(lid, &domain, 4, 15, !CONTIGUOUS_EXTENTS,
+ 				LAYOUT_DESTROY, NULL,
+ 				!DUPLICATE_TEST, FAILURE_TEST);
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index c0460c0..dc4cc43 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -43,7 +43,9 @@ enum {
+ 	LAYOUT_DESTROY           = true, /* Delete layout object */
+ 	UNIT_SIZE                = 4096, /* For pdclust layout type */
+ 	USER_COUNT_INCREMENTED   = true, /* For verification of user count */
+-	CONTIGUOUS_EXTENTS       = true  /* For extents of a sub-layout */
++	CONTIGUOUS_EXTENTS       = true, /* For extents of a sub-layout */
++	LAYOUTS_COMPARE          = true  /* In a few exceptional error cases,
++					  * layout may not be restored back. */
+ };
+ 
+ void domain_ldb_available_set(struct m0_layout_domain *domain, bool val);
+-- 
+1.8.3.2
+

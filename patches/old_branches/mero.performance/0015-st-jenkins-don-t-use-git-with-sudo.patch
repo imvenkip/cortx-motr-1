@@ -1,0 +1,32 @@
+From 673fdb4aace03c745e2c5ec05a15402a58f8bd85 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Sun, 27 Oct 2013 19:57:33 +0200
+Subject: [PATCH 15/17] st/jenkins: don't use git with sudo
+
+---
+ st/jenkins.sh | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/st/jenkins.sh b/st/jenkins.sh
+index 4ee726c..0d63f65 100755
+--- a/st/jenkins.sh
++++ b/st/jenkins.sh
+@@ -25,13 +25,13 @@ main() {
+ 			2> "$MERO_ST_ARTIFACTS/net-test-stderr.txt"
+ 		;;
+ 	"clean")
+-		rm -rf "$MERO_ST_ARTIFACTS" "$MERO_ST_DATA_ROOT"
++		sudo rm -rf "$MERO_ST_ARTIFACTS" "$MERO_ST_DATA_ROOT"
+ 		mkdir -p "$MERO_ST_ARTIFACTS"
+ 		mkdir -p "$MERO_ST_DATA_ROOT"
+ 		;;
+ 	"git-clean")
+ 		cd $MERO_SRC_ROOT
+-		chown --recursive `id -nu`:`id -ng` "$MERO_SRC_ROOT"
++		sudo chown --recursive `id -nu`:`id -ng` "$MERO_SRC_ROOT"
+ 		git clean -dfx
+ 		;;
+ 	"help")
+-- 
+1.8.3.2
+

@@ -1,0 +1,53 @@
+From c7155e2c2480cad9f73fe34f0b955f95da033715 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Wed, 14 Mar 2012 20:30:09 +0200
+Subject: [PATCH 067/311] minor style corrections
+
+Place braces properly.
+Re-arrange path_walk() prototype in single line.
+
+Reported-by: Nikita Danilov <nikita_danilov@xyratex.com>
+Reviewed-on: http://reviewboard.clusterstor.com/r/714/
+---
+ conf/confc.c | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/conf/confc.c b/conf/confc.c
+index b9c2626..5d411fe 100644
+--- a/conf/confc.c
++++ b/conf/confc.c
+@@ -350,13 +350,18 @@ list_status(const struct c2_tl_descr *descr, const struct c2_tl *list)
+ 	XXX;
+ }
+ 
+-static inline struct c2_mutex * group_lock(void) {
++static inline struct c2_mutex * group_lock(void)
++{
+ 	return &g_confc.cache.cc_group->s_lock;
+ }
+-static inline struct c2_mutex * cache_lock(void) {
++
++static inline struct c2_mutex * cache_lock(void)
++{
+ 	return &g_confc.cache.cc_lock;
+ }
+-static inline struct c2_conf_map * cache_registry(void) {
++
++static inline struct c2_conf_map * cache_registry(void)
++{
+ 	return &g_confc.cache.cc_registry;
+ }
+ 
+@@ -374,8 +379,7 @@ static inline struct c2_confc_ctx * to_ctx(struct c2_sm *mach)
+  * @retval -ENOENT  ctx->fc_path contains a key, but the corresponding
+  *                  object does not exist.
+  */
+-static int
+-path_walk(struct c2_confc_ctx *ctx, enum c2_conf_status *status)
++static int path_walk(struct c2_confc_ctx *ctx, enum c2_conf_status *status)
+ {
+ 	/*
+ 	 * [Refer to confc state diagram in the HLD.]
+-- 
+1.8.3.2
+

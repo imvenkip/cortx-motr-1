@@ -1,0 +1,56 @@
+From c77062cda30a04257aeab1418d5425d779e58b3f Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Tue, 14 Jan 2014 23:26:00 +0200
+Subject: [PATCH 58/96] be/alloc: tx can't be NULL
+
+---
+ be/alloc.c | 12 ++----------
+ 1 file changed, 2 insertions(+), 10 deletions(-)
+
+diff --git a/be/alloc.c b/be/alloc.c
+index 8a635de..e0cc5df 100644
+--- a/be/alloc.c
++++ b/be/alloc.c
+@@ -147,8 +147,6 @@
+  * freeing may take place at a some point of time for the same allocator.
+  *
+  * Implementation notes:
+- * - If tx parameter is NULL then allocator will not capture segment updates.
+- *   It might be useful in the allocator UT.
+  *
+  * Known issues:
+  * - op is unconditionally transitioned to state M0_BOS_SUCCESS in m0_be_alloc()
+@@ -186,8 +184,6 @@ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
+ 				   struct m0_be_tx *tx,
+ 				   struct be_alloc_chunk *c)
+ {
+-	if (tx == NULL)
+-		return;
+ 	if (c == NULL)
+ 		return;
+ 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, c);
+@@ -196,8 +192,6 @@ static void be_alloc_chunk_capture(struct m0_be_allocator *a,
+ static void be_alloc_head_capture(struct m0_be_allocator *a,
+ 				  struct m0_be_tx *tx)
+ {
+-	if (tx == NULL)
+-		return;
+ 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &a->ba_size);
+ 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &a->ba_addr);
+ 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &a->ba_stats);
+@@ -712,10 +706,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+ 	if (c != NULL) {
+ 		c = be_alloc_chunk_trysplit(a, tx, c, size, shift);
+ 		M0_ASSERT(c != NULL);
+-		if (tx != NULL) {
+-			memset(&c->bac_mem, 0, size);
+-			m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size, &c->bac_mem));
+-		}
++		memset(&c->bac_mem, 0, size);
++		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size, &c->bac_mem));
+ 	}
+ 	op->bo_u.u_allocator.a_ptr = c == NULL ?    NULL : &c->bac_mem;
+ 	op->bo_u.u_allocator.a_rc  = c == NULL ? -ENOMEM : 0;
+-- 
+1.8.3.2
+

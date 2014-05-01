@@ -1,0 +1,173 @@
+From 1949860fac317650dd89985966aedb66286ee761 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Mon, 3 Jun 2013 12:00:39 +0300
+Subject: [PATCH 088/161] be: Updated btree DLD.
+
+---
+ be/btree.c | 21 ++++++++++++---------
+ be/btree.h | 54 ++++++++++++++++++++++++++++++++++++------------------
+ 2 files changed, 48 insertions(+), 27 deletions(-)
+
+diff --git a/be/btree.c b/be/btree.c
+index 55b1cdc..b1046c2 100644
+--- a/be/btree.c
++++ b/be/btree.c
+@@ -62,19 +62,19 @@ struct node_pos {
+ 	unsigned int	    index;
+ };
+ 
+-#define MEM_ALLOC(tx, size) ({					      \
+-	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator; \
+-	m0_be_alloc(alloc, (tx), (size), BTREE_ALLOC_SHIFT);	      \
++#define MEM_ALLOC(tx, size) ({					           \
++	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;      \
++	m0_be_alloc(alloc, (tx), (size), BTREE_ALLOC_SHIFT);	           \
+ })
+ 
+-#define MEM_FREE(tx, ptr, size) ({				      \
+-	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator; \
+-	m0_be_free(alloc, (tx), (ptr));				      \
++#define MEM_FREE(tx, ptr, size) ({				           \
++	struct m0_be_allocator *alloc = &btree->bb_seg->bs_allocator;      \
++	m0_be_free(alloc, (tx), (ptr));				           \
+ })
+ 
+ /* XXX: check if region structure itself needed outside m0_be_tx_capture() */
+-#define MEM_UPDATE(tx, ptr, size) ({					 \
+-	m0_be_tx_capture((tx), &M0_BE_REG(btree->bb_seg, (size), (ptr))); \
++#define MEM_UPDATE(tx, ptr, size) ({					   \
++	m0_be_tx_capture((tx), &M0_BE_REG(btree->bb_seg, (size), (ptr)));  \
+ })
+ 
+ #define KV_SIZE(btree)	      (2*BTREE_FAN_OUT*sizeof(struct bt_key_val *) - 1)
+@@ -90,7 +90,10 @@ struct node_pos {
+  * Btree internals implementation
+  * ------------------------------------------------------------------ */
+ 
+-enum position_t { P_LEFT = -1, P_RIGHT = 1 };
++enum position_t {
++	P_LEFT = -1,
++	P_RIGHT = 1
++};
+ 
+ static struct m0_be_bnode *allocate_btree_node(const struct m0_be_btree *btree,
+ 					       struct m0_be_tx *tx);
+diff --git a/be/btree.h b/be/btree.h
+index 2701046..bfd95f6 100644
+--- a/be/btree.h
++++ b/be/btree.h
+@@ -38,20 +38,30 @@ struct m0_be_bnode;
+ struct m0_be_tx_credit;
+ struct m0_be_btree_kv_ops;
+ 
+-
++/**
++ * Represents persistent storage based on inmemory btree which can be stored on
++ * disk.
++ */
+ struct m0_be_btree {
++	/** Lock, taken when some operations are performed over the tree */
+ 	struct m0_rwlock                 bb_lock;
++	/** Segment in which @bb_root node is being stored */
+ 	struct m0_be_seg                *bb_seg;
++	/** Inmemory root node of the tree */
+ 	struct m0_be_bnode              *bb_root;
++	/** operation vector, treating keys and values, given by the user */
+ 	const struct m0_be_btree_kv_ops *bb_ops;
+ };
+ 
++/**
++ * Possible persistent operations over the tree for which credit can be taken
++ */
+ enum m0_be_btree_op {
+-	M0_BBO_CREATE,
+-	M0_BBO_DESTROY,
+-	M0_BBO_INSERT,
+-	M0_BBO_DELETE,
+-	M0_BBO_UPDATE
++	M0_BBO_CREATE,	/**< credit taken for m0_be_btree_create() */
++	M0_BBO_DESTROY, /**< credit taken for m0_be_btree_destroy() */
++	M0_BBO_INSERT,  /**< credit taken for m0_be_btree_{inplace_|}insert() */
++	M0_BBO_DELETE,  /**< credit taken for m0_be_btree_{inplace_|}delete() */
++	M0_BBO_UPDATE   /**< credit taken for m0_be_btree_{inplace_|}update() */
+ };
+ 
+ /**
+@@ -86,7 +96,8 @@ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
+ 
+ /**
+  * Finalizes in-memory structures of btree. Doesn't touch segment on the disk.
+- * @see m0_be_btree_destroy() call with does it on the disk.
++ * @see m0_be_btree_destroy() call which removes tree structures stored on the
++ * disk.
+  */
+ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree);
+ 
+@@ -99,7 +110,7 @@ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree);
+  * needed to know that operation is finished.
+  *
+  * Use case:
+- *     m0_be_btree_init(&tree, seg, NULL);
++ *     m0_be_btree_init(&tree, seg, kv_ops, NULL);
+  *     m0_be_btree_create(&tree, tx, op);
+  *     M0_ASSERT(m0_be_op_wait(op) == 0); // tree is created in its segment...
+  */
+@@ -230,15 +241,10 @@ struct m0_be_btree_anchor {
+ };
+ 
+ /**
+- * XXX: this interface needs clarification...
+- */
+-M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
+-					    struct m0_be_tx *tx,
+-					    struct m0_be_op *op,
+-					    const struct m0_buf *key,
+-					    struct m0_be_btree_anchor *anchor);
+-/**
+  * Updates @value looked up by given @key in btree. Operation is asynchronous.
++ * User can either use existing @value buffer and copy inserted data there or
++ * allocate his own. The last assumes that both @value buffer and node buffer
++ * in which key is inserted has to be captured.
+  *
+  * @see m0_be_btree_insert, note0 - note2.
+  *
+@@ -266,6 +272,18 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree *tree,
+ 					    struct m0_be_btree_anchor *anchor);
+ 
+ /**
++ * Inserts given @key and @value in btree. User has to allocate his own @value
++ * buffer and capture node buffer in which @key is inserted.
++ *
++ * @see m0_be_btree_update_inplace()
++ */
++M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
++					    struct m0_be_tx *tx,
++					    struct m0_be_op *op,
++					    const struct m0_buf *key,
++					    struct m0_be_btree_anchor *anchor);
++
++/**
+  * Looks up a value stored in the @tree by the given @key.
+  *
+  * @see m0_be_btree_update_inplace()
+@@ -277,7 +295,7 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
+ 
+ /**
+  * Completes m0_be_btree_*_inplace() operation by capturing all affected
+- * regions by calling m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
++ * regions with m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
+  */
+ M0_INTERNAL void m0_be_btree_release(struct m0_be_btree *tree,
+ 				     const struct m0_be_btree_anchor *anchor);
+@@ -349,7 +367,7 @@ M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor);
+ 
+ /**
+  * Sets key and value buffers to point on internal structures of cursor
+- * representing current key and value cursor is placed on.
++ * representing current key and value, cursor is placed on.
+  *
+  * Note: interface is synchronous.
+  */
+-- 
+1.8.3.2
+

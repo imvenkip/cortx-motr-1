@@ -1,0 +1,422 @@
+From a26bb939cde6a3a05c448cdc100f69f0fe462380 Mon Sep 17 00:00:00 2001
+From: "trupti.patil" <trupti_patil@xyratex.com>
+Date: Thu, 10 Jan 2013 12:01:20 +0530
+Subject: [PATCH 044/172] Composite instance support added
+
+---
+ layout/composite.c    | 93 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ layout/composite.h    | 18 +++++++++-
+ layout/layout.c       | 11 +++---
+ layout/ut/composite.c | 54 ++++++++++++++++++++++++++++++
+ layout/ut/layout.c    | 43 ++++++++++++++++--------
+ layout/ut/layout.h    |  3 ++
+ 6 files changed, 199 insertions(+), 23 deletions(-)
+
+diff --git a/layout/composite.c b/layout/composite.c
+index 8db2a11..348d747 100644
+--- a/layout/composite.c
++++ b/layout/composite.c
+@@ -48,7 +48,6 @@ static const struct m0_bob_type composite_bob = {
+ 
+ M0_BOB_DEFINE(static, &composite_bob, m0_composite_layout);
+ 
+-#if 0
+ static const struct m0_bob_type composite_instance_bob = {
+ 	.bt_name         = "composite_instance",
+ 	.bt_magix_offset = offsetof(struct m0_composite_instance, ci_magic),
+@@ -57,7 +56,6 @@ static const struct m0_bob_type composite_instance_bob = {
+ };
+ 
+ M0_BOB_DEFINE(static, &composite_instance_bob, m0_composite_instance);
+-#endif
+ 
+ struct composite_schema_data {
+ 	/**
+@@ -206,6 +204,19 @@ static bool composite_invariant(const struct m0_composite_layout *cl)
+ }
+ #endif
+ 
++static bool composite_instance_invariant(
++			const struct m0_composite_instance *ci)
++{
++	struct m0_composite_layout *cl;
++
++	cl = bob_of(ci->ci_base.li_l, struct m0_composite_layout, cl_base,
++		    &composite_bob);
++	return
++		m0_composite_instance_bob_check(ci) &&
++		m0_layout__instance_invariant(&ci->ci_base) &&
++		composite_invariant(cl);
++}
++
+ /** Implementation of lto_register for COMPOSITE layout type. */
+ static int composite_register(struct m0_layout_domain *dom,
+ 			      const struct m0_layout_type *lt)
+@@ -530,6 +541,16 @@ M0_INTERNAL struct m0_layout *m0_cl_to_layout(struct m0_composite_layout *cl)
+ 	return &cl->cl_base;
+ }
+ 
++M0_INTERNAL struct m0_composite_instance *m0_layout_instance_to_ci(
++				const struct m0_layout_instance *li)
++{
++	struct m0_composite_instance *ci;
++	ci = bob_of(li, struct m0_composite_instance, ci_base,
++		    &composite_instance_bob);
++	M0_POST(composite_instance_invariant(ci));
++	return ci;
++}
++
+ /** Implementation of lo_recsize() for COMPOSITE layout type. */
+ static m0_bcount_t composite_recsize(const struct m0_layout *l)
+ {
+@@ -2104,11 +2125,72 @@ M0_INTERNAL int m0_composite_layer_ext_delete(struct m0_composite_layout *cl,
+ 	return rc;
+ }
+ 
++static const struct m0_layout_instance_ops composite_instance_ops;
++M0_INTERNAL void composite_instance_fini(struct m0_layout_instance *li);
++
++/**
++ * Implementation of lo_instance_build().
++ *
++ * Allocates and builds a composite layout instance using the
++ * supplied layout 'l' that is necessarily of the type composite. It acquires
++ * an additional reference on that layout.
++ * @pre composite_invariant(pl)
++ * @post ergo(rc == 0, composite_instance_invariant(*out) &&
++ *		       m0_ref_read(&l->l_ref) > 1))
++ */
++static int composite_instance_build(struct m0_layout *l,
++				    const struct m0_fid *fid,
++				    struct m0_layout_instance **out)
++{
++	struct m0_composite_layout   *cl = m0_layout_to_cl(l);
++	struct m0_composite_instance *ci;
++
++	M0_PRE(composite_invariant(cl));
++	M0_PRE(m0_fid_is_valid(fid));
++	M0_PRE(out != NULL);
++
++	M0_ENTRY("lid %llu, gfid container %llu, gfid key %llu",
++		 (unsigned long long)l->l_id,
++		 (unsigned long long)fid->f_container,
++		 (unsigned long long)fid->f_key);
++
++	if (M0_FI_ENABLED("mem_err1")) { ci = NULL; goto err1_injected; }
++	M0_ALLOC_PTR(ci);
++err1_injected:
++	if (ci == NULL) {
++		m0_layout__log("composite_instance_build",
++			       "M0_ALLOC() failed",
++			       &m0_addb_oom, &l->l_addb, l->l_id, -ENOMEM);
++		return -ENOMEM;
++	}
++
++	m0_layout__instance_init(&ci->ci_base, fid, l,
++				 &composite_instance_ops);
++	m0_composite_instance_bob_init(ci);
++	*out = &ci->ci_base;
++	M0_POST(composite_instance_invariant(ci));
++	M0_POST(m0_ref_read(&l->l_ref) > 1);
++	M0_RETURN(0);
++}
++
++/** Implementation of lio_fini(). */
++M0_INTERNAL void composite_instance_fini(struct m0_layout_instance *li)
++{
++	struct m0_composite_instance *ci;
++
++	ci = m0_layout_instance_to_ci(li);
++	M0_ENTRY("ci %p", ci);
++	m0_layout__instance_fini(&ci->ci_base);
++	m0_composite_instance_bob_fini(ci);
++	m0_free(ci);
++	M0_LEAVE();
++}
++
+ static const struct m0_layout_ops composite_ops = {
+ 	.lo_fini           = composite_fini,
+ 	.lo_delete         = composite_delete,
+ 	.lo_recsize        = composite_recsize,
+-	.lo_instance_build = NULL, /* todo */
++	.lo_instance_build = composite_instance_build,
+ 	.lo_decode         = composite_decode,
+ 	.lo_encode         = composite_encode
+ };
+@@ -2128,6 +2210,11 @@ struct m0_layout_type m0_composite_layout_type = {
+ 	.lt_ops  = &composite_type_ops
+ };
+ 
++static const struct m0_layout_instance_ops composite_instance_ops = {
++	.lio_fini    = composite_instance_fini,
++	.lio_to_enum = NULL
++};
++
+ /** @} end group composite */
+ 
+ /*
+diff --git a/layout/composite.h b/layout/composite.h
+index 495a59d..83b584d 100644
+--- a/layout/composite.h
++++ b/layout/composite.h
+@@ -184,6 +184,18 @@ M0_TL_DECLARE(m0_layer, M0_INTERNAL, struct m0_composite_layer);
+ M0_TL_DECLARE(m0_layer_extent, M0_INTERNAL, struct m0_composite_layer_extent);
+ 
+ /**
++ * Composite layout instance for a particular file.
++ *
++ * Inode from client filesystem stores pointer to generic layout instance.
++ */
++struct m0_composite_instance {
++	/** Super class, storing pointer to the layout being used. */
++	struct m0_layout_instance ci_base;
++
++	uint64_t                  ci_magic;
++};
++
++/**
+  * Allocates and builds a layout object with the composite layout type,
+  * by setting its initial ref count to 1. It contains zeroth layer by
+  * default that 'points to the supplied old layout and contains no extents'.
+@@ -307,6 +319,10 @@ m0_layout_to_cl(const struct m0_layout *l);
+ M0_INTERNAL struct m0_layout *
+ m0_cl_to_layout(struct m0_composite_layout *cl);
+ 
++/** Returns m0_composite_instance object given a m0_layout_instance object. */
++M0_INTERNAL struct m0_composite_instance *m0_layout_instance_to_ci(
++				const struct m0_layout_instance *li);
++
+ extern struct m0_layout_type m0_composite_layout_type;
+ 
+ /**
+@@ -342,7 +358,7 @@ struct composite_layer_header {
+ 	/** Layout id for the layout used for this layer (sublayout). */
+ 	uint64_t clh_lid;
+ 
+-	/* Index of this layer into its owner composite layout. */
++	/** Index of this layer into its owner composite layout. */
+ 	uint32_t clh_idx;
+ 
+ 	/** Number of extents belonging to this layer. */
+diff --git a/layout/layout.c b/layout/layout.c
+index 7db1073..2190fd0 100644
+--- a/layout/layout.c
++++ b/layout/layout.c
+@@ -1205,14 +1205,15 @@ M0_INTERNAL void m0_layout_instance_fini(struct m0_layout_instance *li)
+ 	li->li_ops->lio_fini(li);
+ }
+ 
+-M0_INTERNAL struct m0_layout_enum *m0_layout_instance_to_enum(const struct
+-							      m0_layout_instance
+-							      *li)
++M0_INTERNAL struct m0_layout_enum *m0_layout_instance_to_enum(
++					const struct m0_layout_instance *li)
+ {
+ 	M0_PRE(m0_layout__instance_invariant(li));
+-	M0_PRE(li->li_ops->lio_to_enum != NULL);
+ 
+-	return li->li_ops->lio_to_enum(li);
++	if (li->li_ops->lio_to_enum != NULL)
++		return li->li_ops->lio_to_enum(li);
++	else
++		return NULL;
+ }
+ 
+ M0_INTERNAL uint32_t m0_layout_enum_find(const struct m0_layout_enum *e,
+diff --git a/layout/ut/composite.c b/layout/ut/composite.c
+index f926ead..9af3ada 100644
+--- a/layout/ut/composite.c
++++ b/layout/ut/composite.c
+@@ -1108,6 +1108,60 @@ int test_encode_decode_composite(uint64_t lid,
+ 	return rc;
+ }
+ 
++/* Tests the APIs supported for m0_composite_instance object. */
++int test_composite_instance_obj(uint64_t lid,
++				struct m0_layout_domain *domain,
++				bool failure_test)
++{
++	struct m0_layout             *l;
++	struct m0_composite_layout   *cl;
++	struct m0_layout_instance    *li;
++	struct m0_composite_instance *ci;
++	struct m0_fid                 gfid;
++	uint32_t                      layers_nr;
++
++	layers_nr = 5;
++	rc = composite_build_and_layers_add(lid, domain, NULL, &cl,
++					    layers_nr,
++					    8, lid * 100, lid * 100 * 100,
++					    CONTIGUOUS_EXTENTS,
++					    !FAILURE_TEST, !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	/* Build composite instance. */
++	m0_fid_set(&gfid, 0, 9999);
++	l = m0_cl_to_layout(cl);
++	M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 1);
++	rc = m0_layout_instance_build(l, &gfid, &li);
++	if (failure_test)
++		M0_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
++	else {
++		M0_UT_ASSERT(rc == 0);
++		M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 2);
++		ci = m0_layout_instance_to_ci(li);
++
++		/* Verify m0_layout_instance_to_ci(). */
++		li = &ci->ci_base;
++		M0_UT_ASSERT(m0_layout_instance_to_ci(li) == ci);
++
++		/* Verify m0_layout_instance_to_enum */
++		M0_UT_ASSERT(m0_layout_instance_to_enum(li) == NULL);
++
++		/* Delete the composite instance object. */
++		m0_layout_instance_fini(&ci->ci_base);
++		M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 1);
++	}
++
++	/* Delete the composite layout. */
++	m0_layout_put(m0_cl_to_layout(cl));
++	M0_UT_ASSERT(list_lookup(lid) == NULL);
++
++	/* Delete all the precreated sublayouts. */
++	sublayouts_delete(domain, lid, layers_nr);
++
++	return rc;
++}
++
+ #ifndef __KERNEL__
+ /* Tests the API m0_layout_lookup(), for the COMPOSITE layout type. */
+ int test_lookup_composite(uint64_t lid,
+diff --git a/layout/ut/layout.c b/layout/ut/layout.c
+index 8795c9e..da74175 100644
+--- a/layout/ut/layout.c
++++ b/layout/ut/layout.c
+@@ -2615,9 +2615,8 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
+ 	l = m0_pdl_to_layout(pl);
+ 	M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 1);
+ 	rc = m0_layout_instance_build(l, &gfid, &li);
+-	if (failure_test) {
++	if (failure_test)
+ 		M0_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
+-	}
+ 	else {
+ 		M0_UT_ASSERT(rc == 0);
+ 		M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 2);
+@@ -2642,7 +2641,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
+ 	}
+ 
+ 	/* Delete the layout object. */
+-	m0_layout_put(m0_pdl_to_layout(pl));
++	m0_layout_put(m0_pdl_to_layout(pl)); //todo l
+ 	M0_UT_ASSERT(list_lookup(lid) == NULL);
+ 	return rc;
+ }
+@@ -2656,8 +2655,8 @@ static void test_pdclust_instance(void)
+ 	uint64_t lid;
+ 
+ 	/*
+-	 * Build a layout object with PDCLUST layout type, LIST enum type
+-	 * with a few inline entries only and then destroy it.
++	 * Build a layout instance with a layout with PDCLUST layout type,
++	 * LIST enum type with a few inline entries only.
+ 	 */
+ 	lid = 12001;
+ 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE,
+@@ -2665,9 +2664,9 @@ static void test_pdclust_instance(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/*
+-	 * Build a layout object with PDCLUST layout type, LIST enum type
+-	 * with a number of inline entries exactly equal to
+-	 * LDB_MAX_INLINE_COB_ENTRIES and then destroy it.
++	 * Build a layout instance with a layout with PDCLUST layout type,
++	 * LIST enum type with a number of inline entries exactly equal to
++	 * LDB_MAX_INLINE_COB_ENTRIES.
+ 	 */
+ 	lid = 12002;
+ 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, EXACT_INLINE,
+@@ -2675,8 +2674,8 @@ static void test_pdclust_instance(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/*
+-	 * Build a layout object with PDCLUST layout type, LIST enum type
+-	 * including noninline entries and then destroy it.
++	 * Build a layout instance with a layout with PDCLUST layout type,
++	 * LIST enum type including noninline entries.
+ 	 */
+ 	lid = 12003;
+ 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+@@ -2684,8 +2683,8 @@ static void test_pdclust_instance(void)
+ 	M0_UT_ASSERT(rc == 0);
+ 
+ 	/*
+-	 * Build a layout object with PDCLUST layout type and LINEAR enum
+-	 * type and then destroy it.
++	 * Build a layout instance with a layout with PDCLUST layout type and
++	 * LINEAR enum type.
+ 	 */
+ 	lid = 12004;
+ 	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
+@@ -2709,7 +2708,7 @@ static void test_pdclust_instance_failure(void)
+ 	lid = 13002;
+ 	m0_fi_enable_once("pdclust_instance_build", "mem_err2");
+ 	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
+-				      INLINE_NOT_APPLICABLE,
++				       INLINE_NOT_APPLICABLE,
+ 				       FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -ENOMEM);
+ 
+@@ -2720,11 +2719,26 @@ static void test_pdclust_instance_failure(void)
+ 	lid = 13003;
+ 	m0_fi_enable_once("pdclust_instance_build", "parity_math_err");
+ 	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
+-				      INLINE_NOT_APPLICABLE,
++				       INLINE_NOT_APPLICABLE,
+ 				       FAILURE_TEST);
+ 	M0_UT_ASSERT(rc == -EPROTO);
+ }
+ 
++/* Tests the APIs supported for m0_composite_instance object. */
++static void test_composite_instance(void)
++{
++	uint64_t lid;
++
++	m0_fi_enable("m0_composite_layer_add", "skip_DB_sync");
++
++	/* Build a layout instance with a layout with COMPOSITE layout type. */
++	lid = 12001; //todo
++	rc = test_composite_instance_obj(lid, &domain, !FAILURE_TEST);
++	M0_UT_ASSERT(rc == 0);
++
++	m0_fi_disable("m0_composite_layer_add", "skip_DB_sync");
++}
++
+ #ifndef __KERNEL__
+ /*
+  * Sets (or resets) the pair using the area pointer and the layout id provided
+@@ -4203,6 +4217,7 @@ const struct m0_test_suite layout_ut = {
+ 		{ "layout-max-recsize", test_max_recsize },
+ 		{ "layout-recsize", test_recsize },
+ 		{ "layout-pdclust-instance", test_pdclust_instance },
++		{ "layout-composite-instance", test_composite_instance },
+ 		{ "layout-pdclust-instance-failure",
+ 					test_pdclust_instance_failure },
+ #ifndef __KERNEL__
+diff --git a/layout/ut/layout.h b/layout/ut/layout.h
+index 9bc4715..3119a21 100644
+--- a/layout/ut/layout.h
++++ b/layout/ut/layout.h
+@@ -163,6 +163,9 @@ int test_encode_decode_composite(uint64_t lid,
+ 				 m0_bindex_t min_start_offset,
+ 				 m0_bindex_t approximate_end_offset,
+ 				 bool if_contiguous_extents);
++int test_composite_instance_obj(uint64_t lid,
++				struct m0_layout_domain *domain,
++				bool failure_test);
+ void pair_set(struct m0_db_pair *pair, uint64_t *lid,
+               void *area, m0_bcount_t num_bytes);
+ int test_lookup_composite(uint64_t lid,
+-- 
+1.8.3.2
+

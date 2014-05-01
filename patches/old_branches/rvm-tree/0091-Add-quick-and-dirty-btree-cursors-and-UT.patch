@@ -1,0 +1,242 @@
+From 8f437f836dbd4f354b0576201210b691dcf60326 Mon Sep 17 00:00:00 2001
+From: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+Date: Fri, 26 Apr 2013 08:43:48 +0300
+Subject: [PATCH 91/94] Add quick and dirty btree cursors and UT.
+
+---
+ be/tree.c  | 101 ++++++++++++++++++++++++++++++++++++++++++++++++++-----------
+ be/tree.h  |  20 ++++++++++++
+ be/ut/be.c |  26 ++++++++++++++++
+ 3 files changed, 130 insertions(+), 17 deletions(-)
+
+diff --git a/be/tree.c b/be/tree.c
+index 9430ff6..e550a6c 100644
+--- a/be/tree.c
++++ b/be/tree.c
+@@ -3,6 +3,7 @@
+ #include "lib/trace.h"
+ 
+ #include "lib/assert.h"
++#include "lib/errno.h"
+ #include "lib/misc.h"
+ #include "be/tree.h"
+ 
+@@ -22,11 +23,6 @@
+ 
+ enum position_t { left = -1, right = 1 };
+ 
+-struct node_pos {
+-	struct bt_node *node;
+-	unsigned int index;
+-};
+-
+ static struct bt_node *allocate_btree_node(const struct btree *btree,
+ 					   struct btree_tx_impl *tx);
+ 
+@@ -1068,14 +1064,7 @@ static void print_single_node(struct btree *btree, struct bt_node *node)
+ 	PRINT("} (%p,%d) ", node, node->leaf);
+ }
+ 
+-/**
+- *       Function used to PRINT the B-tree
+- *       @param root Root of the B-Tree
+- *       @param PRINT_key Function used to PRINT the key value
+- *       @return none
+- */
+-
+-M0_INTERNAL void btree_dbg_print(struct btree *btree, struct bt_node *node)
++static void iter_prepare(struct btree *btree, struct bt_node *node, bool print)
+ {
+ 
+ 	int i = 0;
+@@ -1088,7 +1077,8 @@ M0_INTERNAL void btree_dbg_print(struct btree *btree, struct bt_node *node)
+ 	head = node;
+ 	tail = node;
+ 
+-	PRINT("---8<---8<---8<---8<---8<---8<---");
++	if (print)
++		PRINT("---8<---8<---8<---8<---8<---8<---");
+ 
+ 	while (true) {
+ 		if (head == NULL) {
+@@ -1096,9 +1086,11 @@ M0_INTERNAL void btree_dbg_print(struct btree *btree, struct bt_node *node)
+ 		}
+ 		if (head->level < current_level) {
+ 			current_level = head->level;
+-			PRINT("***");
++			if (print)
++				PRINT("***");
+ 		}
+-		print_single_node(btree, head);
++		if (print)
++			print_single_node(btree, head);
+ 
+ 		if (head->leaf == false) {
+ 			for (i = 0; i < head->nr_active + 1; i++) {
+@@ -1111,7 +1103,82 @@ M0_INTERNAL void btree_dbg_print(struct btree *btree, struct bt_node *node)
+ 		head = head->next;
+ 	}
+ 
+-	PRINT("---8<---8<---8<---8<---8<---8<---");
++	if (print)
++		PRINT("---8<---8<---8<---8<---8<---8<---");
++}
++
++/**
++ *       Function used to PRINT the B-tree
++ *       @param root Root of the B-Tree
++ *       @param PRINT_key Function used to PRINT the key value
++ *       @return none
++ */
++
++M0_INTERNAL void btree_dbg_print(struct btree *btree, struct bt_node *node)
++{
++	iter_prepare(btree, node, true);
++}
++
++
++/* XXX: quick and dirty iteration implementation */
++M0_INTERNAL void btree_cur_init(struct btree *btree, struct btree_cursor *cur)
++{
++	iter_prepare(btree, btree->root, false);
++	cur->tree = btree;
++
++	cur->node = btree->root;
++	while (cur->node->next != NULL) {
++		cur->node->next->prev = cur->node;
++		cur->node = cur->node->next;
++	}
++
++	cur->node->next = btree->root;
++	btree->root->prev = cur->node;
++}
++
++M0_INTERNAL int btree_cur_get(struct btree_cursor *cur, void *key)
++{
++	cur->last = get_btree_node(cur->tree, key);
++	if (cur->last.node == NULL)
++		return -ENOENT;
++
++	cur->pos = cur->last.index;
++	cur->node = cur->last.node;
++
++	return 0;
++}
++
++M0_INTERNAL int btree_cur_next(struct btree_cursor *cur, struct bt_key_val **kv)
++{
++	++cur->pos;
++
++	if (cur->pos >= cur->node->nr_active) {
++		cur->pos = 0;
++		cur->node = cur->node->next;
++	}
++
++	if (cur->pos == cur->last.index && cur->node == cur->last.node)
++		return -ENOENT;
++
++	*kv = cur->node->key_vals[cur->pos];
++
++	return 0;
++}
++
++M0_INTERNAL int btree_cur_prev(struct btree_cursor *cur, struct bt_key_val **kv)
++{
++	if (cur->pos == 0) {
++		cur->node = cur->node->prev;
++		cur->pos = cur->node->nr_active - 1;
++	} else
++		--cur->pos;
++
++	if (cur->pos == cur->last.index && cur->node == cur->last.node)
++		return -ENOENT;
++
++	*kv = cur->node->key_vals[cur->pos];
++
++	return 0;
+ }
+ 
+ #undef M0_TRACE_SUBSYSTEM
+diff --git a/be/tree.h b/be/tree.h
+index 433ab3f..87d086e 100644
+--- a/be/tree.h
++++ b/be/tree.h
+@@ -34,6 +34,7 @@ struct bt_key_val {
+ //        move btree::{value, key_size, data_size} into btree::ops;
+ 
+ struct bt_node {
++	struct bt_node     *prev;
+ 	struct bt_node     *next;	// Pointer used for linked list
+ 	bool                leaf;	// Used to indicate whether leaf or not
+         unsigned int        nr_active;	// Number of active keys
+@@ -77,4 +78,23 @@ M0_INTERNAL struct bt_key_val *btree_pair_setup(struct btree *btree,
+ 						void *val, size_t val_size);
+ 
+ M0_INTERNAL void btree_dbg_print(struct btree *btree, struct bt_node *node);
++
++
++struct node_pos {
++	struct bt_node *node;
++	unsigned int index;
++};
++
++struct btree_cursor {
++	struct btree      *tree;
++	struct bt_node    *node;
++	struct node_pos    last;
++	unsigned int       pos;
++};
++
++M0_INTERNAL void btree_cur_init(struct btree *btree, struct btree_cursor *cur);
++M0_INTERNAL int btree_cur_get(struct btree_cursor *cur, void *key);
++M0_INTERNAL int btree_cur_next(struct btree_cursor *cur, struct bt_key_val **kv);
++M0_INTERNAL int btree_cur_prev(struct btree_cursor *cur, struct bt_key_val **kv);
++
+ #endif /* __MERO_BE_TREE_H__ */
+diff --git a/be/ut/be.c b/be/ut/be.c
+index cd8d0fd..6d55b44 100644
+--- a/be/ut/be.c
++++ b/be/ut/be.c
+@@ -366,6 +366,30 @@ M0_UNUSED static void btree_log(struct btree **tree)
+ 	btree_dbg_print(*tree, (*tree)->root);
+ }
+ 
++static void be_tree_cursor_test(struct btree *tree, bool forward)
++{
++	struct btree_cursor cur;
++	struct bt_key_val  *kv;
++	char		    ckv[16];
++	int rc;
++
++	M0_LOG(M0_DEBUG, "Btree iteration test: forward = %d", !!forward);
++	btree_cur_init(tree, &cur);
++
++	sprintf(ckv, "%d", 55);
++	rc = btree_cur_get(&cur, ckv);
++	M0_UT_ASSERT(rc == 0);
++
++	while (true) {
++		rc = forward ? btree_cur_next(&cur, &kv)
++			: btree_cur_prev(&cur, &kv);
++		if (rc != 0)
++			break;
++		M0_LOG(M0_DEBUG, "key: %s, val: %s", (char*)kv->key,
++		       (char*)kv->val);
++	}
++}
++
+ M0_UNUSED static void test_be_tree_load(void)
+ {
+ #if RVM_LOADED_UPDATE
+@@ -389,6 +413,8 @@ M0_UNUSED static void test_be_tree_load(void)
+ 	(*tree)->tops = &tops;
+ 
+ 	btree_log(tree);
++	be_tree_cursor_test(*tree, true);
++	be_tree_cursor_test(*tree, false);
+ 
+ #if RVM_LOADED_UPDATE
+ 	/*
+-- 
+1.8.3.2
+

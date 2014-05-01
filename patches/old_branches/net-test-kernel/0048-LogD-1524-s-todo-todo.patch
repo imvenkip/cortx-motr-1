@@ -1,0 +1,180 @@
+From 48947669a8ad32d3a9e21b08fed4ddb0321f7296 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Thu, 29 Nov 2012 18:31:47 +0200
+Subject: [PATCH 48/71] LogD 1524: s/\/\* @todo/\/\*\* @todo/
+
+---
+ net/test/commands.c            | 4 ++--
+ net/test/console.c             | 4 ++--
+ net/test/linux_kernel/node_k.c | 2 +-
+ net/test/node.c                | 4 ++--
+ net/test/node_bulk.c           | 2 +-
+ net/test/node_ping.c           | 4 ++--
+ net/test/service.c             | 4 ++--
+ net/test/ut/network.c          | 8 ++++----
+ 8 files changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/net/test/commands.c b/net/test/commands.c
+index 1baaa7e..553fbe8 100644
+--- a/net/test/commands.c
++++ b/net/test/commands.c
+@@ -18,12 +18,12 @@
+  * Original creation date: 05/05/2012
+  */
+ 
+-/* @todo remove */
++/** @todo remove */
+ #ifndef __KERNEL__
+ #include <stdio.h>		/* printf */
+ #endif
+ 
+-/* @todo debug only, remove it */
++/** @todo debug only, remove it */
+ #ifndef __KERNEL__
+ /*
+ #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+diff --git a/net/test/console.c b/net/test/console.c
+index 25db92a..03ab858 100644
+--- a/net/test/console.c
++++ b/net/test/console.c
+@@ -18,12 +18,12 @@
+  * Original creation date: 09/03/2012
+  */
+ 
+-/* @todo remove */
++/** @todo remove */
+ #ifndef __KERNEL__
+ #include <stdio.h>		/* printf */
+ #endif
+ 
+-/* @todo debug only, remove it */
++/** @todo debug only, remove it */
+ #ifndef __KERNEL__
+ /*
+ #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+diff --git a/net/test/linux_kernel/node_k.c b/net/test/linux_kernel/node_k.c
+index db6973a..25e66c9 100644
+--- a/net/test/linux_kernel/node_k.c
++++ b/net/test/linux_kernel/node_k.c
+@@ -18,7 +18,7 @@
+  * Original creation date: 4/10/2012
+  */
+ 
+-/* @todo proper kernel module init */
++/** @todo proper kernel module init */
+ /* node_config_k.h */
+ #if 0
+ #include "net/test/node_config.h"
+diff --git a/net/test/node.c b/net/test/node.c
+index accbdf1..35ee0ec 100644
+--- a/net/test/node.c
++++ b/net/test/node.c
+@@ -18,12 +18,12 @@
+  * Original creation date: 03/22/2012
+  */
+ 
+-/* @todo remove */
++/** @todo remove */
+ #ifndef __KERNEL__
+ #include <stdio.h>		/* printf */
+ #endif
+ 
+-/* @todo debug only, remove it */
++/** @todo debug only, remove it */
+ #ifndef __KERNEL__
+ //#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+ #define LOGD(format, ...) do {} while (0)
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 939b34f..2a37d20 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -1515,7 +1515,7 @@ static int node_bulk_cmd_start(void *ctx_,
+ 
+ 	sd = &ctx->nbc_nh.ntnh_sd;
+ 
+-	/* @todo copy-paste from node_ping.c */
++	/** @todo copy-paste from node_ping.c */
+ 	/* fill test start time */
+ 	sd->ntcsd_time_start = c2_time_now();
+ 	/* initialize stats */
+diff --git a/net/test/node_ping.c b/net/test/node_ping.c
+index fc2e41c..3aa8432 100644
+--- a/net/test/node_ping.c
++++ b/net/test/node_ping.c
+@@ -18,12 +18,12 @@
+  * Original creation date: 09/03/2012
+  */
+ 
+-/* @todo remove */
++/** @todo remove */
+ #ifndef __KERNEL__
+ #include <stdio.h>		/* printf */
+ #endif
+ 
+-/* @todo debug only, remove it */
++/** @todo debug only, remove it */
+ #ifndef __KERNEL__
+ /*
+ #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+diff --git a/net/test/service.c b/net/test/service.c
+index 1a110ab..8eeb78b 100644
+--- a/net/test/service.c
++++ b/net/test/service.c
+@@ -18,12 +18,12 @@
+  * Original creation date: 09/03/2012
+  */
+ 
+-/* @todo remove */
++/** @todo remove */
+ #ifndef __KERNEL__
+ #include <stdio.h>		/* printf */
+ #endif
+ 
+-/* @todo debug only, remove it */
++/** @todo debug only, remove it */
+ #ifndef __KERNEL__
+ #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+ #else
+diff --git a/net/test/ut/network.c b/net/test/ut/network.c
+index 542daf6..ffb3051 100644
+--- a/net/test/ut/network.c
++++ b/net/test/ut/network.c
+@@ -18,7 +18,7 @@
+  * Original creation date: 05/19/2012
+  */
+ 
+-/* @todo remove */
++/** @todo remove */
+ #ifndef __KERNEL__
+ #include <stdio.h>		/* printf */
+ #endif
+@@ -30,7 +30,7 @@
+ 
+ #include "net/test/network.h"
+ 
+-/* @todo debug only, remove it */
++/** @todo debug only, remove it */
+ #ifndef __KERNEL__
+ #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+ #else
+@@ -56,7 +56,7 @@ static c2_bcount_t bv_copy(struct c2_bufvec *dst,
+ 	return c2_bufvec_cursor_copy(&bcdst, &bcsrc, len);
+ }
+ 
+-/* @todo too expensive, use c2_bufvec_cursor_step() + memcmp() */
++/** @todo too expensive, use c2_bufvec_cursor_step() + memcmp() */
+ static bool net_buf_data_eq(enum c2_net_test_network_buf_type buf_type,
+ 			    struct c2_net_test_network_ctx *ctx1,
+ 			    uint32_t buf_index1,
+@@ -193,7 +193,7 @@ void c2_net_test_network_ut_ping(void)
+ 		rc = c2_net_test_network_msg_send(&send, 0, 0);
+ 		C2_UT_ASSERT(rc == 0);
+ 
+-		/* @todo timeddown */
++		/** @todo timeddown */
+ 		c2_semaphore_down(&recv_sem);
+ 		c2_semaphore_down(&send_sem);
+ 
+-- 
+1.8.3.2
+

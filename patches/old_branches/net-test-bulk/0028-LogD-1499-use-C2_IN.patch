@@ -1,0 +1,83 @@
+From adab2a625d05000d90d11d47e636b1eea91350a2 Mon Sep 17 00:00:00 2001
+From: Maxim Medved <Max_Medved@xyratex.com>
+Date: Mon, 26 Nov 2012 09:27:22 +0200
+Subject: [PATCH 28/58] LogD 1499: use C2_IN()
+
+---
+ net/test/node_bulk.c   | 16 ++++++++--------
+ net/test/node_helper.c |  2 +-
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/net/test/node_bulk.c b/net/test/node_bulk.c
+index 1e97134..ef6a5e6 100644
+--- a/net/test/node_bulk.c
++++ b/net/test/node_bulk.c
+@@ -23,6 +23,7 @@
+ #include "lib/memory.h"			/* C2_ALLOC_PTR */
+ #include "lib/cdefs.h"			/* ergo */
+ #include "lib/trace.h"			/* C2_LOG */
++#include "lib/misc.h"			/* C2_IN */
+ 
+ #include "net/test/network.h"		/* c2_net_test_network_ctx */
+ #include "net/test/node.h"		/* c2_net_test_node_ctx */
+@@ -385,10 +386,10 @@ static void node_bulk_state_change(struct node_bulk_ctx *ctx,
+ 	/* add to ringbufs if needed */
+ 	if (state == TS_UNUSED)
+ 		c2_net_test_ringbuf_push(&ctx->nbc_rb_bulk_unused, bs_index);
+-	if (state == TS_FAILED || state == TS_TRANSFERRED || state == TS_BADMSG)
++	if (C2_IN(state, (TS_FAILED, TS_TRANSFERRED, TS_BADMSG)))
+ 		c2_net_test_ringbuf_push(&ctx->nbc_rb_bulk_final, bs_index);
+ 	/* set start & finish timestamp */
+-	if (state == TS_RECEIVING || state == TS_QUEUED)
++	if (C2_IN(state, (TS_RECEIVING, TS_QUEUED)))
+ 		bs->bsb_time_start = c2_time_now();
+ 	if (state == TS_TRANSFERRED)
+ 		bs->bsb_time_finish = c2_time_now();
+@@ -526,7 +527,7 @@ void node_bulk_state_transition_auto(struct node_bulk_ctx *ctx,
+ 	role_client = ctx->nbc_nh.ntnh_role == C2_NET_TEST_ROLE_CLIENT;
+ 	bs = &ctx->nbc_bs[bs_index];
+ 	/* Check final states */
+-	C2_ASSERT(bs->bsb_ts == TS_TRANSFERRED || bs->bsb_ts == TS_FAILED ||
++	C2_ASSERT(C2_IN(bs->bsb_ts, (TS_TRANSFERRED, TS_FAILED)) ||
+ 		  (!role_client && bs->bsb_ts == TS_BADMSG));
+ 	switch (bs->bsb_ts) {
+ 	case TS_TRANSFERRED:
+@@ -835,10 +836,9 @@ static void node_bulk_cb(struct c2_net_test_network_ctx *net_ctx,
+ 
+ 	ctx->nbc_callback_executed = true;
+ 	buf_bulk = false;
+-	if (q == C2_NET_QT_PASSIVE_BULK_RECV ||
+-	    q == C2_NET_QT_ACTIVE_BULK_RECV ||
+-	    q == C2_NET_QT_PASSIVE_BULK_SEND ||
+-	    q == C2_NET_QT_ACTIVE_BULK_SEND) {
++	if (C2_IN(q,
++		  (C2_NET_QT_PASSIVE_BULK_RECV, C2_NET_QT_ACTIVE_BULK_RECV,
++		   C2_NET_QT_PASSIVE_BULK_SEND, C2_NET_QT_ACTIVE_BULK_SEND))) {
+ 		buf_bulk = true;
+ 		bs_index = role_client ? buf_index / 2 : buf_index;
+ 		C2_ASSERT(bs_index < ctx->nbc_bs_nr);
+@@ -1271,7 +1271,7 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
+ 	node_bulk_buf_dequeue(ctx);
+ 	c2_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
+ 	node_bulk_state_transition_auto_all(ctx);
+-	c2_net_test_nh_sd_copy_lock(&ctx->nbc_nh);
++	c2_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
+ }
+ 
+ static void *node_bulk_init_fini(struct c2_net_test_service *svc,
+diff --git a/net/test/node_helper.c b/net/test/node_helper.c
+index 302bb3d..0326754 100644
+--- a/net/test/node_helper.c
++++ b/net/test/node_helper.c
+@@ -157,7 +157,7 @@ void c2_net_test_nh_cmd_status(struct c2_net_test_nh *nh,
+ 	C2_PRE(reply != NULL);
+ 
+ 	reply->ntc_type = C2_NET_TEST_CMD_STATUS_DATA;
+-	c2_net_test_nh_sd_get_lock(nh, &reply->ntc_status_data);
++	c2_net_test_nh_sd_get_locked(nh, &reply->ntc_status_data);
+ }
+ 
+ /**
+-- 
+1.8.3.2
+

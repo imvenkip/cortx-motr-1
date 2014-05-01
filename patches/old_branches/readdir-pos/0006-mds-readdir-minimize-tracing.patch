@@ -1,0 +1,34 @@
+From 5189d6d4e9a9a656012cd6550441b9fe96f2ff76 Mon Sep 17 00:00:00 2001
+From: Alexander Gattin <alexander_gattin@xyratex.com>
+Date: Sat, 23 Feb 2013 23:37:49 +0200
+Subject: [PATCH 06/17] mds/readdir: minimize tracing
+
+* remove rc DEBUG tracing (duplicates M0_LEAVE())
+* change trace message for last/next entry
+---
+ mdstore/mdstore.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/mdstore/mdstore.c b/mdstore/mdstore.c
+index 65f11d4..c3ca9f9 100644
+--- a/mdstore/mdstore.c
++++ b/mdstore/mdstore.c
+@@ -795,14 +795,13 @@ out_end:
+ 		pos_buf = (char *)m0_bitstring_buf_get(rdpg->r_pos);
+ 		pos_len = m0_bitstring_len_get(rdpg->r_pos);
+ 		rdpg->r_end = m0_bitstring_alloc(pos_buf, pos_len);
+-		M0_LOG(M0_DEBUG, "Setting last name to \"%.*s\"",
++		M0_LOG(M0_DEBUG, "%s entry: \"%.*s\"", rc ? "last" : "next",
+ 		       pos_len, pos_buf);
+ 		rc = ENOENT;
+ 	}
+ 	if (rc == -ENOENT)
+ 		rc = ENOENT;
+ out:
+-	M0_LOG(M0_DEBUG, "Readdir finished with %d", rc);
+ 	MDSTORE_FUNC_FAIL(READDIR, rc);
+ 	M0_LEAVE("rc: %d", rc);
+ 	return rc;
+-- 
+1.8.3.2
+

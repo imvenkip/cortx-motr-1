@@ -1,0 +1,460 @@
+From 0d9e0c4af07d15f2473cffd608380f930cf3d437 Mon Sep 17 00:00:00 2001
+From: "jinshan.xiong" <jinshan.xiong@clusterstor.com>
+Date: Thu, 1 Jul 2010 14:16:29 -0600
+Subject: [PATCH 02/34] - finish transport code.
+
+---
+ net/usunrpc/rfc5666/svc_rdma.c | 321 +++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 289 insertions(+), 32 deletions(-)
+
+diff --git a/net/usunrpc/rfc5666/svc_rdma.c b/net/usunrpc/rfc5666/svc_rdma.c
+index d4af8eb..f3dcfc3 100644
+--- a/net/usunrpc/rfc5666/svc_rdma.c
++++ b/net/usunrpc/rfc5666/svc_rdma.c
+@@ -14,7 +14,6 @@
+ # include <libio/iolibio.h>
+ #endif
+ 
+-
+ enum rdma_xprt_status {
+         RDMA_XPRT_INIT   = 0,
+         RDMA_XPRT_LISTEN,
+@@ -42,21 +41,42 @@ struct svcrndzv_xprt {
+         int rc_retry_cnt;
+         int rc_rnr_retry_cnt;
+         int max_msg_size;
++        int page_size;
++        int rcv_wr_flags;
++        int snd_wr_flags;
+ 
+         /* exports have been accepted. */
+         struct c2_list             xprts;
+ };
+ 
+-struct svcrdma_reply {
++struct rdma_reply {
++        struct rdma_reply *next;
++        struct svcrdma_xprt  *xprt;
++
++        /**
++         * Active replies belong to this export
++         */
++        struct c2_list_link  *link;
++
++        void              *buffer;
++        struct ibv_mr     *mr;
+         struct ibv_send_wr wr;
+         struct ibv_sge     sge;
+ };
+ 
+-struct svcrdma_request {
+-        int                   reqlen;
++struct rdma_request {
+         struct svcrdma_xprt  *xprt;
+-        struct svcrdma_reply *reply;
++        struct rdma_reply *reply;
+ 
++        /**
++         * Active repquests belong to this export.
++         * Sunrpc works sync right now, but we maintain requests assuming that
++         * multiple requests are handled simultaneously.
++         */
++        struct c2_list_link  *link;
++
++        void                 *buffer;
++        struct ibv_mr        *mr;
+         struct ibv_recv_wr    wr;
+         struct ibv_sge        sge;
+ };
+@@ -76,9 +96,14 @@ struct svcrdma_xprt {
+         struct ibv_cq           *cq;
+         struct ibv_qp           *qp;
+ 
+-        /* buffers used by this xprt. */
+-        struct svcrdma_request  *rcv;
+-        struct svcrdma_reply    *snd;
++        /* the rdma request is processing */
++        struct rdma_request  *curreq;
++        struct c2_list          *requests;
++        struct c2_list          *replis;
++
++        /* preallocated buffers used by this xprt. */
++        struct rdma_request  *rcv_bufs;
++        struct rdma_reply    *snd_bufs;
+ 
+         /* attribute of this xprt */
+         enum rdma_xprt_status    status;
+@@ -128,6 +153,9 @@ static const struct xp_ops svcrdma_rendezvous_op = {
+         rendezvous_destroy
+ };
+ 
++/**
++ * svcrdma_create: Create an rdma export and make it listen on port @port
++ */
+ SVCXPRT *svcrdma_create (int port)
+ {
+         SVCXPRT *svcxprt;
+@@ -155,15 +183,23 @@ SVCXPRT *svcrdma_create (int port)
+         /* XXX: Only RC mode is supported right now */
+         xp->trans = IBV_QPT_RC;
+         xp->port  = port;
+-        xp->max_send_wr = 32;
+-        xp->max_recv_wr = 32;
++        xp->max_send_wr = 1; /* Now that only sync sunrpc request is support */
++        xp->max_recv_wr = 1;
+         xp->max_send_sge = 1;
+         xp->max_recv_sge = 1;
+         xp->rc_retry_cnt = 8;
+         xp->rc_rnr_retry_cnt = 8;
+ 
+         /* suppose the maximum message size is 1 page. */
+-        xp->max_msg_size = 4096;
++        xp->page_size    = sysconf(_SC_PAGESIZE);
++        xp->max_msg_size = xp->page_size;
++
++        xp->rcv_wr_flags = IBV_ACCESS_LOCAL_WRITE |
++                           IBV_ACCESS_REMOTE_READ |
++                           IBV_ACCESS_REMOTE_WRITE;
++        xp->snd_wr_flags = IBV_ACCESS_LOCAL_WRITE |
++                           IBV_ACCESS_REMOTE_READ |
++                           IBV_ACCESS_REMOTE_WRITE;
+ 
+         if (rdma_create_id(xp->channel, &xp->cmid, 0, RDMA_RS_TCP)) {
+                 svc_errx("rdma_create_id failed\n");
+@@ -200,6 +236,145 @@ out:
+         return NULL;
+ }
+ 
++static void svcrdma_buffer_destroy(struct svcrdma_xprt *xprt)
++{
++        struct rdma_reply *reply;
++        int i;
++        int count;
++
++        count = xprt->rndzv->max_recv_wr;
++        if (xprt->rcv_bufs) {
++                for (i = 0; i < count; i++) {
++                        struct rdma_request *r = &xprt->rcv_bufs[i];
++
++                        if (r->buffer == NULL)
++                                break;
++                        free(r->buffer);
++
++                        if (r->mr == NULL)
++                                break;
++                        ibv_dereg_mr(r->mr);
++                }
++                mem_free(xprt->rcv_bufs);
++        }
++
++        reply = xprt->snd_bufs;
++        while (reply) {
++                struct rdma_reply *tmp = reply->next;
++
++                if (reply->buffer)
++                        free(reply->buffer);
++                if (reply->mr)
++                        ibv_dereg_mr(reply->mr);
++                mem_free(reply);
++                reply = tmp;
++        }
++}
++
++static int svcrdma_buffer_create(struct svcrdma_xprt *xprt)
++{
++        struct rdma_request *req;
++        int nr;
++        int count;
++        int bufsize;
++        int rc;
++
++        /* for receive buffers. */
++        count = xprt->rndzv->max_recv_wr;
++        req = mem_alloc(count * sizeof(*req));
++        if (req == NULL)
++                return -ENOMEM;
++
++        memset(req, 0, count * sizeof(*req));
++        xprt->rcv_bufs = req;
++
++        bufsize = xprt->rndzv->max_msg_size;
++        for (i = 0; i < count; i++) {
++                struct rdma_request *r = &req[i];
++                struct ibv_recv_wr     *badwr;
++
++                r->xprt = xprt;
++                if (posix_memalign(&r->buffer, xprt->rndzv->page_size, bufsize))
++                        goto out;
++
++                r->mr = ibv_reg_mr(xprt->pd, r->buffer, bufsize,
++                                   xprt->rndzv->rcv_wr_flags);
++                if (!r->mr) {
++                        free(r->buffer);
++                        r->buffer = NULL;
++                        goto out;
++                }
++
++                /* register receive buffer */
++                r->sge.addr   = r->buffer;
++                r->sge.length = bufsize;
++                r->sge.lkey   = r->mr->lkey;
++                r->wr.wr_id   = (uint64_t)r;
++                r->wr.sg_list = &r->sge;
++                r->wr.num_sge = 1;
++                rc = ibv_post_recv(xprt->qp, &r->wr, &badwr);
++                if (rc) {
++                        ibv_dereg_mr(r->mr);
++                        free(r->buffer);
++                        r->buffer = NULL;
++                        goto out;
++                }
++        }
++
++        /* for send buffers. */
++        count = xprt->rndzv->max_send_wr;
++        for (i = 0; i < count; i++) {
++                struct rdma_reply *reply;
++
++                reply = mem_alloc(sizeof(*reply));
++                if (!reply)
++                        goto out;
++                memset(reply, 0, sizeof(*reply));
++
++                posix_memalign(&reply->buffer, xprt->rndzv->page_size, bufsize);
++                if (!reply->buffer) {
++                        mem_free(reply);
++                        goto out;
++                }
++
++                reply->mr = ibv_reg_mr(xprt->pg, reply->buffer, bufsize,
++                                       xprt->rndzv->snd_wr_flags);
++                if (!reply->mr) {
++                        mem_free(reply);
++                        free(reply->buffer);
++                        goto out;
++                }
++
++                reply->xprt = xprt;
++                reply->sge.addr = reply->buffer;
++                reply->sge.length = bufsize;
++                reply->sge.lkey = reply->mr->lkey;
++                reply->wr.wr_id = (uint64_t)reply;
++                reply->wr.sg_list = &reply->sge;
++                reply->num_sge = 1;
++
++                reply->next = xprt->snd_bufs;
++                xprt->snd_bufs = reply;
++        }
++
++        return 0;
++
++out:
++        svcrdma_buffer_destroy(xprt);
++}
++
++/**
++ * svcrdma_handle_connection: Handle a new connecting request from client.
++ *
++ * We have to do the following things before accepting the connection request:
++ * 1. Create a queue pair, so that the server can talk to client;
++ * 2. a completion channel which is needed, in this way, this export will be
++ *    notified whenever new events come since the completion channel's fd is
++ *    set to export;
++ * Please notice that in the new export, we only care about the events for the
++ * queue pair. That's to say, for the events belonging to the accepted cmid
++ * still notify rendezvous_exprt's event channel.
++ */
+ static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
+                                      struct rdma_cm_event *ev)
+ {
+@@ -229,10 +404,14 @@ static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
+                 goto out;
+ 
+         xprt->cq = ibv_create_cq(verbs, xp->max_send_wr + xp->max_recv_wr,
+-                                 0, xprt->channel, 0);
++                                 (void*)xprt, xprt->channel, 0);
+         if (xprt->cq == NULL)
+                 goto out;
+ 
++        /* notify the completion channel if new event comes. */
++        if (ibv_req_notify_cq(xprt->cq, 0))
++                goto out;
++
+         attr.send_cq = xprt->cq;
+         attr.recv_cq = xprt->cq;
+         attr.cap.max_send_wr = xp->max_send_wr;
+@@ -243,7 +422,7 @@ static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
+         if (rdma_create_qp(cmid, xp->pd, &attr) != 0)
+                 goto out;
+ 
+-        if (svcrdma_buffer_init(xprt) != 0)
++        if (svcrdma_buffer_create(xprt) != 0)
+                 goto out;
+ 
+         svc_assert(xp->trans == IBV_QPT_RC);
+@@ -251,7 +430,7 @@ static int svcrdma_handle_connection(struct svcrndzv_xprt *xp,
+         param.initiator_depth = 1;
+         param.rnr_retry_count = xp->rc_rnr_retry_cnt;
+         param.retry_count = xp->rc_retry_cnt;
+-        if (rdma_connect(cmid, &param) != 0)
++        if (rdma_accept(cmid, &param) != 0)
+                 goto out;
+ 
+         /* great, everything sounds ok, register an xprt to svc */
+@@ -279,12 +458,16 @@ static inline struct svcrdma_xprt *xprt_find(struct svcrndzv_xprt *xp, struct rd
+         struct svcrdma_xprt *xprt;
+ 
+         c2_list_for_each_entry(xp->xprts, xprt, struct svcrdma_xprt, link) {
+-                if (xprt->cmid == ev->id)
++                if (xprt->cmid == id)
+                         return xprt;
+         }
+         return NULL;
+ }
+ 
++/**
++ * rendezvous_request() is called whenever there is new request pending for
++ * listening xprt AND accepted xprt. 
++ **/
+ static bool_t rendezvous_request (SVCXPRT *xprt, struct rpc_msg *errmsg)
+ {
+         struct svcrndzv_xprt *xp = xprt->xp_p1;
+@@ -367,20 +550,94 @@ static enum xprt_stat svcrdma_stat (SVCXPRT *xprt)
+         return XPRT_IDLE;
+ }
+ 
++static int svcrdma_handle_sendcomp(struct svcrdma_xprt *xprt,
++                                   struct rdma_reply *reply)
++{
++        return 0;
++}
++
++/**
++ * Handle receive event from this transport.
++ * An rpc is coming, the content of rpc message has already been in buffer.
++ */
++static int svcrdma_handle_recvcomp(struct svcrdma_xprt *xprt,
++                                   struct rdma_request *req,
++                                   struct rpc_msg *msg)
++{
++        return 0;
++}
++
++/**
++ * svcrdma_recv() will be called whenever a new request is pending on the
++ * completion channel. This means a send wr has been finished, or recv wr
++ * has come.
++ */
+ static bool_t svcrdma_recv (SVCXPRT *xprt, struct rpc_msg *msg)
+ {
+-  struct tcp_conn *cd = (struct tcp_conn *) (xprt->xp_p1);
+-  XDR *xdrs = &(cd->xdrs);
++        struct svcrdma_xprt *xp = xprt->xp_p1;
++        struct ibv_cq *ecq;
++        void          *ectx;
++        struct ibv_wc  wc;
++        int            rc = 0;
+ 
+-  xdrs->x_op = XDR_DECODE;
+-  (void) INTUSE(xdrrec_skiprecord) (xdrs);
+-  if (INTUSE(xdr_callmsg) (xdrs, msg))
+-    {
+-      cd->x_id = msg->rm_xid;
+-      return TRUE;
+-    }
+-  cd->strm_stat = XPRT_DIED;	/* XXXX */
+-  return FALSE;
++        if (ibv_get_cq_event(xp->channel, &ecq, &ectx) != 0) {
++                svc_errx("get cq_event for xprt %p\n", xp);
++                return FALSE;
++        }
++
++        if (ecq != xp->cq || ectx != xp) {
++                svc_errx("wrong context has %p/%p, expect %p/%p",
++                         ecq, ectx, xp->cq, xp)
++                rc = 1;
++        }
++
++        if (ibv_req_notify_events(xp->cp, 0))
++                svc_errx("failed to set up notification");
++        ibv_ack_cq_events(xp->cq, 1);
++        if (rc)
++                return FALSE;
++
++        /* handle all events which are pending on this transport.
++         * this may cause fairness and starvation problem since we have a
++         * infinite loop here. */
++        while (1) {
++                rc = ibv_poll_cq(xp->cq, 1, &wc);
++                if (!rc) {         /* no event pending any more */
++                        break;
++                } else if (rc < 0) /* error occurs */
++                        svc_errx("error occurs polling cq");
++                        break;
++                }
++
++                svc_assert(rc == 1);
++                if (wc.status != IBV_WC_SUCCESS) {
++                        svc_errx("get a wc with error(%s), op/id: %d/%lx",
++                                 ibv_wc_status_err(wc.staus), wc.opcode, wc.wr_id);
++                        /* though there is something wrong, we still need to
++                         * handle the completion event */
++                        /* fall through */
++                }
++                switch(wc.opcode) {
++                case IBV_WC_SEND: {
++                        rc = svcrdma_handle_sendcomp(xp,
++                                        (struct rdma_reply *)wc.wr_id);
++                        break;
++                case IBV_WC_RECV:
++                        rc = svcrdma_handle_recvcomp(xp,
++                                        (struct rdma_request *)wc.wr_id, msg);
++                        break;
++                case IBV_WC_RDMA_READ:
++                case IBV_WC_RDMA_WRITE:
++                        /* TODO: will handle later. */
++                        break;
++                default:
++                        svc_errx("unknown opcode(%d) of completion event %lx",
++                                 wc.opcode, wc.wr_id);
++                        break;
++                }
++        } /* while (1) */
++
++        return rc ? TRUE : FALSE;
+ }
+ 
+ static bool_t svcrdma_getargs(SVCXPRT *xprt, xdrproc_t xdr_args, caddr_t args_ptr)
+@@ -389,16 +646,15 @@ static bool_t svcrdma_getargs(SVCXPRT *xprt, xdrproc_t xdr_args, caddr_t args_pt
+         return ((*xdr_args) (&xp->xdrs, args_ptr));
+ }
+ 
+-static bool_t svcrdma_freeargs (SVCXPRT *xprt, xdrproc_t xdr_args, caddr_t args_ptr)
++static bool_t svcrdma_freeargs(SVCXPRT *xprt, xdrproc_t xdr_args, caddr_t args_ptr)
+ {
+-  XDR *xdrs = &(((struct svcrdma_xprt*) (xprt->xp_p1))->xdrs);
++        struct svcrdma_xprt *xp = xprt->xp_p1;
+ 
+-  xdrs->x_op = XDR_FREE;
+-  return ((*xdr_args) (xdrs, args_ptr));
++        xdrs->x_op = XDR_FREE;
++        return ((*xdr_args) (&xp->xdrs, args_ptr));
+ }
+ 
+-static bool_t
+-svcrdma_reply (SVCXPRT *xprt, struct rpc_msg *msg)
++static bool_t svcrdma_reply(SVCXPRT *xprt, struct rpc_msg *msg)
+ {
+   struct tcp_conn *cd = (struct tcp_conn *) (xprt->xp_p1);
+   XDR *xdrs = &(cd->xdrs);
+@@ -413,6 +669,7 @@ svcrdma_reply (SVCXPRT *xprt, struct rpc_msg *msg)
+ 
+ static void svcrdma_xprt_destroy (struct svcrdma_xprt *xprt)
+ {
++        svcrdma_buffer_destroy(xprt);
+         if (xprt->cmid->qp)
+                 rdma_destroy_qp(cmid);
+         if (xprt->cq)
+-- 
+1.8.3.2
+

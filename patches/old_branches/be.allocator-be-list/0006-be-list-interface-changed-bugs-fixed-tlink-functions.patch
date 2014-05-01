@@ -1,0 +1,681 @@
+From 9abb5c646d9d674ab4b709657a5cae5a388dcc1c Mon Sep 17 00:00:00 2001
+From: Maxim Medved <max_medved@xyratex.com>
+Date: Thu, 14 Nov 2013 23:57:16 +0200
+Subject: [PATCH 06/26] be/list: interface changed, bugs fixed, tlink functions
+ added
+
+---
+ be/list.c    | 205 +++++++++++++++++++++++++++++++++++++----------------------
+ be/list.h    |  40 +++++++++---
+ be/ut/list.c | 189 +++++++++++++++++++++++++++---------------------------
+ be/ut/main.c |   4 +-
+ 4 files changed, 254 insertions(+), 184 deletions(-)
+
+diff --git a/be/list.c b/be/list.c
+index 2cf5b03..ddfd9d4 100644
+--- a/be/list.c
++++ b/be/list.c
+@@ -39,25 +39,27 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 				   struct m0_be_tx_credit  *accum)
+ {
+ 	struct m0_be_tx_credit cred = {};
++	struct m0_be_tx_credit cred_tlink;
++	struct m0_be_tx_credit cred_tlink_magic;
++	struct m0_be_tx_credit cred_list;
++
++	cred_tlink	 = M0_BE_TX_CREDIT_TYPE(struct m0_tlink);
++	cred_tlink_magic = M0_BE_TX_CREDIT_TYPE(uint64_t);
++	cred_list	 = M0_BE_TX_CREDIT_PTR(list);
+ 
+ 	switch (optype) {
+ 	case M0_BLO_CREATE:
+-		M0_BE_ALLOC_CREDIT_PTR(list, list->bl_seg, &cred);
+-		break;
+ 	case M0_BLO_DESTROY:
+-		M0_BE_FREE_CREDIT_PTR(list, list->bl_seg, &cred);
++		m0_be_tx_credit_add(&cred, &cred_list);
+ 		break;
+ 	case M0_BLO_INSERT:
+ 	case M0_BLO_DELETE:
+ 		/* list header */
+-		m0_be_tx_credit_add(&cred,
+-				    &M0_BE_TX_CREDIT_TYPE(struct m0_list));
++		m0_be_tx_credit_add(&cred, &cred_list);
+ 		/* left list link */
+-		m0_be_tx_credit_add(&cred,
+-				    &M0_BE_TX_CREDIT_TYPE(struct m0_list_link));
++		m0_be_tx_credit_add(&cred, &cred_tlink);
+ 		/* right list link */
+-		m0_be_tx_credit_add(&cred,
+-				    &M0_BE_TX_CREDIT_TYPE(struct m0_list_link));
++		m0_be_tx_credit_add(&cred, &cred_tlink);
+ 		/* inserted element */
+ 		/* XXX: what about links with an array of bytes the last
+ 		 * element?? struct { char mem[0]; }. From the other hand,
+@@ -69,8 +71,12 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ 		 *  m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT(
+ 		 *          1, list->bl_descr->td_container_size));
+ 		 */
+-		m0_be_tx_credit_add(&cred,
+-				    &M0_BE_TX_CREDIT_TYPE(struct m0_list_link));
++		m0_be_tx_credit_add(&cred, &cred_tlink);
++		break;
++	case M0_BLO_TLINK_CREATE:
++	case M0_BLO_TLINK_DESTROY:
++		m0_be_tx_credit_add(&cred, &cred_tlink);
++		m0_be_tx_credit_add(&cred, &cred_tlink_magic);
+ 		break;
+ 	case M0_BLO_MOVE:
+ 	default:
+@@ -82,53 +88,79 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ }
+ 
+ 
+-M0_INTERNAL void m0_be_list_init(struct m0_be_list        *list,
+-				 const struct m0_tl_descr *desc,
+-				 struct m0_be_seg         *seg)
++M0_INTERNAL void m0_be_list_init(struct m0_be_list *list)
+ {
+-	list->bl_descr = desc;
+-	list->bl_seg   = seg;
+-
+-	/* XXX: uncomment this in future for get (), put() */
+-	/* list->bl_list.t_unsafe = true; */
+ }
+ 
+ M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list)
+ {
+-	m0_tlist_fini(list->bl_descr, &list->bl_list);
+ }
+ 
+-/* XXX TODO: m0_be_list_create() should return a pointer to the list. */
+-M0_INTERNAL void m0_be_list_create(struct m0_be_list       **list,
+-				   const struct m0_tl_descr *desc,
+-				   struct m0_be_seg         *seg,
++static void be_tlink_capture(struct m0_tlink *tlink,
++			     struct m0_be_list *list,
++			     struct m0_be_tx *tx)
++{
++	if (tlink != NULL)
++		M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, tlink);
++}
++
++static void be_tlink_capture_magic(struct m0_tlink *tlink,
++				   struct m0_be_list *list,
++				   struct m0_be_tx *tx)
++{
++	uint64_t *magic;
++
++	if (tlink != NULL) {
++		magic = (void *) tlink - list->bl_descr->td_link_offset +
++					 list->bl_descr->td_link_magic_offset;
++		M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, magic);
++	}
++}
++
++static void be_list_capture(struct m0_be_list *list,
++			    struct m0_be_tx *tx)
++{
++	M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, list);
++}
++
++static void be_list_capture3(struct m0_be_list *list,
++			     struct m0_be_tx   *tx,
++			     struct m0_tlink   *tlink1,
++			     struct m0_tlink   *tlink2,
++			     struct m0_tlink   *tlink3)
++{
++	be_list_capture(list, tx);
++	be_tlink_capture(tlink1, list, tx);
++	be_tlink_capture(tlink2, list, tx);
++	be_tlink_capture(tlink3, list, tx);
++}
++
++M0_INTERNAL void m0_be_list_create(struct m0_be_list	    *list,
++				   struct m0_be_tx          *tx,
+ 				   struct m0_be_op          *op,
+-				   struct m0_be_tx          *tx)
++				   struct m0_be_seg         *seg,
++				   const struct m0_tl_descr *desc)
+ {
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 
+-	M0_BE_ALLOC_PTR_SYNC(*list, seg, tx);
+-	if (*list == NULL)
+-		return;
+-
+-	m0_be_list_init(*list, desc, seg);
+-	m0_tlist_init(desc, &(*list)->bl_list);
+-	M0_BE_TX_CAPTURE_PTR(seg, tx, *list);
++	list->bl_descr = desc;
++	list->bl_seg   = seg;
++	m0_tlist_init(desc, &list->bl_list);
++	/* XXX: uncomment this in future for get (), put() */
++	/* list->bl_list.t_unsafe = true; */
++	be_list_capture(list, tx);
+ 
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
+-				    struct m0_be_op   *op,
+-				    struct m0_be_tx   *tx)
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op)
+ {
+-	struct m0_be_seg *seg   = list->bl_seg;
+-
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 
+-	m0_be_list_fini(list);
+-	M0_BE_FREE_PTR_SYNC(list, seg, tx);
+-	M0_BE_TX_CAPTURE_PTR(seg, tx, list);
++	m0_tlist_fini(list->bl_descr, &list->bl_list);
++	be_list_capture(list, tx);
+ 
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+@@ -138,8 +170,6 @@ static void *list_side(struct m0_be_list *list, struct m0_be_op *op,
+ 		       void *(*side)(const struct m0_tl_descr *d,
+ 				     const struct m0_tl *list))
+ {
+-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+-
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ 
+@@ -153,8 +183,6 @@ static void *list_iter(struct m0_be_list *list, struct m0_be_op *op,
+ 				     const struct m0_tl *list,
+ 				     const void *obj))
+ {
+-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+-
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ 
+@@ -183,23 +211,22 @@ M0_INTERNAL void *m0_be_list_prev(struct m0_be_list *list, struct m0_be_op *op,
+ 	return list_iter(list, op, obj, m0_tlist_prev);
+ }
+ 
++static struct m0_tlink *be_tlink_from_obj(void *obj, struct m0_be_list *list)
++{
++	return (struct m0_tlink *)
++	       (obj == NULL ? NULL : obj + list->bl_descr->td_link_offset);
++}
++
+ static void neighborhood(struct m0_be_list *list, void *obj,
+ 			 struct m0_tlink **prev,
+ 			 struct m0_tlink **curr,
+ 			 struct m0_tlink **next)
+ {
+ 	const struct m0_tl_descr *d = list->bl_descr;
+-	void *onext = m0_tlist_next(d, &list->bl_list, obj);
+-	void *oprev = m0_tlist_prev(d, &list->bl_list, obj);
+-
+-	if (curr != NULL)
+-		*curr = (struct m0_tlink *)(obj + d->td_link_offset);
+-	if (next != NULL)
+-		*next = (struct m0_tlink *)(onext == NULL ? NULL :
+-					    onext + d->td_link_offset);
+-	if (prev != NULL)
+-		*prev = (struct m0_tlink *)(oprev == NULL ? NULL :
+-					    oprev + d->td_link_offset);
++
++	*curr = be_tlink_from_obj(obj, list);
++	*next = be_tlink_from_obj(m0_tlist_next(d, &list->bl_list, obj), list);
++	*prev = be_tlink_from_obj(m0_tlist_prev(d, &list->bl_list, obj), list);
+ }
+ 
+ /** Captures changed regions in the list. */
+@@ -207,19 +234,12 @@ static void affected_capture(struct m0_be_list *list,
+ 			     struct m0_be_tx   *tx,
+ 			     void              *obj)
+ {
+-	struct m0_be_seg *seg = list->bl_seg;
+-	struct m0_tlink  *curr;
+-	struct m0_tlink  *next;
+-	struct m0_tlink  *prev;
++	struct m0_tlink *curr;
++	struct m0_tlink *next;
++	struct m0_tlink *prev;
+ 
+ 	neighborhood(list, obj, &prev, &curr, &next);
+-
+-	M0_BE_TX_CAPTURE_PTR(seg, tx, &list->bl_list.t_head);
+-	M0_BE_TX_CAPTURE_PTR(seg, tx, &curr->t_link);
+-	if (next != NULL)
+-		M0_BE_TX_CAPTURE_PTR(seg, tx, &next->t_link);
+-	if (prev != NULL)
+-		M0_BE_TX_CAPTURE_PTR(seg, tx, &prev->t_link);
++	be_list_capture3(list, tx, prev, curr, next);
+ }
+ 
+ static void be_list_add(struct m0_be_list *list,
+@@ -229,8 +249,6 @@ static void be_list_add(struct m0_be_list *list,
+ 			void             (*add)(const struct m0_tl_descr *d,
+ 						struct m0_tl *list, void *obj))
+ {
+-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+-
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	add(list->bl_descr, &list->bl_list, obj);
+ 	affected_capture(list, tx, obj);
+@@ -265,7 +283,7 @@ static void be_list_add_pos(struct m0_be_list *list,
+ 
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 	add(list->bl_descr, obj, new);
+-	affected_capture(list, tx, obj);
++	affected_capture(list, tx, new);
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+ 
+@@ -292,23 +310,58 @@ M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
+ 				struct m0_be_tx   *tx,
+ 				void              *obj)
+ {
+-	struct m0_tlink *next;
+ 	struct m0_tlink *prev;
++	struct m0_tlink *curr;
++	struct m0_tlink *next;
+ 
+-	M0_PRE(m0_be_op_state(op) == M0_BOS_INIT);
+ 	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 
+ 	/* delete() is a special case for capturing, because while deletion
+ 	   link is finished(), so pointer to the left and right are overwritten.
+ 	   Code has to save it beforehand and update these values */
+-	neighborhood(list, obj, &prev, NULL, &next);
++	neighborhood(list, obj, &prev, &curr, &next);
+ 	m0_tlist_del(list->bl_descr, obj);
+-	affected_capture(list, tx, obj);
++	be_list_capture3(list, tx, prev, curr, next);
++
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
++}
++
++M0_INTERNAL void m0_be_tlink_init(void *obj, struct m0_be_list *list)
++{
++}
++
++M0_INTERNAL void m0_be_tlink_fini(void *obj, struct m0_be_list *list)
++{
++}
++
++M0_INTERNAL void m0_be_tlink_create(void	      *obj,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op,
++				    struct m0_be_list *list)
++{
++	struct m0_tlink *tlink = be_tlink_from_obj(obj, list);
++
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
++
++	m0_tlink_init(list->bl_descr, obj);
++	be_tlink_capture(tlink, list, tx);
++	be_tlink_capture_magic(tlink, list, tx);
++
++	m0_be_op_state_set(op, M0_BOS_SUCCESS);
++}
++
++M0_INTERNAL void m0_be_tlink_destroy(void	      *obj,
++				     struct m0_be_tx   *tx,
++				     struct m0_be_op   *op,
++				     struct m0_be_list *list)
++{
++	struct m0_tlink *tlink = be_tlink_from_obj(obj, list);
++
++	m0_be_op_state_set(op, M0_BOS_ACTIVE);
+ 
+-	if (next != NULL)
+-		M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, &next->t_link);
+-	if (prev != NULL)
+-		M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, &prev->t_link);
++	m0_tlink_fini(list->bl_descr, obj);
++	be_tlink_capture(be_tlink_from_obj(obj, list), list, tx);
++	be_tlink_capture_magic(tlink, list, tx);
+ 
+ 	m0_be_op_state_set(op, M0_BOS_SUCCESS);
+ }
+diff --git a/be/list.h b/be/list.h
+index c263351..1fce69d 100644
+--- a/be/list.h
++++ b/be/list.h
+@@ -49,6 +49,8 @@ enum m0_be_list_op {
+ 	M0_BLO_INSERT,
+ 	M0_BLO_DELETE,
+ 	M0_BLO_MOVE,
++	M0_BLO_TLINK_CREATE,
++	M0_BLO_TLINK_DESTROY,
+ 	M0_BLO_NR
+ };
+ 
+@@ -64,21 +66,39 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
+ /* -------------------------------------------------------------------------
+  * Construction/Destruction:
+  * ------------------------------------------------------------------------- */
+-M0_INTERNAL void m0_be_list_init(struct m0_be_list        *list,
+-				 const struct m0_tl_descr *desc,
+-				 struct m0_be_seg         *seg);
++M0_INTERNAL void m0_be_list_init(struct m0_be_list *list);
+ 
+-M0_INTERNAL void m0_be_list_fini(struct m0_be_list    *list);
++M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list);
+ 
+-M0_INTERNAL void m0_be_list_create(struct m0_be_list        **list,
+-				   const struct m0_tl_descr  *desc,
+-				   struct m0_be_seg          *seg,
+-				   struct m0_be_op           *op,
+-				   struct m0_be_tx           *tx);
++M0_INTERNAL void m0_be_list_create(struct m0_be_list	    *list,
++				   struct m0_be_tx          *tx,
++				   struct m0_be_op          *op,
++				   struct m0_be_seg         *seg,
++				   const struct m0_tl_descr *desc);
+ 
+ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
++				    struct m0_be_tx   *tx,
++				    struct m0_be_op   *op);
++
++/*
++ * m0_be_link_*() functions follow BE naming pattern
++ * and not m0_tlist naming.
++ *
++ * - m0_be_tlink_create() calls m0_tlink_init();
++ * - m0_be_tlink_destroy() calls m0_tlink_fini();
++ * - m0_be_tlink_init() and m0_be_tlink_fini() are no-op now.
++ */
++M0_INTERNAL void m0_be_tlink_init(void *obj, struct m0_be_list *list);
++M0_INTERNAL void m0_be_tlink_fini(void *obj, struct m0_be_list *list);
++M0_INTERNAL void m0_be_tlink_create(void	      *obj,
++				    struct m0_be_tx   *tx,
+ 				    struct m0_be_op   *op,
+-				    struct m0_be_tx   *tx);
++				    struct m0_be_list *list);
++M0_INTERNAL void m0_be_tlink_destroy(void	      *obj,
++				     struct m0_be_tx   *tx,
++				     struct m0_be_op   *op,
++				     struct m0_be_list *list);
++
+ 
+ /* -------------------------------------------------------------------------
+  * Iteration interfaces:
+diff --git a/be/ut/list.c b/be/ut/list.c
+index 49358c4..6ad5c4e 100644
+--- a/be/ut/list.c
++++ b/be/ut/list.c
+@@ -50,94 +50,81 @@ M0_TL_DEFINE(test, M0_INTERNAL, struct test);
+ static void check(struct m0_be_list *list, struct m0_be_seg *seg);
+ M0_UNUSED static void print(struct m0_be_list *list);
+ 
+-M0_INTERNAL void m0_be_ut_list_api(void)
++M0_INTERNAL void m0_be_ut_list(void)
+ {
+ 	enum { SHIFT = 0 };
+-	struct m0_be_tx_credit tcred = {}; /* credits for structs "test" */
+-	struct m0_be_tx_credit ccred = {}; /* credits for list creation */
+-	struct m0_be_tx_credit icred = {}; /* credits for list insertions */
+-	struct m0_be_tx_credit dcred = {}; /* credits for list deletions */
+-	struct m0_be_tx_credit cred = {};  /* total credits */
+-	struct m0_be_allocator *a;
+-	struct m0_be_list      *list;
+-	struct m0_be_ut_backend ut_be;
+-	struct m0_be_ut_seg     ut_seg;
+-	struct m0_be_seg       *seg;
+-	struct m0_be_op         op;
+-	struct m0_be_tx         tx;
+-	struct test            *elem[10];
+-	int                     rc;
+-	int                     i;
++	struct m0_be_tx_credit	 cred_ins = {};
++	struct m0_be_allocator  *a;
++	struct m0_be_list       *list;
++	struct m0_be_ut_backend	 ut_be;
++	struct m0_be_ut_seg	 ut_seg;
++	struct m0_be_seg        *seg;
++	struct test             *elem[10];
++	int			 i;
+ 
+ 	M0_ENTRY();
+ 
+ 	/* Init BE. */
+ 	m0_be_ut_backend_init(&ut_be);
+-	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
++	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 16);
+ 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+ 	a = ut_seg.bus_allocator;
+ 	seg = &ut_seg.bus_seg;
+ 
+-	{ /* XXX: calculate credits properly */
+-		struct m0_be_list l;
++	M0_BE_UT_ALLOC_PTR(&ut_be, &ut_seg, list);
++	for (i = 0; i < ARRAY_SIZE(elem); ++i)
++		M0_BE_UT_ALLOC_PTR(&ut_be, &ut_seg, elem[i]);
+ 
+-		m0_be_list_init(&l, &test_tl, seg);
+-
+-		M0_BE_ALLOC_CREDIT_PTR(elem[0], seg, &tcred);
+-		M0_BE_FREE_CREDIT_PTR(elem[0], seg, &tcred);
+-		m0_be_tx_credit_mul(&tcred, ARRAY_SIZE(elem));
+-
+-		m0_be_list_credit(&l, M0_BLO_CREATE, 1, &ccred);
+-		m0_be_list_credit(&l, M0_BLO_INSERT, ARRAY_SIZE(elem), &icred);
+-		m0_be_list_credit(&l, M0_BLO_DELETE, ARRAY_SIZE(elem), &dcred);
+-
+-		m0_be_tx_credit_add(&cred, &ccred);
+-		m0_be_tx_credit_add(&cred, &tcred);
+-		m0_be_tx_credit_add(&cred, &icred);
+-		m0_be_tx_credit_add(&cred, &dcred);
+-	}
+-
+-	m0_be_ut_tx_init(&tx, &ut_be);
+-
+-	/* Open the transaction. */
+-	m0_be_tx_prep(&tx, &cred);
+-	rc = m0_be_tx_open_sync(&tx);
+-	M0_UT_ASSERT(rc == 0);
++	m0_be_list_init(list);
++	M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++		  m0_be_list_credit(list, M0_BLO_CREATE, 1, &cred),
++		  M0_BE_OP_SYNC(op, m0_be_list_create(list, &tx, &op,
++						      seg, &test_tl)));
+ 
+ 	/* Perform some operations over the list. */
+-	m0_be_op_init(&op);
+-	m0_be_list_create(&list, &test_tl, seg, &op, &tx);
+-	M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+-						 M0_BOS_FAILURE)));
+-	m0_be_op_fini(&op);
+-	M0_UT_ASSERT(list != NULL);
+ 
++	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
++		m0_be_tlink_init(elem[i], list);
++		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++		  m0_be_list_credit(list, M0_BLO_TLINK_CREATE, 1, &cred),
++		  M0_BE_OP_SYNC(op, m0_be_tlink_create(elem[i], &tx, &op,
++						       list)));
++	}
+ 	/* add */
++	m0_be_list_credit(list, M0_BLO_INSERT, 1, &cred_ins);
+ 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
+-		M0_BE_ALLOC_PTR_SYNC(elem[i], seg, &tx);
+-		M0_UT_ASSERT(elem[i] != NULL);
+-
+-		m0_tlink_init(&test_tl, elem[i]);
+-		elem[i]->t_payload = i;
+-		M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i]);
++		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++				  cred = M0_BE_TX_CREDIT_PTR(elem[i]),
++				  (elem[i]->t_payload = i,
++				   M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i])));
+ 
+-		m0_be_op_init(&op);
+ 		if (i < ARRAY_SIZE(elem) / 2) {
+-			if (i % 2 == 0)
+-				m0_be_list_add(list, &op, &tx, elem[i]);
+-			else
+-				m0_be_list_add_tail(list, &op, &tx, elem[i]);
++			if (i % 2 == 0) {
++				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++						  cred = cred_ins,
++						  M0_BE_OP_SYNC(op,
++				 m0_be_list_add(list, &op, &tx, elem[i])));
++			} else {
++				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++						  cred = cred_ins,
++						  M0_BE_OP_SYNC(op,
++				 m0_be_list_add_tail(list, &op, &tx, elem[i])));
++			}
+ 		} else {
+-			if (i % 2 == 0)
+-				m0_be_list_add_after(list, &op, &tx,
+-						     elem[i - 1], elem[i]);
+-			else
+-				m0_be_list_add_before(list, &op, &tx,
+-						      elem[i - 1], elem[i]);
++			if (i % 2 == 0) {
++				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++						  cred = cred_ins,
++						  M0_BE_OP_SYNC(op,
++				 m0_be_list_add_after(list, &op, &tx,
++						      elem[i - 1], elem[i])));
++			} else {
++				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++						  cred = cred_ins,
++						  M0_BE_OP_SYNC(op,
++				 m0_be_list_add_before(list, &op, &tx,
++						       elem[i - 1], elem[i])));
++			}
+ 		}
+-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+-							 M0_BOS_FAILURE)));
+-		m0_be_op_fini(&op);
+ 	}
+ 
+ 	/* delete */
+@@ -145,26 +132,48 @@ M0_INTERNAL void m0_be_ut_list_api(void)
+ 		if (!M0_IN(i, (0, 2, 7, 9)))
+ 			continue;
+ 
+-		m0_be_op_init(&op);
+-		m0_be_list_del(list, &op, &tx, elem[i]);
+-		M0_UT_ASSERT(M0_IN(m0_be_op_state(&op), (M0_BOS_SUCCESS,
+-							 M0_BOS_FAILURE)));
+-		m0_be_op_fini(&op);
+-
+-		M0_BE_FREE_PTR_SYNC(elem[i], seg, &tx);
+-		M0_BE_TX_CAPTURE_PTR(seg, &tx, elem[i]);
++		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++		  m0_be_list_credit(list, M0_BLO_DELETE, 1, &cred),
++		  M0_BE_OP_SYNC(op, m0_be_list_del(list, &op, &tx, elem[i])));
+ 	}
+ 
+-	/* Make things persistent. */
+-	m0_be_tx_close_sync(&tx);
+-	m0_be_tx_fini(&tx);
+-
+ 	/* Reload segment and check data. */
+-	m0_be_ut_seg_check_persistence(&ut_seg);
++	for (i = 0; i < ARRAY_SIZE(elem); ++i)
++		m0_be_tlink_fini(elem[i], list);
++	m0_be_list_fini(list);
++	m0_be_ut_seg_reload(&ut_seg);
++	m0_be_list_init(list);
++	for (i = 0; i < ARRAY_SIZE(elem); ++i)
++		m0_be_tlink_init(elem[i], list);
++
+ 	check(list, seg);
+ 
+-	/* XXX can't destroy allocator because some memory wasn't freed */
+-	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
++	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
++		if (M0_IN(i, (0, 2, 7, 9)))
++			continue;
++
++		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++		  m0_be_list_credit(list, M0_BLO_DELETE, 1, &cred),
++		  M0_BE_OP_SYNC(op, m0_be_list_del(list, &op, &tx, elem[i])));
++	}
++
++	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
++		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++		  m0_be_list_credit(list, M0_BLO_TLINK_DESTROY, 1, &cred),
++		  M0_BE_OP_SYNC(op, m0_be_tlink_destroy(elem[i], &tx, &op,
++							list)));
++		m0_be_tlink_fini(elem[i], list);
++	}
++	M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
++		  m0_be_list_credit(list, M0_BLO_DESTROY, 1, &cred),
++		  M0_BE_OP_SYNC(op, m0_be_list_destroy(list, &tx, &op)));
++	m0_be_list_fini(list);
++
++	for (i = 0; i < ARRAY_SIZE(elem); ++i)
++		M0_BE_UT_FREE_PTR(&ut_be, &ut_seg, elem[i]);
++	M0_BE_UT_FREE_PTR(&ut_be, &ut_seg, list);
++
++	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
+ 	m0_be_ut_seg_fini(&ut_seg);
+ 	m0_be_ut_backend_fini(&ut_be);
+ 
+@@ -178,26 +187,16 @@ M0_INTERNAL void m0_be_ut_list_api(void)
+ static void *be_list_head(struct m0_be_list *list)
+ {
+ 	void *p;
+-	struct m0_be_op op;
+-
+-	m0_be_op_init(&op);
+-	p = m0_be_list_head(list, &op);
+-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+-	m0_be_op_fini(&op);
+ 
++	M0_BE_OP_SYNC(op, p = m0_be_list_head(list, &op));
+ 	return p;
+ }
+ 
+ static void *be_list_next(struct m0_be_list *list, const void *obj)
+ {
+ 	void *p;
+-	struct m0_be_op op;
+-
+-	m0_be_op_init(&op);
+-	p = m0_be_list_next(list, &op, obj);
+-	M0_UT_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
+-	m0_be_op_fini(&op);
+ 
++	M0_BE_OP_SYNC(op, p = m0_be_list_next(list, &op, obj));
+ 	return p;
+ }
+ 
+@@ -222,8 +221,6 @@ static void check(struct m0_be_list *list, struct m0_be_seg *seg)
+ 	int expected[] = { 5, 8, 6, 4, 1, 3 };
+ 	int i = 0;
+ 
+-	m0_be_list_init(list, &test_tl, seg);
+-
+ 	m0_be_for(test, list, test) {
+ 		M0_UT_ASSERT(i < ARRAY_SIZE(expected));
+ 		M0_UT_ASSERT(expected[i++] == test->t_payload);
+diff --git a/be/ut/main.c b/be/ut/main.c
+index b44a67c..79a3eb5 100644
+--- a/be/ut/main.c
++++ b/be/ut/main.c
+@@ -64,7 +64,7 @@ extern void m0_be_ut_alloc_multiple(void);
+ extern void m0_be_ut_alloc_concurrent(void);
+ extern void m0_be_ut_alloc_transactional(void);
+ 
+-extern void m0_be_ut_list_api(void);
++extern void m0_be_ut_list(void);
+ extern void m0_be_ut_btree_simple(void);
+ extern void m0_be_ut_emap(void);
+ extern void m0_be_ut_seg_dict(void);
+@@ -105,7 +105,7 @@ const struct m0_test_suite be_ut = {
+ 		{ "alloc-multiple",      m0_be_ut_alloc_multiple       },
+ 		{ "alloc-concurrent",    m0_be_ut_alloc_concurrent     },
+ 		{ "alloc-transactional", m0_be_ut_alloc_transactional  },
+-		{ "list",                m0_be_ut_list_api             },
++		{ "list",                m0_be_ut_list		       },
+ 		{ "btree",               m0_be_ut_btree_simple         },
+ 		{ "seg_dict",            m0_be_ut_seg_dict             },
+ 		{ "emap",                m0_be_ut_emap                 },
+-- 
+1.8.3.2
+

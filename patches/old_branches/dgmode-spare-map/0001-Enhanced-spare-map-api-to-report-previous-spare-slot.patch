@@ -1,0 +1,177 @@
+From c334701ec3f4544d2d202974878213140cc0053d Mon Sep 17 00:00:00 2001
+From: Anup Barve <anup_barve@xyratex.com>
+Date: Wed, 18 Dec 2013 14:33:59 +0530
+Subject: [PATCH 1/4] Enhanced spare map api to report previous spare slot, in
+ case of cascaded repair. This functionality is required by degraded mode IO.
+
+---
+ sns/cm/rebalance/helpers.c | 10 +++++++---
+ sns/cm/repair/ag.c         |  3 ++-
+ sns/cm/repair/helpers.c    |  3 ++-
+ sns/parity_repair.c        | 14 ++++++++++----
+ sns/parity_repair.h        |  5 ++++-
+ 5 files changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/sns/cm/rebalance/helpers.c b/sns/cm/rebalance/helpers.c
+index 2649e40..b359d23 100644
+--- a/sns/cm/rebalance/helpers.c
++++ b/sns/cm/rebalance/helpers.c
+@@ -45,6 +45,7 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
+         struct m0_pdclust_tgt_addr  ta;
+         int32_t                     incoming_nr = 0;
+         uint32_t                    tgt_unit;
++        uint32_t                    tgt_unit_prev;
+         uint64_t                    unit;
+ 	uint64_t                    upg;
+         int                         rc;
+@@ -72,7 +73,8 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
+                 if (rc != 0)
+                         continue;
+                 rc = m0_sns_repair_spare_map(pm, &gfid, pl,
+-                                             pi, sa.sa_group, unit, &tgt_unit);
++                                             pi, sa.sa_group, unit, &tgt_unit,
++					     &tgt_unit_prev);
+                 if (rc != 0)
+                         goto err;
+                 sa.sa_unit = tgt_unit;
+@@ -143,6 +145,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
+ 	struct m0_sns_cm_iter      *it = &scm->sc_it;
+ 	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
+ 	uint32_t                    spare;
++	uint32_t                    spare_prev;
+ 	struct m0_pdclust_src_addr  sa;
+ 	struct m0_pdclust_tgt_addr  ta;
+ 	struct m0_fid               cobfid;
+@@ -164,8 +167,9 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
+ 			if (rc == 0) {
+ 				do {
+ 					funit = sa.sa_unit;
+-					rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
+-								     group, funit, &spare);
++					rc = m0_sns_repair_spare_map(pm, gfid,
++							pl, pi, group, funit,
++							&spare, &spare_prev);
+ 					if (rc != 0)
+ 						return false;
+ 					sa.sa_unit = spare;
+diff --git a/sns/cm/repair/ag.c b/sns/cm/repair/ag.c
+index 2af2f29..b92307b 100644
+--- a/sns/cm/repair/ag.c
++++ b/sns/cm/repair/ag.c
+@@ -219,6 +219,7 @@ static uint64_t repair_ag_target_unit(struct m0_sns_cm_ag *sag,
+         struct m0_pdclust_instance *pi;
+         uint64_t                    group;
+         uint32_t                    tgt_unit;
++        uint32_t                    tgt_unit_prev;
+         int                         rc;
+ 
+         agid2fid(&sag->sag_base.cag_id, &gfid);
+@@ -231,7 +232,7 @@ static uint64_t repair_ag_target_unit(struct m0_sns_cm_ag *sag,
+         group = agid2group(&sag->sag_base.cag_id);
+ 
+         rc = m0_sns_repair_spare_map(pm, &gfid, pl, pi,
+-			group, funit, &tgt_unit);
++			group, funit, &tgt_unit, &tgt_unit_prev);
+         if (rc != 0)
+                 tgt_unit = ~0;
+ 
+diff --git a/sns/cm/repair/helpers.c b/sns/cm/repair/helpers.c
+index 7c5b796..a596a0e 100644
+--- a/sns/cm/repair/helpers.c
++++ b/sns/cm/repair/helpers.c
+@@ -89,6 +89,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
+ 	struct m0_pdclust_tgt_addr  ta;
+ 	struct m0_fid               cobfid;
+ 	uint32_t                    tgt_unit;
++	uint32_t                    tgt_unit_prev;
+ 	uint32_t                    N;
+ 	uint32_t                    K;
+ 	uint32_t                    j;
+@@ -108,7 +109,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
+ 		if (m0_sns_cm_is_cob_repaired(scm, &cobfid))
+ 			continue;
+ 		rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
+-				group, j, &tgt_unit);
++				group, j, &tgt_unit, &tgt_unit_prev);
+ 		if (rc != 0)
+ 			return rc;
+ 		sa.sa_unit = tgt_unit;
+diff --git a/sns/parity_repair.c b/sns/parity_repair.c
+index 47b772a..ed2e3c1 100644
+--- a/sns/parity_repair.c
++++ b/sns/parity_repair.c
+@@ -54,7 +54,8 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
+ 					struct m0_pdclust_instance *pi,
+ 					uint64_t group_number,
+ 					uint64_t unit_number,
+-					uint32_t *spare_slot_out)
++					uint32_t *spare_slot_out,
++					uint32_t *spare_slot_out_prev)
+ {
+         uint32_t device_index;
+         uint32_t device_index_new;
+@@ -63,12 +64,14 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
+ 	M0_PRE(pm != NULL && fid != NULL && pl != NULL);
+ 
+         device_index_get(fid, pl, pi, group_number, unit_number, &device_index);
++	*spare_slot_out_prev = unit_number;
+ 
+         while (1) {
+                 rc = m0_poolmach_sns_repair_spare_query(pm, device_index,
+                                                         spare_slot_out);
+                 if (rc != 0)
+                         return rc;
++
+ 		/*
+ 		 * Find out if spare slot's corresponding device index is
+ 		 * failed. If yes, find out new spare.
+@@ -78,17 +81,20 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
+ 				 *spare_slot_out, &device_index_new);
+ 
+                 if (m0_poolmach_device_is_in_spare_usage_array(pm,
+-							device_index_new))
++							device_index_new)) {
+                         device_index = device_index_new;
+-                else
++			*spare_slot_out_prev = *spare_slot_out;
++		} else
+                         break;
+         }
+ 	/*
+ 	 * Return the absolute index of spare with respect to the aggregation
+ 	 * group.
+ 	 */
+-        if (rc == 0)
++        if (rc == 0) {
+                 *spare_slot_out += m0_pdclust_N(pl) + m0_pdclust_K(pl);
++		*spare_slot_out_prev += m0_pdclust_N(pl) + m0_pdclust_K(pl);
++	}
+ 
+         return rc;
+ }
+diff --git a/sns/parity_repair.h b/sns/parity_repair.h
+index cc8a153..5a0db1d 100644
+--- a/sns/parity_repair.h
++++ b/sns/parity_repair.h
+@@ -34,6 +34,8 @@
+  * @param group_number Parity group number for a given file.
+  * @param unit_number Unit number in the parity group.
+  * @param spare_slot_out the output spare slot.
++ * @param spare_slot_out_prev the previous spare slot (in case of cascaded
++ *        failures. Contains unit number in case of single failure.
+  */
+ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
+ 					const struct m0_fid *fid,
+@@ -41,7 +43,8 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
+ 					struct m0_pdclust_instance *pi,
+ 					uint64_t group_number,
+ 					uint64_t unit_number,
+-					uint32_t *spare_slot_out);
++					uint32_t *spare_slot_out,
++					uint32_t *spare_slot_out_prev);
+ 
+ /**
+  * Map the {spare slot, data/parity unit id} pair after repair.
+-- 
+1.8.3.2
+

@@ -1,0 +1,171 @@
+From b972263e4dd6d3584badc8837f59264ac54471b8 Mon Sep 17 00:00:00 2001
+From: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
+Date: Thu, 29 Aug 2013 14:23:58 +0530
+Subject: [PATCH 19/50] bigmemalloc.mf -Fixed a bug in  var_buffer. -There is a
+ bug in varr_alloc. done_pt can not be directly passed  to a routine that
+ computes index within a buffer.
+
+---
+ lib/varr.c | 62 ++++++++++++++++++++++++++++++++++++++++++++------------------
+ lib/varr.h |  5 ++---
+ 2 files changed, 46 insertions(+), 21 deletions(-)
+
+diff --git a/lib/varr.c b/lib/varr.c
+index 764b773..290aee5 100644
+--- a/lib/varr.c
++++ b/lib/varr.c
+@@ -63,12 +63,17 @@ M0_INTERNAL uint64_t cont_nr_for_objs(unsigned long nr,
+  * Index of an element in the array is used an identifier to represent the
+  * level in the tree.
+  */
+-struct varr_lifo_stack {
++struct varr_lifo_stack_rec {
+ 	/* Backlink to parent node. */
+-	void     *ls_parent;
++	void     *lsr_addr;
+ 
+ 	/* Index of parent node in the buffer. */
+-	uint64_t  ls_index;
++	uint64_t  lsr_index;
++};
++
++struct varr_lifo_stack {
++	struct varr_lifo_stack_rec *ls_rec;
++	int			    ls_sp;
+ };
+ 
+ /* Enumeration for action to be taken on a set of buffers. */
+@@ -80,8 +85,24 @@ enum buffer_action {
+ 
+ int push(struct m0_varr *arr, void *addr, uint64_t index)
+ {
+-	
++	++arr->va_stack->ls_sp;
++	if (arr->va_stack->ls_sp == arr->va_depth)
++		return -ENOMEM;
++	arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_addr   = addr;
++	arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_index  = index;
++	return 0;
+ }
++
++int pop(struct m0_varr *arr, void **addr, uint64_t *index)
++{
++	if (arr->va_stack->ls_sp == -1)
++		return -ENOMEM;
++	*addr  = arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_addr;
++	*index = arr->va_stack->ls_rec[arr->va_stack->ls_sp].lsr_index;
++	--arr->va_stack->ls_sp;
++	return 0;
++}
++
+ M0_INTERNAL unsigned long varr_obj_nr_in_buff(const struct m0_varr *arr)
+ {
+ 	M0_PRE(arr != NULL);
+@@ -190,9 +211,11 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr,
+ 
+ 	/* Allocates the stack only if it is needed. */
+ 	if (arr->va_depth > 0) {
+-		M0_ALLOC_ARR(arr->va_stack, arr->va_depth);
++		M0_ALLOC_PTR(arr->va_stack);
++		M0_ALLOC_ARR(arr->va_stack->ls_rec, arr->va_depth);
+ 		if (arr->va_stack == NULL)
+ 			rc = -ENOMEM;
++		arr->va_stack->ls_sp = 0;
+ 	}
+ 
+ 	if (rc == 0) {
+@@ -216,7 +239,8 @@ M0_INTERNAL void m0_varr_fini(struct m0_varr *arr)
+ 
+ 	varr_buffers_dealloc(arr, cont_nr_for_objs(arr->va_nr,
+ 			     varr_obj_nr_in_buff(arr)));
+-
++	m0_free(arr->va_stack->ls_rec);
++	m0_free(arr->va_stack);
+ 	m0_lookup_table_fini(&arr->va_lktable);
+ 	M0_POST(arr->va_alloc == arr->va_dealloc);
+ 	m0_varr_bob_fini(arr);
+@@ -238,14 +262,14 @@ M0_INTERNAL unsigned long *varr_buffer(const struct m0_varr *arr,
+ 	M0_PRE(index <  arr->va_nr);
+ 
+ 	buf    = index / varr_obj_nr_in_buff(arr);
+-	holder = arr->va_tree[buf / max_buff_nr_till_lev_n_pn(arr, 1)];
++	id     = buf / max_buff_nr_till_lev_n_pn(arr, 1);
++	holder = arr->va_tree[id];
+ 	M0_ASSERT(holder != NULL);
+-
++	buf -= max_buff_nr_till_lev_n_pn(arr, 1) * id;
+ 	for (level = 1; level <= arr->va_depth && buf != 0; ++level) {
+ 		id = index_in_level_n_pn(arr, buf, level);
+ 		holder += id;
+-		if (level != 1)
+-			buf -= max_buff_nr_till_lev_n_pn(arr, level) * id;
++		buf -= max_buff_nr_till_lev_n_pn(arr, level) * id;
+ 		/* Dereferences the buffer pointer at given offset. */
+ 		M0_ASSERT((unsigned long *)*holder!= NULL);
+ 		holder = (unsigned long *)*holder;
+@@ -305,9 +329,10 @@ static void varr_buffers_dealloc(struct m0_varr *arr,
+ 	int            level;
+ 	uint64_t       nr;
+ 	uint64_t       done;
++	uint64_t       done_pt;
++	uint64_t       child_id;
+ 	uint64_t       buff_nr_pn;
+ 	unsigned long *holder;
+-	unsigned long *child;
+ 
+ 	M0_PRE(arr     != NULL);
+ 	M0_PRE(buff_nr  > 0);
+@@ -319,25 +344,26 @@ static void varr_buffers_dealloc(struct m0_varr *arr,
+ 				    buff_nr - done);
+ 		while (level > -1) {
+ 			while (child_id < arr->va_bufptr_nr &&
+-			       *holder != NULL) {
++			       (unsigned long *)*holder != NULL) {
+ 				nr = min64u(level != arr->va_depth ? 1 :
+-						arr->va_bufptr_nr,
+-						buff_nr_pn - done_pt);
++					    arr->va_bufptr_nr,
++					    buff_nr_pn - done_pt);
+ 				if (level == arr->va_depth) {
+ 					rc = buffers_helper(arr, holder, nr,
+ 							    BA_DEALLOC);
+ 					M0_ASSERT(rc == 0);
+ 					done_pt += nr;
+ 					break;
+-				}
+-				else {
+-					push(arr->va_stack, holder, child_id);
++				} else {
++					rc = push(arr, holder,
++						  child_id);
++					M0_ASSERT(rc == 0);
+ 					holder = (unsigned long *)*holder;
+ 					++level;
+ 					child_id = 0;
+ 				}
+ 			}
+-			rc = pop(arr->va_stack, &holder, &child_id);
++			rc = pop(arr, (void **)&holder, &child_id);
+ 			M0_ASSERT(rc == 0);
+ 			rc = buffers_helper(arr, holder, 1, BA_DEALLOC);
+ 			M0_ASSERT(rc == 0);
+diff --git a/lib/varr.h b/lib/varr.h
+index ae4d11a..61956f3 100644
+--- a/lib/varr.h
++++ b/lib/varr.h
+@@ -148,10 +148,9 @@ struct m0_varr {
+ 	void                     *va_tree[VA_TNODE_NR];
+ 
+ 	/**
+-	 * Array of varr_lifo_stack structures to maintain backlink
+-	 * to parents in a tree traversal.
++	 * maintains backlink to parents in a tree traversal.
+ 	 */
+-	struct varr_lifo_stack   *va_stack;
++	struct varr_lifo_stack    *va_stack;
+ 
+ 	/** Lookup table to store m0_pow() values for this array. */
+ 	struct varr_lookup_table  va_lktable;
+-- 
+1.8.3.2
+

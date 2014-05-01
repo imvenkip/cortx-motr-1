@@ -1,0 +1,104 @@
+From da7385b8c5546c832f2710b26dad2dc148b81bf3 Mon Sep 17 00:00:00 2001
+From: "Valery V. Vorotyntsev" <valery_vorotyntsev@xyratex.com>
+Date: Thu, 27 Jun 2013 18:38:00 +0300
+Subject: [PATCH 248/290] be/ut: launch an "AST thread" for be-tx-ut
+
+[WIP] tx sm fails: it makes an attempt to move from M0_BTS_GROUPED state
+to M0_BTS_LOGGED, jumping over M0_BTS_SUBMITTED. This is not sd_allowed.
+---
+ be/ut/tx.c | 69 ++++++++++++++++++++++++++++++++++++++------------------------
+ 1 file changed, 42 insertions(+), 27 deletions(-)
+
+diff --git a/be/ut/tx.c b/be/ut/tx.c
+index 0f4d510..e2e637c 100644
+--- a/be/ut/tx.c
++++ b/be/ut/tx.c
+@@ -30,31 +30,6 @@ static struct m0_be_ut_h  be_ut_tx_h;
+ static struct m0_sm_group g_grp;
+ static uint64_t           g_tid = 1;
+ 
+-static int seg_create(void)
+-{
+-	m0_be_ut_h_init(&be_ut_tx_h);
+-	m0_sm_group_init(&g_grp);
+-	return 0;
+-}
+-
+-static int seg_destroy(void)
+-{
+-	m0_sm_group_fini(&g_grp);
+-	/* m0_be_ut_h_fini(&be_ut_tx_h); */
+-	m0_be_ut_seg_close_destroy(&be_ut_tx_h);
+-	return 0;
+-}
+-
+-static void be_init(struct m0_be *be)
+-{
+-	m0_be_tx_engine_init(&be->b_tx);
+-}
+-
+-static void be_fini(struct m0_be *be)
+-{
+-	m0_be_tx_engine_fini(&be->b_tx);
+-}
+-
+ static void tx_test(struct m0_be *be)
+ {
+ 	struct m0_be_op         op;
+@@ -150,11 +125,51 @@ static void test_tx_svc(void)
+ 
+ 	M0_LEAVE();
+ }
++
++/* ------------------------------------------------------------------ */
++
++static struct {
++	bool             run;
++	struct m0_thread thread;
++} g_ast;
++
++static void ast_thread(int _ M0_UNUSED)
++{
++	while (g_ast.run) {
++		m0_chan_wait(&g_grp.s_clink);
++		m0_sm_group_lock(&g_grp);
++		m0_sm_asts_run(&g_grp);
++		m0_sm_group_unlock(&g_grp);
++	}
++}
++
++static int _init(void)
++{
++	m0_be_ut_h_init(&be_ut_tx_h);
++
++	m0_sm_group_init(&g_grp);
++	g_ast.run = true;
++	return M0_THREAD_INIT(&g_ast.thread, int, NULL, &ast_thread, 0,
++			      "ast_thread");
++}
++
++static int _fini(void)
++{
++	g_ast.run = false;
++	m0_clink_signal(&g_grp.s_clink);
++	m0_thread_join(&g_ast.thread);
++	m0_sm_group_fini(&g_grp);
++
++	/* XXX m0_be_ut_h_fini(&be_ut_tx_h); */
++	m0_be_ut_seg_close_destroy(&be_ut_tx_h);
++
++	return 0;
++}
+ 
+ const struct m0_test_suite be_tx_ut = {
+ 	.ts_name = "be-tx-ut",
+-	.ts_init = seg_create,
+-	.ts_fini = seg_destroy,
++	.ts_init = _init,
++	.ts_fini = _fini,
+ 	.ts_tests = {
+ 		{ "run", test_tx_svc },
+ 		{ NULL, NULL }
+-- 
+1.8.3.2
+
