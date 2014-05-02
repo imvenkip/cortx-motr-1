@@ -211,7 +211,7 @@ M0_INTERNAL struct m0_be_op *m0_be_emap_op(struct m0_be_emap_cursor *it)
 	return &it->ec_op;
 }
 
-M0_INTERNAL int m0_be_emap_op_rc(struct m0_be_emap_cursor *it)
+M0_INTERNAL int m0_be_emap_op_rc(const struct m0_be_emap_cursor *it)
 {
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
@@ -499,11 +499,11 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	 */
 }
 
-M0_INTERNAL m0_bcount_t m0_be_emap_count(struct m0_be_emap_cursor *it)
+M0_INTERNAL int m0_be_emap_count(struct m0_be_emap_cursor *it,
+				 m0_bcount_t *segs)
 {
 	struct m0_be_emap_seg *seg;
 	struct m0_be_op       *op;
-	m0_bcount_t            frags = 0;
 	int                    rc = 0;
 
 	M0_INVARIANT_EX(be_emap_invariant(it));
@@ -513,18 +513,18 @@ M0_INTERNAL m0_bcount_t m0_be_emap_count(struct m0_be_emap_cursor *it)
 		seg = m0_be_emap_seg_get(it);
 		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
 			  !m0_ext_is_empty(&seg->ee_ext));
-		++frags;
+		++*segs;
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
 		m0_be_op_init(op);
 		m0_be_emap_next(it);
 		rc = m0_be_op_wait(op);
-		M0_ASSERT(rc == 0);
-		rc = m0_be_emap_op_rc(it);
+		if (rc == 0)
+			rc = m0_be_emap_op_rc(it);
 		m0_be_op_fini(op);
 	} while (rc == 0);
 
-	return frags;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,

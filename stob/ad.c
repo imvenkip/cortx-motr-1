@@ -562,17 +562,18 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_cursor  it;
 	int                       rc;
-	m0_bcount_t               frags = 0;
+	m0_bcount_t               segs = 0;
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	rc = stob_ad_cursor(adom, stob, 0, &it);
 	if (rc != 0)
 		return M0_RC(rc);
-	frags = m0_be_emap_count(&it);
-	rc = m0_be_emap_op_rc(&it);
+	rc = m0_be_emap_count(&it, &segs);
+	if (rc == 0)
+		rc = m0_be_emap_op_rc(&it);
 	m0_be_emap_close(&it);
 	if (rc == 0)
-		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags, accum);
+		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, segs, accum);
 
 	return M0_RC(rc);
 }
