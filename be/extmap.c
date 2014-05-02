@@ -504,6 +504,7 @@ M0_INTERNAL int m0_be_emap_count(struct m0_be_emap_cursor *it,
 {
 	struct m0_be_emap_seg *seg;
 	struct m0_be_op       *op;
+	m0_bcount_t            nr_segs = 0;
 	int                    rc = 0;
 
 	M0_INVARIANT_EX(be_emap_invariant(it));
@@ -513,7 +514,7 @@ M0_INTERNAL int m0_be_emap_count(struct m0_be_emap_cursor *it,
 		seg = m0_be_emap_seg_get(it);
 		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
 			  !m0_ext_is_empty(&seg->ee_ext));
-		++*segs;
+		++nr_segs;
 		if (m0_be_emap_ext_is_last(&seg->ee_ext))
 			break;
 		m0_be_op_init(op);
@@ -523,6 +524,8 @@ M0_INTERNAL int m0_be_emap_count(struct m0_be_emap_cursor *it,
 			rc = m0_be_emap_op_rc(it);
 		m0_be_op_fini(op);
 	} while (rc == 0);
+
+	*segs = nr_segs;
 
 	return M0_RC(rc);
 }

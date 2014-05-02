@@ -562,7 +562,7 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_cursor  it;
 	int                       rc;
-	m0_bcount_t               segs = 0;
+	m0_bcount_t               segs;
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	rc = stob_ad_cursor(adom, stob, 0, &it);
@@ -599,6 +599,8 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
 	rc = stob_ad_cursor(adom, stob, 0, &it);
+	if (rc != 0)
+		return M0_RC(rc);
 	M0_LOG(M0_DEBUG, U128D_F, U128_P(&it.ec_prefix));
 	seg = m0_be_emap_seg_get(&it);
 	ext = &it.ec_seg.ee_ext;
