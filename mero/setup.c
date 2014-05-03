@@ -700,12 +700,6 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		if (dom_cfg == NULL) {
 			rc = -ENOMEM;
 		} else {
-/*			if (mkfs) {
-				rc = m0_stob_domain_init(location, NULL, &adstob->as_dom);
-				if (rc == 0) {
-					m0_stob_domain_destroy(adstob->as_dom);
-				}
-			}*/
 			rc = m0_stob_domain_create_or_init(location, NULL,
 							   cid, dom_cfg,
 							   &adstob->as_dom);
@@ -835,20 +829,30 @@ static int cs_storage_init(const char *stob_type,
 
 	sprintf(location, "%s%s", prefix, stob_path);
 	if (mkfs) {
-		rc = m0_stob_domain_init(location, "directio=true", &stob->s_sdom);
+		rc = m0_stob_domain_init(location, "directio=true",
+					 &stob->s_sdom);
 		if (rc == 0) {
 			/* Found existing stob domain, kill it. */
 			m0_stob_domain_destroy(stob->s_sdom);
 		}
+		rc = m0_stob_domain_create_or_init(location, "directio=true",
+						   dom_key, NULL, &stob->s_sdom);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "m0_stob_domain_create_or_init: rc=%d", rc);
+	} else {
+		rc = m0_stob_domain_init(location, "directio=true",
+					 &stob->s_sdom);
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "m0_stob_domain_init: rc=%d", rc);
 	}
-	rc = m0_stob_domain_create_or_init(location, "directio=true", dom_key, NULL,
-					   &stob->s_sdom);
 	m0_free(location);
 
 	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0) {
 		rc = cs_ad_stob_init(stob, db);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "cs_ad_stob_init: rc=%d", rc);
 			m0_stob_domain_fini(stob->s_sdom);
+		}
 	}
 	return M0_RC(rc);
 }
@@ -1116,15 +1120,20 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx, bool mkfs)
 	M0_ENTRY();
 
 	if (mkfs) {
-		rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL, &addb_stob->cas_stobs.s_sdom);
+		rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL,
+					 &addb_stob->cas_stobs.s_sdom);
 		if (rc == 0) {
 			/* Found existing stob domain, kill it. */
 			m0_stob_domain_destroy(addb_stob->cas_stobs.s_sdom);
 		}
+		/** @todo allow different stob type for data stobs & ADDB stobs? */
+		rc = m0_stob_domain_create_or_init(rctx->rc_addb_stlocation,
+						   NULL, 0, NULL,
+						   &addb_stob->cas_stobs.s_sdom);
+	} else {
+		rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL,
+					 &addb_stob->cas_stobs.s_sdom);
 	}
-	/** @todo allow different stob type for data stobs & ADDB stobs? */
-	rc = m0_stob_domain_create_or_init(rctx->rc_addb_stlocation, NULL, 0,
-					   NULL, &addb_stob->cas_stobs.s_sdom);
 	if (rc != 0)
 		return M0_RC(rc);
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# set -x
 # Script to startup local/remote services and mount Mero file system
 #
 # - The script requires the build path to be available on all the nodes.
@@ -62,7 +62,7 @@ usage()
 	cat <<.
 Usage:
 
-$ sudo m0mount [-Laclsqv] [-d NUM] [-p NUM] [-n NUM] [-u NUM]
+$ sudo m0mount [-Laclsqv] [-d NUM] [-p NUM] [-n NUM] [-u NUM] [-m 1|0]
 
 Where:
 -a: Use AD stobs
@@ -92,6 +92,8 @@ Where:
 
 -h: Print this help.
 
+-m NUM: Whether to run mkfs before starting m0d or not, 1 - yes, 0 - no (default is $run_mkfs)
+
 -n NUM: Start 'NUM' number of local m0d. (default is $SERVICES_NR)
 
 -d NUM: Use NUM number of data units. (default is $NR_DATA)
@@ -107,7 +109,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="acln:d:k:p:u:qhLsv"
+OPTIONS_STRING="acln:d:k:p:u:qhLsvm:"
 
 # This example puts 3 ioservices on 3 nodes
 SERVICES=(
@@ -132,6 +134,7 @@ DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 STOB=linux
 UNIT_SIZE=262144
 client_only=0
+run_mkfs=1
 use_loop_device=0
 setup_loops_p=0
 loop_used=-1
@@ -488,8 +491,8 @@ function start_server () {
 	fi
 	local SDIR=$WORK_ARENA/d$I
 	local DDIR=$SDIR
-	$DO rm -rf $SDIR
-	$DO mkdir -p $SDIR
+	[ $run_mkfs -eq 1] && $DO rm -rf $SDIR
+	[ $run_mkfs -eq 1] && $DO mkdir -p $SDIR
 	local DF=$SDIR/m0d.sh
 	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
 	local STOB_PARAMS="-T linux"
@@ -534,14 +537,16 @@ function start_server () {
 	fi
 
 	$DO "echo rotated > ${SLOG}$I.log"
-	echo Running mkfs...
-	$RUN "cd $DDIR && \
+	if [ $run_mkfs -eq 1 ]; then
+		echo Running mkfs...
+		$RUN "cd $DDIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $M0MKFS $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
 -w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
 -e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log
+	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
@@ -606,7 +611,13 @@ function start_servers () {
 		local STARTED_NR=`cat ${SLOG}*.log | grep CTRL | wc -l`
 		echo "Started $STARTED_NR (of $SERVICES_NR) services..."
 		[ $STARTED_NR -ge $SERVICES_NR ] && break
+		local START_ERROR=`cat ${SLOG}*.log | grep ERROR | wc -l`
 		l_do sleep 5
+		if [ $START_ERROR -gt 0 ]; then
+			echo "Failed to start Mero!"
+			cat ${SLOG}*.log | grep ERROR
+			return 1
+		fi
 	done
 
 	return 0
@@ -652,8 +663,10 @@ function setup_loops () {
 
 	l_do mkdir -p $WORK_ARENA
 	for ((i = 0; i < $((POOL_WIDTH + SERVICES_NR)); i++)); do
-		l_do dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
-			bs=1M seek=1M count=1
+		if [ $run_mkfs -eq 1 ]; then
+			l_do dd if=/dev/zero of=$WORK_ARENA/disk-image-$i \
+				bs=1M seek=1M count=1
+		fi
 		l_do losetup /dev/loop$i $WORK_ARENA/disk-image-$i
 		loop_used=$i
 	done
@@ -676,7 +689,9 @@ EOF
 	teardown_hosts
 	for ((i = $loop_used; i >= 0; i--)); do
 		losetup -d /dev/loop$i
-		rm -f $WORK_ARENA/disk-image-$i
+ 		# In case we run with -m 0, that is no mkfs we need to
+ 		# reuse old images.
+		#rm -f $WORK_ARENA/disk-image-$i
 	done
 }
 
@@ -772,6 +787,9 @@ while getopts "$OPTIONS_STRING" OPTION; do
             ;;
         c)
             client_only=1
+            ;;
+        m)
+            run_mkfs="$OPTARG"
             ;;
         l)
             use_loop_device=1

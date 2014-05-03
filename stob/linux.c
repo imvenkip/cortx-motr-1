@@ -17,6 +17,9 @@
  * Original creation date: 04/28/2010
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#include "lib/trace.h"
+
 #include "stob/linux.h"
 
 #include <stdio.h>			/* fopen */
