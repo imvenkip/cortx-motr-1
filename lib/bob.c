@@ -72,9 +72,9 @@ M0_INTERNAL void m0_bob_fini(const struct m0_bob_type *bt, void *bob)
 M0_INTERNAL bool m0_bob_check(const struct m0_bob_type *bt, const void *bob)
 {
 	return
-		(unsigned long)bob + 4096 > 8192 &&
-		*MAGIX(bt, bob) == bt->bt_magix &&
-		ergo(bt->bt_check != NULL, bt->bt_check(bob));
+		_0C((unsigned long)bob + 4096 > 8192) &&
+		_0C(*MAGIX(bt, bob) == bt->bt_magix) &&
+		ergo(bt->bt_check != NULL, _0C(bt->bt_check(bob)));
 }
 
 /** @} end of cond group */
