@@ -85,9 +85,11 @@ static void be_ut_seg_state_load(struct be_ut_helper_struct *h)
 {
         m0_be_state_load(be_ut_seg_state,
                                LAMBDA(bool, (FILE *f, int *state) {
-                                      fscanf(f, "%p %"SCNu64"\n",
+                                      int nr = fscanf(f, "%p %"SCNu64"\n",
                                              &h->buh_addr, &h->buh_id);
-                                      return false;
+                                      /* This is need to fool rpm build not
+                                         to fail on ignoring fscanf() result. */
+                                      return nr > 0 ? false : false;
                                       }));
 }
 

@@ -133,7 +133,7 @@ services_start() {
 
   {0x70| (($PROF_AC), $FS1)},
   {0x66| (($FS1), (11, 22),
-                [11: "-p", "-T", "linux", "-D", "db", "-S", "stobs",
+                [10: "-T", "linux", "-D", "db", "-S", "stobs",
                      "-A", "linuxstob:addb-stobs", "-w", "3"],
                 [1: $IOS1])},
   {0x73| (($IOS1), 2, [1: "lnet:$IOS1_ENDPOINT"], $NODE1)},
@@ -147,7 +147,7 @@ EOF`"
     }
 
     local OPTIONS="`cat <<EOF
--p -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
+-D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A linuxstob:$SANDBOX_DIR/addb-stobs
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
@@ -156,10 +156,12 @@ EOF`"
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR
+    $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTIONS >>$SANDBOX_DIR/m0d.log 2>&1
     ($M0_CORE_DIR/mero/m0d $OPTIONS >>$SANDBOX_DIR/m0d.log 2>&1 &)
 
     sleep 1
     killall -q -0 lt-m0d || {
+	echo "Failed to start Mero services"
 	sandbox_fini
 	modules_remove
 	die 'Failed to start Mero services'
