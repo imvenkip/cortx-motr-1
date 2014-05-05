@@ -126,6 +126,12 @@ install_mero_rpm()
 {
     local pkg=$1
 
+    # check if an older version is installed and remove it first
+    if rpm --quiet -q mero ; then
+        warn "Old mero rpm detected in the system, removing it first"
+        remove_mero_rpm $pkg
+    fi
+
     info "Installing rpm: $pkg"
     rpm -ihv $pkg
 }
