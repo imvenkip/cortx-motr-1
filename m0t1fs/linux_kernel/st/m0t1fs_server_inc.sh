@@ -95,7 +95,7 @@ mero_service()
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
 			echo $cmd
-			(eval "$cmd") &
+			eval "$cmd"
 			cmd="cd $DIR && exec \
 			$prog_start \
 			 -T $MERO_STOB_DOMAIN \

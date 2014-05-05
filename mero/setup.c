@@ -1265,7 +1265,7 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 			     rctx->rc_beseg, true);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Failed to initialize mdstore. %s", !mkfs ? " Did you run mkfs?" : "Mkfs failed?");
+		M0_LOG(M0_ERROR, "Failed to initialize mdstore. %s", !mkfs ? "Did you run mkfs?" : "Mkfs failed?");
 		goto cleanup_addb_stob;
 	}
 
@@ -1756,7 +1756,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
 	int                     rc;
-	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 	const char             *confd_addr = NULL;
 	const char             *profile = NULL;
 	const char             *genders = NULL;
@@ -1768,16 +1767,6 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 			 &genders, &use_genders);
 	if (rc != 0)
 		return M0_RC(rc);
-
-	if (rctx->rc_dbpath == NULL) {
-		cs_usage(cctx->cc_outfile, argv[0]);
-		return M0_ERR(-EPROTO, "Database path is not specified");
-	}
-
-	if (rctx->rc_stpath == NULL) {
-		cs_usage(cctx->cc_outfile, argv[0]);
-		return M0_ERR(-EPROTO, "Storage domain path is not specified");
-	}
 
 	if (genders != NULL && !use_genders) {
 		cs_usage(cctx->cc_outfile, argv[0]);
