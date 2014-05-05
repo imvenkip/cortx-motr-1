@@ -1,5 +1,0 @@
-utils_mkfs_m0mkfs_SOURCES     = utils/mkfs/m0mkfs.c
-
-EXTRA_DIST += utils/mkfs/m0mkfs utils/mkfs/m0mkfs.sh.in
-
-#POD_MAN_PAGES += utils/mkfs/m0mkfs
