@@ -146,7 +146,7 @@ static void be_engine_unlock(struct m0_be_engine *en)
 	m0_mutex_unlock(&en->eng_lock);
 }
 
-static bool be_engine_is_locked(struct m0_be_engine *en)
+static bool be_engine_is_locked(const struct m0_be_engine *en)
 {
 	return m0_mutex_is_locked(&en->eng_lock);
 }
@@ -180,21 +180,58 @@ static void be_engine_tx_state_post(struct m0_be_engine *en,
 	m0_be_tx__state_post(tx, state);
 }
 
-/* XXX RENAME IT */
-static void be_engine_got_tx_open(struct m0_be_engine *en)
+/**
+ * If @stopped engine is stopped for new exclusive transaction, otherwize
+ * exclusive transaction is at M0_BTS_DONE state.
+ */
+static bool is_engine_at_stopped_or_done(const struct m0_be_engine *en,
+					 bool stopped)
+{
+	M0_PRE(be_engine_is_locked(en));
+
+	return m0_forall(state, M0_BTS_DONE,
+			 state < M0_BTS_ACTIVE ? true :
+			 etx_tlist_is_empty(&en->eng_txs[state])) &&
+		!m0_tl_exists(etx, tx, &en->eng_txs[M0_BTS_NR],
+			      (stopped ? M0_BTS_OPENING : M0_BTS_ACTIVE)
+			      <= m0_be_tx_state(tx) &&
+			      m0_be_tx_state(tx) <= M0_BTS_DONE);
+}
+
+static struct m0_be_tx *be_engine_tx_opening_peek(struct m0_be_engine *en)
 {
 	struct m0_be_tx *tx;
-	int              rc;
 
 	M0_PRE(be_engine_is_locked(en));
 
-	while ((tx = be_engine_tx_peek(en, M0_BTS_OPENING)) != NULL) {
-		if (!m0_be_tx_credit_le(&tx->t_prepared,
-					&en->eng_cfg->bec_tx_size_max)) {
+	if (en->eng_exclusive_mode)
+		return NULL;
+
+	tx = be_engine_tx_peek(en, M0_BTS_OPENING);
+	if (tx != NULL && tx->t_exclusive) {
+		en->eng_exclusive_mode = is_engine_at_stopped_or_done(en, true);
+		if (!en->eng_exclusive_mode)
+			return NULL;
+	}
+
+	return tx;
+}
+
+/* XXX RENAME IT */
+static void be_engine_got_tx_open(struct m0_be_engine *en)
+{
+	struct m0_be_tx        *tx;
+	struct m0_be_tx_credit  tx_size_max = en->eng_cfg->bec_tx_size_max;
+	int                     rc;
+
+	M0_PRE(be_engine_is_locked(en));
+
+	while ((tx = be_engine_tx_opening_peek(en)) != NULL) {
+		if (!m0_be_tx_credit_le(&tx->t_prepared, &tx_size_max)) {
 			M0_LOG(M0_DEBUG, "tx %p, engine %p: size of prepared "
 			       "credit "BETXCR_F" exceeded maximum tx size "
 			       BETXCR_F, tx, en, BETXCR_P(&tx->t_prepared),
-			       BETXCR_P(&en->eng_cfg->bec_tx_size_max));
+			       BETXCR_P(&tx_size_max));
 			be_engine_tx_state_post(en, tx, M0_BTS_FAILED);
 		} else {
 			rc = m0_be_log_reserve_tx(&en->eng_log, &tx->t_prepared,
@@ -285,6 +322,11 @@ static void be_engine_got_tx_done(struct m0_be_engine *en, struct m0_be_tx *tx)
 	if (gr->tg_nr_unstable == 0)
 		m0_be_tx_group_stable(gr);
 	tx->t_group = NULL;
+
+	if (tx->t_exclusive) {
+		M0_ASSERT(is_engine_at_stopped_or_done(en, false));
+		en->eng_exclusive_mode = false;
+	}
 }
 
 M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en)
@@ -479,6 +521,22 @@ M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 		m0_be_tx_get(tx);
 
 	return tx;
+}
+
+M0_INTERNAL int m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
+						       struct m0_be_tx *excl)
+{
+	bool ret;
+
+	be_engine_lock(en);
+
+	ret = m0_forall(state, M0_BTS_DONE, state < M0_BTS_CLOSED ? true :
+			etx_tlist_is_empty(&en->eng_txs[state])) &&
+		etx_tlist_length(&en->eng_txs[M0_BTS_ACTIVE]) == 1 &&
+		etx_tlist_head(&en->eng_txs[M0_BTS_ACTIVE]) == excl;
+
+	be_engine_unlock(en);
+	return ret;
 }
 
 /** @} end of be group */

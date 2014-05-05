@@ -733,11 +733,31 @@ struct __ ## name ## _terminate_me_with_a_semicolon { ; }
 ({							\
 	typeof (name ## _tlist_head(NULL)) var;		\
 							\
-	m0_tlist_for(& name ## _tl, head, var) {	\
+	m0_tl_for(name, head, var) {			\
 		if (!({ __VA_ARGS__ ; }))		\
 			break;				\
 	} m0_tlist_endfor;				\
 	var == NULL;					\
+})
+
+/**
+ * Returns a list item found in a list according to the given condition.
+ *
+ * @code
+ * return m0_tl_find(seg, seg, &dom->bd_seg_list, seg->bs_addr == addr);
+ * @endcode
+ *
+ * @see m0_tl_forall() doc for implementation details.
+ */
+#define m0_tl_find(name, var, head, ...)		\
+({							\
+	typeof (name ## _tlist_head(NULL)) var;		\
+							\
+	m0_tl_for(name, head, var) {			\
+		if (({ __VA_ARGS__ ; }))		\
+			break;				\
+	} m0_tlist_endfor;				\
+	var;						\
 })
 
 /**

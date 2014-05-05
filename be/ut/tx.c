@@ -461,24 +461,40 @@ enum {
 struct be_ut_tx_thread_state {
 	struct m0_thread	 tts_thread;
 	struct m0_be_ut_backend *tts_ut_be;
+	bool                     tts_exclusive;
 };
+
+static void be_ut_tx_run_tx_helper(struct be_ut_tx_thread_state *state,
+				   struct m0_be_tx *tx,
+				   bool exclusive)
+{
+	M0_SET0(tx);
+	m0_be_ut_tx_init(tx, state->tts_ut_be);
+
+	if (exclusive)
+		m0_be_tx_exclusive_open_sync(tx);
+	else
+		m0_be_tx_open_sync(tx);
+
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+}
 
 static void be_ut_tx_thread(struct be_ut_tx_thread_state *state)
 {
 	struct m0_be_tx tx;
 	int		i;
 
-	for (i = 0; i < BE_UT_TX_C_TX_PER_THREAD; ++i) {
-		M0_SET0(&tx);
-		m0_be_ut_tx_init(&tx, state->tts_ut_be);
-		m0_be_tx_open_sync(&tx);
-		m0_be_tx_close_sync(&tx);
-		m0_be_tx_fini(&tx);
-	}
+	if (state->tts_exclusive)
+		be_ut_tx_run_tx_helper(state, &tx, true);
+	else
+		for (i = 0; i < BE_UT_TX_C_TX_PER_THREAD; ++i)
+			be_ut_tx_run_tx_helper(state, &tx, false);
+
 	m0_be_ut_backend_thread_exit(state->tts_ut_be);
 }
 
-void m0_be_ut_tx_concurrent(void)
+void m0_be_ut_tx_concurrent_helper(bool exclusive)
 {
 	static struct be_ut_tx_thread_state threads[BE_UT_TX_C_THREAD_NR];
 	struct m0_be_ut_backend             ut_be;
@@ -489,7 +505,11 @@ void m0_be_ut_tx_concurrent(void)
 	m0_be_ut_backend_init(&ut_be);
 
 	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
-		threads[i].tts_ut_be = &ut_be;
+		threads[i].tts_ut_be     = &ut_be;
+		threads[i].tts_exclusive = !exclusive ? false :
+			(i == ARRAY_SIZE(threads) / 2 ||
+			 i == ARRAY_SIZE(threads) / 4 ||
+			 i == ARRAY_SIZE(threads) * 3 / 4);
 		rc = M0_THREAD_INIT(&threads[i].tts_thread,
 				    struct be_ut_tx_thread_state *, NULL,
 				    &be_ut_tx_thread, &threads[i],
@@ -503,6 +523,16 @@ void m0_be_ut_tx_concurrent(void)
 	}
 
 	m0_be_ut_backend_fini(&ut_be);
+}
+
+void m0_be_ut_tx_concurrent(void)
+{
+	m0_be_ut_tx_concurrent_helper(false);
+}
+
+void m0_be_ut_tx_concurrent_excl(void)
+{
+	m0_be_ut_tx_concurrent_helper(true);
 }
 
 enum {

@@ -27,23 +27,32 @@
 
 #define M0_BE_LOG_NAME  "M0_BE:LOG"
 #define M0_BE_SEG0_NAME "M0_BE:SEG0"
+#define M0_BE_SEG_NAME  "M0_BE:SEG%08lu"
 
 void m0_be_ut_fake_mkfs(void)
 {
 	struct m0_be_0type_log_opts *log_opts;
 	struct m0_buf               *log_opts_buf;
+	struct m0_be_0type_seg_opts *seg_opts;
+	struct m0_buf               *seg_opts_buf;
 	struct m0_be_ut_backend      ut_be;
 	struct m0_be_tx_credit       credit = {};
+	struct m0_be_ut_seg          mkfs_seg[10];
 	struct m0_sm_group          *grp;
 	struct m0_be_seg            *seg;
 	struct m0_be_tx              tx;
 	int                          rc;
+	int                          i;
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_mkfs_init(&ut_be);
 	seg = m0_be_domain_seg0_get(&ut_be.but_dom);
 	m0_be_ut__seg_allocator_init(seg, &ut_be);
 	m0_be_ut_tx_init(&tx, &ut_be);
+
+	/* 0) Create some segments */
+	for (i = 0; i < ARRAY_SIZE(mkfs_seg); ++i)
+		m0_be_ut_seg_init(&mkfs_seg[i], &ut_be, 1ULL << 24);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_be_ut__seg_dict_create(seg, grp);
@@ -55,6 +64,12 @@ void m0_be_ut_fake_mkfs(void)
 	M0_BE_ALLOC_CREDIT_PTR(log_opts, seg, &credit);
 	/* 2) seg0 */
 	m0_be_seg_dict_insert_credit(seg, M0_BE_SEG0_NAME, &credit);
+	/* 3) add records about used loaded segments and their sizes */
+	for (i = 0; i < ARRAY_SIZE(mkfs_seg); ++i) {
+		m0_be_seg_dict_insert_credit(seg, M0_BE_SEG_NAME, &credit);
+		M0_BE_ALLOC_CREDIT_PTR(seg_opts_buf, seg, &credit);
+		M0_BE_ALLOC_CREDIT_PTR(seg_opts, seg, &credit);
+	}
 	/* end */
 
 	m0_be_tx_prep(&tx, &credit);
@@ -77,10 +92,30 @@ void m0_be_ut_fake_mkfs(void)
 	rc = m0_be_seg_dict_insert(seg, &tx, M0_BE_SEG0_NAME, NULL);
 	M0_UT_ASSERT(rc == 0);
 
+	/* 3) add records about used loaded segments and their sizes */
+	for (i = 0; i < ARRAY_SIZE(mkfs_seg); ++i) {
+		char buf[128];
+		snprintf(buf, ARRAY_SIZE(buf), M0_BE_SEG_NAME,
+			 mkfs_seg[i].bus_seg.bs_id);
+
+		M0_BE_ALLOC_PTR_SYNC(seg_opts_buf, seg, &tx);
+		M0_BE_ALLOC_PTR_SYNC(seg_opts, seg, &tx);
+		seg_opts->so_stob_fid = mkfs_seg[i].bus_seg.bs_stob->so_fid;
+		*seg_opts_buf = M0_BUF_INIT_PTR(seg_opts);
+		M0_BE_TX_CAPTURE_PTR(seg, &tx, seg_opts);
+		M0_BE_TX_CAPTURE_PTR(seg, &tx, seg_opts_buf);
+
+		rc = m0_be_seg_dict_insert(seg, &tx, buf, seg_opts_buf);
+		M0_UT_ASSERT(rc == 0);
+	}
+
 	/* end */
 
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
+	for (i = 0; i < ARRAY_SIZE(mkfs_seg); ++i)
+		m0_be_ut_seg_fini(&mkfs_seg[i]);
+
 	m0_be_ut_backend_fini(&ut_be);
 }
 

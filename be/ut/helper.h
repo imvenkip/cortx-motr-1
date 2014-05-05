@@ -33,6 +33,11 @@
 #include "be/be.h"		/* m0_be */
 #include "be/domain.h"		/* m0_be_domain */
 #include "be/seg.h"		/* m0_be_seg */
+#include "fid/fid.h"		/* m0_fid */
+
+enum {
+	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
+};
 
 struct m0_be_ut_sm_group_thread;
 struct m0_stob;
@@ -54,6 +59,8 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be);
+void m0_be_ut_backend_init_normal(struct m0_be_ut_backend *ut_be,
+				  struct m0_stob *seg0_stob);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
 M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
@@ -188,6 +195,10 @@ extern struct m0_be_0type m0_be_seg0;
 struct m0_be_0type_log_opts {
 	uint64_t    lo_stob_key;
 	m0_bcount_t lo_size;
+};
+
+struct m0_be_0type_seg_opts {
+	struct m0_fid so_stob_fid;
 };
 
 

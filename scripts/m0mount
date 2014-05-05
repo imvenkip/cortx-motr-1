@@ -491,8 +491,8 @@ function start_server () {
 	fi
 	local SDIR=$WORK_ARENA/d$I
 	local DDIR=$SDIR
-	[ $run_mkfs -eq 1] && $DO rm -rf $SDIR
-	[ $run_mkfs -eq 1] && $DO mkdir -p $SDIR
+	[ $run_mkfs -eq 1 ] && $DO rm -rf $SDIR
+	[ $run_mkfs -eq 1 ] && $DO mkdir -p $SDIR
 	local DF=$SDIR/m0d.sh
 	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
 	local STOB_PARAMS="-T linux"

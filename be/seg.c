@@ -84,8 +84,8 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 		.bs_domain   = dom,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
+		.bs_id       = stob->so_fid.f_key,
 	};
-	seg_tlink_init(seg);
 	M0_LEAVE();
 }
 
@@ -93,7 +93,6 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
 {
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
-	seg_tlink_fini(seg);
 	M0_LEAVE();
 }
 
@@ -176,7 +175,8 @@ M0_INTERNAL bool m0_be_reg__is_pinned(const struct m0_be_reg *reg)
 	return true;
 }
 
-M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
+M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
+				    const void *addr)
 {
 	return seg->bs_addr <= addr && addr < seg->bs_addr + seg->bs_size;
 }
@@ -190,7 +190,7 @@ M0_INTERNAL bool m0_be_reg_eq(const struct m0_be_reg *r1,
 }
 
 M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
-					 void *addr)
+					 const void *addr)
 {
 	M0_PRE(m0_be_seg_contains(seg, addr));
 	return addr - seg->bs_addr;
@@ -201,7 +201,7 @@ M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg)
 	return m0_be_seg_offset(reg->br_seg, reg->br_addr);
 }
 
-M0_INTERNAL m0_bcount_t m0_be_seg_reserved(struct m0_be_seg *seg)
+M0_INTERNAL m0_bcount_t m0_be_seg_reserved(const struct m0_be_seg *seg)
 {
 	return seg->bs_reserved;
 }

@@ -43,10 +43,6 @@
 
 static const char *be_ut_seg_state = "be_ut_seg_state.txt";
 
-enum {
-	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
-};
-
 struct m0_be_ut_sm_group_thread {
 	struct m0_thread    sgt_thread;
 	pid_t		    sgt_tid;
@@ -268,7 +264,11 @@ static void ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 		ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh =
 			m0_be_ut_reqh_get();
 	}
-	ut_be->but_dom_cfg.bc_engine.bec_log_stob = m0_ut_stob_linux_get();
+
+	if (ut_be->but_dom.bd_seg0_stob == NULL)
+		ut_be->but_dom_cfg.bc_engine.bec_log_stob =
+			m0_ut_stob_linux_get();
+
 	m0_mutex_init(&ut_be->but_sgt_lock);
 	rc = m0_be_domain_start(&ut_be->but_dom, &ut_be->but_dom_cfg);
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
@@ -312,6 +312,17 @@ void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be)
 	ut_backend_init_cfg(ut_be, NULL);
 }
 
+void m0_be_ut_backend_init_normal(struct m0_be_ut_backend *ut_be,
+				  struct m0_stob *seg0_stob)
+{
+	(void)m0_be_domain_init(&ut_be->but_dom);
+	m0_be_0type_register(&ut_be->but_dom, &m0_be_log0);
+	m0_be_0type_register(&ut_be->but_dom, &m0_be_seg0);
+
+	ut_be->but_dom.bd_seg0_stob = seg0_stob;
+	ut_backend_init_cfg(ut_be, NULL);
+}
+
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 {
 	if (m0_get()->i_be_ut_backend == ut_be ||
@@ -326,7 +337,9 @@ void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 	m0_mutex_fini(&ut_be->but_sgt_lock);
 	if (be_ut_helper.buh_reqh_ref_cnt > 0)
 		m0_be_ut_reqh_put(ut_be->but_dom_cfg.bc_engine.bec_group_fom_reqh);
-	m0_ut_stob_put(ut_be->but_dom_cfg.bc_engine.bec_log_stob, true);
+	if (ut_be->but_dom.bd_seg0_stob == NULL)
+		m0_ut_stob_put(ut_be->but_dom_cfg.bc_engine.bec_log_stob,
+			       false);
 }
 
 static void be_ut_sm_group_thread_add(struct m0_be_ut_backend *ut_be,
@@ -715,8 +728,7 @@ static int ut_seg0_init(struct m0_be_domain *dom, const char *suffix,
 	rc = m0_be_seg_open(seg);
 	M0_ASSERT(rc == 0);
 
-	M0_ASSERT(seg_tlist_is_empty(&dom->bd_seg_list));
-	seg_tlist_add(&dom->bd_seg_list, seg);
+	m0_be_domain__seg_add(dom, seg);
 
 	return rc;
 }
@@ -731,7 +743,7 @@ static void ut_seg0_fini(struct m0_be_domain *dom, const char *suffix,
 	m0_be_seg_close(seg);
 	rc = m0_be_seg_destroy(seg);
 	M0_ASSERT(rc == 0);
-	seg_tlist_del(seg);
+	m0_be_domain__seg_del(dom, seg);
 	m0_be_seg_fini(seg);
 	m0_free(seg);
 
@@ -750,18 +762,66 @@ struct m0_be_0type m0_be_ut_log0 = {
 	.b0_fini = ut_log0_fini
 };
 
-static int seg0_init(struct m0_be_domain *d, const char *suffix,
+static int seg0_init(struct m0_be_domain *dom, const char *suffix,
 		     const struct m0_buf *data)
 {
-	M0_ENTRY();
+	struct m0_be_0type_seg_opts *opts =
+		(struct m0_be_0type_seg_opts *) data->b_addr;
+	struct m0_stob              *stob;
+	struct m0_be_seg            *seg;
+	int                          rc;
+
+	M0_ENTRY("suffix='%s', stob_fid=" FID_F, suffix,
+		 FID_P(&opts->so_stob_fid));
+
+	if (strcmp(suffix, "0") == 0) /* seg0 is loaded separately */
+		return 0;
+
+	rc = m0_stob_find(&opts->so_stob_fid, &stob);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(M0_IN(m0_stob_state_get(stob), (CSS_UNKNOWN, CSS_EXISTS)));
+
+	if (m0_stob_state_get(stob) == CSS_UNKNOWN) {
+		rc = m0_stob_locate(stob);
+		M0_ASSERT(rc == 0);
+		M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
+	}
+
+	M0_ALLOC_PTR(seg);
+	M0_ASSERT(seg != NULL);
+	m0_be_seg_init(seg, stob, dom);
+	rc = m0_be_seg_open(seg);
+	M0_ASSERT(rc == 0);
+	m0_be_domain__seg_add(dom, seg);
+
 	M0_LEAVE();
 	return 0;
 }
 
-static void seg0_fini(struct m0_be_domain *d, const char *suffix,
+static void seg0_fini(struct m0_be_domain *dom, const char *suffix,
 		      const struct m0_buf *data)
 {
-	M0_ENTRY();
+	struct m0_be_seg *seg;
+	struct m0_stob   *stob;
+	int		  rc;
+
+	M0_ENTRY("seg0: %p, suffix: %s", m0_be_domain_seg0_get(dom), suffix);
+
+	if (strcmp(suffix, "0") == 0) /* seg0 is loaded separately */
+		return;
+
+	seg = m0_be_domain_seg_by_id(dom, m0_strtou64(suffix, NULL, 10));
+	M0_ASSERT(seg != NULL);
+	stob = seg->bs_stob;
+
+	m0_be_seg_close(seg);
+	rc = m0_be_seg_destroy(seg);
+	M0_ASSERT(rc == 0);
+	m0_be_domain__seg_del(dom, seg);
+	m0_be_seg_fini(seg);
+	m0_free(seg);
+
+	m0_ut_stob_put(stob, false);
 	M0_LEAVE();
 }
 
@@ -800,7 +860,7 @@ struct m0_be_0type m0_be_log0 = {
 };
 
 struct m0_be_0type m0_be_seg0 = {
-	.b0_name = "M0_BE:SEG0",
+	.b0_name = "M0_BE:SEG",
 	.b0_init = seg0_init,
 	.b0_fini = seg0_fini
 };
