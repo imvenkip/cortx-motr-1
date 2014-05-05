@@ -27,6 +27,9 @@
 #define M0_ADDB_RT_CREATE_DEFINITION
 #include "db/db_addb.h"
 
+#include <sys/types.h> /* getpid() */
+#include <unistd.h>    /* getpid() */
+
 #include <stdarg.h>
 #include <stdlib.h>    /* free */
 #include <sys/stat.h>  /* mkdir */
@@ -107,7 +110,7 @@ M0_INTERNAL void m0_be_state_save(const char *filename,
         char  tmpfilename[256];
         int   state;
 
-        rc = snprintf(tmpfilename, ARRAY_SIZE(tmpfilename), "%s.TMP", filename);
+        rc = snprintf(tmpfilename, ARRAY_SIZE(tmpfilename), "%s.%d.TMP", filename, (int)getpid());
         M0_ASSERT_INFO(rc < ARRAY_SIZE(tmpfilename), "rc = %d", rc);
 
         f = fopen(tmpfilename, "w");
@@ -129,7 +132,7 @@ M0_INTERNAL void m0_be_state_save(const char *filename,
          */
         rc = rename(tmpfilename, filename);
         M0_ASSERT_INFO(rc == 0, "rename(%s, %s) failed: rc = %d",
-                       tmpfilename, filename, rc);
+                       tmpfilename, filename, errno);
 }
 
 static  bool seg_map_save_item(FILE *f, int *state)
