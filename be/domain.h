@@ -33,6 +33,7 @@
  */
 
 struct m0_be_tx;
+struct m0_be_0type;
 
 struct m0_be_domain_cfg {
 	struct m0_be_engine_cfg bc_engine;
@@ -61,6 +62,28 @@ M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom);
 M0_INTERNAL
 struct m0_be_seg *m0_be_domain_seg0_get(const struct m0_be_domain *dom);
 M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom);
+
+/**
+ * Returns existing be-segment if @addr is inside it. Otherwize returns NULL.
+ */
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
+					       const void *addr);
+/**
+ * Returns existing be-segment by its @id. If no segments found return NULL.
+ */
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id);
+
+/* for internal be-usage only */
+M0_INTERNAL void m0_be_domain__0type_register(struct m0_be_domain *dom,
+					      struct m0_be_0type *type);
+M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
+						struct m0_be_0type *type);
+M0_INTERNAL void m0_be_domain__seg_add(struct m0_be_domain *dom,
+				       struct m0_be_seg *seg);
+M0_INTERNAL void m0_be_domain__seg_del(struct m0_be_domain *dom,
+				       struct m0_be_seg *seg);
+
 /** @} end of be group */
 #endif /* __MERO_BE_DOMAIN_H__ */
 

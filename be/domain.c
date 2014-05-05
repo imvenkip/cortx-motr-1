@@ -29,12 +29,12 @@
 M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0type_list[]", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
 			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
-M0_TL_DEFINE(zt, M0_INTERNAL, struct m0_be_0type);
+M0_TL_DEFINE(zt, static, struct m0_be_0type);
 
 M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_seg_list[]", M0_INTERNAL,
 			   struct m0_be_seg, bs_linkage, bs_magic,
 			   M0_BE_SEG_MAGIC, M0_BE_SEG_MAGIC);
-M0_TL_DEFINE(seg, M0_INTERNAL, struct m0_be_seg);
+M0_TL_DEFINE(seg, static, struct m0_be_seg);
 
 
 #include "module/instance.h"	/* m0 */
@@ -63,8 +63,10 @@ static int segobj_opt_iterate(struct m0_be_seg         *dict,
 	struct m0_buf *buf;
 	int	       rc;
 
-	if (is_mkfs_mode(dict))
+	if (is_mkfs_mode(dict)) {
+		*suffix = NULL;
 		return begin;
+	}
 
 	rc = begin ?
 		m0_be_seg_dict_begin(dict, objtype->b0_name,
@@ -99,14 +101,29 @@ static int segobj_opt_begin(struct m0_be_seg         *dict,
 	return segobj_opt_iterate(dict, objtype, opt, suffix, true);
 }
 
+static const char *id_cut(const char *prefix, const char *key)
+{
+	size_t len;
+	char  *p;
+
+	if (key == NULL)
+		return key;
+
+	p = strstr(key, prefix);
+	len = strlen(prefix);
+
+	return p == NULL || len >= strlen(key) ? NULL : p + len;
+}
+
 static int _0types_visit(struct m0_be_domain *dom, bool init)
 {
 	int		    rc = 0;
 	int                 left;
+	char               *suffix;
+	const char         *id;
 	struct m0_buf       opt;
 	struct m0_be_seg   *dict;
 	struct m0_be_0type *objtype;
-	char               *suffix;
 
 	dict = m0_be_domain_seg0_get(dom);
 
@@ -114,8 +131,9 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 		for (left = segobj_opt_begin(dict, objtype, &opt, &suffix);
 		     left > 0 && rc == 0;
 		     left = segobj_opt_next(dict, objtype, &opt, &suffix)) {
-			rc = init ? objtype->b0_init(dom, suffix, &opt) :
-				(objtype->b0_fini(dom, suffix, &opt), 0);
+			id = id_cut(objtype->b0_name, suffix);
+			rc = init ? objtype->b0_init(dom, id, &opt) :
+				(objtype->b0_fini(dom, id, &opt), 0);
 
 		}
 	} m0_tl_endfor;
@@ -142,9 +160,9 @@ static int m0_be_domain__seg0_init(struct m0_be_domain *dom)
 	}
 
 	m0_be_seg_dict_init(seg);
-	seg_tlist_add(&dom->bd_seg_list, seg);
+	m0_be_domain__seg_add(dom, seg);
 
-	return rc;
+	return m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
 }
 
 static void m0_be_domain__seg0_fini(struct m0_be_domain *dom)
@@ -154,7 +172,8 @@ static void m0_be_domain__seg0_fini(struct m0_be_domain *dom)
 	M0_PRE(dom->bd_seg0_stob != NULL);
 
 	seg = m0_be_domain_seg0_get(dom);
-	seg_tlist_del(seg);
+	m0_be_allocator_fini(m0_be_seg_allocator(seg));
+	m0_be_domain__seg_del(dom, seg);
 	m0_be_seg_dict_fini(seg);
 	m0_be_seg_close(seg);
 	m0_be_seg_fini(seg);
@@ -243,11 +262,8 @@ M0_INTERNAL void m0_be_domain_fini(struct m0_be_domain *dom)
 	m0_be_engine_fini(&dom->bd_engine);
 	m0_be_domain__0types_fini(dom);
 
-	while((zt = zt_tlist_head(&dom->bd_0type_list)) != NULL)
-		zt_tlist_del(zt);
-
-	while((seg = seg_tlist_head(&dom->bd_seg_list)) != NULL)
-		seg_tlist_del(seg);
+	m0_tl_teardown(zt, &dom->bd_0type_list, zt);
+	m0_tl_teardown(seg, &dom->bd_seg_list, seg);
 
 	zt_tlist_fini(&dom->bd_0type_list);
 	seg_tlist_fini(&dom->bd_seg_list);
@@ -270,11 +286,54 @@ struct m0_be_seg *m0_be_domain_seg0_get(const struct m0_be_domain *dom)
 	return seg_tlist_head(&dom->bd_seg_list);
 }
 
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
+					       const void *addr)
+{
+	return m0_tl_find(seg, seg, &dom->bd_seg_list,
+			  m0_be_seg_contains(seg, addr));
+}
+
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id)
+{
+	return m0_tl_find(seg, seg, &dom->bd_seg_list, seg->bs_id == id);
+}
+
 M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom)
 {
 	/* XXX: return m0_mutex_is_locked(&dom->bd_engine.eng_lock); */
 	return true;
 }
+
+M0_INTERNAL void m0_be_domain__0type_register(struct m0_be_domain *dom,
+					      struct m0_be_0type *type)
+{
+	M0_PRE(m0_be_domain_is_locked(dom));
+	zt_tlink_init_at_tail(type, &dom->bd_0type_list);
+}
+
+M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
+						struct m0_be_0type *type)
+{
+	M0_PRE(m0_be_domain_is_locked(dom));
+	zt_tlink_del_fini(type);
+}
+
+M0_INTERNAL void m0_be_domain__seg_add(struct m0_be_domain *dom,
+				       struct m0_be_seg *seg)
+{
+	M0_PRE(m0_be_domain_is_locked(dom));
+	seg_tlink_init_at_tail(seg, &dom->bd_seg_list);
+}
+
+M0_INTERNAL void m0_be_domain__seg_del(struct m0_be_domain *dom,
+				       struct m0_be_seg *seg)
+{
+	M0_PRE(m0_be_domain_is_locked(dom));
+	seg_tlink_del_fini(seg);
+}
+
+
 
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of be group */

@@ -84,6 +84,12 @@ struct m0_be_engine {
 	 */
 	bool			   eng_group_closed;
 	uint64_t		   eng_tx_id_next;
+	/**
+	 * Indicates BE-engine has a transaction opened with
+	 * m0_be_tx_exclusive_open() and run under exclusive conditions: no
+	 * other transactions are running while @eng_exclusive_mode is set.
+	 */
+	bool                       eng_exclusive_mode;
 };
 
 M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en);
@@ -116,6 +122,8 @@ M0_INTERNAL void m0_be_engine_got_log_space_cb(struct m0_be_log *log);
 
 M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 						   uint64_t id);
+M0_INTERNAL int m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
+						       struct m0_be_tx *excl);
 
 /** @} end of be group */
 #endif /* __MERO_BE_ENGINE_H__ */

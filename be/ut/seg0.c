@@ -56,51 +56,55 @@ void fake_mkfs(void)
 	free(ut_dir);
 }
 
-/*
- * // level n
- * m0_be_domain_init(&dom);
- * m0_be_0type_register(&dom, foo);
- * m0_be_0type_register(&dom, bar);
- *
- * // level m (m > n)
- * dom.seg0_stob = stob;
- * m0_be_domain_start(&dom);
- */
-static void be_domain_init(struct m0_be_domain *dom, struct m0_stob *seg0_stob)
-{
-	int rc;
-	struct m0_be_domain_cfg cfg;
-
-	m0_be_domain_init(dom);
-	m0_be_0type_register(dom, &m0_be_seg0);
-	m0_be_0type_register(dom, &m0_be_log0);
-
-	m0_be_ut_backend_cfg_default(&cfg);
-	cfg.bc_engine.bec_group_fom_reqh = m0_be_ut_reqh_get();
-
-	dom->bd_seg0_stob = seg0_stob;
-	rc = m0_be_domain_start(dom, &cfg);
-	M0_UT_ASSERT(rc == 0);
-}
-
-static void be_domain_fini(struct m0_be_domain *dom)
-{
-	m0_be_domain_fini(dom);
-	m0_be_ut_reqh_put(dom->bd_cfg.bc_engine.bec_group_fom_reqh);
-}
-
 void m0_be_ut_seg0_test(void)
 {
-	struct m0_stob        *seg0_stob;
-	struct m0_be_domain    bedom = {};
+	struct m0_stob             *seg0_stob;
+	struct m0_be_ut_backend     ut_be = {};
+	struct m0_be_tx_credit      credit = {};
+	struct m0_be_tx             tx = {};
+	struct m0_be_0type_seg_opts seg_opts;
+	struct m0_buf               data = M0_BUF_INIT_PTR(&seg_opts);
+	struct m0_be_seg           *seg;
+	char seg_id[256];
+	int rc;
 
 	fake_mkfs();
 
 	seg0_stob = m0_ut_stob_linux_get_by_key(1043);
 	M0_UT_ASSERT(seg0_stob != NULL);
 
-	be_domain_init(&bedom, seg0_stob);
-	be_domain_fini(&bedom);
+	m0_be_ut_backend_init_normal(&ut_be, seg0_stob);
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+
+	/* take a seg from existing segments with address range which
+	 * is more than seg0 addr range */
+	seg = m0_be_domain_seg(&ut_be.but_dom, (void*)(BE_UT_SEG_START_ADDR +
+						       (8ULL<<24)));
+	M0_UT_ASSERT(seg != NULL);
+	M0_UT_ASSERT(seg != m0_be_domain_seg0_get(&ut_be.but_dom));
+
+	snprintf(seg_id, ARRAY_SIZE(seg_id), "%08lu", seg->bs_id);
+	seg_opts.so_stob_fid = seg->bs_stob->so_fid;
+
+	m0_be_0type_del_credit(&ut_be.but_dom, &m0_be_seg0,
+			       seg_id, &data, &credit);
+	m0_be_0type_add_credit(&ut_be.but_dom, &m0_be_seg0,
+			       seg_id, &data, &credit);
+
+	m0_be_tx_prep(&tx, &credit);
+	m0_be_tx_exclusive_open_sync(&tx);
+
+	rc = m0_be_0type_del(&m0_be_seg0, &ut_be.but_dom, &tx, seg_id, NULL);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_0type_add(&m0_be_seg0, &ut_be.but_dom, &tx, seg_id, &data);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+
+	m0_be_ut_backend_fini(&ut_be);
 
 	m0_ut_stob_put(seg0_stob, false);
 }

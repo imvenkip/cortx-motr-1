@@ -191,7 +191,15 @@ M0_INTERNAL int _seg_dict_iterate(struct m0_be_seg *seg,
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 		*this_key = (const char*)key.b_addr;
 		*this_rec = (void *) *(uint64_t *)val.b_addr; /* XXX */
-		rc = strstr(*this_key, "M0_BE:") ? 0 : -ENOENT;
+
+		rc = 0;
+		if (strstr(*this_key, "M0_BE:") == NULL)
+			rc = -ENOENT;
+		if (next && strstr(*this_key, prefix) == NULL)
+			rc = -ENOENT;
+
+		M0_LOG(M0_DEBUG, "rc=%d, this_key='%s', prefix='%s'",
+			 rc, *this_key, prefix);
 	}
 
 	m0_be_btree_cursor_fini(&cursor);

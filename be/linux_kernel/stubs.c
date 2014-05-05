@@ -131,7 +131,8 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
 {
 }
 
-M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr)
+M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
+				    const void *addr)
 {
 	return true;
 }

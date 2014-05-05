@@ -363,6 +363,11 @@ struct m0_be_tx {
 	 * @todo Remove when m0_be_tx_close_sync() is removed
 	 */
 	bool		       t_fast;
+	/**
+	 * Flag indicates that this transaction was opened with
+	 * m0_be_tx_exclusive_open().
+	 */
+	bool                   t_exclusive;
 };
 
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
@@ -393,6 +398,7 @@ M0_INTERNAL void m0_be_tx_prep(struct m0_be_tx *tx,
 M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size);
 
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
+M0_INTERNAL void m0_be_tx_exclusive_open(struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx *tx,
 				  const struct m0_be_reg *reg);
@@ -449,6 +455,7 @@ M0_INTERNAL const char *m0_be_tx_state_name(enum m0_be_tx_state state);
  * @post equi(rc != 0, m0_be_tx_state(tx) == M0_BTS_FAILED)
  */
 M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx);
+M0_INTERNAL int m0_be_tx_exclusive_open_sync(struct m0_be_tx *tx);
 
 /**
  * Calls m0_be_tx_close() and then waits until transaction reaches
@@ -464,6 +471,11 @@ M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx);
 
 /** Adds fol record @rec into the transaction @tx payload */
 M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec);
+
+/**
+ * true if transaction is opened exclusively. Private for BE.
+ */
+M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
 
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */

@@ -71,8 +71,6 @@ struct m0_be_seg {
 	struct m0_tlink        bs_linkage;
 };
 
-M0_TL_DECLARE(seg, M0_INTERNAL, struct m0_be_seg);
-
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be_domain *dom);
@@ -89,13 +87,14 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 				 void *addr);
 M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg);
 
-M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg, void *addr);
+M0_INTERNAL bool m0_be_seg_contains(const struct m0_be_seg *seg,
+				    const void *addr);
 
 M0_INTERNAL m0_bindex_t m0_be_seg_offset(const struct m0_be_seg *seg,
-					 void *addr);
+					 const void *addr);
 
 /** XXX @todo s/bs_reserved/m0_be_seg_reserved/ everywhere */
-M0_INTERNAL m0_bcount_t m0_be_seg_reserved(struct m0_be_seg *seg);
+M0_INTERNAL m0_bcount_t m0_be_seg_reserved(const struct m0_be_seg *seg);
 M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg);
 
 struct m0_be_reg {

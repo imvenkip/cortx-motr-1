@@ -463,6 +463,22 @@ M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx)
 	return rc;
 }
 
+M0_INTERNAL void m0_be_tx_exclusive_open(struct m0_be_tx *tx)
+{
+	tx->t_exclusive = true;
+	m0_be_tx_open(tx);
+}
+
+M0_INTERNAL int m0_be_tx_exclusive_open_sync(struct m0_be_tx *tx)
+{
+	int rc;
+
+	tx->t_exclusive = true;
+	rc = m0_be_tx_open_sync(tx);
+	M0_POST(m0_be_engine__exclusive_open_invariant(tx->t_engine, tx));
+	return rc;
+}
+
 M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx)
 {
 	int rc;
@@ -482,6 +498,11 @@ M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx)
 M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
 	return m0_fol_rec_encode(rec, &tx->t_payload);
+}
+
+M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx)
+{
+	return tx->t_exclusive;
 }
 
 #undef BE_TX_LOCKED_AT_STATE

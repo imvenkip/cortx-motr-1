@@ -68,23 +68,45 @@ struct m0_be_0type {
 	uint64_t             b0_magic;
 };
 
-M0_TL_DECLARE(zt, M0_INTERNAL, struct m0_be_0type);
-
 /**
  * Registers new 0type.
  */
 void m0_be_0type_register(struct m0_be_domain *dom, struct m0_be_0type *zt);
+
+/**
+ * Registers new 0type.
+ */
+void m0_be_0type_unregister(struct m0_be_domain *dom, struct m0_be_0type *zt);
+
+/**
+ * Calculates BE-credit for m0_be_0type_del().
+ */
+void m0_be_0type_del_credit(const struct m0_be_domain *dom,
+			    const struct m0_be_0type  *zt,
+			    const char		      *suffix,
+			    const struct m0_buf       *data,
+			    struct m0_be_tx_credit    *credit);
+
+/**
+ * Calculates BE-credit for m0_be_0type_add().
+ */
+void m0_be_0type_add_credit(const struct m0_be_domain *dom,
+			    const struct m0_be_0type  *zt,
+			    const char		      *suffix,
+			    const struct m0_buf       *data,
+			    struct m0_be_tx_credit    *credit);
+
 /**
  * Adds a record about 0type instance to the seg0 dictionary.
  */
-int m0_be_0type_add(struct m0_be_0type *zt, const struct m0_be_domain *dom,
+int m0_be_0type_add(struct m0_be_0type *zt, struct m0_be_domain *dom,
 		    struct m0_be_tx *tx, const char *suffix,
 		    const struct m0_buf *data);
 
 /**
  * Deletes a record about 0type instance from the seg0 dictionary.
  */
-int m0_be_0type_del(struct m0_be_0type *zt, const struct m0_be_domain *dom,
+int m0_be_0type_del(struct m0_be_0type *zt, struct m0_be_domain *dom,
 		    struct m0_be_tx *tx, const char *suffix,
 		    const struct m0_buf *data);
 
@@ -245,4 +267,3 @@ int m0_be_0type_del(struct m0_be_0type *zt, const struct m0_be_domain *dom,
 
 /** @} end of be group */
 #endif /* __MERO_BE_SEG0_H__ */
-
