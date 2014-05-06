@@ -629,6 +629,8 @@ extern const struct inode_operations m0t1fs_dir_inode_operations;
 extern const struct inode_operations m0t1fs_fid_dir_inode_operations;
 extern const struct inode_operations m0t1fs_reg_inode_operations;
 
+extern const struct address_space_operations m0t1fs_aops;
+
 /* super.c */
 
 M0_INTERNAL int m0t1fs_get_sb(struct file_system_type *fstype,

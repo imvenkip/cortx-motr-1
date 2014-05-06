@@ -407,7 +407,7 @@
 
    @code
    ssize_t m0t1fs_aio(struct kiocb *iocb, const struct iovec *iov,
-                      const struct m0_indexvec *ivec, enum io_req_type type);
+		      const struct m0_indexvec *ivec, enum io_req_type type);
    @endcode
 
    In case of normal file->f_op->aio_{read/write} calls, the m0_indexvec
@@ -1373,6 +1373,8 @@ struct io_request {
 
         enum io_req_type             ir_type;
 
+	bool			     ir_direct_io;
+
         const struct io_request_ops *ir_ops;
 
         struct nw_xfer_request       ir_nwxfer;
@@ -1417,6 +1419,8 @@ struct data_buf {
          * by incoming rmw request.
          */
         struct m0_buf  db_auxbuf;
+
+	struct page   *db_page;
 
         /**
          * Miscellaneous flags.

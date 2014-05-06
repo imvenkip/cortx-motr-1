@@ -836,7 +836,8 @@ static struct m0_sm_state_descr io_states[] = {
 	},
 	[IRS_LOCK_ACQUIRED]     = {
 		.sd_name        = "IO_dist_lock_acquired",
-		.sd_allowed     = M0_BITS(IRS_READING, IRS_WRITING),
+		.sd_allowed     = M0_BITS(IRS_READING, IRS_WRITING,
+					  IRS_LOCK_RELINQUISHED),
 	},
 	[IRS_READING]	        = {
 		.sd_name        = "IO_reading",
@@ -986,6 +987,24 @@ static bool data_buf_invariant_nr(const struct pargrp_iomap *map)
 	return true;
 }
 
+static void data_buf_init(struct data_buf *buf, void *addr, uint64_t flags)
+{
+	M0_PRE(buf  != NULL);
+	M0_PRE(addr != NULL);
+
+	data_buf_bob_init(buf);
+	buf->db_flags = flags;
+	m0_buf_init(&buf->db_buf, addr, PAGE_CACHE_SIZE);
+}
+
+static void data_buf_fini(struct data_buf *buf)
+{
+	M0_PRE(buf != NULL);
+
+	data_buf_bob_fini(buf);
+	buf->db_flags = PA_NONE;
+}
+
 static bool io_req_fop_invariant(const struct io_req_fop *fop)
 {
 	return
@@ -1066,20 +1085,46 @@ static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 	M0_LEAVE();
 }
 
-/* Typically used while copying data to/from user space. */
-static bool page_copy_filter(m0_bindex_t start, m0_bindex_t end,
-			     enum page_attr filter)
+static int user_page_map(struct data_buf *dbuf, unsigned long user_addr)
 {
-	M0_PRE(end - start <= PAGE_CACHE_SIZE);
-	M0_PRE(ergo(filter != PA_NONE,
-		    filter & (PA_FULLPAGE_MODIFY | PA_PARTPAGE_MODIFY)));
+	void *kmapped;
+	int   rc;
 
-	if (filter & PA_FULLPAGE_MODIFY) {
-		return (end - start == PAGE_CACHE_SIZE);
-	} else if (filter & PA_PARTPAGE_MODIFY) {
-		return (end - start <  PAGE_CACHE_SIZE);
-	} else
-		return true;
+	M0_ASSERT_INFO((user_addr & ~PAGE_CACHE_MASK) == 0,
+		       "user_addr = %lx", user_addr);
+	M0_ASSERT_INFO(dbuf->db_page == NULL,
+		       "dbuf->db_page = %p", dbuf->db_page);
+
+	/* XXX these calls can block */
+	/* XXX
+	 * semaphore locking copy-pasted
+	 * from m0_net implementation
+	 */
+	/*
+	 * XXX use PAGE_CACHE_SIZE and
+	 * pin more than one page if needed
+	 */
+	down_read(&current->mm->mmap_sem);
+	rc = get_user_pages(current, current->mm, user_addr, 1, 1, 0,
+			    &dbuf->db_page, NULL);
+	up_read(&current->mm->mmap_sem);
+	if (rc == 1) {
+		kmapped = kmap(dbuf->db_page);
+		rc = kmapped == NULL ? -EFAULT : 0;
+		if (kmapped != NULL)
+			data_buf_init(dbuf, kmapped, 0);
+	}
+	return rc;
+}
+
+static void user_page_unmap(struct data_buf *dbuf, bool set_dirty)
+{
+	M0_ASSERT(dbuf->db_page != NULL);
+	kunmap(dbuf->db_page);
+	if (set_dirty)
+		set_page_dirty(dbuf->db_page);
+	put_page(dbuf->db_page);
+	dbuf->db_page = NULL;
 }
 
 static int user_data_copy(struct pargrp_iomap *map,
@@ -1099,6 +1144,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 	uint32_t		  col;
 	struct page		 *page;
 	struct m0_pdclust_layout *play;
+	struct data_buf          *dbuf;
 
 	M0_ENTRY("Copy %s user-space, start = %llu, end = %llu",
 		 dir == CD_COPY_FROM_USER ? (char *)"from" : (char *)"to",
@@ -1106,21 +1152,18 @@ static int user_data_copy(struct pargrp_iomap *map,
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 	M0_PRE(it != NULL);
 	M0_PRE(M0_IN(dir, (CD_COPY_FROM_USER, CD_COPY_TO_USER)));
+	M0_PRE(start >> PAGE_CACHE_SHIFT == (end - 1) >> PAGE_CACHE_SHIFT);
 
 	/* Finds out the page from pargrp_iomap::pi_databufs. */
 	play = pdlayout_get(map->pi_ioreq);
 	page_pos_get(map, start, &row, &col);
-	M0_ASSERT(map->pi_databufs[row][col] != NULL);
-	page = virt_to_page(map->pi_databufs[row][col]->db_buf.b_addr);
+	dbuf = map->pi_databufs[row][col];
+	M0_ASSERT(dbuf != NULL);
+	M0_ASSERT(ergo(dbuf->db_page != NULL, map->pi_ioreq->ir_direct_io));
 
 	if (dir == CD_COPY_FROM_USER) {
-		if (page_copy_filter(start, end, filter)) {
-			M0_ASSERT(ergo(filter != PA_NONE,
-				       map->pi_databufs[row][col]->db_flags &
-				       filter));
-
-			if (map->pi_databufs[row][col]->db_flags &
-			    PA_COPY_FRMUSR_DONE)
+		if ((dbuf->db_flags & filter) == filter) {
+			if (dbuf->db_flags & PA_COPY_FRMUSR_DONE)
 				return M0_RC(0);
 
 			/*
@@ -1129,42 +1172,55 @@ static int user_data_copy(struct pargrp_iomap *map,
 			 * to calculate delta parity in case of read-old
 			 * approach.
 			 */
-			if (map->pi_databufs[row][col]->db_auxbuf.b_addr !=
-			    NULL && map->pi_rtype == PIR_READOLD) {
-				if (filter == 0)
-					memcpy(map->pi_databufs[row][col]->
-					       db_auxbuf.b_addr,
-					       map->pi_databufs[row][col]->
-					       db_buf.b_addr,
+			if (dbuf->db_auxbuf.b_addr != NULL &&
+			    map->pi_rtype == PIR_READOLD) {
+				if (filter == 0) {
+					M0_ASSERT(dbuf->db_page == NULL);
+					memcpy(dbuf->db_auxbuf.b_addr,
+					       dbuf->db_buf.b_addr,
 					       PAGE_CACHE_SIZE);
-				else
+				} else
 					return M0_RC(0);
 			}
 
-			pagefault_disable();
-			/* Copies to appropriate offset within page. */
-			bytes = iov_iter_copy_from_user_atomic(page, it,
-					start & (PAGE_CACHE_SIZE - 1),
-					end - start);
-			pagefault_enable();
+			if (dbuf->db_page == NULL) {
+				page = virt_to_page(dbuf->db_buf.b_addr);
+				pagefault_disable();
+				/* Copies to appropriate offset within page. */
+				bytes = iov_iter_copy_from_user_atomic(page, it,
+						start & ~PAGE_CACHE_MASK,
+						end - start);
+				pagefault_enable();
+			} else
+				bytes = end - start;
 
 			M0_LOG(M0_DEBUG, "%llu bytes copied from user-space "
 					 "from offset %llu", bytes, start);
 
 			map->pi_ioreq->ir_copied_nr += bytes;
-			map->pi_databufs[row][col]->db_flags |=
-				PA_COPY_FRMUSR_DONE;
+			/*
+			 * user_data_copy() may be called to handle only part
+			 * of PA_FULLPAGE_MODIFY page. In this case we should
+			 * mark the page as done only when the last piece is
+			 * processed. Otherwise, the rest piece of the page
+			 * will be ignored.
+			 */
+			if (ergo(dbuf->db_flags & PA_FULLPAGE_MODIFY,
+				 (end & ~PAGE_CACHE_MASK) == 0))
+				dbuf->db_flags |= PA_COPY_FRMUSR_DONE;
 
 			if (bytes != end - start)
 				return M0_ERR(-EFAULT, "Failed to "
 					       "copy_from_user");
 		}
 	} else {
-		bytes = copy_to_user(it->iov->iov_base + it->iov_offset,
-				     map->pi_databufs[row][col]->
-				     db_buf.b_addr +
-				     (start & (PAGE_CACHE_SIZE - 1)),
-				     end - start);
+		if (dbuf->db_page == NULL)
+			bytes = copy_to_user(it->iov->iov_base + it->iov_offset,
+					     dbuf->db_buf.b_addr +
+					     (start & ~PAGE_CACHE_MASK),
+					     end - start);
+		else
+			bytes = 0;
 
 		map->pi_ioreq->ir_copied_nr += end - start - bytes;
 
@@ -1572,64 +1628,90 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 				    bool		 rmw)
 {
 	int			  rc;
+	int			  flags;
 	bool			  ret;
+	size_t			  written;
 	uint32_t		  row;
 	uint32_t		  col;
 	uint64_t		  count = 0;
 	m0_bindex_t		  start;
 	m0_bindex_t		  end;
+	unsigned long		  user_addr;
 	struct inode		 *inode;
-	struct data_buf		 *dbuf;
 	struct m0_ivec_cursor	  cur;
+	struct iov_iter		  it;
 	struct m0_pdclust_layout *play;
+	struct io_request	 *req = map->pi_ioreq;
 
 	M0_ENTRY("map %p, seg %llu, %s", map, seg, rmw ? "rmw" : "aligned");
-	play  = pdlayout_get(map->pi_ioreq);
-	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
+	play  = pdlayout_get(req);
+	inode = req->ir_file->f_dentry->d_inode;
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
 	ret = m0_ivec_cursor_move_to(&cur, map->pi_ivec.iv_index[seg]);
 	M0_ASSERT(!ret);
+	/* XXX don't need to deal with iterator when dio is off */
+	/* Assume starting position equals to index of the first segment.
+	 * Therefore, `written` is current offset.
+	 */
+	written = m0_ivec_cursor_index(&cur) - INDEX(&req->ir_ivec, 0);
+	iov_iter_init(&it, req->ir_iovec, req->ir_ivec.iv_vec.v_nr,
+		      m0_vec_count(&req->ir_ivec.iv_vec), written);
 
 	while (!m0_ivec_cursor_move(&cur, count)) {
-
 		start = m0_ivec_cursor_index(&cur);
 		end   = min64u(m0_round_up(start + 1, PAGE_CACHE_SIZE),
 			       start + m0_ivec_cursor_step(&cur));
 		count = end - start;
 
-		page_pos_get(map, start, &row, &col);
-
-		rc = pargrp_iomap_databuf_alloc(map, row, col);
-		if (rc != 0)
-			goto err;
-
-		dbuf = map->pi_databufs[row][col];
-
-		if (map->pi_ioreq->ir_type == IRT_WRITE) {
-			dbuf->db_flags |= PA_WRITE;
-
-			dbuf->db_flags |= count == PAGE_CACHE_SIZE ?
-				PA_FULLPAGE_MODIFY : PA_PARTPAGE_MODIFY;
+		flags = 0;
+		if (req->ir_type == IRT_WRITE) {
+			flags |= PA_WRITE;
+			flags |= count == PAGE_CACHE_SIZE ?
+				 PA_FULLPAGE_MODIFY : PA_PARTPAGE_MODIFY;
 
 			/*
 			 * Even if PA_PARTPAGE_MODIFY flag is set in
 			 * this buffer, the auxiliary buffer can not be
 			 * allocated until ::pi_rtype is selected.
 			 */
-			if (rmw && dbuf->db_flags & PA_PARTPAGE_MODIFY &&
+			if (rmw && (flags & PA_PARTPAGE_MODIFY) &&
 			    (end < inode->i_size ||
 			     (inode->i_size > 0 &&
 			      page_id(end - 1) == page_id(inode->i_size - 1))))
-				dbuf->db_flags |= PA_READ;
+				flags |= PA_READ;
 		} else
 			/*
 			 * For read IO requests, file_aio_read() has already
 			 * delimited the index vector to EOF boundary.
 			 */
-			dbuf->db_flags |= PA_READ;
+			flags |= PA_READ;
 
+		page_pos_get(map, start, &row, &col);
+		user_addr = (unsigned long)it.iov->iov_base + it.iov_offset;
+		/* XXX We can't map for Read-Old RMW approach, but we don't know
+		 * what approach will be chosen. So just don't map during rmw
+		 * at all.
+		 */
+		if (!rmw && req->ir_direct_io && count == PAGE_CACHE_SIZE &&
+		    (user_addr & ~PAGE_CACHE_MASK) == 0 &&
+		    (flags == PA_READ || flags & PA_FULLPAGE_MODIFY)) {
+
+			M0_ALLOC_PTR(map->pi_databufs[row][col]);
+			if (map->pi_databufs[row][col] == NULL) {
+				rc = -ENOMEM;
+				goto err;
+			}
+			user_page_map(map->pi_databufs[row][col], user_addr);
+		} else {
+			rc = pargrp_iomap_databuf_alloc(map, row, col);
+			if (rc != 0)
+				goto err;
+		}
+		map->pi_databufs[row][col]->db_flags = flags;
+
+		iov_iter_advance(&it, count);
 		M0_LOG(M0_DEBUG, "start %llu count %llu row %u col %u flag %x",
-				start, count, row, col, dbuf->db_flags);
+				start, count, row, col, flags);
 	}
 
 	return M0_RC(0);
@@ -3341,7 +3423,6 @@ static void ioreq_file_unlock(struct io_request *req)
 static int ioreq_iosm_handle(struct io_request *req)
 {
 	int		     rc;
-	int		     res;
 	bool		     rmw;
 	uint64_t	     map;
 	struct inode	    *inode;
@@ -3475,12 +3556,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 		 * (no matter fully modified or paritially modified)
 		 * in order to calculate parity correctly.
 		 */
-		res = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
-						      PA_FULLPAGE_MODIFY);
-		if (res != 0) {
-			rc = res;
+		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
+						     PA_FULLPAGE_MODIFY);
+		if (rc != 0)
 			goto fail_locked;
-		}
 
 		/* Copies
 		 * - fully modified pages from parity groups which have
@@ -3545,7 +3624,13 @@ fail_locked:
 fail:
 	ioreq_sm_failed(req, rc);
 	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
+	/* XXX temporary hack to prevent kernel panic */
+	/* XXX how to do it correctly? */
+#if 0
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
+#else
+	req->ir_nwxfer.nxr_state = NXS_COMPLETE;
+#endif
 	return M0_ERR(rc, "ioreq_iosm_handle failed");
 }
 
@@ -3587,6 +3672,7 @@ static int io_request_init(struct io_request  *req,
 	req->ir_iovec	  = iov;
 	req->ir_iomap_nr  = 0;
 	req->ir_copied_nr = 0;
+	req->ir_direct_io = !!(file->f_flags & O_DIRECT);
 	req->ir_sns_state = SRS_UNINITIALIZED;
 
 	io_request_bob_init(req);
@@ -3645,24 +3731,6 @@ static void io_request_fini(struct io_request *req)
 
 	nw_xfer_request_fini(&req->ir_nwxfer);
 	M0_LEAVE();
-}
-
-static void data_buf_init(struct data_buf *buf, void *addr, uint64_t flags)
-{
-	M0_PRE(buf  != NULL);
-	M0_PRE(addr != NULL);
-
-	data_buf_bob_init(buf);
-	buf->db_flags = flags;
-	m0_buf_init(&buf->db_buf, addr, PAGE_CACHE_SIZE);
-}
-
-static void data_buf_fini(struct data_buf *buf)
-{
-	M0_PRE(buf != NULL);
-
-	data_buf_bob_fini(buf);
-	buf->db_flags = PA_NONE;
 }
 
 static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
@@ -4050,7 +4118,9 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
 	M0_ENTRY("data_buf %p", buf);
 	M0_PRE(data_buf_invariant(buf));
 
-	if (buf->db_buf.b_addr != NULL)
+	if (buf->db_page != NULL)
+		user_page_unmap(buf, buf->db_flags & PA_WRITE ? false : true);
+	else if (buf->db_buf.b_addr != NULL)
 		buf_page_free(&buf->db_buf);
 
 	if (buf->db_auxbuf.b_addr != NULL)
@@ -4401,6 +4471,32 @@ static struct m0_indexvec *indexvec_create(unsigned long       seg_nr,
 	return ivec;
 }
 
+static ssize_t file_dio_write(struct kiocb	 *kcb,
+			      const struct iovec *iov,
+			      unsigned long	  seg_nr,
+			      loff_t		  pos)
+{
+	struct file  *file  = kcb->ki_filp;
+	struct inode *inode = file->f_mapping->host;
+	ssize_t       written;
+	int           rc;
+
+	M0_ENTRY();
+	BUG_ON(kcb->ki_pos != pos);
+
+	mutex_lock(&inode->i_mutex);
+	written = __generic_file_aio_write(kcb, iov, seg_nr, &kcb->ki_pos);
+	mutex_unlock(&inode->i_mutex);
+
+	if (written > 0) {
+		rc = generic_write_sync(file, pos, written);
+		written = rc == 0 ? written : rc;
+	}
+
+	M0_LEAVE();
+	return written;
+}
+
 static ssize_t file_aio_write(struct kiocb	 *kcb,
 			      const struct iovec *iov,
 			      unsigned long	  seg_nr,
@@ -4409,6 +4505,7 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	int		    rc;
 	size_t		    count = 0;
 	size_t		    saved_count;
+	ssize_t		    written;
 	struct m0_indexvec *ivec;
 
 	M0_ENTRY("struct iovec %p position %llu seg_nr %lu", iov, pos, seg_nr);
@@ -4437,24 +4534,29 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	if (count != saved_count)
 		seg_nr = iov_shorten((struct iovec *)iov, seg_nr, count);
 
+	if (kcb->ki_filp->f_flags & O_DIRECT) {
+		written = file_dio_write(kcb, iov, seg_nr, pos);
+		M0_LEAVE();
+		return written;
+	}
+
 	ivec = indexvec_create(seg_nr, iov, pos,
 	                       M0T1FS_ADDB_LOC_AIO_WRITE);
-	if (ivec == NULL) {
-		M0_LEAVE();
-		return 0;
-	}
+	if (ivec == NULL)
+		return M0_RC(-ENOMEM);
 
 	M0_LOG(M0_INFO, "Write vec-count = %llu seg_nr %lu",
 			m0_vec_count(&ivec->iv_vec), seg_nr);
-	count = m0t1fs_aio(kcb, iov, ivec, IRT_WRITE);
+	written = m0t1fs_aio(kcb, iov, ivec, IRT_WRITE);
 
 	/* Updates file position. */
-	kcb->ki_pos = pos + count;
+	if (written > 0)
+		kcb->ki_pos = pos + written;
 
 	m0_indexvec_free(ivec);
 	m0_free(ivec);
 	M0_LEAVE();
-	return count;
+	return written;
 }
 
 static ssize_t file_aio_read(struct kiocb	*kcb,
@@ -4463,9 +4565,10 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 			     loff_t		 pos)
 {
 	int		    seg;
-	ssize_t		    count = 0;
+	size_t		    count = 0;
+	loff_t		    size;
 	ssize_t		    res;
-	struct inode	   *inode;
+	struct file        *filp;
 	struct m0_indexvec *ivec;
 
 	M0_ENTRY("struct iovec %p position %llu", iov, pos);
@@ -4473,10 +4576,19 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	M0_PRE(iov != NULL);
 	M0_PRE(seg_nr > 0);
 
+	filp = kcb->ki_filp;
+	size = i_size_read(filp->f_mapping->host);
+
 	/* Returns if super block is inactive. */
-	if (!file_to_sb(kcb->ki_filp)->csb_active) {
+	if (!file_to_sb(filp)->csb_active)
+		return M0_RC(-EINVAL);
+	if (pos >= size)
+		return M0_RC(0);
+
+	if (filp->f_flags & O_DIRECT) {
+		res = generic_file_aio_read(kcb, iov, seg_nr, pos);
 		M0_LEAVE();
-		return -EINVAL;
+		return res;
 	}
 
 	/*
@@ -4493,20 +4605,15 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	ivec = indexvec_create(seg_nr, iov, pos,
 	                       M0T1FS_ADDB_LOC_AIO_READ);
 	if (ivec == NULL)
-		return M0_RC(0);
+		return M0_RC(-ENOMEM);
 
 	/*
 	 * For read IO, if any segment from index vector goes beyond EOF,
 	 * they are dropped and the index vector is truncated to EOF boundary.
 	 */
-	inode = kcb->ki_filp->f_dentry->d_inode;
 	for (seg = 0; seg < SEG_NR(ivec); ++seg) {
-		if (INDEX(ivec, seg) > inode->i_size) {
-			ivec->iv_vec.v_nr = seg + 1;
-			break;
-		}
-		if (seg_endpos(ivec, seg) > inode->i_size) {
-			COUNT(ivec, seg) = inode->i_size - INDEX(ivec, seg);
+		if (seg_endpos(ivec, seg) > size) {
+			COUNT(ivec, seg) = size - INDEX(ivec, seg);
 			ivec->iv_vec.v_nr = seg + 1;
 			break;
 		}
@@ -4519,15 +4626,16 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	}
 
 	M0_LOG(M0_INFO, "Read vec-count = %llu", m0_vec_count(&ivec->iv_vec));
-	count = m0t1fs_aio(kcb, iov, ivec, IRT_READ);
+	res = m0t1fs_aio(kcb, iov, ivec, IRT_READ);
 
 	/* Updates file position. */
-	kcb->ki_pos = pos + count;
+	if (res > 0)
+		kcb->ki_pos = pos + res;
 
 	m0_indexvec_free(ivec);
 	m0_free(ivec);
 	M0_LEAVE();
-	return count;
+	return res;
 }
 
 const struct file_operations m0t1fs_reg_file_operations = {
@@ -5251,6 +5359,58 @@ const struct inode_operations m0t1fs_reg_inode_operations = {
 	.getxattr    = m0t1fs_getxattr,
 	.listxattr   = m0t1fs_listxattr,
 	.removexattr = m0t1fs_removexattr
+};
+
+static ssize_t m0t1fs_direct_IO(int rw,
+				struct kiocb *kcb,
+				const struct iovec *iov,
+				loff_t pos,
+				unsigned long seg_nr)
+{
+	struct m0_indexvec *ivec;
+	ssize_t		    retval;
+	loff_t		    size = i_size_read(kcb->ki_filp->f_mapping->host);
+	int		    seg;
+
+	M0_ENTRY();
+	M0_LOG(M0_FATAL, "m0t1fs_direct_IO: rw=%s pos=%lld seg_nr=%lu "
+	       "addr=%p len=%lu", rw == READ ? "READ" : "WRITE",
+	       (long long)pos, seg_nr, iov->iov_base, iov->iov_len);
+
+	M0_PRE(M0_IN(rw, (READ, WRITE)));
+
+	ivec = indexvec_create(seg_nr, iov, pos,
+			       M0T1FS_ADDB_LOC_AIO_WRITE);
+	if (ivec == NULL)
+		return M0_RC(-ENOMEM);
+	if (rw == READ) {
+		/* Truncate vector to eliminate reading beyond the EOF */
+		for (seg = 0; seg < SEG_NR(ivec); ++seg)
+			if (seg_endpos(ivec, seg) > size) {
+				ivec->iv_vec.v_nr = seg + 1;
+				ivec->iv_vec.v_count[seg] = size -
+							    INDEX(ivec, seg);
+				break;
+			}
+	}
+
+	retval = m0t1fs_aio(kcb, iov, ivec, rw == READ ? IRT_READ : IRT_WRITE);
+
+	/*
+	 * m0t1fs_direct_IO() must process all requested data or return error.
+	 * Otherwise generic kernel code will use unimplemented callbacks to
+	 * continue buffered I/O (e.g. write_begin()).
+	 */
+	M0_POST(retval < 0 || retval == m0_vec_count(&ivec->iv_vec));
+
+	m0_indexvec_free(ivec);
+	m0_free(ivec);
+	M0_LEAVE();
+	return retval;
+}
+
+const struct address_space_operations m0t1fs_aops = {
+	.direct_IO = m0t1fs_direct_IO,
 };
 
 #undef M0_TRACE_SUBSYSTEM

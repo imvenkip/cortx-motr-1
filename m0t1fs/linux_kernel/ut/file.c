@@ -214,7 +214,7 @@ static void ds_test(void)
         }
 
 	/* io_request attributes test. */
-        rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
+	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
         M0_UT_ASSERT(rc == 0);
         M0_UT_ASSERT(req.ir_rc       == 0);
         M0_UT_ASSERT(req.ir_file     == &lfile);

@@ -343,8 +343,9 @@ static int m0t1fs_inode_read(struct inode      *inode,
 
 	m0t1fs_inode_update(inode, body);
 	if (S_ISREG(inode->i_mode)) {
-		inode->i_op   = &m0t1fs_reg_inode_operations;
-		inode->i_fop  = &m0t1fs_reg_file_operations;
+		inode->i_op             = &m0t1fs_reg_inode_operations;
+		inode->i_fop            = &m0t1fs_reg_file_operations;
+		inode->i_mapping->a_ops = &m0t1fs_aops;
 	} else if (S_ISDIR(inode->i_mode)) {
 	        if (m0t1fs_inode_is_dot_mero(inode) || m0t1fs_inode_is_dot_mero_fid(inode)) {
 		        inode->i_op   = &m0t1fs_fid_dir_inode_operations;

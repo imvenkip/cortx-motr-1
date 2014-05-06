@@ -397,8 +397,9 @@ static int m0t1fs_create(struct inode     *dir,
 		inode->i_fop = &m0t1fs_dir_file_operations;
 		inc_nlink(inode);  /* one more link (".") for directories */
 	} else {
-		inode->i_op  = &m0t1fs_reg_inode_operations;
-		inode->i_fop = &m0t1fs_reg_file_operations;
+		inode->i_op             = &m0t1fs_reg_inode_operations;
+		inode->i_fop            = &m0t1fs_reg_file_operations;
+		inode->i_mapping->a_ops = &m0t1fs_aops;
 	}
 
 	ci->ci_layout_id = csb->csb_layout_id; /* layout id for new file */
