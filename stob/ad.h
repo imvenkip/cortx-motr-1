@@ -104,9 +104,6 @@ struct m0_stob_ad_domain {
 	m0_bcount_t            sad_res_groups;
 	struct m0_be_seg      *sad_be_seg;
 	char                   sad_path[MAXPATHLEN];
-
-	/* XXX remove when ad-stob-unlink is landed */
-	struct m0_mutex        sad_mutex;
 };
 
 struct m0_stob_ad {

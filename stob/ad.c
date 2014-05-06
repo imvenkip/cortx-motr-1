@@ -292,7 +292,6 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 
 		dom         = &adom->sad_base;
 		dom->sd_ops = &stob_ad_domain_ops;
-		m0_mutex_init(&adom->sad_mutex);
 		m0_be_emap_init(&adom->sad_adata, adom->sad_be_seg);
 
 		ballroom = adom->sad_ballroom;
@@ -311,7 +310,6 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 			if (balloc_inited)
 				ballroom->ab_ops->bo_fini(ballroom);
 			m0_be_emap_fini(&adom->sad_adata);
-			m0_mutex_fini(&adom->sad_mutex);
 		} else {
 			adom->sad_babshift = adom->sad_bshift -
 					m0_stob_block_shift(adom->sad_bstore);
@@ -332,7 +330,6 @@ static void stob_ad_domain_fini(struct m0_stob_domain *dom)
 	ballroom->ab_ops->bo_fini(ballroom);
 	m0_be_emap_fini(&adom->sad_adata);
 	m0_stob_put(adom->sad_bstore);
-	m0_mutex_fini(&adom->sad_mutex);
 }
 
 static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
