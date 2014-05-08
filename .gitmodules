@@ -1,12 +1,12 @@
 [submodule "extra-libs/cunit"]
 	path = extra-libs/cunit
-	url = ssh://gitosis@git.clusterstor.com/mero-cunit.git
+	url = http://es-gerrit.xyus.xyratex.com:8080/mero-cunit
 	ignore = untracked
 [submodule "extra-libs/galois"]
 	path = extra-libs/galois
-	url = ssh://gitosis@git.clusterstor.com/mero-galois.git
+	url = http://es-gerrit.xyus.xyratex.com:8080/mero-galois
 	ignore = untracked
 [submodule "extra-libs/yaml"]
 	path = extra-libs/yaml
-	url = ssh://gitosis@git.clusterstor.com/mero-yaml.git
+	url = http://es-gerrit.xyus.xyratex.com:8080/mero-yaml
 	ignore = untracked
