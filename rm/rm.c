@@ -146,10 +146,10 @@ M0_TL_DESCR_DEFINE(pi, "pins-of-incoming", , struct m0_rm_pin,
 M0_TL_DEFINE(pi, M0_INTERNAL, struct m0_rm_pin);
 
 static const struct m0_bob_type pin_bob = {
-        .bt_name         = "pin",
-        .bt_magix_offset = offsetof(struct m0_rm_pin, rp_magix),
-        .bt_magix        = M0_RM_PIN_MAGIC,
-        .bt_check        = NULL
+	.bt_name         = "pin",
+	.bt_magix_offset = offsetof(struct m0_rm_pin, rp_magix),
+	.bt_magix        = M0_RM_PIN_MAGIC,
+	.bt_check        = NULL
 };
 M0_BOB_DEFINE(static, &pin_bob, m0_rm_pin);
 
@@ -346,45 +346,45 @@ m0_rm_resource_type_lookup(const struct m0_rm_domain *dom,
 }
 
 M0_INTERNAL void m0_rm_resource_add(struct m0_rm_resource_type *rtype,
-                                    struct m0_rm_resource      *res)
+				    struct m0_rm_resource      *res)
 {
-        M0_ENTRY("res-type: %p resource : %p", rtype, res);
+	M0_ENTRY("res-type: %p resource : %p", rtype, res);
 
-        m0_mutex_lock(&rtype->rt_lock);
-        M0_PRE(resource_type_invariant(rtype));
-        M0_PRE(res->r_ref == 0);
-        M0_PRE(m0_rm_resource_find(rtype, res) == NULL);
-        res->r_type = rtype;
-        res_tlink_init_at(res, &rtype->rt_resources);
-        m0_remotes_tlist_init(&res->r_remote);
-        m0_rm_resource_bob_init(res);
-        M0_CNT_INC(rtype->rt_nr_resources);
-        M0_POST(res_tlist_contains(&rtype->rt_resources, res));
-        M0_POST(resource_type_invariant(rtype));
-        m0_mutex_unlock(&rtype->rt_lock);
-        M0_POST(res->r_type == rtype);
-        M0_LEAVE();
+	m0_mutex_lock(&rtype->rt_lock);
+	M0_PRE(resource_type_invariant(rtype));
+	M0_PRE(res->r_ref == 0);
+	M0_PRE(m0_rm_resource_find(rtype, res) == NULL);
+	res->r_type = rtype;
+	res_tlink_init_at(res, &rtype->rt_resources);
+	m0_remotes_tlist_init(&res->r_remote);
+	m0_rm_resource_bob_init(res);
+	M0_CNT_INC(rtype->rt_nr_resources);
+	M0_POST(res_tlist_contains(&rtype->rt_resources, res));
+	M0_POST(resource_type_invariant(rtype));
+	m0_mutex_unlock(&rtype->rt_lock);
+	M0_POST(res->r_type == rtype);
+	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_resource_add);
 
 M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 {
-        struct m0_rm_resource_type *rtype = res->r_type;
+	struct m0_rm_resource_type *rtype = res->r_type;
 
-        M0_ENTRY("resource : %p", res);
-        m0_mutex_lock(&rtype->rt_lock);
-        M0_PRE(res_tlist_contains(&rtype->rt_resources, res));
-        M0_PRE(m0_remotes_tlist_is_empty(&res->r_remote));
-        M0_PRE(resource_type_invariant(rtype));
+	M0_ENTRY("resource : %p", res);
+	m0_mutex_lock(&rtype->rt_lock);
+	M0_PRE(res_tlist_contains(&rtype->rt_resources, res));
+	M0_PRE(m0_remotes_tlist_is_empty(&res->r_remote));
+	M0_PRE(resource_type_invariant(rtype));
 
-        res_tlink_del_fini(res);
-        M0_CNT_DEC(rtype->rt_nr_resources);
+	res_tlink_del_fini(res);
+	M0_CNT_DEC(rtype->rt_nr_resources);
 
-        M0_POST(resource_type_invariant(rtype));
-        M0_POST(!res_tlist_contains(&rtype->rt_resources, res));
-        m0_rm_resource_bob_fini(res);
-        m0_mutex_unlock(&rtype->rt_lock);
-        M0_LEAVE();
+	M0_POST(resource_type_invariant(rtype));
+	M0_POST(!res_tlist_contains(&rtype->rt_resources, res));
+	m0_rm_resource_bob_fini(res);
+	m0_mutex_unlock(&rtype->rt_lock);
+	M0_LEAVE();
 }
 M0_EXPORTED(m0_rm_resource_del);
 
@@ -1271,8 +1271,8 @@ static void rm_addb_req_counter_update(enum m0_rm_incoming_type      type,
 	if (now >= next_update || next_update == 0) {
 		m0_addb_counter_update(&rs->rs_nr, (uint64_t)rs->rs_count);
 		m0_addb_counter_update(&rs->rs_time,
-				       (uint64_t) m0_time_sub(m0_time_now(),
-					rem_in->ri_incoming.rin_req_time) >> 10);
+			(uint64_t) m0_time_sub(m0_time_now(),
+				rem_in->ri_incoming.rin_req_time) >> 10);
 
 		next_update = m0_time_add(now, rm_addb_update_interval);
 	}
@@ -1287,8 +1287,8 @@ static void rm_addb_credit_counter_update(struct m0_rm_credit *credit)
 	as = &rt->rt_addb_stats;
 
 	m0_addb_counter_update(&as->as_credit_time,
-			       (uint64_t) m0_time_sub(m0_time_now(),
-						      credit->cr_get_time) >> 10);
+		       (uint64_t) m0_time_sub(m0_time_now(),
+					      credit->cr_get_time) >> 10);
 }
 
 
@@ -2353,14 +2353,14 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 	 * Iterate over all credits lists:
 	 *
 	 *    - checking their consistency as double-linked lists
-         *      (m0_rm_ur_tlist_invariant_ext());
+	 *      (m0_rm_ur_tlist_invariant_ext());
 	 *
 	 *    - making additional consistency checks:
 	 *
 	 *    - that a credit is for the same resource as the owner,
 	 *
 	 *    - that a credit on m0_rm_owner::ro_owned[X] is pinned iff X
-         *            == OWOS_HELD.
+	 *            == OWOS_HELD.
 	 *
 	 *    - accumulating total credit and debit.
 	 */
@@ -2778,10 +2778,10 @@ M0_EXPORTED(m0_rm_credit_decode);
 M0_INTERNAL int m0_rm_db_service_query(const char          *name,
 				       struct m0_rm_remote *rem)
 {
-        /* Create search query for DB using name as key and
-         * find record  and assign service ID */
-        rem->rem_state = REM_SERVICE_LOCATED;
-        return 0;
+	/* Create search query for DB using name as key and
+	 * find record  and assign service ID */
+	rem->rem_state = REM_SERVICE_LOCATED;
+	return 0;
 }
 
 M0_INTERNAL int m0_rm_remote_resource_locate(struct m0_rm_remote *rem)

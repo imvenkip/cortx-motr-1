@@ -559,10 +559,10 @@ struct m0_rm_credit_ops {
 	 *  by generic code to analyse credits relationships.
 	 *
 	 *  "0" means the empty credit in the following.
-         */
-        /** @{ */
-        /**
-         * @retval True, iff 'self credit' intersects with c1.
+	 */
+	/** @{ */
+	/**
+	 * @retval True, iff 'self credit' intersects with c1.
 	 * Credits intersect when there is some usage authorised by credit self
 	 * and by credit c1.
 	 *
@@ -579,29 +579,29 @@ struct m0_rm_credit_ops {
 	 *
 	 *      - !intersects(A, 0)
 	 */
-        bool (*cro_intersects) (const struct m0_rm_credit *self,
-                                const struct m0_rm_credit *c1);
-        /**
-         * @retval True if 'self credit' is subset (or proper subset) of c1.
+	bool (*cro_intersects) (const struct m0_rm_credit *self,
+				const struct m0_rm_credit *c1);
+	/**
+	 * @retval True if 'self credit' is subset (or proper subset) of c1.
 	 */
-        bool (*cro_is_subset) (const struct m0_rm_credit *self,
-                               const struct m0_rm_credit *c1);
-        /**
-         * Adjoins c1 to 'self credit', updating self in place to be the sum
-         * credit.
+	bool (*cro_is_subset) (const struct m0_rm_credit *self,
+			       const struct m0_rm_credit *c1);
+	/**
+	 * Adjoins c1 to 'self credit', updating self in place to be the sum
+	 * credit.
 	 */
-        int (*cro_join) (struct m0_rm_credit *self,
-                          const struct m0_rm_credit *c1);
-        /**
-         * Splits self into two parts - diff(self,c1) and intersection(self, c1)
+	int (*cro_join) (struct m0_rm_credit *self,
+			 const struct m0_rm_credit *c1);
+	/**
+	 * Splits self into two parts - diff(self,c1) and intersection(self, c1)
 	 * Destructively updates 'self credit' with diff(self, c1) and updates
 	 * intersection with intersection of (self, c1)
 	 */
-        int (*cro_disjoin) (struct m0_rm_credit *self,
-                            const struct m0_rm_credit *c1,
+	int (*cro_disjoin) (struct m0_rm_credit *self,
+			    const struct m0_rm_credit *c1,
 			    struct m0_rm_credit *intersection);
 	/**
-         * @retval True, iff 'self credit' conflicts with c1.
+	 * @retval True, iff 'self credit' conflicts with c1.
 	 * Credits conflict iff one of them authorises a usage incompatible with
 	 * another.
 	 *
@@ -613,14 +613,14 @@ struct m0_rm_credit_ops {
 	 * "intersects" and, in addition,
 	 *
 	 *     - conflicts(A, B) => intersects(A, B), because if credits share
-         *       nothing they cannot conflict. Note that this condition
-         *       restricts possible resource semantics. For example, to satisfy
-         *       it, a credit to write to a variable must always imply a credit
-         *       to read it.
+	 *       nothing they cannot conflict. Note that this condition
+	 *       restricts possible resource semantics. For example, to satisfy
+	 *       it, a credit to write to a variable must always imply a credit
+	 *       to read it.
 	 */
-        bool (*cro_conflicts) (const struct m0_rm_credit *self,
+	bool (*cro_conflicts) (const struct m0_rm_credit *self,
 			       const struct m0_rm_credit *c1);
-        /** Difference between credits.
+	/** Difference between credits.
 	 *
 	 *  The difference is a part of self that doesn't intersect with c1.
 	 *
@@ -659,20 +659,20 @@ struct m0_rm_credit_ops {
 	 *       - intersects(A, B) iff meet(A, B) != 0.
 	 *
 	 *  This function destructively updates "self" in place.
-         */
-        int  (*cro_diff)(struct m0_rm_credit *self,
+	 */
+	int  (*cro_diff)(struct m0_rm_credit *self,
 			 const struct m0_rm_credit *c1);
 	/** Creates a copy of "src" in "dst".
 	 *
 	 *  @pre dst is empty.
 	 */
-        int  (*cro_copy)(struct m0_rm_credit *dst,
+	int  (*cro_copy)(struct m0_rm_credit *dst,
 			 const struct m0_rm_credit *self);
 	/**
 	 * Setup initial capital
 	 */
 	void (*cro_initial_capital)(struct m0_rm_credit *self);
-        /** @} end of Credits operations. */
+	/** @} end of Credits operations. */
 };
 
 enum m0_rm_remote_state {

@@ -172,7 +172,7 @@ M0_TL_DESCR_DEFINE(wail, "wail fom", static, struct m0_fom, fo_linkage,
 M0_TL_DEFINE(wail, static, struct m0_fom);
 
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
-                                 const struct m0_fom *fom);
+				 const struct m0_fom *fom);
 static int loc_thr_create(struct m0_fom_locality *loc);
 
 /**
