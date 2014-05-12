@@ -879,7 +879,7 @@ out_end:
 		rdpg->r_end = m0_bitstring_alloc(s_buf, s_len);
 		M0_LOG(M0_DEBUG, "%s entry: \"%.*s\"", rc ? "last" : "next",
 		       s_len, s_buf);
-		rc = ENOENT;
+		rc = rc ? ENOENT : 0;
 	}
 	if (rc == -ENOENT)
 		rc = ENOENT;

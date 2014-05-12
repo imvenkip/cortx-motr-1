@@ -174,6 +174,7 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 		scm = cm2sns(cp->c_ag->cag_cm);
 		cdom  = scm->sc_it.si_cob_dom;
 		rc = m0_sns_cm_cob_locate(cdom, &scp->sc_cobfid);
+		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
 		if (rc == 0)
 			return M0_CCP_WRITE;
 		else if (rc == -ENOENT)

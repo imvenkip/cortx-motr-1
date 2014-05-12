@@ -8,7 +8,7 @@
 . `dirname $0`/m0t1fs_server_inc.sh
 . `dirname $0`/m0t1fs_rsink.sh
 
-main()
+m0t1fs_test()
 {
 	NODE_UUID=`uuidgen`
 	mero_service start
@@ -43,8 +43,18 @@ main()
 	# then
 	# return 1
 	# fi
-
 	echo "System tests status: SUCCESS."
+}
+
+main()
+{
+	local rc
+	echo "System tests start:"
+	echo "Test log will be stored in $MERO_TEST_LOGFILE."
+
+	m0t1fs_test 2>&1 | tee -a $MERO_TEST_LOGFILE
+	rc=$?
+
 	echo "Test log available at $MERO_TEST_LOGFILE."
 
 	return $rc

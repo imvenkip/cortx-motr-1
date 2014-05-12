@@ -43,6 +43,7 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	uint64_t                    upg;
 	uint64_t                    unit;
 	int                         rc;
+	M0_ENTRY();
 
 	agid2fid(id,  &gfid);
 	sa.sa_group = agid2group(id);
@@ -61,9 +62,10 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				M0_CNT_INC(incoming);
 		}
 		m0_layout_instance_fini(&pi->pi_base);
-		return incoming;
+		return M0_RC(incoming);
 	}
 
+	M0_LEAVE();
 	return ~0;
 }
 
@@ -95,6 +97,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	uint32_t                    j;
 	bool                        result = false;
 	int                         rc;
+	M0_ENTRY();
 
 	N = m0_pdclust_N(pl);
 	K = m0_pdclust_K(pl);
@@ -111,19 +114,20 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		rc = m0_sns_repair_spare_map(pm, gfid, pl, pi,
 				group, j, &tgt_unit, &tgt_unit_prev);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		sa.sa_unit = tgt_unit;
 		if (!m0_sns_cm_unit_is_spare(scm, pl, gfid, group, tgt_unit))
 			continue;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);
+		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
 		if (rc == 0 && !m0_sns_cm_is_cob_failed(scm, &cobfid)) {
 			result = true;
 			break;
 		}
 	}
 
-	return result;
+	return M0_RC(result);
 }
 
 const struct m0_sns_cm_helpers repair_helpers = {

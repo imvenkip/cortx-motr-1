@@ -10,8 +10,17 @@ CLIENT_CONTEXT2="m0_addb_ct_m0t1fs_op_write"
 
 collect_addb_from_all_services()
 {
-	for ((i=0; i < ${#EP[*]}; i++)) ; do
-		cmd="cd $MERO_M0T1FS_TEST_DIR/d$i;
+	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		local index=`$i + 1`
+		cmd="cd $MERO_M0T1FS_TEST_DIR/d$index;
+		$addb_dump -T $MERO_STOB_DOMAIN -D db \
+		-A linuxstob:addb-stobs >> $ADDB_DUMP_FILE"
+		echo $cmd
+		eval $cmd
+	done
+	for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+		local index=`$i + 1`
+		cmd="cd $MERO_M0T1FS_TEST_DIR/m$index;
 		$addb_dump -T $MERO_STOB_DOMAIN -D db \
 		-A linuxstob:addb-stobs >> $ADDB_DUMP_FILE"
 		echo $cmd

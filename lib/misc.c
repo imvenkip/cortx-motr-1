@@ -281,6 +281,18 @@ m0_elems_are_unique(const void *array, unsigned nr_elems, size_t elem_size)
 						elem_size) != 0));
 }
 
+M0_INTERNAL unsigned int
+m0_full_name_hash(const unsigned char *name, unsigned int len)
+{
+	unsigned long hash = 0;
+	unsigned long c;
+	while (len--) {
+		c = *name++;
+		hash = (hash + (c << 4) + (c >> 4)) * 11;
+	}
+	return ((unsigned int)hash);
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

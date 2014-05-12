@@ -219,6 +219,8 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	}
 	m0_cm_sw_set(&sw, &id_lo, &id_hi);
 	M0_LOG(M0_DEBUG, "proxy ep: %s", proxy->px_endpoint);
+	M0_LOG(M0_DEBUG, "cm->cm_aggr_grps_in_nr %lu!", cm->cm_aggr_grps_in_nr);
+	M0_LOG(M0_DEBUG, "proxy->px_nr_asts %lu", proxy->px_nr_asts);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	has_data = m0_cm_has_more_data(cm);

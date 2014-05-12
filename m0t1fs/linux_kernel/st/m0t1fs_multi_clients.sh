@@ -8,7 +8,7 @@
 . `dirname $0`/m0t1fs_server_inc.sh
 . `dirname $0`/m0t1fs_rsink.sh
 
-main()
+multi_clients()
 {
 	NODE_UUID=`uuidgen`
 	mero_service start
@@ -18,7 +18,7 @@ main()
 		return 1
 	fi
 
-	multi_client_test $NR_CLIENTS
+	multi_client_test
 	rc=$?
 
 	# mero_service stop --collect-addb
@@ -36,8 +36,18 @@ main()
 	fi
 
 	echo "m0t1fs multi-clients tests status: SUCCESS."
-	echo "Test log available at $MERO_TEST_LOGFILE."
+	return $rc
+}
 
+main()
+{
+	echo "Starting multi clients testing:"
+	echo "Test log will be stored in $MERO_TEST_LOGFILE."
+
+	multi_clients 2>&1 | tee -a $MERO_TEST_LOGFILE
+	rc=$?
+
+	echo "Test log available at $MERO_TEST_LOGFILE."
 	return $rc
 }
 

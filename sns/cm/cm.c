@@ -476,11 +476,16 @@ static void sns_cm_flock_resource_set(struct m0_sns_cm *scm)
 	scm->sc_rm_ctx.rc_rt.rt_ops = &file_lock_type_ops;
 }
 
+M0_TL_DESCR_DECLARE(cs_eps, extern);
+M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
+
 M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 {
-	struct m0_reqh	    *reqh = scm->sc_base.cm_service.rs_reqh;
-	struct m0_mero      *mero = m0_cs_ctx_get(reqh);
-	int		     rc;
+	struct m0_reqh	            *reqh = scm->sc_base.cm_service.rs_reqh;
+	struct m0_mero              *mero = m0_cs_ctx_get(reqh);
+	int		             rc;
+	const char                  *rm_ep_addr;
+	struct cs_endpoint_and_xprt *ep;
 
 	M0_ENTRY("scm: %p", scm);
 	M0_ASSERT(mero->cc_pool_width > 0);
@@ -498,7 +503,8 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	sns_cm_flock_resource_set(scm);
 	m0_rm_type_register(&scm->sc_rm_ctx.rc_dom, &scm->sc_rm_ctx.rc_rt);
 
-	M0_ASSERT(mero->cc_mds_epx.ex_endpoint != NULL);
+	ep = cs_eps_tlist_head(&mero->cc_mds_eps);
+	rm_ep_addr = ep->ex_endpoint;
 
 	/*
 	 * XXX Currently the rm service and md service run on the same endpoint.
@@ -508,8 +514,9 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	rc = m0_rpc_client_connect(&scm->sc_rm_ctx.rc_conn,
 				   &scm->sc_rm_ctx.rc_session,
 				   m0_cm_rpc_machine_find(reqh),
-				   mero->cc_mds_epx.ex_endpoint,
+				   rm_ep_addr,
 				   CM_MAX_NR_RPC_IN_FLIGHT);
+	M0_LOG(M0_DEBUG, "connected to rm @ep=%s, rc=%d", rm_ep_addr, rc);
 	if (rc != 0)
 		goto end;
 
@@ -1033,6 +1040,7 @@ extern const struct m0_rm_incoming_ops file_lock_incoming_ops;
 M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm_file_ctx *fctx)
 {
 	struct m0_sns_cm *scm;
+	M0_ENTRY();
 
 	M0_PRE(fctx != NULL);
 	M0_PRE(sns_cm_fid_is_valid(&fctx->sf_fid));
@@ -1043,6 +1051,7 @@ M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm_file_ctx *fctx)
 	M0_ASSERT(m0_sns_cm_fctx_locate(scm, &fctx->sf_fid) == NULL);
 	M0_ASSERT(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
 
+	M0_LOG(M0_DEBUG, "Lock file for FID : "FID_F, FID_P(&fctx->sf_fid));
 	fctx->sf_flock_status = M0_SCM_FILE_LOCK_WAIT;
 	m0_scmfctx_htable_add(&scm->sc_file_ctx, fctx);
 	/* XXX: Ideally m0_file_lock should be called, but
@@ -1068,7 +1077,7 @@ M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm_file_ctx *fctx)
 	M0_PRE(m0_mutex_is_locked(&fctx->sf_scm->sc_file_ctx_mutex));
 
 	m0_ref_put(&fctx->sf_ref);
-	M0_LOG(M0_DEBUG, "FID : <%lx:%lx>", FID_P(&fctx->sf_fid));
+	M0_LOG(M0_DEBUG, "Unlock file for FID : "FID_F, FID_P(&fctx->sf_fid));
 }
 
 M0_INTERNAL int m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
@@ -1076,6 +1085,7 @@ M0_INTERNAL int m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
 {
 	struct m0_chan		  *rm_chan;
 	uint32_t		   state;
+	M0_ENTRY();
 
 	M0_PRE(fctx != NULL || fctx->sf_scm != NULL || fom != NULL);
 	M0_PRE(m0_mutex_is_locked(&fctx->sf_scm->sc_file_ctx_mutex));
@@ -1109,6 +1119,7 @@ static int _sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid)
 	struct m0_sns_cm_file_ctx *fctx;
 	int		           rc;
 	uint32_t		  state;
+	M0_ENTRY();
 
 	M0_PRE(scm != NULL || fid != NULL);
 	M0_PRE(sns_cm_fid_is_valid(fid));
@@ -1120,7 +1131,7 @@ static int _sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid)
 		if (fctx->sf_flock_status == M0_SCM_FILE_LOCKED) {
 			if (m0_ref_read(&fctx->sf_ref) == 0) {
 				m0_ref_get(&fctx->sf_ref);
-				M0_LOG(M0_DEBUG, "fid: <%lx, %lx>", FID_P(fid));
+				M0_LOG(M0_DEBUG, "fid: "FID_F, FID_P(fid));
 			}
 			return M0_RC(0);
 		}
@@ -1158,6 +1169,7 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 	uint64_t                  group = agid2group(&id_curr);
 	uint64_t                  i;
 	int                       rc = 0;
+	M0_ENTRY();
 
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
@@ -1173,17 +1185,20 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 			m0_mutex_lock(&scm->sc_file_ctx_mutex);
 			rc = _sns_cm_file_lock(scm, &fid_curr);
 			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
-			if (rc == -EAGAIN)
-				return 0;
+			M0_LOG(M0_DEBUG, "file lock rc: %d", rc);
+			if (rc == -EAGAIN) {
+				return M0_RC(0);
+			}
 
 			if (rc != 0)
-				goto end;
+				return M0_RC(rc);
 			rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,
 							      &pl, &fsize);
 			if (rc != 0)
-				return rc;
+				return M0_RC(rc);
 			nr_gps = m0_sns_cm_nr_groups(pl, fsize);
 			for (i = group; i < nr_gps; ++i) {
+				M0_LOG(M0_DEBUG, "i: %lu, grps: %lu", i, nr_gps);
 				m0_sns_cm_ag_agid_setup(&fid_curr, i, &ag_id);
 				if (!m0_sns_cm_ag_is_relevant(scm, pl, &ag_id))
 					continue;
@@ -1191,12 +1206,12 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 				if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l)) {
 					M0_SET0(&ag_id);
 					m0_layout_put(l);
-					return -ENOSPC;
+					return M0_RC(-ENOSPC);
 				}
 				if (pl != NULL)
 					m0_layout_put(m0_pdl_to_layout(pl));
 				*id_next = ag_id;
-				return rc;
+				return M0_RC(rc);
 			}
 			m0_layout_put(m0_pdl_to_layout(pl));
 			m0_mutex_lock(&scm->sc_file_ctx_mutex);
@@ -1210,8 +1225,7 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 		M0_CNT_INC(fid_curr.f_key);
 	} while ((rc = _fid_next(cdom, &fid_curr, &fid_next)) == 0);
 
-end:
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_sns_cm_file_ctx
@@ -1220,7 +1234,7 @@ M0_INTERNAL struct m0_sns_cm_file_ctx
 {
 	struct m0_sns_cm_file_ctx *fctx;
 
-	M0_ENTRY("sns cm %p, fid %p", scm, fid);
+	M0_ENTRY("sns cm %p, fid %p="FID_F, scm, fid, FID_P(fid));
 	M0_PRE(scm != NULL && fid != NULL);
 	M0_PRE(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
 
@@ -1248,7 +1262,7 @@ M0_INTERNAL void m0_sns_cm_fctx_ag_incr(struct m0_sns_cm *scm,
 	fctx = m0_sns_cm_fctx_locate(scm, fid);
 	M0_ASSERT(fctx != NULL);
 	M0_CNT_INC(fctx->sf_ag_nr);
-	M0_LOG(M0_DEBUG, "ag nr: %lu, FID : <%lx : %lx>", fctx->sf_ag_nr,
+	M0_LOG(M0_DEBUG, "ag nr: %lu, FID :"FID_F, fctx->sf_ag_nr,
 	       FID_P(fid));
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
@@ -1291,6 +1305,8 @@ M0_INTERNAL void m0_sns_cm_fid_check_unlock(struct m0_sns_cm *scm,
 
 	fctx = m0_sns_cm_fctx_locate(scm, fid);
 	M0_ASSERT(fctx != NULL);
+	M0_LOG(M0_DEBUG, "File with FID : "FID_F" has %lu AGs",
+			 FID_P(&fctx->sf_fid), fctx->sf_ag_nr);
 	if (fctx->sf_ag_nr == 0) {
 		m0_sns_cm_file_unlock(fctx);
 	}

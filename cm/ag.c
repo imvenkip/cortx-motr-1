@@ -268,7 +268,6 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 	M0_PRE(cm != NULL);
 	M0_PRE(ag != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
-	M0_LEAVE();
 
 	ID_INCOMING_LOG("id", &id, has_incoming);
 	if (has_incoming) {
@@ -278,6 +277,7 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 		__aggr_group_add(ag, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 		M0_CNT_INC(cm->cm_aggr_grps_out_nr);
 	}
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
@@ -326,6 +326,7 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 	struct m0_cm_ag_id       next;
 	struct m0_cm_ag_id       id;
 	struct m0_cm_aggr_group *ag;
+	M0_ENTRY();
 
 	M0_PRE(m0_cm_is_locked(cm));
 
@@ -335,6 +336,7 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 	do {
 		ID_LOG("id", &id);
 		rc = cm->cm_ops->cmo_ag_next(cm, id, &next);
+		M0_LOG(M0_DEBUG,  "next ["M0_AG_F"] rc=%d", M0_AG_P(&next), rc);
 		if (rc == 0 && m0_cm_ag_id_is_set(&next)) {
 			ag = m0_cm_aggr_group_locate(cm, &next, true);
 			if (ag == NULL) {
@@ -348,7 +350,7 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 		}
 	} while (rc == 0);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm)

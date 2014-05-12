@@ -121,6 +121,44 @@ M0_INTERNAL bool m0t1fs_fs_is_locked(const struct m0t1fs_sb *csb)
 	return m0_mutex_is_locked(&csb->csb_mutex);
 }
 
+/**
+ * If use_hint is true, use hash_hint as final hash. This is used
+ * to get specified mdservice. For example, readdir() wants to
+ * get session for specified mds index.
+ */
+M0_INTERNAL struct m0_rpc_session *
+m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
+			       const unsigned char    *filename,
+			       unsigned int            nlen,
+			       bool                    use_hint,
+			       uint32_t                hash_hint)
+{
+	struct m0t1fs_service_context *ctx;
+	unsigned int hash;
+	M0_ENTRY();
+
+	if (use_hint)
+		hash = hash_hint;
+	else {
+		/* If operations don't have filename, we map it to mds 0 */
+		if (filename != NULL && nlen != 0)
+			hash = m0_full_name_hash(filename, nlen);
+		else
+			hash = 0;
+	}
+	ctx = csb->csb_cl_map.mds_map[hash % csb->csb_nr_mds];
+	M0_ASSERT(ctx != NULL);
+
+	M0_LOG(M0_DEBUG, "%8s->index=%d ctx=%p session=%p", filename,
+			 hash % csb->csb_nr_mds, ctx, &ctx->sc_session);
+	M0_LEAVE();
+	return &ctx->sc_session;
+}
+
+/**
+ * Mapping from container_id to ios session.
+ * container_id 0 is not valid.
+ */
 M0_INTERNAL struct m0_rpc_session *
 m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 			       uint64_t container_id)
@@ -128,14 +166,17 @@ m0t1fs_container_id_to_session(const struct m0t1fs_sb *csb,
 	struct m0t1fs_service_context *ctx;
 
 	M0_ENTRY();
+	M0_PRE(container_id > 0);
 	M0_PRE(container_id <= csb->csb_nr_containers);
 	M0_LOG(M0_DEBUG, "container_id=%llu csb->csb_nr_containers=%u",
 			 container_id, csb->csb_nr_containers);
 
-	ctx = csb->csb_cl_map.clm_map[container_id];
+	ctx = csb->csb_cl_map.ios_map[container_id];
 	M0_ASSERT(ctx != NULL);
 
-	M0_LEAVE("id %llu -> session: %p", container_id, &ctx->sc_session);
+	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
+			 &ctx->sc_session);
+	M0_LEAVE();
 	return &ctx->sc_session;
 }
 
@@ -179,6 +220,7 @@ enum m0t1fs_mntopts {
 	M0T1FS_MNTOPT_PROFILE,
 	M0T1FS_MNTOPT_LOCAL_CONF,
 	M0T1FS_MNTOPT_FID_START,
+	M0T1FS_MNTOPT_COPYTOOL,
 	M0T1FS_MNTOPT_ERR
 };
 
@@ -187,6 +229,7 @@ static const match_table_t m0t1fs_mntopt_tokens = {
 	{ M0T1FS_MNTOPT_PROFILE,    "profile=%s"    },
 	{ M0T1FS_MNTOPT_LOCAL_CONF, "local_conf=%s" },
 	{ M0T1FS_MNTOPT_FID_START,  "fid_start=%s"  },
+	{ M0T1FS_MNTOPT_COPYTOOL,   "copytool"      },
 	/* match_token() requires 2nd field of the last element to be NULL */
 	{ M0T1FS_MNTOPT_ERR, NULL }
 };
@@ -287,13 +330,16 @@ static int mount_opts_validate(const struct mount_opts *mops)
 		return M0_ERR(-EINVAL, "Mandatory parameter is missing: "
 			       "profile");
 
-	if (!ergo(mops->mo_fid_start != 0, mops->mo_fid_start > M0_MDSERVICE_START_FID.f_key - 1))
-		return M0_ERR(-EINVAL, "fid_start must be greater than %llu", M0_MDSERVICE_START_FID.f_key - 1);
+	if (!ergo(mops->mo_fid_start != 0,
+		mops->mo_fid_start > M0_MDSERVICE_START_FID.f_key - 1))
+		return M0_ERR(-EINVAL, "fid_start must be greater than %llu",
+					M0_MDSERVICE_START_FID.f_key - 1);
 
 	return M0_RC(0);
 }
 
-static int mount_opts_parse(char *options, struct mount_opts *dest)
+static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
+			    struct mount_opts *dest)
 {
 	substring_t args[MAX_OPT_ARGS];
 	char       *op;
@@ -306,7 +352,8 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 
 	M0_LOG(M0_INFO, "Mount options: `%s'", options);
 
-	*dest = (struct mount_opts){ .mo_fid_start = M0_MDSERVICE_START_FID.f_key /* default value */ };
+	M0_SET0(dest);
+	dest->mo_fid_start = M0_MDSERVICE_START_FID.f_key; /* default value */
 
 	while ((op = strsep(&options, ",")) != NULL && *op != '\0') {
 		switch (match_token(op, m0t1fs_mntopt_tokens, args)) {
@@ -360,6 +407,10 @@ static int mount_opts_parse(char *options, struct mount_opts *dest)
 			       dest->mo_local_conf);
 			break;
 		}
+		case M0T1FS_MNTOPT_COPYTOOL:
+			csb->csb_copytool = true;
+			M0_LOG(M0_DEBUG, "COPYTOOL mode!!");
+			break;
 		default:
 			return M0_ERR(-EINVAL, "Unsupported option: %s", op);
 		}
@@ -677,6 +728,7 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	}
 #undef CNTR_INIT
 
+	csb->csb_copytool = false;
 	M0_LEAVE();
 }
 
@@ -751,16 +803,17 @@ static int cl_map_build(struct m0t1fs_sb       *csb,
 	struct m0t1fs_service_context        *ctx;
 	int                                   nr_cont_per_svc;
 	int                                   cur;
+	int                                   mds_index;
 	int                                   i;
-	uint32_t                              nr_data_containers;
 	struct m0t1fs_container_location_map *map = &csb->csb_cl_map;
 
 	M0_ENTRY();
 	M0_PRE(nr_ios > 0);
 
 	/* See "Containers and component objects" section in m0t1fs.h
-	 * for more information on following line */
-	csb->csb_nr_containers = fs_params->fs_pool_width + 2;
+	 * for more information on following line.
+	 */
+	csb->csb_nr_containers = fs_params->fs_pool_width;
 	csb->csb_pool_width    = fs_params->fs_pool_width;
 
 	if (fs_params->fs_pool_width < fs_params->fs_nr_data_units +
@@ -768,32 +821,29 @@ static int cl_map_build(struct m0t1fs_sb       *csb,
 	    csb->csb_nr_containers > M0T1FS_MAX_NR_CONTAINERS)
 		return M0_RC(-EINVAL);
 
-	/* 1 for MD, 1 for RM, the rest are data containers. */
-	nr_data_containers = csb->csb_nr_containers - 2;
-
-	nr_cont_per_svc = nr_data_containers / nr_ios;
-	if (nr_data_containers % nr_ios != 0)
+	nr_cont_per_svc = csb->csb_nr_containers / nr_ios;
+	if (csb->csb_nr_containers % nr_ios != 0)
 		++nr_cont_per_svc;
 	M0_LOG(M0_DEBUG, "nr_cont_per_svc = %d", nr_cont_per_svc);
-	M0_LOG(M0_DEBUG, "%d active contexts. csb_nr_containers = %d",
-		         csb->csb_nr_active_contexts, csb->csb_nr_containers);
 
 	M0_SET0(map);
 
+	/* ios index starts from 1. ios_map[0] is not used */
 	cur = 1;
+	mds_index = 0;
 	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
+		M0_LOG(M0_DEBUG, "ctx=%p type=%d", ctx, ctx->sc_type);
 		switch (ctx->sc_type) {
 		case M0_CST_MDS:
-			/* Currently assuming only one MDS, which will serve
-			   container 0 */
-			map->clm_map[0] = ctx;
+			map->mds_map[mds_index++] = ctx;
 			break;
 
 		case M0_CST_IOS:
 			for (i = 0;
-			     i < nr_cont_per_svc && cur <= nr_data_containers;
+			     i < nr_cont_per_svc &&
+					cur <= csb->csb_nr_containers;
 			     ++i, ++cur) {
-				map->clm_map[cur] = ctx;
+				map->ios_map[cur] = ctx;
 			}
 			break;
 
@@ -804,13 +854,27 @@ static int cl_map_build(struct m0t1fs_sb       *csb,
 			break;
 
 		case M0_CST_RMS:
-			map->clm_map[csb->csb_nr_containers] = ctx;
+			map->rm_ctx = ctx;
 			break;
 
 		default:
 			M0_IMPOSSIBLE("Invalid service type");
 		}
 	} m0_tl_endfor;
+	csb->csb_nr_mds = mds_index;
+
+	for (i = 0; i < csb->csb_nr_mds; i++)
+		M0_LOG(M0_DEBUG, "mds index=%d ctx=%p type=%d",
+			i, map->mds_map[i], map->mds_map[i]->sc_type);
+	for (i = 1; i <= csb->csb_nr_containers; i++)
+		M0_LOG(M0_DEBUG, "ios index=%d ctx=%p type=%d",
+			i, map->ios_map[i], map->ios_map[i]->sc_type);
+	M0_LOG(M0_DEBUG, "rm ctx=%p type=%d",
+			map->rm_ctx, map->rm_ctx->sc_type);
+	M0_LOG(M0_DEBUG, "%d active contexts. csb_nr_containers = %d "
+			 " csb_nr_mds = %d",
+		         csb->csb_nr_active_contexts, csb->csb_nr_containers,
+			 csb->csb_nr_mds);
 
 	return M0_RC(0);
 }
@@ -925,7 +989,8 @@ try_again:
 		break;
 	} while (1);
 
-	rc = m0t1fs_cob_id_enum_build(csb, fs_params->fs_pool_width, &layout_enum);
+	rc = m0t1fs_cob_id_enum_build(csb, fs_params->fs_pool_width,
+				      &layout_enum);
 	if (rc == 0) {
 		rc = m0t1fs_layout_build(csb, csb->csb_layout_id,
 					 fs_params->fs_nr_data_units,
@@ -1138,7 +1203,7 @@ static void m0t1fs_mon_rw_io_watch(struct m0_addb_monitor   *mon,
 {
 	struct m0_addb_sum_rec                  *sum_rec;
 	struct m0t1fs_addb_mon_sum_data_io_size *sum_data =
-				&reqh2sb(reqh)->csb_addb_mon_sum_data_rw_io_size;
+			&reqh2sb(reqh)->csb_addb_mon_sum_data_rw_io_size;
 
 	if (m0_addb_rec_rid_make(M0_ADDB_BRT_DP, M0T1FS_ADDB_RECID_IO_FINISH)
 	    == rec->ar_rid) {
@@ -1447,7 +1512,8 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
 
 	M0_ENTRY();
 
-        body->b_atime = body->b_ctime = body->b_mtime = m0_time_seconds(m0_time_now());
+        body->b_atime = body->b_ctime = body->b_mtime =
+					m0_time_seconds(m0_time_now());
         body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
 	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
 	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
@@ -1457,8 +1523,8 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
         body->b_blksize = 4096;
         body->b_nlink = 2;
         body->b_lid = csb->csb_layout_id;
-        body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
-                        S_IRGRP | S_IXGRP |                     /* r-x for group */
+        body->b_mode = (S_IFDIR | S_IRUSR | S_IWUSR | S_IXUSR |/*rwx for owner*/
+                        S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
 
         /* Init virtual .mero directory */
@@ -1503,7 +1569,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	int                       rc;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_statfs_rep *rep = NULL;
-	struct m0_addb_ctx *cv[] = { &csb->csb_addb_ctx, NULL };
+	struct m0_addb_ctx       *cv[] = { &csb->csb_addb_ctx, NULL };
 
 	M0_ENTRY();
 
@@ -1547,7 +1613,7 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	}
 	m0t1fs_sb_init(csb);
 
-	rc = mount_opts_parse(data, &mops);
+	rc = mount_opts_parse(csb, data, &mops);
 	if (rc != 0)
 		goto sb_fini;
 

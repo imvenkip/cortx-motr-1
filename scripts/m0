@@ -72,11 +72,11 @@ run_st() {
     ## IO ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
 
-    ## Degraded-mode IO ST
-    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh"
-
     ## multi-clients support ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_multi_clients.sh"
+
+    ## Degraded-mode IO ST
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_dgmode_io.sh"
 
     ## Pool machine query/set testing.
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_poolmach.sh"

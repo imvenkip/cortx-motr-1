@@ -106,7 +106,7 @@ static int file_io_ut_init(void)
         m0_sm_group_init(&csb.csb_iogroup);
 	sb.s_fs_info          = &csb;
         csb.csb_active        = true;
-	csb.csb_nr_containers = LAY_P + 1;
+	csb.csb_nr_containers = LAY_P;
 	csb.csb_pool_width    = LAY_P;
 	csb.csb_next_key     = FID_KEY;
         m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
@@ -156,7 +156,7 @@ static int file_io_ut_init(void)
         /* Initializes the m0t1fs inode and build layout instance. */
         M0_SET0(&ci);
         ci.ci_layout_id = csb.csb_layout_id;
-	csb.csb_cl_map.clm_map[csb.csb_nr_containers] = &msc;
+	csb.csb_cl_map.rm_ctx = &msc;
 	m0t1fs_fid_alloc(&csb, &ci.ci_fid);
 	m0t1fs_file_lock_init(&ci, &csb);
 
@@ -645,7 +645,7 @@ static void nw_xfer_ops_test(void)
 	M0_UT_ASSERT(req.ir_iomaps[0] != NULL);
 
 	for (cnt = 1; cnt <= LAY_P; ++cnt)
-		csb.csb_cl_map.clm_map[cnt] = &ctx;
+		csb.csb_cl_map.ios_map[cnt] = &ctx;
 
 	src.sa_unit = 0;
 

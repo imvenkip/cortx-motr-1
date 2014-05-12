@@ -21,6 +21,7 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
+#include "lib/trace.h"
 
 #include "lib/misc.h"   /* m0_forall */
 #include "lib/memory.h"
@@ -420,6 +421,7 @@ static void cp_fom_fini(struct m0_fom *fom)
 	struct m0_cm_aggr_group *ag = cp->c_ag;
 	struct m0_cm            *cm = ag->cag_cm;
 	bool                     ag_fini;
+	M0_ENTRY();
 
 	m0_cm_lock(cm);
 	M0_CNT_INC(ag->cag_freed_cp_nr);
@@ -435,6 +437,7 @@ static void cp_fom_fini(struct m0_fom *fom)
 	if (m0_cm_has_more_data(cm))
 		m0_cm_continue(cm);
 	m0_cm_unlock(cm);
+	M0_LEAVE();
 }
 
 static uint64_t cp_fom_locality(const struct m0_fom *fom)
@@ -448,10 +451,13 @@ static int cp_fom_tick(struct m0_fom *fom)
 {
         struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom, &cp_bob);
 	int		 phase = m0_fom_phase(fom);
+	int              rc;
 
 	M0_PRE(phase < cp->c_ops->co_action_nr);
+	M0_LOG(M0_DEBUG, "fom phase = %d", phase);
 
-	return cp->c_ops->co_action[phase](cp);
+	rc = cp->c_ops->co_action[phase](cp);
+	return M0_RC(rc);
 }
 
 static void cp_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)

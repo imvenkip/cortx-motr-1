@@ -118,8 +118,14 @@ struct m0_ios_mds_conn {
 	bool                  imc_connected;
 };
 
-M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
-				    struct m0_ios_mds_conn **out_conn);
+enum {
+	M0T1FS_MAX_NR_MDS = 1024
+};
+
+struct m0_ios_mds_conn_map {
+	struct m0_ios_mds_conn *imc_map[M0T1FS_MAX_NR_MDS];
+	uint32_t                imc_nr;
+};
 
 M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh);
 

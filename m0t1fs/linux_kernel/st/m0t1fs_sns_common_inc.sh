@@ -8,7 +8,7 @@ pool_mach_set_failure()
 		STATE="$STATE -s 1"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
-		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $poolmach
 	if ! $poolmach ; then
 		echo "m0poolmach failed"
@@ -27,7 +27,7 @@ pool_mach_query()
 		DEVICES="$DEVICES -I $i"
 	done
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N $# \
-		 $DEVICES -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+		 $DEVICES -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $poolmach
 	if ! $poolmach ; then
 		echo "m0poolmach failed"
@@ -40,7 +40,7 @@ pool_mach_query()
 
 sns_repair()
 {
-	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+	repair_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 2 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $repair_trigger
 	if ! $repair_trigger ; then
 		echo "SNS Repair failed"
@@ -52,7 +52,7 @@ sns_repair()
 
 sns_rebalance()
 {
-        rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+        rebalance_trigger="$MERO_CORE_ROOT/sns/cm/st/m0repair -O 4 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
         echo $rebalance_trigger
         if ! $rebalance_trigger ; then
                 echo "SNS Re-balance failed"

@@ -87,8 +87,7 @@ M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
 		return rc;
 	rc = m0_cm_ag_advance(cm);
 
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
@@ -99,6 +98,7 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
         struct m0_cm_ag_id       id_lo;
         struct m0_cm_ag_id       id_hi;
 	int                      rc = 0;
+	M0_ENTRY();
 
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
@@ -126,7 +126,7 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 		}
 	} m0_tl_endfor;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp)

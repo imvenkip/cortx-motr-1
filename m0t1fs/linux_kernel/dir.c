@@ -36,60 +36,12 @@
 M0_INTERNAL void m0t1fs_inode_bob_init(struct m0t1fs_inode *bob);
 M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
 
-static int m0t1fs_create(struct inode     *dir,
-			 struct dentry    *dentry,
-			 int               mode,
-			 struct nameidata *nd);
-
-static int m0t1fs_fid_create(struct inode     *dir,
-			     struct dentry    *dentry,
-			     int               mode,
-			     struct nameidata *nd);
-
-static struct dentry *m0t1fs_lookup(struct inode     *dir,
-				    struct dentry    *dentry,
-				    struct nameidata *nd);
-
-static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
-				        struct dentry    *dentry,
-				        struct nameidata *nd);
-
-static int m0t1fs_readdir(struct file *f,
-			  void        *dirent,
-			  filldir_t    filldir);
-
-static int m0t1fs_fid_readdir(struct file *f,
-			      void        *dirent,
-			      filldir_t    filldir);
-
-static int m0t1fs_opendir(struct inode *inode, struct file *file);
-static int m0t1fs_releasedir(struct inode *inode, struct file *file);
-static int m0t1fs_fid_opendir(struct inode *inode, struct file *file);
-static int m0t1fs_fid_releasedir(struct inode *inode, struct file *file);
-
-static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry);
-static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry);
-static int m0t1fs_link(struct dentry *old, struct inode *dir,
-		       struct dentry *new);
-static int m0t1fs_fid_link(struct dentry *old, struct inode *dir,
-		           struct dentry *new);
-
-static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode);
-static int m0t1fs_fid_mkdir(struct inode *dir, struct dentry *dentry, int mode);
-static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry);
-static int m0t1fs_fid_rmdir(struct inode *dir, struct dentry *dentry);
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       int (*func)(struct m0t1fs_sb *csb,
 						   const struct m0_fid *cfid,
 						   const struct m0_fid *gfid,
 						   uint32_t cob_idx));
-
-static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
-			     const struct m0_fid *cob_fid,
-			     const struct m0_fid *gob_fid,
-			     uint32_t cob_idx,
-			     struct m0_fop_type  *ftype);
 
 static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
 				 const struct m0_fid *cob_fid,
@@ -100,60 +52,6 @@ static int m0t1fs_ios_cob_delete(struct m0t1fs_sb    *csb,
 				 const struct m0_fid *cob_fid,
 				 const struct m0_fid *gob_fid,
 				 uint32_t cob_idx);
-
-static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
-				       struct m0_fop       *fop,
-				       const struct m0_fid *cob_fid,
-				       const struct m0_fid *gob_fid,
-				       uint32_t cob_idx);
-
-const struct file_operations m0t1fs_dir_file_operations = {
-	.read    = generic_read_dir,    /* provided by linux kernel */
-	.open    = m0t1fs_opendir,
-	.release = m0t1fs_releasedir,
-	.readdir = m0t1fs_readdir,
-	.fsync   = simple_fsync,	/* provided by linux kernel */
-	.llseek  = generic_file_llseek, /* provided by linux kernel */
-};
-
-const struct file_operations m0t1fs_fid_dir_file_operations = {
-	.read    = generic_read_dir,    /* provided by linux kernel */
-	.open    = m0t1fs_fid_opendir,
-	.release = m0t1fs_fid_releasedir,
-	.readdir = m0t1fs_fid_readdir,
-	.fsync   = simple_fsync,	/* provided by linux kernel */
-	.llseek  = generic_file_llseek, /* provided by linux kernel */
-};
-
-const struct inode_operations m0t1fs_dir_inode_operations = {
-	.create         = m0t1fs_create,
-	.lookup         = m0t1fs_lookup,
-	.unlink         = m0t1fs_unlink,
-	.link           = m0t1fs_link,
-	.mkdir          = m0t1fs_mkdir,
-	.rmdir          = m0t1fs_rmdir,
-	.setattr        = m0t1fs_setattr,
-	.getattr        = m0t1fs_getattr,
-        .setxattr       = m0t1fs_setxattr,
-        .getxattr       = m0t1fs_getxattr,
-        .listxattr      = m0t1fs_listxattr,
-        .removexattr    = m0t1fs_removexattr
-};
-
-const struct inode_operations m0t1fs_fid_dir_inode_operations = {
-	.create         = m0t1fs_fid_create,
-	.lookup         = m0t1fs_fid_lookup,
-	.unlink         = m0t1fs_fid_unlink,
-	.link           = m0t1fs_fid_link,
-	.mkdir          = m0t1fs_fid_mkdir,
-	.rmdir          = m0t1fs_fid_rmdir,
-	.setattr        = m0t1fs_fid_setattr,
-	.getattr        = m0t1fs_fid_getattr,
-        .setxattr       = m0t1fs_fid_setxattr,
-        .getxattr       = m0t1fs_fid_getxattr,
-        .listxattr      = m0t1fs_fid_listxattr,
-        .removexattr    = m0t1fs_fid_removexattr
-};
 
 static int name_mem2wire(struct m0_fop_str *tgt,
 			 const struct m0_buf *name)
@@ -254,8 +152,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep);
 
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 ssize_t m0t1fs_fid_getxattr(struct dentry *dentry, const char *name,
@@ -298,8 +195,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 		rc = -ENODATA;
 out:
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 ssize_t m0t1fs_fid_listxattr(struct dentry *dentry, char *buffer, size_t size)
@@ -340,8 +236,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 		rc = -ENODATA;
 
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_fid_create(struct inode     *dir,
@@ -375,7 +270,19 @@ static int m0t1fs_create(struct inode     *dir,
 	if (inode == NULL)
 		return M0_RC(-ENOMEM);
 	m0t1fs_fs_lock(csb);
-	m0t1fs_fid_alloc(csb, &new_fid);
+	if (csb->csb_copytool) {
+		rc = m0_fid_sscanf_simple(dentry->d_name.name, &new_fid);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in copytool",
+					 dentry->d_name.name);
+			goto out;
+		}
+		/* gob has container of 0 */
+		new_fid.f_container = 0;
+	} else {
+		m0t1fs_fid_alloc(csb, &new_fid);
+	}
+	M0_LOG(M0_DEBUG, "New fid = "FID_F, FID_P(&new_fid));
 	inode->i_ino = fid_hash(&new_fid);
 	ci = M0T1FS_I(inode);
 	ci->ci_fid = new_fid;
@@ -465,26 +372,6 @@ static int m0t1fs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	return m0t1fs_create(dir, dentry, mode | S_IFDIR, NULL);
 }
 
-static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
-				        struct dentry    *dentry,
-				        struct nameidata *nd)
-{
-	struct m0_fid             fid;
-        int rc;
-
-        rc = m0_fid_sscanf_simple((char *)dentry->d_name.name, &fid);
-        if (rc != 0) {
-		M0_LEAVE("Cannot parse fid \"%s\"", (char *)dentry->d_name.name);
-		return ERR_PTR(rc);
-        }
-        /**
-           @todo: When multi-mdservice support is added,
-           @fid will be used to figure out what mdservice
-           lookup operation should be sent to.
-        */
-        return m0t1fs_lookup(dir, dentry, nd);
-}
-
 static struct dentry *m0t1fs_lookup(struct inode     *dir,
 				    struct dentry    *dentry,
 				    struct nameidata *nd)
@@ -531,6 +418,22 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	return d_splice_alias(inode, dentry);
 }
 
+static struct dentry *m0t1fs_fid_lookup(struct inode     *dir,
+				        struct dentry    *dentry,
+				        struct nameidata *nd)
+{
+	struct m0_fid             fid;
+        int rc;
+
+        rc = m0_fid_sscanf_simple((char *)dentry->d_name.name, &fid);
+        if (rc != 0) {
+		M0_LEAVE("Cannot parse fid \"%s\"", (char *)dentry->d_name.name);
+		return ERR_PTR(rc);
+        }
+        return m0t1fs_lookup(dir, dentry, nd);
+}
+
+
 struct m0_dirent *dirent_next(struct m0_dirent *ent)
 {
 	return  ent->d_reclen > 0 ? (void *)ent + ent->d_reclen : NULL;
@@ -540,11 +443,6 @@ struct m0_dirent *dirent_first(struct m0_fop_readdir_rep *rep)
 {
 	struct m0_dirent *ent = (struct m0_dirent *)rep->r_buf.b_addr;
 	return ent->d_namelen > 0 ? ent : NULL;
-}
-
-static int m0t1fs_fid_opendir(struct inode *inode, struct file *file)
-{
-        return m0t1fs_opendir(inode, file);
 }
 
 static int m0t1fs_opendir(struct inode *inode, struct file *file)
@@ -564,13 +462,14 @@ static int m0t1fs_opendir(struct inode *inode, struct file *file)
 		return -ENOMEM;
 	}
 	m0_bitstring_copy(fd->fd_dirpos, ".", 1);
-	fd->fd_direof = 0;
+	fd->fd_direof    = 0;
+	fd->fd_mds_index = 0;;
 	return 0;
 }
 
-static int m0t1fs_fid_releasedir(struct inode *inode, struct file *file)
+static int m0t1fs_fid_opendir(struct inode *inode, struct file *file)
 {
-        return m0t1fs_releasedir(inode, file);
+        return m0t1fs_opendir(inode, file);
 }
 
 static int m0t1fs_releasedir(struct inode *inode, struct file *file)
@@ -581,6 +480,11 @@ static int m0t1fs_releasedir(struct inode *inode, struct file *file)
 	m0_free(fd->fd_dirpos);
 	m0_free0(&file->private_data);
 	return 0;
+}
+
+static int m0t1fs_fid_releasedir(struct inode *inode, struct file *file)
+{
+        return m0t1fs_releasedir(inode, file);
 }
 
 static int m0t1fs_fid_readdir(struct file *f,
@@ -607,6 +511,8 @@ static int m0t1fs_readdir(struct file *f,
 	int                              i;
 	int                              rc;
 	int                              over;
+	bool                             dot_filled = false;
+	bool                             dotdot_filled = false;
 
 	M0_ENTRY();
 
@@ -620,6 +526,9 @@ static int m0t1fs_readdir(struct file *f,
 	if (fd->fd_direof)
 		return M0_RC(0);
 
+	m0t1fs_fs_lock(csb);
+
+switch_mds:
 	M0_SET0(&mo);
 	/**
 	   In case that readdir will be interrupted by enomem situation
@@ -630,13 +539,14 @@ static int m0t1fs_readdir(struct file *f,
 	m0_buf_init(&mo.mo_attr.ca_name, m0_bitstring_buf_get(fd->fd_dirpos),
 		    m0_bitstring_len_get(fd->fd_dirpos));
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
-
-	m0t1fs_fs_lock(csb);
+	mo.mo_use_hint  = true;
+	mo.mo_hash_hint = fd->fd_mds_index;
 
 	do {
-		M0_LOG(M0_DEBUG, "readdir from position \"%*s\"",
+		M0_LOG(M0_DEBUG, "readdir from position \"%*s\"@ mds%d",
 		       (int)mo.mo_attr.ca_name.b_nob,
-		       (char *)mo.mo_attr.ca_name.b_addr);
+		       (char *)mo.mo_attr.ca_name.b_addr,
+			mo.mo_hash_hint);
 
 		rc = m0t1fs_mds_cob_readdir(csb, &mo, &rep);
 		if (rc < 0) {
@@ -651,12 +561,18 @@ static int m0t1fs_readdir(struct file *f,
 		     ent = dirent_next(ent)) {
 			if (ent->d_namelen == 1 &&
 			    memcmp(ent->d_name, ".", 1) == 0) {
+				if (dot_filled)
+					continue;
 				ino = dir->i_ino;
 				type = DT_DIR;
+				dot_filled = true;
 			} else if (ent->d_namelen == 2 &&
 				   memcmp(ent->d_name, "..", 2) == 0) {
+				if (dotdot_filled)
+					continue;
 				ino = parent_ino(dentry);
 				type = DT_DIR;
+				dotdot_filled = true;
 			} else {
 				/**
 				 * TODO: Entry type is unknown and ino is
@@ -676,6 +592,7 @@ static int m0t1fs_readdir(struct file *f,
 				       f->f_pos, ino, type);
 			if (over) {
 				rc = 0;
+				M0_LOG(M0_DEBUG, "full");
 				goto out;
 			}
 			f->f_pos++;
@@ -689,24 +606,31 @@ static int m0t1fs_readdir(struct file *f,
 		M0_LOG(M0_DEBUG, "set position to \"%*s\" rc == %d",
 		       (int)mo.mo_attr.ca_name.b_nob,
 		       (char *)mo.mo_attr.ca_name.b_addr, rc);
-		/**
-		   Return codes for m0t1fs_mds_cob_readdir() are the following:
-		   - <0 - some error occured;
-		   - >0 - EOF signaled by mdservice, some number of entries
-		          available;
-		   -  0 - no error, some number of entries is sent by mdservice.
+		/*
+		 * Return codes for m0t1fs_mds_cob_readdir() are the following:
+		 * - <0 - some error occured;
+		 * - >0 - EOF signaled by mdservice, some number of entries
+		 *        available;
+		 * -  0 - no error, some number of entries is sent by mdservice.
 		 */
 	} while (rc == 0);
+	/*
+	 * EOF from one mdservice is detected. Switch to another mds.
+	 */
+	if (++fd->fd_mds_index < csb->csb_nr_mds) {
+		m0_bitstring_copy(fd->fd_dirpos, ".", 1);
+		M0_LOG(M0_DEBUG, "switch to mds %d", fd->fd_mds_index);
+		goto switch_mds;
+	}
 
-	/**
-	   EOF detected, let's set return code to 0 to make vfs happy.
+	/*
+	 * EOF detected from all mds. Set return code to 0 to make vfs happy.
 	 */
 	fd->fd_direof = 1;
 	rc = 0;
 out:
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_fid_link(struct dentry *old, struct inode *dir,
@@ -724,6 +648,13 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	struct inode                    *inode;
 	struct timespec                  now;
 	int                              rc;
+
+	/*
+	 * file -> mds is mapped by hash of filename.
+	 * Link will create a new file entry in dir, but object may
+	 * be on another mds. So link is disabled until this problem is solved.
+	 */
+        return -EOPNOTSUPP;
 
 	inode = old->d_inode;
 	ci    = M0T1FS_I(inode);
@@ -755,8 +686,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 
 out:
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry)
@@ -817,6 +747,8 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	mo.mo_attr.ca_ctime = now.tv_sec;
 	mo.mo_attr.ca_mtime = now.tv_sec;
 	mo.mo_attr.ca_valid = (M0_COB_CTIME | M0_COB_MTIME);
+	m0_buf_init(&mo.mo_attr.ca_name,
+		    (char *)dentry->d_name.name, dentry->d_name.len);
 
 	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
 	if (rc != 0) {
@@ -829,8 +761,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	mark_inode_dirty(dir);
 out:
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_fid_rmdir(struct inode *dir, struct dentry *dentry)
@@ -848,9 +779,8 @@ static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
 		inode_dec_link_count(dentry->d_inode);
 		drop_nlink(dir);
 	}
-	M0_LEAVE("rc: %d", rc);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
@@ -905,7 +835,7 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	stat->blksize = 1 << inode->i_blkbits;
 #endif
 	stat->size = i_size_read(inode);
-	stat->blocks = inode->i_blocks;
+	stat->blocks = stat->blksize ? stat->size / stat->blksize : 0;
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(0);
 }
@@ -933,6 +863,8 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
         M0_SET0(&mo);
         mo.mo_attr.ca_tfid  = *m0t1fs_inode_fid(ci);
+	m0_buf_init(&mo.mo_attr.ca_name,
+		    (char *)dentry->d_name.name, dentry->d_name.len);
 
 	/**
 	   @todo When we have rm locking working, this will be changed to
@@ -976,19 +908,21 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	stat->blksize = 1 << inode->i_blkbits;
 #endif
 	stat->size = i_size_read(inode);
-	stat->blocks = inode->i_blocks;
+	stat->blocks = stat->blksize ? stat->size / stat->blksize : 0;
 out:
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)
+M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 {
 	struct m0t1fs_sb                *csb;
+	struct inode                    *inode;
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
 	int                              rc;
 
+	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
 	ci    = M0T1FS_I(inode);
 
@@ -998,6 +932,8 @@ M0_INTERNAL int m0t1fs_size_update(struct inode *inode, uint64_t newsize)
 	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = newsize;
 	mo.mo_attr.ca_valid |= M0_COB_SIZE;
+	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+		    dentry->d_name.len);
 
 	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
 	if (rc != 0)
@@ -1037,6 +973,8 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
+	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
+		    dentry->d_name.len);
 
 	if (attr->ia_valid & ATTR_CTIME) {
 		mo.mo_attr.ca_ctime = attr->ia_ctime.tv_sec;
@@ -1090,8 +1028,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 		goto out;
 out:
 	m0t1fs_fs_unlock(csb);
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1122,13 +1059,16 @@ static uint32_t m0t1fs_ios_cob_idx(const struct m0t1fs_inode *ci,
 				   const struct m0_fid *gfid,
 				   const struct m0_fid *cfid)
 {
+	uint32_t cob_idx;
 	M0_PRE(ci->ci_layout_instance != NULL);
 	M0_PRE(gfid != NULL);
 	M0_PRE(cfid != NULL);
 
-	return m0_layout_enum_find(m0_layout_instance_to_enum(
-				   ci->ci_layout_instance), gfid, cfid);
-
+	cob_idx = m0_layout_enum_find(m0_layout_instance_to_enum(
+				      ci->ci_layout_instance), gfid, cfid);
+	M0_LOG(M0_DEBUG, "cob idx for gob fid "FID_F" cob fid "FID_F": %d",
+			 FID_P(gfid), FID_P(cfid), cob_idx);
+	return cob_idx;
 }
 
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
@@ -1177,8 +1117,7 @@ again:
 		}
 	}
 out:
-	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
@@ -1359,25 +1298,17 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	struct m0_fop_delxattr_rep  *delxattr_rep;
 	void                        *reply_fop;
 
+	M0_PRE(csb != NULL);
+	M0_PRE(mo != NULL);
 	M0_PRE(ftype != NULL);
 
 	M0_ENTRY();
 
-	/**
-	   TODO: This needs to be fixed later.
-
-	   Container 0 and its session are currently reserved for mdservice.
-	   We hardcoding its using here temporary because of the following:
-	   - we can't use @mo->mo_attr.ca_pfid because it is set to root
-	     fid, which has container != 0 and we cannot change it as it
-	     will conflict with cob io objects in case they share the same
-	     db;
-	   - we can't use @mo->mo_attr.ca_tfid it is not always set, some ops
-	     do not require it;
-	   - using @ci is not an option as well as it is not always used.
-	     For example, it is not available for lookup.
-	 */
-	session = m0t1fs_container_id_to_session(csb, 0);
+	session = m0t1fs_filename_to_mds_session(csb,
+						 mo->mo_attr.ca_name.b_addr,
+						 mo->mo_attr.ca_name.b_nob,
+						 mo->mo_use_hint,
+						 mo->mo_hash_hint);
 	M0_ASSERT(session != NULL);
 
 	fop = m0_fop_alloc(ftype, NULL);
@@ -1394,8 +1325,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		goto out;
 	}
 
-	M0_LOG(M0_DEBUG, "Send md operation %u to session %lu",
-		m0_fop_opcode(fop), (unsigned long)session->s_session_id);
+	M0_LOG(M0_DEBUG, "Send md operation %u to session %p (sid=%lu)",
+		         m0_fop_opcode(fop), session,
+		         (unsigned long)session->s_session_id);
 
 	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0) {
@@ -1482,8 +1414,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 out:
 	if (fop != NULL)
 		m0_fop_put(fop);
-	M0_LEAVE("%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 
@@ -1556,7 +1487,9 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 
 int m0t1fs_mds_statfs(struct m0t1fs_sb *csb, struct m0_fop_statfs_rep **rep)
 {
-	return m0t1fs_mds_cob_op(csb, NULL, &m0_fop_statfs_fopt, (void **)rep);
+	struct m0t1fs_mdop mo;
+	M0_SET0(&mo);
+	return m0t1fs_mds_cob_op(csb, &mo, &m0_fop_statfs_fopt, (void **)rep);
 }
 
 int m0t1fs_mds_cob_create(struct m0t1fs_sb          *csb,
@@ -1637,22 +1570,36 @@ int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_delxattr_fopt, (void **)rep);
 }
 
-static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
-				 const struct m0_fid *cob_fid,
-				 const struct m0_fid *gob_fid,
-				 uint32_t cob_idx)
+static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
+				       struct m0_fop       *fop,
+				       const struct m0_fid *cob_fid,
+				       const struct m0_fid *gob_fid,
+				       uint32_t cob_idx)
 {
-	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
-				 &m0_fop_cob_create_fopt);
-}
+	struct m0_fop_cob_common       *common;
+	struct m0_pool_version_numbers *cli;
+	struct m0_pool_version_numbers  curr;
 
-static int m0t1fs_ios_cob_delete(struct m0t1fs_sb *csb,
-				 const struct m0_fid *cob_fid,
-				 const struct m0_fid *gob_fid,
-				 uint32_t cob_idx)
-{
-	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
-				 &m0_fop_cob_delete_fopt);
+	M0_PRE(fop != NULL);
+	M0_PRE(fop->f_type != NULL);
+	M0_PRE(cob_fid != NULL);
+	M0_PRE(gob_fid != NULL);
+
+	M0_ENTRY();
+
+	common = m0_cobfop_common_get(fop);
+	M0_ASSERT(common != NULL);
+
+	/* fill in the current client known version */
+	m0_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
+	cli = (struct m0_pool_version_numbers*)&common->c_version;
+	*cli = curr;
+
+	common->c_gobfid = *gob_fid;
+	common->c_cobfid = *cob_fid;
+	common->c_cob_idx = cob_idx;
+
+	return M0_RC(0);
 }
 
 static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
@@ -1692,9 +1639,9 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	if (rc != 0)
 		goto fop_put;
 
-	M0_LOG(M0_DEBUG, "Send %s "FID_F" to session %lu",
+	M0_LOG(M0_DEBUG, "Send %s "FID_F" to session %p (sid=%lu)",
 	       cobcreate ? "cob_create" : "cob_delete",
-	       FID_P(cob_fid), (unsigned long)session->s_session_id);
+	       FID_P(cob_fid), session, (unsigned long)session->s_session_id);
 
 	rc = m0_rpc_client_call(fop, session, NULL, 0 /* deadline */);
 	if (rc != 0)
@@ -1736,39 +1683,72 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 fop_put:
 	m0_fop_put(fop);
 out:
-	M0_LEAVE("%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
-static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
-				       struct m0_fop       *fop,
-				       const struct m0_fid *cob_fid,
-				       const struct m0_fid *gob_fid,
-				       uint32_t cob_idx)
+static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
+				 const struct m0_fid *cob_fid,
+				 const struct m0_fid *gob_fid,
+				 uint32_t cob_idx)
 {
-	struct m0_fop_cob_common       *common;
-	struct m0_pool_version_numbers *cli;
-	struct m0_pool_version_numbers  curr;
-
-	M0_PRE(fop != NULL);
-	M0_PRE(fop->f_type != NULL);
-	M0_PRE(cob_fid != NULL);
-	M0_PRE(gob_fid != NULL);
-
-	M0_ENTRY();
-
-	common = m0_cobfop_common_get(fop);
-	M0_ASSERT(common != NULL);
-
-	/* fill in the current client known version */
-	m0_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
-	cli = (struct m0_pool_version_numbers*)&common->c_version;
-	*cli = curr;
-
-	common->c_gobfid = *gob_fid;
-	common->c_cobfid = *cob_fid;
-	common->c_cob_idx = cob_idx;
-
-	M0_LEAVE("%d", 0);
-	return 0;
+	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
+				 &m0_fop_cob_create_fopt);
 }
+
+static int m0t1fs_ios_cob_delete(struct m0t1fs_sb *csb,
+				 const struct m0_fid *cob_fid,
+				 const struct m0_fid *gob_fid,
+				 uint32_t cob_idx)
+{
+	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
+				 &m0_fop_cob_delete_fopt);
+}
+
+
+const struct file_operations m0t1fs_dir_file_operations = {
+	.read    = generic_read_dir,    /* provided by linux kernel */
+	.open    = m0t1fs_opendir,
+	.release = m0t1fs_releasedir,
+	.readdir = m0t1fs_readdir,
+	.fsync   = simple_fsync,	/* provided by linux kernel */
+	.llseek  = generic_file_llseek, /* provided by linux kernel */
+};
+
+const struct file_operations m0t1fs_fid_dir_file_operations = {
+	.read    = generic_read_dir,    /* provided by linux kernel */
+	.open    = m0t1fs_fid_opendir,
+	.release = m0t1fs_fid_releasedir,
+	.readdir = m0t1fs_fid_readdir,
+	.fsync   = simple_fsync,	/* provided by linux kernel */
+	.llseek  = generic_file_llseek, /* provided by linux kernel */
+};
+
+const struct inode_operations m0t1fs_dir_inode_operations = {
+	.create         = m0t1fs_create,
+	.lookup         = m0t1fs_lookup,
+	.unlink         = m0t1fs_unlink,
+	.link           = m0t1fs_link,
+	.mkdir          = m0t1fs_mkdir,
+	.rmdir          = m0t1fs_rmdir,
+	.setattr        = m0t1fs_setattr,
+	.getattr        = m0t1fs_getattr,
+	.setxattr       = m0t1fs_setxattr,
+	.getxattr       = m0t1fs_getxattr,
+	.listxattr      = m0t1fs_listxattr,
+	.removexattr    = m0t1fs_removexattr
+};
+
+const struct inode_operations m0t1fs_fid_dir_inode_operations = {
+	.create         = m0t1fs_fid_create,
+	.lookup         = m0t1fs_fid_lookup,
+	.unlink         = m0t1fs_fid_unlink,
+	.link           = m0t1fs_fid_link,
+	.mkdir          = m0t1fs_fid_mkdir,
+	.rmdir          = m0t1fs_fid_rmdir,
+	.setattr        = m0t1fs_fid_setattr,
+	.getattr        = m0t1fs_fid_getattr,
+	.setxattr       = m0t1fs_fid_setxattr,
+	.getxattr       = m0t1fs_fid_getxattr,
+	.listxattr      = m0t1fs_fid_listxattr,
+	.removexattr    = m0t1fs_fid_removexattr
+};

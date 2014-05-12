@@ -177,12 +177,13 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	int                            i;
 	int                            start;
 	int                            end;
+	M0_ENTRY();
 
 	M0_PRE(scm != NULL && fid != NULL && pl != NULL);
 
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, fid);
 	if (rc != 0)
-		return 0;
+		return M0_RC(0);
 	start = m0_sns_cm_ag_unit_start(scm, pl);
 	end = m0_sns_cm_ag_unit_end(scm, pl);
 	sa.sa_group = group;
@@ -197,7 +198,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 			M0_CNT_INC(nrlu);
 	}
 	m0_layout_instance_fini(&pi->pi_base);
-
+	M0_LEAVE("number of local units = %lu", nrlu);
 	return nrlu;
 }
 
@@ -416,7 +417,7 @@ m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
 
                         *layout = pdl;
                 } else
-                        M0_LOG(M0_DEBUG, "getlayout for %llu failed rc = %d",
+                        M0_LOG(M0_ERROR, "getlayout for %llu failed rc = %d",
                                          (unsigned long long)attr.ca_lid, rc);
         } else
                 M0_LOG(M0_ERROR, "getattr for "FID_F" failed rc = %d",
@@ -552,6 +553,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 	uint64_t                   upg;
 	uint64_t                   unit;
 	size_t                     group_failures = 0;
+	M0_ENTRY();
 
 	M0_PRE(scm != NULL && pl != NULL);
 
@@ -571,6 +573,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
 		}
 	}
 
+	M0_LEAVE("number of faulure groups = %lu", group_failures);
 	return group_failures;
 }
 
@@ -584,6 +587,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
         uint64_t                    group;
         int                         rc;
         bool                        result = false;
+	M0_ENTRY();
 
         agid2fid(id,  &fid);
         rc = m0_sns_cm_fid_layout_instance(pl, &pi, &fid);
@@ -599,7 +603,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
                 m0_layout_instance_fini(&pi->pi_base);
         }
 
-        return result;
+        return M0_RC(result);
 }
 
 M0_INTERNAL uint64_t

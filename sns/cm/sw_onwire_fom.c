@@ -76,14 +76,17 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		cm = m0_cmsvc2cm(service);
 		if (cm == NULL)
 			return -EINVAL;
-		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu] [%lu] [%lu]",
+		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu] "
+				 "[%lu] [%lu] [%lu] [%lu]",
 		       swo_fop->swo_base.swo_cm_ep.ep,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_hi,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_lo,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_hi,
 		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_lo,
 		       cm->cm_aggr_grps_in_nr,
-		       cm->cm_aggr_grps_out_nr);
+		       cm->cm_aggr_grps_out_nr,
+		       cm->cm_ready_fops_recvd,
+		       cm->cm_proxy_nr);
 		/*
 		 * We do this check purposefully outside the cm lock to avoid
 		 * a dead lock situation on the cm lock while stopping the
@@ -139,7 +142,6 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Invalid fop");
 		return -EINVAL;
 	}
-
 	return M0_FSO_WAIT;
 }
 

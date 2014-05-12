@@ -368,14 +368,14 @@ struct m0_mero {
 	/** Segment size for any ADDB stob. */
 	size_t                      cc_addb_stob_segment_size;
 
-	/** "mdservice" endpoint. */
-	struct cs_endpoint_and_xprt cc_mds_epx;
-
 	/** "stats" service endpoint. */
 	struct cs_endpoint_and_xprt cc_stats_svc_epx;
 
 	/** List of ioservice end points. */
 	struct m0_tl                cc_ios_eps;
+
+	/** List of mdservice end points. */
+	struct m0_tl                cc_mds_eps;
 
 	uint32_t                    cc_pool_width;
 

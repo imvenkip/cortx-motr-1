@@ -3606,7 +3606,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	        uint64_t newsize = max64u(inode->i_size,
 				seg_endpos(&req->ir_ivec,
 					req->ir_ivec.iv_vec.v_nr - 1));
-	        m0t1fs_size_update(inode, newsize);
+	        m0t1fs_size_update(req->ir_file->f_dentry, newsize);
 		M0_LOG(M0_INFO, "File size set to %llu", inode->i_size);
 	}
 

@@ -32,6 +32,7 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/locality.h"
+#include "lib/misc.h"
 #include "mero/magic.h"
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"
@@ -604,13 +605,18 @@ enum {
 	MAX_NR_RPC_IN_FLIGHT = 100,
 };
 
-static int m0_ios_mds_conn_init(struct m0_reqh *reqh,
-				struct m0_ios_mds_conn *conn)
+M0_TL_DESCR_DECLARE(cs_eps, extern);
+M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
+
+static int m0_ios_mds_conn_init(struct m0_reqh             *reqh,
+				struct m0_ios_mds_conn_map *conn_map)
 {
-	struct m0_mero        *mero;
-	struct m0_rpc_machine *rpc_machine;
-	const char            *srv_ep_addr;
-	int                    rc;
+	struct m0_mero              *mero;
+	struct m0_rpc_machine       *rpc_machine;
+	const char                  *srv_ep_addr;
+	struct cs_endpoint_and_xprt *ep;
+	int                          rc;
+	struct m0_ios_mds_conn      *conn;
 	M0_ENTRY();
 
 	M0_PRE(reqh != NULL);
@@ -619,34 +625,44 @@ static int m0_ios_mds_conn_init(struct m0_reqh *reqh,
 	M0_ASSERT(mero != NULL);
 	M0_ASSERT(rpc_machine != NULL);
 
-	srv_ep_addr = mero->cc_mds_epx.ex_endpoint;
+	m0_tl_for(cs_eps, &mero->cc_mds_eps, ep) {
+		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+		M0_ASSERT(ep->ex_scrbuf != NULL);
+		srv_ep_addr = ep->ex_endpoint;
+		M0_LOG(M0_DEBUG, "Ios connecting to mds %s", srv_ep_addr);
 
-	M0_LOG(M0_DEBUG, "srv = %s", srv_ep_addr);
+		M0_ALLOC_PTR(conn);
+		if (conn == NULL)
+			return M0_RC(-ENOMEM);
 
-	if (srv_ep_addr == NULL) {
-		M0_LOG(M0_WARN, "None of mdservice endpoints provided");
-		return M0_RC(0);
-	}
-
-	M0_LOG(M0_DEBUG, "Ios connecting to mds %s", srv_ep_addr);
-	rc = m0_rpc_client_connect(&conn->imc_conn, &conn->imc_session,
-				   rpc_machine, srv_ep_addr,
-				   MAX_NR_RPC_IN_FLIGHT);
-	if (rc == 0) {
-		conn->imc_connected = true;
-		M0_LOG(M0_DEBUG, "Ios connected to mds %s", srv_ep_addr);
-	} else {
-		conn->imc_connected = false;
-		M0_LOG(M0_ERROR, "Ios could not connect to mds %s: rc = %d",
-				 srv_ep_addr, rc);
-	}
+		rc = m0_rpc_client_connect(&conn->imc_conn,
+					   &conn->imc_session,
+					   rpc_machine,
+					   srv_ep_addr,
+					   MAX_NR_RPC_IN_FLIGHT);
+		if (rc == 0) {
+			conn->imc_connected = true;
+			M0_LOG(M0_DEBUG, "Ios connected to mds %s",
+					 srv_ep_addr);
+		} else {
+			conn->imc_connected = false;
+			M0_LOG(M0_ERROR, "Ios could not connect to mds %s: "
+					 "rc = %d",
+					 srv_ep_addr, rc);
+		}
+		M0_LOG(M0_DEBUG, "ios connected to mds: conn=%p ep=%s rc=%d "
+				 "index=%d", conn, srv_ep_addr, rc,
+				 conn_map->imc_nr);
+		conn_map->imc_map[conn_map->imc_nr ++] = conn;
+		M0_ASSERT(conn_map->imc_nr <= M0T1FS_MAX_NR_MDS);
+	} m0_tl_endfor;
 	return M0_RC(rc);
 }
 
 /* Assumes that reqh->rh_rwlock is locked for writing. */
-static int ios_mds_conn_get_locked(struct m0_reqh *reqh,
-				   struct m0_ios_mds_conn **out,
-				   bool *new)
+static int ios_mds_conn_get_locked(struct m0_reqh              *reqh,
+				   struct m0_ios_mds_conn_map **out,
+				   bool                        *new)
 {
 	M0_PRE(ios_mds_conn_key != 0);
 
@@ -675,8 +691,8 @@ static int ios_mds_conn_get_locked(struct m0_reqh *reqh,
  * @note This is a block operation in service.
  *       m0_fom_block_enter()/m0_fom_block_leave() must be used to notify fom.
  */
-M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
-				    struct m0_ios_mds_conn **out)
+static int m0_ios_mds_conn_get(struct m0_reqh              *reqh,
+			       struct m0_ios_mds_conn_map **out)
 {
 	int  rc;
 	bool new;
@@ -695,35 +711,63 @@ M0_INTERNAL int m0_ios_mds_conn_get(struct m0_reqh *reqh,
 	return M0_RC(rc);
 }
 
+static struct m0_ios_mds_conn *
+m0_ios_mds_conn_map_hash(const struct m0_ios_mds_conn_map *imc_map,
+			 const struct m0_fid *gfid)
+{
+	char         filename[64];
+	int          nlen;
+	unsigned int hash;
+
+	nlen = sprintf(filename, "%llx:%llx",
+		       (unsigned long long)gfid->f_container,
+		       (unsigned long long)gfid->f_key);
+
+	hash = m0_full_name_hash((const unsigned char *)filename, nlen);
+	M0_LOG(M0_DEBUG, "%s -> %d nr=%d", (char*)filename,
+			 hash % imc_map->imc_nr,
+			 imc_map->imc_nr);
+	return imc_map->imc_map[hash % imc_map->imc_nr];
+}
+
 /**
  * Terminates and clears the ioservice to mdservice connection.
  */
 M0_INTERNAL void m0_ios_mds_conn_fini(struct m0_reqh *reqh)
 {
-	struct m0_ios_mds_conn *imc;
-	int                     rc;
+	struct m0_ios_mds_conn_map *imc_map;
+	struct m0_ios_mds_conn     *imc;
+	int                         rc;
 	M0_PRE(reqh != NULL);
 	M0_PRE(ios_mds_conn_key != 0);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	imc = m0_reqh_lockers_get(reqh, ios_mds_conn_key);
-	if (imc != NULL)
+	imc_map = m0_reqh_lockers_get(reqh, ios_mds_conn_key);
+	if (imc_map != NULL)
 		m0_reqh_lockers_clear(reqh, ios_mds_conn_key);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
-	M0_LOG(M0_DEBUG, "imc conn fini in reqh = %p, imc = %p", reqh, imc);
-	if (imc != NULL && imc->imc_connected) {
-		M0_LOG(M0_DEBUG, "destroy session for %p", imc);
-		rc = m0_rpc_session_destroy(&imc->imc_session, M0_TIME_NEVER);
-		if (rc != 0)
-			M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
+	while (imc_map != NULL && imc_map->imc_nr > 0) {
+		imc = imc_map->imc_map[--imc_map->imc_nr];
+		M0_LOG(M0_DEBUG, "imc conn fini in reqh = %p, imc = %p",
+				 reqh, imc);
+		if (imc != NULL && imc->imc_connected) {
+			M0_LOG(M0_DEBUG, "destroy session for %p", imc);
+			rc = m0_rpc_session_destroy(&imc->imc_session,
+						    M0_TIME_NEVER);
+			if (rc != 0)
+				M0_LOG(M0_ERROR,
+				       "Failed to terminate session %d", rc);
 
-		M0_LOG(M0_DEBUG, "destroy conn for %p", imc);
-		rc = m0_rpc_conn_destroy(&imc->imc_conn, M0_TIME_NEVER);
-		if (rc != 0)
-			M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc);
+			M0_LOG(M0_DEBUG, "destroy conn for %p", imc);
+			rc = m0_rpc_conn_destroy(&imc->imc_conn, M0_TIME_NEVER);
+			if (rc != 0)
+				M0_LOG(M0_ERROR,
+				       "Failed to terminate connection %d", rc);
+		}
+		m0_free(imc); /* free(NULL) is OK */
 	}
-	m0_free(imc); /* free(NULL) is OK */
+	m0_free(imc_map); /* free(NULL) is OK */
 }
 
 /**
@@ -739,18 +783,21 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 				   const struct m0_fid *gfid,
 				   struct m0_cob_attr *attr)
 {
-	struct m0_ios_mds_conn    *imc;
-	struct m0_fop             *req;
-	struct m0_fop             *rep;
-	struct m0_fop_getattr     *getattr;
-	struct m0_fop_getattr_rep *getattr_rep;
-	struct m0_fop_cob         *req_fop_cob;
-	struct m0_fop_cob         *rep_fop_cob;
-	int                        rc;
+	struct m0_ios_mds_conn_map *imc_map;
+	struct m0_ios_mds_conn     *imc;
+	struct m0_fop              *req;
+	struct m0_fop              *rep;
+	struct m0_fop_getattr      *getattr;
+	struct m0_fop_getattr_rep  *getattr_rep;
+	struct m0_fop_cob          *req_fop_cob;
+	struct m0_fop_cob          *rep_fop_cob;
+	int                         rc;
 
-	rc = m0_ios_mds_conn_get(reqh, &imc);
+	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
 		return rc;
+
+	imc = m0_ios_mds_conn_map_hash(imc_map, gfid);
 	if (!imc->imc_connected)
 		return -ENODEV;
 
@@ -794,13 +841,14 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 				      uint64_t lid,
 				      struct m0_layout **l_out)
 {
-	struct m0_ios_mds_conn    *imc;
-	struct m0_fop             *req;
-	struct m0_fop             *rep;
-	struct m0_fop_layout      *layout;
-	struct m0_fop_layout_rep  *layout_rep;
-	struct m0_layout          *l;
-	int                        rc;
+	struct m0_ios_mds_conn_map *imc_map;
+	struct m0_ios_mds_conn     *imc;
+	struct m0_fop              *req;
+	struct m0_fop              *rep;
+	struct m0_fop_layout       *layout;
+	struct m0_fop_layout_rep   *layout_rep;
+	struct m0_layout           *l;
+	int                         rc;
 	M0_ENTRY();
 
 	l = m0_layout_find(ldom, lid);
@@ -809,9 +857,12 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 		return 0;
 	}
 
-	rc = m0_ios_mds_conn_get(reqh, &imc);
+	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
 		return rc;
+
+	/* mds 0 is used for layout */
+	imc = imc_map->imc_map[0];
 	if (!imc->imc_connected)
 		return -ENODEV;
 
@@ -948,17 +999,20 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 					 void (*cb)(void *arg, int rc),
 					 void *arg)
 {
-	struct m0_ios_mds_conn    *imc;
-	struct mds_op             *mdsop;
-	struct m0_fop             *req;
-	struct m0_fop_getattr     *getattr;
-	struct m0_fop_cob         *req_fop_cob;
-	int                        rc;
+	struct m0_ios_mds_conn_map *imc_map;
+	struct m0_ios_mds_conn     *imc;
+	struct mds_op              *mdsop;
+	struct m0_fop              *req;
+	struct m0_fop_getattr      *getattr;
+	struct m0_fop_cob          *req_fop_cob;
+	int                         rc;
 
 	/* This might block on first call. */
-	rc = m0_ios_mds_conn_get(reqh, &imc);
+	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
 		return rc;
+	imc = m0_ios_mds_conn_map_hash(imc_map, gfid);
+
 	if (!imc->imc_connected)
 		return -ENODEV;
 
@@ -1056,16 +1110,20 @@ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
 					    void (*cb)(void *arg, int rc),
 					    void *arg)
 {
-	struct m0_ios_mds_conn *imc;
-	struct mds_op          *mdsop;
-	struct m0_fop          *req;
-	struct m0_fop_layout   *layout;
-	int                     rc;
+	struct m0_ios_mds_conn_map *imc_map;
+	struct m0_ios_mds_conn     *imc;
+	struct mds_op              *mdsop;
+	struct m0_fop              *req;
+	struct m0_fop_layout       *layout;
+	int                         rc;
 	M0_ENTRY();
 
-	rc = m0_ios_mds_conn_get(reqh, &imc);
+	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
 		return rc;
+
+	/* mds 0 is used for layout */
+	imc = imc_map->imc_map[0];
 	if (!imc->imc_connected)
 		return -ENODEV;
 

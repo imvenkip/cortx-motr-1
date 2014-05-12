@@ -24,51 +24,12 @@ mount_m0t1fs()
 		return 1
 	}
 
-	# prepare configuration data
-	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
-	RMS_ENDPOINT="\"${server_nid}:${EP[0]}\""
-	PROF='(0x7000000000000001, 0)'
-	PROF_OPT='<0x7000000000000001:0>'
-	FS='(0x6600000000000001, 1)'
-	MDS='(0x7300000000000001, 2)'
-	RM='(0x7300000000000001, 3)'
-	STATS='(0x7300000000000001, 4)'
-	NODE='(0x6e00000000000001, 0)'
-	for ((i=1; i < ${#EP[*]}; i++)); do
-	    IOS_NAME="(0x7300000000000003, $i)"
-
-	    if ((i == 1)); then
-	        IOS_NAMES="$IOS_NAME"
-	    else
-	        IOS_NAMES="$IOS_NAMES, $IOS_NAME"
-	    fi
-
-	    local ep=\"${server_nid}:${EP[$i]}\"
-	    IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $ep], $NODE)}"
-	    if ((i == 1)); then
-	        IOS_OBJS="$IOS_OBJ"
-	    else
-		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
-	    fi
-	done
-
-	local CONF="`cat <<EOF
-[$((${#EP[*]} + 3)):
-  {0x70| (($PROF), $FS)},
-  {0x66| (($FS), (11, 22),
-	      [4: "pool_width=$P",
-		  "nr_data_units=$N",
-		  "nr_parity_units=$K",
-		  "unit_size=$unit_size"],
-	      [$((${#EP[*]} + 1)): $MDS, $RM, $IOS_NAMES])},
-  {0x73| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
-  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
-  $IOS_OBJS]
-EOF`"
+	local PROF_OPT='<0x7000000000000001:0>'
+	local CONF=`build_conf $unit_size $N $K $P`
 
 	echo "Mounting file system..."
 
-	cmd="sudo mount -t m0t1fs -o profile='$PROF_OPT',local_conf='$CONF',$mountop \
+	local cmd="sudo mount -t m0t1fs -o profile='$PROF_OPT',local_conf='$CONF',$mountop \
 	    none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {
@@ -89,13 +50,14 @@ unmount_and_clean()
 	rm -rf $m0t1fs_mount_dir &>/dev/null
 
 	local i=0
-	for ((i=0; i < ${#EP[*]}; i++)) ; do
+	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		# Removes the stob files created in stob domain since
 		# there is no support for m0_stob_delete() and after
 		# unmounting the client file system, from next mount,
 		# fids are generated from same baseline which results
 		# in failure of cob_create fops.
-		rm -rf $MERO_M0T1FS_TEST_DIR/d$i/stobs/o/*
+		local ios_index=`expr $i + 1`
+		rm -rf $MERO_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
 	done
 }
 
@@ -183,7 +145,7 @@ bulkio_test()
 
 	rm -f $m0t1fs_file
 
-	unmount_and_clean &>> $MERO_TEST_LOGFILE
+	unmount_and_clean
 
 	return 0
 }
@@ -301,11 +263,10 @@ m0loop_st_run()
 
 m0loop_st()
 {
-	echo -n "Running m0loop system tests" | tee -a $MERO_TEST_LOGFILE
-	echo >> $MERO_TEST_LOGFILE
+	echo -n "Running m0loop system tests"
 	while true; do echo -n .; sleep 1; done &
 	pid=$!
-	m0loop_st_run &>> $MERO_TEST_LOGFILE
+	m0loop_st_run
 	status=$?
 	exec 2> /dev/null; kill $pid; sleep 0.2; exec 2>&1
 	[ $status -eq 0 ] || {
@@ -319,42 +280,38 @@ m0loop_st()
 file_creation_test()
 {
 	nr_files=$1
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || {
 		return 1
 	}
-	echo "Test: Creating $nr_files files on m0t1fs..." \
-	    >> $MERO_TEST_LOGFILE
+	echo "Test: Creating $nr_files files on m0t1fs..."
 	for ((i=0; i<$nr_files; ++i)); do
-		touch $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
-		echo '0123456789abcdef' > $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
-		ls -li $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+		touch $MERO_M0T1FS_MOUNT_DIR/file$i || break
+		cp /bin/ls $MERO_M0T1FS_MOUNT_DIR/file$i || break
+		diff /bin/ls $MERO_M0T1FS_MOUNT_DIR/file$i || break
 	done
-	unmount_and_clean &>> $MERO_TEST_LOGFILE
-	echo -n "Test: file creation: " >> $MERO_TEST_LOGFILE
+	unmount_and_clean
+	echo -n "Test: file creation: "
 	if [ $i -eq $nr_files ]; then
-		echo "success." >> $MERO_TEST_LOGFILE
+		echo "success."
 	else
-		echo "failed." >> $MERO_TEST_LOGFILE
+		echo "failed."
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || {
 		return 1
 	}
-	echo "Test: removing $nr_files files on m0t1fs..." \
-	    >> $MERO_TEST_LOGFILE
+	echo "Test: removing $nr_files files on m0t1fs..."
 	for ((i=0; i<$nr_files; ++i)); do
-		rm -vf $MERO_M0T1FS_MOUNT_DIR/file$i >> $MERO_TEST_LOGFILE || break
+		rm -vf $MERO_M0T1FS_MOUNT_DIR/file$i || break
 	done
 
-	unmount_and_clean &>> $MERO_TEST_LOGFILE
-	echo -n "Test: file removal: " >> $MERO_TEST_LOGFILE
+	unmount_and_clean
+	echo -n "Test: file removal: "
 	if [ $i -eq $nr_files ]; then
-		echo "success." >> $MERO_TEST_LOGFILE
+		echo "success."
 	else
-		echo "failed." >> $MERO_TEST_LOGFILE
+		echo "failed."
 		return 1
 	fi
 
@@ -363,81 +320,75 @@ file_creation_test()
 
 multi_client_test()
 {
-	local nr_clients=$1
 	local mount_dir_1=${MERO_M0T1FS_MOUNT_DIR}aa
 	local mount_dir_2=${MERO_M0T1FS_MOUNT_DIR}bb
 	local mount_dir_3=${MERO_M0T1FS_MOUNT_DIR}cc
 
-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	local rc
+
+	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
 		return 1
 	}
 	df
-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
-		unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
+	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
+		unmount_m0t1fs ${mount_dir_1}
 		return 1
 	}
 	df
-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
-		unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
-		unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
+	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
+		unmount_m0t1fs ${mount_dir_1}
+		unmount_m0t1fs ${mount_dir_2}
 		return 1
 	}
 	echo "Three clients mounted:"
 	mount
-	mkdir ${mount_dir_1}/dir1
-	mkdir ${mount_dir_2}/dir2
-	mkdir ${mount_dir_3}/dir3
-	cp -av /bin/ls ${mount_dir_1}/dir1/obj1
-	cp -av /bin/ls ${mount_dir_2}/dir2/obj2
-	cp -av /bin/ls ${mount_dir_3}/dir3/obj3
-	ls -liR ${mount_dir_1}
-	ls -liR ${mount_dir_2}
-	ls -liR ${mount_dir_3}
+	cp -av /bin/ls ${mount_dir_1}/obj1 || rc=1
+	cp -av /bin/ls ${mount_dir_2}/obj2 || rc=1
+	cp -av /bin/ls ${mount_dir_3}/obj3 || rc=1
+	ls -liR ${mount_dir_1} || rc=1
+	ls -liR ${mount_dir_2} || rc=1
+	ls -liR ${mount_dir_3} || rc=1
 
-	diff /bin/ls ${mount_dir_1}/dir1/obj1 || echo "Obj1 creation failure"
-	diff /bin/ls ${mount_dir_1}/dir2/obj2 || echo "Obj2 creation failure"
-	diff /bin/ls ${mount_dir_1}/dir3/obj3 || echo "Obj3 creation failure"
+	diff /bin/ls ${mount_dir_1}/obj1 || rc=1
+	diff /bin/ls ${mount_dir_1}/obj2 || rc=1
+	diff /bin/ls ${mount_dir_1}/obj3 || rc=1
 
-	diff /bin/ls ${mount_dir_1}/dir1/obj1 || echo "Obj1 creation failure"
-	diff /bin/ls ${mount_dir_2}/dir2/obj2 || echo "Obj2 creation failure"
-	diff /bin/ls ${mount_dir_3}/dir3/obj3 || echo "Obj3 creation failure"
+	diff /bin/ls ${mount_dir_1}/obj1 || rc=1
+	diff /bin/ls ${mount_dir_2}/obj2 || rc=1
+	diff /bin/ls ${mount_dir_3}/obj3 || rc=1
 
-	unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
-	unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
-	unmount_m0t1fs ${mount_dir_3} &>> $MERO_TEST_LOGFILE
+	unmount_m0t1fs ${mount_dir_1}
+	unmount_m0t1fs ${mount_dir_2}
+	unmount_m0t1fs ${mount_dir_3}
 	echo "First round done."
-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
+		unmount_m0t1fs ${mount_dir_1}
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
+		unmount_m0t1fs ${mount_dir_1}
+		unmount_m0t1fs ${mount_dir_2}
 		return 1
 	}
 	echo "Three clients mounted:"
 	mount
-	ls -liR ${mount_dir_1}
-	ls -liR ${mount_dir_2}
-	ls -liR ${mount_dir_3}
+	ls -liR ${mount_dir_1} || rc=1
+	ls -liR ${mount_dir_2} || rc=1
+	ls -liR ${mount_dir_3} || rc=1
 
-	md5sum /bin/ls
-	md5sum ${mount_dir_1}/dir1/obj1
-	md5sum ${mount_dir_2}/dir2/obj2
-	md5sum ${mount_dir_3}/dir3/obj3
+	diff /bin/ls ${mount_dir_1}/obj1 || rc=1
+	diff /bin/ls ${mount_dir_2}/obj2 || rc=1
+	diff /bin/ls ${mount_dir_3}/obj3 || rc=1
 
-	unmount_m0t1fs ${mount_dir_1} &>> $MERO_TEST_LOGFILE
-	unmount_m0t1fs ${mount_dir_2} &>> $MERO_TEST_LOGFILE
-	unmount_m0t1fs ${mount_dir_3} &>> $MERO_TEST_LOGFILE
+	unmount_m0t1fs ${mount_dir_1}
+	unmount_m0t1fs ${mount_dir_2}
+	unmount_m0t1fs ${mount_dir_3}
 	echo "Second round done"
 	df
-	return 0
+	return $rc
 }
 
 
@@ -450,53 +401,201 @@ rmw_test()
 			io_size=${io}K
 			echo -n "IORMW Test: I/O for unit ="\
 			     "${unit_size}K, bs = $io_size, count = 1... "
-			bulkio_test $unit_size 1 &>> $MERO_TEST_LOGFILE ||
-				return 1
+			bulkio_test $unit_size 1 &>> $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 
 			# Multiple I/O
 			echo -n "IORMW Test: I/O for unit ="\
 			   "${unit_size}K, bs = $io_size, count = 2... "
-			bulkio_test $unit_size 2 &>> \
-			      $MERO_TEST_LOGFILE || return 1
+			bulkio_test $unit_size 2 &>> $MERO_TEST_LOGFILE || return 1
 			show_write_speed
 		done
 	done
 
-	echo "Test: IORMW: Success." | tee -a $MERO_TEST_LOGFILE
+	echo "Test: IORMW: Success."
 
 	return 0
 }
 
+###########################################
+# This test is only valid in COPYTOOL mode.
+# Mero.cmd hash file by filename.
+###########################################
 obf_test()
 {
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH &>> $MERO_TEST_LOGFILE || {
-		cat $MERO_TEST_LOGFILE
+	local rc=0
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || {
 		return 1
 	}
-        stat $MERO_M0T1FS_MOUNT_DIR/.mero || return 1
-        ls -la $MERO_M0T1FS_MOUNT_DIR/.mero || return 1
-        stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid || return 1
-        ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid || return 1
-        touch $MERO_M0T1FS_MOUNT_DIR/file0 || return 1
-        # Though start_fid=65536, obf access pattern uses hex notation
-        stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:10000 || return 1
-        ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:10000 || return 1
-        rm -fr $MERO_M0T1FS_MOUNT_DIR/file0 || return 1
-	unmount_m0t1fs $MERO_M0T1FS_MOUNT_DIR &>> $MERO_TEST_LOGFILE
-	echo "Success: Open-by-fid test."
-        return 0
+	stat $MERO_M0T1FS_MOUNT_DIR/.mero || rc=1
+	ls -la $MERO_M0T1FS_MOUNT_DIR/.mero || rc=1
+	stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid || rc=1
+	ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid || rc=1
+	touch $MERO_M0T1FS_MOUNT_DIR/0:30000 || rc=1
+	stat $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:30000 || rc=1
+	ls -la $MERO_M0T1FS_MOUNT_DIR/.mero/fid/0:30000 || rc=1
+	rm $MERO_M0T1FS_MOUNT_DIR/0:30000 || rc=1
+	unmount_m0t1fs $MERO_M0T1FS_MOUNT_DIR
+	if [ $rc -eq 0 ]; then
+		echo "Success: Open-by-fid test."
+	else
+		echo "Failure: Open-by-fid test."
+	fi
+	return $rc
+}
+
+m0t1fs_crud()
+{
+	local rc=0
+
+	local fsname1=$1
+	local fsname2=$2
+	local fsname3=$3
+	touch $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
+	touch $MERO_M0T1FS_MOUNT_DIR/$fsname2 || rc=1
+	touch $MERO_M0T1FS_MOUNT_DIR/$fsname3 || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 || rc=1
+	chmod 567 $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
+	chmod 123 $MERO_M0T1FS_MOUNT_DIR/$fsname2 || rc=1
+	chmod 345 $MERO_M0T1FS_MOUNT_DIR/$fsname3 || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 -c "%n: %a %s" || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname1 bs=4K   count=1 || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname2 bs=128K count=1 || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname3 bs=1M   count=1 || rc=1
+	sync
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 -c "%n: %a %s" || rc=1
+	echo 3 > /proc/sys/vm/drop_caches
+	dd of=/dev/zero if=$MERO_M0T1FS_MOUNT_DIR/$fsname1 bs=4K   count=1 || rc=1
+	dd of=/dev/zero if=$MERO_M0T1FS_MOUNT_DIR/$fsname2 bs=128K count=1 || rc=1
+	dd of=/dev/zero if=$MERO_M0T1FS_MOUNT_DIR/$fsname3 bs=1M   count=1 || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 -c "%n: %a %s" || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname1 bs=4K   count=1 || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname2 bs=128K count=1 || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fsname3 bs=1M   count=1 || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 -c "%n: %a %s" || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 -c "%n: %a %s" || rc=1
+	ls -l $MERO_M0T1FS_MOUNT_DIR || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname1 || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname2 || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$fsname3 || rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname1 2>/dev/null && rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname2 2>/dev/null && rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/$fsname3 2>/dev/null && rc=1
+
+	return $rc
+}
+
+m0t1fs_basic()
+{
+	local rc=0
+	local fsname1="123456"
+	local fsname2="890"
+	local fsname3="xyz0"
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || rc=1
+	df
+	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
+	unmount_and_clean
+	return $rc
+}
+
+
+###############################################################
+# The following readdir() test will send two readdir requests
+# to mdservice 0, and then EOF is returned; So client readdir()
+# switches to another mdservice, and does the same, until
+# all mdservices are iterated.
+# m0t1fs_large_dir mode fsname_prex
+###############################################################
+m0t1fs_large_dir()
+{
+	local rc=0
+	local mode=$1
+	local fsname_prex=$2
+	local count=512
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
+	df
+	for i in `seq 1 $count`; do
+		touch $MERO_M0T1FS_MOUNT_DIR/$fsname_prex$i || rc=1
+		stat  $MERO_M0T1FS_MOUNT_DIR/$fsname_prex$i -c "%n: %a %s" || rc=1
+	done
+
+	local dirs=`/bin/ls $MERO_M0T1FS_MOUNT_DIR -U`
+	local dirs_count=`echo $dirs | wc -w`
+	echo "readdir count: result $dirs_count, expected $count"
+	if [ ! $dirs_count -eq $count ] ; then
+		rc=1
+	fi
+	for i in `seq 1 $count`; do
+		local match=`echo $dirs | grep -c "\<$fsname_prex$i\>"`
+		if [ ! $match -eq 1 ] ; then
+			echo "match $fsname_prex$i failed: $match"
+			rc=1
+		else
+			rm -v $MERO_M0T1FS_MOUNT_DIR/$fsname_prex$i || rc=1
+		fi
+	done
+
+	unmount_and_clean
+	return $rc
+}
+
+
+m0t1fs_copytool_mode()
+{
+	local rc=0
+	local fsname1="0:100125"
+	local fsname2="0:600456"
+	local fsname3="0:a0089b"
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || rc=1
+	df
+	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
+	touch $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
+	touch $MERO_M0T1FS_MOUNT_DIR/abcdef 2>/dev/null && rc=1
+	stat  $MERO_M0T1FS_MOUNT_DIR/abcdef 2>/dev/null && rc=1
+	unmount_and_clean
+
+	return $rc
 }
 
 m0t1fs_system_tests()
 {
-        obf_test || {
-		echo "Failed: Open-by-fid test failed."
-		return 1
-        }
-
 	file_creation_test $MAX_NR_FILES || {
 		echo "Failed: File creation test failed."
+		return 1
+	}
+
+	m0t1fs_basic || {
+		echo "Failed: m0t1fs basic test failed."
+		return 1
+	}
+
+	m0t1fs_copytool_mode || {
+		echo "Failed: m0t1fs copytool mode test failed."
+		return 1
+	}
+
+	m0t1fs_large_dir "" "mero-testfile-" || {
+		echo "Failed: m0t1fs large dir test failed."
+		return 1
+	}
+
+	m0t1fs_large_dir "copytool" "0:10000" || {
+		echo "Failed: m0t1fs large dir test in copytool mode failed."
+		return 1
+	}
+
+	obf_test || {
+		echo "Failed: Open-by-fid test failed."
 		return 1
 	}
 

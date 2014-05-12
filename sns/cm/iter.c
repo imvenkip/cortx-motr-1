@@ -835,6 +835,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		 */
 		unit_to_cobfid(sfc, cob_fid);
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, cob_fid);
+		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
 		 m0_sns_cm_is_cob_failed(it2sns(it), cob_fid));

@@ -1,4 +1,4 @@
-mkloopdevs()
+mkiosloopdevs()
 {
 	local ios=$1
 	local nr_devs=$2
@@ -33,13 +33,47 @@ EOF
 	return $?
 }
 
+mkmdsloopdevs()
+{
+	local mds=$1
+	local dir=$2
+	local adisk=addb-disk.img
+	local ddisk=data-disk.img
+
+	cd $dir || return 1
+
+	dd if=/dev/zero of=$adisk bs=1M seek=1M count=1 || return 1
+	dd if=/dev/zero of=$ddisk bs=1M seek=1M count=1 || return 1
+	cat > disks.conf << EOF
+Device:
+   - id: 0
+     filename: `pwd`/$adisk
+   - id: $mds
+     filename: `pwd`/$ddisk
+EOF
+
+	return $?
+}
+
+
 mero_service()
 {
+	local stride
+	local unit_size=$UNIT_SIZE
+	local N=$NR_DATA
+	local K=$NR_PARITY
 	local P=$POOL_WIDTH
-	if [ $# -eq 2 ]
+	local ioservice_eps
+	local mdservice_eps
+	if [ $# -eq 5 ]
 	then
-		P=$2
+		stride=$2
+		N=$3
+		K=$4
+		P=$5
+		unit_size=$((stride * 1024))
 	fi
+
         prog_mkfs="$MERO_CORE_ROOT/utils/mkfs/m0mkfs"
         prog_start="$MERO_CORE_ROOT/mero/m0d"
         prog_exec="$MERO_CORE_ROOT/mero/.libs/lt-m0d"
@@ -55,33 +89,34 @@ mero_service()
 		local i
 
 		prepare
-		for ((i=1; i < ${#EP[*]}; i++)) ; do
-			ios_eps="$ios_eps -i $XPT:${lnet_nid}:${EP[$i]} "
+		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+			mdservice_eps="$mdservice_eps -G $XPT:${lnet_nid}:${MDSEP[$i]} "
+		done
+		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+			ioservice_eps="$ioservice_eps -i $XPT:${lnet_nid}:${IOSEP[$i]} "
 		done
 
-		local nr_ios=$((${#EP[*]} - 1))
+		local nr_ios=${#IOSEP[*]}
 		local nr_dev_per_ios=$(($P / $nr_ios))
 		if (($P % $nr_ios > 0))
 		then
 			nr_dev_per_ios=$(($nr_dev_per_ios + 1))
 		fi
-		# spawn servers
-		for ((i=0; i < ${#EP[*]}; i++)) ; do
-			DIR=$MERO_M0T1FS_TEST_DIR/d$i
+
+		# spawn mds servers
+		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+			local mds=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/m$mds
 			rm -rf $DIR
 			mkdir $DIR
 
-			(mkloopdevs $i $nr_dev_per_ios $DIR) || return 1
+			(mkmdsloopdevs $mds $DIR) || return 1
 
-			SNAME="-s $MERO_ADDBSERVICE_NAME"
-			if ((i == 0)); then
-				SNAME="-s $MERO_MDSERVICE_NAME -s $MERO_RMSERVICE_NAME $SNAME -s $MERO_STATSSERVICE_NAME -s $MERO_CONFD_NAME -c $DIR/conf.xc"
-				build_conf > $DIR/conf.xc
-			else
-				SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_SNSREPAIRSERVICE_NAME \
-				      -s $MERO_SNSREBALANCESERVICE_NAME $SNAME"
+			SNAME="-s $MERO_MDSERVICE_NAME -s $MERO_RMSERVICE_NAME -s $MERO_ADDBSERVICE_NAME -s $MERO_STATSSERVICE_NAME"
+			if [ $i -eq 0 ]; then
+				SNAME="$SNAME -s $MERO_CONFD_NAME -c $DIR/conf.xc"
+				build_conf $unit_size $N $K $P | tee $DIR/conf.xc
 			fi
-
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
@@ -89,9 +124,8 @@ mero_service()
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
 			 -w $P \
-			 -G $XPT:${lnet_nid}:${EP[0]} \
-			 -e $XPT:${lnet_nid}:${EP[$i]} \
-			 $ios_eps \
+			 -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			 $ioservice_eps \
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
 			echo $cmd
@@ -101,9 +135,65 @@ mero_service()
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
 			 -w $P \
-			 -G $XPT:${lnet_nid}:${EP[0]} \
-			 -e $XPT:${lnet_nid}:${EP[$i]} \
-			 $ios_eps \
+			 -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			 $ioservice_eps \
+			 $SNAME -m $MAX_RPC_MSG_SIZE \
+			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
+			echo $cmd
+			(eval "$cmd") &
+
+			# wait till the server start completes
+			local m0d_log=$DIR/m0d.log
+			touch $m0d_log
+			sleep 2
+			while status $prog_exec > /dev/null && \
+			      ! grep CTRL $m0d_log > /dev/null; do
+				sleep 2
+			done
+
+			status $prog_exec
+			if [ $? -eq 0 ]; then
+				SNAME=$(echo $SNAME | sed 's/-s //g')
+				echo "Mero services ($SNAME) started."
+			else
+				echo "Mero service failed to start."
+				return 1
+			fi
+		done
+
+
+		# spawn io servers
+		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+			local ios=`expr $i + 1`
+			DIR=$MERO_M0T1FS_TEST_DIR/d$ios
+			rm -rf $DIR
+			mkdir $DIR
+			(mkiosloopdevs $ios $nr_dev_per_ios $DIR) || return 1
+
+			SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_SNSREPAIRSERVICE_NAME \
+			       -s $MERO_SNSREBALANCESERVICE_NAME -s $MERO_ADDBSERVICE_NAME"
+
+			ulimit -c unlimited
+			cmd="cd $DIR && exec \
+			$prog_mkfs -F \
+			 -T $MERO_STOB_DOMAIN \
+			 -D db -S stobs -A linuxstob:addb-stobs \
+			 -w $P \
+			 -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			 $mdservice_eps \
+			 $ioservice_eps \
+			 $SNAME -m $MAX_RPC_MSG_SIZE \
+			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
+			echo $cmd
+			eval "$cmd"
+			cmd="cd $DIR && exec \
+			$prog_start \
+			 -T $MERO_STOB_DOMAIN \
+			 -D db -S stobs -A linuxstob:addb-stobs \
+			 -w $P \
+			 -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			 $mdservice_eps \
+			 $ioservice_eps \
 			 $SNAME -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
 			echo $cmd
@@ -138,7 +228,7 @@ mero_service()
 		echo "Shutting down services one by one. mdservice is the last."
 		delay=5
 		for pid in $pids; do
-		       echo ----- $pid stopping--------
+		       echo -n "----- $pid stopping--------"
 		       if checkpid $pid 2>&1; then
 			   # TERM first, then KILL if not dead
 			   kill -TERM $pid >/dev/null 2>&1
@@ -150,7 +240,7 @@ mero_service()
 			       usleep 100000
 			    fi
 		        fi
-		       echo ----- $pid stopped --------
+		       echo "----- $pid stopped --------"
 		done
 
 		# ADDB RPC sink ST usage ADDB client records generated

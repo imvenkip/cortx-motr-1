@@ -120,16 +120,12 @@ M0_INTERNAL struct m0_rm_domain *m0t1fs_rm_domain_get(struct m0t1fs_sb *sb)
 							 &sb->csb_reqh));
 }
 
-static inline uint64_t m0t1fs_rm_container(const struct m0t1fs_sb *csb)
-{
-	return csb->csb_nr_containers;
-}
-
 M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 				       struct m0t1fs_sb *csb)
 {
 	struct m0_rm_domain *rdom;
 	const struct m0_fid *fid = &ci->ci_fid;
+	M0_PRE(csb->csb_cl_map.rm_ctx != NULL);
 
 	M0_ENTRY();
 
@@ -144,8 +140,7 @@ M0_INTERNAL void m0t1fs_file_lock_init(struct m0t1fs_inode    *ci,
 	m0_file_owner_init(&ci->ci_fowner, &m0_rm_m0t1fs_group,
 			   &ci->ci_flock, NULL);
 	ci->ci_fowner.ro_creditor = &ci->ci_creditor;
-	ci->ci_creditor.rem_session =
-		m0t1fs_container_id_to_session(csb, m0t1fs_rm_container(csb));
+	ci->ci_creditor.rem_session = &csb->csb_cl_map.rm_ctx->sc_session;
 
 	M0_LEAVE();
 }
@@ -332,6 +327,7 @@ static int m0t1fs_inode_read(struct inode      *inode,
 			     struct m0_fop_cob *body)
 {
 	struct m0t1fs_inode *ci  = M0T1FS_I(inode);
+	struct m0t1fs_sb    *csb = M0T1FS_SB(inode->i_sb);
 	int                  rc  = 0;
 
 	M0_ENTRY();
@@ -347,7 +343,9 @@ static int m0t1fs_inode_read(struct inode      *inode,
 		inode->i_fop            = &m0t1fs_reg_file_operations;
 		inode->i_mapping->a_ops = &m0t1fs_aops;
 	} else if (S_ISDIR(inode->i_mode)) {
-	        if (m0t1fs_inode_is_dot_mero(inode) || m0t1fs_inode_is_dot_mero_fid(inode)) {
+	        if ((m0t1fs_inode_is_dot_mero(inode) ||
+		    m0t1fs_inode_is_dot_mero_fid(inode)) && csb->csb_copytool) {
+			/* currently open-by-fid is only in COPYTOOL mode */
 		        inode->i_op   = &m0t1fs_fid_dir_inode_operations;
 		        inode->i_fop  = &m0t1fs_fid_dir_file_operations;
 	        } else {

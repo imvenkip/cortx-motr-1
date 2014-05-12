@@ -1380,6 +1380,7 @@ static void cs_mero_init(struct m0_mero *cctx)
 	m0_rwlock_init(&cctx->cc_rwlock);
 
 	cs_eps_tlist_init(&cctx->cc_ios_eps);
+	cs_eps_tlist_init(&cctx->cc_mds_eps);
 	cctx->cc_args.ca_argc = 0;
 }
 
@@ -1395,8 +1396,17 @@ static void cs_mero_fini(struct m0_mero *cctx)
 		cs_endpoint_and_xprt_bob_fini(ep);
 		m0_free(ep);
 	} m0_tl_endfor;
-
 	cs_eps_tlist_fini(&cctx->cc_ios_eps);
+
+	m0_tl_for(cs_eps, &cctx->cc_mds_eps, ep) {
+		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
+		M0_ASSERT(ep->ex_scrbuf != NULL);
+		m0_free(ep->ex_scrbuf);
+		cs_eps_tlink_del_fini(ep);
+		cs_endpoint_and_xprt_bob_fini(ep);
+		m0_free(ep);
+	} m0_tl_endfor;
+	cs_eps_tlist_fini(&cctx->cc_mds_eps);
 
 	cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
 	ndom_tlist_fini(&cctx->cc_ndoms);
@@ -1663,8 +1673,10 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 			M0_STRINGARG('G', "Mdservice endpoint address",
 				LAMBDA(void, (const char *s)
 				{
-					rc = m0_ep_and_xprt_extract(
-						&cctx->cc_mds_epx, s);
+					rc = ep_and_xprt_append(
+						&cctx->cc_mds_eps, s);
+					M0_LOG(M0_DEBUG, "adding %s to md ep "
+					       "list %d", s, rc);
 				})),
 			M0_STRINGARG('R', "Stats service endpoint address",
 				LAMBDA(void, (const char *s)

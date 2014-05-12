@@ -9,16 +9,17 @@
 
 pool_mach_test()
 {
+	local ios_eps
 	rc=0
 
 	echo "Testing pool machine.."
-	for ((i=1; i < ${#EP[*]}; i++)) ; do
-		IOSEP="$IOSEP -S ${lnet_nid}:${EP[$i]}"
+	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
 	done
 
 ####### Query
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+                         -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
 
 	if ! $trigger ; then
@@ -31,7 +32,7 @@ pool_mach_test()
 
 ####### Set
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+                         -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
 
 	if ! $trigger ; then
@@ -44,7 +45,7 @@ pool_mach_test()
 
 ####### Query again
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+                         -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
 
 	if ! $trigger ; then
@@ -57,7 +58,7 @@ pool_mach_test()
 
 ####### Set again. This set request should get error
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 0
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+                         -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
 
 	if ! $trigger ; then
@@ -70,7 +71,7 @@ pool_mach_test()
 
 ####### Set again. This set request should get error
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+                         -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
 
 	if ! $trigger ; then
@@ -83,7 +84,7 @@ pool_mach_test()
 
 ####### Set again. This set request should get error
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 2
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+                         -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
 
 	if ! $trigger ; then
@@ -96,7 +97,7 @@ pool_mach_test()
 
 ####### Query again
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
-                         -C ${lnet_nid}:${SNS_CLI_EP} $IOSEP"
+                         -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
 
 	if ! $trigger ; then

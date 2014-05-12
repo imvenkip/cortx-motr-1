@@ -301,6 +301,9 @@ M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz);
 
 M0_INTERNAL uint32_t m0_no_of_bits_set(uint64_t val);
 
+M0_INTERNAL unsigned int
+m0_full_name_hash(const unsigned char *name, unsigned int len);
+
 #endif /* __MERO_LIB_MISC_H__ */
 
 /*

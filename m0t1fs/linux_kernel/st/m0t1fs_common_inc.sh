@@ -16,6 +16,7 @@ else
 fi
 MERO_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 MERO_M0T1FS_TEST_DIR=/var/mero/systest-$$
+MERO_TEST_LOGFILE=/var/mero/mero_`date +"%Y-%m-%d_%T"`.log
 
 MERO_MODULE=m0mero
 
@@ -26,11 +27,11 @@ MERO_TRACE_PRINT_CONTEXT=short
 MERO_TRACE_LEVEL=call+
 
 #user-space tracing parameters
-export M0_TRACE_IMMEDIATE_MASK=all
-export M0_TRACE_LEVEL=warn+
+export M0_TRACE_IMMEDIATE_MASK="cm,sns,snscm"
+export M0_TRACE_IMMEDIATE_MASK="!all"
+export M0_TRACE_LEVEL=call+
 export M0_TRACE_PRINT_CONTEXT=short
 
-MERO_TEST_LOGFILE=`pwd`/mero_`date +"%Y-%m-%d_%T"`.log
 
 MERO_ADDBSERVICE_NAME=addb
 MERO_IOSERVICE_NAME=ioservice
@@ -43,18 +44,25 @@ MERO_CONFD_NAME=confd
 
 MERO_STOB_DOMAIN="ad -d disks.conf"
 
-# list of server end points
-EP=(
-    12345:33:1001   # MDS  EP
-    12345:33:1002   # IOS1 EP
-    12345:33:1003   # IOS2 EP
-    12345:33:1004   # IOS3 EP
-    12345:33:1005   # IOS4 EP
+# list of io server end points: e.g., tmid in [900, 999).
+IOSEP=(
+    12345:33:900   # IOS1 EP
+    12345:33:901   # IOS2 EP
+    12345:33:902   # IOS3 EP
+    12345:33:903   # IOS4 EP
 )
 
-SNS_CLI_EP="12345:33:991"
+# list of io server end points tmid in [800, 899)
+MDSEP=(
+    12345:33:800   # MDS1 EP
+    12345:33:801   # MDS2 EP
+    12345:33:802   # MDS3 EP
+)
 
-POOL_WIDTH=$(expr ${#EP[*]} - 1)
+
+SNS_CLI_EP="12345:33:1000"
+
+POOL_WIDTH=${#IOSEP[*]}
 NR_PARITY=1
 NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2)
 UNIT_SIZE=$(expr 1024 \* 1024)
@@ -154,46 +162,66 @@ unprepare()
 	modunload_galois
 }
 
+
+###############################
+# globals: MDSEP[], IOSEP[], server_nid
+###############################
 function build_conf () {
-	local i
+	local unit_size=$1
+	local nr_data_units=$2
+	local nr_parity_units=$3
+	local pool_width=$4
 
 	# prepare configuration data
-	MDS_ENDPOINT="\"${server_nid}:${EP[0]}\""
-	RMS_ENDPOINT="\"${server_nid}:${EP[0]}\""
-	PROF='(0x7000000000000001, 0)'
-	PROF_OPT='0x7000000000000001:0'
-	FS='(0x6600000000000001, 1)'
-	MDS='(0x7300000000000001, 2)'
-	RM='(0x7300000000000001, 3)'
-	STATS='(0x7300000000000001, 4)'
-	NODE='(0x6e00000000000001, 0)'
-	for ((i=1; i < ${#EP[*]}; i++)); do
-	    IOS_NAME="(0x7300000000000003, $i)"
+	local RMS_ENDPOINT="\"${server_nid}:${MDSEP[0]}\""
+	local  PROF='(0x7000000000000001, 0)'
+	local    FS='(0x6600000000000001, 1)'
+	local    RM='(0x7300000000000001, 3)'
+	local STATS='(0x7300000000000001, 4)'
+	local  NODE='(0x6e00000000000001, 0)'
 
-	    if ((i == 1)); then
+	local i
+
+	for ((i=0; i < ${#IOSEP[*]}; i++)); do
+	    local IOS_NAME="(0x7300000000000003, $i)"
+	    local iosep="\"${server_nid}:${IOSEP[$i]}\""
+	    local IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $iosep], $NODE)}"
+
+	    if ((i == 0)); then
 	        IOS_NAMES="$IOS_NAME"
-	    else
-	        IOS_NAMES="$IOS_NAMES, $IOS_NAME"
-	    fi
-
-	    local ep=\"${server_nid}:${EP[$i]}\"
-	    IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $ep], $NODE)}"
-	    if ((i == 1)); then
 	        IOS_OBJS="$IOS_OBJ"
 	    else
-		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
+	        IOS_NAMES="$IOS_NAMES, $IOS_NAME"
+		IOS_OBJS="$IOS_OBJS, \n  $IOS_OBJ"
 	    fi
 	done
 
-	echo "[$((${#EP[*]} + 3)):
+	for ((i=0; i < ${#MDSEP[*]}; i++)); do
+	    local MDS_NAME="(0x7300000000000002, $i)"
+	    local mdsep="\"${server_nid}:${MDSEP[$i]}\""
+	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], $NODE)}"
+
+	    if ((i == 0)); then
+	        MDS_NAMES="$MDS_NAME"
+	        MDS_OBJS="$MDS_OBJ"
+	    else
+	        MDS_NAMES="$MDS_NAMES, $MDS_NAME"
+		MDS_OBJS="$MDS_OBJS, \n  $MDS_OBJ"
+	    fi
+	done
+
+
+	echo -e "
+ [$((${#IOSEP[*]} + ${#MDSEP[*]} + 3)):
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22),
-	      [4: \"pool_width=$POOL_WIDTH\",
-		  \"nr_data_units=$NR_DATA\",
-		  \"nr_parity_units=$NR_PARITY\",
-		  \"unit_size=$UNIT_SIZE\"],
-	      [$((${#EP[*]} + 1)): $MDS, $RM, $IOS_NAMES])},
-  {0x73| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
+	      [4: \"pool_width=$pool_width\",
+		  \"nr_data_units=$nr_data_units\",
+		  \"nr_parity_units=$nr_parity_units\",
+		  \"unit_size=$unit_size\"],
+	      [$((${#IOSEP[*]} + ${#MDSEP[*]} + 1)): $MDS_NAMES, $RM, $IOS_NAMES])},
   {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
-  $IOS_OBJS]"
+  $MDS_OBJS,
+  $IOS_OBJS
+ ]"
 }

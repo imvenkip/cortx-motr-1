@@ -708,9 +708,13 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 						   CM_MAX_NR_RPC_IN_FLIGHT);
 			if (rc == 0) {
 				m0_cm_proxy_add(cm, pxy);
-				M0_LOG(M0_DEBUG, "Connected to %s", ex->ex_endpoint);
-			} else
+				M0_LOG(M0_DEBUG, "Connected to %s",
+						 ex->ex_endpoint);
+			} else {
 				m0_cm_proxy_fini(pxy);
+				M0_LOG(M0_DEBUG, "Failed Connecting to %s",
+						 ex->ex_endpoint);
+			}
 		}
 	} m0_tl_endfor;
 	M0_LOG(M0_DEBUG, "Connected to its proxies from local ep %s", lep);

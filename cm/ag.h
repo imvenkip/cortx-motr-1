@@ -51,7 +51,7 @@ struct m0_cm_ag_id {
 #define ID_LOG(prefix, id) M0_LOG(M0_DEBUG, prefix "["M0_AG_F"]", M0_AG_P(id))
 #define ID_INCOMING_LOG(prefix, id, has_incoming)			\
 	M0_LOG(M0_DEBUG, prefix " ["M0_AG_F"] has incoming: %d",	\
-	       M0_AG_P(id), (has_incoming));
+	       M0_AG_P(id), !!(has_incoming));
 
 
 /** Copy Machine Aggregation Group. */
