@@ -431,7 +431,8 @@ out:
 
 	reply->rstr_rc = rc;
 	M0_LOG(M0_DEBUG, "Session terminate %s: session [%p] rc [%d]",
-			(rc == 0) ? "successful" : "failed", session, rc);
+	       (rc == 0) ? "successful" : "failed", session, rc);
+
 	/*
 	 * Note: request is received on SESSION_0, which is different from
 	 * current session being terminated. Reply will also go on SESSION_0.

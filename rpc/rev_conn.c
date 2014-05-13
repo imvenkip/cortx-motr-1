@@ -85,6 +85,26 @@ static size_t rev_conn_fom_locality(const struct m0_fom *fom)
 
 /* Routines for connection */
 
+static void conn_callback(struct m0_fom *fom,
+			  struct m0_reverse_connection *revc,
+			  void (*cb)(struct m0_fom_callback *cb))
+{
+	revc->rcf_fomcb.fc_bottom = cb;
+	m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
+	m0_fom_callback_arm(fom, &CONN_CHAN(revc->rcf_conn), &revc->rcf_fomcb);
+	m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
+}
+
+static void sess_callback(struct m0_fom *fom,
+			  struct m0_reverse_connection *revc,
+			  void (*cb)(struct m0_fom_callback *cb))
+{
+	revc->rcf_fomcb.fc_bottom = cb;
+	m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
+	m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess), &revc->rcf_fomcb);
+	m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
+}
+
 static void connection_wait_complete(struct m0_fom_callback *cb)
 {
 	struct m0_fom                *fom   = cb->fc_fom;
@@ -97,25 +117,23 @@ static void connection_wait_complete(struct m0_fom_callback *cb)
 	case M0_RCS_CONN_WAIT:
 		if (CONN_STATE(revc->rcf_conn) == M0_RPC_CONN_ACTIVE)
 			m0_fom_ready(fom);
-		else {
+		else if (CONN_STATE(revc->rcf_conn) == M0_RPC_CONN_FAILED) {
+			m0_fom_phase_move(fom, -1, M0_RCS_FAILURE);
+			m0_fom_ready(fom);
+		} else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
-			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
-			m0_fom_callback_arm(fom, &CONN_CHAN(revc->rcf_conn),
-					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
+			conn_callback(fom, revc, connection_wait_complete);
 		}
 		break;
 	case M0_RCS_SESSION_WAIT:
 		if (SESS_STATE(revc->rcf_sess) == M0_RPC_SESSION_IDLE)
 			m0_fom_ready(fom);
-		else {
+		else if (SESS_STATE(revc->rcf_sess) == M0_RPC_SESSION_FAILED) {
+			m0_fom_phase_move(fom, -1, M0_RCS_FAILURE);
+			m0_fom_ready(fom);
+		} else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
-			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
-					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
+			sess_callback(fom, revc, connection_wait_complete);
 		}
 		break;
 	}
@@ -134,39 +152,30 @@ static int conn_establish(struct m0_fom *fom)
 
 	rc = m0_net_end_point_create(&ep, &revc->rcf_rpcmach->rm_tm,
 				     revc->rcf_rem_ep);
-	if (rc != 0) {
-		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
-	}
+	if (rc != 0)
+		return rc;
 
 	M0_ALLOC_PTR(revc->rcf_conn);
 	if (revc->rcf_conn == NULL) {
-		m0_fom_phase_move(fom, -ENOMEM, M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
+		m0_net_end_point_put(ep);
+		return -ENOMEM;
 	}
 
 	m0_rpc_conn_init(revc->rcf_conn, ep, revc->rcf_rpcmach,
 			 RPCS_IN_FLIGHT);
 	m0_net_end_point_put(ep);
+
+	m0_fom_callback_init(&revc->rcf_fomcb);
+	conn_callback(fom, revc, connection_wait_complete);
+	rc = m0_rpc_conn_establish(revc->rcf_conn,
+				   m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 	if (rc == 0) {
-		m0_fom_callback_init(&revc->rcf_fomcb);
-		revc->rcf_fomcb.fc_bottom = connection_wait_complete;
+		rc = M0_FSO_WAIT;
+	} else {
 		m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
-		m0_fom_callback_arm(fom, &CONN_CHAN(revc->rcf_conn),
-				    &revc->rcf_fomcb);
+		m0_fom_callback_cancel(&revc->rcf_fomcb);
 		m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
-		rc = m0_rpc_conn_establish(revc->rcf_conn,
-					   m0_time_from_now(
-						   M0_REV_CONN_TIMEOUT, 0));
-		if (rc == 0) {
-			rc = M0_FSO_WAIT;
-		} else {
-			m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
-			m0_fom_callback_cancel(&revc->rcf_fomcb);
-			m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
-			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-			rc = M0_FSO_AGAIN;
-		}
+		rc = -1;
 	}
 	return rc;
 }
@@ -189,26 +198,22 @@ static int session_establish(struct m0_fom *fom)
 				      m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 		if (rc == 0) {
 			m0_fom_callback_init(&revc->rcf_fomcb);
-			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
-					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
+			sess_callback(fom, revc, connection_wait_complete);
 			rc = M0_FSO_WAIT;
 		} else {
-			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-			m0_fom_callback_cancel(&revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
-			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-			rc = M0_FSO_AGAIN;
+			M0_LOG(M0_ERROR, "Reverse session establish failed");
+			m0_rpc_session_fini(revc->rcf_sess);
+			rc = -1;
 		}
 	}
-
 	return rc;
 }
 
 static int session_wait(struct m0_fom *fom)
 {
+	struct m0_reverse_connection *revc;
+
+	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
 	m0_chan_broadcast_lock(&fom->fo_service->rs_rev_conn_wait);
 	return M0_FSO_WAIT;
 }
@@ -229,11 +234,7 @@ static void disconnection_wait_complete(struct m0_fom_callback *cb)
 			m0_fom_ready(fom);
 		else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
-			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
-					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
+			sess_callback(fom, revc, disconnection_wait_complete);
 		}
 		break;
 	case M0_RCS_SESSION:
@@ -242,11 +243,7 @@ static void disconnection_wait_complete(struct m0_fom_callback *cb)
 			m0_fom_ready(fom);
 		else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
-			revc->rcf_fomcb.fc_bottom = disconnection_wait_complete;
-			m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-			m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
-					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
+			sess_callback(fom, revc, disconnection_wait_complete);
 		}
 		break;
 	case M0_RCS_SESSION_WAIT:
@@ -255,11 +252,7 @@ static void disconnection_wait_complete(struct m0_fom_callback *cb)
 			m0_fom_ready(fom);
 		else {
 			m0_fom_callback_init(&revc->rcf_fomcb);
-			revc->rcf_fomcb.fc_bottom = connection_wait_complete;
-			m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
-			m0_fom_callback_arm(fom, &CONN_CHAN(revc->rcf_conn),
-					    &revc->rcf_fomcb);
-			m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
+			conn_callback(fom, revc, disconnection_wait_complete);
 		}
 		break;
 	}
@@ -277,20 +270,12 @@ static int conn_terminate(struct m0_fom *fom)
 				   m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 	if (rc == 0) {
 		m0_fom_callback_init(&revc->rcf_fomcb);
-		revc->rcf_fomcb.fc_bottom = disconnection_wait_complete;
-		m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
-		m0_fom_callback_arm(fom, &CONN_CHAN(revc->rcf_conn),
-				    &revc->rcf_fomcb);
-		m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
+		conn_callback(fom, revc, disconnection_wait_complete);
 		rc = M0_FSO_WAIT;
 	} else {
-		m0_sm_group_lock(CONN_GRP(revc->rcf_conn));
-		m0_fom_callback_cancel(&revc->rcf_fomcb);
-		m0_sm_group_unlock(CONN_GRP(revc->rcf_conn));
-		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
+		M0_LOG(M0_ERROR, "Reverse connection termination failed");
+		rc = -1;
 	}
-
 	return rc;
 }
 
@@ -314,11 +299,7 @@ static int session_terminate(struct m0_fom *fom)
 		rc = M0_FSO_AGAIN;
 	} else {
 		m0_fom_callback_init(&revc->rcf_fomcb);
-		revc->rcf_fomcb.fc_bottom = disconnection_wait_complete;
-		m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-		m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
-				    &revc->rcf_fomcb);
-		m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
+		sess_callback(fom, revc, disconnection_wait_complete);
 		rc = M0_FSO_WAIT;
 	}
 	return rc;
@@ -335,22 +316,26 @@ static int session_disc_wait(struct m0_fom *fom)
 				      m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 	if (rc == 0) {
 		m0_fom_callback_init(&revc->rcf_fomcb);
-		revc->rcf_fomcb.fc_bottom = disconnection_wait_complete;
-		m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-		m0_fom_callback_arm(fom, &SESS_CHAN(revc->rcf_sess),
-				    &revc->rcf_fomcb);
-		m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
+		sess_callback(fom, revc, disconnection_wait_complete);
 		rc = M0_FSO_WAIT;
 	} else {
-		m0_sm_group_lock(SESS_GRP(revc->rcf_sess));
-		m0_fom_callback_cancel(&revc->rcf_fomcb);
-		m0_sm_group_unlock(SESS_GRP(revc->rcf_sess));
-		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
+		M0_LOG(M0_ERROR, "Reverse session termination failed");
+		rc = -1;
 	}
-
 	return rc;
 
+}
+
+static int connection_failure(struct m0_fom *fom)
+{
+	struct m0_reverse_connection *revc;
+
+	revc = container_of(fom, struct m0_reverse_connection, rcf_fom);
+
+	if (revc->rcf_ft == M0_REV_CONNECT)
+		m0_chan_broadcast_lock(&fom->fo_service->rs_rev_conn_wait);
+
+	return M0_FSO_WAIT;
 }
 
 static struct rev_conn_state_transition connect_states[] = {
@@ -370,6 +355,10 @@ static struct rev_conn_state_transition connect_states[] = {
 	[M0_RCS_SESSION_WAIT] =
 	{ M0_RCS_SESSION_WAIT, &session_wait,
 	  0, M0_RCS_FINI, "Session establish wait", },
+
+	[M0_RCS_FAILURE] =
+	{ M0_RCS_SESSION_WAIT, &connection_failure,
+	  0, M0_RCS_FINI, "Failure in connection", },
 };
 
 static struct rev_conn_state_transition disconnect_states[] = {
@@ -389,6 +378,10 @@ static struct rev_conn_state_transition disconnect_states[] = {
 	[M0_RCS_SESSION_WAIT] =
 	{ M0_RCS_SESSION_WAIT, &conn_disc_wait,
 	  0, M0_RCS_FINI, "Conn terminate wait", },
+
+	[M0_RCS_FAILURE] =
+	{ M0_RCS_SESSION_WAIT, &connection_failure,
+	  0, M0_RCS_FINI, "Failure in disconnection", },
 };
 
 static int rev_conn_fom_tick(struct m0_fom *fom)
@@ -404,9 +397,13 @@ static int rev_conn_fom_tick(struct m0_fom *fom)
 		disconnect_states[phase];
 
 	rc = (*st.rcst_state_function)(fom);
-	m0_fom_phase_set(fom, rc == M0_FSO_AGAIN ?
-			 st.rcst_next_phase_again :
-			 st.rcst_next_phase_wait);
+	if (rc < 0) {
+		m0_fom_phase_move(fom, rc, M0_RCS_FAILURE);
+		rc = M0_FSO_AGAIN;
+	} else
+		m0_fom_phase_set(fom, rc == M0_FSO_AGAIN ?
+				 st.rcst_next_phase_again :
+				 st.rcst_next_phase_wait);
 	return rc;
 }
 

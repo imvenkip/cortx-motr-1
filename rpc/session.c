@@ -709,7 +709,8 @@ m0_rpc_session_get_max_item_payload_size(const struct m0_rpc_session *session)
 M0_INTERNAL void m0_rpc_session_hold_busy(struct m0_rpc_session *session)
 {
 	M0_LOG(M0_DEBUG, "session %p %d -> %d", session, session->s_hold_cnt,
-		session->s_hold_cnt + 1);
+	       session->s_hold_cnt + 1);
+
 	++session->s_hold_cnt;
 	session_idle_x_busy(session);
 }
@@ -720,7 +721,8 @@ M0_INTERNAL void m0_rpc_session_release(struct m0_rpc_session *session)
 	M0_PRE(session->s_hold_cnt > 0);
 
 	M0_LOG(M0_DEBUG, "session %p %d -> %d", session, session->s_hold_cnt,
-		session->s_hold_cnt - 1);
+	       session->s_hold_cnt - 1);
+
 	--session->s_hold_cnt;
 	session_idle_x_busy(session);
 }
