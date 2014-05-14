@@ -11,6 +11,7 @@
 # constants
 readonly PROG_NAME=$(basename $0)
 readonly old_branches_dir='patches/old_branches'
+readonly old_branches_tag='old-branches'
 
 # variables
 branch_name=
@@ -117,8 +118,9 @@ set -e
 parse_cli_options $@
 
 if $list_branches ; then
-    ls -d $old_branches_dir/$list_glob 2>/dev/null \
-    | sed -e "s#$old_branches_dir/##g" \
+    git ls-files $old_branches_tag $old_branches_dir \
+    | cut -d/ -f3 \
+    | uniq \
     | column
     exit 0
 fi
@@ -132,12 +134,19 @@ if [[ -n $branch_dir && -z $branch_name ]] ; then
     branch_name=$(basename "$branch_dir")
 fi
 
+git checkout $old_branches_tag
+
 if [[ -n $branch_name && -z $branch_dir ]] ; then
     branch_dir="$old_branches_dir/$branch_name"
     [[ ! -d $branch_dir ]] && \
         die "No branch with name '$branch_name' is available in default storage."
 fi
 
-base_commit=$(cat "$branch_dir/base-commit")
+patch_dir=$(mktemp -d)
+cp "$branch_dir/"* $patch_dir
+
+base_commit=$(cat "$patch_dir/base-commit")
 git checkout -b "$branch_name" $base_commit
-git am "$branch_dir"/*.patch
+git am "$patch_dir"/*.patch
+
+rm -rf $patch_dir
