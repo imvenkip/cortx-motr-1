@@ -142,11 +142,15 @@ if [[ -n $branch_name && -z $branch_dir ]] ; then
         die "No branch with name '$branch_name' is available in default storage."
 fi
 
-patch_dir=$(mktemp -d)
+remove_tmp_dir()
+{
+    [[ -d $patch_dir ]] && rm -rf $patch_dir
+}
+
+patch_dir=$(mktemp -d tmp.XXXXXXXXXX)
+trap remove_tmp_dir ERR EXIT
 cp "$branch_dir/"* $patch_dir
 
 base_commit=$(cat "$patch_dir/base-commit")
 git checkout -b "$branch_name" $base_commit
 git am "$patch_dir"/*.patch
-
-rm -rf $patch_dir
