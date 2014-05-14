@@ -118,7 +118,7 @@ set -e
 parse_cli_options $@
 
 if $list_branches ; then
-    git ls-files $old_branches_tag $old_branches_dir \
+    git ls-files --with-tree=$old_branches_tag $old_branches_dir \
     | cut -d/ -f3 \
     | uniq \
     | column
