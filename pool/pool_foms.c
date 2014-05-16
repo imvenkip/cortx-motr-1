@@ -78,14 +78,35 @@ static int poolmach_fom_tick(struct m0_fom *fom)
 	struct m0_poolmach *poolmach;
 	struct m0_reqh      *reqh;
 
-	/* first handle generic phase */
-        if (m0_fom_phase(fom) < M0_FOPH_NR)
-                return m0_fom_tick_generic(fom);
-
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
+
 	req_fop = fom->fo_fop;
 	rep_fop = fom->fo_rep_fop;
+
+	/* first handle generic phase */
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		/* add credit for this fom */
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			switch (m0_fop_opcode(req_fop)) {
+			case M0_POOLMACHINE_SET_OPCODE: {
+				struct m0_fop_poolmach_set *set_fop;
+				int                         i;
+
+				set_fop = m0_fop_data(req_fop);
+
+				for (i = 0; i < set_fop->fps_dev_info.fpi_nr;
+				     ++i)
+					m0_poolmach_store_credit(poolmach,
+							m0_fom_tx_credit(fom));
+				break;
+			}
+			default:
+				break;
+			}
+		}
+		return m0_fom_tick_generic(fom);
+	}
 
 	switch (m0_fop_opcode(req_fop)) {
 	case M0_POOLMACHINE_QUERY_OPCODE: {
