@@ -11,6 +11,9 @@ ADDR_DATA_CLIENT="$LNET_PREFIX:3128"
 ADDR_CMD_SERVER="$LNET_PREFIX:3256"
 ADDR_DATA_SERVER="$LNET_PREFIX:3384"
 
+DIR_COUNTER=0
+DIRS_TO_DELETE=""
+
 if [ "$(id -u)" -ne 0 ]; then
     echo "Must be run as root"
     exit 1
@@ -22,11 +25,18 @@ node_start_addr()
 	local addr="$2"
 	local addr_console="$3"
 	local pid_role="$4"
+	local dir
 
 	if [ "$role" == "$KERNEL_ROLE" ]; then
 		insmod "$MOD_M0NETTESTD" addr=$addr addr_console=$addr_console
 	else
+		dir="net-test$DIR_COUNTER"
+		DIRS_TO_DELETE="$DIRS_TO_DELETE $dir"
+		mkdir -p $dir
+		pushd $dir > /dev/null
+		DIR_COUNTER=$(expr $DIR_COUNTER + 1)
 		"$CMD_M0NETTESTD" -a "$addr" -c "$addr_console" &
+		popd > /dev/null
 		eval PID_$4=$!
 	fi
 }
@@ -74,6 +84,7 @@ unload_all() {
 		wait $pid > /dev/null 2>&1 || true
 	done
 	sleep $NET_CLEANUP_TIMEOUT
+	rm -rf $DIRS_TO_DELETE
 }
 trap unload_all EXIT
 
