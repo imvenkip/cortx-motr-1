@@ -742,6 +742,7 @@ struct __ ## name ## _terminate_me_with_a_semicolon { ; }
 
 /**
  * Returns a list item found in a list according to the given condition.
+ * If no corresponding item's found return NULL.
  *
  * @code
  * return m0_tl_find(seg, seg, &dom->bd_seg_list, seg->bs_addr == addr);

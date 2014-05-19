@@ -1280,7 +1280,6 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	uint32_t                       nr_ios = 0;
 	int                            rc;
 	struct fs_params               fs_params = {0};
-	bool                           stats_svc_is_provided = false;
 
 	M0_ENTRY();
 	M0_PRE(csb->csb_astthread.t_state == TS_RUNNING);
@@ -1332,13 +1331,9 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 			     M0_CONF_CAST(fs, m0_conf_filesystem)->cf_params) ?:
 		connect_to_services(csb, fs, &nr_ios);
 
-	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
-		if (ctx->sc_type == M0_CST_SS) {
-			stats_svc_is_provided = true;
-			break;
-		}
-	} m0_tlist_endfor;
-	if (stats_svc_is_provided) {
+	ctx = m0_tl_find(svc_ctx, ctx, &csb->csb_service_contexts,
+			 ctx->sc_type == M0_CST_SS);
+	if (ctx != NULL) {
 		ep_addr = ctx->sc_conn.c_rpcchan->rc_destep->nep_addr;
 		m0_addb_monitor_setup(&csb->csb_reqh, &ctx->sc_conn, ep_addr);
 		M0_LOG(M0_DEBUG, "Stats service connected");

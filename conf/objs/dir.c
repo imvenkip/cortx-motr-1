@@ -138,20 +138,17 @@ static int dir_readdir(struct m0_conf_obj *dir, struct m0_conf_obj **pptr)
 static int dir_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 		      struct m0_conf_obj **out)
 {
-	struct m0_conf_obj *item;
 	struct m0_conf_dir *x = M0_CONF_CAST(parent, m0_conf_dir);
 
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	m0_tl_for(m0_conf_dir, &x->cd_items, item) {
-		if (m0_fid_eq(&item->co_id, name)) {
-			*out = item;
-			M0_POST(m0_conf_obj_invariant(*out));
-			return 0;
-		}
-	} m0_tl_endfor;
+	*out = m0_tl_find(m0_conf_dir, item, &x->cd_items,
+			  m0_fid_eq(&item->co_id, name));
+	if (*out == NULL)
+		return -ENOENT;
 
-	return -ENOENT;
+	M0_POST(m0_conf_obj_invariant(*out));
+	return 0;
 }
 
 static void dir_delete(struct m0_conf_obj *obj)

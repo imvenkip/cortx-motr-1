@@ -498,19 +498,13 @@ M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 {
 	struct m0_be_tx *tx = NULL;
 	size_t		 i;
-	bool		 found = false;
 
 	be_engine_lock(en);
 	M0_PRE(be_engine_invariant(en));
 
 	for (i = 0; i < ARRAY_SIZE(en->eng_txs); ++i) {
-		m0_tl_for(etx, &en->eng_txs[i], tx) {
-			if (tx->t_id == id) {
-				found = true;
-				break;
-			}
-		} m0_tl_endfor;
-		if (found)
+		tx = m0_tl_find(etx, tx, &en->eng_txs[i], tx->t_id == id);
+		if (tx != NULL)
 			break;
 	}
 

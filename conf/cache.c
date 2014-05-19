@@ -74,17 +74,8 @@ M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 		     const struct m0_fid *id)
 {
-	struct m0_conf_obj *obj;
-
-	M0_ENTRY();
-
-	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		if (m0_fid_eq(&obj->co_id, id))
-			break;
-	} m0_tl_endfor;
-
-	M0_LEAVE();
-	return obj;
+	return m0_tl_find(m0_conf_cache, obj, &cache->ca_registry,
+			  m0_fid_eq(&obj->co_id, id));
 }
 
 static void _obj_del(struct m0_conf_obj *obj)

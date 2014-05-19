@@ -945,19 +945,10 @@ static bool nlx_kcore_tm_invariant(const struct nlx_kcore_transfer_mc *kctm)
  */
 static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
 {
-	bool matched = false;
-	struct nlx_kcore_transfer_mc *scan;
-	struct nlx_core_ep_addr *scanaddr;
 	M0_PRE(m0_mutex_is_locked(&nlx_kcore_mutex));
 
-	m0_tl_for(tms, &nlx_kcore_tms, scan) {
-		scanaddr = &scan->ktm_addr;
-		if (nlx_core_ep_eq(scanaddr, cepa)) {
-			matched = true;
-			break;
-		}
-	} m0_tl_endfor;
-	return matched;
+	return m0_tl_exists(tms, scan, &nlx_kcore_tms,
+			    nlx_core_ep_eq(&scan->ktm_addr, cepa));
 }
 
 /**

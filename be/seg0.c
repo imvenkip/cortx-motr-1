@@ -59,6 +59,13 @@ void m0_be_0type_register(struct m0_be_domain *dom, struct m0_be_0type *zt)
 	m0_be_domain__0type_register(dom, zt);
 }
 
+void m0_be_0type_unregister(struct m0_be_domain *dom, struct m0_be_0type *zt)
+{
+	M0_PRE(be_0type_invariant(zt));
+
+	m0_be_domain__0type_unregister(dom, zt);
+}
+
 int m0_be_0type_add(struct m0_be_0type *zt, struct m0_be_domain *dom,
 		    struct m0_be_tx *tx, const char *suffix,
 		    const struct m0_buf *data)

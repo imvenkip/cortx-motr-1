@@ -375,17 +375,11 @@ static bool stats_invariant(const struct m0_stats *stats)
 
 M0_INTERNAL struct m0_stats *m0_stats_get(struct m0_tl *stats_list, uint64_t id)
 {
-	struct m0_stats *stats_obj;
-
 	M0_PRE(stats_list != NULL);
 
-	m0_tl_for(stats, stats_list, stats_obj) {
-		M0_ASSERT(stats_invariant(stats_obj));
-		if (stats_obj->s_sum.ss_id == id)
-			break;
-	} m0_tl_endfor;
-
-	return stats_obj;
+	return m0_tl_find(stats, stats_obj, stats_list,
+			  (M0_ASSERT(stats_invariant(stats_obj)),
+			   stats_obj->s_sum.ss_id == id));
 }
 
 static int stats_sum_copy(struct m0_stats_sum *s, struct m0_stats_sum *d)

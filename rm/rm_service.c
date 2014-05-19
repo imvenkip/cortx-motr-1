@@ -224,7 +224,6 @@ static struct m0_rm_owner *
 rmsvc_owner_lookup(const struct m0_reqh_rm_service *rms,
 		   const struct m0_rm_resource     *res)
 {
-	struct m0_rm_owner         *scan;
 	struct m0_rm_resource_type *rt;
 
 	M0_PRE(res != NULL);
@@ -233,12 +232,8 @@ rmsvc_owner_lookup(const struct m0_reqh_rm_service *rms,
 	rt = res->r_type;
 	M0_ASSERT(rt->rt_ops->rto_eq != NULL);
 
-	m0_tl_for (rmsvc_owner, &rms->rms_owners, scan) {
-		M0_ASSERT(scan != NULL);
-		if (rt->rt_ops->rto_eq(res, scan->ro_resource))
-			break;
-	} m0_tl_endfor;
-	return scan;
+	return m0_tl_find(rmsvc_owner, scan, &rms->rms_owners,
+			  rt->rt_ops->rto_eq(res, scan->ro_resource));
 }
 
 M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,

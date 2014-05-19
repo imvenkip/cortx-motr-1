@@ -580,6 +580,7 @@ M0_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
 M0_TL_DEFINE(rpcbulkbufs, static, struct m0_rpc_bulk_buf);
 
 M0_TL_DESCR_DECLARE(bufferpools, M0_EXTERN);
+M0_TL_DECLARE(bufferpools, M0_EXTERN, struct m0_rios_buffer_pool);
 
 M0_INTERNAL bool m0_is_read_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_write_fop(const struct m0_fop *fop);
@@ -1277,13 +1278,10 @@ static int net_buffer_acquire(struct m0_fom *fom)
 
                 /* Get network buffer pool for network domain */
                 fop_ndom = tm->ntm_dom;
-                m0_tl_for(bufferpools, &serv_obj->rios_buffer_pools,
-                          bpdesc) {
-                        if (bpdesc->rios_ndom == fop_ndom) {
-                                fom_obj->fcrw_bp = &bpdesc->rios_bp;
-                                break;
-                        }
-                } m0_tl_endfor;
+                bpdesc = m0_tl_find(bufferpools, bpdesc,
+				    &serv_obj->rios_buffer_pools,
+				    bpdesc->rios_ndom == fop_ndom);
+		fom_obj->fcrw_bp = bpdesc == NULL ? NULL : &bpdesc->rios_bp;
                 M0_ASSERT(fom_obj->fcrw_bp != NULL);
         }
         colour = m0_net_tm_colour_get(tm);

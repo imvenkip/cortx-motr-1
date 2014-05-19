@@ -512,18 +512,12 @@ M0_INTERNAL struct m0_rpc_session *m0_rpc_session_search(const struct
 							 m0_rpc_conn *conn,
 							 uint64_t session_id)
 {
-	struct m0_rpc_session *session;
-
 	M0_ENTRY("conn: %p, session_id: %llu", conn,
 		 (unsigned long long) session_id);
 	M0_ASSERT(conn != NULL);
 
-	m0_tl_for(rpc_session, &conn->c_sessions, session) {
-		if (session->s_session_id == session_id)
-			return session;
-	} m0_tl_endfor;
-	M0_LEAVE("session: (nil)");
-	return NULL;
+	return m0_tl_find(rpc_session, session, &conn->c_sessions,
+			  session->s_session_id == session_id);
 }
 
 M0_INTERNAL int m0_rpc_conn_create(struct m0_rpc_conn *conn,

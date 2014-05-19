@@ -116,14 +116,11 @@ struct m0_net_buffer_pool * ut_get_buffer_pool(struct m0_fom *fom)
 
         /* Get network buffer pool for network domain */
         fop_ndom = fop_tm_get(fop)->ntm_dom;
-        m0_tl_for(bufferpools, &serv_obj->rios_buffer_pools,
-                     bpdesc) {
-                if (bpdesc->rios_ndom == fop_ndom) {
-                        return &bpdesc->rios_bp;
-                }
-        } m0_tl_endfor;
 
-        return NULL;
+	bpdesc = m0_tl_find(bufferpools, bpdesc, &serv_obj->rios_buffer_pools,
+			    bpdesc->rios_ndom == fop_ndom);
+
+        return bpdesc == NULL ? NULL :  &bpdesc->rios_bp;
 }
 
 

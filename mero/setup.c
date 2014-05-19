@@ -416,11 +416,10 @@ m0_cs_net_domain_locate(struct m0_mero *cctx, const char *xprt_name)
 
 	M0_PRE(cctx != NULL && xprt_name != NULL);
 
-	m0_tl_for(ndom, &cctx->cc_ndoms, ndom) {
-		M0_ASSERT(m0_net_domain_bob_check(ndom));
-		if (m0_streq(ndom->nd_xprt->nx_name, xprt_name))
-			break;
-	} m0_tl_endfor;
+	ndom = m0_tl_find(ndom, ndom, &cctx->cc_ndoms,
+			  m0_streq(ndom->nd_xprt->nx_name, xprt_name));
+
+	M0_ASSERT(ergo(ndom != NULL, m0_net_domain_bob_check(ndom)));
 
 	return ndom;
 }
@@ -433,11 +432,9 @@ cs_buffer_pool_get(struct m0_mero *cctx, struct m0_net_domain *ndom)
 	M0_PRE(cctx != NULL);
 	M0_PRE(ndom != NULL);
 
-	m0_tl_for(cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
-		if (cs_bp->cs_buffer_pool.nbp_ndom == ndom)
-			return &cs_bp->cs_buffer_pool;
-	} m0_tl_endfor;
-	return NULL;
+	cs_bp = m0_tl_find(cs_buffer_pools, cs_bp, &cctx->cc_buffer_pools,
+			   cs_bp->cs_buffer_pool.nbp_ndom == ndom);
+	return cs_bp == NULL ? NULL : &cs_bp->cs_buffer_pool;
 }
 
 /**

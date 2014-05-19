@@ -92,14 +92,8 @@ static uint32_t addb_rt_hash(uint32_t id)
 
 static struct m0_addb_rec_type *addb_rec_type_lookup(uint32_t id)
 {
-	struct m0_addb_rec_type *rt;
-
-	m0_tl_for(addb_rt, &addb_rt_htab[addb_rt_hash(id)], rt) {
-		if (rt->art_id == id)
-			return rt;
-	} m0_tl_endfor;
-
-	return NULL;
+	return m0_tl_find(addb_rt, rt, &addb_rt_htab[addb_rt_hash(id)],
+			  rt->art_id == id);
 }
 
 static bool addb_rec_type_invariant(const struct m0_addb_rec_type *rt)

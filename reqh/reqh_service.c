@@ -136,13 +136,12 @@ m0_reqh_service_type_find(const char *sname)
 	M0_PRE(sname != NULL);
 
 	m0_rwlock_read_lock(&rstypes_rwlock);
-        m0_tl_for(rstypes, &rstypes, t) {
-		M0_ASSERT(m0_reqh_service_type_bob_check(t));
-                if (strcmp(t->rst_name, sname) == 0)
-			break;
-        } m0_tl_endfor;
-	m0_rwlock_read_unlock(&rstypes_rwlock);
 
+	t = m0_tl_find(rstypes, t, &rstypes, strcmp(t->rst_name, sname) == 0);
+	if (t != NULL)
+		M0_ASSERT(m0_reqh_service_type_bob_check(t));
+
+	m0_rwlock_read_unlock(&rstypes_rwlock);
         return t;
 }
 

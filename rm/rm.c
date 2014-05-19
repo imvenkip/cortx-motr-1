@@ -232,16 +232,10 @@ M0_INTERNAL struct m0_rm_resource *
 m0_rm_resource_find(const struct m0_rm_resource_type *rt,
 		    const struct m0_rm_resource      *res)
 {
-	struct m0_rm_resource *scan;
-
 	M0_PRE(rt->rt_ops->rto_eq != NULL);
 
-	m0_tl_for (res, (struct m0_tl *)&rt->rt_resources, scan) {
-		M0_ASSERT(m0_rm_resource_bob_check(scan));
-		if (rt->rt_ops->rto_eq(res, scan))
-			break;
-	} m0_tl_endfor;
-	return scan;
+	return m0_tl_find(res, scan, &rt->rt_resources,
+			  rt->rt_ops->rto_eq(res, scan));
 }
 
 M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain        *dom,
@@ -1075,13 +1069,8 @@ static int remote_find(struct m0_rm_remote          **rem,
 	M0_PRE(res != NULL);
 	M0_PRE(cookie != NULL);
 
-	m0_tl_for (m0_remotes, &res->r_remote, other) {
-		M0_ASSERT(other->rem_resource == res &&
-			  m0_rm_remote_bob_check(other));
-		if (m0_cookie_is_eq(&other->rem_cookie, cookie))
-			break;
-	} m0_tl_endfor;
-
+	other = m0_tl_find(m0_remotes, other, &res->r_remote,
+			   m0_cookie_is_eq(&other->rem_cookie, cookie));
 	if (other == NULL) {
 		RM_ALLOC_PTR(other, REMOTE_ALLOC, &m0_rm_addb_ctx);
 		if (other != NULL) {
@@ -1370,12 +1359,10 @@ M0_INTERNAL int m0_rm_revoke_commit(struct m0_rm_remote_incoming *rem_in)
 	/*
 	 * Find the matching loan and remove it from the borrowed list.
 	 */
-	m0_tl_for (m0_rm_ur, &owner->ro_borrowed, credit) {
-		brwd_loan = bob_of(credit, struct m0_rm_loan,
-				  rl_credit, &loan_bob);
-		if (m0_cookie_is_eq(&brwd_loan->rl_cookie, cookie))
-			break;
-	} m0_tl_endfor;
+	credit = m0_tl_find(m0_rm_ur, credit, &owner->ro_borrowed,
+			    (brwd_loan = bob_of(credit, struct m0_rm_loan,
+						rl_credit, &loan_bob),
+			     m0_cookie_is_eq(&brwd_loan->rl_cookie, cookie)));
 
 	M0_ASSERT(brwd_loan != NULL);
 	M0_ASSERT(credit != NULL);
@@ -2345,9 +2332,7 @@ static bool credit_invariant(const struct m0_rm_credit *credit, void *data)
 static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 				  struct owner_invariant_state *is)
 {
-	struct m0_rm_credit *credit;
-	int		     i;
-	int		     j;
+	int i;
 
 	/*
 	 * Iterate over all credits lists:
@@ -2385,33 +2370,22 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 		    return false;
 	}
 	is->is_phase = OIS_INCOMING;
-	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); ++i) {
-		for (j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); ++j) {
-			if (!m0_rm_ur_tlist_invariant(
-				    &owner->ro_incoming[i][j]))
-				return false;
-		}
-	}
 
 	/* Calculate credit */
-	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		m0_tl_for (m0_rm_ur, &owner->ro_owned[i], credit) {
-			if(credit->cr_ops->cro_join(&is->is_credit, credit))
-				return false;
-		} m0_tl_endfor;
-	}
-	m0_tl_for (m0_rm_ur, &owner->ro_sublet, credit) {
-		if(credit->cr_ops->cro_join(&is->is_credit, credit))
-			return false;
-	} m0_tl_endfor;
-
-	/* Calculate debit */
-	m0_tl_for (m0_rm_ur, &owner->ro_borrowed, credit) {
-		if(credit->cr_ops->cro_join(&is->is_debit, credit))
-			return false;
-	} m0_tl_endfor;
-
-	return true;
+	return m0_forall(i, ARRAY_SIZE(owner->ro_incoming),
+			 m0_forall(j, ARRAY_SIZE(owner->ro_incoming[i]),
+				   m0_rm_ur_tlist_invariant
+				   (&owner->ro_incoming[i][j]))) &&
+		m0_forall(i, ARRAY_SIZE(owner->ro_owned),
+			  !m0_tl_exists(m0_rm_ur, credit, &owner->ro_owned[i],
+					credit->cr_ops->cro_join(&is->is_credit,
+								 credit))) &&
+		!m0_tl_exists(m0_rm_ur, credit, &owner->ro_sublet,
+			      credit->cr_ops->cro_join(&is->is_credit,
+						       credit)) &&
+		/* Calculate debit */
+		!m0_tl_exists(m0_rm_ur, credit, &owner->ro_borrowed,
+			      credit->cr_ops->cro_join(&is->is_debit, credit));
 }
 
 /**
@@ -2572,14 +2546,14 @@ int pin_add(struct m0_rm_incoming *in,
 	 * It may end up adding mutiple pins for the same credit. Hence, check
 	 * before adding the pin.
 	 */
-	m0_tl_for (pi, &in->rin_pins, pin) {
-		M0_ASSERT(pin->rp_incoming == in);
-		if (pin->rp_credit == credit) {
-			M0_LOG(M0_DEBUG, "pins exists for credit: %p\n",
-			       credit);
-			return M0_RC(0);
-		}
-	} m0_tl_endfor;
+
+	pin = m0_tl_find(pi, pin, &in->rin_pins,
+			 (M0_ASSERT(pin->rp_incoming == in),
+			  pin->rp_credit == credit));
+	if (pin != NULL) {
+		M0_LOG(M0_DEBUG, "pins exists for credit: %p\n", credit);
+		return M0_RC(0);
+	}
 
 	RM_ALLOC_PTR(pin, PIN_ALLOC, &m0_rm_addb_ctx);
 	if (pin != NULL) {

@@ -145,12 +145,9 @@ m0_rpc_service_reverse_session_lookup(struct m0_reqh_service   *service,
 	svc    = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	rem_ep = m0_rpc_item_remote_ep_addr(item);
 
-	m0_tl_for (rev_conn, &svc->rps_rev_conns, revc) {
-		if (strcmp(rem_ep, revc->rcf_rem_ep) == 0)
-			return revc->rcf_sess;
-	} m0_tl_endfor;
-
-	return NULL;
+	revc = m0_tl_find(rev_conn, revc, &svc->rps_rev_conns,
+			  strcmp(rem_ep, revc->rcf_rem_ep) == 0);
+	return revc == NULL ? NULL : revc->rcf_sess;
 }
 
 M0_INTERNAL int

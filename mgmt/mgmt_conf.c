@@ -190,13 +190,8 @@ enum {
 static struct m0_mgmt_svc_conf *
 mgmt_svc_conf_find(struct m0_mgmt_node_conf *node, char *name)
 {
-	struct m0_mgmt_svc_conf *svc;
-
-	m0_tl_for(m0_mgmt_conf, &node->mnc_svc, svc) {
-		if (strcmp(svc->msc_name, name) == 0)
-			return svc;
-	} m0_tlist_endfor;
-	return NULL;
+	return m0_tl_find(m0_mgmt_conf, svc, &node->mnc_svc,
+			  strcmp(svc->msc_name, name) == 0);
 }
 
 /**
@@ -297,7 +292,6 @@ static int mgmt_node_query(struct m0_mgmt_node_conf   *node,
 			   const char                 *nodename)
 {
 	struct m0_uint128        uuid;
-	struct m0_mgmt_svc_conf *svc;
 	char                    *lnet_if = NULL;
 	char                    *lnet_pid = NULL;
 	char                    *lnet_m0d_portal = NULL;
@@ -458,15 +452,13 @@ static int mgmt_node_query(struct m0_mgmt_node_conf   *node,
 			       rc, nodename);
 			goto out;
 		}
-		m0_tl_for(m0_mgmt_conf, &node->mnc_svc, svc) {
-			if (svc->msc_argc < 0 || svc->msc_uuid == NULL) {
-				rc = -EINVAL;
-				M0_LOG(M0_ERROR,
-				       "< rc=%d %s missing service or uuid",
-				       rc, svc->msc_name);
-				goto out;
-			}
-		} m0_tlist_endfor;
+
+		if (m0_tl_exists(m0_mgmt_conf, svc, &node->mnc_svc,
+				 svc->msc_argc < 0 || svc->msc_uuid == NULL)) {
+			rc = -EINVAL;
+			M0_LOG(M0_ERROR, "< rc=%d missing service or uuid", rc);
+			goto out;
+		}
 	}
 	if (clnt != NULL &&
 	    (clnt->mcc_uuid == NULL || lnet_client_portal == NULL)) {

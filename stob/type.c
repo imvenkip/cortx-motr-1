@@ -28,6 +28,7 @@
 #include "stob/domain.h"	/* m0_stob_domain */
 #include "stob/module.h"	/* m0_stob_module */
 #include "stob/null.h"		/* m0_stob_null_type */
+#include "lib/string.h"		/* m0_streq */
 
 #ifndef __KERNEL__
 #include "stob/linux.h"		/* m0_stob_linux_type */
@@ -126,14 +127,9 @@ M0_INTERNAL struct m0_stob_type *m0_stob_type_by_dom_id(uint64_t id)
 M0_INTERNAL struct m0_stob_type *m0_stob_type_by_name(const char *name)
 {
 	struct m0_stob_types *types = stob_types_get();
-	struct m0_stob_type  *type;
 
-	m0_tl_for(types, &types->sts_stypes, type) {
-		if (strcmp(m0_stob_type_name_get(type), name) == 0)
-			break;
-	} m0_tl_endfor;
-
-	return type;
+	return m0_tl_find(types, type, &types->sts_stypes,
+			  m0_streq(m0_stob_type_name_get(type), name));
 }
 
 M0_INTERNAL uint8_t m0_stob_type_id_by_name(const char *name)
@@ -193,10 +189,8 @@ m0_stob_type__dom_find(struct m0_stob_type *type, uint64_t dom_id)
 	struct m0_stob_domain *dom;
 
 	m0_mutex_lock(&type->st_domains_lock);
-	m0_tl_for(domains, &type->st_domains, dom) {
-		if (m0_stob_domain_id_get(dom) == dom_id)
-			break;
-	} m0_tl_endfor;
+	dom = m0_tl_find(domains, dom, &type->st_domains,
+			 m0_stob_domain_id_get(dom) == dom_id);
 	m0_mutex_unlock(&type->st_domains_lock);
 
 	return dom;
@@ -209,12 +203,9 @@ m0_stob_type__dom_find_by_location(struct m0_stob_type *type,
 	struct m0_stob_domain *dom;
 
 	m0_mutex_lock(&type->st_domains_lock);
-	m0_tl_for(domains, &type->st_domains, dom) {
-		if (strcmp(m0_stob_domain_location_get(dom), location) == 0)
-			break;
-	} m0_tl_endfor;
+	dom = m0_tl_find(domains, dom, &type->st_domains,
+			 m0_streq(m0_stob_domain_location_get(dom), location));
 	m0_mutex_unlock(&type->st_domains_lock);
-
 	return dom;
 }
 

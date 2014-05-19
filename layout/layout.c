@@ -294,12 +294,7 @@ M0_INTERNAL struct m0_layout *m0_layout__list_lookup(const struct
 
 	M0_PRE(m0_mutex_is_locked(&dom->ld_lock));
 
-	m0_tl_for(layout, &dom->ld_layout_list, l) {
-		M0_ASSERT(m0_layout__invariant(l));
-		if (l->l_id == lid)
-			break;
-	} m0_tl_endfor;
-
+	l = m0_tl_find(layout, l, &dom->ld_layout_list, l->l_id == lid);
 	if (l != NULL && ref_increment)
 		/*
 		 * The dom->ld_lock is held at this points that protects

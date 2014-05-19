@@ -66,14 +66,9 @@ M0_INTERNAL int m0_dtm_catalogue_lookup(struct m0_dtm_catalogue *cat,
 					const struct m0_uint128 *id,
 					struct m0_dtm_history **out)
 {
-	struct m0_dtm_history *history;
-
-	m0_tl_for(cat, &cat->ca_el, history) {
-		if (m0_uint128_eq(history->h_ops->hio_id(history), id))
-			break;
-	} m0_tl_endfor;
-	*out = history;
-	return history != NULL ? 0 : -ENOENT;
+	*out = m0_tl_find(cat, history, &cat->ca_el,
+			  m0_uint128_eq(history->h_ops->hio_id(history), id));
+	return *out != NULL ? 0 : -ENOENT;
 }
 
 M0_INTERNAL int m0_dtm_catalogue_add(struct m0_dtm_catalogue *cat,

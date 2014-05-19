@@ -250,7 +250,6 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 	int                         rc = 0;
 	struct m0_rpc_machine      *rpcmach;
 	struct m0_reqh_io_service  *serv_obj;
-	struct m0_rios_buffer_pool *bp;
 	m0_bcount_t                 segment_size;
 	uint32_t                    segments_nr;
 	struct m0_reqh             *reqh;
@@ -263,24 +262,11 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 	m0_tl_for(m0_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
 		M0_ASSERT(m0_rpc_machine_bob_check(rpcmach));
 		struct m0_rios_buffer_pool *newbp;
-		bool                        bufpool_found = false;
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
-		m0_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
-
-			if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom) {
-				/*
-				 * Found buffer pool for domain.
-				 * No need to create buffer pool
-				 * for this domain.
-				 */
-				bufpool_found = true;
-				break;
-			}
-		} m0_tl_endfor; /* bufferpools */
-
-		if (bufpool_found)
+		if (m0_tl_exists(bufferpools, bp, &serv_obj->rios_buffer_pools,
+				 bp->rios_ndom == rpcmach->rm_tm.ntm_dom))
 			continue;
 
 		/* Buffer pool for network domain not found, create one */

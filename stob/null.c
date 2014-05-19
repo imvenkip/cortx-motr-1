@@ -116,10 +116,8 @@ stob_null_domain_find(struct stob_null_lists *snl,
 
 	if (take_lock)
 		m0_mutex_lock(&snl->snl_lock);
-	m0_tl_for(stob_null_domains, &snl->snl_domains, snd) {
-		if (strcmp(snd->snd_path, path) == 0)
-			break;
-	} m0_tl_endfor;
+	snd = m0_tl_find(stob_null_domains, snd, &snl->snl_domains,
+			 strcmp(snd->snd_path, path) == 0);
 	if (take_lock)
 		m0_mutex_unlock(&snl->snl_lock);
 	return snd;
@@ -284,10 +282,8 @@ static struct stob_null *stob_null_find(struct stob_null_domain *snd,
 
 	if (take_lock)
 		m0_mutex_lock(&snd->snd_lock);
-	m0_tl_for(stob_null_stobs, &snd->snd_stobs, sn) {
-		if (sn->sn_stob_key == stob_key)
-			break;
-	} m0_tl_endfor;
+	sn = m0_tl_find(stob_null_stobs, sn, &snd->snd_stobs,
+			sn->sn_stob_key == stob_key);
 	if (take_lock)
 		m0_mutex_unlock(&snd->snd_lock);
 	return sn;

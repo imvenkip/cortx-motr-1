@@ -70,14 +70,8 @@ static uint32_t addb_ct_hash(uint32_t id)
 
 static struct m0_addb_ctx_type *addb_ctx_type_lookup(uint32_t id)
 {
-	struct m0_addb_ctx_type *ct;
-
-	m0_tl_for(addb_ct, &addb_ct_htab[addb_ct_hash(id)], ct) {
-		if (ct->act_id == id)
-			return ct;
-	} m0_tl_endfor;
-
-	return NULL;
+	return m0_tl_find(addb_ct, ct, &addb_ct_htab[addb_ct_hash(id)],
+			  ct->act_id == id);
 }
 
 static bool addb_ctx_type_invariant(const struct m0_addb_ctx_type *ct)
@@ -144,4 +138,3 @@ M0_INTERNAL const struct m0_addb_ctx_type *m0_addb_ctx_type_lookup(uint32_t id)
  *  scroll-step: 1
  *  End:
  */
-

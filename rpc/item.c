@@ -163,11 +163,8 @@ M0_INTERNAL struct m0_rpc_item_type *m0_rpc_item_type_lookup(uint32_t opcode)
 	M0_ENTRY("opcode: %u", opcode);
 
 	m0_rwlock_read_lock(&rpc_item_types_lock);
-	m0_tl_for(rit, &rpc_item_types_list, item_type) {
-		if (item_type->rit_opcode == opcode) {
-			break;
-		}
-	} m0_tl_endfor;
+	item_type = m0_tl_find(rit, item_type, &rpc_item_types_list,
+			       item_type->rit_opcode == opcode);
 	m0_rwlock_read_unlock(&rpc_item_types_lock);
 
 	M0_POST(ergo(item_type != NULL, item_type->rit_opcode == opcode));

@@ -159,16 +159,9 @@ static void cm_proxy_cp_del(struct m0_cm_proxy *pxy,
 M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
                                                    const char *ep)
 {
-	struct m0_cm_proxy *pxy;
-
-	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-		if(strncmp(pxy->px_endpoint, ep, CS_MAX_EP_ADDR_LEN) == 0) {
-			M0_ASSERT(cm_proxy_invariant(pxy));
-			return pxy;
-		}
-	} m0_tl_endfor;
-
-	return NULL;
+	return m0_tl_find(proxy, pxy, &cm->cm_proxies,
+			  strncmp(pxy->px_endpoint, ep,
+				  CS_MAX_EP_ADDR_LEN) == 0);
 }
 
 static void __wake_up_pending_cps(struct m0_cm_proxy *pxy)

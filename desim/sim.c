@@ -152,7 +152,7 @@ M0_INTERNAL void sim_run(struct sim *state)
  */
 static void sim_call_place(struct sim *sim, struct sim_callout *call)
 {
-	struct sim_callout *scan;
+	struct sim_callout *found;
 
 	/*
 	 * This is the most time consuming function for long simulations. To
@@ -160,13 +160,13 @@ static void sim_call_place(struct sim *sim, struct sim_callout *call)
 	 * data structure, like a tree or a skip-list of some sort.
 	 */
 
-	m0_tl_for(ca, &sim->ss_future, scan) {
-		if (scan->sc_time > call->sc_time) {
-			ca_tlist_add_before(scan, call);
-			return;
-		}
-	} m0_tl_endfor;
-	ca_tlist_add_tail(&sim->ss_future, call);
+	found = m0_tl_find(ca, scan, &sim->ss_future,
+			   scan->sc_time > call->sc_time);
+
+	if (found != NULL)
+		ca_tlist_add_before(found, call);
+	else
+		ca_tlist_add_tail(&sim->ss_future, call);
 }
 
 /**
