@@ -207,7 +207,8 @@ fi
 #
 # Use this in case command's output is consumed by the caller.
 #
-function l_run () {
+function l_run ()
+{
 	if [ $verbosity -gt 0 ] ;then
 		echo "# $*" >/dev/tty
 	fi
@@ -219,7 +220,8 @@ function l_run () {
 #
 # Use this when command is needed only for its side-effects.
 #
-function l_do () {
+function l_do ()
+{
 	if [ $verbosity -gt 1 ] ;then
 		echo "# $*" >/dev/tty
 		eval $*
@@ -259,14 +261,16 @@ setup_local_params()
 	fi
 }
 
-function r_run () {
+function r_run ()
+{
 	H=$1
 	shift
 	echo "# ssh root@$H $*" >/dev/tty
 	ssh root@$H $*
 }
 
-function setup_host () {
+function setup_host ()
+{
 	H=$1
 	EP=$2  # template for kernel end point address
 	if [ "x${NODE_UUID[$H]}" == "x" ]; then
@@ -324,7 +328,8 @@ function setup_host () {
 	return 0
 }
 
-function setup_hosts () {
+function setup_hosts ()
+{
 	if [ $client_only -eq 0 ]; then
 		for ((i=0; i < ${#SERVICES[*]}; i += 2)); do
 			H=${SERVICES[$i]}
@@ -342,7 +347,8 @@ function setup_hosts () {
 	return 0
 }
 
-function teardown_host () {
+function teardown_host ()
+{
 	H=$1
 	echo Tearing down host $H
 	if [ $H != $THIS_HOST ]; then
@@ -354,7 +360,8 @@ function teardown_host () {
 	return 0
 }
 
-function teardown_hosts () {
+function teardown_hosts ()
+{
 	for H in ${SETUP[*]} ; do
 		teardown_host $H
 	done
@@ -438,7 +445,8 @@ EOF
 	MAX_DISK_ID=`$RUN grep "id:" $WORK_ARENA/disks.conf | tail -1 | awk '{print $3}'`
 }
 
-function build_conf () {
+function build_conf ()
+{
 	local i
 
 	# prepare configuration data
@@ -474,7 +482,8 @@ function build_conf () {
   $IOS_OBJS]"
 }
 
-function start_server () {
+function start_server ()
+{
 	H=$1
 	EP=$2
 	I=$3
@@ -589,7 +598,8 @@ $M0D $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
 	STARTED[$H]=$H
 }
 
-function start_servers () {
+function start_servers ()
+{
 	local i
 	local devs_conf_cnt=0
 	if [ $STOB == "ad" -o $STOB == "-td" ]; then
@@ -645,7 +655,8 @@ function start_servers () {
 	return 0
 }
 
-function stop_server () {
+function stop_server ()
+{
 	H=$1
 	echo Stopping servers on host $H
 	local RUN
@@ -657,7 +668,8 @@ function stop_server () {
 	$RUN pkill -INT -f m0d
 }
 
-function wait4server () {
+function wait4server ()
+{
 	H=$1
 	echo Wait for servers to finish on host $H
 	local RUN
@@ -671,7 +683,8 @@ function wait4server () {
 	echo
 }
 
-function stop_servers () {
+function stop_servers ()
+{
 	for H in ${STARTED[*]}; do
 		stop_server $H
 	done
@@ -680,7 +693,8 @@ function stop_servers () {
 	done
 }
 
-function setup_loops () {
+function setup_loops ()
+{
 	echo Setting up loop devices ...
 
 	l_do mkdir -p $WORK_ARENA
@@ -694,7 +708,8 @@ function setup_loops () {
 	done
 }
 
-function cleanup () {
+function cleanup ()
+{
 	echo Cleaning up ...
 	if [ "x_$IS_MOUNTED" == "x_yes" ]; then
 		l_do umount $MP
