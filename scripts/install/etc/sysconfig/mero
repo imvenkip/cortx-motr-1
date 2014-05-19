@@ -41,6 +41,9 @@
 # Automatically attach debugger to a crashed m0d process.
 #MERO_M0D_DEBUGGER=gdb
 
+# Remove service data directory on each service start, by default is 'false'
+#MERO_M0D_REMOVE_SERVICE_DIR=false
+
 # Lnet network ID, it can either 'auto' (default) for auto-detection or a
 # specific IP address with Lnet network type ('o2ib' or 'tcp').
 #MERO_LNET_NID=172.18.50.40@o2ib

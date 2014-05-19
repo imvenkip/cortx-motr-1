@@ -19,6 +19,7 @@ declare -rA _path_inside_workdir=(
     [m0ctl.ko]='mero/m0ctl.ko'
     [galois.ko]='extra-libs/galois/src/linux_kernel/galois.ko'
     [m0d]='mero/m0d'
+    [m0mkfs]='utils/mkfs/m0mkfs'
     [m0traced]='utils/trace/m0traced'
 )
 
@@ -224,7 +225,7 @@ m0_get_core_params()
     local dir=$1
 
     m0_build_local_conf > $dir/conf.xc
-    echo "-s addb -s mdservice -s rmservice -s stats -s confd -c $dir/conf.xc"
+    echo "-s addb -s mdservice -s rmservice -s stats -s confd -c conf.xc"
 }
 
 # Return space-separated list of IOS endpoints of a node
