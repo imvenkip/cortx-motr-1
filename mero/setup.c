@@ -1427,7 +1427,6 @@ static void cs_help(FILE *out, const char *progname)
 "  -R addr  Stats service endpoint address \n"
 "\n"
 "Request handler options:\n"
-"  -p       Prepare storage (root session, root hierarchy, etc).\n"
 "  -D str   Database environment path.\n"
 "  -c str   [optional] Path to the configuration database.\n"
 "  -T str   Type of storage. Supported types: linux, ad.\n"
