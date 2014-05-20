@@ -1,47 +1,53 @@
 #!/bin/bash
+set -eu
 
-NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91
+umask 0002
 
-. `dirname $0`/../../m0t1fs/linux_kernel/st/common.sh
+[ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
-CONSOLE_PATH=`dirname $0`/../
-OUTPUT_FILE=/tmp/console.output
-YAML_FILE9=/tmp/console9.yaml
-YAML_FILE41=/tmp/console41.yaml
-TEST_DIR=/var/tmp/console-st
-prog_start="$MERO_CORE_ROOT/console/st/server"
-prog_exec="$MERO_CORE_ROOT/console/st/.libs/lt-server"
+## CAUTION: This path will be removed by superuser.
+SANDBOX_DIR=${SANDBOX_DIR:-~/_sandbox.console-st}
+
+M0_CORE_DIR=`readlink -f $0`
+M0_CORE_DIR=${M0_CORE_DIR%/*/*/*}
+
+CLIENT=$M0_CORE_DIR/console/bin/m0console
+SERVER=$M0_CORE_DIR/console/st/server
+SERVER_EXEC=$M0_CORE_DIR/console/st/.libs/lt-server
+
+OUTPUT_FILE=$SANDBOX_DIR/client.log
+YAML_FILE9=$SANDBOX_DIR/req-9.yaml
+YAML_FILE41=$SANDBOX_DIR/req-41.yaml
+SERVER_EP_ADDR='0@lo:12345:34:1'
+CLIENT_EP_ADDR='0@lo:12345:34:*'
+
+NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91   # required by `common.sh'
+. $M0_CORE_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
+
+die() { echo "$@" >&2; exit 1; }
 
 start_server()
 {
 	modprobe lnet
-	modload_galois >& /dev/null
-        echo 8 > /proc/sys/kernel/printk
-        modload || return $?
+	modload_galois &>/dev/null
+	echo 8 >/proc/sys/kernel/printk
+	modload
 
-	. /etc/rc.d/init.d/functions
+	set +eu
+	. /etc/rc.d/init.d/functions  # import `status' function definition
+	set -eu
 
-	$CONSOLE_PATH/st/server -v 2>&1 1>/dev/null &
+	$SERVER -v &>$SANDBOX_DIR/server.log &
 	sleep 1
-        status $prog_exec
-        if [ $? -eq 0 ]; then
-		echo "Service started."
-        else
-		echo "Service failed to start."
-		return 1
-        fi
+	status $SERVER_EXEC || die 'Service failed to start'
+	echo 'Service started' >&2
+}
 
-	if [ ! -d "$TEST_DIR" ]; then
-		mkdir "$TEST_DIR"
-		if [ $? -ne 0 ]; then
-			echo "Cannot create test directory"
-			exit 1
-		fi
-	fi
-
-cat <<EOF >$YAML_FILE9
-server  : 0@lo:12345:34:1
-client  : 0@lo:12345:34:*
+create_yaml_files()
+{
+	cat <<EOF >$YAML_FILE9
+server  : $SERVER_EP_ADDR
+client  : $CLIENT_EP_ADDR
 
 Test FOP:
      - cons_test_type : A
@@ -52,9 +58,9 @@ Test FOP:
        cons_buf : abcde
 EOF
 
-cat <<EOF >$YAML_FILE41
-server  : 0@lo:12345:34:1
-client  : 0@lo:12345:34:*
+	cat <<EOF >$YAML_FILE41
+server  : $SERVER_EP_ADDR
+client  : $CLIENT_EP_ADDR
 
 Write FOP:
   - fvv_read : 10
@@ -72,64 +78,56 @@ Write FOP:
     au64s_data : 257
     crw_flags : 21
 EOF
-
 }
 
 stop_server()
 {
-	killproc $prog_exec &>> /dev/null
-	sleep 1
+	killproc $SERVER_EXEC &>/dev/null && wait || true
 	modunload
 	modunload_galois
-
-	rm -rf $YAML_FILE9 $YAML_FILE41 $OUTPUT_FILE $TEST_DIR
 }
 
-test_reply()
+check_reply()
 {
-	request=$1
-
-	reply=`cat $OUTPUT_FILE | grep replied | awk '{print $5}'`
-	if [ $reply -ne $request ]
-	then
-		echo "Wrong reply received"
-		return 1
-	fi
-
-	return 0
+	expected="$1"
+	actual=`awk '/replied/ {print $5}' $OUTPUT_FILE`
+	[ -z "$actual" ] && die 'Reply not found'
+	[ $actual -eq $expected ] || die 'Invalid reply'
 }
 
-console_st()
+test_fop()
 {
-	cd $TEST_DIR
+	[ $# -gt 3 ] || die 'test_fop: Wrong number of arguments'
+	local message="$1"; shift
+	local request="$1"; shift
+	local reply="$1"; shift
 
-	COMMAND="$CONSOLE_PATH/bin/m0console "
-	# Test console test fop, opcode 9 with input provided as xcode read format
-	$COMMAND -f 9 -v -d '(65, 22, (144, 233), "abcde")' &> $OUTPUT_FILE
-	test_reply 08
-	if [ $? -eq 0 ]
-	then
-		echo "Console test fop (Request 9, Reply 8): successfull"
-	fi
-
-	# Test console test fop, opcode 9 with input provided as yaml file
-	$COMMAND -f 9 -v -i -y $YAML_FILE9 &> $OUTPUT_FILE
-	test_reply 08
-	if [ $? -eq 0 ]
-	then
-		echo "Console test fop (Request 9, Reply 8): successfull"
-	fi
-
-	$COMMAND -f 41 -v -i -y $YAML_FILE41 &> $OUTPUT_FILE
-	test_reply 43
-	if [ $? -eq 0 ]
-	then
-		echo "Write request fop (Request 43, Reply 41): successfull"
-	fi
+	echo -n "$message: " >&2
+	$CLIENT -f $request -v "$@" &>$OUTPUT_FILE
+	check_reply $reply
+	echo OK >&2
 }
+
+run_st()
+{
+	test_fop 'Console test fop, xcode input' 9  8 \
+		-d '(65, 22, (144, 233), "abcde")'
+	create_yaml_files
+	test_fop 'Console test fop, YAML input' 9  8 -i -y $YAML_FILE9
+	test_fop 'Write request fop' 41 43 -i -y $YAML_FILE41
+}
+
+## -------------------------------------------------------------------
+## main
+## -------------------------------------------------------------------
+
+rm -rf $SANDBOX_DIR
+mkdir $SANDBOX_DIR
+cd $SANDBOX_DIR
 
 start_server
-
-console_st
-
+run_st
 stop_server
+
+cd - >/dev/null
+rm -r $SANDBOX_DIR
