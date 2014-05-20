@@ -24,7 +24,7 @@
 #include "net/lnet/lnet.h"
 #include "mero/init.h"          /* m0_init */
 #include "lib/getopts.h"        /* M0_GETOPTS */
-
+#include "module/instance.h"    /* m0 */
 #include "rpc/rpclib.h"         /* m0_rpc_server_start */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 #include "ut/ut.h"              /* m0_ut_init */
@@ -53,6 +53,7 @@ static void sig_handler(int num)
 /** @brief Test server for m0console */
 int main(int argc, char **argv)
 {
+	static struct m0 instance;
 	enum { CONSOLE_STR_LEN = 16 };
 	char     tm_len[CONSOLE_STR_LEN];
 	char     rpc_size[CONSOLE_STR_LEN];
@@ -93,7 +94,7 @@ int main(int argc, char **argv)
 	sprintf(tm_len, "%d" , tm_recv_queue_len);
 	sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
-	result = m0_init(NULL);
+	result = m0_init(&instance);
 	if (result != 0) {
 		printf("m0_init failed\n");
 		return result;

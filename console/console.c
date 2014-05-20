@@ -20,14 +20,14 @@
 
 #include <sysexits.h>
 
-#include "lib/errno.h"      /* ETIMEDOUT */
-#include "lib/memory.h"     /* m0_free */
-#include "lib/getopts.h"    /* M0_GETOPTS */
-#include "mero/init.h"      /* m0_init */
+#include "lib/errno.h"        /* ETIMEDOUT */
+#include "lib/memory.h"       /* m0_free */
+#include "lib/getopts.h"      /* M0_GETOPTS */
+#include "mero/init.h"        /* m0_init */
 #include "net/lnet/lnet.h"
-#include "rpc/rpclib.h"     /* m0_rpc_client_call */
+#include "rpc/rpclib.h"       /* m0_rpc_client_call */
 #include "fop/fop.h"
-
+#include "module/instance.h"  /* m0 */
 #include "console/console.h"
 #include "console/console_mesg.h"
 #include "console/console_it.h"
@@ -138,7 +138,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	return 0;
 }
 
-const char *usage_msg =	"Usage: m0console "
+static const char *usage_msg = "Usage: m0console "
 	" { -l FOP list | -f FOP opcode }"
 	" [-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]"
 	" [-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]"
@@ -155,6 +155,38 @@ static void usage(void)
 {
 	fprintf(stderr, "%s\n", usage_msg);
 }
+
+#ifdef CONSOLE_UT
+static int console_init(void)
+{
+	return 0;
+}
+
+static void console_fini(void)
+{
+}
+#else
+static int console_init(void)
+{
+	static struct m0 instance;
+	int rc;
+
+	rc = m0_init(&instance);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_console_fop_init();
+	if (rc != 0)
+		m0_fini();
+	return rc;
+}
+
+static void console_fini(void)
+{
+	m0_console_fop_fini();
+	m0_fini();
+}
+#endif /* !CONSOLE_UT */
 
 /**
  * @brief The service to connect to is specified at the command line.
@@ -276,31 +308,22 @@ int main(int argc, char **argv)
 		}
 	}
 
-#ifndef CONSOLE_UT
-	result = m0_init(NULL);
-	if (result != 0) {
-		fprintf(stderr, "m0_init failed\n");
-		return EX_SOFTWARE;
-	}
+	result = -console_init();
+	if (result != 0)
+		goto yaml;
 
-	result = m0_console_fop_init();
-	if (result != 0) {
-		fprintf(stderr, "m0_console_fop_init failed\n");
-		goto end0;
-	}
-#endif
 	if (show && opcode <= 0) {
 		m0_cons_fop_list_show();
 		usage();
 		result = EX_USAGE;
-		goto end1;
+		goto end;
 	}
 
 	if (show && opcode > 0) {
 		result = fop_info_show(opcode);
 		if (result == 0)
 			result = EX_OK;
-		goto end1;
+		goto end;
 	}
 
 	result = m0_net_xprt_init(xprt);
@@ -322,7 +345,7 @@ int main(int argc, char **argv)
 	if (result != 0) {
 		fprintf(stderr, "m0_rpc_client_start failed\n");
 		result = EX_SOFTWARE;
-		goto end1;
+		goto end;
 	}
 
 	printf("Console Address = %s\n", cctx.rcx_local_addr);
@@ -335,17 +358,11 @@ int main(int argc, char **argv)
 		result = EX_SOFTWARE;
 		goto cleanup;
 	}
-
 cleanup:
 	result = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(result == 0);
-end1:
-#ifndef CONSOLE_UT
-	m0_console_fop_fini();
-end0:
-	m0_fini();
-#endif
-
+end:
+	console_fini();
 yaml:
 	if (input)
 		m0_cons_yaml_fini();
