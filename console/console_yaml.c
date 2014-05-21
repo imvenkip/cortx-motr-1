@@ -18,8 +18,12 @@
  * Original creation date: 22/03/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
+#include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/string.h"  /* m0_streq */
 
 #include "console/console_yaml.h"
 
@@ -90,6 +94,7 @@ M0_INTERNAL int m0_cons_yaml_init(const char *file_path)
 	int          rc;
 	yaml_node_t *root_node;
 
+	M0_ENTRY("file_path=`%s'", file_path);
 	M0_PRE(file_path != NULL);
 
 	yaml_info.cyi_file = fopen(file_path, "r");
@@ -131,10 +136,10 @@ M0_INTERNAL int m0_cons_yaml_init(const char *file_path)
 	yaml_info.cyi_current = yaml_info.cyi_document.nodes.start;
 	yaml_support = true;
 
-	return 0;
+	return M0_RC(0);
 error:
 	yaml_parser_error_detect(&yaml_info.cyi_parser);
-	return -EINVAL;
+	return M0_RC(-EINVAL);
 }
 
 M0_INTERNAL void m0_cons_yaml_fini(void)
@@ -149,40 +154,30 @@ M0_INTERNAL void m0_cons_yaml_fini(void)
 
 static yaml_node_t *search_node(const char *name)
 {
-	yaml_document_t *doc   = &yaml_info.cyi_document;
-	yaml_node_t     *node  = yaml_info.cyi_current;
-        bool             found = false;
+	yaml_document_t *doc  = &yaml_info.cyi_document;
+	yaml_node_t     *node = yaml_info.cyi_current;
 	unsigned char   *data_value;
 
-        for ( ; node < doc->nodes.top; node++) {
-                if(node->type == YAML_SCALAR_NODE) {
+	M0_ENTRY("name=`%s'", name);
+	for ( ; node < doc->nodes.top; node++) {
+		if (node->type == YAML_SCALAR_NODE) {
 			data_value = node->data.scalar.value;
-                        if (strcmp((const char *)data_value, name) == 0){
+			if (m0_streq((const char *)data_value, name)) {
 				node++;
-				found = true;
-                        }
-                }
-		if (found) {
-			yaml_info.cyi_current = node;
-			break;
+				yaml_info.cyi_current = node;
+				M0_LEAVE("found");
+				return node;
+			}
 		}
-        }
-
-	if (!found)
-		node = NULL;
-
-	return node;
+	}
+	M0_LEAVE("not found");
+	return NULL;
 }
 
 M0_INTERNAL void *m0_cons_yaml_get_value(const char *name)
 {
-	yaml_node_t *node;
-
-	node = search_node(name);
-	if (node == NULL)
-		return NULL;
-
-	return node->data.scalar.value;
+	yaml_node_t *node = search_node(name);
+	return node == NULL ? NULL : node->data.scalar.value;
 }
 
 M0_INTERNAL int m0_cons_yaml_set_value(const char *name, void *data)
@@ -191,6 +186,7 @@ M0_INTERNAL int m0_cons_yaml_set_value(const char *name, void *data)
 }
 
 /** @} end of console_yaml group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

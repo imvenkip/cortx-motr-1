@@ -21,6 +21,9 @@
 #include <signal.h>
 #include <unistd.h>             /* sleep */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
+#include "lib/trace.h"
+
 #include "net/lnet/lnet.h"
 #include "mero/init.h"          /* m0_init */
 #include "lib/getopts.h"        /* M0_GETOPTS */
@@ -134,6 +137,7 @@ m0_fini:
 }
 
 /** @} end of console group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

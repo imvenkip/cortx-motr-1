@@ -20,6 +20,9 @@
 
 #include <sysexits.h>
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
+#include "lib/trace.h"
+
 #include "lib/errno.h"        /* ETIMEDOUT */
 #include "lib/memory.h"       /* m0_free */
 #include "lib/getopts.h"      /* M0_GETOPTS */
@@ -78,64 +81,56 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	struct m0_fop	   *rfop;
 	int		    rc;
 
+	M0_ENTRY("opcode=%u fop_input=%s", opcode, fop_input);
+
 	ftype = m0_fop_type_find(opcode);
 	if (ftype == NULL)
-		return -EINVAL;
+		return M0_RC(-EINVAL);
 
-	/* Allocate fop */
 	fop = m0_fop_alloc(ftype, NULL);
 	if (fop == NULL)
-		return -EINVAL;
+		return M0_RC(-EINVAL);
 
-	if (fop_input != NULL) {
-		rc = m0_xcode_read(&M0_FOP_XCODE_OBJ(fop), fop_input);
-		if (rc != 0)
-			return rc;
-	} else {
-		rc = m0_cons_fop_obj_input(fop);
-		if (rc != 0)
-			return rc;
-	}
+	rc = fop_input == NULL ? m0_cons_fop_obj_input(fop) :
+		m0_xcode_read(&M0_FOP_XCODE_OBJ(fop), fop_input);
+	if (rc != 0)
+		return M0_RC(rc);
 
-	fprintf(stdout, "Sending FOP ");
+	printf("Sending FOP ");
 	m0_cons_fop_name_print(ftype);
 
 	rc = m0_cons_fop_obj_output(fop);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop->f_item.ri_nr_sent_max = timeout;
 	rc = m0_rpc_client_call(fop, &cctx->rcx_session, NULL, 0/* deadline*/);
 	if (rc != 0) {
 		m0_fop_put(fop);
-		fprintf(stderr, "Sending message failed!\n");
-		return -EINVAL;
+		return M0_ERR(-EINVAL, "Sending message failed");
 	}
 
 	/* Fetch the FOP reply */
 	item = &fop->f_item;
         if (item->ri_error != 0) {
 		m0_fop_put(fop);
-		fprintf(stderr, "rpc item receive failed.\n");
-		return -EINVAL;
+		return M0_ERR(-EINVAL, "rpc item receive failed");
 	}
 
 	rfop = m0_rpc_item_to_fop(item->ri_reply);
 	if(rfop == NULL) {
 		m0_fop_put(fop);
-		fprintf(stderr, "RPC item reply not received.\n");
-		return -EINVAL;
+		return M0_ERR(-EINVAL, "RPC item reply not received");
 	}
 
 	/* Print reply */
-	fprintf(stdout, "Server replied with FOP ");
+	printf("Server replied with FOP ");
 	m0_cons_fop_name_print(rfop->f_type);
-	rc = m0_cons_fop_obj_output(rfop);
-	if (rc != 0)
-		return rc;
 
-	m0_fop_put(fop);
-	return 0;
+	rc = m0_cons_fop_obj_output(rfop);
+	if (rc == 0)
+		m0_fop_put(fop);
+	return M0_RC(rc);
 }
 
 static const char *usage_msg = "Usage: m0console "
@@ -371,6 +366,7 @@ yaml:
 }
 
 /** @} end of console group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
