@@ -1585,7 +1585,7 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 	int                     rc_getops;
-	int                     rc;
+	int                     rc = 0;
 
 	M0_ENTRY();
 
