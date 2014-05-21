@@ -237,10 +237,9 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	strcpy(client_ep, confd_addr);
 	{
 		char *se = strrchr(client_ep, ':');
-
-		M0_ASSERT(se != NULL); /* XXX Not sure we can do this,
-					* as the value of `confd_addr'
-					* comes from user's input. */
+		if (se == NULL)
+			return M0_ERR(-EINVAL, "Invalid value of confd_addr:"
+				      " `%s'", confd_addr);
 		*(++se) = '*';
 		*(++se) = 0;
 	}

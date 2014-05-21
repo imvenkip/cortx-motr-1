@@ -241,7 +241,7 @@ int m0_init(struct m0 *instance)
 	return rc;
 }
 
-void m0_fini()
+void m0_fini(void)
 {
 	fini_nr(ARRAY_SIZE(once), ARRAY_SIZE(subsystem));
 	m0_threads_fini();
