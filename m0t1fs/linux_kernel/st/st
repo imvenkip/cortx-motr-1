@@ -116,7 +116,7 @@ services_start() {
     NODE1='(0x6e00000000000001, 1)'
 
     PROF_AC='(0x7000000000000011, 0)'
-    PROF_AC_OPT='0x7000000000000011:0'
+    PROF_AC_OPT='<0x7000000000000011:0>'
     FS1='(0x6600000000000011, 1)'
     IOS1='(0x7300000000000011, 5)'
 
@@ -156,12 +156,15 @@ EOF`"
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR
-    $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTIONS > $SANDBOX_DIR/mkfs.log &&
+    $M0_CORE_DIR/utils/mkfs/m0mkfs $OPTIONS >$SANDBOX_DIR/mkfs.log || {
+	sandbox_fini
+	modules_remove
+	die 'm0mkfs failed'
+    }
     ($M0_CORE_DIR/mero/m0d $OPTIONS >>$SANDBOX_DIR/m0d.log 2>&1 &)
 
     sleep 1
     killall -q -0 lt-m0d || {
-	echo "Failed to start Mero services"
 	sandbox_fini
 	modules_remove
 	die 'Failed to start Mero services'
