@@ -111,10 +111,10 @@ static int stob_domain_create(struct m0_stob_type *type,
 	return rc;
 }
 
-int stob_domain_init(struct m0_stob_type *type,
-		     const char *location_data,
-		     const char *str_cfg_init,
-		     struct m0_stob_domain **out)
+static int stob_domain_init(struct m0_stob_type *type,
+			    const char *location_data,
+			    const char *str_cfg_init,
+			    struct m0_stob_domain **out)
 {
 	void *cfg_init = NULL;
 	bool  cfg_parsed;

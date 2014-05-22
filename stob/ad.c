@@ -539,18 +539,15 @@ static int stob_ad_create(struct m0_stob *stob,
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_uint128         prefix;
-	int                       rc;
 
 	M0_PRE(dtx != NULL);
 	prefix = M0_UINT128(m0_stob_domain_id_get(dom), stob_key);
 	M0_LOG(M0_DEBUG, U128D_F, U128_P(&prefix));
-	rc = M0_BE_OP_SYNC_RET(
-		op,
-		m0_be_emap_obj_insert(&adom->sad_adata, &dtx->tx_betx, &op,
-				      &prefix, AET_NONE),
-		bo_u.u_emap.e_rc);
-
-	return rc;
+	return M0_BE_OP_SYNC_RET(op,
+				 m0_be_emap_obj_insert(&adom->sad_adata,
+						       &dtx->tx_betx, &op,
+						       &prefix, AET_NONE),
+				 bo_u.u_emap.e_rc);
 }
 
 static int stob_ad_destroy_credit(struct m0_stob *stob,
