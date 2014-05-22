@@ -124,6 +124,8 @@ M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 						   uint64_t id);
 M0_INTERNAL int m0_be_engine__exclusive_open_invariant(struct m0_be_engine *en,
 						       struct m0_be_tx *excl);
+M0_INTERNAL struct m0_be_tx_credit
+m0_be_engine_tx_size_max(struct m0_be_engine *en);
 
 /** @} end of be group */
 #endif /* __MERO_BE_ENGINE_H__ */

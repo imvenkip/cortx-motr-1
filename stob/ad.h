@@ -106,9 +106,19 @@ struct m0_stob_ad_domain {
 	char                   sad_path[MAXPATHLEN];
 };
 
+/**
+ * Minimilistic ad stob iterator.
+ * This saves the last segment that was accessed during the stob operation.
+ * @note: Currently used only for stob delete operation.
+ */
+struct m0_stob_ad_op_it {
+	struct m0_be_emap_seg *oc_seg_last;
+};
+
 struct m0_stob_ad {
-	struct m0_stob ad_stob;
-	bool           ad_overwrite;
+	struct m0_stob          ad_stob;
+	struct m0_stob_ad_op_it ad_op_it;
+	bool                    ad_overwrite;
 };
 
 struct m0_stob_ad_io {

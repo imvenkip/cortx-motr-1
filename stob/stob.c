@@ -195,9 +195,11 @@ M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 
 	rc = rc ?: m0_stob_state_get(stob) == CSS_NOENT ? -ENOENT :
 	     stob->so_ops->sop_destroy(stob, dtx);
-	if (rc == 0) {
-		m0_stob__state_set(stob, CSS_NOENT);
+	if (rc == 0 || rc == -EAGAIN) {
+		if (rc == 0)
+			m0_stob__state_set(stob, CSS_NOENT);
 		m0_stob_put(stob);
+		rc = 0;
 	}
 	return M0_RC(rc);
 }

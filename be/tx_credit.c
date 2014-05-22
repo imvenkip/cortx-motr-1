@@ -19,6 +19,8 @@
  */
 
 #include "be/tx_credit.h"
+#include "be/tx.h"
+#include "be/engine.h"
 #include "lib/assert.h"    /* M0_PRE */
 
 /**
@@ -75,6 +77,12 @@ M0_INTERNAL bool m0_be_tx_credit_eq(const struct m0_be_tx_credit *c0,
 {
 	return c0->tc_reg_nr   == c1->tc_reg_nr &&
 	       c0->tc_reg_size == c1->tc_reg_size;
+}
+
+M0_INTERNAL bool m0_be_tx_credit_is_enough(const struct m0_be_tx_credit *c0,
+					   const struct m0_be_tx_credit *c1)
+{
+	return !m0_be_tx_credit_le(c0, c1);
 }
 
 /** @} end of be group */

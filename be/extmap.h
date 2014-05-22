@@ -407,6 +407,8 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum);
 
+M0_INTERNAL struct m0_be_domain *m0_be_emap_seg_domain(struct m0_be_emap *map);
+
 /** @} end group extmap */
 
 /* __MERO_BE_EXTMAP_H__ */

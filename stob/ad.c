@@ -558,7 +558,14 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 {
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_cursor  it;
+	struct m0_be_op          *op;
+	struct m0_be_emap_seg    *seg = NULL;
+	struct m0_be_engine      *eng;
+	struct m0_be_tx_credit    tx_max_credit;
+	struct m0_be_tx_credit    cred;
+	struct m0_stob_ad        *astob = stob_ad_stob2ad(stob);
 	int                       rc;
+	m0_bcount_t               i = 0;
 	m0_bcount_t               segs;
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
@@ -569,8 +576,48 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	if (rc == 0)
 		rc = m0_be_emap_op_rc(&it);
 	m0_be_emap_close(&it);
-	if (rc == 0)
-		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, segs, accum);
+	rc = stob_ad_cursor(adom, stob, 0, &it);
+	if (rc != 0)
+		return M0_RC(rc);
+	op = m0_be_emap_op(&it);
+	eng = m0_be_domain_engine(m0_be_emap_seg_domain(it.ec_map));
+	tx_max_credit = m0_be_engine_tx_size_max(eng);
+	if (rc == 0) {
+		for (i = 1; i <= segs; ++i) {
+			seg = m0_be_emap_seg_get(&it);
+			M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+			  !m0_ext_is_empty(&seg->ee_ext));
+			M0_SET0(&cred);
+			m0_be_emap_credit(&adom->sad_adata,
+					  M0_BEO_PASTE, 1, &cred);
+			m0_be_tx_credit_add(accum, &cred);
+			if (m0_be_tx_credit_is_enough(accum, &tx_max_credit)) {
+				m0_be_tx_credit_sub(accum, &cred);
+				break;
+			}
+			if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
+				m0_be_op_init(op);
+				m0_be_emap_next(&it);
+				rc = m0_be_op_wait(op);
+				if (rc == 0)
+					rc = m0_be_emap_op_rc(&it);
+				m0_be_op_fini(op);
+				if (rc != 0)
+					break;
+			}
+		}
+	}
+	if (rc == 0) {
+		m0_be_emap_close(&it);
+		astob->ad_op_it.oc_seg_last = seg;
+		if (!m0_be_emap_ext_is_last(&seg->ee_ext))
+			rc = -EAGAIN;
+	}
+
+	M0_LOG(M0_DEBUG, "segs: %llu i: %llu rc: %d accum: %llu max_cred: %llu",
+		(unsigned long long)segs, (unsigned long long)i, rc,
+		(unsigned long long)accum->tc_reg_size,
+		(unsigned long long)tx_max_credit.tc_reg_size);
 
 	return M0_RC(rc);
 }
@@ -584,6 +631,7 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_seg    *seg;
 	struct m0_be_emap_cursor  it;
+	struct m0_stob_ad        *astob;
 	struct m0_uint128         prefix;
 	struct m0_be_op          *it_op;
 	struct m0_ext            *ext;
@@ -591,38 +639,57 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 					.e_start = 0,
 					.e_end   = M0_BCOUNT_MAX
 				  };
+	bool                      delete_all = true;
 	int                       rc;
 
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
+	astob = stob_ad_stob2ad(stob);
 	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
 	rc = stob_ad_cursor(adom, stob, 0, &it);
 	if (rc != 0)
 		return M0_RC(rc);
 	M0_LOG(M0_DEBUG, U128D_F, U128_P(&it.ec_prefix));
-	seg = m0_be_emap_seg_get(&it);
 	ext = &it.ec_seg.ee_ext;
 	M0_LOG(M0_DEBUG, "ext="EXT_F" val=%llu",
 		EXT_P(ext), (unsigned long long)it.ec_seg.ee_val);
+	seg = astob->ad_op_it.oc_seg_last;
+	M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+		  !m0_ext_is_empty(&seg->ee_ext));
+	/*
+	 * If the segment @seg is not the last segment in the emap
+	 * then write a hole at [0, seg->ee_ext.e_end).
+	 */
+	if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
+		todo.e_end = seg->ee_ext.e_end;
+		delete_all = false;
+	}
+	M0_LOG(M0_DEBUG, "ext="EXT_F, EXT_P(&todo));
+	rc = stob_ad_cursor(adom, stob, 0, &it);
+	if (rc != 0)
+		return M0_RC(rc);
 	it_op = &it.ec_op;
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx->tx_betx, &todo, AET_HOLE,
-		 LAMBDA(void, (struct m0_be_emap_seg *seg) {
+		 LAMBDA(void, (struct m0_be_emap_seg *__seg) {
 				/* handle extent deletion. */
 				M0_LOG(M0_DEBUG, "del: val=%llu",
-					(unsigned long long)seg->ee_val);
-				rc = rc ?: stob_ad_seg_free(tx, adom, seg,
-							    &seg->ee_ext,
-							    seg->ee_val);
+					(unsigned long long)__seg->ee_val);
+				rc = rc ?: stob_ad_seg_free(tx, adom, __seg,
+							    &__seg->ee_ext,
+							    __seg->ee_val);
 		}), NULL, NULL);
 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
 	rc = m0_be_emap_op_rc(&it);
 	m0_be_op_fini(it_op);
-	if (rc == 0)
+	if (rc == 0 && delete_all)
 		rc = M0_BE_OP_SYNC_RET(op,
 				       m0_be_emap_obj_delete(&adom->sad_adata,
 							     &tx->tx_betx, &op,
 							     &prefix),
 				       bo_u.u_emap.e_rc);
+
+	if (rc == 0 && !delete_all)
+		rc = -EAGAIN;
 
 	return M0_RC(rc);
 }

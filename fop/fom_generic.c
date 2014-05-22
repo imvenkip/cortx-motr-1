@@ -377,7 +377,7 @@ static int fom_tx_commit(struct m0_fom *fom)
  * Resumes fom execution after completing a blocking operation
  * in M0_FOPH_TXN_COMMIT phase.
  */
-static int fom_tx_commit_wait(struct m0_fom *fom)
+M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
 {
 	struct m0_be_tx *tx = m0_fom_tx(fom);
 
@@ -518,7 +518,7 @@ static const struct fom_phase_desc fpd_table[] = {
 					      M0_FOPH_TXN_COMMIT_WAIT,
 					     "fom_queue_reply_wait",
 					      1 << M0_FOPH_QUEUE_REPLY_WAIT },
-	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &fom_tx_commit_wait,
+	[M0_FOPH_TXN_COMMIT_WAIT] =	   { &m0_fom_tx_commit_wait,
 					      M0_FOPH_FINISH,
 					     "fom_tx_commit_wait",
 					      1 << M0_FOPH_TXN_COMMIT_WAIT },
@@ -623,7 +623,8 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_QUEUE_REPLY] = {
 		.sd_name      = "fom_queue_reply",
-		.sd_allowed   = M0_BITS(M0_FOPH_QUEUE_REPLY_WAIT,
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_COMMIT_WAIT,
+					M0_FOPH_QUEUE_REPLY_WAIT,
 					M0_FOPH_FINISH)
 	},
 	[M0_FOPH_QUEUE_REPLY_WAIT] = {
@@ -633,7 +634,7 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_TXN_COMMIT_WAIT] = {
 		.sd_name      = "fom_tx_commit_wait",
-		.sd_allowed   = M0_BITS(M0_FOPH_FINISH)
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_INIT, M0_FOPH_FINISH)
 	},
 	[M0_FOPH_TIMEOUT] = {
 		.sd_name      = "fom_timeout",
@@ -735,6 +736,8 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 	{"FOL record added",     M0_FOPH_FOL_REC_ADD, M0_FOPH_TXN_COMMIT},
 	{"Transaction commited", M0_FOPH_TXN_COMMIT, M0_FOPH_QUEUE_REPLY},
 	{"Wait reply queue",     M0_FOPH_QUEUE_REPLY, M0_FOPH_QUEUE_REPLY_WAIT},
+	{"Operation not complete",
+				 M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT},
 	{"Reply sent FOM finish",
 				 M0_FOPH_QUEUE_REPLY, M0_FOPH_FINISH},
 	{"Wait reply queue finished",
@@ -742,6 +745,8 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 				 M0_FOPH_TXN_COMMIT_WAIT},
 	{"Reply queued FOM finished",
 				 M0_FOPH_QUEUE_REPLY_WAIT, M0_FOPH_FINISH},
+	{"operation not complete",
+				 M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_TXN_INIT},
 	{"Wait transaction commit finished",
 				 M0_FOPH_TXN_COMMIT_WAIT, M0_FOPH_FINISH},
 	{"FOM timed out",        M0_FOPH_TIMEOUT, M0_FOPH_FAILURE},

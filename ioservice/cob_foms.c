@@ -262,12 +262,16 @@ extern int ios__poolmach_check(struct m0_poolmach *poolmach,
 
 static int cob_ops_fom_tick(struct m0_fom *fom)
 {
-	int                             rc;
+	int                             rc = 0;
 	struct m0_fom_cob_op           *cob_op;
 	struct m0_fop_cob_op_reply     *reply;
 	struct m0_poolmach             *poolmach;
 	struct m0_reqh                 *reqh;
 	struct m0_fop_cob_common       *common;
+	struct m0_be_tx_credit          cob_op_tx_credit = {};
+	struct m0_be_tx_credit          tx_max_credit;
+	struct m0_be_tx_credit         *tx_cred;
+	struct m0_be_engine            *en;
 	bool                            fop_is_create;
 	const char                     *ops;
 
@@ -278,18 +282,61 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	fop_is_create = fom->fo_fop->f_type == &m0_fop_cob_create_fopt;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		cob_op = cob_fom_get(fom);
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
-			cob_op = cob_fom_get(fom);
+			tx_cred = m0_fom_tx_credit(fom);
+			en = fom->fo_tx.tx_betx.t_engine;
+			tx_max_credit = m0_be_engine_tx_size_max(en);
 			if (fop_is_create) {
 				cc_stob_create_credit(fom, cob_op,
-						      m0_fom_tx_credit(fom));
+						      tx_cred);
 				cob_op_credit(fom, M0_COB_OP_CREATE,
-					      m0_fom_tx_credit(fom));
+					      tx_cred);
 			} else {
-				cd_stob_delete_credit(fom, cob_op,
-						      m0_fom_tx_credit(fom));
-				cob_op_credit(fom, M0_COB_OP_DELETE,
-					      m0_fom_tx_credit(fom));
+				rc = cd_stob_delete_credit(fom, cob_op,
+							   tx_cred);
+				if (rc == 0) {
+					M0_SET0(&cob_op_tx_credit);
+					cob_op_credit(fom, M0_COB_OP_DELETE,
+						      &cob_op_tx_credit);
+					m0_be_tx_credit_add(tx_cred,
+							    &cob_op_tx_credit);
+					if (m0_be_tx_credit_is_enough(tx_cred,
+								&tx_max_credit))
+						m0_be_tx_credit_sub(tx_cred,
+							&cob_op_tx_credit);
+					else
+						cob_op->fco_is_done = true;
+				}
+				rc = rc == -EAGAIN ? 0 : rc;
+			}
+			M0_ASSERT(!m0_be_tx_credit_is_enough(tx_cred,
+							     &tx_max_credit));
+		}
+		if (rc != 0) {
+			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+			cob_op->fco_is_done = true;
+		}
+		if (!fop_is_create && !cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
+			if (m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
+				/*
+				 * We have come here from M0_FOPH_TXN_COMMIT but
+				 * we have not completed the operation yet.
+				 * Move to M0_FOPH_TXN_COMMIT_WAIT.
+				 */
+				m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
+				return M0_FSO_AGAIN;
+			} else if (m0_fom_phase(fom) == M0_FOPH_TXN_COMMIT_WAIT) {
+				rc = m0_fom_tx_commit_wait(fom);
+				/*
+				 * We have come here from M0_FOPH_TXN_COMMIT_WAIT
+				 * but have not completed the operation so go
+				 * back to M0_FOPH_TXN_INIT.
+				 */
+				if (rc == M0_FSO_AGAIN)
+					m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
+				else
+					return rc;
 			}
 		}
 		rc = m0_fom_tick_generic(fom);
@@ -387,8 +434,10 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			rc = cc_stob_create(fom, cob_op) ?:
 			     cc_cob_create(fom, cob_op);
 		} else {
-			rc = cd_cob_delete(fom, cob_op) ?:
-			     cd_stob_delete(fom, cob_op);
+			if (cob_op->fco_is_done)
+				rc = cd_cob_delete(fom, cob_op);
+			if (rc == 0)
+				rc = cd_stob_delete(fom, cob_op);
 		}
 		step = 0;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -702,6 +751,22 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 		rc = rc ?: m0_stob_state_get(stob) == CSS_EXISTS ?
 			   m0_stob_destroy(stob, &fom->fo_tx) :
 			   (m0_stob_put(stob), 0);
+
+		/*if (rc == 0) {
+			if (m0_stob_state_get(stob) == CSS_UNKNOWN)
+				rc  = m0_stob_locate(stob);
+			else
+				rc = 0;
+
+			if (rc == 0) {
+				if (m0_stob_state_get(stob) == CSS_EXISTS)
+					rc = m0_stob_destroy(stob, &fom->fo_tx);
+				else {
+					m0_stob_put(stob);
+					rc = 0;
+				}
+			}
+		}*/
 		if (rc != 0) {
 			M0_LOG(M0_DEBUG, "m0_stob_destroy() failed with %d",
 			       rc);

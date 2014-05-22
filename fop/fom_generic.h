@@ -202,7 +202,7 @@ M0_INTERNAL void m0_fom_generic_fini(void);
 M0_INTERNAL int m0_fom_generic_init(void);
 
 enum {
-	M0_FOM_GENERIC_TRANS_NR = 44,
+	M0_FOM_GENERIC_TRANS_NR = 46,
 };
 
 extern struct m0_sm_trans_descr
@@ -231,6 +231,8 @@ bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
    returns 0.
  */
 uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
+
+M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom);
 
 /** @} end of fom group */
 

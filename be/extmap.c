@@ -216,6 +216,11 @@ M0_INTERNAL int m0_be_emap_op_rc(const struct m0_be_emap_cursor *it)
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
 
+M0_INTERNAL struct m0_be_domain *m0_be_emap_seg_domain(struct m0_be_emap *map)
+{
+	return map->em_seg->bs_domain;
+}
+
 M0_INTERNAL void m0_be_emap_lookup(struct m0_be_emap        *map,
 				   const struct m0_uint128  *prefix,
 				   m0_bindex_t               offset,
