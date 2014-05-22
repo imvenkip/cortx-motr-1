@@ -320,7 +320,8 @@ struct m0_sm_conf test_conf = {
 	.scf_state     = fom_phases
 };
 
-static struct m0_mutex lock;
+static struct m0_mutex     lock;
+static struct m0_semaphore seq;
 
 static int test_fom_tick(struct m0_fom *fom)
 {
@@ -335,6 +336,7 @@ static int test_fom_tick(struct m0_fom *fom)
 
 	switch (m0_fom_phase(fom)) {
 	case FOM_INIT:
+		m0_semaphore_up(&seq);
 		m0_dtm_update_list_init(&uu);
 		m0_dtm_update_link(&uu, control_tgt[idx], TGT_DELTA);
 		m0_dtm_oper_init(oper, &dtm_tgt, &uu);
@@ -405,7 +407,8 @@ static void rpc_fop_fom_init(void)
 	int result;
 
 	m0_mutex_init(&lock);
- 	test_ctx = (struct m0_ut_rpc_mach_ctx) {
+	m0_semaphore_init(&seq, 0);
+	test_ctx = (struct m0_ut_rpc_mach_ctx) {
 		.rmc_dbname  = "dtm_ut_db",
 		.rmc_cob_id  = { 20 },
 		.rmc_ep_addr = "0@lo:12345:34:10"
@@ -442,6 +445,7 @@ static void rpc_fop_fom_fini(void)
 	m0_reqh_service_type_unregister(&test_stype);
 	m0_ut_rpc_mach_fini(&test_ctx);
 	m0_fop_type_fini(&test_fopt);
+	m0_semaphore_fini(&seq);
 	m0_mutex_fini(&lock);
 }
 
@@ -704,6 +708,8 @@ static void ltx_test_N_N(void)
 
 static void redo_test(void)
 {
+	int i;
+
 	transmit_build();
 
 	/* crash tgt */
@@ -711,7 +717,14 @@ static void redo_test(void)
 	tgt_init();
 
 	ticked = 0;
+	/* reinitialise the semaphore to count foms afresh. */
+	m0_semaphore_fini(&seq);
+	m0_semaphore_init(&seq, 0);
+
 	m0_dtm_history_reset(&tgt.lre_rem.re_fol.rfo_ch.ch_history, 2);
+	/* wait until all foms start execution. */
+	for (i = 0; i < OPER_NR; ++i)
+		m0_semaphore_down(&seq);
 	m0_reqh_idle_wait(&test_ctx.rmc_reqh);
 	M0_UT_ASSERT(ticked == OPER_NR);
 	tgt_fini();
