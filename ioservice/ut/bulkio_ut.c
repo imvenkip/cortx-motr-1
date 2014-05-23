@@ -37,7 +37,7 @@
 static struct bulkio_params *bp;
 
 static struct m0_buf payload_buf = M0_BUF_INIT0;
-
+static bool fol_check_enabled = false;
 extern void bulkioapi_test(void);
 static int io_fop_server_write_fom_create(struct m0_fop  *fop,
 					  struct m0_fom **m,
@@ -138,13 +138,16 @@ static int bulkio_server_write_fom_tick(struct m0_fom *fom)
 	phase0 = m0_fom_phase(fom);
 	M0_LOG(M0_DEBUG, "phase=%d", phase0);
 	rc = m0_io_fom_cob_rw_tick(fom);
-	if (phase0 == M0_FOPH_FOL_REC_ADD) {
-		int rc;
+	if (fol_check_enabled) {
+		if (phase0 == M0_FOPH_FOL_REC_ADD) {
+			int rc;
 
-		if (payload_buf.b_addr != NULL)
-			m0_buf_free(&payload_buf);
-		rc = m0_buf_copy(&payload_buf, &fom->fo_tx.tx_betx.t_payload);
-		M0_UT_ASSERT(rc == 0);
+			if (payload_buf.b_addr != NULL)
+				m0_buf_free(&payload_buf);
+			rc = m0_buf_copy(&payload_buf,
+					 &fom->fo_tx.tx_betx.t_payload);
+			M0_UT_ASSERT(rc == 0);
+		}
 	}
 	if (m0_fom_rc(fom) != 0) {
                 M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_FAILURE);
@@ -1298,6 +1301,7 @@ static void bulkio_server_single_read_write(void)
 	for (j = 0; j < IO_SEGS_NR; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
+	fol_check_enabled = true;
 	io_single_fop_submit(M0_IOSERVICE_WRITEV_OPCODE);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
@@ -1305,6 +1309,7 @@ static void bulkio_server_single_read_write(void)
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
+	fol_check_enabled = false;
 }
 
 #define WRITE_FOP_DATA(fop) M0_XCODE_OBJ(m0_fop_cob_writev_xc, fop)
