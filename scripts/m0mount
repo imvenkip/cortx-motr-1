@@ -142,7 +142,7 @@ setup_local_server_config=0
 wait_after_mount=1
 verbosity=0
 
-M0_TRACE_IMMEDIATE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap
+M0_TRACE_IMMEDIATE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap,conf
 M0_TRACE_LEVEL=warn+
 M0_TRACE_PRINT_CONTEXT=short
 
@@ -154,40 +154,6 @@ MERO_TRACE_LEVEL=warn+
 # Local mount data
 MP=/mnt/m0
 
-#
-# Execute supplied command line.
-#
-# Use this in case command's output is consumed by the caller.
-#
-function l_run () {
-	if [ $verbosity -gt 0 ] ;then
-		echo "# $*" >/dev/tty
-	fi
-	eval $*
-}
-
-#
-# Similar to l_run, but discards command output.
-#
-# Use this when command is needed only for its side-effects.
-#
-function l_do () {
-	if [ $verbosity -gt 1 ] ;then
-		echo "# $*" >/dev/tty
-		eval $*
-	elif [ $verbosity -gt 0 ] ;then
-		echo "# $*" >/dev/tty
-		eval $* > /dev/null
-	else
-		eval $* > /dev/null
-	fi
-}
-
-l_do modprobe lnet
-l_do lctl network up &>> /dev/null
-LOCAL_NID=`lctl list_nids | head -1`
-LOCAL_EP=$LOCAL_NID:12345:41:10
-
 # The file system TMID
 FSTMID=1
 
@@ -197,7 +163,9 @@ WORK_ARENA=/var/mero
 # transport related variables
 XPT=lnet
 # m0d flags
-XPT_SETUP="-m 163840 -q 16"
+XPT_MEMSIZE=163840
+XPT_QUEUELEN=16
+XPT_SETUP="-m $XPT_MEMSIZE -q $XPT_QUEUELEN"
 # m0mero module params
 XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"	# remote host
 XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
@@ -233,6 +201,40 @@ else
 	MERO_KO_LOAD_CMD="insmod $BROOT/mero/m0mero.ko"
 	GALOIS_KO_LOAD_CMD="insmod $BROOT/extra-libs/galois/src/linux_kernel/galois.ko"
 fi
+
+#
+# Execute supplied command line.
+#
+# Use this in case command's output is consumed by the caller.
+#
+function l_run () {
+	if [ $verbosity -gt 0 ] ;then
+		echo "# $*" >/dev/tty
+	fi
+	eval $*
+}
+
+#
+# Similar to l_run, but discards command output.
+#
+# Use this when command is needed only for its side-effects.
+#
+function l_do () {
+	if [ $verbosity -gt 1 ] ;then
+		echo "# $*" >/dev/tty
+		eval $*
+	elif [ $verbosity -gt 0 ] ;then
+		echo "# $*" >/dev/tty
+		eval $* > /dev/null
+	else
+		eval $* > /dev/null
+	fi
+}
+
+l_do modprobe lnet
+l_do lctl network up &>> /dev/null
+LOCAL_NID=`lctl list_nids | head -1`
+LOCAL_EP=$LOCAL_NID:12345:41:10
 
 setup_local_params()
 {
@@ -454,9 +456,8 @@ function build_conf () {
 	IOS_OBJS="{0x73| (($IOS_NAMES), 2, [1: $MDS_ENDPOINT], $NODE)}"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
 		IOS_NAME="(0x7300000000000003, $(((i+1) / 2)))"
-		IOS_NAMES="$IOS_NAMES, $IOS_NAME"
-		IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: \"${SERVICES[$i]}\"],$NODE)}"
-		IOS_OBJS="$IOS_OBJS, $IOS_OBJ"
+		IOS_NAMES+=", $IOS_NAME"
+		IOS_OBJS+=", {0x73| (($IOS_NAME), 2, [1: \"${SERVICES[$i]}\"], $NODE)}"
 	done
 
 	echo "[$((SERVICES_NR + 5)):
@@ -529,14 +530,41 @@ function start_server () {
 		fi
 	fi
 
-	local SNAME="-s addb -s ioservice -s sns_repair -s sns_rebalance"
+	$DO "echo rotated > ${SLOG}$I.log"
+
+	local SNAME
 	if [ $I -eq 0 ]; then
 		build_conf > $SDIR/conf.xc
-		SNAME="-s mdservice -s rmservice -s stats $SNAME"
-		SNAME="-s confd -c $SDIR/conf.xc $SNAME"
+		if [ $verbosity -gt 0 ] ;then
+			build_conf # just show the conf
+		fi
+		if [ $run_mkfs -eq 1 ]; then
+			echo Running mkfs...
+			$RUN "cd $DDIR && \
+M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
+M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+$M0MKFS -T linux -D $DDIR/confd-db -S $DDIR/confd-stobs \
+-A linuxstob:$DDIR/confd-addb-stobs \
+-e $XPT:$CONFD_EP -s stats" > ${SLOG}-confd-mkfs.log
+		fi
+		$RUN "cd $DDIR && \
+M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
+M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+$M0D -T linux -D $DDIR/confd-db -S $DDIR/confd-stobs \
+-A linuxstob:$DDIR/confd-addb-stobs \
+-e $XPT:$CONFD_EP -s confd -c $SDIR/conf.xc $XPT_SETUP" > ${SLOG}-confd.log &
+		if [ $? -ne 0 ]; then
+			echo ERROR: Failed to start confd server on $H
+			return 1
+		fi
+		sleep 2
+		SNAME="-s mdservice -s rmservice -s stats"
 	fi
+	SNAME+=" -P '$PROF_OPT' -C $CONFD_EP"
+	SNAME+=" -s addb -s ioservice -s sns_repair -s sns_rebalance"
 
-	$DO "echo rotated > ${SLOG}$I.log"
 	if [ $run_mkfs -eq 1 ]; then
 		echo Running mkfs...
 		$RUN "cd $DDIR && \
@@ -544,8 +572,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $M0MKFS -F $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
--w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
--e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" > ${SLOG}$I.log
+-e $XPT:$EP -s stats" > ${SLOG}$I-mkfs.log
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
@@ -553,8 +580,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $M0D $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
--w $POOL_WIDTH -G $XPT:$MDS_EP -R $XPT:$STATS_EP
--e $XPT:$EP $IOS_EPs $SNAME $XPT_SETUP" >> ${SLOG}$I.log &
+-w $POOL_WIDTH -e $XPT:$EP $SNAME $XPT_SETUP" >> ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to start remote server on $H
 		return 1
@@ -577,11 +603,7 @@ function start_servers () {
 
 	MDS_EP=${SERVICES[1]}
 	STATS_EP=${SERVICES[1]}
-	CONFD_EP=${SERVICES[1]}
-	IOS_EPs=" -i $XPT:$MDS_EP"
-	for i in `seq 3 2 ${#SERVICES[*]}`; do
-		IOS_EPs="$IOS_EPs -i $XPT:${SERVICES[$i]}"
-	done
+	CONFD_EP=${SERVICES[1]%:*}:100
 
 	SLOG=$WORK_ARENA/server
 	rm -f ${SLOG}*.log

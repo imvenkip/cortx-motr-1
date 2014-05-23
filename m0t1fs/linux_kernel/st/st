@@ -111,14 +111,14 @@ services_start() {
     MDS='(0x7300000000000001, 2)'
     RM='(0x7300000000000001, 3)'
     STATS='(0x7300000000000001, 4)'
-    IOS='(0x7300000000000001, 5)'
+    IOS='(0x7300000000000003, 1)'
     NODE0='(0x6e00000000000001, 0)'
     NODE1='(0x6e00000000000001, 1)'
 
     PROF_AC='(0x7000000000000011, 0)'
     PROF_AC_OPT='<0x7000000000000011:0>'
     FS1='(0x6600000000000011, 1)'
-    IOS1='(0x7300000000000011, 5)'
+    IOS1='(0x7300000000000003, 2)'
 
     local CONF="`cat <<EOF
 [9:
@@ -136,7 +136,7 @@ services_start() {
                 [10: "-T", "linux", "-D", "db", "-S", "stobs",
                      "-A", "linuxstob:addb-stobs", "-w", "3"],
                 [1: $IOS1])},
-  {0x73| (($IOS1), 2, [1: "lnet:$IOS1_ENDPOINT"], $NODE1)},
+  {0x73| (($IOS1), 2, [1: "$IOS1_ENDPOINT"], $NODE1)},
   {0x6e| (($NODE1), 163840, 0, 0, 16, 0, [0], [0])}]
 EOF`"
 
@@ -150,9 +150,14 @@ EOF`"
 -F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A linuxstob:$SANDBOX_DIR/addb-stobs
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
- -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
+-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
 EOF`"
-    [ "$MODE" = autoconf ] && OPTIONS="-C $CONFD_ENDPOINT -P $PROF_AC_OPT"
+
+    [ "$MODE" = autoconf ] && OPTIONS="`cat <<EOF
+-C $CONFD_ENDPOINT -P $PROF_AC_OPT
+-e lnet:$IOS1_ENDPOINT -s ioservice
+-m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN
+EOF`"
 
     echo "--- `date` ---" >>$SANDBOX_DIR/m0d.log
     cd $SANDBOX_DIR

@@ -45,6 +45,7 @@ static void option_add(struct cs_args *args, char *s)
 {
 	M0_PRE(0 <= args->ca_argc && args->ca_argc < ARRAY_SIZE(args->ca_argv));
 	args->ca_argv[args->ca_argc++] = s;
+	M0_LOG(M0_DEBUG, "%02d %s", args->ca_argc, s);
 }
 
 static void
@@ -64,30 +65,57 @@ static const char *service_name[] = {
 	[M0_CST_SS]  = "stats"       /* Stats service */
 };
 
-static char *service_name_dup(const struct m0_conf_service *svc)
+M0_UNUSED static char *
+service_name_dup(const struct m0_conf_service *svc)
 {
 	M0_ASSERT(svc->cs_type > 0 && svc->cs_type < ARRAY_SIZE(service_name));
 	return m0_strdup(service_name[svc->cs_type]);
 }
 
-static void
-service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
+static char *
+strxdup(const char *addr)
 {
-	int   i;
-	char *id = service_name_dup(svc);
+	static const char  xpt[] = "lnet:";
+	char		  *s;
 
-	M0_ASSERT(id != NULL); /* XXX TODO: error checking */
-	for (i = 0; svc->cs_endpoints != NULL && svc->cs_endpoints[i] != NULL;
-	     ++i) {
-		option_add(args, m0_strdup("-e"));
-		option_add(args, m0_strdup(svc->cs_endpoints[i]));
-	}
+	s = m0_alloc(strlen(addr) + sizeof(xpt));
+	if (s != NULL)
+		sprintf(s, "%s%s", xpt, addr);
 
-	option_add(args, m0_strdup("-s"));
-	option_add(args, id);
+	return s;
 }
 
 static void
+service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
+{
+	static const char *opts[] = {
+		[M0_CST_MDS] = "-G",
+		[M0_CST_IOS] = "-i",
+		[M0_CST_RMS] = "",
+		[M0_CST_SS]  = "-R"
+	};
+	int         i;
+	const char *opt;
+
+	if (svc->cs_endpoints == NULL)
+		return;
+
+	for (i = 0; svc->cs_endpoints[i] != NULL; ++i) {
+		if (!IS_IN_ARRAY(svc->cs_type, opts)) {
+			M0_LOG(M0_ERROR, "invalid service type %d, ignoring",
+			       svc->cs_type);
+			break;
+		}
+		opt = opts[svc->cs_type];
+		M0_ASSERT(opt != NULL);
+		if (*opt == '\0')
+			continue;
+		option_add(args, m0_strdup(opt));
+		option_add(args, strxdup(svc->cs_endpoints[i]));
+	}
+}
+
+M0_UNUSED static void
 node_options_add(struct cs_args *args, const struct m0_conf_node *node)
 {
 	char buf[64] = {0};
@@ -128,6 +156,8 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 
 	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
 
+	M0_LOG(M0_DEBUG, "fs_fid: "FID_F,
+	       FID_P(&M0_CONF_PROFILE_FILESYSTEM_FID));
 	rc = m0_confc_open_sync(&fs, confc.cc_root,
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc != 0)
@@ -139,16 +169,10 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 		goto fs_close;
 
 	for (svc = NULL; (rc = m0_confc_readdir_sync(svc_dir, &svc)) > 0; ) {
-		struct m0_conf_obj *node;
 
 		service_options_add(dest, M0_CONF_CAST(svc, m0_conf_service));
 
-		rc = m0_confc_open_sync(&node, svc, M0_CONF_SERVICE_NODE_FID);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR,
-			       "Unable to obtain configuration of a node");
-			break;
-		}
+#if 0
 		/*
 		 * XXX FIXME: Options of a particular node should be
 		 * added only once.
@@ -157,8 +181,15 @@ static int conf_to_args(struct cs_args *dest, const char *confd_addr,
 		 * should take this fact into consideration when
 		 * adding node options (currently we are ignoring it).
 		 */
+		rc = m0_confc_open_sync(&node, svc, M0_CONF_SERVICE_NODE_FID);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR,
+			       "Unable to obtain configuration of a node");
+			break;
+		}
 		node_options_add(dest, M0_CONF_CAST(node, m0_conf_node));
 		m0_confc_close(node);
+#endif
 	}
 
 	m0_confc_close(svc);
@@ -235,6 +266,7 @@ net_dom:
 	m0_net_domain_fini(&client_net_dom);
 xprt:
 	m0_net_xprt_fini(xprt);
+
 	return M0_RC(rc);
 }
 
