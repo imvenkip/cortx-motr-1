@@ -754,7 +754,6 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct m0_be_seg *db)
 	yaml_node_t      *s_node;
 	yaml_node_item_t *item;
 
-
 	M0_ENTRY();
 
 	astob_tlist_init(&stob->s_adstobs);
