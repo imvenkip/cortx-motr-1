@@ -799,7 +799,7 @@ static int cs_storage_init(const char *stob_type,
 			   uint64_t dom_key,
 			   struct cs_stobs *stob,
 			   struct m0_be_seg *db,
-			   bool mkfs)
+			   bool mkfs, bool force)
 {
 	int                rc;
 	size_t             slen;
@@ -825,23 +825,33 @@ static int cs_storage_init(const char *stob_type,
 		return M0_RC(-ENOMEM);
 
 	sprintf(location, "%s%s", prefix, stob_path);
+	rc = m0_stob_domain_init(location, "directio=true",
+				 &stob->s_sdom);
 	if (mkfs) {
-		rc = m0_stob_domain_init(location, "directio=true",
-					 &stob->s_sdom);
-		if (rc == 0) {
-			/* Found existing stob domain, kill it. */
-			m0_stob_domain_destroy(stob->s_sdom);
+		/* Found existing stob domain, kill it. */
+	 	if (rc == 0 && force) {
+			int rc1 = m0_stob_domain_destroy(stob->s_sdom);
+			if (rc1 != 0) {
+				rc = rc1;
+				goto out;
+			}
 		}
-		rc = m0_stob_domain_create_or_init(location, "directio=true",
-						   dom_key, NULL, &stob->s_sdom);
-		if (rc != 0)
-			M0_LOG(M0_ERROR, "m0_stob_domain_create_or_init: rc=%d", rc);
+		if (force || rc != 0) {
+			rc = m0_stob_domain_create_or_init(location,
+							   "directio=true",
+							   dom_key, NULL,
+							   &stob->s_sdom);
+			if (rc != 0)
+				M0_LOG(M0_ERROR, "m0_stob_domain_create_or_init: rc=%d",
+				       rc);
+		} else {
+			M0_LOG(M0_WARN, "Found alive filesystem, do nothing.");
+		}
 	} else {
-		rc = m0_stob_domain_init(location, "directio=true",
-					 &stob->s_sdom);
 		if (rc != 0)
 			M0_LOG(M0_ERROR, "m0_stob_domain_init: rc=%d", rc);
 	}
+out:
 	m0_free(location);
 
 	if (rc == 0 && strcasecmp(stob_type, m0_cs_stypes[M0_AD_STOB]) == 0) {
@@ -1108,28 +1118,34 @@ end:
    @see m0_addb_mc_configure_stob_sink() that is used by ADDB machine
    to store the ADDB recs.
  */
-static int cs_addb_storage_init(struct m0_reqh_context *rctx, bool mkfs)
+static int cs_addb_storage_init(struct m0_reqh_context *rctx, bool mkfs, bool force)
 {
 	struct cs_addb_stob *addb_stob = &rctx->rc_addb_stob;
 	struct m0_stob	    *stob;
 	int		     rc;
+	int                  rc1;
 
 	M0_ENTRY();
 
+	rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL,
+				 &addb_stob->cas_stobs.s_sdom);
 	if (mkfs) {
-		rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL,
-					 &addb_stob->cas_stobs.s_sdom);
-		if (rc == 0) {
-			/* Found existing stob domain, kill it. */
-			m0_stob_domain_destroy(addb_stob->cas_stobs.s_sdom);
+		/* Found existing stob domain, kill it. */
+		if (rc == 0 && force) {
+			rc1 = m0_stob_domain_destroy(addb_stob->cas_stobs.s_sdom);
+			if (rc1 != 0) {
+				rc = rc1;
+				goto out;
+			}
 		}
-		/** @todo allow different stob type for data stobs & ADDB stobs? */
-		rc = m0_stob_domain_create_or_init(rctx->rc_addb_stlocation,
-						   NULL, 0, NULL,
-						   &addb_stob->cas_stobs.s_sdom);
-	} else {
-		rc = m0_stob_domain_init(rctx->rc_addb_stlocation, NULL,
-					 &addb_stob->cas_stobs.s_sdom);
+		if (rc != 0 || force) {
+			/** @todo allow different stob type for data
+			    stobs & ADDB stobs? */
+			rc = m0_stob_domain_create_or_init(
+				rctx->rc_addb_stlocation,
+				NULL, 0, NULL,
+				&addb_stob->cas_stobs.s_sdom);
+		}
 	}
 	if (rc != 0)
 		return M0_RC(rc);
@@ -1144,6 +1160,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx, bool mkfs)
 			m0_stob_put(stob);
 		addb_stob->cas_stob = stob;
 	}
+out:
 	if (rc != 0)
 		m0_stob_domain_fini(addb_stob->cas_stobs.s_sdom);
 	return M0_RC(rc);
@@ -1174,7 +1191,7 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
 
    @param rctx Request handler context to be initialised
  */
-static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
+static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 {
 	int rc;
 
@@ -1220,14 +1237,14 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 	rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
 			     M0_AD_STOB_LINUX_DOM_KEY,
 			     &rctx->rc_stob, rctx->rc_beseg,
-			     mkfs);
+			     mkfs, force);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "cs_storage_init: rc=%d", rc);
 		/* XXX who should call yaml_document_delete()? */
 		goto reqh_dbenv_fini;
 	}
 
-	rc = cs_addb_storage_init(rctx, mkfs);
+	rc = cs_addb_storage_init(rctx, mkfs, force);
 	if (rc != 0)
 		goto cleanup_stob;
 
@@ -1251,13 +1268,15 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs)
 		}
 
 		/* Prepare new metadata structure, erase old one if exists. */
-		rc = cs_storage_prepare(rctx, rc == 0);
+		if ((rc == 0 && force) || rc == -ENOENT)
+			rc = cs_storage_prepare(rctx, rc == 0);
 		m0_mdstore_fini(&rctx->rc_mdstore);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "cs_storage_prepare: rc=%d", rc);
 			goto cleanup_addb_stob;
 		}
 	}
+
 	/* Init mdstore and root cob as it should be created by mkfs. */
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 			     rctx->rc_beseg, true);
@@ -1421,7 +1440,8 @@ static void cs_help(FILE *out, const char *progname)
 "  -f path  Path to genders file, defaults to /etc/mero/genders.\n"
 "  -g       Bootstrap configuration using genders.\n"
 "  -Z       Run as a daemon.\n"
-"  -R addr  Stats service endpoint address \n"
+"  -R addr  Stats service endpoint address.\n"
+"  -F       Force mkfs to override found filesystem.\n"
 "\n"
 "Request handler options:\n"
 "  -D str   Database environment path.\n"
@@ -1618,6 +1638,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 					printf("Supported services:\n");
 					m0_reqh_service_list_print();
 					rc = 1;
+				})),
+			M0_VOIDARG('F', "Force mkfs to override found filesystem",
+				LAMBDA(void, (void)
+				{
+					cctx->cc_force = true;
 				})),
 			M0_FORMATARG('Q', "Minimum TM Receive queue length",
 				     "%i", &cctx->cc_recv_queue_min_length),
@@ -1823,7 +1848,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 		cs_daemonize(cctx) ?:
 		cs_net_domains_init(cctx) ?:
 		cs_buffer_pool_setup(cctx) ?:
-		cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs) ?:
+		cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs, cctx->cc_force) ?:
 		cs_rpc_machines_init(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
@@ -1868,6 +1893,7 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile  = out;
 	cctx->cc_mkfs     = mkfs;
+	cctx->cc_force    = false;
 
 	cs_mero_init(cctx);
 

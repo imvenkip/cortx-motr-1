@@ -147,7 +147,7 @@ EOF`"
     }
 
     local OPTIONS="`cat <<EOF
--D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
+-F -D $SANDBOX_DIR/db -T linux -S $SANDBOX_DIR/stobs
 -A linuxstob:$SANDBOX_DIR/addb-stobs
 -e lnet:$IOS0_ENDPOINT $CONFD_SPEC -s mdservice -s addb -s ioservice
  -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3

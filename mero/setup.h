@@ -385,6 +385,9 @@ struct m0_mero {
 	/** Run from mkfs? */
 	bool                        cc_mkfs;
 
+        /** Force to override found filesystem during mkfs. */
+	bool                        cc_force;
+
 	/** Command line arguments. */
 	struct cs_args		    cc_args;
 };

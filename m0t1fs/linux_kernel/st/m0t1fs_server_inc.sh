@@ -85,7 +85,7 @@ mero_service()
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
-			$prog_mkfs \
+			$prog_mkfs -F \
 			 -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
 			 -w $P \
