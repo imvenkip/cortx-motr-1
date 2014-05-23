@@ -41,15 +41,6 @@ EXTRA_DIST += addb/addb_counter.c \
               addb/addb_svc.c \
               addb/user_space/uctx.c
 
-CLEANFILES += addb/addb_fops_xc.c \
-	      addb/addb_fops_xc.h \
-	      addb/addb_fops.gccxml \
-	      addb/addb_monitor_wire_xc.c \
-	      addb/addb_monitor_wire_xc.h \
-              addb/addb_wire_xc.c \
-              addb/addb_wire_xc.h \
-              addb/addb_wire.gccxml
-
 addb/addb.c: addb/addb_monitor_wire_xc.h \
 	     addb/addb_fops_xc.h \
              addb/addb_wire_xc.h

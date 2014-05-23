@@ -41,13 +41,3 @@ XC_FILES   += dtm/dtm_update_xc.h \
               dtm/operation_xc.h \
               dtm/remote_xc.h \
               dtm/update_xc.h
-
-CLEANFILES += dtm/dtm_update_xc.h   \
-              dtm/dtm_update_xc.c   \
-              dtm/dtm_update.gccxml \
-              dtm/operation_xc.h \
-              dtm/operation_xc.c \
-              dtm/operation.gccxml \
-              dtm/remote_xc.h \
-              dtm/remote_xc.c \
-              dtm/remote.gccxml

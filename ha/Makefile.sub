@@ -15,10 +15,3 @@ mero_libmero_la_SOURCES  += ha/epoch.c \
 
 XC_FILES   += ha/note_xc.h \
               ha/note_fops_xc.h
-
-CLEANFILES += ha/note_xc.h \
-              ha/note_xc.c \
-              ha/note.gccxml \
-              ha/note_fops_xc.h \
-              ha/note_fops_xc.c \
-              ha/note_fops.gccxml
