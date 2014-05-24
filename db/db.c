@@ -936,67 +936,6 @@ M0_INTERNAL void m0_db_fini(void)
 	m0_xc_extmap_fini();
 }
 
-/* ------------------------------------------------------------------------
- * reqh part
- * ---------------------------------------------------------------------- */
-
-#if 0
-static int ast_init(void);
-static void ast_fini(void);
-
-M0_INTERNAL int m0_db_start(struct m0_reqh *reqh)
-{
-	int rc;
-	struct m0_be_domain_cfg cfg = {
-		.bc_engine = {
-			.bec_group_nr = 1,
-			.bec_log_size = 1 << 27,
-			.bec_tx_size_max = M0_BE_TX_CREDIT_INIT(1 << 20,
-								1 << 26),
-			.bec_group_size_max = M0_BE_TX_CREDIT_INIT(1 << 21,
-								   1 << 27),
-			.bec_group_tx_max = 20
-		}
-	};
-
-	cfg.bc_engine.bec_group_fom_reqh = reqh;
-
-	rc = ast_init();
-	M0_ASSERT(rc == 0);
-	rc = m0_be_domain_init(&__dom, &cfg);
-	M0_ASSERT(rc == 0);
-	m0_be_ut_seg_init(&__seg, &__dom, 1 << 27);
-
-	m0_sm_group_lock(&__sm_group);
-	XXX_m0_be_ut_seg_allocator_init(&__seg, &__sm_group, &__dom);
-	rc = m0_be_seg_dict_create_grp(&__seg.bus_seg, &__sm_group);
-	M0_ASSERT(rc == 0);
-	m0_sm_group_unlock(&__sm_group);
-
-	return rc;
-}
-
-M0_INTERNAL void m0_db_stop(void)
-{
-	m0_be_ut_seg_fini(&__seg);
-	m0_be_domain_fini(&__dom);
-	ast_fini();
-}
-
-#include "ut/ast_thread.c" /* XXX */
-static int ast_init(void)
-{
-	m0_sm_group_init(&__sm_group);
-	return m0_ut_ast_thread_start(&__sm_group);
-}
-
-static void ast_fini(void)
-{
-	m0_ut_ast_thread_stop();
-	m0_sm_group_fini(&__sm_group);
-}
-#endif
-
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of db group */
