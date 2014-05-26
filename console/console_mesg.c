@@ -28,8 +28,7 @@
 
 M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype)
 {
-	fprintf(stdout, "%.2d %s\n", ftype->ft_rpc_item_type.rit_opcode,
-				    ftype->ft_name);
+	printf("%.2d %s\n", ftype->ft_rpc_item_type.rit_opcode, ftype->ft_name);
 }
 
 M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,

@@ -64,6 +64,13 @@ static void byte_get(const struct m0_xcode_type *xct,
 		printf("%s(%s) = %s\n", name, xct->xct_name, (char *)data);
 }
 
+static void *cons_yaml_get_unsafe(const char *name)
+{
+	void *result = m0_cons_yaml_get_value(name);
+	M0_ASSERT_INFO(result != NULL, "name=`%s'", name);
+	return result;
+}
+
 static void byte_set(const struct m0_xcode_type *xct,
 		     const char *name, void *data)
 {
@@ -71,8 +78,7 @@ static void byte_set(const struct m0_xcode_type *xct,
 	char  value;
 
 	if (yaml_support) {
-		tmp_value = m0_cons_yaml_get_value(name);
-		M0_ASSERT(tmp_value != NULL);
+		tmp_value = cons_yaml_get_unsafe(name);
 		strncpy(data, tmp_value, strlen(tmp_value));
 		if (m0_console_verbose)
 			printf("%s(%s) = %s\n", name, xct->xct_name,
@@ -94,12 +100,11 @@ static void u32_get(const struct m0_xcode_type *xct,
 static void u32_set(const struct m0_xcode_type *xct,
 		    const char *name, void *data)
 {
-	uint32_t  value;
-	void     *tmp_value;
+	uint32_t value;
+	void    *tmp_value;
 
 	if (yaml_support) {
-		tmp_value = m0_cons_yaml_get_value(name);
-		M0_ASSERT(tmp_value != NULL);
+		tmp_value = cons_yaml_get_unsafe(name);
 		*(uint32_t *)data = atoi((const char *)tmp_value);
 		if (m0_console_verbose)
 			printf("%s(%s) = %u\n", name, xct->xct_name,
@@ -122,12 +127,11 @@ static void u64_get(const struct m0_xcode_type *xct,
 static void u64_set(const struct m0_xcode_type *xct,
 		    const char *name, void *data)
 {
-	void     *tmp_value;
-	uint64_t  value;
+	void    *tmp_value;
+	uint64_t value;
 
 	if (yaml_support) {
-		tmp_value = m0_cons_yaml_get_value(name);
-		M0_ASSERT(tmp_value != NULL);
+		tmp_value = cons_yaml_get_unsafe(name);
 		*(uint64_t *)data = atol((const char *)tmp_value);
 		if (m0_console_verbose)
 			printf("%s(%s) = %ld\n", name, xct->xct_name,
@@ -138,7 +142,6 @@ static void u64_set(const struct m0_xcode_type *xct,
 			*(uint64_t *)data = value;
 	}
 }
-
 
 /**
  * @brief Methods to handle U64, U32 etc.
@@ -190,9 +193,8 @@ void console_xc_atom_process(struct m0_xcode_cursor_frame *top,
 	}
 }
 
-M0_INTERNAL int
-m0_cons_fop_obj_input_output(struct m0_fop *fop,
-			     enum m0_cons_data_process_type type)
+static int
+cons_fop_iterate(struct m0_fop *fop, enum m0_cons_data_process_type type)
 {
 	int                     fop_depth = 0;
 	int                     result;
@@ -255,19 +257,18 @@ m0_cons_fop_obj_input_output(struct m0_fop *fop,
 		default:
 			break;
 		}
-        }
-
+	}
 	return 0;
 }
 
 M0_INTERNAL int m0_cons_fop_obj_input(struct m0_fop *fop)
 {
-	return m0_cons_fop_obj_input_output(fop, CONS_IT_INPUT);
+	return cons_fop_iterate(fop, CONS_IT_INPUT);
 }
 
 M0_INTERNAL int m0_cons_fop_obj_output(struct m0_fop *fop)
 {
-	return m0_cons_fop_obj_input_output(fop, CONS_IT_OUTPUT);
+	return cons_fop_iterate(fop, CONS_IT_OUTPUT);
 }
 
 M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop)
@@ -277,7 +278,7 @@ M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop)
 
 	vo = m0_console_verbose;
 	m0_console_verbose = true;
-	rc = m0_cons_fop_obj_input_output(fop, CONS_IT_SHOW);
+	rc = cons_fop_iterate(fop, CONS_IT_SHOW);
 	m0_console_verbose = vo;
 
 	return rc;

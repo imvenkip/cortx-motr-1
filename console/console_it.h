@@ -59,16 +59,6 @@ struct m0_cons_atom_ops {
 M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop);
 
 /**
- * @brief Iterate over FOP for input and output.
- *
- * @param fop Fop object
- * @param type Data processing operation type
- */
-M0_INTERNAL int
-m0_cons_fop_obj_input_output(struct m0_fop *fop,
-			     enum m0_cons_data_process_type type);
-
-/**
  * @brief Helper function for FOP input
  *
  * @param fop fop object.
