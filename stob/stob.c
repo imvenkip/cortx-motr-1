@@ -192,9 +192,10 @@ M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 		       "stob->so_ref = %"PRIu64, stob->so_ref);
 
 	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
-
-	rc = rc ?: m0_stob_state_get(stob) == CSS_NOENT ? -ENOENT :
-	     stob->so_ops->sop_destroy(stob, dtx);
+	if (rc != 0)
+		return rc;
+	M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
+	rc = stob->so_ops->sop_destroy(stob, dtx);
 	if (rc == 0 || rc == -EAGAIN) {
 		if (rc == 0)
 			m0_stob__state_set(stob, CSS_NOENT);

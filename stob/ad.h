@@ -112,7 +112,7 @@ struct m0_stob_ad_domain {
  * @note: Currently used only for stob delete operation.
  */
 struct m0_stob_ad_op_it {
-	struct m0_be_emap_seg *oc_seg_last;
+	struct m0_be_emap_seg   oc_seg_last;
 };
 
 struct m0_stob_ad {

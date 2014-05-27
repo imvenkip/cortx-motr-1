@@ -361,11 +361,9 @@ static int fom_tx_commit(struct m0_fom *fom)
 	struct m0_dtx   *dtx = &fom->fo_tx;
 	struct m0_be_tx *tx  = m0_fom_tx(fom);
 
-	M0_PRE(M0_IN(dtx->tx_state, (M0_DTX_INIT, M0_DTX_OPEN)));
-
 	if (dtx->tx_state == M0_DTX_INIT) {
 		m0_dtx_fini(dtx);
-	} else {
+	} else if (M0_IN(dtx->tx_state, (M0_DTX_OPEN, M0_DTX_DONE))){
 		M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 		m0_dtx_done(dtx);
 	}
@@ -379,15 +377,19 @@ static int fom_tx_commit(struct m0_fom *fom)
  */
 M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom)
 {
+	struct m0_dtx   *dtx = &fom->fo_tx;
 	struct m0_be_tx *tx = m0_fom_tx(fom);
 
-	if (m0_be_tx_state(tx) == M0_BTS_DONE) {
-		m0_dtx_fini(&fom->fo_tx);
-		return M0_FSO_AGAIN;
+	if (dtx->tx_state == M0_DTX_DONE) {
+		if (m0_be_tx_state(tx) == M0_BTS_DONE) {
+			m0_dtx_fini(&fom->fo_tx);
+			return M0_FSO_AGAIN;
+		}
+		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+		return M0_FSO_WAIT;
 	}
 
-	m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-	return M0_FSO_WAIT;
+	return M0_FSO_AGAIN;
 }
 
 /**
@@ -418,8 +420,6 @@ static int fom_queue_reply(struct m0_fom *fom)
  */
 static int fom_queue_reply_wait(struct m0_fom *fom)
 {
-	M0_PRE(M0_IN(fom->fo_tx.tx_state, (M0_DTX_INIT, M0_DTX_DONE)));
-
 	if (fom->fo_tx.tx_state == M0_DTX_INIT) {
 		m0_fom_phase_set(fom, M0_FOPH_FINISH);
 		return M0_FSO_WAIT;
@@ -598,7 +598,7 @@ static struct m0_sm_state_descr generic_phases[] = {
 	},
 	[M0_FOPH_TXN_INIT] = {
 		.sd_name      = "fom_tx_init",
-		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN)
+		.sd_allowed   = M0_BITS(M0_FOPH_TXN_OPEN, M0_FOPH_FAILURE)
 	},
 	[M0_FOPH_TXN_OPEN] = {
 		.sd_name      = "fom_tx_open",
@@ -726,6 +726,8 @@ struct m0_sm_trans_descr m0_generic_phases_trans[] = {
 				M0_FOPH_AUTHORISATION_WAIT, M0_FOPH_FAILURE},
 	{"Transaction initialised",
 				M0_FOPH_TXN_INIT, M0_FOPH_TXN_OPEN},
+	{"Transaction initialisation failed",
+				M0_FOPH_TXN_INIT, M0_FOPH_FAILURE},
 	{"Wait for transaction open",
 				M0_FOPH_TXN_OPEN, M0_FOPH_TXN_WAIT},
 	{"Transaction open failed",

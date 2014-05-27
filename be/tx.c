@@ -505,6 +505,17 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx)
 	return tx->t_exclusive;
 }
 
+M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
+				       const struct m0_be_tx_credit *c)
+{
+	struct m0_be_tx_credit cred;
+
+	cred = tx->t_prepared;
+	m0_be_tx_credit_add(&cred, c);
+	return !m0_be_tx_credit_le(&cred,
+				   &tx->t_engine->eng_cfg->bec_tx_size_max);
+}
+
 #undef BE_TX_LOCKED_AT_STATE
 
 /** @} end of be group */

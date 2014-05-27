@@ -564,6 +564,7 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	struct m0_be_tx_credit    tx_max_credit;
 	struct m0_be_tx_credit    cred;
 	struct m0_stob_ad        *astob = stob_ad_stob2ad(stob);
+	struct m0_be_tx           dummy_tx;
 	int                       rc;
 	m0_bcount_t               i = 0;
 	m0_bcount_t               segs;
@@ -582,6 +583,13 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	op = m0_be_emap_op(&it);
 	eng = m0_be_domain_engine(m0_be_emap_seg_domain(it.ec_map));
 	tx_max_credit = m0_be_engine_tx_size_max(eng);
+	/*
+	 * XXX: FIX ME post alpha.
+	 * This is temporary solution for alpha release in-order to
+	 * pass struct m0_be_tx to m0_be_tx_should_break() and must be
+	 * fixed by replacing dummy tx with real tx.
+	 */
+	dummy_tx.t_engine = eng;
 	if (rc == 0) {
 		for (i = 1; i <= segs; ++i) {
 			seg = m0_be_emap_seg_get(&it);
@@ -590,11 +598,10 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 			M0_SET0(&cred);
 			m0_be_emap_credit(&adom->sad_adata,
 					  M0_BEO_PASTE, 1, &cred);
-			m0_be_tx_credit_add(accum, &cred);
-			if (m0_be_tx_credit_is_enough(accum, &tx_max_credit)) {
-				m0_be_tx_credit_sub(accum, &cred);
+			dummy_tx.t_prepared = *accum;
+			if (m0_be_tx_should_break(&dummy_tx, &cred))
 				break;
-			}
+			m0_be_tx_credit_add(accum, &cred);
 			if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 				m0_be_op_init(op);
 				m0_be_emap_next(&it);
@@ -609,15 +616,17 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	}
 	if (rc == 0) {
 		m0_be_emap_close(&it);
-		astob->ad_op_it.oc_seg_last = seg;
+		astob->ad_op_it.oc_seg_last = *seg;
+		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+		  !m0_ext_is_empty(&seg->ee_ext));
 		if (!m0_be_emap_ext_is_last(&seg->ee_ext))
 			rc = -EAGAIN;
 	}
 
-	M0_LOG(M0_DEBUG, "segs: %llu i: %llu rc: %d accum: %llu max_cred: %llu",
-		(unsigned long long)segs, (unsigned long long)i, rc,
-		(unsigned long long)accum->tc_reg_size,
-		(unsigned long long)tx_max_credit.tc_reg_size);
+	M0_LOG(M0_DEBUG, "segs: %llu seglast="EXT_F"seg="EXT_F"rc: %d",
+		(unsigned long long)segs,
+		EXT_P(&astob->ad_op_it.oc_seg_last.ee_ext),
+		EXT_P(&seg->ee_ext), rc);
 
 	return M0_RC(rc);
 }
@@ -643,16 +652,18 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	int                       rc;
 
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
-	astob = stob_ad_stob2ad(stob);
 	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
 	rc = stob_ad_cursor(adom, stob, 0, &it);
 	if (rc != 0)
 		return M0_RC(rc);
+	astob = stob_ad_stob2ad(stob);
 	M0_LOG(M0_DEBUG, U128D_F, U128_P(&it.ec_prefix));
 	ext = &it.ec_seg.ee_ext;
 	M0_LOG(M0_DEBUG, "ext="EXT_F" val=%llu",
 		EXT_P(ext), (unsigned long long)it.ec_seg.ee_val);
-	seg = astob->ad_op_it.oc_seg_last;
+	seg = &astob->ad_op_it.oc_seg_last;
+	M0_LOG(M0_DEBUG, "seg="EXT_F,
+		EXT_P(&astob->ad_op_it.oc_seg_last.ee_ext));
 	M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
 		  !m0_ext_is_empty(&seg->ee_ext));
 	/*
@@ -687,7 +698,6 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 							     &tx->tx_betx, &op,
 							     &prefix),
 				       bo_u.u_emap.e_rc);
-
 	if (rc == 0 && !delete_all)
 		rc = -EAGAIN;
 

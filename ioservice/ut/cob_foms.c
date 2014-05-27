@@ -33,6 +33,8 @@
 #include "ut/cs_service.h"               /* ds1_service_type */
 #include "ut/ut.h"                       /* m0_ut_fom_phase_set */
 
+#include <stdio.h>
+
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
 extern struct m0_reqh_service_type m0_ios_type;
@@ -46,8 +48,9 @@ static struct m0_fom_type ft;
 
 static struct m0_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct m0_fom *fom);
-static void fom_dtx_init_open(struct m0_fom *fom, struct m0_sm_group *grp,
-			      enum m0_cob_op opcode);
+static void fom_dtx_init(struct m0_fom *fom, struct m0_sm_group *grp,
+			 enum m0_cob_op opcode);
+static void fom_stob_tx_credit(struct m0_fom *fom, enum m0_cob_op opcode);
 static void fom_dtx_done(struct m0_fom *fom, struct m0_sm_group *grp);
 static void cd_stob_delete_test();
 
@@ -66,7 +69,7 @@ enum {
 	GOB_FID_CONTAINER_ID      = 1000,
 	GOB_FID_KEY_ID            = 5678,
 	COB_FOP_SINGLE            = 1,
-	COB_FOP_NR                = 10,
+	COB_FOP_NR                = 5,
 	POOL_WIDTH                = 10,
 	COB_TEST_KEY              = 111,
 	COB_TEST_CONTAINER        = 1 + COB_TEST_KEY % POOL_WIDTH,
@@ -516,6 +519,7 @@ static void fom_fini_test(enum cob_fom_type fomtype)
 	 *    stray foms around.
 	 */
 	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
+	m0_reqh_idle_wait(reqh);
 	base_mem = m0_allocated();
 	fom_create(&fom, fomtype);
 
@@ -623,7 +627,8 @@ static void cc_stob_create_test()
 
 	cc = cob_fom_get(fom);
 
-	fom_dtx_init_open(fom, grp, M0_COB_OP_CREATE);
+	fom_dtx_init(fom, grp, M0_COB_OP_CREATE);
+	fom_stob_tx_credit(fom, M0_COB_OP_CREATE);
 	rc = cc_stob_create(fom, cc);
 	M0_UT_ASSERT(m0_fom_phase(fom) == M0_FOPH_COB_OPS_PREPARE);
 	fom_dtx_done(fom, grp);
@@ -691,7 +696,8 @@ static void cc_cob_create_test()
 	 * Test-case 1: Test successful creation of COB
 	 */
 
-	fom_dtx_init_open(fom, grp, M0_COB_OP_CREATE);
+	fom_dtx_init(fom, grp, M0_COB_OP_CREATE);
+	fom_stob_tx_credit(fom, M0_COB_OP_CREATE);
 	/*
 	 * Create STOB first.
 	 */
@@ -714,7 +720,9 @@ static void cc_cob_create_test()
 	 * Test-case 2 - Test failure case. Try to create the
 	 * same COB.
 	 */
-	fom_dtx_init_open(fom, grp, M0_COB_OP_CREATE);
+	fom_dtx_init(fom, grp, M0_COB_OP_CREATE);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
+	M0_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(fom, cc);
 	M0_UT_ASSERT(rc != 0);
 	fom_dtx_done(fom, grp);
@@ -722,7 +730,9 @@ static void cc_cob_create_test()
 	/*
 	 * Start cleanup by deleting the COB
 	 */
-	fom_dtx_init_open(fom, grp, M0_COB_OP_DELETE_PUT);
+	fom_dtx_init(fom, grp, M0_COB_OP_DELETE_PUT);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_cob_delete_put(test_cob, m0_fom_tx(fom));
 	M0_UT_ASSERT(rc == 0);
 	fom_dtx_done(fom, grp);
@@ -742,6 +752,7 @@ static void cc_fom_state_test(void)
 	struct m0_fom        *cfom;
 	struct m0_fom        *dfom;
 	struct m0_fom_cob_op *cc;
+	struct m0_fom_cob_op *cd;
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 
 	/* delete existing stob */
@@ -752,7 +763,8 @@ static void cc_fom_state_test(void)
 
 	cc = cob_fom_get(cfom);
 
-	fom_dtx_init_open(cfom, grp, M0_COB_OP_CREATE);
+	fom_dtx_init(cfom, grp, M0_COB_OP_CREATE);
+	fom_stob_tx_credit(cfom, M0_COB_OP_CREATE);
 	rc = cob_ops_fom_tick(cfom);
 	M0_UT_ASSERT(m0_fom_rc(cfom) == 0);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
@@ -770,7 +782,9 @@ static void cc_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	M0_UT_ASSERT(dfom != NULL);
 
-	fom_dtx_init_open(dfom, grp, M0_COB_OP_DELETE);
+	cd = cob_fom_get(dfom);
+	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
+	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
 	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_PREPARE */
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_CREATE_DELETE */
@@ -900,7 +914,8 @@ static struct m0_fom *cob_testdata_create()
 	beseg = m0_fom_reqh(fom)->rh_beseg;
 	cc = cob_fom_get(fom);
 
-	fom_dtx_init_open(fom, grp, M0_COB_OP_CREATE);
+	fom_dtx_init(fom, grp, M0_COB_OP_CREATE);
+	fom_stob_tx_credit(fom, M0_COB_OP_CREATE);
 	rc = cob_ops_fom_tick(fom);
 	M0_UT_ASSERT(m0_fom_rc(fom) == 0);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
@@ -936,7 +951,8 @@ static void cd_stob_delete_test()
 	cfom = cc_fom_alloc();
 	M0_UT_ASSERT(cfom != NULL);
 	cc = cob_fom_get(cfom);
-	fom_dtx_init_open(cfom, grp, M0_COB_OP_CREATE);
+	fom_dtx_init(cfom, grp, M0_COB_OP_CREATE);
+	fom_stob_tx_credit(cfom, M0_COB_OP_CREATE);
 	rc = cc_stob_create(cfom, cc);
 	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
 	fom_dtx_done(cfom, grp);
@@ -946,7 +962,8 @@ static void cd_stob_delete_test()
 	M0_UT_ASSERT(dfom != NULL);
 
 	cd = cob_fom_get(dfom);
-	fom_dtx_init_open(dfom, grp, M0_COB_OP_DELETE);
+	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
+	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
 	rc = cd_stob_delete(dfom, cd);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_ASSERT(rc == 0);
@@ -983,7 +1000,9 @@ static void cd_cob_delete_test()
 	/*
 	 * Test-case 1: Delete cob. The test should succeed.
 	 */
-	fom_dtx_init_open(dfom, grp, M0_COB_OP_DELETE);
+	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
+	rc = m0_dtx_open_sync(&dfom->fo_tx);
+	M0_UT_ASSERT(rc == 0);
 	rc = cd_cob_delete(dfom, cd);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_UT_ASSERT(rc == 0);
@@ -998,7 +1017,8 @@ static void cd_cob_delete_test()
 	/*
 	 * Test-case 2: Delete cob again. The test should fail.
 	 */
-	fom_dtx_init_open(dfom, grp, M0_COB_OP_DELETE);
+	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
+	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
 	rc = cd_cob_delete(dfom, cd);
 
 	/*
@@ -1030,7 +1050,8 @@ static void cd_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	M0_UT_ASSERT(dfom != NULL);
 
-	fom_dtx_init_open(dfom, grp, M0_COB_OP_DELETE);
+	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
+	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
 	rc = cob_ops_fom_tick(dfom);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	rc = cob_ops_fom_tick(dfom);
@@ -1142,7 +1163,7 @@ static void cobfoms_fv_updates(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_sm_group_unlock(grp);
 
-	cobfoms_send_internal(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt,
+	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL,
 			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 			      COB_FOP_SINGLE);
@@ -1240,18 +1261,35 @@ static void cobfoms_fol_verify(void)
 }
 #endif
 
-static void fom_dtx_init_open(struct m0_fom *fom, struct m0_sm_group *grp,
-			      enum m0_cob_op opcode)
+static void fom_stob_tx_credit(struct m0_fom *fom, enum m0_cob_op opcode)
 {
-	int		  rc;
-	struct m0_be_seg *beseg;
+	struct m0_fom_cob_op *co;
+	int                   rc;
+
+	co = cob_fom_get(fom);
+	if (opcode == M0_COB_OP_DELETE) {
+		rc = cob_ops_stob_find(co);
+		M0_ASSERT(rc == 0);
+		rc = cd_stob_delete_credit(fom, co, m0_fom_tx_credit(fom));
+	} else
+		rc = cc_stob_create_credit(fom, co, m0_fom_tx_credit(fom));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_dtx_open_sync(&fom->fo_tx);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void fom_dtx_init(struct m0_fom *fom, struct m0_sm_group *grp,
+			 enum m0_cob_op opcode)
+{
+	struct m0_be_seg     *beseg;
+	struct m0_fom_cob_op *co;
 
 	beseg = m0_fom_reqh(fom)->rh_beseg;
 	m0_sm_group_lock(grp);
 	m0_dtx_init(&fom->fo_tx, beseg->bs_domain, grp);
 	cob_op_credit(fom, opcode, m0_fom_tx_credit(fom));
-	rc = m0_dtx_open_sync(&fom->fo_tx);
-	M0_UT_ASSERT(rc == 0);
+	co = cob_fom_get(fom);
+	co->fco_is_done = true;
 }
 
 static void fom_dtx_done(struct m0_fom *fom, struct m0_sm_group *grp)

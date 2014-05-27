@@ -50,6 +50,7 @@ struct m0_fom_cob_op {
 	struct m0_fid		 fco_cfid;
 	/** Unique cob index in pool. */
 	uint32_t                 fco_cob_idx;
+	struct m0_stob          *fco_stob;
 	bool                     fco_is_done;
 	/** FOL rec fragment for create and delete operations. */
 	struct m0_fol_frag       fco_fol_frag;

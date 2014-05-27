@@ -260,18 +260,33 @@ extern int ios__poolmach_check(struct m0_poolmach *poolmach,
 			       struct m0_pool_version_numbers *cliv,
 			       struct m0_fid *cob_fid);
 
+static int cob_ops_stob_find(struct m0_fom_cob_op *co)
+{
+	int rc;
+
+	rc = m0_stob_find(&co->fco_stob_fid, &co->fco_stob);
+	if (rc == 0 && m0_stob_state_get(co->fco_stob) == CSS_UNKNOWN)
+		   rc = m0_stob_locate(co->fco_stob);
+	if (m0_stob_state_get(co->fco_stob) == CSS_NOENT) {
+		m0_stob_put(co->fco_stob);
+		rc = -ENOENT;
+	}
+	if (rc == 0)
+		m0_stob_put(co->fco_stob);
+
+	return rc;
+}
+
 static int cob_ops_fom_tick(struct m0_fom *fom)
 {
-	int                             rc = 0;
 	struct m0_fom_cob_op           *cob_op;
 	struct m0_fop_cob_op_reply     *reply;
 	struct m0_poolmach             *poolmach;
 	struct m0_reqh                 *reqh;
 	struct m0_fop_cob_common       *common;
 	struct m0_be_tx_credit          cob_op_tx_credit = {};
-	struct m0_be_tx_credit          tx_max_credit;
 	struct m0_be_tx_credit         *tx_cred;
-	struct m0_be_engine            *en;
+	int                             rc = 0;
 	bool                            fop_is_create;
 	const char                     *ops;
 
@@ -280,13 +295,26 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_type != NULL);
 
 	fop_is_create = fom->fo_fop->f_type == &m0_fop_cob_create_fopt;
-
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		cob_op = cob_fom_get(fom);
-		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+		switch(m0_fom_phase(fom)) {
+		case M0_FOPH_INIT:
+			if (fop_is_create)
+				break;
+			/*
+			 * Find the stob and handle non-existing stob error
+			 * earlier, before initialising the transaction.
+			 * This avoids complications in handling transaction
+			 * cleanup.
+			 */
+			rc = cob_ops_stob_find(cob_op);
+			if (rc != 0) {
+				cob_op->fco_is_done = true;
+				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+			}
+			break;
+		case M0_FOPH_TXN_OPEN:
 			tx_cred = m0_fom_tx_credit(fom);
-			en = fom->fo_tx.tx_betx.t_engine;
-			tx_max_credit = m0_be_engine_tx_size_max(en);
 			if (fop_is_create) {
 				cc_stob_create_credit(fom, cob_op,
 						      tx_cred);
@@ -299,25 +327,18 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 					M0_SET0(&cob_op_tx_credit);
 					cob_op_credit(fom, M0_COB_OP_DELETE,
 						      &cob_op_tx_credit);
-					m0_be_tx_credit_add(tx_cred,
-							    &cob_op_tx_credit);
-					if (m0_be_tx_credit_is_enough(tx_cred,
-								&tx_max_credit))
-						m0_be_tx_credit_sub(tx_cred,
-							&cob_op_tx_credit);
-					else
+					if (!m0_be_tx_should_break(m0_fom_tx(fom),
+								   &cob_op_tx_credit)) {
+						m0_be_tx_credit_add(tx_cred,
+								    &cob_op_tx_credit);
 						cob_op->fco_is_done = true;
+					}
 				}
 				rc = rc == -EAGAIN ? 0 : rc;
 			}
-			M0_ASSERT(!m0_be_tx_credit_is_enough(tx_cred,
-							     &tx_max_credit));
 		}
-		if (rc != 0) {
-			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-			cob_op->fco_is_done = true;
-		}
-		if (!fop_is_create && !cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
+		if (rc == 0 && !fop_is_create && !cob_op->fco_is_done &&
+		    m0_fom_rc(fom) == 0) {
 			if (m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY) {
 				/*
 				 * We have come here from M0_FOPH_TXN_COMMIT but
@@ -342,7 +363,6 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		rc = m0_fom_tick_generic(fom);
 		return rc;
 	}
-
 	common = m0_cobfop_common_get(fom->fo_fop);
 	reqh = m0_fom_reqh(fom);
 	poolmach = m0_ios_poolmach_get(reqh);
@@ -420,6 +440,13 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 
 		rc = ios__poolmach_check(poolmach, cliv, &common->c_cobfid);
 		if (rc != 0) {
+			cob_op = cob_fom_get(fom);
+			/*
+			 * Release the reference taken on stob in
+			 * M0_FOPH_TXN_INIT
+			 */
+			if (cob_op->fco_stob != NULL)
+				m0_stob_put(cob_op->fco_stob);
 			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 			goto pack;
 		}
@@ -562,6 +589,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 {
 	struct m0_cob_domain *cdom;
 	struct m0_be_tx	     *tx;
+	int                   rc;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(cc != NULL);
@@ -571,7 +599,9 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 
 	tx = m0_fom_tx(fom);
 
-	return m0_cc_cob_setup(cc, cdom, tx);
+	rc = m0_cc_cob_setup(cc, cdom, tx);
+
+	return rc;
 }
 
 M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
@@ -718,19 +748,23 @@ static int cd_stob_delete_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 		IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_DELETE_CRED_1,
 				  &m0_ios_addb_ctx);
 	} else {
-		rc = m0_stob_find(&cc->fco_stob_fid, &stob);
-		if (rc != 0) {
-			IOS_ADDB_FUNCFAIL(-EINVAL, CC_STOB_DELETE_CRED_2,
-					  &m0_ios_addb_ctx);
-		} else {
-			rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
-			     m0_stob_locate(stob) : 0;
-			if (rc == 0) {
-				rc = m0_stob_destroy_credit(stob,
-							    m0_fom_tx_credit(fom));
-			}
-			m0_stob_put(stob);
-		}
+		/*
+		 * XXX: We need not lookup the stob again as it was already
+		 * found and saved in M0_FOPH_INIT phase. But due to MERO-244
+		 * (resend) the ref count is increased which is not expected
+		 * and causes side effect on the operation.
+		 */
+		rc = m0_stob_lookup(&cc->fco_stob_fid, &cc->fco_stob);
+		if (rc != 0)
+			return rc;
+		stob = cc->fco_stob;
+		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
+		M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
+		if (rc != 0)
+			return rc;
+		M0_ASSERT(stob != NULL);
+		rc = m0_stob_destroy_credit(stob, accum);
+		m0_stob_put(stob);
 	}
 	return rc;
 }
@@ -745,28 +779,18 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	if (rc != 0) {
 		IOS_ADDB_FUNCFAIL(-EINVAL, CD_STOB_DELETE_1, &m0_ios_addb_ctx);
 	} else {
-		rc = m0_stob_find(&cd->fco_stob_fid, &stob);
-		rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
-			   m0_stob_locate(stob) : 0;
-		rc = rc ?: m0_stob_state_get(stob) == CSS_EXISTS ?
-			   m0_stob_destroy(stob, &fom->fo_tx) :
-			   (m0_stob_put(stob), 0);
-
-		/*if (rc == 0) {
-			if (m0_stob_state_get(stob) == CSS_UNKNOWN)
-				rc  = m0_stob_locate(stob);
-			else
-				rc = 0;
-
-			if (rc == 0) {
-				if (m0_stob_state_get(stob) == CSS_EXISTS)
-					rc = m0_stob_destroy(stob, &fom->fo_tx);
-				else {
-					m0_stob_put(stob);
-					rc = 0;
-				}
-			}
-		}*/
+		/*
+		 * XXX: We need not lookup the stob again as it was already
+		 * found and saved in M0_FOPH_INIT phase. But due to MERO-244
+		 * (resend) the ref count is increased which is not expected
+		 * and causes side effect on the operation.
+		 */
+		rc = m0_stob_lookup(&cd->fco_stob_fid, &cd->fco_stob);
+		if (rc != 0)
+			return rc;
+		stob = cd->fco_stob;
+		M0_ASSERT(stob != NULL);
+		rc = m0_stob_destroy(stob, &fom->fo_tx);
 		if (rc != 0) {
 			M0_LOG(M0_DEBUG, "m0_stob_destroy() failed with %d",
 			       rc);

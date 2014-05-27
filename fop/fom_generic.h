@@ -202,7 +202,7 @@ M0_INTERNAL void m0_fom_generic_fini(void);
 M0_INTERNAL int m0_fom_generic_init(void);
 
 enum {
-	M0_FOM_GENERIC_TRANS_NR = 46,
+	M0_FOM_GENERIC_TRANS_NR = 47,
 };
 
 extern struct m0_sm_trans_descr

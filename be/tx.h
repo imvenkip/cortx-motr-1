@@ -477,6 +477,8 @@ M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec);
  */
 M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
 
+M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
+				       const struct m0_be_tx_credit *c);
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */
 

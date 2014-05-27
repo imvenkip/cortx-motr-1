@@ -121,9 +121,6 @@ M0_INTERNAL bool m0_be_tx_credit_le(const struct m0_be_tx_credit *c0,
 /* c0 == c1 */
 M0_INTERNAL bool m0_be_tx_credit_eq(const struct m0_be_tx_credit *c0,
 				    const struct m0_be_tx_credit *c1);
-
-M0_INTERNAL bool m0_be_tx_credit_is_enough(const struct m0_be_tx_credit *c0,
-					   const struct m0_be_tx_credit *c1);
 /** @} end of be group */
 #endif /* __MERO_BE_TX_CREDIT_H__ */
 
