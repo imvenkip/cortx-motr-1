@@ -66,6 +66,10 @@ run_st() {
     ## rpc ping
     "$SRC/rpc/it/st.sh"
 
+    ## console ST
+    $SUDO SANDBOX_DIR=${RUNDIR}/sandbox.console-st \
+	"$SRC/console/st/console-st.sh"
+
     ## conf ST
     $SUDO SANDBOX_DIR=${RUNDIR}/sandbox.conf-st "$SRC/m0t1fs/linux_kernel/st/st"
 

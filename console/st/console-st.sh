@@ -147,7 +147,14 @@ run_st()
 		-d '(65, 22, (144, 233), "abcde")'
 	create_yaml_files
 	test_fop 'Console test fop, YAML input' 9  8 -i -y $YAML_FILE9
-	test_fop 'Write request fop' 41 43 -i -y $YAML_FILE41
+
+	## This test case does not work: $SERVER crashes while
+	## processing the fop (opcode 41, m0_fop_cob_writev).
+	## See https://jira.xyratex.com/browse/MERO-294 or
+	## https://trello.com/c/ZdjHaHXc for details.
+	if false; then
+	    test_fop 'Write request fop' 41 43 -i -y $YAML_FILE41
+	fi
 }
 
 ## -------------------------------------------------------------------
