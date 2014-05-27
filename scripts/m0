@@ -67,7 +67,7 @@ run_st() {
     "$SRC/rpc/it/st.sh"
 
     ## conf ST
-    $SUDO SANDBOX_DIR=${RUNDIR}/_m0-sandbox "$SRC/m0t1fs/linux_kernel/st/st"
+    $SUDO SANDBOX_DIR=${RUNDIR}/sandbox.conf-st "$SRC/m0t1fs/linux_kernel/st/st"
 
     ## IO ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"

@@ -2,7 +2,7 @@
 set -eu
 
 ## CAUTION: This path will be removed by superuser.
-SANDBOX_DIR=${SANDBOX_DIR:-~devvm/_m0-sandbox}
+SANDBOX_DIR=${SANDBOX_DIR:-~/_sandbox.conf-st}
 
 TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory}
 TRACE_LEVEL=${M0_TRACE_LEVEL:-info+}
