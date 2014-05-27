@@ -630,14 +630,14 @@ function start_servers () {
 
 	echo "Wait for the services to start up..."
 	while true; do
-		local STARTED_NR=`cat ${SLOG}*.log | grep CTRL | wc -l`
+		local STARTED_NR=`cat ${SLOG}[0-9]*.log | grep CTRL | wc -l`
 		echo "Started $STARTED_NR (of $SERVICES_NR) services..."
 		[ $STARTED_NR -ge $SERVICES_NR ] && break
-		local START_ERROR=`cat ${SLOG}*.log | grep ERROR | wc -l`
+		local START_ERROR=`cat ${SLOG}[0-9]*.log | grep ERROR | wc -l`
 		l_do sleep 5
 		if [ $START_ERROR -gt 0 ]; then
 			echo "Failed to start Mero!"
-			cat ${SLOG}*.log | grep ERROR
+			cat ${SLOG}[0-9]*.log | grep ERROR
 			return 1
 		fi
 	done
