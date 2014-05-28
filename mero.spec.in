@@ -38,8 +38,7 @@ BuildRequires:  perl-List-MoreUtils
 BuildRequires:  perl-File-Find-Rule
 BuildRequires:  perl-IO-All
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
-# TODO: change to lustre-devel after devvm upgrade to C-NEO1.3
-BuildRequires:  lustre-source
+BuildRequires:  lustre-devel
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       lustre-modules
