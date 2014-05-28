@@ -191,7 +191,7 @@ fi
 [[ -n $rpm_pkg ]] && install_mero_rpm $rpm_pkg
 
 info "Starting Mero"
-start mero-singlenode
+start mero-singlenode MERO_M0D_REMOVE_SERVICE_DIR=true
 
 do_m0t1fs_system_test
 
