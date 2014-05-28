@@ -122,8 +122,8 @@ static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 				  m0_streq(rctx->rc_services[i], "confd"))) &&
 		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
 		rctx->rc_addb_stlocation != NULL && rctx->rc_dbpath != NULL &&
-		rctx->rc_nr_services != 0 && rctx->rc_services != NULL &&
-		!cs_eps_tlist_is_empty(&rctx->rc_eps);
+		ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&
+		     !cs_eps_tlist_is_empty(&rctx->rc_eps));
 }
 
 static bool reqh_context_check(const void *bob)
@@ -1515,6 +1515,9 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 		cs_stob_types_list(cctx->cc_outfile);
 		return M0_ERR(-EINVAL, "Invalid service type");
 	}
+
+	if (cs_eps_tlist_is_empty(&rctx->rc_eps) && rctx->rc_nr_services == 0)
+		return M0_RC(0);
 
 	if (cs_eps_tlist_is_empty(&rctx->rc_eps))
 		return M0_ERR(-EINVAL, "Endpoint is missing");
