@@ -63,7 +63,8 @@ int main(int argc, char **argv)
 	char    *server_argv[] = {
 		argv[0], "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
-		"-e", ENDPOINT, "-s", "ds1", "-s", "ds2", "-s", "ioservice",
+		"-w", "10", "-e", ENDPOINT,
+		"-s", "ds1", "-s", "ds2", "-s", "ioservice",
 		"-q", tm_len, "-m", rpc_size
 	};
 	struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;

@@ -37,6 +37,21 @@ start_server()
 	. /etc/rc.d/init.d/functions  # import `status' function definition
 	set -eu
 
+	echo -n 'Running m0mkfs... ' >&2
+	##
+	## NOTE: The list of options passed to m0mkfs command should
+	## correspond to the content of `server_argv' array in
+	## console/st/server.c, but not in `-s' parameters department:
+	## m0mkfs does not call m0_cs_default_stypes_init(), which
+	## registers "ds1" and "ds2" service types, so we do not pass
+	## these services to m0mkfs.
+	##
+	$M0_CORE_DIR/utils/mkfs/m0mkfs -T AD -D console_st_srv.db \
+	    -S console_st_srv.stob -A linuxstob:console_st_srv-addb.stob \
+	    -w 10 -e lnet:$SERVER_EP_ADDR -s ioservice -q 2 -m $((1 << 17)) \
+	    &>$SANDBOX_DIR/mkfs.log || die 'm0mkfs failed'
+	echo 'OK' >&2
+
 	$SERVER -v &>$SANDBOX_DIR/server.log &
 	sleep 1
 	status $SERVER_EXEC || die 'Service failed to start'
@@ -58,25 +73,43 @@ Test FOP:
        cons_buf : abcde
 EOF
 
+	## The content of `Write FOP' below should correspond to
+	## m0_fop_cob_writev definition (see ioservice/io_fops.h).
 	cat <<EOF >$YAML_FILE41
 server  : $SERVER_EP_ADDR
 client  : $CLIENT_EP_ADDR
 
 Write FOP:
-  - fvv_read : 10
+  - # m0_fop_cob_writev.c_rwv :: m0_fop_cob_rw
+    ## m0_fop_cob_rw.crw_version :: m0_fv_version
+    fvv_read : 10
     fvv_write : 11
+    ## m0_fop_cob_rw.crw_gfid :: m0_fid
     f_container : 12
     f_key : 13
+    ## m0_fop_cob_rw.crw_fid :: m0_fid
+    f_container : 14
+    f_key : 15
+    ## m0_fop_cob_rw.crw_desc :: m0_io_descs
     id_nr : 1
+    ### m0_io_descs.id_descs :: m0_net_buf_desc_data
+    #### m0_net_buf_desc_data.bdd_desc :: m0_net_buf_desc
     nbd_len : 5
     nbd_data : Hello
-    cis_nr : 1
+    ###
+    bdd_used : 5
+    ## m0_fop_cob_rw.crw_ivec :: m0_io_indexvec
     ci_nr : 1
+    ### m0_io_indexvec.ci_iosegs :: m0_ioseg
     ci_index : 17
     ci_count : 100
+    ## m0_fop_cob_rw.crw_addb_ctx_id :: m0_addb_uint64_seqo
     au64s_nr : 1
     au64s_data : 257
     crw_flags : 21
+    ## m0_fop_cob_rw.crw_di_data :: m0_buf
+    b_nob : 0
+    b_addr : 0
 EOF
 }
 
