@@ -23,6 +23,7 @@
 #ifndef __MERO_STOB_LINUX_H__
 #define __MERO_STOB_LINUX_H__
 
+#include "sm/sm.h"              /* m0_sm_ast */
 #include "stob/stob.h"		/* m0_stob_type */
 #include "stob/domain.h"	/* m0_stob_domain */
 #include "stob/ioq.h"		/* m0_stob_ioq */
@@ -57,6 +58,8 @@ struct m0_stob_linux {
 	int			     sl_fd;
 	/** file mode as returned by stat(2) */
 	mode_t			     sl_mode;
+	/** AST for stob exceptions. */
+	struct m0_sm_ast             sl_ast;
 };
 
 M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob);

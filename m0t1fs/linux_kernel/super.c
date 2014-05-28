@@ -63,6 +63,10 @@ static uint32_t max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 module_param(max_rpc_msg_size, int, S_IRUGO);
 MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
 
+static char *ha_addr = "0@lo:12345:66:";
+module_param(ha_addr, charp, S_IRUGO);
+MODULE_PARM_DESC(ha_addr, "End-point address of running HA instance.");
+
 M0_INTERNAL void io_bob_tlists_init(void);
 static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf);
 
@@ -756,6 +760,9 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 			map->rm_ctx = ctx;
 			break;
 
+		case M0_CST_HA:
+			break;
+
 		default:
 			M0_IMPOSSIBLE("Invalid service type");
 		}
@@ -1162,10 +1169,25 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	csb->csb_next_key = mops->mo_fid_start;
 
+	rc = connect_to_service(ha_addr, M0_CST_HA, csb);
+	ctx = m0_tl_find(svc_ctx, ctx, &csb->csb_service_contexts,
+			 ctx->sc_type == M0_CST_HA);
+	if (rc != 0 || ctx == NULL) {
+		M0_LOG(M0_WARN, "Cannot connect to HA service.");
+	} else {
+		csb->csb_reqh.rh_ha_rpc_session = ctx->sc_session;
+		/* Reset ctx for use later */
+		ctx = NULL;
+	}
+
+	rc = m0_ha_state_init();
+	if (rc != 0)
+		goto err_layout_fini;
+
 	rc = m0_conf_fs_get(mops->mo_profile, mops->mo_confd,
 		&csb->csb_rpc_machine, &csb->csb_iogroup, &confc, &fs);
 	if (rc != 0)
-		goto err_layout_fini;
+		goto ha_fini;
 
 	rc = m0_pdclust_attr_read(fs, &pa) ?:
 	     connect_to_services(csb, fs, &nr_ios);
@@ -1220,6 +1242,8 @@ addb_mc_unconf:
 	m0_addb_mc_init(&m0_addb_gmc);
 err_disconnect:
 	disconnect_from_services(csb);
+ha_fini:
+	m0_ha_state_fini();
 err_layout_fini:
 	m0t1fs_layout_fini(csb);
 err_addb_mon_fini:
@@ -1241,6 +1265,7 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_addb_mc_fini(&m0_addb_gmc);
 	m0_addb_mc_init(&m0_addb_gmc);
 	disconnect_from_services(csb);
+	m0_ha_state_fini();
 	m0t1fs_layout_fini(csb);
 	m0t1fs_addb_mon_total_io_size_fini(csb);
 	m0t1fs_rpc_fini(csb);

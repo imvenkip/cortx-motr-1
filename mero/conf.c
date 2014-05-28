@@ -62,7 +62,8 @@ static const char *service_name[] = {
 	[M0_CST_IOS] = "ioservice",  /* IO/data service. */
 	[M0_CST_MGS] = "confd",      /* Management service (confd). */
 	[M0_CST_RMS] = "rmservice",  /* RM service. */
-	[M0_CST_SS]  = "stats"       /* Stats service */
+	[M0_CST_SS]  = "stats",      /* Stats service */
+	[M0_CST_HA]  = "haservice"   /* HA service */
 };
 
 M0_UNUSED static char *

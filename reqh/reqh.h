@@ -34,6 +34,7 @@
 #include "layout/layout.h"
 #include "ha/epoch.h"
 #include "addb/addb_monitor.h"
+#include "rpc/session.h"
 
 /**
    @defgroup reqh Request handler
@@ -179,6 +180,11 @@ struct m0_reqh {
 	 * Confc instance.
 	 */
 	struct m0_confc               rh_confc;
+
+	/**
+	 * HA RPC session.
+	 */
+	struct m0_rpc_session         rh_ha_rpc_session;
 };
 
 /**

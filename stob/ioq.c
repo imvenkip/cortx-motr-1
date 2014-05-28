@@ -25,9 +25,15 @@
 #include <limits.h>			/* IOV_MAX */
 #include <sys/uio.h>			/* iovec */
 
+#include "ha/note.h"                    /* ha_note, ha_nvec */
+
 #include "lib/misc.h"			/* M0_SET0 */
 #include "lib/errno.h"			/* ENOMEM */
+#include "lib/locality.h"
 #include "lib/memory.h"			/* M0_ALLOC_PTR */
+
+#include "reqh/reqh.h"                  /* m0_reqh */
+#include "rpc/session.h"                /* m0_rpc_session */
 
 #include "stob/stob_addb.h"		/* M0_STOB_OOM */
 #include "stob/linux.h"			/* m0_stob_linux_container */
@@ -142,6 +148,39 @@ enum {
 	STOB_IOQ_BSIZE	= 1 << STOB_IOQ_BSHIFT,
 	STOB_IOQ_BMASK	= STOB_IOQ_BSIZE - 1
 };
+
+/**
+ * Handles detection of drive IO error by signalling HA.
+ */
+static void io_err_callback(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_ha_note      note;
+	struct m0_ha_nvec      nvec;
+	struct m0_rpc_session *rpc_ssn;
+	struct m0_stob_linux  *lstob;
+	struct m0_stob_ioq    *ioq;
+
+	M0_ENTRY();
+
+	lstob = container_of(ast, struct m0_stob_linux, sl_ast);
+	ioq = &container_of(&lstob->sl_stob.so_domain,
+			   struct m0_stob_linux_domain, sld_dom)->sld_ioq;
+	rpc_ssn = &m0_locality_here()->lo_reqh->rh_ha_rpc_session;
+	m0_mutex_lock(&ioq->ioq_lock);
+	if (rpc_ssn != NULL) {
+		note.no_id    = *m0_stob_fid_get(&lstob->sl_stob);
+		note.no_state = M0_NC_FAILED;
+		nvec.nv_nr    = 1;
+		nvec.nv_note  = &note;
+		m0_ha_state_set(rpc_ssn, &nvec);
+	}
+	/* Release stob reference and mutex, mark AST completed. */
+	ast->sa_cb = NULL;
+	m0_mutex_unlock(&ioq->ioq_lock);
+	m0_stob_put(&lstob->sl_stob);
+
+	M0_LEAVE();
+}
 
 M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 				      struct m0_stob_io *io)
@@ -410,6 +449,32 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 }
 
 /**
+ * Registers AST callback (io_err_callback) to handle IO error.
+ */
+static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
+{
+	struct m0_stob_io    *io    = qev->iq_io;
+	struct m0_stob_linux *lstob = m0_stob_linux_container(io->si_obj);
+	struct m0_sm_ast     *ast   = &lstob->sl_ast;
+
+	m0_mutex_lock(&ioq->ioq_lock);
+	if (ast->sa_cb != NULL) {
+		ast->sa_cb = &io_err_callback;
+		/*
+		 * Acquire ref to stop the stob being freed before AST
+		 * execution.
+		 */
+		m0_stob_get(&lstob->sl_stob);
+		m0_sm_ast_post(m0_locality_here()->lo_grp, &lstob->sl_ast);
+	} else {
+		M0_LOG(M0_WARN,
+		       "Repeated IO failures on "FID_F"; not reporting to HA.",
+		       FID_P(m0_stob_fid_get(&lstob->sl_stob)));
+	}
+	m0_mutex_unlock(&ioq->ioq_lock);
+}
+
+/**
    Handles AIO completion event from the ring buffer.
 
    When all fragments of a certain adieu request have completed, signals
@@ -455,6 +520,7 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		if ((res & m0_stob_ioq_bmask(ioq)) != 0) {
 			M0_STOB_FUNC_FAIL(LAD_IOQ_COMPLETE, -EIO);
 			res = -EIO;
+			ioq_io_error(ioq, qev);
 		} else
 			m0_atomic64_add(&lio->si_bdone, res);
 	}
