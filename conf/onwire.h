@@ -42,7 +42,6 @@ struct arr_fid {
 	uint32_t       af_count;
 	struct m0_fid *af_elems;
 } M0_XCA_SEQUENCE;
-
 
 /* ------------------------------------------------------------------
  * Configuration objects
@@ -163,13 +162,13 @@ struct m0_confx {
 } M0_XCA_SEQUENCE;
 
 /** Returns specific element of m0_confx::cx__objs. */
-#define M0_CONFX_AT(cx, idx)					\
-({								\
-	typeof(cx)   __cx  = (cx);				\
-	uint32_t     __idx = (idx);				\
-	M0_ASSERT(__idx <= __cx->cx_nr);			\
-	(typeof(&(cx)->cx__objs[0]))(((char *)__cx->cx__objs) +	\
-				    __idx * m0_confx_sizeof());	\
+#define M0_CONFX_AT(cx, idx)                                    \
+({                                                              \
+	typeof(cx)   __cx  = (cx);                              \
+	uint32_t     __idx = (idx);                             \
+	M0_ASSERT(__idx <= __cx->cx_nr);                        \
+	(typeof(&(cx)->cx__objs[0]))(((char *)__cx->cx__objs) + \
+				    __idx * m0_confx_sizeof()); \
 })
 
 M0_INTERNAL size_t m0_confx_sizeof(void);
