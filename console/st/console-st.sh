@@ -141,19 +141,33 @@ test_fop()
 	echo OK >&2
 }
 
+opcode()
+{
+	grep -v '#pragma once' $M0_CORE_DIR/rpc/rpc_opcodes.h | cpp | \
+		awk "/$1/ {print \$3}" | tr -d ,
+}
+
 run_st()
 {
-	test_fop 'Console test fop, xcode input' 9  8 \
+	test_fop 'Console test fop, xcode input' \
+		$(opcode M0_CONS_TEST) $(opcode M0_CONS_FOP_REPLY_OPCODE) \
 		-d '(65, 22, (144, 233), "abcde")'
+
 	create_yaml_files
-	test_fop 'Console test fop, YAML input' 9  8 -i -y $YAML_FILE9
+
+	test_fop 'Console test fop, YAML input' \
+		$(opcode M0_CONS_TEST) $(opcode M0_CONS_FOP_REPLY_OPCODE) \
+		-i -y $YAML_FILE9
 
 	## This test case does not work: $SERVER crashes while
-	## processing the fop (opcode 41, m0_fop_cob_writev).
+	## processing the fop (m0_fop_cob_writev).
 	## See https://jira.xyratex.com/browse/MERO-294 or
 	## https://trello.com/c/ZdjHaHXc for details.
 	if false; then
-	    test_fop 'Write request fop' 41 43 -i -y $YAML_FILE41
+		test_fop 'Write request fop' \
+			$(opcode M0_IOSERVICE_WRITEV_OPCODE) \
+			$(opcode M0_IOSERVICE_WRITEV_REP_OPCODE) \
+			-i -y $YAML_FILE41
 	fi
 }
 
