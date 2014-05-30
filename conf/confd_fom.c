@@ -24,7 +24,7 @@
 #include "conf/fop.h"         /* m0_conf_fetch_resp_fopt */
 #include "conf/confd.h"       /* m0_confd, m0_confd_bob */
 #include "conf/obj_ops.h"     /* m0_conf_obj_invariant */
-#include "conf/onwire.h"      /* arr_buf */
+#include "conf/onwire.h"      /* arr_fid */
 #include "conf/preload.h"     /* m0_confx_free */
 #include "rpc/rpc_opcodes.h"  /* M0_CONF_FETCH_OPCODE */
 #include "fop/fom_generic.h"  /* M0_FOPH_NR */

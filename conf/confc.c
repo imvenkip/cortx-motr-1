@@ -1353,7 +1353,7 @@ static void confc_fop_release(struct m0_ref *ref)
 	 * The memory, pointed to by ->f_path.ab_elems of
 	 * m0_conf_fetch, has never been allocated by xcode.
 	 * Nevertheless, m0_xcode_free() will try to free this memory,
-	 * because `arr_buf' structure is recognized by xcode's
+	 * because `m0_bufs' structure is recognized by xcode's
 	 * allocp() as one of the cases requiring dynamic memory
 	 * allocation.
 	 *

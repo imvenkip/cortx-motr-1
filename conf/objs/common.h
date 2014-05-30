@@ -23,7 +23,7 @@
 
 #include "conf/obj.h"     /* m0_conf_obj */
 #include "conf/obj_ops.h" /* m0_conf_obj_ops */
-#include "conf/onwire.h"  /* m0_confx_obj, arr_buf */
+#include "conf/onwire.h"  /* m0_confx_obj */
 #include "lib/memory.h"   /* m0_free */
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
 #include "lib/misc.h"     /* M0_IN */
@@ -70,16 +70,12 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 			const struct arr_fid *src,
 			struct m0_conf_dir **out);
 
-M0_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat);
+M0_INTERNAL bool arrays_eq(const char **cached, const struct m0_bufs *flat);
 
-M0_INTERNAL int strings_from_arrbuf(const char ***dest,
-				    const struct arr_buf *src);
 M0_INTERNAL void strings_free(const char **arr);
 
-M0_INTERNAL int arrbuf_from_strings(struct arr_buf *dest, const char **src);
 M0_INTERNAL int arrfid_from_dir(struct arr_fid *dest,
 				const struct m0_conf_dir *dir);
-M0_INTERNAL void arrbuf_free(struct arr_buf *arr);
 M0_INTERNAL void arrfid_free(struct arr_fid *arr);
 
 M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,

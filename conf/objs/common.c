@@ -110,94 +110,18 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 	return rc;
 }
 
-M0_INTERNAL bool arrays_eq(const char **cached, const struct arr_buf *flat)
-{
-	uint32_t i;
-
-	M0_PRE(flat->ab_count != 0); /* `flat' is known to be valid */
-
-	for (i = 0; cached[i] != NULL; ++i) {
-		if (i >= flat->ab_count || !m0_buf_streq(&flat->ab_elems[i],
-							 cached[i]))
-			return false;
-	}
-	return i == flat->ab_count;
-}
-
-M0_INTERNAL int
-strings_from_arrbuf(const char ***dest, const struct arr_buf *src)
-{
-	uint32_t i;
-
-	M0_PRE(*dest == NULL);
-	M0_PRE(equi(src->ab_count == 0, src->ab_elems == NULL));
-
-	if (src->ab_count == 0)
-		return 0; /* there is nothing to copy */
-
-	M0_ALLOC_ARR(*dest, src->ab_count + 1);
-	if (*dest == NULL)
-		return -ENOMEM;
-
-	for (i = 0; i < src->ab_count; ++i) {
-		(*dest)[i] = m0_buf_strdup(&src->ab_elems[i]);
-		if ((*dest)[i] == NULL)
-			goto fail;
-	}
-	(*dest)[i] = NULL; /* end of list */
-
-	return 0;
-fail:
-	for (; i != 0; --i)
-		m0_free((void *)(*dest)[i]);
-	m0_free(*dest);
-	return -ENOMEM;
-}
-
 M0_INTERNAL void strings_free(const char **arr)
 {
 	if (arr != NULL) {
 		const char **p;
 		for (p = arr; *p != NULL; ++p)
 			m0_free((void *)*p);
-		m0_free(arr);
+		m0_free0(&arr);
 	}
 }
 
-M0_INTERNAL int arrbuf_from_strings(struct arr_buf *dest, const char **src)
-{
-	size_t i;
-	int    rc;
-
-	M0_SET0(dest);
-
-	if (src == NULL)
-		return 0;
-
-	for (; src[dest->ab_count] != NULL; ++dest->ab_count)
-		; /* measuring */
-
-	if (dest->ab_count == 0)
-		return 0;
-
-	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
-	if (dest->ab_elems == NULL)
-		return -ENOMEM;
-
-	for (i = 0; i < dest->ab_count; ++i) {
-		rc = m0_buf_copy(&dest->ab_elems[i],
-				 &M0_BUF_INITS((char *)src[i]));
-		if (rc != 0) {
-			arrbuf_free(dest);
-			return -ENOMEM;
-		}
-	}
-
-	return 0;
-}
-
-M0_INTERNAL int arrfid_from_dir(struct arr_fid *dest,
-				const struct m0_conf_dir *dir)
+M0_INTERNAL int
+arrfid_from_dir(struct arr_fid *dest, const struct m0_conf_dir *dir)
 {
 	struct m0_conf_obj *obj;
 	size_t              i;
@@ -220,21 +144,13 @@ M0_INTERNAL int arrfid_from_dir(struct arr_fid *dest,
 	return 0;
 }
 
-M0_INTERNAL void arrbuf_free(struct arr_buf *arr)
-{
-	while (arr->ab_count > 0)
-		m0_buf_free(&arr->ab_elems[--arr->ab_count]);
-	m0_free0(&arr->ab_elems);
-	M0_POST(arr->ab_count == 0);
-}
-
 M0_INTERNAL void arrfid_free(struct arr_fid *arr)
 {
 	m0_free0(&arr->af_elems);
 }
 
-M0_INTERNAL void confx_encode(struct m0_confx_obj *dest,
-			      const struct m0_conf_obj *src)
+M0_INTERNAL void
+confx_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	dest->xo_u.u_header.ch_id = src->co_id;
 	dest->xo_type = m0_conf_obj_type(src)->cot_ftype.ft_id;

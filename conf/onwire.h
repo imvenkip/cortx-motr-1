@@ -33,11 +33,6 @@ struct m0_conf_fetch_resp;
 struct m0_conf_update;
 struct m0_conf_update_resp;
 
-struct arr_buf {
-	uint32_t       ab_count;
-	struct m0_buf *ab_elems;
-} M0_XCA_SEQUENCE;
-
 struct arr_fid {
 	uint32_t       af_count;
 	struct m0_fid *af_elems;
@@ -65,7 +60,7 @@ struct m0_confx_filesystem {
 	/* Rood fid. */
 	struct m0_fid          xf_rootfid;
 	/* Filesystem parameters. */
-	struct arr_buf         xf_params;
+	struct m0_bufs         xf_params;
 	/* Services of this filesystem. */
 	struct arr_fid         xf_services;
 } M0_XCA_RECORD;
@@ -75,7 +70,7 @@ struct m0_confx_service {
 	/* Service type.  See m0_conf_service_type. */
 	uint32_t               xs_type;
 	/* End-points from which this service is reachable. */
-	struct arr_buf         xs_endpoints;
+	struct m0_bufs         xs_endpoints;
 	/* Hosting node. */
 	struct m0_fid          xs_node;
 } M0_XCA_RECORD;

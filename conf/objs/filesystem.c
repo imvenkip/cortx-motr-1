@@ -52,7 +52,7 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 	const struct m0_confx_filesystem *s = XCAST(src);
 
 	d->cf_rootfid = s->xf_rootfid;
-	rc = strings_from_arrbuf(&d->cf_params, &s->xf_params);
+	rc = m0_bufs_to_strings(&d->cf_params, &s->xf_params);
 	if (rc != 0)
 		return rc;
 
@@ -77,13 +77,13 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	confx_encode(dest, src);
 	d->xf_rootfid = s->cf_rootfid;
 
-	rc = arrbuf_from_strings(&d->xf_params, s->cf_params);
+	rc = m0_bufs_from_strings(&d->xf_params, s->cf_params);
 	if (rc != 0)
 		return rc;
 
 	rc = arrfid_from_dir(&d->xf_services, s->cf_services);
 	if (rc != 0)
-		arrbuf_free(&d->xf_params);
+		m0_bufs_free(&d->xf_params);
 	return rc;
 }
 
@@ -94,8 +94,10 @@ static bool filesystem_match(const struct m0_conf_obj *cached,
 	const struct m0_conf_filesystem  *obj =
 		M0_CONF_CAST(cached, m0_conf_filesystem);
 
+	M0_PRE(xobj->xf_params.ab_count != 0);
+
 	M0_IMPOSSIBLE("XXX TODO: compare dir elements");
-	return arrays_eq(obj->cf_params, &xobj->xf_params) &&
+	return m0_bufs_streq(&xobj->xf_params, obj->cf_params) &&
 		obj->cf_rootfid.f_container == xobj->xf_rootfid.f_container &&
 		obj->cf_rootfid.f_key == xobj->xf_rootfid.f_key;
 }

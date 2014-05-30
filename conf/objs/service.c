@@ -62,7 +62,7 @@ static int service_decode(struct m0_conf_obj *dest,
 	d->cs_node = M0_CONF_CAST(child, m0_conf_node);
 	child_adopt(dest, child);
 
-	return strings_from_arrbuf(&d->cs_endpoints, &s->xs_endpoints);
+	return m0_bufs_to_strings(&d->cs_endpoints, &s->xs_endpoints);
 }
 
 static int
@@ -75,7 +75,7 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	confx_encode(dest, src);
 	d->xs_type = s->cs_type;
 
-	rc = arrbuf_from_strings(&d->xs_endpoints, s->cs_endpoints);
+	rc = m0_bufs_from_strings(&d->xs_endpoints, s->cs_endpoints);
 	if (rc != 0)
 		return -ENOMEM;
 
@@ -89,8 +89,10 @@ service_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	const struct m0_confx_service *xobj = XCAST(flat);
 	const struct m0_conf_service  *obj = M0_CONF_CAST(cached,
 							  m0_conf_service);
+	M0_PRE(xobj->xs_endpoints.ab_count != 0);
+
 	return obj->cs_type == xobj->xs_type &&
-		arrays_eq(obj->cs_endpoints, &xobj->xs_endpoints) &&
+		m0_bufs_streq(&xobj->xs_endpoints, obj->cs_endpoints) &&
 		m0_fid_eq(&obj->cs_node->cn_obj.co_id, &xobj->xs_node);
 }
 
