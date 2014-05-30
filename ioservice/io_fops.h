@@ -305,14 +305,6 @@ struct m0_io_descs {
 } M0_XCA_SEQUENCE;
 
 /**
- * Contains data-integrity values for the data represented by iofop.
- */
-struct m0_io_di_data {
-	uint32_t       id_nr;
-	struct m0_buf *id_buf;
-} M0_XCA_SEQUENCE;
-
-/**
  * Failure vector (pool machine state) version numbers.
  * This is declared as a record, not a sequence (which is more like an
  * array, such that to avoid dynamic memory allocation for every
