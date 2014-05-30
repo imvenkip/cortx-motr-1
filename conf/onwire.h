@@ -172,7 +172,7 @@ M0_INTERNAL size_t m0_confx_sizeof(void);
  * Configuration fops
  * ------------------------------------------------------------------ */
 
-/** Configuration request. */
+/** Configuration fetch request. */
 struct m0_conf_fetch {
 	/** Configuration object the path originates from. */
 	struct m0_fid  f_origin;
@@ -188,18 +188,18 @@ struct m0_conf_fetch_resp {
 	struct m0_confx fr_data;
 } M0_XCA_RECORD;
 
-/** XXX FUTURE: Update request. */
+/** XXX FUTURE: Configuration update request. */
 struct m0_conf_update {
 	/** Configuration object the path originates from. */
-	struct m0_fid   f_origin;
+	struct m0_fid   u_origin;
 	/** A sequence of configuration object descriptors. */
-	struct m0_confx fr_data;
+	struct m0_confx u_data;
 } M0_XCA_RECORD;
 
 /** XXX FUTURE: Confd's response to m0_conf_update. */
 struct m0_conf_update_resp {
 	/** Result of update request (-Exxx = failure, 0 = success). */
-	uint32_t fr_rc;
+	uint32_t ur_rc;
 } M0_XCA_RECORD;
 
 #endif /* __MERO_CONF_ONWIRE_H__ */
