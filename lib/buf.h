@@ -37,6 +37,12 @@ struct m0_buf {
 	void       *b_addr;
 } M0_XCA_SEQUENCE;
 
+/** Sequence of memory buffers. */
+struct m0_bufs {
+	uint32_t       ab_count;
+	struct m0_buf *ab_elems;
+} M0_XCA_SEQUENCE;
+
 /**
  * Initialisers for struct m0_buf.
  *
@@ -88,7 +94,7 @@ M0_INTERNAL bool m0_buf_is_set(const struct m0_buf *buf);
 /**
  * Do `buf' and `str' contain equal sequences of non-'\0' characters?
  *
- * @pre  m0_buf_is_set(buf) && str != NULL
+ * @pre  str != NULL
  */
 M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str);
 
@@ -97,10 +103,36 @@ M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str);
  *
  * Maximum length of the resulting string, including null character,
  * is buf->b_nob.
- *
- * @pre  m0_buf_is_set(buf)
  */
 M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf);
+
+/**
+ * Constructs a sequence of memory buffers, copying data from
+ * NULL-terminated array of C strings.
+ *
+ * User is responsible for m0_bufs_free()ing `dest'.
+ */
+M0_INTERNAL int m0_bufs_from_strings(struct m0_bufs *dest, const char **src);
+
+/**
+ * Constructs a NULL-terminated array of C strings, copying data from a
+ * sequence of memory buffers.
+ *
+ * The elements of `*dest' should be freed eventually.
+ * @see  strings_free()
+ */
+M0_INTERNAL int m0_bufs_to_strings(const char ***dest,
+				   const struct m0_bufs *src);
+
+/**
+ * Checks equality of given sequences.
+ *
+ * @see  m0_buf_streq()
+ */
+M0_INTERNAL bool m0_bufs_streq(const struct m0_bufs *bufs, const char **strs);
+
+/** Frees memory buffers. */
+M0_INTERNAL void m0_bufs_free(struct m0_bufs *bufs);
 
 /** @} end of buf group */
 #endif /* __MERO_LIB_BUF_H__ */

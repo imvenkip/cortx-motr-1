@@ -49,14 +49,14 @@ M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y)
 M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 {
 	M0_PRE(dest->b_nob == 0 && dest->b_addr == NULL);
-	M0_PRE(src->b_nob > 0 && src->b_addr != NULL);
 
-	M0_ALLOC_ARR(dest->b_addr, src->b_nob);
-	if (dest->b_addr == NULL)
-		return -ENOMEM;
-	dest->b_nob = src->b_nob;
-	memcpy(dest->b_addr, src->b_addr, src->b_nob);
-
+	if (src->b_nob != 0) {
+		M0_ALLOC_ARR(dest->b_addr, src->b_nob);
+		if (dest->b_addr == NULL)
+			return -ENOMEM;
+		dest->b_nob = src->b_nob;
+		memcpy(dest->b_addr, src->b_addr, src->b_nob);
+	}
 	M0_POST(m0_buf_eq(dest, src));
 	return 0;
 }
@@ -68,7 +68,7 @@ M0_INTERNAL bool m0_buf_is_set(const struct m0_buf *buf)
 
 M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str)
 {
-	M0_PRE(m0_buf_is_set(buf) && str != NULL);
+	M0_PRE(str != NULL);
 
 	return memcmp(str, buf->b_addr, buf->b_nob) == 0 &&
 		strlen(str) == buf->b_nob;
@@ -78,8 +78,6 @@ M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf)
 {
 	size_t len;
 	char  *s;
-
-	M0_PRE(m0_buf_is_set(buf));
 
 	/* Measure the size of payload. */
 	s = memchr(buf->b_addr, 0, buf->b_nob);
@@ -91,6 +89,87 @@ M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf)
 		s[len] = 0;
 	}
 	return s;
+}
+
+M0_INTERNAL int m0_bufs_from_strings(struct m0_bufs *dest, const char **src)
+{
+	size_t i;
+	int    rc;
+
+	M0_SET0(dest);
+
+	if (src == NULL)
+		return 0;
+
+	for (; src[dest->ab_count] != NULL; ++dest->ab_count)
+		; /* measuring */
+
+	if (dest->ab_count == 0)
+		return 0;
+
+	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
+	if (dest->ab_elems == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < dest->ab_count; ++i) {
+		rc = m0_buf_copy(&dest->ab_elems[i],
+				 &M0_BUF_INITS((char *)src[i]));
+		if (rc != 0) {
+			m0_bufs_free(dest);
+			return -ENOMEM;
+		}
+	}
+	return 0;
+}
+
+M0_INTERNAL int
+m0_bufs_to_strings(const char ***dest, const struct m0_bufs *src)
+{
+	uint32_t i;
+
+	M0_PRE(*dest == NULL);
+	M0_PRE((src->ab_count == 0) == (src->ab_elems == NULL));
+
+	if (src->ab_count == 0)
+		return 0; /* there is nothing to copy */
+
+	M0_ALLOC_ARR(*dest, src->ab_count + 1);
+	if (*dest == NULL)
+		return -ENOMEM;
+
+	for (i = 0; i < src->ab_count; ++i) {
+		(*dest)[i] = m0_buf_strdup(&src->ab_elems[i]);
+		if ((*dest)[i] == NULL)
+			goto fail;
+	}
+	(*dest)[i] = NULL; /* end of list */
+
+	return 0;
+fail:
+	for (; i != 0; --i)
+		m0_free((void *)(*dest)[i]);
+	m0_free(*dest);
+	return -ENOMEM;
+}
+
+M0_INTERNAL bool m0_bufs_streq(const struct m0_bufs *bufs, const char **strs)
+{
+	uint32_t i;
+
+	for (i = 0; strs[i] != NULL; ++i) {
+		if (i >= bufs->ab_count || !m0_buf_streq(&bufs->ab_elems[i],
+							 strs[i]))
+			return false;
+	}
+	return i == bufs->ab_count;
+}
+
+M0_INTERNAL void m0_bufs_free(struct m0_bufs *bufs)
+{
+	while (bufs->ab_count > 0)
+		m0_buf_free(&bufs->ab_elems[--bufs->ab_count]);
+	m0_free0(&bufs->ab_elems);
+	M0_POST(bufs->ab_count == 0);
 }
 
 /** @} end of buf group */

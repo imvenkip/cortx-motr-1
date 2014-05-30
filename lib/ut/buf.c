@@ -23,6 +23,9 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
+#include "lib/string.h"  /* m0_streq */
+
+static void bufs_test(void);
 
 static bool bit_is_set(int bits, int index)
 {
@@ -35,6 +38,7 @@ void m0_ut_lib_buf_test(void)
 	static int    d0[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 	static char  *d1 = "1234567890";
 	static char  *d2 = "123";
+	char         *s;
 	bool          equal;
 	int           k;
 	int           j;
@@ -82,8 +86,53 @@ void m0_ut_lib_buf_test(void)
 							 k));
 		}
 	}
+
+	copy = M0_BUF_INIT(0, (void *)13);
+	M0_UT_ASSERT(m0_buf_eq(&M0_BUF_INIT0, &copy));
+	M0_UT_ASSERT(m0_buf_streq(&M0_BUF_INIT0, ""));
+	M0_UT_ASSERT(m0_buf_streq(&copy, ""));
+	s = m0_buf_strdup(&copy);
+	M0_UT_ASSERT(s != NULL && *s == '\0');
+	m0_free(s);
+
+	bufs_test();
 }
 M0_EXPORTED(m0_ut_lib_buf_test);
+
+static void bufs_test(void)
+{
+	struct m0_bufs bufs;
+	const char    *strs[] = { "", "1", "two", NULL };
+	const char   **strs_new = NULL;
+	int            rc;
+
+	rc = m0_bufs_from_strings(&bufs, strs);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(bufs.ab_count == 3);
+	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(strs) - 1,
+			       m0_buf_streq(&bufs.ab_elems[i], strs[i])));
+
+	rc = m0_bufs_to_strings(&strs_new, &bufs);
+	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(strs) - 1,
+			       m0_streq(strs[i], strs_new[i]) &&
+			       strs[i] != strs_new[i]));
+	M0_UT_ASSERT(strs_new[ARRAY_SIZE(strs) - 1] == NULL);
+
+	M0_UT_ASSERT(m0_bufs_streq(&bufs, strs));
+	++*(char *)bufs.ab_elems[2].b_addr;
+	M0_UT_ASSERT(!m0_bufs_streq(&bufs, strs));
+	--*(char *)bufs.ab_elems[2].b_addr;
+	M0_UT_ASSERT(m0_bufs_streq(&bufs, strs));
+
+	{ /* see strings_free() */
+		const char **p;
+		for (p = strs_new; *p != NULL; ++p)
+			m0_free((void *)*p);
+		m0_free(strs_new);
+	}
+	m0_bufs_free(&bufs);
+	M0_UT_ASSERT(bufs.ab_count == 0 && bufs.ab_elems == NULL);
+}
 
 /*
  *  Local variables:
