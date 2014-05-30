@@ -58,7 +58,7 @@ enum M0_RPC_OPCODES {
 	M0_FOP_ITERATOR_TEST_OPCODE         = 12,
 
 	/** Request handler rpc */
-	M0_REQH_ERROR_REPLY_OPCODE	    = 13,
+	M0_REQH_ERROR_REPLY_OPCODE          = 13,
 	M0_REQH_UT_DUMMY_OPCODE             = 14,
 
 	/** Stob IO rpc */
@@ -208,7 +208,13 @@ enum M0_RPC_OPCODES {
 	/* High Availability opcodes */
 	M0_HA_NOTE_GET_OPCODE               = 120,
 	M0_HA_NOTE_GET_REP_OPCODE           = 121,
-	M0_HA_NOTE_SET_OPCODE               = 122
+	M0_HA_NOTE_SET_OPCODE               = 122,
+
+	/** Service start/stop */
+	M0_SERVICE_START_REQ_OPCODE         = 123,
+	M0_SERVICE_START_REPLY_OPCODE       = 124,
+	M0_SERVICE_STOP_REQ_OPCODE          = 125,
+	M0_SERVICE_STOP_REPLY_OPCODE        = 126
 };
 
 /** @} endgroup rpc_layer_core */
