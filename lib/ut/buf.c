@@ -32,20 +32,19 @@ static bool bit_is_set(int bits, int index)
 void m0_ut_lib_buf_test(void)
 {
 	struct m0_buf copy = M0_BUF_INIT0;
-	static int d0[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-	static char *d1 = "1234567890";
-	static char *d2 = "123";
-	bool equal;
-	int k;
-	int j;
-	int rc;
-
-	struct /* test */ {
-		int equality_mask; /* equality to self is implied */
+	static int    d0[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+	static char  *d1 = "1234567890";
+	static char  *d2 = "123";
+	bool          equal;
+	int           k;
+	int           j;
+	int           rc;
+	struct {
+		int           equality_mask; /* equality to self is implied */
 		struct m0_buf buf;
 	} test[] = {
 		[0] = { (1 << 1), M0_BUF_INIT(strlen(d1), d1) },
-	        [1] = { (1 << 0), M0_BUF_INITS(d1) },
+		[1] = { (1 << 0), M0_BUF_INITS(d1) },
 		[2] = { (1 << 4), M0_BUF_INITS(d2) },
 		[3] = { (1 << 6) | (1 << 7), M0_BUF_INIT(sizeof(d0), d0) },
 		[4] = { (1 << 2), M0_BUF_INIT(strlen(d2), d1) },
@@ -71,7 +70,6 @@ void m0_ut_lib_buf_test(void)
 		rc = m0_buf_copy(&copy, &test[k].buf);
 		M0_UT_ASSERT(rc == 0);
 		M0_UT_ASSERT(m0_buf_eq(&copy, &test[k].buf));
-
 		m0_buf_free(&copy);
 	}
 
@@ -79,7 +77,6 @@ void m0_ut_lib_buf_test(void)
 		for (j = 0; j < ARRAY_SIZE(test); ++j) {
 			if (j == k)
 				continue;
-
 			equal = m0_buf_eq(&test[j].buf, &test[k].buf);
 			M0_UT_ASSERT(equal == bit_is_set(test[j].equality_mask,
 							 k));

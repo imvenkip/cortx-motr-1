@@ -27,9 +27,9 @@
 #include "xcode/xcode_attr.h"
 
 /**
-   @defgroup buf Basic buffer type
-   @{
-*/
+ * @defgroup buf Basic buffer type
+ * @{
+ */
 
 /** Memory buffer. */
 struct m0_buf {
@@ -53,17 +53,14 @@ struct m0_buf {
  *         static const struct m0_buf good = M0_BUF_INIT(sizeof str, str);
  * @endcode
  */
-#define M0_BUF_INIT(size, data)		\
-	((struct m0_buf) {		\
-		.b_nob = (size),	\
-		.b_addr = (data)	\
-	})
+#define M0_BUF_INIT(size, data) \
+	((struct m0_buf){ .b_nob = (size), .b_addr = (data) })
 
-#define M0_BUF_INIT_PTR(p)      M0_BUF_INIT(sizeof *(p), (p))
-#define M0_BUF_INITS(str)       M0_BUF_INIT(strlen(str), (str))
-#define M0_BUF_INIT0            M0_BUF_INIT(0, NULL)
+#define M0_BUF_INIT_PTR(p) M0_BUF_INIT(sizeof *(p), (p))
+#define M0_BUF_INITS(str)  M0_BUF_INIT(strlen(str), (str))
+#define M0_BUF_INIT0       M0_BUF_INIT(0, NULL)
 
-#define BUF_F "[%p,%llu]"
+#define BUF_F    "[%p,%llu]"
 #define BUF_P(p) (p)->b_addr, (unsigned long long)(p)->b_nob
 
 /** Initialises struct m0_buf. */
