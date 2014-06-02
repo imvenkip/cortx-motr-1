@@ -149,6 +149,11 @@ remove_mero_rpm()
 do_m0t1fs_system_test()
 {
     debug "do_m0t1fs_system_test: start dd"
+
+    # set unit_size to 4MB (see mdservice/md_service.c:lid_to_unit_map[])
+    touch /mnt/m0t1fs/data
+    setfattr -n lid -v 11 /mnt/m0t1fs/data
+
     dd if=/dev/sda of=/mnt/m0t1fs/data bs=32M &
 
     local dd_pid=$!
