@@ -805,9 +805,13 @@ m0t1fs_sb_layouts_init(struct m0t1fs_sb *csb)
 		/* all layouts are added to domain, so we don't lose them */
 		if (rc != 0) {
 			if (rc == -ENOENT) {
-				M0_LOG(M0_DEBUG, "found %d layouts", i);
-				if (i > 1)
+				if (i > 1) {
 					rc = 0;
+					M0_LOG(M0_DEBUG, "found %d layouts",
+							i - 1);
+				} else {
+					M0_LOG(M0_ERROR, "no layouts found");
+				}
 			} else {
 				M0_LOG(M0_ERROR, "error obtaining layout "
 				       "lid=%d: %d", i, rc);
