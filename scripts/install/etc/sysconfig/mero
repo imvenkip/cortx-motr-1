@@ -16,6 +16,9 @@
 # MD service endpoint (for example when it's running on a different node)
 #MERO_MDS_EP=
 
+# CONF service endpoint
+#MERO_CONFD_EP=
+
 # Comma-separated list of IO services endpoints (for example when they're
 # running on different nodes)
 #MERO_IOS_EPS=

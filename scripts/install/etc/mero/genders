@@ -3,8 +3,7 @@
 <host>  m0_data_units=2
 <host>  m0_parity_units=1
 <host>  m0_pool_width=4
-<host>  m0_unit_size=4194304
-<host>  m0_services=singlenode
+<host>  m0_services=confd;singlenode
 <host>  m0_max_rpc_msg_size=163840
 <host>  m0_uuid=00000000-0000-0000-0000-000000000000
 <host>  m0_min_rpc_recvq_len=48

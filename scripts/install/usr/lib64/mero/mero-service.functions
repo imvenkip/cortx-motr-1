@@ -215,6 +215,22 @@ m0_get_mds_ep()
     done
 }
 
+# Return confd service endpoint
+m0_get_confd_ep()
+{
+    local node
+    local service
+
+    for node in $(m0_get_nodes); do
+        for service in $(m0_get_services $node); do
+            if [ "$service" = "confd" ]; then
+                echo "lnet:$(m0_get_lnet_nid $node):12345:41:100"
+                return
+            fi
+        done
+    done
+}
+
 #
 # Build parameters list for m0d running "core" services
 #
@@ -225,7 +241,7 @@ m0_get_core_params()
     local dir=$1
 
     m0_build_local_conf > $dir/conf.xc
-    echo "-s addb -s mdservice -s rmservice -s stats -s confd -c conf.xc"
+    echo "-s addb -s rmservice"
 }
 
 # Return space-separated list of IOS endpoints of a node
@@ -312,7 +328,6 @@ m0_build_local_conf()
     local pool_width=$(m0_genders_value_of m0_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
-    local unit_size=$(m0_genders_value_of m0_unit_size)
     local ios_idx=1
     local ios_ep
 
@@ -335,10 +350,7 @@ m0_build_local_conf()
 [$((ios_num + 5)):
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22),
-              [4: "pool_width=$pool_width",
-                  "nr_data_units=$data_units",
-                  "nr_parity_units=$parity_units",
-                  "unit_size=$unit_size"],
+              [1: "$pool_width $data_units $parity_units"],
               [$((ios_num + 3)): $mds, $rm, $stats, $ios_names])},
   {0x73| (($mds), 1, [1: "$mds_ep"], $node)},
   {0x73| (($rm), 4, [1: "$rms_ep"], $node)},
