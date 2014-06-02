@@ -255,8 +255,21 @@ mds_layout_add(struct m0_reqh_md_service *mds, struct m0_layout *l, uint64_t lid
 
 /* start from 1 */
 static int lid_to_unit_map[] = {
-	[0] = -1, /* invalid */
-	4096, 8192, 16384, 32768, 65536
+	[ 0] =       -1, /* invalid */
+	[ 1] =     4096,
+	[ 2] =     8192,
+	[ 3] =    16384,
+	[ 4] =    32768,
+	[ 5] =    65536,
+	[ 6] =   131072,
+	[ 7] =   262144,
+	[ 8] =   524288,
+	[ 9] =  1048576,
+	[10] =  2097152,
+	[11] =  4194304,
+	[12] =  8388608,
+	[13] = 16777216,
+	[14] = 33554432,
 };
 
 static int mds_layouts_init(struct m0_reqh_md_service *mds,
