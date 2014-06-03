@@ -63,8 +63,6 @@ mero_service()
 	local N=$NR_DATA
 	local K=$NR_PARITY
 	local P=$POOL_WIDTH
-	local ioservice_eps
-	local mdservice_eps
 	if [ $# -eq 5 ]
 	then
 		stride=$2
@@ -89,12 +87,41 @@ mero_service()
 		local i
 
 		prepare
-		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
-			mdservice_eps="$mdservice_eps -G $XPT:${lnet_nid}:${MDSEP[$i]} "
+
+		# start confd
+		DIR=$MERO_M0T1FS_TEST_DIR/confd
+		rm -rf $DIR
+		mkdir $DIR
+		ulimit -c unlimited
+
+		build_conf $N $K $P | tee $DIR/conf.xc
+
+		opts="-T linux -D db -S stobs -A linuxstob:addb-stobs \
+		      -w $P -e $XPT:$CONFD_EP -s confd -c $DIR/conf.xc \
+		      -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN"
+		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
+		echo $cmd
+		eval "$cmd"
+		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
+		echo $cmd
+		(eval "$cmd") &
+
+		# wait till the server start completes
+		local m0d_log=$DIR/m0d.log
+		touch $m0d_log
+		sleep 2
+		while status $prog_exec > /dev/null && \
+		      ! grep CTRL $m0d_log > /dev/null; do
+			sleep 2
 		done
-		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-			ioservice_eps="$ioservice_eps -i $XPT:${lnet_nid}:${IOSEP[$i]} "
-		done
+
+		status $prog_exec
+		if [ $? -eq 0 ]; then
+			echo "Mero confd service started."
+		else
+			echo "Mero confd service failed to start."
+			return 1
+		fi
 
 		local nr_ios=${#IOSEP[*]}
 		local nr_dev_per_ios=$(($P / $nr_ios))
@@ -106,39 +133,27 @@ mero_service()
 		# spawn mds servers
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
 			local mds=`expr $i + 1`
-			DIR=$MERO_M0T1FS_TEST_DIR/m$mds
+			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 			rm -rf $DIR
 			mkdir $DIR
 
 			(mkmdsloopdevs $mds $DIR) || return 1
 
-			SNAME="-s $MERO_MDSERVICE_NAME -s $MERO_RMSERVICE_NAME -s $MERO_ADDBSERVICE_NAME -s $MERO_STATSSERVICE_NAME"
-			if [ $i -eq 0 ]; then
-				SNAME="$SNAME -s $MERO_CONFD_NAME -c $DIR/conf.xc"
-				build_conf $unit_size $N $K $P | tee $DIR/conf.xc
-			fi
-
+			SNAME="-s mdservice -s rmservice -s addb -s stats"
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
-			$prog_mkfs -F \
-			 -T $MERO_STOB_DOMAIN \
+			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
-			 -w $P \
-			 -e $XPT:${lnet_nid}:${MDSEP[$i]} \
-			 $ioservice_eps \
-			 $SNAME -m $MAX_RPC_MSG_SIZE \
-			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
+			 -w $P -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			 $SNAME |& tee -a m0d.log"
 			echo $cmd
 			eval "$cmd"
 			cmd="cd $DIR && exec \
-			$prog_start \
-			 -T $MERO_STOB_DOMAIN \
-			 -D db -S stobs -A linuxstob:addb-stobs \
-			 -w $P \
+			$prog_start -T $MERO_STOB_DOMAIN \
+			 -D db -S stobs -A linuxstob:addb-stobs -w $P \
 			 -e $XPT:${lnet_nid}:${MDSEP[$i]} \
-			 $ioservice_eps \
-			 $SNAME -m $MAX_RPC_MSG_SIZE \
-			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
+			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
+			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
 			echo $cmd
 			(eval "$cmd") &
 
@@ -165,37 +180,27 @@ mero_service()
 		# spawn io servers
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 			local ios=`expr $i + 1`
-			DIR=$MERO_M0T1FS_TEST_DIR/d$ios
+			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 			rm -rf $DIR
 			mkdir $DIR
 			(mkiosloopdevs $ios $nr_dev_per_ios $DIR) || return 1
 
-			SNAME="-s $MERO_IOSERVICE_NAME -s $MERO_SNSREPAIRSERVICE_NAME \
-			       -s $MERO_SNSREBALANCESERVICE_NAME -s $MERO_ADDBSERVICE_NAME"
+			SNAME="-s ioservice -s sns_repair -s sns_rebalance -s addb"
 
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
-			$prog_mkfs -F \
-			 -T $MERO_STOB_DOMAIN \
+			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
-			 -w $P \
-			 -e $XPT:${lnet_nid}:${IOSEP[$i]} \
-			 $mdservice_eps \
-			 $ioservice_eps \
-			 $SNAME -m $MAX_RPC_MSG_SIZE \
-			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
+			 -w $P -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			 $SNAME |& tee -a m0d.log"
 			echo $cmd
 			eval "$cmd"
 			cmd="cd $DIR && exec \
-			$prog_start \
-			 -T $MERO_STOB_DOMAIN \
+			$prog_start -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
-			 -w $P \
-			 -e $XPT:${lnet_nid}:${IOSEP[$i]} \
-			 $mdservice_eps \
-			 $ioservice_eps \
-			 $SNAME -m $MAX_RPC_MSG_SIZE \
-			 -q $TM_MIN_RECV_QUEUE_LEN |& tee -a m0d.log"
+			 -w $P -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN \
+			 -P '$PROF_OPT' -C $CONFD_EP $SNAME |& tee -a m0d.log"
 			echo $cmd
 			(eval "$cmd") &
 

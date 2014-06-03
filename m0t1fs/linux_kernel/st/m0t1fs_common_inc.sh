@@ -32,17 +32,10 @@ export M0_TRACE_IMMEDIATE_MASK="!all"
 export M0_TRACE_LEVEL=call+
 export M0_TRACE_PRINT_CONTEXT=short
 
-
-MERO_ADDBSERVICE_NAME=addb
-MERO_IOSERVICE_NAME=ioservice
-MERO_MDSERVICE_NAME=mdservice
-MERO_SNSREPAIRSERVICE_NAME=sns_repair
-MERO_SNSREBALANCESERVICE_NAME=sns_rebalance
-MERO_STATSSERVICE_NAME=stats
-MERO_RMSERVICE_NAME=rmservice
-MERO_CONFD_NAME=confd
-
 MERO_STOB_DOMAIN="ad -d disks.conf"
+
+
+CONFD_EP=12345:33:100
 
 # list of io server end points: e.g., tmid in [900, 999).
 IOSEP=(
@@ -91,6 +84,7 @@ load_kernel_module()
 	lctl network up &>> /dev/null
 	lnet_nid=`sudo lctl list_nids | head -1`
 	server_nid=${server_nid:-$lnet_nid}
+	CONFD_EP=$lnet_nid:$CONFD_EP
 
 	# Client end point (m0mero module local_addr)
 	# last component in this addr will be generated and filled in m0mero.
@@ -163,14 +157,16 @@ unprepare()
 }
 
 
+PROF_OPT='<0x7000000000000001:0>'
+
 ###############################
 # globals: MDSEP[], IOSEP[], server_nid
 ###############################
-function build_conf () {
-	local unit_size=$1
-	local nr_data_units=$2
-	local nr_parity_units=$3
-	local pool_width=$4
+function build_conf()
+{
+	local nr_data_units=$1
+	local nr_parity_units=$2
+	local pool_width=$3
 
 	# prepare configuration data
 	local RMS_ENDPOINT="\"${server_nid}:${MDSEP[0]}\""
@@ -215,13 +211,15 @@ function build_conf () {
  [$((${#IOSEP[*]} + ${#MDSEP[*]} + 3)):
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22),
-	      [4: \"pool_width=$pool_width\",
-		  \"nr_data_units=$nr_data_units\",
-		  \"nr_parity_units=$nr_parity_units\",
-		  \"unit_size=$unit_size\"],
+	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],
 	      [$((${#IOSEP[*]} + ${#MDSEP[*]} + 1)): $MDS_NAMES, $RM, $IOS_NAMES])},
   {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
   $MDS_OBJS,
-  $IOS_OBJS
- ]"
+  $IOS_OBJS]"
+}
+
+function run()
+{
+	echo "# $*"
+	eval $*
 }

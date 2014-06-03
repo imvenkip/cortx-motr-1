@@ -1,17 +1,13 @@
 mount_m0t1fs()
 {
-	if [ $# -ne 5 -a $# -ne 6 ]
+	if [ $# -ne 4 -a $# -ne 5 ]
 	then
-		echo "Usage: mount_m0t1fs <mount_dir> <unit_size (in Kbytes)> <N> <K> <p>"
+		echo "Usage: mount_m0t1fs <mount_dir> <N> <K> <p>"
 		return 1
 	fi
 
 	local m0t1fs_mount_dir=$1
-	local unit_size=`expr $2 \* 1024`
-	local N=$3
-	local K=$4
-	local P=$5
-	local mountop=$6
+	local mountop=$5
 
 	# Create mount directory
 	sudo mkdir -p $m0t1fs_mount_dir || {
@@ -24,12 +20,10 @@ mount_m0t1fs()
 		return 1
 	}
 
-	local PROF_OPT='<0x7000000000000001:0>'
-	local CONF=`build_conf $unit_size $N $K $P`
-
 	echo "Mounting file system..."
 
-	local cmd="sudo mount -t m0t1fs -o profile='$PROF_OPT',local_conf='$CONF',$mountop \
+	local cmd="sudo mount -t m0t1fs \
+	    -o profile='$PROF_OPT',confd='$CONFD_EP',$mountop \
 	    none $m0t1fs_mount_dir"
 	echo $cmd
 	eval $cmd || {
@@ -82,30 +76,52 @@ unmount_m0t1fs()
 
 bulkio_test()
 {
-	local_input=$MERO_M0T1FS_TEST_DIR/file1.data
-	local_output=$MERO_M0T1FS_TEST_DIR/file2.data
-	m0t1fs_mount_dir=$MERO_M0T1FS_MOUNT_DIR
-	m0t1fs_file=$m0t1fs_mount_dir/file.data
-	unit_size=$1
-	io_counts=$2
+	local local_input=$MERO_M0T1FS_TEST_DIR/file1.data
+	local local_output=$MERO_M0T1FS_TEST_DIR/file2.data
+	local m0t1fs_mount_dir=$MERO_M0T1FS_MOUNT_DIR
+	local m0t1fs_file=$m0t1fs_mount_dir/file.data
+	local unit_size=$1
+	local io_counts=$2
 
-	mount_m0t1fs $m0t1fs_mount_dir $unit_size $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
+	unit2id_map=(
+		[    4]=1
+		[    8]=2
+		[   16]=3
+		[   32]=4
+		[   64]=5
+		[  128]=6
+		[  256]=7
+		[  512]=8
+		[ 1024]=9
+		[ 2048]=10
+		[ 4096]=11
+		[ 8192]=12
+		[16384]=13
+		[32768]=14
+	)
+
+	local unitsz_id=${unit2id_map[$unit_size]}
+	if [ x$unitsz_id = x ]; then
+		echo "Invalid unit_size: $unit_size"
+		unmount_and_clean
+		return 1
+	fi
+
+	mount_m0t1fs $m0t1fs_mount_dir $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
 
 	echo "Creating local input file of I/O size ..."
-	local cmd="dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
-	echo $cmd
-	if ! $cmd
-	then
+	run "dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
+	if [ $? -ne 0 ]; then
 		echo "Failed to create local input file."
 		unmount_and_clean
 		return 1
 	fi
 
 	echo "Writing data to m0t1fs file ..."
-	cmd="dd if=$local_input of=$m0t1fs_file bs=$io_size count=$io_counts"
-	echo $cmd
-	if ! $cmd
-	then
+	run "touch $m0t1fs_file && \
+	     setfattr -n lid -v $unitsz_id $m0t1fs_file && \
+	     dd if=$local_input of=$m0t1fs_file bs=$io_size count=$io_counts"
+	if [ $? -ne 0 ]; then
 		echo "Failed to write data on m0t1fs file."
 		unmount_and_clean
 		return 1
@@ -123,10 +139,8 @@ bulkio_test()
 		fi
 	fi
 	echo "..."
-	cmd="dd if=$m0t1fs_file of=$local_output bs=$io_size count=$io_counts"
-	echo $cmd
-	if ! $cmd
-	then
+	run "dd if=$m0t1fs_file of=$local_output bs=$io_size count=$io_counts"
+	if [ $? -ne 0 ]; then
 		echo "Failed to read data from m0t1fs file."
 		unmount_and_clean
 		return 1
@@ -143,7 +157,7 @@ bulkio_test()
 
 	echo "Successfully tested $io_counts I/O(s) of size $io_size."
 
-	rm -f $m0t1fs_file
+	run "rm -f $m0t1fs_file"
 
 	unmount_and_clean
 
@@ -215,7 +229,7 @@ m0loop_st_run()
 	cmd="insmod `dirname $0`/../../../mero/m0loop.ko"
 	echo $cmd && $cmd || return 1
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 1024 $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
 
 	echo "Create m0t1fs file..."
 	m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/file.img
@@ -280,7 +294,7 @@ m0loop_st()
 file_creation_test()
 {
 	nr_files=$1
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || {
 		return 1
 	}
 	echo "Test: Creating $nr_files files on m0t1fs..."
@@ -298,7 +312,7 @@ file_creation_test()
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || {
 		return 1
 	}
 	echo "Test: removing $nr_files files on m0t1fs..."
@@ -326,16 +340,16 @@ multi_client_test()
 
 	local rc
 
-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
+	mount_m0t1fs ${mount_dir_1} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
 		return 1
 	}
 	df
-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
+	mount_m0t1fs ${mount_dir_2} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		return 1
 	}
 	df
-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
+	mount_m0t1fs ${mount_dir_3} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		unmount_m0t1fs ${mount_dir_2}
 		return 1
@@ -361,14 +375,14 @@ multi_client_test()
 	unmount_m0t1fs ${mount_dir_2}
 	unmount_m0t1fs ${mount_dir_3}
 	echo "First round done."
-	mount_m0t1fs ${mount_dir_1} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
+	mount_m0t1fs ${mount_dir_1} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=65536" || {
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_2} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
+	mount_m0t1fs ${mount_dir_2} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=66536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		return 1
 	}
-	mount_m0t1fs ${mount_dir_3} 4 $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
+	mount_m0t1fs ${mount_dir_3} $NR_DATA $NR_PARITY $POOL_WIDTH "fid_start=67536" || {
 		unmount_m0t1fs ${mount_dir_1}
 		unmount_m0t1fs ${mount_dir_2}
 		return 1
@@ -424,7 +438,7 @@ rmw_test()
 obf_test()
 {
 	local rc=0
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || {
 		return 1
 	}
 	stat $MERO_M0T1FS_MOUNT_DIR/.mero || rc=1
@@ -500,7 +514,7 @@ m0t1fs_basic()
 	local fsname1="123456"
 	local fsname2="890"
 	local fsname3="xyz0"
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || rc=1
 	df
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
 	unmount_and_clean
@@ -521,7 +535,7 @@ m0t1fs_large_dir()
 	local mode=$1
 	local fsname_prex=$2
 	local count=512
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "$mode" || rc=1
 	df
 	for i in `seq 1 $count`; do
 		touch $MERO_M0T1FS_MOUNT_DIR/$fsname_prex$i || rc=1
@@ -555,7 +569,7 @@ m0t1fs_copytool_mode()
 	local fsname1="0:100125"
 	local fsname2="0:600456"
 	local fsname3="0:a0089b"
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR 4 $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" || rc=1
 	df
 	m0t1fs_crud $fsname1 $fsname2 $fsname3 || rc=1
 	touch $MERO_M0T1FS_MOUNT_DIR/123456 2>/dev/null && rc=1
