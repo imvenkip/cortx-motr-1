@@ -112,6 +112,9 @@ enum m0_rpc_item_dir {
 };
 
 enum m0_rpc_item_resend {
+	/**
+	 * @todo Provide proper value for re-send interval
+	 */
 	M0_RPC_ITEM_RESEND_INTERVAL = 5 /* in secs */
 };
 

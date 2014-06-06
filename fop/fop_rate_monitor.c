@@ -59,6 +59,13 @@ static unsigned long timer_callback(unsigned long arg)
 {
 	struct m0_fop_rate_monitor *mon = (struct m0_fop_rate_monitor *)arg;
 
+	/**
+	 * @todo Provide a proper fix in addb_counter
+	 * refer MERO-136
+	 */
+	if (mon->frm_count == 0)
+		return 0;
+
 	m0_addb_counter_update(&mon->frm_addb_ctr, mon->frm_count);
 	mon->frm_count = 0;
 	m0_sm_ast_post(&mon->frm_loc->fl_group, &mon->frm_ast);

@@ -1198,7 +1198,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	m0_confc_close(fs);
 	m0_confc_fini(&confc);
 	if (rc != 0)
-		goto err_layout_fini;
+		goto ha_fini;
 
 	ctx = m0_tl_find(svc_ctx, ctx, &csb->csb_service_contexts,
 			 ctx->sc_type == M0_CST_SS);
