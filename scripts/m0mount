@@ -160,6 +160,8 @@ FSTMID=1
 # Remote work arena
 WORK_ARENA=/var/mero
 
+CONF_FILE=$WORK_ARENA/conf.xc
+
 # transport related variables
 XPT=lnet
 # m0d flags
@@ -453,13 +455,13 @@ function build_conf ()
 	MDS_ENDPOINT="\"${SERVICES[1]}\""
 	RMS_ENDPOINT="\"${SERVICES[1]}\""
 	STATS_ENDPOINT="\"${SERVICES[1]}\""
-	PROF='(0x7000000000000001, 0)'
-	PROF_OPT='<0x7000000000000001:0>'
-	FS='(0x6600000000000001, 1)'
-	MDS='(0x7300000000000001, 2)'
-	RM='(0x7300000000000001, 3)'
-	STATS='(0x7300000000000001, 4)'
-	NODE='(0x6e00000000000001, 0)'
+	     PROF='(0x7000000000000001, 0)'
+	 PROF_OPT='<0x7000000000000001:0>'
+	       FS='(0x6600000000000001, 1)'
+	      MDS='(0x7300000000000001, 2)'
+	       RM='(0x7300000000000001, 3)'
+	    STATS='(0x7300000000000001, 4)'
+	     NODE='(0x6e00000000000001, 0)'
 	IOS_NAMES='(0x7300000000000003, 1)'
 	IOS_OBJS="{0x73| (($IOS_NAMES), 2, [1: $MDS_ENDPOINT], $NODE)}"
 	for i in `seq 3 2 ${#SERVICES[*]}`; do
@@ -473,8 +475,8 @@ function build_conf ()
   {0x66| (($FS), (11, 22),
               [1: \"$POOL_WIDTH $NR_DATA $NR_PARITY\"],
               [$((SERVICES_NR + 3)): $MDS, $RM, $STATS, $IOS_NAMES])},
-  {0x73| (($MDS), 1, [1: $MDS_ENDPOINT], $NODE)},
-  {0x73| (($RM), 4, [1: $RMS_ENDPOINT], $NODE)},
+  {0x73| (($MDS),   1, [1: $MDS_ENDPOINT],   $NODE)},
+  {0x73| (($RM),    4, [1: $RMS_ENDPOINT],   $NODE)},
   {0x73| (($STATS), 5, [1: $STATS_ENDPOINT], $NODE)},
   $IOS_OBJS]"
 }
@@ -540,27 +542,28 @@ function start_server ()
 
 	local SNAME
 	if [ $I -eq 0 ]; then
-		build_conf > $SDIR/conf.xc
+		local DIR=$WORK_ARENA/confd
+		build_conf > $CONF_FILE
 		if [ $verbosity -gt 0 ] ;then
 			build_conf # just show the conf
 		fi
 		if [ $run_mkfs -eq 1 ]; then
 			echo Running mkfs...
-			$RUN "cd $DDIR && \
+			$DO "rm -rf $DIR; mkdir -p $DIR"
+			$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
-$M0MKFS -T linux -D $DDIR/confd-db -S $DDIR/confd-stobs \
--A linuxstob:$DDIR/confd-addb-stobs \
--e $XPT:$CONFD_EP -s stats" > ${SLOG}-confd-mkfs.log
+$M0MKFS -T linux -D $DIR/db -S $DIR/stobs \
+-A linuxstob:$DIR/addb-stobs"
 		fi
-		$RUN "cd $DDIR && \
+		$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
-$M0D -T linux -D $DDIR/confd-db -S $DDIR/confd-stobs \
--A linuxstob:$DDIR/confd-addb-stobs \
--e $XPT:$CONFD_EP -s confd -c $SDIR/conf.xc $XPT_SETUP" > ${SLOG}-confd.log &
+$M0D -T linux -D $DIR/db -S $DIR/stobs \
+-A linuxstob:$DIR/addb-stobs \
+-e $XPT:$CONFD_EP -s confd -c $CONF_FILE $XPT_SETUP" > ${SLOG}-confd.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start confd server on $H
 			return 1
@@ -577,8 +580,8 @@ $M0D -T linux -D $DDIR/confd-db -S $DDIR/confd-stobs \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
-$M0MKFS -F $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
--e $XPT:$EP -s stats" > ${SLOG}$I-mkfs.log
+$M0MKFS $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
+-A linuxstob:$DDIR/addb-stobs"
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \

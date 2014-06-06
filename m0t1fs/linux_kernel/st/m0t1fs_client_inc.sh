@@ -1,3 +1,36 @@
+unit2id_map=(
+	[    4]=1
+	[    8]=2
+	[   16]=3
+	[   32]=4
+	[   64]=5
+	[  128]=6
+	[  256]=7
+	[  512]=8
+	[ 1024]=9
+	[ 2048]=10
+	[ 4096]=11
+	[ 8192]=12
+	[16384]=13
+	[32768]=14
+)
+
+touch_file()
+{
+	local file=$1
+	local unitsz_id=${unit2id_map[$2]}
+
+	if [ x$unitsz_id = x ]; then
+		echo "Invalid unit_size: $2"
+		return 1
+	fi
+
+	run "touch $m0t1fs_file" &&
+	run "setfattr -n lid -v $unitsz_id $file"
+
+	return $?
+}
+
 mount_m0t1fs()
 {
 	if [ $# -ne 4 -a $# -ne 5 ]
@@ -83,30 +116,6 @@ bulkio_test()
 	local unit_size=$1
 	local io_counts=$2
 
-	unit2id_map=(
-		[    4]=1
-		[    8]=2
-		[   16]=3
-		[   32]=4
-		[   64]=5
-		[  128]=6
-		[  256]=7
-		[  512]=8
-		[ 1024]=9
-		[ 2048]=10
-		[ 4096]=11
-		[ 8192]=12
-		[16384]=13
-		[32768]=14
-	)
-
-	local unitsz_id=${unit2id_map[$unit_size]}
-	if [ x$unitsz_id = x ]; then
-		echo "Invalid unit_size: $unit_size"
-		unmount_and_clean
-		return 1
-	fi
-
 	mount_m0t1fs $m0t1fs_mount_dir $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
 
 	echo "Creating local input file of I/O size ..."
@@ -118,9 +127,8 @@ bulkio_test()
 	fi
 
 	echo "Writing data to m0t1fs file ..."
-	run "touch $m0t1fs_file && \
-	     setfattr -n lid -v $unitsz_id $m0t1fs_file && \
-	     dd if=$local_input of=$m0t1fs_file bs=$io_size count=$io_counts"
+	touch_file $m0t1fs_file $unit_size &&
+	run "dd if=$local_input of=$m0t1fs_file bs=$io_size count=$io_counts"
 	if [ $? -ne 0 ]; then
 		echo "Failed to write data on m0t1fs file."
 		unmount_and_clean
@@ -229,47 +237,38 @@ m0loop_st_run()
 	cmd="insmod `dirname $0`/../../../mero/m0loop.ko"
 	echo $cmd && $cmd || return 1
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || return 1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH ||
+		return 1
 
 	echo "Create m0t1fs file..."
 	m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/file.img
-	cmd="dd if=/dev/zero of=$m0t1fs_file bs=${NR_DATA}M count=20"
-	echo $cmd && $cmd || return 1
+	touch_file $m0t1fs_file 1024 &&
+	run "dd if=/dev/zero of=$m0t1fs_file bs=${NR_DATA}M count=20" ||
+		return 1
 	echo "Associate m0t1fs file m0loop device..."
-	cmd="losetup /dev/m0loop0 $m0t1fs_file"
-	echo $cmd && $cmd || return 1
+	run "losetup /dev/m0loop0 $m0t1fs_file" || return 1
 	echo "Make ext4 fs on m0loop block device..."
-	cmd="mkfs.ext4 -b 4096 /dev/m0loop0"
-	echo $cmd && $cmd || return 1
+	run "mkfs.ext4 -b 4096 /dev/m0loop0" || return 1
 	echo "Mount new ext4 fs..."
 	ext4fs_mpoint=${MERO_M0T1FS_MOUNT_DIR}-ext4fs
-	cmd="mkdir $ext4fs_mpoint"
-	echo $cmd && $cmd || return 1
-	cmd="mount /dev/m0loop0 $ext4fs_mpoint"
-	echo $cmd && $cmd || return 1
+	run "mkdir $ext4fs_mpoint" &&
+	run "mount /dev/m0loop0 $ext4fs_mpoint" || return 1
 	echo "Write, read and compare some file..."
 	local_file1=$MERO_M0T1FS_TEST_DIR/file1
-	cmd="dd if=/dev/urandom of=$local_file1 bs=${NR_DATA}M count=2"
-	echo $cmd && $cmd || return 1
-	ext4fs_file=$ext4fs_mpoint/file
-	cmd="dd if=$local_file1 of=$ext4fs_file bs=${NR_DATA}M count=2"
-	echo $cmd && $cmd || return 1
 	local_file2=$MERO_M0T1FS_TEST_DIR/file2
-	cmd="dd if=$ext4fs_file of=$local_file2 bs=${NR_DATA}M count=2"
-	echo $cmd && $cmd || return 1
-	cmd="cmp $local_file1 $local_file2"
-	echo $cmd && $cmd || return 1
+	ext4fs_file=$ext4fs_mpoint/file
+	run "dd if=/dev/urandom of=$local_file1 bs=${NR_DATA}M count=2" &&
+	run "dd if=$local_file1 of=$ext4fs_file bs=${NR_DATA}M count=2" &&
+	run "dd if=$ext4fs_file of=$local_file2 bs=${NR_DATA}M count=2" &&
+	run "cmp $local_file1 $local_file2" || return 1
 	echo "Clean up..."
-	cmd="umount $ext4fs_mpoint"
-	echo $cmd && $cmd || return 1
+	run "umount $ext4fs_mpoint" || return 1
 	cmd="losetup -d /dev/m0loop0"
 	# losetup -d may fail if not all m0loop buffers are flushed yet,
 	# in this case we sleep for 5 secods and try again.
 	echo $cmd && $cmd || { sleep 5 && $cmd; } || return 1
-	cmd="umount $MERO_M0T1FS_MOUNT_DIR"
-	echo $cmd && $cmd || return 1
-	cmd="rmmod m0loop"
-	echo $cmd && $cmd || return 1
+	run "umount $MERO_M0T1FS_MOUNT_DIR" || return 1
+	run "rmmod m0loop" || return 1
 	rm -r $MERO_M0T1FS_MOUNT_DIR $local_file1 $local_file2
 	echo "Successfully passed m0loop ST tests."
 	return 0
