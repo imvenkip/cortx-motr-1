@@ -1554,7 +1554,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	rw = io_rw_get(res_fop);
 	rbulk = m0_fop_to_rpcbulk(res_fop);
 	rc = m0_rpc_bulk_store(rbulk, res_fop->f_item.ri_session->s_conn,
-			       rw->crw_desc.id_descs);
+			       rw->crw_desc.id_descs, &m0_rpc__buf_bulk_cb);
 	if (rc != 0) {
 		IOS_ADDB_FUNCFAIL(rc, IO_FOP_COALESCE_2, &m0_ios_addb_ctx);
 		m0_io_fop_destroy(res_fop);

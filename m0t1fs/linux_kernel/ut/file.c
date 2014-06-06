@@ -779,6 +779,8 @@ static void target_ioreq_test(void)
 	m0_tl_teardown(iofops, &ti.ti_iofops, irfop) {
 		struct m0_io_fop *iofop = &irfop->irf_iofop;
 
+		req.ir_nwxfer.nxr_rdbulk_nr -=
+			rpcbulk_tlist_length(&iofop->if_rbulk.rb_buflist);
                 irfop_fini(irfop);
 		m0_io_fop_fini(iofop);
 		M0_CNT_DEC(req.ir_nwxfer.nxr_iofop_nr);
@@ -1077,6 +1079,7 @@ static void dgmode_readio_test(void)
 	m0_fop_put_lock(reply);
 	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
 	req->ir_nwxfer.nxr_iofop_nr = 0;
+	req->ir_nwxfer.nxr_rdbulk_nr = 0;
 	ti->ti_dgvec = NULL;
 
 	req->ir_ops->iro_iomaps_destroy(req);

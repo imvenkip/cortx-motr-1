@@ -318,9 +318,11 @@ M0_INTERNAL void m0_rpc_bulk_qtype(struct m0_rpc_bulk *rbulk,
     rbuf->bb_nbuf.nb_qtype == M0_NET_QT_PASSIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk          *rbulk,
-				  const struct m0_rpc_conn    *conn,
-				  struct m0_net_buf_desc_data *to_desc);
+M0_INTERNAL int
+m0_rpc_bulk_store(struct m0_rpc_bulk                   *rbulk,
+		  const struct m0_rpc_conn             *conn,
+		  struct m0_net_buf_desc_data          *to_desc,
+		  const struct m0_net_buffer_callbacks *bulk_cb);
 
 /**
    Loads the m0_net_buf_desc/s pointing to net buffer/s contained by
@@ -339,9 +341,11 @@ M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk          *rbulk,
     rbuf->bb_nbuf.nb_qtype == M0_NET_QT_ACTIVE_BULK_SEND).
    @post rpc_bulk_invariant(rbulk).
  */
-M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk          *rbulk,
-				 const struct m0_rpc_conn    *conn,
-				 struct m0_net_buf_desc_data *from_desc);
+M0_INTERNAL int
+m0_rpc_bulk_load(struct m0_rpc_bulk                   *rbulk,
+		 const struct m0_rpc_conn             *conn,
+		 struct m0_net_buf_desc_data          *from_desc,
+		 const struct m0_net_buffer_callbacks *bulk_cb);
 
 /*
  * Does exactly opposite of what m0_rpc_bulk_store() does.
@@ -357,6 +361,9 @@ M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk          *rbulk,
  */
 M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk);
 
+M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt);
+
+extern const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb;
 /** @} bulkclientDFS end group */
 
 /** @} end of rpc group */

@@ -38,7 +38,6 @@ enum {
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 extern struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop);
-extern const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb;
 
 static void bulkio_tm_cb(const struct m0_net_tm_event *ev)
 {
@@ -276,7 +275,8 @@ static void bulkclient_test(void)
 	ctm->bmt_addr = caddr;
 	bulkio_msg_tm_init(ctm, &nd);
 
-	rc = m0_rpc_bulk_store(rbulk, &ctm->bmt_conn, rw->crw_desc.id_descs);
+	rc = m0_rpc_bulk_store(rbulk, &ctm->bmt_conn, rw->crw_desc.id_descs,
+			       &m0_rpc__buf_bulk_cb);
 	M0_UT_ASSERT(rc == 0);
 
 	/*
@@ -347,7 +347,8 @@ static void bulkclient_test(void)
 	m0_clink_add(&sbulk->rb_chan, &clink);
 	m0_mutex_unlock(&sbulk->rb_mutex);
 
-	rc = m0_rpc_bulk_load(sbulk, &stm->bmt_conn, rw->crw_desc.id_descs);
+	rc = m0_rpc_bulk_load(sbulk, &stm->bmt_conn, rw->crw_desc.id_descs,
+			      &m0_rpc__buf_bulk_cb);
 
 	/*
 	 * Buffer completion callbacks also wait to acquire the

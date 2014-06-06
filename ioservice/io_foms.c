@@ -1506,7 +1506,8 @@ static int zero_copy_initiate(struct m0_fom *fom)
          * This function deletes m0_rpc_bulk_buf object one
          * by one as zero copy completes on respective buffer.
          */
-        rc = m0_rpc_bulk_load(rbulk, fop->f_item.ri_session->s_conn, nbd_data);
+        rc = m0_rpc_bulk_load(rbulk, fop->f_item.ri_session->s_conn, nbd_data,
+			      &m0_rpc__buf_bulk_cb);
         if (rc != 0) {
                 m0_mutex_lock(&rbulk->rb_mutex);
                 m0_fom_callback_cancel(&fom->fo_cb);
@@ -1773,6 +1774,9 @@ static int io_launch(struct m0_fom *fom)
 
 		fom_obj->fcrw_req_count += ivec_count;
 		M0_ASSERT(fom_obj->fcrw_req_count > 0);
+		/* XXX Race condition here? what if the "stio_desc->siod_fcb"
+		 * is called before code reaches here?
+		 */
 		M0_CNT_INC(fom_obj->fcrw_num_stobio_launched);
 
 		stobio_tlink_init(stio_desc);
@@ -1849,7 +1853,7 @@ static int io_finish(struct m0_fom *fom)
                         nob += stio->si_count;
                         M0_LOG(M0_DEBUG, "rw_count %lx, si_count %lx",
                                fom_obj->fcrw_count, stio->si_count);
-                }
+		}
 		stobio_tlist_add(&fom_obj->fcrw_done_list, stio_desc);
         }
 

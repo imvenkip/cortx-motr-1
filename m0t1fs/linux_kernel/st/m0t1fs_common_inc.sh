@@ -61,7 +61,7 @@ NR_DATA=$(expr $POOL_WIDTH - $NR_PARITY \* 2)
 UNIT_SIZE=$(expr 1024 \* 1024)
 
 #MAX_NR_FILES=250
-MAX_NR_FILES=2 # XXX temporary workaround for performance issues
+MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840

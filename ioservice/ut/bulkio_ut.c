@@ -1628,7 +1628,7 @@ static void fop_create_populate(int index, enum M0_RPC_OPCODES op, int buf_nr)
 	 * net buffers to transfer machine to io fop wire format.
 	 */
 	rc = m0_rpc_bulk_store(rbulk, &bp->bp_cctx->rcx_connection,
-			       rw->crw_desc.id_descs);
+			       rw->crw_desc.id_descs, &m0_rpc__buf_bulk_cb);
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < IO_FIDS_NR; ++i)

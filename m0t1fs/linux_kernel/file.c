@@ -916,8 +916,10 @@ static bool io_request_invariant(const struct io_request *req)
 		    !tioreqht_htable_is_empty(&req->ir_nwxfer.
 			    nxr_tioreqs_hash)) &&
 
-	       ergo(ioreq_sm_state(req) == IRS_WRITE_COMPLETE,
-		    req->ir_nwxfer.nxr_iofop_nr == 0) &&
+	       ergo(ioreq_sm_state(req) == IRS_WRITE_COMPLETE ||
+		    ioreq_sm_state(req) == IRS_READ_COMPLETE,
+		    req->ir_nwxfer.nxr_iofop_nr == 0 &&
+		    req->ir_nwxfer.nxr_rdbulk_nr == 0) &&
 
 	       m0_vec_count(&req->ir_ivec.iv_vec) > 0 &&
 
@@ -945,7 +947,8 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 		    !tioreqht_htable_is_empty(&xfer->nxr_tioreqs_hash)) &&
 
 	       ergo(xfer->nxr_state == NXS_COMPLETE,
-		    xfer->nxr_iofop_nr == 0) &&
+		    xfer->nxr_iofop_nr == 0 &&
+		    xfer->nxr_rdbulk_nr == 0) &&
 
 	       m0_htable_forall(tioreqht, tioreq, &xfer->nxr_tioreqs_hash,
 			       target_ioreq_invariant(tioreq));
@@ -1062,8 +1065,10 @@ static void nw_xfer_request_init(struct nw_xfer_request *xfer)
 	xfer->nxr_rc	= 0;
 	xfer->nxr_bytes = 0;
 	xfer->nxr_iofop_nr = 0;
+	xfer->nxr_rdbulk_nr = 0;
 	xfer->nxr_state = NXS_INITIALIZED;
 	xfer->nxr_ops	= &xfer_ops;
+	m0_mutex_init(&xfer->nxr_lock);
 
 	play = pdlayout_get(req);
 	xfer->nxr_rc = tioreqht_htable_init(&xfer->nxr_tioreqs_hash,
@@ -1080,6 +1085,7 @@ static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 	M0_PRE_EX(nw_xfer_request_invariant(xfer));
 
 	xfer->nxr_ops = NULL;
+	m0_mutex_fini(&xfer->nxr_lock);
 	nw_xfer_request_bob_fini(xfer);
 	tioreqht_htable_fini(&xfer->nxr_tioreqs_hash);
 	M0_LEAVE();
@@ -1146,8 +1152,8 @@ static int user_data_copy(struct pargrp_iomap *map,
 	struct m0_pdclust_layout *play;
 	struct data_buf          *dbuf;
 
-	M0_ENTRY("Copy %s user-space, start = %llu, end = %llu",
-		 dir == CD_COPY_FROM_USER ? (char *)"from" : (char *)"to",
+	M0_ENTRY("Copy %s user-space, start = %8llu, end = %8llu",
+		 dir == CD_COPY_FROM_USER ? (char *)"from" : (char *)" to ",
 		 start, end);
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 	M0_PRE(it != NULL);
@@ -1710,8 +1716,10 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 		map->pi_databufs[row][col]->db_flags = flags;
 
 		iov_iter_advance(&it, count);
-		M0_LOG(M0_DEBUG, "start %llu count %llu row %u col %u flag %x",
-				start, count, row, col, flags);
+		M0_LOG(M0_DEBUG, "start %8llu count %4llu pgid %3llu row %u "
+				 "col %u f %x addr %p",
+				 start, count, map->pi_grpid, row, col, flags,
+				 map->pi_databufs[row][col]->db_buf.b_addr);
 	}
 
 	return M0_RC(0);
@@ -4215,8 +4223,10 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 
 		bvec->ov_buf[seg]  = buf->db_buf.b_addr;
 		pattr[seg] |= buf->db_flags;
-		M0_LOG(M0_DEBUG, "pageaddr = %p, index = %llu, size = %llu\n",
-			bvec->ov_buf[seg], INDEX(ivec, seg), COUNT(ivec, seg));
+		M0_LOG(M0_DEBUG, "pageaddr=%p, index=%6llu, size=%4llu "
+				 "grpid=%3llu flags=%4x for "FID_F,
+			bvec->ov_buf[seg], INDEX(ivec, seg), COUNT(ivec, seg),
+			map->pi_grpid, pattr[seg], FID_P(&ti->ti_fid));
 		M0_LOG(M0_DEBUG, "Seg id %d [%llu, %llu] added to target_ioreq "
 		       "with "FID_F" with flags 0x%x: ", seg,
 		       INDEX(ivec, seg), COUNT(ivec, seg),
@@ -4627,7 +4637,8 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 
 	M0_LOG(M0_INFO, "Read vec-count = %llu", m0_vec_count(&ivec->iv_vec));
 	res = m0t1fs_aio(kcb, iov, ivec, IRT_READ);
-
+	M0_LOG(M0_DEBUG, "Read vec-count = %8llu return = %8llu",
+			 m0_vec_count(&ivec->iv_vec), (unsigned long long)res);
 	/* Updates file position. */
 	if (res > 0)
 		kcb->ki_pos = pos + res;
@@ -4647,6 +4658,61 @@ const struct file_operations m0t1fs_reg_file_operations = {
 	.fsync     = simple_fsync,  /* XXX: just to prevent -EINVAL */
 };
 
+static void client_passive_recv(const struct m0_net_buffer_event *evt)
+{
+	struct m0_rpc_bulk     *rbulk;
+	struct m0_rpc_bulk_buf *buf;
+	struct m0_net_buffer   *nb;
+	struct m0_io_fop       *iofop;
+	struct io_req_fop      *reqfop;
+	struct io_request      *ioreq;
+
+	M0_PRE(evt != NULL);
+	M0_PRE(evt->nbe_buffer != NULL);
+
+	nb = evt->nbe_buffer;
+	buf = (struct m0_rpc_bulk_buf *)nb->nb_app_private;
+	rbulk = buf->bb_rbulk;
+	M0_LOG(M0_DEBUG, "PASSIVE recv, e=%p status=%u, len=%llu rbulk=%p",
+			 evt, evt->nbe_status, evt->nbe_length, rbulk);
+
+	/*
+	 * buf will be released in this callback. But rbulk is still valid
+	 * after that.
+	 */
+	m0_rpc_bulk_default_cb(evt);
+
+	iofop  = container_of(rbulk, struct m0_io_fop, if_rbulk);
+	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
+	ioreq  = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
+			ir_nwxfer, &ioreq_bobtype);
+
+	M0_LOG(M0_DEBUG, "irfop=%p "FID_F" Pending fops = %llu bulk = %llu",
+			 reqfop, FID_P(&reqfop->irf_tioreq->ti_fid),
+			 ioreq->ir_nwxfer.nxr_iofop_nr,
+			 ioreq->ir_nwxfer.nxr_rdbulk_nr - 1);
+
+	m0_mutex_lock(&ioreq->ir_nwxfer.nxr_lock);
+	M0_CNT_DEC(ioreq->ir_nwxfer.nxr_rdbulk_nr);
+	if (ioreq->ir_nwxfer.nxr_iofop_nr == 0 &&
+	    ioreq->ir_nwxfer.nxr_rdbulk_nr == 0) {
+		m0_sm_state_set(&ioreq->ir_sm,
+				(M0_IN(ioreq_sm_state(ioreq),
+				 (IRS_READING, IRS_DEGRADED_READING)) ?
+				IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
+	}
+	m0_mutex_unlock(&ioreq->ir_nwxfer.nxr_lock);
+}
+
+const struct m0_net_buffer_callbacks client_buf_bulk_cb  = {
+	.nbc_cb = {
+		[M0_NET_QT_PASSIVE_BULK_SEND] = m0_rpc_bulk_default_cb,
+		[M0_NET_QT_PASSIVE_BULK_RECV] = client_passive_recv,
+		[M0_NET_QT_ACTIVE_BULK_RECV]  = m0_rpc_bulk_default_cb,
+		[M0_NET_QT_ACTIVE_BULK_SEND]  = m0_rpc_bulk_default_cb
+	}
+};
+
 static int io_fops_async_submit(struct m0_io_fop      *iofop,
 				struct m0_rpc_session *session,
 				struct m0_addb_ctx    *addb_ctx)
@@ -4662,7 +4728,8 @@ static int io_fops_async_submit(struct m0_io_fop      *iofop,
 	M0_ASSERT(rwfop != NULL);
 
 	rc = m0_rpc_bulk_store(&iofop->if_rbulk, session->s_conn,
-			       rwfop->crw_desc.id_descs);
+			       rwfop->crw_desc.id_descs,
+			       &client_buf_bulk_cb);
 	if (rc != 0)
 		goto out;
 
@@ -4881,15 +4948,22 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 ref_dec:
 	/* Drops reference on reply fop. */
 	m0_fop_put(reply_fop);
-	M0_CNT_DEC(tioreq->ti_nwxfer->nxr_iofop_nr);
 	m0_atomic64_dec(&file_to_sb(req->ir_file)->csb_pending_io_nr);
-	M0_LOG(M0_INFO, "Due io fops = %llu", tioreq->ti_nwxfer->nxr_iofop_nr);
+	M0_LOG(M0_DEBUG, "irfop=%p "FID_F" Pending fops = %llu bulk=%llu",
+			 irfop, FID_P(&tioreq->ti_fid),
+			 tioreq->ti_nwxfer->nxr_iofop_nr - 1,
+			 tioreq->ti_nwxfer->nxr_rdbulk_nr);
 
-	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0)
+	m0_mutex_lock(&tioreq->ti_nwxfer->nxr_lock);
+	M0_CNT_DEC(tioreq->ti_nwxfer->nxr_iofop_nr);
+	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0 &&
+	    tioreq->ti_nwxfer->nxr_rdbulk_nr == 0) {
 		m0_sm_state_set(&req->ir_sm,
 				(M0_IN(ioreq_sm_state(req),
 				 (IRS_READING, IRS_DEGRADED_READING)) ?
 				IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
+	}
+	m0_mutex_unlock(&tioreq->ti_nwxfer->nxr_lock);
 
 	M0_LEAVE();
 }
@@ -4947,8 +5021,8 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 						  ti->ti_session,
 						  &req->ir_addb_ctx);
 
-			M0_LOG(M0_INFO, "Submitted fops for device "FID_F,
-		               FID_P(&ti->ti_fid));
+			M0_LOG(M0_DEBUG, "Submitted fops for device "FID_F"@%p nr=%llu",
+		               FID_P(&ti->ti_fid), irfop, ti->ti_nwxfer->nxr_iofop_nr);
 			if (rc != 0)
 				goto out;
 			else
@@ -5335,9 +5409,15 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if (rc != 0)
 			goto fini_fop;
 
+		if (m0_is_read_fop(&irfop->irf_iofop.if_fop))
+			ti->ti_nwxfer->nxr_rdbulk_nr +=
+				rpcbulk_tlist_length(
+					&irfop->irf_iofop.if_rbulk.rb_buflist);
+
 		M0_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
-		M0_LOG(M0_INFO, "Number of io fops = %llu",
-		       ti->ti_nwxfer->nxr_iofop_nr);
+		M0_LOG(M0_DEBUG, "Number of io fops = %llu read bulks = %llu",
+		       ti->ti_nwxfer->nxr_iofop_nr,
+		       ti->ti_nwxfer->nxr_rdbulk_nr);
 		iofops_tlist_add(&ti->ti_iofops, irfop);
 	}
 
@@ -5373,7 +5453,7 @@ static ssize_t m0t1fs_direct_IO(int rw,
 	int		    seg;
 
 	M0_ENTRY();
-	M0_LOG(M0_FATAL, "m0t1fs_direct_IO: rw=%s pos=%lld seg_nr=%lu "
+	M0_LOG(M0_DEBUG, "m0t1fs_direct_IO: rw=%s pos=%lld seg_nr=%lu "
 	       "addr=%p len=%lu", rw == READ ? "READ" : "WRITE",
 	       (long long)pos, seg_nr, iov->iov_base, iov->iov_len);
 

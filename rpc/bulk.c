@@ -134,7 +134,7 @@ static int rpc_bulk_buf_init(struct m0_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 	return M0_RC(rc);
 }
 
-static void buf_bulk_cb(const struct m0_net_buffer_event *evt)
+M0_INTERNAL void m0_rpc_bulk_default_cb(const struct m0_net_buffer_event *evt)
 {
 	struct m0_rpc_bulk	*rbulk;
 	struct m0_rpc_bulk_buf	*buf;
@@ -198,12 +198,12 @@ M0_INTERNAL void m0_rpc_bulk_store_del(struct m0_rpc_bulk *rbulk)
 	} m0_tl_endfor;
 }
 
-const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb  = {
+const struct m0_net_buffer_callbacks m0_rpc__buf_bulk_cb = {
 	.nbc_cb = {
-		[M0_NET_QT_PASSIVE_BULK_SEND] = buf_bulk_cb,
-		[M0_NET_QT_PASSIVE_BULK_RECV] = buf_bulk_cb,
-		[M0_NET_QT_ACTIVE_BULK_RECV]  = buf_bulk_cb,
-		[M0_NET_QT_ACTIVE_BULK_SEND]  = buf_bulk_cb
+		[M0_NET_QT_PASSIVE_BULK_SEND] = m0_rpc_bulk_default_cb,
+		[M0_NET_QT_PASSIVE_BULK_RECV] = m0_rpc_bulk_default_cb,
+		[M0_NET_QT_ACTIVE_BULK_RECV]  = m0_rpc_bulk_default_cb,
+		[M0_NET_QT_ACTIVE_BULK_SEND]  = m0_rpc_bulk_default_cb
 	}
 };
 
@@ -349,10 +349,11 @@ M0_INTERNAL void m0_rpc_bulk_qtype(struct m0_rpc_bulk *rbulk,
 	M0_LEAVE();
 }
 
-static int rpc_bulk_op(struct m0_rpc_bulk          *rbulk,
-		       const struct m0_rpc_conn    *conn,
-		       struct m0_net_buf_desc_data *descs,
-		       enum m0_rpc_bulk_op_type     op)
+static int rpc_bulk_op(struct m0_rpc_bulk                   *rbulk,
+		       const struct m0_rpc_conn             *conn,
+		       struct m0_net_buf_desc_data          *descs,
+		       enum m0_rpc_bulk_op_type              op,
+		       const struct m0_net_buffer_callbacks *bulk_cb)
 {
 	int				 rc = 0;
 	int				 cnt = 0;
@@ -366,6 +367,7 @@ static int rpc_bulk_op(struct m0_rpc_bulk          *rbulk,
 	M0_PRE(rbulk != NULL);
 	M0_PRE(descs != NULL);
 	M0_PRE(M0_IN(op, (M0_RPC_BULK_STORE, M0_RPC_BULK_LOAD)));
+	M0_PRE(bulk_cb != NULL);
 
 	rpcmach = conn->c_rpc_machine;
 	tm = &rpcmach->rm_tm;
@@ -384,7 +386,8 @@ static int rpc_bulk_op(struct m0_rpc_bulk          *rbulk,
 			  ergo(op == M0_RPC_BULK_LOAD, M0_IN(nb->nb_qtype,
 					    (M0_NET_QT_ACTIVE_BULK_RECV,
 					     M0_NET_QT_ACTIVE_BULK_SEND))));
-		nb->nb_callbacks = &m0_rpc__buf_bulk_cb;
+		nb->nb_callbacks = bulk_cb;
+
 
 		/*
 		 * Registers the net buffer with net domain if it is not
@@ -438,19 +441,23 @@ cleanup:
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_rpc_bulk_store(struct m0_rpc_bulk          *rbulk,
-				  const struct m0_rpc_conn    *conn,
-				  struct m0_net_buf_desc_data *to_desc)
+M0_INTERNAL int
+m0_rpc_bulk_store(struct m0_rpc_bulk                   *rbulk,
+		  const struct m0_rpc_conn             *conn,
+		  struct m0_net_buf_desc_data          *to_desc,
+		  const struct m0_net_buffer_callbacks *bulk_cb)
 {
-	return rpc_bulk_op(rbulk, conn, to_desc, M0_RPC_BULK_STORE);
+	return rpc_bulk_op(rbulk, conn, to_desc, M0_RPC_BULK_STORE, bulk_cb);
 }
 M0_EXPORTED(m0_rpc_bulk_store);
 
-M0_INTERNAL int m0_rpc_bulk_load(struct m0_rpc_bulk          *rbulk,
-				 const struct m0_rpc_conn    *conn,
-				 struct m0_net_buf_desc_data *from_desc)
+M0_INTERNAL int
+m0_rpc_bulk_load(struct m0_rpc_bulk                   *rbulk,
+		 const struct m0_rpc_conn             *conn,
+		 struct m0_net_buf_desc_data          *from_desc,
+		 const struct m0_net_buffer_callbacks *bulk_cb)
 {
-	return rpc_bulk_op(rbulk, conn, from_desc, M0_RPC_BULK_LOAD);
+	return rpc_bulk_op(rbulk, conn, from_desc, M0_RPC_BULK_LOAD, bulk_cb);
 }
 M0_EXPORTED(m0_rpc_bulk_load);
 

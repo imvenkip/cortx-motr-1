@@ -1197,15 +1197,28 @@ struct nw_xfer_request {
 	 * of target_ioreq objects based on a key
 	 * (target_ioreq::ti_fid::f_container)
 	 */
-	struct m0_htable        nxr_tioreqs_hash;
+	struct m0_htable          nxr_tioreqs_hash;
 
+	/** lock to pretect the following two counter */
+	struct m0_mutex           nxr_lock;
         /**
          * Number of IO fops issued by all target_ioreq structures
          * belonging to this nw_xfer_request object.
          * This number is updated when bottom halves from ASTs are run.
-         * When it reaches zero, state of io_request::ir_sm changes.
+         * For WRITE, When it reaches zero, state of io_request::ir_sm changes.
+         * For READ, When it reaches zero and read bulk count reaches zero,
+         * state of io_request::ir_sm changes.
          */
         uint64_t                  nxr_iofop_nr;
+
+        /**
+         * Number of read IO bulks issued by all target_ioreq structures
+         * belonging to this nw_xfer_request object.
+         * This number is updated in read bulk transfer complete callback.
+         * When it reaches zero, and nxr_iofop_nr reaches zero, state of
+         * io_request::ir_sm changes
+         */
+        uint64_t                  nxr_rdbulk_nr;
 };
 
 /**

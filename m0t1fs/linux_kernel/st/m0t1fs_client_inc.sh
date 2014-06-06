@@ -292,15 +292,30 @@ m0loop_st()
 
 file_creation_test()
 {
-	nr_files=$1
+	local nr_files=$1
+	local SOURCE_TXT=/tmp/source.txt
+
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH || {
 		return 1
 	}
+	for i in {a..z} {A..Z} ; do
+		for c in `seq 1 4095`;
+			do echo -n $i ;
+		done;
+		echo;
+	done > $SOURCE_TXT
+
 	echo "Test: Creating $nr_files files on m0t1fs..."
 	for ((i=0; i<$nr_files; ++i)); do
 		touch $MERO_M0T1FS_MOUNT_DIR/file$i || break
-		cp /bin/ls $MERO_M0T1FS_MOUNT_DIR/file$i || break
-		diff /bin/ls $MERO_M0T1FS_MOUNT_DIR/file$i || break
+		cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/file$i || break
+		cp -v $MERO_M0T1FS_MOUNT_DIR/file$i /tmp/dest.txt || break
+		diff -C 0 $SOURCE_TXT /tmp/dest.txt || {
+			echo "file content differ!!!!!!!!!!!!!!!!! at $i file. "
+#			echo "Press Enter to go";
+#			read;
+			break;
+		}
 	done
 	unmount_and_clean
 	echo -n "Test: file creation: "
