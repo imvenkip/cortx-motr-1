@@ -169,6 +169,7 @@ M0_INTERNAL void m0_be_tx_group_reset(struct m0_be_tx_group *gr)
 
 M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				     struct m0_be_tx_credit *size_max,
+				     size_t seg_nr_max,
 				     size_t tx_nr_max,
 				     struct m0_be_engine *en,
 				     struct m0_be_log *log,
@@ -176,6 +177,7 @@ M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group *gr,
 {
 	*gr = (struct m0_be_tx_group) {
 		.tg_size	     = *size_max,
+		.tg_seg_nr_max	     = seg_nr_max,
 		.tg_payload_prepared = 0,
 		.tg_tx_nr_max	     = tx_nr_max,
 		.tg_log		     = log,
@@ -292,7 +294,8 @@ M0_INTERNAL int m0_be_tx_group__allocate(struct m0_be_tx_group *gr)
 	return m0_be_group_ondisk_init(&gr->tg_od,
 				       m0_be_log_stob(gr->tg_log),
 				       gr->tg_tx_nr_max,
-				       &gr->tg_size);
+				       &gr->tg_size,
+				       gr->tg_seg_nr_max);
 }
 
 M0_INTERNAL void m0_be_tx_group__deallocate(struct m0_be_tx_group *gr)

@@ -99,7 +99,8 @@ M0_INTERNAL void be_log_io_credit_group(struct m0_be_tx_credit *io_group,
 M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 					struct m0_stob *log_stob,
 					size_t tx_nr_max,
-					const struct m0_be_tx_credit *size_max);
+					const struct m0_be_tx_credit *size_max,
+					uint64_t seg_nr_max);
 M0_INTERNAL void m0_be_group_ondisk_fini(struct m0_be_group_ondisk *go);
 M0_INTERNAL bool m0_be_group_ondisk__invariant(struct m0_be_group_ondisk *go);
 

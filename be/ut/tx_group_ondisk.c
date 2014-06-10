@@ -155,7 +155,7 @@ void m0_be_ut_group_ondisk(void)
 	rc = m0_be_group_ondisk_init(&but_group_ondisk_gr.tg_od,
 				     m0_be_log_stob(&but_group_ondisk_log),
 				     ARRAY_SIZE(but_group_ondisk_tx),
-				     &gr_credit);
+				     &gr_credit, 1);
 	M0_UT_ASSERT(rc == 0);
 	grp_tlist_init(&but_group_ondisk_gr.tg_txs);
 

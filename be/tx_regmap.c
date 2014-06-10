@@ -644,24 +644,12 @@ M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
 				       struct m0_be_io *io)
 {
 	struct m0_be_reg_d *rd;
-	struct m0_be_seg   *seg;
 
 	M0_PRE(m0_be_reg_area__invariant(ra));
 
-	seg = NULL;
 	M0_BE_REG_AREA_FORALL(ra, rd) {
-		M0_ASSERT_INFO(ergo(seg != NULL, seg == rd->rd_reg.br_seg),
-			       "Segment I/O with regions from multiple "
-			       "segments in the same reg_area "
-			       "is not supported: "
-			       "seg = %p, rd->rd_reg.br_seg = %p",
-			       seg, rd->rd_reg.br_seg);
-		m0_be_io_add(io, rd->rd_buf, m0_be_reg_offset(&rd->rd_reg),
-			     rd->rd_reg.br_size);
-		seg = rd->rd_reg.br_seg;
-		/* XXX temporary hack. FIXME ASAP */
-		if (seg != NULL)
-			io->bio_stob = seg->bs_stob;
+		m0_be_io_add(io, rd->rd_reg.br_seg->bs_stob, rd->rd_buf,
+			     m0_be_reg_offset(&rd->rd_reg), rd->rd_reg.br_size);
 	}
 
 	M0_POST(m0_be_reg_area__invariant(ra));

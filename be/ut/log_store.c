@@ -48,10 +48,10 @@ static int be_ut_log_store_rand(int mod)
 static void
 be_ut_log_store_io_read(struct m0_be_log_store *ls, char *buf, m0_bcount_t size)
 {
-	struct m0_be_io bio;
+	struct m0_be_io bio = {};
 
-	m0_be_io_init(&bio, ls->ls_stob, &M0_BE_TX_CREDIT(1, size));
-	m0_be_io_add(&bio, buf, 0, size);
+	m0_be_io_init(&bio, &M0_BE_TX_CREDIT(1, size), 1);
+	m0_be_io_add(&bio, ls->ls_stob, buf, 0, size);
 	m0_be_io_configure(&bio, SIO_READ);
 
 	M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
@@ -89,8 +89,8 @@ be_ut_log_store_io_check(struct m0_be_log_store *ls, m0_bcount_t size)
 	struct m0_be_log_store_io lsi;
 	struct m0_be_tx_credit    io_cr_log;
 	struct m0_be_tx_credit    io_cr_log_cblock;
-	struct m0_be_io           io_log;
-	struct m0_be_io           io_log_cblock;
+	struct m0_be_io           io_log = {};
+	struct m0_be_io           io_log_cblock = {};
 	m0_bcount_t               cblock_size;
 	m0_bcount_t               data_size;
 	int                       cmp;
@@ -111,9 +111,9 @@ be_ut_log_store_io_check(struct m0_be_log_store *ls, m0_bcount_t size)
 	be_ut_log_store_rand_cr(&io_cr_log, data_size);
 	m0_be_log_store_cblock_io_credit(&io_cr_log_cblock, cblock_size);
 
-	rc = m0_be_io_init(&io_log, ls->ls_stob, &io_cr_log);
+	rc = m0_be_io_init(&io_log, &io_cr_log, 1);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_be_io_init(&io_log_cblock, ls->ls_stob, &io_cr_log_cblock);
+	rc = m0_be_io_init(&io_log_cblock, &io_cr_log_cblock, 1);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_be_log_store_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
@@ -147,12 +147,21 @@ be_ut_log_store_io_check(struct m0_be_log_store *ls, m0_bcount_t size)
 static void be_ut_log_store_io_check_nop(struct m0_be_log_store *ls,
 					m0_bcount_t size)
 {
-	struct m0_be_log_store_io lsi;
-	struct m0_be_io		 io_log;
-	struct m0_be_io		 io_log_cblock;
+	struct m0_be_log_store_io lsi = {};
+	struct m0_be_io		  io_log = {};
+	struct m0_be_io		  io_log_cblock = {};
+	int			  rc;
+
+	rc = m0_be_io_init(&io_log, &M0_BE_TX_CREDIT(1, 1), 1);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_be_io_init(&io_log_cblock, &M0_BE_TX_CREDIT(1, 1), 1);
+	M0_UT_ASSERT(rc == 0);
 
 	m0_be_log_store_io_init(&lsi, ls, &io_log, &io_log_cblock, size);
 	m0_be_log_store_io_fini(&lsi);
+
+	m0_be_io_fini(&io_log_cblock);
+	m0_be_io_fini(&io_log);
 }
 
 static void be_ut_log_store(bool fake_io)

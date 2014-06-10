@@ -55,6 +55,7 @@ struct m0_be_engine_cfg {
 	size_t		       bec_log_size;
 	struct m0_be_tx_credit bec_tx_size_max;
 	struct m0_be_tx_credit bec_group_size_max;
+	size_t		       bec_group_seg_nr_max;
 	size_t		       bec_group_tx_max;
 	m0_time_t	       bec_group_close_timeout;
 	struct m0_reqh	      *bec_group_fom_reqh;

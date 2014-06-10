@@ -25,7 +25,7 @@
 #include "lib/errno.h"		/* ENOSYS */
 #include "lib/misc.h"		/* M0_SET0 */
 
-#include "stob/io.h"		/* m0_stob_iovec_sort */
+#include "stob/stob.h"		/* m0_stob_get */
 
 #include <stdlib.h>		/* system */
 #include <sys/stat.h>		/* mkdir */
@@ -214,7 +214,8 @@ static void be_log_store_io_add_nowrap(struct m0_be_log_store_io *lsi,
 	LOGD("%s: ptr = %p, size = %lu, pos = %lu, end = %lu\n",
 	     __func__, ptr, size, lsi->lsi_pos, lsi->lsi_end);
 
-	m0_be_io_add(bio, ptr, lsi->lsi_pos % ls_size, size);
+	m0_be_io_add(bio, lsi->lsi_ls->ls_stob,
+		     ptr, lsi->lsi_pos % ls_size, size);
 	lsi->lsi_pos += size;
 }
 
@@ -271,8 +272,8 @@ M0_INTERNAL void m0_be_log_store_io_add_cblock(struct m0_be_log_store_io *lsi,
 
 M0_INTERNAL void m0_be_log_store_io_sort(struct m0_be_log_store_io *lsi)
 {
-	m0_stob_iovec_sort(&lsi->lsi_io->bio_io);
-	m0_stob_iovec_sort(&lsi->lsi_io_cblock->bio_io);
+	m0_be_io_sort(lsi->lsi_io);
+	m0_be_io_sort(lsi->lsi_io_cblock);
 }
 
 M0_INTERNAL void m0_be_log_store_io_fini(struct m0_be_log_store_io *lsi)

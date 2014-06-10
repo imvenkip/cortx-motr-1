@@ -67,6 +67,7 @@ struct m0_be_tx_group {
 	/** Total size of all updates in all transactions in this group. */
 	struct m0_be_tx_credit	   tg_used;
 	struct m0_be_tx_credit	   tg_size;
+	size_t			   tg_seg_nr_max;
 	struct m0_be_tx_credit	   tg_log_reserved;
 	m0_bcount_t		   tg_payload_prepared;
 	/** Maximum acceptable number of transactions in the group. */
@@ -105,6 +106,7 @@ M0_INTERNAL void m0_be_tx_group__tx_state_post(struct m0_be_tx_group *gr,
 /* XXX make m0_be_tx_group_cfg? */
 M0_INTERNAL void m0_be_tx_group_init(struct m0_be_tx_group *gr,
 				     struct m0_be_tx_credit *size_max,
+				     size_t seg_nr_max,
 				     size_t tx_nr_max,
 				     struct m0_be_engine *en,
 				     struct m0_be_log *log,

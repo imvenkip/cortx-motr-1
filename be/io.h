@@ -26,6 +26,7 @@
 
 #include "lib/chan.h"		/* m0_clink */
 #include "lib/types.h"		/* m0_bcount_t */
+#include "lib/atomic.h"		/* m0_atomic64 */
 
 #include "stob/io.h"		/* m0_stob_io */
 
@@ -39,49 +40,75 @@
  */
 
 struct m0_stob;
+struct m0_be_io;
+
+struct m0_be_io_part {
+	struct m0_stob_io bip_sio;
+	/** clink signalled when @bio_sio is completed */
+	struct m0_clink	  bip_clink;
+	struct m0_stob	 *bip_stob;
+	uint32_t	  bip_bshift;
+	struct m0_be_io	 *bip_bio;
+	int		  bip_rc;
+};
 
 struct m0_be_io {
-	struct m0_stob	       *bio_stob;
-	uint32_t		bio_bshift;
-	struct m0_stob_io	bio_io;
-	/** clink signalled when @bio_io is completed */
-	struct m0_clink		bio_clink;
+	/** Array of single stob I/Os. */
+	struct m0_be_io_part   *bio_part;
+	struct m0_bufvec	bio_bv_user;
+	struct m0_indexvec      bio_iv_stob;
+	/** Current index in m0_be_io::bio_bv_user and m0_be_io::bio_iv_stob */
+	uint32_t		bio_vec_pos;
 	struct m0_be_tx_credit	bio_credit;
+	struct m0_be_tx_credit	bio_used;
+	/** Number of different stobs in current I/O */
+	unsigned		bio_stob_nr;
+	/** Maximum number of different stobs in I/O */
+	unsigned		bio_stob_nr_max;
 	/**
-	 * operation passed by the user on which log has to signal when io of
-	 * this group is completed
+	 * Number of finished I/Os.
+	 *
+	 * Failed I/O counts as finished.
+	 */
+	struct m0_atomic64	bio_stob_io_finished_nr;
+	/**
+	 * Operation passed by the user on which m0_be_io has to signal when io
+	 * is completed.
 	 */
 	struct m0_be_op	       *bio_op;
+	/** @see m0_be_io_sync_enable */
 	bool			bio_sync;
 };
 
-M0_INTERNAL int m0_be_io_init(struct m0_be_io *bio,
-			      struct m0_stob *stob,
-			      const struct m0_be_tx_credit *size_max);
+M0_INTERNAL int m0_be_io_init(struct m0_be_io		   *bio,
+			      const struct m0_be_tx_credit *size_max,
+			      size_t			    stob_nr_max);
 M0_INTERNAL void m0_be_io_fini(struct m0_be_io *bio);
 M0_INTERNAL bool m0_be_io__invariant(struct m0_be_io *bio);
 
 
 M0_INTERNAL void m0_be_io_add(struct m0_be_io *bio,
-			      void *ptr_user,
-			      m0_bindex_t offset_stob,
-			      m0_bcount_t size);
+			      struct m0_stob  *stob,
+			      void	      *ptr_user,
+			      m0_bindex_t      offset_stob,
+			      m0_bcount_t      size);
 
 /** call fdatasync() for linux stob after IO completion */
 M0_INTERNAL void m0_be_io_sync_enable(struct m0_be_io *bio);
 
-M0_INTERNAL void m0_be_io_configure(struct m0_be_io *bio,
-				    enum m0_stob_io_opcode opcode);
+M0_INTERNAL void m0_be_io_configure(struct m0_be_io	   *bio,
+				    enum m0_stob_io_opcode  opcode);
 
 M0_INTERNAL void m0_be_io_launch(struct m0_be_io *bio, struct m0_be_op *op);
 
 M0_INTERNAL void m0_be_io_reset(struct m0_be_io *bio);
+M0_INTERNAL void m0_be_io_sort(struct m0_be_io *bio);
 
-M0_INTERNAL int m0_be_io_single(struct m0_stob *stob,
-				enum m0_stob_io_opcode opcode,
-				void *ptr_user,
-				m0_bindex_t offset_stob,
-				m0_bcount_t size);
+M0_INTERNAL int m0_be_io_single(struct m0_stob	       *stob,
+				enum m0_stob_io_opcode	opcode,
+				void		       *ptr_user,
+				m0_bindex_t		offset_stob,
+				m0_bcount_t		size);
 
 /** @} end of be group */
 

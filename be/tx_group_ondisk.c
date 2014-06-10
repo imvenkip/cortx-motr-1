@@ -36,10 +36,12 @@
  * @{
  */
 
-static int group_io_init(struct m0_be_group_ondisk *g, struct m0_stob *stob,
+static int group_io_init(struct m0_be_group_ondisk *g,
+			 struct m0_stob *stob,
 			 const struct m0_be_tx_credit *cr_logrec,
 			 const struct m0_be_tx_credit *cr_commit_block,
-			 const struct m0_be_tx_credit *cr_group_maxsize);
+			 const struct m0_be_tx_credit *cr_group_maxsize,
+			 uint64_t seg_nr_max);
 static void group_io_fini(struct m0_be_group_ondisk *g);
 
 M0_INTERNAL void be_log_io_credit_tx(struct m0_be_tx_credit *io_tx,
@@ -87,7 +89,8 @@ static void be_group_ondisk_free(struct m0_be_group_ondisk *go)
 M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 					struct m0_stob *log_stob,
 					size_t tx_nr_max,
-					const struct m0_be_tx_credit *size_max)
+					const struct m0_be_tx_credit *size_max,
+					uint64_t seg_nr_max)
 {
 	struct m0_be_tx_credit cr_logrec;
 	struct m0_be_tx_credit cr_commit_block;
@@ -109,7 +112,7 @@ M0_INTERNAL int m0_be_group_ondisk_init(struct m0_be_group_ondisk *go,
 	m0_be_tx_credit_sub(&cr_logrec, &cr_commit_block);
 
 	rc = group_io_init(go, log_stob, &cr_logrec, &cr_commit_block,
-			   size_max);
+			   size_max, seg_nr_max);
 	if (rc != 0)
 		goto err_reg;
 
@@ -263,10 +266,12 @@ M0_INTERNAL void m0_be_group_ondisk_serialize(struct m0_be_group_ondisk *go,
 	/* m0_be_io_sync_enable(&go->go_io_seg); */
 }
 
-static int group_io_init(struct m0_be_group_ondisk *g, struct m0_stob *stob,
+static int group_io_init(struct m0_be_group_ondisk *g,
+			 struct m0_stob *stob,
 			 const struct m0_be_tx_credit *cr_logrec,
 			 const struct m0_be_tx_credit *cr_commit_block,
-			 const struct m0_be_tx_credit *cr_group_maxsize)
+			 const struct m0_be_tx_credit *cr_group_maxsize,
+			 uint64_t seg_nr_max)
 {
 	int rc;
 	/*
@@ -274,15 +279,15 @@ static int group_io_init(struct m0_be_group_ondisk *g, struct m0_stob *stob,
 	 * of init/fini statements. The implementation will be pretty much
 	 * similar to mero/init.c.
 	 */
-	rc = m0_be_io_init(&g->go_io_log, stob, cr_logrec);
+	rc = m0_be_io_init(&g->go_io_log, cr_logrec, 1);
 	if (rc != 0)
 		return rc;
 
-	rc = m0_be_io_init(&g->go_io_log_cblock, stob, cr_commit_block);
+	rc = m0_be_io_init(&g->go_io_log_cblock, cr_commit_block, 1);
 	if (rc != 0)
 		goto err;
 
-	rc = m0_be_io_init(&g->go_io_seg, stob, cr_group_maxsize);
+	rc = m0_be_io_init(&g->go_io_seg, cr_group_maxsize, seg_nr_max);
 	if (rc == 0)
 		return 0;
 

@@ -84,6 +84,7 @@ m0_be_engine_init(struct m0_be_engine *en, struct m0_be_engine_cfg *en_cfg)
 	for (i = 0; i < en->eng_group_nr; ++i) {
 		m0_be_tx_group_init(&en->eng_group[0],
 				    &en_cfg->bec_group_size_max,
+				    en_cfg->bec_group_seg_nr_max,
 				    en_cfg->bec_group_tx_max,
 				    en,
 				    &en->eng_log,

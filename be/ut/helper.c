@@ -240,6 +240,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bec_log_size	    = 1 << 27,
 			.bec_tx_size_max    = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
 			.bec_group_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 24),
+			.bec_group_seg_nr_max = 256,
 			.bec_group_tx_max   = 20,
 			.bec_log_replay	    = false,
 			.bec_group_close_timeout = M0_TIME_ONE_MSEC,
