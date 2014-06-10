@@ -176,9 +176,7 @@ m0_be_0type_add
 m0_be_0type_del
 m0_be_0type_register
 m0_be_0type_unregister
-m0_be_ut_backend_mkfs_init
 m0_be_ut__seg_allocator_fini
 m0_be_ut__seg_allocator_init
 m0_be_0type_add_credit
 m0_be_0type_del_credit
-m0_be_ut_backend_init_normal

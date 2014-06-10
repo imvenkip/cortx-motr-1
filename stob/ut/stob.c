@@ -38,11 +38,6 @@ enum {
 				      M0_STOB_UT_THREADS_PER_STOB,
 };
 
-enum {
-	LOCATION_SIZE = 64,
-	SEG_SIZE      = 1 << 20,
-};
-
 struct stob_ut_ctx {
 	struct m0_mutex       *su_lock;
 	struct m0_semaphore   *su_destroy_sem;
@@ -246,43 +241,32 @@ void m0_stob_ut_stob_linux(void)
 			   M0_STOB_UT_STOB_NR);
 }
 
+extern void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
+			       struct m0_be_ut_seg     *ut_seg);
+extern void m0_stob_ut_ad_fini(struct m0_be_ut_backend *ut_be,
+			       struct m0_be_ut_seg     *ut_seg);
+
 void m0_stob_ut_stob_ad(void)
 {
-	struct m0_be_ut_backend  ut_be = {};
-	struct m0_be_ut_seg      ut_seg = {};
-	struct m0_be_seg        *seg;
+	struct m0_be_ut_backend  ut_be;
+	struct m0_be_ut_seg      ut_seg;
 	struct m0_stob          *stob;
-	struct m0_sm_group      *grp;
 	char                    *dom_cfg;
-	char                     location[LOCATION_SIZE];
-	int                      rc;
 
-	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, SEG_SIZE);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	seg = &ut_seg.bus_seg;
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc  = m0_be_seg_dict_create_grp(seg, grp);
-	M0_ASSERT(rc == 0);
+	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
 
-	rc = snprintf(location, sizeof(location), "adstob:seg=%p,1234", seg);
-	M0_UT_ASSERT(rc < sizeof(location));
-	m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_fid_get(stob));
+	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_fid_get(stob));
 	M0_UT_ASSERT(dom_cfg != NULL);
 
-	stob_ut_stob_single(location, dom_cfg, NULL);
-	stob_ut_stob_multi(location, dom_cfg, NULL, M0_STOB_UT_THREAD_NR,
-			   M0_STOB_UT_STOB_NR);
+	stob_ut_stob_single("adstob:some_suffix", dom_cfg, NULL);
+	stob_ut_stob_multi("adstob:some_suffix", dom_cfg, NULL,
+			   M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
 
 	m0_free(dom_cfg);
 	m0_ut_stob_put(stob, true);
-	m0_be_seg_dict_destroy_grp(seg, grp);
-	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */ /* XXX */
-	m0_be_ut_seg_fini(&ut_seg);
-	m0_be_ut_backend_fini(&ut_be);
-
+	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 }
 #endif
 

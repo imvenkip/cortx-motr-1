@@ -230,7 +230,8 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 }
 
 M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
-					   struct m0_be_domain_cfg *cfg)
+					   struct m0_be_domain_cfg *cfg,
+					   bool mkfs)
 {
 }
 
@@ -260,12 +261,15 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		       struct m0_be_ut_backend *ut_be,
 		       m0_bcount_t size)
 {
-	m0_be_seg_init(&ut_seg->bus_seg, NULL, &ut_be->but_dom);
-	m0_be_seg_open(&ut_seg->bus_seg);
+	M0_ALLOC_PTR(ut_seg->bus_seg);
+	M0_ASSERT(ut_seg->bus_seg != NULL);
+	m0_be_seg_init(ut_seg->bus_seg, NULL, &ut_be->but_dom);
+	m0_be_seg_open(ut_seg->bus_seg);
 }
 
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 {
+	m0_free(ut_seg->bus_seg);
 }
 
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
@@ -294,17 +298,12 @@ void m0_be_ut_seg0_test(void)
 {
 }
 
-void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be)
-{
-}
-
 void m0_be_ut__seg_allocator_init(struct m0_be_seg *seg,
 				  struct m0_be_ut_backend *ut_be)
 {
 }
 
-M0_INTERNAL
-struct m0_be_seg *m0_be_domain_seg0_get(const struct m0_be_domain *dom)
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg0_get(struct m0_be_domain *dom)
 {
 	return NULL;
 }

@@ -669,7 +669,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 			     struct m0_be_seg *seg, const char *f_path)
 {
 	int                rc;
-	char               location[MAXPATHLEN];
+	char               location[64];
 	char              *dom_cfg;
 	struct m0_stob    *bstore;
 	struct cs_ad_stob *adstob;
@@ -681,17 +681,19 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		return M0_ERR(-ENOMEM, "adstob object allocation failed");
 
 	rc = m0_stob_find_by_key(stob->s_sdom, cid, &bstore);
-	adstob->as_stob_back = bstore;
-	rc = rc ?: m0_stob_locate(bstore);
+	if (rc == 0 && m0_stob_state_get(bstore) == CSS_UNKNOWN) {
+		rc = m0_stob_locate(bstore);
+		adstob->as_stob_back = bstore;
+	}
+
 	if (rc == 0 && m0_stob_state_get(bstore) == CSS_NOENT) {
 		/* XXX assume that whole cfg_str is a symlink if != NULL */
 		rc = m0_stob_create(bstore, NULL, f_path);
 	}
 
 	if (rc == 0) {
-		/* XXX fix when seg0 is landed */
 		rc = snprintf(location, sizeof(location),
-			      "adstob:seg=%p,ad.%lx", seg, cid);
+			      "adstob:%llu", (unsigned long long)cid);
 		M0_ASSERT(rc < sizeof(location));
 		m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_fid_get(bstore));
 		if (dom_cfg == NULL) {
@@ -1081,7 +1083,7 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
 static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
-	struct m0_cob_domain *dom = &rctx->rc_mdstore.md_dom;
+	struct m0_cob_domain *dom;
 	struct m0_dtx         tx = {};
 	int                   rc;
 
@@ -1090,9 +1092,11 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 	if (erase)
 		m0_mdstore_destroy(&rctx->rc_mdstore, grp);
 
-	rc = m0_mdstore_create(&rctx->rc_mdstore, grp);
+	rc = m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
+			       rctx->rc_beseg);
 	if (rc != 0)
 		goto end;
+	dom = rctx->rc_mdstore.md_dom;
 
 	m0_dtx_init(&tx, rctx->rc_beseg->bs_domain, grp);
 	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
@@ -1275,7 +1279,9 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 			goto cleanup_addb_stob;
 		}
 	}
-
+	/* XXX: remove when all mdservice modules go to m0 structure and removed
+	 * from mero context */
+	rctx->rc_mdstore.md_dom = m0_get()->i_cob_module;
 	/* Init mdstore and root cob as it should be created by mkfs. */
 	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
 			     rctx->rc_beseg, true);

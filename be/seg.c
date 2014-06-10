@@ -86,6 +86,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 		.bs_state    = M0_BSS_INIT,
 		.bs_id       = stob->so_fid.f_key,
 	};
+	m0_stob_get(seg->bs_stob);
 	M0_LEAVE();
 }
 
@@ -93,6 +94,7 @@ M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg)
 {
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
+	m0_stob_put(seg->bs_stob);
 	M0_LEAVE();
 }
 

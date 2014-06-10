@@ -274,28 +274,17 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 void test_balloc()
 {
-	struct m0_sm_group      *grp;
 	struct m0_be_ut_backend	 ut_be;
 	struct m0_be_ut_seg	 ut_seg;
-	struct m0_be_seg	*seg;
 	int			 rc;
 
 	M0_SET0(&ut_be);
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	seg = &ut_seg.bus_seg;
-
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_ut__seg_dict_create(seg, grp);
-	M0_ASSERT(rc == 0);
-
-	rc = test_balloc_ut_ops(&ut_be, seg);
+	rc = test_balloc_ut_ops(&ut_be, ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_ut__seg_dict_destroy(seg, grp);
-	M0_ASSERT(rc == 0);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }

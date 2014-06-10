@@ -74,6 +74,7 @@ struct m0 {
 #endif
 	struct m0_net		  i_net;
 	struct m0_stob_module	  i_stob_module;
+	struct m0_stob_ad_module  i_stob_ad_module;
 	struct m0_ut_stob_module  i_ut_stob_module;
 	struct m0_be_domain	 *i_be_dom;
 	struct m0_be_domain	 *i_be_dom_save;
@@ -81,6 +82,8 @@ struct m0 {
 	struct m0_be_ut_backend	 *i_be_ut_backend_save;
 	struct m0_dbenv		 *i_dbenv;
 	struct m0_dbenv		 *i_dbenv_save;
+	struct m0_poolmach_state *i_pool_module;
+	struct m0_cob_domain     *i_cob_module;
 	bool			  i_reqh_has_multiple_ad_domains;
 	bool			  i_reqh_uses_ad_stob;
 };

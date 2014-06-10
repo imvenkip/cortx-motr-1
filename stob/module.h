@@ -45,22 +45,15 @@ M0_INTERNAL struct m0_stob_module *m0_stob_module__get(void);
 extern struct m0_modlev m0_levels_stob[];
 extern const unsigned m0_levels_stob_nr;
 
-#define M0_STOB_INIT(instance) {                 \
-	.stm_module = {                          \
-		.m_name     = "stob module",     \
-		.m_m0       = (instance),        \
-		.m_level    = m0_levels_stob,    \
-		.m_level_nr = m0_levels_stob_nr  \
-	}                                        \
-}
-
-/* XXX FIXME M0_MODULE_INIT isn't in master */
-#if 0
 #define M0_STOB_INIT(instance) {                                         \
 	.stm_module = M0_MODULE_INIT("stob module", (instance),          \
 				     m0_levels_stob, m0_levels_stob_nr)  \
 }
-#endif
+
+struct m0_stob_ad_module {
+	struct m0_tl    sam_domains;
+	struct m0_mutex sam_lock;
+};
 
 /** @} end of stob group */
 #endif /* __MERO_STOB_MODULE_H__ */

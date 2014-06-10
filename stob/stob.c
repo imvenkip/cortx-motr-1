@@ -76,9 +76,9 @@ M0_INTERNAL int m0_stob_find_by_key(struct m0_stob_domain *dom,
 
 	m0_stob_cache_lock(cache);
 	stob = m0_stob_cache_lookup(cache, stob_key);
-	if (stob != NULL)
+	if (stob != NULL) {
 		M0_CNT_INC(stob->so_ref);
-	else {
+	} else {
 		stob = m0_stob_domain__stob_alloc(dom, stob_key);
 		if (stob != NULL) {
 			/* XXX M0_PRE(M0_IS_ZEROED(stob)); */

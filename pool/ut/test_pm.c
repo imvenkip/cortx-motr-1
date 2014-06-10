@@ -50,24 +50,16 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 
 static int seg_init()
 {
-	int rc;
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	be_seg = &ut_seg.bus_seg;
+	be_seg = ut_seg.bus_seg;
 	sm_grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_ut__seg_dict_create(be_seg, sm_grp);
-	M0_ASSERT(rc == 0);
 	return 0;
 }
 
 static int seg_fini()
 {
-	int rc;
-	rc = m0_be_ut__seg_dict_destroy(be_seg, sm_grp);
-	M0_ASSERT(rc == 0);
-	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 	return 0;

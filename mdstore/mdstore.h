@@ -53,7 +53,7 @@ struct m0_statfs {
 };
 
 struct m0_mdstore {
-        struct m0_cob_domain  md_dom;
+	struct m0_cob_domain *md_dom;
         struct m0_cob        *md_root;
 
         /**
@@ -97,8 +97,10 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
  */
 M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md);
 
-M0_INTERNAL int m0_mdstore_create(struct m0_mdstore  *md,
-				  struct m0_sm_group *grp);
+M0_INTERNAL int m0_mdstore_create(struct m0_mdstore       *md,
+				  struct m0_sm_group      *grp,
+				  struct m0_cob_domain_id *id,
+				  struct m0_be_seg        *db);
 M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore  *md,
 				   struct m0_sm_group *grp);
 

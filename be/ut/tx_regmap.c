@@ -744,7 +744,7 @@ void m0_be_ut_reg_area_simple(void)
 	int			     j;
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_SEG_SIZE);
-	be_ut_ra_seg = &ut_seg.bus_seg;
+	be_ut_ra_seg = ut_seg.bus_seg;
 
 	be_ut_ra_rand_seed = 0;
 	for (i = 0; i < ARRAY_SIZE(be_ut_test_regs); ++i) {
@@ -782,7 +782,7 @@ void m0_be_ut_reg_area_random(void)
 	int		    do_insert;
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_SEG_SIZE);
-	be_ut_ra_seg = &ut_seg.bus_seg;
+	be_ut_ra_seg = ut_seg.bus_seg;
 
 	be_ut_reg_area_init(BE_UT_RA_ITER);
 	for (i = 0; i < BE_UT_RA_ITER; ++i) {
@@ -986,7 +986,7 @@ void m0_be_ut_reg_area_merge(void)
 	int			     rc;
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_MERGE_SEG_SIZE);
-	be_ut_ra_merge_seg = &ut_seg.bus_seg;
+	be_ut_ra_merge_seg = ut_seg.bus_seg;
 
 	prepared_mra = M0_BE_TX_CREDIT(BE_UT_RA_MERGE_R_NR_MAX,
 				       BE_UT_RA_MERGE_SIZE_TOTAL);

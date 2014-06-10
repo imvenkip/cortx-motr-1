@@ -116,7 +116,7 @@ void m0_be_ut_group_ondisk(void)
 	struct m0_be_tx_credit reserved;
 	struct m0_be_reg_d     rd[1+2+3];
 	struct m0_be_ut_seg    ut_seg;
-	struct m0_be_seg      *seg = &ut_seg.bus_seg;
+	struct m0_be_seg      *seg;
 	struct m0_stob	      *stob;
 	int                    i;
 	int                    j;
@@ -126,6 +126,7 @@ void m0_be_ut_group_ondisk(void)
 
 	be_ut_group_ondisk_rb_init();
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_GROUP_ONDISK_SEG_SIZE);
+	seg = ut_seg.bus_seg;
 
 	for (i = 0; i < ARRAY_SIZE(but_group_ondisk_tx); ++i) {
 		tx_credit = M0_BE_TX_CREDIT(i + 1, 10 * (i + 1));

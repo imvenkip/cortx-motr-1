@@ -118,10 +118,9 @@ static void test_init(void)
 	cfg.bc_engine.bec_log_size	 = 1 << 27;
 	cfg.bc_engine.bec_tx_size_max	 = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
 	cfg.bc_engine.bec_group_size_max = M0_BE_TX_CREDIT(1 << 22, 1 << 27);
-	m0_be_ut_backend_init_cfg(&be_ut_emap_backend, &cfg);
+	m0_be_ut_backend_init_cfg(&be_ut_emap_backend, &cfg, true);
 	m0_be_ut_seg_init(&be_ut_emap_seg, &be_ut_emap_backend, 1ULL << 26);
-	m0_be_ut_seg_allocator_init(&be_ut_emap_seg, &be_ut_emap_backend);
-	be_seg = &be_ut_emap_seg.bus_seg;
+	be_seg = be_ut_emap_seg.bus_seg;
 
 	emap_be_alloc(&tx1);
 	m0_be_emap_init(emap, be_seg);
@@ -157,7 +156,6 @@ static void test_fini(void)
 
 	emap_be_free(&tx1);
 
-	m0_be_ut_seg_allocator_fini(&be_ut_emap_seg, &be_ut_emap_backend);
 	m0_be_ut_seg_fini(&be_ut_emap_seg);
 	m0_be_ut_backend_fini(&be_ut_emap_backend);
 }

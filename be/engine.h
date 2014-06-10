@@ -60,7 +60,6 @@ struct m0_be_engine_cfg {
 	m0_time_t	       bec_group_close_timeout;
 	struct m0_reqh	      *bec_group_fom_reqh;
 	bool		       bec_log_replay;
-	struct m0_stob	      *bec_log_stob;
 };
 
 struct m0_be_engine {

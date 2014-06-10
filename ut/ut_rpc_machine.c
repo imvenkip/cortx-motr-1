@@ -64,13 +64,25 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 
 #ifndef __KERNEL__
 
+static char *ut_reqh_location_get(void)
+{
+	static const size_t  str_len = 100;
+	char		    *str = m0_alloc(str_len);
+	static uint64_t	     start = 10000;
+
+	M0_ASSERT(str != NULL);
+	snprintf(str, str_len, "linuxstob:./ut_reqh%"PRIu64, start++);
+	return str;
+}
+
 static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 {
-	struct m0_sm_group    *grp;
-	struct m0_be_seg      *seg;
-	struct m0_be_tx        tx;
-	struct m0_be_tx_credit cred = {};
-	int                    rc;
+	struct m0_sm_group     *grp;
+	struct m0_be_seg       *seg;
+	struct m0_be_tx		tx;
+	struct m0_be_tx_credit	cred = {};
+	char		       *location;
+	int			rc;
 	/*
 	 * Instead of using m0d and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
@@ -83,24 +95,25 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 
 	ctx->rmc_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
 		&ctx->rmc_reqh;
-	m0_ut_backend_init(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
-	seg = &ctx->rmc_ut_seg.bus_seg;
+	location = ut_reqh_location_get();
+	ctx->rmc_ut_be.but_stob_domain_location = location;
+	m0_be_ut_backend_init_cfg(&ctx->rmc_ut_be, NULL, true);
+	m0_be_ut_seg_init(&ctx->rmc_ut_seg, &ctx->rmc_ut_be, 1 << 20);
+	seg = ctx->rmc_ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
-	rc = m0_be_ut__seg_dict_create(seg, grp);
-	M0_ASSERT(rc == 0);
 
 	rc = m0_reqh_dbenv_init(&ctx->rmc_reqh, seg);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_mdstore_init(&ctx->rmc_mdstore, &ctx->rmc_cob_id, seg, 0);
 	M0_ASSERT(rc == -ENOENT);
-        rc = m0_mdstore_create(&ctx->rmc_mdstore, grp);
+	rc = m0_mdstore_create(&ctx->rmc_mdstore, grp, &ctx->rmc_cob_id, seg);
         M0_ASSERT(rc == 0);
 
-	m0_cob_tx_credit(&ctx->rmc_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS,
+	m0_cob_tx_credit(ctx->rmc_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS,
 			 &cred);
 	m0_ut_be_tx_begin(&tx, &ctx->rmc_ut_be, &cred);
-	rc = m0_cob_domain_mkfs(&ctx->rmc_mdstore.md_dom,
+	rc = m0_cob_domain_mkfs(ctx->rmc_mdstore.md_dom,
 				&M0_MDSERVICE_SLASH_FID, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_ASSERT(rc == 0);
@@ -121,9 +134,9 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	M0_ASSERT(rc == 0);
 	m0_mdstore_fini(&ctx->rmc_mdstore);
 
-	rc = m0_be_ut__seg_dict_destroy(&ctx->rmc_ut_seg.bus_seg, grp);
-	M0_ASSERT(rc == 0);
-	m0_ut_backend_fini(&ctx->rmc_ut_be, &ctx->rmc_ut_seg);
+	m0_be_ut_seg_fini(&ctx->rmc_ut_seg);
+	m0_be_ut_backend_fini(&ctx->rmc_ut_be);
+	m0_free(ctx->rmc_ut_be.but_stob_domain_location);
 	m0_reqh_post_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	m0_reqh_fini(&ctx->rmc_reqh);
 

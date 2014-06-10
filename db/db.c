@@ -45,6 +45,7 @@
 #include "lib/memory.h"
 #include "lib/finject.h"
 #include "lib/string.h"		/* m0_strdup */
+#include "lib/atomic.h"		/* m0_atomic64 */
 
 #include "module/instance.h"	/* m0 */
 #include "mero/magic.h"
@@ -59,6 +60,7 @@
 #include "be/btree.h"
 #include "be/seg.h"
 #include "be/tx.h"
+#include "be/seg0.h"		/* m0_be_0type */
 
 /**
    @addtogroup db
@@ -67,259 +69,170 @@
 
 struct m0_addb_ctx m0_db_mod_ctx;
 
-#if 0
-static struct m0_sm_group  __sm_group;
-static struct m0_be_domain __dom;
-static struct m0_be_ut_seg __seg;
-#endif
-
-struct m0_stob;
-
 enum {
-	SEG_MAP_SIZE_MAX = 0x1000,
 	SEG_SIZE	 = M0_BE_DB_SEGMENT_SIZE,
 };
 
-struct seg_map_item {
-	char		    *smi_name;
-	uint64_t	     smi_stob_id;
-	void		    *smi_seg_addr;
-	struct m0_be_ut_seg *smi_ut_seg;
-	bool		     smi_reset;
+struct dbenv_seg_list_item {
+	const char	*sli_name;
+	void		*sli_addr;
+	struct m0_tlink	 sli_link;
+	uint64_t	 sli_magic;
 };
 
-static struct seg_map_item seg_map[SEG_MAP_SIZE_MAX];
-static int		   seg_map_size = 0;
-static struct m0_mutex	   seg_map_lock_;
+M0_TL_DESCR_DEFINE(sli, "m0_dbenv_impl::d_segments", static,
+		   struct dbenv_seg_list_item, sli_link, sli_magic,
+		   0x1, 0x2);
+M0_TL_DEFINE(sli, M0_INTERNAL, struct dbenv_seg_list_item);
 
-static void seg_map_lock(void)
+static struct dbenv_seg_list_item *
+dbenv_seg_list_lookup_internal(struct m0_dbenv_impl *di, const char *name)
 {
-	m0_mutex_lock(&seg_map_lock_);
+	struct dbenv_seg_list_item *sli;
+
+	m0_mutex_lock(&di->d_segments_lock);
+	sli = m0_tl_find(sli, sli, &di->d_segments,
+			 m0_streq(name, sli->sli_name));
+	m0_mutex_unlock(&di->d_segments_lock);
+	return sli;
 }
 
-static void seg_map_unlock(void)
+static int dbenv_0type_init(struct m0_be_domain *dom,
+			    const char *suffix,
+			    const struct m0_buf *data)
 {
-	m0_mutex_unlock(&seg_map_lock_);
+	struct dbenv_seg_list_item *sli;
+	struct m0_dbenv_impl	   *di = dom->bd_db_impl;
+
+	M0_ALLOC_PTR(sli);
+	M0_ASSERT(sli != NULL);
+	sli->sli_name = suffix;
+	sli->sli_addr = *(void **)data->b_addr;
+
+	M0_LOG(M0_DEBUG, "init: name = %s, addr = %p",
+	       sli->sli_name, sli->sli_addr);
+	m0_mutex_lock(&di->d_segments_lock);
+	sli_tlink_init_at(sli, &di->d_segments);
+	m0_mutex_unlock(&di->d_segments_lock);
+	return 0;
 }
 
-M0_INTERNAL void m0_be_state_save(const char *filename,
-                                  bool (*func)(FILE *f, int *state))
+static void dbenv_0type_fini(struct m0_be_domain *dom,
+			     const char *suffix,
+			     const struct m0_buf *data)
 {
-        FILE *f;
-        int   rc;
-        char  tmpfilename[256];
-        int   state;
+	struct dbenv_seg_list_item *sli;
+	struct m0_dbenv_impl	   *di = dom->bd_db_impl;
 
-        rc = snprintf(tmpfilename, ARRAY_SIZE(tmpfilename), "%s.%d.TMP", filename, (int)getpid());
-        M0_ASSERT_INFO(rc < ARRAY_SIZE(tmpfilename), "rc = %d", rc);
-
-        f = fopen(tmpfilename, "w");
-        M0_ASSERT_INFO(f != NULL, "can't open file %s: errno = %d",
-                       tmpfilename, errno);
-
-        state = 0;
-        while (func(f, &state))
-                ;
-
-        rc = fclose(f);
-        M0_ASSERT_INFO(rc == 0, "can't close file %s: errno = %d",
-                       tmpfilename, errno);
-
-        /*
-         * Don't write directly to the seg_map_file to prevent file corruption
-         * if process is killed between fopen() and fclose() in this function.
-         * mv will replace the file atomically (see rename(2) for reference).
-         */
-        rc = rename(tmpfilename, filename);
-        M0_ASSERT_INFO(rc == 0, "rename(%s, %s) failed: rc = %d",
-                       tmpfilename, filename, errno);
+	sli = dbenv_seg_list_lookup_internal(di, suffix);
+	M0_LOG(M0_DEBUG, "fini: name = %s, addr = %p",
+	       sli->sli_name, sli->sli_addr);
+	m0_mutex_lock(&di->d_segments_lock);
+	sli_tlink_del_fini(sli);
+	m0_mutex_unlock(&di->d_segments_lock);
+	m0_free(sli);
 }
 
-static  bool seg_map_save_item(FILE *f, int *state)
+struct m0_be_0type m0_dbenv_0type = {
+	.b0_name = "M0_BE:DBEMU",
+	.b0_init = &dbenv_0type_init,
+	.b0_fini = &dbenv_0type_fini,
+};
+
+static void dbenv_seg_list_init(struct m0_dbenv *dbenv)
 {
-        struct seg_map_item *smi;
-        int                  rc;
+	struct m0_dbenv_impl *di = &dbenv->d_i;
 
-        if (seg_map_size == 0)
-                return false;
-        smi = &seg_map[(*state)++];
-        if (!smi->smi_reset) {
-                rc = fprintf(f, "%s %"PRIu64" %p\n",
-                             smi->smi_name, smi->smi_stob_id,
-                             smi->smi_seg_addr);
-                M0_ASSERT_INFO(rc > 0, "rc = %d", rc);
-        }
-
-        return *state < seg_map_size;
+	m0_mutex_init(&di->d_segments_lock);
+	sli_tlist_init(&di->d_segments);
 }
 
-static void seg_map_save(void)
+static void dbenv_seg_list_fini(struct m0_dbenv *dbenv)
 {
-        seg_map_lock();
-        m0_be_state_save("segments.map", &seg_map_save_item);
-        seg_map_unlock();
+	struct m0_dbenv_impl *di = &dbenv->d_i;
+
+	sli_tlist_fini(&di->d_segments);
+	m0_mutex_fini(&di->d_segments_lock);
 }
 
-static void seg_map_add(const char *name,
-			uint64_t stob_id,
-			void *seg_addr,
-			struct m0_be_ut_seg *ut_seg)
+static void dbenv_seg_list_add(struct m0_dbenv_impl *di,
+			       const char *name,
+			       void *addr)
 {
-	seg_map_lock();
-	seg_map[seg_map_size] = (struct seg_map_item) {
-		.smi_name     = m0_strdup(name),
-		.smi_stob_id  = stob_id,
-		.smi_seg_addr = seg_addr,
-		.smi_ut_seg   = ut_seg,
-		.smi_reset    = false,
-	};
-	++seg_map_size;
-	seg_map_unlock();
+	struct m0_be_tx_credit	cred = {};
+	struct m0_be_0type     *zt = &di->d_ut_be.but_dbemu_0type;
+	struct m0_sm_group     *grp;
+	struct m0_be_tx		tx = {};
+	struct m0_buf		buf = M0_BUF_INIT_PTR(&addr);
+	int			rc;
+
+	m0_be_ut_tx_init(&tx, &di->d_ut_be);
+	grp = m0_be_ut_backend_sm_group_lookup(&di->d_ut_be);
+	/* there is no need to check ut_be->but_sm_groups_unlocked */
+	m0_sm_group_lock(grp);
+	m0_be_0type_add_credit(di->d_dom, zt, name, &buf, &cred);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_exclusive_open_sync(&tx);
+	M0_ASSERT(rc == 0);
+	rc = m0_be_0type_add(zt, di->d_dom, &tx, name, &buf);
+	M0_ASSERT(rc == 0);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+	m0_sm_group_unlock(grp);
 }
 
-static struct seg_map_item *seg_map_lookup(const char *name)
+static void dbenv_seg_list_del(struct m0_dbenv_impl *di,
+			       const char *name)
 {
-	struct seg_map_item *smi = NULL;
-	int                  i;
+	struct m0_be_tx_credit	cred = {};
+	struct m0_be_0type     *zt = &di->d_ut_be.but_dbemu_0type;
+	struct m0_sm_group     *grp;
+	struct m0_be_tx		tx = {};
+	int			rc;
 
-	seg_map_lock();
-	for (i = 0; i < seg_map_size; ++i) {
-		if (m0_streq(seg_map[i].smi_name, name)) {
-			smi = &seg_map[i];
-			break;
-		}
+	m0_be_ut_tx_init(&tx, &di->d_ut_be);
+	grp = m0_be_ut_backend_sm_group_lookup(&di->d_ut_be);
+	m0_sm_group_lock(grp);
+	m0_be_0type_del_credit(di->d_dom, zt, name, &cred);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_exclusive_open_sync(&tx);
+	M0_ASSERT(rc == 0);
+	rc = m0_be_0type_del(zt, di->d_dom, &tx, name);
+	M0_ASSERT(rc == 0);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+	m0_sm_group_unlock(grp);
+}
+
+static void *dbenv_seg_list_lookup(struct m0_dbenv_impl *di,
+				   const char *name)
+{
+	struct dbenv_seg_list_item *sli;
+
+	sli = dbenv_seg_list_lookup_internal(di, name);
+	return sli == NULL ? NULL : sli->sli_addr;
+}
+
+static void dbenv_seg_init(struct m0_dbenv_impl *di,
+			   const char *name,
+			   bool mkfs)
+{
+	struct m0_be_seg *seg;
+	void		 *addr;
+
+	addr = dbenv_seg_list_lookup(di, name);
+	if (addr != NULL && mkfs) {
+		seg = m0_be_domain_seg(di->d_dom, addr);
+		m0_be_ut_backend_seg_del(&di->d_ut_be, seg);
+		dbenv_seg_list_del(di, name);
+		addr = NULL;
 	}
-	seg_map_unlock();
-	return smi;
-}
-
-M0_INTERNAL void m0_be_state_load(const char *filename,
-                                  bool (*func)(FILE *f, int *state))
-{
-        FILE *f;
-        int   rc;
-        int   state;
-
-        f = fopen(filename, "r");
-        if (f != NULL) {
-                state = 0;
-                while (func(f, &state))
-                        ;
-
-                rc = fclose(f);
-                M0_ASSERT_INFO(rc == 0, "can't close file %s: errno = %d",
-                               filename, errno);
-        } else {
-                M0_LOG(M0_NOTICE, "can't open file %s: errno = %d",
-                       filename, errno);
-        }
-}
-
-static bool seg_map_load_item(FILE *f, int *state)
-{
-        uint64_t  stob_id;
-        char      name[256];
-        void     *seg_addr;
-        int       rc;
-
-        rc = fscanf(f, "%s %"SCNu64" %p\n", name, &stob_id, &seg_addr);
-        if (rc != EOF) {
-                M0_ASSERT_INFO(rc == 3, "invalid format: rc = %d", rc);
-                seg_map_add(name, stob_id, seg_addr, NULL);
-        }
-        return rc != EOF;
-}
-
-static void seg_map_load(void)
-{
-        m0_be_state_load("segments.map", &seg_map_load_item);
-}
-
-static struct seg_map_item *seg_map_lookup_ut_seg(struct m0_be_ut_seg *ut_seg)
-{
-	struct seg_map_item *smi = NULL;
-	int                  i;
-
-	seg_map_lock();
-	for (i = 0; i < seg_map_size; ++i) {
-		if (seg_map[i].smi_ut_seg == ut_seg) {
-			smi = &seg_map[i];
-			break;
-		}
-	}
-	seg_map_unlock();
-	return smi;
-}
-
-static void dbenv_seg_init(struct m0_be_ut_seg *ut_seg,
-			   struct m0_be_ut_backend *ut_be,
-			   const char *name, bool mkfs)
-{
-	struct seg_map_item *smi = seg_map_lookup(name);
-	struct m0_be_seg    *seg;
-	struct m0_sm_group  *grp;
-	struct m0_stob	    *stob;
-	int		     rc;
-
-	if (smi == NULL || smi->smi_reset || mkfs) {
-		m0_be_ut_seg_init(ut_seg, ut_be, SEG_SIZE);
-		m0_be_ut_seg_allocator_init(ut_seg, ut_be);
-		grp = m0_be_ut_backend_sm_group_lookup(ut_be);
-		m0_sm_group_lock(grp);
-		rc = m0_be_seg_dict_create_grp(&ut_seg->bus_seg, grp);
-		m0_sm_group_unlock(grp);
-		M0_ASSERT(rc == 0);
-		if (smi == NULL) {
-			seg_map_add(name,
-				    m0_stob_key_get(ut_seg->bus_seg.bs_stob),
-				    ut_seg->bus_seg.bs_addr, ut_seg);
-		}
+	if (addr == NULL) {
+		m0_be_ut_backend_seg_add2(&di->d_ut_be, SEG_SIZE,
+					  &di->d_seg);
+		dbenv_seg_list_add(di, name, di->d_seg->bs_addr);
 	} else {
-		seg = &ut_seg->bus_seg;
-
-		stob = m0_ut_stob_linux_get_by_key(smi->smi_stob_id);
-		m0_be_seg_init(seg, stob, &ut_be->but_dom);
-		rc = m0_be_seg_open(&ut_seg->bus_seg);
-		M0_ASSERT(rc == 0);
-		m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
-		m0_be_seg_dict_init(seg);
-
-		ut_seg->bus_copy = NULL;
-	}
-	smi = seg_map_lookup(name);
-	smi->smi_reset = false;
-	smi->smi_ut_seg = ut_seg;
-	seg_map_save();
-}
-
-static void dbenv_seg_fini(struct m0_be_ut_seg *ut_seg)
-{
-	struct seg_map_item *smi = seg_map_lookup_ut_seg(ut_seg);
-	struct m0_stob	    *stob = ut_seg->bus_seg.bs_stob;
-	// int		     rc;
-
-	seg_map_save();
-	M0_ASSERT(smi != NULL);
-	smi->smi_ut_seg = NULL;
-
-	m0_free(ut_seg->bus_copy);
-
-	/* XXX workaround for bug in btree capturing */
-	m0_be_reg__write(&M0_BE_REG_SEG(&ut_seg->bus_seg));
-	m0_be_seg_close(&ut_seg->bus_seg);
-	m0_be_seg_fini(&ut_seg->bus_seg);
-
-	m0_ut_stob_put(stob, false);
-}
-
-static void dbenv_seg_reset(const char *name)
-{
-	struct seg_map_item *smi = seg_map_lookup(name);
-
-	if (smi != NULL) {
-		M0_ASSERT(smi->smi_ut_seg == NULL);
-		smi->smi_reset = true;
-		seg_map_save();
+		di->d_seg = m0_be_domain_seg(di->d_dom, addr);
 	}
 }
 
@@ -327,6 +240,8 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
 		  uint64_t flags, bool mkfs)
 {
 	struct m0_dbenv_impl *di = &env->d_i;
+	char		     *location;
+	static const size_t   location_len = 1024;
 
 	if (m0_get()->i_dbenv != NULL) {
 		m0_get()->i_dbenv_save = m0_get()->i_dbenv;
@@ -334,11 +249,18 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
 	} else if (m0_get()->i_dbenv_save == NULL) {
 		   m0_get()->i_dbenv = env;
 	}
+	location = m0_alloc(location_len);
+	snprintf(location, location_len, "linuxstob:./%s", name);
 	di->d_dom = &di->d_ut_be.but_dom;
-	di->d_seg = &di->d_ut_seg.bus_seg;
-	m0_be_ut_backend_init(&di->d_ut_be);
+	di->d_ut_be.but_dom.bd_db_impl = di;
+	di->d_ut_be.but_dbemu_0type = m0_dbenv_0type;
+	di->d_ut_be.but_dbemu_0type_register = true;
+	di->d_ut_be.but_stob_domain_location = location;
+	dbenv_seg_list_init(env);
+	m0_be_ut_backend_cfg_default(&di->d_ut_be.but_dom_cfg);
+	m0_be_ut_backend_init_cfg(&di->d_ut_be, &di->d_ut_be.but_dom_cfg, mkfs);
 	m0_be_ut_backend_new_grp_lock_state_set(&di->d_ut_be, true);
-	dbenv_seg_init(&di->d_ut_seg, &di->d_ut_be, name, mkfs);
+	dbenv_seg_init(di, name, mkfs);
 	return 0;
 }
 
@@ -350,8 +272,9 @@ void m0_dbenv_fini(struct m0_dbenv *env)
 		m0_get()->i_dbenv = NULL;
 		m0_get()->i_dbenv_save = NULL;
 	}
-	dbenv_seg_fini(&di->d_ut_seg);
 	m0_be_ut_backend_fini(&di->d_ut_be);
+	dbenv_seg_list_fini(env);
+	m0_free(di->d_ut_be.but_stob_domain_location);
 }
 
 M0_INTERNAL int m0_dbenv_sync(struct m0_dbenv *env)
@@ -361,7 +284,12 @@ M0_INTERNAL int m0_dbenv_sync(struct m0_dbenv *env)
 
 void m0_dbenv_reset(const char *name)
 {
-	dbenv_seg_reset(name);
+	struct m0_dbenv env = {};
+	int		rc;
+
+	rc = m0_dbenv_init(&env, name, 0, true);
+	M0_ASSERT(rc == 0);
+	m0_dbenv_fini(&env);
 }
 
 static struct m0_be_btree_kv_ops table_ops_default = {
@@ -919,18 +847,11 @@ M0_INTERNAL int m0_db_init(void)
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_db_mod_ctx,
 			 &m0_addb_ct_db_mod, &m0_addb_proc_ctx);
 	m0_xc_extmap_init();
-	m0_mutex_init(&seg_map_lock_);
-	seg_map_load();
 	return 0;
 }
 
 M0_INTERNAL void m0_db_fini(void)
 {
-	int i;
-	seg_map_save();
-	for (i = 0; i < seg_map_size; ++i)
-		m0_free(seg_map[i].smi_name);
-	m0_mutex_fini(&seg_map_lock_);
         m0_addb_ctx_fini(&m0_db_mod_ctx);
 	m0_xc_extmap_fini();
 }

@@ -29,6 +29,7 @@
 #include "cob/cob.h"
 #include "lib/locality.h"
 #include "ut/be.h"		   /* m0_be_ut__seg_dict_create */
+#include "ut/stob.h"		   /* m0_ut_stob_linux_get_by_key */
 
 static const char db_name[]    = "ut-cob";
 static const char test_name[]  = "hello_world";
@@ -36,9 +37,8 @@ static const char add_name[]   = "add_name";
 static const char wrong_name[] = "wrong_name";
 static struct m0_cob_domain_id id = { 42 };
 static struct m0_be_ut_backend ut_be;
-static struct m0_be_ut_seg     ut_seg;
 static struct m0_sm_group     *grp;
-static struct m0_cob_domain    dom;
+static struct m0_cob_domain   *dom;
 static struct m0_cob          *cob;
 
 extern struct m0_sm_group      ut__txs_sm_group;
@@ -92,7 +92,7 @@ static int _locate(int c, int k)
 	oikey.cok_fid = fid;
 	oikey.cok_linkno = 0;
 
-	rc = m0_cob_locate(&dom, &oikey, 0, &cob);
+	rc = m0_cob_locate(dom, &oikey, 0, &cob);
 
 	return rc;
 }
@@ -103,25 +103,24 @@ static void test_mkfs(void)
 	struct m0_be_tx	       *tx = &tx_;
 	struct m0_be_tx_credit	accum = {};
 	int			rc;
+	struct m0_be_seg       *seg0;
 
-        m0_be_ut_backend_init(&ut_be);
-        m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
-        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	rc = m0_be_ut__seg_dict_create(&ut_seg.bus_seg,
-				       m0_be_ut_backend_sm_group_lookup(&ut_be));
-	M0_UT_ASSERT(rc == 0);
+	m0_be_ut_fake_mkfs();
+	M0_SET0(&ut_be);
+	m0_be_ut_backend_init(&ut_be);
+	seg0 = m0_be_domain_seg0_get(&ut_be.but_dom);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id);
+	rc = m0_cob_domain_init(dom, seg0, &id);
 	M0_UT_ASSERT(rc == -ENOENT);
-	rc = m0_cob_domain_create(&dom, grp);
+	rc = m0_cob_domain_create(&dom, grp, &id, seg0); /*XXX*/
 	M0_UT_ASSERT(rc == 0);
 
-	m0_cob_tx_credit(&dom, M0_COB_OP_DOMAIN_MKFS, &accum);
+	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &accum);
 	ut_tx_open(tx, &accum);
 
 	/* Create root and other structures */
-	rc = m0_cob_domain_mkfs(&dom, &M0_MDSERVICE_SLASH_FID, tx);
+	rc = m0_cob_domain_mkfs(dom, &M0_MDSERVICE_SLASH_FID, tx);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = _locate(M0_MDSERVICE_SLASH_FID.f_container,
@@ -134,21 +133,22 @@ static void test_mkfs(void)
 	ut_tx_close(tx);
         m0_be_tx_fini(tx);
 
-	m0_cob_domain_fini(&dom);
+	m0_cob_domain_fini(dom);
 
-	m0_be_seg_close(&ut_seg.bus_seg);
+	m0_be_ut_backend_fini(&ut_be);
 }
 
 static void test_init(void)
 {
+	struct m0_be_seg *seg0;
 	int rc;
 
-	rc = m0_be_seg_open(&ut_seg.bus_seg);
-	M0_UT_ASSERT(rc == 0);
+	M0_SET0(&ut_be);
+	m0_be_ut_backend_init(&ut_be);
 
-	m0_be_seg_dict_init(&ut_seg.bus_seg);
+	seg0 = m0_be_domain_seg0_get(&ut_be.but_dom);
 
-	rc = m0_cob_domain_init(&dom, &ut_seg.bus_seg, &id);
+	rc = m0_cob_domain_init(dom, seg0, &id);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -156,15 +156,12 @@ static void test_fini(void)
 {
 	int rc;
 
-	rc = m0_cob_domain_destroy(&dom, grp);
+	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
+	rc = m0_cob_domain_destroy(dom, grp);
 	M0_UT_ASSERT(rc == 0);
-	m0_cob_domain_fini(&dom);
+	m0_cob_domain_fini(dom);
 
-	rc = m0_be_ut__seg_dict_destroy(&ut_seg.bus_seg, grp);
-	M0_UT_ASSERT(rc == 0);
-        m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
-        m0_be_ut_seg_fini(&ut_seg);
-        m0_be_ut_backend_fini(&ut_be);
+	m0_be_ut_backend_fini(&ut_be);
 }
 
 static void test_create(void)
@@ -189,7 +186,7 @@ static void test_create(void)
 	m0_fid_set(&nsrec.cnr_fid, 0xabc, 0xdef);
 	nsrec.cnr_nlink = 0;
 
-	rc = m0_cob_alloc(&dom, &cob);
+	rc = m0_cob_alloc(dom, &cob);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_fabrec_make(&fabrec, NULL, 0);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &accum);
@@ -221,12 +218,12 @@ static void test_add_name(void)
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
 
-	m0_cob_tx_credit(&dom, M0_COB_OP_NAME_ADD, &accum);
+	m0_cob_tx_credit(dom, M0_COB_OP_NAME_ADD, &accum);
 	ut_tx_open(tx, &accum);
 
 	/* lookup for cob created before using @test_name. */
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob);
+	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
 
 	/* add new name to existing cob */
@@ -237,14 +234,14 @@ static void test_add_name(void)
 	m0_cob_put(cob);
 
 	/* lookup for new name */
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob);
+	rc = m0_cob_lookup(dom, nskey, 0, &cob);
 	M0_UT_ASSERT(rc == 0);
 	m0_cob_put(cob);
 	m0_free(nskey);
 
 	/* lookup for wrong name, should fail. */
 	m0_cob_nskey_make(&nskey, &pfid, wrong_name, strlen(wrong_name));
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob);
+	rc = m0_cob_lookup(dom, nskey, 0, &cob);
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
@@ -264,12 +261,12 @@ static void test_del_name(void)
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
 
-	m0_cob_tx_credit(&dom, M0_COB_OP_NAME_DEL, &accum);
+	m0_cob_tx_credit(dom, M0_COB_OP_NAME_DEL, &accum);
 	ut_tx_open(tx, &accum);
 
 	/* lookup for cob created before using @test_name. */
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob);
+	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
 
 	/* del name that we created in prev test */
@@ -279,7 +276,7 @@ static void test_del_name(void)
 	m0_cob_put(cob);
 
 	/* lookup for new name */
-	rc = m0_cob_lookup(&dom, nskey, 0, &cob);
+	rc = m0_cob_lookup(dom, nskey, 0, &cob);
 	M0_UT_ASSERT(rc != 0);
 	m0_free(nskey);
 
@@ -296,10 +293,10 @@ static void test_lookup(void)
 
 	m0_fid_set(&pfid, 0x123, 0x456);
 	m0_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
-	rc = m0_cob_lookup(&dom, nskey, M0_CA_NSKEY_FREE, &cob);
+	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cob != NULL);
-	M0_UT_ASSERT(cob->co_dom == &dom);
+	M0_UT_ASSERT(cob->co_dom == dom);
 	M0_UT_ASSERT(cob->co_flags & M0_CA_NSREC);
 	M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xabc);
 	M0_UT_ASSERT(cob->co_nsrec.cnr_fid.f_key == 0xdef);
@@ -319,7 +316,7 @@ static void test_locate(void)
 	M0_UT_ASSERT(rc == 0);
 
 	M0_UT_ASSERT(cob != NULL);
-	M0_UT_ASSERT(cob->co_dom == &dom);
+	M0_UT_ASSERT(cob->co_dom == dom);
 
 	/* We should have saved the NSKEY */
 	M0_UT_ASSERT(cob->co_flags & M0_CA_NSKEY);
@@ -347,7 +344,7 @@ static void test_delete(void)
 	rc = _locate(0xabc, 0xdef);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_cob_tx_credit(&dom, M0_COB_OP_DELETE_PUT, &accum);
+	m0_cob_tx_credit(dom, M0_COB_OP_DELETE_PUT, &accum);
 	ut_tx_open(tx, &accum);
 	rc = m0_cob_delete_put(cob, tx);
 	ut_tx_close(tx);
@@ -398,7 +395,7 @@ static int ub_init(const char *opts M0_UNUSED)
 
 	/* Create root and other structures */
 	rc = m0_db_tx_init(&tx, &db, 0) ?:
-		m0_cob_domain_mkfs(&dom, &M0_MDSERVICE_SLASH_FID, &tx);
+		m0_cob_domain_mkfs(dom, &M0_MDSERVICE_SLASH_FID, &tx);
 	M0_ASSERT(rc == 0);
 	m0_db_tx_commit(&tx);
 
@@ -449,7 +446,7 @@ static void ub_create(int i)
 	m0_fid_set(&nsrec.cnr_fid, 0xAA, i);
 	nsrec.cnr_nlink = 1;
 
-	rc = m0_cob_alloc(&dom, &cob);
+	rc = m0_cob_alloc(dom, &cob);
 	M0_UB_ASSERT(rc == 0);
 
 	m0_cob_fabrec_make(&fabrec, NULL, 0);
@@ -470,10 +467,10 @@ static void ub_lookup(int i)
 	/* pfid == cfid for data objects */
 	m0_fid_set(&fid, 0xAA, i);
 	m0_cob_nskey_make(&key, &fid, "", 0);
-	rc = m0_cob_lookup(&dom, key, M0_CA_NSKEY_FREE, &cob);
+	rc = m0_cob_lookup(dom, key, M0_CA_NSKEY_FREE, &cob);
 	M0_UB_ASSERT(rc == 0);
 	M0_UB_ASSERT(cob != NULL);
-	M0_UB_ASSERT(cob->co_dom == &dom);
+	M0_UB_ASSERT(cob->co_dom == dom);
 
 	M0_UB_ASSERT(cob->co_flags & M0_CA_NSREC);
 	M0_UB_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xAA);

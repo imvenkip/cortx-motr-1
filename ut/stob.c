@@ -64,7 +64,7 @@ const unsigned m0_levels_ut_stob_nr = ARRAY_SIZE(m0_levels_ut_stob);
 
 /* linux stob domain configuratin */
 static const char     *ut_stob_domain_location	 = "linuxstob:./ut_stob";
-static const uint64_t  ut_stob_domain_key	 = 0x42;
+static const uint64_t  ut_stob_domain_key	 = 0x10000;
 static const char     *ut_stob_domain_init_cfg	 = "";
 static const char     *ut_stob_domain_create_cfg = "";
 

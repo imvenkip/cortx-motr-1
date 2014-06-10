@@ -61,10 +61,14 @@ struct m0_bufs {
  */
 #define M0_BUF_INIT(size, data) \
 	((struct m0_buf){ .b_nob = (size), .b_addr = (data) })
+#define M0_BUF_INIT_CONST(size, data) \
+	(const struct m0_buf) {	.b_nob = (size), .b_addr = (void *)(data) }
 
 #define M0_BUF_INIT_PTR(p) M0_BUF_INIT(sizeof *(p), (p))
 #define M0_BUF_INITS(str)  M0_BUF_INIT(strlen(str), (str))
 #define M0_BUF_INIT0       M0_BUF_INIT(0, NULL)
+
+#define M0_BUF_INIT_PTR_CONST(p) M0_BUF_INIT_CONST(sizeof *(p), (p))
 
 #define BUF_F    "[%p,%llu]"
 #define BUF_P(p) (p)->b_addr, (unsigned long long)(p)->b_nob

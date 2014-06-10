@@ -2171,16 +2171,10 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	struct m0_be_btree      btree;
 	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = {};
-	char                    cid_name[80];
 	int                     rc;
 
 	M0_PRE(seg != NULL);
 	M0_PRE(out != NULL);
-
-	sprintf(cid_name, "%llu", (unsigned long long)cid);
-	rc = m0_be_seg_dict_lookup(seg, cid_name, (void**)out);
-	if (rc == 0)
-		goto quit;
 
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
@@ -2190,8 +2184,6 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	m0_be_btree_fini(&btree);
 	m0_be_btree_init(&btree, seg, &gd_btree_ops);
 	m0_be_btree_create_credit(&btree, 1, &cred);
-	m0_be_seg_dict_insert_credit(seg, cid_name, &cred);
-	m0_be_seg_dict_delete_credit(seg, cid_name, &cred);
 	m0_be_btree_fini(&btree);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
@@ -2201,32 +2193,25 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 		if (cb == NULL) {
 			rc = -ENOMEM;
 		} else {
-			rc = m0_be_seg_dict_insert(seg, &tx, cid_name, cb);
-			if (rc == 0) {
-				cb->cb_container_id = cid;
+			cb->cb_container_id = cid;
 
-				m0_be_btree_init(&cb->cb_db_group_extents, seg,
-						 &ge_btree_ops);
-				m0_be_btree_init(&cb->cb_db_group_desc, seg,
-						 &gd_btree_ops);
-				rc = balloc_trees_create(cb, &tx);
-				if (rc == 0) {
-					M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
-					*out = cb;
-				} else {
-					/* restore previous seg dict state */
-					int r = m0_be_seg_dict_delete(seg, &tx,
-								      cid_name);
-					M0_ASSERT(r == 0);
-				}
+			m0_be_btree_init(&cb->cb_db_group_extents, seg,
+					 &ge_btree_ops);
+			m0_be_btree_init(&cb->cb_db_group_desc, seg,
+					 &gd_btree_ops);
+			rc = balloc_trees_create(cb, &tx);
+			if (rc == 0) {
+				M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
+				*out = cb;
+			} else {
+				m0_be_btree_fini(&cb->cb_db_group_extents);
+				m0_be_btree_fini(&cb->cb_db_group_desc);
 			}
 		}
 		m0_be_tx_close_sync(&tx);
 	}
-
 	m0_be_tx_fini(&tx);
 
-quit:
 	if (rc == 0)
 		m0_balloc_init(*out);
 

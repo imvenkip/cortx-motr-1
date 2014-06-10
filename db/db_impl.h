@@ -25,6 +25,8 @@
 
 #include "lib/types.h"
 #include "lib/thread.h"
+#include "lib/tlist.h"		/* m0_tl */
+#include "lib/mutex.h"		/* m0_mutex */
 #include "sm/sm.h"
 
 #include "be/ut/helper.h"	/* XXX */
@@ -48,7 +50,8 @@ struct m0_dbenv_impl {
         struct m0_be_domain *d_dom;
 	struct m0_be_seg    *d_seg;
 	struct m0_be_ut_backend	d_ut_be;
-	struct m0_be_ut_seg	d_ut_seg;
+	struct m0_tl		d_segments;
+	struct m0_mutex		d_segments_lock;
 };
 
 struct m0_table_impl {

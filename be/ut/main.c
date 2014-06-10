@@ -45,6 +45,7 @@ extern void m0_be_ut_seg_multiple(void);
 
 extern void m0_be_ut_group_ondisk(void);
 
+extern void m0_be_ut_mkfs(void);
 extern void m0_be_ut_domain(void);
 
 extern void m0_be_ut_tx_states(void);
@@ -93,6 +94,7 @@ const struct m0_test_suite be_ut = {
 		{ "seg-io",              m0_be_ut_seg_io               },
 		{ "seg-multiple",        m0_be_ut_seg_multiple         },
 		{ "group_ondisk",        m0_be_ut_group_ondisk         },
+		{ "mkfs",		 m0_be_ut_mkfs		       },
 		{ "domain",              m0_be_ut_domain               },
 		{ "tx-states",           m0_be_ut_tx_states            },
 		{ "tx-empty",            m0_be_ut_tx_empty             },

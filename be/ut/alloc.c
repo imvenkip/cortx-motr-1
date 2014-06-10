@@ -59,7 +59,7 @@ M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
 	int		       rc;
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
-	rc = m0_be_allocator_init(&a, &ut_seg.bus_seg);
+	rc = m0_be_allocator_init(&a, ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_allocator_fini(&a);
 	m0_be_ut_seg_fini(&ut_seg);
@@ -144,7 +144,8 @@ static void be_ut_alloc_thread(int index)
 	int				 i;
 	int				 j;
 
-	a = m0_be_seg_allocator(&be_ut_alloc_seg.bus_seg);
+	a = m0_be_seg_allocator(be_ut_alloc_seg.bus_seg);
+	M0_UT_ASSERT(a != NULL);
 	M0_SET_ARR0(ts->ats_ptr);
 	for (j = 0; j < ts->ats_nr; ++j) {
 		i = rand_r(&seed) % ARRAY_SIZE(ts->ats_ptr);
@@ -196,7 +197,7 @@ M0_INTERNAL void m0_be_ut_alloc_transactional(void)
 {
 	struct m0_be_ut_backend *ut_be = &be_ut_alloc_backend;
 	struct m0_be_ut_seg	 ut_seg;
-	struct m0_be_allocator	*a = m0_be_seg_allocator(&ut_seg.bus_seg);
+	struct m0_be_allocator	*a;
 	void			*ptrs[BE_UT_ALLOC_PTR_NR];
 	unsigned		 seed = 0;
 	int			 i;
@@ -204,11 +205,14 @@ M0_INTERNAL void m0_be_ut_alloc_transactional(void)
 
 	M0_SET0(ut_be);
 	m0_be_ut_backend_init(ut_be);
-	m0_be_ut_seg_init(&ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_ALLOC_SEG_SIZE);
 	m0_be_ut_seg_check_persistence(&ut_seg);
 
 	m0_be_ut_seg_allocator_init(&ut_seg, ut_be);
 	m0_be_ut_seg_check_persistence(&ut_seg);
+
+	a = m0_be_seg_allocator(ut_seg.bus_seg);
+	M0_UT_ASSERT(a != NULL);
 
 	M0_SET_ARR0(ptrs);
 	for (j = 0; j < BE_UT_ALLOC_TX_NR; ++j) {

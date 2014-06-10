@@ -41,14 +41,10 @@
  */
 
 enum {
-	NR    = 4,
-	MIN_BUF_SIZE = 4096,
+	NR                     = 4,
+	MIN_BUF_SIZE           = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
-};
-
-enum {
-	LOCATION_SIZE = 64,
-	SEG_SIZE      = 1 << 24,
+	SEG_SIZE               = 1 << 24,
 };
 
 static struct m0_stob_domain *dom_back;
@@ -65,10 +61,8 @@ static char *read_bufs[NR];
 static m0_bindex_t stob_vi[NR];
 static struct m0_clink clink;
 static struct m0_dtx g_tx;
-struct m0_be_ut_backend	 ut_be;
-struct m0_be_ut_seg	 ut_seg;
-static struct m0_be_seg *seg;
-static struct m0_sm_group *grp;
+struct m0_be_ut_backend ut_be;
+struct m0_be_ut_seg ut_seg;
 static uint32_t block_shift;
 static uint32_t buf_size;
 
@@ -76,6 +70,24 @@ struct mock_balloc {
 	m0_bindex_t         mb_next;
 	struct m0_ad_balloc mb_ballroom;
 };
+
+void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
+			struct m0_be_ut_seg     *ut_seg)
+{
+	M0_SET0(ut_be);
+	M0_SET0(ut_seg);
+
+	m0_be_ut_fake_mkfs();
+	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_seg_init(ut_seg, ut_be, SEG_SIZE);
+}
+
+void m0_stob_ut_ad_fini(struct m0_be_ut_backend *ut_be,
+			struct m0_be_ut_seg     *ut_seg)
+{
+	m0_be_ut_seg_fini(ut_seg);
+	m0_be_ut_backend_fini(ut_be);
+}
 
 static struct mock_balloc *b2mock(struct m0_ad_balloc *ballroom)
 {
@@ -152,18 +164,10 @@ static void init_vecs()
 static int test_ad_init(void)
 {
 	char *dom_cfg;
-	char  location[LOCATION_SIZE];
 	int   i;
 	int   rc;
 
-	/* Init BE */
-	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, SEG_SIZE);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	seg = &ut_seg.bus_seg;
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc  = m0_be_seg_dict_create_grp(seg, grp);
-	M0_ASSERT(rc == 0);
+	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 
 	rc = m0_stob_domain_create("linuxstob:./__s",
 				   NULL, 0xc0de, NULL, &dom_back);
@@ -174,12 +178,11 @@ static int test_ad_init(void)
 	rc = m0_ut_stob_create(obj_back, NULL);
 	M0_ASSERT(rc == 0);
 
-	rc = snprintf(location, sizeof(location), "adstob:seg=%p,1234", seg);
-	M0_ASSERT(rc < sizeof(location));
-	m0_stob_ad_cfg_make(&dom_cfg, seg, m0_stob_fid_get(obj_back));
+	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg,
+			    m0_stob_fid_get(obj_back));
 	M0_ASSERT(dom_cfg != NULL);
 
-	rc = m0_stob_domain_create(location, NULL, 0xad, dom_cfg, &dom_fore);
+	rc = m0_stob_domain_create("adstob:ad", NULL, 0xad, dom_cfg, &dom_fore);
 	M0_ASSERT(rc == 0);
 	m0_free(dom_cfg);
 
@@ -218,9 +221,7 @@ static int test_ad_fini(void)
 	m0_stob_put(obj_back);
 	m0_stob_domain_destroy(dom_back);
 
-	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */ /* XXX */
-	m0_be_ut_seg_fini(&ut_seg);
-	m0_be_ut_backend_fini(&ut_be);
+	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
@@ -233,9 +234,10 @@ static int test_ad_fini(void)
 
 static void test_write(int nr, struct m0_dtx *tx)
 {
-	int		    rc;
+	struct m0_sm_group *grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	struct m0_fol_frag *fol_frag;
 	bool		    is_local_tx = false;
+	int		    rc;
 
 	/* @Note: This Fol record part object is not freed and shows as leak,
 	 * as it is passed as embbedded object in other places.
@@ -261,7 +263,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 
 	if (tx == NULL) {
 		tx = &g_tx;
-		m0_dtx_init(tx, seg->bs_domain, grp);
+		m0_dtx_init(tx, &ut_be.but_dom, grp);
 		is_local_tx = true;
 	}
 	m0_stob_write_credit(dom_fore, &io.si_stob, &tx->tx_betx_cred);
@@ -373,11 +375,12 @@ static void test_ad(void)
 
 static void test_ad_undo(void)
 {
-	int                 rc;
+	struct m0_sm_group *grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	struct m0_fol_frag *rfrag;
 	struct m0_dtx       tx;
+	int                 rc;
 
-	m0_dtx_init(&g_tx, seg->bs_domain, grp);
+	m0_dtx_init(&g_tx, &ut_be.but_dom, grp);
 	memset(user_buf[0], 'a', buf_size);
 	test_write(1, &g_tx);
 	rc = m0_dtx_done_sync(&g_tx);
@@ -390,7 +393,7 @@ static void test_ad_undo(void)
 	M0_ASSERT(rfrag != NULL);
 
 	/* Write new data in stob */
-	m0_dtx_init(&tx, seg->bs_domain, grp);
+	m0_dtx_init(&tx, &ut_be.but_dom, grp);
 	rfrag->rp_ops->rpo_undo_credit(rfrag, &tx.tx_betx_cred);
 	memset(user_buf[0], 'b', buf_size);
 	test_write(1, &tx);

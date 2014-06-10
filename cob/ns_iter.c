@@ -103,7 +103,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	M0_PRE(gfid != NULL);
 
 	key_fid = iter->cni_last_fid;
-	rc = m0_cob_ns_next_of(iter->cni_cdom->cd_namespace, &key_fid, gfid);
+	rc = m0_cob_ns_next_of(&iter->cni_cdom->cd_namespace, &key_fid, gfid);
 	if (rc == 0) {
 		/* Container (f_container) value remains same, typically 0. */
 		iter->cni_last_fid.f_container = gfid->f_container;

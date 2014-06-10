@@ -21,7 +21,7 @@
 
 #include "be/extmap.h"
 #include "be/seg.h"
-#include "be/seg_dict.h"
+#include "be/seg0.h"		/* m0_be_0type */
 
 #include "dtm/dtm.h"		/* m0_dtx */
 
@@ -34,11 +34,14 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADSTOB
 #include "lib/trace.h"		/* M0_LOG */
 
+#include "module/instance.h"	/* m0_get */
+
 #include "stob/ad.h"
 #include "stob/ad_private.h"
 #include "stob/ad_private_xc.h"
 #include "stob/domain.h"
 #include "stob/io.h"
+#include "stob/module.h"	/* m0_stob_ad_module */
 #include "stob/stob.h"
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
 #include "stob/stob_addb.h"	/* M0_STOB_OOM */
@@ -81,6 +84,18 @@ struct ad_domain_cfg {
 	m0_bcount_t       adg_res_groups;
 };
 
+struct ad_domain_map {
+	char                      adm_path[MAXPATHLEN];
+	struct m0_stob_ad_domain *adm_dom;
+	struct m0_tlink           adm_linkage;
+	uint64_t                  adm_magic;
+};
+
+struct stob_ad_0type_rec {
+	/* XXX pointer won't work with be_segment migration */
+	struct m0_stob_ad_domain *sa0_ad_domain;
+};
+
 static struct m0_stob_domain_ops stob_ad_domain_ops;
 static struct m0_stob_ops stob_ad_ops;
 
@@ -110,6 +125,63 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 			    const struct m0_ext *ext,
 			    uint64_t val);
 
+M0_TL_DESCR_DEFINE(ad_domains, "ad stob domains", static, struct ad_domain_map,
+		   adm_linkage, adm_magic, M0_AD_DOMAINS_MAGIC,
+		   M0_AD_DOMAINS_HEAD_MAGIC);
+M0_TL_DEFINE(ad_domains, static, struct ad_domain_map);
+
+static int stob_ad_0type_init(struct m0_be_domain *dom,
+			      const char *suffix,
+			      const struct m0_buf *data)
+{
+	struct m0_stob_ad_module *module = &m0_get()->i_stob_ad_module;
+	struct stob_ad_0type_rec *rec = data->b_addr;
+	struct ad_domain_map     *ad;
+	int                       rc;
+
+	M0_PRE(rec != NULL && data->b_nob == sizeof(*rec));
+	M0_PRE(strlen(suffix) < ARRAY_SIZE(ad->adm_path));
+
+	M0_ALLOC_PTR(ad);
+	rc = ad == NULL ? -ENOMEM : 0;
+
+	if (rc == 0) {
+		/* XXX won't be stored as pointer */
+		ad->adm_dom = rec->sa0_ad_domain;
+		strncpy(ad->adm_path, suffix, sizeof(ad->adm_path));
+		m0_mutex_lock(&module->sam_lock);
+		ad_domains_tlink_init_at_tail(ad, &module->sam_domains);
+		m0_mutex_unlock(&module->sam_lock);
+	}
+
+	return rc;
+}
+
+static void stob_ad_0type_fini(struct m0_be_domain *dom,
+			       const char *suffix,
+			       const struct m0_buf *data)
+{
+	struct m0_stob_ad_module *module = &m0_get()->i_stob_ad_module;
+	struct stob_ad_0type_rec *rec = data->b_addr;
+	struct ad_domain_map     *ad;
+
+	M0_PRE(rec != NULL && data->b_nob == sizeof(*rec));
+
+	m0_mutex_lock(&module->sam_lock);
+	ad = m0_tl_find(ad_domains, ad, &module->sam_domains,
+			m0_streq(suffix, ad->adm_path));
+	M0_ASSERT(ad != NULL);
+	ad_domains_tlink_del_fini(ad);
+	m0_free(ad);
+	m0_mutex_unlock(&module->sam_lock);
+}
+
+struct m0_be_0type m0_stob_ad_0type = {
+	.b0_name = "M0_BE:AD",
+	.b0_init = stob_ad_0type_init,
+	.b0_fini = stob_ad_0type_fini
+};
+
 static struct m0_stob_ad_domain *stob_ad_domain2ad(struct m0_stob_domain *dom)
 {
 	return container_of(dom, struct m0_stob_ad_domain, sad_base);
@@ -122,16 +194,23 @@ static struct m0_stob_ad *stob_ad_stob2ad(struct m0_stob *stob)
 
 static void stob_ad_type_register(struct m0_stob_type *type)
 {
-	int rc;
+	struct m0_stob_ad_module *module = &m0_get()->i_stob_ad_module;
+	int                       rc;
 
 	m0_xc_ad_private_init();
 	M0_FOL_FRAG_TYPE_INIT(stob_ad_rec_frag, "AD record fragment");
 	rc = m0_fol_frag_type_register(&stob_ad_rec_frag_type);
 	M0_ASSERT(rc == 0); /* XXX void */
+	m0_mutex_init(&module->sam_lock);
+	ad_domains_tlist_init(&module->sam_domains);
 }
 
 static void stob_ad_type_deregister(struct m0_stob_type *type)
 {
+	struct m0_stob_ad_module *module = &m0_get()->i_stob_ad_module;
+
+	ad_domains_tlist_fini(&module->sam_domains);
+	m0_mutex_fini(&module->sam_lock);
 	m0_xc_ad_private_fini();
 	m0_fol_frag_type_deregister(&stob_ad_rec_frag_type);
 }
@@ -196,24 +275,6 @@ M0_INTERNAL bool m0_stob_ad_domain__invariant(struct m0_stob_ad_domain *adom)
 	return _0C(adom->sad_ballroom != NULL);
 }
 
-/*
- * Extract be_segment pointer from location string.
- * This is only temporary solution until we haven't mechanism to save domain
- * location permanently.
- *
- * @todo Remove when seg0 is landed as location string won't contain pointer
- *       to segment.
- */
-static struct m0_be_seg *stob_ad_domain_seg(const char *location_data)
-{
-	void *seg;
-	int   rc;
-
-	rc = sscanf(location_data, "seg=%p,", &seg);
-	M0_ASSERT(rc == 1);
-	return (struct m0_be_seg *)seg;
-}
-
 static struct m0_sm_group *stob_ad_sm_group(void)
 {
 	return m0_locality0_get()->lo_grp;
@@ -237,41 +298,17 @@ static int stob_ad_bstore(struct m0_fid *fid, struct m0_stob **out)
 	return rc;
 }
 
-static const char *stob_ad_domain_dict_key(const char *location_data)
-{
-	/* XXX Fix when seg0 is in master: this function should return
-	 * a key for seg0 based on location_data.
-	 */
-	char *ptr = strchr(location_data, ',');
-	return ptr == NULL ? NULL : (const char *)++ptr;
-}
-
-/*
- * Return pointer to m0_stob_ad_domain within be_segment by location.
- *
- * Current solution assumes the pointer is stored in seg_dict. The final
- * implementation should store this information in seg0.
- *
- * @todo lookup seg0 instead of seg_dict
- */
 static struct m0_stob_ad_domain *
 stob_ad_domain_locate(const char *location_data)
 {
-	struct m0_stob_ad_domain *adom;
-	struct m0_be_seg         *seg = stob_ad_domain_seg(location_data);
-	const char               *dict_key;
-	int                       rc;
+	struct m0_stob_ad_module *module = &m0_get()->i_stob_ad_module;
+	struct ad_domain_map *ad;
 
-	M0_ASSERT(seg != NULL);
-	dict_key = stob_ad_domain_dict_key(location_data);
-	M0_ASSERT(dict_key != NULL);
-	rc = m0_be_seg_dict_lookup(seg, dict_key, (void **)&adom);
-	if (rc == 0)
-		adom->sad_be_seg = seg;
-	else
-		adom = NULL;
-
-	return adom;
+	m0_mutex_lock(&module->sam_lock);
+	ad = m0_tl_find(ad_domains, ad, &module->sam_domains,
+			m0_streq(location_data, ad->adm_path));
+	m0_mutex_unlock(&module->sam_lock);
+	return ad == NULL ? NULL : ad->adm_dom;
 }
 
 static int stob_ad_domain_init(struct m0_stob_type *type,
@@ -281,23 +318,34 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 {
 	struct m0_stob_ad_domain *adom;
 	struct m0_stob_domain    *dom;
+	struct m0_be_seg         *seg;
 	struct m0_ad_balloc      *ballroom;
 	struct m0_sm_group       *grp = stob_ad_sm_group();
 	bool                      balloc_inited;
-	int                       rc;
+	int                       rc = 0;
 
 	adom = stob_ad_domain_locate(location_data);
-	if (adom != NULL) {
+	if (adom == NULL)
+		rc = -ENOENT;
+	else
+		seg = m0_be_domain_seg(m0_get()->i_be_dom, adom);
+
+	if (rc == 0 && seg == NULL) {
+		M0_LOG(M0_ERROR, "segment doesn't exist for addr=%p", adom);
+		rc = -EINVAL;
+	}
+
+	if (rc == 0) {
 		M0_ASSERT(m0_stob_ad_domain__invariant(adom));
 
 		dom         = &adom->sad_base;
 		dom->sd_ops = &stob_ad_domain_ops;
-		m0_be_emap_init(&adom->sad_adata, adom->sad_be_seg);
+		m0_be_emap_init(&adom->sad_adata, seg);
 
 		ballroom = adom->sad_ballroom;
 		m0_balloc_init(b2m0(ballroom));
 		m0_sm_group_lock(grp);
-		rc = ballroom->ab_ops->bo_init(ballroom, adom->sad_be_seg, grp,
+		rc = ballroom->ab_ops->bo_init(ballroom, seg, grp,
 					       adom->sad_bshift,
 					       adom->sad_container_size,
 					       adom->sad_blocks_per_group,
@@ -311,12 +359,12 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 				ballroom->ab_ops->bo_fini(ballroom);
 			m0_be_emap_fini(&adom->sad_adata);
 		} else {
+			adom->sad_be_seg = seg;
 			adom->sad_babshift = adom->sad_bshift -
 					m0_stob_block_shift(adom->sad_bstore);
 			M0_ASSERT(adom->sad_babshift >= 0);
 		}
-	} else
-		rc = -ENOENT;
+	}
 
 	*out = rc == 0 ? dom : NULL;
 	return rc;
@@ -333,20 +381,22 @@ static void stob_ad_domain_fini(struct m0_stob_domain *dom)
 }
 
 static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
-					 const char *dict_key,
+					 const char *location_data,
 					 struct m0_be_tx_credit *accum)
 {
 	struct m0_be_emap map;
+	struct m0_buf     data = { .b_nob = sizeof(struct stob_ad_0type_rec) };
 
 	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
 	m0_be_emap_init(&map, seg);
 	m0_be_emap_credit(&map, M0_BEO_CREATE, 1, accum);
 	m0_be_emap_fini(&map);
-	m0_be_seg_dict_insert_credit(seg, dict_key, accum);
+	m0_be_0type_add_credit(seg->bs_domain, &m0_stob_ad_0type,
+			       location_data, &data, accum);
 }
 
 static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
-					  const char *dict_key,
+					  const char *location_data,
 					  struct m0_be_tx_credit *accum)
 {
 	struct m0_be_emap map;
@@ -355,9 +405,11 @@ static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
 	m0_be_emap_init(&map, seg);
 	m0_be_emap_credit(&map, M0_BEO_DESTROY, 1, accum);
 	m0_be_emap_fini(&map);
-	m0_be_seg_dict_delete_credit(seg, dict_key, accum);
+	m0_be_0type_del_credit(seg->bs_domain, &m0_stob_ad_0type,
+			       location_data, accum);
 }
 
+/* TODO Make cleanup on fail. */
 static int stob_ad_domain_create(struct m0_stob_type *type,
 				 const char *location_data,
 				 uint64_t dom_key,
@@ -369,22 +421,15 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	struct m0_stob_ad_domain *adom;
 	struct m0_stob_domain    *dom;
 	struct m0_be_emap        *emap;
-	struct m0_balloc         *cb;
+	struct m0_balloc         *cb = NULL;
 	struct m0_be_tx           tx = {};
 	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT(0, 0);
-	const char               *dict_key;
+	struct stob_ad_0type_rec  seg0_ad_rec;
+	struct m0_buf             seg0_data;
 	int                       rc;
 
 	M0_PRE(seg != NULL);
 	M0_PRE(strlen(location_data) < ARRAY_SIZE(adom->sad_path));
-
-	/* XXX Fix when seg0 is landed: be_segment won't be a part of location
-	 * string and seg0 should be used instead of seg_dict.
-	 * TODO Make cleanup on fail.
-	 */
-	M0_ASSERT(stob_ad_domain_seg(location_data) == seg);
-	dict_key = stob_ad_domain_dict_key(location_data);
-	M0_ASSERT(dict_key != NULL);
 
 	adom = stob_ad_domain_locate(location_data);
 	if (adom != NULL)
@@ -392,9 +437,14 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
-	stob_ad_domain_create_credit(seg, dict_key, &cred);
+	stob_ad_domain_create_credit(seg, location_data, &cred);
 	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
+	/* m0_balloc_create() makes own local transaction thereby must be called
+	 * before openning of exclusive transaction. m0_balloc_destroy() is not
+	 * implemented, so balloc won't be cleaned up on a further fail.
+	 */
+	rc = m0_balloc_create(dom_key, seg, grp, &cb);
+	rc = rc ?: m0_be_tx_exclusive_open_sync(&tx);
 
 	M0_ASSERT(adom == NULL);
 	if (rc == 0)
@@ -416,8 +466,11 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 			m0_be_emap_create(emap, &tx, &op),
 			bo_u.u_emap.e_rc);
 		m0_be_emap_fini(emap);
-		rc = rc ?: m0_balloc_create(dom_key, seg, grp, &cb);
-		rc = rc ?: m0_be_seg_dict_insert(seg, &tx, dict_key, adom);
+
+		seg0_ad_rec = (struct stob_ad_0type_rec){.sa0_ad_domain = adom}; /* XXX won't be a pointer */
+		seg0_data   = M0_BUF_INIT_PTR(&seg0_ad_rec);
+		rc = rc ?: m0_be_0type_add(&m0_stob_ad_0type, seg->bs_domain,
+					   &tx, location_data, &seg0_data);
 		if (rc == 0) {
 			adom->sad_ballroom = &cb->cb_ballroom;
 			M0_BE_TX_CAPTURE_PTR(seg, &tx, adom);
@@ -433,6 +486,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		M0_STOB_OOM(AD_DOM_LOCATE);
 		rc = -ENOMEM;
 	}
+
 	return rc;
 }
 
@@ -440,34 +494,36 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 				  const char *location_data)
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain_locate(location_data);
-	struct m0_be_seg         *seg = stob_ad_domain_seg(location_data);
-	struct m0_sm_group       *grp = stob_ad_sm_group();
+	struct m0_sm_group       *grp  = stob_ad_sm_group();
 	struct m0_be_emap        *emap = &adom->sad_adata;
-	struct m0_be_tx           tx = {};
+	struct m0_be_seg         *seg;
+	struct m0_be_tx           tx   = {};
 	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT(0, 0);
-	const char               *dict_key;
 	int                       rc;
 
 	if (adom == NULL)
 		return -ENOENT;
 
-	dict_key = stob_ad_domain_dict_key(location_data);
+	seg = adom->sad_be_seg;
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
-	stob_ad_domain_destroy_credit(seg, dict_key, &cred);
+	stob_ad_domain_destroy_credit(seg, location_data, &cred);
 	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
+	rc = m0_be_tx_exclusive_open_sync(&tx);
 	if (rc == 0) {
 		m0_be_emap_init(emap, seg);
 		rc = M0_BE_OP_SYNC_RET(op, m0_be_emap_destroy(emap, &tx, &op),
 				       bo_u.u_emap.e_rc);
-		rc = rc ?: m0_be_seg_dict_delete(seg, &tx, dict_key);
+		rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type, seg->bs_domain,
+					   &tx, location_data);
 		if (rc == 0)
 			M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
 		m0_be_tx_close_sync(&tx);
 	}
 	m0_be_tx_fini(&tx);
 	m0_sm_group_unlock(grp);
+
+	/* m0_balloc_destroy() isn't implemented */
 
 	return rc;
 }

@@ -775,6 +775,12 @@ enum m0_magic_satchel {
 	/* stob/type.c:domains_tl::td_head_magic (disc loco code) */
 	M0_STOB_DOMAINS_HEAD_MAGIC  = 0x33d15c10c0c0de77,
 
+	/* ad_domain_map::adm_magic (ad sold class) */
+	M0_AD_DOMAINS_MAGIC         = 0x33ad501dc1a5577,
+
+	/* stob/ad.c:ad_domains_tl::td_head_magic (ad sold head) */
+	M0_AD_DOMAINS_HEAD_MAGIC    = 0x33ad501d4ead77,
+
 	/* stob_null::sn_magic (discoid solo) */
 	M0_STOB_NULL_MAGIC          = 0x33d15c01d501077,
 

@@ -33,7 +33,7 @@ void m0_be_ut_tx_usecase_success(void)
 {
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_ut_seg     ut_seg;
-	struct m0_be_seg       *seg = &ut_seg.bus_seg;
+	struct m0_be_seg       *seg;
 	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
 	struct m0_be_tx         tx;
 	uint64_t               *data;
@@ -41,7 +41,8 @@ void m0_be_ut_tx_usecase_success(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
+	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	seg = ut_seg.bus_seg;
 
 	m0_be_ut_tx_init(&tx, &ut_be);
 
@@ -116,14 +117,15 @@ void m0_be_ut_tx_states(void)
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
 	struct m0_be_ut_seg     ut_seg;
-	struct m0_be_seg       *seg = &ut_seg.bus_seg;
+	struct m0_be_seg       *seg;
 	struct m0_be_tx         tx;
 	uint64_t               *data;
 	int                     rc;
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
+	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	seg = ut_seg.bus_seg;
 
 	/* test success path */
 	m0_be_ut_tx_init(&tx, &ut_be);
@@ -289,8 +291,8 @@ static void be_ut_tx_test(size_t nr)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
-	be_ut_tx_alloc_init(&alloc, &ut_seg.bus_seg);
+	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	be_ut_tx_alloc_init(&alloc, ut_seg.bus_seg);
 
 	for (x = xs; x->size != 0; ++x) {
 		m0_be_ut_tx_init(&x->tx, &ut_be);
@@ -299,7 +301,7 @@ static void be_ut_tx_test(size_t nr)
 	}
 
 	for (x = xs; x->size != 0; ++x)
-		be_ut_transact(x, &ut_seg.bus_seg, &alloc);
+		be_ut_transact(x, ut_seg.bus_seg, &alloc);
 
 	/* Wait for transactions to become persistent. */
 	for (x = xs; x->size != 0; ++x) {
@@ -357,7 +359,7 @@ void m0_be_ut_tx_persistence(void)
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_tx_credit  credit;
 	struct m0_be_ut_seg     ut_seg;
-	struct m0_be_seg       *seg = &ut_seg.bus_seg;
+	struct m0_be_seg       *seg;
 	struct m0_be_tx         tx;
 	unsigned                seed = 0;
 	int                     i;
@@ -366,7 +368,8 @@ void m0_be_ut_tx_persistence(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_P_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_P_SEG_SIZE);
+	seg = ut_seg.bus_seg;
 
 	for (j = 0; j < BE_UT_TX_P_TX_NR; ++j) {
 		M0_SET0(&tx);
@@ -421,14 +424,15 @@ void m0_be_ut_tx_fast(void)
 	struct m0_be_ut_backend ut_be;
 	static struct m0_be_tx  txs[BE_UT_TX_F_TX_CONCUR];
 	struct m0_be_ut_seg     ut_seg;
-	struct m0_be_seg       *seg = &ut_seg.bus_seg;
+	struct m0_be_seg       *seg;
 	struct m0_be_reg        reg;
 	int                     i;
 	int                     rc;
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_F_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_F_SEG_SIZE);
+	seg = ut_seg.bus_seg;
 
 	reg = M0_BE_REG(seg, 1, seg->bs_addr + seg->bs_reserved);
 	for (i = 0; i < BE_UT_TX_F_TX_NR + ARRAY_SIZE(txs); ++i) {
@@ -550,7 +554,7 @@ void m0_be_ut_tx_capturing(void)
 	struct m0_be_tx_credit	 cred = M0_BE_TX_CREDIT_TYPE(uint64_t);
 	struct m0_be_ut_txc	 tc = {};
 	struct m0_be_ut_seg	 ut_seg;
-	struct m0_be_seg	*seg = &ut_seg.bus_seg;
+	struct m0_be_seg	*seg;
 	struct m0_be_tx		 tx;
 	unsigned int		 seed = 0;
 	uint64_t		*ptr;
@@ -560,7 +564,8 @@ void m0_be_ut_tx_capturing(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
+	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
+	seg = ut_seg.bus_seg;
 	m0_be_ut_txc_init(&tc);
 
 	m0_be_tx_credit_mul(&cred, BE_UT_TX_CAPTURING_NR);

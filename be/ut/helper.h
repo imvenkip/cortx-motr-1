@@ -33,10 +33,12 @@
 #include "be/be.h"		/* m0_be */
 #include "be/domain.h"		/* m0_be_domain */
 #include "be/seg.h"		/* m0_be_seg */
+#include "be/seg0.h"		/* m0_be_0type */
 #include "fid/fid.h"		/* m0_fid */
 
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
+	BE_UT_SEG_START_ID = 42,
 };
 
 struct m0_be_ut_sm_group_thread;
@@ -49,7 +51,16 @@ struct m0_be_ut_backend {
 	size_t				  but_sgt_size;
 	struct m0_mutex			  but_sgt_lock;
 	bool				  but_sm_groups_unlocked;
+	struct m0_be_0type		  but_ad_0type;
+	struct m0_be_0type		  but_pool_0type;
+	struct m0_be_0type		  but_dbemu_0type;
+	struct m0_be_0type		  but_cob_0type;
+	bool				  but_dbemu_0type_register;
+	char				 *but_stob_domain_location;
 };
+
+M0_INTERNAL void m0_be_ut_fake_mkfs(void);
+M0_INTERNAL void m0_be_ut_fake_mkfs_cfg(struct m0_be_domain_cfg *cfg);
 
 /*
  * Fill cfg with default configuration.
@@ -58,13 +69,23 @@ struct m0_be_ut_backend {
 void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
 
 void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
-void m0_be_ut_backend_mkfs_init(struct m0_be_ut_backend *ut_be);
-void m0_be_ut_backend_init_normal(struct m0_be_ut_backend *ut_be,
-				  struct m0_stob *seg0_stob);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
 M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
-					   struct m0_be_domain_cfg *cfg);
+					   struct m0_be_domain_cfg *cfg,
+					   bool mkfs);
+
+M0_INTERNAL void
+m0_be_ut_backend_seg_add2(struct m0_be_ut_backend	   *ut_be,
+			  m0_bcount_t			    size,
+			  struct m0_be_seg		  **out);
+M0_INTERNAL void
+m0_be_ut_backend_seg_add(struct m0_be_ut_backend	   *ut_be,
+			 const struct m0_be_0type_seg_cfg  *seg_cfg,
+			 struct m0_be_seg		  **out);
+M0_INTERNAL void
+m0_be_ut_backend_seg_del(struct m0_be_ut_backend	   *ut_be,
+			 struct m0_be_seg		   *seg);
 
 M0_INTERNAL struct m0_reqh *m0_be_ut_reqh_get(void);
 M0_INTERNAL void m0_be_ut_reqh_put(struct m0_reqh *reqh);
@@ -80,13 +101,9 @@ void m0_be_ut_backend_thread_exit(struct m0_be_ut_backend *ut_be);
 void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
 
 struct m0_be_ut_seg {
-	/** Stob for segment */
-	struct m0_stob		*bus_stob;
-	/** Segment to test */
-	struct m0_be_seg	 bus_seg;
-	/** Pointer to m0_be_ut_seg.bus_seg allocator */
-	struct m0_be_allocator	*bus_allocator;
+	struct m0_be_seg	*bus_seg;
 	void			*bus_copy;
+	struct m0_be_ut_backend *bus_backend;
 };
 
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
@@ -95,6 +112,9 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
+
+M0_INTERNAL void *m0_be_ut_seg_allocate_addr(m0_bcount_t size);
+M0_INTERNAL uint64_t m0_be_ut_seg_allocate_id(void);
 
 /*
  * tx capturing checker for UT.
@@ -186,21 +206,6 @@ M0_INTERNAL void m0_be_state_save(const char *filename,
 M0_INTERNAL void m0_be_state_load(const char *filename,
 				  bool (*func)(FILE *, int *));
 #endif
-
-extern struct m0_be_0type m0_be_ut_seg0;
-extern struct m0_be_0type m0_be_ut_log0;
-extern struct m0_be_0type m0_be_log0;
-extern struct m0_be_0type m0_be_seg0;
-
-struct m0_be_0type_log_opts {
-	uint64_t    lo_stob_key;
-	m0_bcount_t lo_size;
-};
-
-struct m0_be_0type_seg_opts {
-	struct m0_fid so_stob_fid;
-};
-
 
 #endif /* __MERO_BE_UT_HELPER_H__ */
 

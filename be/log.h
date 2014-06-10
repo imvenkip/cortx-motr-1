@@ -71,6 +71,7 @@ struct m0_be_log {
 	m0_be_log_got_space_cb_t lg_got_space_cb;
 };
 
+/** @todo take stob fid as parameter */
 M0_INTERNAL void m0_be_log_init(struct m0_be_log *log,
 				struct m0_stob *stob,
 				m0_be_log_got_space_cb_t got_space_cb);

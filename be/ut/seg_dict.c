@@ -28,11 +28,10 @@
 
 void m0_be_ut_seg_dict(void)
 {
-	struct m0_be_ut_backend ut_be;
+	static struct m0_be_ut_backend ut_be;
 	struct m0_be_tx_credit  credit = {};
 	struct m0_be_ut_seg     ut_seg;
-	struct m0_sm_group     *grp;
-	struct m0_be_seg       *seg = &ut_seg.bus_seg;
+	struct m0_be_seg       *seg;
 	struct m0_be_tx         tx;
 	const char             *nk; /*next key */
 	void                   *p;
@@ -61,12 +60,12 @@ void m0_be_ut_seg_dict(void)
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	seg = ut_seg.bus_seg;
+#ifdef __KERNEL__
+	rc = m0_be_ut__seg_dict_create(seg, NULL);
+	M0_ASSERT(rc == 0);
+#endif
 	m0_be_ut_tx_init(&tx, &ut_be);
-
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_ut__seg_dict_create(seg, grp);
-	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < ARRAY_SIZE(dict); ++i) {
 		m0_be_seg_dict_insert_credit(seg, "....", &credit);
@@ -107,9 +106,7 @@ void m0_be_ut_seg_dict(void)
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 	/* reload segment, check dictionary is persistent */
-	m0_be_seg_close(seg);
-	rc = m0_be_seg_open(seg);
-	M0_UT_ASSERT(rc == 0);
+	m0_be_ut_seg_reload(&ut_seg);
 
 	m0_be_seg_dict_init(seg);
 
@@ -118,8 +115,6 @@ void m0_be_ut_seg_dict(void)
 		M0_UT_ASSERT(rc == 0 && dict[i].value == p);
 	}
 
-	rc = m0_be_ut__seg_dict_destroy(seg, grp);
-	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }

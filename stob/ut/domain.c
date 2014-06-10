@@ -31,11 +31,6 @@
 #include "stob/stob.h"
 #include "stob/stob_internal.h"
 
-enum {
-	LOCATION_SIZE = 64,
-	SEG_SIZE      = 1 << 20,
-};
-
 static void stob_ut_stob_domain(const char *location, const char *cfg)
 {
 	struct m0_stob_domain *dom;
@@ -90,40 +85,29 @@ void m0_stob_ut_stob_domain_linux(void)
 	stob_ut_stob_domain("linuxstob:./__s", NULL);
 }
 
+extern void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
+			       struct m0_be_ut_seg     *ut_seg);
+extern void m0_stob_ut_ad_fini(struct m0_be_ut_backend *ut_be,
+			       struct m0_be_ut_seg     *ut_seg);
+
 void m0_stob_ut_stob_domain_ad(void)
 {
-	struct m0_be_ut_backend  ut_be = {};
-	struct m0_be_ut_seg      ut_seg = {};
-	struct m0_be_seg        *seg;
+	struct m0_be_ut_backend  ut_be;
+	struct m0_be_ut_seg      ut_seg;
 	struct m0_stob          *stob;
-	struct m0_sm_group      *grp;
 	char                    *cfg;
-	char                     location[LOCATION_SIZE];
-	int                      rc;
 
-	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, SEG_SIZE);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	seg = &ut_seg.bus_seg;
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc  = m0_be_seg_dict_create_grp(seg, grp);
-	M0_ASSERT(rc == 0);
+	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
-
-	rc = snprintf(location, sizeof(location), "adstob:seg=%p,1234", seg);
-	M0_UT_ASSERT(rc < sizeof(location));
-	m0_stob_ad_cfg_make(&cfg, seg, m0_stob_fid_get(stob));
+	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_fid_get(stob));
 	M0_UT_ASSERT(cfg != NULL);
 
-	stob_ut_stob_domain(location, cfg);
+	stob_ut_stob_domain("adstob:some_suffix", cfg);
 
 	m0_free(cfg);
 	m0_ut_stob_put(stob, true);
-	m0_be_seg_dict_destroy_grp(seg, grp);
-	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */ /* XXX */
-	m0_be_ut_seg_fini(&ut_seg);
-	m0_be_ut_backend_fini(&ut_be);
+	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 }
 #endif
 

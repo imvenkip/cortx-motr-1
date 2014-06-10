@@ -188,12 +188,9 @@ static int server_init(const char             *stob_path,
 
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20 /* 1 MB */);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 
-	seg = &ut_seg.bus_seg;
+	seg = ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_ut__seg_dict_create(seg, grp);
-	M0_ASSERT(rc == 0);
 
 	rc = m0_reqh_dbenv_init(&reqh, seg);
 	M0_UT_ASSERT(rc == 0);
@@ -232,13 +229,13 @@ static int server_init(const char             *stob_path,
         /* Init mdstore without reading root cob. */
         rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, false);
         M0_UT_ASSERT(rc == -ENOENT);
-        rc = m0_mdstore_create(&srv_mdstore, grp);
+	rc = m0_mdstore_create(&srv_mdstore, grp, &srv_cob_dom_id, seg);
         M0_UT_ASSERT(rc == 0);
 
 	/* Create root session cob and other structures */
-	m0_cob_tx_credit(&srv_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
+	m0_cob_tx_credit(srv_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
-	rc = m0_cob_domain_mkfs(&srv_mdstore.md_dom, &M0_MDSERVICE_SLASH_FID, &tx);
+	rc = m0_cob_domain_mkfs(srv_mdstore.md_dom, &M0_MDSERVICE_SLASH_FID, &tx);
 	m0_ut_be_tx_end(&tx);
 	M0_UT_ASSERT(rc == 0);
 
@@ -315,11 +312,6 @@ static void server_fini(struct m0_stob_domain *bdom,
 	rc = m0_stob_domain_destroy(bdom);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_ut__seg_dict_destroy(&ut_seg.bus_seg, grp);
-	M0_ASSERT(rc == 0);
-
-	/* XXX can't be destroyed because something isn't freed */
-	/* m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be); */
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 

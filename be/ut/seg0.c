@@ -23,6 +23,8 @@
 #include "lib/misc.h"		/* M0_BITS */
 #include "lib/memory.h"         /* M0_ALLOC_PTR, m0_free */
 #include "lib/errno.h"          /* program_invocation_name */
+#include "lib/buf.h"		/* m0_buf */
+#include "lib/string.h"		/* m0_streq */
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "be/seg.h"
 #include "be/seg0.h"
@@ -31,82 +33,74 @@
 #include "ut/ut.h"
 #include "ut/stob.h"		/* m0_ut_stob_linux_get_by_key */
 
-#include <unistd.h>		/* chdir, get_current_dir_name */
-#include <stdlib.h>		/* system */
+static const char	   *be_ut_0type_suffix = "some test suffix";
+static char		    be_ut_0type_data[10000];
+static const struct m0_buf  be_ut_0type_data_buf =
+				M0_BUF_INIT(sizeof(be_ut_0type_data),
+					    &be_ut_0type_data);
 
-void fake_mkfs(void)
+static int be_ut_0type_test_init(struct m0_be_domain *dom,
+				 const char	     *suffix,
+				 const struct m0_buf *data)
 {
-	extern char *program_invocation_name;
-	char *ut_dir;
-	char cmd[512] = {};
-	int rc;
+	M0_UT_ASSERT(m0_streq(suffix, be_ut_0type_suffix));
+	M0_UT_ASSERT(m0_buf_eq(data, &be_ut_0type_data_buf));
+	return 0;
+}
 
-	ut_dir = get_current_dir_name();
-	rc = chdir("..");
+static void be_ut_0type_test_fini(struct m0_be_domain *dom,
+				  const char	      *suffix,
+				  const struct m0_buf *data)
+{
+	M0_UT_ASSERT(m0_streq(suffix, be_ut_0type_suffix));
+	M0_UT_ASSERT(m0_buf_eq(data, &be_ut_0type_data_buf));
+}
+
+static struct m0_be_0type be_ut_0type_test = {
+	.b0_name = "M0_BE:0type_test",
+	.b0_init = &be_ut_0type_test_init,
+	.b0_fini = &be_ut_0type_test_fini,
+};
+
+static void be_ut_0type_op_test(struct m0_be_0type  *zt,
+				const char	    *suffix,
+				const struct m0_buf *data,
+				bool		     add)
+{
+	struct m0_be_ut_backend  ut_be	= {};
+	struct m0_be_tx_credit   credit = {};
+	struct m0_be_domain	*dom	= &ut_be.but_dom;
+	struct m0_be_tx          tx	= {};
+	int			 rc;
+
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_0type_register(dom, &be_ut_0type_test);
+	m0_be_ut_tx_init(&tx, &ut_be);
+	if (add) {
+		m0_be_0type_add_credit(dom, zt, suffix, data, &credit);
+	} else {
+		m0_be_0type_del_credit(dom, zt, suffix, &credit);
+	}
+	m0_be_tx_prep(&tx, &credit);
+	m0_be_tx_exclusive_open_sync(&tx);
+	if (add) {
+		rc = m0_be_0type_add(zt, dom, &tx, suffix, data);
+	} else {
+		rc = m0_be_0type_del(zt, dom, &tx, suffix);
+	}
 	M0_UT_ASSERT(rc == 0);
-
-	snprintf(cmd, ARRAY_SIZE(cmd), "%s -t be-ut:fake_mkfs -k > "
-		 "/dev/null 2>&1", program_invocation_name);
-	rc = system(cmd);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = chdir(ut_dir);
-	M0_UT_ASSERT(rc == 0);
-
-	free(ut_dir);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+	m0_be_0type_unregister(dom, &be_ut_0type_test);
+	m0_be_ut_backend_fini(&ut_be);
 }
 
 void m0_be_ut_seg0_test(void)
 {
-	struct m0_stob             *seg0_stob;
-	struct m0_be_ut_backend     ut_be = {};
-	struct m0_be_tx_credit      credit = {};
-	struct m0_be_tx             tx = {};
-	struct m0_be_0type_seg_opts seg_opts;
-	struct m0_buf               data = M0_BUF_INIT_PTR(&seg_opts);
-	struct m0_be_seg           *seg;
-	char seg_id[256];
-	int rc;
-
-	fake_mkfs();
-
-	seg0_stob = m0_ut_stob_linux_get_by_key(1043);
-	M0_UT_ASSERT(seg0_stob != NULL);
-
-	m0_be_ut_backend_init_normal(&ut_be, seg0_stob);
-
-	m0_be_ut_tx_init(&tx, &ut_be);
-
-	/* take a seg from existing segments with address range which
-	 * is more than seg0 addr range */
-	seg = m0_be_domain_seg(&ut_be.but_dom, (void*)(BE_UT_SEG_START_ADDR +
-						       (8ULL<<24)));
-	M0_UT_ASSERT(seg != NULL);
-	M0_UT_ASSERT(seg != m0_be_domain_seg0_get(&ut_be.but_dom));
-
-	snprintf(seg_id, ARRAY_SIZE(seg_id), "%08lu", seg->bs_id);
-	seg_opts.so_stob_fid = seg->bs_stob->so_fid;
-
-	m0_be_0type_del_credit(&ut_be.but_dom, &m0_be_seg0,
-			       seg_id, &data, &credit);
-	m0_be_0type_add_credit(&ut_be.but_dom, &m0_be_seg0,
-			       seg_id, &data, &credit);
-
-	m0_be_tx_prep(&tx, &credit);
-	m0_be_tx_exclusive_open_sync(&tx);
-
-	rc = m0_be_0type_del(&m0_be_seg0, &ut_be.but_dom, &tx, seg_id, NULL);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_be_0type_add(&m0_be_seg0, &ut_be.but_dom, &tx, seg_id, &data);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_be_tx_close_sync(&tx);
-	m0_be_tx_fini(&tx);
-
-	m0_be_ut_backend_fini(&ut_be);
-
-	m0_ut_stob_put(seg0_stob, false);
+	m0_be_ut_fake_mkfs();
+	be_ut_0type_op_test(&be_ut_0type_test, be_ut_0type_suffix,
+			    &be_ut_0type_data_buf, true);
+	be_ut_0type_op_test(&be_ut_0type_test, be_ut_0type_suffix, NULL, false);
 }
 
 #undef M0_TRACE_SUBSYSTEM

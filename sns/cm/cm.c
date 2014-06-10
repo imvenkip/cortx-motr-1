@@ -885,7 +885,7 @@ static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
 {
 	int rc;
 
-	rc = m0_cob_ns_next_of(cdom->cd_namespace, fid_curr,
+	rc = m0_cob_ns_next_of(&cdom->cd_namespace, fid_curr,
 			       fid_next);
 	if (rc == 0)
 		*fid_curr = *fid_next;

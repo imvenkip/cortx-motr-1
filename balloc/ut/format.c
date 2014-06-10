@@ -47,8 +47,7 @@ int main(int argc, char **argv)
 	/* Init BE */
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, 1ULL << 24);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	seg = &ut_seg.bus_seg;
+	seg = ut_seg.bus_seg;
 
 	result = m0_balloc_allocate(0, seg, &mero_balloc);
 	M0_ASSERT(result == 0);
@@ -60,7 +59,6 @@ int main(int argc, char **argv)
 
 	mero_balloc->cb_ballroom.ab_ops->bo_fini(&mero_balloc->cb_ballroom);
 
-	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 	printf("done\n");

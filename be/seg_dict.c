@@ -195,7 +195,7 @@ M0_INTERNAL int _seg_dict_iterate(struct m0_be_seg *seg,
 		rc = 0;
 		if (strstr(*this_key, "M0_BE:") == NULL)
 			rc = -ENOENT;
-		if (next && strstr(*this_key, prefix) == NULL)
+		if (/* XXX: next &&  */strstr(*this_key, prefix) == NULL)
 			rc = -ENOENT;
 
 		M0_LOG(M0_DEBUG, "rc=%d, this_key='%s', prefix='%s'",

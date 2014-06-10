@@ -50,8 +50,12 @@
 
 #include "cob/cob.h"
 
+#include "be/domain.h"
 #include "be/btree.h"
+#include "be/seg0.h"
 #include "be/tx.h"
+
+#include "module/instance.h"
 
 
 /**
@@ -64,22 +68,37 @@ enum {
 	M0_COB_EA_MAX   = 4096
 };
 
-struct m0_cob_tables {
-	struct m0_be_btree             **tree;
-	const struct m0_be_btree_kv_ops *ops;
-	const char                      *prefix;
-	char                             name[32];
-};
+struct m0_addb_ctx m0_cob_mod_ctx;
 
-#define M0_COB_TABLES(tables, dom) struct m0_cob_tables (tables)[] = {	    \
-	{ .tree=&dom->cd_namespace,      .ops=&cob_ns_ops,  .prefix="ns" }, \
-	{ .tree=&dom->cd_object_index,   .ops=&cob_oi_ops,  .prefix="oi" }, \
-	{ .tree=&dom->cd_fileattr_basic, .ops=&cob_fab_ops, .prefix="fb" }, \
-	{ .tree=&dom->cd_fileattr_omg,   .ops=&cob_omg_ops, .prefix="fo" }, \
-	{ .tree=&dom->cd_fileattr_ea,	 .ops=&cob_ea_ops,  .prefix="ea" }, \
+
+static int cob0_init(struct m0_be_domain *dom, const char *suffix,
+		     const struct m0_buf *data)
+{
+	struct m0             *m0inst = m0_get();
+	struct m0_cob_domain **module;
+
+	/* XXX: Uncomment when ioservice obtain separate structure inside m0 */
+	/* M0_PRE(m0inst->i_cob_module == NULL); */
+	M0_ENTRY("s: %s, d: %p", suffix, data->b_addr);
+	module = data->b_addr;
+	m0inst->i_cob_module = *module;
+	return M0_RC(0);
 }
 
-struct m0_addb_ctx m0_cob_mod_ctx;
+static void cob0_fini(struct m0_be_domain *dom, const char *suffix,
+		      const struct m0_buf *data)
+{
+	struct m0 *m0inst = m0_get();
+	M0_ENTRY();
+	m0inst->i_cob_module = NULL;
+	M0_LEAVE();
+}
+
+struct m0_be_0type m0_be_cob0 = {
+	.b0_name = "M0_BE:COB",
+	.b0_init = cob0_init,
+	.b0_fini = cob0_fini,
+};
 
 #define COB_FUNC_FAIL(loc, rc)						\
 do {									\
@@ -106,18 +125,6 @@ M0_INTERNAL int m0_cob_mod_init(void)
 M0_INTERNAL void m0_cob_mod_fini(void)
 {
 	m0_addb_ctx_fini(&m0_cob_mod_ctx);
-}
-
-static void cob_domain__table_name_fill(struct m0_cob_tables *tables, size_t nr,
-					const struct m0_cob_domain_id *cid)
-{
-	size_t i;
-
-	for (i = 0; i < nr; ++i) {
-		M0_PRE(strlen(tables[i].prefix) == 2);
-		snprintf(tables[i].name, ARRAY_SIZE(tables[i].name),
-			 "%s:%016lX", tables[i].prefix, cid->id);
-	}
 }
 
 M0_INTERNAL void m0_cob_oikey_make(struct m0_cob_oikey *oikey,
@@ -459,97 +466,77 @@ int
 m0_cob_domain_init(struct m0_cob_domain *dom,
 		   struct m0_be_seg *seg, const struct m0_cob_domain_id *id)
 {
-	M0_COB_TABLES(tables, dom);
-	int i;
-	int tables_read;
-	int rc;
-
-	M0_PRE(id->id != 0);
-	cob_domain__table_name_fill(tables, ARRAY_SIZE(tables), id);
+	if (dom == NULL)
+		return -ENOENT;
 
 	dom->cd_id    = *id;
 	dom->cd_dbenv = seg;
 
-	for (rc = 0, tables_read = 0, i = 0; i < ARRAY_SIZE(tables); ++i) {
-		rc = m0_be_seg_dict_lookup(seg, tables[i].name,
-					   (void**)tables[i].tree);
-		if (rc == 0) {
-			m0_be_btree_init(*tables[i].tree, seg, tables[i].ops);
-			tables_read++;
-		}
-	}
+	m0_be_btree_init(&dom->cd_object_index,   seg, &cob_oi_ops);
+	m0_be_btree_init(&dom->cd_namespace,	  seg, &cob_ns_ops);
+	m0_be_btree_init(&dom->cd_fileattr_basic, seg, &cob_fab_ops);
+	m0_be_btree_init(&dom->cd_fileattr_omg,   seg, &cob_omg_ops);
+	m0_be_btree_init(&dom->cd_fileattr_ea,    seg, &cob_ea_ops);
 
-	if (tables_read < ARRAY_SIZE(tables))
-		return -ENOENT;
-
-	return rc;
+	return 0;
 }
 
 void m0_cob_domain_fini(struct m0_cob_domain *dom)
 {
-	m0_be_btree_fini(dom->cd_fileattr_ea);
-	m0_be_btree_fini(dom->cd_fileattr_omg);
-	m0_be_btree_fini(dom->cd_fileattr_basic);
-	m0_be_btree_fini(dom->cd_object_index);
-	m0_be_btree_fini(dom->cd_namespace);
+	m0_be_btree_fini(&dom->cd_fileattr_ea);
+	m0_be_btree_fini(&dom->cd_fileattr_omg);
+	m0_be_btree_fini(&dom->cd_fileattr_basic);
+	m0_be_btree_fini(&dom->cd_object_index);
+	m0_be_btree_fini(&dom->cd_namespace);
 }
-M0_EXPORTED(m0_cob_domain_fini);
 
-int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
+int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
+			 const struct m0_cob_domain_id *cdid,
+			 struct m0_be_seg *seg)
 {
-	M0_COB_TABLES(tables, dom);
-	struct m0_be_tx_credit cred = {};
-	struct m0_be_op        op;
+	struct m0_be_domain   *bedom = seg->bs_domain; /* XXX */
+	struct m0_be_btree     dummy = { .bb_seg = seg }; /* XXX */
+	struct m0_be_tx_credit cred  = {};
+	struct m0_buf          data = {}; /*XXX*/
+	char		       id[32];
 	struct m0_be_tx       *tx;
-	struct m0_be_seg      *seg = dom->cd_dbenv;
-	struct m0_be_btree     dummy = { .bb_seg = seg };
-	int i;
 	int rc;
 
-	M0_PRE(seg != NULL);
-	cob_domain__table_name_fill(tables, ARRAY_SIZE(tables), &dom->cd_id);
+	M0_PRE(cdid->id != 0);
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
 		return -ENOMEM;
 
-	m0_be_btree_create_credit(&dummy, ARRAY_SIZE(tables), &cred);
+	snprintf(id, ARRAY_SIZE(id), "%016lX", cdid->id);
+	m0_be_0type_add_credit(bedom, &m0_be_cob0, id, &data, &cred);
+	M0_BE_ALLOC_CREDIT_PTR(*dom, seg, &cred);
+	m0_be_btree_create_credit(&dummy, 5 /* XXX */, &cred);
 
-	for (i = 0; i < ARRAY_SIZE(tables); ++i) {
-		M0_BE_ALLOC_CREDIT_PTR(*tables[i].tree, seg, &cred);
-		m0_be_seg_dict_insert_credit(seg, tables[i].name, &cred);
-	}
-
-	m0_be_tx_init(tx, 0, dom->cd_dbenv->bs_domain, grp,
-				NULL, NULL, NULL, NULL);
+	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				M0_TIME_NEVER);
-	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+	rc = m0_be_tx_exclusive_open_sync(tx);
+	if (rc != 0) {
 		m0_be_tx_fini(tx);
 		m0_free(tx);
-		return -EFBIG;
+		return rc;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(tables); ++i) {
-		M0_BE_ALLOC_PTR_SYNC(*tables[i].tree, seg, tx);
+	M0_BE_ALLOC_PTR_SYNC(*dom, seg, tx);
+	m0_cob_domain_init(*dom, seg, cdid);
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_object_index,   tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_namespace,      tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_basic, tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_omg,   tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_ea,    tx, &o));
 
-		m0_be_op_init(&op);
-		m0_be_btree_init(*tables[i].tree, seg, tables[i].ops);
-		m0_be_btree_create(*tables[i].tree, tx, &op);
-		m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
 
-		rc = m0_be_seg_dict_insert(seg, tx, tables[i].name,
-					   *tables[i].tree);
-		if (rc != 0) {
-			m0_be_tx_fini(tx);
-			m0_free(tx);
-			return rc;
-		}
-	}
+	M0_ASSERT(*dom != NULL);
+	M0_BE_TX_CAPTURE_PTR(seg, tx, *dom);
+
+	data = M0_BUF_INIT_PTR(dom);
+	rc = m0_be_0type_add(&m0_be_cob0, bedom, tx, id, &data);
+	M0_ASSERT(rc == 0);
 
 	m0_be_tx_close(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
@@ -561,50 +548,50 @@ int m0_cob_domain_create(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 
 int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 {
-	M0_COB_TABLES(tables, dom);
-	struct m0_be_tx_credit cred = {};
-	struct m0_be_op        op;
+	struct m0_be_domain   *bedom = dom->cd_dbenv->bs_domain; /* XXX */
+	struct m0_be_tx_credit cred  = {};
+	struct m0_be_seg      *seg;
+	char		       id[32];
 	struct m0_be_tx       *tx;
-	struct m0_be_seg      *seg = dom->cd_dbenv;
-	int i;
 	int rc;
 
-	cob_domain__table_name_fill(tables, ARRAY_SIZE(tables), &dom->cd_id);
+	M0_PRE(dom != NULL);
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
 		return -ENOMEM;
 
-	for (i = 0; i < ARRAY_SIZE(tables); ++i)
-		m0_be_btree_destroy_credit(*tables[i].tree, 1, &cred);
+	seg = m0_be_domain_seg(bedom, dom);
+	snprintf(id, ARRAY_SIZE(id), "%016lX", dom->cd_id.id);
+	m0_be_0type_del_credit(bedom, &m0_be_cob0, id, &cred);
+	M0_BE_FREE_CREDIT_PTR(dom, seg, &cred);
 
-	for (i = 0; i < ARRAY_SIZE(tables); ++i)
-		M0_BE_FREE_CREDIT_PTR(*tables[i].tree, seg, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_object_index,   1, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_namespace,	    1, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_basic, 1, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_omg,   1, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_ea,    1, &cred);
 
-	m0_be_tx_init(tx, 0, dom->cd_dbenv->bs_domain, grp,
-				NULL, NULL, NULL, NULL);
+
+	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
-	m0_be_tx_open(tx);
-	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
-				M0_TIME_NEVER);
-	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
+	rc = m0_be_tx_exclusive_open_sync(tx);
+	if (rc != 0) {
 		m0_be_tx_fini(tx);
 		m0_free(tx);
-		return -EFBIG;
+		return rc;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(tables); ++i) {
-		m0_be_op_init(&op);
-		m0_be_btree_destroy(*tables[i].tree, tx, &op);
-		m0_be_op_wait(&op);
-		M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
-		m0_be_op_fini(&op);
+	rc = m0_be_0type_del(&m0_be_cob0, bedom, tx, id);
+	M0_ASSERT(rc == 0);
 
-		M0_BE_FREE_PTR_SYNC(*tables[i].tree, seg, tx);
-
-		rc = m0_be_seg_dict_delete(seg, tx, tables[i].name);
-		M0_ASSERT(rc == 0);
-	}
+	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_object_index,   tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_namespace,      tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_basic, tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_omg,   tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_ea,    tx, &o));
+	M0_BE_FREE_PTR_SYNC(dom, seg, tx);
+	M0_BE_TX_CAPTURE_PTR(seg, tx, dom);
 
 	m0_be_tx_close(tx);
 	rc = m0_be_tx_timedwait(tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
@@ -613,7 +600,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 
 	return rc;
 }
-
 
 #include <sys/stat.h>    /* S_ISDIR */
 
@@ -705,7 +691,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 
 	m0_buf_init(&key, &omgkey, sizeof omgkey);
 	m0_buf_init(&rec, &omgrec, sizeof omgrec);
-	cob_table_insert(dom->cd_fileattr_omg, tx, &key, &rec);
+	cob_table_insert(&dom->cd_fileattr_omg, tx, &key, &rec);
 
 	/**
 	   Create root cob where all namespace is stored.
@@ -845,7 +831,7 @@ static int cob_ns_lookup(struct m0_cob *cob)
 	m0_buf_init(&val, &cob->co_nsrec, sizeof cob->co_nsrec);
 
 	m0_be_op_init(&op);
-	m0_be_btree_lookup(cob->co_dom->cd_namespace, &op, &key, &val);
+	m0_be_btree_lookup(&cob->co_dom->cd_namespace, &op, &key, &val);
 	m0_be_op_wait(&op);
 	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
@@ -897,7 +883,7 @@ static int cob_oi_lookup(struct m0_cob *cob)
 	 * We use cursor here because in some situations we need
 	 * to find most suitable position instead of exact location.
 	 */
-	m0_be_btree_cursor_init(&cursor, cob->co_dom->cd_object_index);
+	m0_be_btree_cursor_init(&cursor, &cob->co_dom->cd_object_index);
 	rc = m0_be_btree_cursor_get_sync(&cursor, &start, true);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "btree_cursor_get_sync() failed with %d", rc);
@@ -955,7 +941,7 @@ static int cob_fab_lookup(struct m0_cob *cob)
 	m0_buf_init(&val, cob->co_fabrec, m0_cob_max_fabrec_size());
 
 	m0_be_op_init(&op);
-	m0_be_btree_lookup(cob->co_dom->cd_fileattr_basic, &op, &key, &val);
+	m0_be_btree_lookup(&cob->co_dom->cd_fileattr_basic, &op, &key, &val);
 	m0_be_op_wait(&op);
 	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
@@ -988,7 +974,7 @@ static int cob_omg_lookup(struct m0_cob *cob)
 	m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
 
 	m0_be_op_init(&op);
-	m0_be_btree_lookup(cob->co_dom->cd_fileattr_omg, &op, &key, &val);
+	m0_be_btree_lookup(&cob->co_dom->cd_fileattr_omg, &op, &key, &val);
 	m0_be_op_wait(&op);
 	M0_ASSERT(m0_be_op_state(&op) == M0_BOS_SUCCESS);
 	m0_be_op_fini(&op);
@@ -1127,7 +1113,7 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 	if (rc != 0)
 		return rc;
 
-	m0_be_btree_cursor_init(&it->ci_cursor, cob->co_dom->cd_namespace);
+	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_namespace);
 	it->ci_cob = cob;
 	return rc;
 }
@@ -1215,7 +1201,7 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 		return rc;
         }
 
-	m0_be_btree_cursor_init(&it->ci_cursor, cob->co_dom->cd_fileattr_ea);
+	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_fileattr_ea);
 	it->ci_cob = cob;
 	return rc;
 }
@@ -1297,7 +1283,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 
 	M0_ENTRY();
 
-	m0_be_btree_cursor_init(&cursor, dom->cd_fileattr_omg);
+	m0_be_btree_cursor_init(&cursor, &dom->cd_fileattr_omg);
 
 	/*
 	 * Look for ~0ULL terminator record and do a step back to find last
@@ -1409,7 +1395,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	 */
 	m0_buf_init(&key, &fabkey, sizeof fabkey);
 	m0_buf_init(&val, cob->co_fabrec, m0_cob_fabrec_size(cob->co_fabrec));
-	cob_table_insert(cob->co_dom->cd_fileattr_basic, tx, &key, &val);
+	cob_table_insert(&cob->co_dom->cd_fileattr_basic, tx, &key, &val);
 
 	/*
 	 * Prepare omg key.
@@ -1427,9 +1413,9 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	 */
 	m0_buf_init(&key, &omgkey, sizeof omgkey);
 	m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
-	rc = cob_table_lookup(cob->co_dom->cd_fileattr_omg, &key, &val);
+	rc = cob_table_lookup(&cob->co_dom->cd_fileattr_omg, &key, &val);
 	if (rc == -ENOENT)
-		cob_table_insert(cob->co_dom->cd_fileattr_omg, tx, &key, &val);
+		cob_table_insert(&cob->co_dom->cd_fileattr_omg, tx, &key, &val);
 	else
 		M0_LOG(M0_DEBUG, "the same omgkey: %016lX is being added "
 		       "multiple times", omgkey.cok_omgid);
@@ -1481,7 +1467,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		 * Ignore errors; it's a dangling table entry but causes
 		 * no harm.
 		 */
-		cob_table_delete(cob->co_dom->cd_fileattr_basic, tx, &key);
+		cob_table_delete(&cob->co_dom->cd_fileattr_basic, tx, &key);
 
 		/*
 		 * @todo: Omgrec may be shared between multiple objects.
@@ -1498,7 +1484,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		 * Ignore errors; it's a dangling table entry but causes
 		 * no harm.
 		 */
-		cob_table_delete(cob->co_dom->cd_fileattr_omg, tx, &key);
+		cob_table_delete(&cob->co_dom->cd_fileattr_omg, tx, &key);
 	}
 out:
 	COB_FUNC_FAIL(DELETE, rc);
@@ -1535,7 +1521,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 
 		m0_buf_init(&key, cob->co_nskey, m0_cob_nskey_size(cob->co_nskey));
 		m0_buf_init(&val, &cob->co_nsrec, sizeof cob->co_nsrec);
-		rc = cob_table_update(cob->co_dom->cd_namespace,
+		rc = cob_table_update(&cob->co_dom->cd_namespace,
 				      tx, &key, &val);
 	}
 
@@ -1551,7 +1537,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 
 		m0_buf_init(&key, &fabkey, sizeof fabkey);
 		m0_buf_init(&val,cob->co_fabrec, m0_cob_fabrec_size(cob->co_fabrec));
-		rc = cob_table_update(cob->co_dom->cd_fileattr_basic,
+		rc = cob_table_update(&cob->co_dom->cd_fileattr_basic,
 				      tx, &key, &val);
 	}
 
@@ -1567,7 +1553,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 
 		m0_buf_init(&key, &omgkey, sizeof omgkey);
 		m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
-		rc = cob_table_update(cob->co_dom->cd_fileattr_omg,
+		rc = cob_table_update(&cob->co_dom->cd_fileattr_omg,
 				      tx, &key, &val);
 	}
 
@@ -1592,7 +1578,7 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, nsrec, sizeof *nsrec);
-	rc = cob_table_lookup(cob->co_dom->cd_namespace, &key, &val);
+	rc = cob_table_lookup(&cob->co_dom->cd_namespace, &key, &val);
 	if (rc == 0)
 		return -EEXIST;
 
@@ -1604,11 +1590,11 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 
 	m0_buf_init(&key, &oikey, sizeof oikey);
 	m0_buf_init(&val, nskey, m0_cob_nskey_size(nskey));
-	cob_table_insert(cob->co_dom->cd_object_index, tx, &key, &val);
+	cob_table_insert(&cob->co_dom->cd_object_index, tx, &key, &val);
 
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, nsrec, sizeof *nsrec);
-	cob_table_insert(cob->co_dom->cd_namespace, tx, &key, &val);
+	cob_table_insert(&cob->co_dom->cd_namespace, tx, &key, &val);
 
 	return 0;
 }
@@ -1632,11 +1618,11 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, &nsrec, sizeof nsrec);
 
-	rc = cob_table_lookup(cob->co_dom->cd_namespace, &key, &val);
+	rc = cob_table_lookup(&cob->co_dom->cd_namespace, &key, &val);
 	if (rc != 0)
 		goto out;
 
-	rc = cob_table_delete(cob->co_dom->cd_namespace, tx, &key);
+	rc = cob_table_delete(&cob->co_dom->cd_namespace, tx, &key);
 	if (rc != 0)
 		goto out;
 
@@ -1645,7 +1631,7 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 	 */
 	m0_cob_oikey_make(&oikey, m0_cob_fid(cob), nsrec.cnr_linkno);
 	m0_buf_init(&key, &oikey, sizeof oikey);
-	rc = cob_table_delete(cob->co_dom->cd_object_index, tx, &key);
+	rc = cob_table_delete(&cob->co_dom->cd_object_index, tx, &key);
 
 out:
 	COB_FUNC_FAIL(NAME_DEL, rc);
@@ -1669,27 +1655,27 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 	 * Insert new record with nsrec found with srckey.
 	 */
 	m0_buf_init(&key, srckey, m0_cob_nskey_size(srckey));
-	rc = cob_table_lookup(cob->co_dom->cd_namespace, &key, &val);
+	rc = cob_table_lookup(&cob->co_dom->cd_namespace, &key, &val);
 	if (rc != 0)
 		goto out;
 
 	m0_buf_init(&key, tgtkey, m0_cob_nskey_size(tgtkey));
 	/* here @val consists value to insert */
-	cob_table_insert(cob->co_dom->cd_namespace, tx, &key, &val);
+	cob_table_insert(&cob->co_dom->cd_namespace, tx, &key, &val);
 
 	/*
 	 * Kill old record. Error will be returned if
 	 * nothing found.
 	 */
 	m0_buf_init(&key, srckey, m0_cob_nskey_size(srckey));
-	rc = cob_table_delete(cob->co_dom->cd_namespace, tx, &key);
+	rc = cob_table_delete(&cob->co_dom->cd_namespace, tx, &key);
 	if (rc != 0)
 		goto out;
 
 	/* Update object index */
 	m0_buf_init(&key, &oikey, sizeof oikey);
 	m0_buf_init(&val, tgtkey, m0_cob_nskey_size(tgtkey));
-	rc = cob_table_update(cob->co_dom->cd_object_index, tx, &key, &val);
+	rc = cob_table_update(&cob->co_dom->cd_object_index, tx, &key, &val);
 	if (rc != 0)
 		goto out;
 
@@ -1718,7 +1704,7 @@ M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
 
 	m0_buf_init(&key, eakey, m0_cob_eakey_size(eakey));
 	m0_buf_init(&val, out, m0_cob_max_earec_size());
-	rc = cob_table_lookup(cob->co_dom->cd_fileattr_ea, &key, &val);
+	rc = cob_table_lookup(&cob->co_dom->cd_fileattr_ea, &key, &val);
 
 	return rc;
 }
@@ -1740,7 +1726,7 @@ M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
 
 	m0_buf_init(&key, eakey, m0_cob_eakey_size(eakey));
 	m0_buf_init(&val, earec, m0_cob_earec_size(earec));
-	cob_table_insert(cob->co_dom->cd_fileattr_ea, tx, &key, &val);
+	cob_table_insert(&cob->co_dom->cd_fileattr_ea, tx, &key, &val);
 
 	return 0;
 }
@@ -1755,7 +1741,7 @@ M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
 	M0_PRE(m0_cob_is_valid(cob));
 
 	m0_buf_init(&key, eakey, m0_cob_eakey_size(eakey));
-	rc = cob_table_delete(cob->co_dom->cd_fileattr_ea, tx, &key);
+	rc = cob_table_delete(&cob->co_dom->cd_fileattr_ea, tx, &key);
 	COB_FUNC_FAIL(EA_DEL, rc);
 	return rc;
 }
@@ -1836,7 +1822,7 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 
 	switch (optype) {
 	case M0_COB_OP_DOMAIN_MKFS:
-		TCREDIT(dom->cd_fileattr_omg, INSERT, OMG, accum);
+		TCREDIT(&dom->cd_fileattr_omg, INSERT, OMG, accum);
 		for (i = 0; i < 2; ++i)
 			m0_cob_tx_credit(dom, M0_COB_OP_CREATE, accum);
 		break;
@@ -1845,33 +1831,33 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 		break;
 	case M0_COB_OP_CREATE:
 		m0_cob_tx_credit(dom, M0_COB_OP_NAME_ADD, accum);
-		TCREDIT(dom->cd_fileattr_basic, INSERT, FAB, accum);
-		TCREDIT(dom->cd_fileattr_omg, INSERT, OMG, accum);
+		TCREDIT(&dom->cd_fileattr_basic, INSERT, FAB, accum);
+		TCREDIT(&dom->cd_fileattr_omg, INSERT, OMG, accum);
 		break;
 	case M0_COB_OP_DELETE:
 	case M0_COB_OP_DELETE_PUT:
 		m0_cob_tx_credit(dom, M0_COB_OP_LOCATE, accum);
 		m0_cob_tx_credit(dom, M0_COB_OP_NAME_DEL, accum);
-		TCREDIT(dom->cd_fileattr_basic, DELETE, FAB, accum);
-		TCREDIT(dom->cd_fileattr_omg, DELETE, FAB, accum);
+		TCREDIT(&dom->cd_fileattr_basic, DELETE, FAB, accum);
+		TCREDIT(&dom->cd_fileattr_omg, DELETE, FAB, accum);
 		break;
 	case M0_COB_OP_UPDATE:
-		TCREDIT(dom->cd_namespace, UPDATE, NS, accum);
-		TCREDIT(dom->cd_fileattr_basic, UPDATE, FAB, accum);
-		TCREDIT(dom->cd_fileattr_omg, UPDATE, OMG, accum);
+		TCREDIT(&dom->cd_namespace, UPDATE, NS, accum);
+		TCREDIT(&dom->cd_fileattr_basic, UPDATE, FAB, accum);
+		TCREDIT(&dom->cd_fileattr_omg, UPDATE, OMG, accum);
 		break;
 	case M0_COB_OP_NAME_ADD:
-		TCREDIT(dom->cd_object_index, INSERT, OI, accum);
-		TCREDIT(dom->cd_namespace, INSERT, NS, accum);
+		TCREDIT(&dom->cd_object_index, INSERT, OI, accum);
+		TCREDIT(&dom->cd_namespace, INSERT, NS, accum);
 		break;
 	case M0_COB_OP_NAME_DEL:
-		TCREDIT(dom->cd_namespace, DELETE, NS, accum);
-		TCREDIT(dom->cd_object_index, DELETE, OI, accum);
+		TCREDIT(&dom->cd_namespace, DELETE, NS, accum);
+		TCREDIT(&dom->cd_object_index, DELETE, OI, accum);
 		break;
 	case M0_COB_OP_NAME_UPDATE:
-		TCREDIT(dom->cd_namespace, INSERT, NS, accum);
-		TCREDIT(dom->cd_namespace, DELETE, NS, accum);
-		TCREDIT(dom->cd_object_index, UPDATE, OI, accum);
+		TCREDIT(&dom->cd_namespace, INSERT, NS, accum);
+		TCREDIT(&dom->cd_namespace, DELETE, NS, accum);
+		TCREDIT(&dom->cd_object_index, UPDATE, OI, accum);
 		break;
 	default:
 		M0_IMPOSSIBLE("Impossible cob optype");

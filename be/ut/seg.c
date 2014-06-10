@@ -76,7 +76,7 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 
 	seed = 0;
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_SIZE);
-	seg = &ut_seg.bus_seg;
+	seg = ut_seg.bus_seg;
 	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
 			      seg->bs_addr + BE_UT_SEG_IO_OFFS);
 	for (i = 0; i < BE_UT_SEG_IO_ITER; ++i) {

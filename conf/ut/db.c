@@ -198,16 +198,9 @@ static void cleanup(void)
 
 static void conf_ut_db_init()
 {
-	struct m0_sm_group     *grp;
-	int                     rc;
-
         m0_be_ut_backend_init(&ut_be);
         m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
-        m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-        seg = &ut_seg.bus_seg;
-        rc = m0_be_ut__seg_dict_create(seg, grp);
-        M0_UT_ASSERT(rc == 0);
+	seg = ut_seg.bus_seg;
 }
 
 static void conf_ut_db_fini()
@@ -216,7 +209,7 @@ static void conf_ut_db_fini()
 	 * XXX: Call m0_ut_backend_fini_with_reqh() after
 	 *      fixing m0_confdb_destroy().
 	 */
-        m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_seg_fini(&ut_seg);
         m0_be_ut_backend_fini(&ut_be);
 }
 

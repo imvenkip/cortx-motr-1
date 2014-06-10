@@ -36,6 +36,7 @@
 #include "net/net.h"
 #include "ut/ut.h"
 #include "ut/be.h"
+#include "ut/stob.h"		/* m0_ut_stob_linux_get_by_key */
 #include "be/ut/helper.h"
 
 #include "mdservice/ut/mdstore.h"
@@ -46,12 +47,11 @@ static struct m0_cob_domain_id id = { 42 };
 
 static struct m0_sm_group	*grp;
 static struct m0_be_ut_backend	 ut_be;
-static struct m0_be_ut_seg	 ut_seg;
 static struct m0_be_seg		*be_seg;
 
-static struct m0_mdstore        md;
-static struct m0_reqh           reqh;
-static struct m0_reqh_service  *mdservice;
+static struct m0_mdstore           md;
+static struct m0_reqh              reqh;
+static struct m0_reqh_service     *mdservice;
 extern struct m0_reqh_service_type m0_mds_type;
 
 int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data);
@@ -101,14 +101,11 @@ static void test_mkfs(void)
         int			 fd;
 	int			 rc;
 
-	/* Init BE */
+	m0_be_ut_fake_mkfs();
+	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
-	be_seg = &ut_seg.bus_seg;
+	be_seg = m0_be_domain_seg0_get(&ut_be.but_dom);
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_be_ut__seg_dict_create(be_seg, grp);
-	M0_UT_ASSERT(rc == 0);
 
         fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         M0_UT_ASSERT(fd > 0);
@@ -119,14 +116,14 @@ static void test_mkfs(void)
 
         rc = m0_mdstore_init(&md, &id, be_seg, false);
         M0_UT_ASSERT(rc == -ENOENT);
-        rc = m0_mdstore_create(&md, grp);
+	rc = m0_mdstore_create(&md, grp, &id, be_seg);
         M0_UT_ASSERT(rc == 0);
 
         /* Create root and other structures */
-	m0_cob_tx_credit(&md.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
+	m0_cob_tx_credit(md.md_dom, M0_COB_OP_DOMAIN_MKFS, &cred);
 	m0_ut_be_tx_begin(&tx, &ut_be, &cred);
         m0_fid_set(&rootfid, testroot.f_seq, testroot.f_oid);
-        rc = m0_cob_domain_mkfs(&md.md_dom, &rootfid, &tx);
+	rc = m0_cob_domain_mkfs(md.md_dom, &rootfid, &tx);
         M0_UT_ASSERT(rc == 0);
 	m0_ut_be_tx_end(&tx);
 
@@ -174,6 +171,10 @@ static void test_fini(void)
 {
 	int			 rc;
 
+	rc = m0_mdstore_destroy(&md, grp);
+	M0_UT_ASSERT(rc == 0);
+	m0_mdstore_fini(&md);
+
 	m0_reqh_service_stop(mdservice);
 	m0_reqh_service_fini(mdservice);
 
@@ -181,14 +182,6 @@ static void test_fini(void)
 	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
 
-	rc = m0_mdstore_destroy(&md, grp);
-	M0_UT_ASSERT(rc == 0);
-	m0_mdstore_fini(&md);
-
-	rc = m0_be_ut__seg_dict_destroy(be_seg, grp);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
-	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 
 	m0_md_fom_ops.fto_create = orig_fom_create;

@@ -46,10 +46,12 @@ M0_INTERNAL void m0_be_log_store_init(struct m0_be_log_store *ls,
 				      struct m0_stob *stob)
 {
 	ls->ls_stob = stob;
+	m0_stob_get(ls->ls_stob);
 }
 
 M0_INTERNAL void m0_be_log_store_fini(struct m0_be_log_store *ls)
 {
+	m0_stob_put(ls->ls_stob);
 }
 
 M0_INTERNAL bool m0_be_log_store__invariant(struct m0_be_log_store *ls)

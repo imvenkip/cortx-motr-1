@@ -78,6 +78,8 @@ extern const struct m0_be_tx_credit m0_be_tx_credit_invalid;
 	(struct m0_be_tx_credit){ .tc_reg_nr = (nr), .tc_reg_size = (size) }
 
 #define M0_BE_TX_CREDIT_TYPE(type) M0_BE_TX_CREDIT(1, sizeof(type))
+#define M0_BE_TX_CREDIT_PTR(ptr)   M0_BE_TX_CREDIT(1, sizeof(*ptr))
+#define M0_BE_TX_CREDIT_BUF(buf)   M0_BE_TX_CREDIT(1, (buf)->b_nob)
 
 /** Format for the printf() family functions. @see BETXCR_P */
 #define BETXCR_F "(%lu, %lu)"

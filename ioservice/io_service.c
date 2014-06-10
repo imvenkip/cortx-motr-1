@@ -514,26 +514,16 @@ M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
 	dbenv = reqh->rh_dbenv;
 	cdom = m0_reqh_lockers_get(reqh, ios_cdom_key);
 	if (cdom == NULL) {
-		cdom = m0_alloc(sizeof *cdom);
-		if (cdom == NULL) {
-			rc = -ENOMEM;
-			goto out;
-		}
-		m0_reqh_lockers_set(reqh, ios_cdom_key, cdom);
-
-		M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d",
-		       reqh, ios_cdom_key);
 		cdom_id.id = m0_rnd(1ULL << 47, &cid);
-		rc = m0_cob_domain_init(cdom, reqh->rh_beseg, &cdom_id);
-		if (rc != 0 && rc != -ENOENT)
-			goto reqh_fini;
-		if (rc == -ENOENT) {
-			m0_sm_group_lock(grp);
-			rc = m0_cob_domain_create(cdom, grp);
-			m0_sm_group_unlock(grp);
-		}
+		m0_sm_group_lock(grp);
+		rc = m0_cob_domain_create(&cdom, grp, &cdom_id, reqh->rh_beseg);
+		m0_sm_group_unlock(grp);
 		if (rc != 0)
 			goto cdom_fini;
+
+		m0_reqh_lockers_set(reqh, ios_cdom_key, cdom);
+		M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d",
+		       reqh, ios_cdom_key);
 
 		m0_sm_group_lock(grp);
 		m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
@@ -556,8 +546,6 @@ cdom_destroy:
 	m0_cob_domain_destroy(cdom, grp);
 cdom_fini:
 	m0_cob_domain_fini(cdom);
-reqh_fini:
-	m0_reqh_lockers_clear(reqh, ios_cdom_key);
 out:
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	return rc;
@@ -572,7 +560,7 @@ M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	cdom = m0_reqh_lockers_get(reqh, ios_cdom_key);
 	m0_cob_domain_fini(cdom);
-	m0_free(cdom);
+	/* m0_free(cdom); */ /* cdom is in BE segment */
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 

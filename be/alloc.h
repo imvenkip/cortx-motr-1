@@ -232,6 +232,7 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 				   struct m0_be_allocator_stats *out);
 
+
 /**
  * Allocate array of structures.
  *
@@ -264,6 +265,13 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 #define M0_BE_FREE_PTR_SYNC(ptr, seg, tx)				\
 		M0_BE_OP_SYNC(__op, M0_BE_FREE_PTR((ptr), (seg), (tx), &__op))
 
+#define M0_BE_ALLOC_BUF(buf, seg, tx, op)				\
+		m0_be_alloc(m0_be_seg_allocator(seg), (tx), (op),	\
+			    &(buf)->b_addr, (buf)->b_nob)
+
+#define M0_BE_ALLOC_BUF_SYNC(buf, seg, tx)				\
+		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_BUF((buf), (seg), (tx), &__op))
+
 #define M0_BE_ALLOC_CREDIT_PTR(ptr, seg, accum)				\
 		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
 				       M0_BAO_ALLOC, sizeof *(ptr), 0, (accum))
@@ -279,6 +287,10 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 #define M0_BE_FREE_CREDIT_ARR(arr, nr, seg, accum)				\
 		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
 				       M0_BAO_FREE, (nr) * sizeof((arr)[0]), 0, (accum))
+
+#define M0_BE_ALLOC_CREDIT_BUF(buf, seg, accum)				\
+		m0_be_allocator_credit(m0_be_seg_allocator(seg),	\
+				       M0_BAO_ALLOC, (buf)->b_nob, 0, (accum))
 
 
 /** @} end of be group */

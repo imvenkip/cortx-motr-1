@@ -952,8 +952,6 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 	m0_be_ut_backend_init(&csb->csb_ut_be);
 	m0_be_ut_seg_init(&csb->csb_ut_seg,
 			  &csb->csb_ut_be, 1ULL << 24);
-	m0_be_ut_seg_allocator_init(&csb->csb_ut_seg,
-				    &csb->csb_ut_be);
 
 	tms_nr	 = 1;
 	bufs_nr  = m0_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
@@ -969,7 +967,7 @@ int m0t1fs_rpc_init(struct m0t1fs_sb *csb)
 
 	rc = M0_REQH_INIT(reqh,
 			  .rhia_dtm = (void*)1,
-			  .rhia_db = &csb->csb_ut_seg.bus_seg,
+			  .rhia_db = csb->csb_ut_seg.bus_seg,
 			  .rhia_mdstore = (void*)1);
 	if (rc != 0)
 		goto dbenv_fini;
@@ -990,8 +988,6 @@ dbenv_fini:
 pool_fini:
 	m0_rpc_net_buffer_pool_cleanup(buffer_pool);
 be_fini:
-	m0_be_ut_seg_allocator_fini(&csb->csb_ut_seg,
-				    &csb->csb_ut_be);
 	m0_be_ut_seg_fini(&csb->csb_ut_seg);
 	m0_be_ut_backend_fini(&csb->csb_ut_be);
 	M0_LEAVE("rc: %d", rc);
@@ -1105,8 +1101,6 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	m0_reqh_fini(&csb->csb_reqh);
 	m0_dbenv_fini(&csb->csb_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&csb->csb_buffer_pool);
-	m0_be_ut_seg_allocator_fini(&csb->csb_ut_seg,
-				    &csb->csb_ut_be);
 	m0_be_ut_seg_fini(&csb->csb_ut_seg);
 	m0_be_ut_backend_fini(&csb->csb_ut_be);
 

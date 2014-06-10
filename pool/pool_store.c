@@ -27,6 +27,8 @@
 #include "lib/misc.h"
 #include "lib/uuid.h"
 #include "be/be.h"
+#include "be/seg0.h"
+#include "module/instance.h"
 
 /**
    @addtogroup pool
@@ -60,6 +62,34 @@ struct m0_poolmach_state_rec {
 
 struct m0_pool_event_rec {
 	struct m0_pool_event per_event;
+};
+
+static int pool0_init(struct m0_be_domain *dom, const char *suffix,
+		      const struct m0_buf *data)
+{
+	struct m0 *m0inst = m0_get();
+	struct m0_poolmach_state **state;
+
+	M0_PRE(m0inst->i_pool_module == NULL);
+	M0_ENTRY();
+	state = data->b_addr;
+	m0inst->i_pool_module = *state;
+	return M0_RC(0);
+}
+
+static void pool0_fini(struct m0_be_domain *dom, const char *suffix,
+		       const struct m0_buf *data)
+{
+	struct m0 *m0inst = m0_get();
+	M0_ENTRY();
+	m0inst->i_pool_module = NULL;
+	M0_LEAVE();
+}
+
+struct m0_be_0type m0_be_pool0 = {
+	.b0_name = "M0_BE:POOL",
+	.b0_init = pool0_init,
+	.b0_fini = pool0_fini,
 };
 
 #ifndef __KERNEL__
@@ -153,14 +183,12 @@ static int m0_poolmach_load(struct m0_poolmach       *pm,
 	return rc;
 }
 
-M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
-				       struct m0_be_seg   *be_seg,
-				       struct m0_sm_group *sm_grp,
-				       struct m0_dtm      *dtm,
-				       uint32_t            nr_nodes,
-				       uint32_t            nr_devices,
-				       uint32_t            max_node_failures,
-				       uint32_t            max_device_failures)
+static int poolmach_store_create(struct m0_be_seg   *be_seg,
+				 struct m0_sm_group *sm_grp,
+				 uint32_t            nr_nodes,
+				 uint32_t            nr_devices,
+				 uint32_t            max_node_failures,
+				 uint32_t            max_device_failures)
 {
 	struct m0_be_tx_credit      cred = {};
 	struct m0_be_tx            *tx;
@@ -168,38 +196,26 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
 	struct m0_poolnode         *nodes_array;
 	struct m0_pooldev          *devices_array;
 	struct m0_pool_spare_usage *spare_usage_array;
-	const char                 *poolmach_name = "poolmach_state";
+	struct m0_be_domain        *bedom = be_seg->bs_domain;
+	struct m0_buf               data = {};
+	const char                 *id = "000000001";
 	int                         i;
 	int                         rc;
-
-	M0_PRE(!pm->pm_is_initialised);
-	M0_PRE(be_seg != NULL);
-	M0_ENTRY();
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
 		return -ENOMEM;
 
-	rc = m0_be_seg_dict_lookup(be_seg, poolmach_name, (void**)&state);
-	if (rc == 0) {
-		rc = m0_poolmach_load(pm, state, nr_nodes, nr_devices,
-				      max_node_failures, max_device_failures);
-		if (rc == 0)
-			pm->pm_state = state;
-		goto out;
-	} else if (rc != -ENOENT)
-		goto out;
-
 	/* Not found from disk. Let's allocate and insert it */
-	m0_be_tx_init(tx, 0, be_seg->bs_domain, sm_grp, NULL, NULL, NULL, NULL);
+	m0_be_tx_init(tx, 0, bedom, sm_grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(state, be_seg, &cred);
 	M0_BE_ALLOC_CREDIT_ARR(nodes_array, nr_nodes, be_seg, &cred);
 	M0_BE_ALLOC_CREDIT_ARR(devices_array, nr_devices + 1, be_seg, &cred);
 	M0_BE_ALLOC_CREDIT_ARR(spare_usage_array, max_device_failures, be_seg,
 			       &cred);
-	m0_be_seg_dict_insert_credit(be_seg, poolmach_name, &cred);
+	m0_be_0type_add_credit(bedom, &m0_be_pool0, id, &data, &cred);
 	m0_be_tx_prep(tx, &cred);
-	rc = m0_be_tx_open_sync(tx);
+	rc = m0_be_tx_exclusive_open_sync(tx);
 	if (rc == 0) {
 		M0_BE_ALLOC_PTR_SYNC(state, be_seg, tx);
 		M0_BE_ALLOC_ARR_SYNC(nodes_array, nr_nodes, be_seg, tx);
@@ -211,10 +227,6 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
 		M0_ASSERT(devices_array != NULL);
 		M0_ASSERT(spare_usage_array != NULL);
 
-		rc = m0_be_seg_dict_insert(be_seg, tx, poolmach_name,
-					   state);
-		M0_ASSERT(rc == 0);
-		pm->pm_state = state;
 		state->pst_nodes_array         = nodes_array;
 		state->pst_devices_array       = devices_array;
 		state->pst_spare_usage_array   = spare_usage_array;
@@ -244,6 +256,11 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
 		M0_BE_TX_CAPTURE_ARR(be_seg, tx, devices_array, nr_devices);
 		M0_BE_TX_CAPTURE_ARR(be_seg, tx, spare_usage_array,
 				     max_device_failures);
+
+		data = M0_BUF_INIT_PTR(&state);
+		rc = m0_be_0type_add(&m0_be_pool0, bedom, tx, id, &data);
+		M0_ASSERT(rc == 0);
+
 		m0_be_tx_close_sync(tx);
 		M0_LOG(M0_DEBUG, "On-disk pool param: %u:%u:%u:%u",
 				 state->pst_nr_nodes,
@@ -253,19 +270,46 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
 	}
 
 	m0_be_tx_fini(tx);
-
-out:
 	m0_free(tx);
 	return rc;
 }
 
-/**
- * Destroy pool machine state from persistent storage completely.
- */
-M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
-					  struct m0_be_seg   *be_seg,
-					  struct m0_sm_group *sm_grp,
-					  struct m0_dtm      *dtm)
+
+M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
+				       struct m0_be_seg   *be_seg,
+				       struct m0_sm_group *sm_grp,
+				       struct m0_dtm      *dtm,
+				       uint32_t            nr_nodes,
+				       uint32_t            nr_devices,
+				       uint32_t            max_node_failures,
+				       uint32_t            max_device_failures)
+{
+	int rc;
+
+	M0_PRE(!pm->pm_is_initialised);
+	M0_PRE(be_seg != NULL);
+
+	M0_ENTRY("sid: %"PRIu64, be_seg->bs_id);
+
+	/* XXX: Workaround over serveral pms. In real system has to be only one. */
+	if (!m0_be_seg_contains(be_seg, m0_get()->i_pool_module))
+		m0_get()->i_pool_module = NULL;
+
+	rc = m0_get()->i_pool_module != NULL ?
+		m0_poolmach_load(pm, m0_get()->i_pool_module, nr_nodes,
+				 nr_devices, max_node_failures,
+				 max_device_failures) :
+		poolmach_store_create(be_seg, sm_grp, nr_nodes, nr_devices,
+				      max_node_failures, max_device_failures);
+
+	if (rc == 0)
+		pm->pm_state = m0_get()->i_pool_module;
+
+	return rc;
+}
+
+static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
+				  struct m0_sm_group *sm_grp)
 {
 	struct m0_be_tx_credit      cred = {};
 	struct m0_be_tx            *tx;
@@ -273,25 +317,24 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 	struct m0_poolnode         *nodes_array;
 	struct m0_pooldev          *devices_array;
 	struct m0_pool_spare_usage *spare_usage_array;
-	const char                 *poolmach_name = "poolmach_state";
 	struct m0_pool_event_link  *scan;
 	struct m0_list_link        *prev;
 	struct m0_list_link        *next;
+	const char                 *id = "000000001";
 	int                         rc;
 
-	M0_PRE(pm->pm_is_initialised);
 	M0_PRE(be_seg != NULL);
-	M0_ENTRY();
+	M0_ENTRY("sid: %"PRIu64, be_seg->bs_id);
+
+	state = m0_get()->i_pool_module;
+	if (state == NULL)
+		return -ENOENT;
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
 		return -ENOMEM;
 
-	rc = m0_be_seg_dict_lookup(be_seg, poolmach_name, (void**)&state);
-	if (rc != 0)
-		goto out;
-
-	M0_BE_FREE_CREDIT_PTR(scan, pm->pm_be_seg, &cred);
+	M0_BE_FREE_CREDIT_PTR(scan, be_seg, &cred);
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(*scan));
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));
@@ -309,15 +352,14 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 		M0_ASSERT(rc == 0);
 
 		poolmach_events_tlink_del_fini(scan);
-		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, scan);
-		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, prev);
-		M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx, next);
+		M0_BE_TX_CAPTURE_PTR(be_seg, tx, scan);
+		M0_BE_TX_CAPTURE_PTR(be_seg, tx, prev);
+		M0_BE_TX_CAPTURE_PTR(be_seg, tx, next);
 
 		M0_BE_FREE_PTR_SYNC(scan, be_seg, tx);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 	} m0_tl_endfor;
-
 
 	M0_SET0(&cred);
 	m0_be_tx_init(tx, 0, be_seg->bs_domain, sm_grp, NULL, NULL, NULL, NULL);
@@ -327,9 +369,9 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 			      &cred);
 	M0_BE_FREE_CREDIT_ARR(spare_usage_array, state->pst_max_device_failures,
 			      be_seg, &cred);
-	m0_be_seg_dict_delete_credit(be_seg, poolmach_name, &cred);
+	m0_be_0type_del_credit(be_seg->bs_domain, &m0_be_pool0, id, &cred);
 	m0_be_tx_prep(tx, &cred);
-	rc = m0_be_tx_open_sync(tx);
+	rc = m0_be_tx_exclusive_open_sync(tx);
 	M0_ASSERT(rc == 0);
 	poolmach_events_tlist_init(&state->pst_events_list);
 	M0_BE_FREE_PTR_SYNC(state->pst_nodes_array, be_seg, tx);
@@ -337,14 +379,29 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 	M0_BE_FREE_PTR_SYNC(state->pst_spare_usage_array, be_seg, tx);
 	M0_BE_FREE_PTR_SYNC(state, be_seg, tx);
 
-	rc = m0_be_seg_dict_delete(be_seg, tx, poolmach_name);
+	rc = m0_be_0type_del(&m0_be_pool0, be_seg->bs_domain, tx, id);
 	M0_ASSERT(rc == 0);
+
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
-
-out:
 	m0_free(tx);
+
 	return rc;
+}
+
+/**
+ * Destroy pool machine state from persistent storage completely.
+ */
+M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
+					  struct m0_be_seg   *be_seg,
+					  struct m0_sm_group *sm_grp,
+					  struct m0_dtm      *dtm)
+{
+	M0_PRE(be_seg != NULL);
+	M0_PRE(pm->pm_is_initialised);
+
+	M0_ENTRY();
+	return M0_RC(poolmach_store_destroy(be_seg, sm_grp));
 }
 
 #else /* __KERNEL__ */

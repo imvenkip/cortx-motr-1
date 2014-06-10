@@ -106,8 +106,8 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 
 	M0_PRE(md != NULL && id != NULL && db != NULL);
 
-	M0_SET0(md);
-	rc = m0_cob_domain_init(&md->md_dom, db, id);
+	/* M0_SET0(md); */ /* XXXXXXXXXXXXXX */
+	rc = m0_cob_domain_init(md->md_dom, db, id);
 	if (rc != 0)
 		return rc;
 
@@ -122,7 +122,7 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 			/**
 			 * Check if omgid can be allocated.
 			 */
-			rc = m0_cob_alloc_omgid(&md->md_dom, NULL);
+			rc = m0_cob_alloc_omgid(md->md_dom, NULL);
 		}
 	}
 
@@ -137,15 +137,17 @@ M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
 	if (md->md_root != NULL)
 		m0_cob_put(md->md_root);
 	m0_addb_ctx_fini(&md->md_addb);
-	m0_cob_domain_fini(&md->md_dom);
+	m0_cob_domain_fini(md->md_dom);
 }
 
-M0_INTERNAL int m0_mdstore_create(struct m0_mdstore  *md,
-				  struct m0_sm_group *grp)
+M0_INTERNAL int m0_mdstore_create(struct m0_mdstore       *md,
+				  struct m0_sm_group      *grp,
+				  struct m0_cob_domain_id *id,
+				  struct m0_be_seg        *db)
 {
 	M0_PRE(md != NULL);
 
-	return m0_cob_domain_create(&md->md_dom, grp);
+	return m0_cob_domain_create(&md->md_dom, grp, id, db);
 }
 
 M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore  *md,
@@ -153,14 +155,14 @@ M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore  *md,
 {
 	M0_PRE(md != NULL);
 
-	return m0_cob_domain_destroy(&md->md_dom, grp);
+	return m0_cob_domain_destroy(md->md_dom, grp);
 }
 
 M0_INTERNAL void
 m0_mdstore_dir_nlink_update_credit(struct m0_mdstore *md,
 				   struct m0_be_tx_credit *accum)
 {
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_UPDATE, accum);
 }
 
 M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
@@ -178,7 +180,7 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 	 * be found by oikey(fid, 0):
 	 */
 	m0_cob_oikey_make(&oikey, fid, 0);
-	rc = m0_cob_locate(&md->md_dom, &oikey, 0, &cob);
+	rc = m0_cob_locate(md->md_dom, &oikey, 0, &cob);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "cannot locate stat data for dir "FID_F" - %d",
 		       FID_P(fid), rc);
@@ -201,7 +203,7 @@ M0_INTERNAL void
 m0_mdstore_create_credit(struct m0_mdstore *md,
 			 struct m0_be_tx_credit *accum)
 {
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_CREATE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_CREATE, accum);
 	m0_mdstore_dir_nlink_update_credit(md, accum);
 }
 
@@ -231,7 +233,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 	M0_SET0(&nsrec);
 	M0_SET0(&omgrec);
 
-	rc = m0_cob_alloc(&md->md_dom, &cob);
+	rc = m0_cob_alloc(md->md_dom, &cob);
 	if (rc != 0)
 		goto out;
 
@@ -288,8 +290,8 @@ M0_INTERNAL void
 m0_mdstore_link_credit(struct m0_mdstore *md,
 		       struct m0_be_tx_credit *accum)
 {
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_NAME_ADD, accum);
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_NAME_ADD, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_UPDATE, accum);
 }
 
 M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
@@ -388,9 +390,9 @@ M0_INTERNAL void
 m0_mdstore_unlink_credit(struct m0_mdstore *md,
 		         struct m0_be_tx_credit *accum)
 {
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_NAME_UPDATE, accum);
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_DELETE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_UPDATE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_NAME_UPDATE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_DELETE, accum);
 }
 
 M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
@@ -468,7 +470,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 				m0_cob_oikey_make(&oikey, m0_cob_fid(cob),
 						  cob->co_nsrec.cnr_linkno + 1);
 
-				rc = m0_cob_locate(&md->md_dom, &oikey, 0, &ncob);
+				rc = m0_cob_locate(md->md_dom, &oikey, 0, &ncob);
 				if (rc != 0) {
 					M0_LOG(M0_DEBUG, "m0_mdstore_unlink(): locate "
 					       "failed with %d", rc);
@@ -572,7 +574,7 @@ m0_mdstore_rename_credit(struct m0_mdstore *md,
 		         struct m0_be_tx_credit *accum)
 {
 	m0_mdstore_unlink_credit(md, accum);
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_NAME_UPDATE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_NAME_UPDATE, accum);
 }
 
 M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
@@ -643,7 +645,7 @@ M0_INTERNAL void
 m0_mdstore_setattr_credit(struct m0_mdstore *md,
 		          struct m0_be_tx_credit *accum)
 {
-	m0_cob_tx_credit(&md->md_dom, M0_COB_OP_UPDATE, accum);
+	m0_cob_tx_credit(md->md_dom, M0_COB_OP_UPDATE, accum);
 }
 
 M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
@@ -903,7 +905,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 	m0_cob_oikey_make(&oikey, fid, 0);
 
 	if (flags == M0_MD_LOCATE_STORED) {
-		rc = m0_cob_locate(&md->md_dom, &oikey,
+		rc = m0_cob_locate(md->md_dom, &oikey,
 				   (M0_CA_FABREC | M0_CA_OMGREC), cob);
 	} else {
 		/*
@@ -963,7 +965,7 @@ M0_INTERNAL int m0_mdstore_lookup(struct m0_mdstore     *md,
 	        if (rc != 0)
 		        goto out;
 	        flags = (M0_CA_NSKEY_FREE | M0_CA_FABREC | M0_CA_OMGREC);
-	        rc = m0_cob_lookup(&md->md_dom, nskey, flags, cob);
+		rc = m0_cob_lookup(md->md_dom, nskey, flags, cob);
 	}
 out:
 	return M0_RC(rc);
