@@ -15,6 +15,10 @@ export M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-'fatal+'}
 # will need the following symlink to be created: `ln -s ut.sh ub.sh'.
 EXEC=`echo ${0##*/} | sed 's/\.sh$//'`
 
+DIR=${RUNDIR:-/var/mero/ut}
+mkdir -p $DIR
+cd $DIR
+
 if test x$enable_rpm = xyes; then
     $EXEC "$@"
 elif test x$1 = x-d ;then
