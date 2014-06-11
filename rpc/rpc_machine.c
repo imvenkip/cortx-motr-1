@@ -850,9 +850,19 @@ static void item_received(struct m0_rpc_item      *item,
 	struct m0_rpc_machine *machine = item->ri_rmachine;
 	int                    rc;
 
-	M0_ENTRY("machine: %p, item: %p, ep_addr: %s", machine,
-		 item, (char *)from_ep->nep_addr);
+	M0_ENTRY("machine: %p, item: %p (%s) size %zu "
+		 "opcode %"PRIu32" xid %"PRIu64" "
+		 "from ep_addr: %s, oneway = %d",
+		 machine, item, item_kind(item), item->ri_size,
+		 item->ri_type->rit_opcode, item->ri_header.osr_xid,
+		 (char *)from_ep->nep_addr,
+		 !!m0_rpc_item_is_oneway(item));
 
+	if (M0_FI_ENABLED("drop_item_reply") && m0_rpc_item_is_reply(item)) {
+		M0_LOG(M0_DEBUG, "item: %p [%s/%u] dropped", item,
+			item_kind(item), item->ri_type->rit_opcode);
+		return;
+	}
 	if (M0_FI_ENABLED("drop_item")) {
 		M0_LOG(M0_DEBUG, "item: %p [%s/%u] dropped", item,
 			item_kind(item), item->ri_type->rit_opcode);

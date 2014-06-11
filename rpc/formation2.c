@@ -288,7 +288,10 @@ static void frm_insert(struct m0_rpc_frm *frm, struct m0_rpc_item *item)
 	struct m0_tl               *q;
 	int                         rc;
 
-	M0_ENTRY("frm: %p item: %p", frm, item);
+	M0_ENTRY("frm: %p item: %p size %zu opcode %lu xid %lu",
+		 frm, item, item->ri_size,
+		 (unsigned long)item->ri_type->rit_opcode,
+		 (unsigned long)item->ri_header.osr_xid);
 	M0_PRE(item != NULL && !itemq_tlink_is_in(item));
 	M0_LOG(M0_DEBUG, "priority: %d", item->ri_prio);
 

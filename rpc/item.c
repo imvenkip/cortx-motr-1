@@ -462,6 +462,82 @@ M0_INTERNAL bool m0_rpc_item_is_oneway(const struct m0_rpc_item *item)
 	return (item->ri_type->rit_flags & M0_RPC_ITEM_TYPE_ONEWAY) != 0;
 }
 
+static bool rpc_item_needs_xid(const struct m0_rpc_item *item)
+{
+	return !m0_rpc_item_is_oneway(item) &&
+	       !m0_rpc_item_is_reply(item) &&
+	       !M0_IN(item->ri_type->rit_opcode,
+		      (M0_RPC_CONN_ESTABLISH_OPCODE,
+		       M0_RPC_CONN_ESTABLISH_REP_OPCODE,
+		       M0_RPC_CONN_TERMINATE_OPCODE,
+		       M0_RPC_CONN_TERMINATE_REP_OPCODE));
+}
+
+M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
+{
+	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));
+
+	/*
+	 * xid needs to be assigned only once.
+	 * At this point ri_nr_send is already incremented.
+	 *
+	 * xid for reply is not changed. It is already set to the request xid.
+	 */
+	if (item->ri_nr_sent == 1 && !m0_rpc_item_is_reply(item)) {
+		item->ri_header.osr_xid = rpc_item_needs_xid(item) ?
+					  ++item->ri_session->s_xid :
+					  UINT64_MAX;
+		M0_LOG(M0_DEBUG, "set item xid = %"PRIu64,
+		       item->ri_header.osr_xid);
+	}
+}
+
+/**
+ * Returns either item should be handled or not.
+ * Decision is based on the item xid.
+ *
+ * TODO Resends reply for already handled items.
+ */
+M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item)
+{
+	struct m0_rpc_session *sess = item->ri_session;
+	uint64_t               xid  = item->ri_header.osr_xid;
+	struct m0_rpc_item    *cached;
+
+	/* If item doesn't need xid then xid doesn't need to be checked */
+	if (!rpc_item_needs_xid(item))
+		return true;
+	/*
+	 * Item wasn't received yet and wasn't handled yet.
+	 * It is the normal case.
+	 */
+	if (M0_IN(xid, (sess->s_xid + 1, UINT64_MAX))) {
+		++sess->s_xid;
+		return true;
+	}
+	/* Resend reply if it is available for the request */
+	cached = m0_rpc_item_cache_lookup(&sess->s_reply_cache, xid);
+	if (cached != NULL) {
+		/** TODO REPLY RESEND CODE BEGINS */
+		/*
+		 * TODO list
+		 * - m0_rpc_item_send_reply() should use
+		 *   m0_rpc_item_cache_add();
+		 * - rpc-item-ut:item-resend and rpc-item-ut:reply-item-error
+		 *   should be enabled;
+		 * - cache eviction algorithm should use
+		 *   m0_rpc_item_cache_del().
+		 */
+		/** TODO REPLY RESEND CODE ENDS */
+		return false;
+	}
+	/* Misordered request without reply - just drop it. */
+	M0_LOG(M0_NOTICE, "item: %p [%s/%u] misordered %"PRIu64" != %"PRIu64,
+	       item, item_kind(item), item->ri_type->rit_opcode,
+	       xid, sess->s_xid + 1);
+	return false;
+}
+
 M0_INTERNAL void m0_rpc_item_sm_init(struct m0_rpc_item *item,
 				     enum m0_rpc_item_dir dir)
 {
@@ -574,6 +650,7 @@ void m0_rpc_item_cancel(struct m0_rpc_item *item)
 						 M0_RPC_ITEM_URGENT,
 						 M0_RPC_ITEM_SENDING)))
 			m0_rpc_item_put(item);
+		M0_LOG(M0_DEBUG, "Cancel item.");
 		m0_rpc_item_failed(item, -ECANCELED);
 		item->ri_error = 0;
 	}
@@ -720,7 +797,8 @@ static void item_resend(struct m0_rpc_item *item)
 		break;
 
 	default:
-		M0_ASSERT(false);
+		M0_ASSERT_INFO(false, "item->ri_sm.sm_state = %d",
+			       item->ri_sm.sm_state);
 	}
 }
 
@@ -729,7 +807,8 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	uint32_t state = item->ri_sm.sm_state;
 	int      rc;
 
-	M0_ENTRY("item: %p", item);
+	M0_ENTRY("item: %p ri_nr_sent_max = %"PRIu64", ri_deadline = %"PRIu64,
+		 item, item->ri_nr_sent_max, item->ri_deadline);
 	M0_PRE(item != NULL && m0_rpc_machine_is_locked(item->ri_rmachine));
 	M0_PRE(m0_rpc_item_is_request(item) || m0_rpc_item_is_reply(item));
 	M0_PRE(ergo(m0_rpc_item_is_request(item),
@@ -816,6 +895,30 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	if (sess == NULL)
 		return M0_RC(-ENOENT);
 	item->ri_session = sess;
+
+	/*
+	 * If item is a request, then it may be the first arrival of the
+	 * request item, or the same request may be sent again if resend
+	 * interval passed. In either case item shouldn't be handled again
+	 * and reply should be sent again if the item is already handled.
+	 *
+	 * To prevent second handling of the same item xid is assigned to each
+	 * eligible rpc item (see rpc_item_needs_xid()). It is checked on the
+	 * other side (in this function). Session on the client and on the
+	 * server has xid counter, and items with wrong xid are just dropped.
+	 * In case if there is a reply in the reply cache the reply is sent
+	 * again.
+	 *
+	 * TBD: reply cache description.
+	 *
+	 * Note that there is no duplicate or out-of-order detection for oneway
+	 * or connection establish rpc items.
+	 *
+	 * xid-based duplicate and out-of-order checks are only temporary
+	 * solutions until DTM is implemented.
+	 */
+	if (!m0_rpc_item_xid_check(item))
+		return 0;
 
 	if (m0_rpc_item_is_request(item)) {
 		m0_rpc_session_hold_busy(sess);
@@ -963,6 +1066,11 @@ M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 
 	m0_rpc_session_release(req->ri_session);
 	reply->ri_header = req->ri_header;
+	/* see m0_rpc_item_xid_check() */
+	if (0) {
+		m0_rpc_item_cache_add(&reply->ri_session->s_reply_cache,
+				      reply, /* XXX */ M0_TIME_NEVER);
+	}
 	m0_rpc_item_send(reply);
 
 	/*

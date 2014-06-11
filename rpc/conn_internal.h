@@ -130,6 +130,11 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *req);
 M0_INTERNAL bool m0_rpc_item_is_conn_establish(const struct m0_rpc_item *item);
 
 /**
+   Returns true if given rpc item is session_establish.
+ */
+M0_INTERNAL bool m0_rpc_item_is_sess_establish(const struct m0_rpc_item *item);
+
+/**
    @see m0_rpc_fop_conn_establish_ctx for more information.
  */
 M0_INTERNAL void m0_rpc_fop_conn_establish_ctx_init(struct m0_rpc_item *item,

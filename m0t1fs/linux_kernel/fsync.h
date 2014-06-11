@@ -271,7 +271,7 @@ struct m0t1fs_service_txid {
         'EINVAL' as the return code in 'ffr_rc'.
 
         This error could also occur if rpc_items are replayed in a different
-        order, the m0_rpc_conn::c_xid field suggests that any replay will
+	order, the m0_rpc_session::s_xid field suggests that any replay will
         occur in the original order. This scenario is not considered.
 
    - transaction ID overflow

@@ -292,7 +292,6 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_rpc_machine = machine;
 	conn->c_sender_id   = SENDER_ID_INVALID;
 	conn->c_nr_sessions = 0;
-	conn->c_xid         = 0;
 
 	rpc_session_tlist_init(&conn->c_sessions);
 	item_source_tlist_init(&conn->c_item_sources);
@@ -906,7 +905,14 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_sent(struct m0_rpc_conn *conn)
 
 M0_INTERNAL bool m0_rpc_item_is_conn_establish(const struct m0_rpc_item *item)
 {
-	return item->ri_type->rit_opcode == M0_RPC_CONN_ESTABLISH_OPCODE;
+	return item->ri_type ==
+	       &m0_rpc_fop_conn_establish_fopt.ft_rpc_item_type;
+}
+
+M0_INTERNAL bool m0_rpc_item_is_sess_establish(const struct m0_rpc_item *item)
+{
+	return item->ri_type ==
+	       &m0_rpc_fop_session_establish_fopt.ft_rpc_item_type;
 }
 
 /**

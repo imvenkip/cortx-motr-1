@@ -132,7 +132,6 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	item->ri_header.osr_uuid       = session->s_conn->c_uuid;
 	item->ri_header.osr_sender_id  = session->s_conn->c_sender_id;
 	item->ri_header.osr_session_id = session->s_session_id;
-	item->ri_header.osr_xid        = session->s_conn->c_xid++;
 
 	m0_rpc_item_send(item);
 

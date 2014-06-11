@@ -241,6 +241,7 @@ M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
 	rc = packet_header_encdec(&packet->rp_ow, cursor, M0_XCODE_ENCODE);
 	if (rc == 0) {
 		for_each_item_in_packet(item, packet) {
+			m0_rpc_item_xid_assign(item);
 			rc = item_encode(item, cursor);
 			if (rc != 0)
 				break;

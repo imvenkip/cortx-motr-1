@@ -25,6 +25,8 @@
 #ifndef __MERO_RPC_SESSION_H__
 #define __MERO_RPC_SESSION_H__
 
+#include "rpc/item.h"
+
 /**
 
 @defgroup rpc_session RPC Sessions
@@ -320,6 +322,15 @@ struct m0_rpc_session {
 
 	/** M0_RPC_SESSION_MAGIC */
 	uint64_t		  s_magic;
+
+	/** Unique item identifier counter */
+	uint64_t                  s_xid;
+
+	/**
+	 * Replies to resend if needed.
+	 * This cache is protected with rpc machine lock.
+	 */
+	struct m0_rpc_item_cache  s_reply_cache;
 };
 
 /**

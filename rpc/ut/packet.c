@@ -90,7 +90,9 @@ static void test_packet_encode_decode(void)
 	 */
 	rc = m0_bufvec_alloc_aligned(&bufvec, 1, bufvec_size, M0_SEG_SHIFT);
 	M0_UT_ASSERT(rc == 0);
+	m0_sm_group_lock(&rmachine.rm_sm_grp);
 	rc = m0_rpc_packet_encode(&packet, &bufvec);
+	m0_sm_group_unlock(&rmachine.rm_sm_grp);
 	M0_UT_ASSERT(rc == 0);
 	m0_rpc_packet_init(&decoded_packet, &rmachine);
 	rc = m0_rpc_packet_decode(&decoded_packet, &bufvec, 0, bufvec_size);
