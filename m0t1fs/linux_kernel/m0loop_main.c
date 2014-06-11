@@ -855,26 +855,16 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 
 	mapping = file->f_mapping;
 	inode = mapping->host;
-
-	if (!(file->f_mode & FMODE_WRITE))
-		lo_flags |= LO_FLAGS_READ_ONLY;
-
 	error = -EINVAL;
-	if (S_ISREG(inode->i_mode) || S_ISBLK(inode->i_mode)) {
-		const struct address_space_operations *aops = mapping->a_ops;
+        if (!S_ISREG(inode->i_mode) && !S_ISBLK(inode->i_mode))
+                goto out_putf;
 
-		if (aops->write_begin)
-			lo_flags |= LO_FLAGS_USE_AOPS;
-		if (!(lo_flags & LO_FLAGS_USE_AOPS) && !file->f_op->write)
-			lo_flags |= LO_FLAGS_READ_ONLY;
+        if (!(file->f_mode & FMODE_WRITE) || !(mode & FMODE_WRITE) ||
+            !file->f_op->write)
+                lo_flags |= LO_FLAGS_READ_ONLY;
 
-		lo_blocksize = S_ISBLK(inode->i_mode) ?
-			inode->i_bdev->bd_block_size : PAGE_SIZE;
-
-		error = 0;
-	} else {
-		goto out_putf;
-	}
+        lo_blocksize = S_ISBLK(inode->i_mode) ?
+                inode->i_bdev->bd_block_size : PAGE_SIZE;
 
 	/* m0t1fs must have it */
 	if (!file->f_op->aio_read || !file->f_op->aio_write) {
@@ -915,10 +905,12 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	lo->lo_queue->unplug_fn = loop_unplug;
 
 	if (!(lo_flags & LO_FLAGS_READ_ONLY) && file->f_op->fsync)
-		blk_queue_ordered(lo->lo_queue, QUEUE_ORDERED_DRAIN, NULL);
+		blkdev_issue_flush(bdev, NULL);
 
 	set_capacity(lo->lo_disk, size);
 	bd_set_size(bdev, size << 9);
+        /* let user-space know about the new size */
+        kobject_uevent(&disk_to_dev(bdev->bd_disk)->kobj, KOBJ_CHANGE);
 
 	set_blocksize(bdev, lo_blocksize);
 
@@ -977,6 +969,22 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 	if (lo->lo_refcnt > 1)	/* we needed one fd for the ioctl */
 		return -EBUSY;
 
+        /*
+         * If we've explicitly asked to tear down the loop device,
+         * and it has an elevated reference count, set it for auto-teardown when
+         * the last reference goes away. This stops $!~#$@ udev from
+         * preventing teardown because it decided that it needs to run blkid on
+         * the loopback device whenever they appear. xfstests is notorious for
+         * failing tests because blkid via udev races with a losetup
+         * <dev>/do something like mkfs/losetup -d <dev> causing the losetup -d
+         * command to fail with EBUSY.
+         */
+        if (lo->lo_refcnt > 1) {
+                lo->lo_flags |= LO_FLAGS_AUTOCLEAR;
+                mutex_unlock(&lo->lo_ctl_mutex);
+                return 0;
+        }
+
 	if (filp == NULL)
 		return -EINVAL;
 
@@ -1013,6 +1021,7 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 	module_put(THIS_MODULE);
 	if (max_part > 0 && bdev)
 		ioctl_by_bdev(bdev, BLKRRPART, 0);
+        lo->lo_flags = 0;
 	mutex_unlock(&lo->lo_ctl_mutex);
 	/*
 	 * Need not hold lo_ctl_mutex to fput backing file.

@@ -42,9 +42,15 @@ enum {
 #define CHAR_MIN (-(CHAR_MAX) - 1)
 #define CHAR_MAX 127
 #define UCHAR_MAX (~0)
+#ifndef SHRT_MIN
 #define SHRT_MIN SHORT_MIN
+#endif
+#ifndef SHRT_MAX
 #define SHRT_MAX SHORT_MAX
+#endif
+#ifndef USHRT_MAX
 #define USHRT_MAX USHORT_MAX
+#endif
 #endif
 
 struct simple_struct {
