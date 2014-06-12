@@ -210,17 +210,17 @@ profile_err:
  * disconnects from confd.
  */
 M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
-				const char *profile)
+				const char *profile, const char *local_addr)
 {
 	enum {
 		MAX_RPCS_IN_FLIGHT = 32,
 	};
-	static struct m0_net_domain     client_net_dom;
-	static struct m0_rpc_client_ctx cctx;
-	static char                     client_ep[M0_NET_LNET_XEP_ADDR_LEN];
-	static char                     server_ep[M0_NET_LNET_XEP_ADDR_LEN];
-	static struct m0_net_xprt      *xprt = &m0_net_lnet_xprt;
-	int                             rc;
+	static struct m0_net_domain      client_net_dom;
+	static struct m0_rpc_client_ctx  cctx;
+	static char                      client_ep[M0_NET_LNET_XEP_ADDR_LEN];
+	static char                      server_ep[M0_NET_LNET_XEP_ADDR_LEN];
+	static struct m0_net_xprt       *xprt = &m0_net_lnet_xprt;
+	int                              rc;
 
 	M0_ENTRY();
 	M0_PRE(confd_addr != NULL && profile != NULL);
@@ -235,7 +235,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	cctx.rcx_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
 	strcpy(server_ep, confd_addr);
-	strcpy(client_ep, confd_addr);
+	strcpy(client_ep, local_addr);
 	{
 		char *se = strrchr(client_ep, ':');
 		if (se == NULL)

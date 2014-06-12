@@ -1799,11 +1799,12 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 
 static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 {
-	int                     rc;
-	const char             *confd_addr = NULL;
-	const char             *profile = NULL;
-	const char             *genders = NULL;
-	bool                    use_genders = false;
+	int         rc;
+	const char *confd_addr  = NULL;
+	const char *local_addr  = NULL;
+	const char *profile     = NULL;
+	const char *genders     = NULL;
+	bool        use_genders = false;
 
 	M0_ENTRY();
 
@@ -1839,7 +1840,8 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	}
 
 	if (confd_addr != NULL || profile != NULL) {
-		struct cs_args *args = &cctx->cc_args;
+		struct cs_args              *args = &cctx->cc_args;
+		struct cs_endpoint_and_xprt *epx;
 
 		if (confd_addr == NULL)
 			return M0_ERR(-EPROTO,
@@ -1848,7 +1850,9 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 			return M0_ERR(-EPROTO,
 				"configuration profile is not specified");
 
-		rc = cs_conf_to_args(args, confd_addr, profile);
+		epx        = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
+		local_addr = epx->ex_endpoint;
+		rc = cs_conf_to_args(args, confd_addr, profile, local_addr);
 		if (rc != 0)
 			return M0_RC(rc);
 
