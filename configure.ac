@@ -110,6 +110,7 @@ AS_CASE([$host_os],
 AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
 AC_ARG_VAR([GCCXML],  [gccxml command])
 
+AH_TEMPLATE([CONFIG_LNET_MAX_PAYLOAD],[Max LNET payload.])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
 AH_TEMPLATE([ENABLE_DEBUG],           [Enable debug info and disable optimizations.])
@@ -132,6 +133,8 @@ AH_TEMPLATE([HAVE_SENDFILE],          [Have .sendfile])
 AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
+
+AC_DEFINE_UNQUOTED([CONFIG_LNET_MAX_PAYLOAD], [LNET_MTU])
 
 AC_ARG_ENABLE([dev-mode],
         [AS_HELP_STRING([--disable-dev-mode],
@@ -279,6 +282,13 @@ package or provide the path to a directory with built Lustre sources, \
 using --with-lustre option.])]
 )
 AC_SUBST([LUSTRE])
+
+LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I $LUSTRE/lnet/include -I$LUSTRE/lustre/include"
+LUSTRE_VERSION=`echo $LUSTRE | cut -d "-" -f 2 | cut -d "." -f 1-2`
+LHSM_BUILD_VERSION=2.5
+AC_SUBST([LUSTRE_VERSION])
+AS_VERSION_COMPARE(${LUSTRE_VERSION}, ${LHSM_BUILD_VERSION}, [LHSM_BUILD=0], [LHSM_BUILD=1], [LHSM_BUILD=1])
+AM_CONDITIONAL([LHSM_BUILD], [test "$LHSM_BUILD" = 1])
 
 AC_ARG_WITH([segment-size],
         [AS_HELP_STRING([--with-segment-size=number],
@@ -632,7 +642,7 @@ AS_IF([test x$enable_mcheck = xyes],
 # Set up build variables
 #
 
-M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES $DB_INCLUDES $M0_CPPFLAGS"
+M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES $DB_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
