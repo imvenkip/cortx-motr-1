@@ -115,8 +115,6 @@ install_files()
                 'scripts/install/etc/init/mero-kernel.conf' \
                 'scripts/install/etc/init/mero-singlenode.conf' \
                 'scripts/install/etc/init/mero-server.conf' \
-                'scripts/install/etc/init/mero-mkfs.conf' \
-                'scripts/install/etc/init/mero-m0d.conf' \
                 'scripts/install/etc/init/mero-trace.conf' ;
     do
         run "$cmd $(pwd)/$file $dir"
@@ -153,8 +151,6 @@ uninstall_files()
                 '/etc/init/mero-kernel.conf' \
                 '/etc/init/mero-singlenode.conf' \
                 '/etc/init/mero-server.conf' \
-                '/etc/init/mero-mkfs.conf' \
-                '/etc/init/mero-m0d.conf' \
                 '/etc/init/mero-trace.conf' \
                 '/etc/mero/disks-singlenode.conf' \
                 '/etc/mero/genders' \
