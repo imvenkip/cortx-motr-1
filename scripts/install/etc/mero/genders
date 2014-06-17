@@ -8,3 +8,4 @@
 <host>  m0_uuid=00000000-0000-0000-0000-000000000000
 <host>  m0_min_rpc_recvq_len=48
 <host>  m0_lnet_nid=auto
+<host>  m0_node_type=singlenode

@@ -656,6 +656,7 @@ include $(top_srcdir)/stats/util/Makefile.sub
 
 etc_initdir    = $(sysconfdir)/init
 etc_init_DATA  = scripts/install/etc/init/mero.conf \
+                 scripts/install/etc/init/mero-autostart.conf \
                  scripts/install/etc/init/mero-client.conf \
                  scripts/install/etc/init/mero-kernel.conf \
                  scripts/install/etc/init/mero-singlenode.conf \

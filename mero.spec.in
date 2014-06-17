@@ -65,6 +65,7 @@ make %{?_smp_mflags}
 rm -rf %{buildroot}
 make DESTDIR=%{buildroot} install
 find %{buildroot} -name '*.la' -exec rm -f {} ';'
+mkdir -p %{buildroot}%{_localstatedir}/mero
 
 %files
 %doc AUTHORS README NEWS ChangeLog COPYING
@@ -72,6 +73,7 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 %{_sbindir}/*
 %{_libdir}/*
 %{_mandir}/*
+%{_localstatedir}/mero
 /lib/modules/*
 %config  %{_sysconfdir}/*
 %exclude %{_includedir}

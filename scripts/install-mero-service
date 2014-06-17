@@ -110,7 +110,8 @@ install_files()
     fi
 
     dir='/etc/init'
-    for file in 'scripts/install/etc/init/mero.conf' \
+    for file in 'scripts/install/etc/init/mero-autostart.conf' \
+                'scripts/install/etc/init/mero.conf' \
                 'scripts/install/etc/init/mero-client.conf' \
                 'scripts/install/etc/init/mero-kernel.conf' \
                 'scripts/install/etc/init/mero-singlenode.conf' \
@@ -146,6 +147,7 @@ install_files()
 uninstall_files()
 {
     for file in '/etc/sysconfig/mero' \
+                '/etc/init/mero-autostart.conf' \
                 '/etc/init/mero.conf' \
                 '/etc/init/mero-client.conf' \
                 '/etc/init/mero-kernel.conf' \
