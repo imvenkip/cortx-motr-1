@@ -151,6 +151,7 @@ M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **out,
 {
 	int rc;
 
+	M0_ENTRY();
 	M0_PRE(out != NULL && stype != NULL);
 
         rc = stype->rst_ops->rsto_service_allocate(out, stype, rctx);
@@ -163,7 +164,7 @@ M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **out,
 			service->rs_level = stype->rst_level;
 		M0_POST(m0_reqh_service_invariant(service));
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static void reqh_service_state_set(struct m0_reqh_service *service,
