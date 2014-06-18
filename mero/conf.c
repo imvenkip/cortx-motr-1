@@ -210,7 +210,8 @@ profile_err:
  * disconnects from confd.
  */
 M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
-				const char *profile, const char *local_addr)
+				const char *profile, const char *local_addr,
+				unsigned timeout, unsigned retry)
 {
 	enum {
 		MAX_RPCS_IN_FLIGHT = 32,
@@ -221,6 +222,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	static char                      server_ep[M0_NET_LNET_XEP_ADDR_LEN];
 	static struct m0_net_xprt       *xprt = &m0_net_lnet_xprt;
 	int                              rc;
+	unsigned                         i;
 
 	M0_ENTRY();
 	M0_PRE(confd_addr != NULL && profile != NULL);
@@ -253,7 +255,23 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	if (rc != 0)
 		goto xprt;
 
-	rc = m0_rpc_client_start(&cctx);
+	/*
+	 * confd service should be started before other services.
+	 * Following loop checks for availability of confd service, retrying
+	 * for 10 minutes. If for 10 minutes, it cannot connect to confd,
+	 * it exits.
+	 *
+	 * XXX FIXME: This solution is a workaround, introduced during AAA, and
+	 * is not the right way to handle the dependency of services on confd.
+	 */
+	for (i = 0; i < retry; ++i) {
+		rc = m0_rpc_client_start(&cctx);
+		if (rc == -EHOSTUNREACH)
+			m0_nanosleep(m0_time_from_now(timeout, 0), NULL);
+		else
+			break;
+	}
+
 	if (rc != 0)
 		goto net_dom;
 

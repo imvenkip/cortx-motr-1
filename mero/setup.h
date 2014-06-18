@@ -368,6 +368,12 @@ struct m0_mero {
 	/** Segment size for any ADDB stob. */
 	size_t                      cc_addb_stob_segment_size;
 
+	/** Number of retries in connecting to confd */
+	unsigned                    cc_confd_conn_retry;
+
+	/** Timeout value (in seconds) to wait for connection to confd. */
+	unsigned                    cc_confd_timeout;
+
 	/** "stats" service endpoint. */
 	struct cs_endpoint_and_xprt cc_stats_svc_epx;
 

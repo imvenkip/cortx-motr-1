@@ -67,6 +67,11 @@
  */
 static int cdom_id;
 
+enum {
+	CONFD_CONN_TIMEOUT = 5,
+	CONFD_CONN_RETRY   = 1
+};
+
 M0_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the mero context",
 		   static, struct cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
 		   M0_CS_BUFFER_POOL_MAGIC, M0_CS_BUFFER_POOL_HEAD_MAGIC);
@@ -1462,6 +1467,8 @@ static void cs_help(FILE *out, const char *progname)
 "  -Z       Run as a daemon.\n"
 "  -R addr  Stats service endpoint address.\n"
 "  -F       Force mkfs to override found filesystem.\n"
+"  -t num   Timeout value to wait for connection to confd. (default %u sec)\n"
+"  -r num   Number of retries in connecting to confd. (default %u)\n"
 "\n"
 "Request handler options:\n"
 "  -D str   Database environment path.\n"
@@ -1501,7 +1508,8 @@ static void cs_help(FILE *out, const char *progname)
 "\n"
 "Example:\n"
 "    %s -Q 4 -M 4096 -T linux -D dbpath -S stobfile \\\n"
-"        -e lnet:172.18.50.40@o2ib1:12345:34:1 -s mds -q 8 -m 65536\n", progname);
+"        -e lnet:172.18.50.40@o2ib1:12345:34:1 -s mds -q 8 -m 65536\n",
+CONFD_CONN_TIMEOUT, CONFD_CONN_RETRY, progname);
 }
 
 static int reqh_ctx_validate(struct m0_mero *cctx)
@@ -1711,6 +1719,16 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				})),
 			M0_FORMATARG('w', "Pool Width", "%i",
 				     &cctx->cc_pool_width),
+			M0_NUMBERARG('r', "confd retry",
+				LAMBDA(void, (int64_t val)
+				{
+					cctx->cc_confd_conn_retry = val;
+				})),
+			M0_NUMBERARG('t', "confd timeout",
+				LAMBDA(void, (int64_t val)
+				{
+					cctx->cc_confd_timeout = val;
+				})),
 			M0_FLAGARG('g', "Bootstrap from genders", use_genders),
 			M0_STRINGARG('f', "Genders file",
 				LAMBDA(void, (const char *s)
@@ -1858,7 +1876,11 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 
 		epx        = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
 		local_addr = epx->ex_endpoint;
-		rc = cs_conf_to_args(args, confd_addr, profile, local_addr);
+		rc = cs_conf_to_args(args, confd_addr, profile, local_addr,
+				     cctx->cc_confd_timeout ?:
+						CONFD_CONN_TIMEOUT,
+				     cctx->cc_confd_conn_retry ?:
+						CONFD_CONN_RETRY);
 		if (rc != 0)
 			return M0_RC(rc);
 
