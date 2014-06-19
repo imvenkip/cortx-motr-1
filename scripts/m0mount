@@ -92,7 +92,7 @@ Where:
 
 -h: Print this help.
 
--m NUM: Whether to run mkfs before starting m0d or not, 1 - yes, 0 - no (default is $run_mkfs)
+-m: Run m0mkfs before starting m0d.
 
 -n NUM: Start 'NUM' number of local m0d. (default is $SERVICES_NR)
 
@@ -109,7 +109,7 @@ Where:
 .
 }
 
-OPTIONS_STRING="acln:d:k:p:u:qhLsvm:"
+OPTIONS_STRING="acln:d:k:p:u:qhLsvm"
 
 # This example puts 3 ioservices on 3 nodes
 SERVICES=(
@@ -134,7 +134,7 @@ DISKS_PATTERN="/dev/disk/by-id/scsi-35*"
 STOB=linux
 UNIT_SIZE=262144
 client_only=0
-run_mkfs=1
+run_mkfs=0
 use_loop_device=0
 setup_loops_p=0
 loop_used=-1
@@ -500,8 +500,7 @@ function start_server ()
 	fi
 	local SDIR=$WORK_ARENA/d$I
 	local DDIR=$SDIR
-	[ $run_mkfs -eq 1 ] && $DO rm -rf $SDIR
-	[ $run_mkfs -eq 1 ] && $DO mkdir -p $SDIR
+	[ $run_mkfs -eq 1 ] && $DO "rm -rf $SDIR; mkdir $SDIR"
 	local DF=$SDIR/m0d.sh
 	local DISKS_SH_FILE=$WORK_ARENA/disks$dcf_id.conf
 	local STOB_PARAMS="-T linux"
@@ -549,7 +548,7 @@ function start_server ()
 		fi
 		if [ $run_mkfs -eq 1 ]; then
 			echo Running mkfs...
-			$DO "rm -rf $DIR; mkdir -p $DIR"
+			$DO "rm -rf $DIR; mkdir $DIR"
 			$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
@@ -726,9 +725,6 @@ EOF
 	teardown_hosts
 	for ((i = $loop_used; i >= 0; i--)); do
 		losetup -d /dev/loop$i
- 		# In case we run with -m 0, that is no mkfs we need to
- 		# reuse old images.
-		#rm -f $WORK_ARENA/disk-image-$i
 	done
 }
 
@@ -826,7 +822,7 @@ while getopts "$OPTIONS_STRING" OPTION; do
             client_only=1
             ;;
         m)
-            run_mkfs="$OPTARG"
+            run_mkfs=1
             ;;
         l)
             use_loop_device=1
