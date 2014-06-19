@@ -278,17 +278,10 @@ struct m0_reqh_service {
    Asynchronous service startup context.
  */
 struct m0_reqh_service_start_async_ctx {
-	/**
-	   Pointer to the service object.
-	 */
 	struct m0_reqh_service *sac_service;
-	/**
-	   Startup FOM.  Pass to m0_fom_wakeup() to awaken the FOM.
-	 */
+	/** SSS (start/stop service) FOM. */
 	struct m0_fom          *sac_fom;
-	/**
-	   Result of startup activity.
-	 */
+	/** Result of startup activity. */
 	int                     sac_rc;
 };
 
@@ -657,16 +650,23 @@ M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
 				      struct m0_reqh *reqh,
 				      struct m0_reqh_context *rctx,
 				      const struct m0_uint128 *uuid);
-/**
- * Dual to m0_reqh_service_setup(), stops and finalises the service.
- */
+
+/** Dual to m0_reqh_service_setup(), stops and finalises the service. */
 M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc);
 
+/**
+ * Implementation of simple .rso_start_async().
+ *
+ * @note:
+ * Currently all services uses simple async service start
+ * which is not really async implementation. But later it
+ * may require to implement async service startup.
+ */
+M0_INTERNAL int
+m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc);
+
 /** @} endgroup reqhservice */
-
-/* __MERO_REQH_REQH_SERVICE_H__ */
-
-#endif
+#endif /* __MERO_REQH_REQH_SERVICE_H__ */
 
 /*
  *  Local variables:

@@ -151,10 +151,7 @@ void rm_ctx_config(enum rm_server id)
 	rm_ctx_init(&rm_ctx[id]);
 }
 
-struct m0_reqh_service      *rmservice[SERVER_NR];
-struct m0_reqh_service      *rpcsvc[SERVER_NR];
-struct m0_reqh_service_type *rmstype[SERVER_NR];
-struct m0_reqh_service_type *rpctype[SERVER_NR];
+struct m0_reqh_service *rmservice[SERVER_NR];
 
 void rm_ctx_init(struct rm_context *rmctx)
 {
@@ -162,13 +159,10 @@ void rm_ctx_init(struct rm_context *rmctx)
 
 	m0_ut_rpc_mach_init_and_add(&rmctx->rc_rmach_ctx);
 	m0_mutex_init(&rmctx->rc_mutex);
-
 	rc = m0_reqh_service_setup(&rmservice[rmctx->rc_id],
 				   &m0_rms_type, &rmctx->rc_rmach_ctx.rmc_reqh,
 				   NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rmstype[rmctx->rc_id] = &m0_rms_type;
-
 	m0_chan_init(&rmctx->rc_chan, &rmctx->rc_mutex);
 	m0_clink_init(&rmctx->rc_clink, NULL);
 }

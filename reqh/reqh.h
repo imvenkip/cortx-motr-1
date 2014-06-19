@@ -88,7 +88,6 @@ struct m0_reqh {
 	   Request handler services state machines (rs_sm) belong to this group.
 	   The management service broadcasts on the group channel to notify
 	   waiters of significant events.
-	   @todo Replace rh_mutex and rh_sd_signal
 	 */
 	struct m0_sm_group            rh_sm_grp;
 
@@ -145,12 +144,6 @@ struct m0_reqh {
 	 */
 	struct m0_addb_monitoring_ctx rh_addb_monitoring_ctx;
 
-	/**
-	    Channel to wait on for reqh shutdown or FOM termination.
-	    @deprecated Replace with rh_sm_grp
-	 */
-	struct m0_chan                rh_sd_signal;
-	struct m0_mutex               rh_mutex; /**< protect rh_sd_signal chan */
 	/**
 	 * Layout domain for this request handler.
 	 */

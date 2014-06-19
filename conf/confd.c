@@ -468,9 +468,10 @@ static void confd_stop(struct m0_reqh_service *service);
 static void confd_fini(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_ops confd_ops = {
-	.rso_start = confd_start,
-	.rso_stop  = confd_stop,
-	.rso_fini  = confd_fini
+	.rso_start       = confd_start,
+	.rso_start_async = m0_reqh_service_async_start_simple,
+	.rso_stop        = confd_stop,
+	.rso_fini        = confd_fini
 };
 
 /**

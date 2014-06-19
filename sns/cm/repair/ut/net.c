@@ -757,6 +757,7 @@ static void sender_fini()
 	m0_poolmach_store_destroy(pm, reqh->rh_beseg, grp, NULL);
 	m0_sm_group_unlock(grp);
 	m0_ios_poolmach_fini(sender_cm_service);
+	m0_reqh_service_prepare_to_stop(sender_cm_service);
 	m0_reqh_service_stop(sender_cm_service);
 	m0_reqh_service_fini(sender_cm_service);
 	m0_ut_rpc_mach_fini(&rmach_ctx);

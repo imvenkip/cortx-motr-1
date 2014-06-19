@@ -129,18 +129,23 @@ static void test_flock(struct m0_rm_owner *owner, struct m0_file *file,
 
 static void rm_client(const int tid)
 {
-	int                    rc;
-	struct m0_rm_resource *resource;
-	struct m0_rm_remote   *creditor;
-	struct m0_rm_owner     owner;
-	struct m0_file         file1;
-	struct m0_file         file2;
-	struct m0_fid          fids[] = {{0, 1}, {0, 2}};
+	int                      rc;
+	struct m0_rm_resource   *resource;
+	struct m0_rm_remote     *creditor;
+	struct m0_rm_owner      owner;
+	struct m0_file          file1;
+	struct m0_file          file2;
+	struct m0_fid           fids[] = {{0, 1}, {0, 2}};
+	struct m0_reqh_service *rmservice;
 
 	/* Wait till server starts */
 	m0_chan_wait(&tests_clink[SERVER_1]);
 
 	m0_ut_rpc_mach_init_and_add(&client_ctx->rc_rmach_ctx);
+        rc = m0_reqh_service_setup(&rmservice, &m0_rms_type,
+				   &client_ctx->rc_rmach_ctx.rmc_reqh,
+                                   NULL, NULL);
+        M0_UT_ASSERT(rc == 0);
 
 	m0_mutex_init(&client_ctx->rc_mutex);
 	m0_chan_init(&client_ctx->rc_chan, &client_ctx->rc_mutex);

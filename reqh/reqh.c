@@ -159,8 +159,6 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 	m0_reqh_svc_tlist_init(&reqh->rh_services);
 	m0_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
 	m0_sm_group_init(&reqh->rh_sm_grp);
-	m0_mutex_init(&reqh->rh_mutex); /* deprecated */
-	m0_chan_init(&reqh->rh_sd_signal, &reqh->rh_mutex); /* deprecated */
 	m0_sm_init(&reqh->rh_sm, &m0_reqh_sm_conf, M0_REQH_ST_INIT,
 		   &reqh->rh_sm_grp);
 
@@ -233,8 +231,6 @@ static void __reqh_fini(struct m0_reqh *reqh)
         m0_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
 	m0_reqh_lockers_fini(reqh);
 	m0_rwlock_fini(&reqh->rh_rwlock);
-	m0_chan_fini_lock(&reqh->rh_sd_signal); /* deprecated */
-	m0_mutex_fini(&reqh->rh_mutex); /* deprecated */
 	m0_ha_domain_fini(&reqh->rh_hadom);
 	m0_fol_fini(&reqh->rh_fol);
 }
@@ -344,16 +340,9 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		return -ESHUTDOWN;
 
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
-	if (svc == NULL) {
-		/** XXX FIXME
-		 * @todo temporary allow serviceless foms for UT.
-		 *
-		 * Specifically, rm clients should start a service to accept
-		 * incoming REVOKE requests.
-		 */
-		return 0;
+	if (svc == NULL)
 		return -ECONNREFUSED;
-	}
+
 	M0_ASSERT(svc->rs_ops != NULL);
 	svc_st = m0_reqh_service_state_get(svc);
 
@@ -422,7 +411,7 @@ M0_INTERNAL void m0_reqh_idle_wait_for(struct m0_reqh *reqh,
 	M0_PRE(m0_reqh_service_invariant(service));
 
 	m0_clink_init(&clink, NULL);
-	m0_clink_add_lock(&reqh->rh_sd_signal, &clink);
+	m0_clink_add_lock(&reqh->rh_sm_grp.s_chan, &clink);
 	while (!m0_fom_domain_is_idle_for(&reqh->rh_fom_dom, service))
 		m0_chan_wait(&clink);
 	m0_clink_del_lock(&clink);
@@ -502,8 +491,10 @@ static void __reqh_svcs_stop(struct m0_reqh *reqh, unsigned level)
 		if (service->rs_level < level)
 			continue;
 		if (M0_IN(m0_reqh_service_state_get(service),
-			  (M0_RST_STARTED, M0_RST_STOPPING)))
+			  (M0_RST_STARTED, M0_RST_STOPPING))) {
+			m0_reqh_service_prepare_to_stop(service);
 			m0_reqh_service_stop(service);
+		}
 		m0_reqh_service_fini(service);
 	} m0_tl_endfor;
 }

@@ -378,10 +378,6 @@ static void addb_pfom_stop(struct addb_svc *svc)
 		M0_LOG(M0_DEBUG, "posting pfom stop ast");
 		pfom->pf_ast.sa_cb = addb_pfom_stop_cb;
 		m0_sm_ast_post(&fom->fo_loc->fl_group, &pfom->pf_ast);
-
-		M0_LOG(M0_DEBUG, "waiting for pfom to stop");
-		while (pfom->pf_running)
-			m0_cond_wait(&svc->as_cond);
 	}
 	m0_mutex_unlock(&rsvc->rs_mutex);
 

@@ -261,9 +261,10 @@ static void stats_svc_rso_fini(struct m0_reqh_service *service)
 }
 
 static const struct m0_reqh_service_ops stats_svc_ops = {
-	.rso_start = stats_svc_rso_start,
-	.rso_stop  = stats_svc_rso_stop,
-	.rso_fini  = stats_svc_rso_fini
+	.rso_start       = stats_svc_rso_start,
+	.rso_start_async = m0_reqh_service_async_start_simple,
+	.rso_stop        = stats_svc_rso_stop,
+	.rso_fini        = stats_svc_rso_fini
 };
 
 static int stats_svc_rsto_service_allocate(struct m0_reqh_service      **srv,

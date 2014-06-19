@@ -464,6 +464,7 @@ static void _fini(void)
 		m0_mutex_fini(&g_mutexes[i]);
 	m0_free(g_mutexes);
 
+	m0_reqh_service_prepare_to_stop(g_svc);
 	m0_reqh_shutdown_wait(&g_reqh);
 	m0_reqh_service_stop(g_svc);
 	m0_reqh_service_fini(g_svc);

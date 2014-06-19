@@ -73,6 +73,7 @@
 #include "stats/stats_srv.h"
 #include "sns/sns.h"
 #include "sns/parity_ops.h"
+#include "sss/ss_svc.h"
 #include "cm/cm.h"
 #include "addb/addb_fops.h"
 #include "stats/stats_fops.h"
@@ -167,6 +168,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_conf_addb_init,   &m0_conf_addb_fini,   "conf-addb" },
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 	{ &m0_stats_svc_init,   &m0_stats_svc_fini,   "stats-service" },
+	{ &m0_ss_svc_init,      &m0_ss_svc_fini,      "sss" },
 #endif /* __KERNEL__ */
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }

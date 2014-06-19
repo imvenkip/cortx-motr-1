@@ -143,7 +143,7 @@ extern struct m0_fom_type_ops m0_md_fom_ops;
 
 static void test_init(void)
 {
-	int			 rc;
+	int rc;
 
 	/* Patch md fom operations vector to overwrite finaliser. */
 	orig_fom_fini = m0_md_req_fom_fini_func;
@@ -169,12 +169,13 @@ static void test_init(void)
 
 static void test_fini(void)
 {
-	int			 rc;
+	int rc;
 
 	rc = m0_mdstore_destroy(&md, grp);
 	M0_UT_ASSERT(rc == 0);
 	m0_mdstore_fini(&md);
 
+	m0_reqh_service_prepare_to_stop(mdservice);
 	m0_reqh_service_stop(mdservice);
 	m0_reqh_service_fini(mdservice);
 
@@ -192,11 +193,13 @@ enum { REC_NR = 128 };
 
 static void test_mdops(void)
 {
-        struct m0_md_lustre_logrec *rec;
-        struct m0_md_lustre_fid root;
-        int fd, result, size;
-        struct m0_fop *fop;
-	int i;
+	struct m0_md_lustre_logrec *rec;
+	struct m0_md_lustre_fid     root;
+	int                         fd;
+	int                         result;
+	int                         size;
+	struct m0_fop              *fop;
+	int                         i;
 
         fd = open(M0_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         M0_UT_ASSERT(fd > 0);

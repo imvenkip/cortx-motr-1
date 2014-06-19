@@ -204,10 +204,8 @@ enum M0_RPC_OPCODES {
 	M0_HA_NOTE_SET_OPCODE               = 117,
 
 	/** Service start/stop */
-	M0_SERVICE_START_REQ_OPCODE         = 118,
-	M0_SERVICE_START_REPLY_OPCODE       = 119,
-	M0_SERVICE_STOP_REQ_OPCODE          = 120,
-	M0_SERVICE_STOP_REPLY_OPCODE        = 121
+	M0_SSSSERVICE_REQ_OPCODE	    = 118,
+	M0_SSSSERVICE_REP_OPCODE	    = 119
 };
 
 /** @} endgroup rpc_layer_core */

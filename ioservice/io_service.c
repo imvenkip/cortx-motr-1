@@ -86,7 +86,7 @@ static int ios_allocate(struct m0_reqh_service **service,
 static void ios_fini(struct m0_reqh_service *service);
 
 static int ios_start(struct m0_reqh_service *service);
-void ios_prepare_to_stop(struct m0_reqh_service *service);
+static void ios_prepare_to_stop(struct m0_reqh_service *service);
 static void ios_stop(struct m0_reqh_service *service);
 static void ios_stats_post_addb(struct m0_reqh_service *service);
 
@@ -105,6 +105,7 @@ static const struct m0_reqh_service_type_ops ios_type_ops = {
  */
 static const struct m0_reqh_service_ops ios_ops = {
 	.rso_start           = ios_start,
+	.rso_start_async     = m0_reqh_service_async_start_simple,
 	.rso_prepare_to_stop = ios_prepare_to_stop,
 	.rso_stop            = ios_stop,
 	.rso_fini            = ios_fini,
@@ -468,7 +469,7 @@ static int ios_start(struct m0_reqh_service *service)
 	return rc;
 }
 
-void ios_prepare_to_stop(struct m0_reqh_service *service)
+static void ios_prepare_to_stop(struct m0_reqh_service *service)
 {
 	M0_LOG(M0_DEBUG, "ioservice PREPARE ......");
 	m0_ios_mds_conn_fini(service->rs_reqh);

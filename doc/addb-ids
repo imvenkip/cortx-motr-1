@@ -76,6 +76,9 @@ value          enum                    variable  name              file
    1700 M0_ADDB_CTXID_STATS_SVC        m0_addb_ct_stats_svc
 1800-1899
    1800 M0_ADDB_CTXID_BE_TX_SVC        m0_addb_ct_tx_service
+1900-1999							   sss/ss_addb.h
+   1900 M0_ADDB_CTXID_SS_SVC           m0_addb_ct_ss_svc
+   1901 M0_ADDB_CTXID_SS_FOM           m0_addb_ct_ss_fom
 
 ******************************************************************************
 Record Type Identifiers

@@ -148,6 +148,7 @@ static void stats_ut_svc_start_stop()
 	 * 1. stop stats service
 	 * 2. verify it's status
 	 */
+	m0_reqh_service_prepare_to_stop(stats_srv);
 	m0_reqh_service_stop(stats_srv);
 	M0_UT_ASSERT(m0_reqh_service_state_get(stats_srv) == M0_RST_STOPPED);
 	m0_reqh_service_fini(stats_srv);

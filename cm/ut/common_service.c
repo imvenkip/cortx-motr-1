@@ -238,6 +238,7 @@ void cm_ut_service_alloc_init()
 
 void cm_ut_service_cleanup()
 {
+        m0_reqh_service_prepare_to_stop(cm_ut_service);
         m0_reqh_service_stop(cm_ut_service);
         m0_reqh_service_fini(cm_ut_service);
 }

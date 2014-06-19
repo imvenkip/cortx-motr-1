@@ -439,6 +439,7 @@ static void rpc_fop_fom_init(void)
 
 static void rpc_fop_fom_fini(void)
 {
+	m0_reqh_service_prepare_to_stop(test_svc);
 	m0_reqh_shutdown_wait(&test_ctx.rmc_reqh);
 	m0_reqh_service_stop(test_svc);
 	m0_reqh_service_fini(test_svc);

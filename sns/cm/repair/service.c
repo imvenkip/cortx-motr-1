@@ -62,9 +62,10 @@ static int repair_svc_start(struct m0_reqh_service *service);
 static void repair_svc_stop(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_ops repair_svc_ops = {
-	.rso_start = repair_svc_start,
-	.rso_stop  = repair_svc_stop,
-	.rso_fini  = m0_sns_cm_svc_fini
+	.rso_start       = repair_svc_start,
+	.rso_start_async = m0_reqh_service_async_start_simple,
+	.rso_stop        = repair_svc_stop,
+	.rso_fini        = m0_sns_cm_svc_fini
 };
 
 extern const struct m0_cm_ops sns_repair_ops;

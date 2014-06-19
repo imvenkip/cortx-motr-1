@@ -62,9 +62,10 @@ static int rebalance_svc_start(struct m0_reqh_service *service);
 static void rebalance_svc_stop(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_ops rebalance_svc_ops = {
-	.rso_start = rebalance_svc_start,
-	.rso_stop  = rebalance_svc_stop,
-	.rso_fini  = m0_sns_cm_svc_fini
+	.rso_start	 = rebalance_svc_start,
+	.rso_start_async = m0_reqh_service_async_start_simple,
+	.rso_stop	 = rebalance_svc_stop,
+	.rso_fini	 = m0_sns_cm_svc_fini
 };
 
 extern const struct m0_cm_ops sns_rebalance_ops;

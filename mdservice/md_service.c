@@ -64,9 +64,10 @@ static const struct m0_reqh_service_type_ops mds_type_ops = {
  * MD Service operations.
  */
 static const struct m0_reqh_service_ops mds_ops = {
-        .rso_start = mds_start,
-        .rso_stop  = mds_stop,
-        .rso_fini  = mds_fini
+        .rso_start       = mds_start,
+	.rso_start_async = m0_reqh_service_async_start_simple,
+        .rso_stop        = mds_stop,
+        .rso_fini        = mds_fini
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice",

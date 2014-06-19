@@ -349,8 +349,6 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	struct m0_reqh *reqh;
 	unsigned        key;
 
-	m0_reqh_service_prepare_to_stop(service);
-
 	M0_PRE(m0_reqh_service_bob_check(service));
 	reqh = service->rs_reqh;
 	key = service->rs_type->rst_key;
@@ -536,12 +534,23 @@ M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc)
 	if (svc != NULL && svc->rs_sm.sm_state == M0_RST_STARTED) {
 		M0_ASSERT(m0_reqh_service_find(svc->rs_type,
 					       svc->rs_reqh) == svc);
+		m0_reqh_service_prepare_to_stop(svc);
 		m0_reqh_idle_wait_for(svc->rs_reqh, svc);
 		m0_reqh_service_stop(svc);
 		m0_reqh_service_fini(svc);
 	}
 }
 
+M0_INTERNAL int
+m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc)
+{
+	M0_ENTRY();
+	M0_PRE(m0_reqh_service_state_get(asc->sac_service) == M0_RST_STARTING);
+
+	asc->sac_rc = asc->sac_service->rs_ops->rso_start(asc->sac_service);
+	m0_fom_wakeup(asc->sac_fom);
+	return M0_RC(asc->sac_rc);
+}
 
 /** @} endgroup reqhservice */
 #undef M0_TRACE_SUBSYSTEM

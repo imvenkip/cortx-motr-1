@@ -156,6 +156,7 @@ static void addb_svc_rso_fini(struct m0_reqh_service *service)
 
 static const struct m0_reqh_service_ops addb_service_ops = {
 	.rso_start           = addb_svc_rso_start,
+	.rso_start_async     = m0_reqh_service_async_start_simple,
 	.rso_prepare_to_stop = addb_svc_rso_prepare_to_stop,
 	.rso_stop            = addb_svc_rso_stop,
 	.rso_fini            = addb_svc_rso_fini

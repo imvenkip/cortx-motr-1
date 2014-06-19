@@ -65,6 +65,7 @@
    @todo Handle error messages properly
  */
 static int cdom_id;
+extern struct m0_reqh_service_type m0_ss_svc_type;
 
 enum {
 	CONFD_CONN_TIMEOUT = 5,
@@ -937,12 +938,20 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx)
 
 static int reqh_services_start(struct m0_reqh_context *rctx)
 {
-	struct m0_reqh *reqh = &rctx->rc_reqh;
-	int             rc;
+	struct m0_reqh         *reqh = &rctx->rc_reqh;
+	struct m0_reqh_service *ss_service;
+	int                     rc;
 
 	M0_ENTRY();
 
-	rc = cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
+	/**
+	 * @todo XXX Handle errors properly.
+	 * See http://es-gerrit.xyus.xyratex.com:8080/#/c/2612/7..9/mero/setup.c
+	 * for the discussion.
+	 */
+	rc = m0_reqh_service_setup(&ss_service, &m0_ss_svc_type,
+				   reqh, NULL, NULL) ?:
+		cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
 		reqh_context_services_init(rctx);
 
 	if (rc == 0)
@@ -1494,9 +1503,6 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 			return M0_ERR(rc, "Invalid endpoint: %s",
 				      ep->ex_endpoint);
 	} m0_tl_endfor;
-
-	if (rctx->rc_nr_services == 0)
-		return M0_ERR(-EINVAL, "No service specified");
 
 	for (i = 0; i < rctx->rc_nr_services; ++i) {
 		const char *sname = rctx->rc_services[i];

@@ -1,0 +1,9 @@
+nobase_mero_include_HEADERS += sss/ss_addb.h \
+			       sss/ss_fops.h \
+			       sss/ss_svc.h
+
+mero_libmero_la_SOURCES += sss/ss_fops.c    \
+			   sss/ss_fops_xc.c \
+			   sss/ss_svc.c
+
+XC_FILES += sss/ss_fops_xc.h

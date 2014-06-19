@@ -808,6 +808,12 @@ enum m0_magic_satchel {
 	M0_LIB_GENARRAY_MAGIC = 0x33a2ee8c16517e77,
 	/* hashlist::hl_magic = invincibilis */
 	M0_LIB_HASHLIST_MAGIC = 0x3319519c1b111577,
+
+/* sss */
+	/* ss_svc::sss_magic (coffeeleaf ad) */
+	M0_SS_SVC_MAGIC = 0x33c0ffee1eafad77,
+	/* ss_fom::ssf_magic (fossilizes lo) */
+	M0_SS_FOM_MAGIC = 0x33f0551112e51077,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */
