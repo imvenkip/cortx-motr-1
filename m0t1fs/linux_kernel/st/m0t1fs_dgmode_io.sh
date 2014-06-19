@@ -52,7 +52,7 @@ dgio_test()
 	done
 
 	echo "Starting dgmode testing ..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride $N $K $P "copytool" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P "copytool" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}

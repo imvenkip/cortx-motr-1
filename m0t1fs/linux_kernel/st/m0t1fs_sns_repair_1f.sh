@@ -28,7 +28,7 @@ sns_repair_test()
 	local unit_size=$((stride * 1024))
 
 	echo "Starting SNS repair testing ..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $stride $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $NR_DATA $NR_PARITY $POOL_WIDTH "copytool" &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
