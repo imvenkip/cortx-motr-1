@@ -257,9 +257,9 @@ M0_INTERNAL int m0_stob_domain_create_or_init(const char *location,
 	int rc;
 
 	rc = m0_stob_domain_init(location, str_cfg_init, out);
-	rc = rc == 0 ? 0 :
-	     m0_stob_domain_create(location, str_cfg_init,
-				   dom_key, str_cfg_create, out);
+	if (rc != 0)
+		rc = m0_stob_domain_create(location, str_cfg_init,
+					   dom_key, str_cfg_create, out);
 	return rc;
 }
 
