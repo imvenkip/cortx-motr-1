@@ -34,6 +34,7 @@
 #include "net/lnet/lnet_core_types.h"
 
 #include "m0t1fs/m0t1fs_addb.h"
+#include "ha/note_fops.h"
 
 static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
 module_param(node_uuid, charp, S_IRUGO);
@@ -105,9 +106,13 @@ M0_INTERNAL int m0t1fs_init(void)
 	if (rc != 0)
 		goto ioservice_fini;
 
-	rc = m0t1fs_inode_cache_init();
+	rc = m0_ha_state_fop_init();
 	if (rc != 0)
 		goto mdservice_fini;
+
+	rc = m0t1fs_inode_cache_init();
+	if (rc != 0)
+		goto ha_state_fop_fini;
 
 	rc = register_filesystem(&m0t1fs_fs_type);
 	if (rc != 0)
@@ -118,6 +123,8 @@ M0_INTERNAL int m0t1fs_init(void)
 
 icache_fini:
 	m0t1fs_inode_cache_fini();
+ha_state_fop_fini:
+	m0_ha_state_fop_fini();
 mdservice_fini:
         m0_mdservice_fop_fini();
 ioservice_fini:
@@ -140,6 +147,7 @@ M0_INTERNAL void m0t1fs_fini(void)
 	(void)unregister_filesystem(&m0t1fs_fs_type);
 
 	m0t1fs_inode_cache_fini();
+	m0_ha_state_fop_fini();
 	m0_mdservice_fop_fini();
 	m0_ioservice_fop_fini();
 

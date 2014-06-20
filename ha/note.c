@@ -62,12 +62,11 @@ struct get_fop_context {
 
 M0_INTERNAL int m0_ha_state_init(void)
 {
-	return m0_ha_state_fop_init();
+	return 0;
 }
 
 M0_INTERNAL void m0_ha_state_fini()
 {
-	m0_ha_state_fop_fini();
 }
 
 M0_INTERNAL void ha_state_get_replied(struct m0_rpc_item *item)
