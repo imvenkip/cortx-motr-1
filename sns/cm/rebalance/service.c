@@ -18,15 +18,12 @@
  * Original creation date: 16/04/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/trace.h"
+
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
-#include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/finject.h"
 
@@ -34,7 +31,6 @@
 #include "sns/cm/trigger_fop.h"
 #include "sns/cm/service.h"
 #include "sns/cm/cm.h"
-//#include "mero/setup.h"
 #include "sns/cm/sns_cp_onwire.h"
 #include "sns/cm/sw_onwire_fop.h"
 
@@ -53,7 +49,7 @@ static int rebalance_svc_allocate(struct m0_reqh_service **service,
 				  struct m0_reqh_context *rctx);
 
 static const struct m0_reqh_service_type_ops rebalance_svc_type_ops = {
-	.rsto_service_allocate = rebalance_svc_allocate,
+	.rsto_service_allocate = rebalance_svc_allocate
 };
 
 extern struct m0_addb_ctx_type m0_addb_ct_sns_cm;
@@ -66,9 +62,9 @@ static int rebalance_svc_start(struct m0_reqh_service *service);
 static void rebalance_svc_stop(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_ops rebalance_svc_ops = {
-        .rso_start = rebalance_svc_start,
-        .rso_stop  = rebalance_svc_stop,
-        .rso_fini  = m0_sns_cm_svc_fini
+	.rso_start = rebalance_svc_start,
+	.rso_stop  = rebalance_svc_stop,
+	.rso_fini  = m0_sns_cm_svc_fini
 };
 
 extern const struct m0_cm_ops sns_rebalance_ops;
@@ -118,9 +114,9 @@ static void rebalance_svc_stop(struct m0_reqh_service *service)
 	m0_sns_cm_rebalance_trigger_fop_fini();
 }
 
+/** @} SNSCMSVC */
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} SNSCMSVC */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
