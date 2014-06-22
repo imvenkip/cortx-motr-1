@@ -87,15 +87,10 @@ static int repair_svc_allocate(struct m0_reqh_service **service,
 			       struct m0_reqh_service_type *stype,
 			       struct m0_reqh_context *rctx)
 {
-	int rc;
-
 	M0_ENTRY("stype: %p", stype);
 	M0_PRE(service != NULL && stype != NULL);
-
-	rc = m0_sns_cm_svc_allocate(service, stype, rctx, &repair_svc_ops,
-				    &sns_repair_ops);
-
-	return M0_RC(rc);
+	return M0_RC(m0_sns_cm_svc_allocate(service, stype, &repair_svc_ops,
+					    &sns_repair_ops));
 }
 
 static int repair_svc_start(struct m0_reqh_service *service)

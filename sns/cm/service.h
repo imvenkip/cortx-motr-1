@@ -37,7 +37,6 @@
  */
 M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
                                        struct m0_reqh_service_type *stype,
-                                       struct m0_reqh_context *rctx,
                                        const struct m0_reqh_service_ops *svc_ops,
                                        const struct m0_cm_ops *cm_ops);
 
