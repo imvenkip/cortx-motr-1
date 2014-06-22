@@ -577,7 +577,7 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service);
  */
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 				      struct m0_reqh *reqh,
-				      struct m0_uint128 *uuid);
+				      const struct m0_uint128 *uuid);
 
 /**
    Performs generic part of service finalisation, including deregistering
@@ -659,7 +659,7 @@ M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
 				      struct m0_reqh_service_type *stype,
 				      struct m0_reqh *reqh,
 				      struct m0_reqh_context *rctx,
-				      struct m0_uint128 *uuid);
+				      const struct m0_uint128 *uuid);
 /**
  * Dual to m0_reqh_service_setup(), stops and finalises the service.
  */

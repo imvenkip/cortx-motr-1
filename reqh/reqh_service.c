@@ -368,9 +368,9 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	m0_reqh_lockers_clear(reqh, key);
 }
 
-M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
-				      struct m0_reqh         *reqh,
-				      struct m0_uint128      *uuid)
+M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
+				      struct m0_reqh          *reqh,
+				      const struct m0_uint128 *uuid)
 {
 	struct m0_addb_ctx_type *serv_addb_ct;
 
@@ -514,7 +514,7 @@ M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
 				      struct m0_reqh_service_type *stype,
 				      struct m0_reqh *reqh,
 				      struct m0_reqh_context *rctx,
-				      struct m0_uint128 *uuid)
+				      const struct m0_uint128 *uuid)
 {
 	int result;
 
