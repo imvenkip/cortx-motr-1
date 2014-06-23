@@ -1880,12 +1880,12 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 
 	m0_rwlock_write_lock(&cctx->cc_rwlock);
 	rc = cs_args_parse(cctx, argc, argv) ?:
-		reqh_ctx_validate(cctx) ?:
-		cs_daemonize(cctx) ?:
-		cs_net_domains_init(cctx) ?:
-		cs_buffer_pool_setup(cctx) ?:
-		cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs, cctx->cc_force) ?:
-		cs_rpc_machines_init(cctx);
+	     reqh_ctx_validate(cctx) ?:
+	     cs_daemonize(cctx) ?:
+	     cs_net_domains_init(cctx) ?:
+	     cs_buffer_pool_setup(cctx) ?:
+	     cs_reqh_start(&cctx->cc_reqh_ctx, cctx->cc_mkfs, cctx->cc_force) ?:
+	     cs_rpc_machines_init(cctx);
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 
 	if (rc < 0)
