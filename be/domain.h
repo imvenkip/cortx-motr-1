@@ -44,6 +44,7 @@ struct m0_be_0type_log_cfg {
 
 struct m0_be_0type_seg_cfg {
 	uint64_t     bsc_stob_key;
+	bool	     bsc_preallocate;
 	m0_bcount_t  bsc_size;
 	void	    *bsc_addr;
 };

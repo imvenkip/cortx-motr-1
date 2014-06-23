@@ -35,7 +35,7 @@ void m0_be_ut_mkfs(void)
 	m0_be_ut_backend_cfg_default(&cfg);
 	/* mkfs mode start */
 	m0_be_ut_backend_init_cfg(&ut_be, &cfg, true);
-	m0_be_ut_backend_seg_add2(&ut_be, 0x10000, &seg);
+	m0_be_ut_backend_seg_add2(&ut_be, 0x10000, true, &seg);
 	addr = seg->bs_addr;
 	m0_be_ut_backend_fini(&ut_be);
 

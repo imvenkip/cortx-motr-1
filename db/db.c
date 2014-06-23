@@ -214,8 +214,9 @@ static void *dbenv_seg_list_lookup(struct m0_dbenv_impl *di,
 }
 
 static void dbenv_seg_init(struct m0_dbenv_impl *di,
-			   const char *name,
-			   bool mkfs)
+			   const char		*name,
+			   bool			 preallocate,
+			   bool			 mkfs)
 {
 	struct m0_be_seg *seg;
 	void		 *addr;
@@ -229,7 +230,7 @@ static void dbenv_seg_init(struct m0_dbenv_impl *di,
 	}
 	if (addr == NULL) {
 		m0_be_ut_backend_seg_add2(&di->d_ut_be, SEG_SIZE,
-					  &di->d_seg);
+					  preallocate, &di->d_seg);
 		dbenv_seg_list_add(di, name, di->d_seg->bs_addr);
 	} else {
 		di->d_seg = m0_be_domain_seg(di->d_dom, addr);
@@ -261,7 +262,7 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
 	m0_be_ut_backend_cfg_default(&di->d_ut_be.but_dom_cfg);
 	m0_be_ut_backend_init_cfg(&di->d_ut_be, &di->d_ut_be.but_dom_cfg, mkfs);
 	m0_be_ut_backend_new_grp_lock_state_set(&di->d_ut_be, true);
-	dbenv_seg_init(di, name, mkfs);
+	dbenv_seg_init(di, name, flags & M0_DB_SEG_PREALLOCATE, mkfs);
 	return 0;
 }
 

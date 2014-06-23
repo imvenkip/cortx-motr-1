@@ -1201,6 +1201,7 @@ static void cs_addb_storage_fini(struct cs_addb_stob *addb_stob)
  */
 static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 {
+	int dbenv_flags;
 	int rc;
 
 	M0_ENTRY();
@@ -1219,7 +1220,8 @@ static int cs_reqh_start(struct m0_reqh_context *rctx, bool mkfs, bool force)
 	rctx->rc_db.d_i.d_ut_be.but_dom_cfg.bc_engine.bec_group_fom_reqh =
 		&rctx->rc_reqh;
 
-	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0, mkfs);
+	dbenv_flags = rctx->rc_db_seg_preallocate ? M0_DB_SEG_PREALLOCATE : 0;
+	rc = m0_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, dbenv_flags, mkfs);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0_dbenv_init");
 		goto reqh_fini;
@@ -1811,6 +1813,8 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 						M0_CNT_INC(
 							rctx->rc_nr_services);
 				})),
+			M0_FLAGARG('a', "Preallocate db5 emulation BE seg",
+				   &rctx->rc_db_seg_preallocate),
 			M0_VOIDARG('v', "Print version and exit",
 				LAMBDA(void, (void)
 				{

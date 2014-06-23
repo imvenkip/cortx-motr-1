@@ -68,6 +68,10 @@ struct m0_be_btree_kv_ops;
 #include "db/db_impl.h"
 #endif
 
+enum {
+	M0_DB_SEG_PREALLOCATE = 1 << 0,
+};
+
 /** Data-base environment.
 
     m0_dbenv represents a collection of related tables (m0_table). Transactions

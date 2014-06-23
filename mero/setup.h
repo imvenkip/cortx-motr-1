@@ -316,6 +316,10 @@ struct m0_reqh_context {
 	 * m0_net_domain_get_max_buffer_size() is used.
 	 */
 	uint32_t                     rc_max_rpc_msg_size;
+
+	/** Preallocate an entire stob for db5 emulation BE segment */
+	bool                         rc_db_seg_preallocate;
+
 };
 
 /**

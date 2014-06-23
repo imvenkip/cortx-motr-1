@@ -281,7 +281,10 @@ static int be_domain_seg_create(struct m0_be_domain		 *dom,
 		       seg_cfg->bsc_stob_key, rc);
 		goto seg_destroy;
 	}
-	goto out;
+	if (rc == 0 && seg_cfg->bsc_preallocate)
+		rc = m0_be_reg__write(&M0_BE_REG_SEG(seg));
+	if (rc == 0)
+		goto out;
 
 seg_destroy:
 	rc1 = be_domain_seg_destroy(dom, seg_cfg->bsc_stob_key);
