@@ -7,8 +7,9 @@
 # auto export all variables
 set -a
 
-# exit with error code on any command failure
+# exit with error code on any command failure (including pipes)
 set -e
+set -o pipefail
 
 
 WORKSPASE=$(pwd)
