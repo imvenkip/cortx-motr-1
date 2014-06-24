@@ -527,12 +527,9 @@ include $(top_srcdir)/net/test/user_space/Makefile.sub
 # sns/cm/st
 #
 
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS             += sns/cm/st/m0repair
-endif
+bin_PROGRAMS                += sns/cm/st/m0repair
 sns_cm_st_m0repair_CPPFLAGS  = -DM0_TARGET='m0repair' $(AM_CPPFLAGS)
-sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la \
-                               $(top_builddir)/ut/libmero-ut.la
+sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/sns/cm/st/Makefile.sub
 
