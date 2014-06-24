@@ -250,7 +250,8 @@ int m0_dbenv_init(struct m0_dbenv *env, const char *name,
 		   m0_get()->i_dbenv = env;
 	}
 	location = m0_alloc(location_len);
-	snprintf(location, location_len, "linuxstob:./%s", name);
+	snprintf(location, location_len, "linuxstob:%s%s",
+		 name[0] == '/' ? "" : "./", name);
 	di->d_dom = &di->d_ut_be.but_dom;
 	di->d_ut_be.but_dom.bd_db_impl = di;
 	di->d_ut_be.but_dbemu_0type = m0_dbenv_0type;
