@@ -908,7 +908,6 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 				      struct m0_lnet_dev_buf_register_params *p)
 {
-	struct page *pg;
 	struct nlx_core_buffer *cb;
 	struct nlx_kcore_buffer *kb;
 	uint32_t off = NLX_PAGE_OFFSET((unsigned long) p->dbr_lcbuf);
@@ -949,21 +948,25 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 		goto fail_copy;
 	}
 	kb->kb_magic = M0_NET_LNET_KCORE_BUF_MAGIC;
+	kb->kb_user  = p->dbr_lcbuf;
+	NLX_ALLOC_PTR(kb->kb_cb, &kd->kd_addb_ctx, KD_BUF_REG4);
+	if (kb->kb_cb == NULL) {
+		rc = -ENOMEM;
+		goto fail_kb_cb;
+	}
 
-	down_read(&current->mm->mmap_sem);
-	rc = WRITABLE_USER_PAGE_GET(p->dbr_lcbuf, pg);
-	up_read(&current->mm->mmap_sem);
-	if (rc < 0)
-		goto fail_page;
-	nlx_core_kmem_loc_set(&kb->kb_cb_loc, pg, off);
-	cb = nlx_kcore_core_buffer_map(kb);
+	cb = nlx_kcore_core_buffer_get(kb);
+	if (cb == NULL) {
+		rc = -EFAULT;
+		goto fail_cb;
+	}
 	if (cb->cb_magic != 0 || cb->cb_buffer_id != 0 || cb->cb_kpvt != NULL) {
 		rc = -EBADR;
-		goto fail_cb;
+		goto fail_cb_descr;
 	}
 	rc = kd->kd_drv_ops->ko_buf_register(kd, p->dbr_buffer_id, cb, kb);
 	if (rc != 0)
-		goto fail_cb;
+		goto fail_cb_descr;
 
 	p->dbr_bvec.ov_buf = buf;
 	p->dbr_bvec.ov_vec.v_count = count;
@@ -975,7 +978,7 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 
 	M0_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
 	M0_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
-	nlx_kcore_core_buffer_unmap(kb);
+	nlx_kcore_core_buffer_put(kb);
 	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_bufs_tlist_add(&kd->kd_drv_bufs, kb);
 	m0_mutex_unlock(&kd->kd_drv_mutex);
@@ -985,10 +988,11 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 
 fail_kiov:
 	kd->kd_drv_ops->ko_buf_deregister(cb, kb);
+fail_cb_descr:
+	nlx_kcore_core_buffer_put(kb);
 fail_cb:
-	nlx_kcore_core_buffer_unmap(kb);
-	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
-fail_page:
+	m0_free(kb->kb_cb);
+fail_kb_cb:
 	kb->kb_magic = 0;
 	m0_free(kb);
 fail_copy:
@@ -1028,10 +1032,12 @@ static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 	drv_bufs_tlist_del(kb);
 	m0_mutex_unlock(&kd->kd_drv_mutex);
 	nlx_dev_buf_pages_unpin(kb);
-	cb = nlx_kcore_core_buffer_map(kb);
-	kd->kd_drv_ops->ko_buf_deregister(cb, kb);
-	nlx_kcore_core_buffer_unmap(kb);
-	WRITABLE_USER_PAGE_PUT(kb->kb_cb_loc.kl_page);
+	cb = nlx_kcore_core_buffer_get(kb);
+	if (cb != NULL) {
+		kd->kd_drv_ops->ko_buf_deregister(cb, kb);
+		nlx_kcore_core_buffer_put(kb);
+	}
+	m0_free(kb->kb_cb);
 	m0_free(kb);
 	return 0;
 }
@@ -1073,12 +1079,12 @@ static int nlx_dev_ioctl_buf_queue_op(
 		return -EBADR;
 	if (!nlx_kcore_buffer_invariant(kb))
 		return -EBADR;
-	cb = nlx_kcore_core_buffer_map(kb);
+	cb = nlx_kcore_core_buffer_get(kb);
 	if (!nlx_core_buffer_invariant(cb))
 		rc = -EBADR;
 	else
 		rc = op(ktm, cb, kb);
-	nlx_kcore_core_buffer_unmap(kb);
+	nlx_kcore_core_buffer_put(kb);
 
 	return rc;
 }
@@ -1601,7 +1607,7 @@ M0_INTERNAL int nlx_dev_close(struct inode *inode, struct file *file)
 	} m0_tl_endfor;
 	m0_tl_for(drv_bufs, &kd->kd_drv_bufs, kb) {
 		rc = nlx_dev_buf_deregister(kd, kb);
-		M0_ASSERT(rc == 0);
+		M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 		cleanup = true;
 	} m0_tl_endfor;
 
