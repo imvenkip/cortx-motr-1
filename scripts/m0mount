@@ -554,7 +554,10 @@ M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $M0MKFS -T linux -D $DIR/db -S $DIR/stobs \
--A linuxstob:$DIR/addb-stobs"
+-A linuxstob:$DIR/addb-stobs" || {
+				echo ERROR: Failed to m0mkfs for confd on $H
+				return 1
+			}
 		fi
 		$RUN "cd $DIR && \
 M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
@@ -580,7 +583,10 @@ M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
 M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
 $M0MKFS $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
--A linuxstob:$DDIR/addb-stobs"
+-A linuxstob:$DDIR/addb-stobs" || {
+			echo ERROR: Failed to m0mkfs on $H
+			return 1
+		}
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
