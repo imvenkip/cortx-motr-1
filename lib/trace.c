@@ -336,19 +336,16 @@ static inline char *lowercase(char *s)
 
 static unsigned long subsys_name_to_mask(char *subsys_name)
 {
-	int            i;
-	unsigned long  mask;
+	int i;
 
 	/* uppercase subsys_name to match names in trace_subsys_str array */
 	uppercase(subsys_name);
 
-	for (mask = 0, i = 0; i < ARRAY_SIZE(trace_subsys_str); i++)
-		if (strcmp(subsys_name, trace_subsys_str[i]) == 0) {
-			mask = 1 << i;
-			break;
-		}
-
-	return mask;
+	for (i = 0; i < ARRAY_SIZE(trace_subsys_str); ++i) {
+		if (m0_streq(subsys_name, trace_subsys_str[i]))
+			return M0_BITS(i);
+	}
+	return 0;
 }
 
 /**
