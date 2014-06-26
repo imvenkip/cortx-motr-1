@@ -58,7 +58,29 @@ static bool be_tx_is_locked(const struct m0_be_tx *tx);
 		_0C(M0_IN(m0_be_tx_state(__tx), states));		\
 })
 
-static const ptrdiff_t be_tx_ast_offset[M0_BTS_NR] = {
+/**
+ * M0_BTS_NR items in array is enough, but sometimes gcc issues the following
+ * warning:
+ *
+ * @code
+ * $ m0 rebuild
+ * ...skip...
+ *   CC     sns/cm/st/mero_libmero_la-repair_cli.lo
+ *   CCLD   mero/libmero.la
+ *   CC     mero/mero_libmero_altogether_la-mero_altogether_user.lo
+ * cc1: warnings being treated as errors
+ * In file included from mero/mero_altogether_user.c:23:
+ * /mnt/hgfs/vvv/src/mero/be/tx_group.c: In function ‘m0_be_tx_group__tx_state_post’:
+ * /mnt/hgfs/vvv/src/mero/be/tx.c:84: error: array subscript is above array bounds
+ * /mnt/hgfs/vvv/src/mero/be/tx.c:84: error: array subscript is above array bounds
+ * make[2]: *** [mero/mero_libmero_altogether_la-mero_altogether_user.lo] Error 1
+ * make[1]: *** [all-recursive] Error 1
+ * make: *** [all] Error 2
+ * @endcode
+ *
+ * @todo Find out why M0_BTS_NR + 1 is enough and M0_BTS_NR isn't.
+ */
+static const ptrdiff_t be_tx_ast_offset[M0_BTS_NR + 1] = {
 	[M0_BTS_ACTIVE] = offsetof(struct m0_be_tx, t_ast_active),
 	[M0_BTS_FAILED] = offsetof(struct m0_be_tx, t_ast_failed),
 	[M0_BTS_GROUPED] = offsetof(struct m0_be_tx, t_ast_grouped),
@@ -75,12 +97,15 @@ static void be_tx_ast_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *ast)
 	enum m0_be_tx_state state = (enum m0_be_tx_state)ast->sa_datum;
 	struct m0_be_tx    *tx    = ((void *)ast) - be_tx_ast_offset[state];
 
+	M0_PRE(IS_IN_ARRAY(state, be_tx_ast_offset));
 	M0_PRE(be_tx_ast_offset[state] != 0);
 	be_tx_state_move_ast(tx, state);
 }
 
-static struct m0_sm_ast *be_tx_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
+static struct m0_sm_ast *
+be_tx_ast(struct m0_be_tx *tx, enum m0_be_tx_state state)
 {
+	M0_PRE(IS_IN_ARRAY(state, be_tx_ast_offset));
 	M0_PRE(be_tx_ast_offset[state] != 0);
 	return ((void *)tx) + be_tx_ast_offset[state];
 }
