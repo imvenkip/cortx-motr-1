@@ -81,12 +81,12 @@ static bool be_tx_is_locked(const struct m0_be_tx *tx);
  * @todo Find out why M0_BTS_NR + 1 is enough and M0_BTS_NR isn't.
  */
 static const ptrdiff_t be_tx_ast_offset[M0_BTS_NR + 1] = {
-	[M0_BTS_ACTIVE] = offsetof(struct m0_be_tx, t_ast_active),
-	[M0_BTS_FAILED] = offsetof(struct m0_be_tx, t_ast_failed),
+	[M0_BTS_ACTIVE]  = offsetof(struct m0_be_tx, t_ast_active),
+	[M0_BTS_FAILED]  = offsetof(struct m0_be_tx, t_ast_failed),
 	[M0_BTS_GROUPED] = offsetof(struct m0_be_tx, t_ast_grouped),
-	[M0_BTS_LOGGED] = offsetof(struct m0_be_tx, t_ast_logged),
-	[M0_BTS_PLACED] = offsetof(struct m0_be_tx, t_ast_placed),
-	[M0_BTS_DONE] = offsetof(struct m0_be_tx, t_ast_done)
+	[M0_BTS_LOGGED]  = offsetof(struct m0_be_tx, t_ast_logged),
+	[M0_BTS_PLACED]  = offsetof(struct m0_be_tx, t_ast_placed),
+	[M0_BTS_DONE]    = offsetof(struct m0_be_tx, t_ast_done)
 };
 
 static void be_tx_state_move_ast(struct m0_be_tx *tx,
