@@ -883,9 +883,14 @@ static void cs_storage_fini(struct cs_stobs *stob)
 		yaml_document_delete(&stob->s_sfile.sf_document);
 }
 
-static int __service_init(const char *name, struct m0_reqh_context *rctx,
-			  struct m0_reqh *reqh, struct m0_uint128 *uuid,
-			  bool mgmt)
+/**
+   Initialises and starts a particular service.
+
+   Once the service is initialised, it is started and registered with the
+   appropriate request handler.
+ */
+static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
+			   struct m0_reqh *reqh, struct m0_uint128 *uuid)
 {
 	struct m0_reqh_service_type *stype;
 	struct m0_reqh_service      *service;
@@ -904,35 +909,12 @@ static int __service_init(const char *name, struct m0_reqh_context *rctx,
 
 	m0_reqh_service_init(service, reqh, uuid);
 
-	/** @todo Remove the USE_MGMT_STARTUP macro later */
-	rc = mgmt ? m0_mgmt_reqh_service_start(service) :
-		m0_reqh_service_start(service);
-
+	rc = m0_reqh_service_start(service);
 	if (rc != 0)
 		m0_reqh_service_fini(service);
 
 	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
 	return M0_RC(rc);
-
-}
-
-/**
-   Initialises and starts a particular service.
-
-   Once the service is initialised, it is started and registered with the
-   appropriate request handler.
- */
-static int
-cs_service_init(const char *name, struct m0_reqh_context *rctx,
-		struct m0_reqh *reqh, struct m0_uint128 *uuid)
-{
-	/** @todo XXX Remove the USE_MGMT_STARTUP macro later */
-#define USE_MGMT_STARTUP 0
-#if USE_MGMT_STARTUP
-	return __service_init(name, rctx, reqh, uuid, true);
-#else
-	return __service_init(name, rctx, reqh, uuid, false);
-#endif
 }
 
 static int reqh_context_services_init(struct m0_reqh_context *rctx)
@@ -949,41 +931,11 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx)
 		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
 				     &rctx->rc_service_uuids[i]);
 	}
-#if USE_MGMT_STARTUP
-	/* Do not terminate on failure here as services start asynchronously. */
-#else
 	if (rc != 0)
 		m0_reqh_pre_storage_fini_svcs_stop(&rctx->rc_reqh);
-#endif
 	return M0_RC(rc);
 }
 
-#if USE_MGMT_STARTUP
-static int reqh_services_start(struct m0_reqh_context *rctx)
-{
-	struct m0_reqh *reqh = &rctx->rc_reqh;
-	int             rc;
-
-	M0_ENTRY();
-
-	rc = m0_reqh_mgmt_service_start(reqh);
-	if (rc != 0)
-		return M0_RC(rc);
-
-	m0_reqh_start(reqh);
-
-	rc = cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
-		reqh_context_services_init(rctx);
-
-	m0_mgmt_reqh_services_start_wait(reqh);
-
-	if (rc != 0)
-		return M0_RC(rc);
-
-	return M0_RC(m0_reqh_services_state_count(reqh, M0_RST_FAILED) > 0 ?
-		     -ENOEXEC : 0);
-}
-#else
 static int reqh_services_start(struct m0_reqh_context *rctx)
 {
 	struct m0_reqh *reqh = &rctx->rc_reqh;
@@ -1000,7 +952,6 @@ static int reqh_services_start(struct m0_reqh_context *rctx)
 
 	return M0_RC(rc);
 }
-#endif /* !USE_MGMT_STARTUP */
 
 static int
 cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_mero *cctx)
