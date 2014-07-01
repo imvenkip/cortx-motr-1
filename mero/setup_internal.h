@@ -52,14 +52,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 				const char *profile, const char *local_addr,
 				unsigned timeout, unsigned retry);
 
-/**
- * Fills CLI arguments based on contents of genders file for localhost.
- */
-M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
-				   const char *genders);
-
 /** @} endgroup m0d */
-
 #endif /* __MERO_SETUP_INTERNAL_H__ */
 
 /*

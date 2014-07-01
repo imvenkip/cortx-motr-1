@@ -76,7 +76,6 @@
 #include "cm/cm.h"
 #include "addb/addb_fops.h"
 #include "stats/stats_fops.h"
-#include "mgmt/mgmt.h"
 #include "ha/epoch.h"
 #include "module/instance.h"  /* m0_instance_init */
 
@@ -169,7 +168,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_mdstore_mod_init, &m0_mdstore_mod_fini, "mdstore" },
 	{ &m0_stats_svc_init,   &m0_stats_svc_fini,   "stats-service" },
 #endif /* __KERNEL__ */
-	{ &m0_mgmt_init,        &m0_mgmt_fini,        "mgmt" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" }
 };

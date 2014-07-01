@@ -299,22 +299,19 @@ struct m0_reqh_service_ops {
 	/**
 	   Optional operation to asynchronously ready to transition a service
 	   to the M0_RST_STARTED state. Either this method or rso_start()
-	   must be provided, and this method takes precedence when the service
-	   is started by m0_mgmt_reqh_service_start().
+	   must be provided.
 
            This method is invoked by m0_reqh_service_start_async().
 
 	   @pre m0_reqh_service_state_get(asc->sac_service) == M0_RST_STARTING
-	   @see m0_reqh_service_start_async(), m0_reqh_service_started(),
-	   m0_mgmt_reqh_service_start_async()
+	   @see m0_reqh_service_start_async(), m0_reqh_service_started()
 	 */
 	int (*rso_start_async)(struct m0_reqh_service_start_async_ctx *asc);
 
 	/**
 	   Optional operation to perform service specific startup operations
 	   synchronously.  Either this method or rso_start_async() must be
-	   provided, and this method is given lower precedence when the service
-	   is started by m0_mgmt_reqh_service_start().
+	   provided.
 
 	   Once started, incoming requests related to this service are ready
 	   to be processed by the corresponding request handler.

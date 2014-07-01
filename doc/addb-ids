@@ -69,12 +69,6 @@ value          enum                    variable  name              file
 1400-1499                                                          fop/fop_addb.h
   1400 M0_ADDB_CTXID_FOP_MOD           m0_addb_ct_fop_mod
   1420 M0_ADDB_CTXID_FOM_LOCALITY      m0_addb_ct_fom_locality
-1500-1599                                                          mgmt/mgmt_addb.h
-  1500 M0_ADDB_CTXID_MGMT_MOD          m0_addb_ct_mgmt_mod
-  1501 M0_ADDB_CTXID_MGMT_SERVICE      m0_addb_ct_mgmt_service
-  1502 M0_ADDB_CTXID_MGMT_FOM_SS       m0_addb_ct_mgmt_fom_ss
-  1503 M0_ADDB_CTXID_MGMT_CTL          m0_addb_ct_mgmt_ctl
-  1504 M0_ADDB_CTXID_MGMT_FOM_RUN      m0_addb_ct_mgmt_fom_run
 1600-1699
    1600 M0_ADDB_CTXID_RM_MOD           m0_addb_ct_rm_mod           rm/rm_addb.h
    1601 M0_ADDB_CTXID_RMS_SERV         m0_addb_ct_rms_serv
@@ -163,7 +157,6 @@ value            enum                 variable name         file
 1200-1299							   db/db_addb.h
 1300-1399							   stob/stob_addb.h
 1400-1499							   fop/fop_addb.h
-1500-1599                                                          mgmt/mgmt_addb.h
 1600-1699                                                          rm/rm_addb.h
   1600 M0_ADDB_RECID_RM_BORROW_RATE      m0_addb_rt_rm_borrow_rate
   1601 M0_ADDB_RECID_RM_REVOKE_RATE      m0_addb_rt_rm_revoke_rate

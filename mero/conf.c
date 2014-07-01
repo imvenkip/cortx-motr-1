@@ -18,18 +18,17 @@
  * Original creation date: 07-Dec-2012
  */
 
-#include "lib/errno.h"
-#include "lib/memory.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
 #include "lib/trace.h"
 
+#include "lib/errno.h"
+#include "lib/memory.h"
 #include "lib/string.h"           /* m0_strdup */
 #include "mero/setup.h"           /* cs_args */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
 #include "conf/obj.h"             /* m0_conf_filesystem */
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
-#include "mgmt/mgmt.h"            /* m0_mgmt_conf */
 
 /* ----------------------------------------------------------------
  * Mero options
@@ -286,94 +285,6 @@ xprt:
 	m0_net_xprt_fini(xprt);
 
 	return M0_RC(rc);
-}
-
-M0_INTERNAL int cs_genders_to_args(struct cs_args *args, const char *argv0,
-				   const char *genders)
-{
-	struct m0_mgmt_conf            conf;
-	struct m0_mgmt_node_conf       node;
-	struct m0_mgmt_svc_conf       *svc;
-	struct m0_mgmt_service_ep_conf sep;
-	char                           nbuf[16];
-	char                          *bp;
-	size_t                         l;
-	int                            i;
-	int                            rc;
-
-	M0_PRE(args != NULL && args->ca_argc == 0);
-	rc = m0_mgmt_conf_init(&conf, genders);
-	if (rc != 0)
-		return rc;
-	rc = m0_mgmt_node_get(&conf, NULL, &node);
-	if (rc != 0)
-		goto error;
-
-	/* NB: allocation failures checked at end of block */
-	option_add(args, m0_strdup(argv0));
-	l = strlen(node.mnc_m0d_ep) + strlen(m0_net_lnet_xprt.nx_name) + 2;
-	bp = m0_alloc(l);
-	if (bp != NULL)
-		sprintf(bp, "%s:%s", m0_net_lnet_xprt.nx_name, node.mnc_m0d_ep);
-	option_add(args, m0_strdup("-e"));
-	option_add(args, bp);
-	if (node.mnc_max_rpc_msg != 0) {
-		option_add(args, m0_strdup("-m"));
-		i = snprintf(nbuf, sizeof nbuf, "%lu", node.mnc_max_rpc_msg);
-		if (i >= sizeof nbuf) {
-			rc = -EINVAL;
-			goto done;
-		}
-		option_add(args, m0_strdup(nbuf));
-	}
-	if (node.mnc_recvq_min_len != 0) {
-		option_add(args, m0_strdup("-q"));
-		i = snprintf(nbuf, sizeof nbuf, "%u", node.mnc_recvq_min_len);
-		if (i >= sizeof nbuf) {
-			rc = -EINVAL;
-			goto done;
-		}
-		option_add(args, m0_strdup(nbuf));
-	}
-
-	rc = m0_mgmt_service_ep_get(&conf, service_name[M0_CST_MDS], &sep);
-	if (rc == -ENOENT) {
-		rc = 0;
-	} else if (rc != 0) {
-		goto done;
-	} else {
-		M0_ASSERT(sep.mse_ep_nr > 0);
-		/** @todo use HA or something to determine correct instance */
-		option_add(args, m0_strdup("-G"));
-		l = strlen(sep.mse_ep[0]) +
-		    strlen(m0_net_lnet_xprt.nx_name) + 2;
-		bp = m0_alloc(l);
-		if (bp != NULL)
-			sprintf(bp, "%s:%s",
-				m0_net_lnet_xprt.nx_name, sep.mse_ep[0]);
-		option_add(args, bp);
-		m0_mgmt_service_ep_free(&sep);
-	}
-	m0_tl_for(m0_mgmt_conf, &node.mnc_svc, svc) {
-		option_add(args, m0_strdup("-s"));
-		l = strlen(svc->msc_name) + strlen(svc->msc_uuid) + 2;
-		bp = m0_alloc(l);
-		if (bp != NULL)
-			sprintf(bp, "%s:%s", svc->msc_name, svc->msc_uuid);
-		option_add(args, bp);
-		for (i = 0; i < svc->msc_argc; ++i)
-			option_add(args, m0_strdup(svc->msc_argv[i]));
-	} m0_tlist_endfor;
-	/* detect any earlier memory allocation failures */
-	for (i = 0; i < args->ca_argc && rc == 0; ++i) {
-		if (args->ca_argv[i] == NULL)
-			rc = -ENOMEM;
-	}
-done:
-	m0_mgmt_node_free(&node);
-error:
-	m0_mgmt_conf_fini(&conf);
-	return rc;
 }
 
 /* ----------------------------------------------------------------

@@ -28,7 +28,6 @@ file.c -->
 - @subpage Layout-DB "Layout DB DLD" <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD" <!-- net/lnet/lnet_main.c -->
 - @subpage net-test "Mero Network Benchmark" <!-- net/test/main.c -->
-- @subpage MGMT-DLD "Management Interface Design" <!-- mgmt/mgmt.c -->
 - @subpage m0t1fs "M0T1FS detailed level design specification" <!-- m0t1fs/linux_kernel/m0t1fs.h -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD" <!-- rpc/rpc.h -->
 - @subpage m0loop-dld "The new m0loop device driver DLD" <!-- m0t1fs/linux_kernel/m0loop.c -->

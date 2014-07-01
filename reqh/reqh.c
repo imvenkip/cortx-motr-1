@@ -42,7 +42,6 @@
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
-#include "mgmt/mgmt.h"
 
 #include "be/ut/helper.h"
 
@@ -83,16 +82,8 @@ static struct m0_sm_state_descr m0_reqh_sm_descr[] = {
         [M0_REQH_ST_INIT] = {
                 .sd_flags       = M0_SDF_INITIAL | M0_SDF_FINAL,
                 .sd_name        = "Init",
-                .sd_allowed     = M0_BITS(M0_REQH_ST_MGMT_STARTED,
-					  M0_REQH_ST_NORMAL,
-					  M0_REQH_ST_SVCS_STOP)
-        },
-        [M0_REQH_ST_MGMT_STARTED] = {
-                .sd_flags       = 0,
-                .sd_name        = "ManagementStart",
                 .sd_allowed     = M0_BITS(M0_REQH_ST_NORMAL,
-					  M0_REQH_ST_SVCS_STOP,
-					  M0_REQH_ST_STOPPED)
+					  M0_REQH_ST_SVCS_STOP)
         },
         [M0_REQH_ST_NORMAL] = {
                 .sd_flags       = 0,
@@ -108,12 +99,6 @@ static struct m0_sm_state_descr m0_reqh_sm_descr[] = {
         [M0_REQH_ST_SVCS_STOP] = {
                 .sd_flags       = 0,
                 .sd_name        = "ServicesStop",
-                .sd_allowed     = M0_BITS(M0_REQH_ST_MGMT_STOP,
-					  M0_REQH_ST_STOPPED)
-        },
-        [M0_REQH_ST_MGMT_STOP] = {
-                .sd_flags       = 0,
-                .sd_name        = "ManagementStop",
                 .sd_allowed     = M0_BITS(M0_REQH_ST_STOPPED)
         },
         [M0_REQH_ST_STOPPED] = {
@@ -136,7 +121,6 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 {
 	return	reqh != NULL &&
 		ergo(M0_IN(reqh->rh_sm.sm_state,(M0_REQH_ST_INIT,
-						 M0_REQH_ST_MGMT_STARTED,
 						 M0_REQH_ST_NORMAL)),
 		     reqh->rh_mdstore != NULL) &&
 		     m0_fom_domain_invariant(&reqh->rh_fom_dom);
@@ -332,17 +316,15 @@ M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state)
 	struct m0_reqh_service *svc;
 
 	M0_PRE(reqh != NULL);
-	M0_PRE(M0_IN(m0_reqh_state_get(reqh),
-		     (M0_REQH_ST_MGMT_STARTED, M0_REQH_ST_NORMAL,
-		      M0_REQH_ST_DRAIN, M0_REQH_ST_SVCS_STOP)));
-
+	M0_PRE(M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_NORMAL,
+					       M0_REQH_ST_DRAIN,
+					       M0_REQH_ST_SVCS_STOP)));
 	m0_rwlock_read_lock(&reqh->rh_rwlock);
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, svc) {
 		if (m0_reqh_service_state_get(svc) == state)
 			++cnt;
 	} m0_tl_endfor;
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-
 	return cnt;
 }
 
@@ -358,14 +340,12 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	rh_st = m0_reqh_state_get(reqh);
 	if (rh_st == M0_REQH_ST_INIT)
 		return -EAGAIN;
-	if (rh_st == M0_REQH_ST_MGMT_STOP || rh_st == M0_REQH_ST_STOPPED)
+	if (rh_st == M0_REQH_ST_STOPPED)
 		return -ESHUTDOWN;
 
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
 	if (svc == NULL) {
-		if (rh_st == M0_REQH_ST_MGMT_STARTED)
-			return -EAGAIN;
-		/**
+		/** XXX FIXME
 		 * @todo temporary allow serviceless foms for UT.
 		 *
 		 * Specifically, rm clients should start a service to accept
@@ -392,13 +372,8 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		    svc->rs_ops->rso_fop_accept != NULL)
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
 		return -ESHUTDOWN;
-	case M0_REQH_ST_MGMT_STARTED:
 	case M0_REQH_ST_SVCS_STOP:
-		if (svc == reqh->rh_mgmt_svc) {
-			M0_ASSERT(svc->rs_ops->rso_fop_accept != NULL);
-			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
-		}
-		return rh_st == M0_REQH_ST_MGMT_STARTED ? -EAGAIN : -ESHUTDOWN;
+		return rh_st == -ESHUTDOWN;
 	default:
 		return -ENOSYS;
 	};
@@ -544,10 +519,8 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 	M0_PRE(reqh != NULL);
         m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_invariant(reqh));
-	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
-	       m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL ||
-	       m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
-	       m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
+	M0_PRE(M0_IN(m0_reqh_state_get(reqh),
+		     (M0_REQH_ST_DRAIN, M0_REQH_ST_NORMAL, M0_REQH_ST_INIT)));
 
 	reqh_state_set(reqh, M0_REQH_ST_SVCS_STOP);
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_SVCS_STOP);
@@ -556,17 +529,13 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 	__reqh_svcs_stop(reqh, 2);
 
         m0_rwlock_write_lock(&reqh->rh_rwlock);
-	if (reqh->rh_mgmt_svc != NULL)
-		reqh_state_set(reqh, M0_REQH_ST_MGMT_STOP);
-	else
-		reqh_state_set(reqh, M0_REQH_ST_STOPPED);
+	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
         m0_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh)
 {
-	M0_PRE(M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_MGMT_STOP,
-					       M0_REQH_ST_STOPPED)));
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	__reqh_svcs_stop(reqh, 1);
 }
 
@@ -576,75 +545,10 @@ M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)
         m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_PRE(m0_reqh_invariant(reqh));
 
-	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
-	       m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
+	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
 	reqh_state_set(reqh, M0_REQH_ST_NORMAL);
 
         m0_rwlock_write_unlock(&reqh->rh_rwlock);
-}
-
-M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh)
-{
-	struct m0_reqh_service *service;
-	int                     rc;
-
-	M0_PRE(reqh != NULL);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
-	M0_PRE(m0_reqh_invariant(reqh));
-
-	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_INIT);
-	M0_PRE(reqh->rh_mgmt_svc == NULL);
-
-	reqh_state_set(reqh, M0_REQH_ST_MGMT_STARTED);
-	rc = m0_mgmt_service_allocate(&service);
-	if (rc != 0)
-		goto allocate_failed;
-	m0_reqh_service_init(service, reqh, NULL);
-	reqh->rh_mgmt_svc = service;
-
-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
-	rc = m0_reqh_service_start(service);
-	m0_rwlock_write_lock(&reqh->rh_rwlock);
-
-	if (rc != 0)
-		goto start_failed;
-	M0_POST(reqh->rh_mgmt_svc == service);
-	M0_POST(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED);
- done:
-	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	return rc;
-
- start_failed:
-	reqh->rh_mgmt_svc = NULL;
-	m0_reqh_service_fini(service);
- allocate_failed:
-	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
-	M0_POST(reqh->rh_mgmt_svc == NULL);
-	M0_POST(rc != 0);
-	goto done;
-}
-
-M0_INTERNAL void m0_reqh_mgmt_service_stop(struct m0_reqh *reqh)
-{
-	struct m0_reqh_service *service;
-
-	M0_PRE(reqh != NULL);
-        m0_rwlock_write_lock(&reqh->rh_rwlock);
-	M0_PRE(m0_reqh_invariant(reqh));
-
-	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP);
-	service = reqh->rh_mgmt_svc;
-	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
-        m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
-	if (service != NULL) {
-		m0_reqh_service_prepare_to_stop(service);
-		m0_reqh_idle_wait(reqh); /* drain mgmt fops */
-		m0_reqh_service_stop(service);
-		m0_reqh_service_fini(service);
-		reqh->rh_mgmt_svc = NULL;
-	}
 }
 
 M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
@@ -677,7 +581,6 @@ M0_INTERNAL void m0_reqh_stats_post_addb(struct m0_reqh *reqh)
 M0_INTERNAL uint64_t m0_reqh_nr_localities(const struct m0_reqh *reqh)
 {
 	M0_PRE(m0_reqh_invariant(reqh));
-
 	return reqh->rh_fom_dom.fd_localities_nr;
 }
 

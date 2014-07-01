@@ -36,7 +36,6 @@
 #include "lib/locality.h"
 #include "balloc/balloc.h"
 #include "stob/ad.h"
-#include "mgmt/mgmt.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc.h"
@@ -943,8 +942,7 @@ static int reqh_services_start(struct m0_reqh_context *rctx)
 
 	M0_ENTRY();
 
-	rc = m0_reqh_mgmt_service_start(reqh) ?:
-		cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
+	rc = cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
 		reqh_context_services_init(rctx);
 
 	if (rc == 0)
@@ -1291,13 +1289,8 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown_wait(reqh);
 
-	if (m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
-	    m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
-	    m0_reqh_state_get(reqh) == M0_REQH_ST_INIT)
+	if (M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_DRAIN, M0_REQH_ST_INIT)))
 		m0_reqh_pre_storage_fini_svcs_stop(reqh);
-
-	if (m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
-		m0_reqh_mgmt_service_stop(reqh);
 
 	M0_ASSERT(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	m0_reqh_dbenv_fini(reqh);
@@ -1415,8 +1408,6 @@ static void cs_help(FILE *out, const char *progname)
 "  -P str   Configuration profile.\n"
 "  -G addr  Endpoint address of mdservice.\n"
 "  -i addr  Add new entry to the list of ioservice endpoint addresses.\n"
-"  -f path  Path to genders file, defaults to /etc/mero/genders.\n"
-"  -g       Bootstrap configuration using genders.\n"
 "  -Z       Run as a daemon.\n"
 "  -R addr  Stats service endpoint address.\n"
 "  -F       Force mkfs to override found filesystem.\n"
@@ -1584,8 +1575,7 @@ service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
 
 /** Parses CLI arguments, filling m0_mero structure. */
 static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
-		       const char **confd_addr, const char **profile,
-		       const char **genders, bool *use_genders)
+		       const char **confd_addr, const char **profile)
 {
 	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
 	int                     rc_getops;
@@ -1682,13 +1672,6 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv,
 				{
 					cctx->cc_confd_timeout = val;
 				})),
-			M0_FLAGARG('g', "Bootstrap from genders", use_genders),
-			M0_STRINGARG('f', "Genders file",
-				LAMBDA(void, (const char *s)
-				{
-					M0_ASSERT(genders != NULL);
-					*genders = s;
-				})),
 			M0_FLAGARG('Z', "Run as a daemon", &cctx->cc_daemon),
 
 			/* -------------------------------------------
@@ -1782,41 +1765,12 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 	const char *confd_addr  = NULL;
 	const char *local_addr  = NULL;
 	const char *profile     = NULL;
-	const char *genders     = NULL;
-	bool        use_genders = false;
 
 	M0_ENTRY();
 
-	rc = _args_parse(cctx, argc, argv, &confd_addr, &profile,
-			 &genders, &use_genders);
+	rc = _args_parse(cctx, argc, argv, &confd_addr, &profile);
 	if (rc != 0)
 		return M0_RC(rc);
-
-	if (genders != NULL && !use_genders) {
-		cs_usage(cctx->cc_outfile, argv[0]);
-		return M0_ERR(-EPROTO, "-f genders file specified without -g");
-	}
-	/**
-	 * @todo allow bootstrap via genders and confd afterward, but currently
-	 * confd is only used for bootstrap, thus a conflict if both present.
-	 */
-	if (use_genders && profile != NULL) {
-		cs_usage(cctx->cc_outfile, argv[0]);
-		return M0_ERR(-EPROTO, "genders use conflicts with "
-			      "confd profile");
-	}
-	if (use_genders) {
-		struct cs_args *args = &cctx->cc_args;
-		bool global_daemonize = cctx->cc_daemon;
-
-		rc = cs_genders_to_args(args, argv[0], genders);
-		if (rc != 0)
-			return M0_RC(rc);
-
-		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
-				 NULL, NULL, NULL, &use_genders);
-		cctx->cc_daemon |= global_daemonize;
-	}
 
 	if (confd_addr != NULL || profile != NULL) {
 		struct cs_args              *args = &cctx->cc_args;
@@ -1824,27 +1778,21 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 
 		if (confd_addr == NULL)
 			return M0_ERR(-EPROTO,
-				"confd address is not specified");
+				      "confd address is not specified");
 		if (profile == NULL)
 			return M0_ERR(-EPROTO,
-				"configuration profile is not specified");
+				      "configuration profile is not specified");
 
-		epx        = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
+		epx = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
 		local_addr = epx->ex_endpoint;
 		rc = cs_conf_to_args(args, confd_addr, profile, local_addr,
 				     cctx->cc_confd_timeout ?:
-						CONFD_CONN_TIMEOUT,
+					CONFD_CONN_TIMEOUT,
 				     cctx->cc_confd_conn_retry ?:
-						CONFD_CONN_RETRY);
-		if (rc != 0)
-			return M0_RC(rc);
-
-		rc = _args_parse(cctx, args->ca_argc, args->ca_argv,
-				 NULL, NULL, NULL, &use_genders);
+					CONFD_CONN_RETRY) ?:
+			_args_parse(cctx, args->ca_argc, args->ca_argv, NULL,
+				    NULL);
 	}
-	if (rc == 0 && use_genders)
-		rc = -EINVAL;
-
 	return M0_RC(rc);
 }
 

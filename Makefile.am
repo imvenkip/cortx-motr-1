@@ -194,7 +194,6 @@ include $(top_srcdir)/m0t1fs/Makefile.sub
 include $(top_srcdir)/mdservice/Makefile.sub
 include $(top_srcdir)/mdstore/Makefile.sub
 include $(top_srcdir)/mero/Makefile.sub
-include $(top_srcdir)/mgmt/Makefile.sub
 include $(top_srcdir)/module/Makefile.sub
 include $(top_srcdir)/mw/Makefile.sub
 include $(top_srcdir)/net/Makefile.sub
@@ -246,8 +245,6 @@ include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/lib/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub
 include $(top_srcdir)/mero/ut/Makefile.sub
-include $(top_srcdir)/mgmt/svc/ut/Makefile.sub
-include $(top_srcdir)/mgmt/ut/Makefile.sub
 include $(top_srcdir)/module/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
@@ -636,16 +633,6 @@ addb_dump_m0addbdump_CPPFLAGS  = -DM0_TARGET='m0addbdump' $(AM_CPPFLAGS)
 addb_dump_m0addbdump_LDADD     = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/addb/dump/Makefile.sub
-
-#XXX_BE_DB #
-#XXX_BE_DB # mgmt/ctl/m0ctl
-#XXX_BE_DB # (This is unrelated to utils/linux_kernel/ctl.c).
-#XXX_BE_DB #
-#XXX_BE_DB
-#XXX_BE_DB bin_PROGRAMS               += mgmt/ctl/m0ctl
-#XXX_BE_DB mgmt_ctl_m0ctl_LDADD        = $(top_builddir)/mero/libmero.la
-#XXX_BE_DB
-#XXX_BE_DB include $(top_srcdir)/mgmt/ctl/Makefile.sub
 
 #
 # stats/util/m0stats
@@ -1149,7 +1136,6 @@ EXTRA_DIST += addb/Kbuild.sub \
               m0t1fs/linux_kernel/ut/Kbuild.sub \
               mdservice/Kbuild.sub \
               mero/Kbuild.sub \
-              mgmt/Kbuild.sub \
               module/Kbuild.sub \
               net/Kbuild.sub \
               net/bulk_emulation/Kbuild.sub \

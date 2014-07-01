@@ -471,22 +471,6 @@ enum m0_magic_satchel {
 	/* m0_layout_linear_enum::lla_magic (boldface blob) */
 	M0_LAYOUT_LINEAR_ENUM_MAGIC = 0x33b01dfaceb10b77,
 
-/* MGMT */
-	/* mgmt_svc::ms_magic (bald dada casa) */
-	M0_MGMT_SVC_MAGIC = 0x33ba1ddadaca5a77,
-
-	/* mgmt_fop_ss_fom_bob (obese seafood) */
-	M0_MGMT_FOP_SS_FOM_MAGIC = 0x330be5e5eaf00d77,
-
-	/* mgmt_fop_run_fom_bob (obese caboose) */
-	M0_MGMT_FOP_RUN_FOM_MAGIC = 0x330be5ecab005e77,
-
-	/* m0_mgmt_svc_conf::msc_magic (calico saddle) */
-	M0_MGMT_SVC_CONF_MAGIC = 0x33ca11c05add1e77,
-
-	/* m0_mgmt_node_conf::mnc_svc magic (calico lilacs) */
-	M0_MGMT_NODE_CONF_MAGIC = 0x33ca11c0111ac577,
-
 /* Net */
 	/* m0_net_domain::nd_magix (acidic access) */
 	M0_NET_DOMAIN_MAGIC = 0x33ac1d1cacce5577,

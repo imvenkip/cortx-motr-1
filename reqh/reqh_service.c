@@ -119,11 +119,10 @@ M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 	     svc->rs_reqh != NULL) &&
 	ergo(M0_IN(svc->rs_sm.sm_state, (M0_RST_STARTED, M0_RST_STOPPING,
 					 M0_RST_STOPPED, M0_RST_FAILED)),
-	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc) ||
-	     svc->rs_reqh->rh_mgmt_svc == svc) &&
+	     m0_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc)) &&
 	ergo(svc->rs_reqh != NULL,
 	     M0_IN(m0_reqh_lockers_get(svc->rs_reqh, svc->rs_type->rst_key),
-		   (0, svc))) &&
+		   (NULL, svc))) &&
 	svc->rs_level > 0;
 }
 M0_EXPORTED(m0_reqh_service_invariant);
@@ -190,8 +189,7 @@ static void reqh_service_starting_common(struct m0_reqh *reqh,
 	 * is started first and rmservice should be stopped before
 	 * rpcservice.
 	 */
-	if (service != reqh->rh_mgmt_svc)
-		m0_reqh_svc_tlist_add(&reqh->rh_services, service);
+	m0_reqh_svc_tlist_add(&reqh->rh_services, service);
 	/*
 	 * NOTE: The key is required to be set before 'rso_start'
 	 * as some services can call m0_fom_init() directly in

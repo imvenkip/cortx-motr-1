@@ -59,26 +59,17 @@ High level design of M0 request handler</a>
  */
 
 struct m0_fop;
-struct m0_net_xprt;
 struct m0_rpc_machine;
 
 M0_LOCKERS_DECLARE(M0_EXTERN, m0_reqh, 256);
 
-/**
-   Request handler states.
-
-   See @ref MGMT-SVC-DLD-lspec-rh-sm "Request Handler State Machine".
-   <!-- mgmt/svc/mgmt_svc.c -->
- */
+/** Request handler states. */
 enum m0_reqh_states {
-	M0_REQH_ST_INIT = 0,
-	M0_REQH_ST_MGMT_STARTED,
+	M0_REQH_ST_INIT,
 	M0_REQH_ST_NORMAL,
 	M0_REQH_ST_DRAIN,
 	M0_REQH_ST_SVCS_STOP,
-	M0_REQH_ST_MGMT_STOP,
 	M0_REQH_ST_STOPPED,
-
 	M0_REQH_ST_NR
 };
 
@@ -122,9 +113,6 @@ struct m0_reqh {
 	    @see m0_reqh_service::rs_linkage
 	 */
         struct m0_tl                  rh_services;
-
-	/** Pointer to the management service */
-	struct m0_reqh_service       *rh_mgmt_svc;
 
         /**
 	    RPC machines running in this request handler.
@@ -206,7 +194,6 @@ struct m0_reqh_init_args {
 
    @see m0_reqh
    @post m0_reqh_invariant()
-   @post m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_INIT
  */
 M0_INTERNAL int m0_reqh_init(struct m0_reqh *reqh,
 			     const struct m0_reqh_init_args *args);
@@ -253,9 +240,6 @@ M0_INTERNAL int m0_reqh_state_get(struct m0_reqh *reqh);
 /**
    Decide whether to process an incoming FOP.
 
-   See @ref MGMT-SVC-DLD-lspec-rh-sm "Request Handler State Machine".
-   <!-- mgmt/svc/mgmt_svc.c -->
-
    @pre m0_rewlock_read_lock(&reqh->rh_rwlock)
  */
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop);
@@ -300,27 +284,12 @@ M0_INTERNAL void m0_reqh_idle_wait_for(struct m0_reqh *reqh,
 				       struct m0_reqh_service *service);
 
 /**
-   Start the management service.
-
-   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
-   @pre reqh->rh_mgmt_svc == NULL
-   @post m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
-         m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
-   @post ergo(m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED,
-              reqh->rh_mgmt_svc != NULL)
-   @post ergo(m0_reqh_state_get(reqh) == M0_REQH_ST_INIT,
-              reqh->rh_mgmt_svc == NULL)
- */
-M0_INTERNAL int m0_reqh_mgmt_service_start(struct m0_reqh *reqh);
-
-/**
    Notify the request handler that normal operation should commence.
 
    The subroutine does not enforce that a management service is
    configured because UTs frequently do not require this.
 
-   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
-        m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
+   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
    @post m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL
  */
 M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh);
@@ -330,8 +299,7 @@ M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh);
    @param reqh request handler
    @param state Service state
    @pre M0_IN(m0_reqh_state_get(reqh),
-              (M0_REQH_ST_MGMT_STARTED, M0_REQH_ST_NORMAL,
-	       M0_REQH_ST_DRAIN, M0_REQH_ST_SVCS_STOP)
+	      (M0_REQH_ST_NORMAL, M0_REQH_ST_DRAIN, M0_REQH_ST_SVCS_STOP))
  */
 M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state);
 
@@ -360,31 +328,14 @@ M0_INTERNAL void m0_reqh_shutdown_wait(struct m0_reqh *reqh);
    Stops and finalises all the services registered with a request handler,
    but not the management service.
 
-   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_DRAIN ||
-        m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STARTED ||
-        m0_reqh_state_get(reqh) == M0_REQH_ST_INIT
-   @post m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP ||
-         m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED
-   @post ergo(reqh->rh_mgmt_svc != NULL,
-              m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP)
-   @post ergo(reqh->rh_mgmt_svc == NULL,
-              m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED)
+   @pre M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_DRAIN, M0_REQH_ST_INIT))
+   @post m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED
    @see m0_reqh_service_stop()
    @see m0_reqh_service_fini()
-   @see m0_reqh_mgmt_service_stop()
  */
 M0_INTERNAL void m0_reqh_services_terminate(struct m0_reqh *reqh);
 M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh);
 M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh);
-
-/**
-   Stop the management service.
-
-   @pre m0_reqh_state_get(reqh) == M0_REQH_ST_MGMT_STOP
-   @post m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED
-   @post reqh->rh_mgmt_svc == NULL
- */
-M0_INTERNAL void m0_reqh_mgmt_service_stop(struct m0_reqh *reqh);
 
 /**
     Initialises global reqh objects like reqh fops and addb context,

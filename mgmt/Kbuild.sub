@@ -1,2 +1,0 @@
-m0mero_objects += mgmt/mgmt.o \
-                  mgmt/mgmt_fops_xc.o
