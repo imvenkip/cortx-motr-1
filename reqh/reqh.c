@@ -377,40 +377,31 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	M0_ASSERT(svc->rs_ops != NULL);
 	svc_st = m0_reqh_service_state_get(svc);
 
-	if (rh_st == M0_REQH_ST_NORMAL) {
+	switch (rh_st) {
+	case M0_REQH_ST_NORMAL:
 		if (svc_st == M0_RST_STARTED)
 			return 0;
-		if (svc_st == M0_RST_STOPPING) {
-			if (svc->rs_ops->rso_fop_accept != NULL)
-				return (*svc->rs_ops->rso_fop_accept)(svc, fop);
-			return -ESHUTDOWN;
-		}
 		if (svc_st == M0_RST_STARTING)
 			return -EBUSY;
-		return -ESHUTDOWN;
-	}
-	if (rh_st == M0_REQH_ST_DRAIN) {
-		if (svc->rs_ops->rso_fop_accept != NULL &&
-		    (svc_st == M0_RST_STARTED || svc_st == M0_RST_STOPPING))
+		else if (svc_st == M0_RST_STOPPING &&
+			 svc->rs_ops->rso_fop_accept != NULL)
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
 		return -ESHUTDOWN;
-	}
-	if (rh_st == M0_REQH_ST_MGMT_STARTED) {
+	case M0_REQH_ST_DRAIN:
+		if (M0_IN(svc_st, (M0_RST_STARTED, M0_RST_STOPPING)) &&
+		    svc->rs_ops->rso_fop_accept != NULL)
+			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
+		return -ESHUTDOWN;
+	case M0_REQH_ST_MGMT_STARTED:
+	case M0_REQH_ST_SVCS_STOP:
 		if (svc == reqh->rh_mgmt_svc) {
 			M0_ASSERT(svc->rs_ops->rso_fop_accept != NULL);
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
 		}
-		return -EAGAIN;
-	}
-	if (rh_st == M0_REQH_ST_SVCS_STOP) {
-		if (svc == reqh->rh_mgmt_svc) {
-			M0_ASSERT(svc->rs_ops->rso_fop_accept != NULL);
-			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
-		}
-		return -ESHUTDOWN;
-	}
-
-	return -ENOSYS;
+		return rh_st == M0_REQH_ST_MGMT_STARTED ? -EAGAIN : -ESHUTDOWN;
+	default:
+		return -ENOSYS;
+	};
 }
 
 M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
