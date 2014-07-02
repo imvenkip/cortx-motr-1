@@ -195,17 +195,17 @@ M0_INTERNAL bool m0_thread_handle_eq(struct m0_thread_handle *h1,
 
 M0_INTERNAL void m0_enter_awkward(void)
 {
-	m0_thread_tls()->tls_is_awkward = true;
+	M0_CNT_INC(m0_thread_tls()->tls_awkward);
 }
 
 M0_INTERNAL void m0_exit_awkward(void)
 {
-	m0_thread_tls()->tls_is_awkward = false;
+	M0_CNT_DEC(m0_thread_tls()->tls_awkward);
 }
 
 M0_INTERNAL bool m0_is_awkward(void)
 {
-	return m0_thread_tls()->tls_is_awkward;
+	return m0_thread_tls()->tls_awkward != 0;
 }
 
 /** @} end of thread group */

@@ -250,6 +250,19 @@ static void set_and_check_is_awkward(void)
 
 	m0_exit_awkward();
 	M0_UT_ASSERT(m0_is_awkward() == false);
+
+	/* Recurrsive check */
+	m0_enter_awkward();
+	M0_UT_ASSERT(m0_is_awkward() == true);
+
+	m0_enter_awkward();
+	M0_UT_ASSERT(m0_is_awkward() == true);
+
+	m0_exit_awkward();
+	M0_UT_ASSERT(m0_is_awkward() == true);
+
+	m0_exit_awkward();
+	M0_UT_ASSERT(m0_is_awkward() == false);
 }
 
 static void ut_t0_handler1(int arg)

@@ -51,8 +51,8 @@ struct m0_thread_handle {
 struct m0_thread_tls {
 	/** The pointer returned by m0_get(). */
 	struct m0 *tls_m0_instance;
-	/** True iff the thread is in awkward context. */
-	bool       tls_is_awkward;
+	/** Non-zero iff the thread is in awkward context. */
+	uint32_t   tls_awkward;
 	/** Stack context/environment, saved with setjmp(3). */
 	jmp_buf   *tls_jmp;
 };
