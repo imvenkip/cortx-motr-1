@@ -1325,7 +1325,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	struct m0_fop_getxattr_rep  *getxattr_rep;
 	struct m0_fop_listxattr_rep *listxattr_rep;
 	struct m0_fop_delxattr_rep  *delxattr_rep;
-	void                        *reply_fop;
+	void                        *reply_data;
 
 	M0_PRE(csb != NULL);
 	M0_PRE(mo != NULL);
@@ -1365,73 +1365,73 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		goto out;
 	}
 
-	reply_fop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+	reply_data = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	if (rep != NULL)
-		*rep = reply_fop;
+		*rep = reply_data;
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_MDSERVICE_CREATE_OPCODE:
-		create_rep = reply_fop;
+		create_rep = reply_data;
 		rc = create_rep->c_body.b_rc;
 		break;
 	case M0_MDSERVICE_STATFS_OPCODE:
-		statfs_rep = reply_fop;
+		statfs_rep = reply_data;
 		rc = statfs_rep->f_rc;
 		break;
 	case M0_MDSERVICE_LOOKUP_OPCODE:
-		lookup_rep = reply_fop;
+		lookup_rep = reply_data;
 		rc = lookup_rep->l_body.b_rc;
 		break;
 	case M0_MDSERVICE_LINK_OPCODE:
-		link_rep = reply_fop;
+		link_rep = reply_data;
 		rc = link_rep->l_body.b_rc;
 		break;
 	case M0_MDSERVICE_UNLINK_OPCODE:
-		unlink_rep = reply_fop;
+		unlink_rep = reply_data;
 		rc = unlink_rep->u_body.b_rc;
 		break;
 	case M0_MDSERVICE_RENAME_OPCODE:
-		rename_rep = reply_fop;
+		rename_rep = reply_data;
 		rc = rename_rep->r_body.b_rc;
 		break;
 	case M0_MDSERVICE_SETATTR_OPCODE:
-		setattr_rep = reply_fop;
+		setattr_rep = reply_data;
 		rc = setattr_rep->s_body.b_rc;
 		break;
 	case M0_MDSERVICE_GETATTR_OPCODE:
-		getattr_rep = reply_fop;
+		getattr_rep = reply_data;
 		rc = getattr_rep->g_body.b_rc;
 		break;
 	case M0_MDSERVICE_OPEN_OPCODE:
-		open_rep = reply_fop;
+		open_rep = reply_data;
 		rc = open_rep->o_body.b_rc;
 		break;
 	case M0_MDSERVICE_CLOSE_OPCODE:
-		close_rep = reply_fop;
+		close_rep = reply_data;
 		rc = close_rep->c_body.b_rc;
 		break;
 	case M0_MDSERVICE_READDIR_OPCODE:
-		readdir_rep = reply_fop;
+		readdir_rep = reply_data;
 		rc = readdir_rep->r_body.b_rc;
 		break;
 	case M0_LAYOUT_OPCODE:
-		layout_rep = reply_fop;
+		layout_rep = reply_data;
 		rc = layout_rep->lr_rc;
 		break;
 	case M0_MDSERVICE_SETXATTR_OPCODE:
-		setxattr_rep = reply_fop;
+		setxattr_rep = reply_data;
 		rc = setxattr_rep->s_body.b_rc;
 		break;
 	case M0_MDSERVICE_GETXATTR_OPCODE:
-		getxattr_rep = reply_fop;
+		getxattr_rep = reply_data;
 		rc = getxattr_rep->g_body.b_rc;
 		break;
 	case M0_MDSERVICE_LISTXATTR_OPCODE:
-		listxattr_rep = reply_fop;
+		listxattr_rep = reply_data;
 		rc = listxattr_rep->l_body.b_rc;
 		break;
 	case M0_MDSERVICE_DELXATTR_OPCODE:
-		delxattr_rep = reply_fop;
+		delxattr_rep = reply_data;
 		rc = delxattr_rep->d_body.b_rc;
 		break;
 	default:
