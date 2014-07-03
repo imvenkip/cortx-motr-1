@@ -204,3 +204,5 @@ info "Stopping Mero"
 stop mero-singlenode
 
 [[ -n $rpm_pkg ]] && remove_mero_rpm $rpm_pkg
+
+debug "test status: SUCCESS"
