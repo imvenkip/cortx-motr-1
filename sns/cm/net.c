@@ -483,7 +483,6 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
 	sw_hi_ag = m0_cm_ag_hi(cm);
 	m0_cm_unlock(cm);
         rc = m0_rpc_reply_post(&cp->c_fom.fo_fop->f_item, &fop->f_item);
-        m0_fop_put(fop);
 out:
         if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_RECV_WAIT);

@@ -117,7 +117,6 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		    reqh);
 	*m = fom;
 	rc = 0;
-	m0_fop_put(reply_fop);
 
 out:
 	if (rc != 0) {

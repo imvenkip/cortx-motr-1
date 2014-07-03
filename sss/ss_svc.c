@@ -215,7 +215,6 @@ ss_fom_create(struct m0_fop *fop, struct m0_fom **out, struct m0_reqh *reqh)
 	fom = &ssfom->ssf_fom;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &ss_fom_ops, fop, rfop,
 		    reqh);
-	m0_fop_put(rfop);
 
 	ssfom->ssf_magic = M0_SS_FOM_MAGIC;
 	*out = fom;

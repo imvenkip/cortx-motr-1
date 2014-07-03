@@ -248,13 +248,6 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 
 	m0_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
 		    fom_ops, fop, reply_fop, reqh);
-
-	/*
-	 * m0_fop_alloc() holds a reference. m0_fom_init() holds additional
-	 * reference to reply_fop. Hence use m0_fop_put() to release extra
-	 * reference.
-	 */
-	m0_fop_put(reply_fop);
 	*out = &rqfom->rf_fom;
 	return M0_RC(0);
 }

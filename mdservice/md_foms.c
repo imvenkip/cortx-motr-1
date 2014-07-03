@@ -1679,8 +1679,6 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	}
 	fom = &fom_obj->fm_fom;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop, reqh);
-
-        m0_fop_put(rep_fop);
 	*m = fom;
 	return 0;
 }

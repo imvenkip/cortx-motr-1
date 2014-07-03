@@ -173,7 +173,6 @@ static int ha_state_ut_fom_get_tick(struct m0_fom *fom)
 
 	m0_rpc_reply_post(m0_fop_to_rpc_item(fom_obj->fp_fop),
 			  m0_fop_to_rpc_item(fop));
-	m0_fop_put(fop);
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
 }
@@ -219,7 +218,6 @@ static int ha_state_ut_fom_set_tick(struct m0_fom *fom)
 
 	m0_rpc_reply_post(m0_fop_to_rpc_item(fom_obj->fp_fop),
 			  m0_fop_to_rpc_item(fop));
-	m0_fop_put(fop);
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
 }

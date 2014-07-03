@@ -728,7 +728,6 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
 	 */
 	m0_rpc_session_hold_busy(item->ri_session);
-	m0_rpc_item_get(item);
 	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 	M0_LEAVE();
 }

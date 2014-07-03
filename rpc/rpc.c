@@ -116,6 +116,7 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 			m0_rpc_session_get_max_item_size(session));
 	M0_ASSERT(m0_rpc_machine_is_locked(session_machine(session)));
 
+	m0_rpc_item_get(item);
 	item->ri_rmachine = session_machine(session);
 	item->ri_rpc_time = m0_time_now();
 	m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);

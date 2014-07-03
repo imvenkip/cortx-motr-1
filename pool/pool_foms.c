@@ -65,7 +65,6 @@ static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &poolmach_ops, fop, rep_fop,
 		    reqh);
-	m0_fop_put(rep_fop);
 	*out = fom;
 
         return rc;
