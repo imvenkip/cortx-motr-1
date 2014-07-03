@@ -205,4 +205,6 @@ stop mero-singlenode
 
 [[ -n $rpm_pkg ]] && remove_mero_rpm $rpm_pkg
 
-debug "test status: SUCCESS"
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+debug "test status: SUCCESS" |& cat
