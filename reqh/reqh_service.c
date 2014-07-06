@@ -489,7 +489,7 @@ M0_EXPORTED(m0_reqh_service_types_fini);
 
 M0_INTERNAL struct m0_reqh_service *
 m0_reqh_service_find(const struct m0_reqh_service_type *st,
-		     struct m0_reqh                    *reqh)
+		     const struct m0_reqh              *reqh)
 {
 	M0_PRE(st != NULL && reqh != NULL);
 

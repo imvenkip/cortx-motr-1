@@ -84,20 +84,20 @@ struct m0_lockers {
 
 #define M0_LOCKERS_DECLARE(scope, name, max)                              \
 struct name;                                                              \
-                                                                          \
+									  \
 struct name ## _lockers {                                                 \
-        struct m0_lockers __base;                                         \
-        void             *__slots[(max)];                                 \
+	struct m0_lockers __base;                                         \
+	void             *__slots[(max)];                                 \
 };                                                                        \
-                                                                          \
+									  \
 M0_BASSERT(offsetof(struct name ## _lockers, __slots[0]) ==               \
-           offsetof(struct m0_lockers, loc_slots[0]));                    \
-                                                                          \
+	   offsetof(struct m0_lockers, loc_slots[0]));                    \
+									  \
 scope void name ## _lockers_init(struct name *par);                       \
 scope void name ## _lockers_fini(struct name *par);                       \
 scope int name ## _lockers_allot(void);                                   \
 scope void name ## _lockers_set(struct name *par, int key, void *data);   \
-scope void * name ## _lockers_get(struct name *par, int key);             \
+scope void * name ## _lockers_get(const struct name *par, int key);       \
 scope void name ## _lockers_clear(struct name *par, int key);             \
 scope bool name ## _lockers_is_empty(struct name *par, int key)
 
@@ -174,7 +174,7 @@ scope void name ## _lockers_set(struct name *par, int key, void *data)         \
                        &par->field.__base, key, data);                         \
 }                                                                              \
                                                                                \
-scope void * name ## _lockers_get(struct name *par, int key)                   \
+scope void * name ## _lockers_get(const struct name *par, int key)             \
 {                                                                              \
         return m0_lockers_get(&name ## _lockers_type,                          \
                               &par->field.__base, key);                        \
