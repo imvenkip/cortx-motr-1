@@ -26,6 +26,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SSS
 #include "lib/trace.h"
+
 #include "lib/assert.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
@@ -42,6 +43,12 @@ struct m0_addb_ctx m0_ss_fom_addb_ctx;
 static int ss_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			  struct m0_reqh *reqh);
 static int ss_fom_tick(struct m0_fom *fom);
+static int ss_fom_tick__init(struct ss_fom *m,
+			     const struct m0_sssservice_req *fop,
+			     struct m0_reqh *reqh);
+static int ss_fom_tick__start(struct m0_reqh *reqh, struct ss_fom *m,
+			      const struct m0_fid *svc_id);
+static int ss_fom_tick__stop(struct m0_reqh_service *svc);
 static void ss_fom_fini(struct m0_fom *fom);
 static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
 static size_t ss_fom_home_locality(const struct m0_fom *fom);
@@ -226,171 +233,97 @@ err:
 	return M0_RC(-ENOMEM);
 }
 
-static int ss_fom_phase_move(struct m0_fom *fom, uint32_t cmd)
-{
-	int rc = 0;
-
-	switch(cmd) {
-	case M0_SERVICE_START:
-		m0_fom_phase_set(fom, START_STOP_FOM_START);
-		break;
-	case M0_SERVICE_STOP:
-		m0_fom_phase_set(fom, START_STOP_FOM_STOP);
-		break;
-	case M0_SERVICE_STATUS:
-		m0_fom_phase_set(fom, START_STOP_FOM_STATUS);
-		break;
-	default :
-		rc = -EPROTO;
-		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-		break;
-	}
-	return rc;
-}
-
-static bool ss_check_ftype(const struct m0_fid *fid)
-{
-	return m0_fid_type_getfid(fid) == &M0_CONF_SERVICE_TYPE.cot_ftype;
-}
-
 static int ss_fom_tick(struct m0_fom *fom)
 {
-	struct ss_fom            *ssfom;
+	struct ss_fom            *m;
 	struct m0_reqh           *reqh;
 	struct m0_sssservice_req *fop;
 	struct m0_sssservice_rep *rep;
-	struct m0_reqh_context	 *rctx;
-	int                       rc;
 
 	M0_PRE(fom != NULL);
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR)
 		return m0_fom_tick_generic(fom);
 
-	ssfom = container_of(fom, struct ss_fom, ssf_fom);
+	m = container_of(fom, struct ss_fom, ssf_fom);
 	fop = m0_fop_data(fom->fo_fop);
 	rep = m0_fop_data(fom->fo_rep_fop);
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 
-	switch(m0_fom_phase(fom)) {
+	switch (m0_fom_phase(fom)) {
 	case START_STOP_FOM_INIT:
-		strncpy(ssfom->ssf_sname, (const char *)fop->ss_name.s_buf,
-			min32u(sizeof ssfom->ssf_sname, fop->ss_name.s_len));
-		ssfom->ssf_stype = m0_reqh_service_type_find(ssfom->ssf_sname);
-
-		if (ssfom->ssf_stype != NULL && ss_check_ftype(&fop->ss_id)) {
-			ssfom->ssf_svc =
-				m0_reqh_service_find(ssfom->ssf_stype, reqh);
-			rep->ssr_rc = ss_fom_phase_move(fom, fop->ss_cmd);
-		} else {
-			rep->ssr_rc = -ENOENT;
+		rep->ssr_rc = ss_fom_tick__init(m, fop, reqh);
+		if (rep->ssr_rc != 0)
 			m0_fom_phase_move(fom, rep->ssr_rc, M0_FOPH_FAILURE);
-		}
-		rc = M0_FSO_AGAIN;
-		break;
-	case START_STOP_FOM_START:
-		if (ssfom->ssf_svc == NULL) {
-			reqh = fom->fo_loc->fl_dom->fd_reqh;
-			rctx = container_of(reqh, struct m0_reqh_context,
-					    rc_reqh);
-			rc = m0_reqh_service_allocate(&ssfom->ssf_svc,
-						      ssfom->ssf_stype, rctx);
-			if (rc == 0) {
-				struct m0_uint128 *uuid =
-					&M0_UINT128(fop->ss_id.f_container,
-						    fop->ss_id.f_key);
-				m0_reqh_service_init(ssfom->ssf_svc, reqh,
-						     uuid);
-			} else
-				rep->ssr_rc = rc;
-		} else
-			rep->ssr_rc = -EALREADY;
+		return M0_FSO_AGAIN;
 
+	case START_STOP_FOM_START:
+		rep->ssr_rc = ss_fom_tick__start(reqh, m, &fop->ss_id);
 		m0_fom_phase_moveif(fom, rep->ssr_rc,
 				    START_STOP_FOM_START_ASYNC,
 				    M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
-		break;
+		return M0_FSO_AGAIN;
+
 	case START_STOP_FOM_START_ASYNC:
-		M0_PRE(m0_reqh_service_state_get(ssfom->ssf_svc) ==
-			M0_RST_INITIALISED);
-
-		ssfom->ssf_ctx.sac_service = ssfom->ssf_svc;
-		ssfom->ssf_ctx.sac_fom = fom;
-		rep->ssr_rc = m0_reqh_service_start_async(&ssfom->ssf_ctx);
-
+		M0_PRE(m0_reqh_service_state_get(m->ssf_svc) ==
+		       M0_RST_INITIALISED);
+		m->ssf_ctx.sac_service = m->ssf_svc;
+		m->ssf_ctx.sac_fom = fom;
+		rep->ssr_rc = m0_reqh_service_start_async(&m->ssf_ctx);
 		m0_fom_phase_moveif(fom, rep->ssr_rc,
 				    START_STOP_FOM_START_WAIT, M0_FOPH_FAILURE);
-		rc = rep->ssr_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
-		break;
+		return rep->ssr_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+
 	case START_STOP_FOM_START_WAIT:
-		if (ssfom->ssf_ctx.sac_rc == 0)
-			m0_reqh_service_started(ssfom->ssf_svc);
+		if (m->ssf_ctx.sac_rc == 0)
+			m0_reqh_service_started(m->ssf_svc);
 		else
-			m0_reqh_service_failed(ssfom->ssf_svc);
-
-		rep->ssr_rc = ssfom->ssf_ctx.sac_rc;
-		rep->ssr_status = m0_reqh_service_state_get(ssfom->ssf_svc);
-
+			m0_reqh_service_failed(m->ssf_svc);
+		rep->ssr_rc = m->ssf_ctx.sac_rc;
+		rep->ssr_status = m0_reqh_service_state_get(m->ssf_svc);
 		m0_fom_phase_moveif(fom, rep->ssr_rc, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
-		break;
+		return M0_FSO_AGAIN;
+
 	case START_STOP_FOM_STOP:
-		rep->ssr_rc = ssfom->ssf_svc == NULL ? -ENOENT :
-			m0_reqh_service_state_get(ssfom->ssf_svc) ==
-				M0_RST_STOPPING ? -EALREADY : 0;
-
-		if (rep->ssr_rc == 0)
-			m0_reqh_service_prepare_to_stop(ssfom->ssf_svc);
-
+		rep->ssr_rc = ss_fom_tick__stop(m->ssf_svc);
 		m0_fom_phase_moveif(fom, rep->ssr_rc, START_STOP_FOM_STOP_WAIT,
 				    M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
-		break;
+		return M0_FSO_AGAIN;
+
 	case START_STOP_FOM_STOP_WAIT:
-		if (m0_fom_domain_is_idle_for(&reqh->rh_fom_dom,
-					      ssfom->ssf_svc)) {
-			struct m0_reqh_service *svc = ssfom->ssf_svc;
+		if (m0_fom_domain_is_idle_for(&reqh->rh_fom_dom, m->ssf_svc)) {
+			struct m0_reqh_service *svc = m->ssf_svc;
 
 			m0_reqh_service_stop(svc);
-
 			rep->ssr_status = m0_reqh_service_state_get(svc);
 			rep->ssr_rc = 0;
-
 			m0_reqh_service_fini(svc);
-			m0_fom_phase_move(fom, rep->ssr_rc, M0_FOPH_SUCCESS);
-			rc = M0_FSO_AGAIN;
-		} else {
-			m0_sm_group_lock(&reqh->rh_sm_grp);
-			m0_fom_wait_on(fom, &reqh->rh_sm_grp.s_chan,
-				       &fom->fo_cb);
-			m0_sm_group_unlock(&reqh->rh_sm_grp);
-
-			m0_fom_phase_move(fom, rep->ssr_rc,
-					  START_STOP_FOM_STOP_WAIT);
-			rc = M0_FSO_WAIT;
+			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+			return M0_FSO_AGAIN;
 		}
-		break;
+		m0_sm_group_lock(&reqh->rh_sm_grp);
+		m0_fom_wait_on(fom, &reqh->rh_sm_grp.s_chan, &fom->fo_cb);
+		m0_sm_group_unlock(&reqh->rh_sm_grp);
+		m0_fom_phase_set(fom, START_STOP_FOM_STOP_WAIT);
+		return M0_FSO_WAIT;
+
 	case START_STOP_FOM_STATUS:
-		if (ssfom->ssf_svc != NULL)
-			rep->ssr_status =
-				m0_reqh_service_state_get(ssfom->ssf_svc);
-		else {
+		if (m->ssf_svc == NULL) {
 			rep->ssr_status = M0_RST_STOPPED;
-			rep->ssr_rc = ssfom->ssf_stype != NULL ? 0 : -ENOENT;
+			rep->ssr_rc = m->ssf_stype == NULL ? -ENOENT : 0;
+		} else {
+			rep->ssr_status =
+				m0_reqh_service_state_get(m->ssf_svc);
+			rep->ssr_rc = 0;
 		}
-
 		m0_fom_phase_moveif(fom, rep->ssr_rc, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
-		break;
-	default:
-		M0_IMPOSSIBLE("Impossible phase.");
-		break;
-	}
+		return M0_FSO_AGAIN;
 
-	return rc;
+	default:
+		M0_IMPOSSIBLE("Invalid phase");
+	}
 }
 
 static void ss_fom_fini(struct m0_fom *fom)
@@ -410,6 +343,59 @@ static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 {
 	M0_ADDB_CTX_INIT(mc, &fom->fo_addb_ctx, &m0_addb_ct_ss_fom,
 			 &fom->fo_service->rs_addb_ctx);
+}
+
+static int ss_fom_tick__init(struct ss_fom *m,
+			     const struct m0_sssservice_req *fop,
+			     struct m0_reqh *reqh)
+{
+	static enum ss_fom_phases next_phase[] = {
+		[M0_SERVICE_START]  = START_STOP_FOM_START,
+		[M0_SERVICE_STOP]   = START_STOP_FOM_STOP,
+		[M0_SERVICE_STATUS] = START_STOP_FOM_STATUS,
+	};
+
+	if (!IS_IN_ARRAY(fop->ss_cmd, next_phase) ||
+	    m0_fid_type_getfid(&fop->ss_id) != &M0_CONF_SERVICE_TYPE.cot_ftype)
+		return -ENOENT;
+
+	strncpy(m->ssf_sname, (const char *)fop->ss_name.s_buf,
+		min32u(sizeof m->ssf_sname, fop->ss_name.s_len));
+	m->ssf_stype = m0_reqh_service_type_find(m->ssf_sname);
+	if (m->ssf_stype == NULL)
+		return -ENOENT;
+
+	m->ssf_svc = m0_reqh_service_find(m->ssf_stype, reqh);
+	m0_fom_phase_set(&m->ssf_fom, next_phase[fop->ss_cmd]);
+	return 0;
+}
+
+static int ss_fom_tick__start(struct m0_reqh *reqh, struct ss_fom *m,
+			      const struct m0_fid *svc_id)
+{
+	int                     rc;
+	struct m0_reqh_context *rctx =
+		container_of(reqh, struct m0_reqh_context, rc_reqh);
+
+	if (m->ssf_svc != NULL)
+		return -EALREADY;
+
+	rc = m0_reqh_service_allocate(&m->ssf_svc, m->ssf_stype, rctx);
+	if (rc == 0)
+		m0_reqh_service_init(m->ssf_svc, reqh,
+				     &M0_UINT128(svc_id->f_container,
+						 svc_id->f_key));
+	return rc;
+}
+
+static int ss_fom_tick__stop(struct m0_reqh_service *svc)
+{
+	if (svc == NULL)
+		return -ENOENT;
+	if (m0_reqh_service_state_get(svc) == M0_RST_STOPPING)
+		return -EALREADY;
+	m0_reqh_service_prepare_to_stop(svc);
+	return 0;
 }
 
 static size_t ss_fom_home_locality(const struct m0_fom *fom)
