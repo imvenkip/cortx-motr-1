@@ -154,10 +154,10 @@ struct m0_sm_state_descr ss_fom_phases[] = {
 	},
 	[START_STOP_FOM_START]= {
 		.sd_name    = "Start",
-		.sd_allowed = M0_BITS(START_STOP_FOM_SVC_ASYNC_START,
+		.sd_allowed = M0_BITS(START_STOP_FOM_START_ASYNC,
 				      M0_FOPH_FAILURE),
 	},
-	[START_STOP_FOM_SVC_ASYNC_START]= {
+	[START_STOP_FOM_START_ASYNC]= {
 		.sd_name    = "Async Start",
 		.sd_allowed = M0_BITS(START_STOP_FOM_START_WAIT,
 				      M0_FOPH_FAILURE),
@@ -307,7 +307,7 @@ static int ss_fom_tick(struct m0_fom *fom)
 			rep->ssr_rc = -EALREADY;
 
 		m0_fom_phase_moveif(fom, rep->ssr_rc,
-				    START_STOP_FOM_SVC_ASYNC_START,
+				    START_STOP_FOM_START_ASYNC,
 				    M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 		break;
@@ -360,7 +360,7 @@ static int ss_fom_tick(struct m0_fom *fom)
 				    M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 		break;
-	case START_STOP_FOM_SVC_ASYNC_START:
+	case START_STOP_FOM_START_ASYNC:
 		M0_PRE(m0_reqh_service_state_get(ssfom->ssf_svc) ==
 			M0_RST_INITIALISED);
 
