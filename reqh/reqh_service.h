@@ -496,14 +496,14 @@ M0_INTERNAL int m0_reqh_service_start_async(struct
    @pre m0_reqh_service_state_get(service) == M0_RST_STARTING
    @post m0_reqh_service_state_get(service) == M0_RST_STARTED
  */
-M0_INTERNAL int m0_reqh_service_started(struct m0_reqh_service *service);
+M0_INTERNAL void m0_reqh_service_started(struct m0_reqh_service *service);
 
 /**
    Fail the service because it could not initialize itself.
    @pre m0_reqh_service_state_get(service) == M0_RST_STARTING
    @post m0_reqh_service_state_get(service) == M0_RST_FAILED
  */
-M0_INTERNAL int m0_reqh_service_failed(struct m0_reqh_service *service);
+M0_INTERNAL void m0_reqh_service_failed(struct m0_reqh_service *service);
 
 /**
    Starts a particular service synchronously.

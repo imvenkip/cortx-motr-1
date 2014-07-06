@@ -252,7 +252,7 @@ static void reqh_service_started_common(struct m0_reqh *reqh,
 	reqh_service_state_set(service, M0_RST_STARTED);
 }
 
-M0_INTERNAL int m0_reqh_service_started(struct m0_reqh_service *service)
+M0_INTERNAL void m0_reqh_service_started(struct m0_reqh_service *service)
 {
 	struct m0_reqh *reqh;
 
@@ -265,11 +265,9 @@ M0_INTERNAL int m0_reqh_service_started(struct m0_reqh_service *service)
 	reqh_service_started_common(reqh, service);
 	M0_POST(m0_reqh_service_invariant(service));
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
-	return 0;
 }
 
-M0_INTERNAL int m0_reqh_service_failed(struct m0_reqh_service *service)
+M0_INTERNAL void m0_reqh_service_failed(struct m0_reqh_service *service)
 {
 	unsigned        key;
 	struct m0_reqh *reqh;
@@ -284,8 +282,6 @@ M0_INTERNAL int m0_reqh_service_failed(struct m0_reqh_service *service)
 			(M0_RST_STARTING, M0_RST_INITIALISED)));
 	reqh_service_failed_common(reqh, service, key);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-
-	return 0;
 }
 
 M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
