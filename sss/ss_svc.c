@@ -264,8 +264,8 @@ static int ss_fom_tick(struct m0_fom *fom)
 
 	M0_PRE(fom != NULL);
 
-        if (m0_fom_phase(fom) < M0_FOPH_NR)
-                return m0_fom_tick_generic(fom);
+	if (m0_fom_phase(fom) < M0_FOPH_NR)
+		return m0_fom_tick_generic(fom);
 
 	ssfom = container_of(fom, struct ss_fom, ssf_fom);
 	fop = m0_fop_data(fom->fo_fop);
@@ -308,6 +308,31 @@ static int ss_fom_tick(struct m0_fom *fom)
 
 		m0_fom_phase_moveif(fom, rep->ssr_rc,
 				    START_STOP_FOM_START_ASYNC,
+				    M0_FOPH_FAILURE);
+		rc = M0_FSO_AGAIN;
+		break;
+	case START_STOP_FOM_START_ASYNC:
+		M0_PRE(m0_reqh_service_state_get(ssfom->ssf_svc) ==
+			M0_RST_INITIALISED);
+
+		ssfom->ssf_ctx.sac_service = ssfom->ssf_svc;
+		ssfom->ssf_ctx.sac_fom = fom;
+		rep->ssr_rc = m0_reqh_service_start_async(&ssfom->ssf_ctx);
+
+		m0_fom_phase_moveif(fom, rep->ssr_rc,
+				    START_STOP_FOM_START_WAIT, M0_FOPH_FAILURE);
+		rc = rep->ssr_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+		break;
+	case START_STOP_FOM_START_WAIT:
+		if (ssfom->ssf_ctx.sac_rc == 0)
+			m0_reqh_service_started(ssfom->ssf_svc);
+		else
+			m0_reqh_service_failed(ssfom->ssf_svc);
+
+		rep->ssr_rc = ssfom->ssf_ctx.sac_rc;
+		rep->ssr_status = m0_reqh_service_state_get(ssfom->ssf_svc);
+
+		m0_fom_phase_moveif(fom, rep->ssr_rc, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 		break;
@@ -359,31 +384,6 @@ static int ss_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_moveif(fom, rep->ssr_rc, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
-		break;
-	case START_STOP_FOM_START_ASYNC:
-		M0_PRE(m0_reqh_service_state_get(ssfom->ssf_svc) ==
-			M0_RST_INITIALISED);
-
-		ssfom->ssf_ctx.sac_service = ssfom->ssf_svc;
-		ssfom->ssf_ctx.sac_fom = fom;
-		rep->ssr_rc = m0_reqh_service_start_async(&ssfom->ssf_ctx);
-
-		m0_fom_phase_moveif(fom, rep->ssr_rc,
-				    START_STOP_FOM_START_WAIT, M0_FOPH_FAILURE);
-		rc = rep->ssr_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
-		break;
-	case START_STOP_FOM_START_WAIT:
-		if (ssfom->ssf_ctx.sac_rc == 0)
-			m0_reqh_service_started(ssfom->ssf_svc);
-		else
-			m0_reqh_service_failed(ssfom->ssf_svc);
-
-		rep->ssr_rc = ssfom->ssf_ctx.sac_rc;
-		rep->ssr_status = m0_reqh_service_state_get(ssfom->ssf_svc);
-
-		m0_fom_phase_moveif(fom, rep->ssr_rc, M0_FOPH_SUCCESS,
-				    M0_FOPH_FAILURE);
-                rc = M0_FSO_AGAIN;
 		break;
 	default:
 		M0_IMPOSSIBLE("Impossible phase.");
