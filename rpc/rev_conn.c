@@ -454,7 +454,8 @@ static struct m0_sm_state_descr rev_conn_state_descr[] = {
         [M0_RCS_SESSION_WAIT] = {
                 .sd_flags       = 0,
                 .sd_name        = "Session wait",
-                .sd_allowed     = M0_BITS(M0_RCS_FINI)
+                .sd_allowed     = M0_BITS(M0_RCS_FAILURE,
+					  M0_RCS_FINI)
         },
 	[M0_RCS_FINI] = {
                 .sd_flags       = M0_SDF_TERMINAL,
