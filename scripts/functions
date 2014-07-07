@@ -1,0 +1,13 @@
+# -*- sh -*-
+
+die() { echo "$@" >&2; exit 1; }
+
+### Example:
+###     $ opcode M0_LAYOUT_OPCODE
+###     92
+opcode() {
+	[ $# -eq 1 ] || die 'Invalid usage'
+	local NAME="$1"
+	grep -v '#pragma once' $M0_CORE_DIR/rpc/rpc_opcodes.h | cpp | \
+		awk "/$NAME/ {print \$3}" | tr -d ,
+}

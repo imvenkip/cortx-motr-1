@@ -1,0 +1,152 @@
+#!/bin/bash
+set -eu
+
+umask 0002
+
+## CAUTION: This path will be removed by superuser.
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.sss-st}
+
+SERVER_TMID=1001
+CLIENT_TMID=1002
+
+M0_CORE_DIR=`readlink -f $0`
+M0_CORE_DIR=${M0_CORE_DIR%/*/*}
+
+. $M0_CORE_DIR/scripts/functions  # die, opcode
+
+sss_send() {
+	[ $# -eq 3 ] || die 'Invalid arguments'
+	local SVC="$1"
+	local CMD=
+	case "$2" in  # see m0_service_startstop_cmd for the values
+		M0_SERVICE_START)  CMD=0;;
+		M0_SERVICE_STOP)   CMD=1;;
+		M0_SERVICE_STATUS) CMD=2;;
+		*) die 'Invalid value';;
+	esac
+	local ID="$3"
+
+	$M0_CORE_DIR/console/bin/m0console \
+		-f $(opcode M0_SSSSERVICE_REQ_OPCODE) \
+		-s $(endpoint $SERVER_TMID) -c $(endpoint $CLIENT_TMID) \
+		-d "(\"$SVC\", $CMD, $ID, \"\")" -v
+}
+
+svc_state() {
+	case "${1:-}" in  # see m0_reqh_service_state for the values
+		M0_RST_STARTED) echo 3;;
+		M0_RST_STOPPED) echo 5;;
+		_ENOENT) echo -2;;
+		_EALREADY) echo -114;;
+		*) die 'Invalid value';;
+	esac
+}
+
+sss_check() {
+	[ $# -eq 4 ] || die 'Invalid arguments'
+	local SERVICE_NAME="$1"
+	local COMMAND="$2"
+	local SERVICE_ID="$3"
+	local EXPECTED_STATE="$4"
+
+	echo -n "$SERVICE_NAME $COMMAND... " >&2
+	sss_send $SERVICE_NAME $COMMAND $SERVICE_ID &>$SANDBOX_DIR/console.log
+	local ACTUAL=$(awk "/ssr_status/ {print \$3}" $SANDBOX_DIR/console.log)
+	local EXPECTED=$(svc_state $EXPECTED_STATE)
+	[ "$ACTUAL" = "$EXPECTED" ] || \
+		die "Expected service state (${EXPECTED}) != actual (${ACTUAL})"
+	echo 'OK' >&2
+}
+
+sandbox_init() {
+	rm -rf $SANDBOX_DIR
+	mkdir $SANDBOX_DIR
+	pushd $SANDBOX_DIR >/dev/null
+}
+
+sandbox_fini() {
+	popd >/dev/null
+	rm -r $SANDBOX_DIR
+}
+
+endpoint() {
+	local LNET_NID=`lctl list_nids | head -1`
+	local TMID="${1:-}"  # numeric value, e.g. 1001
+	## LNet endpoint address format (see net/lnet/lnet.h):
+	##     NID:PID:Portal:TMID
+	##
+	## The PID value of 12345 is used by Lustre in the kernel and is
+	## the only value currently supported.
+	echo "${LNET_NID}:12345:34:${TMID}"
+}
+
+m0d_start() {
+	local MKFS_OPTS='-T linux -D sss_st.db -S sss_st.stob'\
+' -A linuxstob:sss_st-addb.stob'
+	local M0D_OPT='-w 4 -m 163840 -q 16'
+
+	echo -n 'Running m0mkfs... ' >&2
+	$M0_CORE_DIR/utils/mkfs/m0mkfs $MKFS_OPTS &>$SANDBOX_DIR/mkfs.log || \
+		die 'm0mkfs failed'
+	echo 'OK' >&2
+
+	## "sns_repair" and "sns_rebalance" (see below)
+	## require "ioservice" running.
+	$M0_CORE_DIR/mero/m0d $MKFS_OPTS -e lnet:$(endpoint $SERVER_TMID) \
+		$M0D_OPT -s ioservice &>$SANDBOX_DIR/m0d.log &
+	sleep 1
+	killall -q -0 lt-m0d || die 'Failed to start m0d'
+}
+
+m0d_stop() {
+	killall -q lt-m0d && wait 2>/dev/null || true
+}
+
+usage() {
+	cat <<EOF
+Usage: ${0##*/} [COMMAND]
+
+Supported commands:
+  run      run system tests (default command)
+  help     display this help and exit
+EOF
+}
+
+## -------------------------------------------------------------------
+## main
+## -------------------------------------------------------------------
+
+[ `id -u` -eq 0 ] || die 'Must be run by superuser'
+
+case "${1:-}" in
+	run|'') ;;
+	help) usage; exit;;
+	*) usage >&2; die;;
+esac
+
+$M0_CORE_DIR/m0t1fs/linux_kernel/st/st insmod
+sandbox_init
+m0d_start
+
+VALID_ID='(8286623314361712755,1)'
+INVALID_ID='(0,0)'
+
+sss_check ioservice M0_SERVICE_STATUS $VALID_ID   M0_RST_STARTED
+sss_check ioservice M0_SERVICE_STATUS $INVALID_ID _ENOENT
+
+SVC_NAMES=(stats rmservice mdservice addb sns_repair sns_rebalance)
+for ((i=0; i < ${#SVC_NAMES[*]}; i += 1)); do
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS $VALID_ID M0_RST_STOPPED
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START  $VALID_ID M0_RST_STARTED
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS $VALID_ID M0_RST_STARTED
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START  $VALID_ID _EALREADY
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STOP   $VALID_ID M0_RST_STOPPED
+	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS $VALID_ID M0_RST_STOPPED
+done
+sss_check unknown_service M0_SERVICE_START  $VALID_ID _ENOENT
+sss_check ioservice       M0_SERVICE_STOP   $VALID_ID M0_RST_STOPPED
+sss_check ioservice       M0_SERVICE_STATUS $VALID_ID M0_RST_STOPPED
+
+m0d_stop
+sandbox_fini
+$M0_CORE_DIR/m0t1fs/linux_kernel/st/st rmmod

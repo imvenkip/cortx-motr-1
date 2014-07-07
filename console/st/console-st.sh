@@ -3,13 +3,13 @@ set -eu
 
 umask 0002
 
-[ `id -u` -eq 0 ] || die 'Must be run by superuser'
-
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-~/_sandbox.console-st}
 
 M0_CORE_DIR=`readlink -f $0`
 M0_CORE_DIR=${M0_CORE_DIR%/*/*/*}
+
+. $M0_CORE_DIR/scripts/functions  # die, opcode
 
 CLIENT=$M0_CORE_DIR/console/bin/m0console
 SERVER=$M0_CORE_DIR/console/st/server
@@ -23,8 +23,6 @@ CLIENT_EP_ADDR='0@lo:12345:34:*'
 
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91   # required by `common.sh'
 . $M0_CORE_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
-
-die() { echo "$@" >&2; exit 1; }
 
 start_server()
 {
@@ -141,12 +139,6 @@ test_fop()
 	echo OK >&2
 }
 
-opcode()
-{
-	grep -v '#pragma once' $M0_CORE_DIR/rpc/rpc_opcodes.h | cpp | \
-		awk "/$1/ {print \$3}" | tr -d ,
-}
-
 run_st()
 {
 	test_fop 'Console test fop, xcode input' \
@@ -174,6 +166,8 @@ run_st()
 ## -------------------------------------------------------------------
 ## main
 ## -------------------------------------------------------------------
+
+[ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
 rm -rf $SANDBOX_DIR
 mkdir $SANDBOX_DIR
