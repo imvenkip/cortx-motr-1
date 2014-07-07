@@ -1,13 +1,20 @@
 #!/bin/bash
 
 #
-# Wrapper script for Jenkins test '3initscript-tests'
+# Wrapper script for Jenkins test '03initscript-tests'
 #
 
+# exit immediately if one the commands exits with a non-zero status to indicate
+# test failure
 set -e
-set -x
 
 current_script_path=$(dirname $(readlink -f $0))
 mero_src_dir=$(echo $current_script_path | sed -e 's#scripts/jenkins/tests$##')
 
+set -x
 sudo $mero_src_dir/st/m0t1fs -vv -r ~jenkins/rpmbuild/RPMS/x86_64/mero-?.?.?-*.rpm
+set +x
+
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+echo "initscripts: test status: SUCCESS"

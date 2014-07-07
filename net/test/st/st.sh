@@ -39,3 +39,7 @@ for KERNEL_ROLE in "none" "client" "server"; do
 	echo "--- bulk test (test message size is 1MiB)"
 	sh $CWD/st-bulk.sh
 done
+
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+echo "net: test status: SUCCESS"

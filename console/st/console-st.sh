@@ -179,3 +179,7 @@ stop_server
 
 cd - >/dev/null
 rm -r $SANDBOX_DIR
+
+# this msg is used by Jenkins as a test success criteria;
+# it should appear on STDOUT
+echo "console: test status: SUCCESS"
