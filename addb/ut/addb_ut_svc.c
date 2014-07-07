@@ -130,10 +130,8 @@ void addb_ut_svc_test(void)
 
 	/* explicitly terminate the fom. */
 	addb_pfom_stop(the_addb_svc);
-	m0_mutex_lock(&the_addb_svc->as_reqhs.rs_mutex);
-	while (the_addb_svc->as_pfom.pf_running)
-		m0_cond_wait(&the_addb_svc->as_cond);
-	m0_mutex_unlock(&the_addb_svc->as_reqhs.rs_mutex);
+	m0_reqh_idle_wait_for(the_addb_svc->as_reqhs.rs_reqh,
+			      &the_addb_svc->as_reqhs);
 
 	/* restart the fom */
 	M0_LOG(M0_DEBUG, "UT: resetting pfom");

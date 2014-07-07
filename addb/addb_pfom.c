@@ -176,7 +176,6 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 
 	m0_fom_timeout_fini(&pfom->pf_timeout);
 	addb_post_fom_bob_fini(pfom);
-	m0_fom_fini(fom);
 
 	/*
 	 * Mustn't free as the fom is embedded in the service object, but
@@ -184,10 +183,10 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 	 */
 	m0_mutex_lock(&rsvc->rs_mutex);
 	pfom->pf_running = false;
-	m0_cond_broadcast(&svc->as_cond);
 	the_addb_pfom_started = false;
 	M0_LOG(M0_DEBUG, "done");
 	m0_mutex_unlock(&rsvc->rs_mutex);
+	m0_fom_fini(fom);
 }
 
 static size_t addb_pfom_fo_locality(const struct m0_fom *fom)
