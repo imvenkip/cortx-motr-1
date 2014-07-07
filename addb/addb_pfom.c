@@ -174,9 +174,9 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 
 	M0_ENTRY();
 
-	m0_fom_fini(fom);
 	m0_fom_timeout_fini(&pfom->pf_timeout);
 	addb_post_fom_bob_fini(pfom);
+	m0_fom_fini(fom);
 
 	/*
 	 * Mustn't free as the fom is embedded in the service object, but
