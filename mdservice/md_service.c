@@ -46,7 +46,7 @@
 static struct m0_addb_ctx m0_mds_mod_ctx;
 
 static int mds_allocate(struct m0_reqh_service **service,
-			struct m0_reqh_service_type *stype,
+			const struct m0_reqh_service_type *stype,
                         struct m0_reqh_context *rctx);
 static void mds_fini(struct m0_reqh_service *service);
 
@@ -96,7 +96,7 @@ M0_INTERNAL void m0_mds_unregister(void)
  * vector.
  */
 static int mds_allocate(struct m0_reqh_service **service,
-			struct m0_reqh_service_type *stype,
+			const struct m0_reqh_service_type *stype,
                         struct m0_reqh_context *rctx)
 {
         struct m0_reqh_md_service *mds;

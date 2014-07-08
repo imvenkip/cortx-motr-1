@@ -47,7 +47,7 @@
 
 /** Copy machine service type operations.*/
 static int repair_svc_allocate(struct m0_reqh_service **service,
-			       struct m0_reqh_service_type *stype,
+			       const struct m0_reqh_service_type *stype,
 			       struct m0_reqh_context *rctx);
 
 static const struct m0_reqh_service_type_ops repair_svc_type_ops = {
@@ -85,7 +85,7 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
  * m0_sns_cm::rc_base.
  */
 static int repair_svc_allocate(struct m0_reqh_service **service,
-			       struct m0_reqh_service_type *stype,
+			       const struct m0_reqh_service_type *stype,
 			       struct m0_reqh_context *rctx)
 {
 	M0_ENTRY("stype: %p", stype);

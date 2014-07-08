@@ -171,9 +171,10 @@ static const struct m0_reqh_service_ops addb_service_ops = {
 /**
    The rsto_service_allocate method to allocate an ADDB service instance.
  */
-static int addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
-					  struct m0_reqh_service_type *stype,
-					  struct m0_reqh_context *rctx)
+static int
+addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
+			       const struct m0_reqh_service_type *stype,
+			       struct m0_reqh_context *rctx)
 {
 	struct addb_svc *svc;
 
@@ -189,11 +190,10 @@ static int addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
 	addb_svc_bob_init(svc);
 
 	M0_POST(addb_svc_invariant(svc));
-
 	return 0;
 }
 
-static struct m0_reqh_service_type_ops addb_service_type_ops = {
+static const struct m0_reqh_service_type_ops addb_service_type_ops = {
 	.rsto_service_allocate = addb_svc_rsto_service_allocate,
 };
 

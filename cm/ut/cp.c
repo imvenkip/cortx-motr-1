@@ -72,7 +72,7 @@ static const struct m0_reqh_service_ops ut_cp_service_ops = {
 };
 
 static int ut_cp_service_allocate(struct m0_reqh_service **service,
-				  struct m0_reqh_service_type *stype,
+				  const struct m0_reqh_service_type *stype,
 				  struct m0_reqh_context *rctx)
 {
 	struct m0_reqh_service *serv;

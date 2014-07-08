@@ -267,9 +267,10 @@ static const struct m0_reqh_service_ops stats_svc_ops = {
 	.rso_fini        = stats_svc_rso_fini
 };
 
-static int stats_svc_rsto_service_allocate(struct m0_reqh_service      **srv,
-					   struct m0_reqh_service_type  *stype,
-					   struct m0_reqh_context       *rctx)
+static int
+stats_svc_rsto_service_allocate(struct m0_reqh_service           **srv,
+				const struct m0_reqh_service_type *stype,
+				struct m0_reqh_context            *rctx)
 {
 	struct stats_svc *svc;
 
@@ -291,7 +292,7 @@ static int stats_svc_rsto_service_allocate(struct m0_reqh_service      **srv,
 	return 0;
 }
 
-static struct m0_reqh_service_type_ops stats_service_type_ops = {
+static const struct m0_reqh_service_type_ops stats_service_type_ops = {
 	.rsto_service_allocate = stats_svc_rsto_service_allocate,
 };
 

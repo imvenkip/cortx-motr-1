@@ -74,9 +74,10 @@ static const struct m0_reqh_service_ops ss_svc_ops = {
 	.rso_fini  = ss_svc_rso_fini
 };
 
-static int ss_svc_rsto_service_allocate(struct m0_reqh_service      **service,
-					struct m0_reqh_service_type  *stype,
-					struct m0_reqh_context       *rctx)
+static int
+ss_svc_rsto_service_allocate(struct m0_reqh_service           **service,
+			     const struct m0_reqh_service_type *stype,
+			     struct m0_reqh_context            *rctx)
 {
 	struct ss_svc *svc;
 

@@ -31,31 +31,31 @@ static int ds2_service_start(struct m0_reqh_service *service);
 static void ds1_service_stop(struct m0_reqh_service *service);
 static void ds2_service_stop(struct m0_reqh_service *service);
 static int ds1_service_allocate(struct m0_reqh_service **service,
-				struct m0_reqh_service_type *stype,
+				const struct m0_reqh_service_type *stype,
 				struct m0_reqh_context *rctx);
 static int ds2_service_allocate(struct m0_reqh_service **service,
-				struct m0_reqh_service_type *stype,
+				const struct m0_reqh_service_type *stype,
 				struct m0_reqh_context *rctx);
 static void ds_service_fini(struct m0_reqh_service *service);
 
 static const struct m0_reqh_service_type_ops ds1_service_type_ops = {
-        .rsto_service_allocate = ds1_service_allocate
+	.rsto_service_allocate = ds1_service_allocate
 };
 
 static const struct m0_reqh_service_type_ops ds2_service_type_ops = {
-        .rsto_service_allocate = ds2_service_allocate
+	.rsto_service_allocate = ds2_service_allocate
 };
 
 static const struct m0_reqh_service_ops ds1_service_ops = {
-        .rso_start = ds1_service_start,
-        .rso_stop = ds1_service_stop,
-        .rso_fini = ds_service_fini
+	.rso_start = ds1_service_start,
+	.rso_stop  = ds1_service_stop,
+	.rso_fini  = ds_service_fini
 };
 
 static const struct m0_reqh_service_ops ds2_service_ops = {
-        .rso_start = ds2_service_start,
-        .rso_stop = ds2_service_stop,
-        .rso_fini = ds_service_fini
+	.rso_start = ds2_service_start,
+	.rso_stop  = ds2_service_stop,
+	.rso_fini  = ds_service_fini
 };
 
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
@@ -72,7 +72,7 @@ struct m0_reqh_service_type *m0_cs_default_stypes[] = {
 const size_t m0_cs_default_stypes_nr = ARRAY_SIZE(m0_cs_default_stypes);
 
 static int _ds_alloc(struct m0_reqh_service **service,
-		     struct m0_reqh_service_type *stype,
+		     const struct m0_reqh_service_type *stype,
 		     const struct m0_reqh_service_ops *ops)
 {
 	struct m0_reqh_service *s;
@@ -91,14 +91,14 @@ static int _ds_alloc(struct m0_reqh_service **service,
 }
 
 static int ds1_service_allocate(struct m0_reqh_service **service,
-				struct m0_reqh_service_type *stype,
+				const struct m0_reqh_service_type *stype,
 				struct m0_reqh_context *rctx)
 {
 	return _ds_alloc(service, stype, &ds1_service_ops);
 }
 
 static int ds2_service_allocate(struct m0_reqh_service **service,
-				struct m0_reqh_service_type *stype,
+				const struct m0_reqh_service_type *stype,
 				struct m0_reqh_context *rctx)
 {
 	return _ds_alloc(service, stype, &ds2_service_ops);

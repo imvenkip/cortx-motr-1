@@ -144,9 +144,10 @@ m0_reqh_service_type_find(const char *sname)
         return t;
 }
 
-M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **out,
-					 struct m0_reqh_service_type *stype,
-					 struct m0_reqh_context *rctx)
+M0_INTERNAL int
+m0_reqh_service_allocate(struct m0_reqh_service **out,
+			 const struct m0_reqh_service_type *stype,
+			 struct m0_reqh_context *rctx)
 {
 	int rc;
 

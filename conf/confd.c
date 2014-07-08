@@ -443,7 +443,7 @@ const struct m0_bob_type m0_confd_bob = {
 };
 
 static int confd_allocate(struct m0_reqh_service **out,
-			  struct m0_reqh_service_type *stype,
+			  const struct m0_reqh_service_type *stype,
 			  struct m0_reqh_context *rctx);
 
 static const struct m0_reqh_service_type_ops confd_stype_ops = {
@@ -536,7 +536,7 @@ static int confd_cache_preload(struct m0_conf_cache *cache, const char *dbpath)
 
 /** Allocates and initialises confd service. */
 static int confd_allocate(struct m0_reqh_service **service,
-			  struct m0_reqh_service_type *stype,
+			  const struct m0_reqh_service_type *stype,
 			  struct m0_reqh_context *rctx)
 {
 	struct m0_confd *confd;

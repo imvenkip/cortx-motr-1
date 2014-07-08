@@ -611,7 +611,7 @@ static const struct m0_reqh_service_ops sender_cm_service_ops = {
 };
 
 static int sender_cm_service_allocate(struct m0_reqh_service **service,
-				      struct m0_reqh_service_type *stype,
+				      const struct m0_reqh_service_type *stype,
 				      struct m0_reqh_context *rctx)
 {
 	struct m0_cm *cm = &sender_cm;

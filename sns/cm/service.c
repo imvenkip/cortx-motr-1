@@ -48,10 +48,11 @@ struct m0_addb_ctx m0_sns_cm_addb_ctx;
 struct m0_addb_ctx m0_sns_ag_addb_ctx;
 struct m0_addb_ctx m0_sns_cp_addb_ctx;
 
-M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
-				       struct m0_reqh_service_type *stype,
-				       const struct m0_reqh_service_ops *svc_ops,
-				       const struct m0_cm_ops *cm_ops)
+M0_INTERNAL int
+m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
+		       const struct m0_reqh_service_type *stype,
+		       const struct m0_reqh_service_ops *svc_ops,
+		       const struct m0_cm_ops *cm_ops)
 {
 	struct m0_sns_cm *sns_cm;
 	struct m0_cm     *cm;

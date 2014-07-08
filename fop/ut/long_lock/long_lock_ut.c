@@ -87,9 +87,10 @@ static const struct m0_reqh_service_ops ut_long_lock_service_ops = {
 	.rso_fini = ut_long_lock_service_fini
 };
 
-static int ut_long_lock_service_allocate(struct m0_reqh_service **service,
-					 struct m0_reqh_service_type *stype,
-					 struct m0_reqh_context *rctx)
+static int
+ut_long_lock_service_allocate(struct m0_reqh_service **service,
+			      const struct m0_reqh_service_type *stype,
+			      struct m0_reqh_context *rctx)
 {
 	struct m0_reqh_service *serv;
 

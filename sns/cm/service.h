@@ -35,10 +35,11 @@
  * This allocates struct m0_sns_cm and invokes m0_cm_init() to initialise
  * m0_sns_cm::rc_base.
  */
-M0_INTERNAL int m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
-                                       struct m0_reqh_service_type *stype,
-                                       const struct m0_reqh_service_ops *svc_ops,
-                                       const struct m0_cm_ops *cm_ops);
+M0_INTERNAL int
+m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
+		       const struct m0_reqh_service_type *stype,
+		       const struct m0_reqh_service_ops *svc_ops,
+		       const struct m0_cm_ops *cm_ops);
 
 /**
  * Sets up copy machine corresponding to the given service.
@@ -59,7 +60,6 @@ M0_INTERNAL void m0_sns_cm_svc_stop(struct m0_reqh_service *service);
 M0_INTERNAL void m0_sns_cm_svc_fini(struct m0_reqh_service *service);
 
 /** @} SNSCMSVC */
-
 #endif /* __MERO_SNS_CM_SERVICE_H__ */
 
 /*

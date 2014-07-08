@@ -209,69 +209,70 @@ struct m0_reqh_service {
 	/**
 	   Service id that should be unique throughout the cluster.
 	 */
-	struct m0_uint128                 rs_service_uuid;
+	struct m0_uint128                  rs_service_uuid;
 
 	/**
 	   Service type specific structure to hold service specific
 	   implementations of its operations.
 	   This can be used to initialise service specific objects such as fops.
 	 */
-	struct m0_reqh_service_type      *rs_type;
+	const struct m0_reqh_service_type *rs_type;
 
 	/**
 	   Same type of services may have different levels to manage their
 	   cleanup order.
 	   If this level is 0 during service creation,
-	   m0_reqh_service_type::rst_level is copied by m0_reqh_service_allocate().
+	   m0_reqh_service_type::rst_level is copied by
+	   m0_reqh_service_allocate().
 	 */
-	unsigned                          rs_level;
+	unsigned                           rs_level;
 
 	/**
 	   Service state machine.
 
 	   @see m0_reqh_service_state
 	 */
-	struct m0_sm                      rs_sm;
+	struct m0_sm                       rs_sm;
 
 	/**
 	   Protects service state transitions.
 	 */
-	struct m0_mutex                   rs_mutex;
+	struct m0_mutex                    rs_mutex;
 
 	/**
 	   Service specific operations vector.
 	 */
-	const struct m0_reqh_service_ops *rs_ops;
+	const struct m0_reqh_service_ops  *rs_ops;
 
 	/**
 	   Request handler this service belongs to.
 	 */
-	struct m0_reqh                   *rs_reqh;
+	struct m0_reqh                    *rs_reqh;
 
 	/**
 	   Linkage into list of services in request handler.
 
 	   @see m0_reqh::rh_services
 	 */
-	struct m0_tlink                   rs_linkage;
+	struct m0_tlink                    rs_linkage;
 
 	/**
 	   ADDB context for this service
 	 */
-	struct m0_addb_ctx                rs_addb_ctx;
+	struct m0_addb_ctx                 rs_addb_ctx;
 
 	/** Channel to wait till reverse session is established */
-	struct m0_chan                    rs_rev_conn_wait;
+	struct m0_chan                     rs_rev_conn_wait;
 
 	/**
 	 * service context
 	 */
-	struct m0_reqh_context           *rs_reqh_ctx;
+	struct m0_reqh_context            *rs_reqh_ctx;
 
 	/**
 	   Service magic to check consistency of service instance.
 	 */
-	uint64_t                          rs_magix;
+	uint64_t                           rs_magix;
 };
 
 /**
@@ -399,10 +400,10 @@ struct m0_reqh_service_type_ops {
 	   @param service  Resulted service.
 	   @param stype    Type of service being allocated.
 	   @param arg      Optional parameter that is passed to service's
-	                   constructor.
+			   constructor.
 	 */
 	int (*rsto_service_allocate)(struct m0_reqh_service **service,
-				     struct m0_reqh_service_type *stype,
+				     const struct m0_reqh_service_type *stype,
 				     struct m0_reqh_context *rctx);
 };
 
@@ -456,9 +457,10 @@ struct m0_reqh_service_type {
 
    @see struct m0_reqh_service_type_ops
  */
-M0_INTERNAL int m0_reqh_service_allocate(struct m0_reqh_service **service,
-					 struct m0_reqh_service_type *stype,
-					 struct m0_reqh_context *rctx);
+M0_INTERNAL int
+m0_reqh_service_allocate(struct m0_reqh_service **service,
+			 const struct m0_reqh_service_type *stype,
+			 struct m0_reqh_context *rctx);
 
 /**
    Searches a particular type of service by traversing global list of service
