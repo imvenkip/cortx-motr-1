@@ -82,6 +82,11 @@ static bool grp_is_locked(const struct m0_sm_group *grp)
 	return m0_mutex_is_locked(&grp->s_lock);
 }
 
+M0_INTERNAL bool m0_sm_group_is_locked(const struct m0_sm_group *grp)
+{
+	return grp_is_locked(grp);
+}
+
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	M0_PRE(ast->sa_cb != NULL);

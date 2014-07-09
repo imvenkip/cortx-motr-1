@@ -332,6 +332,8 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 						 proxy_sw_onwire_release,
 						 ep, sw);
         if (rc != 0) {
+		m0_fop_rpc_machine_set(fop, rmach);
+		m0_fop_put_lock(fop);
 		m0_free(sw_fop);
                 return rc;
 	}
@@ -340,9 +342,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
         rc = m0_cm_proxy_sw_onwire_post(fop, conn, deadline);
-        m0_sm_group_lock(&rmach->rm_sm_grp);
-        m0_fop_put(fop);
-        m0_sm_group_unlock(&rmach->rm_sm_grp);
+        m0_fop_put_lock(fop);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
 	M0_CNT_INC(proxy->px_nr_asts);
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",

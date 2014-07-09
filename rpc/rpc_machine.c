@@ -210,7 +210,6 @@ static int __rpc_machine_init(struct m0_rpc_machine *machine)
 	if (rc != 0)
 		goto cntr_fini;
 
-	m0_sm_group_init(&machine->rm_sm_grp);
 	m0_rpc_machine_bob_init(machine);
 	m0_sm_group_init(&machine->rm_sm_grp);
 	m0_reqh_rpc_mach_tlink_init_at_tail(machine,

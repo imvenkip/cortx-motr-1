@@ -960,50 +960,50 @@ struct io_mem_stats {
 
 M0_INTERNAL int m0t1fs_mds_cob_create(struct m0t1fs_sb          *csb,
 				      const struct m0t1fs_mdop  *mo,
-				      struct m0_fop_create_rep **rep);
+				      struct m0_fop            **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_unlink(struct m0t1fs_sb          *csb,
 				      const struct m0t1fs_mdop  *mo,
-				      struct m0_fop_unlink_rep **rep);
+				      struct m0_fop            **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_link(struct m0t1fs_sb          *csb,
 				    const struct m0t1fs_mdop  *mo,
-				    struct m0_fop_link_rep   **rep);
+				    struct m0_fop            **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_lookup(struct m0t1fs_sb          *csb,
 				      const struct m0t1fs_mdop  *mo,
-				      struct m0_fop_lookup_rep **rep);
+				      struct m0_fop            **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_getattr(struct m0t1fs_sb           *csb,
 				       const struct m0t1fs_mdop   *mo,
-				       struct m0_fop_getattr_rep **rep);
+				       struct m0_fop             **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_statfs(struct m0t1fs_sb                *csb,
-				  struct m0_fop_statfs_rep       **rep);
+				  struct m0_fop                  **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_setattr(struct m0t1fs_sb           *csb,
 				       const struct m0t1fs_mdop   *mo,
-				       struct m0_fop_setattr_rep **rep);
+				       struct m0_fop             **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
 				       const struct m0t1fs_mdop   *mo,
-				       struct m0_fop_readdir_rep **rep);
+				       struct m0_fop             **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_setxattr(struct m0t1fs_sb            *csb,
 					const struct m0t1fs_mdop    *mo,
-					struct m0_fop_setxattr_rep **rep);
+					struct m0_fop              **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_getxattr(struct m0t1fs_sb            *csb,
 					const struct m0t1fs_mdop    *mo,
-					struct m0_fop_getxattr_rep **rep);
+					struct m0_fop              **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_listxattr(struct m0t1fs_sb             *csb,
 					 const struct m0t1fs_mdop     *mo,
-					 struct m0_fop_listxattr_rep **rep);
+					 struct m0_fop               **rep_fop);
 
 M0_INTERNAL int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 					const struct m0t1fs_mdop    *mo,
-					struct m0_fop_delxattr_rep **rep);
+					struct m0_fop              **rep_fop);
 
 /**
  * layout operation from client to mds.

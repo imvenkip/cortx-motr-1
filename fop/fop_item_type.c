@@ -78,10 +78,7 @@ m0_fop_item_type_default_decode(const struct m0_rpc_item_type *item_type,
 	m0_fop_init(fop, ftype, NULL, m0_fop_release);
 	item = m0_fop_to_rpc_item(fop);
 	rc = m0_fop_item_encdec(item, cur, M0_XCODE_DECODE);
-	if (rc == 0)
-		*item_out = item;
-	else
-		m0_fop_put(fop);
+	*item_out = item;
 
 	return rc;
 }

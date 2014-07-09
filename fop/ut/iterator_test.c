@@ -25,6 +25,7 @@
 #include "fop/ut/iterator_test.h"
 #include "fop/ut/iterator_test_xc.h"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/rpc_machine.h"
 #include "xcode/xcode.h"
 
 
@@ -100,12 +101,15 @@ static void fit_test(void)
 		{ 7,  8},   /* fop->fit_rec.fr_seq.fr_fid */
                 {41, 42}    /* fop->fit_rec.fr_seq.fr_unn.fo_fid */
 	};
+	struct m0_rpc_machine machine;
 
+	m0_sm_group_init(&machine.rm_sm_grp);
 	result = fop_init();
 	M0_UT_ASSERT(result == 0);
 
 	f = m0_fop_alloc(&m0_fop_iterator_test_fopt, NULL);
 	M0_UT_ASSERT(f != NULL);
+	m0_fop_rpc_machine_set(f, &machine);
 	fop = m0_fop_data(f);
 	fop_obj_init(fop);
 
@@ -136,8 +140,9 @@ static void fit_test(void)
 	}
 	M0_UT_ASSERT(i == ARRAY_SIZE(expected));
 
-	m0_fop_put(f);
+	m0_fop_put_lock(f);
 	fop_fini();
+	m0_sm_group_fini(&machine.rm_sm_grp);
 }
 
 const struct m0_test_suite fit_ut = {

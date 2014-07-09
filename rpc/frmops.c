@@ -447,6 +447,12 @@ static void item_sent(struct m0_rpc_item *item)
 				       (uint64_t)m0_rpc_item_size(item));
 		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 			item->ri_ops->rio_sent(item);
+		/*
+		 * Reference release done here is for the reference taken in
+		 * m0_rpc_item_send() and also for one-way items corresponding
+		 * reference taken in m0_rpc_oneway_item_post_locked().
+		 */
+		m0_rpc_item_put(item);
 	} else if (item->ri_nr_sent == 2)
 		/* item with ri_nr_sent >= 2 are counted as 1 in
 		   rs_nr_resent_items i.e. rs_nr_resent_items counts number

@@ -332,7 +332,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
         item->ri_deadline = 0;
 
         rc = m0_rpc_post(item);
-	m0_fop_put(fop);
+	m0_fop_put_lock(fop);
 out:
         if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_SEND);

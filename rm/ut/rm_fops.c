@@ -34,6 +34,7 @@
 
 static struct m0_rm_loan *test_loan;
 static struct m0_rm_remote remote;
+static struct m0_rpc_machine ut_rm_mach;
 
 static void post_borrow_validate(int err);
 static void borrow_reply_populate(struct m0_rm_fop_borrow_rep *breply,
@@ -346,6 +347,7 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan   *loan;
 	struct rm_out       *outreq;
+	struct m0_fop       *rep_fop;
 
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	loan = &outreq->ou_req.rog_want;
@@ -354,7 +356,9 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 	 * If borrow succeeds, the owner lists are updated. Hence they
 	 * need to be cleaned-up.
 	 */
-	m0_fop_put(m0_rpc_item_to_fop(item->ri_reply));
+	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
+	m0_fop_rpc_machine_set(rep_fop, &ut_rm_mach);
+	m0_fop_put_lock(rep_fop);
 	if (err)
 		return;
 
@@ -486,6 +490,7 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 	struct m0_rm_credit *credit;
 	struct m0_rm_loan   *loan;
 	struct rm_out       *outreq;
+	struct m0_fop       *rep_fop;
 
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	loan = &outreq->ou_req.rog_want;
@@ -513,7 +518,9 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 		} m0_tl_endfor;
 	}
 	m0_rm_owner_unlock(rm_test_data.rd_owner);
-	m0_fop_put(m0_rpc_item_to_fop(item->ri_reply));
+	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
+	m0_fop_rpc_machine_set(rep_fop, &ut_rm_mach);
+	m0_fop_put_lock(rep_fop);
 }
 
 static void revoke_reply_populate(struct m0_fop_generic_reply *rreply,
@@ -579,8 +586,10 @@ static void revoke_fop_funcs_test(void)
 
 void rm_fop_funcs_test(void)
 {
+	m0_sm_group_init(&ut_rm_mach.rm_sm_grp);
 	borrow_fop_funcs_test();
 	revoke_fop_funcs_test();
+	m0_sm_group_fini(&ut_rm_mach.rm_sm_grp);
 }
 
 /*

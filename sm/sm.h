@@ -526,6 +526,7 @@ M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp);
 
 M0_INTERNAL void m0_sm_group_lock(struct m0_sm_group *grp);
 M0_INTERNAL void m0_sm_group_unlock(struct m0_sm_group *grp);
+M0_INTERNAL bool m0_sm_group_is_locked(const struct m0_sm_group *grp);
 
 /**
    Waits until a given state machine enters any of states enumerated by a given

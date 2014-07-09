@@ -106,20 +106,20 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	fop->f_item.ri_nr_sent_max = timeout;
 	rc = m0_rpc_client_call(fop, &cctx->rcx_session, NULL, 0/* deadline*/);
 	if (rc != 0) {
-		m0_fop_put(fop);
+		m0_fop_put_lock(fop);
 		return M0_ERR(-EINVAL, "Sending message failed");
 	}
 
 	/* Fetch the FOP reply */
 	item = &fop->f_item;
         if (item->ri_error != 0) {
-		m0_fop_put(fop);
+		m0_fop_put_lock(fop);
 		return M0_ERR(-EINVAL, "rpc item receive failed");
 	}
 
 	rfop = m0_rpc_item_to_fop(item->ri_reply);
 	if(rfop == NULL) {
-		m0_fop_put(fop);
+		m0_fop_put_lock(fop);
 		return M0_ERR(-EINVAL, "RPC item reply not received");
 	}
 
@@ -129,7 +129,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 
 	rc = m0_cons_fop_obj_output(rfop);
 	if (rc == 0)
-		m0_fop_put(fop);
+		m0_fop_put_lock(fop);
 	return M0_RC(rc);
 }
 

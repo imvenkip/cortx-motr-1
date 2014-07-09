@@ -277,6 +277,16 @@ static void server_fini(struct m0_stob_domain *bdom,
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown(&reqh);
 
+	M0_UT_ASSERT(m0_fom_domain_is_idle_for(&reqh.rh_fom_dom,
+					       reqh_ut_service));
+	/* reqh_ut_service is finalised by m0_reqh_services_terminate(). */
+	m0_reqh_services_terminate(&reqh);
+
+	m0_reqh_idle_wait(&reqh);
+	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
+
+	m0_reqh_dbenv_fini(&reqh);
+
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_mdstore_destroy(&srv_mdstore, grp);
 	M0_UT_ASSERT(rc == 0);
@@ -290,16 +300,6 @@ static void server_fini(struct m0_stob_domain *bdom,
         /* Fini the rpc_machine */
         m0_rpc_machine_fini(&srv_rpc_mach);
 	m0_rpc_net_buffer_pool_cleanup(&app_pool);
-
-	M0_UT_ASSERT(m0_fom_domain_is_idle_for(&reqh.rh_fom_dom,
-					       reqh_ut_service));
-	m0_reqh_services_terminate(&reqh);
-	/* reqh_ut_service is finalised by m0_reqh_services_terminate(). */
-
-	m0_reqh_idle_wait(&reqh);
-	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
-
-	m0_reqh_dbenv_fini(&reqh);
 
 	rc = m0_stob_destroy(reqh_addb_stob, NULL);
 	M0_UT_ASSERT(rc == 0);

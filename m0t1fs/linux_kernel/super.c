@@ -189,11 +189,13 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	int                       rc;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(dentry->d_sb);
 	struct m0_fop_statfs_rep *rep = NULL;
+	struct m0_fop            *rep_fop;
 
 	M0_ENTRY();
 
 	m0t1fs_fs_lock(csb);
-	rc = m0t1fs_mds_statfs(csb, &rep);
+	rc = m0t1fs_mds_statfs(csb, &rep_fop);
+	rep = m0_fop_data(rep_fop);
 	if (rc == 0) {
 		buf->f_type = rep->f_type;
 		buf->f_bsize = rep->f_bsize;
@@ -203,11 +205,12 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		buf->f_ffree = rep->f_ffree;
 		buf->f_namelen = rep->f_namelen;
 	}
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 
 	return M0_RC(rc);
 }
-
+
 /* ----------------------------------------------------------------
  * Mount options
  * ---------------------------------------------------------------- */
@@ -1359,16 +1362,18 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
 static int m0t1fs_root_alloc(struct super_block *sb)
 {
 	struct inode             *root_inode;
-	int                       rc;
+	int                       rc = 0;
 	struct m0t1fs_sb         *csb = M0T1FS_SB(sb);
 	struct m0_fop_statfs_rep *rep = NULL;
 	struct m0_addb_ctx       *cv[] = { &csb->csb_addb_ctx, NULL };
+	struct m0_fop            *rep_fop;
 
 	M0_ENTRY();
 
-	rc = m0t1fs_mds_statfs(csb, &rep);
+	rc = m0t1fs_mds_statfs(csb, &rep_fop);
+	rep = m0_fop_data(rep_fop);
 	if (rc != 0)
-		return M0_RC(rc);
+		goto out;
 
 	sb->s_magic = rep->f_type;
 	csb->csb_namelen = rep->f_namelen;
@@ -1379,15 +1384,19 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 		     rep->f_root.f_container, rep->f_root.f_key);
 
 	root_inode = m0t1fs_root_iget(sb, &rep->f_root);
-	if (IS_ERR(root_inode))
-		return M0_RC((int)PTR_ERR(root_inode));
-
+	if (IS_ERR(root_inode)) {
+		rc = (int)PTR_ERR(root_inode);
+		goto out;
+	}
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
-		return M0_RC(-ENOMEM);
+		rc = -ENOMEM;
+		goto out;
 	}
-	return M0_RC(0);
+out:
+	m0_fop_put0(rep_fop);
+	return M0_RC(rc);
 }
 
 static int m0t1fs_fill_super(struct super_block *sb, void *data,

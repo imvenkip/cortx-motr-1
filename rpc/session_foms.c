@@ -105,6 +105,7 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 	reply_fop = m0_fop_alloc(reply_fopt, NULL);
 	if (M0_FI_ENABLED("reply_fop_alloc_failed")) {
+		m0_fop_rpc_machine_set(reply_fop, fop->f_item.ri_rmachine);
 		m0_fop_put(reply_fop);
 		reply_fop = NULL;
 	}
@@ -112,7 +113,7 @@ static int session_gen_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		rc = -ENOMEM;
 		goto out;
 	}
-	reply_fop->f_item.ri_rmachine = fop->f_item.ri_rmachine;
+	m0_fop_rpc_machine_set(reply_fop, fop->f_item.ri_rmachine);
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, reply_fop,
 		    reqh);
 	*m = fom;

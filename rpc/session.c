@@ -376,8 +376,10 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 			    &m0_rpc_fop_session_establish_fopt, NULL,
 			    session_establish_fop_release);
 		rc = m0_fop_data_alloc(&ctx->sec_fop);
-		if (rc != 0)
-			m0_fop_put(&ctx->sec_fop);
+		if (rc != 0) {
+			m0_fop_rpc_machine_set(&ctx->sec_fop, machine);
+			m0_fop_put_lock(&ctx->sec_fop);
+		}
 	}
 
 	m0_rpc_machine_lock(machine);

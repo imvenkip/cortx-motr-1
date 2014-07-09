@@ -67,12 +67,6 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	m0_time_t           now = m0_time_now();
 	int                 rc;
 
-	if (M0_FI_ENABLED("fake_error"))
-		return -EINVAL;
-
-	if (M0_FI_ENABLED("do_nothing"))
-		return 0;
-
 	M0_ENTRY("fop: %p, session: %p", fop, session);
 
 	item                = &fop->f_item;
@@ -80,6 +74,13 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	item->ri_prio       = M0_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline   = 0;
 	item->ri_ops        = ops;
+	item->ri_rmachine   = session_machine(session);
+
+	if (M0_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
+	if (M0_FI_ENABLED("do_nothing"))
+		return 0;
 
 	if (abs_timeout != M0_TIME_NEVER) {
 		item->ri_nr_sent_max = 0;

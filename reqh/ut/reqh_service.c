@@ -109,13 +109,7 @@ static void reqhut_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static void reqhut_fom_fini(struct m0_fom *fom)
 {
-	/*
-	 * m0_fom_fini() requires rpc machine for m0_fop_put(),
-	 * which we don't have here, so put the fop explicitly.
-	 */
-	m0_fop_put(fom->fo_fop);
-	fom->fo_fop = NULL;
-
+	m0_fop_rpc_machine_set(fom->fo_fop, &rmach_ctx.rmc_rpc);
 	m0_fom_fini(fom);
 	m0_free(fom);
 }
@@ -181,7 +175,7 @@ static void test_service(void)
 	}
 	m0_reqh_idle_wait(reqh);
 
-	m0_fop_put(fop);
+	m0_fop_put_lock(fop);
 	m0_ut_rpc_mach_fini(&rmach_ctx);
 	m0_reqhut_fop_fini();
 }

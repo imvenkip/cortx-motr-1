@@ -135,6 +135,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
 	struct m0t1fs_mdop          mo;
 	int                         rc;
+	struct m0_fop              *rep_fop;
 
 	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
 		 dentry->d_name.name, name, (int)size, (char *)value);
@@ -173,13 +174,14 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		mo.mo_attr.ca_lid = ci->ci_layout_id;
 		mo.mo_attr.ca_valid |= M0_COB_LID;
 
-		rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
+		rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
 	} else {
 		m0_buf_init(&mo.mo_attr.ca_eakey, (void*)name, strlen(name));
 		m0_buf_init(&mo.mo_attr.ca_eaval, (void*)value, size);
-		rc = m0t1fs_mds_cob_setxattr(csb, &mo, NULL);
+		rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep_fop);
 	}
 out:
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -198,6 +200,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	struct m0_fop_getxattr_rep *rep = NULL;
 	struct m0t1fs_mdop          mo;
 	int                         rc;
+	struct m0_fop              *rep_fop;
 
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
 		 dentry->d_name.name, name);
@@ -210,8 +213,9 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 		    dentry->d_name.len);
 	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
 
-	rc = m0t1fs_mds_cob_getxattr(csb, &mo, &rep);
+	rc = m0t1fs_mds_cob_getxattr(csb, &mo, &rep_fop);
 	if (rc == 0) {
+		rep = m0_fop_data(rep_fop);
 		if (buffer != NULL) {
 			if ((size_t)rep->g_value.s_len > size) {
 				rc = -ERANGE;
@@ -223,6 +227,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	} else if (rc == -ENOENT)
 		rc = -ENODATA;
 out:
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -248,6 +253,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
 	struct m0t1fs_mdop          mo;
 	int                         rc;
+	struct m0_fop              *rep_fop;
 
 	M0_ENTRY("Deleting %.*s's xattr %s", dentry->d_name.len,
 		 dentry->d_name.name, name);
@@ -260,10 +266,11 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 		    dentry->d_name.len);
 	m0_buf_init(&mo.mo_attr.ca_eakey, (void *)name, strlen(name));
 
-	rc = m0t1fs_mds_cob_delxattr(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_delxattr(csb, &mo, &rep_fop);
 	if (rc == -ENOENT)
 		rc = -ENODATA;
 
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -288,6 +295,7 @@ static int m0t1fs_create(struct inode     *dir,
 	struct inode             *inode;
 	struct m0_fid             new_fid;
 	int                       rc;
+	struct m0_fop            *rep_fop = NULL;
 
 	M0_ENTRY();
 
@@ -361,7 +369,7 @@ static int m0t1fs_create(struct inode     *dir,
 	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
 		    dentry->d_name.len);
 
-	rc = m0t1fs_mds_cob_create(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_create(csb, &mo, &rep_fop);
 	if (rc != 0)
 		goto out;
 
@@ -377,6 +385,7 @@ static int m0t1fs_create(struct inode     *dir,
 		goto out;
 	}
 
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	unlock_new_inode(inode);
 
@@ -384,6 +393,7 @@ static int m0t1fs_create(struct inode     *dir,
 	d_instantiate(dentry, inode);
 	return M0_RC(0);
 out:
+	m0_fop_put0(rep_fop);
 	clear_nlink(inode);
 	m0t1fs_fs_unlock(csb);
 	make_bad_inode(inode);
@@ -410,8 +420,8 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	struct inode             *inode = NULL;
 	struct m0_fop_lookup_rep *rep = NULL;
 	struct m0t1fs_mdop        mo;
-	int rc;
-
+	int                       rc;
+	struct m0_fop            *rep_fop;
 
 	M0_ENTRY();
 
@@ -431,18 +441,21 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	mo.mo_attr.ca_pfid = *m0t1fs_inode_fid(M0T1FS_I(dir));
 	m0_buf_init(&mo.mo_attr.ca_name, (char *)dentry->d_name.name,
 		    dentry->d_name.len);
-	rc = m0t1fs_mds_cob_lookup(csb, &mo, &rep);
+	rc = m0t1fs_mds_cob_lookup(csb, &mo, &rep_fop);
 	if (rc == 0) {
+		rep = m0_fop_data(rep_fop);
 		mo.mo_attr.ca_tfid = rep->l_body.b_tfid;
 		inode = m0t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid,
 				    &rep->l_body);
 		if (IS_ERR(inode)) {
 			M0_LEAVE("ERROR: %p", ERR_CAST(inode));
+			m0_fop_put0(rep_fop);
 			m0t1fs_fs_unlock(csb);
 			return ERR_CAST(inode);
 		}
 	}
 
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return d_splice_alias(inode, dentry);
 }
@@ -542,6 +555,7 @@ static int m0t1fs_readdir(struct file *f,
 	int                              over;
 	bool                             dot_filled = false;
 	bool                             dotdot_filled = false;
+	struct m0_fop                   *rep_fop;
 
 	M0_ENTRY();
 
@@ -577,7 +591,8 @@ switch_mds:
 		       (char *)mo.mo_attr.ca_name.b_addr,
 			mo.mo_hash_hint);
 
-		rc = m0t1fs_mds_cob_readdir(csb, &mo, &rep);
+		rc = m0t1fs_mds_cob_readdir(csb, &mo, &rep_fop);
+		rep = m0_fop_data(rep_fop);
 		if (rc < 0) {
 			M0_LOG(M0_ERROR,
 			       "Failed to read dir from pos \"%*s\". Error %d",
@@ -635,6 +650,7 @@ switch_mds:
 		M0_LOG(M0_DEBUG, "set position to \"%*s\" rc == %d",
 		       (int)mo.mo_attr.ca_name.b_nob,
 		       (char *)mo.mo_attr.ca_name.b_addr, rc);
+		m0_fop_put0(rep_fop);
 		/*
 		 * Return codes for m0t1fs_mds_cob_readdir() are the following:
 		 * - <0 - some error occured;
@@ -658,6 +674,8 @@ switch_mds:
 	fd->fd_direof = 1;
 	rc = 0;
 out:
+	if (rc != 0)
+		m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -677,6 +695,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	struct inode                    *inode;
 	struct timespec                  now;
 	int                              rc;
+	struct m0_fop                   *rep_fop;
 
 	/*
 	 * file -> mds is mapped by hash of filename.
@@ -701,7 +720,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	m0_buf_init(&mo.mo_attr.ca_name, (char *)new->d_name.name,
 		    new->d_name.len);
 
-	rc = m0t1fs_mds_cob_link(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_link(csb, &mo, &rep_fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "mdservive link fop failed: %d", rc);
 		goto out;
@@ -714,6 +733,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	mark_inode_dirty(dir);
 
 out:
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -731,6 +751,9 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	struct m0t1fs_mdop               mo;
 	struct timespec                  now;
 	int                              rc;
+	struct m0_fop                   *lookup_rep_fop = NULL;
+	struct m0_fop                   *unlink_rep_fop = NULL;
+	struct m0_fop                   *setattr_rep_fop = NULL;
 
 	M0_ENTRY();
 
@@ -752,11 +775,11 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	m0_buf_init(&mo.mo_attr.ca_name,
 		    (char *)dentry->d_name.name, dentry->d_name.len);
 
-	rc = m0t1fs_mds_cob_lookup(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_lookup(csb, &mo, &lookup_rep_fop);
 	if (rc != 0)
 		goto out;
 
-	rc = m0t1fs_mds_cob_unlink(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_unlink(csb, &mo, &unlink_rep_fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "mdservive unlink fop failed: %d", rc);
 		goto out;
@@ -779,7 +802,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	m0_buf_init(&mo.mo_attr.ca_name,
 		    (char *)dentry->d_name.name, dentry->d_name.len);
 
-	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_setattr(csb, &mo, &setattr_rep_fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Setattr on parent dir failed with %d", rc);
 		goto out;
@@ -789,6 +812,9 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	inode_dec_link_count(inode);
 	mark_inode_dirty(dir);
 out:
+	m0_fop_put0(lookup_rep_fop);
+	m0_fop_put0(unlink_rep_fop);
+	m0_fop_put0(setattr_rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -879,6 +905,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
 	int                              rc;
+	struct m0_fop                   *rep_fop;
 
 	M0_ENTRY();
 
@@ -901,8 +928,9 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	   (not canceled), which means inode did not change, then we don't
 	   have to do getattr and can just use @inode cached data.
 	*/
-        rc = m0t1fs_mds_cob_getattr(csb, &mo, &getattr_rep);
-        if (rc != 0)
+        rc = m0t1fs_mds_cob_getattr(csb, &mo, &rep_fop);
+	getattr_rep = m0_fop_data(rep_fop);
+	if (rc != 0)
 	        goto out;
 	body = &getattr_rep->g_body;
 
@@ -939,6 +967,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	stat->size = i_size_read(inode);
 	stat->blocks = stat->blksize ? stat->size / stat->blksize : 0;
 out:
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -950,6 +979,7 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
 	int                              rc;
+	struct m0_fop                   *rep_fop;
 
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
@@ -964,11 +994,12 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 	m0_buf_init(&mo.mo_attr.ca_name, (void *)dentry->d_name.name,
 		    dentry->d_name.len);
 
-	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
 	if (rc != 0)
 		goto out;
 	inode->i_size = newsize;
 out:
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return rc;
 }
@@ -985,6 +1016,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
 	int                              rc;
+	struct m0_fop                   *rep_fop;
 
 	M0_ENTRY();
 
@@ -1048,7 +1080,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	 * valid layout id should be called.
 	 */
 
-	rc = m0t1fs_mds_cob_setattr(csb, &mo, NULL);
+	rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
 	if (rc != 0)
 		goto out;
 
@@ -1056,6 +1088,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	if (rc != 0)
 		goto out;
 out:
+	m0_fop_put0(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -1304,7 +1337,7 @@ static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
 static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 			     const struct m0t1fs_mdop    *mo,
 			     struct m0_fop_type          *ftype,
-			     void                       **rep)
+			     struct m0_fop              **rep_fop)
 {
 	int                          rc;
 	struct m0_fop               *fop;
@@ -1329,10 +1362,12 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 
 	M0_PRE(csb != NULL);
 	M0_PRE(mo != NULL);
+	M0_PRE(rep_fop != NULL);
 	M0_PRE(ftype != NULL);
 
 	M0_ENTRY();
 
+	*rep_fop = NULL;
 	session = m0t1fs_filename_to_mds_session(csb,
 						 mo->mo_attr.ca_name.b_addr,
 						 mo->mo_attr.ca_name.b_nob,
@@ -1365,9 +1400,9 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		goto out;
 	}
 
-	reply_data = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	if (rep != NULL)
-		*rep = reply_data;
+	*rep_fop = m0_rpc_item_to_fop(fop->f_item.ri_reply);
+	m0_fop_get(*rep_fop);
+	reply_data = m0_fop_data(*rep_fop);
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_MDSERVICE_CREATE_OPCODE:
@@ -1441,8 +1476,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	}
 
 out:
-	if (fop != NULL)
-		m0_fop_put(fop);
+	m0_fop_put0(fop);
 	return M0_RC(rc);
 }
 
@@ -1455,6 +1489,7 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 	int                       rc;
 	struct m0_layout         *layout = NULL;
 	struct m0_layout_domain  *ldom = &csb->csb_layout_dom;
+	struct m0_fop            *rep_fop;
 
 	M0_ENTRY();
 
@@ -1469,9 +1504,10 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 	mo.mo_attr.ca_lid = lid;
 	mo.mo_layout      = layout;
 
-	rc = m0t1fs_mds_cob_op(csb, &mo, &m0_fop_layout_fopt, (void **)&rep);
+	rc = m0t1fs_mds_cob_op(csb, &mo, &m0_fop_layout_fopt, &rep_fop);
 	M0_LOG(M0_DEBUG, "layout rep rc = %d", rc);
 	if (rc == 0) {
+		rep = m0_fop_data(rep_fop);
 		M0_LOG(M0_DEBUG, "layout rep->lr_rc = %d", rep->lr_rc);
 
 		if (op == M0_LAYOUT_OP_LOOKUP) {
@@ -1508,102 +1544,102 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 		}
 	}
 
+	m0_fop_put0(rep_fop);
 	if (layout != NULL)
 		m0_layout_put(layout); /* dual to m0_layout_find() */
 
 	return M0_RC(rc);
 }
 
-int m0t1fs_mds_statfs(struct m0t1fs_sb *csb, struct m0_fop_statfs_rep **rep)
+int m0t1fs_mds_statfs(struct m0t1fs_sb *csb, struct m0_fop **rep_fop)
 {
 	struct m0t1fs_mdop mo;
 	M0_SET0(&mo);
-	return m0t1fs_mds_cob_op(csb, &mo, &m0_fop_statfs_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, &mo, &m0_fop_statfs_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_create(struct m0t1fs_sb          *csb,
 			  const struct m0t1fs_mdop  *mo,
-			  struct m0_fop_create_rep **rep)
+			  struct m0_fop            **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_create_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_create_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_unlink(struct m0t1fs_sb          *csb,
 			  const struct m0t1fs_mdop  *mo,
-			  struct m0_fop_unlink_rep **rep)
+			  struct m0_fop            **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_unlink_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_unlink_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_link(struct m0t1fs_sb          *csb,
 			const struct m0t1fs_mdop  *mo,
-			struct m0_fop_link_rep   **rep)
+			struct m0_fop            **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_link_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_link_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_lookup(struct m0t1fs_sb          *csb,
 			  const struct m0t1fs_mdop  *mo,
-			  struct m0_fop_lookup_rep **rep)
+			  struct m0_fop            **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_lookup_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_lookup_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_getattr(struct m0t1fs_sb           *csb,
 			   const struct m0t1fs_mdop   *mo,
-			   struct m0_fop_getattr_rep **rep)
+			   struct m0_fop             **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_getattr_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_getattr_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_setattr(struct m0t1fs_sb           *csb,
 			   const struct m0t1fs_mdop   *mo,
-			   struct m0_fop_setattr_rep **rep)
+			   struct m0_fop             **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_setattr_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_setattr_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_readdir(struct m0t1fs_sb           *csb,
 			   const struct m0t1fs_mdop   *mo,
-			   struct m0_fop_readdir_rep **rep)
+			   struct m0_fop             **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_readdir_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_readdir_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_setxattr(struct m0t1fs_sb            *csb,
 			    const struct m0t1fs_mdop    *mo,
-			    struct m0_fop_setxattr_rep **rep)
+			    struct m0_fop              **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_setxattr_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_setxattr_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_getxattr(struct m0t1fs_sb            *csb,
 			    const struct m0t1fs_mdop    *mo,
-			    struct m0_fop_getxattr_rep **rep)
+			    struct m0_fop              **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_getxattr_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_getxattr_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_listxattr(struct m0t1fs_sb             *csb,
 			     const struct m0t1fs_mdop     *mo,
-			     struct m0_fop_listxattr_rep **rep)
+			     struct m0_fop               **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_listxattr_fopt,
-				 (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_listxattr_fopt, rep_fop);
 }
 
 int m0t1fs_mds_cob_delxattr(struct m0t1fs_sb            *csb,
 			    const struct m0t1fs_mdop    *mo,
-			    struct m0_fop_delxattr_rep **rep)
+			    struct m0_fop              **rep_fop)
 {
-	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_delxattr_fopt, (void **)rep);
+	return m0t1fs_mds_cob_op(csb, mo, &m0_fop_delxattr_fopt, rep_fop);
 }
 
 static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
 				       struct m0_fop       *fop,
 				       const struct m0_fid *cob_fid,
 				       const struct m0_fid *gob_fid,
-				       uint32_t cob_idx)
+				       uint32_t             cob_idx)
 {
 	struct m0_fop_cob_common       *common;
 	struct m0_pool_version_numbers *cli;
@@ -1634,7 +1670,7 @@ static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb    *csb,
 static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 			     const struct m0_fid *cob_fid,
 			     const struct m0_fid *gob_fid,
-			     uint32_t cob_idx,
+			     uint32_t             cob_idx,
 			     struct m0_fop_type  *ftype)
 {
 	int                         rc;
@@ -1710,7 +1746,7 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	M0_LOG(M0_DEBUG, "Finished ioservice op with %d", rc);
 
 fop_put:
-	m0_fop_put(fop);
+	m0_fop_put0(fop);
 out:
 	return M0_RC(rc);
 }
@@ -1718,16 +1754,16 @@ out:
 static int m0t1fs_ios_cob_create(struct m0t1fs_sb    *csb,
 				 const struct m0_fid *cob_fid,
 				 const struct m0_fid *gob_fid,
-				 uint32_t cob_idx)
+				 uint32_t             cob_idx)
 {
 	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
 				 &m0_fop_cob_create_fopt);
 }
 
-static int m0t1fs_ios_cob_delete(struct m0t1fs_sb *csb,
+static int m0t1fs_ios_cob_delete(struct m0t1fs_sb    *csb,
 				 const struct m0_fid *cob_fid,
 				 const struct m0_fid *gob_fid,
-				 uint32_t cob_idx)
+				 uint32_t             cob_idx)
 {
 	return m0t1fs_ios_cob_op(csb, cob_fid, gob_fid, cob_idx,
 				 &m0_fop_cob_delete_fopt);

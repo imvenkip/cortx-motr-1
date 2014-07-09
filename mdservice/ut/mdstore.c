@@ -29,7 +29,6 @@
 #include "lib/bitstring.h"
 #include "lib/processor.h"
 #include "fop/fop.h"
-#include "fop/ut/fop_put_norpc.h"
 #include "cob/cob.h"
 #include "reqh/reqh.h"
 #include "mdstore/mdstore.h"
@@ -53,6 +52,7 @@ static struct m0_mdstore           md;
 static struct m0_reqh              reqh;
 static struct m0_reqh_service     *mdservice;
 extern struct m0_reqh_service_type m0_mds_type;
+struct m0_rpc_machine              machine;
 
 int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data);
 
@@ -69,7 +69,8 @@ static void fom_fini(struct m0_fom *fom)
 
         if (error == 0)
                 error = m0_fom_rc(fom);
-	fom_fop_put_norpc(fom);
+	m0_fop_rpc_machine_set(fom->fo_fop, &machine);
+	m0_fop_rpc_machine_set(fom->fo_rep_fop, &machine);
 	orig_fom_fini(fom);
 	m0_semaphore_up(&inflight);
 }
@@ -208,6 +209,7 @@ static void test_mdops(void)
         M0_UT_ASSERT(result == sizeof(root));
         error = 0;
 
+	m0_sm_group_init(&machine.rm_sm_grp);
         for (i = 0; i < REC_NR; ++i) {
                 fop = NULL;
 		do {
@@ -225,7 +227,8 @@ static void test_mdops(void)
                 if (result == -EOPNOTSUPP)
                         continue;
                 m0_reqh_fop_handle(&reqh, fop);
-		m0_fop_put(fop);
+		m0_fop_rpc_machine_set(fop, &machine);
+		m0_fop_put_lock(fop);
 
                 /* Process fops one by one sequentially. */
                 m0_semaphore_down(&inflight);
@@ -235,6 +238,7 @@ static void test_mdops(void)
         /* Make sure that all fops are handled. */
 	m0_reqh_idle_wait_for(&reqh, m0_reqh_service_find(&m0_mds_type, &reqh));
         M0_UT_ASSERT(error == 0);
+	m0_sm_group_fini(&machine.rm_sm_grp);
 }
 
 const struct m0_test_suite mdservice_ut = {

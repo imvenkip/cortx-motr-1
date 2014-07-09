@@ -130,11 +130,12 @@ struct m0_fop *m0_fop_get(struct m0_fop *fop);
  * @pre m0_ref_read(&fop->f_ref) > 0
  */
 void m0_fop_put(struct m0_fop *fop);
+void m0_fop_put0(struct m0_fop *fop);
 
 /**
  * Same as m0_fop_put() but also locks/unlocks rpc machine.
  */
-M0_INTERNAL void m0_fop_put_lock(struct m0_fop *fop);
+void m0_fop_put_lock(struct m0_fop *fop);
 
 /**
  * Takes rpc machine lock.
@@ -171,6 +172,7 @@ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop);
 
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop);
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item);
+void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach);
 uint32_t m0_fop_opcode(const struct m0_fop *fop);
 M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop);
 

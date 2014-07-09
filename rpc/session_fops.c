@@ -83,10 +83,7 @@ static int conn_establish_item_decode(const struct m0_rpc_item_type *item_type,
 		    conn_establish_fop_release);
 
 	rc = m0_fop_item_encdec(&fop->f_item, cur, M0_XCODE_DECODE);
-	if (rc == 0)
-		*item = &fop->f_item;
-	else
-		m0_fop_put(fop);
+	*item = &fop->f_item;
 
 	return M0_RC(rc);
 }

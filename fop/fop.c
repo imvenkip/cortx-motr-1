@@ -75,6 +75,11 @@ M0_INTERNAL void m0_fop_rpc_unlock(struct m0_fop *fop)
 	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
 }
 
+M0_INTERNAL bool m0_fop_rpc_is_locked(struct m0_fop *fop)
+{
+	return m0_sm_group_is_locked(&fop->f_item.ri_rmachine->rm_sm_grp);
+}
+
 M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop)
 {
 	M0_PRE(fop->f_data.fd_data == NULL && fop->f_type != NULL);
@@ -169,6 +174,7 @@ void m0_fop_put(struct m0_fop *fop)
 
 	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, m0_fop_name(fop),
 		 (unsigned long long)count, (unsigned long long)count - 1);
+	M0_PRE(m0_fop_rpc_is_locked(fop));
 	M0_PRE(count > 0);
 
 	m0_ref_put(&fop->f_ref);
@@ -177,12 +183,20 @@ void m0_fop_put(struct m0_fop *fop)
 }
 M0_EXPORTED(m0_fop_put);
 
-M0_INTERNAL void m0_fop_put_lock(struct m0_fop *fop)
+void m0_fop_put0(struct m0_fop *fop)
+{
+	if (fop != NULL)
+		m0_fop_put(fop);
+}
+M0_EXPORTED(m0_fop_put0);
+
+void m0_fop_put_lock(struct m0_fop *fop)
 {
 	m0_fop_rpc_lock(fop);
 	m0_fop_put(fop);
 	m0_fop_rpc_unlock(fop);
 }
+M0_EXPORTED(m0_fop_put_lock);
 
 void *m0_fop_data(const struct m0_fop *fop)
 {
@@ -313,6 +327,14 @@ M0_EXPORTED(m0_fop_to_rpc_item);
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item)
 {
 	return container_of(item, struct m0_fop, f_item);
+}
+
+void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach)
+{
+	M0_PRE(fop != NULL);
+	M0_PRE(mach != NULL);
+
+	fop->f_item.ri_rmachine = mach;
 }
 
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type

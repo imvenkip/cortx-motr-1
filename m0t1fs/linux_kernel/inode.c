@@ -231,6 +231,7 @@ M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
 	struct m0t1fs_mdop         mo;
 	struct inode              *inode;
 	int                        rc;
+	struct m0_fop             *rep_fop;
 
 	M0_ENTRY("sb: %p", sb);
 
@@ -238,13 +239,17 @@ M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
 	mo.mo_attr.ca_tfid = *root_fid;
 	M0T1FS_SB(sb)->csb_root_fid = *root_fid;
 
-	rc = m0t1fs_mds_cob_getattr(M0T1FS_SB(sb), &mo, &rep);
+	rc = m0t1fs_mds_cob_getattr(M0T1FS_SB(sb), &mo, &rep_fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0t1fs_mds_cob_getattr() failed with %d", rc);
+		m0_fop_put0(rep_fop);
 		return ERR_PTR(rc);
 	}
+	rep = m0_fop_data(rep_fop);
 
 	inode = m0t1fs_iget(sb, root_fid, &rep->g_body);
+
+	m0_fop_put0(rep_fop);
 
 	M0_LEAVE("root_inode: %p", inode);
 	return inode;

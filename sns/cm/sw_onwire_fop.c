@@ -87,8 +87,7 @@ m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
 	}
 	swo_fop = m0_fop_data(fop);
 	rc = m0_cm_sw_onwire_init(&swo_fop->swo_base, local_ep, sw);
-	if (rc != 0 )
-		m0_fop_put(fop);
+
 	return rc;
 }
 

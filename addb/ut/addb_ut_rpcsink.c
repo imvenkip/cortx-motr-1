@@ -96,6 +96,8 @@ static void addb_ut_rpcsink_test(void)
 	uint32_t		   submitted;
 	uint32_t		   ts_pages;
 
+	m0_sm_group_init(&rm.rm_sm_grp);
+
 	m0_addb_mc_init(&mc);
 
 	/*
@@ -300,8 +302,9 @@ static void addb_ut_rpcsink_test(void)
 	 *          Expected action : Should restore addb records in RPC sink.
 	 */
 	item[0]->ri_sm.sm_rc = -1;
+	item[0]->ri_rmachine = &rm;
 	rpcsink_item_sent(item[0]);
-	m0_fop_item_put(item[0]);
+	m0_fop_put_lock(m0_rpc_item_to_fop(item[0]));
 
 	submitted = rpcsink_trans_rec_tlist_length(&rsink->rs_rpc_submitted);
 	M0_UT_ASSERT(submitted == 2);
@@ -314,8 +317,9 @@ static void addb_ut_rpcsink_test(void)
 	 *          Expected action : Should free addb records from RPC sink.
 	 */
 	item[1]->ri_sm.sm_rc = 0;
+	item[1]->ri_rmachine = &rm;
 	rpcsink_item_sent(item[1]);
-	m0_fop_item_put(item[1]);
+	m0_fop_put_lock(m0_rpc_item_to_fop(item[1]));
 
 	submitted = rpcsink_trans_rec_tlist_length(&rsink->rs_rpc_submitted);
 	M0_UT_ASSERT(submitted == 0);
@@ -343,8 +347,9 @@ static void addb_ut_rpcsink_test(void)
 	 * Successfully sent item[3]
 	 */
 	item[3]->ri_sm.sm_rc = 0;
+	item[3]->ri_rmachine = &rm;
 	rpcsink_item_sent(item[3]);
-	m0_fop_item_put(item[3]);
+	m0_fop_put_lock(m0_rpc_item_to_fop(item[3]));
 
 	submitted = rpcsink_trans_rec_tlist_length(&rsink->rs_rpc_submitted);
 	M0_UT_ASSERT(submitted == 0);
@@ -359,6 +364,8 @@ static void addb_ut_rpcsink_test(void)
 	m0__addb_ut_ct0.act_magic = 0;
 	addb_rt_tlist_del(&m0__addb_ut_rt_dp1);
 	m0__addb_ut_rt_dp1.art_magic = 0;
+
+	m0_sm_group_fini(&rm.rm_sm_grp);
 }
 
 #ifndef __KERNEL__

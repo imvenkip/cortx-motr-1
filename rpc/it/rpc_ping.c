@@ -264,7 +264,7 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(fop->f_item.ri_error == 0);
 	M0_ASSERT(fop->f_item.ri_reply != 0);
-	m0_fop_put(fop);
+	m0_fop_put_lock(fop);
 }
 
 static void rpcping_thread(struct m0_rpc_session *session)

@@ -37,6 +37,7 @@
 #include "rpc/rpclib.h"       /* m0_rpc_server_start, m0_rpc_client_start */
 #include "rpc/rpc_opcodes.h"
 #include "ut/cs_service.h"    /* m0_cs_default_stypes */
+#include "fop/fop.h"
 
 #include "console/console.h"
 #include "console/console_fop.h"
@@ -64,6 +65,7 @@ static const char *in_file = "/tmp/stdin";
 static struct m0_ut_redirect in_redir;
 static struct m0_ut_redirect out_redir;
 static struct m0_ut_redirect err_redir;
+static struct m0_rpc_machine cons_mach;
 
 #define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:2"
 
@@ -130,6 +132,7 @@ static int cons_init(void)
 	result = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(result == 0);
 
+	m0_sm_group_init(&cons_mach.rm_sm_grp);
 	return result;
 }
 
@@ -137,6 +140,7 @@ static int cons_fini(void)
 {
 	m0_net_domain_fini(&client_net_dom);
 	m0_console_fop_fini();
+	m0_sm_group_fini(&cons_mach.rm_sm_grp);
 	return 0;
 }
 
@@ -228,7 +232,7 @@ static void yaml_basic_test(void)
 static void input_test(void)
 {
         struct m0_fop *fop;
-	int	       result;
+	int            result;
 
 	file_redirect_init();
 	result = generate_yaml_file(yaml_file);
@@ -241,7 +245,8 @@ static void input_test(void)
 
         m0_cons_fop_obj_input(fop);
 	check_values(fop);
-        m0_fop_put(fop);
+	m0_fop_rpc_machine_set(fop, &cons_mach);
+	m0_fop_put_lock(fop);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);
 	M0_UT_ASSERT(result == 0);
@@ -292,7 +297,8 @@ static void output_test(void)
 	file_redirect_fini();
 
 	m0_console_verbose = false;
-        m0_fop_put(f);
+	m0_fop_rpc_machine_set(f, &cons_mach);
+	m0_fop_put_lock(f);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);
 	M0_UT_ASSERT(result == 0);

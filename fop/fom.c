@@ -1016,22 +1016,6 @@ M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom)
 	return cnt == 0;
 }
 
-static void fop_fini(struct m0_fop *fop, bool local)
-{
-	struct m0_rpc_machine *rmachine;
-
-	if (fop != NULL) {
-		if (!local) {
-			rmachine = fop->f_item.ri_rmachine;
-			M0_ASSERT(rmachine != NULL);
-			m0_sm_group_lock(&rmachine->rm_sm_grp);
-			m0_fop_put(fop);
-			m0_sm_group_unlock(&rmachine->rm_sm_grp);
-		} else
-			m0_fop_put(fop);
-	}
-}
-
 void m0_fom_fini(struct m0_fom *fom)
 {
 	struct m0_fom_locality     *loc;
@@ -1067,8 +1051,10 @@ void m0_fom_fini(struct m0_fom *fom)
 	runq_tlink_fini(fom);
 	m0_fom_callback_init(&fom->fo_cb);
 
-	fop_fini(fom->fo_fop, fom->fo_local);
-	fop_fini(fom->fo_rep_fop, fom->fo_local);
+	if (fom->fo_fop != NULL)
+		m0_fop_put_lock(fom->fo_fop);
+	if (fom->fo_rep_fop != NULL)
+		m0_fop_put_lock(fom->fo_rep_fop);
 
 	fop_rate_monitor = m0_fop_rate_monitor_get(loc);
 	if (fop_rate_monitor != NULL)

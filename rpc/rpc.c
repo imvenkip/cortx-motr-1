@@ -115,7 +115,10 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 	M0_ASSERT(m0_rpc_item_size(item) <=
 			m0_rpc_session_get_max_item_size(session));
 	M0_ASSERT(m0_rpc_machine_is_locked(session_machine(session)));
-
+	/*
+	 * For requests an additional reference is taken, this reference is
+	 * released after ->rio_replied() is called.
+	 */
 	m0_rpc_item_get(item);
 	item->ri_rmachine = session_machine(session);
 	item->ri_rpc_time = m0_time_now();
@@ -192,6 +195,11 @@ M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
 	       m0_rpc_machine_is_locked(conn->c_rpc_machine));
 	M0_PRE(item != NULL && m0_rpc_item_is_oneway(item));
 
+	/*
+	 * Rpc always acquires an *internal* reference to "all" items (Here
+	 * one-way items).This reference is released when the item is sent.
+	 */
+	m0_rpc_item_get(item);
 	item->ri_resend_interval = M0_TIME_NEVER;
 	item->ri_rpc_time        = m0_time_now();
 	item->ri_rmachine        = conn->c_rpc_machine;

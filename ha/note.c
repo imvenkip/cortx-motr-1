@@ -202,7 +202,7 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 				m0_time_from_now(DEADLINE_S, DEADLINE_NS));
 	/* Clear the fop data field so the user buffer is not released. */
 	fop->f_data.fd_data = NULL;
-	m0_fop_put(fop);
+	m0_fop_put_lock(fop);
 	M0_LEAVE();
 	M0_ASSERT(rc == 0);
 }

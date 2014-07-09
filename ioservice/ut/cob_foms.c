@@ -32,6 +32,7 @@
 #include "ioservice/io_fops_xc.h"
 #include "ut/cs_service.h"               /* ds1_service_type */
 #include "ut/ut.h"                       /* m0_ut_fom_phase_set */
+#include "rpc/rpc_machine_internal.h"
 
 #include <stdio.h>
 
@@ -239,7 +240,7 @@ static void cobfops_destroy(struct m0_fop_type *ftype1,
 	M0_UT_ASSERT(ftype1 == NULL || ftype1 == &m0_fop_cob_create_fopt);
 	M0_UT_ASSERT(ftype2 == NULL || ftype2 == &m0_fop_cob_delete_fopt);
 
-	m0_sm_group_lock(&cut->cu_cctx.rcx_rpc_machine.rm_sm_grp);
+	m0_rpc_machine_lock(&cut->cu_cctx.rcx_rpc_machine);
 	if (ftype1 != NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			m0_fop_put(cut->cu_createfops[i]);
@@ -247,7 +248,7 @@ static void cobfops_destroy(struct m0_fop_type *ftype1,
 	if (ftype2 != NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			m0_fop_put(cut->cu_deletefops[i]);
-	m0_sm_group_unlock(&cut->cu_cctx.rcx_rpc_machine.rm_sm_grp);
+	m0_rpc_machine_unlock(&cut->cu_cctx.rcx_rpc_machine);
 
 	m0_free0(&cut->cu_createfops);
 	m0_free0(&cut->cu_deletefops);
@@ -566,7 +567,9 @@ static void fom_create_test(enum cob_fom_type fomtype)
 static void cc_fom_dealloc(struct m0_fom *fom)
 {
 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
-	fom_fop_put_norpc(fom);
+
+	m0_fop_rpc_machine_set(fom->fo_fop, &cut->cu_cctx.rcx_rpc_machine);
+	m0_fop_rpc_machine_set(fom->fo_rep_fop, &cut->cu_cctx.rcx_rpc_machine);
 	cc_fom_fini(fom);
 }
 
@@ -828,7 +831,8 @@ static void cc_fom_populate_test()
 static void cd_fom_dealloc(struct m0_fom *fom)
 {
 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
-	fom_fop_put_norpc(fom);
+	m0_fop_rpc_machine_set(fom->fo_fop, &cut->cu_cctx.rcx_rpc_machine);
+	m0_fop_rpc_machine_set(fom->fo_rep_fop, &cut->cu_cctx.rcx_rpc_machine);
 	cd_fom_fini(fom);
 }
 

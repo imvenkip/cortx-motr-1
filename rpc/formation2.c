@@ -602,6 +602,13 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 				if (item == NULL)
 					break; /* next item source */
 				M0_ASSERT(m0_rpc_item_is_oneway(item));
+				/*
+				 * Rpc always acquires an *internal* reference
+				 * to "all" items (Here sourced one-way items).
+				 * This reference is released when the item is
+				 * sent.
+				 */
+				m0_rpc_item_get(item);
 				item->ri_rmachine = frm_rmachine(frm);
 				item->ri_nr_sent++;
 				m0_rpc_item_sm_init(item, M0_RPC_ITEM_OUTGOING);

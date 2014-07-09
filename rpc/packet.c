@@ -328,8 +328,13 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 
 	for (i = 0; i < poh.poh_nr_items; ++i) {
 		rc = item_decode(cursor, &item);
-		if (rc != 0)
+		if (rc != 0) {
+			struct m0_fop *fop = m0_rpc_item_to_fop(item);
+
+			m0_fop_rpc_machine_set(fop, p->rp_rmachine);
+			m0_fop_put_lock(fop);
 			return M0_RC(rc);
+		}
 		m0_rpc_packet_add_item(p, item);
 		m0_rpc_machine_lock(p->rp_rmachine);
 		m0_rpc_item_put(item);

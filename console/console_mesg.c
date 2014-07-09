@@ -62,9 +62,11 @@ M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
 
 M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 {
-	struct m0_fop *fop;
-	int            rc;
+	struct m0_fop         *fop;
+	int                    rc;
+	struct m0_rpc_machine  mach;
 
+	m0_sm_group_init(&mach.rm_sm_grp);
 	fop = m0_fop_alloc(fopt, NULL);
 	if (fop == NULL) {
 		fprintf(stderr, "FOP allocation failed\n");
@@ -73,7 +75,9 @@ M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 
 	rc = m0_cons_fop_fields_show(fop);
 
-	m0_fop_put(fop);
+	m0_fop_rpc_machine_set(fop, &mach);
+	m0_fop_put_lock(fop);
+	m0_sm_group_fini(&mach.rm_sm_grp);
 	return rc;
 }
 

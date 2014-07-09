@@ -30,6 +30,7 @@
 struct m0_mutex ut_stats_mutex;
 struct m0_cond  ut_stats_cond;
 struct m0_rpc_server_ctx stats_ut_sctx_bk;
+struct m0_rpc_machine ut_stats_machine;
 
 static char *stats_ut_server_argv[] = {
         "rpclib_ut", "-T", "AD", "-D", SERVER_DB_NAME,
@@ -228,6 +229,7 @@ static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 	int				 i;
 	int				 rc;
 
+	m0_sm_group_init(&ut_stats_machine.rm_sm_grp);
 	m0_mutex_init(&ut_stats_mutex);
 	m0_cond_init(&ut_stats_cond, &ut_stats_mutex);
 
@@ -242,7 +244,8 @@ static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 	rc = stats_update_fom_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fop_put(fop);
+	m0_fop_rpc_machine_set(fop, &ut_stats_machine);
+	m0_fop_put_lock(fop);
 
 	fom->fo_ops   = &ut_stats_update_fom_ops;
 	fom->fo_local = true;
@@ -257,6 +260,7 @@ static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 	m0_cond_fini(&ut_stats_cond);
 
 	check_stats(&srv->ss_stats, count);
+	m0_sm_group_fini(&ut_stats_machine.rm_sm_grp);
 }
 
 static void stats_ut_svc_update_fom()
@@ -346,6 +350,7 @@ static void test_state_query_fom_fini(struct m0_fom *fom)
 					   &stats_sum[i].ss_data);
 	}
 
+	fom->fo_rep_fop->f_item.ri_rmachine = &ut_stats_machine;
 	stats_query_fom_fini(fom);
 
 	m0_mutex_lock(&ut_stats_mutex);
@@ -372,6 +377,7 @@ static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 	struct m0_stats_query_fop  *qfop;
 	int				 rc;
 
+	m0_sm_group_init(&ut_stats_machine.rm_sm_grp);
 	m0_mutex_init(&ut_stats_mutex);
 	m0_cond_init(&ut_stats_cond, &ut_stats_mutex);
 
@@ -388,7 +394,8 @@ static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 	rc = stats_query_fom_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fop_put(fop);
+	m0_fop_rpc_machine_set(fop, &ut_stats_machine);
+	m0_fop_put_lock(fop);
 
 	fom->fo_ops   = &ut_stats_query_fom_ops;
 	fom->fo_local = true;
@@ -401,6 +408,7 @@ static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 
 	m0_mutex_unlock(&ut_stats_mutex);
 	m0_cond_fini(&ut_stats_cond);
+	m0_sm_group_fini(&ut_stats_machine.rm_sm_grp);
 }
 
 static void stats_ut_svc_query_fom()

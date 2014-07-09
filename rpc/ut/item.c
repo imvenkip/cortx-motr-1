@@ -90,9 +90,7 @@ static void test_simple_transitions(void)
 	m0_rpc_machine_get_stats(machine, &stats, true);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_sent_items) &&
 		     IS_INCR_BY_1(nr_rcvd_items));
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	M0_LOG(M0_DEBUG, "TEST:1:END");
 }
 
@@ -121,9 +119,7 @@ static void test_timeout(void)
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items) &&
 		     IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	M0_LOG(M0_DEBUG, "TEST:2.1:END");
 
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
@@ -174,9 +170,7 @@ static void __test_timeout(m0_time_t deadline,
 	m0_rpc_machine_get_stats(machine, &stats, true);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 }
 
 static bool only_second_time(void *data)
@@ -255,9 +249,7 @@ static void test_resend(void)
 	M0_UT_ASSERT(item->ri_nr_sent == 3);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	M0_LOG(M0_DEBUG, "TEST:3.4:END");
 
 	/* Test: INITIALISED -> FAILED transition when m0_rpc_post()
@@ -307,11 +299,8 @@ static void __test_resend(struct m0_fop *fop)
 	M0_UT_ASSERT(item->ri_nr_sent >= 1);
 	M0_UT_ASSERT(item->ri_reply != NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	if (fop_put_flag) {
-		m0_rpc_machine_lock(item->ri_rmachine);
-		m0_fop_put(fop);
-		m0_rpc_machine_unlock(item->ri_rmachine);
-	}
+	if (fop_put_flag)
+		m0_fop_put_lock(fop);
 }
 
 static void __test_timer_start_failure(void)
@@ -327,9 +316,7 @@ static void __test_timer_start_failure(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	/* sleep until request reaches at server and is dropped */
 	m0_nanosleep(m0_time(0, 5 * 1000 * 1000), NULL);
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 }
 
 static void test_failure_before_sending(void)
@@ -391,9 +378,7 @@ static int __test(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
 	m0_rpc_machine_get_stats(machine, &stats, false);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	return rc;
 }
 
@@ -465,9 +450,7 @@ static void test_oneway_item(void)
 	arrow_sent_cb_called = fop_release_called = false;
 	rc = m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
 	M0_UT_ASSERT(rc == 0);
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	M0_UT_ASSERT(!arrow_sent_cb_called);
 	M0_UT_ASSERT(!fop_release_called);
 	m0_fi_enable("frm_fill_packet", "skip_oneway_items");
@@ -530,9 +513,7 @@ static void test_cancel(void)
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED) &&
 		     chk_state(item->ri_reply, M0_RPC_ITEM_ACCEPTED));
 	check_cancel();
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	M0_LOG(M0_DEBUG, "TEST:5:1:END");
 
 	/* Cancel item while in formation. */
@@ -547,9 +528,7 @@ static void test_cancel(void)
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_ENQUEUED));
 	check_cancel();
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	M0_LOG(M0_DEBUG, "TEST:5:2:END");
 
 	/* Cancel while waiting for reply. */
@@ -566,9 +545,7 @@ static void test_cancel(void)
 	m0_nanosleep(m0_time(0, 100000000), NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_WAITING_FOR_REPLY));
 	check_cancel();
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 	M0_LOG(M0_DEBUG, "TEST:5:3:END");
 }
 
