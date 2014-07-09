@@ -151,40 +151,34 @@ const struct m0_fom_type_ops ss_fom_type_ops = {
 };
 
 struct m0_sm_state_descr ss_fom_phases[] = {
-	[START_STOP_FOM_INIT]= {
+	[SS_FOM_INIT]= {
 		.sd_flags   = M0_SDF_INITIAL,
-		.sd_name    = "Init",
-		.sd_allowed = M0_BITS(START_STOP_FOM_START,
-				      START_STOP_FOM_STOP,
-				      START_STOP_FOM_STATUS,
+		.sd_name    = "SS_FOM_INIT",
+		.sd_allowed = M0_BITS(SS_FOM_START, SS_FOM_STOP, SS_FOM_STATUS,
 				      M0_FOPH_FAILURE),
 	},
-	[START_STOP_FOM_START]= {
-		.sd_name    = "Start",
-		.sd_allowed = M0_BITS(START_STOP_FOM_START_ASYNC,
-				      M0_FOPH_FAILURE),
+	[SS_FOM_START]= {
+		.sd_name    = "SS_FOM_START",
+		.sd_allowed = M0_BITS(SS_FOM_START_ASYNC, M0_FOPH_FAILURE),
 	},
-	[START_STOP_FOM_START_ASYNC]= {
-		.sd_name    = "Async Start",
-		.sd_allowed = M0_BITS(START_STOP_FOM_START_WAIT,
-				      M0_FOPH_FAILURE),
+	[SS_FOM_START_ASYNC]= {
+		.sd_name    = "SS_FOM_START_ASYNC",
+		.sd_allowed = M0_BITS(SS_FOM_START_WAIT, M0_FOPH_FAILURE),
 	},
-	[START_STOP_FOM_START_WAIT]= {
-		.sd_name    = "Wait",
+	[SS_FOM_START_WAIT]= {
+		.sd_name    = "SS_FOM_START_WAIT",
 		.sd_allowed = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE),
 	},
-	[START_STOP_FOM_STOP]= {
-		.sd_name    = "Stop",
-		.sd_allowed = M0_BITS(START_STOP_FOM_STOP_WAIT,
-				      M0_FOPH_FAILURE),
+	[SS_FOM_STOP]= {
+		.sd_name    = "SS_FOM_STOP",
+		.sd_allowed = M0_BITS(SS_FOM_STOP_WAIT, M0_FOPH_FAILURE),
 	},
-	[START_STOP_FOM_STOP_WAIT] = {
-		.sd_name    = "Stop wait",
-		.sd_allowed = M0_BITS(START_STOP_FOM_STOP_WAIT,
-				      M0_FOPH_SUCCESS),
+	[SS_FOM_STOP_WAIT] = {
+		.sd_name    = "SS_FOM_STOP_WAIT",
+		.sd_allowed = M0_BITS(SS_FOM_STOP_WAIT, M0_FOPH_SUCCESS),
 	},
-	[START_STOP_FOM_STATUS]= {
-		.sd_name    = "Status",
+	[SS_FOM_STATUS]= {
+		.sd_name    = "SS_FOM_STATUS",
 		.sd_allowed = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE),
 	},
 };
@@ -250,30 +244,29 @@ static int ss_fom_tick(struct m0_fom *fom)
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 
 	switch (m0_fom_phase(fom)) {
-	case START_STOP_FOM_INIT:
+	case SS_FOM_INIT:
 		rep->ssr_rc = ss_fom_tick__init(m, fop, reqh);
 		if (rep->ssr_rc != 0)
 			m0_fom_phase_move(fom, rep->ssr_rc, M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
-	case START_STOP_FOM_START:
+	case SS_FOM_START:
 		rep->ssr_rc = ss_fom_tick__start(reqh, m, &fop->ss_id);
-		m0_fom_phase_moveif(fom, rep->ssr_rc,
-				    START_STOP_FOM_START_ASYNC,
+		m0_fom_phase_moveif(fom, rep->ssr_rc, SS_FOM_START_ASYNC,
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
-	case START_STOP_FOM_START_ASYNC:
+	case SS_FOM_START_ASYNC:
 		M0_PRE(m0_reqh_service_state_get(m->ssf_svc) ==
 		       M0_RST_INITIALISED);
 		m->ssf_ctx.sac_service = m->ssf_svc;
 		m->ssf_ctx.sac_fom = fom;
 		rep->ssr_rc = m0_reqh_service_start_async(&m->ssf_ctx);
-		m0_fom_phase_moveif(fom, rep->ssr_rc,
-				    START_STOP_FOM_START_WAIT, M0_FOPH_FAILURE);
+		m0_fom_phase_moveif(fom, rep->ssr_rc, SS_FOM_START_WAIT,
+				    M0_FOPH_FAILURE);
 		return rep->ssr_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
 
-	case START_STOP_FOM_START_WAIT:
+	case SS_FOM_START_WAIT:
 		if (m->ssf_ctx.sac_rc == 0)
 			m0_reqh_service_started(m->ssf_svc);
 		else
@@ -284,13 +277,13 @@ static int ss_fom_tick(struct m0_fom *fom)
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
-	case START_STOP_FOM_STOP:
+	case SS_FOM_STOP:
 		rep->ssr_rc = ss_fom_tick__stop(m->ssf_svc);
-		m0_fom_phase_moveif(fom, rep->ssr_rc, START_STOP_FOM_STOP_WAIT,
+		m0_fom_phase_moveif(fom, rep->ssr_rc, SS_FOM_STOP_WAIT,
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
-	case START_STOP_FOM_STOP_WAIT:
+	case SS_FOM_STOP_WAIT:
 		if (m0_fom_domain_is_idle_for(&reqh->rh_fom_dom, m->ssf_svc)) {
 			struct m0_reqh_service *svc = m->ssf_svc;
 
@@ -304,10 +297,10 @@ static int ss_fom_tick(struct m0_fom *fom)
 		m0_sm_group_lock(&reqh->rh_sm_grp);
 		m0_fom_wait_on(fom, &reqh->rh_sm_grp.s_chan, &fom->fo_cb);
 		m0_sm_group_unlock(&reqh->rh_sm_grp);
-		m0_fom_phase_set(fom, START_STOP_FOM_STOP_WAIT);
+		m0_fom_phase_set(fom, SS_FOM_STOP_WAIT);
 		return M0_FSO_WAIT;
 
-	case START_STOP_FOM_STATUS:
+	case SS_FOM_STATUS:
 		if (m->ssf_svc == NULL) {
 			rep->ssr_status = M0_RST_STOPPED;
 			rep->ssr_rc = m->ssf_stype == NULL ? -ENOENT : 0;
@@ -348,9 +341,9 @@ static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     struct m0_reqh *reqh)
 {
 	static enum ss_fom_phases next_phase[] = {
-		[M0_SERVICE_START]  = START_STOP_FOM_START,
-		[M0_SERVICE_STOP]   = START_STOP_FOM_STOP,
-		[M0_SERVICE_STATUS] = START_STOP_FOM_STATUS,
+		[M0_SERVICE_START]  = SS_FOM_START,
+		[M0_SERVICE_STOP]   = SS_FOM_STOP,
+		[M0_SERVICE_STATUS] = SS_FOM_STATUS
 	};
 
 	if (!IS_IN_ARRAY(fop->ss_cmd, next_phase) ||
