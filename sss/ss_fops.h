@@ -41,14 +41,14 @@ extern struct m0_fop_type m0_fop_ss_rep_fopt;
 /**
  * Service commands
  */
-enum m0_sssservice_req_cmd {
+enum m0_sss_req_cmd {
 	M0_SERVICE_START,
 	M0_SERVICE_STOP,
 	M0_SERVICE_STATUS
 };
 
 /** Request to start/stop a service. */
-struct m0_sssservice_req {
+struct m0_sss_req {
 	/**
 	 * Name of service type
 	 * @see m0_reqh_service_type::rst_name
@@ -56,7 +56,7 @@ struct m0_sssservice_req {
 	struct m0_fop_str ss_name;
 	/**
 	 * Command to execute
-	 * @see enum m0_sssservice_req_cmd
+	 * @see enum m0_sss_req_cmd
 	 */
 	uint32_t          ss_cmd;
 	/**
@@ -70,8 +70,8 @@ struct m0_sssservice_req {
 	struct m0_fop_str ss_params;
 } M0_XCA_RECORD;
 
-/** Response to m0_sssservice_req. */
-struct m0_sssservice_rep {
+/** Response to m0_sss_req. */
+struct m0_sss_rep {
 	/**
 	 * Service status
 	 * @see enum m0_reqh_service_state

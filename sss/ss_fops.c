@@ -55,8 +55,8 @@ M0_INTERNAL int m0_ss_fops_init(void)
 	m0_fop_ss_rep_fopt.ft_magix = 0;
 	M0_FOP_TYPE_INIT(&m0_fop_ss_fopt,
 			 .name      = "Start Stop fop",
-			 .opcode    = M0_SSSSERVICE_REQ_OPCODE,
-			 .xt        = m0_sssservice_req_xc,
+			 .opcode    = M0_SSS_REQ_OPCODE,
+			 .xt        = m0_sss_req_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .fop_ops   = &ss_fop_type_ops,
 			 .fom_ops   = &ss_fom_type_ops,
@@ -65,8 +65,8 @@ M0_INTERNAL int m0_ss_fops_init(void)
 			 .rpc_ops   = &ss_item_type_ops);
 	M0_FOP_TYPE_INIT(&m0_fop_ss_rep_fopt,
 			 .name      = "Start Stop reply fop",
-			 .opcode    = M0_SSSSERVICE_REP_OPCODE,
-			 .xt        = m0_sssservice_rep_xc,
+			 .opcode    = M0_SSS_REP_OPCODE,
+			 .xt        = m0_sss_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .fop_ops   = &ss_fop_type_ops,
 			 .fom_ops   = &ss_fom_type_ops,

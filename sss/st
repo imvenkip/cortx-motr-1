@@ -26,8 +26,7 @@ sss_send() {
 	esac
 	local ID="$3"
 
-	$M0_CORE_DIR/console/bin/m0console \
-		-f $(opcode M0_SSSSERVICE_REQ_OPCODE) \
+	$M0_CORE_DIR/console/bin/m0console -f $(opcode M0_SSS_REQ_OPCODE) \
 		-s $(endpoint $SERVER_TMID) -c $(endpoint $CLIENT_TMID) \
 		-d "(\"$SVC\", $CMD, $ID, \"\")" -v
 }

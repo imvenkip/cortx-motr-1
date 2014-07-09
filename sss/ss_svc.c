@@ -43,8 +43,7 @@ struct m0_addb_ctx m0_ss_fom_addb_ctx;
 static int ss_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			  struct m0_reqh *reqh);
 static int ss_fom_tick(struct m0_fom *fom);
-static int ss_fom_tick__init(struct ss_fom *m,
-			     const struct m0_sssservice_req *fop,
+static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     struct m0_reqh *reqh);
 static int ss_fom_tick__start(struct m0_reqh *reqh, struct ss_fom *m,
 			      const struct m0_fid *svc_id);
@@ -199,10 +198,10 @@ struct m0_sm_conf ss_fom_conf = {
 static int
 ss_fom_create(struct m0_fop *fop, struct m0_fom **out, struct m0_reqh *reqh)
 {
-	struct ss_fom            *ssfom;
-	struct m0_fom            *fom;
-	struct m0_fop            *rfop;
-	struct m0_sssservice_rep *ssrep_fop;
+	struct ss_fom     *ssfom;
+	struct m0_fom     *fom;
+	struct m0_fop     *rfop;
+	struct m0_sss_rep *ssrep_fop;
 
 	M0_ENTRY();
 	M0_PRE(fop != NULL);
@@ -235,10 +234,10 @@ err:
 
 static int ss_fom_tick(struct m0_fom *fom)
 {
-	struct ss_fom            *m;
-	struct m0_reqh           *reqh;
-	struct m0_sssservice_req *fop;
-	struct m0_sssservice_rep *rep;
+	struct ss_fom     *m;
+	struct m0_reqh    *reqh;
+	struct m0_sss_req *fop;
+	struct m0_sss_rep *rep;
 
 	M0_PRE(fom != NULL);
 
@@ -345,8 +344,7 @@ static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 			 &fom->fo_service->rs_addb_ctx);
 }
 
-static int ss_fom_tick__init(struct ss_fom *m,
-			     const struct m0_sssservice_req *fop,
+static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     struct m0_reqh *reqh)
 {
 	static enum ss_fom_phases next_phase[] = {
