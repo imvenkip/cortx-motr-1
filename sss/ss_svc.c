@@ -45,8 +45,8 @@ static int ss_fom_create(struct m0_fop *fop, struct m0_fom **out,
 static int ss_fom_tick(struct m0_fom *fom);
 static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     struct m0_reqh *reqh);
-static int ss_fom_tick__start(struct m0_reqh *reqh, struct ss_fom *m,
-			      const struct m0_fid *svc_id);
+static int ss_fom_tick__svc_alloc(struct m0_reqh *reqh, struct ss_fom *m,
+				  const struct m0_fid *svc_id);
 static int ss_fom_tick__stop(struct m0_reqh_service *svc);
 static void ss_fom_fini(struct m0_fom *fom);
 static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
@@ -154,15 +154,15 @@ struct m0_sm_state_descr ss_fom_phases[] = {
 	[SS_FOM_INIT]= {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "SS_FOM_INIT",
-		.sd_allowed = M0_BITS(SS_FOM_START, SS_FOM_STOP, SS_FOM_STATUS,
-				      M0_FOPH_FAILURE),
+		.sd_allowed = M0_BITS(SS_FOM_SVC_ALLOC, SS_FOM_STOP,
+				      SS_FOM_STATUS, M0_FOPH_FAILURE),
+	},
+	[SS_FOM_SVC_ALLOC]= {
+		.sd_name    = "SS_FOM_SVC_ALLOC",
+		.sd_allowed = M0_BITS(SS_FOM_START, M0_FOPH_FAILURE),
 	},
 	[SS_FOM_START]= {
 		.sd_name    = "SS_FOM_START",
-		.sd_allowed = M0_BITS(SS_FOM_START_ASYNC, M0_FOPH_FAILURE),
-	},
-	[SS_FOM_START_ASYNC]= {
-		.sd_name    = "SS_FOM_START_ASYNC",
 		.sd_allowed = M0_BITS(SS_FOM_START_WAIT, M0_FOPH_FAILURE),
 	},
 	[SS_FOM_START_WAIT]= {
@@ -250,13 +250,13 @@ static int ss_fom_tick(struct m0_fom *fom)
 			m0_fom_phase_move(fom, rep->ssr_rc, M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
-	case SS_FOM_START:
-		rep->ssr_rc = ss_fom_tick__start(reqh, m, &fop->ss_id);
-		m0_fom_phase_moveif(fom, rep->ssr_rc, SS_FOM_START_ASYNC,
+	case SS_FOM_SVC_ALLOC:
+		rep->ssr_rc = ss_fom_tick__svc_alloc(reqh, m, &fop->ss_id);
+		m0_fom_phase_moveif(fom, rep->ssr_rc, SS_FOM_START,
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
-	case SS_FOM_START_ASYNC:
+	case SS_FOM_START:
 		M0_PRE(m0_reqh_service_state_get(m->ssf_svc) ==
 		       M0_RST_INITIALISED);
 		m->ssf_ctx.sac_service = m->ssf_svc;
@@ -341,7 +341,7 @@ static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 			     struct m0_reqh *reqh)
 {
 	static enum ss_fom_phases next_phase[] = {
-		[M0_SERVICE_START]  = SS_FOM_START,
+		[M0_SERVICE_START]  = SS_FOM_SVC_ALLOC,
 		[M0_SERVICE_STOP]   = SS_FOM_STOP,
 		[M0_SERVICE_STATUS] = SS_FOM_STATUS
 	};
@@ -361,8 +361,8 @@ static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 	return 0;
 }
 
-static int ss_fom_tick__start(struct m0_reqh *reqh, struct ss_fom *m,
-			      const struct m0_fid *svc_id)
+static int ss_fom_tick__svc_alloc(struct m0_reqh *reqh, struct ss_fom *m,
+				  const struct m0_fid *svc_id)
 {
 	int                     rc;
 	struct m0_reqh_context *rctx =

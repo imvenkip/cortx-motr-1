@@ -58,8 +58,8 @@ struct ss_fom {
 
 enum ss_fom_phases {
 	SS_FOM_INIT = M0_FOPH_NR + 1,
+	SS_FOM_SVC_ALLOC,
 	SS_FOM_START,
-	SS_FOM_START_ASYNC,
 	SS_FOM_START_WAIT,
 	SS_FOM_STOP,
 	SS_FOM_STOP_WAIT,
