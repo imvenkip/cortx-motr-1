@@ -108,6 +108,14 @@ __attribute__ ((format (printf, 1, 2))) static inline void
 printf_check(const char *fmt, ...)
 {}
 
+/* internal macro */
+#define M0_ASSERT__INIT(msg, fmt, ...)                 \
+	static const struct m0_panic_ctx __pctx = {    \
+		msg, __func__, __FILE__, __LINE__, fmt \
+	};                                             \
+	printf_check(fmt, ##__VA_ARGS__);              \
+	m0_assert_intercept()
+
 /**
  * The same as M0_ASSERT macro, but this version allows to specify additional
  * informational message with printf(3) like formatting, which will be displayed
@@ -119,14 +127,19 @@ printf_check(const char *fmt, ...)
  * construct m0_panic_ctx, so we use positional initializers and their order
  * should match the fields declaration order in m0_panic_ctx structure.
  */
-#define M0_ASSERT_INFO(cond, fmt, ...)					\
-({									\
-	static const struct m0_panic_ctx __pctx = {			\
-		#cond, __func__, __FILE__, __LINE__, (fmt)		\
-	};								\
-	printf_check(fmt, ##__VA_ARGS__);				\
-	m0_assert_intercept();						\
-	(M0_ASSERT_OFF || likely(cond) ? (void)0 : m0_panic(&__pctx, ##__VA_ARGS__)); \
+#define M0_ASSERT_INFO(cond, fmt, ...)                       \
+({                                                           \
+	M0_ASSERT__INIT(#cond, fmt, ##__VA_ARGS__);          \
+	(M0_ASSERT_OFF || likely(cond) ?                     \
+		(void)0 : m0_panic(&__pctx, ##__VA_ARGS__)); \
+})
+
+/** A macro indicating that computation reached an invalid state. */
+#define M0_IMPOSSIBLE(fmt, ...)                                    \
+({                                                                 \
+	M0_ASSERT__INIT("Impossible", "Impossible happened! " fmt, \
+			##__VA_ARGS__);                            \
+	m0_panic(&__pctx, ##__VA_ARGS__);                          \
 })
 
 /**
@@ -222,11 +235,6 @@ static inline void m0_assert_intercept(void) {;}
 #define M0_BASSERT(cond) extern char __static_assertion[(cond) ? 1 : -1]
 
 /**
-   A macro indicating that computation reached an invalid state.
- */
-#define M0_IMPOSSIBLE(msg) M0_ASSERT("Impossible: " msg == NULL)
-
-/**
    Location where _0C() macro stores the name of failed asserted expression.
  */
 M0_EXTERN const char *m0_failed_condition;
@@ -237,6 +245,7 @@ M0_EXTERN const char *m0_failed_condition;
    Useful thing to put a breakpoint at.
  */
 M0_INTERNAL void m0__assertion_hook(void);
+
 /**
    A macro to remember failed invariant conjunct.
 
@@ -247,7 +256,7 @@ bool foo_invariant(const struct foo *f)
 {
 	return _0C(f != NULL) && _0C(f->f_ref > 0) &&
 		m0_tl_forall(bar, s, &foo->f_list, _0C(b->b_parent == f) &&
-		                  _0C(b->b_nr < f->f_nr));
+				  _0C(b->b_nr < f->f_nr));
 }
 @endcode
 
