@@ -2168,7 +2168,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 				 struct m0_balloc  **out)
 {
 	struct m0_balloc       *cb;
-	struct m0_be_btree      btree;
+	struct m0_be_btree      btree = {};
 	struct m0_be_tx         tx = {};
 	struct m0_be_tx_credit  cred = {};
 	int                     rc;

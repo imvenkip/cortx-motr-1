@@ -384,7 +384,7 @@ static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
 					 const char *location_data,
 					 struct m0_be_tx_credit *accum)
 {
-	struct m0_be_emap map;
+	struct m0_be_emap map = {};
 	struct m0_buf     data = { .b_nob = sizeof(struct stob_ad_0type_rec) };
 
 	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
