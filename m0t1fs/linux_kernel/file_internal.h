@@ -1029,6 +1029,10 @@ Detailed level design HOWTO</a>,
 
  */
 
+/* import */
+struct m0_pdclust_tgt_addr;
+struct m0_pdclust_src_addr;
+
 /* export */
 struct io_request;
 struct nw_xfer_request;

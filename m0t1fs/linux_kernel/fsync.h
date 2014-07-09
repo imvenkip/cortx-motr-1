@@ -21,7 +21,8 @@
  */
 
 
-#include "mdservice/fsync_fops.h"	/* m0_fop_fsync_fopt */
+#include "mdservice/fsync_fops.h"       /* m0_fop_fsync_fopt */
+#include "fop/fop.h"                    /* m0_fop */
 
 #pragma once
 
@@ -353,6 +354,11 @@ struct m0t1fs_service_txid {
           http://pubs.opengroup.org/onlinepubs/009695399/functions/fsync.html
 
  */
+
+/* import */
+struct m0t1fs_inode;
+struct m0t1fs_sb;
+struct m0t1fs_service_context;
 
 
 /**

@@ -48,6 +48,7 @@
 #include "m0t1fs/linux_kernel/file_internal.h"
 #include "m0t1fs/m0t1fs_addb.h"
 #include "m0t1fs/linux_kernel/fsync.h"
+#include "m0t1fs/linux_kernel/ioctl.h"
 
 /**
    @page iosnsrepair I/O with SNS and SNS repair.
@@ -4739,6 +4740,7 @@ const struct file_operations m0t1fs_reg_file_operations = {
 	.aio_write = file_aio_write,
 	.read	   = do_sync_read,
 	.write	   = do_sync_write,
+	.ioctl     = m0t1fs_ioctl,
 	.fsync     = m0t1fs_fsync
 };
 
