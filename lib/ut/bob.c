@@ -134,6 +134,11 @@ void test_bob(void)
 	test_tlink_fini();
 	test_check();
 	test_bob_of();
+	/*
+	 * Some of the above tests make an unsuccessful m0_bob_check(),
+	 * setting m0_failed_condition. Don't let m0_panic() use it.
+	 */
+	m0_failed_condition = NULL;
 }
 M0_EXPORTED(test_bob);
 
