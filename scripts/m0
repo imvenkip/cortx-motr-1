@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -eu
 
 ### --------------------------------------------------------------------
 ### Mero helper script
@@ -26,22 +26,23 @@ die() { echo "$@" >&2; exit 1; }
 clean() {
     cd "$SRC"
     make distclean || true
-    [ "$1" = '-f' ] && git clean -fdx || true
+    [ "${1:-}" = '-f' ] && git clean -fdx || true
 }
 
 _make() {
-    local _OUT=`mktemp`
-    trap "rm $_OUT" 0
-    make $MAKE_OPTS 2>&1 | tee $_OUT
+    local OUT=`mktemp`
+
+    trap "rm $OUT" 0
+    make ${MAKE_OPTS:-} 2>&1 | tee $OUT
     [ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
-    if grep 'WARNING:' $_OUT; then
+    if grep 'WARNING:' $OUT; then
 	die 'WARNING in make output is treated as error'
     fi
 }
 
 build() {
     autoreconf -ifs
-    ./configure $CONFIGURE_OPTS
+    ./configure ${CONFIGURE_OPTS:-}
     _make
 }
 
@@ -178,7 +179,7 @@ UT output:  $RUNDIR
 EOF
 }
 
-case "$1" in
+case "${1:-}" in
     make)
 	cd "$SRC"
 	if [ -f Makefile ]; then
@@ -197,7 +198,7 @@ case "$1" in
     dist-check) shift; dist_check "$@";;
     check-everything)
 	check_everything
-	echo $CONFIGURE_OPTS | grep -qe '--disable-m0-asserts' || {
+	echo ${CONFIGURE_OPTS:-} | grep -qe '--disable-m0-asserts' || {
 	    CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-m0-asserts"
 	    check_everything
 	};;
