@@ -519,13 +519,14 @@ M0_INTERNAL int m0_sm_timer_start(struct m0_sm_timer *timer,
 	 *    - the AST invokes user-supplied call-back.
 	 */
 
-	timer->tr_state = ARMED;
-	timer->tr_grp   = group;
-	timer->tr_cb    = cb;
 	result = m0_timer_init(&timer->tr_timer, M0_TIMER_SOFT, NULL,
 			       sm_timer_top, (unsigned long)timer);
-	if (result == 0)
+	if (result == 0) {
 		m0_timer_start(&timer->tr_timer, deadline);
+		timer->tr_state = ARMED;
+		timer->tr_grp   = group;
+		timer->tr_cb    = cb;
+	}
 	return result;
 }
 
