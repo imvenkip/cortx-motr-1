@@ -749,13 +749,22 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	args->ct_sender_id = conn->c_sender_id;
 
 	session_0 = m0_rpc_conn_session0(conn);
+
+	/*
+	 * m0_rpc_conn_establish_reply_received() expects the session
+	 * to be in M0_RPC_CONN_TERMINATING state. Make sure it is so,
+	 * even if item send below fails.
+	 */
+	conn_state_set(conn, M0_RPC_CONN_TERMINATING);
 	rc = m0_rpc__fop_post(fop, session_0, &conn_terminate_item_ops,
 			      abs_timeout);
-	if (rc == 0) {
-		conn_state_set(conn, M0_RPC_CONN_TERMINATING);
-	} else {
+	/*
+	 * It is possible that ->rio_replied() was called
+	 * and connection is terminated already.
+	 */
+	if (rc != 0 && conn_state(conn) == M0_RPC_CONN_TERMINATING)
 		conn_failed(conn, rc);
-	}
+
 	m0_fop_put(fop);
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_POST(ergo(rc != 0, conn_state(conn) == M0_RPC_CONN_FAILED));

@@ -600,13 +600,21 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
 
 	session_0 = m0_rpc_conn_session0(conn);
 
+	/*
+	 * m0_rpc_session_establish_reply_received() expects the session
+	 * to be in M0_RPC_SESSION_TERMINATING state. Make sure it is so,
+	 * even if item send below fails.
+	 */
+	session_state_set(session, M0_RPC_SESSION_TERMINATING);
 	rc = m0_rpc__fop_post(fop, session_0, &session_terminate_item_ops,
 			      abs_timeout);
-	if (rc == 0) {
-		session_state_set(session, M0_RPC_SESSION_TERMINATING);
-	} else {
+	/*
+	 * It is possible that ->rio_replied() was called
+	 * and session is terminated already.
+	 */
+	if (rc != 0 && session_state(session) == M0_RPC_SESSION_TERMINATING)
 		session_failed(session, rc);
-	}
+
 	m0_fop_put(fop);
 
 out_unlock:
@@ -669,7 +677,7 @@ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
 	M0_ASSERT(sender_id == conn->c_sender_id);
 	session = m0_rpc_session_search(conn, session_id);
 	M0_ASSERT(m0_rpc_session_invariant(session) &&
-		  session_state(session) == M0_RPC_SESSION_TERMINATING);
+		  _0C(session_state(session) == M0_RPC_SESSION_TERMINATING));
 
 	reply_item = item->ri_reply;
 	reply      = NULL;
