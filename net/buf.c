@@ -43,50 +43,21 @@ M0_INTERNAL bool m0_net__qtype_is_valid(enum m0_net_queue_type qt)
 
 M0_INTERNAL bool m0_net__buffer_invariant(const struct m0_net_buffer *buf)
 {
-	if (buf == NULL)
-		return false;
-
-	/* must be a registered buffer */
-	if (!(buf->nb_flags & M0_NET_BUF_REGISTERED))
-		return false;
-
-	/* domain must be set and initialized */
-	if (buf->nb_dom == NULL || buf->nb_dom->nd_xprt == NULL)
-		return false;
-
-	/* bufvec must be set */
-	if (buf->nb_buffer.ov_buf == NULL ||
-	    m0_vec_count(&buf->nb_buffer.ov_vec) == 0)
-		return false;
-
-	/* is it queued? */
-	if (!(buf->nb_flags & M0_NET_BUF_QUEUED))
-		return true;
-
-	/* must have a valid queue type */
-	if (!m0_net__qtype_is_valid(buf->nb_qtype))
-		return false;
-
-	/* if queued, must have the appropriate callback */
-	if (buf->nb_callbacks == NULL)
-		return false;
-	if (buf->nb_callbacks->nbc_cb[buf->nb_qtype] == NULL)
-		return false;
-
-	/* Must be associated with a TM.
-	   Note: Buffer state does not imply TM state so don't test latter.
-	 */
-	if (buf->nb_tm == NULL)
-		return false;
-
-	/* TM's domain must be the buffer's domain */
-	if (buf->nb_dom != buf->nb_tm->ntm_dom)
-		return false;
-
-	/* EXPENSIVE: on the right TM list */
-	if (!m0_net_tm_tlist_contains(&buf->nb_tm->ntm_q[buf->nb_qtype], buf))
-		return false;
-	return true;
+	return
+		_0C(buf != NULL) &&
+		_0C((buf->nb_flags & M0_NET_BUF_REGISTERED) != 0) &&
+		_0C(buf->nb_dom != NULL) &&
+		_0C(buf->nb_dom->nd_xprt != NULL) &&
+		_0C(buf->nb_buffer.ov_buf != NULL) &&
+		_0C(m0_vec_count(&buf->nb_buffer.ov_vec) != 0) &&
+		ergo((buf->nb_flags & M0_NET_BUF_QUEUED) != 0,
+		     _0C(m0_net__qtype_is_valid(buf->nb_qtype)) &&
+		     _0C(buf->nb_callbacks != NULL) &&
+		     _0C(buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL) &&
+		     _0C(buf->nb_tm != NULL) &&
+		     _0C(buf->nb_dom == buf->nb_tm->ntm_dom) &&
+		     _0C(m0_net_tm_tlist_contains( /* expensive */
+				 &buf->nb_tm->ntm_q[buf->nb_qtype], buf)));
 }
 
 M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
