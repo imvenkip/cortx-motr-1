@@ -161,7 +161,6 @@ int m0_cs_default_stypes_init(void)
 		if (rc != 0)
 			break;
 	}
-
 	return rc;
 }
 

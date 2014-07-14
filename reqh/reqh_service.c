@@ -211,9 +211,8 @@ static void reqh_service_failed_common(struct m0_reqh *reqh,
 	reqh_service_state_set(service, M0_RST_FAILED);
 }
 
-M0_INTERNAL int m0_reqh_service_start_async(struct
-					    m0_reqh_service_start_async_ctx
-					    *asc)
+M0_INTERNAL int
+m0_reqh_service_start_async(struct m0_reqh_service_start_async_ctx *asc)
 {
 	int                     rc;
 	unsigned                key;
@@ -237,11 +236,10 @@ M0_INTERNAL int m0_reqh_service_start_async(struct
 	rc = service->rs_ops->rso_start_async(asc);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	if (rc == 0) {
+	if (rc == 0)
 		M0_POST(m0_reqh_service_invariant(service));
-	} else {
+	else
 		reqh_service_failed_common(reqh, service, key);
-	}
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	return rc;
@@ -306,12 +304,11 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	rc = service->rs_ops->rso_start(service);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-	if (rc == 0) {
+	if (rc == 0)
 		reqh_service_started_common(reqh, service);
-		M0_ASSERT(m0_reqh_service_invariant(service));
-        } else {
+	else
 		reqh_service_failed_common(reqh, service, key);
-	}
+	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
 	return rc;
@@ -505,11 +502,11 @@ M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s)
 	return s->rs_sm.sm_state;
 }
 
-M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
+M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service     **out,
 				      struct m0_reqh_service_type *stype,
-				      struct m0_reqh *reqh,
-				      struct m0_reqh_context *rctx,
-				      const struct m0_uint128 *uuid)
+				      struct m0_reqh              *reqh,
+				      struct m0_reqh_context      *rctx,
+				      const struct m0_uint128     *uuid)
 {
 	int result;
 

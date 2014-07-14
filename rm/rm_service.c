@@ -69,7 +69,7 @@ static const struct m0_reqh_service_type_ops rms_type_ops = {
  */
 static const struct m0_reqh_service_ops rms_ops = {
 	.rso_start           = rms_start,
-	.rso_start_async     = &m0_reqh_service_async_start_simple,
+	.rso_start_async     = m0_reqh_service_async_start_simple,
 	.rso_stop            = rms_stop,
 	.rso_fini            = rms_fini,
 	.rso_stats_post_addb = rms_stats_post_addb

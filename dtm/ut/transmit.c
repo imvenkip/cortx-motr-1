@@ -25,8 +25,8 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
-
 #include "lib/trace.h"
+
 #include "ut/ut.h"
 #include "ut/ut_rpc_machine.h"
 #include "lib/misc.h"         /* m0_forall, IS_IN_ARRAY */
@@ -746,7 +746,6 @@ const struct m0_test_suite dtm_transmit_ut = {
 M0_EXPORTED(dtm_transmit_ut);
 
 #undef M0_TRACE_SUBSYSTEM
-
 /** @} end of dtm group */
 
 /*

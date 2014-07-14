@@ -18,7 +18,6 @@
  * Original creation date: 17-Jun-2013
  */
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 

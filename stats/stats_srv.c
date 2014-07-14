@@ -224,7 +224,6 @@ static bool stats_svc_invariant(const struct stats_svc *svc)
 static int stats_svc_rso_start(struct m0_reqh_service *service)
 {
 	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
-
 	return 0;
 }
 

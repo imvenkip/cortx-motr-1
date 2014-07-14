@@ -43,7 +43,7 @@ struct m0_ut_cm *cm2utcm(struct m0_cm *cm)
 
 static int cm_ut_service_start(struct m0_reqh_service *service)
 {
-	struct  m0_cm *cm;
+	struct m0_cm *cm;
 
 	cm = container_of(service, struct m0_cm, cm_service);
 	return m0_cm_setup(cm);

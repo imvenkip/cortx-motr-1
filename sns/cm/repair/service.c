@@ -102,7 +102,6 @@ static int repair_svc_start(struct m0_reqh_service *service)
 		m0_sns_cm_repair_sw_onwire_fop_init();
 		m0_sns_cm_repair_trigger_fop_init();
 	}
-
 	return rc;
 }
 
@@ -115,8 +114,8 @@ static void repair_svc_stop(struct m0_reqh_service *service)
 }
 
 #undef M0_TRACE_SUBSYSTEM
-
 /** @} SNSCMSVC */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

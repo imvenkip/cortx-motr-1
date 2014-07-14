@@ -28,6 +28,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
@@ -96,7 +97,7 @@ static void buffer_pool_low(struct m0_net_buffer_pool *bp);
  * I/O Service type operations.
  */
 static const struct m0_reqh_service_type_ops ios_type_ops = {
-        .rsto_service_allocate = ios_allocate
+	.rsto_service_allocate = ios_allocate
 };
 
 /**
@@ -433,14 +434,10 @@ static void ios_fini(struct m0_reqh_service *service)
  * - Registers I/O FOP with service
  * - Initiates buffer pool
  * - Initialises channel for service to wait for buffer pool notEmpty event.
- *
- * @param service pointer to service instance.
- *
- * @pre service != NULL
  */
 static int ios_start(struct m0_reqh_service *service)
 {
-	int			   rc;
+	int                        rc;
 	struct m0_reqh_io_service *serv_obj;
 
 	M0_PRE(service != NULL);

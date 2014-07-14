@@ -72,11 +72,11 @@ struct m0_fom;
 
    - then define service operations,
    @code
-   const struct m0_reqh_service_ops service_ops = {
+   static const struct m0_reqh_service_ops service_ops = {
         .rso_start = service_start,
-        .rso_stop = service_stop,
-        .rso_fini = service_fini,
-	.rso_stats_post_addb = optional_service_stats,
+        .rso_stop  = service_stop,
+        .rso_fini  = service_fini,
+        .rso_stats_post_addb = optional_service_stats,
    };
    @endcode
 
@@ -124,7 +124,7 @@ struct m0_fom;
         |                                   | m0_reqh_service_start_async()/
         |                                   |     m0_reqh_service_start()
         v    m0_reqh_service_failed()       v
-        +------------------------------ M0_RST_STARTING [rso_start [_async]()]
+        +------------------------------ M0_RST_STARTING [rso_start[_async]()]
         |                                   | m0_reqh_service_started()/
         v                                   |     m0_reqh_service_start()
    M0_RST_FAILED                            v
@@ -327,7 +327,7 @@ struct m0_reqh_service_ops {
            specific startup operations are performed, the service is registered
            with the request handler.
 
-	   @param service Service to be started
+	   @param service Service to be started.
 
 	   @see m0_reqh_service_start()
 	 */
@@ -421,7 +421,7 @@ struct m0_reqh_service_type_ops {
    @see m0_reqh_service_type_init()
  */
 struct m0_reqh_service_type {
-	const char		              *rst_name;
+	const char                            *rst_name;
 
 	/** Service type operations.*/
 	const struct m0_reqh_service_type_ops *rst_ops;
@@ -647,11 +647,11 @@ M0_INTERNAL int m0_reqh_service_state_get(const struct m0_reqh_service *s);
  * A helper function that allocates, initialises and starts a service of the
  * given type.
  */
-M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service **out,
+M0_INTERNAL int m0_reqh_service_setup(struct m0_reqh_service     **out,
 				      struct m0_reqh_service_type *stype,
-				      struct m0_reqh *reqh,
-				      struct m0_reqh_context *rctx,
-				      const struct m0_uint128 *uuid);
+				      struct m0_reqh              *reqh,
+				      struct m0_reqh_context      *rctx,
+				      const struct m0_uint128     *uuid);
 
 /** Dual to m0_reqh_service_setup(), stops and finalises the service. */
 M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc);

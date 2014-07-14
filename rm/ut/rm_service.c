@@ -144,7 +144,7 @@ static void rm_client(const int tid)
 	m0_ut_rpc_mach_init_and_add(&client_ctx->rc_rmach_ctx);
         rc = m0_reqh_service_setup(&rmservice, &m0_rms_type,
 				   &client_ctx->rc_rmach_ctx.rmc_reqh,
-                                   NULL, NULL);
+				   NULL, NULL);
         M0_UT_ASSERT(rc == 0);
 
 	m0_mutex_init(&client_ctx->rc_mutex);

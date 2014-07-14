@@ -76,8 +76,8 @@ static void cm_setup_ut(void)
 	struct m0_reqh     *reqh;
 	struct m0_poolmach *pm;
 	struct m0_sm_group *grp;
-	struct m0_cm *cm = &cm_ut[0].ut_cm;
-	int           rc;
+	struct m0_cm       *cm = &cm_ut[0].ut_cm;
+	int                 rc;
 
 	cm_ut_service_alloc_init();
 
@@ -208,11 +208,12 @@ static void ag_list_test_sort()
 	} m0_tl_endfor;
 
 }
+
 static void cm_ag_ut(void)
 {
-	int		         i;
-	int		         j;
-	int			 rc;
+	int                      i;
+	int                      j;
+	int                      rc;
 	struct m0_cm_ag_id       ag_ids[AG_ID_NR];
 	struct m0_cm_aggr_group  ags[AG_ID_NR];
 	struct m0_cm            *cm;

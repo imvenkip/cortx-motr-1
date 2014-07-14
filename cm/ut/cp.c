@@ -36,7 +36,7 @@ M0_INTERNAL int m0_poolmach_store_destroy(struct m0_poolmach *pm,
 					  struct m0_sm_group *sm_grp,
 					  struct m0_dtm      *dtm);
 
-static struct m0_semaphore     sem;
+static struct m0_semaphore sem;
 
 /* Single thread test vars. */
 static struct m0_sns_cm_cp       s_sns_cp;
@@ -50,25 +50,25 @@ enum {
 
 static int ut_cp_service_start(struct m0_reqh_service *service)
 {
-	M0_ASSERT(service != NULL);
+	M0_PRE(service != NULL);
 	return 0;
 }
 
 static void ut_cp_service_stop(struct m0_reqh_service *service)
 {
-	M0_ASSERT(service != NULL);
+	M0_PRE(service != NULL);
 }
 
 static void ut_cp_service_fini(struct m0_reqh_service *service)
 {
-	M0_ASSERT(service != NULL);
+	M0_PRE(service != NULL);
 	m0_free(service);
 }
 
 static const struct m0_reqh_service_ops ut_cp_service_ops = {
 	.rso_start = ut_cp_service_start,
-	.rso_stop = ut_cp_service_stop,
-	.rso_fini = ut_cp_service_fini
+	.rso_stop  = ut_cp_service_stop,
+	.rso_fini  = ut_cp_service_fini
 };
 
 static int ut_cp_service_allocate(struct m0_reqh_service **service,
@@ -88,7 +88,7 @@ static int ut_cp_service_allocate(struct m0_reqh_service **service,
 }
 
 static const struct m0_reqh_service_type_ops ut_cp_service_type_ops = {
-        .rsto_service_allocate = ut_cp_service_allocate
+	.rsto_service_allocate = ut_cp_service_allocate
 };
 
 M0_REQH_SERVICE_TYPE_DEFINE(ut_cp_service_type, &ut_cp_service_type_ops,

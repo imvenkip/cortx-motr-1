@@ -78,11 +78,12 @@ static void rpc_service_fini(struct m0_reqh_service *service)
 	m0_free(svc);
 }
 
-static int rpc_service_fop_accept(struct m0_reqh_service *service,
-				  struct m0_fop *fop)
+static int
+rpc_service_fop_accept(struct m0_reqh_service *service, struct m0_fop *fop)
 {
 	return 0;
 }
+
 static const struct m0_reqh_service_ops rpc_ops = {
 	.rso_start      = rpc_service_start,
 	.rso_stop       = rpc_service_stop,
@@ -239,13 +240,10 @@ m0_reqh_rpc_service_find(struct m0_reqh *reqh)
 
 M0_INTERNAL int m0_rpc_service_start(struct m0_reqh *reqh)
 {
-	int result = 0;
-
-	if (reqh->rh_rpc_service == NULL)
-		result = m0_reqh_service_setup(&reqh->rh_rpc_service,
-					       &m0_rpc_service_type, reqh,
-					       NULL, NULL);
-	return result;
+	return reqh->rh_rpc_service == NULL ?
+		m0_reqh_service_setup(&reqh->rh_rpc_service,
+				      &m0_rpc_service_type, reqh, NULL, NULL) :
+		0;
 }
 
 M0_INTERNAL void m0_rpc_service_stop(struct m0_reqh *reqh)

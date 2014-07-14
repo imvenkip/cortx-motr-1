@@ -53,7 +53,6 @@ static void test_long_lock_n(void)
 {
 	static struct m0_reqh *r[REQH_IN_UT_MAX] = { &rmach_ctx[0].rmc_reqh,
 						     &rmach_ctx[1].rmc_reqh };
-
 	rdwr_send_fop(r, REQH_IN_UT_MAX);
 }
 
@@ -66,25 +65,25 @@ static void test_long_lock_1(void)
 
 static int ut_long_lock_service_start(struct m0_reqh_service *service)
 {
-	M0_ASSERT(service != NULL);
+	M0_PRE(service != NULL);
 	return 0;
 }
 
 static void ut_long_lock_service_stop(struct m0_reqh_service *service)
 {
-	M0_ASSERT(service != NULL);
+	M0_PRE(service != NULL);
 }
 
 static void ut_long_lock_service_fini(struct m0_reqh_service *service)
 {
-	M0_ASSERT(service != NULL);
+	M0_PRE(service != NULL);
 	m0_free(service);
 }
 
 static const struct m0_reqh_service_ops ut_long_lock_service_ops = {
 	.rso_start = ut_long_lock_service_start,
-	.rso_stop = ut_long_lock_service_stop,
-	.rso_fini = ut_long_lock_service_fini
+	.rso_stop  = ut_long_lock_service_stop,
+	.rso_fini  = ut_long_lock_service_fini
 };
 
 static int
@@ -105,7 +104,7 @@ ut_long_lock_service_allocate(struct m0_reqh_service **service,
 }
 
 static const struct m0_reqh_service_type_ops ut_long_lock_service_type_ops = {
-        .rsto_service_allocate = ut_long_lock_service_allocate
+	.rsto_service_allocate = ut_long_lock_service_allocate
 };
 
 M0_ADDB_CT(m0_addb_ct_ut_service, M0_ADDB_CTXID_UT_SERVICE, "hi", "low");
@@ -145,7 +144,6 @@ static int test_long_lock_init(void)
 		rc = m0_reqh_service_start(service[i]);
 		M0_ASSERT(rc == 0);
 	}
-
 	return rc;
 }
 

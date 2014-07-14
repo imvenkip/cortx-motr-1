@@ -426,7 +426,6 @@ M0_INTERNAL void m0_reqh_idle_wait(struct m0_reqh *reqh)
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
-
 		if (service->rs_level < 2)
 			continue;
 		m0_reqh_idle_wait_for(reqh, service);
