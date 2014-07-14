@@ -67,14 +67,14 @@ run_st() {
     "$SRC/rpc/it/st.sh"
 
     ## console ST
-    $SUDO SANDBOX_DIR=${RUNDIR}/sandbox.console-st \
+    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.console-st \
 	"$SRC/console/st/console-st.sh"
 
     ## Start/stop service ST
-    $SUDO "$SRC/sss/st" run
+    $SUDO SANDBOX_DIR=$RUNDIR/sandbox.sss-st "$SRC/sss/st"
 
     ## conf ST - disabled for now, see MERO-324
-    #$SUDO SANDBOX_DIR=${RUNDIR}/sandbox.conf-st "$SRC/m0t1fs/linux_kernel/st/st"
+    #$SUDO SANDBOX_DIR=$RUNDIR/sandbox.conf-st "$SRC/m0t1fs/linux_kernel/st/st"
 
     ## IO ST
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_test.sh"
