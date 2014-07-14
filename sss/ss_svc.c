@@ -20,6 +20,7 @@
 /**
  * @page DLD-ss_svc Start_Stop Service
  */
+
 #undef M0_ADDB_CT_CREATE_DEFINITION
 #define M0_ADDB_CT_CREATE_DEFINITION
 #include "sss/ss_addb.h"
@@ -44,9 +45,10 @@ static int ss_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			  struct m0_reqh *reqh);
 static int ss_fom_tick(struct m0_fom *fom);
 static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
-			     struct m0_reqh *reqh);
-static int ss_fom_tick__svc_alloc(struct m0_reqh *reqh, struct ss_fom *m,
-				  const struct m0_fid *svc_id);
+			     const struct m0_reqh *reqh);
+static int ss_fom_tick__svc_alloc(struct ss_fom *m,
+				  const struct m0_sss_req *fop,
+				  struct m0_reqh *reqh);
 static int ss_fom_tick__stop(struct m0_reqh_service *svc);
 static void ss_fom_fini(struct m0_fom *fom);
 static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
@@ -81,9 +83,8 @@ static const struct m0_reqh_service_ops ss_svc_ops = {
 };
 
 static int
-ss_svc_rsto_service_allocate(struct m0_reqh_service           **service,
-			     const struct m0_reqh_service_type *stype,
-			     struct m0_reqh_context            *rctx)
+ss_svc_rsto_service_allocate(struct m0_reqh_service **service,
+			     const struct m0_reqh_service_type *stype)
 {
 	struct ss_svc *svc;
 
@@ -97,7 +98,6 @@ ss_svc_rsto_service_allocate(struct m0_reqh_service           **service,
 	*service = &svc->sss_reqhs;
 	(*service)->rs_type = stype;
 	(*service)->rs_ops  = &ss_svc_ops;
-
 	return M0_RC(0);
 }
 
@@ -251,7 +251,7 @@ static int ss_fom_tick(struct m0_fom *fom)
 		return M0_FSO_AGAIN;
 
 	case SS_FOM_SVC_ALLOC:
-		rep->ssr_rc = ss_fom_tick__svc_alloc(reqh, m, &fop->ss_id);
+		rep->ssr_rc = ss_fom_tick__svc_alloc(m, fop, reqh);
 		m0_fom_phase_moveif(fom, rep->ssr_rc, SS_FOM_START,
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
@@ -320,14 +320,13 @@ static int ss_fom_tick(struct m0_fom *fom)
 
 static void ss_fom_fini(struct m0_fom *fom)
 {
-	struct ss_fom *ssfom;
+	struct ss_fom *m = container_of(fom, struct ss_fom, ssf_fom);
 
 	M0_ENTRY();
-	M0_PRE(fom != NULL);
-	ssfom = container_of(fom, struct ss_fom, ssf_fom);
 
 	m0_fom_fini(fom);
-	m0_free(ssfom);
+	m0_free(m);
+
 	M0_LEAVE();
 }
 
@@ -338,31 +337,39 @@ static void ss_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 }
 
 static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
-			     struct m0_reqh *reqh)
+			     const struct m0_reqh *reqh)
 {
 	static enum ss_fom_phases next_phase[] = {
 		[M0_SERVICE_START]  = SS_FOM_SVC_ALLOC,
 		[M0_SERVICE_STOP]   = SS_FOM_STOP,
 		[M0_SERVICE_STATUS] = SS_FOM_STATUS
 	};
+	char *name;
+	int   rc = 0;
 
 	if (!IS_IN_ARRAY(fop->ss_cmd, next_phase) ||
 	    m0_fid_type_getfid(&fop->ss_id) != &M0_CONF_SERVICE_TYPE.cot_ftype)
 		return -ENOENT;
 
-	strncpy(m->ssf_sname, (const char *)fop->ss_name.s_buf,
-		min32u(sizeof m->ssf_sname, fop->ss_name.s_len));
-	m->ssf_stype = m0_reqh_service_type_find(m->ssf_sname);
-	if (m->ssf_stype == NULL)
-		return -ENOENT;
+	name = m0_buf_strdup(&fop->ss_name);
+	if (name == NULL)
+		return -ENOMEM;
 
-	m->ssf_svc = m0_reqh_service_find(m->ssf_stype, reqh);
+	m->ssf_stype = m0_reqh_service_type_find(name);
+	if (m->ssf_stype == NULL) {
+		rc = -ENOENT;
+		goto end;
+	}
+	m->ssf_svc = m0_reqh_service_find(m->ssf_stype, reqh); /* may be NULL */
 	m0_fom_phase_set(&m->ssf_fom, next_phase[fop->ss_cmd]);
-	return 0;
+end:
+	m0_free(name);
+	return rc;
 }
 
-static int ss_fom_tick__svc_alloc(struct m0_reqh *reqh, struct ss_fom *m,
-				  const struct m0_fid *svc_id)
+static int ss_fom_tick__svc_alloc(struct ss_fom           *m,
+				  const struct m0_sss_req *fop,
+				  struct m0_reqh          *reqh)
 {
 	int                     rc;
 	struct m0_reqh_context *rctx =
@@ -372,10 +379,12 @@ static int ss_fom_tick__svc_alloc(struct m0_reqh *reqh, struct ss_fom *m,
 		return -EALREADY;
 
 	rc = m0_reqh_service_allocate(&m->ssf_svc, m->ssf_stype, rctx);
-	if (rc == 0)
+	if (rc == 0) {
 		m0_reqh_service_init(m->ssf_svc, reqh,
-				     &M0_UINT128(svc_id->f_container,
-						 svc_id->f_key));
+				     &M0_UINT128(fop->ss_id.f_container,
+						 fop->ss_id.f_key));
+		m0_buf_copy(&m->ssf_svc->rs_ss_param, &fop->ss_param);
+	}
 	return rc;
 }
 

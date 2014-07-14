@@ -173,8 +173,7 @@ static const struct m0_reqh_service_ops addb_service_ops = {
  */
 static int
 addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
-			       const struct m0_reqh_service_type *stype,
-			       struct m0_reqh_context *rctx)
+			       const struct m0_reqh_service_type *stype)
 {
 	struct addb_svc *svc;
 

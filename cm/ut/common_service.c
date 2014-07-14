@@ -197,8 +197,7 @@ static const struct m0_cm_ops cm_ut_ops = {
 };
 
 static int cm_ut_service_allocate(struct m0_reqh_service **service,
-				  const struct m0_reqh_service_type *stype,
-				  struct m0_reqh_context *rctx)
+				  const struct m0_reqh_service_type *stype)
 {
 	struct m0_cm *cm = &cm_ut[ut_cm_id].ut_cm;
 

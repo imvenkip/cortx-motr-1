@@ -89,8 +89,7 @@ static const struct m0_reqh_service_ops ut_long_lock_service_ops = {
 
 static int
 ut_long_lock_service_allocate(struct m0_reqh_service **service,
-			      const struct m0_reqh_service_type *stype,
-			      struct m0_reqh_context *rctx)
+			      const struct m0_reqh_service_type *stype)
 {
 	struct m0_reqh_service *serv;
 

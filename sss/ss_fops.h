@@ -23,10 +23,8 @@
 #ifndef __MERO_SSS_SS_FOPS_H__
 #define __MERO_SSS_SS_FOPS_H__
 
-#include "lib/types.h"
 #include "lib/types_xc.h"
-#include "lib/string.h"
-#include "lib/string_xc.h"
+#include "lib/buf_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 
@@ -38,9 +36,7 @@
 extern struct m0_fop_type m0_fop_ss_fopt;
 extern struct m0_fop_type m0_fop_ss_rep_fopt;
 
-/**
- * Service commands
- */
+/** Service commands. */
 enum m0_sss_req_cmd {
 	M0_SERVICE_START,
 	M0_SERVICE_STOP,
@@ -50,30 +46,28 @@ enum m0_sss_req_cmd {
 /** Request to start/stop a service. */
 struct m0_sss_req {
 	/**
-	 * Name of service type
-	 * @see m0_reqh_service_type::rst_name
-	 */
-	struct m0_fop_str ss_name;
-	/**
-	 * Command to execute
+	 * Command to execute.
 	 * @see enum m0_sss_req_cmd
 	 */
-	uint32_t          ss_cmd;
+	uint32_t      ss_cmd;
+	/**
+	 * Name of service type.
+	 * @see m0_reqh_service_type::rst_name
+	 */
+	struct m0_buf ss_name;
 	/**
 	 * Identifier of the service being started.
 	 * fid type should set to M0_CONF_SERVICE_TYPE.cot_ftype
 	 */
-	struct m0_fid     ss_id;
-	/**
-	 * Service params (optional).
-	 */
-	struct m0_fop_str ss_params;
+	struct m0_fid ss_id;
+	/** Opaque parameter. */
+	struct m0_buf ss_param;
 } M0_XCA_RECORD;
 
 /** Response to m0_sss_req. */
 struct m0_sss_rep {
 	/**
-	 * Service status
+	 * Service status.
 	 * @see enum m0_reqh_service_state
 	 */
 	uint32_t ssr_status;
@@ -87,8 +81,8 @@ struct m0_sss_rep {
 M0_INTERNAL int m0_ss_fops_init(void);
 M0_INTERNAL void m0_ss_fops_fini(void);
 
-/** @} end group ss_fop */
-#endif /* __MERO_SSS_SS_FOPS_H_ */
+/** @} ss_fop */
+#endif /* __MERO_SSS_SS_FOPS_H__ */
 
 /*
  *  Local variables:

@@ -31,9 +31,7 @@
  * @{
  */
 
-enum {
-        MAX_SERVICE_NAME_LEN = 128,
-};
+enum { MAX_SERVICE_NAME_LEN = 128 };
 
 #define M0_START_STOP_SVC_NAME "sss"
 extern struct m0_reqh_service_type m0_ss_svc_type;
@@ -45,15 +43,11 @@ struct ss_svc {
 
 /** Start Stop fom */
 struct ss_fom {
-	uint64_t                                ssf_magic;
-	struct m0_fom                           ssf_fom;
-	struct m0_reqh_service_start_async_ctx  ssf_ctx;
-	/** reqh service type */
-	struct m0_reqh_service_type            *ssf_stype;
-	/** reqh service */
-	struct m0_reqh_service                 *ssf_svc;
-	/** reqh service name */
-	char                                    ssf_sname[MAX_SERVICE_NAME_LEN];
+	uint64_t                               ssf_magic;
+	struct m0_fom                          ssf_fom;
+	struct m0_reqh_service_start_async_ctx ssf_ctx;
+	const struct m0_reqh_service_type     *ssf_stype;
+	struct m0_reqh_service                *ssf_svc;
 };
 
 enum ss_fom_phases {

@@ -18,12 +18,21 @@ M0_CORE_DIR=${M0_CORE_DIR%/*/*}
 
 . $M0_CORE_DIR/scripts/functions  # die, opcode
 
+CONFDB_PATH=$M0_CORE_DIR/conf/ut/conf-str.txt
+if [ "$(perl -wse 'print int(rand(2))')" -eq 0 ]; then  # 0.5 probability
+	CONFDB_m0d="-c $CONFDB_PATH"
+fi
+
 sss_send() {
 	[ $# -eq 3 ] || die 'Invalid arguments'
 	local SVC="$1"
 	local CMD=
 	case "$2" in  # see m0_sss_req_cmd for the values
-		M0_SERVICE_START)  CMD=0;;
+		M0_SERVICE_START)
+			CMD=0
+			if [ $SVC = confd -a -z "${CONFDB_m0d:-}" ]; then
+				local SS_PARAM="$CONFDB_PATH"
+			fi;;
 		M0_SERVICE_STOP)   CMD=1;;
 		M0_SERVICE_STATUS) CMD=2;;
 		*) die 'Invalid value';;
@@ -33,7 +42,7 @@ sss_send() {
 	env ${TRACE_console:-} $M0_CORE_DIR/console/bin/m0console \
 		-f $(opcode M0_SSS_REQ_OPCODE) \
 		-s $(endpoint $SERVER_TMID) -c $(endpoint $CLIENT_TMID) \
-		-d "(\"$SVC\", $CMD, $ID, \"\")" -v
+		-d "($CMD, \"$SVC\", $ID, \"${SS_PARAM:-}\")" -v
 }
 
 svc_state() {
@@ -97,8 +106,8 @@ m0d_start() {
 	## "sns_repair" and "sns_rebalance" (see below)
 	## require "ioservice" running.
 	env ${TRACE_m0d:-} $M0_CORE_DIR/mero/m0d $MKFS_OPTS \
-		-e lnet:$(endpoint $SERVER_TMID) $M0D_OPT -s ioservice \
-		&>$SANDBOX_DIR/m0d.log &
+		-e lnet:$(endpoint $SERVER_TMID) ${CONFDB_m0d:-} $M0D_OPT \
+		-s ioservice &>$SANDBOX_DIR/m0d.log &
 	sleep 1
 	killall -q -0 lt-m0d || die 'Failed to start m0d'
 }
@@ -136,7 +145,7 @@ m0d_start
 sss_check ioservice M0_SERVICE_STATUS "$SVC_ID" M0_RST_STARTED
 sss_check ioservice M0_SERVICE_STATUS '(0, 0)'  _ENOENT  # invalid id
 
-SVC_NAMES=(stats rmservice mdservice addb sns_repair sns_rebalance)
+SVC_NAMES=(confd stats rmservice mdservice addb sns_repair sns_rebalance)
 for ((i=0; i < ${#SVC_NAMES[*]}; i += 1)); do
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC_ID" M0_RST_STOPPED
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START  "$SVC_ID" M0_RST_STARTED

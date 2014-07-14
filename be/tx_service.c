@@ -73,8 +73,7 @@ struct tx_service {
 };
 
 static int txs_allocate(struct m0_reqh_service **out,
-			const struct m0_reqh_service_type *stype,
-			struct m0_reqh_context *rctx);
+			const struct m0_reqh_service_type *stype);
 
 static const struct m0_reqh_service_type_ops txs_stype_ops = {
 	.rsto_service_allocate = txs_allocate
@@ -105,8 +104,7 @@ static const struct m0_reqh_service_ops txs_ops = {
 
 /** Allocates and initialises transaction service. */
 static int txs_allocate(struct m0_reqh_service **service,
-			const struct m0_reqh_service_type *stype,
-			struct m0_reqh_context *rctx)
+			const struct m0_reqh_service_type *stype)
 {
 	struct tx_service *s;
 

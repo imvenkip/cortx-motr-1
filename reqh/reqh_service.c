@@ -154,7 +154,7 @@ m0_reqh_service_allocate(struct m0_reqh_service **out,
 	M0_ENTRY();
 	M0_PRE(out != NULL && stype != NULL);
 
-        rc = stype->rst_ops->rsto_service_allocate(out, stype, rctx);
+        rc = stype->rst_ops->rsto_service_allocate(out, stype);
         if (rc == 0) {
 		struct m0_reqh_service *service = *out;
 		service->rs_type = stype;
@@ -404,6 +404,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
 				 &reqh->rh_addb_ctx,
 				 0, 0);
 
+	M0_POST(!m0_buf_is_set(&service->rs_ss_param));
 	M0_POST(m0_reqh_service_invariant(service));
 }
 
@@ -421,6 +422,7 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 	m0_chan_fini_lock(&service->rs_rev_conn_wait);
 	m0_mutex_fini(&service->rs_mutex);
 	service->rs_ops->rso_fini(service);
+	m0_buf_free(&service->rs_ss_param);
 }
 
 int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)

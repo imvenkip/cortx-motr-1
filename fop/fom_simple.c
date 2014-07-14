@@ -210,8 +210,7 @@ static const struct m0_reqh_service_ops fom_simple_service_ops = {
 };
 
 static int fom_simple_service_allocate(struct m0_reqh_service **out,
-				       const struct m0_reqh_service_type *stype,
-				       struct m0_reqh_context *rctx)
+				       const struct m0_reqh_service_type *stype)
 {
 	struct m0_reqh_service *service;
 

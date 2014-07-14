@@ -283,7 +283,15 @@ struct m0_reqh_context {
 	struct m0_dbenv              rc_db;
 	struct m0_be_seg            *rc_beseg;
 
-	/** Path to the configuration database to be used by confd service. */
+	/**
+	 * Default path to the configuration database.
+	 *
+	 * If confd is started by "sss" service (dynamically) and
+	 * m0_sssservice_req::ss_param is not empty, then the value of
+	 * m0_sssservice_req::ss_param will be used as conf DB path.
+	 *
+	 * @see m0_reqh_service::rs_ss_param
+	 */
 	const char                  *rc_confdb;
 
 	/** Cob domain to be used by the request handler */

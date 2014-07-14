@@ -124,7 +124,7 @@ static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
 {
 	return ergo(m0_exists(i, rctx->rc_nr_services,
 			      m0_streq(rctx->rc_services[i], "confd")),
-		    rctx->rc_confdb != NULL) &&
+		    rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0') &&
 		rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
 		rctx->rc_addb_stlocation != NULL && rctx->rc_dbpath != NULL &&
 		ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&

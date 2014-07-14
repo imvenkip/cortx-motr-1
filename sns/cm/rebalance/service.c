@@ -45,8 +45,7 @@
 
 /** Copy machine service type operations.*/
 static int rebalance_svc_allocate(struct m0_reqh_service **service,
-				  const struct m0_reqh_service_type *stype,
-				  struct m0_reqh_context *rctx);
+				  const struct m0_reqh_service_type *stype);
 
 static const struct m0_reqh_service_type_ops rebalance_svc_type_ops = {
 	.rsto_service_allocate = rebalance_svc_allocate
@@ -85,8 +84,7 @@ M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
  * m0_sns_cm::rc_base.
  */
 static int rebalance_svc_allocate(struct m0_reqh_service **service,
-				  const struct m0_reqh_service_type *stype,
-				  struct m0_reqh_context *rctx)
+				  const struct m0_reqh_service_type *stype)
 {
 	M0_ENTRY("stype: %p", stype);
 	M0_PRE(service != NULL && stype != NULL);

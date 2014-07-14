@@ -49,9 +49,8 @@ M0_TL_DESCR_DEFINE(rmsvc_owner, "RM Service Owners", static, struct m0_rm_owner,
 		   M0_RM_OWNER_LIST_MAGIC, M0_RM_OWNER_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(rmsvc_owner, static, struct m0_rm_owner);
 
-static int rms_allocate(struct m0_reqh_service           **service,
-			const struct m0_reqh_service_type *stype,
-			struct m0_reqh_context            *rctx);
+static int rms_allocate(struct m0_reqh_service **service,
+			const struct m0_reqh_service_type *stype);
 static void rms_fini(struct m0_reqh_service *service);
 
 static int rms_start(struct m0_reqh_service *service);
@@ -131,9 +130,8 @@ M0_INTERNAL void m0_rms_unregister(void)
 	M0_LEAVE();
 }
 
-static int rms_allocate(struct m0_reqh_service           **service,
-			const struct m0_reqh_service_type *stype,
-			struct m0_reqh_context            *rctx)
+static int rms_allocate(struct m0_reqh_service **service,
+			const struct m0_reqh_service_type *stype)
 {
 	struct m0_reqh_rm_service *rms;
 

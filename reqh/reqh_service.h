@@ -270,6 +270,16 @@ struct m0_reqh_service {
 	struct m0_reqh_context            *rs_reqh_ctx;
 
 	/**
+	 * The parameter specifying whatever information the service needs
+	 * to start up.
+	 *
+	 * Currently this buffer is interpreted by confd_start().
+	 *
+	 * @see m0_sssservice_req::ss_param
+	 */
+	struct m0_buf                     rs_ss_param;
+
+	/**
 	   Service magic to check consistency of service instance.
 	 */
 	uint64_t                           rs_magix;
@@ -384,7 +394,6 @@ struct m0_reqh_service_ops {
 
 };
 
-struct m0_reqh_context;
 /**
    Service type operations vector.
  */
@@ -399,12 +408,9 @@ struct m0_reqh_service_type_ops {
 
 	   @param service  Resulted service.
 	   @param stype    Type of service being allocated.
-	   @param arg      Optional parameter that is passed to service's
-			   constructor.
 	 */
 	int (*rsto_service_allocate)(struct m0_reqh_service **service,
-				     const struct m0_reqh_service_type *stype,
-				     struct m0_reqh_context *rctx);
+				     const struct m0_reqh_service_type *stype);
 };
 
 /**
@@ -447,10 +453,6 @@ struct m0_reqh_service_type {
 
 /**
    Allocates and initialises service of given type.
-
-   @param service  Resulted service.
-   @param stype    Type of service being allocated.
-   @param arg      Optional parameter that is passed to service's constructor.
 
    @pre  service != NULL && stype != NULL
    @post ergo(retval == 0, m0_reqh_service_invariant(service))
@@ -512,8 +514,6 @@ M0_INTERNAL void m0_reqh_service_failed(struct m0_reqh_service *service);
    Invokes service specific start routine, if service specific startup completes
    Successfully then the service is registered with the request handler and
    transitioned into M0_RST_STARTED state.
-
-   @param service Service to be started
 
    @pre m0_reqh_service_state_get(service) == M0_RST_INITIALIZED
    @post m0_reqh_service_state_get(service) == M0_RST_STARTED

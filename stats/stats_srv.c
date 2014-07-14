@@ -268,9 +268,8 @@ static const struct m0_reqh_service_ops stats_svc_ops = {
 };
 
 static int
-stats_svc_rsto_service_allocate(struct m0_reqh_service           **srv,
-				const struct m0_reqh_service_type *stype,
-				struct m0_reqh_context            *rctx)
+stats_svc_rsto_service_allocate(struct m0_reqh_service **srv,
+				const struct m0_reqh_service_type *stype)
 {
 	struct stats_svc *svc;
 

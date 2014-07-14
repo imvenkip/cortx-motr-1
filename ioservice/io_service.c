@@ -81,8 +81,7 @@ static unsigned ios_cdom_key;
 static unsigned ios_mds_conn_key = 0;
 
 static int ios_allocate(struct m0_reqh_service **service,
-			const struct m0_reqh_service_type *stype,
-			struct m0_reqh_context *rctx);
+			const struct m0_reqh_service_type *stype);
 static void ios_fini(struct m0_reqh_service *service);
 
 static int ios_start(struct m0_reqh_service *service);
@@ -366,8 +365,7 @@ static void ios_delete_buffer_pool(struct m0_reqh_service *service)
  * @pre stype != NULL && service != NULL
  */
 static int ios_allocate(struct m0_reqh_service **service,
-			const struct m0_reqh_service_type *stype,
-			struct m0_reqh_context *rctx)
+			const struct m0_reqh_service_type *stype)
 {
 	int                        i;
 	int                        j;

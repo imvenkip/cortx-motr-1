@@ -91,8 +91,7 @@ static const struct m0_reqh_service_ops rpc_ops = {
 };
 
 static int rpc_service_allocate(struct m0_reqh_service **service,
-				const struct m0_reqh_service_type *stype,
-				struct m0_reqh_context *rctx)
+				const struct m0_reqh_service_type *stype)
 {
 	struct m0_rpc_service *svc;
 
