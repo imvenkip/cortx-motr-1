@@ -22,6 +22,7 @@
 #include "lib/errno.h"
 #include "lib/chan.h"
 #include "lib/assert.h"
+#include "mero/magic.h"
 
 /**
    @addtogroup chan
@@ -51,8 +52,7 @@
 
 M0_TL_DESCR_DEFINE(clink,
 		   "chan clinks", static, struct m0_clink, cl_linkage,	cl_magic,
-		   0x6368616e636c696e /* "chanclin" */,
-		   0x4348414e57414954 /* "CHANWAIT" */);
+		   M0_LIB_CHAN_MAGIC, M0_LIB_CHAN_HEAD_MAGIC);
 
 M0_TL_DEFINE(clink, static, struct m0_clink);
 

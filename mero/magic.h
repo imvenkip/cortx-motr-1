@@ -805,9 +805,14 @@ enum m0_magic_satchel {
 
 /* lib */
 	/* kern_genarray::kga_magic (areexclusive) */
-	M0_LIB_GENARRAY_MAGIC = 0x33a2ee8c16517e77,
-	/* hashlist::hl_magic = invincibilis */
-	M0_LIB_HASHLIST_MAGIC = 0x3319519c1b111577,
+	M0_LIB_GENARRAY_MAGIC  = 0x33a2ee8c16517e77,
+	/* hashlist::hl_magic (invincibilis) */
+	M0_LIB_HASHLIST_MAGIC  = 0x3319519c1b111577,
+
+	/* m0_clink::cl_magic (blessed call) */
+	M0_LIB_CHAN_MAGIC      = 0x33b1e55edca1177,
+	/* lib/chan.c:clink_tl::td_head_magic (blessed head) */
+	M0_LIB_CHAN_HEAD_MAGIC = 0x33b1e55ed4ead77,
 
 /* sss */
 	/* ss_svc::sss_magic (coffeeleaf ad) */
