@@ -16,7 +16,7 @@ collect_addb_from_all_services()
 		$addb_dump -T $MERO_STOB_DOMAIN -D db \
 		-A linuxstob:addb-stobs >> $ADDB_DUMP_FILE"
 		echo $cmd
-		eval $cmd
+		(eval "$cmd")
 	done
 	for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
 		local index=`$i + 1`
@@ -24,7 +24,7 @@ collect_addb_from_all_services()
 		$addb_dump -T $MERO_STOB_DOMAIN -D db \
 		-A linuxstob:addb-stobs >> $ADDB_DUMP_FILE"
 		echo $cmd
-		eval $cmd
+		(eval "$cmd")
 	done
 }
 

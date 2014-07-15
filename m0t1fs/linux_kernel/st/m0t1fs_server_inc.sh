@@ -30,6 +30,7 @@ EOF
 EOF
 	done
 
+	cd - >/dev/null
 	return $?
 }
 
@@ -52,6 +53,7 @@ Device:
      filename: `pwd`/$ddisk
 EOF
 
+	cd - >/dev/null
 	return $?
 }
 
@@ -101,7 +103,7 @@ mero_service()
 		      -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0d.log"
 		echo $cmd
-		eval "$cmd"
+		(eval "$cmd")
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
 		(eval "$cmd") &
@@ -147,7 +149,7 @@ mero_service()
 			 -w $P -e $XPT:${lnet_nid}:${MDSEP[$i]} \
 			 $SNAME |& tee -a m0d.log"
 			echo $cmd
-			eval "$cmd"
+			(eval "$cmd")
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs -w $P \
@@ -194,7 +196,7 @@ mero_service()
 			 -w $P -e $XPT:${lnet_nid}:${IOSEP[$i]} \
 			 $SNAME |& tee -a m0d.log"
 			echo $cmd
-			eval "$cmd"
+			(eval "$cmd")
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
 			 -D db -S stobs -A linuxstob:addb-stobs \
