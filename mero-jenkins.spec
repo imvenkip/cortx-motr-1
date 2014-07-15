@@ -71,6 +71,16 @@ Requires:       perl-List-MoreUtils
 %description
 Mero filesystem runtime environment and servers.
 
+%package devel
+Summary: Mero include headers
+Group: Development/Kernel
+Provides: %{name}-devel = %{version}
+Requires: %{name} = %{version}
+
+%description devel
+This package contains the headers required to build external
+applications that use Mero libraries.
+
 %prep
 %setup -q
 
@@ -82,7 +92,9 @@ make %{?_smp_mflags}
 %install
 rm -rf %{buildroot}
 make DESTDIR=%{buildroot} install
-find %{buildroot} -name '*.la' -exec rm -f {} ';'
+find %{buildroot} -name '*.la' | sed -e 's#^%{buildroot}##' > devel.files
+find %{buildroot}%{_includedir} | sed -e 's#^%{buildroot}##' >> devel.files
+mkdir -p %{buildroot}%{_localstatedir}/mero
 
 %files
 %doc AUTHORS README NEWS ChangeLog COPYING
@@ -90,9 +102,13 @@ find %{buildroot} -name '*.la' -exec rm -f {} ';'
 %{_sbindir}/*
 %{_libdir}/*
 %{_mandir}/*
+%{_localstatedir}/mero
 /lib/modules/*
 %config  %{_sysconfdir}/*
 %exclude %{_includedir}
+%exclude %{_libdir}/*.la
+
+%files devel -f devel.files
 
 %pre
 if initctl list | grep -q 'mero' ; then
