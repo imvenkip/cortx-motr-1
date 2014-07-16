@@ -982,15 +982,22 @@ install-exec-local:
 	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=kernel/fs \
 			 -C $(KDIR) M=$(abs_top_builddir) modules_install
 
-# rpmbuild needs a dist archive with sources to build rpm, by default it
-# searches it in ~/rpmbuild/SOURCES/ directory, but we are telling rpmbuild to
-# look in the current dir first, where we create our mero-0.1.0.tar.gz dist
-# archive with `make dist` command
+DIST_FILE=$(distdir).tar.gz
+RPM_SRC_DIR=~/rpmbuild/SOURCES
+# Some developers keep Mero sources on a vmhgfs partition (VMware sharing).
+# In this case $(DIST_FILE) will be owned by host OS' user, and rpmbuild
+# will fail with "Bad owner/group" message. Since vmhgfs does not permit
+# changing owner/group of a file, we use a workaround (moving file out of
+# vmhgfs where we can change it's owner to an existing VM OS' user).
 .PHONY: rpms
 rpms:
 	$(MAKE) generate-files
 	$(MAKE) dist
-	rpmbuild --define "_sourcedir $$(pwd)" -bb mero.spec
+	[ -d $(RPM_SRC_DIR) ] || $(MKDIR_P) $(RPM_SRC_DIR)
+	mv $(DIST_FILE) $(RPM_SRC_DIR)
+	chown $$(id -u):$$(id -g) $(RPM_SRC_DIR)/$(DIST_FILE)
+	rpmbuild -bb mero.spec
+	rm -f $(RPM_SRC_DIR)/$(DIST_FILE)
 
 #
 # Documentation
