@@ -43,6 +43,7 @@ static struct m0_addb_ctx     *cv[4] = { NULL, &m0_addb_proc_ctx,
 					 &m0_addb_node_ctx, NULL };
 static struct stats_svc       *stats_srv;
 static struct m0_semaphore     stats_done;
+static uint32_t                nfop_send;
 
 static struct ut_monitor_sum_data1 {
 	uint64_t umsd_field1;
@@ -323,10 +324,9 @@ static void mon_test(int test_no)
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i)
 		addb_post_record(&ut_srv_reqh->rh_addb_mc, i, cv);
 
-	if (test_no != MON_TEST_3) {
-		for (i = 1; i < UT_ADDB_MONS_NR; ++i)
-			m0_semaphore_down(&stats_done);
-	}
+	for (i = 0; i < nfop_send; ++i)
+		m0_semaphore_down(&stats_done);
+
 	m0_reqh_idle_wait_for(ut_srv_reqh, reqh_srv);
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i) {
 		addb_ut_mon_verify_stats_data(stats_srv, i, test_no);
@@ -426,30 +426,33 @@ static void addb_ut_mon_infra_test(void)
 	 * on stats service ep.
 	 * This test sends only one fop.
 	 */
+	nfop_send = 1;
 	mon_test_1();
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i) {
 		((struct ut_monitor_sum_data1 *)MON_DATA(i))->umsd_field1 = 0;
 		clear_stats(stats_srv, i);
 	}
 
-	m0_mutex_lock(&mon_ctx->amc_mutex);
-	stats_batch = 5;
-	m0_mutex_unlock(&mon_ctx->amc_mutex);
-
 	/**
 	 * Add/remove monitors dynamically.
 	 * This test sends 2 fops covering both fop sending cases of
 	 * m0_addb_monitor_summaries_post()
 	 */
+	m0_mutex_lock(&mon_ctx->amc_mutex);
+	stats_batch = 5;
+	m0_mutex_unlock(&mon_ctx->amc_mutex);
+	nfop_send = 2;
 	mon_test_2();
 	for (i = 1; i < UT_ADDB_MONS_NR; ++i) {
 		((struct ut_monitor_sum_data1 *)MON_DATA(i))->umsd_field1 = 0;
 		clear_stats(stats_srv, i);
 	}
+
 	/**
 	 * This test checks for memory failure case, where no fop
 	 * gets sent.
 	 */
+	nfop_send = 0;
 	mon_test_3();
 
 	/* Reset to default */

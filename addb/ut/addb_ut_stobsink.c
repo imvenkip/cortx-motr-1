@@ -823,6 +823,12 @@ static void addb_ut_stob(void)
 			stob_wrapped = true;
 		}
 	} while (!stob_wrapped || sink->ss_offset != sink->ss_segsize * 2);
+
+        m0_mutex_lock(&sink->ss_mutex);
+        if (!sink->ss_current->spb_busy)
+                stobsink_persist_trigger(sink);
+        m0_mutex_unlock(&sink->ss_mutex);
+
 	M0_UT_ASSERT(bp_wrapped);
 	M0_UT_ASSERT(stob_wrapped);
 	M0_UT_ASSERT(sink->ss_offset == sink->ss_segsize * 2);
