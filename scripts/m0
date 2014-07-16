@@ -31,9 +31,10 @@ clean() {
 
 _make() {
     local OUT=`mktemp`
+    local TARGET=${1:-}
 
     trap "rm $OUT" 0
-    make ${MAKE_OPTS:-} 2>&1 | tee $OUT
+    make ${MAKE_OPTS:-} $TARGET 2>&1 | tee $OUT
     [ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
     if grep 'WARNING:' $OUT; then
 	die 'WARNING in make output is treated as error'
@@ -97,27 +98,9 @@ run_st() {
 }
 
 dist_check() {
-    local DIST=mero-0.1.0
-    local DISTFILE=$DIST.tar.gz
-
     cd "$SRC"
     [ -f Makefile ] || die "You need to \`$PROG make' first."
-
-    make dist
-
-    ## Don't preserve files' ownership (if $SRC/.. is on NFS, it will fail).
-    tar --no-same-owner -xzf $DISTFILE
-
-    for lib in extra-libs/*; do
-	[ $lib != extra-libs/galois ] && ln -sf ../../$lib $DIST/extra-libs/
-    done
-
-    cd $DIST
-    build
-    cd -
-    rm -r $DIST
-
-    [ "$1" = '-a' ] || rm $DISTFILE
+    _make rpms
 }
 
 check_everything() {
@@ -151,9 +134,7 @@ Commands:
 
     run-all             Run unit and system tests.
 
-    dist-check [-a]     Create and validate Mero distribution archive.
-                        The resulting archive file will be deleted,
-                        unless '-a' option is used.
+    dist-check          Create and validate Mero distribution archive and rpm.
 
     check-everything  = (rebuild + dist-check + run-all) * 2
                         Please run this command before landing.
