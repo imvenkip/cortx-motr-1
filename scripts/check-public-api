@@ -89,13 +89,14 @@ nm "$libmero" | awk '$2 == "T" && $3 ~ /^m0_.*|tlist/ {print $3}' | LC_ALL=C sor
 pub_api_sorted=$(mktemp)
 LC_ALL=C sort $pub_api > $pub_api_sorted
 
-# if files are not equal
-if ! diff -q $pub_api_sorted $func_list &> /dev/null; then
+new_funcs=$(diff -u $pub_api_sorted $func_list | grep -E '^\+\w' || true)
+
+if [[ -n  $new_funcs ]] ; then
     echo "FAIL"
     echo "WARNING: Did you forget to add the following public functions"
     echo "         to the '$pub_api' list or to add M0_INTERNAL prefix to them?"
     echo ""
-    diff -u $pub_api_sorted $func_list | grep -E '^[-+]\w'
+    echo "$new_funcs"
 else
     echo "OK"
 fi
