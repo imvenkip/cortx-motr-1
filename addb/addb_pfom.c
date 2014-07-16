@@ -66,9 +66,6 @@
 
    The posting fom is launched only if the ::addb_svc_start_pfom global
    permits.  This control is provided for unit testing.
-
-   The FOM is terminated by invoking addb_pfom_stop().  The subroutine
-   posts an AST to cancel its timer and force it to stop itself.
  */
 
 /* This file is designed to be included by addb/addb.c */
@@ -182,7 +179,6 @@ static void addb_pfom_fo_fini(struct m0_fom *fom)
 	 * notify UT waiters.
 	 */
 	m0_mutex_lock(&rsvc->rs_mutex);
-	pfom->pf_running = false;
 	the_addb_pfom_started = false;
 	M0_LOG(M0_DEBUG, "done");
 	m0_mutex_unlock(&rsvc->rs_mutex);
@@ -212,10 +208,6 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 	switch (m0_fom_phase(fom)) {
 	case ADDB_PFOM_PHASE_INIT:
 		M0_LOG(M0_DEBUG, "init");
-		m0_mutex_lock(&rsvc->rs_mutex);
-		the_addb_pfom_started = true;
-		m0_cond_broadcast(&svc->as_cond); /* for UT */
-		m0_mutex_unlock(&rsvc->rs_mutex);
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_CTO);
 		break;
 	case ADDB_PFOM_PHASE_CTO:
@@ -228,9 +220,10 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, ADDB_PFOM_PHASE_SLEEP);
 		break;
 	case ADDB_PFOM_PHASE_SLEEP:
-		if (pfom->pf_shutdown) {
+		if (m0_reqh_service_state_get(rsvc) == M0_RST_STOPPING) {
 			M0_LOG(M0_DEBUG, "fini");
 			m0_fom_phase_set(fom, ADDB_PFOM_PHASE_FINI);
+			m0_fom_timeout_cancel(&pfom->pf_timeout);
 			rc = M0_FSO_WAIT;
 			break;
 		}
@@ -244,6 +237,10 @@ static int addb_pfom_fo_tick(struct m0_fom *fom)
 		m0_fom_timeout_wait_on(&pfom->pf_timeout, &pfom->pf_fom,
 				       pfom->pf_next_post);
 		M0_LOG(M0_DEBUG, "wait");
+		m0_mutex_lock(&rsvc->rs_mutex);
+		the_addb_pfom_started = true;
+		m0_cond_broadcast(&svc->as_cond); /* for UT */
+		m0_mutex_unlock(&rsvc->rs_mutex);
 		rc = M0_FSO_WAIT;
 		break;
 	case ADDB_PFOM_PHASE_POST:
@@ -328,57 +325,11 @@ static void addb_pfom_start(struct addb_svc *svc)
 	pfom->pf_tolerance = pfom->pf_period
 		/ M0_ADDB_PFOM_PERIOD_FRAC_TOLERANCE;
 	pfom->pf_next_post = 0; /* force the first timeout calculation */
-	pfom->pf_running = true;
 
         M0_PRE(m0_fom_phase(fom) == ADDB_PFOM_PHASE_INIT);
 	m0_fom_queue(fom, reqh);
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-}
-
-/**
-   AST callback to safely stop the FOM.
- */
-static void addb_pfom_stop_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-        struct addb_post_fom *pfom = bob_of(ast, struct addb_post_fom,
-					    pf_ast, &addb_pfom_bob);
-
-	M0_LOG(M0_DEBUG, "%d", (int)pfom->pf_running);
-	if (pfom->pf_running) {
-		if (pfom->pf_timeout.to_cb.fc_fom != NULL)
-			m0_fom_timeout_cancel(&pfom->pf_timeout);
-		if (m0_fom_is_waiting(&pfom->pf_fom))
-			m0_fom_ready(&pfom->pf_fom);
-		pfom->pf_shutdown = true;
-	}
-}
-
-/**
-   Initiates the termination of the statistics posting FOM.
-   Uses the service mutex internally.
-   Blocks until the FOM terminates.
- */
-static void addb_pfom_stop(struct addb_svc *svc)
-{
-        struct addb_post_fom   *pfom = &svc->as_pfom;
-	struct m0_fom          *fom  = &pfom->pf_fom;
-	struct m0_reqh_service *rsvc = &svc->as_reqhs;
-
-	M0_ENTRY();
-
-	M0_PRE(addb_svc_invariant(svc));
-	M0_PRE(m0_mutex_is_not_locked(&rsvc->rs_mutex));
-
-	m0_mutex_lock(&rsvc->rs_mutex);
-	if (pfom->pf_running) {
-		M0_ASSERT(addb_pfom_invariant(pfom));
-
-		M0_LOG(M0_DEBUG, "posting pfom stop ast");
-		pfom->pf_ast.sa_cb = addb_pfom_stop_cb;
-		m0_sm_ast_post(&fom->fo_loc->fl_group, &pfom->pf_ast);
-	}
-	m0_mutex_unlock(&rsvc->rs_mutex);
 
 	M0_LEAVE();
 }

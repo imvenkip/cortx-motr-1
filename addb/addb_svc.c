@@ -40,7 +40,6 @@
    - addb_pfom_mod_fini()
    - addb_pfom_mod_init()
    - addb_pfom_start()
-   - addb_pfom_stop()
    - m0_addb_svc_mod_fini()
    - m0_addb_svc_mod_init()
 
@@ -63,7 +62,6 @@
 static void addb_pfom_mod_fini(void);
 static int  addb_pfom_mod_init(void);
 static void addb_pfom_start(struct addb_svc *svc);
-static void addb_pfom_stop(struct addb_svc *svc);
 
 static const struct m0_bob_type addb_svc_bob = {
 	.bt_name = "addb svc",
@@ -73,12 +71,6 @@ static const struct m0_bob_type addb_svc_bob = {
 };
 
 M0_BOB_DEFINE(static, &addb_svc_bob, addb_svc);
-
-/**
-   Hook to control the launch of the statistics posting thread.
-   Mainly for UT usage but could eventually be set via config parameters.
- */
-static bool addb_svc_start_pfom = true;
 
 /**
    UT handle to a started singleton service.  Every instance started will
@@ -108,7 +100,7 @@ static int addb_svc_rso_start(struct m0_reqh_service *service)
 	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
 
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
-	if (addb_svc_start_pfom)
+	if (!M0_FI_ENABLED("skip_pfom_start"))
 		addb_pfom_start(svc);
 	the_addb_svc = svc;
 	return 0;
@@ -124,8 +116,8 @@ static void addb_svc_rso_prepare_to_stop(struct m0_reqh_service *service)
 	M0_LOG(M0_DEBUG, "preparing to stop");
 	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPING);
 	svc = bob_of(service, struct addb_svc, as_reqhs, &addb_svc_bob);
-	if (addb_svc_start_pfom)
-		addb_pfom_stop(svc);
+	if (!M0_FI_ENABLED("skip_pfom_stop"))
+		m0_fom_wakeup(&svc->as_pfom.pf_fom);
 }
 
 /**

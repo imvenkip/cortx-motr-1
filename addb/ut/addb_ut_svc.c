@@ -99,7 +99,8 @@ void addb_ut_svc_test(void)
 	/*
 	 * Test: Start and stop the service, no FOMs
 	 */
-	addb_svc_start_pfom = false;
+	m0_fi_enable_once("addb_svc_rso_start", "skip_pfom_start");
+	m0_fi_enable_once("addb_svc_rso_prepare_to_stop", "skip_pfom_stop");
 	M0_UT_ASSERT(the_addb_svc == NULL);
 	M0_UT_ASSERT(server_start() == 0);
 	M0_UT_ASSERT(the_addb_svc != NULL);
@@ -111,7 +112,6 @@ void addb_ut_svc_test(void)
 	 *       Also test that it loops on the minimum sleep period
 	 *       without doing a post.
 	 */
-	addb_svc_start_pfom = true;
 	M0_UT_ASSERT(!the_addb_pfom_started);
 	M0_UT_ASSERT(addb_ut_svc_rspa_called == 0);
 	M0_UT_ASSERT(server_start() == 0);
@@ -129,14 +129,15 @@ void addb_ut_svc_test(void)
 	m0_mutex_unlock(&the_addb_svc->as_reqhs.rs_mutex);
 
 	/* explicitly terminate the fom. */
-	addb_pfom_stop(the_addb_svc);
+	m0_reqh_service_prepare_to_stop(&the_addb_svc->as_reqhs);
 	m0_reqh_idle_wait_for(the_addb_svc->as_reqhs.rs_reqh,
 			      &the_addb_svc->as_reqhs);
+	m0_reqh_service_stop(&the_addb_svc->as_reqhs);
 
 	/* restart the fom */
 	M0_LOG(M0_DEBUG, "UT: resetting pfom");
 	M0_SET0(pfom);
-	addb_pfom_start(the_addb_svc);
+	m0_reqh_service_start(&the_addb_svc->as_reqhs);
 
 	/* wait for the fom to start */
 	m0_mutex_lock(&the_addb_svc->as_reqhs.rs_mutex);

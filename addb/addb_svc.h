@@ -47,10 +47,6 @@ struct addb_post_fom {
 	m0_time_t               pf_tolerance;
 	/** Next post time. */
 	m0_time_t               pf_next_post;
-	/** Shutdown request flag. */
-	bool                    pf_shutdown;
-	/** Running flag.  Used to synchronize termination. */
-	bool                    pf_running;
 	/** trap used to get into the locality to interact with the fom */
 	struct m0_sm_ast        pf_ast;
 	/** The FOM timer */

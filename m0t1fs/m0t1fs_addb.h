@@ -163,8 +163,6 @@ struct m0t1fs_addb_monitor_pfom {
 	m0_time_t             pf_period;
 	/** Next post time */
 	m0_time_t             pf_next_post;
-	/** Shutdown/unmount request flag */
-	bool                  pf_shutdown;
 	/** The FOM timer */
 	struct m0_fom_timeout pf_timeout;
 	/** Simple FOM */
