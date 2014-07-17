@@ -150,15 +150,15 @@ iter_layout_invariant(enum cm_data_iter_phase phase,
                       const struct m0_sns_cm_file_context *sfc)
 {
 	return ergo(M0_IN(phase, (ITPH_COB_NEXT, ITPH_GROUP_NEXT,
-				 ITPH_GROUP_NEXT_WAIT, ITPH_CP_SETUP)),
-		   sfc->sfc_pdlayout != NULL &&
-		   sfc->sfc_pi != NULL && sfc->sfc_upg != 0 &&
-		   sfc->sfc_dpupg != 0 && m0_fid_is_set(&sfc->sfc_gob_fid)) &&
+				  ITPH_GROUP_NEXT_WAIT, ITPH_CP_SETUP)),
+		    sfc->sfc_pdlayout != NULL &&
+		    sfc->sfc_pi != NULL && sfc->sfc_upg != 0 &&
+		    sfc->sfc_dpupg != 0 && m0_fid_is_set(&sfc->sfc_gob_fid)) &&
 	       ergo(M0_IN(phase, (ITPH_CP_SETUP)), sfc->sfc_groups_nr != 0 &&
-		   m0_fid_is_set(&sfc->sfc_cob_fid) &&
-		   sfc->sfc_sa.sa_group <= sfc->sfc_groups_nr &&
-		   sfc->sfc_sa.sa_unit <= sfc->sfc_upg &&
-		   sfc->sfc_ta.ta_obj <= m0_pdclust_P(sfc->sfc_pdlayout));
+		    m0_fid_is_set(&sfc->sfc_cob_fid) &&
+		    sfc->sfc_sa.sa_group <= sfc->sfc_groups_nr &&
+		    sfc->sfc_sa.sa_unit <= sfc->sfc_upg &&
+		    sfc->sfc_ta.ta_obj <= m0_pdclust_P(sfc->sfc_pdlayout));
 }
 
 static bool iter_invariant(const struct m0_sns_cm_iter *it)
@@ -171,8 +171,7 @@ static bool iter_invariant(const struct m0_sns_cm_iter *it)
 
 /**
  * Fetches file size and layout for it->si_fc.sfc_gob_fid.
- * @note This may block.
- * @retval 0 on success, IT_WAIT for blocking operation
+ * Used for UT only.
  */
 static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 {
@@ -187,7 +186,7 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
         gfid = &it->si_fc.sfc_gob_fid;
         rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, gfid,
                                               &it->si_fc.sfc_pdlayout,
-                                              &it->si_fc.sfc_fsize);
+                                              &it->si_fc.sfc_fctx->sf_size);
         if (rc == 0) {
                 pl = it->si_fc.sfc_pdlayout;
                 /*
@@ -196,7 +195,7 @@ static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
                  */
                 it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
                 it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-                it->si_total_fsize += it->si_fc.sfc_fsize;
+		it->si_fc.sfc_fctx->sf_layout = m0_pdl_to_layout(pl);
                 M0_CNT_INC(it->si_total_files);
         }
 
@@ -235,7 +234,7 @@ static void unit_to_cobfid(struct m0_sns_cm_file_context *sfc,
 /* Uses name space iterator. */
 M0_INTERNAL int __fid_next(struct m0_sns_cm_iter *it, struct m0_fid *fid_next)
 {
-	int             rc;
+	int rc;
 
 	M0_ENTRY("it = %p", it);
 
@@ -252,7 +251,7 @@ static void get_attr_callback(void *arg, int rc)
 
 	M0_PRE(it != NULL);
 
-	it->si_fc.sfc_fsize = it->si_fc.sfc_cob_attr.ca_size;
+	it->si_fc.sfc_fctx->sf_size = it->si_fc.sfc_cob_attr.ca_size;
 	scm = it2sns(it);
         cm = &scm->sc_base;
 	m0_cm_cp_pump_wakeup(cm);
@@ -260,8 +259,8 @@ static void get_attr_callback(void *arg, int rc)
 
 static int iter_fid_attr_fetch_wait(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm   *scm;
-	struct m0_cm       *cm;
+	struct m0_sns_cm *scm;
+	struct m0_cm     *cm;
 
 	M0_PRE(it != NULL);
 	M0_ENTRY("it = %p", it);
@@ -271,7 +270,7 @@ static int iter_fid_attr_fetch_wait(struct m0_sns_cm_iter *it)
 
 	if (it->si_fc.sfc_cob_attr.ca_size == 0) {
 		m0_cm_cp_pump_wait(cm);
-		return M0_RC(M0_FSO_WAIT);
+		return M0_FSO_WAIT;
 	}
 
 	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH);
@@ -281,10 +280,10 @@ static int iter_fid_attr_fetch_wait(struct m0_sns_cm_iter *it)
 /** Fetches the attributes of GOB. */
 static int iter_fid_attr_fetch(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm   *scm;
-	struct m0_cm       *cm;
-        struct m0_reqh     *reqh;
-        int                 rc;
+	struct m0_sns_cm *scm;
+	struct m0_cm     *cm;
+        struct m0_reqh   *reqh;
+        int               rc;
 
 	M0_ENTRY("it = %p", it);
 	M0_PRE(it != NULL);
@@ -316,21 +315,18 @@ static void get_layout_callback(void *arg, int rc)
 
 	M0_PRE(it != NULL);
 
-	it->si_fc.sfc_pdlayout = m0_layout_to_pdl(it->si_fc.sfc_layout);
+	it->si_fc.sfc_pdlayout = m0_layout_to_pdl(it->si_fc.sfc_fctx->sf_layout);
 	scm = it2sns(it);
         cm = &scm->sc_base;
 	m0_cm_cp_pump_wakeup(cm);
 }
 
-static int iter_fid_layout_fetch_wait(struct m0_sns_cm_iter *it)
+static int __file_context_init(struct m0_sns_cm_iter *it)
 {
 	struct m0_pdclust_layout *pl;
 	int                       rc;
 
-	M0_PRE(it != NULL);
-
 	pl = it->si_fc.sfc_pdlayout;
-
 	if (pl == NULL)
 		return M0_RC(M0_FSO_WAIT);
 
@@ -340,7 +336,6 @@ static int iter_fid_layout_fetch_wait(struct m0_sns_cm_iter *it)
 	 */
 	it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
 	it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-	it->si_total_fsize += it->si_fc.sfc_fsize;
 	M0_CNT_INC(it->si_total_files);
 
         rc = m0_sns_cm_fid_layout_instance(pl, &it->si_fc.sfc_pi,
@@ -348,9 +343,26 @@ static int iter_fid_layout_fetch_wait(struct m0_sns_cm_iter *it)
         if (rc == 0) {
                 it->si_fc.sfc_sa.sa_group = 0;
                 it->si_fc.sfc_sa.sa_unit = 0;
-                iter_phase_set(it, ITPH_GROUP_NEXT);
         }
+
 	return M0_RC(rc);
+}
+
+static int group__next(struct m0_sns_cm_iter *it)
+{
+	int rc;
+
+	rc = __file_context_init(it);
+	if (rc == 0)
+		iter_phase_set(it, ITPH_GROUP_NEXT);
+	return rc;
+}
+
+static int iter_fid_layout_fetch_wait(struct m0_sns_cm_iter *it)
+{
+	M0_PRE(it != NULL);
+
+	return group__next(it);
 }
 
 /** Fetches the layout for GOB. */
@@ -371,17 +383,16 @@ static int iter_fid_layout_fetch(struct m0_sns_cm_iter *it)
 	lid = it->si_fc.sfc_cob_attr.ca_lid;
 
 	it->si_fc.sfc_pdlayout = NULL;
-	it->si_fc.sfc_layout = NULL;
-
-	l = m0_layout_find(ldom, lid);
+	l = it->si_fc.sfc_fctx->sf_layout ?: m0_layout_find(ldom, lid);
 	if (l != NULL) {
-		it->si_fc.sfc_layout = l;
+		it->si_fc.sfc_fctx->sf_layout = l;
 		it->si_fc.sfc_pdlayout = m0_layout_to_pdl(l);
 		iter_phase_set(it, ITPH_FID_LAYOUT_FETCH_WAIT);
 		return M0_RC(0);
 	}
 
-        rc = m0_ios_mds_layout_get_async(reqh, ldom, lid, &it->si_fc.sfc_layout,
+        rc = m0_ios_mds_layout_get_async(reqh, ldom, lid,
+					 &it->si_fc.sfc_fctx->sf_layout,
                                          &get_layout_callback, it);
 
 	if (rc < 0 && M0_FI_ENABLED("layout_fetch_error_as_done"))
@@ -416,7 +427,10 @@ static int iter_fid_lock(struct m0_sns_cm_iter *it)
 			rc = 0;
 			M0_LOG(M0_DEBUG, "fid: <%lx, %lx>", FID_P(fid));
 			m0_ref_get(&fctx->sf_ref);
-			iter_phase_set(it, ITPH_FID_ATTR_FETCH);
+			it->si_fc.sfc_fctx = fctx;
+			it->si_fc.sfc_fctx->sf_size = fctx->sf_size;
+			it->si_fc.sfc_pdlayout = m0_layout_to_pdl(fctx->sf_layout);
+			rc = group__next(it);
 			goto end;
 		}
 		if (fctx->sf_flock_status == M0_SCM_FILE_LOCK_WAIT){
@@ -428,7 +442,7 @@ static int iter_fid_lock(struct m0_sns_cm_iter *it)
 	if (rc != 0)
 		goto end;
 
-	rc = m0_sns_cm_file_lock(fctx);
+	rc = m0_sns_cm__file_lock(fctx);
 	if (rc != M0_FSO_WAIT)
 		goto end;
 
@@ -437,7 +451,6 @@ static int iter_fid_lock(struct m0_sns_cm_iter *it)
 	m0_fom_wait_on(fom, rm_chan, &fom->fo_cb);
 	m0_rm_owner_unlock(&fctx->sf_owner);
 	iter_phase_set(it, ITPH_FID_LOCK_WAIT);
-		goto end;
 
 end:
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
@@ -468,6 +481,7 @@ static int iter_fid_lock_wait(struct m0_sns_cm_iter *it)
 	if (rc == 0 || rc == -EAGAIN) {
 		rc = 0;
 		m0_ref_get(&fctx->sf_ref);
+		it->si_fc.sfc_fctx = fctx;
 		iter_phase_set(it, ITPH_FID_ATTR_FETCH);
 		M0_ASSERT(fctx->sf_flock_status == M0_SCM_FILE_LOCKED);
 	}
@@ -493,21 +507,18 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 	} while (rc == 0 && (m0_fid_eq(&fid_next, &M0_COB_ROOT_FID)     ||
 			     m0_fid_eq(&fid_next, &M0_MDSERVICE_SLASH_FID)));
 
-	if (rc == -ENOENT)
-		return M0_RC(-ENODATA);
-	if (rc == 0) {
+	if (rc == 0)
 		/* Save next GOB fid in the iterator. */
 		*fid = fid_next;
-		/* fini old layout instance and put old layout */
-		if (sfc->sfc_pi != NULL) {
-			m0_layout_instance_fini(&sfc->sfc_pi->pi_base);
-			sfc->sfc_pi = NULL;
-		}
-		if (pl != NULL) {
-			m0_layout_put(m0_pdl_to_layout(pl));
-			sfc->sfc_pdlayout = NULL;
-		}
+	/* fini old layout instance and put old layout */
+	if (sfc->sfc_pi != NULL) {
+		m0_layout_instance_fini(&sfc->sfc_pi->pi_base);
+		sfc->sfc_pi = NULL;
 	}
+	if (pl != NULL)
+		sfc->sfc_pdlayout = NULL;
+	if (rc == -ENOENT)
+		return M0_RC(-ENODATA);
 
 	if (M0_FI_ENABLED("ut_layout_fsize_fetch")) {
 		rc = file_size_and_layout_fetch(it);
@@ -535,9 +546,7 @@ static bool __has_incoming(struct m0_sns_cm *scm, struct m0_pdclust_layout *pl,
 	M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 	       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 	       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-	return  m0_sns_cm_ag_is_relevant(scm, pl, &agid);
-
-	return false;
+	return m0_sns_cm_ag_is_relevant(scm, pl, &agid);
 }
 
 static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
@@ -568,10 +577,9 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 			 uint64_t group, struct m0_pdclust_layout *pl,
 			 bool has_incoming)
 {
-	struct m0_cm             *cm = &scm->sc_base;
-	struct m0_cm_aggr_group  *ag;
-	struct m0_cm_ag_id        agid;
-	int                       rc;
+	struct m0_cm            *cm = &scm->sc_base;
+	struct m0_cm_aggr_group *ag;
+	struct m0_cm_ag_id       agid;
 
 	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
 	/*
@@ -588,6 +596,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 				    &cm->cm_last_saved_sw_hi) <= 0)
 			return -EEXIST;
 	}
+
 	if (has_incoming && !cm->cm_ops->cmo_has_space(cm, &agid,
 					m0_pdl_to_layout(pl))) {
 		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
@@ -595,9 +604,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 		       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
 		return M0_RC(-ENOSPC);
 	}
-	rc = m0_cm_aggr_group_alloc(cm, &agid, has_incoming, &ag);
-
-	return rc;
+	return m0_cm_aggr_group_alloc(cm, &agid, has_incoming, &ag);
 }
 
 /**
@@ -609,21 +616,21 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
  */
 static int __group_next(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm                *scm = it2sns(it);
-	struct m0_sns_cm_file_context   *sfc;
-	struct m0_pdclust_src_addr      *sa;
-	struct m0_fid                   *gfid;
-	struct m0_pdclust_layout        *pl;
-	uint64_t                         group;
-	uint64_t                         nrlu;
-	bool                             has_incoming = false;
-	int                              rc = 0;
+	struct m0_sns_cm              *scm = it2sns(it);
+	struct m0_sns_cm_file_context *sfc;
+	struct m0_pdclust_src_addr    *sa;
+	struct m0_fid                 *gfid;
+	struct m0_pdclust_layout      *pl;
+	uint64_t                       group;
+	uint64_t                       nrlu;
+	bool                           has_incoming = false;
+	int                            rc = 0;
 
 	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
 	sfc->sfc_groups_nr = m0_sns_cm_nr_groups(sfc->sfc_pdlayout,
-						 sfc->sfc_fsize);
+						 sfc->sfc_fctx->sf_size);
 	sa = &sfc->sfc_sa;
 	gfid = &sfc->sfc_gob_fid;
 	pl = sfc->sfc_pdlayout;
@@ -655,6 +662,10 @@ static int __group_next(struct m0_sns_cm_iter *it)
 		}
 	}
 
+	/* Put the reference on the file lock taken in ITPH_FID_NEXT phase. */
+	m0_mutex_lock(&scm->sc_file_ctx_mutex);
+	m0_sns_cm_file_unlock(scm, gfid);
+	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	iter_phase_set(it, ITPH_FID_NEXT);
 out:
 	return M0_RC(rc);
@@ -685,13 +696,13 @@ static int iter_group_next(struct m0_sns_cm_iter *it)
  */
 static int iter_ag_setup(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm                *scm = it2sns(it);
-	struct m0_sns_cm_file_context   *sfc = &it->si_fc;
-	struct m0_cm_aggr_group         *ag;
-	struct m0_sns_cm_ag             *sag;
-	struct m0_cm_ag_id               agid;
-	bool                             has_incoming = false;
-	int                              rc;
+	struct m0_sns_cm              *scm = it2sns(it);
+	struct m0_sns_cm_file_context *sfc = &it->si_fc;
+	struct m0_cm_aggr_group       *ag;
+	struct m0_sns_cm_ag           *sag;
+	struct m0_cm_ag_id             agid;
+	bool                           has_incoming = false;
+	int                            rc;
 
 	has_incoming = __has_incoming(scm, sfc->sfc_pdlayout, &sfc->sfc_gob_fid, sfc->sfc_sa.sa_group);
 	m0_sns_cm_ag_agid_setup(&sfc->sfc_gob_fid, sfc->sfc_sa.sa_group, &agid);
@@ -730,21 +741,21 @@ static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
  */
 static int iter_cp_setup(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm                *scm = it2sns(it);
-	struct m0_cm                    *cm = &scm->sc_base;
-	struct m0_pdclust_layout        *pl;
-	struct m0_cm_ag_id               agid;
-	struct m0_cm_aggr_group         *ag;
-	struct m0_sns_cm_file_context   *sfc;
-	struct m0_sns_cm_cp             *scp;
-	struct m0_fid                   *gfid;
-	bool                             has_incoming = false;
-	bool                             has_data;
-	uint64_t                         group;
-	uint64_t                         stob_offset;
-	uint64_t                         cp_data_seg_nr;
-	uint64_t                         ag_cp_idx;
-	int                              rc = 0;
+	struct m0_sns_cm              *scm = it2sns(it);
+	struct m0_cm                  *cm = &scm->sc_base;
+	struct m0_pdclust_layout      *pl;
+	struct m0_cm_ag_id             agid;
+	struct m0_cm_aggr_group       *ag;
+	struct m0_sns_cm_file_context *sfc;
+	struct m0_sns_cm_cp           *scp;
+	struct m0_fid                 *gfid;
+	bool                           has_incoming = false;
+	bool                           has_data;
+	uint64_t                       group;
+	uint64_t                       stob_offset;
+	uint64_t                       cp_data_seg_nr;
+	uint64_t                       ag_cp_idx;
+	int                            rc = 0;
 
 	M0_ENTRY("it = %p", it);
 
@@ -792,7 +803,6 @@ static int iter_cp_setup(struct m0_sns_cm_iter *it)
 	rc = M0_FSO_AGAIN;
 out:
 	iter_phase_set(it, ITPH_COB_NEXT);
-
 	return M0_RC(rc);
 }
 
@@ -809,11 +819,11 @@ out:
  */
 static int iter_cob_next(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm_file_context   *sfc;
-	struct m0_fid                   *cob_fid;
-	struct m0_pdclust_src_addr      *sa;
-	uint32_t                         upg;
-	int                              rc = 0;
+	struct m0_sns_cm_file_context *sfc;
+	struct m0_fid                 *cob_fid;
+	struct m0_pdclust_src_addr    *sa;
+	uint32_t                       upg;
+	int                            rc = 0;
 	M0_ENTRY("it = %p", it);
 
 	sfc = &it->si_fc;
@@ -931,7 +941,8 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 	[ITPH_FID_LOCK] = {
 		.sd_flags   = 0,
 		.sd_name    = "File lock wait",
-		.sd_allowed = M0_BITS(ITPH_FID_ATTR_FETCH, ITPH_FID_LOCK_WAIT)
+		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT, ITPH_FID_ATTR_FETCH,
+				      ITPH_FID_LOCK_WAIT)
 	},
 	[ITPH_FID_LOCK_WAIT] = {
 		.sd_flags   = 0,
@@ -981,23 +992,6 @@ static const struct m0_sm_conf cm_iter_sm_conf = {
 	.scf_state     = cm_iter_sd
 };
 
-static void layout_fini(struct m0_sns_cm_iter *it)
-{
-	struct m0_sns_cm_file_context *sfc;
-
-	M0_PRE(iter_invariant(it));
-
-	sfc = &it->si_fc;
-	if (sfc->sfc_pi != NULL) {
-		m0_layout_instance_fini(&sfc->sfc_pi->pi_base);
-		sfc->sfc_pi = NULL;
-	}
-	if (sfc->sfc_pdlayout != NULL) {
-		m0_layout_put(m0_pdl_to_layout(sfc->sfc_pdlayout));
-		sfc->sfc_pdlayout = NULL;
-	}
-}
-
 M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm     *scm = it2sns(it);
@@ -1016,7 +1010,6 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	}
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
-	it->si_total_fsize = 0;
 	it->si_total_files = 0;
 
 	return rc;
@@ -1024,14 +1017,8 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 
 M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 {
-	/*
-	 * Pick the best possible fid to initialise the namespace iter.
-	 * m0t1fs starts its fid space from {0,4}.
-	 * XXX This should be changed to {0, 0} once multiple cob domains
-	 * are added per service.
-	 */
-	struct m0_fid         gfid = {0, 4};
-	int                   rc;
+	struct m0_fid gfid = {0, 1};
+	int           rc;
 
 	M0_PRE(it != NULL);
 	M0_PRE(iter_phase(it) == ITPH_IDLE);
@@ -1048,7 +1035,6 @@ M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 	M0_PRE(iter_phase(it) == ITPH_IDLE);
 
 	m0_cob_ns_iter_fini(&it->si_cns_it);
-	layout_fini(it);
 }
 
 M0_INTERNAL void m0_sns_cm_iter_fini(struct m0_sns_cm_iter *it)

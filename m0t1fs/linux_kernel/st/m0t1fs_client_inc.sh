@@ -25,7 +25,7 @@ touch_file()
 		return 1
 	fi
 
-	run "touch $m0t1fs_file" &&
+	run "touch $file" &&
 	run "setfattr -n lid -v $unitsz_id $file"
 
 	return $?

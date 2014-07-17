@@ -25,6 +25,7 @@
 #include "sns/cm/net.c"
 #include "sns/cm/ag.c"
 #include "sns/cm/repair/ag.c"
+#include "sns/cm/cp.h"
 #include "sns/cm/repair/ut/cp_common.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
@@ -238,6 +239,7 @@ const struct m0_cm_cp_ops cp_dummy_ops = {
 		[M0_CCP_SEND_WAIT] = &m0_sns_cm_cp_send_wait,
 		[M0_CCP_RECV_INIT] = &dummy_cp_phase,
 		[M0_CCP_RECV_WAIT] = &dummy_cp_phase,
+		[M0_CCP_FAIL]      = &m0_sns_cm_cp_fail,
 		[M0_CCP_FINI]      = &dummy_cp_phase
 	},
 	.co_action_nr  = M0_CCP_NR,
@@ -343,6 +345,7 @@ const struct m0_cm_cp_ops read_cp_ops = {
 		[M0_CCP_SEND_WAIT] = &dummy_read_cp_phase,
 		[M0_CCP_RECV_INIT] = &dummy_read_cp_phase,
 		[M0_CCP_RECV_WAIT] = &dummy_read_cp_phase,
+		[M0_CCP_FAIL]      = &m0_sns_cm_cp_fail,
 		[M0_CCP_FINI]      = &dummy_read_cp_phase
 	},
 	.co_action_nr  = M0_CCP_NR,

@@ -81,6 +81,7 @@ extern const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops;
 extern const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops;
 
 M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_cp_fail(struct m0_cm_cp *cp);
 
 /** Copy packet read phase function. */
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp);

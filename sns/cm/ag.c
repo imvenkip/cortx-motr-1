@@ -43,6 +43,11 @@
    @{
  */
 
+M0_INTERNAL struct m0_cm *snsag2cm(const struct m0_sns_cm_ag *sag)
+{
+	return sag->sag_base.cag_cm;
+}
+
 M0_INTERNAL struct m0_sns_cm_ag *ag2snsag(const struct m0_cm_aggr_group *ag)
 {
 	return container_of(ag, struct m0_sns_cm_ag, sag_base);
@@ -113,21 +118,10 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
         cm = ag->cag_cm;
         M0_ASSERT(cm != NULL);
 	scm = cm2sns(cm);
-	/*
-	 * Check if all the aggregation groups belonging to the fid
-	 * have been processed. If they are, then release the lock
-	 * over the file.
-	 */
-	m0_sns_cm_fctx_ag_dec(scm, &ag->cag_id);
-
-	m0_cm_aggr_group_fini_and_progress(ag);
-	if (ag->cag_layout != NULL) {
-		m0_layout_put(ag->cag_layout);
-		ag->cag_layout = NULL;
-	}
-	m0_bitmap_fini(&sag->sag_fmap);
-        scm = cm2sns(cm);
 	m0_layout_instance_fini(&sag->sag_base.cag_pi->pi_base);
+	m0_bitmap_fini(&sag->sag_fmap);
+	m0_sns_cm_fctx_put(scm, &ag->cag_id);
+	m0_cm_aggr_group_fini_and_progress(ag);
         M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
                      M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
                      scm->sc_ibp.sb_bp.nbp_buf_nr,
@@ -146,12 +140,11 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 {
 	struct m0_sns_cm           *scm = cm2sns(cm);
 	struct m0_fid               gfid;
+	struct m0_sns_cm_file_ctx  *fctx;
 	struct m0_pdclust_layout   *pl;
 	struct m0_pdclust_instance *pi;
 	uint64_t                    upg;
-	uint64_t                    fsize;
 	uint64_t                    f_nr;
-	struct m0_fid              *it_gfid;
 	int                         rc = 0;
 
 	M0_ENTRY("scm: %p, ag id:%p", cm, id);
@@ -159,27 +152,12 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	agid2fid(id, &gfid);
-	/*
-	 * If m0_cm_aggr_group_alloc() is invoked in sns data iterator context,
-	 * the file size and layout are already fetched and saved in the data
-	 * iterator. So check if the iterator file identifier and group's file
-	 * identifier match, if yes, then extract the layout from the iterator.
-	 * @todo Interface to fetch the file size and layout from the sns data
-	 *       iterator.
-	 */
-	it_gfid = &scm->sc_it.si_fc.sfc_gob_fid;
-	if (m0_fid_eq(&gfid, it_gfid) && scm->sc_it.si_fc.sfc_pdlayout != NULL){
-		pl = scm->sc_it.si_fc.sfc_pdlayout;
-		m0_layout_get(m0_pdl_to_layout(pl));
-	} else
-		rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, &gfid, &pl,
-						      &fsize);
-	if (rc != 0)
-		return rc;
-
+	fctx = m0_sns_cm_fctx_get(scm, id);
+	M0_ASSERT(fctx != NULL && fctx->sf_layout != NULL);
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
 	if (rc != 0) {
-		m0_layout_put(m0_pdl_to_layout(pl));
+		m0_sns_cm_fctx_put(scm, id);
 		return rc;
 	}
 
@@ -189,19 +167,20 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	f_nr = m0_sns_cm_ag_failures_nr(scm, &gfid, pl, pi, id->ai_lo.u_lo,
 					&sag->sag_fmap);
 	if (f_nr == 0) {
-		m0_layout_put(m0_pdl_to_layout(pl));
+		m0_layout_instance_fini(&pi->pi_base);
+		m0_bitmap_fini(&sag->sag_fmap);
+		m0_sns_cm_fctx_put(scm, id);
 		return -EINVAL;
 	}
 	sag->sag_fnr = f_nr;
 	if (has_incoming)
 		sag->sag_incoming_nr = m0_sns_cm_ag_max_incoming_units(scm,
 								       id, pl);
-	sag->sag_base.cag_layout = m0_pdl_to_layout(pl);
+	sag->sag_base.cag_layout = fctx->sf_layout;
 	sag->sag_base.cag_pi = pi;
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming,
 			      ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
-	m0_sns_cm_fctx_ag_incr(scm, id);
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
 		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
 		     id->ai_hi.u_hi, id->ai_hi.u_lo,

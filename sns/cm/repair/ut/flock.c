@@ -125,7 +125,7 @@ static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 			*phase = M0_FOM_PHASE_FINISH;
 			goto end;
 		}
-		rc = m0_sns_cm_file_lock(fctx);
+		rc = m0_sns_cm__file_lock(fctx);
 		M0_UT_ASSERT(rc == M0_FSO_WAIT);
 		rm_chan = &fctx->sf_rin.rin_sm.sm_chan;
 		m0_rm_owner_lock(&fctx->sf_owner);
@@ -192,7 +192,7 @@ static void sns_flock_multi_fom(void)
 	for (i = 0; i < NR; ++i) {
 		fctx = m0_sns_cm_fctx_locate(scm, &gfid);
 		M0_UT_ASSERT(fctx != NULL);
-		m0_sns_cm_file_unlock(fctx);
+		m0_sns_cm__file_unlock(fctx);
 	}
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
@@ -211,7 +211,7 @@ static void sns_flock_single_fom(void)
 	m0_semaphore_fini(&sem[sem_id]);
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	fctx = m0_sns_cm_fctx_locate(scm, &test_fids[0]);
-	m0_sns_cm_file_unlock(fctx);
+	m0_sns_cm__file_unlock(fctx);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
 
@@ -299,7 +299,7 @@ static void sns_file_lock_unlock(void)
 		m0_rm_owner_lock(&fctx[i]->sf_owner);
 		m0_clink_add(chan, &tc_clink[i]);
 		m0_rm_owner_unlock(&fctx[i]->sf_owner);
-		rc = m0_sns_cm_file_lock(fctx[i]);
+		rc = m0_sns_cm__file_lock(fctx[i]);
 		M0_UT_ASSERT(rc == M0_FSO_WAIT);
 		m0_ref_get(&fctx[i]->sf_ref);
 		m0_chan_wait(&tc_clink[i]);
@@ -314,7 +314,7 @@ static void sns_file_lock_unlock(void)
 		m0_clink_del(&tc_clink[i]);
 		m0_clink_fini(&tc_clink[i]);
 		m0_rm_owner_unlock(&fctx[i]->sf_owner);
-		m0_sns_cm_file_unlock(fctx[i]);
+		m0_sns_cm__file_unlock(fctx[i]);
 	}
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }

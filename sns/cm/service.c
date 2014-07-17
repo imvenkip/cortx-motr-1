@@ -66,7 +66,6 @@ m0_sns_cm_svc_allocate(struct m0_reqh_service **service,
 		return M0_RC(-ENOMEM);
 
 	cm = &sns_cm->sc_base;
-
 	*service = &cm->cm_service;
 	(*service)->rs_ops = svc_ops;
 
@@ -104,6 +103,8 @@ M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 
 	cm = container_of(service, struct m0_cm, cm_service);
 	rc = m0_cm_setup(cm);
+	if (rc != 0)
+		return rc;
 
 	/* The following shows how to retrieve ioservice endpoints list.
 	 * Copy machine can establish connections to all ioservices,

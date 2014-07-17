@@ -139,15 +139,15 @@ static int cp_prepare(struct m0_cm_cp *cp,
 
 static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 {
-	struct m0_fom           *cp_fom;
-	struct m0_reqh          *reqh;
-	struct m0_stob_domain   *dom;
-	struct m0_sns_cm_cp     *sns_cp;
-	struct m0_stob          *stob;
-	struct m0_stob_io       *stio;
-	struct m0_addb_ctx      *addb_ctx;
-	uint32_t                 bshift;
-	int                      rc;
+	struct m0_fom         *cp_fom;
+	struct m0_reqh        *reqh;
+	struct m0_stob_domain *dom;
+	struct m0_sns_cm_cp   *sns_cp;
+	struct m0_stob        *stob;
+	struct m0_stob_io     *stio;
+	struct m0_addb_ctx    *addb_ctx;
+	uint32_t               bshift;
+	int                    rc;
 
 	M0_ENTRY("cp=%p op=%d", cp, op);
 
@@ -214,14 +214,12 @@ err_stio:
 out:
 	if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_IO);
-		m0_fom_phase_move(cp_fom, rc, M0_CCP_FINI);
+		m0_fom_phase_move(cp_fom, rc, M0_CCP_FAIL);
 		m0_dtx_done_sync(&cp_fom->fo_tx);
 		m0_dtx_fini(&cp->c_fom.fo_tx);
-		rc = M0_FSO_WAIT;
-	} else
-		rc = cp->c_ops->co_phase_next(cp);
-
-	return M0_RC(rc);
+		return M0_FSO_AGAIN;
+	}
+	return cp->c_ops->co_phase_next(cp);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
@@ -270,13 +268,10 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	rc = sns_cp->sc_stio.si_rc;
 	if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_cp_addb_ctx, CP_STIO);
-		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
-		rc = M0_FSO_WAIT;
-	} else {
-		rc = cp->c_ops->co_phase_next(cp);
+		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);
+		return M0_FSO_AGAIN;
 	}
-
-	return M0_RC(rc);
+	return cp->c_ops->co_phase_next(cp);
 }
 
 /** @} SNSCMCP */

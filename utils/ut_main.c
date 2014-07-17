@@ -162,7 +162,10 @@ void add_uts(void)
 	m0_ut_add(&sm_ut);
 	m0_ut_add(&snscm_xform_ut);
 	m0_ut_add(&snscm_storage_ut);
-	m0_ut_add(&sns_cm_repair_ut);
+	/*
+	 * XXX TODO: re-write using FOM to handle file lock resource through RM.
+	 * m0_ut_add(&sns_cm_repair_ut);
+	 */
 	m0_ut_add(&snscm_net_ut);
 	m0_ut_add(&sns_flock_ut);
 	m0_ut_add(&stats_ut);

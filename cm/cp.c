@@ -424,16 +424,19 @@ static void cp_fom_fini(struct m0_fom *fom)
 	M0_ENTRY();
 
 	m0_cm_lock(cm);
-	M0_CNT_INC(ag->cag_freed_cp_nr);
+	if (cp->c_rc == 0)
+		M0_CNT_INC(ag->cag_freed_cp_nr);
 	m0_cm_cp_fom_fini(cp);
+	cp->c_ops->co_free(cp);
+	if (cp->c_rc == 0) {
+		ag_fini = ag->cag_ops->cago_ag_can_fini(ag);
+		if (ag_fini)
+			ag->cag_ops->cago_fini(ag);
+	}
 	/**
 	 * Try to create a new copy packet since this copy packet is
 	 * making way for new copy packets in sliding window.
 	 */
-	cp->c_ops->co_free(cp);
-	ag_fini = ag->cag_ops->cago_ag_can_fini(ag);
-        if (ag_fini)
-                ag->cag_ops->cago_fini(ag);
 	if (m0_cm_has_more_data(cm))
 		m0_cm_continue(cm);
 	m0_cm_unlock(cm);
@@ -544,28 +547,33 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
         [M0_CCP_SW_CHECK] = {
                 .sd_flags       = 0,
                 .sd_name        = "Sliding window check",
-                .sd_allowed     = M0_BITS(M0_CCP_SEND)
+                .sd_allowed     = M0_BITS(M0_CCP_SEND, M0_CCP_FAIL)
         },
         [M0_CCP_SEND] = {
                 .sd_flags       = 0,
                 .sd_name        = "Send",
                 .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_RECV_INIT,
-					  M0_CCP_SEND_WAIT)
+					  M0_CCP_SEND_WAIT, M0_CCP_FAIL)
         },
         [M0_CCP_SEND_WAIT] = {
                 .sd_flags       = 0,
                 .sd_name        = "Send Wait",
-                .sd_allowed     = M0_BITS(M0_CCP_FINI)
+                .sd_allowed     = M0_BITS(M0_CCP_FINI, M0_CCP_FAIL)
         },
         [M0_CCP_RECV_INIT] = {
                 .sd_flags       = 0,
                 .sd_name        = "Recv Init",
-                .sd_allowed     = M0_BITS(M0_CCP_RECV_WAIT)
+                .sd_allowed     = M0_BITS(M0_CCP_RECV_WAIT, M0_CCP_FAIL)
         },
         [M0_CCP_RECV_WAIT] = {
                 .sd_flags       = 0,
                 .sd_name        = "Recv Wait",
-                .sd_allowed     = M0_BITS(M0_CCP_XFORM)
+                .sd_allowed     = M0_BITS(M0_CCP_XFORM, M0_CCP_FAIL)
+        },
+        [M0_CCP_FAIL] = {
+                .sd_flags       = M0_SDF_FAILURE,
+                .sd_name        = "Failure",
+                .sd_allowed     = M0_BITS(M0_CCP_FINI)
         },
         [M0_CCP_FINI] = {
                 .sd_flags       = M0_SDF_TERMINAL,

@@ -48,14 +48,7 @@ struct m0_sns_cm_file_context {
 	/** GOB being re-structured. */
 	struct m0_fid                 sfc_gob_fid;
 
-	size_t                        sfc_fsize;
-
-	/**
-	 * Layout for the file.
-	 * @note This should be moved to some fid cache structure, once it is
-	 * implemented.
-	 */
-	struct m0_layout             *sfc_layout;
+	struct m0_sns_cm_file_ctx    *sfc_fctx;
 
 	/** GOB layout. */
 	struct m0_pdclust_layout     *sfc_pdlayout;

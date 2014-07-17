@@ -62,31 +62,25 @@ static struct m0_cm_cp *repair_cm_cp_alloc(struct m0_cm *cm)
 static int repair_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
-	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
-	rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				     M0_PNDS_SNS_REPAIRING);
-	if (rc != 0)
-		return rc;
 	scm->sc_helpers = &repair_helpers;
-	return m0_sns_cm_prepare(cm);
+	return m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				       M0_PNDS_SNS_REPAIRING) ?:
+	       m0_sns_cm_prepare(cm);
 }
 
 static int repair_cm_stop(struct m0_cm *cm)
 {
-	struct m0_sns_cm *scm = cm2sns(cm);;
-	int               rc;
+	struct m0_sns_cm *scm = cm2sns(cm);
 
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
-	rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				     M0_PNDS_SNS_REPAIRED);
-	if (rc != 0)
-		return rc;
-	return m0_sns_cm_stop(cm);
+	return m0_sns_cm_stop(cm) ?:
+	       m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				       M0_PNDS_SNS_REPAIRED);
 }
 
 /**
@@ -109,7 +103,6 @@ static bool repair_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, id, pl);
-
 	return m0_sns_cm_has_space_for(scm, pl, total_inbufs);
 }
 
@@ -140,7 +133,7 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
 	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
 		return SRS_UNINITIALIZED;
 	return m0_fid_cmp(gfid, &curr_gfid) > 0 ? SRS_REPAIR_NOTDONE :
-	       SRS_REPAIR_DONE;
+			  SRS_REPAIR_DONE;
 }
 
 /** Copy machine operations. */

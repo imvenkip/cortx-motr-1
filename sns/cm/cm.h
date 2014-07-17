@@ -191,6 +191,10 @@ struct m0_sns_cm_file_ctx {
 	 */
 	struct m0_fid		   sf_fid;
 
+	struct m0_layout          *sf_layout;
+
+	size_t                     sf_size;
+
 	/** Linkage into m0_sns_cm::sc_file_ctx. */
 	struct m0_hlink		   sf_sc_link;
 
@@ -385,7 +389,9 @@ M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx);
  * @see m0_sns_cm_file_lock_wait().
  * @ret M0_FSO_WAIT.
  */
-M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm_file_ctx *fctx);
+M0_INTERNAL int m0_sns_cm__file_lock(struct m0_sns_cm_file_ctx *fctx);
+
+M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid);
 
 /**
  * Returns M0_FS0_WAIT until the rm file lock is acquired. The given
@@ -401,16 +407,16 @@ M0_INTERNAL int m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
  * Decrements the reference on the m0_sns_cm_file_ctx object.
  * When the count reaches null, m0_file_unlock() is invoked and
  * the m0_sns_cm_file_ctx_object is freed.
- * @see m0_sns_cm_fid_check_unlock()
+ * @see m0_sns_cm_file_unlock()
  */
-M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm_file_ctx *fctx);
+M0_INTERNAL void m0_sns_cm__file_unlock(struct m0_sns_cm_file_ctx *fctx);
 
 /**
- * Invokes m0_sns_cm_file_unlock() if all the aggregation groups belonging to a
+ * Invokes m0_sns_cm__file_unlock() if all the aggregation groups belonging to a
  * file have been processed.
  */
-M0_INTERNAL void m0_sns_cm_fid_check_unlock(struct m0_sns_cm *scm,
-					    struct m0_fid *fid);
+M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
+				       struct m0_fid *fid);
 
 /**
  * Looks up the m0_sns_cm::sc_file_ctx hash table and returns the
@@ -421,11 +427,11 @@ M0_INTERNAL struct m0_sns_cm_file_ctx
 		  *m0_sns_cm_fctx_locate(struct m0_sns_cm *scm,
 		                         struct m0_fid *fid);
 
-M0_INTERNAL void m0_sns_cm_fctx_ag_incr(struct m0_sns_cm *scm,
-					const struct m0_cm_ag_id *id);
+M0_INTERNAL  struct m0_sns_cm_file_ctx *
+m0_sns_cm_fctx_get(struct m0_sns_cm *scm, const struct m0_cm_ag_id *id);
 
-M0_INTERNAL void m0_sns_cm_fctx_ag_dec(struct m0_sns_cm *scm,
-				       const struct m0_cm_ag_id *id);
+M0_INTERNAL void m0_sns_cm_fctx_put(struct m0_sns_cm *scm,
+				    const struct m0_cm_ag_id *id);
 
 M0_HT_DESCR_DECLARE(m0_scmfctx, M0_EXTERN);
 M0_HT_DECLARE(m0_scmfctx, M0_EXTERN, struct m0_sns_cm_file_ctx,

@@ -733,6 +733,8 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 static void sns_cm_fctx_cleanup(struct m0_sns_cm_file_ctx *fctx)
 {
 	m0_file_unlock(&fctx->sf_rin);
+	if (fctx->sf_layout != NULL)
+		m0_layout_put(fctx->sf_layout);
 	m0_scmfctx_htable_del(&fctx->sf_scm->sc_file_ctx, fctx);
 	m0_sns_cm_fctx_fini(fctx);
 	m0_free(fctx);
@@ -751,11 +753,12 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 	m0_scmfctx_htable_fini(&scm->sc_file_ctx);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 
-	rc = m0_rpc_session_destroy(&scm->sc_rm_ctx.rc_session, M0_TIME_NEVER);
+	rc = m0_rpc_session_destroy(&scm->sc_rm_ctx.rc_session,
+				    CM_RPC_TIMEOUT);
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate sns-rm session %d", rc);
 
-	rc = m0_rpc_conn_destroy(&scm->sc_rm_ctx.rc_conn, M0_TIME_NEVER);
+	rc = m0_rpc_conn_destroy(&scm->sc_rm_ctx.rc_conn, CM_RPC_TIMEOUT);
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate sns-rm rpc connection %d",
 		       rc);
@@ -1037,7 +1040,7 @@ M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx)
 
 extern const struct m0_rm_incoming_ops file_lock_incoming_ops;
 
-M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm_file_ctx *fctx)
+M0_INTERNAL int m0_sns_cm__file_lock(struct m0_sns_cm_file_ctx *fctx)
 {
 	struct m0_sns_cm *scm;
 	M0_ENTRY();
@@ -1069,7 +1072,7 @@ M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm_file_ctx *fctx)
 	return M0_RC(M0_FSO_WAIT);
 }
 
-M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm_file_ctx *fctx)
+M0_INTERNAL void m0_sns_cm__file_unlock(struct m0_sns_cm_file_ctx *fctx)
 {
 	M0_PRE(fctx != NULL);
 	M0_PRE(sns_cm_fid_is_valid(&fctx->sf_fid));
@@ -1112,7 +1115,7 @@ M0_INTERNAL int m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
 	return M0_RC(M0_FSO_WAIT);
 }
 
-static int _sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid)
+M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid)
 {
 	struct m0_fom	          *fom;
 	struct m0_chan            *rm_chan;
@@ -1128,21 +1131,19 @@ static int _sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid)
 	fom = &scm->sc_base.cm_sw_update.swu_fom;
 	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, fid);
 	if ( fctx != NULL) {
+		M0_LOG(M0_DEBUG, "fid: "FID_F, FID_P(fid));
 		if (fctx->sf_flock_status == M0_SCM_FILE_LOCKED) {
-			if (m0_ref_read(&fctx->sf_ref) == 0) {
-				m0_ref_get(&fctx->sf_ref);
-				M0_LOG(M0_DEBUG, "fid: "FID_F, FID_P(fid));
-			}
+			m0_ref_get(&fctx->sf_ref);
 			return M0_RC(0);
 		}
 		if (fctx->sf_flock_status == M0_SCM_FILE_LOCK_WAIT) {
 			rc = m0_sns_cm_file_lock_wait(fctx, fom);
-				return M0_RC(rc);
+			return M0_RC(rc);
 		}
 	}
 	rc = m0_sns_cm_fctx_init(scm, fid, &fctx);
 	if (rc == 0) {
-		rc = m0_sns_cm_file_lock(fctx);
+		rc = m0_sns_cm__file_lock(fctx);
 		rm_chan = &fctx->sf_rin.rin_sm.sm_chan;
 		state = fctx->sf_rin.rin_sm.sm_state;
 		m0_rm_owner_lock(&fctx->sf_owner);
@@ -1156,19 +1157,20 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 				  const struct m0_cm_ag_id id_curr,
 				  struct m0_cm_ag_id *id_next)
 {
-	struct m0_sns_cm         *scm = cm2sns(cm);
-	struct m0_fid             fid_start = {0, M0_MDSERVICE_START_FID.f_key};
-	struct m0_fid             fid_curr;
-	struct m0_fid             fid_next = {0, 0};
-	struct m0_cm_ag_id        ag_id;
-	struct m0_layout         *l;
-	struct m0_pdclust_layout *pl = NULL;
-	struct m0_cob_domain     *cdom = scm->sc_it.si_cob_dom;
-	uint64_t                  fsize;
-	uint64_t                  nr_gps = 0;
-	uint64_t                  group = agid2group(&id_curr);
-	uint64_t                  i;
-	int                       rc = 0;
+	struct m0_sns_cm          *scm = cm2sns(cm);
+	struct m0_sns_cm_file_ctx *fctx;
+	struct m0_fid              fid_start = {0, M0_MDSERVICE_START_FID.f_key};
+	struct m0_fid              fid_curr;
+	struct m0_fid              fid_next = {0, 0};
+	struct m0_cm_ag_id         ag_id;
+	struct m0_layout          *l = NULL;
+	struct m0_pdclust_layout  *pl = NULL;
+	struct m0_cob_domain      *cdom = scm->sc_it.si_cob_dom;
+	uint64_t                   fsize;
+	uint64_t                   nr_gps = 0;
+	uint64_t                   group = agid2group(&id_curr);
+	uint64_t                   i;
+	int                        rc = 0;
 	M0_ENTRY();
 
 	M0_PRE(cm != NULL);
@@ -1183,39 +1185,43 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 	do {
 		if (sns_cm_fid_is_valid(&fid_curr)) {
 			m0_mutex_lock(&scm->sc_file_ctx_mutex);
-			rc = _sns_cm_file_lock(scm, &fid_curr);
+			rc = m0_sns_cm_file_lock(scm, &fid_curr);
 			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 			M0_LOG(M0_DEBUG, "file lock rc: %d", rc);
-			if (rc == -EAGAIN) {
+			if (rc == -EAGAIN)
 				return M0_RC(0);
+			if (rc != 0)
+				return M0_RC(rc);
+			fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, &fid_curr);
+			M0_ASSERT(fctx != NULL);
+			if (fctx->sf_layout == NULL) {
+				rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,
+								      &pl, &fsize);
+				if (rc == 0) {
+					fctx->sf_layout = m0_pdl_to_layout(pl);
+					fctx->sf_size = fsize;
+				}
 			}
-
 			if (rc != 0)
 				return M0_RC(rc);
-			rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,
-							      &pl, &fsize);
-			if (rc != 0)
-				return M0_RC(rc);
+			l = fctx->sf_layout;
+			fsize = fctx->sf_size;
+			pl = m0_layout_to_pdl(l);
 			nr_gps = m0_sns_cm_nr_groups(pl, fsize);
 			for (i = group; i < nr_gps; ++i) {
 				M0_LOG(M0_DEBUG, "i: %lu, grps: %lu", i, nr_gps);
 				m0_sns_cm_ag_agid_setup(&fid_curr, i, &ag_id);
 				if (!m0_sns_cm_ag_is_relevant(scm, pl, &ag_id))
 					continue;
-				l = m0_pdl_to_layout(pl);
 				if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l)) {
 					M0_SET0(&ag_id);
-					m0_layout_put(l);
 					return M0_RC(-ENOSPC);
 				}
-				if (pl != NULL)
-					m0_layout_put(m0_pdl_to_layout(pl));
 				*id_next = ag_id;
 				return M0_RC(rc);
 			}
-			m0_layout_put(m0_pdl_to_layout(pl));
 			m0_mutex_lock(&scm->sc_file_ctx_mutex);
-			m0_sns_cm_fid_check_unlock(scm, &fid_curr);
+			m0_sns_cm_file_unlock(scm, &fid_curr);
 			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 		}
 		group = 0;
@@ -1245,14 +1251,15 @@ M0_INTERNAL struct m0_sns_cm_file_ctx
 	return fctx;
 }
 
-M0_INTERNAL void m0_sns_cm_fctx_ag_incr(struct m0_sns_cm *scm,
-					const struct m0_cm_ag_id *id)
+
+M0_INTERNAL struct m0_sns_cm_file_ctx *
+m0_sns_cm_fctx_get(struct m0_sns_cm *scm, const struct m0_cm_ag_id *id)
 {
-	struct m0_fid		*fid;
-	struct m0_sns_cm_file_ctx  *fctx;
+	struct m0_fid		  *fid;
+	struct m0_sns_cm_file_ctx *fctx;
 
 	if (M0_FI_ENABLED("do_nothing"))
-		return;
+		return NULL;
 
 	M0_PRE(scm != NULL && id != NULL);
 
@@ -1264,11 +1271,14 @@ M0_INTERNAL void m0_sns_cm_fctx_ag_incr(struct m0_sns_cm *scm,
 	M0_CNT_INC(fctx->sf_ag_nr);
 	M0_LOG(M0_DEBUG, "ag nr: %lu, FID :"FID_F, fctx->sf_ag_nr,
 	       FID_P(fid));
+	m0_ref_get(&fctx->sf_ref);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+
+	return fctx;
 }
 
-M0_INTERNAL void m0_sns_cm_fctx_ag_dec(struct m0_sns_cm *scm,
-				       const struct m0_cm_ag_id *id)
+M0_INTERNAL void m0_sns_cm_fctx_put(struct m0_sns_cm *scm,
+				    const struct m0_cm_ag_id *id)
 {
 	struct m0_fid		   *fid;
 	struct m0_sns_cm_file_ctx  *fctx;
@@ -1286,13 +1296,12 @@ M0_INTERNAL void m0_sns_cm_fctx_ag_dec(struct m0_sns_cm *scm,
 	M0_CNT_DEC(fctx->sf_ag_nr);
 	M0_LOG(M0_DEBUG, "ag nr: %lu, FID : <%lx : %lx>", fctx->sf_ag_nr,
 	       FID_P(fid));
-	m0_sns_cm_fid_check_unlock(scm, fid);
+	m0_ref_put(&fctx->sf_ref);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
 
-
-M0_INTERNAL void m0_sns_cm_fid_check_unlock(struct m0_sns_cm *scm,
-					    struct m0_fid *fid)
+M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
+				      struct m0_fid *fid)
 {
 	struct m0_sns_cm_file_ctx *fctx;
 
@@ -1307,9 +1316,7 @@ M0_INTERNAL void m0_sns_cm_fid_check_unlock(struct m0_sns_cm *scm,
 	M0_ASSERT(fctx != NULL);
 	M0_LOG(M0_DEBUG, "File with FID : "FID_F" has %lu AGs",
 			 FID_P(&fctx->sf_fid), fctx->sf_ag_nr);
-	if (fctx->sf_ag_nr == 0) {
-		m0_sns_cm_file_unlock(fctx);
-	}
+	m0_sns_cm__file_unlock(fctx);
 }
 
 

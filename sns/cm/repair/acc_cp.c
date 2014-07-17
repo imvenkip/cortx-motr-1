@@ -73,6 +73,7 @@ const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
 		[M0_CCP_SEND_WAIT]     = &m0_sns_cm_cp_send_wait,
 		[M0_CCP_RECV_INIT]     = &m0_sns_cm_cp_recv_init,
 		[M0_CCP_RECV_WAIT]     = &m0_sns_cm_repair_cp_recv_wait,
+		[M0_CCP_FAIL]          = &m0_sns_cm_cp_fail,
 		/* To satisfy the m0_cm_cp_invariant() */
 		[M0_CCP_FINI]          = &m0_sns_cm_cp_fini,
 	},

@@ -148,7 +148,7 @@ enum m0_cm_failure {
 };
 
 enum {
-	CM_RPC_TIMEOUT              = 30, /* seconds */
+	CM_RPC_TIMEOUT              = 20, /* seconds */
 	CM_MAX_NR_RPC_IN_FLIGHT     = 100,
 };
 

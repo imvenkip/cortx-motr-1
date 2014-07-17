@@ -466,14 +466,13 @@ m0_sns_cm_file_attr_fetch_async(struct m0_cm *cm,
 				struct m0_cob_attr *attr)
 {
 	struct m0_reqh *reqh = cm->cm_service.rs_reqh;
-	int             rc;
 
 	M0_PRE(cm != NULL);
 	M0_PRE(gfid != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	rc = m0_ios_mds_getattr_async(reqh, gfid, attr, &getattr_callback, cm);
-	return rc;
+	return m0_ios_mds_getattr_async(reqh, gfid, attr, &getattr_callback,
+					cm);
 }
 
 static void layout_callback(void *arg, int rc)
@@ -497,18 +496,16 @@ m0_sns_cm_file_layout_fetch_async(struct m0_cm *cm,
 				  uint64_t lid,
 				  struct m0_layout **l_out)
 {
-	struct m0_layout_domain  *ldom;
-	struct m0_reqh           *reqh = cm->cm_service.rs_reqh;
-	int                       rc;
+	struct m0_layout_domain *ldom;
+	struct m0_reqh          *reqh = cm->cm_service.rs_reqh;
 
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	ldom = &reqh->rh_ldom;
 
-	rc = m0_ios_mds_layout_get_async(reqh, ldom, lid, l_out,
-					 &layout_callback, cm);
-	return rc;
+	return m0_ios_mds_layout_get_async(reqh, ldom, lid, l_out,
+					   &layout_callback, cm);
 }
 
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,

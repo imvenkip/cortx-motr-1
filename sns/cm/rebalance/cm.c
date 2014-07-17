@@ -64,32 +64,27 @@ static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 
 static int rebalance_cm_prepare(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm = cm2sns(cm);
-	int                    rc;
+	struct m0_sns_cm *scm = cm2sns(cm);
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == SNS_REBALANCE);
 
-        rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				     M0_PNDS_SNS_REBALANCING);
-	if (rc != 0)
-		return rc;
 	scm->sc_helpers = &rebalance_helpers;
-	return m0_sns_cm_prepare(cm);
+        return m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				       M0_PNDS_SNS_REBALANCING) ?:
+	       m0_sns_cm_prepare(cm);
+
 }
 
 static int rebalance_cm_stop(struct m0_cm *cm)
 {
-	struct m0_sns_cm      *scm = cm2sns(cm);;
-	int                    rc;
+	struct m0_sns_cm *scm = cm2sns(cm);
 
 	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
 
-        rc = m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				     M0_PNDS_ONLINE);
-	if (rc != 0)
-		return rc;
-	return m0_sns_cm_stop(cm);
+	return m0_sns_cm_stop(cm) ?:
+	       m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
+				       M0_PNDS_ONLINE);
 }
 
 /**

@@ -103,13 +103,16 @@ M0_INTERNAL void m0_poolmach_store_credit(struct m0_poolmach     *pm,
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(state));
 	m0_be_tx_credit_add(accum,
 			    &M0_BE_TX_CREDIT(state->pst_nr_nodes,
-				sizeof (*state->pst_nodes_array)));
+				sizeof *state->pst_nodes_array *
+				state->pst_nr_nodes));
 	m0_be_tx_credit_add(accum,
 			    &M0_BE_TX_CREDIT(state->pst_nr_devices,
-				sizeof (*state->pst_devices_array)));
+				sizeof *state->pst_devices_array *
+				state->pst_nr_devices));
 	m0_be_tx_credit_add(accum,
 			&M0_BE_TX_CREDIT(state->pst_max_device_failures,
-				sizeof (*state->pst_spare_usage_array)));
+				sizeof *state->pst_spare_usage_array *
+				state->pst_max_device_failures));
 	M0_BE_ALLOC_CREDIT_PTR(event_link, pm->pm_be_seg, accum);
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(*event_link));
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(struct m0_tlink));

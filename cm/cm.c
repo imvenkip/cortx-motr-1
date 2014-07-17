@@ -728,7 +728,9 @@ M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
 
 M0_INTERNAL int m0_cm_prepare_init(struct m0_cm *cm)
 {
-	int rc;
+	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
+	struct m0_rpc_machine  *rmach;
+	int                     rc;
 
 	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_IDLE);
@@ -739,6 +741,12 @@ M0_INTERNAL int m0_cm_prepare_init(struct m0_cm *cm)
 		goto out;
 	}
 	rc = cm->cm_ops->cmo_prepare(cm);
+	if (rc == 0) {
+		rmach = m0_cm_rpc_machine_find(reqh);
+		rc = cm_replicas_connect(cm, rmach, reqh);
+		if (rc == -ENOENT)
+			rc = 0;
+	}
 out:
 	m0_cm_unlock(cm);
 	return rc;
@@ -794,8 +802,6 @@ M0_INTERNAL int m0_cm_prepare_done(struct m0_cm *cm)
 
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 {
-	struct m0_rpc_machine  *rmach;
-	struct m0_reqh         *reqh = cm->cm_service.rs_reqh;
 	int                     rc;
 
 	M0_ENTRY("cm: %p", cm);
@@ -807,12 +813,8 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(m0_cm_invariant(cm));
 
 	cm->cm_ready_fops_recvd = 0;
-        rmach = m0_cm_rpc_machine_find(reqh);
-        rc = cm_replicas_connect(cm, rmach, reqh);
-        if (rc == 0 || rc == -ENOENT) {
-		cm_ast_run_fom_init(cm);
-		rc = m0_cm_sw_remote_update(cm);
-	}
+	cm_ast_run_fom_init(cm);
+	rc = m0_cm_sw_remote_update(cm);
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
 

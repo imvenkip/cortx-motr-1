@@ -130,6 +130,16 @@ M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 	return cp->c_ops->co_phase_next(cp);
 }
 
+M0_INTERNAL int m0_sns_cm_cp_fail(struct m0_cm_cp *cp)
+{
+	M0_PRE(m0_fom_phase(&cp->c_fom) == M0_CCP_FAIL);
+
+	cp->c_rc = m0_fom_rc(&cp->c_fom);
+	m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
+
+	return M0_FSO_WAIT;
+}
+
 static int next[] = {
 	[M0_CCP_INIT]        = M0_CCP_READ,
 	[M0_CCP_READ]        = M0_CCP_IO_WAIT,
@@ -261,6 +271,7 @@ const struct m0_cm_cp_ops m0_sns_cm_repair_cp_ops = {
 		[M0_CCP_SEND_WAIT]    = &m0_sns_cm_cp_send_wait,
 		[M0_CCP_RECV_INIT]    = &m0_sns_cm_cp_recv_init,
 		[M0_CCP_RECV_WAIT]    = &m0_sns_cm_repair_cp_recv_wait,
+		[M0_CCP_FAIL]         = &m0_sns_cm_cp_fail,
 		/* To satisfy the m0_cm_cp_invariant() */
 		[M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
 	},
@@ -284,6 +295,7 @@ const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops = {
 		[M0_CCP_SEND_WAIT]    = &m0_sns_cm_cp_send_wait,
 		[M0_CCP_RECV_INIT]    = &m0_sns_cm_cp_recv_init,
 		[M0_CCP_RECV_WAIT]    = &m0_sns_cm_rebalance_cp_recv_wait,
+		[M0_CCP_FAIL]         = &m0_sns_cm_cp_fail,
 		/* To satisfy the m0_cm_cp_invariant() */
 		[M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
 	},

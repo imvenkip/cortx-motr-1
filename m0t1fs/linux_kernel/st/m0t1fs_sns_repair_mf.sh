@@ -13,9 +13,9 @@
 # because ios need to hash gfid to mds. In COPYTOOL
 # mode, filename is the string format of gfid.
 ###################################################
-file1_to_repair=0:10000
-file2_to_repair=0:10001
-file3_to_repair=0:10002
+file1=0:10000
+file2=0:10001
+file3=0:10002
 
 N=3
 K=3
@@ -35,27 +35,14 @@ sns_repair_test()
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
-	dd if=/dev/urandom bs=$unit_size count=50 \
-	   of=$MERO_M0T1FS_MOUNT_DIR/$file1_to_repair >> $MERO_TEST_LOGFILE || {
-		echo "Failed: dd failed.."
-		unmount_and_clean &>> $MERO_TEST_LOGFILE
-		return 1
-	}
 
+	for f in $file1 $file2 $file3; do
+		touch_file $MERO_M0T1FS_MOUNT_DIR/$f $stride
+	done
 
-	dd if=/dev/urandom bs=$unit_size count=50 \
-	   of=$MERO_M0T1FS_MOUNT_DIR/$file2_to_repair >> $MERO_TEST_LOGFILE || {
-		echo "Failed: dd failed.."
-		unmount_and_clean &>> $MERO_TEST_LOGFILE
-		return 1
-	}
-
-	dd if=/dev/urandom bs=$unit_size count=50 \
-	   of=$MERO_M0T1FS_MOUNT_DIR/$file3_to_repair >> $MERO_TEST_LOGFILE || {
-		echo "Failed: dd failed.."
-		unmount_and_clean &>> $MERO_TEST_LOGFILE
-		return 1
-	}
+	_dd $file1 50
+	_dd $file2 70
+	_dd $file3 30
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"

@@ -89,6 +89,8 @@ M0_INTERNAL uint64_t agid2group(const struct m0_cm_ag_id *id);
 M0_INTERNAL void m0_sns_cm_ag_agid_setup(const struct m0_fid *gob_fid, uint64_t group,
 					 struct m0_cm_ag_id *agid);
 
+M0_INTERNAL struct m0_cm *snsag2cm(const struct m0_sns_cm_ag *sag);
+
 /** @} SNSCMAG */
 
 #endif /* __MERO_SNS_CM_AG_H__ */

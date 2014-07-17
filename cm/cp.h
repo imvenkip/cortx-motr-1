@@ -136,6 +136,8 @@ enum m0_cm_cp_phase {
 	/** Wait for zero copy to be completed. */
 	M0_CCP_RECV_WAIT,
 
+	M0_CCP_FAIL,
+
 	M0_CCP_NR
 };
 
@@ -199,6 +201,8 @@ struct m0_cm_cp {
 	 */
 	struct m0_chan            c_reply_wait;
 	struct m0_mutex           c_reply_wait_mutex;
+
+	int                       c_rc;
 
 	uint64_t		  c_magix;
 };

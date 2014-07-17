@@ -41,7 +41,7 @@
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
-
+#include "mdservice/md_fid.h"
 #include "sns/cm/repair/ag.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/repair/ut/cp_common.h"
@@ -268,7 +268,7 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 	dbenv_cob_domain_get(&dbenv, &cdom);
 	gfid.f_container = 0;
 	for (i = 0; i < nr_files; ++i) {
-		gfid.f_key = ITER_GOB_KEY_START + i;
+		gfid.f_key = M0_MDSERVICE_START_FID.f_key + i;
 		cob_idx = 0;
 		for (j = 1; j <= nr_cobs; ++j) {
 			cob_create(dbenv, cdom, j, &gfid, cob_idx);
@@ -284,19 +284,21 @@ static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 
 	for (i = 0; i < nr_files; ++i) {
 		for (j = 1; j <= nr_cobs; ++j)
-			cob_delete(j, ITER_GOB_KEY_START + i);
+			cob_delete(j, M0_MDSERVICE_START_FID.f_key + i);
 	}
 }
 
 static int iter_run(uint64_t pool_width, uint64_t nr_files)
 {
-	struct m0_sns_cm_cp  scp;
-	struct m0_sns_cm_ag *sag;
-	int                  rc;
+	struct m0_sns_cm_cp        scp;
+	struct m0_sns_cm_ag       *sag;
+	struct m0_sns_cm_file_ctx  fctx;
+	int                        rc;
 
 	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
 	m0_fi_enable("iter_fid_next", "ut_layout_fsize_fetch");
-	m0_fi_enable("m0_sns_cm_fctx_ag_incr", "do_nothing");
+	m0_fi_enable("m0_sns_cm_fctx_get", "do_nothing");
+	m0_fi_enable("m0_sns_cm_file_unlock", "do_nothing");
 
 	cobs_create(nr_files, pool_width);
 	m0_cm_lock(cm);
@@ -305,6 +307,7 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 		scp.sc_base.c_ops = &m0_sns_cm_repair_cp_ops;
 		m0_cm_cp_only_init(cm, &scp.sc_base);
 		scm->sc_it.si_cp = &scp;
+		scm->sc_it.si_fc.sfc_fctx = &fctx;
 		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
 		if (rc == M0_FSO_AGAIN) {
 			M0_UT_ASSERT(cp_verify(&scp));
@@ -315,7 +318,8 @@ static int iter_run(uint64_t pool_width, uint64_t nr_files)
 		m0_cm_cp_only_fini(&scp.sc_base);
 	} while (rc == M0_FSO_AGAIN);
 	m0_cm_unlock(cm);
-	m0_fi_disable("m0_sns_cm_fctx_ag_incr", "do_nothing");
+	m0_fi_disable("m0_sns_cm_file_unlock", "do_nothing");
+	m0_fi_disable("m0_sns_cm_fctx_get", "do_nothing");
 	m0_fi_disable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
 	m0_fi_disable("iter_fid_next", "ut_layout_fsize_fetch");
 
@@ -328,11 +332,11 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 
 	m0_cm_lock(cm);
 	/* Destroy previously created aggregation groups manually. */
-	m0_fi_enable("m0_sns_cm_fctx_ag_dec", "do_nothing");
-	m0_fi_enable("m0_sns_cm_fid_check_unlock", "do_nothing");
+	m0_fi_enable("m0_sns_cm_fctx_put", "do_nothing");
+	m0_fi_enable("m0_sns_cm_file_unlock", "do_nothing");
 	ag_destroy();
-	m0_fi_disable("m0_sns_cm_fid_check_unlock", "do_nothing");
-	m0_fi_disable("m0_sns_cm_fctx_ag_dec", "do_nothing");
+	m0_fi_disable("m0_sns_cm_file_unlock", "do_nothing");
+	m0_fi_disable("m0_sns_cm_fctx_put", "do_nothing");
 	rc = cm->cm_ops->cmo_stop(cm);
 	M0_UT_ASSERT(rc == 0);
 	m0_cm_unlock(cm);

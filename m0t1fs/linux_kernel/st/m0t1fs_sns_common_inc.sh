@@ -61,3 +61,24 @@ sns_rebalance()
 
 	return 0
 }
+
+_dd()
+{
+	local FILE=$1
+	local COUNT=$2
+
+	dd if=/dev/urandom bs=$unit_size count=$COUNT \
+	   of=$MERO_M0T1FS_MOUNT_DIR/$FILE >> $MERO_TEST_LOGFILE || {
+		echo "Failed: dd failed.."
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return 1
+	}
+}
+
+_md5sum()
+{
+	local FILE=$1
+
+	md5sum $MERO_M0T1FS_MOUNT_DIR/$FILE | \
+		tee $MERO_M0T1FS_TEST_DIR/md5
+}
