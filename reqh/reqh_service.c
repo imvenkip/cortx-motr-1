@@ -88,8 +88,9 @@ static struct m0_sm_state_descr service_states[] = {
 		.sd_allowed   = M0_BITS(M0_RST_STOPPED)
 	},
 	[M0_RST_STOPPED] = {
-		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_flags     = M0_SDF_FINAL,
 		.sd_name      = "Stopped",
+		.sd_allowed   = M0_BITS(M0_RST_STARTING)
 	},
 	[M0_RST_FAILED] = {
 		.sd_flags     = M0_SDF_TERMINAL,
@@ -180,17 +181,7 @@ static void reqh_service_starting_common(struct m0_reqh *reqh,
 					 unsigned key)
 {
 	reqh_service_state_set(service, M0_RST_STARTING);
-	/*
-	 * We want to track these services externally so add them to the list
-	 * just as soon as they enter the STARTING state.
-	 * They will be left on the list until they get fini'd.
-	 *
-	 * Services are added to the head of the list because
-	 * they should be fini'd in the reverse order. rpcservice
-	 * is started first and rmservice should be stopped before
-	 * rpcservice.
-	 */
-	m0_reqh_svc_tlist_add(&reqh->rh_services, service);
+
 	/*
 	 * NOTE: The key is required to be set before 'rso_start'
 	 * as some services can call m0_fom_init() directly in
@@ -382,10 +373,16 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
 	if (uuid != NULL)
 		service->rs_service_uuid = *uuid;
 	service->rs_reqh = reqh;
-	m0_reqh_svc_tlink_init(service);
 	m0_mutex_init(&service->rs_mutex);
 	m0_chan_init(&service->rs_rev_conn_wait, &service->rs_mutex);
 	reqh_service_state_set(service, M0_RST_INITIALISED);
+
+	/*
+	 * We want to track these services externally so add them to the list
+	 * just as soon as they enter the M0_RST_INITIALISED state.
+	 * They will be left on the list until they get fini'd.
+	 */
+	m0_reqh_svc_tlink_init_at(service, &reqh->rh_services);
 
 	/** @todo: Need to pass the service uuid "hi" & "low"
 	   once available
@@ -409,10 +406,9 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL && m0_reqh_service_bob_check(service));
 
-	m0_reqh_svc_tlist_remove(service);
+	m0_reqh_svc_tlink_del_fini(service);
 	m0_addb_ctx_fini(&service->rs_addb_ctx);
 	m0_reqh_service_bob_fini(service);
-	m0_reqh_svc_tlink_fini(service);
 	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
 	m0_sm_fini(&service->rs_sm);
 	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
