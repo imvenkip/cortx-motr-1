@@ -851,7 +851,7 @@ static int cs_storage_init(const char *stob_type,
 				M0_LOG(M0_ERROR, "m0_stob_domain_create_or_init: rc=%d",
 				       rc);
 		} else {
-			M0_LOG(M0_WARN, "Found alive filesystem, do nothing.");
+			M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");
 		}
 	} else {
 		if (rc != 0)
