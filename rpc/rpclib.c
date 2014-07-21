@@ -190,8 +190,8 @@ int m0_rpc_client_stop(struct m0_rpc_client_ctx *cctx)
 	if (rc1 != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc1);
 
-	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	m0_reqh_services_terminate(&cctx->rcx_reqh);
+	m0_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	m0_reqh_fini(&cctx->rcx_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 

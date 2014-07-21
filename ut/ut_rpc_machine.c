@@ -127,8 +127,6 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_reqh_idle_wait(&ctx->rmc_reqh);
 	m0_reqh_pre_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
-	m0_rpc_machine_fini(&ctx->rmc_rpc);
-	m0_reqh_dbenv_fini(&ctx->rmc_reqh);
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
 	rc = m0_mdstore_destroy(&ctx->rmc_mdstore, grp);
 	M0_ASSERT(rc == 0);
@@ -138,6 +136,7 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_be_ut_backend_fini(&ctx->rmc_ut_be);
 	m0_free(ctx->rmc_ut_be.but_stob_domain_location);
 	m0_reqh_post_storage_fini_svcs_stop(&ctx->rmc_reqh);
+	m0_rpc_machine_fini(&ctx->rmc_rpc);
 	m0_reqh_fini(&ctx->rmc_reqh);
 
 	m0_rpc_net_buffer_pool_cleanup(&ctx->rmc_bufpool);

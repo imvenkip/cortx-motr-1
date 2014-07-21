@@ -100,8 +100,8 @@ M0_INTERNAL void m0_ut_rpc_machine_stop(struct m0_rpc_machine *mach)
 {
 	struct m0_net_xprt *xprt = net_xprt(mach);
 
-	m0_rpc_machine_fini(mach);
 	m0_reqh_services_terminate(&g_reqh);
+	m0_rpc_machine_fini(mach);
 	m0_reqh_fini(&g_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&g_buf_pool);
 	net_fini(xprt, &g_net_dom);

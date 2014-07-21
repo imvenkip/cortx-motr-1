@@ -1099,7 +1099,6 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY();
 
-	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0_rpc_machine_fini(&csb->csb_rpc_machine);
 	m0_reqh_fini(&csb->csb_reqh);
 	m0_dbenv_fini(&csb->csb_dbenv);
@@ -1229,10 +1228,12 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = m0t1fs_sb_layouts_init(csb);
 	if (rc != 0)
-		goto err_poolmach_destroy;
+		goto err_services_terminate;
 
 	return M0_RC(rc);
 
+err_services_terminate:
+	m0_reqh_services_terminate(&csb->csb_reqh);
 err_poolmach_destroy:
 	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 err_pool_fini:
@@ -1260,6 +1261,7 @@ err_return:
 static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 {
 	m0t1fs_sb_layouts_fini(csb);
+	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_poolmach_destroy(csb->csb_pool.po_mach);
 	m0_pool_fini(&csb->csb_pool);
 	/* @todo Make a separate unconfigure api and do this in that */

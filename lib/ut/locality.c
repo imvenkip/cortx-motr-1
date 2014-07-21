@@ -71,7 +71,7 @@ static void _reqh_init(void)
 
 static void _reqh_fini(void)
 {
-	m0_reqh_shutdown_wait(&reqh);
+	m0_reqh_shutdown(&reqh);
 	m0_reqh_services_terminate(&reqh);
 	m0_reqh_fini(&reqh);
 }

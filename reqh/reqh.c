@@ -492,6 +492,7 @@ static void __reqh_svcs_stop(struct m0_reqh *reqh, unsigned level)
 		if (M0_IN(m0_reqh_service_state_get(service),
 			  (M0_RST_STARTED, M0_RST_STOPPING))) {
 			m0_reqh_service_prepare_to_stop(service);
+			m0_reqh_idle_wait_for(reqh, service);
 			m0_reqh_service_stop(service);
 		}
 		m0_reqh_service_fini(service);

@@ -285,8 +285,6 @@ static void server_fini(struct m0_stob_domain *bdom,
 	m0_reqh_idle_wait(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
 
-	m0_reqh_dbenv_fini(&reqh);
-
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_mdstore_destroy(&srv_mdstore, grp);
 	M0_UT_ASSERT(rc == 0);
