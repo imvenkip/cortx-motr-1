@@ -49,7 +49,7 @@ EOF
 # We need TEMP as the `eval set --' would nuke the return value of getopt.
 TEMP=$(getopt -o ha:l: --long help,api:,libmero: -n "$PROG_NAME" -- "$@")
 
-if [ $? != 0 ] ; then exit 1 ; fi
+[ $? -eq 0 ] || exit 1
 
 # Note the quotes around `$TEMP': they are essential!
 eval set -- "$TEMP"
@@ -69,38 +69,39 @@ done
 # Main
 #
 
-if ! test -e "$libmero"; then
-    # do nothing if libmero-altogether.so doesn't exist
-    exit 0
-fi
+[[ -e $libmero ]] || exit 0 # do nothing if libmero-altogether.so doesn't exist
 
-echo -n "Checking mero public API...   "
+echo -n 'Checking mero public API... '
 
 # exit immediately if one the commands exits with a non-zero status
 set -e
 
-func_list=$(mktemp)
-
 # to have identical sorting order, we need to sort file's content using the same
 # locale
+_sort() { LC_ALL=C sort; }
 
-nm "$libmero" | awk '$2 == "T" && $3 ~ /^m0_.*|tlist/ {print $3}' | LC_ALL=C sort > $func_list
+func_list=$(mktemp)
+nm "$libmero" | awk '$2 == "T" && $3 ~ /^m0_.*|tlist/ {print $3}' |
+	_sort > $func_list
 
 pub_api_sorted=$(mktemp)
-LC_ALL=C sort $pub_api > $pub_api_sorted
+sed -e '/^#/d' -e '/^$/d' -e 's/^\*//' $pub_api | _sort > $pub_api_sorted
 
-new_funcs=$(diff -u $pub_api_sorted $func_list | grep -E '^\+\w' || true)
-
-if [[ -n  $new_funcs ]] ; then
-    echo "FAIL"
-    echo "WARNING: Did you forget to add the following public functions"
-    echo "         to the '$pub_api' list or to add M0_INTERNAL prefix to them?"
-    echo ""
-    echo "$new_funcs"
-else
-    echo "OK"
+ids_unexpected=$(comm -13 $pub_api_sorted $func_list)
+ids_missing=$(comm -23 $pub_api_sorted $func_list)
+if [[ -n $ids_missing ]]; then
+	tolerated=$(mktemp)
+	sed -n 's/^\*//p' $pub_api | _sort > $tolerated
+	if [[ -s $tolerated ]]; then
+		ids_missing=$(echo "$ids_missing" | comm -23 - $tolerated)
+	fi
 fi
 
-rm $func_list $pub_api_sorted
+[[ -n ${ids_unexpected}${ids_missing} ]] && echo FAIL || echo OK
 
-exit 0
+[[ -z $ids_unexpected ]] ||
+	echo "*WARNING* Not found in \`$pub_api':" $ids_unexpected
+[[ -z $ids_missing ]] ||
+	echo "*WARNING* Present in \`$pub_api' but not defined:" $ids_missing
+
+rm $func_list $pub_api_sorted ${tolerated:-}

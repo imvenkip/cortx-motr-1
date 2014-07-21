@@ -36,7 +36,7 @@ _make() {
     trap "rm $OUT" 0
     make ${MAKE_OPTS:-} $TARGET 2>&1 | tee $OUT
     [ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
-    if grep 'WARNING:' $OUT; then
+    if grep 'WARNING' $OUT; then
 	die 'WARNING in make output is treated as error'
     fi
 }
