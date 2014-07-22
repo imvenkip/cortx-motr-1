@@ -138,16 +138,6 @@ void m0_fop_put0(struct m0_fop *fop);
 void m0_fop_put_lock(struct m0_fop *fop);
 
 /**
- * Takes rpc machine lock.
- */
-M0_INTERNAL void m0_fop_rpc_lock(struct m0_fop *fop);
-
-/**
- * Releases rpc machine lock.
- */
-M0_INTERNAL void m0_fop_rpc_unlock(struct m0_fop *fop);
-
-/**
    Allocates and initialises fop object
 
    @param fopt fop type to assign to this fop object
@@ -173,6 +163,7 @@ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop);
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop);
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item);
 void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach);
+struct m0_rpc_machine *m0_fop_rpc_machine_get(const struct m0_fop *fop);
 uint32_t m0_fop_opcode(const struct m0_fop *fop);
 M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop);
 

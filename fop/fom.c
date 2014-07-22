@@ -1022,6 +1022,8 @@ void m0_fom_fini(struct m0_fom *fom)
 	struct m0_reqh             *reqh;
 	struct m0_fop_rate_monitor *fop_rate_monitor;
 
+	M0_ENTRY("fom: %p fop %p rep fop %p", fom, fom->fo_fop,
+					      fom->fo_rep_fop);
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_FINISH);
 	M0_PRE(fom->fo_pending == NULL);
 
@@ -1061,6 +1063,7 @@ void m0_fom_fini(struct m0_fom *fom)
 		M0_CNT_INC(fop_rate_monitor->frm_count);
 	if (m0_fom_locality_dec(fom))
 		m0_chan_broadcast_lock(&reqh->rh_sm_grp.s_chan);
+	M0_LEAVE();
 }
 M0_EXPORTED(m0_fom_fini);
 

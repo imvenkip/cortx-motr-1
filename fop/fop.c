@@ -32,6 +32,7 @@
 #include "lib/errno.h"
 #include "mero/magic.h"
 #include "rpc/rpc_machine.h" /* for ri_rmachine */
+#include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_{lock|unlock} */
 #include "fop/fop.h"
 #include "fop/fop_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
@@ -63,16 +64,6 @@ M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop)
 static size_t fop_data_size(const struct m0_fop *fop)
 {
 	return fop->f_type->ft_xt->xct_sizeof;
-}
-
-M0_INTERNAL void m0_fop_rpc_lock(struct m0_fop *fop)
-{
-	m0_sm_group_lock(&fop->f_item.ri_rmachine->rm_sm_grp);
-}
-
-M0_INTERNAL void m0_fop_rpc_unlock(struct m0_fop *fop)
-{
-	m0_sm_group_unlock(&fop->f_item.ri_rmachine->rm_sm_grp);
 }
 
 M0_INTERNAL bool m0_fop_rpc_is_locked(struct m0_fop *fop)
@@ -192,9 +183,14 @@ M0_EXPORTED(m0_fop_put0);
 
 void m0_fop_put_lock(struct m0_fop *fop)
 {
-	m0_fop_rpc_lock(fop);
+	struct m0_rpc_machine *mach;
+
+	M0_PRE(m0_ref_read(&fop->f_ref) > 0);
+
+	mach = m0_fop_rpc_machine_get(fop);
+	m0_rpc_machine_lock(mach);
 	m0_fop_put(fop);
-	m0_fop_rpc_unlock(fop);
+	m0_rpc_machine_unlock(mach);
 }
 M0_EXPORTED(m0_fop_put_lock);
 
@@ -335,6 +331,13 @@ void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach)
 	M0_PRE(mach != NULL);
 
 	fop->f_item.ri_rmachine = mach;
+}
+
+struct m0_rpc_machine *m0_fop_rpc_machine_get(const struct m0_fop *fop)
+{
+	M0_PRE(fop != NULL);
+
+	return fop->f_item.ri_rmachine;
 }
 
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type

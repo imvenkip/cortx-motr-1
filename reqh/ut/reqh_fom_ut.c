@@ -281,8 +281,6 @@ static void server_fini(struct m0_stob_domain *bdom,
 					       reqh_ut_service));
 	/* reqh_ut_service is finalised by m0_reqh_services_terminate(). */
 	m0_reqh_services_terminate(&reqh);
-
-	m0_reqh_idle_wait(&reqh);
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);

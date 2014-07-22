@@ -112,6 +112,7 @@ m0_rpc_client_stop
 m0_rpc_conn_destroy
 m0_rpc_item_to_fop
 m0_fop_rpc_machine_set
+m0_fop_rpc_machine_get
 m0_rpc_item_delete
 m0_rpc_item_init
 m0_rpc_item_fini
