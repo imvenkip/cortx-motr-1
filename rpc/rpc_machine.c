@@ -299,7 +299,7 @@ static void cleanup_incoming_connections(struct m0_rpc_machine *machine)
 
 	m0_tl_for(rpc_conn, &machine->rm_incoming_conns, conn) {
 		m0_rpc_conn_cleanup_all_sessions(conn);
-		M0_LOG(M0_WARN, "Aborting conn %llu",
+		M0_LOG(M0_INFO, "Aborting conn %llu",
 			(unsigned long long)conn->c_sender_id);
 		(void)m0_rpc_rcv_conn_terminate(conn);
 		m0_rpc_conn_terminate_reply_sent(conn);

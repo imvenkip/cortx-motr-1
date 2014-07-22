@@ -860,7 +860,7 @@ M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn)
 	m0_tl_for(rpc_session, &conn->c_sessions, session) {
 		if (session->s_session_id == SESSION_ID_0)
 			continue;
-		M0_LOG(M0_WARN, "Aborting session %llu",
+		M0_LOG(M0_INFO, "Aborting session %llu",
 			(unsigned long long)session->s_session_id);
 		m0_sm_timedwait(&session->s_sm, M0_BITS(M0_RPC_SESSION_IDLE),
 				M0_TIME_NEVER);
@@ -868,7 +868,7 @@ M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn)
 		m0_rpc_session_fini_locked(session);
 		m0_free(session);
 	} m0_tl_endfor;
-	M0_ASSERT(rpc_session_tlist_length(&conn->c_sessions) == 1);
+	M0_POST(rpc_session_tlist_length(&conn->c_sessions) == 1);
 }
 
 M0_INTERNAL int m0_rpc_rcv_conn_terminate(struct m0_rpc_conn *conn)
