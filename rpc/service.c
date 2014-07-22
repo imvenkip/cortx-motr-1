@@ -118,12 +118,9 @@ M0_EXPORTED(m0_rpc_service_type);
 
 M0_INTERNAL int m0_rpc_service_register(void)
 {
-	int rc;
-
 	m0_addb_ctx_type_register(&m0_addb_ct_rpc_serv);
 	m0_rev_conn_fom_type_init();
-	rc = m0_reqh_service_type_register(&m0_rpc_service_type);
-	return rc;
+	return m0_reqh_service_type_register(&m0_rpc_service_type);
 }
 
 M0_INTERNAL void m0_rpc_service_unregister(void)
@@ -208,13 +205,8 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 	M0_PRE(service->rs_type == &m0_rpc_service_type);
 
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
-
-	/*
-	 * It is assumed that following functions log errors internally
-	 * and hence their return value is ignored.
-	 */
-	m0_tl_for (rev_conn, &svc->rps_rev_conns, revc) {
-		rev_conn_tlink_del_fini(revc);
+	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {
+		rev_conn_tlink_fini(revc);
 		rc = m0_rpc_session_destroy(revc->rcf_sess,
 				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 		if (rc != 0)
@@ -223,13 +215,13 @@ m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 		rc = m0_rpc_conn_destroy(revc->rcf_conn,
 				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
 		if (rc != 0)
-			M0_LOG(M0_ERROR, "Failed to terminate "
-			       "connection %d", rc);
+			M0_LOG(M0_ERROR, "Failed to terminate connection %d",
+			       rc);
 		m0_free(revc->rcf_sess);
 		m0_free(revc->rcf_rem_ep);
 		m0_free(revc->rcf_conn);
 		m0_free(revc);
-	} m0_tl_endfor;
+	}
 }
 
 M0_INTERNAL struct m0_reqh_service *
