@@ -118,7 +118,6 @@ struct rm_context {
 	struct m0_mutex            rc_mutex;
 	struct m0_ut_rpc_mach_ctx  rc_rmach_ctx;
 	struct m0_reqh_service    *rc_reqh_svc;
-	struct m0_net_end_point   *rc_ep[SERVER_NR];
 	struct m0_rpc_conn         rc_conn[SERVER_NR];
 	struct m0_rpc_session      rc_sess[SERVER_NR];
 	struct m0_clink           *rc_rev_sess_wait;

@@ -21,6 +21,7 @@
 #include "lib/memory.h"
 #include "lib/cookie.h"
 #include "lib/misc.h"
+#include "rpc/rpclib.h"           /* m0_rpc_client_connect */
 #include "ut/ut.h"
 #include "lib/ub.h"
 #include "rm/rm.h"
@@ -177,26 +178,14 @@ void rm_ctx_fini(struct rm_context *rmctx)
 
 void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest)
 {
-	struct m0_net_end_point *ep;
-	int		         rc;
+	enum { MAX_RPCS_IN_FLIGHT = 15 };
+	int rc;
 
-	/*
-	 * Create a local end point to communicate with remote server.
-	 */
-	rc = m0_net_end_point_create(&ep,
-				     &src->rc_rmach_ctx.rmc_rpc.rm_tm,
-				     dest->rc_rmach_ctx.rmc_ep_addr);
-	M0_UT_ASSERT(rc == 0);
-	src->rc_ep[dest->rc_id] = ep;
-
-	rc = m0_rpc_conn_create(&src->rc_conn[dest->rc_id],
-				ep, &src->rc_rmach_ctx.rmc_rpc, 15,
-				M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_rpc_session_create(&src->rc_sess[dest->rc_id],
-				   &src->rc_conn[dest->rc_id],
-				   M0_TIME_NEVER);
+	rc = m0_rpc_client_connect(&src->rc_conn[dest->rc_id],
+				   &src->rc_sess[dest->rc_id],
+				   &src->rc_rmach_ctx.rmc_rpc,
+				   dest->rc_rmach_ctx.rmc_ep_addr,
+				   MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -209,8 +198,6 @@ void rm_ctx_disconnect(struct rm_context *src, const struct rm_context *dest)
 
 	rc = m0_rpc_conn_destroy(&src->rc_conn[dest->rc_id], M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-
-	m0_net_end_point_put(src->rc_ep[dest->rc_id]);
 }
 
 void rm_ctx_server_start(enum rm_server srv_id)
