@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
 #else
 		rc = m0_rpc_client_call(req, session, NULL, 0);
 		if (rc != 0) {
-			m0_fop_put(req);
+			m0_fop_put_lock(req);
 			return rc;
 		}
 
@@ -415,7 +415,7 @@ int main(int argc, char *argv[])
 					(int)set_fop_rep->fps_rc);
 		}
 #endif
-		m0_fop_put(req);
+		m0_fop_put_lock(req);
 		if (rc != 0)
 			return rc;
 	}

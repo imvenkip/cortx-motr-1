@@ -806,7 +806,7 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 		else
 			rc = rep_fop_cob->b_rc;
 	}
-	m0_fop_put(req);
+	m0_fop_put_lock(req);
 	return rc;
 }
 
@@ -894,7 +894,7 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 		}
 	}
 
-	m0_fop_put(req);
+	m0_fop_put_lock(req);
 	return M0_RC(rc);
 }
 
@@ -1026,7 +1026,7 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 	rc = _rpc_post(req, &imc->imc_session);
 	M0_LOG(M0_DEBUG, "ios getattr sent asynchronously: rc = %d", rc);
 
-	m0_fop_put(req);
+	m0_fop_put_lock(req);
 	return rc;
 }
 
@@ -1139,7 +1139,7 @@ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
 	rc = _rpc_post(req, &imc->imc_session);
 	M0_LOG(M0_DEBUG, "ios getlayout for %llu sent: rc %d",
 			 (unsigned long long)lid, rc);
-	m0_fop_put(req);
+	m0_fop_put_lock(req);
 	return M0_RC(rc);
 }
 

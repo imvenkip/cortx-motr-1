@@ -315,7 +315,7 @@ static void fop_send(struct m0_rpc_session *session, size_t msg_id)
 
 	rc = m0_rpc_post(item);
 	M0_UB_ASSERT(rc == 0);
-	m0_fop_put(fop);
+	m0_fop_put_lock(fop);
 }
 
 /* ----------------------------------------------------------------

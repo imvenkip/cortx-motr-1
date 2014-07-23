@@ -4992,7 +4992,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
 			io_req_fop_fini(irfop);
 			/* see io_req_fop_release() */
-			m0_fop_put(&irfop->irf_iofop.if_fop);
+			m0_fop_put_lock(&irfop->irf_iofop.if_fop);
 		}
 
 		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_cob_io_finish,

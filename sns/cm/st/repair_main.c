@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 				&trigger_fop_rpc_item_ops,
 				0 /* deadline */);
 		M0_ASSERT(rc == 0);
-		m0_fop_put(fop);
+		m0_fop_put_lock(fop);
 	}
 	m0_chan_wait(&repair_clink);
 	delta = m0_time_sub(m0_time_now(), start);

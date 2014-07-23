@@ -431,9 +431,7 @@ static void test_oneway_item(void)
 	ok = m0_semaphore_timeddown(&arrow_destroyed, m0_time_from_now(5, 0));
 	M0_UT_ASSERT(ok);
 
-	m0_rpc_machine_lock(item->ri_rmachine);
-	m0_fop_put(fop);
-	m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_fop_put_lock(fop);
 
 	/* Test 2: Remaining queued oneway items are dropped during
 		   m0_rpc_frm_fini()

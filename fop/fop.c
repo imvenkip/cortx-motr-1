@@ -108,7 +108,8 @@ struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data)
 	if (data == NULL) {
 		int rc = m0_fop_data_alloc(fop);
 		if (rc != 0) {
-			m0_fop_put(fop);
+			m0_fop_fini(fop);
+			m0_free(fop);
 			return NULL;
 		}
 	}

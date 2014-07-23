@@ -950,6 +950,7 @@ static void dgmode_readio_test(void)
 	reply = m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL);
 	reply->f_item.ri_rmachine = conn->c_rpc_machine;
 	irfop->irf_iofop.if_fop.f_item.ri_reply = &reply->f_item;
+	m0_fop_rpc_machine_set(&irfop->irf_iofop.if_fop, conn->c_rpc_machine);
 
 	/* Increments refcount so that ref release can be verified. */
 	reply = m0_fop_get(reply);
@@ -1073,7 +1074,7 @@ static void dgmode_readio_test(void)
 
 	/* Cleanup */
 	m0_rpc_bulk_buflist_empty(rbulk);
-	m0_fop_put(reply);
+	m0_fop_put_lock(reply);
 	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
 	req->ir_nwxfer.nxr_iofop_nr = 0;
 	ti->ti_dgvec = NULL;
