@@ -709,6 +709,7 @@ static int file_io_ut_fini(void)
 
 	m0t1fs_layout_fini(&csb);
 	m0t1fs_addb_mon_total_io_size_fini(&csb);
+	m0_reqh_services_terminate(&csb.csb_reqh);
 	m0t1fs_rpc_fini(&csb);
 	m0t1fs_net_fini(&csb);
 
