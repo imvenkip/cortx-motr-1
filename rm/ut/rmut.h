@@ -120,7 +120,6 @@ struct rm_context {
 	struct m0_reqh_service    *rc_reqh_svc;
 	struct m0_rpc_conn         rc_conn[SERVER_NR];
 	struct m0_rpc_session      rc_sess[SERVER_NR];
-	struct m0_clink           *rc_rev_sess_wait;
 	struct rm_ut_data          rc_test_data;
 	uint32_t                   rc_debtors_nr;
 	enum rm_server             creditor_id;
