@@ -329,7 +329,7 @@ static void remote_credits_utinit(void)
 
 	test_servers_nr = SERVER_NR;
 	for (i = 0; i < test_servers_nr; ++i)
-		rm_ctx_config(i);
+		rm_ctx_init(&rm_ctx[i]);
 
 	server_hier_config();
 	m0_mutex_init(&rm_ut_tests_chan_mutex);

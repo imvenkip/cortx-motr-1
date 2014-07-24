@@ -146,22 +146,26 @@ void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 	}
 }
 
-void rm_ctx_config(enum rm_server id)
-{
-	M0_SET0(&rm_ctx[id]);
-	rm_ctx[id].rc_id = id;
-	rm_ctx[id].rc_rmach_ctx.rmc_cob_id.id = cob_ids[id];
-	rm_ctx[id].rc_rmach_ctx.rmc_dbname = db_name[id];
-	rm_ctx[id].rc_rmach_ctx.rmc_ep_addr = serv_addr[id];
-	rm_ctx_init(&rm_ctx[id]);
-}
-
 struct m0_reqh_service *rmservice[SERVER_NR];
 
 void rm_ctx_init(struct rm_context *rmctx)
 {
-	int rc;
+	enum rm_server id;
+	int            rc;
 
+	/* Determine `id'. */
+	for (id = 0; id < SERVER_NR && rmctx != &rm_ctx[id]; ++id)
+		;
+	M0_PRE(id != SERVER_NR);
+
+	*rmctx = (struct rm_context){
+		.rc_id        = id,
+		.rc_rmach_ctx = {
+			.rmc_cob_id.id = cob_ids[id],
+			.rmc_dbname    = db_name[id],
+			.rmc_ep_addr   = serv_addr[id]
+		}
+	};
 	m0_ut_rpc_mach_init_and_add(&rmctx->rc_rmach_ctx);
 	m0_mutex_init(&rmctx->rc_mutex);
 	rc = m0_reqh_service_setup(&rmservice[rmctx->rc_id],

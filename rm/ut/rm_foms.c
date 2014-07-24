@@ -55,11 +55,6 @@ extern const struct m0_tl_descr m0_remotes_tl;
  */
 static void rmfoms_utinit(void)
 {
-	M0_SET0(&rm_ctx[SERVER_1]);
-	rm_ctx[SERVER_1].rc_id = SERVER_1;
-	rm_ctx[SERVER_1].rc_rmach_ctx.rmc_ep_addr = serv_addr[SERVER_1];
-	rm_ctx[SERVER_1].rc_rmach_ctx.rmc_cob_id.id = cob_ids[SERVER_1];
-	rm_ctx[SERVER_1].rc_rmach_ctx.rmc_dbname = db_name[SERVER_1];
 	rm_ctx_init(&rm_ctx[SERVER_1]);
 	dummy_loc.fl_dom = &rm_ctx[SERVER_1].rc_rmach_ctx.rmc_reqh.rh_fom_dom;
         m0_sm_group_init(&dummy_loc.fl_group);

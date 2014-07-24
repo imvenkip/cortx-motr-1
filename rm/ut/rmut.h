@@ -144,7 +144,6 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 				 struct m0_rm_credit *credit);
 
 /* Test server functions */
-void rm_ctx_config(enum rm_server id);
 void rm_ctx_init(struct rm_context *rmctx);
 void rm_ctx_fini(struct rm_context *rmctx);
 void rm_ctx_connect(struct rm_context *src, const struct rm_context *dest);

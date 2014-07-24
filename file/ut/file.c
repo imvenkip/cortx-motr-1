@@ -34,7 +34,6 @@
 #include "rm/ut/rmut.h"
 
 /* Import */
-extern struct rm_context rm_ctx[SERVER_NR];
 extern const struct m0_rm_resource_type_ops file_lock_type_ops;
 
 /*
@@ -456,7 +455,7 @@ static void flock_utinit(void)
 	/* Maximum 2 servers for this test */
 	test_servers_nr = SERVER_NR - 1;
 	for (i = 0; i < test_servers_nr; ++i)
-		rm_ctx_config(i);
+		rm_ctx_init(&rm_ctx[i]);
 
 	server_hier_config();
 	m0_mutex_init(&rm_ut_tests_chan_mutex);
