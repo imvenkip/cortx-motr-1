@@ -77,6 +77,8 @@ void rm_test_owner_capital_raise(struct m0_rm_owner *owner,
 
 /*
  * Recursive call to initialise object hierarchy
+ *
+ * XXX TODO: Use module/module.h API.
  */
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 {
@@ -107,6 +109,8 @@ void rm_utdata_init(struct rm_ut_data *data, enum obj_type type)
 
 /*
  * Recursive call to finalise object hierarchy
+ *
+ * XXX TODO: Use module/module.h API.
  */
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type)
 {
@@ -210,8 +214,8 @@ void rm_ctx_server_start(enum rm_server srv_id)
 	uint32_t             debtors_nr = rm_ctx[srv_id].rc_debtors_nr;
 	uint32_t             i;
 
-	rm_utdata_init(&rm_ctx[srv_id].rc_test_data, OBJ_OWNER);
-	owner = rm_ctx[srv_id].rc_test_data.rd_owner;
+	rm_utdata_init(data, OBJ_OWNER);
+	owner = data->rd_owner;
 
 	/*
 	 * If creditor id is valid, do creditor setup.
@@ -226,7 +230,7 @@ void rm_ctx_server_start(enum rm_server srv_id)
 		creditor->rem_session = &rm_ctx[srv_id].rc_sess[cred_id];
 		owner->ro_creditor = creditor;
 	} else
-		rm_test_owner_capital_raise(data->rd_owner, &data->rd_credit);
+		rm_test_owner_capital_raise(owner, &data->rd_credit);
 
 	for (i = 0; i < debtors_nr; ++i) {
 		debtr_id = rm_ctx[srv_id].debtor_id[i];
