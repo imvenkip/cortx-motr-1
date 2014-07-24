@@ -386,19 +386,13 @@ struct rm_addb_stats {
 
 /**
  * Resources are classified into disjoint types.
- *
  * Resource type determines how its instances interact with the resource
- * management generic core:
+ * management generic core and defines:
  *
- * - it determines how the resources of this type are named;
- *
- * - it determines how the resources of this type are located;
- *
- * - it determines what resource credits are defined on the resources of
- *   this type;
- *
+ * - how the resources of this type are named;
+ * - where the resources of this type are located;
+ * - what resource credits are defined on the resources of this type;
  * - how credits are ordered;
- *
  * - how credit conflicts are resolved.
  */
 struct m0_rm_resource_type {
