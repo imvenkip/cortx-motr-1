@@ -581,7 +581,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 
 	machine = conn->c_rpc_machine;
 
-	fop = m0_fop_alloc(&m0_rpc_fop_conn_establish_fopt, NULL);
+	fop = m0_fop_alloc(&m0_rpc_fop_conn_establish_fopt, NULL, machine);
 	if (fop == NULL) {
 		m0_rpc_machine_lock(machine);
 		conn_failed(conn, -ENOMEM);
@@ -723,8 +723,8 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	M0_PRE(conn != NULL);
 	M0_PRE(conn->c_rpc_machine != NULL);
 
-	fop = m0_fop_alloc(&m0_rpc_fop_conn_terminate_fopt, NULL);
 	machine = conn->c_rpc_machine;
+	fop = m0_fop_alloc(&m0_rpc_fop_conn_terminate_fopt, NULL, machine);
 	m0_rpc_machine_lock(machine);
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_PRE(M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,
@@ -851,6 +851,7 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
 					 M0_RPC_CONN_FAILED)));
 	M0_POST(m0_rpc_machine_is_locked(machine));
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_rpc_conn_cleanup_all_sessions(struct m0_rpc_conn *conn)

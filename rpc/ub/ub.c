@@ -296,7 +296,7 @@ static void fop_send(struct m0_rpc_session *session, size_t msg_id)
 
 	M0_PRE(g_args.a_msg_len > 0);
 
-	fop = m0_fop_alloc(&m0_rpc_ub_req_fopt, NULL);
+	fop = m0_fop_alloc_at(session, &m0_rpc_ub_req_fopt);
 	M0_UB_ASSERT(fop != NULL);
 
 	req = m0_fop_data(fop);

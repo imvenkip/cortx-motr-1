@@ -128,12 +128,14 @@ static int io_fol_frag_undo_redo_op(struct m0_fop_fol_frag *frag,
 static int io_fol_cd_rec_frag_op(struct m0_fop_fol_frag *frag,
 				 struct m0_fol *fol, bool undo)
 {
-	int		result;
-	struct m0_fop  *fop;
-	struct m0_reqh *reqh = container_of(fol, struct m0_reqh, rh_fol);
-	struct m0_fom  *fom;
-	int	        delete;
+	int                    result;
+	struct m0_fop         *fop;
+	struct m0_reqh        *reqh = container_of(fol, struct m0_reqh, rh_fol);
+	struct m0_fom         *fom;
+	int                    delete;
+	struct m0_rpc_machine *rpcmach;
 
+	M0_PRE(reqh != NULL);
 	M0_PRE(frag != NULL);
 	M0_PRE(M0_IN(frag->ffrp_fop_code, (M0_IOSERVICE_COB_CREATE_OPCODE,
 					    M0_IOSERVICE_COB_DELETE_OPCODE)));
@@ -141,13 +143,15 @@ static int io_fol_cd_rec_frag_op(struct m0_fop_fol_frag *frag,
 		   M0_IOSERVICE_COB_CREATE_OPCODE + 1);
 	M0_CASSERT(sizeof(struct m0_fop_cob_create) ==
 		   sizeof(struct m0_fop_cob_delete));
+	rpcmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	M0_ASSERT(rpcmach != NULL);
 
 	delete = frag->ffrp_fop_code - M0_IOSERVICE_COB_CREATE_OPCODE;
 	if (undo)
 		delete = 1 - delete;
 	fop = m0_fop_alloc(delete ?
 			   &m0_fop_cob_delete_fopt : &m0_fop_cob_create_fopt,
-			   frag->ffrp_fop);
+			   frag->ffrp_fop, rpcmach);
 	result = fop != NULL ? m0_cob_fom_create(fop, &fom, reqh) : -ENOMEM;
 	if (result == 0) {
 		fom->fo_local = true;

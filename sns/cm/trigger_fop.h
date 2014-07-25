@@ -43,7 +43,7 @@ struct trigger_fop {
 } M0_XCA_RECORD;
 
 struct trigger_rep_fop {
-	uint32_t rc;
+	int32_t rc;
 } M0_XCA_RECORD;
 
 M0_INTERNAL void m0_sns_cm_trigger_fop_init(struct m0_fop_type *ft,

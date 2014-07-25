@@ -23,7 +23,6 @@
 
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
-#include "fop/ut/fop_put_norpc.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "reqh/ut/reqh_service.h"
@@ -109,7 +108,6 @@ static void reqhut_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static void reqhut_fom_fini(struct m0_fom *fom)
 {
-	m0_fop_rpc_machine_set(fom->fo_fop, &rmach_ctx.rmc_rpc);
 	m0_fom_fini(fom);
 	m0_free(fom);
 }
@@ -166,7 +164,7 @@ static void test_service(void)
 	rc = m0_reqh_service_start(reqh_svc);
 	M0_UT_ASSERT(rc == 0);
 
-	fop = m0_fop_alloc(&m0_reqhut_dummy_fopt, NULL);
+	fop = m0_fop_alloc(&m0_reqhut_dummy_fopt, NULL, &rmach_ctx.rmc_rpc);
 	M0_UT_ASSERT(fop != NULL);
 
 	for (i = 0; i < MAX_REQH_UT_FOP; ++i) {

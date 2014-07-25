@@ -377,7 +377,6 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 			    session_establish_fop_release);
 		rc = m0_fop_data_alloc(&ctx->sec_fop);
 		if (rc != 0) {
-			m0_fop_rpc_machine_set(&ctx->sec_fop, machine);
 			m0_fop_put_lock(&ctx->sec_fop);
 		}
 	}
@@ -588,7 +587,7 @@ M0_INTERNAL int m0_rpc_session_terminate(struct m0_rpc_session *session,
 		return M0_RC(0);
 	}
 
-	fop = m0_fop_alloc(&m0_rpc_fop_session_terminate_fopt, NULL);
+	fop = m0_fop_alloc(&m0_rpc_fop_session_terminate_fopt, NULL, machine);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		/* See [^1] about decision to move session to FAILED state */

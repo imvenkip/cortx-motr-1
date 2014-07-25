@@ -101,6 +101,7 @@ struct m0_fop_create {
 } M0_XCA_RECORD;
 
 struct m0_fop_create_rep {
+	int32_t           c_rc;
         struct m0_fop_cob c_body;
 } M0_XCA_RECORD;
 
@@ -111,6 +112,7 @@ struct m0_fop_lookup {
 } M0_XCA_RECORD;
 
 struct m0_fop_lookup_rep {
+	int32_t           l_rc;
         struct m0_fop_cob l_body;
 } M0_XCA_RECORD;
 
@@ -122,6 +124,7 @@ struct m0_fop_link {
 } M0_XCA_RECORD;
 
 struct m0_fop_link_rep {
+	int32_t           l_rc;
         struct m0_fop_cob l_body;
 } M0_XCA_RECORD;
 
@@ -132,6 +135,7 @@ struct m0_fop_unlink {
 } M0_XCA_RECORD;
 
 struct m0_fop_unlink_rep {
+	int32_t           u_rc;
         struct m0_fop_cob u_body;
 } M0_XCA_RECORD;
 
@@ -145,6 +149,7 @@ struct m0_fop_rename {
 } M0_XCA_RECORD;
 
 struct m0_fop_rename_rep {
+	int32_t           r_rc;
         struct m0_fop_cob r_body;
 } M0_XCA_RECORD;
 
@@ -154,6 +159,7 @@ struct m0_fop_open {
 } M0_XCA_RECORD;
 
 struct m0_fop_open_rep {
+	int32_t           o_rc;
         struct m0_fop_cob o_body;
 } M0_XCA_RECORD;
 
@@ -163,6 +169,7 @@ struct m0_fop_close {
 } M0_XCA_RECORD;
 
 struct m0_fop_close_rep {
+	int32_t           c_rc;
         struct m0_fop_cob c_body;
 } M0_XCA_RECORD;
 
@@ -172,6 +179,7 @@ struct m0_fop_setattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_setattr_rep {
+	int32_t           s_rc;
         struct m0_fop_cob s_body;
 } M0_XCA_RECORD;
 
@@ -181,6 +189,7 @@ struct m0_fop_getattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_getattr_rep {
+	int32_t           g_rc;
         struct m0_fop_cob g_body;
 } M0_XCA_RECORD;
 
@@ -190,6 +199,7 @@ struct m0_fop_getxattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_getxattr_rep {
+	int32_t           g_rc;
         struct m0_fop_cob g_body;
         struct m0_fop_str g_value;
 } M0_XCA_RECORD;
@@ -201,6 +211,7 @@ struct m0_fop_setxattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_setxattr_rep {
+	int32_t           s_rc;
         struct m0_fop_cob s_body;
 } M0_XCA_RECORD;
 
@@ -210,6 +221,7 @@ struct m0_fop_delxattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_delxattr_rep {
+	int32_t           d_rc;
         struct m0_fop_cob d_body;
 } M0_XCA_RECORD;
 
@@ -218,6 +230,7 @@ struct m0_fop_listxattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_listxattr_rep {
+	int32_t           l_rc;
         struct m0_fop_str l_end;
         struct m0_fop_cob l_body;
         struct m0_fop_buf l_buf;
@@ -230,6 +243,7 @@ struct m0_fop_readdir {
 } M0_XCA_RECORD;
 
 struct m0_fop_readdir_rep {
+	int32_t           r_rc;
         struct m0_fop_str r_end;
         struct m0_fop_cob r_body;
         struct m0_fop_buf r_buf;
@@ -240,7 +254,7 @@ struct m0_fop_statfs {
 } M0_XCA_RECORD;
 
 struct m0_fop_statfs_rep {
-        uint32_t          f_rc;
+        int32_t           f_rc;
         uint64_t          f_type;
         uint32_t          f_bsize;
         uint64_t          f_blocks;
@@ -267,7 +281,7 @@ struct m0_fop_layout {
 } M0_XCA_RECORD;
 
 struct m0_fop_layout_rep {
-        uint32_t          lr_rc;
+        int32_t           lr_rc;
         struct m0_fop_buf lr_buf;
 } M0_XCA_RECORD;
 

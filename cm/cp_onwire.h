@@ -53,7 +53,7 @@ struct m0_cpx {
 
 /** Onwire copy packet reply. */
 struct m0_cpx_reply {
-	uint32_t           cr_rc;
+	int32_t           cr_rc;
 } M0_XCA_RECORD;
 
 #endif /*  __MERO_CM_CP_ONWIRE_H__ */

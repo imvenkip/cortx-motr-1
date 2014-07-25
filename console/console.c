@@ -87,7 +87,7 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 	if (ftype == NULL)
 		return M0_RC(-EINVAL);
 
-	fop = m0_fop_alloc(ftype, NULL);
+	fop = m0_fop_alloc(ftype, NULL, &cctx->rcx_rpc_machine);
 	if (fop == NULL)
 		return M0_RC(-EINVAL);
 

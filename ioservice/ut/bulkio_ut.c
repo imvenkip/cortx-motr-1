@@ -1682,6 +1682,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	struct m0_be_tx_credit      cred = {};
 	struct m0_be_tx             tx;
 	struct m0_sm_group         *grp  = m0_locality0_get()->lo_grp;
+	struct m0_rpc_session      *sess = &bp->bp_cctx->rcx_session;
 
 	event.pe_type  = M0_POOL_DEVICE;
 	event.pe_index = 1;
@@ -1708,7 +1709,7 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	/* This is just a test to detect failure vector mismatch on server
 	 * side. No need to prepare a full write request, e.g. buffer.
 	 */
-	wfop = m0_fop_alloc(&m0_fop_cob_writev_fopt, NULL);
+	wfop = m0_fop_alloc_at(sess, &m0_fop_cob_writev_fopt);
 	M0_UT_ASSERT(wfop != NULL);
 
 	wfop->f_type->ft_ops = &io_fop_rwv_ops;
@@ -1718,23 +1719,21 @@ static void bulkio_server_read_write_fv_mismatch(void)
 	rw->crw_fid = bp->bp_fids[0];
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");
-	rc = m0_rpc_client_call(wfop, &bp->bp_cctx->rcx_session,
-				NULL, 0 /* deadline */);
+	rc = m0_rpc_client_call(wfop, sess, NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(wfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==
 			M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 	m0_fop_put_lock(wfop);
 
-	rfop = m0_fop_alloc(&m0_fop_cob_readv_fopt, NULL);
+	rfop = m0_fop_alloc_at(sess, &m0_fop_cob_readv_fopt);
 	M0_UT_ASSERT(rfop != NULL);
 
 	rfop->f_type->ft_ops = &io_fop_rwv_ops;
         rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 
 	m0_fi_enable_once("stob_be_credit", "no_write_credit");
-	rc = m0_rpc_client_call(rfop, &bp->bp_cctx->rcx_session,
-				NULL, 0 /* deadline */);
+	rc = m0_rpc_client_call(rfop, sess, NULL, 0 /* deadline */);
 	M0_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(rfop->f_item.ri_reply));
 	M0_UT_ASSERT(rw_reply->rwr_rc ==

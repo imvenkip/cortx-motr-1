@@ -25,7 +25,6 @@
 #include "lib/memory.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"                  /* m0_rpc_server_ctx */
-#include "fop/ut/fop_put_norpc.h"
 #include "ioservice/ut/bulkio_common.h"
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
 #include "ioservice/io_service.h"
@@ -205,7 +204,8 @@ static void cobfops_populate(uint64_t index)
 
 static void cobfops_create(void)
 {
-	uint64_t i;
+	uint64_t               i;
+	struct m0_rpc_machine *mach;
 
 	M0_UT_ASSERT(cut != NULL);
 	M0_UT_ASSERT(cut->cu_createfops == NULL);
@@ -217,13 +217,14 @@ static void cobfops_create(void)
 	M0_ALLOC_ARR(cut->cu_deletefops, cut->cu_cobfop_nr);
 	M0_UT_ASSERT(cut->cu_deletefops != NULL);
 
+	mach = &cut->cu_cctx.rcx_rpc_machine;
 	for (i = 0; i < cut->cu_cobfop_nr; ++i) {
 		cut->cu_createfops[i] = m0_fop_alloc(&m0_fop_cob_create_fopt,
-						     NULL);
+						     NULL, mach);
 		M0_UT_ASSERT(cut->cu_createfops[i] != NULL);
 
 		cut->cu_deletefops[i] = m0_fop_alloc(&m0_fop_cob_delete_fopt,
-						     NULL);
+						     NULL, mach);
 		M0_UT_ASSERT(cut->cu_deletefops[i] != NULL);
 		cobfops_populate(i);
 	}
@@ -475,15 +476,16 @@ static void fom_fini(struct m0_fom *fom, enum cob_fom_type fomtype)
 static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 {
 	struct m0_fop_cob_common *c;
-	struct m0_fop		 *base_fop;
+	struct m0_fop            *base_fop;
+	struct m0_rpc_machine    *mach = &cut->cu_cctx.rcx_rpc_machine;
 
 	switch (fomtype) {
 	case COB_CREATE:
-		base_fop = m0_fop_alloc(&m0_fop_cob_create_fopt, NULL);
+		base_fop = m0_fop_alloc(&m0_fop_cob_create_fopt, NULL, mach);
 		M0_UT_ASSERT(base_fop != NULL);
 		break;
 	case COB_DELETE:
-		base_fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, NULL);
+		base_fop = m0_fop_alloc(&m0_fop_cob_delete_fopt, NULL, mach);
 		M0_UT_ASSERT(base_fop != NULL);
 		break;
 	default:
@@ -498,7 +500,7 @@ static void fop_alloc(struct m0_fom *fom, enum cob_fom_type fomtype)
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
 
-	fom->fo_rep_fop = m0_fop_alloc(&m0_fop_cob_op_reply_fopt, NULL);
+	fom->fo_rep_fop = m0_fop_alloc(&m0_fop_cob_op_reply_fopt, NULL, mach);
 	M0_UT_ASSERT(fom->fo_rep_fop != NULL);
 }
 
@@ -568,8 +570,6 @@ static void cc_fom_dealloc(struct m0_fom *fom)
 {
 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
 
-	m0_fop_rpc_machine_set(fom->fo_fop, &cut->cu_cctx.rcx_rpc_machine);
-	m0_fop_rpc_machine_set(fom->fo_rep_fop, &cut->cu_cctx.rcx_rpc_machine);
 	cc_fom_fini(fom);
 }
 
@@ -831,8 +831,6 @@ static void cc_fom_populate_test()
 static void cd_fom_dealloc(struct m0_fom *fom)
 {
 	m0_ut_fom_phase_set(fom, M0_FOPH_FINISH);
-	m0_fop_rpc_machine_set(fom->fo_fop, &cut->cu_cctx.rcx_rpc_machine);
-	m0_fop_rpc_machine_set(fom->fo_rep_fop, &cut->cu_cctx.rcx_rpc_machine);
 	cd_fom_fini(fom);
 }
 
@@ -1183,27 +1181,27 @@ static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
 
 	cob_cmn =  m0_cobfop_common_get(fop);
 	m0_tl_for(m0_rec_frag, &rec->fr_frags, dec_frag) {
-		if (dec_part->rp_ops->rpo_type->rpt_index ==
+		if (dec_frag->rp_ops->rpo_type->rpt_index ==
 		    m0_fop_fol_frag_type.rpt_index) {
 			struct m0_fop_cob_common   *cob_data;
 			struct m0_fop_fol_frag	   *fp_frag;
 			struct m0_fop_type	   *ftype;
 			struct m0_fop_cob_op_reply *cob_rep;
 
-			fp_part = dec_part->rp_data;
-			cob_rep = fp_part->ffrp_rep;
+			fp_frag = dec_frag->rp_data;
+			cob_rep = fp_frag->ffrp_rep;
 
 			cob_data = m0_is_cob_create_fop(fop) ?
 				&((struct m0_fop_cob_create *)
-				fp_part->ffrp_fop)->cc_common :
+				fp_frag->ffrp_fop)->cc_common :
 				&((struct m0_fop_cob_delete *)
-				fp_part->ffrp_fop)->cd_common;
+				fp_frag->ffrp_fop)->cd_common;
 
 			M0_UT_ASSERT(m0_xcode_cmp(&COB_DATA(cob_data),
 						  &COB_DATA(cob_cmn)) == 0);
 			M0_UT_ASSERT(cob_rep->cor_rc == 0);
 
-			ftype = m0_fop_type_find(fp_part->ffrp_fop_code);
+			ftype = m0_fop_type_find(fp_frag->ffrp_fop_code);
 			M0_UT_ASSERT(ftype != NULL);
 			M0_UT_ASSERT(ftype->ft_ops->fto_undo != NULL &&
 				     ftype->ft_ops->fto_redo != NULL);

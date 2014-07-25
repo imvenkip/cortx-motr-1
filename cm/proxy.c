@@ -332,7 +332,6 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 						 proxy_sw_onwire_release,
 						 ep, sw);
         if (rc != 0) {
-		m0_fop_rpc_machine_set(fop, rmach);
 		m0_fop_put_lock(fop);
 		m0_free(sw_fop);
                 return rc;

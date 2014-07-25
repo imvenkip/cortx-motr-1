@@ -140,13 +140,14 @@ int main(int argc, char *argv[])
 	start = m0_time_now();
 	for (i = 0; i < srv_cnt; ++i) {
 		struct m0_fop *fop = NULL;
+
+		session = &ctxs[i].ctx_session;
 		if (op == SNS_REPAIR)
-			fop = m0_fop_alloc(&repair_trigger_fopt, NULL);
+			fop = m0_fop_alloc_at(session, &repair_trigger_fopt);
 		else if (op == SNS_REBALANCE)
-			fop = m0_fop_alloc(&rebalance_trigger_fopt, NULL);
+			fop = m0_fop_alloc_at(session, &rebalance_trigger_fopt);
 		treq = m0_fop_data(fop);
 		treq->op = op;
-		session = &ctxs[i].ctx_session;
 		rc = repair_rpc_post(fop, session,
 				&trigger_fop_rpc_item_ops,
 				0 /* deadline */);

@@ -137,7 +137,7 @@ M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	M0_ASSERT(fom != NULL);
 
 	fom_ops = m0_is_cob_create_fop(fop) ? &cc_fom_ops : &cd_fom_ops;
-	rfop = m0_fop_alloc(&m0_fop_cob_op_reply_fopt, NULL);
+	rfop = m0_fop_reply_alloc(fop, &m0_fop_cob_op_reply_fopt);
 	if (rfop == NULL) {
 		IOS_ADDB_FUNCFAIL(rc, COB_FOM_CREATE_2, &m0_ios_addb_ctx);
 		m0_free(cfom);
@@ -279,7 +279,6 @@ static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 static int cob_ops_fom_tick(struct m0_fom *fom)
 {
 	struct m0_fom_cob_op           *cob_op;
-	struct m0_fop_cob_op_reply     *reply;
 	struct m0_poolmach             *poolmach;
 	struct m0_reqh                 *reqh;
 	struct m0_fop_cob_common       *common;
@@ -293,6 +292,9 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_ops != NULL);
 	M0_PRE(fom->fo_type != NULL);
 
+	common = m0_cobfop_common_get(fom->fo_fop);
+	reqh = m0_fom_reqh(fom);
+	poolmach = m0_ios_poolmach_get(reqh);
 	fop_is_create = fom->fo_fop->f_type == &m0_fop_cob_create_fopt;
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		cob_op = cob_fom_get(fom);
@@ -310,6 +312,7 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			if (rc != 0) {
 				cob_op->fco_is_done = true;
 				m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+				goto pack;
 			}
 			break;
 		case M0_FOPH_TXN_OPEN:
@@ -362,9 +365,6 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		rc = m0_fom_tick_generic(fom);
 		return rc;
 	}
-	common = m0_cobfop_common_get(fom->fo_fop);
-	reqh = m0_fom_reqh(fom);
-	poolmach = m0_ios_poolmach_get(reqh);
 	if (fop_is_create)
 		ops = "Create";
 	else
@@ -451,7 +451,7 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		}
 
 		m0_fom_phase_set(fom, M0_FOPH_COB_OPS_CREATE_DELETE);
-		goto out;
+		return M0_FSO_AGAIN;
 	}
 	case M0_FOPH_COB_OPS_CREATE_DELETE:
 		M0_LOG(M0_DEBUG, "Cob %s operation started", ops);
@@ -476,14 +476,16 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	}
 
 pack:
-	reply = m0_fop_data(fom->fo_rep_fop);
-	reply->cor_rc = rc;
-
-	m0_ios_poolmach_version_updates_pack(poolmach,
-					     &common->c_version,
-					     &reply->cor_fv_version,
-					     &reply->cor_fv_updates);
-out:
+        if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
+            m0_fom_phase(fom) == M0_FOPH_FAILURE) {
+		struct m0_fop_cob_op_reply     *reply;
+		reply = m0_fop_data(fom->fo_rep_fop);
+		reply->cor_rc = rc;
+		m0_ios_poolmach_version_updates_pack(poolmach,
+						     &common->c_version,
+						     &reply->cor_fv_version,
+						     &reply->cor_fv_updates);
+	}
 	return M0_FSO_AGAIN;
 }
 

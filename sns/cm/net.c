@@ -465,7 +465,7 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
         if (rc != 0 && rc != -ENODATA)
 		goto out;
 
-        fop = m0_fop_alloc(ft, NULL);
+        fop = m0_fop_reply_alloc(cp->c_fom.fo_fop, ft);
         if (fop == NULL) {
                 rc = -ENOMEM;
                 goto out;

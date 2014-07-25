@@ -222,7 +222,8 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 	switch (dstype) {
 	case CS_UT_SERVICE1:
 		for (i = 0; i < 10; ++i) {
-			fop[i] = m0_fop_alloc(&cs_ds1_req_fop_fopt, NULL);
+			fop[i] = m0_fop_alloc_at(cl_rpc_session,
+						 &cs_ds1_req_fop_fopt);
 			cs_ds1_fop = m0_fop_data(fop[i]);
 			cs_ds1_fop->csr_value = i;
 			rc = m0_rpc_client_call(fop[i], cl_rpc_session,
@@ -234,7 +235,8 @@ int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 		break;
 	case CS_UT_SERVICE2:
 		for (i = 0; i < 10; ++i) {
-			fop[i] = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
+			fop[i] = m0_fop_alloc_at(cl_rpc_session,
+						 &cs_ds2_req_fop_fopt);
 			cs_ds2_fop = m0_fop_data(fop[i]);
 			cs_ds2_fop->csr_value = i;
 			rc = m0_rpc_client_call(fop[i], cl_rpc_session,

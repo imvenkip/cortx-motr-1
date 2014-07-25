@@ -340,7 +340,6 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 		if (rc != 0) {
 			struct m0_fop *fop = m0_rpc_item_to_fop(item);
 
-			m0_fop_rpc_machine_set(fop, p->rp_rmachine);
 			m0_fop_put_lock(fop);
 			return M0_RC(rc);
 		}

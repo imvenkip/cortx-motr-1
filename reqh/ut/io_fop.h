@@ -42,7 +42,7 @@ struct m0_stob_io_write {
 } M0_XCA_RECORD;
 
 struct m0_stob_io_write_rep {
-	uint32_t fiwr_rc;
+	int32_t  fiwr_rc;
 	uint32_t fiwr_count;
 } M0_XCA_RECORD;
 
@@ -51,7 +51,7 @@ struct m0_stob_io_read {
 } M0_XCA_RECORD;
 
 struct m0_stob_io_read_rep {
-	uint32_t           firr_rc;
+	int32_t            firr_rc;
 	uint32_t           firr_count;
 	struct m0_fi_value firr_value;
 } M0_XCA_RECORD;
@@ -61,7 +61,7 @@ struct m0_stob_io_create {
 } M0_XCA_RECORD;
 
 struct m0_stob_io_create_rep {
-	uint32_t ficr_rc;
+	int32_t ficr_rc;
 } M0_XCA_RECORD;
 
 extern struct m0_fop_type m0_stob_io_create_fopt;

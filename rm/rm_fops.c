@@ -361,7 +361,7 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rc           = item->ri_error ?: m0_rpc_item_generic_reply_rc(item_rep);
 	if (rc == 0) {
 		borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item_rep));
-		rc = borrow_reply->br_rc.gr_rc;
+		rc = borrow_reply->br_rc;
 	}
 	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
 	if (rc == 0) {

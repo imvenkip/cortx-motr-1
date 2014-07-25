@@ -74,8 +74,8 @@ struct m0_cons_fop_device {
  *  - return      : Opcode of request fop.
  */
 struct m0_cons_fop_reply {
+	int32_t  cons_return;
 	uint32_t cons_notify_type;
-	uint32_t cons_return;
 } M0_XCA_RECORD;
 
 /**

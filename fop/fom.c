@@ -1075,6 +1075,8 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	M0_PRE(reqh != NULL);
 	M0_PRE(ops->fo_addb_init != NULL);
 
+	M0_ENTRY("fom: %p fop %p rep fop %p", fom, fop, reply);
+
 	fom->fo_type	    = fom_type;
 	fom->fo_ops	    = ops;
 	fom->fo_transitions = 0;
@@ -1105,6 +1107,7 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 
 	if (m0_addb_ctx_is_initialized(&fom->fo_addb_ctx))
 		M0_FOM_ADDB_POST(fom, &reqh->rh_addb_mc, &m0_addb_rt_fom_init);
+	M0_LEAVE();
 }
 M0_EXPORTED(m0_fom_init);
 

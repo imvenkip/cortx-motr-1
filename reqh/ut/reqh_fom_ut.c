@@ -334,7 +334,7 @@ static void create_send(struct m0_rpc_session *session)
 	struct m0_stob_io_create *rh_io_fop;
 
 	for (i = 0; i < 10; ++i) {
-		fop = m0_fop_alloc(&m0_stob_io_create_fopt, NULL);
+		fop = m0_fop_alloc_at(session, &m0_stob_io_create_fopt);
 		rh_io_fop = m0_fop_data(fop);
 		rh_io_fop->fic_object.f_seq = i;
 		rh_io_fop->fic_object.f_oid = i;
@@ -350,7 +350,7 @@ static void read_send(struct m0_rpc_session *session)
 	struct m0_stob_io_read *rh_io_fop;
 
 	for (i = 0; i < 10; ++i) {
-		fop = m0_fop_alloc(&m0_stob_io_read_fopt, NULL);
+		fop = m0_fop_alloc_at(session, &m0_stob_io_read_fopt);
 		rh_io_fop = m0_fop_data(fop);
 		rh_io_fop->fir_object.f_seq = i;
 		rh_io_fop->fir_object.f_oid = i;
@@ -367,7 +367,7 @@ static void write_send(struct m0_rpc_session *session)
 	uint8_t                 *buf;
 
 	for (i = 0; i < 10; ++i) {
-		fop = m0_fop_alloc(&m0_stob_io_write_fopt, NULL);
+		fop = m0_fop_alloc_at(session, &m0_stob_io_write_fopt);
 		rh_io_fop = m0_fop_data(fop);
 		rh_io_fop->fiw_object.f_seq = i;
 		rh_io_fop->fiw_object.f_oid = i;

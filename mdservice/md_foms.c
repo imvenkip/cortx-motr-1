@@ -1672,7 +1672,7 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		return -EOPNOTSUPP;
 	}
 
-        rep_fop = m0_fop_alloc(rep_fopt, NULL);
+        rep_fop = m0_fop_reply_alloc(fop, rep_fopt);
 	if (rep_fop == NULL) {
 		m0_free(fom_obj);
 		return -ENOMEM;

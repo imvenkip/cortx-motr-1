@@ -156,7 +156,7 @@ static int ha_state_ut_fom_get_tick(struct m0_fom *fom)
 	int                             i;
 
 	fom_obj = container_of(fom, struct m0_ha_state_set_fom, fp_gen);
-	fop = m0_fop_alloc(&m0_ha_state_get_rep_fopt, NULL);
+	fop = m0_fop_reply_alloc(fom->fo_fop, &m0_ha_state_get_rep_fopt);
 	M0_UT_ASSERT(fop != NULL);
 
 	fop_get = m0_fop_data(fom_obj->fp_fop);
@@ -206,7 +206,7 @@ static int ha_state_ut_fom_set_tick(struct m0_fom *fom)
 	struct m0_ha_state_set_fom	*fom_obj;
 
 	fom_obj = container_of(fom, struct m0_ha_state_set_fom, fp_gen);
-	fop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
+	fop = m0_fop_reply_alloc(fom->fo_fop, &m0_fop_generic_reply_fopt);
 	M0_UT_ASSERT(fop != NULL);
 
 	note = m0_fop_data(fom_obj->fp_fop);

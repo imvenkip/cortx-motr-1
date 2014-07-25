@@ -84,15 +84,15 @@ struct m0_rpc_fop_conn_establish {
  */
 struct m0_rpc_fop_conn_establish_rep {
 	/**
+	   Contains 0 if CONN_ESTABLISH operation is successful, error code
+	   otherwise.
+	 */
+	int32_t  rcer_rc;
+	/**
 	   sender_id assigned by receiver to the established rpc-connection.
 	   Has value SENDER_ID_INVALID if CONN_ESTABLISH operation fails.
 	 */
 	uint64_t rcer_sender_id;
-	/**
-	   Contains 0 if CONN_ESTABLISH operation is successful, error code
-	   otherwise.
-	 */
-	uint32_t rcer_rc;
 } M0_XCA_RECORD;
 
 /**
@@ -110,14 +110,14 @@ struct m0_rpc_fop_conn_terminate {
  */
 struct  m0_rpc_fop_conn_terminate_rep {
 	/**
-	   sender_id of rpc-connection being terminated.
-	 */
-	uint64_t ctr_sender_id;
-	/**
 	   Contains 0 if CONN_TERMINATE operation is successful, error code
 	   otherwise.
 	 */
-	uint32_t ctr_rc;
+	int32_t ctr_rc;
+	/**
+	   sender_id of rpc-connection being terminated.
+	 */
+	uint64_t ctr_sender_id;
 } M0_XCA_RECORD;
 
 
@@ -137,6 +137,11 @@ struct m0_rpc_fop_session_establish {
  */
 struct m0_rpc_fop_session_establish_rep {
 	/**
+	   Contains 0 if SESSION_ESTABLISH operation is successful, error code
+	   otherwise.
+	 */
+	int32_t  rser_rc;
+	/**
 	   session_id assigned by receiver to the newly created session.
 	   Has value SESSION_ID_INVALID if SESSION_ESTABLISH operation fails.
 	 */
@@ -145,11 +150,6 @@ struct m0_rpc_fop_session_establish_rep {
 	   sender_id copied from m0_rpc_fop_session_establish.
 	 */
 	uint64_t rser_sender_id;
-	/**
-	   Contains 0 if SESSION_ESTABLISH operation is successful, error code
-	   otherwise.
-	 */
-	uint32_t rser_rc;
 } M0_XCA_RECORD;
 
 /**
@@ -172,6 +172,11 @@ struct m0_rpc_fop_session_terminate {
  */
 struct m0_rpc_fop_session_terminate_rep {
 	/**
+	   Contains 0 if SESSION_TERMINATE operation is successful, error code
+	   otherwise.
+	 */
+	int32_t  rstr_rc;
+	/**
 	   session_id of the session being terminated.
 	 */
 	uint64_t rstr_session_id;
@@ -180,11 +185,6 @@ struct m0_rpc_fop_session_terminate_rep {
 	   belongs.
 	 */
 	uint64_t rstr_sender_id;
-	/**
-	   Contains 0 if SESSION_TERMINATE operation is successful, error code
-	   otherwise.
-	 */
-	uint32_t rstr_rc;
 } M0_XCA_RECORD;
 
 /* __MERO_RPC_SESSION_FOPS_H__ */

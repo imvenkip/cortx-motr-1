@@ -177,7 +177,7 @@ static void rem_rpc_notify(struct m0_dtm_remote *rem,
 
 	M0_PRE(rem->re_ops == &rem_rpc_ops);
 	M0_AMB(rpr, rem, rpr_rem);
-	fop = m0_fop_alloc(&rem_rpc_fopt, NULL);
+	fop = m0_fop_alloc(&rem_rpc_fopt, NULL, rpr->rpr_conn->c_rpc_machine);
 	if (fop != NULL) {
 		struct m0_rpc_item *item;
 

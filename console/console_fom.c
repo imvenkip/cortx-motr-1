@@ -58,7 +58,7 @@ static int console_fom_create(struct m0_fop *fop, struct m0_reqh *reqh,
         M0_ALLOC_PTR(fom);
         if (fom == NULL)
                 return -ENOMEM;
-        rep_fop = m0_fop_alloc(&m0_cons_fop_reply_fopt, NULL);
+        rep_fop = m0_fop_reply_alloc(fop, &m0_cons_fop_reply_fopt);
 	if (rep_fop == NULL) {
 		m0_free(fom);
 		return -ENOMEM;

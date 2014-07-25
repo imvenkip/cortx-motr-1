@@ -1375,7 +1375,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 						 mo->mo_hash_hint);
 	M0_ASSERT(session != NULL);
 
-	fop = m0_fop_alloc(ftype, NULL);
+	fop = m0_fop_alloc_at(session, ftype);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		M0_LOG(M0_ERROR, "m0_fop_alloc() failed with %d", rc);
@@ -1689,7 +1689,7 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	session = m0t1fs_container_id_to_session(csb, cob_fid->f_container);
 	M0_ASSERT(session != NULL);
 
-	fop = m0_fop_alloc(ftype, NULL);
+	fop = m0_fop_alloc_at(session, ftype);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		M0_LOG(M0_ERROR, "Memory allocation for struct "

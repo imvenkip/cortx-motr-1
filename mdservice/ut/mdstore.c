@@ -54,7 +54,8 @@ static struct m0_reqh_service     *mdservice;
 extern struct m0_reqh_service_type m0_mds_type;
 struct m0_rpc_machine              machine;
 
-int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data);
+int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data,
+			   struct m0_rpc_machine *mach);
 
 static struct m0_semaphore inflight;
 static int error = 0;
@@ -69,8 +70,6 @@ static void fom_fini(struct m0_fom *fom)
 
         if (error == 0)
                 error = m0_fom_rc(fom);
-	m0_fop_rpc_machine_set(fom->fo_fop, &machine);
-	m0_fop_rpc_machine_set(fom->fo_rep_fop, &machine);
 	orig_fom_fini(fom);
 	m0_semaphore_up(&inflight);
 }
@@ -220,14 +219,13 @@ static void test_mdops(void)
 			M0_UT_ASSERT(rec != NULL);
 			result = read(fd, rec, size);
 			M0_UT_ASSERT(result == size);
-			result = m0_md_lustre_fop_alloc(&fop, rec);
+			result = m0_md_lustre_fop_alloc(&fop, rec, &machine);
 			m0_free(rec);
 			/* Let's get second part of rename fop. */
 		} while (result == -EAGAIN);
                 if (result == -EOPNOTSUPP)
                         continue;
                 m0_reqh_fop_handle(&reqh, fop);
-		m0_fop_rpc_machine_set(fop, &machine);
 		m0_fop_put_lock(fop);
 
                 /* Process fops one by one sequentially. */

@@ -51,6 +51,7 @@ struct m0_sns_cpx {
 
 /** SNS specific onwire copy packet reply structure. */
 struct m0_sns_cpx_reply {
+	int32_t             scr_rc;
         /** Base copy packet reply fields. */
         struct m0_cpx_reply scr_cp_rep;
 } M0_XCA_RECORD;

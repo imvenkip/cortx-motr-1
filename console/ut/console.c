@@ -240,12 +240,11 @@ static void input_test(void)
 	result = m0_cons_yaml_init(yaml_file);
 	M0_UT_ASSERT(result == 0);
 
-        fop = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL);
+        fop = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL, &cons_mach);
         M0_UT_ASSERT(fop != NULL);
 
         m0_cons_fop_obj_input(fop);
 	check_values(fop);
-	m0_fop_rpc_machine_set(fop, &cons_mach);
 	m0_fop_put_lock(fop);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);
@@ -285,7 +284,7 @@ static void output_test(void)
 	result = m0_cons_yaml_init(yaml_file);
 	M0_UT_ASSERT(result == 0);
 
-        f = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL);
+        f = m0_fop_alloc(&m0_cons_fop_test_fopt, NULL, &cons_mach);
         M0_UT_ASSERT(f != NULL);
 
 	file_redirect_init();
@@ -297,7 +296,6 @@ static void output_test(void)
 	file_redirect_fini();
 
 	m0_console_verbose = false;
-	m0_fop_rpc_machine_set(f, &cons_mach);
 	m0_fop_put_lock(f);
 	m0_cons_yaml_fini();
 	result = remove(yaml_file);
@@ -536,7 +534,7 @@ static void mesg_send_client(int dummy)
 
 	m0_cons_fop_name_print(ftype);
 	printf("\n");
-	fop = m0_fop_alloc(ftype, NULL);
+	fop = m0_fop_alloc(ftype, NULL, &cons_mach);
 	M0_UT_ASSERT(fop != NULL);
 	m0_cons_fop_obj_input(fop);
 	fop->f_item.ri_nr_sent_max = MAX_RETRIES;

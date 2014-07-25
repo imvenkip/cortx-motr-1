@@ -79,7 +79,8 @@ void m0_ut_fom_phase_set(struct m0_fom *fom, int phase)
 		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
 		/* fall through */
 	default:
-		m0_fom_phase_set(fom, phase);
+		if (m0_fom_phase(fom) != phase)
+			m0_fom_phase_set(fom, phase);
 	}
 }
 

@@ -250,7 +250,7 @@ static void send_ping_fop(struct m0_rpc_session *session)
 
 	nr_arr_member = nr_ping_bytes / sz + !(nr_ping_bytes % sz);
 
-	fop = m0_fop_alloc(&m0_fop_ping_fopt, NULL);
+	fop = m0_fop_alloc_at(session, &m0_fop_ping_fopt);
 	M0_ASSERT(fop != NULL);
 
 	ping_fop = m0_fop_data(fop);

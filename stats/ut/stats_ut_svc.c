@@ -241,10 +241,10 @@ static void update_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 	for (i = 0; i < count; ++i)
 		stats_sum_copy(&stats_sum[i], &ufop->suf_stats.sf_stats[i]);
 
+	m0_fop_rpc_machine_set(fop, &ut_stats_machine);
 	rc = stats_update_fom_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fop_rpc_machine_set(fop, &ut_stats_machine);
 	m0_fop_put_lock(fop);
 
 	fom->fo_ops   = &ut_stats_update_fom_ops;
@@ -391,10 +391,10 @@ static void query_fom_test(struct stats_svc *srv, struct m0_reqh *reqh,
 	qfop->sqf_ids.au64s_nr = count;
 	memcpy(qfop->sqf_ids.au64s_data, stats_ids, count * sizeof(uint64_t));
 
+	m0_fop_rpc_machine_set(fop, &ut_stats_machine);
 	rc = stats_query_fom_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fop_rpc_machine_set(fop, &ut_stats_machine);
 	m0_fop_put_lock(fop);
 
 	fom->fo_ops   = &ut_stats_query_fom_ops;

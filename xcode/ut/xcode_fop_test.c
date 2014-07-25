@@ -29,6 +29,7 @@
 #include "xcode/ut/xcode_fops_ff.h"
 
 #include "rpc/rpc_opcodes.h"
+#include "rpc/rpc.h"
 #include "net/net.h"
 
 /** Random test values. */
@@ -185,6 +186,7 @@ static void test_fop_encdec(void)
 	size_t                   fop_size;
 	size_t                   act_fop_size = 6876;
 	size_t                   allocated;
+	struct m0_rpc_machine    machine;
 
 	allocated = m0_allocated();
 
@@ -196,7 +198,7 @@ static void test_fop_encdec(void)
 			 .fop_ops   = &test_ops);
 
 	/* Allocate a fop and populate its fields with test values. */
-	f1 = m0_fop_alloc(&m0_fop_test_fopt, NULL);
+	f1 = m0_fop_alloc(&m0_fop_test_fopt, NULL, &machine);
 	M0_UT_ASSERT(f1 != NULL);
 
 	ccf1 = m0_fop_data(f1);

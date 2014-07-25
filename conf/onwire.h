@@ -183,7 +183,7 @@ struct m0_conf_fetch {
 /** Confd's response to m0_conf_fetch. */
 struct m0_conf_fetch_resp {
 	/** Result of configuration retrieval (-Exxx = failure, 0 = success). */
-	uint32_t        fr_rc;
+	int32_t         fr_rc;
 	/** A sequence of configuration object descriptors. */
 	struct m0_confx fr_data;
 } M0_XCA_RECORD;
@@ -199,7 +199,7 @@ struct m0_conf_update {
 /** XXX FUTURE: Confd's response to m0_conf_update. */
 struct m0_conf_update_resp {
 	/** Result of update request (-Exxx = failure, 0 = success). */
-	uint32_t ur_rc;
+	int32_t ur_rc;
 } M0_XCA_RECORD;
 
 #endif /* __MERO_CONF_ONWIRE_H__ */

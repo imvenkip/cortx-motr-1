@@ -143,10 +143,16 @@ void m0_fop_put_lock(struct m0_fop *fop);
    @param fopt fop type to assign to this fop object
    @param data top level data object
    if data == NULL, data is allocated by this function
+   @param mach rpc machine needed to release the fop
 
    @post ergo(result != NULL, m0_ref_read(&result->f_ref) == 1)
  */
-struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data);
+struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data,
+			    struct m0_rpc_machine *mach);
+struct m0_fop *m0_fop_alloc_at(struct m0_rpc_session *sess,
+			       struct m0_fop_type *fopt);
+struct m0_fop *m0_fop_reply_alloc(struct m0_fop *req,
+				  struct m0_fop_type *fopt);
 
 /**
  * Default implementation of fop_release that can be passed to
@@ -163,7 +169,7 @@ M0_INTERNAL int m0_fop_data_alloc(struct m0_fop *fop);
 struct m0_rpc_item *m0_fop_to_rpc_item(struct m0_fop *fop);
 struct m0_fop *m0_rpc_item_to_fop(const struct m0_rpc_item *item);
 void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach);
-struct m0_rpc_machine *m0_fop_rpc_machine_get(const struct m0_fop *fop);
+struct m0_rpc_machine *m0_fop_rpc_machine(const struct m0_fop *fop);
 uint32_t m0_fop_opcode(const struct m0_fop *fop);
 M0_INTERNAL const char *m0_fop_name(const struct m0_fop *fop);
 
@@ -346,6 +352,8 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 			       struct m0_dtx *dtx);
 
 extern struct m0_fol_frag_type m0_fop_fol_frag_type;
+
+struct m0_rpc_machine *m0_fop_session_machine(const struct m0_rpc_session *s);
 
 /** @} end of fop group */
 #endif /* __MERO_FOP_FOP_H__ */

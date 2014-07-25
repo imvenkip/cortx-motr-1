@@ -73,7 +73,7 @@ struct cs_ds1_req_fop {
 } M0_XCA_RECORD;
 
 struct cs_ds1_rep_fop {
-	uint32_t csr_rc;
+	int32_t csr_rc;
 } M0_XCA_RECORD;
 
 struct cs_ds2_req_fop {
@@ -81,7 +81,7 @@ struct cs_ds2_req_fop {
 } M0_XCA_RECORD;
 
 struct cs_ds2_rep_fop {
-	uint32_t csr_rc;
+	int32_t csr_rc;
 } M0_XCA_RECORD;
 
 /* __MERO_MERO_UT_CS_UT_FOP_FOMS_H__ */

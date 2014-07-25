@@ -107,7 +107,7 @@ static struct m0_rpc_item* prepare_ping_fop_item(void)
 	struct m0_fop_ping *ping_fop_data;
 	struct m0_rpc_item *item;
 
-	ping_fop = m0_fop_alloc(&m0_fop_ping_fopt, NULL);
+	ping_fop = m0_fop_alloc(&m0_fop_ping_fopt, NULL, &rmachine);
 	M0_UT_ASSERT(ping_fop != NULL);
 	ping_fop_data = m0_fop_data(ping_fop);
 	ping_fop_data->fp_arr.f_count = 1;
@@ -126,7 +126,7 @@ static struct m0_rpc_item* prepare_ping_rep_fop_item(void)
 	struct m0_fop_ping_rep *ping_fop_rep_data;
 	struct m0_rpc_item     *item;
 
-	ping_fop_rep = m0_fop_alloc(&m0_fop_ping_rep_fopt, NULL);
+	ping_fop_rep = m0_fop_alloc(&m0_fop_ping_rep_fopt, NULL, &rmachine);
 	M0_UT_ASSERT(ping_fop_rep != NULL);
 	ping_fop_rep_data = m0_fop_data(ping_fop_rep);
 	ping_fop_rep_data->fpr_rc = 1001;

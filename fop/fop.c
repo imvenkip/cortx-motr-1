@@ -96,9 +96,12 @@ M0_INTERNAL void m0_fop_init(struct m0_fop *fop, struct m0_fop_type *fopt,
 	M0_LEAVE();
 }
 
-struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data)
+struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data,
+			    struct m0_rpc_machine *mach)
 {
 	struct m0_fop *fop;
+
+	M0_PRE(mach != NULL);
 
 	M0_ALLOC_PTR(fop);
 	if (fop == NULL)
@@ -113,11 +116,25 @@ struct m0_fop *m0_fop_alloc(struct m0_fop_type *fopt, void *data)
 			return NULL;
 		}
 	}
-
+	fop->f_item.ri_rmachine = mach;
 	M0_POST(m0_ref_read(&fop->f_ref) == 1);
 	return fop;
 }
 M0_EXPORTED(m0_fop_alloc);
+
+struct m0_fop *m0_fop_alloc_at(struct m0_rpc_session *sess,
+			       struct m0_fop_type *fopt)
+{
+	return m0_fop_alloc(fopt, NULL, m0_fop_session_machine(sess));
+}
+M0_EXPORTED(m0_fop_alloc_at);
+
+struct m0_fop *m0_fop_reply_alloc(struct m0_fop *req,
+				  struct m0_fop_type *rept)
+{
+	return m0_fop_alloc(rept, NULL, m0_fop_rpc_machine(req));
+}
+M0_EXPORTED(m0_fop_reply_alloc);
 
 M0_INTERNAL void m0_fop_fini(struct m0_fop *fop)
 {
@@ -188,7 +205,7 @@ void m0_fop_put_lock(struct m0_fop *fop)
 
 	M0_PRE(m0_ref_read(&fop->f_ref) > 0);
 
-	mach = m0_fop_rpc_machine_get(fop);
+	mach = m0_fop_rpc_machine(fop);
 	m0_rpc_machine_lock(mach);
 	m0_fop_put(fop);
 	m0_rpc_machine_unlock(mach);
@@ -222,15 +239,18 @@ M0_EXPORTED(m0_fop_type_fini);
 void m0_fop_type_init(struct m0_fop_type *ft,
 		      const struct __m0_fop_type_init_args *args)
 {
-	struct m0_rpc_item_type *rpc_type;
+	struct m0_rpc_item_type    *rpc_type;
+	const struct m0_xcode_type *xt = args->xt;
 
 	M0_PRE(ft->ft_magix == 0);
+	M0_PRE(ergo(args->rpc_flags & M0_RPC_ITEM_TYPE_REPLY,
+		    xt->xct_nr > 0 && xt->xct_child[0].xf_type == &M0_XT_U32));
 
 	rpc_type = &ft->ft_rpc_item_type;
 
-	ft->ft_name         = args->name;
-	ft->ft_xt           = args->xt;
-	ft->ft_ops          = args->fop_ops;
+	ft->ft_name = args->name;
+	ft->ft_xt   = xt;
+	ft->ft_ops  = args->fop_ops;
 
 	rpc_type->rit_opcode = args->opcode;
 	rpc_type->rit_flags  = args->rpc_flags;
@@ -334,12 +354,13 @@ void m0_fop_rpc_machine_set(struct m0_fop *fop, struct m0_rpc_machine *mach)
 	fop->f_item.ri_rmachine = mach;
 }
 
-struct m0_rpc_machine *m0_fop_rpc_machine_get(const struct m0_fop *fop)
+struct m0_rpc_machine *m0_fop_rpc_machine(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 
 	return fop->f_item.ri_rmachine;
 }
+M0_EXPORTED(m0_fop_rpc_machine);
 
 M0_INTERNAL struct m0_fop_type *m0_item_type_to_fop_type
     (const struct m0_rpc_item_type *item_type) {
@@ -425,6 +446,14 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 	m0_fol_frag_add(&dtx->tx_fol_rec, frag);
 	return 0;
 }
+
+struct m0_rpc_machine *m0_fop_session_machine(const struct m0_rpc_session *s)
+{
+	M0_PRE(s != NULL && s->s_conn != NULL);
+
+	return s->s_conn->c_rpc_machine;
+}
+M0_EXPORTED(m0_fop_session_machine);
 
 /** @} end of fop group */
 #undef M0_TRACE_SUBSYSTEM

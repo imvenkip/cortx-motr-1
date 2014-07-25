@@ -102,7 +102,7 @@ M0_INTERNAL int m0_confd_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		m0_free(m);
 		return M0_RC(-EOPNOTSUPP);
 	}
-	rep_fop = m0_fop_alloc(&m0_conf_fetch_resp_fopt, NULL);
+	rep_fop = m0_fop_reply_alloc(fop, &m0_conf_fetch_resp_fopt);
 	if (rep_fop == NULL) {
 		m0_free(m);
 		return M0_RC(-ENOMEM);

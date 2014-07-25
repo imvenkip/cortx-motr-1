@@ -91,7 +91,7 @@ static int ub_req_fom_tick(struct m0_fom *fom)
 		return m0_fom_tick_generic(fom);
 
 	M0_UB_ASSERT(fom->fo_rep_fop == NULL);
-	fom->fo_rep_fop = m0_fop_alloc(&m0_rpc_ub_resp_fopt, NULL);
+	fom->fo_rep_fop = m0_fop_reply_alloc(fom->fo_fop, &m0_rpc_ub_resp_fopt);
 	M0_UB_ASSERT(fom->fo_rep_fop != NULL);
 
 	req  = m0_fop_data(fom->fo_fop);

@@ -70,7 +70,7 @@ struct m0_sss_rep {
 	 * Result of service start/stop operation
 	 * (-Exxx = failure, 0 = success).
 	 */
-	uint32_t ssr_rc;
+	int32_t  ssr_rc;
 	/**
 	 * Service status.
 	 * @see enum m0_reqh_service_state

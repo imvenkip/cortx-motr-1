@@ -97,7 +97,7 @@ static int send_fop(struct m0_rpc_session *session)
 	struct m0_fop         *fop;
 	struct cs_ds2_req_fop *cs_ds2_fop;
 
-	fop = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
+	fop = m0_fop_alloc_at(session, &cs_ds2_req_fop_fopt);
 	M0_UT_ASSERT(fop != NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;

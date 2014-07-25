@@ -34,6 +34,7 @@ struct ub_req {
 
 /** RPC UB response. */
 struct ub_resp {
+	int32_t       ur_rc;
 	uint64_t      ur_seqn; /**< Sequential number. */
 	struct m0_buf ur_data; /**< Data buffer. */
 } M0_XCA_RECORD;

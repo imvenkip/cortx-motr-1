@@ -299,15 +299,17 @@ static void generic_reply_build(struct m0_fom *fom)
 	struct m0_fop               *rfop = fom->fo_rep_fop;
 	struct m0_fop_generic_reply *out_fop;
 
-	if (rfop == NULL) {
-		rfop = m0_fop_alloc(&m0_fop_generic_reply_fopt, NULL);
-		if (rfop == NULL)
-			FOP_ADDB_FUNCFAIL(-ENOMEM, GENERIC_REPLY_BUILD,
-					  &fom->fo_addb_ctx);
+	if (rfop == NULL)
+		rfop = m0_fop_reply_alloc(fom->fo_fop,
+					  &m0_fop_generic_reply_fopt);
+	if (rfop != NULL) {
 		fom->fo_rep_fop = rfop;
-	}
-	out_fop = m0_fop_data(rfop);
-	out_fop->gr_rc = m0_fom_rc(fom);
+		M0_PRE(rfop->f_type->ft_xt->xct_child[0].xf_type == &M0_XT_U32);
+		out_fop = m0_fop_data(rfop);
+		out_fop->gr_rc = m0_fom_rc(fom);
+	} else
+		FOP_ADDB_FUNCFAIL(-ENOMEM, GENERIC_REPLY_BUILD,
+				  &fom->fo_addb_ctx);
 }
 
 /**

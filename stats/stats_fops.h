@@ -81,6 +81,7 @@ struct m0_stats_query_fop {
 
 /** stats query reply fop */
 struct m0_stats_query_rep_fop {
+	int32_t              sqrf_rc;
 	/** ADDB stats */
 	struct m0_stats_recs sqrf_stats;
 } M0_XCA_RECORD;

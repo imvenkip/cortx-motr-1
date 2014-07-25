@@ -673,7 +673,8 @@ static int stats_query_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 		goto free_qrep_fop;
 	}
 
-	reply_fop = m0_fop_alloc(&m0_fop_stats_query_rep_fopt, qrep_fop);
+	reply_fop = m0_fop_alloc(&m0_fop_stats_query_rep_fopt, qrep_fop,
+				 m0_fop_rpc_machine(fop));
 	if (reply_fop == NULL) {
 		rc = -ENOMEM;
 		goto free_qrep_fop_stats;

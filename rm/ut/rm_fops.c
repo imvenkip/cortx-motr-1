@@ -182,7 +182,7 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
 		default:
 			break;
 		}
-		fop = m0_fop_alloc(fopt, NULL);
+		fop = m0_fop_alloc(fopt, NULL, &ut_rm_mach);
 		M0_UT_ASSERT(fop != NULL);
 		item = &oreq->ou_fop.f_item;
 		switch (reqtype) {
@@ -333,7 +333,7 @@ static void borrow_reply_populate(struct m0_rm_fop_borrow_rep *breply,
 {
 	int rc;
 
-	breply->br_rc.gr_rc = err;
+	breply->br_rc = err;
 
 	if (err == 0) {
 		rc = m0_rm_credit_encode(&rm_test_data.rd_credit,
@@ -357,7 +357,6 @@ static void post_borrow_cleanup(struct m0_rpc_item *item, int err)
 	 * need to be cleaned-up.
 	 */
 	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-	m0_fop_rpc_machine_set(rep_fop, &ut_rm_mach);
 	m0_fop_put_lock(rep_fop);
 	if (err)
 		return;
@@ -519,7 +518,6 @@ static void post_revoke_cleanup(struct m0_rpc_item *item, int err)
 	}
 	m0_rm_owner_unlock(rm_test_data.rd_owner);
 	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-	m0_fop_rpc_machine_set(rep_fop, &ut_rm_mach);
 	m0_fop_put_lock(rep_fop);
 }
 

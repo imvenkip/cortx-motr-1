@@ -53,7 +53,7 @@ struct m0_fop_ping {
 } M0_XCA_RECORD;
 
 struct m0_fop_ping_rep {
-	uint32_t fpr_rc;
+	int32_t fpr_rc;
 } M0_XCA_RECORD;
 
 /* __MERO_RPC_IT_PING_FOP_H__ */

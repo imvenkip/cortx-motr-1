@@ -197,7 +197,8 @@ static int lustre_rename_fop(struct m0_fop *fop, void *data)
         }
 }
 
-int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data)
+int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data,
+			   struct m0_rpc_machine *mach)
 {
         struct m0_md_lustre_logrec *rec = data;
         fop_translate_t translate = NULL;
@@ -256,7 +257,7 @@ int m0_md_lustre_fop_alloc(struct m0_fop **fop, void *data)
         }
 
         if (*fop == NULL) {
-                *fop = m0_fop_alloc(fopt, NULL);
+                *fop = m0_fop_alloc(fopt, NULL, mach);
                 if (*fop == NULL)
                         return -ENOMEM;
         }

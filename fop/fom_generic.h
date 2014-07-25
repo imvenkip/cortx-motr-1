@@ -217,7 +217,7 @@ extern struct m0_sm_conf m0_generic_conf;
    report operation failure in generic fom phases.
  */
 struct m0_fop_generic_reply {
-	uint32_t          gr_rc;
+	int32_t           gr_rc;
 	struct m0_fop_str gr_msg;
 } M0_XCA_RECORD;
 

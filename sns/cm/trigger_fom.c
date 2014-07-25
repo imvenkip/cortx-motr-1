@@ -164,9 +164,9 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	if (fom == NULL)
 		return -ENOMEM;
 	if (is_repair_trigger_fop(fop))
-		rep_fop = m0_fop_alloc(&repair_trigger_rep_fopt, NULL);
+		rep_fop = m0_fop_reply_alloc(fop, &repair_trigger_rep_fopt);
 	else if (is_rebalance_trigger_fop(fop))
-		rep_fop = m0_fop_alloc(&rebalance_trigger_rep_fopt, NULL);
+		rep_fop = m0_fop_reply_alloc(fop, &rebalance_trigger_rep_fopt);
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &trigger_fom_ops, fop,
 		    rep_fop, reqh);
 

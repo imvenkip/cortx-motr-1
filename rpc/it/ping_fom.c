@@ -71,7 +71,7 @@ M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
 	struct m0_fop          *fop;
 
 	fom_obj = container_of(fom, struct m0_fom_ping, fp_gen);
-	fop = m0_fop_alloc(&m0_fop_ping_rep_fopt, NULL);
+	fop = m0_fop_reply_alloc(fom->fo_fop, &m0_fop_ping_rep_fopt);
 	M0_ASSERT(fop != NULL);
 	ping_fop_rep = m0_fop_data(fop);
 	ping_fop_rep->fpr_rc = 0;

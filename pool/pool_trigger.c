@@ -339,7 +339,8 @@ int main(int argc, char *argv[])
 		if (op[0] == 'Q' || op[0] == 'q') {
 			struct m0_fop_poolmach_query *query_fop;
 
-			req = m0_fop_alloc(&m0_fop_poolmach_query_fopt, NULL);
+			req = m0_fop_alloc_at(session,
+					      &m0_fop_poolmach_query_fopt);
 			if (req == NULL)
 				return -ENOMEM;
 			query_fop = m0_fop_data(req);
@@ -354,7 +355,9 @@ int main(int argc, char *argv[])
 					device_index_arr[j];
 		} else {
 			struct m0_fop_poolmach_set   *set_fop;
-			req = m0_fop_alloc(&m0_fop_poolmach_set_fopt, NULL);
+
+			req = m0_fop_alloc_at(session,
+					      &m0_fop_poolmach_set_fopt);
 			if (req == NULL)
 				return -ENOMEM;
 			set_fop = m0_fop_data(req);

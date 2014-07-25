@@ -1114,8 +1114,8 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 		return M0_RC(-ENOMEM);
 
 	rep_fop = m0_is_read_fop(fop) ?
-		    m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL) :
-		    m0_fop_alloc(&m0_fop_cob_writev_rep_fopt, NULL);
+		    m0_fop_reply_alloc(fop, &m0_fop_cob_readv_rep_fopt) :
+		    m0_fop_reply_alloc(fop, &m0_fop_cob_writev_rep_fopt);
 	if (rep_fop == NULL) {
 		m0_free(fom_obj);
 		return M0_RC(-ENOMEM);

@@ -785,7 +785,7 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 	if (!imc->imc_connected)
 		return -ENODEV;
 
-	req = m0_fop_alloc(&m0_fop_getattr_fopt, NULL);
+	req = m0_fop_alloc_at(&imc->imc_session, &m0_fop_getattr_fopt);
 	if (req == NULL)
 		return -ENOMEM;
 
@@ -850,7 +850,7 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	if (!imc->imc_connected)
 		return -ENODEV;
 
-	req = m0_fop_alloc(&m0_fop_layout_fopt, NULL);
+	req = m0_fop_alloc_at(&imc->imc_session, &m0_fop_layout_fopt);
 	if (req == NULL)
 		return -ENOMEM;
 

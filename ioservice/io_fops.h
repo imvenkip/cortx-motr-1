@@ -337,7 +337,7 @@ struct m0_fv_updates {
  */
 struct m0_fop_cob_rw_reply {
         /** Status code of operation. */
-	uint32_t             rwr_rc;
+	int32_t              rwr_rc;
 
 	/** Number of bytes read or written. */
 	uint64_t             rwr_count;
@@ -365,6 +365,7 @@ struct m0_fop_cob_rw_reply {
  * Reply FOP for a readv request.
  */
 struct m0_fop_cob_readv_rep {
+	int32_t                    c_rc;
 	/** Common read/write reply. */
 	struct m0_fop_cob_rw_reply c_rep;
 } M0_XCA_RECORD;
@@ -376,6 +377,7 @@ struct m0_fop_cob_readv_rep {
  * It contains the status code and number of bytes written.
  */
 struct m0_fop_cob_writev_rep {
+	int32_t                    c_rc;
 	/** Common read/write reply structure. */
 	struct m0_fop_cob_rw_reply c_rep;
 } M0_XCA_RECORD;
@@ -510,7 +512,7 @@ struct m0_fop_cob_delete {
  * requests.
  */
 struct m0_fop_cob_op_reply {
-	uint32_t             cor_rc;
+	int32_t              cor_rc;
 
 	/** latest version number */
 	struct m0_fv_version cor_fv_version;

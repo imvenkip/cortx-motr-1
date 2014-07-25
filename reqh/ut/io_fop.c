@@ -236,7 +236,7 @@ static int stob_io_fop_fom_create_helper(struct m0_fop *fop,
 	fom_obj = m0_alloc(sizeof *fom_obj);
 	if (fom_obj == NULL)
 		return -ENOMEM;
-	fom_obj->sif_rep_fop = m0_fop_alloc(fop_type, NULL);
+	fom_obj->sif_rep_fop = m0_fop_reply_alloc(fop, fop_type);
 	if (fom_obj->sif_rep_fop == NULL) {
 		m0_free(fom_obj);
 		return -ENOMEM;

@@ -209,7 +209,8 @@ ss_fom_create(struct m0_fop *fop, struct m0_fom **out, struct m0_reqh *reqh)
 	if (ssrep_fop == NULL)
 		goto err;
 
-	rfop = m0_fop_alloc(&m0_fop_ss_rep_fopt, ssrep_fop);
+	rfop = m0_fop_alloc(&m0_fop_ss_rep_fopt, ssrep_fop,
+			    m0_fop_rpc_machine(fop));
 	if (rfop == NULL)
 		goto err;
 

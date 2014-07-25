@@ -73,11 +73,12 @@ static bool has_item(const struct m0_rpc_item_source *ris)
 static struct m0_rpc_item *get_item(struct m0_rpc_item_source *ris,
 				    size_t max_payload_size)
 {
-	struct m0_fop *fop;
+	struct m0_fop         *fop;
+	struct m0_rpc_machine *machine = ris->ris_conn->c_rpc_machine;
 
-	M0_UT_ASSERT(m0_rpc_machine_is_locked(ris->ris_conn->c_rpc_machine));
+	M0_UT_ASSERT(m0_rpc_machine_is_locked(machine));
 	get_item_calls++;
-	fop  = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
+	fop  = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL, machine);
 	M0_UT_ASSERT(fop != NULL);
 	item = &fop->f_item;
 	/* without this "get", the item will be freed as soon as it is

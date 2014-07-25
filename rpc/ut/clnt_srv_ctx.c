@@ -106,12 +106,14 @@ static inline void stop_rpc_client_and_server(void)
 /* 'inline' is used, to avoid compiler warning if the function is not used
    in file that includes this file.
  */
-static inline struct m0_fop *fop_alloc(void)
+static inline struct m0_fop *fop_alloc(struct m0_rpc_machine *machine)
 {
 	struct cs_ds2_req_fop *cs_ds2_fop;
 	struct m0_fop         *fop;
 
-	fop = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL);
+	M0_PRE(machine != NULL);
+
+	fop = m0_fop_alloc(&cs_ds2_req_fop_fopt, NULL, machine);
 	M0_UT_ASSERT(fop != NULL);
 
 	cs_ds2_fop = m0_fop_data(fop);

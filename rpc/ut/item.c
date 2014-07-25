@@ -77,7 +77,7 @@ static void test_simple_transitions(void)
 	/* TEST1: Simple request and reply sequence */
 	M0_LOG(M0_DEBUG, "TEST:1:START");
 	m0_rpc_machine_get_stats(machine, &saved, false /* clear stats? */);
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, session,
 				&cs_ds_req_fop_rpc_item_ops,
@@ -102,7 +102,7 @@ static void test_timeout(void)
 		    Delayed reply is then dropped.
 	 */
 	M0_LOG(M0_DEBUG, "TEST:2.1:START");
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item = &fop->f_item;
 	item->ri_nr_sent_max = 1;
 	m0_rpc_machine_get_stats(machine, &saved, false);
@@ -158,7 +158,7 @@ static void __test_timeout(m0_time_t deadline,
 {
 	int rc;
 
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item = &fop->f_item;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	item->ri_nr_sent_max = 1;
@@ -226,7 +226,7 @@ static void test_resend(void)
 	m0_fi_enable_func("m0_rpc_item_send", "advance_deadline",
 			  only_second_time, &cnt);
 	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item = &fop->f_item;
 	__test_resend(fop);
 	m0_fi_disable("m0_rpc_item_send", "advance_deadline");
@@ -289,7 +289,7 @@ static void __test_resend(struct m0_fop *fop)
 	int rc;
 
 	if (fop == NULL) {
-		fop = fop_alloc();
+		fop = fop_alloc(machine);
 		fop_put_flag = true;
 	}
 	item = &fop->f_item;
@@ -307,7 +307,7 @@ static void __test_timer_start_failure(void)
 {
 	int rc;
 
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, session, NULL, 0 /* urgent */);
 	M0_UT_ASSERT(rc == -EINVAL);
@@ -369,7 +369,7 @@ static int __test(void)
 
 	/* Check SENDING -> FAILED transition */
 	m0_rpc_machine_get_stats(machine, &saved, false);
-	fop  = fop_alloc();
+	fop  = fop_alloc(machine);
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, session,
 				&cs_ds_req_fop_rpc_item_ops,
@@ -406,7 +406,7 @@ static void test_oneway_item(void)
 	int                 rc;
 
 	/* Test 1: Confirm one-way items reach receiver */
-	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL);
+	fop = m0_fop_alloc(&m0_rpc_arrow_fopt, NULL, machine);
 	M0_UT_ASSERT(fop != NULL);
 
 	item              = &fop->f_item;
@@ -501,7 +501,7 @@ static void test_cancel(void)
 
 	/* TEST5: Send item, cancel it and send again. */
 	M0_LOG(M0_DEBUG, "TEST:5:1:START");
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item = &fop->f_item;
 	rc = m0_rpc_client_call(fop, session, &cs_ds_req_fop_rpc_item_ops,
 				0 /* deadline */);
@@ -516,7 +516,7 @@ static void test_cancel(void)
 
 	/* Cancel item while in formation. */
 	M0_LOG(M0_DEBUG, "TEST:5:2:START");
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item              = &fop->f_item;
 	item->ri_session  = session;
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
@@ -532,7 +532,7 @@ static void test_cancel(void)
 	/* Cancel while waiting for reply. */
 	M0_LOG(M0_DEBUG, "TEST:5:3:START");
 	m0_fi_enable_once("cs_req_fop_fom_tick", "inject_delay");
-	fop = fop_alloc();
+	fop = fop_alloc(machine);
 	item              = &fop->f_item;
 	item->ri_session  = session;
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;

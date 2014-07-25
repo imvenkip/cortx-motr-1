@@ -240,7 +240,7 @@ static int request_fom_create(enum m0_rm_incoming_type type,
 		break;
 	}
 
-	reply_fop = m0_fop_alloc(fopt, NULL);
+	reply_fop = m0_fop_reply_alloc(fop, fopt);
 	if (reply_fop == NULL) {
 		m0_free(rqfom);
 		return M0_RC(-ENOMEM);
@@ -332,27 +332,24 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 {
 	struct m0_rm_fop_borrow_rep *bfop;
 	struct m0_rm_fop_revoke_rep *rfop;
-	struct m0_fop_generic_reply *reply_fop = NULL;
 
 	M0_ENTRY("reply for fom: %p type: %d error: %d", fom, type, rc);
 
 	switch (type) {
 	case FRT_BORROW:
 		bfop = m0_fop_data(fom->fo_rep_fop);
-		reply_fop = &bfop->br_rc;
+		bfop->br_rc = rc;
 		break;
 	case FRT_REVOKE:
 		rfop = m0_fop_data(fom->fo_rep_fop);
-		reply_fop = &rfop->rr_rc;
+		rfop->rr_rc = rc;
 		break;
 	case FRT_CANCEL:
-		reply_fop = m0_fop_data(fom->fo_rep_fop);
 		break;
 	default:
 		M0_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
-	reply_fop->gr_rc = rc;
 	M0_LEAVE();
 }
 
@@ -529,6 +526,10 @@ static int request_post_process(struct m0_fom *fom)
 
 	reply_err_set(in->rin_type, fom, rc);
 	m0_rm_incoming_fini(in);
+
+	if (M0_FI_ENABLED("no_rpc_reply_post"))
+		return M0_RC(M0_FSO_WAIT);
+
 	m0_rpc_reply_post(&fom->fo_fop->f_item,
 			  m0_fop_to_rpc_item(fom->fo_rep_fop));
 

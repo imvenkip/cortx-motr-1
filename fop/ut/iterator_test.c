@@ -107,9 +107,8 @@ static void fit_test(void)
 	result = fop_init();
 	M0_UT_ASSERT(result == 0);
 
-	f = m0_fop_alloc(&m0_fop_iterator_test_fopt, NULL);
+	f = m0_fop_alloc(&m0_fop_iterator_test_fopt, NULL, &machine);
 	M0_UT_ASSERT(f != NULL);
-	m0_fop_rpc_machine_set(f, &machine);
 	fop = m0_fop_data(f);
 	fop_obj_init(fop);
 

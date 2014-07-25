@@ -191,7 +191,8 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 	M0_PRE(session != NULL);
 	M0_PRE(note != NULL);
 
-	fop = m0_fop_alloc(&m0_ha_state_set_fopt, note);
+	fop = m0_fop_alloc(&m0_ha_state_set_fopt, note,
+			   m0_fop_session_machine(session));
 
 	item = &fop->f_item;
 	/* wait 5 seconds for the reply */

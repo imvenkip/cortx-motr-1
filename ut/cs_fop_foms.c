@@ -197,8 +197,8 @@ static int cs_ds_req_fop_fom_create(struct m0_fop *fop,
 				    const struct m0_fom_ops *ops,
 				    struct m0_fom **out, struct m0_reqh *reqh)
 {
-        struct m0_fom *fom;
-	struct m0_fop *rfop;
+        struct m0_fom         *fom;
+	struct m0_fop         *rfop;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(ops != NULL);
@@ -211,8 +211,8 @@ static int cs_ds_req_fop_fom_create(struct m0_fop *fop,
                 return -ENOMEM;
 
 	rfop = m0_fop_opcode(fop) == M0_CS_DS1_REQ_OPCODE ?
-		m0_fop_alloc(&cs_ds1_rep_fop_fopt, NULL) :
-		m0_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
+		m0_fop_reply_alloc(fop, &cs_ds1_rep_fop_fopt) :
+		m0_fop_reply_alloc(fop, &cs_ds2_rep_fop_fopt);
 	if (rfop == NULL) {
 		m0_free(fom);
 		return -ENOMEM;

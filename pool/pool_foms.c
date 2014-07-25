@@ -41,6 +41,7 @@ static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	struct m0_fop *rep_fop;
 	struct m0_fom *fom;
 	int            rc = 0;
+
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);
 
@@ -49,10 +50,12 @@ static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		return -ENOMEM;
 
 	if (m0_fop_opcode(fop) == M0_POOLMACHINE_QUERY_OPCODE) {
-		rep_fop = m0_fop_alloc(&m0_fop_poolmach_query_rep_fopt, NULL);
+		rep_fop = m0_fop_reply_alloc(fop,
+					     &m0_fop_poolmach_query_rep_fopt);
 		M0_LOG(M0_DEBUG, "create Query fop");
 	} else if (m0_fop_opcode(fop) == M0_POOLMACHINE_SET_OPCODE) {
-		rep_fop = m0_fop_alloc(&m0_fop_poolmach_set_rep_fopt, NULL);
+		rep_fop = m0_fop_reply_alloc(fop,
+					     &m0_fop_poolmach_set_rep_fopt);
 		M0_LOG(M0_DEBUG, "create set fop");
 	} else {
 		m0_free(fom);

@@ -35,7 +35,7 @@ M0_INTERNAL void m0_poolmach_fop_fini(void);
 M0_INTERNAL int m0_poolmach_fop_init(void);
 
 struct m0_fop_poolmach_set_rep {
-	uint32_t  fps_rc;
+	int32_t  fps_rc;
 } M0_XCA_RECORD;
 
 struct m0_fop_poolmach_dev_info {
@@ -54,7 +54,7 @@ struct m0_fop_poolmach_set {
 } M0_XCA_RECORD;
 
 struct m0_fop_poolmach_query_rep {
-	uint32_t                        fqr_rc;
+	int32_t                         fqr_rc;
 	struct m0_fop_poolmach_dev_info fqr_dev_info;
 } M0_XCA_RECORD;
 

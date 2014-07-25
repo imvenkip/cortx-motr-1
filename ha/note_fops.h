@@ -56,7 +56,7 @@ struct m0_ha_state_fop_get {
  */
 struct m0_ha_state_fop_get_rep {
 	/** Error code, 0 == success, -Ecode otherwise. */
-	uint32_t          hsgr_rc;
+	int32_t           hsgr_rc;
 	/** Replied m0_ha_note data. */
 	struct m0_ha_nvec hsgr_note;
 } M0_XCA_RECORD;
