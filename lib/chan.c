@@ -121,10 +121,12 @@ M0_EXPORTED(m0_chan_fini_lock);
 static void clink_signal(struct m0_clink *clink)
 {
 	struct m0_clink *grp = clink->cl_group;
-	int              rc    = 0;
+	int              rc  = 0;
 
 	if (clink->cl_is_oneshot)
 		m0_clink_del(clink);
+	else
+		clink_tlist_move_tail(&clink->cl_chan->ch_links, clink);
 
 	if (clink->cl_cb != NULL) {
 		m0_enter_awkward();
@@ -137,21 +139,12 @@ static void clink_signal(struct m0_clink *clink)
 
 static void chan_signal_nr(struct m0_chan *chan, uint32_t nr)
 {
-	uint32_t i;
+	struct m0_clink *clink;
 
-	M0_PRE(chan_is_locked(chan));
-	M0_ASSERT(m0_chan_invariant(chan));
-	for (i = 0; i < nr; ++i) {
-		struct m0_clink *clink = clink_tlist_head(&chan->ch_links);
-
-		if (clink != NULL) {
-			clink_tlist_move_tail(&chan->ch_links, clink);
-			clink_signal(clink);
-		} else {
-			break;
-		}
-	}
-	M0_ASSERT(m0_chan_invariant(chan));
+	M0_PRE(chan_is_locked(chan) && m0_chan_invariant(chan));
+	while (nr-- > 0 && (clink = clink_tlist_head(&chan->ch_links)) != NULL)
+		clink_signal(clink);
+	M0_POST(m0_chan_invariant(chan));
 }
 
 M0_INTERNAL void m0_chan_signal(struct m0_chan *chan)
