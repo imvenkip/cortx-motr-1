@@ -318,7 +318,7 @@ M0_INTERNAL bool m0_rpc_item_invariant(const struct m0_rpc_item *item)
 
 M0_INTERNAL const char *item_state_name(const struct m0_rpc_item *item)
 {
-	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
+	return m0_sm_state_name(&item->ri_sm, item->ri_sm.sm_state);
 }
 
 M0_INTERNAL const char *item_kind(const struct m0_rpc_item *item)
@@ -474,7 +474,7 @@ M0_INTERNAL void m0_rpc_item_change_state(struct m0_rpc_item *item,
 	       item_kind(item),
 	       item->ri_type->rit_opcode,
 	       item_state_name(item),
-	       item->ri_sm.sm_conf->scf_state[state].sd_name);
+	       m0_sm_state_name(&item->ri_sm, state));
 
 	m0_sm_state_set(&item->ri_sm, state);
 }
