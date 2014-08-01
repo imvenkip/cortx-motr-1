@@ -457,7 +457,7 @@ M0_INTERNAL void varr_buffers_dealloc(struct m0_varr *arr)
 	struct m0_varr_cursor cursor;
 	int		      rc;
 	void		     *holder;
-	uint32_t	      i;
+	int32_t		      i;
 	uint32_t	      depth;
 
 	depth = arr->va_failure_depth == 0 ? arr->va_depth :
