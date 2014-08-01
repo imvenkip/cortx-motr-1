@@ -65,7 +65,6 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 {
 	struct m0_rpc_item *item;
 	m0_time_t           now = m0_time_now();
-	int                 rc;
 
 	M0_ENTRY("fop: %p, session: %p", fop, session);
 
@@ -90,8 +89,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 		if (item->ri_nr_sent_max == 0)
 			item->ri_nr_sent_max = 1;
 	}
-	rc = m0_rpc__post_locked(item);
-	return M0_RC(rc);
+	return M0_RC(m0_rpc__post_locked(item));
 }
 
 M0_INTERNAL uint64_t m0_rpc_id_generate(void)
