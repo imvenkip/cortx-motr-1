@@ -136,31 +136,24 @@ static int packet_ready(struct m0_rpc_packet *p)
 	if (rpcbuf == NULL) {
 		rc = -ENOMEM;
 		M0_LOG(M0_ERROR, "Failed to allocate rpcbuf");
-		goto out;
+		goto err;
 	}
 	rc = rpc_buffer_init(rpcbuf, p);
 	if (rc != 0)
-		goto out_free;
+		goto err_free;
 
 	rc = rpc_buffer_submit(rpcbuf);
-	if (rc != 0)
-		goto out_fini;
+	if (rc == 0)
+		return M0_RC(rc);
 
-	return M0_RC(rc);
-
-out_fini:
 	rpc_buffer_fini(rpcbuf);
-
-out_free:
-	M0_ASSERT(rpcbuf != NULL);
+err_free:
 	m0_free(rpcbuf);
-
-out:
+err:
 	m0_rpc_packet_traverse_items(p, item_done, rc);
 	m0_rpc_packet_remove_all_items(p);
 	m0_rpc_packet_fini(p);
 	m0_free(p);
-
 	return M0_RC(rc);
 }
 
