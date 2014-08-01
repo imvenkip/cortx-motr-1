@@ -222,13 +222,6 @@ check_frm(enum frm_state state, uint64_t nr_items, uint64_t nr_packets)
 		     frm->f_nr_packets_enqed == nr_packets);
 }
 
-static void packet_discard(struct m0_rpc_packet *p)
-{
-	m0_rpc_packet_remove_all_items(p);
-	m0_rpc_packet_fini(p);
-	m0_free(p);
-}
-
 static void check_ready_packet_has_item(struct m0_rpc_item *item)
 {
 	struct m0_rpc_packet *p;
@@ -238,7 +231,7 @@ static void check_ready_packet_has_item(struct m0_rpc_item *item)
 	M0_UT_ASSERT(m0_rpc_packet_is_carrying_item(p, item));
 	check_frm(FRM_BUSY, 0, 1);
 	m0_rpc_frm_packet_done(p);
-	packet_discard(p);
+	m0_rpc_packet_discard(p);
 	check_frm(FRM_IDLE, 0, 0);
 }
 
@@ -351,7 +344,7 @@ static void frm_test2(void)
 		m0_rpc_frm_packet_done(p);
 		check_frm(FRM_IDLE, 0, 0);
 
-		packet_discard(p);
+		m0_rpc_packet_discard(p);
 		for (i = 0; i < N; ++i)
 			m0_free(items[i]);
 	}
@@ -440,7 +433,7 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 				     ITEMS_PER_PACKET);
 		(void)packet_stack_pop();
 		m0_rpc_frm_packet_done(p);
-		packet_discard(p);
+		m0_rpc_packet_discard(p);
 	}
 	check_frm(FRM_IDLE, 0, 0);
 	for (i = 0; i < N; ++i)
@@ -542,8 +535,8 @@ static void frm_test7(void)
 	m0_rpc_frm_packet_done(packet_stack[0]);
 	m0_rpc_frm_packet_done(packet_stack[1]);
 
-	packet_discard(packet_stack_pop());
-	packet_discard(packet_stack_pop());
+	m0_rpc_packet_discard(packet_stack_pop());
+	m0_rpc_packet_discard(packet_stack_pop());
 	M0_UT_ASSERT(packet_stack_is_empty());
 
 	m0_free(item1);
@@ -607,7 +600,7 @@ static void frm_test8(void)
 	while (!packet_stack_is_empty()) {
 		p = packet_stack_pop();
 		m0_rpc_frm_packet_done(p);
-		packet_discard(p);
+		m0_rpc_packet_discard(p);
 	}
 	check_frm(FRM_IDLE, 0, 0);
 	for (i = 0; i < N; i++)

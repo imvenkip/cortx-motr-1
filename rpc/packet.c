@@ -20,11 +20,13 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FORMATION
 #include "lib/trace.h"
+
 #include "lib/tlist.h"
 #include "lib/misc.h"
 #include "lib/vec.h"
 #include "lib/errno.h"
 #include "lib/finject.h"
+#include "lib/memory.h"
 #include "mero/magic.h"
 #include "xcode/xcode.h"
 #include "rpc/rpc_internal.h"
@@ -113,6 +115,13 @@ M0_INTERNAL void m0_rpc_packet_fini(struct m0_rpc_packet *p)
 	M0_SET0(p);
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_rpc_packet_discard(struct m0_rpc_packet *packet)
+{
+	m0_rpc_packet_remove_all_items(packet);
+	m0_rpc_packet_fini(packet);
+	m0_free(packet);
 }
 
 M0_INTERNAL void m0_rpc_packet_add_item(struct m0_rpc_packet *p,
@@ -402,9 +411,8 @@ M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,
 	M0_LEAVE();
 }
 
+/** @} rpc */
 #undef M0_TRACE_SUBSYSTEM
-
-/** @} */
 
 /*
  *  Local variables:

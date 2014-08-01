@@ -151,9 +151,7 @@ err_free:
 	m0_free(rpcbuf);
 err:
 	m0_rpc_packet_traverse_items(p, item_done, rc);
-	m0_rpc_packet_remove_all_items(p);
-	m0_rpc_packet_fini(p);
-	m0_free(p);
+	m0_rpc_packet_discard(p);
 	return M0_RC(rc);
 }
 
@@ -386,9 +384,7 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
 
 	m0_rpc_packet_traverse_items(p, item_done, p->rp_status);
 	m0_rpc_frm_packet_done(p);
-	m0_rpc_packet_remove_all_items(p);
-	m0_rpc_packet_fini(p);
-	m0_free(p);
+	m0_rpc_packet_discard(p);
 
 	m0_rpc_machine_unlock(machine);
 	M0_LEAVE();

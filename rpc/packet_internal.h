@@ -78,6 +78,9 @@ M0_INTERNAL void m0_rpc_packet_init(struct m0_rpc_packet *packet,
 				    struct m0_rpc_machine *rmach);
 M0_INTERNAL void m0_rpc_packet_fini(struct m0_rpc_packet *packet);
 
+/** Removes all items from the packet, finalises and frees it. */
+M0_INTERNAL void m0_rpc_packet_discard(struct m0_rpc_packet *packet);
+
 /**
    @pre  !packet_item_tlink_is_in(item)
    @post m0_rpc_packet_is_carrying_item(packet, item)
@@ -147,8 +150,7 @@ M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,
 					      item_visit_fn * visit,
 					      unsigned long opaque_data);
 
-/** @} */
-
+/** @} rpc */
 #endif /* __MERO_RPC_PACKET_INT_H__ */
 
 /*
