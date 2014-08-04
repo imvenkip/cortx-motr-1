@@ -143,27 +143,27 @@ $M0_CORE_DIR/m0t1fs/linux_kernel/st/st insmod
 sandbox_init
 m0d_start
 
-sss_check ioservice M0_SERVICE_STATUS "$SVC_ID" ssr_status M0_RST_STARTED
-sss_check ioservice M0_SERVICE_STATUS '(0, 0)'  ssr_rc     _ENOENT  # invalid id
+sss_check ioservice M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STARTED
+sss_check ioservice M0_SERVICE_STATUS '(0, 0)'  ssr_rc    _ENOENT  # invalid id
 
 SVC_NAMES=(confd stats rmservice mdservice addb sns_repair sns_rebalance)
 for ((i=0; i < ${#SVC_NAMES[*]}; i += 1)); do
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC_ID" \
-		ssr_status M0_RST_STOPPED
+		ssr_state M0_RST_STOPPED
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START  "$SVC_ID" \
-		ssr_status M0_RST_STARTED
+		ssr_state M0_RST_STARTED
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC_ID" \
-		ssr_status M0_RST_STARTED
+		ssr_state M0_RST_STARTED
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_START  "$SVC_ID" \
-		ssr_rc     _EALREADY
+		ssr_rc    _EALREADY
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STOP   "$SVC_ID" \
-		ssr_status M0_RST_STOPPED
+		ssr_state M0_RST_STOPPED
 	sss_check ${SVC_NAMES[$i]} M0_SERVICE_STATUS "$SVC_ID" \
-		ssr_status M0_RST_STOPPED
+		ssr_state M0_RST_STOPPED
 done
-sss_check unknown_service M0_SERVICE_START  "$SVC_ID" ssr_rc     _ENOENT
-sss_check ioservice       M0_SERVICE_STOP   "$SVC_ID" ssr_status M0_RST_STOPPED
-sss_check ioservice       M0_SERVICE_STATUS "$SVC_ID" ssr_status M0_RST_STOPPED
+sss_check unknown_service M0_SERVICE_START  "$SVC_ID" ssr_rc    _ENOENT
+sss_check ioservice       M0_SERVICE_STOP   "$SVC_ID" ssr_state M0_RST_STOPPED
+sss_check ioservice       M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STOPPED
 
 m0d_stop
 sandbox_fini

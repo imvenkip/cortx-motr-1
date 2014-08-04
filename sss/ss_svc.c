@@ -273,7 +273,7 @@ static int ss_fom_tick(struct m0_fom *fom)
 		else
 			m0_reqh_service_failed(m->ssf_svc);
 		rep->ssr_rc = m->ssf_ctx.sac_rc;
-		rep->ssr_status = m0_reqh_service_state_get(m->ssf_svc);
+		rep->ssr_state = m0_reqh_service_state_get(m->ssf_svc);
 		m0_fom_phase_moveif(fom, rep->ssr_rc, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
@@ -289,7 +289,7 @@ static int ss_fom_tick(struct m0_fom *fom)
 			struct m0_reqh_service *svc = m->ssf_svc;
 
 			m0_reqh_service_stop(svc);
-			rep->ssr_status = m0_reqh_service_state_get(svc);
+			rep->ssr_state = m0_reqh_service_state_get(svc);
 			rep->ssr_rc = 0;
 			m0_reqh_service_fini(svc);
 			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
@@ -303,11 +303,10 @@ static int ss_fom_tick(struct m0_fom *fom)
 
 	case SS_FOM_STATUS:
 		if (m->ssf_svc == NULL) {
-			rep->ssr_status = M0_RST_STOPPED;
+			rep->ssr_state = M0_RST_STOPPED;
 			rep->ssr_rc = m->ssf_stype == NULL ? -ENOENT : 0;
 		} else {
-			rep->ssr_status =
-				m0_reqh_service_state_get(m->ssf_svc);
+			rep->ssr_state = m0_reqh_service_state_get(m->ssf_svc);
 			rep->ssr_rc = 0;
 		}
 		m0_fom_phase_moveif(fom, rep->ssr_rc, M0_FOPH_SUCCESS,
