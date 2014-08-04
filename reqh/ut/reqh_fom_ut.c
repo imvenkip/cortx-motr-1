@@ -59,6 +59,7 @@
 #define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
 #define SERVER_BDOM_LOCATION	"linuxstob:./reqh_fom_ut"
+#define SERVER_BDOM_KEY         0xBAC570BD
 
 enum {
 	CLIENT_COB_DOM_ID  = 101,
@@ -199,7 +200,7 @@ static int server_init(const char             *stob_path,
 	 * Locate and create (if necessary) the backing store object.
 	 */
 	rc = m0_stob_domain_create_or_init(SERVER_BDOM_LOCATION, NULL,
-					   1, NULL, bdom);
+					   SERVER_BDOM_KEY, NULL, bdom);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_stob_find_by_key(*bdom, back_key, &bstore);
@@ -275,7 +276,7 @@ static void server_fini(struct m0_stob_domain *bdom,
 	int		    rc;
 
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
-		m0_reqh_shutdown(&reqh);
+		m0_reqh_shutdown_wait(&reqh);
 
 	M0_UT_ASSERT(m0_fom_domain_is_idle_for(&reqh.rh_fom_dom,
 					       reqh_ut_service));
