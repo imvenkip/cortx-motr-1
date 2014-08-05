@@ -125,8 +125,6 @@ static void clink_signal(struct m0_clink *clink)
 
 	if (clink->cl_is_oneshot)
 		m0_clink_del(clink);
-	else
-		clink_tlist_move_tail(&clink->cl_chan->ch_links, clink);
 
 	if (clink->cl_cb != NULL) {
 		m0_enter_awkward();
@@ -142,8 +140,11 @@ static void chan_signal_nr(struct m0_chan *chan, uint32_t nr)
 	struct m0_clink *clink;
 
 	M0_PRE(chan_is_locked(chan) && m0_chan_invariant(chan));
-	while (nr-- > 0 && (clink = clink_tlist_head(&chan->ch_links)) != NULL)
+	while (nr-- > 0 &&
+	       (clink = clink_tlist_head(&chan->ch_links)) != NULL) {
+		clink_tlist_move_tail(&chan->ch_links, clink);
 		clink_signal(clink);
+	}
 	M0_POST(m0_chan_invariant(chan));
 }
 
