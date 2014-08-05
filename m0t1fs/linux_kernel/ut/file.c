@@ -187,17 +187,21 @@ static int file_io_ut_init(void)
 
 static void ds_test(void)
 {
-        int                   rc;
-        int                   cnt;
-	struct m0_fid         cfid = M0_FID_INIT(0, 5);
-	struct data_buf      *dbuf;
-        struct io_request     req;
-        struct iovec          iovec_arr[IOVEC_NR];
-        struct m0_indexvec    ivec;
-	struct pargrp_iomap  *map;
-	struct target_ioreq   ti;
-	struct io_req_fop    *irfop;
-	struct m0_rpc_session session;
+        int			    rc;
+        int			    cnt;
+	struct m0_fid		    cfid = M0_FID_INIT(0, 5);
+	struct data_buf		   *dbuf;
+        struct io_request	    req;
+        struct iovec		    iovec_arr[IOVEC_NR];
+        struct m0_indexvec	    ivec;
+	struct pargrp_iomap	   *map;
+	struct m0_pdclust_layout   *play;
+	struct m0_pdclust_instance *play_instance;
+	struct m0_pdclust_src_addr  src;
+	struct m0_pdclust_tgt_addr  tgt;
+	struct target_ioreq	    ti;
+	struct io_req_fop	   *irfop;
+	struct m0_rpc_session	    session;
 
 	M0_SET0(&req);
 	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr),
@@ -282,13 +286,20 @@ static void ds_test(void)
 	M0_UT_ASSERT(map->pi_paritybufs[1][0] != NULL);
 	M0_UT_ASSERT(map->pi_paritybufs[2][0] != NULL);
 
-        m0_fid_set(&cfid, 0, 5);
+	src.sa_group = 0;
+	src.sa_unit  = 0;
+	play = pdlayout_get(&req);
+	play_instance = pdlayout_instance(layout_instance(&req));
+	m0_pdclust_instance_map(play_instance, &src, &tgt);
+	cfid = target_fid(&req, &tgt);
 
 	/* target_ioreq attributes test. */
-	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, UNIT_SIZE);
+	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, tgt.ta_obj, &session,
+			       UNIT_SIZE);
 	M0_UT_ASSERT(rc       == 0);
 	M0_UT_ASSERT(ti.ti_rc == 0);
 	M0_UT_ASSERT(m0_fid_eq(&ti.ti_fid, &cfid));
+	M0_UT_ASSERT(ti.ti_obj == tgt.ta_obj);
 	M0_UT_ASSERT(ti.ti_parbytes    == 0);
 	M0_UT_ASSERT(ti.ti_databytes   == 0);
 	M0_UT_ASSERT(ti.ti_nwxfer  == &req.ir_nwxfer);
@@ -718,24 +729,26 @@ static int file_io_ut_fini(void)
 
 static void target_ioreq_test(void)
 {
-	struct target_ioreq        ti;
-	struct io_request          req;
-	uint64_t                   size;
-	struct m0_fid              cfid = M0_FID_INIT(0, 5);
-	struct m0_rpc_session      session;
-	struct m0_rpc_conn         conn;
-	struct io_req_fop         *irfop;
-	int		           cnt;
-	int                        rc;
-	void		          *aligned_buf;
-	struct iovec               iovec_arr[IOVEC_NR];
-	struct m0_indexvec        *ivec;
-	struct pargrp_iomap       *map;
-	uint32_t                   row;
-	uint32_t                   col;
-	struct data_buf           *buf;
-	struct m0_pdclust_src_addr src;
-	struct m0_pdclust_tgt_addr tgt;
+	struct target_ioreq         ti;
+	struct io_request           req;
+	uint64_t                    size;
+	struct m0_fid               cfid = M0_FID_INIT(0, 5);
+	struct m0_rpc_session       session;
+	struct m0_rpc_conn          conn;
+	struct io_req_fop          *irfop;
+	int		            cnt;
+	int                         rc;
+	void		           *aligned_buf;
+	struct iovec                iovec_arr[IOVEC_NR];
+	struct m0_indexvec         *ivec;
+	struct pargrp_iomap        *map;
+	uint32_t                    row;
+	uint32_t                    col;
+	struct data_buf            *buf;
+	struct m0_pdclust_layout   *play;
+	struct m0_pdclust_instance *play_instance;
+	struct m0_pdclust_src_addr  src;
+	struct m0_pdclust_tgt_addr  tgt;
 
 	/* Checks working of target_ioreq_iofops_prepare() */
 
@@ -751,7 +764,14 @@ static void target_ioreq_test(void)
 	req.ir_file = &lfile;
         nw_xfer_request_init(&req.ir_nwxfer);
 
-	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, size);
+	src.sa_group = 0;
+	src.sa_unit  = 0;
+	play = pdlayout_get(&req);
+	play_instance = pdlayout_instance(layout_instance(&req));
+	m0_pdclust_instance_map(play_instance, &src, &tgt);
+	cfid = target_fid(&req, &tgt);
+	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, tgt.ta_obj, &session,
+			       size);
 	M0_UT_ASSERT(rc == 0);
 
         for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
@@ -987,14 +1007,13 @@ static void dgmode_readio_test(void)
 	}
 
 	for (cnt = 0; cnt < rbuf->bb_zerovec.z_bvec.ov_vec.v_nr; ++cnt) {
-
-		ioreq_pgiomap_find(req, pargrp_id_find(rbuf->bb_zerovec.
-				   z_index[cnt], UNIT_SIZE), &pgcur, &map);
+		m0_bindex_t z_index = rbuf->bb_zerovec.z_index[cnt];
+		ioreq_pgiomap_find(req, pargrp_id_find(z_index, req, irfop),
+				   &pgcur, &map);
 		M0_UT_ASSERT(map != NULL);
 		M0_UT_ASSERT(map->pi_state == PI_DEGRADED);
 
-		tgt.ta_frame = rbuf->bb_zerovec.z_index[cnt] /
-			       layout_unit_size(play);
+		tgt.ta_frame = z_index / layout_unit_size(play);
 		tgt.ta_obj   = m0_layout_enum_find(le,
 				file_to_fid(req->ir_file), &ti->ti_fid);
 

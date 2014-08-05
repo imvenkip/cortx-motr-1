@@ -17,7 +17,7 @@ file_to_compare="0:10001"
 
 N=3
 K=3
-P=9
+P=15
 stride=32
 
 dgio_test_module()

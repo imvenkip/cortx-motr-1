@@ -395,6 +395,11 @@ static inline struct inode *file_to_inode(const struct file *file)
 	return file->f_dentry->d_inode;
 }
 
+static inline struct inode *iomap_to_inode(const struct pargrp_iomap *map)
+{
+	return map->pi_ioreq->ir_file->f_dentry->d_inode;
+}
+
 static inline struct m0t1fs_inode *file_to_m0inode(const struct file *file)
 {
 	return M0T1FS_I(file_to_inode(file));
@@ -458,9 +463,14 @@ static inline uint64_t parity_units_page_nr(struct m0_pdclust_layout *play)
 	return page_nr(layout_unit_size(play)) * layout_k(play);
 }
 
-static inline uint64_t indexvec_page_nr(struct m0_vec *vec)
+static inline uint64_t indexvec_page_nr(const struct m0_vec *vec)
 {
 	return page_nr(m0_vec_count(vec));
+}
+
+static inline uint64_t iomap_page_nr(const struct pargrp_iomap *map)
+{
+	return indexvec_page_nr(&map->pi_ivec.iv_vec);
 }
 
 static inline uint64_t data_size(struct m0_pdclust_layout *play)
@@ -508,13 +518,38 @@ M0_HT_DESCR_DEFINE(tioreqht, "Hash of target_ioreq objects", static,
 
 M0_HT_DEFINE(tioreqht, static, struct target_ioreq, uint64_t);
 
-/* Finds out pargrp_iomap::pi_grpid from target index. */
-static inline uint64_t pargrp_id_find(m0_bindex_t index,
-		                      uint64_t    unit_size)
+/* Finds the parity group associated with a given target offset.
+ * index   - target offset for intended IO.
+ * req     - IO-request holding information about IO.
+ * tio_req - io-request for given target.
+ * src     - output parity group.
+ */
+static void pargrp_src_addr(m0_bindex_t                 index,
+			    const struct io_request    *req,
+			    const struct target_ioreq  *tio_req,
+			    struct m0_pdclust_src_addr *src)
 {
-	M0_PRE(unit_size > 0);
+	struct m0_pdclust_tgt_addr tgt;
+	struct m0_pdclust_layout  *play;
 
-	return index / unit_size;
+	M0_PRE(req != NULL);
+	M0_PRE(src != NULL);
+
+	play = pdlayout_get(req);
+	tgt.ta_obj = tio_req->ti_obj;
+	tgt.ta_frame = index / layout_unit_size(play);
+	m0_pdclust_instance_inv(pdlayout_instance(layout_instance(req)), &tgt,
+						  src);
+}
+
+static inline uint64_t pargrp_id_find(m0_bindex_t	       index,
+				      const struct io_request *req,
+				      const struct io_req_fop *ir_fop)
+{
+	struct m0_pdclust_src_addr src;
+
+	pargrp_src_addr(index, req, ir_fop->irf_tioreq, &src);
+	return src.sa_group;
 }
 
 static inline m0_bindex_t gfile_offset(m0_bindex_t                 toff,
@@ -692,6 +727,7 @@ static int  nw_xfer_tioreq_map	 (struct nw_xfer_request	   *xfer,
 
 static int  nw_xfer_tioreq_get	 (struct nw_xfer_request *xfer,
 				  struct m0_fid		*fid,
+				  uint64_t		 ta_obj,
 				  struct m0_rpc_session	*session,
 				  uint64_t		 size,
 				  struct target_ioreq   **out);
@@ -2085,13 +2121,13 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 			    m0_ivec_cursor_index(cursor) : INDEX(ivec, seg);
 		size += min64u(seg_endpos(ivec, seg), grpend) - currindex;
 	}
-	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
+	inode = iomap_to_inode(map);
 	rmw = size < grpsize && map->pi_ioreq->ir_type == IRT_WRITE &&
 	 grpstart < inode->i_size;
 	M0_LOG(M0_INFO, "Group id %llu is %s", map->pi_grpid,
 	       rmw ? "rmw" : "aligned");
 
-	size = map->pi_ioreq->ir_file->f_dentry->d_inode->i_size;
+	size = inode->i_size;
 
 	for (seg = 0; !m0_ivec_cursor_move(cursor, count) &&
 	     m0_ivec_cursor_index(cursor) < grpend;) {
@@ -2182,23 +2218,17 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 		 * Can use number of data_buf structures instead of using
 		 * indexvec_page_nr().
 		 */
-		ro_page_nr = /* Number of pages to be read.
-			      @todo: 'nr' can not be directly eliminated. If
-			      page contents are within_eof, then even if
-			      they are fully modified, older contents need
-			      to be read in read-old approach. If fully
-			      modified pages are not within_eof, then they
-			      need not be read.*/
-			     indexvec_page_nr(&map->pi_ivec.iv_vec) - nr +
+		ro_page_nr = /* Number of pages to be read. */
+			     iomap_page_nr(map) +
 			     parity_units_page_nr(play) +
 			     /* Number of pages to be written. */
-			     indexvec_page_nr(&map->pi_ivec.iv_vec) +
+			     iomap_page_nr(map) +
 			     parity_units_page_nr(play);
 
 		rr_page_nr = /* Number of pages to be read. */
 			     page_nr(grpend - grpstart) - nr +
 			     /* Number of pages to be written. */
-			     indexvec_page_nr(&map->pi_ivec.iv_vec) +
+			     iomap_page_nr(map) +
 			     parity_units_page_nr(play);
 
 		if (rr_page_nr < ro_page_nr) {
@@ -2335,12 +2365,9 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	int                        rc = 0;
 	uint32_t                   row;
 	uint32_t                   col;
-	uint32_t                   tgt_id;
 	m0_bindex_t                goff;
-	struct m0_layout_enum     *le;
 	struct m0_pdclust_layout  *play;
 	struct m0_pdclust_src_addr src;
-	struct m0_pdclust_tgt_addr tgt;
 	enum m0_pool_nd_state	   dev_state;
 	struct m0t1fs_sb	  *msb;
 	uint32_t		   spare_slot;
@@ -2352,28 +2379,11 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	M0_PRE(index != NULL);
 	M0_PRE(count >  0);
 
-	/*
-	 * Finds out the id of target object to which failed IO fop
-	 * was sent.
-	 */
-	le = m0_layout_instance_to_enum(file_to_m0inode(map->pi_ioreq->
-					ir_file)->ci_layout_instance);
-	tgt_id = m0_layout_enum_find(le, file_to_fid(map->pi_ioreq->ir_file),
-			             &tio->ti_fid);
 	msb = file_to_sb(map->pi_ioreq->ir_file);
 	rc = m0_poolmach_device_state(msb->csb_pool.po_mach,
 				      tio->ti_fid.f_container, &dev_state);
 	play = pdlayout_get(map->pi_ioreq);
-	tgt.ta_frame = index[0] / layout_unit_size(play);
-	tgt.ta_obj = tgt_id;
-
-	/*
-	 * Finds out reverse mapping of layout and gives
-	 * the source object.
-	 */
-	m0_pdclust_instance_inv(pdlayout_instance(
-				layout_instance(map->pi_ioreq)),
-				&tgt, &src);
+	pargrp_src_addr(index[0], map->pi_ioreq, tio, &src);
 	M0_ASSERT(src.sa_group == map->pi_grpid);
 	M0_ASSERT(src.sa_unit  <  layout_n(play) + layout_k(play));
 	if (dev_state == M0_PNDS_SNS_REPAIRED) {
@@ -2393,13 +2403,10 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 		map->pi_databufs[row][col]->db_flags |= PA_READ_FAILED;
 	} else {
 		/* Segment belongs to a parity unit. */
-		M0_ASSERT(map->pi_paritybufs[page_nr(index[0]) %
-				page_nr(layout_unit_size(play))]
-				[src.sa_unit - layout_n(play)] != NULL);
-		map->pi_paritybufs[(page_nr(index[0]) %
-				   page_nr(layout_unit_size(play)))]
-			[src.sa_unit - layout_n(play)]->db_flags |=
-			PA_READ_FAILED;
+		row = page_nr(index[0]) % page_nr(layout_unit_size(play));
+		col = src.sa_unit - layout_n(play);
+		M0_ASSERT(map->pi_paritybufs[row][col] != NULL);
+		map->pi_paritybufs[row][col]->db_flags |= PA_READ_FAILED;
 	}
 	/*
 	 * Since m0_parity_math_recover() API will recover one or more
@@ -2530,7 +2537,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 		 map->pi_grpid, map->pi_state);
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 
-	inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
+	inode = iomap_to_inode(map);
 	play = pdlayout_get(map->pi_ioreq);
 
 	/*
@@ -3307,7 +3314,6 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		 * failed, rest of the parity group also needs to be read
 		 * (subject to file size) in order to re-generate lost data.
 		 */
-
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
 			rc = irfop->irf_ops->irfo_dgmode_read(irfop);
 			if (rc != 0)
@@ -3907,7 +3913,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 
 	session = target_session(req, tfid);
 
-	rc = nw_xfer_tioreq_get(xfer, &tfid, session,
+	rc = nw_xfer_tioreq_get(xfer, &tfid, tgt->ta_obj, session,
 				layout_unit_size(play) * req->ir_iomap_nr,
 				out);
 
@@ -3921,10 +3927,15 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 static int target_ioreq_init(struct target_ioreq    *ti,
 			     struct nw_xfer_request *xfer,
 			     const struct m0_fid    *cobfid,
+			     uint64_t		     ta_obj,
 			     struct m0_rpc_session  *session,
 			     uint64_t		     size)
 {
-	int rc;
+	int		          rc;
+	struct m0_layout_enum    *le;
+	struct io_request        *req;
+	struct m0_fid		  tfid;
+
 
 	M0_ENTRY("target_ioreq %p, nw_xfer_request %p, "FID_F,
 		 ti, xfer, FID_P(cobfid));
@@ -3948,6 +3959,13 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_parbytes  = 0;
 	ti->ti_databytes = 0;
 
+	req	   = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+	le	   = m0_layout_to_enum(m0_pdl_to_layout(pdlayout_get(req)));
+	ti->ti_obj = ta_obj;
+
+	/* Verify that ta_obj provided by caller matches the layout. */
+	m0_layout_enum_get(le, ta_obj, file_to_fid(req->ir_file), &tfid);
+	M0_ASSERT(m0_fid_eq(&tfid, cobfid));
 	iofops_tlist_init(&ti->ti_iofops);
 	tioreqht_tlink_init(ti);
 	target_ioreq_bob_init(ti);
@@ -4040,6 +4058,7 @@ static struct target_ioreq *target_ioreq_locate(struct nw_xfer_request *xfer,
 
 static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 			      struct m0_fid	     *fid,
+			      uint64_t		      ta_obj,
 			      struct m0_rpc_session  *session,
 			      uint64_t		      size,
 			      struct target_ioreq   **out)
@@ -4063,7 +4082,7 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 			return M0_ERR(-ENOMEM, "Failed to allocate memory"
 				       "for target_ioreq");
 
-		rc = target_ioreq_init(ti, xfer, fid, session, size);
+		rc = target_ioreq_init(ti, xfer, fid, ta_obj, session, size);
 		if (rc == 0) {
 			tioreqht_htable_add(&xfer->nxr_tioreqs_hash, ti);
 			M0_LOG(M0_INFO, "New target_ioreq added for "FID_F,
@@ -5145,16 +5164,16 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 
 		for (seg = 0; seg < seg_nr; ) {
 
-			grpid = pargrp_id_find(*(index + seg), unit_size);
+			grpid = pargrp_id_find(index[seg], req, irfop);
 			for (cnt = 1, ++seg; seg < seg_nr; ++seg) {
 
 				M0_ASSERT(ergo(seg > 0, index[seg] >
 					       index[seg - 1]));
 				M0_ASSERT((index[seg] &
-					  (PAGE_CACHE_SHIFT - 1)) == 0);
+					  ~PAGE_CACHE_MASK) == 0);
 
 				if (seg < seg_nr && grpid ==
-				    pargrp_id_find(*(index + seg), unit_size))
+				    pargrp_id_find(index[seg], req, irfop))
 					++cnt;
 				else
 					break;
