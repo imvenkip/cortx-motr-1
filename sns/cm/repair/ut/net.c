@@ -787,10 +787,12 @@ static void test_init()
 
 static void test_cp_send_recv_verify()
 {
-	int                   i;
-	char                  data;
 	struct m0_sns_cm_ag  *sag;
 	struct m0_net_buffer *nbuf;
+	struct m0_net_domain *ndom;
+	int                   rc;
+	int                   i;
+	char                  data;
 
 	test_init();
 
@@ -802,6 +804,7 @@ static void test_cp_send_recv_verify()
 	for (i = 0; i < BUF_NR; ++i)
 		s_buf[i].nb_pool = &nbp;
 
+	ndom = &rmach_ctx.rmc_net_dom;
 	data = START_DATA;
 	cp_prepare(&s_sns_cp.sc_base, &s_buf[0], SEG_NR, SEG_SIZE,
 		   sag, data, &cp_fom_ops,
@@ -818,6 +821,10 @@ static void test_cp_send_recv_verify()
 	m0_tl_for(cp_data_buf, &s_sns_cp.sc_base.c_buffers, nbuf) {
 		M0_UT_ASSERT(nbuf != NULL);
 	} m0_tl_endfor;
+	for (i = 0; i < BUF_NR; ++i) {
+		rc = m0_net_buffer_register(&s_buf[i], ndom);
+		M0_UT_ASSERT(rc == 0);
+	}
 
 	m0_bitmap_init(&s_sns_cp.sc_base.c_xform_cp_indices,
 		       sag->sag_base.cag_cp_global_nr);
@@ -844,6 +851,8 @@ static void test_cp_send_recv_verify()
 
 	read_and_verify();
 
+	for (i = 0; i < BUF_NR; ++i)
+		m0_net_buffer_deregister(&s_buf[i], ndom);
 	test_fini();
 }
 
