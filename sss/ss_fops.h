@@ -67,15 +67,15 @@ struct m0_sss_req {
 /** Response to m0_sss_req. */
 struct m0_sss_rep {
 	/**
-	 * Service status.
-	 * @see enum m0_reqh_service_state
-	 */
-	uint32_t ssr_status;
-	/**
 	 * Result of service start/stop operation
 	 * (-Exxx = failure, 0 = success).
 	 */
 	uint32_t ssr_rc;
+	/**
+	 * Service status.
+	 * @see enum m0_reqh_service_state
+	 */
+	uint32_t ssr_status;
 } M0_XCA_RECORD;
 
 M0_INTERNAL int m0_ss_fops_init(void);
