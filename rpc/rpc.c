@@ -197,7 +197,7 @@ M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
 
 	/*
 	 * Rpc always acquires an *internal* reference to "all" items (Here
-	 * one-way items).This reference is released when the item is sent.
+	 * one-way items). This reference is released when the item is sent.
 	 */
 	m0_rpc_item_get(item);
 	item->ri_resend_interval = M0_TIME_NEVER;

@@ -333,6 +333,7 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 {
 	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && itype != NULL);
+	M0_PRE(M0_IS0(item));
 
 	item->ri_type  = itype;
 	item->ri_magic = M0_RPC_ITEM_MAGIC;
@@ -355,6 +356,12 @@ M0_EXPORTED(m0_rpc_item_init);
 void m0_rpc_item_fini(struct m0_rpc_item *item)
 {
 	M0_ENTRY("item: %p", item);
+
+	/*
+	 * Reset cookie so that a finalised item is not matched
+	 * when a late reply arrives.
+	 */
+	item->ri_cookid = 0;
 
 	m0_sm_timer_fini(&item->ri_timer);
 	m0_sm_timeout_fini(&item->ri_deadline_timeout);
@@ -539,9 +546,10 @@ int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item, m0_time_t timeout)
 	return rc;
 }
 
-void m0_rpc_item_delete(struct m0_rpc_item *item)
+void m0_rpc_item_cancel(struct m0_rpc_item *item)
 {
 	struct m0_rpc_machine *mach = item->ri_rmachine;
+	const struct m0_rpc_item_type *ri_type;
 
 	M0_PRE(m0_rpc_conn_is_snd(item->ri_session->s_conn));
         m0_rpc_machine_lock(mach);
@@ -549,12 +557,18 @@ void m0_rpc_item_delete(struct m0_rpc_item *item)
 
 	if (!M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_FAILED,
 					  M0_RPC_ITEM_REPLIED))) {
+		if (M0_IN(item->ri_sm.sm_state, (M0_RPC_ITEM_ENQUEUED,
+						 M0_RPC_ITEM_URGENT,
+						 M0_RPC_ITEM_SENDING)))
+			m0_rpc_item_put(item);
 		m0_rpc_item_failed(item, -ECANCELED);
 		item->ri_error = 0;
 	}
 	m0_rpc_item_fini(item);
-	m0_rpc_item_init(item, item->ri_type);
-        m0_rpc_machine_unlock(mach);
+	ri_type = item->ri_type;
+	M0_SET0(item);
+	m0_rpc_item_init(item, ri_type);
+	m0_rpc_machine_unlock(mach);
 }
 
 M0_INTERNAL struct m0_rpc_item *sm_to_item(struct m0_sm *mach)
@@ -641,7 +655,6 @@ static void item_timedout(struct m0_rpc_item *item)
 	switch (item->ri_sm.sm_state) {
 	case M0_RPC_ITEM_ENQUEUED:
 	case M0_RPC_ITEM_URGENT:
-		m0_rpc_item_get(item);
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 		m0_rpc_item_failed(item, -ETIMEDOUT);
 		m0_rpc_item_put(item);
@@ -649,6 +662,7 @@ static void item_timedout(struct m0_rpc_item *item)
 
 	case M0_RPC_ITEM_SENDING:
 		item->ri_error = -ETIMEDOUT;
+		m0_rpc_item_put(item);
 		/* item will be moved to FAILED state in item_done() */
 		break;
 
@@ -672,10 +686,8 @@ static void item_resend(struct m0_rpc_item *item)
 		rc = m0_rpc_item_start_timer(item);
 		/* XXX already completed requests??? */
 		if (rc != 0) {
-			m0_rpc_item_get(item);
 			m0_rpc_frm_remove_item(item->ri_frm, item);
 			m0_rpc_item_failed(item, -ETIMEDOUT);
-			m0_rpc_item_put(item);
 		}
 		break;
 
@@ -685,6 +697,13 @@ static void item_resend(struct m0_rpc_item *item)
 
 	case M0_RPC_ITEM_WAITING_FOR_REPLY:
 		m0_rpc_item_send(item);
+		/*
+		 * Drop reference the same was as we do
+		 * at m0_rpc_item_process_reply()
+		 * to avoid the leakage on resend.
+		 */
+		if (item->ri_error == 0)
+			m0_rpc_item_put(item);
 		break;
 
 	default:
@@ -729,12 +748,13 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	 * See rpc/frmops.c:item_sent() and m0_rpc_item_failed()
 	 */
 	m0_rpc_session_hold_busy(item->ri_session);
+	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 	/*
 	 * Rpc always acquires an *internal* reference to "all" items.
 	 * This reference is released when the item is sent.
 	 */
-	m0_rpc_item_get(item);
-	m0_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
+	if (item->ri_error == 0)
+		m0_rpc_item_get(item);
 	M0_LEAVE();
 }
 

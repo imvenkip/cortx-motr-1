@@ -323,7 +323,7 @@ int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item,
 
    If reply arrives for the original deleted item, it is ignored.
  */
-void m0_rpc_item_delete(struct m0_rpc_item *item);
+void m0_rpc_item_cancel(struct m0_rpc_item *item);
 
 /**
    For default implementations of these interfaces for fops

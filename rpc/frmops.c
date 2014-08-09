@@ -379,8 +379,15 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
 	if (p->rp_status == 0) {
 		stats->rs_nr_sent_packets++;
 		stats->rs_nr_sent_bytes += p->rp_size;
-	} else
+	} else {
+		struct m0_rpc_item *item;
 		stats->rs_nr_failed_packets++;
+		for_each_item_in_packet(item, p) {
+			/* there won't be replies */
+			if (!m0_rpc_item_is_oneway(item))
+				m0_rpc_item_put(item);
+		} end_for_each_item_in_packet;
+	}
 
 	m0_rpc_packet_traverse_items(p, item_done, p->rp_status);
 	m0_rpc_frm_packet_done(p);

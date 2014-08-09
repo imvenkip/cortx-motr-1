@@ -116,7 +116,7 @@ m0_rpc_client_start
 m0_rpc_client_stop
 m0_rpc_conn_destroy
 m0_rpc_item_to_fop
-m0_rpc_item_delete
+m0_rpc_item_cancel
 m0_rpc_item_init
 m0_rpc_item_fini
 m0_rpc_item_get

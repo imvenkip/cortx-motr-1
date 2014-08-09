@@ -144,7 +144,7 @@ static void rem_rpc_resend(struct m0_dtm_remote *rem,
 	M0_PRE(M0_IN(update->upd_up.up_state, (M0_DOS_INPROGRESS,
 					       M0_DOS_VOLATILE,
 					       M0_DOS_PERSISTENT)));
-	m0_rpc_item_delete(item);
+	m0_rpc_item_cancel(item);
 	/* add 1/100 second deadline to give a chance to build a better rpc. */
 	item->ri_deadline = m0_time_from_now(0, 10000000);
 	m0_rpc_post(item);

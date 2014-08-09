@@ -55,6 +55,8 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 	memset((obj), 0, sizeof *(obj)); \
 })
 
+#define M0_IS0(obj) m0_forall(i, sizeof *(obj), ((char *)obj)[i] == 0)
+
 #define M0_SET_ARR0(arr)                \
 ({                                      \
 	M0_CASSERT(m0_is_array(arr));   \

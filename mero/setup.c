@@ -34,7 +34,6 @@
 #include "lib/misc.h"
 #include "lib/uuid.h"
 #include "lib/locality.h"
-#include "balloc/balloc.h"
 #include "stob/ad.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
