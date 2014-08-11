@@ -49,15 +49,15 @@ M0_INTERNAL int m0_rpc_init(void)
 
 	M0_ENTRY();
 
-        m0_addb_ctx_type_register(&m0_addb_ct_rpc_mod);
-        m0_addb_ctx_type_register(&m0_addb_ct_rpc_machine);
-        m0_addb_ctx_type_register(&m0_addb_ct_rpc_frm);
+	m0_addb_ctx_type_register(&m0_addb_ct_rpc_mod);
+	m0_addb_ctx_type_register(&m0_addb_ct_rpc_machine);
+	m0_addb_ctx_type_register(&m0_addb_ct_rpc_frm);
 
-        m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_items);
-        m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_packets);
-        m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_bytes);
-        m0_addb_rec_type_register(&m0_addb_rt_rpc_sent_item_sizes);
-        m0_addb_rec_type_register(&m0_addb_rt_rpc_rcvd_item_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_items);
+	m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_packets);
+	m0_addb_rec_type_register(&m0_addb_rt_rpc_stats_bytes);
+	m0_addb_rec_type_register(&m0_addb_rt_rpc_sent_item_sizes);
+	m0_addb_rec_type_register(&m0_addb_rt_rpc_rcvd_item_sizes);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rpc_addb_ctx,
 			 &m0_addb_ct_rpc_mod, &m0_addb_proc_ctx);
 	rc = m0_rpc_item_module_init() ?:
