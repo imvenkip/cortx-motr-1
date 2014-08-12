@@ -10,10 +10,12 @@ pool_mach_set_failure()
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N $# \
 		 $DEVICES $STATE -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $poolmach
-	if ! $poolmach ; then
-		echo "m0poolmach failed"
+	eval $poolmach
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
-		return 1
+		return $rc
 	fi
 
 	return 0
@@ -29,10 +31,12 @@ pool_mach_query()
 	poolmach="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N $# \
 		 $DEVICES -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $poolmach
-	if ! $poolmach ; then
-		echo "m0poolmach failed"
+	eval $poolmach
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
-		return 1
+		return $rc
 	fi
 
 	return 0

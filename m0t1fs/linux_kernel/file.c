@@ -4673,7 +4673,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	nb = evt->nbe_buffer;
 	buf = (struct m0_rpc_bulk_buf *)nb->nb_app_private;
 	rbulk = buf->bb_rbulk;
-	M0_LOG(M0_DEBUG, "PASSIVE recv, e=%p status=%u, len=%llu rbulk=%p",
+	M0_LOG(M0_DEBUG, "PASSIVE recv, e=%p status=%d, len=%llu rbulk=%p",
 			 evt, evt->nbe_status, evt->nbe_length, rbulk);
 
 	/*
@@ -4681,6 +4681,8 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	 * after that.
 	 */
 	m0_rpc_bulk_default_cb(evt);
+	if (evt->nbe_status != 0)
+		return;
 
 	iofop  = container_of(rbulk, struct m0_io_fop, if_rbulk);
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
@@ -4907,15 +4909,16 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rc = req_item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "reply error: rc=%d", rc);
+		tioreq->ti_nwxfer->nxr_rdbulk_nr -=
+			rpcbulk_tlist_length(
+					&irfop->irf_iofop.if_rbulk.rb_buflist);
 		goto ref_dec;
 	}
 	M0_ASSERT(reply_item != NULL &&
 		  !m0_rpc_item_is_generic_reply_fop(reply_item));
 	reply_fop = m0_rpc_item_to_fop(reply_item);
-	if (!m0_is_io_fop_rep(reply_fop)) {
-		M0_LOG(M0_ERROR, "invalid fop reply rcvd: %s",
-			reply_fop->f_type->ft_name);
-	}
+	M0_ASSERT(m0_is_io_fop_rep(reply_fop));
+
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
@@ -4929,6 +4932,13 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		failure_vector_mismatch(irfop);
 	}
 	irfop->irf_reply_rc = rc;
+
+	/* For whatever reason, io didn't complete successfully.
+	 * Clear read bulk count */
+	if (rc < 0 && m0_is_read_fop(&irfop->irf_iofop.if_fop))
+		tioreq->ti_nwxfer->nxr_rdbulk_nr -=
+			rpcbulk_tlist_length(
+					&irfop->irf_iofop.if_rbulk.rb_buflist);
 
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = rc;
@@ -4949,8 +4959,9 @@ ref_dec:
 	/* Drops reference on reply fop. */
 	m0_fop_put(reply_fop);
 	m0_atomic64_dec(&file_to_sb(req->ir_file)->csb_pending_io_nr);
-	M0_LOG(M0_DEBUG, "irfop=%p "FID_F" Pending fops = %llu bulk=%llu",
-			 irfop, FID_P(&tioreq->ti_fid),
+	M0_LOG(M0_DEBUG, "irfop=%p bulk=%p "FID_F" Pending fops = %llu bulk=%llu",
+			 irfop, &irfop->irf_iofop.if_rbulk,
+			 FID_P(&tioreq->ti_fid),
 			 tioreq->ti_nwxfer->nxr_iofop_nr - 1,
 			 tioreq->ti_nwxfer->nxr_rdbulk_nr);
 
@@ -5415,7 +5426,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					&irfop->irf_iofop.if_rbulk.rb_buflist);
 
 		M0_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
-		M0_LOG(M0_DEBUG, "Number of io fops = %llu read bulks = %llu",
+		M0_LOG(M0_DEBUG, "irfop=%p bulk=%p (%s) @"FID_F" io fops = %llu"
+				 " read bulks = %llu",
+		       irfop, &irfop->irf_iofop.if_rbulk,
+		       m0_is_read_fop(&irfop->irf_iofop.if_fop) ? "r" : "w",
+		       FID_P(&ti->ti_fid),
 		       ti->ti_nwxfer->nxr_iofop_nr,
 		       ti->ti_nwxfer->nxr_rdbulk_nr);
 		iofops_tlist_add(&ti->ti_iofops, irfop);

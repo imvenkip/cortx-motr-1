@@ -58,9 +58,9 @@ static const char *cl_ep_addr;
 static const char *srv_ep_addr[MAX_SERVERS];
 static int64_t     device_index_arr[MAX_DEV_NR];
 static int64_t     device_state_arr[MAX_DEV_NR];
-static int         di;
-static int         ds;
-static uint32_t    dev_nr;
+static int         di = 0;
+static int         ds = 0;
+static uint32_t    dev_nr = 0;
 
 struct rpc_ctx {
 	struct m0_rpc_conn    ctx_conn;
@@ -256,7 +256,8 @@ int main(int argc, char *argv[])
                                             {
 					         device_index_arr[di] =
 								device_index;
-                                                    M0_CNT_INC(di);
+                                                 M0_CNT_INC(di);
+                                                 M0_ASSERT(di <= MAX_DEV_NR);
                                             }
 					   )
 				    ),
@@ -265,7 +266,8 @@ int main(int argc, char *argv[])
                                             {
 					         device_state_arr[ds] =
 								device_state;
-                                                    M0_CNT_INC(ds);
+                                                 M0_CNT_INC(ds);
+                                                 M0_ASSERT(di <= MAX_DEV_NR);
                                             }
 					   )
 				    ),
@@ -277,10 +279,9 @@ int main(int argc, char *argv[])
 				    ),
 			M0_STRINGARG('S', "Server endpoint",
 				     LAMBDA(void, (const char *str) {
-						srv_ep_addr[srv_cnt] = str;
-						++srv_cnt;
-						if (srv_cnt >= MAX_SERVERS)
-							rc2 = -E2BIG;
+					    srv_ep_addr[srv_cnt] = str;
+					    ++srv_cnt;
+					    M0_ASSERT(srv_cnt < MAX_SERVERS);
 					}
 				     )
 				    ),
@@ -290,40 +291,55 @@ int main(int argc, char *argv[])
 		return rc;
 	}
 
-	if (op == NULL         || type == NULL ||
-	    dev_nr == 0 || dev_nr > MAX_DEV_NR || cl_ep_addr == NULL ||
-	    srv_cnt == 0) {
+	if (op == NULL          || type == NULL        || dev_nr == 0  ||
+	    dev_nr > MAX_DEV_NR || cl_ep_addr == NULL  || srv_cnt == 0 ||
+	    di != dev_nr        || ((op[0] == 'S'||op[0] == 's') && ds!=dev_nr)
+	   ) {
 		print_help();
+		fprintf(stderr, "Insane arguments: op=%s type=%s cl_ep=%s"
+				"dev_nr=%d di=%d ds=%d srv_cnt=%d\n",
+				op, type, cl_ep_addr, dev_nr, di, ds, srv_cnt);
 		return -EINVAL;
 	}
 
 	for (i = 0; i < dev_nr; ++i) {
-		if (device_state_arr[i] < 0 || device_state_arr[i] > 2)
+		if (device_state_arr[i] < 0 || device_state_arr[i] > 2) {
+			fprintf(stderr, "invalid device state: %lld\n",
+				(long long)device_state_arr[i]);
 			return -EINVAL;
+		}
 	}
 
 	rc = m0_init(&instance);
-	if (rc != 0)
+	if (rc != 0) {
+		fprintf(stderr, "Cannot init Mero: %d\n", rc);
 		return rc;
+	}
 
 	rc = poolmach_client_init();
-	if (rc != 0)
+	if (rc != 0) {
+		fprintf(stderr, "Cannot init client: %d\n", rc);
 		return rc;
+	}
 
 	m0_mutex_init(&poolmach_wait_mutex);
 	m0_chan_init(&poolmach_wait, &poolmach_wait_mutex);
 	m0_clink_init(&poolmach_clink, NULL);
 
 	M0_ALLOC_ARR(ctxs, srv_cnt);
-	if (ctxs == NULL)
+	if (ctxs == NULL) {
+		fprintf(stderr, "Not enough memory. srv count = %d\n", srv_cnt);
 		return -ENOMEM;
+	}
 
 	for (i = 1; i < srv_cnt; ++i) {
 		/* connection to srv_ep_addr[0] is establish in
 		 * poolmach_client_init() already */
 		rc = poolmach_rpc_ctx_init(&ctxs[i], srv_ep_addr[i]);
-		if (rc != 0)
+		if (rc != 0) {
+			fprintf(stderr, "Cannot init rpc ctx = %d\n", rc);
 			return rc;
+		}
 	}
 
 	m0_mutex_lock(&poolmach_wait_mutex);
@@ -341,8 +357,11 @@ int main(int argc, char *argv[])
 
 			req = m0_fop_alloc_at(session,
 					      &m0_fop_poolmach_query_fopt);
-			if (req == NULL)
+			if (req == NULL) {
+				fprintf(stderr, "Not enough memory for fop\n");
 				return -ENOMEM;
+			}
+
 			query_fop = m0_fop_data(req);
 			if (type[0] == 'N' || type[0] == 'n')
 				query_fop->fpq_type  = M0_POOL_NODE;
@@ -358,8 +377,11 @@ int main(int argc, char *argv[])
 
 			req = m0_fop_alloc_at(session,
 					      &m0_fop_poolmach_set_fopt);
-			if (req == NULL)
+			if (req == NULL) {
+				fprintf(stderr, "Not enough memory for fop\n");
 				return -ENOMEM;
+			}
+
 			set_fop = m0_fop_data(req);
 			if (type[0] == 'N' || type[0] == 'n')
 				set_fop->fps_type  = M0_POOL_NODE;

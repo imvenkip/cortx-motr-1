@@ -21,91 +21,84 @@ pool_mach_test()
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
-
-	if ! $trigger ; then
-		echo "m0poolmach failed"
-		rc=1
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 	else
 		echo "m0poolmach done."
-		rc=0
 	fi
 
 ####### Set
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
-
-	if ! $trigger ; then
-		echo "m0poolmach failed"
-		rc=1
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 	else
 		echo "m0poolmach done."
-		rc=0
 	fi
 
 ####### Query again
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
-
-	if ! $trigger ; then
-		echo "m0poolmach failed"
-		rc=1
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 	else
 		echo "m0poolmach done."
-		rc=0
 	fi
 
 ####### Set again. This set request should get error
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 0
                          -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
-
-	if ! $trigger ; then
-		echo "m0poolmach failed"
-		rc=1
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 	else
 		echo "m0poolmach done."
-		rc=0
 	fi
 
 ####### Set again. This set request should get error
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
-
-	if ! $trigger ; then
-		echo "m0poolmach failed"
-		rc=1
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 	else
 		echo "m0poolmach done."
-		rc=0
 	fi
 
 ####### Set again. This set request should get error
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Set -T device -N 1 -I 1 -s 2
                          -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
-
-	if ! $trigger ; then
-		echo "m0poolmach failed"
-		rc=1
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 	else
 		echo "m0poolmach done."
-		rc=0
 	fi
 
 ####### Query again
 	trigger="$MERO_CORE_ROOT/pool/m0poolmach -O Query -T device -N 1 -I 1
                          -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $trigger
-
-	if ! $trigger ; then
-		echo "m0poolmach failed"
-		rc=1
+	eval $trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "m0poolmach failed: $rc"
 	else
 		echo "m0poolmach done."
-		rc=0
 	fi
 
 	return $rc
