@@ -132,11 +132,11 @@ static void rm_client(const int tid)
 	int                      rc;
 	struct m0_rm_resource   *resource;
 	struct m0_rm_remote     *creditor;
-	struct m0_rm_owner      owner;
-	struct m0_file          file1;
-	struct m0_file          file2;
-	struct m0_fid           fids[] = {{0, 1}, {0, 2}};
-	struct m0_reqh_service *rmservice;
+	struct m0_rm_owner       owner;
+	struct m0_file           file1;
+	struct m0_file           file2;
+	struct m0_fid            fids[] = {{0, 1}, {0, 2}};
+	struct m0_reqh_service  *rmservice;
 
 	/* Wait till server starts */
 	m0_chan_wait(&tests_clink[SERVER_1]);
@@ -240,7 +240,7 @@ void rmsvc(void)
 	m0_mutex_init(&rm_ut_tests_chan_mutex);
 	m0_chan_init(&rm_ut_tests_chan, &rm_ut_tests_chan_mutex);
 
-	for (rc = 0; rc <= 1; ++rc) {
+	for (rc = 0; rc < 2; ++rc) {
 		M0_SET0(&rm_ctx[rc]);
 		rm_ctx[rc].rc_id = rc;
 		rm_ctx[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
