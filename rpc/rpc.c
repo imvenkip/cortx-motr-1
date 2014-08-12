@@ -30,6 +30,7 @@
 #include "lib/types.h"
 #include "lib/finject.h"
 
+#include "rpc/link.h"     /* m0_rpc_link_module_init */
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "rpc/service.h"
@@ -60,9 +61,10 @@ M0_INTERNAL int m0_rpc_init(void)
 	m0_addb_rec_type_register(&m0_addb_rt_rpc_rcvd_item_sizes);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_rpc_addb_ctx,
 			 &m0_addb_ct_rpc_mod, &m0_addb_proc_ctx);
-	rc = m0_rpc_item_module_init() ?:
-		m0_rpc_service_register() ?:
-		m0_rpc_session_module_init();
+	rc =  m0_rpc_item_module_init()
+	   ?: m0_rpc_service_register()
+	   ?: m0_rpc_session_module_init()
+	   ?: m0_rpc_link_module_init();
 
 	return M0_RC(rc);
 }
@@ -71,6 +73,7 @@ M0_INTERNAL void m0_rpc_fini(void)
 {
 	M0_ENTRY();
 
+	m0_rpc_link_module_fini();
 	m0_rpc_session_module_fini();
 	m0_rpc_service_unregister();
 	m0_rpc_item_module_fini();

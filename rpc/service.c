@@ -18,13 +18,14 @@
  * Original creation date: 02/23/2012
  */
 
-#include <linux/errno.h>
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
+#include "lib/errno.h"
 #include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/memory.h"   /* m0_alloc() */
+#include "rpc/link.h"
 #include "rpc/service.h"
 #include "rpc/rev_conn.h"
 #include "rpc/rpc_internal.h"
@@ -38,7 +39,7 @@
  */
 
 M0_TL_DESCR_DEFINE(rev_conn, "Reverse Connections", static,
-		   struct m0_reverse_connection, rcf_link, rcf_magic,
+		   struct m0_reverse_connection, rcf_linkage, rcf_magic,
 		   M0_RM_REV_CONN_LIST_MAGIC, M0_RM_REV_CONN_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(rev_conn, static, struct m0_reverse_connection);
 
@@ -119,7 +120,6 @@ M0_EXPORTED(m0_rpc_service_type);
 M0_INTERNAL int m0_rpc_service_register(void)
 {
 	m0_addb_ctx_type_register(&m0_addb_ct_rpc_serv);
-	m0_rev_conn_fom_type_init();
 	return m0_reqh_service_type_register(&m0_rpc_service_type);
 }
 
@@ -143,85 +143,66 @@ m0_rpc_service_reverse_session_lookup(struct m0_reqh_service   *service,
 	rem_ep = m0_rpc_item_remote_ep_addr(item);
 
 	revc = m0_tl_find(rev_conn, revc, &svc->rps_rev_conns,
-			  strcmp(rem_ep, revc->rcf_rem_ep) == 0);
-	return revc == NULL ? NULL : revc->rcf_sess;
+			  strcmp(rem_ep, REV_CONN_DEST_EP(revc)) == 0);
+	return revc == NULL ? NULL : &revc->rcf_rlink.rlk_sess;
 }
 
 M0_INTERNAL int
 m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 				   const struct m0_rpc_item *item,
-				   struct m0_rpc_session    *session)
+				   struct m0_clink          *clink,
+				   struct m0_rpc_session   **session)
 {
 	int                           rc;
 	const char                   *rem_ep;
 	struct m0_reverse_connection *revc;
 	struct m0_rpc_service        *svc;
 
+	M0_ENTRY();
 	M0_PRE(item != NULL && service->rs_type == &m0_rpc_service_type);
 
 	svc    = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	rem_ep = m0_rpc_item_remote_ep_addr(item);
 
 	M0_ALLOC_PTR(revc);
-	if (revc == NULL) {
-		rc = -ENOMEM;
-		goto err_revc;
+	rc = revc == NULL ? -ENOMEM : 0;
+	rc = rc ?: m0_rpc_link_init(&revc->rcf_rlink,
+				    item->ri_rmachine, rem_ep,
+				    M0_REV_CONN_TIMEOUT,
+				    M0_REV_CONN_MAX_RPCS_IN_FLIGHT);
+	if (rc == 0) {
+		m0_rpc_link_connect_async(&revc->rcf_rlink, clink);
+		*session = &revc->rcf_rlink.rlk_sess;
+		rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
 	}
-	revc->rcf_rem_ep = m0_alloc(strlen(rem_ep) + 1);
-	if (revc->rcf_rem_ep == NULL) {
-		rc = -ENOMEM;
-		goto err_ep;
-	}
-	strcpy(revc->rcf_rem_ep, rem_ep);
-	M0_ALLOC_PTR(revc->rcf_sess);
-	if (revc->rcf_sess == NULL) {
-		rc = -ENOMEM;
-		goto err_ep;
-	}
-	revc->rcf_sess    = session;
-	revc->rcf_rpcmach = item->ri_rmachine;
-	revc->rcf_ft      = M0_REV_CONNECT;
-	m0_fom_init(&revc->rcf_fom, &rev_conn_fom_type, &rev_conn_fom_ops,
-		    NULL, NULL, service->rs_reqh);
-
-	m0_fom_queue(&revc->rcf_fom, service->rs_reqh);
-	rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
-	return M0_RC(0);
-
-err_ep:
-	m0_free(revc->rcf_rem_ep);
-err_revc:
-	m0_free(revc);
 	return M0_RC(rc);
 }
 
 M0_INTERNAL void
 m0_rpc_service_reverse_session_put(struct m0_reqh_service *service)
 {
-	int                           rc;
 	struct m0_rpc_service        *svc;
 	struct m0_reverse_connection *revc;
 
+	M0_ENTRY();
 	M0_PRE(service->rs_type == &m0_rpc_service_type);
 
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
+	m0_tl_for(rev_conn, &svc->rps_rev_conns, revc) {
+		m0_clink_init(&revc->rcf_disc_wait, NULL);
+		revc->rcf_disc_wait.cl_is_oneshot = true;
+		m0_rpc_link_disconnect_async(&revc->rcf_rlink,
+					     &revc->rcf_disc_wait);
+	} m0_tlist_endfor;
 	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {
+		m0_chan_wait(&revc->rcf_disc_wait);
+		m0_clink_fini(&revc->rcf_disc_wait);
+		m0_rpc_link_fini(&revc->rcf_rlink);
 		rev_conn_tlink_fini(revc);
-		rc = m0_rpc_session_destroy(revc->rcf_sess,
-				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
-		if (rc != 0)
-			M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
-
-		rc = m0_rpc_conn_destroy(revc->rcf_conn,
-				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0));
-		if (rc != 0)
-			M0_LOG(M0_ERROR, "Failed to terminate connection %d",
-			       rc);
-		m0_free(revc->rcf_sess);
-		m0_free(revc->rcf_rem_ep);
-		m0_free(revc->rcf_conn);
 		m0_free(revc);
 	}
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL struct m0_reqh_service *

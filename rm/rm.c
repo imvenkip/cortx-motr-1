@@ -1139,7 +1139,6 @@ M0_INTERNAL void m0_rm_rev_session_wait(struct m0_rm_remote *remote)
 	 */
 	if (m0_clink_is_armed(clink)) {
 		m0_chan_wait(clink);
-		m0_clink_del_lock(clink);
 		m0_clink_fini(clink);
 	}
 }

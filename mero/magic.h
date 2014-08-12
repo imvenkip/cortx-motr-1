@@ -592,7 +592,7 @@ enum m0_magic_satchel {
 	/* m0_reqh_rpc_mach_tl::td_head_magic (laissez eifel) */
 	M0_REQH_RPC_MACH_HEAD_MAGIC = 0x331a155e2e1fe177,
 
-	/* rev_conn_tl::rcf_link (abless ablaze) */
+	/* rev_conn_tl::rcf_linkage (abless ablaze) */
 	M0_RM_REV_CONN_LIST_MAGIC = 0x33AB1E55AB1A2E77,
 
 	/* rev_conn_tl::td_head_magic (belief abelia) */

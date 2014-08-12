@@ -24,11 +24,9 @@
 #ifndef __MERO_RPC_REV_CONN_H__
 #define __MERO_RPC_REV_CONN_H__
 
-#include "fop/fom.h"
+#include "lib/chan.h"
 #include "lib/tlist.h"
-#include "rpc/conn.h"
-#include "rpc/session.h"
-#include "rpc/rpc_machine.h"
+#include "rpc/link.h"
 
 /**
    @defgroup rev_conn Reverse connection
@@ -36,42 +34,22 @@
    @{
  */
 
-enum m0_rev_connection_fom_type {
-	M0_REV_CONNECT,
-	M0_REV_DISCONNECT,
-};
+/* TODO move to rpc/rev_conn.c with rev_conn related functions */
+#define REV_CONN_DEST_EP(revc) \
+	(revc)->rcf_rlink.rlk_conn.c_rpcchan->rc_destep->nep_addr
 
 enum {
-	M0_REV_CONN_TIMEOUT   = 5,
+	M0_REV_CONN_TIMEOUT            = 5,
+	M0_REV_CONN_MAX_RPCS_IN_FLIGHT = 1,
 };
 
 struct m0_reverse_connection {
-	enum m0_rev_connection_fom_type  rcf_ft;
-	char                            *rcf_rem_ep;
-	struct m0_fom                    rcf_fom;
-	struct m0_tlink                  rcf_link;
-	struct m0_rpc_conn              *rcf_conn;
-	struct m0_rpc_session           *rcf_sess;
-	struct m0_rpc_machine           *rcf_rpcmach;
-	struct m0_fom_callback           rcf_fomcb;
-	struct m0_chan                   rcf_chan;
-	struct m0_mutex                  rcf_mutex;
-	uint64_t                         rcf_magic;
+	struct m0_rpc_link  rcf_rlink;
+	struct m0_tlink     rcf_linkage;
+	/* signalled when connection is terminated */
+	struct m0_clink     rcf_disc_wait;
+	uint64_t            rcf_magic;
 };
-
-enum m0_rev_conn_states {
-	M0_RCS_CONN = M0_FOM_PHASE_INIT,
-	M0_RCS_FINI = M0_FOM_PHASE_FINISH,
-	M0_RCS_CONN_WAIT,
-	M0_RCS_SESSION,
-	M0_RCS_SESSION_WAIT,
-	M0_RCS_FAILURE,
-};
-
-extern struct m0_fom_type      rev_conn_fom_type;
-extern const struct m0_fom_ops rev_conn_fom_ops;
-
-M0_INTERNAL void m0_rev_conn_fom_type_init(void);
 
 /** @} end of rev_conn group */
 

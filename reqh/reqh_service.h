@@ -261,9 +261,6 @@ struct m0_reqh_service {
 	 */
 	struct m0_addb_ctx                 rs_addb_ctx;
 
-	/** Channel to wait till reverse session is established */
-	struct m0_chan                     rs_rev_conn_wait;
-
 	/**
 	 * service context
 	 */

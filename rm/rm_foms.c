@@ -356,6 +356,7 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 					  struct m0_rm_remote          *remote)
 {
+	int                     rc = 0;
 	struct rm_request_fom  *rfom;
 	struct m0_fom          *fom;
 	struct m0_reqh_service *service;
@@ -369,19 +370,15 @@ M0_INTERNAL int m0_rm_reverse_session_get(struct m0_rm_remote_incoming *rem_in,
 			m0_rpc_service_reverse_session_lookup(service,
 						&fom->fo_fop->f_item);
 		if (remote->rem_session == NULL) {
-			RM_ALLOC_PTR(remote->rem_session, REMOTE_SESSION_ALLOC,
-				     &m0_rm_addb_ctx);
-			if (remote->rem_session == NULL)
-				return M0_RC(-ENOMEM);
-			m0_rpc_service_reverse_session_get(
-				service, &fom->fo_fop->f_item,
-				remote->rem_session);
 			m0_clink_init(&remote->rem_rev_sess_clink, NULL);
-			m0_clink_add_lock(&service->rs_rev_conn_wait,
-					  &remote->rem_rev_sess_clink);
+			remote->rem_rev_sess_clink.cl_is_oneshot = true;
+			rc = m0_rpc_service_reverse_session_get(
+				service, &fom->fo_fop->f_item,
+				&remote->rem_rev_sess_clink,
+				&remote->rem_session);
 		}
 	}
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 /*

@@ -53,7 +53,8 @@ M0_INTERNAL void m0_rpc_service_unregister(void);
 M0_INTERNAL int
 m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 				   const struct m0_rpc_item *item,
-				   struct m0_rpc_session    *session);
+				   struct m0_clink          *clink,
+				   struct m0_rpc_session   **session);
 
 M0_INTERNAL void
 m0_rpc_service_reverse_session_put(struct m0_reqh_service *service);

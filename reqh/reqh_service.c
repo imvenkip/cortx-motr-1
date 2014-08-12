@@ -374,7 +374,6 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service  *service,
 		service->rs_service_uuid = *uuid;
 	service->rs_reqh = reqh;
 	m0_mutex_init(&service->rs_mutex);
-	m0_chan_init(&service->rs_rev_conn_wait, &service->rs_mutex);
 	reqh_service_state_set(service, M0_RST_INITIALISED);
 
 	/*
@@ -412,7 +411,6 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 	m0_sm_group_lock(&service->rs_reqh->rh_sm_grp);
 	m0_sm_fini(&service->rs_sm);
 	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
-	m0_chan_fini_lock(&service->rs_rev_conn_wait);
 	m0_mutex_fini(&service->rs_mutex);
 	service->rs_ops->rso_fini(service);
 	m0_buf_free(&service->rs_ss_param);
