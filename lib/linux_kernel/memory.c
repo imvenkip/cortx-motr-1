@@ -22,6 +22,7 @@
 
 #include "lib/assert.h"  /* M0_PRE */
 #include "lib/memory.h"
+#include "lib/atomic.h"  /* m0_atomic64 */
 #include "lib/finject.h" /* M0_FI_ENABLED */
 
 /**
@@ -32,30 +33,52 @@
    @{
 */
 
+static struct m0_atomic64 cumulative_alloc;
+static struct m0_atomic64 cumulative_free;
+
 M0_INTERNAL void *m0_alloc(size_t size)
 {
+	void *p;
+
 	if (M0_FI_ENABLED("fail_allocation"))
 		return NULL;
 
-	return kzalloc(size, GFP_KERNEL);
+	p = kzalloc(size, GFP_KERNEL);
+#ifdef ENABLE_DEV_MODE
+	if (p != NULL)
+		m0_atomic64_add(&cumulative_alloc, size);
+#endif
+	return p;
 }
 M0_EXPORTED(m0_alloc);
 
 M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 {
+	void *p;
+
 	/*
 	 * Currently it supports alignment of PAGE_SHIFT only.
 	 */
 	M0_PRE(shift == PAGE_SHIFT);
-	if (size == 0)
+	if (size == 0) {
 		return NULL;
-	else
-		return alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
+	} else {
+		p = alloc_pages_exact(size, GFP_KERNEL | __GFP_ZERO);
+#ifdef ENABLE_DEV_MODE
+		if (p != NULL)
+			m0_atomic64_add(&cumulative_alloc, size);
+#endif
+		return p;
+	}
 }
 M0_EXPORTED(m0_alloc_aligned);
 
 M0_INTERNAL void m0_free(void *data)
 {
+#ifdef ENABLE_DEV_MODE
+	if (data != NULL)
+		m0_atomic64_add(&cumulative_free, ksize(data));
+#endif
 	kfree(data);
 }
 M0_EXPORTED(m0_free);
@@ -64,6 +87,9 @@ M0_INTERNAL void m0_free_aligned(void *addr, size_t size, unsigned shift)
 {
 	M0_PRE(shift == PAGE_SHIFT);
 	M0_PRE(m0_addr_is_aligned(addr, shift));
+#ifdef ENABLE_DEV_MODE
+	m0_atomic64_add(&cumulative_free, size);
+#endif
 	free_pages_exact(addr, size);
 }
 M0_EXPORTED(m0_free_aligned);
@@ -73,6 +99,29 @@ M0_INTERNAL size_t m0_allocated(void)
 	return 0;
 }
 M0_EXPORTED(m0_allocated);
+
+M0_INTERNAL size_t m0_allocated_total(void)
+{
+	return m0_atomic64_get(&cumulative_alloc);
+}
+M0_EXPORTED(m0_allocated_total);
+
+M0_INTERNAL size_t m0_freed_total(void)
+{
+	return m0_atomic64_get(&cumulative_free);
+}
+M0_EXPORTED(m0_freed_total);
+
+M0_INTERNAL int m0_memory_init(void)
+{
+	m0_atomic64_set(&cumulative_alloc, 0);
+	m0_atomic64_set(&cumulative_free, 0);
+	return 0;
+}
+
+M0_INTERNAL void m0_memory_fini(void)
+{
+}
 
 M0_INTERNAL int m0_pagesize_get(void)
 {

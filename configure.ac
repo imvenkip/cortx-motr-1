@@ -149,6 +149,9 @@ AC_ARG_ENABLE([release],
                [enable_dev_mode=no],[enable_dev_mode=yes])]
 )
 
+AS_IF([test x$enable_dev_mode = xyes],
+      AC_DEFINE([ENABLE_DEV_MODE]))
+
 AC_ARG_ENABLE([debug],
         [AS_HELP_STRING([--enable-debug],
                         [enable debug information and disable optimizations])],

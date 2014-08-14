@@ -28,15 +28,6 @@
   this file should be removed.
  */
 
-M0_INTERNAL int m0_memory_init(void)
-{
-	return 0;
-}
-
-M0_INTERNAL void m0_memory_fini(void)
-{
-}
-
 M0_INTERNAL int m0_db_init(void)
 {
 	return 0;

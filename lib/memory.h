@@ -145,6 +145,16 @@ M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift);
 M0_INTERNAL size_t m0_allocated(void);
 
 /**
+ * Returns cumulative amount of memory allocated so far since libmero library loading.
+ */
+M0_INTERNAL size_t m0_allocated_total(void);
+
+/**
+ * Returns cumulative amount of memory freed so far since libmero library loading.
+ */
+M0_INTERNAL size_t m0_freed_total(void);
+
+/**
  * Same as system getpagesize(3).
  * Used in the code shared between user and kernel.
  */

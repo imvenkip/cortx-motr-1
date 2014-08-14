@@ -48,6 +48,8 @@
 */
 
 static struct m0_atomic64 allocated;
+static struct m0_atomic64 cumulative_alloc;
+static struct m0_atomic64 cumulative_free;
 
 enum { U_POISON_BYTE = 0x5f };
 
@@ -79,6 +81,9 @@ static void __free(void *ptr)
 	size_t size = malloc_size(ptr);
 
 	m0_atomic64_sub(&allocated, size);
+#ifdef ENABLE_DEV_MODE
+	m0_atomic64_add(&cumulative_free, size);
+#endif
 #ifdef ENABLE_FREE_POISON
 	memset(ptr, U_POISON_BYTE, size);
 #endif
@@ -90,7 +95,9 @@ M0_INTERNAL void *__malloc(size_t size)
 	void *area;
 
 	area = malloc(size);
+#ifdef ENABLE_DEV_MODE
 	m0_atomic64_add(&allocated, malloc_size(area));
+#endif
 	return area;
 }
 
@@ -121,8 +128,12 @@ void *m0_alloc(size_t size)
 
 	M0_ENTRY("size=%lu", size);
 	ret = __malloc(size);
-	if (ret)
+	if (ret != NULL) {
 		memset(ret, 0, size);
+#ifdef ENABLE_DEV_MODE
+		m0_atomic64_add(&cumulative_alloc, size);
+#endif
+	}
 	M0_LEAVE("ptr=%p size=%lu", ret, size);
 	return ret;
 }
@@ -152,6 +163,16 @@ M0_INTERNAL size_t m0_allocated(void)
 	return used - used0;
 }
 
+M0_INTERNAL size_t m0_allocated_total(void)
+{
+	return m0_atomic64_get(&cumulative_alloc);
+}
+
+M0_INTERNAL size_t m0_freed_total(void)
+{
+	return m0_atomic64_get(&cumulative_free);
+}
+
 M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 {
 	void  *result;
@@ -168,10 +189,14 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 	alignment = max_type(size_t, 1 << shift, sizeof result);
 	M0_ASSERT(m0_is_po2(alignment));
 	rc = posix_memalign(&result, alignment, size);
-	if (rc == 0)
+	if (rc == 0) {
 		memset(result, 0, size);
-	else
+#ifdef ENABLE_DEV_MODE
+		m0_atomic64_add(&cumulative_alloc, size);
+#endif
+	} else {
 		result = NULL;
+	}
 	return result;
 }
 
@@ -186,6 +211,8 @@ M0_INTERNAL int m0_memory_init(void)
 	M0_ASSERT(nothing != NULL);
 	m0_free(nothing);
 	m0_atomic64_set(&allocated, 0);
+	m0_atomic64_set(&cumulative_alloc, 0);
+	m0_atomic64_set(&cumulative_free, 0);
 	used0 = __allocated();
 	return 0;
 }
