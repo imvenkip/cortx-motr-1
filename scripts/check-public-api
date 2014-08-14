@@ -79,6 +79,7 @@ set -e
 # to have identical sorting order, we need to sort file's content using the same
 # locale
 _sort() { LC_ALL=C sort; }
+_comm() { LC_ALL=C comm "$@"; }
 
 func_list=$(mktemp)
 nm "$libmero" | awk '$2 == "T" && $3 ~ /^m0_.*|tlist/ {print $3}' |
@@ -87,13 +88,13 @@ nm "$libmero" | awk '$2 == "T" && $3 ~ /^m0_.*|tlist/ {print $3}' |
 pub_api_sorted=$(mktemp)
 sed -e '/^#/d' -e '/^$/d' -e 's/^\*//' $pub_api | _sort > $pub_api_sorted
 
-ids_unexpected=$(comm -13 $pub_api_sorted $func_list)
-ids_missing=$(comm -23 $pub_api_sorted $func_list)
+ids_unexpected=$(_comm -13 $pub_api_sorted $func_list)
+ids_missing=$(_comm -23 $pub_api_sorted $func_list)
 if [[ -n $ids_missing ]]; then
 	tolerated=$(mktemp)
 	sed -n 's/^\*//p' $pub_api | _sort > $tolerated
 	if [[ -s $tolerated ]]; then
-		ids_missing=$(echo "$ids_missing" | comm -23 - $tolerated)
+		ids_missing=$(echo "$ids_missing" | _comm -23 - $tolerated)
 	fi
 fi
 
