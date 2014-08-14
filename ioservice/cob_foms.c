@@ -264,14 +264,13 @@ static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 	int rc;
 
 	rc = m0_stob_find(&co->fco_stob_fid, &co->fco_stob);
-	if (rc == 0 && m0_stob_state_get(co->fco_stob) == CSS_UNKNOWN)
+	if (rc != 0)
+		return rc;
+	if (m0_stob_state_get(co->fco_stob) == CSS_UNKNOWN)
 		   rc = m0_stob_locate(co->fco_stob);
-	if (m0_stob_state_get(co->fco_stob) == CSS_NOENT) {
-		m0_stob_put(co->fco_stob);
+	if (rc == 0 && m0_stob_state_get(co->fco_stob) == CSS_NOENT)
 		rc = -ENOENT;
-	}
-	if (rc == 0)
-		m0_stob_put(co->fco_stob);
+	m0_stob_put(co->fco_stob);
 
 	return rc;
 }
@@ -439,13 +438,6 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 
 		rc = ios__poolmach_check(poolmach, cliv, &common->c_cobfid);
 		if (rc != 0) {
-			cob_op = cob_fom_get(fom);
-			/*
-			 * Release the reference taken on stob in
-			 * M0_FOPH_TXN_INIT
-			 */
-			if (cob_op->fco_stob != NULL)
-				m0_stob_put(cob_op->fco_stob);
 			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 			goto pack;
 		}
