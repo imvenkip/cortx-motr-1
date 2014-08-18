@@ -23,11 +23,6 @@
 #ifndef __MERO_CLOVIS_CLOVIS_INTERNAL_H__
 #define __MERO_CLOVIS_CLOVIS_INTERNAL_H__
 
-enum m0_clovis_op_state {
-	M0_CLOVIS_OS_INIT,
-	M0_CLOVIS_OS_DONE,
-};
-
 void m0_clovis_op_init(struct m0_clovis_op *op,
 		       const struct m0_sm_conf *conf,
 		       struct m0_clovis_entity *entity);
