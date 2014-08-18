@@ -207,15 +207,15 @@ static inline uint64_t m0_align(uint64_t val, uint64_t alignment)
 /** Decrements a counter checking for underflow. */
 #define M0_CNT_DEC(cnt)					\
 ({							\
-        M0_ASSERT((cnt) != 0);				\
-        --cnt;						\
+	M0_ASSERT((cnt) != 0);				\
+	--cnt;						\
 })
 
 /** Increments a counter checking for overflow. */
 #define M0_CNT_INC(cnt)					\
 ({							\
-        ++cnt;						\
-        M0_ASSERT((cnt) != 0);				\
+	++cnt;						\
+	M0_ASSERT((cnt) != 0);				\
 })
 
 /** Check to determine if the sum of two 64 bit unsigned numbers
