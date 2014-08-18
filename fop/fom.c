@@ -299,7 +299,7 @@ M0_INTERNAL bool m0_fom_invariant(const struct m0_fom *fom)
 }
 
 static bool fom_wait_time_is_out(const struct m0_fom_domain *dom,
-                                 const struct m0_fom *fom)
+				 const struct m0_fom *fom)
 {
 	return false;
 }
@@ -543,9 +543,9 @@ static void fom_exec(struct m0_fom *fom)
 				exec_time >> 10); /* ~usec */
 
 	if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH) {
-                /*
-                 * Finish fom itself.
-                 */
+		/*
+		 * Finish fom itself.
+		 */
 		fom->fo_ops->fo_fini(fom);
 		/*
 		 * Don't touch the fom after this point.
@@ -853,8 +853,8 @@ static int loc_init(struct m0_fom_locality *loc, size_t cpu, size_t cpu_max)
 	return result;
 
 err0:
-        m0_fom_locality_lockers_fini(loc);
-        m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
+	m0_fom_locality_lockers_fini(loc);
+	m0_addb_counter_fini(&loc->fl_stat_sched_wait_times);
 err1:
 	m0_addb_counter_fini(&loc->fl_stat_run_times);
 err2:
@@ -1114,7 +1114,7 @@ M0_EXPORTED(m0_fom_init);
 static bool fom_clink_cb(struct m0_clink *link)
 {
 	struct m0_fom_callback *cb = container_of(link, struct m0_fom_callback,
-	                                          fc_clink);
+						  fc_clink);
 	M0_PRE(cb->fc_state >= M0_FCS_ARMED);
 
 	if (cb->fc_state == M0_FCS_ARMED &&
@@ -1136,8 +1136,8 @@ static void fom_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (fom_state(fom) == M0_FOS_WAITING)
 		cb_run(cb);
 	else {
-		M0_ASSERT(fom_state(fom) == M0_FOS_READY
-			  || fom_is_blocked(fom));
+		M0_ASSERT(fom_state(fom) == M0_FOS_READY ||
+			  fom_is_blocked(fom));
 		/*
 		 * Call-back arrived while our fom is in READY state (hanging on
 		 * the runqueue, waiting for its turn) or RUNNING state (blocked

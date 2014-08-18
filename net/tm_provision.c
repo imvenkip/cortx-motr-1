@@ -467,12 +467,14 @@ static void tm_provision_recv_q(struct m0_net_transfer_mc *tm)
 	return;
 }
 
-M0_INTERNAL void m0_net_domain_buffer_pool_not_empty(struct m0_net_buffer_pool
-						     *pool)
+M0_INTERNAL void
+m0_net_domain_buffer_pool_not_empty(struct m0_net_buffer_pool *pool)
 {
 	struct m0_net_domain	  *dom;
 	struct m0_net_transfer_mc *tm;
+
 	M0_ASSERT(m0_net_buffer_pool_is_locked(pool));
+
 	dom = pool->nbp_ndom;
 	m0_mutex_lock(&dom->nd_mutex);
 	m0_list_for_each_entry(&dom->nd_tms, tm,

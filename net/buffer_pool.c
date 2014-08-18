@@ -39,21 +39,25 @@ M0_TL_DEFINE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);
 
 static bool pool_colour_check(const struct m0_net_buffer_pool *pool);
 static bool pool_lru_buffer_check(const struct m0_net_buffer_pool *pool);
+static bool colour_is_valid(const struct m0_net_buffer_pool *pool,
+			    uint32_t colour);
 
 M0_INTERNAL bool m0_net_buffer_pool_invariant(const struct m0_net_buffer_pool
 					      *pool)
 {
-	return pool != NULL &&
+	return _0C(pool != NULL) &&
 		/* domain must be set and initialized */
-		pool->nbp_ndom != NULL && pool->nbp_ndom->nd_xprt != NULL &&
+		_0C(pool->nbp_ndom != NULL) &&
+		_0C(pool->nbp_ndom->nd_xprt != NULL) &&
 		/* must have the appropriate callback */
-		pool->nbp_ops != NULL &&
-		m0_net_buffer_pool_is_locked(pool) &&
-		pool->nbp_free <= pool->nbp_buf_nr &&
-		pool->nbp_free == m0_net_pool_tlist_length(&pool->nbp_lru) &&
-		pool_colour_check(pool) &&
-		pool_lru_buffer_check(pool) &&
-		equi(pool->nbp_colours_nr == 0, pool->nbp_colours == NULL);
+		_0C(pool->nbp_ops != NULL) &&
+		_0C(m0_net_buffer_pool_is_locked(pool)) &&
+		_0C(pool->nbp_free <= pool->nbp_buf_nr) &&
+		_0C(pool->nbp_free ==
+		    m0_net_pool_tlist_length(&pool->nbp_lru)) &&
+		_0C(pool_colour_check(pool)) &&
+		_0C(pool_lru_buffer_check(pool)) &&
+		_0C((pool->nbp_colours_nr == 0) == (pool->nbp_colours == NULL));
 }
 
 static bool pool_colour_check(const struct m0_net_buffer_pool *pool)
@@ -84,13 +88,13 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 	M0_PRE(seg_size <= m0_net_domain_get_max_buffer_segment_size(ndom));
 
 	pool->nbp_threshold  = threshold;
-	pool->nbp_ndom	     = ndom;
-	pool->nbp_free	     = 0;
+	pool->nbp_ndom       = ndom;
+	pool->nbp_free       = 0;
 	pool->nbp_buf_nr     = 0;
 	pool->nbp_seg_nr     = seg_nr;
 	pool->nbp_seg_size   = seg_size;
 	pool->nbp_colours_nr = colours;
-	pool->nbp_align	     = shift;
+	pool->nbp_align      = shift;
 
 	if (colours == 0)
 		pool->nbp_colours = NULL;
@@ -201,14 +205,19 @@ M0_INTERNAL void m0_net_buffer_pool_unlock(struct m0_net_buffer_pool *pool)
 	m0_mutex_unlock(&pool->nbp_mutex);
 }
 
-M0_INTERNAL struct m0_net_buffer *m0_net_buffer_pool_get(struct
-							 m0_net_buffer_pool
-							 *pool, uint32_t colour)
+static bool colour_is_valid(const struct m0_net_buffer_pool *pool,
+			    uint32_t colour)
+{
+	return colour == M0_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr;
+}
+
+M0_INTERNAL struct m0_net_buffer *
+m0_net_buffer_pool_get(struct m0_net_buffer_pool *pool, uint32_t colour)
 {
 	struct m0_net_buffer *nb;
 
 	M0_PRE(m0_net_buffer_pool_invariant(pool));
-	M0_PRE(colour == M0_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
+	M0_PRE(colour_is_valid(pool, colour));
 
 	if (pool->nbp_free <= 0)
 		return NULL;
@@ -236,7 +245,7 @@ M0_INTERNAL void m0_net_buffer_pool_put(struct m0_net_buffer_pool *pool,
 	M0_PRE(buf != NULL);
 	M0_PRE(m0_net_buffer_pool_invariant(pool));
 	M0_PRE(buf->nb_ep == NULL);
-	M0_PRE(colour == M0_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
+	M0_PRE(colour_is_valid(pool, colour));
 	M0_PRE(!(buf->nb_flags & M0_NET_BUF_QUEUED));
 	M0_PRE(buf->nb_flags & M0_NET_BUF_REGISTERED);
 	M0_PRE(pool->nbp_ndom == buf->nb_dom);
@@ -265,7 +274,7 @@ static bool net_buffer_pool_grow(struct m0_net_buffer_pool *pool)
 	if (nb == NULL)
 		return false;
 	rc = m0_bufvec_alloc_aligned(&nb->nb_buffer, pool->nbp_seg_nr,
-	                              pool->nbp_seg_size, pool->nbp_align);
+				     pool->nbp_seg_size, pool->nbp_align);
 	if (rc != 0)
 		goto clean;
 	rc = m0_net_buffer_register(nb, pool->nbp_ndom);

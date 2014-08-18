@@ -81,9 +81,9 @@ static bool cm_proxy_invariant(const struct m0_cm_proxy *pxy)
 
 M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
 				  struct m0_cm_ag_id *lo,
-                                  struct m0_cm_ag_id *hi,
+				  struct m0_cm_ag_id *hi,
 				  const char *endpoint,
-                                  struct m0_cm_proxy **pxy)
+				  struct m0_cm_proxy **pxy)
 {
 	struct m0_cm_proxy *proxy;
 
@@ -157,7 +157,7 @@ static void cm_proxy_cp_del(struct m0_cm_proxy *pxy,
 }
 
 M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
-                                                   const char *ep)
+						   const char *ep)
 {
 	return m0_tl_find(proxy, pxy, &cm->cm_proxies,
 			  strncmp(pxy->px_endpoint, ep,
@@ -187,8 +187,8 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	m0_mutex_lock(&pxy->px_mutex);
 	pxy->px_sw.sw_lo = *lo;
 	pxy->px_sw.sw_hi = *hi;
-        ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
-        ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
+	ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
+	ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
 	__wake_up_pending_cps(pxy);
 	M0_ASSERT(cm_proxy_invariant(pxy));
 	m0_mutex_unlock(&pxy->px_mutex);
@@ -308,12 +308,12 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 					  struct m0_cm_sw *sw)
 {
 	struct m0_cm                 *cm;
-        struct m0_rpc_machine        *rmach;
-        struct m0_rpc_conn           *conn;
+	struct m0_rpc_machine        *rmach;
+	struct m0_rpc_conn           *conn;
 	struct m0_cm_proxy_sw_onwire *sw_fop;
 	struct m0_fop                *fop;
-        m0_time_t                     deadline;
-        const char                   *ep;
+	m0_time_t                     deadline;
+	const char                   *ep;
 	int                           rc;
 
 	M0_ENTRY("proxy: %p sw: %p", proxy, sw);
@@ -325,23 +325,23 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	if (sw_fop == NULL)
 		return -ENOMEM;
 	fop = &sw_fop->pso_fop;
-        rmach = proxy->px_conn.c_rpc_machine;
-        ep = rmach->rm_tm.ntm_ep->nep_addr;
-        conn = &proxy->px_conn;
-        rc = cm->cm_ops->cmo_sw_onwire_fop_setup(cm, fop,
+	rmach = proxy->px_conn.c_rpc_machine;
+	ep = rmach->rm_tm.ntm_ep->nep_addr;
+	conn = &proxy->px_conn;
+	rc = cm->cm_ops->cmo_sw_onwire_fop_setup(cm, fop,
 						 proxy_sw_onwire_release,
 						 ep, sw);
-        if (rc != 0) {
+	if (rc != 0) {
 		m0_fop_put_lock(fop);
 		m0_free(sw_fop);
-                return rc;
+		return rc;
 	}
 	sw_fop->pso_proxy = proxy;
-        deadline = m0_time_from_now(1, 0);
+	deadline = m0_time_from_now(1, 0);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
-        rc = m0_cm_proxy_sw_onwire_post(fop, conn, deadline);
-        m0_fop_put_lock(fop);
+	rc = m0_cm_proxy_sw_onwire_post(fop, conn, deadline);
+	m0_fop_put_lock(fop);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
 	M0_CNT_INC(proxy->px_nr_asts);
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",

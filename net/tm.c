@@ -56,41 +56,32 @@ M0_INTERNAL bool m0_net__tm_ev_type_is_valid(enum m0_net_tm_ev_type et)
 
 M0_INTERNAL bool m0_net__tm_event_invariant(const struct m0_net_tm_event *ev)
 {
-	if (!m0_net__tm_ev_type_is_valid(ev->nte_type))
-		return false;
-	if (ev->nte_tm == NULL ||
-	    !m0_net__tm_invariant(ev->nte_tm))
-		return false;
-	if (ev->nte_type == M0_NET_TEV_STATE_CHANGE &&
-	    !m0_net__tm_state_is_valid(ev->nte_next_state))
-		return false;
-	if (ev->nte_type == M0_NET_TEV_STATE_CHANGE &&
-	    ev->nte_next_state == M0_NET_TM_STARTED &&
-	    !m0_net__ep_invariant(ev->nte_ep, ev->nte_tm, true))
-		return false;
-	return true;
+	return
+		_0C(m0_net__tm_ev_type_is_valid(ev->nte_type)) &&
+		_0C(ev->nte_tm != NULL) &&
+		_0C(m0_net__tm_invariant(ev->nte_tm)) &&
+		_0C(ergo(ev->nte_type == M0_NET_TEV_STATE_CHANGE,
+			 m0_net__tm_state_is_valid(ev->nte_next_state))) &&
+		_0C(ergo(ev->nte_type == M0_NET_TEV_STATE_CHANGE &&
+			 ev->nte_next_state == M0_NET_TM_STARTED,
+			 m0_net__ep_invariant(ev->nte_ep, ev->nte_tm, true)));
 }
 
 M0_INTERNAL bool m0_net__tm_invariant(const struct m0_net_transfer_mc *tm)
 {
-	if (tm == NULL || tm->ntm_callbacks == NULL || tm->ntm_dom == NULL)
-		return false;
-	if (tm->ntm_callbacks->ntc_event_cb == NULL)
-		return false;
-	if (tm->ntm_state < M0_NET_TM_INITIALIZED ||
-	    tm->ntm_state > M0_NET_TM_FAILED)
-		return false;
-	if (tm->ntm_state == M0_NET_TM_STARTED &&
-	    tm->ntm_ep == NULL)
-		return false;
-	if (tm->ntm_state != M0_NET_TM_STARTED &&
-	    tm->ntm_state != M0_NET_TM_STOPPING) {
-		int i;
-		for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i)
-			if (!m0_net_tm_tlist_is_empty(&tm->ntm_q[i]))
-				return false;
-	}
-	return true;
+	return
+		_0C(tm != NULL) &&
+		_0C(tm->ntm_callbacks != NULL) &&
+		_0C(tm->ntm_dom != NULL) &&
+		_0C(tm->ntm_callbacks->ntc_event_cb != NULL) &&
+		_0C(tm->ntm_state >= M0_NET_TM_INITIALIZED &&
+		    tm->ntm_state <= M0_NET_TM_FAILED) &&
+		_0C(ergo(tm->ntm_state == M0_NET_TM_STARTED,
+			 tm->ntm_ep != NULL)) &&
+		_0C(ergo(!M0_IN(tm->ntm_state, (M0_NET_TM_STARTED,
+						M0_NET_TM_STOPPING)),
+			 m0_forall(i, ARRAY_SIZE(tm->ntm_q),
+				   m0_net_tm_tlist_is_empty(&tm->ntm_q[i]))));
 }
 
 M0_INTERNAL void m0_net_tm_event_post(const struct m0_net_tm_event *ev)
@@ -120,23 +111,23 @@ M0_INTERNAL void m0_net_tm_event_post(const struct m0_net_tm_event *ev)
 
 	(*tm->ntm_callbacks->ntc_event_cb)(ev);
 
-	/* post-callback, out of mutex:
-	   perform initial provisioning if required
+	/*
+	 * post-callback, out of mutex: perform initial provisioning if
+	 * required
 	 */
 	if (pool != NULL)
 		m0_net__tm_provision_recv_q(tm);
 
-	/* post-callback, in mutex:
-	   decrement ref counts,
-	   signal waiters
-	 */
+	m0_net__tm_post_callback(tm);
+}
+
+M0_INTERNAL void m0_net__tm_post_callback(struct m0_net_transfer_mc *tm)
+{
 	m0_mutex_lock(&tm->ntm_mutex);
 	M0_CNT_DEC(tm->ntm_callback_counter);
 	if (tm->ntm_callback_counter == 0)
 		m0_chan_broadcast(&tm->ntm_chan);
 	m0_mutex_unlock(&tm->ntm_mutex);
-
-	return;
 }
 
 static void m0_net__tm_cleanup(struct m0_net_transfer_mc *tm)
@@ -154,7 +145,6 @@ static void m0_net__tm_cleanup(struct m0_net_transfer_mc *tm)
 	m0_addb_counter_fini(&tm->ntm_cntr_data);
 	m0_addb_counter_fini(&tm->ntm_cntr_rb);
 	m0_addb_ctx_fini(&tm->ntm_addb_ctx);
-	return;
 }
 
 M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
@@ -222,14 +212,14 @@ M0_EXPORTED(m0_net_tm_init);
 M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 {
 	struct m0_net_domain *dom = tm->ntm_dom;
-	int i;
 	M0_ENTRY();
 
-	/* wait for ongoing event processing to drain without holding lock:
-	   events modify state and end point refcounts
-	   Also applies to ongoing provisioning, which requires a check for
-	   state in addition to counter.
-	*/
+	/*
+	 * Wait for ongoing event processing to drain without holding lock:
+	 * events modify state and end point refcounts. Also applies to ongoing
+	 * provisioning, which requires a check for state in addition to
+	 * counter.
+	 */
 	if (tm->ntm_callback_counter > 0) {
 		struct m0_clink tmwait;
 		m0_clink_init(&tmwait, NULL);
@@ -241,13 +231,10 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 	}
 
 	m0_mutex_lock(&dom->nd_mutex);
-	M0_PRE(tm->ntm_state == M0_NET_TM_STOPPED ||
-	       tm->ntm_state == M0_NET_TM_FAILED ||
-	       tm->ntm_state == M0_NET_TM_INITIALIZED);
-
-	for (i = 0; i < ARRAY_SIZE(tm->ntm_q); ++i) {
-		M0_PRE(m0_net_tm_tlist_is_empty(&tm->ntm_q[i]));
-	}
+	M0_PRE(M0_IN(tm->ntm_state, (M0_NET_TM_STOPPED, M0_NET_TM_FAILED,
+				     M0_NET_TM_INITIALIZED)));
+	M0_PRE(m0_forall(i, ARRAY_SIZE(tm->ntm_q),
+			 m0_net_tm_tlist_is_empty(&tm->ntm_q[i])));
 	M0_PRE((m0_list_is_empty(&tm->ntm_end_points) && tm->ntm_ep == NULL) ||
 	       (m0_list_length(&tm->ntm_end_points) == 1 &&
 		tm->ntm_ep != NULL &&
@@ -273,7 +260,7 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 	m0_list_link_fini(&tm->ntm_dom_linkage);
 
 	m0_mutex_unlock(&dom->nd_mutex);
-	M0_LEAVE();;
+	M0_LEAVE();
 }
 M0_EXPORTED(m0_net_tm_fini);
 
@@ -317,9 +304,8 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort)
 
 	m0_mutex_lock(&tm->ntm_mutex);
 	M0_PRE(m0_net__tm_invariant(tm));
-	M0_PRE(tm->ntm_state == M0_NET_TM_INITIALIZED ||
-	       tm->ntm_state == M0_NET_TM_STARTING ||
-	       tm->ntm_state == M0_NET_TM_STARTED);
+	M0_PRE(M0_IN(tm->ntm_state, (M0_NET_TM_INITIALIZED, M0_NET_TM_STARTING,
+				     M0_NET_TM_STARTED)));
 
 	oldstate = tm->ntm_state;
 	tm->ntm_state = M0_NET_TM_STOPPING;
@@ -347,7 +333,7 @@ M0_INTERNAL int m0_net__tm_stats_get(struct m0_net_transfer_mc *tm,
 	M0_PRE(m0_net__tm_invariant(tm));
 	if (qtype == M0_NET_QT_NR) {
 		if (qs != NULL)
-			memcpy(qs, tm->ntm_qstats, sizeof(tm->ntm_qstats));
+			memcpy(qs, tm->ntm_qstats, sizeof tm->ntm_qstats);
 		if (reset)
 			M0_SET_ARR0(tm->ntm_qstats);
 	} else {
@@ -434,9 +420,8 @@ M0_INTERNAL int m0_net_tm_confine(struct m0_net_transfer_mc *tm,
 }
 M0_EXPORTED(m0_net_tm_confine);
 
-M0_INTERNAL int m0_net_buffer_event_deliver_synchronously(struct
-							  m0_net_transfer_mc
-							  *tm)
+M0_INTERNAL int
+m0_net_buffer_event_deliver_synchronously(struct m0_net_transfer_mc *tm)
 {
 	int rc;
 	m0_mutex_lock(&tm->ntm_mutex);
@@ -467,7 +452,6 @@ M0_INTERNAL void m0_net_buffer_event_deliver_all(struct m0_net_transfer_mc *tm)
 	tm->ntm_dom->nd_xprt->nx_ops->xo_bev_deliver_all(tm);
 	M0_POST(m0_net__tm_invariant(tm));
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return;
 }
 M0_EXPORTED(m0_net_buffer_event_deliver_all);
 
@@ -495,7 +479,6 @@ M0_INTERNAL void m0_net_buffer_event_notify(struct m0_net_transfer_mc *tm,
 	tm->ntm_dom->nd_xprt->nx_ops->xo_bev_notify(tm, chan);
 	M0_POST(m0_net__tm_invariant(tm));
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return;
 }
 M0_EXPORTED(m0_net_buffer_event_notify);
 
@@ -504,12 +487,10 @@ M0_INTERNAL void m0_net_tm_colour_set(struct m0_net_transfer_mc *tm,
 {
 	m0_mutex_lock(&tm->ntm_mutex);
 	M0_PRE(m0_net__tm_invariant(tm));
-	M0_PRE(tm->ntm_state == M0_NET_TM_INITIALIZED ||
-	       tm->ntm_state == M0_NET_TM_STARTING ||
-	       tm->ntm_state == M0_NET_TM_STARTED);
+	M0_PRE(M0_IN(tm->ntm_state, (M0_NET_TM_INITIALIZED, M0_NET_TM_STARTING,
+				     M0_NET_TM_STARTED)));
 	tm->ntm_pool_colour = colour;
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return;
 }
 M0_EXPORTED(m0_net_tm_colour_set);
 

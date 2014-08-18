@@ -139,12 +139,14 @@ struct m0_net_xprt_ops {
 
 	/**
 	   Performs transport level initialization of the transfer machine.
-	   @param tm   Transfer machine pointer.
-             All fields will be initialized at this time, specifically:
-             @li ntm_dom
-	     @li ntm_xprt_private - Initialized to NULL. The method can
-	     set its own value in the structure.
-           @retval 0 (success)
+
+	   All fields will be initialized at this time, specifically:
+
+	       - ntm_dom
+	       - ntm_xprt_private - Initialized to NULL. The method can
+	         set its own value in the structure.
+
+	   @retval 0 (success)
 	   @retval -errno (failure)
 	   @see m0_net_tm_init()
 	 */
@@ -154,9 +156,7 @@ struct m0_net_xprt_ops {
 	   Optional method to set the processor affinity for the threads of
 	   a transfer machine.
 	   The transfer machine must be initialized but not yet started.
-	   @param tm Transfer machine pointer.
 	   @param processors Processor bitmap.
-	   @retval 0 (success)
 	   @retval -ENOSYS  No affinity support available. Implied by a
 	   missing method.
 	 */
@@ -168,14 +168,15 @@ struct m0_net_xprt_ops {
 	   A completion event should be posted when started, using a different
 	   thread.
 	   <b>Serialized using the transfer machine mutex.</b>
-	   @param tm   Transfer machine pointer.
-             The following fields are of special interest to this method:
-             @li ntm_dom
-	     @li ntm_xprt_private
-	   @param addr  Address of the transfer machine.
-	   The method should not reference this string after it returns.
-           @retval 0 (success)
-	   @retval -errno (failure)
+
+	   The following fields are of special interest to this method:
+	       - ntm_dom
+	       - ntm_xprt_private
+
+	   @param addr Address (network end-point string representation) of the
+	          transfer machine. The method should not reference this string
+	          after it returns.
+
 	   @see m0_net_tm_start()
 	 */
 	int (*xo_tm_start)(struct m0_net_transfer_mc *tm, const char *addr);
@@ -191,7 +192,7 @@ struct m0_net_xprt_ops {
 	   @param tm   Transfer machine pointer.
 	   @param cancel Pending outbound operations should be cancelled
 	   immediately.
-           @retval 0 (success)
+	   @retval 0 (success)
 	   @retval -errno (failure)
 	   @see m0_net_tm_stop()
 	 */
@@ -200,11 +201,12 @@ struct m0_net_xprt_ops {
 	/**
 	   Releases resources associated with a transfer machine.
 	   The transfer machine will be in the stopped state.
-	   @param tm   Transfer machine pointer.
-             The following fields are of special interest to this method:
-             @li ntm_dom
-	     @li ntm_xprt_private - The method should free any
-	     allocated memory tracked by this pointer.
+
+	   The following fields are of special interest to this method:
+
+	       - ntm_dom
+	       - ntm_xprt_private - The method should free any
+	         allocated memory tracked by this pointer.
 	   @see m0_net_tm_fini()
 	 */
 	void (*xo_tm_fini)(struct m0_net_transfer_mc *tm);
@@ -212,12 +214,10 @@ struct m0_net_xprt_ops {
 	/**
 	   Creates an end point with a specific address.
 	   @param epp     Returned end point data structure.
-	   @param tm      Specify the transfer machine pointer.
 	   @param addr    Address string.  Could be NULL to
-	                  indicate dynamic addressing.
+			  indicate dynamic addressing.
 			  Do not reference the string after return.
-           @retval 0 (success)
-	   @retval -errno (failure)
+
 	   @see m0_net_end_point_create()
 	 */
 	int (*xo_end_point_create)(struct m0_net_end_point **epp,
@@ -227,16 +227,12 @@ struct m0_net_xprt_ops {
 	/**
 	   Registers the buffer for use with a transfer machine in
 	   the manner indicated by the m0_net_buffer.nb_qtype value.
-	   @param nb  Buffer pointer with m0_net_buffer.nb_dom set.
-           @retval 0 (success)
-	   @retval -errno (failure)
 	   @see m0_net_buffer_register()
 	 */
 	int (*xo_buf_register)(struct m0_net_buffer *nb);
 
 	/**
 	   Deregisters the buffer from the transfer machine.
-	   @param nb  Buffer pointer with m0_net_buffer.nb_tm set.
 	   @see m0_net_buffer_deregister()
 	 */
 	void (*xo_buf_deregister)(struct m0_net_buffer *nb);
@@ -245,28 +241,27 @@ struct m0_net_xprt_ops {
 	   Initiates an operation on a buffer on the transfer machine's
 	   queues.
 
-	   In the case of buffers added to the M0_NET_QT_ACTIVE_BULK_RECV
-	   or M0_NET_QT_ACTIVE_BULK_SEND queues, the method should validate
-	   that the buffer size or data length meet the size requirements
-	   encoded within the network buffer descriptor.
+	   In the case of buffers added to the M0_NET_QT_ACTIVE_BULK_RECV or
+	   M0_NET_QT_ACTIVE_BULK_SEND queues, the method should validate that
+	   the buffer size or data length meet the size requirements encoded
+	   within the network buffer descriptor m0_net_buffer::nb_desc.
 
 	   In the case of the buffers added to the M0_NET_QT_PASSIVE_BULK_RECV
-	   or M0_NET_QT_PASSIVE_BULK_SEND queues, the method should set
-	   the network buffer descriptor in the specified buffer.
+	   or M0_NET_QT_PASSIVE_BULK_SEND queues, the method should set the
+	   network buffer descriptor in the specified buffer
+	   (m0_net_buffer::nb_desc).
 
 	   The M0_NET_BUF_IN_USE flag will be cleared before invoking the
-	   method.   This allows the transport to use this flag to defer
-	   operations until later, which is useful if buffers are added
-	   during transfer machine state transitions.
+	   method. This allows the transport to use this flag to defer
+	   operations until later, which is useful if buffers are added during
+	   transfer machine state transitions.
 
 	   The M0_NET_BUF_QUEUED flag and the nb_add_time field
 	   will be set prior to calling the method.
 
 	   <b>Serialized using the transfer machine mutex.</b>
-	   @param nb  Buffer pointer with m0_net_buffer.nb_tm set.
-	   For other flags, see struct m0_net_buffer.
-           @retval 0 (success)
-	   @retval -errno (failure)
+
+	   @pre nb->nb_tm != NULL
 	   @see m0_net_buffer_add(), struct m0_net_buffer
 	 */
 	int (*xo_buf_add)(struct m0_net_buffer *nb);
@@ -280,8 +275,9 @@ struct m0_net_xprt_ops {
 	   operations get cancelled, so m0_net_buffer_event_post() can
 	   enforce the right error status.
 	   <b>Serialized using the transfer machine mutex.</b>
-	   @param nb  Buffer pointer with m0_net_buffer.nb_tm and
-	   m0_net_buffer.nb_qtype set.
+
+	   @pre nb->nb_tm != NULL
+	   @pre m0_net__qtype_is_valid(nb->nb_qtype)
 	   @see m0_net_buffer_del()
 	 */
 	void (*xo_buf_del)(struct m0_net_buffer *nb);
@@ -289,7 +285,7 @@ struct m0_net_xprt_ops {
 	/**
 	   Invoked by the m0_net_buffer_event_deliver_synchronously()
 	   subroutine to request the transport to disable automatic delivery
-	   of buffer events.  The method is optional and need not be specified
+	   of buffer events. The method is optional and need not be specified
 	   if this support is not available.
 	   If supported, then the xo_bev_deliver_all() and the xo_bev_pending()
 	   operations must be provided.
@@ -298,9 +294,12 @@ struct m0_net_xprt_ops {
 	int  (*xo_bev_deliver_sync)(struct m0_net_transfer_mc *tm);
 
 	/**
-	   Invoked by the m0_net_buffer_event_deliver_all() subroutine.
-	   Optional if the synchronous buffer event delivery feature is not
-	   supported.
+	   Invokes m0_net_buffer_event_post() for all pending events.
+
+	   Invoked by the m0_net_buffer_event_deliver_all()
+	   subroutine. Optional if the synchronous buffer event delivery
+	   feature is not supported.
+
 	   As buffer event delivery takes place without holding the transfer
 	   machine mutex, the transport should protect the invocation of this
 	   subroutine from synchronous termination of the transfer machine.
@@ -308,23 +307,25 @@ struct m0_net_xprt_ops {
 	void (*xo_bev_deliver_all)(struct m0_net_transfer_mc *tm);
 
 	/**
-	   Invoked by the m0_net_buffer_event_pending() subroutine.
-	   Optional if the synchronous buffer event delivery feature is not
-	   supported.
+	   Returns true, iff there are pending events.
+
+	   Invoked by the m0_net_buffer_event_pending() subroutine.  Optional
+	   if the synchronous buffer event delivery feature is not supported.
 	 */
 	bool (*xo_bev_pending)(struct m0_net_transfer_mc *tm);
 
 	/**
-	   Invoked by the m0_net_buffer_event_notify() subroutine.
-	   Optional if the synchronous buffer event delivery feature is not
-	   supported.
+	   Arranges for the given channel to be signalled when new event
+	   arrives.
+
+	   Invoked by the m0_net_buffer_event_notify() subroutine. Optional if
+	   the synchronous buffer event delivery feature is not supported.
 	 */
 	void (*xo_bev_notify)(struct m0_net_transfer_mc *tm,
 			      struct m0_chan *chan);
 
 	/**
 	   Retrieves the maximum buffer size (includes all segments).
-	   @param dom     Domain pointer.
 	   @retval size    Returns the maximum buffer size.
 	   @see m0_net_domain_get_max_buffer_size()
 	 */
@@ -332,7 +333,6 @@ struct m0_net_xprt_ops {
 
 	/**
 	   Retrieves the maximum buffer segment size.
-	   @param dom     Domain pointer.
 	   @retval size    Returns the maximum segment size.
 	   @see m0_net_domain_get_max_buffer_segment_size()
 	 */
@@ -341,7 +341,6 @@ struct m0_net_xprt_ops {
 
 	/**
 	   Retrieves the maximum number of buffer segments.
-	   @param dom      Domain pointer.
 	   @retval num_segs Returns the maximum segment size.
 	   @see m0_net_domain_get_max_buffer_segment_size()
 	 */
@@ -355,20 +354,17 @@ struct m0_net_xprt_ops {
 };
 
 /**
- Initializes the transport software.
- A network domain must be initialized to use the transport.
- @param xprt Tranport pointer.
- @retval 0 (success)
- @retval -errno (failure)
+   Initializes the transport software.
+   A network domain must be initialized to use the transport.
+   @param xprt Tranport pointer.
  */
 int m0_net_xprt_init(struct m0_net_xprt *xprt);
 
 /**
- Shuts down the transport software.
- All associated network domains should be cleaned up at this point.
- @pre Network domains should have been finalized.
- @param xprt Tranport pointer.
- */
+   Shuts down the transport software.
+   All associated network domains should be cleaned up at this point.
+   @pre Network domains should have been finalized.
+*/
 void m0_net_xprt_fini(struct m0_net_xprt *xprt);
 
 /**
@@ -381,51 +377,35 @@ struct m0_net_domain {
 	 */
 	struct m0_mutex     nd_mutex;
 
-	/**
-	   List of m0_net_buffer structures registered with the domain.
-	 */
+	/** List of m0_net_buffer structures registered with the domain. */
 	struct m0_list      nd_registered_bufs;
 
 	/**
-	   List of m0_net_transfer_mc structures.
+	   List of m0_net_transfer_mc structures. Machines are linked here
+	   through ntm_dom_linkage::ntm_dom_linkage.
 	 */
 	struct m0_list      nd_tms;
 
-	/**
-	   Transport private domain data.
-	 */
+	/** Transport private domain data. */
 	void               *nd_xprt_private;
 
-	/**
-	   Pointer to transport.
-	 */
+	/** This domain's transport. */
 	struct m0_net_xprt *nd_xprt;
 
-	/**
-	   ADDB context for events related to this domain.
-	 */
+	/** ADDB context for events related to this domain. */
 	struct m0_addb_ctx  nd_addb_ctx;
 
-        /**
-	   Linkage for invoking application.
-	 */
-        struct m0_tlink     nd_app_linkage;
+	/** Linkage for invoking application. */
+	struct m0_tlink     nd_app_linkage;
 
-	/**
-	   Network magic.
-	 */
 	uint64_t            nd_magix;
 };
 
 /**
-   Initializes a domain.
-   @param dom  Domain pointer.
-   @param xprt Transport pointer.
+   Initialises a domain.
    @param ctx  Parent ADDB context.  The software container context,
    ::m0_addb_proc_ctx, can be used here if desired.
    @pre dom->nd_xprt == NULL
-   @retval 0 (success)
-   @retval -errno (failure)
  */
 int m0_net_domain_init(struct m0_net_domain *dom,
 		       struct m0_net_xprt   *xprt,
@@ -439,27 +419,22 @@ int m0_net_domain_init(struct m0_net_domain *dom,
 void m0_net_domain_fini(struct m0_net_domain *dom);
 
 /**
-   This subroutine is used to determine the maximum buffer size.
+   Returns the the maximum buffer size allowed for the domain.
    This includes all segments.
-   @param dom     Pointer to the domain.
-   @retval size    Returns the maximum buffer size.
  */
 M0_INTERNAL m0_bcount_t m0_net_domain_get_max_buffer_size(struct m0_net_domain
 							  *dom);
 
 /**
-   This subroutine is used to determine the maximum buffer segment size.
-   @param dom     Pointer to the domain.
-   @retval size    Returns the maximum buffer segment size.
+   Returns the maximum buffer segment size allowed for the domain.
  */
 M0_INTERNAL m0_bcount_t m0_net_domain_get_max_buffer_segment_size(struct
 								  m0_net_domain
 								  *dom);
 
 /**
-   This subroutine is used to determine the size of m0_net_buf_desc
-   for a given net domain.
-   @param dom   Pointer to net domain.
+   Returns the size of m0_net_buf_desc for a given net domain.
+
    @retval size Size of m0_net_buf_desc for the transport associated
    with given net domain.
  */
@@ -468,10 +443,7 @@ M0_INTERNAL m0_bcount_t m0_net_domain_get_max_buffer_desc_size(struct
 							       *dom);
 
 /**
-   This subroutine is used to determine the maximum number of
-   buffer segments.
-   @param dom      Pointer to the domain.
-   @retval num_segs Returns the number of segments.
+   Returns the maximum number of buffer segments for the domain.
  */
 M0_INTERNAL int32_t m0_net_domain_get_max_buffer_segments(struct m0_net_domain
 							  *dom);
@@ -492,16 +464,13 @@ M0_INTERNAL int32_t m0_net_domain_get_max_buffer_segments(struct m0_net_domain
    ntm_end_points list.
  */
 struct m0_net_end_point {
-	/**
-	   Keeps track of usage.
-	 */
+	/** Keeps track of usage. */
 	struct m0_ref              nep_ref;
-	/**
-	   Pointer to transfer machine.
-	 */
+	/** Pointer to transfer machine. */
 	struct m0_net_transfer_mc *nep_tm;
 	/**
-	   Linkage in the transfer machine list.
+	   Linkage in the transfer machine list,
+	   m0_net_transfer_mc::ntm_end_points.
 	 */
 	struct m0_list_link        nep_tm_linkage;
 	/**
@@ -529,13 +498,12 @@ struct m0_net_end_point {
    and if NULL, the transport may support assignment of an end point with a
    dynamic address; however this is not guaranteed.
    The address string, if specified, is not referenced again after return from
-   this subroutine.
+   this subroutine (i.e., the allocated end point gets the copy).
+
    @see m0_net_end_point_get(), m0_net_end_point_put()
    @pre tm->ntm_state == M0_NET_TM_STARTED
    @post (*epp)->nep_ref->ref_cnt >= 1 && (*epp)->nep_addr != NULL &&
    (*epp)->nep_tm == tm
-   @retval 0 on success
-   @retval -errno on failure
  */
 M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
 					struct m0_net_transfer_mc *tm,
@@ -547,8 +515,7 @@ M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
    when done, the reference count should be decremented by a call to
    m0_net_end_point_put().
 
-   @param ep End point data structure pointer.
-   @pre ep->nep_ref->ref_cnt >= 1
+   @pre ep->nep_ref->ref_cnt > 0
  */
 M0_INTERNAL void m0_net_end_point_get(struct m0_net_end_point *ep);
 
@@ -567,37 +534,34 @@ void m0_net_end_point_put(struct m0_net_end_point *ep);
     This enumeration describes the types of logical queues in a transfer
     machine.
 
-    <b>Note:</b> We use the term "queue" here to imply that the
-    order of addition
-    matters; in reality, while it <i>may</i> matter, external factors have
-    a <i>much</i> larger influence on the actual order in which buffer
-    operations complete; we're not implying FIFO semantics here!
+    @note We use the term "queue" here to imply that the order of addition
+          matters; in reality, while it *may* matter, external factors
+          have a *much* larger influence on the actual order in which
+          buffer operations complete; we're not implying FIFO semantics here!
+
     Consider:
-    - The underlying transport manages message buffers.
-    Since there is a great deal of concurrency and latency involved with
-    network communication, and message sizes can vary,
-    a completed (sent or received) message buffer is not necessarily the first
-    that was added to its "queue" for that purpose.
-    - The upper protocol layers of the <i>remote</i> end points are
-    responsible for initiating bulk data transfer operations, which ultimately
-    determines when passive buffers complete in <i>this</i> process.
-    The remote upper protocol layers can, and probably will, reorder requests
-    into an optimal order for themselves, which does not necessarily correspond
-    to the order in which the passive bulk data buffers were added.
+
+    - The underlying transport manages message buffers. Since there is a great
+      deal of concurrency and latency involved with network communication, and
+      message sizes can vary, a completed (sent or received) message buffer is
+      not necessarily the first that was added to its "queue" for that purpose.
+
+    - The upper protocol layers of the <i>remote</i> end points are responsible
+      for initiating bulk data transfer operations, which ultimately determines
+      when passive buffers complete in <i>this</i> process.  The remote upper
+      protocol layers can, and probably will, reorder requests into an optimal
+      order for themselves, which does not necessarily correspond to the order
+      in which the passive bulk data buffers were added.
 
     The fact of the matter is that the transfer machine itself
     is really only interested in tracking buffer existence and uses
     lists and not queues internally.
  */
 enum m0_net_queue_type {
-	/**
-	   Queue with buffers to receive messages.
-	 */
-	M0_NET_QT_MSG_RECV=0,
+	/** Queue with buffers to receive messages. */
+	M0_NET_QT_MSG_RECV = 0,
 
-	/**
-	   Queue with buffers with messages to send.
-	 */
+	/** Queue with buffers with messages to send. */
 	M0_NET_QT_MSG_SEND,
 
 	/**
@@ -631,24 +595,20 @@ enum m0_net_queue_type {
 	M0_NET_QT_NR
 };
 
-/**
-   A transfer machine exists in one of the following states.
- */
+/** A transfer machine can be in one of the following states. */
 enum m0_net_tm_state {
-	M0_NET_TM_UNDEFINED=0, /**< Undefined, prior to initialization */
-	M0_NET_TM_INITIALIZED, /**< Initialized */
-	M0_NET_TM_STARTING,    /**< Startup in progress */
-	M0_NET_TM_STARTED,     /**< Active */
-	M0_NET_TM_STOPPING,    /**< Shutdown in progress */
-	M0_NET_TM_STOPPED,     /**< Stopped */
-	M0_NET_TM_FAILED       /**< Failed TM, must be fini'd */
+	M0_NET_TM_UNDEFINED = 0, /**< Undefined, prior to initialization */
+	M0_NET_TM_INITIALIZED,   /**< Initialized */
+	M0_NET_TM_STARTING,      /**< Startup in progress */
+	M0_NET_TM_STARTED,       /**< Active */
+	M0_NET_TM_STOPPING,      /**< Shutdown in progress */
+	M0_NET_TM_STOPPED,       /**< Stopped */
+	M0_NET_TM_FAILED         /**< Failed TM, must be fini'd */
 };
 
-/**
-   Transfer machine event types are defined by this enumeration.
- */
+/** Transfer machine event types. */
 enum m0_net_tm_ev_type {
-	M0_NET_TEV_ERROR=0,        /**< General error */
+	M0_NET_TEV_ERROR = 0,      /**< General error */
 	M0_NET_TEV_STATE_CHANGE,   /**< Transfer machine state change event */
 	M0_NET_TEV_DIAGNOSTIC,     /**< Diagnostic event */
 	M0_NET_TEV_NR
@@ -671,19 +631,21 @@ enum m0_net_tm_ev_type {
    - M0_NET_TEV_ERROR provides error notification, out of the context of
      any buffer operation completion, or a transfer machine state change.
      No additional fields are set.
+
    - M0_NET_TEV_STATE_CHANGE provides notification of a transfer machine
      state change.
      The nte_next_state field describes the destination state.
      Refer to the nte_status field to determine if the operation succeeded.
      The nte_ep field is set if the next state is M0_NET_TM_STARTED; the
      value is used to set the ntm_ep field of the transfer machine.
+
    - M0_NET_TEV_DIAGNOSTIC provides diagnostic information.
      The nte_payload field may point to transport specific data.
      The API does not require nor specify how a transport produces
      diagnostic information, but does require that diagnostic events
      not be produced unless explicitly requested.
 
-   This data structure is typically assigned on the stack of the thread
+   This data structure is typically allocated on the stack of the thread
    that invokes the m0_net_tm_event_post() subroutine.  Applications
    should not attempt to save a reference to it from their callback
    functions.
@@ -822,9 +784,7 @@ struct m0_net_transfer_mc {
 	 */
 	const struct m0_net_tm_callbacks *ntm_callbacks;
 
-	/**
-	   Specifies the transfer machine state.
-	 */
+	/** Specifies the transfer machine state. */
 	enum m0_net_tm_state        ntm_state;
 
 	/**
@@ -833,17 +793,16 @@ struct m0_net_transfer_mc {
 	   the bounds:
 	   M0_NET_TM_INITIALIZED < state < M0_NET_TM_STOPPED.
 
-	   Most transfer machine operations are protected by this
-	   mutex.  The presence of this mutex in the transfer machine
-	   provides a tighter locus of memory accesses to the data
-	   structures associated with the operation of a single transfer
-	   machine, than would occur were the domain mutex used.
-	   It also reduces the memory access overlaps between individual
-	   transfer machines.  Transports could use this memory
-	   access pattern to provide processor-affinity support for
-	   buffer operation on a per-transfer-machine-per-processor basis,
-	   by invoking the buffer operation callbacks on the same
-	   processor used to submit the buffer operation.
+	   Most transfer machine operations are protected by this mutex. The
+	   presence of this mutex in the transfer machine provides a tighter
+	   locus of memory accesses to the data structures associated with the
+	   operation of a single transfer machine, than would occur were the
+	   domain mutex used.  It also reduces the memory access overlaps
+	   between individual transfer machines. Transports could use this
+	   memory access pattern to provide processor-affinity support for
+	   buffer operation on a per-transfer-machine-per-processor basis, by
+	   invoking the buffer operation callbacks on the same processor used
+	   to submit the buffer operation.
 	 */
 	struct m0_mutex             ntm_mutex;
 
@@ -851,28 +810,29 @@ struct m0_net_transfer_mc {
 	   Callback activity is tracked by this counter.
 	   It is incremented by m0_net_tm_post_event() before invoking
 	   a callback, and decremented when it returns.
+
+	   This counter is used to guarantee that a transfer machine is not
+	   finalised while callbacks for it are executing.
 	 */
 	uint32_t                    ntm_callback_counter;
 
 	/** Network domain pointer */
 	struct m0_net_domain       *ntm_dom;
 
-	/**
-	   List of m0_net_end_point structures. Managed by the transport.
-	 */
+	/** List of m0_net_end_point structures. Managed by the transport. */
 	struct m0_list              ntm_end_points;
 
 	/**
 	   End point associated with this transfer machine.
-	   Messages sent from this
-	   transfer machine appear to have originated from this end point.
 
-	   It is created internally with the address provided in the
-	   call to m0_net_tm_start().  The field is set only upon
-	   successful start of the transfer machine.
-	   The field is cleared durinng fini.
+	   Messages sent from this transfer machine appear to have originated
+	   from this end point.
+
+	   It is created internally with the address provided in the call to
+	   m0_net_tm_start(). The field is set only upon successful start of
+	   the transfer machine. The field is cleared during fini.
 	 */
-        struct m0_net_end_point    *ntm_ep;
+	struct m0_net_end_point    *ntm_ep;
 
 	/**
 	   Waiters for event notifications. They do not get copies
@@ -880,29 +840,19 @@ struct m0_net_transfer_mc {
 	 */
 	struct m0_chan              ntm_chan;
 
-	/**
-	   Lists of m0_net_buffer structures by queue type.
-	 */
+	/** Lists of m0_net_buffer structures by queue type. */
 	struct m0_tl		    ntm_q[M0_NET_QT_NR];
 
-	/**
-	   Statistics maintained per logical queue.
-	 */
+	/** Statistics maintained per logical queue. */
 	struct m0_net_qstats        ntm_qstats[M0_NET_QT_NR];
 
-	/**
-	   ADDB machine used for non-exception posts.
-	 */
+	/** ADDB machine used for non-exception posts. */
 	struct m0_addb_mc          *ntm_addb_mc;
 
-	/**
-	   ADDB context for events related to this transfer machine.
-	 */
+	/** ADDB context for events related to this transfer machine. */
 	struct m0_addb_ctx          ntm_addb_ctx;
 
-	/**
-	   Aggregate message size statistics (messages sent or received).
-	 */
+	/** Aggregate message size statistics (messages sent or received). */
 	struct m0_addb_counter      ntm_cntr_msg;
 
 	/**
@@ -911,23 +861,17 @@ struct m0_net_transfer_mc {
 	 */
 	struct m0_addb_counter      ntm_cntr_data;
 
-	/**
-	   Counts the number of messages received in receive buffers.
-	 */
+	/** Counts the number of messages received in receive buffers. */
 	struct m0_addb_counter      ntm_cntr_rb;
 
-	/**
-	   Domain linkage.
-	 */
+	/** Domain linkage (m0_net_domain::nd_tms). */
 	struct m0_list_link         ntm_dom_linkage;
 
-	/**
-	   Transport private data.
-	 */
-        void                       *ntm_xprt_private;
+	/** Transport private data. */
+	void                       *ntm_xprt_private;
 
 	/**
-	   Indicates if automatic delivery of buffer events will take place.
+	   True iff automatic delivery of buffer events will take place.
 	 */
 	bool                        ntm_bev_auto_deliver;
 
@@ -937,7 +881,7 @@ struct m0_net_transfer_mc {
 	struct m0_net_buffer_pool  *ntm_recv_pool;
 
 	/**
-	   Callbacks structure for automatically allocate receive queue
+	   Callbacks structure for automatically allocated receive queue
 	   buffers.
 	 */
 	const struct m0_net_buffer_callbacks *ntm_recv_pool_callbacks;
@@ -976,27 +920,28 @@ struct m0_net_transfer_mc {
 
 /**
    Initializes a transfer machine.
-   @param tm  Pointer to transfer machine data structure to be initialized.
 
    Prior to invocation the following fields should be set:
+
    - m0_net_transfer_mc.ntm_state should be set to M0_NET_TM_UNDEFINED.
-   Zeroing the entire structure has the side effect of setting this value.
+     Zeroing the entire structure has the side effect of setting this value.
+
    - m0_net_transfer_mc.ntm_callbacks should point to a properly initialized
-   struct m0_net_tm_callbacks data structure.
+     struct m0_net_tm_callbacks data structure.
 
    All fields in the structure other then the above will be set to their
    appropriate initial values.
+
    @param dom     Network domain pointer.
    @param addb_mc Pointer to the ADDB machine to use with this transfer machine
    for non-exception related posts.  The global ADDB machine, ::m0_addb_gmc,
    can be used here if desired.
    @param ctx     Parent ADDB context.
    A suitable default is ::m0_addb_proc_ctx.
+
    @post tm->ntm_bev_auto_deliver is set.
    @post (tm->ntm_pool_colour == M0_NET_BUFFER_POOL_ANY_COLOR &&
           tm->ntm_recv_pool_queue_min_length == M0_NET_TM_RECV_QUEUE_DEF_LEN)
-   @retval 0 (success)
-   @retval -errno (failure)
  */
 M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
 			       struct m0_net_domain      *dom,
@@ -1009,15 +954,14 @@ M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
 
    All application references to end points associated with this transfer
    machine should be released prior to this call.
+
    @pre
-   (tm->ntm_state == M0_NET_TM_STOPPED ||
-    tm->ntm_state == M0_NET_TM_FAILED  ||
-    tm->ntm_state == M0_NET_TM_INITIALIZED) &&
+   M0_IN(tm->ntm_state, (M0_NET_TM_STOPPED,
+                         M0_NET_TM_FAILED, M0_NET_TM_INITIALIZED)) &&
    ((m0_list_is_empty(&tm->ntm_end_points) && tm->ntm_ep == NULL) ||
     (m0_list_length(&tm->ntm_end_points) == 1 &&
      m0_list_contains(&tm->ntm_end_points, tm->ntm_ep) &&
      m0_atomic64_get(tm->ntm_ep->nep_ref.ref_cnt) == 1))
-   @param tm Transfer machine pointer.
  */
 M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm);
 
@@ -1026,11 +970,13 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm);
    The transfer machine must be initialized but not yet started.
 
    Support for this operation is transport specific.
-   @pre tm->ntm_state == M0_NET_TM_INITIALIZED
-   @param tm Transfer machine pointer.
    @param processors Processor bitmap.  The bit map is not referenced
-   internally after the subroutine returns.
+          internally after the subroutine returns.
+
    @retval -ENOSYS  No affinity support available in the transport.
+
+   @pre tm->ntm_state == M0_NET_TM_INITIALIZED
+
    @see @ref Processor "Processor API"
    @see @ref bitmap "Bitmap API"
  */
@@ -1049,14 +995,15 @@ M0_INTERNAL int m0_net_tm_confine(struct m0_net_transfer_mc *tm,
    subroutine returns.
    It is guaranteed that the event will be posted on a different thread.
 
-   @pre tm->ntm_state == M0_NET_TM_INITIALIZED
    @param tm  Transfer machine pointer.
-   @param addr End point address to associate with the transfer machine.
-   May be null if dynamic addressing is supported by the transport.
-   The end point is created internally and made visible by the ntm_ep field
-   only if the start operation succeeds.
-   @retval 0 (success)
-   @retval -errno (failure)
+
+   @param addr End point address to associate with the transfer machine.  May
+          be null if dynamic addressing is supported by the transport.  The end
+          point is created internally and made visible by the ntm_ep field only
+          if the start operation succeeds.
+
+   @pre tm->ntm_state == M0_NET_TM_INITIALIZED
+
    @see m0_net_end_point_create()
  */
 M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm,
@@ -1068,7 +1015,7 @@ M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm,
    Pending operations will be completed or aborted as desired.
 
    All end point references must be released by the application prior
-   to invocation.  The only end point reference that may exist is that of
+   to invocation. The only end point reference that may exist is that of
    this transfer machine itself, and that will be released during fini.
 
    The subroutine does not block the invoker.  Instead the state is
@@ -1080,15 +1027,11 @@ M0_INTERNAL int m0_net_tm_start(struct m0_net_transfer_mc *tm,
    subroutine returns.
    It is guaranteed that the event will be posted on a different thread.
 
-   @pre
-(tm->ntm_state == M0_NET_TM_INITIALIZED) ||
-(tm->ntm_state == M0_NET_TM_STARTING) ||
-(tm->ntm_state == M0_NET_TM_STARTED)
-   @param tm  Transfer machine pointer.
-   @param abort Cancel pending operations.
-   Support for the implementation of this option is transport specific.
-   @retval 0 (success)
-   @retval -errno (failure)
+   @pre M0_IN(tm->ntm_state, (M0_NET_TM_INITIALIZED,
+                              M0_NET_TM_STARTING, M0_NET_TM_STARTED))
+
+   @param abort Cancel pending operations. Support for this option is
+   transport specific.
  */
 M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort);
 
@@ -1096,32 +1039,33 @@ M0_INTERNAL int m0_net_tm_stop(struct m0_net_transfer_mc *tm, bool abort);
    Retrieves transfer machine statistics for all or for a single logical queue,
    optionally resetting the data.  The operation is performed atomically
    with respect to on-going transfer machine activity.
+
+   @param qtype Logical queue identifier of the queue concerned. Specify
+          M0_NET_QT_NR instead if all the queues are to be considered.
+
+   @param qs Returned statistical data. May be NULL if only a reset operation
+          is desired.  Otherwise should point to a single m0_net_qstats data
+          structure if the value of <b>qtype</b> is not M0_NET_QT_NR, or else
+          should point to an array of M0_NET_QT_NR such structures in which to
+          return the statistical data on all the queues.
+
+   @param reset Ttrue iff the associated statistics data should be reset at the
+          same time.
+
    @pre tm->ntm_state >= M0_NET_TM_INITIALIZED
-   @param tm     Transfer machine pointer
-   @param qtype  Logical queue identifier of the queue concerned.
-   Specify M0_NET_QT_NR instead if all the queues are to be considered.
-   @param qs     Returned statistical data. May be NULL if only a reset
-   operation is desired.  Otherwise should point to a single m0_net_qstats
-   data structure if the value of <b>qtype</b> is not M0_NET_QT_NR, or
-   else should point to an array of M0_NET_QT_NR such structures in which to
-   return the statistical data on all the queues.
-   @param reset  Specify <b>true</b> if the associated statistics data
-   should be reset at the same time. Otherwise specify <b>false</b>.
-   @retval 0 (success)
-   @retval -errno (failure)
  */
 M0_INTERNAL int m0_net_tm_stats_get(struct m0_net_transfer_mc *tm,
 				    enum m0_net_queue_type qtype,
 				    struct m0_net_qstats *qs, bool reset);
 
 /**
-   Method to post ADDB records on transfer machine statistics.  The
-   statistical counters are reset during this operation.
+   Posts ADDB records on transfer machine statistics. The statistical counters
+   are reset during this operation.
 
    Posts are made only if the relevant source information is non-zero.
    Thus, this call will result in no posts if there has been no network
    activity since the previous invocation.
-   @param tm Transfer machine pointer.
+
    @pre tm->ntm_state >= M0_NET_TM_INITIALIZED
  */
 M0_INTERNAL void m0_net_tm_stats_post_addb(struct m0_net_transfer_mc *tm);
@@ -1132,54 +1076,54 @@ M0_INTERNAL void m0_net_tm_stats_post_addb(struct m0_net_transfer_mc *tm);
    Typically, the subroutine is invoked by the transport associated with
    the transfer machine.
 
-   The event data structure is not referenced from
-   elsewhere after this subroutine returns, so may be allocated on the
-   stack of the calling thread.
+   The event data structure is not referenced from elsewhere after this
+   subroutine returns, so may be allocated on the stack of the calling thread.
 
    Multiple concurrent events may be delivered for a given transfer machine.
 
    The subroutine will also signal to all waiters on the
-   m0_net_transfer_mc.ntm_chan field after delivery of the callback.
+   m0_net_transfer_mc::ntm_chan field after delivery of the callback.
 
    The invoking process should be aware that the callback subroutine could
    end up making re-entrant calls to the transport layer.
 
-   @param ev Event pointer. The nte_tm field identifies the transfer machine.
+   @param ev Event pointer. The m0_net_tm_event::nte_tm field identifies the
+   transfer machine.
 
    @see m0_net_tm_buffer_post()
  */
 M0_INTERNAL void m0_net_tm_event_post(const struct m0_net_tm_event *ev);
 
 /**
-   Associate a buffer pool color with a transfer machine.  This helps establish
-   an association between a network buffer and the transfer machine when
-   provisioning from a buffer pool, which can considerably improve the spatial
-   and temporal locality of future provisioning calls from the buffer pool.
+   Associates a buffer pool color with a transfer machine. This helps
+   establish an association between a network buffer and the transfer machine
+   when provisioning from a buffer pool, which can considerably improve the
+   spatial and temporal locality of future provisioning calls from the buffer
+   pool.
 
    Automatically provisioned receive queue network buffers will be allocated
-   with the specified color.  The application can also use this color when
+   with the specified color. The application can also use this color when
    provisioning buffers for this transfer machine in other network buffer pool
    use cases.
 
-   A transfer machine's color is initialized to @c ~0.
-   @param tm Pointer to an initialized transfer machine.
-   @pre
-   (tm->ntm_state == M0_NET_TM_INITIALIZED ||
-    tm->ntm_state == M0_NET_TM_STARTED)
+   If this function is not called, the transfer machine's color is initialized
+   to @c ~0.
+
+   @pre M0_IN(tm->ntm_state, (M0_NET_TM_INITIALIZED, M0_NET_TM_STARTED))
+
    @see m0_net_tm_colour_get(), m0_net_tm_pool_attach()
  */
 M0_INTERNAL void m0_net_tm_colour_set(struct m0_net_transfer_mc *tm,
 				      uint32_t colour);
 
 /**
-   Recover the buffer pool color associated with a transfer machine.
-   @param tm Pointer to an initialized transfer machine.
+   Returns the buffer pool color associated with a transfer machine.
    @see m0_net_tm_colour_set()
  */
 M0_INTERNAL uint32_t m0_net_tm_colour_get(struct m0_net_transfer_mc *tm);
 
 /**
-   Enable the automatic provisioning of network buffers to the receive
+   Enables the automatic provisioning of network buffers to the receive
    queue of the transfer machine from the specified network buffer pool.
 
    Provisioning takes place at the following times:
@@ -1191,7 +1135,6 @@ M0_INTERNAL uint32_t m0_net_tm_colour_get(struct m0_net_transfer_mc *tm);
      m0_net_domain_buffer_pool_not_empty() subroutine from the pool's not-empty
      callback.
    - When the minimum length of the receive buffer queue is modified.
-   @param tm Pointer to an initialized transfer machine.
    @param bufpool Pointer to a network buffer pool.
    @param callbacks Pointer to the callbacks to be set in the provisioned
    network buffer.
@@ -1200,11 +1143,15 @@ M0_INTERNAL uint32_t m0_net_tm_colour_get(struct m0_net_transfer_mc *tm);
    @param max_recv_msgs Maximum number of messages that may be received in the
    buffer in TM receive queue.
    @param min_recv_queue_len Minimum nuber of buffers in TM receive queue.
-   @pre
-	(tm != NULL && tm->ntm_state == M0_NET_TM_INITIALIZED &&
-	bufpool != NULL && callbacks != NULL &&
-	callbacks->nbc_cb[M0_NET_QT_MSG_RECV] != NULL &&
-	min_recv_size > 0 && max_recv_msgs > 0)
+
+   @pre tm != NULL
+   @pre tm->ntm_state == M0_NET_TM_INITIALIZED
+   @pre bufpool != NULL
+   @pre callbacks != NULL
+   @pre callbacks->nbc_cb[M0_NET_QT_MSG_RECV] != NULL
+   @pre min_recv_size > 0
+   @pre max_recv_msgs > 0
+
    @see m0_net_tm_colour_set(), m0_net_domain_buffer_pool_not_empty(),
         m0_net_tm_pool_length_set()
  */
@@ -1216,12 +1163,11 @@ M0_INTERNAL int m0_net_tm_pool_attach(struct m0_net_transfer_mc *tm,
 				      uint32_t min_recv_queue_len);
 
 /**
-   Set the minimum number of network buffers that should be present on the
-   receive queue of the transfer machine.  If the number falls below this
+   Sets the minimum number of network buffers that should be present on the
+   receive queue of the transfer machine. If the number falls below this
    value and automatic provisioning is enabled, then additional buffers are
    provisioned as needed.
    Invoking this subroutine may trigger provisioning.
-   @param tm Pointer to an initialized or started transfer machine.
    @param len Minimum receive queue length. The default value is
    M0_NET_TM_RECV_QUEUE_DEF_LEN.
    @see m0_net_tm_pool_attach()
@@ -1230,47 +1176,48 @@ M0_INTERNAL void m0_net_tm_pool_length_set(struct m0_net_transfer_mc *tm,
 					   uint32_t len);
 
 /**
-   This subroutine will reprovision all transfer machines in the network domain
-   of this buffer pool, that are associated with the pool.
+   Reprovisions all transfer machines in the network domain of this buffer
+   pool, that are associated with the pool.
 
    The application typically arranges for this subroutine to be called from the
    pool's not-empty callback operation.
 
    The subroutine should be invoked while holding the pool lock, which is
-   normally the case in the pool not-empty callback.
+   normally the case in the pool not-empty callback,
+   m0_net_buffer_pool_ops::nbpo_not_empty().
+
    @param pool A network buffer pool.
    @see m0_net_tm_pool_attach()
  */
-M0_INTERNAL void m0_net_domain_buffer_pool_not_empty(struct m0_net_buffer_pool
-						     *pool);
+M0_INTERNAL void
+m0_net_domain_buffer_pool_not_empty(struct m0_net_buffer_pool *pool);
 
-/**
-   Buffer completion events are described by this data structure.
- */
+/** Buffer completion events are described by this data structure. */
 struct m0_net_buffer_event {
 	/** Pointer to the buffer */
 	struct m0_net_buffer      *nbe_buffer;
 
-	/**
-	   Time the event is posted.
-	 */
+	/** Time the event is posted. */
 	m0_time_t                  nbe_time;
 
 	/**
 	   Status or error code associated with the event.
+
 	   A 0 in this field implies successful completion, and a negative
 	   error number is used to indicate the reasons for failure.
 
 	   The following errors are well defined:
-		- <b>-ECANCELED</b> This is used in buffer release events to
-		indicate that the associated buffer operation was
-		cancelled by a call to m0_net_buffer_del().
-		- <b>-ETIMEDOUT</b> This is used in buffer release events to
-		indicate that the associated buffer operation did not complete
-		before the current time exceeded the nb_timeout value.
-		The support for this feature is transport specific.
-		The nb_timeout value is always reset to M0_TIME_NEVER by the
-		time the buffer callback is invoked.
+
+		- -ECANCELED. This is used in buffer release events to indicate
+		that the associated buffer operation was cancelled by a call to
+		m0_net_buffer_del().
+
+		- -ETIMEDOUT. This is used in buffer release events to indicate
+		that the associated buffer operation did not complete before
+		the current time exceeded the nb_timeout value.  The support
+		for this feature is transport specific.  The nb_timeout value
+		is always reset to M0_TIME_NEVER by the time the buffer
+		callback is invoked.
 	 */
 	int32_t                    nbe_status;
 
@@ -1329,60 +1276,46 @@ struct m0_net_buffer_callbacks {
 	m0_net_buffer_cb_proc_t nbc_cb[M0_NET_QT_NR];
 };
 
-/**
-   Buffer state is tracked using these bitmap flags.
- */
+/** Buffer state is tracked using these bitmap flags. */
 enum m0_net_buf_flags {
-	/**
-	   Set when the buffer is registered with the domain.
-	 */
-	M0_NET_BUF_REGISTERED  = 1<<0,
-	/**
-	   Set when the buffer is added to a transfer machine logical queue.
-	 */
-	M0_NET_BUF_QUEUED      = 1<<1,
-	/**
-	   Set when the transport starts using the buffer.
-	 */
-	M0_NET_BUF_IN_USE      = 1<<2,
-	/**
-	   Indicates that the buffer operation has been cancelled.
-	 */
-	M0_NET_BUF_CANCELLED   = 1<<3,
-	/**
-	   Indicates that the buffer operation has timed out.
-	 */
-	M0_NET_BUF_TIMED_OUT   = 1<<4,
+	/** The buffer is registered with the domain. */
+	M0_NET_BUF_REGISTERED  = 1 << 0,
+	/** The buffer is added to a transfer machine logical queue. */
+	M0_NET_BUF_QUEUED      = 1 << 1,
+	/** Set when the transport starts using the buffer. */
+	M0_NET_BUF_IN_USE      = 1 << 2,
+	/** Indicates that the buffer operation has been cancelled. */
+	M0_NET_BUF_CANCELLED   = 1 << 3,
+	/** Indicates that the buffer operation has timed out. */
+	M0_NET_BUF_TIMED_OUT   = 1 << 4,
 	/**
 	   Set by the transport to indicate that a buffer should not be
 	   dequeued in a m0_net_buffer_event_post() call.
 	 */
-	M0_NET_BUF_RETAIN      = 1<<5,
+	M0_NET_BUF_RETAIN      = 1 << 5,
 };
 
 /**
-   This data structure is used to track the memory used
-   for message passing or bulk data transfer over the network.
+   This data structure is used to track the memory used for message passing or
+   bulk data transfer over the network.
 
-   Support for scatter-gather buffers is provided by use of a m0_bufvec;
-   upper layer protocols may impose limitations on the
-   use of scatter-gather, especially for message passing.
-   The transport will impose limitations on the number of vector elements
-   and the overall maximum buffer size.
+   Support for scatter-gather buffers is provided by use of a m0_bufvec; upper
+   layer protocols may impose limitations on the use of scatter-gather,
+   especially for message passing.  The transport will impose limitations on
+   the number of vector elements and the overall maximum buffer size.
 
-   The invoking application is responsible for the creation
-   of these data structures, registering them with the network
-   domain, and providing them to a transfer machine for specific
-   operations.
-   As such, memory alignment considerations of the encapsulated
-   m0_bufvec are handled by the invoking application.
+   The invoking application is responsible for the creation of these data
+   structures, registering them with the network domain, and providing them to
+   a transfer machine for specific operations. As such, memory alignment
+   considerations of the encapsulated m0_bufvec are handled by the invoking
+   application.
 
-   Once the application initiates an operation on a buffer, it should
-   refrain from modifying the buffer until the callback signifying
-   operation completion.
+   Once the application initiates an operation on a buffer, it should refrain
+   from modifying the buffer until the callback signifying operation
+   completion.
 
-   Applications must register buffers with the transport before use,
-   and deregister them before shutting down.
+   Applications must register buffers with the transport before use, and
+   deregister them before shutting down.
  */
 struct m0_net_buffer {
 	/**
@@ -1431,7 +1364,7 @@ struct m0_net_buffer {
 	   The application should set this value to identify the logical
 	   transfer machine queue before calling m0_net_buffer_add().
 	 */
-        enum m0_net_queue_type     nb_qtype;
+	enum m0_net_queue_type     nb_qtype;
 
 	/**
 	    Pointer to application callbacks. Should be set
@@ -1467,20 +1400,18 @@ struct m0_net_buffer {
 	/**
 	   Network transport descriptor.
 
-	   The value is set upon return from m0_net_buffer_add()
-	   when the buffer is added to
-	   the M0_NET_QT_PASSIVE_BULK_RECV or M0_NET_QT_PASSIVE_BULK_SEND
-	   queues.
+	   The value is set upon return from m0_net_buffer_add() when the
+	   buffer is added to the M0_NET_QT_PASSIVE_BULK_RECV or
+	   M0_NET_QT_PASSIVE_BULK_SEND queues.
 
-	   Applications should convey the descriptor to the active side
-	   to perform the bulk data transfer. The active side application
-	   code should set this value when adding the buffer to
-	   the M0_NET_QT_ACTIVE_BULK_RECV or M0_NET_QT_ACTIVE_BULK_SEND
-	   queues, using the m0_net_desc_copy() subroutine.
+	   Applications should convey the descriptor to the active side to
+	   perform the bulk data transfer. The active side application code
+	   should set this value when adding the buffer to the
+	   M0_NET_QT_ACTIVE_BULK_RECV or M0_NET_QT_ACTIVE_BULK_SEND queues,
+	   using the m0_net_desc_copy() subroutine.
 
-	   In both cases, applications are responsible for freeing the
-	   memory used by this descriptor with the m0_net_desc_free()
-	   subroutine.
+	   In both cases, applications are responsible for freeing the memory
+	   used by this descriptor with the m0_net_desc_free() subroutine.
 	 */
 	struct m0_net_buf_desc     nb_desc;
 
@@ -1502,22 +1433,20 @@ struct m0_net_buffer {
 	   There is only one linkage for all of the queues, as a buffer
 	   can only be used for one type of operation at a time.
 
-	   It is also used for linkage into m0_net_buffer_pool::nbp_colours[].
+	   For free pool buffers, it is also used for linkage into
+	   m0_net_buffer_pool::nbp_colours[].
+
 	   The application should not modify this field.
 	 */
 	struct m0_tlink		   nb_tm_linkage;
 
-	/**
-	   Linkage into a network buffer pool.
-	 */
+	/** Linkage into a network buffer pool LRU list. */
 	struct m0_tlink		   nb_lru;
 
-	/** Linkage to external buffer pool other than transfer machine. */
+	/** Application-specific buffer linkage. */
 	struct m0_tlink            nb_extern_linkage;
 
-	/**
-	   Magic for network buffer list.
-	 */
+	/** Magic for network buffer list. */
 	uint64_t		   nb_magic;
 
 	/**
@@ -1533,7 +1462,7 @@ struct m0_net_buffer {
 
 	   The application should not modify this field.
 	 */
-        void                      *nb_xprt_private;
+	void                      *nb_xprt_private;
 
 	/**
 	   Application specific private data associated with the buffer.
@@ -1543,6 +1472,11 @@ struct m0_net_buffer {
 
 	   It is neither verified by net code nor do the net layer
 	   invariants touch it.
+
+	   Current users:
+
+               - rpc/bulk uses this for a pointer to m0_rpc_bulk_buf;
+               - net/test uses this for a pointer to m0_net_test_network_ctx.
 	 */
 	void			  *nb_app_private;
 
@@ -1577,43 +1511,38 @@ struct m0_net_buffer {
 	 */
 	struct m0_net_buffer_pool *nb_pool;
 
-	/**
-	   Counts the number of messages received when on the receive queue.
-	 */
+	/** Counts the number of messages received when on the receive queue. */
 	uint32_t                   nb_msgs_received;
 };
 
 /**
    Registers a buffer with the domain. The domain could perform some
    optimizations under the covers.
-   @pre
-(buf->nb_flags == 0) &&
-(buf->nb_buffer.ov_buf != NULL) &&
-m0_vec_count(&buf->nb_buffer.ov_vec) > 0
-   @post ergo(result == 0, buf->nb_flags & M0_NET_BUF_REGISTERED)
-   @post ergo(result == 0, buf->nb_timeout == M0_TIME_NEVER)
+
    @param buf Pointer to a buffer. The buffer should have the following fields
    initialized:
    - m0_net_buffer.nb_buffer should be initialized to point to the buffer
    memory regions.
    The buffer's timeout value is initialized to M0_TIME_NEVER upon return.
+
+   @pre buf->nb_flags == 0
+   @pre buf->nb_buffer.ov_buf != NULL
+   @pre m0_vec_count(&buf->nb_buffer.ov_vec) > 0
+   @post ergo(result == 0, buf->nb_flags & M0_NET_BUF_REGISTERED)
+   @post ergo(result == 0, buf->nb_timeout == M0_TIME_NEVER)
+
    @param dom Pointer to the domain.
-   @retval 0 (success)
-   @retval -errno (failure)
  */
 M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
 				       struct m0_net_domain *dom);
 
 /**
    Deregisters a previously registered buffer and releases any transport
-   specific resources associated with it.
-   The buffer should not be in use, nor should this subroutine be
-   invoked from a callback.
-   @pre
-(buf->nb_flags == M0_NET_BUF_REGISTERED) &&
-(buf->nb_dom == dom)
-   @param buf Specify the buffer pointer.
-   @param dom Specify the domain pointer.
+   specific resources associated with it. The buffer should not be in use, nor
+   should this subroutine be invoked from a callback.
+
+   @pre buf->nb_flags == M0_NET_BUF_REGISTERED
+   @pre buf->nb_dom == dom
  */
 M0_INTERNAL void m0_net_buffer_deregister(struct m0_net_buffer *buf,
 					  struct m0_net_domain *dom);
@@ -1621,26 +1550,30 @@ M0_INTERNAL void m0_net_buffer_deregister(struct m0_net_buffer *buf,
 /**
    Adds a registered buffer to a transfer machine's logical queue specified
    by the m0_net_buffer.nb_qtype value.
+
    - Buffers added to the M0_NET_QT_MSG_RECV queue are used to receive
-   messages.
+     messages.
+
    - When data is contained in the buffer, as in the case of the
-   M0_NET_QT_MSG_SEND, M0_NET_PASSIVE_BULK_SEND and M0_NET_ACTIVE_BULK_SEND
-   queues, the application must set the m0_net_buffer.nb_length field to the
-   actual length of the data to be transferred.
+     M0_NET_QT_MSG_SEND, M0_NET_PASSIVE_BULK_SEND and M0_NET_ACTIVE_BULK_SEND
+     queues, the application must set the m0_net_buffer.nb_length field to the
+     actual length of the data to be transferred.
+
    - Buffers added to the M0_NET_QT_MSG_SEND queue must identify the
-   message destination end point with the m0_net_buffer.nb_ep field.
+     message destination end point with the m0_net_buffer.nb_ep field.
+
    - Buffers added to the M0_NET_QT_PASSIVE_BULK_RECV or
-   M0_NET_PASSIVE_BULK_SEND queues must have their m0_net_buffer.nb_ep
-   field set to identify the end point that will initiate the bulk data
-   transfer.  Upon return from this subroutine the m0_net_buffer.nb_desc
-   field will be set to the network buffer descriptor to be conveyed to
-   said end point.
-   - Buffers added to the M0_NET_QT_ACTIVE_BULK_RECV or
-   M0_NET_ACTIVE_BULK_SEND queues must have their m0_net_buffer.nb_desc
-   field set to the network buffer descriptor associated with the passive
-   buffer.
+     M0_NET_PASSIVE_BULK_SEND queues must have their m0_net_buffer.nb_ep field
+     set to identify the end point that will initiate the bulk data transfer.
+     Upon return from this subroutine the m0_net_buffer.nb_desc field will be
+     set to the network buffer descriptor to be conveyed to said end point.
+
+   - Buffers added to the M0_NET_QT_ACTIVE_BULK_RECV or M0_NET_ACTIVE_BULK_SEND
+     queues must have their m0_net_buffer.nb_desc field set to the network
+     buffer descriptor associated with the passive buffer.
+
    - The callback function pointer for the appropriate queue type
-   must be set in nb_callbacks.
+     must be set in nb_callbacks.
 
    The buffer should not be modified until the operation completion
    callback is invoked for the buffer.
@@ -1648,30 +1581,29 @@ M0_INTERNAL void m0_net_buffer_deregister(struct m0_net_buffer *buf,
    The buffer completion callback is guaranteed to be invoked on a
    different thread.
 
-   @pre
-(buf->nb_dom == tm->ntm_dom) &&
-(tm->ntm_state == M0_NET_TM_STARTED) &&
-m0_net__qtype_is_valid(buf->nb_qtype) &&
-buf->nb_flags == M0_NET_BUF_REGISTERED &&
-buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL &&
-ergo(buf->nb_qtype == M0_NET_QT_MSG_RECV,
-     buf->nb_min_receive_size != 0 && buf->nb_max_receive_msgs != 0) &&
-ergo(buf->nb_qtype == M0_NET_QT_MSG_SEND, buf->nb_ep != NULL) &&
-ergo(buf->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV ||
-     buf->nb_qtype == M0_NET_QT_ACTIVE_BULK_SEND, buf->nb_desc.nbd_len != 0) &&
-ergo(buf->nb_qtype == M0_NET_QT_MSG_SEND ||
-     buf->nb_qtype == M0_NET_QT_PASSIVE_BULK_SEND ||
-     buf->nb_qtype == M0_NET_QT_ACTIVE_BULK_SEND, buf->nb_length > 0)
-   @param buf Specify the buffer pointer.
-   @param tm  Specify the transfer machine pointer
-   @retval 0 (success)
-   @retval -errno (failure)
+   @pre buf->nb_dom == tm->ntm_dom
+   @pre tm->ntm_state == M0_NET_TM_STARTED
+   @pre m0_net__qtype_is_valid(buf->nb_qtype)
+   @pre buf->nb_flags == M0_NET_BUF_REGISTERED
+   @pre buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL
+   @pre ergo(buf->nb_qtype == M0_NET_QT_MSG_RECV,
+             buf->nb_min_receive_size != 0 && buf->nb_max_receive_msgs != 0)
+   @pre ergo(buf->nb_qtype == M0_NET_QT_MSG_SEND, buf->nb_ep != NULL)
+   @pre ergo(M0_IN(buf->nb_qtype, (M0_NET_QT_ACTIVE_BULK_RECV,
+                                   M0_NET_QT_ACTIVE_BULK_SEND)),
+             buf->nb_desc.nbd_len != 0)
+   @pre ergo(M0_IN(buf->nb_qtype, (M0_NET_QT_MSG_SEND ||
+                                   M0_NET_QT_PASSIVE_BULK_SEND,
+                                   M0_NET_QT_ACTIVE_BULK_SEND)),
+             buf->nb_length > 0)
+
    @retval -ETIME nb_timeout is set to other than M0_TIME_NEVER, and occurs in
-   the past.
-   Note that this differs from them buffer timeout error code of -ETIMEDOUT.
+           the past. Note that this differs from them buffer timeout error code
+           of -ETIMEDOUT.
+
    @note Receiving a successful buffer completion callback is not a guarantee
    that a data transfer actually took place, but merely an indication that the
-   transport reported the operation was successfully executed.  See the
+   transport reported the operation was successfully executed. See the
    transport documentation for details.
  */
 M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
@@ -1694,9 +1626,7 @@ M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
    The buffer completion callback is guaranteed to be invoked on a
    different thread.
 
-   @pre (buf->nb_flags & M0_NET_BUF_REGISTERED)
-   @param buf Specify the buffer pointer.
-   @param tm  Specify the transfer machine pointer.
+   @pre buf->nb_flags & M0_NET_BUF_REGISTERED
  */
 M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
 				   struct m0_net_transfer_mc *tm);
@@ -1704,20 +1634,20 @@ M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
 /**
    A transfer machine is notified of buffer related events with this
    subroutine.
-   Typically, the subroutine is invoked by the transport associated with
-   the transfer machine.
 
-   The event data structure is not referenced from
-   elsewhere after this subroutine returns, so may be allocated on the
-   stack of the calling thread.
+   Typically, the subroutine is invoked by the transport associated with the
+   transfer machine.
+
+   The event data structure is not referenced from elsewhere after this
+   subroutine returns, so may be allocated on the stack of the calling thread.
 
    Multiple concurrent events may be delivered for a given buffer, depending
    upon the transport.
 
-   The subroutine will remove a buffer from its queue if the
-   M0_NET_BUF_RETAIN flag is @em not set.  It will clear the M0_NET_BUF_QUEUED
-   and M0_NET_BUF_IN_USE flags and set the nb_timeout field to M0_TIME_NEVER if
-   the buffer is dequeued.  It will always clear the M0_NET_BUF_RETAIN,
+   The subroutine will remove a buffer from its queue if the M0_NET_BUF_RETAIN
+   flag is @em not set.  It will clear the M0_NET_BUF_QUEUED and
+   M0_NET_BUF_IN_USE flags and set the nb_timeout field to M0_TIME_NEVER if the
+   buffer is dequeued.  It will always clear the M0_NET_BUF_RETAIN,
    M0_NET_BUF_CANCELLED and M0_NET_BUF_TIMED_OUT flags prior to invoking the
    callback. The M0_NET_BUF_RETAIN flag must not be set if the status indicates
    error.
@@ -1728,18 +1658,18 @@ M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
    If the M0_NET_BUF_TIMED_OUT flag was set, then the status must be
    -ETIMEDOUT.
 
-   The subroutine will perform a m0_end_point_put() on the nbe_ep field
-   in the event structure, if the queue type is M0_NET_QT_MSG_RECV and
-   the nbe_status value is 0, and for the M0_NET_QT_MSG_SEND queue to
-   match the m0_end_point_get() made in the m0_net_buffer_add() call.
-   Care should be taken by the transport to accomodate these adjustments
-   when invoking the subroutine with the M0_NET_BUF_RETAIN flag set.
+   The subroutine will perform a m0_end_point_put() on the ev->nbe_ep, if the
+   queue type is M0_NET_QT_MSG_RECV and the nbe_status value is 0, and for the
+   M0_NET_QT_MSG_SEND queue to match the m0_end_point_get() made in the
+   m0_net_buffer_add() call. Care should be taken by the transport to
+   accomodate these adjustments when invoking the subroutine with the
+   M0_NET_BUF_RETAIN flag set.
 
    The subroutine will also signal to all waiters on the
    m0_net_transfer_mc.ntm_chan field after delivery of the callback.
 
-   The invoking process should be aware that the callback subroutine could
-   end up making re-entrant calls to the transport layer.
+   The invoking process should be aware that the callback subroutine could end
+   up making re-entrant calls to the transport layer.
 
    @param ev Event pointer. The nbe_buffer field identifies the buffer,
    and the buffer's nb_tm field identifies the associated transfer machine.
@@ -1749,14 +1679,18 @@ M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
 M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev);
 
 /**
-   Deliver all pending network buffer events.  Should be called periodically
-   by the application if synchronous network buffer event processing is
-   enabled.
+   Deliver all pending network buffer events, by calling
+   m0_net_buffer_event_post() every pending event. Should be called
+   periodically by the application if synchronous network buffer event
+   processing is enabled.
+
    @param tm Pointer to a transfer machine which has been set up for
    synchronous network buffer event processing.
+
+   @pre !tm->ntm_bev_auto_deliver
+
    @see m0_net_buffer_event_deliver_synchronously(),
    m0_net_buffer_event_pending(), m0_net_buffer_event_notify()
-   @pre tm->ntm_bev_auto_deliver is not set.
  */
 M0_INTERNAL void m0_net_buffer_event_deliver_all(struct m0_net_transfer_mc *tm);
 
@@ -1772,50 +1706,43 @@ M0_INTERNAL void m0_net_buffer_event_deliver_all(struct m0_net_transfer_mc *tm);
 
    The subroutine must be invoked before the transfer machine is started.
 
-   @param tm Pointer to an initialized but not started transfer machine.
-   @pre tm->ntm_bev_auto_deliver is set.
-   @post tm->ntm_bev_auto_deliver is not set.
+   @pre tm->ntm_bev_auto_deliver
+   @post !tm->ntm_bev_auto_deliver
+
    @see m0_net_buffer_event_pending(), m0_net_buffer_event_deliver_all(),
    m0_net_buffer_event_notify()
  */
-M0_INTERNAL int m0_net_buffer_event_deliver_synchronously(struct
-							  m0_net_transfer_mc
-							  *tm);
+M0_INTERNAL int
+m0_net_buffer_event_deliver_synchronously(struct m0_net_transfer_mc *tm);
 
 /**
    This subroutine determines if there are pending network buffer events that
    can be delivered with the m0_net_buffer_event_deliver_all() subroutine.
-   @param tm Pointer to a transfer machine which has been set up for
-   synchronous network buffer event processing.
+
+   @pre !tm->ntm_bev_auto_deliver
+
    @see m0_net_buffer_event_deliver_synchronously()
-   @pre tm->ntm_bev_auto_deliver is not set.
  */
 M0_INTERNAL bool m0_net_buffer_event_pending(struct m0_net_transfer_mc *tm);
 
 /**
    This subroutine arranges for notification of the arrival of the next network
-   buffer event to be signalled on the specified channel.  Typically, this
+   buffer event to be signalled on the specified channel. Typically, this
    subroutine is called only when the the m0_net_buffer_event_pending()
-   subroutine indicates that there are no events pending.
-   The subroutine does not block the invoker.
+   subroutine indicates that there are no events pending. The subroutine does
+   not block the invoker.
+
    @note The subroutine exhibits "monoshot" behavior - it only signals once
    on the specified wait channel.
-   @param tm Pointer to a transfer machine which has been set up for
-   synchronous network buffer event processing.
-   @param chan The wait channel on which to send the signal.
+
+   @pre !tm->ntm_bev_auto_deliver
+
    @see m0_net_buffer_event_deliver_synchronously()
-   @pre tm->ntm_bev_auto_deliver is not set.
  */
 M0_INTERNAL void m0_net_buffer_event_notify(struct m0_net_transfer_mc *tm,
 					    struct m0_chan *chan);
 
-/**
-   Copies a network buffer descriptor.
-   @param from_desc Specifies the source descriptor data structure.
-   @param to_desc Specifies the destination descriptor data structure.
-   @retval 0 (success)
-   @retval -errno (failure)
- */
+/** Copies a network buffer descriptor. */
 M0_INTERNAL int m0_net_desc_copy(const struct m0_net_buf_desc *from_desc,
 				 struct m0_net_buf_desc *to_desc);
 

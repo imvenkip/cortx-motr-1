@@ -228,7 +228,7 @@ struct m0_fop_type {
 	struct m0_fom_type                ft_fom_type;
 	/** The rpc_item_type associated with rpc_item
 	    embedded with this fop. */
-	struct m0_rpc_item_type		  ft_rpc_item_type;
+	struct m0_rpc_item_type           ft_rpc_item_type;
 	uint64_t                          ft_magix;
 };
 

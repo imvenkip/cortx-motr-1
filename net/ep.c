@@ -32,20 +32,15 @@ M0_INTERNAL bool m0_net__ep_invariant(struct m0_net_end_point *ep,
 				      struct m0_net_transfer_mc *tm,
 				      bool under_tm_mutex)
 {
-	if (ep == NULL)
-		return false;
-	if (m0_atomic64_get(&ep->nep_ref.ref_cnt) <= 0)
-		return false;
-	if (ep->nep_ref.release == NULL)
-		return false;
-	if (ep->nep_tm != tm)
-		return false;
-	if (ep->nep_addr == NULL)
-		return false;
-	if (under_tm_mutex &&
-	    !m0_list_contains(&tm->ntm_end_points, &ep->nep_tm_linkage))
-		return false;
-	return true;
+	return
+		_0C(ep != NULL) &&
+		_0C(m0_atomic64_get(&ep->nep_ref.ref_cnt) > 0) &&
+		_0C(ep->nep_ref.release != NULL) &&
+		_0C(ep->nep_tm == tm) &&
+		_0C(ep->nep_addr != NULL) &&
+		_0C(ergo(under_tm_mutex,
+			 m0_list_contains(&tm->ntm_end_points,
+					  &ep->nep_tm_linkage)));
 }
 
 M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
@@ -70,9 +65,10 @@ M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
 
 	rc = dom->nd_xprt->nx_ops->xo_end_point_create(epp, tm, addr);
 
-	/* either we failed or we got back a properly initialized end point
-	   with reference count of at least 1
-	*/
+	/*
+	 * Either we failed or we got back a properly initialized end point
+	 * with reference count of at least 1.
+	 */
 	M0_POST(ergo(rc == 0, m0_net__ep_invariant(*epp, tm, true)));
 
 	if (rc != 0)

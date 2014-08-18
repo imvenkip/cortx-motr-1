@@ -585,8 +585,6 @@ static void nlx_xo_bev_deliver_all(struct m0_net_transfer_mc *tm)
 	/* if we ever left the mutex, wake up waiters on the TM channel */
 	if (num_events > 0 && tm->ntm_callback_counter == 0)
 		m0_chan_broadcast(&tm->ntm_chan);
-
-	return;
 }
 
 static int nlx_xo_bev_deliver_sync(struct m0_net_transfer_mc *tm)

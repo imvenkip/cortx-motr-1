@@ -222,21 +222,21 @@ M0_INTERNAL void m0_fols_fini(void);
 
 /** Represents a fragment of FOL record. */
 struct m0_fol_frag {
-	const struct m0_fol_frag_ops	*rp_ops;
+	const struct m0_fol_frag_ops    *rp_ops;
 	/**
 	    Pointer to the data where FOL record fragment is serialised or
 	    will be de-serialised.
 	 */
-	void				*rp_data;
+	void                            *rp_data;
 	/** Linkage into a fol record fragments. */
-	struct m0_tlink			 rp_link;
+	struct m0_tlink                  rp_link;
 	/** Magic for fol record fragments list. */
-	uint64_t			 rp_magic;
+	uint64_t                         rp_magic;
 	/**
 	 * As rp_data points to the in-memory record fragment during encoding,
 	 * rp_data is freed only when rp_flag is equals to M0_XCODE_DECODE.
 	 */
-	enum m0_xcode_what		 rp_flag;
+	enum m0_xcode_what               rp_flag;
 };
 
 struct m0_fol_frag_type {
@@ -247,7 +247,7 @@ struct m0_fol_frag_type {
 	    Used to encode, decode or calculate the length of
 	    FOL record fragments using xcode operations.
 	 */
-	const struct m0_xcode_type	  *rpt_xt;
+	const struct m0_xcode_type        *rpt_xt;
 	const struct m0_fol_frag_type_ops *rpt_ops;
 };
 
@@ -302,33 +302,33 @@ M0_TL_DECLARE(m0_rec_frag, M0_INTERNAL, struct m0_fol_frag);
 M0_INTERNAL void m0_fol_frag_add(struct m0_fol_rec *rec,
 				     struct m0_fol_frag *frag);
 
-#define M0_FOL_FRAG_TYPE_DECLARE(frag, scope, undo, redo,	   \
-				     undo_cred, redo_cred)	   \
-scope struct m0_fol_frag_type frag ## _type;		   \
-static const struct m0_fol_frag_ops frag ## _ops = {           \
-	.rpo_type = &frag ## _type,		                   \
-	.rpo_undo = undo,			                   \
-	.rpo_redo = redo,			                   \
-	.rpo_undo_credit = undo_cred,			           \
-	.rpo_redo_credit = redo_cred,			           \
-};						                   \
-static void frag ## _ops_init(struct m0_fol_frag *frag)        \
-{							           \
-	frag->rp_ops = &frag ## _ops;			           \
-}							           \
-static const struct m0_fol_frag_type_ops frag ## _type_ops = { \
-	.rpto_rec_frag_init = frag ##_ops_init			   \
+#define M0_FOL_FRAG_TYPE_DECLARE(frag, scope, undo, redo,	\
+				     undo_cred, redo_cred)	\
+scope struct m0_fol_frag_type frag ## _type;			\
+static const struct m0_fol_frag_ops frag ## _ops = {		\
+	.rpo_type = &frag ## _type,				\
+	.rpo_undo = undo,					\
+	.rpo_redo = redo,					\
+	.rpo_undo_credit = undo_cred,				\
+	.rpo_redo_credit = redo_cred,				\
+};								\
+static void frag ## _ops_init(struct m0_fol_frag *frag)	\
+{								\
+	frag->rp_ops = &frag ## _ops;				\
+}								\
+static const struct m0_fol_frag_type_ops frag ## _type_ops = {	\
+	.rpto_rec_frag_init = frag ##_ops_init			\
 };
 
-#define M0_FOL_FRAG_TYPE_XC_OPS(name, frag_xc, frag_type_ops) \
-(struct m0_fol_frag_type) {					  \
-	.rpt_name = name,					  \
-	.rpt_xt   = (frag_xc),					  \
-	.rpt_ops  = (frag_type_ops)				  \
+#define M0_FOL_FRAG_TYPE_XC_OPS(name, frag_xc, frag_type_ops)	\
+(struct m0_fol_frag_type) {					\
+	.rpt_name = name,					\
+	.rpt_xt   = (frag_xc),					\
+	.rpt_ops  = (frag_type_ops)				\
 };
 
 #define M0_FOL_FRAG_TYPE_INIT(frag, name)		        \
-frag ## _type = M0_FOL_FRAG_TYPE_XC_OPS(name, frag ## _xc,  \
+frag ## _type = M0_FOL_FRAG_TYPE_XC_OPS(name, frag ## _xc,	\
 				            &frag ## _type_ops)
 
 /** @} end of fol group */

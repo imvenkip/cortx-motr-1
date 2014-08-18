@@ -521,13 +521,13 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 			  uint64_t states, m0_time_t timeout)
 {
-        int rc;
+	int rc;
 
-        m0_rpc_machine_lock(item->ri_rmachine);
-        rc = m0_sm_timedwait(&item->ri_sm, states, timeout);
-        m0_rpc_machine_unlock(item->ri_rmachine);
+	m0_rpc_machine_lock(item->ri_rmachine);
+	rc = m0_sm_timedwait(&item->ri_sm, states, timeout);
+	m0_rpc_machine_unlock(item->ri_rmachine);
 
-        return rc;
+	return rc;
 }
 
 int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item, m0_time_t timeout)

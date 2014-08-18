@@ -65,7 +65,7 @@
     First, user needs to provide m0_net_buffer_pool_ops:
     @code
 	struct m0_net_buffer_pool_ops b_ops = {
-		.nbpo_not_empty	      = notempty,
+		.nbpo_not_empty       = notempty,
 		.nbpo_below_threshold = low,
 	};
     @endcode
@@ -216,10 +216,8 @@ M0_INTERNAL void m0_net_buffer_pool_unlock(struct m0_net_buffer_pool *pool);
    @post ergo(result != NULL, result->nb_flags & M0_NET_BUF_REGISTERED)
    @post ergo(result != NULL, result->nb_pool == pool)
  */
-M0_INTERNAL struct m0_net_buffer *m0_net_buffer_pool_get(struct
-							 m0_net_buffer_pool
-							 *pool,
-							 uint32_t colour);
+M0_INTERNAL struct m0_net_buffer *
+m0_net_buffer_pool_get(struct m0_net_buffer_pool *pool, uint32_t colour);
 
 /**
    Puts the buffer back to the pool.

@@ -271,7 +271,7 @@ static int fol_rec_encdec(struct m0_fol_rec *rec,
 static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 {
 	struct m0_fol_frag     *frag;
-	m0_bcount_t	        len = buf->b_nob;
+	m0_bcount_t             len = buf->b_nob;
 	struct m0_bufvec        bvec = M0_BUFVEC_INIT_BUF(&buf->b_addr, &len);
 	struct m0_bufvec_cursor cur;
 	int			rc;

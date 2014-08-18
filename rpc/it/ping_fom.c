@@ -65,9 +65,9 @@ M0_INTERNAL void m0_fom_ping_addb_init(struct m0_fom *fom,
  */
 M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
 {
-        struct m0_fop_ping_rep *ping_fop_rep;
-        struct m0_rpc_item     *item;
-        struct m0_fom_ping     *fom_obj;
+	struct m0_fop_ping_rep *ping_fop_rep;
+	struct m0_rpc_item     *item;
+	struct m0_fom_ping     *fom_obj;
 	struct m0_fop          *fop;
 
 	fom_obj = container_of(fom, struct m0_fom_ping, fp_gen);
@@ -76,7 +76,7 @@ M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
 	ping_fop_rep = m0_fop_data(fop);
 	ping_fop_rep->fpr_rc = 0;
 	item = m0_fop_to_rpc_item(fop);
-        m0_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
+	m0_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	return M0_FSO_WAIT;
 }
@@ -85,15 +85,15 @@ M0_INTERNAL int m0_fom_ping_state(struct m0_fom *fom)
 static int ping_fop_fom_create(struct m0_fop *fop, struct m0_fom **m,
 			       struct m0_reqh *reqh)
 {
-        struct m0_fom                   *fom;
-        struct m0_fom_ping		*fom_obj;
+	struct m0_fom      *fom;
+	struct m0_fom_ping *fom_obj;
 
-        M0_PRE(fop != NULL);
-        M0_PRE(m != NULL);
+	M0_PRE(fop != NULL);
+	M0_PRE(m != NULL);
 
-        fom_obj= m0_alloc(sizeof(struct m0_fom_ping));
-        if (fom_obj == NULL)
-                return -ENOMEM;
+	fom_obj= m0_alloc(sizeof(struct m0_fom_ping));
+	if (fom_obj == NULL)
+		return -ENOMEM;
 	fom = &fom_obj->fp_gen;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &m0_fom_ping_ops, fop,
 		    NULL, reqh);
@@ -109,8 +109,6 @@ M0_INTERNAL void m0_fop_ping_fom_fini(struct m0_fom *fom)
 	fom_obj = container_of(fom, struct m0_fom_ping, fp_gen);
 	m0_fom_fini(fom);
 	m0_free(fom_obj);
-
-	return;
 }
 
 /** @} end of io_foms */

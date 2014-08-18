@@ -60,34 +60,24 @@ M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
 				    struct m0_addb_ctx   *ctx);
 
 /**
-  Internal version of m0_net_domain_init() that is protected by the
+  Internal version of m0_net_domain_fini() that is protected by the
   m0_net_mutex.  Can be used by transports for derived domain situations.
  */
 M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom);
 
-/**
-  Validates the value of buffer queue type.
- */
+/** Validates the value of buffer queue type. */
 M0_INTERNAL bool m0_net__qtype_is_valid(enum m0_net_queue_type qt);
 
-/**
-  Validate transfer machine state
- */
+/** Validates transfer machine state. */
 M0_INTERNAL bool m0_net__tm_state_is_valid(enum m0_net_tm_state ts);
 
-/**
-  TM event invariant
- */
+/** TM event invariant. */
 M0_INTERNAL bool m0_net__tm_event_invariant(const struct m0_net_tm_event *ev);
 
-/**
-  Validates the TM event type.
- */
+/** Validates the TM event type. */
 M0_INTERNAL bool m0_net__tm_ev_type_is_valid(enum m0_net_tm_ev_type et);
 
-/**
-  Buffer event invariant
- */
+/** Buffer event invariant. */
 M0_INTERNAL bool m0_net__buffer_event_invariant(const struct m0_net_buffer_event
 						*ev);
 
@@ -121,7 +111,7 @@ M0_INTERNAL bool m0_net__tm_invariant(const struct m0_net_transfer_mc *tm);
 /**
    Internal subroutine to provision the receive queue of a transfer machine
    from its associated buffer pool.
-   @param tm  Transfer machine
+
    @pre m0_mutex_is_not_locked(&tm->ntm_mutex) && tm->ntm_callback_counter > 0
    @pre m0_net_buffer_pool_is_not_locked(&tm->ntm_recv_pool))
    @post Length of receive queue >= tm->ntm_recv_queue_min_length &&
@@ -133,7 +123,7 @@ M0_INTERNAL void m0_net__tm_provision_recv_q(struct m0_net_transfer_mc *tm);
 
 /**
    Internal sub variant to get TM statistics from within the TM mutex.
-   @param tm Transfer machine
+
    @pre m0_mutex_is_locked(&tm->ntm_mutex)
  */
 M0_INTERNAL int m0_net__tm_stats_get(struct m0_net_transfer_mc *tm,
@@ -143,10 +133,18 @@ M0_INTERNAL int m0_net__tm_stats_get(struct m0_net_transfer_mc *tm,
 /**
    Internal sub variant to post TM statistical ADDB records from within the
    TM mutex.
-   @param tm  Transfer machine
+
    @pre m0_mutex_is_locked(&tm->ntm_mutex)
  */
 M0_INTERNAL void m0_net__tm_stats_post_addb(struct m0_net_transfer_mc *tm);
+
+/**
+ * Common part of post-callback processing for m0_net_tm_event_post() and
+ * m0_net_buffer_event_post().
+ *
+ * Under tm mutex: decrement ref counts, signal waiters
+ */
+M0_INTERNAL void m0_net__tm_post_callback(struct m0_net_transfer_mc *tm);
 
 /**
    @} net-int

@@ -56,8 +56,8 @@ M0_INTERNAL bool m0_net__buffer_invariant(const struct m0_net_buffer *buf)
 		     _0C(buf->nb_callbacks->nbc_cb[buf->nb_qtype] != NULL) &&
 		     _0C(buf->nb_tm != NULL) &&
 		     _0C(buf->nb_dom == buf->nb_tm->ntm_dom) &&
-		     _0C(m0_net_tm_tlist_contains( /* expensive */
-				 &buf->nb_tm->ntm_q[buf->nb_qtype], buf)));
+		     M0_CHECK_EX(_0C(m0_net_tm_tlist_contains( /* expensive */
+				  &buf->nb_tm->ntm_q[buf->nb_qtype], buf))));
 }
 
 M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
@@ -84,8 +84,9 @@ M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
 	buf->nb_timeout = M0_TIME_NEVER;
 	buf->nb_magic = M0_NET_BUFFER_LINK_MAGIC;
 
-	/* The transport will validate buffer size and number of
-	   segments, and optimize it for future use.
+	/*
+	 * The transport will validate buffer size and number of segments, and
+	 * optimize it for future use.
 	 */
 	rc = dom->nd_xprt->nx_ops->xo_buf_register(buf);
 	if (rc == 0) {
@@ -119,10 +120,9 @@ M0_INTERNAL void m0_net_buffer_deregister(struct m0_net_buffer *buf,
 	m0_list_del(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 	buf->nb_magic = 0;
-        buf->nb_dom = NULL;
+	buf->nb_dom = NULL;
 
 	m0_mutex_unlock(&dom->nd_mutex);
-	return;
 }
 M0_EXPORTED(m0_net_buffer_deregister);
 
@@ -147,6 +147,8 @@ M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
 		[M0_NET_QT_ACTIVE_BULK_SEND]  = { true,  false, true,  false }
 	};
 	const struct buf_add_checks *todo;
+	m0_bcount_t count = m0_vec_count(&buf->nb_buffer.ov_vec);
+	m0_time_t   now   = m0_time_now();
 
 	M0_PRE(tm != NULL);
 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
@@ -163,8 +165,7 @@ M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
 	M0_PRE(ergo(buf->nb_qtype == M0_NET_QT_MSG_RECV,
 		    buf->nb_ep == NULL &&
 		    buf->nb_min_receive_size != 0 &&
-		    buf->nb_min_receive_size <=
-		                        m0_vec_count(&buf->nb_buffer.ov_vec) &&
+		    buf->nb_min_receive_size <= count &&
 		    buf->nb_max_receive_msgs != 0));
 	M0_PRE(tm->ntm_state == M0_NET_TM_STARTED);
 
@@ -172,14 +173,13 @@ M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
 	todo = &checks[buf->nb_qtype];
 	ql = &tm->ntm_q[buf->nb_qtype];
 
-	/* Validate that that length is set and is within buffer bounds.
-	   The transport will make other checks on the buffer, such
-	   as the max size and number of segments.
+	/*
+	 * Validate that the length is set and is within buffer bounds. The
+	 * transport will make other checks on the buffer, such as the max size
+	 * and number of segments.
 	 */
-	M0_PRE(ergo(todo->check_length,
-		    buf->nb_length > 0 &&
-		    (buf->nb_length + buf->nb_offset) <=
-		    m0_vec_count(&buf->nb_buffer.ov_vec)));
+	M0_PRE(ergo(todo->check_length, buf->nb_length > 0 &&
+		    (buf->nb_length + buf->nb_offset) <= count));
 
 	/* validate end point usage; increment ref count later */
 	M0_PRE(ergo(todo->check_ep,
@@ -188,6 +188,7 @@ M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
 
 	/* validate that the descriptor is present */
 	if (todo->post_check_desc) {
+		/** @todo should be m0_net_desc_free()? */
 		buf->nb_desc.nbd_len = 0;
 		buf->nb_desc.nbd_data = NULL;
 	}
@@ -198,18 +199,19 @@ M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
 	/* validate that a timeout, if set, is in the future */
 	if (buf->nb_timeout != M0_TIME_NEVER) {
 		/* Don't want to assert here as scheduling is unpredictable. */
-		if (m0_time_now() >= buf->nb_timeout) {
+		if (now >= buf->nb_timeout) {
 			rc = -ETIME; /* not -ETIMEDOUT */
 			goto m_err_exit;
 		}
 	}
 
-	/* Optimistically add it to the queue's list before calling the xprt.
-	   Post will unlink on completion, or del on cancel.
+	/*
+	 * Optimistically add it to the queue's list before calling the xprt.
+	 * Post will unlink on completion, or del on cancel.
 	 */
 	m0_net_tm_tlink_init_at_tail(buf, ql);
 	buf->nb_flags |= M0_NET_BUF_QUEUED;
-	buf->nb_add_time = m0_time_now(); /* record time added */
+	buf->nb_add_time = now; /* record time added */
 	buf->nb_msgs_received = 0;
 
 	/* call the transport */
@@ -287,72 +289,64 @@ M0_INTERNAL void m0_net_buffer_del(struct m0_net_buffer *buf,
 
  m_err_exit:
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return;
 }
 M0_EXPORTED(m0_net_buffer_del);
 
 M0_INTERNAL bool m0_net__buffer_event_invariant(const struct m0_net_buffer_event
 						*ev)
 {
-	if (ev == NULL)
-		return false;
-	if (ev->nbe_status > 0)
-		return false;
-	if (ev->nbe_buffer == NULL)
-		return false; /* can't check buf invariant here */
-	if (!ergo(ev->nbe_status == 0 &&
-		  ev->nbe_buffer->nb_qtype == M0_NET_QT_MSG_RECV,
-		  ev->nbe_ep != NULL))
-		return false; /* don't check ep invariant here */
-	if (!ergo(ev->nbe_buffer->nb_flags & M0_NET_BUF_CANCELLED,
-		  ev->nbe_status == -ECANCELED))
-		return false;
-	if (!ergo(ev->nbe_buffer->nb_flags & M0_NET_BUF_TIMED_OUT,
-		  ev->nbe_status == -ETIMEDOUT))
-		return false;
-	if (!ergo(ev->nbe_buffer->nb_flags & M0_NET_BUF_RETAIN,
-		  ev->nbe_status == 0))
-		return false;
-	return true;
+	int32_t  status = ev->nbe_status;
+	uint64_t flags  = ev->nbe_buffer->nb_qtype;
+
+	return
+		_0C(status <= 0) &&
+		_0C(ergo(status == 0 &&
+			 ev->nbe_buffer->nb_qtype == M0_NET_QT_MSG_RECV,
+			 /* don't check ep invariant here */
+			 ev->nbe_ep != NULL)) &&
+		_0C(ergo(flags & M0_NET_BUF_CANCELLED, status == -ECANCELED)) &&
+		_0C(ergo(flags & M0_NET_BUF_TIMED_OUT, status == -ETIMEDOUT)) &&
+		_0C(ergo(flags & M0_NET_BUF_RETAIN,    status == 0));
 }
 
 M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 {
-	struct m0_net_buffer	  *buf = NULL;
-	struct m0_net_end_point	  *ep;
-	bool			   check_ep;
-	bool			   retain;
+	struct m0_net_buffer      *buf = NULL;
+	struct m0_net_end_point   *ep;
+	bool                       check_ep;
+	bool                       retain;
 	enum m0_net_queue_type	   qtype = M0_NET_QT_NR;
 	struct m0_net_transfer_mc *tm;
-	struct m0_net_qstats	  *q;
-	m0_time_t		   tdiff;
-	m0_net_buffer_cb_proc_t	   cb;
-	m0_bcount_t		   len = 0;
+	struct m0_net_qstats      *q;
+	m0_time_t                  tdiff;
+	m0_net_buffer_cb_proc_t    cb;
+	m0_bcount_t                len = 0;
 	struct m0_net_buffer_pool *pool = NULL;
+	uint64_t                   flags;
 
 	M0_PRE(m0_net__buffer_event_invariant(ev));
 	buf = ev->nbe_buffer;
 	tm  = buf->nb_tm;
 	M0_PRE(m0_mutex_is_not_locked(&tm->ntm_mutex));
 
-	/* pre-callback, in mutex:
-	   update buffer (if present), state and statistics
+	/*
+	 * pre-callback, in mutex:
+	 * update buffer (if present), state and statistics
 	 */
 	m0_mutex_lock(&tm->ntm_mutex);
-
+	flags = buf->nb_flags;
 	M0_PRE(m0_net__tm_invariant(tm));
 	M0_PRE(m0_net__buffer_invariant(buf));
-	M0_PRE(buf->nb_flags & M0_NET_BUF_QUEUED);
+	M0_PRE(flags & M0_NET_BUF_QUEUED);
 
-	if (!(buf->nb_flags & M0_NET_BUF_RETAIN)) {
+	retain = flags & M0_NET_BUF_RETAIN;
+	if (retain) {
+		flags &= ~M0_NET_BUF_RETAIN;
+	} else {
 		m0_net_tm_tlist_del(buf);
-		buf->nb_flags &= ~(M0_NET_BUF_QUEUED | M0_NET_BUF_CANCELLED |
+		flags &= ~(M0_NET_BUF_QUEUED | M0_NET_BUF_CANCELLED |
 				   M0_NET_BUF_IN_USE | M0_NET_BUF_TIMED_OUT);
 		buf->nb_timeout = M0_TIME_NEVER;
-		retain = false;
-	} else {
-		buf->nb_flags &= ~M0_NET_BUF_RETAIN;
-		retain = true;
 	}
 
 	qtype = buf->nb_qtype;
@@ -373,7 +367,7 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 		else
 			m0_addb_counter_update(&tm->ntm_cntr_data, len);
 	}
-	if (!(buf->nb_flags & M0_NET_BUF_QUEUED)) {
+	if (!retain) {
 		tdiff = m0_time_sub(ev->nbe_time, buf->nb_add_time);
 		q->nqs_time_in_queue = m0_time_add(q->nqs_time_in_queue, tdiff);
 	}
@@ -388,12 +382,11 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 			check_ep = true;
 			ep = ev->nbe_ep; /* from event */
 			++buf->nb_msgs_received;
-			if (!(buf->nb_flags & M0_NET_BUF_QUEUED))
+			if (!retain)
 				m0_addb_counter_update(&tm->ntm_cntr_rb,
 						       buf->nb_msgs_received);
 		}
-		if (!(buf->nb_flags & M0_NET_BUF_QUEUED) &&
-		    tm->ntm_state == M0_NET_TM_STARTED &&
+		if (!retain && tm->ntm_state == M0_NET_TM_STARTED &&
 		    tm->ntm_recv_pool != NULL)
 			pool = tm->ntm_recv_pool;
 		break;
@@ -411,6 +404,7 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 
 	cb = buf->nb_callbacks->nbc_cb[qtype];
 	M0_CNT_INC(tm->ntm_callback_counter);
+	buf->nb_flags = flags;
 	m0_mutex_unlock(&tm->ntm_mutex);
 
 	if (pool != NULL && !retain)
@@ -422,17 +416,7 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 	if (ep != NULL)
 		m0_net_end_point_put(ep);
 
-	/* post callback, in mutex:
-	   decrement ref counts,
-	   signal waiters
-	 */
-	m0_mutex_lock(&tm->ntm_mutex);
-	M0_CNT_DEC(tm->ntm_callback_counter);
-	if (tm->ntm_callback_counter == 0)
-		m0_chan_broadcast(&tm->ntm_chan);
-	m0_mutex_unlock(&tm->ntm_mutex);
-
-	return;
+	m0_net__tm_post_callback(tm);
 }
 
 /** @} end of net group */
