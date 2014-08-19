@@ -50,8 +50,7 @@ endif
 #
 
 mero/m0mero-y = mero/linux_kernel/m0mero_main.o \
-                $(m0mero_objects) \
-                ut/linux_kernel/ut_init_stub.o
+                $(m0mero_objects)
 
 m0mero_objects :=
 

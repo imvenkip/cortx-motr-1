@@ -743,10 +743,9 @@ static void test_ping(void)
 	rc = M0_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 			    &ping_server, &sctx, "ping_server");
 	if (rc != 0) {
-		M0_UT_FAIL("failed to start ping server");
+		M0_IMPOSSIBLE("failed to start ping server");
 		return;
 	}
-	M0_UT_PASS("started ping server");
 
 	M0_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, NULL) == 0);
 	M0_UT_ASSERT(ping_client_passive_recv(&cctx, server_ep) == 0);
@@ -830,7 +829,7 @@ static void test_tm(void)
 	m0_net_domain_fini(&dom1);
 }
 
-const struct m0_test_suite m0_net_bulk_mem_ut = {
+struct m0_ut_suite m0_net_bulk_mem_ut = {
         .ts_name = "net-bulk-mem",
         .ts_init = NULL,
         .ts_fini = NULL,

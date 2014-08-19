@@ -424,7 +424,7 @@ static void iter_invalid_nr_cobs(void)
 	iter_stop(3, 1, 7);
 }
 
-const struct m0_test_suite sns_cm_repair_ut = {
+struct m0_ut_suite sns_cm_repair_ut = {
 	.ts_name = "sns-cm-repair-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

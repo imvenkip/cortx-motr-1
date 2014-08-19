@@ -316,7 +316,7 @@ static int xcode_bufvec_fop_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite xcode_bufvec_fop_ut = {
+struct m0_ut_suite xcode_bufvec_fop_ut = {
 	.ts_name  = "xcode_bufvec_fop-ut",
 	.ts_init  = xcode_bufvec_fop_init,
 	.ts_fini  = xcode_bufvec_fop_fini,

@@ -488,7 +488,7 @@ static void test_cs_ut_lnet(void)
 				  ARRAY_SIZE(cs_ut_lnet_cmd));
 }
 
-const struct m0_test_suite m0d_ut = {
+struct m0_ut_suite m0d_ut = {
         .ts_name = "m0d-ut",
         .ts_tests = {
                 { "cs-single-service", test_cs_ut_service_one},

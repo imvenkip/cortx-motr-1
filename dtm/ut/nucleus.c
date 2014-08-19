@@ -371,7 +371,7 @@ static void op_done(void)
 	ctx_fini();
 }
 
-const struct m0_test_suite dtm_nucleus_ut = {
+struct m0_ut_suite dtm_nucleus_ut = {
 	.ts_name = "dtm-nucleus-ut",
 	.ts_tests = {
 		{ "nu",            nu },

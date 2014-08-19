@@ -1,10 +1,6 @@
-utils_ut_SOURCES  = utils/ut_main.c \
-                    utils/common.c \
-                    utils/common.h
+utils_ut_SOURCES  = utils/ut_main.c
 
-utils_ub_SOURCES  = utils/ub_main.c \
-                    utils/common.c \
-                    utils/common.h
+utils_ub_SOURCES  = utils/ub_main.c
 
 EXTRA_DIST += utils/ut.sh.in \
               utils/m0gendisks \

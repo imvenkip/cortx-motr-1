@@ -140,7 +140,7 @@ void test_ios_bp_onerepeat_dom()
 				     ARRAY_SIZE(ios_ut_bp_onerepeatdom_cmd), 2);
 }
 
-const struct m0_test_suite ios_bufferpool_ut = {
+struct m0_ut_suite ios_bufferpool_ut = {
         .ts_name = "ios-bufferpool-ut",
         .ts_init = NULL,
         .ts_fini = NULL,

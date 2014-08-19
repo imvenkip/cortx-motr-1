@@ -22,6 +22,7 @@
 #include "lib/thread.h"		/* LAMBDA */
 #include "lib/getopts.h"	/* m0_bcount_get */
 #include "lib/time.h"		/* m0_time_t */
+#include "lib/errno.h"          /* ENOENT */
 
 void test_getopts(void)
 {

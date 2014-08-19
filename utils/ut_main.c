@@ -21,8 +21,12 @@
 #include <stdlib.h>  /* exit, srand, rand */
 #include <unistd.h>  /* getpid */
 #include <time.h>    /* time */
+#include <err.h>     /* warn */
 
-#include <CUnit/CUnit.h>
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE  /* required for basename, see man basename(3) */
+#endif
+#include <string.h>  /* basename */
 
 #include "ut/ut.h"
 #include "lib/trace.h"
@@ -32,77 +36,76 @@
 #include "lib/finject.h"          /* m0_fi_print_info */
 #include "lib/atomic.h"
 #include "lib/string.h"           /* m0_strdup */
-#include "utils/common.h"
 
 #define UT_SANDBOX "./ut-sandbox"
 
 /* Sort test suites in alphabetic order, please. */
-extern const struct m0_test_suite libm0_ut; /* test lib first */
-extern const struct m0_test_suite addb_ut;
-extern const struct m0_test_suite balloc_ut;
-extern const struct m0_test_suite be_ut;
-extern const struct m0_test_suite buffer_pool_ut;
-extern const struct m0_test_suite bulkio_client_ut;
-extern const struct m0_test_suite bulkio_server_ut;
-extern const struct m0_test_suite capa_ut;
-extern const struct m0_test_suite cm_cp_ut;
-extern const struct m0_test_suite cm_generic_ut;
-extern const struct m0_test_suite cob_ut;
-extern const struct m0_test_suite cobfoms_ut;
-extern const struct m0_test_suite conf_ut;
-extern const struct m0_test_suite confc_ut;
-extern const struct m0_test_suite confstr_ut;
-extern const struct m0_test_suite conn_ut;
-extern const struct m0_test_suite console_ut;
-extern const struct m0_test_suite di_ut;
-extern const struct m0_test_suite db_cursor_ut;
-extern const struct m0_test_suite db_ut;
-extern const struct m0_test_suite dtm_dtx_ut;
-extern const struct m0_test_suite dtm_nucleus_ut;
-extern const struct m0_test_suite dtm_transmit_ut;
-extern const struct m0_test_suite emap_ut;
-extern const struct m0_test_suite fit_ut;
-extern const struct m0_test_suite fol_ut;
-extern const struct m0_test_suite frm_ut;
-extern const struct m0_test_suite ha_state_ut;
-extern const struct m0_test_suite ios_bufferpool_ut;
-extern const struct m0_test_suite item_ut;
-extern const struct m0_test_suite item_source_ut;
-extern const struct m0_test_suite layout_ut;
-extern const struct m0_test_suite m0_addb_ut;
-extern const struct m0_test_suite m0_fop_lock_ut;
-extern const struct m0_test_suite m0_fom_stats_ut;
-extern const struct m0_test_suite m0_net_bulk_if_ut;
-extern const struct m0_test_suite m0_net_bulk_mem_ut;
-extern const struct m0_test_suite m0_net_lnet_ut;
-extern const struct m0_test_suite m0_net_module_ut;
-extern const struct m0_test_suite m0_net_test_ut;
-extern const struct m0_test_suite m0_net_tm_prov_ut;
-extern const struct m0_test_suite m0d_ut;
-extern const struct m0_test_suite mdservice_ut;
-extern const struct m0_test_suite module_ut;
-extern const struct m0_test_suite packet_encdec_ut;
-extern const struct m0_test_suite parity_math_ut;
-extern const struct m0_test_suite poolmach_ut;
-extern const struct m0_test_suite reqh_ut;
-extern const struct m0_test_suite reqh_service_ut;
-extern const struct m0_test_suite rm_ut;
-extern const struct m0_test_suite rpc_mc_ut;
-extern const struct m0_test_suite rpc_rcv_session_ut;
-extern const struct m0_test_suite rpclib_ut;
-extern const struct m0_test_suite session_ut;
-extern const struct m0_test_suite sm_ut;
-extern const struct m0_test_suite sns_cm_repair_ut;
-extern const struct m0_test_suite snscm_net_ut;
-extern const struct m0_test_suite snscm_storage_ut;
-extern const struct m0_test_suite snscm_xform_ut;
-extern const struct m0_test_suite stats_ut;
-extern const struct m0_test_suite stob_ut;
-extern const struct m0_test_suite udb_ut;
-extern const struct m0_test_suite xcode_bufvec_fop_ut;
-extern const struct m0_test_suite xcode_ff2c_ut;
-extern const struct m0_test_suite xcode_ut;
-extern const struct m0_test_suite sns_flock_ut;
+extern struct m0_ut_suite libm0_ut; /* test lib first */
+extern struct m0_ut_suite addb_ut;
+extern struct m0_ut_suite balloc_ut;
+extern struct m0_ut_suite be_ut;
+extern struct m0_ut_suite buffer_pool_ut;
+extern struct m0_ut_suite bulkio_client_ut;
+extern struct m0_ut_suite bulkio_server_ut;
+extern struct m0_ut_suite capa_ut;
+extern struct m0_ut_suite cm_cp_ut;
+extern struct m0_ut_suite cm_generic_ut;
+extern struct m0_ut_suite cob_ut;
+extern struct m0_ut_suite cobfoms_ut;
+extern struct m0_ut_suite conf_ut;
+extern struct m0_ut_suite confc_ut;
+extern struct m0_ut_suite confstr_ut;
+extern struct m0_ut_suite conn_ut;
+extern struct m0_ut_suite console_ut;
+extern struct m0_ut_suite di_ut;
+extern struct m0_ut_suite db_cursor_ut;
+extern struct m0_ut_suite db_ut;
+extern struct m0_ut_suite dtm_dtx_ut;
+extern struct m0_ut_suite dtm_nucleus_ut;
+extern struct m0_ut_suite dtm_transmit_ut;
+extern struct m0_ut_suite emap_ut;
+extern struct m0_ut_suite fit_ut;
+extern struct m0_ut_suite fol_ut;
+extern struct m0_ut_suite frm_ut;
+extern struct m0_ut_suite ha_state_ut;
+extern struct m0_ut_suite ios_bufferpool_ut;
+extern struct m0_ut_suite item_ut;
+extern struct m0_ut_suite item_source_ut;
+extern struct m0_ut_suite layout_ut;
+extern struct m0_ut_suite m0_addb_ut;
+extern struct m0_ut_suite m0_fop_lock_ut;
+extern struct m0_ut_suite m0_fom_stats_ut;
+extern struct m0_ut_suite m0_net_bulk_if_ut;
+extern struct m0_ut_suite m0_net_bulk_mem_ut;
+extern struct m0_ut_suite m0_net_lnet_ut;
+extern struct m0_ut_suite m0_net_module_ut;
+extern struct m0_ut_suite m0_net_test_ut;
+extern struct m0_ut_suite m0_net_tm_prov_ut;
+extern struct m0_ut_suite m0d_ut;
+extern struct m0_ut_suite mdservice_ut;
+extern struct m0_ut_suite module_ut;
+extern struct m0_ut_suite packet_encdec_ut;
+extern struct m0_ut_suite parity_math_ut;
+extern struct m0_ut_suite poolmach_ut;
+extern struct m0_ut_suite reqh_ut;
+extern struct m0_ut_suite reqh_service_ut;
+extern struct m0_ut_suite rm_ut;
+extern struct m0_ut_suite rpc_mc_ut;
+extern struct m0_ut_suite rpc_rcv_session_ut;
+extern struct m0_ut_suite rpclib_ut;
+extern struct m0_ut_suite session_ut;
+extern struct m0_ut_suite sm_ut;
+extern struct m0_ut_suite sns_cm_repair_ut;
+extern struct m0_ut_suite snscm_net_ut;
+extern struct m0_ut_suite snscm_storage_ut;
+extern struct m0_ut_suite snscm_xform_ut;
+extern struct m0_ut_suite stats_ut;
+extern struct m0_ut_suite stob_ut;
+extern struct m0_ut_suite udb_ut;
+extern struct m0_ut_suite xcode_bufvec_fop_ut;
+extern struct m0_ut_suite xcode_ff2c_ut;
+extern struct m0_ut_suite xcode_ut;
+extern struct m0_ut_suite sns_flock_ut;
 
 void add_uts(void)
 {
@@ -180,17 +183,13 @@ void add_uts(void)
 
 int main(int argc, char *argv[])
 {
-	int   result               = EXIT_SUCCESS;
+	int   rc                   = EXIT_SUCCESS;
 	bool  list_ut              = false;
 	bool  with_tests           = false;
 	bool  list_owners          = false;
-	bool  use_yaml_format      = false;
-	bool  keep_sandbox         = false;
 	bool  finject_stats_before = false;
 	bool  finject_stats_after  = false;
 	bool  parse_trace          = false;
-	char *test_list_str        = NULL;
-	char *exclude_list_str     = NULL;
 	int   seed                 = -1;
 
 	const char *fault_point         = NULL;
@@ -199,96 +198,18 @@ int main(int argc, char *argv[])
 	const char *trace_level         = NULL;
 	const char *trace_print_context = NULL;
 
-	struct m0_list  test_list;
-	struct m0_list  exclude_list;
-
-	struct m0_ut_run_cfg cfg = {
-		.urc_mode              = M0_UT_BASIC_MODE,
-		.urc_abort_cu_assert   = true,
-		.urc_report_exec_time  = true,
-		.urc_test_list         = &test_list,
-		.urc_exclude_list      = &exclude_list,
+	struct m0_ut_cfg cfg = {
+		.uc_sandbox      = UT_SANDBOX,
 	};
 
-	result = unit_start(UT_SANDBOX);
-	if (result != 0)
-		return result;
-
-	result = M0_GETOPTS("ut", argc, argv,
+	/* add options in alphabetic order, M0_HELPARG should be first */
+	rc = M0_GETOPTS(basename(argv[0]), argc, argv,
 		    M0_HELPARG('h'),
-		    M0_FLAGARG('T', "parse trace log produced earlier"
-			       " (trace data is read from STDIN)",
-				&parse_trace),
-		    M0_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
-			         " comma-separated list of subsystem names"
-				 " (use ! at the beginning to invert)",
-				LAMBDA(void, (const char *str) {
-					trace_mask = m0_strdup(str);
-				})
-				),
-		    M0_VOIDARG('M', "print available trace subsystems",
-				LAMBDA(void, (void) {
-					m0_trace_print_subsystems();
-					exit(EXIT_SUCCESS);
-				})),
-		    M0_STRINGARG('p', "trace print context, values:"
-				 " none, func, short, full",
-				LAMBDA(void, (const char *str) {
-					trace_print_context = str;
-				})
-				),
 		    M0_STRINGARG('e', "trace level: level[+][,level[+]]"
 				 " where level is one of call|debug|info|"
 				 "notice|warn|error|fatal",
 				LAMBDA(void, (const char *str) {
 					trace_level = str;
-				})
-				),
-		    M0_FLAGARG('k', "keep the sandbox directory",
-				&keep_sandbox),
-		    M0_VOIDARG('i', "CUnit interactive console",
-				LAMBDA(void, (void) {
-					cfg.urc_mode = M0_UT_ICONSOLE_MODE;
-				})),
-		    M0_VOIDARG('a', "automated CUnit with xml output",
-				LAMBDA(void, (void) {
-					cfg.urc_mode = M0_UT_AUTOMATED_MODE;
-				})),
-		    M0_FLAGARG('l', "list available test suites",
-				&list_ut),
-		    M0_VOIDARG('L', "list available test suites with"
-				    " their tests",
-				LAMBDA(void, (void) {
-						list_ut = true;
-						with_tests = true;
-				})),
-		    M0_FLAGARG('o', "list test owners",
-				&list_owners),
-		    M0_VOIDARG('O', "list test owners in YAML format",
-				LAMBDA(void, (void) {
-						list_owners = true;
-						use_yaml_format = true;
-				})),
-		    M0_STRINGARG('t', "test list 'suite[:test][,suite"
-				      "[:test]]'",
-				      LAMBDA(void, (const char *str) {
-					    test_list_str = m0_strdup(str);
-				      })
-				),
-		    M0_STRINGARG('x', "exclude list 'suite[:test][,suite"
-				      "[:test]]'",
-				      LAMBDA(void, (const char *str) {
-					 exclude_list_str = m0_strdup(str);
-				      })
-				),
-		    M0_VOIDARG('A', "don't abort program on CU_ASSERT"
-				    " failure",
-				LAMBDA(void, (void) {
-					cfg.urc_abort_cu_assert = false;
-				})),
-		    M0_VOIDARG('P', "don't report test execution time",
-				LAMBDA(void, (void) {
-					cfg.urc_report_exec_time = false;
 				})),
 		    M0_STRINGARG('f', "fault point to enable func:tag:type"
 				      "[:integer[:integer]]",
@@ -302,43 +223,92 @@ int main(int argc, char *argv[])
 					 fp_file_name = m0_strdup(str);
 				      })
 				),
+		    M0_FORMATARG('H', "shuffle test suites before execution. "
+				 "The argument is a seed value. "
+				 "0 to shuffle randomly", "%u", &seed),
+		    M0_FLAGARG('k', "keep the sandbox directory",
+				&cfg.uc_keep_sandbox),
+		    M0_FLAGARG('l', "list available test suites",
+				&list_ut),
+		    M0_VOIDARG('L', "list available test suites with"
+				    " their tests",
+				LAMBDA(void, (void) {
+						list_ut = true;
+						with_tests = true;
+				})),
+		    M0_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
+			         " comma-separated list of subsystem names"
+				 " (use ! at the beginning to invert)",
+				LAMBDA(void, (const char *str) {
+					trace_mask = m0_strdup(str);
+				})),
+		    M0_VOIDARG('M', "print available trace subsystems",
+				LAMBDA(void, (void) {
+					m0_trace_print_subsystems();
+					exit(EXIT_SUCCESS);
+				})),
+		    M0_FLAGARG('o', "list test owners",
+				&list_owners),
+		    M0_STRINGARG('p', "trace print context, values:"
+				 " none, func, short, full",
+				LAMBDA(void, (const char *str) {
+					trace_print_context = str;
+				})),
 		    M0_FLAGARG('s', "report fault injection stats before UT",
 				&finject_stats_before),
 		    M0_FLAGARG('S', "report fault injection stats after UT",
 				&finject_stats_after),
-		    M0_FORMATARG('H', "shuffle test suites before execution. "
-				 "The argument is a seed value. "
-				 "0 to shuffle randomly", "%u", &seed),
+		    M0_STRINGARG('t', "test list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					    cfg.uc_run_list = m0_strdup(str);
+				      })
+				),
+		    M0_FLAGARG('T', "parse trace log produced earlier"
+			       " (trace data is read from STDIN)",
+				&parse_trace),
+		    M0_STRINGARG('x', "exclude list 'suite[:test][,suite"
+				      "[:test]]'",
+				      LAMBDA(void, (const char *str) {
+					 cfg.uc_exclude_list = m0_strdup(str);
+				      })
+				),
+		    M0_FLAGARG('y', "use YAML format for output",
+				&cfg.uc_yaml_output),
 		    );
-	if (result != 0)
-		goto out;
+	if (rc != 0)
+		return rc;
 
-	result = m0_trace_set_immediate_mask(trace_mask) ?:
+	rc = m0_ut_init(&cfg);
+	if (rc != 0)
+		return rc;
+
+	rc = m0_trace_set_immediate_mask(trace_mask) ?:
 		 m0_trace_set_level(trace_level);
-	if (result != 0)
+	if (rc != 0)
 		goto out;
 
-	result = m0_trace_set_print_context(trace_print_context);
-	if (result != 0) {
-		fprintf(stderr, "Error: invalid value for -p option\n");
+	rc = m0_trace_set_print_context(trace_print_context);
+	if (rc != 0) {
+		warn("Error: invalid value for -p option");
 		goto out;
 	}
 
 	if (parse_trace) {
-		result = m0_trace_parse(stdin, stdout, false, false, NULL);
+		rc = m0_trace_parse(stdin, stdout, false, false, NULL);
 		goto out;
 	}
 
 	/* enable fault points as early as possible */
 	if (fault_point != NULL) {
-		result = enable_fault_point(fault_point);
-		if (result != 0)
+		rc = m0_ut_enable_fault_point(fault_point);
+		if (rc != 0)
 			goto out;
 	}
 
 	if (fp_file_name != NULL) {
-		result = enable_fault_points_from_file(fp_file_name);
-		if (result != 0)
+		rc = m0_ut_enable_fault_points_from_file(fp_file_name);
+		if (rc != 0)
 			goto out;
 	}
 
@@ -348,25 +318,16 @@ int main(int argc, char *argv[])
 	}
 
 	/* check conflicting options */
-	if ((cfg.urc_mode != M0_UT_BASIC_MODE && (list_ut || list_owners ||
-	     test_list_str != NULL || exclude_list_str != NULL)) ||
-	     (list_ut && (test_list_str != NULL || exclude_list_str != NULL)) ||
-	     (list_ut && list_owners))
+	if ((cfg.uc_run_list != NULL && cfg.uc_exclude_list != NULL) ||
+	    (list_ut && (cfg.uc_run_list != NULL ||
+			 cfg.uc_exclude_list != NULL || list_owners)))
 	{
 		fprintf(stderr, "Error: conflicting options: only one of the"
-				" -i -I -a -l -L -o -t -x option can be used at"
-				" the same time.\n");
-		result = EXIT_FAILURE;
+				" -l -L -o -t -x option can be used at the same"
+				" time.\n");
+		rc = EXIT_FAILURE;
 		goto out;
 	}
-
-	m0_list_init(&test_list);
-	m0_list_init(&exclude_list);
-
-	if (test_list_str != NULL)
-		parse_test_list(test_list_str, &test_list);
-	if (exclude_list_str != NULL)
-		parse_test_list(exclude_list_str, &exclude_list);
 
 	add_uts();
 	if (seed != -1) {
@@ -376,33 +337,21 @@ int main(int argc, char *argv[])
 		}
 		m0_ut_shuffle(seed);
 	}
-	m0_ut_submit_all();
 
 	if (list_ut)
 		m0_ut_list(with_tests);
 	else if (list_owners)
-		m0_ut_owners_list(use_yaml_format);
+		m0_ut_list_owners();
 	else
-		m0_ut_run(&cfg);
+		m0_ut_run();
 
 	if (finject_stats_after) {
 		printf("\n");
 		m0_fi_print_info();
 	}
-
-	if (test_list_str != NULL)
-		free(test_list_str);
-	if (exclude_list_str != NULL)
-		free(exclude_list_str);
-
-	free_test_list(&test_list);
-	free_test_list(&exclude_list);
-
-	m0_list_fini(&test_list);
-	m0_list_fini(&exclude_list);
 out:
-	unit_end(UT_SANDBOX, keep_sandbox);
-	return result;
+	m0_ut_fini();
+	return rc;
 }
 
 /*

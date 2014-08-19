@@ -97,7 +97,7 @@ static void capa_test(void)
 	m0_capa_ctxt_fini(&ctx);
 }
 
-const struct m0_test_suite capa_ut = {
+struct m0_ut_suite capa_ut = {
         .ts_name = "capa-ut",
         .ts_init = NULL,
         .ts_fini = NULL,

@@ -142,7 +142,7 @@ static int _fini(void)
 	return 0;
 }
 
-const struct m0_test_suite fol_ut = {
+struct m0_ut_suite fol_ut = {
 	.ts_name = "fol-ut",
 	.ts_init = _init,
 	.ts_fini = _fini,

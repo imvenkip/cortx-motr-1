@@ -30,7 +30,7 @@
 #include "ioservice/io_service.h"
 #include "ioservice/io_fops_xc.h"
 #include "ut/cs_service.h"               /* ds1_service_type */
-#include "ut/ut.h"                       /* m0_ut_fom_phase_set */
+#include "ut/cs_fop_foms.h"              /* m0_ut_fom_phase_set */
 #include "rpc/rpc_machine_internal.h"
 
 #include <stdio.h>
@@ -1301,7 +1301,7 @@ static void fom_dtx_done(struct m0_fom *fom, struct m0_sm_group *grp)
 	m0_sm_group_unlock(grp);
 }
 
-const struct m0_test_suite cobfoms_ut = {
+struct m0_ut_suite cobfoms_ut = {
 	.ts_name  = "cob-foms-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,

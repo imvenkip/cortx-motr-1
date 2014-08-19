@@ -25,6 +25,7 @@
 #include "lib/types.h"     /* m0_uint128_eq */
 #include "lib/misc.h"      /* M0_BITS, M0_IN */
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
+#include "lib/errno.h"     /* ENOENT */
 #include "be/ut/helper.h"
 #include "ut/ut.h"
 #ifndef __KERNEL__

@@ -1210,7 +1210,7 @@ static void test_net_bulk_if(void)
 
 #include "net/ut/tm_provision_ut.c"
 
-const struct m0_test_suite m0_net_bulk_if_ut = {
+struct m0_ut_suite m0_net_bulk_if_ut = {
         .ts_name = "net-bulk-if",
         .ts_init = NULL,
         .ts_fini = NULL,

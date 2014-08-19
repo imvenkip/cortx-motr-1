@@ -390,7 +390,7 @@ static void accum_bios_bound3(void)
 		bio_put(bio_list_pop(&bios));
 }
 
-const struct m0_test_suite m0_loop_ut = {
+struct m0_ut_suite m0_loop_ut = {
 	.ts_name = "m0loop-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

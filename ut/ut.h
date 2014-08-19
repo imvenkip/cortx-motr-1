@@ -25,16 +25,9 @@
 #ifndef __MERO_UT_UT_H__
 #define __MERO_UT_UT_H__
 
-#ifndef __KERNEL__
-# include <stdbool.h>     /* bool */
-# include <stdio.h>       /* FILE, fpos_t */
-# include <CUnit/Basic.h>
-#else
-# include "lib/types.h"
-#endif
-
+#include "lib/types.h"
 #include "lib/list.h"     /* m0_list_link, m0_list */
-#include "fop/fom.h"
+
 
 /**
    @defgroup ut Mero UT library
@@ -49,79 +42,70 @@
    @{
 */
 
-#ifndef __KERNEL__
-# define M0_UT_ASSERT(a) ({ CU_ASSERT(a) })
-# define M0_UT_PASS(m)   ({ CU_PASS(m) })
-# define M0_UT_FAIL(m)   ({ CU_FAIL(m) })
-#else
-# define M0_UT_ASSERT(a) m0_ut_assertimpl((a), __LINE__, #a, __FILE__, __func__, true)
-# define M0_UT_PASS(m)   m0_ut_assertimpl(true, __LINE__, m, __FILE__, __func__, true)
-# define M0_UT_FAIL(m)   m0_ut_assertimpl(false, __LINE__, m, __FILE__, __func__, true)
-#endif
+# define M0_UT_ASSERT(a) m0_ut_assertimpl((a), #a, __FILE__, __LINE__, __func__)
 
 /**
    structure to define test in test suite.
  */
-struct m0_test {
-	/**
-	   name of the test, must be unique.
-	 */
+struct m0_ut {
+	/** name of the test, must be unique */
 	const char *t_name;
-	/**
-	   pointer to testing procedure
-	 */
+	/** pointer to testing procedure */
 	void      (*t_proc)(void);
-	/**
-	   test's owner name
-	 */
+	/** test's owner name */
 	const char *t_owner;
+	/** indicates whether test is enabled for execution */
+	bool        t_enabled;
 };
 
-struct m0_test_suite {
+struct m0_ut_suite {
 	struct m0_list_link  ts_linkage;
-	/**
-	   name of a suite
-	*/
-	const char           *ts_name;
-	/**
-	   suite owners names
-	*/
-	const char           *ts_owners;
-	/**
-	   function to prepare tests in suite
-
-	   @warning it's not allowed to use any of CUnit assertion macros, like
-		    CU_ASSERT or M0_UT_ASSERT, in this function because it will
-		    lead to a crash; use M0_ASSERT instead if required.
-	 */
-	int                 (*ts_init)(void);
-	/**
-	   function to free resources after tests run
-
-	   @warning it's not allowed to use any of CUnit assertion macros, like
-		    CU_ASSERT or M0_UT_ASSERT, in this function because it will
-		    lead to a crash; use M0_ASSERT instead if required.
-	 */
-	int                 (*ts_fini)(void);
-	/**
-	   tests in suite
-	 */
-	const struct m0_test  ts_tests[];
-};
-
-struct m0_test_suite_entry {
-	struct m0_list_link  tse_linkage;
-	const char           *tse_suite_name;
-	const char           *tse_test_name;
+	/** indicates whether suite is enabled for execution */
+	bool                 ts_enabled;
+	/** name of a suite */
+	const char          *ts_name;
+	/** suite owners names */
+	const char          *ts_owners;
+	/** function to prepare tests in suite */
+	int                (*ts_init)(void);
+	/** function to free resources after tests run */
+	int                (*ts_fini)(void);
+	/** tests in suite */
+	struct m0_ut         ts_tests[];
 };
 
 /**
-   Global constructor for unit tests.
+   Configuration parameters for m0_ut_run()
  */
-int m0_ut_init(void);
+struct m0_ut_cfg {
+	/**
+	 * name of UT sandbox directory. it will be created if doesn't exist or
+	 * cleaned otherwise
+	 */
+	const char  *uc_sandbox;
+	/**
+	 * list of tests/suites to run, it can be empty, which means to run
+	 * all the tests
+	 */
+	const char  *uc_run_list;
+	/** list of tests/suites to exclude from running, it also can be empty */
+	const char  *uc_exclude_list;
+	/**
+	 * whether to keep sandbox directory after UT execution, by default
+	 * it's false
+	 */
+	bool         uc_keep_sandbox;
+	/** whether to print tests execution progress in YAML or plain text */
+	bool         uc_yaml_output;
+};
 
 /**
-   Global destructor for unit tests.
+ * Global constructor for unit tests.
+ */
+int m0_ut_init(struct m0_ut_cfg *cfg);
+
+/**
+ * Global destructor for unit tests.
  */
 void m0_ut_fini(void);
 
@@ -132,59 +116,17 @@ void m0_ut_fini(void);
  @param ts pointer to test suite
 
  */
-M0_INTERNAL void m0_ut_add(const struct m0_test_suite *ts);
-
-/**
- * Submits test suite for execution.
- */
-M0_INTERNAL void m0_ut_submit(const struct m0_test_suite *ts);
-
-/**
- * Submits all added suites for execution.
- */
-M0_INTERNAL void m0_ut_submit_all(void);
+M0_INTERNAL void m0_ut_add(struct m0_ut_suite *ts);
 
 /**
  * Shuffles added suites.
  */
 M0_INTERNAL void m0_ut_shuffle(unsigned seed);
-/**
-   CUnit user interfaces
- */
-enum m0_ut_run_mode {
-	M0_UT_KERNEL_MODE,    /** A stub for kernel version of m0_ut_run() */
-	M0_UT_BASIC_MODE,     /** Basic CUnit interface with console output */
-	M0_UT_ICONSOLE_MODE,  /** Interactive CUnit console interface */
-	M0_UT_AUTOMATED_MODE, /** Automated CUnit interface with xml output */
-};
 
-/**
-   Configuration parameters for m0_ut_run()
- */
-struct m0_ut_run_cfg {
-	/** CUnit interface mode */
-	enum m0_ut_run_mode  urc_mode;
-	/** if true, then set CUnit's assert mode to CUA_Abort */
-	bool                 urc_abort_cu_assert;
-	/** if true, then execution time is reported for each test */
-	bool                 urc_report_exec_time;
-	/**
-	 * list of tests/suites to run, it can be empty, which means to run
-	 * all the tests
-	 */
-	struct m0_list       *urc_test_list;
-	/** list of tests/suites to exclude from running, it also can be empty */
-	struct m0_list       *urc_exclude_list;
-};
-
-#ifndef __KERNEL__
 /**
    run tests
  */
-M0_INTERNAL void m0_ut_run(struct m0_ut_run_cfg *c);
-#else
-void m0_ut_run(void);
-#endif
+M0_INTERNAL int m0_ut_run(void);
 
 /**
  print all available test suites in YAML format to STDOUT
@@ -199,14 +141,8 @@ M0_INTERNAL void m0_ut_list(bool with_tests);
 /**
  * Print owners of all UTs on STDOUT
  */
-M0_INTERNAL void m0_ut_owners_list(bool yaml);
+M0_INTERNAL void m0_ut_list_owners(void);
 
-/**
- commonly used test database reset function
- */
-M0_INTERNAL int m0_ut_db_reset(const char *db_name);
-
-#ifdef __KERNEL__
 /**
    Implements UT assert logic in the kernel, where there is no CUnit.
    Similar to CUnit UT assert, this logs failures but does not terminate
@@ -219,12 +155,55 @@ M0_INTERNAL int m0_ut_db_reset(const char *db_name);
    @param panic flag, which controls whether this function should call
                 m0_panic() or just print error message and continue
  */
-M0_INTERNAL bool m0_ut_assertimpl(bool c, int lno, const char *str_c,
-				  const char *file, const char *func,
-				  bool panic);
-#endif
+M0_INTERNAL bool m0_ut_assertimpl(bool c, const char *str_c, const char *file,
+				  int lno, const char *func);
+
+/**
+ * Parses fault point definitions from command line argument and enables them.
+ *
+ * The input string should be in format:
+ *
+ * func:tag:type[:integer[:integer]][,func:tag:type[:integer[:integer]]]
+ */
+M0_INTERNAL int m0_ut_enable_fault_point(const char *str);
+
+/**
+ * Parses fault point definitions from a yaml file and enables them.
+ *
+ * Each FP is described by a yaml mapping with the following keys:
+ *
+ *   func  - a name of the target function, which contains fault point
+ *   tag   - a fault point tag
+ *   type  - a fault point type, possible values are: always, oneshot, random,
+ *           off_n_on_m
+ *   p     - data for 'random' fault point
+ *   n     - data for 'off_n_on_m' fault point
+ *   m     - data for 'off_n_on_m' fault point
+ *
+ * An example of yaml file:
+ *
+ * @verbatim
+ * ---
+ *
+ * - func: test_func1
+ *   tag:  test_tag1
+ *   type: random
+ *   p:    50
+ *
+ * - func: test_func2
+ *   tag:  test_tag2
+ *   type: oneshot
+ *
+ * # yaml mappings could be specified in a short form as well
+ * - { func: test_func3, tag:  test_tag3, type: off_n_on_m, n: 3, m: 1 }
+ *
+ * @endverbatim
+ */
+M0_INTERNAL int m0_ut_enable_fault_points_from_file(const char *file_name);
 
 #ifndef __KERNEL__
+#include <stdio.h>       /* FILE, fpos_t */
+
 struct m0_ut_redirect {
 	FILE  *ur_stream;
 	int    ur_oldfd;
@@ -238,7 +217,6 @@ struct m0_ut_redirect {
  */
 M0_INTERNAL void m0_stream_redirect(FILE * stream, const char *path,
 				    struct m0_ut_redirect *redir);
-
 /**
  * Restores standard stream from file descriptor and stream position, which were
  * saved earlier by m0_stream_redirect().
@@ -253,8 +231,6 @@ M0_INTERNAL void m0_stream_restore(const struct m0_ut_redirect *redir);
  */
 M0_INTERNAL bool m0_error_mesg_match(FILE * fp, const char *mesg);
 #endif
-
-void m0_ut_fom_phase_set(struct m0_fom *fom, int phase);
 
 /**
    @} ut end group

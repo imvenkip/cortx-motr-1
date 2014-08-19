@@ -187,7 +187,7 @@ static void rpc_machine_watch_test(void)
 }
 #endif /* __KERNEL__ */
 
-const struct m0_test_suite rpc_mc_ut = {
+struct m0_ut_suite rpc_mc_ut = {
 	.ts_name = "rpc-machine-ut",
 	.ts_init = rpc_mc_ut_init,
 	.ts_fini = rpc_mc_ut_fini,

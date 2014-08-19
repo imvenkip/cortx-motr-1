@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/vec.h"                        /* m0_bufvec */
 #include "lib/misc.h"                       /* M0_SET0 */
+#include "lib/errno.h"                      /* ENOENT */
 #include "ut/ut.h"
 
 #include "xcode/xcode.h"
@@ -771,7 +772,7 @@ static void xcode_find_test(void)
 	M0_UT_ASSERT(result == -ENOENT);
 }
 
-const struct m0_test_suite xcode_ut = {
+struct m0_ut_suite xcode_ut = {
         .ts_name = "xcode-ut",
         .ts_init = xcode_init,
         .ts_fini = NULL,

@@ -558,7 +558,7 @@ static int xform_fini(void)
         return 0;
 }
 
-const struct m0_test_suite snscm_xform_ut = {
+struct m0_ut_suite snscm_xform_ut = {
 	.ts_name = "snscm_xform-ut",
 	.ts_init = &xform_init,
 	.ts_fini = &xform_fini,

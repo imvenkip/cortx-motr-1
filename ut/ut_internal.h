@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,19 +14,29 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
- * Original creation date: 26-Feb-2013
+ * Original author: Dima Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 31-Jul-2014
  */
 
-int m0_ut_init(void)
-{
-	return 0;
-}
+#pragma once
 
-void m0_ut_fini(void)
-{
-	return;
-}
+#ifndef __MERO_UT_UT_INTERNAL_H__
+#define __MERO_UT_UT_INTERNAL_H__
+
+#include "lib/list.h"       /* m0_list_link */
+#include "ut/ut.h"          /* m0_ut_cfg */
+
+/**
+ * @addtogroup ut
+ * @{
+ */
+
+int m0_arch_ut_init(const struct m0_ut_cfg *config);
+
+void m0_arch_ut_fini(const struct m0_ut_cfg *config);
+
+/** @} end of ut group */
+#endif /* __MERO_UT_UT_INTERNAL_H__ */
 
 /*
  *  Local variables:
@@ -36,4 +46,7 @@ void m0_ut_fini(void)
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

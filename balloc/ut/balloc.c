@@ -289,7 +289,7 @@ void test_balloc()
 	m0_be_ut_backend_fini(&ut_be);
 }
 
-const struct m0_test_suite balloc_ut = {
+struct m0_ut_suite balloc_ut = {
         .ts_name  = "balloc-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

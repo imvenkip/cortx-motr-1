@@ -731,7 +731,7 @@ static void redo_test(void)
 	src_fini();
 }
 
-const struct m0_test_suite dtm_transmit_ut = {
+struct m0_ut_suite dtm_transmit_ut = {
 	.ts_name = "dtm-transmit-ut",
 	.ts_tests = {
 		{ "transmit",    transmit_test  },

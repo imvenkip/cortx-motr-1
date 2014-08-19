@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 	if (result != 0)
 		return M0_RC(-result);
 
-	result = m0_ut_init();
+	result = m0_ut_init(NULL);
 	if (result != 0)
 		goto end;
 

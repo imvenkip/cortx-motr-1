@@ -251,7 +251,7 @@ static void cm_ag_ut(void)
 	cm_ut_service_cleanup();
 }
 
-const struct m0_test_suite cm_generic_ut = {
+struct m0_ut_suite cm_generic_ut = {
         .ts_name = "cm-ut",
         .ts_init = &cm_ut_init,
         .ts_fini = &cm_ut_fini,

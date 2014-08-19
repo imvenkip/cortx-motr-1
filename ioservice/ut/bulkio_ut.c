@@ -1779,7 +1779,7 @@ static void bulkio_fini(void)
 /*
  * Only used for user-space UT.
  */
-const struct m0_test_suite bulkio_server_ut = {
+struct m0_ut_suite bulkio_server_ut = {
 	.ts_name = "bulk-server-ut",
 	.ts_tests = {
 		/*

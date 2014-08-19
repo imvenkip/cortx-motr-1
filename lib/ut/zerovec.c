@@ -22,6 +22,7 @@
 #include "lib/vec.h"
 #include "lib/memory.h"
 #include "lib/arith.h"
+#include "lib/errno.h"     /* ENOENT */
 
 #ifdef __KERNEL__
 #include <linux/pagemap.h> /* PAGE_CACHE_SIZE */

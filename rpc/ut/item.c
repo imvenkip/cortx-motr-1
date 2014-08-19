@@ -559,7 +559,7 @@ static void test_cancel(void)
 	M0_LOG(M0_DEBUG, "TEST:5:3:END");
 }
 
-const struct m0_test_suite item_ut = {
+struct m0_ut_suite item_ut = {
 	.ts_name = "rpc-item-ut",
 	.ts_init = ts_item_init,
 	.ts_fini = ts_item_fini,

@@ -301,7 +301,7 @@ static void test_cp_write_read(void)
 	cs_fini(&sctx);
 }
 
-const struct m0_test_suite snscm_storage_ut = {
+struct m0_ut_suite snscm_storage_ut = {
 	.ts_name = "snscm_storage-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

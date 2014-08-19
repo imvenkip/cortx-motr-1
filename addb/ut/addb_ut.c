@@ -89,7 +89,7 @@ static int addb_ut_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite m0_addb_ut = {
+struct m0_ut_suite m0_addb_ut = {
         .ts_name  = "addb-ut",
         .ts_init  = addb_ut_init,
         .ts_fini  = addb_ut_fini,

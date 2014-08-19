@@ -21,6 +21,7 @@
 #include "lib/bob.h"	/* m0_bob_type */
 #include "lib/hash.h"   /* m0_htable */
 #include "lib/errno.h"  /* Include appropriate errno.h header. */
+#include "mero/magic.h"
 #include "ut/ut.h"	/* M0_UT_ASSERT() */
 
 /*

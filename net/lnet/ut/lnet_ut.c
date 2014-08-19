@@ -20,7 +20,8 @@
  */
 
 #include "net/lnet/lnet_main.c"
-#include "lib/arith.h" /* max64u */
+#include "lib/assert.h" /* M0_IMPOSSIBLE */
+#include "lib/arith.h"  /* max64u */
 #include "lib/thread.h" /* m0_thread_self, m0_thread_handle_eq */
 #include "ut/ut.h"
 
@@ -241,20 +242,15 @@ static void ut_cbreset(void)
 	ut_cbreset2();
 }
 
-static char ut_line_buf[1024];
-#define zvUT(x,expRC,label)					\
+#define zvUT(x, expRC)						\
 do {								\
-	int rc = (x);						\
-	int erc = (expRC);					\
-	if (rc != erc) {					\
-		snprintf(ut_line_buf, sizeof(ut_line_buf),	\
-			 "%s %d: %s: %d != %d",			\
-			 __FILE__,__LINE__, #x, rc, erc);	\
-		M0_UT_FAIL(ut_line_buf);			\
-		goto label;					\
-	}							\
+	int rc = x;						\
+	int erc = expRC;					\
+	if (rc != erc)						\
+		M0_ASSERT_INFO(rc == erc, "%d != %d (%s : %s)", \
+			       rc, erc, #x, #expRC);		\
 } while (0)
-#define zUT(x,label) zvUT(x,0,label)
+#define zUT(x) zvUT(x, 0)
 
 enum {
 	UT_BUFS1     = 2,
@@ -458,12 +454,12 @@ do {									\
 						     UT_PAGE_SHIFT);	\
 			M0_UT_ASSERT(rc == 0);				\
 			if (rc != 0) {					\
-				M0_UT_FAIL("aborting: buf alloc failed"); \
+				M0_IMPOSSIBLE("aborting: buf alloc failed"); \
 				goto dereg ## which;			\
 			}						\
 			rc = m0_net_buffer_register(nb, dom);		\
 			if (rc != 0) {					\
-				M0_UT_FAIL("aborting: buf reg failed");	\
+				M0_IMPOSSIBLE("aborting: buf reg failed");	\
 				goto dereg ## which;			\
 			}						\
 			M0_UT_ASSERT(nb->nb_flags & M0_NET_BUF_REGISTERED); \
@@ -488,7 +484,7 @@ do {									\
 		m0_clink_del_lock(&td->tmwait ## which);		\
 		M0_UT_ASSERT(tm->ntm_state == M0_NET_TM_STARTED);	\
 		if (tm->ntm_state == M0_NET_TM_FAILED) {		\
-			M0_UT_FAIL("aborting: tm" #which " startup failed"); \
+			M0_IMPOSSIBLE("aborting: tm" #which " startup failed"); \
 			goto fini ## which;				\
 		}							\
 		NLXDBGPnl(td, 2, "[%d] D:%p T:%p E:%s\n", which, dom, tm, \
@@ -848,7 +844,7 @@ static void test_tm_startstop(void)
 		m0_net_domain_fini(dom);
 		m0_free(tm);
 		m0_free(dom);
-		M0_UT_FAIL("aborting test case, endpoint in-use?");
+		M0_IMPOSSIBLE("aborting test case, endpoint in-use?");
 		return;
 	}
 	M0_UT_ASSERT(strcmp(tm->ntm_ep->nep_addr, epstr) == 0);
@@ -1005,7 +1001,6 @@ static bool test_msg_send_loop(struct ut_data          *td,
 			       send_len_first > td->buf_size2 ||
 			       send_len_rest  > td->buf_size1 ||
 			       send_len_rest  > td->buf_size2));
-		goto aborted;
 	}
 
 	for (rb_num = 0; rb_num < num_recv_bufs && rb_num < UT_BUFS1; ++rb_num){
@@ -1013,11 +1008,10 @@ static bool test_msg_send_loop(struct ut_data          *td,
 		nb1->nb_min_receive_size = max64u(send_len_first,send_len_rest);
 		nb1->nb_max_receive_msgs = recv_max_msgs;
 		nb1->nb_qtype = M0_NET_QT_MSG_RECV;
-		zUT(m0_net_buffer_add(nb1, TM1), aborted);
+		zUT(m0_net_buffer_add(nb1, TM1));
 	}
 	if (rb_num != num_recv_bufs) {
 		M0_UT_ASSERT(rb_num == num_recv_bufs);
-		goto aborted;
 	}
 
 #define RESET_RECV_COUNTERS()					\
@@ -1050,7 +1044,7 @@ static bool test_msg_send_loop(struct ut_data          *td,
 			  TM2->ntm_ep->nep_addr, msg_num,
 			  (unsigned long) msg_size, ep2->nep_addr);
 		cb_save_ep1 = true;
-		zUT(m0_net_buffer_add(nb2, TM2), aborted);
+		zUT(m0_net_buffer_add(nb2, TM2));
 
 		m0_chan_wait(&td->tmwait2);
 		M0_UT_ASSERT(cb_called2 == msg_num);
@@ -1126,7 +1120,6 @@ static bool test_msg_send_loop(struct ut_data          *td,
 	cb_ep1 = NULL;
 
 	rc = true;
- aborted:
 	m0_clink_del_lock(&td->tmwait2);
 	m0_clink_del_lock(&td->tmwait1);
 	return rc;
@@ -1155,7 +1148,7 @@ static void test_msg_body(struct ut_data *td)
 	NLXDBGPnl(td, 1, "TEST: add/del on the receive queue\n");
 
 	ut_cbreset();
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 
 	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
 	m0_net_buffer_del(nb1, TM1);
@@ -1190,7 +1183,7 @@ static void test_msg_body(struct ut_data *td)
 	}
 
 	/* get the destination TM address */
-	zUT(m0_net_end_point_create(&ep2, TM2, TM1->ntm_ep->nep_addr), done);
+	zUT(m0_net_end_point_create(&ep2, TM2, TM1->ntm_ep->nep_addr));
 	M0_UT_ASSERT(m0_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
 
 	/* send until max receive messages is reached */
@@ -1239,7 +1232,7 @@ static void test_msg_body(struct ut_data *td)
 	NLXDBGPnl(td, 2, "\t%s S%d %lu bytes -> %s\n",
 		  TM2->ntm_ep->nep_addr, 1,
 		  (unsigned long) UT_MSG_SIZE, ep2->nep_addr);
-	zUT(m0_net_buffer_add(nb2, TM2), aborted);
+	zUT(m0_net_buffer_add(nb2, TM2));
 
 	m0_chan_wait(&td->tmwait2);
 	M0_UT_ASSERT(cb_called2 == 1);
@@ -1270,11 +1263,10 @@ static void test_msg_body(struct ut_data *td)
 		/* verify dynamic end point is not allowed here */
 		sprintf(epstr, "%s:%d:%d:*",
 			td->nidstrs2[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
-		zvUT(m0_net_end_point_create(&ep2, TM2, epstr),
-		     -EINVAL, aborted);
+		zvUT(m0_net_end_point_create(&ep2, TM2, epstr), -EINVAL);
 		sprintf(epstr, "%s:%d:%d:1024",
 			td->nidstrs2[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
-		zUT(m0_net_end_point_create(&ep2, TM2, epstr), aborted);
+		zUT(m0_net_end_point_create(&ep2, TM2, epstr));
 	}
 	M0_UT_ASSERT(m0_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
 
@@ -1286,7 +1278,7 @@ static void test_msg_body(struct ut_data *td)
 	NLXDBGPnl(td, 2, "\t%s S%d %lu bytes -> %s\n",
 		  TM2->ntm_ep->nep_addr, 1,
 		  (unsigned long) UT_MSG_SIZE, ep2->nep_addr);
-	zUT(m0_net_buffer_add(nb2, TM2), aborted);
+	zUT(m0_net_buffer_add(nb2, TM2));
 
 	m0_chan_wait(&td->tmwait2);
 	M0_UT_ASSERT(cb_called2 == 1);
@@ -1305,7 +1297,6 @@ static void test_msg_body(struct ut_data *td)
 	m0_net_end_point_put(ep2);
 	ep2 = NULL;
 
- aborted:
 	m0_clink_del_lock(&td->tmwait2);
  done:
 	return;
@@ -1608,36 +1599,36 @@ static int test_bulk_passive_send(struct ut_data *td)
 	nb1->nb_length = pBytes;
 	ut_net_buffer_sign(nb1, nb1->nb_length, seed);
 	nb1->nb_qtype = M0_NET_QT_PASSIVE_BULK_SEND;
-	zUT(m0_net_buffer_add(nb1, TM1), failed);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 	M0_UT_ASSERT(nb1->nb_desc.nbd_len != 0);
 	M0_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
 
-	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2->nb_desc), failed);
+	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2->nb_desc));
 
 	/* ensure that an active send fails */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PS !~ AS)\n");
 	nb2->nb_qtype = M0_NET_QT_ACTIVE_BULK_SEND;
 	nb2->nb_length = pBytes;
-	zvUT(m0_net_buffer_add(nb2, TM2), -EPERM, failed);
+	zvUT(m0_net_buffer_add(nb2, TM2), -EPERM);
 
 	/* try to receive into a smaller buffer */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PS >  AR)\n");
 	M0_UT_ASSERT(pBytes > td->buf_seg_size2); /* sanity */
-	zUT((M0_ALLOC_PTR(nb2s) == NULL), failed);
+	zUT((M0_ALLOC_PTR(nb2s) == NULL));
 	zUT(m0_bufvec_alloc_aligned(&nb2s->nb_buffer, 1, td->buf_seg_size2,
-				    UT_PAGE_SHIFT), failed);
-	zUT(m0_net_buffer_register(nb2s, DOM2), failed);
-	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2s->nb_desc), failed);
+				    UT_PAGE_SHIFT));
+	zUT(m0_net_buffer_register(nb2s, DOM2));
+	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2s->nb_desc));
 	nb2s->nb_length = td->buf_seg_size2;
 	nb2s->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
-	zvUT(m0_net_buffer_add(nb2s, TM2), -EFBIG, failed);
+	zvUT(m0_net_buffer_add(nb2s, TM2), -EFBIG);
 
 	/* success case */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer S(PS ~  AR)\n");
 	nb2->nb_length = td->buf_size2;
 	nb2->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
-	zUT(m0_net_buffer_add(nb2, TM2), failed);
+	zUT(m0_net_buffer_add(nb2, TM2));
 	M0_UT_ASSERT(nb2->nb_flags & M0_NET_BUF_QUEUED);
 
 	ut_chan_timedwait(&td->tmwait2, 10);
@@ -1709,12 +1700,12 @@ static int test_bulk_passive_recv(struct ut_data *td)
 	/* stage passive recv buffer */
 	nb1->nb_qtype = M0_NET_QT_PASSIVE_BULK_RECV;
 	nb1->nb_length = td->buf_size1;
-	zUT(m0_net_buffer_add(nb1, TM1), failed);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 	M0_UT_ASSERT(nb1->nb_desc.nbd_len != 0);
 	M0_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
 
-	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2->nb_desc), failed);
+	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2->nb_desc));
 	M0_UT_ASSERT(td->buf_size2 >= aBytes);
 	if (td->buf_size2 < aBytes)
 		goto failed;
@@ -1724,23 +1715,23 @@ static int test_bulk_passive_recv(struct ut_data *td)
 	/* ensure that an active receive fails */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PR !~ AR)\n");
 	nb2->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
-	zvUT(m0_net_buffer_add(nb2, TM2), -EPERM, failed);
+	zvUT(m0_net_buffer_add(nb2, TM2), -EPERM);
 
 	/* try to send a larger buffer */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer F(PR <  AS)\n");
-	zUT((M0_ALLOC_PTR(nb2l) == NULL), failed);
+	zUT((M0_ALLOC_PTR(nb2l) == NULL));
 	zUT(m0_bufvec_alloc_aligned(&nb2l->nb_buffer, UT_BUFSEGS1 + 1,
-				    td->buf_seg_size1, UT_PAGE_SHIFT), failed);
-	zUT(m0_net_buffer_register(nb2l, DOM2), failed);
-	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2l->nb_desc), failed);
+				    td->buf_seg_size1, UT_PAGE_SHIFT));
+	zUT(m0_net_buffer_register(nb2l, DOM2));
+	zUT(m0_net_desc_copy(&nb1->nb_desc, &nb2l->nb_desc));
 	nb2l->nb_length = td->buf_seg_size1 * (UT_BUFSEGS1 + 1);
 	nb2l->nb_qtype = M0_NET_QT_ACTIVE_BULK_SEND;
-	zvUT(m0_net_buffer_add(nb2l, TM2), -EFBIG, failed);
+	zvUT(m0_net_buffer_add(nb2l, TM2), -EFBIG);
 
 	/* now try the success case */
 	NLXDBGPnl(td, 1, "TEST: bulk transfer S(PR ~  AS)\n");
 	nb2->nb_qtype = M0_NET_QT_ACTIVE_BULK_SEND;
-	zUT(m0_net_buffer_add(nb2, TM2), failed);
+	zUT(m0_net_buffer_add(nb2, TM2));
 	M0_UT_ASSERT(nb2->nb_flags & M0_NET_BUF_QUEUED);
 
 	ut_chan_timedwait(&td->tmwait2, 10);
@@ -1815,7 +1806,7 @@ static void test_bulk_body(struct ut_data *td)
 
 		ut_cbreset();
 		M0_SET0(&nb1->nb_desc);
-		zUT(m0_net_buffer_add(nb1, TM1), done);
+		zUT(m0_net_buffer_add(nb1, TM1));
 		M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 		M0_UT_ASSERT(nb1->nb_desc.nbd_len == sizeof *CBD1);
 		M0_UT_ASSERT(nb1->nb_desc.nbd_data != NULL);
@@ -1853,16 +1844,15 @@ static void test_bulk_body(struct ut_data *td)
 	   issued for the network buffer descriptor.
 	   Also test size issues.
 	*/
-	zUT(test_bulk_passive_send(td), done);
+	zUT(test_bulk_passive_send(td));
 
 	/* TEST
 	   Test a passive receive. Ensure that an active receive cannot be
 	   issued for the network buffer descriptor.
 	   Also test size issues.
 	 */
-	zUT(test_bulk_passive_recv(td), done);
+	zUT(test_bulk_passive_recv(td));
 
- done:
 	return;
 }
 
@@ -1958,7 +1948,7 @@ static void test_sync_body(struct ut_data *td)
 	nb1->nb_max_receive_msgs = num_msgs;
 	nb1->nb_qtype = M0_NET_QT_MSG_RECV;
 	td->buf_cb1.nbc_cb[M0_NET_QT_MSG_RECV] = test_sync_msg_recv_cb1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 
 	M0_UT_ASSERT(!m0_net_buffer_event_pending(TM1));
@@ -1967,7 +1957,7 @@ static void test_sync_body(struct ut_data *td)
 	M0_UT_ASSERT(tp1->xtm_ev_chan == &TM1->ntm_chan);
 
 	/* get a TM2 end point for TM1's address */
-	zUT(m0_net_end_point_create(&ep2, TM2, TM1->ntm_ep->nep_addr), done);
+	zUT(m0_net_end_point_create(&ep2, TM2, TM1->ntm_ep->nep_addr));
 	M0_UT_ASSERT(m0_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
 
 	td->buf_cb2.nbc_cb[M0_NET_QT_MSG_SEND] = test_sync_msg_send_cb2;
@@ -1978,7 +1968,7 @@ static void test_sync_body(struct ut_data *td)
 		nb2->nb_qtype = M0_NET_QT_MSG_SEND;
 		nb2->nb_length = len;
 		nb2->nb_ep = ep2;
-		zUT(m0_net_buffer_add(nb2, TM2), done);
+		zUT(m0_net_buffer_add(nb2, TM2));
 		ut_chan_timedwait(&td->tmwait2, 10);
 		M0_UT_ASSERT(!(nb2->nb_flags & M0_NET_BUF_QUEUED));
 		M0_UT_ASSERT(cb_called2 == i);
@@ -2024,7 +2014,6 @@ static void test_sync_body(struct ut_data *td)
 	M0_UT_ASSERT(td->qs.nqs_num_adds == 1);
 	M0_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
- done:
 	m0_clink_del_lock(&td->tmwait2);
 	m0_clink_del_lock(&td->tmwait1);
 	if (ep2 != NULL)
@@ -2115,7 +2104,7 @@ static void test_timeout_body(struct ut_data *td)
 		abs_timeout = m0_time_from_now(timeout_secs, 0);
 		M0_UT_ASSERT(nb1->nb_timeout == M0_TIME_NEVER);
 		nb1->nb_timeout = abs_timeout;
-		zUT(m0_net_buffer_add(nb1, TM1), done);
+		zUT(m0_net_buffer_add(nb1, TM1));
 		M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 
 		ut_chan_timedwait(&td->tmwait1, 2 * timeout_secs);
@@ -2156,7 +2145,7 @@ static void test_timeout_body(struct ut_data *td)
 		nb1->nb_max_receive_msgs = 1;
 		M0_UT_ASSERT(nb1->nb_timeout == M0_TIME_NEVER);
 		nb1->nb_timeout = abs_timeout;
-		zUT(m0_net_buffer_add(nb1, TM1), done);
+		zUT(m0_net_buffer_add(nb1, TM1));
 		M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 	}
 
@@ -2201,7 +2190,7 @@ static void test_timeout_body(struct ut_data *td)
 		M0_UT_ASSERT(nb1->nb_timeout == M0_TIME_NEVER);
 		if (i == 0)
 			nb1->nb_timeout = abs_timeout;
-		zUT(m0_net_buffer_add(nb1, TM1), done);
+		zUT(m0_net_buffer_add(nb1, TM1));
 		M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 	}
 
@@ -2250,7 +2239,7 @@ static void test_timeout_body(struct ut_data *td)
 	nb1->nb_max_receive_msgs = 1;
 	nb1->nb_timeout = M0_TIME_NEVER;
 	nb1->nb_qtype = M0_NET_QT_PASSIVE_BULK_RECV; /* doesn't involve EPs */
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 
 	{
@@ -2265,7 +2254,7 @@ static void test_timeout_body(struct ut_data *td)
 		nb1->nb_flags |= M0_NET_BUF_TIMED_OUT;
 
 		m0_mutex_lock(&TM1->ntm_mutex);
-		zUT(nlx_xo_core_bev_to_net_bev(TM1, &lcbev, &nbev), done);
+		zUT(nlx_xo_core_bev_to_net_bev(TM1, &lcbev, &nbev));
 		m0_mutex_unlock(&TM1->ntm_mutex);
 		M0_UT_ASSERT(!(nb1->nb_flags & M0_NET_BUF_TIMED_OUT));
 		M0_UT_ASSERT(nbev.nbe_status == 0);
@@ -2279,7 +2268,6 @@ static void test_timeout_body(struct ut_data *td)
 	M0_UT_ASSERT(cb_status1 == -ECANCELED);
 	m0_net_desc_free(&nb1->nb_desc);
 
- done:
 	m0_clink_del_lock(&td->tmwait1);
 }
 
@@ -2299,7 +2287,7 @@ static void test_timeout(void)
 	ut_restore_subs();
 }
 
-const struct m0_test_suite m0_net_lnet_ut = {
+struct m0_ut_suite m0_net_lnet_ut = {
         .ts_name = "net-lnet",
         .ts_init = test_lnet_init,
         .ts_fini = test_lnet_fini,

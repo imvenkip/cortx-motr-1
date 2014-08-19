@@ -65,6 +65,10 @@ int m0_cs_ut_ds2_fop_init(void);
  */
 void m0_cs_ut_ds2_fop_fini(void);
 
+struct m0_fom;
+
+void m0_ut_fom_phase_set(struct m0_fom *fom, int phase);
+
 /*
   Dummy fops to test mero setup
  */

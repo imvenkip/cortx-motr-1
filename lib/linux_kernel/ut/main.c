@@ -50,7 +50,7 @@ M0_INTERNAL void m0_ut_lib_buf_test(void);
 M0_INTERNAL void m0_test_lib_uuid(void);
 M0_INTERNAL void test_hashtable(void);
 
-const struct m0_test_suite m0_klibm0_ut = {
+struct m0_ut_suite m0_klibm0_ut = {
 	.ts_name = "klibm0-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

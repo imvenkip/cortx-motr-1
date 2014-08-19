@@ -618,7 +618,7 @@ static void frm_fini_test(void)
 	M0_UT_ASSERT(frm->f_state == FRM_UNINITIALISED);
 }
 
-const struct m0_test_suite frm_ut = {
+struct m0_ut_suite frm_ut = {
 	.ts_name = "rpc-formation-ut",
 	.ts_init = frm_ut_init,
 	.ts_fini = frm_ut_fini,

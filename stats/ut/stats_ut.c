@@ -32,7 +32,7 @@ static int stats_ut_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite stats_ut = {
+struct m0_ut_suite stats_ut = {
 	.ts_name  = "stats-ut",
 	.ts_init  = stats_ut_init,
 	.ts_fini  = stats_ut_fini,

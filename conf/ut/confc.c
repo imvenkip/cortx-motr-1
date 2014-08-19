@@ -475,7 +475,7 @@ static int ast_thread_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite confc_ut = {
+struct m0_ut_suite confc_ut = {
 	.ts_name  = "confc-ut",
 	.ts_init  = ast_thread_init,
 	.ts_fini  = ast_thread_fini,

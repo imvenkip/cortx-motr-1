@@ -21,6 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_EXTMAP
 #include "lib/trace.h"
 #include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
+#include "lib/errno.h"     /* ENOENT */
 #include "lib/vec.h"
 #include "lib/types.h"
 #include "lib/ub.h"
@@ -416,7 +417,7 @@ void m0_be_ut_emap(void)
 }
 
 #if 0 /* XXX RESTOREME */
-const struct m0_test_suite m0_be_ut_emap = {
+struct m0_ut_suite m0_be_ut_emap = {
 	.ts_name = "be-emap-ut",
 	.ts_tests = {
 		{ "emap-init", test_init },

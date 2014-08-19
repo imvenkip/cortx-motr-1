@@ -357,7 +357,7 @@ static void test_delete(void)
 	M0_UT_ASSERT(rc != 0);
 }
 
-const struct m0_test_suite cob_ut = {
+struct m0_ut_suite cob_ut = {
 	.ts_name = "cob-ut",
 	.ts_init = ut_init,
 	.ts_fini = ut_fini,

@@ -208,7 +208,7 @@ static void low(struct m0_net_buffer_pool *bp)
 	/* Buffer pool is LOW */
 }
 
-const struct m0_test_suite buffer_pool_ut = {
+struct m0_ut_suite buffer_pool_ut = {
 	.ts_name = "buffer_pool_ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

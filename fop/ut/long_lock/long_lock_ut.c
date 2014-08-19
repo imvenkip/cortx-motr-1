@@ -159,7 +159,7 @@ static int test_long_lock_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite m0_fop_lock_ut = {
+struct m0_ut_suite m0_fop_lock_ut = {
 	.ts_name = "fop-lock-ut",
 	.ts_init = test_long_lock_init,
 	.ts_fini = test_long_lock_fini,

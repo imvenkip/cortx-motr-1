@@ -20,6 +20,7 @@
 
 #include "lib/string.h"
 #include "lib/uuid.h"
+#include "lib/errno.h"     /* ENOENT */
 #include "ut/ut.h"
 
 static char *nil_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */

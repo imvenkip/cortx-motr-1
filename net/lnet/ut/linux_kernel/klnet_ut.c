@@ -152,7 +152,7 @@ static bool ut_bufvec_alloc(struct m0_bufvec *bv, size_t n)
 
 #define UT_BUFVEC_ALLOC(v,n)	\
 if (!ut_bufvec_alloc(&v,n)) {	\
-	M0_UT_FAIL("no memory");\
+	M0_IMPOSSIBLE("no memory");\
 	return;			\
 }
 
@@ -350,10 +350,9 @@ static void ktest_core_ep_addr(void)
 		if (network != NULL && strcmp(network, "@tcp") == 0)
 			break;
 	}
-	if (nidstrs[i] == NULL) {
-		M0_UT_PASS("skipped successful LNet address tests, "
-			   "no tcp network");
-	} else {
+
+	/* whether we're using tcp network */
+	if (nidstrs[i] != NULL) {
 		M0_CASSERT(ARRAY_SIZE(epstr) == ARRAY_SIZE(ep_addr));
 		for (i = 0; i < ARRAY_SIZE(epstr); ++i) {
 			rc = nlx_core_ep_addr_decode(&dom.xd_core, epstr[i],
@@ -748,7 +747,7 @@ static void ktest_msg_body(struct ut_data *td)
 	bevs_left = nb1->nb_max_receive_msgs;
 
 	m0_net_lnet_tm_set_debug(TM1, 0);
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_msg_LNetMDAttach_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -863,7 +862,7 @@ static void ktest_msg_body(struct ut_data *td)
 	nb1->nb_qtype = M0_NET_QT_MSG_RECV;
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = nb1->nb_max_receive_msgs;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_msg_LNetMDAttach_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -935,7 +934,7 @@ static void ktest_msg_body(struct ut_data *td)
 	nb1->nb_qtype = M0_NET_QT_MSG_RECV;
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = nb1->nb_max_receive_msgs;
- 	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_msg_LNetMDAttach_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + UT_KMSG_OPS);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1025,7 +1024,7 @@ static void ktest_msg_body(struct ut_data *td)
 		sprintf(epstr, "%s:%d:%d:1024",
 			td->nidstrs1[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
 		zUT(m0_net_end_point_create(&ut_ktest_msg_LNetPut_ep,
-					    TM1, epstr), done);
+					    TM1, epstr));
 	}
 
 	nb1->nb_min_receive_size = 0;
@@ -1035,7 +1034,7 @@ static void ktest_msg_body(struct ut_data *td)
 	nb1->nb_ep = ut_ktest_msg_LNetPut_ep;
 	M0_UT_ASSERT(m0_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 1);
 	needed = lctm1->ctm_bev_needed;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_msg_LNetPut_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1076,7 +1075,7 @@ static void ktest_msg_body(struct ut_data *td)
 		sprintf(epstr, "%s:%d:%d:1024",
 			td->nidstrs1[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
 		zUT(m0_net_end_point_create(&ut_ktest_msg_LNetPut_ep,
-					    TM1, epstr), done);
+					    TM1, epstr));
 	}
 
 	nb1->nb_min_receive_size = 0;
@@ -1086,7 +1085,7 @@ static void ktest_msg_body(struct ut_data *td)
 	nb1->nb_ep = ut_ktest_msg_LNetPut_ep;
 	M0_UT_ASSERT(m0_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 1);
 	needed = lctm1->ctm_bev_needed;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_msg_LNetPut_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1371,7 +1370,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	nb1->nb_desc.nbd_data = NULL;
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetMDAttach_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1414,7 +1413,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	nb1->nb_desc.nbd_data = NULL;
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetMDAttach_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1459,7 +1458,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	nb1->nb_desc.nbd_data = NULL;
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetMDAttach_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1501,7 +1500,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	nb1->nb_desc.nbd_data = NULL;
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetMDAttach_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1544,7 +1543,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_send, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetGet_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1582,7 +1581,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_send, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetGet_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1630,7 +1629,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_send, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetGet_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1664,7 +1663,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_send, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetGet_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1702,7 +1701,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_send, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetGet_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1747,7 +1746,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_send, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetGet_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1782,7 +1781,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_send, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetGet_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1823,7 +1822,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_recv, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetPut_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1858,7 +1857,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_recv, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetPut_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1894,7 +1893,7 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(!m0_net_desc_copy(&nbd_recv, &nb1->nb_desc));
 	needed = lctm1->ctm_bev_needed;
 	bevs_left = 1;
-	zUT(m0_net_buffer_add(nb1, TM1), done);
+	zUT(m0_net_buffer_add(nb1, TM1));
 	M0_UT_ASSERT(ut_ktest_bulk_LNetPut_called);
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed + 1);
 	M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
@@ -1917,7 +1916,6 @@ static void ktest_bulk_body(struct ut_data *td)
 	M0_UT_ASSERT(lctm1->ctm_bev_needed == needed);
 	m0_net_desc_free(&nb1->nb_desc);
 
- done:
 	m0_net_desc_free(&nbd_recv);
 	m0_net_desc_free(&nbd_send);
 	return;

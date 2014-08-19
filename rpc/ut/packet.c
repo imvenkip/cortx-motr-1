@@ -239,7 +239,7 @@ static void packet_fini(struct m0_rpc_packet *packet)
 	m0_rpc_packet_fini(packet);
 }
 
-const struct m0_test_suite packet_encdec_ut = {
+struct m0_ut_suite packet_encdec_ut = {
 	.ts_name = "rpc-packet-encdec-ut",
 	.ts_init = packet_encdec_ut_init,
 	.ts_fini = packet_encdec_ut_fini,

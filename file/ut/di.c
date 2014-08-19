@@ -129,7 +129,7 @@ void file_di_fini(void)
 	m0_free(di_data);
 }
 
-const struct m0_test_suite di_ut = {
+struct m0_ut_suite di_ut = {
 	.ts_name = "di-ut",
 	.ts_tests = {
 		{ "di-init", file_di_init},

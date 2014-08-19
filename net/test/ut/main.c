@@ -18,7 +18,7 @@
  * Original creation date: 05/19/2012
  */
 
-#include "ut/ut.h"		/* m0_test_suite */
+#include "ut/ut.h"		/* m0_ut_suite */
 
 #include "net/test/initfini.h"	/* m0_net_test_init */
 
@@ -53,7 +53,7 @@ static int net_test_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite m0_net_test_ut = {
+struct m0_ut_suite m0_net_test_ut = {
 	.ts_name = "net-test",
 	.ts_init = m0_net_test_init,
 	.ts_fini = net_test_fini,

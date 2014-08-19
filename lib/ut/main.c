@@ -51,7 +51,7 @@ extern void test_zerovec(void);
 extern void test_locality(void);
 extern void test_hashtable(void);
 
-const struct m0_test_suite libm0_ut = {
+struct m0_ut_suite libm0_ut = {
 	.ts_name = "libm0-ut",
 	.ts_owners = "Nikita",
 	.ts_tests = {

@@ -17,43 +17,55 @@
  * Original creation date: 04/12/2011
  */
 
+#include <linux/module.h>
+
+#include "lib/thread.h"       /* M0_THREAD_INIT */
 #include "ut/ut.h"            /* m0_ut_add */
-#include "mero/init.h"        /* m0_init */
-#include "module/instance.h"  /* m0 */
+
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Mero Unit Test Module");
 MODULE_LICENSE("GPL"); /* should match license of m0mero.ko module */
 
-/* sort test suites in alphabetic order */
-extern const struct m0_test_suite m0_klibm0_ut; /* test lib first */
-extern const struct m0_test_suite m0_addb_ut;
-extern const struct m0_test_suite be_ut;
-extern const struct m0_test_suite buffer_pool_ut;
-extern const struct m0_test_suite bulkio_client_ut;
-extern const struct m0_test_suite m0_net_bulk_if_ut;
-extern const struct m0_test_suite m0_net_bulk_mem_ut;
-extern const struct m0_test_suite m0_net_lnet_ut;
-extern const struct m0_test_suite m0_net_test_ut;
-extern const struct m0_test_suite m0_net_tm_prov_ut;
-extern const struct m0_test_suite conn_ut;
-extern const struct m0_test_suite dtm_dtx_ut;
-extern const struct m0_test_suite dtm_nucleus_ut;
-extern const struct m0_test_suite dtm_transmit_ut;
-extern const struct m0_test_suite file_io_ut;
-extern const struct m0_test_suite frm_ut;
-extern const struct m0_test_suite layout_ut;
-extern const struct m0_test_suite packet_encdec_ut;
-extern const struct m0_test_suite reqh_service_ut;
-extern const struct m0_test_suite rpc_mc_ut;
-extern const struct m0_test_suite rm_ut;
-extern const struct m0_test_suite session_ut;
-extern const struct m0_test_suite sm_ut;
-extern const struct m0_test_suite stob_ut;
-extern const struct m0_test_suite xcode_ut;
-extern const struct m0_test_suite di_ut;
+static char *tests;
+module_param(tests, charp, S_IRUGO);
+MODULE_PARM_DESC(tests, " list of tests to run in format"
+		 " 'suite[:test][,suite[:test]]'");
 
-extern const struct m0_test_suite m0_loop_ut; /* m0loop driver */
+static char *exclude;
+module_param(exclude, charp, S_IRUGO);
+MODULE_PARM_DESC(exclude, " list of tests to exclude in format"
+		 " 'suite[:test][,suite[:test]]'");
+
+/* sort test suites in alphabetic order */
+extern struct m0_ut_suite m0_klibm0_ut; /* test lib first */
+extern struct m0_ut_suite m0_addb_ut;
+extern struct m0_ut_suite be_ut;
+extern struct m0_ut_suite buffer_pool_ut;
+extern struct m0_ut_suite bulkio_client_ut;
+extern struct m0_ut_suite m0_net_bulk_if_ut;
+extern struct m0_ut_suite m0_net_bulk_mem_ut;
+extern struct m0_ut_suite m0_net_lnet_ut;
+extern struct m0_ut_suite m0_net_test_ut;
+extern struct m0_ut_suite m0_net_tm_prov_ut;
+extern struct m0_ut_suite conn_ut;
+extern struct m0_ut_suite dtm_dtx_ut;
+extern struct m0_ut_suite dtm_nucleus_ut;
+extern struct m0_ut_suite dtm_transmit_ut;
+extern struct m0_ut_suite file_io_ut;
+extern struct m0_ut_suite frm_ut;
+extern struct m0_ut_suite layout_ut;
+extern struct m0_ut_suite packet_encdec_ut;
+extern struct m0_ut_suite reqh_service_ut;
+extern struct m0_ut_suite rpc_mc_ut;
+extern struct m0_ut_suite rm_ut;
+extern struct m0_ut_suite session_ut;
+extern struct m0_ut_suite sm_ut;
+extern struct m0_ut_suite stob_ut;
+extern struct m0_ut_suite xcode_ut;
+extern struct m0_ut_suite di_ut;
+
+extern struct m0_ut_suite m0_loop_ut; /* m0loop driver */
 
 static struct m0_thread ut_thread;
 
@@ -90,23 +102,22 @@ static void run_kernel_ut(int ignored)
 	m0_ut_add(&stob_ut);
 	m0_ut_add(&xcode_ut);
 
-	m0_ut_submit_all();
 	m0_ut_run();
 }
 
 static int __init m0_ut_module_init(void)
 {
-	static struct m0 instance;
+	struct m0_ut_cfg cfg = {
+		.uc_run_list     = tests,
+		.uc_exclude_list = exclude,
+	};
 	int rc;
 
-	rc = m0_init(&instance);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_ut_init();
+	rc = m0_ut_init(&cfg);
 	M0_ASSERT(rc == 0);
 
 	rc = M0_THREAD_INIT(&ut_thread, int, NULL,
-		            &run_kernel_ut, 0, "run_kernel_ut");
+		            &run_kernel_ut, 0, "m0kut");
 	M0_ASSERT(rc == 0);
 
 	return rc;
@@ -116,7 +127,6 @@ static void __exit m0_ut_module_fini(void)
 {
 	m0_thread_join(&ut_thread);
 	m0_ut_fini();
-	m0_fini();
 }
 
 module_init(m0_ut_module_init)

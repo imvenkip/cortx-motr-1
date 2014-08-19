@@ -28,7 +28,7 @@
 
 extern void test_confdb(void);
 
-const struct m0_test_suite confstr_ut = {
+struct m0_ut_suite confstr_ut = {
 	.ts_name  = "confstr-ut",
 	.ts_init  = NULL,
 	.ts_fini  = NULL,

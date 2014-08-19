@@ -24,6 +24,7 @@
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
 #include "conf/ut/file_helpers.h"
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
+#include "lib/errno.h"     /* ENOENT */
 #include "ut/ut.h"
 
 struct m0_mutex      g_lock;
@@ -167,7 +168,7 @@ static int cache_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite conf_ut = {
+struct m0_ut_suite conf_ut = {
 	.ts_name  = "conf-ut",
 	.ts_init  = cache_init,
 	.ts_fini  = cache_fini,

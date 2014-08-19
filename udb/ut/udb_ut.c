@@ -104,7 +104,7 @@ static void udb_test(void)
 	m0_udb_ctxt_fini(&ctx);
 }
 
-const struct m0_test_suite udb_ut = {
+struct m0_ut_suite udb_ut = {
         .ts_name = "udb-ut",
         .ts_init = NULL,
         .ts_fini = NULL,

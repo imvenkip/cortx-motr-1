@@ -20,6 +20,7 @@
 
 #include "lib/arith.h"    /* M0_3WAY */
 #include "lib/types.h"
+#include "lib/errno.h"    /* ENOENT */
 #include "ut/ut.h"
 #include "lib/ub.h"
 #include "db/db.h"
@@ -57,7 +58,8 @@ static const struct m0_table_ops test_table_ops = {
 
 static int db_reset(void)
 {
-        return m0_ut_db_reset(db_name);
+	m0_dbenv_reset(db_name);
+	return 0;
 }
 
 static void dbut_init(const char *db_name,
@@ -222,7 +224,7 @@ static void test_delete(void)
         dbut_fini(&db, &table, &tx, &m0_db_tx_commit);
 }
 
-const struct m0_test_suite db_ut = {
+struct m0_ut_suite db_ut = {
 	.ts_name = "libdb-ut",
 	.ts_init = db_reset,
 	.ts_fini = db_reset,
@@ -318,7 +320,7 @@ static void test_cursor_flags_read_only(void)
         dbut_fini(&db, &table1, &tx1, &m0_db_tx_commit);
 }
 
-const struct m0_test_suite db_cursor_ut = {
+struct m0_ut_suite db_cursor_ut = {
 	.ts_name = "db-cursor-ut",
 	.ts_init = db_reset,
 	.ts_fini = db_reset,

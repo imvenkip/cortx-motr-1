@@ -381,7 +381,7 @@ static void test_instance(void)
 	M0_UT_ASSERT(inst == g_instance);
 }
 
-const struct m0_test_suite module_ut = {
+struct m0_ut_suite module_ut = {
 	.ts_name  = "module-ut",
 	.ts_tests = {
 		{ "module",   test_module },

@@ -311,7 +311,7 @@ static int cm_cp_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite cm_cp_ut = {
+struct m0_ut_suite cm_cp_ut = {
         .ts_name = "cm-cp-ut",
         .ts_init = &cm_cp_init,
         .ts_fini = &cm_cp_fini,

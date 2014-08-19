@@ -18,12 +18,12 @@
  * Original creation date: 19-Jul-2010
  */
 
-#include "lib/string.h"             /* m0_strdup */
-#include "lib/ub.h"
+#include "lib/string.h"         /* m0_strdup */
 #include "lib/memory.h"
 #include "lib/thread.h"         /* LAMBDA */
 #include "lib/getopts.h"
-#include "utils/common.h"
+#include "lib/ub.h"
+#include "ut/ut.h"              /* m0_ut_init */
 
 extern struct m0_ub_set m0_ad_ub;
 extern struct m0_ub_set m0_adieu_ub;
@@ -135,7 +135,11 @@ int main(int argc, char *argv[])
 	struct ub_args args;
 	int            rc;
 
-	rc = unit_start(UB_SANDBOX);
+	struct m0_ut_cfg cfg = {
+		.uc_sandbox      = UB_SANDBOX,
+	};
+
+	rc = m0_ut_init(&cfg);
 	if (rc != 0)
 		return rc;
 
@@ -149,7 +153,7 @@ int main(int argc, char *argv[])
 			rc = ub_run(&args);
 	}
 	ub_args_fini(&args);
-	unit_end(UB_SANDBOX, false);
+	m0_ut_fini();
 
 	return rc;
 }

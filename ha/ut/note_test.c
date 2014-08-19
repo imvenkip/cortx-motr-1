@@ -511,7 +511,7 @@ static int ha_state_ut_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite ha_state_ut = {
+struct m0_ut_suite ha_state_ut = {
 	.ts_name = "ha_state-ut",
 	.ts_init = ha_state_ut_init,
 	.ts_fini = ha_state_ut_fini,

@@ -21,6 +21,7 @@
 #include "ut/ut.h"			/* M0_UT_ASSERT */
 #include "lib/arith.h"			/* m0_rnd */
 #include "lib/misc.h"			/* M0_SET0 */
+#include "lib/errno.h"                  /* ENOENT */
 
 #include "net/test/service.h"
 

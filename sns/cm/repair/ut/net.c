@@ -856,7 +856,7 @@ static void test_cp_send_recv_verify()
 	test_fini();
 }
 
-const struct m0_test_suite snscm_net_ut = {
+struct m0_ut_suite snscm_net_ut = {
 	.ts_name = "snscm_net-ut",
 	.ts_tests = {
 		{ "cp-send-recv-verify", test_cp_send_recv_verify },

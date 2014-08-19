@@ -190,6 +190,22 @@ int m0_cs_ut_ds2_fop_init(void)
 	return 0;
 }
 
+void m0_ut_fom_phase_set(struct m0_fom *fom, int phase)
+{
+	switch (m0_fom_phase(fom)) {
+	case M0_FOPH_SUCCESS:
+		m0_fom_phase_set(fom, M0_FOPH_FOL_REC_ADD);
+		/* fall through */
+	case M0_FOPH_FAILURE:
+		m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT);
+		m0_fom_phase_set(fom, M0_FOPH_QUEUE_REPLY);
+		/* fall through */
+	default:
+		if (m0_fom_phase(fom) != phase)
+			m0_fom_phase_set(fom, phase);
+	}
+}
+
 /*
   Allocates and initialises a fom.
  */

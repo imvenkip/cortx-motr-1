@@ -238,7 +238,7 @@ static void test_conn_terminate(void)
 	m0_net_end_point_put(ep);
 }
 
-const struct m0_test_suite rpc_rcv_session_ut = {
+struct m0_ut_suite rpc_rcv_session_ut = {
 	.ts_name = "rpc-rcv-session-ut",
 	.ts_init = ts_rcv_session_init,
 	.ts_fini = ts_rcv_session_fini,

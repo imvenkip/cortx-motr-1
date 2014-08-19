@@ -529,7 +529,7 @@ static void test_net_tm_prov(void)
 	ut_dom_init_called = false;
 }
 
-const struct m0_test_suite m0_net_tm_prov_ut = {
+struct m0_ut_suite m0_net_tm_prov_ut = {
         .ts_name = "net-prov-ut",
         .ts_init = NULL,
         .ts_fini = NULL,

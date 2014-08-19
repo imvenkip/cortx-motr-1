@@ -36,7 +36,7 @@ extern void m0_stob_ut_stob_domain_ad(void);
 extern void m0_stob_ut_stob_ad(void);
 extern void m0_stob_ut_adieu_ad(void);
 
-const struct m0_test_suite stob_ut = {
+struct m0_ut_suite stob_ut = {
 	.ts_name = "stob-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

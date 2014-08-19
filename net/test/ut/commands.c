@@ -23,6 +23,7 @@
 #include "lib/semaphore.h"	/* m0_semaphore */
 #include "lib/memory.h"		/* m0_alloc */
 #include "lib/time.h"		/* m0_time_seconds */
+#include "lib/errno.h"          /* ENOENT */
 #include "net/lnet/lnet.h"	/* m0_net_lnet_ifaces_get */
 
 #include "net/test/commands.h"

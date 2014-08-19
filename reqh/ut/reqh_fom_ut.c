@@ -442,7 +442,7 @@ void test_reqh(void)
 	m0_stob_io_fop_fini();
 }
 
-const struct m0_test_suite reqh_ut = {
+struct m0_ut_suite reqh_ut = {
 	.ts_name = "reqh-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

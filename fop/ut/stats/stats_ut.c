@@ -123,7 +123,7 @@ static int test_stats_fini(void)
 	return 0;
 }
 
-const struct m0_test_suite m0_fom_stats_ut = {
+struct m0_ut_suite m0_fom_stats_ut = {
 	.ts_name = "fom-stats-ut",
 	.ts_init = test_stats_init,
 	.ts_fini = test_stats_fini,

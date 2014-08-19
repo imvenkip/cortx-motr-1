@@ -317,7 +317,7 @@ static void session_terminate_reply_fail_test(void)
 	session_terminate_reply_and_fini(-EINVAL);
 }
 
-const struct m0_test_suite session_ut = {
+struct m0_ut_suite session_ut = {
 	.ts_name = "rpc-session-ut",
 	.ts_init = session_ut_init,
 	.ts_fini = session_ut_fini,

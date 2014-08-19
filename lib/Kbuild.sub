@@ -22,6 +22,7 @@ m0mero_objects += lib/assert.o \
                   lib/misc.o \
                   lib/queue.o \
                   lib/refs.o \
+                  lib/string.o \
                   lib/string_xc.o \
                   lib/thread.o \
                   lib/time.o \

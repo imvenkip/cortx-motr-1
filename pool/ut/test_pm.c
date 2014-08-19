@@ -802,7 +802,7 @@ static void pm_test_load_from_persistent_storage(void)
 	m0_poolmach_fini(&pm);
 }
 
-const struct m0_test_suite poolmach_ut = {
+struct m0_ut_suite poolmach_ut = {
 	.ts_name = "poolmach-ut",
 	.ts_init = seg_init,
 	.ts_fini = seg_fini,

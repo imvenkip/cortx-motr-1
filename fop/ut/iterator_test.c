@@ -144,7 +144,7 @@ static void fit_test(void)
 	m0_sm_group_fini(&machine.rm_sm_grp);
 }
 
-const struct m0_test_suite fit_ut = {
+struct m0_ut_suite fit_ut = {
 	.ts_name = "fit-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

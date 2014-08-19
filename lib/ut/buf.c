@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/finject.h"
 #include "lib/string.h"  /* m0_streq */
+#include "lib/errno.h"   /* ENOENT */
 
 static void bufs_test(void);
 

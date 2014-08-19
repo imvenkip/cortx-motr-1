@@ -319,7 +319,7 @@ static void sns_file_lock_unlock(void)
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
 
-const struct m0_test_suite sns_flock_ut = {
+struct m0_ut_suite sns_flock_ut = {
 	.ts_name = "sns-file-lock-ut",
 	.ts_init = test_setup,
 	.ts_fini = test_fini,

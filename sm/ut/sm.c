@@ -597,7 +597,7 @@ static void chain(void)
 	m0_sm_group_unlock(&G);
 }
 
-const struct m0_test_suite sm_ut = {
+struct m0_ut_suite sm_ut = {
 	.ts_name = "sm-ut",
 	.ts_init = init,
 	.ts_fini = fini,

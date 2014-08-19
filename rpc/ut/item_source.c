@@ -215,7 +215,7 @@ static void conn_terminating_cb_test(void)
 	M0_UT_ASSERT(conn_terminating_cb_called);
 }
 
-const struct m0_test_suite item_source_ut = {
+struct m0_ut_suite item_source_ut = {
 	.ts_name = "rpc-item-source-ut",
 	.ts_init = item_source_test_suite_init,
 	.ts_fini = item_source_test_suite_fini,

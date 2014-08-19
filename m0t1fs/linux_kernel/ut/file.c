@@ -31,7 +31,7 @@
  */
 #include "m0t1fs/linux_kernel/file.c"
 
-#include "ut/ut.h"     /* m0_test_suite */
+#include "ut/ut.h"     /* m0_ut_suite */
 #include "lib/chan.h"   /* m0_chan */
 #include "lib/vec.h"    /* m0_indexvec */
 #include "fid/fid.h"    /* m0_fid */
@@ -1091,7 +1091,7 @@ static void dgmode_readio_test(void)
 	m0_free(req);
 }
 
-const struct m0_test_suite file_io_ut = {
+struct m0_ut_suite file_io_ut = {
         .ts_name  = "file-io-ut",
         .ts_init  = file_io_ut_init,
         .ts_fini  = file_io_ut_fini,

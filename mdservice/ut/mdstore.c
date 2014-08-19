@@ -25,6 +25,7 @@
 
 #include "lib/ub.h"
 #include "lib/memory.h"
+#include "lib/errno.h"             /* ENOENT */
 #include "lib/misc.h"              /* M0_SET0 */
 #include "lib/bitstring.h"
 #include "lib/processor.h"
@@ -89,7 +90,8 @@ static int fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 static int db_reset(void)
 {
-        return m0_ut_db_reset(db_name);
+	m0_dbenv_reset(db_name);
+	return 0;
 }
 
 static void test_mkfs(void)
@@ -239,7 +241,7 @@ static void test_mdops(void)
 	m0_sm_group_fini(&machine.rm_sm_grp);
 }
 
-const struct m0_test_suite mdservice_ut = {
+struct m0_ut_suite mdservice_ut = {
         .ts_name = "mdservice-ut",
         .ts_init = db_reset,
         /* .ts_fini = db_reset, */

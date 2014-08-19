@@ -303,7 +303,7 @@ void creditor_cookie_setup(enum rm_server dsrv_id,
 	m0_cookie_init(&owner->ro_creditor->rem_cookie, &creditor->ro_id);
 }
 
-const struct m0_test_suite rm_ut = {
+struct m0_ut_suite rm_ut = {
 	.ts_name = "rm-ut",
 	.ts_tests = {
 		{ "api", rm_api_test },

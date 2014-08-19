@@ -444,7 +444,7 @@ static void dtx_fix(void)
 	fini5();
 }
 
-const struct m0_test_suite dtm_dtx_ut = {
+struct m0_ut_suite dtm_dtx_ut = {
 	.ts_name = "dtm-dtx-ut",
 	.ts_tests = {
 		{ "dtm-setup",    dtm_setup     },

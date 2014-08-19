@@ -178,7 +178,7 @@ static void test_service(void)
 	m0_reqhut_fop_fini();
 }
 
-const struct m0_test_suite reqh_service_ut = {
+struct m0_ut_suite reqh_service_ut = {
 	.ts_name = "reqh-service-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

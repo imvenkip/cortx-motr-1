@@ -201,7 +201,7 @@ static void ff2c_gen_test(void)
 	ff2c_context_fini(&ctx);
 }
 
-const struct m0_test_suite xcode_ff2c_ut = {
+struct m0_ut_suite xcode_ff2c_ut = {
         .ts_name = "ff2c-ut",
         .ts_init = NULL,
         .ts_fini = NULL,

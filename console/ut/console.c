@@ -682,7 +682,7 @@ static void console_input_test(void)
 	file_redirect_fini();
 }
 
-const struct m0_test_suite console_ut = {
+struct m0_ut_suite console_ut = {
         .ts_name = "libconsole-ut",
         .ts_init = cons_init,
         .ts_fini = cons_fini,

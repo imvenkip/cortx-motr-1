@@ -313,7 +313,7 @@ static void conn_terminate_reply_fail_test(void)
 	m0_rpc_conn_fini(&conn);
 }
 
-const struct m0_test_suite conn_ut = {
+struct m0_ut_suite conn_ut = {
 	.ts_name = "rpc-connection-ut",
 	.ts_init = conn_ut_init,
 	.ts_fini = conn_ut_fini,

@@ -21,321 +21,73 @@
  */
 
 #include <stdlib.h>                /* system */
-#include <stdio.h>                 /* asprintf */
+#include <stdio.h>                 /* asprintf,setbuf */
 #include <unistd.h>                /* dup, dup2 */
+#include <sys/stat.h>              /* mkdir */
+#include <err.h>                   /* warn */
+#include <yaml.h>                  /* yaml_parser_t */
 
-#include <CUnit/Basic.h>
-#include <CUnit/Automated.h>
-#include <CUnit/Console.h>
-#include <CUnit/TestDB.h>
-#include <CUnit/TestRun.h>
-
-#include "lib/assert.h"            /* M0_ASSERT */
-#include "lib/thread.h"            /* LAMBDA */
-#include "lib/memory.h"            /* m0_allocated */
-#include "lib/atomic.h"
-#include "lib/list.h"
+#include "lib/memory.h"           /* M0_ALLOC_PTR */
+#include "lib/errno.h"            /* EINVAL */
+#include "lib/string.h"           /* m0_strdup */
+#include "lib/list.h"             /* m0_list */
+#include "lib/finject.h"          /* m0_fi_fpoint_data */
+#include "lib/finject_internal.h" /* m0_fi_fpoint_type_from_str */
+#include "ut/ut_internal.h"
 #include "ut/ut.h"
-#include "ut/cs_service.h"
-#include "db/db.h"		   /* m0_dbenv_reset */
 
 
-/**
- * @addtogroup ut
- *
- * @{
- */
+static int remove_sandbox(const char *sandbox)
+{
+	char *cmd;
+	int   rc;
 
+	if (sandbox == NULL)
+		return 0;
 
-static struct m0_list  test_suites;
+	rc = asprintf(&cmd, "rm -fr '%s'", sandbox);
+	M0_ASSERT(rc > 0);
 
-int m0_ut_init(void)
+	rc = system(cmd);
+	if (rc != 0)
+		warn("*WARNING* sandbox cleanup at \"%s\" failed: %i\n",
+		     sandbox, rc);
+
+	free(cmd);
+	return rc;
+}
+
+int m0_arch_ut_init(const struct m0_ut_cfg *config)
 {
 	int rc;
 
-	m0_list_init(&test_suites);
+	setbuf(stdout, NULL);
+	setbuf(stderr, NULL);
 
-	M0_CASSERT(CUE_SUCCESS == 0);
-	rc = -CU_initialize_registry();
+	if (config->uc_sandbox == NULL)
+		return 0;
 
-	return rc ?: m0_cs_default_stypes_init();
+	rc = remove_sandbox(config->uc_sandbox);
+	if (rc != 0)
+		return rc;
+
+	rc = mkdir(config->uc_sandbox, 0700) ?: chdir(config->uc_sandbox);
+	if (rc != 0)
+		/* don't care about return value of remove_sandbox() here */
+		remove_sandbox(config->uc_sandbox);
+
+	return rc;
 }
 
-void m0_ut_fini(void)
+void m0_arch_ut_fini(const struct m0_ut_cfg *config)
 {
-	struct m0_test_suite *entry;
-	struct m0_test_suite *n;
+	int rc;
 
-	m0_list_for_each_entry_safe(&test_suites, entry, n,
-			struct m0_test_suite, ts_linkage) {
-		m0_list_del(&entry->ts_linkage);
-	}
-	m0_list_fini(&test_suites);
+	rc = chdir("..");
+	M0_ASSERT(rc == 0);
 
-	m0_cs_default_stypes_fini();
-	CU_cleanup_registry();
-	M0_ASSERT(CU_get_error() == 0);
-}
-
-M0_INTERNAL void m0_ut_submit(const struct m0_test_suite *ts)
-{
-	struct m0_list_link *ts_link = (struct m0_list_link *)&ts->ts_linkage;
-	CU_pSuite            pSuite;
-	int                  i;
-
-	m0_list_link_init(ts_link);
-	m0_list_add_tail(&test_suites, ts_link);
-
-	/* add a suite to the CUnit registry */
-	pSuite = CU_add_suite(ts->ts_name, ts->ts_init, ts->ts_fini);
-	M0_ASSERT(pSuite != NULL);
-
-	for (i = 0; ts->ts_tests[i].t_name != NULL; i++) {
-		if (CU_add_test(pSuite, ts->ts_tests[i].t_name,
-				ts->ts_tests[i].t_proc) == NULL)
-			break;
-	}
-
-	M0_ASSERT(ts->ts_tests[i].t_name == NULL);
-}
-
-typedef void (*ut_suite_action_t)(CU_pSuite);
-typedef void (*ut_test_action_t)(CU_pSuite, CU_pTest);
-
-static void ut_traverse_test_list(struct m0_list *list, ut_suite_action_t sa,
-				  ut_test_action_t ta)
-{
-	struct m0_test_suite_entry *te;
-
-	m0_list_for_each_entry(list, te,
-			       struct m0_test_suite_entry, tse_linkage) {
-		CU_pTestRegistry r;
-		CU_pSuite s;
-		CU_pTest t;
-
-		r = CU_get_registry();
-		s = CU_get_suite_by_name(te->tse_suite_name, r);
-
-		if (s == NULL) {
-			fprintf(stderr, "Error: test suite '%s' not found\n",
-					te->tse_suite_name);
-			exit(EXIT_FAILURE);
-		}
-
-		if (te->tse_test_name != NULL) {
-			t = CU_get_test_by_name(te->tse_test_name, s);
-			if (t == NULL) {
-				fprintf(stderr, "Error: test '%s:%s' not found\n",
-						te->tse_suite_name,
-						te->tse_test_name);
-				exit(EXIT_FAILURE);
-			}
-			ta(s, t);
-		} else {
-			sa(s);
-		}
-	}
-}
-
-static void ut_run_basic_mode(struct m0_list *test_list,
-	       struct m0_list *exclude_list)
-{
-	if (m0_list_is_empty(test_list)) {
-		/* run all tests, except those, which present in exclude_list */
-		if (!m0_list_is_empty(exclude_list)) {
-			ut_suite_action_t sa = LAMBDA(void, (CU_pSuite s) {
-							s->fActive = CU_FALSE;
-						});
-			ut_test_action_t ta = LAMBDA(void,
-						     (CU_pSuite s, CU_pTest t) {
-							t->fActive = CU_FALSE;
-						});
-			ut_traverse_test_list(exclude_list, sa, ta);
-		}
-		CU_basic_run_tests();
-	} else {
-		/*
-		 * run only selected tests, which present in test_list,
-		 * ignore exclude_list
-		 */
-		ut_suite_action_t sa = LAMBDA(void, (CU_pSuite s) {
-					CU_basic_run_suite(s);
-				});
-		ut_test_action_t ta = LAMBDA(void, (CU_pSuite s, CU_pTest t) {
-					CU_basic_run_test(s, t);
-				});
-		ut_traverse_test_list(test_list, sa, ta);
-	}
-
-	CU_basic_show_failures(CU_get_failure_list());
-}
-
-static size_t used_mem_before_suite;
-
-static void ut_suite_start_cbk(const CU_pSuite pSuite)
-{
-	used_mem_before_suite = m0_allocated();
-}
-
-static void ut_suite_stop_cbk(const CU_pSuite pSuite,
-			      const CU_pFailureRecord pFailure)
-{
-	size_t used_mem_after_suite = m0_allocated();
-	int    leaked_bytes = used_mem_after_suite - used_mem_before_suite;
-	float  leaked;
-	char   *units;
-	char   *notice = "";
-	int    sign = +1;
-
-	if (leaked_bytes < 0) {
-		leaked_bytes *= -1; /* make it positive */
-		sign = -1;
-		notice = "NOTICE: freed more memory than allocated!";
-	}
-
-	if (leaked_bytes / 1024 / 1024 ) { /* > 1 megabyte */
-		leaked = leaked_bytes / 1024.0 / 1024.0;
-		units = "MB";
-	} else if (leaked_bytes / 1024) {  /* > 1 kilobyte */
-		leaked = leaked_bytes / 1024.0;
-		units = "KB";
-	} else {
-		leaked = leaked_bytes;
-		units = "B";
-	}
-
-	printf("\n  Leaked: %.2f %s  %s", sign * leaked, units, notice);
-
-}
-
-static void ut_set_suite_start_stop_cbk(void)
-{
-	CU_set_suite_start_handler(ut_suite_start_cbk);
-	CU_set_suite_complete_handler(ut_suite_stop_cbk);
-}
-
-M0_INTERNAL void m0_ut_run(struct m0_ut_run_cfg *c)
-{
-	ut_set_suite_start_stop_cbk();
-
-	if (c->urc_report_exec_time)
-		CU_basic_set_mode(CU_BRM_VERBOSE_TIME);
-	else
-		CU_basic_set_mode(CU_BRM_VERBOSE);
-
-	if (c->urc_abort_cu_assert)
-		CU_set_assert_mode(CUA_Abort);
-
-	if (c->urc_mode == M0_UT_AUTOMATED_MODE) {
-		/* run and save results to xml */
-
-		/*
-		 * CUnit uses the name we provide as a prefix for log files.
-		 * The actual log file names are PREFIX-Listing.xml and
-		 * PREFIX-Results.xml, where PREFIX is what we pass to
-		 * CU_set_output_filename().
-		 *
-		 * Because we run in the sandbox directory, which is removed by
-		 * default after test execution, we need to prepend '../' to the
-		 * filename, in order to store it outside of sandbox. */
-		CU_set_output_filename("../M0UT");
-
-		CU_list_tests_to_file();
-		CU_automated_run_tests();
-	} else {
-		/* run and make console output */
-		if (c->urc_mode == M0_UT_BASIC_MODE) {
-			ut_run_basic_mode(c->urc_test_list, c->urc_exclude_list);
-		} else if (c->urc_mode == M0_UT_ICONSOLE_MODE) {
-			CU_console_run_tests();
-		}
-	}
-}
-
-M0_INTERNAL void m0_ut_list(bool with_tests)
-{
-	CU_pTestRegistry registry;
-	CU_pSuite        suite;
-	CU_pTest         test;
-
-	registry = CU_get_registry();
-	M0_ASSERT(registry != NULL);
-
-	if (registry->uiNumberOfSuites == 0) {
-		fprintf(stderr, "\n%s\n", "No test suites are registered.");
-		return;
-	}
-
-	printf("Available unit tests:\n");
-	for (suite = registry->pSuite; suite != NULL; suite = suite->pNext)
-		if (with_tests && suite->uiNumberOfTests != 0) {
-			printf("%s:\n", suite->pName);
-			for (test = suite->pTest; test != NULL;
-			     test = test->pNext)
-				printf("    - %s\n", test->pName);
-		} else {
-			printf("%s\n", suite->pName);
-		}
-}
-
-M0_INTERNAL void m0_ut_owners_list(bool yaml)
-{
-
-	struct m0_test_suite *ts;
-	const struct m0_test *t;
-	bool                  tests_group_printed = false;
-	char                  buf[256];
-
-	if (yaml)
-		printf("ut_owners:\n");
-	else
-		printf("UT Owners:\n");
-
-	m0_list_for_each_entry(&test_suites, ts, struct m0_test_suite,
-			       ts_linkage)
-	{
-		if (yaml) {
-			printf("  %s:\n", ts->ts_name);
-			printf("    %-30s [ %s ]\n", "main:", ts->ts_owners);
-		} else {
-			printf("  %-32s : %s\n", ts->ts_name, ts->ts_owners);
-		}
-
-		tests_group_printed = false;
-
-		for (t = &ts->ts_tests[0]; t->t_name != NULL; ++t)
-			if (t->t_owner != NULL) {
-				if (yaml) {
-					if (!tests_group_printed) {
-						printf("    tests:\n");
-						tests_group_printed = true;
-					}
-					snprintf(buf, sizeof buf, "%s:",
-						 t->t_name);
-					printf("      %-26s     %s\n",
-					       buf, t->t_owner);
-				} else {
-					printf("    %-30s :   %s\n",
-					       t->t_name, t->t_owner);
-				}
-			}
-	}
-}
-
-M0_INTERNAL int m0_ut_db_reset(const char *db_name)
-{
-#if 0
-        char *cmd;
-	int   rc;
-
-	rc = asprintf(&cmd, "rm -fr \"%s\"", db_name);
-        if (rc < 0)
-                return rc;
-	rc = system(cmd);
-	free(cmd);
-#endif
-	m0_dbenv_reset(db_name);
-	return 0;
+        if (!config->uc_keep_sandbox)
+                remove_sandbox(config->uc_sandbox);
 }
 
 M0_INTERNAL void m0_stream_redirect(FILE * stream, const char *path,
@@ -399,6 +151,217 @@ M0_INTERNAL bool m0_error_mesg_match(FILE * fp, const char *mesg)
 	}
 	return false;
 }
+
+#ifdef ENABLE_FAULT_INJECTION
+
+M0_INTERNAL int m0_ut_enable_fault_point(const char *str)
+{
+	int  rc = 0;
+	int  i;
+	char *s;
+	char *token;
+	char *subtoken;
+	char *token_saveptr = NULL;
+	char *subtoken_saveptr = NULL;
+
+	const char *func;
+	const char *tag;
+	const char *type;
+	const char *data1;
+	const char *data2;
+	const char **fp_map[] = { &func, &tag, &type, &data1, &data2 };
+
+	struct m0_fi_fpoint_data data = { 0 };
+
+	if (str == NULL)
+		return 0;
+
+	s = m0_strdup(str);
+	if (s == NULL)
+		return -ENOMEM;
+
+	while (true) {
+		func = tag = type = data1 = data2 = NULL;
+
+		token = strtok_r(s, ",", &token_saveptr);
+		if (token == NULL)
+			break;
+
+		subtoken = token;
+		for (i = 0; i < sizeof fp_map; ++i) {
+			subtoken = strtok_r(token, ":", &subtoken_saveptr);
+			if (subtoken == NULL)
+				break;
+
+			*fp_map[i] = subtoken;
+
+			/*
+			 * token should be NULL for subsequent strtok_r(3) calls
+			 */
+			token = NULL;
+		}
+
+		if (func == NULL || tag == NULL || type == NULL) {
+			warn("Incorrect fault point specification\n");
+			rc = -EINVAL;
+			goto out;
+		}
+
+		data.fpd_type = m0_fi_fpoint_type_from_str(type);
+		if (data.fpd_type == M0_FI_INVALID_TYPE) {
+			warn("Incorrect fault point type '%s'\n", type);
+			rc = -EINVAL;
+			goto out;
+		}
+
+		if (data.fpd_type == M0_FI_RANDOM) {
+			if (data1 == NULL) {
+				warn("No probability was specified"
+						" for 'random' FP type\n");
+				rc = -EINVAL;
+				goto out;
+			}
+			data.u.fpd_p = atoi(data1);
+		} else if (data.fpd_type == M0_FI_OFF_N_ON_M) {
+			if (data1 == NULL || data2 == NULL) {
+				warn("No N or M was specified"
+						" for 'off_n_on_m' FP type\n");
+				rc = -EINVAL;
+				goto out;
+			}
+			data.u.s1.fpd_n = atoi(data1);
+			data.u.s1.fpd_m = atoi(data2);
+		}
+
+		m0_fi_enable_generic(func, tag, &data);
+
+		/* s should be NULL for subsequent strtok_r(3) calls */
+		s = NULL;
+	}
+out:
+	m0_free(s);
+	return rc;
+}
+
+static inline const char *pair_key(yaml_document_t *doc, yaml_node_pair_t *pair)
+{
+	return (const char*)yaml_document_get_node(doc, pair->key)->data.scalar.value;
+}
+
+static inline const char *pair_val(yaml_document_t *doc, yaml_node_pair_t *pair)
+{
+	return (const char*)yaml_document_get_node(doc, pair->value)->data.scalar.value;
+}
+
+static int extract_fpoint_data(yaml_document_t *doc, yaml_node_t *node,
+			       const char **func, const char **tag,
+			       struct m0_fi_fpoint_data *data)
+{
+	yaml_node_pair_t *pair;
+
+	for (pair = node->data.mapping.pairs.start;
+	     pair < node->data.mapping.pairs.top; pair++) {
+		const char *key = pair_key(doc, pair);
+		const char *val = pair_val(doc, pair);
+		if (strcmp(key, "func") == 0) {
+			*func = val;
+		} else if (strcmp(key, "tag") == 0) {
+			*tag = val;
+		} else if (strcmp(key, "type") == 0) {
+			data->fpd_type = m0_fi_fpoint_type_from_str(val);
+			if (data->fpd_type == M0_FI_INVALID_TYPE) {
+				warn("Incorrect FP type '%s'\n", val);
+				return -EINVAL;
+			}
+		}
+		else if (strcmp(key, "p") == 0) {
+			data->u.fpd_p = atoi(val);
+		} else if (strcmp(key, "n") == 0) {
+			data->u.s1.fpd_n = atoi(val);
+		} else if (strcmp(key, "m") == 0) {
+			data->u.s1.fpd_m = atoi(val);
+		} else {
+			warn("Incorrect key '%s' in yaml file\n", key);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
+static int process_yaml(yaml_document_t *doc)
+{
+	int          rc;
+	yaml_node_t  *node;
+	const char   *func = 0;
+	const char   *tag = 0;
+
+	struct m0_fi_fpoint_data data = { 0 };
+
+	for (node = doc->nodes.start; node < doc->nodes.top; node++)
+		if (node->type == YAML_MAPPING_NODE) {
+			rc = extract_fpoint_data(doc, node, &func, &tag, &data);
+			if (rc != 0)
+				return rc;
+			m0_fi_enable_generic(strdup(func), m0_strdup(tag), &data);
+		}
+
+	return 0;
+}
+
+M0_INTERNAL int m0_ut_enable_fault_points_from_file(const char *file_name)
+{
+	int rc = 0;
+	FILE *f;
+	yaml_parser_t parser;
+	yaml_document_t document;
+
+	f = fopen(file_name, "r");
+	if (f == NULL) {
+		warn("Failed to open fault point yaml file '%s'", file_name);
+		return -ENOENT;
+	}
+
+	rc = yaml_parser_initialize(&parser);
+	if (rc != 1) {
+		warn("Failed to init yaml parser\n");
+		rc = -EINVAL;
+		goto fclose;
+	}
+
+	yaml_parser_set_input_file(&parser, f);
+
+	rc = yaml_parser_load(&parser, &document);
+	if (rc != 1) {
+		warn("Incorrect YAML file\n");
+		rc = -EINVAL;
+		goto pdel;
+	}
+
+	rc = process_yaml(&document);
+
+	yaml_document_delete(&document);
+pdel:
+	yaml_parser_delete(&parser);
+fclose:
+	fclose(f);
+
+	return rc;
+}
+
+#else /* ENABLE_FAULT_INJECTION */
+
+int m0_ut_enable_fault_point(char *str)
+{
+	return 0;
+}
+
+int m0_ut_enable_fault_points_from_file(const char *file_name)
+{
+	return 0;
+}
+
+#endif /* ENABLE_FAULT_INJECTION */
 
 /** @} end of ut group */
 

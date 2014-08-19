@@ -22,6 +22,7 @@
 
 #include "lib/memory.h"		/* M0_ALLOC_PTR */
 #include "lib/thread.h"		/* M0_THREAD_INIT */
+#include "lib/arith.h"		/* m0_rnd64 */
 
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "ut/threads.h"		/* M0_UT_THREADS_DEFINE */

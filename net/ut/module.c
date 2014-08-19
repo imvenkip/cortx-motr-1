@@ -42,7 +42,7 @@ static void test_net_modules(void)
 		 * `another_instance'.
 		 */
 		rc = m0_module_init(xprt_m, M0_LEVEL_NET_DOMAIN);
-		M0_UT_FAIL("The program should have failed earlier");
+		M0_IMPOSSIBLE("The program should have failed earlier");
 	}
 #undef CURIOUS
 
@@ -58,7 +58,7 @@ static void test_net_modules(void)
 	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);
 }
 
-const struct m0_test_suite m0_net_module_ut = {
+struct m0_ut_suite m0_net_module_ut = {
 	.ts_name  = "net-module",
 	.ts_tests = {
 		{ "test", test_net_modules },

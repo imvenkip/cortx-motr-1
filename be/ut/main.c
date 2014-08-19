@@ -74,7 +74,7 @@ extern void m0_be_ut_fake_mkfs(void);
 extern void m0_be_ut_seg0_test(void);
 
 
-const struct m0_test_suite be_ut = {
+struct m0_ut_suite be_ut = {
 	.ts_name = "be-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

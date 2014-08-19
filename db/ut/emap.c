@@ -23,8 +23,9 @@
 #include "lib/arith.h"    /* M0_3WAY, m0_uint128 */
 #include "lib/vec.h"
 #include "lib/types.h"
-#include "ut/ut.h"
 #include "lib/ub.h"
+#include "ut/ut.h"
+#include "db/db.h"        /* m0_dbenv_reset */
 #include "db/extmap.h"
 
 static const char db_name[] = "ut-emap";
@@ -32,7 +33,8 @@ static const char emap_name[] = "test-emap";
 
 static int db_reset(void)
 {
-        return m0_ut_db_reset(db_name);
+	m0_dbenv_reset(db_name);
+	return 0;
 }
 
 static struct m0_dbenv       db;
@@ -190,7 +192,7 @@ static void test_obj_fini(void)
 }
 
 
-const struct m0_test_suite emap_ut = {
+struct m0_ut_suite emap_ut = {
 	.ts_name = "emap-ut",
 	.ts_init = db_reset,
 	.ts_fini = db_reset,

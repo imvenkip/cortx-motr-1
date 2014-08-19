@@ -24,6 +24,7 @@
 #include "lib/misc.h"                    /* M0_SET0 */
 #include "lib/bitstring.h"
 #include "lib/vec.h"
+#include "lib/errno.h"     /* ENOENT */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"                   /* M0_LOG */
@@ -34,6 +35,7 @@
 
 #include "lib/finject.h"
 
+#include "db/db.h"                       /* m0_dbenv_reset */
 #include "pool/pool.h"                   /* m0_pool_init(), m0_pool_fini() */
 #include "fid/fid.h"                     /* m0_fid_set() */
 #include "layout/layout.h"
@@ -78,7 +80,7 @@ static int test_init(void)
 	 */
 
 #ifndef __KERNEL__
-	m0_ut_db_reset(db_name);
+	m0_dbenv_reset(db_name);
 #endif
 
 	rc = m0_dbenv_init(&dbenv, db_name, DBFLAGS, true);
@@ -3636,7 +3638,7 @@ static void test_delete_failure(void)
 
 #endif /* __KERNEL__ */
 
-const struct m0_test_suite layout_ut = {
+struct m0_ut_suite layout_ut = {
 	.ts_name  = "layout-ut",
 	.ts_owners = "Trupti",
 	.ts_init  = test_init,

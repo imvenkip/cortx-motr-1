@@ -237,7 +237,7 @@ static int foo_it_fini(void)
         ...
 }
 
-const struct m0_test_suite foo_ut = {
+struct m0_ut_suite foo_ut = {
 	.ts_name = "foo-ut",
 	.ts_init = foo_ut_init, /* optional, may be NULL */
 	.ts_fini = foo_ut_fini, /* optional, may be NULL */
@@ -260,7 +260,7 @@ alphabetic order (search where other ut makefiles are included).
 
 In utils/ut_main.c add
 
-extern const struct m0_test_suite foo_ut;
+extern const struct m0_ut_suite foo_ut;
 
 declaration and
 

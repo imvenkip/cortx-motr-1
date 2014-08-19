@@ -1274,7 +1274,7 @@ static inline uint32_t block_nr(const struct m0_sns_ir *ir)
 	return ir->si_data_nr + ir->si_parity_nr;
 }
 
-const struct m0_test_suite parity_math_ut = {
+struct m0_ut_suite parity_math_ut = {
         .ts_name = "parity_math-ut",
         .ts_init = NULL,
         .ts_fini = NULL,
