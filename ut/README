@@ -4,7 +4,4 @@ similar code.
 
 *** NOTE ***  This library is linked as mero module and not as mero -ut
               library. This allows to use it in both - UTs and in standalone
-              programs which don't use CUnit (and in kernel space as well).
-              That's why it's important to avoid usage of CUnit constructs like
-              M0_UT_ASSERT in this lib.
-
+	      programs (and in kernel space as well).

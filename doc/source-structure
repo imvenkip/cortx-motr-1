@@ -14,7 +14,7 @@ Each major Mero sub-system and component has its own sub-directory.  Such
 sub-directory might contain other sub-directories for sub-sub-systems. In
 addition, a sub-directory might contain the following standard sub-directories:
 
-    - ut: for CUnit based unit testing and unit benchmarking;
+    - ut: for unit testing and unit benchmarking;
 
     - st: for system testing scripts;
 
@@ -200,8 +200,7 @@ success, negated errno value on failure.
 How to add a new unit test?
 ---------------------------
 
-M0 uses a unit test framework based on CUnit
-(http://cunit.sourceforge.net/).
+M0 uses its own a unit test framework, which work in user and kernel space
 
 To add a collection of unit tests ("test suite") for a module foo:
 
@@ -272,8 +271,7 @@ All unit tests are executed by ./utils/ut.
 
 A few comments:
 
-    * unit testing functions should use M0_UT_ASSERT() or other CUnit
-      macros (see <CUnit/CUnit.h>) for testing;
+    * unit testing functions should use M0_UT_ASSERT() for testing;
 
     * unit testing functions should produce no output;
 

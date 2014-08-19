@@ -222,7 +222,6 @@ if ENABLE_UNIT_TESTS
 noinst_LTLIBRARIES        += ut/libmero-ut.la
 endif
 ut_libmero_ut_la_CPPFLAGS  = -DM0_TARGET='libmero-ut' $(AM_CPPFLAGS)
-ut_libmero_ut_la_LIBADD    = @CUNIT_LIBS@
 
 ut_libmero_ut_la_SOURCES   =
 

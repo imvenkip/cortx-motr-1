@@ -33,8 +33,6 @@
    @defgroup ut Mero UT library
    @brief Common unit test library
 
-   CUnit based unit testing support
-
    The intent of this library is to include all code, which could be potentially
    useful for several UTs and thus can be shared, avoiding duplication of
    similar code.
@@ -144,16 +142,15 @@ M0_INTERNAL void m0_ut_list(bool with_tests);
 M0_INTERNAL void m0_ut_list_owners(void);
 
 /**
-   Implements UT assert logic in the kernel, where there is no CUnit.
-   Similar to CUnit UT assert, this logs failures but does not terminate
-   the process.
-   @param c the result of the boolean condition, evaluated by caller
-   @param lno line number of the assertion, eg __LINE__
-   @param str_c string representation of the condition, c
-   @param file path of the file, eg __FILE__
-   @param func name of the function which triggered assertion, eg __func__
-   @param panic flag, which controls whether this function should call
-                m0_panic() or just print error message and continue
+ * Implements UT assert logic in the kernel.
+ *
+ * @param c the result of the boolean condition, evaluated by caller
+ * @param lno line number of the assertion, eg __LINE__
+ * @param str_c string representation of the condition, c
+ * @param file path of the file, eg __FILE__
+ * @param func name of the function which triggered assertion, eg __func__
+ * @param panic flag, which controls whether this function should call
+ *              m0_panic() or just print error message and continue
  */
 M0_INTERNAL bool m0_ut_assertimpl(bool c, const char *str_c, const char *file,
 				  int lno, const char *func);

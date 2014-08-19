@@ -549,18 +549,6 @@ AS_IF([! test -x $GALOIS_SRC/configure],
       [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
 )
 
-# Check for CUnit
-
-AS_IF([test "x$enable_unit_tests" = xyes],
-      [
-          CUNIT_SRC=$SRCDIR/extra-libs/cunit
-          CUNIT_LIBS="$CUNIT_SRC/CUnit/Sources/libcunit.la"
-          CUNIT_INCLUDES="-I$CUNIT_SRC/CUnit/Headers"
-          AC_MSG_CHECKING([for cunit libs])
-          MERO_BUILD_LIB([cunit], [$CUNIT_SRC], [$CUNIT_LIBS])
-      ]
-)
-
 # Check for yaml
 
 AS_IF([test x$enable_system_libs = xyes],
@@ -589,7 +577,6 @@ CFLAGS=$OLD_CFLAGS
 AC_SUBST([GALOIS_ABS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
-AC_SUBST([CUNIT_LIBS])
 AC_SUBST([DB_LIBS])
 
 
@@ -645,7 +632,7 @@ AS_IF([test x$enable_mcheck = xyes],
 # Set up build variables
 #
 
-M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $CUNIT_INCLUDES $DB_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
+M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $DB_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
@@ -756,7 +743,6 @@ echo "AIO_LIBS     :  \"$AIO_LIBS\""
 echo "RT_LIBS      :  \"$RT_LIBS\""
 echo "PROFILER_LIBS:  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS  :  \"$GALOIS_LIBS\""
-echo "CUNIT_LIBS   :  \"$CUNIT_LIBS\""
 echo "YAML_LIBS    :  \"$YAML_LIBS\""
 echo "DB_LIBS      :  \"$DB_LIBS\""
 echo "UUID_LIBS    :  \"$UUID_LIBS\""
