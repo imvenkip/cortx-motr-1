@@ -34,14 +34,20 @@
  * Overview
  * --------
  *
- * Clovis is *the* interface exported by Mero for use by Mero
+ * Clovis is *the* interface exported by Mero for use by the Mero
  * applications. Examples of Mero applications are:
  *
  *     - Mero file system client (m0t1fs);
  *
- *     - Lustre osd-mero module;
+ *     - Lustre osd-mero module (part of LOMO);
  *
- *     - Mero-based block device.
+ *     - Lustre HSM backend (part of AA);
+ *
+ *     - SWIFT backend (part of WOMO);
+ *
+ *     - Mero-based block device;
+ *
+ *     - exascale E10 stack (see eiow.org).
  *
  * Note that FDMI plugins use a separate interface.
  *
@@ -66,16 +72,14 @@
  *     - transaction (m0_clovis_dtx) is a collection of operations atomic in the
  *       face of failures;
  *
- *     - epoch (m0_clovis_epoch) is...
+ *     - epoch (m0_clovis_epoch) is a collection of operations done by an
+ *       application, which moves the system from one application-consistent
+ *       state to another;
  *
  *     - container (m0_clovis_container) is a collection of objects used by a
  *       particular application or group of applications.
  *
- * Object, index and scope are sub-types of entity (m0_clovis_entity). An entity
- * exists in some scope and has a 128-bit identifier, unique within all entities
- * of the same type in the scope. Identifier management is up to the
- * application, except for the single reserved identifier for "uber scope"
- * (M0_CLOVIS_UBER_SCOPE), representing the root of scope hierarchy.
+ * Object, index and scope are sub-types of entity (m0_clovis_entity).
  *
  * All clovis entry points are non-blocking. To perform a potentially lengthy
  * activity, that might involve network communication (for example, read from an
@@ -86,6 +90,17 @@
  * m0_clovis_op_launch(). Separation of setup and launch provides for more
  * efficient network communication, where multiple operations are accumulated in
  * the same network message.
+ *
+ * In-memory structures (m0_clovis_{obj,index,scope,...}) correspond to some
+ * storage entities maintained by the implementation. The implementation does
+ * not enforce this correspondence. If an application keeps multiple in-memory
+ * structures for the same storage entity (whether in the same process address
+ * space or not), it is up to the application to keep the structures coherent
+ * (the very notion of coherency, obviously, being application-dependent). At
+ * the one end of the spectrum, an application can employ a fully coherent,
+ * distributed cache for entities, providing strong consistency guarantees. On
+ * the other end, an application can tolerate multiple inconsistent views of the
+ * same storage entities, providing NFSv2-like semantics.
  *
  * Sub-typing
  * ----------
@@ -113,9 +128,26 @@
  *                  +---- dtx (init)
  *
  *
- *        op (init, wait, fini) [has private sub-types in clovis_private.h]
+ *        op (init, wait, setup, launch, kick, free, fini)
+ *           [has private sub-types in clovis_private.h]
  *
  * @endverbatim
+ *
+ * Identifiers
+ * -----------
+ *
+ * An entity exists in some scope and has a 128-bit identifier, unique within
+ * the entity scope. High 8 bits of an identifier denote entity type. Identifier
+ * management is up to the application, except that the single identifier
+ * M0_CLOVIS_UBER_SCOPE is reserved for the "uber scope", representing the root
+ * of the scope hierarchy, and within each entity type, identifiers less than
+ * M0_CLOVIS_ID_APP are reserved for the implementation internal use.
+ *
+ * The implementation is free to reserve some 8-bit combinations for its
+ * internal use.
+ *
+ * @todo an interface to register 8-bit combinations for application use (to
+ * introduce application-specific "entity-like" things).
  *
  * Operations
  * ----------
@@ -161,14 +193,25 @@
  *
  * In case of successful execution, a launched operation structure eventually
  * reaches EXECUTED state, meaning that the operation was executed at least in
- * the volatile stores of the respective services, and, in the fullness of time,
- * STABLE state, meaning that the implementation guarantees that the operation
- * would survive any "allowed failure", where allowed failures include at least
- * transient service failures (crash and restart with volatile store loss),
- * transient network failures and client failures.
+ * the volatile stores of the respective services. When the operation enter
+ * EXECUTED state, m0_clovis_op_ops::oop_executed() call-back, if provided by
+ * the application, is invoked. By the time this state is entered, operation
+ * return code is in m0_clovis_op::op_sm::sm_rc. and all return information
+ * (object data in case of READ, keys and values in case of GET and NEXT) are
+ * already placed in the application-supplied buffers.
  *
- * In case of a failure, the operation structure moves into FAILED state and no
- * further state transitions will ensue.
+ * After an operation has been executed, it can still be lost due to a
+ * failure. The implementation continues to work toward making the operation
+ * stable. When this activity successfully terminates, the operation enters
+ * STABLE state and m0_clovis_op_ops::oop_stable() call-back is invoked, if
+ * provided. Once an operation is stable, the implementation guarantees that the
+ * operation would survive any "allowed failure", where allowed failures include
+ * at least transient service failures (crash and restart with volatile store
+ * loss), transient network failures and client failures.
+ *
+ * In case of a failure, the operation structure moves into FAILED state,
+ * m0_clovis_op_ops::oop_failed() call-back is invoked, and no further state
+ * transitions will ensue.
  *
  * The implementation is free to add another states to the operation state
  * machine.
@@ -177,9 +220,9 @@
  * member.
  *
  * The application can track the state of the operation either synchronously, by
- * waiting until the operation reaches a particular state, or asynchronously by
- * supplying (m0_clovis_op_setup()) a call-back to be called when the operation
- * reaches a particular state.
+ * waiting until the operation reaches a particular state (m0_clovis_op_wait()),
+ * or asynchronously by supplying (m0_clovis_op_setup()) a call-back to be
+ * called when the operation reaches a particular state.
  *
  * Operation structures are either pre-allocated by the application or allocated
  * by the appropriate entry points, see "op" parameter of m0_clovis_obj_op() for
@@ -233,18 +276,176 @@
  * Object
  * ------
  *
- * TBD.
+ * A clovis object is an array of blocks, which can be read from and written
+ * onto at the block granularity.
+ *
+ * Block size is a power of two bytes and is selected at the object creation
+ * time.
+ *
+ * An object has no usual application-visible meta-data (in particular, it has
+ * no size). Instead it has meta-data, called "block attributes" associated with
+ * each block. Block attributes can be used to store check-sums, version
+ * numbers, hashes, etc. Because of the huge number of blocks in a typical
+ * system, the overhead of block attributes book-keeping must be kept at
+ * minimum, which puts restrictions on block attribute access interface (@todo
+ * to be described).
+ *
+ * There are 4 types of object operations:
+ *
+ *     - READ: transfer blocks and block attributes from an object to
+ *       application buffers;
+ *
+ *     - WRITE: transfer blocks and block attributes from application buffers to
+ *       an object;
+ *
+ *     - ALLOC: pre-allocate certain blocks in an implementation-dependent
+ *       manner. This operation guarantees that consecutive WRITE onto
+ *       pre-allocated blocks will not fail due to lack of storage space;
+ *
+ *     - FREE: free storage resources used by specified object
+ *       blocks. Consecutive reads from the blocks will return zeroes.
+ *
+ * READ and WRITE operations are fully scatter-gather-scatter: data are
+ * transferred between a sequence of object extents and a sequence of
+ * application buffers, the only restrictions being:
+ *
+ *     - total lengths of the extents must be equal to the total size of the
+ *       buffers, and
+ *
+ *     - extents must be block-size aligned and sizes of extents and buffers
+ *       must be multiples of block-size.
+ *
+ * Internally, the implementation stores an object according to the object
+ * layout (specified at the object creation time). The layout determines
+ * fault-tolerance and performance related characteristics of the
+ * object. Examples of layout are:
+ *
+ *     - network striping with parity de-clustering. This is the default layout,
+ *       it provides a flexible level of fault-tolerance, high availability in
+ *       the face of permanent storage device failures and full utilisation of
+ *       storage resources;
+ *
+ *     - network striping without parity (raid0). This provides higher space
+ *       utilisation and less processor costs than parity de-clustering at the
+ *       expense of fault-tolerance;
+ *
+ *     - network mirroring (raid1). This provides high fault-tolerance and
+ *       availability at the cost of storage space consumption;
+ *
+ *     - de-dup, compression, encryption.
  *
  * Index
  * -----
  *
- * TBD.
- * @note operations with non-existent keys.
+ * A clovis index is a key-value store.
+ *
+ * An index stores records, each record consisting of a key and a value. Keys
+ * and values within the same index can be of variable size. Keys are ordered by
+ * the lexicographic ordering of their bit-level representation. Records are
+ * ordered by the key ordering. Keys are unique within an index.
+ *
+ * There are 4 types of index operations:
+ *
+ *     - GET: given a set of keys, return the matching records from the index;
+ *
+ *     - PUT: given a set of records, place them in the index, overwriting
+ *       existing records if necessary, inserting new records otherwise;
+ *
+ *     - DEL: given a set of keys, delete the matching records from the index;
+ *
+ *     - NEXT: given a set of keys, return the records with the next (in the
+ *       ascending key order) from the index.
+ *
+ * Indices are stored according to a layout, much like objects.
  *
  * Scope
  * -----
  *
- * TBD.
+ * To define what a scope is, consider the entire history of a Clovis storage
+ * system. In the history, each object and index is represented as a "world
+ * line" (https://en.wikipedia.org/wiki/World_line), which starts when the
+ * entity is created and ends when it is deleted. Points on the world line
+ * correspond to operations that update entity state.
+ *
+ * A scope is the union of some continuous portions of different world
+ * lines. That is, a scope is given by a collection of entities and, for each
+ * entity in the collection, a start and an end points (operations) on the
+ * entity world line. A scope can be visualised as a cylinder in the history.
+ *
+ * The restriction placed on scopes is that each start point in a scope must
+ * either be the first point in a world line (i.e., the corresponding entity is
+ * created in the scope) or belong to the same scope, called the parent of the
+ * scope in question. This arranges scopes in a tree.
+ *
+ * @note Scopes are *not* necessarily disjoint.
+ *
+ * A scope can be in the following application-controllable states:
+ *
+ *     - OPEN: in this state the scope can be extended by executing new
+ *       operations against entities already in the scope or creating new
+ *       entities in the scope;
+ *
+ *     - CLOSED: in this state the scope can no longer be extended, but it is
+ *       tracked by the system and maintains its identity. Entities in a closed
+ *       scope can be located and read-only operations can be executed on them;
+ *
+ *     - ABSORBED: in this state the scope is no longer tracked by the
+ *       system. All the operations executed as part of the scope are by now
+ *       stable and absorbed in the parent scope;
+ *
+ *     - FAILED: an application aborted the scope or the implementation
+ *       unilaterally decided to abort it. The operations executed in the scope
+ *       are undone together with a transitive closure of dependent operations
+ *       (the precise definition being left to the implementation
+ *       discretion). Thus, failure of a scope can lead to cascading failures of
+ *       other scopes.
+ *
+ * Examples of scopes are:
+ *
+ *     - a container (m0_clovis_container) can be thought of as a "place" where
+ *       a particular storage application lives. In a typical scenario, when an
+ *       application is setup on a system, a new container, initially empty,
+ *       will be created for the application. The application can create new
+ *       entities in the container and manipulate them without risk of conflicts
+ *       (e.g., for identifier allocation) with other applications. A container
+ *       can be thought of as a virtualised storage system for an application. A
+ *       container scope is open as long as application needs its persistent
+ *       data. When the application is uninstalled, its scope is deleted;
+ *
+ *     - a snapshot scope is created with a container as the parent and is
+ *       immediately closed. From now on, the snapshot provides a read-only view
+ *       of container objects at the moment of snapshot creation. Finally, the
+ *       snapshot is deleted. If a snapshot is not closed immediately, but
+ *       remain open, it is a writeable snapshot (clone)---a separate branch in
+ *       container history. A clone is eventually deleted without being absorbed
+ *       in the parent container;
+ *
+ *     - an epoch (m0_clovis_epoch) is a scope capturing part of application
+ *       work-flow for resilience. Often an HPC application works by
+ *       interspersing "compute phases" when actual data processing is done with
+ *       "IO phase" when a checkpoint of application state is saved on the
+ *       storage system for failure recovery purposes. A clovis application
+ *       would, instead, keep an open "current" epoch scope, closed at the
+ *       compute-IO phase transition, with the new epoch opened immediately. The
+ *       scope tree for such application would look like
+ *
+ * @verbatim
+ *
+ *     CONTAINER--->E--->E---...->E--->CURRENT
+ *
+ * @endverbatim
+ *
+ *       Where all E epochs are closed and in the process of absorbtion, and all
+ *       earlier epochs already absorbed in the container.
+ *
+ *       If the application fails, it can restart either from the container or
+ *       from any closed epoch, which are all guaranteed to be consistent, that
+ *       is, reflect storage state at the boundry of a compute phase. The final
+ *       CURRENT epoch is potentially inconsistent after a failure and should be
+ *       deleted.
+ *
+ *     - a distributed transaction (m0_clovis_dtx) is a group of operations,
+ *       which must be atomic w.r.t. to failures.
  *
  * Ownership
  * ---------
@@ -264,9 +465,9 @@
  * Data blocks used by scatter-gather-scatter lists and key-value records are
  * allocated by the application. For read-only operations M0_CLOVIS_OC_READ,
  * M0_CLOVIS_IC_GET and M0_CLOVIS_IC_NEXT) the application may free the data
- * blocks as soon as the operation completes or fails. For updating operations,
- * the data blocks may be freed as soon as the scope of which the operation is
- * part, becomes stable.
+ * blocks as soon as the operation reaches EXECUTED or FAILED state. For
+ * updating operations, the data blocks must remain allocated until the
+ * operation stabilises.
  *
  * Concurrency
  * -----------
@@ -279,6 +480,12 @@
  * application.
  *
  * @see https://docs.google.com/a/xyratex.com/document/d/sHUAUkByacMNkDBRAd8-AbA
+ *
+ * @todo entity type structures (to provide constructors, 8-bit identifier tags
+ * and an ability to register new entity types).
+ *
+ * @todo handling of extensible attributes (check-sums, version numbers, etc.),
+ * which require interaction with the implementation on the service side.
  *
  * @{
  */
@@ -435,13 +642,21 @@ struct m0_clovis_dtx {
  * Operation call-backs.
  */
 struct m0_clovis_op_ops {
-	void (*oop_replied)(struct m0_clovis_op *op);
-	void (*oop_aborted)(struct m0_clovis_op *op);
-	void (*oop_done)   (struct m0_clovis_op *op);
+	void (*oop_executed)(struct m0_clovis_op *op);
+	void (*oop_failed)(struct m0_clovis_op *op);
+	void (*oop_stable)   (struct m0_clovis_op *op);
 };
 
 /** The identifier of the root of scope hierarchy. */
 extern const struct m0_uint128 M0_CLOVIS_UBER_SCOPE;
+
+/**
+ * First identifier that applications are free to use.
+ *
+ * It is guaranteed that M0_CLOVIS_UBER_SCOPE falls into reserved extent.
+ * @invariant m0_uint128_cmp(&M0_CLOVIS_UBER_SCOPE, &M0_CLOVIS_ID_APP) < 0
+ */
+extern const struct m0_uint128 M0_CLOVIS_ID_APP;
 
 /**
  * Sets application-manipulable operation parameters.
@@ -467,8 +682,43 @@ void m0_clovis_op_launch(struct m0_clovis_op **op, uint32_t nr);
  *
  * The "bits" parameter is a bitmask of states based on
  * m0_clovis_op_state. M0_BITS() macro should be used to build a bitmask.
+ *
+ * @param to - absolute timeout for the wait.
+ *
+ * @code
+ * // Wait until the operation completes, 10 seconds max.
+ * result = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE,
+ *                                        M0_CLOVIS_OS_FAILED),
+ *                            m0_time_from_now(10, 0));
+ * if (result == -ETIMEDOUT)
+ *          // Timed out.
+ * else if (result == 0) {
+ *         // Wait completed in time.
+ *         if (op->op_sm.sm_state == M0_CLOVIS_OS_STABLE) {
+ *                 ...
+ *         } else {
+ *                 M0_ASSERT(op->op_sm.sm_state == M0_CLOVIS_OS_FAILED);
+ *                 ...
+ *         }
+ * } else {
+ *         // Some other error.
+ * }
+ * @endcode
  */
-int32_t m0_clovis_op_wait(struct m0_clovis_op *op, uint64_t bits);
+int32_t m0_clovis_op_wait(struct m0_clovis_op *op, uint64_t bits, m0_time_t to);
+
+/**
+ * Asks the implementation to speed up progress of this operation toward
+ * stability.
+ *
+ * The implementation is free to either honour this call by modofying various
+ * internal caching and queuing policies to process the operation with less
+ * delays, or to ignore this call altogether. This call may incur resource
+ * under-utilisation and other overheads.
+ *
+ * @pre op->op_sm.sm_state >= M0_CLOVIS_OS_INITIALISED
+ */
+void m0_clovis_op_kick(struct m0_clovis_op *op);
 
 /**
  * Finalises a complete operation.
@@ -506,6 +756,9 @@ void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
  * Keys in this index are 64-bit block offsets (in BE representation, with
  * lexicographic ordering) and the values are battrs (and maybe data?) for the
  * block.
+ *
+ * The index structure, initialised by this function, provides access to object
+ * data through Clovis index interface.
  */
 void m0_clovis_obj_idx_init(struct m0_clovis_idx       *idx,
 			    const struct m0_clovis_obj *obj);
@@ -573,7 +826,7 @@ enum m0_clovis_idx_opcode {
 	/** Delete the value, if any, for the given key. */
 	M0_CLOVIS_IC_DEL,
 	/** Given a key, return the next key and its value. */
-	M0_CLOVIS_IC_NEXT,
+	M0_CLOVIS_IC_NEXT
 };
 
 /**
@@ -585,6 +838,8 @@ enum m0_clovis_idx_opcode {
  * This data-structure is intended to minimise the necessity of data copy in an
  * application by allowing various clovis interface parameters (keys, values,
  * etc.) to be glued from pre-existing memory buffers.
+ *
+ * @invariant m0_vec_count(&cv->iv_length) == m0_vec_count(&cv->iv_data.ov_vec)
  */
 struct m0_clovis_vec {
 	/** Elements of ->iv_length.v_count[] are chunks lengths. */
@@ -655,7 +910,6 @@ void m0_clovis_entity_fini  (struct m0_clovis_entity *entity);
 /** @} end of clovis group */
 
 #endif /* __MERO_CLOVIS_CLOVIS_H__ */
-
 
 /*
  *  Local variables:
