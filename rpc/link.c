@@ -101,7 +101,6 @@ static int rpc_link_conn_establish(struct m0_rpc_link *rlink)
 
 	rc = m0_net_end_point_create(&ep, &rlink->rlk_rpcmach->rm_tm,
 				     rlink->rlk_rem_ep);
-	m0_free0(&rlink->rlk_rem_ep);
 	if (rc == 0) {
 		rc = m0_rpc_conn_init(&rlink->rlk_conn, ep, rlink->rlk_rpcmach,
 				      rlink->rlk_max_rpcs_in_flight);
@@ -535,6 +534,7 @@ M0_INTERNAL void m0_rpc_link_fini(struct m0_rpc_link *rlink)
 	M0_PRE(!rlink->rlk_connected);
 	m0_chan_fini_lock(&rlink->rlk_wait);
 	m0_mutex_fini(&rlink->rlk_wait_mutex);
+	m0_free(rlink->rlk_rem_ep);
 }
 
 static void rpc_link_fom_queue(struct m0_rpc_link *rlink,

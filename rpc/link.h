@@ -42,6 +42,7 @@ struct m0_rpc_machine;
 struct m0_rpc_link {
 	struct m0_rpc_conn       rlk_conn;
 	struct m0_rpc_session    rlk_sess;
+	char                    *rlk_rem_ep;
 	int                      rlk_rc;
 	/* private */
 	struct m0_rpc_machine   *rlk_rpcmach;
@@ -51,7 +52,6 @@ struct m0_rpc_link {
 	struct m0_mutex          rlk_wait_mutex;
 	uint64_t                 rlk_max_rpcs_in_flight;
 	uint64_t                 rlk_timeout;
-	char                    *rlk_rem_ep;
 	bool                     rlk_connected;
 };
 
