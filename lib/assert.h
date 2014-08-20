@@ -164,8 +164,8 @@ static inline void m0_assert_intercept(void) {;}
 
 /**
  * The same as M0_ASSERT macro, but this version is disabled (optimized out) if
- * ENABLE_EXPENSIVE_CHECKS macro is defined, which is controlled by configure
- * option --disable-expensive-checks.
+ * ENABLE_EXPENSIVE_CHECKS macro is *not* defined, which is controlled by
+ * configure option --disable-expensive-checks.
  */
 #define M0_ASSERT_EX(cond)		\
 ({					\
