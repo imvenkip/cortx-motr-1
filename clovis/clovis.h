@@ -354,7 +354,7 @@
  *     - DEL: given a set of keys, delete the matching records from the index;
  *
  *     - NEXT: given a set of keys, return the records with the next (in the
- *       ascending key order) from the index.
+ *       ascending key order) keys from the index.
  *
  * Indices are stored according to a layout, much like objects.
  *
@@ -543,7 +543,7 @@ struct m0_clovis_entity {
 	/** Parent scope, this entity lives in. */
 	struct m0_clovis_scope    *en_scope;
 	/**
-	 * Entity state machine. Use internally by the implementation. For the
+	 * Entity state machine. Used internally by the implementation. For the
 	 * reference, the state diagram is:
 	 *
 	 * @verbatim
@@ -711,7 +711,7 @@ int32_t m0_clovis_op_wait(struct m0_clovis_op *op, uint64_t bits, m0_time_t to);
  * Asks the implementation to speed up progress of this operation toward
  * stability.
  *
- * The implementation is free to either honour this call by modofying various
+ * The implementation is free to either honour this call by modifying various
  * internal caching and queuing policies to process the operation with less
  * delays, or to ignore this call altogether. This call may incur resource
  * under-utilisation and other overheads.
@@ -736,19 +736,19 @@ void m0_clovis_op_fini(struct m0_clovis_op *op);
  */
 void m0_clovis_op_free(struct m0_clovis_op *op);
 
-void m0_clovis_container_init(struct m0_clovis_obj    *obj,
-			      struct m0_clovis_scope  *parent,
-			      const struct m0_uint128 *id);
-void m0_clovis_epoch_init(struct m0_clovis_obj    *obj,
-			  struct m0_clovis_scope  *parent,
-			  const struct m0_uint128 *id);
-void m0_clovis_dtx_init(struct m0_clovis_obj    *obj,
-			struct m0_clovis_scope  *parent,
-			const struct m0_uint128 *id);
+void m0_clovis_container_init(struct m0_clovis_container *con,
+			      struct m0_clovis_scope     *parent,
+			      const struct m0_uint128    *id);
+void m0_clovis_epoch_init    (struct m0_clovis_epoch     *epoch,
+			      struct m0_clovis_scope     *parent,
+			      const struct m0_uint128    *id);
+void m0_clovis_dtx_init      (struct m0_clovis_dtx       *dtx,
+			      struct m0_clovis_scope     *parent,
+			      const struct m0_uint128    *id);
 
-void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
-			struct m0_clovis_scope  *parent,
-			const struct m0_uint128 *id);
+void m0_clovis_obj_init      (struct m0_clovis_obj       *obj,
+			      struct m0_clovis_scope     *parent,
+			      const struct m0_uint128    *id);
 
 /**
  * Initialises the index corresponding to a given object.
@@ -759,6 +759,8 @@ void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
  *
  * The index structure, initialised by this function, provides access to object
  * data through Clovis index interface.
+ *
+ * @post m0_uint128_eq(&idx->in_entity.en_id, &obj->ob_entity.en_id)
  */
 void m0_clovis_obj_idx_init(struct m0_clovis_idx       *idx,
 			    const struct m0_clovis_obj *obj);

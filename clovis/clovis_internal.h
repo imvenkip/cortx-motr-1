@@ -47,7 +47,7 @@ struct m0_clovis_md_op {
 
 bool m0_clovis_io_op_invariant(const struct m0_clovis_io_op *mop);
 
-void m0_clovis_entity_init(struct m0_clovis_obj    *obj,
+void m0_clovis_entity_init(struct m0_clovis_entity *ent,
 			   struct m0_clovis_scope  *parent,
 			   const struct m0_uint128 *id);
 
