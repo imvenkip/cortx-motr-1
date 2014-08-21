@@ -59,6 +59,13 @@ struct m0_fop_str {
 	uint8_t *s_buf;
 } M0_XCA_SEQUENCE;
 
+/**
+ * Converts m0_bcount_t number into a reduced string representation, calculating
+ * a magnitude and representing it as standard suffix like "Ki", "Mi", "Gi" etc.
+ * So, for example, 87654321 becomes "83 Mi".
+ */
+const char *m0_bcount_with_suffix(char *buf, size_t size, m0_bcount_t c);
+
 #endif /* __MERO_LIB_STRING_H__ */
 
 /*

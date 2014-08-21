@@ -7,6 +7,7 @@ m0_addb_kmod_uuid_file_set
 m0_addb_node_uuid_string_set
 m0_alloc
 m0_backtrace
+m0_bcount_with_suffix
 m0_build_info_get
 m0_build_info_print
 m0_cob_domain_fini

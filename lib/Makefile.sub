@@ -82,8 +82,9 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/misc.c \
                            lib/mutex.c \
                            lib/queue.c \
-                           lib/string_xc.c \
                            lib/refs.c \
+                           lib/string_xc.c \
+                           lib/string.c \
                            lib/thread.c \
                            lib/time.c \
                            lib/timer.c \
