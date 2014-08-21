@@ -45,7 +45,7 @@ static struct m0_rpc_stats    stats;
 static struct m0_rpc_item    *item;
 static struct m0_fop         *fop;
 
-#define IS_INCR_BY_1(p) (saved.rs_ ## p + 1 == stats.rs_ ## p)
+#define IS_INCR_BY_1(p) _0C(saved.rs_ ## p + 1 == stats.rs_ ## p)
 
 static int ts_item_init(void)   /* ts_ for "test suite" */
 {
