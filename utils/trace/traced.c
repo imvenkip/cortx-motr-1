@@ -47,6 +47,7 @@
 #include "lib/mutex.h"             /* m0_mutex_lock */
 #include "lib/cond.h"              /* m0_cond_wait */
 #include "lib/trace_internal.h"
+#include "module/instance.h"
 
 
 /**
@@ -684,6 +685,7 @@ int main(int argc, char *argv[])
 	int  ifd;
 	int  ofd;
 
+	static struct m0                  instance = { 0 };;
 	const struct m0_trace_buf_header *logheader;
 	void                             *logbuf;
 	struct m0_thread                  rotator_tid = { 0 };
@@ -838,7 +840,7 @@ int main(int argc, char *argv[])
 	 * instead */
 	m0_addb_node_uuid_string_set(NULL);
 
-	rc = m0_init(NULL);
+	rc = m0_init(&instance);
 	if (rc != 0) {
 		log_err("failed to initialize libmero\n");
 		return EX_SOFTWARE;
@@ -854,7 +856,7 @@ int main(int argc, char *argv[])
 	/* start log rotation thread */
 	rc = M0_THREAD_INIT(&rotator_tid, struct rotator_ctx *, NULL,
 			    &log_rotator_thread, &rotator_data,
-			    "m0traced_logrotator");
+			    "m0traced_logrt");
 	if (rc != 0) {
 		log_err("failed to start log rotation thread\n");
 		return EX_SOFTWARE;
