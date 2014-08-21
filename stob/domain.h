@@ -180,7 +180,9 @@ M0_INTERNAL int m0_stob_domain_destroy(struct m0_stob_domain *dom);
  * - it is possible to call this function again with the same location;
  * - if this function fails then stob domain is left in some intermediate state:
  *   m0_stob_domain_init() can't be called for this domain,
- *   and m0_stob_domain_create() will return error.
+ *   and m0_stob_domain_create() will return error;
+ * - the case when there is no such domain at specified @location
+ *   is not considered as an error, 0 is returned.
  */
 M0_INTERNAL int m0_stob_domain_destroy_location(const char *location);
 

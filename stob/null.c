@@ -239,17 +239,15 @@ static int stob_null_domain_destroy(struct m0_stob_type *type,
 {
 	struct stob_null_lists	*snl = type->st_private;
 	struct stob_null_domain *snd;
-	int			 rc;
 
 	snd = stob_null_domain_find(snl, location_data, true);
-	rc = snd == NULL ? -ENOENT : 0;
 	if (snd != NULL) {
 		stob_null_domain_del(snd, snd->snd_lists);
 		stob_null_stobs_tlist_fini(&snd->snd_stobs);
 		m0_free(snd->snd_path);
 		m0_free(snd);
 	}
-	return rc;
+	return 0;
 }
 
 static struct m0_stob *stob_null_alloc(struct m0_stob_domain *dom,

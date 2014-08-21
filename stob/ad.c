@@ -502,7 +502,7 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 	int                       rc;
 
 	if (adom == NULL)
-		return -ENOENT;
+		return 0;
 
 	seg = adom->sad_be_seg;
 	m0_sm_group_lock(grp);

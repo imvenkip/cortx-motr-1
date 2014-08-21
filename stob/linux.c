@@ -31,6 +31,7 @@
 #include <unistd.h>			/* lstat */
 #include <fcntl.h>			/* open */
 #include <limits.h>			/* PATH_MAX */
+#include <dirent.h>
 
 #include "lib/errno.h"			/* ENOENT */
 #include "lib/memory.h"			/* M0_ALLOC_PTR */
@@ -269,6 +270,41 @@ static void stob_linux_domain_fini(struct m0_stob_domain *dom)
 	m0_free(ldom);
 }
 
+/**
+ * Removes directory along with its files.
+ * Inner directories are not allowed.
+ */
+static int cleandir(const char *dir)
+{
+	struct dirent *de;
+	DIR           *d;
+	int            rc;
+	int            fd;
+
+	fd = open(dir, O_RDONLY|O_DIRECTORY);
+	if (fd == -1) {
+		if (errno == ENOENT)
+			return 0;
+		rc = -errno;
+		M0_LOG(M0_NOTICE, "open(%s) failed: rc=%d", dir, rc);
+		return rc;
+	}
+
+	d = opendir(dir);
+	if (d != NULL) {
+		while ((de = readdir(d)) != NULL)
+			unlinkat(fd, de->d_name, 0);
+		closedir(d);
+	}
+	close(fd);
+
+	rc = rmdir(dir) == 0 ? 0 : -errno;
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "rmdir(%s) failed: rc=%d", dir, rc);
+
+	return rc;
+}
+
 static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 					    const char *path,
 					    uint64_t dom_key,
@@ -279,44 +315,38 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 	char   *dir_domain  = stob_linux_dir_domain(path);
 	char   *dir_stob    = stob_linux_dir_stob(path);
 	char   *file_dom_id = stob_linux_file_domain_id(path);
-	char    cmd[PATH_MAX];
 	int	rc;
 	int	rc1;
 
 	rc = dir_domain == NULL || dir_stob == NULL || file_dom_id == NULL ?
 	     -ENOMEM : 0;
 	if (rc != 0)
-		goto out;
+		goto free;
 	if (!create)
 		goto destroy;
-	rc1 = mkdir(dir_domain, mode);
-	rc = rc1 == -1 ? -errno : 0;
+	rc = mkdir(dir_domain, mode) == 0 ? 0 : -errno;
 	if (rc != 0)
-		goto out;
-	rc1 = mkdir(dir_stob, mode);
-	rc = rc1 == -1 ? -errno : 0;
+		goto free;
+	rc = mkdir(dir_stob, mode) == 0 ? 0 : -errno;
 	if (rc != 0)
-		goto rmdir_domain;
+		goto destroy;
 	rc = stob_linux_domain_key_get_set(path, &dom_key, false);
 	if (rc == 0)
-		goto out;
+		return rc;
 destroy:
-	/* XXX: One day this mess should be cleaned up.*/
-	//rc1 = unlink(file_dom_id);
-	snprintf(cmd, sizeof(cmd), "rm -fr %s", file_dom_id);
-	rc1 = WEXITSTATUS(system(cmd));
-	rc = rc1 == -1 ? -errno : rc;
-	//rc1 = rmdir(dir_stob);
-	snprintf(cmd, sizeof(cmd), "rm -fr %s", dir_stob);
-	rc1 = WEXITSTATUS(system(cmd));
-	rc = rc1 == -1 ? -errno : rc;
-rmdir_domain:
-	rc1 = rmdir(dir_domain);
-	rc = rc1 == -1 ? -errno : rc;
-out:
+	rc1 = cleandir(dir_stob);
+	if (rc1 != 0)
+		M0_LOG(M0_ERROR, "cleandir(%s) failed: rc=%d", dir_stob, rc1);
+	rc1 = cleandir(dir_domain);
+	if (rc1 != 0)
+		M0_LOG(M0_ERROR, "cleandir(%s) failed: rc=%d", dir_domain, rc1);
+	if (rc == 0)
+		rc = rc1;
+free:
 	m0_free(file_dom_id);
 	m0_free(dir_stob);
 	m0_free(dir_domain);
+
 	return rc;
 }
 

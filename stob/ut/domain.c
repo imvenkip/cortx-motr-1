@@ -41,7 +41,7 @@ static void stob_ut_stob_domain(const char *location, const char *cfg)
 	rc = m0_stob_domain_init(location, NULL, &dom);
 	M0_UT_ASSERT(rc == -ENOENT);
 	rc = m0_stob_domain_destroy_location(location);
-	M0_UT_ASSERT(rc == -ENOENT);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_domain_create(location, NULL, dom_key, cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dom != NULL);
