@@ -52,6 +52,16 @@ M0_INTERNAL void *m0_alloc(size_t size)
 }
 M0_EXPORTED(m0_alloc);
 
+M0_INTERNAL void m0_free(void *data)
+{
+#ifdef ENABLE_DEV_MODE
+	if (data != NULL)
+		m0_atomic64_add(&cumulative_free, ksize(data));
+#endif
+	kfree(data);
+}
+M0_EXPORTED(m0_free);
+
 M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 {
 	void *p;
@@ -73,16 +83,6 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 }
 M0_EXPORTED(m0_alloc_aligned);
 
-M0_INTERNAL void m0_free(void *data)
-{
-#ifdef ENABLE_DEV_MODE
-	if (data != NULL)
-		m0_atomic64_add(&cumulative_free, ksize(data));
-#endif
-	kfree(data);
-}
-M0_EXPORTED(m0_free);
-
 M0_INTERNAL void m0_free_aligned(void *addr, size_t size, unsigned shift)
 {
 	M0_PRE(shift == PAGE_SHIFT);
@@ -93,6 +93,16 @@ M0_INTERNAL void m0_free_aligned(void *addr, size_t size, unsigned shift)
 	free_pages_exact(addr, size);
 }
 M0_EXPORTED(m0_free_aligned);
+
+M0_INTERNAL void *m0_alloc_wired(size_t size, unsigned shift)
+{
+	return m0_alloc_aligned(size, shift);
+}
+
+M0_INTERNAL void m0_free_wired(void *data, size_t size, unsigned shift)
+{
+	m0_free_aligned(data, size, shift);
+}
 
 M0_INTERNAL size_t m0_allocated(void)
 {

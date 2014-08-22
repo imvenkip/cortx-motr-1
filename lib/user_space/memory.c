@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/mman.h>
 
 #include "config.h"      /* ENABLE_FREE_POISON */
 #include "lib/arith.h"   /* min_type, m0_is_po2 */
@@ -198,6 +200,40 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 		result = NULL;
 	}
 	return result;
+}
+
+M0_INTERNAL void *m0_alloc_wired(size_t size, unsigned shift)
+{
+	void *res;
+	int   rc;
+
+	res = m0_alloc_aligned(size, shift);
+	if (res == NULL)
+		goto out;
+
+	rc = mlock(res, 1);
+	if (rc == -1) {
+		M0_LOG(M0_ERROR, "mlock() failed: rc=%d", errno);
+		m0_free_aligned(res, size, shift);
+		res = NULL;
+		goto out;
+	}
+
+	rc = madvise((void*)((unsigned long)res & ~(PAGE_SIZE - 1)), 1,
+	             MADV_DONTFORK);
+	if (rc == -1) {
+		M0_LOG(M0_ERROR, "madvise() failed: rc=%d", errno);
+		m0_free_wired(res, size, shift);
+		res = NULL;
+	}
+out:
+	return res;
+}
+
+M0_INTERNAL void m0_free_wired(void *data, size_t size, unsigned shift)
+{
+	munlock(data, 1);
+	m0_free_aligned(data, size, shift);
 }
 
 M0_INTERNAL int m0_memory_init(void)

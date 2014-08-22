@@ -531,12 +531,12 @@ static bool nlx_ucore_tm_invariant(const struct nlx_ucore_transfer_mc *utm)
 
 M0_INTERNAL void *nlx_core_mem_alloc(size_t size, unsigned shift)
 {
-	return m0_alloc_aligned(size, shift);
+	return m0_alloc_wired(size, shift);
 }
 
 M0_INTERNAL void nlx_core_mem_free(void *data, size_t size, unsigned shift)
 {
-	m0_free_aligned(data, size, shift);
+	m0_free_wired(data, size, shift);
 }
 
 /**

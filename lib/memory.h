@@ -42,6 +42,23 @@
  */
 void *m0_alloc(size_t size);
 
+/**
+ * Frees memory block
+ *
+ * This function must be a no-op when called with NULL argument.
+ *
+ * @param data pointer to allocated block
+ */
+void m0_free(void *data);
+
+/** Frees memory and unsets the pointer. */
+#define m0_free0(pptr)                        \
+	do {                                  \
+		typeof(pptr) __pptr = (pptr); \
+		m0_free(*__pptr);             \
+		*__pptr = NULL;               \
+	} while (0)
+
 #define M0_ALLOC_ARR(arr, nr)  ((arr) = m0_alloc((nr) * sizeof ((arr)[0])))
 #define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
 
@@ -106,6 +123,14 @@ do {									      \
  */
 M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift);
 
+/**
+ * Frees aligned memory block
+ * This function must be a no-op when called with NULL argument.
+ * @param data pointer to allocated block
+ *
+ */
+M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift);
+
 /** It returns true when addr is aligned by value shift. */
 static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
 {
@@ -115,29 +140,21 @@ static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
 }
 
 /**
- * Frees memory block
+ * Allocates the memory suitable for DMA, DIRECT_IO or sharing
+ * between user and kernel spaces.
  *
- * This function must be a no-op when called with NULL argument.
+ * @note not tested/used in kernel space for now.
  *
- * @param data pointer to allocated block
+ * @param size Memory size.
+ * @param shift Alignment, ignored in kernel space.
+ * @pre size <= PAGE_SIZE
  */
-void m0_free(void *data);
-
-/** Frees memory and unsets the pointer. */
-#define m0_free0(pptr)                        \
-	do {                                  \
-		typeof(pptr) __pptr = (pptr); \
-		m0_free(*__pptr);             \
-		*__pptr = NULL;               \
-	} while (0)
+M0_INTERNAL void *m0_alloc_wired(size_t size, unsigned shift);
 
 /**
- * Frees aligned memory block
- * This function must be a no-op when called with NULL argument.
- * @param data pointer to allocated block
- *
+ * Frees the memory allocated with m0_alloc_wired().
  */
-M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift);
+M0_INTERNAL void m0_free_wired(void *data, size_t size, unsigned shift);
 
 /**
  * Return amount of memory currently allocated.
