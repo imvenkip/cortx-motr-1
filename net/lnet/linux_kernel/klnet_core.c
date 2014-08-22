@@ -1000,7 +1000,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 {
 	struct nlx_kcore_buffer *kbp;
 	struct nlx_kcore_transfer_mc *ktm;
-	struct nlx_core_transfer_mc *lctm;
+	struct nlx_core_transfer_mc *ctm;
 	struct nlx_core_bev_link *ql;
 	struct nlx_core_buffer_event *bev;
 	m0_time_t now = m0_time_now();
@@ -1025,7 +1025,6 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	M0_ASSERT(nlx_kcore_buffer_invariant(kbp));
 	ktm = kbp->kb_ktm;
 	M0_ASSERT(nlx_kcore_tm_invariant(ktm));
-	lctm = nlx_kcore_core_tm_map_atomic(ktm);
 
 	NLXDBGP(ktm, 1, "\t%p: eq_cb: %p %s U:%d S:%d T:%d buf:%lx\n",
 		ktm, event, nlx_kcore_lnet_event_type_to_string(event->type),
@@ -1048,7 +1047,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 		/* An LNetGet related event, normally ignored */
 		if (!is_unlinked) {
 			NLXDBGP(ktm, 1, "\t%p: ignored LNetGet() SEND\n", ktm);
-			goto done;
+			return;
 		}
 		/* An out-of-order SEND, or
 		   cancellation notification piggy-backed onto an in-order SEND.
@@ -1082,14 +1081,15 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 			kbp->kb_ooo_mlength = mlength;
 			kbp->kb_ooo_offset  = offset;
 			kbp->kb_ooo_status  = status;
-			goto done;
+			return;
 		}
 		/* we don't expect anything other than receive messages */
 		M0_ASSERT(kbp->kb_qtype == M0_NET_QT_MSG_RECV);
 	}
 
 	spin_lock(&ktm->ktm_bevq_lock);
-	ql = bev_cqueue_pnext(&lctm->ctm_bevq);
+	ctm = nlx_kcore_core_tm_map_atomic(ktm);
+	ql = bev_cqueue_pnext(&ctm->ctm_bevq);
 	bev = container_of(ql, struct nlx_core_buffer_event, cbe_tm_link);
 	bev->cbe_buffer_id = kbp->kb_buffer_id;
 	bev->cbe_time      = m0_time_sub(now, kbp->kb_add_time);
@@ -1109,11 +1109,11 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	/* Reset in spinlock to synchronize with driver nlx_dev_tm_cleanup() */
 	if (is_unlinked)
 		kbp->kb_ktm = NULL;
-	bev_cqueue_put(&lctm->ctm_bevq, ql);
-	m0_semaphore_up(&ktm->ktm_sem);
+	bev_cqueue_put(&ctm->ctm_bevq, ql);
+	nlx_kcore_core_tm_unmap_atomic(ctm);
 	spin_unlock(&ktm->ktm_bevq_lock);
-done:
-	nlx_kcore_core_tm_unmap_atomic(lctm);
+
+	m0_semaphore_up(&ktm->ktm_sem);
 }
 
 /**

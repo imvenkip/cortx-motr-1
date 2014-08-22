@@ -223,7 +223,6 @@ static inline void nlx_kcore_hdr_data_decode(uint64_t hdr_data,
 {
 	*portal = (uint32_t) (hdr_data & M0_NET_LNET_PORTAL_MASK);
 	*tmid = hdr_data >> M0_NET_LNET_TMID_SHIFT;
-	return;
 }
 
 /**
@@ -713,14 +712,19 @@ static void nlx_kcore_core_tm_unmap(struct nlx_kcore_transfer_mc *ktm)
 
 /**
    Maps a page that should point to a nlx_core_transfer_mc.
-   Uses kmap_atomic() and consumes the KM_USER0 slot.
+   Uses kmap_atomic() and consumes the KM_USER0 slot, thus
+   it is user responsibility to serialize this routine CPU-wise
+   (each CPU has its own set of slots).
+
+   @todo redefine this in 3.x kernels where kmap_atomic slots are gone
+
    @pre nlx_kcore_tm_invariant(ktm)
    @post ret != NULL
    @param ktm Pointer to kcore transfer machine private data.
    @returns core object, never NULL
  */
-static struct nlx_core_transfer_mc *nlx_kcore_core_tm_map_atomic(
-					     struct nlx_kcore_transfer_mc *ktm)
+static struct nlx_core_transfer_mc *
+nlx_kcore_core_tm_map_atomic(struct nlx_kcore_transfer_mc *ktm)
 {
 	char *ptr;
 	struct nlx_core_kmem_loc *loc;

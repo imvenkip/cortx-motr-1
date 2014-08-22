@@ -1123,8 +1123,7 @@ static int nlx_dev_ioctl_buf_event_wait(const struct nlx_kcore_domain *kd,
 
 	if (!virt_addr_valid(ktm))
 		return -EBADR;
-	if (!nlx_kcore_tm_invariant(ktm))
-		return -EBADR;
+	M0_ASSERT(nlx_kcore_tm_invariant(ktm));
 	ctm = nlx_kcore_core_tm_map(ktm);
 	if (!nlx_core_tm_invariant(ctm))
 		rc = -EBADR;
