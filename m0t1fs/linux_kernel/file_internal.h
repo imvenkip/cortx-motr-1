@@ -1055,31 +1055,31 @@ enum   pargrp_iomap_rmwtype;
  * This enum is also used by data_buf::db_flags.
  */
 enum page_attr {
-        /** Page not spanned by io vector. */
-        PA_NONE                = 0,
+	/** Page not spanned by io vector. */
+	PA_NONE                = 0,
 
-        /** Page needs to be read. */
-        PA_READ                = (1 << 0),
+	/** Page needs to be read. */
+	PA_READ                = (1 << 0),
 
-        /**
-         * Page is completely spanned by incoming io vector, which is why
-         * file data can be modified while read IO is going on.
-         * Such pages need not be read from server.
-         * Mutually exclusive with PA_READ and PA_PARTPAGE_MODIFY.
-         */
-        PA_FULLPAGE_MODIFY     = (1 << 1),
+	/**
+	 * Page is completely spanned by incoming io vector, which is why
+	 * file data can be modified while read IO is going on.
+	 * Such pages need not be read from server.
+	 * Mutually exclusive with PA_READ and PA_PARTPAGE_MODIFY.
+	 */
+	PA_FULLPAGE_MODIFY     = (1 << 1),
 
-        /**
-         * Page is partially spanned by incoming io vector, which is why
-         * it has to wait till the whole page (superset) is read first and
-         * then it can be modified as per user request.
-         * Used only in case of read-modify-write.
-         * Mutually exclusive with PA_FULLPAGE_MODIFY.
-         */
-        PA_PARTPAGE_MODIFY     = (1 << 2),
+	/**
+	 * Page is partially spanned by incoming io vector, which is why
+	 * it has to wait till the whole page (superset) is read first and
+	 * then it can be modified as per user request.
+	 * Used only in case of read-modify-write.
+	 * Mutually exclusive with PA_FULLPAGE_MODIFY.
+	 */
+	PA_PARTPAGE_MODIFY     = (1 << 2),
 
-        /** Page needs to be written. */
-        PA_WRITE               = (1 << 3),
+	/** Page needs to be written. */
+	PA_WRITE               = (1 << 3),
 
 	/** Page contains file data. */
 	PA_DATA		       = (1 << 4),
@@ -1097,7 +1097,7 @@ enum page_attr {
 	 * from parity groups which have adopted read-old approach
 	 * can not be copied before read state finishes.
 	 */
-        PA_COPY_FRMUSR_DONE    = (1 << 6),
+	PA_COPY_FRMUSR_DONE    = (1 << 6),
 
 	/** Read IO failed for given page. */
 	PA_READ_FAILED         = (1 << 7),
@@ -1105,70 +1105,70 @@ enum page_attr {
 	/** Page needs to be read in degraded mode read IO state. */
 	PA_DGMODE_READ         = (1 << 8),
 
-        PA_NR                  = 9,
+	PA_NR                  = 9,
 };
 
 /** Enum representing direction of data copy in IO. */
 enum copy_direction {
-        CD_COPY_FROM_USER,
-        CD_COPY_TO_USER,
-        CD_NR,
+	CD_COPY_FROM_USER,
+	CD_COPY_TO_USER,
+	CD_NR,
 };
 
 /** State of struct nw_xfer_request. */
 enum nw_xfer_state {
-        NXS_UNINITIALIZED,
-        NXS_INITIALIZED,
-        NXS_INFLIGHT,
-        NXS_COMPLETE,
-        NXS_STATE_NR,
+	NXS_UNINITIALIZED,
+	NXS_INITIALIZED,
+	NXS_INFLIGHT,
+	NXS_COMPLETE,
+	NXS_STATE_NR,
 };
 
 /** Operation vector for struct nw_xfer_request. */
 struct nw_xfer_ops {
-        /**
-         * Distributes file data between target_ioreq objects as needed and
+	/**
+	 * Distributes file data between target_ioreq objects as needed and
 	 * populates target_ioreq::ir_ivec and target_ioreq::ti_bufvec.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  !tioreqs_list_is_empty(xfer->nxr_tioreqs).
-         */
-        int  (*nxo_distribute) (struct nw_xfer_request  *xfer);
+	 */
+	int  (*nxo_distribute) (struct nw_xfer_request  *xfer);
 
-        /**
-         * Does post processing of a network transfer request.
-         * Primarily all IO fops submitted by this network transfer request
-         * are finalized so that new fops can be created for same request.
+	/**
+	 * Does post processing of a network transfer request.
+	 * Primarily all IO fops submitted by this network transfer request
+	 * are finalized so that new fops can be created for same request.
 	 * @param rmw  Boolean telling if current IO request is rmw or not.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  xfer->nxr_state == NXS_COMPLETE.
-         */
-        void (*nxo_complete)   (struct nw_xfer_request  *xfer,
-                                bool                     rmw);
+	 */
+	void (*nxo_complete)   (struct nw_xfer_request  *xfer,
+				bool                     rmw);
 
-        /**
-         * Dispatches the IO fops created by all member target_ioreq objects
-         * and sends them to server for processing.
-         * The whole process is done in an asynchronous manner and does not
-         * block the thread during processing.
+	/**
+	 * Dispatches the IO fops created by all member target_ioreq objects
+	 * and sends them to server for processing.
+	 * The whole process is done in an asynchronous manner and does not
+	 * block the thread during processing.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  xfer->nxr_state == NXS_INFLIGHT.
-         */
-        int  (*nxo_dispatch)   (struct nw_xfer_request  *xfer);
+	 */
+	int  (*nxo_dispatch)   (struct nw_xfer_request  *xfer);
 
-        /**
-         * Locates or creates a target_iroeq object which maps to the given
-         * target address.
+	/**
+	 * Locates or creates a target_iroeq object which maps to the given
+	 * target address.
 	 * @param src  Source address comprising of parity group number
 	 * and unit number in parity group.
 	 * @param tgt  Target address comprising of frame number and
 	 * target object number.
 	 * @param out  Out parameter containing target_ioreq object.
 	 * @pre   nw_xfer_request_invariant(xfer).
-         */
-        int  (*nxo_tioreq_map) (struct nw_xfer_request           *xfer,
-                                const struct m0_pdclust_src_addr *src,
-                                struct m0_pdclust_tgt_addr       *tgt,
-                                struct target_ioreq             **out);
+	 */
+	int  (*nxo_tioreq_map) (struct nw_xfer_request           *xfer,
+				const struct m0_pdclust_src_addr *src,
+				struct m0_pdclust_tgt_addr       *tgt,
+				struct target_ioreq             **out);
 };
 
 /**
@@ -1179,18 +1179,18 @@ struct nw_xfer_ops {
  * requests.
  */
 struct nw_xfer_request {
-        /** Holds M0_T1FS_NWREQ_MAGIC */
-        uint64_t                  nxr_magic;
+	/** Holds M0_T1FS_NWREQ_MAGIC */
+	uint64_t                  nxr_magic;
 
-        /** Resultant status code for all IO fops issued by this structure. */
-        int                       nxr_rc;
+	/** Resultant status code for all IO fops issued by this structure. */
+	int                       nxr_rc;
 
-        /** Resultant number of bytes read/written by all IO fops. */
-        uint64_t                  nxr_bytes;
+	/** Resultant number of bytes read/written by all IO fops. */
+	uint64_t                  nxr_bytes;
 
-        enum nw_xfer_state        nxr_state;
+	enum nw_xfer_state        nxr_state;
 
-        const struct nw_xfer_ops *nxr_ops;
+	const struct nw_xfer_ops *nxr_ops;
 
 	/**
 	 * Hash of target_ioreq objects. Helps to speed up the lookup
@@ -1201,24 +1201,24 @@ struct nw_xfer_request {
 
 	/** lock to pretect the following two counter */
 	struct m0_mutex           nxr_lock;
-        /**
-         * Number of IO fops issued by all target_ioreq structures
-         * belonging to this nw_xfer_request object.
-         * This number is updated when bottom halves from ASTs are run.
-         * For WRITE, When it reaches zero, state of io_request::ir_sm changes.
-         * For READ, When it reaches zero and read bulk count reaches zero,
-         * state of io_request::ir_sm changes.
-         */
-        uint64_t                  nxr_iofop_nr;
+	/**
+	 * Number of IO fops issued by all target_ioreq structures
+	 * belonging to this nw_xfer_request object.
+	 * This number is updated when bottom halves from ASTs are run.
+	 * For WRITE, When it reaches zero, state of io_request::ir_sm changes.
+	 * For READ, When it reaches zero and read bulk count reaches zero,
+	 * state of io_request::ir_sm changes.
+	 */
+	uint64_t                  nxr_iofop_nr;
 
-        /**
-         * Number of read IO bulks issued by all target_ioreq structures
-         * belonging to this nw_xfer_request object.
-         * This number is updated in read bulk transfer complete callback.
-         * When it reaches zero, and nxr_iofop_nr reaches zero, state of
-         * io_request::ir_sm changes
-         */
-        uint64_t                  nxr_rdbulk_nr;
+	/**
+	 * Number of read IO bulks issued by all target_ioreq structures
+	 * belonging to this nw_xfer_request object.
+	 * This number is updated in read bulk transfer complete callback.
+	 * When it reaches zero, and nxr_iofop_nr reaches zero, state of
+	 * io_request::ir_sm changes
+	 */
+	uint64_t                  nxr_rdbulk_nr;
 };
 
 /**
@@ -1227,30 +1227,30 @@ struct nw_xfer_request {
  * states mentioned below.
  */
 enum io_req_state {
-        IRS_UNINITIALIZED,
-        IRS_INITIALIZED,
+	IRS_UNINITIALIZED,
+	IRS_INITIALIZED,
 	IRS_LOCK_ACQUIRED,
-        IRS_READING,
-        IRS_WRITING,
-        IRS_READ_COMPLETE,
-        IRS_WRITE_COMPLETE,
+	IRS_READING,
+	IRS_WRITING,
+	IRS_READ_COMPLETE,
+	IRS_WRITE_COMPLETE,
 	IRS_DEGRADED_READING,
 	IRS_DEGRADED_WRITING,
 	IRS_LOCK_RELINQUISHED,
-        IRS_REQ_COMPLETE,
+	IRS_REQ_COMPLETE,
 	IRS_FAILED,
 };
 
 
 /** Operation vector for struct io_request. */
 struct io_request_ops {
-        /**
-         * Prepares pargrp_iomap structures for the parity groups spanned
-         * by io_request::ir_ivec.
+	/**
+	 * Prepares pargrp_iomap structures for the parity groups spanned
+	 * by io_request::ir_ivec.
 	 * @pre   req->ir_iomaps == NULL && req->ir_iomap_nr == 0.
 	 * @post  req->ir_iomaps != NULL && req->ir_iomap_nr > 0.
-         */
-        int (*iro_iomaps_prepare) (struct io_request  *req);
+	 */
+	int (*iro_iomaps_prepare) (struct io_request  *req);
 
 	/**
 	 * Finalizes and deallocates pargrp_iomap structures.
@@ -1259,33 +1259,33 @@ struct io_request_ops {
 	 */
 	void (*iro_iomaps_destroy)(struct io_request  *req);
 
-        /**
-         * Copies data from/to user-space to/from kernel-space according
-         * to given direction and page filter.
+	/**
+	 * Copies data from/to user-space to/from kernel-space according
+	 * to given direction and page filter.
 	 * @param dir    Direction of copy.
 	 * @param filter Only copy pages that match the filter.
 	 * @pre   io_request_invariant(req).
-         */
-        int (*iro_user_data_copy) (struct io_request  *req,
-                                   enum copy_direction dir,
-                                   enum page_attr      filter);
+	 */
+	int (*iro_user_data_copy) (struct io_request  *req,
+				   enum copy_direction dir,
+				   enum page_attr      filter);
 
-        /**
-         * Recalculates parity for all pargrp_iomap structures in
-         * given io_request.
-         * Basically, invokes parity_recalc() routine for every
-         * pargrp_iomap in io_request::ir_iomaps.
+	/**
+	 * Recalculates parity for all pargrp_iomap structures in
+	 * given io_request.
+	 * Basically, invokes parity_recalc() routine for every
+	 * pargrp_iomap in io_request::ir_iomaps.
 	 * @pre  io_request_invariant(req) && req->ir_type == IRT_WRITE.
 	 * @post io_request_invariant(req).
-         */
-        int (*iro_parity_recalc)  (struct io_request  *req);
+	 */
+	int (*iro_parity_recalc)  (struct io_request  *req);
 
-        /**
-         * Handles the state transition, status of request and the
-         * intermediate copy_{from/to}_user.
+	/**
+	 * Handles the state transition, status of request and the
+	 * intermediate copy_{from/to}_user.
 	 * @pre io_request_invariant(req).
-         */
-        int (*iro_iosm_handle)    (struct io_request  *req);
+	 */
+	int (*iro_iosm_handle)    (struct io_request  *req);
 
 	/**
 	 * Handles degraded mode read IO. Issues read IO for pages
@@ -1343,57 +1343,57 @@ struct io_request_ops {
  * structure and its support for chained state transitions.
  */
 struct io_request {
-        /** Holds M0_T1FS_IOREQ_MAGIC */
-        uint64_t                     ir_magic;
+	/** Holds M0_T1FS_IOREQ_MAGIC */
+	uint64_t                     ir_magic;
 
-        int                          ir_rc;
+	int                          ir_rc;
 
 	/** Number of data bytes copied to/from user space. */
 	m0_bcount_t                  ir_copied_nr;
 
-        /**
-         * struct file* can point to m0t1fs inode and hence its
-         * associated m0_fid structure.
-         */
-        struct file                 *ir_file;
+	/**
+	 * struct file* can point to m0t1fs inode and hence its
+	 * associated m0_fid structure.
+	 */
+	struct file                 *ir_file;
 
-        /**
+	/**
 	 * Index vector describing file extents and their lengths.
 	 * This vector is in sync with the array of iovec structures
 	 * below.
 	 */
-        struct m0_indexvec           ir_ivec;
+	struct m0_indexvec           ir_ivec;
 
-        /**
-         * Array of struct pargrp_iomap pointers.
-         * Each pargrp_iomap structure describes the part of parity group
-         * spanned by segments from ::ir_ivec.
-         */
-        struct pargrp_iomap        **ir_iomaps;
+	/**
+	 * Array of struct pargrp_iomap pointers.
+	 * Each pargrp_iomap structure describes the part of parity group
+	 * spanned by segments from ::ir_ivec.
+	 */
+	struct pargrp_iomap        **ir_iomaps;
 
-        /** Number of pargrp_iomap structures. */
-        uint64_t                     ir_iomap_nr;
+	/** Number of pargrp_iomap structures. */
+	uint64_t                     ir_iomap_nr;
 
-        /**
-         * Array of iovec structures containing user-space buffers.
-         * It is used as is since using a new structure would require
-         * conversion.
-         */
-        const struct iovec          *ir_iovec;
+	/**
+	 * Array of iovec structures containing user-space buffers.
+	 * It is used as is since using a new structure would require
+	 * conversion.
+	 */
+	const struct iovec          *ir_iovec;
 
-        /** Async state machine to handle state transitions and callbacks. */
-        struct m0_sm                 ir_sm;
+	/** Async state machine to handle state transitions and callbacks. */
+	struct m0_sm                 ir_sm;
 
-        enum io_req_type             ir_type;
+	enum io_req_type             ir_type;
 
 	bool			     ir_direct_io;
 
-        const struct io_request_ops *ir_ops;
+	const struct io_request_ops *ir_ops;
 
-        struct nw_xfer_request       ir_nwxfer;
+	struct nw_xfer_request       ir_nwxfer;
 
-        /** Run-time addb context of the operation */
-        struct m0_addb_ctx           ir_addb_ctx;
+	/** Run-time addb context of the operation */
+	struct m0_addb_ctx           ir_addb_ctx;
 
 	/** A request to borrow resource from creditor */
 	struct m0_rm_incoming        ir_in;
@@ -1420,26 +1420,26 @@ struct io_request {
  * m0_buf::b_addr points to a kernel page.
  */
 struct data_buf {
-        /** Holds M0_T1FS_DTBUF_MAGIC. */
-        uint64_t       db_magic;
+	/** Holds M0_T1FS_DTBUF_MAGIC. */
+	uint64_t       db_magic;
 
-        /** Inline buffer pointing to a kernel page. */
-        struct m0_buf  db_buf;
+	/** Inline buffer pointing to a kernel page. */
+	struct m0_buf  db_buf;
 
-        /**
-         * Auxiliary buffer used in case of read-modify-write IO.
-         * Used when page pointed to by ::db_buf::b_addr is partially spanned
-         * by incoming rmw request.
-         */
-        struct m0_buf  db_auxbuf;
+	/**
+	 * Auxiliary buffer used in case of read-modify-write IO.
+	 * Used when page pointed to by ::db_buf::b_addr is partially spanned
+	 * by incoming rmw request.
+	 */
+	struct m0_buf  db_auxbuf;
 
 	struct page   *db_page;
 
-        /**
-         * Miscellaneous flags.
-         * Can be used later for caching options.
-         */
-        enum page_attr db_flags;
+	/**
+	 * Miscellaneous flags.
+	 * Can be used later for caching options.
+	 */
+	enum page_attr db_flags;
 };
 
 /**
@@ -1447,10 +1447,10 @@ struct data_buf {
  * in case of rmw IO.
  */
 enum pargrp_iomap_rmwtype {
-        PIR_NONE,
-        PIR_READOLD,
-        PIR_READREST,
-        PIR_NR,
+	PIR_NONE,
+	PIR_READOLD,
+	PIR_READREST,
+	PIR_NR,
 };
 
 /** State of parity group during IO life-cycle. */
@@ -1470,67 +1470,67 @@ enum pargrp_iomap_state {
  * io_requets::ir_ivec.
  */
 struct pargrp_iomap {
-        /** Holds M0_T1FS_PGROUP_MAGIC. */
-        uint64_t                        pi_magic;
+	/** Holds M0_T1FS_PGROUP_MAGIC. */
+	uint64_t                        pi_magic;
 
-        /** Parity group id. */
-        uint64_t                        pi_grpid;
+	/** Parity group id. */
+	uint64_t                        pi_grpid;
 
 	/** State of parity group during IO life-cycle. */
 	enum pargrp_iomap_state         pi_state;
 
-        /**
-         * Part of io_request::ir_ivec which falls in ::pi_grpid
-         * parity group.
-         * All segments are in increasing order of file offset.
+	/**
+	 * Part of io_request::ir_ivec which falls in ::pi_grpid
+	 * parity group.
+	 * All segments are in increasing order of file offset.
 	 * Segment counts in this index vector are multiple of
 	 * PAGE_CACHE_SIZE.
-         */
-        struct m0_indexvec              pi_ivec;
+	 */
+	struct m0_indexvec              pi_ivec;
 
-        /**
-         * Type of read approach used only in case of rmw IO.
-         * Either read-old or read-rest.
-         */
-        enum pargrp_iomap_rmwtype       pi_rtype;
+	/**
+	 * Type of read approach used only in case of rmw IO.
+	 * Either read-old or read-rest.
+	 */
+	enum pargrp_iomap_rmwtype       pi_rtype;
 
-        /**
-         * Data units in a parity group.
-         * Unit size should be multiple of PAGE_CACHE_SIZE.
-         * This is basically a matrix with
-         * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
-         * - number of columns = N.
-         * Each element of matrix is worth PAGE_CACHE_SIZE;
-         * A unit size worth of data holds a contiguous chunk of file data.
-         * The file offset grows vertically first and then to the next
-         * data unit.
-         */
-        struct data_buf              ***pi_databufs;
+	/**
+	 * Data units in a parity group.
+	 * Unit size should be multiple of PAGE_CACHE_SIZE.
+	 * This is basically a matrix with
+	 * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
+	 * - number of columns = N.
+	 * Each element of matrix is worth PAGE_CACHE_SIZE;
+	 * A unit size worth of data holds a contiguous chunk of file data.
+	 * The file offset grows vertically first and then to the next
+	 * data unit.
+	 */
+	struct data_buf              ***pi_databufs;
 
-        /**
-         * Parity units in a parity group.
-         * Unit size should be multiple of PAGE_CACHE_SIZE.
-         * This is a matrix with
-         * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
-         * - number of columns = K.
-         * Each element of matrix is worth PAGE_CACHE_SIZE;
-         */
-        struct data_buf              ***pi_paritybufs;
+	/**
+	 * Parity units in a parity group.
+	 * Unit size should be multiple of PAGE_CACHE_SIZE.
+	 * This is a matrix with
+	 * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
+	 * - number of columns = K.
+	 * Each element of matrix is worth PAGE_CACHE_SIZE;
+	 */
+	struct data_buf              ***pi_paritybufs;
 
-        /** Operations vector. */
-        const struct pargrp_iomap_ops  *pi_ops;
+	/** Operations vector. */
+	const struct pargrp_iomap_ops  *pi_ops;
 
-        /** Backlink to io_request. */
-        struct io_request              *pi_ioreq;
+	/** Backlink to io_request. */
+	struct io_request              *pi_ioreq;
 };
 
 /** Operations vector for struct pargrp_iomap. */
 struct pargrp_iomap_ops {
-        /**
-         * Populates pargrp_iomap::pi_ivec by deciding whether to follow
-         * read-old approach or read-rest approach.
-         * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
-         * PIR_READREST accordingly.
+	/**
+	 * Populates pargrp_iomap::pi_ivec by deciding whether to follow
+	 * read-old approach or read-rest approach.
+	 * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
+	 * PIR_READREST accordingly.
 	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
 	 * will be populated. Typically, this is io_request::ir_ivec.
 	 * @param cursor Index vector cursor associated with ivec.
@@ -1539,45 +1539,45 @@ struct pargrp_iomap_ops {
 	 * m0_vec_count(&iomap->iv_vec) == 0
 	 * @post  m0_vec_count(&iomap->iv_vec) > 0 &&
 	 * iomap->pi_databufs != NULL.
-         */
-        int (*pi_populate)  (struct pargrp_iomap      *iomap,
-                             const struct m0_indexvec *ivec,
-                             struct m0_ivec_cursor    *cursor);
+	 */
+	int (*pi_populate)  (struct pargrp_iomap      *iomap,
+			     const struct m0_indexvec *ivec,
+			     struct m0_ivec_cursor    *cursor);
 
-        /**
-         * Returns true if the given segment is spanned by existing segments
-         * in pargrp_iomap::pi_ivec.
+	/**
+	 * Returns true if the given segment is spanned by existing segments
+	 * in pargrp_iomap::pi_ivec.
 	 * @param index Starting index of incoming segment.
 	 * @param count Count of incoming segment.
 	 * @pre   pargrp_iomap_invariant(iomap).
 	 * @ret   true if segment is found in pargrp_iomap::pi_ivec,
 	 * false otherwise.
-         */
-        bool (*pi_spans_seg) (struct pargrp_iomap *iomap,
-                              m0_bindex_t          index,
+	 */
+	bool (*pi_spans_seg) (struct pargrp_iomap *iomap,
+			      m0_bindex_t          index,
 			      m0_bcount_t          count);
 
-        /**
-         * Changes pargrp_iomap::pi_ivec to suit read-rest approach
-         * for an RMW IO request.
+	/**
+	 * Changes pargrp_iomap::pi_ivec to suit read-rest approach
+	 * for an RMW IO request.
 	 * @pre  pargrp_iomap_invariant(iomap).
 	 * @post pargrp_iomap_invariant(iomap).
-         */
-        int (*pi_readrest)   (struct pargrp_iomap *iomap);
+	 */
+	int (*pi_readrest)   (struct pargrp_iomap *iomap);
 
-        /**
-         * Finds out the number of pages _completely_ spanned by incoming
-         * io vector. Used only in case of read-modify-write IO.
-         * This is needed in order to decide the type of read approach
-         * {read_old, read_rest} for the given parity group.
+	/**
+	 * Finds out the number of pages _completely_ spanned by incoming
+	 * io vector. Used only in case of read-modify-write IO.
+	 * This is needed in order to decide the type of read approach
+	 * {read_old, read_rest} for the given parity group.
 	 * @pre pargrp_iomap_invariant(map).
 	 * @ret Number of pages _completely_ spanned by pargrp_iomap::pi_ivec.
-         */
-        uint64_t (*pi_fullpages_find) (struct pargrp_iomap *map);
+	 */
+	uint64_t (*pi_fullpages_find) (struct pargrp_iomap *map);
 
-        /**
-         * Process segment pointed to by segid in pargrp_iomap::pi_ivec and
-         * allocate data_buf structures correspondingly.
+	/**
+	 * Process segment pointed to by segid in pargrp_iomap::pi_ivec and
+	 * allocate data_buf structures correspondingly.
 	 * It also populates data_buf::db_flags for pargrp_iomap::pi_databufs.
 	 * @param segid Segment id which needs to be processed. Given seg id
 	 * should point to last segment in pargrp_iomap::pi_ivec when invoked.
@@ -1585,32 +1585,32 @@ struct pargrp_iomap_ops {
 	 * @pre   map != NULL.
 	 * @post  pargrp_iomap_invariant(map).
 	 *
-         */
-        int (*pi_seg_process)    (struct pargrp_iomap *map,
-                                  uint64_t             segid,
-                                  bool                 rmw);
+	 */
+	int (*pi_seg_process)    (struct pargrp_iomap *map,
+				  uint64_t             segid,
+				  bool                 rmw);
 
-        /**
-         * Process the data buffers in pargrp_iomap::pi_databufs
-         * when read-old approach is chosen.
+	/**
+	 * Process the data buffers in pargrp_iomap::pi_databufs
+	 * when read-old approach is chosen.
 	 * Auxiliary buffers are allocated here.
 	 * @pre pargrp_iomap_invariant(map) && map->pi_rtype == PIR_READOLD.
-         */
-        int (*pi_readold_auxbuf_alloc) (struct pargrp_iomap *map);
+	 */
+	int (*pi_readold_auxbuf_alloc) (struct pargrp_iomap *map);
 
-        /**
+	/**
 	 * Recalculates parity for given pargrp_iomap.
 	 * @pre map != NULL && map->pi_ioreq->ir_type == IRT_WRITE.
 	 */
-        int (*pi_parity_recalc)   (struct pargrp_iomap *map);
+	int (*pi_parity_recalc)   (struct pargrp_iomap *map);
 
-        /**
-         * Allocates data_buf structures for pargrp_iomap::pi_paritybufs
-         * and populate db_flags accordingly.
+	/**
+	 * Allocates data_buf structures for pargrp_iomap::pi_paritybufs
+	 * and populate db_flags accordingly.
 	 * @pre   map->pi_paritybufs == NULL.
 	 * @post  map->pi_paritybufs != NULL && pargrp_iomap_invariant(map).
-         */
-        int (*pi_paritybufs_alloc)(struct pargrp_iomap *map);
+	 */
+	int (*pi_paritybufs_alloc)(struct pargrp_iomap *map);
 
 	/**
 	 * Does necessary processing for degraded mode read IO.
@@ -1623,8 +1623,8 @@ struct pargrp_iomap_ops {
 	 * @post  map->pi_state == PI_DEGRADED.
 	 */
 	int (*pi_dgmode_process)  (struct pargrp_iomap *map,
-			           struct target_ioreq *tio,
-			           m0_bindex_t         *index,
+				   struct target_ioreq *tio,
+				   m0_bindex_t         *index,
 				   uint32_t             count);
 
 	/**
@@ -1645,16 +1645,16 @@ struct pargrp_iomap_ops {
 
 /** Operations vector for struct target_ioreq. */
 struct target_ioreq_ops {
-        /**
-         * Adds an io segment to index vector and buffer vector in
-         * target_ioreq structure.
+	/**
+	 * Adds an io segment to index vector and buffer vector in
+	 * target_ioreq structure.
 	 * @param frame      Frame number of target object.
 	 * @param gob_offset Offset in global file.
 	 * @param count      Number of bytes in this segment.
 	 * @param unit       Unit id in parity group.
 	 * @pre   ti != NULL && count > 0.
 	 * @post  m0_vec_count(&ti->ti_ivec.iv_vec) > 0.
-         */
+	 */
 	void (*tio_seg_add)     (struct target_ioreq              *ti,
 				 const struct m0_pdclust_src_addr *src,
 				 const struct m0_pdclust_tgt_addr *tgt,
@@ -1662,14 +1662,14 @@ struct target_ioreq_ops {
 				 m0_bcount_t	                   count,
 				 struct pargrp_iomap              *map);
 
-        /**
+	/**
 	 * Prepares io fops from index vector and buffer vector.
 	 * This API uses rpc bulk API to store net buffer descriptors
 	 * in IO fops.
 	 * @pre   iofops_tlist_is_empty(ti->ti_iofops).
 	 * @post !iofops_tlist_is_empty(ti->ti_iofops).
 	 */
-        int  (*tio_iofops_prepare) (struct target_ioreq *ti,
+	int  (*tio_iofops_prepare) (struct target_ioreq *ti,
 				    enum page_attr       filter);
 };
 
@@ -1704,11 +1704,11 @@ struct dgmode_rwvec {
  * struct iovec into members of a parity group.
  */
 struct target_ioreq {
-        /** Holds M0_T1FS_TIOREQ_MAGIC */
-        uint64_t                       ti_magic;
+	/** Holds M0_T1FS_TIOREQ_MAGIC */
+	uint64_t                       ti_magic;
 
-        /** Fid of component object. */
-        struct m0_fid                  ti_fid;
+	/** Fid of component object. */
+	struct m0_fid                  ti_fid;
 
 	/**
 	 * Time of launch for target IO request
@@ -1716,37 +1716,37 @@ struct target_ioreq {
 	 */
 	m0_time_t                      ti_start_time;
 
-        /** Status code for io operation done for this target_ioreq. */
-        int                            ti_rc;
+	/** Status code for io operation done for this target_ioreq. */
+	int                            ti_rc;
 
-        /** Number of parity bytes read/written for this target_ioreq. */
-        uint64_t                       ti_parbytes;
+	/** Number of parity bytes read/written for this target_ioreq. */
+	uint64_t                       ti_parbytes;
 
 	/** Number of file data bytes read/written for this object. */
 	uint64_t                       ti_databytes;
 
-        /** List of io_req_fop structures issued on this target object. */
-        struct m0_tl                   ti_iofops;
+	/** List of io_req_fop structures issued on this target object. */
+	struct m0_tl                   ti_iofops;
 
-        /** Resulting IO fops are sent on this rpc session. */
-        struct m0_rpc_session         *ti_session;
+	/** Resulting IO fops are sent on this rpc session. */
+	struct m0_rpc_session         *ti_session;
 
-        /** Linkage to link in to nw_xfer_request::nxr_tioreqs_hash table. */
-        struct m0_hlink                ti_link;
+	/** Linkage to link in to nw_xfer_request::nxr_tioreqs_hash table. */
+	struct m0_hlink                ti_link;
 
-        /**
-         * Index vector containing IO segments with cob offsets and
-         * their length.
+	/**
+	 * Index vector containing IO segments with cob offsets and
+	 * their length.
 	 * Each segment in this vector is worth PAGE_CACHE_SIZE except
 	 * the very last one.
-         */
-        struct m0_indexvec             ti_ivec;
+	 */
+	struct m0_indexvec             ti_ivec;
 
-        /**
+	/**
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
 	 */
-        struct m0_bufvec               ti_bufvec;
+	struct m0_bufvec               ti_bufvec;
 
 	/**
 	 * Degraded mode read/write IO vector.
@@ -1755,17 +1755,17 @@ struct target_ioreq {
 	 */
 	struct dgmode_rwvec           *ti_dgvec;
 
-        /**
+	/**
 	 * Array of page attributes.
 	 * Represents attributes for pages from ::ti_ivec and ::ti_bufvec.
 	 */
-        enum page_attr                *ti_pageattrs;
+	enum page_attr                *ti_pageattrs;
 
-        /** target_ioreq operation vector. */
-        const struct target_ioreq_ops *ti_ops;
+	/** target_ioreq operation vector. */
+	const struct target_ioreq_ops *ti_ops;
 
-        /** Backlink to parent structure nw_xfer_request. */
-        struct nw_xfer_request        *ti_nwxfer;
+	/** Backlink to parent structure nw_xfer_request. */
+	struct nw_xfer_request        *ti_nwxfer;
 
 	/** State of target device in the storage pool. */
 	enum m0_pool_nd_state          ti_state;
@@ -1792,29 +1792,29 @@ struct io_req_fop_ops {
  * When this count reaches zero, io_request::ir_sm changes its state.
  */
 struct io_req_fop {
-        /** Holds M0_T1FS_IOFOP_MAGIC */
-        uint64_t                     irf_magic;
+	/** Holds M0_T1FS_IOFOP_MAGIC */
+	uint64_t                     irf_magic;
 
 	/** Status of IO reply fop. */
 	int                          irf_reply_rc;
 
-        /** In-memory handle for IO fop. */
-        struct m0_io_fop             irf_iofop;
+	/** In-memory handle for IO fop. */
+	struct m0_io_fop             irf_iofop;
 
 	/** Type of pages {PA_DATA, PA_PARITY} carried by io fop. */
 	enum page_attr		     irf_pattr;
 
-        /** Callback per IO fop. */
-        struct m0_sm_ast             irf_ast;
+	/** Callback per IO fop. */
+	struct m0_sm_ast             irf_ast;
 
-        /** Linkage to link in to target_ioreq::ti_iofops list. */
-        struct m0_tlink              irf_link;
+	/** Linkage to link in to target_ioreq::ti_iofops list. */
+	struct m0_tlink              irf_link;
 
-        /**
-         * Backlink to target_ioreq object where rc and number of bytes
-         * are updated.
-         */
-        struct target_ioreq         *irf_tioreq;
+	/**
+	 * Backlink to target_ioreq object where rc and number of bytes
+	 * are updated.
+	 */
+	struct target_ioreq         *irf_tioreq;
 
 	/** Operations vector. */
 	const struct io_req_fop_ops *irf_ops;
