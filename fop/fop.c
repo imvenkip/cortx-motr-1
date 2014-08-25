@@ -167,7 +167,7 @@ struct m0_fop *m0_fop_get(struct m0_fop *fop)
 	uint64_t count = m0_ref_read(&fop->f_ref);
 
 	M0_ENTRY("fop: %p %s [%llu -> %llu]", fop, m0_fop_name(fop),
-	         (unsigned long long)count, (unsigned long long)count + 1);
+		 (unsigned long long)count, (unsigned long long)count + 1);
 	M0_PRE(count > 0);
 
 	m0_ref_get(&fop->f_ref);
@@ -311,7 +311,7 @@ M0_INTERNAL int m0_fops_init(void)
 	m0_addb_rec_type_register(&m0_addb_rt_fl_runq_nr);
 	m0_addb_rec_type_register(&m0_addb_rt_fl_wail_nr);
 	m0_addb_rec_type_register(&m0_addb_rt_fop_rate_cntr);
-        M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_fop_rate, "fop_rate");
+	M0_ADDB_MONITOR_STATS_TYPE_REGISTER(&m0_addb_rt_fop_rate, "fop_rate");
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_fop_addb_ctx, &m0_addb_ct_fop_mod,
 			 &m0_addb_proc_ctx);
 	ft_tlist_init(&fop_types_list);
@@ -384,7 +384,7 @@ M0_INTERNAL int m0_fop_encdec(struct m0_fop           *fop,
 
 M0_INTERNAL struct m0_fop_type *m0_fop_type_find(uint32_t opcode)
 {
-        struct m0_fop_type *ftype = NULL;
+	struct m0_fop_type *ftype = NULL;
 
 	while ((ftype = m0_fop_type_next(ftype)) != NULL) {
 		if(ftype->ft_rpc_item_type.rit_opcode == opcode)
@@ -395,7 +395,7 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_find(uint32_t opcode)
 
 static int fop_xc_type(uint32_t opcode, const struct m0_xcode_type **out)
 {
-        struct m0_fop_type *ftype;
+	struct m0_fop_type *ftype;
 
 	ftype = m0_fop_type_find(opcode);
 	if (ftype == NULL)
