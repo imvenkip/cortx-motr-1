@@ -65,17 +65,11 @@ static bool be_tx_is_locked(const struct m0_be_tx *tx);
  * @code
  * $ m0 rebuild
  * ...skip...
- *   CC     sns/cm/st/mero_libmero_la-repair_cli.lo
- *   CCLD   mero/libmero.la
  *   CC     mero/mero_libmero_altogether_la-mero_altogether_user.lo
- * cc1: warnings being treated as errors
  * In file included from mero/mero_altogether_user.c:23:
- * /mnt/hgfs/vvv/src/mero/be/tx_group.c: In function ‘m0_be_tx_group__tx_state_post’:
- * /mnt/hgfs/vvv/src/mero/be/tx.c:84: error: array subscript is above array bounds
- * /mnt/hgfs/vvv/src/mero/be/tx.c:84: error: array subscript is above array bounds
- * make[2]: *** [mero/mero_libmero_altogether_la-mero_altogether_user.lo] Error 1
- * make[1]: *** [all-recursive] Error 1
- * make: *** [all] Error 2
+ * .../be/tx_group.c: In function ‘m0_be_tx_group__tx_state_post’:
+ * .../be/tx.c:84: error: array subscript is above array bounds
+ * .../be/tx.c:84: error: array subscript is above array bounds
  * @endcode
  *
  * @todo Find out why M0_BTS_NR + 1 is enough and M0_BTS_NR isn't.
