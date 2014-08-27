@@ -214,7 +214,7 @@ static bool config_generate(uint32_t *data_count,
 			duc --;
 			fail_index_xor = duc;
 		}
-		if(duc == 1)
+		if(duc < 1)
 			return false;
 	} else if (algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		if (fuc <= 1) {
@@ -333,22 +333,33 @@ static void test_xor_fail_idx_recover(void)
 
 static void test_buffer_xor(void)
 {
+	bool          generated;
+	uint32_t      data_count;
+	uint32_t      parity_count;
+	uint32_t      buff_size;
+	struct m0_buf buf1;
+	struct m0_buf buf2;
 
-        uint32_t      data_count;
-        uint32_t      parity_count;
-        uint32_t      buff_size;
-        struct m0_buf data_buf[DATA_UNIT_COUNT_MAX];
-        struct m0_buf parity_buf[DATA_UNIT_COUNT_MAX];
-
-	duc = 2;
+	duc = 3;
 	fail_index_xor = 0;
-	config_generate(&data_count, &parity_count, &buff_size,
-			M0_PARITY_CAL_ALGO_XOR);
+	generated = config_generate(&data_count, &parity_count, &buff_size,
+				    M0_PARITY_CAL_ALGO_XOR);
+	M0_UT_ASSERT(generated);
+	M0_UT_ASSERT(data_count == 2);
 
-	m0_buf_init(&data_buf[0], data[0], buff_size);
-	m0_buf_init(&parity_buf[0], parity[0], buff_size);
-	m0_parity_math_buffer_xor(data_buf, parity_buf);
-	m0_parity_math_buffer_xor(parity_buf, data_buf);
+	m0_buf_init(&buf1, data[0], buff_size);
+	m0_buf_init(&buf2, data[1], buff_size);
+
+	/*
+	 * Swap 2 buffers and then swap them back, so at the end they must
+	 * contain the original values.
+	 */
+	m0_parity_math_buffer_xor(&buf1, &buf2);
+	m0_parity_math_buffer_xor(&buf2, &buf1);
+	m0_parity_math_buffer_xor(&buf1, &buf2);
+	m0_parity_math_buffer_xor(&buf2, &buf1);
+	m0_parity_math_buffer_xor(&buf1, &buf2);
+	m0_parity_math_buffer_xor(&buf2, &buf1);
 
 	if (!expected_cmp(data_count, buff_size))
 		M0_UT_ASSERT(0 && "Recovered data is unexpected");
