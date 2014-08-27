@@ -183,17 +183,10 @@ static void unit_spoil(const uint32_t buff_size,
 		}
 }
 
-static bool expected_cmp(const uint32_t data_count, const uint32_t buff_size)
+static bool expected_eq(const uint32_t data_count, const uint32_t buff_size)
 {
-	int i;
-	int j;
-
-	for (i = 0; i < data_count; ++i)
-		for (j = 0; j < buff_size; ++j)
-			if (expected[i][j] != data[i][j])
-				return false;
-
-	return true;
+	return m0_forall(i, data_count,
+			 m0_forall(j, buff_size, expected[i][j] == data[i][j]));
 }
 
 static bool config_generate(uint32_t *data_count,
@@ -297,18 +290,18 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		if (rt == FAIL_INDEX) {
+		if (rt == FAIL_INDEX)
 			m0_parity_math_fail_index_recover(&math, data_buf,
 							  parity_buf,
 							  fail_index_xor);
-		} else if (rt == FAIL_VECTOR)
+		else if (rt == FAIL_VECTOR)
 			m0_parity_math_recover(&math, data_buf, parity_buf,
 					       &fail_buf);
 
 		m0_parity_math_fini(&math);
 
-		if (!expected_cmp(data_count, buff_size))
-			M0_UT_ASSERT(0 && "Recovered data is unexpected");
+		M0_ASSERT_INFO(expected_eq(data_count, buff_size),
+			       "Recovered data is unexpected");
 	}
 }
 
@@ -361,8 +354,8 @@ static void test_buffer_xor(void)
 	m0_parity_math_buffer_xor(&buf1, &buf2);
 	m0_parity_math_buffer_xor(&buf2, &buf1);
 
-	if (!expected_cmp(data_count, buff_size))
-		M0_UT_ASSERT(0 && "Recovered data is unexpected");
+	M0_ASSERT_INFO(expected_eq(data_count, buff_size),
+		       "Recovered data is unexpected");
 }
 
 static void test_parity_math_diff(uint32_t parity_cnt)
