@@ -66,7 +66,6 @@ struct m0_cm_sw_update {
 	struct m0_fom    swu_fom;
 	bool             swu_is_complete;
 	bool             swu_is_idle;
-	struct m0_be_tx  swu_tx;
 };
 
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
@@ -79,8 +78,20 @@ M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
 M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 			       const struct m0_cm_sw *src);
 
+/**
+ * Updates local sliding window, creates new aggregation groups as many as
+ * possible and adds them to the sliding window.
+ * This is invoked from sliding window update fom.
+ * See @ref CMSWFOM "sliding window update fom" for more details.
+ */
 M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm);
 
+/**
+ * Sends local sliding window updates to remote replicas.
+ * This is invoked from m0_cm_ready(), once the local copy machine sliding
+ * window is updated.
+ * See @ref CMPROXY "copy machine proxy" for more details.
+ */
 M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
 
 
@@ -89,13 +100,14 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm);
  * Opens the transaction asynchronously.
  * @param grp This group is used for sliding window BE transactions.
  */
-M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp);
+M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
+				    struct m0_be_tx *tx);
 
 /**
  * Prepares sliding window persistent store for this copy machine.
  * Commits and closes the transaction asynchronously.
  */
-M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx);
 
 /**
  * Loads sliding window data from persistent storage.

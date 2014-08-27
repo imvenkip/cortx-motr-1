@@ -20,7 +20,7 @@ file3=0:10002
 N=2
 K=1
 P=4
-stride=20
+stride=32
 
 sns_repair_test()
 {

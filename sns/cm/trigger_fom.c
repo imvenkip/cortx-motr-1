@@ -70,38 +70,27 @@ static const struct m0_fom_type_ops trigger_fom_type_ops = {
 };
 
 enum trigger_phases {
-	TPH_PREPARE_INIT = M0_FOPH_NR + 1,
-	TPH_PREPARE_WAIT,
-	TPH_PREPARE_DONE,
+	TPH_PREPARE = M0_FOPH_NR + 1,
 	TPH_READY,
-	TPH_START_WAIT,
-	TPH_STOP_WAIT,
+	TPH_START,
+	TPH_STOP,
 	TPH_FINI = M0_FOM_PHASE_FINISH
 };
 
 static struct m0_sm_state_descr trigger_phases[] = {
-	[TPH_PREPARE_INIT] = {
-		.sd_name      = "Initialise local sw store",
-		.sd_allowed   = M0_BITS(TPH_PREPARE_WAIT, TPH_READY,
-					M0_FOPH_FAILURE)
-	},
-	[TPH_PREPARE_WAIT] = {
-		.sd_name      = "Wait till sw store is initialised",
-		.sd_allowed   = M0_BITS(TPH_PREPARE_DONE, M0_FOPH_FAILURE)
-	},
-	[TPH_PREPARE_DONE] = {
-		.sd_name      = "Wait till sw store is populated",
+	[TPH_PREPARE] = {
+		.sd_name      = "Prepare copy machine",
 		.sd_allowed   = M0_BITS(TPH_READY, M0_FOPH_FAILURE)
 	},
 	[TPH_READY] = {
 		.sd_name      = "Send ready fops",
-		.sd_allowed   = M0_BITS(TPH_START_WAIT, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(TPH_START, M0_FOPH_FAILURE)
 	},
-	[TPH_START_WAIT] = {
+	[TPH_START] = {
 		.sd_name      = "Start sns repair",
-		.sd_allowed   = M0_BITS(TPH_STOP_WAIT, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(TPH_STOP, M0_FOPH_FAILURE)
 	},
-	[TPH_STOP_WAIT] = {
+	[TPH_STOP] = {
 		.sd_name      = "Stop sns repair",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS)
 	}
@@ -202,12 +191,11 @@ static struct m0_cm *trig2cm(const struct m0_fom *fom)
 	return container_of(fom->fo_service, struct m0_cm, cm_service);
 }
 
-static int prepare_init(struct m0_fom *fom)
+static int prepare(struct m0_fom *fom)
 {
 	struct m0_cm       *cm = trig2cm(fom);
 	struct m0_sns_cm   *scm = cm2sns(cm);
 	struct trigger_fop *treq = m0_fop_data(fom->fo_fop);
-	struct m0_sm_group *grp = &fom->fo_loc->fl_group;
 	int                 rc;
 
 	scm->sc_op = treq->op;
@@ -216,68 +204,8 @@ static int prepare_init(struct m0_fom *fom)
 	 * transitions.
 	 */
 	m0_fom_block_enter(fom);
-	rc = m0_cm_prepare_init(cm);
+	rc = m0_cm_prepare(cm);
 	m0_fom_block_leave(fom);
-	if (rc != 0)
-		return rc;
-	rc = m0_cm_prepare_sw_store_init(cm, grp);
-	if (rc != 0 && rc != -ENOENT)
-		return rc;
-	if (rc == -ENOENT)
-		m0_fom_phase_set(fom, TPH_PREPARE_WAIT);
-	else
-		m0_fom_phase_set(fom, TPH_PREPARE_DONE);
-
-	M0_LOG(M0_DEBUG, "got trigger: prepare init");
-	return M0_FSO_AGAIN;
-}
-
-static int prepare_wait(struct m0_fom *fom)
-{
-	struct m0_cm    *cm = trig2cm(fom);
-	struct m0_be_tx *tx;
-	int              rc;
-
-	tx = &cm->cm_sw_update.swu_tx;
-	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
-		return tx->t_sm.sm_rc;
-	if (m0_be_tx_state(tx) == M0_BTS_OPENING) {
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
-			       &fom->fo_cb);
-		return M0_FSO_WAIT;
-	}
-	if (m0_be_tx_state(tx) == M0_BTS_ACTIVE){
-		rc = m0_cm_prepare_sw_store_commit(cm);
-		if (rc != 0)
-			return rc;
-		m0_fom_phase_set(fom, TPH_PREPARE_DONE);
-	}
-	M0_LOG(M0_DEBUG, "trigger: prepare init wait");
-	return M0_FSO_AGAIN;
-}
-
-static int prepare_done(struct m0_fom *fom)
-{
-	struct m0_cm    *cm = trig2cm(fom);
-	struct m0_be_tx *tx;
-	int              rc;
-
-	tx = &cm->cm_sw_update.swu_tx;
-	if (M0_IN(m0_be_tx_state(tx), (M0_BTS_FAILED,
-				       M0_BTS_DONE))) {
-		rc = tx->t_sm.sm_rc;
-		m0_cm_prepare_sw_store_fini(cm);
-		if (m0_be_tx_state(tx) == M0_BTS_FAILED)
-			return rc;
-	}
-	if (m0_be_tx_state(tx) != M0_BTS_PREPARE &&
-	    m0_be_tx_state(tx) != M0_BTS_DONE) {
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
-			       &fom->fo_cb);
-		goto out;
-	}
-
-	rc = m0_cm_prepare_done(cm);
 	if (rc != 0)
 		return rc;
 	m0_mutex_lock(&cm->cm_wait_mutex);
@@ -285,9 +213,8 @@ static int prepare_done(struct m0_fom *fom)
 			&fom->fo_cb);
 	m0_mutex_unlock(&cm->cm_wait_mutex);
 	m0_fom_phase_set(fom, TPH_READY);
+	M0_LOG(M0_DEBUG, "got trigger: prepare");
 
-	M0_LOG(M0_DEBUG, "trigger: prepare done");
-out:
 	return M0_FSO_WAIT;
 }
 
@@ -303,7 +230,7 @@ static int ready(struct m0_fom *fom)
 	rc = m0_cm_ready(cm);
 	if (rc != 0)
 		return rc;
-	m0_fom_phase_set(fom, TPH_START_WAIT);
+	m0_fom_phase_set(fom, TPH_START);
 	if (cm->cm_proxy_nr > 1)
 		rc = M0_FSO_WAIT;
 	else {
@@ -312,11 +239,11 @@ static int ready(struct m0_fom *fom)
 		m0_mutex_unlock(&cm->cm_wait_mutex);
 		rc = M0_FSO_AGAIN;
 	}
-	M0_LOG(M0_DEBUG, "trigger: ready done");
+	M0_LOG(M0_DEBUG, "trigger: ready");
 	return rc;
 }
 
-static int start_wait(struct m0_fom *fom)
+static int start(struct m0_fom *fom)
 {
 	struct m0_cm *cm = trig2cm(fom);
 	int           rc;
@@ -328,12 +255,12 @@ static int start_wait(struct m0_fom *fom)
 	rc = m0_cm_start(cm);
 	if (rc != 0)
 		return rc;
-	m0_fom_phase_set(fom, TPH_STOP_WAIT);
-	M0_LOG(M0_DEBUG, "trigger: start done");
+	m0_fom_phase_set(fom, TPH_STOP);
+	M0_LOG(M0_DEBUG, "trigger: start");
 	return M0_FSO_WAIT;
 }
 
-static int stop_wait(struct m0_fom *fom)
+static int stop(struct m0_fom *fom)
 {
 	struct m0_cm *cm = trig2cm(fom);
 
@@ -343,17 +270,15 @@ static int stop_wait(struct m0_fom *fom)
 	m0_fom_block_leave(fom);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 
-	M0_LOG(M0_DEBUG, "trigger: wait done");
+	M0_LOG(M0_DEBUG, "trigger: stop");
 	return M0_FSO_AGAIN;
 }
 
 static int (*trig_action[]) (struct m0_fom *) = {
-	[TPH_PREPARE_INIT] = prepare_init,
-	[TPH_PREPARE_WAIT] = prepare_wait,
-	[TPH_PREPARE_DONE] = prepare_done,
-	[TPH_READY]        = ready,
-	[TPH_START_WAIT]   = start_wait,
-	[TPH_STOP_WAIT]    = stop_wait,
+	[TPH_PREPARE] = prepare,
+	[TPH_READY]   = ready,
+	[TPH_START]   = start,
+	[TPH_STOP]    = stop,
 };
 
 static int trigger_fom_tick(struct m0_fom *fom)

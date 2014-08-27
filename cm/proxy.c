@@ -39,7 +39,7 @@
 #include "cm/proxy.h"
 
 /**
-   @addtogroup CM
+   @addtogroup CMPROXY
 
    @{
  */
@@ -356,11 +356,13 @@ M0_INTERNAL void m0_cm_proxy_rpc_conn_close(struct m0_cm_proxy *pxy)
 	int rc;
 
 	M0_ENTRY("%p", pxy);
-	rc = m0_rpc_session_destroy(&pxy->px_session, CM_RPC_TIMEOUT);
+	rc = m0_rpc_session_destroy(&pxy->px_session,
+					m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
 
-	rc = m0_rpc_conn_destroy(&pxy->px_conn, CM_RPC_TIMEOUT);
+	rc = m0_rpc_conn_destroy(&pxy->px_conn,
+					m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc);
 	M0_LEAVE("%d", rc);
@@ -424,7 +426,7 @@ M0_INTERNAL bool m0_cm_proxy_agid_is_in_sw(struct m0_cm_proxy *pxy,
 
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} CM */
+/** @} CMPROXY */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

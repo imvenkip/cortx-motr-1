@@ -35,7 +35,8 @@
 #include "cm/ag.h"
 
 /**
-   @addtogroup CM
+   @defgroup CMPROXY copy machine proxy
+   @ingroup CM
 
    @{
 */
@@ -158,7 +159,7 @@ M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);
 M0_TL_DESCR_DECLARE(proxy_cp, M0_EXTERN);
 M0_TL_DECLARE(proxy_cp, M0_INTERNAL, struct m0_cm_cp);
 
-/** @} endgroup CM */
+/** @} endgroup CMPROXY */
 
 /* __MERO_CM_PROXY_H__ */
 

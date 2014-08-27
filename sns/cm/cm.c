@@ -754,11 +754,12 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 
 	rc = m0_rpc_session_destroy(&scm->sc_rm_ctx.rc_session,
-				    CM_RPC_TIMEOUT);
+				    m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate sns-rm session %d", rc);
 
-	rc = m0_rpc_conn_destroy(&scm->sc_rm_ctx.rc_conn, CM_RPC_TIMEOUT);
+	rc = m0_rpc_conn_destroy(&scm->sc_rm_ctx.rc_conn,
+				 m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "Failed to terminate sns-rm rpc connection %d",
 		       rc);

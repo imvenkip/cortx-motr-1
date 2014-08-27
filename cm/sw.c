@@ -129,11 +129,11 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp)
+M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
+				    struct m0_be_tx *tx)
 {
 	struct m0_be_seg      *seg  = cm->cm_service.rs_reqh->rh_beseg;
 	struct m0_be_tx_credit cred = {};
-	struct m0_be_tx       *tx = &cm->cm_sw_update.swu_tx;
 	struct m0_cm_sw       *sw;
 	char                   cm_sw_name[80];
 	int                    rc;
@@ -153,12 +153,11 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp)
 	return rc;
 }
 
-M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm)
+M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx)
 {
 	struct m0_be_seg   *seg  = cm->cm_service.rs_reqh->rh_beseg;
 	struct m0_cm_sw    *sw;
 	char                cm_sw_name[80];
-	struct m0_be_tx    *tx = &cm->cm_sw_update.swu_tx;
 	int                 rc;
 
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
@@ -181,11 +180,6 @@ M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm)
 	}
 	m0_be_tx_close(tx);
 	return rc;
-}
-
-M0_INTERNAL void m0_cm_sw_store_fini(struct m0_cm *cm)
-{
-	m0_be_tx_fini(&cm->cm_sw_update.swu_tx);
 }
 
 M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out)

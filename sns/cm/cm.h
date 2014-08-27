@@ -193,6 +193,9 @@ struct m0_sns_cm_file_ctx {
 
 	struct m0_layout          *sf_layout;
 
+	/** pdclust instance for a particular GOB. */
+	struct m0_pdclust_instance   *sfc_pi;
+
 	size_t                     sf_size;
 
 	/** Linkage into m0_sns_cm::sc_file_ctx. */
