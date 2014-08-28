@@ -248,15 +248,13 @@ static int parse_test_list(const char *str, struct m0_list *list)
 			return -ENOMEM;
 		}
 
-		ts_entry->ue_suite_name = token;
+		ts_entry->ue_suite_name = m0_strdup(token);
 		/* subtoken can be NULL if no test was specified */
-		ts_entry->ue_test_name = subtoken;
+		ts_entry->ue_test_name = subtoken == NULL ? subtoken :
+							    m0_strdup(subtoken);
 
 		m0_list_link_init(&ts_entry->ue_linkage);
 		m0_list_add_tail(list, &ts_entry->ue_linkage);
-
-		/* s should be NULL for subsequent strtok_r(3) calls */
-		s = NULL;
 	}
 
 	m0_free(s);
@@ -279,7 +277,11 @@ static int disable_suites(const char *disablelist_str)
 					   false)) == 0; );
 
 	m0_list_entry_forall( e, &disable_list, struct m0_ut_entry, ue_linkage,
-		m0_list_del(&e->ue_linkage); m0_free(e); true; );
+		m0_list_del(&e->ue_linkage);
+		m0_free((char*)e->ue_suite_name);
+		m0_free((char*)e->ue_test_name);
+		m0_free(e);
+		true; );
 
 	m0_list_fini(&disable_list);
 	return rc;
@@ -452,7 +454,11 @@ static int run_selected(const char *runlist_str)
 	);
 out:
 	m0_list_entry_forall( e, &run_list, struct m0_ut_entry, ue_linkage,
-		m0_list_del(&e->ue_linkage); m0_free(e); true; );
+		m0_list_del(&e->ue_linkage);
+		m0_free((char*)e->ue_suite_name);
+		m0_free((char*)e->ue_test_name);
+		m0_free(e);
+		true; );
 	m0_list_fini(&run_list);
 	return rc;
 }

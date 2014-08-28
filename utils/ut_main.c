@@ -35,7 +35,6 @@
 #include "lib/getopts.h"
 #include "lib/finject.h"          /* m0_fi_print_info */
 #include "lib/atomic.h"
-#include "lib/string.h"           /* m0_strdup */
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -214,13 +213,13 @@ int main(int argc, char *argv[])
 		    M0_STRINGARG('f', "fault point to enable func:tag:type"
 				      "[:integer[:integer]]",
 				      LAMBDA(void, (const char *str) {
-					 fault_point = m0_strdup(str);
+					 fault_point = str;
 				      })
 				),
 		    M0_STRINGARG('F', "yaml file, which contains a list"
 				      " of fault points to enable",
 				      LAMBDA(void, (const char *str) {
-					 fp_file_name = m0_strdup(str);
+					 fp_file_name = str;
 				      })
 				),
 		    M0_FORMATARG('H', "shuffle test suites before execution. "
@@ -240,7 +239,7 @@ int main(int argc, char *argv[])
 			         " comma-separated list of subsystem names"
 				 " (use ! at the beginning to invert)",
 				LAMBDA(void, (const char *str) {
-					trace_mask = m0_strdup(str);
+					trace_mask = str;
 				})),
 		    M0_VOIDARG('M', "print available trace subsystems",
 				LAMBDA(void, (void) {
@@ -261,7 +260,7 @@ int main(int argc, char *argv[])
 		    M0_STRINGARG('t', "test list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
-					    cfg.uc_run_list = m0_strdup(str);
+					    cfg.uc_run_list = str;
 				      })
 				),
 		    M0_FLAGARG('T', "parse trace log produced earlier"
@@ -270,7 +269,7 @@ int main(int argc, char *argv[])
 		    M0_STRINGARG('x', "exclude list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
-					 cfg.uc_exclude_list = m0_strdup(str);
+					 cfg.uc_exclude_list = str;
 				      })
 				),
 		    M0_FLAGARG('y', "use YAML format for output",
