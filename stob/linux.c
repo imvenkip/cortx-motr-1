@@ -150,15 +150,16 @@ static int stob_linux_domain_key_get_set(const char *path,
 					 uint64_t *dom_key,
 					 bool get)
 {
-	const char *id_file_path;
-	FILE	   *id_file;
-	int	    rc;
-	int	    rc1;
+	char *id_file_path;
+	FILE *id_file;
+	int   rc;
+	int   rc1;
 
 	id_file_path = stob_linux_file_domain_id(path);
 	rc = id_file_path == NULL ? -EOVERFLOW : 0;
 	if (rc == 0) {
 		id_file = fopen(id_file_path, get ? "r" : "w");
+		m0_free(id_file_path);
 		if (id_file == NULL)
 			rc = -errno;
 	}
@@ -285,13 +286,13 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 	rc = dir_domain == NULL || dir_stob == NULL || file_dom_id == NULL ?
 	     -ENOMEM : 0;
 	if (rc != 0)
-		goto free;
+		goto out;
 	if (!create)
 		goto destroy;
 	rc1 = mkdir(dir_domain, mode);
 	rc = rc1 == -1 ? -errno : 0;
 	if (rc != 0)
-		goto free;
+		goto out;
 	rc1 = mkdir(dir_stob, mode);
 	rc = rc1 == -1 ? -errno : 0;
 	if (rc != 0)
@@ -312,11 +313,10 @@ destroy:
 rmdir_domain:
 	rc1 = rmdir(dir_domain);
 	rc = rc1 == -1 ? -errno : rc;
-free:
+out:
 	m0_free(file_dom_id);
 	m0_free(dir_stob);
 	m0_free(dir_domain);
-out:
 	return rc;
 }
 

@@ -177,8 +177,9 @@ static int stob_domain_init_create(const char *location,
 		M0_ASSERT_EX(m0_stob_domain_find(m0_stob_domain_id_get(dom)) ==
 			     NULL);
 		m0_stob_type__dom_add(type, dom);
+	} else {
+		m0_free(location_data);
 	}
-
 	M0_POST(ergo(rc == 0, m0_stob_domain__invariant(*out)));
 	return M0_RC(rc);
 }
