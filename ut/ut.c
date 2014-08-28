@@ -519,6 +519,8 @@ M0_INTERNAL int m0_ut_run(void)
 			  skipspaces(m0_bcount_with_suffix(leak, ARRAY_SIZE(leak),
 						  alloc_after - alloc_before)),
 			  m0_atomic64_get(&ctx.ux_asserts));
+	if (rc == 0)
+		m0_console_printf("Unit tests status: SUCCESS\n");
 	return rc;
 }
 M0_EXPORTED(m0_ut_run);
