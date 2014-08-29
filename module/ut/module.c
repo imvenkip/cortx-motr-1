@@ -53,9 +53,14 @@ static struct m0_module modules[] = {
 	{ .m_name = "a" },
 	{ .m_name = "b" },
 	{ .m_name = "c" },
-	{ .m_name = "d" }
+	{ .m_name = "d" },
+	{ .m_name = "e" },
+	{ .m_name = "f" },
+	{ .m_name = "g" },
+	{ .m_name = "h" },
+	{ .m_name = "i" }
 };
-enum module_id { A, B, C, D };
+enum module_id { A, B, C, D, E, F, G, H, I };
 
 /*                             +------+
  *                             |  c1  |
@@ -103,21 +108,77 @@ static struct m0_moddep inv_d[] = {
 	{ .md_other = &modules[C], .md_src = 0, .md_dst = 2 }
 };
 
+/*                                           +------+
+ *               +------+   ,--------------->|  i0  |---.
+ *               |  f3  |---'                +------+   |
+ *               +------+      +------+                 |
+ *               |  f2  |----->|  g2  |<----------------'
+ *               +------+      +------+
+ *           ,-->|  f1  |      |  g1  |
+ * +------+  |   +------+      +------+      +------+
+ * |  e0  |--'   |  f0  |      |  g0  |----->|  h0  |
+ * +------+      +------+      +------+      +------+
+ */
+
+static struct m0_moddep dep_e[] = {
+	{ .md_other = &modules[F], .md_src = 0, .md_dst = 1 }
+};
+static struct m0_moddep inv_e[0];
+
+static struct m0_moddep dep_f[] = {
+	{ .md_other = &modules[G], .md_src = 2, .md_dst = 2 },
+	{ .md_other = &modules[I], .md_src = 3, .md_dst = 0 }
+};
+static struct m0_moddep inv_f[] = {
+	{ .md_other = &modules[E], .md_src = 0, .md_dst = 1 }
+};
+
+static struct m0_moddep dep_g[] = {
+	{ .md_other = &modules[H], .md_src = 0, .md_dst = 0 }
+};
+static struct m0_moddep inv_g[] = {
+	{ .md_other = &modules[F], .md_src = 2, .md_dst = 2 },
+	{ .md_other = &modules[I], .md_src = 0, .md_dst = 2 }
+};
+
+static struct m0_moddep dep_h[0];
+static struct m0_moddep inv_h[] = {
+	{ .md_other = &modules[G], .md_src = 0, .md_dst = 0 }
+};
+
+static struct m0_moddep dep_i[] = {
+	{ .md_other = &modules[G], .md_src = 0, .md_dst = 2 }
+};
+static struct m0_moddep inv_i[] = {
+	{ .md_other = &modules[F], .md_src = 3, .md_dst = 0 }
+};
+
 static void _reset(void)
 {
-	unsigned i;
-	struct {
+	static struct {
 		unsigned          level_nr;
 		struct m0_moddep *dep;
 		unsigned          dep_nr;
 		struct m0_moddep *inv;
 		unsigned          inv_nr;
 	} mods[] = {
-		{ 4, dep_a, ARRAY_SIZE(dep_a), inv_a, ARRAY_SIZE(inv_a) },
-		{ 4, dep_b, ARRAY_SIZE(dep_b), inv_b, ARRAY_SIZE(inv_b) },
-		{ 2, dep_c, ARRAY_SIZE(dep_c), inv_c, ARRAY_SIZE(inv_c) },
-		{ 3, dep_d, ARRAY_SIZE(dep_d), inv_d, ARRAY_SIZE(inv_d) }
+#define ARR_INIT(name) name, ARRAY_SIZE(name)
+#define MOD_REC(name, nr_levels) \
+		{ (nr_levels), ARR_INIT(dep_ ## name), ARR_INIT(inv_ ## name) }
+
+		MOD_REC(a, 4),
+		MOD_REC(b, 4),
+		MOD_REC(c, 2),
+		MOD_REC(d, 3),
+		MOD_REC(e, 1),
+		MOD_REC(f, 4),
+		MOD_REC(g, 3),
+		MOD_REC(h, 1),
+		MOD_REC(i, 1)
+#undef MOD_REC
+#undef ARR_INIT
 	};
+	unsigned i;
 
 	for (i = 0; i < ARRAY_SIZE(levels); ++i) {
 		levels[i].ml_enter = modlev_enter;
@@ -138,7 +199,6 @@ static void _reset(void)
 		memcpy(modules[i].m_inv, mods[i].inv,
 		       mods[i].inv_nr * sizeof modules[i].m_inv[0]);
 	}
-
 	*g_log = 0;
 }
 
@@ -178,48 +238,11 @@ static void _test_module_fini(void)
 	*g_log = 0;
 
 	m0_module_fini(&modules[B]);
-	/* Doesn't go lower than b2 which d1 depends on. */
-	M0_UT_ASSERT(cur(A) == 1);
-	M0_UT_ASSERT(cur(B) == 2);
-	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE); /* b3 -> c0 =>
-						 * c0 gets downgraded */
-	M0_UT_ASSERT(cur(D) == 1);  /* c0 -> d2 => d2 gets downgraded */
-	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2"));
-
-	m0_module_fini(&modules[D]);
-	M0_UT_ASSERT(cur(A) == 1);
-	M0_UT_ASSERT(cur(B) == 1);
-	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2d1b2d0"));
-
-	m0_module__fini(&modules[B], 0);
-	M0_UT_ASSERT(cur(A) == 1);
-	M0_UT_ASSERT(cur(B) == 0);
-	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2d1b2d0b1"));
-
-	m0_module__fini(&modules[A], 0); /* a noop, since b0 depends on a1 */
-	M0_UT_ASSERT(cur(A) == 1);
-	M0_UT_ASSERT(cur(B) == 0);
-	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2d1b2d0b1"));
-
-	m0_module_fini(&modules[B]);
-	M0_UT_ASSERT(cur(A) == 0);
-	M0_UT_ASSERT(cur(B) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2d1b2d0b1b0a1"));
-
-	m0_module_fini(&modules[A]);
 	M0_UT_ASSERT(cur(A) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(B) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
-	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2d1b2d0b1b0a1a0"));
+	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2d1b2b1b0a1a0d0"));
 
 	m0_module_fini(&modules[A]); /* a noop */
 }
@@ -257,6 +280,38 @@ static void _test_module_dep_add(void)
 	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(m0_streq(g_log, "a0a1a2b0b1b2a3"));
+
+	m0_module_fini(&modules[A]);
+}
+
+static void _test_module_fini_all(void)
+{
+	int rc;
+
+	_reset();
+
+	rc = m0_module_init(&modules[E], 0) ?: m0_module_init(&modules[F], 3);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(cur(E) == 0);
+	M0_UT_ASSERT(cur(F) == 3);
+	M0_UT_ASSERT(cur(G) == 2);
+	M0_UT_ASSERT(cur(H) == 0);
+	M0_UT_ASSERT(cur(I) == 0);
+	M0_UT_ASSERT(m0_streq(g_log, "f0f1e0h0g0g1g2f2i0f3"));
+
+	*g_log = 0;
+	m0_module_fini(&modules[F]);
+	M0_UT_ASSERT(cur(E) == 0);
+	M0_UT_ASSERT(cur(F) == 1);
+	M0_UT_ASSERT(cur(G) == M0_MODLEV_NONE);
+	M0_UT_ASSERT(cur(H) == M0_MODLEV_NONE);
+	M0_UT_ASSERT(cur(I) == M0_MODLEV_NONE);
+	M0_UT_ASSERT(m0_streq(g_log, "f3i0f2g2g1g0h0"));
+
+	m0_module_fini(&modules[E]);
+	M0_UT_ASSERT(cur(E) == M0_MODLEV_NONE);
+	M0_UT_ASSERT(cur(F) == M0_MODLEV_NONE);
+	M0_UT_ASSERT(m0_streq(g_log, "f3i0f2g2g1g0h0e0f1f0"));
 }
 
 /*      amb
@@ -340,6 +395,7 @@ static void _test_module_alt_init(void)
 	M0_UT_ASSERT(amb.a_foo.m_cur == 0);
 	M0_UT_ASSERT(bar.m_cur == 0);
 	M0_UT_ASSERT(m0_streq(g_log, "f0b0"));
+	m0_module_fini(&bar);
 }
 
 static void test_module(void)
@@ -347,6 +403,7 @@ static void test_module(void)
 	_test_module_init();
 	_test_module_fini();
 	_test_module_dep_add();
+	_test_module_fini_all();
 	_test_module_alt_init();
 }
 

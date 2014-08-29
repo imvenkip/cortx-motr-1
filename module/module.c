@@ -51,14 +51,23 @@ static bool module_invariant(const struct m0_module *mod)
 {
 	const struct m0_moddep *md;
 
-	return  _0C(!M0_IN(M0_MODLEV_NONE,
-			   (mod->m_level_nr, mod->m_dep_nr, mod->m_inv_nr))) &&
+	return  _0C(0 < mod->m_level_nr && mod->m_level_nr < M0_MODLEV_MAX) &&
+		_0C(mod->m_dep_nr != M0_MODLEV_NONE) &&
+		_0C(mod->m_inv_nr != M0_MODLEV_NONE) &&
 		_0C(level_lt(mod->m_cur, mod->m_level_nr)) &&
 		_0C(m0_forall(i, mod->m_level_nr,
 			      /* A level without ->ml_enter() operation
 			       * is a pure decoration that we can do
 			       * without. */
 			      mod->m_level[i].ml_enter != NULL)) &&
+		_0C(m0_forall(i, mod->m_level_nr,
+			      ergo(mod->m_level_nrefs[i] > 0,
+				   level_ge(mod->m_cur, i)) &&
+			      mod->m_level_nrefs[i] == m0_count(
+				      j, mod->m_inv_nr,
+				      mod->m_inv[j].md_dst == i &&
+				      level_ge(mod->m_inv[j].md_other->m_cur,
+					       mod->m_inv[j].md_src)))) &&
 		_0C(mod->m_dep_nr <= ARRAY_SIZE(mod->m_dep)) &&
 		_0C(mod->m_inv_nr <= ARRAY_SIZE(mod->m_inv)) &&
 		_0C(moddeps_are_unique(mod->m_dep, mod->m_dep_nr)) &&
@@ -100,12 +109,12 @@ static int module_up(struct m0_module *module, unsigned level)
 	M0_ASSERT(M0_IN(module->m_m0, (NULL, instance)));
 	module->m_m0 = instance;
 	while (level_lt(module->m_cur, level) && result == 0) {
-		unsigned next = module->m_cur + 1;
-		int      i;
+		unsigned          next = module->m_cur + 1;
+		int               i;
+		struct m0_moddep *md;
 
 		for (i = 0; i < module->m_dep_nr && result == 0; ++i) {
-			struct m0_moddep *md = &module->m_dep[i];
-
+			md = &module->m_dep[i];
 			if (md->md_src == next) {
 				result = module_up(md->md_other, md->md_dst);
 				if (result == 0 && instance->i_dep_gen != gen)
@@ -114,6 +123,9 @@ static int module_up(struct m0_module *module, unsigned level)
 					 * initialisation.
 					 */
 					result = -EAGAIN;
+				if (result == 0)
+					M0_CNT_INC(md->md_other->m_level_nrefs[
+							   md->md_dst]);
 				/*
 				 * If dependencies failed, don't attempt any
 				 * form of cleanup, because it is impossible:
@@ -149,35 +161,22 @@ M0_INTERNAL void m0_module__fini(struct m0_module *module, unsigned level)
 	M0_PRE(level == M0_MODLEV_NONE || level < module->m_level_nr);
 	M0_PRE(module_invariant(module));
 
-	while (level_lt(level, module->m_cur)) {
+	while (level_lt(level, module->m_cur) &&
+	       module->m_level_nrefs[module->m_cur] == 0) {
 		unsigned          cur = module->m_cur;
 		int               i;
 		struct m0_moddep *md;
 
-		/*
-		 * Before downgrading the module, check the states of
-		 * the modules depending on this one. If a dependency
-		 * would be broken by downgrade --- return.
-		 */
-		for (i = 0; i < module->m_inv_nr; ++i) {
-			md = &module->m_inv[i];
-			if (md->md_dst == cur &&
-			    level_ge(md->md_other->m_cur, md->md_src))
-				return;
-		}
-
 		if (module->m_level[cur].ml_leave != NULL)
 			module->m_level[cur].ml_leave(module);
-		/*
-		 * Decrement the level before downgrading dependencies,
-		 * so that their inverse dependency check (above)
-		 * skips this module.
-		 */
 		--module->m_cur;
 		for (i = module->m_dep_nr - 1; i >= 0; --i) {
 			md = &module->m_dep[i];
-			if (md->md_src == cur)
-				m0_module__fini(md->md_other, md->md_dst - 1);
+			if (md->md_src == cur) {
+				M0_CNT_DEC(md->md_other->m_level_nrefs[
+						   md->md_dst]);
+				m0_module__fini(md->md_other, M0_MODLEV_NONE);
+			}
 		}
 	}
 	M0_POST(module_invariant(module));
@@ -224,7 +223,7 @@ static bool moddeps_are_unique(const struct m0_moddep *arr, unsigned n)
 	return m0_elems_are_unique(arr, n, sizeof *arr);
 }
 
-/** @} end of module group */
+/** @} module */
 
 /*
  *  Local variables:

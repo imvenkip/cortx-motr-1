@@ -99,7 +99,11 @@
  * @{
  */
 
-enum { M0_MODDEP_MAX = 64, M0_MODLEV_NONE = -1U };
+enum {
+	M0_MODLEV_NONE = -1U,
+	M0_MODLEV_MAX  = 16,
+	M0_MODDEP_MAX  = 64
+};
 
 /**
  * Dependency between a (module, level) pair.
@@ -146,10 +150,16 @@ struct m0_module {
 	 */
 	const struct m0_modlev *m_level;
 	unsigned                m_level_nr;
-	/** List of dependencies. */
+	/**
+	 * ->m_level_nrefs[i] is equal to the number of dependencies that
+	 * are currently relying on level i to be reached.  The level may
+	 * not downgrade if this number is nonzero.
+	 */
+	unsigned                m_level_nrefs[M0_MODLEV_MAX];
+	/** Array of dependencies. */
 	struct m0_moddep        m_dep[M0_MODDEP_MAX];
 	unsigned                m_dep_nr;
-	/** List of inverse dependencies. */
+	/** Array of inverse dependencies. */
 	struct m0_moddep        m_inv[M0_MODDEP_MAX];
 	unsigned                m_inv_nr;
 };
@@ -209,9 +219,9 @@ struct m0_modlev {
 	 * Entry function, executed before entering the level, after
 	 * all dependencies are satisfied.
 	 */
-	int  (*ml_enter)(struct m0_module *module);
+	int       (*ml_enter)(struct m0_module *module);
 	/** Leave function, executed before leaving the level. */
-	void (*ml_leave)(struct m0_module *module);
+	void      (*ml_leave)(struct m0_module *module);
 };
 
 /**
