@@ -54,7 +54,6 @@ static void sig_handler(int num)
 int main(int argc, char **argv)
 {
 	enum { CONSOLE_STR_LEN = 16 };
-	static struct m0 instance;
 	char     tm_len[CONSOLE_STR_LEN];
 	char     rpc_size[CONSOLE_STR_LEN];
 	int      result;
@@ -93,13 +92,9 @@ int main(int argc, char **argv)
 	sprintf(tm_len, "%d", tm_recv_queue_len);
 	sprintf(rpc_size, "%d", max_rpc_msg_size);
 
-	result = m0_init(&instance);
-	if (result != 0)
-		return M0_RC(-result);
-
 	result = m0_ut_init(NULL);
 	if (result != 0)
-		goto end;
+		return M0_RC(-result);
 
 	result = m0_console_fop_init();
 	if (result != 0)
@@ -120,8 +115,6 @@ fop_fini:
 	m0_console_fop_fini();
 ut_fini:
 	m0_ut_fini();
-end:
-	m0_fini();
 	return M0_RC(-result);
 }
 
