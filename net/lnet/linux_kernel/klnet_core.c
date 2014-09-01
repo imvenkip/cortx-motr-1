@@ -903,8 +903,8 @@ static bool nlx_kcore_domain_invariant(const struct nlx_kcore_domain *kd)
  */
 static bool nlx_kcore_buffer_invariant(const struct nlx_kcore_buffer *kcb)
 {
-	return kcb != NULL && kcb->kb_cb != NULL &&
-	       kcb->kb_magic == M0_NET_LNET_KCORE_BUF_MAGIC;
+	return kcb != NULL && kcb->kb_magic == M0_NET_LNET_KCORE_BUF_MAGIC &&
+	       nlx_core_kmem_loc_invariant(&kcb->kb_cb_loc);
 }
 
 /**
@@ -1308,7 +1308,8 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 	NLX_ALLOC_PTR(kb, &kd->kd_addb_ctx, K_BUF_REG);
 	if (kb == NULL)
 		return -ENOMEM;
-	kb->kb_cb = cb;
+	nlx_core_kmem_loc_set(&kb->kb_cb_loc, virt_to_page(cb),
+			      NLX_PAGE_OFFSET((unsigned long) cb));
 	rc = nlx_kcore_buf_register(kd, buffer_id, cb, kb);
 	if (rc != 0)
 		goto fail_free_kb;
@@ -1317,7 +1318,6 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 		goto fail_buf_registered;
 	M0_ASSERT(kb->kb_kiov != NULL && kb->kb_kiov_len > 0);
 	M0_POST(nlx_kcore_buffer_invariant(cb->cb_kpvt));
-	M0_POST(kb->kb_user == NULL);
 	return 0;
 
 fail_buf_registered:

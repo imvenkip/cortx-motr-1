@@ -148,11 +148,8 @@ struct nlx_kcore_transfer_mc {
 struct nlx_kcore_buffer {
 	uint64_t                      kb_magic;
 
-	/** Userspace virtual address of nlx_core_buffer structure. */
-	void                         *kb_user;
-
-	/** Kernelspace address. */
-	struct nlx_core_buffer       *kb_cb;
+	/** Reference to the shared memory nlx_core_buffer structure. */
+	struct nlx_core_kmem_loc      kb_cb_loc;
 
 	/** Pointer to kernel core TM data. */
 	struct nlx_kcore_transfer_mc *kb_ktm;

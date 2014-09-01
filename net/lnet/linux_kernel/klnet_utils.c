@@ -595,7 +595,6 @@ static void nlx_kcore_core_domain_unmap(struct nlx_kcore_domain *kd)
 }
 
 /**
-   FIXME update description.
    Maps a page that should point to a nlx_core_buffer.
    Uses kmap() because this subroutine can be used on contexts that will block.
    @pre nlx_kcore_buffer_invariant(kb)
@@ -603,43 +602,30 @@ static void nlx_kcore_core_domain_unmap(struct nlx_kcore_domain *kd)
    @param kb Pointer to kcore buffer private data.
    @returns core object, never NULL
  */
-static struct nlx_core_buffer *nlx_kcore_core_buffer_get(
+static struct nlx_core_buffer *nlx_kcore_core_buffer_map(
 						   struct nlx_kcore_buffer *kb)
 {
-	unsigned long rc = 0;
+	char *ptr;
+	struct nlx_core_kmem_loc *loc;
+	struct nlx_core_buffer *ret;
 
 	M0_PRE(nlx_kcore_buffer_invariant(kb));
-
-	if (kb->kb_user != NULL)
-		rc = copy_from_user(kb->kb_cb, kb->kb_user, sizeof(*kb->kb_cb));
-
-	return rc == 0 ? kb->kb_cb : NULL;
+	loc = &kb->kb_cb_loc;
+	ptr = kmap(loc->kl_page);
+	ret = (struct nlx_core_buffer *) (ptr + loc->kl_offset);
+	M0_POST(ret != NULL);
+	return ret;
 }
 
 /**
-   FIXME update description.
    Unmaps the page that contains a nlx_core_buffer using kunmap().
    @pre nlx_core_kmem_loc_invariant(&kcb->kb_cb_loc)
    @param kb Pointer to kcore buffer private data.
  */
-static void nlx_kcore_core_buffer_put(struct nlx_kcore_buffer *kb)
+static void nlx_kcore_core_buffer_unmap(struct nlx_kcore_buffer *kb)
 {
-	unsigned long rc;
-
-	M0_PRE(kb->kb_cb != NULL);
-
-	if (kb->kb_user == NULL)
-		return;
-
-	rc = copy_to_user(kb->kb_user, kb->kb_cb, sizeof(*kb->kb_cb));
-	/* XXX copy_to_user() may fail when user process exits or crashes after
-	 * nlx_kcore_core_buffer_get().
-	 */
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Couldn't copy core buffer back to userspace."
-				 "%lu bytes not copied from %zu requested",
-				 rc, sizeof(*kb->kb_cb));
-	}
+	M0_PRE(nlx_core_kmem_loc_invariant(&kb->kb_cb_loc));
+	kunmap(kb->kb_cb_loc.kl_page);
 }
 
 /**
