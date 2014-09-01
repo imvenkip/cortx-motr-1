@@ -63,6 +63,20 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 	memset((arr), 0, sizeof (arr)); \
 })
 
+/** Returns the number of array elements that satisfy given criteria. */
+#define m0_count(var, nr, ...)                     \
+({                                                 \
+	unsigned __nr = (nr);                      \
+	unsigned var;                              \
+	unsigned count;                            \
+						   \
+	for (count = var = 0; var < __nr; ++var) { \
+		if (__VA_ARGS__)                   \
+			++count;                   \
+	}                                          \
+	count;                                     \
+})
+
 /**
  * Returns a conjunction (logical AND) of an expression evaluated over a range
  *
