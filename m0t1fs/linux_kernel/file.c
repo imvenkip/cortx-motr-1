@@ -1360,7 +1360,22 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 					db_buf;
 
 			for (col = 0; col < data_col_nr(play); ++col) {
-				if (map->pi_databufs[row][col] == NULL)
+				/*
+				 * During rmw-IO request with read-old approach
+				 * we allocate primary and auxiliary buffers
+				 * for those units from a parity group, that
+				 * are spanned by input rmw-IO request. If
+				 * these units belong to failed devices then
+				 * during the degraded reading, primary buffers
+				 * are allocated for rest of the units from the
+				 * parity group in order to recover the failed
+				 * units. Thus if a parity group is in dgmode,
+				 * then every unit will have a primary buffer,
+				 * but may not have an auxiliary buffer.
+				 */
+				if (map->pi_databufs[row][col] == NULL ||
+				    map->pi_databufs[row][col]->
+				     db_auxbuf.b_addr == NULL)
 					continue;
 
 				dbufs[col] = map->pi_databufs[row][col]->db_buf;
