@@ -488,6 +488,12 @@ static inline uint64_t group_id(m0_bindex_t index, m0_bcount_t dtsize)
 	return index / dtsize;
 }
 
+static inline bool is_page_read(struct data_buf *dbuf)
+{
+	return dbuf->db_flags & PA_READ &&
+		dbuf->db_tioreq != NULL && dbuf->db_tioreq->ti_rc == 0;
+}
+
 static inline uint64_t target_offset(uint64_t		       frame,
 				     struct m0_pdclust_layout *play,
 				     m0_bindex_t	       gob_offset)
@@ -1034,6 +1040,7 @@ static void data_buf_init(struct data_buf *buf, void *addr, uint64_t flags)
 	data_buf_bob_init(buf);
 	buf->db_flags = flags;
 	m0_buf_init(&buf->db_buf, addr, PAGE_CACHE_SIZE);
+	buf->db_tioreq = NULL;
 }
 
 static void data_buf_fini(struct data_buf *buf)
@@ -2583,8 +2590,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 					continue;
 			}
 			dbuf = map->pi_databufs[row][col];
-			if (within_eof && dbuf->db_flags & PA_READ_FAILED)
-				continue;
 			/*
 			 * Marks only those data buffers which lie within EOF.
 			 * Since all IO fops receive VERSION_MISMATCH error
@@ -2595,9 +2600,11 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			 * degraded mode.
 			 */
 			if (within_eof) {
+				if (dbuf->db_flags & PA_READ_FAILED ||
+				    is_page_read(dbuf))
+					continue;
 				dbuf->db_flags |= PA_DGMODE_READ;
-				M0_LOG(M0_DEBUG, "[%u][%u], flag = %d\n",
-				       row, col, dbuf->db_flags);
+				M0_LOG(M0_DEBUG, "[%u][%u], flag = %d\n", row, col, dbuf->db_flags);
 			}
 		}
 	}
@@ -2637,10 +2644,10 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			dbuf = map->pi_paritybufs[row][col];
 			page_update(map, row, col, PA_PARITY);
 			/* Skips the page if it is marked as PA_READ_FAILED. */
-			if (dbuf->db_flags & PA_READ_FAILED)
+			if (dbuf->db_flags & PA_READ_FAILED ||
+			    is_page_read(dbuf))
 				continue;
-			if (M0_IN(map->pi_rtype, (PIR_READREST, PIR_NONE)))
-				dbuf->db_flags |= PA_DGMODE_READ;
+			dbuf->db_flags |= PA_DGMODE_READ;
 		}
 	}
 	if (rc != 0)
@@ -3325,13 +3332,11 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		return M0_ERR(rc, "dgmode failed");
 
 	/*
-	 * Starts processing the pages again if any of the parity groups is
-	 * in the state PI_DEGRADED.
+	 * Starts processing the pages again if any of the parity groups
+	 * spanned by input IO-request is in degraded mode.
 	 */
 	if (req->ir_dgmap_nr > 0) {
 		for (id = 0; id < req->ir_iomap_nr; ++id) {
-			if (req->ir_iomaps[id]->pi_state != PI_DEGRADED)
-				continue;
 			if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
 				ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 			rc = req->ir_iomaps[id]->pi_ops->
@@ -4239,7 +4244,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			pattr[seg] |= PA_PARITY;
 			M0_LOG(M0_DEBUG, "Parity seg added");
 		}
-
+		buf->db_tioreq = ti;
 		bvec->ov_buf[seg]  = buf->db_buf.b_addr;
 		pattr[seg] |= buf->db_flags;
 		M0_LOG(M0_DEBUG, "pageaddr=%p, index=%6llu, size=%4llu "
@@ -4255,6 +4260,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
 	}
+
 	M0_LEAVE();
 }
 
@@ -5326,9 +5332,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	ndom	= ti->ti_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
 	rw      = M0_IN(ioreq_sm_state(req),
 			(IRS_WRITING, IRS_DEGRADED_WRITING)) ?
-		  PA_WRITE :
-		  ioreq_sm_state(req) == IRS_DEGRADED_READING ?
-		                         PA_DGMODE_READ : PA_READ;
+			PA_WRITE :
+			ioreq_sm_state(req) == IRS_DEGRADED_READING ?
+                                               PA_DGMODE_READ : PA_READ;
 	maxsize = m0_rpc_session_get_max_item_payload_size(ti->ti_session);
 
 	while (buf < SEG_NR(ivec)) {

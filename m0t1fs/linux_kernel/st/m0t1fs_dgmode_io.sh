@@ -86,9 +86,8 @@ dgio_test()
 		return $rc
 	fi
 
-
 	echo "dgmode test1: IO after first failure"
-	dgio_test_module dd bs=$unit_size count=20 conv=notrunc
+	dgio_test_module dd bs=8821 count=1 seek=23 conv=notrunc
 	rc=$?
 	echo $rc
 	if [ $rc -ne "0" ]
@@ -96,7 +95,6 @@ dgio_test()
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi
-
 
 	echo "dgmode test 2: Read after first failure"
 	diff ./sandbox/file_to_compare $MERO_M0T1FS_MOUNT_DIR/$file_to_compare
@@ -107,7 +105,6 @@ dgio_test()
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi
-
 	pool_mach_query $fail_device1
 	rc=$?
 	if [ $rc -ne "0" ]

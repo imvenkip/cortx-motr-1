@@ -1421,25 +1421,31 @@ struct io_request {
  */
 struct data_buf {
 	/** Holds M0_T1FS_DTBUF_MAGIC. */
-	uint64_t       db_magic;
+	uint64_t             db_magic;
 
 	/** Inline buffer pointing to a kernel page. */
-	struct m0_buf  db_buf;
+	struct m0_buf        db_buf;
 
 	/**
 	 * Auxiliary buffer used in case of read-modify-write IO.
 	 * Used when page pointed to by ::db_buf::b_addr is partially spanned
 	 * by incoming rmw request.
 	 */
-	struct m0_buf  db_auxbuf;
+	struct m0_buf        db_auxbuf;
 
-	struct page   *db_page;
+	struct page         *db_page;
 
 	/**
 	 * Miscellaneous flags.
 	 * Can be used later for caching options.
 	 */
-	enum page_attr db_flags;
+	enum page_attr       db_flags;
+
+	/**
+	 * Link to target-io-request to which the buffer will be mapped, in
+	 * case it is part of input IO request.
+	 */
+	struct target_ioreq *db_tioreq;
 };
 
 /**
@@ -1614,8 +1620,7 @@ struct pargrp_iomap_ops {
 
 	/**
 	 * Does necessary processing for degraded mode read IO.
-	 * Marks all pages except for the failed one with flag
-	 * PA_DGMODE_READ.
+	 * Marks pages belonging to failed targets with a flag PA_READ_FAILED.
 	 * @param index Array of target indices that fall in given parity
 	 *              group. These are converted to global file offsets.
 	 * @param count Number of segments provided.
@@ -1630,7 +1635,6 @@ struct pargrp_iomap_ops {
 	/**
 	 * Marks all but the failed pages with flag PA_DGMODE_READ in
 	 * data matrix and parity matrix.
-	 * @pre map->pi_state == PI_DEGRADED.
 	 */
 	int (*pi_dgmode_postprocess)(struct pargrp_iomap *map);
 

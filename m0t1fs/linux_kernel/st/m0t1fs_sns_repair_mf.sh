@@ -44,6 +44,10 @@ sns_repair_test()
 	_dd $file2 70
 	_dd $file3 30
 
+	_md5sum $file1
+	_md5sum $file2
+	_md5sum $file3
+
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
 	done
@@ -61,6 +65,14 @@ sns_repair_test()
 	if [ $? -ne "0" ]
 	then
 		return $?
+	else
+		echo "SNS Repair done."
+		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+		if [ $? -ne "0" ]
+		then
+			echo "md5 sum does not match"
+			unmount_and_clean &>> $MERO_TEST_LOGFILE
+		fi
 	fi
 ####### Query device state
 
@@ -80,6 +92,14 @@ sns_repair_test()
 	if [ $? -ne "0" ]
 	then
 		return $?
+	else
+		echo "SNS Repair done."
+		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+		if [ $? -ne "0" ]
+		then
+			echo "md5 sum does not match"
+			unmount_and_clean &>> $MERO_TEST_LOGFILE
+		fi
 	fi
 ####### Query device state
 
@@ -98,6 +118,14 @@ sns_repair_test()
 	if [ $? -ne "0" ]
 	then
 		return $?
+	else
+		echo "SNS Repair done."
+		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+		if [ $? -ne "0" ]
+		then
+			echo "md5 sum does not match"
+			unmount_and_clean &>> $MERO_TEST_LOGFILE
+		fi
 	fi
 
 	pool_mach_query $fail_device3
@@ -111,6 +139,14 @@ sns_repair_test()
 	if [ $? -ne "0" ]
 	then
 		return $?
+	else
+		echo "SNS Repair done."
+		md5sum -c < $MERO_M0T1FS_TEST_DIR/md5
+		if [ $? -ne "0" ]
+		then
+			echo "md5 sum does not match"
+			unmount_and_clean &>> $MERO_TEST_LOGFILE
+		fi
 	fi
 	pool_mach_query $fail_device1 $fail_device2 $fail_device3
 	if [ $? -ne "0" ]
@@ -120,7 +156,6 @@ sns_repair_test()
 
 	echo "unmounting and cleaning.."
 	unmount_and_clean &>> $MERO_TEST_LOGFILE
-
 	return $rc
 }
 
