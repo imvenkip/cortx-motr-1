@@ -16,6 +16,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/ext.h \
 			       lib/ext_xc.h \
                                lib/finject.h \
+                               lib/fs.h \
                                lib/getopts.h \
 			       lib/hash.h \
                                lib/list.h \
@@ -98,6 +99,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/vec.c \
                            lib/vec_xc.c \
                            lib/user_space/finject_init.c \
+                           lib/user_space/fs.c \
                            lib/user_space/memory.c \
                            lib/user_space/processor.c \
                            lib/user_space/rwlock.c \
@@ -121,6 +123,7 @@ XC_FILES += lib/buf_xc.h \
 
 EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/finject_init.c \
+              lib/linux_kernel/fs.c \
               lib/linux_kernel/kassert.c \
               lib/linux_kernel/kcookie.c \
               lib/linux_kernel/kmisc.c \

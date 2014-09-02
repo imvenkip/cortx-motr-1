@@ -28,8 +28,8 @@
 #include "lib/types.h"
 #include "lib/arith.h"
 #include "lib/atomic.h"
-#include "lib/time.h"    /* m0_time_t */
-#include "lib/time.h"    /* printf_check */
+#include "lib/time.h"    /* m0_time_t, printf_check */
+#include "lib/misc.h"    /* M0_CAT */
 #include "mero/magic.h"  /* M0_TRACE_DESCR_MAGIC */
 
 #ifndef __KERNEL__

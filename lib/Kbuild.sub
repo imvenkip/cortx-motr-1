@@ -36,6 +36,7 @@ m0mero_objects += lib/assert.o \
                   lib/vec_xc.o
 
 m0mero_objects += lib/linux_kernel/finject_init.o \
+                  lib/linux_kernel/fs.o \
                   lib/linux_kernel/kassert.o \
                   lib/linux_kernel/kcookie.o \
                   lib/linux_kernel/kthread.o \

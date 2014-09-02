@@ -31,11 +31,11 @@
 #include <unistd.h>			/* lstat */
 #include <fcntl.h>			/* open */
 #include <limits.h>			/* PATH_MAX */
-#include <dirent.h>
 
 #include "lib/errno.h"			/* ENOENT */
 #include "lib/memory.h"			/* M0_ALLOC_PTR */
 #include "lib/string.h"			/* m0_strdup */
+#include "lib/fs.h"			/* m0_cleandir */
 
 #include "stob/type.h"			/* m0_stob_type_id_get */
 #include "stob/stob_addb.h"		/* M0_STOB_OOM */
@@ -270,41 +270,6 @@ static void stob_linux_domain_fini(struct m0_stob_domain *dom)
 	m0_free(ldom);
 }
 
-/**
- * Removes directory along with its files.
- * Inner directories are not allowed.
- */
-static int cleandir(const char *dir)
-{
-	struct dirent *de;
-	DIR           *d;
-	int            rc;
-	int            fd;
-
-	fd = open(dir, O_RDONLY|O_DIRECTORY);
-	if (fd == -1) {
-		if (errno == ENOENT)
-			return 0;
-		rc = -errno;
-		M0_LOG(M0_NOTICE, "open(%s) failed: rc=%d", dir, rc);
-		return rc;
-	}
-
-	d = opendir(dir);
-	if (d != NULL) {
-		while ((de = readdir(d)) != NULL)
-			unlinkat(fd, de->d_name, 0);
-		closedir(d);
-	}
-	close(fd);
-
-	rc = rmdir(dir) == 0 ? 0 : -errno;
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "rmdir(%s) failed: rc=%d", dir, rc);
-
-	return rc;
-}
-
 static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 					    const char *path,
 					    uint64_t dom_key,
@@ -334,12 +299,14 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 	if (rc == 0)
 		return rc;
 destroy:
-	rc1 = cleandir(dir_stob);
+	rc1 = m0_cleandir(dir_stob);
 	if (rc1 != 0)
-		M0_LOG(M0_ERROR, "cleandir(%s) failed: rc=%d", dir_stob, rc1);
-	rc1 = cleandir(dir_domain);
+		M0_LOG(M0_ERROR, "m0_cleandir(%s) failed: rc=%d",
+			dir_stob, rc1);
+	rc1 = m0_cleandir(dir_domain);
 	if (rc1 != 0)
-		M0_LOG(M0_ERROR, "cleandir(%s) failed: rc=%d", dir_domain, rc1);
+		M0_LOG(M0_ERROR, "m0_cleandir(%s) failed: rc=%d",
+			dir_domain, rc1);
 	if (rc == 0)
 		rc = rc1;
 free:
