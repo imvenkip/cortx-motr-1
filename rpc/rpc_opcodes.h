@@ -205,7 +205,11 @@ enum M0_RPC_OPCODES {
 
 	/** Service start/stop */
 	M0_SSS_REQ_OPCODE                   = 118,
-	M0_SSS_REP_OPCODE                   = 119
+	M0_SSS_REP_OPCODE                   = 119,
+
+	/* fsync fops */
+	M0_FSYNC_OPCODE                     = 120,
+	M0_FSYNC_REP_OPCODE                 = 121
 };
 
 /** @} endgroup rpc_layer_core */

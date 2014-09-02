@@ -63,6 +63,13 @@ M0_INTERNAL int m0_fom_generic_init(void)
 	return 0;
 }
 
+M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
+		   		     struct m0_fom *fom)
+{
+	rep->fmr_remid.tri_txid = m0_fom_tx(fom)->t_id;
+	rep->fmr_remid.tri_locality = fom->fo_ops->fo_home_locality(fom);
+}
+
 bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item)
 {
 	return item->ri_type == &m0_fop_generic_reply_fopt.ft_rpc_item_type;

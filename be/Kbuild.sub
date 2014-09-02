@@ -4,4 +4,4 @@ m0mero_objects += \
                   be/list.o \
                   be/seg_dict.o \
                   be/linux_kernel/stubs.o \
-
+		  be/tx_xc.o

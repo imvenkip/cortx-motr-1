@@ -35,6 +35,9 @@
 #include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_{lock|unlock} */
 #include "fop/fop.h"
 #include "fop/fop_xc.h"
+#include "fop/fom.h"
+#include "fop/fom_generic.h"
+#include "fop/fom_generic_xc.h"
 #include "fop/fom_long_lock.h" /* m0_fom_ll_global_init */
 #include "addb/addb_monitor.h" /* stats register */
 #include "reqh/reqh.h"

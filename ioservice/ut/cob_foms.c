@@ -32,11 +32,14 @@
 #include "ut/cs_service.h"               /* ds1_service_type */
 #include "ut/cs_fop.h"                   /* m0_ut_fom_phase_set */
 #include "rpc/rpc_machine_internal.h"
+#include "mdservice/fsync_fops.h"
 
 #include <stdio.h>
 
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
+
+extern struct m0_fop_type m0_fop_fsync_fopt;
 extern struct m0_reqh_service_type m0_ios_type;
 
 /* Static instance of struct cobfoms_ut used by all test cases. */
@@ -404,6 +407,133 @@ static void cobfoms_del_nonexist_cob(void)
 {
 	cobfoms_send_internal(NULL, &m0_fop_cob_delete_fopt, 0, -ENOENT,
 			      COB_FOP_SINGLE);
+}
+
+/**
+ * Sends an fsync fop request to the ioservice to trigger the fsync of
+ * a given transaction.
+ * @param remid Remote ID of the transaction to fsync.Any other lingering
+ * transaction in the ioservice with an ID lower than txid will be also
+ * immediately placed.
+ * @param expected_rc Expected value for the rc included in the corresponding
+ * fsync fop reply. If the received value is different this function asserts.
+ */
+static void cobfoms_fsync_send_fop(struct m0_be_tx_remid *remid,
+				   int expected_rc);
+
+/**
+ * Tries to fsync a non-existent transaction and checks the right error code
+ * is returned.
+ */
+static void cobfoms_fsync_nonexist_tx(void)
+{
+	struct m0_be_tx_remid   remid;
+
+	remid.tri_txid = 666;
+	remid.tri_locality = 0;
+
+	cobfoms_fsync_send_fop(&remid, 0);
+}
+
+static void cobfoms_fsync_send_fop(struct m0_be_tx_remid       *remid,
+				   int                          expected_rc)
+{
+	int                             rc;
+	struct m0_fop                  *fop;
+	struct m0_fop_fsync            *ffop;
+	struct m0_fop_fsync_rep        *rfop;
+	struct m0_rpc_machine          *machine;
+
+	machine = session_machine(&cut->cu_cctx.rcx_session);
+
+	/* create a fop from fsync_fopt */
+	fop = m0_fop_alloc(&m0_fop_fsync_fopt, NULL, machine);
+
+	/* populate fop */
+	ffop = m0_fop_data(fop);
+	ffop->ff_be_remid.tri_txid =  remid->tri_txid;
+	ffop->ff_be_remid.tri_locality = remid->tri_locality;
+	ffop->ff_fsync_mode = M0_FSYNC_MODE_ACTIVE;
+
+	/* send fop */
+	rc = m0_rpc_post_sync(fop, &cut->cu_cctx.rcx_session,
+			      NULL, 0 /* deadline */);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+
+	/* such tx shouldn't exist */
+	M0_UT_ASSERT(rfop->ffr_rc == expected_rc);
+	M0_UT_ASSERT(rfop->ffr_be_remid.tri_txid == remid->tri_txid);
+
+	/* release structs */
+	m0_fop_put_lock(fop);
+}
+
+/**
+ * Sends several create-delete pairs using sequential fids and then sends
+ * an fsync fop request to sync the last one.
+ * All the fops involved must succeed.
+ */
+static void cobfoms_fsync_create_delete(void)
+{
+	int                             rc;
+	int                             i;
+	struct m0_fop                 **fops;
+	struct m0_fop_cob_op_reply     *rfop;
+	/* how many create-delete pairs are we issuing? */
+	uint32_t                        cobfop_nr = 5;
+	struct m0_be_tx_remid           remid;
+	struct m0_rpc_machine          *machine;
+
+	machine = session_machine(&cut->cu_cctx.rcx_session);
+
+	/* allocate the required fops */
+	M0_ALLOC_ARR(fops, cobfop_nr*2);
+	M0_UT_ASSERT(fops != NULL);
+
+	/* fill the aux fop arrays with create-delete pairs */
+	for (i = 0; i < cobfop_nr; ++i ) {
+		/* allocate and fill with the right fid */
+		fops[i] = m0_fop_alloc(&m0_fop_cob_create_fopt, NULL, machine);
+		M0_UT_ASSERT(fops[i] != NULL);
+		cobfops_populate_internal(fops[i], cut->cu_gobindex);
+
+		fops[i+cobfop_nr] = m0_fop_alloc(&m0_fop_cob_delete_fopt,
+						 NULL, machine);
+		M0_UT_ASSERT(fops[i+cobfop_nr] != NULL);
+		cobfops_populate_internal(fops[i+cobfop_nr], cut->cu_gobindex);
+
+		/* cu_goibindex is shared across all the suite's tests */
+		++cut->cu_gobindex;
+	}
+
+	/* send the fops and keep the txid returned by the last one */
+	for (i = 0; i < cobfop_nr*2; ++i ) {
+		/* sequentially, no need to use threads here */
+		rc = m0_rpc_post_sync(fops[i], &cut->cu_cctx.rcx_session,
+				      NULL, 0 /* deadline */);
+		M0_UT_ASSERT(rc == 0);
+		rc = m0_rpc_item_wait_for_reply(
+			&fops[i]->f_item, M0_TIME_NEVER);
+		M0_UT_ASSERT(rc == 0);
+		rfop = (struct m0_fop_cob_op_reply *)
+			m0_fop_data(
+				m0_rpc_item_to_fop(fops[i]->f_item.ri_reply));
+		M0_UT_ASSERT(rfop->cor_rc == 0);
+		remid.tri_txid = rfop->cor_mod_rep.fmr_remid.tri_txid;
+		remid.tri_locality = rfop->cor_mod_rep.fmr_remid.tri_locality;
+	}
+
+	/* now try to fsync the last transaction and check the op. succeeds */
+	cobfoms_fsync_send_fop(&remid, 0);
+
+	/* release all the fops */
+	for (i = 0; i < cobfop_nr*2; ++i) {
+		m0_fop_put_lock(fops[i]);
+	}
+	m0_free(fops);
 }
 
 extern struct m0_sm_conf cob_ops_conf;
@@ -1294,6 +1424,9 @@ struct m0_ut_suite cobfoms_ut = {
 	.ts_fini  = NULL,
 	.ts_tests = {
 		{ "cobfoms_utinit",                 cobfoms_utinit},
+		{ "cobfoms_fsync_nonexistent_tx",   cobfoms_fsync_nonexist_tx},
+		{ "cobfoms_fsync_create_delete",
+		   cobfoms_fsync_create_delete},
 		{ "cobfoms_single_fop",             cobfoms_single},
 		{ "cobfoms_multiple_fops",          cobfoms_multiple},
 		{ "cobfoms_preexisting_cob_create", cobfoms_preexisting_cob},

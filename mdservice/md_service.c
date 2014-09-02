@@ -42,6 +42,7 @@
 #include "conf/confc.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
+#include "mdservice/fsync_fops.h"
 
 static struct m0_addb_ctx m0_mds_mod_ctx;
 
@@ -74,18 +75,31 @@ M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice",
 
 M0_INTERNAL int m0_mds_register(void)
 {
+	int     rc = 0;
+
 	m0_addb_ctx_type_register(&m0_addb_ct_mds_mod);
 	m0_addb_ctx_type_register(&m0_addb_ct_mds_serv);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &m0_mds_mod_ctx,
 			 &m0_addb_ct_mds_mod, &m0_addb_proc_ctx);
         m0_reqh_service_type_register(&m0_mds_type);
-        return m0_mdservice_fop_init();
+
+	rc = m0_mdservice_fsync_fop_init(&m0_mds_type);
+	if (rc != 0) {
+		return M0_ERR(rc, "Unable to initialize mdservice fsync fop");
+	}
+	rc = m0_mdservice_fop_init();
+	if (rc != 0) {
+		m0_mdservice_fsync_fop_fini();
+		return M0_ERR(rc, "Unable to initialize mdservice fop");
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_mds_unregister(void)
 {
         m0_reqh_service_type_unregister(&m0_mds_type);
         m0_mdservice_fop_fini();
+	m0_mdservice_fsync_fop_fini();
 	m0_addb_ctx_fini(&m0_mds_mod_ctx);
 }
 
@@ -389,6 +403,7 @@ static void mds_stop(struct m0_reqh_service *service)
 
 /** @} endgroup mdservice */
 
+#undef M0_TRACE_SUBSYSTEM
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

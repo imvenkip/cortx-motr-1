@@ -23,6 +23,10 @@
 #ifndef __MERO_MDSERVICE_MD_FOPS_H__
 #define __MERO_MDSERVICE_MD_FOPS_H__
 
+#include "fop/fop.h"
+#include "fop/fop_xc.h"
+#include "fop/fom_generic.h"
+#include "fop/fom_generic_xc.h"
 #include "lib/types.h"
 #include "xcode/xcode_attr.h"
 #include "fid/fid_xc.h"
@@ -101,8 +105,9 @@ struct m0_fop_create {
 } M0_XCA_RECORD;
 
 struct m0_fop_create_rep {
-	int32_t           c_rc;
-	struct m0_fop_cob c_body;
+	int32_t                 c_rc;
+	struct m0_fop_cob       c_body;
+	struct m0_fop_mod_rep   c_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_lookup {
@@ -124,8 +129,9 @@ struct m0_fop_link {
 } M0_XCA_RECORD;
 
 struct m0_fop_link_rep {
-	int32_t           l_rc;
-	struct m0_fop_cob l_body;
+	int32_t                 l_rc;
+	struct m0_fop_cob       l_body;
+	struct m0_fop_mod_rep   l_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_unlink {
@@ -135,8 +141,9 @@ struct m0_fop_unlink {
 } M0_XCA_RECORD;
 
 struct m0_fop_unlink_rep {
-	int32_t           u_rc;
-	struct m0_fop_cob u_body;
+	int32_t                 u_rc;
+	struct m0_fop_cob       u_body;
+	struct m0_fop_mod_rep   u_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_rename {
@@ -149,8 +156,9 @@ struct m0_fop_rename {
 } M0_XCA_RECORD;
 
 struct m0_fop_rename_rep {
-	int32_t           r_rc;
-	struct m0_fop_cob r_body;
+	int32_t                 r_rc;
+	struct m0_fop_cob       r_body;
+	struct m0_fop_mod_rep   r_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_open {
@@ -159,8 +167,9 @@ struct m0_fop_open {
 } M0_XCA_RECORD;
 
 struct m0_fop_open_rep {
-	int32_t           o_rc;
-	struct m0_fop_cob o_body;
+	int32_t                 o_rc;
+	struct m0_fop_cob       o_body;
+	struct m0_fop_mod_rep   o_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_close {
@@ -179,8 +188,9 @@ struct m0_fop_setattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_setattr_rep {
-	int32_t           s_rc;
-	struct m0_fop_cob s_body;
+	int32_t                 s_rc;
+	struct m0_fop_cob       s_body;
+	struct m0_fop_mod_rep   s_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_getattr {
@@ -211,8 +221,9 @@ struct m0_fop_setxattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_setxattr_rep {
-	int32_t           s_rc;
-	struct m0_fop_cob s_body;
+	int32_t                 s_rc;
+	struct m0_fop_cob       s_body;
+	struct m0_fop_mod_rep   s_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_delxattr {
@@ -221,8 +232,9 @@ struct m0_fop_delxattr {
 } M0_XCA_RECORD;
 
 struct m0_fop_delxattr_rep {
-	int32_t           d_rc;
-	struct m0_fop_cob d_body;
+	int32_t                 d_rc;
+	struct m0_fop_cob       d_body;
+	struct m0_fop_mod_rep   d_mod_rep;
 } M0_XCA_RECORD;
 
 struct m0_fop_listxattr {

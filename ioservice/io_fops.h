@@ -25,6 +25,9 @@
 #define __MERO_IOSERVICE_IO_FOPS_H__
 
 #include "fop/fop.h"
+#include "fop/fop_xc.h"
+#include "fop/fom_generic.h"
+#include "fop/fom_generic_xc.h"
 #include "lib/types.h"
 #include "rpc/rpc.h"
 #include "xcode/xcode_attr.h"
@@ -337,19 +340,19 @@ struct m0_fv_updates {
  */
 struct m0_fop_cob_rw_reply {
         /** Status code of operation. */
-	int32_t              rwr_rc;
+	int32_t                rwr_rc;
 
 	/** Number of bytes read or written. */
-	uint64_t             rwr_count;
+	uint64_t                rwr_count;
 
 	/** latest version number */
-	struct m0_fv_version rwr_fv_version;
+	struct m0_fv_version    rwr_fv_version;
 
 	/**
 	 * Failure vector updates. This field is valid  iff rc is some
 	 * defined special code.
 	 */
-	struct m0_fv_updates rwr_fv_updates;
+	struct m0_fv_updates    rwr_fv_updates;
 
 	/**
 	 * A field indicating whether repair has finished or not for given
@@ -358,7 +361,10 @@ struct m0_fop_cob_rw_reply {
 	 * rwr_repair_done == 2 indicates file is still be to be repaired.
 	 * rwr_repair_done == 3 indicates file has been repaired.
 	 */
-	uint32_t             rwr_repair_done;
+	uint32_t                rwr_repair_done;
+
+	/** Returned values for an UPDATE operation */
+	struct m0_fop_mod_rep   rwr_mod_rep;
 } M0_XCA_RECORD;
 
 /**
@@ -512,16 +518,19 @@ struct m0_fop_cob_delete {
  * requests.
  */
 struct m0_fop_cob_op_reply {
-	int32_t              cor_rc;
+	int32_t                cor_rc;
 
 	/** latest version number */
-	struct m0_fv_version cor_fv_version;
+	struct m0_fv_version    cor_fv_version;
 
 	/**
 	 * Failure vector updates. This field is valid  iff rc is some
 	 * defined special code.
 	 */
-	struct m0_fv_updates cor_fv_updates;
+	struct m0_fv_updates    cor_fv_updates;
+
+	/** Returned values for an UPDATE operation */
+	struct m0_fop_mod_rep   cor_mod_rep;
 } M0_XCA_RECORD;
 
 /**

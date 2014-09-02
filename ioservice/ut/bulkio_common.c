@@ -23,10 +23,14 @@
 #endif
 #include "bulkio_common.h"
 #include "rpc/rpclib.h"     /* m0_rpc_client_start */
+#include "rpc/session.h"
 #include "ut/cs_service.h"  /* ds1_service_type */
 #include "net/lnet/lnet.h"
 #include "file/file.h"
 #include "lib/string.h"     /* m0_strdup */
+#include "ut/ut.h"
+
+#include "mdservice/fsync_fops.h"
 
 #define S_DBFILE        "bulkio_st.db"
 #define S_STOBFILE      "bulkio_st_stob"
@@ -262,6 +266,60 @@ void io_fops_destroy(struct bulkio_params *bp)
 	m0_free0(&bp->bp_wfops);
 }
 
+/**
+ * Sends an fsync fop request to trigger the placing of a specific transaction.
+ * @param remid remote id of the transaction to be fsync'ed.
+ * @param t structure containing the bulkio parameters for the operation. From
+ * those parameters only the network session is relevant to the function.
+ * @return the rc included in the corresponding fsync fop reply.
+ */
+int io_fsync_send_fop(struct m0_be_tx_remid *remid, struct thrd_arg *t)
+{
+	int                             rc;
+	struct m0_fop                  *fop;
+	struct m0_fop_fsync            *ffop;
+	struct m0_fop_fsync_rep        *rfop;
+
+	struct m0_rpc_item             *item;
+	struct bulkio_params           *bp;
+	struct m0_rpc_machine          *machine;
+
+	bp = t->ta_bp;
+
+	machine = session_machine(&bp->bp_cctx->rcx_session);
+
+	/* create a fop from fsync_fopt */
+	fop = m0_fop_alloc(&m0_fop_fsync_fopt, NULL, machine);
+	M0_UT_ASSERT(fop != NULL);
+
+	/* populate fop */
+	ffop = m0_fop_data(fop);
+	ffop->ff_be_remid = *remid;
+	ffop->ff_fsync_mode = M0_FSYNC_MODE_ACTIVE;
+
+	/* send fop */
+	item = &fop->f_item;
+	item->ri_session = &bp->bp_cctx->rcx_session;
+	item->ri_prio = M0_RPC_ITEM_PRIO_MID;
+	rc = m0_rpc_post(item);
+	M0_UT_ASSERT(rc == 0);
+
+	/* get and process the reply */
+	rc = m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+
+	/* check the values returned */
+	M0_UT_ASSERT(rfop->ffr_be_remid.tri_txid == remid->tri_txid);
+	rc = rfop->ffr_rc;
+
+	/* release structs */
+	m0_fop_put_lock(fop);
+
+	return rc;
+}
+
+
 void io_fops_rpc_submit(struct thrd_arg *t)
 {
 	int                          i;
@@ -288,6 +346,8 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	M0_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(m0_rpc_item_to_fop(item->ri_reply));
 	M0_ASSERT(rw_reply->rwr_rc == 0);
+	bp->bp_remid = rw_reply->rwr_mod_rep.fmr_remid;
+
 	if (m0_is_read_fop(&io_fops[i]->if_fop)) {
 		for (j = 0; j < bp->bp_iobuf[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bp->bp_iobuf[i]->nb_buffer.ov_buf[j],

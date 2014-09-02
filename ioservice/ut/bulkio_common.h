@@ -105,6 +105,9 @@ struct bulkio_params {
 	struct m0_rm_domain        bp_rdom;
 	struct m0_rm_resource_type bp_flock_rt;
 	struct m0_file             bp_file[IO_FIDS_NR];
+
+	/** Transaction ID included in the last reply received */
+	struct m0_be_tx_remid      bp_remid;
 };
 
 /* A structure used to pass as argument to io threads. */
@@ -137,6 +140,14 @@ void bulkio_test(struct bulkio_params *bp, int fids_nr, int fops_nr,
 extern int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec, uint32_t num_segs,
 				   m0_bcount_t seg_size, unsigned shift);
 
+/**
+ * Sends an fsync fop request through the session provided within an io
+ * thread args struct.
+ * @param remid Remote ID of the transaction that is to be fsynced.
+ * @param t Bulkio parameters.
+ * @return the rc included in the fsync fop reply.
+ */
+int io_fsync_send_fop(struct m0_be_tx_remid *remid, struct thrd_arg *t);
 void io_fops_rpc_submit(struct thrd_arg *t);
 
 void io_fops_destroy(struct bulkio_params *bp);

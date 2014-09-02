@@ -112,6 +112,12 @@ M0_INTERNAL void m0_be_engine__tx_fini(struct m0_be_engine *en,
 M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 					    struct m0_be_tx *tx,
 					    enum m0_be_tx_state state);
+/**
+ * Forces the tx group fom to move to LOGGING state and  eventually
+ * commits all txs to disk.
+ */
+M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
+					struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 					     struct m0_be_tx_group *gr);

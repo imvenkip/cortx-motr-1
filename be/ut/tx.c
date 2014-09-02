@@ -22,6 +22,7 @@
 
 #include "lib/types.h"		/* m0_uint128_eq */
 #include "lib/misc.h"		/* M0_BITS */
+#include "lib/memory.h"         /* M0_BITS */
 
 #include "ut/ut.h"
 
@@ -325,6 +326,127 @@ static void be_ut_tx_test(size_t nr)
 	m0_be_ut_backend_fini(&ut_be);
 
 }
+
+static void be_ut_tx_do_force (struct be_ut_tx_x *xs, size_t nr)
+{
+	int                      i;
+	int                      nr_grps;
+	struct be_ut_tx_x       *x;
+	struct m0_be_tx_group  **grps;
+
+	M0_ALLOC_ARR(grps, nr);
+	M0_UT_ASSERT(grps != NULL);
+
+	/*
+	 * Find all tx groups.
+	 *
+	 * Note: only 1 tx group is supported at this moment.
+	 */
+	nr_grps = 0;
+	for (x = xs; x->size != 0; ++x) {
+		for (i = 0; i < nr_grps; i++) {
+			if (x->tx.t_group == grps[i]) break;
+		}
+
+		if (i == nr_grps) {
+			grps[i] = x->tx.t_group;
+			nr_grps ++;
+		}
+	}
+
+	/*
+	 * Note: we will force only one tx per group.
+	 */
+	for (i = 0, x = xs; x->size != 0; ) {
+		m0_be_tx_force(&x->tx);
+		i++;
+
+		/* Skip those txs belong to the same group. */
+		while (x->tx.t_group != grps[i] && x->size != 0)
+			x++;
+	}
+
+	m0_free(grps);
+}
+
+/**
+ * Tests m0_be_tx_force().
+ * @param nr  Number of transactions to use.
+ */
+static void be_ut_tx_force(size_t nr)
+{
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_ut_seg     ut_seg;
+	void                   *alloc;
+	struct be_ut_tx_x      *x;
+	struct be_ut_tx_x       xs[] = {
+		{
+			.size          = sizeof(struct m0_uint128),
+			.captured.u128 = M0_UINT128(0xdeadd00d8badf00d,
+						    0x5ca1ab1e7e1eca57)
+		},
+		{
+			.size             = sizeof(struct be_ut_complex),
+			.captured.complex = { .real = 18, .imag = 4 }
+		},
+		{ .size = 0 } /* terminator */
+	};
+
+	M0_PRE(0 < nr && nr < ARRAY_SIZE(xs));
+	xs[nr].size = 0;
+
+	M0_SET0(&ut_be);
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	be_ut_tx_alloc_init(&alloc, ut_seg.bus_seg);
+
+	for (x = xs; x->size != 0; ++x) {
+		m0_be_ut_tx_init(&x->tx, &ut_be);
+		m0_be_tx_get(&x->tx);
+		x->cred = M0_BE_TX_CREDIT(1, x->size);
+	}
+
+	for (x = xs; x->size != 0; ++x)
+		be_ut_transact(x, ut_seg.bus_seg, &alloc);
+
+	/* Wait for transactions to become GROUPED. */
+	for (x = xs; x->size != 0; ++x) {
+		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_GROUPED),
+					    M0_TIME_NEVER);
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	/* Force all txs to be persistent */
+	be_ut_tx_do_force(xs, nr);
+
+	/* Wait for transactions to become persistent. */
+	for (x = xs; x->size != 0; ++x) {
+		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_PLACED),
+					    M0_TIME_NEVER);
+		M0_UT_ASSERT(rc == 0);
+		m0_be_tx_put(&x->tx);
+	}
+
+	m0_be_ut_seg_check_persistence(&ut_seg);
+
+	for (x = xs; x->size != 0; ++x) {
+		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_DONE),
+					    M0_TIME_NEVER);
+		M0_UT_ASSERT(rc == 0);
+		m0_be_tx_fini(&x->tx);
+	}
+
+	be_ut_tx_alloc_fini(&alloc);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+
+}
+
+void m0_be_ut_tx_force(void)
+{
+	be_ut_tx_force(2);
+}
+
 
 /** constants for backend UT for transaction persistence */
 enum {

@@ -28,6 +28,8 @@
 #include "xcode/xcode_attr.h"
 #include "lib/string.h"
 #include "lib/string_xc.h"
+#include "be/tx.h"
+#include "be/tx_xc.h"
 
 struct m0_rpc_item;
 
@@ -224,6 +226,18 @@ struct m0_fop_generic_reply {
 extern struct m0_fop_type m0_fop_generic_reply_fopt;
 
 bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
+
+/**
+ * m0_fop_mod_rep contains common reply values for an UPDATE fop.
+ */
+struct m0_fop_mod_rep {
+	/** Remote ID assigned to this UPDATE operation */
+	struct m0_be_tx_remid fmr_remid;
+} M0_XCA_RECORD;
+
+M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
+				     struct m0_fom *fom);
+
 
 /**
    If item is of type m0_fop_generic_reply then m0_rpc_item_generic_reply_rc()

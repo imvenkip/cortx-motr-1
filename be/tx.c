@@ -24,6 +24,7 @@
 #include "lib/trace.h"
 
 #include "be/tx.h"
+#include "be/tx_group.h"
 #include "be/tx_internal.h"
 
 #include "lib/errno.h"		/* ENOMEM */
@@ -410,7 +411,7 @@ static void be_tx_state_move(struct m0_be_tx *tx,
 	m0_sm_move(&tx->t_sm, rc, state);
 	m0_be_engine__tx_state_set(tx->t_engine, tx, state);
 
-	if (state == M0_BTS_PLACED || state == M0_BTS_FAILED)
+	if (M0_IN(state, (M0_BTS_PLACED, M0_BTS_FAILED)))
 		m0_be_tx_put(tx);
 
 	M0_POST(m0_be_tx__invariant(tx));
@@ -517,6 +518,15 @@ M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx)
 M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
 	return m0_fol_rec_encode(rec, &tx->t_payload);
+}
+
+M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx)
+{
+	M0_PRE(be_tx_is_locked(tx));
+	M0_PRE(m0_be_tx_state(tx) >= M0_BTS_CLOSED);
+
+	/* let be engine do the dirty part */
+	m0_be_engine__tx_force(tx->t_engine, tx);
 }
 
 M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx)

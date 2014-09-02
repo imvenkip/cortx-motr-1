@@ -399,6 +399,35 @@ M0_INTERNAL void m0_be_engine__tx_state_set(struct m0_be_engine *en,
 	be_engine_unlock(en);
 }
 
+M0_INTERNAL void m0_be_engine__tx_force(struct m0_be_engine *en,
+					struct m0_be_tx *tx)
+{
+	struct m0_be_tx_group   *grp;
+
+
+	/*
+	* Note: as multiple txs may try to move tx group's fom (for example,
+	* a new tx is added to the tx group or multiple txs call
+	* m0_be_tx_force()), we use be engine's lock here
+	*/
+	be_engine_lock(en);
+
+	grp = tx->t_group;
+	if (grp == NULL) {
+		be_engine_unlock(en);
+		return;
+	}
+
+	/*
+	* Is it possible that the tx has been commited to disk while
+	* we were waiting for the lock?
+	*/
+	if (m0_be_tx_state(tx) < M0_BTS_LOGGED)
+		be_engine_group_close(en, grp, true);
+
+	be_engine_unlock(en);
+}
+
 M0_INTERNAL void m0_be_engine__tx_group_open(struct m0_be_engine *en,
 					     struct m0_be_tx_group *gr)
 {
@@ -509,8 +538,13 @@ M0_INTERNAL struct m0_be_tx *m0_be_engine__tx_find(struct m0_be_engine *en,
 
 	for (i = 0; i < ARRAY_SIZE(en->eng_txs); ++i) {
 		tx = m0_tl_find(etx, tx, &en->eng_txs[i], tx->t_id == id);
-		if (tx != NULL)
+		if (tx != NULL) {
+			if (M0_IN(m0_be_tx_state(tx),
+				  (M0_BTS_FAILED, M0_BTS_DONE))) {
+				tx = NULL;
+			}
 			break;
+		}
 	}
 
 	M0_POST(be_engine_invariant(en));

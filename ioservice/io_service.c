@@ -48,6 +48,7 @@
 #include "mdservice/md_fops.h"
 #include "layout/layout.h"
 #include "layout/pdclust.h"
+#include "mdservice/fsync_fops.h"
 
 M0_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh",
 		   M0_INTERNAL,
@@ -194,9 +195,17 @@ M0_INTERNAL int m0_ios_register(void)
 	for (i = 0; i < ARRAY_SIZE(ios_rwfom_cntr_rts); ++i)
 		m0_addb_rec_type_register(ios_rwfom_cntr_rts[i]);
 
+	/* initialize the fsync fops */
+	rc = m0_mdservice_fsync_fop_init(&m0_ios_type);
+	if (rc != 0) {
+		return M0_ERR(rc, "Unable to initialize ioservice fsync fop");
+	}
+
 	rc = m0_ioservice_fop_init();
 	if (rc != 0) {
-		return rc;
+		/* revert the fsync initialization */
+		m0_mdservice_fsync_fop_fini();
+		return M0_ERR(rc, "Unable to initialize ioservice fop");
 	}
 
 	m0_addb_rec_type_register(&m0_addb_rt_ios_rwfom_finish);
@@ -214,7 +223,7 @@ M0_INTERNAL int m0_ios_register(void)
 	ios_cdom_key = m0_reqh_lockers_allot();
 	poolmach_key = m0_reqh_lockers_allot();
 	ios_mds_conn_key = m0_reqh_lockers_allot();
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

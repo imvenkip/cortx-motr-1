@@ -219,6 +219,18 @@ enum m0_magic_satchel {
 	/* hashbucket::hb_tioreqs::td_head_magic (affable close) */
 	M0_T1FS_TLIST_HEAD_MAGIC = 0x33affab1ec105e77,
 
+	/* m0t1fs_fsync_fop_wrapper (sliced zodiac) */
+	M0_T1FS_FFW_TLIST_MAGIC1 = 0x33511CED20D1AC77,
+
+	/* m0t1fs_fsync_fop_wrapper (idealised dab) */
+	M0_T1FS_FFW_TLIST_MAGIC2 = 0x331DEA115EDDAB77,
+
+	/* m0t1fs_inode::ci_service_pending_txid_list (baseball zeal) */
+	M0_T1FS_INODE_PTI_MAGIC1 = 0x33BA5EBA112EA177,
+
+	/* m0t1fs_inode::ci_service_pending_txid_list (so sidesaddle) */
+	M0_T1FS_INODE_PTI_MAGIC2 = 0x335051DE5ADD1E77,
+
 /* Configuration */
 	/* m0_conf_cache::ca_registry::t_magic (fabled feodal) */
 	M0_CONF_CACHE_MAGIC = 0x33fab1edfe0da177,

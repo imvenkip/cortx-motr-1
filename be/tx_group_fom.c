@@ -241,8 +241,14 @@ static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
 	M0_LOG(M0_DEBUG, "m=%p, tx_nr=%zu", m,
 	       m0_be_tx_group_size(m->tgf_group));
 
-	m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
-	m0_fom_ready(&m->tgf_gen);
+	/*
+	 * The callback invoking this function might have kicked in after the
+	 * phase of the fom has been modified by the regular tick() function.
+	 */
+	if (m0_fom_phase(&m->tgf_gen) < TGS_LOGGING) {
+		m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
+		m0_fom_ready(&m->tgf_gen);
+	}
 }
 
 static void be_tx_group_fom_handle(struct m0_sm_group *gr,

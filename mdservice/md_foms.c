@@ -47,6 +47,7 @@
 
 static int md_locate(struct m0_mdstore *md, struct m0_fid *tfid,
 		     struct m0_cob **cob);
+static size_t m0_md_req_fom_locality_get(const struct m0_fom *fom);
 
 M0_INTERNAL void m0_md_cob_wire2mem(struct m0_cob_attr *attr,
 				    const struct m0_fop_cob *body)
@@ -181,6 +182,19 @@ static inline int m0_md_tick_generic(struct m0_fom *fom)
 	return 0;
 }
 
+static int md_tail(struct m0_fom *fom, struct m0_fop_cob *body,
+		   struct m0_fop_mod_rep *mod, int rc)
+{
+	const struct m0_fop *fop = fom->fo_fop;
+
+	M0_LOG(M0_DEBUG, "%s "FID_F" finished with %d.",
+	       fop->f_type->ft_name, FID_P(&body->b_pfid), rc);
+	body->b_rc = rc;
+	m0_fom_mod_rep_fill(mod, fom);
+	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	return M0_FSO_AGAIN;
+}
+
 static int m0_md_tick_create(struct m0_fom *fom)
 {
 	struct m0_mdstore        *md;
@@ -233,10 +247,7 @@ static int m0_md_tick_create(struct m0_fom *fom)
 	rc = m0_md_create(md, &body->b_pfid,
 			  &body->b_tfid, &attr, m0_fom_tx(fom));
 out:
-	M0_LOG(M0_DEBUG, "Create finished with %d", rc);
-	rep->c_body.b_rc = rc;
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->c_body, &rep->c_mod_rep, rc);
 }
 
 static int m0_md_tick_link(struct m0_fom *fom)
@@ -286,12 +297,7 @@ static int m0_md_tick_link(struct m0_fom *fom)
 			  &body->b_pfid, &body->b_tfid, &attr,
 			  m0_fom_tx(fom));
 out:
-	M0_LOG(M0_DEBUG, "Link "FID_F"/%.*s -> "FID_F" finished with %d",
-	       FID_P(&body->b_pfid), (int)req->l_name.s_len,
-	       (char *)req->l_name.s_buf, FID_P(&body->b_tfid), rc);
-	rep->l_body.b_rc = rc;
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->l_body, &rep->l_mod_rep, rc);
 }
 
 static void m0_md_fom_addb_init(struct m0_fom *fom,
@@ -366,12 +372,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 		goto out;
 	}
 out:
-	M0_LOG(M0_DEBUG, "Unlink "FID_F"/%.*s finished with %d",
-	       FID_P(&body->b_pfid),
-	       (int)req->u_name.s_len, (char *)req->u_name.s_buf, rc);
-	rep->u_body.b_rc = rc;
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->u_body, &rep->u_mod_rep, rc);
 }
 
 static void m0_md_rename_credit(struct m0_mdstore  *md,
@@ -489,9 +490,7 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 	}
 	m0_cob_put(scob);
 out:
-	rep->r_body.b_rc = rc;
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->r_body, &rep->r_mod_rep, rc);
 }
 
 static int m0_md_tick_open(struct m0_fom *fom)
@@ -560,9 +559,7 @@ static int m0_md_tick_open(struct m0_fom *fom)
 	}
 
 out:
-	rep->o_body.b_rc = rc;
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->o_body, &rep->o_mod_rep, rc);
 }
 
 static int m0_md_tick_close(struct m0_fom *fom)
@@ -686,11 +683,7 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 	rc = m0_mdstore_setattr(md, cob, &attr, m0_fom_tx(fom));
 	m0_cob_put(cob);
 out:
-	M0_LOG(M0_DEBUG, "Setattr for "FID_F" finished with %d",
-	       FID_P(&body->b_tfid), rc);
-	rep->s_body.b_rc = rc;
-	m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->s_body, &rep->s_mod_rep, rc);
 }
 
 static int m0_md_tick_lookup(struct m0_fom *fom)
@@ -987,11 +980,7 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
         m0_free(eakey);
         m0_free(earec);
 out:
-        M0_LOG(M0_DEBUG, "Setxattr for "FID_F" finished with %d",
-               FID_P(&body->b_tfid), rc);
-        rep->s_body.b_rc = rc;
-        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
-        return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->s_body, &rep->s_mod_rep, rc);
 }
 
 static int m0_md_tick_delxattr(struct m0_fom *fom)
@@ -1050,11 +1039,7 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
         m0_cob_put(cob);
         m0_free(eakey);
 out:
-        M0_LOG(M0_DEBUG, "Delxattr for "FID_F" finished with %d",
-               FID_P(&body->b_tfid), rc);
-        rep->d_body.b_rc = rc;
-        m0_fom_phase_move(fom, rc, rc != 0 ? M0_FOPH_FAILURE : M0_FOPH_SUCCESS);
-        return M0_FSO_AGAIN;
+	return md_tail(fom, &rep->d_body, &rep->d_mod_rep, rc);
 }
 
 static int m0_md_tick_listxattr(struct m0_fom *fom)

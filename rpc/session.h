@@ -447,6 +447,10 @@ m0_rpc_session_get_max_item_size(const struct m0_rpc_session *session);
 M0_INTERNAL m0_bcount_t
 m0_rpc_session_get_max_item_payload_size(const struct m0_rpc_session *session);
 
+M0_INTERNAL struct m0_rpc_machine *
+session_machine(const struct m0_rpc_session *s);
+
+
 /** @} end of session group */
 
 #endif

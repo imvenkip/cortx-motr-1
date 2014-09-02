@@ -370,6 +370,14 @@ struct m0_be_tx {
 	bool                   t_exclusive;
 };
 
+/**
+ * Transaction identifier for remote nodes.
+ */
+struct m0_be_tx_remid {
+	uint64_t tri_txid;
+	uint64_t tri_locality;
+} M0_XCA_RECORD;
+
 M0_INTERNAL bool m0_be_tx__invariant(const struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
@@ -433,7 +441,11 @@ M0_INTERNAL void m0_be_tx_get(struct m0_be_tx *tx);
  */
 M0_INTERNAL void m0_be_tx_put(struct m0_be_tx *tx);
 
-/** Forces the transaction to storage. */
+/**
+ * Forces the tx's group to close immediately by explictly calling
+ * m0_be_tx_group_close(), which in turn triggers the logging of all
+ * the lingering transactions in this group.
+ */
 M0_INTERNAL void m0_be_tx_force(struct m0_be_tx *tx);
 
 /**
@@ -473,6 +485,12 @@ M0_INTERNAL bool m0_be_tx__is_fast(struct m0_be_tx *tx);
 
 /** Adds fol record @rec into the transaction @tx payload */
 M0_INTERNAL int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec);
+
+/**
+ * Forces the tx to move forward to PLACED state, which will in turn force
+ * all the transactions in the same tx group to commit to disk as well.
+ */
+M0_INTERNAL void m0_be_tx_force (struct m0_be_tx *tx);
 
 /**
  * true if transaction is opened exclusively. Private for BE.

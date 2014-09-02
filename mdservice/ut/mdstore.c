@@ -38,6 +38,7 @@
 #include "ut/be.h"
 #include "ut/stob.h"		/* m0_ut_stob_linux_get_by_key */
 #include "be/ut/helper.h"
+#include "mdservice/fsync_foms.c"
 
 #include "mdservice/ut/mdstore.h"
 #include "mdservice/ut/lustre.h"
@@ -241,6 +242,56 @@ static void test_mdops(void)
 	m0_sm_group_fini(&machine.rm_sm_grp);
 }
 
+static void ut_fsync_create_fom(void)
+{
+	struct m0_fop_fsync    *ffop;
+	struct m0_fop          *fop;
+	struct m0_fop          *rep;
+	struct m0_fom          *fom;
+	int                     rc;
+
+	/* make up an rpc machine to use */
+	m0_sm_group_init(&machine.rm_sm_grp);
+
+	fop = m0_fop_alloc(&m0_fop_fsync_fopt, NULL, &machine);
+	M0_UT_ASSERT(fop != NULL);
+
+	ffop = m0_fop_data(fop);
+	M0_UT_ASSERT(ffop != NULL);
+	ffop->ff_be_remid.tri_txid = 666;
+	ffop->ff_be_remid.tri_locality = 1;
+
+	/* the type for the request is right */
+	M0_UT_ASSERT(fop->f_type == &m0_fop_fsync_fopt);
+
+	/* check reqh has is associated with the mds service */
+	fop->f_type->ft_fom_type.ft_rstype = &m0_mds_type;
+	M0_ASSERT(m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype , &reqh) != NULL);
+
+	/* create a fom for the fsync fop request */
+	m0_sm_group_lock(&machine.rm_sm_grp);
+	rc = m0_md_fsync_req_fom_create(fop, &fom, &reqh);
+	m0_sm_group_unlock(&machine.rm_sm_grp);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(fom != NULL);
+
+	/* check the fom returned */
+	rep = fom->fo_rep_fop;
+	M0_UT_ASSERT(rep != NULL);
+	M0_UT_ASSERT(fom->fo_fop == fop);
+	/* check the types of the fop request and reply */
+	M0_UT_ASSERT(fom->fo_fop->f_type == &m0_fop_fsync_fopt);
+	M0_UT_ASSERT(fom->fo_ops == &fsync_fom_ops);
+	M0_UT_ASSERT(rep->f_type == &m0_fop_fsync_rep_fopt);
+
+	/* test fom's ops */
+	M0_UT_ASSERT(fsync_fom_locality_get(fom) == 1);
+	M0_UT_ASSERT(fom->fo_addb_ctx.ac_magic == M0_ADDB_CTX_MAGIC);
+
+	/* release (the kraken!) */
+	m0_free(fop);
+}
+
 struct m0_ut_suite mdservice_ut = {
         .ts_name = "mdservice-ut",
         .ts_init = db_reset,
@@ -249,6 +300,7 @@ struct m0_ut_suite mdservice_ut = {
                 { "mdservice-mkfs", test_mkfs },
                 { "mdservice-init", test_init },
                 { "mdservice-ops",  test_mdops },
+                { "mdservice-fsync", ut_fsync_create_fom},
                 { "mdservice-fini", test_fini },
                 { NULL, NULL }
         }

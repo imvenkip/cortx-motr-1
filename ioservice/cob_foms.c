@@ -472,6 +472,10 @@ pack:
 		struct m0_fop_cob_op_reply     *reply;
 		reply = m0_fop_data(fom->fo_rep_fop);
 		reply->cor_rc = rc;
+
+		/* Piggyback some information about the transaction */
+		m0_fom_mod_rep_fill(&reply->cor_mod_rep, fom);
+
 		m0_ios_poolmach_version_updates_pack(poolmach,
 						     &common->c_version,
 						     &reply->cor_fv_version,

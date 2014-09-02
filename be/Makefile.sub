@@ -42,6 +42,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/seg0.c            \
 			   be/seg_dict.c        \
 			   be/tx.c              \
+			   be/tx_xc.c           \
 			   be/tx_credit.c       \
 			   be/tx_group_fom.c    \
 			   be/tx_group.c        \
@@ -50,6 +51,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/tx_service.c      \
                            be/ut/helper.c
 
-XC_FILES += be/extmap_xc.h
+XC_FILES += be/extmap_xc.h \
+            be/tx_xc.h
 
 EXTRA_DIST += be/linux_kernel/stubs.c

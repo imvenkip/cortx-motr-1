@@ -403,7 +403,8 @@ M0_INTERNAL void m0_mdservice_fop_fini(void)
         m0_fop_type_fini(&m0_fop_rename_rep_fopt);
         m0_fop_type_fini(&m0_fop_readdir_rep_fopt);
         m0_fop_type_fini(&m0_fop_layout_rep_fopt);
-        m0_xc_md_fops_fini();
+
+	m0_xc_md_fops_fini();
 }
 M0_EXPORTED(m0_mdservice_fop_fini);
 
