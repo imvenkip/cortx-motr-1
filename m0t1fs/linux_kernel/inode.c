@@ -31,6 +31,16 @@
 #include "lib/trace.h"          /* M0_LOG and M0_ENTRY */
 #include "mero/magic.h"
 #include "rm/rm_service.h"      /* m0_rm_svc_domain_get */
+#include "m0t1fs/m0t1fs_addb.h" /* m0t1fs_addb_ctx */
+#include "lib/tlist.h"          /* M0_TL_DESCR_DECLARE() */
+
+/* ISPTI -> Inode's Service to Pending Transaction Id list */
+M0_TL_DESCR_DEFINE(ispti, "m0t1fs_service_txid pending an inode", ,
+			struct m0t1fs_service_txid,
+			stx_tlink, stx_link_magic,
+			M0_T1FS_INODE_PTI_MAGIC1, M0_T1FS_INODE_PTI_MAGIC2);
+
+M0_TL_DEFINE(ispti, , struct m0t1fs_service_txid);
 
 static struct kmem_cache *m0t1fs_inode_cachep = NULL;
 
@@ -169,7 +179,26 @@ static void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 	M0_SET0(&ci->ci_fowner);
 	ci->ci_layout_instance = NULL;
 
+	m0_mutex_init(&ci->ci_pending_tx_lock);
+	ispti_tlist_init(&ci->ci_pending_tx);
+
 	m0t1fs_inode_bob_init(ci);
+	M0_LEAVE();
+}
+
+static void m0t1fs_inode_ispti_fini(struct m0t1fs_inode *ci)
+{
+	struct m0t1fs_service_txid *iter = NULL;
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&ci->ci_pending_tx_lock);
+	m0_tl_teardown(ispti, &ci->ci_pending_tx, iter)
+		m0_free0(&iter);
+
+	ispti_tlist_fini(&ci->ci_pending_tx);
+	m0_mutex_unlock(&ci->ci_pending_tx_lock);
+
 	M0_LEAVE();
 }
 
@@ -181,6 +210,10 @@ static void m0t1fs_inode_fini(struct m0t1fs_inode *ci)
 
 	M0_PRE(m0t1fs_inode_bob_check(ci));
 	m0t1fs_inode_bob_fini(ci);
+
+	/* Empty the list, then free the list lock */
+	m0t1fs_inode_ispti_fini(ci);
+	m0_mutex_fini(&ci->ci_pending_tx_lock);
 	M0_LEAVE();
 }
 

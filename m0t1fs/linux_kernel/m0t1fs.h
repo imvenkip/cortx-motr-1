@@ -28,6 +28,7 @@
 #include <linux/pagemap.h>
 
 #include "lib/tlist.h"
+#include "lib/hash.h"
 #include "lib/mutex.h"
 #include "net/net.h"              /* m0_net_domain */
 #include "rpc/rpc.h"
@@ -651,6 +652,24 @@ enum io_req_type {
         IRT_TYPE_NR,
 };
 
+struct m0t1fs_service_txid {
+	/**
+	 * m0t1fs_service_context is used as sender identifier
+	 * This is used as a key for the inode:list, but for super blocks
+	 * this struct is embedded in the m0t1fs_service_context.
+	 */
+	struct m0t1fs_service_context *stx_service_ctx;
+
+	/**
+	 * The remote id of the largest be transaction ID seen
+	 * from this sender.
+	 */
+	struct m0_be_tx_remid          stx_tri;
+
+	struct m0_tlink                stx_tlink;
+	uint64_t                       stx_link_magic;
+};
+
 /**
    For each <mounted_fs, target_service> pair, there is one instance of
    m0t1fs_service_context.
@@ -662,19 +681,23 @@ enum io_req_type {
  */
 struct m0t1fs_service_context {
 	/** Superblock associated with this service context */
-	struct m0t1fs_sb         *sc_csb;
+	struct m0t1fs_sb                 *sc_csb;
 
 	/** Service type */
-	enum m0_conf_service_type sc_type;
+	enum m0_conf_service_type         sc_type;
 
-	struct m0_rpc_conn        sc_conn;
-	struct m0_rpc_session     sc_session;
+	struct m0_rpc_conn                sc_conn;
+	struct m0_rpc_session             sc_session;
 
 	/** Link in m0t1fs_sb::csb_service_contexts list */
-	struct m0_tlink           sc_link;
+	struct m0_tlink                   sc_link;
+
+	/** pending transaction record for this superblock:service */
+	struct m0t1fs_service_txid        sc_max_pending_tx;
+	struct m0_mutex                   sc_max_pending_tx_lock;
 
 	/** Magic = M0_T1FS_SVC_CTX_MAGIC */
-	uint64_t                  sc_magic;
+	uint64_t                          sc_magic;
 };
 
 /**
@@ -812,6 +835,13 @@ struct m0t1fs_sb {
 
 	/** copytool mode */
 	bool                                    csb_copytool;
+
+	/**
+	 * list of pending transactions, by service,
+	 * protected by csb_service_pending_txid_map_lock
+	 */
+	struct m0_htable                        csb_service_pending_txid_map;
+	struct m0_mutex                         csb_service_pending_txid_map_lock;
 };
 
 struct m0t1fs_filedata {
@@ -830,6 +860,9 @@ struct m0t1fs_mdop {
 	bool                  mo_use_hint; /**< if true, mo_hash_hint is valid*/
 	uint32_t              mo_hash_hint;/**< hash hint for mdservice map   */
 };
+
+M0_TL_DESCR_DECLARE(ispti, extern);
+M0_TL_DECLARE(ispti, extern, struct m0t1fs_service_txid);
 
 /**
    Inode representing global file.
@@ -851,6 +884,11 @@ struct m0t1fs_inode {
 	struct m0_rm_remote        ci_creditor;
 	/** File layout ID */
 	uint64_t                   ci_layout_id;
+
+	/** list of pending transactions */
+	struct m0_tl               ci_pending_tx;
+	struct m0_mutex            ci_pending_tx_lock;
+
 	uint64_t                   ci_magic;
 };
 
@@ -906,6 +944,13 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
 			       unsigned int nlen,
 			       bool use_hint,
 			       uint32_t hash_hint);
+/**
+ * tlist descriptor for list of m0t1fs_service_context objects placed
+ * in m0t1fs_sb::csb_service_contexts list using sc_link.
+ */
+M0_TL_DESCR_DECLARE(m0t1fs_svc_ctx, M0_EXTERN);
+M0_TL_DECLARE(m0t1fs_svc_ctx, M0_EXTERN, struct m0t1fs_service_context);
+
 /* inode.c */
 
 M0_INTERNAL int m0t1fs_inode_cache_init(void);
@@ -1053,6 +1098,9 @@ void m0t1fs_fid_accept(struct m0t1fs_sb *csb, const struct m0_fid *fid);
 
 unsigned long fid_hash(const struct m0_fid *fid);
 M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop);
+
+M0_INTERNAL struct m0t1fs_service_context *
+m0t1fs_service_from_session(struct m0_rpc_session *session);
 
 #endif /* __MERO_M0T1FS_M0T1FS_H__ */
 

@@ -1826,4 +1826,14 @@ struct io_req_fop {
 	const struct io_req_fop_ops *irf_ops;
 };
 
+M0_INTERNAL struct inode *m0t1fs_file_to_inode(const struct file *file);
+
+M0_INTERNAL struct m0t1fs_inode *
+m0t1fs_file_to_m0inode(const struct file *file);
+
+M0_INTERNAL struct m0t1fs_inode *
+m0t1fs_inode_to_m0inode(const struct inode *inode);
+
+M0_INTERNAL struct m0t1fs_sb *m0inode_to_sb(struct m0t1fs_inode *m0inode);
+
 #endif /* __MERO_M0T1FS_FILE_INTERNAL_H__ */

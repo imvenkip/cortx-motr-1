@@ -33,6 +33,7 @@
 #include "layout/layout.h"
 #include "layout/pdclust.h"
 #include "m0t1fs/linux_kernel/m0t1fs.h"
+#include "m0t1fs/linux_kernel/fsync.h"
 
 M0_INTERNAL void m0t1fs_inode_bob_init(struct m0t1fs_inode *bob);
 M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
@@ -1340,26 +1341,30 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 			     struct m0_fop_type          *ftype,
 			     struct m0_fop              **rep_fop)
 {
-	int                          rc;
-	struct m0_fop               *fop;
-	struct m0_rpc_session       *session;
-	struct m0_fop_create_rep    *create_rep;
-	struct m0_fop_unlink_rep    *unlink_rep;
-	struct m0_fop_rename_rep    *rename_rep;
-	struct m0_fop_link_rep      *link_rep;
-	struct m0_fop_setattr_rep   *setattr_rep;
-	struct m0_fop_getattr_rep   *getattr_rep;
-	struct m0_fop_statfs_rep    *statfs_rep;
-	struct m0_fop_lookup_rep    *lookup_rep;
-	struct m0_fop_open_rep      *open_rep;
-	struct m0_fop_close_rep     *close_rep;
-	struct m0_fop_readdir_rep   *readdir_rep;
-	struct m0_fop_layout_rep    *layout_rep;
-	struct m0_fop_setxattr_rep  *setxattr_rep;
-	struct m0_fop_getxattr_rep  *getxattr_rep;
-	struct m0_fop_listxattr_rep *listxattr_rep;
-	struct m0_fop_delxattr_rep  *delxattr_rep;
-	void                        *reply_data;
+	int                                rc;
+	struct m0_fop                     *fop;
+	struct m0_rpc_session             *session;
+	union {
+		struct m0_fop_create_rep    *create_rep;
+		struct m0_fop_unlink_rep    *unlink_rep;
+		struct m0_fop_rename_rep    *rename_rep;
+		struct m0_fop_link_rep      *link_rep;
+		struct m0_fop_setattr_rep   *setattr_rep;
+		struct m0_fop_getattr_rep   *getattr_rep;
+		struct m0_fop_statfs_rep    *statfs_rep;
+		struct m0_fop_lookup_rep    *lookup_rep;
+		struct m0_fop_open_rep      *open_rep;
+		struct m0_fop_close_rep     *close_rep;
+		struct m0_fop_readdir_rep   *readdir_rep;
+		struct m0_fop_layout_rep    *layout_rep;
+		struct m0_fop_setxattr_rep  *setxattr_rep;
+		struct m0_fop_getxattr_rep  *getxattr_rep;
+		struct m0_fop_listxattr_rep *listxattr_rep;
+		struct m0_fop_delxattr_rep  *delxattr_rep;
+	} u;
+	void                              *reply_data;
+	struct m0t1fs_service_context     *service;
+	struct m0_be_tx_remid             *remid = NULL;
 
 	M0_PRE(csb != NULL);
 	M0_PRE(mo != NULL);
@@ -1405,76 +1410,95 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 	m0_fop_get(*rep_fop);
 	reply_data = m0_fop_data(*rep_fop);
 
+	/**
+	 * @todo remid can be found generically, outside of this switch through
+	 * the use of 'm0_xcode_find()' - this function should be cleaned up
+	 * later.
+	 */
 	switch (m0_fop_opcode(fop)) {
 	case M0_MDSERVICE_CREATE_OPCODE:
-		create_rep = reply_data;
-		rc = create_rep->c_body.b_rc;
+		u.create_rep = reply_data;
+		rc = u.create_rep->c_body.b_rc;
+		remid = &u.create_rep->c_mod_rep.fmr_remid;
 		break;
 	case M0_MDSERVICE_STATFS_OPCODE:
-		statfs_rep = reply_data;
-		rc = statfs_rep->f_rc;
+		u.statfs_rep = reply_data;
+		rc = u.statfs_rep->f_rc;
 		break;
 	case M0_MDSERVICE_LOOKUP_OPCODE:
-		lookup_rep = reply_data;
-		rc = lookup_rep->l_body.b_rc;
+		u.lookup_rep = reply_data;
+		rc = u.lookup_rep->l_body.b_rc;
 		break;
 	case M0_MDSERVICE_LINK_OPCODE:
-		link_rep = reply_data;
-		rc = link_rep->l_body.b_rc;
+		u.link_rep = reply_data;
+		rc = u.link_rep->l_body.b_rc;
+		remid = &u.link_rep->l_mod_rep.fmr_remid;
 		break;
 	case M0_MDSERVICE_UNLINK_OPCODE:
-		unlink_rep = reply_data;
-		rc = unlink_rep->u_body.b_rc;
+		u.unlink_rep = reply_data;
+		rc = u.unlink_rep->u_body.b_rc;
+		remid = &u.unlink_rep->u_mod_rep.fmr_remid;
 		break;
 	case M0_MDSERVICE_RENAME_OPCODE:
-		rename_rep = reply_data;
-		rc = rename_rep->r_body.b_rc;
+		u.rename_rep = reply_data;
+		rc = u.rename_rep->r_body.b_rc;
+		remid = &u.rename_rep->r_mod_rep.fmr_remid;
 		break;
 	case M0_MDSERVICE_SETATTR_OPCODE:
-		setattr_rep = reply_data;
-		rc = setattr_rep->s_body.b_rc;
+		u.setattr_rep = reply_data;
+		rc = u.setattr_rep->s_body.b_rc;
+		remid = &u.setattr_rep->s_mod_rep.fmr_remid;
 		break;
 	case M0_MDSERVICE_GETATTR_OPCODE:
-		getattr_rep = reply_data;
-		rc = getattr_rep->g_body.b_rc;
+		u.getattr_rep = reply_data;
+		rc = u.getattr_rep->g_body.b_rc;
 		break;
 	case M0_MDSERVICE_OPEN_OPCODE:
-		open_rep = reply_data;
-		rc = open_rep->o_body.b_rc;
+		u.open_rep = reply_data;
+		rc = u.open_rep->o_body.b_rc;
+		remid = &u.open_rep->o_mod_rep.fmr_remid;
 		break;
 	case M0_MDSERVICE_CLOSE_OPCODE:
-		close_rep = reply_data;
-		rc = close_rep->c_body.b_rc;
+		u.close_rep = reply_data;
+		rc = u.close_rep->c_body.b_rc;
 		break;
 	case M0_MDSERVICE_READDIR_OPCODE:
-		readdir_rep = reply_data;
-		rc = readdir_rep->r_body.b_rc;
+		u.readdir_rep = reply_data;
+		rc = u.readdir_rep->r_body.b_rc;
 		break;
 	case M0_LAYOUT_OPCODE:
-		layout_rep = reply_data;
-		rc = layout_rep->lr_rc;
+		u.layout_rep = reply_data;
+		rc = u.layout_rep->lr_rc;
 		break;
 	case M0_MDSERVICE_SETXATTR_OPCODE:
-		setxattr_rep = reply_data;
-		rc = setxattr_rep->s_body.b_rc;
+		u.setxattr_rep = reply_data;
+		rc = u.setxattr_rep->s_body.b_rc;
+		remid = &u.setxattr_rep->s_mod_rep.fmr_remid;
 		break;
 	case M0_MDSERVICE_GETXATTR_OPCODE:
-		getxattr_rep = reply_data;
-		rc = getxattr_rep->g_body.b_rc;
+		u.getxattr_rep = reply_data;
+		rc = u.getxattr_rep->g_body.b_rc;
 		break;
 	case M0_MDSERVICE_LISTXATTR_OPCODE:
-		listxattr_rep = reply_data;
-		rc = listxattr_rep->l_body.b_rc;
+		u.listxattr_rep = reply_data;
+		rc = u.listxattr_rep->l_body.b_rc;
 		break;
 	case M0_MDSERVICE_DELXATTR_OPCODE:
-		delxattr_rep = reply_data;
-		rc = delxattr_rep->d_body.b_rc;
+		u.delxattr_rep = reply_data;
+		rc = u.delxattr_rep->d_body.b_rc;
+		remid = &u.delxattr_rep->d_mod_rep.fmr_remid;
 		break;
 	default:
-		M0_LOG(M0_ERROR, "Unexpected fop opcode %x", m0_fop_opcode(fop));
+		M0_LOG(M0_ERROR, "Unexpected fop opcode %x",
+		       m0_fop_opcode(fop));
 		rc = -ENOSYS;
 		goto out;
 	}
+
+	/* update pending transaction number */
+	service = m0t1fs_service_from_session(session);
+	if (remid != NULL)
+		m0t1fs_fsync_record_update(service, csb, NULL, remid);
 
 out:
 	m0_fop_put0(fop);

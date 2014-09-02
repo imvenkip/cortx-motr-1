@@ -95,6 +95,9 @@ run_st() {
 
     ## SNS multi failure repair
     $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_sns_repair_mf.sh"
+
+    ## Fsync ST
+    $SUDO "$SRC/m0t1fs/linux_kernel/st/m0t1fs_fsync_test.sh"
 }
 
 dist_check() {

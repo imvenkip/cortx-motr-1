@@ -36,7 +36,9 @@
 #include "layout/pdclust.h" /* M0_PUT_*, m0_layout_to_pdl,
 			     * m0_pdclust_instance_map */
 #include "lib/bob.h"        /* m0_bob_type */
+#include "lib/tlist.h"
 #include "ioservice/io_fops.h"    /* m0_io_fop */
+#include "mdservice/md_fops.h"    /* m0_fop_fsync_fopt */
 #include "ioservice/io_device.h"
 #include "mero/magic.h"  /* M0_T1FS_IOREQ_MAGIC */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
@@ -45,7 +47,7 @@
 #include "sns/parity_repair.h"  /*m0_sns_repair_spare_map() */
 #include "m0t1fs/linux_kernel/file_internal.h"
 #include "m0t1fs/m0t1fs_addb.h"
-
+#include "m0t1fs/linux_kernel/fsync.h"
 
 /**
    @page iosnsrepair I/O with SNS and SNS repair.
@@ -390,9 +392,19 @@ static inline m0_bcount_t seg_endpos(const struct m0_indexvec *ivec, uint32_t i)
 	return ivec->iv_index[i] + ivec->iv_vec.v_count[i];
 }
 
-static inline struct inode *file_to_inode(const struct file *file)
+M0_INTERNAL struct inode *m0t1fs_file_to_inode(const struct file *file)
 {
 	return file->f_dentry->d_inode;
+}
+
+M0_INTERNAL struct m0t1fs_inode *m0t1fs_file_to_m0inode(const struct file *file)
+{
+	return M0T1FS_I(m0t1fs_file_to_inode(file));
+}
+
+M0_INTERNAL struct m0t1fs_inode *m0t1fs_inode_to_m0inode(const struct inode *inode)
+{
+	return M0T1FS_I(inode);
 }
 
 static inline struct inode *iomap_to_inode(const struct pargrp_iomap *map)
@@ -400,19 +412,19 @@ static inline struct inode *iomap_to_inode(const struct pargrp_iomap *map)
 	return map->pi_ioreq->ir_file->f_dentry->d_inode;
 }
 
-static inline struct m0t1fs_inode *file_to_m0inode(const struct file *file)
+M0_INTERNAL struct m0t1fs_sb *m0inode_to_sb(struct m0t1fs_inode *m0inode)
 {
-	return M0T1FS_I(file_to_inode(file));
+	return M0T1FS_SB(m0inode->ci_inode.i_sb);
 }
 
 static inline const struct m0_fid *file_to_fid(struct file *file)
 {
-	return m0t1fs_inode_fid(file_to_m0inode(file));
+	return m0t1fs_inode_fid(m0t1fs_file_to_m0inode(file));
 }
 
 static inline struct m0t1fs_sb *file_to_sb(struct file *file)
 {
-	return M0T1FS_SB(file_to_inode(file)->i_sb);
+	return M0T1FS_SB(m0t1fs_file_to_inode(file)->i_sb);
 }
 
 static inline struct m0_sm_group *file_to_smgroup(struct file *file)
@@ -428,7 +440,7 @@ static inline uint64_t page_nr(m0_bcount_t size)
 static inline struct m0_layout_instance *
 layout_instance(const struct io_request *req)
 {
-	return file_to_m0inode(req->ir_file)->ci_layout_instance;
+	return m0t1fs_file_to_m0inode(req->ir_file)->ci_layout_instance;
 }
 
 static inline struct m0_pdclust_instance *
@@ -581,7 +593,8 @@ static inline m0_bindex_t gfile_offset(m0_bindex_t                 toff,
 static inline struct m0_fid target_fid(const struct io_request	  *req,
 				       struct m0_pdclust_tgt_addr *tgt)
 {
-	return m0t1fs_ios_cob_fid(file_to_m0inode(req->ir_file), tgt->ta_obj);
+	return m0t1fs_ios_cob_fid(m0t1fs_file_to_m0inode(req->ir_file), 
+				  tgt->ta_obj);
 }
 
 static inline struct m0_rpc_session *target_session(struct io_request *req,
@@ -1992,7 +2005,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 					    seg_endpos(ivec, seg);
 	}
 
-	inode = file_to_inode(map->pi_ioreq->ir_file);
+	inode = m0t1fs_file_to_inode(map->pi_ioreq->ir_file);
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
 
 	while (!m0_ivec_cursor_move(&cur, count)) {
@@ -2030,6 +2043,7 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 	play = pdlayout_get(map->pi_ioreq);
 	for (row = 0; row < parity_row_nr(play); ++row) {
 		for (col = 0; col < parity_col_nr(play); ++col) {
+			struct file *irf;
 
 			map->pi_paritybufs[row][col] = data_buf_alloc_init(0);
 			if (map->pi_paritybufs[row][col] == NULL)
@@ -2037,8 +2051,9 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 
 			map->pi_paritybufs[row][col]->db_flags |= PA_WRITE;
 
+			irf = map->pi_ioreq->ir_file;
 			if (map->pi_rtype == PIR_READOLD &&
-			    file_to_inode(map->pi_ioreq->ir_file)->i_size >
+			    m0t1fs_file_to_inode(irf)->i_size >
 			    data_size(play) * map->pi_grpid)
 				map->pi_paritybufs[row][col]->db_flags |=
 					PA_READ;
@@ -3440,7 +3455,7 @@ static int ioreq_file_lock(struct io_request *req)
 	M0_PRE(req != NULL);
 	M0_ENTRY();
 
-	mi = file_to_m0inode(req->ir_file);
+	mi = m0t1fs_file_to_m0inode(req->ir_file);
 	req->ir_in.rin_want.cr_group_id = m0_rm_m0t1fs_group;
 	m0_file_lock(&mi->ci_fowner, &req->ir_in);
 	m0_rm_owner_lock(&mi->ci_fowner);
@@ -4731,7 +4746,7 @@ const struct file_operations m0t1fs_reg_file_operations = {
 	.aio_write = file_aio_write,
 	.read	   = do_sync_read,
 	.write	   = do_sync_write,
-	.fsync     = simple_fsync,  /* XXX: just to prevent -EINVAL */
+	.fsync     = m0t1fs_fsync
 };
 
 static void client_passive_recv(const struct m0_net_buffer_event *evt)
@@ -4957,14 +4972,17 @@ M0_INTERNAL struct m0t1fs_sb *m0_fop_to_sb(struct m0_fop *fop)
 
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	int                         rc;
-	struct io_req_fop          *irfop;
-	struct io_request          *req;
-	struct target_ioreq        *tioreq;
-	struct m0_fop              *reply_fop = NULL;
-	struct m0_rpc_item         *req_item;
-	struct m0_rpc_item         *reply_item;
-	struct m0_fop_cob_rw_reply *rw_reply;
+	int                                rc;
+	struct io_req_fop                 *irfop;
+	struct io_request                 *req;
+	struct target_ioreq               *tioreq;
+	struct m0_fop                     *reply_fop = NULL;
+	struct m0_rpc_item                *req_item;
+	struct m0_rpc_item                *reply_item;
+	struct m0_fop_cob_rw_reply        *rw_reply;
+	struct m0t1fs_service_context     *service;
+	struct m0t1fs_inode               *inode;
+	struct m0_be_tx_remid             *remid;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
 	M0_PRE(grp != NULL);
@@ -4979,6 +4997,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ASSERT(M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING,
 					      IRS_DEGRADED_READING,
 					      IRS_DEGRADED_WRITING)));
+	M0_ASSERT(req->ir_file != NULL);
 
 	req_item   = &irfop->irf_iofop.if_fop.f_item;
 	reply_item = req_item->ri_reply;
@@ -4997,6 +5016,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	rw_reply  = io_rw_rep_get(reply_fop);
 	rc        = rw_reply->rwr_rc;
+	remid     = &rw_reply->rwr_mod_rep.fmr_remid;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_INFO, "reply received = %d, sns state = %d", rc,
 			 req->ir_sns_state);
@@ -5030,6 +5050,11 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		       irfop->irf_iofop.if_rbulk.rb_bytes);
 	} else
 		tioreq->ti_parbytes  += irfop->irf_iofop.if_rbulk.rb_bytes;
+
+	/* update pending transaction number */
+	service = m0t1fs_service_from_session(reply_item->ri_session);
+	inode = m0t1fs_file_to_m0inode(req->ir_file);
+	m0t1fs_fsync_record_update(service, m0inode_to_sb(inode), inode, remid);
 
 ref_dec:
 	/* Drops reference on reply fop. */

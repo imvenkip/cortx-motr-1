@@ -105,6 +105,9 @@ enum {
 	M0T1FS_ADDB_RECID_DGIOR_TIMES           = 509,
 	M0T1FS_ADDB_RECID_DGIOW_TIMES           = 510,
 	M0T1FS_ADDB_RECID_MON_IO_SIZE           = 511,
+
+	M0T1FS_ADDB_SPTR_ALLOC                  = 550,
+	M0T1FS_ADDB_FFW_ALLOC                   = 551,
 };
 
 /* Total time required and size for IO */

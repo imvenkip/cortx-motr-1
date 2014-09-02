@@ -44,6 +44,9 @@
 #include "m0t1fs/linux_kernel/file_internal.h" /* io_request */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
 
+/* fsync_test declared in m0t1fs/linux_kernel/ut/fsync.c */
+void fsync_test(void);
+
 enum {
         IOVEC_NR         = 4,
         IOVEC_BUF_LEN    = 1024,
@@ -994,7 +997,7 @@ static void dgmode_readio_test(void)
 	io_req_fop_dgmode_read(irfop);
 
 	play = pdlayout_get(req);
-	le   = m0_layout_instance_to_enum(file_to_m0inode(req->ir_file)->
+	le   = m0_layout_instance_to_enum(m0t1fs_file_to_m0inode(req->ir_file)->
 	       ci_layout_instance);
 
 	for (cnt = 0; cnt < req->ir_iomap_nr; ++cnt) {
@@ -1121,6 +1124,7 @@ struct m0_ut_suite file_io_ut = {
 		{"nw_xfer_ops_test",           nw_xfer_ops_test},
                 {"target_ioreq_ops_test",      target_ioreq_test},
                 {"dgmode_readio_test",         dgmode_readio_test},
+		{"fsync_test",                 fsync_test},
 		{NULL,                         NULL},
         },
 };

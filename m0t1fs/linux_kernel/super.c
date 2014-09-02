@@ -28,6 +28,7 @@
 #include <linux/statfs.h>  /* kstatfs */
 
 #include "m0t1fs/linux_kernel/m0t1fs.h"
+#include "m0t1fs/linux_kernel/fsync.h"
 #include "mero/magic.h"    /* M0_T1FS_SVC_CTX_MAGIC */
 #include "lib/misc.h"      /* M0_SET0() */
 #include "lib/memory.h"    /* M0_ALLOC_PTR(), m0_free() */
@@ -74,7 +75,8 @@ static const struct super_operations m0t1fs_super_operations = {
 	.statfs        = m0t1fs_statfs,
 	.alloc_inode   = m0t1fs_alloc_inode,
 	.destroy_inode = m0t1fs_destroy_inode,
-	.drop_inode    = generic_delete_inode /* provided by linux kernel */
+	.drop_inode    = generic_delete_inode, /* provided by linux kernel */
+	.sync_fs       = m0t1fs_sync_fs
 };
 
 
@@ -100,11 +102,11 @@ static struct m0_addb_rec_type *m0t1fs_dgio_cntr_rts[] = {
  * tlist descriptor for list of m0t1fs_service_context objects placed
  * in m0t1fs_sb::csb_service_contexts list using sc_link.
  */
-M0_TL_DESCR_DEFINE(svc_ctx, "Service contexts", static,
+M0_TL_DESCR_DEFINE(m0t1fs_svc_ctx, "Service contexts", M0_INTERNAL,
 		   struct m0t1fs_service_context, sc_link, sc_magic,
 		   M0_T1FS_SVC_CTX_MAGIC, M0_T1FS_SVC_CTX_HEAD_MAGIC);
 
-M0_TL_DEFINE(svc_ctx, static, struct m0t1fs_service_context);
+M0_TL_DEFINE(m0t1fs_svc_ctx, M0_INTERNAL, struct m0t1fs_service_context);
 
 M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb)
 {
@@ -445,7 +447,8 @@ static void m0t1fs_service_context_init(struct m0t1fs_service_context *ctx,
 	ctx->sc_csb = csb;
 	ctx->sc_type = type;
 	ctx->sc_magic = M0_T1FS_SVC_CTX_MAGIC;
-	svc_ctx_tlink_init(ctx);
+	m0t1fs_svc_ctx_tlink_init(ctx);
+	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
 
 	M0_LEAVE();
 }
@@ -454,7 +457,8 @@ static void m0t1fs_service_context_fini(struct m0t1fs_service_context *ctx)
 {
 	M0_ENTRY();
 
-	svc_ctx_tlink_fini(ctx);
+	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
+	m0t1fs_svc_ctx_tlink_fini(ctx);
 	ctx->sc_magic = 0;
 
 	M0_LEAVE();
@@ -478,7 +482,7 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 				   &csb->csb_rpc_machine, addr,
 				   M0T1FS_MAX_NR_RPC_IN_FLIGHT);
 	if (rc == 0) {
-		svc_ctx_tlist_add_tail(&csb->csb_service_contexts, ctx);
+		m0t1fs_svc_ctx_tlist_add_tail(&csb->csb_service_contexts, ctx);
 		M0_CNT_INC(csb->csb_nr_active_contexts);
 		M0_LOG(M0_INFO, "Connected to service `%s'. %d active contexts",
 		       addr, csb->csb_nr_active_contexts);
@@ -496,7 +500,7 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
-	m0_tl_teardown(svc_ctx, &csb->csb_service_contexts, ctx) {
+	m0_tl_teardown(m0t1fs_svc_ctx, &csb->csb_service_contexts, ctx) {
 		if (csb->csb_nr_active_contexts > 0) {
 			/* client should not wait infinitely. */
 			timeout = m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL *
@@ -513,7 +517,7 @@ static void disconnect_from_services(struct m0t1fs_sb *csb)
 	}
 
 	M0_POST(csb->csb_nr_active_contexts == 0);
-	M0_POST(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
+	M0_POST(m0t1fs_svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
 	M0_LEAVE();
 }
 
@@ -528,7 +532,7 @@ static int connect_to_services(struct m0t1fs_sb *csb, struct m0_conf_obj *fs,
 	bool                rms_is_provided       = false;
 
 	M0_ENTRY();
-	M0_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
+	M0_PRE(m0t1fs_svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
 	M0_PRE(csb->csb_nr_active_contexts == 0);
 
 	rc = m0_confc_open_sync(&dir, fs, M0_CONF_FILESYSTEM_SERVICES_FID);
@@ -610,7 +614,7 @@ static void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 
 	M0_SET0(csb);
 	m0_mutex_init(&csb->csb_mutex);
-	svc_ctx_tlist_init(&csb->csb_service_contexts);
+	m0t1fs_svc_ctx_tlist_init(&csb->csb_service_contexts);
 	m0_sm_group_init(&csb->csb_iogroup);
 	csb->csb_active = true;
 	m0_chan_init(&csb->csb_iowait, &csb->csb_iogroup.s_lock);
@@ -670,7 +674,7 @@ static void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 
 	m0_chan_fini_lock(&csb->csb_iowait);
 	m0_sm_group_fini(&csb->csb_iogroup);
-	svc_ctx_tlist_fini(&csb->csb_service_contexts);
+	m0t1fs_svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
 	M0_LEAVE();
@@ -739,7 +743,7 @@ static int cl_map_build(struct m0t1fs_sb *csb, uint32_t nr_ios,
 	/* ios index starts from 1. ios_map[0] is not used */
 	cur = 1;
 	mds_index = 0;
-	m0_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
+	m0_tl_for(m0t1fs_svc_ctx, &csb->csb_service_contexts, ctx) {
 		M0_LOG(M0_DEBUG, "ctx=%p type=%d", ctx, ctx->sc_type);
 		switch (ctx->sc_type) {
 		case M0_CST_MDS:
@@ -1165,7 +1169,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	csb->csb_next_key = mops->mo_fid_start;
 
 	rc = connect_to_service(ha_addr, M0_CST_HA, csb);
-	ctx = m0_tl_find(svc_ctx, ctx, &csb->csb_service_contexts,
+	ctx = m0_tl_find(m0t1fs_svc_ctx, ctx, &csb->csb_service_contexts,
 			 ctx->sc_type == M0_CST_HA);
 	if (rc != 0 || ctx == NULL) {
 		M0_LOG(M0_WARN, "Cannot connect to HA service.");
@@ -1191,7 +1195,7 @@ static int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto ha_fini;
 
-	ctx = m0_tl_find(svc_ctx, ctx, &csb->csb_service_contexts,
+	ctx = m0_tl_find(m0t1fs_svc_ctx, ctx, &csb->csb_service_contexts,
 			 ctx->sc_type == M0_CST_SS);
 	if (ctx != NULL) {
 		ep_addr = ctx->sc_conn.c_rpcchan->rc_destep->nep_addr;

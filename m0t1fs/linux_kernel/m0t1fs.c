@@ -32,6 +32,7 @@
 #include "rpc/rpclib.h"
 #include "rm/rm.h"
 #include "net/lnet/lnet_core_types.h"
+#include "mdservice/fsync_fops.h"
 
 #include "m0t1fs/m0t1fs_addb.h"
 #include "ha/note_fops.h"
@@ -98,9 +99,13 @@ M0_INTERNAL int m0t1fs_init(void)
 		goto out;
 	m0_bitmap_set(&m0t1fs_client_ep_tmid, 0, true);
 
-	rc = m0_ioservice_fop_init();
+	rc = m0_mdservice_fsync_fop_init(NULL);
 	if (rc != 0)
 		goto bitmap_fini;
+
+	rc = m0_ioservice_fop_init();
+	if (rc != 0)
+		goto fsync_fini;
 
 	rc = m0_mdservice_fop_init();
 	if (rc != 0)
@@ -126,9 +131,11 @@ icache_fini:
 ha_state_fop_fini:
 	m0_ha_state_fop_fini();
 mdservice_fini:
-        m0_mdservice_fop_fini();
+	m0_mdservice_fop_fini();
 ioservice_fini:
-        m0_ioservice_fop_fini();
+	m0_ioservice_fop_fini();
+fsync_fini:
+	m0_mdservice_fsync_fop_fini();
 bitmap_fini:
 	m0_bitmap_fini(&m0t1fs_client_ep_tmid);
 	m0_mutex_fini(&m0t1fs_mutex);
@@ -150,11 +157,28 @@ M0_INTERNAL void m0t1fs_fini(void)
 	m0_ha_state_fop_fini();
 	m0_mdservice_fop_fini();
 	m0_ioservice_fop_fini();
+	m0_mdservice_fsync_fop_fini();
 
 	m0_bitmap_fini(&m0t1fs_client_ep_tmid);
 	m0_mutex_fini(&m0t1fs_mutex);
 	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
 
 	M0_LEAVE();
+}
+
+/**
+ * Returns the outer m0t1fs_service_context from a m0t1fs m0_rpc_session.
+ */
+M0_INTERNAL struct m0t1fs_service_context *
+m0t1fs_service_from_session(struct m0_rpc_session *session)
+{
+	struct m0t1fs_service_context *ret = NULL;
+
+	M0_PRE(session != NULL);
+	ret = container_of(session, struct m0t1fs_service_context, sc_session);
+
+	M0_POST(ret->sc_magic == M0_T1FS_SVC_CTX_MAGIC);
+
+	return ret;
 }
 #undef M0_TRACE_SUBSYSTEM
