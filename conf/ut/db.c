@@ -18,7 +18,6 @@
  * Original creation date: 26-Sep-2012
  */
 
-#include <stdlib.h>        /* system */
 #include "lib/finject.h"
 #include "conf/obj.h"
 #include "conf/db.h"       /* m0_confdb_create, m0_confdb_read */
@@ -30,7 +29,6 @@
 #include "be/ut/helper.h"
 #include "ut/be.h"	   /* m0_be_ut__seg_dict_create */
 
-#define _CONFDB_PATH "_conf.db"
 #define _BUF(str) M0_BUF_INITS(str)
 
 static struct m0_be_ut_backend ut_be;
@@ -188,18 +186,10 @@ static void sdev_check(const struct m0_confx_obj *xobj)
 	M0_UT_ASSERT(m0_buf_eq(&x->xd_filename, &_BUF("/dev/sdev0")));
 }
 
-static void cleanup(void)
-{
-	int rc = system("rm -rf " _CONFDB_PATH) ?:
-		system("rm -f " _CONFDB_PATH ".errlog") ?:
-		system("rm -f " _CONFDB_PATH ".msglog");
-	M0_UT_ASSERT(rc == 0);
-}
-
 static void conf_ut_db_init()
 {
-        m0_be_ut_backend_init(&ut_be);
-        m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
 	seg = ut_seg.bus_seg;
 }
 
@@ -251,8 +241,6 @@ void test_confdb(void)
 		{ &fids[NIC0],       &nic_check         },
 		{ &fids[SDEV0],      &sdev_check        }
 	};
-
-	cleanup();
 
 	rc = m0_ut_file_read(M0_CONF_UT_PATH("conf_xc.txt"), buf, sizeof buf);
 	M0_UT_ASSERT(rc == 0);
@@ -315,9 +303,6 @@ void test_confdb(void)
         M0_UT_ASSERT(rc == 0);
 	conf_ut_be_tx_fini(&tx);
 	conf_ut_db_fini();
-
-	cleanup();
 }
 
 #undef _BUF
-#undef _CONFDB_PATH
