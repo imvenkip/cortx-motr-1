@@ -824,6 +824,7 @@ all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/check-sources $(top_srcdir)
 	@$(top_srcdir)/scripts/check-public-api
 	@$(top_srcdir)/scripts/print-elf-sizes
+	@$(LN_S) -f $(filter-out utils/ut utils/ub, $(PROGRAMS:%=../%)) utils/
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:
@@ -936,6 +937,9 @@ clean-local: clean-kernel-modules clean-doc
 	@rm -vf $(XC_CLEAN_FILE)
 	@rm -vf $(FF_CLEAN_FILE)
 	@rm -vf m0.trace.*
+	@for p in $(PROGRAMS); do \
+		rm -fv utils/$$(basename $$p); \
+	done
 	@if test x@ENABLE_COVERAGE@ = xyes; then \
 		find . -name "*.gcno" | xargs rm -vf; \
 	fi
