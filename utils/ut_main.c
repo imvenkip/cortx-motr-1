@@ -342,7 +342,7 @@ int main(int argc, char *argv[])
 	else if (list_owners)
 		m0_ut_list_owners();
 	else
-		m0_ut_run();
+		rc = m0_ut_run();
 
 	if (finject_stats_after) {
 		printf("\n");

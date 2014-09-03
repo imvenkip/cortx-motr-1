@@ -438,8 +438,10 @@ static int run_selected(const char *runlist_str)
 	/* check that each suite/test in run_list really exists */
 	rc = m0_list_entry_forall( e, &run_list, struct m0_ut_entry, ue_linkage,
 		exists(e->ue_suite_name, e->ue_test_name); );
-	if (!rc)
+	if (!rc) {
+		rc = -ENOENT;
 		goto out;
+	}
 
 	m0_list_entry_forall( e, &run_list, struct m0_ut_entry, ue_linkage,
 		if (e->ue_test_name == NULL) {
@@ -483,17 +485,20 @@ static int run_all(const char *excludelist_str)
 
 M0_INTERNAL int m0_ut_run(void)
 {
-	char      leak[16];
-	uint64_t  alloc_before;
-	uint64_t  alloc_after;
-	char      mem[16];
-	uint64_t  mem_before;
-	uint64_t  mem_after;
-	uint64_t  mem_used;
-	m0_time_t start;
-	m0_time_t end;
-	m0_time_t duration;
-	int       rc;
+	char        leak[16];
+	const char *leak_str;
+	uint64_t    alloc_before;
+	uint64_t    alloc_after;
+	char        mem[16];
+	const char *mem_str;
+	uint64_t    mem_before;
+	uint64_t    mem_after;
+	uint64_t    mem_used;
+	m0_time_t   start;
+	m0_time_t   end;
+	m0_time_t   duration;
+	uint64_t    csec;
+	int         rc;
 
 	alloc_before = m0_allocated();
 	mem_before   = m0_allocated_total();
@@ -509,18 +514,18 @@ M0_INTERNAL int m0_ut_run(void)
 	alloc_after = m0_allocated();
 	mem_used    = mem_after - mem_before;
 	duration    = m0_time_sub(end, start);
+	csec        = m0_time_nanoseconds(duration) / M0_TIME_ONE_MSEC / 10;
+	leak_str    = skipspaces(m0_bcount_with_suffix(mem, ARRAY_SIZE(mem),
+						       mem_used));
+	mem_str     = skipspaces(m0_bcount_with_suffix(leak, ARRAY_SIZE(leak),
+						alloc_after - alloc_before));
 
-	m0_console_printf("\nTime: %" PRIu64 ".%-2" PRIu64 " sec, Mem: %sB,"
-			  " Leaked: %sB, Asserts: %" PRIu64 "\n",
-			  m0_time_seconds(duration),
-			  m0_time_nanoseconds(duration) / M0_TIME_ONE_MSEC / 10,
-			  skipspaces(m0_bcount_with_suffix(mem, ARRAY_SIZE(mem),
-							   mem_used)),
-			  skipspaces(m0_bcount_with_suffix(leak, ARRAY_SIZE(leak),
-						  alloc_after - alloc_before)),
-			  m0_atomic64_get(&ctx.ux_asserts));
 	if (rc == 0)
-		m0_console_printf("Unit tests status: SUCCESS\n");
+		m0_console_printf("\nTime: %" PRIu64 ".%-2" PRIu64 " sec,"
+				  " Mem: %sB, Leaked: %sB, Asserts: %" PRIu64
+				  "\nUnit tests status: SUCCESS\n",
+				  m0_time_seconds(duration), csec, leak_str,
+				  mem_str, m0_atomic64_get(&ctx.ux_asserts));
 	return rc;
 }
 M0_EXPORTED(m0_ut_run);
