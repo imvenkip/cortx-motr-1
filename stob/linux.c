@@ -286,18 +286,18 @@ static int stob_linux_domain_create_destroy(struct m0_stob_type *type,
 	rc = dir_domain == NULL || dir_stob == NULL || file_dom_id == NULL ?
 	     -ENOMEM : 0;
 	if (rc != 0)
-		goto free;
+		goto out;
 	if (!create)
 		goto destroy;
 	rc = mkdir(dir_domain, mode) == 0 ? 0 : -errno;
 	if (rc != 0)
-		goto free;
+		goto out;
 	rc = mkdir(dir_stob, mode) == 0 ? 0 : -errno;
 	if (rc != 0)
 		goto destroy;
 	rc = stob_linux_domain_key_get_set(path, &dom_key, false);
 	if (rc == 0)
-		return rc;
+		goto out;
 destroy:
 	rc1 = m0_cleandir(dir_stob);
 	if (rc1 != 0)
@@ -309,7 +309,7 @@ destroy:
 			dir_domain, rc1);
 	if (rc == 0)
 		rc = rc1;
-free:
+out:
 	m0_free(file_dom_id);
 	m0_free(dir_stob);
 	m0_free(dir_domain);
