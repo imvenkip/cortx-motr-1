@@ -156,7 +156,7 @@ M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level)
 	return result;
 }
 
-M0_INTERNAL void m0_module__fini(struct m0_module *module, unsigned level)
+M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level)
 {
 	M0_PRE(level == M0_MODLEV_NONE || level < module->m_level_nr);
 	M0_PRE(module_invariant(module));
@@ -175,7 +175,7 @@ M0_INTERNAL void m0_module__fini(struct m0_module *module, unsigned level)
 			if (md->md_src == cur) {
 				M0_CNT_DEC(md->md_other->m_level_nrefs[
 						   md->md_dst]);
-				m0_module__fini(md->md_other, M0_MODLEV_NONE);
+				m0_module_fini(md->md_other, M0_MODLEV_NONE);
 			}
 		}
 	}

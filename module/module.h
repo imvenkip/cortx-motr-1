@@ -233,12 +233,7 @@ struct m0_modlev {
 M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level);
 
 /** Downgrade the module to the given level. */
-M0_INTERNAL void m0_module__fini(struct m0_module *module, unsigned level);
-
-static inline void m0_module_fini(struct m0_module *module)
-{
-	m0_module__fini(module, M0_MODLEV_NONE);
-}
+M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level);
 
 /** Creates (m0, l0) -> (m1, l1) dependency. */
 M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,

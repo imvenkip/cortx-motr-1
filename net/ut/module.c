@@ -48,12 +48,10 @@ static void test_net_modules(void)
 
 	rc = m0_module_init(xprt_m, M0_LEVEL_NET_DOMAIN);
 	M0_UT_ASSERT(rc == 0);
-
 	M0_UT_ASSERT(xprt_m->m_cur == M0_LEVEL_NET_DOMAIN);
 	M0_UT_ASSERT(net->n_module.m_cur == M0_LEVEL_NET);
 
-	m0_module_fini(xprt_m);
-
+	m0_module_fini(xprt_m, M0_MODLEV_NONE);
 	M0_UT_ASSERT(xprt_m->m_cur == M0_MODLEV_NONE);
 	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);
 }

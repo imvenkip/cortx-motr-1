@@ -237,14 +237,14 @@ static void _test_module_fini(void)
 {
 	*g_log = 0;
 
-	m0_module_fini(&modules[B]);
+	m0_module_fini(&modules[B], M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(A) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(B) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(C) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(m0_streq(g_log, "b3c0d2d1b2b1b0a1a0d0"));
 
-	m0_module_fini(&modules[A]); /* a noop */
+	m0_module_fini(&modules[A], M0_MODLEV_NONE); /* a noop */
 }
 
 static int modlev_a2_enter(struct m0_module *module)
@@ -281,7 +281,7 @@ static void _test_module_dep_add(void)
 	M0_UT_ASSERT(cur(D) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(m0_streq(g_log, "a0a1a2b0b1b2a3"));
 
-	m0_module_fini(&modules[A]);
+	m0_module_fini(&modules[A], M0_MODLEV_NONE);
 }
 
 static void _test_module_fini_all(void)
@@ -300,7 +300,7 @@ static void _test_module_fini_all(void)
 	M0_UT_ASSERT(m0_streq(g_log, "f0f1e0h0g0g1g2f2i0f3"));
 
 	*g_log = 0;
-	m0_module_fini(&modules[F]);
+	m0_module_fini(&modules[F], M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(E) == 0);
 	M0_UT_ASSERT(cur(F) == 1);
 	M0_UT_ASSERT(cur(G) == M0_MODLEV_NONE);
@@ -308,7 +308,7 @@ static void _test_module_fini_all(void)
 	M0_UT_ASSERT(cur(I) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(m0_streq(g_log, "f3i0f2g2g1g0h0"));
 
-	m0_module_fini(&modules[E]);
+	m0_module_fini(&modules[E], M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(E) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(cur(F) == M0_MODLEV_NONE);
 	M0_UT_ASSERT(m0_streq(g_log, "f3i0f2g2g1g0h0e0f1f0"));
@@ -395,7 +395,7 @@ static void _test_module_alt_init(void)
 	M0_UT_ASSERT(amb.a_foo.m_cur == 0);
 	M0_UT_ASSERT(bar.m_cur == 0);
 	M0_UT_ASSERT(m0_streq(g_log, "f0b0"));
-	m0_module_fini(&bar);
+	m0_module_fini(&bar, M0_MODLEV_NONE);
 }
 
 static void test_module(void)
