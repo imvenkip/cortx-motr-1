@@ -412,8 +412,8 @@ M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service)
 	m0_sm_fini(&service->rs_sm);
 	m0_sm_group_unlock(&service->rs_reqh->rh_sm_grp);
 	m0_mutex_fini(&service->rs_mutex);
-	service->rs_ops->rso_fini(service);
 	m0_buf_free(&service->rs_ss_param);
+	service->rs_ops->rso_fini(service);
 }
 
 int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
