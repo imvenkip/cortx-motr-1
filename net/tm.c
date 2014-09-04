@@ -111,6 +111,8 @@ M0_INTERNAL void m0_net_tm_event_post(const struct m0_net_tm_event *ev)
 
 	(*tm->ntm_callbacks->ntc_event_cb)(ev);
 
+	M0_LOG(M0_DEBUG, "tm=%p state=%d", tm, tm->ntm_state);
+
 	/*
 	 * post-callback, out of mutex: perform initial provisioning if
 	 * required
@@ -212,7 +214,7 @@ M0_EXPORTED(m0_net_tm_init);
 M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 {
 	struct m0_net_domain *dom = tm->ntm_dom;
-	M0_ENTRY();
+	M0_ENTRY("tm=%p", tm);
 
 	/*
 	 * Wait for ongoing event processing to drain without holding lock:
@@ -222,9 +224,11 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 	 */
 	if (tm->ntm_callback_counter > 0) {
 		struct m0_clink tmwait;
+		M0_LOG(M0_NOTICE, "tm=%p state=%d cc=%d", tm, tm->ntm_state,
+			tm->ntm_callback_counter);
 		m0_clink_init(&tmwait, NULL);
 		m0_clink_add_lock(&tm->ntm_chan, &tmwait);
-		while (tm->ntm_callback_counter > 0 &&
+		while (tm->ntm_callback_counter > 0 ||
 		       tm->ntm_state == M0_NET_TM_STARTED)
 			m0_chan_wait(&tmwait);
 		m0_clink_del_lock(&tmwait);
@@ -260,7 +264,7 @@ M0_INTERNAL void m0_net_tm_fini(struct m0_net_transfer_mc *tm)
 	m0_list_link_fini(&tm->ntm_dom_linkage);
 
 	m0_mutex_unlock(&dom->nd_mutex);
-	M0_LEAVE();
+	M0_LEAVE("tm=%p", tm);
 }
 M0_EXPORTED(m0_net_tm_fini);
 
