@@ -24,7 +24,7 @@
 #include "lib/memory.h"
 
 #include "reqh/reqh_service.h"
-#include "ut/cs_fop_foms.h"
+#include "ut/cs_fop.h"
 
 static int ds1_service_start(struct m0_reqh_service *service);
 static int ds2_service_start(struct m0_reqh_service *service);

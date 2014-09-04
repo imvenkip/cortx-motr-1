@@ -772,6 +772,17 @@ static void xcode_find_test(void)
 	M0_UT_ASSERT(result == -ENOENT);
 }
 
+/*
+ * Stub function, it's not meant to be used anywhere, it's defined to calm down
+ * linker, which throws an "undefined reference to `m0_package_cred_get'"
+ * otherwise.
+ */
+int m0_package_cred_get(const struct m0_xcode_obj *par,
+			const struct m0_xcode_type **out)
+{
+	return 0;
+}
+
 struct m0_ut_suite xcode_ut = {
         .ts_name = "xcode-ut",
         .ts_init = xcode_init,

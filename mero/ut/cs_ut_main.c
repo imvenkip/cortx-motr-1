@@ -31,8 +31,8 @@
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "mero/setup.h"
-#include "ut/cs_fop_foms.h"
-#include "ut/cs_fop_foms_xc.h" /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
+#include "ut/cs_fop.h"
+#include "ut/cs_fop_xc.h"      /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
 #include "ut/cs_service.h"     /* m0_cs_default_stypes */
 
 #include "mero/setup.c"

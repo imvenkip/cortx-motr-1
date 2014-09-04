@@ -351,7 +351,7 @@ fclose:
 
 #else /* ENABLE_FAULT_INJECTION */
 
-M0_INTERNAL int m0_ut_enable_fault_point(const char *str)
+int m0_ut_enable_fault_point(const char *str)
 {
 	return 0;
 }

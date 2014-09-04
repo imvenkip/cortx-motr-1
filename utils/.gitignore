@@ -1,8 +1,4 @@
 /modload-all.sh
-/ut
-/ub
-/ut.sh
-/ub.sh
 /chs_test
 /ff2c
 /lut_helper
@@ -20,10 +16,11 @@
 /m0repair
 /m0rpcping
 /m0rpcping-altogether
-/m0run
 /m0stats
 /m0t1fs_test
 /m0traced
 /m0tracedump
+/m0ub
+/m0ut
 /net_test
 /server

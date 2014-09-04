@@ -30,7 +30,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "ut/ut.h"
 #include "ut/cs_service.h"
-#include "ut/cs_fop_foms.h"
+#include "ut/cs_fop.h"
 #include "ut/ut_rpc_machine.h"
 
 #include "reqh/ut/reqhut_fom.c"

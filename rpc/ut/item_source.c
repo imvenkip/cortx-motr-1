@@ -34,8 +34,8 @@
 #include "rpc/rpc_internal.h"
 #include "rpc/ut/clnt_srv_ctx.c"
 #include "rpc/ut/rpc_test_fops.h"  /* m0_rpc_arrow_fopt */
-#include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
-#include "ut/cs_fop_foms_xc.h"     /* cs_ds2_req_fop */
+#include "ut/cs_fop.h"             /* cs_ds2_req_fop_fopt */
+#include "ut/cs_fop_xc.h"          /* cs_ds2_req_fop */
 
 #include <stdio.h>
 

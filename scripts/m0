@@ -53,7 +53,7 @@ run_init() {
     cd "$RUNDIR"
 }
 
-run_ut()  { run_init; $SUDO "$SRC/utils/ut.sh" "$@"; }
+run_ut()  { run_init; $SUDO "$SRC/utils/m0run" m0ut -- "$@"; }
 
 run_kut() {
     run_init
@@ -126,7 +126,7 @@ Commands:
     rebuild             Clean and build the whole Mero anew.
 
     run-ut [OPTION]...  Run user-space unit tests.
-                        OPTIONs are passed to utils/ut.sh.
+                        OPTIONs are passed to 'ut/m0ut'.
 
     run-kut             Run kernel unit tests.
 

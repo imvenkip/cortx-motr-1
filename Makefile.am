@@ -219,9 +219,10 @@ include $(top_srcdir)/xcode/Makefile.sub
 #
 
 if ENABLE_UNIT_TESTS
-noinst_LTLIBRARIES        += ut/libmero-ut.la
+lib_LTLIBRARIES           += ut/libmero-ut.la
 endif
 ut_libmero_ut_la_CPPFLAGS  = -DM0_TARGET='libmero-ut' $(AM_CPPFLAGS)
+ut_libmero_ut_la_LIBADD    = net/test/libmero-net-test.la xcode/ff2c/libmero-xcode-ff2c.la
 
 ut_libmero_ut_la_SOURCES   =
 
@@ -410,24 +411,24 @@ net_lnet_ut_lut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
                                    $(top_builddir)/ut/libmero-ut.la
 
 #
-# utils/ut and utils/ub
+# ut/m0ut and ut/m0ub
 #
 
 if ENABLE_UNIT_TESTS
-noinst_PROGRAMS   += utils/ut
+bin_PROGRAMS     += ut/m0ut
 endif
-utils_ut_CPPFLAGS  = -DM0_TARGET='ut' $(AM_CPPFLAGS)
-utils_ut_LDADD     = $(top_builddir)/ut/libmero-ut.la \
-                     $(top_builddir)/mero/libmero.la \
-                     $(top_builddir)/net/test/libmero-net-test.la \
-                     $(top_builddir)/xcode/ff2c/libmero-xcode-ff2c.la
+ut_m0ut_CPPFLAGS  = -DM0_TARGET='m0ut' $(AM_CPPFLAGS)
+ut_m0ut_LDADD     = $(top_builddir)/ut/libmero-ut.la \
+                    $(top_builddir)/mero/libmero.la \
+                    $(top_builddir)/net/test/libmero-net-test.la \
+                    $(top_builddir)/xcode/ff2c/libmero-xcode-ff2c.la
 
 if ENABLE_UNIT_TESTS
-noinst_PROGRAMS   += utils/ub
+bin_PROGRAMS     += ut/m0ub
 endif
-utils_ub_CPPFLAGS  = -DM0_TARGET='ub' $(AM_CPPFLAGS)
-utils_ub_LDADD     = $(top_builddir)/mero/libmero.la \
-                     $(top_builddir)/ut/libmero-ut.la
+ut_m0ub_CPPFLAGS  = -DM0_TARGET='m0ub' $(AM_CPPFLAGS)
+ut_m0ub_LDADD     = $(top_builddir)/mero/libmero.la \
+                    $(top_builddir)/ut/libmero-ut.la
 
 include $(top_srcdir)/utils/Makefile.sub
 
@@ -457,8 +458,8 @@ rpc_it_m0rpcping_altogether_CPPFLAGS = -DM0_TARGET='m0rpcping-altogether' $(AM_C
 rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
 rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
                                        ut/ut_libmero_ut_la-cs_service.lo \
-                                       ut/ut_libmero_ut_la-cs_fop_foms.lo \
-                                       ut/ut_libmero_ut_la-cs_fop_foms_xc.lo
+                                       ut/ut_libmero_ut_la-cs_fop.lo \
+                                       ut/ut_libmero_ut_la-cs_fop_xc.lo
 
 include $(top_srcdir)/rpc/it/Makefile.sub
 
@@ -825,7 +826,7 @@ all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/check-sources $(top_srcdir)
 	@$(top_srcdir)/scripts/check-public-api
 	@$(top_srcdir)/scripts/print-elf-sizes
-	@$(LN_S) -f $(filter-out utils/ut utils/ub, $(PROGRAMS:%=../%)) utils/
+	@$(LN_S) -f $(PROGRAMS:%=../%) utils/
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:

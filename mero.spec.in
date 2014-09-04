@@ -68,7 +68,7 @@ applications that use Mero libraries.
 %setup -q
 
 %build
-%configure %{with_linux} --enable-release --disable-unit-tests
+%configure %{with_linux} --enable-release
 make %{?_smp_mflags}
 
 %install

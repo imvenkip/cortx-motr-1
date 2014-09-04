@@ -5,9 +5,9 @@ ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
                             ut/ast_thread.h \
                             ut/be.c \
                             ut/be.h \
-                            ut/cs_fop_foms.c \
-                            ut/cs_fop_foms.h \
-                            ut/cs_fop_foms_xc.c \
+                            ut/cs_fop.c \
+                            ut/cs_fop.h \
+                            ut/cs_fop_xc.c \
                             ut/cs_service.c \
                             ut/cs_service.h \
                             ut/stob.c \
@@ -16,10 +16,11 @@ ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
                             ut/threads.h \
                             ut/ut.c \
                             ut/ut.h \
+                            ut/ut_internal.h \
                             ut/user_space/ut.c \
                             ut/ut_rpc_machine.h \
                             ut/ut_rpc_machine.c
 
-XC_FILES   += ut/cs_fop_foms_xc.h
+XC_FILES   += ut/cs_fop_xc.h
 
 EXTRA_DIST += ut/linux_kernel/ut.c

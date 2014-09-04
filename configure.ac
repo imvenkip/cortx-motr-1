@@ -697,8 +697,6 @@ AC_CONFIG_FILES([net/test/m0nettestd.sh], [chmod +x net/test/m0nettestd.sh])
 AC_CONFIG_FILES([net/test/test-user.sh], [chmod +x net/test/test-user.sh])
 AC_CONFIG_FILES([net/test/st/st-config.sh], [chmod +x net/test/st/st-config.sh])
 AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-config.sh])
-AC_CONFIG_FILES([utils/ut.sh], [chmod +x utils/ut.sh;
-			        (cd utils/ && ${LN_S} ut.sh ub.sh)])
 AC_CONFIG_FILES([utils/mkfs/m0mkfs.sh], [chmod +x utils/mkfs/m0mkfs.sh])
 AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
 AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])

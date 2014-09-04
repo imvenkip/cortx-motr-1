@@ -29,7 +29,7 @@
 #include "rm/ut/rmut.h"
 #include "rm/ut/rings.h"
 #include "rm/rm_foms.c"          /* To access static APIs. */
-#include "ut/cs_fop_foms.h"      /* m0_ut_fom_phase_set */
+#include "ut/cs_fop.h"           /* m0_ut_fom_phase_set */
 
 enum test_type {
 	RM_UT_FULL_CREDITS_TEST = 1,

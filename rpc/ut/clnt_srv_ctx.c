@@ -21,8 +21,8 @@
 #include "fop/fop.h"            /* m0_fop_alloc */
 #include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"
-#include "ut/cs_fop_foms.h"     /* cs_ds2_req_fop_fopt */
-#include "ut/cs_fop_foms_xc.h"  /* cs_ds2_req_fop */
+#include "ut/cs_fop.h"          /* cs_ds2_req_fop_fopt */
+#include "ut/cs_fop_xc.h"       /* cs_ds2_req_fop */
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
 
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"

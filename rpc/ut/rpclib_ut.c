@@ -34,8 +34,8 @@
 #include "net/lnet/lnet.h"
 
 #include "ut/cs_service.h"
-#include "ut/cs_fop_foms.h"
-#include "ut/cs_fop_foms_xc.h"
+#include "ut/cs_fop.h"
+#include "ut/cs_fop_xc.h"
 
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx, MAX_RETRIES */
 

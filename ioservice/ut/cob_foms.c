@@ -30,7 +30,7 @@
 #include "ioservice/io_service.h"
 #include "ioservice/io_fops_xc.h"
 #include "ut/cs_service.h"               /* ds1_service_type */
-#include "ut/cs_fop_foms.h"              /* m0_ut_fom_phase_set */
+#include "ut/cs_fop.h"                   /* m0_ut_fom_phase_set */
 #include "rpc/rpc_machine_internal.h"
 
 #include <stdio.h>
