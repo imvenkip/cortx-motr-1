@@ -18,16 +18,15 @@
  * Original creation date: 26-Sep-2012
  */
 
-#include "lib/finject.h"
+#include <stdlib.h>        /* system */
 #include "conf/obj.h"
 #include "conf/db.h"       /* m0_confdb_create, m0_confdb_read */
 #include "conf/onwire.h"   /* m0_confx_obj, m0_confx */
 #include "conf/preload.h"  /* m0_confstr_parse, m0_confx_free */
-#include "conf/ut/file_helpers.h"
-#include "reqh/reqh.h"
+#include "conf/ut/file_helpers.h"  /* m0_ut_file_read */
+#include "lib/finject.h"   /* m0_fi_enable */
 #include "ut/ut.h"
-#include "be/ut/helper.h"
-#include "ut/be.h"	   /* m0_be_ut__seg_dict_create */
+#include "be/ut/helper.h"  /* m0_be_ut_backend_init */
 
 #define _BUF(str) M0_BUF_INITS(str)
 
@@ -292,6 +291,7 @@ void test_confdb(void)
 		}
 	}
 	M0_UT_ASSERT(hit == ARRAY_SIZE(tests));
+
 	m0_confx_free(enc);
 	m0_confdb_fini(seg);
 	M0_SET0(&accum);
