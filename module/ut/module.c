@@ -156,7 +156,7 @@ static struct m0_moddep inv_i[] = {
 static void _reset(void)
 {
 	static struct {
-		unsigned          level_nr;
+		int               level_nr;
 		struct m0_moddep *dep;
 		unsigned          dep_nr;
 		struct m0_moddep *inv;
@@ -202,7 +202,7 @@ static void _reset(void)
 	*g_log = 0;
 }
 
-static unsigned cur(enum module_id id)
+static int cur(enum module_id id)
 {
 	M0_PRE(IS_IN_ARRAY(id, modules));
 	return modules[id].m_cur;

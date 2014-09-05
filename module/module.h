@@ -100,7 +100,7 @@
  */
 
 enum {
-	M0_MODLEV_NONE = -1U,
+	M0_MODLEV_NONE = -1,
 	M0_MODLEV_MAX  = 16,
 	M0_MODDEP_MAX  = 64
 };
@@ -114,8 +114,8 @@ enum {
  */
 struct m0_moddep {
 	struct m0_module *md_other;
-	unsigned          md_src;
-	unsigned          md_dst;
+	int               md_src;
+	int               md_dst;
 };
 
 #define M0_MODDEP_INIT(other, src, dst) \
@@ -141,7 +141,7 @@ struct m0_module {
 	 * This value is equal to M0_MODLEV_NONE iff the module is not
 	 * initialised.
 	 */
-	unsigned                m_cur;
+	int                     m_cur;
 	/**
 	 * Array of levels.
 	 *
@@ -149,7 +149,7 @@ struct m0_module {
 	 *       level 0 can be neither entered, nor left.
 	 */
 	const struct m0_modlev *m_level;
-	unsigned                m_level_nr;
+	int                     m_level_nr;
 	/**
 	 * ->m_level_nrefs[i] is equal to the number of dependencies that
 	 * are currently relying on level i to be reached.  The level may
@@ -230,14 +230,14 @@ struct m0_modlev {
  * This function is not self-cleaning: even if it fails,
  * m0_module_fini() should be called.
  */
-M0_INTERNAL int m0_module_init(struct m0_module *module, unsigned level);
+M0_INTERNAL int m0_module_init(struct m0_module *module, int level);
 
 /** Downgrade the module to the given level. */
-M0_INTERNAL void m0_module_fini(struct m0_module *module, unsigned level);
+M0_INTERNAL void m0_module_fini(struct m0_module *module, int level);
 
 /** Creates (m0, l0) -> (m1, l1) dependency. */
-M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, unsigned l0,
-				   struct m0_module *m1, unsigned l1);
+M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, int l0,
+				   struct m0_module *m1, int l1);
 
 /** @} module */
 #endif /* __MERO_MODULE_MODULE_H__ */
