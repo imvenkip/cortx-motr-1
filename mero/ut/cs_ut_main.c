@@ -326,19 +326,21 @@ static void test_cs_ut_service_one(void)
 
 static void dev_conf_file_create(void)
 {
-	int   rc;
 	FILE *f;
 	char  cwd[MAXPATHLEN];
-	char  cmd[MAXPATHLEN];
 	char *path;
 
 	path = getcwd(cwd, ARRAY_SIZE(cwd));
 	M0_UT_ASSERT(path != NULL);
-	rc = snprintf(cmd, ARRAY_SIZE(cmd), "touch \"%s/d1\" \"%s/d2\"",
-					    path, path);
-	M0_UT_ASSERT(rc < ARRAY_SIZE(cmd));
-	rc = system(cmd);
-	M0_UT_ASSERT(rc == 0);
+
+	/* touch d1 d2 */
+	f = fopen("d1", "w");
+	M0_UT_ASSERT(f != NULL);
+	fclose(f);
+	f = fopen("d2", "w");
+	M0_UT_ASSERT(f != NULL);
+	fclose(f);
+
 	f = fopen("devices.conf", "w+");
 	M0_UT_ASSERT(f != NULL);
 	fprintf(f, "Devices:\n");
@@ -379,10 +381,6 @@ static void test_cs_ut_opts_jumbled(void)
 /** Tests m0d failure paths using fault injection. */
 static void test_cs_ut_linux_stob_cleanup(void)
 {
-	int ret;
-
-	ret = system("rm -f devices.conf");
-	M0_UT_ASSERT(ret == 0);
 	dev_conf_file_create();
 	m0_fi_enable_once("cs_ad_stob_create", "ad_domain_locate_fail");
 	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
