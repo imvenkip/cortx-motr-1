@@ -53,18 +53,30 @@ static struct {
 	int num;
 } ut_xprt_pvt;
 
-static bool ut_dom_init_called=false;
+static bool ut_dom_init_called = false;
+static bool ut_dom_fini_called;
+static bool ut_get_max_buffer_segment_size_called;
+static bool ut_get_max_buffer_size_called;
+static bool ut_get_max_buffer_segments_called;
+static bool ut_end_point_create_called;
+static bool ut_end_point_release_called;
+
 static int ut_dom_init(struct m0_net_xprt *xprt,
 		       struct m0_net_domain *dom)
 {
 	M0_ASSERT(m0_mutex_is_locked(&m0_net_mutex));
 	M0_ASSERT(m0_mutex_is_not_locked(&dom->nd_mutex));
+	ut_get_max_buffer_size_called = false;
+	ut_get_max_buffer_segment_size_called = false;
+	ut_get_max_buffer_segments_called = false;
+	ut_end_point_create_called = false;
+	ut_end_point_release_called = false;
+	ut_dom_fini_called = false;
 	ut_dom_init_called = true;
 	dom->nd_xprt_private = &ut_xprt_pvt;
 	return 0;
 }
 
-static bool ut_dom_fini_called = false;
 static void ut_dom_fini(struct m0_net_domain *dom)
 {
 	M0_ASSERT(m0_mutex_is_locked(&m0_net_mutex));
@@ -78,20 +90,20 @@ enum {
 	UT_MAX_BUF_SEGMENT_SIZE = 2048,
 	UT_MAX_BUF_SEGMENTS = 4,
 };
-static bool ut_get_max_buffer_size_called = false;
+
 static m0_bcount_t ut_get_max_buffer_size(const struct m0_net_domain *dom)
 {
 	ut_get_max_buffer_size_called = true;
 	return UT_MAX_BUF_SIZE;
 }
-static bool ut_get_max_buffer_segment_size_called = false;
+
 static m0_bcount_t ut_get_max_buffer_segment_size(const struct m0_net_domain
 						  *dom)
 {
 	ut_get_max_buffer_segment_size_called = true;
 	return UT_MAX_BUF_SEGMENT_SIZE;
 }
-static bool ut_get_max_buffer_segments_called = false;
+
 static int32_t ut_get_max_buffer_segments(const struct m0_net_domain *dom)
 {
 	ut_get_max_buffer_segments_called = true;
@@ -102,7 +114,7 @@ struct ut_ep {
 	char *addr;
 	struct m0_net_end_point uep;
 };
-static bool ut_end_point_release_called = false;
+
 static struct m0_net_end_point *ut_last_ep_released;
 static void ut_end_point_release(struct m0_ref *ref)
 {
@@ -119,7 +131,7 @@ static void ut_end_point_release(struct m0_ref *ref)
 	utep = container_of(ep, struct ut_ep, uep);
 	m0_free(utep);
 }
-static bool ut_end_point_create_called = false;
+
 static int ut_end_point_create(struct m0_net_end_point **epp,
 			       struct m0_net_transfer_mc *tm,
 			       const char *addr)
