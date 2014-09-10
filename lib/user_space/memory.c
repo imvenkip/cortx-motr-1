@@ -232,6 +232,12 @@ out:
 
 M0_INTERNAL void m0_free_wired(void *data, size_t size, unsigned shift)
 {
+	int rc;
+
+	rc = madvise((void*)((unsigned long)data & ~(PAGE_SIZE - 1)), 1,
+	             MADV_DOFORK);
+	if (rc == -1)
+		M0_LOG(M0_WARN, "madvise() failed: rc=%d", errno);
 	munlock(data, 1);
 	m0_free_aligned(data, size, shift);
 }
