@@ -8,12 +8,10 @@
 . `dirname $0`/m0t1fs_server_inc.sh
 . `dirname $0`/m0t1fs_sns_common_inc.sh
 
-###################################################
-# SNS repair is only supported in COPYTOOL mode,
-# because ios need to hash gfid to mds. In COPYTOOL
-# mode, filename is the string format of gfid.
-###################################################
-file_to_compare="0:10001"
+file_to_compare="file_to_compare"
+file_in_dgmode1="file_in_dgmode1"
+file_in_dgmode2="file_in_dgmode2"
+file_in_dgmode3="file_in_dgmode3"
 
 N=3
 K=3
@@ -52,7 +50,7 @@ dgio_test()
 	done
 
 	echo "Starting dgmode testing ..."
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P "copytool" &>> $MERO_TEST_LOGFILE || {
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $N $K $P   &>> $MERO_TEST_LOGFILE || {
 		cat $MERO_TEST_LOGFILE
 		return 1
 	}
@@ -80,6 +78,16 @@ dgio_test()
 	echo "Sending device failure"
 	pool_mach_set_failure $fail_device1
 	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	echo "Create a file after first failure"
+	touch $MERO_M0T1FS_MOUNT_DIR/$file_in_dgmode1
+	rc=$?
+	echo $rc
 	if [ $rc -ne "0" ]
 	then
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
@@ -117,6 +125,16 @@ dgio_test()
 	echo "Sending device2 failure"
 	pool_mach_set_failure $fail_device2
 	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	echo "Create a file after second failure"
+	touch $MERO_M0T1FS_MOUNT_DIR/$file_in_dgmode2
+	rc=$?
+	echo $rc
 	if [ $rc -ne "0" ]
 	then
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
@@ -175,6 +193,16 @@ dgio_test()
 	echo "Sending device3 failure"
 	pool_mach_set_failure $fail_device3
 	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+
+	echo "Create a file after third failure"
+	touch $MERO_M0T1FS_MOUNT_DIR/$file_in_dgmode3
+	rc=$?
+	echo $rc
 	if [ $rc -ne "0" ]
 	then
 		unmount_and_clean &>> $MERO_TEST_LOGFILE

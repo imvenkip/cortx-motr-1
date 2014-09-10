@@ -1153,12 +1153,10 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
  * Checks target device state for cob fid.
  */
 int ios__poolmach_check(struct m0_poolmach *poolmach,
-			struct m0_pool_version_numbers *cliv,
-			struct m0_fid *cob_fid)
+			struct m0_pool_version_numbers *cliv)
 {
 	struct m0_pool_version_numbers curr;
-	enum m0_pool_nd_state          device_state = 0;
-	int                            rc;
+
 	M0_ENTRY();
 
 	m0_poolmach_current_version_get(poolmach, &curr);
@@ -1173,16 +1171,8 @@ int ios__poolmach_check(struct m0_poolmach *poolmach,
 		m0_poolmach_device_state_dump(poolmach);
 		return M0_RC(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 	}
-
-	rc = m0_poolmach_device_state(poolmach, cob_fid->f_container,
-				      &device_state);
-	if (rc == 0 && device_state != M0_PNDS_ONLINE) {
-		M0_LOG(M0_DEBUG, "IO @"FID_F" on failed device: "
-				 "state = %d",
-		       FID_P(cob_fid), device_state);
-		rc = -EIO;
-	}
-	return M0_RC(rc);
+	M0_ASSERT(m0_poolmach_version_equal(cliv, &curr));
+	return M0_RC(0);
 }
 
 static int io_prepare(struct m0_fom *fom)
@@ -1192,6 +1182,7 @@ static int io_prepare(struct m0_fom *fom)
 	struct m0_reqh                 *reqh;
 	struct m0_fop_cob_rw_reply     *rwrep;
 	struct m0_pool_version_numbers *cliv;
+	enum m0_pool_nd_state           device_state = 0;
 	int                             rc;
 
 	M0_ENTRY("fom=%p", fom);
@@ -1213,11 +1204,22 @@ static int io_prepare(struct m0_fom *fom)
 	 */
 	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
 							   reqh);
-
-	rc = ios__poolmach_check(poolmach, cliv, &rwfop->crw_fid);
+	rc = ios__poolmach_check(poolmach, cliv);
+	if (rc != 0) {
+		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+		goto out;
+	}
+	rc = m0_poolmach_device_state(poolmach, rwfop->crw_fid.f_container,
+				      &device_state);
+	if (rc == 0 && device_state != M0_PNDS_ONLINE) {
+		M0_LOG(M0_DEBUG, "IO @"FID_F" on failed device: "
+				 "state = %d",
+		       FID_P(&rwfop->crw_fid), device_state);
+		rc = -EIO;
+	}
 	if (rc != 0)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-
+out:
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
 }

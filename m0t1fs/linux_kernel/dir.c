@@ -1720,25 +1720,19 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	 */
 	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	if (reply->cor_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		struct m0_pool_version_numbers *cli;
-		struct m0_pool_version_numbers *srv;
-		struct m0_fv_event             *event;
-		uint32_t                        i = 0;
+		struct m0_fv_event *event;
+		uint32_t            i;
 
 		/* Retrieve the latest server version and updates and apply
 		 * to the client's copy. When -EAGAIN is return, this system
 		 * call will be restarted.
 		 */
 		rc = -EAGAIN;
-		cli = &csb->csb_pool.po_mach->pm_state->pst_version;
-		srv = (struct m0_pool_version_numbers *)&reply->cor_fv_version;
-		*cli = *srv;
-		while (i < reply->cor_fv_updates.fvu_count) {
+		for (i = 0; i < reply->cor_fv_updates.fvu_count; ++i) {
 			event = &reply->cor_fv_updates.fvu_events[i];
 			m0_poolmach_state_transit(csb->csb_pool.po_mach,
 						  (struct m0_pool_event*)event,
 						  NULL);
-			i++;
 		}
 	} else
 		rc = reply->cor_rc;
