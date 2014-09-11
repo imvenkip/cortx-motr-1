@@ -1795,8 +1795,9 @@ static int ct_run(void)
 				break;
 			hai = hai_next(hai);
 		}
-
+#if LUSTRE_VERSION_CODE < OBD_OCD_VERSION(2, 6, 51, 0)
 		llapi_hsm_action_list_free(&hal);
+#endif
 
 		if (opt.o_abort_on_error && err_major)
 			break;
