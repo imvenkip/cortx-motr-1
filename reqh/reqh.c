@@ -496,6 +496,8 @@ static void __reqh_svcs_stop(struct m0_reqh *reqh, unsigned level)
 			m0_reqh_service_stop(service);
 		}
 		m0_reqh_service_fini(service);
+		if (service == reqh->rh_rpc_service)
+			reqh->rh_rpc_service = NULL;
 	} m0_tl_endfor;
 }
 
