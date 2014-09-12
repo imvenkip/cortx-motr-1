@@ -370,7 +370,12 @@ M0_INTERNAL void m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 {
 	static bool mkfs_executed = false;
 
-	if (!mkfs_executed && cfg == NULL) {
+	/*
+	 * Set mkfs_executed iff default stob domain location is used,
+	 * i.e. ut_be->but_stob_domain_location == NULL.
+	 */
+	if (!mkfs_executed && cfg == NULL &&
+	    ut_be->but_stob_domain_location == NULL) {
 		mkfs = true;
 		mkfs_executed = true;
 	}
