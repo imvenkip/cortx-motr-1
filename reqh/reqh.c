@@ -37,11 +37,13 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
+#include "fop/fom_generic.h"
 #include "dtm/dtm.h"
 #include "rpc/rpc.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "layout/pdclust.h"
+#include "fop/fom_simple.h"
 
 #include "be/ut/helper.h"
 
@@ -74,6 +76,12 @@ M0_TL_DEFINE(m0_reqh_rpc_mach, , struct m0_rpc_machine);
 M0_LOCKERS_DEFINE(M0_INTERNAL, m0_reqh, rh_lockers);
 
 static void __reqh_fini(struct m0_reqh *reqh);
+
+struct disallowed_fop_reply {
+	struct m0_fom_simple  ffr_sfom;
+	struct m0_fop        *ffr_fop;
+	int                   ffr_rc;
+};
 
 /**
    Request handler state machine description
@@ -368,6 +376,63 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 	};
 }
 
+
+static int disallowed_fop_tick(struct m0_fom *fom, void *data, int *phase)
+{
+	struct m0_fop               *fop;
+	struct disallowed_fop_reply *reply = data;
+	struct m0_addb_ctx          *ctx;
+	struct m0_reqh              *reqh = fom->fo_loc->fl_dom->fd_reqh;
+	static const char            msg[] = "No service running.";
+
+	ctx = reqh != NULL ? &reqh->rh_addb_ctx : &m0_addb_proc_ctx;
+	fop = m0_fop_reply_alloc(reply->ffr_fop, &m0_fop_generic_reply_fopt);
+        if (fop == NULL)
+                REQH_ADDB_OOM(FOP_FAILED_REPLY_TICK_1, ctx);
+	else {
+		struct m0_fop_generic_reply *rep = m0_fop_data(fop);
+
+		rep->gr_rc = reply->ffr_rc;
+		rep->gr_msg.s_buf = m0_alloc(sizeof msg);
+		if (rep->gr_msg.s_buf != NULL) {
+			rep->gr_msg.s_len = sizeof msg;
+			memcpy(rep->gr_msg.s_buf, msg, rep->gr_msg.s_len);
+		}
+		m0_rpc_reply_post(&reply->ffr_fop->f_item, &fop->f_item);
+	}
+
+	return -1;
+}
+
+static void disallowed_fop_free(struct m0_fom_simple *sfom)
+{
+	struct disallowed_fop_reply *reply;
+
+	reply = container_of(sfom, struct disallowed_fop_reply, ffr_sfom);
+	m0_free(reply);
+}
+
+static void fop_disallowed(struct m0_reqh *reqh,
+				  struct m0_fop  *req_fop,
+				  int             rc)
+{
+	struct disallowed_fop_reply *reply;
+
+	M0_PRE(rc != 0);
+	M0_PRE(req_fop != NULL);
+
+	REQH_ALLOC_PTR(reply, &reqh->rh_addb_ctx, FOP_FAILED_REPLY_1);
+	if (reply == NULL)
+		return;
+
+        m0_fop_get(req_fop);
+	reply->ffr_fop = req_fop;
+	reply->ffr_rc = rc;
+	M0_FOM_SIMPLE_POST(&reply->ffr_sfom, reqh, NULL, disallowed_fop_tick,
+			   disallowed_fop_free, reply, M0_FOM_SIMPLE_HERE);
+
+}
+
 M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 {
 	struct m0_fom *fom;
@@ -385,7 +450,13 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 		m0_rwlock_read_unlock(&reqh->rh_rwlock);
 		M0_LOG(M0_WARN, "fop \"%s\"@%p disallowed: %i.",
 		       m0_fop_name(fop), fop, rc);
-		return M0_RC(-ESHUTDOWN);
+		fop_disallowed(reqh, fop, -ESHUTDOWN);
+		/*
+		 * Note :
+		 *      Since client will receive generic reply for
+		 *      this error, for RPC layer this fop is accepted.
+		 */
+		return M0_RC(0);
 	}
 
 	M0_ASSERT(fop->f_type != NULL);
@@ -393,11 +464,10 @@ M0_INTERNAL int m0_reqh_fop_handle(struct m0_reqh *reqh, struct m0_fop *fop)
 	M0_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
 	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
-	if (rc == 0) {
+	if (rc == 0)
 		m0_fom_queue(fom, reqh);
-	} else {
+	else
 		REQH_ADDB_FUNCFAIL(rc, FOM_CREATE, &reqh->rh_addb_ctx);
-        }
 
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 	return M0_RC(rc);

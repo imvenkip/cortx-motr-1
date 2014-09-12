@@ -33,6 +33,7 @@
  * @{
  */
 
+struct m0_ref;
 extern struct m0_fop_type m0_fop_ss_fopt;
 extern struct m0_fop_type m0_fop_ss_rep_fopt;
 
@@ -80,6 +81,7 @@ struct m0_sss_rep {
 
 M0_INTERNAL int m0_ss_fops_init(void);
 M0_INTERNAL void m0_ss_fops_fini(void);
+M0_INTERNAL void m0_ss_fop_release(struct m0_ref *ref);
 
 /** @} ss_fop */
 #endif /* __MERO_SSS_SS_FOPS_H__ */

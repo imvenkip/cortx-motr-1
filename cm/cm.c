@@ -1103,7 +1103,7 @@ static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
 static void cm_ast_run_fom_init(struct m0_cm *cm)
 {
 	M0_FOM_SIMPLE_POST(&cm->cm_ast_run_fom, cm->cm_service.rs_reqh, NULL,
-			   cm_ast_run_fom_tick, cm, 2);
+			   cm_ast_run_fom_tick, NULL, cm, 2);
 }
 
 M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)

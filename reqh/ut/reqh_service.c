@@ -33,93 +33,27 @@
 #include "ut/cs_fop_foms.h"
 #include "ut/ut_rpc_machine.h"
 
+#include "reqh/ut/reqhut_fom.c"
+
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20
 #define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
 
-static struct m0_fop_type        m0_reqhut_dummy_fopt;
 static struct m0_ut_rpc_mach_ctx rmach_ctx;
-static struct m0_semaphore       sem;
-
-static int reqhut_fom_create(struct m0_fop *fop, struct m0_fom **out,
-			     struct m0_reqh *reqh);
-static int reqhut_fom_tick(struct m0_fom *fom);
-static void reqhut_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc);
-static void reqhut_fom_fini(struct m0_fom *fom);
-static size_t reqhut_find_fom_home_locality(const struct m0_fom *fom);
-
-static const struct m0_fom_ops reqhut_fom_ops = {
-	.fo_fini = reqhut_fom_fini,
-	.fo_tick = reqhut_fom_tick,
-	.fo_home_locality = reqhut_find_fom_home_locality,
-	.fo_addb_init = reqhut_fom_addb_init
-};
-
-static const struct m0_fom_type_ops reqhut_fom_type_ops = {
-	.fto_create = reqhut_fom_create,
-};
+struct m0_fop_type m0_reqhut_dummy_fopt;
 
 enum {
 	MAX_REQH_UT_FOP = 25
 };
 
-static int reqhut_fom_create(struct m0_fop  *fop,
-			     struct m0_fom **out,
-			     struct m0_reqh *reqh)
-{
-	struct m0_fom *fom;
-
-	M0_PRE(fop != NULL);
-	M0_PRE(out != NULL);
-
-	M0_ALLOC_PTR(fom);
-	if (fom == NULL)
-		return -ENOMEM;
-
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &reqhut_fom_ops,
-		    fop, NULL, reqh);
-
-	*out = fom;
-
-	return 0;
-}
-
-static size_t reqhut_find_fom_home_locality(const struct m0_fom *fom)
-{
-	return m0_fop_opcode(fom->fo_fop);
-}
-
-
-static int reqhut_fom_tick(struct m0_fom *fom)
-{
-	m0_semaphore_up(&sem);
-	m0_fom_phase_set(fom, M0_FOPH_FINISH);
-	return M0_FSO_WAIT;
-}
-
-static void reqhut_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
-{
-	/**
-	 * @todo: Do the actual impl, need to set MAGIC, so that
-	 * m0_fom_init() can pass
-	 */
-	fom->fo_addb_ctx.ac_magic = M0_ADDB_CTX_MAGIC;
-}
-
-static void reqhut_fom_fini(struct m0_fom *fom)
-{
-	m0_fom_fini(fom);
-	m0_free(fom);
-}
-
-int m0_reqhut_fop_init(void)
+int m0_reqhut_fop_init(const struct m0_fom_type_ops *fom_type_ops)
 {
 	m0_xc_reqh_service_init();
 	M0_FOP_TYPE_INIT(&m0_reqhut_dummy_fopt,
 			 .name      = "Reqh unit test",
 			 .opcode    = M0_REQH_UT_DUMMY_OPCODE,
 			 .xt        = m0_reqhut_dummy_xc,
-			 .fom_ops   = &reqhut_fom_type_ops,
+			 .fom_ops   = fom_type_ops,
 			 .sm        = &m0_generic_conf,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .svc_type  = &ds1_service_type);
@@ -142,7 +76,7 @@ static void test_service(void)
 	struct m0_fop               *fop;
 
 	m0_semaphore_init(&sem, 0);
-	rc = m0_reqhut_fop_init();
+	rc = m0_reqhut_fop_init(&reqhut_fom_type_ops);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Hack */

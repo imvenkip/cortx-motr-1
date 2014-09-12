@@ -123,6 +123,8 @@ struct m0_fom_simple {
 	size_t             si_locality;
 	/** Embedded fom type for "semisimple" fom. */
 	struct m0_fom_type si_type;
+	/** Cleanup function pointer called by fom_simple_fini() */
+	void             (*si_free)(struct m0_fom_simple *sfom);
 };
 
 enum {
@@ -140,6 +142,7 @@ M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 				    struct m0_reqh *reqh,
 				    struct m0_sm_conf *conf,
 				    int (*tick)(struct m0_fom *, void *, int *),
+				    void (*free)(struct m0_fom_simple *sfom),
 				    void *data, size_t locality);
 /**
  * Starts an army of "nr" simple foms, queued to localities 0 .. (nr - 1).
@@ -151,17 +154,19 @@ M0_INTERNAL void m0_fom_simple_hoard(struct m0_fom_simple *cat, size_t nr,
 				     struct m0_sm_conf *conf,
 				     int (*tick)(struct m0_fom *, void *,
 						 int *),
+				     void (*free)(struct m0_fom_simple *sfom),
 				     void *data);
 
 /**
  * Wrapper around m0_fom_simple_post() supporting flexible typing of "data".
  */
-#define M0_FOM_SIMPLE_POST(s, r, c, f, d, l)				\
+#define M0_FOM_SIMPLE_POST(s, r, c, t, f, d, l)				\
 ({									\
-	/* check that "f" and "d" match. */				\
-	(void)(sizeof((f)(NULL, (d), 0)));				\
+	/* check that "t" and "d" match. */				\
+	(void)(sizeof((t)(NULL, (d), 0)));				\
 	m0_fom_simple_post((s), (r), (c),				\
-			   (int (*)(struct m0_fom *, void *, int *))(f), \
+			   (int (*)(struct m0_fom *, void *, int *))(t),\
+			   (void (*)(struct m0_fom_simple *))(f),       \
 			   (void *)(d), (l));				\
 })
 

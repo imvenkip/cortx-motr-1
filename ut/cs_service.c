@@ -45,9 +45,10 @@ static const struct m0_reqh_service_type_ops ds2_service_type_ops = {
 };
 
 static const struct m0_reqh_service_ops ds1_service_ops = {
-	.rso_start = ds1_service_start,
-	.rso_stop  = ds1_service_stop,
-	.rso_fini  = ds_service_fini
+	.rso_start       = ds1_service_start,
+	.rso_start_async = m0_reqh_service_async_start_simple,
+	.rso_stop        = ds1_service_stop,
+	.rso_fini        = ds_service_fini
 };
 
 static const struct m0_reqh_service_ops ds2_service_ops = {

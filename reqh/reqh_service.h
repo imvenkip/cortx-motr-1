@@ -661,7 +661,7 @@ M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc);
  * which is not really async implementation. But later it
  * may require to implement async service startup.
  */
-M0_INTERNAL int
+int
 m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc);
 
 /** @} endgroup reqhservice */

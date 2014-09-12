@@ -24,6 +24,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/types.h"
+#include "lib/refs.h"
 #include "sm/sm.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -81,6 +82,19 @@ M0_INTERNAL void m0_ss_fops_fini(void)
 	m0_xc_ss_fops_fini();
 	m0_fop_type_fini(&m0_fop_ss_fopt);
 	m0_fop_type_fini(&m0_fop_ss_rep_fopt);
+}
+
+M0_INTERNAL void m0_ss_fop_release(struct m0_ref *ref)
+{
+	struct m0_fop *fop = container_of(ref, struct m0_fop, f_ref);
+
+	M0_PRE(fop != NULL);
+
+	m0_free(fop->f_data.fd_data);
+	fop->f_data.fd_data = NULL;
+
+	m0_fop_fini(fop);
+	m0_free(fop);
 }
 
 /*

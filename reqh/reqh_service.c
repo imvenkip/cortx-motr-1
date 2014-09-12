@@ -531,7 +531,7 @@ M0_INTERNAL void m0_reqh_service_quit(struct m0_reqh_service *svc)
 	}
 }
 
-M0_INTERNAL int
+int
 m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc)
 {
 	M0_ENTRY();
@@ -541,6 +541,7 @@ m0_reqh_service_async_start_simple(struct m0_reqh_service_start_async_ctx *asc)
 	m0_fom_wakeup(asc->sac_fom);
 	return M0_RC(asc->sac_rc);
 }
+M0_EXPORTED(m0_reqh_service_async_start_simple);
 
 /** @} endgroup reqhservice */
 #undef M0_TRACE_SUBSYSTEM

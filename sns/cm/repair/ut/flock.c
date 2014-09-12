@@ -163,7 +163,7 @@ static void sns_flock_multi_fom(void)
 	for (i = 0; i < NR; i++) {
 		m0_semaphore_init(&sem[i], 0);
 		M0_FOM_SIMPLE_POST(&fs[i], reqh, &flock_ut_conf,
-				   &flock_ut_fom_tick, &i, 2);
+				   &flock_ut_fom_tick, NULL, &i, 2);
 		m0_semaphore_down(&sem[i]);
 		m0_semaphore_fini(&sem[i]);
 	}
@@ -182,7 +182,7 @@ static void sns_flock_single_fom(void)
 
 	m0_semaphore_init(&sem[sem_id], 0);
 	M0_FOM_SIMPLE_POST(&fs[0], reqh, &flock_ut_conf,
-			   &flock_ut_fom_tick, &sem_id, 2);
+			   &flock_ut_fom_tick, NULL, &sem_id, 2);
 	m0_semaphore_down(&sem[0]);
 	m0_semaphore_fini(&sem[sem_id]);
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);

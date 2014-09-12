@@ -28,11 +28,15 @@
 #include "xcode/xcode.h" /* m0_void_t */
 #include "xcode/xcode_attr.h"
 
+struct m0_fop_type;
+struct m0_fom_type_ops;
+extern struct m0_fop_type m0_reqhut_dummy_fopt;
+
 struct m0_reqhut_dummy {
 	m0_void_t rd_unused;
 } M0_XCA_RECORD;
 
-int m0_reqhut_fop_init(void);
+int m0_reqhut_fop_init(const struct m0_fom_type_ops *fom_type_ops);
 void m0_reqhut_fop_fini(void);
 
 #endif /* __MERO_REQH_UT_REQH_SERVICE_H__ */

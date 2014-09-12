@@ -87,6 +87,7 @@ extern struct m0_ut_suite packet_encdec_ut;
 extern struct m0_ut_suite parity_math_ut;
 extern struct m0_ut_suite poolmach_ut;
 extern struct m0_ut_suite reqh_ut;
+extern struct m0_ut_suite reqh_fop_allow_ut;
 extern struct m0_ut_suite reqh_service_ut;
 extern struct m0_ut_suite rm_ut;
 extern struct m0_ut_suite rpc_mc_ut;
@@ -155,6 +156,7 @@ void add_uts(void)
 	m0_ut_add(&parity_math_ut);
 	m0_ut_add(&poolmach_ut);
 	m0_ut_add(&reqh_ut);
+	m0_ut_add(&reqh_fop_allow_ut);
 	m0_ut_add(&reqh_service_ut);
 	m0_ut_add(&rm_ut);
 	m0_ut_add(&rpc_mc_ut);

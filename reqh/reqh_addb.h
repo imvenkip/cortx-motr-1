@@ -52,6 +52,9 @@ M0_ADDB_CT(m0_addb_ct_reqh_mod, M0_ADDB_CTXID_REQH_MOD);
 #define REQH_ADDB_FUNCFAIL(rc, loc, ctx)		             \
 M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_REQH_ADDB_LOC_##loc, rc, ctx)
 
+#define REQH_ADDB_OOM(loc, ctx)                                      \
+M0_ADDB_OOM(&m0_addb_gmc, M0_REQH_ADDB_LOC_##loc, ctx)
+
 #define REQH_ALLOC_PTR(ptr, ctx, loc)			             \
 M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_REQH_ADDB_LOC_##loc, ctx)
 
@@ -61,10 +64,12 @@ M0_ALLOC_PTR_ADDB(ptr, &m0_addb_gmc, M0_REQH_ADDB_LOC_##loc, ctx)
  ******************************************************************************
  */
 enum {
-	M0_REQH_ADDB_LOC_FOM_CREATE   = 10,
-	M0_REQH_ADDB_LOC_FOP_HANDLE_1 = 20,
-	M0_REQH_ADDB_LOC_FOP_HANDLE_2 = 21,
-	M0_REQH_ADDB_LOC_KEY_FIND     = 30,
+	M0_REQH_ADDB_LOC_FOM_CREATE              = 10,
+	M0_REQH_ADDB_LOC_FOP_HANDLE_1            = 20,
+	M0_REQH_ADDB_LOC_FOP_HANDLE_2            = 21,
+	M0_REQH_ADDB_LOC_KEY_FIND                = 30,
+	M0_REQH_ADDB_LOC_FOP_FAILED_REPLY_1      = 40,
+	M0_REQH_ADDB_LOC_FOP_FAILED_REPLY_TICK_1 = 50,
 };
 
 /** @} */ /* end of reqh group */

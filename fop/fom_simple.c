@@ -31,6 +31,7 @@
 #include "lib/errno.h"                  /* ENOMEM */
 #include "lib/memory.h"
 #include "lib/locality.h"
+#include "lib/finject.h"
 #include "addb/addb.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
@@ -55,6 +56,7 @@ M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 				    struct m0_reqh *reqh,
 				    struct m0_sm_conf *conf,
 				    int (*tick)(struct m0_fom *, void *, int *),
+				    void (*free)(struct m0_fom_simple *sfom),
 				    void *data, size_t locality)
 {
 	struct m0_fom_type *fomt;
@@ -74,6 +76,7 @@ M0_INTERNAL void m0_fom_simple_post(struct m0_fom_simple *simpleton,
 		    NULL, NULL, reqh);
 	simpleton->si_data = data;
 	simpleton->si_tick = tick;
+	simpleton->si_free = free;
 	if (locality == M0_FOM_SIMPLE_HERE)
 		locality = m0_locality_here()->lo_idx;
 	simpleton->si_locality = locality;
@@ -85,12 +88,13 @@ M0_INTERNAL void m0_fom_simple_hoard(struct m0_fom_simple *cat, size_t nr,
 				     struct m0_sm_conf *conf,
 				     int (*tick)(struct m0_fom *, void *,
 						 int *),
+				     void (*free)(struct m0_fom_simple *sfom),
 				     void *data)
 {
 	size_t i;
 
 	for (i = 0; i < nr; ++i)
-		m0_fom_simple_post(&cat[i], reqh, conf, tick, data, i);
+		m0_fom_simple_post(&cat[i], reqh, conf, tick, free, data, i);
 }
 
 M0_INTERNAL int m0_fom_simples_init(void)
@@ -147,8 +151,12 @@ static void fom_simple_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)
 
 static void fom_simple_fini(struct m0_fom *fom)
 {
+	struct m0_fom_simple *simpleton = FOM_SIMPLE(fom);
+
 	m0_fom_fini(fom);
 	fom->fo_addb_ctx.ac_magic = 0;
+	if (simpleton->si_free != NULL)
+		simpleton->si_free(simpleton);
 }
 
 static const struct m0_fom_ops fom_simple_ops = {

@@ -23,6 +23,7 @@
 #include "fop/fom_simple.h"
 #include "lib/misc.h"           /* m0_forall */
 #include "lib/locality.h"
+#include "lib/finject.h"
 #include "ut/ut.h"
 
 enum {
@@ -38,6 +39,7 @@ static struct m0_sm_ast     ast[NR];
 static struct m0_reqh       reqh;
 static struct m0_fom_simple s[NR];
 static struct m0_atomic64   hoarded;
+static bool                 free_func_called;
 
 static void fom_simple_svc_start(void)
 {
@@ -100,6 +102,17 @@ static int simple_tick(struct m0_fom *fom, int *x, int *__unused)
 		m0_semaphore_up(&sem[0]);
 		return -1;
 	}
+}
+
+static int tick_once(struct m0_fom *fom, int *x, int *__unused)
+{
+	return -1;
+}
+
+void free_func(struct m0_fom_simple *sfom)
+{
+	free_func_called = true;
+	m0_semaphore_up(&sem[0]);
 }
 
 enum {
@@ -216,13 +229,20 @@ void test_locality(void)
 			       (core[j] != 0) == (j < online.b_nr &&
 						  m0_bitmap_get(&online, j))));
 	nr = 0;
-	M0_FOM_SIMPLE_POST(&s[0], &reqh, NULL, &simple_tick, &nr, 1);
+	free_func_called = false;
+	M0_FOM_SIMPLE_POST(&s[0], &reqh, NULL, &tick_once, free_func, &nr, 1);
+	m0_semaphore_down(&sem[0]);
+	m0_reqh_idle_wait(&reqh);
+	M0_UT_ASSERT(free_func_called);
+
+	nr = 0;
+	M0_FOM_SIMPLE_POST(&s[0], &reqh, NULL, &simple_tick, NULL, &nr, 1);
 	m0_semaphore_down(&sem[0]);
 	M0_UT_ASSERT(nr == NR);
 	m0_reqh_idle_wait(&reqh);
 	M0_SET0(&s[0]);
 	M0_FOM_SIMPLE_POST(&s[0], &reqh, &semisimple_conf,
-			   &semisimple_tick, &nr, M0_FOM_SIMPLE_HERE);
+			   &semisimple_tick, NULL, &nr, M0_FOM_SIMPLE_HERE);
 	m0_semaphore_down(&sem[0]);
 	m0_fom_wakeup(&s[0].si_fom);
 	m0_semaphore_down(&sem[0]);
@@ -230,7 +250,8 @@ void test_locality(void)
 	m0_reqh_idle_wait(&reqh);
 	M0_SET0(&s[0]);
 	m0_atomic64_set(&hoarded, 0);
-	m0_fom_simple_hoard(s, ARRAY_SIZE(s), &reqh, NULL, &cat_tick, NULL);
+	m0_fom_simple_hoard(s, ARRAY_SIZE(s), &reqh, NULL,
+			    &cat_tick, NULL, NULL);
 	for (i = 0; i < ARRAY_SIZE(sem); ++i)
 		m0_semaphore_down(&sem[i]);
 	M0_UT_ASSERT(m0_atomic64_get(&hoarded) == NR);
