@@ -79,34 +79,27 @@ enum module_id { A, B, C, D, E, F, G, H, I };
  *                             +------+
  */
 
-static struct m0_modlev levels[4];
+static const struct m0_modlev levels[] = {
+	{ .ml_enter = modlev_enter, .ml_leave = modlev_leave },
+	{ .ml_enter = modlev_enter, .ml_leave = modlev_leave },
+	{ .ml_enter = modlev_enter, .ml_leave = modlev_leave },
+	{ .ml_enter = modlev_enter, .ml_leave = modlev_leave }
+};
 
 static struct m0_moddep dep_a[] = { /* no dependencies initially */ };
-static struct m0_moddep inv_a[] = {
-	{ .md_other = &modules[B], .md_src = 0, .md_dst = 1 }
-};
+static struct m0_moddep inv_a[] = { M0_MODDEP_INIT(&modules[B], 0, 1) };
 
 static struct m0_moddep dep_b[] = {
-	{ .md_other = &modules[A], .md_src = 0, .md_dst = 1 },
-	{ .md_other = &modules[C], .md_src = 3, .md_dst = 0 }
+	M0_MODDEP_INIT(&modules[A], 0, 1),
+	M0_MODDEP_INIT(&modules[C], 3, 0)
 };
-static struct m0_moddep inv_b[] = {
-	{ .md_other = &modules[D], .md_src = 1, .md_dst = 2 }
-};
+static struct m0_moddep inv_b[] = { M0_MODDEP_INIT(&modules[D], 1, 2) };
 
-static struct m0_moddep dep_c[] = {
-	{ .md_other = &modules[D], .md_src = 0, .md_dst = 2 }
-};
-static struct m0_moddep inv_c[] = {
-	{ .md_other = &modules[B], .md_src = 3, .md_dst = 0 }
-};
+static struct m0_moddep dep_c[] = { M0_MODDEP_INIT(&modules[D], 0, 2) };
+static struct m0_moddep inv_c[] = { M0_MODDEP_INIT(&modules[B], 3, 0) };
 
-static struct m0_moddep dep_d[] = {
-	{ .md_other = &modules[B], .md_src = 1, .md_dst = 2 }
-};
-static struct m0_moddep inv_d[] = {
-	{ .md_other = &modules[C], .md_src = 0, .md_dst = 2 }
-};
+static struct m0_moddep dep_d[] = { M0_MODDEP_INIT(&modules[B], 1, 2) };
+static struct m0_moddep inv_d[] = { M0_MODDEP_INIT(&modules[C], 0, 2) };
 
 /*                                           +------+
  *               +------+   ,--------------->|  i0  |---.
@@ -120,38 +113,26 @@ static struct m0_moddep inv_d[] = {
  * +------+      +------+      +------+      +------+
  */
 
-static struct m0_moddep dep_e[] = {
-	{ .md_other = &modules[F], .md_src = 0, .md_dst = 1 }
-};
+static struct m0_moddep dep_e[] = { M0_MODDEP_INIT(&modules[F], 0, 1) };
 static struct m0_moddep inv_e[0];
 
 static struct m0_moddep dep_f[] = {
-	{ .md_other = &modules[G], .md_src = 2, .md_dst = 2 },
-	{ .md_other = &modules[I], .md_src = 3, .md_dst = 0 }
+	M0_MODDEP_INIT(&modules[G], 2, 2),
+	M0_MODDEP_INIT(&modules[I], 3, 0)
 };
-static struct m0_moddep inv_f[] = {
-	{ .md_other = &modules[E], .md_src = 0, .md_dst = 1 }
-};
+static struct m0_moddep inv_f[] = { M0_MODDEP_INIT(&modules[E], 0, 1) };
 
-static struct m0_moddep dep_g[] = {
-	{ .md_other = &modules[H], .md_src = 0, .md_dst = 0 }
-};
+static struct m0_moddep dep_g[] = { M0_MODDEP_INIT(&modules[H], 0, 0) };
 static struct m0_moddep inv_g[] = {
-	{ .md_other = &modules[F], .md_src = 2, .md_dst = 2 },
-	{ .md_other = &modules[I], .md_src = 0, .md_dst = 2 }
+	M0_MODDEP_INIT(&modules[F], 2, 2),
+	M0_MODDEP_INIT(&modules[I], 0, 2)
 };
 
 static struct m0_moddep dep_h[0];
-static struct m0_moddep inv_h[] = {
-	{ .md_other = &modules[G], .md_src = 0, .md_dst = 0 }
-};
+static struct m0_moddep inv_h[] = { M0_MODDEP_INIT(&modules[G], 0, 0) };
 
-static struct m0_moddep dep_i[] = {
-	{ .md_other = &modules[G], .md_src = 0, .md_dst = 2 }
-};
-static struct m0_moddep inv_i[] = {
-	{ .md_other = &modules[F], .md_src = 3, .md_dst = 0 }
-};
+static struct m0_moddep dep_i[] = { M0_MODDEP_INIT(&modules[G], 0, 2) };
+static struct m0_moddep inv_i[] = { M0_MODDEP_INIT(&modules[F], 3, 0) };
 
 static void _reset(void)
 {
@@ -179,11 +160,6 @@ static void _reset(void)
 #undef ARR_INIT
 	};
 	unsigned i;
-
-	for (i = 0; i < ARRAY_SIZE(levels); ++i) {
-		levels[i].ml_enter = modlev_enter;
-		levels[i].ml_leave = modlev_leave;
-	}
 
 	M0_CASSERT(ARRAY_SIZE(mods) == ARRAY_SIZE(modules));
 	for (i = 0; i < ARRAY_SIZE(mods); ++i) {
@@ -343,12 +319,10 @@ struct amb {
 static void foobar_init(struct m0_module *self, const char *name,
 			struct m0_module *other, bool source)
 {
-	static struct m0_modlev levels[] = {
+	static const struct m0_modlev levels[] = {
 		{ .ml_enter = modlev_enter }
 	};
-	struct m0_moddep deps[] = {
-		{ .md_other = other, .md_src = 0, .md_dst = 0 }
-	};
+	struct m0_moddep deps[] = { M0_MODDEP_INIT(other, 0, 0) };
 
 	*self = (struct m0_module){
 		.m_name     = name,

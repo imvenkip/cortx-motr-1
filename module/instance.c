@@ -38,20 +38,27 @@ M0_INTERNAL void m0_set(struct m0 *instance)
 	m0_thread_tls()->tls_m0_instance = instance;
 }
 
-static struct m0_modlev levels_inst[M0_LEVEL__NR] = {
-	[M0_LEVEL_INIT] = { .ml_name  = "m0 is initialised" }
+static int level_inst_enter(struct m0_module *module)
+{
+	/* XXX TODO */
+	return 0;
+}
+
+static const struct m0_modlev levels_inst[] = {
+	[M0_LEVEL_INIT] = {
+		.ml_name  = "m0 is initialised",
+		.ml_enter = level_inst_enter
+	}
 };
 
-M0_INTERNAL void m0_instance_init(struct m0 *instance)
+M0_INTERNAL void m0_instance_setup(struct m0 *instance)
 {
-	*instance = (struct m0){
-		.i_self = M0_MODULE_INIT(
-			"m0 instance", instance,
-			levels_inst, ARRAY_SIZE(levels_inst),
-			M0_MODULE_DEPS((&instance->i_net.n_module,
-					M0_LEVEL_INIT, M0_LEVEL_NET)))
-	};
-	m0_net_module_init(&instance->i_net);
+	m0_module_setup(&instance->i_self, "m0 instance",
+			levels_inst, ARRAY_SIZE(levels_inst));
+	instance->i_self.m_m0 = instance;
+	m0_net_module_setup(&instance->i_net);
+	m0_module_dep_add(&instance->i_self, M0_LEVEL_INIT,
+			  &instance->i_net.n_module, M0_LEVEL_NET);
 }
 
 /** @} module */

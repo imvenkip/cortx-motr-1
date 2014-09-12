@@ -164,54 +164,6 @@ struct m0_module {
 	unsigned                m_inv_nr;
 };
 
-/**
- * m0_module initialiser.
- *
- * @see M0_MODULE_DEPS(), M0_MODULE_INVS()
- *
- * Example:
- * @code
- * struct m0_module m1 = M0_MODULE_INIT("m1 module", instance,
- *                                      m1_levels, ARRAY_SIZE(m1_levels));
- * struct m0_module m2 = M0_MODULE_INIT("m2 module", instance,
- *                                      m2_levels, ARRAY_SIZE(m2_levels),
- *                                      M0_MODULE_DEPS(&m3, LEVEL_M2_SRC,
- *                                      LEVEL_M3_DST));
- * struct m0_module m3 = M0_MODULE_INIT("m3 module", instance,
- *                                      m3_levels, ARRAY_SIZE(m3_levels),
- *                                      M0_MODULE_INVS(&m2, LEVEL_M2_SRC,
- *                                      LEVEL_M3_DST));
- * @endcode
- */
-#define M0_MODULE_INIT(name, instance, levels, levels_nr, ...) { \
-	.m_name     = (name),                                    \
-	.m_m0       = (instance),                                \
-	.m_cur      = M0_MODLEV_NONE,                            \
-	.m_level    = (levels),                                  \
-	.m_level_nr = (levels_nr),                               \
-	__VA_ARGS__                                              \
-}
-
-#define M0_MODULE_DEPS(...)                                              \
-	.m_dep = {                                                       \
-		M0_CAT(M0_MODDEP_, M0_COUNT_PARAMS(dummy, __VA_ARGS__))( \
-			__VA_ARGS__)                                     \
-	},                                                               \
-	.m_dep_nr = M0_COUNT_PARAMS(dummy, __VA_ARGS__)
-
-#define M0_MODULE_INVS(...)                                              \
-	.m_inv = {                                                       \
-		M0_CAT(M0_MODDEP_, M0_COUNT_PARAMS(dummy, __VA_ARGS__))( \
-			__VA_ARGS__)                                     \
-	},                                                               \
-	.m_inv_nr = M0_COUNT_PARAMS(dummy, __VA_ARGS__)
-
-#define M0_MODDEP_1(args)      M0_MODDEP_INIT args
-#define M0_MODDEP_2(args, ...) M0_MODDEP_INIT args, M0_MODDEP_1(__VA_ARGS__)
-#define M0_MODDEP_3(args, ...) M0_MODDEP_INIT args, M0_MODDEP_2(__VA_ARGS__)
-#define M0_MODDEP_4(args, ...) M0_MODDEP_INIT args, M0_MODDEP_3(__VA_ARGS__)
-#define M0_MODDEP_5(args, ...) M0_MODDEP_INIT args, M0_MODDEP_4(__VA_ARGS__)
-
 /** Module level. */
 struct m0_modlev {
 	const char *ml_name;
@@ -223,6 +175,14 @@ struct m0_modlev {
 	/** Leave function, executed before leaving the level. */
 	void      (*ml_leave)(struct m0_module *module);
 };
+
+/**
+ * Configures the module: set the fields that will not be changed during
+ * module's lifetime.
+ */
+M0_INTERNAL void
+m0_module_setup(struct m0_module *module, const char *name,
+		const struct m0_modlev *level, int level_nr);
 
 /**
  * Bring module at least to the given level.

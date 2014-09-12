@@ -31,8 +31,10 @@
  * @{
  */
 
+/** Levels of m0_stob_module::stm_module. */
 enum {
-	M0_LEVEL_STOB = 1,
+	/** m0_stob_types_init() has been called. */
+	M0_LEVEL_STOB
 };
 
 struct m0_stob_module {
@@ -41,14 +43,6 @@ struct m0_stob_module {
 };
 
 M0_INTERNAL struct m0_stob_module *m0_stob_module__get(void);
-
-extern struct m0_modlev m0_levels_stob[];
-extern const unsigned m0_levels_stob_nr;
-
-#define M0_STOB_INIT(instance) {                                         \
-	.stm_module = M0_MODULE_INIT("stob module", (instance),          \
-				     m0_levels_stob, m0_levels_stob_nr)  \
-}
 
 struct m0_stob_ad_module {
 	struct m0_tl    sam_domains;

@@ -80,6 +80,19 @@ static bool module_invariant(const struct m0_module *mod)
 					}))));
 }
 
+M0_INTERNAL void
+m0_module_setup(struct m0_module *module, const char *name,
+		const struct m0_modlev *level, int level_nr)
+{
+	*module = (struct m0_module){
+		.m_name     = name,
+		.m_cur      = M0_MODLEV_NONE,
+		.m_level    = level,
+		.m_level_nr = level_nr
+	};
+	M0_POST(module_invariant(module));
+}
+
 static int module_up(struct m0_module *module, int level)
 {
 	int        result = 0;

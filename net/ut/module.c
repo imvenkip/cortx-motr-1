@@ -23,10 +23,10 @@
 
 static void test_net_modules(void)
 {
+	int               rc;
 	struct m0_net    *net = &m0_get()->i_net;
 	struct m0_module *xprt_m = \
 		&net->n_xprts[M0_NET_XPRT_BULK_MEM].nx_module;
-	int               rc;
 
 	M0_UT_ASSERT(xprt_m->m_cur == M0_MODLEV_NONE);
 	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);
@@ -35,7 +35,7 @@ static void test_net_modules(void)
 	if (CURIOUS) {
 		struct m0 another_instance;
 
-		m0_instance_init(&another_instance);
+		m0_instance_setup(&another_instance);
 		m0_set(&another_instance);
 		/*
 		 * This statement fails, since `xprt_m' does not belong

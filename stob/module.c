@@ -19,20 +19,18 @@
  */
 
 #include "stob/module.h"
-
 #include "module/instance.h"
 
 static int level_stob_enter(struct m0_module *module);
 static void level_stob_leave(struct m0_module *module);
 
-struct m0_modlev m0_levels_stob[] = {
+static const struct m0_modlev levels_stob[] = {
 	[M0_LEVEL_STOB] = {
 		.ml_name = "stob is initialised",
 		.ml_enter = level_stob_enter,
 		.ml_leave = level_stob_leave,
-	},
+	}
 };
-const unsigned m0_levels_stob_nr = ARRAY_SIZE(m0_levels_stob);
 
 static int level_stob_enter(struct m0_module *module)
 {

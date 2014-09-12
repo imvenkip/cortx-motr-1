@@ -25,14 +25,14 @@
 #include "stob/module.h"    /* m0_stob_module */
 #include "ut/stob.h"	    /* m0_ut_stob_module */
 
+struct m0_be_domain;
+struct m0_dbenv;
+
 /**
  * @addtogroup module
  *
  * @{
  */
-
-struct m0_be_domain;
-struct m0_dbenv;
 
 /**
  * m0 instance.
@@ -68,27 +68,28 @@ struct m0 {
 	 * Contains modules for library (thread, xc, etc.) together
 	 * with their global data.
 	 */
-	struct m0_lib		  i_lib;
+	struct m0_lib             i_lib;
 
 	/* ... */
 #endif
-	struct m0_net		  i_net;
-	struct m0_stob_module	  i_stob_module;
+	struct m0_net             i_net;
+	struct m0_stob_module     i_stob_module;
 	struct m0_stob_ad_module  i_stob_ad_module;
 	struct m0_ut_stob_module  i_ut_stob_module;
-	struct m0_be_domain	 *i_be_dom;
-	struct m0_be_domain	 *i_be_dom_save;
-	struct m0_be_ut_backend	 *i_be_ut_backend;
-	struct m0_be_ut_backend	 *i_be_ut_backend_save;
-	struct m0_dbenv		 *i_dbenv;
-	struct m0_dbenv		 *i_dbenv_save;
+	struct m0_be_domain      *i_be_dom;
+	struct m0_be_domain      *i_be_dom_save;
+	struct m0_be_ut_backend  *i_be_ut_backend;
+	struct m0_be_ut_backend  *i_be_ut_backend_save;
+	struct m0_dbenv          *i_dbenv;
+	struct m0_dbenv          *i_dbenv_save;
 	struct m0_poolmach_state *i_pool_module;
 	struct m0_cob_domain     *i_cob_module;
-	bool			  i_reqh_has_multiple_ad_domains;
-	bool			  i_reqh_uses_ad_stob;
+	bool                      i_reqh_has_multiple_ad_domains;
+	bool                      i_reqh_uses_ad_stob;
 };
 
-M0_INTERNAL void m0_instance_init(struct m0 *instance);
+/** Configures m0_modules: m0 and its submodules. */
+M0_INTERNAL void m0_instance_setup(struct m0 *instance);
 
 /**
  * Returns current m0 instance.
@@ -117,9 +118,6 @@ M0_INTERNAL void m0_set(struct m0 *instance);
 /**
  * Levels of m0 instance.
  *
- * @note Level numbering should start at 1, not 0; the documentation
- *       of m0_module::m_level provides the rationale.
- *
  * Dependencies:
  * @verbatim
  *
@@ -132,8 +130,7 @@ M0_INTERNAL void m0_set(struct m0 *instance);
  */
 enum {
 	/** m0 instance and its submodules have been initialised. */
-	M0_LEVEL_INIT,
-	M0_LEVEL__NR
+	M0_LEVEL_INIT
 };
 
 /** @} module */

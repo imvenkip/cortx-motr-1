@@ -78,7 +78,7 @@
 #include "addb/addb_fops.h"
 #include "stats/stats_fops.h"
 #include "ha/epoch.h"
-#include "module/instance.h"  /* m0_instance_init */
+#include "module/instance.h"  /* m0_instance_setup */
 
 M0_INTERNAL int m0_utime_init(void);
 M0_INTERNAL void m0_utime_fini(void);
@@ -225,7 +225,7 @@ int m0_init(struct m0 *instance)
 	if (rc != 0)
 		return rc;
 
-	m0_instance_init(instance);
+	m0_instance_setup(instance);
 	if (0 /*XXX ENABLEME*/)
 		m0_module_init(&instance->i_self, M0_LEVEL_INIT);
 

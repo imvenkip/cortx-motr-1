@@ -28,7 +28,7 @@ static void level_net_leave(struct m0_module *module);
 static int  level_net_xprt_enter(struct m0_module *module);
 static void level_net_xprt_leave(struct m0_module *module);
 
-struct m0_modlev levels_net[M0_LEVEL_NET__NR] = {
+static const struct m0_modlev levels_net[] = {
 	[M0_LEVEL_NET] = {
 		.ml_name  = "net is initialised",
 		.ml_enter = level_net_enter,
@@ -36,7 +36,7 @@ struct m0_modlev levels_net[M0_LEVEL_NET__NR] = {
 	}
 };
 
-struct m0_modlev levels_net_xprt[M0_LEVEL_NET_XPRT__NR] = {
+static const struct m0_modlev levels_net_xprt[] = {
 	[M0_LEVEL_NET_DEP] = {
 		.ml_name  = "net_xprt depends on net",
 		.ml_enter = level_net_xprt_enter
@@ -53,28 +53,21 @@ struct m0_modlev levels_net_xprt[M0_LEVEL_NET_XPRT__NR] = {
 	}
 };
 
-M0_INTERNAL void m0_net_module_init(struct m0_net *net)
+M0_INTERNAL void m0_net_module_setup(struct m0_net *net)
 {
 	struct m0 *instance = M0_AMB(instance, net, i_net);
 
-#define NET_XPRT_INIT(short_name, instance) {                              \
-		.nx_module = M0_MODULE_INIT(short_name " net_xprt module", \
-					    (instance), levels_net_xprt,   \
-					    ARRAY_SIZE(levels_net_xprt))   \
-	}
-	*net = (struct m0_net){
-		.n_module = M0_MODULE_INIT(
-			"net module", instance,
-			levels_net, ARRAY_SIZE(levels_net),
-			M0_MODULE_INVS((&instance->i_self,
-					M0_LEVEL_INIT, M0_LEVEL_NET))),
-		.n_xprts = {
-			[M0_NET_XPRT_LNET] = NET_XPRT_INIT("lnet", instance),
-			[M0_NET_XPRT_BULK_MEM] = NET_XPRT_INIT("bulk-mem",
-							       instance)
-		}
-	};
-#undef NET_XPRT_INIT
+	m0_module_setup(&net->n_module, "net module",
+			levels_net, ARRAY_SIZE(levels_net));
+	m0_module_setup(&net->n_xprts[M0_NET_XPRT_LNET].nx_module,
+			"lnet net_xprt module",
+			levels_net_xprt, ARRAY_SIZE(levels_net_xprt));
+	m0_module_setup(&net->n_xprts[M0_NET_XPRT_BULK_MEM].nx_module,
+			"bulk-mem net_xprt module",
+			levels_net_xprt, ARRAY_SIZE(levels_net_xprt));
+	net->n_module.m_m0 =
+		net->n_xprts[M0_NET_XPRT_LNET].nx_module.m_m0 =
+		net->n_xprts[M0_NET_XPRT_BULK_MEM].nx_module.m_m0 = instance;
 }
 
 static bool
