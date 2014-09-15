@@ -25,8 +25,7 @@ static void test_net_modules(void)
 {
 	int               rc;
 	struct m0_net    *net = &m0_get()->i_net;
-	struct m0_module *xprt_m = \
-		&net->n_xprts[M0_NET_XPRT_BULK_MEM].nx_module;
+	struct m0_module *xprt_m = &net->n_xprts[M0_NET_XPRT_BULKMEM].nx_module;
 
 	M0_UT_ASSERT(xprt_m->m_cur == M0_MODLEV_NONE);
 	M0_UT_ASSERT(net->n_module.m_cur == M0_MODLEV_NONE);

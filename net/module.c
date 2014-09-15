@@ -37,10 +37,6 @@ static const struct m0_modlev levels_net[] = {
 };
 
 static const struct m0_modlev levels_net_xprt[] = {
-	[M0_LEVEL_NET_DEP] = {
-		.ml_name  = "net_xprt depends on net",
-		.ml_enter = level_net_xprt_enter
-	},
 	[M0_LEVEL_NET_XPRT] = {
 		.ml_name  = "net_xprt is initialised",
 		.ml_enter = level_net_xprt_enter,
@@ -53,21 +49,39 @@ static const struct m0_modlev levels_net_xprt[] = {
 	}
 };
 
+static struct {
+	const char         *name;
+	struct m0_net_xprt *xprt;
+} net_xprt_mods[] = {
+	[M0_NET_XPRT_LNET] = {
+		.name = "lnet net_xprt module",
+		.xprt = &m0_net_lnet_xprt
+	},
+	[M0_NET_XPRT_BULKMEM] = {
+		.name = "bulk-mem net_xprt module",
+		.xprt = &m0_net_bulk_mem_xprt
+	},
+};
+M0_BASSERT(ARRAY_SIZE(net_xprt_mods) ==
+	   ARRAY_SIZE(((struct m0_net *)0)->n_xprts));
+
 M0_INTERNAL void m0_net_module_setup(struct m0_net *net)
 {
-	struct m0 *instance = M0_AMB(instance, net, i_net);
+	struct m0        *instance = M0_AMB(instance, net, i_net);
+	struct m0_module *m;
+	unsigned          i;
 
 	m0_module_setup(&net->n_module, "net module",
 			levels_net, ARRAY_SIZE(levels_net));
-	m0_module_setup(&net->n_xprts[M0_NET_XPRT_LNET].nx_module,
-			"lnet net_xprt module",
-			levels_net_xprt, ARRAY_SIZE(levels_net_xprt));
-	m0_module_setup(&net->n_xprts[M0_NET_XPRT_BULK_MEM].nx_module,
-			"bulk-mem net_xprt module",
-			levels_net_xprt, ARRAY_SIZE(levels_net_xprt));
-	net->n_module.m_m0 =
-		net->n_xprts[M0_NET_XPRT_LNET].nx_module.m_m0 =
-		net->n_xprts[M0_NET_XPRT_BULK_MEM].nx_module.m_m0 = instance;
+	net->n_module.m_m0 = instance;
+	for (i = 0; i < ARRAY_SIZE(net->n_xprts); ++i) {
+		m = &net->n_xprts[i].nx_module;
+		m0_module_setup(m, net_xprt_mods[i].name, levels_net_xprt,
+				ARRAY_SIZE(levels_net_xprt));
+		m->m_m0 = instance;
+		m0_module_dep_add(m, M0_LEVEL_NET_XPRT,
+				  &net->n_module, M0_LEVEL_NET);
+	}
 }
 
 static bool
@@ -81,10 +95,6 @@ is_net_of(const struct m0_module *net_module, const struct m0 *instance)
 
 static int level_net_enter(struct m0_module *module)
 {
-	static struct m0_net_xprt *xprts[] = {
-		[M0_NET_XPRT_LNET]     = &m0_net_lnet_xprt,
-		[M0_NET_XPRT_BULK_MEM] = &m0_net_bulk_mem_xprt
-	};
 	struct m0_net *net = M0_AMB(net, module, n_module);
 	unsigned       i;
 
@@ -93,8 +103,8 @@ static int level_net_enter(struct m0_module *module)
 	/* We could have introduced a dedicated level for assigning
 	 * m0_net_xprt_module::nx_xprt pointers, but assigning them
 	 * here is good enough. */
-	for (i = 0; i < ARRAY_SIZE(xprts); ++i)
-		net->n_xprts[i].nx_xprt = xprts[i];
+	for (i = 0; i < ARRAY_SIZE(net_xprt_mods); ++i)
+		net->n_xprts[i].nx_xprt = net_xprt_mods[i].xprt;
 
 #if 0 /* XXX TODO
        * Rename current m0_net_init() to m0_net__init(), exclude it
@@ -115,43 +125,32 @@ static void level_net_leave(struct m0_module *module)
 #endif
 }
 
-static struct m0_net_xprt_module *net_xprt_module(struct m0_module *module)
-{
-	return container_of(module, struct m0_net_xprt_module, nx_module);
-}
-
 static int level_net_xprt_enter(struct m0_module *module)
 {
+	struct m0_net_xprt_module *m = M0_AMB(m, module, nx_module);
+
 	switch (module->m_cur + 1) {
-	case M0_LEVEL_NET_DEP:
-		m0_module_dep_add(module, M0_LEVEL_NET_XPRT,
-				  &module->m_m0->i_net.n_module, M0_LEVEL_NET);
-		return 0;
-
 	case M0_LEVEL_NET_XPRT:
-		return m0_net_xprt_init(net_xprt_module(module)->nx_xprt);
-
-	case M0_LEVEL_NET_DOMAIN: {
-		struct m0_net_xprt_module *m = net_xprt_module(module);
+		return m0_net_xprt_init(m->nx_xprt);
+	case M0_LEVEL_NET_DOMAIN:
 		return m0_net_domain_init(&m->nx_domain, m->nx_xprt,
 					  &m0_addb_proc_ctx);
-	}
 	default:
-		return M0_IMPOSSIBLE(""), -EINVAL;
+		M0_IMPOSSIBLE("");
 	}
 }
 
 static void level_net_xprt_leave(struct m0_module *module)
 {
+	struct m0_net_xprt_module *m = M0_AMB(m, module, nx_module);
+
 	switch (module->m_cur) {
 	case M0_LEVEL_NET_DOMAIN:
-		m0_net_domain_fini(&net_xprt_module(module)->nx_domain);
-		break;
+		m0_net_domain_fini(&m->nx_domain);
+		return;
 	case M0_LEVEL_NET_XPRT:
-		m0_net_xprt_fini(net_xprt_module(module)->nx_xprt);
-		break;
-	case M0_LEVEL_NET_DEP:
-		break;
+		m0_net_xprt_fini(m->nx_xprt);
+		return;
 	default:
 		M0_IMPOSSIBLE("");
 	}

@@ -177,8 +177,13 @@ struct m0_modlev {
 };
 
 /**
- * Configures the module: set the fields that will not be changed during
- * module's lifetime.
+ * Configures the module: sets the fields of m0_module that will not be
+ * changed during its lifetime.
+ *
+ * @note  *_module_setup() functions (m0_module_setup(),
+ *        m0_net_module_setup(), etc.) must not do anything apart from
+ *        setting the fields of m0_module(s) and establishing
+ *        inter-modules dependencies.
  */
 M0_INTERNAL void
 m0_module_setup(struct m0_module *module, const char *name,
