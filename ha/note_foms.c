@@ -68,7 +68,7 @@ M0_INTERNAL int m0_ha_state_set_fom_tick(struct m0_fom *fom)
 	reqh = m0_fom_reqh(fom);
 
 	fop = m0_fop_reply_alloc(fom->fo_fop, &m0_fop_generic_reply_fopt);
-	if (fop != NULL) {
+	if (fop == NULL) {
 		return -ENOMEM;
 	}
 	rep = m0_fop_data(fop);
