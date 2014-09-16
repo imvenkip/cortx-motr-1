@@ -886,6 +886,7 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	int                        rc;
 	struct m0_confc_ctx       *ctx  = mach_to_ctx(mach);
 	struct m0_rpc_item        *item = ctx->fc_rpc_item;
+	struct m0_sm_group        *grp;
 
 	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 	M0_PRE(item != NULL && item->ri_error == 0 && item->ri_reply != NULL);
@@ -893,12 +894,14 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	rc = resp->fr_rc ?: cache_grow(ctx->fc_confc, resp);
 
-	m0_sm_group_lock(&item->ri_rmachine->rm_sm_grp);
+	grp = &item->ri_rmachine->rm_sm_grp;
+
+	m0_sm_group_lock(grp);
 	/* Let the rpc layer free memory allocated for response. */
 	m0_rpc_item_put(item->ri_reply);
 	/* The item has been consumed and is not needed any more. */
 	m0_rpc_item_put(item);
-	m0_sm_group_unlock(&item->ri_rmachine->rm_sm_grp);
+	m0_sm_group_unlock(grp);
 	ctx->fc_rpc_item = NULL;
 
 	if (rc == 0) {
@@ -908,7 +911,6 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	mach->sm_rc = rc;
 	M0_LEAVE("retval=S_FAILURE");
 	return S_FAILURE;
-
 }
 
 /** Actions to perform on entering S_FAILURE state. */
