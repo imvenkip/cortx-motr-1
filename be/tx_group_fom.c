@@ -242,7 +242,7 @@ static void be_tx_group_fom_log(struct m0_be_tx_group_fom *m)
 	       m0_be_tx_group_size(m->tgf_group));
 
 	m0_fom_phase_set(&m->tgf_gen, TGS_LOGGING);
-	m0_fom_wakeup(&m->tgf_gen);
+	m0_fom_ready(&m->tgf_gen);
 }
 
 static void be_tx_group_fom_handle(struct m0_sm_group *gr,
@@ -273,7 +273,7 @@ static void be_tx_group_fom_handle(struct m0_sm_group *gr,
 static void be_tx_group_fom_iff_waiting_wakeup(struct m0_fom *fom)
 {
 	if (m0_fom_is_waiting(fom))
-		m0_fom_wakeup(fom);
+		m0_fom_ready(fom);
 }
 
 static void be_tx_group_fom_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
