@@ -628,6 +628,16 @@ M0_INTERNAL void m0_addb_ctx_fini(struct m0_addb_ctx *ctx)
 	}
 	ctx->ac_magic  = 0;
 	ctx->ac_type   = NULL;
+	if (ctx->ac_parent != NULL) {
+		struct m0_addb_ctx *p = ctx->ac_parent;
+		if (p == &m0_addb_node_ctx || p == &m0_addb_proc_ctx ||
+		    p == &addb_node_root_ctx) {
+			m0_mutex_lock(&addb_mutex);
+			--ctx->ac_parent->ac_cntr;
+			m0_mutex_unlock(&addb_mutex);
+		} else
+			--ctx->ac_parent->ac_cntr;
+	}
 	ctx->ac_parent = NULL;
 	ctx->ac_imp_id = NULL;
 }
