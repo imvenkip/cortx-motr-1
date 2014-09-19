@@ -146,9 +146,12 @@ static bool cp_verify(struct m0_sns_cm_cp *scp)
 static void dbenv_cob_domain_get(struct m0_dbenv **dbenv,
 				 struct m0_cob_domain **cdom)
 {
+	int rc;
+
 	*dbenv = cm->cm_service.rs_reqh->rh_dbenv;
 	M0_UT_ASSERT(dbenv != NULL);
-	M0_UT_ASSERT(m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom) == 0);
+	rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom);
+	M0_UT_ASSERT(rc == 0);
 }
 
 M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
@@ -197,18 +200,16 @@ M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 	m0_cob_put(cob);
 }
 
-static void cob_delete(uint64_t cont, uint64_t key)
+M0_INTERNAL void cob_delete(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+			    uint64_t cont, uint64_t key)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob        *cob;
-	struct m0_cob_domain *cdom;
 	struct m0_fid         cob_fid;
 	struct m0_dtx         tx;
-	struct m0_dbenv      *dbenv;
 	struct m0_cob_oikey   oikey;
 	int                   rc;
 
-	dbenv_cob_domain_get(&dbenv, &cdom);
 	m0_fid_set(&cob_fid, cont, key);
 	m0_cob_oikey_make(&oikey, &cob_fid, 0);
 	rc = m0_cob_locate(cdom, &oikey, M0_CA_NSKEY_FREE, &cob);
@@ -279,12 +280,15 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 
 static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 {
-	int i;
-	int j;
+	struct m0_dbenv      *dbenv;
+	struct m0_cob_domain *cdom;
+	int                   i;
+	int                   j;
 
+	dbenv_cob_domain_get(&dbenv, &cdom);
 	for (i = 0; i < nr_files; ++i) {
 		for (j = 1; j <= nr_cobs; ++j)
-			cob_delete(j, M0_MDSERVICE_START_FID.f_key + i);
+			cob_delete(dbenv, cdom, j, M0_MDSERVICE_START_FID.f_key + i);
 	}
 }
 

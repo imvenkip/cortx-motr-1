@@ -85,6 +85,8 @@ static struct m0_net_buffer                   n_acc_buf[MULTI_FAILURES][BUF_NR];
 M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
                             uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
+M0_INTERNAL void cob_delete(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+			    uint64_t cont, uint64_t key);
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 {
@@ -554,6 +556,18 @@ static int xform_init(void)
 
 static int xform_fini(void)
 {
+	struct m0_dbenv      *dbenv;
+	struct m0_cob_domain *cdom;
+	struct m0_fid         stob_fid;
+	int                   rc;
+
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
+	rc = m0_ut_stob_destroy_by_fid(&stob_fid);
+	M0_UT_ASSERT(rc == 0);
+	dbenv = reqh->rh_dbenv;
+	rc = m0_ios_cdom_get(reqh, &cdom);
+	M0_UT_ASSERT(rc == 0);
+	cob_delete(dbenv, cdom, 0, 4);
         cs_fini(&sctx);
         return 0;
 }

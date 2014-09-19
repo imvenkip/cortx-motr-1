@@ -129,6 +129,9 @@ static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint);
 M0_INTERNAL void cob_create(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
 			    uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
+M0_INTERNAL void cob_delete(struct m0_dbenv *dbenv, struct m0_cob_domain *cdom,
+			    uint64_t cont, uint64_t key);
+
 M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp);
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
@@ -456,7 +459,7 @@ static void receiver_stob_create()
 	 */
 	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
 	rc = m0_ut_stob_create_by_fid(&stob_fid, NULL);
-	M0_UT_ASSERT(M0_IN(rc, (0, -EEXIST)));
+	M0_UT_ASSERT(rc == 0);
 }
 
 static void cm_ready(struct m0_cm *cm)
@@ -724,9 +727,21 @@ static void cm_stop(struct m0_cm *cm)
 
 static void receiver_fini()
 {
+	struct m0_dbenv      *dbenv;
+	struct m0_cob_domain *cdom;
+	struct m0_fid         stob_fid;
+	int                   rc;
+
 	m0_cm_lock(cm);
 	m0_cm_proxy_del(cm, &recv_cm_proxy);
 	m0_cm_unlock(cm);
+	io_fom_cob_rw_fid2stob_map(&cob_fid, &stob_fid);
+	rc = m0_ut_stob_destroy_by_fid(&stob_fid);
+	M0_UT_ASSERT(rc == 0);
+	dbenv = s0_reqh->rh_dbenv;
+	rc = m0_ios_cdom_get(s0_reqh, &cdom);
+	M0_UT_ASSERT(rc == 0);
+	cob_delete(dbenv, cdom, 0, 4);
 	cm_stop(cm);
 	m0_free(r_rag.rag_fc);
 	cs_fini(&sctx);
