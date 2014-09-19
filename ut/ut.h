@@ -56,6 +56,10 @@ struct m0_ut {
 	bool        t_enabled;
 };
 
+enum {
+	M0_UT_SUITE_TESTS_MAX = 128,
+};
+
 struct m0_ut_suite {
 	struct m0_list_link  ts_linkage;
 	/** indicates whether suite is enabled for execution */
@@ -69,7 +73,7 @@ struct m0_ut_suite {
 	/** function to free resources after tests run */
 	int                (*ts_fini)(void);
 	/** tests in suite */
-	struct m0_ut         ts_tests[];
+	struct m0_ut         ts_tests[M0_UT_SUITE_TESTS_MAX];
 };
 
 /**
