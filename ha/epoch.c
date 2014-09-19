@@ -20,7 +20,7 @@
 
 
 /**
- * @addtogroup ha
+ * @addtogroup ha High availability
  *
  * @{
  */

@@ -25,7 +25,7 @@
 
 
 /**
- * @defgroup ha
+ * @defgroup ha High availability
  *
  * HA epoch module.
  *
