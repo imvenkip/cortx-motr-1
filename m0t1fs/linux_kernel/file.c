@@ -2642,6 +2642,12 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 					 data_size(play),
 					 inode->i_size) -
 				  INDEX(&map->pi_ivec, 0);
+	/*
+	 * m0_0vec requires all members except the last one to have data count
+	 * multiple of 4K.
+	 */
+	COUNT(&map->pi_ivec, 0) = round_up(COUNT(&map->pi_ivec, 0),
+					   PAGE_CACHE_SIZE);
 	SEG_NR(&map->pi_ivec)   = 1;
 
 	/* parity matrix from parity group. */
