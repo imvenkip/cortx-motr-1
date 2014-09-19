@@ -30,7 +30,7 @@ struct m0_be_op;
 struct m0_be_io;
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

@@ -27,7 +27,7 @@
 #include "be/log_store.h"	/* m0_be_log_store */
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

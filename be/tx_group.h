@@ -33,7 +33,7 @@ struct m0_be_tx_engine;
 struct m0_be_tx;
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

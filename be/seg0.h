@@ -30,7 +30,7 @@ struct m0_be_tx;
 struct m0_be_domain;
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

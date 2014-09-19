@@ -26,7 +26,7 @@
 #include "be/btree.h"		/* m0_be_btree */
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

@@ -25,7 +25,7 @@
 #include "lib/types.h"	/* m0_bcount_t */
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

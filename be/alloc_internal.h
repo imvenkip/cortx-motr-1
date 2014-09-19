@@ -29,7 +29,7 @@
 #include "be/alloc.h"	/* m0_be_allocator_stats */
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

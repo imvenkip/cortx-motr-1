@@ -25,7 +25,7 @@
 #include "reqh/reqh_service.h"
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  * @{
  */
 

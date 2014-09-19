@@ -28,7 +28,7 @@
 #include "lib/tlist.h"		/* m0_tl */
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

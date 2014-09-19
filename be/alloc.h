@@ -31,7 +31,7 @@ struct m0_be_tx;
 struct m0_be_tx_credit;
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  *
  * @{

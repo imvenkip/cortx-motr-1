@@ -34,7 +34,7 @@ struct m0_be_reg_area;
 struct m0_stob;
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

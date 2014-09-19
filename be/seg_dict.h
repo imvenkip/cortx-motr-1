@@ -24,7 +24,7 @@
 #define __MERO_BE_SEG_DICT_H__
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

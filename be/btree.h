@@ -27,7 +27,7 @@
 #include "lib/buf.h"
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

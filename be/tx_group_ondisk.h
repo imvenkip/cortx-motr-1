@@ -28,7 +28,7 @@
 #include "be/tx_regmap.h"	/* m0_be_reg_area */
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

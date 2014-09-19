@@ -30,7 +30,7 @@
 #include "be/io.h"
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

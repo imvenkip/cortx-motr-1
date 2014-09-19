@@ -25,7 +25,7 @@
 #include "be/op.h"		/* XXX dirty hack. remove it ASAP */
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

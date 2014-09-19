@@ -38,7 +38,7 @@ struct m0_reqh;
 struct m0_stob;
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  *
  * @{
  */

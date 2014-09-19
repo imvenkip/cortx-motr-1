@@ -35,7 +35,7 @@ struct m0_be_tx_group;
 struct m0_reqh;
 
 /**
- * @defgroup be
+ * @defgroup be Meta-data back-end
  * @{
  */
 
