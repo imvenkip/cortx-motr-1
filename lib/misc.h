@@ -163,10 +163,9 @@ M0_INTERNAL uint64_t m0_round_down(uint64_t val, uint64_t size);
 @endcode
 
    then @code M0_BITS(FOO_ACTIVE, FOO_FAILED) @endcode returns
-   (1 << FOO_ACTIVE) | (1 << FOO_FAILED)
+   @code (1ULL << FOO_ACTIVE) | (1ULL << FOO_FAILED) @endcode
 
-   @code M0_BITS() @endcode (M0_BITS macro with no parameters will cause
-   compilation failure.
+   @note M0_BITS() macro with no parameters causes compilation failure.
  */
 #define M0_BITS(...) \
 	M0_CAT(__M0_BITS_, M0_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)

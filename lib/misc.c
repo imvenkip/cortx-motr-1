@@ -99,14 +99,14 @@ uint64_t m0_rnd64(uint64_t *prev)
 
 uint64_t m0_rnd(uint64_t max, uint64_t *prev)
 {
-        uint64_t result;
-        /* Uses the same algorithm as GNU libc */
-        result = *prev = *prev * 0x5DEECE66DULL + 0xB;
+	uint64_t result;
+	/* Uses the same algorithm as GNU libc */
+	result = *prev = *prev * 0x5DEECE66DULL + 0xB;
 
 	/* PRNG generates 48-bit values only */
 	M0_ASSERT((max >> 48) == 0);
-        /*Take value from higher 48 bits */
-        return (result >> 16) * max / ((~0UL) >> 16);
+	/*Take value from higher 48 bits */
+	return (result >> 16) * max / ((~0UL) >> 16);
 }
 M0_EXPORTED(m0_rnd);
 
