@@ -28,7 +28,7 @@
 #include "lib/types.h"	/* uint64_t */
 
 /**
- * @defgroup stob
+ * @defgroup stob Storage object
  *
  * @todo more scalable object index instead of a list.
  *

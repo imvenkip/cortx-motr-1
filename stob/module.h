@@ -26,7 +26,7 @@
 #include "stob/type.h"
 
 /**
- * @defgroup stob
+ * @defgroup stob Storage object
  *
  * @{
  */

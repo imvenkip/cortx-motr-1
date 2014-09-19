@@ -24,7 +24,7 @@
 #define __MERO_STOB_NULL_H__
 
 /**
- * @defgroup stob
+ * @defgroup stob Storage object
  *
  * @{
  */

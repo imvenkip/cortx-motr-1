@@ -29,7 +29,7 @@
 #include "stob/cache.h"		/* m0_stob_cache */
 
 /**
- * @defgroup stob
+ * @defgroup stob Storage object
  *
  * @{
  */

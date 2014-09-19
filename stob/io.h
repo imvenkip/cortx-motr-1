@@ -28,7 +28,7 @@
 #include "lib/mutex.h"		/* m0_mutex */
 
 /**
- * @defgroup stob
+ * @defgroup stob Storage object
  *
  * @{
  */

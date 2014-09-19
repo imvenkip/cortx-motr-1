@@ -30,7 +30,7 @@
 #include "fid/fid.h"	/* m0_fid_type */
 
 /**
- * @defgroup stob
+ * @defgroup stob Storage object
  *
  * @{
  */

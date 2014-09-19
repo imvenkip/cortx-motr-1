@@ -23,7 +23,7 @@
 #define __MERO_STOB_STOB_INTERNAL_H__
 
 /**
- * @defgroup stob
+ * @defgroup stob Storage object
  *
  * @{
  */
