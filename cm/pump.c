@@ -151,7 +151,6 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 	if (rc < 0) {
 		if (rc == -ENOBUFS) {
 			pump_move(cp_pump, 0, CPP_WAIT);
-			m0_cm_cp_pump_wait(cm);
 			goto wait;
 		}
 
@@ -172,7 +171,6 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 			}
 			pump_move(cp_pump, 0, CPP_COMPLETE);
 			M0_LOG(M0_DEBUG, "pump moves to COMPLETE");
-			m0_cm_cp_pump_wait(cm);
 			goto wait;
 		}
 		goto fail;
@@ -190,7 +188,6 @@ fail:
 	goto out;
 
 wait:
-	cp_pump->p_is_idle = true;
 	rc = M0_FSO_WAIT;
 	M0_LOG(M0_DEBUG, "Now pump is idle. WAIT");
 
@@ -222,8 +219,8 @@ static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
 	cm = pump2cm(cp_pump);
 	m0_cm_lock(cm);
 	m0_cm_fail(cm, M0_CM_ERR_START, m0_fom_rc(&cp_pump->p_fom));
-
 	m0_cm_unlock(cm);
+	pump_move(cp_pump, 0, CPP_FINI);
 	return M0_FSO_WAIT;
 }
 
@@ -284,14 +281,38 @@ static uint64_t cm_cp_pump_fom_locality(const struct m0_fom *fom)
         return 0;
 }
 
+static void _pump_wait(struct m0_cm_cp_pump *cp_pump)
+{
+	M0_ENTRY("cp_pump = %p", cp_pump);
+
+	m0_mutex_lock(&cp_pump->p_signal_mutex);
+	m0_fom_wait_on(&cp_pump->p_fom, &cp_pump->p_signal,
+			&cp_pump->p_fom.fo_cb);
+	m0_mutex_unlock(&cp_pump->p_signal_mutex);
+}
+
+M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm)
+{
+	M0_ENTRY("cm = %p", cm);
+
+	m0_chan_signal_lock(&cm->cm_cp_pump.p_signal);
+
+	M0_LEAVE();
+}
+
 static int cm_cp_pump_fom_tick(struct m0_fom *fom)
 {
 	struct m0_cm_cp_pump *cp_pump;
         int                   phase = m0_fom_phase(fom);
+	int                   rc;
 
 	cp_pump = bob_of(fom, struct m0_cm_cp_pump, p_fom, &pump_bob);
 	M0_ASSERT(cm_cp_pump_invariant(cp_pump));
-	return pump_action[phase](cp_pump);
+	rc = pump_action[phase](cp_pump);
+	if (rc == M0_FSO_WAIT && m0_fom_phase(fom) != CPP_FINI &&
+	    !m0_fom_is_waiting_on(fom))
+		_pump_wait(cp_pump);
+	return M0_RC(rc);
 }
 
 static void cm_cp_pump_fom_fini(struct m0_fom *fom)
@@ -300,8 +321,6 @@ static void cm_cp_pump_fom_fini(struct m0_fom *fom)
 
 	cp_pump = bob_of(fom, struct m0_cm_cp_pump, p_fom, &pump_bob);
 	m0_cm_cp_pump_bob_fini(cp_pump);
-        m0_chan_fini_lock(&cp_pump->p_signal);
-        m0_mutex_fini(&cp_pump->p_signal_mutex);
 	m0_fom_fini(fom);
 }
 
@@ -324,11 +343,6 @@ static const struct m0_fom_ops cm_cp_pump_fom_ops = {
 bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump)
 {
 	return m0_fom_phase(&cp_pump->p_fom) == CPP_COMPLETE;
-}
-
-static bool pump_is_idle(const struct m0_cm_cp_pump *cp_pump)
-{
-	return cp_pump->p_is_idle;
 }
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype)
@@ -354,29 +368,6 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_cm_cp_pump_wait(struct m0_cm *cm)
-{
-        struct m0_cm_cp_pump *cp_pump;
-	M0_ENTRY("cm = %p", cm);
-
-	cp_pump = &cm->cm_cp_pump;
-	m0_mutex_lock(&cp_pump->p_signal_mutex);
-        m0_fom_wait_on(&cp_pump->p_fom, &cp_pump->p_signal,
-		       &cp_pump->p_fom.fo_cb);
-        m0_mutex_unlock(&cp_pump->p_signal_mutex);
-}
-
-M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm)
-{
-	struct m0_cm_cp_pump *cp_pump;
-	M0_ENTRY("cm = %p", cm);
-
-	cp_pump = &cm->cm_cp_pump;
-	if (pump_is_idle(cp_pump))
-		m0_chan_signal_lock(&cp_pump->p_signal);
-	M0_LEAVE();
-}
-
 M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm)
 {
 	struct m0_cm_cp_pump *cp_pump;
@@ -385,7 +376,6 @@ M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm)
 	M0_PRE(m0_cm_is_locked(cm));
 
 	cp_pump = &cm->cm_cp_pump;
-	M0_ASSERT(pump_is_idle(cp_pump));
 	cp_pump->p_shutdown = true;
 	m0_cm_cp_pump_wakeup(cm);
 	M0_LEAVE();

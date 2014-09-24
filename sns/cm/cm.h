@@ -101,12 +101,6 @@ enum m0_sns_cm_op {
 	SNS_REBALANCE = 1 << 2
 };
 
-enum m0_sns_cm_flock_status {
-	M0_SCM_FILE_NOT_LOCKED = 0,
-	M0_SCM_FILE_LOCKED = 1,
-	M0_SCM_FILE_LOCK_WAIT = 2
-};
-
 struct m0_sns_cm_buf_pool {
 	struct m0_net_buffer_pool sb_bp;
 	/**
@@ -173,66 +167,6 @@ struct m0_sns_cm_rm_ctx {
 	struct m0_rpc_session           rc_session;
 };
 
-/**
- * Holds the rm file lock context of a file that is being repaired/rebalanced.
- * @todo Use the same object to hold layout context.
- */
-struct m0_sns_cm_file_ctx {
-        /** Holds M0_SNS_CM_FILE_CTX_MAGIC. */
-        uint64_t                   sf_magic;
-
-	/** Resource manager file lock for this file. */
-	struct m0_file		   sf_file;
-
-	/**
-	 * The global file identifier for this file. This would be used
-	 * as a "key" to the m0_sns_cm::sc_file_ctx and hence cannot
-	 * be a pointer.
-	 */
-	struct m0_fid		   sf_fid;
-
-	struct m0_layout          *sf_layout;
-
-	/** pdclust instance for a particular GOB. */
-	struct m0_pdclust_instance   *sfc_pi;
-
-	size_t                     sf_size;
-
-	/** Linkage into m0_sns_cm::sc_file_ctx. */
-	struct m0_hlink		   sf_sc_link;
-
-	/** An owner for maintaining this file's lock. */
-	struct m0_rm_owner	   sf_owner;
-
-	/** Remote portal for requesting resource from creditor. */
-	struct m0_rm_remote	   sf_creditor;
-
-	/** Request to borrow resource (file lock) from creditor. */
-	struct m0_rm_incoming	   sf_rin;
-
-	/** Back pointer to the sns copy machine. */
-	struct m0_sns_cm	  *sf_scm;
-
-	/**
-	 * Count of aggregation groups that would be processed for this fid.
-	 * When all the aggregagtion groups have been processed, the
-	 * file lock can be released.
-	 */
-	uint64_t		   sf_ag_nr;
-
-	/**
-	 * Holds the reference count for this object. The reference is
-	 * incremented explicitly every time the file lock is acquired.
-	 * The reference is decremented by calling m0_sns_cm_file_unlock().
-	 * The m0_sns_cm_file_ctx object is freed (and file is unlocked) whenever
-	 * the reference count equals zero.
-	 */
-	struct m0_ref		   sf_ref;
-
-	 /** Holds the current status of the file lock. */
-	enum m0_sns_cm_flock_status sf_flock_status;
-};
-
 struct m0_sns_cm {
 	struct m0_cm		        sc_base;
 
@@ -281,6 +215,8 @@ struct m0_sns_cm {
 	 * completed.
 	 */
 	m0_time_t                       sc_stop_time;
+
+	struct m0_fom_simple            sc_file_lock_fom;
 
 	/**
 	 * The hash table of file contexts of the fids being
@@ -377,68 +313,6 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh);
 
 M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm);
 M0_INTERNAL void  m0_sns_cm_rm_fini(struct m0_sns_cm *scm);
-
-/** Allocates and initialises new m0_sns_cm_file_ctx object. */
-M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm, struct m0_fid *fid,
-				    struct m0_sns_cm_file_ctx **sc_fctx);
-M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx);
-
-/*
- * Invokes async file lock api and adds the given fctx object to
- * m0_sns_cm::sc_file_ctx hash table. Its the responsibility of
- * the caller to wait for the lock on rm's incoming channel where
- * the state changes are announced.
- *
- * @see m0_sns_cm_file_lock_wait().
- * @ret M0_FSO_WAIT.
- */
-M0_INTERNAL int m0_sns_cm__file_lock(struct m0_sns_cm_file_ctx *fctx);
-
-M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid);
-
-/**
- * Returns M0_FS0_WAIT until the rm file lock is acquired. The given
- * fom waits on the the rm incoming channel till the file lock is acquired.
- * @ret 0 When file lock is acquired successfully.
- * @ret -EFAULT     When file lock acquisition fails.
- * @ret M0_FS0_WAIT When waiting for the file lock to be acquired.
- */
-M0_INTERNAL int m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
-					 struct m0_fom *fom);
-
-/**
- * Decrements the reference on the m0_sns_cm_file_ctx object.
- * When the count reaches null, m0_file_unlock() is invoked and
- * the m0_sns_cm_file_ctx_object is freed.
- * @see m0_sns_cm_file_unlock()
- */
-M0_INTERNAL void m0_sns_cm__file_unlock(struct m0_sns_cm_file_ctx *fctx);
-
-/**
- * Invokes m0_sns_cm__file_unlock() if all the aggregation groups belonging to a
- * file have been processed.
- */
-M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
-				       struct m0_fid *fid);
-
-/**
- * Looks up the m0_sns_cm::sc_file_ctx hash table and returns the
- * m0_sns_cm_file_ctx object for the passed global fid.
- * Returns NULL if the object is not present in the hash table.
- */
-M0_INTERNAL struct m0_sns_cm_file_ctx
-		  *m0_sns_cm_fctx_locate(struct m0_sns_cm *scm,
-		                         struct m0_fid *fid);
-
-M0_INTERNAL  struct m0_sns_cm_file_ctx *
-m0_sns_cm_fctx_get(struct m0_sns_cm *scm, const struct m0_cm_ag_id *id);
-
-M0_INTERNAL void m0_sns_cm_fctx_put(struct m0_sns_cm *scm,
-				    const struct m0_cm_ag_id *id);
-
-M0_HT_DESCR_DECLARE(m0_scmfctx, M0_EXTERN);
-M0_HT_DECLARE(m0_scmfctx, M0_EXTERN, struct m0_sns_cm_file_ctx,
-	      struct m0_fid);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */

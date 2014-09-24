@@ -175,6 +175,8 @@ M0_INTERNAL bool
 m0_sns_cm_ag_relevant_is_done(const struct m0_cm_aggr_group *ag,
 			      uint64_t nr_cps_fini);
 
+M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_fid *fid);
+
 /** @} endgroup SNSCM */
 
 /* __MERO_SNS_CM_UTILS_H__ */

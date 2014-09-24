@@ -1178,6 +1178,11 @@ static bool fom_callback_is_armed(const struct m0_fom_callback *cb)
 	return cb->fc_state == M0_FCS_ARMED;
 }
 
+M0_INTERNAL bool m0_fom_is_waiting_on(const struct m0_fom *fom)
+{
+	return fom_callback_is_armed(&fom->fo_cb);
+}
+
 static void fom_ready_cb(struct m0_fom_callback *cb)
 {
 	m0_fom_ready(cb->fc_fom);

@@ -48,6 +48,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/sw_onwire_fop.h"
+#include "sns/cm/file.h"
 #include "lib/locality.h"
 #include "rpc/rpclib.h" /* m0_rpc_client_connect. */
 #include "rm/rm_service.h"
@@ -389,33 +390,6 @@ extern struct m0_cm_type  sns_rebalance_cmt;
 extern const struct m0_sns_cm_helpers repair_helpers;
 extern const struct m0_sns_cm_helpers rebalance_helpers;
 
-const struct m0_uint128 m0_rm_sns_cm_group = M0_UINT128(0, 2);
-extern const struct m0_rm_resource_type_ops file_lock_type_ops;
-
-static uint64_t sns_cm_fctx_hash_func(const struct m0_htable *htable,
-				      const void *k)
-{
-	const struct m0_fid *fid = (struct m0_fid *)k;
-	const uint64_t       key = fid->f_key;
-
-	return key % htable->h_bucket_nr;
-}
-
-static bool sns_cm_fctx_key_eq(const void *key1, const void *key2)
-{
-	return m0_fid_eq((struct m0_fid *)key1, (struct m0_fid *)key2);
-}
-
-M0_HT_DESCR_DEFINE(m0_scmfctx, "Hash of files used by sns cm", M0_INTERNAL,
-		   struct m0_sns_cm_file_ctx, sf_sc_link, sf_magic,
-		   M0_SNS_CM_FILE_CTX_MAGIC, M0_SNS_CM_MAGIC,
-		   sf_fid, sns_cm_fctx_hash_func,
-		   sns_cm_fctx_key_eq);
-
-M0_HT_DEFINE(m0_scmfctx, M0_INTERNAL, struct m0_sns_cm_file_ctx,
-	    struct m0_fid);
-
-
 M0_INTERNAL struct m0_sns_cm *cm2sns(struct m0_cm *cm)
 {
 	return container_of(cm, struct m0_sns_cm, sc_base);
@@ -470,12 +444,6 @@ static void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp)
 	m0_mutex_fini(&sbp->sb_wait_mutex);
 }
 
-static void sns_cm_flock_resource_set(struct m0_sns_cm *scm)
-{
-	scm->sc_rm_ctx.rc_rt.rt_id = M0_RM_FLOCK_RT;
-	scm->sc_rm_ctx.rc_rt.rt_ops = &file_lock_type_ops;
-}
-
 M0_TL_DESCR_DECLARE(cs_eps, extern);
 M0_TL_DECLARE(cs_eps, M0_INTERNAL, struct cs_endpoint_and_xprt);
 
@@ -500,7 +468,7 @@ M0_INTERNAL int m0_sns_cm_rm_init(struct m0_sns_cm *scm)
 	 * separate mero instance on which no other service (except MDS) is
 	 * running.
 	 **/
-	sns_cm_flock_resource_set(scm);
+	m0_sns_cm_flock_resource_set(scm);
 	m0_rm_type_register(&scm->sc_rm_ctx.rc_dom, &scm->sc_rm_ctx.rc_rt);
 
 	ep = cs_eps_tlist_head(&mero->cc_mds_eps);
@@ -730,28 +698,13 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
-static void sns_cm_fctx_cleanup(struct m0_sns_cm_file_ctx *fctx)
-{
-	m0_file_unlock(&fctx->sf_rin);
-	if (fctx->sf_layout != NULL)
-		m0_layout_put(fctx->sf_layout);
-	m0_scmfctx_htable_del(&fctx->sf_scm->sc_file_ctx, fctx);
-	m0_sns_cm_fctx_fini(fctx);
-	m0_free(fctx);
-}
-
 M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 {
 	int			   rc;
-	struct m0_sns_cm_file_ctx *fctx;
 
 	M0_ENTRY("scm: %p", scm);
-	m0_mutex_lock(&scm->sc_file_ctx_mutex);
-	m0_htable_for(m0_scmfctx, fctx, &scm->sc_file_ctx) {
-		sns_cm_fctx_cleanup(fctx);
-	} m0_htable_endfor;
-	m0_scmfctx_htable_fini(&scm->sc_file_ctx);
-	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+
+	m0_sns_cm_fctx_cleanup(scm);
 
 	rc = m0_rpc_session_destroy(&scm->sc_rm_ctx.rc_session,
 				    m0_time_from_now(CM_RPC_TIMEOUT, 0));
@@ -896,12 +849,6 @@ static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
 	return rc;
 }
 
-static bool sns_cm_fid_is_valid(const struct m0_fid *fid)
-{
-	return fid->f_container >= 0 && fid->f_key >=
-	       M0_MDSERVICE_START_FID.f_key;
-}
-
 M0_INTERNAL uint64_t
 m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
@@ -975,185 +922,6 @@ out:
 	return result;
 }
 
-
-static void sns_cm_fctx_release(struct m0_ref *ref)
-{
-	struct m0_sns_cm_file_ctx *fctx;
-
-	M0_PRE(ref != NULL);
-
-	fctx = container_of(ref, struct m0_sns_cm_file_ctx, sf_ref);
-	sns_cm_fctx_cleanup(fctx);
-}
-
-M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm, struct m0_fid *fid,
-	                            struct m0_sns_cm_file_ctx **sc_fctx)
-{
-	struct m0_sns_cm_file_ctx *fctx;
-
-	M0_ENTRY();
-	M0_PRE(sc_fctx != NULL || scm != NULL || fid!= NULL);
-	M0_PRE(!m0_fid_eq(fid, &M0_COB_ROOT_FID) ||
-	       !m0_fid_eq(fid, &M0_COB_ROOT_FID) ||
-	       !m0_fid_eq(fid, &M0_MDSERVICE_SLASH_FID));
-	M0_PRE(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
-	M0_PRE(sns_cm_fid_is_valid(fid));
-
-	M0_ALLOC_PTR(fctx);
-	if (fctx == NULL)
-		return -ENOMEM;
-
-	m0_fid_set(&fctx->sf_fid, fid->f_container, fid->f_key);
-	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &scm->sc_rm_ctx.rc_dom, M0_DI_NONE);
-	m0_rm_remote_init(&fctx->sf_creditor, &fctx->sf_file.fi_res);
-	m0_file_owner_init(&fctx->sf_owner, &m0_rm_sns_cm_group, &fctx->sf_file,
-			   NULL);
-	m0_rm_incoming_init(&fctx->sf_rin, &fctx->sf_owner, M0_RIT_LOCAL,
-			    RIP_NONE,
-			    RIF_MAY_BORROW | RIF_MAY_REVOKE);
-
-	fctx->sf_owner.ro_creditor = &fctx->sf_creditor;
-	fctx->sf_creditor.rem_session = &scm->sc_rm_ctx.rc_session;
-	fctx->sf_creditor.rem_cookie = M0_COOKIE_NULL;
-	m0_scmfctx_tlink_init(fctx);
-	m0_ref_init(&fctx->sf_ref, 0, sns_cm_fctx_release);
-	fctx->sf_scm = scm;
-	*sc_fctx = fctx;
-
-	return M0_RC(0);
-}
-
-M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx)
-{
-	int rc;
-
-	M0_PRE(fctx != NULL);
-
-	m0_scmfctx_tlink_fini(fctx);
-	m0_rm_owner_windup(&fctx->sf_owner);
-	rc = m0_rm_owner_timedwait(&fctx->sf_owner, M0_BITS(ROS_FINAL),
-				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
-	m0_file_owner_fini(&fctx->sf_owner);
-	m0_rm_remote_fini(&fctx->sf_creditor);
-	m0_file_fini(&fctx->sf_file);
-}
-
-extern const struct m0_rm_incoming_ops file_lock_incoming_ops;
-
-M0_INTERNAL int m0_sns_cm__file_lock(struct m0_sns_cm_file_ctx *fctx)
-{
-	struct m0_sns_cm *scm;
-	M0_ENTRY();
-
-	M0_PRE(fctx != NULL);
-	M0_PRE(sns_cm_fid_is_valid(&fctx->sf_fid));
-	M0_PRE(fctx->sf_owner.ro_resource == &fctx->sf_file.fi_res);
-
-	scm = fctx->sf_scm;
-	M0_ASSERT(scm != NULL);
-	M0_ASSERT(m0_sns_cm_fctx_locate(scm, &fctx->sf_fid) == NULL);
-	M0_ASSERT(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
-
-	M0_LOG(M0_DEBUG, "Lock file for FID : "FID_F, FID_P(&fctx->sf_fid));
-	fctx->sf_flock_status = M0_SCM_FILE_LOCK_WAIT;
-	m0_scmfctx_htable_add(&scm->sc_file_ctx, fctx);
-	/* XXX: Ideally m0_file_lock should be called, but
-	 * it internally calls m0_rm_incoming_init(). This has already been
-	 * called here in m0_sns_cm_file_lock_init().
-	 * m0_file_lock(&fctx->sf_owner, &fctx->sf_rin);
-	 */
-	fctx->sf_rin.rin_want.cr_datum    = RM_FILE_LOCK;
-	fctx->sf_rin.rin_want.cr_group_id = m0_rm_sns_cm_group;
-	fctx->sf_rin.rin_ops              = &file_lock_incoming_ops;
-
-	m0_rm_credit_get(&fctx->sf_rin);
-
-	M0_POST(m0_sns_cm_fctx_locate(scm, &fctx->sf_fid) == fctx);
-	return M0_RC(M0_FSO_WAIT);
-}
-
-M0_INTERNAL void m0_sns_cm__file_unlock(struct m0_sns_cm_file_ctx *fctx)
-{
-	M0_PRE(fctx != NULL);
-	M0_PRE(sns_cm_fid_is_valid(&fctx->sf_fid));
-	M0_PRE(fctx->sf_owner.ro_resource == &fctx->sf_file.fi_res);
-	M0_PRE(m0_mutex_is_locked(&fctx->sf_scm->sc_file_ctx_mutex));
-
-	m0_ref_put(&fctx->sf_ref);
-	M0_LOG(M0_DEBUG, "Unlock file for FID : "FID_F, FID_P(&fctx->sf_fid));
-}
-
-M0_INTERNAL int m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx,
-					 struct m0_fom *fom)
-{
-	struct m0_chan		  *rm_chan;
-	uint32_t		   state;
-	M0_ENTRY();
-
-	M0_PRE(fctx != NULL || fctx->sf_scm != NULL || fom != NULL);
-	M0_PRE(m0_mutex_is_locked(&fctx->sf_scm->sc_file_ctx_mutex));
-	M0_PRE(sns_cm_fid_is_valid(&fctx->sf_fid));
-	M0_PRE(m0_sns_cm_fctx_locate(fctx->sf_scm, &fctx->sf_fid) != NULL);
-
-	if (fctx->sf_flock_status == M0_SCM_FILE_LOCKED)
-		return M0_RC(0);
-
-	m0_rm_owner_lock(&fctx->sf_owner);
-	state = fctx->sf_rin.rin_sm.sm_state;
-	if (state == RI_SUCCESS ||  state == RI_FAILURE) {
-		m0_rm_owner_unlock(&fctx->sf_owner);
-		if (state == RI_FAILURE)
-			return M0_ERR(-EFAULT, "Failed to acquire file lock");
-		else {
-			fctx->sf_flock_status = M0_SCM_FILE_LOCKED;
-			return M0_RC(-EAGAIN);
-		}
-	}
-	rm_chan = &fctx->sf_rin.rin_sm.sm_chan;
-	m0_fom_wait_on(fom, rm_chan, &fom->fo_cb);
-	m0_rm_owner_unlock(&fctx->sf_owner);
-	return M0_RC(M0_FSO_WAIT);
-}
-
-M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm, struct m0_fid *fid)
-{
-	struct m0_fom	          *fom;
-	struct m0_chan            *rm_chan;
-	struct m0_sns_cm_file_ctx *fctx;
-	int		           rc;
-	uint32_t		  state;
-	M0_ENTRY();
-
-	M0_PRE(scm != NULL || fid != NULL);
-	M0_PRE(sns_cm_fid_is_valid(fid));
-	M0_PRE(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
-
-	fom = &scm->sc_base.cm_sw_update.swu_fom;
-	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, fid);
-	if ( fctx != NULL) {
-		M0_LOG(M0_DEBUG, "fid: "FID_F, FID_P(fid));
-		if (fctx->sf_flock_status == M0_SCM_FILE_LOCKED) {
-			m0_ref_get(&fctx->sf_ref);
-			return M0_RC(0);
-		}
-		if (fctx->sf_flock_status == M0_SCM_FILE_LOCK_WAIT) {
-			rc = m0_sns_cm_file_lock_wait(fctx, fom);
-			return M0_RC(rc);
-		}
-	}
-	rc = m0_sns_cm_fctx_init(scm, fid, &fctx);
-	if (rc == 0) {
-		rc = m0_sns_cm__file_lock(fctx);
-		rm_chan = &fctx->sf_rin.rin_sm.sm_chan;
-		state = fctx->sf_rin.rin_sm.sm_state;
-		m0_rm_owner_lock(&fctx->sf_owner);
-		m0_fom_wait_on(fom, rm_chan, &fom->fo_cb);
-		m0_rm_owner_unlock(&fctx->sf_owner);
-	}
-	return M0_RC(rc);
-}
-
 M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 				  const struct m0_cm_ag_id id_curr,
 				  struct m0_cm_ag_id *id_next)
@@ -1167,6 +935,7 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 	struct m0_layout          *l = NULL;
 	struct m0_pdclust_layout  *pl = NULL;
 	struct m0_cob_domain      *cdom = scm->sc_it.si_cob_dom;
+	struct m0_fom             *fom;
 	uint64_t                   fsize;
 	uint64_t                   nr_gps = 0;
 	uint64_t                   group = agid2group(&id_curr);
@@ -1184,16 +953,21 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 		agid2fid(&id_curr, &fid_curr);
 	}
 	do {
-		if (sns_cm_fid_is_valid(&fid_curr)) {
+		if (m0_sns_cm_fid_is_valid(&fid_curr)) {
 			m0_mutex_lock(&scm->sc_file_ctx_mutex);
-			rc = m0_sns_cm_file_lock(scm, &fid_curr);
+			rc = m0_sns_cm_file_lock(scm, &fid_curr, &fctx);
+			if (rc == -EAGAIN) {
+				M0_ASSERT(fctx != NULL);
+				fom = &scm->sc_base.cm_sw_update.swu_fom;
+				rc = m0_sns_cm_file_lock_wait(fctx, fom);
+				if (rc == -EAGAIN) {
+					m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+					return M0_RC(M0_FSO_WAIT);
+				}
+			}
 			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
-			M0_LOG(M0_DEBUG, "file lock rc: %d", rc);
-			if (rc == -EAGAIN)
-				return M0_RC(0);
 			if (rc != 0)
 				return M0_RC(rc);
-			fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, &fid_curr);
 			M0_ASSERT(fctx != NULL);
 			if (fctx->sf_layout == NULL) {
 				rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,
@@ -1226,7 +1000,8 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 		}
 		group = 0;
-		if (m0_fid_is_set(&fid_next) && sns_cm_fid_is_valid(&fid_next))
+		if (m0_fid_is_set(&fid_next) &&
+		    m0_sns_cm_fid_is_valid(&fid_next))
 			fid_curr = fid_next;
 		/* Increment fid_curr.f_key to fetch next fid. */
 		M0_CNT_INC(fid_curr.f_key);
@@ -1234,92 +1009,6 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 
 	return M0_RC(rc);
 }
-
-M0_INTERNAL struct m0_sns_cm_file_ctx
-		  *m0_sns_cm_fctx_locate(struct m0_sns_cm *scm,
-	                                 struct m0_fid *fid)
-{
-	struct m0_sns_cm_file_ctx *fctx;
-
-	M0_ENTRY("sns cm %p, fid %p="FID_F, scm, fid, FID_P(fid));
-	M0_PRE(scm != NULL && fid != NULL);
-	M0_PRE(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
-
-	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, fid);
-	M0_ASSERT(ergo(fctx != NULL, m0_fid_cmp(fid, &fctx->sf_fid) == 0));
-
-	M0_LEAVE();
-	return fctx;
-}
-
-
-M0_INTERNAL struct m0_sns_cm_file_ctx *
-m0_sns_cm_fctx_get(struct m0_sns_cm *scm, const struct m0_cm_ag_id *id)
-{
-	struct m0_fid		  *fid;
-	struct m0_sns_cm_file_ctx *fctx;
-
-	if (M0_FI_ENABLED("do_nothing"))
-		return NULL;
-
-	M0_PRE(scm != NULL && id != NULL);
-
-	m0_mutex_lock(&scm->sc_file_ctx_mutex);
-	fid = (struct m0_fid *)&id->ai_hi;
-	M0_ASSERT(sns_cm_fid_is_valid(fid));
-	fctx = m0_sns_cm_fctx_locate(scm, fid);
-	M0_ASSERT(fctx != NULL);
-	M0_CNT_INC(fctx->sf_ag_nr);
-	M0_LOG(M0_DEBUG, "ag nr: %lu, FID :"FID_F, fctx->sf_ag_nr,
-	       FID_P(fid));
-	m0_ref_get(&fctx->sf_ref);
-	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
-
-	return fctx;
-}
-
-M0_INTERNAL void m0_sns_cm_fctx_put(struct m0_sns_cm *scm,
-				    const struct m0_cm_ag_id *id)
-{
-	struct m0_fid		   *fid;
-	struct m0_sns_cm_file_ctx  *fctx;
-
-	if (M0_FI_ENABLED("do_nothing"))
-		return;
-
-	M0_PRE(scm != NULL && id != NULL);
-
-	fid = (struct m0_fid *)&id->ai_hi;
-	m0_mutex_lock(&scm->sc_file_ctx_mutex);
-	M0_ASSERT(sns_cm_fid_is_valid(fid));
-	fctx = m0_sns_cm_fctx_locate(scm, fid);
-	M0_ASSERT(fctx != NULL);
-	M0_CNT_DEC(fctx->sf_ag_nr);
-	M0_LOG(M0_DEBUG, "ag nr: %lu, FID : <%lx : %lx>", fctx->sf_ag_nr,
-	       FID_P(fid));
-	m0_ref_put(&fctx->sf_ref);
-	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
-}
-
-M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
-				      struct m0_fid *fid)
-{
-	struct m0_sns_cm_file_ctx *fctx;
-
-	if (M0_FI_ENABLED("do_nothing"))
-		return;
-
-	M0_PRE(scm != NULL && fid != NULL);
-	M0_PRE(sns_cm_fid_is_valid(fid));
-	M0_PRE(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
-
-	fctx = m0_sns_cm_fctx_locate(scm, fid);
-	M0_ASSERT(fctx != NULL);
-	M0_LOG(M0_DEBUG, "File with FID : "FID_F" has %lu AGs",
-			 FID_P(&fctx->sf_fid), fctx->sf_ag_nr);
-	m0_sns_cm__file_unlock(fctx);
-}
-
 
 #undef M0_TRACE_SUBSYSTEM
 

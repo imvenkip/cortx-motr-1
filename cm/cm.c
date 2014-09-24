@@ -750,6 +750,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	if (rc == -ENOENT)
 		rc = 0;
 	if (rc == 0) {
+		cm_ast_run_fom_init(cm);
 		m0_cm_sw_update_start(cm);
 		cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
 	}
@@ -771,7 +772,6 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(m0_cm_invariant(cm));
 
 	cm->cm_ready_fops_recvd = 0;
-	cm_ast_run_fom_init(cm);
 	rc = m0_cm_sw_remote_update(cm);
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
@@ -1021,7 +1021,6 @@ M0_INTERNAL void m0_cm_type_deregister(struct m0_cm_type *cmtype)
 M0_INTERNAL void m0_cm_continue(struct m0_cm *cm)
 {
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(m0_cm_invariant(cm));
 
 	m0_cm_cp_pump_wakeup(cm);
 
@@ -1104,7 +1103,7 @@ static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
 static void cm_ast_run_fom_init(struct m0_cm *cm)
 {
 	M0_FOM_SIMPLE_POST(&cm->cm_ast_run_fom, cm->cm_service.rs_reqh, NULL,
-			   cm_ast_run_fom_tick, cm, 0);
+			   cm_ast_run_fom_tick, cm, 2);
 }
 
 M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)

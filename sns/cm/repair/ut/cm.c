@@ -38,12 +38,15 @@
 #include "mdstore/mdstore.h" /* m0_cob_alloc(), m0_cob_nskey_make(),
 				m0_cob_fabrec_make(), m0_cob_create */
 #include "fop/fom.h" /* M0_FSO_AGAIN, M0_FSO_WAIT */
+#include "fop/fom_simple.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "mdservice/md_fid.h"
+#include "rm/rm_service.h"                 /* m0_rms_type */
 #include "sns/cm/repair/ag.h"
 #include "sns/cm/cm.h"
+#include "sns/cm/file.h"
 #include "sns/cm/repair/ut/cp_common.h"
 
 enum {
@@ -51,10 +54,47 @@ enum {
 	ITER_GOB_KEY_START = 4,
 };
 
-static struct m0_reqh   *reqh;
+enum {
+	ITER_RUN = M0_FOM_PHASE_FINISH + 1,
+	ITER_WAIT,
+};
+
+static struct m0_reqh          *reqh;
 static struct m0_reqh_service  *service;
-static struct m0_cm     *cm;
-static struct m0_sns_cm *scm;
+static struct m0_cm            *cm;
+static struct m0_sns_cm        *scm;
+static struct m0_sns_cm_cp      scp;
+static struct m0_sns_cm_ag     *sag;
+static struct m0_fom_simple     iter_fom;
+static struct m0_semaphore      iter_sem;
+
+static struct m0_sm_state_descr iter_ut_fom_phases[] = {
+	[M0_FOM_PHASE_INIT] = {
+		.sd_name      = "init",
+		.sd_allowed   = M0_BITS(ITER_RUN),
+		.sd_flags     = M0_SDF_INITIAL
+	},
+	[ITER_RUN] = {
+		.sd_name      = "Iterator run",
+		.sd_allowed   = M0_BITS(ITER_WAIT, M0_FOM_PHASE_INIT,
+					M0_FOM_PHASE_FINISH)
+	},
+	[ITER_WAIT] = {
+		.sd_name      = "Iterator wait",
+		.sd_allowed   = M0_BITS(ITER_RUN, M0_FOM_PHASE_INIT,
+					M0_FOM_PHASE_FINISH)
+	},
+	[M0_FOM_PHASE_FINISH] = {
+		.sd_name      = "fini",
+		.sd_flags     = M0_SDF_TERMINAL
+	}
+};
+
+static struct m0_sm_conf iter_ut_conf = {
+	.scf_name      = "iter ut fom phases",
+	.scf_nr_states = ARRAY_SIZE(iter_ut_fom_phases),
+	.scf_state     = iter_ut_fom_phases,
+};
 
 static void service_start_success(void)
 {
@@ -113,6 +153,10 @@ static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
 	m0_sm_group_unlock(grp);
 }
 
+void iter_swu_wakeme(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+}
+
 static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
 	int rc;
@@ -134,6 +178,9 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	M0_UT_ASSERT(rc == 0);
 	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
+        service = m0_reqh_service_find(&m0_rms_type, reqh),
+        M0_ASSERT(service != NULL);
+	cm->cm_sw_update.swu_wakeme_ast.sa_cb = iter_swu_wakeme;
 }
 
 static bool cp_verify(struct m0_sns_cm_cp *scp)
@@ -248,6 +295,8 @@ static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *hea
 			cp->c_ops->co_free(cp);
 		}
 		ag->cag_ops->cago_fini(ag);
+		m0_cm_unlock(cm);
+		m0_cm_lock(cm);
 	} m0_tlist_endfor;
 }
 
@@ -292,42 +341,71 @@ static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 	}
 }
 
-static int iter_run(uint64_t pool_width, uint64_t nr_files)
+static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 {
-	struct m0_sns_cm_cp        scp;
-	struct m0_sns_cm_ag       *sag;
-	struct m0_sns_cm_file_ctx  fctx;
-	int                        rc;
+	int rc = M0_FSO_AGAIN;
 
-	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
-	m0_fi_enable("iter_fid_next", "ut_layout_fsize_fetch");
-	m0_fi_enable("m0_sns_cm_fctx_get", "do_nothing");
-	m0_fi_enable("m0_sns_cm_file_unlock", "do_nothing");
-
-	cobs_create(nr_files, pool_width);
-	m0_cm_lock(cm);
-	do {
-		M0_SET0(&scp);
-		scp.sc_base.c_ops = &m0_sns_cm_repair_cp_ops;
-		m0_cm_cp_only_init(cm, &scp.sc_base);
-		scm->sc_it.si_cp = &scp;
-		scm->sc_it.si_fc.sfc_fctx = &fctx;
-		rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
-		if (rc == M0_FSO_AGAIN) {
-			M0_UT_ASSERT(cp_verify(&scp));
-			sag = ag2snsag(scp.sc_base.c_ag);
-			M0_ASSERT(sag->sag_base.cag_layout != NULL);
-		}
-		buf_put(&scp);
-		m0_cm_cp_only_fini(&scp.sc_base);
-	} while (rc == M0_FSO_AGAIN);
-	m0_cm_unlock(cm);
-	m0_fi_disable("m0_sns_cm_file_unlock", "do_nothing");
-	m0_fi_disable("m0_sns_cm_fctx_get", "do_nothing");
-	m0_fi_disable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
-	m0_fi_disable("iter_fid_next", "ut_layout_fsize_fetch");
+	switch (*phase) {
+		case M0_FOM_PHASE_INIT:
+			M0_SET0(&scp);
+			scp.sc_base.c_ops = &m0_sns_cm_repair_cp_ops;
+			m0_cm_cp_only_init(cm, &scp.sc_base);
+			scm->sc_it.si_cp = &scp;
+			*phase = ITER_RUN;
+			rc = M0_FSO_AGAIN;
+			break;
+		case ITER_RUN:
+			m0_cm_lock(cm);
+			rc = m0_sns_cm_iter_next(cm, &scp.sc_base);
+			if (rc == M0_FSO_AGAIN) {
+				M0_UT_ASSERT(cp_verify(&scp));
+				sag = ag2snsag(scp.sc_base.c_ag);
+				M0_ASSERT(sag->sag_base.cag_layout != NULL);
+				buf_put(&scp);
+				m0_cm_cp_only_fini(&scp.sc_base);
+				*phase = M0_FOM_PHASE_INIT;
+			}
+			if (rc == M0_FSO_WAIT || rc == -ENOBUFS) {
+				*phase = ITER_WAIT;
+				rc = M0_FSO_WAIT;
+			}
+			if (rc == -ENODATA) {
+				*phase = M0_FOM_PHASE_FINISH;
+				rc = M0_FSO_WAIT;
+				m0_semaphore_up(&iter_sem);
+			}
+			m0_cm_unlock(cm);
+			break;
+		case ITER_WAIT:
+			*phase = ITER_RUN;
+			rc = M0_FSO_AGAIN;
+			break;
+	}
 
 	return rc;
+}
+
+static void iter_run(uint64_t pool_width, uint64_t nr_files)
+{
+	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_enable("iter_fid_attr_fetch", "ut_attr_fetch");
+	m0_fi_enable("iter_fid_attr_fetch_wait", "ut_attr_fetch_wait");
+	m0_fi_enable("iter_fid_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_enable("iter_fid_next", "ut_fid_next");
+
+	cobs_create(nr_files, pool_width);
+	scm->sc_it.si_fom = &iter_fom.si_fom;
+	m0_semaphore_init(&iter_sem, 0);
+	M0_FOM_SIMPLE_POST(&iter_fom, reqh, &iter_ut_conf,
+			   &iter_ut_fom_tick, NULL, 2);
+	m0_semaphore_down(&iter_sem);
+	m0_semaphore_fini(&iter_sem);
+
+	m0_fi_disable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_disable("iter_fid_attr_fetch", "ut_attr_fetch");
+	m0_fi_disable("iter_fid_attr_fetch_wait", "ut_attr_fetch_wait");
+	m0_fi_disable("iter_fid_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_disable("iter_fid_next", "ut_fid_next");
 }
 
 static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
@@ -335,12 +413,7 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	int rc;
 
 	m0_cm_lock(cm);
-	/* Destroy previously created aggregation groups manually. */
-	m0_fi_enable("m0_sns_cm_fctx_put", "do_nothing");
-	m0_fi_enable("m0_sns_cm_file_unlock", "do_nothing");
 	ag_destroy();
-	m0_fi_disable("m0_sns_cm_file_unlock", "do_nothing");
-	m0_fi_disable("m0_sns_cm_fctx_put", "do_nothing");
 	rc = cm->cm_ops->cmo_stop(cm);
 	M0_UT_ASSERT(rc == 0);
 	m0_cm_unlock(cm);
@@ -352,37 +425,26 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REBALANCING);
 	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_ONLINE);
 	cs_fini(&sctx);
-	/* Cleanup the old db files. Otherwise it messes */
-	//system("rm -r sr_db > /dev/null");
 }
 
 static void iter_repair_single_file(void)
 {
-	int       rc;
-
 	iter_setup(SNS_REPAIR, 2);
-	rc = iter_run(10, 1);
-	M0_UT_ASSERT(rc == -ENODATA);
+	iter_run(10, 1);
 	iter_stop(10, 1, 2);
 }
 
 static void iter_repair_multi_file(void)
 {
-	int       rc;
-
 	iter_setup(SNS_REPAIR, 5);
-	rc = iter_run(10, 2);
-	M0_UT_ASSERT(rc == -ENODATA);
+	iter_run(10, 2);
 	iter_stop(10, 2, 5);
 }
 
 static void iter_repair_large_file_with_large_unit_size(void)
 {
-	int       rc;
-
 	iter_setup(SNS_REPAIR, 9);
-	rc = iter_run(10, 1);
-	M0_UT_ASSERT(rc == -ENODATA);
+	iter_run(10, 1);
 	iter_stop(10, 1, 9);
 }
 
@@ -420,11 +482,8 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 
 static void iter_invalid_nr_cobs(void)
 {
-	int rc;
-
 	iter_setup(SNS_REPAIR, 7);
-	rc = iter_run(3, 1);
-	M0_UT_ASSERT(rc == -ENODATA);
+	iter_run(3, 1);
 	iter_stop(3, 1, 7);
 }
 

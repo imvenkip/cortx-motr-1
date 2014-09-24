@@ -254,10 +254,8 @@ static int swu_store_wait(struct m0_cm_sw_update *swu)
 		M0_SET0(tx);
 		if (swu->swu_is_complete)
 			m0_fom_phase_move(fom, 0, SWU_FINI);
-		else {
+		else
 			m0_fom_phase_move(fom, 0, SWU_UPDATE);
-			swu->swu_is_idle = true;
-		}
 	}
 out:
 	return M0_FSO_WAIT;
@@ -332,6 +330,9 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 	cm = cm_swu2cm(swu);
 	m0_cm_lock(cm);
 	rc = swu_action[phase](swu);
+	if (rc == M0_FSO_WAIT && m0_fom_phase(fom) != SWU_FINI &&
+	    !m0_fom_is_waiting_on(fom))
+		swu->swu_wakeme = true;
 	m0_cm_unlock(cm);
 	if (rc < 0) {
 		m0_fom_phase_move(fom, 0, SWU_FINI);
@@ -364,11 +365,22 @@ M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype)
 			 &cmtype->ct_stype, &cm_sw_update_conf);
 }
 
+void swu_wakeme(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_cm_sw_update *swu = container_of(ast, struct m0_cm_sw_update,
+						   swu_wakeme_ast);
+	if (swu->swu_wakeme) {
+		swu->swu_wakeme = false;
+		m0_fom_wakeup(&swu->swu_fom);
+	}
+}
+
 M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 {
 	struct m0_fom *fom = &cm->cm_sw_update.swu_fom;
 
 	cm->cm_sw_update.swu_is_complete = false;
+	cm->cm_sw_update.swu_wakeme_ast.sa_cb = swu_wakeme;
 	m0_fom_init(fom, &cm->cm_type->ct_swu_fomt, &cm_sw_update_fom_ops, NULL,
 		    NULL, cm->cm_service.rs_reqh);
 	m0_fom_queue(fom, cm->cm_service.rs_reqh);
@@ -376,19 +388,10 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 	M0_LEAVE();
 }
 
-static void sw_update_fom_wakeup(struct m0_cm_sw_update *swu)
-{
-	if (swu->swu_is_idle) {
-		swu->swu_is_idle = false;
-		m0_fom_wakeup(&swu->swu_fom);
-	}
-}
-
 M0_INTERNAL void m0_cm_sw_update_continue(struct m0_cm *cm)
 {
-	M0_PRE(m0_cm_is_locked(cm));
-
-	sw_update_fom_wakeup(&cm->cm_sw_update);
+	m0_sm_ast_post(cm->cm_mach.sm_grp, &cm->cm_sw_update.swu_wakeme_ast);
+	m0_cm_ast_run_fom_wakeup(cm);
 }
 
 M0_INTERNAL void m0_cm_sw_update_stop(struct m0_cm *cm)

@@ -36,6 +36,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/iter.h"
+#include "sns/cm/file.h"
 
 /**
    @addtogroup SNSCMAG

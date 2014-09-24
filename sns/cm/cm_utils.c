@@ -613,6 +613,12 @@ m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, pl);
 }
 
+M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_fid *fid)
+{
+        return fid->f_container >= 0 && fid->f_key >=
+               M0_MDSERVICE_START_FID.f_key;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup SNSCM */

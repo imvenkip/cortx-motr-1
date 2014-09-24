@@ -64,8 +64,9 @@ struct m0_cm_sw_onwire {
 
 struct m0_cm_sw_update {
 	struct m0_fom    swu_fom;
+	struct m0_sm_ast swu_wakeme_ast;
+	bool             swu_wakeme;
 	bool             swu_is_complete;
-	bool             swu_is_idle;
 };
 
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,

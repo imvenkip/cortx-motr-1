@@ -46,35 +46,21 @@ struct m0_cm_type;
  */
 struct m0_cm_cp_pump {
 	/** pump FOM. */
-	struct m0_fom         p_fom;
+	struct m0_fom          p_fom;
 
-	struct m0_fom_timeout p_timeout;
+	struct m0_fom_timeout  p_timeout;
 	/**
 	 * Every newly allocate Copy packet in CPP_ALLOC phase is saved for the
 	 * further references, until the CPP_DATA_NEXT phase is completed for
 	 * the copy packet. Pump FOM does not free this allocated copy packet,
 	 * it is freed as part of copy packet FOM finalisation.
 	 */
-	struct m0_cm_cp *p_cp;
-	uint64_t         p_magix;
+	struct m0_cm_cp       *p_cp;
+	uint64_t               p_magix;
 	/** Set true by m0_cm_cp_pump_stop() */
-	bool		 p_shutdown;
-	/**
-	 * Set true when m0_cm_cp_pump::p_fom is transitioned to CPP_IDLE phase,
-	 * and set to false by m0_pump_fom_wakeup().
-	 * This is used to check if pump is idle instead of doing
-	 * m0_fom_phase(p_fom) == CPP_IDLE, because of the following situation,
-	 * As multiple copy packet FOMs can be finalised concurrently and thus
-	 * invoke m0_cm_sw_fill(), this invokes m0_cm_cp_pump_wakeup(), which
-	 * posts a struct m0_sm_ast to wakeup pump FOM, thus multiple asts are
-	 * posted to wakeup the same pump FOM, which are executed at the same
-	 * time later, all trying to wakeup pump FOM. So setting p_is_idle true
-	 * before invoking m0_fom_wakeup() in m0_cm_cp_pump_wakeup() avoids this
-	 * race.
-	 */
-	bool             p_is_idle;
-        struct m0_chan   p_signal;
-        struct m0_mutex  p_signal_mutex;
+	bool		       p_shutdown;
+	struct m0_chan         p_signal;
+	struct m0_mutex        p_signal_mutex;
 };
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype);
@@ -92,14 +78,7 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_cp_pump_stop(struct m0_cm *cm);
 
 /**
- * Moves the pump fom into the wait queue. The fom will be woken up when
- * signalled on m0_cm_cp_pump::p_signal channel.
- */
-M0_INTERNAL void m0_cm_cp_pump_wait(struct m0_cm *cm);
-
-/**
- * Wakes up pump FOM  to create more copy packets iff m0_cm_cp_pump::p_is_idle.
- * Resets m0_cm_cp_pump::p_is_idle to false.
+ * Wakes up pump FOM to create more copy packets.
  */
 M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm);
 

@@ -773,6 +773,11 @@ M0_INTERNAL void m0_fom_callback_arm(struct m0_fom *fom, struct m0_chan *chan,
 				     struct m0_fom_callback *cb);
 
 /**
+ * Returns true iff struct m0_fom::fo_cb is armed.
+ */
+M0_INTERNAL bool m0_fom_is_waiting_on(const struct m0_fom *fom);
+
+/**
  * The same as m0_fom_callback_arm(), but fc_bottom is initialized
  * automatically with internal static routine which just wakes up the fom.
  * Convenient when there is no need for custom fc_bottom.

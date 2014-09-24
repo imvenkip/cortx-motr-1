@@ -209,6 +209,10 @@ static void ag_list_test_sort()
 
 }
 
+void swu_wakeme(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+}
+
 static void cm_ag_ut(void)
 {
 	int                      i;
@@ -226,6 +230,7 @@ static void cm_ag_ut(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cm_lock(cm);
+	cm->cm_sw_update.swu_wakeme_ast.sa_cb = swu_wakeme;
 	/* Populate ag & ag ids with test values. */
 	for(i = AG_ID_NR - 1, j = 0; i >= 0 ; --i, ++j) {
 		ag_id_assign(&ag_ids[j], i, i, i, i);
@@ -244,8 +249,11 @@ static void cm_ag_ut(void)
 	ag_list_test_sort();
 
 	/* Cleanup. */
-	for(i = 0; i < AG_ID_NR; i++)
+	for(i = 0; i < AG_ID_NR; i++) {
 		m0_cm_aggr_group_fini_and_progress(&ags[i]);
+		m0_cm_unlock(cm);
+		m0_cm_lock(cm);
+	}
 	m0_cm_unlock(cm);
 
 	cm_ut_service_cleanup();

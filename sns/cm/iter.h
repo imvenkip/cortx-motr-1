@@ -116,6 +116,8 @@ struct m0_sns_cm_iter {
 	/** Layout details of a file. */
 	struct m0_sns_cm_file_context    si_fc;
 
+	struct m0_fom                   *si_fom;
+
 	/**
 	 * Saved pre allocated copy packet, which needs to be configured.
 	 * This is allocated by the copy machine pump FOM.

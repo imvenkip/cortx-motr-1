@@ -39,6 +39,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/cm_utils.h"
+#include "sns/cm/file.h"
 
 /**
   @addtogroup SNSCM
@@ -175,31 +176,31 @@ static bool iter_invariant(const struct m0_sns_cm_iter *it)
  */
 static int file_size_and_layout_fetch(struct m0_sns_cm_iter *it)
 {
-        struct m0_sns_cm         *scm = it2sns(it);
-        struct m0_fid            *gfid;
-        struct m0_pdclust_layout *pl = NULL;
-        int                       rc;
-        M0_ENTRY("it = %p", it);
+	struct m0_sns_cm         *scm = it2sns(it);
+	struct m0_fid            *gfid;
+	struct m0_pdclust_layout *pl = NULL;
+	int                       rc;
+	M0_ENTRY("it = %p", it);
 
-        M0_PRE(it != NULL);
+	M0_PRE(it != NULL);
 
-        gfid = &it->si_fc.sfc_gob_fid;
-        rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, gfid,
-                                              &it->si_fc.sfc_pdlayout,
-                                              &it->si_fc.sfc_fctx->sf_size);
-        if (rc == 0) {
-                pl = it->si_fc.sfc_pdlayout;
-                /*
-                 * We need only the number of parity units equivalent
-                 * to the number of failures.
-                 */
-                it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
-                it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	gfid = &it->si_fc.sfc_gob_fid;
+	rc = m0_sns_cm_file_size_layout_fetch(&scm->sc_base, gfid,
+					      &it->si_fc.sfc_pdlayout,
+					      &it->si_fc.sfc_fctx->sf_size);
+	if (rc == 0) {
+		pl = it->si_fc.sfc_pdlayout;
+		/*
+		 * We need only the number of parity units equivalent
+		 * to the number of failures.
+		 */
+		it->si_fc.sfc_dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+		it->si_fc.sfc_upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
 		it->si_fc.sfc_fctx->sf_layout = m0_pdl_to_layout(pl);
-                M0_CNT_INC(it->si_total_files);
-        }
+		M0_CNT_INC(it->si_total_files);
+	}
 
-        return M0_RC(rc);
+	return M0_RC(rc);
 }
 
 /**
@@ -254,7 +255,7 @@ static void get_attr_callback(void *arg, int rc)
 	it->si_fc.sfc_fctx->sf_size = it->si_fc.sfc_cob_attr.ca_size;
 	scm = it2sns(it);
         cm = &scm->sc_base;
-	m0_cm_cp_pump_wakeup(cm);
+	m0_cm_continue(cm);
 }
 
 static int iter_fid_attr_fetch_wait(struct m0_sns_cm_iter *it)
@@ -268,10 +269,13 @@ static int iter_fid_attr_fetch_wait(struct m0_sns_cm_iter *it)
 	scm = it2sns(it);
 	cm = &scm->sc_base;
 
-	if (it->si_fc.sfc_cob_attr.ca_size == 0) {
-		m0_cm_cp_pump_wait(cm);
-		return M0_FSO_WAIT;
+	if (M0_FI_ENABLED("ut_attr_fetch_wait")) {
+		iter_phase_set(it, ITPH_FID_LAYOUT_FETCH);
+		return M0_RC(0);
 	}
+
+	if (it->si_fc.sfc_cob_attr.ca_size == 0)
+		return M0_FSO_WAIT;
 
 	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH);
 	return M0_RC(0);
@@ -288,6 +292,10 @@ static int iter_fid_attr_fetch(struct m0_sns_cm_iter *it)
 	M0_ENTRY("it = %p", it);
 	M0_PRE(it != NULL);
 
+	if (M0_FI_ENABLED("ut_attr_fetch")) {
+		iter_phase_set(it, ITPH_FID_ATTR_FETCH_WAIT);
+		return M0_RC(0);
+	}
 	scm = it2sns(it);
 	cm = &scm->sc_base;
         M0_PRE(m0_cm_is_locked(cm));
@@ -303,7 +311,6 @@ static int iter_fid_attr_fetch(struct m0_sns_cm_iter *it)
 	iter_phase_set(it, ITPH_FID_ATTR_FETCH_WAIT);
 	if (rc != 0)
 		return M0_RC(rc);
-	m0_cm_cp_pump_wait(cm);
 	return M0_RC(M0_FSO_WAIT);
 }
 
@@ -318,7 +325,7 @@ static void get_layout_callback(void *arg, int rc)
 	it->si_fc.sfc_pdlayout = m0_layout_to_pdl(it->si_fc.sfc_fctx->sf_layout);
 	scm = it2sns(it);
         cm = &scm->sc_base;
-	m0_cm_cp_pump_wakeup(cm);
+	m0_cm_continue(cm);
 }
 
 static int __file_context_init(struct m0_sns_cm_iter *it)
@@ -368,14 +375,26 @@ static int iter_fid_layout_fetch_wait(struct m0_sns_cm_iter *it)
 /** Fetches the layout for GOB. */
 static int iter_fid_layout_fetch(struct m0_sns_cm_iter *it)
 {
-	struct m0_sns_cm         *scm;
-	struct m0_cm             *cm;
-        struct m0_reqh           *reqh;
-        struct m0_layout_domain  *ldom;
-	struct m0_layout         *l;
-	uint64_t                  lid;
-        int                       rc;
+	struct m0_sns_cm              *scm;
+	struct m0_cm                  *cm;
+        struct m0_reqh                *reqh;
+        struct m0_layout_domain       *ldom;
+	struct m0_layout              *l;
+	struct m0_sns_cm_file_context *sfc = &it->si_fc;
+	struct m0_fid                 *fid = &sfc->sfc_gob_fid;
+	uint64_t                       lid;
+        int                            rc;
 
+	if (M0_FI_ENABLED("ut_layout_fsize_fetch")) {
+		rc = file_size_and_layout_fetch(it);
+		if (rc == 0) {
+			rc = m0_sns_cm_fid_layout_instance(sfc->sfc_pdlayout,
+							   &sfc->sfc_pi, fid);
+			if (rc == 0)
+				iter_phase_set(it, ITPH_FID_LAYOUT_FETCH_WAIT);
+		}
+		return M0_RC(rc);
+	}
 	scm = it2sns(it);
 	cm = &scm->sc_base;
 	reqh = cm->cm_service.rs_reqh;
@@ -401,17 +420,14 @@ static int iter_fid_layout_fetch(struct m0_sns_cm_iter *it)
 	iter_phase_set(it, ITPH_FID_LAYOUT_FETCH_WAIT);
 	if (rc != 0)
 		return M0_RC(rc);
-	m0_cm_cp_pump_wait(cm);
 	return M0_RC(M0_FSO_WAIT);
 }
 
 static int iter_fid_lock(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm          *scm;
-	int		           rc=0;
+	int		           rc = 0;
 	struct m0_fid             *fid;
-	struct m0_fom             *fom;
-	struct m0_chan	          *rm_chan;
 	struct m0_sns_cm_file_ctx *fctx;
 
 	M0_ENTRY();
@@ -419,39 +435,18 @@ static int iter_fid_lock(struct m0_sns_cm_iter *it)
 
 	scm = it2sns(it);
 	fid = &it->si_fc.sfc_gob_fid;
-	fom = &scm->sc_base.cm_cp_pump.p_fom;
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
-	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, fid);
-	if (fctx != NULL) {
-		if (fctx->sf_flock_status == M0_SCM_FILE_LOCKED) {
-			rc = 0;
-			M0_LOG(M0_DEBUG, "fid: <%lx, %lx>", FID_P(fid));
-			m0_ref_get(&fctx->sf_ref);
-			it->si_fc.sfc_fctx = fctx;
-			it->si_fc.sfc_fctx->sf_size = fctx->sf_size;
-			it->si_fc.sfc_pdlayout = m0_layout_to_pdl(fctx->sf_layout);
-			rc = group__next(it);
-			goto end;
-		}
-		if (fctx->sf_flock_status == M0_SCM_FILE_LOCK_WAIT){
-			iter_phase_set(it, ITPH_FID_LOCK_WAIT);
-			goto end;
-		}
+	rc = m0_sns_cm_file_lock(scm, fid, &fctx);
+	if (rc == 0) {
+		it->si_fc.sfc_fctx = fctx;
+		it->si_fc.sfc_fctx->sf_size = fctx->sf_size;
+		it->si_fc.sfc_pdlayout = m0_layout_to_pdl(fctx->sf_layout);
+		rc = group__next(it);
+		goto end;
+	} else if (rc == -EAGAIN) {
+		iter_phase_set(it, ITPH_FID_LOCK_WAIT);
+		rc = 0;
 	}
-	rc = m0_sns_cm_fctx_init(scm, fid, &fctx);
-	if (rc != 0)
-		goto end;
-
-	rc = m0_sns_cm__file_lock(fctx);
-	if (rc != M0_FSO_WAIT)
-		goto end;
-
-	rm_chan = &fctx->sf_rin.rin_sm.sm_chan;
-	m0_rm_owner_lock(&fctx->sf_owner);
-	m0_fom_wait_on(fom, rm_chan, &fom->fo_cb);
-	m0_rm_owner_unlock(&fctx->sf_owner);
-	iter_phase_set(it, ITPH_FID_LOCK_WAIT);
-
 end:
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	return M0_RC(rc);
@@ -462,7 +457,6 @@ static int iter_fid_lock_wait(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm          *scm;
 	int		           rc;
 	struct m0_fid             *fid;
-	struct m0_fom             *fom;
 	struct m0_sns_cm_file_ctx *fctx;
 
 	M0_ENTRY();
@@ -470,17 +464,15 @@ static int iter_fid_lock_wait(struct m0_sns_cm_iter *it)
 
 	scm = it2sns(it);
 	fid = &it->si_fc.sfc_gob_fid;
-	fom = &scm->sc_base.cm_cp_pump.p_fom;
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	fctx = m0_sns_cm_fctx_locate(scm, fid);
 	M0_ASSERT(fctx != NULL);
-
-	rc = m0_sns_cm_file_lock_wait(fctx, fom);
-	if (rc == M0_FSO_WAIT)
+	rc = m0_sns_cm_file_lock_wait(fctx, it->si_fom);
+	if (rc == -EAGAIN) {
+		rc = M0_FSO_WAIT;
 		goto end;
-	if (rc == 0 || rc == -EAGAIN) {
-		rc = 0;
-		m0_ref_get(&fctx->sf_ref);
+	}
+	if (rc == 0) {
 		it->si_fc.sfc_fctx = fctx;
 		iter_phase_set(it, ITPH_FID_ATTR_FETCH);
 		M0_ASSERT(fctx->sf_flock_status == M0_SCM_FILE_LOCKED);
@@ -515,22 +507,14 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 		m0_layout_instance_fini(&sfc->sfc_pi->pi_base);
 		sfc->sfc_pi = NULL;
 	}
-	if (pl != NULL)
+	if (pl != NULL) {
+		if (M0_FI_ENABLED("ut_fid_next"))
+			m0_layout_put(m0_pdl_to_layout(sfc->sfc_pdlayout));
 		sfc->sfc_pdlayout = NULL;
+	}
 	if (rc == -ENOENT)
 		return M0_RC(-ENODATA);
 
-	if (M0_FI_ENABLED("ut_layout_fsize_fetch")) {
-		rc = file_size_and_layout_fetch(it);
-		if (rc == 0) {
-			rc = m0_sns_cm_fid_layout_instance(sfc->sfc_pdlayout,
-					&sfc->sfc_pi, fid);
-			if (rc == 0) {
-				iter_phase_set(it, ITPH_GROUP_NEXT);
-				return M0_RC(rc);
-			}
-		}
-	}
 	iter_phase_set(it, ITPH_FID_LOCK);
 	return M0_RC(rc);
 }
@@ -1011,6 +995,8 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
 	it->si_total_files = 0;
+	if (it->si_fom == NULL)
+		it->si_fom = &scm->sc_base.cm_cp_pump.p_fom;
 
 	return rc;
 }

@@ -84,5 +84,5 @@ _md5sum()
 	local FILE=$1
 
 	md5sum $MERO_M0T1FS_MOUNT_DIR/$FILE | \
-		tee $MERO_M0T1FS_TEST_DIR/md5
+		tee -a $MERO_M0T1FS_TEST_DIR/md5
 }
