@@ -2076,6 +2076,7 @@ static void test_timeout_body(struct ut_data *td)
 	int i;
 	m0_time_t abs_timeout;
 	m0_time_t rel_timeout;
+	m0_time_t buf_add_time;
 	uint64_t timeout_secs = 1;
 
 	m0_clink_add_lock(&TM1->ntm_chan, &td->tmwait1);
@@ -2106,6 +2107,7 @@ static void test_timeout_body(struct ut_data *td)
 		nb1->nb_timeout = abs_timeout;
 		zUT(m0_net_buffer_add(nb1, TM1));
 		M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
+		buf_add_time = m0_time_now();
 
 		ut_chan_timedwait(&td->tmwait1, 2 * timeout_secs);
 		M0_UT_ASSERT(m0_atomic64_get(&test_timeout_ttb_called) >=
@@ -2120,7 +2122,8 @@ static void test_timeout_body(struct ut_data *td)
 		M0_UT_ASSERT(td->qs.nqs_num_s_events == 0);
 		M0_UT_ASSERT(td->qs.nqs_num_adds == 1);
 		M0_UT_ASSERT(td->qs.nqs_num_dels == 0);
-		M0_UT_ASSERT(td->qs.nqs_time_in_queue >= rel_timeout);
+		M0_UT_ASSERT(td->qs.nqs_time_in_queue >=
+			abs_timeout - buf_add_time);
 
 		if (qt != M0_NET_QT_MSG_RECV)
 			m0_net_desc_free(&nb1->nb_desc);
@@ -2148,6 +2151,7 @@ static void test_timeout_body(struct ut_data *td)
 		zUT(m0_net_buffer_add(nb1, TM1));
 		M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 	}
+	buf_add_time = m0_time_now();
 
 	i = 0;
 	while (cb_called1 != UT_BUFS1 && i <= UT_BUFS1) {
@@ -2163,7 +2167,8 @@ static void test_timeout_body(struct ut_data *td)
 	M0_UT_ASSERT(td->qs.nqs_num_s_events == 0);
 	M0_UT_ASSERT(td->qs.nqs_num_adds == UT_BUFS1);
 	M0_UT_ASSERT(td->qs.nqs_num_dels == 0);
-	M0_UT_ASSERT(td->qs.nqs_time_in_queue >= UT_BUFS1 * rel_timeout);
+	M0_UT_ASSERT(td->qs.nqs_time_in_queue >=
+		(abs_timeout - buf_add_time) * UT_BUFS1);
 
 	for (i = 0; i < UT_BUFS1; ++i) {
 		nb1 = &td->bufs1[i];
@@ -2191,6 +2196,8 @@ static void test_timeout_body(struct ut_data *td)
 		if (i == 0)
 			nb1->nb_timeout = abs_timeout;
 		zUT(m0_net_buffer_add(nb1, TM1));
+		if (i == 0)
+			buf_add_time = m0_time_now();
 		M0_UT_ASSERT(nb1->nb_flags & M0_NET_BUF_QUEUED);
 	}
 
@@ -2208,7 +2215,8 @@ static void test_timeout_body(struct ut_data *td)
 	M0_UT_ASSERT(td->qs.nqs_num_s_events == 0);
 	M0_UT_ASSERT(td->qs.nqs_num_adds == UT_BUFS1);
 	M0_UT_ASSERT(td->qs.nqs_num_dels == 0);
-	M0_UT_ASSERT(td->qs.nqs_time_in_queue >= rel_timeout);
+	M0_UT_ASSERT(td->qs.nqs_time_in_queue >=
+		abs_timeout - buf_add_time);
 
 	/* restore the callback sub and then cancel the other buffer */
 	td->buf_cb1.nbc_cb[qt] = ut_buf_cb1;
