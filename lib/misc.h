@@ -307,11 +307,6 @@ M0_FIELD_IS(type, field, uint64_t) ? \
 #define M0_CAT(A, B) M0_CAT2(A, B)
 #define M0_CAT2(A, B) A ## B
 
-/**
- * Resolve hostname.
- */
-M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz);
-
 #define M0_UNUSED __attribute__((unused))
 
 M0_INTERNAL uint32_t m0_no_of_bits_set(uint64_t val);
