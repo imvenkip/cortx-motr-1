@@ -105,11 +105,11 @@ static struct m0_moddep inv_d[] = { M0_MODDEP_INIT(&modules[C], 0, 2) };
  *               +------+   ,--------------->|  i0  |---.
  *               |  f3  |---'                +------+   |
  *               +------+      +------+                 |
- *               |  f2  |----->|  g2  |<----------------'
- *               +------+      +------+
- *           ,-->|  f1  |      |  g1  |
- * +------+  |   +------+      +------+      +------+
- * |  e0  |--'   |  f0  |      |  g0  |----->|  h0  |
+ *               |  f2  |----->|  g2  |<----------------{
+ *               +------+      +------+                 |
+ *           ,-->|  f1  |      |  g1  |                 |
+ * +------+  |   +------+      +------+      +------+   |
+ * |  e0  |--'   |  f0  |      |  g0  |----->|  h0  |<--'
  * +------+      +------+      +------+      +------+
  */
 
@@ -129,9 +129,15 @@ static struct m0_moddep inv_g[] = {
 };
 
 static struct m0_moddep dep_h[0];
-static struct m0_moddep inv_h[] = { M0_MODDEP_INIT(&modules[G], 0, 0) };
+static struct m0_moddep inv_h[] = {
+	M0_MODDEP_INIT(&modules[G], 0, 0),
+	M0_MODDEP_INIT(&modules[I], 0, 0)
+};
 
-static struct m0_moddep dep_i[] = { M0_MODDEP_INIT(&modules[G], 0, 2) };
+static struct m0_moddep dep_i[] = {
+	M0_MODDEP_INIT(&modules[G], 0, 2),
+	M0_MODDEP_INIT(&modules[H], 0, 0)
+};
 static struct m0_moddep inv_i[] = { M0_MODDEP_INIT(&modules[F], 3, 0) };
 
 static void _reset(void)
