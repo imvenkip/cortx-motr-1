@@ -1,9 +1,5 @@
-utils_ut_SOURCES  = utils/ut_main.c
-
-utils_ub_SOURCES  = utils/ub_main.c
-
-EXTRA_DIST += utils/ut.sh.in \
-              utils/m0gendisks \
+EXTRA_DIST += utils/m0gendisks \
+              utils/m0run \
               utils/linux_kernel/ut.sh.in \
               utils/linux_kernel/m0ut_main.c \
               utils/linux_kernel/m0ctl_main.c \

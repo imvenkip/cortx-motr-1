@@ -574,6 +574,7 @@ endif
 #
 
 sbin_SCRIPTS  += utils/m0gendisks
+sbin_SCRIPTS  += utils/m0run
 
 #
 # m0t1fs/linux_kernel/st

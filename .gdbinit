@@ -1,4 +1,3 @@
-
 #
 # Load gdb extensions for Mero
 #
