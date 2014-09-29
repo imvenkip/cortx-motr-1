@@ -61,17 +61,14 @@ struct m0 {
 	/** Module representing this instance. */
 	struct m0_module	  i_self;
 
-	/* Global modules. */
-
-#if 0 /* XXX ENABLEME */
-	/**
-	 * Contains modules for library (thread, xc, etc.) together
-	 * with their global data.
+	/*
+	 * Global modules.
+	 *
+	 * CAUTION: Do not add members willy-nilly!
+	 *          Without proper care m0 instance will become another
+	 *          Windows Registry.
+	 *          Please negotiate new entries with vvv or Nikita.
 	 */
-	struct m0_lib             i_lib;
-
-	/* ... */
-#endif
 	struct m0_net             i_net;
 	struct m0_stob_module     i_stob_module;
 	struct m0_stob_ad_module  i_stob_ad_module;
@@ -86,6 +83,14 @@ struct m0 {
 	struct m0_cob_domain     *i_cob_module;
 	bool                      i_reqh_has_multiple_ad_domains;
 	bool                      i_reqh_uses_ad_stob;
+#if 0 /* XXX ENABLEME */
+	/**
+	 * Contains modules for library (thread, xc, etc.) together
+	 * with their global data.
+	 */
+	struct m0_lib             i_lib;
+	/* ... */
+#endif
 };
 
 /** Configures m0_modules: m0 and its submodules. */
