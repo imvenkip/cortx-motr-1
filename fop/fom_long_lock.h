@@ -27,7 +27,7 @@
  * @page m0_long_lock-dld FOM long lock DLD
  * @section m0_long_lock-dld-ovw Overview
  * Long lock is a non-blocking synchronization construct which has to be used in
- * FOM state handlers m0_fom_ops::fo_state(). Long lock provides support for a
+ * FOM state handlers m0_fom_ops::fo_tick(). Long lock provides support for a
  * reader-writer lock for FOMs.
  *
  * @section m0_long_lock-dld-func Functional specification
@@ -51,7 +51,7 @@
  *	// ...
  * };
  *
- * static int fom_state_handler(struct m0_fom *fom)
+ * static int fom_tick(struct m0_fom *fom)
  * {
  *      //...
  *      struct fom_object_type	 *fom_obj;
@@ -147,11 +147,11 @@ enum m0_long_lock_type {
  */
 struct m0_long_lock_link {
 	/** FOM, which obtains the lock */
-	struct m0_fom		*lll_fom;
+	struct m0_fom           *lll_fom;
 	/** Linkage to struct m0_long_lock::l_{owners,waiters} list */
-	struct m0_tlink		 lll_lock_linkage;
+	struct m0_tlink          lll_lock_linkage;
 	/** magic number. M0_LONG_LOCK_LINK_MAGIX */
-	uint64_t		 lll_magix;
+	uint64_t                 lll_magix;
 	/** Type of long lock, requested by the lll_fom */
 	enum m0_long_lock_type   lll_lock_type;
 };
@@ -161,20 +161,20 @@ struct m0_long_lock_link {
  */
 struct m0_long_lock {
 	/** List of long lock links, which has obtained the lock */
-	struct m0_tl		l_owners;
+	struct m0_tl            l_owners;
 	/** List of long lock links, which waiting for the lock */
-	struct m0_tl		l_waiters;
+	struct m0_tl            l_waiters;
 	/** Mutex used to protect the structure from concurrent access. */
-	struct m0_mutex		l_lock;
+	struct m0_mutex         l_lock;
 	/** State of the lock */
 	enum m0_long_lock_state l_state;
 	/** Magic number. M0_LONG_LOCK_MAGIX */
-	uint64_t		l_magix;
+	uint64_t                l_magix;
 };
 
 /**
- * A macros to request a long lock from a fom state transition function. The
- * value of macros should be returned from the state transition function. The
+ * A macros to request a long lock from a fom phase transition function. The
+ * value of macros should be returned from the phase transition function. The
  * fom transitions into next_phase when the lock is acquired:
  * - M0_FSO_AGAIN when the lock is acquired immediately;
  * - M0_FSO_WAIT when the lock will be acquired after a wait.

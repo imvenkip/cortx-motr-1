@@ -110,7 +110,7 @@ static bool lock_invariant(const struct m0_long_lock *lock)
 		(lock->l_state == M0_LONG_LOCK_RD_LOCKED) ==
 			(!m0_lll_tlist_is_empty(&lock->l_owners) &&
 			 m0_tl_forall(m0_lll, l, &lock->l_owners,
-				      l->lll_lock_type == M0_LONG_LOCK_READER))&&
+				   l->lll_lock_type == M0_LONG_LOCK_READER)) &&
 
 		ergo((lock->l_state == M0_LONG_LOCK_WR_LOCKED),
 		     (m0_lll_tlist_length(&lock->l_owners) == 1)) &&
