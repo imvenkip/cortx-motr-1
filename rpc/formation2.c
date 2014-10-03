@@ -404,15 +404,10 @@ M0_INTERNAL void m0_rpc_frm_item_deadline_passed(struct m0_rpc_frm *frm,
 static void item_move_to_urgent_queue(struct m0_rpc_frm *frm,
 				      struct m0_rpc_item *item)
 {
-	enum m0_rpc_frm_itemq_type  qtype;
-	struct m0_tl               *q;
-
 	M0_PRE(item != NULL);
 
 	__itemq_remove(item);
-	qtype = frm_which_qtype(frm, item);
-	q     = &frm->f_itemq[qtype];
-	__itemq_insert(q, item);
+	__itemq_insert(&frm->f_itemq[FRMQ_URGENT], item);
 }
 
 /**
