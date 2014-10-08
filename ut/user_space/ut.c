@@ -351,12 +351,12 @@ fclose:
 
 #else /* ENABLE_FAULT_INJECTION */
 
-int m0_ut_enable_fault_point(char *str)
+M0_INTERNAL int m0_ut_enable_fault_point(const char *str)
 {
 	return 0;
 }
 
-int m0_ut_enable_fault_points_from_file(const char *file_name)
+M0_INTERNAL int m0_ut_enable_fault_points_from_file(const char *file_name)
 {
 	return 0;
 }
