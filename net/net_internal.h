@@ -51,20 +51,6 @@ M0_ADDB_FUNC_FAIL(&m0_addb_gmc, M0_NET_ADDB_LOC_##loc, rc,	\
 extern struct m0_mutex m0_net_mutex;
 extern struct m0_addb_rec_type *m0_net__qstat_rts[M0_NET_QT_NR];
 
-/**
-  Internal version of m0_net_domain_init() that is protected by the
-  m0_net_mutex.  Can be used by transports for derived domain situations.
- */
-M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
-				    struct m0_net_xprt   *xprt,
-				    struct m0_addb_ctx   *ctx);
-
-/**
-  Internal version of m0_net_domain_fini() that is protected by the
-  m0_net_mutex.  Can be used by transports for derived domain situations.
- */
-M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom);
-
 /** Validates the value of buffer queue type. */
 M0_INTERNAL bool m0_net__qtype_is_valid(enum m0_net_queue_type qt);
 

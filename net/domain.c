@@ -18,15 +18,18 @@
  * Original creation date: 05/17/2010
  */
 
-#include "lib/assert.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"
+
+#include "lib/assert.h"
 #include "net/net_internal.h"
 
 /**
  @addtogroup net
  @{
 */
+
+static void net_domain_fini(struct m0_net_domain *dom);
 
 const struct m0_addb_ctx_type m0_net_dom_addb_ctx = {
 	.act_name = "net-dom"
@@ -37,30 +40,8 @@ int m0_net_domain_init(struct m0_net_domain *dom,
 		       struct m0_addb_ctx   *ctx)
 {
 	int rc;
+
 	m0_mutex_lock(&m0_net_mutex);
-	rc = m0_net__domain_init(dom, xprt, ctx);
-	m0_mutex_unlock(&m0_net_mutex);
-	return rc;
-}
-M0_EXPORTED(m0_net_domain_init);
-
-void m0_net_domain_fini(struct m0_net_domain *dom)
-{
-	m0_mutex_lock(&m0_net_mutex);
-	m0_net__domain_fini(dom);
-	m0_mutex_unlock(&m0_net_mutex);
-}
-M0_EXPORTED(m0_net_domain_fini);
-
-M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
-				    struct m0_net_xprt   *xprt,
-				    struct m0_addb_ctx   *ctx)
-{
-	int rc;
-
-	M0_ENTRY();
-
-	M0_PRE(m0_mutex_is_locked(&m0_net_mutex));
 	M0_PRE(dom->nd_xprt == NULL);
 
 	m0_mutex_init(&dom->nd_mutex);
@@ -75,18 +56,27 @@ M0_INTERNAL int m0_net__domain_init(struct m0_net_domain *dom,
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {
 		dom->nd_xprt = NULL; /* prevent call to xo_dom_fini */
-		m0_net__domain_fini(dom);
+		net_domain_fini(dom);
 		NET_ADDB_FUNCFAIL(rc, DOM_INIT, ctx);
 	}
-
+	m0_mutex_unlock(&m0_net_mutex);
 	return M0_RC(rc);
 }
+M0_EXPORTED(m0_net_domain_init);
 
-M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom)
+void m0_net_domain_fini(struct m0_net_domain *dom)
+{
+	m0_mutex_lock(&m0_net_mutex);
+	net_domain_fini(dom);
+	m0_mutex_unlock(&m0_net_mutex);
+}
+M0_EXPORTED(m0_net_domain_fini);
+
+static void net_domain_fini(struct m0_net_domain *dom)
 {
 	M0_PRE(m0_mutex_is_locked(&m0_net_mutex));
-	M0_ASSERT(m0_list_is_empty(&dom->nd_tms));
-	M0_ASSERT(m0_list_is_empty(&dom->nd_registered_bufs));
+	M0_PRE(m0_list_is_empty(&dom->nd_tms));
+	M0_PRE(m0_list_is_empty(&dom->nd_registered_bufs));
 
 	if (dom->nd_xprt != NULL) {
 		dom->nd_xprt->nx_ops->xo_dom_fini(dom);
@@ -97,7 +87,6 @@ M0_INTERNAL void m0_net__domain_fini(struct m0_net_domain *dom)
 
 	m0_list_fini(&dom->nd_tms);
 	m0_list_fini(&dom->nd_registered_bufs);
-
 	m0_mutex_fini(&dom->nd_mutex);
 }
 
@@ -118,9 +107,8 @@ DOM_GET_PARAM(max_buffer_segment_size, m0_bcount_t);
 DOM_GET_PARAM(max_buffer_segments, int32_t);
 DOM_GET_PARAM(max_buffer_desc_size, m0_bcount_t);
 
-#undef M0_TRACE_SUBSYSTEM
-
 /** @} end of net group */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
