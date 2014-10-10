@@ -42,8 +42,6 @@ static int rpc_mc_ut_init(void)
 	int      rc;
 	uint32_t bufs_nr;
 
-	rc = m0_net_xprt_init(xprt);
-	M0_ASSERT(rc == 0);
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 
@@ -67,8 +65,6 @@ static int rpc_mc_ut_fini(void)
 	m0_reqh_fini(&reqh);
 	m0_rpc_net_buffer_pool_cleanup(&buf_pool);
 	m0_net_domain_fini(&client_net_dom);
-	m0_net_xprt_fini(xprt);
-
 	return 0;
 }
 

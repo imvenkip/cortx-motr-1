@@ -126,18 +126,6 @@ struct m0_net_test_network_ctx {
 };
 
 /**
-   Initialize net-test network module.
-   Calls m0_net_xprt_init().
- */
-int m0_net_test_network_init(void);
-
-/**
-   Finalize net-test network module.
-   Calls m0_net_xprt_fini().
- */
-void m0_net_test_network_fini(void);
-
-/**
    Initialize net-test network context.
    Allocate ping and bulk buffers.
    @param ctx net-test network context structure.
@@ -175,8 +163,6 @@ bool m0_net_test_network_ctx_invariant(struct m0_net_test_network_ctx *ctx);
    @return -errno (if failure)
    @pre m0_net_test_network_ctx_invariant(ctx)
    @pre ep_addr != NULL
-
-   @see m0_net_test_network_init()
  */
 int m0_net_test_network_ep_add(struct m0_net_test_network_ctx *ctx,
 			       const char *ep_addr);

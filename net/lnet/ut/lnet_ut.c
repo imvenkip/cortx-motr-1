@@ -552,10 +552,7 @@ static int test_lnet_init(void)
 {
 	int rc;
 
-	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
 #ifdef __KERNEL__
-	if (rc != 0)
-		return rc;
 	rc = ktest_lnet_init();
 #else
 	{
@@ -570,9 +567,7 @@ static int test_lnet_init(void)
 			rc = -ENODEV;
 	}
 #endif
-	if (rc != 0)
-		m0_net_xprt_fini(&m0_net_lnet_xprt);
-	else
+	if (rc == 0)
 		ut_save_subs();
 	return rc;
 }
@@ -583,7 +578,6 @@ static int test_lnet_fini(void)
 #ifdef __KERNEL__
 	ktest_lnet_fini();
 #endif
-	m0_net_xprt_fini(&m0_net_lnet_xprt);
 	return 0;
 }
 

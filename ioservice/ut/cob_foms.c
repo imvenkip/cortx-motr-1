@@ -119,8 +119,6 @@ static void cobfoms_utinit(void)
 	M0_UT_ASSERT(cut != NULL);
 
 	cut->cu_xprt = &m0_net_lnet_xprt;
-	rc = m0_net_xprt_init(cut->cu_xprt);
-	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(rc == 0);
@@ -165,9 +163,7 @@ static void cobfoms_utfini(void)
 	M0_UT_ASSERT(rc == 0);
 
 	m0_rpc_server_stop(&cut->cu_sctx);
-
 	m0_net_domain_fini(&cut->cu_nd);
-	m0_net_xprt_fini(cut->cu_xprt);
 
 	m0_free(cut->cu_stypes);
 	m0_free0(&cut);

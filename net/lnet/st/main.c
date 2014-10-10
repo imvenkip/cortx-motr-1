@@ -175,8 +175,6 @@ int main(int argc, char *argv[])
 	if (verbose < 0)
 		verbose = 0;
 
-	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
-	M0_ASSERT(rc == 0);
 	nlx_ping_init();
 
 	if (!client_only) {
@@ -292,9 +290,7 @@ int main(int argc, char *argv[])
 	}
 
 	nlx_ping_fini();
-	m0_net_xprt_fini(&m0_net_lnet_xprt);
 	m0_fini();
-
 	return 0;
 }
 

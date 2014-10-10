@@ -18,7 +18,6 @@
  * Original creation date: 11/26/2012
  */
 
-#include "net/test/network.h"		/* m0_net_test_network_init */
 #include "net/test/node_bulk.h"		/* m0_net_test_node_bulk_init */
 #include "net/test/initfini.h"
 
@@ -32,51 +31,14 @@
    @{
  */
 
-struct init_fini {
-	int  (*if_init)(void);
-	void (*if_fini)(void);
-};
-
-static const struct init_fini if_list[] = {
-#define NET_TEST_MODULE(name) {			  \
-	.if_init = m0_net_test_ ## name ## _init, \
-	.if_fini = m0_net_test_ ## name ## _fini, \
-}
-	NET_TEST_MODULE(network),
-	NET_TEST_MODULE(node_bulk),
-#undef NET_TEST_MODULE
-};
-
-static int net_test_initfini(bool init)
-{
-	size_t i = ARRAY_SIZE(if_list);
-	int    rc = 0;
-
-	if (init) {
-		for (i = 0; i < ARRAY_SIZE(if_list); ++i) {
-			rc = if_list[i].if_init();
-			if (rc != 0) {
-				init = false;
-				break;
-			}
-		}
-	}
-	if (!init) {
-		for (; i != 0; --i)
-			if_list[i - 1].if_fini();
-	}
-	return rc;
-}
-
 int m0_net_test_init(void)
 {
-	return net_test_initfini(true);
+	return m0_net_test_node_bulk_init();
 }
 
 void m0_net_test_fini(void)
 {
-	int rc = net_test_initfini(false);
-	M0_POST(rc == 0);
+	m0_net_test_node_bulk_fini();
 }
 
 /** @} end of NetTestInitFiniInternals group */

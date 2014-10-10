@@ -733,8 +733,6 @@ static void test_ping(void)
 	m0_mutex_init(&cctx.pc_mutex);
 	m0_cond_init(&cctx.pc_cond, &cctx.pc_mutex);
 
-	M0_UT_ASSERT(m0_net_xprt_init(&m0_net_bulk_mem_xprt) == 0);
-
 	M0_UT_ASSERT(ping_client_init(&cctx, &server_ep) == 0);
 	/* client times out because server is not ready */
 	M0_UT_ASSERT(ping_client_msg_send_recv(&cctx, server_ep, NULL) != 0);
@@ -769,7 +767,6 @@ static void test_ping(void)
 	m0_mutex_fini(&cctx.pc_mutex);
 	m0_cond_fini(&sctx.pc_cond);
 	m0_mutex_fini(&sctx.pc_mutex);
-	m0_net_xprt_fini(&m0_net_bulk_mem_xprt);
 	m0_free(data);
 }
 

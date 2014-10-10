@@ -290,8 +290,6 @@ static void start_rpc_client_and_server(void)
 {
 	int rc;
 
-	rc = m0_net_xprt_init(xprt);
-	M0_ASSERT(rc == 0);
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_server_start(&sctx);
@@ -308,7 +306,6 @@ static void stop_rpc_client_and_server(void)
 	M0_ASSERT(rc == 0);
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
-	m0_net_xprt_fini(xprt);
 }
 
 static void ast_thread(int _ M0_UNUSED)

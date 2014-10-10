@@ -35,10 +35,9 @@ struct m0_net;
  *
  *   m0                     m0_net                m0_net_xprt_module
  * +===============+      +==============+      +=====================+
- * | M0_LEVEL_INIT |----->| M0_LEVEL_NET |<-----| M0_LEVEL_NET_XPRT   |
+ * | M0_LEVEL_INIT |----->| M0_LEVEL_NET |<-----| M0_LEVEL_NET_DOMAIN |
  * +---------------+      +--------------+      +---------------------+
- *                                              | M0_LEVEL_NET_DOMAIN |
- *                                              +---------------------+
+ *
  * @endverbatim
  *
  * @see module/module.h to get familiar with the concept of modules,
@@ -82,8 +81,6 @@ enum {
 
 /** Levels of m0_net_xprt_module::nx_module. */
 enum {
-	/** m0_net_xprt_module::nx_xprt has been initialised. */
-	M0_LEVEL_NET_XPRT,
 	/** m0_net_xprt_module::nx_domain has been initialised. */
 	M0_LEVEL_NET_DOMAIN
 };

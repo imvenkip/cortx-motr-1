@@ -211,8 +211,7 @@ int main(int argc, char **argv)
 	const char           *server         = NULL;
 	const char           *yaml_path      = NULL;
 	const char           *fop_desc       = NULL;
-	struct m0_net_xprt   *xprt           = &m0_net_lnet_xprt;
-	struct m0_net_domain  client_net_dom = { };
+	struct m0_net_domain  client_net_dom = {};
 	uint32_t              tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	uint32_t              max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
@@ -320,11 +319,9 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	result = m0_net_xprt_init(xprt);
-	M0_ASSERT(result == 0);
-
 	/** @todo replace m0_addb_proc_ctx */
-	result = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	result = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt,
+				    &m0_addb_proc_ctx);
 	M0_ASSERT(result == 0);
 
 	/* Init the console members from CLI input */

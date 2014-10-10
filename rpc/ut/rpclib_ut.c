@@ -156,19 +156,14 @@ static int test_rpclib_init(void)
 	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
 	/*m0_addb_choose_default_level(AEL_WARN);*/
 
-	rc = m0_net_xprt_init(xprt);
-	M0_ASSERT(rc == 0);
-
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
-
 	return rc;
 }
 
 static int test_rpclib_fini(void)
 {
 	m0_net_domain_fini(&client_net_dom);
-	m0_net_xprt_fini(xprt);
 	return 0;
 }
 
@@ -177,7 +172,7 @@ struct m0_ut_suite rpclib_ut = {
 	.ts_init = test_rpclib_init,
 	.ts_fini = test_rpclib_fini,
 	.ts_tests = {
-		{ "rpclib", test_rpclib },
+		{ "rpclib",             test_rpclib },
 		{ "rpclib_error_paths", test_rpclib_error_paths },
 		{ NULL, NULL }
 	}

@@ -212,14 +212,11 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 				const char *profile, const char *local_addr,
 				unsigned timeout, unsigned retry)
 {
-	enum {
-		MAX_RPCS_IN_FLIGHT = 32,
-	};
+	enum { MAX_RPCS_IN_FLIGHT = 32 };
 	static struct m0_net_domain      client_net_dom;
 	static struct m0_rpc_client_ctx  cctx;
 	static char                      client_ep[M0_NET_LNET_XEP_ADDR_LEN];
 	static char                      server_ep[M0_NET_LNET_XEP_ADDR_LEN];
-	static struct m0_net_xprt       *xprt = &m0_net_lnet_xprt;
 	int                              rc;
 	unsigned                         i;
 
@@ -246,14 +243,10 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 		*(++se) = 0;
 	}
 
-	rc = m0_net_xprt_init(xprt);
+	rc = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt,
+				&m0_addb_proc_ctx);
 	if (rc != 0)
 		return M0_RC(rc);
-
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
-	if (rc != 0)
-		goto xprt;
-
 	/*
 	 * confd service should be started before other services.
 	 * Following loop checks for availability of confd service, retrying
@@ -270,7 +263,6 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 		else
 			break;
 	}
-
 	if (rc != 0)
 		goto net_dom;
 
@@ -281,9 +273,6 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 		(void)m0_rpc_client_stop(&cctx);
 net_dom:
 	m0_net_domain_fini(&client_net_dom);
-xprt:
-	m0_net_xprt_fini(xprt);
-
 	return M0_RC(rc);
 }
 

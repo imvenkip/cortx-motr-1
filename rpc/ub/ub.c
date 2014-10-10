@@ -18,6 +18,7 @@
  *                  Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
  * Original creation date: 04-Mar-2013
  */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
@@ -26,7 +27,6 @@
 #include "lib/string.h"     /* strlen, m0_strdup */
 #include "lib/memory.h"     /* m0_free */
 #include "fop/fop.h"        /* m0_fop_alloc */
-#include "net/net.h"        /* m0_net_xprt_init */
 #include "net/bulk_mem.h"   /* m0_net_bulk_mem_xprt */
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "ut/cs_service.h"  /* m0_cs_default_stypes */
@@ -229,18 +229,14 @@ static int _start(const char *opts)
 	char ep[40];
 
 	args_init(&g_args);
-	rc = args_parse(opts, &g_args) ?: m0_net_xprt_init(g_xprt);
+	rc = args_parse(opts, &g_args) ?: m0_rpc_server_start(&g_sctx);
 	if (rc != 0)
 		return rc;
-
-	rc = m0_rpc_server_start(&g_sctx);
-	if (rc != 0)
-		goto xprt_fini;
 
 	M0_ALLOC_ARR(g_clients, g_args.a_nr_conns);
 	if (g_clients == NULL) {
 		rc = -ENOMEM;
-		goto server_stop;
+		goto err;
 	}
 
 	for (i = 0; i < g_args.a_nr_conns; ++i) {
@@ -251,10 +247,8 @@ static int _start(const char *opts)
 
 	m0_rpc_ub_fops_init();
 	return 0;
-server_stop:
+err:
 	m0_rpc_server_stop(&g_sctx);
-xprt_fini:
-	m0_net_xprt_fini(g_xprt);
 	return rc;
 }
 
@@ -266,7 +260,6 @@ static void _stop(void)
 		_client_stop(&g_clients[i]);
 	m0_free(g_clients);
 	m0_rpc_server_stop(&g_sctx);
-	m0_net_xprt_fini(g_xprt);
 	m0_rpc_ub_fops_fini();
 }
 

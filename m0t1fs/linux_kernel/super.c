@@ -901,15 +901,8 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb)
 	xprt =  csb->csb_xprt;
 	ndom = &csb->csb_ndom;
 
-	rc = m0_net_xprt_init(xprt);
-	if (rc != 0)
-		goto out;
-
 	/** @todo replace &m0_addb_proc_ctx */
 	rc = m0_net_domain_init(ndom, xprt, &m0_addb_proc_ctx);
-	if (rc != 0)
-		m0_net_xprt_fini(xprt);
-out:
 	if (rc != 0) {
 		csb->csb_laddr = NULL;
 		m0_free(laddr);
@@ -926,7 +919,6 @@ void m0t1fs_net_fini(struct m0t1fs_sb *csb)
 	M0_ENTRY();
 
 	m0_net_domain_fini(&csb->csb_ndom);
-	m0_net_xprt_fini(csb->csb_xprt);
 	m0_free(csb->csb_laddr);
 	m0_mutex_lock(&m0t1fs_mutex);
 	m0_bitmap_set(&m0t1fs_client_ep_tmid, csb->csb_tmid, false);

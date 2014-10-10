@@ -37,26 +37,6 @@ static struct m0_sm_group  g_grp;
 static uint8_t             g_num;
 static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
 
-static int service_start(struct m0_rpc_server_ctx *sctx)
-{
-	int rc;
-
-	rc = m0_net_xprt_init(g_xprt);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_rpc_server_start(sctx);
-	if (rc != 0)
-		m0_net_xprt_fini(g_xprt);
-	return rc;
-}
-
-static void service_stop(struct m0_rpc_server_ctx *sctx)
-{
-	m0_rpc_server_stop(sctx);
-	m0_net_xprt_fini(g_xprt);
-}
-
 struct waiter {
 	struct m0_confc_ctx w_ctx;
 	struct m0_clink     w_clink;
@@ -414,7 +394,7 @@ static void test_confc_net(void)
 	};
 #undef NAME
 
-	rc = service_start(&confd);
+	rc = m0_rpc_server_start(&confd);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_ut_rpc_machine_start(&mach, g_xprt, CLIENT_ENDPOINT_ADDR);
@@ -423,7 +403,7 @@ static void test_confc_net(void)
 	confc_test(SERVER_ENDPOINT_ADDR, &mach, NULL);
 
 	m0_ut_rpc_machine_stop(&mach);
-	service_stop(&confd);
+	m0_rpc_server_stop(&confd);
 }
 
 static void test_confc_invalid_input(void)

@@ -37,11 +37,6 @@ static const struct m0_modlev levels_net[] = {
 };
 
 static const struct m0_modlev levels_net_xprt[] = {
-	[M0_LEVEL_NET_XPRT] = {
-		.ml_name  = "net_xprt is initialised",
-		.ml_enter = level_net_xprt_enter,
-		.ml_leave = level_net_xprt_leave
-	},
 	[M0_LEVEL_NET_DOMAIN] = {
 		.ml_name  = "net_domain is initialised",
 		.ml_enter = level_net_xprt_enter,
@@ -79,7 +74,7 @@ M0_INTERNAL void m0_net_module_setup(struct m0_net *net)
 		m0_module_setup(m, net_xprt_mods[i].name, levels_net_xprt,
 				ARRAY_SIZE(levels_net_xprt));
 		m->m_m0 = instance;
-		m0_module_dep_add(m, M0_LEVEL_NET_XPRT,
+		m0_module_dep_add(m, M0_LEVEL_NET_DOMAIN,
 				  &net->n_module, M0_LEVEL_NET);
 	}
 }
@@ -129,29 +124,14 @@ static int level_net_xprt_enter(struct m0_module *module)
 {
 	struct m0_net_xprt_module *m = M0_AMB(m, module, nx_module);
 
-	switch (module->m_cur + 1) {
-	case M0_LEVEL_NET_XPRT:
-		return m0_net_xprt_init(m->nx_xprt);
-	case M0_LEVEL_NET_DOMAIN:
-		return m0_net_domain_init(&m->nx_domain, m->nx_xprt,
-					  &m0_addb_proc_ctx);
-	default:
-		M0_IMPOSSIBLE("");
-	}
+	M0_PRE(module->m_cur + 1 == M0_LEVEL_NET_DOMAIN);
+	return m0_net_domain_init(&m->nx_domain, m->nx_xprt, &m0_addb_proc_ctx);
 }
 
 static void level_net_xprt_leave(struct m0_module *module)
 {
 	struct m0_net_xprt_module *m = M0_AMB(m, module, nx_module);
 
-	switch (module->m_cur) {
-	case M0_LEVEL_NET_DOMAIN:
-		m0_net_domain_fini(&m->nx_domain);
-		return;
-	case M0_LEVEL_NET_XPRT:
-		m0_net_xprt_fini(m->nx_xprt);
-		return;
-	default:
-		M0_IMPOSSIBLE("");
-	}
+	M0_PRE(module->m_cur == M0_LEVEL_NET_DOMAIN);
+	m0_net_domain_fini(&m->nx_domain);
 }

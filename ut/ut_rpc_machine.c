@@ -39,9 +39,6 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 	int rc;
 
 	ctx->rmc_xprt = &m0_net_lnet_xprt;
-	rc = m0_net_xprt_init(ctx->rmc_xprt);
-	M0_ASSERT(rc == 0);
-
 	rc = m0_net_domain_init(&ctx->rmc_net_dom, ctx->rmc_xprt,
 				&m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
@@ -141,7 +138,6 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 
 	m0_rpc_net_buffer_pool_cleanup(&ctx->rmc_bufpool);
 	m0_net_domain_fini(&ctx->rmc_net_dom);
-	m0_net_xprt_fini(ctx->rmc_xprt);
 }
 
 #else /* __KERNEL__ */

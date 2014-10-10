@@ -101,17 +101,6 @@ M0_INTERNAL void m0_net_fini()
 	m0_mutex_fini(&m0_net_mutex);
 }
 
-int m0_net_xprt_init(struct m0_net_xprt *xprt)
-{
-	return 0;
-}
-M0_EXPORTED(m0_net_xprt_init);
-
-void m0_net_xprt_fini(struct m0_net_xprt *xprt)
-{
-}
-M0_EXPORTED(m0_net_xprt_fini);
-
 M0_INTERNAL int m0_net_desc_copy(const struct m0_net_buf_desc *from_desc,
 				 struct m0_net_buf_desc *to_desc)
 {

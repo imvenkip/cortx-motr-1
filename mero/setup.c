@@ -976,10 +976,6 @@ cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_mero *cctx)
 	if (ndom != NULL)
 		return 0; /* pass */
 
-	rc = m0_net_xprt_init(xprt);
-	if (rc != 0)
-		return rc;
-
 	M0_ALLOC_PTR(ndom);
 	if (ndom == NULL) {
 		rc = -ENOMEM;
@@ -996,7 +992,6 @@ cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_mero *cctx)
 	return 0;
 err:
 	m0_free(ndom); /* freeing NULL does not hurt */
-	m0_net_xprt_fini(xprt);
 	return rc;
 }
 
@@ -1028,7 +1023,6 @@ static int cs_net_domains_init(struct m0_mero *cctx)
 static void cs_net_domains_fini(struct m0_mero *cctx)
 {
 	struct m0_net_domain *ndom;
-	size_t                i;
 
 	m0_tl_for(ndom, &cctx->cc_ndoms, ndom) {
 		M0_ASSERT(m0_net_domain_bob_check(ndom));
@@ -1037,9 +1031,6 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
 		m0_net_domain_bob_fini(ndom);
 		m0_free(ndom);
 	} m0_tl_endfor;
-
-	for (i = 0; i < cctx->cc_xprts_nr; ++i)
-		m0_net_xprt_fini(cctx->cc_xprts[i]);
 }
 
 static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)

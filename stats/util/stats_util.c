@@ -298,17 +298,17 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-        /* set up a signal handler to remove work arena */
-        M0_SET0(&sa);
-        sigaddset(&sa.sa_mask, SIGTERM);
-        sigaddset(&sa.sa_mask, SIGINT);
-        sigaddset(&sa.sa_mask, SIGQUIT);
-        sigaddset(&sa.sa_mask, SIGPIPE);
-        sa.sa_handler = sig_handler;
-        sigaction(SIGTERM, &sa, NULL);
-        sigaction(SIGINT,  &sa, NULL);
-        sigaction(SIGQUIT, &sa, NULL);
-        sigaction(SIGPIPE, &sa, NULL);
+	/* set up a signal handler to remove work arena */
+	M0_SET0(&sa);
+	sigaddset(&sa.sa_mask, SIGTERM);
+	sigaddset(&sa.sa_mask, SIGINT);
+	sigaddset(&sa.sa_mask, SIGQUIT);
+	sigaddset(&sa.sa_mask, SIGPIPE);
+	sa.sa_handler = sig_handler;
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGINT,  &sa, NULL);
+	sigaction(SIGQUIT, &sa, NULL);
+	sigaction(SIGPIPE, &sa, NULL);
 
 	rc = m0_init(&instance);
 	if (rc != 0) {
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
 
 	rc = m0_ep_and_xprt_extract(&epx, local_addr);
 	if (rc != 0) {
-                fprintf(stderr,
+		fprintf(stderr,
 			"m0stats:Failed to extract endpoint. rc = %d\n", rc);
 		goto mero_fini_fclose;
 	}
@@ -346,20 +346,11 @@ int main(int argc, char *argv[])
 
 	rc = m0_ep_and_xprt_extract(&epx, remote_addr);
 	if (rc != 0) {
-                fprintf(stderr,
+		fprintf(stderr,
 			"m0stats:Failed to extract endpoint. rc = %d\n", rc);
 		goto mero_fini_fclose;
 	}
 	cctx.rcx_remote_addr  = epx.ex_endpoint;
-
-
-        rc = m0_net_xprt_init(xprt);
-        if (rc != 0) {
-                fprintf(stderr,
-			"m0stats:Failed to initialize transport. rc = %d\n",
-			rc);
-		goto mero_fini_fclose;
-        }
 
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
@@ -370,7 +361,7 @@ int main(int argc, char *argv[])
 			"m0stats:m0_rpc_client_start failed. rc = %d.\n", rc);
 		rc = EX_UNAVAILABLE;
 		goto domain_fini;
-        }
+	}
 
 	rc = stats_parse_ids(stats_list, &stats_ids);
 	if (rc != 0)

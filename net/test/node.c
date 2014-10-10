@@ -563,8 +563,6 @@ finished.up();\l", shape=box];
    should be never changed in other place.
    - m0_net_test_stats is used for keeping some data for sample,
    based on which min/max/average/standard deviation can be calculated.
-   - m0_net_test_network_init()/m0_net_test_network_fini() need to be called to
-   initialize/finalize m0_net_test network.
    - m0_net_test_network_(msg/bulk)_(send/recv)_* is a wrapper around m0_net.
    This functions use m0_net_test_ctx as containter for buffers, callbacks,
    endpoints and transfer machine. Buffer/endpoint index (int in range

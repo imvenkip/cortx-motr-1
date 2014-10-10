@@ -124,8 +124,6 @@ void m0_net_test_u_lnet_info(void)
 	char * const	     *nidstrs;
 	int		      i;
 
-	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
-	M0_ASSERT(rc == 0);
 	M0_SET0(&dom);
 	/** @todo replace proc ctx */
 	rc = m0_net_domain_init(&dom, &m0_net_lnet_xprt, &m0_addb_proc_ctx);
@@ -152,7 +150,6 @@ void m0_net_test_u_lnet_info(void)
 	}
 
 	m0_net_domain_fini(&dom);
-	m0_net_xprt_fini(&m0_net_lnet_xprt);
 }
 
 static int net_test_u_printf(bool _verbose, const char *fmt, va_list argp)

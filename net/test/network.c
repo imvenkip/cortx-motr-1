@@ -44,16 +44,6 @@
    @{
  */
 
-int m0_net_test_network_init(void)
-{
-	return m0_net_xprt_init(&m0_net_lnet_xprt);
-}
-
-void m0_net_test_network_fini(void)
-{
-	m0_net_xprt_fini(&m0_net_lnet_xprt);
-}
-
 /**
    Get net-test network context for the buffer event.
  */

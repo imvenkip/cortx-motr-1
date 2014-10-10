@@ -33,7 +33,6 @@ static void buffers_get_put(int rc);
 
 static struct m0_net_buffer_pool bp;
 static struct m0_chan		 buf_chan;
-static struct m0_net_xprt	*xprt = &m0_net_lnet_xprt;
 
 static const struct m0_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = notempty,
@@ -53,10 +52,10 @@ static void test_init(void)
 	uint32_t    buf_nr    = 10;
 
 	m0_chan_init(&buf_chan, &bp.nbp_mutex);
-	m0_net_xprt_init(xprt);
 	M0_ALLOC_PTR(bp.nbp_ndom);
 	M0_UT_ASSERT(bp.nbp_ndom != NULL);
-	rc = m0_net_domain_init(bp.nbp_ndom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(bp.nbp_ndom, &m0_net_lnet_xprt,
+				&m0_addb_proc_ctx);
 	M0_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
 	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom,
@@ -170,7 +169,6 @@ static void test_fini(void)
 	m0_net_buffer_pool_fini(&bp);
 	m0_net_domain_fini(bp.nbp_ndom);
 	m0_free(bp.nbp_ndom);
-	m0_net_xprt_fini(xprt);
 	m0_chan_fini_lock(&buf_chan);
 
 }

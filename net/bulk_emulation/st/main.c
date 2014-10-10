@@ -392,12 +392,11 @@ int main(int argc, char *argv[])
 		if (client_only && base_port == PING_PORT1)
 			base_port = PING_PORT2;
 	}
-	if (canon_host(local_name, local_hostbuf, sizeof(local_hostbuf)) != 0)
+	if (canon_host(local_name, local_hostbuf, sizeof local_hostbuf) != 0)
 		return 1;
-	if (canon_host(remote_name, remote_hostbuf, sizeof(remote_hostbuf)) != 0)
+	if (canon_host(remote_name, remote_hostbuf, sizeof remote_hostbuf) != 0)
 		return 1;
 
-	M0_ASSERT(m0_net_xprt_init(xprt->px_xprt) == 0);
 	m0_mutex_init(&qstats_mutex);
 
 	if (!client_only) {
@@ -490,10 +489,8 @@ int main(int argc, char *argv[])
 		m0_mutex_fini(&sctx.pc_mutex);
 	}
 
-	m0_net_xprt_fini(xprt->px_xprt);
 	m0_mutex_fini(&qstats_mutex);
 	m0_fini();
-
 	return 0;
 }
 

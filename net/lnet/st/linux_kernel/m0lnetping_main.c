@@ -223,9 +223,6 @@ static int __init m0_netst_init_k(void)
 
 	/* set up sys fs entries? */
 
-	/* init main context */
-	rc = m0_net_xprt_init(&m0_net_lnet_xprt);
-	M0_ASSERT(rc == 0);
 	nlx_ping_init();
 
 	if (!client_only) {

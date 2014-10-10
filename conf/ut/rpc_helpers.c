@@ -26,41 +26,14 @@ static struct m0_reqh            g_reqh;
 static struct m0_net_domain      g_net_dom;
 static struct m0_net_buffer_pool g_buf_pool;
 
-static int net_init(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
-{
-	int rc;
-
-	rc = m0_net_xprt_init(xprt);
-	if (rc != 0)
-		return rc;
-
-	rc = m0_net_domain_init(dom, xprt, &m0_addb_proc_ctx);
-	if (rc != 0)
-		m0_net_xprt_fini(xprt);
-	return rc;
-}
-
-static void net_fini(struct m0_net_xprt *xprt, struct m0_net_domain *dom)
-{
-	m0_net_domain_fini(dom);
-	m0_net_xprt_fini(xprt);
-}
-
-static struct m0_net_xprt *net_xprt(const struct m0_rpc_machine *mach)
-{
-	return mach->rm_tm.ntm_dom->nd_xprt;
-}
-
 M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 					struct m0_net_xprt *xprt,
 					const char *ep_addr)
 {
-	enum {
-		NR_TMS = 1,
-	};
+	enum { NR_TMS = 1 };
 	int rc;
 
-	rc = net_init(xprt, &g_net_dom);
+	rc = m0_net_domain_init(&g_net_dom, xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
 		return rc;
 
@@ -73,9 +46,8 @@ M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 		goto net;
 
 	rc = M0_REQH_INIT(&g_reqh,
-			  .rhia_dtm       = (void*)1,
-			  .rhia_db        = NULL,
-			  .rhia_mdstore   = (void*)1);
+			  .rhia_dtm     = (void *)1,
+			  .rhia_mdstore = (void *)1);
 	if (rc != 0)
 		goto buf_pool;
 	m0_reqh_start(&g_reqh);
@@ -85,24 +57,21 @@ M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
 	if (rc == 0) {
-		M0_POST(net_xprt(mach) == xprt);
+		M0_POST(mach->rm_tm.ntm_dom->nd_xprt == xprt);
 		return 0;
 	}
-
 buf_pool:
 	m0_rpc_net_buffer_pool_cleanup(&g_buf_pool);
 net:
-	net_fini(xprt, &g_net_dom);
+	m0_net_domain_fini(&g_net_dom);
 	return rc;
 }
 
 M0_INTERNAL void m0_ut_rpc_machine_stop(struct m0_rpc_machine *mach)
 {
-	struct m0_net_xprt *xprt = net_xprt(mach);
-
 	m0_reqh_services_terminate(&g_reqh);
 	m0_rpc_machine_fini(mach);
 	m0_reqh_fini(&g_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&g_buf_pool);
-	net_fini(xprt, &g_net_dom);
+	m0_net_domain_fini(&g_net_dom);
 }

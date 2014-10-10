@@ -412,9 +412,6 @@ void test_reqh(void)
 
 	M0_UT_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
-	result = m0_net_xprt_init(xprt);
-	M0_UT_ASSERT(result == 0);
-
 	result = m0_net_domain_init(&net_dom, xprt, &m0_addb_proc_ctx);
 	M0_UT_ASSERT(result == 0);
 	result = m0_net_domain_init(&srv_net_dom, xprt, &m0_addb_proc_ctx);
@@ -438,14 +435,11 @@ void test_reqh(void)
 
 	m0_net_domain_fini(&net_dom);
 	m0_net_domain_fini(&srv_net_dom);
-	m0_net_xprt_fini(xprt);
 	m0_stob_io_fop_fini();
 }
 
 struct m0_ut_suite reqh_ut = {
 	.ts_name = "reqh-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
 	.ts_tests = {
 		{ "reqh", test_reqh },
 		{ NULL, NULL }

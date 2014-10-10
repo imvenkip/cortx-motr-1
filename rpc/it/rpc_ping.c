@@ -322,12 +322,12 @@ static int run_client(void)
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size,
 
 	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
-				 sizeof(server_endpoint));
+				 sizeof server_endpoint);
 	if (rc != 0)
 		return rc;
 
 	rc = build_endpoint_addr(EP_CLIENT, client_endpoint,
-				 sizeof(client_endpoint));
+				 sizeof client_endpoint);
 	if (rc != 0)
 		return rc;
 
@@ -338,14 +338,10 @@ static int run_client(void)
 #endif
 	m0_ping_fop_init();
 
-	rc = m0_net_xprt_init(xprt);
-	if (rc != 0)
-		goto fop_fini;
-
 	/** @todo replace &m0_addb_proc_ctx */
 	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
 	if (rc != 0)
-		goto xprt_fini;
+		goto fop_fini;
 
 	rc = m0_rpc_client_start(&cctx);
 	if (rc != 0) {
@@ -383,8 +379,6 @@ static int run_client(void)
 		       100 / M0_TIME_ONE_SECOND);
 net_dom_fini:
 	m0_net_domain_fini(&client_net_dom);
-xprt_fini:
-	m0_net_xprt_fini(xprt);
 fop_fini:
 	m0_ping_fop_fini();
 #ifndef __KERNEL__

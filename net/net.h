@@ -354,20 +354,6 @@ struct m0_net_xprt_ops {
 };
 
 /**
-   Initializes the transport software.
-   A network domain must be initialized to use the transport.
-   @param xprt Tranport pointer.
- */
-int m0_net_xprt_init(struct m0_net_xprt *xprt);
-
-/**
-   Shuts down the transport software.
-   All associated network domains should be cleaned up at this point.
-   @pre Network domains should have been finalized.
-*/
-void m0_net_xprt_fini(struct m0_net_xprt *xprt);
-
-/**
    A collection of network resources.
  */
 struct m0_net_domain {
