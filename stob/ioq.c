@@ -283,6 +283,7 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	}
 	opcode = io->si_opcode == SIO_READ ? IO_CMD_PREADV : IO_CMD_PWRITEV;
 
+	ioq_queue_lock(ioq);
 	while (result == 0) {
 		struct iocb *iocb = &qev->iq_iocb;
 		m0_bindex_t  off = io->si_stob.iv_index[dst.vc_seg] +
@@ -328,17 +329,16 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 			m0_vec_cursor_move(&dst, frag_size);
 			++iov;
 		}
-		M0_LOG(M0_DEBUG, FID_F" %2d: frags=%d op=%d off=%lx sz=%lx",
-		       FID_P(m0_stob_fid_get(io->si_obj)),
+		M0_LOG(M0_DEBUG, FID_F"(%p) %2d: frags=%d op=%d off=%lx sz=%lx"
+				 ": rc = %d",
+		       FID_P(m0_stob_fid_get(io->si_obj)), io,
 		       (int)(qev - lio->si_qev), i, io->si_opcode,
-		       (unsigned long)off, (unsigned long)chunk_size);
+		       (unsigned long)off, (unsigned long)chunk_size, result);
 		if (result == 0) {
 			iocb->u.v.nr = i;
 			qev->iq_nbytes = chunk_size << m0_stob_ioq_bshift(ioq);
 
-			ioq_queue_lock(ioq);
 			ioq_queue_put(ioq, qev);
-			ioq_queue_unlock(ioq);
 
 			frags -= i;
 			if (frags == 0)
@@ -349,10 +349,17 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		}
 	}
 	lio->si_nr = ++qev - lio->si_qev;
+	/* The lock should be held until all 'qev's are pushed into queue and
+	 * the lio->si_nr is correctly updated. When this lock is released,
+	 * these 'qev's may be submitted.
+	 */
+	ioq_queue_unlock(ioq);
 
-	if (result != 0)
+	if (result != 0) {
+		M0_LOG(M0_ERROR, "Launch op=%d io=%p failed: rc=%d",
+				 io->si_opcode, io, result);
 		stob_linux_io_release(lio);
-	else
+	} else
 		ioq_queue_submit(ioq);
 
 	return result;
@@ -542,8 +549,6 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 		M0_LOG(M0_DEBUG, FID_F" nr=%d sz=%lx si_rc=%d",
 		       FID_P(m0_stob_fid_get(io->si_obj)),
 		       done, (unsigned long)bdone, (int)io->si_rc);
-		M0_ASSERT(m0_forall(i, lio->si_nr,
-		          !m0_queue_link_is_in(&lio->si_qev[i].iq_linkage)));
 		io->si_count = bdone >> m0_stob_ioq_bshift(ioq);
 		stob_linux_io_release(lio);
 		io->si_state = SIS_IDLE;

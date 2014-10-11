@@ -180,7 +180,7 @@ static void stob_dev_fini(const struct stobio_test *test)
 	if(strcmp(test->st_dev_path, test_blkdev))
 		return;
 
-	result = system("sleep 1");
+	result = system("sleep 5");
 	M0_UT_ASSERT(result == 0);
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
 	result = system(sysbuf);

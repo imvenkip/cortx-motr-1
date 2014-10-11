@@ -18,6 +18,8 @@
  * Original creation date: 12-Mar-2014
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#include "lib/trace.h"
 #include "stob/io.h"
 
 #include "stob/stob.h"		/* m0_stob_state_get */
@@ -92,8 +94,13 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 		io->si_rc    = 0;
 		io->si_count = 0;
 		result = io->si_op->sio_launch(io);
-		if (result != 0)
+		if (result != 0) {
+			M0_LOG(M0_ERROR, "launch io=%p "FID_F" FAILED rc=%d",
+					 io,
+					 FID_P(m0_stob_fid_get(io->si_obj)),
+					 result);
 			io->si_state = SIS_IDLE;
+		}
 	}
 	M0_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
@@ -176,6 +183,7 @@ M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob)
 #undef SWAP_NEXT
 }
 
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of stob group */
 
