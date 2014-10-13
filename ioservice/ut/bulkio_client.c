@@ -166,7 +166,7 @@ static void bulkclient_test(void)
 	M0_ASSERT(rc == 0);
 
 	xprt = &m0_net_lnet_xprt;
-	rc = m0_net_domain_init(&nd, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&nd, xprt);
 	M0_UT_ASSERT(rc == 0);
 
 	fid.f_container = 1;

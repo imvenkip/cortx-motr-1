@@ -108,8 +108,7 @@ static void test_ep(void)
 	static struct m0_net_end_point *ep3;
 	const char *addr;
 
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt,
-					 &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt));
 	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
 				     &m0_addb_proc_ctx));
 
@@ -289,8 +288,7 @@ static void test_failure(void)
 	static struct m0_net_qstats qs;
 
 	/* setup the first dom */
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt,
-					 &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt));
 	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
 				     &m0_addb_proc_ctx));
 	m0_clink_init(&tmwait1, NULL);
@@ -310,8 +308,7 @@ static void test_failure(void)
 	d1nb2.nb_callbacks = &buf_cbs1;
 
 	/* setup the second dom */
-	M0_UT_ASSERT(!m0_net_domain_init(&dom2, &m0_net_bulk_mem_xprt,
-					 &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom2, &m0_net_bulk_mem_xprt));
 	M0_UT_ASSERT(!m0_net_tm_init(&d2tm1, &dom2, &m0_addb_gmc,
 				     &m0_addb_proc_ctx));
 	/* don't start the TM on port 20 yet */
@@ -789,12 +786,10 @@ static void test_tm(void)
 	struct m0_clink tmwait1;
 
 	/* should be able to init/fini a dom back-to-back */
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt,
-					 &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt));
 	m0_net_domain_fini(&dom1);
 
-	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt,
-					 &m0_addb_proc_ctx));
+	M0_UT_ASSERT(!m0_net_domain_init(&dom1, &m0_net_bulk_mem_xprt));
 	M0_UT_ASSERT(!m0_net_tm_init(&d1tm1, &dom1, &m0_addb_gmc,
 				     &m0_addb_proc_ctx));
 

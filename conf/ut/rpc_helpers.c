@@ -33,7 +33,7 @@ M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 	enum { NR_TMS = 1 };
 	int rc;
 
-	rc = m0_net_domain_init(&g_net_dom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&g_net_dom, xprt);
 	if (rc != 0)
 		return rc;
 

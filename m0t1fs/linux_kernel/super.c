@@ -901,8 +901,7 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb)
 	xprt =  csb->csb_xprt;
 	ndom = &csb->csb_ndom;
 
-	/** @todo replace &m0_addb_proc_ctx */
-	rc = m0_net_domain_init(ndom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(ndom, xprt);
 	if (rc != 0) {
 		csb->csb_laddr = NULL;
 		m0_free(laddr);

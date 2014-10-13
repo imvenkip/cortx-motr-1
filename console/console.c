@@ -319,9 +319,7 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	/** @todo replace m0_addb_proc_ctx */
-	result = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt,
-				    &m0_addb_proc_ctx);
+	result = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt);
 	M0_ASSERT(result == 0);
 
 	/* Init the console members from CLI input */

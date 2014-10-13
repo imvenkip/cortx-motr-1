@@ -350,9 +350,9 @@ int main(int argc, char *argv[])
 			"m0stats:Failed to extract endpoint. rc = %d\n", rc);
 		goto mero_fini_fclose;
 	}
-	cctx.rcx_remote_addr  = epx.ex_endpoint;
+	cctx.rcx_remote_addr = epx.ex_endpoint;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 
 	rc = m0_rpc_client_start(&cctx);

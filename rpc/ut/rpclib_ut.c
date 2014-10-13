@@ -156,7 +156,7 @@ static int test_rpclib_init(void)
 	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
 	/*m0_addb_choose_default_level(AEL_WARN);*/
 
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 	return rc;
 }

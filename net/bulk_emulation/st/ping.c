@@ -795,8 +795,7 @@ int ping_init(struct ping_ctx *ctx)
 
 	m0_list_init(&ctx->pc_work_queue);
 
-	/** @todo replace m0_addb_proc_ctx */
-	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
 	if (rc != 0) {
 		PING_ERR("domain init failed: %d\n", rc);
 		goto fail;

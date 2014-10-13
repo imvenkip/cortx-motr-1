@@ -282,9 +282,7 @@ static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
 	if (ctx->ntc_ep == NULL)
 		goto free_buf_bulk;
 
-	/** @todo replace proc ctx */
-	rc = m0_net_domain_init(ctx->ntc_dom, &m0_net_lnet_xprt,
-				&m0_addb_proc_ctx);
+	rc = m0_net_domain_init(ctx->ntc_dom, &m0_net_lnet_xprt);
 	if (rc != 0)
 		goto free_ep;
 

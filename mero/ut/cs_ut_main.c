@@ -182,7 +182,7 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	M0_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
 	       dbname != NULL && xprt != NULL);
 
-	rc = m0_net_domain_init(&cctx->cl_ndom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&cctx->cl_ndom, xprt);
 	M0_UT_ASSERT(rc == 0);
 
 	cl_ctx = &cctx->cl_ctx;

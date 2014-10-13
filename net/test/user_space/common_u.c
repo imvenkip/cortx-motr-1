@@ -125,8 +125,7 @@ void m0_net_test_u_lnet_info(void)
 	int		      i;
 
 	M0_SET0(&dom);
-	/** @todo replace proc ctx */
-	rc = m0_net_domain_init(&dom, &m0_net_lnet_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&dom, &m0_net_lnet_xprt);
 	M0_ASSERT(rc == 0);
 
 	m0_net_test_u_printf(

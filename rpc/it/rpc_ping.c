@@ -338,8 +338,7 @@ static int run_client(void)
 #endif
 	m0_ping_fop_init();
 
-	/** @todo replace &m0_addb_proc_ctx */
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	if (rc != 0)
 		goto fop_fini;
 

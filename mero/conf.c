@@ -243,8 +243,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 		*(++se) = 0;
 	}
 
-	rc = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt,
-				&m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client_net_dom, &m0_net_lnet_xprt);
 	if (rc != 0)
 		return M0_RC(rc);
 	/*

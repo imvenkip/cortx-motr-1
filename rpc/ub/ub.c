@@ -196,7 +196,7 @@ static void _client_start(struct ub_rpc_client *client, uint32_t cob_dom_id,
 {
 	int rc;
 
-	rc = m0_net_domain_init(&client->rc_net_dom, g_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client->rc_net_dom, g_xprt);
 	M0_ASSERT(rc == 0);
 
 	client->rc_ctx = (struct m0_rpc_client_ctx){

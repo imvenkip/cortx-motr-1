@@ -982,8 +982,7 @@ cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_mero *cctx)
 		goto err;
 	}
 
-	/** @todo replace m0_addb_proc_ctx */
-	rc = m0_net_domain_init(ndom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(ndom, xprt);
 	if (rc != 0)
 		goto err;
 

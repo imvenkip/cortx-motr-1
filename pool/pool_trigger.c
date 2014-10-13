@@ -72,7 +72,7 @@ static int poolmach_client_init(void)
 {
 	int rc;
 
-	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
 	if (rc != 0)
 		return rc;
 

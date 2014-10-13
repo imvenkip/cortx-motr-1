@@ -125,7 +125,7 @@ static int level_net_xprt_enter(struct m0_module *module)
 	struct m0_net_xprt_module *m = M0_AMB(m, module, nx_module);
 
 	M0_PRE(module->m_cur + 1 == M0_LEVEL_NET_DOMAIN);
-	return m0_net_domain_init(&m->nx_domain, m->nx_xprt, &m0_addb_proc_ctx);
+	return m0_net_domain_init(&m->nx_domain, m->nx_xprt);
 }
 
 static void level_net_xprt_leave(struct m0_module *module)

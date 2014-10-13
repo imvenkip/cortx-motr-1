@@ -290,7 +290,7 @@ static void start_rpc_client_and_server(void)
 {
 	int rc;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_server_start(&sctx);
 	M0_ASSERT(rc == 0);

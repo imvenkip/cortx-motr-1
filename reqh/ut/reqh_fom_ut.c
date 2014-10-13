@@ -412,9 +412,9 @@ void test_reqh(void)
 
 	M0_UT_ASSERT(strlen(path) < ARRAY_SIZE(opath) - 8);
 
-	result = m0_net_domain_init(&net_dom, xprt, &m0_addb_proc_ctx);
+	result = m0_net_domain_init(&net_dom, xprt);
 	M0_UT_ASSERT(result == 0);
-	result = m0_net_domain_init(&srv_net_dom, xprt, &m0_addb_proc_ctx);
+	result = m0_net_domain_init(&srv_net_dom, xprt);
 	M0_UT_ASSERT(result == 0);
 
 	server_init(path, SERVER_DB_NAME, &srv_net_dom, back_key, &bdom,

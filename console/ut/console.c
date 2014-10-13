@@ -123,13 +123,7 @@ static int cons_init(void)
 	result = m0_console_fop_init();
         M0_ASSERT(result == 0);
 
-	/*
-	 * There is no need to initialize xprt explicitly if client and server
-	 * run within a single process, because in this case transport is
-	 * initialized by m0_rpc_server_start().
-	 */
-
-	result = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	result = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(result == 0);
 
 	m0_sm_group_init(&cons_mach.rm_sm_grp);

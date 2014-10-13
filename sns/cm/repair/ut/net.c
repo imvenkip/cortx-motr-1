@@ -691,7 +691,7 @@ static void sender_init()
 	       !m0_cm_cp_pump_is_complete(&sender_cm.cm_cp_pump))
                 usleep(200);
 
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_client_start(&cctx);

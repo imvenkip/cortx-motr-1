@@ -233,7 +233,7 @@ static void test_net_tm_prov(void)
 
 	/* initialize the domain */
 	ut_dom_init_called = false;
-	rc = m0_net_domain_init(dom, &ut_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(dom, &ut_xprt);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ut_dom_init_called);
 	M0_UT_ASSERT(dom->nd_xprt == &ut_xprt);

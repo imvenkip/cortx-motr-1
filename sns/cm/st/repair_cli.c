@@ -40,7 +40,7 @@ M0_INTERNAL void repair_client_init(void)
 {
 	int rc;
 
-	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
 	M0_ASSERT(rc == 0);
 
 	cl_ctx.rcx_local_addr  = cl_ep_addr;

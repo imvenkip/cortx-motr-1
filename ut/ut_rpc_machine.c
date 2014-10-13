@@ -39,8 +39,7 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 	int rc;
 
 	ctx->rmc_xprt = &m0_net_lnet_xprt;
-	rc = m0_net_domain_init(&ctx->rmc_net_dom, ctx->rmc_xprt,
-				&m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&ctx->rmc_net_dom, ctx->rmc_xprt);
 	M0_ASSERT(rc == 0);
 
 	ctx->rmc_bufpool.nbp_ops = &buf_ops;

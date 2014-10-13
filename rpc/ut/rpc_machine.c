@@ -42,7 +42,7 @@ static int rpc_mc_ut_init(void)
 	int      rc;
 	uint32_t bufs_nr;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(rc == 0);
 
 	bufs_nr = m0_rpc_bufs_nr(tm_recv_queue_min_len, NR_TMS);

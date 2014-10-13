@@ -1063,8 +1063,7 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 		m0_clink_add_lock(&ctx->pc_net_chan, &ctx->pc_net_clink);
 	}
 
-	/** @todo replace proc ctx */
-	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
 	if (rc != 0) {
 		PING_ERR("domain init failed: %d\n", rc);
 		goto fail;

@@ -389,13 +389,9 @@ struct m0_net_domain {
 
 /**
    Initialises a domain.
-   @param ctx  Parent ADDB context.  The software container context,
-   ::m0_addb_proc_ctx, can be used here if desired.
    @pre dom->nd_xprt == NULL
  */
-int m0_net_domain_init(struct m0_net_domain *dom,
-		       struct m0_net_xprt   *xprt,
-		       struct m0_addb_ctx   *ctx);
+int m0_net_domain_init(struct m0_net_domain *dom, struct m0_net_xprt *xprt);
 
 /**
    Releases resources related to a domain.

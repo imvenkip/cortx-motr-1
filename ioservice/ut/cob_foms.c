@@ -120,7 +120,7 @@ static void cobfoms_utinit(void)
 
 	cut->cu_xprt = &m0_net_lnet_xprt;
 
-	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt, &m0_addb_proc_ctx);
+	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt);
 	M0_UT_ASSERT(rc == 0);
 
 	M0_ALLOC_ARR(cut->cu_stypes, 1);
