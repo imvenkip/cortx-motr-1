@@ -205,6 +205,8 @@ static int server_init(const char             *stob_path,
 
 	rc = m0_stob_find_by_key(*bdom, back_key, &bstore);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_locate(bstore);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_create(bstore, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 
@@ -224,6 +226,8 @@ static int server_init(const char             *stob_path,
 	/* Create or open a stob into which to store the record. */
 	rc = m0_stob_find_by_key(*bdom, rh_addb_stob_key, &*reqh_addb_stob);
 	M0_ASSERT(rc == 0);
+	rc = m0_stob_locate(*reqh_addb_stob);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_create(*reqh_addb_stob, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 

@@ -188,7 +188,7 @@ M0_INTERNAL int m0_stob_lookup_by_key(struct m0_stob_domain *dom,
  * Locates the stob on the storage, fetching its attributes.
  *
  * @pre stob->so_ref > 0
- * @pre state == CSS_UNKNOWN
+ * @pre stob->so_state == CSS_UNKNOWN
  * @post ergo(rc == 0, M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_NOENT)))
  */
 M0_INTERNAL int m0_stob_locate(struct m0_stob *stob);
@@ -201,6 +201,7 @@ M0_INTERNAL void m0_stob_create_credit(struct m0_stob_domain *dom,
  *
  * @param stob Previously allocated in-memory object.
  *
+ * @pre stob->so_state != CSS_UNKNOWN
  * @pre stob->so_ref > 0
  * @post ergo(rc == 0, m0_stob_state_get(stob) == CSS_EXISTS))
  */
@@ -208,12 +209,17 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 			       struct m0_dtx *dtx,
 			       const char *str_cfg);
 
-/** Calculates BE tx credit for m0_stob_destroy(). */
+/**
+ * Calculates BE tx credit for m0_stob_destroy().
+ *
+ * @pre stob->so_state != CSS_UNKNOWN
+ */
 M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
 				       struct m0_be_tx_credit *accum);
 /*
  * Destroys stob.
  *
+ * @pre stob->so_state != CSS_UNKNOWN
  * @pre stob->so_ref == 1
  */
 M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx);

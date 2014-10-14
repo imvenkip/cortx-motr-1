@@ -633,7 +633,8 @@ static void addb_ut_stob(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_find_by_key(dom, stobsink_stob_key, &stob);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_UNKNOWN);
+	rc = m0_stob_locate(stob);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_create(stob, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);

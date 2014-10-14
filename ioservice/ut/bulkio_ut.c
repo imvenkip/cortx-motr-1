@@ -1102,6 +1102,8 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 
 	rc = m0_stob_find(&stob_fid, &fom_obj->fcrw_stob);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_locate(fom_obj->fcrw_stob);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_create(fom_obj->fcrw_stob, &fom->fo_tx, NULL);
         M0_UT_ASSERT(rc == 0);
 

@@ -352,6 +352,8 @@ static int stobio_init(struct stobio_test *test)
 	if (test->st_dev_path != NULL)
 		stob_dev_init(test);
 
+	result = m0_stob_locate(test->st_obj);
+	M0_UT_ASSERT(result == 0);
 	result = m0_ut_stob_create(test->st_obj, test->st_dev_path);
 	M0_UT_ASSERT(result == 0);
 

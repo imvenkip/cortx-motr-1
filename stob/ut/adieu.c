@@ -84,7 +84,8 @@ static int test_adieu_init(const char *location,
 
 	rc = m0_stob_find_by_key(dom, M0_STOB_UT_STOB_KEY, &obj);
 	M0_ASSERT(rc == 0);
-
+	rc = m0_stob_locate(obj);
+	M0_ASSERT(rc == 0);
 	rc = m0_ut_stob_create(obj, stob_cfg);
 	M0_ASSERT(rc == 0);
 

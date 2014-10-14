@@ -237,7 +237,9 @@ M0_INTERNAL int m0_ut_stob_create_by_fid(struct m0_fid *stob_fid,
 
 	rc = m0_stob_find(stob_fid, &stob);
 	if (rc == 0) {
-		rc = m0_ut_stob_create(stob, str_cfg);
+		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
+		     m0_stob_locate(stob) : 0;
+		rc = rc ?: m0_ut_stob_create(stob, str_cfg);
 		m0_stob_put(stob);
 	}
 	return rc;
@@ -250,7 +252,9 @@ M0_INTERNAL int m0_ut_stob_destroy_by_fid(struct m0_fid *stob_fid)
 
 	rc = m0_stob_find(stob_fid, &stob);
 	if (rc == 0) {
-		rc = m0_ut_stob_destroy(stob);
+		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
+		     m0_stob_locate(stob) : 0;
+		rc = rc ?: m0_ut_stob_destroy(stob);
 		if (rc != 0)
 			m0_stob_put(stob);
 	}

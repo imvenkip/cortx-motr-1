@@ -175,6 +175,8 @@ static int test_ad_init(void)
 
 	rc = m0_stob_find_by_key(dom_back, 0xba5e, &obj_back);
 	M0_ASSERT(rc == 0);
+	rc = m0_stob_locate(obj_back);
+	M0_ASSERT(rc == 0);
 	rc = m0_ut_stob_create(obj_back, NULL);
 	M0_ASSERT(rc == 0);
 
@@ -187,6 +189,8 @@ static int test_ad_init(void)
 	m0_free(dom_cfg);
 
 	rc = m0_stob_find_by_key(dom_fore, 0xd15c, &obj_fore);
+	M0_ASSERT(rc == 0);
+	rc = m0_stob_locate(obj_fore);
 	M0_ASSERT(rc == 0);
 	rc = m0_ut_stob_create(obj_fore, NULL);
 	M0_ASSERT(rc == 0);
