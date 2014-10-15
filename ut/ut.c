@@ -156,8 +156,8 @@ static void set_enabled_flag_to(bool value)
 	}
 }
 
-static int set_enabled_flag_for(const char *s_name, const char *t_name,
-				bool value)
+static void
+set_enabled_flag_for(const char *s_name, const char *t_name, bool value)
 {
 	struct m0_ut_suite *s;
 	struct m0_ut       *t;
@@ -165,24 +165,17 @@ static int set_enabled_flag_for(const char *s_name, const char *t_name,
 	M0_PRE(s_name != NULL);
 
 	s = suite_find(s_name);
-	if (s == NULL)
-		return M0_ERR(-ENOENT, "Unit-test suite '%s' not found!", s_name);
+	M0_ASSERT(s != NULL); /* ensured by parse_test_list() */
 	s->ts_enabled = value;
 
-	/* enable all tests in a suite, if no particular test requested */
 	if (t_name == NULL) {
 		for (t = s->ts_tests; t->t_name != NULL; ++t)
 			t->t_enabled = value;
-		return 0;
+	} else {
+		t = get_test_by_name(s_name, t_name);
+		M0_ASSERT(t != NULL); /* ensured by parse_test_list() */
+		t->t_enabled = value;
 	}
-
-	t = get_test_by_name(s_name, t_name);
-	if (t == NULL)
-		return M0_ERR(-ENOENT, "Unit-test '%s:%s' not found!",
-			      s_name, t_name);
-	t->t_enabled  = value;
-
-	return 0;
 }
 
 static bool exists(const char *s_name, const char *t_name)
@@ -202,12 +195,43 @@ static bool exists(const char *s_name, const char *t_name)
 
 	/* got here? then need to check test existence */
 	t = get_test_by_name(s_name, t_name);
-	if (t != NULL) {
-		return true;
-	} else {
+	if (t == NULL) {
 		M0_LOG(M0_ERROR, "Unit-test '%s:%s' not found!", s_name, t_name);
 		return false;
 	}
+	return true;
+}
+
+static int test_add(struct m0_list *list, const char *suite, const char *test)
+{
+	struct m0_ut_entry *e;
+	int                 rc = -ENOMEM;
+
+	M0_PRE(suite != NULL);
+
+	M0_ALLOC_PTR(e);
+	if (e == NULL)
+		return -ENOMEM;
+
+	e->ue_suite_name = m0_strdup(suite);
+	if (e->ue_suite_name == NULL)
+		goto err;
+
+	if (test != NULL) {
+		e->ue_test_name = m0_strdup(test);
+		if (e->ue_test_name == NULL)
+			goto err;
+	}
+
+	if (exists(e->ue_suite_name, e->ue_test_name)) {
+		m0_list_link_init(&e->ue_linkage);
+		m0_list_add_tail(list, &e->ue_linkage);
+		return 0;
+	}
+	rc = -ENOENT;
+err:
+	m0_free(e);
+	return rc;
 }
 
 /*
@@ -223,7 +247,7 @@ static int parse_test_list(const char *str, struct m0_list *list)
 	char *p;
 	char *token;
 	char *subtoken;
-	struct m0_ut_entry *ts_entry;
+	int   rc = 0;
 
 	if (str == NULL)
 		return 0;
@@ -242,23 +266,13 @@ static int parse_test_list(const char *str, struct m0_list *list)
 		if (subtoken != NULL)
 			*subtoken++ = '\0';
 
-		M0_ALLOC_PTR(ts_entry);
-		if (ts_entry == NULL) {
-			m0_free(s);
-			return -ENOMEM;
-		}
-
-		ts_entry->ue_suite_name = m0_strdup(token);
-		/* subtoken can be NULL if no test was specified */
-		ts_entry->ue_test_name = subtoken == NULL ? subtoken :
-							    m0_strdup(subtoken);
-
-		m0_list_link_init(&ts_entry->ue_linkage);
-		m0_list_add_tail(list, &ts_entry->ue_linkage);
+		rc = test_add(list, token, subtoken);
+		if (rc != 0)
+			break;
 	}
 
 	m0_free(s);
-	return 0;
+	return rc;
 }
 
 static int disable_suites(const char *disablelist_str)
@@ -269,20 +283,19 @@ static int disable_suites(const char *disablelist_str)
 	m0_list_init(&disable_list);
 
 	rc = parse_test_list(disablelist_str, &disable_list);
-	if (rc != 0)
-		return rc;
-
-	m0_list_entry_forall( e, &disable_list, struct m0_ut_entry, ue_linkage,
-		(rc = set_enabled_flag_for(e->ue_suite_name, e->ue_test_name,
-					   false)) == 0; );
-
+	if (rc == 0) {
+		m0_list_entry_forall(
+			e, &disable_list, struct m0_ut_entry, ue_linkage,
+			set_enabled_flag_for(e->ue_suite_name, e->ue_test_name,
+					     false);
+			true; );
+	}
 	m0_list_entry_forall( e, &disable_list, struct m0_ut_entry, ue_linkage,
 		m0_list_del(&e->ue_linkage);
 		m0_free((char*)e->ue_suite_name);
 		m0_free((char*)e->ue_test_name);
 		m0_free(e);
 		true; );
-
 	m0_list_fini(&disable_list);
 	return rc;
 }
@@ -426,29 +439,22 @@ static int run_selected(const char *runlist_str)
 	struct m0_list            run_list;
 	const struct m0_ut_suite *suite;
 	const struct m0_ut       *test;
-
-	int rc = 0;
+	int                       rc = 0;
 
 	m0_list_init(&run_list);
 
 	rc = parse_test_list(runlist_str, &run_list);
 	if (rc != 0)
-		return rc;
-
-	/* check that each suite/test in run_list really exists */
-	rc = m0_list_entry_forall( e, &run_list, struct m0_ut_entry, ue_linkage,
-		exists(e->ue_suite_name, e->ue_test_name); );
-	if (!rc) {
-		rc = -ENOENT;
 		goto out;
-	}
 
 	m0_list_entry_forall( e, &run_list, struct m0_ut_entry, ue_linkage,
 		if (e->ue_test_name == NULL) {
 			suite = suite_find(e->ue_suite_name);
-			rc = run_suite(suite, false, get_max_test_name_len(suite));
+			rc = run_suite(suite, false,
+				       get_max_test_name_len(suite));
 		} else {
-			test = get_test_by_name(e->ue_suite_name, e->ue_test_name);
+			test = get_test_by_name(e->ue_suite_name,
+						e->ue_test_name);
 			run_test(test, false, 0);
 			rc = 0;
 		}

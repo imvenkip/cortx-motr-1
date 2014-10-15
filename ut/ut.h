@@ -229,8 +229,5 @@ M0_INTERNAL void m0_stream_restore(const struct m0_ut_redirect *redir);
 M0_INTERNAL bool m0_error_mesg_match(FILE * fp, const char *mesg);
 #endif
 
-/**
-   @} ut end group
-*/
-
+/** @} ut end group */
 #endif /* __MERO_UT_UT_H__ */
