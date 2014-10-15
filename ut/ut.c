@@ -165,7 +165,7 @@ set_enabled_flag_for(const char *s_name, const char *t_name, bool value)
 	M0_PRE(s_name != NULL);
 
 	s = suite_find(s_name);
-	M0_ASSERT(s != NULL); /* ensured by parse_test_list() */
+	M0_ASSERT(s != NULL); /* ensured by test_list_populate() */
 	s->ts_enabled = value;
 
 	if (t_name == NULL) {
@@ -173,7 +173,7 @@ set_enabled_flag_for(const char *s_name, const char *t_name, bool value)
 			t->t_enabled = value;
 	} else {
 		t = get_test_by_name(s_name, t_name);
-		M0_ASSERT(t != NULL); /* ensured by parse_test_list() */
+		M0_ASSERT(t != NULL); /* ensured by test_list_populate() */
 		t->t_enabled = value;
 	}
 }
@@ -234,14 +234,14 @@ err:
 	return rc;
 }
 
-/*
- * Populates a list of m0_ut_entry elements, by parsing input string,
+/**
+ * Populates a list of m0_ut_entry elements by parsing input string,
  * which should conform with the format 'suite[:test][,suite[:test]]'.
  *
  * @param  str   input string.
- * @param  list  initialized and empty m0_list.
+ * @param  list  initialised and empty m0_list.
  */
-static int parse_test_list(const char *str, struct m0_list *list)
+static int test_list_populate(struct m0_list *list, const char *str)
 {
 	char *s;
 	char *p;
@@ -270,34 +270,48 @@ static int parse_test_list(const char *str, struct m0_list *list)
 		if (rc != 0)
 			break;
 	}
-
 	m0_free(s);
+	return rc;
+}
+
+static void test_list_fini(struct m0_list *list)
+{
+	m0_list_entry_forall(e, list, struct m0_ut_entry, ue_linkage,
+			     m0_list_del(&e->ue_linkage);
+			     m0_free((char *)e->ue_suite_name);
+			     m0_free((char *)e->ue_test_name);
+			     m0_free(e);
+			     true;);
+	m0_list_fini(list);
+}
+
+static int test_list_init(struct m0_list *list, const char *str)
+{
+	int rc;
+
+	m0_list_init(list);
+
+	rc = test_list_populate(list, str);
+	if (rc != 0)
+		test_list_fini(list);
 	return rc;
 }
 
 static int disable_suites(const char *disablelist_str)
 {
 	struct m0_list disable_list;
-	int            rc = 0;
+	int            rc;
 
-	m0_list_init(&disable_list);
+	rc = test_list_init(&disable_list, disablelist_str);
+	if (rc != 0)
+		return rc;
 
-	rc = parse_test_list(disablelist_str, &disable_list);
-	if (rc == 0) {
-		m0_list_entry_forall(
-			e, &disable_list, struct m0_ut_entry, ue_linkage,
-			set_enabled_flag_for(e->ue_suite_name, e->ue_test_name,
-					     false);
-			true; );
-	}
-	m0_list_entry_forall( e, &disable_list, struct m0_ut_entry, ue_linkage,
-		m0_list_del(&e->ue_linkage);
-		m0_free((char*)e->ue_suite_name);
-		m0_free((char*)e->ue_test_name);
-		m0_free(e);
-		true; );
-	m0_list_fini(&disable_list);
-	return rc;
+	m0_list_entry_forall(e, &disable_list, struct m0_ut_entry, ue_linkage,
+			     set_enabled_flag_for(e->ue_suite_name,
+						  e->ue_test_name, false);
+			     true;);
+	test_list_fini(&disable_list);
+	return 0;
 }
 
 static inline const char *skipspaces(const char *str)
@@ -441,11 +455,9 @@ static int run_selected(const char *runlist_str)
 	const struct m0_ut       *test;
 	int                       rc = 0;
 
-	m0_list_init(&run_list);
-
-	rc = parse_test_list(runlist_str, &run_list);
+	rc = test_list_init(&run_list, runlist_str);
 	if (rc != 0)
-		goto out;
+		return rc;
 
 	m0_list_entry_forall( e, &run_list, struct m0_ut_entry, ue_linkage,
 		if (e->ue_test_name == NULL) {
@@ -460,14 +472,7 @@ static int run_selected(const char *runlist_str)
 		}
 		rc == 0;
 	);
-out:
-	m0_list_entry_forall( e, &run_list, struct m0_ut_entry, ue_linkage,
-		m0_list_del(&e->ue_linkage);
-		m0_free((char*)e->ue_suite_name);
-		m0_free((char*)e->ue_test_name);
-		m0_free(e);
-		true; );
-	m0_list_fini(&run_list);
+	test_list_fini(&run_list);
 	return rc;
 }
 
