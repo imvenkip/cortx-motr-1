@@ -206,13 +206,6 @@ M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain *dom,
-				      struct m0_indexvec *iv,
-				      struct m0_be_tx_credit *accum)
-{
-	dom->sd_ops->sdo_stob_write_credit(dom, iv, accum);
-}
-
 M0_INTERNAL uint64_t m0_stob_dom_id_get(struct m0_stob *stob)
 {
 	return m0_stob_fid_dom_id_get(m0_stob_fid_get(stob));

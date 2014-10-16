@@ -270,7 +270,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 		m0_dtx_init(tx, &ut_be.but_dom, grp);
 		is_local_tx = true;
 	}
-	m0_stob_write_credit(dom_fore, &io.si_stob, &tx->tx_betx_cred);
+	m0_stob_io_credit(dom_fore, &io, &tx->tx_betx_cred);
 
 	rc = m0_dtx_open_sync(tx);
 	M0_ASSERT(rc == 0);

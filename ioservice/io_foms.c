@@ -1621,7 +1621,7 @@ static int io_launch(struct m0_fom *fom)
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 	M0_ASSERT(fom_obj->fcrw_num_stobio_launched == 0);
-	M0_ASSERT(fom_obj->fcrw_ivec.iv_vec.v_nr > 0);
+	M0_ASSERT(fom_obj->fcrw_io.si_stob.iv_vec.v_nr > 0);
 
 	fom_obj->fcrw_phase_start_time = m0_time_now();
 
@@ -1685,7 +1685,7 @@ static int io_launch(struct m0_fom *fom)
 		mem_ivec  = &stio->si_stob;
 		todo = rwfop->crw_desc.id_descs[index++].bdd_used >>
 			fom_obj->fcrw_bshift;
-		rc = m0_indexvec_split(&fom_obj->fcrw_ivec,
+		rc = m0_indexvec_split(&fom_obj->fcrw_io.si_stob,
 				       fom_obj->fcrw_curr_size, todo,
 				       /* fom_obj->fcrw_bshift */ 0,
 				       &fom->fo_addb_ctx,
@@ -1898,7 +1898,7 @@ static int indexvec_wire2mem(struct m0_fom *fom, uint32_t bshift)
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 
 	rwfop = io_rw_get(fom->fo_fop);
-	iv = &fom_obj->fcrw_ivec;
+	iv = &fom_obj->fcrw_io.si_stob;
 	fom_obj->fcrw_bshift = bshift;
 
 	max_frags_nr = rwfop->crw_ivec.ci_nr;
@@ -1939,9 +1939,11 @@ static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
 
 	indexvec_wire2mem(fom, m0_stob_block_shift(fom_obj->fcrw_stob));
 
-	if (is_op_write)
-		m0_stob_write_credit(fom_stdom, &fom_obj->fcrw_ivec,
-				     m0_fom_tx_credit(fom));
+	if (is_op_write) {
+		fom_obj->fcrw_io.si_opcode = SIO_WRITE;
+		m0_stob_io_credit(fom_stdom, &fom_obj->fcrw_io,
+				  m0_fom_tx_credit(fom));
+	}
 
 	m0_stob_put(fom_obj->fcrw_stob);
 }
@@ -2066,8 +2068,8 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	m0_tl_teardown(stobio, &fom_obj->fcrw_done_list, stio_desc)
 		stio_desc_fini(stio_desc);
 
-	if (fom_obj->fcrw_ivec.iv_vec.v_nr > 0)
-		m0_indexvec_free(&fom_obj->fcrw_ivec);
+	if (fom_obj->fcrw_io.si_stob.iv_vec.v_nr > 0)
+		m0_indexvec_free(&fom_obj->fcrw_io.si_stob);
 
 	stobio_tlist_fini(&fom_obj->fcrw_done_list);
 	stobio_tlist_fini(&fom_obj->fcrw_stio_list);

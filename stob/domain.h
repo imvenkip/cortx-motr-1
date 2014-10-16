@@ -37,6 +37,7 @@
 struct m0_stob_type;
 struct m0_stob_domain_ops;
 struct m0_stob;
+struct m0_stob_io;
 struct m0_be_tx_credit;
 struct m0_fid;
 struct m0_dtx;
@@ -135,9 +136,9 @@ struct m0_stob_domain_ops {
 			       struct m0_dtx *dtx,
 			       uint64_t stob_key,
 			       void *cfg);
-	/** @see m0_stob_write_credit() */
-	void (*sdo_stob_write_credit)(struct m0_stob_domain *dom,
-				      struct m0_indexvec *iv,
+	/** @see m0_stob_io_credit() */
+	void (*sdo_stob_write_credit)(const struct m0_stob_domain *dom,
+				      const struct m0_stob_io *io,
 				      struct m0_be_tx_credit *accum);
 };
 

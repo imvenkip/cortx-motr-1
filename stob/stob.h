@@ -224,11 +224,6 @@ M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
  */
 M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx);
 
-/** Calculates BE tx credit for write operation. */
-M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain *dom,
-				      struct m0_indexvec *iv,
-				      struct m0_be_tx_credit *accum);
-
 /**
  * Returns a power of two, which determines alignment required for the user
  * buffers of stob IO requests against this object and IO granularity.

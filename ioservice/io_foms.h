@@ -192,7 +192,7 @@ struct m0_io_fom_cob_rw {
 	 * Summary index vector representing the extent information
 	 * for the IO request. Used for BE-credit calculation.
 	 */
-	struct m0_indexvec               fcrw_ivec;
+	struct m0_stob_io                fcrw_io;
 
         /** Number of STOB I/O launched */
         uint32_t                         fcrw_num_stobio_launched;

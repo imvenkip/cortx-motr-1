@@ -453,8 +453,8 @@ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 	return rc;
 }
 
-static void stob_linux_write_credit(struct m0_stob_domain *dom,
-				    struct m0_indexvec *iv,
+static void stob_linux_write_credit(const struct m0_stob_domain *dom,
+				    const struct m0_stob_io *io,
 				    struct m0_be_tx_credit *accum)
 {
 }

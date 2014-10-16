@@ -212,6 +212,10 @@
    @{
  */
 
+struct m0_stob;
+struct m0_stob_domain;
+struct m0_be_tx_credit;
+
 /**
    Type of a storage object IO operation.
 
@@ -416,6 +420,18 @@ M0_INTERNAL void m0_stob_io_init(struct m0_stob_io *io);
    @pre io->si_state == SIS_IDLE
  */
 M0_INTERNAL void m0_stob_io_fini(struct m0_stob_io *io);
+
+/**
+   Calculates BE tx credit for stob I/O operation.
+
+   @param io Defines operation. Only some fields should be filled. At least
+   m0_stob_io::si_opcode, m0_stob_io::si_flags and m0_stob_io::si_stob.
+
+   @note Only SIO_WRITE opcode is supported at the moment.
+ */
+M0_INTERNAL void m0_stob_io_credit(const struct m0_stob_domain *dom,
+				   const struct m0_stob_io *io,
+				   struct m0_be_tx_credit *accum);
 
 /**
    @pre obj->so_state == CSS_EXISTS

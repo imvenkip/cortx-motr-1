@@ -100,9 +100,9 @@ static struct m0_stob_domain_ops stob_ad_domain_ops;
 static struct m0_stob_ops stob_ad_ops;
 
 static int stob_ad_io_init(struct m0_stob *stob, struct m0_stob_io *io);
-static void stob_ad_write_credit(struct m0_stob_domain  *dom,
-				 struct m0_indexvec     *iv,
-				 struct m0_be_tx_credit *accum);
+static void stob_ad_write_credit(const struct m0_stob_domain *dom,
+				 const struct m0_stob_io     *iv,
+				 struct m0_be_tx_credit      *accum);
 static void
 stob_ad_rec_frag_undo_redo_op_cred(const struct m0_fol_frag *frag,
 				   struct m0_be_tx_credit       *accum);
@@ -182,12 +182,13 @@ struct m0_be_0type m0_stob_ad_0type = {
 	.b0_fini = stob_ad_0type_fini
 };
 
-static struct m0_stob_ad_domain *stob_ad_domain2ad(struct m0_stob_domain *dom)
+static struct m0_stob_ad_domain *
+stob_ad_domain2ad(const struct m0_stob_domain *dom)
 {
 	return container_of(dom, struct m0_stob_ad_domain, sad_base);
 }
 
-static struct m0_stob_ad *stob_ad_stob2ad(struct m0_stob *stob)
+static struct m0_stob_ad *stob_ad_stob2ad(const struct m0_stob *stob)
 {
 	return container_of(stob, struct m0_stob_ad, ad_stob);
 }
@@ -941,12 +942,14 @@ static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 	return frags;
 }
 
-static void stob_ad_write_credit(struct m0_stob_domain  *dom,
-				 struct m0_indexvec     *iv,
-				 struct m0_be_tx_credit *accum)
+static void stob_ad_write_credit(const struct m0_stob_domain *dom,
+				 const struct m0_stob_io     *io,
+				 struct m0_be_tx_credit      *accum)
 {
 	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
 	struct m0_ad_balloc      *ballroom = adom->sad_ballroom;
+	/* XXX discard const, because stob_ad_write_map_count() changes iv */
+	struct m0_indexvec       *iv = (struct m0_indexvec *) &io->si_stob;
 	int                       blocks;
 	int                       bfrags;
 	int                       frags;
@@ -963,7 +966,7 @@ static void stob_ad_write_credit(struct m0_stob_domain  *dom,
 	if (ballroom->ab_ops->bo_free_credit != NULL)
 		ballroom->ab_ops->bo_free_credit(ballroom, 3, accum);
 #endif
-	m0_stob_write_credit(m0_stob_dom_get(adom->sad_bstore), iv, accum);
+	m0_stob_io_credit(m0_stob_dom_get(adom->sad_bstore), io, accum);
 }
 
 /**
