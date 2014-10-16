@@ -59,31 +59,6 @@ static const char sys_kern_randvspace_fname[] =
 
 static bool use_mmaped_buffer = true;
 
-static M0_UNUSED int randvspace_check()
-{
-	int   val;
-	int   result;
-	FILE *f;
-
-	if ((f = fopen(sys_kern_randvspace_fname, "r")) == NULL) {
-		warn("open(\"%s\")", sys_kern_randvspace_fname);
-		result = -errno;
-	} else if (fscanf(f, "%d", &val) != 1) {
-		warnx("fscanf(\"%s\")", sys_kern_randvspace_fname);
-		result = -EINVAL;
-	} else if (val != 0) {
-		warnx("System configuration ERROR: "
-		      "kernel.randomize_va_space should be set to 0.");
-		result = -EINVAL;
-	} else
-		result = 0;
-
-	if (f != NULL)
-		fclose(f);
-
-	return result;
-}
-
 static int logbuf_map(uint32_t logbuf_size)
 {
 	char     buf[80];
@@ -184,17 +159,6 @@ M0_INTERNAL int m0_arch_trace_init(uint32_t logbuf_size)
 		return rc;
 
 	setlinebuf(stdout);
-
-	/*
-	 * we don't need this check since m0_trace_parse() doesn't depend on
-	 * libmero.so to be loaded at the same address for process, which
-	 * produce and parse trace log, because now it's capable to calculate a
-	 * correct offset for trace descriptors
-	 */
-	/*rc = randvspace_check();*/
-	/*if (rc != 0)*/
-		/*return rc;*/
-
 	return m0_trace_use_mmapped_buffer() ? logbuf_map(logbuf_size) : 0;
 }
 
