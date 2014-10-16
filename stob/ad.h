@@ -104,6 +104,7 @@ struct m0_stob_ad_domain {
 	m0_bcount_t            sad_res_groups;
 	struct m0_be_seg      *sad_be_seg;
 	char                   sad_path[MAXPATHLEN];
+	bool                   sad_overwrite;
 };
 
 /**
@@ -118,7 +119,6 @@ struct m0_stob_ad_op_it {
 struct m0_stob_ad {
 	struct m0_stob          ad_stob;
 	struct m0_stob_ad_op_it ad_op_it;
-	bool                    ad_overwrite;
 };
 
 struct m0_stob_ad_io {
