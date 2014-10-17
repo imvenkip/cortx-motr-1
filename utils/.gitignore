@@ -1,7 +1,7 @@
 /modload-all.sh
 /chs_test
 /ff2c
-/lut_helper
+/m0kut-helper
 /m0addbdump
 /m0bulkping
 /m0console
@@ -22,5 +22,6 @@
 /m0tracedump
 /m0ub
 /m0ut
+/m0kut
 /net_test
 /server

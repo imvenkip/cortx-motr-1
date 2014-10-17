@@ -23,4 +23,6 @@ ut_libmero_ut_la_SOURCES += ut/ast_thread.c \
 
 XC_FILES   += ut/cs_fop_xc.h
 
-EXTRA_DIST += ut/linux_kernel/ut.c
+EXTRA_DIST += ut/linux_kernel/ut.c \
+              ut/linux_kernel/m0ut_main.c \
+              ut/m0kut

@@ -699,7 +699,6 @@ AC_CONFIG_FILES([net/test/st/st-config.sh], [chmod +x net/test/st/st-config.sh])
 AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-config.sh])
 AC_CONFIG_FILES([utils/mkfs/m0mkfs.sh], [chmod +x utils/mkfs/m0mkfs.sh])
 AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
-AC_CONFIG_FILES([utils/linux_kernel/ut.sh], [chmod +x utils/linux_kernel/ut.sh])
 
 AC_CONFIG_SUBDIRS([extra-libs/galois])
 

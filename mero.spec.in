@@ -122,3 +122,6 @@ fi || true
 %postun
 /sbin/depmod -a
 /sbin/initctl reload-configuration
+
+# always build debuginfo package
+%debug_package

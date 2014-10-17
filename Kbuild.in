@@ -20,7 +20,7 @@ obj-m := mero/m0mero.o
 
 else ifdef M0_BUILD_KERNEL_UT_ONLY
 
-obj-m := utils/linux_kernel/m0ut.o
+obj-m := ut/linux_kernel/m0ut.o
 obj-m += m0t1fs/linux_kernel/m0loop-ut.o
 
 else
@@ -36,7 +36,7 @@ obj-m += mero/m0ctl.o
 
 # these modules are built unless '--disable-unit-tests' option of ./configure
 # script is used
-obj-$(enable_test_modules) += utils/linux_kernel/m0ut.o
+obj-$(enable_test_modules) += ut/linux_kernel/m0ut.o
 obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
 obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
 obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
@@ -96,16 +96,16 @@ include $(src)/xcode/Kbuild.sub
 # including .c files to access their static functions, we need to filter out the
 # original objects to avoid link time errors because of duplicate symbols
 
-utils/linux_kernel/m0ut-y = utils/linux_kernel/m0ut_main.o \
-                            $(m0ut_objects) \
-                            $(filter-out addb/addb.o \
-                                         file/di.o \
-                                         m0t1fs/linux_kernel/file.o \
-                                         net/bulk_emulation/mem_xprt_xo.o \
-                                         net/lnet/lnet_main.o \
-                                         rm/rm_fops.o \
-                                         rm/rm_foms.o \
-                              , $(m0mero_objects))
+ut/linux_kernel/m0ut-y = ut/linux_kernel/m0ut_main.o \
+                         $(m0ut_objects) \
+                         $(filter-out addb/addb.o \
+                                      file/di.o \
+                                      m0t1fs/linux_kernel/file.o \
+                                      net/bulk_emulation/mem_xprt_xo.o \
+                                      net/lnet/lnet_main.o \
+                                      rm/rm_fops.o \
+                                      rm/rm_foms.o \
+                           , $(m0mero_objects))
 
 m0ut_objects :=
 

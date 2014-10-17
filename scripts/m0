@@ -58,7 +58,7 @@ run_ut()  { run_init; $SUDO "$SRC/utils/m0run" m0ut -- "$@"; }
 run_kut() {
     run_init
     echo 'Running kernel UT (this may take a while) ...'
-    $SUDO "$SRC/utils/linux_kernel/ut.sh"
+    $SUDO "$SRC/ut/m0kut"
 }
 
 run_st() {

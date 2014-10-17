@@ -404,11 +404,11 @@ desim_ut_m0t1fs_test_LDADD     = $(top_builddir)/mero/libmero.la \
 #
 
 if ENABLE_UNIT_TESTS
-noinst_PROGRAMS                 += net/lnet/ut/lut_helper
+bin_PROGRAMS                      += net/lnet/ut/m0kut-helper
 endif
-net_lnet_ut_lut_helper_CPPFLAGS  = -DM0_TARGET='lut_helper' $(AM_CPPFLAGS)
-net_lnet_ut_lut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
-                                   $(top_builddir)/ut/libmero-ut.la
+net_lnet_ut_m0kut_helper_CPPFLAGS  = -DM0_TARGET='m0kut-helper' $(AM_CPPFLAGS)
+net_lnet_ut_m0kut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
+                                     $(top_builddir)/ut/libmero-ut.la
 
 #
 # ut/m0ut and ut/m0ub
@@ -576,6 +576,7 @@ endif
 
 sbin_SCRIPTS  += utils/m0gendisks
 sbin_SCRIPTS  += utils/m0run
+bin_SCRIPTS   += ut/m0kut
 
 #
 # m0t1fs/linux_kernel/st
@@ -826,7 +827,7 @@ all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/check-sources $(top_srcdir)
 	@$(top_srcdir)/scripts/check-public-api
 	@$(top_srcdir)/scripts/print-elf-sizes
-	@$(LN_S) -f $(PROGRAMS:%=../%) utils/
+	@$(LN_S) -f $(PROGRAMS:%=../%) ../ut/m0kut utils/
 
 .PHONY: check-sources-postbuild
 check-sources-postbuild:
@@ -939,7 +940,7 @@ clean-local: clean-kernel-modules clean-doc
 	@rm -vf $(XC_CLEAN_FILE)
 	@rm -vf $(FF_CLEAN_FILE)
 	@rm -vf m0.trace.*
-	@for p in $(PROGRAMS); do \
+	@for p in $(PROGRAMS) m0kut; do \
 		rm -fv utils/$$(basename $$p); \
 	done
 	@if test x@ENABLE_COVERAGE@ = xyes; then \
