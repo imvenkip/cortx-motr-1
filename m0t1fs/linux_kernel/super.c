@@ -1091,6 +1091,8 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	M0_ENTRY();
 
 	m0_rpc_machine_fini(&csb->csb_rpc_machine);
+	if (m0_reqh_state_get(&csb->csb_reqh) != M0_REQH_ST_STOPPED)
+		m0_reqh_services_terminate(&csb->csb_reqh);
 	m0_reqh_fini(&csb->csb_reqh);
 	m0_dbenv_fini(&csb->csb_dbenv);
 	m0_rpc_net_buffer_pool_cleanup(&csb->csb_buffer_pool);
