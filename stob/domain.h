@@ -59,8 +59,10 @@ struct m0_indexvec;
  * Maintenance of stob domain lifetime is responsibility of user.
  *
  * Domain id consists of 2 values:
- *     @li 8 bits of stob type id;
- *     @li 56 bits of domain key.
+ *
+ *     - 8 bits of stob type id;
+ *
+ *     - 56 bits of domain key.
  *
  * <b>Stob cache</b>.
  *

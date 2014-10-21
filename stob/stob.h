@@ -95,14 +95,14 @@ enum m0_stob_state {
  *
  * m0_stob serves multiple purposes:
  *
- * @li it acts as a placeholder in storage object identifiers name-space. For
- * example, locks can be taken on it;
+ *     - it acts as a placeholder in storage object identifiers name-space. For
+ *       example, locks can be taken on it;
  *
- * @li it acts as a handle for the underlying storage object. IO and meta-data
- * operations can be directed to the storage object by calling functions on
- * m0_stob;
+ *     - it acts as a handle for the underlying storage object. IO and meta-data
+ *       operations can be directed to the storage object by calling functions
+ *       on m0_stob;
  *
- * @li it caches certain storage object attributes in memory.
+ *     - it caches certain storage object attributes in memory.
  *
  * Accordingly, m0_stob can be in one of the states described by enum
  * m0_stob_state. Compare these m0_stob roles with the socket interface (bind,
@@ -117,8 +117,10 @@ enum m0_stob_state {
  * Stob id is unique within a domain but not across cluster.
  * User chooses ids and is responsible for the uniqeness within their domain.
  * Stob id is represented by m0_fid and consists of:
- *     @li Stob domain id;
- *     @li Stob key.
+ *
+ *     - Stob domain id;
+ *
+ *     - Stob key.
  *
  * <b>Reference counting semantics</b>.
  *

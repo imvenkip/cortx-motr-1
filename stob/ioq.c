@@ -64,18 +64,19 @@
    created for each storage object domain. These threads are implementing
    admission control and completion notification, they
 
-   @li listen for the AIO completion events on the in the ring buffer. When AIO
-   is completed, worker thread signals completion event to AIO users;
+       - listen for the AIO completion events on the in the ring buffer. When
+         AIO is completed, worker thread signals completion event to AIO users;
 
-   @li when space becomes available in the ring buffer, a worker thread moves
-   some number of pending fragments from the admission queue to the ring buffer.
+       - when space becomes available in the ring buffer, a worker thread moves
+         some number of pending fragments from the admission queue to the ring
+         buffer.
 
    Admission queue separate from the ring buffer is needed to
 
-   @li be able to handle more pending fragments than a kernel can support and
+       - be able to handle more pending fragments than a kernel can support and
 
-   @li potentially do some pre-processing on the pending fragments (like
-   elevator does).
+       - potentially do some pre-processing on the pending fragments (like
+         elevator does).
 
    <b>Concurrency control</b>
 
@@ -223,11 +224,11 @@ static void stob_linux_io_fini(struct m0_stob_io *io)
 /**
    Launch asynchronous IO.
 
-   @li calculate how many fragments IO operation has;
+   - calculate how many fragments IO operation has;
 
-   @li allocate ioq_qev array and fill it with fragments;
+   - allocate ioq_qev array and fill it with fragments;
 
-   @li queue all fragments and submit as many as possible;
+   - queue all fragments and submit as many as possible;
  */
 static int stob_linux_io_launch(struct m0_stob_io *io)
 {

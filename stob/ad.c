@@ -1059,14 +1059,14 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 
    This is done in two passes:
 
-   @li first, calculate number of fragments, taking holes into account. This
-   pass iterates over user buffers list (src), target extents list (dst) and
-   extents map (map). Once this pass is completed, back IO vectors can be
-   allocated;
+       - first, calculate number of fragments, taking holes into account. This
+         pass iterates over user buffers list (src), target extents list (dst)
+         and extents map (map). Once this pass is completed, back IO vectors can
+         be allocated;
 
-   @li then, iterate over the same sequences again. For holes, call memset()
-   immediately, for other fragments, fill back IO vectors with the fragment
-   description.
+       - then, iterate over the same sequences again. For holes, call memset()
+         immediately, for other fragments, fill back IO vectors with the
+         fragment description.
 
    @note assumes that allocation data can not change concurrently.
 
@@ -1591,14 +1591,14 @@ static void stob_ad_wext_fini(struct stob_ad_write_ext *wext)
 /**
    AD write.
 
-   @li allocates space for data to be written (first loop);
+   - allocates space for data to be written (first loop);
 
-   @li calculates number of fragments (ad_write_count());
+   - calculates number of fragments (ad_write_count());
 
-   @li constructs back IO (ad_write_back_fill());
+   - constructs back IO (ad_write_back_fill());
 
-   @li updates extent map for this AD object with allocated extents
-       (ad_write_map()).
+   - updates extent map for this AD object with allocated extents
+     (ad_write_map()).
  */
 static int stob_ad_write_launch(struct m0_stob_io *io,
 				struct m0_stob_ad_domain *adom,

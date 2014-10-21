@@ -49,12 +49,12 @@
    A linux storage object is simply a file on a local file system. A linux
    storage object domain is a directory containing
 
-   @li data-base (db5) tables mapping storage object identifiers to local
-   identifiers (not currently used) and
+       - data-base (db5) tables mapping storage object identifiers to local
+         identifiers (not currently used) and
 
-   @li a directory where files, corresponding to storage objects are stored
-   in. A name of a file is built from the corresponding storage object local
-   identifier (stob_ket).
+       - a directory where files, corresponding to storage objects are stored
+         in. A name of a file is built from the corresponding storage object
+         local identifier (stob_ket).
 
    A linux storage object domain is identified by the path to its directory.
 

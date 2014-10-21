@@ -58,41 +58,42 @@
 
    Externally, adieu usage has the following phases:
 
-       @li m0_bufvec registration. Some types of storage objects require that
-       buffers from which IO is done are registered with its IO sub-system
-       (examples: RDMA). This step is optional, IO from unregistered buffers
-       should also be possible (albeit might incur additional data-copy).
+       - m0_bufvec registration. Some types of storage objects require that
+         buffers from which IO is done are registered with its IO sub-system
+         (examples: RDMA). This step is optional, IO from unregistered buffers
+         should also be possible (albeit might incur additional data-copy).
 
-       @li IO description creation. A IO operation description object m0_stob_io
-       is initialised.
+       - IO description creation. A IO operation description object m0_stob_io
+         is initialised.
 
-       @li IO operation is queued by a call to m0_stob_io_launch(). It is
-       guaranteed that on a successful return from this call, a chan embedded
-       into IO operation data-structure will be eventually signalled.
+       - IO operation is queued by a call to m0_stob_io_launch(). It is
+         guaranteed that on a successful return from this call, a chan embedded
+         into IO operation data-structure will be eventually signalled.
 
-       @li An execution of a queued IO operation can be delayed for some time
-       due to storage traffic control regulations, concurrency control, resource
-       quotas or barriers.
+       - An execution of a queued IO operation can be delayed for some time
+         due to storage traffic control regulations, concurrency control,
+         resource quotas or barriers.
 
-       @li An IO operation is executed, possibly by splitting it into
-       implementation defined fragments. A user can request an "prefixed
-       fragments execution" mode (m0_stob_io_flags::SIF_PREFIX) constraining
-       execution concurrency as to guarantee that after execution completion
-       (with success or failure) a storage is updated as if some possibly empty
-       prefix of the IO operation executed successfully (this is similar to the
-       failure mode of POSIX write call). When prefixed fragments execution mode
-       is not requested, an implementation is free to execute fragments in any
-       order and with any degree of concurrency. Prefixed fragments execution
-       mode request has no effect on read-only IO operations.
+       - An IO operation is executed, possibly by splitting it into
+         implementation defined fragments. A user can request an "prefixed
+         fragments execution" mode (m0_stob_io_flags::SIF_PREFIX) constraining
+         execution concurrency as to guarantee that after execution completion
+         (with success or failure) a storage is updated as if some possibly
+         empty prefix of the IO operation executed successfully (this is similar
+         to the failure mode of POSIX write call). When prefixed fragments
+         execution mode is not requested, an implementation is free to execute
+         fragments in any order and with any degree of concurrency. Prefixed
+         fragments execution mode request has no effect on read-only IO
+         operations.
 
-       @li When whole operation execution completes, a chan embedded into IO
-       operation data-structure is signalled. It is guaranteed that no IO is
-       outstanding at this moment and that adieu implementation won't touch
-       either IO operation structure or associated data pages afterward.
+       - When whole operation execution completes, a chan embedded into IO
+         operation data-structure is signalled. It is guaranteed that no IO is
+         outstanding at this moment and that adieu implementation won't touch
+         either IO operation structure or associated data pages afterward.
 
-       @li After analyzing IO result codes, a user is free to either de-allocate
-       IO operation structure by calling m0_stob_io_fini() or use it to queue
-       another IO operation potentially against different object.
+       - After analyzing IO result codes, a user is free to either de-allocate
+         IO operation structure by calling m0_stob_io_fini() or use it to queue
+         another IO operation potentially against different object.
 
    <b>Ordering and barriers.</b>
 
@@ -116,10 +117,10 @@
 
    Block sizes are needed for the following reasons:
 
-       @li to insulate stob IO layer from read-modify-write details;
+       - to insulate stob IO layer from read-modify-write details;
 
-       @li to allow IO to the portions of objects inaccessible through the
-       flat 64-bit byte-granularity name-space.
+       - to allow IO to the portions of objects inaccessible through the
+         flat 64-bit byte-granularity name-space.
 
    @note the scheme is very simplistic, enforcing the same unit of
    alignment and granularity. Sophistication could be added as
@@ -130,15 +131,15 @@
    In addition to filling in data pages with the data (in a case read
    operation), adieu supplies two status codes on IO completion:
 
-       @li <tt>m0_stob_io::si_rc</tt> is a return code of IO operation. 0 means
-       success, any other possible value is negated errno;
+       - <tt>m0_stob_io::si_rc</tt> is a return code of IO operation. 0 means
+         success, any other possible value is negated errno;
 
-       @li <tt>m0_stob_io::si_count</tt> is a number of blocks (as defined by
-       m0_stob_op::sop_block_shift()) successfully transferred between data
-       pages and the storage object. When IO is executed in prefixed fragments
-       mode, exactly <tt>m0_stob_io::si_count</tt> blocks of the storage object,
-       starting from the offset <tt>m0_stob_io::si_stob.ov_index[0]</tt> were
-       transferred.
+       - <tt>m0_stob_io::si_count</tt> is a number of blocks (as defined by
+         m0_stob_op::sop_block_shift()) successfully transferred between data
+         pages and the storage object. When IO is executed in prefixed
+         fragments mode, exactly <tt>m0_stob_io::si_count</tt> blocks of the
+         storage object, starting from the offset
+         <tt>m0_stob_io::si_stob.ov_index[0]</tt> were transferred.
 
    <b>Data ownership.</b>
 
@@ -171,10 +172,10 @@
 
    At the moment there are two types of storage object supporting adieu:
 
-   @li Linux file system based one, using Linux libaio interfaces;
+       - Linux file system based one, using Linux libaio interfaces;
 
-   @li AD stob type implements adieu on top of underlying backing store storage
-   object.
+       - AD stob type implements adieu on top of underlying backing store
+         storage object.
 
    <b>State.</b>
    @verbatim
