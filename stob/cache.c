@@ -94,17 +94,12 @@ static void stob_cache_idle_moveto(struct m0_stob_cache *cache,
 {
 	struct m0_stob *evicted;
 
-	stob_cache_tlink_del_fini(stob);
-	if (cache->sc_idle_size == 0) {
-		stob_cache_evict(cache, stob);
-	} else {
-		if (cache->sc_idle_size == cache->sc_idle_used) {
-			evicted = stob_cache_tlist_tail(&cache->sc_idle);
-			stob_cache_idle_del(cache, evicted);
-			stob_cache_evict(cache, evicted);
-		}
-		stob_cache_tlink_init_at(stob, &cache->sc_idle);
-		++cache->sc_idle_used;
+	stob_cache_tlist_move(&cache->sc_idle, stob);
+	++cache->sc_idle_used;
+	if (cache->sc_idle_used > cache->sc_idle_size) {
+		evicted = stob_cache_tlist_tail(&cache->sc_idle);
+		stob_cache_idle_del(cache, evicted);
+		stob_cache_evict(cache, evicted);
 	}
 }
 
