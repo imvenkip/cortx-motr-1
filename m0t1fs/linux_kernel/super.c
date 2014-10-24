@@ -207,7 +207,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		buf->f_ffree = rep->f_ffree;
 		buf->f_namelen = rep->f_namelen;
 	}
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 
 	return M0_RC(rc);
@@ -1329,7 +1329,9 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
         if (mero_dentry == NULL)
                 return M0_RC(-ENOMEM);
 
+	m0t1fs_fs_lock(csb);
         mero_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID, body);
+	m0t1fs_fs_unlock(csb);
         if (IS_ERR(mero_inode)) {
                 dput(mero_dentry);
                 return M0_RC((int)PTR_ERR(mero_inode));
@@ -1343,7 +1345,9 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
                 return M0_RC(-ENOMEM);
         }
 
+	m0t1fs_fs_lock(csb);
         fid_inode = m0t1fs_iget(sb, &M0_DOT_MERO_FID_FID, body);
+	m0t1fs_fs_unlock(csb);
         if (IS_ERR(fid_inode)) {
                 dput(fid_dentry);
                 iput(mero_inode);
@@ -1384,7 +1388,9 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_root_cob, cv,
 		     rep->f_root.f_container, rep->f_root.f_key);
 
+	m0t1fs_fs_lock(csb);
 	root_inode = m0t1fs_root_iget(sb, &rep->f_root);
+	m0t1fs_fs_unlock(csb);
 	if (IS_ERR(root_inode)) {
 		rc = (int)PTR_ERR(root_inode);
 		goto out;
@@ -1396,7 +1402,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 		goto out;
 	}
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	return M0_RC(rc);
 }
 

@@ -183,7 +183,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		rc = m0t1fs_mds_cob_setxattr(csb, &mo, &rep_fop);
 	}
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -229,7 +229,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	} else if (rc == -ENOENT)
 		rc = -ENODATA;
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -272,7 +272,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	if (rc == -ENOENT)
 		rc = -ENODATA;
 
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -387,7 +387,7 @@ static int m0t1fs_create(struct inode     *dir,
 		goto out;
 	}
 
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	unlock_new_inode(inode);
 
@@ -395,7 +395,7 @@ static int m0t1fs_create(struct inode     *dir,
 	d_instantiate(dentry, inode);
 	return M0_RC(0);
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	clear_nlink(inode);
 	m0t1fs_fs_unlock(csb);
 	make_bad_inode(inode);
@@ -451,13 +451,13 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 				    &rep->l_body);
 		if (IS_ERR(inode)) {
 			M0_LEAVE("ERROR: %p", ERR_CAST(inode));
-			m0_fop_put0(rep_fop);
+			m0_fop_put0_lock(rep_fop);
 			m0t1fs_fs_unlock(csb);
 			return ERR_CAST(inode);
 		}
 	}
 
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return d_splice_alias(inode, dentry);
 }
@@ -652,7 +652,7 @@ switch_mds:
 		M0_LOG(M0_DEBUG, "set position to \"%*s\" rc == %d",
 		       (int)mo.mo_attr.ca_name.b_nob,
 		       (char *)mo.mo_attr.ca_name.b_addr, rc);
-		m0_fop_put0(rep_fop);
+		m0_fop_put0_lock(rep_fop);
 		/*
 		 * Return codes for m0t1fs_mds_cob_readdir() are the following:
 		 * - <0 - some error occured;
@@ -677,7 +677,7 @@ switch_mds:
 	rc = 0;
 out:
 	if (rc != 0)
-		m0_fop_put0(rep_fop);
+		m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -735,7 +735,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	mark_inode_dirty(dir);
 
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -814,9 +814,9 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	inode_dec_link_count(inode);
 	mark_inode_dirty(dir);
 out:
-	m0_fop_put0(lookup_rep_fop);
-	m0_fop_put0(unlink_rep_fop);
-	m0_fop_put0(setattr_rep_fop);
+	m0_fop_put0_lock(lookup_rep_fop);
+	m0_fop_put0_lock(unlink_rep_fop);
+	m0_fop_put0_lock(setattr_rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -969,7 +969,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	stat->size = i_size_read(inode);
 	stat->blocks = stat->blksize ? stat->size / stat->blksize : 0;
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -1001,7 +1001,7 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 		goto out;
 	inode->i_size = newsize;
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return rc;
 }
@@ -1090,7 +1090,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	if (rc != 0)
 		goto out;
 out:
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -1501,7 +1501,7 @@ static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,
 		m0t1fs_fsync_record_update(service, csb, NULL, remid);
 
 out:
-	m0_fop_put0(fop);
+	m0_fop_put0_lock(fop);
 	return M0_RC(rc);
 }
 
@@ -1569,7 +1569,7 @@ int m0t1fs_layout_op(struct m0t1fs_sb *csb, enum m0_layout_opcode op,
 		}
 	}
 
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 	if (layout != NULL)
 		m0_layout_put(layout); /* dual to m0_layout_find() */
 
@@ -1765,7 +1765,7 @@ static int m0t1fs_ios_cob_op(struct m0t1fs_sb    *csb,
 	M0_LOG(M0_DEBUG, "Finished ioservice op with %d", rc);
 
 fop_put:
-	m0_fop_put0(fop);
+	m0_fop_put0_lock(fop);
 out:
 	return M0_RC(rc);
 }

@@ -937,9 +937,9 @@ static void ioreq_sm_state_set(struct io_request *req, int state)
 {
 	M0_LOG(M0_INFO, "IO request %p current state = %s",
 	       req, io_states[ioreq_sm_state(req)].sd_name);
-	m0_mutex_lock(&req->ir_sm.sm_grp->s_lock);
+	m0_sm_group_lock(req->ir_sm.sm_grp);
 	m0_sm_state_set(&req->ir_sm, state);
-	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
+	m0_sm_group_unlock(req->ir_sm.sm_grp);
 	M0_LOG(M0_INFO, "IO request state changed to %s",
 	       io_states[ioreq_sm_state(req)].sd_name);
 }
@@ -3777,9 +3777,14 @@ static int io_request_init(struct io_request  *req,
 static void io_request_fini(struct io_request *req)
 {
 	struct target_ioreq *ti;
+	struct m0_sm_group  *grp;
 
 	M0_ENTRY("io_request %p", req);
 	M0_PRE_EX(io_request_invariant(req));
+
+	grp = req->ir_sm.sm_grp;
+
+	m0_sm_group_lock(grp);
 
 	m0_sm_fini(&req->ir_sm);
 	io_request_bob_fini(req);
@@ -3801,6 +3806,8 @@ static void io_request_fini(struct io_request *req)
 	} m0_htable_endfor;
 
 	nw_xfer_request_fini(&req->ir_nwxfer);
+
+	m0_sm_group_unlock(grp);
 	M0_LEAVE();
 }
 
@@ -4775,10 +4782,10 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	M0_CNT_DEC(ioreq->ir_nwxfer.nxr_rdbulk_nr);
 	if (ioreq->ir_nwxfer.nxr_iofop_nr == 0 &&
 	    ioreq->ir_nwxfer.nxr_rdbulk_nr == 0) {
-		m0_sm_state_set(&ioreq->ir_sm,
-				(M0_IN(ioreq_sm_state(ioreq),
-				 (IRS_READING, IRS_DEGRADED_READING)) ?
-				IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
+		ioreq_sm_state_set(ioreq,
+				   (M0_IN(ioreq_sm_state(ioreq),
+					  (IRS_READING, IRS_DEGRADED_READING)) ?
+				    IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
 	}
 	m0_mutex_unlock(&ioreq->ir_nwxfer.nxr_lock);
 }
@@ -4850,11 +4857,12 @@ static void io_req_fop_release(struct m0_ref *ref)
 		struct m0_clink clink;
 
 		m0_clink_init(&clink, NULL);
-		m0_clink_add(&reqfop->irf_iofop.if_rbulk.rb_chan, &clink);
+		m0_clink_add_lock(&reqfop->irf_iofop.if_rbulk.rb_chan, &clink);
 		m0_rpc_bulk_store_del(&reqfop->irf_iofop.if_rbulk);
 
 		m0_chan_wait(&clink);
-		m0_clink_del(&clink);
+
+		m0_clink_del_lock(&clink);
 		m0_clink_fini(&clink);
 	}
 
@@ -5044,7 +5052,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 ref_dec:
 	/* Drops reference on reply fop. */
-	m0_fop_put(reply_fop);
+	m0_fop_put_lock(reply_fop);
 	m0_atomic64_dec(&file_to_sb(req->ir_file)->csb_pending_io_nr);
 	M0_LOG(M0_DEBUG, "irfop=%p bulk=%p "FID_F" Pending fops = %llu bulk=%llu",
 			 irfop, &irfop->irf_iofop.if_rbulk,

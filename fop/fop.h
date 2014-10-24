@@ -136,6 +136,7 @@ void m0_fop_put0(struct m0_fop *fop);
  * Same as m0_fop_put() but also locks/unlocks rpc machine.
  */
 void m0_fop_put_lock(struct m0_fop *fop);
+void m0_fop_put0_lock(struct m0_fop *fop);
 
 /**
    Allocates and initialises fop object

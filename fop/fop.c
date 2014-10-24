@@ -215,6 +215,13 @@ void m0_fop_put_lock(struct m0_fop *fop)
 }
 M0_EXPORTED(m0_fop_put_lock);
 
+void m0_fop_put0_lock(struct m0_fop *fop)
+{
+	if (fop != NULL)
+		m0_fop_put_lock(fop);
+}
+M0_EXPORTED(m0_fop_put0_lock);
+
 void *m0_fop_data(const struct m0_fop *fop)
 {
 	return fop->f_data.fd_data;

@@ -96,6 +96,10 @@ int m0t1fs_addb_mon_total_io_size_init(struct m0t1fs_sb *csb);
 int m0t1fs_rpc_init(struct m0t1fs_sb *csb);
 int m0t1fs_net_init(struct m0t1fs_sb *csb);
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
+void m0t1fs_layout_fini(struct m0t1fs_sb *csb);
+void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb);
+void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
+void m0t1fs_net_fini(struct m0t1fs_sb *csb);
 
 static int file_io_ut_init(void)
 {
@@ -106,7 +110,8 @@ static int file_io_ut_init(void)
         M0_SET0(&sb);
         M0_SET0(&csb);
 	M0_SET0(&creditor);
-        m0_sm_group_init(&csb.csb_iogroup);
+	m0_sm_group_init(&csb.csb_iogroup);
+	m0_mutex_init(&csb.csb_mutex);
 	sb.s_fs_info          = &csb;
         csb.csb_active        = true;
 	csb.csb_nr_containers = LAY_P;
@@ -115,6 +120,8 @@ static int file_io_ut_init(void)
         m0_chan_init(&csb.csb_iowait, &csb.csb_iogroup.s_lock);
         m0_atomic64_set(&csb.csb_pending_io_nr, 0);
         io_bob_tlists_init();
+
+	m0t1fs_fs_lock(&csb);
 
         rc = m0t1fs_net_init(&csb);
         M0_ASSERT(rc == 0);
@@ -184,6 +191,31 @@ static int file_io_ut_init(void)
 	rc = m0_poolmach_init(csb.csb_pool.po_mach, NULL, NULL, NULL,
 			      1, LAY_P, 1, LAY_K);
 	M0_ASSERT(rc == 0);
+
+	return 0;
+}
+
+static int file_io_ut_fini(void)
+{
+	m0t1fs_file_lock_fini(&ci);
+	m0_free(lfile.f_dentry);
+	m0_layout_instance_fini(ci.ci_layout_instance);
+
+	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
+	m0_chan_fini_lock(&csb.csb_iowait);
+	m0_sm_group_fini(&csb.csb_iogroup);
+
+	/* Finalizes the m0_pdclust_layout type. */
+	m0_layout_put(&pdlay->pl_base.sl_base);
+	m0_poolmach_fini(csb.csb_pool.po_mach);
+
+	m0t1fs_layout_fini(&csb);
+	m0t1fs_addb_mon_total_io_size_fini(&csb);
+	m0_reqh_services_terminate(&csb.csb_reqh);
+	m0t1fs_rpc_fini(&csb);
+	m0t1fs_net_fini(&csb);
+
+	m0t1fs_fs_unlock(&csb);
 
 	return 0;
 }
@@ -497,7 +529,7 @@ static void pargrp_iomap_test(void)
 	/* pargrp_iomap_fini() deallocates all data_buf structures in it. */
 	pargrp_iomap_fini(&map);
 	m0_indexvec_free(&ivec);
-	m0_sm_state_set(&req.ir_sm, IRS_REQ_COMPLETE);
+	ioreq_sm_state_set(&req, IRS_REQ_COMPLETE);
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
@@ -701,34 +733,6 @@ static void nw_xfer_ops_test(void)
 	m0_indexvec_free(&ivec);
 }
 
-void m0t1fs_layout_fini(struct m0t1fs_sb *csb);
-void m0t1fs_addb_mon_total_io_size_fini(struct m0t1fs_sb *csb);
-void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
-void m0t1fs_net_fini(struct m0t1fs_sb *csb);
-
-static int file_io_ut_fini(void)
-{
-	m0t1fs_file_lock_fini(&ci);
-	m0_free(lfile.f_dentry);
-	m0_layout_instance_fini(ci.ci_layout_instance);
-
-	m0_addb_ctx_fini(&m0t1fs_addb_ctx);
-	m0_chan_fini_lock(&csb.csb_iowait);
-	m0_sm_group_fini(&csb.csb_iogroup);
-
-	/* Finalizes the m0_pdclust_layout type. */
-	m0_layout_put(&pdlay->pl_base.sl_base);
-	m0_poolmach_fini(csb.csb_pool.po_mach);
-
-	m0t1fs_layout_fini(&csb);
-	m0t1fs_addb_mon_total_io_size_fini(&csb);
-	m0_reqh_services_terminate(&csb.csb_reqh);
-	m0t1fs_rpc_fini(&csb);
-	m0t1fs_net_fini(&csb);
-
-	return 0;
-}
-
 static void target_ioreq_test(void)
 {
 	struct target_ioreq         ti;
@@ -882,7 +886,7 @@ static void target_ioreq_test(void)
 	req.ir_iomaps[0] = NULL;
 	req.ir_iomap_nr  = 0;
 
-	m0_sm_state_set(&req.ir_sm, IRS_REQ_COMPLETE);
+	ioreq_sm_state_set(&req, IRS_REQ_COMPLETE);
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);

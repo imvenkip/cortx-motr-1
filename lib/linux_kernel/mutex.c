@@ -19,6 +19,7 @@
  */
 
 #include <linux/module.h>
+#include <asm/current.h>
 
 #include "lib/mutex.h"
 #include "lib/misc.h"  /* M0_EXPORTED */
@@ -62,13 +63,24 @@ M0_EXPORTED(m0_mutex_unlock);
 
 M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex)
 {
+	/* linux kernel mutex, 1:unlocked, 0:locked, -ve: locked with waiters */
+#if defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_SMP)
+	struct thread_info *owner = mutex->m_mutex.owner;
+	return atomic_read(&mutex->m_mutex.count) < 1 &&
+		owner != NULL && owner->task == current;
+#else
 	return true;
+#endif
 }
 M0_EXPORTED(m0_mutex_is_locked);
 
 M0_INTERNAL bool m0_mutex_is_not_locked(const struct m0_mutex *mutex)
 {
+#if defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_SMP)
+	return !m0_mutex_is_locked(mutex);
+#else
 	return true;
+#endif
 }
 M0_EXPORTED(m0_mutex_is_not_locked);
 

@@ -275,14 +275,14 @@ M0_INTERNAL struct inode *m0t1fs_root_iget(struct super_block *sb,
 	rc = m0t1fs_mds_cob_getattr(M0T1FS_SB(sb), &mo, &rep_fop);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "m0t1fs_mds_cob_getattr() failed with %d", rc);
-		m0_fop_put0(rep_fop);
+		m0_fop_put0_lock(rep_fop);
 		return ERR_PTR(rc);
 	}
 	rep = m0_fop_data(rep_fop);
 
 	inode = m0t1fs_iget(sb, root_fid, &rep->g_body);
 
-	m0_fop_put0(rep_fop);
+	m0_fop_put0_lock(rep_fop);
 
 	M0_LEAVE("root_inode: %p", inode);
 	return inode;
