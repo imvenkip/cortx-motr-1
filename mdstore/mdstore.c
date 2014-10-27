@@ -654,62 +654,12 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 				   struct m0_cob_attr   *attr,
 				   struct m0_be_tx      *tx)
 {
-	struct m0_cob_nsrec   *nsrec = NULL;
-	struct m0_cob_fabrec  *fabrec = NULL;
-	struct m0_cob_omgrec  *omgrec = NULL;
-	int                    rc;
+	int rc;
 
 	M0_ENTRY();
 	M0_ASSERT(cob != NULL);
 
-	/*
-	 * Handle basic stat fields update.
-	 */
-	if (cob->co_flags & M0_CA_NSREC) {
-		nsrec = &cob->co_nsrec;
-		if (attr->ca_valid & M0_COB_ATIME)
-			nsrec->cnr_atime = attr->ca_atime;
-		if (attr->ca_valid & M0_COB_MTIME)
-			nsrec->cnr_mtime = attr->ca_mtime;
-		if (attr->ca_valid & M0_COB_CTIME)
-			nsrec->cnr_ctime = attr->ca_ctime;
-		if (attr->ca_valid & M0_COB_SIZE)
-			nsrec->cnr_size = attr->ca_size;
-		/*if (attr->ca_valid & M0_COB_RDEV)
-			nsrec->cnr_rdev = attr->ca_rdev;*/
-		if (attr->ca_valid & M0_COB_BLOCKS)
-			nsrec->cnr_blocks = attr->ca_blocks;
-		if (attr->ca_valid & M0_COB_BLKSIZE)
-			nsrec->cnr_blksize = attr->ca_blksize;
-		if (attr->ca_valid & M0_COB_LID)
-			nsrec->cnr_lid = attr->ca_lid;
-		if (attr->ca_valid & M0_COB_NLINK) {
-			M0_ASSERT(attr->ca_nlink > 0);
-			nsrec->cnr_nlink = attr->ca_nlink;
-		}
-		//nsrec->cnr_version = attr->ca_version;
-	}
-
-	/*
-	 * Handle uid/gid/mode update.
-	 */
-	if (cob->co_flags & M0_CA_OMGREC) {
-		omgrec = &cob->co_omgrec;
-		if (attr->ca_valid & M0_COB_UID)
-			omgrec->cor_uid = attr->ca_uid;
-		if (attr->ca_valid & M0_COB_GID)
-			omgrec->cor_gid = attr->ca_gid;
-		if (attr->ca_valid & M0_COB_MODE)
-			omgrec->cor_mode = attr->ca_mode;
-	}
-
-	/*
-	 * @todo: update fabrec.
-	 */
-	if (cob->co_flags & M0_CA_FABREC)
-		fabrec = cob->co_fabrec;
-
-	rc = m0_cob_update(cob, nsrec, fabrec, omgrec, tx);
+	rc = m0_cob_setattr(cob, attr, tx);
 
 	MDSTORE_FUNC_FAIL(SETATTR, rc);
 	M0_LEAVE("rc: %d", rc);

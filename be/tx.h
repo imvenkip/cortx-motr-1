@@ -535,8 +535,6 @@ M0_INTERNAL void m0_be_tx_force (struct m0_be_tx *tx);
  */
 M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx);
 
-M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
-				       const struct m0_be_tx_credit *c);
 
 /**
  * Calls @gc_free function after tx reaches M0_BTS_DONE state.
@@ -574,6 +572,9 @@ M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
 M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 				    void (*gc_free)(struct m0_be_tx *));
 
+M0_INTERNAL bool m0_be_should_break(struct m0_be_engine *eng,
+				    const struct m0_be_tx_credit *accum,
+				    const struct m0_be_tx_credit *delta);
 /** @} end of be group */
 #endif /* __MERO_BE_TX_H__ */
 

@@ -225,6 +225,7 @@ M0_INTERNAL struct m0_fop_cob_rw *io_rw_get(struct m0_fop *fop);
 M0_INTERNAL struct m0_fop_cob_rw_reply *io_rw_rep_get(struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_create_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_delete_fop(const struct m0_fop *fop);
+M0_INTERNAL bool m0_is_cob_truncate_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_create_delete_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_getattr_fop(const struct m0_fop *fop);
 M0_INTERNAL bool m0_is_cob_setattr_fop(const struct m0_fop *fop);
@@ -253,6 +254,7 @@ extern struct m0_fop_type m0_fop_cob_readv_rep_fopt;
 extern struct m0_fop_type m0_fop_cob_writev_rep_fopt;
 extern struct m0_fop_type m0_fop_cob_create_fopt;
 extern struct m0_fop_type m0_fop_cob_delete_fopt;
+extern struct m0_fop_type m0_fop_cob_truncate_fopt;
 extern struct m0_fop_type m0_fop_cob_op_reply_fopt;
 extern struct m0_fop_type m0_fop_fv_notification_fopt;
 extern struct m0_fop_type m0_fop_cob_getattr_fopt;
@@ -532,8 +534,18 @@ struct m0_fop_cob_delete {
 } M0_XCA_RECORD;
 
 /**
- * Common On-wire body of reply for "cob create", "cob delete", "cob getattr"
- * requests.
+ * On-wire representation of "cob-truncate" request.
+ */
+struct m0_fop_cob_truncate {
+	struct m0_fop_cob_common ct_common;
+
+	/* Size to which a file is truncated. */
+	uint64_t                 ct_size;
+} M0_XCA_RECORD;
+
+/**
+ * Common On-wire body of reply for "cob create", "cob delete", "cob truncate",
+ * and "cob getattr" requests.
  */
 struct m0_fop_cob_op_rep_common {
 	/** latest version number */

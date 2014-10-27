@@ -8,7 +8,7 @@
  */
 unsigned long long NUM_ALPHABETS             = 26;
 unsigned long long NUM_ALPHABET_REPEATITIONS = 4096;
-unsigned long long NUM_ITERATIONS            = 19;
+unsigned long long NUM_ITERATIONS            = 200;
 
 int main(int argc, char *argv[])
 {

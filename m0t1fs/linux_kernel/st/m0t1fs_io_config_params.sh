@@ -54,7 +54,7 @@ export pattern=$ALTERNATE
 # ABCD source file sizes (as set in m0t1fs_io_file_pattern.c)
 NUM_ALPHABETS=26
 NUM_ALPHABET_REPEATITIONS=4096
-NUM_ITERATIONS=19 # required to create ~2 MB data file
+NUM_ITERATIONS=200 # required to create ~2 MB data file
 ABCD_SOURCE_SIZE=$(($NUM_ALPHABETS * $NUM_ALPHABET_REPEATITIONS *
 		    $NUM_ITERATIONS))
 

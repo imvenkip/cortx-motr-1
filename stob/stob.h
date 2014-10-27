@@ -175,6 +175,12 @@ struct m0_stob_ops {
 				  struct m0_be_tx_credit *accum);
 	/** @see m0_stob_destroy() */
 	int (*sop_destroy)(struct m0_stob *stob, struct m0_dtx *dtx);
+	/** @see m0_stob_punch_credit() */
+	int (*sop_punch_credit) (struct m0_stob *stob,
+				 struct m0_be_tx_credit *accum);
+	/** @see m0_stob_punch() */
+	int (*sop_punch)(struct m0_stob *stob, const struct m0_indexvec *range,
+			 struct m0_dtx *dtx);
 	/** @see m0_stob_io_init() */
 	int  (*sop_io_init)(struct m0_stob *stob, struct m0_stob_io *io);
 	/** @see m0_stob_block_shift() */
@@ -244,6 +250,20 @@ M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
  * @pre stob->so_ref == 1
  */
 M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx);
+
+/** Calculates BE tx credit for m0_stob_punch(). */
+M0_INTERNAL int m0_stob_punch_credit(struct m0_stob *stob,
+				     struct m0_be_tx_credit *accum);
+
+/** Punches a hole within a  stob at specified 'range'  */
+M0_INTERNAL int m0_stob_punch(struct m0_stob *stob,
+			      const struct m0_indexvec *range,
+			      struct m0_dtx *dtx);
+
+/** Calculates BE tx credit for write operation. */
+M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain *dom,
+				      const struct m0_stob_io *io,
+				      struct m0_be_tx_credit *accum);
 
 /**
  * Returns a power of two, which determines alignment required for the user

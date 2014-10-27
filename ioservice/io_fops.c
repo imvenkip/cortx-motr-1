@@ -85,6 +85,7 @@ struct m0_fop_type m0_fop_cob_readv_rep_fopt;
 struct m0_fop_type m0_fop_cob_writev_rep_fopt;
 struct m0_fop_type m0_fop_cob_create_fopt;
 struct m0_fop_type m0_fop_cob_delete_fopt;
+struct m0_fop_type m0_fop_cob_truncate_fopt;
 struct m0_fop_type m0_fop_cob_op_reply_fopt;
 struct m0_fop_type m0_fop_fv_notification_fopt;
 struct m0_fop_type m0_fop_cob_getattr_fopt;
@@ -103,6 +104,7 @@ static struct m0_fop_type *ioservice_fops[] = {
 	&m0_fop_cob_writev_rep_fopt,
 	&m0_fop_cob_create_fopt,
 	&m0_fop_cob_delete_fopt,
+	&m0_fop_cob_truncate_fopt,
 	&m0_fop_cob_op_reply_fopt,
 	&m0_fop_fv_notification_fopt,
 	&m0_fop_cob_getattr_fopt,
@@ -253,6 +255,7 @@ M0_INTERNAL void m0_ioservice_fop_fini(void)
 	m0_fop_type_fini(&m0_fop_cob_getattr_fopt);
 	m0_fop_type_fini(&m0_fop_cob_op_reply_fopt);
 	m0_fop_type_fini(&m0_fop_fv_notification_fopt);
+	m0_fop_type_fini(&m0_fop_cob_truncate_fopt);
 	m0_fop_type_fini(&m0_fop_cob_delete_fopt);
 	m0_fop_type_fini(&m0_fop_cob_create_fopt);
 	m0_fop_type_fini(&m0_fop_cob_writev_rep_fopt);
@@ -357,6 +360,18 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .xt        = m0_fop_cob_delete_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST |
 				      M0_RPC_ITEM_TYPE_MUTABO,
+			 .fop_ops   = &io_fop_cd_ops,
+#ifndef __KERNEL__
+			 .fom_ops   = &cob_fom_type_ops,
+			 .svc_type  = &m0_ios_type,
+#endif
+			 .sm        = p_cob_ops_conf);
+
+	M0_FOP_TYPE_INIT(&m0_fop_cob_truncate_fopt,
+			 .name      = "Cob truncate request",
+			 .opcode    = M0_IOSERVICE_COB_TRUNCATE_OPCODE,
+			 .xt        = m0_fop_cob_truncate_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .fop_ops   = &io_fop_cd_ops,
 #ifndef __KERNEL__
 			 .fom_ops   = &cob_fom_type_ops,
@@ -962,6 +977,13 @@ M0_INTERNAL bool m0_is_cob_delete_fop(const struct m0_fop *fop)
 				M0_IOSERVICE_COB_DELETE_OPCODE;
 }
 
+M0_INTERNAL bool m0_is_cob_truncate_fop(const struct m0_fop *fop)
+{
+	M0_PRE(fop != NULL);
+	return fop->f_type->ft_rpc_item_type.rit_opcode ==
+				M0_IOSERVICE_COB_TRUNCATE_OPCODE;
+}
+
 M0_INTERNAL bool m0_is_cob_getattr_fop(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
@@ -983,10 +1005,11 @@ M0_INTERNAL bool m0_is_cob_create_delete_fop(const struct m0_fop *fop)
 
 M0_INTERNAL struct m0_fop_cob_common *m0_cobfop_common_get(struct m0_fop *fop)
 {
-	struct m0_fop_cob_create  *cc;
-	struct m0_fop_cob_delete  *cd;
-	struct m0_fop_cob_getattr *cg;
-	struct m0_fop_cob_setattr *cs;
+	struct m0_fop_cob_create   *cc;
+	struct m0_fop_cob_delete   *cd;
+	struct m0_fop_cob_truncate *ct;
+	struct m0_fop_cob_getattr  *cg;
+	struct m0_fop_cob_setattr  *cs;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
@@ -997,6 +1020,9 @@ M0_INTERNAL struct m0_fop_cob_common *m0_cobfop_common_get(struct m0_fop *fop)
 	} else if (m0_is_cob_delete_fop(fop)) {
 		cd = m0_fop_data(fop);
 		return &cd->cd_common;
+	} else if (fop->f_type == &m0_fop_cob_truncate_fopt) {
+		ct = m0_fop_data(fop);
+		return &ct->ct_common;
 	} else if (m0_is_cob_getattr_fop(fop)) {
 		cg = m0_fop_data(fop);
 		return &cg->cg_common;

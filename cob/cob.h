@@ -839,6 +839,16 @@ M0_INTERNAL int m0_cob_fabrec_make(struct m0_cob_fabrec **rech,
 				   const char *link, size_t linklen);
 
 /**
+ * Sets cob attributes to those present in attr.
+ *
+ * @param cob    cob for which attributes will be changed
+ * @param attr   attributes to be loaded into a cob
+ * @param tx     be transaction to be used
+ */
+M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob,
+			       struct m0_cob_attr *attr,
+			       struct m0_be_tx *tx);
+/**
  * Try to allocate new omgid using omg table and terminator record. Save
  * allocated id in @omgid if not NULL.
  */
@@ -851,6 +861,7 @@ enum m0_cob_op {
 	M0_COB_OP_LOCATE,
 	M0_COB_OP_CREATE,
 	M0_COB_OP_DELETE,
+	M0_COB_OP_TRUNCATE,
 	M0_COB_OP_DELETE_PUT,
 	M0_COB_OP_UPDATE,
 	M0_COB_OP_FEA_SET,

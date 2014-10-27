@@ -200,10 +200,35 @@ M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 	if (rc == 0 || rc == -EAGAIN) {
 		if (rc == 0)
 			m0_stob__state_set(stob, CSS_NOENT);
-		m0_stob_put(stob);
 		rc = 0;
+		m0_stob_put(stob);
 	}
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_stob_punch_credit(struct m0_stob *stob,
+				     struct m0_be_tx_credit *accum)
+{
+	return stob->so_ops->sop_punch_credit(stob, accum);
+}
+
+M0_INTERNAL int m0_stob_punch(struct m0_stob *stob,
+			      const struct m0_indexvec *range,
+			      struct m0_dtx *dtx)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
+	rc = stob->so_ops->sop_punch(stob, range, dtx);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain *dom,
+				      const struct m0_stob_io *io,
+				      struct m0_be_tx_credit *accum)
+{
+	dom->sd_ops->sdo_stob_write_credit(dom, io, accum);
 }
 
 M0_INTERNAL uint64_t m0_stob_dom_id_get(struct m0_stob *stob)

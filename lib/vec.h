@@ -596,6 +596,23 @@ M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 				     const unsigned	    addb_loc,
 				     struct m0_indexvec	   *mem_ivec);
 
+/**
+ * Creates an indexvec with a single extent, which spans the range [0. ~0).
+ * Since the range spanned by this indexvec represents union of all possible
+ * ranges that any indexvec can hold, it is referred as a universal indexvec.
+ * @param iv  Input indexvec.
+ * @param ctx Addb context required to log addb messages.
+ * @param loc Addb location relative to the context.
+ */
+M0_INTERNAL int m0_indexvec_universal_set(struct m0_indexvec *iv,
+					  struct m0_addb_ctx *ctx,
+					  const unsigned loc);
+
+/**
+ * Returns true if the input indexvec is universal.
+ */
+M0_INTERNAL bool m0_indexvec_is_universal(const struct m0_indexvec *iv);
+
 /** @} end of vec group */
 
 /* __MERO_LIB_VEC_H__ */

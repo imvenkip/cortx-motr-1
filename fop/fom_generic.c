@@ -370,7 +370,6 @@ static int fom_tx_commit(struct m0_fom *fom)
 		M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
 		m0_dtx_done(dtx);
 	}
-
 	return M0_FSO_AGAIN;
 }
 

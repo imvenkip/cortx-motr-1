@@ -67,12 +67,6 @@ enum stob_ad_allocation_extent_type {
 	 */
 	AET_MIN = M0_BINDEX_MAX - (1ULL << 32),
 	/**
-	   This value is used to tag an extent that does not belong to the
-	   stob's name-space. For example, an extent [X, M0_BINDEX_MAX + 1)
-	   would usually be AET_NONE for a file of size X.
-	 */
-	AET_NONE,
-	/**
 	   This value is used to tag a hole in the storage object.
 	 */
 	AET_HOLE
@@ -606,7 +600,7 @@ static int stob_ad_create(struct m0_stob *stob,
 	return M0_BE_OP_SYNC_RET(op,
 				 m0_be_emap_obj_insert(&adom->sad_adata,
 						       &dtx->tx_betx, &op,
-						       &prefix, AET_NONE),
+						       &prefix, AET_HOLE),
 				 bo_u.u_emap.e_rc);
 }
 
@@ -620,7 +614,6 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	struct m0_be_engine      *eng;
 	struct m0_be_tx_credit    cred;
 	struct m0_stob_ad        *astob = stob_ad_stob2ad(stob);
-	struct m0_be_tx           dummy_tx;
 	struct m0_ad_balloc      *ballroom;
 	int                       rc;
 	m0_bcount_t               i = 0;
@@ -641,13 +634,7 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 		return M0_RC(rc);
 	op = m0_be_emap_op(&it);
 	eng = m0_be_domain_engine(m0_be_emap_seg_domain(it.ec_map));
-	/*
-	 * XXX: FIX ME post alpha.
-	 * This is temporary solution for alpha release in-order to
-	 * pass struct m0_be_tx to m0_be_tx_should_break() and must be
-	 * fixed by replacing dummy tx with real tx.
-	 */
-	dummy_tx.t_engine = eng;
+
 	if (rc == 0) {
 		for (i = 1; i <= segs; ++i) {
 			seg = m0_be_emap_seg_get(&it);
@@ -657,9 +644,9 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 			m0_be_emap_credit(&adom->sad_adata,
 					  M0_BEO_PASTE, 1, &cred);
 			ballroom->ab_ops->bo_free_credit(ballroom, 3, &cred);
-			dummy_tx.t_prepared = *accum;
-			if (m0_be_tx_should_break(&dummy_tx, &cred))
+			if (m0_be_should_break(eng, accum, &cred)) {
 				break;
+			}
 			m0_be_tx_credit_add(accum, &cred);
 			if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 				m0_be_op_init(op);
@@ -694,7 +681,7 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
  * Destroys ad stob ext map and releases underlying storage object's
  * extents.
  */
-static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
+static int ext_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 {
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_seg    *seg;
@@ -707,7 +694,6 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 					.e_start = 0,
 					.e_end   = M0_BCOUNT_MAX
 				  };
-	bool                      delete_all = true;
 	int                       rc;
 
 	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
@@ -731,12 +717,8 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	 */
 	if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
 		todo.e_end = seg->ee_ext.e_end;
-		delete_all = false;
 	}
 	M0_LOG(M0_DEBUG, "ext="EXT_F, EXT_P(&todo));
-	rc = stob_ad_cursor(adom, stob, 0, &it);
-	if (rc != 0)
-		return M0_RC(rc);
 	it_op = &it.ec_op;
 	m0_be_op_init(it_op);
 	m0_be_emap_paste(&it, &tx->tx_betx, &todo, AET_HOLE,
@@ -751,16 +733,38 @@ static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 	M0_ASSERT(m0_be_op_state(it_op) == M0_BOS_SUCCESS);
 	rc = m0_be_emap_op_rc(&it);
 	m0_be_op_fini(it_op);
-	if (rc == 0 && delete_all)
+	rc = rc == 0 && !m0_be_emap_ext_is_last(&seg->ee_ext) ? -EAGAIN : rc;
+	return M0_RC(rc);
+}
+
+static int stob_ad_destroy(struct m0_stob *stob, struct m0_dtx *tx)
+{
+	struct m0_stob_ad_domain *adom;
+	struct m0_uint128         prefix;
+	int                       rc;
+
+	adom   = stob_ad_domain2ad(m0_stob_dom_get(stob));
+	prefix = M0_UINT128(stob->so_fid.f_container, stob->so_fid.f_key);
+	rc = ext_destroy(stob, tx);
+	if (rc == 0)
 		rc = M0_BE_OP_SYNC_RET(op,
 				       m0_be_emap_obj_delete(&adom->sad_adata,
 							     &tx->tx_betx, &op,
 							     &prefix),
 				       bo_u.u_emap.e_rc);
-	if (rc == 0 && !delete_all)
-		rc = -EAGAIN;
-
 	return M0_RC(rc);
+}
+
+/*
+ * Truncates ad stob ext map and releases underlying storage object's
+ * extents. Currently the argument 'range' is not being used. Ideally
+ * stob should be punched at location spanned by the 'range'.
+ */
+static int stob_ad_punch(struct m0_stob *stob, const struct m0_indexvec *range,
+			 struct m0_dtx *tx)
+{
+	M0_PRE(m0_indexvec_is_universal(range));
+	return M0_RC(ext_destroy(stob, tx));
 }
 
 static uint32_t stob_ad_block_shift(struct m0_stob *stob)
@@ -796,11 +800,13 @@ static struct m0_stob_domain_ops stob_ad_domain_ops = {
 };
 
 static struct m0_stob_ops stob_ad_ops = {
-	.sop_fini	    = &stob_ad_fini,
-	.sop_destroy_credit = &stob_ad_destroy_credit,
-	.sop_destroy	    = &stob_ad_destroy,
-	.sop_io_init	    = &stob_ad_io_init,
-	.sop_block_shift    = &stob_ad_block_shift,
+	.sop_fini	     = &stob_ad_fini,
+	.sop_destroy_credit  = &stob_ad_destroy_credit,
+	.sop_destroy	     = &stob_ad_destroy,
+	.sop_punch_credit    = &stob_ad_destroy_credit,
+	.sop_punch           = &stob_ad_punch,
+	.sop_io_init	     = &stob_ad_io_init,
+	.sop_block_shift     = &stob_ad_block_shift,
 };
 
 const struct m0_stob_type m0_stob_ad_type = {
@@ -1246,7 +1252,7 @@ static int stob_ad_read_launch(struct m0_stob_io *io,
 			idx, (unsigned long)frag_size, buf,
 			(unsigned long)off, EXT_P(&seg->ee_ext),
 			(unsigned long)seg->ee_val);
-		if (seg->ee_val == AET_NONE || seg->ee_val == AET_HOLE) {
+		if (seg->ee_val == AET_HOLE) {
 			/*
 			 * Read of a hole or unallocated space (beyond
 			 * end of the file).

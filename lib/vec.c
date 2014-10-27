@@ -846,6 +846,28 @@ M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 	return 0;
 }
 
+M0_INTERNAL int m0_indexvec_universal_set(struct m0_indexvec *iv,
+					  struct m0_addb_ctx *ctx,
+					  const unsigned loc)
+{
+	int rc;
+
+	M0_PRE(iv != NULL && ctx != NULL);
+	rc = m0_indexvec_alloc(iv, 1, ctx, loc);
+	if (rc != 0)
+		return rc;
+	iv->iv_index[0]       = 0;
+	iv->iv_vec.v_count[0] = ~(m0_bcount_t)(0);
+	return 0;
+}
+
+M0_INTERNAL bool m0_indexvec_is_universal(const struct m0_indexvec *iv)
+{
+	M0_PRE(iv != NULL);
+
+	return m0_vec_count(&iv->iv_vec) == (m0_bcount_t)~0ULL;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of vec group */

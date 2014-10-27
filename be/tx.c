@@ -571,15 +571,13 @@ M0_INTERNAL bool m0_be_tx__is_exclusive(const struct m0_be_tx *tx)
 	return tx->t_exclusive;
 }
 
-M0_INTERNAL bool m0_be_tx_should_break(struct m0_be_tx *tx,
-				       const struct m0_be_tx_credit *c)
+M0_INTERNAL bool m0_be_should_break(struct m0_be_engine *eng,
+				    const struct m0_be_tx_credit *accum,
+				    const struct m0_be_tx_credit *delta)
 {
-	struct m0_be_tx_credit cred;
-
-	cred = tx->t_prepared;
-	m0_be_tx_credit_add(&cred, c);
-	return !m0_be_tx_credit_le(&cred,
-				   &tx->t_engine->eng_cfg->bec_tx_size_max);
+	struct m0_be_tx_credit total = *accum;
+	m0_be_tx_credit_add(&total, delta);
+	return !m0_be_tx_credit_le(&total, &eng->eng_cfg->bec_tx_size_max);
 }
 
 M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
@@ -591,7 +589,6 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 	tx->t_gc_enabled = true;
 	tx->t_gc_free	 = gc_free;
 }
-
 #undef BE_TX_LOCKED_AT_STATE
 
 /** @} end of be group */

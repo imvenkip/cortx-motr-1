@@ -1126,7 +1126,7 @@ static void cd_stob_delete_test()
 	cd = cob_fom_get(dfom);
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
-	rc = cd_stob_delete(dfom, cd);
+	rc = ce_stob_edit(dfom, cd, COT_DELETE);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_ASSERT(rc == 0);
 	fom_dtx_done(dfom, grp);
@@ -1190,7 +1190,7 @@ static void cd_cob_delete_test()
 	/*
 	 * Now do the cleanup.
 	 */
-	rc = cd_stob_delete(dfom, cd);
+	rc = ce_stob_edit(dfom, cd, COT_DELETE);
 	M0_UT_ASSERT(rc == 0);
 	fom_dtx_done(dfom, grp);
 
@@ -1440,7 +1440,7 @@ static void fom_stob_tx_credit(struct m0_fom *fom, enum m0_cob_op opcode)
 	if (opcode == M0_COB_OP_DELETE) {
 		rc = cob_ops_stob_find(co);
 		M0_ASSERT(rc == 0);
-		rc = cd_stob_delete_credit(fom, co, m0_fom_tx_credit(fom));
+		rc = ce_stob_edit_credit(fom, co, m0_fom_tx_credit(fom), COT_DELETE);
 	} else
 		rc = cc_stob_create_credit(fom, co, m0_fom_tx_credit(fom));
 	M0_UT_ASSERT(rc == 0);

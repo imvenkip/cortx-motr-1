@@ -40,6 +40,8 @@
 #include "m0t1fs/linux_kernel/m0t1fs.h"
 #include "m0t1fs/linux_kernel/fsync.h"
 
+
+extern const struct m0_uint128 m0_rm_m0t1fs_group;
 /**
  * Cob create/delete fop send deadline (in ns).
  * Used to utilize rpc formation when too many fops
@@ -76,7 +78,7 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	creq = cfop->c_req;
 
 	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop) ||
-		  m0_is_cob_setattr_fop(fop));
+		  m0_is_cob_truncate_fop(fop) || m0_is_cob_setattr_fop(fop));
 	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
 	r_common = &reply->cor_common;
 
@@ -115,6 +117,9 @@ M0_INTERNAL void m0t1fs_inode_bob_init(struct m0t1fs_inode *bob);
 M0_INTERNAL bool m0t1fs_inode_bob_check(struct m0t1fs_inode *bob);
 
 
+static int file_lock_acquire(struct m0_rm_incoming *rm_in,
+			     struct m0t1fs_inode *ci);
+static void file_lock_release(struct m0_rm_incoming *rm_in);
 static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 				       const struct m0t1fs_mdop *mop,
 				       int (*func)(struct cob_req *,
@@ -136,6 +141,10 @@ static int m0t1fs_ios_cob_setattr(struct cob_req *cr,
 				  const struct m0t1fs_inode *inode,
 				  const struct m0t1fs_mdop *mop,
 				  int idx);
+static int m0t1fs_ios_cob_truncate(struct cob_req *cr,
+				   const struct m0t1fs_inode *inode,
+			           const struct m0t1fs_mdop *mop,
+				   int idx);
 
 static int name_mem2wire(struct m0_fop_str *tgt,
 			 const struct m0_buf *name)
@@ -1249,12 +1258,13 @@ M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *dentry, struct iattr *attr)
 
 M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 {
-	struct m0t1fs_sb                *csb;
-	struct inode                    *inode;
-	struct m0t1fs_inode             *ci;
-	struct m0t1fs_mdop               mo;
-	struct m0_fop                   *rep_fop;
-	int                              rc;
+	struct m0t1fs_sb     *csb;
+	struct inode         *inode;
+	struct m0t1fs_inode  *ci;
+	struct m0t1fs_mdop    mo;
+	int                   rc;
+	struct m0_fop        *rep_fop;
+	struct m0_rm_incoming rm_in;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -1270,7 +1280,11 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 		return M0_ERR(rc);
 
 	m0t1fs_fs_lock(csb);
-
+	rc = file_lock_acquire(&rm_in, ci);
+	if (rc != 0) {
+		m0t1fs_fs_unlock(csb);
+		return M0_RC(rc);
+	}
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
@@ -1328,12 +1342,20 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	 */
 
 	rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
-	if (rc != 0)
+	if (rc != 0) {
+		m0_fop_put0_lock(rep_fop);
 		goto out;
+	}
 
 	rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_setattr);
 	if (rc != 0)
 		goto out;
+	if (attr->ia_valid & ATTR_SIZE && attr->ia_size < inode->i_size) {
+		rc = m0t1fs_component_objects_op(ci, &mo,
+						 m0t1fs_ios_cob_truncate);
+		if (rc != 0)
+			goto out;
+	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	setattr_copy(inode, attr);
 #else
@@ -1342,11 +1364,31 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 		goto out;
 #endif
 out:
-	m0_fop_put0_lock(rep_fop);
+	file_lock_release(&rm_in);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
 
+static int file_lock_acquire(struct m0_rm_incoming *rm_in,
+			     struct m0t1fs_inode *ci)
+{
+	int rc;
+
+	rm_in->rin_want.cr_group_id = m0_rm_m0t1fs_group;
+	m0_file_lock(&ci->ci_fowner, rm_in);
+	m0_rm_owner_lock(&ci->ci_fowner);
+	rc = m0_sm_timedwait(&rm_in->rin_sm, M0_BITS(RI_SUCCESS, RI_FAILURE),
+			     M0_TIME_NEVER);
+	m0_rm_owner_unlock(&ci->ci_fowner);
+	rc = rc ? : rm_in->rin_rc;
+	return rc;
+}
+
+static void file_lock_release(struct m0_rm_incoming *rm_in)
+{
+	M0_PRE(rm_in != NULL);
+	m0_file_unlock(rm_in);
+}
 /**
    See "Containers and component objects" section in m0t1fs.h for
    more information.
@@ -1410,7 +1452,8 @@ static int m0t1fs_component_objects_op(struct m0t1fs_inode *ci,
 	M0_ENTRY();
 
 	op_name = (func == m0t1fs_ios_cob_create) ? "create" :
-		(func == m0t1fs_ios_cob_delete) ? "delete" : "setattr";
+		(func == m0t1fs_ios_cob_delete) ? "delete" :
+		  (func == m0t1fs_ios_cob_truncate) ? "truncate" : "setattr";
 
 	M0_LOG(M0_DEBUG, "Component object %s for "FID_F,
 			 op_name, FID_P(m0t1fs_inode_fid(ci)));
@@ -1822,6 +1865,7 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
 	struct m0_fop_cob_common    *common;
 	struct m0_poolmach_versions *cli;
 	struct m0_poolmach_versions  curr;
+	struct m0_fop_cob_truncate  *ct;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
@@ -1847,6 +1891,11 @@ static int m0t1fs_ios_cob_fop_populate(const struct m0t1fs_sb   *csb,
 	 * e.g. -1. @todo this will be done in MM hash function task.
 	 */
 	common->c_cob_idx = cob_idx;
+
+	if (m0_is_cob_truncate_fop(fop)) {
+		ct = m0_fop_data(fop);
+		ct->ct_size = mop->mo_attr.ca_size;
+	}
 
 	return M0_RC(0);
 }
@@ -1916,9 +1965,10 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	fop->f_item.ri_rmachine = m0_fop_session_machine(session);
 
 	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop) ||
-		  m0_is_cob_setattr_fop(fop));
+		  m0_is_cob_truncate_fop(fop) || m0_is_cob_setattr_fop(fop));
 
-	rc = m0t1fs_ios_cob_fop_populate(csb, mop, fop, &cob_fid, gob_fid, cob_idx);
+	rc = m0t1fs_ios_cob_fop_populate(csb, mop, fop, &cob_fid, gob_fid,
+					 cob_idx);
 	if (rc != 0)
 		goto fop_put;
 
@@ -1954,6 +2004,15 @@ static int m0t1fs_ios_cob_delete(struct cob_req *cr,
 				 int idx)
 {
 	return m0t1fs_ios_cob_op(cr, inode, mop, idx, &m0_fop_cob_delete_fopt);
+}
+
+static int m0t1fs_ios_cob_truncate(struct cob_req *cr,
+				   const struct m0t1fs_inode *inode,
+			           const struct m0t1fs_mdop *mop,
+				   int idx)
+{
+	return m0t1fs_ios_cob_op(cr, inode, mop, idx,
+				 &m0_fop_cob_truncate_fopt);
 }
 
 static int m0t1fs_ios_cob_setattr(struct cob_req *cr,
@@ -2077,6 +2136,7 @@ M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo)
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
+
 
 const struct file_operations m0t1fs_dir_file_operations = {
 	.read    = generic_read_dir,    /* provided by linux kernel */

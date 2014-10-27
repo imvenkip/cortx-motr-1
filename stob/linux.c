@@ -453,6 +453,21 @@ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 	return M0_RC(rc);
 }
 
+/*
+ * The argument 'range', which is currently unused, specifies the location to
+ * to punch. The full implementation will be similar to fallocate(2)
+ */
+static int stob_linux_punch(struct m0_stob *stob,
+			    const struct m0_indexvec *range,
+			    struct m0_dtx *dtx)
+{
+	struct m0_stob_linux *lstob;
+
+	M0_PRE(m0_indexvec_is_universal(range));
+	lstob = m0_stob_linux_container(stob);
+	return M0_RC(ftruncate(lstob->sl_fd, 0));
+}
+
 static void stob_linux_write_credit(const struct m0_stob_domain *dom,
 				    const struct m0_stob_io *io,
 				    struct m0_be_tx_credit *accum)
@@ -491,11 +506,13 @@ static struct m0_stob_domain_ops stob_linux_domain_ops = {
 };
 
 static struct m0_stob_ops stob_linux_ops = {
-	.sop_fini	    = &stob_linux_fini,
-	.sop_destroy_credit = &stob_linux_destroy_credit,
-	.sop_destroy	    = &stob_linux_destroy,
-	.sop_io_init	    = &m0_stob_linux_io_init,
-	.sop_block_shift    = &stob_linux_block_shift,
+	.sop_fini	     = &stob_linux_fini,
+	.sop_destroy_credit  = &stob_linux_destroy_credit,
+	.sop_destroy	     = &stob_linux_destroy,
+	.sop_punch_credit    = &stob_linux_destroy_credit,
+	.sop_punch           = &stob_linux_punch,
+	.sop_io_init	     = &m0_stob_linux_io_init,
+	.sop_block_shift     = &stob_linux_block_shift,
 };
 
 const struct m0_stob_type m0_stob_linux_type = {

@@ -13,9 +13,92 @@ N=3
 K=3
 P=15
 stride=32
-random_source_dd_count=60  # dd count used during random source file creation
+random_source_dd_count=650  # dd count used during random source file creation
 dd_count=0                 # Counter for the number of times dd is invoked
 st_dir=$MERO_CORE_ROOT/m0t1fs/linux_kernel/st
+blk_size=$((stride * 1024))
+cnt=0
+
+fmio_truncation_module()
+{
+	j=$((RANDOM%9))
+	i=$((10-$j))
+	let seek=$i\-1
+	echo "Test a call to fopen(..,O_TRUNC)"
+	fmio_files_write dd bs=$blk_size count=$i
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed while count=$i"
+		return $rc
+	fi
+	echo "Test a call to ftruncate(fd, 0)"
+	fmio_files_write dd bs=$blk_size count=100 seek=0
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed for count=100 and seek=0"
+		return $rc
+	fi
+	echo "Ensure that call to ftruncate(fd, <non-zero-size>) returns an error."
+	fmio_files_write dd bs=$blk_size count=50 seek=$seek
+	rc=$?
+	if [ $rc -ne "1" ]
+	then
+		echo "File truncation failed for count=50 and seek=$seek."
+		return $rc
+	fi
+	echo "Ensure that same data is present in both files"
+	fmio_files_write dd bs=$blk_size count=$i
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed."
+		return $rc
+	fi
+	return 0
+}
+
+valid_count_get()
+{
+	j=$((RANDOM%9))
+	i=$((10-$j))
+	bs=$1
+	input_file_size=`expr $i \* $bs`
+	echo $input_file_size
+	echo $ABCD_SOURCE_SIZE
+	while [ $input_file_size -gt $ABCD_SOURCE_SIZE ]
+	do
+		j=$((RANDOM%9))
+		i=$((10-$j))
+		input_file_size=`expr $i \* $bs`
+	done
+	return $i
+}
+
+fmio_large_file_truncation_module()
+{
+	bs=1048576
+	valid_count_get $bs
+	fmio_files_write dd bs=$bs count=$cnt
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed with bs=$bs and count=$cnt"
+		return $rc
+	fi
+	bs=2097152
+	valid_count_get $bs
+	fmio_files_write dd bs=$bs count=$cnt
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File truncation failed with bs=$bs and count=$cnt"
+		return $rc
+	fi
+	return $rc
+}
+
 
 fmio_source_files_create()
 {
@@ -341,10 +424,42 @@ fmio_io_test()
 		return 1
 	}
 
+	echo "Truncating files"
+	fmio_truncation_module
+	if [ $? -ne "0" ]
+	then
+		echo "File truncation failed."
+		return 1
+	fi
+
+	fmio_large_file_truncation_module
+	if [ $? -ne "0" ]
+	then
+		echo "Large file truncation failed."
+		return 1
+	fi
+
 	echo "Sending device1 failure"
 	fmio_pool_mach_set_failure $fail_device1 || {
 		return 1
 	}
+
+	echo "File truncation post first device failure"
+	fmio_truncation_module
+	if [ $? -ne "0" ]
+	then
+		echo "File truncation failed after first failure."
+		return 1
+	fi
+
+	fmio_large_file_truncation_module
+	if [ $? -ne "0" ]
+	then
+		echo "Large file truncation failed after the first failure."
+		return 1
+	fi
+
+
 
 	if [ $failed_dev_test -ne 1 ]
 	then
@@ -424,9 +539,23 @@ fmio_io_test()
 
 	if [ $failed_dev_test -ne 1 ]
 	then
+		echo "Truncation after two repairs and one failure"
+		fmio_truncation_module
+		if [ $? -ne "0" ]
+		then
+			echo "File truncation failed."
+			return 1
+		fi
+
+		fmio_large_file_truncation_module
+		if [ $? -ne "0" ]
+		then
+			echo "Large file truncation failed."
+			return 1
+		fi
 		echo "Repairing after device3 failure"
 		fmio_sns_repair || {
-			return 1
+		return 1
 		}
 	fi
 
@@ -604,14 +733,14 @@ failure_modes_test()
 
 		# XXX MERO-638: Take out the following condition once
 		# MERO-638 is fixed
-		if [ $single_file_test == 1 ]
-		then
-			echo -e "single file kind can not be tested with repaired device until MERO-638 is fixed...\nHence, exiting from repaired device testing..."
-			echo "-------------------------------------------------"
-			echo "Done with the repaired device IO testing ($str)"
-			echo "-------------------------------------------------"
-			return 0
-		fi
+#		if [ $single_file_test == 1 ]
+#		then
+#			echo -e "single file kind can not be tested with repaired device until MERO-638 is fixed...\nHence, exiting from repaired device testing..."
+#			echo "-------------------------------------------------"
+#			echo "Done with the repaired device IO testing ($str)"
+#			echo "-------------------------------------------------"
+#			return 0
+#		fi
 
 		failed_dev_test=0
 
