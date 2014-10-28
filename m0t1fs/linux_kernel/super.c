@@ -153,7 +153,7 @@ m0t1fs_filename_to_mds_session(const struct m0t1fs_sb *csb,
 	ctx = csb->csb_cl_map.mds_map[hash % csb->csb_nr_mds];
 	M0_ASSERT(ctx != NULL);
 
-	M0_LOG(M0_DEBUG, "%8s->index=%d ctx=%p session=%p", filename,
+	M0_LOG(M0_DEBUG, "%8s->index=%d ctx=%p session=%p", (const char*)filename,
 			 hash % csb->csb_nr_mds, ctx, &ctx->sc_session);
 	M0_LEAVE();
 	return &ctx->sc_session;
