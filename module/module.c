@@ -36,7 +36,8 @@ static bool module_invariant(const struct m0_module *mod)
 {
 	const struct m0_moddep *md;
 
-	return  _0C(0 < mod->m_level_nr && mod->m_level_nr < M0_MODLEV_MAX) &&
+	return  _0C(mod->m_m0 != NULL) &&
+		_0C(0 < mod->m_level_nr && mod->m_level_nr < M0_MODLEV_MAX) &&
 		_0C(mod->m_cur >= M0_MODLEV_NONE &&
 		    mod->m_cur < mod->m_level_nr) &&
 		_0C(m0_forall(i, mod->m_level_nr,
@@ -75,12 +76,13 @@ static bool module_invariant(const struct m0_module *mod)
 					}))));
 }
 
-M0_INTERNAL void
-m0_module_setup(struct m0_module *module, const char *name,
-		const struct m0_modlev *level, int level_nr)
+M0_INTERNAL void m0_module_setup(struct m0_module *module, const char *name,
+				 const struct m0_modlev *level, int level_nr,
+				 struct m0 *instance)
 {
 	*module = (struct m0_module){
 		.m_name     = name,
+		.m_m0       = instance,
 		.m_cur      = M0_MODLEV_NONE,
 		.m_level    = level,
 		.m_level_nr = level_nr
@@ -96,9 +98,8 @@ static int module_up(struct m0_module *module, int level)
 
 	M0_PRE(level < module->m_level_nr);
 	M0_PRE(module_invariant(module));
+	M0_PRE(module->m_m0 == instance);
 
-	M0_ASSERT(M0_IN(module->m_m0, (NULL, instance)));
-	module->m_m0 = instance;
 	while (module->m_cur < level && result == 0) {
 		int               next = module->m_cur + 1;
 		unsigned          i;
@@ -176,10 +177,8 @@ M0_INTERNAL void m0_module_fini(struct m0_module *module, int level)
 M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, int l0,
 				   struct m0_module *m1, int l1)
 {
-	struct m0 *instance = m0->m_m0 == NULL ? m1->m_m0 : m0->m_m0;
-
-	M0_PRE(_0C(m0 != m1) && _0C(m0->m_m0 == m1->m_m0 ||
-				    M0_IN(NULL, (m0->m_m0, m1->m_m0))));
+	M0_PRE(m0 != m1);
+	M0_PRE(m0->m_m0 == m1->m_m0);
 	M0_PRE(module_invariant(m0));
 	M0_PRE(module_invariant(m1));
 	M0_PRE(l0 > M0_MODLEV_NONE && l1 > M0_MODLEV_NONE);
@@ -194,10 +193,7 @@ M0_INTERNAL void m0_module_dep_add(struct m0_module *m0, int l0,
 	m1->m_inv[m1->m_inv_nr++] =
 		(struct m0_moddep)M0_MODDEP_INIT(m0, l0, l1);
 
-	if (instance != NULL) {
-		M0_CNT_INC(instance->i_dep_gen);
-		m0->m_m0 = m1->m_m0 = instance;
-	}
+	M0_CNT_INC(m0->m_m0->i_dep_gen);
 
 	M0_POST(module_invariant(m0));
 	M0_POST(module_invariant(m1));

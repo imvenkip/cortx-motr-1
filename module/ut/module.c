@@ -169,7 +169,7 @@ static void _reset(void)
 
 	M0_CASSERT(ARRAY_SIZE(mods) == ARRAY_SIZE(modules));
 	for (i = 0; i < ARRAY_SIZE(mods); ++i) {
-		modules[i].m_m0       = NULL;
+		modules[i].m_m0       = m0_get();
 		modules[i].m_cur      = M0_MODLEV_NONE;
 		M0_ASSERT(mods[i].level_nr <= ARRAY_SIZE(levels));
 		modules[i].m_level    = levels;
@@ -332,6 +332,7 @@ static void foobar_setup(struct m0_module *self, const char *name,
 
 	*self = (struct m0_module){
 		.m_name     = name,
+		.m_m0       = m0_get(),
 		.m_cur      = M0_MODLEV_NONE,
 		.m_level    = levels,
 		.m_level_nr = ARRAY_SIZE(levels)

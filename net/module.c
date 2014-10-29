@@ -67,13 +67,11 @@ M0_INTERNAL void m0_net_module_setup(struct m0_net *net)
 	unsigned          i;
 
 	m0_module_setup(&net->n_module, "net module",
-			levels_net, ARRAY_SIZE(levels_net));
-	net->n_module.m_m0 = instance;
+			levels_net, ARRAY_SIZE(levels_net), instance);
 	for (i = 0; i < ARRAY_SIZE(net->n_xprts); ++i) {
 		m = &net->n_xprts[i].nx_module;
 		m0_module_setup(m, net_xprt_mods[i].name, levels_net_xprt,
-				ARRAY_SIZE(levels_net_xprt));
-		m->m_m0 = instance;
+				ARRAY_SIZE(levels_net_xprt), instance);
 		m0_module_dep_add(m, M0_LEVEL_NET_DOMAIN,
 				  &net->n_module, M0_LEVEL_NET);
 	}

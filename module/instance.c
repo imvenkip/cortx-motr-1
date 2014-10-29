@@ -47,8 +47,7 @@ static const struct m0_modlev levels_inst[] = {
 M0_INTERNAL void m0_instance_setup(struct m0 *instance)
 {
 	m0_module_setup(&instance->i_self, "m0 instance",
-			levels_inst, ARRAY_SIZE(levels_inst));
-	instance->i_self.m_m0 = instance;
+			levels_inst, ARRAY_SIZE(levels_inst), instance);
 	m0_net_module_setup(&instance->i_net);
 	m0_module_dep_add(&instance->i_self, M0_LEVEL_INIT,
 			  &instance->i_net.n_module, M0_LEVEL_NET);

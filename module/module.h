@@ -185,9 +185,9 @@ struct m0_modlev {
  *        setting the fields of m0_module(s) and establishing
  *        inter-modules dependencies.
  */
-M0_INTERNAL void
-m0_module_setup(struct m0_module *module, const char *name,
-		const struct m0_modlev *level, int level_nr);
+M0_INTERNAL void m0_module_setup(struct m0_module *module, const char *name,
+				 const struct m0_modlev *level, int level_nr,
+				 struct m0 *instance);
 
 /**
  * Bring module at least to the given level.
