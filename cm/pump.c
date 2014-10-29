@@ -165,10 +165,8 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 			 * No local data found corresponding to the
 			 * failure. So mark the operation as complete.
 			 */
-			if (m0_cm_aggr_group_tlists_are_empty(cm)) {
+			if (m0_cm_aggr_group_tlists_are_empty(cm))
 				m0_cm_complete(cm);
-				M0_LOG(M0_DEBUG, "cm %p completed", cm);
-			}
 			pump_move(cp_pump, 0, CPP_COMPLETE);
 			M0_LOG(M0_DEBUG, "pump moves to COMPLETE");
 			goto wait;
@@ -274,11 +272,7 @@ static int (*pump_action[]) (struct m0_cm_cp_pump *cp_pump) = {
 
 static uint64_t cm_cp_pump_fom_locality(const struct m0_fom *fom)
 {
-	/*
-	 * It doesn't matter which reqh locality the cp pump FOM is put into.
-	 * Thus returning 0 by default.
-	 */
-        return 0;
+	return 0;
 }
 
 static void _pump_wait(struct m0_cm_cp_pump *cp_pump)
@@ -351,7 +345,7 @@ M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype)
 			 &cmtype->ct_stype, &cm_cp_pump_conf);
 }
 
-M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
+M0_INTERNAL void m0_cm_cp_pump_prepare(struct m0_cm *cm)
 {
 	struct m0_cm_cp_pump *cp_pump;
 	M0_ENTRY("cm = %p", cm);
@@ -364,6 +358,16 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
         m0_chan_init(&cp_pump->p_signal, &cp_pump->p_signal_mutex);
 	m0_fom_init(&cp_pump->p_fom, &cm->cm_type->ct_pump_fomt,
 		    &cm_cp_pump_fom_ops, NULL, NULL, cm->cm_service.rs_reqh);
+}
+
+M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
+{
+	struct m0_cm_cp_pump *cp_pump;
+	M0_ENTRY("cm = %p", cm);
+
+	M0_PRE(m0_cm_is_locked(cm));
+
+	cp_pump = &cm->cm_cp_pump;
 	m0_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
 	M0_LEAVE();
 }

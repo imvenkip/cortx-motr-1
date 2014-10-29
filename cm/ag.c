@@ -30,7 +30,6 @@
 #include "lib/misc.h"
 #include "lib/errno.h"
 
-#include "layout/layout.h"
 #include "mero/magic.h"
 
 #include "cm/sw.h"

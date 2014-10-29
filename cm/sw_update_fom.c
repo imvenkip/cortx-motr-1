@@ -121,7 +121,8 @@ static int swu_store_init(struct m0_cm_sw_update *swu)
 	int            rc;
 
 	M0_SET0(&cm->cm_last_saved_sw_hi);
-	rc = m0_cm_sw_store_init(cm, &fom->fo_loc->fl_group, &fom->fo_tx.tx_betx) ?: M0_FSO_AGAIN;
+	rc = m0_cm_sw_store_init(cm, &fom->fo_loc->fl_group,
+				 &fom->fo_tx.tx_betx) ?: M0_FSO_AGAIN;
 	if (rc == 0 || rc == -ENOENT) {
 		phase = rc == -ENOENT ? SWU_STORE_INIT_WAIT : SWU_UPDATE;
 		m0_fom_phase_set(fom, phase);
@@ -183,7 +184,11 @@ static int swu_update(struct m0_cm_sw_update *swu)
 	if (rc == M0_FSO_WAIT)
 		return rc;
 	if (rc == 0 || rc == -ENOSPC || rc == -ENOENT) {
-		phase = rc == -ENOENT ? SWU_COMPLETE : SWU_STORE;
+		if (rc == -ENOENT) {
+			swu->swu_is_complete = true;
+			phase = SWU_COMPLETE;
+		} else
+			phase = SWU_STORE;
 		m0_cm_ready_done(cm);
 		m0_fom_phase_move(fom, 0, phase);
 		rc = M0_FSO_AGAIN;
@@ -299,7 +304,6 @@ static int swu_complete(struct m0_cm_sw_update *swu)
 	M0_BE_FREE_PTR_SYNC(sw, seg, &tx->tx_betx);
 	m0_be_seg_dict_delete(seg, &tx->tx_betx, cm_sw_name);
 	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
-	swu->swu_is_complete = true;
 	m0_dtx_done(tx);
 	m0_fom_phase_move(fom, rc, SWU_STORE_WAIT);
 	return M0_FSO_WAIT;
@@ -319,6 +323,14 @@ static uint64_t cm_swu_fom_locality(const struct m0_fom *fom)
 	return 0;
 }
 
+static void _swu_wait(struct m0_cm_sw_update *swu)
+{
+	M0_ENTRY("swu = %p", swu);
+
+	m0_fom_wait_on(&swu->swu_fom, &swu->swu_signal,
+		       &swu->swu_fom.fo_cb);
+}
+
 static int cm_swu_fom_tick(struct m0_fom *fom)
 {
 	struct m0_cm           *cm;
@@ -332,7 +344,7 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 	rc = swu_action[phase](swu);
 	if (rc == M0_FSO_WAIT && m0_fom_phase(fom) != SWU_FINI &&
 	    !m0_fom_is_waiting_on(fom))
-		swu->swu_wakeme = true;
+		_swu_wait(swu);
 	m0_cm_unlock(cm);
 	if (rc < 0) {
 		m0_fom_phase_move(fom, 0, SWU_FINI);
@@ -365,22 +377,13 @@ M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype)
 			 &cmtype->ct_stype, &cm_sw_update_conf);
 }
 
-void swu_wakeme(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_cm_sw_update *swu = container_of(ast, struct m0_cm_sw_update,
-						   swu_wakeme_ast);
-	if (swu->swu_wakeme) {
-		swu->swu_wakeme = false;
-		m0_fom_wakeup(&swu->swu_fom);
-	}
-}
-
 M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 {
-	struct m0_fom *fom = &cm->cm_sw_update.swu_fom;
+	struct m0_cm_sw_update *swu = &cm->cm_sw_update;
+	struct m0_fom          *fom = &swu->swu_fom;
 
-	cm->cm_sw_update.swu_is_complete = false;
-	cm->cm_sw_update.swu_wakeme_ast.sa_cb = swu_wakeme;
+	swu->swu_is_complete = false;
+	m0_chan_init(&swu->swu_signal, &cm->cm_sm_group.s_lock);
 	m0_fom_init(fom, &cm->cm_type->ct_swu_fomt, &cm_sw_update_fom_ops, NULL,
 		    NULL, cm->cm_service.rs_reqh);
 	m0_fom_queue(fom, cm->cm_service.rs_reqh);
@@ -390,8 +393,9 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 
 M0_INTERNAL void m0_cm_sw_update_continue(struct m0_cm *cm)
 {
-	m0_sm_ast_post(cm->cm_mach.sm_grp, &cm->cm_sw_update.swu_wakeme_ast);
-	m0_cm_ast_run_fom_wakeup(cm);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	m0_chan_signal(&cm->cm_sw_update.swu_signal);
 }
 
 M0_INTERNAL void m0_cm_sw_update_stop(struct m0_cm *cm)
@@ -400,6 +404,7 @@ M0_INTERNAL void m0_cm_sw_update_stop(struct m0_cm *cm)
 
 	M0_PRE(m0_cm_is_locked(cm));
 	M0_PRE(swu->swu_is_complete);
+	m0_chan_fini(&swu->swu_signal);
 }
 
 #undef M0_TRACE_SUBSYSTEM

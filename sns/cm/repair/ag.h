@@ -136,7 +136,8 @@ M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
  */
 M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
 						const struct m0_cm_ag_id *id,
-						struct m0_pdclust_layout *pl);
+						struct m0_pdclust_layout *pl,
+						struct m0_pdclust_instance *pi);
 
 M0_INTERNAL struct m0_sns_cm_repair_ag *
 sag2repairag(const struct m0_sns_cm_ag *sag);

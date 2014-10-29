@@ -28,18 +28,19 @@
 #include "sns/parity_repair.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/ag.h"
+#include "sns/cm/file.h"
 
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 					     struct m0_pdclust_layout *pl);
 static uint64_t
 rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl)
+				struct m0_pdclust_layout *pl,
+				struct m0_pdclust_instance *pi)
 {
         struct m0_poolmach         *pm = scm->sc_base.cm_pm;
         struct m0_fid               cobfid;
         struct m0_fid               gfid;
-        struct m0_pdclust_instance *pi;
         struct m0_cob_domain       *cdom;
         struct m0_pdclust_src_addr  sa;
         struct m0_pdclust_tgt_addr  ta;
@@ -47,28 +48,22 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
         uint32_t                    tgt_unit;
         uint32_t                    tgt_unit_prev;
         uint64_t                    unit;
-	uint64_t                    upg;
+	uint64_t                    dpupg;
         int                         rc;
 
         cdom  = scm->sc_it.si_cob_dom;
         M0_SET0(&sa);
-        M0_SET0(&ta);
         agid2fid(id, &gfid);
         sa.sa_group = agid2group(id);
-        rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
-        if (rc != 0)
-                return ~0;
-	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-	for (unit = 0; unit < upg; ++unit) {
+	dpupg = m0_pdclust_N(pl) + m0_pdclust_K(pl);
+	for (unit = 0; unit < dpupg; ++unit) {
 		sa.sa_unit = unit;
+		M0_SET0(&ta);
+		M0_SET0(&cobfid);
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
 				      &cobfid);
 		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
 			continue;
-		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE)
-                        continue;
-                sa.sa_unit = unit;
-                m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
                 rc = m0_sns_cm_cob_locate(cdom, &cobfid);
                 if (rc != 0)
                         continue;
@@ -76,7 +71,9 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
                                              pi, sa.sa_group, unit, &tgt_unit,
 					     &tgt_unit_prev);
                 if (rc != 0)
-                        goto err;
+                        return ~0;
+		M0_SET0(&ta);
+		M0_SET0(&cobfid);
                 sa.sa_unit = tgt_unit;
                 m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid, &cobfid);
                 rc = m0_sns_cm_cob_locate(cdom, &cobfid);
@@ -84,15 +81,10 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
                         if (rc == -ENOENT)
                                 M0_CNT_INC(incoming_nr);
                         else
-                                goto err;
+                                return ~0;
                 }
 	}
-        goto out;
-err:
-        m0_layout_instance_fini(&pi->pi_base);
-        return ~0;
-out:
-        m0_layout_instance_fini(&pi->pi_base);
+
         return incoming_nr;
 }
 
@@ -112,17 +104,19 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	struct m0_cm               *cm;
 	struct m0_pdclust_layout   *pl;
 	struct m0_fid               cobfid;
+	struct m0_sns_cm_file_ctx  *fctx;
 	uint64_t                    offset;
 	int                         rc = 0;
 
 	cm = sag->sag_base.cag_cm;
-	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
+	fctx = sag->sag_fctx;
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, scp->sc_base.c_ag_cp_idx,
-				       pl, &cobfid);
+				       pl, fctx->sf_pi, &cobfid);
 	if (rc == 0) {
 		offset = m0_sns_cm_ag_unit2cobindex(sag,
 						    scp->sc_base.c_ag_cp_idx,
-						    pl);
+						    pl, fctx->sf_pi);
 		/*
 		 * Change the target cobfid and offset of the copy
 		 * packet to write the data from spare unit back to

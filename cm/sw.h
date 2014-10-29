@@ -64,8 +64,7 @@ struct m0_cm_sw_onwire {
 
 struct m0_cm_sw_update {
 	struct m0_fom    swu_fom;
-	struct m0_sm_ast swu_wakeme_ast;
-	bool             swu_wakeme;
+	struct m0_chan   swu_signal;
 	bool             swu_is_complete;
 };
 

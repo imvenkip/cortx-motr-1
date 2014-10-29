@@ -65,6 +65,7 @@ struct m0_cm_cp_pump {
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype);
 
+M0_INTERNAL void m0_cm_cp_pump_prepare(struct m0_cm *cm);
 /**
  * Initialises pump FOM and submits it to reqh for processing.
  * This is invoked from m0_cm_start()

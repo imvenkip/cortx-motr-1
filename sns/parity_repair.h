@@ -56,8 +56,8 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
  * @param data_unit_id_out the output data unit index.
  */
 M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
-                                       const struct m0_fid *fid,
                                        struct m0_pdclust_layout *pl,
+				       struct m0_pdclust_instance *pi,
                                        uint64_t group_number,
                                        uint64_t spare_unit_number,
                                        uint64_t *data_unit_id_out);

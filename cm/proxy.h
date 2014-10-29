@@ -58,19 +58,10 @@ struct m0_cm_proxy {
 	struct m0_cm_sw        px_last_sw_onwire_sent;
 
 	struct m0_sm_ast       px_sw_onwire_ast;
+	bool                   px_is_done;
 
-	/** Total number of call backs executed for each remote update sent. */
 	uint64_t               px_nr_asts;
 
-	/**
-	 * Channel to wait on before finalising this proxy to make sure all the
-	 * call backs are processed corresponding to all remote the updates sent.
-	 * @see m0_cm_proxy_fini_wait()
-	 */
-	struct m0_chan         px_signal;
-	struct m0_mutex        px_signal_mutex;
-
-	bool                   px_shutdown;
 	/** Back reference to local copy machine. */
 	struct m0_cm          *px_cm;
 

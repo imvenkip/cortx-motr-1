@@ -23,9 +23,10 @@
 #ifndef __MERO_SNS_CM_AG_H__
 #define __MERO_SNS_CM_AG_H__
 
+#include "layout/pdclust.h"
+#include "cob/ns_iter.h"
 
 #include "cm/ag.h"
-#include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 
 /**
@@ -40,6 +41,8 @@ struct m0_sns_cm;
 struct m0_sns_cm_ag {
 	/** Base aggregation group. */
 	struct m0_cm_aggr_group          sag_base;
+
+	struct m0_sns_cm_file_ctx       *sag_fctx;
 
 	/** Total number of failure units in this aggregation group. */
 	uint32_t                         sag_fnr;
@@ -56,6 +59,21 @@ struct m0_sns_cm_ag {
 	/** If this aggregation group has local spare units on the replica. */
 	bool                             sag_is_relevant;
 };
+
+struct m0_sns_cm_ag_iter {
+	struct m0_sm               ai_sm;
+	struct m0_fid              ai_fid;
+	struct m0_sns_cm_file_ctx *ai_fctx;
+	struct m0_cm_ag_id         ai_id_curr;
+	struct m0_cm_ag_id         ai_id_next;
+	struct m0_cob_domain      *ai_cdom;
+};
+
+M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
+				   const struct m0_cm_ag_id id_curr,
+				   struct m0_cm_ag_id *id_next);
+M0_INTERNAL int m0_sns_cm_ag_iter_init(struct m0_sns_cm_ag_iter *ai);
+M0_INTERNAL void m0_sns_cm_ag_iter_fini(struct m0_sns_cm_ag_iter *ai);
 
 /**
  * Initialises given sns specific generic aggregation group.

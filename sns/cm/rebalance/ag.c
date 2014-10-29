@@ -36,6 +36,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/iter.h"
+#include "sns/cm/file.h"
 
 /**
    @addtogroup SNSCMAG
@@ -55,24 +56,27 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
 	struct m0_sns_cm_ag           *sag;
         struct m0_sns_cm              *scm;
 	struct m0_pdclust_layout      *pl;
+	struct m0_sns_cm_file_ctx     *fctx;
+	struct m0_cm_ag_id            *id = &ag->cag_id;
 	uint64_t                       total_resbufs;
 
 	M0_ENTRY();
-	M0_PRE(ag != NULL && ag->cag_layout != NULL);
+	M0_PRE(ag != NULL);
 
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
 		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
-		     ag->cag_id.ai_hi.u_hi, ag->cag_id.ai_hi.u_lo,
-		     ag->cag_id.ai_lo.u_hi, ag->cag_id.ai_lo.u_lo);
+		     id->ai_hi.u_hi, id->ai_hi.u_lo,
+		     id->ai_lo.u_hi, id->ai_lo.u_lo);
 
 
 	sag = ag2snsag(ag);
+	fctx = sag->sag_fctx;
 	rag = sag2rebalanceag(sag);
 	scm = cm2sns(ag->cag_cm);
 	if (ag->cag_has_incoming) {
-		pl = m0_layout_to_pdl(ag->cag_layout);
-		total_resbufs = m0_sns_cm_incoming_reserve_bufs(scm, &ag->cag_id,
-							        pl);
+		pl = m0_layout_to_pdl(fctx->sf_layout);
+		total_resbufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl,
+								fctx->sf_pi);
 		m0_sns_cm_normalize_reservation(scm, ag, pl, total_resbufs);
 	}
 
@@ -109,7 +113,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
 {
 	struct m0_sns_cm_rebalance_ag *rag;
 	struct m0_sns_cm_ag           *sag;
-	struct m0_pdclust_layout      *pl;
 	int                            rc = 0;
 
 	M0_ENTRY("scm: %p, ag id:%p", cm, id);
@@ -129,7 +132,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
                 return rc;
         }
 
-	pl = m0_layout_to_pdl(sag->sag_base.cag_layout);
 	*out = &sag->sag_base;
 	M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_ag_alloc,
 		     M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),

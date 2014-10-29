@@ -25,11 +25,11 @@
 #define __MERO_SNS_CM_H__
 
 #include "net/buffer_pool.h"
-#include "layout/pdclust.h"
 #include "pool/pool.h"
 
 #include "cm/cm.h"
 #include "sns/cm/iter.h"
+#include "sns/cm/ag.h"
 #include "rm/rm.h"
 #include "file/file.h"
 #include "lib/hash.h"
@@ -123,7 +123,8 @@ struct m0_sns_cm_helpers {
 	 */
 	uint64_t (*sch_ag_max_incoming_units)(const struct m0_sns_cm *scm,
 					      const struct m0_cm_ag_id *id,
-					      struct m0_pdclust_layout *pl);
+					      struct m0_pdclust_layout *pl,
+					      struct m0_pdclust_instance *pi);
 
 	/**
 	 * Returns index of starting unit of the given aggregation group to
@@ -182,6 +183,7 @@ struct m0_sns_cm {
 	/** SNS copy machine data iterator. */
 	struct m0_sns_cm_iter           sc_it;
 
+	struct m0_sns_cm_ag_iter        sc_ag_it;
 	/**
 	 * Buffer pool for incoming copy packets, this is used by sliding
 	 * window.
@@ -275,7 +277,8 @@ M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm);
 M0_INTERNAL uint64_t
 m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl);
+				struct m0_pdclust_layout *pl,
+				struct m0_pdclust_instance *pi);
 
 M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 					   struct m0_pdclust_layout *pl);
@@ -295,6 +298,7 @@ M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 					 uint64_t nr_bufs);
 
 M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
+					struct m0_be_tx *tx,
 					enum m0_pool_event_owner_type et,
 					enum m0_pool_nd_state state);
 

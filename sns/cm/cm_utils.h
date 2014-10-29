@@ -52,7 +52,8 @@ m0_sns_cm_unit2cobfid(struct m0_pdclust_layout *pl,
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 						uint64_t unit,
-						struct m0_pdclust_layout *pl);
+						struct m0_pdclust_layout *pl,
+						struct m0_pdclust_instance *pi);
 
 M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
 					 uint64_t fsize);
@@ -77,6 +78,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 						 const struct m0_fid *fid,
 						 struct m0_pdclust_layout *pl,
+						 struct m0_pdclust_instance *pi,
 						 uint64_t group);
 
 
@@ -86,15 +88,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *ag,
 M0_INTERNAL uint64_t
 m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl);
-
-/**
- * Builds layout instance for new GOB fid calculated in ITPH_FID_NEXT phase.
- * @see iter_fid_next()
- */
-M0_INTERNAL int m0_sns_cm_fid_layout_instance(struct m0_pdclust_layout *pl,
-					      struct m0_pdclust_instance **pi,
-					      const struct m0_fid *fid);
+				struct m0_pdclust_layout *pl,
+				struct m0_pdclust_instance *pi);
 
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(const struct m0_sns_cm *scm,
 					 const struct m0_fid *cob_fid);
@@ -111,10 +106,11 @@ m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
 			   uint64_t fidx);
 
 M0_INTERNAL bool m0_sns_cm_unit_is_spare(const struct m0_sns_cm *scm,
-                                         struct m0_pdclust_layout *pl,
-                                         const struct m0_fid *fid,
-                                         uint64_t group_number,
-                                         uint64_t spare_unit_number);
+					 struct m0_pdclust_layout *pl,
+					 struct m0_pdclust_instance *pi,
+					 const struct m0_fid *fid,
+					 uint64_t group_number,
+					 uint64_t spare_unit_number);
 
 /**
  * Returns starting index of the unit in the aggregation group relevant to
@@ -139,17 +135,15 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit_end(const struct m0_sns_cm *scm,
 M0_INTERNAL int m0_sns_cm_ag_tgt_unit2cob(struct m0_sns_cm_ag *sag,
 					  uint64_t tgt_unit,
 					  struct m0_pdclust_layout *pl,
+					  struct m0_pdclust_instance *pi,
 					  struct m0_fid *cobfid);
 
 /**
- * Fetches file size and layout for given gob_fid.
- * @note This may block.
- * @retval 0 on success, IT_WAIT for blocking operation
+ * Builds temporary layout and uses default file size for given gob_fid.
+ * Only for UT purposes.
  */
-M0_INTERNAL int m0_sns_cm_file_size_layout_fetch(struct m0_cm *cm,
-						 struct m0_fid *gfid,
-						 struct m0_pdclust_layout
-						 **layout, uint64_t *fsize);
+M0_INTERNAL int
+m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx);
 
 M0_INTERNAL const char *m0_sns_cm_tgt_ep(struct m0_cm *cm,
 					 struct m0_fid *gfid);
@@ -169,6 +163,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_failures_nr(const struct m0_sns_cm *scm,
  */
 M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
 					  struct m0_pdclust_layout *pl,
+					  struct m0_pdclust_instance *pi,
 					  const struct m0_cm_ag_id *id);
 
 M0_INTERNAL bool

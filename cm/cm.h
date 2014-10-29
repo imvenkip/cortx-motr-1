@@ -113,6 +113,7 @@
 /* Import */
 struct m0_fop;
 struct m0_net_buffer_pool;
+struct m0_layout;
 
 /**
  * Copy machine states.

@@ -508,7 +508,7 @@ static void receiver_init()
 	m0_cm_state_set(cm, M0_CMS_PREPARE);
 
 	m0_cm_sw_update_start(cm);
-
+	m0_cm_cp_pump_prepare(cm);
 	m0_cm_unlock(cm);
 
 	cm_ready(cm);
@@ -680,6 +680,7 @@ static void sender_init()
 	m0_cm_state_set(&sender_cm, M0_CMS_PREPARE);
 
 	m0_cm_sw_update_start(&sender_cm);
+	m0_cm_cp_pump_prepare(&sender_cm);
 	m0_cm_unlock(&sender_cm);
 
 	cm_ready(&sender_cm);

@@ -24,8 +24,8 @@
 #define __MERO_SNS_CM_ITER_H__
 
 #include "sm/sm.h"
-
 #include "cob/ns_iter.h"
+#include "layout/pdclust.h"
 #include "layout/linear_enum.h"
 
 /**
@@ -44,57 +44,54 @@ struct m0_cm_cp;
  * parity group, unit in the parity group which is being processed. Also few
  * more details regarding the current file size, number of units per group, etc.
  */
-struct m0_sns_cm_file_context {
+struct m0_sns_cm_iter_file_ctx {
 	/** GOB being re-structured. */
-	struct m0_fid                 sfc_gob_fid;
+	struct m0_fid                 ifc_gfid;
 
-	struct m0_sns_cm_file_ctx    *sfc_fctx;
-
-	/** GOB layout. */
-	struct m0_pdclust_layout     *sfc_pdlayout;
+	struct m0_sns_cm_file_ctx    *ifc_fctx;
 
 	/** pdclust instance for a particular GOB. */
-	struct m0_pdclust_instance   *sfc_pi;
+	struct m0_pdclust_instance   *ifc_pi;
 
 	/** Total number of units (i.e. N + 2K) in a parity group. */
-	uint32_t                      sfc_upg;
+	uint32_t                      ifc_upg;
 
 	/** Total number of data and parity units in a parity group. */
-	uint32_t                      sfc_dpupg;
+	uint32_t                      ifc_dpupg;
 
 	/** Total number of parity groups in file. */
-	uint64_t                      sfc_groups_nr;
+	uint64_t                      ifc_groups_nr;
 
 	/**
 	 * Unit within a particular parity group corresponding to
 	 * m0_sns_cm_iter::si_gob_fid, of which the data is to be read or
 	 * written.
 	 */
-	struct m0_pdclust_src_addr    sfc_sa;
+	struct m0_pdclust_src_addr    ifc_sa;
 
 	/**
 	 * COB index and frame number in the COB, corresponding to
-	 * m0_sns_cm_file_context::sfc_sa.
+	 * m0_sns_cm_iter_file_ctx::ifc_sa.
 	 */
-	struct m0_pdclust_tgt_addr    sfc_ta;
+	struct m0_pdclust_tgt_addr    ifc_ta;
 
 	/**
 	 * Total number of failed units in an aggregation group represented by
-	 * m0_sns_cm_file_context::sfc_sa.sa_group
+	 * m0_sns_cm_iter_file_ctx::ifc_sa.sa_group
 	 */
-	uint64_t                      sfc_group_nr_fail_units;
+	uint64_t                      ifc_group_nr_fail_units;
 
-	/** COB fid corresponding to m0_sns_cm_file_context::sfc_ta. */
-	struct m0_fid                 sfc_cob_fid;
+	/** COB fid corresponding to m0_sns_cm_iter_file_ctx::ifc_ta. */
+	struct m0_fid                 ifc_cob_fid;
 
 	/**
 	 * Attributes of the current fid.
 	 * @note This should be moved to some fid cache structure, once it is
 	 * implemented.
 	 */
-	struct m0_cob_attr            sfc_cob_attr;
+	struct m0_cob_attr            ifc_cob_attr;
 
-	bool                          sfc_cob_is_spare_unit;
+	bool                          ifc_cob_is_spare_unit;
 };
 
 /**
@@ -109,12 +106,10 @@ struct m0_sns_cm_iter {
 	/** Iterator state machine. */
 	struct m0_sm                     si_sm;
 
-	struct m0_be_seg                *si_beseg;
-
 	struct m0_cob_domain            *si_cob_dom;
 
 	/** Layout details of a file. */
-	struct m0_sns_cm_file_context    si_fc;
+	struct m0_sns_cm_iter_file_ctx   si_fc;
 
 	struct m0_fom                   *si_fom;
 

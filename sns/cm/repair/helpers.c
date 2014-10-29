@@ -31,42 +31,37 @@ M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 
 static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 					     const struct m0_cm_ag_id *id,
-					     struct m0_pdclust_layout *pl)
+					     struct m0_pdclust_layout *pl,
+					     struct m0_pdclust_instance *pi)
 {
         struct m0_pdclust_src_addr  sa;
         struct m0_pdclust_tgt_addr  ta;
         struct m0_fid               cobfid;
 	struct m0_fid               gfid;
-	struct m0_pdclust_instance *pi;
 	struct m0_cob_domain       *cdom;
 	uint32_t                    incoming = 0;
 	uint64_t                    upg;
 	uint64_t                    unit;
-	int                         rc;
+
 	M0_ENTRY();
 
 	agid2fid(id,  &gfid);
 	sa.sa_group = agid2group(id);
 	cdom  = scm->sc_it.si_cob_dom;
-	rc = m0_sns_cm_fid_layout_instance(pl, &pi, &gfid);
-	if (rc == 0) {
-		upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
-		for (unit = 0; unit < upg; ++unit) {
-			sa.sa_unit = unit;
-			m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
-					      &cobfid);
-			if (!m0_sns_cm_unit_is_spare(scm, pl, &gfid, sa.sa_group,
-						     unit) &&
-			    !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
-			    m0_sns_cm_cob_locate(cdom, &cobfid) == -ENOENT)
-				M0_CNT_INC(incoming);
-		}
-		m0_layout_instance_fini(&pi->pi_base);
-		return M0_RC(incoming);
+	upg = m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+	for (unit = 0; unit < upg; ++unit) {
+		sa.sa_unit = unit;
+		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, &gfid,
+				      &cobfid);
+		if (!m0_sns_cm_unit_is_spare(scm, pl, pi, &gfid, sa.sa_group,
+					     unit) &&
+		    !m0_sns_cm_is_cob_failed(scm, &cobfid) &&
+		    m0_sns_cm_cob_locate(cdom, &cobfid) == -ENOENT)
+			M0_CNT_INC(incoming);
 	}
 
 	M0_LEAVE();
-	return ~0;
+	return M0_RC(incoming);
 }
 
 static uint64_t repair_ag_unit_start(const struct m0_pdclust_layout *pl)
@@ -105,7 +100,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	for (j = 0; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
-		if (m0_sns_cm_unit_is_spare(scm, pl, gfid, group, j))
+		if (m0_sns_cm_unit_is_spare(scm, pl, pi, gfid, group, j))
 			continue;
 		if (!m0_sns_cm_is_cob_failed(scm, &cobfid))
 			continue;
@@ -116,7 +111,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		if (rc != 0)
 			return M0_RC(rc);
 		sa.sa_unit = tgt_unit;
-		if (!m0_sns_cm_unit_is_spare(scm, pl, gfid, group, tgt_unit))
+		if (!m0_sns_cm_unit_is_spare(scm, pl, pi, gfid, group, tgt_unit))
 			continue;
 		m0_sns_cm_unit2cobfid(pl, pi, &sa, &ta, gfid, &cobfid);
 		rc = m0_sns_cm_cob_locate(it->si_cob_dom, &cobfid);

@@ -566,17 +566,20 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 }
 
 M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
+					struct m0_be_tx *tx,
 					enum m0_pool_event_owner_type et,
 					enum m0_pool_nd_state state)
 {
-	struct m0_poolmach         *pm = scm->sc_base.cm_pm;
+	struct m0_poolmach         *pm;
 	struct m0_pool_spare_usage *spare_array;
 	struct m0_pooldev          *dev_array;
+	struct m0_pool_event        pme;
 	uint32_t                    dev_id;
 	bool                        transit;
 	int                         i;
 	int                         rc = 0;
 
+	pm = m0_ios_poolmach_get(scm->sc_base.cm_service.rs_reqh);
 	spare_array = pm->pm_state->pst_spare_usage_array;
 	for (i = 0; spare_array[i].psu_device_index != POOL_PM_SPARE_SLOT_UNUSED; ++i) {
 		transit = false;
@@ -606,35 +609,14 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 			break;
 		}
 		if (transit) {
-			struct m0_pool_event   pme;
-			struct m0_be_tx_credit cred = {};
-			struct m0_be_tx        tx;
-			struct m0_sm_group    *grp  = m0_locality0_get()->lo_grp;
-
 			M0_SET0(&pme);
 			pme.pe_type  = et;
 			pme.pe_index = dev_id;
 			pme.pe_state = state;
-			m0_sm_group_lock(grp);
-			m0_be_tx_init(&tx, 0, scm->sc_it.si_beseg->bs_domain, grp,
-					      NULL, NULL, NULL, NULL);
-			m0_poolmach_store_credit(scm->sc_base.cm_pm, &cred);
-
-			m0_be_tx_prep(&tx, &cred);
-			/*
-			 * XXX FIX ME: Replace m0_be_tx_{open, close}_sync()
-			 * calls with corresponding async versions.
-			 */
-			rc = m0_be_tx_open_sync(&tx);
-			if (rc == 0) {
-				rc = m0_poolmach_state_transit(scm->sc_base.cm_pm,
-							       &pme, &tx);
-				m0_be_tx_close_sync(&tx);
-			}
-			m0_be_tx_fini(&tx);
-			m0_sm_group_unlock(grp);
+			rc = m0_poolmach_state_transit(pm, &pme, tx);
 			if (rc != 0)
 				break;
+
 		}
 	}
 
@@ -679,8 +661,10 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 			     scm->sc_obp.sb_bp.nbp_free);
 	}
 
+	rc = m0_sns_cm_ag_iter_init(&scm->sc_ag_it);
+
 	M0_LEAVE();
-	return 0;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
@@ -732,6 +716,8 @@ M0_INTERNAL int m0_sns_cm_stop(struct m0_cm *cm)
 		     scm->sc_it.si_total_fsize);
 	M0_CNT_INC(scm->sc_repair_done);
 	m0_sns_cm_rm_fini(scm);
+	m0_sns_cm_ag_iter_fini(&scm->sc_ag_it);
+
 	return 0;
 }
 
@@ -837,22 +823,11 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 	       scm->sc_obp.sb_bp.nbp_seg_size;
 }
 
-static int _fid_next(struct m0_cob_domain *cdom, struct m0_fid *fid_curr,
-		     struct m0_fid *fid_next)
-{
-	int rc;
-
-	rc = m0_cob_ns_next_of(&cdom->cd_namespace, fid_curr,
-			       fid_next);
-	if (rc == 0)
-		*fid_curr = *fid_next;
-	return rc;
-}
-
 M0_INTERNAL uint64_t
 m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id,
-				struct m0_pdclust_layout *pl)
+				struct m0_pdclust_layout *pl,
+				struct m0_pdclust_instance *pi)
 {
 	struct m0_fid gfid;
 	uint64_t      group;
@@ -860,7 +835,7 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 	uint64_t      cp_data_seg_nr;
 	uint64_t      nr_incoming;
 
-	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, pl);
+	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, pl, pi);
         agid2fid(id, &gfid);
         group = agid2group(id);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
@@ -926,88 +901,12 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 				  const struct m0_cm_ag_id id_curr,
 				  struct m0_cm_ag_id *id_next)
 {
-	struct m0_sns_cm          *scm = cm2sns(cm);
-	struct m0_sns_cm_file_ctx *fctx;
-	struct m0_fid              fid_start = {0, M0_MDSERVICE_START_FID.f_key};
-	struct m0_fid              fid_curr;
-	struct m0_fid              fid_next = {0, 0};
-	struct m0_cm_ag_id         ag_id;
-	struct m0_layout          *l = NULL;
-	struct m0_pdclust_layout  *pl = NULL;
-	struct m0_cob_domain      *cdom = scm->sc_it.si_cob_dom;
-	struct m0_fom             *fom;
-	uint64_t                   fsize;
-	uint64_t                   nr_gps = 0;
-	uint64_t                   group = agid2group(&id_curr);
-	uint64_t                   i;
-	int                        rc = 0;
-	M0_ENTRY();
+	struct m0_sns_cm *scm = cm2sns(cm);
 
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	if (!m0_cm_ag_id_is_set(&id_curr))
-		fid_curr = fid_start;
-	else {
-		++group;
-		agid2fid(&id_curr, &fid_curr);
-	}
-	do {
-		if (m0_sns_cm_fid_is_valid(&fid_curr)) {
-			m0_mutex_lock(&scm->sc_file_ctx_mutex);
-			rc = m0_sns_cm_file_lock(scm, &fid_curr, &fctx);
-			if (rc == -EAGAIN) {
-				M0_ASSERT(fctx != NULL);
-				fom = &scm->sc_base.cm_sw_update.swu_fom;
-				rc = m0_sns_cm_file_lock_wait(fctx, fom);
-				if (rc == -EAGAIN) {
-					m0_mutex_unlock(&scm->sc_file_ctx_mutex);
-					return M0_RC(M0_FSO_WAIT);
-				}
-			}
-			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
-			if (rc != 0)
-				return M0_RC(rc);
-			M0_ASSERT(fctx != NULL);
-			if (fctx->sf_layout == NULL) {
-				rc = m0_sns_cm_file_size_layout_fetch(cm, &fid_curr,
-								      &pl, &fsize);
-				if (rc == 0) {
-					fctx->sf_layout = m0_pdl_to_layout(pl);
-					fctx->sf_size = fsize;
-				}
-			}
-			if (rc != 0)
-				return M0_RC(rc);
-			l = fctx->sf_layout;
-			fsize = fctx->sf_size;
-			pl = m0_layout_to_pdl(l);
-			nr_gps = m0_sns_cm_nr_groups(pl, fsize);
-			for (i = group; i < nr_gps; ++i) {
-				M0_LOG(M0_DEBUG, "i: %lu, grps: %lu", i, nr_gps);
-				m0_sns_cm_ag_agid_setup(&fid_curr, i, &ag_id);
-				if (!m0_sns_cm_ag_is_relevant(scm, pl, &ag_id))
-					continue;
-				if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l)) {
-					M0_SET0(&ag_id);
-					return M0_RC(-ENOSPC);
-				}
-				*id_next = ag_id;
-				return M0_RC(rc);
-			}
-			m0_mutex_lock(&scm->sc_file_ctx_mutex);
-			m0_sns_cm_file_unlock(scm, &fid_curr);
-			m0_mutex_unlock(&scm->sc_file_ctx_mutex);
-		}
-		group = 0;
-		if (m0_fid_is_set(&fid_next) &&
-		    m0_sns_cm_fid_is_valid(&fid_next))
-			fid_curr = fid_next;
-		/* Increment fid_curr.f_key to fetch next fid. */
-		M0_CNT_INC(fid_curr.f_key);
-	} while ((rc = _fid_next(cdom, &fid_curr, &fid_next)) == 0);
-
-	return M0_RC(rc);
+	return m0_sns_cm_ag__next(scm, id_curr, id_next);
 }
 
 #undef M0_TRACE_SUBSYSTEM

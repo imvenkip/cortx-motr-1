@@ -742,9 +742,11 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
                 rc = -EINVAL;
 		goto out;
 	}
+
 	rc = cm->cm_ops->cmo_prepare(cm);
 	if (rc != 0)
 		goto out;
+	cm->cm_ready_fops_recvd = 0;
 	rmach = m0_cm_rpc_machine_find(reqh);
 	rc = cm_replicas_connect(cm, rmach, reqh);
 	if (rc == -ENOENT)
@@ -752,6 +754,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	if (rc == 0) {
 		cm_ast_run_fom_init(cm);
 		m0_cm_sw_update_start(cm);
+		m0_cm_cp_pump_prepare(cm);
 		cm_move(cm, rc, M0_CMS_PREPARE, M0_CM_ERR_PREPARE);
 	}
 out:
@@ -771,7 +774,6 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_PREPARE)));
 	M0_PRE(m0_cm_invariant(cm));
 
-	cm->cm_ready_fops_recvd = 0;
 	rc = m0_cm_sw_remote_update(cm);
 	cm_move(cm, rc, M0_CMS_READY, M0_CM_ERR_READY);
 	m0_cm_unlock(cm);
@@ -805,10 +807,10 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	M0_PRE(m0_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_start(cm);
-	cm_move(cm, rc, M0_CMS_ACTIVE, M0_CM_ERR_START);
 	/* Start pump FOM to create copy packets. */
 	if (rc == 0)
 		m0_cm_cp_pump_start(cm);
+	cm_move(cm, rc, M0_CMS_ACTIVE, M0_CM_ERR_START);
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -1047,8 +1049,6 @@ M0_INTERNAL int m0_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 
 M0_INTERNAL bool m0_cm_has_more_data(const struct m0_cm *cm)
 {
-	M0_PRE(m0_cm_invariant(cm));
-
 	return !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump);
 }
 
@@ -1113,8 +1113,6 @@ M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)
 
 M0_INTERNAL void m0_cm_ready_done(struct m0_cm *cm)
 {
-	M0_PRE(m0_cm_is_locked(cm));
-
 	m0_chan_signal_lock(&cm->cm_ready_wait);
 }
 

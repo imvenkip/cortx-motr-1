@@ -30,6 +30,7 @@
 
 #include "sns/sns_addb.h"
 #include "sns/cm/ag.h"
+#include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 
 #include "stob/domain.h"	/* m0_stob_domain_find_by_stob_fid */

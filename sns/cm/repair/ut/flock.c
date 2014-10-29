@@ -98,14 +98,15 @@ static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 
 	fid = &gfid;
 
+	m0_cm_lock(cm);
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	switch (*phase) {
 	case M0_FOM_PHASE_INIT:
 		*phase = FILE_LOCK;
 		rc = M0_FSO_AGAIN;
-		goto out;
+		goto done;
 	case FILE_LOCK:
-		rc = m0_sns_cm_file_lock(scm, fid, &fctx);
+		rc = m0_sns_cm_file_lock(scm, fid, &fom->fo_loc->fl_group, &fctx);
 		M0_UT_ASSERT(rc == 0 || rc == -EAGAIN);
 		if (rc == -EAGAIN)
 			rc = m0_sns_cm_file_lock_wait(fctx, fom);
@@ -124,19 +125,19 @@ static int flock_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 			goto done;
 	default:
 		rc = -1;
-		goto out;
+		goto done;
 	}
 
 wait:
 	*phase = FILE_LOCK_WAIT;
 	 rc = M0_FSO_WAIT;
 done:
-	if (fctx->sf_flock_status == M0_SCM_FILE_LOCKED && rc == 0) {
+	m0_cm_unlock(cm);
+	if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCKED && rc == 0) {
 		m0_semaphore_up(&sem[*sem_id]);
 		*phase = M0_FOM_PHASE_FINISH;
 		rc = M0_FSO_WAIT;
 	}
-out:
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	return rc;
 }
@@ -148,7 +149,7 @@ static int file_lock_verify(struct m0_sns_cm *scm, struct m0_fid *fid,
 
 	fctx = m0_sns_cm_fctx_locate(scm, fid);
 	M0_UT_ASSERT(fctx != NULL);
-	M0_UT_ASSERT(fctx->sf_flock_status == M0_SCM_FILE_LOCKED);
+	M0_UT_ASSERT(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCKED);
 	M0_UT_ASSERT(m0_fid_eq(&fctx->sf_fid, fid));
 	M0_UT_ASSERT(m0_ref_read(&fctx->sf_ref) == ref);
 	return 0;
@@ -169,8 +170,10 @@ static void sns_flock_multi_fom(void)
 	}
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	file_lock_verify(scm, &gfid, NR);
+	m0_cm_lock(cm);
 	for (i = 0; i < NR; ++i)
 		m0_sns_cm_file_unlock(scm, &gfid);
+	m0_cm_unlock(cm);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 }
 
@@ -185,10 +188,13 @@ static void sns_flock_single_fom(void)
 			   &flock_ut_fom_tick, NULL, &sem_id, 2);
 	m0_semaphore_down(&sem[0]);
 	m0_semaphore_fini(&sem[sem_id]);
+	m0_cm_lock(cm);
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
 	m0_sns_cm_file_unlock(scm, &test_fids[0]);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	m0_cm_unlock(cm);
 }
+
 
 static bool flock_cb(struct m0_clink *clink)
 {
@@ -200,11 +206,14 @@ static bool flock_cb(struct m0_clink *clink)
 	M0_UT_ASSERT(fctx != NULL);
 	state = fctx->sf_rin.rin_sm.sm_state;
 	if (state == RI_SUCCESS) {
-		fctx->sf_flock_status = M0_SCM_FILE_LOCKED;
+		m0_sm_group_lock(fctx->sf_group);
+		m0_sm_state_set(&fctx->sf_sm, M0_SCFS_LOCKED);
+		m0_sm_group_unlock(fctx->sf_group);
 		return false;
 	}
-		return true;
+	return true;
 }
+
 
 static int test_setup(void)
 {
@@ -245,8 +254,8 @@ static int fids_set(void)
 		m0_fid_set(&test_fids[i], cont, key);
 		key++;
 		if (key == KEY_MAX) {
-		cont++;
-		key = KEY_START;
+			cont++;
+			key = KEY_START;
 		}
 	}
 	return 0;
@@ -254,21 +263,25 @@ static int fids_set(void)
 
 static void sns_file_lock_unlock(void)
 {
-	int			   rc;
 	struct m0_sns_cm_file_ctx *fctx[NR_FIDS];
 	struct m0_chan		  *chan;
-	int			   i;
 	struct m0_clink		   tc_clink[NR_FIDS];
+	struct m0_sm_group        *grp = m0_locality0_get()->lo_grp;
+	struct m0_fid              fid;
 	uint64_t		   cont = 0;
 	uint64_t		   key = KEY_START;
-	struct m0_fid		   fid;
+	int			   i;
+	int			   rc;
 
 	fids_set();
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
+	m0_cm_lock(&scm->sc_base);
 	for (i = 0; i < NR_FIDS; i++) {
 		fid_index = i;
 		m0_clink_init(&tc_clink[i], &flock_cb);
-		rc = m0_sns_cm_file_lock(scm, &test_fids[i], &fctx[i]);
+		m0_sm_group_lock(grp);
+		rc = m0_sns_cm_file_lock(scm, &test_fids[i], grp, &fctx[i]);
+		m0_sm_group_unlock(grp);
 		chan = &fctx[i]->sf_rin.rin_sm.sm_chan;
 		m0_rm_owner_lock(&fctx[i]->sf_owner);
 		m0_clink_add(chan, &tc_clink[i]);
@@ -287,9 +300,12 @@ static void sns_file_lock_unlock(void)
 		m0_clink_del(&tc_clink[i]);
 		m0_clink_fini(&tc_clink[i]);
 		m0_rm_owner_unlock(&fctx[i]->sf_owner);
+		m0_sm_group_lock(grp);
 		m0_sns_cm_file_unlock(scm, &test_fids[i]);
+		m0_sm_group_unlock(grp);
 	}
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	m0_cm_unlock(&scm->sc_base);
 }
 
 struct m0_ut_suite sns_flock_ut = {

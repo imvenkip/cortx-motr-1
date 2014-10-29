@@ -151,30 +151,23 @@ out:
 }
 
 M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
-                                       const struct m0_fid *fid,
-                                       struct m0_pdclust_layout *pl,
-                                       uint64_t group_number,
-                                       uint64_t spare_unit_number,
-                                       uint64_t *data_unit_id_out)
+				       struct m0_pdclust_layout *pl,
+				       struct m0_pdclust_instance *pi,
+				       uint64_t group_number,
+				       uint64_t spare_unit_number,
+				       uint64_t *data_unit_id_out)
 {
         int                         rc;
         struct m0_pdclust_src_addr  sa;
         struct m0_pdclust_tgt_addr  ta;
-        struct m0_layout_instance  *li;
-        struct m0_pdclust_instance *pi;
 	enum m0_pool_nd_state       state_out;
 	uint64_t                    spare_in;
         uint32_t                    device_index;
         uint64_t                    spare_id;
         uint64_t                    frame;
 
-        M0_PRE(pm != NULL && fid != NULL && pl != NULL);
+        M0_PRE(pm != NULL && pl != NULL && pi != NULL);
 
-	rc = m0_layout_instance_build(&pl->pl_base.sl_base, fid, &li);
-	if (rc != 0)
-		return -ENOENT;
-
-	pi = m0_layout_instance_to_pdi(li);
 	spare_in = spare_unit_number;
 
 	do {
@@ -245,10 +238,9 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 		spare_in = sa.sa_unit;
 
 	} while(m0_pdclust_unit_classify(pl, sa.sa_unit) == M0_PUT_SPARE &&
-			M0_IN(state_out, (M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)));
+			M0_IN(state_out, (M0_PNDS_SNS_REPAIRED,
+					  M0_PNDS_SNS_REBALANCING)));
 out:
-	m0_layout_instance_fini(&pi->pi_base);
-
 	return rc;
 }
 

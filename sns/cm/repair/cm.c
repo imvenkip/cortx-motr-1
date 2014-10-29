@@ -35,6 +35,7 @@
 #include "sns/cm/iter.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
+#include "sns/cm/file.h"
 #include "sns/cm/repair/ag.h"
 #include "sns/cm/sw_onwire_fop.h"
 
@@ -67,9 +68,7 @@ static int repair_cm_prepare(struct m0_cm *cm)
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
 	scm->sc_helpers = &repair_helpers;
-	return m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				       M0_PNDS_SNS_REPAIRING) ?:
-	       m0_sns_cm_prepare(cm);
+	return m0_sns_cm_prepare(cm);
 }
 
 static int repair_cm_stop(struct m0_cm *cm)
@@ -78,9 +77,7 @@ static int repair_cm_stop(struct m0_cm *cm)
 
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
-	return m0_sns_cm_stop(cm) ?:
-	       m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				       M0_PNDS_SNS_REPAIRED);
+	return m0_sns_cm_stop(cm);
 }
 
 /**
@@ -95,14 +92,21 @@ static int repair_cm_stop(struct m0_cm *cm)
 static bool repair_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 				struct m0_layout *l)
 {
-	struct m0_sns_cm         *scm = cm2sns(cm);
-	struct m0_pdclust_layout *pl  = m0_layout_to_pdl(l);
-	uint64_t                  total_inbufs;
+	struct m0_sns_cm          *scm = cm2sns(cm);
+	struct m0_pdclust_layout  *pl  = m0_layout_to_pdl(l);
+	struct m0_fid              fid;
+	struct m0_sns_cm_file_ctx *fctx;
+	uint64_t                   total_inbufs;
 
 	M0_PRE(cm != NULL && id != NULL && pl != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, id, pl);
+	agid2fid(id, &fid);
+	m0_mutex_lock(&scm->sc_file_ctx_mutex);
+	fctx = m0_sns_cm_fctx_locate(scm, &fid);
+	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	M0_ASSERT(fctx != NULL);
+	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, id, pl, fctx->sf_pi);
 	return m0_sns_cm_has_space_for(scm, pl, total_inbufs);
 }
 
@@ -128,7 +132,7 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh)
 	m0_cm_lock(cm);
 	state = m0_cm_state_get(cm);
 	if (state == M0_CMS_ACTIVE)
-		curr_gfid = scm->sc_it.si_fc.sfc_gob_fid;
+		curr_gfid = scm->sc_it.si_fc.ifc_gfid;
 	m0_cm_unlock(cm);
 	if (curr_gfid.f_container == 0 && curr_gfid.f_key == 0)
 		return SRS_UNINITIALIZED;

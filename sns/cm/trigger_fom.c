@@ -31,6 +31,8 @@
 #include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 
+#include "ioservice/io_device.h" /* m0_ios_poolmach_get */
+
 #include "cm/proxy.h"
 #include "cm/cm.h"
 
@@ -193,15 +195,21 @@ static struct m0_cm *trig2cm(const struct m0_fom *fom)
 
 static int prepare(struct m0_fom *fom)
 {
-	struct m0_cm       *cm = trig2cm(fom);
-	struct m0_sns_cm   *scm = cm2sns(cm);
-	struct trigger_fop *treq = m0_fop_data(fom->fo_fop);
-	int                 rc;
+	struct m0_cm          *cm = trig2cm(fom);
+	struct m0_sns_cm      *scm = cm2sns(cm);
+	struct trigger_fop    *treq = m0_fop_data(fom->fo_fop);
+	enum m0_pool_nd_state  state;
+	int                    rc;
 
 	scm->sc_op = treq->op;
+	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
+					   M0_PNDS_SNS_REBALANCING;
+	rc = m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx, M0_POOL_DEVICE, state);
+	if (rc != 0)
+		return rc;
 	/*
-	 * To handle blocking pool machine state
-	 * transitions.
+	 * To handle blocking operation of establishing rpc connections
+	 * between replicas.
 	 */
 	m0_fom_block_enter(fom);
 	rc = m0_cm_prepare(cm);
@@ -223,24 +231,12 @@ static int ready(struct m0_fom *fom)
 	struct m0_cm *cm = trig2cm(fom);
 	int           rc;
 
-	m0_mutex_lock(&cm->cm_wait_mutex);
-	m0_fom_wait_on(fom, &cm->cm_ready_wait,
-		       &fom->fo_cb);
-	m0_mutex_unlock(&cm->cm_wait_mutex);
 	rc = m0_cm_ready(cm);
 	if (rc != 0)
 		return rc;
 	m0_fom_phase_set(fom, TPH_START);
-	if (cm->cm_proxy_nr > 1)
-		rc = M0_FSO_WAIT;
-	else {
-		m0_mutex_lock(&cm->cm_wait_mutex);
-		m0_fom_callback_cancel(&fom->fo_cb);
-		m0_mutex_unlock(&cm->cm_wait_mutex);
-		rc = M0_FSO_AGAIN;
-	}
 	M0_LOG(M0_DEBUG, "trigger: ready");
-	return rc;
+	return M0_FSO_AGAIN;
 }
 
 static int start(struct m0_fom *fom)
@@ -262,12 +258,17 @@ static int start(struct m0_fom *fom)
 
 static int stop(struct m0_fom *fom)
 {
-	struct m0_cm *cm = trig2cm(fom);
+	struct m0_cm          *cm = trig2cm(fom);
+	struct m0_sns_cm      *scm = cm2sns(cm);
+	enum m0_pool_nd_state  state;
 
 	m0_fom_block_enter(fom);
 	trigger_rep_set(fom);
 	m0_cm_stop(cm);
 	m0_fom_block_leave(fom);
+	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRED :
+					   M0_PNDS_ONLINE;
+	m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx, M0_POOL_DEVICE, state);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 
 	M0_LOG(M0_DEBUG, "trigger: stop");
@@ -281,11 +282,37 @@ static int (*trig_action[]) (struct m0_fom *) = {
 	[TPH_STOP]    = stop,
 };
 
+static uint64_t __nr_dev_failures(struct m0_poolmach *pm)
+{
+	struct m0_pool_spare_usage *spare_array;
+	uint64_t                    nr_failures = 0;
+	int                         i;
+
+	spare_array = pm->pm_state->pst_spare_usage_array;
+	for (i = 0; spare_array[i].psu_device_index !=
+				POOL_PM_SPARE_SLOT_UNUSED; ++i)
+		M0_CNT_INC(nr_failures);
+
+	return nr_failures;
+}
+
 static int trigger_fom_tick(struct m0_fom *fom)
 {
-	int rc;
+	struct m0_be_tx_credit *tx_cred;
+	struct m0_poolmach     *pm;
+	uint64_t                nr_fail;
+	int                     rc;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN){
+			pm = m0_ios_poolmach_get(fom->fo_loc->fl_dom->fd_reqh);
+			M0_ASSERT(pm != NULL);
+			nr_fail = __nr_dev_failures(pm);
+			tx_cred = m0_fom_tx_credit(fom);
+			m0_poolmach_store_credit(pm, tx_cred);
+			m0_be_tx_credit_mul(tx_cred, nr_fail);
+			m0_be_tx_credit_add(tx_cred, tx_cred);
+		}
 		rc = m0_fom_tick_generic(fom);
 	} else
 		rc = trig_action[m0_fom_phase(fom)](fom);

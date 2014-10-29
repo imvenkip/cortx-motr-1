@@ -153,10 +153,6 @@ static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
 	m0_sm_group_unlock(grp);
 }
 
-void iter_swu_wakeme(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-}
-
 static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 {
 	int rc;
@@ -176,11 +172,12 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	scm->sc_op = op;
 	rc = cm->cm_ops->cmo_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
+	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REPAIRING);
 	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
+	m0_chan_init(&cm->cm_sw_update.swu_signal, &cm->cm_sm_group.s_lock);
         service = m0_reqh_service_find(&m0_rms_type, reqh),
         M0_ASSERT(service != NULL);
-	cm->cm_sw_update.swu_wakeme_ast.sa_cb = iter_swu_wakeme;
 }
 
 static bool cp_verify(struct m0_sns_cm_cp *scp)
@@ -290,7 +287,8 @@ static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *hea
 		rag = sag2repairag(ag2snsag(ag));
 		for (i = 0; i < rag->rag_base.sag_fnr; ++i) {
 			cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
-			buf_put(&rag->rag_fc[i].fc_tgt_acc_cp);
+			if (rag->rag_fc[i].fc_is_inuse)
+				buf_put(&rag->rag_fc[i].fc_tgt_acc_cp);
 			m0_cm_cp_only_fini(cp);
 			cp->c_ops->co_free(cp);
 		}
@@ -360,7 +358,9 @@ static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 			if (rc == M0_FSO_AGAIN) {
 				M0_UT_ASSERT(cp_verify(&scp));
 				sag = ag2snsag(scp.sc_base.c_ag);
-				M0_ASSERT(sag->sag_base.cag_layout != NULL);
+				M0_ASSERT(sag->sag_fctx != NULL);
+				M0_ASSERT(sag->sag_fctx->sf_layout != NULL);
+				M0_ASSERT(sag->sag_fctx->sf_pi != NULL);
 				buf_put(&scp);
 				m0_cm_cp_only_fini(&scp.sc_base);
 				*phase = M0_FOM_PHASE_INIT;
@@ -387,7 +387,7 @@ static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 
 static void iter_run(uint64_t pool_width, uint64_t nr_files)
 {
-	m0_fi_enable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_enable("m0_sns_cm_file_attr_and_layout", "ut_attr_layout");
 	m0_fi_enable("iter_fid_attr_fetch", "ut_attr_fetch");
 	m0_fi_enable("iter_fid_attr_fetch_wait", "ut_attr_fetch_wait");
 	m0_fi_enable("iter_fid_layout_fetch", "ut_layout_fsize_fetch");
@@ -401,7 +401,7 @@ static void iter_run(uint64_t pool_width, uint64_t nr_files)
 	m0_semaphore_down(&iter_sem);
 	m0_semaphore_fini(&iter_sem);
 
-	m0_fi_disable("m0_sns_cm_file_size_layout_fetch", "ut_layout_fsize_fetch");
+	m0_fi_disable("m0_sns_cm_file_attr_and_layout", "ut_attr_layout");
 	m0_fi_disable("iter_fid_attr_fetch", "ut_attr_fetch");
 	m0_fi_disable("iter_fid_attr_fetch_wait", "ut_attr_fetch_wait");
 	m0_fi_disable("iter_fid_layout_fetch", "ut_layout_fsize_fetch");
@@ -416,6 +416,8 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	ag_destroy();
 	rc = cm->cm_ops->cmo_stop(cm);
 	M0_UT_ASSERT(rc == 0);
+	m0_chan_fini(&cm->cm_sw_update.swu_signal);
+	pool_mach_transit(cm->cm_pm, fd, M0_PNDS_SNS_REPAIRED);
 	m0_cm_unlock(cm);
 	cobs_delete(nr_files, pool_width);
 	/* Transition the failed device M0_PNDS_SNS_REBALANCING->M0_PNDS_ONLINE,

@@ -118,12 +118,9 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		ID_LOG("proxy last updated",
 		       &pxy->px_last_sw_onwire_sent.sw_hi);
-		if (m0_cm_ag_id_cmp(&id_hi,
-				    &pxy->px_last_sw_onwire_sent.sw_hi) >= 0) {
-			rc = m0_cm_proxy_remote_update(pxy, &sw);
-			if (rc != 0)
-				break;
-		}
+		rc = m0_cm_proxy_remote_update(pxy, &sw);
+		if (rc != 0)
+			break;
 	} m0_tl_endfor;
 
 	return M0_RC(rc);

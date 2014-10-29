@@ -37,6 +37,7 @@
 #include "sns/cm/iter.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
+#include "sns/cm/file.h"
 #include "sns/cm/rebalance/ag.h"
 #include "sns/cm/sw_onwire_fop.h"
 
@@ -70,9 +71,7 @@ static int rebalance_cm_prepare(struct m0_cm *cm)
 	M0_PRE(scm->sc_op == SNS_REBALANCE);
 
 	scm->sc_helpers = &rebalance_helpers;
-        return m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				       M0_PNDS_SNS_REBALANCING) ?:
-	       m0_sns_cm_prepare(cm);
+	return m0_sns_cm_prepare(cm);
 
 }
 
@@ -82,9 +81,7 @@ static int rebalance_cm_stop(struct m0_cm *cm)
 
 	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
 
-	return m0_sns_cm_stop(cm) ?:
-	       m0_sns_cm_pm_event_post(scm, M0_POOL_DEVICE,
-				       M0_PNDS_ONLINE);
+	return m0_sns_cm_stop(cm);
 }
 
 /**
@@ -100,15 +97,22 @@ static bool rebalance_cm_has_space(struct m0_cm *cm,
 				   const struct m0_cm_ag_id *id,
 				   struct m0_layout *l)
 {
-	struct m0_sns_cm         *scm = cm2sns(cm);
-	struct m0_pdclust_layout *pl  = m0_layout_to_pdl(l);
-	uint64_t                  total_inbufs;
+	struct m0_sns_cm          *scm = cm2sns(cm);
+	struct m0_pdclust_layout  *pl  = m0_layout_to_pdl(l);
+	struct m0_fid              fid;
+	struct m0_sns_cm_file_ctx *fctx;
+	uint64_t                   tot_inbufs;
 
 	M0_PRE(cm != NULL && id != NULL && l != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-	total_inbufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl);
-	return m0_sns_cm_has_space_for(scm, pl, total_inbufs);
+	agid2fid(id, &fid);
+	m0_mutex_lock(&scm->sc_file_ctx_mutex);
+	fctx = m0_sns_cm_fctx_locate(scm, &fid);
+	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	M0_ASSERT(fctx != NULL);
+	tot_inbufs = m0_sns_cm_incoming_reserve_bufs(scm, id, pl, fctx->sf_pi);
+	return m0_sns_cm_has_space_for(scm, pl, tot_inbufs);
 }
 
 /** Copy machine operations. */
