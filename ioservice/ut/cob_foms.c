@@ -88,7 +88,6 @@ struct cobfoms_ut {
 	struct m0_fop               **cu_deletefops;
 	struct m0_fid                 cu_gfid;
 	struct m0_fid                 cu_cfid;
-	struct m0_reqh_service_type **cu_stypes;
 	struct m0_net_xprt           *cu_xprt;
 	struct m0_net_domain          cu_nd;
 	struct m0_cob_domain          cu_cob_dom;
@@ -123,17 +122,11 @@ static void cobfoms_utinit(void)
 	rc = m0_net_domain_init(&cut->cu_nd, cut->cu_xprt);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_ALLOC_ARR(cut->cu_stypes, 1);
-	M0_UT_ASSERT(cut->cu_stypes != NULL);
-	cut->cu_stypes[0] = &ds1_service_type;
-
 	sctx = &cut->cu_sctx;
 	sctx->rsx_xprts            = &cut->cu_xprt;
 	sctx->rsx_xprts_nr         = 1;
 	sctx->rsx_argv             = server_args;
 	sctx->rsx_argc             = ARRAY_SIZE(server_args);
-	sctx->rsx_service_types    = cut->cu_stypes;
-	sctx->rsx_service_types_nr = 1;
 	sctx->rsx_log_file_name    = SERVER_LOGFILE;
 
 	rc = m0_rpc_server_start(sctx);
@@ -164,8 +157,6 @@ static void cobfoms_utfini(void)
 
 	m0_rpc_server_stop(&cut->cu_sctx);
 	m0_net_domain_fini(&cut->cu_nd);
-
-	m0_free(cut->cu_stypes);
 	m0_free0(&cut);
 }
 

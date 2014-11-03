@@ -161,9 +161,8 @@ static void fop_allow_test(void)
 {
 	int rc;
 
-	sctx.rsx_argv             = ut_server_argv,
-	sctx.rsx_argc             = ARRAY_SIZE(ut_server_argv),
-	sctx.rsx_service_types    = ut_stypes,
+	sctx.rsx_argv = ut_server_argv;
+	sctx.rsx_argc = ARRAY_SIZE(ut_server_argv);
 
 	rc = m0_reqhut_fop_init(&ut_fom_type_ops);
 	M0_UT_ASSERT(rc == 0);
@@ -172,22 +171,20 @@ static void fop_allow_test(void)
 
 	M0_UT_ASSERT(ut_sss_req(ds1_service_type.rst_name,
 				M0_SERVICE_STATUS) == M0_RST_STOPPED);
-
-	M0_UT_ASSERT(send_fop() == -ESHUTDOWN);
+	rc = send_fop();
+	M0_UT_ASSERT(rc == -ESHUTDOWN);
 
 	M0_UT_ASSERT(ut_sss_req(ds1_service_type.rst_name,
 				M0_SERVICE_START) == M0_RST_STARTED);
-
-	M0_UT_ASSERT(send_fop() == 0);
+	rc = send_fop();
+	M0_UT_ASSERT(rc == 0);
 
 	m0_reqhut_fop_fini();
 	stop_rpc_client_and_server();
 }
 
 struct m0_ut_suite reqh_fop_allow_ut = {
-        .ts_name = "reqh-fop-allow-ut",
-        .ts_init = NULL,
-        .ts_fini = NULL,
+        .ts_name  = "reqh-fop-allow-ut",
         .ts_tests = {
                 { "reqh-fop-allow", fop_allow_test },
                 { NULL, NULL }

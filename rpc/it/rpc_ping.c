@@ -422,8 +422,6 @@ static int run_server(void)
 		.rsx_xprts_nr         = 1,
 		.rsx_argv             = argv,
 		.rsx_argc             = ARRAY_SIZE(argv),
-		.rsx_service_types    = m0_cs_default_stypes,
-		.rsx_service_types_nr = m0_cs_default_stypes_nr,
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 	};
 

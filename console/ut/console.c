@@ -103,14 +103,6 @@ static struct m0_rpc_server_ctx sctx = {
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = m0_cs_default_stypes,
-	/*
-	 * can't use m0_cs_default_stypes_nr to initialize rsx_service_types_nr,
-	 * since it leads to compile-time error 'initializer element is not
-	 * constant', because sctx here is a global/static variable, which not
-	 * allowed to be initialized with non-constant values
-	 */
-	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
 };
 
@@ -121,7 +113,7 @@ static int cons_init(void)
 
 	timeout = 10;
 	result = m0_console_fop_init();
-        M0_ASSERT(result == 0);
+	M0_ASSERT(result == 0);
 
 	result = m0_net_domain_init(&client_net_dom, xprt);
 	M0_ASSERT(result == 0);

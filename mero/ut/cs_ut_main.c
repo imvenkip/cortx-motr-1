@@ -266,8 +266,6 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
 		.rsx_argv             = cs_argv,
 		.rsx_argc             = cs_argc,
-		.rsx_service_types    = m0_cs_default_stypes,
-		.rsx_service_types_nr = m0_cs_default_stypes_nr,
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 	};
 
@@ -300,8 +298,6 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
 		.rsx_argv             = cs_argv,
 		.rsx_argc             = cs_argc,
-		.rsx_service_types    = m0_cs_default_stypes,
-		.rsx_service_types_nr = m0_cs_default_stypes_nr,
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 	};
 

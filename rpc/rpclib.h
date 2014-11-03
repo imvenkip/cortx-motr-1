@@ -62,11 +62,6 @@ struct m0_rpc_server_ctx {
 	/** number of elements in rsx_argv array */
 	int                           rsx_argc;
 
-	/** a pointer to array of service types, which can be used by server */
-	struct m0_reqh_service_type **rsx_service_types;
-	/** number of service types in array */
-	int                           rsx_service_types_nr;
-
 	const char                   *rsx_log_file_name;
 
 	/** an embedded mero context structure */

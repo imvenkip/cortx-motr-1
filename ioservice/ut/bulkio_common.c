@@ -80,14 +80,9 @@ static char **server_argv_alloc(const char *server_ep_addr, int *argc)
 
 int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 {
-	struct m0_reqh_service_type **stypes;
-	int                           argc;
+	int argc;
 
 	M0_PRE(saddr != NULL && *saddr != '\0');
-
-	M0_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
-	M0_ASSERT(stypes != NULL);
-	stypes[0] = &ds1_service_type;
 
 	bp->bp_slogfile = m0_strdup(IO_SERVER_LOGFILE);
 	M0_ASSERT(bp->bp_slogfile != NULL);
@@ -98,12 +93,9 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 		.rsx_xprts_nr         = IO_XPRT_NR,
 		.rsx_argv             = server_argv_alloc(saddr, &argc),
 		.rsx_argc             = argc,
-		.rsx_service_types    = stypes,
-		.rsx_service_types_nr = IO_SERVER_SERVICE_NR,
 		.rsx_xprts            = &bp->bp_xprt,
 		.rsx_log_file_name    = bp->bp_slogfile
 	};
-
 	return m0_rpc_server_start(bp->bp_sctx);
 }
 
@@ -116,8 +108,6 @@ void bulkio_server_stop(struct m0_rpc_server_ctx *sctx)
 	for (i = 0; i < sctx->rsx_argc; ++i)
 		m0_free(sctx->rsx_argv[i]);
 	m0_free(sctx->rsx_argv);
-
-	m0_free(sctx->rsx_service_types);
 	m0_free(sctx);
 }
 #endif

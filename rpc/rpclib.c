@@ -56,13 +56,6 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 	if (sctx->rsx_log_file == NULL)
 		return M0_ERR(errno, "Open of error log file");
 
-	/*
-	 * Start rpc server.
-	 * Note: This only starts the services specified in the
-	 * struct m0_rpc_service_ctx, (i.e. m0_rpc_server_ctx::rsx_service_types
-	 * ) and does not register the given service types. The user of
-	 * m0_rpc_server_start() must register the service stypes before.
-	 */
 	rc = m0_cs_init(&sctx->rsx_mero_ctx, sctx->rsx_xprts,
 			sctx->rsx_xprts_nr, sctx->rsx_log_file, true);
 	M0_LOG(M0_DEBUG, "cs_init: rc=%d", rc);

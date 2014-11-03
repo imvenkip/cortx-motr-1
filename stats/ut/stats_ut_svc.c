@@ -38,10 +38,6 @@ static char *stats_ut_server_argv[] = {
         "-e", SERVER_ENDPOINT, "-s", "stats", "-w", "10"
 };
 
-struct m0_reqh_service_type *stats_ut_default_stypes[] = {
-        &m0_stats_svc_type,
-};
-
 enum stats_id {
 	UT_STATS_FOP_RATE = 1,
 	UT_STATS_READ_SIZE,
@@ -132,10 +128,8 @@ static void stats_ut_svc_start_stop()
 	 */
 	stats_ut_sctx_bk = sctx;
 
-        sctx.rsx_argv             = stats_ut_server_argv,
-        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
-        sctx.rsx_service_types    = stats_ut_default_stypes,
-        sctx.rsx_service_types_nr = 1,
+        sctx.rsx_argv = stats_ut_server_argv;
+        sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
 
 	start_rpc_client_and_server();
 
@@ -271,10 +265,8 @@ static void stats_ut_svc_update_fom()
 
 	stats_ut_sctx_bk = sctx;
 
-        sctx.rsx_argv             = stats_ut_server_argv,
-        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
-        sctx.rsx_service_types    = stats_ut_default_stypes,
-        sctx.rsx_service_types_nr = 1,
+        sctx.rsx_argv = stats_ut_server_argv;
+        sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
 
 	start_rpc_client_and_server();
 
@@ -419,10 +411,8 @@ static void stats_ut_svc_query_fom()
 
 	stats_ut_sctx_bk = sctx;
 
-        sctx.rsx_argv             = stats_ut_server_argv,
-        sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv),
-        sctx.rsx_service_types    = stats_ut_default_stypes,
-        sctx.rsx_service_types_nr = 1,
+        sctx.rsx_argv = stats_ut_server_argv;
+        sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
 
 	start_rpc_client_and_server();
 
@@ -506,10 +496,8 @@ static void stats_svc_query_api()
 
 	stats_ut_sctx_bk = sctx;
 
-	sctx.rsx_argv             = stats_ut_server_argv;
-	sctx.rsx_argc             = ARRAY_SIZE(stats_ut_server_argv);
-	sctx.rsx_service_types    = stats_ut_default_stypes;
-	sctx.rsx_service_types_nr = 1;
+	sctx.rsx_argv = stats_ut_server_argv;
+	sctx.rsx_argc = ARRAY_SIZE(stats_ut_server_argv);
 
 	start_rpc_client_and_server();
 

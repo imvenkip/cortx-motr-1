@@ -175,8 +175,6 @@ static struct m0_rpc_server_ctx g_sctx = {
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = g_argv,
 	.rsx_argc             = ARRAY_SIZE(g_argv),
-	.rsx_service_types    = m0_cs_default_stypes,
-	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = NAME(".log")
 };
 #undef NAME

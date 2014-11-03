@@ -72,8 +72,6 @@ int main(int argc, char **argv)
 		.rsx_xprts_nr         = 1,
 		.rsx_argv             = server_argv,
 		.rsx_argc             = ARRAY_SIZE(server_argv),
-		.rsx_service_types    = m0_cs_default_stypes,
-		.rsx_service_types_nr = m0_cs_default_stypes_nr,
 		.rsx_log_file_name    = NAME(".log")
 	};
 
