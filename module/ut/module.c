@@ -322,8 +322,8 @@ struct amb {
 	struct m0_module a_foo;
 };
 
-static void foobar_init(struct m0_module *self, const char *name,
-			struct m0_module *other, bool source)
+static void foobar_setup(struct m0_module *self, const char *name,
+			 struct m0_module *other, bool source)
 {
 	static const struct m0_modlev levels[] = {
 		{ .ml_enter = modlev_enter }
@@ -346,7 +346,7 @@ static void foobar_init(struct m0_module *self, const char *name,
 	}
 }
 
-static void amb_init(struct amb *amb, struct m0_module *bar)
+static void amb_setup(struct amb *amb, struct m0_module *bar)
 {
 	*amb = (struct amb){
 		.a_self = { .m_name = "amb module" }
@@ -357,7 +357,7 @@ static void amb_init(struct amb *amb, struct m0_module *bar)
 		 * common.
 		 */
 	};
-	foobar_init(&amb->a_foo, "foo module", bar, false);
+	foobar_setup(&amb->a_foo, "foo module", bar, false);
 }
 
 static void _test_module_alt_init(void)
@@ -366,8 +366,8 @@ static void _test_module_alt_init(void)
 	struct m0_module bar;
 	int              rc;
 
-	amb_init(&amb, &bar);
-	foobar_init(&bar, "bar module", &amb.a_foo, true);
+	amb_setup(&amb, &bar);
+	foobar_setup(&bar, "bar module", &amb.a_foo, true);
 
 	*g_log = 0;
 	rc = m0_module_init(&bar, 0);

@@ -38,16 +38,9 @@ M0_INTERNAL void m0_set(struct m0 *instance)
 	m0_thread_tls()->tls_m0_instance = instance;
 }
 
-static int level_inst_enter(struct m0_module *module)
-{
-	/* XXX TODO */
-	return 0;
-}
-
 static const struct m0_modlev levels_inst[] = {
 	[M0_LEVEL_INIT] = {
-		.ml_name  = "m0 is initialised",
-		.ml_enter = level_inst_enter
+		.ml_name  = "m0 is initialised"
 	}
 };
 

@@ -40,11 +40,6 @@ static bool module_invariant(const struct m0_module *mod)
 		_0C(mod->m_cur >= M0_MODLEV_NONE &&
 		    mod->m_cur < mod->m_level_nr) &&
 		_0C(m0_forall(i, mod->m_level_nr,
-			      /* A level without ->ml_enter() operation
-			       * is a pure decoration that we can do
-			       * without. */
-			      mod->m_level[i].ml_enter != NULL)) &&
-		_0C(m0_forall(i, mod->m_level_nr,
 			      ergo(mod->m_level_nrefs[i] > 0,
 				   mod->m_cur >= i) &&
 			      mod->m_level_nrefs[i] == m0_count(
