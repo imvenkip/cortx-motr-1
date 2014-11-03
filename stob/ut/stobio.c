@@ -539,7 +539,8 @@ void test_single_ivec()
 		st_wrbuf[i] = m0_alloc_aligned(BLOCK_SIZE, SHIFT);
 		st_wrbuf_packed[i] = m0_stob_addr_pack(st_wrbuf[i], SHIFT);
 		M0_UT_ASSERT(st_wrbuf[i] != NULL);
-		memset(st_wrbuf[i], ('a' + i) | 1, SHIFT);
+		if (SHIFT)
+			memset(st_wrbuf[i], ('a' + i) | 1, SHIFT);
 	}
 
 	/* Write */

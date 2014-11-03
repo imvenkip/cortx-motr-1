@@ -1,6 +1,5 @@
 EXTRA_DIST += utils/m0gendisks \
               utils/m0run \
-              utils/linux_kernel/ut.sh.in \
               utils/linux_kernel/m0ctl_main.c \
               utils/linux_kernel/m0ctl_internal.h \
               utils/linux_kernel/finject_debugfs.c \

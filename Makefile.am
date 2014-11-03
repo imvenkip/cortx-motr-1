@@ -984,9 +984,19 @@ clean-doc:
 # INSTALL_MOD_DIR=kernel/fs to avoid duplication of mero/ part in our module's
 # installation path
 
-install-exec-local:
-	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) INSTALL_MOD_DIR=kernel/fs \
-			 -C $(KDIR) M=$(abs_top_builddir) modules_install
+install-kernel-modules:
+	@test -n "$$DESTDIR"
+	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) \
+		 INSTALL_MOD_DIR=$${INSTALL_MOD_DIR:-kernel/fs} \
+		 -C $(KDIR) M=$(abs_top_builddir) modules_install
+
+install-exec-local: install-kernel-modules
+
+install-tests:
+	@$(MAKE) -C extra-libs/galois install
+	@$(MAKE) INSTALL_MOD_DIR=kernel/fs/mero/tests install-kernel-modules \
+		 install-binPROGRAMS install-sbinPROGRAMS install-binSCRIPTS \
+		 install-sbinSCRIPTS
 
 DIST_FILE=$(distdir).tar.gz
 RPM_SRC_DIR=~/rpmbuild/SOURCES
@@ -1002,6 +1012,7 @@ rpms:
 	[ -d $(RPM_SRC_DIR) ] || $(MKDIR_P) $(RPM_SRC_DIR)
 	mv $(DIST_FILE) $(RPM_SRC_DIR)
 	chown $$(id -u):$$(id -g) $(RPM_SRC_DIR)/$(DIST_FILE)
+	rpmbuild -bb mero.spec --with ut
 	rpmbuild -bb mero.spec
 	rm -f $(RPM_SRC_DIR)/$(DIST_FILE)
 

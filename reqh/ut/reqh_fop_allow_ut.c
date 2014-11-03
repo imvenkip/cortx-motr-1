@@ -27,7 +27,7 @@
 #include "rpc/rpclib.h"
 #include "reqh/ut/reqh_service.h"
 #include "reqh/ut/reqh_service_xc.h"
-#include "ut/cs_fop_foms.h"
+#include "ut/cs_fop.h"
 #include "ut/ut_rpc_machine.h"
 
 #include "rpc/ut/clnt_srv_ctx.c"
