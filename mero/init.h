@@ -31,6 +31,7 @@ struct m0;
    @{
  */
 
+#if 1 /* XXX OBSOLETE */
 /**
    Performs all global initializations of M0 sub-systems. The nomenclature of
    sub-systems to be initialised depends on the build configuration.
@@ -43,6 +44,8 @@ int m0_init(struct m0 *instance);
    Finalizes all sub-systems initialised by m0_init().
  */
 void m0_fini(void);
+
+#endif /* XXX OBSOLETE */
 
 /** @} end of init group */
 #endif /* __MERO_MERO_LIST_H__ */

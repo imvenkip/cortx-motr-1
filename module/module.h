@@ -102,7 +102,7 @@
 enum {
 	M0_MODLEV_NONE = -1,
 	M0_MODLEV_MAX  = 16,
-	M0_MODDEP_MAX  = 64
+	M0_MODDEP_MAX  = 128
 };
 
 /**

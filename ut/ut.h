@@ -25,9 +25,11 @@
 #ifndef __MERO_UT_UT_H__
 #define __MERO_UT_UT_H__
 
+#include "module/module.h"
 #include "lib/types.h"
 #include "lib/list.h"     /* m0_list_link, m0_list */
 
+struct m0_ut_module;
 
 /**
    @defgroup ut Mero UT library
@@ -56,55 +58,44 @@ struct m0_ut {
 	bool        t_enabled;
 };
 
-enum {
-	M0_UT_SUITE_TESTS_MAX = 128,
-};
+enum { M0_UT_SUITE_TESTS_MAX = 128 };
 
 struct m0_ut_suite {
-	struct m0_list_link  ts_linkage;
-	/** indicates whether suite is enabled for execution */
-	bool                 ts_enabled;
-	/** name of a suite */
-	const char          *ts_name;
+	struct m0_module           ts_module;
+	/**
+	 * modular dependencies of this suite
+	 *
+	 * XXX FIXME: How do we know the value of m0_ut_moddep::ud_module
+	 * at compile time? We don't.
+	 */
+	const struct m0_ut_moddep *ts_deps;
+	/** length of ->ts_deps array */
+	unsigned                   ts_deps_nr;
+	struct m0_list_link        ts_linkage;
+	/** indicates whether this suite should be executed */
+	bool                       ts_enabled;
+	/** name of the suite */
+	const char                *ts_name;
 	/** suite owners names */
-	const char          *ts_owners;
-	/** function to prepare tests in suite */
-	int                (*ts_init)(void);
-	/** function to free resources after tests run */
-	int                (*ts_fini)(void);
-	/** tests in suite */
-	struct m0_ut         ts_tests[M0_UT_SUITE_TESTS_MAX];
-};
-
-/**
-   Configuration parameters for m0_ut_run()
- */
-struct m0_ut_cfg {
+	const char                *ts_owners;
 	/**
-	 * name of UT sandbox directory. it will be created if doesn't exist or
-	 * cleaned otherwise
+	 * This function is run after ->ts_deps are satisfied, but
+	 * before the tests are executed. It is optional.
 	 */
-	const char  *uc_sandbox;
+	int                      (*ts_init)(void);
 	/**
-	 * list of tests/suites to run, it can be empty, which means to run
-	 * all the tests
+	 * The function to run after the tests of this suite are executed.
+	 * Optional.
 	 */
-	const char  *uc_run_list;
-	/** list of tests/suites to exclude from running, it also can be empty */
-	const char  *uc_exclude_list;
-	/**
-	 * whether to keep sandbox directory after UT execution, by default
-	 * it's false
-	 */
-	bool         uc_keep_sandbox;
-	/** whether to print tests execution progress in YAML or plain text */
-	bool         uc_yaml_output;
+	int                      (*ts_fini)(void);
+	/** tests in the suite */
+	struct m0_ut               ts_tests[M0_UT_SUITE_TESTS_MAX];
 };
 
 /**
  * Global constructor for unit tests.
  */
-int m0_ut_init(struct m0_ut_cfg *cfg);
+int m0_ut_init(struct m0 *instance);
 
 /**
  * Global destructor for unit tests.
@@ -118,12 +109,12 @@ void m0_ut_fini(void);
  @param ts pointer to test suite
 
  */
-M0_INTERNAL void m0_ut_add(struct m0_ut_suite *ts);
+M0_INTERNAL void m0_ut_add(struct m0_ut_module *m, struct m0_ut_suite *ts);
 
 /**
  * Shuffles added suites.
  */
-M0_INTERNAL void m0_ut_shuffle(unsigned seed);
+M0_INTERNAL void m0_ut_shuffle(struct m0_ut_module *m, unsigned seed);
 
 /**
    run tests
@@ -138,12 +129,12 @@ M0_INTERNAL int m0_ut_run(void);
 
  @return NONE
  */
-M0_INTERNAL void m0_ut_list(bool with_tests);
+M0_INTERNAL void m0_ut_list(const struct m0_ut_module *m, bool with_tests);
 
 /**
  * Print owners of all UTs on STDOUT
  */
-M0_INTERNAL void m0_ut_list_owners(void);
+M0_INTERNAL void m0_ut_list_owners(const struct m0_ut_module *m);
 
 /**
  * Implements UT assert logic in the kernel.

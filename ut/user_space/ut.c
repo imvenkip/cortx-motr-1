@@ -20,24 +20,20 @@
  * Modification date: 25-Mar-2013
  */
 
-#include <stdlib.h>                /* system */
-#include <stdio.h>                 /* asprintf,setbuf */
-#include <unistd.h>                /* dup, dup2 */
-#include <sys/stat.h>              /* mkdir */
-#include <err.h>                   /* warn */
-#include <yaml.h>                  /* yaml_parser_t */
-
-#include "lib/memory.h"           /* M0_ALLOC_PTR */
-#include "lib/errno.h"            /* EINVAL */
-#include "lib/string.h"           /* m0_strdup */
-#include "lib/list.h"             /* m0_list */
-#include "lib/finject.h"          /* m0_fi_fpoint_data */
-#include "lib/finject_internal.h" /* m0_fi_fpoint_type_from_str */
 #include "ut/ut_internal.h"
-#include "ut/ut.h"
+#include "ut/ut.h"                 /* m0_ut_redirect */
+#include "lib/finject.h"           /* m0_fi_fpoint_data */
+#include "lib/finject_internal.h"  /* m0_fi_fpoint_type_from_str */
+#include "lib/string.h"            /* m0_strdup */
+#include "lib/errno.h"             /* EINVAL */
+#include "lib/memory.h"            /* m0_free */
+#include <yaml.h>                  /* yaml_parser_t */
+#include <stdlib.h>                /* system */
+#include <err.h>                   /* warn */
+#include <sys/stat.h>              /* mkdir */
+#include <unistd.h>                /* dup */
 
-
-static int remove_sandbox(const char *sandbox)
+static int sandbox_remove(const char *sandbox)
 {
 	char *cmd;
 	int   rc;
@@ -57,37 +53,35 @@ static int remove_sandbox(const char *sandbox)
 	return rc;
 }
 
-int m0_arch_ut_init(const struct m0_ut_cfg *config)
+int m0_ut_sandbox_init(const char *dir)
 {
 	int rc;
 
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	if (config->uc_sandbox == NULL)
+	if (dir == NULL)
 		return 0;
 
-	rc = remove_sandbox(config->uc_sandbox);
+	rc = sandbox_remove(dir);
 	if (rc != 0)
 		return rc;
 
-	rc = mkdir(config->uc_sandbox, 0700) ?: chdir(config->uc_sandbox);
+	rc = mkdir(dir, 0700) ?: chdir(dir);
 	if (rc != 0)
-		/* don't care about return value of remove_sandbox() here */
-		remove_sandbox(config->uc_sandbox);
-
+		(void)sandbox_remove(dir);
 	return rc;
 }
 
-void m0_arch_ut_fini(const struct m0_ut_cfg *config)
+void m0_ut_sandbox_fini(const char *dir, bool keep)
 {
 	int rc;
 
 	rc = chdir("..");
 	M0_ASSERT(rc == 0);
 
-        if (!config->uc_keep_sandbox)
-                remove_sandbox(config->uc_sandbox);
+	if (!keep)
+		sandbox_remove(dir);
 }
 
 M0_INTERNAL void m0_stream_redirect(FILE * stream, const char *path,

@@ -29,6 +29,7 @@
 #include <string.h>  /* basename */
 
 #include "ut/ut.h"
+#include "module/instance.h"      /* m0 */
 #include "lib/trace.h"
 #include "lib/user_space/trace.h" /* m0_trace_set_print_context */
 #include "lib/thread.h"           /* LAMBDA */
@@ -107,80 +108,82 @@ extern struct m0_ut_suite xcode_ff2c_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite sns_flock_ut;
 
-void add_uts(void)
+static void tests_add(struct m0_ut_module *m)
 {
 	/* sort test suites in alphabetic order */
-	m0_ut_add(&libm0_ut); /* test lib first */
-	m0_ut_add(&di_ut);
-	m0_ut_add(&balloc_ut);
-	m0_ut_add(&be_ut);
-	m0_ut_add(&buffer_pool_ut);
-	m0_ut_add(&bulkio_client_ut);
-	m0_ut_add(&bulkio_server_ut);
-	m0_ut_add(&capa_ut);
-	m0_ut_add(&cm_cp_ut);
-	m0_ut_add(&cm_generic_ut);
-	m0_ut_add(&cob_ut);
-	m0_ut_add(&cobfoms_ut);
-	m0_ut_add(&conf_ut);
-	m0_ut_add(&confc_ut);
-	m0_ut_add(&confstr_ut);
-	m0_ut_add(&conn_ut);
-	m0_ut_add(&db_cursor_ut);
-	m0_ut_add(&db_ut);
-	m0_ut_add(&dtm_nucleus_ut);
-	m0_ut_add(&dtm_transmit_ut);
-	m0_ut_add(&dtm_dtx_ut);
-	m0_ut_add(&emap_ut);
-	m0_ut_add(&fit_ut);
-	m0_ut_add(&fol_ut);
-	m0_ut_add(&frm_ut);
-	m0_ut_add(&ha_state_ut);
-	m0_ut_add(&ios_bufferpool_ut);
-	m0_ut_add(&item_ut);
-	m0_ut_add(&item_source_ut);
-	m0_ut_add(&layout_ut);
-	m0_ut_add(&m0_addb_ut);
-	m0_ut_add(&m0_fop_lock_ut);
-	m0_ut_add(&m0_fom_stats_ut);
-	m0_ut_add(&m0_net_bulk_if_ut);
-	m0_ut_add(&m0_net_bulk_mem_ut);
-	m0_ut_add(&m0_net_lnet_ut);
-	m0_ut_add(&m0_net_module_ut);
-	m0_ut_add(&m0_net_test_ut);
-	m0_ut_add(&m0_net_tm_prov_ut);
-	m0_ut_add(&m0d_ut);
-        m0_ut_add(&mdservice_ut);
-	m0_ut_add(&module_ut);
-	m0_ut_add(&packet_encdec_ut);
-	m0_ut_add(&parity_math_ut);
-	m0_ut_add(&poolmach_ut);
-	m0_ut_add(&reqh_ut);
-	m0_ut_add(&reqh_fop_allow_ut);
-	m0_ut_add(&reqh_service_ut);
-	m0_ut_add(&rm_ut);
-	m0_ut_add(&rpc_mc_ut);
-	m0_ut_add(&rpc_rcv_session_ut);
-	m0_ut_add(&rpclib_ut);
-	m0_ut_add(&session_ut);
-	m0_ut_add(&sm_ut);
-	m0_ut_add(&snscm_xform_ut);
-	m0_ut_add(&snscm_storage_ut);
-	m0_ut_add(&sns_cm_repair_ut);
-	m0_ut_add(&snscm_net_ut);
-	m0_ut_add(&sns_flock_ut);
-	m0_ut_add(&stats_ut);
-	m0_ut_add(&stob_ut);
-	m0_ut_add(&udb_ut);
-	m0_ut_add(&xcode_bufvec_fop_ut);
-	m0_ut_add(&xcode_ff2c_ut);
-	m0_ut_add(&xcode_ut);
+	m0_ut_add(m, &libm0_ut); /* test lib first */
+	m0_ut_add(m, &di_ut);
+	m0_ut_add(m, &balloc_ut);
+	m0_ut_add(m, &be_ut);
+	m0_ut_add(m, &buffer_pool_ut);
+	m0_ut_add(m, &bulkio_client_ut);
+	m0_ut_add(m, &bulkio_server_ut);
+	m0_ut_add(m, &capa_ut);
+	m0_ut_add(m, &cm_cp_ut);
+	m0_ut_add(m, &cm_generic_ut);
+	m0_ut_add(m, &cob_ut);
+	m0_ut_add(m, &cobfoms_ut);
+	m0_ut_add(m, &conf_ut);
+	m0_ut_add(m, &confc_ut);
+	m0_ut_add(m, &confstr_ut);
+	m0_ut_add(m, &conn_ut);
+	m0_ut_add(m, &db_cursor_ut);
+	m0_ut_add(m, &db_ut);
+	m0_ut_add(m, &dtm_nucleus_ut);
+	m0_ut_add(m, &dtm_transmit_ut);
+	m0_ut_add(m, &dtm_dtx_ut);
+	m0_ut_add(m, &emap_ut);
+	m0_ut_add(m, &fit_ut);
+	m0_ut_add(m, &fol_ut);
+	m0_ut_add(m, &frm_ut);
+	m0_ut_add(m, &ha_state_ut);
+	m0_ut_add(m, &ios_bufferpool_ut);
+	m0_ut_add(m, &item_ut);
+	m0_ut_add(m, &item_source_ut);
+	m0_ut_add(m, &layout_ut);
+	m0_ut_add(m, &m0_addb_ut);
+	m0_ut_add(m, &m0_fop_lock_ut);
+	m0_ut_add(m, &m0_fom_stats_ut);
+	m0_ut_add(m, &m0_net_bulk_if_ut);
+	m0_ut_add(m, &m0_net_bulk_mem_ut);
+	m0_ut_add(m, &m0_net_lnet_ut);
+	m0_ut_add(m, &m0_net_module_ut);
+	m0_ut_add(m, &m0_net_test_ut);
+	m0_ut_add(m, &m0_net_tm_prov_ut);
+	m0_ut_add(m, &m0d_ut);
+	m0_ut_add(m, &mdservice_ut);
+	m0_ut_add(m, &module_ut);
+	m0_ut_add(m, &packet_encdec_ut);
+	m0_ut_add(m, &parity_math_ut);
+	m0_ut_add(m, &poolmach_ut);
+	m0_ut_add(m, &reqh_ut);
+	m0_ut_add(m, &reqh_fop_allow_ut);
+	m0_ut_add(m, &reqh_service_ut);
+	m0_ut_add(m, &rm_ut);
+	m0_ut_add(m, &rpc_mc_ut);
+	m0_ut_add(m, &rpc_rcv_session_ut);
+	m0_ut_add(m, &rpclib_ut);
+	m0_ut_add(m, &session_ut);
+	m0_ut_add(m, &sm_ut);
+	m0_ut_add(m, &snscm_xform_ut);
+	m0_ut_add(m, &snscm_storage_ut);
+	m0_ut_add(m, &sns_cm_repair_ut);
+	m0_ut_add(m, &snscm_net_ut);
+	m0_ut_add(m, &sns_flock_ut);
+	m0_ut_add(m, &stats_ut);
+	m0_ut_add(m, &stob_ut);
+	m0_ut_add(m, &udb_ut);
+	m0_ut_add(m, &xcode_bufvec_fop_ut);
+	m0_ut_add(m, &xcode_ff2c_ut);
+	m0_ut_add(m, &xcode_ut);
 	/* These tests have redirection of messages. */
-	m0_ut_add(&console_ut);
+	m0_ut_add(m, &console_ut);
 }
 
 int main(int argc, char *argv[])
 {
+	static struct m0 instance = { .i_ut.ut_sandbox = UT_SANDBOX };
+	struct m0_ut_module *ut = &instance.i_ut;
 	int   rc                   = EXIT_SUCCESS;
 	bool  list_ut              = false;
 	bool  with_tests           = false;
@@ -195,10 +198,8 @@ int main(int argc, char *argv[])
 	const char *trace_mask          = NULL;
 	const char *trace_level         = NULL;
 	const char *trace_print_context = NULL;
-
-	struct m0_ut_cfg cfg = {
-		.uc_sandbox      = UT_SANDBOX,
-	};
+	const char *tests_select        = NULL;
+	const char *tests_exclude       = NULL;
 
 	/* add options in alphabetic order, M0_HELPARG should be first */
 	rc = M0_GETOPTS(basename(argv[0]), argc, argv,
@@ -225,7 +226,7 @@ int main(int argc, char *argv[])
 				 "The argument is a seed value. "
 				 "0 to shuffle randomly", "%u", &seed),
 		    M0_FLAGARG('k', "keep the sandbox directory",
-				&cfg.uc_keep_sandbox),
+				&ut->ut_keep_sandbox),
 		    M0_FLAGARG('l', "list available test suites",
 				&list_ut),
 		    M0_VOIDARG('L', "list available test suites with"
@@ -235,7 +236,7 @@ int main(int argc, char *argv[])
 						with_tests = true;
 				})),
 		    M0_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
-			         " comma-separated list of subsystem names"
+				 " comma-separated list of subsystem names"
 				 " (use ! at the beginning to invert)",
 				LAMBDA(void, (const char *str) {
 					trace_mask = str;
@@ -259,7 +260,7 @@ int main(int argc, char *argv[])
 		    M0_STRINGARG('t', "test list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
-					    cfg.uc_run_list = str;
+					 tests_select = str;
 				      })
 				),
 		    M0_FLAGARG('T', "parse trace log produced earlier"
@@ -268,19 +269,35 @@ int main(int argc, char *argv[])
 		    M0_STRINGARG('x', "exclude list 'suite[:test][,suite"
 				      "[:test]]'",
 				      LAMBDA(void, (const char *str) {
-					 cfg.uc_exclude_list = str;
+					 tests_exclude = str;
 				      })
 				),
-		    M0_FLAGARG('y', "use YAML format for output",
-				&cfg.uc_yaml_output),
 		    );
 	if (rc != 0)
 		return rc;
 
-	rc = m0_ut_init(&cfg);
+	ut->ut_exclude = (tests_exclude != NULL);
+	ut->ut_tests = ut->ut_exclude ? tests_exclude : tests_select;
+
+	/* check conflicting options */
+	if ((tests_select != NULL && tests_exclude != NULL) ||
+	    (list_ut && (tests_select != NULL || tests_exclude != NULL ||
+			 list_owners))) {
+		fprintf(stderr, "Error: conflicting options: only one of the"
+				" -l -L -o -t -x option can be used at the same"
+				" time.\n");
+		return EXIT_FAILURE;
+	}
+
+	tests_add(ut);
+
+	rc = m0_ut_init(&instance);
 	if (rc != 0)
 		return rc;
 
+#if 1 /* XXX
+       * TODO Perform these initialisations via module/module.h API.
+       */
 	rc = m0_trace_set_immediate_mask(trace_mask) ?:
 		 m0_trace_set_level(trace_level);
 	if (rc != 0)
@@ -314,32 +331,20 @@ int main(int argc, char *argv[])
 		m0_fi_print_info();
 		printf("\n");
 	}
+#endif /* XXX */
 
-	/* check conflicting options */
-	if ((cfg.uc_run_list != NULL && cfg.uc_exclude_list != NULL) ||
-	    (list_ut && (cfg.uc_run_list != NULL ||
-			 cfg.uc_exclude_list != NULL || list_owners)))
-	{
-		fprintf(stderr, "Error: conflicting options: only one of the"
-				" -l -L -o -t -x option can be used at the same"
-				" time.\n");
-		rc = EXIT_FAILURE;
-		goto out;
-	}
-
-	add_uts();
 	if (seed != -1) {
 		if (seed == 0) {
 			seed = time(NULL) ^ (getpid() << 17);
 			printf("Seed: %u.\n", seed);
 		}
-		m0_ut_shuffle(seed);
+		m0_ut_shuffle(ut, seed);
 	}
 
 	if (list_ut)
-		m0_ut_list(with_tests);
+		m0_ut_list(ut, with_tests);
 	else if (list_owners)
-		m0_ut_list_owners();
+		m0_ut_list_owners(ut);
 	else
 		rc = m0_ut_run();
 

@@ -23,7 +23,8 @@
 #include "module/module.h"  /* m0_module */
 #include "net/module.h"     /* m0_net */
 #include "stob/module.h"    /* m0_stob_module */
-#include "ut/stob.h"	    /* m0_ut_stob_module */
+#include "ut/stob.h"        /* m0_ut_stob_module */
+#include "ut/module.h"      /* m0_ut_module */
 
 struct m0_be_domain;
 struct m0_dbenv;
@@ -57,9 +58,9 @@ struct m0 {
 	 * dependency is added. Used to detect when initialisation
 	 * should re-start.
 	 */
-	uint64_t		  i_dep_gen;
+	uint64_t                  i_dep_gen;
 	/** Module representing this instance. */
-	struct m0_module	  i_self;
+	struct m0_module          i_self;
 
 	/*
 	 * Global modules.
@@ -72,6 +73,7 @@ struct m0 {
 	struct m0_net             i_net;
 	struct m0_stob_module     i_stob_module;
 	struct m0_stob_ad_module  i_stob_ad_module;
+	struct m0_ut_module       i_ut;
 	struct m0_ut_stob_module  i_ut_stob_module;
 	struct m0_be_domain      *i_be_dom;
 	struct m0_be_domain      *i_be_dom_save;
@@ -120,22 +122,26 @@ M0_INTERNAL struct m0 *m0_get(void);
  */
 M0_INTERNAL void m0_set(struct m0 *instance);
 
-/**
- * Levels of m0 instance.
- *
- * Dependencies:
- * @verbatim
- *
- *   m0                     m0_net
- * +===============+      +--------------+
- * | M0_LEVEL_INIT |----->| M0_LEVEL_NET |
- * +---------------+      +--------------+
- *
- * @endverbatim
- */
+/** Levels of m0 instance. */
 enum {
-	/** m0 instance and its submodules have been initialised. */
-	M0_LEVEL_INIT
+	/**
+	 * The entry function of this level performs preparatory
+	 * actions, which are common to all types of m0 instances.
+	 */
+	M0_LEVEL_INST_ONCE,
+	/*
+	 * XXX DELETEME after the removal of m0_init() function and
+	 * subsystem[] array in mero/init.c file.
+	 */
+	M0_LEVEL_INST_SUBSYSTEMS,
+	/**
+	 * The "fully initialised" level, which the users of m0
+	 * instance should m0_module_init() it to.
+	 *
+	 * M0_LEVEL_INST_READY will depend on a particular set of modules,
+	 * according to the use case (UT, m0t1fs, m0d, etc.).
+	 */
+	M0_LEVEL_INST_READY
 };
 
 /** @} module */

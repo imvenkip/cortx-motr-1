@@ -21,7 +21,7 @@
 
 #include "lib/thread.h"       /* M0_THREAD_INIT */
 #include "ut/ut.h"            /* m0_ut_add */
-
+#include "module/instance.h"  /* m0 */
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Mero Unit Test Module");
@@ -69,57 +69,63 @@ extern struct m0_ut_suite m0_loop_ut; /* m0loop driver */
 
 static struct m0_thread ut_thread;
 
-static void run_kernel_ut(int ignored)
+static void tests_add(struct m0_ut_module *m)
 {
-        printk(KERN_INFO "Mero Kernel Unit Test\n");
-
 	/* sort test suites in alphabetic order */
-	m0_ut_add(&m0_klibm0_ut);  /* test lib first */
-	m0_ut_add(&m0_addb_ut);
-	m0_ut_add(&di_ut);
-	m0_ut_add(&file_io_ut);
-	m0_ut_add(&be_ut);
-	m0_ut_add(&buffer_pool_ut);
-	m0_ut_add(&bulkio_client_ut);
-	m0_ut_add(&m0_loop_ut);
-	m0_ut_add(&m0_net_bulk_if_ut);
-	m0_ut_add(&m0_net_bulk_mem_ut);
-	m0_ut_add(&m0_net_lnet_ut);
-	m0_ut_add(&m0_net_test_ut);
-	m0_ut_add(&m0_net_tm_prov_ut);
-	m0_ut_add(&conn_ut);
-	m0_ut_add(&dtm_nucleus_ut);
-	m0_ut_add(&dtm_transmit_ut);
-	m0_ut_add(&dtm_dtx_ut);
-	m0_ut_add(&frm_ut);
-	m0_ut_add(&layout_ut);
-	m0_ut_add(&packet_encdec_ut);
-	m0_ut_add(&reqh_service_ut);
-	m0_ut_add(&rm_ut);
-	m0_ut_add(&rpc_mc_ut);
-	m0_ut_add(&session_ut);
-	m0_ut_add(&sm_ut);
-	m0_ut_add(&stob_ut);
-	m0_ut_add(&xcode_ut);
+	m0_ut_add(m, &m0_klibm0_ut);  /* test lib first */
+	m0_ut_add(m, &m0_addb_ut);
+	m0_ut_add(m, &di_ut);
+	m0_ut_add(m, &file_io_ut);
+	m0_ut_add(m, &be_ut);
+	m0_ut_add(m, &buffer_pool_ut);
+	m0_ut_add(m, &bulkio_client_ut);
+	m0_ut_add(m, &m0_loop_ut);
+	m0_ut_add(m, &m0_net_bulk_if_ut);
+	m0_ut_add(m, &m0_net_bulk_mem_ut);
+	m0_ut_add(m, &m0_net_lnet_ut);
+	m0_ut_add(m, &m0_net_test_ut);
+	m0_ut_add(m, &m0_net_tm_prov_ut);
+	m0_ut_add(m, &conn_ut);
+	m0_ut_add(m, &dtm_nucleus_ut);
+	m0_ut_add(m, &dtm_transmit_ut);
+	m0_ut_add(m, &dtm_dtx_ut);
+	m0_ut_add(m, &frm_ut);
+	m0_ut_add(m, &layout_ut);
+	m0_ut_add(m, &packet_encdec_ut);
+	m0_ut_add(m, &reqh_service_ut);
+	m0_ut_add(m, &rm_ut);
+	m0_ut_add(m, &rpc_mc_ut);
+	m0_ut_add(m, &session_ut);
+	m0_ut_add(m, &sm_ut);
+	m0_ut_add(m, &stob_ut);
+	m0_ut_add(m, &xcode_ut);
+}
 
+static void run_kernel_ut(int _)
+{
+	printk(KERN_INFO "Mero Kernel Unit Test\n");
 	m0_ut_run();
 }
 
 static int __init m0_ut_module_init(void)
 {
-	struct m0_ut_cfg cfg = {
-		.uc_run_list     = tests,
-		.uc_exclude_list = exclude,
-	};
+	static struct m0 instance;
+	struct m0_ut_module *ut = &instance.i_ut;
 	int rc;
 
-	rc = m0_ut_init(&cfg);
+	if (tests != NULL && exclude != NULL)
+		return EINVAL; /* only one of the lists should be provided */
+
+	ut->ut_exclude = (exclude != NULL);
+	ut->ut_tests = ut->ut_exclude ? exclude : tests;
+
+	tests_add(ut);
+
+	rc = m0_ut_init(&instance);
 	M0_ASSERT(rc == 0);
 
-	rc = M0_THREAD_INIT(&ut_thread, int, NULL,
-		            &run_kernel_ut, 0, "m0kut");
+	rc = M0_THREAD_INIT(&ut_thread, int, NULL, &run_kernel_ut, 0, "m0kut");
 	M0_ASSERT(rc == 0);
-
 	return rc;
 }
 

@@ -33,10 +33,10 @@ struct m0_net;
  * Dependencies:
  * @verbatim
  *
- *   m0                     m0_net                m0_net_xprt_module
- * +===============+      +==============+      +=====================+
- * | M0_LEVEL_INIT |----->| M0_LEVEL_NET |<-----| M0_LEVEL_NET_DOMAIN |
- * +---------------+      +--------------+      +---------------------+
+ *   m0_net                m0_net_xprt_module
+ * +==============+      +=====================+
+ * | M0_LEVEL_NET |<-----| M0_LEVEL_NET_DOMAIN |
+ * +--------------+      +---------------------+
  *
  * @endverbatim
  *

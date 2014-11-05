@@ -92,13 +92,11 @@ M0_INTERNAL void m0_module_setup(struct m0_module *module, const char *name,
 
 static int module_up(struct m0_module *module, int level)
 {
-	int        result = 0;
-	struct m0 *instance = m0_get();
-	uint64_t   gen = instance->i_dep_gen;
+	int            result = 0;
+	const uint64_t gen = module->m_m0->i_dep_gen;
 
 	M0_PRE(level < module->m_level_nr);
 	M0_PRE(module_invariant(module));
-	M0_PRE(module->m_m0 == instance);
 
 	while (module->m_cur < level && result == 0) {
 		int               next = module->m_cur + 1;
@@ -109,7 +107,8 @@ static int module_up(struct m0_module *module, int level)
 			md = &module->m_dep[i];
 			if (md->md_src == next) {
 				result = module_up(md->md_other, md->md_dst);
-				if (result == 0 && instance->i_dep_gen != gen)
+				if (result == 0 &&
+				    module->m_m0->i_dep_gen != gen)
 					/*
 					 * If generation changed, restart the
 					 * initialisation.

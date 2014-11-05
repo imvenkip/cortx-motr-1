@@ -91,7 +91,7 @@ static int level_net_enter(struct m0_module *module)
 	struct m0_net *net = M0_AMB(net, module, n_module);
 	unsigned       i;
 
-	M0_PRE(is_net_of(module, module->m_m0));
+	M0_PRE(is_net_of(module, m0_get())); /* XXX DELETEME */
 
 	/* We could have introduced a dedicated level for assigning
 	 * m0_net_xprt_module::nx_xprt pointers, but assigning them
@@ -110,7 +110,7 @@ static int level_net_enter(struct m0_module *module)
 
 static void level_net_leave(struct m0_module *module)
 {
-	M0_PRE(is_net_of(module, module->m_m0));
+	M0_PRE(is_net_of(module, m0_get())); /* XXX DELETEME */
 #if 0 /* XXX TODO
        * Rename current m0_net_fini() to m0_net__fini(), exclude it
        * from subsystem[] of mero/init.c, and ENABLEME. */

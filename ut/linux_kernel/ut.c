@@ -20,12 +20,12 @@
 
 #include "ut/ut_internal.h"
 
-int m0_arch_ut_init(const struct m0_ut_cfg *config)
+int m0_ut_sandbox_init(const char *dir)
 {
 	return 0;
 }
 
-void m0_arch_ut_fini(const struct m0_ut_cfg *config)
+void m0_ut_sandbox_fini(const char *dir, bool keep)
 {
 }
 

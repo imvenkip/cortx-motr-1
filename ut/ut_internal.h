@@ -23,17 +23,15 @@
 #ifndef __MERO_UT_UT_INTERNAL_H__
 #define __MERO_UT_UT_INTERNAL_H__
 
-#include "lib/list.h"       /* m0_list_link */
-#include "ut/ut.h"          /* m0_ut_cfg */
+#include "lib/types.h"  /* bool */
 
 /**
  * @addtogroup ut
  * @{
  */
 
-int m0_arch_ut_init(const struct m0_ut_cfg *config);
-
-void m0_arch_ut_fini(const struct m0_ut_cfg *config);
+int m0_ut_sandbox_init(const char *dir);
+void m0_ut_sandbox_fini(const char *dir, bool keep);
 
 /** @} end of ut group */
 #endif /* __MERO_UT_UT_INTERNAL_H__ */

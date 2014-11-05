@@ -178,18 +178,12 @@ struct init_fini_call once[] = {
 	{ &m0_threads_once_init, &m0_threads_once_fini, "threads" }
 };
 
-static void fini_calls(struct init_fini_call *arr, int nr)
+static void fini_nr(struct init_fini_call *arr, int nr)
 {
 	while (--nr >= 0) {
 		if (arr[nr].ifc_fini != NULL)
 			arr[nr].ifc_fini();
 	}
-}
-
-static void fini_nr(int i, int j)
-{
-	fini_calls(once, i);
-	fini_calls(subsystem, j);
 }
 
 /**
@@ -198,12 +192,12 @@ static void fini_nr(int i, int j)
  */
 static bool initialised_once = false;
 
-int m0_init(struct m0 *instance)
+M0_INTERNAL int m0_init_once(struct m0 *instance)
 {
-	int i;
 	int rc;
 
 	if (!initialised_once) {
+		int i;
 		/*
 		 * Bravely ignore all issues of concurrency and memory
 		 * consistency models, which occupy weaker minds.
@@ -211,10 +205,10 @@ int m0_init(struct m0 *instance)
 		for (i = 0; i < ARRAY_SIZE(once); ++i) {
 			rc = once[i].ifc_init();
 			if (rc != 0) {
-				m0_console_printf("subsystem %s "
-						  "init failed: rc = %d\n",
+				m0_console_printf("subsystem '%s' init failed:"
+						  " rc=%d\n",
 						  subsystem[i].ifc_name, rc);
-				fini_nr(i, 0);
+				fini_nr(once, i);
 				return rc;
 			}
 		}
@@ -222,30 +216,54 @@ int m0_init(struct m0 *instance)
 	}
 
 	rc = m0_threads_init(instance);
-	if (rc != 0)
-		return rc;
+	if (rc != 0) {
+		fini_nr(once, ARRAY_SIZE(once));
+		initialised_once = false;
+	}
+	return rc;
+}
 
+M0_INTERNAL void m0_fini_once(void)
+{
+	m0_threads_fini();
+	fini_nr(once, ARRAY_SIZE(once));
+	initialised_once = false;
+}
+
+#if 1 /* XXX OBSOLETE */
+int m0_init(struct m0 *instance)
+{
 	m0_instance_setup(instance);
-	if (0 /*XXX ENABLEME*/)
-		m0_module_init(&instance->i_self, M0_LEVEL_INIT);
+	return m0_module_init(&instance->i_self, M0_LEVEL_INST_READY);
+}
+
+void m0_fini(void)
+{
+	m0_module_fini(&m0_get()->i_self, M0_MODLEV_NONE);
+}
+
+M0_INTERNAL int m0_subsystems_init(void)
+{
+	int i;
+	int rc;
 
 	for (i = 0; i < ARRAY_SIZE(subsystem); ++i) {
 		rc = subsystem[i].ifc_init();
 		if (rc != 0) {
 			m0_console_printf("subsystem %s init failed: rc = %d\n",
 					  subsystem[i].ifc_name, rc);
-			fini_nr(ARRAY_SIZE(once), i);
-			break;
+			fini_nr(subsystem, i);
+			return rc;
 		}
 	}
-	return rc;
+	return 0;
 }
 
-void m0_fini(void)
+M0_INTERNAL void m0_subsystems_fini(void)
 {
-	fini_nr(ARRAY_SIZE(once), ARRAY_SIZE(subsystem));
-	m0_threads_fini();
+	fini_nr(subsystem, ARRAY_SIZE(subsystem));
 }
+#endif /* XXX OBSOLETE */
 
 /** @} end of init group */
 
