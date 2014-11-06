@@ -173,9 +173,15 @@ eval set -- "$cli_args"
     die 'Please, run this script with "root" privileges.'
 
 sysctl -q -w kernel.printk=8
-tail -n 1 -F /var/log/messages | grep '^.*kernel:' &
+tail -n 1 -F /var/log/messages &
 
 load_modules
 
+# wait required for Jenkins
+sleep 2
+echo
+
 # kill tail
 kill %1
+
+exit 0
