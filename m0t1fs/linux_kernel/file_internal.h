@@ -225,12 +225,12 @@
 
    - nr_spare_units      = 1
 
-   When a new file is written to with data worth 1K,
+   When a new file is written to with data worth 1K, there will be
 
-   there will be
    - 1 partial data unit and
 
    - 2 missing data units
+
    in the parity group.
 
    Here, parity is calculated with only one partial data unit (only valid block)
@@ -311,11 +311,11 @@
    pargrp_iomap_ops - Operation vector for struct pargrp_iomap.
 
    data_buf - Represents a simple data buffer wrapper object. The embedded
-   m0_buf::b_addr points to a kernel page or a user-space buffer in case of
+   db_buf::b_addr points to a kernel page or a user-space buffer in case of
    direct IO.
 
-   target_ioreq - Collection of IO extents and buffers, directed towards each
-   of the component objects in a parity group.
+   target_ioreq - Collection of IO extents and buffers, directed toward
+   particular component object in a parity group.
    These structures are created by struct io_request dividing the incoming
    struct iovec into members of parity group.
 
@@ -364,7 +364,7 @@
    for ASTs.
 
    When unmount is triggered, new io requests will be returned with an error
-   code as m0t1fs_sb::csb_active flag is reset.
+   code as m0t1fs_sb::csb_active flag is unset.
    For pending io requests, the ast thread will wait until callbacks
    from all outstanding io requests are acknowledged and executed.
 
@@ -1199,7 +1199,7 @@ struct nw_xfer_request {
 	 */
 	struct m0_htable          nxr_tioreqs_hash;
 
-	/** lock to pretect the following two counter */
+	/** lock to protect the following two counter */
 	struct m0_mutex           nxr_lock;
 	/**
 	 * Number of IO fops issued by all target_ioreq structures
@@ -1417,7 +1417,7 @@ struct io_request {
 
 /**
  * Represents a simple data buffer wrapper object. The embedded
- * m0_buf::b_addr points to a kernel page.
+ * db_buf::b_addr points to a kernel page.
  */
 struct data_buf {
 	/** Holds M0_T1FS_DTBUF_MAGIC. */
@@ -1702,8 +1702,8 @@ struct dgmode_rwvec {
 };
 
 /**
- * Collection of IO extents and buffers, directed towards each
- * of target objects (data_unit / parity_unit) in a parity group.
+ * Collection of IO extents and buffers, directed toward particular
+ * target object (data_unit / parity_unit) in a parity group.
  * These structures are created by struct io_request dividing the incoming
  * struct iovec into members of a parity group.
  */
