@@ -240,7 +240,7 @@
    Pool's failure vector is cached on clients. Every I/O request to ioservices
    is tagged with client known failure vector version, and this version is
    checked against the lastest one by ioservices. If the client known version
-   is stale, new version and failure vector updates will be returnen back to
+   is stale, new version and failure vector updates will be returned back to
    clients and clients need to apply this update and do I/O request according
    to the latest version. Please see @ref pool and @ref poolmach for more
    details.
@@ -3206,10 +3206,11 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	M0_ENTRY();
 	M0_PRE_EX(io_request_invariant(req));
 
-	rc = device_check(req);
 	if (req->ir_nwxfer.nxr_rc == 0)
 		return M0_RC(req->ir_nwxfer.nxr_rc);
-	else if (rc < 0)
+
+	rc = device_check(req);
+	if (rc < 0)
 		return M0_RC(rc);
 
 	csb = file_to_sb(req->ir_file);
@@ -3311,6 +3312,9 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	M0_ENTRY();
 	M0_PRE_EX(io_request_invariant(req));
 
+	if (req->ir_nwxfer.nxr_rc == 0)
+		return M0_RC(req->ir_nwxfer.nxr_rc);
+
 	rc = device_check(req);
 	/*
 	 * Number of failed devices is not a criteria good enough
@@ -3318,9 +3322,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 * could complete if IO request did not send any pages to
 	 * failed device(s) at all.
 	 */
-	if (req->ir_nwxfer.nxr_rc == 0)
-		return M0_RC(req->ir_nwxfer.nxr_rc);
-	else if (rc < 0)
+	if (rc < 0)
 		return M0_RC(rc);
 
 	csb = file_to_sb(req->ir_file);
