@@ -3666,13 +3666,8 @@ fail_locked:
 fail:
 	ioreq_sm_failed(req, rc);
 	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
-	/* XXX temporary hack to prevent kernel panic */
-	/* XXX how to do it correctly? */
-#if 0
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
-#else
-	req->ir_nwxfer.nxr_state = NXS_COMPLETE;
-#endif
+
 	return M0_ERR(rc, "ioreq_iosm_handle failed");
 }
 
@@ -5128,11 +5123,14 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			m0_fop_put_lock(&irfop->irf_iofop.if_fop);
 		}
 
-		M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_m0t1fs_cob_io_finish,
-			     M0_ADDB_CTX_VEC(&req->ir_addb_ctx, NULL),
-			     ti->ti_fid.f_container, ti->ti_fid.f_key,
-			     ti->ti_databytes + ti->ti_parbytes,
-			     m0_time_sub(m0_time_now(), ti->ti_start_time));
+		if (m0_addb_ctx_is_initialized(&req->ir_addb_ctx))
+			M0_ADDB_POST(&m0_addb_gmc,
+				     &m0_addb_rt_m0t1fs_cob_io_finish,
+				     M0_ADDB_CTX_VEC(&req->ir_addb_ctx, NULL),
+				     ti->ti_fid.f_container, ti->ti_fid.f_key,
+				     ti->ti_databytes + ti->ti_parbytes,
+				     m0_time_sub(m0_time_now(),
+						 ti->ti_start_time));
 	} m0_htable_endfor;
 
 	M0_LOG(M0_INFO, "Number of bytes %s = %llu",
@@ -5156,7 +5154,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 
 	req->ir_rc = xfer->nxr_rc;
 
-	m0_addb_ctx_fini(&req->ir_addb_ctx);
+	if (m0_addb_ctx_is_initialized(&req->ir_addb_ctx))
+		m0_addb_ctx_fini(&req->ir_addb_ctx);
 
 	M0_LEAVE();
 }
