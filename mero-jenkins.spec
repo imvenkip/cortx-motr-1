@@ -153,6 +153,7 @@ fi
 %{_bindir}/*
 %{_sbindir}/*
 %{_libdir}/*
+%{_libexecdir}/mero/*
 %{_mandir}/*
 %{_localstatedir}/mero
 /lib/modules/*/kernel/fs/mero/*

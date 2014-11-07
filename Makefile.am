@@ -682,9 +682,9 @@ EXTRA_DIST    += $(etc_mero_DATA)
 #                             Auxiliary data files
 ################################################################################
 
-lib_merodir    = $(libdir)/mero
-lib_mero_DATA  = scripts/install/usr/lib64/mero/mero-service.functions
-EXTRA_DIST    += $(lib_mero_DATA)
+libexec_merodir    = $(libexecdir)/mero
+libexec_mero_DATA  = scripts/install/usr/libexec/mero/mero-service.functions
+EXTRA_DIST        += $(libexec_mero_DATA)
 
 
 ################################################################################

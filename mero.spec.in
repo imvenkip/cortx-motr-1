@@ -53,6 +53,9 @@ BuildRequires:  perl-IO-All
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  lustre-devel
 BuildRequires:  libuuid-devel
+# mero-590 C7 build deps.
+BuildRequires:  binutils-devel
+BuildRequires:  perl-autodie
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       lustre-modules
@@ -134,6 +137,7 @@ fi
 %{_bindir}/*
 %{_sbindir}/*
 %{_libdir}/*
+%{_libexecdir}/mero/*
 %{_mandir}/*
 %{_localstatedir}/mero
 /lib/modules/*/kernel/fs/mero/*

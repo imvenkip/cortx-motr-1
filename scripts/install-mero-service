@@ -134,9 +134,9 @@ install_files()
         /bin/sed -i -e "s/00000000-0000-0000-0000-000000000000/$(uuidgen)/" /etc/mero/genders
     fi
 
-    dir='/usr/lib64/mero'
+    dir='/usr/libexec/mero'
     [[ ! -d $dir ]] && run "mkdir -vp $dir"
-    for file in 'scripts/install/usr/lib64/mero/mero-service.functions' ;
+    for file in 'scripts/install/usr/libexec/mero/mero-service.functions' ;
     do
         run "$cmd $(pwd)/$file $dir"
     done
@@ -156,13 +156,13 @@ uninstall_files()
                 '/etc/init/mero-trace.conf' \
                 '/etc/mero/disks-singlenode.conf' \
                 '/etc/mero/genders' \
-                '/usr/lib64/mero/mero-service.functions' ;
+                '/usr/libexec/mero/mero-service.functions' ;
     do
         [[ -s $file ]] && run "rm -v $file"
     done
 
     for dir in '/etc/mero' \
-               '/usr/lib64/mero' ;
+               '/usr/libexec/mero' ;
     do
         [[ -d $dir && -z $(ls $dir) ]] && run "rmdir -v $dir"
     done
