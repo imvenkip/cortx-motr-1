@@ -133,7 +133,7 @@ wait:
 	 rc = M0_FSO_WAIT;
 done:
 	m0_cm_unlock(cm);
-	if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCKED && rc == 0) {
+	if (rc == 0 && m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCKED) {
 		m0_semaphore_up(&sem[*sem_id]);
 		*phase = M0_FOM_PHASE_FINISH;
 		rc = M0_FSO_WAIT;
