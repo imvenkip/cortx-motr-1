@@ -18,6 +18,14 @@ get the image, mount debugfs (mount -t debugfs none
 /sys/kernel/debug) and just copy /sys/kernel/debug/mero/core
 to some file.
 
+Mero Trace buffer size should be configured to adequate value.
+For example, if the throughput is expected to be high, the
+buffer size should be at least 128MB. In /etc/sysconfig/mero
+file update the following parameter:
+
+MERO_KMOD_EXTRA_PARAMS="trace_buf_size=134217728"
+
+
 Main steps
 
 1) Get the system logs and figure out the address of Mero trace buffer
