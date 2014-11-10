@@ -464,14 +464,12 @@
 	Start      [ label = "", shape="plaintext" ]
 	Suninit    [ label = "IRS_UNINITIALIZED" ]
 	Sinit      [ label = "IRS_INITIALIZED" ]
-	Slockacq   [ label = "IRS_LOCK_ACQUIRED" ]
 	Sreading   [ label = "IRS_READING" ]
 	Swriting   [ label = "IRS_WRITING" ]
 	Sreaddone  [ label = "IRS_READ_COMPLETE" ]
 	Swritedone [ label = "IRS_WRITE_COMPLETE" ]
 	Sdgreading [ label = "IRS_DG_READING"]
 	Sdgwriting [ label = "IRS_DG_WRITING" ]
-	Slockrel   [ label = "IRS_LOCK_RELINQUISHED" ]
 	Sreqdone   [ label = "IRS_REQ_COMPLETE" ]
 
 	Start      -> Suninit    [ label = "allocate", fontsize=10, weight=8 ]
@@ -1229,14 +1227,12 @@ struct nw_xfer_request {
 enum io_req_state {
 	IRS_UNINITIALIZED,
 	IRS_INITIALIZED,
-	IRS_LOCK_ACQUIRED,
 	IRS_READING,
 	IRS_WRITING,
 	IRS_READ_COMPLETE,
 	IRS_WRITE_COMPLETE,
 	IRS_DEGRADED_READING,
 	IRS_DEGRADED_WRITING,
-	IRS_LOCK_RELINQUISHED,
 	IRS_REQ_COMPLETE,
 	IRS_FAILED,
 };
@@ -1321,16 +1317,12 @@ struct io_request_ops {
 
 	/**
 	 * Requests distributed lock on whole file.
-	 * @pre  req->ir_state == IRS_INITIALIZED.
-	 * @post req->ir_state == IRS_LOCK_ACQUIRED.
+	 * Must be called before reading or writing
 	 */
 	int  (*iro_file_lock)     (struct io_request *req);
 
 	/**
 	 * Relinquishes the distributed lock on whole file.
-	 * @pre  req->ir_state == IRS_READ_COMPLETE ||
-	 *       req->ir_state == IRS_WRITE_COMPLETE.
-	 * @post req->ir_state == IRS_LOCK_RELINQUISHED.
 	 */
 	void (*iro_file_unlock)   (struct io_request *req);
 };

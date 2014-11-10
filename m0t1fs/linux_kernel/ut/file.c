@@ -317,7 +317,6 @@ static void ds_test(void)
 	/* io_req_fop attributes test. */
 	M0_ALLOC_PTR(irfop);
 	M0_UT_ASSERT(irfop != NULL);
-	ioreq_sm_state_set(&req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(&req, IRS_READING);
 	rc = io_req_fop_init(irfop, &ti, PA_DATA);
 	M0_UT_ASSERT(rc == 0);
@@ -947,7 +946,6 @@ static void dgmode_readio_test(void)
 	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	M0_UT_ASSERT(rc == 0);
 
-	ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
 	ioreq_sm_state_set(req, IRS_READING);
 	key = 1;
 	ti = tioreqht_htable_lookup(&req->ir_nwxfer.nxr_tioreqs_hash, &key);

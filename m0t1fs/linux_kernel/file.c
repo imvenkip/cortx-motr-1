@@ -886,13 +886,8 @@ static struct m0_sm_state_descr io_states[] = {
 	[IRS_INITIALIZED]       = {
 		.sd_flags       = M0_SDF_INITIAL,
 		.sd_name        = "IO_initial",
-		.sd_allowed     = M0_BITS(IRS_LOCK_ACQUIRED,
-					  IRS_FAILED,  IRS_REQ_COMPLETE)
-	},
-	[IRS_LOCK_ACQUIRED]     = {
-		.sd_name        = "IO_dist_lock_acquired",
 		.sd_allowed     = M0_BITS(IRS_READING, IRS_WRITING,
-					  IRS_LOCK_RELINQUISHED),
+					  IRS_FAILED, IRS_REQ_COMPLETE)
 	},
 	[IRS_READING]	        = {
 		.sd_name        = "IO_reading",
@@ -902,7 +897,7 @@ static struct m0_sm_state_descr io_states[] = {
 		.sd_name        = "IO_read_complete",
 		.sd_allowed     = M0_BITS(IRS_WRITING, IRS_REQ_COMPLETE,
 			                  IRS_DEGRADED_READING, IRS_FAILED,
-					  IRS_READING, IRS_LOCK_RELINQUISHED)
+					  IRS_READING)
 	},
 	[IRS_DEGRADED_READING]  = {
 		.sd_name        = "IO_degraded_read",
@@ -919,12 +914,7 @@ static struct m0_sm_state_descr io_states[] = {
 	[IRS_WRITE_COMPLETE]    = {
 		.sd_name        = "IO_write_complete",
 		.sd_allowed     = M0_BITS(IRS_REQ_COMPLETE, IRS_FAILED,
-				          IRS_DEGRADED_WRITING,
-					  IRS_LOCK_RELINQUISHED)
-	},
-	[IRS_LOCK_RELINQUISHED] = {
-		.sd_name        = "IO_dist_lock_relinquished",
-		.sd_allowed     = M0_BITS(IRS_FAILED, IRS_REQ_COMPLETE),
+				          IRS_DEGRADED_WRITING)
 	},
 	[IRS_FAILED]            = {
 		.sd_flags       = M0_SDF_FAILURE,
@@ -3464,8 +3454,6 @@ static int ioreq_file_lock(struct io_request *req)
 			     M0_TIME_NEVER);
 	m0_rm_owner_unlock(&mi->ci_fowner);
 	rc = rc ?: req->ir_in.rin_rc;
-	if (rc == 0)
-		ioreq_sm_state_set(req, IRS_LOCK_ACQUIRED);
 
 	return M0_RC(rc);
 }
@@ -3474,7 +3462,6 @@ static void ioreq_file_unlock(struct io_request *req)
 {
 	M0_PRE(req != NULL);
 	m0_file_unlock(&req->ir_in);
-	ioreq_sm_state_set(req, IRS_LOCK_RELINQUISHED);
 }
 
 static int ioreq_iosm_handle(struct io_request *req)
@@ -3713,9 +3700,8 @@ fail_locked:
 	req->ir_ops->iro_file_unlock(req);
 fail:
 	ioreq_sm_failed(req, rc);
-	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
-
+	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 	return M0_ERR(rc, "ioreq_iosm_handle failed");
 }
 
@@ -5202,8 +5188,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	 * meaning for states IRS_READ_COMPLETE and IRS_WRITE_COMPLETE.
 	 */
 	if (M0_IN(ioreq_sm_state(req),
-		  (IRS_READ_COMPLETE, IRS_WRITE_COMPLETE,
-		   IRS_LOCK_RELINQUISHED))) {
+		  (IRS_READ_COMPLETE, IRS_WRITE_COMPLETE))) {
 		if (!rmw)
 			ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 		else if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
