@@ -225,10 +225,6 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	M0_LOG(M0_DEBUG, "cm->cm_aggr_grps_in_nr %lu!", cm->cm_aggr_grps_in_nr);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
-	/*
-	 * Send update if this replica has aggregation groups with incoming
-	 * copy packets.
-	 */
 	if (cm->cm_aggr_grps_in_nr > 0 || cm->cm_aggr_grps_out_nr > 0) {
 		rc = m0_cm_proxy_remote_update(proxy, &sw);
 		M0_ASSERT(rc == 0);
@@ -352,12 +348,12 @@ M0_INTERNAL void m0_cm_proxy_rpc_conn_close(struct m0_cm_proxy *pxy)
 	rc = m0_rpc_session_destroy(&pxy->px_session,
 					m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to terminate session %d", rc);
+		M0_LOG(M0_NOTICE, "Failed to terminate session %d", rc);
 
 	rc = m0_rpc_conn_destroy(&pxy->px_conn,
 					m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to terminate connection %d", rc);
+		M0_LOG(M0_NOTICE, "Failed to terminate connection %d", rc);
 	M0_LEAVE("%d", rc);
 }
 

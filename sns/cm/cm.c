@@ -693,12 +693,12 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 	rc = m0_rpc_session_destroy(&scm->sc_rm_ctx.rc_session,
 				    m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to terminate sns-rm session %d", rc);
+		M0_LOG(M0_NOTICE, "Failed to terminate sns-rm session %d", rc);
 
 	rc = m0_rpc_conn_destroy(&scm->sc_rm_ctx.rc_conn,
 				 m0_time_from_now(CM_RPC_TIMEOUT, 0));
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to terminate sns-rm rpc connection %d",
+		M0_LOG(M0_NOTICE, "Failed to terminate sns-rm rpc connection %d",
 		       rc);
 	m0_rm_type_deregister(&scm->sc_rm_ctx.rc_rt);
 	M0_LEAVE("%d", rc);

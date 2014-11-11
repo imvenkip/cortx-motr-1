@@ -330,6 +330,8 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
         item->ri_session = session;
         item->ri_prio  = M0_RPC_ITEM_PRIO_MID;
         item->ri_deadline = 0;
+	/* Temporary fix to handle copy packet resend. */
+	item->ri_nr_sent_max = 0;
 
         rc = m0_rpc_post(item);
 	m0_fop_put_lock(fop);

@@ -87,11 +87,15 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		       cm->cm_aggr_grps_out_nr,
 		       cm->cm_ready_fops_recvd,
 		       cm->cm_proxy_nr);
+
 		/*
-		 * We are checking cm state purposefully without the lock,
-		 * and avoid blocking on cm lock.
+		 * Here we check for aggregation groups with incoming as well as
+		 * outgoing copy packets as there can be aggregation groups with
+		 * both type of copy packets but present only in copy machine's
+		 * list of aggregation groups with incoming copy packets
+		 * (m0_cm::cm_aggr_grps_in).
 		 */
-		if (cm->cm_mach.sm_state >= M0_CMS_PREPARE) {
+		if (cm->cm_aggr_grps_out_nr > 0 || cm->cm_aggr_grps_in_nr > 0) {
 			ep = swo_fop->swo_base.swo_cm_ep.ep;
 			m0_cm_lock(cm);
 			cm_proxy = m0_cm_proxy_locate(cm, ep);
