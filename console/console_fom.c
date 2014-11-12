@@ -29,6 +29,9 @@
 #include "console/console_fop_xc.h"
 #include "rpc/rpc.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONSOLE
+#include "lib/trace.h"
+
 /**
    @addtogroup console
    @{
@@ -172,6 +175,8 @@ struct m0_fom_ops m0_console_fom_test_ops = {
 const struct m0_fom_type_ops m0_console_fom_type_test_ops = {
 	.fto_create = console_test_fom_create,
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of console */
 

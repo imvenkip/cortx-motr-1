@@ -25,10 +25,11 @@
 #include "fop/fop.h"
 #include "ha/note.h"
 #include "lib/memory.h"
-#include "lib/trace.h"
 #include "rpc/rpc.h"
 #include "reqh/reqh.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_HA
+#include "lib/trace.h"
 
 M0_INTERNAL void m0_ha_state_set_fom_fini(struct m0_fom *fom)
 {
@@ -118,6 +119,8 @@ M0_INTERNAL int m0_ha_state_set_fom_create(struct m0_fop *fop,
 const struct m0_fom_type_ops m0_ha_state_set_fom_type_ops = {
 	.fto_create = m0_ha_state_set_fom_create
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -18,8 +18,6 @@
  * Original creation date: 06/07/2013
  */
 
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
-
 #include "lib/memory.h"
 #include "lib/string.h"
 
@@ -31,6 +29,9 @@
 #include "sns/sns_addb.h"
 #include "sns/cm/sw_onwire_fop.h"
 #include "sns/cm/sw_onwire_fop_xc.h"
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
+#include "lib/trace.h"
 
 /**
    @addtogroup SNSCMSW

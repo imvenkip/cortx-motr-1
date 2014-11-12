@@ -33,6 +33,8 @@
 #include "stob/domain.h"
 #include "stob/stob.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#include "lib/trace.h"
 
 /**
  * Null stob doesn't have persistent storage so we want to keep track
@@ -415,6 +417,8 @@ const struct m0_stob_type m0_stob_null_type = {
 		.ft_name = "nullstob",
 	},
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

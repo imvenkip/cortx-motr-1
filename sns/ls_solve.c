@@ -24,6 +24,9 @@
 #include "lib/errno.h"  /* EDOM */
 #include "lib/misc.h"   /* NULL */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
+#include "lib/trace.h"
+
 M0_INTERNAL void m0_linsys_init(struct m0_linsys *lynsys,
 				struct m0_matrix *m,
 				struct m0_vector *v, struct m0_vector *r)
@@ -184,6 +187,8 @@ M0_INTERNAL int m0_matrix_invert(const struct m0_matrix *in_mat,
 	m0_matrix_fini(&mat);
 	return 0;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

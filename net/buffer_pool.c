@@ -26,6 +26,9 @@
 #include "net/buffer_pool.h"
 #include "net/net_internal.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"
+
 /**
    @addtogroup net_buffer_pool Network Buffer Pool
    @{
@@ -308,6 +311,8 @@ M0_INTERNAL bool m0_net_buffer_pool_prune(struct m0_net_buffer_pool *pool)
 	buffer_remove(pool, nb);
 	return true;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} */ /* end of net_buffer_pool */
 

@@ -36,6 +36,9 @@
 #  define STRTOULL strtoull
 #endif
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 const char M0_GETOPTS_DECIMAL_POINT = '.';
 
 M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t * out)
@@ -123,6 +126,8 @@ M0_INTERNAL int m0_time_get(const char *arg, m0_time_t *out)
 		*out = before * unit_mul + after * unit_mul / pow_of_10;
 	return rc;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -58,6 +58,9 @@
 #include "lib/arith.h" /* M0_IS_8ALIGNED */
 #include "lib/time.h"  /* m0_time_now() */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 static uint64_t cookie_generation;
 
 M0_INTERNAL const struct m0_cookie M0_COOKIE_NULL = {
@@ -129,6 +132,8 @@ M0_INTERNAL void m0_cookie_global_fini(void)
 {
 	m0_arch_cookie_global_fini();
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of cookie group */
 

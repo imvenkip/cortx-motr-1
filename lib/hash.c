@@ -30,6 +30,9 @@
 #include "lib/memory.h" /* M0_ALLOC_ARR() */
 #include "lib/misc.h"	/* m0_forall() */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 static const struct m0_bob_type htable_bobtype;
 M0_BOB_DEFINE(static, &htable_bobtype, m0_htable);
 
@@ -213,6 +216,8 @@ M0_INTERNAL uint64_t m0_htable_size(const struct m0_htable *htable)
 				&htable->h_buckets[nr].hb_objects);
 	return len;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of hash */
 

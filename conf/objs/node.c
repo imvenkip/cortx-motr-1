@@ -23,6 +23,9 @@
 #include "lib/arith.h"      /* M0_CNT_INC */
 #include "mero/magic.h"     /* M0_CONF_NODE_MAGIC */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #define XCAST(xobj) ((struct m0_confx_node *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_node, xn_header) == 0);
 
@@ -184,3 +187,4 @@ const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
 };
 
 #undef XCAST
+#undef M0_TRACE_SUBSYSTEM

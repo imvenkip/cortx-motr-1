@@ -24,6 +24,9 @@
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_helpers.h"   /* m0_rpc_item_header2_encdec */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
+#include "lib/trace.h"
+
 M0_INTERNAL m0_bcount_t m0_fop_payload_size(const struct m0_rpc_item *item)
 {
 	struct m0_fop	   *fop;
@@ -114,6 +117,8 @@ const struct m0_rpc_item_type_ops m0_fop_default_item_type_ops = {
 	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
 };
 M0_EXPORTED(m0_fop_default_item_type_ops);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

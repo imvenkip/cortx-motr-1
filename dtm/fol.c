@@ -35,6 +35,9 @@
 #include "dtm/dtm.h"
 #include "dtm/fol.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
+#include "lib/trace.h"
+
 static const struct m0_dtm_history_ops fol_ops;
 static const struct m0_dtm_history_ops fol_remote_ops;
 
@@ -180,6 +183,8 @@ static const struct m0_dtm_history_ops fol_remote_ops = {
 };
 
 /** @} end of dtm group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -33,6 +33,9 @@
 #include "dtm/update_xc.h"
 #include "dtm/operation_xc.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
+#include "lib/trace.h"
+
 M0_INTERNAL void m0_dtm_init(struct m0_dtm *dtm, struct m0_uint128 *id)
 {
 	int i;
@@ -170,6 +173,8 @@ M0_INTERNAL int m0_dtx_fol_add(struct m0_dtx *tx)
 {
 	return m0_be_tx_fol_add(&tx->tx_betx, &tx->tx_fol_rec);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of dtm group */
 

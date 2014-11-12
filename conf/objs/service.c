@@ -22,6 +22,9 @@
 #include "conf/onwire_xc.h" /* m0_confx_service_xc */
 #include "mero/magic.h"     /* M0_CONF_SERVICE_MAGIC */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 static bool service_check(const void *bob)
 {
 	const struct m0_conf_service *self = bob;
@@ -156,3 +159,4 @@ const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 };
 
 #undef XCAST
+#undef M0_TRACE_SUBSYSTEM

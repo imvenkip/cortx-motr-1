@@ -30,6 +30,9 @@
 #include "fol/fol_xc.h"       /* m0_xc_fol_init */
 #include "fop/fop.h"          /* m0_fop_fol_frag_type */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOL
+#include "lib/trace.h"
+
 /**
    @addtogroup fol
 
@@ -378,6 +381,8 @@ M0_INTERNAL void m0_fol_frag_add(struct m0_fol_rec *rec,
 
 	m0_rec_frag_tlist_add_tail(&rec->fr_frags, frag);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of fol group */
 

@@ -31,6 +31,9 @@
 #  include <uuid/uuid.h>     /* generate_uuid */
 #endif
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 M0_BASSERT(sizeof (struct m0_uint128) == sizeof (char[16]));
 #ifndef __KERNEL__
 M0_BASSERT(sizeof (struct m0_uint128) == sizeof (uuid_t));
@@ -114,6 +117,8 @@ M0_INTERNAL void m0_uuid_format(const struct m0_uint128 *val,
 	h5 = val->u_lo & 0xffffffffffff;
 	sprintf(buf, fmt, h1, h2, h3, h4, h5);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

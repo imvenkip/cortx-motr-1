@@ -32,6 +32,9 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"
+
 /**
    @addtogroup net
    @{
@@ -126,6 +129,8 @@ M0_INTERNAL void m0_net_desc_free(struct m0_net_buf_desc *desc)
 	desc->nbd_data = NULL;
 }
 M0_EXPORTED(m0_net_desc_free);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -27,6 +27,9 @@
 #include "mero/magic.h"
 #include "net/net_internal.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"
+
 /**
    @addtogroup net
    @{
@@ -418,6 +421,8 @@ M0_INTERNAL void m0_net_buffer_event_post(const struct m0_net_buffer_event *ev)
 
 	m0_net__tm_post_callback(tm);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of net group */
 

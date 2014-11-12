@@ -22,11 +22,13 @@
 #include "stdio.h"
 
 #include "lib/memory.h"
-#include "lib/trace.h"
 #include "fop/fop.h"
 #include "rpc/rpclib.h"
 #include "stats/stats_fops.h"
 #include "stats/stats_fops_xc.h"
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STATS
+#include "lib/trace.h"
 
 static struct m0_stats_recs *stats_recs_dup(struct m0_stats_recs *stats_recs)
 {
@@ -154,6 +156,9 @@ void m0_stats_free(struct m0_stats_recs *stats)
 
 	m0_xcode_free_obj(&obj);
 }
+
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

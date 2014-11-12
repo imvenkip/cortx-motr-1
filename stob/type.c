@@ -35,6 +35,9 @@
 #include "stob/ad.h"		/* m0_stob_ad_type */
 #endif
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
+#include "lib/trace.h"
+
 /**
  * @addtogroup stob
  *
@@ -208,6 +211,8 @@ m0_stob_type__dom_find_by_location(struct m0_stob_type *type,
 	m0_mutex_unlock(&type->st_domains_lock);
 	return dom;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of stob group */
 

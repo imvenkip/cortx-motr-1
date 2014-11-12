@@ -23,6 +23,9 @@
 #include "lib/finject.h"
 #include "net/net_internal.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
+#include "lib/trace.h"
+
 /**
  * @addtogroup net
  * @{
@@ -103,6 +106,8 @@ void m0_net_end_point_put(struct m0_net_end_point *ep)
 	return;
 }
 M0_EXPORTED(m0_net_end_point_put);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of net group */
 

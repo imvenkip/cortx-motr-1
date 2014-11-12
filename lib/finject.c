@@ -36,6 +36,9 @@
 #include "lib/finject_internal.h"
 #include "mero/magic.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 enum {
 	FI_STATES_ARRAY_SIZE = 64 * 1024,
 };
@@ -491,6 +494,8 @@ M0_INTERNAL void m0_fi_disable(const char *fp_func, const char *fp_tag)
 M0_EXPORTED(m0_fi_disable);
 
 #endif /* ENABLE_FAULT_INJECTION */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

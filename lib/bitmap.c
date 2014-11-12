@@ -24,6 +24,9 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /**
    @defgroup bitmap Bitmap
    @{
@@ -192,6 +195,8 @@ M0_INTERNAL void m0_bitmap_load(const struct m0_bitmap_onwire *ow_map,
 	memcpy(im_map->b_words, ow_map->bo_words,
 	       ow_map->bo_size * sizeof ow_map->bo_words[0]);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of bitmap group */
 

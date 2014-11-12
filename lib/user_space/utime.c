@@ -29,6 +29,9 @@
 #include <sys/time.h>	/* gettimeofday */
 #include <time.h>	/* clock_gettime */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /**
    @addtogroup time
 
@@ -154,6 +157,8 @@ int m0_nanosleep(const m0_time_t req, m0_time_t *rem)
 	return rc;
 }
 M0_EXPORTED(m0_nanosleep);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of time group */
 

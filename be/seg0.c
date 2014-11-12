@@ -28,6 +28,8 @@
 #include "lib/mutex.h"
 #include "lib/buf.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
 
 static bool be_0type_invariant(const struct m0_be_0type *zt)
 {
@@ -167,6 +169,7 @@ void m0_be_0type_del_credit(struct m0_be_domain	      *dom,
 	m0_be_seg_dict_delete_credit(seg, keyname, credit);
 }
 
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

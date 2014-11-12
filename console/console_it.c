@@ -27,6 +27,9 @@
 #include "console/console_it.h"
 #include "console/console_yaml.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONSOLE
+#include "lib/trace.h"
+
 /**
    @addtogroup console_it
    @{
@@ -283,6 +286,8 @@ M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop)
 
 	return rc;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of console_it group */
 

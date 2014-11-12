@@ -21,6 +21,9 @@
 #include "conf/objs/common.h"
 #include "conf/cache.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 M0_INTERNAL void
 child_adopt(struct m0_conf_obj *parent, struct m0_conf_obj *child)
 {
@@ -155,3 +158,5 @@ confx_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	dest->xo_u.u_header.ch_id = src->co_id;
 	dest->xo_type = m0_conf_obj_type(src)->cot_ftype.ft_id;
 }
+
+#undef M0_TRACE_SUBSYSTEM

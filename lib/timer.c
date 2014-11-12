@@ -34,6 +34,9 @@
 #include "lib/semaphore.h"  /* m0_semaphore */
 #include "lib/timer.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /**
    @addtogroup timer
 
@@ -603,6 +606,8 @@ M0_INTERNAL void m0_timers_fini(void)
 	clock_source_timer = -1;
 	timer_sigaction(TIMER_SIGNO, NULL);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of timer group */
 

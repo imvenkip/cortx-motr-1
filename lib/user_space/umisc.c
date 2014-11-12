@@ -25,6 +25,9 @@
 #include <errno.h>
 #include "lib/misc.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 M0_INTERNAL uint64_t m0_strtou64(const char *str, char **endptr, int base)
 {
 	return strtoull(str, endptr, base);
@@ -68,6 +71,8 @@ M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)
 	}
 	return rc;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

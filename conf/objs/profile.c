@@ -24,6 +24,9 @@
 #include "mero/magic.h"     /* M0_CONF_PROFILE_MAGIC */
 #include "conf/onwire_xc.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 const struct m0_fid M0_CONF_PROFILE_FILESYSTEM_FID = M0_FID_TINIT('/', 0, 1);
 
 #define XCAST(xobj) ((struct m0_confx_profile *)(&(xobj)->xo_u))
@@ -139,3 +142,4 @@ const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 };
 
 #undef XCAST
+#undef M0_TRACE_SUBSYSTEM

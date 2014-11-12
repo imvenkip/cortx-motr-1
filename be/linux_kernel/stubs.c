@@ -24,6 +24,10 @@
 #include "be/seg_internal.h" /* m0_be_seg_hdr */
 
 #include "be/ut/helper.h" /* m0_be_ut_backend, m0_be_ut_seg */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 struct m0_be_btree;
 struct m0_be_btree_kv_ops;
 struct m0_be_btree_cursor;
@@ -322,3 +326,5 @@ int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
 	return -EINVAL;
 }
+
+#undef M0_TRACE_SUBSYSTEM

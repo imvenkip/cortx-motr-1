@@ -27,6 +27,8 @@
 #include "db/db.h"
 #include "db/db_common.h"
 
+#include "lib/trace.h"
+
 /**
    @addtogroup db
 
@@ -567,6 +569,8 @@ static bool ktable_invariant(struct m0_table *t)
 	m0_mutex_unlock(&ti->tk_lock);
 	return result;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of db group */
 

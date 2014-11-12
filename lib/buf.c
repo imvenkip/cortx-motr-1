@@ -23,6 +23,9 @@
 #include "lib/misc.h"
 #include "lib/buf.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /**
    @addtogroup buf Basic buffer type
    @{
@@ -171,6 +174,8 @@ M0_INTERNAL void m0_bufs_free(struct m0_bufs *bufs)
 	m0_free0(&bufs->ab_elems);
 	M0_POST(bufs->ab_count == 0);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of buf group */
 

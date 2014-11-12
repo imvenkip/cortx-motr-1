@@ -29,6 +29,9 @@
 #include "sns/parity_ops.h"
 #include "sns/parity_math.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNS
+#include "lib/trace.h"
+
 #define ir_invalid_col_t UINT8_MAX
 
 /* Forward declarations */
@@ -1210,6 +1213,8 @@ static inline uint32_t block_count(const struct m0_sns_ir *ir)
 {
 	return ir->si_data_nr + ir->si_parity_nr;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

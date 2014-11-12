@@ -30,6 +30,9 @@
 #include "lib/memory.h"
 #include "lib/processor.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /**
    @addtogroup processor
 
@@ -639,6 +642,8 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of processor group */
 

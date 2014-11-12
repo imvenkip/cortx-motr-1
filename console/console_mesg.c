@@ -26,6 +26,9 @@
 #include "console/console_mesg.h"
 #include "console/console_it.h" /* m0_cons_fop_fields_show */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONSOLE
+#include "lib/trace.h"
+
 M0_INTERNAL void m0_cons_fop_name_print(const struct m0_fop_type *ftype)
 {
 	printf("%.2d %s\n", ftype->ft_rpc_item_type.rit_opcode, ftype->ft_name);
@@ -89,6 +92,8 @@ M0_INTERNAL void m0_cons_fop_list_show(void)
 	while ((ftype = m0_fop_type_next(ftype)) != NULL)
 		m0_cons_fop_name_print(ftype);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

@@ -28,6 +28,9 @@
 #include "be/alloc.h"
 #include "xcode/xcode.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XCODE
+#include "lib/trace.h"
+
 /**
    @addtogroup xcode
 
@@ -865,6 +868,8 @@ const char *m0_xcode_cursor_flag_name[M0_XCODE_CURSOR_NR] = {
 	[M0_XCODE_CURSOR_IN]   = "in",
 	[M0_XCODE_CURSOR_POST] = "post"
 };
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of xcode group */
 

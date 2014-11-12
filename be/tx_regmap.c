@@ -29,6 +29,9 @@
 #include "lib/assert.h"	/* M0_POST */
 #include "lib/misc.h"	/* M0_SET0 */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 /**
  * @addtogroup be
  *
@@ -654,6 +657,8 @@ M0_INTERNAL void m0_be_reg_area_io_add(struct m0_be_reg_area *ra,
 
 	M0_POST(m0_be_reg_area__invariant(ra));
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of be group */
 

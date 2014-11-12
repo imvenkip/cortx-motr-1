@@ -23,7 +23,6 @@
 #include "lib/misc.h"		/* m0_forall */
 #include "lib/errno.h"		/* Includes appropriate errno header. */
 #include "lib/types.h"		/* Includes appropriate types header. */
-#include "lib/trace.h"		/* M0_ENTRY() */
 #include "lib/string.h"		/* strcmp() */
 #include "lib/finject.h"	/* M0_FI_ENABLED() */
 #include "lib/varr.h"		/* m0_varr */
@@ -34,6 +33,9 @@
 #include <linux/pagemap.h>	/* PAGE_CACHE_SIZE */
 #include <linux/limits.h>
 #endif
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
 
 M0_INTERNAL const struct m0_bob_type varr_bobtype;
 
@@ -565,6 +567,9 @@ M0_INTERNAL uint64_t m0_varr_size(const struct m0_varr *arr)
 	M0_PRE(arr != NULL);
 	return arr->va_nr;
 }
+
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

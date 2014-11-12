@@ -26,6 +26,9 @@
 #include <stdlib.h>     /* strtoull */
 #include <string.h>	/* strchr */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /* getopt(3) interface */
 extern char *optarg;
 extern int   optind;
@@ -189,6 +192,8 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 	m0_free(optstring);
 	return result;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of getopts group */
 

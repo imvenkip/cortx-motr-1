@@ -23,6 +23,9 @@
 #include "lib/bitmap.h"       /* m0_bitmap_get */
 #include "module/instance.h"  /* m0_set */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /**
    @addtogroup kthread Kernel Thread Implementation
    @ingroup thread
@@ -223,6 +226,8 @@ M0_INTERNAL bool m0_is_awkward(void)
 {
 	return in_irq();
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of thread group */
 

@@ -26,6 +26,9 @@
 
 #include "xcode/xcode.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XCODE
+#include "lib/trace.h"
+
 /**
  * @addtogroup xcode
  *
@@ -250,6 +253,8 @@ M0_INTERNAL int m0_xcode_print(const struct m0_xcode_obj *obj,
 #undef PCHAR
 #undef P
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of xcode group */
 

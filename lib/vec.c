@@ -26,6 +26,9 @@
 #include "lib/errno.h"
 #include "lib/finject.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
+
 /**
    @addtogroup vec Vectors
    @{
@@ -842,6 +845,8 @@ M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 
 	return 0;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of vec group */
 

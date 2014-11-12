@@ -22,6 +22,9 @@
 #include "conf/onwire_xc.h" /* m0_confx_sdev_xc */
 #include "mero/magic.h"     /* M0_CONF_SDEV_MAGIC */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
+#include "lib/trace.h"
+
 #define XCAST(xobj) ((struct m0_confx_sdev *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_sdev, xd_header) == 0);
 
@@ -133,3 +136,4 @@ const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 };
 
 #undef XCAST
+#undef M0_TRACE_SUBSYSTEM

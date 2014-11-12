@@ -35,6 +35,9 @@
 #include "dtm/dtm.h"
 #include "dtm/dtx.h"
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM
+#include "lib/trace.h"
+
 struct m0_dtm_dtx_party {
 	struct m0_dtm_dtx     *pa_dtx;
 	struct m0_dtm_controlh pa_ch;
@@ -233,6 +236,8 @@ static struct m0_dtm_history *dtx_srv_alloc(struct m0_dtm *dtm,
 }
 
 /** @} end of dtm group */
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
