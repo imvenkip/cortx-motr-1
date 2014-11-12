@@ -3483,8 +3483,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 	 * Acquires lock before proceeding to do actual IO.
 	 */
 	rc = req->ir_ops->iro_file_lock(req);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "iro_file_lock() failed: rc=%d", rc);
 		goto fail;
+	}
 
 	/* @todo Do error handling based on m0_sm::sm_rc. */
 	/*
@@ -3501,28 +3503,36 @@ static int ioreq_iosm_handle(struct io_request *req)
 		if (state == IRS_WRITING) {
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_FROM_USER, 0);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "iro_user_data_copy() failed: rc=%d", rc);
 				goto fail_locked;
-
+			}
 			rc = req->ir_ops->iro_parity_recalc(req);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "iro_parity_recalc() failed: rc=%d", rc);
 				goto fail_locked;
+			}
 		}
 		ioreq_sm_state_set(req, state);
 		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "nxo_dispatch() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 
 		state = req->ir_type == IRT_READ ? IRS_READ_COMPLETE:
 						   IRS_WRITE_COMPLETE;
 		rc    = ioreq_sm_timedwait(req, state);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "ioreq_sm_timedwait() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 
 		M0_ASSERT(ioreq_sm_state(req) == state);
 
 		if (req->ir_rc != 0) {
 			rc = req->ir_rc;
+			M0_LOG(M0_ERROR, "ir_rc=%d", rc);
 			goto fail_locked;
 		}
 		if (state == IRS_READ_COMPLETE) {
@@ -3532,13 +3542,16 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 * in healthy state.
 			 */
 			rc = req->ir_ops->iro_dgmode_read(req, rmw);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "iro_dgmode_read() failed: rc=%d", rc);
 				goto fail_locked;
-
+			}
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_TO_USER, 0);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "iro_user_data_copy() failed: rc=%d", rc);
 				goto fail_locked;
+			}
 		} else {
 			M0_ASSERT(state == IRS_WRITE_COMPLETE);
 			/*
@@ -3546,8 +3559,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 * in healthy state.
 			 */
 			rc = req->ir_ops->iro_dgmode_write(req, rmw);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "iro_dgmode_write() failed: rc=%d", rc);
 				goto fail_locked;
+			}
 		}
 	} else {
 		uint32_t    seg;
@@ -3565,15 +3580,17 @@ static int ioreq_iosm_handle(struct io_request *req)
 			ioreq_sm_state_set(req, IRS_READING);
 			rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->
 								  ir_nwxfer);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "nxo_dispatch() failed: rc=%d", rc);
 				goto fail_locked;
+			}
 		}
 
 		/* Waits for read completion if read IO was issued. */
 		if (read_pages > 0) {
 			rc = ioreq_sm_timedwait(req, IRS_READ_COMPLETE);
-
 			if (rc != 0) {
+				M0_LOG(M0_ERROR, "ioreq_sm_timedwait() failed: rc=%d", rc);
 				goto fail_locked;
 			}
 
@@ -3582,8 +3599,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 * in healthy state.
 			 */
 			rc = req->ir_ops->iro_dgmode_read(req, rmw);
-			if (rc != 0)
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "iro_dgmode_read() failed: rc=%d", rc);
 				goto fail_locked;
+			}
 		}
 
 		/*
@@ -3600,8 +3619,10 @@ static int ioreq_iosm_handle(struct io_request *req)
 		 */
 		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
 						     PA_FULLPAGE_MODIFY);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "iro_user_data_copy() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 
 		/* Copies
 		 * - fully modified pages from parity groups which have
@@ -3609,33 +3630,45 @@ static int ioreq_iosm_handle(struct io_request *req)
 		 * - partially modified pages from all parity groups.
 		 */
 		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER, 0);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "iro_user_data_copy() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 
 		/* Finalizes the old read fops. */
 		if (read_pages > 0) {
 			req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer,
 							     rmw);
-			if (req->ir_rc != 0)
+			if (req->ir_rc != 0) {
+				M0_LOG(M0_ERROR, "nxo_complete() failed: rc=%d", rc);
 				goto fail_locked;
+			}
 			device_state_reset(&req->ir_nwxfer, rmw);
 		}
 		ioreq_sm_state_set(req, IRS_WRITING);
 		rc = req->ir_ops->iro_parity_recalc(req);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "iro_parity_recalc() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "nxo_dispatch() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 
 		rc = ioreq_sm_timedwait(req, IRS_WRITE_COMPLETE);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "ioreq_sm_timedwait() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 
 		/* Returns immediately if all devices are in healthy state. */
 		rc = req->ir_ops->iro_dgmode_write(req, rmw);
-		if (rc != 0)
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "iro_dgmode_write() failed: rc=%d", rc);
 			goto fail_locked;
+		}
 	}
 
 	/*
