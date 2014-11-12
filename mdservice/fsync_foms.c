@@ -310,7 +310,7 @@ M0_INTERNAL int m0_md_fsync_req_fom_create(struct m0_fop  *fop,
 	M0_ALLOC_PTR(fom);
 	if (fom == NULL) {
 		M0_LEAVE("unable to allocate fom");
-		return M0_ERR(-ENOMEM, "unable to allocate fom");
+		return M0_ERR_INFO(-ENOMEM, "unable to allocate fom");
 	}
 
 	/* create the fsync reply */
@@ -318,7 +318,7 @@ M0_INTERNAL int m0_md_fsync_req_fom_create(struct m0_fop  *fop,
 	if (rep_fop == NULL) {
 		m0_free(fom);
 		M0_LEAVE("unable to allocate fop reply");
-		return M0_ERR(-ENOMEM, "unable to allocate fop reply");
+		return M0_ERR_INFO(-ENOMEM, "unable to allocate fop reply");
 	}
 
 	/* init the fom */

@@ -1263,7 +1263,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 				dbuf->db_flags |= PA_COPY_FRMUSR_DONE;
 
 			if (bytes != end - start)
-				return M0_ERR(-EFAULT, "Failed to "
+				return M0_ERR_INFO(-EFAULT, "Failed to "
 					       "copy_from_user");
 		}
 	} else {
@@ -1281,7 +1281,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 				 "%llu", end - start - bytes, start);
 
 		if (bytes != 0)
-			return M0_ERR(-EFAULT, "Failed to copy_to_user");
+			return M0_ERR_INFO(-EFAULT, "Failed to copy_to_user");
 	}
 
 	return M0_RC(0);
@@ -1412,7 +1412,7 @@ static int ioreq_parity_recalc(struct io_request *req)
 		rc = req->ir_iomaps[map]->pi_ops->pi_parity_recalc(req->
 				ir_iomaps[map]);
 		if (rc != 0)
-			return M0_ERR(rc, "Parity recalc failed for "
+			return M0_ERR_INFO(rc, "Parity recalc failed for "
 				       "grpid : %llu",
 				       req->ir_iomaps[map]->pi_grpid);
 	}
@@ -1495,7 +1495,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 			rc = user_data_copy(req->ir_iomaps[map], pgstart, pgend,
 					    &it, dir, filter);
 			if (rc != 0)
-				return M0_ERR(rc, "Copy failed");
+				return M0_ERR_INFO(rc, "Copy failed");
 
 			iov_iter_advance(&it, count);
 		}
@@ -1612,7 +1612,7 @@ fail:
 			m0_free0(&map->pi_paritybufs[pg]);
 		m0_free(map->pi_paritybufs);
 	}
-	return M0_ERR(-ENOMEM, "Memory allocation failed");
+	return M0_ERR_INFO(-ENOMEM, "Memory allocation failed");
 }
 
 static void pargrp_iomap_fini(struct pargrp_iomap *map)
@@ -1795,7 +1795,7 @@ err:
 			}
 		}
 	}
-	return M0_ERR(rc, "databuf_alloc failed");
+	return M0_ERR_INFO(rc, "databuf_alloc failed");
 }
 
 static uint64_t pargrp_iomap_fullpages_count(struct pargrp_iomap *map)
@@ -1891,7 +1891,7 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 
 			rc = pargrp_iomap_auxbuf_alloc(map, row, col);
 			if (rc != 0)
-				return M0_ERR(rc, "auxbuf_alloc failed");
+				return M0_ERR_INFO(rc, "auxbuf_alloc failed");
 		}
 	}
 	return M0_RC(rc);
@@ -2010,7 +2010,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 		if (map->pi_databufs[row][col] == NULL) {
 			rc = pargrp_iomap_databuf_alloc(map, row, col);
 			if (rc != 0)
-				return M0_ERR(rc, "databuf_alloc failed");
+				return M0_ERR_INFO(rc, "databuf_alloc failed");
 
 			if (end <= inode->i_size || (inode->i_size > 0 &&
 			    page_id(end - 1) == page_id(inode->i_size - 1)))
@@ -2056,7 +2056,7 @@ err:
 		for (col = 0; col < parity_col_nr(play); ++col)
 			m0_free0(&map->pi_paritybufs[row][col]);
 	}
-	return M0_ERR(-ENOMEM, "Memory allocation failed for data_buf.");
+	return M0_ERR_INFO(-ENOMEM, "Memory allocation failed for data_buf.");
 }
 
 static m0_bcount_t seg_collate(struct pargrp_iomap   *map,
@@ -2213,7 +2213,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 		++map->pi_ivec.iv_vec.v_nr;
 		rc = map->pi_ops->pi_seg_process(map, seg, rmw);
 		if (rc != 0)
-			return M0_ERR(rc, "seg_process failed");
+			return M0_ERR_INFO(rc, "seg_process failed");
 
 		INDEX(&map->pi_ivec, seg) =
 			round_down(INDEX(&map->pi_ivec, seg),
@@ -2264,7 +2264,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 			map->pi_rtype = PIR_READREST;
 			rc = map->pi_ops->pi_readrest(map);
 			if (rc != 0)
-				return M0_ERR(rc, "readrest failed");
+				return M0_ERR_INFO(rc, "readrest failed");
 		} else {
 			M0_LOG(M0_INFO,"Read-old approach selected");
 			map->pi_rtype = PIR_READOLD;
@@ -2443,7 +2443,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	 */
 	rc = pargrp_iomap_pages_mark(map, M0_PUT_DATA);
 	if (rc != 0)
-		return M0_ERR(rc, "Failed to mark pages from parity group");
+		return M0_ERR_INFO(rc, "Failed to mark pages from parity group");
 
 	/*
 	 * If parity buffers are not allocated, they should be allocated
@@ -2455,7 +2455,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 				  M0T1FS_ADDB_LOC_DGMODE_PROCESS_1,
 				  &m0t1fs_addb_ctx);
 		if (map->pi_paritybufs == NULL)
-			return M0_ERR(-ENOMEM, "Failed to allocate parity"
+			return M0_ERR_INFO(-ENOMEM, "Failed to allocate parity"
 				       "buffers");
 
 		for (row = 0; row < parity_row_nr(play); ++row) {
@@ -2478,7 +2478,7 @@ par_fail:
 		m0_free0(&map->pi_paritybufs[row]);
 	m0_free0(&map->pi_paritybufs);
 
-	return M0_ERR(rc, "dgmode_process failed");
+	return M0_ERR_INFO(rc, "dgmode_process failed");
 }
 
 static int io_spare_map(const struct pargrp_iomap *map,
@@ -2681,7 +2681,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 		goto err;
 	return M0_RC(rc);
 err:
-	return M0_ERR(rc,"%s", rc == -ENOMEM ?  "Failed to allocate "
+	return M0_ERR_INFO(rc,"%s", rc == -ENOMEM ?  "Failed to allocate "
 		       "data buffer": "Illegal device queried for status");
 }
 
@@ -2706,7 +2706,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	M0_ALLOC_ARR_ADDB(data, layout_n(play), &m0_addb_gmc,
 			  M0T1FS_ADDB_LOC_DGMODE_RECOV_DATA, &m0t1fs_addb_ctx);
 	if (data == NULL)
-		return M0_ERR(-ENOMEM, "Failed to allocate memory"
+		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
 			       " for data buf");
 
 	M0_ALLOC_ARR_ADDB(parity, layout_k(play), &m0_addb_gmc,
@@ -2714,7 +2714,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			  &m0t1fs_addb_ctx);
 	if (parity == NULL) {
 		m0_free(data);
-		return M0_ERR(-ENOMEM, "Failed to allocate memory"
+		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
 			       " for parity buf");
 	}
 
@@ -2722,7 +2722,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	if (zpage == 0) {
 		m0_free(data);
 		m0_free(parity);
-		return M0_ERR(-ENOMEM, "Failed to allocate page.");
+		return M0_ERR_INFO(-ENOMEM, "Failed to allocate page.");
 	}
 
 	failed.b_nob = layout_n(play) + layout_k(play);
@@ -2733,7 +2733,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		m0_free(data);
 		m0_free(parity);
 		free_page(zpage);
-		return M0_ERR(-ENOMEM, "Failed to allocate memory for m0_buf");
+		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory for m0_buf");
 	}
 
 	fail = failed.b_addr;
@@ -2805,7 +2805,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 	                  M0T1FS_ADDB_LOC_IOMAPS_PREP_GRPARR,
 	                  &m0t1fs_addb_ctx);
 	if (grparray == NULL)
-		return M0_ERR(-ENOMEM, "Failed to allocate memory"
+		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
 			       " for int array");
 
 	/*
@@ -2883,7 +2883,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 	return M0_RC(0);
 failed:
 	req->ir_ops->iro_iomaps_destroy(req);
-	return M0_ERR(rc, "iomaps_prepare failed");
+	return M0_ERR_INFO(rc, "iomaps_prepare failed");
 }
 
 static void ioreq_iomaps_destroy(struct io_request *req)
@@ -2975,7 +2975,7 @@ failed:
 	if (dg->dr_bufvec.ov_vec.v_count != NULL)
 		m0_free(dg->dr_bufvec.ov_vec.v_count);
 	m0_free(dg);
-	return M0_ERR(rc, "Dgmode read vector allocation failed");
+	return M0_ERR_INFO(rc, "Dgmode read vector allocation failed");
 }
 
 static void dgmode_rwvec_dealloc_fini(struct dgmode_rwvec *dg)
@@ -3117,7 +3117,7 @@ err:
 		++iommstats.d_target_ioreq_nr;
 	} m0_htable_endfor;
 
-	return M0_ERR(rc, "io_prepare failed");
+	return M0_ERR_INFO(rc, "io_prepare failed");
 }
 
 static inline int ioreq_sm_timedwait(struct io_request *req,
@@ -3150,7 +3150,7 @@ static int ioreq_dgmode_recover(struct io_request *req)
 			rc = req->ir_iomaps[cnt]->pi_ops->
 				pi_dgmode_recover(req->ir_iomaps[cnt]);
 			if (rc != 0)
-				return M0_ERR(rc, "Failed to recover data");
+				return M0_ERR_INFO(rc, "Failed to recover data");
 		}
 	}
 
@@ -3180,7 +3180,7 @@ static int device_check(struct io_request *req)
 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
 				              ti->ti_fid.f_container, &state);
 		if (rc != 0)
-			return M0_ERR(rc, "Failed to retrieve target device"
+			return M0_ERR_INFO(rc, "Failed to retrieve target device"
 				       " state");
 		ti->ti_state = state;
 		if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
@@ -3194,7 +3194,7 @@ static int device_check(struct io_request *req)
 	 */
 	play = pdlayout_get(req);
 	if (st_cnt > layout_k(play))
-		return M0_ERR(-EIO, "Failed to recover data since "
+		return M0_ERR_INFO(-EIO, "Failed to recover data since "
 			       "number of failed"
 			  " data units exceed number of parity units in"
 			  " parity group");
@@ -3279,7 +3279,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 		 */
 		rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 		if (rc != 0)
-			return M0_ERR(rc, "Failed to prepare dgmode"
+			return M0_ERR_INFO(rc, "Failed to prepare dgmode"
 				       "write fops");
 	}
 
@@ -3288,12 +3288,12 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 
 	rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 	if (rc != 0)
-		return M0_ERR(rc, "Failed to dispatch degraded mode"
+		return M0_ERR_INFO(rc, "Failed to dispatch degraded mode"
 			       "write IO fops");
 
 	rc = ioreq_sm_timedwait(req, IRS_WRITE_COMPLETE);
 	if (rc != 0)
-		return M0_ERR(rc, "Degraded mode write IO failed");
+		return M0_ERR_INFO(rc, "Degraded mode write IO failed");
 
 	stats = &csb->csb_dgio_stats[IRT_WRITE];
 	m0_addb_counter_update(&stats->ais_times_cntr,
@@ -3337,7 +3337,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 		rc = m0_poolmach_device_state(csb->csb_pool.po_mach,
 				ti->ti_fid.f_container, &state);
 		if (rc != 0)
-			return M0_ERR(rc, "Failed to retrieve device state");
+			return M0_ERR_INFO(rc, "Failed to retrieve device state");
 		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
 		       FID_P(&ti->ti_fid), state);
 		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
@@ -3358,7 +3358,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	} m0_htable_endfor;
 
 	if (rc != 0)
-		return M0_ERR(rc, "dgmode failed");
+		return M0_ERR_INFO(rc, "dgmode failed");
 
 	/*
 	 * Starts processing the pages again if any of the parity groups
@@ -3404,18 +3404,18 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 
 	rc = req->ir_nwxfer.nxr_ops->nxo_distribute(&req->ir_nwxfer);
 	if (rc != 0)
-		return M0_ERR(rc, "Failed to prepare dgmode IO fops.");
+		return M0_ERR_INFO(rc, "Failed to prepare dgmode IO fops.");
 
 	rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 	if (rc != 0)
-		return M0_ERR(rc, "Failed to dispatch degraded mode IO.");
+		return M0_ERR_INFO(rc, "Failed to dispatch degraded mode IO.");
 
 	rc = ioreq_sm_timedwait(req, IRS_READ_COMPLETE);
 	if (rc != 0)
-		return M0_ERR(rc, "Degraded mode read IO failed.");
+		return M0_ERR_INFO(rc, "Degraded mode read IO failed.");
 
 	if (req->ir_nwxfer.nxr_rc != 0)
-		return M0_ERR(req->ir_nwxfer.nxr_rc,
+		return M0_ERR_INFO(req->ir_nwxfer.nxr_rc,
 			       "Degraded mode read IO failed.");
 	stats = &csb->csb_dgio_stats[IRT_READ];
 	m0_addb_counter_update(&stats->ais_times_cntr,
@@ -3430,7 +3430,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	if (req->ir_dgmap_nr > 0) {
 		rc = req->ir_ops->iro_dgmode_recover(req);
 		if (rc != 0)
-			return M0_ERR(rc, "Failed to recover lost data.");
+			return M0_ERR_INFO(rc, "Failed to recover lost data.");
 	}
 
 	return M0_RC(rc);
@@ -3703,7 +3703,7 @@ fail:
 	ioreq_sm_failed(req, rc);
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
 	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
-	return M0_ERR(rc, "ioreq_iosm_handle failed");
+	return M0_ERR_INFO(rc, "ioreq_iosm_handle failed");
 }
 
 static void device_state_reset(struct nw_xfer_request *xfer, bool rmw)
@@ -3750,7 +3750,7 @@ static int io_request_init(struct io_request  *req,
 	io_request_bob_init(req);
 	nw_xfer_request_init(&req->ir_nwxfer);
 	if (req->ir_nwxfer.nxr_rc != 0)
-		return M0_ERR(req->ir_nwxfer.nxr_rc, "nw_xfer_req_init()"
+		return M0_ERR_INFO(req->ir_nwxfer.nxr_rc, "nw_xfer_req_init()"
 			       " failed");
 
 	m0_sm_init(&req->ir_sm, &io_sm_conf, IRS_INITIALIZED,
@@ -3761,7 +3761,7 @@ static int io_request_init(struct io_request  *req,
 	                       M0T1FS_ADDB_LOC_IOREQ_INIT_IV);
 
 	if (rc != 0)
-		return M0_ERR(-ENOMEM, "Allocation failed for m0_indexvec");
+		return M0_ERR_INFO(-ENOMEM, "Allocation failed for m0_indexvec");
 
 	for (seg = 0; seg < ivec->iv_vec.v_nr; ++seg) {
 		req->ir_ivec.iv_index[seg] = ivec->iv_index[seg];
@@ -4076,7 +4076,7 @@ fail:
 	m0_free(ti->ti_bufvec.ov_vec.v_count);
 	m0_free(ti->ti_bufvec.ov_buf);
 out:
-	return M0_ERR(-ENOMEM, "Failed to allocate memory in "
+	return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory in "
 		       "target_ioreq_init");
 }
 
@@ -4144,7 +4144,7 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 		                  M0T1FS_ADDB_LOC_TIOREQ_GET_TI,
 		                  &m0t1fs_addb_ctx);
 		if (ti == NULL)
-			return M0_ERR(-ENOMEM, "Failed to allocate memory"
+			return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
 				       "for target_ioreq");
 
 		rc = target_ioreq_init(ti, xfer, fid, ta_obj, session, size);
@@ -4465,7 +4465,7 @@ again:
 	M0_ALLOC_PTR_ADDB(req, &m0_addb_gmc, M0T1FS_ADDB_LOC_AIO_REQ,
 	                  &m0t1fs_addb_ctx);
 	if (req == NULL)
-		return M0_ERR(-ENOMEM, "Failed to allocate memory"
+		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory"
 			       " for io_request");
 	++iommstats.a_ioreq_nr;
 
@@ -5109,11 +5109,11 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		ti->ti_start_time = m0_time_now();
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA);
 		if (rc != 0)
-			return M0_ERR(rc, "data fop failed");
+			return M0_ERR_INFO(rc, "data fop failed");
 
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_PARITY);
 		if (rc != 0)
-			return M0_ERR(rc, "parity fop failed");
+			return M0_ERR_INFO(rc, "parity fop failed");
 	} m0_htable_endfor;
 
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
@@ -5265,7 +5265,7 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 					irfop->irf_tioreq, &index[seg - cnt],
 					cnt);
 			if (rc != 0)
-				return M0_ERR(rc, "Parity group dgmode "
+				return M0_ERR_INFO(rc, "Parity group dgmode "
 					       "process failed");
 		}
 	} m0_tl_endfor;
@@ -5341,7 +5341,7 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 					 dom, NULL, rbuf);
 		if (rc != 0) {
 			*delta -= io_desc_size(dom);
-			return M0_ERR(rc, "Failed to add rpc_bulk_buffer");
+			return M0_ERR_INFO(rc, "Failed to add rpc_bulk_buffer");
 		}
 	} else {
 		rc      = -ENOSPC;
@@ -5544,7 +5544,7 @@ err:
 		irfop_fini(irfop);
 	}
 
-	return M0_ERR(rc, "iofops_prepare failed");
+	return M0_ERR_INFO(rc, "iofops_prepare failed");
 }
 
 const struct inode_operations m0t1fs_reg_inode_operations = {

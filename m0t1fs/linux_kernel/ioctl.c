@@ -47,7 +47,7 @@ M0_INTERNAL int m0t1fs_ioctl(struct inode                              *inode,
 		rc = m0t1fs_fsync_core(m0inode, M0_FSYNC_MODE_PASSIVE);
 		break;
 	default:
-		return M0_ERR(-ENOTTY, "Unknown IOCTL.");
+		return M0_ERR_INFO(-ENOTTY, "Unknown IOCTL.");
 	}
 
 	M0_LEAVE();

@@ -493,7 +493,7 @@ static int file_read(const char *path, char *dest, size_t sz)
 
 	f = fopen(path, "r");
 	if (f == NULL)
-		return M0_ERR(-errno, "path=`%s'", path);
+		return M0_ERR_INFO(-errno, "path=`%s'", path);
 
 	n = fread(dest, 1, sz - 1, f);
 	if (ferror(f))

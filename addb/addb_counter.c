@@ -208,7 +208,7 @@ M0_INTERNAL int m0_addb_counter_init(struct m0_addb_counter *c,
 	c->acn_rt = rt;
 	c->acn_data = m0_alloc(counter_data_sz(rt));
 	if (c->acn_data == NULL)
-		return M0_ERR(-ENOMEM, "counter_init");
+		return M0_ERR_INFO(-ENOMEM, "counter_init");
 	c->acn_magic = M0_ADDB_CNTR_MAGIC;
 
 	M0_POST(addb_counter_invariant(c));
@@ -235,7 +235,7 @@ static int counter_data_update(struct m0_addb_counter_data *data,
 {
 
 	if (m0_addu64_will_overflow(data->acd_sum_sq, datum * datum))
-		return M0_ERR(-EOVERFLOW, "%s: counter's sum of samples "
+		return M0_ERR_INFO(-EOVERFLOW, "%s: counter's sum of samples "
 				"square overflow: datum=%llu", rt->art_name,
 			  (unsigned long long)datum);
 

@@ -100,7 +100,7 @@ int m0t1fs_fsync_request_create(struct m0t1fs_service_txid        *stx,
 	m0_fop_init(fop, &m0_fop_fsync_fopt, NULL, &m0t1fs_fsync_fop_cleanup);
 	rc = m0_fop_data_alloc(fop);
 	if (rc != 0) {
-		return M0_ERR(rc, "Allocating fsync fop data failed.");
+		return M0_ERR_INFO(rc, "Allocating fsync fop data failed.");
 	}
 
 	ffd = m0_fop_data(fop);
@@ -120,7 +120,7 @@ int m0t1fs_fsync_request_create(struct m0t1fs_service_txid        *stx,
 	rc = fi.post_rpc(item);
 	if (rc != 0) {
 		fi.fop_fini(fop);
-		return M0_ERR(rc, "Calling m0_rpc_post() failed.");
+		return M0_ERR_INFO(rc, "Calling m0_rpc_post() failed.");
 	}
 
 	M0_LEAVE();
@@ -183,8 +183,8 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 	rc = fi.wait_for_reply(item, M0_TIME_NEVER);
 	if (rc != 0) {
 		fi.fop_put(fop);
-		return M0_ERR(rc, "Calling m0_rpc_item_wait_for_reply() "
-			      "failed.");
+		return M0_ERR_INFO(rc, "Calling m0_rpc_item_wait_for_reply() "
+				       "failed.");
 	}
 
 	/* get the {fop,reply} data */
@@ -195,15 +195,15 @@ int m0t1fs_fsync_reply_process(struct m0t1fs_sb                *csb,
 
 	if (ffr->ffr_rc != 0) {
 		fi.fop_put(fop);
-		return M0_ERR(ffr->ffr_rc, "Remote fop failed.");
+		return M0_ERR_INFO(ffr->ffr_rc, "Remote fop failed.");
 	}
 
 	/* Is this a valid reply to our request */
 	reply_txid = ffr->ffr_be_remid.tri_txid;
 	if (reply_txid < ffd->ff_be_remid.tri_txid) {
 		/* invalid reply, network 'garbage'? */
-		return M0_ERR(-EPROTO, "Commited transaction is smaller than "
-			      "that requested.");
+		return M0_ERR_INFO(-EPROTO, "Commited transaction is smaller "
+					    "than that requested.");
 	}
 
 	if (inode != NULL)
@@ -340,7 +340,7 @@ int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
 		 * Failure
 		 * @todo: Generate some addb here.
 		 */
-		return M0_ERR(rc, "Simple_fsync returned error.");
+		return M0_ERR_INFO(rc, "Simple_fsync returned error.");
 	}
 
 	M0_LEAVE();

@@ -375,7 +375,7 @@ static int run_suite(const struct m0_ut_suite *suite, bool obey_enabled_flag,
 	if (suite->ts_init != NULL) {
 		rc = suite->ts_init();
 		if (rc != 0)
-			M0_ERR(rc, "Unit-test suite initialization failure.");
+			M0_ERR_INFO(rc, "Unit-test suite initialization failure.");
 	}
 
 	for (test = suite->ts_tests; test->t_name != NULL; ++test)
@@ -384,7 +384,7 @@ static int run_suite(const struct m0_ut_suite *suite, bool obey_enabled_flag,
 	if (suite->ts_fini != NULL) {
 		rc = suite->ts_fini();
 		if (rc != 0)
-			M0_ERR(rc, "Unit-test suite finalization failure.");
+			M0_ERR_INFO(rc, "Unit-test suite finalization failure.");
 	}
 
 	end         = m0_time_now();

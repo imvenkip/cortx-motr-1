@@ -634,7 +634,7 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 
 	rc = m0_sns_cm_rm_init(scm);
 	if(rc != 0)
-		return M0_ERR(rc, "SNS RM init failed");
+		return M0_ERR_INFO(rc, "SNS RM init failed");
 
 	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
 	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {

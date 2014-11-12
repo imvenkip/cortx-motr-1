@@ -198,7 +198,7 @@ M0_INTERNAL int m0_ios_register(void)
 	/* initialize the fsync fops */
 	rc = m0_mdservice_fsync_fop_init(&m0_ios_type);
 	if (rc != 0) {
-		return M0_ERR(rc, "Unable to initialize ioservice fsync fop");
+		return M0_ERR_INFO(rc, "Unable to initialize ioservice fsync fop");
 	}
 
 	rc = m0_ioservice_fop_init();

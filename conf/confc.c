@@ -1194,7 +1194,7 @@ static int object_enrich(struct m0_conf_obj *dest,
 
 	if (!m0_conf_obj_match(dest, src))
 		/* XXX TODO: ADDB */
-		return M0_ERR(-EPROTO,
+		return M0_ERR_INFO(-EPROTO,
 			       "Conflict of incoming and cached configuration "
 			       "data");
 
@@ -1509,23 +1509,23 @@ M0_INTERNAL int m0_conf_fs_get(const char *profile,
 	M0_PRE(rmach != NULL);
 
 	if (confd_addr == NULL)
-		return M0_ERR(-EINVAL, "confd address is unknown");
+		return M0_ERR_INFO(-EINVAL, "confd address is unknown");
 
 	rc = m0_fid_sscanf(profile, &prof_fid);
 	if (rc != 0)
-		return M0_ERR(rc, "Cannot parse profile `%s'", profile);
+		return M0_ERR_INFO(rc, "Cannot parse profile `%s'", profile);
 
 	m0_fid_tset(&prof_fid, M0_CONF_PROFILE_TYPE.cot_ftype.ft_id,
 		    prof_fid.f_container, prof_fid.f_key);
 
 	if (!m0_conf_fid_is_valid(&prof_fid))
-		return M0_ERR(-EINVAL, "Wrong profile fid "FID_F,
+		return M0_ERR_INFO(-EINVAL, "Wrong profile fid "FID_F,
 			FID_P(&prof_fid));
 
 	rc = m0_confc_init(confc, grp, &prof_fid, confd_addr,
 			   rmach, NULL);
 	if (rc != 0)
-		return M0_ERR(rc, "m0_confc_init() failed");
+		return M0_ERR_INFO(rc, "m0_confc_init() failed");
 
 	rc = m0_confc_open_sync(fs, confc->cc_root,
 				M0_CONF_PROFILE_FILESYSTEM_FID);

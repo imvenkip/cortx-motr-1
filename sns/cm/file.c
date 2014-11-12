@@ -350,7 +350,7 @@ m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx, struct m0_fom *fom)
 	if (state == RI_SUCCESS ||  state == RI_FAILURE) {
 		m0_rm_owner_unlock(&fctx->sf_owner);
 		if (state == RI_FAILURE)
-			return M0_ERR(-EFAULT, "Failed to acquire file lock for "FID_F, FID_P(&fctx->sf_fid));
+			return M0_ERR_INFO(-EFAULT, "Failed to acquire file lock for "FID_F, FID_P(&fctx->sf_fid));
 		else {
 			/*
 			 * There's a possibility that ag_next iterator and

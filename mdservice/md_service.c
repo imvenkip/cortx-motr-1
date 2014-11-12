@@ -85,12 +85,12 @@ M0_INTERNAL int m0_mds_register(void)
 
 	rc = m0_mdservice_fsync_fop_init(&m0_mds_type);
 	if (rc != 0) {
-		return M0_ERR(rc, "Unable to initialize mdservice fsync fop");
+		return M0_ERR_INFO(rc, "Unable to initialize mdservice fsync fop");
 	}
 	rc = m0_mdservice_fop_init();
 	if (rc != 0) {
 		m0_mdservice_fsync_fop_fini();
-		return M0_ERR(rc, "Unable to initialize mdservice fop");
+		return M0_ERR_INFO(rc, "Unable to initialize mdservice fop");
 	}
 	return M0_RC(rc);
 }
@@ -253,7 +253,7 @@ mds_layout_add(struct m0_reqh_md_service *mds, struct m0_layout *l, uint64_t lid
 	buf.b_nob = m0_layout_max_recsize(&mds->rmds_layout_dom);
 	buf.b_addr = m0_alloc(buf.b_nob);
 	if (buf.b_addr == NULL)
-		return M0_ERR(-ENOMEM, "layout buffer allocation failed");
+		return M0_ERR_INFO(-ENOMEM, "layout buffer allocation failed");
 
 	m0_layout_pair_set(&pair, &lid, buf.b_addr, buf.b_nob);
 
@@ -357,7 +357,7 @@ static int mds_start(struct m0_reqh_service *service)
 
 	rc = mds_ldom_init(mds);
 	if (rc != 0)
-		return M0_ERR(rc, "layout domain initialization failed");
+		return M0_ERR_INFO(rc, "layout domain initialization failed");
 
 	cctx = mds->rmds_gen.rs_reqh_ctx->rc_mero;
 	if (cctx->cc_profile == NULL || cctx->cc_confd_addr == NULL)
@@ -372,12 +372,12 @@ static int mds_start(struct m0_reqh_service *service)
 	rc = m0_conf_fs_get(cctx->cc_profile, cctx->cc_confd_addr,
 		rmach, grp, &confc, &fs);
 	if (rc != 0)
-		return M0_ERR(rc, "failed to get fs configuration");
+		return M0_ERR_INFO(rc, "failed to get fs configuration");
 	rc = m0_pdclust_attr_read(fs, &pa);
 	m0_confc_close(fs);
 	m0_confc_fini(&confc);
 	if (rc != 0)
-		return M0_ERR(rc, "failed to get fs params");
+		return M0_ERR_INFO(rc, "failed to get fs params");
 
 	return mds_layouts_init(mds, &pa);
 }

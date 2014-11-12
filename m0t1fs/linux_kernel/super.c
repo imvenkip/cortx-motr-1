@@ -332,16 +332,16 @@ static bool is_empty(const char *s)
 static int mount_opts_validate(const struct mount_opts *mops)
 {
 	if (is_empty(mops->mo_confd) && is_empty(mops->mo_local_conf))
-		return M0_ERR(-EINVAL, "Configuration source is not "
+		return M0_ERR_INFO(-EINVAL, "Configuration source is not "
 			       "specified");
 
 	if (is_empty(mops->mo_profile))
-		return M0_ERR(-EINVAL, "Mandatory parameter is missing: "
+		return M0_ERR_INFO(-EINVAL, "Mandatory parameter is missing: "
 			       "profile");
 
 	if (!ergo(mops->mo_fid_start != 0,
 		mops->mo_fid_start > M0_MDSERVICE_START_FID.f_key - 1))
-		return M0_ERR(-EINVAL, "fid_start must be greater than %llu",
+		return M0_ERR_INFO(-EINVAL, "fid_start must be greater than %llu",
 					M0_MDSERVICE_START_FID.f_key - 1);
 
 	return M0_RC(0);
@@ -400,11 +400,11 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 				 *op != '\0');
 
 			if (depth > 0)
-				return M0_ERR(-EPROTO, "Unexpected EOF");
+				return M0_ERR_INFO(-EPROTO, "Unexpected EOF");
 
 			if (rc < 0) {
 				M0_ASSERT(rc == -EPROTO);
-				return M0_ERR(rc, "Configuration string is "
+				return M0_ERR_INFO(rc, "Configuration string is "
 					       "too nested");
 			}
 
@@ -421,7 +421,7 @@ static int mount_opts_parse(struct m0t1fs_sb *csb, char *options,
 			M0_LOG(M0_DEBUG, "COPYTOOL mode!!");
 			break;
 		default:
-			return M0_ERR(-EINVAL, "Unsupported option: %s", op);
+			return M0_ERR_INFO(-EINVAL, "Unsupported option: %s", op);
 		}
 	}
 out:

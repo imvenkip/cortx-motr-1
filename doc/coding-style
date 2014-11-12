@@ -374,7 +374,7 @@ try to adhere to some higher level idioms.
       documentation of m0_trace_level enum.
 
     * consider using M0_ENTRY()/M0_LEAVE() at function's entry and exit points,
-      as well as M0_RC() and M0_ERR() to explicitly return from function, which
+      as well as M0_RC() and M0_ERR_INFO() to explicitly return from function, which
       conforms to the standard return code convention.
 
 Things to look after:

@@ -237,7 +237,7 @@ M0_INTERNAL int cs_conf_to_args(struct cs_args *args, const char *confd_addr,
 	{
 		char *se = strrchr(client_ep, ':');
 		if (se == NULL)
-			return M0_ERR(-EINVAL, "Invalid value of confd_addr:"
+			return M0_ERR_INFO(-EINVAL, "Invalid value of confd_addr:"
 				      " `%s'", confd_addr);
 		*(++se) = '*';
 		*(++se) = 0;

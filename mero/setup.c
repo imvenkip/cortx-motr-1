@@ -374,7 +374,7 @@ static int cs_reqh_ctx_init(struct m0_mero *cctx)
 		.rc_mero         = cctx
 	};
 	if (rctx->rc_max_services == 0)
-		return M0_ERR(-EINVAL, "No services registered");
+		return M0_ERR_INFO(-EINVAL, "No services registered");
 
 	M0_ALLOC_ARR(rctx->rc_services,      rctx->rc_max_services);
 	M0_ALLOC_ARR(rctx->rc_service_uuids, rctx->rc_max_services);
@@ -682,7 +682,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 
 	M0_ALLOC_PTR(adstob);
 	if (adstob == NULL)
-		return M0_ERR(-ENOMEM, "adstob object allocation failed");
+		return M0_ERR_INFO(-ENOMEM, "adstob object allocation failed");
 
 	rc = m0_stob_find_by_key(stob->s_sdom, cid, &bstore);
 	if (rc == 0 && m0_stob_state_get(bstore) == CSS_UNKNOWN) {
@@ -1460,7 +1460,7 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 	M0_ENTRY();
 
 	if (!reqh_ctx_args_are_valid(rctx))
-		return M0_ERR(-EINVAL, "Parameters are missing or invalid");
+		return M0_ERR_INFO(-EINVAL, "Parameters are missing or invalid");
 
 	cctx->cc_recv_queue_min_length = max64(cctx->cc_recv_queue_min_length,
 					       M0_NET_TM_RECV_QUEUE_DEF_LEN);
@@ -1472,14 +1472,14 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 
 	if (!stype_is_valid(rctx->rc_stype)) {
 		cs_stob_types_list(cctx->cc_outfile);
-		return M0_ERR(-EINVAL, "Invalid service type");
+		return M0_ERR_INFO(-EINVAL, "Invalid service type");
 	}
 
 	if (cs_eps_tlist_is_empty(&rctx->rc_eps) && rctx->rc_nr_services == 0)
 		return M0_RC(0);
 
 	if (cs_eps_tlist_is_empty(&rctx->rc_eps))
-		return M0_ERR(-EINVAL, "Endpoint is missing");
+		return M0_ERR_INFO(-EINVAL, "Endpoint is missing");
 
 	m0_tl_for(cs_eps, &rctx->rc_eps, ep) {
 		int rc;
@@ -1487,7 +1487,7 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 		M0_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
 		rc = cs_endpoint_validate(cctx, ep->ex_endpoint, ep->ex_xprt);
 		if (rc != 0)
-			return M0_ERR(rc, "Invalid endpoint: %s",
+			return M0_ERR_INFO(rc, "Invalid endpoint: %s",
 				      ep->ex_endpoint);
 	} m0_tl_endfor;
 
@@ -1495,11 +1495,11 @@ static int reqh_ctx_validate(struct m0_mero *cctx)
 		const char *sname = rctx->rc_services[i];
 
 		if (!m0_reqh_service_is_registered(sname))
-			return M0_ERR(-ENOENT, "Service is not registered: %s",
+			return M0_ERR_INFO(-ENOENT, "Service is not registered: %s",
 				      sname);
 
 		if (service_is_duplicate(rctx, sname))
-			return M0_ERR(-EEXIST, "Service is not unique: %s",
+			return M0_ERR_INFO(-EEXIST, "Service is not unique: %s",
 				      sname);
 	}
 	return M0_RC(0);
@@ -1770,10 +1770,10 @@ static int cs_args_parse(struct m0_mero *cctx, int argc, char **argv)
 		struct cs_endpoint_and_xprt *epx;
 
 		if (confd_addr == NULL)
-			return M0_ERR(-EPROTO,
+			return M0_ERR_INFO(-EPROTO,
 				      "confd address is not specified");
 		if (profile == NULL)
-			return M0_ERR(-EPROTO,
+			return M0_ERR_INFO(-EPROTO,
 				      "configuration profile is not specified");
 
 		epx = cs_eps_tlist_head(&cctx->cc_reqh_ctx.rc_eps);
