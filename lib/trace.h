@@ -201,7 +201,10 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
  * @note: Such kind of definition (via defines) allow to keep enum
  *        and string array in sync.
  *
- * Please keep the lower list sorted.
+ * XXX: Until we have first real release, please keep the lower list sorted.
+ *      After release, all new subsystems should be added to the end of list in
+ *      order to provide compatibility between trace logs of different software
+ *      versions.
  */
 #define M0_TRACE_SUBSYSTEMS      \
   M0_TRACE_SUBSYS(OTHER,      0) \
@@ -216,29 +219,33 @@ M0_INTERNAL int m0_trace_set_level(const char *level);
   M0_TRACE_SUBSYS(CM,         8) \
   M0_TRACE_SUBSYS(COB,        9) \
   M0_TRACE_SUBSYS(CONF,      10) \
-  M0_TRACE_SUBSYS(DTM,       11) \
-  M0_TRACE_SUBSYS(EXTMAP,    12) \
-  M0_TRACE_SUBSYS(FILE,      13) \
-  M0_TRACE_SUBSYS(FOP,       14) \
-  M0_TRACE_SUBSYS(FORMATION, 15) \
-  M0_TRACE_SUBSYS(IOSERVICE, 16) \
-  M0_TRACE_SUBSYS(LAYOUT,    17) \
-  M0_TRACE_SUBSYS(LNET,      18) \
-  M0_TRACE_SUBSYS(M0D,       19) \
-  M0_TRACE_SUBSYS(M0T1FS,    20) \
-  M0_TRACE_SUBSYS(MDS,       21) \
-  M0_TRACE_SUBSYS(MEMORY,    22) \
-  M0_TRACE_SUBSYS(MGMT,      23) \
-  M0_TRACE_SUBSYS(NET,       24) \
-  M0_TRACE_SUBSYS(POOL,      25) \
-  M0_TRACE_SUBSYS(RM,        26) \
-  M0_TRACE_SUBSYS(RPC,       27) \
-  M0_TRACE_SUBSYS(SM,        28) \
-  M0_TRACE_SUBSYS(SNS,       29) \
-  M0_TRACE_SUBSYS(SNSCM,     30) \
-  M0_TRACE_SUBSYS(SSS,       31) \
-  M0_TRACE_SUBSYS(STATS,     32) \
-  M0_TRACE_SUBSYS(STOB,      33)
+  M0_TRACE_SUBSYS(CONSOLE,   11) \
+  M0_TRACE_SUBSYS(DTM,       12) \
+  M0_TRACE_SUBSYS(EXTMAP,    13) \
+  M0_TRACE_SUBSYS(FILE,      14) \
+  M0_TRACE_SUBSYS(FOL,       15) \
+  M0_TRACE_SUBSYS(FOP,       16) \
+  M0_TRACE_SUBSYS(FORMATION, 17) \
+  M0_TRACE_SUBSYS(HA,        18) \
+  M0_TRACE_SUBSYS(IOSERVICE, 19) \
+  M0_TRACE_SUBSYS(LAYOUT,    20) \
+  M0_TRACE_SUBSYS(LNET,      21) \
+  M0_TRACE_SUBSYS(M0D,       22) \
+  M0_TRACE_SUBSYS(M0T1FS,    23) \
+  M0_TRACE_SUBSYS(MDS,       24) \
+  M0_TRACE_SUBSYS(MEMORY,    25) \
+  M0_TRACE_SUBSYS(MGMT,      26) \
+  M0_TRACE_SUBSYS(NET,       27) \
+  M0_TRACE_SUBSYS(POOL,      28) \
+  M0_TRACE_SUBSYS(RM,        29) \
+  M0_TRACE_SUBSYS(RPC,       30) \
+  M0_TRACE_SUBSYS(SM,        31) \
+  M0_TRACE_SUBSYS(SNS,       32) \
+  M0_TRACE_SUBSYS(SNSCM,     33) \
+  M0_TRACE_SUBSYS(SSS,       34) \
+  M0_TRACE_SUBSYS(STATS,     35) \
+  M0_TRACE_SUBSYS(STOB,      36) \
+  M0_TRACE_SUBSYS(XCODE,     37)
 
 #define M0_TRACE_SUBSYS(name, value) M0_TRACE_SUBSYS_ ## name = (1UL << value),
 /** The subsystem bitmask definitions */
