@@ -130,6 +130,7 @@ M0_INTERNAL void m0_rpc_packet_add_item(struct m0_rpc_packet *p,
 	M0_ENTRY("packet: %p item: %p", p, item);
 	M0_PRE(m0_rpc_packet_invariant(p) && item != NULL);
 	M0_PRE(!packet_item_tlink_is_in(item));
+	M0_PRE(m0_rpc_machine_is_locked(p->rp_rmachine));
 
 	m0_rpc_item_get(item);
 	item->ri_rmachine = p->rp_rmachine;
@@ -151,13 +152,16 @@ M0_INTERNAL void m0_rpc_packet_remove_item(struct m0_rpc_packet *p,
 	M0_ENTRY("packet: %p item: %p", p, item);
 	M0_PRE(m0_rpc_packet_invariant(p) && item != NULL);
 	M0_PRE(m0_rpc_packet_is_carrying_item(p, item));
+	M0_PRE(m0_rpc_machine_is_locked(p->rp_rmachine));
 
 	packet_item_tlink_del_fini(item);
 	--p->rp_ow.poh_nr_items;
 	p->rp_size -= m0_rpc_item_size(item);
 
-	M0_LOG(M0_DEBUG, "nr_items: %llu packet size: %llu",
+	M0_LOG(M0_DEBUG, "nr_items: %llu->%llu packet size: %llu->%llu",
+			(unsigned long long)p->rp_ow.poh_nr_items + 1,
 			(unsigned long long)p->rp_ow.poh_nr_items,
+			(unsigned long long)p->rp_size + m0_rpc_item_size(item),
 			(unsigned long long)p->rp_size);
 	M0_POST(!packet_item_tlink_is_in(item));
 	m0_rpc_item_put(item);
@@ -171,11 +175,13 @@ M0_INTERNAL void m0_rpc_packet_remove_all_items(struct m0_rpc_packet *p)
 
 	M0_ENTRY("packet: %p", p);
 	M0_PRE(m0_rpc_packet_invariant(p));
+	M0_PRE(m0_rpc_machine_is_locked(p->rp_rmachine));
+
 	M0_LOG(M0_DEBUG, "nr_items: %d", (int)p->rp_ow.poh_nr_items);
 
-	for_each_item_in_packet(item, p)
+	for_each_item_in_packet(item, p) {
 		m0_rpc_packet_remove_item(p, item);
-	end_for_each_item_in_packet;
+	} end_for_each_item_in_packet;
 
 	M0_POST(m0_rpc_packet_invariant(p) && m0_rpc_packet_is_empty(p));
 	M0_LEAVE();
@@ -343,8 +349,8 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 			m0_fop_put_lock(fop);
 			return M0_RC(rc);
 		}
-		m0_rpc_packet_add_item(p, item);
 		m0_rpc_machine_lock(p->rp_rmachine);
+		m0_rpc_packet_add_item(p, item);
 		m0_rpc_item_put(item);
 		m0_rpc_machine_unlock(p->rp_rmachine);
 		item = NULL;
@@ -403,7 +409,7 @@ M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,
 	M0_LOG(M0_DEBUG, "nr_items: %u", (unsigned int)p->rp_ow.poh_nr_items);
 
 	for_each_item_in_packet(item, p) {
-		visit(item, opaque_data);
+		visit(p, item, opaque_data);
 	} end_for_each_item_in_packet;
 
 	M0_ASSERT(m0_rpc_packet_invariant(p));

@@ -376,6 +376,9 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 	if (itemq_tlink_is_in(item))
 		m0_rpc_frm_remove_item(item->ri_frm, item);
 
+	M0_ASSERT(!itemq_tlink_is_in(item));
+	M0_ASSERT(!packet_item_tlink_is_in(item));
+	M0_ASSERT(!rpcitem_tlink_is_in(item));
 	itemq_tlink_fini(item);
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
@@ -951,6 +954,20 @@ M0_INTERNAL void m0_rpc_item_send_reply(struct m0_rpc_item *req,
 	m0_rpc_session_release(req->ri_session);
 	reply->ri_header = req->ri_header;
 	m0_rpc_item_send(reply);
+
+	/*
+	 * An extra reference is acquired for this reply item
+	 * at the end of m0_rpc_item_send() if it is sent successfully.
+	 * This extra reference will be released along with request
+	 * put in m0_fom_fini() -> m0_fop_put() -> m0_ref_put() ->
+	 * m0_fop_release() -> m0_fop_fini() -> m0_rpc_item_put() if
+	 * req->ri_reply is set. If the reply item is failed to send,
+	 * no extra reference is acquired for that reply item in
+	 * m0_rpc_item_send(). So this req->ri_reply must be cleared
+	 * in this error case.
+	 */
+	if (reply->ri_error != 0)
+		req->ri_reply = NULL;
 
 	M0_LEAVE();
 }

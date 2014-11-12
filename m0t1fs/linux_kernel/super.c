@@ -492,15 +492,17 @@ static int connect_to_service(const char *addr, enum m0_conf_service_type type,
 static void disconnect_from_services(struct m0t1fs_sb *csb)
 {
 	struct m0t1fs_service_context *ctx;
+	m0_time_t timeout;
 
 	M0_ENTRY();
 
 	m0_tl_teardown(svc_ctx, &csb->csb_service_contexts, ctx) {
 		if (csb->csb_nr_active_contexts > 0) {
-			(void)m0_rpc_session_destroy(&ctx->sc_session,
-						     M0_TIME_NEVER);
-			(void)m0_rpc_conn_destroy(&ctx->sc_conn,
-						  M0_TIME_NEVER);
+			/* client should not wait infinitely. */
+			timeout = m0_time_from_now(M0_RPC_ITEM_RESEND_INTERVAL *
+						   2 + 1, 0);
+			(void)m0_rpc_session_destroy(&ctx->sc_session, timeout);
+			(void)m0_rpc_conn_destroy(&ctx->sc_conn, timeout);
 			M0_CNT_DEC(ctx->sc_csb->csb_nr_active_contexts);
 			M0_LOG(M0_INFO, "Disconnected from service."
 			       " %d active contexts",

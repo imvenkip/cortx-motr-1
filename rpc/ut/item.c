@@ -94,6 +94,40 @@ static void test_simple_transitions(void)
 	M0_LOG(M0_DEBUG, "TEST:1:END");
 }
 
+void disable_packet_ready_set_reply_error(int arg)
+{
+	m0_nanosleep(m0_time(M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1, 0), NULL);
+	m0_fi_disable("packet_ready", "set_reply_error");
+}
+
+static void test_reply_item_error(void)
+{
+	int rc;
+	struct m0_thread thread = {0};
+
+	M0_LOG(M0_DEBUG, "TEST:1:START");
+	m0_rpc_machine_get_stats(machine, &saved, false /* clear stats? */);
+	fop = fop_alloc(machine);
+	item = &fop->f_item;
+	m0_fi_enable("packet_ready", "set_reply_error");
+	rc = M0_THREAD_INIT(&thread, int, NULL,
+			    &disable_packet_ready_set_reply_error,
+			    0, "disable_fi");
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* deadline */);
+
+	/* Error happens on server side, and client will try to resend fop.
+	 * (M0_RPC_ITEM_RESEND_INTERVAL * 2 + 1) seconds later, server sends
+	 * back reply successfully. */
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(item->ri_error == 0);
+	M0_UT_ASSERT(item->ri_reply != NULL);
+	m0_fop_put_lock(fop);
+	M0_LOG(M0_DEBUG, "TEST:1:END");
+	m0_thread_join(&thread);
+}
+
 static void test_timeout(void)
 {
 	int rc;
@@ -562,6 +596,7 @@ struct m0_ut_suite item_ut = {
 	.ts_fini = ts_item_fini,
 	.ts_tests = {
 		{ "simple-transitions",     test_simple_transitions     },
+		{ "reply-item-error",       test_reply_item_error       },
 		{ "item-timeout",           test_timeout                },
 		{ "item-resend",            test_resend                 },
 		{ "failure-before-sending", test_failure_before_sending },

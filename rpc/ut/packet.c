@@ -75,13 +75,13 @@ static void test_packet_encode_decode(void)
 	m0_rpc_packet_init(&packet, &rmachine);
 
 	item = prepare_ping_fop_item();
-	m0_rpc_packet_add_item(&packet, item);
 	m0_sm_group_lock(&rmachine.rm_sm_grp);
+	m0_rpc_packet_add_item(&packet, item);
 	m0_rpc_item_put(item);
 	m0_sm_group_unlock(&rmachine.rm_sm_grp);
 	item = prepare_ping_rep_fop_item();
-	m0_rpc_packet_add_item(&packet, item);
 	m0_sm_group_lock(&rmachine.rm_sm_grp);
+	m0_rpc_packet_add_item(&packet, item);
 	m0_rpc_item_put(item);
 	m0_sm_group_unlock(&rmachine.rm_sm_grp);
 	bufvec_size = m0_align(packet.rp_size, 8);

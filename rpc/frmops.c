@@ -50,7 +50,8 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 			    int32_t              *out_nr_segments,
 			    m0_bcount_t          *out_segment_size);
 
-static void item_done(struct m0_rpc_item *item, unsigned long rc);
+static void item_done(struct m0_rpc_packet *p,
+		      struct m0_rpc_item *item, unsigned long rc);
 static void item_sent(struct m0_rpc_item *item);
 
 /*
@@ -142,10 +143,23 @@ static int packet_ready(struct m0_rpc_packet *p)
 	if (rc != 0)
 		goto err_free;
 
+	if (M0_FI_ENABLED("set_reply_error")) {
+		struct m0_rpc_item *item;
+
+		for_each_item_in_packet(item, p) {
+			if (m0_rpc_item_is_reply(item)) {
+				rc = -ENETDOWN;
+				M0_LOG(M0_ERROR, "set p:i=%p:%p error to %d",
+				       p, item, rc);
+				goto out;
+			}
+		} end_for_each_item_in_packet;
+	}
+
 	rc = rpc_buffer_submit(rpcbuf);
 	if (rc == 0)
 		return M0_RC(rc);
-
+out:
 	rpc_buffer_fini(rpcbuf);
 err_free:
 	m0_free(rpcbuf);
@@ -397,7 +411,8 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
 	M0_LEAVE();
 }
 
-static void item_done(struct m0_rpc_item *item, unsigned long rc)
+static void item_done(struct m0_rpc_packet *p,
+		      struct m0_rpc_item *item, unsigned long rc)
 {
 	M0_ENTRY("item: %p rc: %lu", item, rc);
 	M0_PRE(item != NULL);
@@ -412,9 +427,11 @@ static void item_done(struct m0_rpc_item *item, unsigned long rc)
 	}
 
 	item->ri_error = item->ri_error ?: rc;
-	if (item->ri_error != 0)
+	if (item->ri_error != 0) {
+		M0_LOG(M0_ERROR, "p:i=%p:%p failed with %d",
+				  p, item, item->ri_error);
 		m0_rpc_item_failed(item, item->ri_error);
-	else
+	} else
 		item_sent(item);
 
 	M0_LEAVE();
@@ -425,7 +442,8 @@ static void item_sent(struct m0_rpc_item *item)
 	struct m0_addb_counter *counter;
 	struct m0_rpc_stats    *stats;
 
-	M0_ENTRY("item: %p", item);
+	M0_ENTRY("item: %p sent=%u max=%lx", item,
+		 item->ri_nr_sent, (unsigned long)item->ri_nr_sent_max);
 
 	M0_PRE(ergo(m0_rpc_item_is_request(item),
 	            M0_IN(item->ri_error, (0, -ETIMEDOUT))) &&

@@ -140,7 +140,8 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *packet,
 						  struct m0_bufvec_cursor
 						  *cursor, m0_bcount_t len);
 
-typedef void item_visit_fn(struct m0_rpc_item *item, unsigned long data);
+typedef void item_visit_fn(struct m0_rpc_packet *packet,
+			   struct m0_rpc_item *item, unsigned long data);
 
 /**
    Iterates through all the items in the packet p and calls visit function
