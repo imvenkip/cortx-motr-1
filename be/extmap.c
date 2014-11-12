@@ -288,7 +288,7 @@ static int update_next_segment(struct m0_be_emap_cursor *it,
 		rc = emap_extent_update(it, tx, &it->ec_seg);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
@@ -658,7 +658,7 @@ M0_INTERNAL int m0_be_emap_caret_move_sync(struct m0_be_emap_caret *car,
 		M0_ASSERT(rc == 0);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
@@ -795,7 +795,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 			rc = -ESRCH;
 	}
 	it->ec_op.bo_u.u_emap.e_rc = rc;
-	return rc;
+	return M0_RC(rc);
 }
 
 static void emap_it_init(struct m0_be_emap_cursor *it,
@@ -828,7 +828,7 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
 	rc = emap_it_open(it);
 	m0_be_op_fini(op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int be_emap_lookup(struct m0_be_emap        *map,
@@ -844,7 +844,7 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 		be_emap_close(it);
 
 	M0_POST(ergo(rc == 0, m0_ext_is_in(&it->ec_seg.ee_ext, offset)));
-	return rc;
+	return M0_RC(rc);
 }
 
 static int be_emap_next(struct m0_be_emap_cursor *it)
@@ -859,7 +859,7 @@ static int be_emap_next(struct m0_be_emap_cursor *it)
 	rc = emap_it_open(it);
 	m0_be_op_fini(op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int
@@ -998,7 +998,7 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		rc = emap_it_get(it);
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
-	return rc;
+	return M0_RC(rc);
 }
 
 static bool

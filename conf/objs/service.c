@@ -60,7 +60,7 @@ static int service_decode(struct m0_conf_obj *dest,
 
 	rc = m0_conf_obj_find(cache, &s->xs_node, &child);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	d->cs_node = M0_CONF_CAST(child, m0_conf_node);
 	child_adopt(dest, child);

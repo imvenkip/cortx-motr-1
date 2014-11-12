@@ -427,7 +427,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 		     id->ai_lo.u_hi, id->ai_lo.u_lo);
 
 	M0_LEAVE("ag: %p", sag);
-	return rc;
+	return M0_RC(rc);
 }
 
 

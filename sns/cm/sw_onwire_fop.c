@@ -84,12 +84,12 @@ m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
 	rc = m0_fop_data_alloc(fop);
         if (rc  != 0) {
 		m0_fop_fini(fop);
-                return rc;
+                return M0_RC(rc);
 	}
 	swo_fop = m0_fop_data(fop);
 	rc = m0_cm_sw_onwire_init(&swo_fop->swo_base, local_ep, sw);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

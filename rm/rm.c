@@ -2218,7 +2218,7 @@ M0_INTERNAL int m0_rm_loan_settle(struct m0_rm_owner *owner,
 	} else
 		M0_LOG(M0_ERROR, "credit allocation failed: rc [%d]\n", rc);
 
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rm_loan_settle);
 
@@ -2405,7 +2405,7 @@ static bool owner_invariant(struct m0_rm_owner *owner)
 
 	m0_rm_credit_fini(&is.is_debit);
 	m0_rm_credit_fini(&is.is_credit);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** @} end of invariant group */
@@ -2796,7 +2796,7 @@ error:
 	m0_clink_del(&clink);
 	m0_clink_fini(&clink);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -2834,7 +2834,7 @@ error:
 	m0_clink_del(&clink);
 	m0_clink_fini(&clink);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_rm_net_locate(struct m0_rm_credit *credit,
@@ -2868,7 +2868,7 @@ M0_INTERNAL int m0_rm_net_locate(struct m0_rm_credit *credit,
 	m0_mutex_unlock(&rtype->rt_lock);
 
 error:
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rm_net_locate);
 

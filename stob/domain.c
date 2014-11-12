@@ -108,7 +108,7 @@ static int stob_domain_create(struct m0_stob_type *type,
 						   dom_key, cfg_create);
 	if (cfg_parsed)
 		type->st_ops->sto_domain_cfg_create_free(cfg_create);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_domain_init(struct m0_stob_type *type,
@@ -126,7 +126,7 @@ static int stob_domain_init(struct m0_stob_type *type,
 						 cfg_init, out);
 	if (cfg_parsed)
 		type->st_ops->sto_domain_cfg_init_free(cfg_init);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_domain_init_create(const char *location,
@@ -261,7 +261,7 @@ M0_INTERNAL int m0_stob_domain_create_or_init(const char *location,
 	if (rc != 0)
 		rc = m0_stob_domain_create(location, str_cfg_init,
 					   dom_key, str_cfg_create, out);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_stob_domain *m0_stob_domain_find(uint64_t dom_id)

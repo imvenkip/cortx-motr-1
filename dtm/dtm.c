@@ -107,7 +107,7 @@ M0_INTERNAL int m0_dtx_open_sync(struct m0_dtx *tx)
 	if (m0_be_tx_state(&tx->tx_betx) == M0_BTS_ACTIVE)
 		m0_dtx_opened(tx);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_dtx_done(struct m0_dtx *tx)
@@ -126,7 +126,7 @@ M0_INTERNAL int m0_dtx_done_sync(struct m0_dtx *tx)
 				M0_TIME_NEVER);
 	M0_ASSERT(m0_be_tx_state(&tx->tx_betx) == M0_BTS_DONE);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_dtx_fini(struct m0_dtx *tx)

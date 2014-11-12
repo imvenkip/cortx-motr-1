@@ -233,7 +233,7 @@ m0_reqh_service_start_async(struct m0_reqh_service_start_async_ctx *asc)
 		reqh_service_failed_common(reqh, service, key);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void reqh_service_started_common(struct m0_reqh *reqh,
@@ -302,7 +302,7 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void

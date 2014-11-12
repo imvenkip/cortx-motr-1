@@ -82,7 +82,7 @@ static int addb_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 		close(fd);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 enum { ADDB_PROC_CTX_MASK = 0xffffffUL };

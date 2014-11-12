@@ -109,7 +109,7 @@ M0_INTERNAL int m0t1fs_inode_cache_init(void)
 		rc = -ENOMEM;
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0t1fs_inode_cache_fini(void)
@@ -313,7 +313,7 @@ static int m0t1fs_inode_test(struct inode *inode, void *opaque)
 	rc = m0_fid_eq(m0t1fs_inode_fid(ci), fid);
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_inode_set(struct inode *inode, void *opaque)
@@ -486,7 +486,7 @@ static int m0t1fs_build_layout_instance(struct m0t1fs_sb           *csb,
 
 out:
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
@@ -509,5 +509,5 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 	}
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }

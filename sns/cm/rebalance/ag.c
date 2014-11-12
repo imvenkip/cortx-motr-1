@@ -129,7 +129,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
         if (rc != 0) {
 		m0_cm_aggr_group_fini(&sag->sag_base);
                 m0_free(rag);
-                return rc;
+                return M0_RC(rc);
         }
 
 	*out = &sag->sag_base;
@@ -139,7 +139,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
 		     id->ai_lo.u_hi, id->ai_lo.u_lo);
 
 	M0_LEAVE("ag: %p", &sag->sag_base);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,

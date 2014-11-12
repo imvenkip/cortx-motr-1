@@ -74,7 +74,7 @@ static int poolmach_client_init(void)
 
 	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	cl_ctx.rcx_net_dom            = &cl_ndom;
 	cl_ctx.rcx_local_addr         = cl_ep_addr;
@@ -84,7 +84,7 @@ static int poolmach_client_init(void)
 	rc = m0_rpc_client_start(&cl_ctx);
 	if (rc != 0)
 		m0_net_domain_fini(&cl_ndom);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void poolmach_client_fini(void)
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
 			);
 	if (rc != 0 || rc2 != 0) {
 		print_help();
-		return rc;
+		return M0_RC(rc);
 	}
 
 	if (op == NULL          || type == NULL        || dev_nr == 0  ||
@@ -313,13 +313,13 @@ int main(int argc, char *argv[])
 	rc = m0_init(&instance);
 	if (rc != 0) {
 		fprintf(stderr, "Cannot init Mero: %d\n", rc);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = poolmach_client_init();
 	if (rc != 0) {
 		fprintf(stderr, "Cannot init client: %d\n", rc);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	m0_mutex_init(&poolmach_wait_mutex);
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
 		rc = poolmach_rpc_ctx_init(&ctxs[i], srv_ep_addr[i]);
 		if (rc != 0) {
 			fprintf(stderr, "Cannot init rpc ctx = %d\n", rc);
-			return rc;
+			return M0_RC(rc);
 		}
 	}
 
@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
 		rc = m0_rpc_post_sync(req, session, NULL, 0);
 		if (rc != 0) {
 			m0_fop_put_lock(req);
-			return rc;
+			return M0_RC(rc);
 		}
 
 		if (op[0] == 'Q' || op[0] == 'q') {
@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
 #endif
 		m0_fop_put_lock(req);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 	}
 
 #ifdef RPC_ASYNC_MODE
@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
 	poolmach_client_fini();
 	m0_fini();
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

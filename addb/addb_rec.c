@@ -212,7 +212,7 @@ static int addb_rec_seq_enc(void  *rs,
 	rc = m0_xcode_encode(&ctx);
 	if (rc == 0)
 		*cur = ctx.xcx_buf;
-	return rc;
+	return M0_RC(rc);
 }
 
 static typeof (m0_xcode_encode) * const addb_encdec_op[] = {
@@ -252,7 +252,7 @@ static int addb_rec_encdec(struct m0_addb_rec     **rec,
 		*cur = ctx.xcx_buf;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 #endif
 

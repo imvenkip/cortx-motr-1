@@ -916,7 +916,7 @@ M0_INTERNAL int m0_net_lnet_init(void)
 	rc = nlx_core_init();
 	if (rc < 0)
 		m0_addb_ctx_fini(&m0_net_lnet_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_net_lnet_fini(void)

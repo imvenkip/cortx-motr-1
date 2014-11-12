@@ -211,7 +211,7 @@ cleanup:
         m0_free(sns_cpx->scx_ivecs.cis_ivecs);
         m0_bitmap_onwire_fini(&sns_cpx->scx_cp.cpx_bm);
 out:
-        return rc;
+        return M0_RC(rc);
 }
 
 static void cp_reply_received(struct m0_rpc_item *req_item)
@@ -383,7 +383,7 @@ static int cp_buf_acquire(struct m0_cm_cp *cp)
         rc =  m0_sns_cm_buf_attach(&sns_cm->sc_ibp.sb_bp, cp);
 	m0_cm_unlock(cm);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
@@ -520,7 +520,7 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 		rc = M0_FSO_WAIT;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /** @} SNSCMCP */

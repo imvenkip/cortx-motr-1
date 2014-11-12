@@ -90,7 +90,7 @@ static int getscaled(const char *arg, const char *desc, m0_bcount_t *out)
 	if (rc != 0)
 		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
 			arg, desc);
-	return rc;
+	return M0_RC(rc);
 }
 
 int m0_getopts(const char *progname, int argc, char *const *argv,

@@ -82,7 +82,7 @@ static int segobj_opt_iterate(struct m0_be_seg         *dict,
 		return +1;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int segobj_opt_next(struct m0_be_seg         *dict,
@@ -138,7 +138,7 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 		}
 	} m0_tl_endfor;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int be_domain_stob_open(struct m0_be_domain  *dom,

@@ -57,7 +57,7 @@ static inline int btree_lookup_sync(struct m0_be_btree  *tree,
 	rc = op.bo_u.u_btree.t_rc;
 	m0_be_op_fini(&op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static inline int btree_insert_sync(struct m0_be_btree  *tree,
@@ -75,7 +75,7 @@ static inline int btree_insert_sync(struct m0_be_btree  *tree,
 	rc = op.bo_u.u_btree.t_rc;
 	m0_be_op_fini(&op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static inline int btree_update_sync(struct m0_be_btree  *tree,
@@ -93,7 +93,7 @@ static inline int btree_update_sync(struct m0_be_btree  *tree,
 	rc = op.bo_u.u_btree.t_rc;
 	m0_be_op_fini(&op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static inline int btree_delete_sync(struct m0_be_btree  *tree,
@@ -110,7 +110,7 @@ static inline int btree_delete_sync(struct m0_be_btree  *tree,
 	rc = op.bo_u.u_btree.t_rc;
 	m0_be_op_fini(&op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /* This macro is to control the debug verbose message */
@@ -358,7 +358,7 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	}
 	m0_be_tx_fini(&tx);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int balloc_sb_write(struct m0_balloc            *bal,
@@ -612,7 +612,7 @@ static int balloc_load_group_info(struct m0_balloc *cb,
 		m0_mutex_init(&gi->bgi_mutex);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int sb_mount(struct m0_balloc *bal, struct m0_sm_group *grp)
@@ -774,7 +774,7 @@ static int balloc_claim_free_blocks(struct m0_balloc *mero,
 	rc = (mero->cb_sb.bsb_freeblocks >= blocks);
 
 	M0_LEAVE();
-	return rc;
+	return M0_RC(rc);
 }
 
 /*
@@ -1590,7 +1590,7 @@ static int balloc_measure_extent(struct m0_balloc_allocation_context *bac,
 
 	rc = balloc_check_limits(bac, grp, 0);
 	M0_LEAVE();
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1683,7 +1683,7 @@ out_release:
 out:
 	m0_balloc_unlock_group(grp);
 	M0_LEAVE();
-	return rc;
+	return M0_RC(rc);
 }
 
 static void
@@ -1720,7 +1720,7 @@ balloc_regular_allocator(struct m0_balloc_allocation_context *bac)
 	if (rc != 0 || bac->bac_status == M0_BALLOC_AC_FOUND ||
 	    (bac->bac_flags & M0_BALLOC_HINT_GOAL_ONLY)) {
 		M0_LEAVE();
-		return rc;
+		return M0_RC(rc);
 	}
 #endif
 
@@ -1837,7 +1837,7 @@ out:
 	M0_LEAVE();
 	if (rc == 0 && bac->bac_status != M0_BALLOC_AC_FOUND)
 		rc = -ENOSPC;
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1975,7 +1975,7 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 
 out:
 	M0_LEAVE();
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -2062,7 +2062,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	}
 	m0_mutex_unlock(&mero->cb_sb_mutex);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -2084,7 +2084,7 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	if (rc == 0)
 		mero->cb_last = ext->e_start;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
@@ -2137,7 +2137,7 @@ static int balloc_trees_create(struct m0_balloc *bal,
 	rc = op.bo_u.u_btree.t_rc;
 	m0_be_op_fini(&op);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	m0_be_op_init(&op);
 	m0_be_btree_create(&bal->cb_db_group_desc, tx, &op);
@@ -2154,7 +2154,7 @@ static int balloc_trees_create(struct m0_balloc *bal,
 		m0_be_op_fini(&op);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_balloc_init(struct m0_balloc *cb)
@@ -2215,7 +2215,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	if (rc == 0)
 		m0_balloc_init(*out);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

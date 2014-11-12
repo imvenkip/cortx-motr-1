@@ -70,7 +70,7 @@ static int poolmach_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		    reqh);
 	*out = fom;
 
-        return rc;
+        return M0_RC(rc);
 }
 
 static int poolmach_fom_tick(struct m0_fom *fom)

@@ -435,7 +435,7 @@ static int mem_xo_buf_add(struct m0_net_buffer *nb)
 					 nb->nb_qtype, nb->nb_length,
 					 bp->xb_buf_id);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		break;
 	case M0_NET_QT_ACTIVE_BULK_RECV:
 	case M0_NET_QT_ACTIVE_BULK_SEND:
@@ -646,7 +646,7 @@ static int mem_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 						  tm, addr);
 	if (rc != 0) {
 		m0_free(wi_st_chg);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	/* start worker threads */
@@ -666,7 +666,7 @@ static int mem_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 		m0_free(wi_st_chg); /* fini cleans up threads */
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int mem_xo_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)

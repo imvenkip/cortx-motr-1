@@ -167,12 +167,12 @@ static int console_init(void)
 
 	rc = m0_init(&instance);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = m0_console_fop_init();
 	if (rc != 0)
 		m0_fini();
-	return rc;
+	return M0_RC(rc);
 }
 
 static void console_fini(void)

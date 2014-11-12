@@ -83,7 +83,7 @@ m0_fop_item_type_default_decode(const struct m0_rpc_item_type *item_type,
 	rc = m0_fop_item_encdec(item, cur, M0_XCODE_DECODE);
 	*item_out = item;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

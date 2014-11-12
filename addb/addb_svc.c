@@ -208,7 +208,7 @@ M0_INTERNAL int m0_addb_svc_mod_init(void)
 		if (rc != 0)
 			m0_reqh_service_type_unregister(&m0_addb_svc_type);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_addb_svc_mod_fini(void)

@@ -812,7 +812,7 @@ M0_INTERNAL int m0_indexvec_split(struct m0_indexvec	*in,
 	if (rc == 0)
 		ivec_nr_or_prepare(in, curr_pos, nb_len, bshift, out);
 
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
@@ -832,7 +832,7 @@ M0_INTERNAL int m0_indexvec_wire2mem(struct m0_io_indexvec *wire_ivec,
 
 	rc = m0_indexvec_alloc(mem_ivec, max_frags_nr, ctx, loc);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	offs = mem_ivec->iv_index;
 	cnts = mem_ivec->iv_vec.v_count;

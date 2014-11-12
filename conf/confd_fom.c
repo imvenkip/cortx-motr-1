@@ -165,7 +165,7 @@ _encode(size_t *n, struct m0_confx *enc, const struct m0_conf_obj *obj)
 	rc = obj->co_ops->coo_encode(M0_CONFX_AT(enc, enc->cx_nr), obj);
 	if (rc == 0)
 		++enc->cx_nr;
-	return rc;
+	return M0_RC(rc);
 }
 
 static int readiness_check(const struct m0_conf_obj *obj)

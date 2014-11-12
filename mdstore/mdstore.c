@@ -109,7 +109,7 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 	/* M0_SET0(md); */ /* XXXXXXXXXXXXXX */
 	rc = m0_cob_domain_init(md->md_dom, db, id);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	if (init_root) {
 		struct m0_buf name;
@@ -129,7 +129,7 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 	MDSTORE_FUNC_FAIL(INIT_2, rc);
 	if (rc != 0)
 		m0_mdstore_fini(md);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
@@ -196,7 +196,7 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 	m0_cob_put(cob);
 out:
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void
@@ -241,7 +241,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 			       attr->ca_name.b_nob);
 	if (rc != 0) {
 		m0_cob_put(cob);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	nsrec.cnr_fid = attr->ca_tfid;
@@ -283,7 +283,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 out:
 	MDSTORE_FUNC_FAIL(CREATE, rc);
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void
@@ -324,7 +324,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	rc = m0_cob_nskey_make(&nskey, pfid, (char *)name->b_addr,
 			       name->b_nob);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	M0_PRE(m0_fid_is_set(&cob->co_nsrec.cnr_fid));
 
 	nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
@@ -345,7 +345,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 out:
 	MDSTORE_FUNC_FAIL(LINK, rc);
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -383,7 +383,7 @@ M0_INTERNAL int m0_mdstore_dir_empty_check(struct m0_mdstore *md,
 	m0_cob_iterator_fini(&it);
 out:
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void
@@ -531,7 +531,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 out:
 	MDSTORE_FUNC_FAIL(UNLINK, rc);
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
@@ -548,7 +548,7 @@ M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 	 */
 
 	MDSTORE_FUNC_FAIL(OPEN, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
@@ -566,7 +566,7 @@ M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 	 */
 
 	MDSTORE_FUNC_FAIL(CLOSE, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void
@@ -638,7 +638,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
 out:
 	MDSTORE_FUNC_FAIL(RENAME, rc);
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void
@@ -712,7 +712,7 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 
 	MDSTORE_FUNC_FAIL(SETATTR, rc);
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
@@ -775,7 +775,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore       *md,
 	 */
 	MDSTORE_FUNC_FAIL(GETATTR, rc);
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
@@ -922,7 +922,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 	} else {
 		M0_LEAVE("rc: %d", rc);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1018,7 +1018,7 @@ out:
 	if (rc != 0)
 		m0_free0(path);
 	M0_LEAVE("rc: %d, path: %s", rc, *path);
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

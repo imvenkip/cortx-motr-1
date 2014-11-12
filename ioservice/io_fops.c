@@ -776,7 +776,7 @@ M0_INTERNAL int m0_io_fop_init(struct m0_io_fop *iofop,
 	} else {
 		IOS_ADDB_FUNCFAIL(rc, IO_FOP_INIT, &m0_ios_addb_ctx);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_io_fop_fini(struct m0_io_fop *iofop)
@@ -978,13 +978,13 @@ static int io_fop_seg_add_cond(struct ioseg *cseg, const struct ioseg *nseg)
 	if (nseg->is_index < cseg->is_index) {
 		rc = io_fop_seg_init(&new_seg, nseg);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 
 		iosegset_tlist_add_before(cseg, new_seg);
 	} else
 		rc = -EINVAL;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void io_fop_seg_coalesce(const struct ioseg *seg,
@@ -1119,7 +1119,7 @@ static int io_netbufs_prepare(struct m0_fop *coalesced_fop,
 cleanup:
 	M0_ASSERT(rc != 0);
 	m0_rpc_bulk_buflist_empty(rbulk);
-	return rc;
+	return M0_RC(rc);
 }
 
 /* Deallocates memory claimed by index vector/s from io fop wire format. */
@@ -1269,7 +1269,7 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 			          M0_IOS_ADDB_LOC_FOM_IVEC_ALLOC,
 			          &io_vec);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	size = m0_di_size_get(file, m0_io_count(io_info));
 	rw->crw_di_data.b_nob = size;
 	rw->crw_di_data.b_addr = m0_alloc(size);
@@ -1434,14 +1434,14 @@ static int io_fop_desc_ivec_prepare(struct m0_fop *fop,
 	rc = io_netbufs_prepare(fop, aggr_set);
 	if (rc != 0) {
 		IOS_ADDB_FUNCFAIL(rc, IO_FOP_DESC_IVEC_PREP, &m0_ios_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = m0_io_fop_prepare(fop);
 	if (rc != 0)
 		m0_rpc_bulk_buflist_empty(rbulk);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /*
@@ -1509,7 +1509,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 	rc = m0_io_fop_init(cfop, &rw->crw_gfid, res_fop->f_type, NULL);
 	if (rc != 0) {
 		m0_free(cfop);
-		return rc;
+		return M0_RC(rc);
 	}
 	tm = io_fop_tm_get(res_fop);
 	bkp_fop = &cfop->if_fop;
@@ -1618,7 +1618,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 
 	M0_LOG(M0_DEBUG, "io fops coalesced successfully.");
 	rpcitem_tlist_add(items_list, &bkp_fop->f_item);
-	return rc;
+	return M0_RC(rc);
 cleanup:
 	M0_ASSERT(rc != 0);
 	m0_tl_for(iosegset, &aggr_set.iss_list, ioseg) {
@@ -1628,7 +1628,7 @@ cleanup:
 	io_fop_bulkbuf_move(bkp_fop, res_fop);
 	m0_io_fop_fini(cfop);
 	m0_free(cfop);
-	return rc;
+	return M0_RC(rc);
 }
 
 __attribute__((unused))

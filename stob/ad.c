@@ -154,7 +154,7 @@ static int stob_ad_0type_init(struct m0_be_domain *dom,
 		m0_mutex_unlock(&module->sam_lock);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_ad_0type_fini(struct m0_be_domain *dom,
@@ -263,7 +263,7 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 	if (rc == 0)
 		*cfg_create = cfg;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_ad_domain_cfg_create_free(void *cfg_create)
@@ -296,7 +296,7 @@ static int stob_ad_bstore(struct m0_fid *fid, struct m0_stob **out)
 		}
 	}
 	*out = rc == 0 ? stob : NULL;
-	return rc;
+	return M0_RC(rc);
 }
 
 static struct m0_stob_ad_domain *
@@ -368,7 +368,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 	}
 
 	*out = rc == 0 ? dom : NULL;
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_ad_domain_fini(struct m0_stob_domain *dom)
@@ -489,7 +489,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		rc = -ENOMEM;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_ad_domain_destroy(struct m0_stob_type *type,
@@ -527,7 +527,7 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 
 	/* m0_balloc_destroy() isn't implemented */
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static struct m0_stob *stob_ad_alloc(struct m0_stob_domain *dom,
@@ -835,7 +835,7 @@ static int stob_ad_io_init(struct m0_stob *stob, struct m0_stob_io *io)
 		M0_STOB_OOM(AD_IO_INIT);
 		rc = -ENOMEM;
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_ad_io_fini(struct m0_stob_io *io)
@@ -874,7 +874,7 @@ static int stob_ad_balloc(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
 	out->e_start <<= adom->sad_babshift;
 	out->e_end   <<= adom->sad_babshift;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -913,7 +913,7 @@ static int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 	if (rc != 0 && rc != -ENOENT && rc != -ESRCH)
 		M0_STOB_FUNC_FAIL(AD_CURSOR, rc);
 
-	return rc;
+	return M0_RC(rc);
 }
 static uint32_t stob_ad_write_map_count(struct m0_stob_ad_domain *adom,
 					struct m0_indexvec *iv)
@@ -1008,7 +1008,7 @@ static int stob_ad_cursors_init(struct m0_stob_io *io,
 		m0_vec_cursor_init(dst, &io->si_stob.iv_vec);
 		m0_be_emap_caret_init(map, it, io->si_stob.iv_index[0]);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1053,7 +1053,7 @@ static int stob_ad_vec_alloc(struct m0_stob *obj,
 			rc = -ENOMEM;
 		}
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1174,11 +1174,11 @@ static int stob_ad_read_launch(struct m0_stob_io *io,
 
 	rc = stob_ad_vec_alloc(io->si_obj, back, frags_not_empty);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = stob_ad_cursors_init(io, adom, it, src, dst, car);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	for (idx = i = 0; i < frags; ++i) {
 		void        *buf;
@@ -1233,7 +1233,7 @@ static int stob_ad_read_launch(struct m0_stob_io *io,
 		M0_ASSERT(rc == 0);
 	}
 	M0_ASSERT(ergo(rc == 0, idx == frags_not_empty));
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1535,7 +1535,7 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 
 	rc = stob_ad_fol_frag_alloc(frag, frags);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	arp = frag->rp_data;
 	arp->arp_stob_fid = *m0_stob_fid_get(io->si_obj);
 	arp->arp_dom_id   =  m0_stob_domain_id_get(&adom->sad_base);
@@ -1574,7 +1574,7 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 	else
 		stob_ad_fol_frag_free(frag);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1819,7 +1819,7 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 			m0_be_emap_close(&it);
 		}
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static const struct m0_stob_io_op stob_ad_io_op = {

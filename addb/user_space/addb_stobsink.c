@@ -487,7 +487,7 @@ static int stobsink_header_encdec(struct m0_addb_seg_header *hdr,
 	rc = addb_encdec_op[what](&ctx);
 	if (rc == 0)
 		*cur = ctx.xcx_buf;
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -513,7 +513,7 @@ static int stobsink_trailer_encdec(struct m0_addb_seg_trailer *trl,
 	rc = addb_encdec_op[what](&ctx);
 	if (rc == 0)
 		*cur = ctx.xcx_buf;
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -587,7 +587,7 @@ static int stobsink_header_read(struct stobsink *sink,
 	pb->spb_io_v_count = sink->ss_segsize >> bshift;
 	pb->spb_buf_v_count = pb->spb_io_v_count;
 	pb->spb_io.si_fol_frag = &pb->spb_fol_frag;
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -716,7 +716,7 @@ static int stobsink_poolbuf_grow(struct stobsink *sink)
 	rc = m0_bufvec_alloc_aligned(&pb->spb_buf, 1, sink->ss_segsize, bshift);
 	if (rc != 0) {
 		m0_free(pb);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	stobsink_pool_tlink_init(pb);
@@ -1163,7 +1163,7 @@ fail:
 	M0_ASSERT(rc != 0);
 	sink->ss_sync = false;
 	m0_ref_put(&sink->ss_ref);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_addb_mc_configure_stob_sink);
 

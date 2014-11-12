@@ -240,7 +240,7 @@ static int group__next(struct m0_sns_cm_iter *it)
 	rc = __file_context_init(it);
 	if (rc == 0)
 		iter_phase_set(it, ITPH_GROUP_NEXT);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Fetches file attributes and layout for GOB. */
@@ -533,7 +533,7 @@ static int iter_ag_setup(struct m0_sns_cm_iter *it)
 	if (rc == 0)
 		iter_phase_set(it, ITPH_COB_NEXT);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
@@ -810,7 +810,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
         rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom);
         if (rc != 0) {
 		SNS_ADDB_FUNCFAIL(rc, &m0_sns_mod_addb_ctx, ITER_CDOM_GET);
-                return rc;
+                return M0_RC(rc);
 	}
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_IDLE, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
@@ -818,7 +818,7 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 	if (it->si_fom == NULL)
 		it->si_fom = &scm->sc_base.cm_cp_pump.p_fom;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
@@ -833,7 +833,7 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 	if (rc == 0)
 		M0_SET0(&it->si_fc);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)

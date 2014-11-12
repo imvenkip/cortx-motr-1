@@ -209,7 +209,7 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 	M0_POST(m0_mutex_is_locked(cache->ca_lock));
 	M0_POST(ergo(rc == 0, m0_conf_obj_invariant(dest)));
 	M0_LEAVE("retval=%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,

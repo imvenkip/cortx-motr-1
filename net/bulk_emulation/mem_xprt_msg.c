@@ -147,7 +147,7 @@ static int mem_find_remote_tm(struct m0_net_transfer_mc  *tm,
 			*p_dest_ep = dest_ep;
 		}
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 

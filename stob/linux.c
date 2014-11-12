@@ -175,7 +175,7 @@ static int stob_linux_domain_key_get_set(const char *path,
 		rc1 = fclose(id_file);
 		rc = rc == 0 && rc1 != 0 ? rc1 : rc;
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_linux_domain_cfg_init_parse(const char *str_cfg_init,
@@ -201,7 +201,7 @@ static int stob_linux_domain_cfg_init_parse(const char *str_cfg_init,
 		*cfg_init = cfg;
 	else
 		m0_free(cfg);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_linux_domain_cfg_init_free(void *cfg_init)
@@ -258,7 +258,7 @@ static int stob_linux_domain_init(struct m0_stob_type *type,
 		m0_free(ldom);
 	}
 	*out = rc == 0 ? &ldom->sld_dom : NULL;
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_linux_domain_fini(struct m0_stob_domain *dom)
@@ -314,7 +314,7 @@ out:
 	m0_free(dir_stob);
 	m0_free(dir_domain);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_linux_domain_create(struct m0_stob_type *type,
@@ -397,7 +397,7 @@ static int stob_linux_open(struct m0_stob *stob,
 		}
 	}
 	m0_free(file_stob);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_linux_init(struct m0_stob *stob,
@@ -450,7 +450,7 @@ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 					 m0_stob_key_get(stob));
 	rc	  = file_stob == NULL ? -ENOMEM : unlink(file_stob);
 	m0_free(file_stob);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_linux_write_credit(const struct m0_stob_domain *dom,

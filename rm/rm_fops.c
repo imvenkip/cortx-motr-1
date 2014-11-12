@@ -174,7 +174,7 @@ static int fop_common_fill(struct rm_out         *outreq,
 			m0_rm_credit_encode(credit,
 					    &req->rrq_credit.cr_opaque);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int borrow_fop_fill(struct rm_out         *outreq,

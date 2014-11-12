@@ -530,7 +530,7 @@ int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 	rc = m0_sm_timedwait(&item->ri_sm, states, timeout);
 	m0_rpc_machine_unlock(item->ri_rmachine);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item, m0_time_t timeout)
@@ -546,7 +546,7 @@ int m0_rpc_item_wait_for_reply(struct m0_rpc_item *item, m0_time_t timeout)
 		rc = item->ri_error;
 
 	M0_POST(ergo(rc == 0, item->ri_sm.sm_state == M0_RPC_ITEM_REPLIED));
-	return rc;
+	return M0_RC(rc);
 }
 
 void m0_rpc_item_cancel(struct m0_rpc_item *item)
@@ -910,7 +910,7 @@ static int req_replied(struct m0_rpc_item *req, struct m0_rpc_item *reply)
 			M0_ASSERT(false);
 		}
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_rpc_item_process_reply(struct m0_rpc_item *req,

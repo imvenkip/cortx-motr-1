@@ -410,7 +410,7 @@ M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
 		m0_semaphore_down(&gf->tgf_finish_sem);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)

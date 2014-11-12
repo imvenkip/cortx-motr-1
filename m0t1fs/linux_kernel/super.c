@@ -282,7 +282,7 @@ static int num_parse(uint32_t *dest, const substring_t *src)
 	}
 
 	kfree(s);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -587,7 +587,7 @@ static int configure_addb_rpc_sink(struct m0t1fs_sb *csb,
 						M0_ADDB_RPCSINK_TS_MAX_PAGES,
 						M0_ADDB_RPCSINK_TS_PAGE_SIZE);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 
 		m0_addb_mc_configure_pt_evmgr(addb_mc);
 	}
@@ -701,7 +701,7 @@ static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
 		*out = m;
 	else
 		m0_free(m);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void m0t1fs_poolmach_destroy(struct m0_poolmach *mach)
@@ -916,7 +916,7 @@ int m0t1fs_net_init(struct m0t1fs_sb *csb)
 		m0_mutex_unlock(&m0t1fs_mutex);
 	}
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 void m0t1fs_net_fini(struct m0t1fs_sb *csb)
@@ -992,7 +992,7 @@ be_fini:
 	m0_be_ut_backend_fini(&csb->csb_ut_be);
 	M0_LEAVE("rc: %d", rc);
 	M0_ASSERT(rc != 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)

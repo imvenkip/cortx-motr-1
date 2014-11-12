@@ -298,7 +298,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	if (rc == 0 || rc == -ENOBUFS)
 		m0_cm_aggr_group_add(cm, *out, has_incoming);
 	else if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	/*
 	 * Save the HI incoming aggregation group identifier.
@@ -310,7 +310,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 		cm->cm_last_saved_sw_hi = *id;
 
 	M0_ASSERT(rc <= 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)

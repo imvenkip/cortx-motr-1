@@ -386,7 +386,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 			  LNET_UNLINK, LNET_INS_AFTER, &meh);
 	if (rc != 0) {
 		NLXDBGP(kctm, 1,"LNetMEAttach: %d\n", rc);
-		return rc;
+		return M0_RC(rc);
 	}
 	M0_POST(!LNetHandleIsInvalid(meh));
 	NLXDBG(kctm, 2, nlx_print_core_buffer("nlx_kcore_LNetMDAttach", lcbuf));
@@ -409,7 +409,7 @@ static int nlx_kcore_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
 	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -432,7 +432,7 @@ static int nlx_kcore_LNetMDUnlink(struct nlx_kcore_transfer_mc *kctm,
 	NLXDBG(kctm, 1, NLXP("LNetMDUnlink: %d\n", rc));
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, K_MD_UNLINK, &kctm->ktm_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -467,7 +467,7 @@ static int nlx_kcore_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc != 0) {
 		NLXDBGP(kctm, 1,"LNetMDBind: %d\n", rc);
-		return rc;
+		return M0_RC(rc);
 	}
 	NLXDBG(kctm, 2, nlx_print_core_buffer("nlx_kcore_LNetPut", lcbuf));
 	NLXDBG(kctm, 2, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
@@ -493,7 +493,7 @@ static int nlx_kcore_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
 	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -531,7 +531,7 @@ static int nlx_kcore_LNetGet(struct nlx_kcore_transfer_mc *kctm,
 	rc = LNetMDBind(*umd, LNET_UNLINK, &kcb->kb_mdh);
 	if (rc != 0) {
 		NLXDBGP(kctm, 1,"LNetMDBind: %d\n", rc);
-		return rc;
+		return M0_RC(rc);
 	}
 	NLXDBG(kctm, 2, nlx_print_core_buffer("nlx_kcore_LNetGet", lcbuf));
 	NLXDBG(kctm, 2, nlx_kprint_lnet_handle("LNetMDBind", kcb->kb_mdh));
@@ -556,7 +556,7 @@ static int nlx_kcore_LNetGet(struct nlx_kcore_transfer_mc *kctm,
 	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
 	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

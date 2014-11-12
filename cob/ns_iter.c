@@ -71,7 +71,7 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
         rc = m0_cob_nskey_make(&key, key_gfid, (char *)nskey_bs,
 			       nskey_bs_len);
         if (rc != 0)
-                return rc;
+                return M0_RC(rc);
 
 	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_MAX_STR_LEN);
         rc = m0_be_btree_cursor_get_sync(&it, &kbuf, true);
@@ -90,7 +90,7 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
 	m0_free(key);
         m0_be_btree_cursor_fini(&it);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
@@ -111,7 +111,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 		iter->cni_last_fid.f_key = gfid->f_key + 1;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cob_ns_iter_fini(struct m0_cob_fid_ns_iter *iter)

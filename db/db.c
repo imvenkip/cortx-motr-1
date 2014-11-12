@@ -551,7 +551,7 @@ M0_INTERNAL int m0_table_update(struct m0_db_tx *tx_, struct m0_db_pair *pair)
 	/* to preserve db5 semantic */
 	if (rc != 0)
 		rc = m0_table_insert(tx_, pair);
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_table_insert(struct m0_db_tx *tx_, struct m0_db_pair *pair)
@@ -568,7 +568,7 @@ M0_INTERNAL int m0_table_insert(struct m0_db_tx *tx_, struct m0_db_pair *pair)
 			       bo_u.u_btree.t_rc);
 	db_tx_unlock(tx_);
 	db_pair_copy_from_impl(pair);
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_table_lookup(struct m0_db_tx *tx, struct m0_db_pair *pair)
@@ -582,7 +582,7 @@ M0_INTERNAL int m0_table_lookup(struct m0_db_tx *tx, struct m0_db_pair *pair)
 	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, key, val),
                                  bo_u.u_btree.t_rc);
 	db_pair_copy_from_impl(pair);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_table_delete(struct m0_db_tx *tx_, struct m0_db_pair *pair)
@@ -598,7 +598,7 @@ M0_INTERNAL int m0_table_delete(struct m0_db_tx *tx_, struct m0_db_pair *pair)
                                  bo_u.u_btree.t_rc);
 	db_tx_unlock(tx_);
 	db_pair_copy_from_impl(pair);
-	return rc;
+	return M0_RC(rc);
 }
 
 /* --------------------------------------------------------------------------
@@ -687,7 +687,7 @@ M0_INTERNAL int m0_db_cursor_get(struct m0_db_cursor *cursor_,
 					 &pair->dp_key.db_i.db_dbt,
 					 true);
 	cursor_get(cursor, pair, rc);
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_cursor_next(struct m0_db_cursor *cursor_,
@@ -699,14 +699,14 @@ M0_INTERNAL int m0_db_cursor_next(struct m0_db_cursor *cursor_,
 	cursor_set(cursor, pair);
 	rc = m0_db_cursor_get(cursor_, pair);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	/* This strange looking construction is needed to position cursor
 	   exactly after deleteted element when m0_db_cursor_next is called
 	   after m0_db_cursor_del. Some algorithms may need this. */
 	if (cursor_->c_i.c_after_delete) {
 		cursor_->c_i.c_after_delete = false;
-		return rc;
+		return M0_RC(rc);
 	}
 
         m0_be_op_init(&cursor->bc_op);
@@ -716,7 +716,7 @@ M0_INTERNAL int m0_db_cursor_next(struct m0_db_cursor *cursor_,
 
 	rc = cursor->bc_op.bo_u.u_btree.t_rc;
 	cursor_get(cursor, pair, rc);
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_cursor_prev(struct m0_db_cursor *cursor_,
@@ -728,7 +728,7 @@ M0_INTERNAL int m0_db_cursor_prev(struct m0_db_cursor *cursor_,
 	cursor_set(cursor, pair);
 	rc = m0_db_cursor_get(cursor_, pair);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
         m0_be_op_init(&cursor->bc_op);
         m0_be_btree_cursor_prev(cursor);
@@ -737,7 +737,7 @@ M0_INTERNAL int m0_db_cursor_prev(struct m0_db_cursor *cursor_,
 
 	rc = cursor->bc_op.bo_u.u_btree.t_rc;
 	cursor_get(cursor, pair, rc);
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_cursor_first(struct m0_db_cursor *cursor_,
@@ -752,7 +752,7 @@ M0_INTERNAL int m0_db_cursor_first(struct m0_db_cursor *cursor_,
 	if (rc == 0)
 		cursor_get(cursor, pair, 0);
 
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_cursor_last(struct m0_db_cursor *cursor_,
@@ -767,7 +767,7 @@ M0_INTERNAL int m0_db_cursor_last(struct m0_db_cursor *cursor_,
 	if (rc == 0)
 		cursor_get(cursor, pair, 0);
 
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_cursor_set(struct m0_db_cursor *cursor_,
@@ -797,7 +797,7 @@ M0_INTERNAL int m0_db_cursor_set(struct m0_db_cursor *cursor_,
 			       bo_u.u_btree.t_rc);
 	db_tx_unlock(tx_);
 #endif
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_db_cursor_add(struct m0_db_cursor *cursor_,

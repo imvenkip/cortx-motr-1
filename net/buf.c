@@ -103,7 +103,7 @@ M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
 	M0_POST(ergo(rc == 0, buf->nb_timeout == M0_TIME_NEVER));
 
 	m0_mutex_unlock(&dom->nd_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_buffer_register);
 
@@ -243,7 +243,7 @@ M0_INTERNAL int m0_net__buffer_add(struct m0_net_buffer *buf,
 	M0_POST(m0_net__tm_invariant(tm));
 
  m_err_exit:
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
@@ -258,7 +258,7 @@ M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
 	m0_mutex_unlock(&tm->ntm_mutex);
 	if (rc != 0)
 		NET_ADDB_FUNCFAIL(rc, BUF_ADD, &tm->ntm_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_buffer_add);
 

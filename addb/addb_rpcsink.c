@@ -921,7 +921,7 @@ M0_INTERNAL int m0_addb_mc_rpc_sink_source_add(struct m0_addb_mc  *mc,
 	rpcsink_item_sources_tlink_init(rpcsink_item_source);
 	rpcsink_item_sources_tlist_add(&rsink->rs_sources, rpcsink_item_source);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

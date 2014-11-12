@@ -261,7 +261,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 	m0_bufvec_cursor_init(&cursor, &datum_buf);
 	rc = m0_bufvec_cursor_copyfrom(&cursor, &rtype_id, sizeof rtype_id);
 	if (rc < 0)
-		return rc;
+		return M0_RC(rc);
 
 	rtype = m0_rm_resource_type_lookup(&rms->rms_dom, rtype_id);
 	if (rtype == NULL)

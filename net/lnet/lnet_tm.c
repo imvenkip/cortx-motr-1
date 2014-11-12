@@ -330,7 +330,7 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
 		     nb->nb_qtype == M0_NET_QT_MSG_RECV));
 	M0_POST(rc == 0 || rc == -ENOMEM);
 	M0_POST(m0_net__buffer_event_invariant(nbev));
-	return rc;
+	return M0_RC(rc);
 }
 
 /** @} */ /* LNetXODFS */

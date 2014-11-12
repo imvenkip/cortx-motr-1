@@ -175,7 +175,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		if (rc != 0)
 			__reqh_fini(reqh);
 	}
-	return rc;
+	return M0_RC(rc);
 
 fom_domain_init_failed:
 	m0_addb_monitors_fini(&reqh->rh_addb_monitoring_ctx);
@@ -185,7 +185,7 @@ monitors_init_failed:
 	m0_addb_ctx_fini(&reqh->rh_addb_ctx);
 	m0_addb_mc_fini(&reqh->rh_addb_mc);
 	m0_ha_domain_fini(&reqh->rh_hadom);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int
@@ -209,7 +209,7 @@ m0_reqh_dbenv_init(struct m0_reqh *reqh, struct m0_be_seg *seg)
 	reqh->rh_beseg = seg;
 	M0_POST(m0_reqh_invariant(reqh));
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_reqh_dbenv_fini(struct m0_reqh *reqh)

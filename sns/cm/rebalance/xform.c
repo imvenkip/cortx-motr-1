@@ -87,7 +87,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 		rc = cp->c_ops->co_phase_next(cp);
 	m0_cm_ag_unlock(ag);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

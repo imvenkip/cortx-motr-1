@@ -175,7 +175,7 @@ static int nlx_xo_end_point_create(struct m0_net_end_point **epp,
 		rc = -EINVAL;
 	if (rc != 0) {
 		LNET_ADDB_FUNCFAIL(rc, X_EP_CREATE, &tm->ntm_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	return nlx_ep_create(epp, tm, &cepa);
@@ -223,7 +223,7 @@ static int nlx_xo_buf_register(struct m0_net_buffer *nb)
 		nb->nb_xprt_private = NULL;
 	}
 	M0_POST(ergo(rc == 0, nlx_buffer_invariant(nb)));
-	return rc;
+	return M0_RC(rc);
 }
 
 static void nlx_xo_buf_deregister(struct m0_net_buffer *nb)
@@ -271,7 +271,7 @@ static int nlx_xo__nbd_recover(struct m0_net_transfer_mc *tm,
 	if (nbd->nbd_len != sizeof *cbd) {
 		int rc = -EINVAL;
 		LNET_ADDB_FUNCFAIL(rc, X_NBD_RECOVER, &tm->ntm_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 	memcpy(cbd, nbd->nbd_data, nbd->nbd_len);
 
@@ -311,7 +311,7 @@ static int nlx_xo_buf_add(struct m0_net_buffer *nb)
 	rc = nlx_core_bevq_provision(cd, ctp, need);
 	if (rc != 0) {
 		LNET_ADDB_FUNCFAIL(rc, X_BUF_ADD1, &nb->nb_tm->ntm_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 	cbp->cb_max_operations = need;
 
@@ -380,7 +380,7 @@ static int nlx_xo_buf_add(struct m0_net_buffer *nb)
 		LNET_ADDB_FUNCFAIL(rc, X_BUF_ADD2, &nb->nb_tm->ntm_addb_ctx);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void nlx_xo_buf_del(struct m0_net_buffer *nb)
@@ -454,7 +454,7 @@ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 			       NULL, &nlx_tm_ev_worker, tm, "m0_nlx_tm");
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, X_TM_START, &tm->ntm_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int nlx_xo_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
@@ -495,7 +495,7 @@ static int nlx_xo_tm_confine(struct m0_net_transfer_mc *tm,
 		m0_bitmap_copy(&tp->xtm_processors, processors);
 	else
 		LNET_ADDB_FUNCFAIL(rc, X_TM_CONFINE, &tm->ntm_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void nlx_xo_bev_deliver_all(struct m0_net_transfer_mc *tm)

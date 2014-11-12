@@ -738,12 +738,12 @@ static int addb_node_uuid_init(void)
 	rc = addb_node_uuid_string_get(buf);
 	if (rc < 0) {
 		M0_LOG(M0_ERROR, "Unable to fetch node UUID string");
-		return rc;
+		return M0_RC(rc);
 	}
 	rc = m0_uuid_parse(buf, uuid);
 	if (rc < 0) {
 		M0_LOG(M0_ERROR, "Unable to parse node UUID string");
-		return rc;
+		return M0_RC(rc);
 	}
 	M0_LOG(M0_NOTICE, "Node uuid: %08x-%04x-%04x-%04x-%012lx",
 	       (unsigned)(uuid->u_hi >> 32),
@@ -807,7 +807,7 @@ M0_INTERNAL int m0_addb_init(void)
 	addb_init_time = m0_time_now();
 	rc = addb_node_uuid_init();
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	m0_mutex_init(&addb_mutex);
 	m0_xc_addb_wire_init();
 	addb_ct_init();

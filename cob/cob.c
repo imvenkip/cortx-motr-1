@@ -519,7 +519,7 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 	if (rc != 0) {
 		m0_be_tx_fini(tx);
 		m0_free(tx);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	M0_BE_ALLOC_PTR_SYNC(*dom, seg, tx);
@@ -543,7 +543,7 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 	m0_be_tx_fini(tx);
 	m0_free(tx);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
@@ -579,7 +579,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	if (rc != 0) {
 		m0_be_tx_fini(tx);
 		m0_free(tx);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = m0_be_0type_del(&m0_be_cob0, bedom, tx, id);
@@ -598,7 +598,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	m0_be_tx_fini(tx);
 	m0_free(tx);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #include <sys/stat.h>    /* S_ISDIR */
@@ -700,13 +700,13 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 
 	rc = m0_cob_alloc(dom, &cob);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
 			       strlen(M0_COB_ROOT_NAME));
 	if (rc != 0) {
 	    m0_cob_put(cob);
-	    return rc;
+	    return M0_RC(rc);
 	}
 
 	nsrec.cnr_omgid = 0;
@@ -730,7 +730,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	if (rc != 0) {
 		m0_cob_put(cob);
 		m0_free(nskey);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = m0_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
@@ -740,7 +740,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	if (rc != 0) {
 		m0_free(nskey);
 		m0_free(fabrec);
-		return rc;
+		return M0_RC(rc);
 	}
 	return 0;
 }
@@ -912,7 +912,7 @@ static int cob_oi_lookup(struct m0_cob *cob)
 	cob->co_flags |= (M0_CA_NSKEY | M0_CA_NSKEY_FREE);
 out:
 	m0_be_btree_cursor_fini(&cursor);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -935,7 +935,7 @@ static int cob_fab_lookup(struct m0_cob *cob)
 	fabkey.cfb_fid = *m0_cob_fid(cob);
 	rc = m0_cob_max_fabrec_make(&cob->co_fabrec);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	m0_buf_init(&key, &fabkey, sizeof fabkey);
 	m0_buf_init(&val, cob->co_fabrec, m0_cob_max_fabrec_size());
@@ -951,7 +951,7 @@ static int cob_fab_lookup(struct m0_cob *cob)
 	else
 		cob->co_flags &= ~M0_CA_FABREC;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -998,7 +998,7 @@ static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags)
 	if (flags & M0_CA_FABREC) {
 		rc = cob_fab_lookup(cob);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 	}
 
 	/*
@@ -1007,9 +1007,9 @@ static int cob_get_fabomg(struct m0_cob *cob, uint64_t flags)
 	if (flags & M0_CA_OMGREC) {
 		rc = cob_omg_lookup(cob);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
@@ -1024,7 +1024,7 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 
 	rc = m0_cob_alloc(dom, &cob);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	cob->co_nskey = nskey;
 	cob->co_flags |= M0_CA_NSKEY;
@@ -1035,17 +1035,17 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
 	rc = cob_ns_lookup(cob);
 	if (rc != 0) {
 		m0_cob_put(cob);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = cob_get_fabomg(cob, flags);
 	if (rc != 0) {
 		m0_cob_put(cob);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	*out = cob;
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
@@ -1111,11 +1111,11 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 				   m0_bitstring_buf_get(name),
 				   m0_bitstring_len_get(name));
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_namespace);
 	it->ci_cob = cob;
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it)
@@ -1150,7 +1150,7 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
                 }
 	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
@@ -1177,7 +1177,7 @@ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
                 }
 	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
@@ -1193,17 +1193,17 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 				   m0_bitstring_buf_get(name),
 				   m0_bitstring_len_get(name));
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
         it->ci_rec = m0_alloc(m0_cob_max_earec_size());
 	if (it->ci_rec == NULL) {
 	        m0_free(it->ci_key);
-		return rc;
+		return M0_RC(rc);
         }
 
 	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_fileattr_ea);
 	it->ci_cob = cob;
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
@@ -1230,7 +1230,7 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 		        memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
                 }
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
@@ -1257,7 +1257,7 @@ M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
                 }
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it)
@@ -1488,14 +1488,14 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 	}
 out:
 	COB_FUNC_FAIL(DELETE, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_delete_put(struct m0_cob *cob, struct m0_be_tx *tx)
 {
 	int rc = m0_cob_delete(cob, tx);
 	m0_cob_put(cob);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
@@ -1558,7 +1558,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 	}
 
         COB_FUNC_FAIL(UPDATE, rc);
-        return rc;
+        return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
@@ -1635,7 +1635,7 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 
 out:
 	COB_FUNC_FAIL(NAME_DEL, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
@@ -1690,7 +1690,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 	cob->co_flags |= M0_CA_NSKEY_FREE;
 out:
 	COB_FUNC_FAIL(NAME_UPDATE, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
@@ -1706,7 +1706,7 @@ M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
 	m0_buf_init(&val, out, m0_cob_max_earec_size());
 	rc = cob_table_lookup(&cob->co_dom->cd_fileattr_ea, &key, &val);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
@@ -1743,7 +1743,7 @@ M0_INTERNAL int m0_cob_ea_del(struct m0_cob *cob,
 	m0_buf_init(&key, eakey, m0_cob_eakey_size(eakey));
 	rc = cob_table_delete(&cob->co_dom->cd_fileattr_ea, tx, &key);
 	COB_FUNC_FAIL(EA_DEL, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 enum cob_table_optype {

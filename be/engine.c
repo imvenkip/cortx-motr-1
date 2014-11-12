@@ -298,7 +298,7 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 		}
 		be_engine_group_close(en, gr, true);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /* XXX RENAME IT */
@@ -342,7 +342,7 @@ M0_INTERNAL bool m0_be_engine__invariant(struct m0_be_engine *en)
 	rc_bool = be_engine_invariant(en);
 	be_engine_unlock(en);
 
-	return rc_bool;
+	return M0_RC(rc_bool);
 }
 
 M0_INTERNAL void m0_be_engine__tx_init(struct m0_be_engine *en,

@@ -69,7 +69,7 @@ M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)
 	} else {
 		strcpy(buf, name);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -584,7 +584,7 @@ static int fid_layout_instance(struct m0_sns_cm_file_ctx *fctx)
 	if (rc == 0)
 		fctx->sf_pi = m0_layout_instance_to_pdi(li);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 

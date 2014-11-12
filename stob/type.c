@@ -108,7 +108,7 @@ M0_INTERNAL int m0_stob_types_init(void)
 	if (rc != 0)
 		stob_types_destroy_list(types);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_stob_types_fini(void)

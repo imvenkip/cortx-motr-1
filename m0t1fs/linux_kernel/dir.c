@@ -1003,7 +1003,7 @@ M0_INTERNAL int m0t1fs_size_update(struct dentry *dentry, uint64_t newsize)
 out:
 	m0_fop_put0_lock(rep_fop);
 	m0t1fs_fs_unlock(csb);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *dentry, struct iattr *attr)
@@ -1030,7 +1030,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 
 	rc = inode_change_ok(inode, attr);
 	if (rc)
-		return rc;
+		return M0_RC(rc);
 
 	m0t1fs_fs_lock(csb);
 
@@ -1333,7 +1333,7 @@ static int m0t1fs_mds_cob_fop_populate(struct m0t1fs_sb         *csb,
 		break;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0t1fs_mds_cob_op(struct m0t1fs_sb            *csb,

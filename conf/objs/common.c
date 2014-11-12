@@ -110,7 +110,7 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 		*out = NULL;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void strings_free(const char **arr)

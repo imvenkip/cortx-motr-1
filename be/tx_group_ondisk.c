@@ -281,7 +281,7 @@ static int group_io_init(struct m0_be_group_ondisk *g,
 	 */
 	rc = m0_be_io_init(&g->go_io_log, cr_logrec, 1);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = m0_be_io_init(&g->go_io_log_cblock, cr_commit_block, 1);
 	if (rc != 0)
@@ -294,7 +294,7 @@ static int group_io_init(struct m0_be_group_ondisk *g,
 	m0_be_io_fini(&g->go_io_log_cblock);
 err:
 	m0_be_io_fini(&g->go_io_log);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void group_io_fini(struct m0_be_group_ondisk *g)

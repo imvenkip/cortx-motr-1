@@ -265,7 +265,7 @@ static int fol_rec_encdec(struct m0_fol_rec *rec,
 
 	rc = m0_xcode_encdec(&M0_REC_HEADER_XCODE_OBJ(h), cur, what);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	M0_POST(ergo(what == M0_XCODE_DECODE, h->rh_magic == M0_FOL_REC_MAGIC));
 	return 0;
@@ -283,7 +283,7 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 
 	rc = fol_rec_encdec(rec, &cur, M0_XCODE_ENCODE);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	m0_tl_for(m0_rec_frag, &rec->fr_frags, frag) {
 		struct m0_fol_frag_header rph;
@@ -303,10 +303,10 @@ static int fol_record_pack(struct m0_fol_rec *rec, struct m0_buf *buf)
 		     m0_xcode_encdec(&FRAG_XCODE_OBJ(frag),
 				     &cur, M0_XCODE_ENCODE);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 	} m0_tl_endfor;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_fol_rec_encode(struct m0_fol_rec *rec, struct m0_buf *at)
@@ -338,7 +338,7 @@ M0_INTERNAL int m0_fol_rec_decode(struct m0_fol_rec *rec, struct m0_buf *at)
 
 	rc = fol_rec_encdec(rec, &cur, M0_XCODE_DECODE);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	for (i = 0; rc == 0 && i < rec->fr_header.rh_frags_nr; ++i) {
 		struct m0_fol_frag            *frag;
@@ -371,7 +371,7 @@ M0_INTERNAL int m0_fol_rec_decode(struct m0_fol_rec *rec, struct m0_buf *at)
 				m0_fol_frag_add(rec, frag);
 		}
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_fol_frag_add(struct m0_fol_rec *rec,

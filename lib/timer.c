@@ -163,7 +163,7 @@ M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc)
 
 		rc = 0;
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc)
@@ -211,7 +211,7 @@ static int timer_posix_init(struct m0_timer *timer)
 	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
 	if (rc == 0)
 		timer->t_ptimer = ptimer;
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -392,7 +392,7 @@ static int timer_hard_init(struct m0_timer *timer,
 		if (rc != 0)
 			timer_posix_fini(timer->t_ptimer);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -458,7 +458,7 @@ fini_stop_sem:
 fini_sleep_sem:
 	m0_semaphore_fini(&timer->t_sleep_sem);
 err:
-	return rc;
+	return M0_RC(rc);
 }
 
 static int timer_soft_init(struct m0_timer *timer,
@@ -529,7 +529,7 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 	rc = timer_ops[timer->t_type].tmr_init(timer, loc);
 	timer_state_change(timer, TIMER_INIT, rc != 0);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

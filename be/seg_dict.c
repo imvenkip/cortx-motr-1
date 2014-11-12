@@ -204,7 +204,7 @@ M0_INTERNAL int _seg_dict_iterate(struct m0_be_seg *seg,
 
 	m0_be_btree_cursor_fini(&cursor);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_be_seg_dict_begin(struct m0_be_seg *seg,

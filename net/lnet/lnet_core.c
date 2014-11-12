@@ -197,7 +197,7 @@ M0_INTERNAL int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 		lctm->ctm_bev_needed += need;
 	have = bev_cqueue_size(&lctm->ctm_bevq) - M0_NET_LNET_BEVQ_NUM_RESERVED;
 	M0_POST(have >= lctm->ctm_bev_needed);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
@@ -402,7 +402,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	nidstr[n] = 0;
 	rc = nlx_core_nidstr_decode(lcdom, nidstr, &cepa->cepa_nid);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	++cp;
 	cepa->cepa_pid = strtoul(cp, &endp, 10);
 	if (*endp != ':')

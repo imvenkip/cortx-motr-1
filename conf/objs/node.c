@@ -79,7 +79,7 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 		rc = dir_new(cache, &dest->co_id, s->relfid, s->children_type,
 			     s->children_ids, s->pptr);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 
 		child_adopt(dest, &(*subdirs[i].pptr)->cd_obj);
 	}
@@ -101,13 +101,13 @@ static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	rc = arrfid_from_dir(&d->xn_nics, s->cn_nics);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = arrfid_from_dir(&d->xn_sdevs, s->cn_sdevs);
 	if (rc != 0)
 		arrfid_free(&d->xn_nics);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static bool

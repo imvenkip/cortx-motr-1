@@ -60,7 +60,7 @@ static int profile_decode(struct m0_conf_obj *dest,
 		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
 		child_adopt(dest, child);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int

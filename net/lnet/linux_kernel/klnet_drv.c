@@ -897,7 +897,7 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 	if (rc < 0)
 		LNET_ADDB_FUNCFAIL(rc, KD_DOM_INIT, &kd->kd_addb_ctx);
 	m0_mutex_unlock(&kd->kd_drv_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -997,7 +997,7 @@ fail_count:
 	m0_free(buf);
 	M0_ASSERT(rc < 0);
 	LNET_ADDB_FUNCFAIL(rc, KD_BUF_REG, &kd->kd_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1080,7 +1080,7 @@ static int nlx_dev_ioctl_buf_queue_op(
 		rc = op(ktm, cb, kb);
 	nlx_kcore_core_buffer_unmap(kb);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1126,7 +1126,7 @@ static int nlx_dev_ioctl_buf_event_wait(const struct nlx_kcore_domain *kd,
 						       p->dbw_timeout);
 	nlx_kcore_core_tm_unmap(ktm);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1168,7 +1168,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 	int i;
 
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	for (i = 0, sz = 1; nidstrs[i] != NULL; ++i)
 		sz += strlen(nidstrs[i]) + 1;
 	if (sz > p->dng_size) {
@@ -1191,7 +1191,7 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 		rc = i;
 	m0_free(buf);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1249,7 +1249,7 @@ fail_page:
 	m0_free(ktm);
 	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL(rc, KD_TM_START, &kd->kd_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1366,7 +1366,7 @@ fail_page:
 	m0_free(kbe);
 	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL(rc, KD_BEV_BLESS, &kd->kd_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1488,7 +1488,7 @@ done:
 		M0_LOG(M0_ERROR, "cmd=%d rc=%d", cmd, rc);
 		LNET_ADDB_FUNCFAIL(rc, KD_IOCTL, &kd->kd_addb_ctx);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1656,12 +1656,12 @@ M0_INTERNAL int nlx_dev_init(void)
 	rc = misc_register(&nlx_dev);
 	if (rc != 0) {
 		LNET_ADDB_FUNCFAIL(rc, KD_INIT, &m0_net_lnet_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 	nlx_dev_registered = true;
 	printk("Mero %s registered with minor %d\n",
 	       nlx_dev.name, nlx_dev.minor);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void nlx_dev_fini(void)

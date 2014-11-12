@@ -364,7 +364,7 @@ static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 	m0_fom_phase_set(&m->ssf_fom, next_phase[fop->ss_cmd]);
 end:
 	m0_free(name);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int ss_fom_tick__svc_alloc(struct ss_fom           *m,
@@ -385,7 +385,7 @@ static int ss_fom_tick__svc_alloc(struct ss_fom           *m,
 						 fop->ss_id.f_key));
 		m0_buf_copy(&m->ssf_svc->rs_ss_param, &fop->ss_param);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int ss_fom_tick__stop(struct m0_reqh_service *svc)

@@ -104,7 +104,7 @@ M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 	cm = container_of(service, struct m0_cm, cm_service);
 	rc = m0_cm_setup(cm);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	/* The following shows how to retrieve ioservice endpoints list.
 	 * Copy machine can establish connections to all ioservices,
@@ -122,7 +122,7 @@ M0_INTERNAL int m0_sns_cm_svc_start(struct m0_reqh_service *service)
 	} m0_tl_endfor;
 
 	M0_LEAVE();
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_sns_cm_svc_stop(struct m0_reqh_service *service)

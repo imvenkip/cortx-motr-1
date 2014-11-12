@@ -77,7 +77,7 @@ M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
 	if (rc != 0)
 		NET_ADDB_FUNCFAIL(rc, EP_CREATE, &tm->ntm_addb_ctx);
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_end_point_create);
 

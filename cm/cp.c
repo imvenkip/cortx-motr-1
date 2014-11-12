@@ -713,7 +713,7 @@ M0_INTERNAL int m0_cm_cp_bufvec_merge(struct m0_cm_cp *cp)
 	while ((nbuf = cp_data_buf_tlist_next(&cp->c_buffers, nbuf)) != NULL) {
 		rc = m0_bufvec_merge(&nbuf_head->nb_buffer, &nbuf->nb_buffer);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 	}
 	return 0;
 }

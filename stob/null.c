@@ -137,7 +137,7 @@ static int stob_null_domain_add(struct stob_null_domain *snd,
 	if (rc == 0)
 		stob_null_domains_tlink_init_at(snd, &snl->snl_domains);
 	m0_mutex_unlock(&snl->snl_lock);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_null_domain_del(struct stob_null_domain *snd,
@@ -197,7 +197,7 @@ static int stob_null_domain_init(struct m0_stob_type *type,
 		m0_stob_domain__id_set(&snd->snd_dom, dom_id);
 	}
 	*out = rc == 0 ? &snd->snd_dom : NULL;
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_null_domain_fini(struct m0_stob_domain *dom)
@@ -233,7 +233,7 @@ static int stob_null_domain_create(struct m0_stob_type *type,
 		}
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_null_domain_destroy(struct m0_stob_type *type,
@@ -300,7 +300,7 @@ static int stob_null_add(struct stob_null *sn, struct stob_null_domain *snd)
 	if (sn1 == NULL)
 		stob_null_stobs_tlink_init_at(sn, &snd->snd_stobs);
 	m0_mutex_unlock(&snd->snd_lock);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void stob_null_del(struct stob_null *sn, struct stob_null_domain *snd)
@@ -357,7 +357,7 @@ static int stob_null_create(struct m0_stob *stob,
 		}
 	}
 	/* TODO allocate memory for stob-io */
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_null_destroy_credit(struct m0_stob *stob,

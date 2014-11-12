@@ -127,7 +127,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 					   scp->sc_base.c_ag_cp_idx);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,

@@ -60,7 +60,7 @@ M0_INTERNAL int m0_cons_fop_send(struct m0_fop *fop,
 	} else {
 		fprintf(stderr, "m0_rpc_post failed!\n");
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
@@ -80,7 +80,7 @@ M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 
 	m0_fop_put_lock(fop);
 	m0_sm_group_fini(&mach.rm_sm_grp);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cons_fop_list_show(void)

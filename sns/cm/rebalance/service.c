@@ -102,7 +102,7 @@ static int rebalance_svc_start(struct m0_reqh_service *service)
 		m0_sns_cm_rebalance_sw_onwire_fop_init();
 		m0_sns_cm_rebalance_trigger_fop_init();
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static void rebalance_svc_stop(struct m0_reqh_service *service)

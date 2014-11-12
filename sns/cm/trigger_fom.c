@@ -206,7 +206,7 @@ static int prepare(struct m0_fom *fom)
 					   M0_PNDS_SNS_REBALANCING;
 	rc = m0_sns_cm_pm_event_post(scm, &fom->fo_tx.tx_betx, M0_POOL_DEVICE, state);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	/*
 	 * To handle blocking operation of establishing rpc connections
 	 * between replicas.
@@ -215,7 +215,7 @@ static int prepare(struct m0_fom *fom)
 	rc = m0_cm_prepare(cm);
 	m0_fom_block_leave(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	m0_mutex_lock(&cm->cm_wait_mutex);
 	m0_fom_wait_on(fom, &cm->cm_ready_wait,
 			&fom->fo_cb);
@@ -233,7 +233,7 @@ static int ready(struct m0_fom *fom)
 
 	rc = m0_cm_ready(cm);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	m0_fom_phase_set(fom, TPH_START);
 	M0_LOG(M0_DEBUG, "trigger: ready");
 	return M0_FSO_AGAIN;
@@ -250,7 +250,7 @@ static int start(struct m0_fom *fom)
 	m0_mutex_unlock(&cm->cm_wait_mutex);
 	rc = m0_cm_start(cm);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	m0_fom_phase_set(fom, TPH_STOP);
 	M0_LOG(M0_DEBUG, "trigger: start");
 	return M0_FSO_WAIT;
@@ -323,7 +323,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 		rc = M0_FSO_AGAIN;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void trigger_fom_addb_init(struct m0_fom *fom, struct m0_addb_mc *mc)

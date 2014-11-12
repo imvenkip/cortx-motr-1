@@ -323,7 +323,7 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 			      m0_mutex_is_not_locked(&l->l_lock)));
 	M0_LEAVE("domain %p, lid %llu, pl %p, rc %d",
 		 dom, (unsigned long long)lid, *out, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL uint32_t m0_pdclust_N(const struct m0_pdclust_layout *pl)
@@ -475,7 +475,7 @@ out:
 	M0_POST(ergo(rc == 0, pdclust_invariant(pl)));
 	M0_POST(ergo(rc != 0, pdclust_allocated_invariant(pl)));
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of lo_encode() for pdclust layout type. */
@@ -516,7 +516,7 @@ static int pdclust_encode(struct m0_layout *l,
 		       (unsigned long long)l->l_id, rc);
 
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of lo_recsize() for pdclust layout type. */
@@ -858,7 +858,7 @@ err3_injected:
 	}
 
 	M0_LEAVE("rc %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of lio_fini(). */
@@ -898,7 +898,7 @@ M0_INTERNAL int m0_pdclust_attr_read(const struct m0_conf_obj *fs,
 		rc = 0;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static const struct m0_layout_ops pdclust_ops = {

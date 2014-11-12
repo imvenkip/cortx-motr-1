@@ -163,7 +163,7 @@ static int m0_md_create(struct m0_mdstore   *md,
 	M0_LOG(M0_DEBUG, "create \"%.*s\" finished with %d and lid=%d",
 	       (int)attr->ca_name.b_nob, (char *)attr->ca_name.b_addr, rc,
 	       (int)attr->ca_lid);
-	return rc;
+	return M0_RC(rc);
 }
 
 static inline int m0_md_tick_generic(struct m0_fom *fom)
@@ -212,7 +212,7 @@ static int m0_md_tick_create(struct m0_fom *fom)
 		m0_md_create_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -267,7 +267,7 @@ static int m0_md_tick_link(struct m0_fom *fom)
 		m0_md_create_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -329,7 +329,7 @@ static int m0_md_tick_unlink(struct m0_fom *fom)
 		m0_mdstore_unlink_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -404,7 +404,7 @@ static int m0_md_rename(struct m0_mdstore   *md,
 	rc = m0_mdstore_rename(md, pfid_tgt, pfid_src, tcob, scob,
 			       &tattr->ca_name, &sattr->ca_name, tx);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	/*
 	 * Update attributes of source and target.
 	 */
@@ -416,7 +416,7 @@ static int m0_md_rename(struct m0_mdstore   *md,
 		if (rc == 0 && tcob->co_nsrec.cnr_nlink > 0)
 			rc = m0_mdstore_setattr(md, tcob, tattr, tx);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0_md_tick_rename(struct m0_fom *fom)
@@ -441,7 +441,7 @@ static int m0_md_tick_rename(struct m0_fom *fom)
 		m0_md_rename_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -511,7 +511,7 @@ static int m0_md_tick_open(struct m0_fom *fom)
 		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -580,7 +580,7 @@ static int m0_md_tick_close(struct m0_fom *fom)
 		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -647,7 +647,7 @@ static int m0_md_tick_setattr(struct m0_fom *fom)
 		m0_mdstore_setattr_credit(md, m0_fom_tx_credit(fom));
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -704,7 +704,7 @@ static int m0_md_tick_lookup(struct m0_fom *fom)
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -778,7 +778,7 @@ static int m0_md_tick_getattr(struct m0_fom *fom)
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -848,7 +848,7 @@ static int m0_md_tick_getxattr(struct m0_fom *fom)
 
         rc = m0_md_tick_generic(fom);
         if (rc != 0)
-                return rc;
+                return M0_RC(rc);
 
         fop = fom->fo_fop;
         M0_ASSERT(fop != NULL);
@@ -931,7 +931,7 @@ static int m0_md_tick_setxattr(struct m0_fom *fom)
 	}
 	rc = m0_md_tick_generic(fom);
         if (rc != 0)
-                return rc;
+                return M0_RC(rc);
 
         fop = fom->fo_fop;
         M0_ASSERT(fop != NULL);
@@ -1003,7 +1003,7 @@ static int m0_md_tick_delxattr(struct m0_fom *fom)
 	}
         rc = m0_md_tick_generic(fom);
         if (rc != 0)
-                return rc;
+                return M0_RC(rc);
 
         fop = fom->fo_fop;
         M0_ASSERT(fop != NULL);
@@ -1059,7 +1059,7 @@ static int m0_md_tick_statfs(struct m0_fom *fom)
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -1102,7 +1102,7 @@ static int m0_md_tick_readdir(struct m0_fom *fom)
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -1211,7 +1211,7 @@ static int m0_md_tick_layout(struct m0_fom *fom)
 
 	rc = m0_md_tick_generic(fom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	fop = fom->fo_fop;
 	M0_ASSERT(fop != NULL);
@@ -1307,7 +1307,7 @@ static int m0_md_req_path_get(struct m0_mdstore *mdstore,
 
 	rc = m0_mdstore_path(mdstore, fid, (char **)&str->s_buf);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	str->s_len = strlen((char *)str->s_buf);
 #endif
 	return 0;
@@ -1344,14 +1344,14 @@ M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom)
 					&link->l_body.b_pfid,
 					&link->l_tpath);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		rc = m0_md_req_path_get(md,
 					&link->l_body.b_tfid,
 					&link->l_spath);
 		if (rc != 0) {
 			m0_free0(&link->l_tpath.s_buf);
 			link->l_tpath.s_len = 0;
-			return rc;
+			return M0_RC(rc);
 		}
 		break;
 	case M0_MDSERVICE_UNLINK_OPCODE:
@@ -1366,14 +1366,14 @@ M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom)
 					&rename->r_sbody.b_pfid,
 					&rename->r_spath);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		rc = m0_md_req_path_get(md,
 					&rename->r_tbody.b_pfid,
 					&rename->r_tpath);
 		if (rc != 0) {
 			m0_free0(&rename->r_spath.s_buf);
 			rename->r_spath.s_len = 0;
-			return rc;
+			return M0_RC(rc);
 		}
 		break;
 	case M0_MDSERVICE_OPEN_OPCODE:
@@ -1417,7 +1417,7 @@ M0_INTERNAL int m0_md_fop_init(struct m0_fop *fop, struct m0_fom *fom)
 		break;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void m0_md_fom_fini(struct m0_fom *fom)
@@ -1677,7 +1677,7 @@ static int md_locate(struct m0_mdstore *md, struct m0_fid *tfid,
 	if (rc != 0)
 		M0_LOG(M0_DEBUG, "m0_mdstore_locate() failed for "FID_F" (%d)",
 		       FID_P(tfid), rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

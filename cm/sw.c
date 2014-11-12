@@ -84,7 +84,7 @@ M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
 
 	if (m0_cm_is_active(cm) &&
 	    !m0_cm_ag_id_is_set(&cm->cm_last_saved_sw_hi))
-		return rc;
+		return M0_RC(rc);
 	rc = m0_cm_ag_advance(cm);
 
 	return M0_RC(rc);
@@ -139,7 +139,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
 	if (rc == 0)
-		return rc;
+		return M0_RC(rc);
 
 	m0_be_tx_init(tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(sw, seg, &cred);
@@ -147,7 +147,7 @@ M0_INTERNAL int m0_cm_sw_store_init(struct m0_cm *cm, struct m0_sm_group *grp,
 	m0_be_tx_prep(tx, &cred);
 	m0_be_tx_open(tx);
 	M0_POST(tx->t_sm.sm_rc == 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx)
@@ -176,7 +176,7 @@ M0_INTERNAL int m0_cm_sw_store_commit(struct m0_cm *cm, struct m0_be_tx *tx)
 			M0_BE_FREE_PTR_SYNC(sw, seg, tx);
 	}
 	m0_be_tx_close(tx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out)
@@ -191,7 +191,7 @@ M0_INTERNAL int m0_cm_sw_store_load(struct m0_cm *cm, struct m0_cm_sw *out)
 	if (rc == 0)
 		m0_cm_sw_copy(out, sw);
 	M0_LOG(M0_DEBUG, "sw = %p", sw);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
@@ -208,7 +208,7 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	M0_LOG(M0_DEBUG, "sw = %p", sw);
 	if (rc == 0) {
@@ -216,7 +216,7 @@ M0_INTERNAL int m0_cm_sw_store_update(struct m0_cm *cm,
 		M0_BE_TX_CAPTURE_PTR(seg, tx, sw);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

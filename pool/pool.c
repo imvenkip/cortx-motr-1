@@ -325,7 +325,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 		pm->pm_is_initialised = true;
 	else
 		m0_poolmach_fini(pm);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
@@ -538,7 +538,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
 	}
 	/* Finally: unlock the poolmach */
 	m0_rwlock_write_unlock(&pm->pm_lock);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
@@ -598,7 +598,7 @@ M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
 	}
 
 	m0_rwlock_read_unlock(&pm->pm_lock);
-	return rc;
+	return M0_RC(rc);
 }
 
 
@@ -700,7 +700,7 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 out:
 	m0_rwlock_read_unlock(&pm->pm_lock);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool
@@ -753,7 +753,7 @@ M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
 out:
 	m0_rwlock_read_unlock(&pm->pm_lock);
 
-	return rc;
+	return M0_RC(rc);
 
 }
 

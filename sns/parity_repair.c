@@ -70,7 +70,7 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
                 rc = m0_poolmach_sns_repair_spare_query(pm, device_index,
                                                         spare_slot_out);
                 if (rc != 0)
-                        return rc;
+                        return M0_RC(rc);
 
 		/*
 		 * Find out if spare slot's corresponding device index is
@@ -98,7 +98,7 @@ M0_INTERNAL int m0_sns_repair_spare_map(struct m0_poolmach *pm,
 				m0_pdclust_K(pl);
 	}
 
-        return rc;
+        return M0_RC(rc);
 }
 
 static bool frame_eq(struct m0_pdclust_instance *pi, uint64_t group_number,
@@ -241,7 +241,7 @@ M0_INTERNAL int m0_sns_repair_data_map(struct m0_poolmach *pm,
 			M0_IN(state_out, (M0_PNDS_SNS_REPAIRED,
 					  M0_PNDS_SNS_REBALANCING)));
 out:
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -986,7 +986,7 @@ static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 	if (rc == 0)
 		*out = &cob->co_file;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -2007,7 +2007,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 						     &rwfop->crw_version,
 						     &rwrep->rwr_fv_version,
 						     &rwrep->rwr_fv_updates);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	m0_fom_phase_set(fom, rc == M0_FSO_AGAIN ?
@@ -2016,7 +2016,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(m0_fom_phase(fom) > M0_FOPH_NR &&
 		  m0_fom_phase(fom) <= M0_FOPH_IO_BUFFER_RELEASE);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

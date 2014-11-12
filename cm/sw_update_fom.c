@@ -129,7 +129,7 @@ static int swu_store_init(struct m0_cm_sw_update *swu)
 		rc = M0_FSO_AGAIN;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int swu_store_init_wait(struct m0_cm_sw_update *swu)
@@ -148,18 +148,18 @@ static int swu_store_init_wait(struct m0_cm_sw_update *swu)
 	case M0_BTS_ACTIVE :
 		rc = m0_cm_sw_store_commit(cm, tx);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		break;
 	case M0_BTS_DONE :
 		rc = tx->t_sm.sm_rc;
 		m0_be_tx_fini(tx);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		rc = m0_cm_sw_store_load(cm, &sw);
 		if (rc == -ENOENT)
 			rc = 0;
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		cm->cm_last_saved_sw_hi = sw.sw_lo;
 		m0_fom_phase_move(fom, 0, SWU_UPDATE);
 		return M0_FSO_AGAIN;
@@ -182,7 +182,7 @@ static int swu_update(struct m0_cm_sw_update *swu)
 	M0_PRE(m0_cm_is_locked(cm));
 	rc = m0_cm_sw_local_update(cm);
 	if (rc == M0_FSO_WAIT)
-		return rc;
+		return M0_RC(rc);
 	if (rc == 0 || rc == -ENOSPC || rc == -ENOENT) {
 		if (rc == -ENOENT) {
 			swu->swu_is_complete = true;
@@ -194,7 +194,7 @@ static int swu_update(struct m0_cm_sw_update *swu)
 		rc = M0_FSO_AGAIN;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int swu_store(struct m0_cm_sw_update *swu)
@@ -233,7 +233,7 @@ static int swu_store(struct m0_cm_sw_update *swu)
 	m0_dtx_opened(tx);
 	rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &sw);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	m0_fom_wait_on(fom, &tx->tx_betx.t_sm.sm_chan, &fom->fo_cb);
 	m0_dtx_done(tx);
 	m0_fom_phase_move(fom, rc, SWU_STORE_WAIT);
@@ -281,7 +281,7 @@ static int swu_complete(struct m0_cm_sw_update *swu)
 	sprintf(cm_sw_name, "cm_sw_%llu", (unsigned long long)cm->cm_id);
 	rc = m0_be_seg_dict_lookup(seg, cm_sw_name, (void**)&sw);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	M0_LOG(M0_DEBUG, "sw = %p", sw);
         if (tx->tx_state < M0_DTX_INIT) {
                 m0_dtx_init(tx, seg->bs_domain,
@@ -351,7 +351,7 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 		rc = M0_FSO_WAIT;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void cm_swu_fom_fini(struct m0_fom *fom)

@@ -232,7 +232,7 @@ cons_fop_iterate(struct m0_fop *fop, enum m0_cons_data_process_type type)
 		case M0_XCODE_CURSOR_PRE:
 			rc = m0_xcode_alloc_obj(it, m0_xcode_alloc);
 			if (rc != 0)
-				return rc;
+				return M0_RC(rc);
 			++fop_depth;
 			depth_print(fop_depth);
 
@@ -284,7 +284,7 @@ M0_INTERNAL int m0_cons_fop_fields_show(struct m0_fop *fop)
 	rc = cons_fop_iterate(fop, CONS_IT_SHOW);
 	m0_console_verbose = vo;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

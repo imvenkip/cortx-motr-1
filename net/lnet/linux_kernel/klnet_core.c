@@ -1188,7 +1188,7 @@ fail_free_kd:
 	m0_free(kd);
 	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL(rc, K_DOM_INIT, &dom->nd_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1326,7 +1326,7 @@ fail_free_kb:
 	m0_free(kb);
 	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL(rc, K_BUF_REG, &kd->kd_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void nlx_core_buf_deregister(struct nlx_core_domain *cd,
@@ -1371,7 +1371,7 @@ static int nlx_kcore_buf_msg_recv(struct nlx_kcore_transfer_mc *ktm,
 	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, KC_BUF_MRECV, &ktm->ktm_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,	/* not used */
@@ -1417,7 +1417,7 @@ static int nlx_kcore_buf_msg_send(struct nlx_kcore_transfer_mc *ktm,
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, KC_BUF_MSEND, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_msg_send(struct nlx_core_domain *cd,	/* not used */
@@ -1469,7 +1469,7 @@ static int nlx_kcore_buf_active_recv(struct nlx_kcore_transfer_mc *ktm,
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, KC_BUF_ARECV, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_active_recv(struct nlx_core_domain *cd,	/* not used */
@@ -1521,7 +1521,7 @@ static int nlx_kcore_buf_active_send(struct nlx_kcore_transfer_mc *ktm,
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, KC_BUF_ASEND, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_active_send(struct nlx_core_domain *cd,	/* not used */
@@ -1572,7 +1572,7 @@ static int nlx_kcore_buf_passive_recv(struct nlx_kcore_transfer_mc *ktm,
 	rc = NLX_kcore_LNetMDAttach(ktm, cb, kb, &umd);
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, KC_BUF_PRECV, &ktm->ktm_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,	/* not used */
@@ -1625,7 +1625,7 @@ static int nlx_kcore_buf_passive_send(struct nlx_kcore_transfer_mc *ktm,
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, KC_BUF_PSEND, &ktm->ktm_addb_ctx);
 	nlx_kcore_kiov_restore_length(kb);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_passive_send(struct nlx_core_domain *cd,	/* not used */
@@ -1942,7 +1942,7 @@ fail_with_eq:
 fail:
 	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL(rc, KC_TM_START, &kd->kd_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
@@ -1993,7 +1993,7 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	m0_free(ktm);
 	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL(rc, K_TM_START, &tm->ntm_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void nlx_core_fini(void)
@@ -2025,7 +2025,7 @@ static int nlx_core_init(void)
 	/* Init LNet with same PID as Lustre would use in case we are first. */
 	rc = LNetNIInit(LUSTRE_SRV_LNET_PID);
 	if (rc < 0)
-		return rc;
+		return M0_RC(rc);
 
 	m0_mutex_init(&nlx_kcore_mutex);
 	tms_tlist_init(&nlx_kcore_tms);
@@ -2059,7 +2059,7 @@ static int nlx_core_init(void)
 	if (rc != 0)
 		nlx_core_fini();
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static struct nlx_kcore_ops nlx_kcore_def_ops = {

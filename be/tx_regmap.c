@@ -290,7 +290,7 @@ M0_INTERNAL int m0_be_regmap_init(struct m0_be_regmap *rm,
 	rm->br_ops_data = ops_data;
 
 	M0_POST(ergo(rc == 0, m0_be_regmap__invariant(rm)));
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_regmap_fini(struct m0_be_regmap *rm)
@@ -443,7 +443,7 @@ M0_INTERNAL int m0_be_reg_area_init(struct m0_be_reg_area *ra,
 		M0_SET0(ra);
 
 	M0_POST(ergo(rc == 0, m0_be_reg_area__invariant(ra)));
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_reg_area_fini(struct m0_be_reg_area *ra)

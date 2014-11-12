@@ -487,7 +487,7 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 				 recv_queue_min_length);
 	if (rc != 0)
 		m0_free(rpcmach);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int cs_rpc_machines_init(struct m0_mero *cctx)
@@ -600,7 +600,7 @@ static int cs_buffer_pool_setup(struct m0_mero *cctx)
 
 	if (rc != 0)
 		cs_buffer_pool_fini(cctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
@@ -989,7 +989,7 @@ cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_mero *cctx)
 	return 0;
 err:
 	m0_free(ndom); /* freeing NULL does not hurt */
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1061,7 +1061,7 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 	m0_dtx_fini(&tx);
 end:
 	m0_sm_group_unlock(grp);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1563,7 +1563,7 @@ service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
 	rc = m0_uuid_parse(++colon, uuid);
 	if (rc != 0)
 		m0_free0(svc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Parses CLI arguments, filling m0_mero structure. */
@@ -1808,7 +1808,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 
 	if (rc < 0)
 		M0_LOG(M0_ERROR, "m0_cs_setup_env: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 int m0_cs_start(struct m0_mero *cctx)

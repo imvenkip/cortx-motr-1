@@ -224,7 +224,7 @@ M0_INTERNAL int m0_addb_monitor_stats_svc_conn_init(struct m0_reqh *reqh)
 		return M0_RC(rc);
 	}
 	mon_ctx->amc_stats_ep = stats_svc_ep;
-	return rc;
+	return M0_RC(rc);
 }
 #endif
 
@@ -266,7 +266,7 @@ M0_INTERNAL int m0_addb_monitors_init(struct m0_reqh *reqh)
 
 	mon_ctx->amc_magic = M0_ADDB_MONITOR_CTX_MAGIC;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool m0_addb_monitor_invariant(struct m0_addb_monitor *mon)
@@ -480,7 +480,7 @@ static int addb_monitor_stats_fop_send(struct m0_stats_update_fop *fop_data,
 	rc = m0_rpc_oneway_item_post(conn, item);
 	m0_fop_put_lock(stats_update_fop);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_addb_monitor_summaries_post(struct m0_reqh       *reqh,

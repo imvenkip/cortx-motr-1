@@ -149,7 +149,7 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
 	if (rc != 0)
 		m0_varr_fini(arr);
 	M0_POST_EX(ergo(rc == 0, varr_invariant(arr)));
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL uint8_t nearest_power_of_two(size_t num)
@@ -255,7 +255,7 @@ M0_INTERNAL int varr_buffers_alloc(struct m0_varr *arr)
 		} while (m0_varr_cursor_next(&cursor));
 	}
 end:
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,

@@ -239,7 +239,7 @@ static int addb_segsize_decode(struct m0_bufvec *buf)
 		rc = -EINVAL;
 	else
 		rc = header.sh_segsize;
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -265,7 +265,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	header_size = max64u(sizeof(struct m0_addb_seg_header), 1 << bshift);
 	rc = m0_bufvec_alloc_aligned(&sri_buf, 1, header_size, bshift);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	m0_stob_io_init(&sri_io);
 	sri_io.si_opcode = SIO_READ;
@@ -307,7 +307,7 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	m0_stob_io_fini(&sri_io);
 	m0_bufvec_free_aligned(&sri_buf, bshift);
 	M0_POST(rc != 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
@@ -408,7 +408,7 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 
 	si->ssi_base.asi_seq_nr = 0;
 	M0_POST(rc <= 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 static uint64_t stob_segment_iter_seq_get(struct m0_addb_segment_iter *iter)
@@ -515,7 +515,7 @@ static int file_segment_iter_next(struct m0_addb_segment_iter *iter,
 
 	fi->fsi_base.asi_seq_nr = 0;
 	M0_POST(rc <= 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 static uint64_t file_segment_iter_seq_get(struct m0_addb_segment_iter *iter)
@@ -562,7 +562,7 @@ static int addb_segment_iter_nextbuf(struct m0_addb_segment_iter *iter,
 	if (rc == 0)
 		rc = -ENODATA;
 	if (rc < 0)
-		return rc;
+		return M0_RC(rc);
 
 	ai = container_of(iter, struct addb_segment_iter, asi_base);
 	*bv = &ai->asi_buf;
@@ -616,7 +616,7 @@ static int addb_cursor_next(struct m0_addb_cursor *cur,
 		}
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /** @} */ /* end of addb_retrieval_pvt group */
@@ -654,7 +654,7 @@ M0_INTERNAL int m0_addb_stob_iter_alloc(struct m0_addb_segment_iter **iter,
 	rc = stob_retrieval_segsize_get(stob);
 	if (rc < 0) {
 		m0_free(si);
-		return rc;
+		return M0_RC(rc);
 	}
 	si->ssi_base.asi_segsize = rc;
 	bshift = m0_stob_block_shift(stob);
@@ -664,7 +664,7 @@ M0_INTERNAL int m0_addb_stob_iter_alloc(struct m0_addb_segment_iter **iter,
 				     si->ssi_base.asi_segsize, bshift);
 	if (rc != 0) {
 		m0_free(si);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	trailer_size = max64u(sizeof(struct m0_addb_seg_trailer), 1 << bshift);
@@ -673,7 +673,7 @@ M0_INTERNAL int m0_addb_stob_iter_alloc(struct m0_addb_segment_iter **iter,
 	if (rc != 0) {
 		m0_bufvec_free_aligned(&si->ssi_base.asi_buf, bshift);
 		m0_free(si);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	m0_stob_get(stob);
@@ -750,7 +750,7 @@ M0_INTERNAL int m0_addb_file_iter_alloc(struct m0_addb_segment_iter **iter,
 	if (rc < 0) {
 		fclose(infile);
 		m0_free(fi);
-		return rc;
+		return M0_RC(rc);
 	}
 	fi->fsi_base.asi_segsize = rc;
 	rc = m0_bufvec_alloc(&fi->fsi_base.asi_buf, 1, rc);
@@ -761,7 +761,7 @@ M0_INTERNAL int m0_addb_file_iter_alloc(struct m0_addb_segment_iter **iter,
 		fi->fsi_base.asi_magic = M0_ADDB_FILERET_MAGIC;
 		*iter = &fi->fsi_base.asi_base;
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_addb_segment_iter_free(struct m0_addb_segment_iter *iter)
@@ -798,7 +798,7 @@ M0_INTERNAL int m0_addb_cursor_next(struct m0_addb_cursor *cur,
 		    M0_ADDB_CURSOR_REC_CTX : M0_ADDB_CURSOR_REC_EVENT;
 	} while ((cur->ac_flags & match) == 0);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_addb_cursor_fini(struct m0_addb_cursor *cur)

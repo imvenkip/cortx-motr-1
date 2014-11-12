@@ -263,7 +263,7 @@ mds_layout_add(struct m0_reqh_md_service *mds, struct m0_layout *l, uint64_t lid
 
 	m0_buf_free(&buf);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /* start from 1 */

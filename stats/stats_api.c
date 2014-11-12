@@ -135,7 +135,7 @@ int m0_stats_query(struct m0_rpc_session     *session,
 	rc = m0_rpc_post_sync(fop, session, NULL, 0);
 	if (rc != 0) {
 		m0_fop_put_lock(fop);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rfop  = m0_rpc_item_to_fop(item->ri_reply);
@@ -144,7 +144,7 @@ int m0_stats_query(struct m0_rpc_session     *session,
 	*stats = stats_recs_dup(&qrfop->sqrf_stats);
 
 	m0_fop_put_lock(fop);
-	return rc;
+	return M0_RC(rc);
 }
 
 void m0_stats_free(struct m0_stats_recs *stats)

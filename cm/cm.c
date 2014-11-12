@@ -676,7 +676,7 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /*
@@ -720,7 +720,7 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 		}
 	} m0_tl_endfor;
 	M0_LOG(M0_DEBUG, "Connected to its proxies from local ep %s", lep);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
@@ -759,7 +759,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	}
 out:
 	m0_cm_unlock(cm);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
@@ -779,7 +779,7 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool m0_cm_is_ready(struct m0_cm *cm)
@@ -816,7 +816,7 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cm_proxies_fini(struct m0_cm *cm)
@@ -863,7 +863,7 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void cm_xc_init()
@@ -1002,7 +1002,7 @@ M0_INTERNAL int m0_cm_type_register(struct m0_cm_type *cmtype)
 	}
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cm_type_deregister(struct m0_cm_type *cmtype)
@@ -1044,7 +1044,7 @@ M0_INTERNAL int m0_cm_data_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 		     cp_data_buf_tlist_length(&cp->c_buffers) == cp->c_buf_nr));
 
 	M0_LEAVE("rc: %d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool m0_cm_has_more_data(const struct m0_cm *cm)

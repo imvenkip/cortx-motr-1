@@ -205,7 +205,7 @@ M0_INTERNAL int m0_ios_register(void)
 	if (rc != 0) {
 		/* revert the fsync initialization */
 		m0_mdservice_fsync_fop_fini();
-		return M0_ERR(rc, "Unable to initialize ioservice fop");
+		return M0_ERR_INFO(rc, "Unable to initialize ioservice fop");
 	}
 
 	m0_addb_rec_type_register(&m0_addb_rt_ios_rwfom_finish);
@@ -329,7 +329,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 	} m0_tl_endfor; /* rpc_machines */
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -455,14 +455,14 @@ static int ios_start(struct m0_reqh_service *service)
 	/** @todo what should be cob dom id? */
 	rc = m0_ios_cdom_get(service->rs_reqh, &serv_obj->rios_cdom);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
 		/* Cleanup required for already created buffer pools. */
 		ios_delete_buffer_pool(service);
 		m0_ios_cdom_fini(service->rs_reqh);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = m0_ios_poolmach_init(service);
@@ -470,7 +470,7 @@ static int ios_start(struct m0_reqh_service *service)
 		ios_delete_buffer_pool(service);
 		m0_ios_cdom_fini(service->rs_reqh);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static void ios_prepare_to_stop(struct m0_reqh_service *service)
@@ -553,7 +553,7 @@ cdom_fini:
 	m0_cob_domain_fini(cdom);
 out:
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
@@ -788,7 +788,7 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 
 	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	imc = m0_ios_mds_conn_map_hash(imc_map, gfid);
 	if (!imc->imc_connected)
@@ -816,7 +816,7 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 			rc = rep_fop_cob->b_rc;
 	}
 	m0_fop_put_lock(req);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -852,7 +852,7 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 
 	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	/* mds 0 is used for layout */
 	imc = imc_map->imc_map[0];
@@ -1003,7 +1003,7 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 	/* This might block on first call. */
 	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	imc = m0_ios_mds_conn_map_hash(imc_map, gfid);
 
 	if (!imc->imc_connected)
@@ -1020,7 +1020,7 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 		req->f_item.ri_ops = &getattr_fop_rpc_item_ops;
 	} else {
 		m0_free(mdsop);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	mdsop->mo_cb  = cb;
@@ -1036,7 +1036,7 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 	M0_LOG(M0_DEBUG, "ios getattr sent asynchronously: rc = %d", rc);
 
 	m0_fop_put_lock(req);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void getlayout_rpc_item_reply_cb(struct m0_rpc_item *item)
@@ -1113,7 +1113,7 @@ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
 
 	rc = m0_ios_mds_conn_get(reqh, &imc_map);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	/* mds 0 is used for layout */
 	imc = imc_map->imc_map[0];
@@ -1131,7 +1131,7 @@ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
 		req->f_item.ri_ops = &getlayout_fop_rpc_item_ops;
 	} else {
 		m0_free(mdsop);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	mdsop->mo_cb  = cb;

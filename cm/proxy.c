@@ -324,7 +324,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	if (rc != 0) {
 		m0_fop_put_lock(fop);
 		m0_free(sw_fop);
-		return rc;
+		return M0_RC(rc);
 	}
 	sw_fop->pso_proxy = proxy;
 	deadline = m0_time_from_now(1, 0);
@@ -337,7 +337,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	       proxy->px_endpoint, M0_AG_P(&sw->sw_hi));
 
 	M0_LEAVE("%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cm_proxy_rpc_conn_close(struct m0_cm_proxy *pxy)

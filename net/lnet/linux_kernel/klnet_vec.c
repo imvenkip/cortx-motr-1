@@ -167,7 +167,7 @@ M0_INTERNAL int nlx_kcore_buffer_kla_to_kiov(struct nlx_kcore_buffer *kb,
 fail:
 	M0_ASSERT(rc != 0);
 	LNET_ADDB_FUNCFAIL(rc, K_BUF_KLA2KIOV, kb->kb_addb_ctxp);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -221,7 +221,7 @@ fail_page:
 		WRITABLE_USER_PAGE_PUT(kiov[--pnum].kiov_page);
 	M0_ASSERT(rc < 0);
 	LNET_ADDB_FUNCFAIL(rc, K_SEG_UVA2KIOV, kb->kb_addb_ctxp);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -287,7 +287,7 @@ fail_pages:
 fail:
 	M0_ASSERT(rc < 0);
 	LNET_ADDB_FUNCFAIL(rc, K_BUF_UVA2KIOV, kb->kb_addb_ctxp);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

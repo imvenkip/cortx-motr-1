@@ -814,7 +814,7 @@ del_loop:
 out:
 	M0_POST_EX(btree_invariant(btree));
 	M0_LEAVE("rc=%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void node_push(struct m0_be_btree_cursor *it, struct m0_be_bnode *node,
@@ -1745,7 +1745,7 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
 	rc = op_tree(op)->t_rc;
 	m0_be_op_fini(op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int btree_cursor_seek(struct m0_be_btree_cursor *cur, void *key)
@@ -1887,7 +1887,7 @@ M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *cur)
 	rc = op_tree(op)->t_rc;
 	m0_be_op_fini(op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *cur)
@@ -1902,7 +1902,7 @@ M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *cur)
 	rc = op_tree(op)->t_rc;
 	m0_be_op_fini(op);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *cursor)

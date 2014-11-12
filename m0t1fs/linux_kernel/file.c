@@ -1167,7 +1167,7 @@ static int user_page_map(struct data_buf *dbuf, unsigned long user_addr)
 		if (kmapped != NULL)
 			data_buf_init(dbuf, kmapped, 0);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static void user_page_unmap(struct data_buf *dbuf, bool set_dirty)
@@ -2419,7 +2419,7 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 			          &dev_state);
 		M0_ASSERT(rc == 0);
 		if (dev_state == M0_PNDS_SNS_REPAIRED)
-			return rc;
+			return M0_RC(rc);
 	}
 	map->pi_state = PI_DEGRADED;
 	++map->pi_ioreq->ir_dgmap_nr;
@@ -2512,7 +2512,7 @@ static int io_spare_map(const struct pargrp_iomap *map,
 	spare.sa_group = src->sa_group;
 	spare.sa_unit = *spare_slot_prev;
 	rc = unit_state(&spare, map->pi_ioreq, eff_state);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int unit_state(const struct m0_pdclust_src_addr *src,
@@ -2539,7 +2539,7 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 				  rc, &m0t1fs_addb_ctx);
 		return M0_RC(rc);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)

@@ -289,7 +289,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d", reqh, poolmach_key);
 out:
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
@@ -385,7 +385,7 @@ m0_ios_poolmach_version_updates_pack(struct m0_poolmach         *pm,
 
 out:
 	poolmach_events_tlist_fini(&events_list);
-	return rc;
+	return M0_RC(rc);
 
 }
 

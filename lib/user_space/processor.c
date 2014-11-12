@@ -249,7 +249,7 @@ static int processor_map_type_set(enum map map_type)
 	rc = m0_bitmap_init(pbitmap, sys_cpus.pss_max);
 	if (rc == 0)
 		processor_map_set(pbitmap, buf);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -828,7 +828,7 @@ static int processors_summary_get()
 		int rc2 = chdir(cwd);
 		if (rc2 != 0)
 			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = processor_map_type_set(PROCESSORS_AVAIL_MAP);
@@ -838,7 +838,7 @@ static int processors_summary_get()
 		rc2 = chdir(cwd);
 		if (rc2 != 0)
 			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = processor_map_type_set(PROCESSORS_ONLN_MAP);
@@ -849,7 +849,7 @@ static int processors_summary_get()
 		rc2 = chdir(cwd);
 		if (rc2 != 0)
 			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	m0_list_init(&sys_cpus.pss_head);
@@ -913,7 +913,7 @@ M0_INTERNAL int m0_processors_init()
 	M0_PRE(!processor_init);
 	rc = processors_summary_get();
 	processor_init = (rc == 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_processors_fini()

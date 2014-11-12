@@ -233,7 +233,7 @@ static int confx_obj_dup(struct confx_allocator *alloc,
 		rc = m0_xcode_dup(&cctx.c_xctx, &sctx);
 	}
 	*dest = cctx.c_xctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
@@ -322,7 +322,7 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 
 	rc = confdb_table_init(seg, &btree, tx);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	rc = confx_allocator_init(&alloc, conf, seg, tx);
 	for (i = 0; i < conf->cx_nr && rc == 0; ++i) {
 		struct confx_obj_ctx  obj_ctx;
@@ -519,7 +519,7 @@ M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
 
 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = confdb_objs_count(btree, &nr_objs);
 	if (rc != 0)

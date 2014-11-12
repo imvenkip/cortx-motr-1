@@ -101,7 +101,7 @@ int m0_be_0type_add(struct m0_be_0type	*zt,
 	M0_BE_TX_CAPTURE_BUF(seg, tx, opt);
 	rc = m0_be_seg_dict_insert(seg, tx, keyname, (void*)opt);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	/* XXX error handling is missing here: what if b0_init() fails? */
 	return zt->b0_init(dom, suffix, opt);
@@ -126,7 +126,7 @@ int m0_be_0type_del(struct m0_be_0type	*zt,
 
 	rc = m0_be_seg_dict_lookup(seg, keyname, (void**)&opt);
 	if (rc != 0)
-		return rc; /* keyname is not found -- nothing to delete */
+		return M0_RC(rc); /* keyname is not found -- nothing to delete */
 
 	zt->b0_fini(dom, suffix, opt);
 	M0_BE_FREE_PTR_SYNC(opt->b_addr, seg, tx);

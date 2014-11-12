@@ -471,7 +471,7 @@ M0_INTERNAL int m0_addb_mc_configure_cache_evmgr(struct m0_addb_mc *mc,
 	mc->am_evmgr = evmgr;
 	(*evmgr->evm_get)(mc, evmgr);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0__addb_post(struct m0_addb_mc *mc,

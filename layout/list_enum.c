@@ -222,7 +222,7 @@ err1_injected:
 	}
 	M0_POST(ergo(rc == 0, list_invariant(*out)));
 	M0_LEAVE("domain %p, rc %d", dom, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static struct m0_layout_list_enum
@@ -292,7 +292,7 @@ err2_injected:
 		m0_free(lsd);
 	}
 	M0_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of leto_unregister for LIST enumeration type. */
@@ -349,7 +349,7 @@ err1_injected:
 			       "m0_db_cursor_init() failed",
 			       M0_LAYOUT_ADDB_LOC_NON_INLINE_READ_1,
 			       &stl->sl_base.l_addb_ctx, stl->sl_base.l_id, rc);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	key.clk_lid       = stl->sl_base.l_id;
@@ -390,7 +390,7 @@ out:
 	m0_db_pair_fini(&pair);
 	m0_db_cursor_fini(&cursor);
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)stl->sl_base.l_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of leo_decode() for LIST enumeration type. */
@@ -481,7 +481,7 @@ out:
 	M0_POST(ergo(rc == 0, list_invariant(list_enum)));
 	M0_POST(ergo(rc != 0, list_allocated_invariant(list_enum)));
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int noninline_write(const struct m0_layout_enum *e,
@@ -521,7 +521,7 @@ err1_injected:
 			       M0_LAYOUT_ADDB_LOC_NON_INLINE_WRITE_1,
 			       &e->le_sl->sl_base.l_addb_ctx,
 			       (unsigned long long)e->le_sl->sl_base.l_id, rc);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	key.clk_lid = e->le_sl->sl_base.l_id;
@@ -583,7 +583,7 @@ out:
 	m0_db_cursor_fini(&cursor);
 	M0_LEAVE("lid %llu, rc %d",
 		 (unsigned long long)e->le_sl->sl_base.l_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of leo_encode() for LIST enumeration type. */
@@ -650,7 +650,7 @@ static int list_encode(const struct m0_layout_enum *e,
 	}
 
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of leo_nr for LIST enumeration. */

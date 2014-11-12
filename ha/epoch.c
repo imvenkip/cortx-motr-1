@@ -165,7 +165,7 @@ M0_INTERNAL int m0_ha_epoch_check(const struct m0_rpc_item *item)
 out:
 	m0_ha_domain_put_write(ha_dom, epoch);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

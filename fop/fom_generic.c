@@ -88,7 +88,7 @@ uint32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *reply)
 			M0_LOG(M0_ERROR, "Receiver reported error: %d \"%s\"",
 			       rc,
 			       (char*)reply_fop->gr_msg.s_buf ?: strerror(rc));
-		return rc;
+		return M0_RC(rc);
 	} else
 		return 0;
 }
@@ -264,7 +264,7 @@ static int fom_tx_open(struct m0_fom *fom)
 		int rc;
 		rc = m0_fop_fol_add(fom->fo_fop, fom->fo_rep_fop, dtx);
 		if (rc < 0)
-			return rc;
+			return M0_RC(rc);
 	}
 
 	m0_dtx_open(dtx);
@@ -806,7 +806,7 @@ int m0_fom_tick_generic(struct m0_fom *fom)
 
 	M0_LEAVE("fom=%p phase=%s rc=%d", fom,
 		m0_fom_phase_name(fom, m0_fom_phase(fom)), rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** @} end of fom group */

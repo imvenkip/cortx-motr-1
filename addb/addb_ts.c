@@ -327,7 +327,7 @@ static int addb_ts_extend(struct m0_addb_ts *ts, uint32_t npages)
 	if (rc != 0)
 		goto cleanup;
 
-	return rc;
+	return M0_RC(rc);
 cleanup:
 	while (pidx > orig_pidx) {
 		--pidx;

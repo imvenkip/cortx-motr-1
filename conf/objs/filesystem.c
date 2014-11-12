@@ -57,7 +57,7 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 	d->cf_rootfid = s->xf_rootfid;
 	rc = m0_bufs_to_strings(&d->cf_params, &s->xf_params);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = dir_new(cache, &dest->co_id, &M0_CONF_FILESYSTEM_SERVICES_FID,
 		     &M0_CONF_SERVICE_TYPE, &s->xf_services, &d->cf_services);
@@ -67,7 +67,7 @@ static int filesystem_decode(struct m0_conf_obj *dest,
 		strings_free(d->cf_params);
 		d->cf_params = NULL; /* make invariant happy */
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int
@@ -82,12 +82,12 @@ filesystem_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	rc = m0_bufs_from_strings(&d->xf_params, s->cf_params);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = arrfid_from_dir(&d->xf_services, s->cf_services);
 	if (rc != 0)
 		m0_bufs_free(&d->xf_params);
-	return rc;
+	return M0_RC(rc);
 }
 
 static bool filesystem_match(const struct m0_conf_obj *cached,

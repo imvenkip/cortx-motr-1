@@ -144,7 +144,7 @@ out:
 
 	M0_LEAVE("rc: %d", rc);
 	M0_ASSERT(rc != 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0t1fs_fini(void)

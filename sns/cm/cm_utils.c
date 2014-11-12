@@ -83,14 +83,14 @@ m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx)
 				&le->lle_base, &pl);
 		if (rc != 0) {
 			m0_layout_enum_fini(&le->lle_base);
-			return rc;
+			return M0_RC(rc);
 		}
 	}
 	fctx->sf_layout = m0_pdl_to_layout(pl);
 out:
 	fctx->sf_attr.ca_size = SNS_DEFAULT_FILE_SIZE;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /* End of UT specific code. */

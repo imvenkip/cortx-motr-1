@@ -598,7 +598,7 @@ M0_INTERNAL int m0_processors_init()
 	M0_PRE(!processor_init);
 	rc = processor_x86cache_create();
 	processor_init = (rc == 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_processors_fini()

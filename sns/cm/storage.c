@@ -51,7 +51,7 @@ static int ivec_prepare(struct m0_indexvec *iv, m0_bindex_t idx,
 
 	rc = m0_indexvec_alloc(iv, seg_nr, ctx, M0_ADDB_CTXID_SNS_CM);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	for (i = 0; i < seg_nr; ++i) {
 		iv->iv_vec.v_count[i] = seg_size >> bshift;
@@ -128,14 +128,14 @@ static int cp_prepare(struct m0_cm_cp *cp,
 	rc = ivec_prepare(dst_ivec, start_idx, data_seg_nr, seg_size, ctx,
 			  bshift);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = bufvec_prepare(dst_bvec, &cp->c_buffers, data_seg_nr, seg_size,
 			    bshift);
 	if (rc != 0)
 		m0_indexvec_free(dst_ivec);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)

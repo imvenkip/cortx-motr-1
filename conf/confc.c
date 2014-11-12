@@ -774,7 +774,7 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 	confc_unlock(m0_confc_from_obj(dir));
 
 	M0_LEAVE("retval=%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
@@ -796,7 +796,7 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 
 	sm_waiter_fini(&w);
 	M0_LEAVE("retval=%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 
@@ -1061,7 +1061,7 @@ static int path_walk(struct m0_confc_ctx *ctx)
 
 	M0_POST(confc_group_is_locked(ctx->fc_confc));
 	M0_LEAVE("retval=%d", rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -1534,7 +1534,7 @@ M0_INTERNAL int m0_conf_fs_get(const char *profile,
 		m0_confc_fini(confc);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /** @} confc_dlspec */

@@ -131,7 +131,7 @@ M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	if (rc != 0) {
 		IOS_ADDB_FUNCFAIL(rc, COB_FOM_CREATE_1, &m0_ios_addb_ctx);
 
-		return rc;
+		return M0_RC(rc);
 	}
 	fom = *out;
 	M0_ASSERT(fom != NULL);
@@ -147,7 +147,7 @@ M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop, reqh);
 	cob_fom_populate(fom);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int cob_op_fom_create(struct m0_fom **out)
@@ -264,14 +264,14 @@ static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 
 	rc = m0_stob_find(&co->fco_stob_fid, &co->fco_stob);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 	if (m0_stob_state_get(co->fco_stob) == CSS_UNKNOWN)
 		   rc = m0_stob_locate(co->fco_stob);
 	if (rc == 0 && m0_stob_state_get(co->fco_stob) == CSS_NOENT)
 		rc = -ENOENT;
 	m0_stob_put(co->fco_stob);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int cob_ops_fom_tick(struct m0_fom *fom)
@@ -357,11 +357,11 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 				if (rc == M0_FSO_AGAIN)
 					m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 				else
-					return rc;
+					return M0_RC(rc);
 			}
 		}
 		rc = m0_fom_tick_generic(fom);
-		return rc;
+		return M0_RC(rc);
 	}
 	if (fop_is_create)
 		ops = "Create";
@@ -508,7 +508,7 @@ static int cc_stob_create_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 	} else {
 		m0_stob_create_credit(sdom, m0_fom_tx_credit(fom));
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
@@ -536,7 +536,7 @@ static int cc_stob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 		if (stob != NULL)
 			m0_stob_put(stob);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static struct m0_cob_domain *cdom_get(struct m0_fom *fom)
@@ -597,7 +597,7 @@ static int cc_cob_create(struct m0_fom *fom, struct m0_fom_cob_op *cc)
 
 	rc = m0_cc_cob_setup(cc, cdom, tx);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
@@ -617,7 +617,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
 	M0_SET0(&nsrec);
         rc = m0_cob_alloc(cdom, &cob);
         if (rc)
-                return rc;
+                return M0_RC(rc);
 
         M0_LOG(M0_DEBUG, "Creating cob for "FID_F"/%x",
                FID_P(&cc->fco_cfid), cc->fco_cob_idx);
@@ -626,7 +626,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
 	if (rc != 0) {
 		IOS_ADDB_FUNCFAIL(rc, CC_COB_CREATE_1, &m0_ios_addb_ctx);
 	        m0_cob_put(cob);
-		return rc;
+		return M0_RC(rc);
 	}
 
         io_fom_cob_rw_stob2fid_map(&cc->fco_stob_fid, &nsrec.cnr_fid);
@@ -636,7 +636,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
 	if (rc) {
 		m0_free(nskey);
 		m0_cob_put(cob);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	fabrec->cfb_version = ctx->t_id;
@@ -661,7 +661,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op *cc,
 	}
 	m0_cob_put(cob);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static void cd_fom_fini(struct m0_fom *fom)
@@ -719,7 +719,7 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	rc = m0_cob_locate(cdom, &oikey, 0, &cob);
 	if (rc != 0) {
 		IOS_ADDB_FUNCFAIL(rc, CD_COB_DELETE_1, &m0_ios_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	M0_ASSERT(cob != NULL);
@@ -729,7 +729,7 @@ static int cd_cob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 	else
 		M0_LOG(M0_DEBUG, "Cob deleted successfully.");
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int cd_stob_delete_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
@@ -752,17 +752,17 @@ static int cd_stob_delete_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 		 */
 		rc = m0_stob_lookup(&cc->fco_stob_fid, &cc->fco_stob);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		stob = cc->fco_stob;
 		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 		M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		M0_ASSERT(stob != NULL);
 		rc = m0_stob_destroy_credit(stob, accum);
 		m0_stob_put(stob);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
@@ -783,7 +783,7 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 		 */
 		rc = m0_stob_lookup(&cd->fco_stob_fid, &cd->fco_stob);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		stob = cd->fco_stob;
 		M0_ASSERT(stob != NULL);
 		rc = m0_stob_destroy(stob, &fom->fo_tx);
@@ -796,7 +796,7 @@ static int cd_stob_delete(struct m0_fom *fom, struct m0_fom_cob_op *cd)
 			M0_LOG(M0_DEBUG, "Stob deleted successfully.");
 		}
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

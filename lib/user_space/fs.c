@@ -38,7 +38,7 @@ M0_INTERNAL int m0_cleandir(const char *dir)
 			return 0;
 		rc = -errno;
 		M0_LOG(M0_NOTICE, "open(%s) failed: rc=%d", dir, rc);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	d = opendir(dir);
@@ -53,7 +53,7 @@ M0_INTERNAL int m0_cleandir(const char *dir)
 	if (rc != 0)
 		M0_LOG(M0_ERROR, "rmdir(%s) failed: rc=%d", dir, rc);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

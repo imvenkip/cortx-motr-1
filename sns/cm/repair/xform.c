@@ -188,7 +188,7 @@ static int res_cp_enqueue(struct m0_cm_cp *cp)
 
 out:
 	m0_sns_cm_cp_addb_log(cp);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
@@ -217,17 +217,17 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 						ag->cag_cp_local_nr)) {
 			rc = res_cp_enqueue(acc);
 			if (rc != 0)
-				return rc;
+				return M0_RC(rc);
 			fc->fc_is_active = true;
 	} else if (rc == -ENOENT &&
 		   (m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_local_nr))) {
 		rc = res_cp_enqueue(acc);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		fc->fc_is_active = true;
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -324,7 +324,7 @@ out:
 	rc = M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

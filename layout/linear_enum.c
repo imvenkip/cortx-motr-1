@@ -155,7 +155,7 @@ M0_INTERNAL int m0_linear_enum_build(struct m0_layout_domain *dom,
 	}
 	M0_POST(ergo(rc == 0, linear_invariant(lin_enum)));
 	M0_LEAVE("domain %p, rc %d", dom, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 static struct m0_layout_linear_enum *
@@ -243,7 +243,7 @@ static int linear_decode(struct m0_layout_enum *e,
 	M0_POST(ergo(rc == 0, linear_invariant(lin_enum)));
 	M0_POST(ergo(rc != 0, linear_allocated_invariant(lin_enum)));
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 /** Implementation of leo_encode() for linear enumeration type. */

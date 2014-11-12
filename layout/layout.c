@@ -690,13 +690,13 @@ err1_injected:
 			       "m0_table_init() failed",
 			       M0_LAYOUT_ADDB_LOC_DOM_INIT, NULL,
 			       LID_NONE, rc);
-		return rc;
+		return M0_RC(rc);
 	}
 	dom->ld_dbenv = dbenv;
 	layout_tlist_init(&dom->ld_layout_list);
 	m0_mutex_init(&dom->ld_lock);
 	M0_POST(m0_layout__domain_invariant(dom));
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom)
@@ -729,22 +729,22 @@ M0_INTERNAL int m0_layout_standard_types_register(struct m0_layout_domain *dom)
 
 	rc = m0_layout_type_register(dom, &m0_pdclust_layout_type);
 	if (rc != 0)
-		return rc;
+		return M0_RC(rc);
 
 	rc = m0_layout_enum_type_register(dom, &m0_list_enum_type);
 	if (rc != 0) {
 		m0_layout_type_unregister(dom, &m0_pdclust_layout_type);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	rc = m0_layout_enum_type_register(dom, &m0_linear_enum_type);
 	if (rc != 0) {
 		m0_layout_type_unregister(dom, &m0_pdclust_layout_type);
 		m0_layout_enum_type_unregister(dom, &m0_list_enum_type);
-		return rc;
+		return M0_RC(rc);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_layout_standard_types_unregister(struct m0_layout_domain
@@ -789,7 +789,7 @@ err1_injected:
 	}
 	m0_mutex_unlock(&dom->ld_lock);
 	M0_LEAVE("Layout-type-id %lu, rc %d", (unsigned long)lt->lt_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_layout_type_unregister(struct m0_layout_domain *dom,
@@ -842,7 +842,7 @@ err1_injected:
 	}
 	m0_mutex_unlock(&dom->ld_lock);
 	M0_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)let->let_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_layout_enum_type_unregister(struct m0_layout_domain *dom,
@@ -1000,7 +1000,7 @@ err1_injected:
 	M0_POST(ergo(rc != 0, m0_layout__allocated_invariant(l)));
 	M0_POST(m0_mutex_is_locked(&l->l_lock));
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_layout_encode(struct m0_layout *l,
@@ -1038,7 +1038,7 @@ err1_injected:
 
 	M0_POST(m0_mutex_is_locked(&l->l_lock));
 	M0_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL m0_bcount_t m0_layout_max_recsize(const struct m0_layout_domain

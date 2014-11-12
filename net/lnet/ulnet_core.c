@@ -556,7 +556,7 @@ static int nlx_ucore_ioctl(int fd, unsigned long cmd, void *arg)
 
 	rc = ioctl(fd, cmd, arg);
 	if (rc >= 0)
-		return rc;
+		return M0_RC(rc);
 	M0_ASSERT(errno > 0);
 	M0_ASSERT(errno != EFAULT && errno != EBADR);
 	return -errno;
@@ -598,7 +598,7 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 		if (rc < 0) {
 			m0_free0(&dngp.dng_buf);
 			if (rc != -EFBIG)
-				return rc;
+				return M0_RC(rc);
 		}
 	}
 	nidstrs_nr = rc;
@@ -687,7 +687,7 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 	m0_free(ud);
 	LNET_ADDB_FUNCFAIL(rc, U_DOM_INIT, &dom->nd_addb_ctx);
 	M0_POST(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void nlx_core_dom_fini(struct nlx_core_domain *cd)
@@ -775,7 +775,7 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 		ub->ub_magic = 0;
 		m0_free(ub);
 		LNET_ADDB_FUNCFAIL(rc, U_BUF_REG, &ud->ud_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 	M0_ASSERT(cb->cb_kpvt != NULL);
 	M0_ASSERT(cb->cb_upvt == ub);
@@ -849,7 +849,7 @@ M0_INTERNAL int nlx_core_buf_msg_recv(struct nlx_core_domain *cd,
 			 M0_PRE(cb->cb_min_receive_size <= cb->cb_length);
 			 M0_PRE(cb->cb_max_operations > 0);
 			 );
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_msg_send(struct nlx_core_domain *cd,
@@ -861,7 +861,7 @@ M0_INTERNAL int nlx_core_buf_msg_send(struct nlx_core_domain *cd,
 			 M0_PRE(cb->cb_length > 0);
 			 M0_PRE(cb->cb_max_operations == 1);
 			 );
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_active_recv(struct nlx_core_domain *cd,
@@ -881,7 +881,7 @@ M0_INTERNAL int nlx_core_buf_active_recv(struct nlx_core_domain *cd,
 			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
 			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_active_send(struct nlx_core_domain *cd,
@@ -901,7 +901,7 @@ M0_INTERNAL int nlx_core_buf_active_send(struct nlx_core_domain *cd,
 			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
 			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,
@@ -921,7 +921,7 @@ M0_INTERNAL int nlx_core_buf_passive_recv(struct nlx_core_domain *cd,
 			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
 			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_passive_send(struct nlx_core_domain *cd,
@@ -941,7 +941,7 @@ M0_INTERNAL int nlx_core_buf_passive_send(struct nlx_core_domain *cd,
 			 M0_PRE(counter >= M0_NET_LNET_BUFFER_ID_MIN);
 			 M0_PRE(counter <= M0_NET_LNET_BUFFER_ID_MAX);
 			 );
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int nlx_core_buf_del(struct nlx_core_domain *cd,
@@ -949,7 +949,7 @@ M0_INTERNAL int nlx_core_buf_del(struct nlx_core_domain *cd,
 				 struct nlx_core_buffer *cb)
 {
 	NLX_UCORE_BUF_OP(M0_LNET_BUF_DEL, U_BUF_DEL, );
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef NLX_UCORE_BUF_OP
@@ -979,7 +979,7 @@ int nlx_core_buf_event_wait(struct nlx_core_domain *cd,
 		if (rc != -ETIMEDOUT) /* valid return value */
 			LNET_ADDB_FUNCFAIL(rc, U_BUF_EV_WAIT,
 					   &utm->utm_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 	return 0;
 }
@@ -1002,7 +1002,7 @@ M0_INTERNAL int nlx_core_nidstr_decode(struct nlx_core_domain *cd,
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_DECODE, &dnep);
 	if (rc < 0) {
 		LNET_ADDB_FUNCFAIL(rc, U_NID_DECODE, &ud->ud_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	*nid = dnep.dn_nid;
@@ -1027,7 +1027,7 @@ M0_INTERNAL int nlx_core_nidstr_encode(struct nlx_core_domain *cd,
 	rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTR_ENCODE, &dnep);
 	if (rc < 0) {
 		LNET_ADDB_FUNCFAIL(rc, U_NID_ENCODE, &ud->ud_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 	M0_POST(dnep.dn_buf[0] != '\0');
 
@@ -1162,7 +1162,7 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	m0_free(utm);
  fail_utm:
 	LNET_ADDB_FUNCFAIL(rc, U_TM_START, &ud->ud_addb_ctx);
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void nlx_core_tm_stop(struct nlx_core_domain *cd,
@@ -1213,7 +1213,7 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	if (rc < 0) {
 		NLX_FREE_ALIGNED_PTR(bev);
 		LNET_ADDB_FUNCFAIL(rc, U_BEV_BLESS, &utm->utm_addb_ctx);
-		return rc;
+		return M0_RC(rc);
 	}
 	M0_ASSERT(bev->cbe_kpvt != NULL);
 

@@ -419,7 +419,7 @@ static int stats_add(struct m0_tl *stats_list, struct m0_stats_sum *sum)
 	rc = stats_sum_copy(sum, &new_stats->s_sum);
 	if (rc != 0) {
 		m0_free(new_stats);
-		return rc;
+		return M0_RC(rc);
 	}
 
 	stats_tlink_init(new_stats);
@@ -451,7 +451,7 @@ static int stats_update(struct m0_fom *fom)
 		} else {
 			int rc = stats_add(&svc->ss_stats, sum);
 			if (rc != 0)
-				return rc;
+				return M0_RC(rc);
 		}
 	}
 
@@ -509,7 +509,7 @@ static int stats_update_fom_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Bad phase.");
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -635,7 +635,7 @@ static int read_stats(struct m0_fom *fom)
 		}
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**
@@ -727,7 +727,7 @@ static int stats_query_fom_tick(struct m0_fom *fom)
 		M0_IMPOSSIBLE("Phase not defined.");
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

@@ -153,7 +153,7 @@ M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
 			     new_link->pel_linkage.t_link.ll_prev);
 	M0_BE_TX_CAPTURE_PTR(pm->pm_be_seg, tx,
 			     new_link->pel_linkage.t_link.ll_next);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int m0_poolmach_load(struct m0_poolmach       *pm,
@@ -183,7 +183,7 @@ static int m0_poolmach_load(struct m0_poolmach       *pm,
 		return M0_ERR(-EINVAL);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int poolmach_store_create(struct m0_be_seg   *be_seg,
@@ -274,7 +274,7 @@ static int poolmach_store_create(struct m0_be_seg   *be_seg,
 
 	m0_be_tx_fini(tx);
 	m0_free(tx);
-	return rc;
+	return M0_RC(rc);
 }
 
 
@@ -308,7 +308,7 @@ M0_INTERNAL int m0_poolmach_store_init(struct m0_poolmach *pm,
 	if (rc == 0)
 		pm->pm_state = m0_get()->i_pool_module;
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
@@ -389,7 +389,7 @@ static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
 	m0_be_tx_fini(tx);
 	m0_free(tx);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 /**

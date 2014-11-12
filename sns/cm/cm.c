@@ -544,12 +544,12 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 			     M0_ADDB_CTX_VEC(&m0_sns_cp_addb_ctx), 0, 0, 0, 0);
 		rc = m0_sns_cm_iter_init(&scm->sc_it);
 		if (rc != 0)
-			return rc;
+			return M0_RC(rc);
 		sns_cm_bp_init(&scm->sc_obp);
 		sns_cm_bp_init(&scm->sc_ibp);
 	}
 	M0_LEAVE();
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
@@ -620,7 +620,7 @@ M0_INTERNAL int m0_sns_cm_pm_event_post(struct m0_sns_cm *scm,
 		}
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)

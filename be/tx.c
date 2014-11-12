@@ -374,7 +374,7 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 			       tx, BETXCR_P(&tx->t_prepared));
 		}
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 static void be_tx_state_move(struct m0_be_tx *tx,
@@ -480,7 +480,7 @@ M0_INTERNAL int m0_be_tx_open_sync(struct m0_be_tx *tx)
 		       equi(rc != 0, state == M0_BTS_FAILED),
 		       "rc = %d, tx = %p, m0_be_tx_state(tx) = %s",
 		       rc, tx, m0_be_tx_state_name(state));
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_tx_exclusive_open(struct m0_be_tx *tx)
@@ -496,7 +496,7 @@ M0_INTERNAL int m0_be_tx_exclusive_open_sync(struct m0_be_tx *tx)
 	tx->t_exclusive = true;
 	rc = m0_be_tx_open_sync(tx);
 	M0_POST(m0_be_engine__exclusive_open_invariant(tx->t_engine, tx));
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_tx_close_sync(struct m0_be_tx *tx)

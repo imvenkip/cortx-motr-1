@@ -207,7 +207,7 @@ M0_INTERNAL int m0_net_tm_init(struct m0_net_transfer_mc *tm,
 	}
 	m0_mutex_unlock(&dom->nd_mutex);
 
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_tm_init);
 
@@ -359,7 +359,7 @@ M0_INTERNAL int m0_net_tm_stats_get(struct m0_net_transfer_mc *tm,
 	m0_mutex_lock(&tm->ntm_mutex);
 	rc = m0_net__tm_stats_get(tm, qtype, qs, reset);
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_tm_stats_get);
 
@@ -420,7 +420,7 @@ M0_INTERNAL int m0_net_tm_confine(struct m0_net_transfer_mc *tm,
 	if (rc != 0)
 		NET_ADDB_FUNCFAIL(rc, TM_CONFINE, &tm->ntm_addb_ctx);
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_tm_confine);
 
@@ -443,7 +443,7 @@ m0_net_buffer_event_deliver_synchronously(struct m0_net_transfer_mc *tm)
 	if (rc != 0)
 		NET_ADDB_FUNCFAIL(rc, BUF_EVENT_DEL_SYNC, &tm->ntm_addb_ctx);
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_buffer_event_deliver_synchronously);
 
@@ -536,7 +536,7 @@ M0_INTERNAL int m0_net_tm_pool_attach(struct m0_net_transfer_mc *tm,
 	} else
 		rc = -EINVAL;
 	m0_mutex_unlock(&tm->ntm_mutex);
-	return rc;
+	return M0_RC(rc);
 }
 M0_EXPORTED(m0_net_tm_pool_attach);
 

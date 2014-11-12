@@ -97,7 +97,7 @@ static int be_io_part_launch(struct m0_be_io_part *bip)
 	rc = m0_stob_io_launch(sio, bip->bip_stob, NULL, NULL);
 	if (rc != 0)
 		m0_clink_del_lock(&bip->bip_clink);
-	return rc;
+	return M0_RC(rc);
 }
 
 static void be_io_part_reset(struct m0_be_io_part *bip)
@@ -188,7 +188,7 @@ M0_INTERNAL int m0_be_io_init(struct m0_be_io		   *bio,
 		rc = 0;
 	}
 	M0_POST(ergo(rc == 0, m0_be_io__invariant(bio)));
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_io_fini(struct m0_be_io *bio)
@@ -419,7 +419,7 @@ M0_INTERNAL int m0_be_io_single(struct m0_stob	       *stob,
 		M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
 		m0_be_io_fini(&bio);
 	}
-	return rc;
+	return M0_RC(rc);
 }
 
 /** @} end of be group */
