@@ -29,6 +29,7 @@
 
 #include "lib/misc.h"			/* M0_SET0 */
 #include "lib/errno.h"			/* ENOMEM */
+#include "lib/finject.h"		/* M0_FI_ENABLED */
 #include "lib/locality.h"
 #include "lib/memory.h"			/* M0_ALLOC_PTR */
 
@@ -500,6 +501,10 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 
 	done = m0_atomic64_get(&lio->si_done);
 	M0_ASSERT(done < lio->si_nr);
+
+	/* Fault injection point for HA signaling. */
+	if (M0_FI_ENABLED("ioq_timeout"))
+		ioq_io_error(ioq, qev);
 
 	/* short read. */
 	M0_LOG(M0_DEBUG, "res=%lx nbytes=%lx", (unsigned long)res,
