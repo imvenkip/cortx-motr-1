@@ -423,7 +423,7 @@ int m0_reqh_service_type_register(struct m0_reqh_service_type *rstype)
 	M0_PRE(rstype->rst_addb_ct != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	m0_reqh_service_type_bob_init(rstype);
 	m0_rwlock_write_lock(&rstypes_rwlock);

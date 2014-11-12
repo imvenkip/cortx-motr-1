@@ -56,7 +56,7 @@ M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src)
 	if (src->b_nob != 0) {
 		M0_ALLOC_ARR(dest->b_addr, src->b_nob);
 		if (dest->b_addr == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		dest->b_nob = src->b_nob;
 		memcpy(dest->b_addr, src->b_addr, src->b_nob);
 	}
@@ -112,14 +112,14 @@ M0_INTERNAL int m0_bufs_from_strings(struct m0_bufs *dest, const char **src)
 
 	M0_ALLOC_ARR(dest->ab_elems, dest->ab_count);
 	if (dest->ab_elems == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	for (i = 0; i < dest->ab_count; ++i) {
 		rc = m0_buf_copy(&dest->ab_elems[i],
 				 &M0_BUF_INITS((char *)src[i]));
 		if (rc != 0) {
 			m0_bufs_free(dest);
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		}
 	}
 	return 0;
@@ -138,7 +138,7 @@ m0_bufs_to_strings(const char ***dest, const struct m0_bufs *src)
 
 	M0_ALLOC_ARR(*dest, src->ab_count + 1);
 	if (*dest == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	for (i = 0; i < src->ab_count; ++i) {
 		(*dest)[i] = m0_buf_strdup(&src->ab_elems[i]);
@@ -152,7 +152,7 @@ fail:
 	for (; i != 0; --i)
 		m0_free((void *)(*dest)[i]);
 	m0_free(*dest);
-	return -ENOMEM;
+	return M0_ERR(-ENOMEM);
 }
 
 M0_INTERNAL bool m0_bufs_streq(const struct m0_bufs *bufs, const char **strs)

@@ -135,7 +135,7 @@ M0_INTERNAL int m0_poolmach_store(struct m0_poolmach        *pm,
 
 	M0_BE_ALLOC_PTR_SYNC(new_link, pm->pm_be_seg, tx);
 	if (new_link == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	*new_link = *event_link;
 	poolmach_events_tlink_init_at_tail(new_link, &dest->pst_events_list);
@@ -180,7 +180,7 @@ static int m0_poolmach_load(struct m0_poolmach       *pm,
 				 nr_devices,
 				 max_node_failures,
 				 max_device_failures);
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 
 	return rc;
@@ -207,7 +207,7 @@ static int poolmach_store_create(struct m0_be_seg   *be_seg,
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	/* Not found from disk. Let's allocate and insert it */
 	m0_be_tx_init(tx, 0, bedom, sm_grp, NULL, NULL, NULL, NULL);
@@ -331,11 +331,11 @@ static int poolmach_store_destroy(struct m0_be_seg   *be_seg,
 
 	state = m0_get()->i_pool_module;
 	if (state == NULL)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	M0_BE_FREE_CREDIT_PTR(scan, be_seg, &cred);
 	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_TYPE(*scan));

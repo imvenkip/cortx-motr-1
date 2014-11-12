@@ -164,7 +164,7 @@ M0_INTERNAL int m0_matrix_invert(const struct m0_matrix *in_mat,
 		divisor = *m0_matrix_elem_get(&mat, col, current_row);
 		if (divisor == 0) {
 			m0_matrix_fini(&mat);
-			return -EDOM;
+			return M0_ERR(-EDOM);
 		}
 		m0_matrix_row_operate(&mat, col, divisor, m0_parity_div);
 		m0_matrix_row_operate(mat_inverse, col, divisor,

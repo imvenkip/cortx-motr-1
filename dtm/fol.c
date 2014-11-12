@@ -99,7 +99,7 @@ static int fol_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht,
 		*out = &dtm->d_fol.fo_ch.ch_history;
 		return 0;
 	} else
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 }
 
 static const struct m0_dtm_history_type_ops fol_htype_ops = {

@@ -642,7 +642,7 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 							  SNS_INCOMING_BUF_NR);
 		M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
 		if (bufs_nr == 0)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
 							  SNS_OUTGOING_BUF_NR);
 		M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
@@ -652,7 +652,7 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 		 * will be finalised in cm_fini().
 		 */
 		if (bufs_nr == 0)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
                 M0_ADDB_POST(&m0_addb_gmc, &m0_addb_rt_sns_cm_buf_nr,
                              M0_ADDB_CTX_VEC(&m0_sns_ag_addb_ctx),
 			     scm->sc_ibp.sb_bp.nbp_buf_nr,
@@ -764,7 +764,7 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 	while (rem_bufs > 0) {
 		buf = m0_cm_buffer_get(bp, colour);
 		if (buf == NULL)
-			return -ENOBUFS;
+			return M0_ERR(-ENOBUFS);
 		m0_cm_cp_buf_add(cp, buf);
 		if (cp->c_data_seg_nr > (cp->c_buf_nr * bp->nbp_seg_nr))
 			seg_nr = bp->nbp_seg_nr;

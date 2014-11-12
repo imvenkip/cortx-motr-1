@@ -272,7 +272,7 @@ static int confdb_alloc(struct confx_allocator *alloc, struct m0_be_seg *seg,
 			m0_be_alloc(m0_be_seg_allocator(seg), tx, &__op,
 				&alloc->a_chunk, size));
 	if (alloc->a_chunk == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	alloc->a_total = size;
 	alloc->a_used  = 0;
 

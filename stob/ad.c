@@ -243,7 +243,7 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 	int                   rc;
 
 	if (str_cfg_create == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	M0_ALLOC_PTR(cfg);
 	if (cfg != NULL) {
@@ -434,7 +434,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 
 	adom = stob_ad_domain_locate(location_data);
 	if (adom != NULL)
-		return -EEXIST;
+		return M0_ERR(-EEXIST);
 
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
@@ -1148,7 +1148,7 @@ static int stob_ad_read_launch(struct m0_stob_io *io,
 		M0_ASSERT(frag_size > 0);
 		if (frag_size > (size_t)~0ULL) {
 			M0_STOB_FUNC_FAIL(AD_READ_LAUNCH_2, -EOVERFLOW);
-			return -EOVERFLOW;
+			return M0_ERR(-EOVERFLOW);
 		}
 
 		frags++;
@@ -1483,7 +1483,7 @@ static int stob_ad_fol_frag_alloc(struct m0_fol_frag *frag, uint32_t frags)
 
 	M0_ALLOC_PTR(arp);
 	if (arp == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	m0_fol_frag_init(frag, arp, &stob_ad_rec_frag_type);
 
 	arp->arp_seg.ps_segments = frags;
@@ -1491,7 +1491,7 @@ static int stob_ad_fol_frag_alloc(struct m0_fol_frag *frag, uint32_t frags)
 	M0_ALLOC_ARR(arp->arp_seg.ps_old_data, frags);
 	if (arp->arp_seg.ps_old_data == NULL) {
 		m0_free(arp);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	return 0;
 }

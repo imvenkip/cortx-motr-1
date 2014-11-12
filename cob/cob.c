@@ -142,7 +142,7 @@ M0_INTERNAL int m0_cob_nskey_make(struct m0_cob_nskey **keyh,
 
 	key = m0_alloc(sizeof *key + namelen);
 	if (key == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	key->cnk_pfid = *pfid;
 	m0_bitstring_copy(&key->cnk_name, name, namelen);
 	*keyh = key;
@@ -175,7 +175,7 @@ M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
 
 	key = m0_alloc(sizeof *key + namelen);
 	if (key == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	key->cek_fid = *fid;
 	m0_bitstring_copy(&key->cek_name, name, namelen);
 	*keyh = key;
@@ -194,7 +194,7 @@ static int m0_cob_max_eakey_make(struct m0_cob_eakey **keyh,
 
 	key = m0_alloc(sizeof *key + M0_COB_NAME_MAX);
 	if (key == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	key->cek_fid = *fid;
 	m0_bitstring_copy(&key->cek_name, name, namelen);
 	*keyh = key;
@@ -255,7 +255,7 @@ M0_INTERNAL int m0_cob_fabrec_make(struct m0_cob_fabrec **rech,
 
 	rec = m0_alloc(sizeof(struct m0_cob_fabrec) + linklen);
 	if (rec == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	rec->cfb_linklen = linklen;
 	if (linklen > 0)
 		memcpy(rec->cfb_link, link, linklen);
@@ -280,7 +280,7 @@ static int m0_cob_max_fabrec_make(struct m0_cob_fabrec **rech)
 
 	rec = m0_alloc(m0_cob_max_fabrec_size());
 	if (rec == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	rec->cfb_linklen = M0_COB_NAME_MAX;
 	*rech = rec;
 	return 0;
@@ -298,7 +298,7 @@ static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
 
 	key = m0_alloc(sizeof *key + M0_COB_NAME_MAX);
 	if (key == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	key->cnk_pfid = *pfid;
 	m0_bitstring_copy(&key->cnk_name, name, namelen);
 	*keyh = key;
@@ -467,7 +467,7 @@ m0_cob_domain_init(struct m0_cob_domain *dom,
 		   struct m0_be_seg *seg, const struct m0_cob_domain_id *id)
 {
 	if (dom == NULL)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	dom->cd_id    = *id;
 	dom->cd_dbenv = seg;
@@ -506,7 +506,7 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	snprintf(id, ARRAY_SIZE(id), "%016lX", cdid->id);
 	m0_be_0type_add_credit(bedom, &m0_be_cob0, id, &data, &cred);
@@ -559,7 +559,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	seg = m0_be_domain_seg(bedom, dom);
 	snprintf(id, ARRAY_SIZE(id), "%016lX", dom->cd_id.id);
@@ -798,7 +798,7 @@ M0_INTERNAL int m0_cob_alloc(struct m0_cob_domain *dom, struct m0_cob **out)
 	M0_ALLOC_PTR_ADDB(cob, &m0_addb_gmc, M0_COB_ADDB_LOC_ALLOC,
 			  &m0_cob_mod_ctx);
 	if (cob == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	cob_init(dom, cob);
 	*out = cob;
@@ -1580,7 +1580,7 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 	m0_buf_init(&val, nsrec, sizeof *nsrec);
 	rc = cob_table_lookup(&cob->co_dom->cd_namespace, &key, &val);
 	if (rc == 0)
-		return -EEXIST;
+		return M0_ERR(-EEXIST);
 
 	/**
 	 * Add new name to object index table. Table insert should fail

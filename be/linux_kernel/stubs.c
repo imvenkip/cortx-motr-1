@@ -324,7 +324,7 @@ M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob)
 
 int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
-	return -EINVAL;
+	return M0_ERR(-EINVAL);
 }
 
 #undef M0_TRACE_SUBSYSTEM

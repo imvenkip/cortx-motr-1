@@ -113,7 +113,7 @@ static int mem_copy_buffer(struct m0_net_buffer *d_nb,
 	m0_bcount_t bytes_copied;
 
 	if (mem_buffer_length(d_nb) < num_bytes) {
-		return -EFBIG;
+		return M0_ERR(-EFBIG);
 	}
 	M0_PRE(mem_buffer_length(s_nb) >= num_bytes);
 
@@ -297,13 +297,13 @@ static int mem_xo_end_point_create(struct m0_net_end_point **epp,
 	M0_PRE(dp->xd_addr_tuples == 2 || dp->xd_addr_tuples == 3);
 
 	if (addr == NULL)
-		return -ENOSYS; /* no dynamic addressing */
+		return M0_ERR(-ENOSYS); /* no dynamic addressing */
 
 	strncpy(buf, addr, sizeof(buf)-1); /* copy to modify */
 	buf[sizeof(buf)-1] = '\0';
 	for (p=buf; *p && *p != ':'; p++);
 	if (*p == '\0')
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	*p++ = '\0'; /* terminate the ip address : */
 	pp = p;
 	for (p=pp; *p && *p != ':'; p++);
@@ -311,20 +311,20 @@ static int mem_xo_end_point_create(struct m0_net_end_point **epp,
 		*p++ = '\0'; /* terminate the port number */
 		sscanf(p, "%u", &id);
 		if (id == 0)
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 	}
 	else if (*p == ':')
-		return -EINVAL; /* 3-tuple where expecting 2 */
+		return M0_ERR(-EINVAL); /* 3-tuple where expecting 2 */
 	sscanf(pp, "%d", &pnum);
 	sa.sin_port = htons(pnum);
 	dot_ip = buf;
 #ifdef __KERNEL__
 	sa.sin_addr.s_addr = in_aton(dot_ip);
 	if (sa.sin_addr.s_addr == 0)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 #else
 	if (inet_aton(dot_ip, &sa.sin_addr) == 0)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 #endif
 	return mem_bmo_ep_create(epp, tm, &sa, id);
 }
@@ -345,7 +345,7 @@ static int mem_xo_buf_register(struct m0_net_buffer *nb)
 	M0_PRE(nb->nb_dom != NULL && mem_dom_invariant(nb->nb_dom));
 
 	if (!mem_bmo_buffer_in_bounds(nb))
-		return -EFBIG;
+		return M0_ERR(-EFBIG);
 
 	dp = mem_dom_to_pvt(nb->nb_dom);
 	if (dp->xd_derived) {
@@ -355,7 +355,7 @@ static int mem_xo_buf_register(struct m0_net_buffer *nb)
 		M0_PRE(nb->nb_xprt_private == NULL);
 		M0_ALLOC_PTR(bp);
 		if (bp == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		nb->nb_xprt_private = bp;
 	}
 	M0_ASSERT(mem_buffer_to_pvt(nb) == bp);
@@ -413,7 +413,7 @@ static int mem_xo_buf_add(struct m0_net_buffer *nb)
 	tp = mem_tm_to_pvt(tm);
 
 	if (tp->xtm_state > M0_NET_XTM_STARTED)
-		return -EPERM;
+		return M0_ERR(-EPERM);
 
 	dp = mem_dom_to_pvt(tm->ntm_dom);
 	bp = mem_buffer_to_pvt(nb);
@@ -530,7 +530,7 @@ static int mem_xo_tm_init(struct m0_net_transfer_mc *tm)
 		M0_PRE(tm->ntm_xprt_private == NULL);
 		M0_ALLOC_PTR(tp);
 		if (tp == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		tm->ntm_xprt_private = tp;
 	}
 	M0_ASSERT(mem_tm_to_pvt(tm) == tp);
@@ -620,7 +620,7 @@ static int mem_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 	if (tp->xtm_state == M0_NET_XTM_STARTING)
 		return 0;
 	if (tp->xtm_state != M0_NET_XTM_INITIALIZED)
-		return -EPERM;
+		return M0_ERR(-EPERM);
 
 	/* allocate worker thread array */
 	if (tp->xtm_worker_threads == NULL) {
@@ -628,13 +628,13 @@ static int mem_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 		M0_CASSERT(TS_PARKED == 0);
 		M0_ALLOC_ARR(tp->xtm_worker_threads, tp->xtm_num_workers);
 		if (tp->xtm_worker_threads == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 	}
 
 	/* allocate a state change work item */
 	M0_ALLOC_PTR(wi_st_chg);
 	if (wi_st_chg == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	m0_list_link_init(&wi_st_chg->xwi_link);
 	wi_st_chg->xwi_op = M0_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = M0_NET_XTM_STARTED;
@@ -686,7 +686,7 @@ static int mem_xo_tm_stop(struct m0_net_transfer_mc *tm, bool cancel)
 	/* allocate a state change work item */
 	M0_ALLOC_PTR(wi_st_chg);
 	if (wi_st_chg == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	m0_list_link_init(&wi_st_chg->xwi_link);
 	wi_st_chg->xwi_op = M0_NET_XOP_STATE_CHANGE;
 	wi_st_chg->xwi_next_state = M0_NET_XTM_STOPPED;

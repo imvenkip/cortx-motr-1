@@ -153,7 +153,7 @@ static int trigger_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	M0_ALLOC_PTR(fom);
 	if (fom == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	if (is_repair_trigger_fop(fop))
 		rep_fop = m0_fop_reply_alloc(fop, &repair_trigger_rep_fopt);
 	else if (is_rebalance_trigger_fop(fop))

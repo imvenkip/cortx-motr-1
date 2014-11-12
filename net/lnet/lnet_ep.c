@@ -73,7 +73,7 @@ static int nlx_ep_create(struct m0_net_end_point **epp,
 
 	NLX_ALLOC_PTR(xep, &tm->ntm_addb_ctx, C_EP_CREATE);
 	if (xep == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	xep->xe_magic = M0_NET_LNET_XE_MAGIC;
 	xep->xe_core = *cepa;
 	nlx_core_ep_addr_encode(&dp->xd_core, cepa, xep->xe_addr);

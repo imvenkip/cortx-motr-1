@@ -56,7 +56,7 @@ M0_INTERNAL bool m0_be_log__invariant(struct m0_be_log *log)
 
 M0_INTERNAL int m0_be_log_open(struct m0_be_log *log)
 {
-	return -ENOSYS;
+	return M0_ERR(-ENOSYS);
 }
 
 M0_INTERNAL void m0_be_log_close(struct m0_be_log *log)

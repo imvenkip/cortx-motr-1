@@ -238,7 +238,7 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
 
 		obj->xo_ptr = *slot = alloc(it, nob);
 		if (obj->xo_ptr == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 	}
 	return 0;
 }

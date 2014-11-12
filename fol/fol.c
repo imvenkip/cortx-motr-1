@@ -354,12 +354,12 @@ M0_INTERNAL int m0_fol_rec_decode(struct m0_fol_rec *rec, struct m0_buf *at)
 
 			M0_ALLOC_PTR(frag);
 			if (frag == NULL)
-				return -ENOMEM;
+				return M0_ERR(-ENOMEM);
 
 			rp_data = m0_alloc(frag_type->rpt_xt->xct_sizeof);
 			if (rp_data == NULL) {
 				m0_free(frag);
-				return -ENOMEM;
+				return M0_ERR(-ENOMEM);
 			}
 
 			frag->rp_flag = M0_XCODE_DECODE;

@@ -90,7 +90,7 @@ err1_injected:
 		m0_layout__log("linear_allocate", "M0_ALLOC_PTR() failed",
 			       M0_LAYOUT_ADDB_LOC_LIN_ALLOC, NULL,
 			       LID_NONE, -ENOMEM);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	m0_layout__enum_init(dom, &lin_enum->lle_base,
 			     &m0_linear_enum_type, &linear_enum_ops);
@@ -126,7 +126,7 @@ static int linear_populate(struct m0_layout_linear_enum *lin_enum,
 		M0_LOG(M0_ERROR,
 			"lin_enum %p, attr %p,  Invalid attributes, rc %d",
 		       lin_enum, attr, -EPROTO);
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 	}
 	lin_enum->lle_attr = *attr;
 	M0_POST(linear_invariant(lin_enum));

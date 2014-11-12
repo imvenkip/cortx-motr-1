@@ -1172,7 +1172,7 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 	M0_PRE(dom != NULL && cd != NULL);
 	NLX_ALLOC_PTR(kd, &dom->nd_addb_ctx, K_DOM_INIT);
 	if (kd == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	rc = nlx_kcore_kcore_dom_init(kd, &dom->nd_addb_ctx);
 	if (rc != 0)
 		goto fail_free_kd;
@@ -1307,7 +1307,7 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 	kd = cd->cd_kpvt;
 	NLX_ALLOC_PTR(kb, &kd->kd_addb_ctx, K_BUF_REG);
 	if (kb == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	nlx_core_kmem_loc_set(&kb->kb_cb_loc, virt_to_page(cb),
 			      NLX_PAGE_OFFSET((unsigned long) cb));
 	rc = nlx_kcore_buf_register(kd, buffer_id, cb, kb);
@@ -1715,7 +1715,7 @@ static int nlx_kcore_nidstr_decode(const char *nidstr, uint64_t *nid)
 {
 	*nid = libcfs_str2nid(nidstr);
 	if (*nid == LNET_NID_ANY)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	return 0;
 }
 
@@ -1797,7 +1797,7 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	NLX_ALLOC_ALIGNED_PTR_ADDB(bev, &ktm->ktm_addb_ctx, K_BEV_BLESS);
 	if (bev == NULL) {
 		*bevp = NULL;
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	bev_link_bless(&bev->cbe_tm_link, virt_to_page(&bev->cbe_tm_link));
 	*bevp = bev;
@@ -2037,7 +2037,7 @@ static int nlx_core_init(void)
 			  M0_NET_LNET_ADDB_LOC_K_INIT_1, &m0_net_lnet_addb_ctx);
 	if (nlx_kcore_lni_nidstrs == NULL) {
 		nlx_core_fini();
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	nlx_kcore_lni_nr = i - 1;
 	for (i = 0; i < nlx_kcore_lni_nr; ++i) {
@@ -2050,7 +2050,7 @@ static int nlx_core_init(void)
 			M0_ADDB_OOM(&m0_addb_gmc, M0_NET_LNET_ADDB_LOC_K_INIT_2,
 				    &m0_net_lnet_addb_ctx);
 			nlx_core_fini();
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		}
 		strcpy(nlx_kcore_lni_nidstrs[i], nidstr);
 	}

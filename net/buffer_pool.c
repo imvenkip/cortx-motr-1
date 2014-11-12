@@ -106,7 +106,7 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 				  &m0_addb_gmc, M0_NET_ADDB_LOC_BP_INIT,
 				  &m0_net_addb_ctx, &ndom->nd_addb_ctx);
 		if (pool->nbp_colours == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 	}
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &pool->nbp_addb_ctx,
 			 &m0_addb_ct_net_bp, &ndom->nd_addb_ctx);

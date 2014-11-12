@@ -62,7 +62,7 @@ static int cp_bufvec_split(struct m0_cm_cp *cp)
         SNS_ALLOC_ARR(new_v_count, new_v_nr, &m0_sns_cp_addb_ctx,
 		      CP_XFORM_BUFVEC);
         if (new_v_count == NULL)
-                return -ENOMEM;
+                return M0_ERR(-ENOMEM);
 
 	bufvec = &nbuf_head->nb_buffer;
 	for (i = 0; i < new_v_nr; ++i)

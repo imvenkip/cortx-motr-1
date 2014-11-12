@@ -409,7 +409,7 @@ static int fop_xc_type(uint32_t opcode, const struct m0_xcode_type **out)
 
 	ftype = m0_fop_type_find(opcode);
 	if (ftype == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	*out = ftype->ft_xt;
 	return 0;
@@ -439,12 +439,12 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 
 	M0_ALLOC_PTR(frag);
 	if (frag == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	M0_ALLOC_PTR(rp);
 	if (rp == NULL) {
 		m0_free(frag);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	rp->ffrp_fop_code = fop->f_type->ft_rpc_item_type.rit_opcode;

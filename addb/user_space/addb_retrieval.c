@@ -645,7 +645,7 @@ M0_INTERNAL int m0_addb_stob_iter_alloc(struct m0_addb_segment_iter **iter,
 	M0_PRE(iter != NULL && stob != NULL);
 	M0_ALLOC_PTR(si);
 	if (si == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	si->ssi_base.asi_base.asi_next = stob_segment_iter_next;
 	si->ssi_base.asi_base.asi_nextbuf = addb_segment_iter_nextbuf;
 	si->ssi_base.asi_base.asi_seq_get = stob_segment_iter_seq_get;
@@ -737,7 +737,7 @@ M0_INTERNAL int m0_addb_file_iter_alloc(struct m0_addb_segment_iter **iter,
 	M0_ALLOC_PTR(fi);
 	if (fi == NULL) {
 		fclose(infile);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	fi->fsi_base.asi_base.asi_next = file_segment_iter_next;
 	fi->fsi_base.asi_base.asi_nextbuf = addb_segment_iter_nextbuf;

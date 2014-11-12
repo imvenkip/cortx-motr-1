@@ -94,7 +94,7 @@ M0_INTERNAL int m0_cm_proxy_alloc(uint64_t px_id,
 
 	M0_ALLOC_PTR(proxy);
 	if (proxy == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_cm_proxy_bob_init(proxy);
 
@@ -313,7 +313,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 
 	M0_ALLOC_PTR(sw_fop);
 	if (sw_fop == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	fop = &sw_fop->pso_fop;
 	rmach = proxy->px_conn.c_rpc_machine;
 	ep = rmach->rm_tm.ntm_ep->nep_addr;

@@ -60,7 +60,7 @@ static int name_mem2wire(struct m0_fop_str *tgt,
 {
 	tgt->s_buf = m0_alloc(name->b_nob);
 	if (tgt->s_buf == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	memcpy(tgt->s_buf, name->b_addr, (int)name->b_nob);
 	tgt->s_len = name->b_nob;
 	return 0;
@@ -127,7 +127,7 @@ void m0t1fs_fid_accept(struct m0t1fs_sb *csb, const struct m0_fid *fid)
 int m0t1fs_fid_setxattr(struct dentry *dentry, const char *name,
                         const void *value, size_t size, int flags)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 int m0t1fs_setxattr(struct dentry *dentry, const char *name,
@@ -191,7 +191,7 @@ out:
 ssize_t m0t1fs_fid_getxattr(struct dentry *dentry, const char *name,
                             void *buffer, size_t size)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
@@ -236,17 +236,17 @@ out:
 
 ssize_t m0t1fs_fid_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 ssize_t m0t1fs_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 int m0t1fs_fid_removexattr(struct dentry *dentry, const char *name)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 int m0t1fs_removexattr(struct dentry *dentry, const char *name)
@@ -282,7 +282,7 @@ static int m0t1fs_fid_create(struct inode     *dir,
 			     int               mode,
 			     struct nameidata *nd)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 static int m0t1fs_create(struct inode     *dir,
@@ -496,14 +496,14 @@ static int m0t1fs_opendir(struct inode *inode, struct file *file)
 
 	M0_ALLOC_PTR(fd);
 	if (fd == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	file->private_data = fd;
 
 	/** Setup readdir initial pos with "." and max possible namelen. */
 	fd->fd_dirpos = m0_alloc(M0T1FS_SB(inode->i_sb)->csb_namelen);
 	if (fd->fd_dirpos == NULL) {
 		m0_free(fd);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	m0_bitstring_copy(fd->fd_dirpos, ".", 1);
 	fd->fd_direof    = 0;
@@ -685,7 +685,7 @@ out:
 static int m0t1fs_fid_link(struct dentry *old, struct inode *dir,
 		           struct dentry *new)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 static int m0t1fs_link(struct dentry *old, struct inode *dir,
@@ -704,7 +704,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	 * Link will create a new file entry in dir, but object may
 	 * be on another mds. So link is disabled until this problem is solved.
 	 */
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 
 	inode = old->d_inode;
 	ci    = M0T1FS_I(inode);
@@ -742,7 +742,7 @@ out:
 
 static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
@@ -823,7 +823,7 @@ out:
 
 static int m0t1fs_fid_rmdir(struct inode *dir, struct dentry *dentry)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 static int m0t1fs_rmdir(struct inode *dir, struct dentry *dentry)
@@ -1008,7 +1008,7 @@ out:
 
 M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *dentry, struct iattr *attr)
 {
-        return -EOPNOTSUPP;
+        return M0_ERR(-EOPNOTSUPP);
 }
 
 M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)

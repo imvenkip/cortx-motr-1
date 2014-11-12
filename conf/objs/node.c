@@ -134,7 +134,7 @@ static int node_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 	else if (m0_fid_eq(name, &M0_CONF_NODE_SDEVS_FID))
 		*out = &M0_CONF_CAST(parent, m0_conf_node)->cn_sdevs->cd_obj;
 	else
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;

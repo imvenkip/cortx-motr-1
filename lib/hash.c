@@ -112,7 +112,7 @@ M0_INTERNAL int m0_htable_init(const struct m0_ht_descr *d,
 	htable->h_bucket_nr = bucket_nr;
 	M0_ALLOC_ARR(htable->h_buckets, htable->h_bucket_nr);
 	if (htable->h_buckets == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	for (nr = 0; nr < htable->h_bucket_nr; ++nr)
 		hbucket_init(d, &htable->h_buckets[nr]);

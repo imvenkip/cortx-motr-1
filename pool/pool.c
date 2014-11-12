@@ -269,7 +269,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 		/* This is On client, be_seg is NULL. */
 		M0_ALLOC_PTR(state);
 		if (state == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 
 		state->pst_version.pvn_version[PVE_READ]  = 0;
 		state->pst_version.pvn_version[PVE_WRITE] = 0;
@@ -292,7 +292,7 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 			m0_free(state->pst_devices_array);
 			m0_free(state->pst_spare_usage_array);
 			m0_free(state);
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		}
 
 		for (i = 0; i < state->pst_nr_nodes; i++) {
@@ -390,7 +390,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
 	state = pm->pm_state;
 
 	if (!M0_IN(event->pe_type, (M0_POOL_NODE, M0_POOL_DEVICE)))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
 				     M0_PNDS_FAILED,
@@ -398,13 +398,13 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
 				     M0_PNDS_SNS_REPAIRING,
 				     M0_PNDS_SNS_REPAIRED,
 				     M0_PNDS_SNS_REBALANCING)))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	if ((event->pe_type == M0_POOL_NODE &&
 	     event->pe_index >= state->pst_nr_nodes) ||
 	    (event->pe_type == M0_POOL_DEVICE &&
 	     event->pe_index >= state->pst_nr_devices))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	if (event->pe_type == M0_POOL_NODE) {
 		old_state = state->pst_nodes_array[event->pe_index].pn_state;
@@ -417,30 +417,30 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach         *pm,
 	case M0_PNDS_ONLINE:
 		if (!M0_IN(event->pe_state, (M0_PNDS_OFFLINE,
 					     M0_PNDS_FAILED)))
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_OFFLINE:
 		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE)))
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_FAILED:
 		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REPAIRING)))
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_SNS_REPAIRING:
 		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REPAIRED)))
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_SNS_REPAIRED:
 		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REBALANCING)))
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_SNS_REBALANCING:
 		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE)))
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		break;
 	default:
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 
 	/* Step 1: lock the poolmach */
@@ -623,7 +623,7 @@ M0_INTERNAL int m0_poolmach_device_state(struct m0_poolmach *pm,
 	M0_PRE(state_out != NULL);
 
 	if (device_index >= pm->pm_state->pst_nr_devices)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	m0_rwlock_read_lock(&pm->pm_lock);
 	*state_out = pm->pm_state->pst_devices_array[device_index].pd_state;
@@ -639,7 +639,7 @@ M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 	M0_PRE(state_out != NULL);
 
 	if (node_index >= pm->pm_state->pst_nr_nodes)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	m0_rwlock_read_lock(&pm->pm_lock);
 	*state_out = pm->pm_state->pst_nodes_array[node_index].pn_state;
@@ -675,7 +675,7 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 	M0_PRE(spare_slot_out != NULL);
 
 	if (device_index >= pm->pm_state->pst_nr_devices)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	rc = -ENOENT;
 	m0_rwlock_read_lock(&pm->pm_lock);
@@ -732,7 +732,7 @@ M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
 	M0_PRE(spare_slot_out != NULL);
 
 	if (device_index >= pm->pm_state->pst_nr_devices)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	rc = -ENOENT;
 	m0_rwlock_read_lock(&pm->pm_lock);
@@ -761,7 +761,7 @@ M0_INTERNAL int m0_poolmach_current_state_get(struct m0_poolmach *pm,
 					      struct m0_poolmach_state
 					      **state_copy)
 {
-	return -ENOENT;
+	return M0_ERR(-ENOENT);
 }
 
 M0_INTERNAL void m0_poolmach_state_free(struct m0_poolmach *pm,

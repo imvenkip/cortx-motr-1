@@ -985,7 +985,7 @@ M0_INTERNAL int m0_mdstore_path(struct m0_mdstore       *md,
 	M0_ENTRY(FID_F, FID_P(fid));
 	*path = m0_alloc(MDSTORE_PATH_MAX);
 	if (*path == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 restart:
 	pfid = *fid;

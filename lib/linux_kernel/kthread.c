@@ -153,7 +153,7 @@ M0_EXPORTED(m0_thread_join);
 
 M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig)
 {
-	return -ENOSYS;
+	return M0_ERR(-ENOSYS);
 }
 
 M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
@@ -167,7 +167,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	int                 nr_allowed;
 
 	if (!zalloc_cpumask_var(&cpuset, GFP_KERNEL))
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	for (idx = 0; idx < nr_bits; ++idx)
 		if (m0_bitmap_get(processors, idx))

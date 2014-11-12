@@ -75,7 +75,7 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		swo_fop = m0_fop_data(fom->fo_fop);
 		cm = m0_cmsvc2cm(service);
 		if (cm == NULL)
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu] "
 				 "[%lu] [%lu] [%lu] [%lu]",
 		       swo_fop->swo_base.swo_cm_ep.ep,
@@ -111,7 +111,7 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid fop");
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 	return M0_FSO_WAIT;
 }
@@ -151,7 +151,7 @@ static int sw_onwire_fom_create(struct m0_fop *fop, struct m0_fom **out,
 
 	M0_ALLOC_PTR(fom);
 	if (fom == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &sw_onwire_fom_ops, fop,
 		    NULL, reqh);

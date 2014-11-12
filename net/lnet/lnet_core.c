@@ -343,25 +343,25 @@ M0_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 
 	i64 = nlx_core_buf_desc_checksum(cbd);
 	if (i64 != cbd->cbd_checksum)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	i64 = __le64_to_cpu(cbd->cbd_size);
 
 	i32 = __le32_to_cpu(cbd->cbd_qtype);
 	if (i32 == M0_NET_QT_PASSIVE_BULK_SEND) {
 		if (lcbuf->cb_qtype != M0_NET_QT_ACTIVE_BULK_RECV)
-			return -EPERM;
+			return M0_ERR(-EPERM);
 		if (i64 > lcbuf->cb_length)
-			return -EFBIG;
+			return M0_ERR(-EFBIG);
 		lcbuf->cb_length = i64; /* passive send size used */
 	} else if (i32 == M0_NET_QT_PASSIVE_BULK_RECV) {
 		if (lcbuf->cb_qtype != M0_NET_QT_ACTIVE_BULK_SEND)
-			return -EPERM;
+			return M0_ERR(-EPERM);
 		if (lcbuf->cb_length > i64)
-			return -EFBIG;
+			return M0_ERR(-EFBIG);
 	        /* active send size used */
 	} else
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	B_EP(nid)    = __le64_to_cpu(CBD_EP(nid));
 	B_EP(pid)    = __le32_to_cpu(CBD_EP(pid));
@@ -373,7 +373,7 @@ M0_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 	if (i64 < M0_NET_LNET_BUFFER_ID_MIN ||
 	    i64 > M0_NET_LNET_BUFFER_ID_MAX ||
 	    i32 != B_EP(tmid))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	return 0;
 }
@@ -397,7 +397,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	int rc;
 
 	if (cp == NULL || n == 0 || n >= sizeof nidstr)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	strncpy(nidstr, ep_addr, n);
 	nidstr[n] = 0;
 	rc = nlx_core_nidstr_decode(lcdom, nidstr, &cepa->cepa_nid);
@@ -406,11 +406,11 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	++cp;
 	cepa->cepa_pid = strtoul(cp, &endp, 10);
 	if (*endp != ':')
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	cp = endp + 1;
 	cepa->cepa_portal = strtoul(cp, &endp, 10);
 	if (*endp != ':')
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	cp = endp + 1;
 	if (strcmp(cp, "*") == 0) {
 		cepa->cepa_tmid = M0_NET_LNET_TMID_INVALID;
@@ -418,7 +418,7 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 		cepa->cepa_tmid = strtoul(cp, &endp, 10);
 		if (*endp != 0 || cepa->cepa_tmid > M0_NET_LNET_TMID_MAX ||
 		    cepa->cepa_tmid == 0)
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 	}
 	return 0;
 }

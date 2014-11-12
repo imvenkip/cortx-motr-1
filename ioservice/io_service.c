@@ -283,7 +283,7 @@ static int ios_create_buffer_pool(struct m0_reqh_service *service)
 		/* Buffer pool for network domain not found, create one */
 		IOS_ALLOC_PTR(newbp, &service->rs_addb_ctx, CREATE_BUF_POOL);
 		if (newbp == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 
 		newbp->rios_ndom = rpcmach->rm_tm.ntm_dom;
 		newbp->rios_bp_magic = M0_IOS_BUFFER_POOL_MAGIC;
@@ -385,7 +385,7 @@ static int ios_allocate(struct m0_reqh_service **service,
 
 	IOS_ALLOC_PTR(ios, &m0_ios_addb_ctx, SERVICE_ALLOC);
 	if (ios == NULL) {
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	for (i = 0, j = 0; i < ARRAY_SIZE(ios->rios_rwfom_stats); ++i) {
@@ -666,7 +666,7 @@ static int ios_mds_conn_get_locked(struct m0_reqh              *reqh,
 
 	M0_ALLOC_PTR(*out);
 	if (*out == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	*new = true;
 
 	m0_reqh_lockers_set(reqh, ios_mds_conn_key, *out);
@@ -792,11 +792,11 @@ M0_INTERNAL int m0_ios_mds_getattr(struct m0_reqh *reqh,
 
 	imc = m0_ios_mds_conn_map_hash(imc_map, gfid);
 	if (!imc->imc_connected)
-		return -ENODEV;
+		return M0_ERR(-ENODEV);
 
 	req = m0_fop_alloc_at(&imc->imc_session, &m0_fop_getattr_fopt);
 	if (req == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	getattr = m0_fop_data(req);
 	req_fop_cob = &getattr->g_body;
@@ -857,11 +857,11 @@ M0_INTERNAL int m0_ios_mds_layout_get(struct m0_reqh *reqh,
 	/* mds 0 is used for layout */
 	imc = imc_map->imc_map[0];
 	if (!imc->imc_connected)
-		return -ENODEV;
+		return M0_ERR(-ENODEV);
 
 	req = m0_fop_alloc_at(&imc->imc_session, &m0_fop_layout_fopt);
 	if (req == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	layout = m0_fop_data(req);
 	layout->l_op  = M0_LAYOUT_OP_LOOKUP;
@@ -1007,11 +1007,11 @@ M0_INTERNAL int m0_ios_mds_getattr_async(struct m0_reqh *reqh,
 	imc = m0_ios_mds_conn_map_hash(imc_map, gfid);
 
 	if (!imc->imc_connected)
-		return -ENODEV;
+		return M0_ERR(-ENODEV);
 
 	M0_ALLOC_PTR(mdsop);
 	if (mdsop == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	req = &mdsop->mo_fop;
 	m0_fop_init(req, &m0_fop_getattr_fopt, NULL, &mds_op_release);
@@ -1118,11 +1118,11 @@ M0_INTERNAL int m0_ios_mds_layout_get_async(struct m0_reqh *reqh,
 	/* mds 0 is used for layout */
 	imc = imc_map->imc_map[0];
 	if (!imc->imc_connected)
-		return -ENODEV;
+		return M0_ERR(-ENODEV);
 
 	M0_ALLOC_PTR(mdsop);
 	if (mdsop == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	req = &mdsop->mo_fop;
 	m0_fop_init(req, &m0_fop_layout_fopt, NULL, &mds_op_release);

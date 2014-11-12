@@ -265,7 +265,7 @@ M0_INTERNAL int m0_rm_svc_owner_create(struct m0_reqh_service *service,
 
 	rtype = m0_rm_resource_type_lookup(&rms->rms_dom, rtype_id);
 	if (rtype == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	M0_ASSERT(rtype->rt_ops != NULL);
 	rc = rtype->rt_ops->rto_decode(&cursor, &resource);
 	if (rc == 0) {

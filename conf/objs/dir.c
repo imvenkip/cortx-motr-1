@@ -145,7 +145,7 @@ static int dir_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 	*out = m0_tl_find(m0_conf_dir, item, &x->cd_items,
 			  m0_fid_eq(&item->co_id, name));
 	if (*out == NULL)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;

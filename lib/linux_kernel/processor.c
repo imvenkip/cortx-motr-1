@@ -518,7 +518,7 @@ static int processor_x86_info_get(m0_processor_nr_t id,
 
 	}/* for - iterate over all the processor nodes */
 
-	return -EINVAL;
+	return M0_ERR(-EINVAL);
 }
 
 /**
@@ -568,7 +568,7 @@ static int processor_x86cache_create(void)
 		M0_ALLOC_PTR(pinfo);
 		if (pinfo == NULL) {
 			processor_x86cache_destroy();
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		}
 
 		/*
@@ -583,7 +583,7 @@ static int processor_x86cache_create(void)
 
 	if (m0_list_is_empty(&x86_cpus)) {
 		m0_list_fini(&x86_cpus);
-		return -ENODATA;
+		return M0_ERR(-ENODATA);
 	}
 
 	return 0;
@@ -633,7 +633,7 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 {
 	M0_PRE(pd != NULL);
 	if (id >= nr_cpu_ids)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	return processor_x86_info_get(id, pd);
 }

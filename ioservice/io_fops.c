@@ -958,7 +958,7 @@ static int io_fop_seg_init(struct ioseg **ns, const struct ioseg *cseg)
 
 	IOS_ALLOC_PTR(new_seg, &m0_ios_addb_ctx, IO_FOP_SEG_INIT);
 	if (new_seg == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	*ns = new_seg;
 	M0_ASSERT(new_seg != NULL); /* suppress compiler warning on next stmt */
@@ -1221,7 +1221,7 @@ static int io_fop_ivec_prepare(struct m0_fop      *res_fop,
 	IOS_ALLOC_ARR(ivec->ci_iosegs, ivec->ci_nr, &m0_ios_addb_ctx,
 		      IO_FOP_IVEC_ALLOC_1);
 	if (ivec->ci_iosegs == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	iosegs_squeeze(rbulk, ivec);
 
@@ -1503,7 +1503,7 @@ static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
 
 	IOS_ALLOC_PTR(cfop, &m0_ios_addb_ctx, IO_FOP_COALESCE_1);
 	if (cfop == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	rw = io_rw_get(res_fop);
 	rc = m0_io_fop_init(cfop, &rw->crw_gfid, res_fop->f_type, NULL);

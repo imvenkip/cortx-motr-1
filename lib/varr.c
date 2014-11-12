@@ -291,7 +291,7 @@ M0_INTERNAL int m0_varr_cursor_init(struct m0_varr_cursor *cursor,
 			pe->vp_width = children_of_level(arr,
 							 cursor->vc_depth);
 		} else
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 	}
 	return 0;
 }

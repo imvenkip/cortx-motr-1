@@ -303,7 +303,7 @@ M0_INTERNAL int m0_be_seg_dict_create_grp(struct m0_be_seg   *seg,
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_be_btree_init(tree, seg, &dict_ops);
 	m0_be_btree_create_credit(tree, 1, &cred);
@@ -313,7 +313,7 @@ M0_INTERNAL int m0_be_seg_dict_create_grp(struct m0_be_seg   *seg,
 	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
 		m0_be_tx_fini(tx);
 		m0_free(tx);
-		return -EFBIG;
+		return M0_ERR(-EFBIG);
 	}
 
 	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
@@ -346,7 +346,7 @@ M0_INTERNAL int m0_be_seg_dict_destroy_grp(struct m0_be_seg   *seg,
 
 	M0_ALLOC_PTR(tx);
 	if (tx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_be_btree_init(tree, seg, &dict_ops);
 	m0_be_btree_destroy_credit(tree, 1, &cred);
@@ -356,7 +356,7 @@ M0_INTERNAL int m0_be_seg_dict_destroy_grp(struct m0_be_seg   *seg,
 	if (rc != 0 || m0_be_tx_state(tx) != M0_BTS_ACTIVE) {
 		m0_be_tx_fini(tx);
 		m0_free(tx);
-		return -EFBIG;
+		return M0_ERR(-EFBIG);
 	}
 
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(tree, tx, &op));

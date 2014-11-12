@@ -1945,7 +1945,7 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 		(unsigned long long)sb->bsb_groupcount);
 	group = balloc_bn2gn(start + len, ctx);
 	if (group > sb->bsb_groupcount)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	while (rc == 0 && len > 0) {
 		group = balloc_bn2gn(start, ctx);

@@ -57,7 +57,7 @@ M0_INTERNAL int m0_net_end_point_create(struct m0_net_end_point **epp,
 	M0_PRE(epp != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	dom = tm->ntm_dom;
 	M0_PRE(dom->nd_xprt != NULL);

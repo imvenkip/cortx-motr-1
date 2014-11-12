@@ -299,14 +299,14 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Insane arguments: op=%s type=%s cl_ep=%s"
 				"dev_nr=%d di=%d ds=%d srv_cnt=%d\n",
 				op, type, cl_ep_addr, dev_nr, di, ds, srv_cnt);
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 
 	for (i = 0; i < dev_nr; ++i) {
 		if (device_state_arr[i] < 0 || device_state_arr[i] > 2) {
 			fprintf(stderr, "invalid device state: %lld\n",
 				(long long)device_state_arr[i]);
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		}
 	}
 
@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
 	M0_ALLOC_ARR(ctxs, srv_cnt);
 	if (ctxs == NULL) {
 		fprintf(stderr, "Not enough memory. srv count = %d\n", srv_cnt);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	for (i = 1; i < srv_cnt; ++i) {
@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
 					      &m0_fop_poolmach_query_fopt);
 			if (req == NULL) {
 				fprintf(stderr, "Not enough memory for fop\n");
-				return -ENOMEM;
+				return M0_ERR(-ENOMEM);
 			}
 
 			query_fop = m0_fop_data(req);
@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
 					      &m0_fop_poolmach_set_fopt);
 			if (req == NULL) {
 				fprintf(stderr, "Not enough memory for fop\n");
-				return -ENOMEM;
+				return M0_ERR(-ENOMEM);
 			}
 
 			set_fop = m0_fop_data(req);

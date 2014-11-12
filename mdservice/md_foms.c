@@ -1585,7 +1585,7 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 	fom_obj = m0_alloc(sizeof(struct m0_fom_md));
 	if (fom_obj == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_MDSERVICE_CREATE_OPCODE:
@@ -1654,13 +1654,13 @@ M0_INTERNAL int m0_md_req_fom_create(struct m0_fop *fop, struct m0_fom **m,
 		break;
 	default:
 		m0_free(fom_obj);
-		return -EOPNOTSUPP;
+		return M0_ERR(-EOPNOTSUPP);
 	}
 
         rep_fop = m0_fop_reply_alloc(fop, rep_fopt);
 	if (rep_fop == NULL) {
 		m0_free(fom_obj);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	fom = &fom_obj->fm_fom;
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, ops, fop, rep_fop, reqh);

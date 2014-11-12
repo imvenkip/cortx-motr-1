@@ -212,7 +212,7 @@ static int nlx_xo_buf_register(struct m0_net_buffer *nb)
 	dp = nb->nb_dom->nd_xprt_private;
 	NLX_ALLOC_ALIGNED_PTR_ADDB(bp, &nb->nb_dom->nd_addb_ctx, C_BUF_REG);
 	if (bp == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	nb->nb_xprt_private = bp;
 	bp->xb_nb = nb;
 
@@ -254,7 +254,7 @@ static int nlx_xo__nbd_allocate(struct m0_net_transfer_mc *tm,
 	NLX_ALLOC(nbd->nbd_data, nbd->nbd_len, &tm->ntm_addb_ctx, X_NBD_ALLOC);
 	if (nbd->nbd_data == NULL) {
 		nbd->nbd_len = 0; /* for m0_net_desc_free() safety */
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	memcpy(nbd->nbd_data, cbd, nbd->nbd_len);
 
@@ -406,7 +406,7 @@ static int nlx_xo_tm_init(struct m0_net_transfer_mc *tm)
 
 	NLX_ALLOC_ALIGNED_PTR_ADDB(tp, &tm->ntm_addb_ctx, C_TM_INIT);
 	if (tp == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	tm->ntm_xprt_private = tp;
 
 	/* defer init of processors, thread and xtm_core to TM confine/start */

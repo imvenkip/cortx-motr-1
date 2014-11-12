@@ -387,7 +387,7 @@ static int file_lock_cr_disjoin(struct m0_rm_credit       *self,
 				const struct m0_rm_credit *c1,
 				struct m0_rm_credit       *intersection)
 {
-	return -EPERM;
+	return M0_ERR(-EPERM);
 }
 
 static int file_lock_cr_copy(struct m0_rm_credit       *dest,

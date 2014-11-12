@@ -211,7 +211,7 @@ M0_INTERNAL int m0_rpc_packet_encode(struct m0_rpc_packet *p,
 	M0_PRE(!m0_rpc_packet_is_empty(p));
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -EFAULT;
+		return M0_ERR(-EFAULT);
 
 	bufvec_size = m0_vec_count(&bufvec->ov_vec);
 
@@ -376,7 +376,7 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 		return M0_RC(rc);
 
 	if (ioh.ioh_magic != M0_RPC_ITEM_MAGIC)
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 
 	*item_out = NULL;
 

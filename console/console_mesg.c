@@ -73,7 +73,7 @@ M0_INTERNAL int m0_cons_fop_show(struct m0_fop_type *fopt)
 	fop = m0_fop_alloc(fopt, NULL, &mach);
 	if (fop == NULL) {
 		fprintf(stderr, "FOP allocation failed\n");
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	rc = m0_cons_fop_fields_show(fop);

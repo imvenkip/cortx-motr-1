@@ -77,13 +77,13 @@ static int bufvec_prepare(struct m0_bufvec *obuf, struct m0_tl *cp_buffers_head,
 	SNS_ALLOC_ARR(obuf->ov_vec.v_count, data_seg_nr, &m0_sns_cp_addb_ctx,
 		      CP_STORAGE_OV_VEC);
 	if (obuf->ov_vec.v_count == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	SNS_ALLOC_ARR(obuf->ov_buf, data_seg_nr, &m0_sns_cp_addb_ctx,
 		      CP_STORAGE_OV_BUF);
 	if (obuf->ov_buf == NULL) {
 		m0_free(obuf->ov_vec.v_count);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	m0_tl_for(cp_data_buf, cp_buffers_head, nbuf) {

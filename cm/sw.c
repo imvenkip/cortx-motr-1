@@ -68,7 +68,7 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm_sw_onwire *sw_onwire,
 	sw_onwire->swo_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
 	M0_ALLOC_ARR(sw_onwire->swo_cm_ep.ep, CS_MAX_EP_ADDR_LEN);
 	if (sw_onwire->swo_cm_ep.ep == NULL )
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	strncpy(sw_onwire->swo_cm_ep.ep, ep, CS_MAX_EP_ADDR_LEN);
 
 	return 0;

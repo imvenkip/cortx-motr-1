@@ -164,7 +164,7 @@ static int m0__bufvec_alloc(struct m0_bufvec *bufvec,
 
 fail:
 	m0_bufvec_free(bufvec);
-	return -ENOMEM;
+	return M0_ERR(-ENOMEM);
 }
 
 M0_INTERNAL int m0_bufvec_alloc(struct m0_bufvec *bufvec,
@@ -224,7 +224,7 @@ fail:
 	}
 	m0_free(new_buf_arr);
 
-	return -ENOMEM;
+	return M0_ERR(-ENOMEM);
 }
 M0_EXPORTED(m0_bufvec_extend);
 
@@ -246,12 +246,12 @@ M0_INTERNAL int m0_bufvec_merge(struct m0_bufvec *dst_bufvec,
 	new_v_nr = dst_bufvec->ov_vec.v_nr + src_bufvec->ov_vec.v_nr;
 	M0_ALLOC_ARR(new_v_count, new_v_nr);
 	if (new_v_count == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	M0_ALLOC_ARR(new_buf, new_v_nr);
 	if (new_buf == NULL) {
 		m0_free(new_v_count);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	for (i = 0; i < dst_bufvec->ov_vec.v_nr; ++i) {
@@ -281,7 +281,7 @@ M0_INTERNAL int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec,
 					m0_bcount_t seg_size, unsigned shift)
 {
 	if (M0_FI_ENABLED("oom"))
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	return m0__bufvec_alloc(bufvec, num_segs, seg_size, shift);
 }
@@ -377,12 +377,12 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
 
 	M0_ALLOC_ARR_ADDB(ivec->iv_index, len, &m0_addb_gmc, loc, ctx);
 	if (ivec->iv_index == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	M0_ALLOC_ARR_ADDB(ivec->iv_vec.v_count, len, &m0_addb_gmc, loc, ctx);
 	if (ivec->iv_vec.v_count == NULL) {
 		m0_free(ivec->iv_index);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	ivec->iv_vec.v_nr = len;
@@ -607,7 +607,7 @@ M0_INTERNAL int m0_0vec_init(struct m0_0vec *zvec, uint32_t segs_nr)
 	M0_SET0(zvec);
 	M0_ALLOC_ARR(zvec->z_index, segs_nr);
 	if (zvec->z_index == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	M0_ALLOC_ARR(zvec->z_bvec.ov_vec.v_count, segs_nr);
 	if (zvec->z_bvec.ov_vec.v_count == NULL)
@@ -622,7 +622,7 @@ M0_INTERNAL int m0_0vec_init(struct m0_0vec *zvec, uint32_t segs_nr)
 	return 0;
 failure:
 	m0_0vec_fini(zvec);
-	return -ENOMEM;
+	return M0_ERR(-ENOMEM);
 }
 
 M0_INTERNAL void m0_0vec_bvec_init(struct m0_0vec *zvec,
@@ -691,7 +691,7 @@ M0_INTERNAL int m0_0vec_cbuf_add(struct m0_0vec *zvec,
 	     bvec->ov_buf[curr_seg] != NULL; ++curr_seg);
 
 	if (curr_seg == bvec->ov_vec.v_nr)
-		return -EMSGSIZE;
+		return M0_ERR(-EMSGSIZE);
 
 	M0_ASSERT(bvec->ov_buf[curr_seg] == NULL);
 	bvec->ov_buf[curr_seg] = buf->b_addr;
@@ -732,7 +732,7 @@ M0_INTERNAL int m0_data_to_bufvec_copy(struct m0_bufvec_cursor *cur, void *data,
 	m0_bufvec_cursor_init(&src_cur, &src_buf);
 	count = m0_bufvec_cursor_copy(cur, &src_cur, len);
 	if (count != len)
-		return -EFAULT;
+		return M0_ERR(-EFAULT);
 	return 0;
 }
 
@@ -751,7 +751,7 @@ M0_INTERNAL int m0_bufvec_to_data_copy(struct m0_bufvec_cursor *cur, void *data,
 	m0_bufvec_cursor_init(&dcur, &dest_buf);
 	count = m0_bufvec_cursor_copy(&dcur, cur, len);
 	if (count != len)
-		return -EFAULT;
+		return M0_ERR(-EFAULT);
 	return 0;
 }
 

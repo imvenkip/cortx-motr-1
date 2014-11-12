@@ -222,7 +222,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 
 	M0_ALLOC_PTR(fctx);
 	if (fctx == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_fid_set(&fctx->sf_fid, fid->f_container, fid->f_key);
 	m0_file_init(&fctx->sf_file, &fctx->sf_fid, &scm->sc_rm_ctx.rc_dom, M0_DI_NONE);

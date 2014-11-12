@@ -654,7 +654,7 @@ M0_INTERNAL int m0_cm_setup(struct m0_cm *cm)
 	M0_PRE(cm->cm_type != NULL);
 
 	if (M0_FI_ENABLED("setup_failure"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	m0_cm_lock(cm);
 	M0_PRE(m0_cm_state_get(cm) == M0_CMS_INIT);
@@ -926,7 +926,7 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	       cmtypes_tlist_contains(&cmtypes, cm_type));
 
 	if (M0_FI_ENABLED("init_failure"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	cm->cm_type = cm_type;
 	cm->cm_ops = cm_ops;

@@ -72,7 +72,7 @@ static int string_literal(struct m0_xcode_obj *obj, const char *str)
 	} else {
 		eol = strchr(str, '"');
 		if (eol == NULL)
-			return -EPROTO;
+			return M0_ERR(-EPROTO);
 		len = eol - str;
 		switch (count_type->xct_atype) {
 		case M0_XAT_U8:
@@ -93,7 +93,7 @@ static int string_literal(struct m0_xcode_obj *obj, const char *str)
 		memcpy(mem, str, len);
 		return len;
 	} else
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 }
 
 static int char_check(const char **str, char ch)
@@ -214,7 +214,7 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 			 * glibc/stdio-common/vfscanf.c.
 			 */
 			if (nr != 1)
-				return -EPROTO;
+				return M0_ERR(-EPROTO);
 			str += nob;
 		}
 	}

@@ -616,7 +616,7 @@ M0_INTERNAL int m0_db_cursor_init(struct m0_db_cursor *cursor_,
         cursor = cursor_->c_i.c_i;
 	cursor_->c_i.c_after_delete = false;
         if (cursor == NULL)
-                return -ENOMEM;
+                return M0_ERR(-ENOMEM);
 
         cursor_->c_flags = flags;
         cursor_->c_table = table;

@@ -867,10 +867,10 @@ static int nlx_dev_ioctl_dom_init(struct nlx_kcore_domain *kd,
 	m0_mutex_lock(&kd->kd_drv_mutex);
 	if (!nlx_core_kmem_loc_is_empty(&kd->kd_cd_loc)) {
 		m0_mutex_unlock(&kd->kd_drv_mutex);
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	}
 	if (off + sizeof *cd > PAGE_SIZE)
-		return -EBADR;
+		return M0_ERR(-EBADR);
 
 	/* note: these calls can block */
 	down_read(&current->mm->mmap_sem);
@@ -919,12 +919,12 @@ static int nlx_dev_ioctl_buf_register(struct nlx_kcore_domain *kd,
 	int rc;
 
 	if (off + sizeof *cb > PAGE_SIZE)
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	if (p->dbr_buffer_id == 0)
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	NLX_ALLOC_ARR(buf, n, &kd->kd_addb_ctx, KD_BUF_REG1);
 	if (buf == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	NLX_ALLOC_ARR(count, n, &kd->kd_addb_ctx, KD_BUF_REG2);
 	if (count == NULL) {
 		rc = -ENOMEM;
@@ -1023,7 +1023,7 @@ static int nlx_dev_buf_deregister(struct nlx_kcore_domain *kd,
 	struct nlx_core_buffer *cb;
 
 	if (!nlx_kcore_buffer_invariant(kb))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_bufs_tlist_del(kb);
 	m0_mutex_unlock(&kd->kd_drv_mutex);
@@ -1048,7 +1048,7 @@ static int nlx_dev_ioctl_buf_deregister(struct nlx_kcore_domain *kd,
 
 	/* protect against user space passing invalid ptr */
 	if (!virt_addr_valid(kb))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	return nlx_dev_buf_deregister(kd, kb);
 }
 
@@ -1068,11 +1068,11 @@ static int nlx_dev_ioctl_buf_queue_op(
 
 	M0_PRE(op != NULL);
 	if (!virt_addr_valid(ktm) || !virt_addr_valid(kb))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	if (!nlx_kcore_tm_invariant(ktm))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	if (!nlx_kcore_buffer_invariant(kb))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	cb = nlx_kcore_core_buffer_map(kb);
 	if (!nlx_core_buffer_invariant(cb))
 		rc = -EBADR;
@@ -1095,11 +1095,11 @@ static int nlx_dev_ioctl_buf_del(const struct nlx_kcore_domain *kd,
 	struct nlx_kcore_buffer *kb = p->dbq_kb;
 
 	if (!virt_addr_valid(ktm) || !virt_addr_valid(kb))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	if (!nlx_kcore_tm_invariant(ktm))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	if (!nlx_kcore_buffer_invariant(kb))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	return kd->kd_drv_ops->ko_buf_del(ktm, kb);
 }
 
@@ -1116,7 +1116,7 @@ static int nlx_dev_ioctl_buf_event_wait(const struct nlx_kcore_domain *kd,
 	int rc;
 
 	if (!virt_addr_valid(ktm))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	M0_ASSERT(nlx_kcore_tm_invariant(ktm));
 	ctm = nlx_kcore_core_tm_map(ktm);
 	if (!nlx_core_tm_invariant(ctm))
@@ -1173,12 +1173,12 @@ static int nlx_dev_ioctl_nidstrs_get(struct nlx_kcore_domain *kd,
 		sz += strlen(nidstrs[i]) + 1;
 	if (sz > p->dng_size) {
 		nlx_kcore_nidstrs_put(&nidstrs);
-		return -EFBIG;
+		return M0_ERR(-EFBIG);
 	}
 	NLX_ALLOC(buf, sz, &kd->kd_addb_ctx, KD_NID_GET);
 	if (buf == NULL) {
 		nlx_kcore_nidstrs_put(&nidstrs);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	for (i = 0, sz = 0; nidstrs[i] != NULL; ++i) {
 		strcpy(&buf[sz], nidstrs[i]);
@@ -1212,10 +1212,10 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	int rc;
 
 	if (off + sizeof *ctm > PAGE_SIZE)
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	NLX_ALLOC_PTR(ktm, &kd->kd_addb_ctx, KD_TM_START);
 	if (ktm == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	ktm->ktm_magic = M0_NET_LNET_KCORE_TM_MAGIC;
 
 	down_read(&current->mm->mmap_sem);
@@ -1266,7 +1266,7 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 	struct nlx_core_transfer_mc *ctm;
 
 	if (!nlx_kcore_tm_invariant(ktm))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	m0_tl_for(drv_bevs, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
 		m0_mutex_lock(&kd->kd_drv_mutex);
@@ -1303,7 +1303,7 @@ static int nlx_dev_ioctl_tm_stop(struct nlx_kcore_domain *kd,
 
 	/* protect against user space passing invalid ptr */
 	if (!virt_addr_valid(ktm))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	return nlx_dev_tm_cleanup(kd, ktm);
 }
 
@@ -1326,15 +1326,15 @@ static int nlx_dev_ioctl_bev_bless(struct nlx_kcore_domain *kd,
 	int rc;
 
 	if (!virt_addr_valid(ktm))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	if (!nlx_kcore_tm_invariant(ktm))
-		return -EBADR;
+		return M0_ERR(-EBADR);
 	if (off + sizeof *cbe > PAGE_SIZE)
-		return -EBADR;
+		return M0_ERR(-EBADR);
 
 	NLX_ALLOC_PTR(kbe, &kd->kd_addb_ctx, KD_BEV_BLESS);
 	if (kbe == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	drv_bevs_tlink_init(kbe);
 
 	down_read(&current->mm->mmap_sem);
@@ -1506,13 +1506,13 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	int rc;
 
         if (!capable(CAP_SYS_ADMIN))
-		return -EPERM;
+		return M0_ERR(-EPERM);
 	if ((file->f_flags & (O_RDWR|O_CLOEXEC)) != (O_RDWR|O_CLOEXEC))
-		return -EACCES;
+		return M0_ERR(-EACCES);
 
 	NLX_ALLOC_PTR(kd, &m0_net_lnet_addb_ctx, KD_OPEN);
 	if (kd == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	/** @todo Determine an appropriate ADDB parent ctx */
 	rc = nlx_kcore_kcore_dom_init(kd, &m0_net_lnet_addb_ctx);
 	if (rc != 0) {

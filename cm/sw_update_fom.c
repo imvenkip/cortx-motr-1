@@ -228,7 +228,7 @@ static int swu_store(struct m0_cm_sw_update *swu)
 	hi = m0_cm_ag_hi(cm);
 	lo = m0_cm_ag_lo(cm);
 	if (hi == NULL && lo == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	m0_cm_sw_set(&sw, &lo->cag_id, &hi->cag_id);
 	m0_dtx_opened(tx);
 	rc = m0_cm_sw_store_update(cm, &tx->tx_betx, &sw);

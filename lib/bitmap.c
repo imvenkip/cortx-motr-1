@@ -85,7 +85,7 @@ M0_INTERNAL int m0_bitmap_init(struct m0_bitmap *map, size_t nr)
 {
 	M0_ALLOC_ARR(map->b_words, M0_BITMAP_WORDS(nr));
 	if (map->b_words == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	map->b_nr = nr;
 
 	return 0;
@@ -159,7 +159,7 @@ M0_INTERNAL int m0_bitmap_onwire_init(struct m0_bitmap_onwire *ow_map, size_t nr
 	ow_map->bo_size = M0_BITMAP_WORDS(nr);
 	M0_ALLOC_ARR(ow_map->bo_words, M0_BITMAP_WORDS(nr));
 	if (ow_map->bo_words == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	return 0;
 }

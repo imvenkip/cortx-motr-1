@@ -48,13 +48,13 @@ M0_INTERNAL int m0_matrix_init(struct m0_matrix *m, uint32_t w, uint32_t h)
 
 	M0_ALLOC_ARR(m->m_matrix, h);
 	if (m->m_matrix == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	for (i = 0; i < h; ++i) {
 		M0_ALLOC_ARR(m->m_matrix[i], w);
 		if (m->m_matrix[i] == NULL) {
 			m0_matrix_fini(m);
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		}
 	}
 

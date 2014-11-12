@@ -54,14 +54,14 @@ M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)
 		rc = gethostbyname_r(name, &he, he_buf, sizeof he_buf,
 				     &hp, &herrno);
 		if (rc != 0 || hp == NULL)
-			return -ENOENT;
+			return M0_ERR(-ENOENT);
 		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
 			/* take 1st IPv4 address found */
 			if (hp->h_addrtype == AF_INET &&
 			    hp->h_length == sizeof(ipaddr))
 				break;
 		if (hp->h_addr_list[i] == NULL)
-			return -EPFNOSUPPORT;
+			return M0_ERR(-EPFNOSUPPORT);
 		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) == NULL)
 			rc = -errno;
 	} else if (strlen(name) >= bufsiz) {

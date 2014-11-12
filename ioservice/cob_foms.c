@@ -141,7 +141,7 @@ M0_INTERNAL int m0_cob_fom_create(struct m0_fop *fop, struct m0_fom **out,
 	if (rfop == NULL) {
 		IOS_ADDB_FUNCFAIL(rc, COB_FOM_CREATE_2, &m0_ios_addb_ctx);
 		m0_free(cfom);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, fom_ops, fop, rfop, reqh);
@@ -158,7 +158,7 @@ static int cob_op_fom_create(struct m0_fom **out)
 
 	M0_ALLOC_PTR(cfom);
 	if (cfom == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	*out = &cfom->fco_fom;
 	return 0;

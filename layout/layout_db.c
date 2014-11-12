@@ -452,7 +452,7 @@ M0_INTERNAL int m0_layout_lookup(struct m0_layout_domain *dom,
 		m0_layout__log("m0_layout_lookup", "Unregistered layout type",
 			       M0_LAYOUT_ADDB_LOC_LOOKUP_1, NULL,
 			       lid, -EPROTO);
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 	}
 
 	m0_mutex_lock(&dom->ld_lock);
@@ -627,7 +627,7 @@ M0_INTERNAL int m0_layout_delete(struct m0_layout *l,
 		       "user_count, rc %d", (unsigned long long)l->l_id,
 		       (unsigned long)l->l_user_count, -EPROTO);
 		m0_mutex_unlock(&l->l_lock);
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 	}
 
 	recsize = l->l_ops->lo_recsize(l);

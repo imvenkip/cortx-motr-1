@@ -556,7 +556,7 @@ M0_INTERNAL int m0_addb_ctx_export(struct m0_addb_ctx *ctx,
 	if (id->au64s_data == NULL) {
 		M0_LOG(M0_ERROR, "m0_addb_ctx_export: unable to allocate %d",
 		       (int)(ctx->ac_depth * sizeof(uint64_t)));
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	id->au64s_nr = ctx->ac_depth;
 

@@ -108,7 +108,7 @@ static int dtx_find(struct m0_dtm *dtm, const struct m0_dtm_history_type *ht,
 		    struct m0_dtm_history **out)
 {
 	M0_IMPOSSIBLE("Looking for dtx?");
-	return -ENOSYS;
+	return M0_ERR(-ENOSYS);
 }
 
 static const struct m0_dtm_history_type_ops dtx_htype_ops = {

@@ -76,7 +76,7 @@ M0_INTERNAL int m0_rpc__fop_post(struct m0_fop *fop,
 	item->ri_rmachine   = session_machine(session);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	if (M0_FI_ENABLED("do_nothing"))
 		return 0;

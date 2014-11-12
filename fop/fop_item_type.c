@@ -76,7 +76,7 @@ m0_fop_item_type_default_decode(const struct m0_rpc_item_type *item_type,
 	 */
 	M0_ALLOC_PTR(fop);
 	if (fop == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_fop_init(fop, ftype, NULL, m0_fop_release);
 	item = m0_fop_to_rpc_item(fop);

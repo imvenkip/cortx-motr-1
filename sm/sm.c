@@ -614,7 +614,7 @@ M0_INTERNAL int m0_sm_timeout_arm(struct m0_sm *mach, struct m0_sm_timeout *to,
 			 ergo(M0_BITS(i) & bitmask,
 			      state_get(mach, i)->sd_allowed & M0_BITS(state))));
 	if (M0_FI_ENABLED("failed"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	/*
 	 * @todo to->st_clink remains registered with mach->sm_chan even after

@@ -114,7 +114,7 @@ M0_INTERNAL int m0_be_rdt_init(struct m0_be_reg_d_tree *rdt, size_t size_max)
 	rdt->brt_size_max = size_max;
 	M0_ALLOC_ARR(rdt->brt_r, rdt->brt_size_max);
 	if (rdt->brt_r == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	M0_POST(m0_be_rdt__invariant(rdt));
 	return 0;

@@ -497,7 +497,7 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	M0_PRE(cm != NULL);
 	cp = cm->cm_ops->cmo_cp_alloc(cm);
         if (cp == NULL)
-                return -ENOMEM;
+                return M0_ERR(-ENOMEM);
 
 	m0_cm_cp_fom_init(cm, cp);
 	cp->c_fom.fo_addb_ctx.ac_magic = 0;

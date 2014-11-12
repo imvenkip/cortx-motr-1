@@ -118,7 +118,7 @@ static int mds_allocate(struct m0_reqh_service **service,
         M0_ALLOC_PTR_ADDB(mds, &m0_addb_gmc, M0_MDS_ADDB_LOC_ALLOCATE,
 			  &m0_mds_mod_ctx);
         if (mds == NULL)
-                return -ENOMEM;
+                return M0_ERR(-ENOMEM);
 
         mds->rmds_magic = M0_MDS_REQH_SVC_MAGIC;
 

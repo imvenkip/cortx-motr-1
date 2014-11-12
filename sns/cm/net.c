@@ -68,7 +68,7 @@ static int indexvec_prepare(struct m0_io_indexvec *iv, m0_bindex_t idx,
 		      CP_INDEXVEC_PREPARE);
         if (iv->ci_iosegs == NULL) {
                 m0_free(iv);
-                return -ENOMEM;
+                return M0_ERR(-ENOMEM);
         }
 
         iv->ci_nr = seg_nr;

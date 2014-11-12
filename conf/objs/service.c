@@ -80,7 +80,7 @@ service_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	rc = m0_bufs_from_strings(&d->xs_endpoints, s->cs_endpoints);
 	if (rc != 0)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	d->xs_node = s->cs_node->cn_obj.co_id;
 	return 0;
@@ -105,7 +105,7 @@ static int service_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 	M0_PRE(parent->co_status == M0_CS_READY);
 
 	if (!m0_fid_eq(name, &M0_CONF_SERVICE_NODE_FID))
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	*out = &M0_CONF_CAST(parent, m0_conf_service)->cs_node->cn_obj;
 	M0_POST(m0_conf_obj_invariant(*out));

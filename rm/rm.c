@@ -411,7 +411,7 @@ M0_INTERNAL int m0_rm_resource_encode(struct m0_rm_resource *res,
 			res->r_type->rt_ops->rto_len(res);
 	RM_ALLOC(buf->b_addr, buf->b_nob, RESOURCE_BUF_ALLOC, &m0_rm_addb_ctx);
 	if (buf->b_addr == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	datum_buf.ov_buf = &buf->b_addr;
 	datum_buf.ov_vec.v_nr = 1;
@@ -652,7 +652,7 @@ M0_INTERNAL int m0_rm_owner_selfadd(struct m0_rm_owner  *owner,
 		RM_ALLOC_PTR(credit_transfer, CREDIT_ALLOC, &m0_rm_addb_ctx);
 		if (credit_transfer == NULL) {
 			m0_free(nominal_capital);
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		}
 		m0_rm_credit_init(credit_transfer, owner);
 		rc = m0_rm_credit_copy(credit_transfer, r) ?:
@@ -1826,7 +1826,7 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 						in->rin_ops->rio_conflict(in);
 					wait++;
 				} else if (in->rin_flags & RIF_LOCAL_TRY)
-					return -EBUSY;
+					return M0_ERR(-EBUSY);
 			} else if (wait == 0) {
 				rc = pin_add(in, r, M0_RPF_PROTECT);
 			}
@@ -2713,7 +2713,7 @@ M0_INTERNAL int m0_rm_credit_encode(struct m0_rm_credit *credit,
 	buf->b_nob = credit->cr_ops->cro_len(credit);
 	RM_ALLOC(buf->b_addr, buf->b_nob, CREDIT_BUF_ALLOC, &m0_rm_addb_ctx);
 	if (buf->b_addr == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	datum_buf.ov_buf = &buf->b_addr;
 	datum_buf.ov_vec.v_nr = 1;

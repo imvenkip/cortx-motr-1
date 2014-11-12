@@ -89,7 +89,7 @@ static int profile_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 	M0_PRE(parent->co_status == M0_CS_READY);
 
 	if (!m0_fid_eq(name, &M0_CONF_PROFILE_FILESYSTEM_FID))
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	*out = &M0_CONF_CAST(parent, m0_conf_profile)->cp_filesystem->cf_obj;
 	M0_POST(m0_conf_obj_invariant(*out));

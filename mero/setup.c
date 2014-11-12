@@ -292,7 +292,7 @@ M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 	M0_ALLOC_ARR(epx->ex_scrbuf, ep_len);
 	if (epx->ex_scrbuf == NULL) {
 		M0_LOG(M0_ERROR, "malloc failed");
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	strncpy(epx->ex_scrbuf, ep, ep_len);
@@ -311,7 +311,7 @@ M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 
 err:
 	m0_free(epx->ex_scrbuf);
-	return -EINVAL;
+	return M0_ERR(-EINVAL);
 }
 
 /**
@@ -328,7 +328,7 @@ static int ep_and_xprt_append(struct m0_tl *head, const char *ep)
 	M0_ALLOC_PTR(epx);
 	if (epx == NULL) {
 		M0_LOG(M0_ERROR, "malloc failed");
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	rc = m0_ep_and_xprt_extract(epx, ep);
@@ -339,7 +339,7 @@ static int ep_and_xprt_append(struct m0_tl *head, const char *ep)
 	return 0;
 err:
 	m0_free(epx);
-	return -EINVAL;
+	return M0_ERR(-EINVAL);
 }
 
 /**
@@ -473,13 +473,13 @@ static int cs_rpc_machine_init(struct m0_mero *cctx, const char *xprt_name,
 
 	ndom = m0_cs_net_domain_locate(cctx, xprt_name);
 	if (ndom == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	if (max_rpc_msg_size > m0_net_domain_get_max_buffer_size(ndom))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	M0_ALLOC_PTR(rpcmach);
 	if (rpcmach == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = m0_rpc_machine_init(rpcmach, ndom, ep,
@@ -620,7 +620,7 @@ static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 		}
 	}
 
-	return -ENOENT;
+	return M0_ERR(-ENOENT);
 }
 
 static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
@@ -649,17 +649,17 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob)
 
 	f = fopen(dfile, "r");
 	if (f == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	document = &stob->s_sfile.sf_document;
 	rc = yaml_parser_initialize(&parser);
 	if (rc != 1)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	yaml_parser_set_input_file(&parser, f);
 	rc = yaml_parser_load(&parser, document);
 	if (rc != 1)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	stob->s_sfile.sf_is_initialised = true;
 	yaml_parser_delete(&parser);
@@ -968,7 +968,7 @@ cs_net_domain_init(struct cs_endpoint_and_xprt *ep, struct m0_mero *cctx)
 
 	xprt = cs_xprt_lookup(ep->ex_xprt, cctx->cc_xprts, cctx->cc_xprts_nr);
 	if (xprt == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	ndom = m0_cs_net_domain_locate(cctx, ep->ex_xprt);
 	if (ndom != NULL)
@@ -1555,7 +1555,7 @@ service_string_parse(const char *str, char **svc, struct m0_uint128 *uuid)
 	len = colon - str;
 	*svc = m0_alloc(len + 1);
 	if (*svc == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	strncpy(*svc, str, len);
 	*(*svc + len) = '\0';
 
@@ -1794,7 +1794,7 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	int rc;
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	m0_rwlock_write_lock(&cctx->cc_rwlock);
 	rc = cs_args_parse(cctx, argc, argv) ?:
@@ -1841,7 +1841,7 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	M0_PRE(xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	cctx->cc_xprts    = xprts;
 	cctx->cc_xprts_nr = xprts_nr;

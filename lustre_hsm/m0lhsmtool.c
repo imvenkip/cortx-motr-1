@@ -289,7 +289,7 @@ static int ct_parseopts(int argc, char * const *argv)
 		case 0:
 			break;
 		default:
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		}
 	}
 
@@ -460,7 +460,7 @@ static int ct_load_stripe(const char *src, void *lovea, size_t *lovea_size)
 	fd = open(lov_file, O_RDONLY);
 	if (fd < 0) {
 		CT_ERROR(errno, "cannot open '%s'", lov_file);
-		return -ENODATA;
+		return M0_ERR(-ENODATA);
 	}
 
 	rc = read(fd, lovea, *lovea_size);
@@ -468,7 +468,7 @@ static int ct_load_stripe(const char *src, void *lovea, size_t *lovea_size)
 		CT_ERROR(errno, "cannot read %zu bytes from '%s'",
 			 *lovea_size, lov_file);
 		close(fd);
-		return -ENODATA;
+		return M0_ERR(-ENODATA);
 	}
 
 	*lovea_size = rc;
@@ -542,7 +542,7 @@ static int ct_copy_data(struct hsm_copyaction_private *hcp, const char *src,
 
 	buf = malloc(opt.o_chunk_size);
 	if (buf == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	if (fstat(src_fd, &src_st) < 0) {
 		rc = -errno;
@@ -1304,12 +1304,12 @@ static int ct_process_item_async(const struct hsm_action_item *hai,
 
 	data = malloc(sizeof(*data));
 	if (data == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	data->hai = malloc(hai->hai_len);
 	if (data->hai == NULL) {
 		free(data);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	memcpy(data->hai, hai, hai->hai_len);
@@ -1408,12 +1408,12 @@ static int ct_import_recurse(const char *relpath)
 	int		 rc;
 
 	if (relpath == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	srcpath = path_concat(opt.o_hsm_root, relpath);
 	if (srcpath == NULL) {
 		err_major++;
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	dir = opendir(srcpath);

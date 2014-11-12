@@ -412,7 +412,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	if (f_nr == 0) {
 		m0_bitmap_fini(&sag->sag_fmap);
 		m0_sns_cm_fctx_put(scm, id);
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 	sag->sag_fnr = f_nr;
 	if (has_incoming)

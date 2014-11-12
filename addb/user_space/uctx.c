@@ -73,7 +73,7 @@ static int addb_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 	} else {
 		fd = open(kmod_uuid_file, O_RDONLY);
 		if (fd < 0)
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		if (read(fd, buf, M0_UUID_STRLEN) == M0_UUID_STRLEN) {
 			rc = 0;
 			buf[M0_UUID_STRLEN] = '\0';

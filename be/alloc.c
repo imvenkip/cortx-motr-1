@@ -749,7 +749,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 
 	/* check if segment is large enough to allocate at least 1 byte */
 	if (a->ba_seg->bs_size <= overhead)
-		return -ENOSPC;
+		return M0_ERR(-ENOSPC);
 
 	m0_mutex_lock(&a->ba_lock);
 

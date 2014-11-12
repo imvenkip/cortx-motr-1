@@ -379,7 +379,7 @@ M0_INTERNAL int m0_sns_cm_repair_ag_alloc(struct m0_cm *cm,
 	/* Allocate new aggregation group. */
 	SNS_ALLOC_PTR(rag, &m0_sns_ag_addb_ctx, AG_ALLOC);
 	if (rag == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	rc = m0_sns_cm_ag_init(&rag->rag_base, cm, id, &sns_cm_repair_ag_ops,
 			       has_incoming);
 	if (rc != 0) {

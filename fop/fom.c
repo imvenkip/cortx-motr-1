@@ -711,7 +711,7 @@ static int loc_thr_create(struct m0_fom_locality *loc)
 
 	FOP_ALLOC_PTR(thr, LOC_THR_CREATE, &m0_fop_addb_ctx);
 	if (thr == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	thr->lt_state = IDLE;
 	thr->lt_magix = M0_FOM_THREAD_MAGIC;
 	thr->lt_loc   = loc;
@@ -910,7 +910,7 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 			&m0_fop_addb_ctx);
 	if (dom->fd_localities == NULL) {
 		m0_bitmap_fini(&onln_cpu_map);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	for (i = 0; i < cpu_max; i++) {
 		FOP_ALLOC_PTR(dom->fd_localities[i], FOM_DOMAIN_INIT,
@@ -922,7 +922,7 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain *dom)
 			}
 			m0_free(dom->fd_localities);
 			m0_bitmap_fini(&onln_cpu_map);
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		}
 	}
 
@@ -1427,7 +1427,7 @@ M0_INTERNAL int m0_fom_op_addb_ctx_import(struct m0_fom *fom,
 	M0_PRE(id  != NULL);
 
 	if (id->au64s_nr <= 0)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 	fom->fo_op_addb_ctx = &fom->fo_imp_op_addb_ctx;
 	return m0_addb_ctx_import(fom->fo_op_addb_ctx, id);
 }

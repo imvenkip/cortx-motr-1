@@ -67,7 +67,7 @@ M0_INTERNAL int  m0_be_log_store_open(struct m0_be_log_store *ls)
 {
 	/* XXX */
 	M0_IMPOSSIBLE("Not implemented yet");
-	return -ENOSYS;
+	return M0_ERR(-ENOSYS);
 }
 
 M0_INTERNAL void m0_be_log_store_close(struct m0_be_log_store *ls)

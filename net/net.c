@@ -112,7 +112,7 @@ M0_INTERNAL int m0_net_desc_copy(const struct m0_net_buf_desc *from_desc,
 			  &m0_addb_gmc, M0_NET_ADDB_LOC_DESC_COPY,
 			  &m0_net_addb_ctx);
 	if (to_desc->nbd_data == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	memcpy(to_desc->nbd_data, from_desc->nbd_data, from_desc->nbd_len);
 	to_desc->nbd_len = from_desc->nbd_len;
 	return 0;

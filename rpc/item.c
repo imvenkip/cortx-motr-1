@@ -605,7 +605,7 @@ M0_INTERNAL int m0_rpc_item_start_timer(struct m0_rpc_item *item)
 
 	if (M0_FI_ENABLED("failed")) {
 		M0_LOG(M0_DEBUG, "item %p failed to start timer", item);
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 
 	if (item->ri_resend_interval == M0_TIME_NEVER)

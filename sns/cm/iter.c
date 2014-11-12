@@ -406,7 +406,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 	if (has_incoming) {
 		if (m0_cm_ag_id_cmp(&agid,
 				    &cm->cm_last_saved_sw_hi) <= 0)
-			return -EEXIST;
+			return M0_ERR(-EEXIST);
 	}
 
 	if (has_incoming && !cm->cm_ops->cmo_has_space(cm, &agid,

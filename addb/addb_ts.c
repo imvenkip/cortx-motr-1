@@ -335,7 +335,7 @@ cleanup:
 		m0_free(ts->at_bitmaps[pidx]);
 	}
 
-	return -ENOMEM;
+	return M0_ERR(-ENOMEM);
 }
 
 M0_TL_DESCR_DEFINE(rec_queue, "ts rec headers", static,
@@ -422,7 +422,7 @@ cleanup_2:
 cleanup_1:
 	m0_bufvec_free(&ts->at_pages);
 
-	return -ENOMEM;
+	return M0_ERR(-ENOMEM);
 }
 
 static bool addb_ts_rec_invariant(struct m0_addb_ts_rec *rec)

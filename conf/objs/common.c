@@ -75,7 +75,7 @@ M0_INTERNAL int dir_new(struct m0_conf_cache *cache,
 
 	dir = m0_conf_obj_create(cache, &dir_id);
 	if (dir == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	*out = M0_CONF_CAST(dir, m0_conf_dir);
 
 	(*out)->cd_item_type = children_type;
@@ -137,7 +137,7 @@ arrfid_from_dir(struct arr_fid *dest, const struct m0_conf_dir *dir)
 
 	M0_ALLOC_ARR(dest->af_elems, dest->af_count);
 	if (dest->af_elems == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	i = 0;
 	m0_tl_for(m0_conf_dir, &dir->cd_items, obj) {

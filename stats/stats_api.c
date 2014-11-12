@@ -129,7 +129,7 @@ int m0_stats_query(struct m0_rpc_session     *session,
 
 	fop = query_fop_alloc(stats_ids);
 	if (fop == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	item = &fop->f_item;
 	rc = m0_rpc_post_sync(fop, session, NULL, 0);

@@ -271,7 +271,7 @@ static int num_parse(uint32_t *dest, const substring_t *src)
 
 	s = match_strdup(src);
 	if (s == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	rc = strict_strtoul(s, 10, &n);
 	if (rc == 0) {
@@ -307,7 +307,7 @@ static int local_conf_step(char *s, uint8_t *depth)
 		if (*s == '[') {
 			++*depth;
 			if (unlikely(*depth == 0))
-				return -EPROTO;
+				return M0_ERR(-EPROTO);
 		} else if (*s == ']') {
 			if (*depth > 0)
 				--*depth;
@@ -693,7 +693,7 @@ static int m0t1fs_poolmach_create(struct m0_poolmach **out, uint32_t pool_width,
 
 	M0_ALLOC_PTR(m);
 	if (m == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	rc = m0_poolmach_init(m, NULL, NULL, NULL, NR_NODES, pool_width,
 			      MAX_NODE_FAILURES, nr_parity_units);

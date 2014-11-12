@@ -343,13 +343,13 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 
 	rh_st = m0_reqh_state_get(reqh);
 	if (rh_st == M0_REQH_ST_INIT)
-		return -EAGAIN;
+		return M0_ERR(-EAGAIN);
 	if (rh_st == M0_REQH_ST_STOPPED)
-		return -ESHUTDOWN;
+		return M0_ERR(-ESHUTDOWN);
 
 	svc = m0_reqh_service_find(fop->f_type->ft_fom_type.ft_rstype, reqh);
 	if (svc == NULL)
-		return -ECONNREFUSED;
+		return M0_ERR(-ECONNREFUSED);
 
 	M0_ASSERT(svc->rs_ops != NULL);
 	svc_st = m0_reqh_service_state_get(svc);
@@ -359,20 +359,20 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		if (svc_st == M0_RST_STARTED)
 			return 0;
 		if (svc_st == M0_RST_STARTING)
-			return -EBUSY;
+			return M0_ERR(-EBUSY);
 		else if (svc_st == M0_RST_STOPPING &&
 			 svc->rs_ops->rso_fop_accept != NULL)
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
-		return -ESHUTDOWN;
+		return M0_ERR(-ESHUTDOWN);
 	case M0_REQH_ST_DRAIN:
 		if (M0_IN(svc_st, (M0_RST_STARTED, M0_RST_STOPPING)) &&
 		    svc->rs_ops->rso_fop_accept != NULL)
 			return (*svc->rs_ops->rso_fop_accept)(svc, fop);
-		return -ESHUTDOWN;
+		return M0_ERR(-ESHUTDOWN);
 	case M0_REQH_ST_SVCS_STOP:
 		return rh_st == -ESHUTDOWN;
 	default:
-		return -ENOSYS;
+		return M0_ERR(-ENOSYS);
 	};
 }
 

@@ -141,7 +141,7 @@ err1_injected:
 		m0_layout__log("list_allocate", "M0_ALLOC_PTR() failed",
 			       M0_LAYOUT_ADDB_LOC_LIST_ALLOC, NULL, LID_NONE,
 			       -ENOMEM);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	m0_layout__enum_init(dom, &list_enum->lle_base,
 			     &m0_list_enum_type, &list_enum_ops);
@@ -179,7 +179,7 @@ static int list_populate(struct m0_layout_list_enum *list_enum,
 		M0_LOG(M0_ERROR,
 			"list_enum %p, Invalid attributes (nr = 0), rc %d",
 		       list_enum, -EPROTO);
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 	}
 	list_enum->lle_nr = nr;
 	list_enum->lle_list_of_cobs = cob_list;
@@ -206,7 +206,7 @@ err1_injected:
 			m0_layout__log("m0_list_enum_build", "fid invalid",
 				       M0_LAYOUT_ADDB_LOC_LIST_ENUM_BUILD, NULL,
 				       LID_NONE, -EPROTO);
-			return -EPROTO;
+			return M0_ERR(-EPROTO);
 		}
 	}
 
@@ -275,7 +275,7 @@ err1_injected:
 		m0_layout__log("list_register", "M0_ALLOC_PTR() failed",
 			       M0_LAYOUT_ADDB_LOC_LIST_REG_1, NULL, LID_NONE,
 			       -ENOMEM);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	if (M0_FI_ENABLED("table_init_err"))

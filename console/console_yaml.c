@@ -182,7 +182,7 @@ M0_INTERNAL void *m0_cons_yaml_get_value(const char *name)
 
 M0_INTERNAL int m0_cons_yaml_set_value(const char *name, void *data)
 {
-	return -ENOTSUP;
+	return M0_ERR(-ENOTSUP);
 }
 
 /** @} end of console_yaml group */

@@ -755,7 +755,7 @@ M0_INTERNAL int m0_sns_ir_init(const struct m0_parity_math *math,
 
 	M0_ALLOC_ARR(ir->si_blocks, ir->si_alive_nr);
 	if (ir->si_blocks == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	for (i = 0; i < block_count(ir); ++i) {
 		ir->si_blocks[i].sib_idx = i;

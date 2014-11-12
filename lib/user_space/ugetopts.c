@@ -77,7 +77,7 @@ static int getnum(const char *arg, const char *desc, int64_t *out)
 	if (*end != 0) {
 		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
 			arg, desc);
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	} else
 		return 0;
 }
@@ -104,7 +104,7 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 
 	M0_ALLOC_ARR(optstring, 2 * nr + 1);
 	if (optstring == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	for (scan = i = 0; i < nr; ++i) {
 		/* -W is reserved by POSIX.2 and used by GNU getopts as a long

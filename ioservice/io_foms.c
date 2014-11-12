@@ -979,7 +979,7 @@ static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 			   rios_gen);
 	cob_dom = ios->rios_cdom;
 	if (cob_dom == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	m0_cob_oikey_make(&oikey, fid, 0);
 	rc = m0_cob_locate(cob_dom, &oikey, M0_CA_NSKEY_FREE, &cob);
@@ -1040,7 +1040,7 @@ static int align_bufvec(struct m0_fom    *fom,
 	if (obuf->ov_vec.v_count == NULL || obuf->ov_buf == NULL) {
 		m0_free(obuf->ov_vec.v_count);
 		m0_free(obuf->ov_buf);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	obuf->ov_vec.v_nr = bufvec_count;

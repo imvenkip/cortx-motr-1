@@ -134,7 +134,7 @@ static int mem_ep_create(struct m0_net_end_point  **epp,
 	/* allocate a new end point of appropriate size */
 	mep = dp->xd_ops->bmo_ep_alloc(); /* indirect alloc */
 	if (mep == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	mep->xep_magic = M0_NET_BULK_MEM_XEP_MAGIC;
 	mep->xep_sa.sin_addr = sa->sin_addr;
 	mep->xep_sa.sin_port = sa->sin_port;
@@ -217,7 +217,7 @@ static int mem_desc_create(struct m0_net_buf_desc *desc,
 	desc->nbd_data = (typeof(desc->nbd_data)) md;
 	if (desc->nbd_data == NULL) {
 		desc->nbd_len = 0;
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	/* copy the passive end point address */
@@ -245,7 +245,7 @@ static int mem_desc_decode(struct m0_net_buf_desc *desc,
 {
 	if (desc->nbd_len != sizeof **p_md ||
 	    desc->nbd_data == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	*p_md = (struct mem_desc *) desc->nbd_data;
 	return 0;
 }

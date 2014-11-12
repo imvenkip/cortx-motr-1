@@ -101,7 +101,7 @@ static int rpc_service_allocate(struct m0_reqh_service **service,
 
 	RPC_ALLOC_PTR(svc, SERVICE_ALLOC, NULL);
 	if (svc == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_rpc_service_bob_init(svc);
 	svc->rps_svc.rs_ops = &rpc_ops;

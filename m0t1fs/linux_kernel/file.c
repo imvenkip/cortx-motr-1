@@ -1835,7 +1835,7 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 		get_zeroed_page(GFP_KERNEL);
 
 	if (map->pi_databufs[row][col]->db_auxbuf.b_addr == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	++iommstats.a_page_nr;
 	map->pi_databufs[row][col]->db_auxbuf.b_nob = PAGE_CACHE_SIZE;
 
@@ -4610,7 +4610,7 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 
 	if (!file_to_sb(kcb->ki_filp)->csb_active) {
 		M0_LEAVE();
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 
 	rc = generic_segment_checks(iov, &seg_nr, &count, VERIFY_READ);

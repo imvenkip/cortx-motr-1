@@ -172,7 +172,7 @@ addb_svc_rsto_service_allocate(struct m0_reqh_service **service,
 	M0_ALLOC_PTR(svc);
 	if (svc == NULL) {
 		M0_LOG(M0_ERROR, "Unable to allocate memory for ADDB service");
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	*service = &svc->as_reqhs;
 	(*service)->rs_type = stype;

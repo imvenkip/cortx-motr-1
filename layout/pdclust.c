@@ -216,7 +216,7 @@ err1_injected:
 		m0_layout__log("pdclust_allocate", "M0_ALLOC_PTR() failed",
 			       M0_LAYOUT_ADDB_LOC_PDCLUST_ALLOC,
 			       NULL, lid, -ENOMEM);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	m0_layout__striped_init(&pl->pl_base, dom, lid,
@@ -271,7 +271,7 @@ static int pdclust_populate(struct m0_pdclust_layout *pl,
 	if (N + 2 * K > P) {
 		M0_LOG(M0_ERROR, "pl %p, attr %p, Invalid attributes, rc %d",
 		       pl, attr, -EPROTO);
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 	}
 
 	lid = pl->pl_base.sl_base.l_id;

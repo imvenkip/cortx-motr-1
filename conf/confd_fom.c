@@ -173,7 +173,7 @@ static int readiness_check(const struct m0_conf_obj *obj)
 	if (m0_conf_obj_is_stub(obj)) {
 		/* All configuration is expected to be loaded already. */
 		M0_ASSERT(obj->co_status != M0_CS_LOADING);
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 	}
 	return 0;
 }

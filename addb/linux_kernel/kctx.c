@@ -37,7 +37,7 @@ static int addb_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 
 	s = m0t1fs_param_node_uuid_get();
 	if (s == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	strncpy(buf, s, M0_UUID_STRLEN);
 	buf[M0_UUID_STRLEN] = '\0';
 	return 0;

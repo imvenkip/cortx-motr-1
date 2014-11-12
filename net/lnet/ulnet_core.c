@@ -593,7 +593,7 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 		NLX_ALLOC_ARR(dngp.dng_buf, dngp.dng_size,
 			      &ud->ud_addb_ctx, U_NID_GET1);
 		if (dngp.dng_buf == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		rc = nlx_ucore_ioctl(ud->ud_fd, M0_LNET_NIDSTRS_GET, &dngp);
 		if (rc < 0) {
 			m0_free0(&dngp.dng_buf);
@@ -607,7 +607,7 @@ static int nlx_ucore_nidstrs_get(struct nlx_ucore_domain *ud, char ***nidary)
 	NLX_ALLOC_ARR(nidstrs, nidstrs_nr + 1, &ud->ud_addb_ctx, U_NID_GET2);
 	if (nidstrs == NULL) {
 		m0_free(dngp.dng_buf);
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	for (i = 0, p = dngp.dng_buf; i < nidstrs_nr; ++i, ++p) {
 		nidstrs[i] = p;
@@ -644,7 +644,7 @@ M0_INTERNAL int nlx_core_dom_init(struct m0_net_domain *dom,
 	M0_PRE(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
 	NLX_ALLOC_PTR(ud, &dom->nd_addb_ctx, U_DOM_INIT);
 	if (ud == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	M0_ADDB_CTX_INIT(&m0_addb_gmc, &ud->ud_addb_ctx,
 			 &m0_addb_ct_net_lnet_dom, &dom->nd_addb_ctx);
 
@@ -763,7 +763,7 @@ M0_INTERNAL int nlx_core_buf_register(struct nlx_core_domain *cd,
 
 	NLX_ALLOC_PTR(ub, &ud->ud_addb_ctx, U_BUF_REG);
 	if (ub == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	ub->ub_magic = M0_NET_LNET_UCORE_BUF_MAGIC;
 	M0_POST(nlx_ucore_buffer_invariant(ub));
 	cb->cb_upvt = ub;
@@ -1204,7 +1204,7 @@ M0_INTERNAL int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	NLX_ALLOC_ALIGNED_PTR_ADDB(bev, &utm->utm_addb_ctx, U_BEV_BLESS);
 	if (bev == NULL) {
 		*bevp = NULL;
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 
 	bp.dbb_ktm = ctm->ctm_kpvt;

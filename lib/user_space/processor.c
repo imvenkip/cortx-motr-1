@@ -226,7 +226,7 @@ static int processor_map_type_set(enum map map_type)
         str = fgets(buf, MAX_LINE_LEN, fp);
 	fclose(fp);
 	if (str == NULL)
-		return -ENODATA;
+		return M0_ERR(-ENODATA);
 
 	switch (map_type) {
 	case PROCESSORS_POSS_MAP :
@@ -716,23 +716,23 @@ static int processor_info_get(m0_processor_nr_t id, struct processor_node *pn)
 
 	pn->pn_info.pd_numa_node = processor_numanodeid_get(id);
 	if (pn->pn_info.pd_numa_node == M0_PROCESSORS_INVALID_ID)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	pn->pn_info.pd_l1 = processor_l1_cacheid_get(id);
 	if (pn->pn_info.pd_l1 == M0_PROCESSORS_INVALID_ID)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	pn->pn_info.pd_l1_sz = processor_l1_size_get(id);
 	if (pn->pn_info.pd_l1_sz == M0_PROCESSORS_INVALID_ID)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	pn->pn_info.pd_l2 = processor_l2_cacheid_get(id);
 	if (pn->pn_info.pd_l2 == M0_PROCESSORS_INVALID_ID)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	pn->pn_info.pd_l2_sz = processor_l2_size_get(id);
 	if (pn->pn_info.pd_l2_sz == M0_PROCESSORS_INVALID_ID)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	pn->pn_info.pd_id = id;
 	pn->pn_info.pd_pipeline = processor_pipelineid_get(id);
@@ -820,7 +820,7 @@ static int processors_summary_get()
 		rc = chdir(cwd);
 		if (rc != 0)
 			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 
 	rc = processor_map_type_set(PROCESSORS_POSS_MAP);
@@ -862,7 +862,7 @@ static int processors_summary_get()
 			M0_ALLOC_PTR(pn);
 			if (pn == NULL) {
 				processor_cache_destroy();
-				return -ENOMEM;
+				return M0_ERR(-ENOMEM);
 			}
 			rc = processor_info_get(cpuid, pn);
 			if (rc != 0)
@@ -879,7 +879,7 @@ static int processors_summary_get()
 		rc = chdir(cwd);
 		if (rc != 0)
 			M0_LOG(M0_ERROR, "failed to chdir to '%s'", (char*)cwd);
-		return -ENODATA;
+		return M0_ERR(-ENODATA);
 	}
 
 	/*
@@ -966,7 +966,7 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 		}/* if - matching CPU id found */
 	}/* for - iterate over all the processor nodes */
 
-	return -EINVAL;
+	return M0_ERR(-EINVAL);
 }
 
 M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)

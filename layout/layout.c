@@ -982,7 +982,7 @@ M0_INTERNAL int m0_layout_decode(struct m0_layout *l,
 		m0_layout__log("m0_layout_decode", "Invalid layout type",
 			       M0_LAYOUT_ADDB_LOC_DECODE_1,
 			       &l->l_addb_ctx, l->l_id, -EPROTO);
-		return -EPROTO;
+		return M0_ERR(-EPROTO);
 	}
 	M0_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
 

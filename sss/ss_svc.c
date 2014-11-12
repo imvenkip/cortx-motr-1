@@ -349,11 +349,11 @@ static int ss_fom_tick__init(struct ss_fom *m, const struct m0_sss_req *fop,
 
 	if (!IS_IN_ARRAY(fop->ss_cmd, next_phase) ||
 	    m0_fid_type_getfid(&fop->ss_id) != &M0_CONF_SERVICE_TYPE.cot_ftype)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	name = m0_buf_strdup(&fop->ss_name);
 	if (name == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m->ssf_stype = m0_reqh_service_type_find(name);
 	if (m->ssf_stype == NULL) {
@@ -376,7 +376,7 @@ static int ss_fom_tick__svc_alloc(struct ss_fom           *m,
 		container_of(reqh, struct m0_reqh_context, rc_reqh);
 
 	if (m->ssf_svc != NULL)
-		return -EALREADY;
+		return M0_ERR(-EALREADY);
 
 	rc = m0_reqh_service_allocate(&m->ssf_svc, m->ssf_stype, rctx);
 	if (rc == 0) {
@@ -391,9 +391,9 @@ static int ss_fom_tick__svc_alloc(struct ss_fom           *m,
 static int ss_fom_tick__stop(struct m0_reqh_service *svc)
 {
 	if (svc == NULL)
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 	if (m0_reqh_service_state_get(svc) == M0_RST_STOPPING)
-		return -EALREADY;
+		return M0_ERR(-EALREADY);
 	m0_reqh_service_prepare_to_stop(svc);
 	return 0;
 }

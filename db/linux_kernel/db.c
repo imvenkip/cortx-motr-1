@@ -106,7 +106,7 @@ M0_INTERNAL int m0_db_tx_commit(struct m0_db_tx *tx)
 M0_INTERNAL int m0_db_tx_abort(struct m0_db_tx *tx)
 {
 	M0_IMPOSSIBLE("Aborting transaction in kernel space.");
-	return -ENOSYS;
+	return M0_ERR(-ENOSYS);
 }
 
 static int key_cmp(struct m0_table *t,
@@ -182,12 +182,12 @@ static int kbuf_copyout(struct m0_buf *kbuf, struct m0_db_buf *dbbuf)
 		M0_ASSERT(ubuf->b_addr == NULL);
 		ubuf->b_addr = m0_alloc(kbuf->b_nob);
 		if (ubuf->b_addr == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 		ubuf->b_nob = kbuf->b_nob;
 	}
 	M0_ASSERT(ubuf->b_addr != NULL);
 	if (ubuf->b_nob < kbuf->b_nob)
-		return -ENOBUFS;
+		return M0_ERR(-ENOBUFS);
 	memcpy(ubuf->b_addr, kbuf->b_addr, kbuf->b_nob);
 	return 0;
 }
@@ -473,7 +473,7 @@ M0_INTERNAL int m0_db_cursor_set(struct m0_db_cursor *cursor,
 
 	cur = ci->ck_current;
 	if (cur == NULL)
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	/* XXX accessing kpair without table mutex. */
 	m0_db_pair_setup(&replacement, pair->dp_table,

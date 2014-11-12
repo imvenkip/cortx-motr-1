@@ -112,7 +112,7 @@ static int filesystem_lookup(struct m0_conf_obj *parent,
 	M0_PRE(parent->co_status == M0_CS_READY);
 
 	if (!m0_fid_eq(name, &M0_CONF_FILESYSTEM_SERVICES_FID))
-		return -ENOENT;
+		return M0_ERR(-ENOENT);
 
 	*out = &M0_CONF_CAST(parent, m0_conf_filesystem)->cf_services->cd_obj;
 	M0_POST(m0_conf_obj_invariant(*out));

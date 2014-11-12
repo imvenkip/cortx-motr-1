@@ -56,7 +56,7 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 
 	d->sd_filename = m0_buf_strdup(&s->xd_filename);
 	if (d->sd_filename == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	return 0;
 }
 
@@ -64,7 +64,7 @@ static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
 	confx_encode(dest, src);
 	M0_IMPOSSIBLE("XXX not implemented");
-	return -ENOSYS;
+	return M0_ERR(-ENOSYS);
 }
 
 static bool
@@ -86,7 +86,7 @@ static int sdev_lookup(struct m0_conf_obj *parent, const struct m0_fid *name,
 		       struct m0_conf_obj **out)
 {
 	M0_IMPOSSIBLE("XXX not implemented");
-	return -ENOSYS;
+	return M0_ERR(-ENOSYS);
 }
 
 static void sdev_delete(struct m0_conf_obj *obj)

@@ -710,7 +710,7 @@ static int stobsink_poolbuf_grow(struct stobsink *sink)
 	M0_ALLOC_PTR(pb);
 	if (pb == NULL) {
 		M0_LOG(M0_ERROR, "unable to grow stobsink pool: ENOMEM");
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 	}
 	bshift = sink->ss_bshift;
 	rc = m0_bufvec_alloc_aligned(&pb->spb_buf, 1, sink->ss_segsize, bshift);
@@ -1120,7 +1120,7 @@ M0_INTERNAL int m0_addb_mc_configure_stob_sink(struct m0_addb_mc *mc,
 
 	M0_ALLOC_PTR(sink);
 	if (sink == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_ref_init(&sink->ss_ref, 1, stobsink_release);
 	m0_mutex_init(&sink->ss_mutex);

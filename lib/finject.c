@@ -172,7 +172,7 @@ M0_INTERNAL int m0_fi_add_dyn_id(char *str)
 
 	M0_ALLOC_PTR(fdi);
 	if (fdi == NULL)
-		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
 	m0_tlink_init(&fi_dynamic_ids_tl, &fdi->fdi_tlink);
 	fdi->fdi_str = str;

@@ -58,7 +58,7 @@ static int fop_info_show(uint32_t opcode)
 	ftype = m0_fop_type_find(opcode);
 	if (ftype == NULL) {
 		fprintf(stderr, "Invalid FOP opcode %.2d.\n", opcode);
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 	m0_cons_fop_name_print(ftype);
 	fprintf(stdout, "\n");

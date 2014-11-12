@@ -61,9 +61,9 @@ static int parse_hex(const char *str, int len, uint64_t *val)
 	M0_ASSERT(len < ARRAY_SIZE(buf));
 	for (i = 0; i < len; ++i) {
 		if (*str == '\0')
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		if (!isxdigit(*str))
-			return -EINVAL;
+			return M0_ERR(-EINVAL);
 		buf[i] = *str++;
 	}
 	buf[i] = '\0';
@@ -91,7 +91,7 @@ M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val)
 	    parse_hex(&str[14],  4, &h3) < 0 || str[18] != '-' ||
 	    parse_hex(&str[19],  4, &h4) < 0 || str[23] != '-' ||
 	    parse_hex(&str[24], 12, &h5) < 0 || str[36] != '\0')
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 	val->u_hi = h1 << 32 | h2 << 16 | h3;
 	val->u_lo = h4 << 48 | h5;
 	/* no validation of adherence to standard version formats */

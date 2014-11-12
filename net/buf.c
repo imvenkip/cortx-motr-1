@@ -72,7 +72,7 @@ M0_INTERNAL int m0_net_buffer_register(struct m0_net_buffer *buf,
 	M0_PRE(dom->nd_xprt != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return -EINVAL;
+		return M0_ERR(-EINVAL);
 
 	m0_mutex_lock(&dom->nd_mutex);
 
@@ -252,7 +252,7 @@ M0_INTERNAL int m0_net_buffer_add(struct m0_net_buffer *buf,
 	int rc;
 	M0_PRE(tm != NULL);
 	if (M0_FI_ENABLED("fake_error"))
-		return -EMSGSIZE;
+		return M0_ERR(-EMSGSIZE);
 	m0_mutex_lock(&tm->ntm_mutex);
 	rc = m0_net__buffer_add(buf, tm);
 	m0_mutex_unlock(&tm->ntm_mutex);
