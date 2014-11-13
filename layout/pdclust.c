@@ -624,9 +624,11 @@ static uint64_t permute_column(struct m0_pdclust_instance *pi,
 	struct tile_cache        *tc;
 	struct m0_pdclust_attr    attr;
 	struct m0_pdclust_layout *pl;
+	struct m0_fid            *gfid;
 
-	pl = pi_to_pl(pi);
-	attr = pl->pl_attr;
+	pl   = pi_to_pl(pi);
+	attr =  pl->pl_attr;
+	gfid = &pi->pi_base.li_gfid;
 
 	M0_ENTRY("t %lu, P %lu", (unsigned long)t, (unsigned long)attr.pa_P);
 	M0_ASSERT(t < attr.pa_P);
@@ -642,8 +644,8 @@ static uint64_t permute_column(struct m0_pdclust_instance *pi,
 			tc->tc_permute[i] = i;
 
 		/* Initialise PRNG. */
-		rstate = m0_hash(attr.pa_seed.u_hi) ^
-			 m0_hash(attr.pa_seed.u_lo + omega);
+		rstate = m0_hash(attr.pa_seed.u_hi + gfid->f_key) ^
+			 m0_hash(attr.pa_seed.u_lo + omega + gfid->f_container);
 
 		/* Generate permutation number in lexicographic ordering. */
 		for (i = 0; i < attr.pa_P - 1; ++i)

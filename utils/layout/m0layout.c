@@ -30,6 +30,7 @@
 #include "module/instance.h"
 
 #include "pool/pool.h"
+#include "ioservice/fid_convert.h" /* m0_fid_gob_make() */
 #include "layout/layout.h"
 #include "layout/pdclust.h"
 #include "layout/linear_enum.h" /* m0_linear_enum_build() */
@@ -230,15 +231,17 @@ int main(int argc, char **argv)
 	struct m0_fid               gfid;
 	struct m0_layout_instance  *li;
 	static struct m0            instance;
-	if (argc != 6) {
+	if (argc != 6 && argc != 8) {
 		printf(
 "\t\tm0layout N K P R I\nwhere\n"
-"\tN: number of data units in a parity group\n"
-"\tK: number of parity units in a parity group\n"
-"\tP: number of target objects to stripe over\n"
-"\tR: number of frames to show in a layout map\n"
-"\tI: number of groups to iterate over while\n"
-"\t   calculating incidence and frame distributions\n"
+"\tN  : number of data units in a parity group\n"
+"\tK  : number of parity units in a parity group\n"
+"\tP  : number of target objects to stripe over\n"
+"\tR  : number of frames to show in a layout map\n"
+"\tI  : number of groups to iterate over while\n"
+"\t     calculating incidence and frame distributions\n"
+"\tf_c: container-id for gfid\n"
+"\tf_k: key for gfid\n"
 "\noutput:\n"
 "\tmap:       an R*P map showing initial fragment of layout\n"
 "\t                   [G, U] - data unit U from a group G\n"
@@ -275,7 +278,10 @@ int main(int argc, char **argv)
 
 		rc = dummy_create(&domain, id, &attr, &play);
 		if (rc == 0) {
-			m0_fid_set(&gfid, 0, 999);
+			if (argc != 8)
+				m0_fid_gob_make(&gfid, 0, 999);
+			else
+				m0_fid_gob_make(&gfid, atoi(argv[6]), atoi(argv[7]));
 			rc = m0_layout_instance_build(m0_pdl_to_layout(play),
 						      &gfid, &li);
 			pi = m0_layout_instance_to_pdi(li);
