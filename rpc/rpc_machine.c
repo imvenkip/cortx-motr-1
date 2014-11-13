@@ -156,7 +156,7 @@ M0_INTERNAL int m0_rpc_machine_init(struct m0_rpc_machine *machine,
 
 	machine->rm_stopping = false;
 	rc = M0_THREAD_INIT(&machine->rm_worker, struct m0_rpc_machine *,
-			    NULL, &rpc_worker_thread_fn, machine, "rpc_worker");
+			    NULL, &rpc_worker_thread_fn, machine, "m0_rpc_worker");
 	if (rc != 0)
 		goto err;
 

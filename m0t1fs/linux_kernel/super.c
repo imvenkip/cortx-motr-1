@@ -1415,7 +1415,7 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 		goto sb_fini;
 
 	rc = M0_THREAD_INIT(&csb->csb_astthread, struct m0t1fs_sb *, NULL,
-			    &ast_thread, csb, "ast_thread");
+			    &ast_thread, csb, "m0_ast_thread");
 	if (rc != 0)
 		goto sb_fini;
 

@@ -93,7 +93,7 @@ M0_INTERNAL int m0_localities_init(void)
 	if (locs != NULL) {
 		result = M0_THREAD_INIT(&locs_ast_thread, void *, NULL,
 					&locs_ast_handler,
-					NULL, "fallback ast");
+					NULL, "m0_fallback_ast");
 		if (result != 0)
 			m0_free(locs);
 	} else

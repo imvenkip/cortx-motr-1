@@ -256,7 +256,7 @@ M0_INTERNAL int m0_rm_type_register(struct m0_rm_domain        *dom,
 
 	rt->rt_stop_worker = false;
 	rc = M0_THREAD_INIT(&rt->rt_worker, struct m0_rm_resource_type *, NULL,
-			    &credit_processor, rt, "RM RT agent");
+			    &credit_processor, rt, "m0_rm_rt_agent");
 	if (rc != 0)
 		return M0_RC(rc);
 

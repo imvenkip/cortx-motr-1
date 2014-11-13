@@ -722,7 +722,7 @@ static int loc_thr_create(struct m0_fom_locality *loc)
 
 	result = M0_THREAD_INIT(&thr->lt_thread, struct m0_loc_thread *,
 				loc_thr_init, &loc_handler_thread, thr,
-				"loc thread");
+				"m0_loc_thread");
 	if (result != 0)
 		loc_thr_fini(thr);
 	return result;

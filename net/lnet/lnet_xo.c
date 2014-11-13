@@ -451,7 +451,7 @@ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr,
 				     &tp->xtm_core.ctm_addr) ?:
 		M0_THREAD_INIT(&tp->xtm_ev_thread, struct m0_net_transfer_mc *,
-			       NULL, &nlx_tm_ev_worker, tm, "nlx_tm_worker");
+			       NULL, &nlx_tm_ev_worker, tm, "m0_nlx_tm");
 	if (rc != 0)
 		LNET_ADDB_FUNCFAIL(rc, X_TM_START, &tm->ntm_addb_ctx);
 	return rc;
