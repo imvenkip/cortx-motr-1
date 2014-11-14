@@ -109,12 +109,13 @@ stub_confdb() {
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
             "unit_size=4096"]
     mdpool=pool-1 imeta_pver=(0, 0) nodes=[node-0] pools=[pool-0, pool-1]
-    racks=[rack-0])
+    racks=[rack-0] fdmi_flt_grps=[])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
-    services=[service-0, service-1, service-2, service-3, service-4, service-5])
+    services=[service-0, service-1, service-2, service-3, service-4, service-5,
+              service-8])
 (process-1 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1"
     services=[service-6])
@@ -126,6 +127,7 @@ stub_confdb() {
 (service-4 type=@M0_CST_MGS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-5 type=@M0_CST_SSS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-6 type=@M0_CST_RMS endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
+(service-8 type=@M0_CST_FDMI endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0, pver_f-11])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
@@ -212,6 +214,7 @@ test_m0d_start() {
     error "Failed to start m0d. See $path/m0d.log for details."
 }
 
+# XXX: add support for fdmi
 export_vars() {
     export M0_SPIEL_OPTS="
     -l $M0_SRC_DIR/mero/.libs/libmero.so --client $SPIEL_ENDPOINT"
@@ -244,7 +247,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'mdrackv'       : Fid(0x6a00000000000001, 20),
         'mdenclv'       : Fid(0x6a00000000000001, 21),
         'mdctrlv'       : Fid(0x6a00000000000001, 22),
-	'mddiskv'       : Fid(0x6a00000000000001, 23),
+        'mddiskv'       : Fid(0x6a00000000000001, 23),
         'process'       : Fid($PROC_FID_CNTR, $PROC_FID_KEY),
         'process2'      : Fid($PROC_FID_CNTR, $PROC_FID_KEY2),
         'process1'      : Fid(0x7200000000000001, 1),
@@ -256,6 +259,8 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'sns_rebalance' : Fid(0x7300000000000002, 7),
         'confd'         : Fid(0x7300000000000002, 8),
         'confd2'        : Fid(0x7300000000000002, 9),
+        'fdmi'          : Fid(0x7300000000000002, 10),
+        'fdmi2'         : Fid(0x7300000000000002, 11),
         'sdev0'         : Fid(0x6400000000000009, 0),
         'sdev1'         : Fid(0x6400000000000009, 1),
         'sdev2'         : Fid(0x6400000000000009, 2),
@@ -339,6 +344,8 @@ commands = [
      ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
     ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
      ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['fdmi'], fids['process2'], M0_CST_FDMI,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
     ('service_add', tx, fids['sns_repair'], fids['process2'], M0_CST_SNS_REP,
      ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
     ('service_add', tx, fids['addb2'], fids['process2'], M0_CST_ADDB2,
@@ -346,6 +353,8 @@ commands = [
     ('service_add', tx, fids['sns_rebalance'], fids['process2'], M0_CST_SNS_REB,
      ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
     ('service_add', tx, fids['mds'], fids['process'], M0_CST_MDS,
+     ['$M0D1_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['fdmi2'], fids['process'], M0_CST_FDMI,
      ['$M0D1_ENDPOINT'], ServiceInfoParameters()),
     ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
      ['$M0D2_ENDPOINT'], ServiceInfoParameters()),

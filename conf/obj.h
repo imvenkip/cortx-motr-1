@@ -26,6 +26,9 @@
 #include "layout/pdclust.h" /* m0_pdclust_attr */
 #include "lib/protocol.h"   /* m0_protocol_id */
 #include "lib/bob.h"
+#include "fid/fid.h"          /* m0_fid */
+#include "conf/schema.h"      /* m0_conf_service_type */
+#include "fdmi/filter.h"      /* m0_fdmi_filter */
 
 struct m0_conf_obj_ops;
 struct m0_confx_obj;
@@ -98,6 +101,9 @@ struct m0_xcode_type;
  *   controller -> "controller-v" [dir=back, style=dashed, weight=0];
  *   disk -> "disk-v" [dir=back, style=dashed, weight=0];
  *   sdev -> disk [dir=back, style=dashed, weight=0];
+ *
+ *   filesystem -> fdmi_flt_grp [label=fdmi_flt_grps];
+ *   fdmi_flt_grp -> fdmi_filter [label=filters];
  * }
  * @enddot
  *
@@ -348,6 +354,7 @@ struct m0_conf_filesystem {
 	struct m0_conf_dir *cf_nodes;
 	struct m0_conf_dir *cf_pools;
 	struct m0_conf_dir *cf_racks;
+	struct m0_conf_dir *cf_fdmi_flt_grps;
 /* configuration data (for the application) */
 	struct m0_fid       cf_rootfid;
 	/** Meta-data pool. */
@@ -627,6 +634,33 @@ struct m0_conf_disk {
 	struct m0_conf_pver **ck_pvers;
 };
 
+/** Filters group. All filters in group match record type they work with. */
+struct m0_conf_fdmi_flt_grp {
+	struct m0_conf_obj  ffg_obj;
+	/* Type of the record that filters of this group support. */
+	uint32_t            ffg_rec_type;
+	/* Directory of filters for this filters group. */
+	struct m0_conf_dir *ffg_flts;
+};
+
+struct m0_conf_fdmi_filter {
+	struct m0_conf_obj        ff_obj;
+	struct m0_fid             ff_filter_id;
+	struct m0_fdmi_filter     ff_filter;
+	/** The node this filter is hosted at. */
+	struct m0_conf_node      *ff_node;
+	/**
+	 * Endpoints which are interested in
+	 * FDMI records matched with this filter
+	 *
+	 * NULL terminated array of C strings.
+	 * @note Currently only one endpoint can be in this array
+	 */
+	const char              **ff_endpoints;
+	struct m0_tlink           ff_linkage;
+	uint64_t                  ff_magic;
+};
+
 /* ------------------------------------------------------------------
  * Cast
  * ------------------------------------------------------------------ */
@@ -660,23 +694,27 @@ struct m0_conf_disk {
 #define m0_conf_enclosure_cast_field  ce_obj
 #define m0_conf_controller_cast_field cc_obj
 #define m0_conf_disk_cast_field       ck_obj
+#define m0_conf_fdmi_filter_cast_field  ff_obj
+#define m0_conf_fdmi_flt_grp_cast_field ffg_obj
 
-#define M0_CONF_OBJ_TYPES               \
-	X_CONF(root,       ROOT);       \
-	X_CONF(dir,        DIR);        \
-	X_CONF(profile,    PROFILE);    \
-	X_CONF(filesystem, FILESYSTEM); \
-	X_CONF(pool,       POOL);       \
-	X_CONF(pver,       PVER);       \
-	X_CONF(objv,       OBJV);       \
-	X_CONF(node,       NODE);       \
-	X_CONF(process,    PROCESS);    \
-	X_CONF(service,    SERVICE);    \
-	X_CONF(sdev,       SDEV);       \
-	X_CONF(rack,       RACK);       \
-	X_CONF(enclosure,  ENCLOSURE);  \
-	X_CONF(controller, CONTROLLER); \
-	X_CONF(disk,       DISK)
+#define M0_CONF_OBJ_TYPES                 \
+	X_CONF(root,         ROOT);       \
+	X_CONF(dir,          DIR);        \
+	X_CONF(profile,      PROFILE);    \
+	X_CONF(filesystem,   FILESYSTEM); \
+	X_CONF(pool,         POOL);       \
+	X_CONF(pver,         PVER);       \
+	X_CONF(objv,         OBJV);       \
+	X_CONF(node,         NODE);       \
+	X_CONF(process,      PROCESS);    \
+	X_CONF(service,      SERVICE);    \
+	X_CONF(sdev,         SDEV);       \
+	X_CONF(rack,         RACK);       \
+	X_CONF(enclosure,    ENCLOSURE);  \
+	X_CONF(controller,   CONTROLLER); \
+	X_CONF(disk,         DISK);       \
+	X_CONF(fdmi_filter,  FDMI_FILTER);\
+	X_CONF(fdmi_flt_grp, FDMI_FLT_GRP)
 
 #define X_CONF(name, NAME)                                        \
 	extern const struct m0_bob_type m0_conf_ ## name ## _bob; \
@@ -685,25 +723,28 @@ M0_CONF_OBJ_TYPES;
 #undef X_CONF
 
 /* Relation fids. */
-#define M0_CONF_REL_FIDS               \
-	X_CONF(ANY,               -1); \
-	X_CONF(ROOT_PROFILES,      1); \
-	X_CONF(PROFILE_FILESYSTEM, 2); \
-	X_CONF(FILESYSTEM_NODES,   3); \
-	X_CONF(FILESYSTEM_POOLS,   4); \
-	X_CONF(FILESYSTEM_RACKS,   5); \
-	X_CONF(POOL_PVERS,         6); \
-	X_CONF(PVER_RACKVS,        7); \
-	X_CONF(RACKV_ENCLVS,       8); \
-	X_CONF(ENCLV_CTRLVS,       9); \
-	X_CONF(CTRLV_DISKVS,      10); \
-	X_CONF(NODE_PROCESSES,    11); \
-	X_CONF(PROCESS_SERVICES,  12); \
-	X_CONF(SERVICE_SDEVS,     13); \
-	X_CONF(RACK_ENCLS,        14); \
-	X_CONF(ENCLOSURE_CTRLS,   15); \
-	X_CONF(CONTROLLER_DISKS,  16); \
-	X_CONF(DISK_SDEV,         17)
+#define M0_CONF_REL_FIDS                     \
+	X_CONF(ANY,                     -1); \
+	X_CONF(ROOT_PROFILES,            1); \
+	X_CONF(PROFILE_FILESYSTEM,       2); \
+	X_CONF(FILESYSTEM_NODES,         3); \
+	X_CONF(FILESYSTEM_POOLS,         4); \
+	X_CONF(FILESYSTEM_RACKS,         5); \
+	X_CONF(FILESYSTEM_FDMI_FLT_GRPS, 6); \
+	X_CONF(POOL_PVERS,               7); \
+	X_CONF(PVER_RACKVS,              8); \
+	X_CONF(RACKV_ENCLVS,             9); \
+	X_CONF(ENCLV_CTRLVS,            10); \
+	X_CONF(CTRLV_DISKVS,            11); \
+	X_CONF(NODE_PROCESSES,          12); \
+	X_CONF(PROCESS_SERVICES,        13); \
+	X_CONF(SERVICE_SDEVS,           14); \
+	X_CONF(RACK_ENCLS,              15); \
+	X_CONF(ENCLOSURE_CTRLS,         16); \
+	X_CONF(CONTROLLER_DISKS,        17); \
+	X_CONF(DISK_SDEV,               18); \
+	X_CONF(FDMI_FILTER_NODE,        19); \
+	X_CONF(FDMI_FILTERS,            20)
 
 #define X_CONF(name, _) \
 	extern const struct m0_fid M0_CONF_ ## name ## _FID

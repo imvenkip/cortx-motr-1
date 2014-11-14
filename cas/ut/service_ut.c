@@ -40,6 +40,8 @@
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
 #include "rpc/at.h"
+#include "fdmi/fdmi.h"
+#include "rpc/rpc_machine.h"
 
 #define IFID(x, y) M0_FID_TINIT('i', (x), (y))
 #define TFID(x, y) M0_FID_TINIT('T', (x), (y))
@@ -55,6 +57,8 @@ static struct m0_reqh          reqh;
 static struct m0_be_ut_backend be;
 static struct m0_be_seg       *seg0;
 static struct m0_reqh_service *cas;
+static struct m0_reqh_service *fdmi;
+static struct m0_rpc_machine   rpc_machine;
 static struct m0_cas_rep       rep;
 static struct m0_cas_rec       repv[N];
 static struct m0_fid           ifid = IFID(2, 3);
@@ -65,7 +69,6 @@ extern void (*cas__ut_cb_fini)(struct m0_fom *fom);
 
 static void cb_done(struct m0_fom *fom);
 static void cb_fini(struct m0_fom *fom);
-
 
 static int cid_enc(struct m0_cas_id *cid, struct m0_rpc_at_buf *at_buf)
 {
@@ -136,6 +139,16 @@ static void _init(bool mkfs)
 	/* Check validity of IFID definition. */
 	M0_UT_ASSERT(m0_cas_index_fid_type.ft_id == 'i');
 	reqh_init(mkfs);
+
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rpc_machine,
+					    &reqh.rh_rpc_machines);
+
+	result = m0_reqh_service_allocate(&fdmi, &m0_fdmi_service_type, NULL);
+	M0_UT_ASSERT(result == 0);
+	m0_reqh_service_init(fdmi, &reqh, NULL);
+	result = m0_reqh_service_start(fdmi);
+	M0_UT_ASSERT(result == 0);
+
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -152,6 +165,12 @@ static void init(void)
 
 static void service_stop(void)
 {
+	m0_reqh_rpc_mach_tlist_pop(&reqh.rh_rpc_machines);
+	m0_reqh_service_prepare_to_stop(fdmi);
+	m0_reqh_idle_wait_for(&reqh, fdmi);
+	m0_reqh_service_stop(fdmi);
+	m0_reqh_service_fini(fdmi);
+
 	m0_reqh_service_prepare_to_stop(cas);
 	m0_reqh_idle_wait_for(&reqh, cas);
 	m0_reqh_service_stop(cas);
@@ -241,7 +260,16 @@ static void init_fail(void)
 	M0_UT_ASSERT(rc == -EEXIST);
 	m0_reqh_service_fini(cas);
 
-	/* Normal start. */
+	/* Normal start (fdmi service is needed). */
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rpc_machine,
+					    &reqh.rh_rpc_machines);
+
+	rc = m0_reqh_service_allocate(&fdmi, &m0_fdmi_service_type, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(fdmi, &reqh, NULL);
+	rc = m0_reqh_service_start(fdmi);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -278,6 +306,16 @@ static void restart(void)
 
 	init();
 	service_stop();
+
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rpc_machine,
+					    &reqh.rh_rpc_machines);
+
+	result = m0_reqh_service_allocate(&fdmi, &m0_fdmi_service_type, NULL);
+	M0_UT_ASSERT(result == 0);
+	m0_reqh_service_init(fdmi, &reqh, NULL);
+	result = m0_reqh_service_start(fdmi);
+	M0_UT_ASSERT(result == 0);
+
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -1105,6 +1143,16 @@ static void lookup_restart(void)
 	insert_odd(&ifid);
 	lookup_all(&ifid);
 	service_stop();
+
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rpc_machine,
+					    &reqh.rh_rpc_machines);
+
+	result = m0_reqh_service_allocate(&fdmi, &m0_fdmi_service_type, NULL);
+	M0_UT_ASSERT(result == 0);
+	m0_reqh_service_init(fdmi, &reqh, NULL);
+	result = m0_reqh_service_start(fdmi);
+	M0_UT_ASSERT(result == 0);
+
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -1125,6 +1173,16 @@ static void cur_N(void)
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	insert_odd(&ifid);
 	service_stop();
+
+	m0_reqh_rpc_mach_tlink_init_at_tail(&rpc_machine,
+					    &reqh.rh_rpc_machines);
+
+	result = m0_reqh_service_allocate(&fdmi, &m0_fdmi_service_type, NULL);
+	M0_UT_ASSERT(result == 0);
+	m0_reqh_service_init(fdmi, &reqh, NULL);
+	result = m0_reqh_service_start(fdmi);
+	M0_UT_ASSERT(result == 0);
+
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);

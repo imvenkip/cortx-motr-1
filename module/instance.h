@@ -24,6 +24,7 @@
 #include "lib/bitmap.h"            /* m0_bitmap */
 #include "lib/lockers.h"           /* M0_LOCKERS__DECLARE */
 #include "stob/module.h"           /* m0_stob_module */
+#include "fdmi/module.h"           /* m0_fdmi_module */
 #include "ioservice/storage_dev.h" /* m0_storage_devs */
 #include "ut/stob.h"               /* m0_ut_stob_module */
 #include "mero/process_attr.h"     /* m0_proc_attr */
@@ -110,6 +111,7 @@ struct m0 {
 	 * XXX TODO: Get rid of the fields below. Use ->i_moddata[] or
 	 * ->i_lockers.
 	 */
+	struct m0_fdmi_module      i_fdmi_module;
 	struct m0_stob_module      i_stob_module;
 	struct m0_stob_ad_module   i_stob_ad_module;
 	struct m0_ut_stob_module   i_ut_stob_module;

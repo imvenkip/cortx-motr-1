@@ -636,6 +636,8 @@ enum m0_reqh_service_level {
 	M0_RM_SVC_LEVEL            = M0_RS_LEVEL_BEFORE_NORMAL + 1,
 	M0_MD_SVC_LEVEL            = M0_RS_LEVEL_NORMAL,
 	M0_HA_LINK_SVC_LEVEL       = M0_RS_LEVEL_BEFORE_NORMAL - 1,
+	/** Ignore during svc idle checks, stop earlier. */
+	M0_FDMI_SVC_LEVEL          = M0_RS_LEVEL_BEFORE_NORMAL - 1,
 	M0_HA_ENTRYPOINT_SVC_LEVEL = M0_RS_LEVEL_BEFORE_NORMAL - 1,
 	M0_RPC_SVC_LEVEL           = M0_HA_LINK_SVC_LEVEL - 1,
 };

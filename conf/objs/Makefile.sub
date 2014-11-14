@@ -3,6 +3,8 @@ nobase_mero_include_HEADERS += conf/objs/common.h
 mero_libmero_la_SOURCES += \
                            conf/objs/common.c \
                            conf/objs/dir.c \
+                           conf/objs/fdmi_filter.c \
+                           conf/objs/fdmi_flt_grp.c \
                            conf/objs/root.c \
                            conf/objs/profile.c \
                            conf/objs/filesystem.c \

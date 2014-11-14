@@ -129,6 +129,7 @@ m0_cs_start
 *m0_fi_enabled
 *m0_fi_register
 m0_fini
+m0_fol_rec_to_str
 m0_fom_fini
 m0_fom_init
 m0_fom_phase
@@ -415,3 +416,13 @@ m0_spiel_pool_repair_continue
 m0_spiel_pool_repair_quiesce
 m0_spiel_pool_repair_start
 m0_spiel_pool_repair_status
+m0_fdmi_flt_op_node_create
+m0_fdmi_flt_bool_node_create
+m0_fdmi_flt_int_node_create
+m0_fdmi_flt_uint_node_create
+m0_fdmi_flt_var_node_create
+m0_fdmi_plugin_dock_api_get
+m0_fdmi__pdock_fom_type_ops_get
+m0_fdmi__pdock_filter_reg_find
+m0_fdmi__pdock_record_reg_find
+m0_fdmi__pdock_conn_pool_rpc_machine

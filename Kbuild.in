@@ -81,6 +81,7 @@ include $(src)/dix/Kbuild.sub
 include $(src)/dix/cm/Kbuild.sub
 include $(src)/dtm/Kbuild.sub
 include $(src)/fd/Kbuild.sub
+include $(src)/fdmi/Kbuild.sub
 include $(src)/fid/Kbuild.sub
 include $(src)/file/Kbuild.sub
 include $(src)/fis/Kbuild.sub

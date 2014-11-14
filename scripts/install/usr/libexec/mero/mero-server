@@ -90,6 +90,9 @@ m0_server()
         rms*)  MERO_M0D_OPTS+=" -c ${MERO_CONF_XC:-$MERO_CONF_XC_DEFAULT}"
             ;;
 
+        fdmi*)  MERO_M0D_OPTS+=" -c ${MERO_CONF_XC:-$MERO_CONF_XC_DEFAULT}"
+            ;;
+
         ios*)  local disks_conf="/etc/mero/disks-$service.conf"
                if [[ -r $disks_conf ]]; then
                    stob_opts+=" -d $disks_conf"

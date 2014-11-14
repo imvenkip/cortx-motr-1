@@ -23,13 +23,15 @@
 #define __MERO_CONF_ONWIRE_H__
 
 #include "xcode/xcode.h"
-#include "lib/types.h"     /* m0_conf_verno_t */
-#include "lib/bitmap.h"    /* m0_bitmap_onwire */
-#include "lib/bitmap_xc.h" /* m0_bitmap_onwire */
+#include "lib/types.h"       /* m0_conf_verno_t */
+#include "lib/bitmap.h"      /* m0_bitmap_onwire */
+#include "lib/bitmap_xc.h"   /* m0_bitmap_onwire */
 #include "lib/buf_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
-#include "conf/schema_xc.h" /* m0_xc_m0_conf_service_type_enum */
+#include "conf/schema_xc.h"  /* m0_xc_m0_conf_service_type_enum */
+#include "fdmi/filter.h"     /* m0_fdmi_flt_node */
+#include "fdmi/filter_xc.h"  /* m0_fdmi_flt_node_xc */
 
 /* export */
 struct m0_conf_fetch;
@@ -85,6 +87,11 @@ struct m0_confx_filesystem {
 	struct m0_fid_arr      xf_pools;
 	/* Racks this filesystem resides on. */
 	struct m0_fid_arr      xf_racks;
+	/**
+	 * @todo FDMI filter groups. Halon needs to add
+	 * support for it. Ticket HALON-730.
+	 */
+	struct m0_fid_arr      xf_fdmi_flt_grps;
 } M0_XCA_RECORD;
 
 struct m0_confx_pool {
@@ -153,6 +160,25 @@ struct m0_confx_objv {
 	 * Note that "ix" attribute exists in local conf cache only
 	 * and is never transferred over the wire.
 	 */
+} M0_XCA_RECORD;
+
+struct m0_confx_fdmi_flt_grp {
+	struct m0_confx_header xfg_header;
+	/* FDMI record type. */
+	int                    xfg_rec_type;
+	/* Filters included to the group. */
+	struct m0_fid_arr      xfg_filters;
+} M0_XCA_RECORD;
+
+struct m0_confx_fdmi_filter {
+	struct m0_confx_header xf_header;
+	struct m0_fid          xf_filter_id;
+	/* String representation of FDMI filter root. */
+	struct m0_buf          xf_filter_root;
+	/* Endpoints of plugin. */
+	struct m0_bufs         xf_endpoints;
+	/* Hosting node. */
+	struct m0_fid          xf_node;
 } M0_XCA_RECORD;
 
 struct m0_confx_node {

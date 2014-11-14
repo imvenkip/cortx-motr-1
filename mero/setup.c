@@ -1108,19 +1108,26 @@ static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
 {
 	struct m0_reqh_service_type *stype;
 	struct m0_reqh_service      *service;
-	int                          rc;
+	int                          rc = 0;
 
 	M0_ENTRY("name=`%s'", name);
 	M0_PRE(name != NULL && *name != '\0' && reqh != NULL);
 
 	stype = m0_reqh_service_type_find(name);
-	if (stype == NULL)
+	if (stype == NULL) {
+		M0_LOG(M0_ERROR, "Service name %s is not found.", name);
 		return M0_ERR_INFO(-EINVAL, "Unknown reqh service type: %s",
 				   name);
+	}
 
-	rc = m0_reqh_service_setup(&service, stype, reqh, rctx, fid);
-
-	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
+	service = m0_reqh_service_find(stype, reqh);
+	if (service == NULL) {
+		rc = m0_reqh_service_setup(&service, stype, reqh, rctx, fid);
+		M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
+	} else {
+		M0_LOG(M0_WARN, "Service %s ("FID_F") is already registered "
+		       "for reqh %p", name, FID_P(fid), reqh);
+	}
 	return M0_RC(rc);
 }
 
@@ -1148,10 +1155,11 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 			else
 				M0_LOG(M0_DEBUG, "FIS enabled by command opt.");
 		}
-		M0_LOG(M0_DEBUG, "service: %s" FID_F, rctx->rc_services[i],
-		       FID_P(&rctx->rc_service_fids[i]));
 		rc = cs_service_init(rctx->rc_services[i], rctx, &rctx->rc_reqh,
 				     &rctx->rc_service_fids[i]);
+		M0_LOG(M0_DEBUG, "service: %s" FID_F " cs_service_init: %d",
+		       rctx->rc_services[i], FID_P(&rctx->rc_service_fids[i]),
+		       rc);
 	}
 	if (rc != 0) {
 		/* XXX rpc service is stoppped here. m0_ha needs the rpc */
@@ -1230,6 +1238,7 @@ static int reqh_services_start(struct m0_reqh_context *rctx,
 	rc = m0_reqh_service_setup(&ss_service, &m0_ss_svc_type,
 				   reqh, NULL, NULL) ?:
 		cs_service_init("simple-fom-service", NULL, reqh, NULL) ?:
+		cs_service_init("fdmi", NULL, reqh, NULL) ?:
 		reqh_context_services_init(rctx, cctx);
 
 	if (rc == 0)
@@ -1979,7 +1988,7 @@ static void cs_help(FILE *out, const char *progname)
 "        -e lnet:172.18.50.40@o2ib1:12345:34:1 \\\n"
 "        -q 8 -m 65536 \\\n"
 "        -f '<0x7200000000000001:1>'\n",
-CONFD_CONN_TIMEOUT, CONFD_CONN_RETRY, progname);
+(unsigned int)CONFD_CONN_TIMEOUT, (unsigned int)CONFD_CONN_RETRY, progname);
 }
 
 static int cs_reqh_ctx_validate(struct m0_mero *cctx)

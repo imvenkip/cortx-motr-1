@@ -24,6 +24,10 @@
 struct m0_net_xprt;
 struct m0_rpc_machine;
 
+/** Initializes and start reqh service of passed type. */
+M0_INTERNAL int m0_ut_rpc_service_start(struct m0_reqh_service **service,
+				const struct m0_reqh_service_type *type);
+
 /** Initialises net and rpc layers, performs m0_rpc_machine_init(). */
 M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 					struct m0_net_xprt *xprt,

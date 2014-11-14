@@ -18,6 +18,7 @@ readonly singlenonde_services='
     mero-server@mds
     mero-server@ios1
     mero-server@cas1
+    mero-server@fdmi
     mero
     mero-client
     mero-singlenode
@@ -205,7 +206,7 @@ stop_singlenode()
 
     local status_col=57
 
-    for s in mero-singlenode mero-client mero-server@cas1 mero-server@ios1 \
+    for s in mero-singlenode mero-client mero-server@cas1 mero-server@ios1 mero-server@fdmi \
         mero-server@mds mero-server-confd mero-server-ha mero mero-kernel
     do
         logn "  waiting for $s  "

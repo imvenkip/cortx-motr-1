@@ -61,6 +61,7 @@ enum {
 	SPIEL_UT_OBJ_SERVICE10,
 	SPIEL_UT_OBJ_SERVICE11,
 	SPIEL_UT_OBJ_SERVICE12,
+	SPIEL_UT_OBJ_SERVICE13,
 	SPIEL_UT_OBJ_SDEV,
 	SPIEL_UT_OBJ_SDEV2,
 	SPIEL_UT_OBJ_SDEV3,
@@ -115,6 +116,7 @@ static struct m0_fid spiel_obj_fid[] = {
 	[SPIEL_UT_OBJ_SERVICE10]    = M0_FID_TINIT('s', 1, 27),
 	[SPIEL_UT_OBJ_SERVICE11]    = M0_FID_TINIT('s', 1, 28),
 	[SPIEL_UT_OBJ_SERVICE12]    = M0_FID_TINIT('s', 1, 29),
+	[SPIEL_UT_OBJ_SERVICE13]    = M0_FID_TINIT('s', 1, 100),
 	[SPIEL_UT_OBJ_SDEV]         = M0_FID_TINIT('d', 1, 15),
 	[SPIEL_UT_OBJ_SDEV2]        = M0_FID_TINIT('d', 1, 71),
 	[SPIEL_UT_OBJ_SDEV3]        = M0_FID_TINIT('d', 1, 72),
@@ -504,6 +506,13 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 					  &service_info);
 		M0_UT_ASSERT(rc == 0);
 	}
+
+	service_info.svi_type = M0_CST_FDMI;
+			rc = m0_spiel_service_add(tx,
+				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE13],
+				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
+				  &service_info);
+	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_device_add(tx,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
@@ -1294,12 +1303,13 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	/* Check copy endpoints parameter */
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable("m0_alloc", "fail_allocation");
 	rc = m0_spiel_service_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &service_info);
 	M0_UT_ASSERT(rc == -ENOMEM);
+	m0_fi_disable("m0_alloc", "fail_allocation");
 
 	/* Check copy cs_u parameter & switch by type */
 	service_info.svi_type = M0_CST_MDS;
@@ -1470,7 +1480,7 @@ static void spiel_conf_delete(void)
 
   Create conf file equvalent to ut/conf.xc
 
-[20:
+[23:
 # profile:      ('p', 1,  0)
    {0x70| ((^p|1:0), ^f|1:1)},
 # filesystem:   ('f', 1,  1)
@@ -1479,13 +1489,18 @@ static void spiel_conf_delete(void)
 	   ^o|1:4, ^v|1:8,
 	   [1: ^n|1:2],
 	   [1: ^o|1:4],
-	   [1: ^a|1:3])},
+	   [1: ^a|1:3], [1: ^g|1:0])},
+# fdmi_flt_grp
+   {0x67| ((^g|1:0), 0x100, [1: ^l|1:0])},
+# fdmi_filter
+   {0x6c| ((^l|1:0), (11, 11), "{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}", [1: "fdmi-plugin-ep"], ^n|1:2)},
 # node:         ('n', 1,  2)
    {0x6e| ((^n|1:2), 16000, 2, 3, 2, ^o|1:4,
 	   [2: ^r|1:5, ^r|1:6])},
 # process "p0": ('r', 1,  5)
-   {0x72| ((^r|1:5), [1:3], 0, 0, 0, 0, [2: ^s|1:9,
-						   ^s|1:10])},
+   {0x72| ((^r|1:5), [1:3], 0, 0, 0, 0, [3: ^s|1:9,
+					    ^s|1:10],
+					    ^s|1:11])},
 # process "p1": ('r', 1,  6)
    {0x72| ((^r|1:6), [1:3], 0, 0, 0, 0, [0])},
 # service "s0": ('s', 1,  9)
@@ -1494,6 +1509,9 @@ static void spiel_conf_delete(void)
 # service "s1": ('s', 1, 10)
    {0x73| ((^s|1:10), @M0_CST_MDS, [1: "addr-3"],
 	   [1: ^d|1:15])},
+# service "s2": ('s', 1, 11)
+   {0x73| ((^s|1:11), @M0_CST_FDMI, [1: "addr-3"],
+	   [0])},
 # sdev "d0":    ('d', 1, 13)
    {0x64| ((^d|1:13), 4, 1, 4096, 596000000000, 3, 4, "/dev/sdev0")},
 # sdev "d1":    ('d', 1, 14)
@@ -1578,6 +1596,7 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 						        "addr-2",
 						        NULL };
 	const char                   *ep_service2[] = { "addr-3", NULL };
+	const char                   *ep_service3[] = { "addr-3", NULL };
 	struct m0_pdclust_attr        pdclust_attr = { 0, 0, 0, 0 };
 	const char                   *fs_param[] = { "param-0",
 						     "param-1",
@@ -1587,32 +1606,37 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 		.svi_endpoints = ep_service1 };
 	struct m0_spiel_service_info  service_info2 = {
 		.svi_endpoints = ep_service2 };
-	struct m0_fid                 fid_profile   = M0_FID_TINIT( 0x70,1, 0 );
-	struct m0_fid                 fid_filesystem= M0_FID_TINIT( 0x66,1, 1 );
-	struct m0_fid                 fid_node      = M0_FID_TINIT( 0x6e,1, 2 );
-	struct m0_fid                 fid_rack      = M0_FID_TINIT( 0x61,1, 3 );
-	struct m0_fid                 fid_pool      = M0_FID_TINIT( 0x6f,1, 4 );
-	struct m0_fid                 fid_process1  = M0_FID_TINIT( 0x72,1, 5 );
-	struct m0_fid                 fid_process2  = M0_FID_TINIT( 0x72,1, 6 );
-	struct m0_fid                 fid_enclosure = M0_FID_TINIT( 0x65,1, 7 );
-	struct m0_fid                 fid_pver      = M0_FID_TINIT( 0x76,1, 8 );
-	struct m0_fid                 fid_service1  = M0_FID_TINIT( 0x73,1, 9 );
-	struct m0_fid                 fid_service2  = M0_FID_TINIT( 0x73,1,10 );
-	struct m0_fid                 fid_controller= M0_FID_TINIT( 0x63,1,11 );
-	struct m0_fid                 fid_disk1     = M0_FID_TINIT( 0x6b,1,12 );
-	struct m0_fid                 fid_disk2     = M0_FID_TINIT( 0x6b,1,13 );
-	struct m0_fid                 fid_disk3     = M0_FID_TINIT( 0x6b,1,14 );
-	struct m0_fid                 fid_rack_v    = M0_FID_TINIT( 0x6a,1,15 );
-	struct m0_fid                 fid_sdev1     = M0_FID_TINIT( 0x64,1,16 );
-	struct m0_fid                 fid_sdev2     = M0_FID_TINIT( 0x64,1,17 );
-	struct m0_fid                 fid_sdev3     = M0_FID_TINIT( 0x64,1,18 );
-	struct m0_fid                 fid_enclosure_v=M0_FID_TINIT( 0x6a,1,19 );
-	struct m0_fid                 fid_controller_v=M0_FID_TINIT(0x6a,1,20 );
-	struct m0_fid                 fid_disk_v1     =M0_FID_TINIT(0x6a,1,21 );
-	struct m0_fid                 fid_disk_v2     =M0_FID_TINIT(0x6a,1,22 );
-	struct m0_fid                 fid_disk_v3     =M0_FID_TINIT(0x6a,1,23 );
-	uint32_t                      tolerance[] = {0, 0, 0, 0, 1};
-	struct m0_bitmap              bitmap;
+	struct m0_spiel_service_info  service_info3 = {
+		.svi_endpoints = ep_service3 };
+	/* @todo Add support for fdmi objects (filters group and filters) */
+	struct m0_fid    fid_profile      = M0_FID_TINIT('p',1, 0 );
+	struct m0_fid    fid_filesystem   = M0_FID_TINIT('f',1, 1 );
+	struct m0_fid    fid_node         = M0_FID_TINIT('n',1, 2 );
+	struct m0_fid    fid_rack         = M0_FID_TINIT('a',1, 3 );
+	struct m0_fid    fid_pool         = M0_FID_TINIT('o',1, 4 );
+	struct m0_fid    fid_process1     = M0_FID_TINIT('r',1, 5 );
+	struct m0_fid    fid_process2     = M0_FID_TINIT('r',1, 6 );
+	struct m0_fid    fid_process3     = M0_FID_TINIT('r',1, 7 );
+	struct m0_fid    fid_enclosure    = M0_FID_TINIT('e',1, 8 );
+	struct m0_fid    fid_pver         = M0_FID_TINIT('v',1, 9 );
+	struct m0_fid    fid_service1     = M0_FID_TINIT('s',1,10 );
+	struct m0_fid    fid_service2     = M0_FID_TINIT('s',1,11 );
+	struct m0_fid    fid_service3     = M0_FID_TINIT('s',1,12 );
+	struct m0_fid    fid_controller   = M0_FID_TINIT('c',1,13 );
+	struct m0_fid    fid_disk1        = M0_FID_TINIT('k',1,14 );
+	struct m0_fid    fid_disk2        = M0_FID_TINIT('k',1,15 );
+	struct m0_fid    fid_disk3        = M0_FID_TINIT('k',1,16 );
+	struct m0_fid    fid_rack_v       = M0_FID_TINIT('j',1,17 );
+	struct m0_fid    fid_sdev1        = M0_FID_TINIT('d',1,18 );
+	struct m0_fid    fid_sdev2        = M0_FID_TINIT('d',1,19 );
+	struct m0_fid    fid_sdev3        = M0_FID_TINIT('d',1,20 );
+	struct m0_fid    fid_enclosure_v  = M0_FID_TINIT('j',1,21 );
+	struct m0_fid    fid_controller_v = M0_FID_TINIT('j',1,22 );
+	struct m0_fid    fid_disk_v1      = M0_FID_TINIT('j',1,23 );
+	struct m0_fid    fid_disk_v2      = M0_FID_TINIT('j',1,24 );
+	struct m0_fid    fid_disk_v3      = M0_FID_TINIT('j',1,25 );
+	uint32_t         tolerance[]      = {0, 0, 0, 0, 1};
+	struct m0_bitmap bitmap;
 
 	m0_bitmap_init(&bitmap, 32);
 	m0_bitmap_set(&bitmap, 0, true);
@@ -1691,6 +1715,10 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
+	rc = m0_spiel_process_add(tx, &fid_process3, &fid_node,
+				  &bitmap, 4000, 1, 2, 3, ep[0]);
+	M0_UT_ASSERT(rc == 0);
+
 	service_info1.svi_type = M0_CST_MGS;
 	rc = m0_spiel_service_add(tx, &fid_service1, &fid_process1,
 				  &service_info1);
@@ -1699,6 +1727,11 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	service_info2.svi_type = M0_CST_MDS;
 	rc = m0_spiel_service_add(tx, &fid_service2, &fid_process2,
 				  &service_info2);
+	M0_UT_ASSERT(rc == 0);
+
+	service_info3.svi_type = M0_CST_FDMI;
+	rc = m0_spiel_service_add(tx, &fid_service3, &fid_process3,
+				  &service_info3);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_device_add(tx, &fid_sdev1, &fid_service1, &fid_disk1, 1,

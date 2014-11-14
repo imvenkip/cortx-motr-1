@@ -108,7 +108,7 @@ stub_confdb() {
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
             "unit_size=4096"]
     imeta_pver=(0, 0)
-    mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0])
+    mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0] fdmi_flt_grps=[])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
@@ -116,7 +116,7 @@ stub_confdb() {
     services=[service-0, service-1, service-2, service-3])
 (process-1 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0D2_ENDPOINT"
-    services=[service-4, service-5, service-6])
+    services=[service-4, service-5, service-6, service-8])
 (service-0 type=@M0_CST_RMS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-1 type=@M0_CST_HA endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-2 type=@M0_CST_MGS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
@@ -125,6 +125,7 @@ stub_confdb() {
     sdev-4])
 (service-5 type=@M0_CST_MDS endpoints=["$M0D2_ENDPOINT"] sdevs=[sdev-0])
 (service-6 type=@M0_CST_RMS endpoints=["$M0D2_ENDPOINT"] sdevs=[])
+(service-8 type=@M0_CST_FDMI endpoints=["$M0D2_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0, pver_f-11])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])

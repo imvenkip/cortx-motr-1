@@ -3,6 +3,7 @@ m0mero_objects += \
                  rpc/at_xc.o \
                  rpc/bulk.o \
                  rpc/conn.o \
+                 rpc/conn_pool.o \
                  rpc/formation2.o \
                  rpc/frmops.o \
                  rpc/ha_xc.o \

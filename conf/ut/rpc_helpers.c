@@ -19,12 +19,26 @@
  */
 
 #include "reqh/reqh.h"
+#include "reqh/reqh_service.h"
 #include "rpc/rpc.h"
 #include "ut/ut.h"
 
 static struct m0_reqh            g_reqh;
 static struct m0_net_domain      g_net_dom;
 static struct m0_net_buffer_pool g_buf_pool;
+
+M0_INTERNAL int m0_ut_rpc_service_start(struct m0_reqh_service **service,
+					const struct m0_reqh_service_type *type)
+{
+	int rc;
+
+	rc = m0_reqh_service_allocate(service, type,  NULL);
+	if (rc != 0)
+		return rc;
+	m0_reqh_service_init(*service, &g_reqh, NULL);
+	m0_reqh_service_start(*service);
+	return 0;
+}
 
 /* XXX Code duplication! See m0_ha_ut_rpc_ctx_init(). */
 M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,

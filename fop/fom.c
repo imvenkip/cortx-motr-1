@@ -48,6 +48,7 @@
 #include "sm/sm.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/rpc_opcodes.h"
+#include "fdmi/fol_fdmi_src.h"
 
 /**
  * @addtogroup fom
@@ -338,7 +339,8 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 
 	if (M0_IN(fom->fo_type->ft_id, (M0_BE_TX_GROUP_OPCODE,
 					M0_ADDB_FOP_OPCODE,
-					M0_HA_LINK_OUTGOING_OPCODE)))
+					M0_HA_LINK_OUTGOING_OPCODE,
+					M0_FDMI_SOURCE_DOCK_OPCODE)))
 	    return true;
 
 	diff = m0_time_sub(m0_time_now(), fom->fo_sm_state.sm_state_epoch);
@@ -1646,7 +1648,22 @@ M0_INTERNAL bool m0_fom_is_waiting(const struct m0_fom *fom)
 
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom)
 {
-	return m0_dtx_fol_add(&fom->fo_tx);
+	int rc;
+
+	M0_ENTRY();
+
+	rc = m0_dtx_fol_add(&fom->fo_tx);
+	if (rc != 0)
+		goto done;
+
+#ifndef __KERNEL__
+	rc = m0_fol_fdmi_post_record(fom);
+	if (rc != 0)
+		goto done;
+#endif
+
+done:
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom)

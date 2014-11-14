@@ -2,4 +2,4 @@
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-0)
 (filesystem-0 rootfid=(0xb, 0x16) redundancy=1 params=[] mdpool=pool-4
-    imeta_pver=pver-8 nodes=[] pools=[] racks=[])
+    imeta_pver=pver-8 nodes=[] pools=[] racks=[] fdmi_flt_grps=[])

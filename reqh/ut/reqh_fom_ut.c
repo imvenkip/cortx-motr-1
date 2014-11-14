@@ -43,6 +43,7 @@
 #include "balloc/balloc.h"
 #include "mdstore/mdstore.h"
 #include "stob/ad.h"		/* m0_stob_ad_cfg_make */
+#include "fdmi/fdmi.h"
 
 #include "ut/ut.h"
 #include "ut/be.h"
@@ -74,6 +75,7 @@ static struct m0_rpc_machine    srv_rpc_mach;
 static struct m0_be_ut_backend  ut_be;
 static struct m0_be_ut_seg      ut_seg;
 static struct m0_reqh_service  *reqh_ut_service;
+static struct m0_reqh_service  *fdmi_ut_service;
 
 /**
  * Global reqh object
@@ -261,6 +263,14 @@ static int server_init(const char             *stob_path,
         M0_UT_ASSERT(rc == 0);
 	reqh_ut_service = reqh.rh_rpc_service;
 	M0_UT_ASSERT(reqh_ut_service != NULL);
+
+	/* Init fdmi service */
+	rc = m0_reqh_service_allocate(&fdmi_ut_service, &m0_fdmi_service_type, NULL);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_service_init(fdmi_ut_service, &reqh, NULL);
+	rc = m0_reqh_service_start(fdmi_ut_service);
+	M0_UT_ASSERT(rc == 0);
+
 	return rc;
 }
 
@@ -272,6 +282,11 @@ static void server_fini(struct m0_stob_domain *bdom,
 	struct m0_stob	   *bstore;
 	int		    rc;
 	struct m0_stob_id   stob_id;
+
+	m0_reqh_service_prepare_to_stop(fdmi_ut_service);
+	m0_reqh_idle_wait_for(&reqh, fdmi_ut_service);
+	m0_reqh_service_stop(fdmi_ut_service);
+	m0_reqh_service_fini(fdmi_ut_service);
 
 	if (m0_reqh_state_get(&reqh) == M0_REQH_ST_NORMAL)
 		m0_reqh_shutdown_wait(&reqh);

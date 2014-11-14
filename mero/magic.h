@@ -247,6 +247,12 @@ enum m0_magic_satchel {
 	/* m0_conf_objv::cv_obj.co_con_magic (soleless solo) */
 	M0_CONF_OBJV_MAGIC = 0x33501e1e55501077,
 
+	/* m0_conf_fdmi_filter::cs_obj.co_con_magic (biased access) */
+	M0_CONF_FDMI_FILTER_MAGIC = 0x33b1a5edacce5577,
+
+	/* m0_conf_fdmi_flt_grp::cs_obj.co_con_magic (biblical babe) */
+	M0_CONF_FDMI_FLT_GRP_MAGIC = 0x33b1b11ca1babe78,
+
 	/* m0_conf_node::cn_obj.co_con_magic (colossal dosa) */
 	M0_CONF_NODE_MAGIC = 0x33c01055a1d05a77,
 
@@ -821,6 +827,12 @@ enum m0_magic_satchel {
 	/* m0_reqh_fi_service::fis_magix (saddled bleed) */
 	M0_FI_SERVICE_MAGIC = 0x335add1edb1eed77,
 
+	/* m0_rpc_conn_pool_item::cpi_magic "fiddle fiasco" */
+	M0_RPC_CONN_POOL_ITEMS_MAGIC = 0x33F1DD1EF1A5C077,
+
+	/* m0_rpc_conn_pool_items_list::td_head_magic "fossil boilie" */
+	M0_RPC_CONN_POOL_ITEMS_HEAD_MAGIC = 0x33F05511B0111E77,
+
 /* SNS repair */
 	/** m0_sns_cm_file_ctx::sf_magic (labelled babe) */
 	M0_SNS_CM_FILE_CTX_MAGIC = 0x331ABE11EDBABE77,
@@ -949,7 +961,7 @@ enum m0_magic_satchel {
 	M0_CLOVIS_OI_MAGIC           = 0x3309816123512277,
 	/* os_bobtype::bt_magix */
 	M0_CLOVIS_OS_MAGIC           = 0x3319816123512277,
-	/* clovis_sync_fop_wrapper::sfw_magic */
+	/* clovis_sync_fop_wrapper::sfw_tlink_magic */
 	M0_CLOVIS_SYNC_TGT_TL_MAGIC  = 0x3320816123512277,
 	/* clovis_sync_fop_wrapper::sfw_magic */
 	M0_CLOVIS_INSTANCE_PTI_MAGIC = 0x3321816123512277,
@@ -989,6 +1001,45 @@ enum m0_magic_satchel {
 	M0_DIX_ROP_MAGIC       = 0x33ba51c0115eed77,
 	/** cas_rop_tlist head magic (basic offload) */
 	M0_DIX_ROP_HEAD_MAGIC  = 0x33ba51c0ff10ad77,
+/* FDMI */
+	/* m0_reqh_fdmi_service::rfdms_magic (abide dazzled) */
+	M0_FDMS_REQH_SVC_MAGIC = 0x33ab1deda221ed77,
+
+	/* m0_fol_fdmi_src_ctx::ffsc_magic (fol decade) */
+	M0_FOL_FDMI_SRC_CTX_MAGIC = 0x33f01decade77,
+
+	/* m0_fdmi_filter_reg::ffr_magic (scaffold feel) */
+	M0_FDMI_FLTR_MAGIC = 0x335caff01dfee177,
+	/* fdmi_filters head magic (localized lie) */
+	M0_FDMI_FLTR_HEAD_MAGIC = 0x3310ca112ed11e77,
+	/* fdmi_recs list magic (baseball isle) */
+	M0_FDMI_RCRD_MAGIC = 0x33ba5eba11151e77,
+	/* fdmi_recs list head magic (oldfield bozo) */
+	M0_FDMI_RCRD_HEAD_MAGIC = 0x3301df1e1db02077,
+	/* Currently not used (bla bla bla bla) */
+	M0_FDMI_PCTX_MAGIC = 0x33b1ab1ab1ab1a77,
+	/* Currently not used (blo blo blo blo) */
+	M0_FDMI_PCTX_HEAD_MAGIC = 0x33b10b10b10b1077,
+	/* Currently not used (lifesize icao) */
+	M0_FDMI_PLUGIN_DOCK_FOM_TASK_MAGIC = 0x3311fe212e1ca077,
+	/* Currently not used (acacia liable) */
+	M0_FDMI_PLUGIN_DOCK_FOM_TASK_HEAD_MAGIC = 0x33acac1a11ab1e77,
+	/* m0_fdmi_src_ctx::fsc_magic */
+	M0_FDMI_SRC_DOCK_SRC_CTX_MAGIC = 0x3300fdfd01ea0377,
+	/* fdmi_src_dock_src_list head magic */
+	M0_FDMI_SRC_DOCK_SRC_CTX_HEAD_MAGIC = 0x3300fdfd7846fd77,
+	/* fdmi_record list magic */
+	M0_FDMI_SRC_DOCK_REC_MAGIC = 0x3321fdfd01650377,
+	/* fdmi_record list head magic */
+	M0_FDMI_SRC_DOCK_REC_HEAD_MAGIC = 0x3345fdfd0ac80377,
+	/* fdmi_matched_filter_list magic */
+	M0_FDMI_SRC_DOCK_MATCHED_FILTER_MAGIC = 0x33fefdfd01754377,
+	/* fdmi_matched_filter_list head magic */
+	M0_FDMI_SRC_DOCK_MATCHED_FILTER_HEAD_MAGIC = 0x330ffdfd97427677,
+	/* pending_fops list magic (fleece office) */
+	M0_FDMI_SRC_DOCK_PENDING_FOP_MAGIC = 0xf1eece0ff1ce,
+	/* pending_fops list head magic (feosol obsess) */
+	M0_FDMI_SRC_DOCK_PENDING_FOP_HEAD_MAGIC = 0xfe05010b5e55,
 };
 
 #endif /* __MERO_MERO_MAGIC_H__ */

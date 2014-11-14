@@ -178,12 +178,10 @@ enum {
 	X_CST(M0_CST_CAS)     /**< Catalogue service */          \
 	X_CST(M0_CST_DIX_REP) /**< Dix repair. */                \
 	X_CST(M0_CST_DIX_REB) /**< Dix rebalance. */             \
-	/*
-	 * Keep dumy services at the end of enumeration
-	 */                                                      \
 	X_CST(M0_CST_DS1)     /**< Dummy service 1 */            \
 	X_CST(M0_CST_DS2)     /**< Dummy service 2 */            \
-	X_CST(M0_CST_FIS)     /**< Fault injection service */
+	X_CST(M0_CST_FIS)     /**< Fault injection service */    \
+	X_CST(M0_CST_FDMI)    /**< FDMI service */
 
 enum m0_conf_service_type {
 #define X_CST(name) name,

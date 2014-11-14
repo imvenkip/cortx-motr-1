@@ -185,7 +185,7 @@ enum {
 	ONEWAY  = 2,
 };
 
-static uint64_t timeout; /* nano seconds */
+static m0_time_t timeout; /* nano seconds */
 static void set_timeout(uint64_t milli)
 {
 	timeout = milli * 1000 * 1000;
@@ -584,8 +584,8 @@ static void frm_test8(void)
 	uint64_t                   seed_deadline;
 	uint64_t                   seed_prio;
 	uint64_t                   seed_kind;
-	uint64_t                   seed_timeout;
-	uint64_t                   _timeout;
+	m0_time_t                  seed_timeout;
+	m0_time_t                  _timeout;
 	int                        saved_max_nr_packets_enqed;
 	int                        i;
 	int                        deadline;

@@ -125,3 +125,16 @@ M0_INTERNAL int conf_pvers_encode(struct m0_fid_arr          *dest,
 				  const struct m0_conf_pver **src);
 
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

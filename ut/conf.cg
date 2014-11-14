@@ -3,15 +3,19 @@
 (filesystem-1 rootfid=(0xb, 0x16) redundancy=0
     params=["param-0", "param-1", "param-2"] mdpool=pool-5 imeta_pver=(0, 0)
     nodes=[node-2, node-48] pools=[pool-4, pool-5, pool-56]
-    racks=[rack-3, rack-52])
+    racks=[rack-3, rack-52] fdmi_flt_grps=[fdmi_flt_grp-0])
+(fdmi_flt_grp-0 rec_type=0x100 filters=[fdmi_filter-0])
+(fdmi_filter-0 id=(11, 11) root="{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}"
+    endpoints=["fdmi-plugin-ep"] node=node-2)
 (node-2 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-4
     processes=[process-5, process-6])
 (process-5 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
-    services=[service-9, service-10, service-20, service-21, service-22,
+    services=[service-8, service-9, service-10, service-20, service-21, service-22,
               service-23, service-24, service-25, service-26, service-28])
 (process-6 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[])
+(service-8 type=@M0_CST_FDMI endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-9 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-15, sdev-71, sdev-72, sdev-73, sdev-74])
 (service-10 type=@M0_CST_MDS endpoints=["0@lo:12345:34:1"]

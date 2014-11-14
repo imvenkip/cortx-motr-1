@@ -593,7 +593,9 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	[M0_RCS_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "M0_RCS_INIT",
-		.sd_allowed   = M0_BITS(M0_RCS_ENTRYPOINT_WAIT, M0_RCS_STOPPING)
+		.sd_allowed   = M0_BITS(M0_RCS_FAILURE,
+					M0_RCS_ENTRYPOINT_WAIT,
+					M0_RCS_STOPPING)
 	},
 	[M0_RCS_ENTRYPOINT_WAIT] = {
 		.sd_name      = "M0_RCS_ENTRYPOINT_WAIT",
@@ -2559,14 +2561,18 @@ static int rconfc_local_load(struct m0_rconfc *rconfc)
 	rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
 			   NULL, rconfc->rc_rmach, rconfc->rc_local_conf) ?:
 		m0_conf_root_open(&rconfc->rc_confc, &root);
-	if (rc == 0) {
+	m0_rconfc_lock(rconfc);
+	if (rc != 0) {
+		rconfc->rc_sm_state_on_abort = rconfc_state(rconfc);
+		rconfc_fail(rconfc, rc);
+	} else {
 		rconfc->rc_ver = root->rt_verno;
 		m0_confc_close(&root->rt_obj);
-		m0_rconfc_lock(rconfc);
 		if (rconfc->rc_ready_cb != NULL)
 			rconfc->rc_ready_cb(rconfc);
-		m0_rconfc_unlock(rconfc);
 	}
+	m0_rconfc_unlock(rconfc);
+	M0_LEAVE("rc=%d", rc);
 	return M0_RC(rc);
 }
 
@@ -2680,19 +2686,25 @@ M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc *rconfc,
 	rc = m0_rconfc_start(rconfc);
 	if (rc != 0)
 		return M0_ERR(rc);
-	if (!m0_rconfc_is_preloaded(rconfc)) {
+	m0_rconfc_lock(rconfc);
+	rc = rconfc->rc_sm.sm_rc;
+	if (rc == 0 && !m0_rconfc_is_preloaded(rconfc)) {
 		m0_time_t deadline = timeout_ns == M0_TIME_NEVER ?
 			M0_TIME_NEVER : m0_time_from_now(0, timeout_ns);
 
-		m0_rconfc_lock(rconfc);
 		if (m0_sm_timedwait(&rconfc->rc_sm,
 				    M0_BITS(M0_RCS_IDLE, M0_RCS_FAILURE),
 				    deadline) == -ETIMEDOUT) {
 			rconfc_fail(rconfc, M0_ERR(-ETIMEDOUT));
 		}
-		m0_rconfc_unlock(rconfc);
+		/*
+		 * Wait mat result in some error (failed to take lock,
+		 * etc). Let's have this under control.
+		 */
+		rc = rconfc->rc_sm.sm_rc;
 	}
-	return M0_RC(rconfc->rc_sm.sm_rc);
+	m0_rconfc_unlock(rconfc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc)

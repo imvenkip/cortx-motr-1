@@ -63,7 +63,7 @@ IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller even
 
 IOS4_CMD=""
 
-# list of io server end points tmid in [800, 899)
+# list of md server end points tmid in [800, 899)
 MDSEP=(
     12345:33:800   # MDS1 EP
 #    12345:33:801   # MDS2 EP
@@ -200,8 +200,8 @@ prepare()
 
 unprepare()
 {
-	sleep 2 # allow pending IO to complete
-	if mount | grep -q m0t1fs; then
+	sleep 5 # allow pending IO to complete
+	if mount | grep m0t1fs > /dev/null; then
 		umount $MERO_M0T1FS_MOUNT_DIR
 		sleep 2
 		rm -rf $MERO_M0T1FS_MOUNT_DIR
@@ -395,7 +395,9 @@ function build_conf()
 	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), @M0_CST_SNS_REB, [1: $iosep], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
 	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $iosep], [0])}"
-	    local NAMES_NR=5
+	    local FDMI_NAME="$FDMI_FID_CON:$M0D"
+	    local FDMI_OBJ="{0x73| (($FDMI_NAME), @M0_CST_FDMI, [1: $iosep], [0])}"
+	    local NAMES_NR=6
 	    if [ $ENABLE_CAS -eq 1 ] ; then
 	        local DIX_REP_NAME="$DIXR_FID_CON:$i"
 	        local DIX_REB_NAME="$DIXB_FID_CON:$i"
@@ -404,14 +406,14 @@ function build_conf()
 	        local DIX_REP_OBJ="{0x73| (($DIX_REP_NAME), @M0_CST_DIX_REP, [1: $iosep], [0])}"
 	        local DIX_REB_OBJ="{0x73| (($DIX_REB_NAME), @M0_CST_DIX_REB, [1: $iosep], [0])}"
                 local CAS_OBJS="$CAS_OBJ, \n  $DIX_REP_OBJ, \n  $DIX_REB_OBJ"
-	        NAMES_NR=8
+	        NAMES_NR=9
 	    fi
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, \
+	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $FDMI_NAME, \
 	                   $RM_NAME${CAS_NAME:+,} $CAS_NAME, $DIX_REP_NAME, $DIX_REB_NAME"
 	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [$NAMES_NR: ${IOS_NAMES[$i]}])}"
-	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \
+	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $FDMI_OBJ, \
 	               \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ${CAS_OBJS:+, \n} $CAS_OBJS"
 	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
 	    # +1 here for process object
@@ -427,11 +429,13 @@ function build_conf()
 	    local ADDB_OBJ="{0x73| (($ADDB_NAME), @M0_CST_ADDB2, [1: $mdsep], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
 	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $mdsep], [0])}"
+	    local FDMI_NAME="$FDMI_FID_CON:$M0D"
+	    local FDMI_OBJ="{0x73| (($FDMI_NAME), @M0_CST_FDMI, [1: $mdsep], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME"
-	    MDS_OBJS="$MDS_OBJS${MDS_OBJS:+,} \n $MDS_OBJ, \n  $ADDB_OBJ, \n  $RM_OBJ"
-	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [3: ${MDS_NAMES[$i]}])}"
+	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME, $FDMI_NAME"
+	    MDS_OBJS="$MDS_OBJS${MDS_OBJS:+,} \n $MDS_OBJ, \n  $ADDB_OBJ, \n  $RM_OBJ, \n $FDMI_OBJ"
+	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [4: ${MDS_NAMES[$i]}])}"
 	    PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	    PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	done
@@ -510,6 +514,7 @@ function build_conf()
 		local  ADDB_SVCID1='^s|10:2'
 		local  REP_SVCID1='^s|10:3'
 		local  REB_SVCID1='^s|10:4'
+		local  FDMI_SVCID1='^s|10:5'
 		local  SDEVID1='^d|10:1'
 		local  SDEVID2='^d|10:2'
 		local  SDEVID3='^d|10:3'
@@ -531,11 +536,12 @@ function build_conf()
 		# conf objects for another pool version to test assignment
 		# of pools to new objects.
 		local NODE1="{0x6e| (($NODEID1), 16000, 2, 3, 2, $POOLID1, [1: $PROCID1])}"
-		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, $IOS_EP, [4: $IO_SVCID1, $ADDB_SVCID1, $REP_SVCID1, $REB_SVCID1])}"
+		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, $IOS_EP, [5: $IO_SVCID1, $ADDB_SVCID1, $REP_SVCID1, $REB_SVCID1, $FDMI_SVCID1])}"
 		local IO_SVC1="{0x73| (($IO_SVCID1), @M0_CST_IOS, [1: $IOS_EP], [3: $SDEVID1, $SDEVID2, $SDEVID3])}"
 		local ADDB_SVC1="{0x73| (($ADDB_SVCID1), @M0_CST_ADDB2, [1: $IOS_EP], [0])}"
 		local REP_SVC1="{0x73| (($REP_SVCID1), @M0_CST_SNS_REP, [1: $IOS_EP], [0])}"
 		local REB_SVC1="{0x73| (($REB_SVCID1), @M0_CST_SNS_REB, [1: $IOS_EP], [0])}"
+		local FDMI_SVC1="{0x73| (($FDMI_SVCID1), @M0_CST_FDMI, [1: $IOS_EP], [0])}"
 		local SDEV1="{0x64| (($SDEVID1), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
 		local SDEV2="{0x64| (($SDEVID2), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop8\")}"
 		local SDEV3="{0x64| (($SDEVID3), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop9\")}"
@@ -554,8 +560,8 @@ function build_conf()
 		local  DISKV1="{0x6a| (($DISKVID1), $DISKID1, [0])}"
 		local  DISKV2="{0x6a| (($DISKVID2), $DISKID2, [0])}"
 		local  DISKV3="{0x6a| (($DISKVID3), $DISKID3, [0])}"
-		PVER1_OBJS=", \n$NODE1, \n$PROC1, \n$IO_SVC1, \n$ADDB_SVC1, \n$REP_SVC1, \n$REB_SVC1, \n$SDEV1, \n$SDEV2, \n$SDEV3, \n$RACK1, \n$ENCL1, \n$CTRL1, \n$DISK1, \n$DISK2, \n$DISK3, \n$POOL1, \n$PVER1, \n$RACKV1, \n$ENCLV1, \n$CTRLV1, \n$DISKV1, \n$DISKV2, \n$DISKV3"
-		PVER1_OBJ_COUNT=23
+		PVER1_OBJS=", \n$NODE1, \n$PROC1, \n$IO_SVC1, \n$FDMI_SVC1, \n$ADDB_SVC1, \n$REP_SVC1, \n$REB_SVC1, \n$SDEV1, \n$SDEV2, \n$SDEV3, \n$RACK1, \n$ENCL1, \n$CTRL1, \n$DISK1, \n$DISK2, \n$DISK3, \n$POOL1, \n$PVER1, \n$RACKV1, \n$ENCLV1, \n$CTRLV1, \n$DISKV1, \n$DISKV2, \n$DISKV3"
+		PVER1_OBJ_COUNT=24
 		((++node_count))
 		((++rack_count))
 		((++pool_count))
@@ -569,7 +575,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
-[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 19 + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 4 + $DIX_PVER_OBJ_COUNT)):
+[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19 + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 4 + $DIX_PVER_OBJ_COUNT)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -578,7 +584,7 @@ function build_conf()
 	      $IMETA_PVER,
 	      [$node_count: $NODES],
 	      [$pool_count: $POOLS],
-	      [$rack_count: $RACKS])},
+	      [$rack_count: $RACKS], [0])},
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID,
 	[$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,

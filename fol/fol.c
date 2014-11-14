@@ -29,6 +29,7 @@
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"       /* m0_xc_fol_init */
 #include "fop/fop.h"          /* m0_fop_fol_frag_type */
+#include "fop/fop_xc.h"       /* m0_fop_fol_frag_xc */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOL
 #include "lib/trace.h"
@@ -373,11 +374,98 @@ M0_INTERNAL int m0_fol_rec_decode(struct m0_fol_rec *rec, struct m0_buf *at)
 	return M0_RC(rc);
 }
 
+/* @todo Return number of bytes that needed to print everything */
+int m0_fol_rec_to_str(struct m0_fol_rec *rec, char *str, int str_len)
+{
+	int ret;
+	struct m0_fol_rec_header *h = &rec->fr_header;
+
+	ret = snprintf(str, str_len, "rec->fr_header->rh_frags_nr: %u\n"
+		 "rec->fr_header->rh_data_len: %u\n"
+		 "rec->fr_header->rh_self->ui_node: %u\n"
+		 "rec->fr_header->rh_self->ui_update: %" PRIu64 "\n"
+		 "rec->fr_epoch: %p\n"
+		 "rec->fr_sibling: %p\n",
+		 h->rh_frags_nr, h->rh_data_len, h->rh_self.ui_node,
+		 h->rh_self.ui_update, rec->fr_epoch, rec->fr_sibling);
+
+	if (ret >= str_len) {
+		return -ENOMEM;
+	}
+	else {
+		struct m0_fol_frag     *frag;
+		str_len -= ret;
+		str += ret;
+
+		m0_tl_for(m0_rec_frag, &rec->fr_frags, frag) {
+			uint32_t		  index;
+
+			index = frag->rp_ops != NULL ?
+				frag->rp_ops->rpo_type->rpt_index :
+				m0_fop_fol_frag_type.rpt_index;
+
+			ret = snprintf(str, str_len,
+				"frag->rp_ops: %p\n"
+				"frag->rp_ops->rpo_type: %p\n"
+				"frag->rp_ops->rpo_type->rpt_index: %d\n"
+				"frag->rp_ops->rpo_type->rpt_name: %s\n"
+				"frag->rp_data: %p\n",
+				frag->rp_ops, frag->rp_ops->rpo_type, index,
+				frag->rp_ops ?
+				    frag->rp_ops->rpo_type->rpt_name : "(nil)",
+				frag->rp_data);
+
+			if (ret >= str_len) {
+				return -ENOMEM;
+			}
+			else {
+				str_len -= ret;
+				str += ret;
+			}
+
+			if (frag->rp_ops &&
+			    frag->rp_ops->rpo_type == &m0_fop_fol_frag_type) {
+				struct m0_fop_fol_frag *rp = frag->rp_data;
+				struct m0_xcode_obj obj = {
+					.xo_type = m0_fop_fol_frag_xc,
+					.xo_ptr = rp
+				};
+
+				ret = snprintf(str, str_len,
+						"rp->ffrp_fop_code: %u\n"
+						"rp->ffrp_rep_code: %u\n",
+						rp->ffrp_fop_code,
+						rp->ffrp_rep_code);
+
+				if (ret >= str_len) {
+					return -ENOMEM;
+				}
+				else {
+					str_len -= ret;
+					str += ret;
+				}
+
+				ret = m0_xcode_print(&obj, str, str_len);
+
+				if (ret < 0) {
+					return ret;
+				} else if (ret >= str_len) {
+					return -ENOMEM;
+				} else {
+					str_len -= ret;
+					str += ret;
+				}
+			}
+		} m0_tl_endfor;
+	}
+
+	return 0;
+}
+
 M0_INTERNAL void m0_fol_frag_add(struct m0_fol_rec *rec,
 				     struct m0_fol_frag *frag)
 {
 	M0_PRE(rec != NULL && frag != NULL);
-
 	m0_rec_frag_tlist_add_tail(&rec->fr_frags, frag);
 }
 

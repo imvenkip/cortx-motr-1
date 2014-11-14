@@ -42,6 +42,7 @@ enum {
 	SERVICE5,
 	SERVICE6,
 	SERVICE7,
+	SERVICE8,
 	SDEV0,
 	SDEV1,
 	SDEV2,
@@ -81,6 +82,7 @@ static const struct m0_fid fids[] = {
 	[SERVICE5]    = M0_FID_TINIT('s', 1, 5),
 	[SERVICE6]    = M0_FID_TINIT('s', 1, 6),
 	[SERVICE7]    = M0_FID_TINIT('s', 1, 7),
+	[SERVICE8]    = M0_FID_TINIT('s', 1, 8),
 	[SDEV0]       = M0_FID_TINIT('d', 1, 10),
 	[SDEV1]       = M0_FID_TINIT('d', 1, 11),
 	[SDEV2]       = M0_FID_TINIT('d', 1, 12),
@@ -174,7 +176,8 @@ static void check_obj(const struct m0_conf_obj *obj)
 			&fids[SERVICE0], &fids[SERVICE1],
 			&fids[SERVICE2], &fids[SERVICE3],
 			&fids[SERVICE4], &fids[SERVICE5],
-			&fids[SERVICE6], &fids[SERVICE7]
+			&fids[SERVICE6], &fids[SERVICE7],
+			&fids[SERVICE8]
 		};
 		M0_UT_ASSERT(m0_exists(i, ARRAY_SIZE(a),
 				       m0_fid_eq(&obj->co_id, a[i])));

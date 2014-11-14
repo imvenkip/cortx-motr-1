@@ -166,3 +166,16 @@ m0_conf_service_type2str(enum m0_conf_service_type type)
 
 #undef XCAST
 #undef M0_TRACE_SUBSYSTEM
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

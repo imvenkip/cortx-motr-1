@@ -768,7 +768,11 @@ static int spiel_filesystem_dirs_create(struct m0_conf_cache      *cache,
 				     &M0_CONF_POOL_TYPE, NULL, &fs->cf_pools) ?:
 		     m0_conf_dir_new(cache, &fs->cf_obj,
 				     &M0_CONF_FILESYSTEM_RACKS_FID,
-				     &M0_CONF_RACK_TYPE, NULL, &fs->cf_racks));
+				     &M0_CONF_RACK_TYPE, NULL, &fs->cf_racks) ?:
+		     m0_conf_dir_new(cache, &fs->cf_obj,
+				     &M0_CONF_FILESYSTEM_FDMI_FLT_GRPS_FID,
+				     &M0_CONF_FDMI_FLT_GRP_TYPE, NULL,
+				     &fs->cf_fdmi_flt_grps));
 }
 
 /**

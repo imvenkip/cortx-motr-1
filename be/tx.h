@@ -391,6 +391,23 @@ struct m0_be_tx {
 	 * twice.
 	 */
 	bool                   t_grouped;
+	/**
+	 * FDMI reference counter. Used in FOL FDMI source implementation.
+	 * @todo Fix this when proper refcounting is implemented.
+	 */
+	struct m0_atomic64     t_fdmi_ref;
+	/**
+	 * Locked txn list. Used in FOL FDMI source implementation.
+	 *
+	 * _ini and _fini is done in fdmi fol source code.
+	 */
+	struct m0_tlink        t_fdmi_linkage;
+	/**
+	 * Used by FOL source to put tx when FDMI finishes with it.
+	 * @todo Will be fixed when proper refcounting is implemented
+	 * in second phase of FDMI work.
+	 */
+	struct m0_sm_ast       t_fdmi_put_ast;
 };
 
 /**

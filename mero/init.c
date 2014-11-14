@@ -81,6 +81,9 @@
 #include "xcode/init.h"
 #include "module/instance.h"  /* m0_instance_setup */
 #include "clovis/clovis_internal.h"  /* m0_clovis_global_init */
+#include "fdmi/fdmi.h"
+#include "fdmi/service.h"
+#include "fdmi/fol_fdmi_src.h"
 
 M0_INTERNAL int m0_utime_init(void);
 M0_INTERNAL void m0_utime_fini(void);
@@ -208,6 +211,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_stats_svc_init,   &m0_stats_svc_fini,   "stats-service" },
 	{ &m0_ss_svc_init,      &m0_ss_svc_fini,      "sss" },
 	{ &m0_dix_cm_module_init, &m0_dix_cm_module_fini, "dix-cm" },
+	{ &m0_fdms_register,    &m0_fdms_unregister,  "fdmi-service" },
 #endif /* __KERNEL__ */
 	{ &m0_cas_module_init,  &m0_cas_module_fini,  "cas" },
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
@@ -216,6 +220,10 @@ struct init_fini_call subsystem[] = {
 	{ &m0_clovis_global_init, &m0_clovis_global_fini, "clovis" },
 	{ &m0_rconfc_mod_init,  &m0_rconfc_mod_fini,  "rconfc" },
 	{ &m0_fis_register,     &m0_fis_unregister,   FI_SERVICE_NAME },
+#ifndef __KERNEL__
+	{ &m0_fdmi_init,         &m0_fdmi_fini,         "fdmi" },
+	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" }
+#endif
 };
 
 static void fini_nr(struct init_fini_call *arr, int nr)

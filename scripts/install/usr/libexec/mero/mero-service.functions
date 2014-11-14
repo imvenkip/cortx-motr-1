@@ -354,6 +354,7 @@ _portal_id()
         confd)  portal_id=44;;
         ha)     portal_id=45;;
         cas*)   portal_id=46;;
+        fdmi)   portal_id=47;;
     esac
     echo $portal_id
 }
@@ -404,6 +405,7 @@ m0_get_ep_of()
     local ha_tid=1
     local ios_tid=401
     local cas_tid=501
+    local fdmi_tid=601
     local portal=$(_portal_id $1)
     local ep
     local s
@@ -419,6 +421,8 @@ m0_get_ep_of()
             cas*) ep=$lnid:$lpid:$portal:$((cas_tid++))
                 ;;
             rms*) ep=$lnid:$lpid:$portal:$((rms_tid++))
+                ;;
+            fdmi*) ep=$lnid:$lpid:$portal:$((fdmi_tid++))
                 ;;
             ha*)  ep=${MERO_HA_EP:-$lnid:$lpid:$portal:$((ha_tid++))}
                 ;;
@@ -482,7 +486,7 @@ m0_get_proc_fid_for()
 
 # Return space-separated list of all endpoints in the cluster for particular
 # service type, from genders file
-#   @param  $1  service type (confd mds ios ha rms)
+#   @param  $1  service type (confd mds ios ha rms fdmi)
 m0_get_global_eps_of()
 {
     local stype=$1
@@ -624,7 +628,7 @@ m0_get_running_servers()
 }
 
 # Return PID of running m0d daemon for particular Mero service
-#   @param  $1  name of a service, e.g. 'mds', 'ios1'
+#   @param  $1  name of a service, e.g. 'mds', 'ios1', 'fdmi'
 m0_get_server_pid_for()
 {
     local service=$1
@@ -643,7 +647,7 @@ m0_get_server_pid_for()
 }
 
 # Return generated service FID in form of container:key
-#   @param  $1  name of a service, e.g. 'mds', 'ios1'
+#   @param  $1  name of a service, e.g. 'mds', 'ios1', 'fdmi'
 #   @param  $2  node index in global nodes array where service is located
 m0_build_service_fid()
 {
@@ -672,6 +676,7 @@ m0_build_service_fid()
         cas)           cid=10 ;;
         dix-repair)    cid=11 ;;
         dix-rebalance) cid=12 ;;
+        fdmi)          cid=13 ;;
     esac
 
     printf %s:%d "^s|$(( $cid + $node_idx * 16 ))" $sidx
@@ -814,6 +819,7 @@ _build_process_objects()
             local sname="$(m0_build_service_fid $s $node_idx)"
             local addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
             local rms="$(m0_build_service_fid "rms$idx" $node_idx)"
+            local fdmi="$(m0_build_service_fid "fdmi$idx" $node_idx)"
 
             proc_name="$proc_fid_con:$idx"
 
@@ -834,9 +840,9 @@ _build_process_objects()
                 repair="$(m0_build_service_fid ${s/$svc_name/${prefix}-repair} $node_idx)"
                 rebalance="$(m0_build_service_fid ${s/$svc_name/${prefix}-rebalance} $node_idx)"
 
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [5: $sname, $repair, $rebalance, $rms, $addb])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [6: $sname, $repair, $rebalance, $rms, $addb, $fdmi])}"
             else
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [3: $sname, $rms, $addb])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [4: $sname, $rms, $addb, $fdmi])}"
             fi
 
             objs="$objs${objs:+, \n} $obj"
@@ -856,6 +862,7 @@ _type_id()
     case $s in
         mds*)          type_id=@M0_CST_MDS ;;
         ios*)          type_id=@M0_CST_IOS ;;
+        fdmi*)         type_id=@M0_CST_FDMI ;;
         confd)         type_id=@M0_CST_MGS ;;
         rms*)          type_id=@M0_CST_RMS ;;
         ha)            type_id=@M0_CST_HA ;;
@@ -916,6 +923,10 @@ _build_service_objects()
             rms="$(m0_build_service_fid "rms$idx" $node_idx)"
             type_id=$(_type_id "rms")
             objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0])}"
+
+            fdmi="$(m0_build_service_fid "fdmi$idx" $node_idx)"
+            type_id=$(_type_id "fdmi")
+            objs="$objs${objs:+,\n  }{0x73| (($fdmi), $type_id, [1: "\"$ep\""], [0])}"
 
             if [[ $s == ios* || $s == cas* ]] ; then
                 local repair
@@ -1042,7 +1053,7 @@ m0_build_local_conf()
           $imetapverid,
           [1: $node],
           $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid),
-          [1: $rackid])},
+          [1: $rackid], [0])},
   {0x6e| (($node), 16000, 2, 3, 2, $poolid, [$procs: $proc_names])},
   $proc_objs,
   $service_objs,

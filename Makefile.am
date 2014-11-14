@@ -217,6 +217,7 @@ include $(top_srcdir)/dix/cm/repair/Makefile.sub
 include $(top_srcdir)/dix/cm/rebalance/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fd/Makefile.sub
+include $(top_srcdir)/fdmi/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/file/Makefile.sub
 include $(top_srcdir)/fis/Makefile.sub
@@ -337,6 +338,7 @@ include $(top_srcdir)/dix/cm/ut/Makefile.sub
 include $(top_srcdir)/dix/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
 include $(top_srcdir)/fd/ut/Makefile.sub
+include $(top_srcdir)/fdmi/ut/Makefile.sub
 include $(top_srcdir)/file/ut/Makefile.sub
 include $(top_srcdir)/fis/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
@@ -744,6 +746,19 @@ sbin_SCRIPTS  += utils/m0gendisks \
 
 bin_SCRIPTS += utils/m0confgen
 
+#
+# fdmi/st/echo_plugin
+#
+include $(top_srcdir)/fdmi/st/Makefile.sub
+
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS           += fdmi/st/echo/m0fdmiecho
+endif
+fdmi_st_echo_m0fdmiecho_CPPFLAGS  = -DM0_TARGET='echo_plugin' $(AM_CPPFLAGS)
+fdmi_st_echo_m0fdmiecho_LDADD     = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
+
+include $(top_srcdir)/fdmi/st/echo/Makefile.sub
 
 ################################################################################
 #                               Public utilities                            {{{1
@@ -922,6 +937,7 @@ EXTRA_DIST += \
               dtm/ut/Kbuild.sub \
               fd/Kbuild.sub \
               fd/ut/Kbuild.sub \
+              fdmi/Kbuild.sub \
               fid/Kbuild.sub \
               fis/Kbuild.sub \
               fol/Kbuild.sub \

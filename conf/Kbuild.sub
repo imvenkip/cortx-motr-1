@@ -20,6 +20,8 @@ m0mero_objects += \
                   conf/objs/dir.o \
                   conf/objs/disk.o \
                   conf/objs/enclosure.o \
+                  conf/objs/fdmi_filter.o \
+                  conf/objs/fdmi_flt_grp.o \
                   conf/objs/filesystem.o \
                   conf/objs/node.o \
                   conf/objs/objv.o \

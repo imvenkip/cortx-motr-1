@@ -84,6 +84,8 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 	static const char *opts[] = {
 		[M0_CST_MDS]     = "-G",
 		[M0_CST_IOS]     = "-i",
+		[M0_CST_MGS]     = "",
+		[M0_CST_RMS]     = "",
 		[M0_CST_STS]     = "-R",
 		[M0_CST_HA]      = "",
 		[M0_CST_SSS]     = "",
@@ -96,6 +98,7 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 		[M0_CST_DS1]     = "",
 		[M0_CST_DS2]     = "",
 		[M0_CST_FIS]     = "",
+		[M0_CST_FDMI]    = ""
 	};
 	int         i;
 	const char *opt;

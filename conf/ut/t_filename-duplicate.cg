@@ -3,15 +3,17 @@
 (profile-0 filesystem=filesystem-1)
 (filesystem-1 rootfid=(0xb, 0x16) redundancy=2
     params=["param-0", "param-1", "param-2"] mdpool=pool-4 imeta_pver=pver-8
-    nodes=[node-2, node-48] pools=[pool-4, pool-56] racks=[rack-3, rack-52])
+    nodes=[node-2, node-48] pools=[pool-4, pool-56] racks=[rack-3, rack-52]
+    fdmi_flt_grps=[])
 (node-2 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-4
     processes=[process-5, process-6])
 (process-5 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
-    services=[service-9, service-10, service-20, service-21, service-22,
-              service-23, service-24, service-25, service-26])
+    services=[service-8, service-9, service-10, service-20, service-21,
+              service-22, service-23, service-24, service-25, service-26])
 (process-6 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[])
+(service-8 type=@M0_CST_FDMI endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-9 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-15, sdev-71, sdev-72, sdev-73, sdev-74])
 (service-10 type=@M0_CST_MDS endpoints=["0@lo:12345:34:1"] sdevs=[])

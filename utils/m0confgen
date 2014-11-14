@@ -51,7 +51,8 @@ conf_obj_types = {
     'profile': ('p', '*filesystem=objid'),
     'filesystem': ('f', 'rootfid=fid redundancy=NUMBER params=[STRING]'
                    ' mdpool=objid imeta_pver=fid'
-                   ' *nodes=[objid] *pools=[objid] *racks=[objid]'),
+                   ' *nodes=[objid] *pools=[objid] *racks=[objid]'
+                   ' *fdmi_flt_grps=[objid]'),
     'pool': ('o', 'order=NUMBER *pvers=[objid]'),
     'pver': ('v:0',  # actual pver
              'N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER]'
@@ -70,7 +71,9 @@ conf_obj_types = {
     'rack': ('a', '*encls=[objid] pvers=[objid]'),
     'enclosure': ('e', '*ctrls=[objid] pvers=[objid]'),
     'controller': ('c', '!node=objid *disks=[objid] pvers=[objid]'),
-    'disk': ('k', '!dev=objid pvers=[objid]')
+    'disk': ('k', '!dev=objid pvers=[objid]'),
+    'fdmi_flt_grp': ('g', 'rec_type=NUMBER *filters=[objid]'),
+    'fdmi_filter': ('l', 'id=fid root=STRING endpoints=[STRING] node=objid')
 }
 
 # NOTE: Should be in sync with m0_conf_service_type in conf/schema.h.
@@ -78,7 +81,7 @@ conf_service_types = (
     '_UNUSED', 'MDS', 'IOS', 'MGS', 'RMS', 'STS', 'HA', 'SSS',
     'SNS_REP', 'SNS_REB', 'ADDB2', 'CAS', 'DIX_REP', 'DIX_REB',
     'DS1', 'DS2',  # UT-specific
-    'FIS'
+    'FIS', 'FDMI'
 )
 conf_service_types = tuple('M0_CST_' + s for s in conf_service_types)
 
@@ -728,7 +731,7 @@ Examples:
     (filesystem-1 rootfid=(11, 12) redundancy=41212
         params=["param-0", "param-1", "param-2"]
         mdpool=pool-4 imeta_pver=(0, 0)
-        nodes=[node-2] pools=[pool-4, pool-5] racks=[])
+        nodes=[node-2] pools=[pool-4, pool-5] racks=[] fdmi_flt_grps=[])
 
 Configuration object types and attributes:
 
@@ -1245,17 +1248,17 @@ class TestEncoding(unittest.TestCase):
                   ('mdpool', Fid(('o', 1), 5)), ('imeta_pver', Fid(0, 0)),
                   ('nodes', [Fid(('n', 1), 2), Fid(('n', 1), 48)]),
                   ('pools', [Fid(('o', 1), 4), Fid(('o', 1), 5)]),
-                  ('racks', [Fid(('a', 1), 3)])])],
+                  ('racks', [Fid(('a', 1), 3)]), ('fdmi_flt_grps', [])])],
              """[3:
  {0x74| ((^t|1:0), 1, [1: ^p|1:0])},
  {0x70| ((^p|1:0), ^f|1:1)},
  {0x66| ((^f|1:1), (11, 22), 0, [3: "param-0", "param-1", "param-2"],\
- ^o|1:5, (0, 0), [2: ^n|1:2, ^n|1:48], [2: ^o|1:4, ^o|1:5], [1: ^a|1:3])}]""",
+ ^o|1:5, (0, 0), [2: ^n|1:2, ^n|1:48], [2: ^o|1:4, ^o|1:5], [1: ^a|1:3], [0])}]""",
              """(root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-1)
 (filesystem-1 rootfid=(11, 22) redundancy=0\
  params=["param-0", "param-1", "param-2"] mdpool=pool-5 imeta_pver=(0, 0)\
- nodes=[node-2, node-48] pools=[pool-4, pool-5] racks=[rack-3])""")
+ nodes=[node-2, node-48] pools=[pool-4, pool-5] racks=[rack-3] fdmi_flt_grps=[])""")
         test([ConfObj(Fid(('v', 1), 8), [
             ('N', 1), ('K', 1), ('P', 5), ('tolerance', [0, 0, 0, 0, 1]),
             ('rackvs', [Fid(('j', 1), 12)])])],
@@ -1288,7 +1291,7 @@ class TestEncoding(unittest.TestCase):
                      ('mdpool', Fid(('o', 1), 5)),
                      ('imeta_pver', Fid(0, 0)),
                      ('nodes', [Fid(('n', 1), 2), Fid(('n', 1), 48)]),
-                     ('pools', []), ('racks', [])]),
+                     ('pools', []), ('racks', []), ('fdmi_flt_grps', [])]),
             ConfObj(Fid(('s', 1), 9),
                     [('type', '@M0_CST_RMS'),
                      ('endpoints', ['0@lo:12345:34:1']), ('sdevs', [])])]),
@@ -1298,7 +1301,7 @@ class TestEncoding(unittest.TestCase):
  {"objid": "filesystem-0x64", "rootfid": [11, 22], "redundancy": 0,\
  "params": ["param-0", "param-1", "param-2"], "mdpool": "pool-5",\
  "imeta_pver": [0, 0], "nodes": ["node-2", "node-48"], "pools": [],\
- "racks": []},
+ "racks": [], "fdmi_flt_grps": []},
  {"objid": "service-9", "type": "@M0_CST_RMS",\
  "endpoints": ["0@lo:12345:34:1"], "sdevs": []}
 ]""")

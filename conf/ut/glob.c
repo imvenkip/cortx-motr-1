@@ -53,7 +53,7 @@ static void test_conf_glob(void)
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
-	M0_UT_ASSERT(rc == 11);
+	M0_UT_ASSERT(rc == 12);
 	/* check the types of returned objects */
 	m0_forall(i, rc, M0_CONF_CAST(objv[i], m0_conf_service));
 
@@ -115,7 +115,7 @@ static void test_conf_glob(void)
 			  M0_CONF_NODE_PROCESSES_FID, M0_FID_TINIT('r', 1, 5),
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
-	M0_UT_ASSERT(rc == 10);
+	M0_UT_ASSERT(rc == 11);
 	/* check the types of returned objects */
 	m0_forall(i, rc, M0_CONF_CAST(objv[i], m0_conf_service));
 

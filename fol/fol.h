@@ -97,6 +97,7 @@ struct m0_fol_rec;
 #include "dtm/dtm_update.h" /* m0_update_id, m0_epoch_id */
 #include "fid/fid_xc.h"
 #include "dtm/dtm_update_xc.h"
+#include "fdmi/src_rec.h"   /* m0_fdmi_src_rec */
 
 struct m0_be_tx;
 struct m0_epoch_id;
@@ -115,7 +116,10 @@ enum {
 	 * Alternative (proper?) solution is to calculate the size of fol
 	 * record as a function of rpc opcode.
 	 */
-	FOL_REC_MAXSIZE = 1024 * 1024
+	/* FOL_REC_MAXSIZE = 1024 * 1024 */
+
+	/* EN: Previous size is too big to fit into one RPC message */
+	FOL_REC_MAXSIZE = 1024*50
 };
 
 /**
@@ -185,6 +189,8 @@ struct m0_fol_rec {
 	   Fragments are linked through m0_fol_frag:rp_link to this list.
 	 */
 	struct m0_tl              fr_frags;
+	/** FDMI Source Record entry. */
+	struct m0_fdmi_src_rec    fr_fdmi_rec;
 };
 
 /**
@@ -215,6 +221,8 @@ M0_INTERNAL int m0_fol_rec_encode(struct m0_fol_rec *rec, struct m0_buf *at);
    the record.
  */
 M0_INTERNAL int m0_fol_rec_decode(struct m0_fol_rec *rec, struct m0_buf *at);
+
+int m0_fol_rec_to_str(struct m0_fol_rec *rec, char *str, int str_len);
 
 M0_INTERNAL bool m0_fol_rec_invariant(const struct m0_fol_rec *drec);
 

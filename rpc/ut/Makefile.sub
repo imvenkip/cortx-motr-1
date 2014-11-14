@@ -1,6 +1,7 @@
 ut_libmero_ut_la_SOURCES += rpc/ut/rpclib_ut.c \
                                rpc/ut/formation2.c \
                                rpc/ut/conn.c \
+                               rpc/ut/conn_pool.c \
                                rpc/ut/rpc_machine.c \
                                rpc/ut/session.c \
                                rpc/ut/rcv_session.c \
@@ -20,4 +21,7 @@ XC_FILES += rpc/ut/fops_xc.h \
             rpc/ut/at/at_ut_xc.h
 
 EXTRA_DIST += rpc/ut/clnt_srv_ctx.c \
-              rpc/ut/fops.h
+              rpc/ut/fops.h \
+              rpc/ut/fops_xc.h
+
+ut_libmero_ut_la_CPPFLAGS += -DM0_RPC_UT_DIR=$(abs_top_builddir)/rpc/ut/

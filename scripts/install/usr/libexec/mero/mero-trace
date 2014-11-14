@@ -62,7 +62,7 @@ cleanup_old_logs()
             local log_mask='trace-m0mero~*.bin'
             ;;
 
-        confd*|ha*|ios*|cas*|mds*|rms*)
+        confd*|ha*|ios*|cas*|mds*|rms*|fdmi*)
             local log_mask='trace-m0d-'$service'-*.bin'
             ;;
 
@@ -113,7 +113,7 @@ m0_traced()
             fi
             ;;
 
-        confd*|ha*|ios*|cas*|mds*|rms*)
+        confd*|ha*|ios*|cas*|mds*|rms*|fdmi*)
             [[ $MERO_TRACED_M0D == yes ]] || exit 0
             local server_pid=$(m0_get_server_pid_for $target)
             local server_trace_file=$(m0_get_m0d_data_dir_for $target)/m0trace.$server_pid
@@ -130,7 +130,7 @@ m0_traced()
             ;;
 
         *) m0_exit "Failed to start m0traced for unknown target '$target'," \
-                   "available targets are 'kernel', 'confd*', 'ios*', 'cas*'" \
+                   "available targets are 'kernel', 'confd*', 'ios*', 'cas*', 'fdmi*'" \
                    "'mds*' and 'ha*'"
             ;;
     esac

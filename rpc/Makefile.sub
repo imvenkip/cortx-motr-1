@@ -3,6 +3,8 @@ nobase_mero_include_HEADERS += rpc/addb2.h \
                                   rpc/bulk.h \
                                   rpc/conn.h \
                                   rpc/conn_internal.h \
+                                  rpc/conn_pool.h \
+                                  rpc/conn_pool_internal.h \
                                   rpc/formation2_internal.h \
                                   rpc/ha.h \
                                   rpc/item.h \
@@ -28,6 +30,7 @@ nobase_mero_include_HEADERS += rpc/addb2.h \
 mero_libmero_la_SOURCES  += rpc/at.c \
                                   rpc/bulk.c \
                                   rpc/conn.c \
+                                  rpc/conn_pool.c \
                                   rpc/formation2.c \
                                   rpc/frmops.c \
                                   rpc/item.c \
