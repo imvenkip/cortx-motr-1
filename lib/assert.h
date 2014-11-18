@@ -26,6 +26,12 @@
 #include <stddef.h>   /* NULL */
 #include <stdarg.h>   /* va_list */
 
+#ifdef __KERNEL__
+#include <linux/compiler.h>  /* GCC_VERSION */
+#else
+#include <ansidecl.h>        /* GCC_VERSION */
+#endif
+
 /**
    @defgroup assert Assertions, pre-conditions, post-conditions, invariants.
 
@@ -232,7 +238,12 @@ static inline void m0_assert_intercept(void) {;}
    @see M0_CASSERT()
  */
 
-#define M0_BASSERT(cond) extern char __static_assertion[(cond) ? 1 : -1]
+/* GCC 4.6 introduces _Static_assert keyword for compile/build time assertions */
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+# define M0_BASSERT(cond) _Static_assert((cond), #cond)
+#else
+# define M0_BASSERT(cond) extern char __static_assertion[(cond) ? 1 : -1]
+#endif
 
 /**
    Location where _0C() macro stores the name of failed asserted expression.
