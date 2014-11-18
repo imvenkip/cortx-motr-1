@@ -515,7 +515,7 @@ static void fom_stob_write_credit(struct m0_fom *fom)
 	io.si_stob = (struct m0_indexvec) {
 		.iv_vec   = (struct m0_vec) {.v_nr = 1, .v_count = &count},
 		.iv_index = &index};
-	m0_stob_io_credit(stobj->so_domain, &io, m0_fom_tx_credit(fom));
+	m0_stob_io_credit(&io, stobj->so_domain, m0_fom_tx_credit(fom));
 	m0_stob_put(stobj);
 }
 

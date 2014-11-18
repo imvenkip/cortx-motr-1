@@ -60,8 +60,8 @@ M0_INTERNAL void m0_stob_io_fini(struct m0_stob_io *io)
 	m0_stob_io_private_fini(io);
 }
 
-M0_INTERNAL void m0_stob_io_credit(const struct m0_stob_domain *dom,
-				   const struct m0_stob_io *io,
+M0_INTERNAL void m0_stob_io_credit(const struct m0_stob_io *io,
+				   const struct m0_stob_domain *dom,
 				   struct m0_be_tx_credit *accum)
 {
 	M0_PRE(io->si_opcode == SIO_WRITE);

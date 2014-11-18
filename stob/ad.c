@@ -965,7 +965,7 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 		/* for each emap_paste() seg_free() could be called 3 times */
 		ballroom->ab_ops->bo_free_credit(ballroom, 3, accum);
 	}
-	m0_stob_io_credit(m0_stob_dom_get(adom->sad_bstore), io, accum);
+	m0_stob_io_credit(io, m0_stob_dom_get(adom->sad_bstore), accum);
 }
 
 /**

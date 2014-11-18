@@ -1941,7 +1941,7 @@ static void stob_be_credit(struct m0_fom *fom, bool is_op_write)
 
 	if (is_op_write) {
 		fom_obj->fcrw_io.si_opcode = SIO_WRITE;
-		m0_stob_io_credit(fom_stdom, &fom_obj->fcrw_io,
+		m0_stob_io_credit(&fom_obj->fcrw_io, fom_stdom,
 				  m0_fom_tx_credit(fom));
 	}
 
