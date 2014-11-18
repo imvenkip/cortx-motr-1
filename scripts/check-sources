@@ -30,6 +30,7 @@
 use 5.010;
 use strict;
 use warnings;
+use autodie;
 
 
 # check that all required external modules are available and display a hint to
@@ -77,7 +78,6 @@ BEGIN {
 use Carp;
 use Getopt::Long qw( :config no_ignore_case );
 use Pod::Usage;
-use Fatal qw( open close );
 use English qw( -no_match_vars ); # avoids regex performance penalty
 
 # external modules (not included into base perl distribution)

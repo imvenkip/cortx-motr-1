@@ -23,6 +23,7 @@ declare -rA RPM_PACKAGE=(
     [perl]='perl'                       # gccxml2xcode
     [perl-xml]='perl-XML-LibXML'        # gccxml2xcode
     [perl-list]='perl-List-MoreUtils'   # gccxml2xcode
+    [perl-autodie]='perl-autodie'       # check-sources
     [perl-find]='perl-File-Find-Rule'   # check-sources
     [perl-io]='perl-IO-All'             # check-sources
     [libc-dev]='glibc-headers'
