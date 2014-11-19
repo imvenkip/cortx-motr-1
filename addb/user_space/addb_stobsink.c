@@ -529,7 +529,6 @@ static int stobsink_header_read(struct stobsink *sink,
 				struct m0_addb_seg_header *header)
 {
 	struct stobsink_poolbuf *pb;
-	struct m0_stob_domain   *dom;
 	struct m0_bufvec_cursor  cur;
 	uint32_t                 bshift;
 	int                      rc;
@@ -539,7 +538,6 @@ static int stobsink_header_read(struct stobsink *sink,
 	pb = sink->ss_current;
 	M0_PRE(!pb->spb_busy);
 
-	dom = sink->ss_stob->so_domain;
 	bshift = sink->ss_bshift;
 	pb->spb_io_iv_index = offset >> bshift;
 	pb->spb_io.si_opcode = SIO_READ;
@@ -770,7 +768,6 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 			     uint32_t                 record_nr)
 {
 	struct stobsink           *sink;
-	struct m0_stob_domain     *dom;
 	struct m0_bufvec_cursor    cur;
 	struct m0_addb_seg_header  head;
 	struct m0_addb_seg_trailer trailer;
@@ -784,7 +781,6 @@ static void stobsink_persist(struct stobsink_poolbuf *pb,
 	M0_PRE(ergo(pb->spb_busy, sink->ss_current != pb));
 	pb->spb_busy = true;
 
-	dom = sink->ss_stob->so_domain;
 	m0_bufvec_cursor_init(&cur, &pb->spb_buf);
 
 	head.sh_seq_nr = sink->ss_seq_nr;

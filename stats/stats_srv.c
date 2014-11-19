@@ -603,7 +603,6 @@ static int read_stats(struct m0_fom *fom)
 	rep_fop->sqrf_stats.sf_nr = qfop->sqf_ids.au64s_nr;
 
 	for (i = 0; i < qfop->sqf_ids.au64s_nr; ++i) {
-		struct m0_addb_uint64_seq *sum_data;
 		struct m0_stats           *stats_obj =
 			m0_stats_get(&svc->ss_stats,
 				     qfop->sqf_ids.au64s_data[i]);
@@ -616,14 +615,9 @@ static int read_stats(struct m0_fom *fom)
 			continue;
 		}
 
-		sum_data = &(rep_fop->sqrf_stats.sf_stats[i].ss_data);
 		rc = stats_sum_copy(&stats_obj->s_sum,
 				    &rep_fop->sqrf_stats.sf_stats[i]);
 		if (rc != 0) {
-			struct m0_stats_sum *sums;
-
-			sums = rep_fop->sqrf_stats.sf_stats;
-
 #undef REP_STATS_SUM_DATA
 #define REP_STATS_SUM_DATA(rep_fop, i) \
 	(rep_fop->sqrf_stats.sf_stats[i].ss_data.au64s_data)

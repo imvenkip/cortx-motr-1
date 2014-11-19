@@ -1609,7 +1609,6 @@ static int io_launch(struct m0_fom *fom)
 	struct m0_net_buffer    *nb;
 	struct m0_fop_cob_rw	*rwfop;
 	struct m0_file		*file;
-	struct m0_net_domain    *dom;
 	uint32_t                 index;
 
 	M0_PRE(fom != NULL);
@@ -1627,7 +1626,6 @@ static int io_launch(struct m0_fom *fom)
 
 	fop   = fom->fo_fop;
 	rwfop = io_rw_get(fop);
-	dom   = io_fop_tm_get(fop)->ntm_dom;
 
 	rc = stob_object_find(fom);
 	if (rc != 0)

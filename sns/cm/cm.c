@@ -830,14 +830,12 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				struct m0_pdclust_instance *pi)
 {
 	struct m0_fid gfid;
-	uint64_t      group;
 	uint64_t      nr_cp_bufs;
 	uint64_t      cp_data_seg_nr;
 	uint64_t      nr_incoming;
 
 	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, pl, pi);
         agid2fid(id, &gfid);
-        group = agid2group(id);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 

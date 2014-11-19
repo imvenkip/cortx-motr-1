@@ -101,14 +101,12 @@ static uint64_t rebalance_ag_unit_end(const struct m0_pdclust_layout *pl)
 M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 					     struct m0_sns_cm_cp *scp)
 {
-	struct m0_cm               *cm;
 	struct m0_pdclust_layout   *pl;
 	struct m0_fid               cobfid;
 	struct m0_sns_cm_file_ctx  *fctx;
 	uint64_t                    offset;
 	int                         rc = 0;
 
-	cm = sag->sag_base.cag_cm;
 	fctx = sag->sag_fctx;
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	rc = m0_sns_cm_ag_tgt_unit2cob(sag, scp->sc_base.c_ag_cp_idx,

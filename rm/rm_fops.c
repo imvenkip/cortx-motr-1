@@ -342,7 +342,6 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_rm_fop_borrow_rep *borrow_reply;
 	struct m0_rm_owner	    *owner;
 	struct m0_rm_loan	    *brw_loan = NULL;
-	struct m0_rm_loan	    *req_loan;
 	struct m0_rm_credit	    *credit;
 	struct m0_rm_credit	    *bcredit;
 	struct rm_out		    *outreq;
@@ -355,7 +354,6 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	borrow_reply = NULL;
 	outreq       = container_of(ast, struct rm_out, ou_ast);
-	req_loan     = &outreq->ou_req.rog_want;
 	item         = &outreq->ou_fop.f_item;
 	item_rep     = item->ri_reply;
 	rc           = item->ri_error ?: m0_rpc_item_generic_reply_rc(item_rep);

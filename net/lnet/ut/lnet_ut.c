@@ -2071,7 +2071,6 @@ static void test_timeout_body(struct ut_data *td)
 	int qt;
 	int i;
 	m0_time_t abs_timeout;
-	m0_time_t rel_timeout;
 	m0_time_t buf_add_time;
 	uint64_t timeout_secs = 1;
 
@@ -2084,7 +2083,6 @@ static void test_timeout_body(struct ut_data *td)
 	*/
 	m0_net_lnet_tm_set_debug(TM1, 0);
 	nb1->nb_length = td->buf_size1;
-	rel_timeout = m0_time(timeout_secs, 0);
 	for (i = 0; i < ARRAY_SIZE(qts); ++i) {
 		qt = qts[i];
 		NLXDBGPnl(td, 1, "TEST: buffer single timeout: %d\n", (int) qt);

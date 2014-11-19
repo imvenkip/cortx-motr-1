@@ -383,7 +383,6 @@ static int check_write_fom_tick(struct m0_fom *fom)
         struct m0_stob_domain     *fom_stdom;
         struct m0_fid		   stob_fid;
         struct m0_net_transfer_mc *tm;
-	struct m0_reqh            *reqh;
 
         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
@@ -643,7 +642,6 @@ static int check_write_fom_tick(struct m0_fom *fom)
                  */
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
                 io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
-		reqh = m0_fom_reqh(fom);
                 fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
 		M0_UT_ASSERT(fom_stdom != NULL);
 
@@ -733,7 +731,6 @@ static int check_read_fom_tick(struct m0_fom *fom)
         struct m0_stob_domain     *fom_stdom;
         struct m0_fid		   stob_fid;
         struct m0_net_transfer_mc *tm;
-	struct m0_reqh            *reqh;
 
         fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
@@ -925,7 +922,6 @@ static int check_read_fom_tick(struct m0_fom *fom)
                  */
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, saved_stobio_desc);
                 io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
-		reqh = m0_fom_reqh(fom);
                 fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
 		M0_UT_ASSERT(fom_stdom != NULL);
 
@@ -1068,7 +1064,6 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
         struct m0_fid		      stob_fid;
         int			      rc;
 	struct m0_fop_cob_writev_rep *wrep;
-	struct m0_reqh               *reqh;
         struct m0_io_fom_cob_rw      *fom_obj;
 	struct m0_fom_cob_op	      cc;
 	struct m0_reqh_io_service    *ios;
@@ -1081,7 +1076,6 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 
 	rwfop = io_rw_get(fom->fo_fop);
         io_fom_cob_rw_fid2stob_map(&rwfop->crw_fid, &stob_fid);
-	reqh = m0_fom_reqh(fom);
 	fom_stdom = m0_stob_domain_find_by_stob_fid(&stob_fid);
 	M0_UT_ASSERT(fom_stdom != NULL);
 

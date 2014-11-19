@@ -63,7 +63,7 @@ static int nlx_tm_timeout_buffers(struct m0_net_transfer_mc *tm, m0_time_t now)
 {
 	int                        qt;
 	struct m0_net_buffer      *nb;
-	struct nlx_xo_transfer_mc *tp;
+	struct nlx_xo_transfer_mc *tp M0_UNUSED;
 	int                        i;
 
 	M0_PRE(tm != NULL && nlx_tm_invariant(tm));
@@ -277,7 +277,7 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
 					   struct nlx_core_buffer_event *lcbev,
 					   struct m0_net_buffer_event *nbev)
 {
-	struct nlx_xo_transfer_mc *tp;
+	struct nlx_xo_transfer_mc *tp M0_UNUSED;
 	struct m0_net_buffer      *nb;
 	int                        rc = 0;
 

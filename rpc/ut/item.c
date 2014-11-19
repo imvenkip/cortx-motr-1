@@ -190,14 +190,12 @@ static void test_timeout(void)
 static void __test_timeout(m0_time_t deadline,
 			   m0_time_t timeout)
 {
-	int rc;
-
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
 	m0_rpc_machine_get_stats(machine, &saved, false);
 	item->ri_nr_sent_max = 1;
 	item->ri_resend_interval = timeout;
-	rc = m0_rpc_post_sync(fop, session, NULL, deadline);
+	m0_rpc_post_sync(fop, session, NULL, deadline);
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));

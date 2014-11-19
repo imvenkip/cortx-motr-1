@@ -391,12 +391,11 @@ fop_fini:
 static void quit_dialog(void)
 {
 	char ch;
-	int  rc;
 
 	printf("\n########################################\n");
 	printf("\n\nPress Enter to terminate\n\n");
 	printf("\n########################################\n");
-	rc = read(0, &ch, sizeof ch);
+	read(0, &ch, sizeof ch);
 }
 
 static int int2str(char *dest, size_t size, int src, int defval)

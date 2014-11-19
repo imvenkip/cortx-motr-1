@@ -257,7 +257,6 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	struct m0_indexvec    *iv;
 	struct m0_bufvec      *obuf;
 	struct m0_clink        sri_wait;
-	struct m0_stob_domain *dom;
 	m0_bcount_t            header_size;
 	uint32_t               bshift = m0_stob_block_shift(stob);
 	int                    rc;
@@ -286,7 +285,6 @@ static int stob_retrieval_segsize_get(struct m0_stob *stob)
 	obuf->ov_buf = &sri_buf_ov_buf;
 	sri_buf_ov_buf = m0_stob_addr_pack(sri_buf.ov_buf[0], bshift);
 
-	dom = stob->so_domain;
 	do {
 		rc = m0_stob_io_launch(&sri_io, stob, NULL, NULL);
 		if (rc < 0)
@@ -315,7 +313,6 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 {
 	struct stob_segment_iter  *si;
 	struct m0_stob            *stob;
-	struct m0_stob_domain     *dom;
 	struct m0_clink            seg_wait;
 	struct m0_addb_seg_header  header;
 	struct m0_addb_seg_trailer trailer;
@@ -327,7 +324,6 @@ static int stob_segment_iter_next(struct m0_addb_segment_iter *iter,
 	M0_PRE(si->ssi_base.asi_magic == M0_ADDB_STOBRET_MAGIC);
 
 	stob = si->ssi_stob;
-	dom = stob->so_domain;
 	offset = si->ssi_base.asi_segsize >> si->ssi_bshift;
 	m0_clink_init(&seg_wait, NULL);
 

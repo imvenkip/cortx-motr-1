@@ -587,14 +587,12 @@ static int revoke_fom_tick(struct m0_fom *fom)
 static int cancel_process(struct m0_fom *fom)
 {
 	struct m0_rm_fop_cancel  *cfop;
-	struct rm_request_fom	 *rfom;
 	struct m0_rm_loan        *loan;
 	struct m0_rm_owner       *owner;
 	struct m0_clink          *clink;
 	int			  rc = 0;
 
 	cfop = m0_fop_data(fom->fo_fop);
-	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	loan = m0_cookie_of(&cfop->fc_loan.lo_cookie,
 			    struct m0_rm_loan, rl_id);

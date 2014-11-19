@@ -247,7 +247,6 @@ static void addb_ut_stobsink_search(void)
 static void addb_ut_stobsink_verify(struct stobsink *sink)
 {
 	struct stobsink_poolbuf   *pb;
-	struct m0_stob_domain     *dom;
 	struct m0_bufvec_cursor    cur;
 	struct m0_addb_seg_header  head;
 	struct m0_addb_seg_trailer trl;
@@ -274,7 +273,6 @@ static void addb_ut_stobsink_verify(struct stobsink *sink)
 
 	dp_rid = m0_addb_rec_rid_make(dp->art_base_type, dp->art_id);
 	trl_offset = sink->ss_segsize - sizeof trl;
-	dom = sink->ss_stob->so_domain;
 	bshift = sink->ss_bshift;
 	pb->spb_io.si_opcode = SIO_READ;
 	sink->ss_sync = true;

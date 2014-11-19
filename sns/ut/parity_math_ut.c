@@ -797,10 +797,8 @@ static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_vector *des,
 static void reconstruct(const struct m0_sns_ir *ir, const struct m0_vector *b,
 			struct m0_vector *r)
 {
-	uint32_t		total_failures;
 	const struct m0_matrix *rm = &ir->si_data_recovery_mat;
 
-	total_failures = block_nr(ir) - ir->si_alive_nr;
 	if (ir->si_failed_data_nr != 0) {
 		M0_UT_ASSERT(rm->m_width == ir->si_data_nr);
 		M0_UT_ASSERT(rm->m_height == ir->si_failed_data_nr);
