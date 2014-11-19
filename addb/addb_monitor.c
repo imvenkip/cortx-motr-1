@@ -149,6 +149,12 @@
 
 */
 
+#ifdef __KERNEL__
+#include <linux/compiler.h>  /* GCC_VERSION */
+#else
+#include <ansidecl.h>        /* GCC_VERSION */
+#endif
+
 #undef M0_ADDB_CT_CREATE_DEFINITION
 #define M0_ADDB_CT_CREATE_DEFINITION
 #undef M0_ADDB_RT_CREATE_DEFINITION
@@ -560,9 +566,15 @@ err1_injected:
 		/**
 		 * Post summary record on global machine too.
 		 */
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic ignored "-Waddress"
+#endif
 		M0_ADDB_MONITOR_STATS_POST(&m0_addb_gmc,
 					   m0_addb_rec_type_lookup(rec->ss_id),
 					   cv, rec);
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic pop
+#endif
 		if (used == stats_batch) {
 			fop_data->suf_stats.sf_nr = stats_batch;
 			result =

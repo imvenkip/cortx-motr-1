@@ -17,6 +17,12 @@
  * Original creation date: 04/01/2013
  */
 
+#ifdef __KERNEL__
+#include <linux/compiler.h>  /* GCC_VERSION */
+#else
+#include <ansidecl.h>        /* GCC_VERSION */
+#endif
+
 #include "lib/memory.h"
 #include "lib/misc.h"
 
@@ -58,8 +64,14 @@ static struct m0_sm_conf fom_phases_conf = {
 	.scf_trans     = trans
 };
 
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic ignored "-Waddress"
+#endif
 M0_ADDB_RT_SM_CNTR(addb_rt_fom_phase_stats, ADDB_RECID_FOM_PHASE_STATS,
 		   &fom_phases_conf, M0_FOM_SM_STATS_HIST_ARGS);
+#if defined(GCC_VERSION) && GCC_VERSION >= 4006
+#pragma GCC diagnostic pop
+#endif
 
 static size_t fom_stats_home_locality(const struct m0_fom *fom);
 static void fop_stats_fom_fini(struct m0_fom *fom);
