@@ -606,7 +606,7 @@ static int m0_ios_mds_conn_init(struct m0_reqh             *reqh,
 	struct m0_rpc_machine       *rpc_machine;
 	const char                  *srv_ep_addr;
 	struct cs_endpoint_and_xprt *ep;
-	int                          rc;
+	int                          rc = 0;
 	struct m0_ios_mds_conn      *conn;
 	M0_ENTRY();
 

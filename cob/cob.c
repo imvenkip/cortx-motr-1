@@ -672,7 +672,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 				   const struct m0_fid *rootfid,
 				   struct m0_be_tx *tx)
 {
-	struct m0_cob_nskey  *nskey;
+	struct m0_cob_nskey  *nskey = NULL;
 	struct m0_cob_nsrec   nsrec;
 	struct m0_cob_omgkey  omgkey;
 	struct m0_cob_omgrec  omgrec;
