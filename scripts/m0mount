@@ -142,14 +142,18 @@ setup_local_server_config=0
 wait_after_mount=1
 verbosity=0
 
-M0_TRACE_IMMEDIATE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap,conf
-M0_TRACE_LEVEL=warn+
-M0_TRACE_PRINT_CONTEXT=short
+M0MKFS_TRACE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap,conf
+M0MKFS_TRACE_LEVEL=warn+
+M0MKFS_TRACE_CONTEXT=short
+
+M0D_TRACE_MASK=m0d,fop,cob,ioservice,stob,adstob,balloc,extmap,conf
+M0D_TRACE_LEVEL=warn+
+M0D_TRACE_CONTEXT=short
 
 # kernel space tracing parameters
-MERO_MODULE_TRACE_MASK=m0t1fs,fop,rpc,formation
-MERO_TRACE_PRINT_CONTEXT=short
-MERO_TRACE_LEVEL=warn+
+M0T1FS_TRACE_MASK=m0t1fs,fop,rpc,formation
+M0T1FS_TRACE_CONTEXT=short
+M0T1FS_TRACE_LEVEL=warn+
 
 # Local mount data
 MP=/mnt/m0
@@ -172,8 +176,8 @@ XPT_SETUP="-m $XPT_MEMSIZE -q $XPT_QUEUELEN"
 XPT_PARAM_R="max_rpc_msg_size=163840 tm_recv_queue_min_len=1"	# remote host
 XPT_PARAM_L="max_rpc_msg_size=163840 tm_recv_queue_min_len=48"	# local host
 
-KTRACE_FLAGS="trace_immediate_mask=$MERO_MODULE_TRACE_MASK \
-trace_print_context=$MERO_TRACE_PRINT_CONTEXT trace_level=$MERO_TRACE_LEVEL"
+KTRACE_FLAGS="trace_immediate_mask=$M0T1FS_TRACE_MASK \
+trace_print_context=$M0T1FS_TRACE_CONTEXT trace_level=$M0T1FS_TRACE_LEVEL"
 
 # track hosts that have been initialized in an associative array
 declare -A SETUP
@@ -550,9 +554,9 @@ function start_server ()
 			echo Running mkfs...
 			$DO "rm -rf $DIR; mkdir $DIR"
 			$RUN "cd $DIR && \
-M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
-M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
-M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
+M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
 $M0MKFS -T linux -D $DIR/db -S $DIR/stobs \
 -A linuxstob:$DIR/addb-stobs" || {
 				echo ERROR: Failed to m0mkfs for confd on $H
@@ -560,9 +564,9 @@ $M0MKFS -T linux -D $DIR/db -S $DIR/stobs \
 			}
 		fi
 		$RUN "cd $DIR && \
-M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
-M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
-M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
+M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs \
 -A linuxstob:$DIR/addb-stobs \
 -e $XPT:$CONFD_EP -s confd -c $CONF_FILE $XPT_SETUP" > ${SLOG}-confd.log &
@@ -579,9 +583,9 @@ $M0D -T linux -D $DIR/db -S $DIR/stobs \
 	if [ $run_mkfs -eq 1 ]; then
 		echo Running mkfs...
 		$RUN "cd $DDIR && \
-M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
-M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
-M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
+M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
 $M0MKFS $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
 -A linuxstob:$DDIR/addb-stobs" || {
 			echo ERROR: Failed to m0mkfs on $H
@@ -590,9 +594,9 @@ $M0MKFS $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs \
 	fi
 	echo Running m0d...
 	$RUN "cd $DDIR && \
-M0_TRACE_IMMEDIATE_MASK=$M0_TRACE_IMMEDIATE_MASK \
-M0_TRACE_LEVEL=$M0_TRACE_LEVEL \
-M0_TRACE_PRINT_CONTEXT=$M0_TRACE_PRINT_CONTEXT \
+M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
+M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
+M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D $STOB_PARAMS -D $DDIR/db -S $DDIR/stobs -A linuxstob:$DDIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$EP $SNAME $XPT_SETUP" >> ${SLOG}$I.log &
 	if [ $? -ne 0 ]; then
